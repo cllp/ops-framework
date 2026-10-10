@@ -2458,7 +2458,9 @@ Kalendern och inkorgen är ramverkets grund och har alla grupper, utan att en mo
   [Modulkontraktet](#modulkontraktet)). Ramverket vet aldrig vad Ekonomi är, bara att en modul med id `ekonomi` finns.
 - **`OpsGruppHubb`** ritar hubben för en grupp (`grupp`, `moduler`, `activeHref`, `onNavigate`, `sprak`, `info` och `badge`
   per modul-id). ⛔ En modul som appen inte registrerat, eller en med `hubb: null`, ritas inte, och en rad under korten
-  säger vilken och varför. En grupp utan moduler säger det med gruppens namn. Beslutet bor i **`hubbForGrupp`**, så det går
+  säger vilken och varför. En grupp utan moduler säger det med gruppens namn. En modul med kort som gruppen inte har
+  listas under korten, också när gruppen redan har appar, med **Installera** när appen skickar `installera` (ägaren).
+  Beslutet bor i **`hubbForGrupp`**, så det går
   att pröva utan att rita. Sedan 0.83.0 har varje kort för en modul med fler än en del en chevron (`aria-expanded`,
   "Visa delarna i Ekonomi") som fäller ut delarna som länkar med ikon. Kortet självt leder som förut till startsidan. En
   modul med en enda del får ingen chevron, eftersom delen är startsidan. Läget sparas inte mellan besök.

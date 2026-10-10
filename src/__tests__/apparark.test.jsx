@@ -101,6 +101,14 @@ describe("OpsAppShell apparArk", () => {
     expect(appar.getAttribute("aria-expanded")).toBe("true");
     expect(appar.getAttribute("aria-current")).toBe("page");
     expect(idag.getAttribute("aria-current")).toBeNull();
+    const dialog = screen.getByRole("dialog");
+    const handtag = dialog.querySelector("[data-ark-handtag]");
+    expect(handtag).toBeTruthy();
+    expect(handtag?.getAttribute("tabindex")).toBe("-1");
+    expect(handtag?.className).toContain("md:hidden");
+    expect(handtag?.className).toContain("outline-none");
+    expect(document.activeElement).not.toBe(handtag);
+    expect(dialog.querySelector("[data-ark-mal]")).toBeNull();
     expect(within(screen.getByRole("dialog")).getByRole("link", { name: "Ekonomi" })).toBeTruthy();
     expect(within(screen.getByRole("dialog")).queryByRole("link", { name: "Inkorg" })).toBeNull();
     fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
@@ -166,7 +174,9 @@ describe("OpsAppShell apparArk", () => {
     const resor = within(dialog).getByRole("option", { name: "Resor" });
     fireEvent.pointerDown(ekonomi, { button: 0, pointerId: 1, clientX: 10, clientY: 10 });
     fireEvent.pointerMove(resor, { pointerId: 1, clientX: 80, clientY: 10 });
+    expect(dialog.querySelector("[data-ark-mal='resor'], [data-ark-id='resor'][data-ark-mal]")).toBeTruthy();
     fireEvent.pointerUp(resor, { pointerId: 1, clientX: 80, clientY: 10 });
+    expect(dialog.querySelector("[data-ark-mal]")).toBeNull();
     expect(idOrdning(dialog)).toEqual(["resor", "ekonomi"]);
     expect(onOrdning).not.toHaveBeenCalled();
     fireEvent.keyDown(dialog, { key: "Escape" });

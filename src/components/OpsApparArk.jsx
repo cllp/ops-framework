@@ -30,6 +30,17 @@ import { useOpsSprak } from "./OpsSprak.jsx";
  * finns inte där, och ett ark mot skärmens underkant hade täckt något som inte
  * är en flikrad.
  *
+ * ⛔ HANDTAGETS FOKUSRING ÄR INTE EN APP (CP 2026-10-10, gruppen Travel, dator).
+ * Arket öppnas och Radix fokuserar första knappen. Det är handtaget som drar
+ * ned arket på telefonen: träffytan är `h-11` gånger `w-16`, en tunn list i
+ * mitten, och `:focus-visible` ritar en accentkant runt hela träffytan. Den
+ * kanten är den tomma inramade rutan högst upp, före apparna. Mätt i CP:s bild:
+ * rutan sitter centrerad i panelens överkant, i accentfärgen, i samma ruta som
+ * handtagets fokusring. På dator är ytan en panel, inte ett ark man drar ned,
+ * så handtaget ritas inte där (`md:hidden`). Det ligger utanför tabbordningen,
+ * får ingen kontur, och öppning flyttar inte fokus till det. Släppmarkeringen
+ * (`data-ark-mal`) finns bara medan en app dras.
+ *
  * ⛔ KROMET SKA GÅ ATT TRYCKA PÅ. En modal sätter `pointer-events: none` på
  * `body`, och då är fliken Appar död fast den syns ovanför arket. Mätt
  * 2026-10-09: arkets ruta slutade vid bottenradens överkant, men
@@ -258,6 +269,10 @@ export function OpsApparArk({ oppen, onOppen, moduler, grupp, farAndra, onOrdnin
           data-appar-ark=""
           data-rorelse={reducerad ? "reducerad" : "normal"}
           aria-describedby={undefined}
+          onOpenAutoFocus={(e) => {
+            // Första knappen är handtaget. Dess fokusring är den tomma rutan, se filhuvudet.
+            e.preventDefault();
+          }}
           onPointerDownOutside={(e) => {
             if (arKrom(e.target)) e.preventDefault();
           }}
@@ -298,8 +313,9 @@ export function OpsApparArk({ oppen, onOppen, moduler, grupp, farAndra, onOrdnin
             <button
               type="button"
               data-ark-handtag=""
+              tabIndex={-1}
               aria-label={t("handtag")}
-              className="absolute top-2 left-1/2 inline-flex h-11 w-16 -translate-x-1/2 cursor-grab items-center justify-center focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+              className="absolute top-2 left-1/2 inline-flex h-11 w-16 -translate-x-1/2 cursor-grab items-center justify-center focus-visible:outline-none md:hidden"
             >
               <span aria-hidden="true" className="h-1 w-9 rounded-full bg-line-strong" />
             </button>

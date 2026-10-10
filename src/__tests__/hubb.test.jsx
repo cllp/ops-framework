@@ -353,23 +353,41 @@ describe("OpsGruppHubb: ritad", () => {
     expect(within(lista).getByText("Resor")).toBeTruthy();
     // Inkorg har hubb: null och blir inget kort. Den står inte i listan.
     expect(within(lista).queryByText("Inkorg")).toBeNull();
-    expect(screen.queryByRole("link", { name: "Välj appar" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Välj appar" })).toBeNull();
+    expect(screen.queryByRole("link", { name: /Installera/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Installera/ })).toBeNull();
   });
 
-  it("⛔ ägarens väg är en länk eller en knapp, och den byter meningen", () => {
+  it("⛔ ägarens väg är en länk eller en knapp per app, och den byter meningen", () => {
     const gick = vi.fn();
     const { unmount } = render(<OpsGruppHubb grupp={G([])} moduler={moduler()} installera={{ href: "/installningar" }} onNavigate={gick} />);
     expect(screen.getByText(/Välj vilka som ska finnas här/)).toBeTruthy();
-    const lank = screen.getByRole("link", { name: "Välj appar" });
+    const lank = screen.getByRole("link", { name: "Installera Ekonomi" });
     expect(lank.getAttribute("href")).toBe("/installningar");
     fireEvent.click(lank);
     expect(gick).toHaveBeenCalledWith("/installningar", expect.anything());
     unmount();
     const klick = vi.fn();
     render(<OpsGruppHubb grupp={G([])} moduler={moduler()} installera={{ onClick: klick }} />);
-    fireEvent.click(screen.getByRole("button", { name: "Välj appar" }));
-    expect(klick).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByRole("button", { name: "Installera Resor" }));
+    expect(klick).toHaveBeenCalledWith("resor");
+  });
+
+  it("⛔ en grupp som redan har appar erbjuder de som saknas, till exempel Bibliotek i Travel", () => {
+    const klick = vi.fn();
+    const { unmount } = render(<OpsGruppHubb grupp={G(["ekonomi"])} moduler={moduler()} installera={{ onInstallera: klick }} />);
+    expect(screen.getByRole("link", { name: /^Ekonomi/ })).toBeTruthy();
+    const lista = screen.getByRole("list", { name: "Appar som kan läggas till" });
+    expect(within(lista).getByText("Resor")).toBeTruthy();
+    expect(within(lista).queryByText("Ekonomi")).toBeNull();
+    expect(within(lista).queryByText("Inkorg")).toBeNull();
+    fireEvent.click(within(lista).getByRole("button", { name: "Installera Resor" }));
+    expect(klick).toHaveBeenCalledTimes(1);
+    expect(klick).toHaveBeenCalledWith("resor");
+    unmount();
+    render(<OpsGruppHubb grupp={G(["ekonomi"])} moduler={moduler()} />);
+    expect(screen.getByText("Resor")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Installera/ })).toBeNull();
+    expect(screen.getByText("Ägaren installerar dem i gruppens inställningar.")).toBeTruthy();
   });
 
   it("⛔ en modul som inte ritas får en rad som säger varför", () => {

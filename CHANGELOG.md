@@ -9,6 +9,29 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.92.3
+
+Den tomma rutan i app-arket, och appar som saknas i gruppen. Utges som 0.92.3, efter 0.92.2.
+
+### App-arket
+
+CP 2026-10-10, dator, gruppen Travel: en tom inramad ruta högst upp i panelen Appar, före Meddelanden.
+
+Orsaken är handtaget som drar ned arket på telefonen. Det är första knappen, så Radix fokuserar det när panelen öppnas. Träffytan är `h-11` gånger `w-16` med en tunn list i mitten, och `:focus-visible` ritar en accentkant runt hela ytan. Den kanten är rutan. Mätt i bilden: rutan sitter centrerad i panelens överkant, i accentfärgen, i samma ruta som handtagets fokusring. Det är inte en app utan ikon. Ett kort utan ikon går inte att registrera (`hubb.ikon` måste vara ett element).
+
+- Handtaget ritas inte på dator (`md:hidden`). Där är ytan en panel, inte ett ark man drar ned.
+- Det ligger utanför tabbordningen och får ingen kontur. Öppning flyttar inte fokus dit.
+- Släppmarkeringen (`data-ark-mal`) finns bara medan en app dras.
+
+### Alla appar
+
+- **`OpsGruppHubb`** listar appar med kort som gruppen inte har, också när gruppen redan har appar. Travel med Meddelanden men utan Bibliotek visar Bibliotek under "Appar som kan läggas till", med **Installera** när appen skickar `installera`.
+- En modul utan kort (`hubb: null`) erbjuds inte. En medlem ser namnen och att ägaren installerar. `onInstallera(id)` installerar just den appen. Utan den anropas `onClick` med id, eller så öppnas `href`.
+
+### Regler och funktioner
+
+Inga Firestore-regler och inga funktioner ändras.
+
 ## 0.92.2
 
 lifehub.app#150: innehållsbredd-token, `OpsSidoyta` och `OpsVyValjare` landar på main.
