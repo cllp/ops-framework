@@ -514,6 +514,16 @@
    * ──────────────────────────────────────────────────────────────────────── */
   --spacing: 4px;
 
+  /*
+   * ⛔ INNEHÅLLSBREDD (0.91.2, lifehub.app#150). En token, en layoutyta.
+   * Hubbar, Profil och Inställningar (och `OpsView` width="normal") delar
+   * `--ops-innehall-max`. Tailwind-utilityn `max-w-innehall` och klassen
+   * `.ops-sidoyta` pekar på samma tal. 64 rem = tidigare `max-w-5xl`.
+   * En sida som sätter egen max-width återinför hoppet mellan vyerna.
+   */
+  --ops-innehall-max: 64rem;
+  --max-width-innehall: var(--ops-innehall-max);
+
   /* ⛔ #157: "Kortets luft och linje justeras till SessionStudios mått, i
    * tokens och inte per komponent, så att alla kort följer med." `OpsCard`
    * satte `p-4` (16 px) i sin egen klasslista; SessionStudios kort (t.ex.
@@ -1290,6 +1300,17 @@
     outline: 2px solid var(--color-accent);
     outline-offset: 2px;
   }
+}
+
+/*
+ * ⛔ SIDOYTAN (0.91.2, lifehub.app#150). Samma maxbredd som `OpsView` normal
+ * och `OpsSidoyta`. Ligger utanför @theme så vanlig HTML (identity-shell) kan
+ * sätta klassen utan att gå via Tailwind-utilities.
+ */
+.ops-sidoyta {
+  width: 100%;
+  max-width: var(--ops-innehall-max);
+  margin-inline: auto;
 }
 
 /*

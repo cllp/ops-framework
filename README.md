@@ -171,7 +171,7 @@ mörkt deklareras **en gång**; blocken som aktiverar den får bara peka.
 
 ### Komponenter
 
-**128 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
+**130 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
 eller `...rest`. Ett okänt värde kastar med läsbar text i stället för att rendera
 något godtyckligt.
 
@@ -181,8 +181,10 @@ något godtyckligt.
 |---|---|
 | `OpsButton` | `variant` primary \| secondary \| ghost \| danger, `size` sm \| md, `type`, `disabled`, `busy`, `fullWidth`, `iconOnly`, `href`, `newTab`, `ariaLabel`, `title`, `id`, `onClick`, `children` |
 | `OpsCard` | `rounding` (`"kort"` 24 px, förval, eller `"bubbla"` 28 px). ⛔ TVÅ RADIER OCH INTE EN SKALA: `kort` för allt som är en RUTA (en panel, en sektion, en tabell), `bubbla` för det som är ett OBJEKT i en ström (en händelse, ett kort man bläddrar förbi). Skillnaden ska gå att se utan att jämföra, och ett tredje steg emellan gör att ingen av dem längre betyder något. Båda talen är MÄTTA mot SessionStudios `.rounded-app` (ops-framework#164): `kort` är `--radius-card` (24 px, ett namngivet token), `bubbla` är `--radius-3xl` (28 px, SessionStudios `--radius-bubble`). Kastar på en okänd rundning, eftersom en tyst reserv gör `"bubla"` till ett kort som ser nästan rätt ut. `tone` raised \| sunken \| plain, `kant` (förval `false`, #167), `elevated`, `flush`, `edge` 1-6, `edgeLabel`, `id`, `children`. ⛔ Inre padding är `--card-padding` (20px, #157, mätt mot SessionStudios `p-5`), ett token och inte en klass: `p-4` satt förut hårdkodat i komponenten, så en justering hade krävt en ändring per primitiv i stället för en rad i `tokens/tokens.css`. ⛔ **#167: `kant` förvalt `false`.** Kortet satte tidigare `border` ovillkorligt; SessionStudio skiljer ett kort från sidan med `tone` (tonskillnad), aldrig med en synlig kant. Sätt `kant` när en yta ändå behöver en, t.ex. mot en likfärgad granne |
-| `OpsView` | `width` narrow \| normal \| wide \| full, `tillbaka` (0.31.0: `OpsHubTillbaka`s props, raden "‹ Hub / Sida" överst), `children`. Se [Sidchrome och sidnavigering](#sidchrome-och-sidnavigering-0310). |
+| `OpsView` | `width` narrow \| normal \| wide \| full, `tillbaka` (0.31.0: `OpsHubTillbaka`s props, raden "‹ Hub / Sida" överst), `children`. `normal` är tokenen `--ops-innehall-max` / `max-w-innehall` (0.92.2). Se [Sidchrome och sidnavigering](#sidchrome-och-sidnavigering-0310). |
 | `OpsViewHeader` | `title`, `description`, `actions` |
+| `OpsSidoyta` | `children`. **(0.92.2, lifehub.app#150)** Sidans innehållsbredd från tokenen `--ops-innehall-max`. Samma klass `.ops-sidoyta` finns i tokens.css för shell i HTML. Hubbar, Profil och Inställningar ska dela den, aldrig egen `max-width` per sida. |
+| `OpsVyValjare` | `rubrik`, `vald`, `poster` (`{ id, etikett, href?, onClick?, destructive? }`), `onNavigate?`, `menyEtikett?`. **(0.92.2, lifehub.app#150)** Vyns namn i mitten av headern med chevron och meny, samma gest som kalenderns vybyte. Identity: Hubbar, Profil, Anslutningar, Betalningar och konto, AI-nycklar, Logga ut. |
 | `OpsModal` | `oppet`, `onOpenChange`, `title` (krävs), `description`, `size` sm \| md \| lg, `footer`, `closeLabel`, `children` |
 | `OpsDisclosure` | `summary` (krävs), `defaultOpen`, `oppet`, `onOpenChange`, `storageKey`, `badge`, `id`, `children` |
 

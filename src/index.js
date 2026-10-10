@@ -33,6 +33,8 @@ export { OpsBrand } from "./components/OpsBrand.jsx";
 export { OpsButton } from "./components/OpsButton.jsx";
 export { OpsCard } from "./components/OpsCard.jsx";
 export { OpsView, OpsViewHeader } from "./components/OpsView.jsx";
+export { OpsSidoyta } from "./components/OpsSidoyta.jsx";
+export { OpsVyValjare } from "./components/OpsVyValjare.jsx";
 export { OpsHuvudmenyProvider, useIHuvudmenyn } from "./components/OpsHuvudmeny.jsx";
 export { OpsModal } from "./components/OpsModal.jsx";
 export { OpsDisclosure } from "./components/OpsDisclosure.jsx";

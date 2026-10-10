@@ -12,11 +12,20 @@ import { OpsHubTillbaka, SIDRUBRIK_KLASS } from "./OpsTillbaka.jsx";
  *
  * ⛔ Bredden är en av tre, inte fri. "Lite bredare på den här sidan" upprepat
  * tio gånger är exakt hur en produkt slutar kännas som en produkt.
+ *
+ * ⛔ `normal` ÄR `--ops-innehall-max` (0.91.2). Identity och andra ytor som
+ * delar Hubbar/Profil/Inställningar ska använda `OpsSidoyta` eller samma token,
+ * aldrig en lokal `max-width` per sida (lifehub.app#150).
  */
 
 const BREDDER = {
   narrow: "max-w-2xl",
-  normal: "max-w-5xl",
+  /*
+   * ⛔ `normal` ÄR TOKENEN `--ops-innehall-max` / `max-w-innehall` (0.91.2, lifehub.app#150).
+   * Förr `max-w-5xl` (samma 64 rem). Tokenen finns så shell i HTML och OpsView delar
+   * EN bredd, och ingen sida sätter egen max-width.
+   */
+  normal: "max-w-innehall",
   wide: "max-w-7xl",
   full: "max-w-none",
 };
