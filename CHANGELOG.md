@@ -9,6 +9,31 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.92.4
+
+Ljudraden i Biblioteket. Utges som 0.92.4, efter 0.92.3.
+
+CP 2026-10-10, iPhone, Bibliotek i 0.92.3: den runda spelknappen låg på musikikonen, längden stod `0:04 / 0:00`, vågen var en platt grå rand, kontrollerna var ihoptryckta, och rubriken man döpt inspelningen till syntes inte.
+
+### Listan och detaljen
+
+- En ljudrad har ett element till vänster: spelknappen. Musikikonen ritas inte på den raden.
+- Rubriken visas alltid. Saknas namnet blir det "Röstinspelning" plus datumet posten skapades (`ljudRubrik`, `ljudDatum`). Samma namn i detaljens rubrik.
+- Under rubriken: datum och längd. Längden utelämnas när den inte är räknad, så `0:00` inte påstår att ljudet är tomt.
+- Vågen ritas ur sparade toppar, med förlopp i accent, och går att skrubba.
+- Hopp, hastighet och Ladda ned ligger i detaljen och i ⋯-menyn. Träffytor minst 44 px.
+
+### Längd och toppar
+
+- `durationMs` och `peaks` på posten. Bara ljud, och valfria, så en gammal post utan fälten fortfarande är giltig. `LJUD_STOLPAR` är 48. `MAX_LJUD_MS` är tolv timmar.
+- När HTML-längden är Infinity söker spelaren till ett stort värde och läser igen. Avkodning med AudioContext är reserven och ger också topparna.
+- Uppladdning och inspelning sparar längd och toppar ur filen, eller ur inspelarens sekunder när avkodningen inte går.
+- En gammal post fylls i bakgrunden när spelaren räknat fram dem. Appen tar emot `onFyllLjud` och skriver. Listan visar värdet redan i sessionen.
+
+### Regler
+
+`durationMs` och `peaks` får bara stå på ett ljud, och bara när de är giltiga. Anteckning och länk får dem inte. Inga funktioner ändras.
+
 ## 0.92.3
 
 Den tomma rutan i app-arket, och appar som saknas i gruppen. Utges som 0.92.3, efter 0.92.2.

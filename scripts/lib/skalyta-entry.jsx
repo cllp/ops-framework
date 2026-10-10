@@ -1388,6 +1388,55 @@ function BibliotekYta({ oppnaDetalj = false }) {
   );
 }
 
+/** Ljudraden: rubrik, datum och längd, spela, våg, ⋯. En rad utan namn faller tillbaka på Röstinspelning. */
+function BibliotekLjudYta({ oppnaDetalj = false }) {
+  const Bib = Ops.OpsBibliotek;
+  const bygg = Ops.byggPost;
+  const stolpar = Ops.LJUD_STOLPAR || 48;
+  if (!Bib || !bygg) return <p data-saknas="OpsBibliotek">OpsBibliotek saknas</p>;
+  const tid = Date.UTC(2026, 9, 8, 10, 0);
+  const skapare = { uid: "uid-1", namn: "Kim", typ: "manniska", kalla: "bibliotek" };
+  const peaks = Array.from({ length: stolpar }, (_, i) => Math.round(Math.abs(Math.sin(i / 2.2)) * 1000) / 1000);
+  peaks[4] = 1;
+  const fil = { sokvag: "grupper/cps-ab/bibliotek/ljud/hyllan.webm", namn: "hyllan.webm", mime: "audio/webm", byte: 882688 };
+  let bas;
+  try {
+    bas = bygg({
+      groupId: "cps-ab",
+      typ: "fil",
+      rubrik: "Hyllan i hallen",
+      fil,
+      durationMs: 4000,
+      peaks,
+      skapadAv: skapare,
+      skapad: tid,
+      andrad: tid,
+    });
+  } catch (e) {
+    return <p data-saknas="ljudmeta">{e instanceof Error ? e.message : "ljudmeta saknas"}</p>;
+  }
+  const namngiven = { ...bas, id: "hyllan" };
+  const utanNamn = { ...bas, id: "tom", rubrik: "" };
+  const poster = [namngiven, utanNamn];
+  const [vald, setVald] = useState(oppnaDetalj ? namngiven : null);
+  return (
+    <Bib
+      poster={poster}
+      jag={{ uid: "uid-1", roll: "medlem" }}
+      vald={vald}
+      skapar={null}
+      onOppna={(p) => setVald(p)}
+      onStang={() => setVald(null)}
+      onSkapa={() => {}}
+      onSpara={() => {}}
+      onFyllLjud={() => {}}
+      filUrl={() => "https://exempel.se/hyllan.webm"}
+      hubHref="/hub"
+      onNavigate={(_href, e) => e.preventDefault()}
+    />
+  );
+}
+
 /** Telefonens app-ark: hyllan sitter på bottenraden och pluset ska måla över kanten. */
 function ApparArkScen() {
   const bygg = Ops.defineModule;
@@ -1807,6 +1856,9 @@ function Scen() {
   // Bibliotekets flikrad och detaljens Tillbaka. Saknas komponenten (äldre dist) ritas en markör.
   if (s === "bibliotek" || s === "bibliotekdetalj") {
     return <Full><BibliotekYta oppnaDetalj={s === "bibliotekdetalj"} /></Full>;
+  }
+  if (s === "bibliotekljud" || s === "bibliotekljuddetalj") {
+    return <Full><BibliotekLjudYta oppnaDetalj={s === "bibliotekljuddetalj"} /></Full>;
   }
   // 0.87.0 (#321): utfälld aktivitet. Raden visar rubrik och detalj. Utfällningen ska inte rita dem igen.
   if (s === "aktivitet") {

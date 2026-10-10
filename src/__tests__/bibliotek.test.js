@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ADRESSFORM, BIBLIOTEKFALT, BIBLIOTEKFLIKAR, BIBLIOTEKTYPER, MAX_BIBLIOTEKUTSKRIFT, arLjudpost, byggPost, farAndra, filtreraBibliotek, ideRubrik, inmatningsfel, normaliseraAdress, postFel, trimSomRegeln } from "../lib/bibliotek.js";
+import { ADRESSFORM, BIBLIOTEKFALT, BIBLIOTEKFLIKAR, BIBLIOTEKTYPER, LJUD_STOLPAR, MAX_BIBLIOTEKUTSKRIFT, MAX_LJUD_MS, arLjudpost, byggPost, farAndra, filtreraBibliotek, ideRubrik, inmatningsfel, ljudDatum, ljudRubrik, normaliseraAdress, peaksGiltiga, postFel, trimSomRegeln } from "../lib/bibliotek.js";
 import { SKAPARFALT, byggSkapare } from "../lib/skapare.js";
 
 /**
@@ -37,6 +37,32 @@ describe("bibliotekets post", () => {
 
   it("en idé heter Idé plus datum och tid", () => {
     expect(ideRubrik(new Date(2026, 9, 8, 21, 5))).toBe("Idé 2026-10-08 21:05");
+  });
+
+  it("ett ljud utan namn heter Röstinspelning plus datum, och ett döpt ljud behåller rubriken", () => {
+    const skapad = new Date(2026, 9, 8, 21, 5).getTime();
+    expect(ljudRubrik({ rubrik: "  ", skapad })).toBe(`Röstinspelning ${ljudDatum(skapad)}`);
+    expect(ljudRubrik({ rubrik: "Hyllan", skapad })).toBe("Hyllan");
+    expect(ljudRubrik({ rubrik: "", skapad: "igår" })).toBe("Röstinspelning");
+    expect(ljudDatum(skapad)).toMatch(/2026/);
+  });
+
+  it("längd och våg hör bara till ett ljud, och vågen har ett bestämt antal toppar", () => {
+    const bas = { ...anteckning, typ: "fil", text: undefined, rubrik: "Idé" };
+    const ljud = { sokvag: "grupper/cps-ab/bibliotek/p1/ide.webm", namn: "ide.webm", mime: "audio/webm", byte: 100 };
+    const toppar = Array.from({ length: LJUD_STOLPAR }, (_, i) => (i === 3 ? 1 : i / 100));
+    expect(peaksGiltiga(toppar)).toBe(true);
+    expect(peaksGiltiga(toppar.slice(0, 4))).toBe(false);
+    const byggd = byggPost({ ...bas, fil: ljud, durationMs: 4200, peaks: toppar });
+    expect(byggd.durationMs).toBe(4200);
+    expect(byggd.peaks).toHaveLength(LJUD_STOLPAR);
+    expect(postFel({ ...bas, fil: ljud, durationMs: 0 })).toMatch(/durationMs/);
+    expect(postFel({ ...bas, fil: ljud, durationMs: MAX_LJUD_MS + 1 })).toMatch(/durationMs/);
+    expect(postFel({ ...bas, fil: ljud, peaks: [1, 2] })).toMatch(/toppar/);
+    expect(postFel({ ...bas, fil: ljud, peaks: toppar.map(() => 1.1) })).toMatch(/toppar/);
+    expect(postFel({ ...anteckning, durationMs: 1000 })).toMatch(/ingen längd/);
+    const bild = { sokvag: "grupper/cps-ab/bibliotek/p1/k.jpg", namn: "k.jpg", mime: "image/jpeg", byte: 100 };
+    expect(postFel({ ...bas, fil: bild, durationMs: 1000 })).toMatch(/Bara ett ljud/);
   });
 
   it("en fil med bild, dokument eller ljud går att bygga, och fel format eller för stor fil gör det inte", () => {

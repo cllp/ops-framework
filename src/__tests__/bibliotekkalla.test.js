@@ -168,6 +168,7 @@ describe("createBibliotekskalla", () => {
     });
     expect(sparad.fil.mime).toBe("audio/webm");
     expect(sparad.fil.sokvag).toBe(`grupper/cps-ab/bibliotek/${sparad.id}/ide.webm`);
+    expect(Object.hasOwn(sparad, "durationMs")).toBe(false);
     expect(uppladdat[0].contentType).toBe("audio/webm");
     await expect(kalla.laddaUppFil({ rubrik: "Stor", fil: { name: "stor.jpg", type: "image/jpeg", size: 25 * 1024 * 1024 + 1 } })).rejects.toThrow(/Taket/);
 
@@ -179,6 +180,23 @@ describe("createBibliotekskalla", () => {
       lagring: { laddaUpp: async () => { throw new Error("nekad"); }, taBort: async () => {} },
       sokvag: ({ groupId, postId, namn }) => `grupper/${groupId}/bibliotek/${postId}/${namn}`,
     });
+    const inspelad = await kalla.laddaUppFil({
+      rubrik: "Röst",
+      fil: { name: "rost.mp4", type: "audio/mp4", size: 80 },
+      sekunder: 4.2,
+    });
+    expect(inspelad.durationMs).toBe(4200);
+    expect(Object.hasOwn(inspelad, "peaks")).toBe(false);
+    const toppar = Array.from({ length: 48 }, () => 0.5);
+    toppar[0] = 1;
+    const medVag = await kalla.laddaUppFil({
+      rubrik: "Våg",
+      fil: { name: "vag.webm", type: "audio/webm", size: 80 },
+      durationMs: 9000,
+      peaks: toppar,
+    });
+    expect(medVag.durationMs).toBe(9000);
+    expect(medVag.peaks[0]).toBe(1);
     await expect(nekad.laddaUppFil({ rubrik: "Nekad", fil: { name: "a.jpg", type: "image/jpeg", size: 10 } })).rejects.toThrow(/nekad/);
     const efter = await nekad.las();
     expect(efter.poster.map((p) => p.rubrik)).not.toContain("Nekad");
@@ -197,6 +215,13 @@ describe("createBibliotekskalla", () => {
     const omdopt = await kalla.spara({ id: skapad.id, rubrik: "Omdöpt", fil });
     expect(omdopt.rubrik).toBe("Omdöpt");
     expect(omdopt.utskrift).toBe("Hej");
+    const toppar = Array.from({ length: 48 }, (_, i) => (i === 1 ? 1 : 0.2));
+    const medLangd = await kalla.spara({ id: skapad.id, rubrik: "Omdöpt", fil, durationMs: 4000, peaks: toppar });
+    expect(medLangd.durationMs).toBe(4000);
+    expect(medLangd.peaks).toHaveLength(48);
+    const kvar = await kalla.spara({ id: skapad.id, rubrik: "Kvar", fil });
+    expect(kvar.durationMs).toBe(4000);
+    expect(kvar.peaks[1]).toBe(1);
     const bild = { ...fil, mime: "image/jpeg", namn: "k.jpg", sokvag: "grupper/cps-ab/bibliotek/p/k.jpg" };
     await expect(kalla.spara({ id: skapad.id, rubrik: "Bild", fil: bild, utskrift: "Hej" })).rejects.toThrow(/Bara ett ljud/);
   });

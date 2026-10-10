@@ -366,13 +366,15 @@ describe("OpsBibliotek", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Behörighet saknas.");
   });
 
-  it("ett ljud har spela och tid i listan", () => {
+  it("ett ljud har rubrik, längd och en spelknapp, inte ikon och hopp i samma rad", () => {
     const ljud = {
       ...byggPost({
         groupId: "cps-ab",
         typ: "fil",
         rubrik: "Idé 2026-10-08 21:05",
         fil: { sokvag: "grupper/my/bibliotek/p/ide.webm", namn: "ide.webm", mime: "audio/webm", byte: 4000 },
+        durationMs: 4000,
+        peaks: Array.from({ length: 48 }, (_, i) => (i % 4 === 0 ? 1 : 0.25)),
         skapadAv: skapare,
         skapad: tid,
         andrad: tid,
@@ -380,9 +382,40 @@ describe("OpsBibliotek", () => {
       id: "ljud",
     };
     render(<Harness start={[ljud]} filUrl={() => "https://exempel.se/ide.webm"} />);
-    expect(screen.getByRole("button", { name: /^Spela / })).toBeInTheDocument();
-    expect(document.querySelector("[data-ljudspelare] [data-ljud-tid]")?.textContent).toMatch(/0:00/);
-    expect(document.querySelector("[data-ljudspelare] [data-ljud-skena]")).toBeTruthy();
+    const rad = document.querySelector("[data-bibliotek-ljudrad]");
+    expect(rad).not.toBeNull();
+    expect(rad?.querySelector("[data-bibliotek-ikon]")).toBeNull();
+    expect(screen.getByRole("button", { name: "Idé 2026-10-08 21:05" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Spela Idé 2026-10-08 21:05" })).toBeInTheDocument();
+    expect(document.querySelector("[data-ljud-langd]")?.textContent).toMatch(/0:04/);
+    expect(screen.queryByRole("button", { name: "10 sekunder bakåt" })).toBeNull();
+    expect(screen.queryByRole("link", { name: /Ladda ned/ })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Idé 2026-10-08 21:05" }));
+    expect(screen.getByRole("menuitem", { name: "Ladda ned" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "10 sekunder bakåt" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "Hastighet" })).toBeInTheDocument();
+  });
+
+  it("ett ljud utan rubrik heter Röstinspelning plus datum, i listan och i detaljen", () => {
+    const ljud = {
+      ...byggPost({
+        groupId: "cps-ab",
+        typ: "fil",
+        rubrik: "Tillfälligt",
+        fil: { sokvag: "grupper/my/bibliotek/p/ide.webm", namn: "ide.webm", mime: "audio/webm", byte: 4000 },
+        skapadAv: skapare,
+        skapad: tid,
+        andrad: tid,
+      }),
+      id: "ljud",
+      rubrik: "",
+    };
+    render(<Harness start={[ljud]} filUrl={() => "https://exempel.se/ide.webm"} />);
+    const rubrik = screen.getByRole("button", { name: /^Röstinspelning / });
+    expect(rubrik).toBeInTheDocument();
+    fireEvent.click(rubrik);
+    expect(screen.getByRole("heading", { level: 1, name: /^Röstinspelning / })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "10 sekunder bakåt" })).toBeInTheDocument();
   });
 
   it("trasiga rader visas som ett antal med skäl, inte tyst", () => {

@@ -10,6 +10,9 @@ import {
   formateraTid,
   hastighetText,
   hoppa,
+  langdArKand,
+  lasLangdMedSok,
+  metaUrBytes,
   nastaHastighet,
   nollstallSpelare,
   registreraSpelare,
@@ -52,6 +55,50 @@ describe("ljudspelarens räkning", () => {
     data[6] = -0.25;
     expect(stolparUrKanal(data, 4)).toEqual([1, 0, 0, 0.5]);
     expect(stolparUrKanal(new Float32Array(0), 4)).toEqual([]);
+  });
+
+  it("Infinity är inte en längd, och ett sök till ett stort värde läser den", async () => {
+    expect(langdArKand(Infinity)).toBe(false);
+    expect(langdArKand(0)).toBe(false);
+    expect(langdArKand(4)).toBe(true);
+    let duration = Infinity;
+    /** @type {HTMLAudioElement} */
+    const el = /** @type {HTMLAudioElement} */ (document.createElement("audio"));
+    Object.defineProperty(el, "duration", { configurable: true, get: () => duration });
+    Object.defineProperty(el, "currentTime", {
+      configurable: true,
+      get() { return /** @type {any} */ (this)._t || 0; },
+      set(v) {
+        /** @type {any} */ (this)._t = v;
+        if (v > 1e10) {
+          duration = 4.2;
+          this.dispatchEvent(new Event("timeupdate"));
+        }
+      },
+    });
+    await expect(lasLangdMedSok(el)).resolves.toBe(4.2);
+  });
+
+  it("AudioContext ger både längd och toppar när elementets duration är oändlig", async () => {
+    const kanal = new Float32Array(STOLPAR * 2);
+    kanal[2] = 0.8;
+    kanal[10] = -0.2;
+    const tidigare = globalThis.AudioContext;
+    globalThis.AudioContext = class {
+      async decodeAudioData() {
+        return { duration: 4, getChannelData: () => kanal };
+      }
+      async close() {}
+    };
+    try {
+      const meta = await metaUrBytes(new ArrayBuffer(8));
+      expect(meta?.durationMs).toBe(4000);
+      expect(meta?.peaks).toHaveLength(STOLPAR);
+      expect(Math.max(...(meta?.peaks ?? []))).toBe(1);
+    } finally {
+      if (tidigare) globalThis.AudioContext = tidigare;
+      else delete globalThis.AudioContext;
+    }
   });
 
   it("spärren pausar de andra, och en tömd spärr pausar ingen", () => {
@@ -191,6 +238,32 @@ describe("OpsLjudspelare", () => {
     render(<BilagaVisning bilaga={{ dataUrl: pdf, namn: "utdrag.pdf", typ: "application/pdf", tecken: pdf.length }} alt="pdf" />);
     expect(screen.getByRole("link", { name: /utdrag\.pdf/ })).toHaveAttribute("data-kommentar-bilaga-visad", "fil");
     expect(document.querySelector("audio")).toBeNull();
+  });
+
+  it("kompakt rad visar rubrik och våg, och gömmer hopp, hastighet och nedladdning", () => {
+    const peaks = Array.from({ length: STOLPAR }, (_, i) => (i % 5 === 0 ? 1 : 0.2));
+    render(
+      <OpsLjudspelare
+        kompakt
+        src="https://exempel.se/a.webm"
+        namn="Hyllan"
+        meta="8 okt. 2026 · 0:04"
+        durationMs={4000}
+        peaks={peaks}
+        onOppna={() => {}}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Hyllan" })).toBeInTheDocument();
+    expect(document.querySelector("[data-ljud-langd]")?.textContent).toBe("8 okt. 2026 · 0:04");
+    expect(document.querySelector("[data-ljudspelare]")?.getAttribute("data-ljudspelare")).toBe("kompakt");
+    expect(screen.queryByRole("button", { name: "10 sekunder bakåt" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Uppspelningshastighet/ })).toBeNull();
+    expect(screen.queryByRole("link", { name: /Ladda ned/ })).toBeNull();
+    const hojder = [...document.querySelectorAll("[data-ljud-hojd]")].map((el) => el.getAttribute("data-ljud-hojd"));
+    expect(new Set(hojder).size).toBeGreaterThan(1);
+    expect(document.querySelector("[data-ljud-vag]")?.getAttribute("data-ljud-vag")).toBe("toppar");
+    const reglage = screen.getByRole("slider", { name: "Spola i Hyllan" });
+    expect(reglage).not.toBeDisabled();
   });
 
   it("väntan syns tills ljudet börjar", async () => {

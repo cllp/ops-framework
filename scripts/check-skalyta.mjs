@@ -1344,6 +1344,96 @@ for (const bredd of [768, 834, 900, 1023, 1024]) {
   krav(detaljKvar === 0 && lista === 1, `bibliotek detalj 390 px: Tillbaka kom inte tillbaka till listan (detalj ${detaljKvar}, raden Protokoll ${lista}).`);
   await context.close();
 }
+
+// Ljudraden (0.92.4). CP:s telefon: spelknappen låg på musikikonen, längden var 0:00, vågen en platt rand,
+// och rubriken syntes inte. Listan ska ha ett element till vänster, rubrik, datum och längd, våg och ⋯.
+{
+  for (const vp of [{ width: 390, height: 844, mark: "390" }, { width: 1280, height: 900, mark: "1280" }]) {
+    const { page, context } = await oppna("bibliotekljud", vp);
+    const m = await page.evaluate(() => {
+      const rader = [...document.querySelectorAll("[data-bibliotek-ljudrad]")];
+      // Första raden är den utan namn (Röstinspelning). Rubriken som CP döpte sitter på sin egen rad.
+      const rad = rader.find((r) => [...r.querySelectorAll("button")].some((b) => b.getAttribute("aria-label") === "Hyllan i hallen")) || null;
+      const play = rad ? [...rad.querySelectorAll("button")].find((b) => (b.getAttribute("aria-label") || "").startsWith("Spela")) : null;
+      const titel = rad ? [...rad.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Hyllan i hallen") : null;
+      const meny = [...document.querySelectorAll("button")].find((b) => (b.getAttribute("aria-label") || "").startsWith("Åtgärder för Hyllan"));
+      const pr = play ? play.getBoundingClientRect() : null;
+      const tr = titel ? titel.getBoundingClientRect() : null;
+      const mr = meny ? meny.getBoundingClientRect() : null;
+      const hojder = [...(rad ? rad.querySelectorAll("[data-ljud-hojd]") : [])].map((el) => el.getAttribute("data-ljud-hojd"));
+      const overlap = pr && tr ? !(pr.right <= tr.left + 1 || tr.right <= pr.left + 1 || pr.bottom <= tr.top + 1 || tr.bottom <= pr.top + 1) : true;
+      return {
+        saknas: document.querySelector("[data-saknas]")?.textContent || "",
+        antal: rader.length,
+        ikon: !!(rad && rad.querySelector("[data-bibliotek-ikon]")),
+        play: pr ? { w: pr.width, h: pr.height } : null,
+        titel: tr ? { w: tr.width, h: tr.height, text: titel.textContent || "" } : null,
+        meny: mr ? { w: mr.width, h: mr.height } : null,
+        overlap,
+        vag: new Set(hojder).size,
+        hopp: [...document.querySelectorAll("button")].some((b) => (b.getAttribute("aria-label") || "") === "10 sekunder bakåt"),
+        langd: rad?.querySelector("[data-ljud-langd]")?.textContent || "",
+        rubriker: [...document.querySelectorAll("[data-bibliotek-ljudrad] button")].map((b) => b.getAttribute("aria-label") || ""),
+        dok: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      };
+    });
+    matt.push(`bibliotek ljud ${vp.mark}: ${JSON.stringify(m)}`);
+    krav(!m.saknas, `bibliotek ljud ${vp.mark}: ${m.saknas || "scenen ritades inte"}.`);
+    krav(m.antal >= 2, `bibliotek ljud ${vp.mark}: ${m.antal} ljudrader, väntat 2.`);
+    krav(!m.ikon, `bibliotek ljud ${vp.mark}: musikikonen ligger kvar bredvid spelknappen.`);
+    krav(m.play && m.play.w >= 43.5 && m.play.h >= 43.5, `bibliotek ljud ${vp.mark}: spelknappen är ${m.play ? `${m.play.w.toFixed(0)}x${m.play.h.toFixed(0)}` : "borta"}, väntat minst 44.`);
+    krav(m.meny && m.meny.w >= 43.5 && m.meny.h >= 43.5, `bibliotek ljud ${vp.mark}: ⋯ är ${m.meny ? `${m.meny.w.toFixed(0)}x${m.meny.h.toFixed(0)}` : "borta"}, väntat minst 44.`);
+    krav(m.titel && m.titel.h >= 43.5 && m.titel.text.includes("Hyllan"), `bibliotek ljud ${vp.mark}: rubriken saknas (${JSON.stringify(m.titel)}).`);
+    krav(!m.overlap, `bibliotek ljud ${vp.mark}: spelknappen överlappar rubriken.`);
+    krav(m.vag >= 3, `bibliotek ljud ${vp.mark}: vågen har ${m.vag} höjder, väntat riktiga toppar.`);
+    krav(!m.hopp, `bibliotek ljud ${vp.mark}: hopp, hastighet eller samma kontroller syns i listan.`);
+    krav(m.langd.includes("0:04"), `bibliotek ljud ${vp.mark}: längden är "${m.langd}", väntat datum och 0:04.`);
+    krav(m.rubriker.some((r) => r.startsWith("Röstinspelning")), `bibliotek ljud ${vp.mark}: fallback-rubriken saknas (${m.rubriker.join(" | ")}).`);
+    krav(m.dok <= 1, `bibliotek ljud ${vp.mark}: sidan flödar ${m.dok} px i sidled.`);
+    if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `bibliotek-ljud-${vp.mark}.png`) });
+    await context.close();
+  }
+  for (const vp of [{ width: 390, height: 844, mark: "390" }, { width: 1280, height: 900, mark: "1280" }]) {
+    const { page, context } = await oppna("bibliotekljuddetalj", vp);
+    const rubrik = await page.getByRole("heading", { name: "Hyllan i hallen" }).count();
+    const hopp = await page.getByRole("button", { name: "10 sekunder bakåt" }).count();
+    const hast = await page.getByRole("button", { name: /Uppspelningshastighet/ }).count();
+    const ned = await page.getByRole("link", { name: /Ladda ned/ }).count();
+    krav(rubrik === 1, `bibliotek ljud detalj ${vp.mark}: rubriken syns ${rubrik} gånger.`);
+    krav(hopp === 1 && hast === 1 && ned === 1, `bibliotek ljud detalj ${vp.mark}: hopp ${hopp}, hastighet ${hast}, ladda ned ${ned}.`);
+    if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `bibliotek-ljud-detalj-${vp.mark}.png`) });
+    await page.getByRole("button", { name: "Åtgärder för Hyllan i hallen" }).click();
+    const menyNed = await page.getByRole("menuitem", { name: "Ladda ned" }).count();
+    const menyHopp = await page.getByRole("menuitem", { name: "10 sekunder bakåt" }).count();
+    krav(menyNed === 1 && menyHopp === 1, `bibliotek ljud detalj ${vp.mark}: menyn har nedladdning ${menyNed} och hopp ${menyHopp}.`);
+    await context.close();
+  }
+  if (bildmapp) {
+    const fore = path.join(rot, "docs", "jamforelser", "forebild-ss-bibliotek", "ss-inspelningar.png");
+    if (fs.existsSync(fore)) {
+      for (const mark of ["390", "1280"]) {
+        const vansterFil = path.join(bildmapp, `bibliotek-ljud-${mark}.png`);
+        if (!fs.existsSync(vansterFil)) continue;
+        const context = await browser.newContext({ viewport: { width: 1100, height: 1400 }, deviceScaleFactor: 1 });
+        const page = await context.newPage();
+        const vanster = fs.readFileSync(vansterFil).toString("base64");
+        const hoger = fs.readFileSync(fore).toString("base64");
+        await page.setContent(`<!doctype html><html><head><meta charset="utf-8"><style>
+          body { margin: 0; background: #f4f1ea; font-family: sans-serif; color: #1c1915; }
+          .rad { display: flex; gap: 16px; padding: 16px; align-items: flex-start; }
+          figure { margin: 0; max-width: 520px; }
+          figcaption { font-size: 14px; margin-bottom: 8px; }
+          img { max-height: 900px; max-width: 500px; width: auto; border: 1px solid #d9d3c7; background: white; }
+        </style></head><body><div class="rad">
+          <figure><figcaption>Ramverket, ${mark} px. Ljudrad: rubrik, datum och längd, spela, våg, meny.</figcaption><img src="data:image/png;base64,${vanster}" alt="Ramverket"></figure>
+          <figure><figcaption>Förebild: ss-inspelningar.png</figcaption><img src="data:image/png;base64,${hoger}" alt="Förebild"></figure>
+        </div></body></html>`);
+        await page.screenshot({ path: path.join(bildmapp, `montage-ljud-${mark}.png`), fullPage: true });
+        await context.close();
+      }
+    }
+  }
+}
 }
 await surfplattaOchAktivitet();
 
