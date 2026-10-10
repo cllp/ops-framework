@@ -297,7 +297,7 @@ export { OpsHubblista } from "./components/OpsHubbar.jsx";
 export { OpsGruppFormular } from "./components/OpsGruppFormular.jsx";
 export { sakerstallAnvandare, sparaInstallningar, andringen } from "./lib/profil.js";
 export { createCatalogSource } from "./data/katalogkalla.js";
-export { BIBLIOTEKTYPER, BIBLIOTEKFLIKAR, BIBLIOTEKFALT, FILFALT, FILMIME, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, MAX_BIBLIOTEKFIL, MAX_BIBLIOTEKFILNAMN, MAX_BIBLIOTEKSOKVAG, MAX_BIBLIOTEKUTSKRIFT, IDE_MAX_SEKUNDER, ADRESSFORM, inmatningsfel, filInmatningsfel, filFel, filSort, arLjudpost, filMimeMonster, normaliseraMime, utskriftFel, ideRubrik, postFel, byggPost, filtreraBibliotek, normaliseraAdress, farAndra } from "./lib/bibliotek.js";
+export { BIBLIOTEKTYPER, BIBLIOTEKFLIKAR, BIBLIOTEKFALT, FILFALT, FILMIME, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, MAX_BIBLIOTEKFIL, MAX_BIBLIOTEKFILNAMN, MAX_BIBLIOTEKSOKVAG, MAX_BIBLIOTEKUTSKRIFT, IDE_MAX_SEKUNDER, LJUD_STOLPAR, MAX_LJUD_MS, ADRESSFORM, inmatningsfel, filInmatningsfel, filFel, filSort, arLjudpost, filMimeMonster, normaliseraMime, utskriftFel, ideRubrik, ljudRubrik, ljudDatum, peaksGiltiga, ljudMetaFel, postFel, byggPost, filtreraBibliotek, normaliseraAdress, farAndra } from "./lib/bibliotek.js";
 export { createBibliotekskalla } from "./data/bibliotekkalla.js";
 export { OpsBibliotek } from "./components/OpsBibliotek.jsx";
 export { MINNESKALLOR, MINNESFALT, MINNESKALLAFALT, MAX_MINNESTEXT, MAX_MINNESID, farAndraMinne, minnesradFel, byggMinnesrad } from "./lib/minne.js";

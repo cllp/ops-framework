@@ -40,6 +40,14 @@ export const MAX_BIBLIOTEKURL = 2000;
 export const MAX_BIBLIOTEKFIL = 25 * 1024 * 1024;
 /** Inspelning av en idé, i sekunder. TALK behåller sitt eget tak på 120. */
 export const IDE_MAX_SEKUNDER = 10 * 60;
+/**
+ * Stolpar i vågen. Samma tal i spelaren och i regeln: en post som sparar
+ * ett annat antal går inte att rita, och en våg som räknas på två sätt
+ * är två sanningar.
+ */
+export const LJUD_STOLPAR = 48;
+/** Längsta ljudet som får sparas, i millisekunder. Tolv timmar. */
+export const MAX_LJUD_MS = 12 * 60 * 60 * 1000;
 /** Utskrift på en ljudpost. Samma tal i regeln. */
 export const MAX_BIBLIOTEKUTSKRIFT = 20000;
 export const MAX_BIBLIOTEKFILNAMN = 200;
@@ -88,13 +96,52 @@ export function ideRubrik(nu = new Date()) {
 }
 
 /**
+ * Kort datum för en ljudrad, samma form som SessionStudios metarad.
+ * Tom sträng när tiden inte är ett heltal: då är datumet oställt, inte "noll".
+ *
+ * @param {unknown} ms
+ * @returns {string}
+ */
+export function ljudDatum(ms) {
+  if (!Number.isInteger(ms)) return "";
+  const d = new Date(/** @type {number} */ (ms));
+  if (Number.isNaN(d.getTime())) return "";
+  return new Intl.DateTimeFormat("sv-SE", { day: "numeric", month: "short", year: "numeric" }).format(d);
+}
+
+/**
+ * Namnet som visas på ett ljud. En sparad rubrik vinner. Saknas den blir det
+ * "Röstinspelning" plus datumet posten skapades, så raden aldrig är namnlös.
+ *
+ * @param {{ rubrik?: unknown, skapad?: unknown } | null | undefined} post
+ * @returns {string}
+ */
+export function ljudRubrik(post) {
+  const namn = trimSomRegeln(post?.rubrik);
+  if (namn) return namn;
+  const datum = ljudDatum(post?.skapad);
+  return datum ? `Röstinspelning ${datum}` : "Röstinspelning";
+}
+
+/**
+ * Toppar som får sparas: exakt `LJUD_STOLPAR` tal mellan 0 och 1.
+ *
+ * @param {unknown} peaks
+ * @returns {peaks is number[]}
+ */
+export function peaksGiltiga(peaks) {
+  if (!Array.isArray(peaks) || peaks.length !== LJUD_STOLPAR) return false;
+  return peaks.every((n) => typeof n === "number" && Number.isFinite(n) && n >= 0 && n <= 1);
+}
+
+/**
  * Fälten en rad får bära. `id` är dokumentets nyckel och står inte här: en
  * kopia av nyckeln inne i dokumentet är en andra sanning.
  *
  * `text` hör till en anteckning och `url` till en länk. Regeln kräver att den
  * andra saknas, så en anteckning inte kan bära en adress vid sidan av texten.
  */
-export const BIBLIOTEKFALT = /** @type {const} */ (["groupId", "typ", "rubrik", "text", "url", "fil", "utskrift", "skapadAv", "skapad", "andrad"]);
+export const BIBLIOTEKFALT = /** @type {const} */ (["groupId", "typ", "rubrik", "text", "url", "fil", "utskrift", "durationMs", "peaks", "skapadAv", "skapad", "andrad"]);
 
 /**
  * En länks adress: http eller https, och sedan bara synliga ASCII-tecken.
@@ -126,6 +173,8 @@ const FORVALTARROLLER = /** @type {const} */ (["agare", "admin"]);
  * @property {string} [url] Bara på en länk.
  * @property {{ sokvag: string, namn: string, mime: string, byte: number }} [fil] Bara på en fil.
  * @property {string} [utskrift] Bara på ett ljud. Saknas fältet har ingen bett om en utskrift. Tom sträng är en utskrift utan ord.
+ * @property {number} [durationMs] Bara på ett ljud. Millisekunder. Saknas fältet är längden inte räknad än.
+ * @property {number[]} [peaks] Bara på ett ljud. `LJUD_STOLPAR` tal mellan 0 och 1. Saknas fältet är vågen inte räknad än.
  * @property {import("./skapare.js").Skapare} skapadAv
  * @property {number} skapad Millisekunder.
  * @property {number} andrad Millisekunder.
@@ -272,6 +321,32 @@ export function utskriftFel(text, fil) {
 }
 
 /**
+ * Längd och våg hör bara till ett ljud, och bara i den form listan kan rita.
+ *
+ * @param {Record<string, unknown>} d
+ * @returns {string | null}
+ */
+export function ljudMetaFel(d) {
+  const harD = "durationMs" in d && d.durationMs != null;
+  const harP = "peaks" in d && d.peaks != null;
+  const ljud = d.typ === "fil" && filSort(/** @type {{ mime?: unknown }} */ (d.fil)?.mime) === "ljud";
+  if (!ljud) {
+    if (harD || harP) return "Bara ett ljud har längd och våg.";
+    return null;
+  }
+  if (harD) {
+    const ms = d.durationMs;
+    if (!Number.isInteger(ms) || /** @type {number} */ (ms) < 1 || /** @type {number} */ (ms) > MAX_LJUD_MS) {
+      return `durationMs ska vara ett heltal i millisekunder, från 1 till ${MAX_LJUD_MS}.`;
+    }
+  }
+  if (harP && !peaksGiltiga(d.peaks)) {
+    return `Vågen ska ha ${LJUD_STOLPAR} toppar, var och en mellan 0 och 1.`;
+  }
+  return null;
+}
+
+/**
  * Får den här personen ändra eller radera posten? Samma villkor som regelns
  * `update` och, sedan #311, som regelns `delete`: författaren, eller ägare
  * eller admin i gruppen. Båda kräver ett aktivt medlemskap (`opsArMedlem`).
@@ -316,6 +391,7 @@ export function inmatningsfel(d) {
     if ("url" in d && d.url != null && str(d.url) !== "") return "En anteckning har text, och ingen adress.";
     if ("fil" in d && d.fil != null) return "En anteckning har text, och ingen fil.";
     if ("utskrift" in d && d.utskrift != null) return "En anteckning har text, och ingen utskrift.";
+    if (("durationMs" in d && d.durationMs != null) || ("peaks" in d && d.peaks != null)) return "En anteckning har text, och ingen längd.";
     const text = str(d.text);
     if (!text) return "Anteckningen saknar text.";
     if (text.length > MAX_BIBLIOTEKTEXT) return `Texten är ${text.length} tecken. Taket är ${MAX_BIBLIOTEKTEXT}.`;
@@ -327,6 +403,8 @@ export function inmatningsfel(d) {
     if ("url" in d && d.url != null && str(d.url) !== "") return "En fil har en fil, och ingen adress.";
     const filfel = filFel(d.fil);
     if (filfel) return filfel;
+    const metaf = ljudMetaFel(d);
+    if (metaf) return metaf;
     if (!("utskrift" in d) || d.utskrift == null) return null;
     return utskriftFel(d.utskrift, /** @type {any} */ (d.fil));
   }
@@ -334,6 +412,7 @@ export function inmatningsfel(d) {
   if ("text" in d && d.text != null && str(d.text) !== "") return "En länk har en adress, och ingen brödtext.";
   if ("fil" in d && d.fil != null) return "En länk har en adress, och ingen fil.";
   if ("utskrift" in d && d.utskrift != null) return "En länk har en adress, och ingen utskrift.";
+  if (("durationMs" in d && d.durationMs != null) || ("peaks" in d && d.peaks != null)) return "En länk har en adress, och ingen längd.";
   const url = str(d.url);
   if (!url) return "Länken saknar adress.";
   if (!/^https?:/.test(url)) return "Adressen ska börja med http eller https.";
@@ -402,6 +481,8 @@ export function byggPost(d) {
     const fil = /** @type {{ sokvag: unknown, namn: unknown, mime: unknown, byte: unknown }} */ (d.fil);
     post.fil = { sokvag: str(fil.sokvag), namn: str(fil.namn), mime: normaliseraMime(fil.mime), byte: /** @type {number} */ (fil.byte) };
     if ("utskrift" in d && d.utskrift != null) post.utskrift = /** @type {string} */ (d.utskrift);
+    if ("durationMs" in d && d.durationMs != null) post.durationMs = /** @type {number} */ (d.durationMs);
+    if ("peaks" in d && d.peaks != null) post.peaks = [.../** @type {number[]} */ (d.peaks)];
   }
   return post;
 }

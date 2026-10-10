@@ -1,4 +1,5 @@
 import { lasLjudbytes } from "../data/ljudbytes.js";
+import { LJUD_STOLPAR } from "./bibliotek.js";
 
 /**
  * Räkningen bakom `OpsLjudspelare`.
@@ -14,8 +15,11 @@ import { lasLjudbytes } from "../data/ljudbytes.js";
  * i takt, så en omräkning hade varit en andra sanning.
  */
 
-/** Stolpar i vågen. Tillräckligt för att en fras ska synas, inte en per sampel. */
-export const STOLPAR = 48;
+/**
+ * Stolpar i vågen. Talet ägs av posten (`LJUD_STOLPAR`): det som sparas och
+ * det som ritas är samma lista.
+ */
+export const STOLPAR = LJUD_STOLPAR;
 
 /** Hopp bakåt och framåt, samma tio sekunder som SessionStudios fullskärmsspelare. */
 export const HOPP_SEKUNDER = 10;
@@ -24,11 +28,22 @@ export const HOPP_SEKUNDER = 10;
 export const HASTIGHETER = Object.freeze([1, 1.25, 1.5, 2]);
 
 /**
+ * En längd webbläsaren faktiskt vet. `Infinity` är det MediaRecorder lämnar
+ * på iOS och i webm/mp4, och det är inte en längd.
+ *
+ * @param {unknown} sekunder
+ * @returns {sekunder is number}
+ */
+export function langdArKand(sekunder) {
+  return typeof sekunder === "number" && Number.isFinite(sekunder) && sekunder > 0;
+}
+
+/**
  * @param {number} sekunder
  * @returns {string}
  */
 export function formateraTid(sekunder) {
-  if (!Number.isFinite(sekunder) || sekunder <= 0) return "0:00";
+  if (!langdArKand(sekunder)) return "0:00";
   const s = Math.floor(sekunder);
   const min = Math.floor(s / 60);
   const sek = s % 60;
@@ -126,9 +141,47 @@ export function stolparUrKanal(kanal, antal = STOLPAR) {
   return ut.map((v) => v / max);
 }
 
-/** Vågen innan ljudet gått att läsa: synlig, men inte påhittad som en fras. */
+/**
+ * Vågen innan topparna gått att läsa. Låg och jämn, så den inte ser ut som
+ * en fras som spelats in. Raden byter till riktiga toppar så fort de finns.
+ */
 export function plattaStolpar(antal = STOLPAR) {
-  return Array.from({ length: antal }, () => 0.35);
+  return Array.from({ length: antal }, () => 0.12);
+}
+
+/**
+ * @param {HTMLMediaElement} el
+ * @returns {Promise<number>} Sekunder, eller 0 när längden fortfarande saknas.
+ */
+export function lasLangdMedSok(el) {
+  if (langdArKand(el.duration)) return Promise.resolve(el.duration);
+  return new Promise((resolve) => {
+    let klar = false;
+    /** @type {ReturnType<typeof setTimeout> | undefined} */
+    let timer;
+    const fardig = (/** @type {number} */ v) => {
+      if (klar) return;
+      klar = true;
+      if (timer) clearTimeout(timer);
+      el.removeEventListener("durationchange", vid);
+      el.removeEventListener("timeupdate", vid);
+      const kand = langdArKand(v) ? v : el.duration;
+      resolve(langdArKand(kand) ? kand : 0);
+    };
+    const vid = () => {
+      if (langdArKand(el.duration)) fardig(el.duration);
+    };
+    el.addEventListener("durationchange", vid);
+    el.addEventListener("timeupdate", vid);
+    timer = setTimeout(() => fardig(0), 2000);
+    try {
+      // ⛔ iOS och MediaRecorder lämnar duration = Infinity tills någon söker
+      // långt förbi slutet. Då räknar webbläsaren ut längden.
+      el.currentTime = 1e101;
+    } catch {
+      fardig(0);
+    }
+  });
 }
 
 /** @type {Map<string, number[]>} */
@@ -143,6 +196,58 @@ export function lasStolpar(src) {
 }
 
 /**
+ * Längd och toppar ur avkodade sampel. AudioContext läser webm och mp4 från
+ * MediaRecorder också när `<audio>.duration` är Infinity.
+ *
+ * @param {ArrayBuffer} data
+ * @returns {Promise<{ durationMs: number, peaks: number[] } | null>}
+ */
+export async function metaUrBytes(data) {
+  if (typeof AudioContext === "undefined") return null;
+  if (!data || typeof data.slice !== "function") return null;
+  const ctx = new AudioContext();
+  try {
+    const buffert = await ctx.decodeAudioData(data.slice(0));
+    const sekunder = buffert.duration;
+    const durationMs = langdArKand(sekunder) ? Math.round(sekunder * 1000) : 0;
+    const peaks = stolparUrKanal(buffert.getChannelData(0), STOLPAR);
+    if (peaks.length !== STOLPAR) return null;
+    return { durationMs, peaks };
+  } catch {
+    return null;
+  } finally {
+    try {
+      await ctx.close();
+    } catch {
+      /* stängningen är städning, inte ett besked till någon */
+    }
+  }
+}
+
+/** @type {Map<string, { durationMs: number, peaks: number[] }>} */
+const metaCache = new Map();
+
+/**
+ * Läser längd och toppar ur en adress. Ett misslyckande (CORS, ett format
+ * avkodaren inte kan) är inte ett uppspelningsfel.
+ *
+ * @param {string} src
+ * @param {AbortSignal} [signal]
+ * @returns {Promise<{ durationMs: number, peaks: number[] } | null>}
+ */
+export async function metaForAdress(src, signal) {
+  const finns = metaCache.get(src);
+  if (finns) return finns;
+  const data = await lasLjudbytes(src, signal);
+  const meta = await metaUrBytes(data);
+  if (meta) {
+    stolpCache.set(src, meta.peaks);
+    metaCache.set(src, meta);
+  }
+  return meta;
+}
+
+/**
  * Läser topparna ur filen. Ett misslyckande (CORS, ett format avkodaren inte kan)
  * är inte ett uppspelningsfel: `<audio>` spelar utan att vi får läsa samplen.
  *
@@ -153,24 +258,8 @@ export function lasStolpar(src) {
 export async function stolparForAdress(src, signal) {
   const finns = stolpCache.get(src);
   if (finns) return finns;
-  if (typeof AudioContext === "undefined") return null;
-  const ctx = new AudioContext();
-  try {
-    const data = await lasLjudbytes(src, signal);
-    const buffert = await ctx.decodeAudioData(data.slice(0));
-    const stolpar = stolparUrKanal(buffert.getChannelData(0), STOLPAR);
-    stolpCache.set(src, stolpar);
-    return stolpar;
-  } catch (e) {
-    if (e && /** @type {any} */ (e).name === "AbortError") throw e;
-    return null;
-  } finally {
-    try {
-      await ctx.close();
-    } catch {
-      /* stängningen är städning, inte ett besked till någon */
-    }
-  }
+  const meta = await metaForAdress(src, signal);
+  return meta ? meta.peaks : null;
 }
 
 /**
@@ -202,8 +291,39 @@ export function baraEnSpelar(den) {
   }
 }
 
+/**
+ * @typedef {{ hoppa: (delta: number) => void, bytHastighet: () => void, laddaNed: () => void }} Ljudstyrning
+ */
+
+/** @type {Map<string, Ljudstyrning>} */
+const styrningar = new Map();
+
+/**
+ * Listans ⋯-meny och detaljens spelare delar samma ljud. Id är postens id.
+ *
+ * @param {string} id
+ * @param {Ljudstyrning} api
+ * @returns {() => void}
+ */
+export function registreraStyrning(id, api) {
+  styrningar.set(id, api);
+  return () => {
+    if (styrningar.get(id) === api) styrningar.delete(id);
+  };
+}
+
+/**
+ * @param {string} id
+ * @returns {Ljudstyrning | null}
+ */
+export function ljudStyrning(id) {
+  return styrningar.get(id) ?? null;
+}
+
 /** Tömmer spärren och våg-cachen. Proven anropar den, appen gör det inte. */
 export function nollstallSpelare() {
   registrerade.clear();
   stolpCache.clear();
+  metaCache.clear();
+  styrningar.clear();
 }

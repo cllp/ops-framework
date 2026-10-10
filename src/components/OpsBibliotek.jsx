@@ -6,7 +6,8 @@ import { OpsDokument } from "./OpsDokument.jsx";
 import { OpsMarkdown } from "./OpsMarkdown.jsx";
 import { OpsModal } from "./OpsModal.jsx";
 import { OpsSvepRad } from "./OpsSvepRad.jsx";
-import { ADRESSFORM, BIBLIOTEKTYPER, arLjudpost, farAndra, filInmatningsfel, filSort, filtreraBibliotek, inmatningsfel, normaliseraAdress, trimSomRegeln } from "../lib/bibliotek.js";
+import { ADRESSFORM, BIBLIOTEKTYPER, arLjudpost, farAndra, filInmatningsfel, filSort, filtreraBibliotek, inmatningsfel, ljudDatum, ljudRubrik, normaliseraAdress, trimSomRegeln } from "../lib/bibliotek.js";
+import { HOPP_SEKUNDER, formateraTid, ljudStyrning } from "../lib/ljudspelare.js";
 import { useInspelningOppnare } from "./OpsAppShell.jsx";
 import { cx } from "../lib/cx.js";
 import { arInstallningslage } from "../lib/apparark.js";
@@ -97,6 +98,7 @@ import { OpsView } from "./OpsView.jsx";
  * @param {(inmatning: { id?: string, typ: string, rubrik: string, text?: string, url?: string }) => void} props.onSpara
  * @param {(id: string) => void | Promise<void>} [props.onRadera] Tar bort posten efter bekräftelse. Saknas den och någon bekräftar visas felet, posten rörs inte.
  * @param {(inmatning: { id?: string, rubrik: string, fil: File }) => void | Promise<void>} [props.onLaddaUpp] Sparar en fil. Saknas den och någon försöker visas felet, filen laddas inte upp.
+ * @param {(inmatning: { id: string, durationMs?: number, peaks?: number[] }) => void | Promise<void>} [props.onFyllLjud] Skriver längd och våg på en post som saknar dem. Listan räknar dem i bakgrunden, utan att någon trycker på spela.
  * @param {(post: { fil?: { sokvag?: string } }) => string} [props.filUrl] Appen ger adressen till en fil. Tom sträng visas som att adressen saknas. Synkron, och vinner när den är ifylld.
  * @param {(sokvag: string) => Promise<string>} [props.hamtaAdress] (0.88.2) Nedladdningsadressen för `fil.sokvag`, när `filUrl` är tom. Svaret cachas per sökväg, så listan och detaljen delar den. Medan den hämtas visas inte "Filen har ingen adress."
  * @param {unknown} [props.onSpelaIn] Borttagen (0.90.8). Skickas den kastas ett fel: listan hade en egen inspelare, och att tysta propen hade sett ut som att ljudet fortfarande sparades där.
@@ -113,7 +115,7 @@ import { OpsView } from "./OpsView.jsx";
  * @param {string} [props.activeHref] (0.89.0) Krävs tillsammans med `ram` och `modul`. `?lage=installningar` visar inställningarna.
  * @param {import("../lib/modul.js").Modul | null} [props.modul] (0.89.0) Manifestet inställningarna läser. Krävs med `ram`.
  */
-export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false, vald = null, skapar = null, jag, onOppna, onStang, onSkapa, onSpara, onRadera, onLaddaUpp, onSpelaIn, inspelare, filUrl, hamtaAdress, grupper = [], onDela, onSkrivUt, onGorForslag, hubHref, hubEtikett, onNavigate, modulId = "bibliotek", ram = null, activeHref, modul = null }) {
+export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false, vald = null, skapar = null, jag, onOppna, onStang, onSkapa, onSpara, onRadera, onLaddaUpp, onFyllLjud, onSpelaIn, inspelare, filUrl, hamtaAdress, grupper = [], onDela, onSkrivUt, onGorForslag, hubHref, hubEtikett, onNavigate, modulId = "bibliotek", ram = null, activeHref, modul = null }) {
   if (jag === undefined) {
     throw new Error("OpsBibliotek: jag krävs, den inloggades aktiva medlemskap i gruppen ({ uid, roll }), eller null när personen inte är medlem. Utan propen ser en medlem ut som en som bara får läsa.");
   }
@@ -143,6 +145,55 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
   const [status, setStatus] = useState("");
   const adresser = useFilAdresser(poster, vald, filUrl, hamtaAdress);
   const adressFor = (/** @type {{ typ?: string, fil?: { sokvag?: string, mime?: string } }} */ post) => losAdress(post, filUrl, hamtaAdress, adresser);
+  const [fylld, setFylld] = useState(/** @type {Record<string, { durationMs?: number, peaks?: number[] }>} */ ({}));
+  const sparatMeta = useRef(/** @type {Set<string>} */ (new Set()));
+  const onFyllRef = useRef(onFyllLjud);
+  onFyllRef.current = onFyllLjud;
+  /**
+   * Längd och våg som räknats i den här visningen, ovanpå det posten redan bär.
+   * @template {import("../lib/bibliotek.js").Bibliotekspost & { id: string }} T
+   * @param {T} post
+   * @returns {T}
+   */
+  function medFyll(post) {
+    const extra = fylld[post.id];
+    if (!extra) return post;
+    return /** @type {T} */ ({ ...post, ...extra });
+  }
+  /**
+   * Bakgrund: spelaren räknar längd och toppar utan att någon trycker på spela,
+   * och det här skriver dem på posten så nästa lista visar längden direkt.
+   * @param {string} id
+   * @param {{ durationMs?: number, peaks?: number[] }} meta
+   */
+  function togMeta(id, meta) {
+    if (!id || !meta || (!meta.durationMs && !meta.peaks)) return;
+    setFylld((f) => {
+      const prev = f[id] || {};
+      const nasta = {
+        ...prev,
+        ...(meta.durationMs && !prev.durationMs ? { durationMs: meta.durationMs } : {}),
+        ...(meta.peaks && !prev.peaks ? { peaks: meta.peaks } : {}),
+      };
+      if (nasta.durationMs === prev.durationMs && nasta.peaks === prev.peaks) return f;
+      return { ...f, [id]: nasta };
+    });
+    const cb = onFyllRef.current;
+    if (typeof cb !== "function") return;
+    const nyckel = `${id}:${meta.durationMs || 0}:${meta.peaks ? meta.peaks.length : 0}`;
+    if (sparatMeta.current.has(nyckel)) return;
+    sparatMeta.current.add(nyckel);
+    try {
+      const svar = cb({ id, ...meta });
+      if (svar && typeof svar.then === "function") {
+        svar.catch(() => {
+          /* listan visar längden ändå. Ett skrivfel ska inte se ut som att ljudet saknas. */
+        });
+      }
+    } catch {
+      /* samma sak: räknandet är en hjälp, inte en spärr för att spela. */
+    }
+  }
   const skaparTyp = jag ? skapar : null;
   const detalj = Boolean(skaparTyp || vald);
 
@@ -256,6 +307,15 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
     }
     const lank = lankAttKopiera(post);
     if (lank) ut.push({ id: "kopiera", etikett: "Kopiera länk", onValj: () => kopieraLank(lank) });
+    if (arLjudpost(post)) {
+      const id = post.id;
+      ut.push(
+        { id: "bakat", etikett: "10 sekunder bakåt", onValj: () => ljudStyrning(id)?.hoppa(-HOPP_SEKUNDER) },
+        { id: "framat", etikett: "10 sekunder framåt", onValj: () => ljudStyrning(id)?.hoppa(HOPP_SEKUNDER) },
+        { id: "hastighet", etikett: "Hastighet", onValj: () => ljudStyrning(id)?.bytHastighet() },
+        { id: "ned", etikett: "Ladda ned", onValj: () => ljudStyrning(id)?.laddaNed() },
+      );
+    }
     if (far && grupper.length > 0 && typeof onDela === "function") {
       ut.push({ id: "dela", etikett: "Dela", onValj: () => setDelar(post) });
     }
@@ -272,7 +332,7 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
       id: "radera",
       etikett: "Radera",
       fara: true,
-      angraMeddelande: `${post.rubrik} tas bort.`,
+      angraMeddelande: `${arLjudpost(post) ? ljudRubrik(post) : post.rubrik} tas bort.`,
       onValj: () => {
         if (typeof onRadera !== "function") throw new Error("Raderingen är inte kopplad. Posten är kvar.");
         return onRadera(post.id);
@@ -309,7 +369,7 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
     <OpsView tillbaka={detalj ? undefined : listTillbaka}>
       <div data-bibliotek="" className="flex min-w-0 w-full flex-col gap-4">
         {detalj ? (
-          <Detalj key={`${skaparTyp ?? ""}:${vald?.id ?? ""}:${startLage}`} post={vald} skapar={skaparTyp} jag={jag} startLage={startLage} onStang={onStang} onSpara={onSpara} onLaddaUpp={onLaddaUpp} filUrl={filUrl} adressFor={adressFor} onLjus={setLjus} onSkrivUt={onSkrivUt} onGorForslag={onGorForslag} menyFor={menyFor} />
+          <Detalj key={`${skaparTyp ?? ""}:${vald?.id ?? ""}:${startLage}`} post={vald ? medFyll(vald) : null} skapar={skaparTyp} jag={jag} startLage={startLage} onStang={onStang} onSpara={onSpara} onLaddaUpp={onLaddaUpp} filUrl={filUrl} adressFor={adressFor} onLjus={setLjus} onSkrivUt={onSkrivUt} onGorForslag={onGorForslag} menyFor={menyFor} onMeta={togMeta} />
         ) : (
           <OpsTabs
             ariaLabel="Typ i biblioteket"
@@ -375,10 +435,18 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
                   />
                 ) : (
                   <OpsList ariaLabel="Biblioteket" divided>
-                    {synliga.map((post) => {
+                    {synliga.map((rad) => {
+                      const post = medFyll(rad);
                       const ljud = arLjudpost(post);
                       const bild = post.typ === "fil" && filSort(post.fil?.mime) === "bild";
                       const lage = adressFor(post);
+                      if (ljud) {
+                        return (
+                          <OpsSvepRad key={post.id} atgarder={svepFor(rad)}>
+                            <Ljudrad post={post} lage={lage} onOppna={() => oppnaMed(rad, "las")} meny={menyFor(rad, false)} onMeta={togMeta} />
+                          </OpsSvepRad>
+                        );
+                      }
                       return (
                         <OpsSvepRad key={post.id} atgarder={svepFor(post)}>
                           <OpsAtgardsblad namn={post.rubrik} poster={menyFor(post, false)}>
@@ -394,7 +462,6 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
                                 <span className="block truncate text-meta text-ink-muted">{postRad(post)}</span>
                               </span>
                             </button>
-                            {ljud ? (lage.lage === "klar" ? <OpsLjudspelare src={lage.adress} namn={post.rubrik} visaNamn={false} /> : lage.lage === "hamtar" ? <p role="status">Hämtar ljudet.</p> : <p role={lage.lage === "fel" ? "alert" : "status"}>{lage.fel || "Filen har ingen adress."}</p>) : null}
                           </OpsAtgardsblad>
                         </OpsSvepRad>
                       );
@@ -607,6 +674,74 @@ function postRad(post) {
 }
 
 /**
+ * Datum och längd på en ljudrad. Längden utelämnas när den inte är räknad:
+ * "0:00" vore ett påstående om att ljudet är tomt.
+ *
+ * @param {{ skapad?: number, durationMs?: number }} post
+ * @returns {string}
+ */
+function ljudMetaRad(post) {
+  const datum = ljudDatum(post?.skapad);
+  const ms = post?.durationMs;
+  const langd = Number.isInteger(ms) && /** @type {number} */ (ms) > 0 ? formateraTid(/** @type {number} */ (ms) / 1000) : "";
+  if (datum && langd) return `${datum} · ${langd}`;
+  return datum || langd;
+}
+
+/**
+ * Listans ljudrad: ett element till vänster (spela), rubrik, datum och längd, våg, och ⋯.
+ * Ikonen ritas inte här. Den och spelknappen på samma rad är det som överlappade.
+ *
+ * @param {{ post: import("../lib/bibliotek.js").Bibliotekspost & { id: string }, lage: Adresslage, onOppna: () => void, meny: import("./OpsAtgardsblad.jsx").Atgard[], onMeta: (id: string, meta: { durationMs?: number, peaks?: number[] }) => void }} props
+ */
+function Ljudrad({ post, lage, onOppna, meny, onMeta }) {
+  const rubrik = ljudRubrik(post);
+  const meta = ljudMetaRad(post);
+  const text = (
+    <button
+      type="button"
+      onClick={onOppna}
+      aria-label={rubrik}
+      className="flex min-h-11 min-w-0 flex-1 cursor-pointer flex-col justify-center bg-transparent text-left focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
+    >
+      <span className="block truncate text-brod font-medium text-ink">{rubrik}</span>
+      {meta ? <span data-ljud-langd="" className="block truncate text-meta text-ink-muted">{meta}</span> : null}
+    </button>
+  );
+  return (
+    <OpsAtgardsblad namn={rubrik} poster={meny}>
+      <div data-bibliotek-ljudrad="" className="flex min-w-0 w-full flex-1 flex-col gap-1">
+        {lage.lage === "klar" ? (
+          <OpsLjudspelare
+            kompakt
+            src={lage.adress}
+            namn={rubrik}
+            meta={meta}
+            durationMs={post.durationMs}
+            peaks={post.peaks}
+            styrId={post.id}
+            onOppna={onOppna}
+            onMeta={(inmata) => onMeta(post.id, inmata)}
+          />
+        ) : (
+          <>
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="inline-flex size-11 shrink-0 items-center justify-center rounded-full bg-sunken text-ink-muted" aria-hidden="true" />
+              {text}
+            </div>
+            {lage.lage === "hamtar" ? (
+              <p role="status" className="m-0 text-meta text-ink-secondary">Hämtar ljudet.</p>
+            ) : (
+              <p role={lage.lage === "fel" ? "alert" : "status"} className="m-0 text-meta text-danger">{lage.fel || "Filen har ingen adress."}</p>
+            )}
+          </>
+        )}
+      </div>
+    </OpsAtgardsblad>
+  );
+}
+
+/**
  * Ikonen i en ruta, samma på listan och i detaljen. En bild fyller rutan.
  * SessionStudios rad är ikon, rubrik och en metarad. Synlighet per post ritas inte.
  *
@@ -703,9 +838,9 @@ function NyKnapp({ flik, onSkapa, onRost }) {
 /**
  * Bild öppnas i förhandsvisning. PDF och övrigt i ny flik. Utan adress sägs det.
  *
- * @param {{ post: { typ?: string, rubrik?: string, fil?: { namn?: string, mime?: string, byte?: number, sokvag?: string } }, lage: Adresslage, kopplad: boolean, onLjus?: (adress: string) => void }} props
+ * @param {{ post: { id?: string, typ?: string, rubrik?: string, skapad?: number, durationMs?: number, peaks?: number[], fil?: { namn?: string, mime?: string, byte?: number, sokvag?: string } }, lage: Adresslage, kopplad: boolean, onLjus?: (adress: string) => void, onMeta?: (id: string, meta: { durationMs?: number, peaks?: number[] }) => void }} props
  */
-function FilVisning({ post, lage, kopplad, onLjus }) {
+function FilVisning({ post, lage, kopplad, onLjus, onMeta }) {
   const sort = filSort(post.fil?.mime);
   const namn = post.fil?.namn ?? "Fil";
   const rad = `${namn}${filStorlek(post.fil?.byte) ? ` · ${filStorlek(post.fil?.byte)}` : ""}`;
@@ -728,7 +863,21 @@ function FilVisning({ post, lage, kopplad, onLjus }) {
       </button>
     );
   }
-  if (sort === "ljud") return <OpsLjudspelare src={adress} namn={post.rubrik ?? namn} visaNamn={false} />;
+  if (sort === "ljud") {
+    const rubrik = ljudRubrik(post);
+    const id = post.id || "";
+    return (
+      <OpsLjudspelare
+        src={adress}
+        namn={rubrik}
+        visaNamn={false}
+        durationMs={post.durationMs}
+        peaks={post.peaks}
+        styrId={id}
+        onMeta={id && onMeta ? (meta) => onMeta(id, meta) : undefined}
+      />
+    );
+  }
   return (
     <a href={adress} target="_blank" rel="noopener noreferrer" data-bibliotek-fil="" className="text-brod text-accent underline underline-offset-2">
       {rad}
@@ -771,8 +920,9 @@ function Adress({ url }) {
  * @param {(post: { id: string }) => { text: string, forslag?: "anteckning" | "arende" } | Promise<{ text: string, forslag?: "anteckning" | "arende" }>} [props.onSkrivUt]
  * @param {(inmatning: { id: string, satt: "anteckning" | "arende" }) => void | Promise<void>} [props.onGorForslag]
  * @param {(post: import("../lib/bibliotek.js").Bibliotekspost & { id: string }, iDetalj: boolean, sattRedigera?: (lage: "redigera") => void) => import("./OpsAtgardsblad.jsx").Atgard[]} props.menyFor
+ * @param {(id: string, meta: { durationMs?: number, peaks?: number[] }) => void} [props.onMeta]
  */
-function Detalj({ post, skapar, jag, startLage, onStang, onSpara, onLaddaUpp, filUrl, adressFor, onLjus, onSkrivUt, onGorForslag, menyFor }) {
+function Detalj({ post, skapar, jag, startLage, onStang, onSpara, onLaddaUpp, filUrl, adressFor, onLjus, onSkrivUt, onGorForslag, menyFor, onMeta }) {
   const typ = skapar ?? post?.typ ?? "anteckning";
   const [rubrik, setRubrik] = useState(post && !skapar ? post.rubrik : "");
   const [text, setText] = useState(post && !skapar && post.typ === "anteckning" ? post.text ?? "" : "");
@@ -792,12 +942,12 @@ function Detalj({ post, skapar, jag, startLage, onStang, onSpara, onLaddaUpp, fi
   }, [nyckel]);
 
   const kan = Boolean(!skapar && post && farAndra(post, jag));
-  const rubrikVy = skapar ? (typ === "anteckning" ? "Ny anteckning" : typ === "lank" ? "Ny länk" : "Ny fil") : post?.rubrik ?? "Post";
+  const ljud = Boolean(post && post.typ === "fil" && filSort(post.fil?.mime) === "ljud");
+  const rubrikVy = skapar ? (typ === "anteckning" ? "Ny anteckning" : typ === "lank" ? "Ny länk" : "Ny fil") : ljud && post ? ljudRubrik(post) : post?.rubrik ?? "Post";
   const tomLage = /** @type {Adresslage} */ ({ lage: "saknas", adress: "", fel: "" });
   const filLage = post && typeof adressFor === "function" ? adressFor({ typ: post.typ, fil: post.fil }) : tomLage;
   const kopplad = typeof filUrl === "function" || filLage.lage !== "saknas";
   const mark = <PostMark post={{ typ, fil: post?.fil }} bildAdress={filLage.lage === "klar" ? filLage.adress : ""} />;
-  const ljud = Boolean(post && post.typ === "fil" && filSort(post.fil?.mime) === "ljud");
 
   function aterstall() {
     setRubrik(post && !skapar ? post.rubrik : "");
@@ -848,7 +998,7 @@ function Detalj({ post, skapar, jag, startLage, onStang, onSpara, onLaddaUpp, fi
   const lasning = typ === "anteckning" ? (
     post?.text ? <OpsMarkdown text={post.text} dokument /> : <p className="text-brod text-ink">Anteckningen har ingen text.</p>
   ) : typ === "fil" && post ? (
-    <FilVisning post={post} lage={filLage} kopplad={kopplad} onLjus={onLjus} />
+    <FilVisning post={post} lage={filLage} kopplad={kopplad} onLjus={onLjus} onMeta={onMeta} />
   ) : (
     <Adress url={post?.url ?? url} />
   );
@@ -914,7 +1064,7 @@ function Detalj({ post, skapar, jag, startLage, onStang, onSpara, onLaddaUpp, fi
               if (skapar) onStang();
               else aterstall();
             }}
-            extra={post && !skapar ? <OpsAtgardsblad baraKnapp namn={post.rubrik} poster={menyFor(post, true, setLage)} /> : null}
+            extra={post && !skapar ? <OpsAtgardsblad baraKnapp namn={ljud ? ljudRubrik(post) : (trimSomRegeln(post.rubrik) || "Post")} poster={menyFor(post, true, setLage)} /> : null}
           />
         </div>
       </div>

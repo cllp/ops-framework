@@ -21,7 +21,8 @@
  * gruppen, också en trasig rad, när `radera` får `jag` och `anteckna`.
  */
 
-import { byggPost, farAndra, filInmatningsfel, normaliseraMime, postFel, trimSomRegeln } from "../lib/bibliotek.js";
+import { byggPost, farAndra, filInmatningsfel, filSort, normaliseraMime, peaksGiltiga, postFel, trimSomRegeln, MAX_LJUD_MS } from "../lib/bibliotek.js";
+import { metaUrBytes } from "../lib/ljudspelare.js";
 import { byggSkapare } from "../lib/skapare.js";
 
 /**
@@ -128,13 +129,15 @@ export function createBibliotekskalla(config) {
         }
       }
       const fil = inmatning && "fil" in inmatning ? inmatning.fil : (id ? tidigare?.fil : undefined);
+      // onFyllLjud skickar bara id + durationMs/peaks. Då ska rubrik, text och url
+      // stå kvar från den lästa raden — samma mönster som fil/utskrift ovan.
       /** @type {Record<string, unknown>} */
       const underlag = {
         groupId,
         typ: id ? tidigare?.typ : inmatning?.typ,
-        rubrik: inmatning?.rubrik,
-        text: inmatning?.text,
-        url: inmatning?.url,
+        rubrik: inmatning && "rubrik" in inmatning ? inmatning.rubrik : (id ? tidigare?.rubrik : inmatning?.rubrik),
+        text: inmatning && "text" in inmatning ? inmatning.text : (id ? tidigare?.text : inmatning?.text),
+        url: inmatning && "url" in inmatning ? inmatning.url : (id ? tidigare?.url : inmatning?.url),
         skapadAv: id ? tidigare?.skapadAv : byggSkapare(skapare()),
         skapad: id ? tidigare?.skapad : nu,
         andrad: nu,
@@ -142,6 +145,10 @@ export function createBibliotekskalla(config) {
       if (fil !== undefined) underlag.fil = fil;
       if (inmatning && "utskrift" in inmatning) underlag.utskrift = inmatning.utskrift;
       else if (id && tidigare && "utskrift" in tidigare) underlag.utskrift = tidigare.utskrift;
+      if (inmatning && "durationMs" in inmatning) underlag.durationMs = inmatning.durationMs;
+      else if (id && tidigare && "durationMs" in tidigare) underlag.durationMs = tidigare.durationMs;
+      if (inmatning && "peaks" in inmatning) underlag.peaks = inmatning.peaks;
+      else if (id && tidigare && "peaks" in tidigare) underlag.peaks = tidigare.peaks;
       const post = byggPost(underlag);
       if (id) {
         await source.update(collection, id, post);
@@ -195,7 +202,7 @@ export function createBibliotekskalla(config) {
      * kan kräva att den finns. Föll uppladdningen tas en ny post tillbaka. Går inte
      * det heller kastas båda felen, inget sväljs.
      *
-     * @param {{ rubrik?: string, namn?: string, fil: { name?: string, namn?: string, type?: string, mime?: string, size?: number, byte?: number }, blob?: unknown, id?: string, rapportera?: (andel: number) => void }} inmatning
+     * @param {{ rubrik?: string, namn?: string, fil: { name?: string, namn?: string, type?: string, mime?: string, size?: number, byte?: number, arrayBuffer?: () => Promise<ArrayBuffer> }, blob?: Blob | { arrayBuffer?: () => Promise<ArrayBuffer> }, id?: string, rapportera?: (andel: number) => void, durationMs?: number, peaks?: number[], sekunder?: number }} inmatning
      */
     async laddaUppFil(inmatning) {
       if (typeof sokvag !== "function") {
@@ -224,7 +231,10 @@ export function createBibliotekskalla(config) {
         }
       }
       const nu = Date.now();
-      const post = byggPost({
+      const ljud = filSort(mime) === "ljud";
+      const meta = ljud ? await lasLjudmeta(inmatning) : { durationMs: undefined, peaks: undefined };
+      /** @type {Record<string, unknown>} */
+      const underlag = {
         groupId,
         typ: "fil",
         rubrik,
@@ -232,7 +242,12 @@ export function createBibliotekskalla(config) {
         skapadAv: tidigare ? tidigare.skapadAv : byggSkapare(skapare()),
         skapad: tidigare ? tidigare.skapad : nu,
         andrad: nu,
-      });
+      };
+      if (meta.durationMs != null) underlag.durationMs = meta.durationMs;
+      else if (tidigare && "durationMs" in tidigare) underlag.durationMs = tidigare.durationMs;
+      if (meta.peaks != null) underlag.peaks = meta.peaks;
+      else if (tidigare && "peaks" in tidigare) underlag.peaks = tidigare.peaks;
+      const post = byggPost(underlag);
       if (tidigare) await source.update(collection, nyckel, post);
       else await source.create(collection, { ...post, id: nyckel });
       try {
@@ -257,6 +272,43 @@ export function createBibliotekskalla(config) {
       return { ...post, id: nyckel };
     },
   };
+}
+
+/**
+ * Längd och toppar vid uppladdning och inspelning. Avkodning med AudioContext
+ * först. Inspelarens klocka (`sekunder`) är reserv när filen inte går att avkoda,
+ * så listan ändå visar en längd. En bild får inget av det.
+ *
+ * @param {{ durationMs?: unknown, peaks?: unknown, sekunder?: unknown, blob?: { arrayBuffer?: () => Promise<ArrayBuffer> }, fil?: { arrayBuffer?: () => Promise<ArrayBuffer> } }} inmatning
+ * @returns {Promise<{ durationMs: number | undefined, peaks: number[] | undefined }>}
+ */
+async function lasLjudmeta(inmatning) {
+  /** @type {number | undefined} */
+  let durationMs = Number.isInteger(inmatning?.durationMs) && /** @type {number} */ (inmatning.durationMs) > 0 && /** @type {number} */ (inmatning.durationMs) <= MAX_LJUD_MS
+    ? /** @type {number} */ (inmatning.durationMs)
+    : undefined;
+  /** @type {number[] | undefined} */
+  let peaks = peaksGiltiga(inmatning?.peaks) ? [.../** @type {number[]} */ (inmatning.peaks)] : undefined;
+  if (durationMs != null && peaks != null) return { durationMs, peaks };
+  const kalla = inmatning?.blob ?? inmatning?.fil;
+  const las = kalla && typeof kalla.arrayBuffer === "function" ? kalla.arrayBuffer.bind(kalla) : null;
+  if (las && (durationMs == null || peaks == null)) {
+    try {
+      const data = await las();
+      const meta = await metaUrBytes(data);
+      if (meta) {
+        if (durationMs == null && meta.durationMs > 0) durationMs = meta.durationMs;
+        if (peaks == null) peaks = meta.peaks;
+      }
+    } catch {
+      /* avkodningen är en hjälp. Uppladdningen ska inte falla för att vågen inte gick att räkna. */
+    }
+  }
+  if (durationMs == null && typeof inmatning?.sekunder === "number" && Number.isFinite(inmatning.sekunder) && inmatning.sekunder > 0) {
+    const ms = Math.round(inmatning.sekunder * 1000);
+    if (ms > 0 && ms <= MAX_LJUD_MS) durationMs = ms;
+  }
+  return { durationMs, peaks };
 }
 
 /** Ett id appen kan använda i sökvägen innan Firestore hunnit dela ut ett. */

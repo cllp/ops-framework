@@ -38,7 +38,7 @@ import {
 import { ID_FORM, KATALOGAVGRANSARE, KATEGORIFALT } from "./katalog.js";
 import { INSTALLNINGSVARDEFALT, MAX_INSTALLNINGSGRUPP, MAX_INSTALLNINGSID, MAX_INSTALLNINGSTEXT, MAX_MODULINSTALLNINGAR, MODULINSTALLNINGFALT, VISA_I_HUVUDMENYN } from "./modulinstallningar.js";
 import { MAX_TYPAVVIKELSER, MAX_TYPID, MAX_TYPNAMN, MODULTYPID_FORM, TYPAVVIKELSEFALT, TYPYTOR } from "./modultyper.js";
-import { ADRESSFORM, BIBLIOTEKFALT, BIBLIOTEKTYPER, FILFALT, MAX_BIBLIOTEKFIL, MAX_BIBLIOTEKFILNAMN, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKSOKVAG, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, MAX_BIBLIOTEKUTSKRIFT, filMimeMonster } from "./bibliotek.js";
+import { ADRESSFORM, BIBLIOTEKFALT, BIBLIOTEKTYPER, FILFALT, LJUD_STOLPAR, MAX_BIBLIOTEKFIL, MAX_BIBLIOTEKFILNAMN, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKSOKVAG, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, MAX_BIBLIOTEKUTSKRIFT, MAX_LJUD_MS, filMimeMonster } from "./bibliotek.js";
 import { MAX_MINNESID, MAX_MINNESTEXT, MINNESFALT, MINNESKALLAFALT, MINNESKALLOR } from "./minne.js";
 import { SKAPARFALT } from "./skapare.js";
 import { KONFIGHANDELSER, KONFIGLOGGFALT } from "./konfiglogg.js";
@@ -1596,12 +1596,36 @@ export function bibliotekregelfragment(namn) {
     throw new Error(`bibliotekregelfragment: typerna är ${BIBLIOTEKTYPER.join(", ")}. Fragmentet har grenar för anteckning, lank och fil, och en ny typ behöver sin egen.`);
   }
 
+  // Firestore vägrar en enda för lång &&-kedja ("Expression is too complex").
+  // Dela därför stolparna i bitar om åtta; varje hjälpfunktion håller sig under taket.
+  const toppChunk = 8;
+  const toppDelar = [];
+  for (let start = 0; start < LJUD_STOLPAR; start += toppChunk) {
+    const slut = Math.min(start + toppChunk, LJUD_STOLPAR);
+    const villkor = Array.from({ length: slut - start }, (_, j) => {
+      const i = start + j;
+      return `p[${i}] is number && p[${i}] >= 0 && p[${i}] <= 1`;
+    }).join("\n        && ");
+    const n = start / toppChunk;
+    toppDelar.push({ n, villkor });
+  }
+  const toppHjalp = toppDelar.map(({ n, villkor }) => `    function opsBibliotekToppar${n}(p) {
+      return ${villkor};
+    }`).join("\n\n");
+  const toppAnrop = toppDelar.map(({ n }) => `opsBibliotekToppar${n}(p)`).join("\n        && ");
   return `    // ══ Ramverkets bibliotek. GENERERAD, ändra inte för hand ══
     //
     // Källa: ops-framework, bibliotekregelfragment() i src/lib/regler.js. Kräver regelfragment() ovanför.
 
     // En tid i millisekunder nära serverns klocka (samma uttryck som samtalens opsNu).
 ${nuRegelfunktion("opsBiblioteketNu")}
+
+${toppHjalp}
+
+    function opsBibliotekToppar(p) {
+      return p is list && p.size() == ${LJUD_STOLPAR}
+        && ${toppAnrop};
+    }
 
     function opsBibliotekspostGiltig(d) {
       return d.keys().hasOnly([${lista(BIBLIOTEKFALT)}])
@@ -1616,11 +1640,11 @@ ${nuRegelfunktion("opsBiblioteketNu")}
           (d.typ == "anteckning"
             && d.text.trim().size() > 0
             && d.text.size() <= ${MAX_BIBLIOTEKTEXT}
-            && !d.keys().hasAny(["url", "fil", "utskrift"]))
+            && !d.keys().hasAny(["url", "fil", "utskrift", "durationMs", "peaks"]))
           || (d.typ == "lank"
             && d.url.size() <= ${MAX_BIBLIOTEKURL}
             && d.url.matches('${regelRegex(ADRESSFORM)}')
-            && !d.keys().hasAny(["text", "fil", "utskrift"]))
+            && !d.keys().hasAny(["text", "fil", "utskrift", "durationMs", "peaks"]))
           || (d.typ == "fil"
             && d.fil.keys().hasOnly([${lista(FILFALT)}])
             && d.fil.sokvag.size() > 0
@@ -1636,6 +1660,14 @@ ${nuRegelfunktion("opsBiblioteketNu")}
             && (
               !d.keys().hasAny(["utskrift"])
               || (d.utskrift.size() <= ${MAX_BIBLIOTEKUTSKRIFT} && d.fil.mime.matches('^audio/.*'))
+            )
+            && (
+              !d.keys().hasAny(["durationMs"])
+              || (d.durationMs is int && d.durationMs > 0 && d.durationMs <= ${MAX_LJUD_MS} && d.fil.mime.matches('^audio/.*'))
+            )
+            && (
+              !d.keys().hasAny(["peaks"])
+              || (opsBibliotekToppar(d.peaks) && d.fil.mime.matches('^audio/.*'))
             ))
         );
     }

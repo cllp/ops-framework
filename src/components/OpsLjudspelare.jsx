@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { peaksGiltiga } from "../lib/bibliotek.js";
 import {
   HOPP_SEKUNDER,
   STOLPAR,
@@ -7,11 +8,14 @@ import {
   formateraTid,
   hastighetText,
   hoppa,
+  langdArKand,
+  lasLangdMedSok,
   lasStolpar,
+  metaForAdress,
   nastaHastighet,
   plattaStolpar,
   registreraSpelare,
-  stolparForAdress,
+  registreraStyrning,
   tidUrAndel,
 } from "../lib/ljudspelare.js";
 import { cx } from "../lib/cx.js";
@@ -22,52 +26,65 @@ import { OpsSpinner } from "./OpsSpinner.jsx";
  * En ljudspelare för allt ljud: Bibliotekets inspelningar, chattens bilagor och en fil appen redan har en adress till.
  *
  * ⛔ FÖREBILDEN ÄR SESSIONSTUDIOS SPELARE, MÄTT I KÄLLAN (read-only, cllp/sessions-platform):
- * `InlineAudioPlayer.jsx`, `WebFullscreenAudioPlayer.jsx`, `WebMiniPlayer.jsx` och
- * `packages/shared/audioPlayerHelpers.js`. Det som tas som det är: en spelare i taget,
- * spela och pausa, spolning, förfluten tid och total tid, hopp tio sekunder, en väntan
- * medan ljudet startar, och ett fel som sägs. Vågen och hastigheten fanns inte där
- * (de stod som framtida i `memory/archive/MOBILE_APP_STRATEGY.md`). De är med för att
- * CP bad om dem, inte för att förebilden hade dem.
+ * `InlineAudioPlayer.jsx` och bibliotekets listrad. Listan är kompakt: rubrik,
+ * datum och längd, spela, våg och menyn. Hopp, hastighet och nedladdning hör
+ * hemma i detaljen. Vågen med riktiga toppar är med för att CP bad om den.
  *
- * ⛔ SPOLNINGEN ÄR ETT NATIVT `input type=range` OVANPÅ VÅGEN. SessionStudios
- * fullskärmsspelare ritade ett eget `role="slider"` och räknade pekaren själv.
- * `OpsSlider` bär redan skälet: den räkningen är det som går sönder på en telefon.
- * Vågen är det man ser. Reglaget är det man drar, med piltangenter och uppläsning.
+ * ⛔ SPOLNINGEN ÄR ETT NATIVT `input type=range` OVANPÅ VÅGEN. Ett eget
+ * `role="slider"` som räknar pekaren själv är det som går sönder på en telefon.
  *
- * ⛔ EN I TAGET ÄR EN SPÄRR, INTE EN GLOBAL LIST. Varje rad har sitt eget
- * `<audio>` så längden och vågen kan läsas innan man trycker. När en startar
- * pausas de andra (`baraEnSpelar`). En enda delad `<audio>` hade gjort att
- * grannraden visade 0:00 tills man råkade starta just den.
+ * ⛔ EN I TAGET. Varje rad har sitt eget `<audio>` så längden kan läsas utan
+ * att man trycker. När en startar pausas de andra.
  *
- * ⛔ LAGRING. `src` är en färdig adress (http, https eller en data-URL). En fil i
- * Storage skickas som `sokvag` plus `hamtaAdress`, och den funktionen är appens
- * `adress` på `createFirebaseStorageSource`, alltså `getDownloadURL`. Ramverket
- * importerar inte Firebase. `src` vinner när båda finns: Biblioteket cachar
- * adressen själv och ska inte hämta den en gång till här.
- *
- * ⛔ SMAL YTA (lifehub.app#163). Under 430 px får hopp, hastighet och nedladdning
- * inte dela rad med spela och vågen. Förloppet är en synlig skena under stolparna,
- * inte bara en osynlig range ovanpå. Ikonerna får inte överlappa.
+ * ⛔ LÄNGD. `duration` från metadata. På iOS och för webm/mp4 från MediaRecorder
+ * är den ofta Infinity: då söker spelaren till ett stort värde och läser igen,
+ * och avkodning med AudioContext är reserven som också ger topparna.
+ * `durationMs` och `peaks` på posten ritas direkt, utan att filen spelas.
  *
  * @param {object} props
- * @param {string} [props.src] Färdig adress. Vinner över `sokvag`.
- * @param {string} [props.sokvag] Sökväg i Storage, när adressen inte är känd än.
- * @param {(sokvag: string) => Promise<string>} [props.hamtaAdress] Ger adressen för `sokvag`. Samma kontrakt som lagringens `adress`.
- * @param {string} [props.namn] Det ljudet heter, för knapparna och för raden ovanför när `visaNamn` är sann.
- * @param {boolean} [props.visaNamn] Rita namnet. Falskt där raden redan säger det, som i Bibliotekets lista.
+ * @param {string} [props.src]
+ * @param {string} [props.sokvag]
+ * @param {(sokvag: string) => Promise<string>} [props.hamtaAdress]
+ * @param {string} [props.namn]
+ * @param {boolean} [props.visaNamn] Rita namnet ovanför i det fulla läget. I kompakt läge är namnet alltid radens rubrik.
+ * @param {boolean} [props.kompakt] Listans rad: spela, rubrik, meta, våg. Inte hopp, hastighet eller nedladdning.
+ * @param {string} [props.meta] Datum och längd under rubriken, i kompakt läge.
+ * @param {number} [props.durationMs] Sparad längd. Visas innan elementet hunnit läsa filen.
+ * @param {number[]} [props.peaks] Sparade toppar, `LJUD_STOLPAR` tal mellan 0 och 1.
+ * @param {() => void} [props.onOppna] Rubriken i kompakt läge öppnar detaljen.
+ * @param {(meta: { durationMs?: number, peaks?: number[] }) => void} [props.onMeta] När längd eller toppar räknats fram.
+ * @param {string} [props.styrId] Kopplar ⋯-menyn till den här spelaren.
  */
 export function OpsLjudspelare(props) {
-  const tillatna = ["src", "sokvag", "hamtaAdress", "namn", "visaNamn"];
+  const tillatna = ["src", "sokvag", "hamtaAdress", "namn", "visaNamn", "kompakt", "meta", "durationMs", "peaks", "onOppna", "onMeta", "styrId"];
   const okanda = Object.keys(props).filter((k) => !tillatna.includes(k));
   if (okanda.length > 0) {
     throw new Error(`OpsLjudspelare: okända props ${okanda.join(", ")}. Tillåtna: ${tillatna.join(", ")}.`);
   }
-  const { src = "", sokvag = "", hamtaAdress, namn = "", visaNamn = true } = props;
+  const { src = "", sokvag = "", hamtaAdress, namn = "", visaNamn = true, kompakt = false, meta = "", durationMs, peaks, onOppna, onMeta, styrId = "" } = props;
   if (hamtaAdress !== undefined && typeof hamtaAdress !== "function") {
     throw new Error("OpsLjudspelare: hamtaAdress ska vara en funktion (sokvag) => adress. Det är lagringens adress, alltså getDownloadURL.");
   }
   if (namn !== undefined && typeof namn !== "string") {
     throw new Error("OpsLjudspelare: namn ska vara en sträng.");
+  }
+  if (meta !== undefined && typeof meta !== "string") {
+    throw new Error("OpsLjudspelare: meta ska vara en sträng.");
+  }
+  if (onOppna !== undefined && typeof onOppna !== "function") {
+    throw new Error("OpsLjudspelare: onOppna ska vara en funktion.");
+  }
+  if (onMeta !== undefined && typeof onMeta !== "function") {
+    throw new Error("OpsLjudspelare: onMeta ska vara en funktion.");
+  }
+  if (styrId !== undefined && typeof styrId !== "string") {
+    throw new Error("OpsLjudspelare: styrId ska vara en sträng.");
+  }
+  if (durationMs !== undefined && durationMs !== null && typeof durationMs !== "number") {
+    throw new Error("OpsLjudspelare: durationMs ska vara ett tal, millisekunder.");
+  }
+  if (peaks !== undefined && peaks !== null && !Array.isArray(peaks)) {
+    throw new Error("OpsLjudspelare: peaks ska vara en lista av tal.");
   }
 
   const [adress, setAdress] = useState(typeof src === "string" ? src : "");
@@ -130,6 +147,9 @@ export function OpsLjudspelare(props) {
     };
   }, [src, sokvag]);
 
+  const sparadMs = Number.isInteger(durationMs) && /** @type {number} */ (durationMs) > 0 ? /** @type {number} */ (durationMs) : 0;
+  const sparadeToppar = peaksGiltiga(peaks) ? /** @type {number[]} */ (peaks) : null;
+
   if (hamtar) {
     return (
       <div data-ljudspelare="hamtar" className="flex min-h-11 w-full min-w-0 items-center gap-2 text-meta text-ink-secondary">
@@ -145,7 +165,20 @@ export function OpsLjudspelare(props) {
       </p>
     );
   }
-  return <Spelare adress={adress} namn={typeof namn === "string" ? namn : ""} visaNamn={visaNamn !== false} />;
+  return (
+    <Spelare
+      adress={adress}
+      namn={typeof namn === "string" ? namn : ""}
+      visaNamn={visaNamn !== false}
+      kompakt={kompakt === true}
+      meta={typeof meta === "string" ? meta : ""}
+      durationMs={sparadMs}
+      peaks={sparadeToppar}
+      onOppna={typeof onOppna === "function" ? onOppna : null}
+      onMeta={typeof onMeta === "function" ? onMeta : null}
+      styrId={typeof styrId === "string" ? styrId : ""}
+    />
+  );
 }
 
 /**
@@ -170,20 +203,60 @@ function startFel(e) {
 }
 
 /**
- * @param {{ adress: string, namn: string, visaNamn: boolean }} props
+ * @param {{ adress: string, namn: string, visaNamn: boolean, kompakt: boolean, meta: string, durationMs: number, peaks: number[] | null, onOppna: (() => void) | null, onMeta: ((meta: { durationMs?: number, peaks?: number[] }) => void) | null, styrId: string }} props
  */
-function Spelare({ adress, namn, visaNamn }) {
+function Spelare({ adress, namn, visaNamn, kompakt, meta, durationMs, peaks, onOppna, onMeta, styrId }) {
   const ljud = useRef(/** @type {HTMLAudioElement | null} */ (null));
   const begart = useRef(false);
   const drar = useRef(false);
+  const sokerLangd = useRef(false);
+  const soktLangd = useRef(false);
   const handtag = useRef(/** @type {{ pausa: () => void }} */ ({ pausa: () => {} }));
   const [spelar, setSpelar] = useState(false);
   const [laddar, setLaddar] = useState(false);
   const [tid, setTid] = useState(0);
-  const [langd, setLangd] = useState(0);
+  const [langd, setLangd] = useState(durationMs > 0 ? durationMs / 1000 : 0);
   const [hastighet, setHastighet] = useState(1);
   const [fel, setFel] = useState("");
-  const [stolpar, setStolpar] = useState(() => lasStolpar(adress) ?? plattaStolpar());
+  const [stolpar, setStolpar] = useState(() => peaks ?? lasStolpar(adress) ?? plattaStolpar());
+  const [vag, setVag] = useState(peaks || lasStolpar(adress) ? "toppar" : "vantar");
+  const onMetaRef = useRef(onMeta);
+  onMetaRef.current = onMeta;
+  const durationRef = useRef(durationMs);
+  const peaksRef = useRef(peaks);
+  durationRef.current = durationMs;
+  peaksRef.current = peaks;
+  const skickat = useRef({ durationMs: durationMs > 0 ? durationMs : 0, peaks: Boolean(peaks) });
+  const apiRef = useRef({
+    hoppa: (/** @type {number} */ _d) => {},
+    bytHastighet: () => {},
+    laddaNed: () => {},
+  });
+  // ⛔ GAMLA POSTER UTAN durationMs. meta-propen kan bara ha datumet tills
+  // spelaren räknat längden. Visa den uträknade längden då, så listan inte
+  // bara döljer den (CP 2026-10-10, granskning av 0.92.4).
+  const metaMedLangd = (() => {
+    if (!langdArKand(langd)) return meta || "";
+    const tidText = formateraTid(langd);
+    if (meta && /\d+:\d{2}\b/.test(meta)) return meta;
+    if (meta) return `${meta} · ${tidText}`;
+    return tidText;
+  })();
+
+  const rapportera = (/** @type {number} */ sek, /** @type {number[] | null} */ toppar) => {
+    /** @type {{ durationMs?: number, peaks?: number[] }} */
+    const ut = {};
+    const ms = langdArKand(sek) ? Math.round(sek * 1000) : 0;
+    if (ms && ms !== skickat.current.durationMs) {
+      skickat.current.durationMs = ms;
+      ut.durationMs = ms;
+    }
+    if (toppar && peaksGiltiga(toppar) && !skickat.current.peaks) {
+      skickat.current.peaks = true;
+      ut.peaks = toppar;
+    }
+    if (ut.durationMs || ut.peaks) onMetaRef.current?.(ut);
+  };
 
   useEffect(() => {
     handtag.current.pausa = () => {
@@ -197,23 +270,60 @@ function Spelare({ adress, namn, visaNamn }) {
   }, []);
 
   useEffect(() => {
+    if (!styrId) return undefined;
+    return registreraStyrning(styrId, {
+      hoppa: (delta) => apiRef.current.hoppa(delta),
+      bytHastighet: () => apiRef.current.bytHastighet(),
+      laddaNed: () => apiRef.current.laddaNed(),
+    });
+  }, [styrId]);
+
+  useEffect(() => {
     const el = ljud.current;
     if (!el) return undefined;
     begart.current = false;
+    soktLangd.current = false;
+    sokerLangd.current = false;
+    const startMs = durationRef.current;
+    skickat.current = { durationMs: startMs > 0 ? startMs : 0, peaks: Boolean(peaksRef.current) };
     setTid(0);
-    setLangd(0);
+    setLangd(startMs > 0 ? startMs / 1000 : 0);
     setSpelar(false);
     setLaddar(false);
     setFel("");
     el.playbackRate = hastighet;
-    if (Number.isFinite(el.duration)) setLangd(el.duration);
+    if (langdArKand(el.duration)) setLangd(el.duration);
 
+    let avbruten = false;
     const vidTid = () => {
-      if (!drar.current) setTid(el.currentTime || 0);
+      if (drar.current || sokerLangd.current) return;
+      setTid(el.currentTime || 0);
     };
-    const vidLangd = () => {
-      const d = el.duration;
-      setLangd(Number.isFinite(d) ? d : 0);
+    const lasOm = () => {
+      if (soktLangd.current || avbruten) return;
+      if (langdArKand(el.duration)) {
+        setLangd(el.duration);
+        rapportera(el.duration, null);
+        return;
+      }
+      soktLangd.current = true;
+      sokerLangd.current = true;
+      lasLangdMedSok(el).then((sek) => {
+        sokerLangd.current = false;
+        if (avbruten) return;
+        if (!begart.current) {
+          try {
+            el.currentTime = 0;
+          } catch {
+            /* tiden går inte att nollställa förrän elementet är redo, och då står 0 kvar */
+          }
+          setTid(0);
+        }
+        if (langdArKand(sek)) {
+          setLangd(sek);
+          rapportera(sek, null);
+        }
+      });
     };
     const vidSpel = () => {
       setSpelar(true);
@@ -243,23 +353,25 @@ function Spelare({ adress, namn, visaNamn }) {
       if (begart.current) setFel(mediaFel(el));
     };
     el.addEventListener("timeupdate", vidTid);
-    el.addEventListener("durationchange", vidLangd);
-    el.addEventListener("loadedmetadata", vidLangd);
+    el.addEventListener("durationchange", lasOm);
+    el.addEventListener("loadedmetadata", lasOm);
     el.addEventListener("play", vidSpel);
     el.addEventListener("playing", vidSpel);
     el.addEventListener("pause", vidPaus);
     el.addEventListener("ended", vidSlut);
     el.addEventListener("waiting", vidVantar);
     el.addEventListener("error", vidFel);
+    if (el.readyState >= 1) lasOm();
     return () => {
+      avbruten = true;
       try {
         el.pause();
       } catch {
         /* samma som handtagets paus: städningen ska nå fram till att lyssnarna tas bort */
       }
       el.removeEventListener("timeupdate", vidTid);
-      el.removeEventListener("durationchange", vidLangd);
-      el.removeEventListener("loadedmetadata", vidLangd);
+      el.removeEventListener("durationchange", lasOm);
+      el.removeEventListener("loadedmetadata", lasOm);
       el.removeEventListener("play", vidSpel);
       el.removeEventListener("playing", vidSpel);
       el.removeEventListener("pause", vidPaus);
@@ -270,23 +382,39 @@ function Spelare({ adress, namn, visaNamn }) {
   }, [adress]);
 
   useEffect(() => {
+    if (durationMs > 0) setLangd((nu) => (nu > 0 ? nu : durationMs / 1000));
+  }, [durationMs]);
+
+  useEffect(() => {
+    if (peaks && peaksGiltiga(peaks)) {
+      setStolpar(peaks);
+      setVag("toppar");
+      return undefined;
+    }
     const cachad = lasStolpar(adress);
-    if (cachad) {
+    if (cachad && peaksGiltiga(cachad)) {
       setStolpar(cachad);
+      setVag("toppar");
+      rapportera(0, cachad);
       return undefined;
     }
     setStolpar(plattaStolpar());
+    setVag("vantar");
     const ac = new AbortController();
-    stolparForAdress(adress, ac.signal).then(
+    metaForAdress(adress, ac.signal).then(
       (svar) => {
-        if (!ac.signal.aborted && svar && svar.length > 0) setStolpar(svar);
+        if (ac.signal.aborted || !svar) return;
+        setStolpar(svar.peaks);
+        setVag("toppar");
+        if (svar.durationMs > 0) setLangd(svar.durationMs / 1000);
+        rapportera(svar.durationMs / 1000, svar.peaks);
       },
       () => {
         /* avbruten läsning, eller en våg som inte gick att räkna: den platta står kvar */
       },
     );
     return () => ac.abort();
-  }, [adress]);
+  }, [adress, peaks]);
 
   useEffect(() => {
     if (!spelar) return undefined;
@@ -367,113 +495,163 @@ function Spelare({ adress, namn, visaNamn }) {
     if (ljud.current) ljud.current.playbackRate = nasta;
   };
 
+  const laddaNed = () => {
+    const a = document.createElement("a");
+    a.href = adress;
+    a.download = etikett || "ljud";
+    a.rel = "noopener";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  };
+
+  apiRef.current.hoppa = hoppaOm;
+  apiRef.current.bytHastighet = bytHastighet;
+  apiRef.current.laddaNed = laddaNed;
+
   const spolNamn = etikett ? `Spola i ${etikett}` : "Spola i ljudet";
   const nedNamn = etikett ? `Ladda ned ${etikett}` : "Ladda ned ljudet";
   const biKlass =
-    "inline-flex h-9 min-w-9 shrink-0 cursor-pointer items-center justify-center gap-0.5 rounded-md px-1.5 text-ink hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-40";
+    "inline-flex min-h-11 min-w-11 shrink-0 cursor-pointer items-center justify-center gap-0.5 rounded-md px-2 text-ink hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-40";
+
+  const vagNod = (
+    <div className="relative min-h-11 min-w-0 flex-1 rounded-sm focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-accent">
+      <div
+        aria-hidden="true"
+        data-ljud-skena=""
+        data-ljud-vag={vag}
+        className="pointer-events-none absolute inset-0 flex items-center gap-px px-0.5"
+      >
+        {visade.map((hojd, i) => {
+          const spelad = langd > 0 && (i + 0.5) / visade.length <= kvot;
+          const h = Math.max(8, Math.round((hojd || 0) * 100));
+          return (
+            <span
+              key={i}
+              data-ljud-stolpe={spelad ? "spelad" : "kvar"}
+              data-ljud-hojd={h}
+              className={cx("min-w-0 flex-1 rounded-sm", spelad ? "bg-accent" : "bg-line")}
+              style={{ height: `${h}%` }}
+            />
+          );
+        })}
+      </div>
+      <div
+        aria-hidden="true"
+        data-ljud-framsteg=""
+        className="pointer-events-none absolute inset-y-1 left-0 bg-accent/25"
+        style={{ width: `${procent}%` }}
+      />
+      <input
+        type="range"
+        min={0}
+        max={1000}
+        step={langd > 0 ? Math.max(1, Math.round((5 / langd) * 1000)) : 1}
+        value={langd > 0 ? Math.round(kvot * 1000) : 0}
+        disabled={!langd}
+        aria-label={spolNamn}
+        aria-valuetext={langd > 0 ? `${formateraTid(tid)} av ${formateraTid(langd)}` : "Längden är inte känd"}
+        onPointerDown={() => {
+          drar.current = true;
+        }}
+        onPointerUp={() => {
+          drar.current = false;
+        }}
+        onPointerCancel={() => {
+          drar.current = false;
+        }}
+        onChange={(e) => sok(Number(e.target.value) / 1000)}
+        className="absolute inset-0 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
+      />
+    </div>
+  );
+
+  const spelKnapp = (
+    <button
+      type="button"
+      aria-label={knappNamn}
+      aria-busy={laddar || undefined}
+      disabled={laddar}
+      onClick={spelaEllerPausa}
+      className="inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full bg-accent text-accent-contrast hover:bg-accent-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-wait disabled:opacity-60"
+    >
+      {laddar ? <OpsSpinner size="sm" decorative /> : spelar ? <PausaIkon size={18} /> : <SpelaIkon size={18} />}
+    </button>
+  );
 
   return (
-    <div data-ljudspelare="" className="flex w-full min-w-0 flex-col gap-1.5">
+    <div data-ljudspelare={kompakt ? "kompakt" : "full"} className="flex w-full min-w-0 flex-col gap-1.5">
       {/*
        * ⛔ playsInline: iOS Safari startar annars i fullskärm eller nekar play.
        * preload=metadata räcker för längd; hela filen hämtas vid play.
        */}
       <audio ref={ljud} src={adress} preload="metadata" playsInline className="sr-only" />
-      {visaNamn && etikett ? <p className="m-0 truncate text-meta font-medium text-ink">{etikett}</p> : null}
-
-      <div className="flex min-w-0 items-center gap-2">
-        <button
-          type="button"
-          aria-label={knappNamn}
-          aria-busy={laddar || undefined}
-          disabled={laddar}
-          onClick={spelaEllerPausa}
-          className="inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full bg-accent text-accent-contrast hover:bg-accent-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-wait disabled:opacity-60"
-        >
-          {laddar ? <OpsSpinner size="sm" decorative /> : spelar ? <PausaIkon size={18} /> : <SpelaIkon size={18} />}
-        </button>
-
-        <div className="relative min-h-11 min-w-0 flex-1 rounded-sm focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-accent">
-          <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-1 flex h-7 items-end gap-px px-0.5">
-            {visade.map((hojd, i) => {
-              const spelad = (i + 0.5) / visade.length <= kvot;
-              return (
-                <span
-                  key={i}
-                  data-ljud-stolpe={spelad ? "spelad" : "kvar"}
-                  className={cx("min-h-0.5 min-w-0 flex-1 rounded-sm", spelad ? "bg-accent" : "bg-line")}
-                  style={{ height: `${Math.max(12, Math.round((hojd || 0) * 100))}%` }}
-                />
-              );
-            })}
+      {kompakt ? (
+        <>
+          <div className="flex min-w-0 items-center gap-3">
+            {spelKnapp}
+            {onOppna ? (
+              <button
+                type="button"
+                onClick={onOppna}
+                aria-label={etikett || "Öppna"}
+                className="flex min-h-11 min-w-0 flex-1 cursor-pointer flex-col justify-center bg-transparent text-left focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
+              >
+                <span className="block truncate text-brod font-medium text-ink">{etikett}</span>
+                {metaMedLangd ? <span data-ljud-langd="" className="block truncate text-meta text-ink-muted">{metaMedLangd}</span> : null}
+              </button>
+            ) : (
+              <span className="min-w-0 flex-1">
+                {etikett ? <span className="block truncate text-brod font-medium text-ink">{etikett}</span> : null}
+                {metaMedLangd ? <span data-ljud-langd="" className="block truncate text-meta text-ink-muted">{metaMedLangd}</span> : null}
+              </span>
+            )}
           </div>
-          <div
-            aria-hidden="true"
-            data-ljud-skena=""
-            className="pointer-events-none absolute inset-x-0 bottom-1.5 h-1.5 overflow-hidden rounded-full bg-line"
-          >
-            <div data-ljud-framsteg="" className="h-full bg-accent transition-[width] duration-75" style={{ width: `${procent}%` }} />
+          {vagNod}
+        </>
+      ) : (
+        <>
+          {visaNamn && etikett ? <p className="m-0 truncate text-meta font-medium text-ink">{etikett}</p> : null}
+          <div className="flex min-w-0 items-center gap-2">
+            {spelKnapp}
+            {vagNod}
+            <span data-ljud-tid="" className="shrink-0 text-meta text-ink-secondary tabular-nums">
+              {formateraTid(tid)}
+              {langd > 0 ? (
+                <span className="text-ink-muted"> / {formateraTid(langd)}</span>
+              ) : (
+                <span className="text-ink-muted"> / längd okänd</span>
+              )}
+            </span>
           </div>
-          <input
-            type="range"
-            min={0}
-            max={1000}
-            step={langd > 0 ? Math.max(1, Math.round((5 / langd) * 1000)) : 1}
-            value={langd > 0 ? Math.round(kvot * 1000) : 0}
-            disabled={!langd}
-            aria-label={spolNamn}
-            aria-valuetext={langd > 0 ? `${formateraTid(tid)} av ${formateraTid(langd)}` : "Längden är inte känd"}
-            onPointerDown={() => {
-              drar.current = true;
-            }}
-            onPointerUp={() => {
-              drar.current = false;
-            }}
-            onPointerCancel={() => {
-              drar.current = false;
-            }}
-            onChange={(e) => sok(Number(e.target.value) / 1000)}
-            className="absolute inset-0 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
-          />
-        </div>
-
-        <span data-ljud-tid="" className="shrink-0 text-meta text-ink-secondary tabular-nums">
-          {formateraTid(tid)}
-          <span className="text-ink-muted"> / {formateraTid(langd)}</span>
-        </span>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-x-1 gap-y-1">
-        <button type="button" aria-label="10 sekunder bakåt" disabled={!langd} onClick={() => hoppaOm(-HOPP_SEKUNDER)} className={biKlass}>
-          <HoppaBakatIkon size={16} />
-          <span aria-hidden="true" className="text-liten font-medium text-ink-secondary">
-            -10
-          </span>
-        </button>
-        <button type="button" aria-label="10 sekunder framåt" disabled={!langd} onClick={() => hoppaOm(HOPP_SEKUNDER)} className={biKlass}>
-          <HoppaFramatIkon size={16} />
-          <span aria-hidden="true" className="text-liten font-medium text-ink-secondary">
-            +10
-          </span>
-        </button>
-        <button
-          type="button"
-          aria-label={`Uppspelningshastighet ${hastighetText(hastighet)}`}
-          onClick={bytHastighet}
-          className={cx(biKlass, "min-w-11 px-2 text-meta font-medium")}
-        >
-          {hastighetText(hastighet)}
-        </button>
-        <a
-          href={adress}
-          download={etikett || "ljud"}
-          aria-label={nedNamn}
-          className="inline-flex h-9 shrink-0 items-center rounded-md px-2 text-meta text-ink-secondary underline underline-offset-2 hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-        >
-          Ladda ned
-        </a>
-      </div>
-
+          <div className="flex flex-wrap items-center gap-x-1 gap-y-1">
+            <button type="button" aria-label="10 sekunder bakåt" disabled={!langd} onClick={() => hoppaOm(-HOPP_SEKUNDER)} className={biKlass}>
+              <HoppaBakatIkon size={16} />
+              <span aria-hidden="true" className="text-liten font-medium text-ink-secondary">-10</span>
+            </button>
+            <button type="button" aria-label="10 sekunder framåt" disabled={!langd} onClick={() => hoppaOm(HOPP_SEKUNDER)} className={biKlass}>
+              <HoppaFramatIkon size={16} />
+              <span aria-hidden="true" className="text-liten font-medium text-ink-secondary">+10</span>
+            </button>
+            <button
+              type="button"
+              aria-label={`Uppspelningshastighet ${hastighetText(hastighet)}`}
+              onClick={bytHastighet}
+              className={cx(biKlass, "px-2 text-meta font-medium")}
+            >
+              {hastighetText(hastighet)}
+            </button>
+            <a
+              href={adress}
+              download={etikett || "ljud"}
+              aria-label={nedNamn}
+              className="inline-flex min-h-11 shrink-0 items-center rounded-md px-2 text-meta text-ink-secondary underline underline-offset-2 hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            >
+              Ladda ned
+            </a>
+          </div>
+        </>
+      )}
       {fel ? (
         <p role="alert" className="m-0 text-meta text-danger">
           {fel}
