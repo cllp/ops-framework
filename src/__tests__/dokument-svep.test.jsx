@@ -272,7 +272,10 @@ describe("OpsDokument", () => {
     const { unmount } = render(
       <OpsDokument rubrik="Protokoll" lasning={<p>Texten</p>} redigering={<input aria-label="Text" />} kanRedigera={false} />,
     );
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Protokoll");
+    const rubrik = screen.getByRole("heading", { level: 1 });
+    expect(rubrik).toHaveTextContent("Protokoll");
+    expect(rubrik.className).toContain("text-rubrik");
+    expect(rubrik.className).not.toContain("text-sida");
     expect(screen.getByText("Texten")).toBeInTheDocument();
     expect(document.querySelector("[data-ops-dokument]")).toHaveAttribute("data-ops-dokument", "las");
     expect(screen.queryByRole("textbox")).toBeNull();
@@ -291,6 +294,10 @@ describe("OpsDokument", () => {
         onAvbryt={onAvbryt}
       />,
     );
+    const verktyg = document.querySelector("[data-ops-dokument-verktyg]");
+    expect(verktyg).not.toBeNull();
+    expect(verktyg?.contains(screen.getByRole("button", { name: "Redigera" }))).toBe(true);
+    expect(verktyg?.contains(screen.getByRole("heading", { level: 1 }))).toBe(false);
     fireEvent.click(screen.getByRole("button", { name: "Redigera" }));
     expect(screen.getByRole("textbox", { name: "Text" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Radera" })).toBeNull();

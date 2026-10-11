@@ -44,9 +44,14 @@ import { OpsView } from "./OpsView.jsx";
  * inga knappar för att lägga till.
  *
  * ⛔ RADERA SITTER INTE I FORMULÄRET (#311, och CP: den stora röda knappen).
- * Samma `farAndra`. I listan avslöjar ett svep åt vänster Radera, och trycket
- * ger ångra innan `onRadera`. Menyn (långtryck, högerklick, ⋮) frågar först.
+ * Samma `farAndra`, samma väg för varje typ (anteckning, länk, ljud, fil):
+ * ⋯ och svep i listan, ⋯ i detaljen, bekräftelse (modal) respektive Ångra (svep).
  * En trasig rad har samma fråga när raden bär grupp och skapare nog för `farAndra`.
+ *
+ * ⛔ DETALJHUVUDET ÄR GEMENSAMT (CP 2026-10-10). Tillbaka, ikon och ⋯ på en rad,
+ * rubriken på egen rad med rollen `rubrik`, sedan metadata. Typen fyller bara
+ * innehållet. Förr delade anteckningens `text-sida`-rubrik rad med ikonen och
+ * Redigera, och ordet trängdes på telefonen.
  *
  * ⛔ `jag` KRÄVS, OCH `null` ÄR ETT SVAR (regel 5, granskningen av #304). Med
  * `null` som förval såg en app som glömt propen ut som en icke-medlem: inga
@@ -440,29 +445,26 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
                       const ljud = arLjudpost(post);
                       const bild = post.typ === "fil" && filSort(post.fil?.mime) === "bild";
                       const lage = adressFor(post);
+                      const meny = menyFor(rad, false);
                       if (ljud) {
                         return (
                           <OpsSvepRad key={post.id} atgarder={svepFor(rad)}>
-                            <Ljudrad post={post} lage={lage} onOppna={() => oppnaMed(rad, "las")} meny={menyFor(rad, false)} onMeta={togMeta} />
+                            <BibliotekListrad namn={ljudRubrik(post)} meny={meny}>
+                              <Ljudrad post={post} lage={lage} onOppna={() => oppnaMed(rad, "las")} onMeta={togMeta} />
+                            </BibliotekListrad>
                           </OpsSvepRad>
                         );
                       }
+                      const namn = trimSomRegeln(post.rubrik) || "Post";
                       return (
                         <OpsSvepRad key={post.id} atgarder={svepFor(post)}>
-                          <OpsAtgardsblad namn={post.rubrik} poster={menyFor(post, false)}>
-                            <button
-                              type="button"
-                              className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 bg-transparent text-left focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
-                              onClick={() => oppnaMed(post, "las")}
-                              aria-label={post.rubrik}
-                            >
-                              <PostMark post={post} bildAdress={bild && lage.lage === "klar" ? lage.adress : ""} />
-                              <span className="min-w-0 flex-1">
-                                <span className="block truncate text-brod font-medium text-ink">{post.rubrik}</span>
-                                <span className="block truncate text-meta text-ink-muted">{postRad(post)}</span>
-                              </span>
-                            </button>
-                          </OpsAtgardsblad>
+                          <BibliotekListrad
+                            namn={namn}
+                            meny={meny}
+                            ikon={<PostMark post={post} bildAdress={bild && lage.lage === "klar" ? lage.adress : ""} />}
+                            meta={postRad(post)}
+                            onOppna={() => oppnaMed(post, "las")}
+                          />
                         </OpsSvepRad>
                       );
                     })}
@@ -689,12 +691,40 @@ function ljudMetaRad(post) {
 }
 
 /**
- * Listans ljudrad: ett element till vänster (spela), rubrik, datum och längd, våg, och ⋯.
- * Ikonen ritas inte här. Den och spelknappen på samma rad är det som överlappade.
+ * Gemensam listrad: ⋯ via `OpsAtgardsblad`, och antingen standardrad (ikon,
+ * rubrik, meta) eller eget innehåll (ljudraden med spelare). Svepet sitter utanför.
  *
- * @param {{ post: import("../lib/bibliotek.js").Bibliotekspost & { id: string }, lage: Adresslage, onOppna: () => void, meny: import("./OpsAtgardsblad.jsx").Atgard[], onMeta: (id: string, meta: { durationMs?: number, peaks?: number[] }) => void }} props
+ * @param {{ namn: string, meny: import("./OpsAtgardsblad.jsx").Atgard[], ikon?: import("react").ReactNode, meta?: string, onOppna?: () => void, children?: import("react").ReactNode }} props
  */
-function Ljudrad({ post, lage, onOppna, meny, onMeta }) {
+function BibliotekListrad({ namn, meny, ikon = null, meta = "", onOppna, children = null }) {
+  return (
+    <OpsAtgardsblad namn={namn} poster={meny}>
+      {children ?? (
+        <button
+          type="button"
+          className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 bg-transparent text-left focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
+          onClick={onOppna}
+          aria-label={namn}
+        >
+          {ikon}
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-brod font-medium text-ink">{namn}</span>
+            {meta ? <span className="block truncate text-meta text-ink-muted">{meta}</span> : null}
+          </span>
+        </button>
+      )}
+    </OpsAtgardsblad>
+  );
+}
+
+/**
+ * Listans ljudinnehåll: ett element till vänster (spela), rubrik, datum och längd, våg.
+ * Ikonen ritas inte här. Den och spelknappen på samma rad är det som överlappade.
+ * ⋯ och svep kommer från `BibliotekListrad` / `OpsSvepRad`, samma som övriga typer.
+ *
+ * @param {{ post: import("../lib/bibliotek.js").Bibliotekspost & { id: string }, lage: Adresslage, onOppna: () => void, onMeta: (id: string, meta: { durationMs?: number, peaks?: number[] }) => void }} props
+ */
+function Ljudrad({ post, lage, onOppna, onMeta }) {
   const rubrik = ljudRubrik(post);
   const meta = ljudMetaRad(post);
   const text = (
@@ -709,35 +739,33 @@ function Ljudrad({ post, lage, onOppna, meny, onMeta }) {
     </button>
   );
   return (
-    <OpsAtgardsblad namn={rubrik} poster={meny}>
-      <div data-bibliotek-ljudrad="" className="flex min-w-0 w-full flex-1 flex-col gap-1">
-        {lage.lage === "klar" ? (
-          <OpsLjudspelare
-            kompakt
-            src={lage.adress}
-            namn={rubrik}
-            meta={meta}
-            durationMs={post.durationMs}
-            peaks={post.peaks}
-            styrId={post.id}
-            onOppna={onOppna}
-            onMeta={(inmata) => onMeta(post.id, inmata)}
-          />
-        ) : (
-          <>
-            <div className="flex min-w-0 items-center gap-3">
-              <span className="inline-flex size-11 shrink-0 items-center justify-center rounded-full bg-sunken text-ink-muted" aria-hidden="true" />
-              {text}
-            </div>
-            {lage.lage === "hamtar" ? (
-              <p role="status" className="m-0 text-meta text-ink-secondary">Hämtar ljudet.</p>
-            ) : (
-              <p role={lage.lage === "fel" ? "alert" : "status"} className="m-0 text-meta text-danger">{lage.fel || "Filen har ingen adress."}</p>
-            )}
-          </>
-        )}
-      </div>
-    </OpsAtgardsblad>
+    <div data-bibliotek-ljudrad="" className="flex min-w-0 w-full flex-1 flex-col gap-1">
+      {lage.lage === "klar" ? (
+        <OpsLjudspelare
+          kompakt
+          src={lage.adress}
+          namn={rubrik}
+          meta={meta}
+          durationMs={post.durationMs}
+          peaks={post.peaks}
+          styrId={post.id}
+          onOppna={onOppna}
+          onMeta={(inmata) => onMeta(post.id, inmata)}
+        />
+      ) : (
+        <>
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="inline-flex size-11 shrink-0 items-center justify-center rounded-full bg-sunken text-ink-muted" aria-hidden="true" />
+            {text}
+          </div>
+          {lage.lage === "hamtar" ? (
+            <p role="status" className="m-0 text-meta text-ink-secondary">Hämtar ljudet.</p>
+          ) : (
+            <p role={lage.lage === "fel" ? "alert" : "status"} className="m-0 text-meta text-danger">{lage.fel || "Filen har ingen adress."}</p>
+          )}
+        </>
+      )}
+    </div>
   );
 }
 
@@ -1044,33 +1072,36 @@ function Detalj({ post, skapar, jag, startLage, onStang, onSpara, onLaddaUpp, fi
     </>
   );
 
+  const menyNamn = ljud && post ? ljudRubrik(post) : (post ? (trimSomRegeln(post.rubrik) || "Post") : rubrikVy);
+  const metaText = lage === "las" && post
+    ? (post.skapadAv?.namn ? `Skriven av ${post.skapadAv.namn}.` : "Författaren saknar namn.")
+    : "";
+
   return (
     <div data-bibliotek-detalj={typ} data-bibliotek-lasning={lage === "las" ? "" : undefined} className="flex flex-col gap-4">
-      <TillbakaKnapp onClick={onStang} etikett="Tillbaka" className="self-start" />
-      <div className="flex items-start gap-3">
-        {mark}
-        <div className="min-w-0 flex-1">
-          <OpsDokument
-            ny={Boolean(skapar)}
-            kanRedigera={kan}
-            lage={lage}
-            onLage={setLage}
-            rubrik={rubrikVy}
-            lasning={lasning}
-            redigering={redigering}
-            fel={formfel && trimSomRegeln(rubrik) ? formfel : ""}
-            onSpara={forsokSpara}
-            onAvbryt={() => {
-              if (skapar) onStang();
-              else aterstall();
-            }}
-            extra={post && !skapar ? <OpsAtgardsblad baraKnapp namn={ljud ? ljudRubrik(post) : (trimSomRegeln(post.rubrik) || "Post")} poster={menyFor(post, true, setLage)} /> : null}
-          />
-        </div>
-      </div>
-      {lage === "las" && post ? (
-        <p className="text-meta text-ink-muted">{post.skapadAv?.namn ? `Skriven av ${post.skapadAv.namn}.` : "Författaren saknar namn."}</p>
-      ) : null}
+      <BibliotekDetaljHuvud
+        onTillbaka={onStang}
+        ikon={mark}
+        rubrik={rubrikVy}
+        meta={metaText}
+        meny={post && !skapar ? <OpsAtgardsblad baraKnapp namn={menyNamn} poster={menyFor(post, true, setLage)} /> : null}
+      />
+      <OpsDokument
+        ny={Boolean(skapar)}
+        kanRedigera={false}
+        visaRubrik={false}
+        lage={lage}
+        onLage={setLage}
+        rubrik={rubrikVy}
+        lasning={lasning}
+        redigering={redigering}
+        fel={formfel && trimSomRegeln(rubrik) ? formfel : ""}
+        onSpara={forsokSpara}
+        onAvbryt={() => {
+          if (skapar) onStang();
+          else aterstall();
+        }}
+      />
       {lage === "las" && post && ljud ? (
         kan ? (
           <UtskriftKontroll post={post} onSkrivUt={onSkrivUt} onGorForslag={onGorForslag} />
@@ -1079,6 +1110,27 @@ function Detalj({ post, skapar, jag, startLage, onStang, onSpara, onLaddaUpp, fi
         )
       ) : null}
     </div>
+  );
+}
+
+/**
+ * Gemensamt detaljhuvud för alla typer: Tillbaka, ikon och ⋯ på en rad,
+ * rubriken på egen rad med rollen `rubrik`, sedan metadata.
+ *
+ * @param {{ onTillbaka: () => void, ikon: import("react").ReactNode, rubrik: string, meta?: string, meny?: import("react").ReactNode }} props
+ */
+function BibliotekDetaljHuvud({ onTillbaka, ikon, rubrik, meta = "", meny = null }) {
+  return (
+    <header data-bibliotek-detaljhuvud="" className="flex min-w-0 flex-col gap-3">
+      <div className="flex min-w-0 items-center gap-2">
+        <TillbakaKnapp onClick={onTillbaka} etikett="Tillbaka" className="self-start" />
+        <span className="shrink-0">{ikon}</span>
+        <span className="min-w-0 flex-1" aria-hidden="true" />
+        {meny}
+      </div>
+      <h1 className="m-0 min-w-0 text-rubrik font-bold text-ink wrap-anywhere">{rubrik}</h1>
+      {meta ? <p data-bibliotek-meta="" className="m-0 text-meta text-ink-muted">{meta}</p> : null}
+    </header>
   );
 }
 

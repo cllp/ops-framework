@@ -14,6 +14,12 @@ import { useOpsSprak } from "./OpsSprak.jsx";
  *
  * Radering hör inte hemma här. Den ligger i menyn, med en fråga. Komponenten
  * känner ingen anteckning: läsningen och fälten skickas in.
+ *
+ * ⛔ RUBRIKEN HAR EGEN RAD OCH ROLLEN `rubrik` (CP 2026-10-10, iPhone).
+ * Förr stod `text-sida` + `font-display` på samma rad som ikonen och Redigera,
+ * och ordet trängdes. Rubriken är nu ensam under verktygsraden (pennan och
+ * `extra`), med `text-rubrik`. Bibliotekets detaljhuvud (Tillbaka, ikon, ⋯)
+ * ritas utanför den här komponenten.
  */
 
 export const ORD_OPSDOKUMENT = {
@@ -21,6 +27,8 @@ export const ORD_OPSDOKUMENT = {
   spara: { sv: "Spara", en: "Save" },
   avbryt: { sv: "Avbryt", en: "Cancel" },
 };
+
+const RUBRIK_KLASS = "m-0 min-w-0 text-rubrik font-bold text-ink wrap-anywhere";
 
 /**
  * @param {object} props
@@ -35,9 +43,10 @@ export const ORD_OPSDOKUMENT = {
  * @param {() => void | boolean | Promise<void | boolean>} [props.onSpara] `false` betyder att det inte gick, och läget står kvar.
  * @param {() => void} [props.onAvbryt] På ett nytt dokument stänger anroparen. På ett befintligt återställer anroparen fälten.
  * @param {string} [props.fel]
- * @param {import("react").ReactNode} [props.extra] Till höger om rubriken, till exempel menyn.
+ * @param {import("react").ReactNode} [props.extra] Till höger i verktygsraden, till exempel menyn. Inte på samma rad som rubriken.
+ * @param {boolean} [props.visaRubrik] Förval sant. Falskt när anroparen redan ritat rubriken (Bibliotekets detaljhuvud).
  */
-export function OpsDokument({ ny = false, kanRedigera = false, lage, onLage, start = "las", rubrik, lasning, redigering, onSpara, onAvbryt, fel = "", extra = null }) {
+export function OpsDokument({ ny = false, kanRedigera = false, lage, onLage, start = "las", rubrik, lasning, redigering, onSpara, onAvbryt, fel = "", extra = null, visaRubrik = true }) {
   const sprak = useOpsSprak();
   const t = (/** @type {keyof typeof ORD_OPSDOKUMENT} */ nyckel) => ordet(ORD_OPSDOKUMENT, nyckel, sprak);
   const styrd = lage === "las" || lage === "redigera";
@@ -84,13 +93,22 @@ export function OpsDokument({ ny = false, kanRedigera = false, lage, onLage, sta
     if (!ny) byt("las");
   }
 
+  const verktyg = kanRedigera || extra ? (
+    <div data-ops-dokument-verktyg="" className="flex shrink-0 items-center justify-end gap-1">
+      {kanRedigera ? (
+        <OpsButton variant="secondary" size="sm" onClick={() => byt("redigera")}>
+          <Pencil size={16} aria-hidden="true" />
+          {t("redigera")}
+        </OpsButton>
+      ) : null}
+      {extra}
+    </div>
+  ) : null;
+
   if (nu === "redigera") {
     return (
       <article data-ops-dokument="redigera" className="flex min-w-0 flex-col gap-4">
-        <header className="flex items-start justify-between gap-3">
-          <h1 className="m-0 min-w-0 flex-1 font-display text-sida font-bold leading-tight tracking-tight text-ink">{rubrik}</h1>
-          {extra}
-        </header>
+        {visaRubrik ? <h1 className={RUBRIK_KLASS}>{rubrik}</h1> : null}
         {redigering}
         {fel ? <p role="alert" className="text-brod text-danger">{fel}</p> : null}
         <div className="flex flex-wrap gap-2">
@@ -103,18 +121,8 @@ export function OpsDokument({ ny = false, kanRedigera = false, lage, onLage, sta
 
   return (
     <article data-ops-dokument="las" className="flex min-w-0 flex-col gap-4">
-      <header className="flex items-start justify-between gap-3">
-        <h1 className="m-0 min-w-0 flex-1 font-display text-sida font-bold leading-tight tracking-tight text-ink">{rubrik}</h1>
-        <div className="flex shrink-0 items-center gap-1">
-          {kanRedigera ? (
-            <OpsButton variant="secondary" size="sm" onClick={() => byt("redigera")}>
-              <Pencil size={16} aria-hidden="true" />
-              {t("redigera")}
-            </OpsButton>
-          ) : null}
-          {extra}
-        </div>
-      </header>
+      {verktyg}
+      {visaRubrik ? <h1 className={RUBRIK_KLASS}>{rubrik}</h1> : null}
       <div data-ops-dokument-text="" className="max-w-prose">{lasning}</div>
     </article>
   );
