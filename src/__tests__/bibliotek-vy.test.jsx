@@ -74,7 +74,9 @@ describe("OpsBibliotek", () => {
     expect(screen.queryByRole("textbox")).toBeNull();
     expect(screen.queryByRole("button", { name: "Spara" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Radera" })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Redigera" }));
+    expect(screen.queryByRole("button", { name: "Redigera" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Protokoll" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Redigera" }));
     expect(screen.getByDisplayValue("Vi beslutade om bokslutet.")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Avbryt" }));
     expect(screen.queryByRole("textbox")).toBeNull();
@@ -107,20 +109,23 @@ describe("OpsBibliotek", () => {
     expect(screen.getByText("javascript:alert(1)")).toBeInTheDocument();
   });
 
-  it("öppning är läsning, och Redigera visas för författaren och admin", () => {
+  it("öppning är läsning, och Redigera ligger i ⋯ för författaren och admin (samma som ljud)", () => {
     const { unmount } = render(<Harness jag={{ uid: "uid-annan", roll: "medlem" }} />);
     fireEvent.click(screen.getByRole("button", { name: "Protokoll" }));
     expect(screen.getByText("Vi beslutade om bokslutet.")).toBeInTheDocument();
     expect(screen.queryByRole("textbox")).toBeNull();
     expect(screen.queryByRole("button", { name: "Spara" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Redigera" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Åtgärder för Protokoll" })).toBeNull();
     expect(screen.getByRole("button", { name: "Tillbaka" }).querySelector("svg")).not.toBeNull();
     unmount();
 
     const admin = render(<Harness jag={{ uid: "uid-annan", roll: "admin" }} />);
     fireEvent.click(screen.getByRole("button", { name: "Protokoll" }));
     expect(screen.queryByRole("textbox")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Redigera" }));
+    expect(screen.queryByRole("button", { name: "Redigera" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Protokoll" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Redigera" }));
     expect(screen.getByRole("textbox", { name: "Text" })).toHaveValue("Vi beslutade om bokslutet.");
     admin.unmount();
 
@@ -129,6 +134,25 @@ describe("OpsBibliotek", () => {
     fireEvent.click(screen.getByRole("button", { name: "Protokoll" }));
     expect(screen.queryByRole("button", { name: "Spara" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Redigera" })).toBeNull();
+  });
+
+  it("detaljhuvudet har Tillbaka, ikon och ⋯ på en rad, rubrik på egen rad med rollen rubrik", () => {
+    render(<Harness />);
+    fireEvent.click(screen.getByRole("button", { name: "Protokoll" }));
+    const huvud = document.querySelector("[data-bibliotek-detaljhuvud]");
+    expect(huvud).not.toBeNull();
+    const rad = huvud?.firstElementChild;
+    expect(rad?.contains(screen.getByRole("button", { name: "Tillbaka" }))).toBe(true);
+    expect(rad?.querySelector("[data-bibliotek-ikon]")).not.toBeNull();
+    expect(rad?.contains(screen.getByRole("button", { name: "Åtgärder för Protokoll" }))).toBe(true);
+    const rubrik = screen.getByRole("heading", { level: 1, name: "Protokoll" });
+    expect(rubrik.className).toContain("text-rubrik");
+    expect(rubrik.className).not.toContain("text-sida");
+    expect(rad?.contains(rubrik)).toBe(false);
+    expect(huvud?.contains(rubrik)).toBe(true);
+    expect(document.querySelector("[data-bibliotek-meta]")?.textContent).toContain("Skriven av Kim");
+    fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Protokoll" }));
+    expect(screen.getByRole("menuitem", { name: "Radera" })).toBeInTheDocument();
   });
 
   it("jag krävs: utan propen kastar vyn, och null är en icke-medlem (granskningen av #304)", () => {

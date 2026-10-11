@@ -1345,6 +1345,55 @@ for (const bredd of [768, 834, 900, 1023, 1024]) {
   await context.close();
 }
 
+// Detaljhuvudet enhetligt (0.92.5). CP 2026-10-10: rubriken delade rad med ikon och Redigera och var för stor.
+// Mönster: Tillbaka, ikon och ⋯ på en rad; rubrik på egen rad med rollen rubrik; ingen pennknapp bredvid titeln.
+{
+  for (const vp of [{ width: 390, height: 844, mark: "390" }, { width: 1280, height: 900, mark: "1280" }]) {
+    const { page, context } = await oppna("bibliotekdetalj", vp);
+    const m = await page.evaluate(() => {
+      const huvud = document.querySelector("[data-bibliotek-detaljhuvud]");
+      if (!huvud) return { finns: false };
+      const rad = huvud.firstElementChild;
+      const tillbaka = [...(rad?.querySelectorAll("button") || [])].find((b) => (b.textContent || "").trim() === "Tillbaka");
+      const ikon = rad?.querySelector("[data-bibliotek-ikon]");
+      const meny = [...(rad?.querySelectorAll("button") || [])].find((b) => (b.getAttribute("aria-label") || "").startsWith("Åtgärder"));
+      const rubrik = huvud.querySelector("h1");
+      const stil = rubrik ? getComputedStyle(rubrik) : null;
+      const tr = tillbaka?.getBoundingClientRect();
+      const ir = ikon?.getBoundingClientRect();
+      const mr = meny?.getBoundingClientRect();
+      const rr = rubrik?.getBoundingClientRect();
+      const sammaRad = (a, b) => a && b && Math.abs((a.top + a.bottom) / 2 - (b.top + b.bottom) / 2) < 20;
+      const penna = [...document.querySelectorAll("button")].some((b) => (b.textContent || "").trim() === "Redigera");
+      return {
+        finns: true,
+        tillbaka: !!tillbaka,
+        ikon: !!ikon,
+        meny: !!meny,
+        rubrik: rubrik?.textContent || "",
+        fontPx: stil ? parseFloat(stil.fontSize) : 0,
+        chromeRad: sammaRad(tr, ir) && sammaRad(tr, mr),
+        rubrikEgen: rr && tr ? rr.top >= tr.bottom - 1 : false,
+        penna,
+        dok: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      };
+    });
+    matt.push(`bibliotek detaljhuvud ${vp.mark}: ${JSON.stringify(m)}`);
+    krav(m.finns && m.tillbaka && m.ikon && m.meny, `bibliotek detaljhuvud ${vp.mark}: chrome saknas (${JSON.stringify(m)}).`);
+    krav(m.chromeRad, `bibliotek detaljhuvud ${vp.mark}: Tillbaka, ikon och ⋯ står inte på samma rad.`);
+    krav(m.rubrikEgen && m.rubrik === "Protokoll", `bibliotek detaljhuvud ${vp.mark}: rubriken saknar egen rad (${JSON.stringify(m)}).`);
+    // Rollen rubrik är 1rem (16 px). text-sida var 1.25rem (20 px).
+    krav(m.fontPx > 0 && m.fontPx <= 16.5, `bibliotek detaljhuvud ${vp.mark}: rubriken är ${m.fontPx} px, väntat rollen rubrik (16 px).`);
+    krav(!m.penna, `bibliotek detaljhuvud ${vp.mark}: pennan Redigera syns fortfarande bredvid rubriken.`);
+    krav(m.dok <= 1, `bibliotek detaljhuvud ${vp.mark}: sidan flödar ${m.dok} px i sidled.`);
+    if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `bibliotek-detaljhuvud-${vp.mark}.png`), clip: { x: 0, y: 0, width: vp.width, height: 520 } });
+    await page.getByRole("button", { name: "Åtgärder för Protokoll" }).click();
+    const radera = await page.getByRole("menuitem", { name: "Radera" }).count();
+    krav(radera === 1, `bibliotek detaljhuvud ${vp.mark}: Radera saknas i ⋯ (${radera}).`);
+    await context.close();
+  }
+}
+
 // Ljudraden (0.92.4). CP:s telefon: spelknappen låg på musikikonen, längden var 0:00, vågen en platt rand,
 // och rubriken syntes inte. Listan ska ha ett element till vänster, rubrik, datum och längd, våg och ⋯.
 {

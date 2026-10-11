@@ -9,6 +9,27 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.92.5
+
+Biblioteket enhetligt för alla typer. Utges som 0.92.5, efter 0.92.4.
+
+CP 2026-10-10: "Jobba igenom bibliotek ordentligt. Kolla så att det är enhetligt i ramverket." Live på iPhone: anteckningens rubrik var för stor och delade rad med ikonen och Redigera. Radera ska fungera som på ljudraderna för varje typ.
+
+### Detaljhuvud
+
+- Gemensamt `BibliotekDetaljHuvud`: Tillbaka, ikon och ⋯ på en rad; rubriken på egen rad med rollen `text-rubrik`; metadata under.
+- `OpsDokument` ritar inte längre `text-sida`/`font-display` på samma rad som verktyg. Pennan (när den används) står i en egen verktygsrad. Biblioteket styr Redigera via ⋯, samma som ljud.
+- Skalyta mäter detaljhuvudet vid 390 och 1280 px.
+
+### Lista och radera
+
+- Gemensam `BibliotekListrad` (ikon, rubrik, meta, ⋯). Ljud fyller innehållet (spelare) men delar ⋯ och svep med övriga typer.
+- Radera: ⋯ och svep i listan, ⋯ i detaljen, bekräftelse (modal) respektive Ångra (svep), för anteckning, länk, ljud och fil.
+
+### Regler och funktioner
+
+Inga Firestore-regler och inga funktioner ändras.
+
 ## 0.92.4
 
 Ljudraden i Biblioteket. Utges som 0.92.4, efter 0.92.3.
