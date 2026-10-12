@@ -49,7 +49,8 @@ describe("OpsFloatingSummary", () => {
     expect(String(nulaget.className).split(/\s+/)).toContain("text-etikett");
     const talklasser = String(talet.className).split(/\s+/);
     expect(talklasser).toContain("text-titel");
-    expect(talklasser).toContain("font-bold");
+    // 0.94.0: talets vikt är rollens (`text-titel` bär 600), ingen klass vid sidan om.
+    expect(talklasser).not.toContain("font-bold");
     expect(talklasser).toContain("text-success");
 
     // ⛔ Och ingen växling finns kvar. Utan kryss har bubblan noll knappar.

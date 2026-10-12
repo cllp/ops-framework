@@ -9,6 +9,40 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.94.0
+
+Typografin på ett ställe, ett publikt skal, ett brandkontrakt och lager. lifehub.app#165, CP 2026-10-10 och 2026-10-12. Ersätter utkastet #344.
+
+### Typografi: tre vikter (lifehub.app#165, beslut 3a)
+
+- **Rollernas vikter.** `text-rubrik`, `text-titel` och `text-sida` är 600 (var 700); `sektion` är redan 600. **700 finns bara på räknemärkets siffror** (`mikro`, `raknare`). SS har 700 på rubrik och titel; det är ett medvetet avsteg. `text-sida` var 700 sedan 0.31.2 och `SIDRUBRIK_KLASS` la `font-semibold` ovanpå (0.90.1, lifehub.app#146); vikten är nu rollens och ingen klass korrigerar den.
+- **44 ställen i komponenterna** rättade (mätta av `check-typografi` före ändringen): `font-bold` borttaget på 18 och sänkt till `font-semibold` på 6 (den runda hjälpknappen i `OpsHelp` och `OpsModulRam`, TALK-ordet, kalenderns valda dag, datumväljarens idag, rubriken i `OpsKalendrar`), och en vikt ovanpå en roll som redan bar den borttagen på 20. Stat-värden, summor och kalenderns antal är 600 i stället för 700.
+- **Fältet:** `text-brod` (16 px) och `md:pointer-fine:text-etikett` (14 px) från `md` med en exakt pekare (beslut 2a+c). Villkoret är pekaren och inte bara bredden: en stående iPad är 768 px bred och zoomar in vid fokus i ett fält under 16 px.
+- **`check-typografi`** fäller `font-bold` (också som variant) och dubbel vikt: en roll och en vikt den redan bär i samma klasssträng (strängen är enheten och inte raden). Rollernas vikter läses ur `tokens.css`, inte ur en lista i vakten. En sänkning under rollens vikt och emfas på en 400-roll är tillåtna. Provad rött och grönt i `test-guards` (10 fall).
+- **Ändrat mot utkastet #344:** #344 formaterade om hela `sessionstudio-profil.json` (300 rader brus) och tappade indraget på rader i 20 komponenter; det är gjort om kirurgiskt på 0.93.0. #344 lämnade `titel` på 700 och `mikro` utan sin `font-semibold` (vikten gick från 600 till 700 på tre ställen); och dess `docs/typografi.md` sade att ingen hubb brandar typsnitt, vilket CP ändrade 2026-10-12.
+
+### Publika sidor: roller och komponenter
+
+- **Roller:** `text-publik-rubrik` (2,25 / 3 / 3,5 rem, 500, radhöjd 1,05), `text-publik-avsnitt` (1,875 / 2,25 / 2,75 rem), `text-publik-block` (1,875 / 2,25 rem), `text-publik-ingress`, `text-publik-brod` (radhöjd 1,625) och `text-publik-eyebrow`, i steg vid `sm` och `lg`. De bor i `typografi.publik` i profilen (mätta ur SessionStudios landningssidor, med fil och rad) och genereras till `tokens.css` av `generate-tokens` (nytt markörpar för stegen). Rubrikfamiljen är `--font-display-publik` (Georgia, serif) och läsbredden `max-w-las` (65ch).
+- **Komponenter:** `OpsPublikSkal`, `OpsPublikHuvud`, `OpsPublikHjalte`, `OpsPublikBlock`, `OpsPublikUppmaning`, `OpsPublikFot`, `OpsPublikAvsnitt` och `OpsPublikText`, och klasserna `PUBLIK_KLASS`, `PUBLIK_KNAPP` och `PUBLIK_TONER`. Efter SessionStudios `LandingShell`, `LandingNav`, `LandingHero`, `LandingFeatureBlock`, `LandingCtaBlock` och `LandingFooter`, utan adresser, text och bilder: allt är props. Toppraden är en rad på en plats (56 px, `max-w-7xl`) och loggan ligger på samma pixel på varje sida.
+- **Tre toner** (`ljus`, `accent`, `mork`) som SS `TONE_STYLES`, med bildens toning per ton. En figur (SVG) kan ersätta fotot.
+
+### Brand och lager
+
+- **Lager.** Ramverkets olagrade CSS (mörkeraliasen, `--z-*`, säkra ytor, `.ops-sidoyta`) ligger i `@layer ops-ramverk`, deklarerat efter `utilities`. En instans olagrade regel slår alla lager utan `!important`. Före 0.94.0 slog `:root:not([data-theme="light"])` (0,2,0) en instans `:root` (0,1,0) i mörkt läge.
+- **Brandkontraktet** `tokens/brand-kontrakt.json` (39 variabler): rubrik-, publik rubrik- och märkesfamilj, accent i ljust och mörkt läge, märkets mått och de publika tonerna (`--color-publik-*`). Nytt: `--font-display-publik`, `--color-publik-*`, `--publik-logga-hojd`, `--container-las`. Allt annat är internt.
+- **Exempel:** `examples/brand/brand.css`, `sessionstudio.css` (SS exakta värden), `lifehub.css` och `egen.css`. Dokumentation i `docs/brand.md` och README.
+- **`check-brand`** (ny, `check:brand`, `check:all`, `check.yml` och `publish.yml`): mäter i Chromium att brandfilen ändrar den beräknade stilen, att en olagrad regel vinner, att loggan ligger på samma plats på två sidor i 1280 och 390 px, att mobilmenyn fungerar, att ingen sida scrollar i sidled i 390 och att SS och Life Hub ger sina toner; räknar kontrasten för varje ton i båda brandfilerna. `--bevisa` kräver rött utan lagren, rött för en brandfil utan typsnittsraden och rött när toppraden läggs i en smal centrerad kolumn.
+- **`check-token-overrides`** följer stilrotens relativa importer: `brand.css` kontrolleras som variabelfil mot kontraktet, övriga importer är egen CSS, fri men räknad (antalet skrivs ut även när det är noll). Regel 6 är oförändrad för stilroten.
+
+### Vad en konsument behöver göra
+
+- **Ompinna** till 0.94.0 (release-URL i PR-texten). Lagren är bakåtkompatibla för en app som bara importerar tokens; en egen regel som av en slump förlorade mot mörkerblocken vinner nu.
+- Kör `npx ops-framework/scripts/check-typografi.mjs src` mot appens källa: `font-semibold` på en rubrikroll och `font-bold` pekas ut.
+- Vill appen branda: flytta färg- och typsnittsraderna till en `brand.css` enligt `examples/brand/`.
+
+---
+
 ## 0.93.0
 
 Granskningsfynd från 2026-10-12: en regelfix, utgivningsgrinden, ljudet och sparandet. Utges som 0.93.0, efter 0.92.5.

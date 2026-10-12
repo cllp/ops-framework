@@ -54,7 +54,7 @@
  * En instans (en hubb, Identity, en kunds egen kopia) ska kunna byta typsnitt, färg och logga i en brandfil och lägga på
  * egen CSS, och den ska vinna UTAN `!important`. CSS gör det om reglerna ligger i lager: en olagrad regel slår ALLA
  * lagrade, oavsett hur specifik väljaren är. Före 0.94.0 låg ramverkets mörkerblock (`:root:not([data-theme="light"])`,
- * specificitet 0,2,0) och `:root[data-theme="dark"]` olagrade, så en instans `:root { --color-accent }` (0,1,0)
+ * specificitet 0,2,0) och `:root[data-theme="dark"]` olagrade, så en instans olagrade `:root` med `--color-accent` (0,1,0)
  * förlorade i mörkt läge hur sist den än laddades. Se `docs/brand.md` och `scripts/check-brand.mjs`.
  *
  * Fem lager, i den här ordningen (sist vinner):
@@ -213,6 +213,10 @@
   --text-publik-avsnitt: 1.875rem;
   --text-publik-avsnitt--line-height: var(--leading-tight);
   --text-publik-avsnitt--font-weight: 500;
+
+  --text-publik-block: 1.875rem;
+  --text-publik-block--line-height: var(--leading-tight);
+  --text-publik-block--font-weight: 500;
 
   --text-publik-ingress: 1.125rem;
   --text-publik-ingress--line-height: 1.75rem;
@@ -647,6 +651,38 @@
    *
    * Används som `font-display-publik text-publik-rubrik`. Vikten är rollens (500) och inte familjens. */
   --font-display-publik: Georgia, 'Times New Roman', serif;
+
+  /* ─── Publika sidors toner (0.94.0, CP 2026-10-12: "Kolla färgerna i sessionstudio. Känns mer intressant och varierande.") ───
+   * SessionStudios landningssidor varierar tre toner (`LandingFeatureBlock.jsx` `TONE_STYLES`): ett ljust band, ett band
+   * i accentfärgen och ett mörkt band, med varma foton och en mörkt tonad hjälte emellan. Det är variationen. Varje ton
+   * är bakgrund, text och dämpad text, och ALLA är brandvariabler (`tokens/brand-kontrakt.json`): SessionStudio blir en
+   * instans genom att sätta dem i `examples/brand/sessionstudio.css`, utan att en komponent rörs.
+   *
+   * ⛔ FÖRVALEN ÄR RAMVERKETS EGNA TOKENS, INGA NYA FÄRGER. Ljust följer appens tema (`canvas`, `ink`), accentbandet är
+   * `accent` med `accent-contrast` som text, och det mörka bandet är det mörka temats ytor (`--dark-*`, alltså mörkt
+   * oavsett läge). En instans som vill ha fasta band, som SessionStudio, sätter hex.
+   *
+   * ⛔ ÖVERRADEN HAR EN FÄRG PÅ DET LJUSA BANDET (`markering`) OCH EN PÅ DET MÖRKA (`mork-markering`): SessionStudios orange
+   * duger inte som text på krämfärgat (2,8:1), och Life Hub vill ha guld på mörkt och mörk text på ljust. På accentbandet
+   * är både överrad och brödtext `accentband-dampad`, som kan vara samma färg som `accentband-text` när kontrasten kräver det.
+   *
+   * ⛔ NAMNET PÅ ÖVERRADENS FÄRG ÄR `markering` OCH INTE `eyebrow`: `--text-publik-eyebrow` är rollen (storlek) och
+   * ett `--color-publik-eyebrow` hade gett två Tailwind-klasser med samma namn, `text-publik-eyebrow`. */
+  --color-publik-ljus: var(--color-canvas);
+  --color-publik-ljus-text: var(--color-ink);
+  --color-publik-ljus-dampad: var(--color-ink-secondary);
+  --color-publik-accentband: var(--color-accent);
+  --color-publik-accentband-text: var(--color-accent-contrast);
+  --color-publik-accentband-dampad: var(--color-accent-contrast);
+  --color-publik-mork: var(--dark-surface);
+  --color-publik-mork-text: var(--dark-ink);
+  --color-publik-mork-dampad: var(--dark-ink-secondary);
+  --color-publik-markering: var(--color-accent);
+  --color-publik-mork-markering: var(--color-accent);
+  /* Färgen bilder och hjälten tonas med (SS: slate 15,20,30 mot 26,26,26). Alfa per ton står i `.ops-publik-*toning`. */
+  --color-publik-toning: var(--dark-canvas);
+  /* Loggans höjd i toppraden (SS `h-8`). Bredden följer bilden. */
+  --publik-logga-hojd: 2rem;
 
   /* Sex storlekar.
    *
@@ -1777,6 +1813,28 @@
 }
 /* ── SLUT GENERERAT (@layer base) ── */
 
+/* Toningen över bilder på publika sidor (0.94.0): SessionStudios `LandingHero` (mörk, uppifrån och ned) och
+ * `LandingFeatureBlock` (en lätt toning underifrån per ton). Färgen är `--color-publik-toning`; alfa och stopp är SS egna. */
+@layer components {
+  .ops-publik-hjaltetoning {
+    background: linear-gradient(
+      to bottom,
+      color-mix(in srgb, var(--color-publik-toning) 55%, transparent) 0%,
+      color-mix(in srgb, var(--color-publik-toning) 72%, transparent) 50%,
+      color-mix(in srgb, var(--color-publik-toning) 95%, transparent) 100%
+    );
+  }
+  .ops-publik-bildtoning-ljus {
+    background: linear-gradient(to top, color-mix(in srgb, var(--color-publik-toning) 15%, transparent), transparent 40%);
+  }
+  .ops-publik-bildtoning-accent {
+    background: linear-gradient(to top, color-mix(in srgb, var(--color-publik-toning) 22%, transparent), transparent 44%);
+  }
+  .ops-publik-bildtoning-mork {
+    background: linear-gradient(to top, color-mix(in srgb, var(--color-publik-toning) 32%, transparent), transparent 46%);
+  }
+}
+
 /* Publika roller per brytpunkt (0.94.0): grundstorleken står i `@theme`, stegen uppåt här. Ägs av
  * tokens/sessionstudio-profil.json ("typografi.publik"), skriven av scripts/generate-tokens.mjs. */
 /* ── GENERERAT UR sessionstudio-profil.json, RÖR INTE (@layer base, publika roller) ── */
@@ -1785,6 +1843,7 @@
     :root {
       --text-publik-rubrik: 3rem;
       --text-publik-avsnitt: 2.25rem;
+      --text-publik-block: 2.25rem;
       --text-publik-ingress: 1.25rem;
       --text-publik-brod: 1.125rem;
     }

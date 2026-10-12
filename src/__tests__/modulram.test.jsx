@@ -85,8 +85,9 @@ describe("modulramen", () => {
       </OpsHuvudmenyProvider>,
     );
     const sidrubrik = screen.getByRole("heading", { name: "Ekonomi · Inställningar" });
-    expect(sidrubrik.className).toContain("font-semibold");
-    expect(sidrubrik.className).not.toContain("font-bold");
+    // 0.94.0: vikten är rollens (`text-sida` bär 600 i profilen), så ingen klass lägger en vikt ovanpå den. Provar `check-typografi`.
+    expect(sidrubrik.className).toContain("text-sida");
+    expect(sidrubrik.className).not.toMatch(/font-(?:bold|semibold)/);
     expect(screen.queryByRole("link", { name: /Tillbaka/ })).toBeNull();
     expect(screen.getByRole("link", { name: "Klar" }).getAttribute("href")).toBe("/ekonomi");
     expect(screen.queryByText("översikten")).toBeNull();

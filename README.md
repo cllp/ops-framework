@@ -171,7 +171,7 @@ mörkt deklareras **en gång**; blocken som aktiverar den får bara peka.
 
 ### Komponenter
 
-**130 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
+**138 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
 eller `...rest`. Ett okänt värde kastar med läsbar text i stället för att rendera
 något godtyckligt.
 
@@ -2577,22 +2577,26 @@ Storlek, radhöjd, vikt och spärrning bor på ETT ställe: `typografi.roller` i
 
 | Roll | Storlek / radhöjd | Används till |
 |---|---|---|
-| `text-sida` | 1,25 rem / 1,75 rem, fet | sidans rubrik, SS `text-xl` (`GroupDetailView.jsx:95`) |
-| `text-titel` | 1,125 rem / 1,75 rem, fet | händelsekortets titel, SS `text-lg` (`TodayView.jsx:89`) |
-| `text-rubrik` | 1 rem, fet | dialog- och panelrubrik (`SettingsView.jsx:161`) |
+| `text-sida` | 1,25 rem / 1,75 rem, 600 | sidans rubrik, SS `text-xl` (`GroupDetailView.jsx:95`) |
+| `text-titel` | 1,125 rem / 1,75 rem, 600 | händelsekortets titel, SS `text-lg` (`TodayView.jsx:89`); SS har 700 (lifehub.app#165 beslut 3a) |
+| `text-rubrik` | 1 rem, 600 | dialog- och panelrubrik (`SettingsView.jsx:161`); SS har 700 |
 | `text-brod` | 1 rem / 1,5 rem | brödtext större än etikett, SS `text-base` (`SearchView.jsx:157`) |
 | `text-etikett` | 0,875 rem / 1,25 rem | radens etikett, kortets meta, faktarader, hjälptext på Idag, segmentpillret: SS `text-sm` (`:228`, `TodayView.jsx:91/258/438`) |
 | `text-meta` | 0,75 rem / 1 rem | chips, märken, tidsstämplar: SS `text-xs` (`TodayView.jsx:650`) |
 | `text-sektion` | 0,75 rem, 600, spärrad | sektionsrubrik, plus `uppercase text-accent` (`:174`) |
 | `text-hjalp` | 0,6875 rem (11 px) | hjälptext under en rad i inställningar (`:276`) |
 | `text-liten` | 0,625 rem (10 px) | bottenradens etikett, flikar, avataretikett (`MobileTabBar.jsx:87`) |
-| `text-mikro` | 0,5 rem (8 px), fet | räknemärkets siffra (`AppHeader.jsx:222`) |
+| `text-mikro` | 0,5 rem (8 px), 700 | räknemärkets siffra (`AppHeader.jsx:222`) |
 
 SS har två responsiva par och ramverket följer dem exakt: kortets metarad `text-meta sm:text-etikett` (12 px under 640 px, 14 från; SS `text-xs sm:text-sm`, `TodayView.jsx:83`) och korttiteln `text-titel sm:text-sida` (18 / 20 px; SS `text-lg sm:text-xl`, `:89`). Allt annat är en storlek på alla bredder. Text utan roll ärver 16 px från `body`, och det är det som gav "diffar
 i textstorlek" på Idag (0.31.1): ge alltid elementet en roll.
 
+⛔ **Vikter (0.94.0, lifehub.app#165, CP 2026-10-10 beslut 3a):** tre vikter i vanlig yta, 400 (bröd, fält, listtext), 500 (emfas, `font-medium`, rollen `liten`) och 600 (alla rubrikroller). **700 finns bara på räknemärkets siffror** (`mikro`, `raknare`). Vikten är **rollens**: `text-rubrik font-semibold` är överflödigt och `font-bold` fälls överallt. CP: "väldigt stor text på många ställen och bold. Vi ska ha det nättare." Fältet är `text-brod` (16 px, iOS zoomar annars) och `md:pointer-fine:text-etikett` (14 px) från `md` med en exakt pekare (beslut 2a+c). Se `docs/typografi.md`.
+
+**Publika sidor (0.94.0)** har egna roller, `text-publik-rubrik`, `text-publik-avsnitt`, `text-publik-block`, `text-publik-ingress`, `text-publik-brod` och `text-publik-eyebrow`, och en egen rubrikfamilj, `font-display-publik` (serif). Se [Publika sidor](#publika-sidor-och-brand-0940).
+
 Radhöjderna är `--leading-tight` (1,25) och `--leading-normal` (1,5). **`check-typografi`**
-fäller en literal storlek (`text-[13px]`) och `font-size:`/`font-family:` i komponenter, och
+fäller en literal storlek (`text-[13px]`), `font-size:`/`font-family:` i komponenter, `font-bold` och en vikt som rollen i samma klasssträng redan bär (0.94.0), och
 kan köras av en app mot sin egen källkatalog. Inställningsvyn (`OpsKatalogInstallning`,
 `OpsModulKataloger`, `OpsField`) använder rollerna: sektionsrubrik, etikett och hjälptext, kort
 `rounded-base border p-5`, `gap-3`, och rader som bryter sin text i stället för att flöda ut.
@@ -2628,6 +2632,7 @@ kan köras av en app mot sin egen källkatalog. Inställningsvyn (`OpsKatalogIns
 | `check-handritade-ikoner` | ingen komponent utanför `icons.jsx` ritar sin egen `<svg>` eller `<path d=`. ops-framework#164: krysset stod handritat på tre ställen (`OpsCalendar`, `OpsBottomNav`, `OpsFloatingSummary`), var med sin egen storlek och sitt eget strokeWidth, exakt samma mönster som `counter.jsx` redan lärt oss kostar en bugg per ritning. ⛔ Tre dokumenterade undantag (`OpsActivity`, `OpsSpinner`, `OpsShareChart`) bär var sitt eget skäl i koden och i vakten: en ensam ikon, en ikon som kräver `animate-spin` på själva SVG:n, och en beräknad diagramgeometri, inte en ikon. Ett fjärde `<svg>` utan ett likadant undantag är ett fynd. ⛔ Golv på 30 lästa filer, så en trasig sökväg inte blir tyst grön |
 | `check-utvecklarord` | **(0.69.0, #274) inga utvecklarord i det användaren ser.** Läser JSX-text, strängar som ensamma barn i JSX, båda grenarna i en ternär, ordböckernas `sv:`/`en:` och värden på användartextnamn (`title`, `description`, `label`, `placeholder`, `hint`, `aria-label`, `rubrik`, `beskrivning`, `hjalp`, `etikett` och namn som slutar på `Text`, `Etikett`, `Label`, `Rubrik`, `Titel`, `Beskrivning`), efter att kommentarer räknats bort, och larmar på seedad/seedade/seedning, samlingen/samlingens/samlingar, standardvärden, driftsättning, repots, Firestore och kodnamn i versaler (`SLAGBETEENDEN`, `MODUL_TYPER`). ⛔ CP 2026-10-06 fick "Samlingen är tom, så appen ritar repots standardvärden" i Inställningar. Ett `throw new Error(...)` och en loggrads `text` läses inte: de är skrivna för en utvecklare. Golv 150 filer, 400 texter och ett golv per mönster i ramverket (ett mönster som slutar matcha syns inte i summan), 5 filer och 10 texter i en app (`node node_modules/ops-framework/scripts/check-utvecklarord.mjs web/src`) |
 | `check-typografi` | **inga egna storlekar eller typsnitt förbi tokens.** Fäller `text-[13px]`, `text-[0.7rem]`, `font-size:` och `font-family:` i `src/components` och i en konsuments källkatalog (`node .../scripts/check-typografi.mjs src`), efter att kommentarer räknats bort. ⛔ 0.29.1 hade tio `text-[Npx]` i fem komponenter, var och en med sin egen vikt: ingen hade ett namn att rätta. Golv 60 filer för ramverket, 5 för en app (`--golv=N`). Se [Typografin](#typografin) |
+| `check-brand` | **(0.94.0) en instans brandfil och egen CSS, och det publika skalet, mätt i en riktig webbläsare** (Chromium, fail-closed). Bygger CSS som en konsument gör och mäter `getBoundingClientRect` och `getComputedStyle`: brandfilen ändrar appens rubrik, den publika rubriken, märket och primärknappen i ljust och mörkt läge; en egen olagrad regel slår ramverkets utan `!important`; toppradens logga ligger på samma pixel på startsidan och en innehållssida i 1280 och 390 px och efter scroll; mobilmenyn öppnas och stängs; ingen horisontell scroll i 390 px; SessionStudios och Life Hubs brandfil ger sina toner. Kontrasten räknas för varje text mot sin bakgrund i båda brandfilerna (WCAG AA), med SessionStudios egna undantag som golv som bara får sjunka. ⛔ `--bevisa` kör vakten mot sig själv och kräver rött utan `@layer ops-ramverk`, rött för en brandfil utan typsnittsraden och rött när toppraden läggs i en smal centrerad kolumn. Golv 100 mätningar. `npm run check:brand` |
 | `check-skalyta` | **skalets yta mätt i en riktig webbläsare** (Chromium, fail-closed): ingen avgränsare närmare en annan än 24 px i menyn (arket vid 390 och rullgardinen vid 1280), huvudets ikonknappar som 36 px cirklar med 44 px träffyta och mittlinjer inom 1 px, loggan utan text och inte högre än toppraden, radens 12 px och hover i `--color-raised`, inställningsvyn utan horisontell överflödning vid 390 px, bottenraden med `fasta`. ⛔ jsdom kör ingen CSS, så fem av CP:s sex punkter 2026-09-29 gick grönt genom hela provsviten. Körs i CI-jobbet som redan har en webbläsare (`scaffold`), inte i `check`. `--utan-fasta` provar samma vakt mot en äldre `dist`, `--bilder <mapp>` skriver skärmbilderna |
 | `check-paket` | **paketet går att installera och använda av någon som inte har repot.** Packar precis som utgivningen gör, installerar tarbollen i ett TOMT projekt med `--omit=dev` och importerar nodsidan, alltså samma tre steg som Firebase byggcontainer. ⛔ Fångar utgivningens klassiska fel: `exports` pekar på en fil som finns i arbetskopian men inte i tarbollen, så allt är grönt i repot och paketet är tomt hos den som installerar. ⛔ `--omit=dev` är hela provet: en nodsida som råkat importera esbuild eller vitest fungerar i repot och faller vid första anropet i molnet. ⛔ Kräver också att versionen är semver och har ett avsnitt i `CHANGELOG.md`. ⛔ Den bevisar INTE att en Firebase-deploy fungerar, den containern går inte att köra i CI. ⛔ `--struktur` kör bara de billiga reglerna och ligger i `npm run check`; hela vakten är ett eget jobb i CI och ett steg i utgivningen |
 | `check-changelog-taggar` | **varje publicerad tagg har en egen rubrik i `CHANGELOG.md`** (0.82.0, granskningen av PR 314). Läser `git tag -l 'v*'` och kräver `## X.Y.Z` för varje vX.Y.Z. ⛔ Skälet: PR 314 tog bort rubriken `## 0.80.1`, och `check-paket` var grön eftersom den bara läser versionen som ska taggas härnäst. ⛔ Golv: minst 10 lästa taggar, så en utcheckning utan taggar blir röd och säger hur de hämtas, i stället för grön på tomt. CI hämtar dem med `fetch-tags: true`. ⛔ Tak: 0, alla 82 taggar hade en rubrik när vakten skrevs. Ligger i `npm run check` |
@@ -2711,6 +2716,29 @@ det. Det gäller även ytor som inte ser ut som knappar: en kryssrutas träffyta
 är mindre.
 
 ---
+
+## Publika sidor och brand (0.94.0)
+
+CP 2026-10-12: "Kompositionen med loggan i mitten är inget snyggt. Kolla på sessionstudio. Loggan flyttar sig mellan sidor." och "Det ska vara enkelt att branda en instans och overrida om man så vill med egen css." Ramverket har ett helt **publikt skal**, byggt efter SessionStudios landningssidor men utan adresser, text och bilder (allt kommer som props), och ett **brandkontrakt** så att en instans (en hubb, Identity, SessionStudio när den blir en instans) byter typsnitt, färger och toner i en fil. Hela sidan med tabeller över variabler, lager och props är `docs/brand.md`.
+
+| Export | Vad |
+|---|---|
+| `OpsPublikSkal` | ramen: toppraden, `<main id="main-content">`, sidfoten |
+| `OpsPublikHuvud` | toppraden: liten logga till vänster, länkarna efter den, språkval, Logga in och accentknappen till höger, en meny under `md`. En rad på en plats: loggan ligger på samma pixel på varje sida. `ton` `mork` eller `ljus`, `transparent` över en hjälte, `texter` obligatoriska |
+| `OpsPublikHjalte` | hjälten; med `bild` fotot i full bredd under en mörk toning, överrad, serifrubrik, ingress, målgrupp och två knappar |
+| `OpsPublikBlock` | innehållsblock med `ton` (`ljus`, `accent`, `mork`), överrad, serifrubrik, text, en handling och en bild (`bild`) eller figur (`figur`, en SVG) bredvid, som byter sida (`bildSida`) |
+| `OpsPublikUppmaning` | bandet i accentfärgen med rubrik, text och två knappar |
+| `OpsPublikFot` | sidfoten: tagline, målgrupp, länkgrupper, copyright |
+| `OpsPublikAvsnitt`, `OpsPublikText` | ett avsnitt med rubrik och löptext i läsbredd (65ch) |
+| `PUBLIK_KLASS`, `PUBLIK_KNAPP`, `PUBLIK_TONER` | klasserna bakom komponenterna, för den som komponerar själv |
+
+⛔ **Ingen komponent tar `className`.** En publik sida som ska se annorlunda ut ändrar instansens brandfil. **En idé per block:** en överrad, en rubrik, en ingress och högst en handling.
+
+**Brandkontraktet** (`tokens/brand-kontrakt.json`) är det stabila gränssnittet: `--font-display`, `--font-display-publik`, `--font-marke`, accenten i ljust (`--color-accent*`) och mörkt (`--dark-accent*`) läge, märkets mått (`--marke-*`, `--logo-bredd*`) och de publika tonerna (`--color-publik-ljus`, `-ljus-text`, `-ljus-dampad`, `-markering`, `-accentband`, `-accentband-text`, `-accentband-dampad`, `-mork`, `-mork-text`, `-mork-dampad`, `-mork-markering`, `-toning`, `--publik-logga-hojd`). Allt annat i `tokens.css` är internt. Exempel i `examples/brand/`: `brand.css` (en påhittad instans), `sessionstudio.css` (exakt SS värden), `lifehub.css` och `egen.css` (egen CSS).
+
+**Lagren.** Ramverkets egen CSS ligger i `theme`, `base`, `components`, `utilities` och `ops-ramverk`; instansens brandfil och egna CSS står olagrade och vinner därför alltid, utan `!important`. Före 0.94.0 låg mörkerblocken olagrade och slog en instans regel med lägre specificitet.
+
+**Publika roller:** `text-publik-rubrik` (2,25 / 3 / 3,5 rem, 500, radhöjd 1,05), `text-publik-avsnitt` (1,875 / 2,25 / 2,75 rem), `text-publik-block` (1,875 / 2,25 rem), `text-publik-ingress` (1,125 / 1,25 rem), `text-publik-brod` (1 / 1,125 rem, radhöjd 1,625) och `text-publik-eyebrow` (0,75 rem, 600, spärrad 0,24 em), i steg vid `sm` och `lg`, och läsbredden `max-w-las` (65ch). De bor i `typografi.publik` i profilen och genereras till `tokens.css`.
 
 ## Biblioteket (0.85.0, #192 skiva 1 till 4)
 

@@ -3346,6 +3346,7 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
         spara: !!spara,
         overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
         vh: innerHeight,
+        vb: innerWidth,
         appvy: (() => { const a = document.querySelector("[data-appvy]"); return a ? a.getBoundingClientRect().height : -1; })(),
         headerTop: (() => { const h = document.querySelector("header"); return h ? h.getBoundingClientRect().top : null; })(),
       };
@@ -3361,8 +3362,8 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
     krav(m.obligatoriskt && m.stjarna, `ny grupp ${namn}: namnfältet är inte markerat som obligatoriskt (required ${m.obligatoriskt}, stjärna ${m.stjarna}).`);
     krav(m.etikett !== null && m.etikett.fs === "14px" && m.etikett.fw === "500", `ny grupp ${namn}: fältets etikett är ${JSON.stringify(m.etikett)}, väntat 14 px och 500 (SS text-sm font-medium, ManageGroupModal.jsx:590).`);
     krav(
-      m.falt.length >= 3 && m.falt.every((f) => f.fs === "16px" && f.fw === "400"),
-      `ny grupp ${namn}: textfälten ska vara 16 px och vikt 400 (SS text-base i fält, 16 px hindrar iOS zoom), mätt ${JSON.stringify(m.falt)}.`,
+      m.falt.length >= 3 && m.falt.every((f) => f.fs === (m.vb >= 768 ? "14px" : "16px") && f.fw === "400"),
+      `ny grupp ${namn}: textfälten ska vara 16 px under md (SS text-base, 16 px hindrar iOS zoom) och 14 px från md med en mus (0.94.0, lifehub.app#165 beslut 2a+c), vikt 400, mätt vid ${m.vb} px ${JSON.stringify(m.falt)}.`,
     );
     krav(m.sektion !== null && m.sektion.fs === "12px" && m.sektion.tt === "uppercase", `ny grupp ${namn}: raden "Visuell identitet" är ${JSON.stringify(m.sektion)}, väntat 12 px versaler (SS text-xs uppercase, ManageGroupModalGroupImages.jsx:32).`);
     krav(m.spara, `ny grupp ${namn}: skalets fasta Spara saknas.`);
@@ -3948,7 +3949,7 @@ for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
   });
   matt.push(`profil ${vp.width} px: rubriker ${JSON.stringify(d.r)}, etiketter ${JSON.stringify(d.et)}, kort ${JSON.stringify(d.kort)}, kolumn ${d.kolumn} px, fälttext ${d.faltFs}, knappar ${JSON.stringify(d.knappar)}, överflöde ${d.over} px`);
   krav(d.r.length >= 2 && d.et.length >= 3, `profil ${vp.width}: ${d.r.length} rubriker och ${d.et.length} etiketter hittade, väntat minst 2 och 3 (golv).`);
-  for (const r of d.r) krav(r.fs === "12px" && r.fw === "700" && r.tt === "uppercase" && r.farg, `profil ${vp.width}: rubriken "${r.text}" är ${r.fs}/${r.fw} ${r.tt}${r.farg ? "" : ", inte accentfärg"}, väntat 12px/700 versaler i accentfärg (SS text-xs font-bold uppercase, ProfileView.jsx:122).`);
+  for (const r of d.r) krav(r.fs === "12px" && r.fw === "600" && r.tt === "uppercase" && r.farg, `profil ${vp.width}: rubriken "${r.text}" är ${r.fs}/${r.fw} ${r.tt}${r.farg ? "" : ", inte accentfärg"}, väntat 12px/600 versaler i accentfärg (rollen sektion; SS har text-xs font-bold, ProfileView.jsx:122, men 0.94.0 tog 700 bort ur vanlig yta: lifehub.app#165 beslut 3a).`);
   for (const r of d.r) krav(r.iKort, `profil ${vp.width}: rubriken "${r.text}" står utanför sitt kort. SS har rubriken inuti kortet (ProfileView.jsx:121-122).`);
   for (const e of d.et) krav(e.fs === "10px" && e.fw === "400", `profil ${vp.width}: etiketten "${e.text}" är ${e.fs}/${e.fw}, väntat 10px/400 (SS text-[10px], ProfileView.jsx:245).`);
   krav(d.over <= 0, `profil ${vp.width}: sidan flödar över ${d.over} px horisontellt.`);
