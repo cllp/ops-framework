@@ -60,16 +60,19 @@ const pkg = las(pkgVag);
 const lock = las(lasVag);
 
 /** @type {Array<[string, unknown]>} */
-const lasta = [
+const kandidater = [
   ["package.json: version", pkg?.version],
   ["package-lock.json: version", lock?.version],
   ['package-lock.json: packages[""].version', lock?.packages?.[""]?.version],
 ];
 
-const saknas = lasta.filter(([, v]) => typeof v !== "string" || v === "");
-if (saknas.length > 0 || lasta.length < GOLV) {
+// ⛔ GOLVET ÄR EN MÄTNING (0.93.0): hur många versioner som faktiskt lästs ur filerna, alltså sträng som inte är tom. Förut
+// jämfördes längden på listan med talet tre, och listan hade alltid tre poster, så golvet kunde inte falla.
+const lasta = kandidater.filter(([, v]) => typeof v === "string" && v !== "");
+if (lasta.length < GOLV) {
+  const saknas = kandidater.filter(([, v]) => !(typeof v === "string" && v !== ""));
   console.error(
-    `check-lasversion: ${lasta.length - saknas.length} av ${GOLV} versioner lästa. Saknas: ${saknas.map(([namn]) => namn).join(", ")}. Två tal som är lika bevisar inte att det tredje stämmer, så det här är inte ett godkänt utfall.`,
+    `check-lasversion: ${lasta.length} av ${GOLV} versioner lästa. Saknas: ${saknas.map(([namn]) => namn).join(", ")}. Två tal som är lika bevisar inte att det tredje stämmer, så det här är inte ett godkänt utfall.`,
   );
   process.exit(1);
 }

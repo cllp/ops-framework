@@ -279,15 +279,29 @@ describe("frågetecknet i modulramen och vyn", () => {
     expect(onNavigate).toHaveBeenCalledWith("/hjalp#hjalp/ekonomi", expect.anything());
   });
 
-  it("⛔ rollerna i hjälpen säger det reglerna säger: ägaren installerar appar, admin gör det inte", () => {
-    // Sanningen är fältlistorna som reglerna byggs ur: `moduler` är ett ägarfält och inget adminfält.
-    expect(AGARGRUPPFALT).toContain("moduler");
-    expect(ADMINGRUPPFALT).not.toContain("moduler");
+  it("⛔ rollerna i hjälpen säger bara det reglerna och servern säger: varje påstående har en grund", () => {
     const roller = GENERELL_OMRADEN.flatMap((o) => o.avsnitt).find((v) => v.id === "roller");
     expect(roller).toBeTruthy();
     const svar = roller?.svar ?? "";
+    // Grunden för "ägaren installerar appar, väljer huvudmenyn och arkiverar": fälten är ägarfält och inga adminfält. Det är
+    // listorna reglerna byggs ur (`diff().affectedKeys().hasOnly(...)`).
+    for (const falt of ["moduler", "huvudmeny", "arkiverad"]) {
+      expect(AGARGRUPPFALT).toContain(falt);
+      expect(ADMINGRUPPFALT).not.toContain(falt);
+    }
     expect(svar).toMatch(/bara ägaren installerar och tar bort appar/);
+    expect(svar).toMatch(/huvudmenyn/);
+    expect(svar).toMatch(/arkiverar gruppen/);
+    // Adminfälten är utseende och uppgifter.
+    for (const falt of ["namn", "farg", "ikon", "beskrivning"]) expect(ADMINGRUPPFALT).toContain(falt);
+    expect(svar).toMatch(/Admin[^.]*ändrar gruppens utseende och uppgifter/);
     expect(svar).toMatch(/Admin[^.]*men inte installerar appar/);
     expect(svar).not.toMatch(/Admin[^.]*kan installera appar/);
+    // "Bjuder in någon som ägare" är servern: `bjudIn` kastar för en admin (src/__tests__/inbjudan.test.js, "en admin får INTE bjuda in
+    // till rollen agare"). Medlemskap skrivs aldrig av en klient, så texten påstår varken att roller "ändras" eller att ägarskap
+    // "överlåts": ingen funktion i ramverket gör det, och en hjälptext får inte lova mer än koden gör.
+    expect(svar).toMatch(/bjuder in någon som ägare/);
+    expect(svar).not.toMatch(/ändrar roller/);
+    expect(svar).not.toMatch(/överlåt/);
   });
 });

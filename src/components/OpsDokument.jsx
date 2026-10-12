@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Pencil } from "lucide-react";
 import { ordet } from "../lib/ord.js";
 import { OpsButton } from "./OpsButton.jsx";
@@ -61,6 +61,12 @@ export function OpsDokument({ ny = false, kanRedigera = false, lage, onLage, sta
   const [sparFel, setSparFel] = useState("");
   // Flaggan i en ref: två tryck i samma tick ser annars båda `sparar === false`.
   const pagar = useRef(false);
+  // Vilket sparande ett svar hör till. Avbryt räknar upp den, och ett svar från ett avbrutet sparande görs ingenting av.
+  const forsok = useRef(0);
+  // Ett fel hör till redigeringen det uppstod i. Nästa gång läget blir redigering börjar det utan gammalt fel.
+  useEffect(() => {
+    setSparFel("");
+  }, [nu]);
 
   if (start !== "las" && start !== "redigera") {
     throw new Error(`OpsDokument: start är "${start}". Giltiga: las, redigera.`);
@@ -81,6 +87,12 @@ export function OpsDokument({ ny = false, kanRedigera = false, lage, onLage, sta
   }
 
   function avbryt() {
+    // ⛔ Avbryt avslutar ett pågående sparande som sak (0.93.0): felet nollas, flaggan släpps och ett svar som kommer efteråt
+    // ignoreras. Förut visades ett avslag som kom efter Avbryt i nästa redigering.
+    forsok.current += 1;
+    pagar.current = false;
+    setSparar(false);
+    setSparFel("");
     onAvbryt?.();
     if (!ny) byt("las");
   }
@@ -91,6 +103,7 @@ export function OpsDokument({ ny = false, kanRedigera = false, lage, onLage, sta
   function spara() {
     if (pagar.current) return;
     setSparFel("");
+    const mitt = ++forsok.current;
     let svar;
     try {
       svar = onSpara?.();
@@ -104,11 +117,13 @@ export function OpsDokument({ ny = false, kanRedigera = false, lage, onLage, sta
       setSparar(true);
       svar.then(
         (/** @type {void | boolean} */ v) => {
+          if (mitt !== forsok.current) return;
           pagar.current = false;
           setSparar(false);
           if (v !== false && !ny) byt("las");
         },
         (/** @type {unknown} */ e) => {
+          if (mitt !== forsok.current) return;
           pagar.current = false;
           setSparar(false);
           setSparFel(felText(e));

@@ -58,13 +58,13 @@ const anteckning = (extra = {}) => ({
 });
 /** Ett ljud som lades in för en timme sedan, utan längd och våg. */
 const EN_TIMME = 3_600_000;
-const gammaltLjud = (uid) => {
+const gammaltLjud = (uid, postId) => {
   const { text: _text, ...utanText } = anteckning({ skapadAv: skapare(uid), skapad: T0 - EN_TIMME, andrad: T0 - EN_TIMME });
   return {
     ...utanText,
     typ: "fil",
     rubrik: "Idé",
-    fil: { sokvag: "grupper/cps-ab/bibliotek/p1/ide.webm", namn: "ide.webm", mime: "audio/webm", byte: 1200 },
+    fil: { sokvag: `grupper/cps-ab/bibliotek/${postId}/ide.webm`, namn: "ide.webm", mime: "audio/webm", byte: 1200 },
   };
 };
 /** En ny post, med serverns klocka nu. */
@@ -113,11 +113,11 @@ before(async () => {
     await setDoc(doc(db, "bibliotek/cps-annans"), anteckning({ skapadAv: skapare(ANNAN), rubrik: "Annans" }));
     await setDoc(doc(db, "bibliotek/cps-bada"), anteckning({ skapadAv: skapare(BADA), rubrik: "Bådas" }));
     await setDoc(doc(db, "bibliotek/cps-avslutad"), anteckning({ skapadAv: skapare(AVSLUTAD), rubrik: "Avslutads" }));
-    await setDoc(doc(db, "bibliotek/cps-fil"), gammaltLjud(MEDLEM));
+    await setDoc(doc(db, "bibliotek/cps-fil"), gammaltLjud(MEDLEM, "cps-fil"));
     // Två ljud utan längd och våg, för en timme sedan: klockan är ur fönstret, så ett oförändrat `andrad` går inte som "nu".
-    await setDoc(doc(db, "bibliotek/cps-ljud-eget"), gammaltLjud(MEDLEM));
-    await setDoc(doc(db, "bibliotek/cps-ljud-annans"), gammaltLjud(ANNAN));
-    await setDoc(doc(db, "bibliotek/cps-ljud-nekas"), gammaltLjud(MEDLEM));
+    await setDoc(doc(db, "bibliotek/cps-ljud-eget"), gammaltLjud(MEDLEM, "cps-ljud-eget"));
+    await setDoc(doc(db, "bibliotek/cps-ljud-annans"), gammaltLjud(ANNAN, "cps-ljud-annans"));
+    await setDoc(doc(db, "bibliotek/cps-ljud-nekas"), gammaltLjud(MEDLEM, "cps-ljud-nekas"));
   });
 });
 
@@ -130,7 +130,17 @@ const db = (uid) => miljo.authenticatedContext(uid).firestore();
 let lopnr = 0;
 /** Ett nytt id per försök, så att ett skapande aldrig råkar bli en ändring. */
 const nyttId = () => `bibliotek/ny-${++lopnr}`;
-const skapa = (uid, rad) => setDoc(doc(db(uid), nyttId()), rad);
+/**
+ * `{postId}` i en filsökväg byts mot postens eget id: sökvägen bär postens id, och regeln jämför dem (0.93.0).
+ * @param {string} uid
+ * @param {Record<string, any>} rad
+ */
+const skapa = (uid, rad) => {
+  const vag = nyttId();
+  const postId = vag.split("/")[1];
+  const medId = rad.fil && typeof rad.fil.sokvag === "string" ? { ...rad, fil: { ...rad.fil, sokvag: rad.fil.sokvag.replaceAll("{postId}", postId) } } : rad;
+  return setDoc(doc(db(uid), vag), medId);
+};
 
 describe("bibliotekets regler: läsa", () => {
   it("en medlem läser sin grupp och inte den andra, och inte hela samlingen", async () => {
@@ -159,7 +169,7 @@ describe("bibliotekets regler: skapa", () => {
       ...utanText,
       typ: "fil",
       rubrik: "Kvitto",
-      fil: { sokvag: "grupper/cps-ab/bibliotek/p1/kvitto.jpg", namn: "kvitto.jpg", mime: "image/jpeg", byte: 1200 },
+      fil: { sokvag: "grupper/cps-ab/bibliotek/{postId}/kvitto.jpg", namn: "kvitto.jpg", mime: "image/jpeg", byte: 1200 },
     };
     await assertSucceeds(skapa(MEDLEM, fil));
     await assertFails(skapa(MEDLEM, { ...fil, fil: { ...fil.fil, mime: "application/zip" } }));
@@ -175,11 +185,11 @@ describe("bibliotekets regler: skapa", () => {
       ...utanText,
       typ: "fil",
       rubrik: "Idé",
-      fil: { sokvag: "grupper/cps-ab/bibliotek/p1/ide.webm", namn: "ide.webm", mime: "audio/webm", byte: 1200 },
+      fil: { sokvag: "grupper/cps-ab/bibliotek/{postId}/ide.webm", namn: "ide.webm", mime: "audio/webm", byte: 1200 },
     };
     const bild = {
       ...ljud,
-      fil: { sokvag: "grupper/cps-ab/bibliotek/p1/k.jpg", namn: "k.jpg", mime: "image/jpeg", byte: 1200 },
+      fil: { sokvag: "grupper/cps-ab/bibliotek/{postId}/k.jpg", namn: "k.jpg", mime: "image/jpeg", byte: 1200 },
     };
     await assertSucceeds(skapa(MEDLEM, { ...ljud, utskrift: "Hej" }));
     await assertSucceeds(skapa(MEDLEM, { ...ljud, utskrift: "" }));
@@ -199,19 +209,51 @@ describe("bibliotekets regler: skapa", () => {
       ...extra,
     });
     // Rätt sökväg i egen grupp, och i gruppen "cps" som är början på "cps-ab".
-    await assertSucceeds(skapa(MEDLEM, fil("grupper/cps-ab/bibliotek/p1/kvitto.jpg")));
-    await assertSucceeds(skapa(MEDLEM, fil("grupper/cps/bibliotek/p1/kvitto.jpg", { groupId: "cps" })));
+    await assertSucceeds(skapa(MEDLEM, fil("grupper/cps-ab/bibliotek/{postId}/kvitto.jpg")));
+    await assertSucceeds(skapa(MEDLEM, fil("grupper/cps/bibliotek/{postId}/kvitto.jpg", { groupId: "cps" })));
     // En annan grupps mapp.
-    await assertFails(skapa(MEDLEM, fil("grupper/miranda-ab/bibliotek/p1/kvitto.jpg")));
+    await assertFails(skapa(MEDLEM, fil("grupper/miranda-ab/bibliotek/{postId}/kvitto.jpg")));
     // Id-prefix åt båda håll: gruppen "cps" pekar på "cps-ab"s fil, och "cps-ab" pekar på "cps"s.
-    await assertFails(skapa(MEDLEM, fil("grupper/cps-ab/bibliotek/p1/kvitto.jpg", { groupId: "cps" })));
-    await assertFails(skapa(MEDLEM, fil("grupper/cps/bibliotek/p1/kvitto.jpg")));
+    await assertFails(skapa(MEDLEM, fil("grupper/cps-ab/bibliotek/{postId}/kvitto.jpg", { groupId: "cps" })));
+    await assertFails(skapa(MEDLEM, fil("grupper/cps/bibliotek/{postId}/kvitto.jpg")));
     // Fel mapp: en annan rot, en annan undermapp, en profilbild, för kort, och gruppen på fel plats.
     await assertFails(skapa(MEDLEM, fil("profilbilder/uid-cps-medlem/kvitto.jpg")));
     await assertFails(skapa(MEDLEM, fil("grupper/cps-ab/annat/p1/kvitto.jpg")));
-    await assertFails(skapa(MEDLEM, fil("andra/cps-ab/bibliotek/p1/kvitto.jpg")));
+    await assertFails(skapa(MEDLEM, fil("andra/cps-ab/bibliotek/{postId}/kvitto.jpg")));
     await assertFails(skapa(MEDLEM, fil("bibliotek/cps-ab/grupper/p1/kvitto.jpg")));
     await assertFails(skapa(MEDLEM, fil("grupper/cps-ab/bibliotek/kvitto.jpg")));
+  });
+
+  it("⛔ sökvägen har exakt fem rena segment och postens eget id (0.93.0): radbrytning, tomt segment, ./, extra segment, avslutande / och fel postId", async () => {
+    const { text: _t, ...utanText } = ny();
+    const fil = (sokvag) => ({
+      ...utanText,
+      typ: "fil",
+      rubrik: "Kvitto",
+      fil: { sokvag, namn: "kvitto.jpg", mime: "image/jpeg", byte: 1200 },
+    });
+    const ok = "grupper/cps-ab/bibliotek/{postId}/kvitto.jpg";
+    await assertSucceeds(skapa(MEDLEM, fil(ok)));
+    // Granskningens fynd: RE2:s `.` matchar inte radbrytning, så `.*\\.\\..*` släppte igenom en sökväg som lämnar mappen.
+    await assertFails(skapa(MEDLEM, fil("grupper/cps-ab/bibliotek/{postId}\n/../../../miranda-ab/bibliotek/q/f")));
+    await assertFails(skapa(MEDLEM, fil("grupper/cps-ab/bibliotek/{postId}/kvi\ntto.jpg")));
+    await assertFails(skapa(MEDLEM, fil("grupper/cps-ab/bibliotek/{postId}/kvi\ttto.jpg")));
+    await assertFails(skapa(MEDLEM, fil("grupper/cps-ab/bibliotek/{postId}/kvi\u0000tto.jpg")));
+    // Tomt segment, punkt och dubbelpunkt som segment.
+    await assertFails(skapa(MEDLEM, fil("grupper/cps-ab/bibliotek/{postId}/")));
+    await assertFails(skapa(MEDLEM, fil("grupper/cps-ab/bibliotek//kvitto.jpg")));
+    await assertFails(skapa(MEDLEM, fil("grupper/cps-ab/bibliotek/{postId}/.")));
+    await assertFails(skapa(MEDLEM, fil("grupper/cps-ab/bibliotek/{postId}/..")));
+    await assertFails(skapa(MEDLEM, fil("./grupper/cps-ab/bibliotek/{postId}/kvitto.jpg")));
+    await assertFails(skapa(MEDLEM, fil("grupper/cps-ab/./bibliotek/{postId}/kvitto.jpg")));
+    await assertFails(skapa(MEDLEM, fil("grupper/cps-ab/bibliotek/../bibliotek/{postId}/kvitto.jpg")));
+    // Extra segment, för få segment och avslutande snedstreck.
+    await assertFails(skapa(MEDLEM, fil("grupper/cps-ab/bibliotek/{postId}/under/kvitto.jpg")));
+    await assertFails(skapa(MEDLEM, fil("grupper/cps-ab/bibliotek/{postId}")));
+    await assertFails(skapa(MEDLEM, fil("grupper/cps-ab/bibliotek/{postId}/kvitto.jpg/")));
+    // Fel postId: en annan posts mapp, och en tom.
+    await assertFails(skapa(MEDLEM, fil("grupper/cps-ab/bibliotek/en-annan-post/kvitto.jpg")));
+    await assertFails(skapa(MEDLEM, fil("grupper/cps-ab/bibliotek/{postId}x/kvitto.jpg")));
   });
 
   it("inte i en annan grupp, och inte i någon annans namn", async () => {
@@ -375,11 +417,11 @@ describe("bibliotekets regler: ändra och radera", () => {
   it("⛔ en ändring får inte skriva om filens sökväg till en annan grupp (0.93.0)", async () => {
     const nu = () => Date.now();
     const bytFil = (sokvag) => ({ fil: { sokvag, namn: "ide.webm", mime: "audio/webm", byte: 1200 }, andrad: nu() });
-    await assertFails(updateDoc(doc(db(MEDLEM), "bibliotek/cps-fil"), bytFil("grupper/miranda-ab/bibliotek/p1/ide.webm")));
-    await assertFails(updateDoc(doc(db(MEDLEM), "bibliotek/cps-fil"), bytFil("grupper/cps/bibliotek/p1/ide.webm")));
+    await assertFails(updateDoc(doc(db(MEDLEM), "bibliotek/cps-fil"), bytFil("grupper/miranda-ab/bibliotek/cps-fil/ide.webm")));
+    await assertFails(updateDoc(doc(db(MEDLEM), "bibliotek/cps-fil"), bytFil("grupper/cps/bibliotek/cps-fil/ide.webm")));
     await assertFails(updateDoc(doc(db(MEDLEM), "bibliotek/cps-fil"), bytFil("grupper/cps-ab/annat/p1/ide.webm")));
     // Samma grupp, en annan fil, går.
-    await assertSucceeds(updateDoc(doc(db(MEDLEM), "bibliotek/cps-fil"), bytFil("grupper/cps-ab/bibliotek/p2/ide.webm")));
+    await assertSucceeds(updateDoc(doc(db(MEDLEM), "bibliotek/cps-fil"), bytFil("grupper/cps-ab/bibliotek/cps-fil/ny.webm")));
   });
 
   it("⛔ bara längd och våg får lämna andrad som den var (0.93.0), allt annat kräver serverns klocka", async () => {

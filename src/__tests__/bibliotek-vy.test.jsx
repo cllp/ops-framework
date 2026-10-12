@@ -474,6 +474,57 @@ describe("OpsBibliotek", () => {
     }
   });
 
+  it("⛔ längden och vågen skickas som två anrop, i ordning: avvisas vågen sparas längden ändå, och felet loggas med postens id", async () => {
+    // https://github.com/cllp/ops-framework/issues/349: en skrivning med peaks nekas av reglernas uttryckstak.
+    const tidigareAudio = globalThis.AudioContext;
+    globalThis.AudioContext = class {
+      async decodeAudioData() {
+        return { duration: 4, getChannelData: () => new Float32Array(48 * 2).fill(0.5) };
+      }
+      async close() {}
+    };
+    vi.stubGlobal("fetch", async () => ({ ok: true, arrayBuffer: async () => new ArrayBuffer(8) }));
+    const logg = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const ljud = {
+        ...byggPost({
+          groupId: "cps-ab",
+          typ: "fil",
+          rubrik: "Idé två",
+          fil: { sokvag: "grupper/my/bibliotek/p/ide2.webm", namn: "ide2.webm", mime: "audio/webm", byte: 4000 },
+          skapadAv: skapare,
+          skapad: tid,
+          andrad: tid,
+        }),
+        id: "ljud-vag",
+      };
+      /** @type {Array<Record<string, unknown>>} */
+      const anrop = [];
+      const onFyllLjud = vi.fn(async (inmatning) => {
+        anrop.push(inmatning);
+        if (inmatning.peaks) throw new Error("maximum of 1000 expressions");
+      });
+      render(<Harness start={[ljud]} jag={FORFATTARE} filUrl={() => "https://exempel.se/ide2.webm"} onFyllLjud={onFyllLjud} />);
+      const el = /** @type {HTMLAudioElement} */ (document.querySelector("audio"));
+      Object.defineProperty(el, "duration", { configurable: true, get: () => 4 });
+      act(() => { el.dispatchEvent(new Event("loadedmetadata")); });
+      await waitFor(() => expect(onFyllLjud).toHaveBeenCalledTimes(2));
+      expect(Object.keys(anrop[0]).sort()).toEqual(["durationMs", "id"]);
+      expect(Object.keys(anrop[1]).sort()).toEqual(["id", "peaks"]);
+      await waitFor(() => expect(logg).toHaveBeenCalled());
+      const rad = logg.mock.calls.find((a) => String(a[0]).includes("vågen"));
+      expect(rad?.[0]).toContain("ljud-vag");
+      expect(rad?.[1]).toBeInstanceOf(Error);
+      // Längden gick igenom och loggades inte som ett fel.
+      expect(logg.mock.calls.some((a) => String(a[0]).includes("längden"))).toBe(false);
+    } finally {
+      logg.mockRestore();
+      vi.unstubAllGlobals();
+      if (tidigareAudio) globalThis.AudioContext = tidigareAudio;
+      else delete globalThis.AudioContext;
+    }
+  });
+
   it("ett ljud utan rubrik heter Röstinspelning plus datum, i listan och i detaljen", () => {
     const ljud = {
       ...byggPost({
@@ -755,6 +806,33 @@ describe("OpsBibliotek", () => {
     expect(onSpara).toHaveBeenCalledTimes(2);
     await act(async () => { los(); });
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+
+  it("⛔ ett sparande som svarar false säger det, i formuläret och i Byt namn (0.93.0)", async () => {
+    const { unmount } = render(<Harness onSparaOverride={() => false} />);
+    fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Protokoll" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Byt namn" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Nytt namn" }), { target: { value: "Årsprotokoll" } });
+    fireEvent.click(screen.getByRole("button", { name: "Spara" }));
+    expect(screen.getByText("Namnet kunde inte sparas.")).toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    unmount();
+
+    const asynk = render(<Harness onSparaOverride={async () => false} />);
+    fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Protokoll" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Byt namn" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Nytt namn" }), { target: { value: "Årsprotokoll" } });
+    fireEvent.click(screen.getByRole("button", { name: "Spara" }));
+    expect(await screen.findByText("Namnet kunde inte sparas.")).toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    asynk.unmount();
+
+    render(<Harness onSparaOverride={() => false} />);
+    fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Protokoll" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Redigera" }));
+    fireEvent.click(screen.getByRole("button", { name: "Spara" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("Posten kunde inte sparas.");
+    expect(document.querySelector("[data-ops-dokument]")).toHaveAttribute("data-ops-dokument", "redigera");
   });
 
   it("byt namn sparar rubriken och lämnar texten, och kopiera länk skriver adressen", async () => {

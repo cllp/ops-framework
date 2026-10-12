@@ -193,19 +193,29 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
     // visas ändå ur `fylld` ovan: den är en visning, skrivningen är en hjälp till nästa lista.
     const post = poster.find((p) => p.id === id) ?? (vald && vald.id === id ? vald : null);
     if (!post || !farAndra(post, jag)) return;
-    const nyckel = `${id}:${meta.durationMs || 0}:${meta.peaks ? meta.peaks.length : 0}`;
-    if (sparatMeta.current.has(nyckel)) return;
-    sparatMeta.current.add(nyckel);
-    try {
-      const svar = cb({ id, ...meta });
-      if (svar && typeof svar.then === "function") {
-        svar.catch(() => {
-          /* listan visar längden ändå. Ett skrivfel ska inte se ut som att ljudet saknas. */
-        });
-      }
-    } catch {
-      /* samma sak: räknandet är en hjälp, inte en spärr för att spela. */
-    }
+    // ⛔ LÄNGDEN OCH VÅGEN SKICKAS SOM TVÅ ANROP, I TUR OCH ORDNING (0.93.0). En skrivning med `peaks` nekas i dag av reglernas
+    // uttryckstak (https://github.com/cllp/ops-framework/issues/349), och bar den längden i samma skrivning nekades den med. Nu
+    // går längden igenom även när vågen avvisas. I tur och ordning, inte samtidigt: `spara` läser raden och skriver om den, och
+    // två samtidiga skrivningar hade lämnat den andra med en rad utan den förstas fält.
+    //
+    // ⛔ ETT FEL SYNS I KONSOLEN MED POSTENS ID, det sväljs inte. Listan visar längden ändå (`fylld`), men ett skrivfel som
+    // försvinner ser ut som att det gick bra, och då vet ingen varför längden saknas nästa gång listan öppnas.
+    /** @type {Array<{ nyckel: string, vad: string, del: { durationMs?: number, peaks?: number[] } }>} */
+    const delar = [];
+    if (meta.durationMs) delar.push({ nyckel: `${id}:langd:${meta.durationMs}`, vad: "längden", del: { durationMs: meta.durationMs } });
+    if (meta.peaks) delar.push({ nyckel: `${id}:vag:${meta.peaks.length}`, vad: "vågen", del: { peaks: meta.peaks } });
+    const att = delar.filter((d) => !sparatMeta.current.has(d.nyckel));
+    att.forEach((d) => sparatMeta.current.add(d.nyckel));
+    att.reduce(
+      (foregaende, d) => foregaende.then(async () => {
+        try {
+          await cb({ id, ...d.del });
+        } catch (e) {
+          console.error(`OpsBibliotek: ${d.vad} kunde inte sparas på posten ${id}.`, e);
+        }
+      }),
+      Promise.resolve(),
+    );
   }
   const skaparTyp = jag ? skapar : null;
   const detalj = Boolean(skaparTyp || vald);
@@ -307,7 +317,10 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
       visa(e);
       return;
     }
-    if (svar === false) return;
+    if (svar === false) {
+      setNamnFel("Namnet kunde inte sparas.");
+      return;
+    }
     if (svar && typeof svar === "object" && typeof svar.then === "function") {
       namnSparar.current = true;
       setNamnBusy(true);
@@ -315,7 +328,8 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
         (/** @type {void | boolean} */ v) => {
           namnSparar.current = false;
           setNamnBusy(false);
-          if (v !== false) setByter(null);
+          if (v === false) setNamnFel("Namnet kunde inte sparas.");
+          else setByter(null);
         },
         (/** @type {unknown} */ e) => {
           namnSparar.current = false;
@@ -1075,14 +1089,21 @@ function Detalj({ post, skapar, jag, startLage, onStang, onSpara, onLaddaUpp, fi
     }
     if (svar && typeof svar === "object" && typeof svar.then === "function") {
       return svar.then(
-        (/** @type {void | boolean} */ v) => v,
+        (/** @type {void | boolean} */ v) => {
+          if (v === false) setFormfel("Posten kunde inte sparas.");
+          return v;
+        },
         (/** @type {unknown} */ e) => {
           visa(e);
           return false;
         },
       );
     }
-    return svar === false ? false : undefined;
+    if (svar === false) {
+      setFormfel("Posten kunde inte sparas.");
+      return false;
+    }
+    return undefined;
   }
 
   const lasning = typ === "anteckning" ? (

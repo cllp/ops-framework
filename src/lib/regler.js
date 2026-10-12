@@ -1593,7 +1593,8 @@ ${bilagaRegelfunktion("opsKommentarbilagaGiltig")}
  *
  * ⛔ FILENS SÖKVÄG HÖR TILL POSTENS EGEN GRUPP (0.93.0). En medlem i grupp A kunde skapa en post i A vars `fil.sokvag` pekade på en
  * fil i grupp B. Ingen server läser fältet i dag, men en framtida städning med Admin SDK (som kringgår storage-reglerna) hade
- * raderat B:s fil för att A:s post försvann. Sökvägen jämförs segment för segment mot `{gruppPrefix}/{groupId}/{postPrefix}/...`,
+ * raderat B:s fil för att A:s post försvann. Sökvägen jämförs segment för segment mot `{gruppPrefix}/{groupId}/{postPrefix}/{postId}/{filnamn}`
+ * (exakt fem segment, och `postId` är dokumentets id, som i appens `biblioteksokvag`),
  * samma form som storage-fragmentet (`lagringsregelfragment`) skriver, och inte som ett reguljärt uttryck: grupp "cps" är
  * prefix till "cps-ab", och ett `groupId` med regex-tecken hade blivit en del av uttrycket. Segmenten är jämförda med `==`, så
  * inget av det kan hända.
@@ -1645,16 +1646,26 @@ ${toppHjalp}
         && ${toppAnrop};
     }
 
-    // Filens sökväg är {gruppPrefix}/{groupId}/{postPrefix}/{postId}/{filnamn}, med postens EGEN grupp. Segment mot segment, inte regex.
-    function opsBibliotekSokvagIGruppen(d) {
+    // Filens sökväg är EXAKT {gruppPrefix}/{groupId}/{postPrefix}/{postId}/{filnamn}: fem segment, postens egen grupp och
+    // postens eget id. Segment mot segment med ==, inte regex. Inget segment är tomt, '.' eller '..', och inget styrtecken
+    // (radbrytning, tabb, NUL) får finnas: RE2:s punkt matchar inte radbrytning, så ett '..'-prov med regex släpper igenom
+    // 'p\\n/../..'.
+    function opsBibliotekSokvagIGruppen(d, postId) {
       let s = d.fil.sokvag.split('/');
-      return s.size() >= 5
+      // Formen först: fem icke-tomma segment utan snedstreck i sig. split() släpper ett avslutande tomt segment (Javas regel),
+      // så 'a/b/c/d/e/' blev fem segment och passerade, mätt i emulatorn 2026-10-12. Mönstret fångar det, ett tomt segment i
+      // mitten och ett inledande snedstreck.
+      return d.fil.sokvag.matches('[^/]+/[^/]+/[^/]+/[^/]+/[^/]+')
+        && s.size() == 5
         && s[0] == "${gruppPrefix}"
         && s[1] == d.groupId
-        && s[2] == "${postPrefix}";
+        && s[2] == "${postPrefix}"
+        && s[3] == postId
+        && s.hasAny(['', '.', '..']) == false
+        && !d.fil.sokvag.matches('(?s).*[\\x00-\\x1f].*');
     }
 
-    function opsBibliotekspostGiltig(d) {
+    function opsBibliotekspostGiltig(d, postId) {
       return d.keys().hasOnly([${lista(BIBLIOTEKFALT)}])
         && d.rubrik.trim().size() > 0
         && d.rubrik.size() <= ${MAX_BIBLIOTEKRUBRIK}
@@ -1677,7 +1688,7 @@ ${toppHjalp}
             && d.fil.sokvag.size() > 0
             && d.fil.sokvag.size() <= ${MAX_BIBLIOTEKSOKVAG}
             && !d.fil.sokvag.matches('.*\\\\.\\\\..*')
-            && opsBibliotekSokvagIGruppen(d)
+            && opsBibliotekSokvagIGruppen(d, postId)
             && d.fil.namn.size() > 0
             && d.fil.namn.size() <= ${MAX_BIBLIOTEKFILNAMN}
             && d.fil.mime.matches('${filMimeMonster()}')
@@ -1707,7 +1718,7 @@ ${toppHjalp}
         && request.resource.data.skapadAv.uid == request.auth.uid
         && opsBiblioteketNu(request.resource.data.skapad)
         && opsBiblioteketNu(request.resource.data.andrad)
-        && opsBibliotekspostGiltig(request.resource.data);
+        && opsBibliotekspostGiltig(request.resource.data, id);
       allow update: if request.resource.data.groupId == resource.data.groupId
         && request.resource.data.typ == resource.data.typ
         && request.resource.data.skapad == resource.data.skapad
@@ -1717,7 +1728,7 @@ ${toppHjalp}
           || (request.resource.data.andrad == resource.data.andrad
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["durationMs", "peaks"]))
         )
-        && opsBibliotekspostGiltig(request.resource.data)
+        && opsBibliotekspostGiltig(request.resource.data, id)
         && (
           (opsArMedlem(resource.data.groupId) && resource.data.skapadAv.uid == request.auth.uid)
           || opsArAdmin(resource.data.groupId)

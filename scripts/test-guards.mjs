@@ -1221,6 +1221,11 @@ kravRott(
     [lasvakt, pkg, skriv("lock-avkortad.json", { name: "x", version: "1.2.3", lockfileVersion: 3, packages: {} })],
     "2 av 3 versioner lästa",
   );
+  kravRott(
+    "lasversion golv: tre tomma versioner är lika men lästa är noll",
+    [lasvakt, skriv("pkg-tom.json", { name: "x", version: "" }), skriv("lock-tom.json", lock("", ""))],
+    "0 av 3 versioner lästa",
+  );
   kravRott("lasversion golv: fel sökväg", [lasvakt, pkg, path.join(lasmapp, "finns-inte.json")], "finns inte");
   kravRott("lasversion golv: ingen JSON", [lasvakt, pkg, skriv("ingen-json.json", "inte json")], "är inte JSON");
 }

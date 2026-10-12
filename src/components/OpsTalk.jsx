@@ -59,6 +59,8 @@ export function useTalk({ onTalk, onKlick, inspelare, maxSekunder = MAX_SEKUNDER
   const [framsteg, setFramsteg] = useState(/** @type {number | null} */ (null));
   const [kanIgen, setKanIgen] = useState(false);
   const startTid = useRef(0);
+  /** När mikrofonen faktiskt blev öppen, 0 medan den inte är det. Taket och sekundräknaren räknas härifrån. */
+  const mikStart = useRef(0);
   /** Ljudet som redan stoppats, så Försök igen inte spelar in på nytt. */
   const senast = useRef(/** @type {{ blob: Blob, mimeType: string, sekunder: number } | null} */ (null));
   const insp = () => {
@@ -77,18 +79,22 @@ export function useTalk({ onTalk, onKlick, inspelare, maxSekunder = MAX_SEKUNDER
     tak.current = null;
   };
   /**
-   * ⛔ TAKET LÄSES UR EN REF OCH RÄKNAS FRÅN STARTEN (0.93.0). Förut sattes tiden en gång, med det `maxSekunder` som gällde i den
-   * `skicka` som råkade starta inspelningen. Väljer personen ett annat mål medan det spelar in, eller väljs målet i samma
-   * ögonblick som `direkt()` körs (Ny post, Röstinspelning), visade fältet 10:00 medan inspelningen klipptes vid 2:00.
-   * Därför läser både starten och ändringen av taket samma ref och samma starttid. Är taket redan passerat när det
-   * byts till ett kortare, avslutas inspelningen direkt: målet tar inte emot längre ljud än sitt tak.
+   * ⛔ TAKET LÄSES UR EN REF OCH RÄKNAS FRÅN ATT MIKROFONEN ÄR ÖPPEN (0.93.0). Förut sattes tiden en gång, med det `maxSekunder`
+   * som gällde i den `skicka` som råkade starta inspelningen. Väljer personen ett annat mål medan det spelar in, eller väljs
+   * målet i samma ögonblick som `direkt()` körs (Ny post, Röstinspelning), visade fältet 10:00 medan inspelningen klipptes vid 2:00.
+   * Därför läser både starten och ändringen av taket samma ref.
+   *
+   * ⛔ KLOCKAN ÄR `mikStart`, INTE TRYCKET. Första versionen räknade från trycket (`startTid`), och mikrofonprompten
+   * (`getUserMedia`) kan ta lång tid: en prompt på 30 s gav 90 s ljud i stället för 120, och en på 130 s gav 0,001 s. Taket är
+   * en gräns för hur mycket LJUD målet tar emot, så den räknas från att inspelningen faktiskt rullar. Är taket redan passerat när
+   * det byts till ett kortare, avslutas inspelningen direkt: målet tar inte emot längre ljud än sitt tak.
    */
   const maxRef = useRef(maxSekunder);
   maxRef.current = maxSekunder;
   const skickaRef = useRef(/** @type {(h: import("../lib/talk.js").Talkhandelse) => void} */ (() => {}));
   const planeraTak = () => {
     if (tak.current) clearTimeout(tak.current);
-    const kvar = maxRef.current * 1000 - (Date.now() - startTid.current);
+    const kvar = maxRef.current * 1000 - (Date.now() - mikStart.current);
     tak.current = setTimeout(() => skickaRef.current({ typ: "tak" }), Math.max(0, kvar));
   };
 
@@ -114,6 +120,7 @@ export function useTalk({ onTalk, onKlick, inspelare, maxSekunder = MAX_SEKUNDER
       }
       if (nasta.gor === "starta") {
         startTid.current = Date.now();
+        mikStart.current = 0;
         setSekunder(0);
         if (mikrofonenUpptagenAv && mikrofonenUpptagenAv !== inspRef) {
           skicka({ typ: "fel", text: TALK_UPPTAGEN });
@@ -127,6 +134,8 @@ export function useTalk({ onTalk, onKlick, inspelare, maxSekunder = MAX_SEKUNDER
           .starta()
           .then(() => {
             if (mitt === forsok.current && monterad.current) {
+              mikStart.current = Date.now();
+              setSekunder(0);
               planeraTak();
               return;
             }
@@ -211,7 +220,8 @@ export function useTalk({ onTalk, onKlick, inspelare, maxSekunder = MAX_SEKUNDER
   useEffect(() => {
     if (!spelarIn) return undefined;
     const id = setInterval(() => {
-      setSekunder(Math.max(0, Math.floor((Date.now() - startTid.current) / 1000)));
+      // Sekunderna är inspelad tid: noll medan mikrofonprompten väntar.
+      setSekunder(mikStart.current ? Math.max(0, Math.floor((Date.now() - mikStart.current) / 1000)) : 0);
     }, 250);
     return () => clearInterval(id);
   }, [spelarIn]);

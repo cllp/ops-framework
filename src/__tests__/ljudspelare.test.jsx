@@ -299,6 +299,36 @@ describe("OpsLjudspelare", () => {
     expect(el.currentTime).toBeCloseTo(0.999, 3);
   });
 
+  it("⛔ piltangenterna på spolreglaget flyttar 5 s, Home och End går till ändarna", async () => {
+    // Med step=1 flyttar en pil en tusendel: 0,6 s på tio minuter. Spelaren sköter därför tangenterna själv.
+    render(<OpsLjudspelare src="https://exempel.se/lang.webm" namn="Lång" />);
+    const el = /** @type {HTMLAudioElement} */ (document.querySelector("audio"));
+    act(() => sattLangd(el, 600));
+    await waitFor(() => expect(document.querySelector("[data-ljud-tid]")?.textContent).toMatch(/10:00/));
+    const reglage = screen.getByRole("slider", { name: "Spola i Lång" });
+    fireEvent.keyDown(reglage, { key: "ArrowRight" });
+    expect(el.currentTime).toBe(5);
+    fireEvent.keyDown(reglage, { key: "ArrowRight" });
+    expect(el.currentTime).toBe(10);
+    fireEvent.keyDown(reglage, { key: "ArrowLeft" });
+    expect(el.currentTime).toBe(5);
+    fireEvent.keyDown(reglage, { key: "ArrowUp" });
+    expect(el.currentTime).toBe(10);
+    fireEvent.keyDown(reglage, { key: "ArrowDown" });
+    expect(el.currentTime).toBe(5);
+    fireEvent.keyDown(reglage, { key: "End" });
+    expect(el.currentTime).toBe(600);
+    fireEvent.keyDown(reglage, { key: "ArrowRight" });
+    expect(el.currentTime).toBe(600);
+    fireEvent.keyDown(reglage, { key: "Home" });
+    expect(el.currentTime).toBe(0);
+    fireEvent.keyDown(reglage, { key: "ArrowLeft" });
+    expect(el.currentTime).toBe(0);
+    // Andra tangenter lämnas åt webbläsaren.
+    const tab = fireEvent.keyDown(reglage, { key: "Tab" });
+    expect(tab).toBe(true);
+  });
+
   it("⛔ timeupdate på ett spelande element flyttar både tiden och förloppet", async () => {
     render(<OpsLjudspelare src="https://exempel.se/a.webm" namn="Idé" />);
     const el = /** @type {HTMLAudioElement} */ (document.querySelector("audio"));

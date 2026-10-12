@@ -103,48 +103,35 @@ describe("OpsSvepRad", () => {
       expect(onValj).not.toHaveBeenCalled();
       unmount();
       act(() => { vi.advanceTimersByTime(ANGRA_MS); });
-      expect(onValj).toHaveBeenCalledTimes(1);
+      expect(onValj).not.toHaveBeenCalled();
     } finally {
       vi.useRealTimers();
     }
   });
 
-  it("avmonteras raden under Ångra-fönstret går raderingen igenom, en gång, och efter Ångra gör den det inte", () => {
+  it("⛔ avmonteras raden under Ångra-fönstret avbryts raderingen, och ingenting raderas i det tysta", () => {
+    // Varför: byter personen flik, söker, öppnar en detalj eller byter grupp inom åtta sekunder avmonteras raden. Skulle raderingen
+    // då köras hade en post försvunnit utan att Ångra-fönstret någonsin syntes för det beslutet. Avbrott är det säkra felet:
+    // posten finns kvar. Beslut 2026-10-12, granskningarna pekade åt båda hållen.
     vi.useFakeTimers();
     try {
       const onValj = vi.fn();
-      const atgard = { id: "radera", etikett: "Radera", fara: true, angraMeddelande: "Posten tas bort.", onValj };
       const bygg = () => render(
         <ul>
-          <OpsSvepRad atgarder={[atgard]}><span>Posten</span></OpsSvepRad>
+          <OpsSvepRad atgarder={[{ id: "radera", etikett: "Radera", fara: true, angraMeddelande: "Posten tas bort.", onValj }]}>
+            <span>Posten</span>
+          </OpsSvepRad>
         </ul>,
       );
-      const starta = () => {
-        svep(screen.getByRole("listitem"), 240, 80);
-        const radera = screen.getByRole("button", { name: "Radera" });
-        peka(radera, "pointerdown", 8, 8);
-        fireEvent.click(radera);
-      };
-
       const forst = bygg();
-      starta();
-      expect(onValj).not.toHaveBeenCalled();
+      svep(screen.getByRole("listitem"), 240, 80);
+      const radera = screen.getByRole("button", { name: "Radera" });
+      peka(radera, "pointerdown", 8, 8);
+      fireEvent.click(radera);
+      expect(screen.getByText("Posten tas bort.")).toBeInTheDocument();
       forst.unmount();
-      expect(onValj).toHaveBeenCalledTimes(1);
-      act(() => { vi.advanceTimersByTime(ANGRA_MS * 2); });
-      expect(onValj).toHaveBeenCalledTimes(1);
-
-      onValj.mockClear();
-      const andra = bygg();
-      starta();
-      fireEvent.click(screen.getByRole("button", { name: "Ångra" }));
-      andra.unmount();
-      act(() => { vi.advanceTimersByTime(ANGRA_MS * 2); });
       expect(onValj).not.toHaveBeenCalled();
-
-      // En rad som aldrig fick ett Radera-tryck anropar inget när den avmonteras.
-      const tredje = bygg();
-      tredje.unmount();
+      act(() => { vi.advanceTimersByTime(ANGRA_MS * 2); });
       expect(onValj).not.toHaveBeenCalled();
     } finally {
       vi.useRealTimers();
@@ -426,6 +413,36 @@ describe("OpsDokument: ett sparande som faller (0.93.0)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Spara" }));
     expect(screen.getByRole("alert")).toHaveTextContent("Kastade direkt.");
     expect(document.querySelector("[data-ops-dokument]")).toHaveAttribute("data-ops-dokument", "redigera");
+  });
+
+  it("⛔ Avbryt nollar ett kvarstående fel", async () => {
+    const { unmount } = rendera(() => Promise.reject(new Error("Gammalt fel.")));
+    fireEvent.click(screen.getByRole("button", { name: "Redigera" }));
+    fireEvent.click(screen.getByRole("button", { name: "Spara" }));
+    expect(await screen.findByText("Gammalt fel.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Avbryt" }));
+    fireEvent.click(screen.getByRole("button", { name: "Redigera" }));
+    expect(screen.queryByText("Gammalt fel.")).toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
+    unmount();
+  });
+
+  it("⛔ ett avslag som kommer efter Avbryt visas inte i nästa redigering, och ett nytt försök är inte spärrat", async () => {
+    /** @type {Array<(e: Error) => void>} */
+    const nej = [];
+    const onSpara = vi.fn(() => new Promise((_ok, reject) => { nej.push(reject); }));
+    rendera(onSpara);
+    fireEvent.click(screen.getByRole("button", { name: "Redigera" }));
+    fireEvent.click(screen.getByRole("button", { name: "Spara" }));
+    expect(onSpara).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: "Avbryt" }));
+    fireEvent.click(screen.getByRole("button", { name: "Redigera" }));
+    expect(screen.getByRole("button", { name: "Spara" })).not.toHaveAttribute("aria-busy");
+    await act(async () => { nej[0](new Error("Sent avslag.")); });
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByRole("button", { name: "Spara" })).not.toHaveAttribute("aria-busy");
+    fireEvent.click(screen.getByRole("button", { name: "Spara" }));
+    expect(onSpara).toHaveBeenCalledTimes(2);
   });
 
   it("ett andra tryck medan det första pågår sparar inte igen, och felet försvinner vid nästa försök", async () => {

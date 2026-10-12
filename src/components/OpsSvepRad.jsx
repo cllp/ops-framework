@@ -14,10 +14,12 @@ import { useOpsSprak } from "./OpsSprak.jsx";
  * `libraryDelayedAction.js` (`LIBRARY_UNDO_MS`), och först därefter anropas
  * `onValj`. En toast som enda kopia hade försvunnit om man tittade bort.
  *
- * ⛔ AVMONTERAS RADEN UNDER ÅNGRA-FÖNSTRET GÅR RADERINGEN IGENOM (0.93.0). Förut
- * släpptes den tyst: man tryckte Radera, gick tillbaka en vy, och posten fanns
- * kvar fast Ångra aldrig tryckts. Ett tryck på Radera är ett beslut, och Ångra är
- * det enda som tar tillbaka det. Att lämna vyn är inte Ångra.
+ * ⛔ AVMONTERAS RADEN UNDER ÅNGRA-FÖNSTRET AVBRYTS RADERINGEN, DEN KÖRS ALDRIG (beslut 2026-10-12, 0.93.0).
+ * Granskningarna 2026-10-12 pekade åt båda hållen. En version av den här filen körde `onValj` vid avmontering, så att ett tryck på
+ * Radera inte försvann när man gick tillbaka en vy. Det gav radering UTAN att Ångra-fönstret syntes: byter personen flik, söker,
+ * öppnar en detalj eller byter grupp inom åtta sekunder avmonteras raden, och posten hade raderats utan att personen kunnat
+ * ångra något hon inte längre såg. En destruktiv åtgärd sker aldrig utan att fönstret syns. Avbrott är det säkra felet: posten
+ * finns kvar och Radera går att trycka igen. Det var också beteendet på main, och provet kräver det.
  *
  * ⛔ ETT SVEP SOM BÖRJAR PÅ ETT REGLAGE ÄR INTE ETT SVEP. En ljudvåg är en
  * `input[type=range]`: skrubbar man den åt vänster ska tiden flytta sig, inte
@@ -61,26 +63,15 @@ export function OpsSvepRad({ children, atgarder = [] }) {
   const oppnaRef = useRef(0);
   const svept = useRef(false);
   const timer = useRef(/** @type {ReturnType<typeof setTimeout> | null} */ (null));
-  // Åtgärden som väntar på att Ångra-fönstret ska löpa ut. Satt = ett beslut är fattat men inte utfört.
-  const vantande = useRef(/** @type {SvepAtgard | null} */ (null));
   const atgarderRef = useRef(atgarder);
   const atgardYta = useRef(/** @type {HTMLDivElement | null} */ (null));
   oppnaRef.current = oppna;
   atgarderRef.current = atgarder;
 
+  // Avmontering avbryter den väntande åtgärden (se filhuvudet): tiden rensas och `onValj` körs aldrig.
   useEffect(() => () => {
     if (timer.current) clearTimeout(timer.current);
     timer.current = null;
-    const a = vantande.current;
-    vantande.current = null;
-    if (!a || typeof a.onValj !== "function") return;
-    // Raden finns inte längre, så ett fel har ingen plats att visas på. Det får ändå inte försvinna.
-    try {
-      const svar = a.onValj();
-      if (svar && typeof svar.then === "function") svar.then(undefined, (e) => console.error("OpsSvepRad: åtgärden efter avmontering misslyckades.", e));
-    } catch (e) {
-      console.error("OpsSvepRad: åtgärden efter avmontering misslyckades.", e);
-    }
   }, []);
 
   useEffect(() => {
@@ -131,11 +122,9 @@ export function OpsSvepRad({ children, atgarder = [] }) {
       return;
     }
     if (timer.current) clearTimeout(timer.current);
-    vantande.current = a;
     setAngra({ meddelande: a.angraMeddelande });
     timer.current = setTimeout(() => {
       timer.current = null;
-      vantande.current = null;
       kor(a);
     }, ANGRA_MS);
   }
@@ -237,7 +226,6 @@ export function OpsSvepRad({ children, atgarder = [] }) {
               onClick={() => {
                 if (timer.current) clearTimeout(timer.current);
                 timer.current = null;
-                vantande.current = null;
                 setAngra(null);
               }}
             >
