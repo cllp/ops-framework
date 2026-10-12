@@ -38,7 +38,7 @@ Tre vikter i vanlig yta: **400, 500 och 600**. **700 bara på räknemärkets sif
 | `text-publik-rubrik`, `-avsnitt`, `-block` | 500 (serif) |
 | `text-publik-eyebrow` | 600 |
 
-Rollens vikt är sanningen. `check-typografi` fäller `font-bold`, och en vikt som rollen i samma klasssträng redan bär (`text-rubrik font-semibold`). Emfas på en 400-roll är `font-medium`. En sänkning under rollens vikt (`text-mikro font-semibold`) är tillåten.
+Rollens vikt är sanningen. `check-typografi` fäller `font-bold`, och en vikt som rollen i samma klasssträng redan bär (`text-rubrik font-semibold`). Emfas på en 400-roll är `font-medium`. En sänkning under rollens vikt (`text-mikro font-semibold`) är tillåten. En vikt är dubbel bara om den är lika med vikten hos VARJE roll som gäller på elementet, basrollen och de responsiva (`sm:text-hjalp`): `text-liten font-medium sm:text-hjalp` är inte dubbel, för `font-medium` håller 500 från `sm` där `text-hjalp` är 400 (Tailwind låter en uttrycklig vikt gå före rollens på alla bredder). `text-liten font-medium` är dubbel. `text-liten sm:font-medium` är en vikt bara på brytpunkten och inte dubbel.
 
 ⛔ **`text-sida` är 600 och inte 700.** Beslut 3a lät 700 stå kvar för sidrubriker, men SS sidrubrik är `font-semibold` (`GroupDetailView.jsx:95`) och 0.90.1 (lifehub.app#146) kom till eftersom 700 på den storleken såg ut som fel typsnitt. Rollen stod på 700 och `SIDRUBRIK_KLASS` lade `font-semibold` ovanpå; nu är vikten rollens och ingen klass korrigerar den.
 

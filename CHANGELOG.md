@@ -9,6 +9,21 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.94.1
+
+Kalenderns veckodagar tappade vikt 500 från 640 px. Mätt i lifehub.app:s ompinning till 0.94.0.
+
+### Felet
+
+- **Mätt:** veckodagsraden i `OpsCalendar` (`text-liten ... sm:text-hjalp`) gick från vikt 500 till 400 från `sm` (640 px). 0.94.0 tog bort `font-medium` som "dubbel vikt". Men `text-liten` är 500 och `text-hjalp` är 400, och en uttrycklig vikt går före rollens på alla bredder (Tailwind skriver rollens vikt som `var(--tw-font-weight, rollens)`). `font-medium` var alltså det som höll 500 från `sm`; den var inte dubbel där.
+- **Orsaken var vakten.** `check-typografi` såg rollen utan brytpunkt (`text-liten`) och räknade vikten som dubbel även när en responsiv roll med annan vikt gäller på samma element. Vakten pekade ut ett ställe som inte var fel, och rättningen efter den skapade felet.
+
+### Rättat
+
+- **`check-typografi`:** en vikt är dubbel bara om den är lika med vikten hos varje roll som gäller på elementet, basrollen och de responsiva (`sm:text-*`, `md:text-*`). En vikt med brytpunkt (`sm:font-medium`) jämförs bara mot rollerna med samma brytpunkt. Fem nya fall i `test-guards`: tre gröna/röda enligt uppdraget (`text-liten font-medium sm:text-hjalp` grön, `text-liten font-medium` röd, `text-liten sm:font-medium` grön) och två röda gränsfall (alla gällande roller lika, variantvikt lika med variantens roll). Den gamla vakten är röd mot det gröna fallet (provat mot 0.94.0:s `check-typografi` på sex filer), den nya grön.
+- **`OpsCalendar`:** veckodagarna har `font-medium` igen, 500 på alla bredder.
+- **Revision av 0.94.0 mot 0.93.0:** varje ändrad klasssträng i `src/` jämfördes bredd för bredd (bas, `sm`, `md`, `lg`, `xl`) med uttrycklig vikt före rollens. 22 strängar ändrade vikt 700 till 600 och det är avsikten (`font-bold` fälls). **Exakt en ändrade vikt av en annan orsak: veckodagsraden.** Inget annat ställe tappade en vikt.
+
 ## 0.94.0
 
 Typografin på ett ställe, ett publikt skal, ett brandkontrakt och lager. lifehub.app#165, CP 2026-10-10 och 2026-10-12. Ersätter utkastet #344.

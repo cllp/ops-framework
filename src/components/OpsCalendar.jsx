@@ -1789,7 +1789,7 @@ export function OpsCalendar({
           <div ref={huvudRef} className={cx("sticky top-0 z-(--z-sticky) grid gap-1 bg-canvas pt-1 pb-2 sm:gap-1.5", gridKlass)}>
             {veckonummer ? <span className="py-1 text-center text-liten font-semibold text-ink-muted">v</span> : null}
             {weekdayNames(locale).map((d) => (
-              <span key={d} className="py-1 text-center text-liten uppercase tracking-widest text-ink-muted sm:text-hjalp">
+              <span key={d} className="py-1 text-center text-liten font-medium uppercase tracking-widest text-ink-muted sm:text-hjalp">
                 {d}
               </span>
             ))}

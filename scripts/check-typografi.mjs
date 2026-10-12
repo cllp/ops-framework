@@ -140,6 +140,13 @@ const UTILITYVIKT = /** @type {Record<string, number>} */ ({ "font-normal": 400,
 /**
  * Dubbel vikt: en klasssträng (en strängliteral) som bär en roll och en vikt som rollen REDAN har. Strängen är enheten
  * och inte raden, så två element på samma rad (`text-rubrik` här, `text-etikett font-semibold` där) inte skyller på varandra.
+ *
+ * ⛔ 0.94.1 (lifehub.app, kalenderns veckodagar 500 till 400 från 640 px): en roll kan ha en brytpunktsvariant med ANNAN vikt
+ * (`text-liten ... sm:text-hjalp`, 500 respektive 400). Då är `font-medium` inte dubbel, den är det som håller 500 från `sm`.
+ * 0.94.0 räknade bara rollen utan brytpunkt och fällde den, och när den togs bort tappade elementet vikten på alla bredder
+ * över brytpunkten. Därför: en vikt utan variant är dubbel bara om den är lika med vikten hos VARJE roll som gäller på
+ * elementet (basrollen och de responsiva). En vikt MED variant (`sm:font-medium`) jämförs bara mot rollerna med samma
+ * variant, eftersom den är ett avsiktligt val för just den bredden.
  * @param {string} kalla @returns {{ rad: number, text: string, roll: string, vikt: string }[]}
  */
 export function dubbelVikt(kalla) {
@@ -148,13 +155,22 @@ export function dubbelVikt(kalla) {
   for (const m of kalla.matchAll(/"([^"\n]*)"|'([^'\n]*)'|`([^`]*)`/g)) {
     const strang = m[1] ?? m[2] ?? m[3] ?? "";
     const klasser = strang.split(/\s+/).filter(Boolean);
-    const roller = klasser.map((k) => /^(?:[^:]+:)*text-([a-z-]+)$/.exec(k)?.[1]).filter((r) => r !== undefined && ROLLVIKTER.has(r));
+    /** @type {{ variant: string, roll: string }[]} */
+    const roller = [];
+    for (const k of klasser) {
+      const r = /^((?:[^:]+:)*)text-([a-z-]+)$/.exec(k);
+      if (r && ROLLVIKTER.has(r[2])) roller.push({ variant: r[1], roll: r[2] });
+    }
     if (roller.length === 0) continue;
     for (const k of klasser) {
-      const v = UTILITYVIKT[k.replace(/^(?:[^:]+:)*/, "")];
-      if (v === undefined) continue;
-      const lika = roller.find((r) => ROLLVIKTER.get(/** @type {string} */ (r)) === v);
-      if (lika) ut.push({ rad: kalla.slice(0, m.index).split("\n").length, text: strang.trim(), roll: `text-${lika}`, vikt: k });
+      const delar = /^((?:[^:]+:)*)(font-(?:normal|medium|semibold))$/.exec(k);
+      if (!delar) continue;
+      const v = UTILITYVIKT[delar[2]];
+      const galler = delar[1] === "" ? roller : roller.filter((r) => r.variant === delar[1]);
+      if (galler.length === 0) continue;
+      if (galler.every((r) => ROLLVIKTER.get(r.roll) === v)) {
+        ut.push({ rad: kalla.slice(0, m.index).split("\n").length, text: strang.trim(), roll: galler.map((r) => `${r.variant}text-${r.roll}`).join(" "), vikt: k });
+      }
     }
   }
   return ut;
