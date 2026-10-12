@@ -179,5 +179,11 @@ describe("PUBLIK_KLASS (rollerna)", () => {
     expect(PUBLIK_KLASS.ingress).toContain("text-publik-ingress");
     expect(PUBLIK_KLASS.brod).toContain("text-publik-brod");
     for (const k of Object.values(PUBLIK_KLASS)) expect(k).not.toMatch(/text-\[|font-bold|font-semibold/);
+    // Runda 3 av granskningen av PR 350: färgerna är de publika tonernas, aldrig appens, så brandfilen styr innehållssidan också.
+    for (const k of Object.values(PUBLIK_KLASS)) expect(k).not.toMatch(/(?:^|\s)text-(?:ink|accent)(?:-secondary|-muted)?(?:\s|$)/);
+    expect(PUBLIK_KLASS.eyebrow).toContain("text-publik-markering");
+    expect(PUBLIK_KLASS.hjalte).toContain("text-publik-ljus-text");
+    expect(PUBLIK_KLASS.ingress).toContain("text-publik-ljus-dampad");
+    expect(PUBLIK_KLASS.brod).toContain("text-publik-ljus-dampad");
   });
 });

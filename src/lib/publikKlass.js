@@ -18,23 +18,27 @@
  * ⛔ APPENS VYER BERÖRS INTE. Appen fortsätter med `--font-display` och rollerna i `typografi.roller`. Rollerna här används
  * bara där en sida är en presentation, och de är inte en genväg till större text i en vy.
  *
- * ⛔ FÄRGEN LIGGER UTANFÖR ROLLEN, som för `sektion`: rubriken är `text-ink`, ingressen och brödtexten `text-ink-secondary`
- * (SS dämpade ton), överraden `text-accent`. Versalerna sätts här (`uppercase`).
+ * ⛔ FÄRGEN LIGGER UTANFÖR ROLLEN, som för `sektion`, och den är DE PUBLIKA TONERNAS och inte appens: rubriken är
+ * `text-publik-ljus-text`, ingressen och brödtexten `text-publik-ljus-dampad`, överraden `text-publik-markering`, alltså samma
+ * färger som `PUBLIK_TONER.ljus` (granskningen av PR 350, runda 3). Före det stod `text-ink`, `text-ink-secondary` och
+ * `text-accent`, appens färger, och en instans brandfil styrde blocken men inte innehållssidan: Life Hubs överrad blev guld på
+ * kräm (2,3:1) trots att `lifehub.css` sätter `--color-publik-markering` till mörk text just för att undvika det. Versalerna sätts här (`uppercase`).
+ * Knapparnas accent (`bg-accent`) är kvar: accenten är en brandvariabel och inte ett band.
  */
 
 export const PUBLIK_KLASS = Object.freeze({
   /** Överraden över en rubrik: 12 px, 600, spärrad, versaler, accent. */
-  eyebrow: "m-0 text-publik-eyebrow uppercase text-accent",
+  eyebrow: "m-0 text-publik-eyebrow uppercase text-publik-markering",
   /** Fotohjältens rubrik, `<h1>`: serif, 500, 36 px, 48 px från `sm`, 56 px från `lg`. */
-  hjalte: "m-0 max-w-4xl font-display-publik text-publik-rubrik text-ink",
+  hjalte: "m-0 max-w-4xl font-display-publik text-publik-rubrik text-publik-ljus-text",
   /** Innehållssidans rubrik, `<h1>` (SS HowItWorksPage): serif, 500, 36 px, 48 px från `sm`. */
-  sida: "m-0 font-display-publik text-publik-sida text-ink",
+  sida: "m-0 font-display-publik text-publik-sida text-publik-ljus-text",
   /** Avsnittets rubrik, `<h2>` (SS HowItWorksPage `SectionShell`): serif, 500, 30 px, 36 px från `sm`. Samma roll som blockets. */
-  avsnitt: "m-0 font-display-publik text-publik-block text-ink",
+  avsnitt: "m-0 font-display-publik text-publik-block text-publik-ljus-text",
   /** Ingressen under en rubrik. Bredden sätter anroparen (`max-w-las` i ett block, `max-w-3xl` på en innehållssida). */
-  ingress: "m-0 text-publik-ingress text-ink-secondary",
+  ingress: "m-0 text-publik-ingress text-publik-ljus-dampad",
   /** Löptext. Bredden sätter anroparen. */
-  brod: "m-0 text-publik-brod text-ink-secondary",
+  brod: "m-0 text-publik-brod text-publik-ljus-dampad",
 });
 
 /**

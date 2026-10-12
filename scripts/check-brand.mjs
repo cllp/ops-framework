@@ -37,6 +37,8 @@
  *     9. Under `md` ligger länkarna bakom en meny som öppnas och stängs; ingen horisontell scroll i 390 px.
  *    10. Brandfilen byter tonerna: med `examples/brand/sessionstudio.css` är banden SessionStudios (kräm, orange, ink), med
  *        `lifehub.css` Life Hubs (ljus, taupe, mörk), och accent och rubrikfamilj följer med.
+ *    14. Innehållssidans färger (hjälte och avsnitt: överrad, rubrik, ingress, text) är de publika tonernas och inte appens, med båda
+ *        brandfilerna, och klarar WCAG AA mot sidans bakgrund (SS egna undantag är ett golv). Rött mot den gamla koden (`--bevisa`).
  *    13. Spärrningen: varje publik rubrik (hjälte, block, sida, avsnitt) är lika bred som med SS `-0,01em` (`--letter-spacing-tight`),
  *        ur rollens egen token och inte en klass. Rött utan spärrningen (`--bevisa`).
  *    12. Rytmen mellan blocken ägs av ramverket: 96 px mellan två ljusa block, efter fotohjälten och före uppmaningen, 0 mellan
@@ -97,8 +99,8 @@ const docsFil = path.join(rot, "docs", "brand.md");
 // Ligger i vakten och inte i `test-guards`, eftersom `check`-jobbet saknar webbläsare och det här provet kräver en.
 if (argv.includes("--bevisa")) {
   const { spawnSync } = await import("node:child_process");
-  const os = await import("node:os");
-  const mapp = fs.mkdtempSync(path.join(os.tmpdir(), "ops-brand-bevis-"));
+  // Inuti repot och inte i systemets temp: en mutant av `dist` ska hitta `react` och de andra paketen (jfr `check-css-build`).
+  const mapp = fs.mkdtempSync(path.join(rot, "node_modules", ".ops-brand-bevis-"));
   try {
     const original = fs.readFileSync(tokensFil, "utf8");
     // Före 0.94.0 låg mörkerblocken olagrade. `@media all` är samma regler utan lager.
@@ -117,6 +119,17 @@ if (argv.includes("--bevisa")) {
     const utanSparrning = original.replace(/^\s*--text-publik-(?:rubrik|sida|block)--letter-spacing:[^;]*;\n/gm, "");
     if (utanSparrning === original) throw new Error("check-brand --bevisa: tokens.css har ingen spärrning på rubrikrollerna att ta bort.");
     fs.writeFileSync(path.join(mapp, "tokens-utan-sparrning.css"), utanSparrning);
+    // Innehållssidans färger: `PUBLIK_KLASS` i en kopia av dist sätts tillbaka till appens färger (`text-accent`, `text-ink`,
+    // `text-ink-secondary`), alltså som före runda 3 av granskningen av PR 350. Då är Life Hubs överrad guld på kräm (2,3:1).
+    const distText = fs.readFileSync(dist, "utf8");
+    const gammalDist = distText
+      .replace("text-publik-eyebrow uppercase text-publik-markering", "text-publik-eyebrow uppercase text-accent")
+      .replace("text-publik-rubrik text-publik-ljus-text", "text-publik-rubrik text-ink")
+      .replace("text-publik-sida text-publik-ljus-text", "text-publik-sida text-ink")
+      .replace("text-publik-block text-publik-ljus-text", "text-publik-block text-ink")
+      .replace("text-publik-brod text-publik-ljus-dampad", "text-publik-brod text-ink-secondary");
+    if (gammalDist === distText) throw new Error("check-brand --bevisa: PUBLIK_KLASS hittades inte i dist, så provet av innehållssidans färger provar ingenting.");
+    fs.writeFileSync(path.join(mapp, "dist-gamla-farger.js"), gammalDist);
 
     /** @type {{ namn: string, args: string[], forvantat: string | null, flera?: boolean }[]} */
     const fall = [
@@ -124,12 +137,13 @@ if (argv.includes("--bevisa")) {
       { namn: "rött: utan lagren vinner ramverkets mörkeralias över instansens regel", args: ["--tokens", path.join(mapp, "tokens-utan-lager.css")], forvantat: "över ramverkets mörkeralias" },
       { namn: "rött: en brandfil utan typsnittsraden ändrar inte den publika rubriken", args: ["--brand", path.join(mapp, "brand-utan-publik.css")], forvantat: "brandfilen ändrade inte den publika rubriken" },
       { namn: "rött: utan ramverkets rytmregel ligger blocken tätt, 0 px i stället för 96", args: ["--tokens", path.join(mapp, "tokens-utan-rytm.css")], forvantat: "rytmen:", flera: true },
+      { namn: "rött: innehållssidans överrad i appens accent blir guld på kräm och styrs inte av brandfilen", args: ["--dist", path.join(mapp, "dist-gamla-farger.js")], forvantat: "innehållssidan", flera: true },
       { namn: "rött: utan spärrningen på rubrikrollerna är rubrikerna bredare än SS", args: ["--tokens", path.join(mapp, "tokens-utan-sparrning.css")], forvantat: "spärrningen:", flera: true },
       { namn: "rött: toppraden i en smal centrerad kolumn flyttar loggan mellan sidor", args: ["--logga-mitt"], forvantat: "loggan ligger inte på samma plats", flera: true },
     ];
     let fel = 0;
     for (const f of fall) {
-      const k = spawnSync(process.execPath, [fileURLToPath(import.meta.url), ...f.args, ...(argv.includes("--dist") ? ["--dist", dist] : [])], { encoding: "utf8" });
+      const k = spawnSync(process.execPath, [fileURLToPath(import.meta.url), ...f.args, ...(argv.includes("--dist") && !f.args.includes("--dist") ? ["--dist", dist] : [])], { encoding: "utf8" });
       const ut = `${k.stdout ?? ""}${k.stderr ?? ""}`;
       const brottRad = /(\d+) brott av/.exec(ut)?.[1];
       let utfall = "ok";
@@ -501,6 +515,19 @@ try {
           uppmaningBg: cs(uppmaning, "background-color"),
           skalBg: cs(document.querySelector('[data-ops-publik="skal"]'), "background-color"),
           hjalteH1Storlek: cs(hjalte?.querySelector("h1") ?? null, "font-size"),
+          // Innehållssidans färger (runda 3 av granskningen av PR 350): hjältens överrad, rubrik och ingress, och avsnittets överrad,
+          // rubrik, ingress och text. De ska vara de publika tonernas (`--color-publik-ljus-text` m.fl.), inte appens.
+          innehallsFarger: [
+            ["hjälte: överrad", hjalte?.querySelectorAll("p")[0]],
+            ["hjälte: rubrik", hjalte?.querySelector("h1")],
+            ["hjälte: ingress", hjalte?.querySelectorAll("p")[1]],
+            ["avsnitt: överrad", document.querySelector('[data-ops-publik="avsnitt"] p')],
+            ["avsnitt: rubrik", document.querySelector('[data-ops-publik="avsnitt"] h2')],
+            ["avsnitt: ingress", document.querySelectorAll('[data-ops-publik="avsnitt"] p')[1]],
+            ["avsnitt: text", document.querySelector('[data-ops-publik="text"]')],
+          ]
+            .filter(([, el]) => el)
+            .map(([namn, el]) => ({ namn: /** @type {string} */ (namn), farg: cs(/** @type {Element} */ (el), "color") })),
           // Spärrningen (granskningen av PR 350, runda 2): rubrikens bredd i EN rad som den ritas, och samma rubrik med SS
           // spärrning -0,01em (`--letter-spacing-tight`, SS index.css:411 och :433, ärvd av SS landningsrubriker) tvingad på. Är rollens
           // spärrning rätt är de lika; saknas den är den ritade bredare.
@@ -583,6 +610,49 @@ try {
       krav(Math.abs(r.ritad - r.ss) <= 0.5, `spärrningen: ${r.namn} på ${sida} vid ${bredd} px är ${r.ritad} px bred, med SS spärrning -0,01em ${r.ss} px. Rollen saknar -0,01em.`);
     }
   }
+  // 14. Innehållssidans färger är de publika tonernas och klarar kontrasten, med båda brandfilerna (runda 3 av granskningen av PR 350).
+  /** @param {string} v @returns {{ r: number, g: number, b: number, a: number } | null} */
+  const rgbaAv = (v) => {
+    const m = /^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*([\d.]+)\s*)?\)$/.exec(v.trim());
+    return m ? { r: +m[1], g: +m[2], b: +m[3], a: m[4] === undefined ? 1 : +m[4] } : null;
+  };
+  /** @type {Record<string, number>} Kända undantag, golv som bara får sjunka (samma tak som i TONPAR). */
+  const INNEHALL_UNDANTAG = { "sessionstudio.css|hjälte: överrad": 2.41, "sessionstudio.css|avsnitt: överrad": 2.41 };
+  /** @type {string[]} */
+  const innehallRader = [];
+  for (const [fil, css] of /** @type {const} */ ([["sessionstudio.css", cssSS], ["lifehub.css", cssLH]])) {
+    const text = utanKommentarer(fs.readFileSync(fil === "sessionstudio.css" ? ssFil : lhFil, "utf8"));
+    const v = (/** @type {string} */ namn) => new RegExp(`${namn}\\s*:\\s*([^;]+);`).exec(text)?.[1].trim() ?? "";
+    for (const bredd of [1280, 390]) {
+      const m = await publik(css, "kort", bredd);
+      krav(m.innehallsFarger.length === 7, `innehållssidan ${fil} vid ${bredd} px: ${m.innehallsFarger.length} texter mättes, väntat 7 (hjälte 3, avsnitt 4)`);
+      const bg = rgbaAv(m.skalBg);
+      krav(!!bg, `innehållssidan ${fil}: sidans bakgrund "${m.skalBg}" går inte att läsa som färg`);
+      // Färgerna ska vara brandfilens: rubrik och avsnittsrubrik = ljus-text, ingress och text = ljus-dampad, överrad = markering.
+      const vantat = /** @type {Record<string, string>} */ ({
+        "hjälte: överrad": "--color-publik-markering", "avsnitt: överrad": "--color-publik-markering",
+        "hjälte: rubrik": "--color-publik-ljus-text", "avsnitt: rubrik": "--color-publik-ljus-text",
+        "hjälte: ingress": "--color-publik-ljus-dampad", "avsnitt: ingress": "--color-publik-ljus-dampad", "avsnitt: text": "--color-publik-ljus-dampad",
+      });
+      for (const { namn, farg: f } of m.innehallsFarger) {
+        const brand = farg(v(vantat[namn]));
+        const ritad = rgbaAv(f);
+        if (!brand || !ritad || !bg) { krav(false, `innehållssidan ${fil}: ${namn} "${f}" eller ${vantat[namn]} går inte att läsa som färg`); continue; }
+        krav(
+          Math.abs(ritad.r - brand.r) <= 1 && Math.abs(ritad.g - brand.g) <= 1 && Math.abs(ritad.b - brand.b) <= 1,
+          `innehållssidan ${fil} vid ${bredd} px: ${namn} är ${f} men brandfilens ${vantat[namn]} är rgb(${brand.r}, ${brand.g}, ${brand.b}). Innehållssidans färger ska vara de publika tonernas och inte appens (PUBLIK_KLASS), annars styr brandfilen blocken men inte sidan.`,
+        );
+        const kon = forhall(blanda(ritad, bg), bg);
+        const nyckel = `${fil}|${namn}`;
+        const undantag = INNEHALL_UNDANTAG[nyckel];
+        if (bredd === 1280) innehallRader.push(`${fil} innehållssida ${namn}: ${kon.toFixed(2)}:1${kon >= 4.5 ? "" : undantag ? " (känt undantag)" : ""}`);
+        if (kon >= 4.5) krav(undantag === undefined, `${nyckel} står som känt undantag men klarar nu 4,5:1 (${kon.toFixed(2)}). Ta bort raden.`);
+        else if (undantag !== undefined) krav(kon >= undantag - 0.05, `${nyckel}: ${kon.toFixed(2)}:1 är sämre än det kända undantaget ${undantag}:1.`);
+        else krav(false, `innehållssidan ${nyckel} vid ${bredd} px: ${kon.toFixed(2)}:1 mot sidans bakgrund, under 4,5:1 (WCAG AA). Guld på kräm är 2,3:1: överraden ska vara brandfilens --color-publik-markering.`);
+      }
+    }
+  }
+  /** @type {any} */ (globalThis).__innehallRader = innehallRader;
   const foto = await publik(cssSS, "start", 1280);
   krav(foto.hjalteH1Storlek === "56px", `fotohjältens rubrik ska vara 56 px vid 1280 px (text-publik-rubrik): ${foto.hjalteH1Storlek}`);
 
@@ -632,3 +702,5 @@ if (brott.length > 0) {
 console.log(`check-brand: ${matningar} mätningar, brandfilen ändrar rubrik, publik rubrik, märke och knapp i båda lägena, en olagrad regel vinner utan !important, och det publika skalet har loggan på samma plats och tonerna ur brandfilen`);
 console.log("  kontrast per ton (WCAG, text mot bakgrund):");
 for (const r of kontrastRader) console.log(`    ${r}`);
+console.log("  kontrast på innehållssidan (renderade färger mot sidans bakgrund):");
+for (const r of globalThis.__innehallRader ?? []) console.log(`    ${r}`);
