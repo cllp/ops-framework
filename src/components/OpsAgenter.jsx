@@ -88,6 +88,8 @@ export const ORD_OPSAGENTER = {
   kopplaNyckel: { sv: "Koppla nyckel", en: "Connect a key" },
   okandModell: { sv: "Den valda modellen finns inte i listan.", en: "The chosen model is not in the list." },
   ingenModell: { sv: "Ingen modell angiven.", en: "No model given." },
+  kommer: { sv: "Kommer", en: "Coming" },
+  modellKommer: { sv: "Att välja modell kommer. Tills dess svarar agenten med appens modell, och inget här sparas.", en: "Choosing a model is coming. Until then the agent replies with the app's model, and nothing here is saved." },
   nycklar: { sv: "Nycklar", en: "Keys" },
   nycklarText: { sv: "Nycklarna hör till dig. De sparas i Mitt konto, inte i gruppen.", en: "The keys belong to you. They are stored in My account, not in the group." },
   hanteraNycklar: { sv: "Hantera nycklar i Mitt konto", en: "Manage keys in My account" },
@@ -262,6 +264,7 @@ function kravGranser(granser) {
  * @param {string} [props.nycklarHref] Adressen till AI-nycklar i Mitt konto. "Koppla nyckel" och "Hantera nycklar i Mitt konto" pekar dit.
  * @param {boolean} [props.inomInstallningar] (0.90.6) Rita listan och agentens inställningar utan modulramen. Gruppens inställningar har redan sin panel.
  * @param {(v: { id: string, leverantor: string }) => void | Promise<void>} [props.onSparaModell]
+ * @param {boolean} [props.modellvalAktivt] (0.93.0) Förval falskt. Modellvalet är då avstängt och märkt "Kommer", ingen Spara ritas och `onSparaModell` anropas aldrig. Slå på det först när appens funktioner läser och använder fältet: tills dess sparade vyn ett val som inget läste och sade "Sparat.".
  * @param {import("react").ReactNode} [props.byok] Appens valv. Ramverket ritar inte nyckeln.
  * @param {Record<string, number>} props.granser
  * @param {(v: { namn: string, beskrivning: string, roll: string }) => void | Promise<void>} [props.onSparaIdentitet]
@@ -301,6 +304,7 @@ export function OpsAgenter({
   nycklarHref = "",
   inomInstallningar = false,
   onSparaModell,
+  modellvalAktivt = false,
   byok = null,
   granser,
   onSparaIdentitet,
@@ -331,6 +335,9 @@ export function OpsAgenter({
   if (typeof nycklarHref !== "string") {
     throw new Error("OpsAgenter: nycklarHref ska vara adressen till Mitt konto, eller utelämnas. En tom adress betyder att länken inte är kopplad.");
   }
+  if (typeof modellvalAktivt !== "boolean") {
+    throw new Error("OpsAgenter: modellvalAktivt ska vara sant eller falskt. Förvalet är falskt: modellvalet är märkt Kommer och sparar ingenting.");
+  }
   if (typeof inomInstallningar !== "boolean") {
     throw new Error("OpsAgenter: inomInstallningar ska vara sant eller falskt. Utan den ritas modulramen.");
   }
@@ -360,6 +367,7 @@ export function OpsAgenter({
       kopplade={kopplade}
       valvHref={nyckelAdress}
       onSparaModell={onSparaModell}
+      modellvalAktivt={modellvalAktivt}
       sprak={sprak}
       byok={byok}
       granser={tak}
@@ -468,6 +476,7 @@ function AgentLista({ t, agenter, activeHref, onNavigate, onSkrivTill, listfel =
  * @param {readonly string[]} props.kopplade
  * @param {string} props.valvHref
  * @param {Function} [props.onSparaModell]
+ * @param {boolean} props.modellvalAktivt
  * @param {string} props.sprak
  * @param {import("react").ReactNode} props.byok
  * @param {Record<string, number>} props.granser
@@ -485,7 +494,7 @@ function AgentLista({ t, agenter, activeHref, onNavigate, onSkrivTill, listfel =
  * @param {boolean} props.kanVaxla
  */
 function AgentKropp({
-  t, agenter, vald, activeHref, onNavigate, status, fel, sparfel, sparar, installning, skills, verktyg, minne, modell, kopplade, valvHref, onSparaModell, sprak, byok, granser, farAndra,
+  t, agenter, vald, activeHref, onNavigate, status, fel, sparfel, sparar, installning, skills, verktyg, minne, modell, kopplade, valvHref, onSparaModell, modellvalAktivt, sprak, byok, granser, farAndra,
   onSparaIdentitet, onSparaInstruktioner, onSparaVerktyg, onSparaMinnePa, onSparaSkill, onTaBortSkill, onSparaMinne, onTaBortMinne, onLasSkill, onVaxla, kanVaxla,
 }) {
   if (!vald) {
@@ -536,6 +545,7 @@ function AgentKropp({
           kopplade={kopplade}
           valvHref={valvHref}
           onSparaModell={onSparaModell}
+          modellvalAktivt={modellvalAktivt}
           sprak={sprak}
           byok={byok}
           granser={granser}
@@ -572,6 +582,7 @@ function AgentKropp({
  * @param {readonly string[]} props.kopplade
  * @param {string} props.valvHref
  * @param {Function} [props.onSparaModell]
+ * @param {boolean} props.modellvalAktivt
  * @param {string} props.sprak
  * @param {import("react").ReactNode} props.byok
  * @param {Record<string, number>} props.granser
@@ -593,7 +604,7 @@ function AgentFalt(props) {
   const {
     t, vald, activeHref, onNavigate, installning, farAndra, sparar, granser, onSparaIdentitet, onVaxla, kanVaxla,
     onSparaInstruktioner, onSparaVerktyg, onSparaMinnePa, onSparaSkill, onTaBortSkill, onSparaMinne, onTaBortMinne, onLasSkill,
-    kopplade, valvHref, onSparaModell, sprak,
+    kopplade, valvHref, onSparaModell, modellvalAktivt, sprak,
   } = props;
   const [lokaltFel, setLokaltFel] = useState("");
   const [sparat, setSparat] = useState("");
@@ -652,6 +663,8 @@ function AgentFalt(props) {
   const rollText = installning?.roll || t("ingenRoll");
   const okandModell = Boolean(props.modell && (props.modell.id || props.modell.namn) && !modellIdFranProp);
   const sparaModell = (/** @type {string} */ id) => {
+    // ⛔ Avstängt val sparar ingenting och säger inte "Sparat." (0.93.0). `kor` är det som skriver den texten.
+    if (!modellvalAktivt) return;
     const m = modellUrId(id);
     if (!m || !modellKanValjas(m, kopplade)) return;
     kor(() => onSparaModell?.({ id: m.id, leverantor: m.leverantor }), onSparaModell);
@@ -706,9 +719,10 @@ function AgentFalt(props) {
             activeHref={activeHref}
             valvHref={valvHref}
             okand={okandModell}
+            aktivt={modellvalAktivt}
             onValj={(id) => {
               const m = modellUrId(id);
-              if (!m || !modellKanValjas(m, kopplade) || !farAndra) return;
+              if (!modellvalAktivt || !m || !modellKanValjas(m, kopplade) || !farAndra) return;
               if (typeof onSparaModell !== "function") {
                 setSparat("");
                 setLokaltFel(t("sparandeSaknas"));
@@ -926,15 +940,16 @@ function AgentFalt(props) {
             activeHref={activeHref}
             valvHref={valvHref}
             okand={okandModell}
+            aktivt={modellvalAktivt}
             onValj={(id) => {
               const m = modellUrId(id);
-              if (!m || !modellKanValjas(m, kopplade) || !farAndra) return;
+              if (!modellvalAktivt || !m || !modellKanValjas(m, kopplade) || !farAndra) return;
               setLokaltFel("");
               setValdModellId(id);
             }}
           />
           {props.modell?.hint && props.modell.hint !== props.modell.namn && props.modell.hint !== props.modell.id ? <p className="m-0 text-hjalp text-ink-muted">{props.modell.hint}</p> : null}
-          {farAndra ? (
+          {farAndra && modellvalAktivt ? (
             <div>
               <OpsButton variant="primary" busy={sparar} disabled={sparar || !modellUrId(valdModellId) || !modellKanValjas(modellUrId(valdModellId), kopplade)} onClick={() => sparaModell(valdModellId)}>
                 {t("spara")}
@@ -1045,14 +1060,19 @@ function nyckelHref(activeHref, valvHref) {
  * @param {string} props.activeHref
  * @param {string} props.valvHref
  * @param {boolean} props.okand
+ * @param {boolean} props.aktivt Falskt: valen är avstängda och väljaren märkt Kommer (0.93.0).
  * @param {(id: string) => void} props.onValj
  */
-function ModellValjare({ t, sprak, valdId, kopplade, farAndra, activeHref, valvHref, okand, onValj }) {
+function ModellValjare({ t, sprak, valdId, kopplade, farAndra, activeHref, valvHref, okand, aktivt, onValj }) {
   const bas = useId();
   const href = nyckelHref(activeHref, valvHref);
   return (
-    <fieldset className="m-0 flex flex-col gap-2 border-0 p-0">
-      <legend className="mb-1 text-hjalp text-ink-muted">{t("modell")}</legend>
+    <fieldset data-agent-modellval={aktivt ? "aktivt" : "kommer"} className="m-0 flex flex-col gap-2 border-0 p-0">
+      <legend className="mb-1 text-hjalp text-ink-muted">
+        {t("modell")}
+        {aktivt ? null : <span className="ml-2 rounded-full bg-raised px-2 py-0.5 text-liten font-medium text-ink-secondary">{t("kommer")}</span>}
+      </legend>
+      {aktivt ? null : <p className="m-0 text-etikett text-ink-muted">{t("modellKommer")}</p>}
       {okand ? <p className="m-0 text-etikett text-ink">{t("okandModell")}</p> : null}
       {!valdId && !okand ? <p className="m-0 text-etikett text-ink">{t("ingenModell")}</p> : null}
       <ul aria-label={t("modellLista")} className="m-0 flex list-none flex-col gap-2 p-0">
@@ -1062,7 +1082,7 @@ function ModellValjare({ t, sprak, valdId, kopplade, farAndra, activeHref, valvH
           const id = `${bas}-${m.leverantor}`;
           return (
             <li key={m.leverantor} className="rounded-base border border-line p-3">
-              <label htmlFor={id} className={`flex min-h-11 items-start gap-3 ${kan && farAndra ? "cursor-pointer" : "cursor-not-allowed opacity-55"}`}>
+              <label htmlFor={id} className={`flex min-h-11 items-start gap-3 ${aktivt && kan && farAndra ? "cursor-pointer" : "cursor-not-allowed opacity-55"}`}>
                 <input
                   id={id}
                   type="radio"
@@ -1070,7 +1090,7 @@ function ModellValjare({ t, sprak, valdId, kopplade, farAndra, activeHref, valvH
                   value={m.id}
                   className="mt-1 size-4 shrink-0 accent-accent"
                   checked={valdId === m.id}
-                  disabled={!kan || !farAndra}
+                  disabled={!aktivt || !kan || !farAndra}
                   onChange={() => onValj(m.id)}
                 />
                 <span className="min-w-0 flex-1">

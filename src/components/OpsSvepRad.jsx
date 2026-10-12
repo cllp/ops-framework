@@ -14,6 +14,17 @@ import { useOpsSprak } from "./OpsSprak.jsx";
  * `libraryDelayedAction.js` (`LIBRARY_UNDO_MS`), och först därefter anropas
  * `onValj`. En toast som enda kopia hade försvunnit om man tittade bort.
  *
+ * ⛔ AVMONTERAS RADEN UNDER ÅNGRA-FÖNSTRET AVBRYTS RADERINGEN, DEN KÖRS ALDRIG (beslut 2026-10-12, 0.93.0).
+ * Granskningarna 2026-10-12 pekade åt båda hållen. En version av den här filen körde `onValj` vid avmontering, så att ett tryck på
+ * Radera inte försvann när man gick tillbaka en vy. Det gav radering UTAN att Ångra-fönstret syntes: byter personen flik, söker,
+ * öppnar en detalj eller byter grupp inom åtta sekunder avmonteras raden, och posten hade raderats utan att personen kunnat
+ * ångra något hon inte längre såg. En destruktiv åtgärd sker aldrig utan att fönstret syns. Avbrott är det säkra felet: posten
+ * finns kvar och Radera går att trycka igen. Det var också beteendet på main, och provet kräver det.
+ *
+ * ⛔ ETT SVEP SOM BÖRJAR PÅ ETT REGLAGE ÄR INTE ETT SVEP. En ljudvåg är en
+ * `input[type=range]`: skrubbar man den åt vänster ska tiden flytta sig, inte
+ * raden dras upp och avslöja Radera.
+ *
  * Komponenten känner ingen post. Den får åtgärder och anropar dem.
  */
 
@@ -57,8 +68,10 @@ export function OpsSvepRad({ children, atgarder = [] }) {
   oppnaRef.current = oppna;
   atgarderRef.current = atgarder;
 
+  // Avmontering avbryter den väntande åtgärden (se filhuvudet): tiden rensas och `onValj` körs aldrig.
   useEffect(() => () => {
     if (timer.current) clearTimeout(timer.current);
+    timer.current = null;
   }, []);
 
   useEffect(() => {
@@ -128,6 +141,8 @@ export function OpsSvepRad({ children, atgarder = [] }) {
       return;
     }
     if ((e.button ?? 0) !== 0 || atgarderRef.current.length === 0) return;
+    // Ett reglage (ljudvågen) äger sin egen horisontella gest.
+    if (e.target instanceof Element && e.target.closest('input[type="range"]')) return;
     const startX = e.clientX;
     const startY = e.clientY;
     const startOppna = oppnaRef.current;

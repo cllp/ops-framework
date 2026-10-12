@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createMemorySource } from "../data/adapters.js";
 import { createBibliotekskalla } from "../data/bibliotekkalla.js";
 
@@ -222,7 +222,7 @@ describe("createBibliotekskalla", () => {
     const kvar = await kalla.spara({ id: skapad.id, rubrik: "Kvar", fil });
     expect(kvar.durationMs).toBe(4000);
     expect(kvar.peaks[1]).toBe(1);
-    // onFyllLjud skickar bara id + meta — rubrik och fil ska stå kvar.
+    // onFyllLjud skickar bara id + meta: rubrik och fil ska stå kvar.
     const fylld = await kalla.spara({ id: skapad.id, durationMs: 5500, peaks: toppar.map((t, i) => (i === 2 ? 1 : t)) });
     expect(fylld.rubrik).toBe("Kvar");
     expect(fylld.fil).toEqual(fil);
@@ -230,6 +230,51 @@ describe("createBibliotekskalla", () => {
     expect(fylld.peaks[2]).toBe(1);
     const bild = { ...fil, mime: "image/jpeg", namn: "k.jpg", sokvag: "grupper/cps-ab/bibliotek/p/k.jpg" };
     await expect(kalla.spara({ id: skapad.id, rubrik: "Bild", fil: bild, utskrift: "Hej" })).rejects.toThrow(/Bara ett ljud/);
+  });
+
+  it("⛔ ett anrop som bara fyller i längd och våg flyttar inte andrad, men en riktig ändring gör det", async () => {
+    vi.useFakeTimers();
+    try {
+      const source = createMemorySource();
+      const kalla = createBibliotekskalla({ source, collection: "bibliotek", groupId: "cps-ab", skapare });
+      const fil = { sokvag: "grupper/cps-ab/bibliotek/p/ide.webm", namn: "ide.webm", mime: "audio/webm", byte: 100 };
+      const toppar = Array.from({ length: 48 }, (_, i) => (i === 1 ? 1 : 0.2));
+
+      vi.setSystemTime(1_700_000_000_000);
+      const skapad = await kalla.spara({ typ: "fil", rubrik: "Idé", fil });
+      expect(skapad.andrad).toBe(1_700_000_000_000);
+
+      vi.setSystemTime(1_700_000_100_000);
+      const omdopt = await kalla.spara({ id: skapad.id, rubrik: "Omdöpt", fil });
+      expect(omdopt.andrad).toBe(1_700_000_100_000);
+
+      // Någon lyssnar på ljudet en timme senare och spelaren räknar fram längden: posten har inte ändrats av någon.
+      vi.setSystemTime(1_700_003_700_000);
+      const fylld = await kalla.spara({ id: skapad.id, durationMs: 4000, peaks: toppar });
+      expect(fylld.durationMs).toBe(4000);
+      expect(fylld.peaks).toHaveLength(48);
+      expect(fylld.andrad).toBe(1_700_000_100_000);
+      expect(fylld.skapad).toBe(1_700_000_000_000);
+      const lasta = (await kalla.las()).poster.find((p) => p.id === skapad.id);
+      expect(lasta?.andrad).toBe(1_700_000_100_000);
+
+      // Bara längden, utan våg, är samma sak.
+      vi.setSystemTime(1_700_007_300_000);
+      const baraLangd = await kalla.spara({ id: skapad.id, durationMs: 4100 });
+      expect(baraLangd.andrad).toBe(1_700_000_100_000);
+
+      // En ändring av något en person skrev flyttar den, också när längden följer med.
+      vi.setSystemTime(1_700_010_900_000);
+      const rubrikOchLangd = await kalla.spara({ id: skapad.id, rubrik: "Ny rubrik", durationMs: 4200 });
+      expect(rubrikOchLangd.andrad).toBe(1_700_010_900_000);
+
+      // Och ett anrop utan nytt innehåll alls är en ändring som förut: det är en spara, inte en fyll.
+      vi.setSystemTime(1_700_014_500_000);
+      const bara = await kalla.spara({ id: skapad.id });
+      expect(bara.andrad).toBe(1_700_014_500_000);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("en läsning som föll är kalla fel, inte ett tomt bibliotek", async () => {

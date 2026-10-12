@@ -23,6 +23,8 @@ export const STOLPAR = LJUD_STOLPAR;
 
 /** Hopp bakåt och framåt, samma tio sekunder som SessionStudios fullskärmsspelare. */
 export const HOPP_SEKUNDER = 10;
+/** Vad en piltangent på spolreglaget flyttar, i sekunder. Reglagets `step` är 1 (en tusendel), så pilarna sköts av spelaren. */
+export const PILHOPP_SEKUNDER = 5;
 
 /** Hastigheterna, i den ordning knappen växlar. 1 är varvets början. */
 export const HASTIGHETER = Object.freeze([1, 1.25, 1.5, 2]);

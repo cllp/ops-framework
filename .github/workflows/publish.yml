@@ -131,6 +131,16 @@ jobs:
       # steget som bevisar att just den tarboll som läggs upp går att använda.
       - run: npm run check:paket
 
+      # ⛔ SKALYTEVAKTEN SAKNADES HÄR, OCH DET KOSTADE SJU RELEASER. `check.yml` kör
+      # `check:skalyta` i jobbet `scaffold`, men utgivningen körde bara `check` och
+      # `check:paket`. Skalytevakten var röd från 0.90.4 till 0.91.0 och sju versioner
+      # gick ut ändå, eftersom den enda grind som står mellan en tagg och en release
+      # är den här filen. Den mäter CSS i en riktig webbläsare, alltså sådant som
+      # jsdom aldrig ser. Samma installation som i `check.yml`: bara chromium, och
+      # `npm run check` har redan byggt `dist`, som vakten kräver.
+      - run: npx playwright install --with-deps chromium
+      - run: npm run check:skalyta
+
       - name: Packa
         id: packa
         run: |

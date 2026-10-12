@@ -100,6 +100,40 @@ describe("manifestets tillagg valideras vid uppstart", () => {
   });
 });
 
+describe("maxSekunder på inspelning.mal (0.93.0)", () => {
+  const spara = () => {};
+  const falt = { plats: "inspelning.mal", id: "spara", etikett: { sv: "Spara i Biblioteket", en: "Save in the library" }, spara };
+
+  it("ett positivt heltal tas emot och följer med målet, utelämnat fält ger inget tak", () => {
+    const [med] = validateModuler([MODUL("bibliotek", [{ ...falt, maxSekunder: 600 }])]);
+    expect(/** @type {any} */ (med).tillagg[0].maxSekunder).toBe(600);
+    const [utan] = validateModuler([MODUL("bibliotek", [falt])]);
+    expect(Object.hasOwn(/** @type {any} */ (utan).tillagg[0], "maxSekunder")).toBe(false);
+    // En redan byggd modul går att validera igen, som exempelmodulen.
+    const [igen] = validateModuler([med]);
+    expect(/** @type {any} */ (igen).tillagg[0].maxSekunder).toBe(600);
+  });
+
+  it("noll, minus, decimaler, text och null avvisas vid uppstart", () => {
+    for (const fel of [0, -5, 1.5, "600", null, Number.POSITIVE_INFINITY, Number.NaN]) {
+      expect(() => validateModuler([MODUL("bibliotek", [{ ...falt, maxSekunder: fel }])]), String(fel)).toThrow(/maxSekunder för "spara".*positivt heltal/);
+    }
+  });
+
+  it("hör bara hemma på inspelning.mal", () => {
+    expect(() => validateModuler([MODUL("omrostning", [TILLAGG({ maxSekunder: 600 })])])).toThrow(/maxSekunder för .*hör bara hemma på platsen inspelning\.mal/);
+  });
+
+  it("målet bär taket, och ett mål utan tak bär inget", () => {
+    const moduler = validateModuler([
+      MODUL("bibliotek", [{ ...falt, maxSekunder: 600 }]),
+      MODUL("anteckningar", [{ ...falt, id: "anteckna", etikett: { sv: "Anteckna", en: "Note" } }]),
+    ]);
+    const mal = malForInspelning({ appMal: [{ id: "handelse", etikett: "Händelse" }], moduler, grupp: { moduler: ["bibliotek", "anteckningar"] } });
+    expect(mal.map((m) => [m.id, m.maxSekunder])).toEqual([["handelse", undefined], ["bibliotek:spara", 600], ["anteckningar:anteckna", undefined]]);
+  });
+});
+
 describe("malForInspelning", () => {
   const spara = () => {};
   const falt = { plats: "inspelning.mal", id: "spara", etikett: { sv: "Spara i Biblioteket", en: "Save in the library" }, spara };

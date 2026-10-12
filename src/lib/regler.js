@@ -1560,6 +1560,12 @@ ${bilagaRegelfunktion("opsKommentarbilagaGiltig")}
  *   - ÄNDRA: författaren, eller admin i gruppen. Gruppen, typen, skaparen och
  *     `skapad` står stilla, och `andrad` är serverns klocka. En medlem skriver
  *     inte om någon annans rad.
+ *     ⛔ ETT UNDANTAG FRÅN KLOCKAN (0.93.0): en uppdatering som BARA rör `durationMs`
+ *     och `peaks` får lämna `andrad` som den var. Spelaren räknar fram längd och våg
+ *     när någon lyssnar, och det är ingen ändring av vad författaren skrev. Med
+ *     klockkravet hoppade posten överst i listan (sorterad på `andrad`) varje gång.
+ *     Giltigheten prövas som vanligt: längden och vågen måste vara rätt formade och
+ *     höra till ett ljud. Varje annan ändring kräver fortfarande serverns klocka.
  *   - RADERA: författaren, om medlemskapet fortfarande är aktivt, eller admin
  *     i gruppen (`opsArAdmin`, ägare eller admin). Skiva 1 nekade alla. #311
  *     öppnade den här vägen, och ingen annan: en annan medlem, en admin i en
@@ -1585,11 +1591,24 @@ ${bilagaRegelfunktion("opsKommentarbilagaGiltig")}
  * `opsMedlemskapet` och `opsArAdmin` ur `regelfragment()`, och ska limmas in
  * efter det.
  *
+ * ⛔ FILENS SÖKVÄG HÖR TILL POSTENS EGEN GRUPP (0.93.0). En medlem i grupp A kunde skapa en post i A vars `fil.sokvag` pekade på en
+ * fil i grupp B. Ingen server läser fältet i dag, men en framtida städning med Admin SDK (som kringgår storage-reglerna) hade
+ * raderat B:s fil för att A:s post försvann. Sökvägen jämförs segment för segment mot `{gruppPrefix}/{groupId}/{postPrefix}/{postId}/{filnamn}`
+ * (exakt fem segment, och `postId` är dokumentets id, som i appens `biblioteksokvag`),
+ * samma form som storage-fragmentet (`lagringsregelfragment`) skriver, och inte som ett reguljärt uttryck: grupp "cps" är
+ * prefix till "cps-ab", och ett `groupId` med regex-tecken hade blivit en del av uttrycket. Segmenten är jämförda med `==`, så
+ * inget av det kan hända.
+ *
  * @param {string} namn Samlingsnamnet appen valt.
+ * @param {{ gruppPrefix?: string, postPrefix?: string }} [sokvag] Samma namn som `lagringsregelfragment({ bibliotek })` får.
+ *   Förval `grupper` och `bibliotek`. Använder appen andra måste den skicka dem hit också, annars nekas dess egna uppladdningar
+ *   (ett högt fel, inte ett tyst släpp).
  * @returns {string}
  */
-export function bibliotekregelfragment(namn) {
+export function bibliotekregelfragment(namn, sokvag = {}) {
   const samling = kontrolleraNamn(namn, "bibliotek");
+  const gruppPrefix = kontrolleraNamn(sokvag.gruppPrefix ?? "grupper", "gruppPrefix");
+  const postPrefix = kontrolleraNamn(sokvag.postPrefix ?? "bibliotek", "postPrefix");
   const lista = (/** @type {readonly string[]} */ f) => f.map((x) => `"${x}"`).join(", ");
   // Varje typ har en egen gren nedan. En ny typ i modellen utan sin gren hade nekats tyst i produktion.
   if (BIBLIOTEKTYPER.join(",") !== "anteckning,lank,fil") {
@@ -1627,7 +1646,26 @@ ${toppHjalp}
         && ${toppAnrop};
     }
 
-    function opsBibliotekspostGiltig(d) {
+    // Filens sökväg är EXAKT {gruppPrefix}/{groupId}/{postPrefix}/{postId}/{filnamn}: fem segment, postens egen grupp och
+    // postens eget id. Segment mot segment med ==, inte regex. Inget segment är tomt, '.' eller '..', och inget styrtecken
+    // (radbrytning, tabb, NUL) får finnas: RE2:s punkt matchar inte radbrytning, så ett '..'-prov med regex släpper igenom
+    // 'p\\n/../..'.
+    function opsBibliotekSokvagIGruppen(d, postId) {
+      let s = d.fil.sokvag.split('/');
+      // Formen först: fem icke-tomma segment utan snedstreck i sig. split() släpper ett avslutande tomt segment (Javas regel),
+      // så 'a/b/c/d/e/' blev fem segment och passerade, mätt i emulatorn 2026-10-12. Mönstret fångar det, ett tomt segment i
+      // mitten och ett inledande snedstreck.
+      return d.fil.sokvag.matches('[^/]+/[^/]+/[^/]+/[^/]+/[^/]+')
+        && s.size() == 5
+        && s[0] == "${gruppPrefix}"
+        && s[1] == d.groupId
+        && s[2] == "${postPrefix}"
+        && s[3] == postId
+        && s.hasAny(['', '.', '..']) == false
+        && !d.fil.sokvag.matches('(?s).*[\\x00-\\x1f].*');
+    }
+
+    function opsBibliotekspostGiltig(d, postId) {
       return d.keys().hasOnly([${lista(BIBLIOTEKFALT)}])
         && d.rubrik.trim().size() > 0
         && d.rubrik.size() <= ${MAX_BIBLIOTEKRUBRIK}
@@ -1650,6 +1688,7 @@ ${toppHjalp}
             && d.fil.sokvag.size() > 0
             && d.fil.sokvag.size() <= ${MAX_BIBLIOTEKSOKVAG}
             && !d.fil.sokvag.matches('.*\\\\.\\\\..*')
+            && opsBibliotekSokvagIGruppen(d, postId)
             && d.fil.namn.size() > 0
             && d.fil.namn.size() <= ${MAX_BIBLIOTEKFILNAMN}
             && d.fil.mime.matches('${filMimeMonster()}')
@@ -1679,13 +1718,17 @@ ${toppHjalp}
         && request.resource.data.skapadAv.uid == request.auth.uid
         && opsBiblioteketNu(request.resource.data.skapad)
         && opsBiblioteketNu(request.resource.data.andrad)
-        && opsBibliotekspostGiltig(request.resource.data);
+        && opsBibliotekspostGiltig(request.resource.data, id);
       allow update: if request.resource.data.groupId == resource.data.groupId
         && request.resource.data.typ == resource.data.typ
         && request.resource.data.skapad == resource.data.skapad
         && request.resource.data.skapadAv == resource.data.skapadAv
-        && opsBiblioteketNu(request.resource.data.andrad)
-        && opsBibliotekspostGiltig(request.resource.data)
+        && (
+          opsBiblioteketNu(request.resource.data.andrad)
+          || (request.resource.data.andrad == resource.data.andrad
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["durationMs", "peaks"]))
+        )
+        && opsBibliotekspostGiltig(request.resource.data, id)
         && (
           (opsArMedlem(resource.data.groupId) && resource.data.skapadAv.uid == request.auth.uid)
           || opsArAdmin(resource.data.groupId)
@@ -1800,8 +1843,20 @@ ${nuRegelfunktion("opsMinnetNu")}
  * `MAX_MODULINSTALLNINGAR`, samma tal som byggaren.
  *
  * ⛔ DOKUMENTETS ID SÄTTS AV KLIENTEN (`modulinstallningsId`: längd, tilde,
- * grupp, tilde, modul). Reglerna läser kroppen. Firestore har inget tal i bas 36,
- * så sökvägen jämförs inte mot den formeln.
+ * grupp, tilde, modul), MEN REGLERNA BINDER DET TILL KROPPEN (0.93.0).
+ *
+ * Här stod förut att reglerna bara läste kroppen. Det var ett hål: ägaren av
+ * grupp A kunde skapa en rad vars kropp sa `groupId: A` på det id som grupp B
+ * skulle använda. Klienten läser raden på `modulinstallningsId(B, modul)`, hittar
+ * A:s innehåll där, och B:s ägare kan inte skriva över den, eftersom `update`
+ * prövar ägarskap mot radens `groupId`, alltså A. Raden var låst åt fel håll.
+ *
+ * Nu kräver både `create` och `update` att id:t har tre delar skilda av `~`, att
+ * del två är kroppens `groupId` och del tre kroppens `modulId`. Det går att
+ * läsa entydigt eftersom `ID_FORM` (som både `groupId` och `modulId` måste
+ * matcha) inte släpper in ett tilde. Del ett, längden i bas 36, jämförs inte:
+ * Firestore har inget tal i bas 36, och en fel längd kan bara ge en dubblett
+ * under ägarens egen grupp, som klienten aldrig läser.
  *
  * ⛔ INGEN ÄNDRING AV GRUPPDOKUMENTETS REGLER. `typavvikelser` och
  * `externaDatakallor` ligger redan på uttryckstaket (#223). En egen samling
@@ -1837,6 +1892,14 @@ ${nuRegelfunktion("opsModulinstallningNu")}
         );
     }
 
+    // Dokumentets id är tre delar skilda av tilde: längd, grupp, modul. Grupp och modul måste vara kroppens egna.
+    // ID_FORM släpper inte in ett tilde, så uppdelningen är entydig.
+    function opsModulinstallningIdStammer(id, d) {
+      return id.split('~').size() == 3
+        && id.split('~')[1] == d.groupId
+        && id.split('~')[2] == d.modulId;
+    }
+
     function opsModulinstallningRadGiltig(d) {
       return d.keys().hasOnly([${lista(MODULINSTALLNINGFALT)}])
         && d.groupId.matches('${idMonster}')
@@ -1856,12 +1919,14 @@ ${nuRegelfunktion("opsModulinstallningNu")}
       allow read: if opsArMedlem(resource.data.groupId);
       allow create: if opsArAgare(request.resource.data.groupId)
         && opsMedlemskapet(request.resource.data.groupId).data.typ == 'person'
+        && opsModulinstallningIdStammer(id, request.resource.data)
         && opsModulinstallningNu(request.resource.data.uppdaterad)
         && opsModulinstallningRadGiltig(request.resource.data);
       allow update: if opsArAgare(resource.data.groupId)
         && opsMedlemskapet(resource.data.groupId).data.typ == 'person'
         && request.resource.data.groupId == resource.data.groupId
         && request.resource.data.modulId == resource.data.modulId
+        && opsModulinstallningIdStammer(id, request.resource.data)
         && opsModulinstallningNu(request.resource.data.uppdaterad)
         && opsModulinstallningRadGiltig(request.resource.data);
       allow delete: if false;

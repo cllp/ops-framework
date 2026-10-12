@@ -130,7 +130,16 @@ export function createBibliotekskalla(config) {
       }
       const fil = inmatning && "fil" in inmatning ? inmatning.fil : (id ? tidigare?.fil : undefined);
       // onFyllLjud skickar bara id + durationMs/peaks. Då ska rubrik, text och url
-      // stå kvar från den lästa raden — samma mönster som fil/utskrift ovan.
+      // stå kvar från den lästa raden, samma mönster som fil/utskrift ovan.
+      //
+      // ⛔ ETT ANROP SOM BARA FYLLER I LÄNGD OCH VÅG ÄNDRAR INTE `andrad` (0.93.0). Listan sorteras på `andrad`, och
+      // en post hoppade överst i listan så fort någon bara lyssnade på den och spelaren räknade fram längden. Författaren
+      // hade inte ändrat något. Det är samma anrop som förut (`spara` med id + durationMs/peaks), inte en andra väg:
+      // vad som räknas som en ändring avgörs här, på ett ställe. Reglerna släpper just den formen utan ny tid.
+      const nycklar = inmatning != null ? Object.keys(inmatning) : [];
+      const baraMetaFyll = Boolean(id)
+        && nycklar.some((k) => k === "durationMs" || k === "peaks")
+        && nycklar.every((k) => k === "id" || k === "durationMs" || k === "peaks");
       /** @type {Record<string, unknown>} */
       const underlag = {
         groupId,
@@ -140,7 +149,7 @@ export function createBibliotekskalla(config) {
         url: inmatning && "url" in inmatning ? inmatning.url : (id ? tidigare?.url : inmatning?.url),
         skapadAv: id ? tidigare?.skapadAv : byggSkapare(skapare()),
         skapad: id ? tidigare?.skapad : nu,
-        andrad: nu,
+        andrad: baraMetaFyll && typeof tidigare?.andrad === "number" ? tidigare.andrad : nu,
       };
       if (fil !== undefined) underlag.fil = fil;
       if (inmatning && "utskrift" in inmatning) underlag.utskrift = inmatning.utskrift;

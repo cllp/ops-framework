@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { OpsAtgardsblad } from "../components/OpsAtgardsblad.jsx";
 import { OpsDokument } from "../components/OpsDokument.jsx";
@@ -59,6 +59,27 @@ describe("OpsSvepRad", () => {
     expect(rad).toHaveAttribute("data-ops-svep", "stangd");
   });
 
+  it("ett svep som börjar på ett reglage (ljudvågen) drar inte upp raden, men samma svep på resten av raden gör det", () => {
+    const rendera = () => render(
+      <ul>
+        <OpsSvepRad atgarder={[{ id: "radera", etikett: "Radera", fara: true, onValj: () => {} }]}>
+          <div>
+            <input type="range" aria-label="Spola" min={0} max={100} defaultValue={10} />
+            <span>Titel</span>
+          </div>
+        </OpsSvepRad>
+      </ul>,
+    );
+    const { unmount } = rendera();
+    svep(screen.getByRole("slider", { name: "Spola" }), 240, 80);
+    expect(screen.getByRole("listitem")).toHaveAttribute("data-ops-svep", "stangd");
+    unmount();
+
+    rendera();
+    svep(screen.getByText("Titel"), 240, 80);
+    expect(screen.getByRole("listitem")).toHaveAttribute("data-ops-svep", "oppen");
+  });
+
   it("ett långt svep avslöjar knappen, och trycket väntar på Ångra innan anropet", () => {
     vi.useFakeTimers();
     try {
@@ -82,6 +103,35 @@ describe("OpsSvepRad", () => {
       expect(onValj).not.toHaveBeenCalled();
       unmount();
       act(() => { vi.advanceTimersByTime(ANGRA_MS); });
+      expect(onValj).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("⛔ avmonteras raden under Ångra-fönstret avbryts raderingen, och ingenting raderas i det tysta", () => {
+    // Varför: byter personen flik, söker, öppnar en detalj eller byter grupp inom åtta sekunder avmonteras raden. Skulle raderingen
+    // då köras hade en post försvunnit utan att Ångra-fönstret någonsin syntes för det beslutet. Avbrott är det säkra felet:
+    // posten finns kvar. Beslut 2026-10-12, granskningarna pekade åt båda hållen.
+    vi.useFakeTimers();
+    try {
+      const onValj = vi.fn();
+      const bygg = () => render(
+        <ul>
+          <OpsSvepRad atgarder={[{ id: "radera", etikett: "Radera", fara: true, angraMeddelande: "Posten tas bort.", onValj }]}>
+            <span>Posten</span>
+          </OpsSvepRad>
+        </ul>,
+      );
+      const forst = bygg();
+      svep(screen.getByRole("listitem"), 240, 80);
+      const radera = screen.getByRole("button", { name: "Radera" });
+      peka(radera, "pointerdown", 8, 8);
+      fireEvent.click(radera);
+      expect(screen.getByText("Posten tas bort.")).toBeInTheDocument();
+      forst.unmount();
+      expect(onValj).not.toHaveBeenCalled();
+      act(() => { vi.advanceTimersByTime(ANGRA_MS * 2); });
       expect(onValj).not.toHaveBeenCalled();
     } finally {
       vi.useRealTimers();
@@ -340,6 +390,79 @@ describe("OpsDokument", () => {
     expect(ok).toHaveBeenCalledTimes(1);
     expect(document.querySelector("[data-ops-dokument]")).toHaveAttribute("data-ops-dokument", "las");
     expect(screen.getByText("Texten")).toBeInTheDocument();
+  });
+});
+
+describe("OpsDokument: ett sparande som faller (0.93.0)", () => {
+  const rendera = (/** @type {() => any} */ onSpara) => render(
+    <OpsDokument rubrik="Protokoll" lasning={<p>Texten</p>} redigering={<input aria-label="Text" />} kanRedigera onSpara={onSpara} />,
+  );
+
+  it("ett avvisat löfte visas och läget står kvar, ett kast likaså, och inget sväljs", async () => {
+    const avvisat = vi.fn(() => Promise.reject(new Error("Sparandet nekades.")));
+    const { unmount } = rendera(avvisat);
+    fireEvent.click(screen.getByRole("button", { name: "Redigera" }));
+    fireEvent.click(screen.getByRole("button", { name: "Spara" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Sparandet nekades.");
+    expect(document.querySelector("[data-ops-dokument]")).toHaveAttribute("data-ops-dokument", "redigera");
+    unmount();
+
+    const kastar = vi.fn(() => { throw new Error("Kastade direkt."); });
+    rendera(kastar);
+    fireEvent.click(screen.getByRole("button", { name: "Redigera" }));
+    fireEvent.click(screen.getByRole("button", { name: "Spara" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("Kastade direkt.");
+    expect(document.querySelector("[data-ops-dokument]")).toHaveAttribute("data-ops-dokument", "redigera");
+  });
+
+  it("⛔ Avbryt nollar ett kvarstående fel", async () => {
+    const { unmount } = rendera(() => Promise.reject(new Error("Gammalt fel.")));
+    fireEvent.click(screen.getByRole("button", { name: "Redigera" }));
+    fireEvent.click(screen.getByRole("button", { name: "Spara" }));
+    expect(await screen.findByText("Gammalt fel.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Avbryt" }));
+    fireEvent.click(screen.getByRole("button", { name: "Redigera" }));
+    expect(screen.queryByText("Gammalt fel.")).toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
+    unmount();
+  });
+
+  it("⛔ ett avslag som kommer efter Avbryt visas inte i nästa redigering, och ett nytt försök är inte spärrat", async () => {
+    /** @type {Array<(e: Error) => void>} */
+    const nej = [];
+    const onSpara = vi.fn(() => new Promise((_ok, reject) => { nej.push(reject); }));
+    rendera(onSpara);
+    fireEvent.click(screen.getByRole("button", { name: "Redigera" }));
+    fireEvent.click(screen.getByRole("button", { name: "Spara" }));
+    expect(onSpara).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: "Avbryt" }));
+    fireEvent.click(screen.getByRole("button", { name: "Redigera" }));
+    expect(screen.getByRole("button", { name: "Spara" })).not.toHaveAttribute("aria-busy");
+    await act(async () => { nej[0](new Error("Sent avslag.")); });
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByRole("button", { name: "Spara" })).not.toHaveAttribute("aria-busy");
+    fireEvent.click(screen.getByRole("button", { name: "Spara" }));
+    expect(onSpara).toHaveBeenCalledTimes(2);
+  });
+
+  it("ett andra tryck medan det första pågår sparar inte igen, och felet försvinner vid nästa försök", async () => {
+    /** @type {Array<{ ok: () => void, nej: (e: Error) => void }>} */
+    const anrop = [];
+    const onSpara = vi.fn(() => new Promise((resolve, reject) => { anrop.push({ ok: () => resolve(undefined), nej: reject }); }));
+    rendera(onSpara);
+    fireEvent.click(screen.getByRole("button", { name: "Redigera" }));
+    const spara = screen.getByRole("button", { name: "Spara" });
+    fireEvent.click(spara);
+    fireEvent.click(spara);
+    expect(onSpara).toHaveBeenCalledTimes(1);
+    expect(spara).toHaveAttribute("aria-busy", "true");
+    await act(async () => { anrop[0].nej(new Error("Föll.")); });
+    expect(screen.getByRole("alert")).toHaveTextContent("Föll.");
+    fireEvent.click(screen.getByRole("button", { name: "Spara" }));
+    expect(onSpara).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole("alert")).toBeNull();
+    await act(async () => { anrop[1].ok(); });
+    await waitFor(() => expect(document.querySelector("[data-ops-dokument]")).toHaveAttribute("data-ops-dokument", "las"));
   });
 });
 

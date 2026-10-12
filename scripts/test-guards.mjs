@@ -1193,6 +1193,43 @@ kravRott(
   kravRott("changelog-taggar golv: fel sökväg", [taggvakt, path.join(taggmapp, "finns-inte.md")], "finns inte");
 }
 
+// ── Vakten över versionen i lockfilen (0.93.0) ──────────────────────────────
+//
+// ⛔ MÄTT PÅ MAIN 2026-10-12: package.json 0.92.5, package-lock.json 0.92.4. Proven planterar glidna filer, så att utfallet
+// inte beror på vad repots egna filer råkar säga den dagen.
+{
+  const lasvakt = "scripts/check-lasversion.mjs";
+  const lasmapp = path.join(arbetsmapp, "lasversion");
+  fs.mkdirSync(lasmapp, { recursive: true });
+  /** @param {string} namn @param {unknown} innehall */
+  const skriv = (namn, innehall) => {
+    const fil = path.join(lasmapp, namn);
+    fs.writeFileSync(fil, typeof innehall === "string" ? innehall : JSON.stringify(innehall, null, 2));
+    return fil;
+  };
+  /** @param {string} topp @param {string} paket */
+  const lock = (topp, paket) => ({ name: "x", version: topp, lockfileVersion: 3, packages: { "": { name: "x", version: paket } } });
+  const pkg = skriv("package.json", { name: "x", version: "1.2.3" });
+
+  kravGront("lasversion 0: alla tre talen lika", [lasvakt, pkg, skriv("lock-lika.json", lock("1.2.3", "1.2.3"))]);
+  kravGront("lasversion 0b: ramverkets egna filer", [lasvakt]);
+  kravRott("lasversion 1: lockfilen efter överst (package.json bumpad, lockfilen glömd)", [lasvakt, pkg, skriv("lock-topp.json", lock("1.2.2", "1.2.3"))], "package-lock.json: version är 1.2.2");
+  kravRott("lasversion 2: lockfilen efter i packages[\"\"]", [lasvakt, pkg, skriv("lock-paket.json", lock("1.2.3", "1.2.2"))], 'packages[""].version är 1.2.2');
+  kravRott("lasversion 3: package.json efter lockfilen", [lasvakt, skriv("pkg-efter.json", { name: "x", version: "1.2.2" }), skriv("lock-fore.json", lock("1.2.3", "1.2.3"))], "package.json säger 1.2.2");
+  kravRott(
+    "lasversion golv: en lockfil utan packages[\"\"] ger bara två tal",
+    [lasvakt, pkg, skriv("lock-avkortad.json", { name: "x", version: "1.2.3", lockfileVersion: 3, packages: {} })],
+    "2 av 3 versioner lästa",
+  );
+  kravRott(
+    "lasversion golv: tre tomma versioner är lika men lästa är noll",
+    [lasvakt, skriv("pkg-tom.json", { name: "x", version: "" }), skriv("lock-tom.json", lock("", ""))],
+    "0 av 3 versioner lästa",
+  );
+  kravRott("lasversion golv: fel sökväg", [lasvakt, pkg, path.join(lasmapp, "finns-inte.json")], "finns inte");
+  kravRott("lasversion golv: ingen JSON", [lasvakt, pkg, skriv("ingen-json.json", "inte json")], "är inte JSON");
+}
+
 // ── Vakten över paketets form ──────────────────────────────────────────────
 //
 // ⛔ BARA STRUKTURDELEN PROVAS HÄR. Den tunga delen packar och installerar på

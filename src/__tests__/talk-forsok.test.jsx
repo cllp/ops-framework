@@ -103,6 +103,47 @@ describe("taket är en parameter", () => {
   });
 });
 
+describe("⛔ taket räknas från att mikrofonen är öppen (0.93.0)", () => {
+  // Första versionen räknade från trycket. En mikrofonprompt på 30 s gav 90 s ljud i stället för 120, och en på 130 s gav 0,001 s.
+  it("en prompt på 30 s ger ändå hela taket, ljud till och med sekund 120 efter att mikrofonen öppnades", async () => {
+    vi.useFakeTimers();
+    const insp = enkelInspelare();
+    const { result } = renderHook(() => useTalk({ onTalk: vi.fn(), onKlick: () => {}, inspelare: insp }));
+    act(() => result.current.direkt());
+    await act(async () => { vi.advanceTimersByTime(30_000); });
+    await insp.svara();
+    await act(async () => { vi.advanceTimersByTime(119_000); });
+    expect(insp.stoppa).not.toHaveBeenCalled();
+    await act(async () => { vi.advanceTimersByTime(2_000); });
+    expect(insp.stoppa).toHaveBeenCalledTimes(1);
+  });
+
+  it("en prompt på 130 s, längre än taket, klipper inte direkt", async () => {
+    vi.useFakeTimers();
+    const insp = enkelInspelare();
+    const { result } = renderHook(() => useTalk({ onTalk: vi.fn(), onKlick: () => {}, inspelare: insp }));
+    act(() => result.current.direkt());
+    await act(async () => { vi.advanceTimersByTime(130_000); });
+    await insp.svara();
+    await act(async () => { vi.advanceTimersByTime(1_000); });
+    expect(insp.stoppa).not.toHaveBeenCalled();
+    await act(async () => { vi.advanceTimersByTime(120_000); });
+    expect(insp.stoppa).toHaveBeenCalledTimes(1);
+  });
+
+  it("sekunderna räknar inspelad tid, inte tiden som prompten väntade", async () => {
+    vi.useFakeTimers();
+    const insp = enkelInspelare();
+    const { result } = renderHook(() => useTalk({ onTalk: vi.fn(), onKlick: () => {}, inspelare: insp }));
+    act(() => result.current.direkt());
+    await act(async () => { vi.advanceTimersByTime(40_000); });
+    expect(result.current.sekunder).toBe(0);
+    await insp.svara();
+    await act(async () => { vi.advanceTimersByTime(10_000); });
+    expect(result.current.sekunder).toBe(10);
+  });
+});
+
 describe("ett svar från starta hör till sitt försök (#281)", () => {
   it("⛔ S4: avmonterad medan mikrofonen öppnas: strömmen stängs, och appen får inget ljud efter 120 s", async () => {
     vi.useFakeTimers();

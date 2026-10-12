@@ -288,6 +288,110 @@ describe("OpsLjudspelare", () => {
     expect(onMeta).toHaveBeenCalledWith(expect.objectContaining({ durationMs: 4000 }));
   });
 
+  it("⛔ reglagets steg är 1 för varje längd, även ett ljud kortare än fem sekunder", () => {
+    // Steget var fem sekunder uttryckt i tusendelar av längden. För 3 s blev det 1667, mer än hela skalan 0..1000.
+    render(<OpsLjudspelare kompakt src="https://exempel.se/kort.webm" namn="Kort" durationMs={3000} />);
+    const kort = screen.getByRole("slider", { name: "Spola i Kort" });
+    expect(kort).toHaveAttribute("max", "1000");
+    expect(kort).toHaveAttribute("step", "1");
+    const el = /** @type {HTMLAudioElement} */ (document.querySelector("audio"));
+    fireEvent.change(kort, { target: { value: "333" } });
+    expect(el.currentTime).toBeCloseTo(0.999, 3);
+  });
+
+  it("⛔ piltangenterna på spolreglaget flyttar 5 s, Home och End går till ändarna", async () => {
+    // Med step=1 flyttar en pil en tusendel: 0,6 s på tio minuter. Spelaren sköter därför tangenterna själv.
+    render(<OpsLjudspelare src="https://exempel.se/lang.webm" namn="Lång" />);
+    const el = /** @type {HTMLAudioElement} */ (document.querySelector("audio"));
+    act(() => sattLangd(el, 600));
+    await waitFor(() => expect(document.querySelector("[data-ljud-tid]")?.textContent).toMatch(/10:00/));
+    const reglage = screen.getByRole("slider", { name: "Spola i Lång" });
+    fireEvent.keyDown(reglage, { key: "ArrowRight" });
+    expect(el.currentTime).toBe(5);
+    fireEvent.keyDown(reglage, { key: "ArrowRight" });
+    expect(el.currentTime).toBe(10);
+    fireEvent.keyDown(reglage, { key: "ArrowLeft" });
+    expect(el.currentTime).toBe(5);
+    fireEvent.keyDown(reglage, { key: "ArrowUp" });
+    expect(el.currentTime).toBe(10);
+    fireEvent.keyDown(reglage, { key: "ArrowDown" });
+    expect(el.currentTime).toBe(5);
+    fireEvent.keyDown(reglage, { key: "End" });
+    expect(el.currentTime).toBe(600);
+    fireEvent.keyDown(reglage, { key: "ArrowRight" });
+    expect(el.currentTime).toBe(600);
+    fireEvent.keyDown(reglage, { key: "Home" });
+    expect(el.currentTime).toBe(0);
+    fireEvent.keyDown(reglage, { key: "ArrowLeft" });
+    expect(el.currentTime).toBe(0);
+    // Andra tangenter lämnas åt webbläsaren.
+    const tab = fireEvent.keyDown(reglage, { key: "Tab" });
+    expect(tab).toBe(true);
+  });
+
+  it("⛔ timeupdate på ett spelande element flyttar både tiden och förloppet", async () => {
+    render(<OpsLjudspelare src="https://exempel.se/a.webm" namn="Idé" />);
+    const el = /** @type {HTMLAudioElement} */ (document.querySelector("audio"));
+    act(() => sattLangd(el, 100));
+    await waitFor(() => expect(document.querySelector("[data-ljud-tid]")?.textContent).toMatch(/1:40/));
+    fireEvent.click(screen.getByRole("button", { name: "Spela Idé" }));
+    expect(await screen.findByRole("button", { name: "Pausa Idé" })).toBeInTheDocument();
+    expect(document.querySelector("[data-ljud-tid]")?.textContent).toMatch(/^0:00/);
+    expect(document.querySelector("[data-ljud-framsteg]")).toHaveStyle({ width: "0%" });
+
+    el.currentTime = 25;
+    act(() => { el.dispatchEvent(new Event("timeupdate")); });
+    expect(document.querySelector("[data-ljud-tid]")?.textContent).toMatch(/^0:25 \/ 1:40/);
+    expect(document.querySelector("[data-ljud-framsteg]")).toHaveStyle({ width: "25%" });
+    expect(screen.getByRole("slider", { name: "Spola i Idé" })).toHaveValue("250");
+
+    el.currentTime = 60;
+    act(() => { el.dispatchEvent(new Event("timeupdate")); });
+    expect(document.querySelector("[data-ljud-tid]")?.textContent).toMatch(/^1:00 \/ 1:40/);
+    expect(document.querySelector("[data-ljud-framsteg]")).toHaveStyle({ width: "60%" });
+  });
+
+  it("⛔ en känd längd (durationMs) hoppar över sökhacket, en okänd gör det inte, och förloppet rör sig ändå", async () => {
+    /**
+     * Ett element vars duration är Infinity (iOS, MediaRecorder) och vars currentTime-skrivningar loggas.
+     * @param {HTMLAudioElement} el
+     */
+    function oandligt(el) {
+      /** @type {number[]} */
+      const skrivet = [];
+      let nu = 0;
+      Object.defineProperty(el, "duration", { configurable: true, get: () => Infinity });
+      Object.defineProperty(el, "currentTime", {
+        configurable: true,
+        get: () => nu,
+        set: (v) => {
+          skrivet.push(v);
+          nu = v;
+        },
+      });
+      return skrivet;
+    }
+
+    const med = render(<OpsLjudspelare src="https://exempel.se/a.webm" namn="Idé" durationMs={4000} />);
+    const elMed = /** @type {HTMLAudioElement} */ (document.querySelector("audio"));
+    const skrivetMed = oandligt(elMed);
+    act(() => { elMed.dispatchEvent(new Event("loadedmetadata")); });
+    act(() => { elMed.dispatchEvent(new Event("durationchange")); });
+    expect(skrivetMed.some((v) => v > 1e10)).toBe(false);
+    expect(document.querySelector("[data-ljud-tid]")?.textContent).toMatch(/ \/ 0:04/);
+    elMed.currentTime = 1;
+    act(() => { elMed.dispatchEvent(new Event("timeupdate")); });
+    expect(document.querySelector("[data-ljud-tid]")?.textContent).toMatch(/^0:01 \/ 0:04/);
+    expect(document.querySelector("[data-ljud-framsteg]")).toHaveStyle({ width: "25%" });
+    med.unmount();
+
+    render(<OpsLjudspelare src="https://exempel.se/b.webm" namn="Idé" />);
+    const elUtan = /** @type {HTMLAudioElement} */ (document.querySelector("audio"));
+    const skrivetUtan = oandligt(elUtan);
+    act(() => { elUtan.dispatchEvent(new Event("loadedmetadata")); });
+    expect(skrivetUtan.some((v) => v > 1e10)).toBe(true);
+  });
+
   it("väntan syns tills ljudet börjar", async () => {
     /** @type {() => void} */
     let slapp = () => {};

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { peaksGiltiga } from "../lib/bibliotek.js";
 import {
   HOPP_SEKUNDER,
+  PILHOPP_SEKUNDER,
   STOLPAR,
   andel,
   baraEnSpelar,
@@ -306,6 +307,10 @@ function Spelare({ adress, namn, visaNamn, kompakt, meta, durationMs, peaks, onO
         rapportera(el.duration, null);
         return;
       }
+      // ⛔ Längden är redan känd ur posten (`durationMs`), så sökhacket behövs inte (0.93.0). Det flyttar
+      // `currentTime` till 1e101 och tystar `timeupdate` medan det pågår: skrubbning och förlopp stod
+      // still på en rad vars längd vi redan kunde.
+      if (durationRef.current > 0) return;
       soktLangd.current = true;
       sokerLangd.current = true;
       lasLangdMedSok(el).then((sek) => {
@@ -546,7 +551,9 @@ function Spelare({ adress, namn, visaNamn, kompakt, meta, durationMs, peaks, onO
         type="range"
         min={0}
         max={1000}
-        step={langd > 0 ? Math.max(1, Math.round((5 / langd) * 1000)) : 1}
+        // ⛔ step=1, alltid (0.93.0). Förut 5 sekunder i tusendelar av längden: för ett ljud kortare än fem sekunder
+        // blev steget över 1000, alltså större än hela skalan, och reglaget kunde bara stå på 0 eller 1000.
+        step={1}
         value={langd > 0 ? Math.round(kvot * 1000) : 0}
         disabled={!langd}
         aria-label={spolNamn}
@@ -561,6 +568,20 @@ function Spelare({ adress, namn, visaNamn, kompakt, meta, durationMs, peaks, onO
           drar.current = false;
         }}
         onChange={(e) => sok(Number(e.target.value) / 1000)}
+        // ⛔ PILARNA SKÖTS HÄR (0.93.0). Med `step=1` flyttar en pil en tusendel: 0,6 s på tio minuter, alltså oanvändbart.
+        // Vänster och höger (och ned och upp) flyttar 5 s, Home och End går till början och slutet.
+        onKeyDown={(e) => {
+          if (!langd) return;
+          const fram = e.key === "ArrowRight" || e.key === "ArrowUp";
+          const bak = e.key === "ArrowLeft" || e.key === "ArrowDown";
+          if (fram || bak) {
+            e.preventDefault();
+            sok(andel(hoppa(tid, langd, fram ? PILHOPP_SEKUNDER : -PILHOPP_SEKUNDER), langd));
+          } else if (e.key === "Home" || e.key === "End") {
+            e.preventDefault();
+            sok(e.key === "Home" ? 0 : 1);
+          }
+        }}
         className="absolute inset-0 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
       />
     </div>

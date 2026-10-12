@@ -9,6 +9,59 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.93.0
+
+Granskningsfynd från 2026-10-12: en regelfix, utgivningsgrinden, ljudet och sparandet. Utges som 0.93.0, efter 0.92.5.
+
+Fynden är verifierade mot main före ändringen, och varje prov är sett rött utan sin fix och grönt med den (se PR-texten).
+
+### Säkerhet: modulinställningarnas id är bundet till kroppen
+
+- `modulinstallningsregelfragment`: dokumentets id måste vara `<längd>~<groupId>~<modulId>` med kroppens egna `groupId` och `modulId`, både vid `create` och `update`. Förut läste reglerna bara kroppen: ägaren av grupp A kunde skriva en rad med `groupId: A` på det id som grupp B skulle använda. Klienten läser B:s rad på det id:t, hittar A:s innehåll, och B:s ägare kunde inte skriva över den, eftersom `update` prövar ägarskap mot radens `groupId`. Id-formen `ID_FORM` släpper inte in ett tilde, så uppdelningen är entydig.
+- `bibliotekregelfragment(namn, { gruppPrefix, postPrefix })`: en filposts `fil.sokvag` måste ligga i postens egen grupp, `{gruppPrefix}/{groupId}/{postPrefix}/...` (förval `grupper` och `bibliotek`, samma form som `lagringsregelfragment({ bibliotek })`). En medlem i grupp A kunde skapa en post i A som pekade på en fil i grupp B. Ingen server läser fältet i dag, men en framtida städning med Admin SDK, som går förbi storage-reglerna, hade raderat B:s fil. Segmenten jämförs med `==` och inte med ett reguljärt uttryck, så grupp `cps` blandas inte ihop med `cps-ab` och ett `groupId` kan inte föra in regex-tecken. Sökvägen är exakt fem icke-tomma segment (`{gruppPrefix}/{groupId}/{postPrefix}/{postId}/{filnamn}`), `postId` är dokumentets id (som i appens `biblioteksokvag`), inget segment är `.` eller `..`, och inget styrtecken (radbrytning, tabb, NUL) finns. Förut släpptes `grupper/cps-ab/bibliotek/p<radbrytning>/../../../miranda-ab/bibliotek/q/f` igenom av `..`-kontrollen, eftersom RE2:s punkt inte matchar radbrytning (mätt i emulatorn), och `split` släpper ett avslutande tomt segment, så en avslutande `/` räknades inte. Gäller både `create` och `update`. ⛔ Använder appen andra prefix än `grupper` och `bibliotek` måste den skicka dem hit också, annars nekas dess egna uppladdningar.
+- Regelprovet använder nu de riktiga id:n ur `modulinstallningsId` och inte `ny-1`, och provar rätt id, fel grupp, fel modul, fel antal delar, en ändring på ett fel id, samt åtta poster (går) och nio (nekas).
+
+### Utgivning
+
+- `publish.yml` kör nu `check:skalyta` (med Chromium, som `check.yml`) före utgivningen. Skalytevakten var röd från 0.90.4 till 0.91.0 och sju versioner gick ut ändå, eftersom utgivningen bara körde `check` och `check:paket`.
+- Ny vakt `check:lasversion`: `package.json` och `package-lock.json` måste säga samma version (tre tal, golvet är antalet tal som faktiskt lästs ur filerna). Mätt på main före den här versionen: `package.json` 0.92.5 mot lockfilen 0.92.4. Provad rött och grönt i `test-guards`.
+
+### Ljud och svep
+
+- `OpsSvepRad`: ett svep som börjar på ett `input[type=range]` (ljudvågen) drar inte upp raden. Avmonteras raden under Ångra-fönstret (flikbyte, sökning, en öppnad detalj, ett gruppbyte) **avbryts** raderingen och `onValj` körs aldrig: en destruktiv åtgärd sker inte utan att Ångra syns. Posten finns kvar. En första version i den här PR:en körde `onValj` vid avmontering och drogs tillbaka (beslut 2026-10-12).
+- `OpsLjudspelare`: reglagets `step` är 1 (det blev över 1000 för ljud kortare än fem sekunder). Piltangenterna sköts av spelaren: vänster och höger (och ned och upp) flyttar 5 s, Home och End går till början och slutet, eftersom en pil annars flyttar en tusendel, 0,6 s på tio minuter. Är längden känd ur posten (`durationMs`) hoppas sökhacket för `Infinity` över. Nytt prov att `timeupdate` flyttar både tiden och förloppet.
+- `OpsBibliotek`: längd och våg skrivs på posten (`onFyllLjud`) bara när den som tittar får ändra posten (`farAndra`). Längden visas för alla ändå. Längden och vågen skickas som **två anrop, i ordning** (`{ id, durationMs }` och sedan `{ id, peaks }`), så att längden går igenom även när vågen nekas av reglernas uttryckstak ([#349](https://github.com/cllp/ops-framework/issues/349)). Ett fel loggas i konsolen med postens id, det sväljs inte.
+- `createBibliotekskalla.spara`: ett anrop som bara fyller i `durationMs` och/eller `peaks` flyttar inte `andrad`, så posten hoppar inte överst i listan för att någon lyssnade. Bibliotekets regel släpper just den formen utan ny tid; allt annat kräver fortfarande serverns klocka.
+- Inspelningstaket följer målet. Ett mål på `inspelning.mal` kan bära `maxSekunder` (positivt heltal), och skalet skickar det till `useTalk`. Bibliotekets mål ska ange `IDE_MAX_SEKUNDER` (600). Förut anropades `useTalk` utan tak, så Bibliotekets inspelning kapades vid 120 sekunder. `useTalk` räknar nu om taket när målet byts under pågående inspelning, och räknar det (och sekunderna i fältet) från att mikrofonen faktiskt är öppen och inte från trycket: en mikrofonprompt på 30 s gav annars 90 s ljud i stället för 120, och en på 130 s gav 0,001 s.
+
+### Sparande som faller
+
+- `OpsDokument` och `OpsBibliotek` (formuläret och Byt namn): ett kast eller ett avvisat löfte från `onSpara` visas och läget står kvar. Förut sväljdes det (`catch (e) { return; }`, `.catch(() => {})`). En `sparar`-flagga spärrar ett andra tryck medan det första pågår. Ett svar `false` får en text ("Posten kunde inte sparas.", "Namnet kunde inte sparas."). Avbryt nollar felet och släpper flaggan, och ett avslag som kommer efter Avbryt ignoreras i stället för att visas i nästa redigering.
+
+### Agenter
+
+- `OpsAgenter`: modellvalet är avstängt och märkt "Kommer" som förval, utan Spara, och kvitterar aldrig "Sparat." Appen slår på det med `modellvalAktivt` när dess funktioner läser fältet. Förut sparade vyn ett val som appen avvisade och skrev ändå "Sparat.".
+
+### Hjälp
+
+- "Roller i gruppen": det är ägaren, inte admin, som installerar appar, väljer huvudmenyn och arkiverar. Texten lovar inte längre att ägaren "ändrar roller" eller "överlåter ägarskapet": medlemskap skrivs aldrig av en klient och ingen funktion i ramverket gör det. Provet läser fältlistorna som reglerna byggs ur och kräver att varje påstående har en grund.
+
+### Språk
+
+- Tankstreck i `CHANGELOG.md` (0.92.2), `src/data/bibliotekkalla.js` och `src/__tests__/bibliotekkalla.test.js` är utbytta mot kolon och komma.
+
+### Regler och funktioner
+
+Två regelfragment ändras, så en app som limmar in dem måste skriva om sina regler (`--skriv` mot kanonen) och deploya dem **innan** den klient som börjar använda ändringen mergas:
+
+- `modulinstallningsregelfragment`: id bundet till kroppen (säkerhet, se ovan). Klienten (`modulinstallningsId`) skriver redan rätt id, så ingen klientändring behövs.
+- `bibliotekregelfragment`: filens sökväg måste ligga i postens egen grupp (säkerhet, se ovan). En app med andra lagringsprefix än `grupper` och `bibliotek` skickar dem som andra argument.
+- `bibliotekregelfragment`: en uppdatering som bara rör `durationMs`/`peaks` får lämna `andrad` som den var. Deployas reglerna inte först nekas bakgrundsskrivningen av längden, och listan visar längden ändå.
+
+⛔ **Känd gräns, inte åtgärdad här ([#349](https://github.com/cllp/ops-framework/issues/349)):** en skrivning med `peaks` (48 tal) nekas av Firestore med "maximum of 1000 expressions to evaluate has been reached", både `create` och `update`, mätt i emulatorn på main före den här versionen. Längden ensam (`durationMs`) går igenom. Vågen kan alltså inte sparas på posten förrän `opsBibliotekToppar` görs billigare.
+
+---
+
 ## 0.92.5
 
 Biblioteket enhetligt för alla typer. Utges som 0.92.5, efter 0.92.4.
@@ -82,7 +135,7 @@ Inga Firestore-regler och inga funktioner ändras.
 
 lifehub.app#150: innehållsbredd-token, `OpsSidoyta` och `OpsVyValjare` landar på main.
 
-Utges som 0.92.2, efter 0.92.1 (hjälp). Samma innehåll som antecknades under 0.91.2, men den utgivningen byggdes från grenen `cursor/sidoyta-vyvaljare-150` och kom aldrig in i main — taggen `v0.91.2` pekade på 0.91.1. Därför saknade 0.92.0 och 0.92.1 både sidytan och vyväljaren. Den här versionen rättar det.
+Utges som 0.92.2, efter 0.92.1 (hjälp). Samma innehåll som antecknades under 0.91.2, men den utgivningen byggdes från grenen `cursor/sidoyta-vyvaljare-150` och kom aldrig in i main: taggen `v0.91.2` pekade på 0.91.1. Därför saknade 0.92.0 och 0.92.1 både sidytan och vyväljaren. Den här versionen rättar det.
 
 ### Innehållsbredd
 
@@ -154,6 +207,8 @@ Inga Firestore-regler och inga funktioner ändras.
 ---
 
 ## 0.91.2
+
+⛔ **Använd inte 0.91.2.** Paketet byggdes från en gren som aldrig mergades till main, och taggen `v0.91.2` pekar på 0.91.1. Innehållet nedan finns inte i den versionen. Använd **0.92.2**, som är samma ändring på main.
 
 lifehub.app#150: samma innehållsbredd och vyväljare i headern.
 
