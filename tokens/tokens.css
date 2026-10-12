@@ -209,14 +209,17 @@
   --text-publik-rubrik: 2.25rem;
   --text-publik-rubrik--line-height: 1.05;
   --text-publik-rubrik--font-weight: 500;
+  --text-publik-rubrik--letter-spacing: -0.01em;
 
   --text-publik-sida: 2.25rem;
   --text-publik-sida--line-height: var(--leading-tight);
   --text-publik-sida--font-weight: 500;
+  --text-publik-sida--letter-spacing: -0.01em;
 
   --text-publik-block: 1.875rem;
   --text-publik-block--line-height: var(--leading-tight);
   --text-publik-block--font-weight: 500;
+  --text-publik-block--letter-spacing: -0.01em;
 
   --text-publik-ingress: 1.125rem;
   --text-publik-ingress--line-height: 1.75rem;

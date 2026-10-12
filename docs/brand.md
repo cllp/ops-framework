@@ -147,9 +147,9 @@ Publika sidor är presentationssidor och inte appvyer. De har egna roller (`typo
 
 | Klass | Storlek (under `sm`, från `sm`, från `lg`) | Radhöjd | Vikt | Används till |
 |---|---|---|---|---|
-| `text-publik-rubrik` | 2,25 / 3 / 3,5 rem | 1,05 | 500 | fotohjältens rubrik, sidans `<h1>` |
-| `text-publik-sida` | 2,25 / 3 rem | 1,25 | 500 | innehållssidans rubrik, `<h1>` (SS `HowItWorksPage`) |
-| `text-publik-block` | 1,875 / 2,25 rem | 1,25 | 500 | rubriken i ett innehållsblock, ett avsnitt och uppmaningen, `<h2>` |
+| `text-publik-rubrik` | 2,25 / 3 / 3,5 rem | 1,05 | 500, spärrning -0,01em | fotohjältens rubrik, sidans `<h1>` |
+| `text-publik-sida` | 2,25 / 3 rem | 1,25 | 500, spärrning -0,01em | innehållssidans rubrik, `<h1>` (SS `HowItWorksPage`) |
+| `text-publik-block` | 1,875 / 2,25 rem | 1,25 | 500, spärrning -0,01em | rubriken i ett innehållsblock, ett avsnitt och uppmaningen, `<h2>` |
 | `text-publik-ingress` | 1,125 / 1,25 / 1,25 rem | 1,75 rem | 400 | ingressen under en rubrik |
 | `text-publik-brod` | 1 / 1,125 / 1,125 rem | 1,625 | 400 | löptext |
 | `text-publik-eyebrow` | 0,75 rem | 1 rem | 600 | överraden, spärrad 0,24 em, `uppercase text-accent` |

@@ -37,6 +37,8 @@
  *     9. Under `md` ligger länkarna bakom en meny som öppnas och stängs; ingen horisontell scroll i 390 px.
  *    10. Brandfilen byter tonerna: med `examples/brand/sessionstudio.css` är banden SessionStudios (kräm, orange, ink), med
  *        `lifehub.css` Life Hubs (ljus, taupe, mörk), och accent och rubrikfamilj följer med.
+ *    13. Spärrningen: varje publik rubrik (hjälte, block, sida, avsnitt) är lika bred som med SS `-0,01em` (`--letter-spacing-tight`),
+ *        ur rollens egen token och inte en klass. Rött utan spärrningen (`--bevisa`).
  *    12. Rytmen mellan blocken ägs av ramverket: 96 px mellan två ljusa block, efter fotohjälten och före uppmaningen, 0 mellan
  *        olika toner; innehållssidans avsnitt 96 px (80 under `sm`). Rött utan regeln (`--bevisa`).
  *    11. Kontrasten för varje text mot sin bakgrund i varje ton, i båda brandfilerna (WCAG AA).
@@ -111,6 +113,10 @@ if (argv.includes("--bevisa")) {
     const utanRytm = original.replace(/\/\* RYTM \*\/[\s\S]*?\/\* SLUT RYTM \*\//, "");
     if (utanRytm === original) throw new Error("check-brand --bevisa: tokens.css har ingen RYTM-regel att ta bort.");
     fs.writeFileSync(path.join(mapp, "tokens-utan-rytm.css"), utanRytm);
+    // Spärrningen: rollernas `--letter-spacing` tas bort, alltså som före runda 2 av granskningen av PR 350.
+    const utanSparrning = original.replace(/^\s*--text-publik-(?:rubrik|sida|block)--letter-spacing:[^;]*;\n/gm, "");
+    if (utanSparrning === original) throw new Error("check-brand --bevisa: tokens.css har ingen spärrning på rubrikrollerna att ta bort.");
+    fs.writeFileSync(path.join(mapp, "tokens-utan-sparrning.css"), utanSparrning);
 
     /** @type {{ namn: string, args: string[], forvantat: string | null, flera?: boolean }[]} */
     const fall = [
@@ -118,6 +124,7 @@ if (argv.includes("--bevisa")) {
       { namn: "rött: utan lagren vinner ramverkets mörkeralias över instansens regel", args: ["--tokens", path.join(mapp, "tokens-utan-lager.css")], forvantat: "över ramverkets mörkeralias" },
       { namn: "rött: en brandfil utan typsnittsraden ändrar inte den publika rubriken", args: ["--brand", path.join(mapp, "brand-utan-publik.css")], forvantat: "brandfilen ändrade inte den publika rubriken" },
       { namn: "rött: utan ramverkets rytmregel ligger blocken tätt, 0 px i stället för 96", args: ["--tokens", path.join(mapp, "tokens-utan-rytm.css")], forvantat: "rytmen:", flera: true },
+      { namn: "rött: utan spärrningen på rubrikrollerna är rubrikerna bredare än SS", args: ["--tokens", path.join(mapp, "tokens-utan-sparrning.css")], forvantat: "spärrningen:", flera: true },
       { namn: "rött: toppraden i en smal centrerad kolumn flyttar loggan mellan sidor", args: ["--logga-mitt"], forvantat: "loggan ligger inte på samma plats", flera: true },
     ];
     let fel = 0;
@@ -494,6 +501,27 @@ try {
           uppmaningBg: cs(uppmaning, "background-color"),
           skalBg: cs(document.querySelector('[data-ops-publik="skal"]'), "background-color"),
           hjalteH1Storlek: cs(hjalte?.querySelector("h1") ?? null, "font-size"),
+          // Spärrningen (granskningen av PR 350, runda 2): rubrikens bredd i EN rad som den ritas, och samma rubrik med SS
+          // spärrning -0,01em (`--letter-spacing-tight`, SS index.css:411 och :433, ärvd av SS landningsrubriker) tvingad på. Är rollens
+          // spärrning rätt är de lika; saknas den är den ritade bredare.
+          rubriker: [
+            ["hjälterubrik (publik-rubrik)", hjalte?.querySelector("h1")],
+            ["blockrubrik (publik-block)", block[0]?.querySelector("h2")],
+            ["sidrubrik (publik-sida)", hjalte && !hjalte.hasAttribute("data-med-bild") ? hjalte.querySelector("h1") : null],
+            ["avsnittsrubrik (publik-block)", document.querySelector('[data-ops-publik="avsnitt"] h2')],
+          ]
+            .filter(([, el]) => el)
+            .map(([namn, el]) => {
+              const bredd = (/** @type {string | null} */ tvinga) => {
+                const k = /** @type {HTMLElement} */ (/** @type {Element} */ (el).cloneNode(true));
+                k.style.cssText = `position:absolute;left:-9999px;top:0;width:auto;max-width:none;white-space:nowrap;${tvinga ? `letter-spacing:${tvinga};` : ""}`;
+                /** @type {Element} */ (el).parentElement?.appendChild(k);
+                const w = k.getBoundingClientRect().width;
+                k.remove();
+                return +w.toFixed(2);
+              };
+              return { namn: /** @type {string} */ (namn), sparrning: cs(/** @type {Element} */ (el), "letter-spacing"), ritad: bredd(null), ss: bredd("-0.01em") };
+            }),
           // Rytmen: varje blocks, hjältens, uppmaningens och avsnittens övre och nedre kant, i dokumentets ordning.
           rytm: [...document.querySelectorAll('[data-ops-publik="hjalte"], [data-ops-publik="block"], [data-ops-publik="uppmaning"], [data-ops-publik="avsnitt"]')].map((e) => {
             const r = e.getBoundingClientRect();
@@ -544,6 +572,15 @@ try {
       const luft = +(av[1].top - av[0].bottom).toFixed(2);
       const vantat = bredd >= 640 ? 96 : 80;
       krav(Math.abs(luft - vantat) <= 0.5, `rytmen: avståndet mellan två avsnitt är ${luft} px vid ${bredd} px, väntat ${vantat} (SS space-y-20 sm:space-y-24)`);
+    }
+  }
+  // 13. Spärrningen: varje publik rubrik är lika bred som med SS spärrning -0,01em. Rött utan den (`--bevisa`).
+  for (const [sida, bredd] of /** @type {const} */ ([["start", 1280], ["kort", 1280], ["start", 390]])) {
+    const m = await publik(cssSS, sida, bredd);
+    krav(m.rubriker.length >= (sida === "start" ? 2 : 2), `spärrningen: bara ${m.rubriker.length} rubriker mättes på ${sida} vid ${bredd} px`);
+    for (const r of m.rubriker) {
+      krav(r.sparrning !== "normal" && r.sparrning.endsWith("px"), `spärrningen: ${r.namn} på ${sida} har spärrning "${r.sparrning}", väntat -0,01em (rollens --letter-spacing)`);
+      krav(Math.abs(r.ritad - r.ss) <= 0.5, `spärrningen: ${r.namn} på ${sida} vid ${bredd} px är ${r.ritad} px bred, med SS spärrning -0,01em ${r.ss} px. Rollen saknar -0,01em.`);
     }
   }
   const foto = await publik(cssSS, "start", 1280);
