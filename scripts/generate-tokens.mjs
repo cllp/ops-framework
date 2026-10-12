@@ -8,12 +8,14 @@
  * markörerna. Allt annat i tokens.css, identitetstoner, slag, provenienstoner,
  * z-index, säkra ytor, är ramverkets egna beslut och ligger UTANFÖR dem.
  *
- * ⛔ TVÅ MARKÖRPAR, INTE ETT. SessionStudios ljusa värden hör hemma i
+ * ⛔ FYRA MARKÖRPAR, INTE ETT. SessionStudios ljusa värden hör hemma i
  * `@theme static` (Tailwind-namnrymder: --color-*, --radius-*, --text-*).
  * De mörka råvärdena (--dark-*) hör hemma i det fristående `:root`-blocket
  * enligt filens egen regel: en `--dark-*` är aldrig en Tailwind-namnrymd och
  * ska inte stå i `@theme`. Ett tredje litet par bär `.lucide`-regeln, som
- * inte är ett tokenblock alls utan en @layer-regel.
+ * inte är ett tokenblock alls utan en @layer-regel, och ett fjärde (0.94.0) de
+ * publika rollernas storlekar per brytpunkt, som inte kan stå i `@theme` eftersom
+ * en `@theme`-token inte kan ha en `@media`.
  *
  * Aliasblocken (`:root:not([data-theme="light"])` och `:root[data-theme="dark"]`)
  * rörs INTE av den här generatorn. De innehåller bara pekare
@@ -49,6 +51,12 @@ export const MARKORER = /** @type {const} */ ({
     start: "/* ── GENERERAT UR sessionstudio-profil.json, RÖR INTE (@layer base) ── */",
     slut: "/* ── SLUT GENERERAT (@layer base) ── */",
   },
+  // 0.94.0: de publika rollernas storlekar per brytpunkt. En `@theme`-token kan inte ha en `@media`, så grundstorleken
+  // (under `sm`) står i `@theme` och stegen här, i basskiktet, där de vinner över temaskiktet.
+  publikSteg: {
+    start: "/* ── GENERERAT UR sessionstudio-profil.json, RÖR INTE (@layer base, publika roller) ── */",
+    slut: "/* ── SLUT GENERERAT (@layer base, publika roller) ── */",
+  },
 });
 
 /**
@@ -65,11 +73,50 @@ export function byggTypografiroller(typografi) {
     .map(([namn, varde]) => `  --leading-${namn}: ${varde};`);
   for (const [namn, roll] of Object.entries(typografi.roller)) {
     if (namn.startsWith("_")) continue;
-    const r = /** @type {any} */ (roll);
-    rader.push(``, `  --text-${namn}: ${r.storlek};`, `  --text-${namn}--line-height: ${r.radhojd in typografi.radhojd ? `var(--leading-${r.radhojd})` : r.radhojd};`, `  --text-${namn}--font-weight: ${r.vikt};`);
-    if (r.sparrning) rader.push(`  --text-${namn}--letter-spacing: ${r.sparrning};`);
+    rader.push(...rollRader(typografi, namn, /** @type {any} */ (roll)));
   }
+  // 0.94.0: publika sidors roller, `--text-publik-<namn>`. Grundstorleken (under `sm`) står här; stegen uppåt i `byggPublikSteg`.
+  for (const [namn, roll] of Object.entries(typografi.publik?.roller ?? {})) {
+    if (namn.startsWith("_")) continue;
+    rader.push(...rollRader(typografi, `publik-${namn}`, /** @type {any} */ (roll)));
+  }
+  if (typografi.publik?.las?.bredd) rader.push(``, `  --container-las: ${typografi.publik.las.bredd};`);
   return rader;
+}
+
+/**
+ * En roll som Tailwinds sammansatta `--text-<namn>`: storlek, radhöjd, vikt och (valfritt) spärrning.
+ * @param {any} typografi @param {string} namn @param {any} r
+ * @returns {string[]}
+ */
+function rollRader(typografi, namn, r) {
+  const rader = [``, `  --text-${namn}: ${r.storlek};`, `  --text-${namn}--line-height: ${r.radhojd in typografi.radhojd ? `var(--leading-${r.radhojd})` : r.radhojd};`, `  --text-${namn}--font-weight: ${r.vikt};`];
+  if (r.sparrning) rader.push(`  --text-${namn}--letter-spacing: ${r.sparrning};`);
+  return rader;
+}
+
+/**
+ * De publika rollernas storlekar per brytpunkt (0.94.0). En roll med `steg: { sm, lg }` växer vid brytpunkterna i
+ * `typografi.publik.brytpunkter`, så `text-publik-rubrik` är EN klass med tre storlekar och inte tre klasser som
+ * en komponent måste minnas att para ihop (`text-titel sm:text-sida` är den formen app-rollerna har och som kostat
+ * ett par felparningar). Skrivs som `:root`-variabler i basskiktet, som vinner över temaskiktet där grundstorleken står.
+ * @param {any} typografi
+ * @returns {string}
+ */
+export function byggPublikSteg(typografi) {
+  const publik = typografi.publik;
+  if (!publik) return "@layer base {\n}";
+  const bp = publik.brytpunkter;
+  const delar = ["@layer base {"];
+  for (const namn of ["sm", "lg"]) {
+    const rader = Object.entries(publik.roller)
+      .filter(([n, r]) => !n.startsWith("_") && /** @type {any} */ (r).steg?.[namn])
+      .map(([n, r]) => `      --text-publik-${n}: ${/** @type {any} */ (r).steg[namn]};`);
+    if (rader.length === 0) continue;
+    delar.push(`  @media (min-width: ${bp[namn]}) {`, "    :root {", ...rader, "    }", "  }");
+  }
+  delar.push("}");
+  return delar.join("\n");
 }
 
 /**
@@ -194,7 +241,7 @@ export function byggIkonlagerBlock(f) {
   ].join("\n");
 }
 
-/** @returns {{ fixtur: object, block: { theme: string, dark: string, ikonlager: string } }} */
+/** @returns {{ fixtur: object, block: { theme: string, dark: string, ikonlager: string, publikSteg: string } }} */
 export function generera() {
   if (!fs.existsSync(fixturVag)) {
     throw new Error(`generate-tokens: hittar inte fixturen ${fixturVag}.`);
@@ -206,6 +253,7 @@ export function generera() {
       theme: byggThemeBlock(fixtur),
       dark: byggDarkBlock(fixtur),
       ikonlager: byggIkonlagerBlock(fixtur),
+      publikSteg: byggPublikSteg(/** @type {any} */ (fixtur).typografi),
     },
   };
 }
@@ -231,6 +279,7 @@ function main() {
   kalla = skrivMellanMarkorer(kalla, MARKORER.theme, block.theme);
   kalla = skrivMellanMarkorer(kalla, MARKORER.dark, block.dark);
   kalla = skrivMellanMarkorer(kalla, MARKORER.ikonlager, block.ikonlager);
+  kalla = skrivMellanMarkorer(kalla, MARKORER.publikSteg, block.publikSteg);
 
   const kontrollera = process.argv.includes("--kontrollera");
   if (kontrollera) {

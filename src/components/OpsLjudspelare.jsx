@@ -648,11 +648,11 @@ function Spelare({ adress, namn, visaNamn, kompakt, meta, durationMs, peaks, onO
           <div className="flex flex-wrap items-center gap-x-1 gap-y-1">
             <button type="button" aria-label="10 sekunder bakåt" disabled={!langd} onClick={() => hoppaOm(-HOPP_SEKUNDER)} className={biKlass}>
               <HoppaBakatIkon size={16} />
-              <span aria-hidden="true" className="text-liten font-medium text-ink-secondary">-10</span>
+              <span aria-hidden="true" className="text-liten text-ink-secondary">-10</span>
             </button>
             <button type="button" aria-label="10 sekunder framåt" disabled={!langd} onClick={() => hoppaOm(HOPP_SEKUNDER)} className={biKlass}>
               <HoppaFramatIkon size={16} />
-              <span aria-hidden="true" className="text-liten font-medium text-ink-secondary">+10</span>
+              <span aria-hidden="true" className="text-liten text-ink-secondary">+10</span>
             </button>
             <button
               type="button"

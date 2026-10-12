@@ -48,6 +48,29 @@
  * Vikterna är fyra och inte alla nio: 400/500/600/700 är vad komponenterna
  * faktiskt använder. Varje extra vikt är en nedladdning för något ingen ritar. */
 
+/* ─── Lagerordningen (0.94.0) ────────────────────────────────────────────────
+ * ⛔ RAMVERKETS EGEN CSS LIGGER I LAGER, OCH INSTANSENS LIGGER UTANFÖR DEM.
+ *
+ * En instans (en hubb, Identity, en kunds egen kopia) ska kunna byta typsnitt, färg och logga i en brandfil och lägga på
+ * egen CSS, och den ska vinna UTAN `!important`. CSS gör det om reglerna ligger i lager: en olagrad regel slår ALLA
+ * lagrade, oavsett hur specifik väljaren är. Före 0.94.0 låg ramverkets mörkerblock (`:root:not([data-theme="light"])`,
+ * specificitet 0,2,0) och `:root[data-theme="dark"]` olagrade, så en instans `:root { --color-accent }` (0,1,0)
+ * förlorade i mörkt läge hur sist den än laddades. Se `docs/brand.md` och `scripts/check-brand.mjs`.
+ *
+ * Fem lager, i den här ordningen (sist vinner):
+ *
+ *   theme        Tailwinds temavariabler (`@theme`): ljusa värden, ramverkets och instansens
+ *   base         element utan klass (`body`, `:focus-visible`, `.lucide`) och de publika rollernas steg
+ *   components   ramverkets klasser (`.ops-grupp-vald`, `.ops-contrast-panel`, ...)
+ *   utilities    Tailwinds verktygsklasser (`bg-accent`, `text-etikett`)
+ *   ops-ramverk  ramverkets mörkeralias, `--z-*`, säkra ytor och `.ops-sidoyta`: det som måste vinna över temat och
+ *                verktygsklasserna och som inte går att uttrycka som en klass
+ *
+ * Instansens brandfil och egna CSS laddas efter den här filen och står OLAGRADE (eller i ett lager den deklarerar
+ * efter `ops-ramverk`). Då vinner den alltid. Raden nedan deklarerar ordningen så att den inte hänger på att Tailwind
+ * råkar ha deklarerat de fyra första före oss. */
+@layer theme, base, components, utilities, ops-ramverk;
+
 /* ─── Märkets typsnitt (0.31.0) ─────────────────────────────────────────────
  * Glacial Indifference Regular, SIL Open Font License 1.1, ur npm-paketet
  * typeface-glacial-indifference 1.1.14. Licensfilen ligger bredvid
@@ -136,10 +159,11 @@
 
   --leading-tight: 1.25;
   --leading-normal: 1.5;
+  --leading-relaxed: 1.625;
 
   --text-rubrik: 1rem;
   --text-rubrik--line-height: var(--leading-tight);
-  --text-rubrik--font-weight: 700;
+  --text-rubrik--font-weight: 600;
 
   --text-sektion: 0.75rem;
   --text-sektion--line-height: var(--leading-normal);
@@ -160,11 +184,11 @@
 
   --text-titel: 1.125rem;
   --text-titel--line-height: 1.75rem;
-  --text-titel--font-weight: 700;
+  --text-titel--font-weight: 600;
 
   --text-sida: 1.25rem;
   --text-sida--line-height: 1.75rem;
-  --text-sida--font-weight: 700;
+  --text-sida--font-weight: 600;
 
   --text-hjalp: 0.6875rem;
   --text-hjalp--line-height: var(--leading-normal);
@@ -181,6 +205,29 @@
   --text-raknare: 0.5625rem;
   --text-raknare--line-height: 1;
   --text-raknare--font-weight: 700;
+
+  --text-publik-rubrik: 2.25rem;
+  --text-publik-rubrik--line-height: 1.05;
+  --text-publik-rubrik--font-weight: 500;
+
+  --text-publik-avsnitt: 1.875rem;
+  --text-publik-avsnitt--line-height: var(--leading-tight);
+  --text-publik-avsnitt--font-weight: 500;
+
+  --text-publik-ingress: 1.125rem;
+  --text-publik-ingress--line-height: 1.75rem;
+  --text-publik-ingress--font-weight: 400;
+
+  --text-publik-brod: 1rem;
+  --text-publik-brod--line-height: var(--leading-relaxed);
+  --text-publik-brod--font-weight: 400;
+
+  --text-publik-eyebrow: 0.75rem;
+  --text-publik-eyebrow--line-height: 1rem;
+  --text-publik-eyebrow--font-weight: 600;
+  --text-publik-eyebrow--letter-spacing: 0.24em;
+
+  --container-las: 65ch;
 
   --shadow-sm: 0 1px 2px rgba(60, 47, 47, 0.06);
   --shadow-md: 0 2px 8px rgba(60, 47, 47, 0.08);
@@ -592,6 +639,15 @@
    * själv väljer något annat. */
   --font-display: var(--font-sans);
 
+  /* Rubrikfamiljen på PUBLIKA sidor (0.94.0, CP 2026-10-12): serif, som SessionStudios landningssidor
+   * (`LandingHero.jsx:84`, Georgia). Appens vyer behåller `--font-display` (sans); det här är ett eget token
+   * eftersom en presentationssida och en appvy har olika röst, och en instans ska kunna ge dem olika familjer.
+   * Georgia och Times finns på alla plattformar, så inget laddas: en instans som väljer en webbfont laddar den
+   * själv (`<link>` i sin `index.html`, som `create-ops-app` gör för Plus Jakarta Sans).
+   *
+   * Används som `font-display-publik text-publik-rubrik`. Vikten är rollens (500) och inte familjens. */
+  --font-display-publik: Georgia, 'Times New Roman', serif;
+
   /* Sex storlekar.
    *
    * ⛔ #167, CP: "sessionstudios typsnitt är bättre än ops framework. Jag vill
@@ -737,7 +793,11 @@
  * upptäcker, det är något som inte kan hända.
  *
  * Aliasblocken får därför inte innehålla ett enda råvärde. Vaktad av regel 3.
+ *
+ * ⛔ 0.94.0: ALLT HÄR LIGGER I `@layer ops-ramverk` (se lagerordningen överst), så en instans olagrade `:root` vinner
+ * också över mörkerblocken. Innehållet är medvetet inte omindenterat: diffen mot 0.93.0 ska gå att läsa.
  */
+@layer ops-ramverk {
 :root {
   /* ⛔ #167: härifrån och ner till "SLUT GENERERAT" ägs av
    * `tokens/sessionstudio-profil.json`, skrivet av
@@ -1245,6 +1305,7 @@
   --shadow-md: var(--dark-shadow-md);
   --shadow-lg: var(--dark-shadow-lg);
 }
+} /* slut @layer ops-ramverk (mörkerplumbing) */
 
 /**
  * Basskiktet. Det enda som sätts globalt, och medvetet lite.
@@ -1307,10 +1368,12 @@
  * och `OpsSidoyta`. Ligger utanför @theme så vanlig HTML (identity-shell) kan
  * sätta klassen utan att gå via Tailwind-utilities.
  */
+@layer ops-ramverk {
 .ops-sidoyta {
   width: 100%;
   max-width: var(--ops-innehall-max);
   margin-inline: auto;
+}
 }
 
 /*
@@ -1331,6 +1394,7 @@
  * ska förbli litet nog att läsa i sin helhet. Skiktordningen gör också att en
  * verktygsklass på samma element fortfarande vinner, vilket är rätt håll.
  */
+@layer ops-ramverk {
 @media (prefers-reduced-motion: reduce) {
   /*
    * ⛔ SVEPET BORT, HELT. Variabeln skrivs om i stället för att klassen tas
@@ -1342,6 +1406,7 @@
     --animate-svep: none;
     --animate-vicka: none;
   }
+}
 }
 
 @layer components {
@@ -1711,3 +1776,24 @@
   }
 }
 /* ── SLUT GENERERAT (@layer base) ── */
+
+/* Publika roller per brytpunkt (0.94.0): grundstorleken står i `@theme`, stegen uppåt här. Ägs av
+ * tokens/sessionstudio-profil.json ("typografi.publik"), skriven av scripts/generate-tokens.mjs. */
+/* ── GENERERAT UR sessionstudio-profil.json, RÖR INTE (@layer base, publika roller) ── */
+@layer base {
+  @media (min-width: 40rem) {
+    :root {
+      --text-publik-rubrik: 3rem;
+      --text-publik-avsnitt: 2.25rem;
+      --text-publik-ingress: 1.25rem;
+      --text-publik-brod: 1.125rem;
+    }
+  }
+  @media (min-width: 64rem) {
+    :root {
+      --text-publik-rubrik: 3.5rem;
+      --text-publik-avsnitt: 2.75rem;
+    }
+  }
+}
+/* ── SLUT GENERERAT (@layer base, publika roller) ── */

@@ -1,0 +1,48 @@
+/**
+ * Exempel på en instans brandfil (0.94.0). Kopiera den till appen, byt värdena och importera den EFTER ramverkets
+ * tokens i appens stilrot:
+ *
+ *   @import "tailwindcss";
+ *   @import "ops-framework/tokens.css";
+ *   @import "./brand.css";
+ *   @source "../node_modules/ops-framework/dist";
+ *
+ * Filen är VARIABLER och inget annat: ingen komponent rörs, ingen klass skrivs om. Vilka variabler en instans får
+ * sätta står i `tokens/brand-kontrakt.json` och förklaras i `docs/brand.md`; allt annat i `tokens.css` är ramverkets
+ * och kan byta namn i en minor-version. `scripts/check-brand.mjs` mäter att exemplet här faktiskt ändrar den
+ * beräknade stilen på en rubrik, en knapp och märket, i ljust och mörkt läge.
+ *
+ * Exemplet är en påhittad instans, "Nordlys": en serif på rubrikerna i appen, en egen serif på de publika
+ * rubrikerna, ett eget märkestypsnitt och en blågrön accent. Typsnitten laddas med `<link>` i instansens `index.html`
+ * (som `create-ops-app` gör för Plus Jakarta Sans), inte härifrån: en `@import url()` i en CSS-fil som inte står
+ * först ignoreras av webbläsaren (se kommentaren överst i `tokens.css`).
+ */
+
+@theme static {
+  /* ── Typsnitt: tre röster, och brödtextens familj (--font-sans) är ramverkets och står kvar ── */
+  --font-display: 'Fraunces', Georgia, serif;
+  --font-display-publik: 'Fraunces', Georgia, serif;
+  --font-marke: 'Josefin Sans', var(--font-sans);
+
+  /* ── Accent, ljust läge. `accent-subtle` och `accent-faint` är samma färg som accenten, genomskinlig (12 och 6 procent). ── */
+  --color-accent: #2f6f6b;
+  --color-accent-hover: #3a827d;
+  --color-accent-subtle: rgba(47, 111, 107, 0.12);
+  --color-accent-faint: rgba(47, 111, 107, 0.06);
+  /* Texten PÅ en accentyta (primärknappen). Vit på #2f6f6b ger 5,9:1; `check-brand` mäter paret. */
+  --color-accent-contrast: #ffffff;
+  --color-marke-accent: #2f6f6b;
+
+  /* ── Märkets mått: breddare spärrning än ramverkets, för ett längre namn ── */
+  --marke-sparrning: 0.3em;
+}
+
+:root {
+  /* ── Accent, mörkt läge. Samma namn med `--dark-` framför. Ett eget mörkerblock (prefers-color-scheme) skrivs aldrig: ramverkets block pekar redan hit. ── */
+  --dark-accent: #6fb5ae;
+  --dark-accent-hover: #82c4bd;
+  --dark-accent-subtle: rgba(111, 181, 174, 0.12);
+  --dark-accent-faint: rgba(111, 181, 174, 0.06);
+  --dark-accent-contrast: #0f2624;
+  --dark-marke-accent: #7cc0b8;
+}

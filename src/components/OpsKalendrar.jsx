@@ -166,7 +166,7 @@ function Sektion({ slag, rubrik, hjalp, tomText, lista, kanAndra, lasText, sprak
 
   return (
     <section aria-labelledby={rubrikId} data-kalendersektion={slag} className="rounded-base border border-line bg-surface p-5">
-      <h3 id={rubrikId} className="m-0 mb-2 text-brod font-bold text-ink">
+      <h3 id={rubrikId} className="m-0 mb-2 text-brod font-semibold text-ink">
         {rubrik}
       </h3>
       <p className="m-0 mb-4 text-etikett text-ink-secondary">{hjalp}</p>

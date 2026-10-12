@@ -34,6 +34,9 @@ export { OpsButton } from "./components/OpsButton.jsx";
 export { OpsCard } from "./components/OpsCard.jsx";
 export { OpsView, OpsViewHeader } from "./components/OpsView.jsx";
 export { OpsSidoyta } from "./components/OpsSidoyta.jsx";
+// 0.94.0: byggstenarna och klasserna för publika sidor (hjälte, avsnitt, löptext), se docs/brand.md och README "Publika sidor".
+export { OpsPublikHjalte, OpsPublikAvsnitt, OpsPublikText } from "./components/OpsPublik.jsx";
+export { PUBLIK_KLASS } from "./lib/publikKlass.js";
 export { OpsVyValjare } from "./components/OpsVyValjare.jsx";
 export { OpsHuvudmenyProvider, useIHuvudmenyn } from "./components/OpsHuvudmeny.jsx";
 export { OpsModal } from "./components/OpsModal.jsx";

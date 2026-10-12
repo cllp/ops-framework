@@ -140,6 +140,8 @@ jobs:
       # `npm run check` har redan byggt `dist`, som vakten kräver.
       - run: npx playwright install --with-deps chromium
       - run: npm run check:skalyta
+      # 0.94.0: brandfilen och lagren, samma skäl och samma installation som skalytevakten ovan.
+      - run: npm run check:brand
 
       - name: Packa
         id: packa

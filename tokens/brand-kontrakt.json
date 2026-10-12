@@ -1,0 +1,37 @@
+{
+  "_lasMig": "0.94.0 (CP 2026-10-12: 'det ska vara enkelt att branda en instans och overrida om man så vill med egen css'). DETTA ÄR KONTRAKTET: de variabler en instans (en hubb, Identity, en kunds egen kopia) får sätta i sin brandfil, och ingenting annat. Allt annat i tokens/tokens.css är internt och kan byta namn i en minor-version. scripts/check-brand.mjs kräver att varje namn här finns i tokens.css och i docs/brand.md och att exemplet i examples/brand/ bara sätter namn härifrån; scripts/check-token-overrides.mjs kräver samma sak av en brandfil. Beskrivningarna bor i docs/brand.md, namnen bor här.",
+  "plats": {
+    "theme": "i `@theme static { ... }` (ljust läge och allt som inte har ett mörkt värde)",
+    "root": "i `:root { ... }` (mörkt läge, `--dark-*`)"
+  },
+  "variabler": [
+    { "namn": "--font-display", "grupp": "typsnitt", "plats": "theme" },
+    { "namn": "--font-display-publik", "grupp": "typsnitt", "plats": "theme" },
+    { "namn": "--font-marke", "grupp": "typsnitt", "plats": "theme" },
+
+    { "namn": "--color-accent", "grupp": "accent", "plats": "theme" },
+    { "namn": "--color-accent-hover", "grupp": "accent", "plats": "theme" },
+    { "namn": "--color-accent-subtle", "grupp": "accent", "plats": "theme" },
+    { "namn": "--color-accent-faint", "grupp": "accent", "plats": "theme" },
+    { "namn": "--color-accent-contrast", "grupp": "accent", "plats": "theme" },
+    { "namn": "--color-marke-accent", "grupp": "accent", "plats": "theme" },
+    { "namn": "--dark-accent", "grupp": "accent", "plats": "root" },
+    { "namn": "--dark-accent-hover", "grupp": "accent", "plats": "root" },
+    { "namn": "--dark-accent-subtle", "grupp": "accent", "plats": "root" },
+    { "namn": "--dark-accent-faint", "grupp": "accent", "plats": "root" },
+    { "namn": "--dark-accent-contrast", "grupp": "accent", "plats": "root" },
+    { "namn": "--dark-marke-accent", "grupp": "accent", "plats": "root" },
+
+    { "namn": "--marke-storlek", "grupp": "marke", "plats": "theme" },
+    { "namn": "--marke-undertext", "grupp": "marke", "plats": "theme" },
+    { "namn": "--marke-sparrning", "grupp": "marke", "plats": "theme" },
+    { "namn": "--marke-undertext-sparrning", "grupp": "marke", "plats": "theme" },
+    { "namn": "--marke-radavstand", "grupp": "marke", "plats": "theme" },
+    { "namn": "--marke-monogram", "grupp": "marke", "plats": "theme" },
+    { "namn": "--marke-monogram-sparrning", "grupp": "marke", "plats": "theme" },
+    { "namn": "--marke-storlek-stor", "grupp": "marke", "plats": "theme" },
+    { "namn": "--marke-undertext-stor", "grupp": "marke", "plats": "theme" },
+    { "namn": "--logo-bredd", "grupp": "marke", "plats": "theme" },
+    { "namn": "--logo-bredd-infalld", "grupp": "marke", "plats": "theme" }
+  ]
+}

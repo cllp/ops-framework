@@ -131,6 +131,9 @@ jobs:
       # alltså hör den hemma här och inte i `check`.
       - run: npm run build
       - run: npm run check:skalyta
+      # ⛔ Brandfilen och egen CSS (0.94.0): en instans ska kunna branda ramverket i en fil och lägga på CSS som vinner utan
+      # `!important`. Det är påståenden om beräknad stil, så jsdom ser dem inte. Kör sina egna röda bevis (`--bevisa`).
+      - run: npm run check:brand
 
   # ⛔ PACKNINGEN MÅSTE PROVAS PÅ VARJE PR, INTE FÖRST VID TAGGEN.
   #

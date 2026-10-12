@@ -1,0 +1,24 @@
+/**
+ * Exempel på en instans EGNA CSS (0.94.0), för det en brandfil inte kan uttrycka: en regel som stilar ett element eller
+ * en klass. Importeras efter `brand.css`, olagrad:
+ *
+ *   @import "./egen.css";
+ *
+ * Den vinner över ramverket UTAN `!important`. Ramverkets egna regler ligger i cascade-lager och en olagrad regel slår
+ * alla lager, hur specifik ramverkets väljare än är (se lagerordningen överst i `tokens.css` och `docs/brand.md`).
+ *
+ * ⛔ Det här är en nödutgång och ingen genväg. Behövs samma regel i två instanser hör den hemma i ramverket (ärende i
+ * cllp/ops-framework). `check-token-overrides` räknar reglerna här och skriver ut antalet i varje körning, så att
+ * egen CSS som växer syns i stället för att samlas tyst.
+ */
+
+/* En regel som ramverket aldrig skrivit: rubrikerna i appen får lite luft i bokstäverna. Slår verktygsklassen
+   `tracking-tight` på sidrubriken, utan `!important`. */
+h1 {
+  letter-spacing: 0.02em;
+}
+
+/* Innehållsytan smalare än ramverkets (`--ops-innehall-max`): en av ramverkets egna klasser, omskriven i instansen. */
+.ops-sidoyta {
+  max-width: 56rem;
+}

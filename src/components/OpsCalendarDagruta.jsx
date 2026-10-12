@@ -215,7 +215,7 @@ function Dagnummer({ day, isToday, vald, children }) {
         className={cx(
           // ⛔ 28 PX SÅ LÄNGE RUTAN RYMMER DET, SMALARE UNDER: `clamp(14, 2 x radbredd - 38, 28)`. Se `Hornbrickor`.
           "flex aspect-square w-[clamp(14px,calc(200%-38px),28px)] shrink-0 items-center justify-center text-meta font-semibold leading-none tabular-nums sm:aspect-auto sm:w-auto sm:text-etikett sm:leading-none",
-          isToday ? "ops-contrast-panel rounded-full bg-contrast-panel text-ink sm:px-1.5 sm:py-px" : cx("text-ink", vald && "font-bold"),
+          isToday ? "ops-contrast-panel rounded-full bg-contrast-panel text-ink sm:px-1.5 sm:py-px" : cx("text-ink", vald && "font-semibold"),
         )}
       >
         {day}
@@ -408,7 +408,7 @@ function Bricka({ id, antal, farg, children }) {
       className={cx("flex size-5 shrink-0 items-center justify-center gap-px rounded-full border bg-surface px-px [&>svg]:shrink-0", farg)}
     >
       {children}
-      {text ? <span data-raknare="" className="text-mikro leading-[9px] font-bold tracking-[-0.3px] tabular-nums">{text}</span> : null}
+      {text ? <span data-raknare="" className="text-mikro leading-[9px] tracking-[-0.3px] tabular-nums">{text}</span> : null}
     </span>
   );
 }

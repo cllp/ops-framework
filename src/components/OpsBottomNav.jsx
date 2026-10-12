@@ -224,7 +224,7 @@ function OpsBottomNavRitad({
                   <MenyTillbakaKnapp onBack={aktivUndervy ? () => setAktivUndervy(null) : undefined} />
                   {/* ⛔ EN `Dialog.Title`, ALLTID (Radix kräver exakt en per
                       dialog): INNEHÅLLET byts, elementet gör det inte. */}
-                  <Dialog.Title className="m-0 min-w-0 flex-1 truncate text-rubrik font-bold text-ink">
+                  <Dialog.Title className="m-0 min-w-0 flex-1 truncate text-rubrik text-ink">
                     {aktivUndervy ? aktivUndervy.etikett : (meny?.rubrik ?? sheetLabel)}
                   </Dialog.Title>
                 </div>
@@ -300,7 +300,7 @@ function Huvudatgard({ atgard }) {
         )}
       >
         {/* ⛔ CP 2026-10-04: "Den skall bara heta en sak. TALK medans man håller inne knappen." */}
-        {haller ? <span className="text-etikett font-bold tracking-wide">{TALK_ORD}</span> : (atgard.icon ?? <PlusIkon size={26} />)}
+        {haller ? <span className="text-etikett font-semibold tracking-wide">{TALK_ORD}</span> : (atgard.icon ?? <PlusIkon size={26} />)}
       </button>
     </div>
   );

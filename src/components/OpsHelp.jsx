@@ -56,7 +56,7 @@ export function OpsHelp({ title, children, label = "Visa förklaring", href, onN
       aria-hidden="true"
       className={cx(
         "inline-flex size-6 shrink-0 items-center justify-center rounded-full",
-        "border border-ink-secondary text-etikett font-bold text-ink-secondary",
+        "border border-ink-secondary text-etikett font-semibold text-ink-secondary",
         "transition-colors duration-(--duration-fast) ease-standard",
         oppen ? "group-open:border-accent group-open:text-accent" : null,
       )}
