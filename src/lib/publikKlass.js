@@ -10,7 +10,7 @@
  * finns för att stoppa.
  *
  * Rollerna bor i `tokens/sessionstudio-profil.json` (`typografi.publik`), mätta ur SessionStudios landningssidor
- * (`apps/web/src/landingPages`), och blir `text-publik-rubrik`, `text-publik-avsnitt`, `text-publik-ingress`,
+ * (`apps/web/src/landingPages`), och blir `text-publik-rubrik`, `text-publik-sida`, `text-publik-block`, `text-publik-ingress`,
  * `text-publik-brod` och `text-publik-eyebrow`. Rubrikfamiljen är en egen token, `--font-display-publik` (`font-display-publik`),
  * så en instans kan ge sina publika rubriker en egen röst i sin brandfil utan att röra en komponent (`docs/brand.md`).
  * Läsbredden är `--container-las` (`max-w-las`, 65ch).
@@ -25,14 +25,16 @@
 export const PUBLIK_KLASS = Object.freeze({
   /** Överraden över en rubrik: 12 px, 600, spärrad, versaler, accent. */
   eyebrow: "m-0 text-publik-eyebrow uppercase text-accent",
-  /** Hjälterubriken, sidans `<h1>`: serif, 500, 36 px, 48 px från `sm`, 56 px från `lg`. */
+  /** Fotohjältens rubrik, `<h1>`: serif, 500, 36 px, 48 px från `sm`, 56 px från `lg`. */
   hjalte: "m-0 max-w-4xl font-display-publik text-publik-rubrik text-ink",
-  /** Avsnittsrubriken, `<h2>`: serif, 500, 30 px, 36 px från `sm`, 44 px från `lg`. */
-  avsnitt: "m-0 max-w-3xl font-display-publik text-publik-avsnitt text-ink",
-  /** Ingressen under en rubrik, i läsbredd. */
-  ingress: "m-0 max-w-las text-publik-ingress text-ink-secondary",
-  /** Löptext i läsbredd. */
-  brod: "m-0 max-w-las text-publik-brod text-ink-secondary",
+  /** Innehållssidans rubrik, `<h1>` (SS HowItWorksPage): serif, 500, 36 px, 48 px från `sm`. */
+  sida: "m-0 font-display-publik text-publik-sida text-ink",
+  /** Avsnittets rubrik, `<h2>` (SS HowItWorksPage `SectionShell`): serif, 500, 30 px, 36 px från `sm`. Samma roll som blockets. */
+  avsnitt: "m-0 font-display-publik text-publik-block text-ink",
+  /** Ingressen under en rubrik. Bredden sätter anroparen (`max-w-las` i ett block, `max-w-3xl` på en innehållssida). */
+  ingress: "m-0 text-publik-ingress text-ink-secondary",
+  /** Löptext. Bredden sätter anroparen. */
+  brod: "m-0 text-publik-brod text-ink-secondary",
 });
 
 /**

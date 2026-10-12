@@ -33,7 +33,10 @@
   --color-publik-mork-dampad: rgba(244, 241, 234, 0.74);
   --color-publik-mork-markering: #c99a3e;
   --color-publik-toning: #202420;
-  /* Loggan i toppraden är 28 px hög (Life Hubs liggande logga, 1136 x 287, genomskinlig utanför ramen). */
+  /* Loggan i toppraden är 28 px hög. Life Hubs logga är ett PAR på 1079 x 260, genomskinligt, en ruta med LIFE och HUB bredvid:
+     en ljus ruta med mörkt LIFE för en MÖRK botten (`logga.paMork`) och en mörk ruta (#202420) med ljust LIFE för en LJUS botten
+     (`logga.paLjus`). Båda har taupe HUB. Mätt: 28 px ger 116 px bredd (SS `h-8` på 32 px ger 119 px) men en ruta som är 28 px hög,
+     där SS tecken är 19,8 px höga: samma bredd, 41 procent mer höjd. Vill instansen ha SS höjd på rutan är det 1,25rem (20 px, 83 px bred). */
   --publik-logga-hojd: 1.75rem;
 }
 

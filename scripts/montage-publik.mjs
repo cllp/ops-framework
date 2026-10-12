@@ -94,7 +94,7 @@ const ssJs = await build({
 const ssSkript = ssJs.outputFiles[0].text;
 const ssCss = (
   await postcss([tailwind()]).process(
-    `@import "tailwindcss" source(none);\n@source "${slash(landing)}";\n@source "${slash(ssEntry)}";\n@import "${slash(landing)}/landingPalette.css";\nbody{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;line-height:1.5;-webkit-font-smoothing:antialiased}\nh1,h2,h3{letter-spacing:-0.025em}\n`,
+    `@import "tailwindcss" source(none);\n@source "${slash(landing)}";\n@source "${slash(ssEntry)}";\n@import "${slash(landing)}/landingPalette.css";\nbody{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;line-height:1.5;-webkit-font-smoothing:antialiased}\nh1,h2,h3{letter-spacing:-0.01em}\n`,
     { from: path.join(arbete, "ss.css") },
   )
 ).css;
@@ -166,7 +166,8 @@ const ssInnehall = {
   kort: (() => {
     const h = HOW_IT_WORKS_CONTENT.sv;
     const s = h.sections[0];
-    return { eyebrow: h.hero.eyebrow, title: h.hero.title, ingress: h.hero.subtitle, avsnitt: { eyebrow: s.kicker, title: s.title, ingress: undefined, text: s.body.replace(/\*\*/g, "") } };
+    const t = h.sections[1];
+    return { eyebrow: h.hero.eyebrow, title: h.hero.title, ingress: h.hero.subtitle, avsnitt: { eyebrow: s.kicker, title: s.title, ingress: s.body.replace(/\*\*/g, ""), text: undefined }, avsnitt2: { eyebrow: t.kicker, title: t.title, ingress: t.body?.replace(/\*\*/g, ""), text: undefined } };
   })(),
 };
 /** Samma innehåll med tonerna varierade (ljus, accent, mörk, ljus): SessionStudios startsida använder bara den ljusa tonen, men `TONE_STYLES` har alla tre. */
@@ -177,8 +178,8 @@ const lhInnehall = {
   ...ssInnehall,
   logga: { paMork: dataUrl(lhLoggaPaMork), paLjus: dataUrl(lhLoggaPaLjus), alt: "Life Hub" },
   texter: { huvudnavigering: "Huvudnavigering", oppnaMeny: "Öppna meny", stangMeny: "Stäng meny", mobilmeny: "Mobilmeny" },
-  lankar: [{ href: "/hubbar", label: "Hubbar" }, { href: "/moduler", label: "Moduler" }, { href: "/ai", label: "AI" }, { href: "/priser", label: "Priser" }],
-  mobilLankar: [{ href: "/hubbar", label: "Hubbar" }, { href: "/moduler", label: "Moduler" }, { href: "/ai", label: "AI" }, { href: "/priser", label: "Priser" }, { href: "/om-oss", label: "Om oss" }],
+  lankar: [{ href: "/hubbar", label: "Hubbar" }, { href: "/moduler", label: "Moduler" }, { href: "/ai", label: "AI" }],
+  mobilLankar: [{ href: "/hubbar", label: "Hubbar" }, { href: "/moduler", label: "Moduler" }, { href: "/ai", label: "AI" }, { href: "/om-oss", label: "Om oss" }],
   loggaIn: { href: "/", label: "Logga in" },
   kom: { href: "/", label: "Kom igång" },
   hjalte: { eyebrow: "One life / one hub", title: "Ett liv. En plats att styra det från.", ingress: "Ekonomi, försäkringar, hem och minnen på ett ställe, med AI som hjälper dig hålla ordning.", malgrupp: "För dig som vill ha överblick utan att bli kontorist.", bild: ssInnehall.hjalte.bild, primar: { href: "/", label: "Kom igång" }, sekundar: { href: "/moduler", label: "Se modulerna" } },
@@ -188,8 +189,8 @@ const lhInnehall = {
     { ton: "mork", bildSida: "hoger", eyebrow: "AI", title: "En hjälpare som läser det du redan har", text: ["Fråga i vanlig text. Svaren bygger på dina egna uppgifter och visar varifrån de kommer."], handling: { href: "/ai", label: "Läs mer" }, figur: FIGUR_SVG },
   ],
   uppmaning: { title: "Redo att samla ihop det?", text: "Det första steget är gratis.", primar: { href: "/", label: "Kom igång" }, sekundar: { href: "/om-oss", label: "Läs mer" } },
-  fot: { tagline: "One life / one hub", malgrupp: "Powered by AI", navEtikett: "Sidfot", copyright: "Life Hub", grupper: [{ rubrik: "Produkt", lankar: [{ href: "/moduler", label: "Moduler" }, { href: "/priser", label: "Priser" }] }, { rubrik: "Bolaget", lankar: [{ href: "/om-oss", label: "Om oss" }] }] },
-  kort: { eyebrow: "Om Life Hub", title: "Hur det fungerar", ingress: "Life Hub samlar det som annars ligger utspritt.", avsnitt: { eyebrow: "Innan du börjar", title: "Konto och inloggning", ingress: undefined, text: "Du loggar in en gång och når alla dina hubbar. Inloggningen delas med appen." } },
+  fot: { tagline: "One life / one hub", malgrupp: "Powered by AI", navEtikett: "Sidfot", copyright: "Life Hub", grupper: [{ rubrik: "Produkt", lankar: [{ href: "/moduler", label: "Moduler" }] }, { rubrik: "Bolaget", lankar: [{ href: "/om-oss", label: "Om oss" }] }] },
+  kort: { eyebrow: "Om Life Hub", title: "Hur det fungerar", ingress: "Life Hub samlar det som annars ligger utspritt.", avsnitt: { eyebrow: "Innan du börjar", title: "Konto och inloggning", ingress: "Du loggar in en gång och når alla dina hubbar. Inloggningen delas med appen.", text: undefined }, avsnitt2: { eyebrow: "Dina hubbar", title: "En hubb per del av livet", ingress: "Hemmet, bolaget och familjen får var sin hubb.", text: undefined } },
 };
 
 // ── Rita och fota ────────────────────────────────────────────────────────────────────────────────────────────────
@@ -216,10 +217,11 @@ async function fota(v) {
     if (fel.length) throw new Error(`${v.namn} kastade: ${fel[0]}`);
     // Bilder med loading="lazy" laddas först när de är nära: rulla igenom sidan så att allt är på plats i bilden.
     await page.evaluate(async () => {
-      for (let y = 0; y < document.body.scrollHeight; y += 600) {
+      for (let y = 0; y < document.body.scrollHeight; y += 400) {
         window.scrollTo(0, y);
-        await new Promise((r) => setTimeout(r, 60));
+        await new Promise((r) => setTimeout(r, 120));
       }
+      await Promise.race([Promise.all([...document.images].map((i) => (i.complete ? null : new Promise((r) => { i.onload = i.onerror = r; })))), new Promise((r) => setTimeout(r, 4000))]);
       window.scrollTo(0, 0);
     });
     await page.waitForLoadState("networkidle");

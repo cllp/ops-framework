@@ -37,6 +37,8 @@
  *     9. Under `md` ligger länkarna bakom en meny som öppnas och stängs; ingen horisontell scroll i 390 px.
  *    10. Brandfilen byter tonerna: med `examples/brand/sessionstudio.css` är banden SessionStudios (kräm, orange, ink), med
  *        `lifehub.css` Life Hubs (ljus, taupe, mörk), och accent och rubrikfamilj följer med.
+ *    12. Rytmen mellan blocken ägs av ramverket: 96 px mellan två ljusa block, efter fotohjälten och före uppmaningen, 0 mellan
+ *        olika toner; innehållssidans avsnitt 96 px (80 under `sm`). Rött utan regeln (`--bevisa`).
  *    11. Kontrasten för varje text mot sin bakgrund i varje ton, i båda brandfilerna (WCAG AA).
  *
  * ⛔ GOLV: provet kräver minst 20 mätningar och minst 20 kontraktsvariabler. Ett prov som blir grönt av att inget
@@ -105,12 +107,17 @@ if (argv.includes("--bevisa")) {
     const utanPublik = brand.replace(/^\s*--font-display-publik:.*\n/m, "");
     if (utanPublik === brand) throw new Error("check-brand --bevisa: brandfilen har ingen --font-display-publik-rad att ta bort.");
     fs.writeFileSync(path.join(mapp, "brand-utan-publik.css"), utanPublik);
+    // Rytmen: regeln mellan markörerna RYTM i tokens.css tas bort, alltså som före granskningen av PR 350 (instansen hade ägt luften).
+    const utanRytm = original.replace(/\/\* RYTM \*\/[\s\S]*?\/\* SLUT RYTM \*\//, "");
+    if (utanRytm === original) throw new Error("check-brand --bevisa: tokens.css har ingen RYTM-regel att ta bort.");
+    fs.writeFileSync(path.join(mapp, "tokens-utan-rytm.css"), utanRytm);
 
     /** @type {{ namn: string, args: string[], forvantat: string | null, flera?: boolean }[]} */
     const fall = [
       { namn: "grönt: ramverket med lagren och exempelfilen", args: [], forvantat: null },
       { namn: "rött: utan lagren vinner ramverkets mörkeralias över instansens regel", args: ["--tokens", path.join(mapp, "tokens-utan-lager.css")], forvantat: "över ramverkets mörkeralias" },
       { namn: "rött: en brandfil utan typsnittsraden ändrar inte den publika rubriken", args: ["--brand", path.join(mapp, "brand-utan-publik.css")], forvantat: "brandfilen ändrade inte den publika rubriken" },
+      { namn: "rött: utan ramverkets rytmregel ligger blocken tätt, 0 px i stället för 96", args: ["--tokens", path.join(mapp, "tokens-utan-rytm.css")], forvantat: "rytmen:", flera: true },
       { namn: "rött: toppraden i en smal centrerad kolumn flyttar loggan mellan sidor", args: ["--logga-mitt"], forvantat: "loggan ligger inte på samma plats", flera: true },
     ];
     let fel = 0;
@@ -393,8 +400,8 @@ try {
   krav(/Georgia/.test(baseLjus.publikFamilj), `utan brandfil är den publika rubriken inte i Georgia: "${baseLjus.publikFamilj}". --font-display-publik saknas eller används inte.`);
   krav(/Glacial Indifference/.test(baseLjus.markeFamilj), `utan brandfil är märket inte i Glacial Indifference: "${baseLjus.markeFamilj}"`);
   krav(baseLjus.knappBakgrund === rgb("#8E7A4E".toLowerCase()), `utan brandfil är primärknappen inte ramverkets accent: ${baseLjus.knappBakgrund}`);
-  krav(baseLjus.publikVikt === "500" && baseLjus.publikStorlek === "56px", `den publika rubriken ska vara 56 px och 500 vid 1280 px: ${baseLjus.publikStorlek} / ${baseLjus.publikVikt}`);
-  krav(baseLjus.avsnittStorlek === "44px", `avsnittsrubriken ska vara 44 px vid 1280 px: ${baseLjus.avsnittStorlek}`);
+  krav(baseLjus.publikVikt === "500" && baseLjus.publikStorlek === "48px", `innehållshjältens rubrik (text-publik-sida, SS HowItWorksPage) ska vara 48 px och 500 vid 1280 px: ${baseLjus.publikStorlek} / ${baseLjus.publikVikt}`);
+  krav(baseLjus.avsnittStorlek === "36px", `avsnittsrubriken (text-publik-block, SS HowItWorksPage) ska vara 36 px vid 1280 px: ${baseLjus.avsnittStorlek}`);
 
   // 5. MED brandfilen: familjer och accent ändras.
   const visaFamilj = (/** @type {string} */ namn) => brandFamilj(namn);
@@ -486,6 +493,12 @@ try {
           blockRubrikFamilj: block.map((b) => cs(b.querySelector("h2"), "font-family")),
           uppmaningBg: cs(uppmaning, "background-color"),
           skalBg: cs(document.querySelector('[data-ops-publik="skal"]'), "background-color"),
+          hjalteH1Storlek: cs(hjalte?.querySelector("h1") ?? null, "font-size"),
+          // Rytmen: varje blocks, hjältens, uppmaningens och avsnittens övre och nedre kant, i dokumentets ordning.
+          rytm: [...document.querySelectorAll('[data-ops-publik="hjalte"], [data-ops-publik="block"], [data-ops-publik="uppmaning"], [data-ops-publik="avsnitt"]')].map((e) => {
+            const r = e.getBoundingClientRect();
+            return { typ: e.getAttribute("data-ops-publik") ?? "", ton: e.getAttribute("data-ton") ?? "", top: +r.top.toFixed(2), bottom: +r.bottom.toFixed(2) };
+          }),
           huvudPosition: cs(huvud, "position"),
           huvudTop: huvud ? Math.round(huvud.getBoundingClientRect().top) : -1,
         };
@@ -511,10 +524,35 @@ try {
     // 9. Ingen horisontell scroll.
     krav(start.scrollBredd <= start.fonsterBredd && kort.scrollBredd <= kort.fonsterBredd, `horisontell scroll vid ${bredd} px: start ${start.scrollBredd} / kort ${kort.scrollBredd} mot ${start.fonsterBredd}`);
   }
+  // 12. Rytmen mellan blocken ägs av ramverket (granskningen av PR 350): 96 px mellan två ljusa block, efter fotohjälten före ett
+  // ljust block och före uppmaningen, 0 mellan olika toner; innehållssidans avsnitt 96 px från sm och 80 px under.
+  for (const bredd of [1280, 390]) {
+    const start = await publik(cssSS, "start", bredd);
+    const r = start.rytm;
+    krav(r.length >= 7, `rytmen: bara ${r.length} element mättes på startsidan vid ${bredd} px, väntat hjälte, fem block och uppmaning (7)`);
+    for (let k = 1; k < r.length; k++) {
+      const luft = +(r[k].top - r[k - 1].bottom).toFixed(2);
+      const [a, b] = [r[k - 1], r[k]];
+      const beskr = `${a.typ}${a.ton ? ` ${a.ton}` : ""} till ${b.typ}${b.ton ? ` ${b.ton}` : ""}`;
+      const vantat = b.typ === "uppmaning" ? (a.ton === "ljus" ? 96 : 0) : a.typ === "hjalte" && b.ton === "ljus" ? 96 : a.ton === "ljus" && b.ton === "ljus" ? 96 : 0;
+      krav(Math.abs(luft - vantat) <= 0.5, `rytmen: avståndet ${beskr} är ${luft} px vid ${bredd} px, väntat ${vantat}. Luften mellan blocken ägs av ramverkets CSS (96 px mellan två ljusa block, 0 mellan olika toner).`);
+    }
+    const kort = await publik(cssSS, "kort", bredd);
+    const av = kort.rytm.filter((e) => e.typ === "avsnitt");
+    krav(av.length === 2, `rytmen: innehållssidan ska ha två avsnitt, hade ${av.length}`);
+    if (av.length === 2) {
+      const luft = +(av[1].top - av[0].bottom).toFixed(2);
+      const vantat = bredd >= 640 ? 96 : 80;
+      krav(Math.abs(luft - vantat) <= 0.5, `rytmen: avståndet mellan två avsnitt är ${luft} px vid ${bredd} px, väntat ${vantat} (SS space-y-20 sm:space-y-24)`);
+    }
+  }
+  const foto = await publik(cssSS, "start", 1280);
+  krav(foto.hjalteH1Storlek === "56px", `fotohjältens rubrik ska vara 56 px vid 1280 px (text-publik-rubrik): ${foto.hjalteH1Storlek}`);
+
   // 9. Mobilmenyn.
   const mobil = await publik(cssSS, "start", 390, { meny: true });
   krav(mobil.desktopListaDold === true, "länkarna i toppraden ska vara dolda under md");
-  krav((mobil.menyLankar ?? 0) >= 7, `mobilmenyn ska bära alla ${demo.mobilLankar.length} sidor, plus Logga in och Kom igång: ${mobil.menyLankar} länkar`);
+  krav((mobil.menyLankar ?? 0) >= demo.mobilLankar.length + 1, `mobilmenyn ska bära alla ${demo.mobilLankar.length} sidor, plus Logga in: ${mobil.menyLankar} länkar`);
   krav(mobil.menyStangd === true, "mobilmenyn ska stängas med Escape");
   const bred = await publik(cssSS, "start", 1280);
   krav((await publik(cssSS, "kort", 1280)).komKnapp === bred.komKnapp, "accentknappen i toppraden ska vara samma på båda sidorna");
@@ -522,24 +560,24 @@ try {
   // 10. Brandfilerna byter tonerna.
   const ss = bred;
   const rgbT = (/** @type {string} */ h) => rgb(h);
-  krav(JSON.stringify(ss.blockBg) === JSON.stringify([rgbT("#f4efe6"), rgbT("#e8804a"), rgbT("#1a1a1a"), rgbT("#f4efe6")]), `med sessionstudio.css ska banden vara kräm, orange, ink, kräm: ${ss.blockBg.join(" | ")}`);
+  krav(JSON.stringify(ss.blockBg) === JSON.stringify([rgbT("#f4efe6"), rgbT("#f4efe6"), rgbT("#e8804a"), rgbT("#1a1a1a"), rgbT("#f4efe6")]), `med sessionstudio.css ska banden vara kräm, kräm, orange, ink, kräm: ${ss.blockBg.join(" | ")}`);
   krav(ss.uppmaningBg === rgbT("#e8804a"), `uppmaningen ska vara orange: ${ss.uppmaningBg}`);
   krav(ss.komKnapp === rgbT("#e8804a") && ss.hjalteKnapp === rgbT("#e8804a"), `accentknapparna ska vara SS orange: ${ss.komKnapp} / ${ss.hjalteKnapp}`);
   krav(ss.hjalteOverrad === rgbT("#e8804a") && ss.hjalteH1Farg === rgbT("#ffffff"), `hjälten ska ha orange överrad och vit rubrik: ${ss.hjalteOverrad} / ${ss.hjalteH1Farg}`);
-  krav(ss.blockOverrad[0] === rgbT("#e8804a") && ss.blockOverrad[2] === rgbT("#e8804a"), `överraden på kräm och ink ska vara orange: ${ss.blockOverrad.join(" | ")}`);
+  krav(ss.blockOverrad[0] === rgbT("#e8804a") && ss.blockOverrad[3] === rgbT("#e8804a"), `överraden på kräm och ink ska vara orange: ${ss.blockOverrad.join(" | ")}`);
   krav(ss.skalBg === rgbT("#f4efe6"), `sidans bakgrund ska vara kräm: ${ss.skalBg}`);
   krav(/Georgia/.test(ss.hjalteFamilj) && ss.blockRubrikFamilj.every((f) => /Georgia/.test(f)), `rubrikerna ska vara Georgia: ${ss.hjalteFamilj}`);
   const lh = await publik(cssLH, "start", 1280);
-  krav(JSON.stringify(lh.blockBg) === JSON.stringify([rgbT("#f4f1ea"), rgbT("#7d6b5d"), rgbT("#202420"), rgbT("#f4f1ea")]), `med lifehub.css ska banden vara ljus, taupe, mörk, ljus: ${lh.blockBg.join(" | ")}`);
+  krav(JSON.stringify(lh.blockBg) === JSON.stringify([rgbT("#f4f1ea"), rgbT("#f4f1ea"), rgbT("#7d6b5d"), rgbT("#202420"), rgbT("#f4f1ea")]), `med lifehub.css ska banden vara ljus, ljus, taupe, mörk, ljus: ${lh.blockBg.join(" | ")}`);
   krav(lh.komKnapp === rgbT("#c99a3e") && lh.uppmaningBg === rgbT("#7d6b5d"), `Life Hub: guldknapp och taupeband: ${lh.komKnapp} / ${lh.uppmaningBg}`);
-  krav(lh.blockOverrad[0] === rgbT("#202420") && lh.blockOverrad[2] === rgbT("#c99a3e"), `Life Hub: mörk överrad på ljust och guld på mörkt: ${lh.blockOverrad.join(" | ")}`);
+  krav(lh.blockOverrad[0] === rgbT("#202420") && lh.blockOverrad[3] === rgbT("#c99a3e"), `Life Hub: mörk överrad på ljust och guld på mörkt: ${lh.blockOverrad.join(" | ")}`);
   krav(JSON.stringify(lh.blockBg) !== JSON.stringify(ss.blockBg) && lh.komKnapp !== ss.komKnapp, "två brandfiler gav samma toner: brandfilen når inte sidan");
   const nord = await publik(cssBrand, "start", 1280);
   krav(nord.blockRubrikFamilj.every((f) => f.includes(brandFamilj("--font-display-publik"))) && nord.hjalteFamilj.includes(brandFamilj("--font-display-publik")), `brandfilens publika rubrikfamilj ska gälla i hjälten och blocken: ${nord.hjalteFamilj}`);
   const utanTon = await publik(cssBas, "start", 1280);
   krav(utanTon.blockBg[0] === rgbT("#fdf8ef") && utanTon.komKnapp === rgbT("#8e7a4e"), `utan brandfil ska tonerna vara ramverkets egna tokens (canvas, accent): ${utanTon.blockBg[0]} / ${utanTon.komKnapp}`);
   const mork = await publik(cssBas, "start", 1280, { tema: "dark" });
-  krav(mork.blockBg[2] === rgbT("#202420"), `det mörka bandet ska vara det mörka temats yta också i mörkt läge: ${mork.blockBg[2]}`);
+  krav(mork.blockBg[3] === rgbT("#202420"), `det mörka bandet ska vara det mörka temats yta också i mörkt läge: ${mork.blockBg[3]}`);
 } finally {
   await browser.close();
 }

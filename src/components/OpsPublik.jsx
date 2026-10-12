@@ -45,22 +45,22 @@ import { PUBLIK_KLASS, PUBLIK_KNAPP, PUBLIK_TONER } from "../lib/publikKlass.js"
  */
 export function OpsPublikHjalte({ title, eyebrow, ingress, malgrupp, bild, primar, sekundar, children, centrerad = false }) {
   const rubrikId = useId();
-  const handlingar =
-    primar || sekundar || children ? (
-      <div className="mt-3 flex flex-wrap items-center gap-4">
-        {primar ? (
-          <a href={primar.href} className={cx(PUBLIK_KNAPP.bas, PUBLIK_KNAPP.primar)}>
-            {primar.label}
-          </a>
-        ) : null}
-        {sekundar ? (
-          <a href={sekundar.href} className={cx(PUBLIK_KNAPP.bas, bild ? PUBLIK_KNAPP.kantPaBild : cx(PUBLIK_KNAPP.kant, PUBLIK_TONER.ljus.kantknapp))}>
-            {sekundar.label}
-          </a>
-        ) : null}
-        {children}
-      </div>
-    ) : null;
+  const harHandlingar = Boolean(primar || sekundar || children);
+  const knappar = (
+    <>
+      {primar ? (
+        <a href={primar.href} className={cx(PUBLIK_KNAPP.bas, PUBLIK_KNAPP.primar)}>
+          {primar.label}
+        </a>
+      ) : null}
+      {sekundar ? (
+        <a href={sekundar.href} className={cx(PUBLIK_KNAPP.bas, bild ? PUBLIK_KNAPP.kantPaBild : cx(PUBLIK_KNAPP.kant, PUBLIK_TONER.ljus.kantknapp))}>
+          {sekundar.label}
+        </a>
+      ) : null}
+      {children}
+    </>
+  );
 
   if (bild) {
     if (!bild.alt) throw new Error("OpsPublikHjalte: bild kräver alt. Är bilden ren dekor, skicka ingen bild.");
@@ -84,22 +84,24 @@ export function OpsPublikHjalte({ title, eyebrow, ingress, malgrupp, bild, prima
           </h1>
           {ingress ? <p className="m-0 max-w-2xl text-publik-ingress text-publik-mork-text/88">{ingress}</p> : null}
           {malgrupp ? <p className="m-0 -mt-2 max-w-2xl text-etikett text-publik-mork-text/70">{malgrupp}</p> : null}
-          {handlingar}
+          {harHandlingar ? <div className="mt-3 flex flex-wrap items-center gap-4">{knappar}</div> : null}
         </div>
       </header>
     );
   }
 
+  // Innehållssidans hjälte (SS `HowItWorksPage.jsx:358`): `pt-20 sm:pt-28 lg:pt-32 pb-12`, en kolumn i `max-w-3xl`, rubriken 36 px
+  // (48 från `sm`) och ingressen `mt-5`. Fotohjältens 56 px finns inte här.
   return (
-    <header data-ops-publik="hjalte" aria-labelledby={rubrikId} className="px-4 pt-12 pb-10 sm:px-6 sm:pt-16 lg:px-8 lg:pt-24 lg:pb-16">
-      <div className={cx("mx-auto flex max-w-7xl flex-col gap-5", centrerad && "items-center text-center")}>
-        {eyebrow ? <p className={PUBLIK_KLASS.eyebrow}>{eyebrow}</p> : null}
-        <h1 id={rubrikId} className={PUBLIK_KLASS.hjalte}>
+    <header data-ops-publik="hjalte" aria-labelledby={rubrikId} className="px-4 pt-20 pb-12 sm:px-6 sm:pt-28 lg:px-8 lg:pt-32">
+      <div className={cx("mx-auto max-w-3xl", centrerad && "text-center")}>
+        {eyebrow ? <p className={cx(PUBLIK_KLASS.eyebrow, "mb-3")}>{eyebrow}</p> : null}
+        <h1 id={rubrikId} className={PUBLIK_KLASS.sida}>
           {title}
         </h1>
-        {ingress ? <p className={PUBLIK_KLASS.ingress}>{ingress}</p> : null}
-        {malgrupp ? <p className="m-0 max-w-las text-etikett text-publik-ljus-dampad">{malgrupp}</p> : null}
-        {handlingar}
+        {ingress ? <p className={cx(PUBLIK_KLASS.brod, "mt-5")}>{ingress}</p> : null}
+        {malgrupp ? <p className="m-0 mt-3 text-etikett text-publik-ljus-dampad">{malgrupp}</p> : null}
+        {harHandlingar ? <div className={cx("mt-8 flex flex-wrap items-center gap-4", centrerad && "justify-center")}>{knappar}</div> : null}
       </div>
     </header>
   );
@@ -111,35 +113,37 @@ export function OpsPublikHjalte({ title, eyebrow, ingress, malgrupp, bild, prima
  * @param {object} props
  * @param {import("react").ReactNode} props.title Avsnittets rubrik.
  * @param {import("react").ReactNode} [props.eyebrow] Överraden.
- * @param {import("react").ReactNode} [props.ingress] Ett stycke under rubriken, i läsbredd.
+ * @param {import("react").ReactNode} [props.ingress] Ett stycke under rubriken, `max-w-3xl`.
  * @param {import("react").ReactNode} [props.children] Avsnittets innehåll: `OpsPublikText`, ett kort, en lista. Ritas under rubriken.
  * @param {boolean} [props.centrerad]
  */
 export function OpsPublikAvsnitt({ title, eyebrow, ingress, children, centrerad = false }) {
   const rubrikId = useId();
+  // SS `HowItWorksPage.jsx:69` (`SectionShell`): en behållare i `max-w-[1080px]` med 16/24/32 px sidomarginal, överraden `mb-3`,
+  // ingressen `mt-5 max-w-3xl`. Luften mellan avsnitten ägs av ramverkets CSS (`.ops-ramverk`-lagret i tokens.css), inte av anroparen.
   return (
-    <section data-ops-publik="avsnitt" aria-labelledby={rubrikId} className="px-4 py-10 sm:px-6 sm:py-14 lg:px-8 lg:py-20">
-      <div className={cx("mx-auto flex max-w-7xl flex-col gap-4", centrerad && "items-center text-center")}>
-        {eyebrow ? <p className={PUBLIK_KLASS.eyebrow}>{eyebrow}</p> : null}
+    <section data-ops-publik="avsnitt" aria-labelledby={rubrikId} className="px-4 sm:px-6 lg:px-8">
+      <div className={cx("mx-auto max-w-270", centrerad && "text-center")}>
+        {eyebrow ? <p className={cx(PUBLIK_KLASS.eyebrow, "mb-3")}>{eyebrow}</p> : null}
         <h2 id={rubrikId} className={PUBLIK_KLASS.avsnitt}>
           {title}
         </h2>
-        {ingress ? <p className={PUBLIK_KLASS.ingress}>{ingress}</p> : null}
-        {children ? <div className={cx("mt-4 flex flex-col gap-4", centrerad && "items-center")}>{children}</div> : null}
+        {ingress ? <p className={cx(PUBLIK_KLASS.brod, "mt-5 max-w-3xl", centrerad && "mx-auto")}>{ingress}</p> : null}
+        {children ? <div className={cx("mt-6 flex flex-col gap-4", centrerad && "items-center")}>{children}</div> : null}
       </div>
     </section>
   );
 }
 
 /**
- * Löptext i läsbredd (65ch): ett stycke. Flera stycken är flera anrop.
+ * Löptext i `max-w-3xl` (SS HowItWorksPage): ett stycke. Flera stycken är flera anrop.
  *
  * @param {object} props
  * @param {import("react").ReactNode} props.children
  */
 export function OpsPublikText({ children }) {
   return (
-    <p data-ops-publik="text" className={PUBLIK_KLASS.brod}>
+    <p data-ops-publik="text" className={cx(PUBLIK_KLASS.brod, "max-w-3xl")}>
       {children}
     </p>
   );

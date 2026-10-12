@@ -31,14 +31,12 @@ export function innehall(bilder = {}) {
     lankar: [
       { href: "/funktioner", label: "Funktioner" },
       { href: "/sa-funkar-det", label: "Så funkar det" },
-      { href: "/priser", label: "Priser" },
       { href: "/live", label: "Live" },
     ],
     mobilLankar: [
       { href: "/funktioner", label: "Funktioner" },
       { href: "/sa-funkar-det", label: "Så funkar det" },
       { href: "/varfor", label: "Varför" },
-      { href: "/priser", label: "Priser" },
       { href: "/om-oss", label: "Om oss" },
       { href: "/live", label: "Live" },
       { href: "/support", label: "Support" },
@@ -55,11 +53,13 @@ export function innehall(bilder = {}) {
       primar: { href: "/app", label: "Kom igång" },
       sekundar: { href: "/live", label: "Se live" },
     },
+    // Två ljusa block efter varandra och efter hjälten, sedan accent och mörk, sedan ett ljust före uppmaningen: provar varje led i rytmen.
     block: [
       { ton: "ljus", bildSida: "hoger", eyebrow: "Planera", title: "Kalendern som hela gruppen delar", text: ["Se vem som kan, när, och vad som ska hända. Svaren samlas utan att någon behöver jaga dem."], handling: { href: "/funktioner", label: "Läs mer" }, bild: { src: b1, alt: "En kalender med tre inbokade pass" } },
-      { ton: "accent", bildSida: "vanster", eyebrow: "Samla", title: "Allt material, där ni behöver det", text: ["Noter, ljudfiler och anteckningar ligger i samma session som repetitionen."], handling: { href: "/funktioner", label: "Se hur" }, bild: { src: b2, alt: "Ett öppet notblad på ett notställ" } },
-      { ton: "mork", bildSida: "hoger", eyebrow: "Spela", title: "Hela spellistan i fickan", text: ["På scen räcker det att bläddra. Resten har ni redan gjort."], handling: { href: "/live", label: "Prova" }, figur: FIGUR_SVG },
       { ton: "ljus", bildSida: "vanster", eyebrow: "Dela", title: "Bjud in utan att ställa krav", text: ["Gäster ser det de behöver och inget mer."], handling: { href: "/funktioner", label: "Läs mer" }, bild: { src: b3, alt: "En mobil som visar en inbjudan" } },
+      { ton: "accent", bildSida: "hoger", eyebrow: "Samla", title: "Allt material, där ni behöver det", text: ["Noter, ljudfiler och anteckningar ligger i samma session som repetitionen."], handling: { href: "/funktioner", label: "Se hur" }, bild: { src: b2, alt: "Ett öppet notblad på ett notställ" } },
+      { ton: "mork", bildSida: "vanster", eyebrow: "Spela", title: "Hela spellistan i fickan", text: ["På scen räcker det att bläddra. Resten har ni redan gjort."], handling: { href: "/live", label: "Prova" }, figur: FIGUR_SVG },
+      { ton: "ljus", bildSida: "hoger", eyebrow: "Följ upp", title: "Se vad som hände efteråt", text: ["Anteckningar och beslut ligger kvar i sessionen."], handling: { href: "/funktioner", label: "Läs mer" }, bild: { src: b1, alt: "En lista med beslut efter ett möte" } },
     ],
     uppmaning: { title: "Redo att börja?", text: "Det tar några minuter att komma igång, och det första steget är gratis.", primar: { href: "/app", label: "Kom igång" }, sekundar: { href: "/support", label: "Prata med oss" } },
     fot: {
@@ -69,7 +69,7 @@ export function innehall(bilder = {}) {
       copyright: "Exempelhubben",
       ar: 2026,
       grupper: [
-        { rubrik: "Produkt", lankar: [{ href: "/funktioner", label: "Funktioner" }, { href: "/priser", label: "Priser" }, { href: "/live", label: "Live" }] },
+        { rubrik: "Produkt", lankar: [{ href: "/funktioner", label: "Funktioner" }, { href: "/live", label: "Live" }] },
         { rubrik: "Bolaget", lankar: [{ href: "/om-oss", label: "Om oss" }, { href: "/support", label: "Support" }, { href: "/integritet", label: "Integritet" }] },
       ],
     },
@@ -77,7 +77,8 @@ export function innehall(bilder = {}) {
       eyebrow: "Om oss",
       title: "Ett lugnare sätt att samla gruppen",
       ingress: "Vi bygger det vi själva saknade: ett ställe där planering och material hör ihop.",
-      avsnitt: { eyebrow: "Så funkar det", title: "En idé per block", ingress: "Varje avsnitt har en rubrik och ett stycke.", text: "Löpande text i läsbredd, aldrig längre än 65 tecken per rad." },
+      avsnitt: { eyebrow: "Så funkar det", title: "En idé per block", ingress: "Varje avsnitt har en rubrik och ett stycke.", text: "Löpande text i en kolumn som aldrig blir bredare än den kan läsas." },
+      avsnitt2: { eyebrow: "Ditt perspektiv", title: "Vem är du?", ingress: "Oavsett om du organiserar eller deltar.", text: "Du behöver inte anpassa dig, verktyget möter dig där du är." },
     },
   };
 }

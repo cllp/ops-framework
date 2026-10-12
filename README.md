@@ -2593,7 +2593,7 @@ i textstorlek" på Idag (0.31.1): ge alltid elementet en roll.
 
 ⛔ **Vikter (0.94.0, lifehub.app#165, CP 2026-10-10 beslut 3a):** tre vikter i vanlig yta, 400 (bröd, fält, listtext), 500 (emfas, `font-medium`, rollen `liten`) och 600 (alla rubrikroller). **700 finns bara på räknemärkets siffror** (`mikro`, `raknare`). Vikten är **rollens**: `text-rubrik font-semibold` är överflödigt och `font-bold` fälls överallt. CP: "väldigt stor text på många ställen och bold. Vi ska ha det nättare." Fältet är `text-brod` (16 px, iOS zoomar annars) och `md:pointer-fine:text-etikett` (14 px) från `md` med en exakt pekare (beslut 2a+c). Se `docs/typografi.md`.
 
-**Publika sidor (0.94.0)** har egna roller, `text-publik-rubrik`, `text-publik-avsnitt`, `text-publik-block`, `text-publik-ingress`, `text-publik-brod` och `text-publik-eyebrow`, och en egen rubrikfamilj, `font-display-publik` (serif). Se [Publika sidor](#publika-sidor-och-brand-0940).
+**Publika sidor (0.94.0)** har egna roller, `text-publik-rubrik`, `text-publik-sida`, `text-publik-block`, `text-publik-ingress`, `text-publik-brod` och `text-publik-eyebrow`, och en egen rubrikfamilj, `font-display-publik` (serif). Se [Publika sidor](#publika-sidor-och-brand-0940).
 
 Radhöjderna är `--leading-tight` (1,25) och `--leading-normal` (1,5). **`check-typografi`**
 fäller en literal storlek (`text-[13px]`), `font-size:`/`font-family:` i komponenter, `font-bold` och en vikt som rollen i samma klasssträng redan bär (0.94.0), och
@@ -2738,7 +2738,7 @@ CP 2026-10-12: "Kompositionen med loggan i mitten är inget snyggt. Kolla på se
 
 **Lagren.** Ramverkets egen CSS ligger i `theme`, `base`, `components`, `utilities` och `ops-ramverk`; instansens brandfil och egna CSS står olagrade och vinner därför alltid, utan `!important`. Före 0.94.0 låg mörkerblocken olagrade och slog en instans regel med lägre specificitet.
 
-**Publika roller:** `text-publik-rubrik` (2,25 / 3 / 3,5 rem, 500, radhöjd 1,05), `text-publik-avsnitt` (1,875 / 2,25 / 2,75 rem), `text-publik-block` (1,875 / 2,25 rem), `text-publik-ingress` (1,125 / 1,25 rem), `text-publik-brod` (1 / 1,125 rem, radhöjd 1,625) och `text-publik-eyebrow` (0,75 rem, 600, spärrad 0,24 em), i steg vid `sm` och `lg`, och läsbredden `max-w-las` (65ch). De bor i `typografi.publik` i profilen och genereras till `tokens.css`.
+**Publika roller:** `text-publik-rubrik` (2,25 / 3 / 3,5 rem, 500, radhöjd 1,05), `text-publik-sida` (2,25 / 3 rem, innehållssidans h1), `text-publik-block` (1,875 / 2,25 rem, blockets och avsnittets h2), `text-publik-ingress` (1,125 / 1,25 rem), `text-publik-brod` (1 / 1,125 rem, radhöjd 1,625) och `text-publik-eyebrow` (0,75 rem, 600, spärrad 0,24 em), i steg vid `sm` och `lg`, och läsbredden `max-w-las` (65ch). Luften mellan blocken ägs av ramverket: 96 px mellan två ljusa block och före uppmaningen, 0 mellan olika toner, 80 px (96 från `sm`) mellan en innehållssidas avsnitt. De bor i `typografi.publik` i profilen och genereras till `tokens.css`.
 
 ## Biblioteket (0.85.0, #192 skiva 1 till 4)
 

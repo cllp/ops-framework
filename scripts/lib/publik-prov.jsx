@@ -49,9 +49,11 @@ function Sida() {
       ) : (
         <>
           <OpsPublikHjalte eyebrow={i.kort.eyebrow} title={i.kort.title} ingress={i.kort.ingress} centrerad />
-          <OpsPublikAvsnitt eyebrow={i.kort.avsnitt.eyebrow} title={i.kort.avsnitt.title} ingress={i.kort.avsnitt.ingress}>
-            <OpsPublikText>{i.kort.avsnitt.text}</OpsPublikText>
-          </OpsPublikAvsnitt>
+          {[i.kort.avsnitt, i.kort.avsnitt2].filter(Boolean).map((a) => (
+            <OpsPublikAvsnitt key={a.title} eyebrow={a.eyebrow} title={a.title} ingress={a.ingress}>
+              {a.text ? <OpsPublikText>{a.text}</OpsPublikText> : null}
+            </OpsPublikAvsnitt>
+          ))}
         </>
       )}
     </OpsPublikSkal>

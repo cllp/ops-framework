@@ -105,7 +105,9 @@ Ramverket har ett helt skal för publika sidor, byggt efter SessionStudios landn
 | `OpsPublikBlock` | ett innehållsblock med en ton och en bild bredvid | `ton` (`ljus`, `accent`, `mork`), `title`, `eyebrow?`, `children`, `handling?`, `bild?`, `figur?`, `bildSida?` |
 | `OpsPublikUppmaning` | bandet i accentfärgen med rubrik, text och två knappar | `title`, `children?`, `primar`, `sekundar?` |
 | `OpsPublikFot` | sidfoten: tagline, målgrupp, länkgrupper, copyright | `tagline`, `malgrupp?`, `grupper?`, `copyright`, `navEtikett`, `ar?` |
-| `OpsPublikAvsnitt`, `OpsPublikText` | ett avsnitt med rubrik och löptext i läsbredd | se README |
+| `OpsPublikAvsnitt`, `OpsPublikText` | ett avsnitt på en innehållssida (behållare `max-w-[1080px]`) med rubrik och löptext | se README |
+
+⛔ **Rytmen mellan blocken ägs av ramverket.** SS startsida lägger 96 px före varje ljust block och före uppmaningen (`HomePage.jsx:31`, `:47`) men staplar tonade block kant mot kant (`FeaturesPage.jsx:31`). Ramverkets CSS (i `ops-ramverk`-lagret, syskonväljare på `data-ops-publik` och `data-ton`) ger därför 96 px mellan två block i samma ljusa ton, efter fotohjälten före ett ljust block och före uppmaningen, och 0 mellan olika toner. Innehållssidans avsnitt staplas med 80 px (96 från `sm`), som `HowItWorksPage`. Ingen prop, ingen instans-CSS; `check:brand` mäter avstånden.
 
 ⛔ **Toppraden är en rad på en plats.** Samma höjd (56 px), samma bredd (`max-w-7xl`) och samma sidomarginaler på varje publik sida, och loggans höjd kommer ur `--publik-logga-hojd` och inte ur sidan under. CP: "Loggan flyttar sig mellan sidor" och "Kompositionen med loggan i mitten är inget snyggt." `check:brand` mäter `getBoundingClientRect` på loggan på startsidan och en kort innehållssida, i 1280 och 390 px och efter scroll, och är röd när toppraden läggs i en smal centrerad kolumn.
 
@@ -145,13 +147,13 @@ Publika sidor är presentationssidor och inte appvyer. De har egna roller (`typo
 
 | Klass | Storlek (under `sm`, från `sm`, från `lg`) | Radhöjd | Vikt | Används till |
 |---|---|---|---|---|
-| `text-publik-rubrik` | 2,25 / 3 / 3,5 rem | 1,05 | 500 | hjälterubriken, sidans `<h1>` |
-| `text-publik-avsnitt` | 1,875 / 2,25 / 2,75 rem | 1,25 | 500 | avsnittsrubriken, `<h2>` |
-| `text-publik-block` | 1,875 / 2,25 rem | 1,25 | 500 | rubriken i ett innehållsblock (`OpsPublikBlock`, uppmaningen) |
+| `text-publik-rubrik` | 2,25 / 3 / 3,5 rem | 1,05 | 500 | fotohjältens rubrik, sidans `<h1>` |
+| `text-publik-sida` | 2,25 / 3 rem | 1,25 | 500 | innehållssidans rubrik, `<h1>` (SS `HowItWorksPage`) |
+| `text-publik-block` | 1,875 / 2,25 rem | 1,25 | 500 | rubriken i ett innehållsblock, ett avsnitt och uppmaningen, `<h2>` |
 | `text-publik-ingress` | 1,125 / 1,25 / 1,25 rem | 1,75 rem | 400 | ingressen under en rubrik |
 | `text-publik-brod` | 1 / 1,125 / 1,125 rem | 1,625 | 400 | löptext |
 | `text-publik-eyebrow` | 0,75 rem | 1 rem | 600 | överraden, spärrad 0,24 em, `uppercase text-accent` |
-| `max-w-las` | 65ch | | | läsbredden för ingress och löptext |
+| `max-w-las` | 65ch | | | läsbredden för texten i ett block. Ett avsnitt på en innehållssida är `max-w-3xl`, som SS `HowItWorksPage` |
 
 Rubrikerna skrivs `font-display-publik text-publik-rubrik`. En roll är **en** klass som växer vid brytpunkterna (`sm` 40 rem, `lg` 64 rem, som Tailwind), inte tre klasser som en komponent måste minnas att para ihop. Storlekarna bor på ett ställe, i profilen, och genereras till `tokens.css`.
 

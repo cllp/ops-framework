@@ -210,9 +210,9 @@
   --text-publik-rubrik--line-height: 1.05;
   --text-publik-rubrik--font-weight: 500;
 
-  --text-publik-avsnitt: 1.875rem;
-  --text-publik-avsnitt--line-height: var(--leading-tight);
-  --text-publik-avsnitt--font-weight: 500;
+  --text-publik-sida: 2.25rem;
+  --text-publik-sida--line-height: var(--leading-tight);
+  --text-publik-sida--font-weight: 500;
 
   --text-publik-block: 1.875rem;
   --text-publik-block--line-height: var(--leading-tight);
@@ -1813,6 +1813,40 @@
 }
 /* ── SLUT GENERERAT (@layer base) ── */
 
+/* ─── Rytmen mellan publika block (0.94.0, granskningen av PR 350) ─────────────────────────────────────────────────────
+ * ⛔ LUFTEN MELLAN BLOCKEN ÄGS AV RAMVERKET, INTE AV INSTANSEN OCH INTE AV EN PROP. SessionStudios startsida lägger `marginTop: 96px`
+ * före varje ljust block och före uppmaningen (`HomePage.jsx:31`, `:47`), medan `FeaturesPage.jsx:31` staplar tonade block med
+ * `space-y-0`: olika toner möts kant mot kant. Regeln är alltså: 96 px mellan två block i SAMMA ljusa ton, 96 px efter hjälten före
+ * ett ljust block och före uppmaningen, och 0 mellan olika toner. Innehållssidans avsnitt (`HowItWorksPage.jsx`) staplas med
+ * `space-y-20 sm:space-y-24` och `pb-20 sm:pb-24`: 80 px, 96 px från `sm`. Luften är bakgrundens (sidans ljusa band), eftersom
+ * den är en marginal. Syskonväljare på `data-ops-publik` och `data-ton`, i lagret så en instans olagrade regel vinner.
+ * Markörerna `RYTM` används av `check-brand --bevisa`, som tar bort regeln och kräver rött. */
+@layer ops-ramverk {
+  /* RYTM */
+  [data-ops-publik="block"][data-ton="ljus"] + [data-ops-publik="block"][data-ton="ljus"],
+  [data-ops-publik="hjalte"][data-med-bild] + [data-ops-publik="block"][data-ton="ljus"],
+  [data-ops-publik="block"][data-ton="ljus"] + [data-ops-publik="uppmaning"] {
+    margin-top: 6rem;
+  }
+  [data-ops-publik="avsnitt"] + [data-ops-publik="avsnitt"],
+  [data-ops-publik="avsnitt"] + [data-ops-publik="uppmaning"] {
+    margin-top: 5rem;
+  }
+  [data-ops-publik="avsnitt"]:last-child {
+    padding-bottom: 5rem;
+  }
+  @media (min-width: 40rem) {
+    [data-ops-publik="avsnitt"] + [data-ops-publik="avsnitt"],
+    [data-ops-publik="avsnitt"] + [data-ops-publik="uppmaning"] {
+      margin-top: 6rem;
+    }
+    [data-ops-publik="avsnitt"]:last-child {
+      padding-bottom: 6rem;
+    }
+  }
+  /* SLUT RYTM */
+}
+
 /* Toningen över bilder på publika sidor (0.94.0): SessionStudios `LandingHero` (mörk, uppifrån och ned) och
  * `LandingFeatureBlock` (en lätt toning underifrån per ton). Färgen är `--color-publik-toning`; alfa och stopp är SS egna. */
 @layer components {
@@ -1842,7 +1876,7 @@
   @media (min-width: 40rem) {
     :root {
       --text-publik-rubrik: 3rem;
-      --text-publik-avsnitt: 2.25rem;
+      --text-publik-sida: 3rem;
       --text-publik-block: 2.25rem;
       --text-publik-ingress: 1.25rem;
       --text-publik-brod: 1.125rem;
@@ -1851,7 +1885,6 @@
   @media (min-width: 64rem) {
     :root {
       --text-publik-rubrik: 3.5rem;
-      --text-publik-avsnitt: 2.75rem;
     }
   }
 }

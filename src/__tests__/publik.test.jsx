@@ -174,8 +174,9 @@ describe("PUBLIK_KLASS (rollerna)", () => {
   it("bär rollerna text-publik-* och rubrikfamiljen font-display-publik, aldrig en storlek", () => {
     expect(PUBLIK_KLASS.hjalte).toContain("font-display-publik");
     expect(PUBLIK_KLASS.hjalte).toContain("text-publik-rubrik");
-    expect(PUBLIK_KLASS.avsnitt).toContain("text-publik-avsnitt");
-    expect(PUBLIK_KLASS.ingress).toContain("max-w-las");
+    expect(PUBLIK_KLASS.avsnitt).toContain("text-publik-block");
+    expect(PUBLIK_KLASS.sida).toContain("text-publik-sida");
+    expect(PUBLIK_KLASS.ingress).toContain("text-publik-ingress");
     expect(PUBLIK_KLASS.brod).toContain("text-publik-brod");
     for (const k of Object.values(PUBLIK_KLASS)) expect(k).not.toMatch(/text-\[|font-bold|font-semibold/);
   });
