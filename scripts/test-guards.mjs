@@ -1812,6 +1812,17 @@ const gruppmapp = fs.mkdtempSync(path.join(rot, ".ops-vaktprov-"));
   kravGront("typografi vikt: en SÄNKNING under rollen (mikro 700 till 600) är tillåten", smutsig);
   provVikt("text-rubrik text-ink");
   kravGront("typografi vikt: en roll utan extra vikt är grön", smutsig);
+  // 0.94.1 (kalenderns veckodagar, 500 till 400 från 640 px): en roll med brytpunkt och annan vikt gör vikten till det som håller 500.
+  provVikt("text-liten font-medium sm:text-hjalp text-ink");
+  kravGront("typografi vikt: font-medium är inte dubbel när en responsiv roll (sm:text-hjalp, 400) gäller på samma element", smutsig);
+  provVikt("text-liten font-medium text-ink");
+  kravRott("typografi vikt: font-medium på text-liten utan responsiv roll är fortfarande dubbel", smutsig, "dubbel vikt");
+  provVikt("text-liten sm:font-medium text-ink");
+  kravGront("typografi vikt: en vikt bara på brytpunkt (sm:font-medium) är inte dubbel mot basrollen", smutsig);
+  provVikt("text-liten font-medium sm:text-publik-block text-ink");
+  kravRott("typografi vikt: lika med VARJE gällande roll är dubbel (text-liten och sm:text-publik-block är båda 500)", smutsig, "dubbel vikt");
+  provVikt("text-liten sm:text-rubrik sm:font-semibold text-ink");
+  kravRott("typografi vikt: en variantvikt lika med variantens roll är dubbel (sm:text-rubrik 600)", smutsig, "dubbel vikt");
   // Två element på samma rad skyller inte på varandra: strängen är enheten och inte raden.
   fs.writeFileSync(
     path.join(typmapp, "smutsig", "OpsProvstorlek.jsx"),
