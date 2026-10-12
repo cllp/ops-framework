@@ -65,7 +65,7 @@ const MODULFALT = ["id", "namn", "nav", "routes", "samlingar", "kallor", "skapar
  * ⛔ INGA PROPS. Komponenten får `{ handelse, grupp }` av ytan och inget annat, och ett fält som lät manifestet skicka egna värden
  * hade gjort tillägget till något ytan inte längre kan uttala sig om.
  */
-const TILLAGGSFALT = ["plats", "id", "etikett", "komponent", "spara"];
+const TILLAGGSFALT = ["plats", "id", "etikett", "komponent", "spara", "maxSekunder"];
 
 /**
  * Fälten modulens kort i hubben får bära (0.37.0, #184).
@@ -145,6 +145,7 @@ export const KALLTYPER = /** @type {const} */ (["handelser", "sok", "hjalp", "no
  * @property {{ sv: string, en: string }} etikett Det användaren ser: sektionens rubrik, åtgärdens namn. Båda språken krävs.
  * @property {unknown} [komponent] Komponenten ytan ritar med `{ handelse, grupp }`. Krävs på händelsens platser. Hör inte hemma på `inspelning.mal`.
  * @property {Function} [spara] Funktionen som tar emot ljudet på `inspelning.mal`: `({ blob, mimeType, sekunder, rapportera, grupp })`. Krävs där, och ingen annanstans.
+ * @property {number} [maxSekunder] (0.93.0) Längsta inspelningen målet tar emot, i sekunder, ett positivt heltal. Bara på `inspelning.mal`. Utelämnad gäller TALK:s tak (`MAX_SEKUNDER`, 120). Bibliotekets mål anger `IDE_MAX_SEKUNDER` (10 minuter).
  */
 
 /**
@@ -553,11 +554,22 @@ function byggTillagg(varde, var_) {
           `krävs och måste vara en funktion${typeof t.spara === "undefined" ? "" : `, inte ${typeof t.spara}`}. Den anropas med { blob, mimeType, sekunder, rapportera, grupp } när personen väljer målet.`,
         );
       }
-      ut.push(Object.freeze({ plats, id: tid, etikett, spara: t.spara }));
+      /*
+       * ⛔ TAKET ÄR MÅLETS, INTE RAMVERKETS (0.93.0). Skalet hårdkodar inte Biblioteket, så det kan inte veta att idéinspelningen får ta
+       * tio minuter. Målet säger det själv. Utelämnat fält = TALK:s eget tak, alltså samma beteende som före 0.93.0. Ett tal som inte är ett
+       * positivt heltal avvisas här, vid uppstart: `useTalk` kastar annars samma fel först när någon trycker på mikrofonen.
+       */
+      if (t.maxSekunder !== undefined && (!Number.isInteger(t.maxSekunder) || t.maxSekunder < 1)) {
+        throw var_(`tillagg[${i}].maxSekunder för "${tid}"`, `måste vara ett positivt heltal, antal sekunder, och inte ${JSON.stringify(t.maxSekunder)}. Ett tyst tak hade antingen klippt direkt eller spelat in utan slut.`);
+      }
+      ut.push(Object.freeze({ plats, id: tid, etikett, spara: t.spara, ...(t.maxSekunder !== undefined ? { maxSekunder: t.maxSekunder } : {}) }));
       return;
     }
     if (t.spara !== undefined) {
       throw var_(`tillagg[${i}].spara för "${tid}"`, "hör bara hemma på platsen inspelning.mal. En händelseplats ritar en komponent.");
+    }
+    if (t.maxSekunder !== undefined) {
+      throw var_(`tillagg[${i}].maxSekunder för "${tid}"`, "hör bara hemma på platsen inspelning.mal. Det är taket för en inspelning, och en händelseplats spelar inte in.");
     }
     if (t.komponent === undefined || t.komponent === null) {
       throw var_(`tillagg[${i}].komponent för "${tid}"`, "krävs. Ramverket äger platsen, modulen äger det som ritas i den, och ett tillägg utan komponent är en tom sektion.");

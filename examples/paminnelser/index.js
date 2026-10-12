@@ -225,12 +225,15 @@ export const paminnelser = defineModule({
     /*
      * ⛔ `inspelning.mal`: ett mål i den delade inspelaren. `spara` tar emot ljudet.
      * Etiketten är valet personen ser. Ramverket känner inte modulens namn.
+     * `maxSekunder` (0.93.0, valfritt) är längsta inspelningen målet tar emot. Utelämnat gäller TALK:s 120
+     * sekunder. En påminnelse är kort, så den här stannar på 60.
      */
     {
       plats: "inspelning.mal",
       id: "paminnelse",
       etikett: { sv: "Spara som påminnelse", en: "Save as a reminder" },
       spara: sparaPaminnelse,
+      maxSekunder: 60,
     },
   ],
 

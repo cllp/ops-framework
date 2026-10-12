@@ -100,10 +100,10 @@ import { OpsView } from "./OpsView.jsx";
  * @param {(post: import("../lib/bibliotek.js").Bibliotekspost & { id: string }) => void} props.onOppna
  * @param {() => void} props.onStang
  * @param {(typ: "anteckning" | "lank" | "fil") => void} props.onSkapa
- * @param {(inmatning: { id?: string, typ: string, rubrik: string, text?: string, url?: string }) => void} props.onSpara
+ * @param {(inmatning: { id?: string, typ: string, rubrik: string, text?: string, url?: string }) => void | boolean | Promise<void | boolean>} props.onSpara Kastar den eller avvisas löftet visas felet i formuläret och läget står kvar (0.93.0). `false` betyder att det inte gick.
  * @param {(id: string) => void | Promise<void>} [props.onRadera] Tar bort posten efter bekräftelse. Saknas den och någon bekräftar visas felet, posten rörs inte.
  * @param {(inmatning: { id?: string, rubrik: string, fil: File }) => void | Promise<void>} [props.onLaddaUpp] Sparar en fil. Saknas den och någon försöker visas felet, filen laddas inte upp.
- * @param {(inmatning: { id: string, durationMs?: number, peaks?: number[] }) => void | Promise<void>} [props.onFyllLjud] Skriver längd och våg på en post som saknar dem. Listan räknar dem i bakgrunden, utan att någon trycker på spela.
+ * @param {(inmatning: { id: string, durationMs?: number, peaks?: number[] }) => void | Promise<void>} [props.onFyllLjud] Skriver längd och våg på en post som saknar dem. Listan räknar dem i bakgrunden, utan att någon trycker på spela. (0.93.0) Anropas bara när `jag` får ändra posten (`farAndra`): reglerna nekar alla andra, och längden visas ändå.
  * @param {(post: { fil?: { sokvag?: string } }) => string} [props.filUrl] Appen ger adressen till en fil. Tom sträng visas som att adressen saknas. Synkron, och vinner när den är ifylld.
  * @param {(sokvag: string) => Promise<string>} [props.hamtaAdress] (0.88.2) Nedladdningsadressen för `fil.sokvag`, när `filUrl` är tom. Svaret cachas per sökväg, så listan och detaljen delar den. Medan den hämtas visas inte "Filen har ingen adress."
  * @param {unknown} [props.onSpelaIn] Borttagen (0.90.8). Skickas den kastas ett fel: listan hade en egen inspelare, och att tysta propen hade sett ut som att ljudet fortfarande sparades där.
@@ -144,6 +144,9 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
   const [byter, setByter] = useState(/** @type {null | (import("../lib/bibliotek.js").Bibliotekspost & { id: string })} */ (null));
   const [namnUtkast, setNamnUtkast] = useState("");
   const [namnFel, setNamnFel] = useState("");
+  const [namnBusy, setNamnBusy] = useState(false);
+  // Flaggan i en ref: två tryck i samma tick ser annars båda `namnBusy === false`.
+  const namnSparar = useRef(false);
   const [raderar, setRaderar] = useState(/** @type {string | null} */ (null));
   const [raderaFel, setRaderaFel] = useState("");
   const [delar, setDelar] = useState(/** @type {null | (import("../lib/bibliotek.js").Bibliotekspost & { id: string })} */ (null));
@@ -185,6 +188,11 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
     });
     const cb = onFyllRef.current;
     if (typeof cb !== "function") return;
+    // ⛔ BARA DEN SOM FÅR ÄNDRA POSTEN SKRIVER (0.93.0). Reglerna släpper bara författaren och en admin till en uppdatering.
+    // Varje annan medlem som lyssnade på ett ljud skickade en skrivning som nekades, i bakgrunden, för varje rad. Längden
+    // visas ändå ur `fylld` ovan: den är en visning, skrivningen är en hjälp till nästa lista.
+    const post = poster.find((p) => p.id === id) ?? (vald && vald.id === id ? vald : null);
+    if (!post || !farAndra(post, jag)) return;
     const nyckel = `${id}:${meta.durationMs || 0}:${meta.peaks ? meta.peaks.length : 0}`;
     if (sparatMeta.current.has(nyckel)) return;
     sparatMeta.current.add(nyckel);
@@ -276,7 +284,7 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
   }
 
   function sparaNamn() {
-    if (!byter) return;
+    if (!byter || namnSparar.current) return;
     const inmatning = byter.typ === "anteckning"
       ? { id: byter.id, typ: byter.typ, rubrik: namnUtkast, text: byter.text ?? "" }
       : byter.typ === "fil"
@@ -288,7 +296,35 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
       return;
     }
     setNamnFel("");
-    onSpara(inmatning);
+    // ⛔ Dialogen stängs först när sparandet gått igenom (0.93.0). Förut stängdes den direkt och ett avvisat löfte
+    // försvann: namnet såg ut att vara bytt och var det inte.
+    /** @param {unknown} e */
+    const visa = (e) => setNamnFel(e instanceof Error && e.message ? e.message : String(e));
+    let svar;
+    try {
+      svar = onSpara(inmatning);
+    } catch (e) {
+      visa(e);
+      return;
+    }
+    if (svar === false) return;
+    if (svar && typeof svar === "object" && typeof svar.then === "function") {
+      namnSparar.current = true;
+      setNamnBusy(true);
+      svar.then(
+        (/** @type {void | boolean} */ v) => {
+          namnSparar.current = false;
+          setNamnBusy(false);
+          if (v !== false) setByter(null);
+        },
+        (/** @type {unknown} */ e) => {
+          namnSparar.current = false;
+          setNamnBusy(false);
+          visa(e);
+        },
+      );
+      return;
+    }
     setByter(null);
   }
 
@@ -510,7 +546,7 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
         footer={(
           <>
             <OpsButton variant="secondary" onClick={() => setByter(null)}>Avbryt</OpsButton>
-            <OpsButton variant="primary" onClick={sparaNamn}>Spara</OpsButton>
+            <OpsButton variant="primary" onClick={sparaNamn} busy={namnBusy}>Spara</OpsButton>
           </>
         )}
       >
@@ -940,7 +976,7 @@ function Adress({ url }) {
  * @param {{ uid: string, roll: string, groupId?: string } | null} props.jag
  * @param {"las" | "redigera"} props.startLage
  * @param {() => void} props.onStang
- * @param {(inmatning: { id?: string, typ: string, rubrik: string, text?: string, url?: string, fil?: { sokvag: string, namn: string, mime: string, byte: number } }) => void} props.onSpara
+ * @param {(inmatning: { id?: string, typ: string, rubrik: string, text?: string, url?: string, fil?: { sokvag: string, namn: string, mime: string, byte: number } }) => void | boolean | Promise<void | boolean>} props.onSpara Kastar den eller avvisas löftet visas felet i formuläret och läget står kvar (0.93.0). `false` betyder att det inte gick.
  * @param {(inmatning: { id?: string, rubrik: string, fil: File }) => void | Promise<void>} [props.onLaddaUpp]
  * @param {(post: { fil?: { sokvag?: string } }) => string} [props.filUrl]
  * @param {(post: { typ?: string, fil?: { sokvag?: string, mime?: string } }) => Adresslage} [props.adressFor]
@@ -985,7 +1021,7 @@ function Detalj({ post, skapar, jag, startLage, onStang, onSpara, onLaddaUpp, fi
     setValdFil(null);
   }
 
-  /** @returns {false | void | Promise<void | false>} */
+  /** @returns {boolean | void | Promise<void | boolean>} */
   function forsokSpara() {
     if (typ === "fil" && (valdFil || skapar)) {
       if (!valdFil) {
@@ -1000,7 +1036,13 @@ function Detalj({ post, skapar, jag, startLage, onStang, onSpara, onLaddaUpp, fi
         setFormfel("Uppladdningen är inte kopplad. Filen är kvar på enheten.");
         return false;
       }
-      const svar = onLaddaUpp({ rubrik, fil: valdFil, ...(post && !skapar ? { id: post.id } : {}) });
+      let svar;
+      try {
+        svar = onLaddaUpp({ rubrik, fil: valdFil, ...(post && !skapar ? { id: post.id } : {}) });
+      } catch (e) {
+        setFormfel(e instanceof Error ? e.message : String(e));
+        return false;
+      }
       if (svar && typeof svar.then === "function") {
         return svar.catch((e) => {
           setFormfel(e instanceof Error ? e.message : String(e));
@@ -1020,7 +1062,27 @@ function Detalj({ post, skapar, jag, startLage, onStang, onSpara, onLaddaUpp, fi
       return false;
     }
     setFormfel("");
-    onSpara(inmatning);
+    // ⛔ LÖFTET LÄMNAS TILLBAKA (0.93.0), som filgrenen gör. `OpsDokument` stannar då i redigering tills sparandet gått igenom, och ett
+    // avvisat löfte blir ett fel i formuläret. Förut kastades svaret bort: formuläret gick till läsning och felet försvann.
+    /** @param {unknown} e */
+    const visa = (e) => setFormfel(e instanceof Error && e.message ? e.message : String(e));
+    let svar;
+    try {
+      svar = onSpara(inmatning);
+    } catch (e) {
+      visa(e);
+      return false;
+    }
+    if (svar && typeof svar === "object" && typeof svar.then === "function") {
+      return svar.then(
+        (/** @type {void | boolean} */ v) => v,
+        (/** @type {unknown} */ e) => {
+          visa(e);
+          return false;
+        },
+      );
+    }
+    return svar === false ? false : undefined;
   }
 
   const lasning = typ === "anteckning" ? (

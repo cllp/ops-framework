@@ -76,6 +76,21 @@ export function useTalk({ onTalk, onKlick, inspelare, maxSekunder = MAX_SEKUNDER
     if (tak.current) clearTimeout(tak.current);
     tak.current = null;
   };
+  /**
+   * ⛔ TAKET LÄSES UR EN REF OCH RÄKNAS FRÅN STARTEN (0.93.0). Förut sattes tiden en gång, med det `maxSekunder` som gällde i den
+   * `skicka` som råkade starta inspelningen. Väljer personen ett annat mål medan det spelar in, eller väljs målet i samma
+   * ögonblick som `direkt()` körs (Ny post, Röstinspelning), visade fältet 10:00 medan inspelningen klipptes vid 2:00.
+   * Därför läser både starten och ändringen av taket samma ref och samma starttid. Är taket redan passerat när det
+   * byts till ett kortare, avslutas inspelningen direkt: målet tar inte emot längre ljud än sitt tak.
+   */
+  const maxRef = useRef(maxSekunder);
+  maxRef.current = maxSekunder;
+  const skickaRef = useRef(/** @type {(h: import("../lib/talk.js").Talkhandelse) => void} */ (() => {}));
+  const planeraTak = () => {
+    if (tak.current) clearTimeout(tak.current);
+    const kvar = maxRef.current * 1000 - (Date.now() - startTid.current);
+    tak.current = setTimeout(() => skickaRef.current({ typ: "tak" }), Math.max(0, kvar));
+  };
 
   const skicka = useCallback(
     /** @param {import("../lib/talk.js").Talkhandelse} h */
@@ -112,7 +127,7 @@ export function useTalk({ onTalk, onKlick, inspelare, maxSekunder = MAX_SEKUNDER
           .starta()
           .then(() => {
             if (mitt === forsok.current && monterad.current) {
-              tak.current = setTimeout(() => skicka({ typ: "tak" }), maxSekunder * 1000);
+              planeraTak();
               return;
             }
             // ⛔ Ett avbrutet eller avmonterat försök vars mikrofon öppnades efteråt. Står ett nyare försök och spelar in rör vi
@@ -201,8 +216,13 @@ export function useTalk({ onTalk, onKlick, inspelare, maxSekunder = MAX_SEKUNDER
     return () => clearInterval(id);
   }, [spelarIn]);
 
-  const skickaRef = useRef(skicka);
   skickaRef.current = skicka;
+  // Ett nytt tak medan en inspelning har ett tak satt: räkna om från starten (se `planeraTak`).
+  useEffect(() => {
+    if (tak.current) planeraTak();
+    // `planeraTak` läser bara refar, så den behöver inte stå här. Ändringen av taket är det som ska köra den.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [maxSekunder]);
   useEffect(() => {
     if (tillstand.lage !== "sparat") return undefined;
     const id = setTimeout(() => skickaRef.current({ typ: "dolj" }), SPARAT_MS);

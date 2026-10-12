@@ -15,6 +15,12 @@
  * konstanten, och `sparaAgent` avvisar en okänd åtgärd. Vyn sparar
  * `{ id, leverantor }`. Bygget som ska läsa det är ett funktionspass, och det
  * måste deployas innan ett val ändrar vad agenten svarar med.
+ *
+ * ⛔ DÄRFÖR ÄR VALET AVSTÄNGT SOM FÖRVAL (0.93.0). Vyn sparade ett val som appen
+ * avvisade eller som inget läste, och skrev ändå "Sparat." Ett fält som inte
+ * sparades ska aldrig kvittera att det sparades. `OpsAgenter` ritar väljaren
+ * märkt "Kommer", utan Spara, tills appen skickar `modellvalAktivt`. Appen gör
+ * det först när funktionerna läser fältet.
  */
 
 /** @typedef {{ id: string, leverantor: string, nyckel: boolean, namn: { sv: string, en: string }, beskrivning: { sv: string, en: string } }} AgentModell */

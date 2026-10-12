@@ -3,7 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 import { OpsHjalpSida } from "../components/OpsHjalpSida.jsx";
 import { OpsModulSida } from "../components/OpsModulSida.jsx";
 import { OpsViewHeader } from "../components/OpsView.jsx";
-import { GRUND_ID } from "../hjalp/generell.js";
+import { GENERELL_OMRADEN, GRUND_ID } from "../hjalp/generell.js";
+import { ADMINGRUPPFALT, AGARGRUPPFALT } from "../lib/grupp.js";
 import { aktivHjalpSektion, hjalpSektioner, sokHjalp } from "../hjalp/sok.js";
 import { defineModule } from "../lib/modul.js";
 import { hjalpAdress, hjalpAnkare, lasHjalpAnkare } from "../lib/modilhjalp.js";
@@ -276,5 +277,17 @@ describe("frågetecknet i modulramen och vyn", () => {
     expect(lank.getAttribute("href")).toBe("/hjalp#hjalp/ekonomi");
     fireEvent.click(lank);
     expect(onNavigate).toHaveBeenCalledWith("/hjalp#hjalp/ekonomi", expect.anything());
+  });
+
+  it("⛔ rollerna i hjälpen säger det reglerna säger: ägaren installerar appar, admin gör det inte", () => {
+    // Sanningen är fältlistorna som reglerna byggs ur: `moduler` är ett ägarfält och inget adminfält.
+    expect(AGARGRUPPFALT).toContain("moduler");
+    expect(ADMINGRUPPFALT).not.toContain("moduler");
+    const roller = GENERELL_OMRADEN.flatMap((o) => o.avsnitt).find((v) => v.id === "roller");
+    expect(roller).toBeTruthy();
+    const svar = roller?.svar ?? "";
+    expect(svar).toMatch(/bara ägaren installerar och tar bort appar/);
+    expect(svar).toMatch(/Admin[^.]*men inte installerar appar/);
+    expect(svar).not.toMatch(/Admin[^.]*kan installera appar/);
   });
 });

@@ -1588,6 +1588,9 @@ function OpsAppShellRitad({
     },
     onKlick: () => (harFasta ? setSkapaBottenOppen(true) : primaryAction?.onClick()),
     inspelare: talk?.inspelare,
+    // ⛔ TAKET ÄR MÅLETS (0.93.0). Ett mål ur en modul kan bära `maxSekunder` (Bibliotekets idé: `IDE_MAX_SEKUNDER`, 10 minuter).
+    // Utan det, och för appens egna mål, gäller TALK:s 120 sekunder. Förut anropades kroken utan tak alls, så ingen modul kunde få mer.
+    maxSekunder: valtMal?.maxSekunder,
   });
   /**
    * Röstinspelning ur en moduls Ny-meny (0.90.8). Samma `useTalk` som plusset. Målet är modulens första

@@ -14,6 +14,15 @@ import { useOpsSprak } from "./OpsSprak.jsx";
  * `libraryDelayedAction.js` (`LIBRARY_UNDO_MS`), och först därefter anropas
  * `onValj`. En toast som enda kopia hade försvunnit om man tittade bort.
  *
+ * ⛔ AVMONTERAS RADEN UNDER ÅNGRA-FÖNSTRET GÅR RADERINGEN IGENOM (0.93.0). Förut
+ * släpptes den tyst: man tryckte Radera, gick tillbaka en vy, och posten fanns
+ * kvar fast Ångra aldrig tryckts. Ett tryck på Radera är ett beslut, och Ångra är
+ * det enda som tar tillbaka det. Att lämna vyn är inte Ångra.
+ *
+ * ⛔ ETT SVEP SOM BÖRJAR PÅ ETT REGLAGE ÄR INTE ETT SVEP. En ljudvåg är en
+ * `input[type=range]`: skrubbar man den åt vänster ska tiden flytta sig, inte
+ * raden dras upp och avslöja Radera.
+ *
  * Komponenten känner ingen post. Den får åtgärder och anropar dem.
  */
 
@@ -52,6 +61,8 @@ export function OpsSvepRad({ children, atgarder = [] }) {
   const oppnaRef = useRef(0);
   const svept = useRef(false);
   const timer = useRef(/** @type {ReturnType<typeof setTimeout> | null} */ (null));
+  // Åtgärden som väntar på att Ångra-fönstret ska löpa ut. Satt = ett beslut är fattat men inte utfört.
+  const vantande = useRef(/** @type {SvepAtgard | null} */ (null));
   const atgarderRef = useRef(atgarder);
   const atgardYta = useRef(/** @type {HTMLDivElement | null} */ (null));
   oppnaRef.current = oppna;
@@ -59,6 +70,17 @@ export function OpsSvepRad({ children, atgarder = [] }) {
 
   useEffect(() => () => {
     if (timer.current) clearTimeout(timer.current);
+    timer.current = null;
+    const a = vantande.current;
+    vantande.current = null;
+    if (!a || typeof a.onValj !== "function") return;
+    // Raden finns inte längre, så ett fel har ingen plats att visas på. Det får ändå inte försvinna.
+    try {
+      const svar = a.onValj();
+      if (svar && typeof svar.then === "function") svar.then(undefined, (e) => console.error("OpsSvepRad: åtgärden efter avmontering misslyckades.", e));
+    } catch (e) {
+      console.error("OpsSvepRad: åtgärden efter avmontering misslyckades.", e);
+    }
   }, []);
 
   useEffect(() => {
@@ -109,9 +131,11 @@ export function OpsSvepRad({ children, atgarder = [] }) {
       return;
     }
     if (timer.current) clearTimeout(timer.current);
+    vantande.current = a;
     setAngra({ meddelande: a.angraMeddelande });
     timer.current = setTimeout(() => {
       timer.current = null;
+      vantande.current = null;
       kor(a);
     }, ANGRA_MS);
   }
@@ -128,6 +152,8 @@ export function OpsSvepRad({ children, atgarder = [] }) {
       return;
     }
     if ((e.button ?? 0) !== 0 || atgarderRef.current.length === 0) return;
+    // Ett reglage (ljudvågen) äger sin egen horisontella gest.
+    if (e.target instanceof Element && e.target.closest('input[type="range"]')) return;
     const startX = e.clientX;
     const startY = e.clientY;
     const startOppna = oppnaRef.current;
@@ -211,6 +237,7 @@ export function OpsSvepRad({ children, atgarder = [] }) {
               onClick={() => {
                 if (timer.current) clearTimeout(timer.current);
                 timer.current = null;
+                vantande.current = null;
                 setAngra(null);
               }}
             >

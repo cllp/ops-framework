@@ -69,7 +69,7 @@ const ytaFor = (plats) => plats.split(".")[0];
  * @param {ReadonlyArray<import("./modul.js").Modul> | null | undefined} arg.moduler
  * @param {{ moduler?: ReadonlyArray<string> } | null | undefined} arg.grupp
  * @param {string} [arg.sprak]
- * @returns {Array<{ id: string, etikett: string, spara: ((inmatning: { blob: Blob, mimeType: string, sekunder: number, rapportera: (andel: number) => void, grupp: unknown }) => void | Promise<void>) | null }>}
+ * @returns {Array<{ id: string, etikett: string, spara: ((inmatning: { blob: Blob, mimeType: string, sekunder: number, rapportera: (andel: number) => void, grupp: unknown }) => void | Promise<void>) | null, maxSekunder?: number }>}
  */
 export function malForInspelning({ appMal, moduler, grupp, sprak = "sv" }) {
   if (appMal != null && !Array.isArray(appMal)) {
@@ -90,7 +90,9 @@ export function malForInspelning({ appMal, moduler, grupp, sprak = "sv" }) {
     for (const t of tillaggFor({ moduler, grupp, plats: "inspelning.mal" })) {
       const id = `${t.modulId}:${t.id}`;
       if (ut.some((x) => x.id === id)) throw new Error(`malForInspelning: id "${id}" finns redan bland appens mål. Modulens id stämplas som modulId:id, och appens mål får inte ta samma nyckel.`);
-      ut.push({ id, etikett: text(t.etikett, sprak), spara: /** @type {any} */ (t).spara });
+      // `maxSekunder` följer med bara när modulen angav ett (0.93.0). Utan det gäller TALK:s tak.
+      const max = /** @type {any} */ (t).maxSekunder;
+      ut.push({ id, etikett: text(t.etikett, sprak), spara: /** @type {any} */ (t).spara, ...(max !== undefined ? { maxSekunder: max } : {}) });
     }
   }
   return ut;

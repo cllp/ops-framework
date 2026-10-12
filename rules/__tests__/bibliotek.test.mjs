@@ -56,6 +56,17 @@ const anteckning = (extra = {}) => ({
   andrad: T0,
   ...extra,
 });
+/** Ett ljud som lades in för en timme sedan, utan längd och våg. */
+const EN_TIMME = 3_600_000;
+const gammaltLjud = (uid) => {
+  const { text: _text, ...utanText } = anteckning({ skapadAv: skapare(uid), skapad: T0 - EN_TIMME, andrad: T0 - EN_TIMME });
+  return {
+    ...utanText,
+    typ: "fil",
+    rubrik: "Idé",
+    fil: { sokvag: "grupper/cps-ab/bibliotek/p1/ide.webm", namn: "ide.webm", mime: "audio/webm", byte: 1200 },
+  };
+};
 /** En ny post, med serverns klocka nu. */
 const ny = (extra = {}) => {
   const nu = Date.now();
@@ -84,6 +95,8 @@ before(async () => {
     const db = ctx.firestore();
     for (const [vag, rad] of [
       medlemskap(MEDLEM, CPS, "medlem"),
+      // En grupp vars id är början på en annans ("cps" mot "cps-ab"): en prefixjämförelse hade blandat ihop dem.
+      medlemskap(MEDLEM, "cps", "medlem"),
       medlemskap(ANNAN, CPS, "medlem"),
       medlemskap(ADMIN, CPS, "admin"),
       medlemskap(AVSLUTAD, CPS, "medlem", "person", "avslutad"),
@@ -100,6 +113,11 @@ before(async () => {
     await setDoc(doc(db, "bibliotek/cps-annans"), anteckning({ skapadAv: skapare(ANNAN), rubrik: "Annans" }));
     await setDoc(doc(db, "bibliotek/cps-bada"), anteckning({ skapadAv: skapare(BADA), rubrik: "Bådas" }));
     await setDoc(doc(db, "bibliotek/cps-avslutad"), anteckning({ skapadAv: skapare(AVSLUTAD), rubrik: "Avslutads" }));
+    await setDoc(doc(db, "bibliotek/cps-fil"), gammaltLjud(MEDLEM));
+    // Två ljud utan längd och våg, för en timme sedan: klockan är ur fönstret, så ett oförändrat `andrad` går inte som "nu".
+    await setDoc(doc(db, "bibliotek/cps-ljud-eget"), gammaltLjud(MEDLEM));
+    await setDoc(doc(db, "bibliotek/cps-ljud-annans"), gammaltLjud(ANNAN));
+    await setDoc(doc(db, "bibliotek/cps-ljud-nekas"), gammaltLjud(MEDLEM));
   });
 });
 
@@ -169,6 +187,31 @@ describe("bibliotekets regler: skapa", () => {
     await assertFails(skapa(MEDLEM, { ...ljud, utskrift: "x".repeat(MAX_BIBLIOTEKUTSKRIFT + 1) }));
     await assertFails(skapa(MEDLEM, ny({ utskrift: "Hej" })));
     await assertFails(skapa(MEDLEM, { ...ljud, utskrift: 42 }));
+  });
+
+  it("⛔ filens sökväg måste ligga i postens egen grupp (0.93.0), segment för segment", async () => {
+    const { text: _t, ...utanText } = ny();
+    const fil = (sokvag, extra = {}) => ({
+      ...utanText,
+      typ: "fil",
+      rubrik: "Kvitto",
+      fil: { sokvag, namn: "kvitto.jpg", mime: "image/jpeg", byte: 1200 },
+      ...extra,
+    });
+    // Rätt sökväg i egen grupp, och i gruppen "cps" som är början på "cps-ab".
+    await assertSucceeds(skapa(MEDLEM, fil("grupper/cps-ab/bibliotek/p1/kvitto.jpg")));
+    await assertSucceeds(skapa(MEDLEM, fil("grupper/cps/bibliotek/p1/kvitto.jpg", { groupId: "cps" })));
+    // En annan grupps mapp.
+    await assertFails(skapa(MEDLEM, fil("grupper/miranda-ab/bibliotek/p1/kvitto.jpg")));
+    // Id-prefix åt båda håll: gruppen "cps" pekar på "cps-ab"s fil, och "cps-ab" pekar på "cps"s.
+    await assertFails(skapa(MEDLEM, fil("grupper/cps-ab/bibliotek/p1/kvitto.jpg", { groupId: "cps" })));
+    await assertFails(skapa(MEDLEM, fil("grupper/cps/bibliotek/p1/kvitto.jpg")));
+    // Fel mapp: en annan rot, en annan undermapp, en profilbild, för kort, och gruppen på fel plats.
+    await assertFails(skapa(MEDLEM, fil("profilbilder/uid-cps-medlem/kvitto.jpg")));
+    await assertFails(skapa(MEDLEM, fil("grupper/cps-ab/annat/p1/kvitto.jpg")));
+    await assertFails(skapa(MEDLEM, fil("andra/cps-ab/bibliotek/p1/kvitto.jpg")));
+    await assertFails(skapa(MEDLEM, fil("bibliotek/cps-ab/grupper/p1/kvitto.jpg")));
+    await assertFails(skapa(MEDLEM, fil("grupper/cps-ab/bibliotek/kvitto.jpg")));
   });
 
   it("inte i en annan grupp, och inte i någon annans namn", async () => {
@@ -327,6 +370,41 @@ describe("bibliotekets regler: ändra och radera", () => {
     await assertFails(updateDoc(doc(db(MEDLEM), "bibliotek/cps-protokoll"), { rubrik: "  ", andrad: Date.now() }));
     await assertFails(updateDoc(doc(db(MEDLEM), "bibliotek/cps-protokoll"), { text: "Framtid.", andrad: Date.now() + 9e12 }));
     await assertFails(updateDoc(doc(db(MEDLEM), "bibliotek/cps-protokoll"), { text: "Bakåt.", andrad: T0 - 1000 }));
+  });
+
+  it("⛔ en ändring får inte skriva om filens sökväg till en annan grupp (0.93.0)", async () => {
+    const nu = () => Date.now();
+    const bytFil = (sokvag) => ({ fil: { sokvag, namn: "ide.webm", mime: "audio/webm", byte: 1200 }, andrad: nu() });
+    await assertFails(updateDoc(doc(db(MEDLEM), "bibliotek/cps-fil"), bytFil("grupper/miranda-ab/bibliotek/p1/ide.webm")));
+    await assertFails(updateDoc(doc(db(MEDLEM), "bibliotek/cps-fil"), bytFil("grupper/cps/bibliotek/p1/ide.webm")));
+    await assertFails(updateDoc(doc(db(MEDLEM), "bibliotek/cps-fil"), bytFil("grupper/cps-ab/annat/p1/ide.webm")));
+    // Samma grupp, en annan fil, går.
+    await assertSucceeds(updateDoc(doc(db(MEDLEM), "bibliotek/cps-fil"), bytFil("grupper/cps-ab/bibliotek/p2/ide.webm")));
+  });
+
+  it("⛔ bara längd och våg får lämna andrad som den var (0.93.0), allt annat kräver serverns klocka", async () => {
+    const gammal = T0 - EN_TIMME;
+    // Författaren fyller i längden utan att röra klockan, och admin gör det på någon annans ljud.
+    //
+    // ⛔ VÅGEN (`peaks`) PROVAS INTE HÄR, MED FLIT. Mätt 2026-10-12 på main före den här ändringen: en skrivning med 48 toppar,
+    // både skapa och ändra, nekas av emulatorn med "maximum of 1000 expressions to evaluate has been reached". Det är
+    // en gräns som `opsBibliotekToppar` redan går över, oberoende av klockan, och ett prov som väntar sig ja där vore rött
+    // av fel skäl. Se PR-texten. Klockundantaget gäller även `peaks` i texten, men bevisas bara för `durationMs`.
+    await assertSucceeds(updateDoc(doc(db(MEDLEM), "bibliotek/cps-ljud-eget"), { durationMs: 4000, andrad: gammal }));
+    await assertSucceeds(updateDoc(doc(db(ADMIN), "bibliotek/cps-ljud-annans"), { durationMs: 4100, andrad: gammal }));
+    // En annan medlem får inte skriva, med eller utan klockan.
+    await assertFails(updateDoc(doc(db(ANNAN), "bibliotek/cps-ljud-nekas"), { durationMs: 4000, andrad: gammal }));
+    // Samma gamla klocka med något annat i samma skrivning är ett nej: rubrik, utskrift, och en annan gammal klocka.
+    await assertFails(updateDoc(doc(db(MEDLEM), "bibliotek/cps-ljud-nekas"), { durationMs: 4000, rubrik: "Ny rubrik", andrad: gammal }));
+    await assertFails(updateDoc(doc(db(MEDLEM), "bibliotek/cps-ljud-nekas"), { utskrift: "Hej", andrad: gammal }));
+    await assertFails(updateDoc(doc(db(MEDLEM), "bibliotek/cps-ljud-nekas"), { durationMs: 4000, andrad: gammal + 1 }));
+    // Giltigheten gäller som vanligt: en längd som inte är ett heltal, eller noll, avvisas.
+    await assertFails(updateDoc(doc(db(MEDLEM), "bibliotek/cps-ljud-nekas"), { durationMs: 0, andrad: gammal }));
+    await assertFails(updateDoc(doc(db(MEDLEM), "bibliotek/cps-ljud-nekas"), { durationMs: 4000.5, andrad: gammal }));
+    // En anteckning har ingen längd, med vilken klocka som helst.
+    await assertFails(updateDoc(doc(db(MEDLEM), "bibliotek/cps-protokoll"), { durationMs: 4000, andrad: T0 }));
+    // Med serverns klocka går en längd på ljudet som förut.
+    await assertSucceeds(updateDoc(doc(db(MEDLEM), "bibliotek/cps-ljud-nekas"), { durationMs: 4000, andrad: Date.now() }));
   });
 
   it("författaren, admin och ägare raderar, och ingen annan", async () => {

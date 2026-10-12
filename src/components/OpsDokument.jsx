@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Pencil } from "lucide-react";
 import { ordet } from "../lib/ord.js";
 import { OpsButton } from "./OpsButton.jsx";
@@ -20,6 +20,11 @@ import { useOpsSprak } from "./OpsSprak.jsx";
  * och ordet trängdes. Rubriken är nu ensam under verktygsraden (pennan och
  * `extra`), med `text-rubrik`. Bibliotekets detaljhuvud (Tillbaka, ikon, ⋯)
  * ritas utanför den här komponenten.
+ *
+ * ⛔ ETT SPARANDE SOM FALLER SYNS OCH STÅR KVAR I REDIGERING (0.93.0). Förut sväljdes både ett kast och ett avvisat löfte
+ * (`catch (e) { return; }` och `.catch(() => {})`): knappen gjorde ingenting, ingen text visades, och den som skrivit en
+ * anteckning trodde att den var sparad eller trodde att knappen var trasig. Nu visas felet, läget står kvar, och en
+ * `sparar`-flagga spärrar ett andra tryck medan det första pågår: två tryck på en långsam förbindelse skapade två poster.
  */
 
 export const ORD_OPSDOKUMENT = {
@@ -40,7 +45,7 @@ const RUBRIK_KLASS = "m-0 min-w-0 text-rubrik font-bold text-ink wrap-anywhere";
  * @param {string} props.rubrik Rubriken i läsläget, och sidans rubrik i redigering.
  * @param {import("react").ReactNode} props.lasning Renderad text. Inga fält.
  * @param {import("react").ReactNode} props.redigering Fälten.
- * @param {() => void | boolean | Promise<void | boolean>} [props.onSpara] `false` betyder att det inte gick, och läget står kvar.
+ * @param {() => void | boolean | Promise<void | boolean>} [props.onSpara] `false` betyder att det inte gick, och läget står kvar. Kastar den eller avvisas löftet visas felet och läget står kvar (0.93.0).
  * @param {() => void} [props.onAvbryt] På ett nytt dokument stänger anroparen. På ett befintligt återställer anroparen fälten.
  * @param {string} [props.fel]
  * @param {import("react").ReactNode} [props.extra] Till höger i verktygsraden, till exempel menyn. Inte på samma rad som rubriken.
@@ -52,6 +57,10 @@ export function OpsDokument({ ny = false, kanRedigera = false, lage, onLage, sta
   const styrd = lage === "las" || lage === "redigera";
   const [eget, setEget] = useState(ny || start === "redigera" ? "redigera" : "las");
   const nu = styrd ? lage : eget;
+  const [sparar, setSparar] = useState(false);
+  const [sparFel, setSparFel] = useState("");
+  // Flaggan i en ref: två tryck i samma tick ser annars båda `sparar === false`.
+  const pagar = useRef(false);
 
   if (start !== "las" && start !== "redigera") {
     throw new Error(`OpsDokument: start är "${start}". Giltiga: las, redigera.`);
@@ -76,18 +85,35 @@ export function OpsDokument({ ny = false, kanRedigera = false, lage, onLage, sta
     if (!ny) byt("las");
   }
 
+  /** @param {unknown} e */
+  const felText = (e) => (e instanceof Error && e.message ? e.message : String(e));
+
   function spara() {
+    if (pagar.current) return;
+    setSparFel("");
     let svar;
     try {
       svar = onSpara?.();
     } catch (e) {
+      setSparFel(felText(e));
       return;
     }
     if (svar === false) return;
     if (svar && typeof svar === "object" && typeof svar.then === "function") {
-      svar.then((/** @type {void | boolean} */ v) => {
-        if (v !== false && !ny) byt("las");
-      }).catch(() => {});
+      pagar.current = true;
+      setSparar(true);
+      svar.then(
+        (/** @type {void | boolean} */ v) => {
+          pagar.current = false;
+          setSparar(false);
+          if (v !== false && !ny) byt("las");
+        },
+        (/** @type {unknown} */ e) => {
+          pagar.current = false;
+          setSparar(false);
+          setSparFel(felText(e));
+        },
+      );
       return;
     }
     if (!ny) byt("las");
@@ -110,10 +136,10 @@ export function OpsDokument({ ny = false, kanRedigera = false, lage, onLage, sta
       <article data-ops-dokument="redigera" className="flex min-w-0 flex-col gap-4">
         {visaRubrik ? <h1 className={RUBRIK_KLASS}>{rubrik}</h1> : null}
         {redigering}
-        {fel ? <p role="alert" className="text-brod text-danger">{fel}</p> : null}
+        {fel || sparFel ? <p role="alert" className="text-brod text-danger">{fel || sparFel}</p> : null}
         <div className="flex flex-wrap gap-2">
           <OpsButton variant="secondary" onClick={avbryt}>{t("avbryt")}</OpsButton>
-          <OpsButton variant="primary" onClick={spara}>{t("spara")}</OpsButton>
+          <OpsButton variant="primary" onClick={spara} busy={sparar}>{t("spara")}</OpsButton>
         </div>
       </article>
     );

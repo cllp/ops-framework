@@ -146,6 +146,7 @@ describe("OpsAgenter", () => {
       installning,
       modell: { namn: "gemini-2.5-flash-lite", hint: "Appens modell." },
       kopplade: ["openai"],
+      modellvalAktivt: true,
       valvHref: "/konto/nycklar",
       byok: <p>Valvets nycklar</p>,
       verktyg,
@@ -344,6 +345,7 @@ describe("OpsAgenter", () => {
       installning: { namn: "Ops", roll: "Assistent", beskrivning: "Hjälper" },
       modell: { id: "gemini-2.5-flash-lite" },
       kopplade: ["openai", "anthropic", "google"],
+      modellvalAktivt: true,
       onSparaModell,
     });
     const av = screen.getByRole("radio", { name: /Grok/ });
@@ -360,6 +362,7 @@ describe("OpsAgenter", () => {
       installning: { namn: "Ops", roll: "Assistent", beskrivning: "Hjälper" },
       modell: { id: "gemini-2.5-flash-lite" },
       kopplade: ["xai"],
+      modellvalAktivt: true,
       onSparaModell,
     });
     const pa = screen.getByRole("radio", { name: /Grok/ });
@@ -368,6 +371,46 @@ describe("OpsAgenter", () => {
     fireEvent.click(pa);
     expect(onSparaModell).toHaveBeenCalledWith({ id: "grok-4.7", leverantor: "xai" });
     expect(document.body.textContent).not.toContain("grok-4.7");
+  });
+
+  it("⛔ modellvalet är avstängt och märkt Kommer som förval: inget sparas och inget kvitteras", () => {
+    const onSparaModell = vi.fn();
+    const falt = {
+      installning: { namn: "Ops", roll: "Assistent", beskrivning: "Hjälper" },
+      modell: { id: "gemini-2.5-flash-lite" },
+      kopplade: ["openai", "anthropic", "google", "xai"],
+      onSparaModell,
+    };
+    // Översikten: väljaren är markerad på den valda modellen men går inte att ändra.
+    const oversikt = rita({ activeHref: "/agenter?agent=ops&lage=installningar", ...falt });
+    expect(document.querySelector("[data-agent-modellval]")).toHaveAttribute("data-agent-modellval", "kommer");
+    expect(screen.getByText("Kommer")).toBeTruthy();
+    expect(screen.getByText(/Att välja modell kommer/)).toBeTruthy();
+    expect(screen.getByRole("radio", { name: /Gemini Flash Lite/ })).toBeChecked();
+    for (const radio of screen.getAllByRole("radio")) expect(radio).toBeDisabled();
+    fireEvent.click(screen.getByRole("radio", { name: /GPT-4.1 mini/ }));
+    expect(onSparaModell).not.toHaveBeenCalled();
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(screen.queryByText("Sparat.")).toBeNull();
+    oversikt.unmount();
+
+    // Avsnittet Modell: ingen Spara att trycka på, och nycklarna längre ned finns kvar.
+    rita({ activeHref: "/agenter?agent=ops&lage=installningar&avsnitt=modell", valvHref: "/konto/nycklar", ...falt });
+    expect(document.querySelector("[data-agent-modellval]")).toHaveAttribute("data-agent-modellval", "kommer");
+    expect(screen.queryByRole("button", { name: "Spara" })).toBeNull();
+    for (const radio of screen.getAllByRole("radio")) expect(radio).toBeDisabled();
+    expect(screen.getByRole("link", { name: "Hantera nycklar i Mitt konto" }).getAttribute("href")).toBe("/konto/nycklar");
+    expect(onSparaModell).not.toHaveBeenCalled();
+    expect(screen.queryByText("Sparat.")).toBeNull();
+  });
+
+  it("modellvalAktivt måste vara sant eller falskt", () => {
+    const tyst = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      expect(() => rita({ modellvalAktivt: "ja" })).toThrow(/modellvalAktivt/);
+    } finally {
+      tyst.mockRestore();
+    }
   });
 
   it("Appar ritar inte Agenter, också när gruppen fortfarande har id:t", () => {
