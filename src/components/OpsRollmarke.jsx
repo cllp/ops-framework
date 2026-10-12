@@ -27,7 +27,7 @@ import { cx } from "../lib/cx.js";
  * händelsernas text ska matcha inkorgen, där typpillret är `OpsPill size="liten"` (10/500, `px-1.5 py-0.5`). Märkena står bredvid
  * pillren i samma rad och ska ha samma storlek.
  */
-export const ROLLMARKE_MATT = "shrink-0 rounded-full px-1.5 py-0.5 text-liten font-medium";
+export const ROLLMARKE_MATT = "shrink-0 rounded-full px-1.5 py-0.5 text-liten";
 
 const KIND = {
   human: "bg-human-bg text-human",

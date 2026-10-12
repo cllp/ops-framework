@@ -153,7 +153,7 @@ export function ModulHjalpKnapp({ href, onNavigate, sprak }) {
         aria-hidden="true"
         className={cx(
           "inline-flex size-6 items-center justify-center rounded-full",
-          "border border-ink-secondary text-etikett font-bold text-ink-secondary",
+          "border border-ink-secondary text-etikett font-semibold text-ink-secondary",
         )}
       >
         ?
@@ -579,7 +579,7 @@ export function InstallningsInnehall({ modul, ram, sprak }) {
 
 /** @param {{ id: string, children: import("react").ReactNode }} props */
 function Avsnittsrubrik({ id, children }) {
-  return <h2 id={id} className="m-0 px-1 text-sektion font-semibold uppercase text-accent">{children}</h2>;
+  return <h2 id={id} className="m-0 px-1 text-sektion uppercase text-accent">{children}</h2>;
 }
 
 /** @param {{ children: import("react").ReactNode }} props */

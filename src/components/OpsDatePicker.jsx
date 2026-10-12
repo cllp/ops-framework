@@ -137,12 +137,12 @@ export function OpsDatePicker({ value, onChange, placeholder = "Välj datum", di
               // 44px träffyta på telefon (size-11), tätare på desktop (md:size-9).
               button_previous: "inline-flex size-11 md:size-9 items-center justify-center rounded-md text-ink-secondary hover:bg-accent-faint",
               button_next: "inline-flex size-11 md:size-9 items-center justify-center rounded-md text-ink-secondary hover:bg-accent-faint",
-              weekday: "text-liten font-medium text-ink-muted",
+              weekday: "text-liten text-ink-muted",
               day: "p-0",
               day_button:
                 "inline-flex size-11 md:size-9 items-center justify-center rounded-base text-meta text-ink hover:bg-raised focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
               selected: "[&_button]:bg-accent [&_button]:text-accent-contrast",
-              today: "[&_button]:font-bold [&_button]:text-accent",
+              today: "[&_button]:font-semibold [&_button]:text-accent",
               outside: "[&_button]:text-ink-muted",
               disabled: "[&_button]:opacity-40",
             }}

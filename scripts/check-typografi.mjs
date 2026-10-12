@@ -27,6 +27,20 @@
  * Kommentarer räknas bort (radnumren bevaras): ett filhuvud som citerar det
  * gamla värdet ska få göra det, det är hela poängen med att skriva vad som hände.
  *
+ * ══ ⛔ VIKTERNA (0.94.0, lifehub.app#165, CP 2026-10-10 beslut 3a) ═══════════
+ *
+ * CP: "väldigt stor text på många ställen och bold. Vi ska ha det nättare." Mätt före 0.94.0: 126 `font-semibold`,
+ * 106 `font-medium` och 32 `font-bold` i komponenterna, varav 21 ställen la en vikt ovanpå en roll som redan bar den.
+ * Beslutet är tre vikter i vanlig yta (400, 500, 600) och 700 bara på räknemärkets siffror, och vikten är ROLLENS:
+ *
+ *   - `font-bold`, `font-extrabold` och `font-black` fälls överallt. 700 kommer ur en roll (`mikro`, `raknare`), aldrig
+ *     ur en klass som skrivs vid sidan om.
+ *   - En vikt som rollen i SAMMA klasssträng redan bär fälls (`text-rubrik font-semibold`): den är överflödig, och den
+ *     som läser den tror att rollen saknar vikt. Rollernas vikter läses ur `tokens/tokens.css`, alltså ur samma
+ *     källa som rollerna själva, och inte ur en lista i vakten (en andra sanning som glider).
+ *   - En LÄGRE vikt än rollens fälls inte (`text-mikro font-semibold`): det är en avsiktlig sänkning, som SS gör på
+ *     N/N-räknaren. En HÖGRE vikt på en 400- eller 500-roll (`text-etikett font-medium`) är emfas och tillåten.
+ *
  * ══ ⛔ GOLV ═══════════════════════════════════════════════════════════════
  *
  * Utan argument läses ramverkets `src/components` och kräver minst 60 filer
@@ -88,7 +102,62 @@ const REGLER = [
 // och det som inte hade någon ärvde 16 px från body. Bara i ramverksläget: en app har egna skäl och egen vakt, och dess `text-sm`
 // fungerar fortfarande (storlekarna finns kvar i tokens för appar som ännu inte flyttat).
 if (ramverksRegler) {
-  REGLER.push({ namn: "Tailwind-storlek", re: /(?<![\w-])(?:[a-z0-9\[\]-]+:)*text-(?:xs|sm|base|md|lg|xl|2xl|3xl)(?![\w-])/g, skal: "Använd en roll: text-meta (12), text-etikett (14), text-brod (16), text-rubrik (16 fet), text-titel (18), text-sida (24), text-hjalp (11), text-liten (10), text-raknare (9), text-mikro (8). Skalan bor i tokens/sessionstudio-profil.json och ingen komponent har en egen." });
+  REGLER.push({ namn: "Tailwind-storlek", re: /(?<![\w-])(?:[a-z0-9\[\]-]+:)*text-(?:xs|sm|base|md|lg|xl|2xl|3xl)(?![\w-])/g, skal: "Använd en roll: text-meta (12), text-etikett (14), text-brod (16), text-rubrik (16/600), text-titel (18/600), text-sida (20/600), text-hjalp (11), text-liten (10), text-raknare (9), text-mikro (8). Skalan bor i tokens/sessionstudio-profil.json och ingen komponent har en egen." });
+}
+
+// ⛔ 0.94.0: 700 kommer ur en roll, aldrig ur en klass vid sidan om. Fångar också varianter (`md:font-bold`, `[&_button]:font-bold`).
+REGLER.push({
+  namn: "font-bold",
+  re: /(?<![\w-])(?:[^\s"'`]*:)?font-(?:bold|extrabold|black)(?![\w-])/g,
+  skal: "Vanlig yta har tre vikter: 400, 500 (font-medium) och 600 (font-semibold). 700 finns bara på räknemärkets siffror och kommer då ur rollen (text-mikro, text-raknare). (lifehub.app#165 beslut 3a)",
+});
+
+/**
+ * Rollernas egna vikter, ur tokenfilen: `--text-rubrik--font-weight: 600` blir `rubrik -> 600`. Samma källa som
+ * rollerna själva, så vakten inte får en andra lista att hålla i takt.
+ * @returns {Map<string, number>}
+ */
+function rollvikter() {
+  const tokenfil = path.join(rot, "tokens", "tokens.css");
+  if (!fs.existsSync(tokenfil)) {
+    console.error(`check-typografi: ${tokenfil} finns inte, så rollernas vikter kan inte läsas. Fel sökväg i vakten, inte ett godkänt utfall.`);
+    process.exit(1);
+  }
+  /** @type {Map<string, number>} */
+  const vikter = new Map();
+  for (const m of fs.readFileSync(tokenfil, "utf8").matchAll(/--text-([a-z-]+)--font-weight:\s*(\d+)\s*;/g)) vikter.set(m[1], Number(m[2]));
+  return vikter;
+}
+const ROLLVIKTER = rollvikter();
+// Golv: finns inga roller att jämföra mot är regeln tom, och en tom regel är grön av att inte mäta (arbetsreglernas punkt 4).
+const ROLLGOLV = 12;
+if (ROLLVIKTER.size < ROLLGOLV) {
+  console.error(`check-typografi: bara ${ROLLVIKTER.size} rollvikter lästes ur tokens/tokens.css, väntat minst ${ROLLGOLV}. Dubbel vikt kan inte prövas.`);
+  process.exit(1);
+}
+const UTILITYVIKT = /** @type {Record<string, number>} */ ({ "font-normal": 400, "font-medium": 500, "font-semibold": 600 });
+
+/**
+ * Dubbel vikt: en klasssträng (en strängliteral) som bär en roll och en vikt som rollen REDAN har. Strängen är enheten
+ * och inte raden, så två element på samma rad (`text-rubrik` här, `text-etikett font-semibold` där) inte skyller på varandra.
+ * @param {string} kalla @returns {{ rad: number, text: string, roll: string, vikt: string }[]}
+ */
+export function dubbelVikt(kalla) {
+  /** @type {{ rad: number, text: string, roll: string, vikt: string }[]} */
+  const ut = [];
+  for (const m of kalla.matchAll(/"([^"\n]*)"|'([^'\n]*)'|`([^`]*)`/g)) {
+    const strang = m[1] ?? m[2] ?? m[3] ?? "";
+    const klasser = strang.split(/\s+/).filter(Boolean);
+    const roller = klasser.map((k) => /^(?:[^:]+:)*text-([a-z-]+)$/.exec(k)?.[1]).filter((r) => r !== undefined && ROLLVIKTER.has(r));
+    if (roller.length === 0) continue;
+    for (const k of klasser) {
+      const v = UTILITYVIKT[k.replace(/^(?:[^:]+:)*/, "")];
+      if (v === undefined) continue;
+      const lika = roller.find((r) => ROLLVIKTER.get(/** @type {string} */ (r)) === v);
+      if (lika) ut.push({ rad: kalla.slice(0, m.index).split("\n").length, text: strang.trim(), roll: `text-${lika}`, vikt: k });
+    }
+  }
+  return ut;
 }
 
 /** @type {{ fil: string, rad: number, regel: string, skal: string, text: string }[]} */
@@ -102,7 +171,11 @@ for (const rotdir of rotter) {
   }
   for (const full of filer(rotdir)) {
     lasta += 1;
-    const rader = utanKommentarer(fs.readFileSync(full, "utf8")).split("\n");
+    const kalla = utanKommentarer(fs.readFileSync(full, "utf8"));
+    const rader = kalla.split("\n");
+    for (const d of dubbelVikt(kalla)) {
+      fynd.push({ fil: path.relative(process.cwd(), full), rad: d.rad, regel: "dubbel vikt", skal: `${d.roll} bär redan ${d.vikt}. Ta bort ${d.vikt}: vikten är rollens (tokens/sessionstudio-profil.json), och en vikt ovanpå den får den som läser att tro att rollen saknar en. Emfas på en 400-roll: font-medium.`, text: d.text });
+    }
     rader.forEach((rad, i) => {
       for (const r of REGLER) {
         r.re.lastIndex = 0;

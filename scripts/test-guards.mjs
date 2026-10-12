@@ -444,6 +444,47 @@ kravRott(
 
 kravRott("overrides golv: fel sökväg", [overridevakt, path.join(arbetsmapp, "finns-inte.css")], "hittar inte");
 
+// 0.94.0 (CP 2026-10-12): brandfilen och egen CSS. En stilrot som importerar `./brand.css` får sin brandfil kontrollerad
+// som variabelfil mot kontraktet; en annan relativ import är egen CSS, fri men räknad.
+{
+  const mapp = path.join(arbetsmapp, "brandapp");
+  fs.mkdirSync(mapp, { recursive: true });
+  const brandKalla = fs.readFileSync(path.join(rot, "examples", "brand", "brand.css"), "utf8");
+  const egenKalla = fs.readFileSync(path.join(rot, "examples", "brand", "egen.css"), "utf8");
+  const rotCss = `@import "tailwindcss";\n@import "ops-framework/tokens.css";\n@import "./brand.css";\n@import "./egen.css";\n@source "../node_modules/ops-framework/dist";\n`;
+  /** @param {string} brand @param {string} egen @param {string} [rotText] @returns {string} stilrotens sökväg */
+  const brandapp = (brand, egen, rotText = rotCss) => {
+    fs.writeFileSync(path.join(mapp, "brand.css"), brand);
+    fs.writeFileSync(path.join(mapp, "egen.css"), egen);
+    const fil = path.join(mapp, "index.css");
+    fs.writeFileSync(fil, rotText);
+    return fil;
+  };
+  kravGront("overrides brand: exempelfilerna (brand.css och egen.css) är gröna", [overridevakt, brandapp(brandKalla, egenKalla)]);
+  {
+    const k = spawnSync(process.execPath, [overridevakt, brandapp(brandKalla, egenKalla)], { cwd: rot, encoding: "utf8" });
+    const namn = "overrides brand: den fria egna CSS:en räknas och skrivs ut";
+    resultat.push(
+      /egen CSS: 2 regler i 1 fil/.test(k.stdout ?? "") && /brandfil: 1/.test(k.stdout ?? "")
+        ? { namn, vantat: "gront", utfall: "ok" }
+        : { namn, vantat: "gront", utfall: `utskriften saknar antalet: ${(k.stdout ?? "").trim().replace(/\n/g, " | ")}` },
+    );
+  }
+  kravRott("overrides brand: en variabel utanför kontraktet i brandfilen", [overridevakt, brandapp(`${brandKalla}\n:root { --color-canvas: #ffffff; }\n`, egenKalla)], "inte är en brandvariabel");
+  kravRott("overrides brand: en regel som stilar ett element i brandfilen", [overridevakt, brandapp(`${brandKalla}\nh1 { color: #000000; }\n`, egenKalla)], "stilar ett element");
+  kravRott("overrides brand: ett eget mörkerblock i brandfilen", [overridevakt, brandapp(`${brandKalla}\n@media (prefers-color-scheme: dark) { :root { --dark-accent: #ffffff; } }\n`, egenKalla)], "eget mörkerblock");
+  kravRott("overrides brand: en importerad fil som inte finns", [overridevakt, brandapp(brandKalla, egenKalla, rotCss.replace('@import "./egen.css";', '@import "./finns-inte.css";'))], "som inte finns");
+  {
+    const k = spawnSync(process.execPath, [overridevakt, brandapp(brandKalla, egenKalla, rotCss.replace('@import "./egen.css";\n', ""))], { cwd: rot, encoding: "utf8" });
+    const namn = "overrides brand: utan egen CSS står det att det är noll, inte ingenting";
+    resultat.push(
+      k.status === 0 && /egen CSS: ingen/.test(k.stdout ?? "")
+        ? { namn, vantat: "gront", utfall: "ok" }
+        : { namn, vantat: "gront", utfall: `väntade "egen CSS: ingen": ${(k.stdout ?? "").trim().replace(/\n/g, " | ")}` },
+    );
+  }
+}
+
 // ── Exportvakten ───────────────────────────────────────────────────────────
 //
 // ⛔ Den tysta ytadriften: ett namn döps om i en modul men inte i index.js, och
@@ -1748,6 +1789,35 @@ const gruppmapp = fs.mkdtempSync(path.join(rot, ".ops-vaktprov-"));
     'export function OpsProvstorlek() {\n  return <span className="text-etikett md:text-meta text-ink">x</span>;\n}\n',
   );
   kravGront("typografi: en roll är ingen Tailwind-storlek, också i ramverksläge", [typvakt, path.join(typmapp, "smutsig"), "--golv=60", "--ramverksregler"]);
+
+  // 0.94.0 (lifehub.app#165 beslut 3a): vikterna. Rollens vikt är sanningen, 700 kommer bara ur en roll.
+  const provVikt = (/** @type {string} */ klass) =>
+    fs.writeFileSync(path.join(typmapp, "smutsig", "OpsProvstorlek.jsx"), `export function OpsProvstorlek() {\n  return <span className="${klass}">x</span>;\n}\n`);
+  const smutsig = [typvakt, path.join(typmapp, "smutsig"), "--golv=60"];
+  provVikt("text-rubrik font-bold text-ink");
+  kravRott("typografi vikt: font-bold ovanpå en roll", smutsig, "font-bold");
+  provVikt("text-etikett font-bold text-ink");
+  kravRott("typografi vikt: font-bold på en 400-roll (700 är bara räknemärkets)", smutsig, "font-bold");
+  provVikt("text-ink md:font-bold");
+  kravRott("typografi vikt: font-bold som variant utan roll i strängen", smutsig, "font-bold");
+  provVikt("text-rubrik font-semibold text-ink");
+  kravRott("typografi vikt: dubbel vikt, font-semibold på en 600-roll", smutsig, "dubbel vikt");
+  provVikt("text-liten font-medium text-ink");
+  kravRott("typografi vikt: dubbel vikt, font-medium på en 500-roll", smutsig, "dubbel vikt");
+  provVikt("text-publik-eyebrow font-semibold uppercase");
+  kravRott("typografi vikt: dubbel vikt också på en publik roll", smutsig, "dubbel vikt");
+  provVikt("text-etikett font-medium text-ink");
+  kravGront("typografi vikt: emfas, font-medium på en 400-roll, är tillåten", smutsig);
+  provVikt("text-mikro font-semibold uppercase text-ink");
+  kravGront("typografi vikt: en SÄNKNING under rollen (mikro 700 till 600) är tillåten", smutsig);
+  provVikt("text-rubrik text-ink");
+  kravGront("typografi vikt: en roll utan extra vikt är grön", smutsig);
+  // Två element på samma rad skyller inte på varandra: strängen är enheten och inte raden.
+  fs.writeFileSync(
+    path.join(typmapp, "smutsig", "OpsProvstorlek.jsx"),
+    'export function OpsProvstorlek() {\n  return <p><b className="text-rubrik">a</b><i className="text-etikett font-semibold">b</i></p>;\n}\n',
+  );
+  kravGront("typografi vikt: två element på en rad (rubrik och etikett+semibold) är inget brott", smutsig);
 
   const tunn = path.join(typmapp, "tunn");
   fs.mkdirSync(tunn, { recursive: true });

@@ -33,7 +33,7 @@ export const ORD_OPSDOKUMENT = {
   avbryt: { sv: "Avbryt", en: "Cancel" },
 };
 
-const RUBRIK_KLASS = "m-0 min-w-0 text-rubrik font-bold text-ink wrap-anywhere";
+const RUBRIK_KLASS = "m-0 min-w-0 text-rubrik text-ink wrap-anywhere";
 
 /**
  * @param {object} props

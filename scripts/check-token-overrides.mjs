@@ -21,6 +21,9 @@
  *   4. Inga färgord i namn, ingen fallback i `var()`.
  *   5. Appen har inget eget mörkerblock. Mörka värden sätts som `--dark-*`.
  *   6. (0.31.2) Appens stilrot innehåller INGEN regel som stilar element eller ramverkets klasser.
+ *   7. (0.94.0) En BRANDFIL (`@import "./brand.css"`) följer regel 3 till 6 och sätter dessutom bara kontraktets
+ *      variabler (`tokens/brand-kontrakt.json`). Övriga relativa importer är EGEN CSS: de är fria, men reglerna
+ *      räknas och antalet skrivs ut i varje körning, även när det är noll.
  *
  * ══ ⛔ REGEL 6: STRUKTUR ÄR RAMVERKETS (0.31.2, bolag-ops #240) ═════════════
  *
@@ -34,6 +37,14 @@
  * `:root`, `.dark` och `[data-theme...]` med bara `--*`-rader. ALLT som stilar ett element eller en klass (`header`,
  * `.max-w-7xl`, `body`, `@media`, `@layer`, `@utility`) är rött, med väljaren i meddelandet. Behövs en annan layout:
  * be ramverket om den (ärende i cllp/ops-framework). Att lägga den i appen är att ha två original av samma struktur.
+ *
+ * ══ ⛔ REGEL 7: BRANDFILEN OCH EGEN CSS (0.94.0, CP 2026-10-12) ═════════════
+ *
+ * "Det ska vara enkelt att branda en instans och overrida om man så vill med egen css." Regel 6 ovan stänger ute all
+ * struktur i stilroten, och det ska den fortsätta göra. Men en instans behöver en plats där den får skriva en regel,
+ * och utan en uttalad sådan skriver den den i stilroten och vakten stängs av. Platsen är en SEPARAT fil som stilroten
+ * importerar: `brand.css` är variabler (kontraktet i `tokens/brand-kontrakt.json`, kontrollerad här), och varje annan
+ * relativ import är egen CSS, fri men räknad. Se `docs/brand.md`.
  *
  * Kör:  node .../check-token-overrides.mjs <appens index.css> [kontrakt]
  * Exit: 0 grönt, 1 brott med skäl.
@@ -86,32 +97,6 @@ if (iTokens === -1) {
   brott.push(`${appfil} importerar tokens FÖRE tailwindcss. Då skriver Tailwinds standardtema över kontraktet, och nollningen av paletten slutar gälla.`);
 }
 
-// ── Regel 5: appen äger inte mörkerlägets mekanik ───────────────────────────
-if (/prefers-color-scheme/.test(app) || /\[data-theme\s*=\s*["']dark["']\]/.test(app)) {
-  brott.push(
-    `${appfil} har ett eget mörkerblock. Ramverkets block pekar redan på --dark-*, så ett eget block blir det andra originalet som glider isär. Sätt mörka värden som --dark-accent och så vidare.`,
-  );
-}
-
-// ── Regel 3 + 4: bara kända namn, inga färgord, ingen fallback ─────────────
-const kandaNamn = new Set([...kontrakt.matchAll(/(--[a-z0-9-]+)\s*:/g)].map((m) => m[1]));
-const FARGORD = ["gold", "guld", "silver", "red", "green", "blue", "yellow", "orange", "purple", "pink", "brown", "grey", "gray", "teal", "cyan", "magenta", "beige", "rod", "gron", "bla", "gul"];
-
-for (const m of app.matchAll(/(--[a-z0-9-]+)\s*:\s*([^;]+);/g)) {
-  const [, namn] = m;
-  if (!kandaNamn.has(namn)) {
-    brott.push(
-      `${appfil} deklarerar ${namn}, som inte finns i tokenkontraktet. Appen får skriva om värden, inte hitta på struktur. Behövs tokenet ska det läggas till i ramverket, annars börjar plattformarna se olika ut i tysthet.`,
-    );
-  }
-  const traff = namn.split("-").filter(Boolean).find((o) => FARGORD.includes(o));
-  if (traff) brott.push(`${appfil} ${namn} bär färgordet "${traff}". Namnge efter roll, inte efter utseende.`);
-}
-
-for (const m of app.matchAll(/var\(\s*(--[a-z0-9-]+)\s*,/g)) {
-  brott.push(`${appfil} var(${m[1]}, ...) har en fallback. Saknas ett token ska det synas, inte täckas över.`);
-}
-
 // ── Regel 6: appen omformar inte ramverkets struktur (0.31.2) ───────────────
 /**
  * Delar en stilrot i toppnivåsatser utan beroenden (ingen postcss: den här filen körs i appens grind).
@@ -162,6 +147,41 @@ function toppnivaSatser(css) {
 const TEMAVALJARE = /^(?:html|:root|\.dark|\[data-theme(?:[~|^$*]?=(?:"[^"]*"|'[^']*'|[\w-]+))?\])(?::not\(\s*(?:\.dark|\[data-theme[^\]]*\])\s*\))*(?:\s*(?:\.dark|\[data-theme[^\]]*\]))?$/;
 const TILLATNA_ATREGLER = new Set(["import", "source", "font-face", "theme"]);
 
+/**
+ * Regel 3 till 6 på EN fil. Appens stilrot och en brandfil följer samma regler; en brandfil dessutom regel 7.
+ * @param {string} appfil @param {string} app Filens text, utan kommentarer. @param {Set<string> | null} kontraktNamn Brandkontraktet, eller null för stilroten.
+ */
+function kontrolleraVarden(appfil, app, kontraktNamn) {
+// ── Regel 5: appen äger inte mörkerlägets mekanik ───────────────────────────
+if (/prefers-color-scheme/.test(app) || /\[data-theme\s*=\s*["']dark["']\]/.test(app)) {
+  brott.push(
+    `${appfil} har ett eget mörkerblock. Ramverkets block pekar redan på --dark-*, så ett eget block blir det andra originalet som glider isär. Sätt mörka värden som --dark-accent och så vidare.`,
+  );
+}
+
+// ── Regel 3 + 4: bara kända namn, inga färgord, ingen fallback ─────────────
+const kandaNamn = new Set([...kontrakt.matchAll(/(--[a-z0-9-]+)\s*:/g)].map((m) => m[1]));
+const FARGORD = ["gold", "guld", "silver", "red", "green", "blue", "yellow", "orange", "purple", "pink", "brown", "grey", "gray", "teal", "cyan", "magenta", "beige", "rod", "gron", "bla", "gul"];
+
+for (const m of app.matchAll(/(--[a-z0-9-]+)\s*:\s*([^;]+);/g)) {
+  const [, namn] = m;
+  if (kontraktNamn && !kontraktNamn.has(namn)) {
+    brott.push(`${appfil} sätter ${namn}, som inte är en brandvariabel (tokens/brand-kontrakt.json). En brandfil är det stabila gränssnittet; allt annat i tokenfilen är ramverkets och kan byta namn i en minor-version.`);
+  }
+  if (!kandaNamn.has(namn)) {
+    brott.push(
+      `${appfil} deklarerar ${namn}, som inte finns i tokenkontraktet. Appen får skriva om värden, inte hitta på struktur. Behövs tokenet ska det läggas till i ramverket, annars börjar plattformarna se olika ut i tysthet.`,
+    );
+  }
+  const traff = namn.split("-").filter(Boolean).find((o) => FARGORD.includes(o));
+  if (traff) brott.push(`${appfil} ${namn} bär färgordet "${traff}". Namnge efter roll, inte efter utseende.`);
+}
+
+for (const m of app.matchAll(/var\(\s*(--[a-z0-9-]+)\s*,/g)) {
+  brott.push(`${appfil} var(${m[1]}, ...) har en fallback. Saknas ett token ska det synas, inte täckas över.`);
+}
+
+
 for (const { prelude, body, rad } of toppnivaSatser(app)) {
   const plats = `${appfil}:${rad}`;
   const svar = "Appen får skriva om VÄRDEN (@theme och :root med --*-rader), inte omforma ramverkets struktur. Behövs en annan layout eller ett annat mått: fråga ramverket (ärende i cllp/ops-framework) i stället för att skriva regeln i appen.";
@@ -193,8 +213,41 @@ for (const { prelude, body, rad } of toppnivaSatser(app)) {
   }
 }
 
+}
+
+kontrolleraVarden(appfil, app, null);
+
+// ── Regel 7: brandfilen och egen CSS (0.94.0) ───────────────────────────────
+const brandKontraktFil = path.join(harRot, "tokens", "brand-kontrakt.json");
+/** @type {Set<string>} */
+let brandNamn = new Set();
+if (fs.existsSync(brandKontraktFil)) {
+  brandNamn = new Set(JSON.parse(fs.readFileSync(brandKontraktFil, "utf8")).variabler.map((/** @type {{ namn: string }} */ v) => v.namn));
+}
+let egnaFiler = 0;
+let egnaRegler = 0;
+let brandfiler = 0;
+for (const m of app.matchAll(/@import\s+(?:url\(\s*)?["'](\.{1,2}\/[^"']+\.css)["']/g)) {
+  const fil = path.resolve(path.dirname(appfil), m[1]);
+  if (!fs.existsSync(fil)) {
+    brott.push(`${appfil} importerar ${m[1]}, som inte finns. Fel sökväg, inte ett godkänt utfall.`);
+    continue;
+  }
+  const text = utanKommentarer(fs.readFileSync(fil, "utf8"));
+  if (/^brand([.-].*)?\.css$/.test(path.basename(fil))) {
+    brandfiler += 1;
+    if (brandNamn.size === 0) brott.push(`${fil}: brandkontraktet ${brandKontraktFil} saknas eller är tomt, så brandfilen kan inte kontrolleras.`);
+    kontrolleraVarden(fil, text, brandNamn);
+  } else {
+    egnaFiler += 1;
+    egnaRegler += toppnivaSatser(text).filter((x) => x.body !== null && !x.prelude.startsWith("@font-face")).length;
+  }
+}
+const egenRad = egnaFiler === 0 ? "egen CSS: ingen (inga relativa importer utöver brandfilen)" : `egen CSS: ${egnaRegler} regler i ${egnaFiler} fil(er), fri men räknad (docs/brand.md)`;
+const brandRad = brandfiler === 0 ? "brandfil: ingen (variablerna står i stilroten)" : `brandfil: ${brandfiler}, bara kontraktets variabler`;
+
 if (brott.length === 0) {
-  console.log(`check-token-overrides: ${appfil} följer tokenkontraktet`);
+  console.log(`check-token-overrides: ${appfil} följer tokenkontraktet\n  ${brandRad}\n  ${egenRad}`);
   process.exit(0);
 }
 

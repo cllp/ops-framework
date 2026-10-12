@@ -799,7 +799,7 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
                 aria-pressed={filter === f}
                 onClick={() => setFilter(f)}
                 className={cx(
-                  "relative min-h-8 cursor-pointer rounded-sm px-2.5 text-liten font-medium transition-colors duration-(--duration-fast) ease-standard focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
+                  "relative min-h-8 cursor-pointer rounded-sm px-2.5 text-liten transition-colors duration-(--duration-fast) ease-standard focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
                   filter === f ? "bg-surface text-ink shadow-sm" : "text-ink-muted hover:text-ink",
                 )}
               >
@@ -872,7 +872,7 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
                           {s ? <span data-tid="" className="shrink-0 text-liten tabular-nums text-ink-muted">{radtid(s.tid, nu, locale)}</span> : null}
                         </span>
                         <span className="mt-0.5 flex items-center gap-1">
-                          <span data-slag="" className={cx("inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-liten font-medium", r.samtal.slag === "grupp" ? "bg-hover text-ink-secondary" : "bg-accent-faint text-accent")}>
+                          <span data-slag="" className={cx("inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-liten", r.samtal.slag === "grupp" ? "bg-hover text-ink-secondary" : "bg-accent-faint text-accent")}>
                             {r.samtal.slag !== "grupp" ? <LasIkon size={10} /> : null}
                             {slagetFor(r)}
                           </span>
@@ -1992,7 +1992,7 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
                              mellan meddelandena. KAN 9: på dator syns "Svara i tråd" först när pekaren eller fokus är på
                              meddelandet, så att en lång chatt inte blir en rad knappar. På telefon finns ingen hover, och en
                              meny vore ett steg till för det vanligaste: där står den kvar. Märket syns alltid, det är innehåll. */
-                          "-my-2 inline-flex min-h-11 max-w-full cursor-pointer items-center gap-1 rounded-full px-2 text-liten font-medium transition-[color,background-color,opacity] duration-(--duration-fast) ease-standard focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
+                          "-my-2 inline-flex min-h-11 max-w-full cursor-pointer items-center gap-1 rounded-full px-2 text-liten transition-[color,background-color,opacity] duration-(--duration-fast) ease-standard focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
                           finns
                             ? "text-accent hover:bg-accent-faint"
                             : "text-ink-muted hover:bg-hover hover:text-ink md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 md:focus-visible:opacity-100",
@@ -2201,7 +2201,7 @@ function Meddelanderader({ meddelanden, uid, namnFor, medlemmar, locale, visaNam
           <div key={m.id}>
             {nyDag ? (
               <div className="flex justify-center py-3">
-                <span className="rounded-full bg-canvas px-3 py-1 text-liten font-medium text-ink-muted">{forstaVersal(formatRelativeDate(m.tid, { locale }))}</span>
+                <span className="rounded-full bg-canvas px-3 py-1 text-liten text-ink-muted">{forstaVersal(formatRelativeDate(m.tid, { locale }))}</span>
               </div>
             ) : null}
             <div data-meddelande={egen ? "eget" : "annans"} className={cx("group flex gap-2", fortsattning ? "mt-px" : "mt-2", egen ? "flex-row-reverse" : "")}>
@@ -2435,7 +2435,7 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
             type="button"
             data-lyft-minne={m.id}
             onClick={() => lyft(m)}
-            className="-my-2 inline-flex min-h-11 max-w-full cursor-pointer items-center rounded-full px-2 text-liten font-medium text-accent transition-colors duration-(--duration-fast) ease-standard hover:bg-accent-faint focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
+            className="-my-2 inline-flex min-h-11 max-w-full cursor-pointer items-center rounded-full px-2 text-liten text-accent transition-colors duration-(--duration-fast) ease-standard hover:bg-accent-faint focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
           >
             {t.lyftTillMinnet}
           </button>
@@ -2560,7 +2560,7 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
                 <a
                   href={minneHref}
                   data-minne-lank=""
-                  className="inline-flex min-h-11 items-center rounded-full px-2 text-liten font-medium text-accent hover:bg-accent-faint focus-visible:outline-2 focus-visible:outline-accent"
+                  className="inline-flex min-h-11 items-center rounded-full px-2 text-liten text-accent hover:bg-accent-faint focus-visible:outline-2 focus-visible:outline-accent"
                 >
                   {t.minnet}
                 </a>
@@ -2605,7 +2605,7 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
             <p className="m-0 py-3 text-meta text-ink-muted">{t.rotSaknas}</p>
           ) : null}
         </div>
-        <p data-antal-svar="" className="m-0 py-2 text-liten font-medium text-ink-muted">
+        <p data-antal-svar="" className="m-0 py-2 text-liten text-ink-muted">
           {historik.alla.length > 0 ? `${historik.alla.length}${historik.kanFinnasAldre ? "+" : ""} ${t.svar}` : t.ingaSvar}
         </p>
         <VisaAldre historik={historik} texter={t} />

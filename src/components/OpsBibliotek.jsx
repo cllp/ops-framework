@@ -1211,7 +1211,7 @@ function BibliotekDetaljHuvud({ onTillbaka, ikon, rubrik, meta = "", meny = null
         <span className="min-w-0 flex-1" aria-hidden="true" />
         {meny}
       </div>
-      <h1 className="m-0 min-w-0 text-rubrik font-bold text-ink wrap-anywhere">{rubrik}</h1>
+      <h1 className="m-0 min-w-0 text-rubrik text-ink wrap-anywhere">{rubrik}</h1>
       {meta ? <p data-bibliotek-meta="" className="m-0 text-meta text-ink-muted">{meta}</p> : null}
     </header>
   );

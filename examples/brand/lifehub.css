@@ -1,0 +1,51 @@
+/**
+ * Life Hub som instans (0.94.0, CP 2026-10-12): mörkt, guldaccent och en taupe ur loggan. Samma publika skal som
+ * `sessionstudio.css`, andra värden.
+ *
+ * Färgerna är mätta, inte valda på känsla:
+ *   - mörkt `#202420` är loggans egen bakgrund (lifehub.identity `web/public/brand/lifehub-logo-dark.png`).
+ *   - taupe `#7d6b5d` är rutan i loggan (modalfärgen i bilden, pixelvärde 125,107,93).
+ *   - guld `#c99a3e` är accenten.
+ *
+ * Accentbandet är taupe och inte guld, med vit text: 5,1:1 (guld med mörk text hade gett 6,1:1, men bandet hade då haft
+ * samma färg som knapparna och blocken hade inte varierat). Brödtexten på bandet är solid vit och inte en genomskinlig
+ * blandning, eftersom 78 % vit på taupe bara ger 3,8:1. Överraden är mörk text på ljust (guld på kräm är 2,3:1) och guld på mörkt (6,1:1).
+ * `check-brand` räknar alla par i båda brandfilerna.
+ */
+
+@theme static {
+  --color-accent: #c99a3e;
+  --color-accent-hover: #d6ab55;
+  --color-accent-subtle: rgba(201, 154, 62, 0.12);
+  --color-accent-faint: rgba(201, 154, 62, 0.06);
+  --color-accent-contrast: #202420;
+  --color-marke-accent: #c99a3e;
+
+  --color-publik-ljus: #f4f1ea;
+  --color-publik-ljus-text: #202420;
+  --color-publik-ljus-dampad: #4a4f4a;
+  --color-publik-markering: #202420;
+  --color-publik-accentband: #7d6b5d;
+  --color-publik-accentband-text: #ffffff;
+  --color-publik-accentband-dampad: #ffffff;
+  --color-publik-mork: #202420;
+  --color-publik-mork-text: #f4f1ea;
+  --color-publik-mork-dampad: rgba(244, 241, 234, 0.74);
+  --color-publik-mork-markering: #c99a3e;
+  --color-publik-toning: #202420;
+  /* Loggan i toppraden är 24 px hög. Life Hubs logga är ett PAR på 1079 x 260, genomskinligt, en ruta med LIFE och HUB bredvid:
+     en ljus ruta med mörkt LIFE för en MÖRK botten (`logga.paMork`) och en mörk ruta (#202420) med ljust LIFE för en LJUS botten
+     (`logga.paLjus`). Båda har taupe HUB. Rutorna jämförs, inte tecknen: SS-bilden är 621 px hög med en ruta på 452 px, så vid
+     `h-8` (32 px) är SS ruta 32 * 452 / 621 = 23,3 px. Life Hub-bilden ÄR rutan, så höjden är rutans höjd, och 1,5rem ger 24 px,
+     närmast SS. (1,75rem ger en ruta på 28 px, 20 procent högre.) */
+  --publik-logga-hojd: 1.5rem;
+}
+
+:root {
+  --dark-accent: #c99a3e;
+  --dark-accent-hover: #d6ab55;
+  --dark-accent-subtle: rgba(201, 154, 62, 0.12);
+  --dark-accent-faint: rgba(201, 154, 62, 0.06);
+  --dark-accent-contrast: #202420;
+  --dark-marke-accent: #c99a3e;
+}

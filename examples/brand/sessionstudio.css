@@ -1,0 +1,55 @@
+/**
+ * SessionStudio som INSTANS (0.94.0, CP 2026-10-12): "så att SessionStudio ärver upplägget sedan när SessionStudio blir en instans av
+ * LIFE HUB". Det här är hela brandfilen: ramverkets publika skal (`OpsPublikSkal`, `OpsPublikHuvud`, `OpsPublikHjalte`,
+ * `OpsPublikBlock`, `OpsPublikUppmaning`, `OpsPublikFot`) med de här värdena är SessionStudios landningssidor. Ingen komponent
+ * rörs. Värdena är mätta ur `apps/web/src/landingPages/landingPalette.css` och `components/LandingFeatureBlock.jsx`
+ * (`TONE_STYLES`), med fil och rad i kommentarerna.
+ *
+ * Loggan, bilderna och orden är innehåll och kommer som props (`OpsPublikHuvud logga`, `OpsPublikHjalte bild`), inte härifrån.
+ *
+ * ⛔ TVÅ AVVIKELSER FRÅN SS, BÅDA MEDVETNA OCH MÄTTA (se PR-texten och `check-brand`):
+ *   - Överraden på det ljusa bandet är SS orange `#e8804a` mot kräm `#f4efe6`: 2,4:1, under AA för 12 px text. Den står kvar
+ *     här eftersom filen ska ge SS utseende; Life Hub-brandfilen har mörk text där. `check-brand` håller 2,4 som golv.
+ *   - Uppmaningens vita rubrik och knappar på orange bandet är 2,8:1 (SS `LandingCtaBlock`), under 3:1 för stor text. Samma sak: avläst, inte åtgärdad.
+ *   - Överraden på accentbandet är SS ink 72 % och brödtexten 78 %; här är båda 78 % (`accentband-dampad`), en variabel i stället för två.
+ */
+
+@theme static {
+  /* ── Typsnitt: SS publika rubriker är Georgia (LandingHero.jsx:84), ramverkets förval. Skrivs ut så att brandfilen säger det. ── */
+  --font-display-publik: Georgia, 'Times New Roman', serif;
+
+  /* ── Accent: landingPalette.css `--landing-accent` och `-hover`. Texten på orange är ink, som SS primärknapp. ── */
+  --color-accent: #e8804a;
+  --color-accent-hover: #d66f3a;
+  --color-accent-subtle: rgba(232, 128, 74, 0.12);
+  --color-accent-faint: rgba(232, 128, 74, 0.06);
+  --color-accent-contrast: #1a1a1a;
+  --color-marke-accent: #e8804a;
+
+  /* ── Tonerna (LandingFeatureBlock.jsx TONE_STYLES) ── */
+  /* cream: bakgrund `--landing-cream`, rubrik ink, brödtext `--landing-text-muted`, överrad accent */
+  --color-publik-ljus: #f4efe6;
+  --color-publik-ljus-text: #1a1a1a;
+  --color-publik-ljus-dampad: #5c564e;
+  --color-publik-markering: #e8804a;
+  /* orange: hela bandet i accent, text ink, brödtext ink 78 % */
+  --color-publik-accentband: #e8804a;
+  --color-publik-accentband-text: #1a1a1a;
+  --color-publik-accentband-dampad: rgba(26, 26, 26, 0.78);
+  /* dark: bakgrund ink, text vit, brödtext vit 74 %, överrad accent */
+  --color-publik-mork: #1a1a1a;
+  --color-publik-mork-text: #ffffff;
+  --color-publik-mork-dampad: rgba(255, 255, 255, 0.74);
+  --color-publik-mork-markering: #e8804a;
+  /* Hjältens toning (LandingHero.jsx:67): slate 15,20,30 till 26,26,26. Ett mellanvärde, eftersom toningen är en färg. */
+  --color-publik-toning: #141923;
+}
+
+:root {
+  --dark-accent: #e8804a;
+  --dark-accent-hover: #d66f3a;
+  --dark-accent-subtle: rgba(232, 128, 74, 0.12);
+  --dark-accent-faint: rgba(232, 128, 74, 0.06);
+  --dark-accent-contrast: #1a1a1a;
+  --dark-marke-accent: #e8804a;
+}

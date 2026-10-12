@@ -578,7 +578,7 @@ function DayPanel({ days, statusWords, onClose, onTaBort, onSkapa, locale, arMin
         </div>
         <div className="flex min-w-0 flex-1 flex-col gap-2">
           <div data-dagantal="" className="ops-contrast-panel flex min-h-24 flex-1 flex-col items-center justify-center rounded-xl bg-contrast-panel text-ink shadow-md">
-            <span className="text-titel font-bold leading-none tabular-nums">{antal}</span>
+            <span className="text-titel leading-none tabular-nums">{antal}</span>
             <span className="mt-1 text-mikro uppercase tracking-wide text-ink-secondary">{antal === 1 ? "post" : "poster"}</span>
           </div>
           {onSkapa ? (
@@ -1122,7 +1122,7 @@ function Band({ bitar, veckonummer }) {
             data-bandbit={b.entry.id}
             style={{ gridColumn: `${b.startCol + 1} / span ${b.colSpan}`, gridRow: b.fil + 1 }}
             className={cx(
-              "flex min-w-0 items-center truncate px-1.5 text-liten font-medium text-ink",
+              "flex min-w-0 items-center truncate px-1.5 text-liten text-ink",
               postklasser(b.entry).ton,
               b.borjar ? cx("rounded-l-md border-l-3", postklasser(b.entry).kant) : "",
               b.slutar ? "rounded-r-md" : "",
@@ -1789,7 +1789,7 @@ export function OpsCalendar({
           <div ref={huvudRef} className={cx("sticky top-0 z-(--z-sticky) grid gap-1 bg-canvas pt-1 pb-2 sm:gap-1.5", gridKlass)}>
             {veckonummer ? <span className="py-1 text-center text-liten font-semibold text-ink-muted">v</span> : null}
             {weekdayNames(locale).map((d) => (
-              <span key={d} className="py-1 text-center text-liten font-medium uppercase tracking-widest text-ink-muted sm:text-hjalp">
+              <span key={d} className="py-1 text-center text-liten uppercase tracking-widest text-ink-muted sm:text-hjalp">
                 {d}
               </span>
             ))}
@@ -1804,7 +1804,7 @@ export function OpsCalendar({
 
               return (
                 <div key={`${ar}-${month}`} ref={isCurrentMonth ? todayRef : null} data-kalender-manad={`${ar}-${String(month + 1).padStart(2, "0")}`}>
-                  <h3 className="m-0 mt-2 mb-3 text-titel font-bold capitalize text-ink font-display sm:text-sida">
+                  <h3 className="m-0 mt-2 mb-3 text-titel capitalize text-ink font-display sm:text-sida">
                     {monthNames(locale)[month]} {ar}
                   </h3>
 

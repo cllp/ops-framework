@@ -1070,7 +1070,7 @@ function ModellValjare({ t, sprak, valdId, kopplade, farAndra, activeHref, valvH
     <fieldset data-agent-modellval={aktivt ? "aktivt" : "kommer"} className="m-0 flex flex-col gap-2 border-0 p-0">
       <legend className="mb-1 text-hjalp text-ink-muted">
         {t("modell")}
-        {aktivt ? null : <span className="ml-2 rounded-full bg-raised px-2 py-0.5 text-liten font-medium text-ink-secondary">{t("kommer")}</span>}
+        {aktivt ? null : <span className="ml-2 rounded-full bg-raised px-2 py-0.5 text-liten text-ink-secondary">{t("kommer")}</span>}
       </legend>
       {aktivt ? null : <p className="m-0 text-etikett text-ink-muted">{t("modellKommer")}</p>}
       {okand ? <p className="m-0 text-etikett text-ink">{t("okandModell")}</p> : null}
