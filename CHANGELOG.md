@@ -9,6 +9,25 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.100.1
+
+**Långtrycket öppnar menyn också på en låg rad.** [lifehub.app#226](https://github.com/cllp/lifehub.app/issues/226).
+
+CP 2026-10-13: "Man ska kunna hålla inne fingret ... och få upp menyn." Mätt i Chromium med pekskärm i iPhone-storlek mot lifehub.app:s
+mätbygge: ett långt tryck på rad ett och två i Biblioteket gav menyn, på rad tre och fyra öppnades posten i stället. På en smal skärm
+är menyn ett ark nerifrån. På en låg rad låg arket under fingret när det lyftes, och klicket som följer släppet träffade raden där,
+oftast Öppna.
+
+### Rättat
+
+- `OpsAtgardsblad` ignorerar klick i menyn eller arket, Stäng inräknad, inom 400 ms (`SLAPP_SKYDD_MS`) efter att fingret som öppnade
+  den med ett långt tryck lyfts (eller gesten avbröts). Det är ett tidsfönster och inget tillstånd: ett klick efter det går alltid
+  fram. Rörelse efter att menyn öppnats avbryter inte mätningen, och ett släpp som aldrig kommer låser inte menyn längre än 2 s.
+  Menyn som öppnas med ⋮ har ingen spärr.
+- Bibliotekets listrad visar taggarna på en egen rad under metaraden. I metaraden kapades de av anteckningens text ("#kvi…"), sett i
+  skärmbilden i 390 bredd.
+- Taggrutans Lägg till står i höjd med fältet. Hjälptexten ligger under raden.
+
 ## 0.100.0
 
 **Taggar i Biblioteket.** [lifehub.app#214](https://github.com/cllp/lifehub.app/issues/214) och långtrycksmenyn i

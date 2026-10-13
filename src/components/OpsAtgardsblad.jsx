@@ -46,6 +46,11 @@ function lasSmal(fraga = "(max-width: 767px)") {
   return window.matchMedia(fraga).matches;
 }
 
+/** Hur länge efter att fingret lyfts som klicket från samma tryck ignoreras. Klicket kommer inom några tiotal millisekunder. */
+const SLAPP_SKYDD_MS = 400;
+/** Ett släpp som aldrig kom (avbruten gest, förlorad händelse) håller inte menyn låst längre än så här efter att den öppnades. */
+const SLAPP_SKYDD_TAK_MS = 2000;
+
 /**
  * @param {object} props
  * @param {string} props.namn Postens namn. Knappen och menyn annonserar det.
@@ -58,6 +63,30 @@ export function OpsAtgardsblad({ namn, poster, children = null, baraKnapp = fals
   const [oppen, setOppen] = useState(false);
   const [smal, setSmal] = useState(() => lasSmal());
   const langt = useRef(false);
+  /**
+   * ⛔ FINGRET SOM ÖPPNADE MENYN VÄLJER INGET NÄR DET LYFTS (0.100.1, lifehub.app#226). På en smal skärm är menyn ett ark nerifrån.
+   * Hölls en rad i nedre halvan av skärmen låg arket under fingret när det lyftes, och klicket som följer släppet träffade raden
+   * där, oftast Öppna. Mätt i Chromium med pekskärm i iPhone-storlek: rad ett och två gav menyn, rad tre och fyra öppnade posten.
+   * Spärren gäller bara klicket från samma tryck, och det är ett TIDSFÖNSTER och inget tillstånd (granskningen av PR 364): klick inom
+   * `SLAPP_SKYDD_MS` efter att fingret lyfts ignoreras, i hela arket (också Stäng), och ett klick efter det går alltid fram. Ett
+   * tillstånd som släpptes först av ett klick på en rad hade svalt nästa riktiga tryck när släppet landade någon annanstans.
+   * `oppnad` och `slappt` är millisekunder (`Date.now()`); `slappt` är `null` tills fingret lyfts.
+   */
+  const slappSkydd = useRef(/** @type {null | { oppnad: number, slappt: number | null }} */ (null));
+  /** Ska ett klick i menyn just nu ignoreras som släppet efter långtrycket? */
+  const iSlappet = () => {
+    const s = slappSkydd.current;
+    if (!s) return false;
+    const nu = Date.now();
+    if (s.slappt === null) return nu - s.oppnad < SLAPP_SKYDD_TAK_MS;
+    return nu - s.slappt < SLAPP_SKYDD_MS;
+  };
+  /** Klick i arket eller menyn som kommer i släppet stoppas innan de når en knapp, Stäng inräknad. @param {any} e */
+  const stoppaSlappet = (e) => {
+    if (!iSlappet()) return;
+    e.preventDefault();
+    e.stopPropagation();
+  };
   const menyRef = useRef(/** @type {HTMLDivElement | null} */ (null));
 
   useEffect(() => {
@@ -95,9 +124,12 @@ export function OpsAtgardsblad({ namn, poster, children = null, baraKnapp = fals
     const startY = e.clientY;
     const timer = setTimeout(() => {
       langt.current = true;
+      slappSkydd.current = { oppnad: Date.now(), slappt: null };
       setOppen(true);
     }, LANGTRYCK_MS);
     const move = (/** @type {PointerEvent} */ ev) => {
+      // ⛔ EFTER ATT MENYN ÖPPNATS AVBRYTER RÖRELSE INGENTING: fingret ligger kvar, och släppet ska fortfarande mätas när det kommer.
+      if (langt.current) return;
       if (Math.hypot(ev.clientX - startX, ev.clientY - startY) > 8) {
         clearTimeout(timer);
         slapp();
@@ -105,6 +137,8 @@ export function OpsAtgardsblad({ namn, poster, children = null, baraKnapp = fals
     };
     const slapp = () => {
       clearTimeout(timer);
+      // Klicket efter släppet kommer i en senare händelse. Fönstret räknas från släppet, inte från att menyn öppnades.
+      if (slappSkydd.current && slappSkydd.current.slappt === null) slappSkydd.current = { ...slappSkydd.current, slappt: Date.now() };
       document.removeEventListener("pointermove", move);
       document.removeEventListener("pointerup", slapp);
       document.removeEventListener("pointercancel", slapp);
@@ -149,6 +183,7 @@ export function OpsAtgardsblad({ namn, poster, children = null, baraKnapp = fals
           tabIndex={-1}
           className={radKlass({ stor: true })}
           onClick={() => {
+            if (iSlappet()) return;
             setOppen(false);
             p.onValj();
           }}
@@ -230,6 +265,7 @@ export function OpsAtgardsblad({ namn, poster, children = null, baraKnapp = fals
                 radBehallare({ ark: true }),
               )}
               onOpenAutoFocus={fokusForsta}
+              onClickCapture={stoppaSlappet}
               aria-describedby={undefined}
             >
               <div className="mx-auto mt-2 h-1 w-10 rounded-full bg-line" aria-hidden="true" />
@@ -256,6 +292,7 @@ export function OpsAtgardsblad({ namn, poster, children = null, baraKnapp = fals
           sideOffset={4}
           className={cx("z-(--z-dropdown) min-w-52", radBehallare())}
           onOpenAutoFocus={fokusForsta}
+          onClickCapture={stoppaSlappet}
           /*
            * Långtryck sätter `open` utan ett klick på ⋮. Fokus ligger då kvar
            * på body, och DismissableLayer läser det som fokus utanför och

@@ -536,7 +536,8 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
                             namn={namn}
                             meny={meny}
                             ikon={<PostMark post={post} bildAdress={bild && lage.lage === "klar" ? lage.adress : ""} />}
-                            meta={medTaggar(postRad(post), post)}
+                            meta={postRad(post)}
+                            taggar={medTaggar("", post)}
                             onOppna={() => oppnaMed(post, "las")}
                           />
                         </OpsSvepRad>
@@ -773,8 +774,8 @@ function ljudMetaRad(post) {
 }
 
 /**
- * Metaraden med postens taggar efter: "Anteckning · 2 okt · #kvitto · #bil". Taggarna står i texten och inte bara som färg, så de
- * hörs i skärmläsaren och syns i en smal rad.
+ * Postens taggar som text, efter `meta` när den ges: "#kvitto · #bil". Taggarna står i texten och inte bara som färg, så de hörs i
+ * skärmläsaren. Listan ritar dem på en egen rad under metaraden.
  *
  * @param {string} meta @param {{ taggar?: readonly string[] }} post
  */
@@ -855,18 +856,22 @@ function TaggRedigerare({ post, forslag, onSpara, onKlar }) {
       {/* ⛔ ETT FORMULÄR OCH INTE EN TANGENTHANTERARE: `OpsInput` tar medvetet ingen `onKeyDown` (stängt API), och Enter i ett fält
           skickar formuläret i varje webbläsare. Enter lägger alltså till taggen, och Spara nedan sparar. */}
       <form
-        className="flex items-end gap-2"
+        className="flex flex-col gap-1"
         onSubmit={(e) => {
           e.preventDefault();
           if (normaliseraTagg(utkast)) lagg(utkast);
         }}
       >
-        <div className="min-w-0 flex-1">
-          <OpsField label="Ny tagg" hint={`Högst ${MAX_TAGGAR}. Skriv och tryck Lägg till, eller skilj flera med komma.`}>
-            <OpsInput value={utkast} onChange={setUtkast} ariaLabel="Ny tagg" placeholder="till exempel kvitto" />
-          </OpsField>
+        <div className="flex items-end gap-2">
+          <div className="min-w-0 flex-1">
+            <OpsField label="Ny tagg">
+              <OpsInput value={utkast} onChange={setUtkast} ariaLabel="Ny tagg" placeholder="till exempel kvitto" />
+            </OpsField>
+          </div>
+          <OpsButton type="submit" variant="secondary" disabled={!normaliseraTagg(utkast)}>Lägg till</OpsButton>
         </div>
-        <OpsButton type="submit" variant="secondary" disabled={!normaliseraTagg(utkast)}>Lägg till</OpsButton>
+        {/* Hjälptexten under raden och inte i fältet: i fältet stod knappen i höjd med texten och inte med fältet (skärmbilden, 390). */}
+        <p className="m-0 text-hjalp text-ink-muted">{`Högst ${MAX_TAGGAR}. Skriv och tryck Lägg till, eller skilj flera med komma.`}</p>
       </form>
       {ovriga.length > 0 ? (
         <div role="group" aria-label="Gruppens taggar" className="flex flex-wrap gap-2">
@@ -886,9 +891,11 @@ function TaggRedigerare({ post, forslag, onSpara, onKlar }) {
  * Gemensam listrad: ⋯ via `OpsAtgardsblad`, och antingen standardrad (ikon,
  * rubrik, meta) eller eget innehåll (ljudraden med spelare). Svepet sitter utanför.
  *
- * @param {{ namn: string, meny: import("./OpsAtgardsblad.jsx").Atgard[], ikon?: import("react").ReactNode, meta?: string, onOppna?: () => void, children?: import("react").ReactNode }} props
+ * ⛔ TAGGARNA PÅ EGEN RAD (0.100.1). I metaraden kapades de av anteckningens text ("#kvi…"), mätt i skärmbilden i 390 bredd.
+ *
+ * @param {{ namn: string, meny: import("./OpsAtgardsblad.jsx").Atgard[], ikon?: import("react").ReactNode, meta?: string, taggar?: string, onOppna?: () => void, children?: import("react").ReactNode }} props
  */
-function BibliotekListrad({ namn, meny, ikon = null, meta = "", onOppna, children = null }) {
+function BibliotekListrad({ namn, meny, ikon = null, meta = "", taggar = "", onOppna, children = null }) {
   return (
     <OpsAtgardsblad namn={namn} poster={meny}>
       {children ?? (
@@ -902,6 +909,7 @@ function BibliotekListrad({ namn, meny, ikon = null, meta = "", onOppna, childre
           <span className="min-w-0 flex-1">
             <span className="block truncate text-brod font-medium text-ink">{namn}</span>
             {meta ? <span className="block truncate text-meta text-ink-muted">{meta}</span> : null}
+            {taggar ? <span data-bibliotek-taggar="" className="block truncate text-meta text-ink-secondary">{taggar}</span> : null}
           </span>
         </button>
       )}
