@@ -17,6 +17,9 @@
  * Vad ljudet blir (text, ett ärende, ett förslag i Inkorgen) vet bara appen,
  * och ramverket ska inte veta det.
  *
+ * ⛔ (0.97.0, lifehub.app#219) Appen får svara med ett kvitto: `onTalk` löser till `{ kvitto, angra? }`. Fältet visar då
+ * kvittot med Ångra och Stäng och döljs inte av sig självt, eftersom det är där personen ser vad agenten gjorde. Se `talkKvitto`.
+ *
  * ══ ⛔ TILLSTÅNDEN ÄR EN REN FUNKTION ═════════════════════════════════════════════════════════════════════════════════
  *
  * Ett tryck som ska bli ett klick, ett långtryck som blir en inspelning och ett släpp som INTE avslutar den är tre
@@ -55,8 +58,64 @@ export function talkKnappNamn(lage) {
  */
 export const AVBRYT_FRAGA_SEKUNDER = 3;
 
-/** Hur länge "Sparat" står kvar innan fältet stängs. */
+/** Hur länge "Sparat" står kvar innan fältet stängs. Samma tid för "Ångrat" (0.97.0). */
 export const SPARAT_MS = 1400;
+
+/**
+ * Statusraden medan det inspelade lämnas till appen, när appen inte säger något annat (`talk.skickarText`, 0.97.0).
+ * lifehub.app skickar "Agenten arbetar…", eftersom det är agenten och inte en uppladdning som tar tiden (lifehub.app#219).
+ */
+export const TALK_SKICKAR_TEXT = "Sparar…";
+
+/**
+ * Kastar när `skickarText` är satt men inte en sträng med innehåll. EN kontroll för kroken och skalet: skalet prövar den vid
+ * uppstart, eftersom kroken bara får texten när appens mål är valt, och ett fel som syns först när någon pratat är för sent.
+ * @param {unknown} varde
+ * @param {string} vem Namnet i felet, till exempel "useTalk".
+ */
+export function kontrolleraSkickarText(varde, vem) {
+  if (varde === undefined) return;
+  if (typeof varde !== "string" || !varde.trim()) {
+    throw new Error(`${vem}: skickarText ska vara en sträng som inte är tom, fick ${typeof varde === "string" ? JSON.stringify(varde) : typeof varde}. En tom statusrad hade sett ut som att ingenting pågick.`);
+  }
+}
+
+/**
+ * Platstexten i textytan medan man pratar och inget hörts ännu (0.97.0). ⛔ BARA NÄR TEXT FAKTISKT KAN KOMMA: utan
+ * igenkänning (av som förval, Firefox) hade raden lovat något som aldrig händer.
+ */
+export const TALK_PLATSTEXT = "Prata, så syns texten här";
+
+/**
+ * Kvittot appen kan lösa `onTalk` till (0.97.0, lifehub.app#219): vad som gjordes, och hur det tas bort igen.
+ * @typedef {object} Talkkvitto
+ * @property {string} kvitto Det som gjordes, i ord. Till exempel "Inlagt: Rep, torsdag 22 okt 19:00".
+ * @property {() => Promise<void>} [angra] Tar bort det som gjordes. Utan den ritas ingen Ångra.
+ */
+
+/**
+ * Läser appens svar från `onTalk`. `null` när svaret inte är ett kvitto: då gäller Sparat som före 0.97.0.
+ *
+ * ⛔ ETT SVAR UTAN `kvitto` ÄR INGET KVITTO, och det är inget fel. En moduls `spara` och äldre appar lämnar annat
+ * (ingenting, ett id), och det ska fortsätta betyda Sparat.
+ *
+ * ⛔ ETT FELFORMAT KVITTO KASTAR. `{ kvitto: "" }` eller en `angra` som inte är en funktion är ett fel i appen, och en
+ * tom rad eller en Ångra som inte gör något hade sett ut som att allt gick bra (arbetsreglernas punkt 5).
+ *
+ * @param {unknown} svar
+ * @returns {{ text: string, angra: (() => Promise<void>) | null } | null}
+ */
+export function talkKvitto(svar) {
+  if (!svar || typeof svar !== "object" || !("kvitto" in svar)) return null;
+  const { kvitto, angra } = /** @type {{ kvitto: unknown, angra?: unknown }} */ (svar);
+  if (typeof kvitto !== "string" || !kvitto.trim()) {
+    throw new Error(`TALK: onTalk löste till ett kvitto utan text (${JSON.stringify(kvitto) ?? String(kvitto)}). Kvittot ska säga vad som gjordes.`);
+  }
+  if (angra !== undefined && typeof angra !== "function") {
+    throw new Error(`TALK: kvittots angra ska vara en funktion, fick ${typeof angra}. Utan den ritas ingen Ångra.`);
+  }
+  return { text: kvitto.trim(), angra: typeof angra === "function" ? /** @type {() => Promise<void>} */ (angra) : null };
+}
 
 /** Längsta inspelningen. Ett fält som glömts öppet ska inte spela in i en timme. */
 export const MAX_SEKUNDER = 120;
@@ -68,7 +127,8 @@ export const MAX_SEKUNDER = 120;
  * - `haller`: långtrycket har inträffat och inspelningen pågår medan fingret ligger kvar. Knappen visar TALK.
  * - `lyssnar`: fingret är släppt och inspelningen fortsätter i fältet.
  * - `skickar`: inspelningen är stoppad och ljudet lämnas till appen. Fältet säger Sparar.
- * - `sparat`: appen tog emot ljudet. Fältet säger Sparat en kort stund, sedan vila.
+ * - `sparat`: appen tog emot ljudet. Fältet säger Sparat en kort stund, sedan vila. Med ett kvitto (0.97.0) står kvittot kvar
+ *   med Ångra och Stäng tills personen stänger det, och efter en lyckad Ångra står "Ångrat" en kort stund.
  * - `fel`: mikrofonen gick inte att öppna, eller appen svarade med ett fel. Fältet säger varför.
  */
 

@@ -38,7 +38,7 @@ const flagga = (/** @type {string} */ n) => {
   return i >= 0 ? argv[i + 1] : undefined;
 };
 const rot = path.resolve(flagga("--rot") ?? path.join(path.dirname(fileURLToPath(import.meta.url)), ".."));
-const GOLV = 713;
+const GOLV = 814;
 const golv = Number(flagga("--golv") ?? GOLV);
 const GOLV_MARGINAL = 1.2;
 
