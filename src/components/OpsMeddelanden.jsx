@@ -1394,13 +1394,9 @@ function useRostinmatning({ onTranscribe, inspelare, text, setText, ruta }) {
   const talk = useTalk({
     inspelare,
     onKlick: () => {},
-    onTalk: async (blob, meta) => {
-      // ⛔ TEXTEN FRÅN WEBBLÄSAREN GÅR DIREKT IN I FÄLTET (0.96.0). Ingen väntan på servern. Saknas den gäller ljudet som förut.
-      if (meta?.text) {
-        lagg(meta.text);
-        sparat.current = null;
-        return;
-      }
+    // ⛔ INGEN WEBBLÄSARIGENKÄNNING I SKRIVFÄLTET (granskningen av PR 358, MÅSTE 3). Talet går bara till appens egen
+    // transkribering (`onTranscribe`), så att ingen app börjar skicka chattens tal till Google eller Apple bara genom att pinna om.
+    onTalk: async (blob) => {
       sparat.current = blob;
       if (!onTranscribe) throw new Error("Ingen transkribering.");
       lagg(await onTranscribe(blob));

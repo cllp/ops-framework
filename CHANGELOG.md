@@ -11,7 +11,7 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ## 0.96.0
 
-TALK visar texten medan man pratar, och den hela texten följer med till appen. Chattens skrivfält använder den direkt.
+TALK kan visa texten medan man pratar, och den hela texten följer med till appen. Av som förval: appen slår på det.
 
 CP 2026-10-13: "Min upplevelse är att det nu tar lång tid för transkribering och det är ingen smidig AI upplevelse." Och om
 förslagen i lifehub.app#209: "vi kör på 3 direkt", alltså text som syns medan man pratar.
@@ -20,24 +20,27 @@ förslagen i lifehub.app#209: "vi kör på 3 direkt", alltså text som syns meda
 
 - **`webblasarensIgenkanning()`** i `lib/talk.js`: webbläsarens taligenkänning (`SpeechRecognition`, i Safari och Chrome
   `webkitSpeechRecognition`), eller `null` när den saknas. Den startar om sig själv när Chrome avslutar efter tystnad och
-  behåller det som redan hörts. Ett fel under igenkänningen gör hela texten tom, så att en halv text aldrig följer med som om
-  den vore hel. Tystnad (`no-speech`) är inget fel.
-- **`useTalk`** startar igenkänningen när mikrofonen är öppen, visar texten (`text` i det kroken lämnar) och lämnar den i
-  `onTalk(blob, { text })` när den är hel. **Ljudet spelas in som förut, alltid.** Utan text får appen bara ljudet.
-  `useTalk({ igenkanning: false })`, och `talk.igenkanning: false` i `OpsAppShell`, stänger av den.
+  behåller det som redan hörts, men högst tre gånger per sekund.
+- **Hellre ingen text än en halv.** Texten blir tom när igenkänningen fallit (också `aborted`, alltså ett samtal eller ett annat
+  ljudpass som bryter mitt i), när ett ord fortfarande är preliminärt när den stoppas, eller när webbläsaren inte ger sitt sista
+  besked inom `IGENKANNING_VANTA_MS`. Tystnad (`no-speech`) är inget fel. Varje försök har sitt nummer, så att en avbruten
+  igenkännare som svarar sent aldrig skriver in i nästa försök.
+- **`useTalk({ igenkanning: true })`**, och `talk.igenkanning: true` i `OpsAppShell`, slår på den. Kroken lämnar då `text`
+  medan man pratar och `onTalk(blob, { text })` när texten är hel. **Ljudet spelas in som förut, alltid.** Utan text får appen
+  bara ljudet. Ett eget objekt med `starta`, `stoppa` och `kasta` går också att ge.
 - **`OpsInspelning` och `OpsTalk`** tar `text` och visar den medan man pratar och medan det sparas, med `aria-live="polite"`.
-- **Chattens skrivfält** lägger in texten direkt när den finns, utan att fråga `onTranscribe`. Saknas den gäller ljudet som förut.
 
-### Vart ljudet går
+### ⛔ Vart talet går, och därför är den av som förval
 
-Chrome skickar ljudet till Googles taltjänst och Safari till Apples. Det är en annan väg än appens egen modell. Därför går den
-att stänga av per app.
+Chrome skickar talet till Googles taltjänst och Safari till Apples. Det är en annan väg än appens egen modell, och en app med
+kundmaterial ska inte börja använda den bara genom att pinna om. Därför är igenkänningen av tills appen slår på den, och
+chattens skrivfält använder den inte alls: där går talet bara till appens egen `onTranscribe` (granskningen av PR 358).
 
 ### Prov
 
-`talk-text.test.jsx` (12 prov) och ett nytt fall i `chatt-skrivfalt.test.jsx`, med fejkad `SpeechRecognition`. Röda utan sin
-rättelse: en halv text som hel, ingen omstart, texten följer inte med, Avbryt kastar inte texten, och skrivfältet som frågar
-servern trots texten.
+`talk-text.test.jsx` (19 prov) och ett vänt fall i `chatt-skrivfalt.test.jsx`, med fejkad `SpeechRecognition`. Sedda röda utan
+sin rättelse: försöksnumret, preliminär text vid stopp, tidsgränsen, `aborted`, omstartstaket, av som förval, och de första
+fallen (en halv text som hel, ingen omstart, texten följer inte med, Avbryt kastar inte texten).
 
 ## 0.95.1
 

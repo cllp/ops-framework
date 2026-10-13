@@ -81,10 +81,10 @@ describe("skrivfältet", () => {
     expect(document.querySelector("[data-rostlage]")).toBeNull();
     expect(screen.getByRole("button", { name: "Skicka" })).toBeTruthy();
   });
-  it("⛔ med webbläsarens text (0.96.0) hamnar orden i fältet direkt, utan att servern frågas", async () => {
+  it("⛔ webbläsarens taligenkänning används aldrig i skrivfältet: talet går bara till appens egen transkribering (granskningen av PR 358)", async () => {
     const { s, a } = await underlag();
     const insp = provinspelare();
-    const onTranscribe = vi.fn(async () => "fel väg");
+    const onTranscribe = vi.fn(async () => "från appen");
     class SR {
       constructor() {
         /** @type {any} */ this.onresult = null;
@@ -103,11 +103,10 @@ describe("skrivfältet", () => {
       render(<OpsMeddelanden kalla={s} uid="anna" groupId="g" gruppNamn="G" medlemmar={MEDLEMMAR} valt={a.id} onTranscribe={onTranscribe} inspelare={insp} />);
       await within(await screen.findByRole("log")).findByText("Hej");
       fireEvent.click(screen.getByRole("button", { name: "Prata in" }));
-      await waitFor(() => expect(SR.senast).not.toBeNull());
-      act(() => SR.senast.onresult({ resultIndex: 0, results: [Object.assign([{ transcript: "påminn mig på fredag" }], { isFinal: true })] }));
-      fireEvent.click(screen.getByRole("button", { name: "Skriv ut det inspelade" }));
-      await waitFor(() => expect(ruta().value).toBe("påminn mig på fredag"));
-      expect(onTranscribe).not.toHaveBeenCalled();
+      fireEvent.click(await screen.findByRole("button", { name: "Skriv ut det inspelade" }));
+      await waitFor(() => expect(ruta().value).toBe("från appen"));
+      expect(onTranscribe).toHaveBeenCalledTimes(1);
+      expect(SR.senast).toBeNull();
     } finally {
       vi.unstubAllGlobals();
     }

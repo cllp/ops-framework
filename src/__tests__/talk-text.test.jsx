@@ -60,6 +60,8 @@ describe("webblasarensIgenkanning", () => {
     f.resultat(rec, [["boka rep på torsdag", true]]);
     f.resultat(rec, [["boka rep på torsdag", true], ["klockan sju", false]], 1);
     expect(sett).toEqual(["boka rep", "boka rep på torsdag", "boka rep på torsdag klockan sju"]);
+    // Webbläsaren gör det sista slutligt när den stoppas, som Chrome gör.
+    f.resultat(rec, [["boka rep på torsdag", true], ["klockan sju", true]], 1);
     await expect(igk.stoppa()).resolves.toBe("boka rep på torsdag klockan sju");
   });
 
@@ -91,6 +93,60 @@ describe("webblasarensIgenkanning", () => {
     f.instanser[0].onerror({ error: "no-speech" });
     f.resultat(f.instanser[0], [["ändå hört", true]]);
     await expect(igk.stoppa()).resolves.toBe("ändå hört");
+  });
+
+  it("⛔ en avbruten igenkännare som svarar sent skriver inte in i nästa försök och startar ingen andra (MÅSTE 1)", async () => {
+    const f = fejkadIgenkanning();
+    const igk = /** @type {any} */ (webblasarensIgenkanning({ SpeechRecognition: f.SR }));
+    igk.starta({ sprak: "sv-SE", onText: () => {} });
+    const gammal = f.instanser[0];
+    igk.kasta();
+    igk.starta({ sprak: "sv-SE", onText: () => {} });
+    expect(f.instanser).toHaveLength(2);
+    f.resultat(gammal, [["från förra försöket", true]]);
+    gammal.onend();
+    expect(f.instanser).toHaveLength(2);
+    f.resultat(f.instanser[1], [["det nya", true]]);
+    await expect(igk.stoppa()).resolves.toBe("det nya");
+  });
+
+  it("⛔ bara preliminär text kvar när den stoppas ger tom text (MÅSTE 2)", async () => {
+    const f = fejkadIgenkanning();
+    const igk = /** @type {any} */ (webblasarensIgenkanning({ SpeechRecognition: f.SR }));
+    igk.starta({ sprak: "sv-SE", onText: () => {} });
+    f.resultat(f.instanser[0], [["boka rep på", false]]);
+    await expect(igk.stoppa()).resolves.toBe("");
+  });
+
+  it("⛔ när webbläsaren aldrig ger sitt sista besked blir texten tom (MÅSTE 2)", async () => {
+    const f = fejkadIgenkanning();
+    /** @type {Function[]} */
+    const tidtagare = [];
+    const igk = /** @type {any} */ (webblasarensIgenkanning({ SpeechRecognition: f.SR, setTimeout: /** @type {any} */ ((fn) => tidtagare.push(fn)) }));
+    igk.starta({ sprak: "sv-SE", onText: () => {} });
+    f.resultat(f.instanser[0], [["hörd text", true]]);
+    f.instanser[0].stop = () => {};
+    const ut = igk.stoppa();
+    tidtagare.forEach((fn) => fn());
+    await expect(ut).resolves.toBe("");
+  });
+
+  it("⛔ ett avbrott utifrån (aborted) gör texten ogiltig (MÅSTE 2)", async () => {
+    const f = fejkadIgenkanning();
+    const igk = /** @type {any} */ (webblasarensIgenkanning({ SpeechRecognition: f.SR }));
+    igk.starta({ sprak: "sv-SE", onText: () => {} });
+    f.resultat(f.instanser[0], [["hälften av", true]]);
+    f.instanser[0].onerror({ error: "aborted" });
+    await expect(igk.stoppa()).resolves.toBe("");
+  });
+
+  it("en igenkännare som tar slut direkt efter start loopar inte (BÖR 2)", async () => {
+    const f = fejkadIgenkanning();
+    const igk = /** @type {any} */ (webblasarensIgenkanning({ SpeechRecognition: f.SR, nu: () => 1000 }));
+    igk.starta({ sprak: "sv-SE", onText: () => {} });
+    for (let i = 0; i < 10; i += 1) f.instanser.at(-1).onend();
+    expect(f.instanser.length).toBeLessThanOrEqual(4);
+    await expect(igk.stoppa()).resolves.toBe("");
   });
 
   it("språket följer appens", () => {
@@ -168,6 +224,36 @@ describe("useTalk med text", () => {
     await vanta();
     expect(igk.kasta).toHaveBeenCalled();
     expect(result.current.text).toBe("");
+  });
+
+  it("⛔ av som förval: utan igenkanning används inte webbläsarens taligenkänning, fast den finns (MÅSTE 3)", async () => {
+    const f = fejkadIgenkanning();
+    vi.stubGlobal("webkitSpeechRecognition", f.SR);
+    try {
+      const onTalk = vi.fn(async () => {});
+      const { result } = renderHook(() => useTalk({ onTalk, onKlick: () => {}, inspelare: inspelare() }));
+      act(() => result.current.direkt());
+      await vanta();
+      act(() => result.current.skickaIn());
+      await vanta();
+      expect(f.instanser).toHaveLength(0);
+      expect("text" in /** @type {any} */ (onTalk.mock.calls[0])[1]).toBe(false);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("true slår på webbläsarens taligenkänning", async () => {
+    const f = fejkadIgenkanning();
+    vi.stubGlobal("webkitSpeechRecognition", f.SR);
+    try {
+      const { result } = renderHook(() => useTalk({ onTalk: async () => {}, onKlick: () => {}, inspelare: inspelare(), igenkanning: true }));
+      act(() => result.current.direkt());
+      await vanta();
+      expect(f.instanser).toHaveLength(1);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("false stänger av igenkänningen", async () => {

@@ -20,8 +20,9 @@ import { OpsSpinner } from "./OpsSpinner.jsx";
  * @property {() => void} [onInstallningar] Kugghjulet i fältet. Utan den ritas inget kugghjul.
  * @property {import("react").ReactNode} [marke] Märket längst till vänster i fältet, vanligen hubbens.
  * @property {import("../lib/talk.js").Inspelare} [inspelare] Bara för prov. Förval: webbläsarens `MediaRecorder`.
- * @property {import("../lib/talk.js").Igenkanning | false} [igenkanning] (0.96.0) Text medan man pratar. Förval: webbläsarens
- *   taligenkänning när den finns. `false` stänger av den, och då lämnas bara ljudet. Se `src/lib/talk.js` om vart ljudet går.
+ * @property {import("../lib/talk.js").Igenkanning | boolean} [igenkanning] (0.96.0) Text medan man pratar. ⛔ AV SOM FÖRVAL
+ *   (granskningen av PR 358, MÅSTE 3): webbläsaren skickar då talet till Googles eller Apples taltjänst, och det är appens val.
+ *   `true` slår på webbläsarens taligenkänning när den finns. Utan den lämnas bara ljudet, som före 0.96.0.
  * @property {number} [maxSekunder] Tak i sekunder. Förval `MAX_SEKUNDER` (120), så TALK inte ändras. Bibliotekets idé använder 600.
  * @property {ReadonlyArray<{ id: string, etikett: string }>} [mal] Appens egna mål i fältet. Modulernas mål läggs till av skalet.
  */
@@ -75,7 +76,7 @@ export function useTalk({ onTalk, onKlick, inspelare, igenkanning, maxSekunder =
   const sprakRef = useRef(sprak);
   sprakRef.current = sprak;
   /** Igenkänningen, skapad första gången den behövs. `null` när webbläsaren saknar den eller appen stängt av den. */
-  const igkRef = useRef(/** @type {import("../lib/talk.js").Igenkanning | null | undefined} */ (igenkanning === false ? null : igenkanning));
+  const igkRef = useRef(/** @type {import("../lib/talk.js").Igenkanning | null | undefined} */ (igenkanning === true ? undefined : igenkanning && typeof igenkanning === "object" ? igenkanning : null));
   const igk = () => {
     if (igkRef.current === undefined) igkRef.current = webblasarensIgenkanning();
     return igkRef.current;

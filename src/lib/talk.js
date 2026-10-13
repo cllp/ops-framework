@@ -372,8 +372,16 @@ export function talkFeltext(fel, val = {}) {
 /** Så länge `stoppa` väntar på att webbläsaren lämnar sitt sista resultat. */
 export const IGENKANNING_VANTA_MS = 1500;
 
-/** Fel som bara betyder tystnad. Igenkänningen fortsätter, och texten är fortfarande hel. */
-const TYSTA_FEL = ["no-speech", "aborted"];
+/**
+ * Fel som bara betyder tystnad. Igenkänningen fortsätter, och texten är fortfarande hel.
+ *
+ * ⛔ "aborted" STÅR INTE HÄR (granskningen av PR 358, MÅSTE 2). Ett samtal på iOS eller ett annat ljudpass avbryter mitt i
+ * en mening, och texten är då avhuggen. Vår egen avbrytning (`kasta`) syns aldrig här: dess hanterare är bortkopplade.
+ */
+const TYSTA_FEL = ["no-speech"];
+
+/** Så många omstarter per sekund innan igenkänningen räknas som trasig. En som tar slut direkt efter start loopar annars. */
+const MAX_OMSTARTER_PER_SEKUND = 3;
 
 /**
  * Språkkoden igenkänningen vill ha, ur appens språk ("sv" ger "sv-SE").
@@ -391,7 +399,14 @@ export function igenkanningensSprak(sprak) {
  * ⛔ STARTAR OM SIG SJÄLV. Chrome avslutar en igenkänning efter en stunds tystnad även med `continuous`, och utan omstart hade
  * texten slutat växa mitt i en mening. Den text som redan är slutlig sparas mellan omstarterna.
  *
- * @param {{ SpeechRecognition?: any, setTimeout?: typeof setTimeout }} [miljo]
+ * ⛔ VARJE FÖRSÖK HAR SITT NUMMER (granskningen av PR 358, MÅSTE 1). En avbruten igenkännare kan leverera `onend` eller
+ * `onresult` efter att nästa försök startat, och utan numret skrev den in i det nya försökets text eller startade en andra
+ * igenkännare som aldrig stoppades. Varje hanterare gör ingenting när försöket den hör till inte längre är det pågående.
+ *
+ * ⛔ HELLRE INGEN TEXT ÄN EN HALV (MÅSTE 2). Står ett ord kvar som aldrig blev slutligt när igenkänningen stoppas, eller ger
+ * webbläsaren aldrig sitt sista besked inom väntetiden, blir texten tom, och appen får ljudet som förut.
+ *
+ * @param {{ SpeechRecognition?: any, setTimeout?: typeof setTimeout, nu?: () => number }} [miljo]
  * @returns {Igenkanning | null}
  */
 export function webblasarensIgenkanning(miljo = {}) {
@@ -399,23 +414,29 @@ export function webblasarensIgenkanning(miljo = {}) {
   const SR = miljo.SpeechRecognition || g.SpeechRecognition || g.webkitSpeechRecognition;
   if (typeof SR !== "function") return null;
   const vanta = miljo.setTimeout || setTimeout;
+  const nu = miljo.nu || Date.now;
   /** @type {any} */
   let r = null;
+  let forsok = 0;
   let aktiv = false;
   let trasig = false;
   let slutlig = "";
   let pagaende = "";
+  /** @type {number[]} */
+  let starter = [];
   /** @type {(() => void) | null} */
   let narSlut = null;
   const hel = () => `${slutlig} ${pagaende}`.replace(/\s+/g, " ").trim();
 
-  /** @param {string} sprak @param {(text: string) => void} onText */
-  const ny = (sprak, onText) => {
+  /** @param {number} mitt @param {string} sprak @param {(text: string) => void} onText */
+  const ny = (mitt, sprak, onText) => {
     const rec = new SR();
     rec.lang = sprak;
     rec.continuous = true;
     rec.interimResults = true;
+    const galler = () => mitt === forsok && rec === r;
     rec.onresult = (/** @type {any} */ e) => {
+      if (!galler()) return;
       let nyaSlutliga = "";
       let delvis = "";
       for (let i = e.resultIndex; i < e.results.length; i += 1) {
@@ -429,23 +450,32 @@ export function webblasarensIgenkanning(miljo = {}) {
       onText(hel());
     };
     rec.onerror = (/** @type {any} */ e) => {
-      if (!TYSTA_FEL.includes(e?.error)) trasig = true;
+      if (galler() && !TYSTA_FEL.includes(e?.error)) trasig = true;
     };
     rec.onend = () => {
-      // Det pågående som aldrig blev slutligt hör ändå till texten när igenkänningen tar slut.
-      if (pagaende) {
-        slutlig = `${slutlig} ${pagaende}`.trim();
-        pagaende = "";
-      }
+      if (!galler()) return;
       if (aktiv && !trasig) {
-        try {
-          r = ny(sprak, onText);
-          r.start();
-          return;
-        } catch {
+        // Mitt i: webbläsaren tog en paus. Det pågående hör till texten, och lyssnandet fortsätter.
+        if (pagaende) {
+          slutlig = `${slutlig} ${pagaende}`.trim();
+          pagaende = "";
+        }
+        const t = nu();
+        starter = [...starter.filter((x) => t - x < 1000), t];
+        if (starter.length > MAX_OMSTARTER_PER_SEKUND) {
           trasig = true;
+        } else {
+          try {
+            r = ny(mitt, sprak, onText);
+            r.start();
+            return;
+          } catch {
+            trasig = true;
+          }
         }
       }
+      // Vid stopp: ett ord som aldrig blev slutligt gör texten ofullständig.
+      if (pagaende) trasig = true;
       narSlut?.();
       narSlut = null;
     };
@@ -454,13 +484,15 @@ export function webblasarensIgenkanning(miljo = {}) {
 
   return {
     starta({ sprak, onText }) {
+      forsok += 1;
       aktiv = true;
       trasig = false;
       slutlig = "";
       pagaende = "";
+      starter = [];
       narSlut = null;
       try {
-        r = ny(sprak, onText);
+        r = ny(forsok, sprak, onText);
         r.start();
       } catch {
         trasig = true;
@@ -468,34 +500,39 @@ export function webblasarensIgenkanning(miljo = {}) {
       }
     },
     stoppa() {
-      if (!r || !aktiv) return Promise.resolve(trasig ? "" : hel());
+      if (!r || !aktiv) return Promise.resolve("");
       aktiv = false;
+      const mitt = forsok;
       return new Promise((klar) => {
         let gjort = false;
-        const sluta = () => {
+        /** @param {boolean} iTid */
+        const sluta = (iTid) => {
           if (gjort) return;
           gjort = true;
-          klar(trasig ? "" : hel());
+          // ⛔ TIDEN TOG SLUT: webbläsaren gav aldrig sitt sista besked, och texten kan sakna slutet.
+          klar(!iTid || trasig || mitt !== forsok ? "" : hel());
         };
-        narSlut = sluta;
-        vanta(sluta, IGENKANNING_VANTA_MS);
+        narSlut = () => sluta(true);
+        vanta(() => sluta(false), IGENKANNING_VANTA_MS);
         try {
           r.stop();
         } catch {
           trasig = true;
-          sluta();
+          sluta(true);
         }
       });
     },
     kasta() {
+      forsok += 1;
       aktiv = false;
       narSlut = null;
+      const gammal = r;
+      r = null;
       try {
-        r?.abort();
+        gammal?.abort();
       } catch {
         // Redan stängd.
       }
-      r = null;
     },
   };
 }
