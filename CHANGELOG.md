@@ -21,16 +21,24 @@ ramverkets del av den skivan.
 ### Nytt
 
 - **Kvitto och Ångra.** `onTalk` får lösa till `{ kvitto, angra? }`. Fältet visar då kvittot med en bock, **Ångra** (bara när
-  `angra` finns, sekundär) och **Stäng** (primär), och döljs inte av sig självt. Ångra snurrar och är inaktiv medan den pågår, och
-  ett andra tryck gör ingenting. Lyckas den står "Ångrat" i `SPARAT_MS`, sedan stängs fältet. Faller den står felet med
+  `angra` finns, sekundär) och **Stäng** (primär), och döljs inte av sig självt. Ångra snurrar medan den pågår, och ett andra tryck
+  gör ingenting. Lyckas den står "Ångrat" i `SPARAT_MS`, sedan stängs fältet. Faller den står felet med
   `role="alert"`, Stäng står kvar och Ångra går att trycka igen. En ny inspelning, ett långtryck eller Stäng rensar kvittot, och en
-  Ångra som svarar efter att kvittot försvunnit, eller efter avmonteringen, sätter ingenting. Allt annat `onTalk` löser till
+  Ångra som svarar efter att kvittot försvunnit, eller efter avmonteringen, sätter ingenting. ⛔ Faller den då rapporteras felet
+  ändå med `rapporteraFel` (`kvittotBorta: true`): det är det enda spåret av att något inte gick att ta tillbaka. Allt annat `onTalk` löser till
   (ingenting, ett id) är Sparat som förut. Läses av `talkKvitto` i `lib/talk.js`.
 - **`skickarText`**, i `useTalk` och `talk.skickarText` i `OpsAppShell`: statusraden medan appen arbetar. Förval
   `TALK_SKICKAR_TEXT`, "Sparar…". En sträng utan innehåll, eller något annat än en sträng, kastar; skalet prövar den vid uppstart.
   ⛔ Den gäller bara appens mål. När ett moduls mål är valt (Biblioteket) är det modulens `spara` som arbetar, och där står förvalet.
 - **`useTalk` lämnar `medText`, `skickarText`, `kvitto` och `angra`**, och `OpsTalk` och `OpsInspelning` tar dem (`onAngra` för
   `angra`). Skalet kopplar dem samma väg som `text`.
+- **Tillgänglighet.** Kvittot, "Ångrat", "Sparat" och statusraden ("Agenten arbetar…") läses upp ur en statusregion
+  (`role="status"`, `aria-live="polite"`) som finns i fältet från första läget, visuellt dold medan den är tom, och byter text.
+  En region som föds med sin text läses ofta inte upp. När kvittot visas flyttas fokus till Stäng, inte till Ångra, så att ett
+  Enter av vana inte ångrar. Medan Ångra pågår bär knappen `aria-disabled` i stället för `disabled`, så att fokus stannar, och
+  klicket spärras i hanteraren.
+- **`onTalk` måste lösas eller avvisas inom rimlig tid**, nu dokumenterat i JSDoc och README. Läget skickar har ingen väg ut, och
+  ramverket lägger ingen tidsgräns: bara appen vet hur länge dess arbete får ta.
 
 ### Fältet, ritat om
 
@@ -49,8 +57,10 @@ ramverkets del av den skivan.
 
 ### Prov
 
-`talk-kvitto.test.jsx`, 20 prov, flödet genom `OpsAppShell talk={...}` och kroken direkt där en knapp inte kan visa felet. Varje
-prov sett rött med sin rättelse borttagen och grönt med den. Inga befintliga prov behövde ändras.
+`talk-kvitto.test.jsx`, 25 prov, flödet genom `OpsAppShell talk={...}` och kroken direkt där en knapp inte kan visa felet. Varje
+prov sett rött med sin rättelse borttagen och grönt med den. Inga prov från före 0.97.0 behövde ändras. Inom 0.97.0 ändrades två
+efter granskningen: Ångra-knappen provas nu mot `aria-disabled` och kvarvarande fokus i stället för `disabled`, och provet för en
+Ångra som faller efter avmonteringen kräver nu en felrapport i stället för tystnad.
 
 ### Bilder
 

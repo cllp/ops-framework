@@ -21,6 +21,10 @@ import { OpsSpinner } from "./OpsSpinner.jsx";
  *   som fel och fältet säger Sparat, eftersom det appen gjorde redan är gjort.
  *   ⛔ Kastar den eller avvisar löftet visas felet i fältet, med Försök igen. Ett ljud som tyst försvann hade sett ut som ett skickat.
  *   `rapportera` tar 0 till 1, samma kvot som `bytesTransferred / totalBytes` i `uploadBytesResumable`. Utan anrop visas en snurra.
+ *   ⛔ LÖFTET MÅSTE AVGÖRAS INOM RIMLIG TID, löst eller avvisat. Läget skickar har ingen väg ut: fältet visar statusraden
+ *   (`skickarText`) utan Avbryt eller Stäng tills löftet svarar, och ett löfte som aldrig svarar lämnar fältet stående. Ramverket
+ *   lägger ingen egen tidsgräns, eftersom bara appen vet hur länge dess arbete får ta (en uppladdning, en agent). Väntar appen på
+ *   något som kan hänga, sätter den sin egen gräns och avvisar med ett fel som säger vad som hände; då får personen Försök igen.
  * @property {() => void} [onInstallningar] Kugghjulet i fältet. Utan den ritas inget kugghjul.
  * @property {import("react").ReactNode} [marke] Märket längst till vänster i fältet, vanligen hubbens.
  * @property {import("../lib/talk.js").Inspelare} [inspelare] Bara för prov. Förval: webbläsarens `MediaRecorder`.
@@ -342,8 +346,12 @@ export function useTalk({ onTalk, onKlick, inspelare, igenkanning, skickarText, 
         setKvitto({ text: k.text, angra: gor, status: "angrat" });
       })
       .catch((fel) => {
-        if (mitt !== angraForsok.current || !monterad.current) return;
-        rapporteraFel(fel, { yta: "OpsTalk", steg: "angra" });
+        // ⛔ RAPPORTERAS ALLTID, ÄVEN NÄR KVITTOT ÄR BORTA (regel 5). Stängdes fältet, kom en ny inspelning eller avmonterades
+        // kroken medan Ångra pågick, ser ingen felet i fältet. Då är rapporten det enda spåret av att något appen gjort inte
+        // gick att ta tillbaka. Det som spärras är bara tillståndet: felet får inte ritas över ett annat kvitto.
+        const inaktuellt = mitt !== angraForsok.current || !monterad.current;
+        rapporteraFel(fel, { yta: "OpsTalk", steg: "angra", ...(inaktuellt ? { kvittotBorta: true } : {}) });
+        if (inaktuellt) return;
         setKvitto({ text: k.text, angra: gor, status: "visas", fel: fel instanceof Error && fel.message ? fel.message : "Det gick inte att ångra." });
       });
   };
@@ -487,13 +495,20 @@ export function TalkPrickar({ niva, lyssnar, skickar = false }) {
  */
 
 /** Primär knapp i fältets knapprad: fyller resten av raden. */
-const PRIMAR = "inline-flex min-h-12 min-w-12 flex-1 cursor-pointer items-center justify-center gap-2 rounded-full bg-accent px-5 text-etikett font-medium text-accent-contrast hover:bg-accent-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-default disabled:opacity-60";
+const PRIMAR = "inline-flex min-h-12 min-w-12 flex-1 cursor-pointer items-center justify-center gap-2 rounded-full bg-accent px-5 text-etikett font-medium text-accent-contrast hover:bg-accent-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-default disabled:opacity-60 aria-disabled:cursor-default aria-disabled:opacity-60";
 /** Sekundär knapp med ord, samma höjd och rundning som den primära. */
-const SEKUNDAR_ORD = "inline-flex min-h-12 min-w-12 flex-1 cursor-pointer items-center justify-center gap-2 rounded-full bg-hover px-5 text-etikett font-medium text-ink hover:bg-line focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-default disabled:opacity-60";
+const SEKUNDAR_ORD = "inline-flex min-h-12 min-w-12 flex-1 cursor-pointer items-center justify-center gap-2 rounded-full bg-hover px-5 text-etikett font-medium text-ink hover:bg-line focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-default disabled:opacity-60 aria-disabled:cursor-default aria-disabled:opacity-60";
 /** Det runda krysset till vänster i knappraden. */
 const SEKUNDAR = "inline-flex size-12 shrink-0 cursor-pointer items-center justify-center rounded-full bg-hover text-ink hover:bg-line focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
 /** Kugghjulet i den övre raden: lika lugnt som tiden bredvid. */
 const KUGG = "inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full text-ink-muted hover:bg-hover hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
+/** Statusregionen per läge. Tom är den visuellt dold men finns kvar, så att skärmläsaren hör när den får text. */
+const STATUSKLASS = {
+  tom: "sr-only",
+  skickar: "m-0 flex min-h-12 items-center gap-2 text-etikett text-ink-secondary",
+  sparat: "m-0 flex min-h-12 items-center gap-2 text-etikett font-medium text-ink",
+  kvitto: "m-0 flex items-start gap-3 text-brod text-ink [overflow-wrap:anywhere]",
+};
 /** Textytan: brödtext, tre rader minst, rullar inuti. */
 const TEXTYTA = "m-0 min-h-18 max-h-36 overflow-y-auto text-brod [overflow-wrap:anywhere]";
 
@@ -503,7 +518,7 @@ const INSPELNING_PROPS = ["lage", "fel", "niva", "sekunder", "tak", "framsteg", 
  * @typedef {object} TalkKvittoVy Kvittot som fältet ritar (0.97.0). Kommer ur `useTalk().kvitto`.
  * @property {string} text
  * @property {boolean} kanAngra
- * @property {boolean} angrar Ångra pågår: knappen snurrar och går inte att trycka.
+ * @property {boolean} angrar Ångra pågår: knappen snurrar, bär `aria-disabled` och behåller fokus, och ett tryck gör ingenting.
  * @property {boolean} angrat Ångra lyckades: fältet säger Ångrat och döljs.
  * @property {string} [fel] Ångra föll. Står kvar med `role="alert"`.
  */
@@ -557,8 +572,11 @@ export function OpsInspelning(props) {
   const { lage, fel, niva, sekunder, tak, framsteg, kanIgen, text = "", medText = false, skickarText = TALK_SKICKAR_TEXT, kvitto = null, onAngra, onKlar, onAvbryt, onIgen, onStart, onTillatMikrofon, onInstallningar, marke, mal = [], valt = null, onValj } = props;
   const [fragar, setFragar] = useState(false);
   const fortsatt = useRef(/** @type {HTMLButtonElement | null} */ (null));
+  const stang = useRef(/** @type {HTMLButtonElement | null} */ (null));
   const malEtikett = useId();
   const lyssnar = lage === "haller" || lage === "lyssnar";
+  /** Kvittot står med sina knappar: Ångra och Stäng. */
+  const kvittoKnappar = lage === "sparat" && Boolean(kvitto) && !kvitto?.angrat;
 
   useEffect(() => {
     if (!lyssnar) setFragar(false);
@@ -567,6 +585,15 @@ export function OpsInspelning(props) {
   useEffect(() => {
     if (fragar) fortsatt.current?.focus();
   }, [fragar]);
+
+  /**
+   * ⛔ FOKUS TILL STÄNG NÄR KVITTOT KOMMER, INTE TILL ÅNGRA. Klar, som var fokuserad, försvinner när läget byts, och utan ett
+   * nytt mål hamnar tangentbordet i sidans topp. Ångra hade varit fel mål: ett Enter av vana hade tagit bort det appen nyss gjort.
+   * Bara på övergången, så att en Ångra som faller inte flyttar fokus från knappen personen just tryckte på.
+   */
+  useEffect(() => {
+    if (kvittoKnappar) stang.current?.focus();
+  }, [kvittoKnappar]);
 
   const avbryt = () => {
     if (lyssnar && sekunder >= AVBRYT_FRAGA_SEKUNDER && !fragar) {
@@ -602,6 +629,8 @@ export function OpsInspelning(props) {
   }
 
   const procent = framsteg == null ? null : Math.round(framsteg * 100);
+  /** Vad statusregionen säger. `null`: tom och dold. */
+  const statusLage = lage === "skickar" ? "skickar" : lage === "sparat" ? (kvitto ? "kvitto" : "sparat") : null;
   const valtId = valt ?? (mal[0] ? mal[0].id : null);
   const visaTextyta = (lyssnar && (medText || Boolean(text))) || (lage === "skickar" && Boolean(text));
   const kanTillatMikrofon = !kanIgen && kanBeOmMikrofon(fel) && typeof (onTillatMikrofon || onStart) === "function";
@@ -635,41 +664,60 @@ export function OpsInspelning(props) {
           </p>
         )
       ) : null}
-      {lage === "skickar" ? (
-        <div className="flex min-w-0 flex-col gap-2">
-          <p role="status" className="m-0 flex min-h-12 items-center gap-2 text-etikett text-ink-secondary">
+      {/* ⛔ STATUSREGIONEN STÅR KVAR OCH BYTER TEXT (0.97.0). Förut skapades en ny `role="status"` i samma ögonblick som den
+          fick sin text, och skärmläsare läser ofta inte upp en region som föds med innehåll: kvittot, "Ångrat" och
+          "Agenten arbetar…" kunde passera tyst. Nu finns den från första läget i fältet, dold och tom medan man pratar, i samma
+          plats i trädet, så att det är SAMMA element som får texten. */}
+      <p role="status" aria-live="polite" data-talk-status={statusLage || undefined} data-talk-kvitto={statusLage === "kvitto" ? "" : undefined} className={STATUSKLASS[statusLage || "tom"]}>
+        {statusLage === "skickar" ? (
+          <>
             {procent == null ? <OpsSpinner size="sm" decorative /> : null}
             {procent == null ? skickarText : `${skickarText} ${procent} %`}
-          </p>
-          {procent != null ? (
-            <div role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={procent} aria-label={skickarText} className="h-1.5 w-full overflow-hidden rounded-full bg-line">
-              <div className="h-full bg-accent" style={{ width: `${procent}%` }} />
-            </div>
-          ) : null}
+          </>
+        ) : null}
+        {statusLage === "sparat" ? (
+          <>
+            <span aria-hidden="true" className="flex size-7 shrink-0 items-center justify-center rounded-full bg-accent-subtle text-accent"><BockIkon size={14} /></span>
+            Sparat
+          </>
+        ) : null}
+        {statusLage === "kvitto" && kvitto ? (
+          <>
+            <span aria-hidden="true" className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-accent-subtle text-accent"><BockIkon size={14} /></span>
+            <span className="min-w-0">{kvitto.angrat ? "Ångrat" : kvitto.text}</span>
+          </>
+        ) : null}
+      </p>
+      {lage === "skickar" && procent != null ? (
+        // `-mt-1`: raden och stapeln hörde ihop med 8 px emellan, och fältets mellanrum är 12.
+        <div role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={procent} aria-label={skickarText} className="-mt-1 h-1.5 w-full overflow-hidden rounded-full bg-line">
+          <div className="h-full bg-accent" style={{ width: `${procent}%` }} />
         </div>
-      ) : null}
-      {lage === "sparat" && !kvitto ? (
-        <p role="status" className="m-0 flex min-h-12 items-center gap-2 text-etikett font-medium text-ink">
-          <span aria-hidden="true" className="flex size-7 shrink-0 items-center justify-center rounded-full bg-accent-subtle text-accent"><BockIkon size={14} /></span>
-          Sparat
-        </p>
       ) : null}
       {lage === "sparat" && kvitto ? (
         <>
-          <p role="status" data-talk-kvitto="" className="m-0 flex items-start gap-3 text-brod text-ink [overflow-wrap:anywhere]">
-            <span aria-hidden="true" className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-accent-subtle text-accent"><BockIkon size={14} /></span>
-            <span className="min-w-0">{kvitto.angrat ? "Ångrat" : kvitto.text}</span>
-          </p>
           {kvitto.fel ? <p role="alert" data-talk-fel="" className="m-0 text-etikett text-danger">{kvitto.fel}</p> : null}
           {!kvitto.angrat ? (
             <div className="flex items-center gap-3">
               {kvitto.kanAngra ? (
-                <button type="button" data-talk-angra="" disabled={kvitto.angrar} aria-busy={kvitto.angrar || undefined} onClick={onAngra} className={SEKUNDAR_ORD}>
+                // ⛔ aria-disabled OCH INTE disabled medan Ångra pågår. En knapp som blir `disabled` tappar fokus, och tangentbordet
+                // hamnar i sidans topp mitt i en åtgärd. Klicket spärras här, och kroken spärrar ett andra försök en gång till.
+                <button
+                  type="button"
+                  data-talk-angra=""
+                  aria-disabled={kvitto.angrar || undefined}
+                  aria-busy={kvitto.angrar || undefined}
+                  onClick={() => {
+                    if (kvitto.angrar) return;
+                    onAngra?.();
+                  }}
+                  className={SEKUNDAR_ORD}
+                >
                   {kvitto.angrar ? <OpsSpinner size="sm" decorative /> : null}
                   {kvitto.angrar ? "Ångrar…" : "Ångra"}
                 </button>
               ) : null}
-              <button type="button" data-talk-stang="" onClick={onAvbryt} className={PRIMAR}>Stäng</button>
+              <button ref={stang} type="button" data-talk-stang="" onClick={onAvbryt} className={PRIMAR}>Stäng</button>
             </div>
           ) : null}
         </>

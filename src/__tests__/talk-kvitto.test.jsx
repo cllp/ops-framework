@@ -3,6 +3,7 @@ import { act, fireEvent, render, renderHook, screen, within } from "@testing-lib
 import { OpsAppShell } from "../components/OpsAppShell.jsx";
 import { OpsInspelning, useTalk } from "../components/OpsTalk.jsx";
 import { LANGTRYCK_MS, SPARAT_MS, TALK_PLATSTEXT, talkKvitto } from "../lib/talk.js";
+import { validateModuler } from "../lib/modul.js";
 
 /*
  * Kvitto, Ångra och statusraden (0.97.0, lifehub.app#219). CP 2026-10-13: TALK ska gå till gruppens agent, som gör det man bad
@@ -69,6 +70,8 @@ describe("kvittot i fältet", () => {
     const dialog = /** @type {HTMLElement} */ (falt());
     expect(within(dialog).getByRole("status").textContent).toBe("Inlagt: Rep, torsdag 22 okt 19:00");
     expect(within(dialog).getByRole("button", { name: "Ångra" })).toBeTruthy();
+    // ⛔ Fokus på Stäng, inte på Ångra: ett Enter av vana ska stänga, inte ta bort det appen nyss gjorde.
+    expect(document.activeElement).toBe(within(dialog).getByRole("button", { name: "Stäng" }));
     // ⛔ Döljs inte av sig självt, som Sparat gör.
     act(() => vi.advanceTimersByTime(SPARAT_MS * 5));
     expect(falt()).not.toBeNull();
@@ -90,10 +93,16 @@ describe("kvittot i fältet", () => {
     const angra = vi.fn(() => svar.lofte);
     render(Skal({ onTalk: async () => ({ kvitto: "Inlagt: Rep", angra }), inspelare: falskInspelare() }));
     await prataOchKlar();
-    fireEvent.click(screen.getByRole("button", { name: "Ångra" }));
+    const knapp = screen.getByRole("button", { name: "Ångra" });
+    knapp.focus();
+    fireEvent.click(knapp);
     await flush();
     const pagar = screen.getByRole("button", { name: "Ångrar…" });
-    expect(pagar).toBeDisabled();
+    // ⛔ aria-disabled och inte disabled: en knapp som blir disabled tappar fokus, och tangentbordet hamnar i sidans topp.
+    expect(pagar).toBe(knapp);
+    expect(pagar).not.toBeDisabled();
+    expect(pagar.getAttribute("aria-disabled")).toBe("true");
+    expect(document.activeElement).toBe(pagar);
     expect(pagar.getAttribute("aria-busy")).toBe("true");
     expect(pagar.querySelector("svg")).not.toBeNull();
     expect(angra).toHaveBeenCalledTimes(1);
@@ -126,6 +135,51 @@ describe("kvittot i fältet", () => {
     }
   });
 
+  /**
+   * Ångra på kvitto A, Stäng medan den pågår, en ny TALK som ger kvitto B, och sedan svarar A. @param {"los" | "avvisa"} utfall
+   */
+  async function angraPaABesvaradEfterB(utfall) {
+    const svarA = uppskjutet();
+    const angraA = vi.fn(() => svarA.lofte);
+    const angraB = vi.fn(async () => {});
+    const onTalk = vi.fn().mockResolvedValueOnce({ kvitto: "A: Rep torsdag", angra: angraA }).mockResolvedValueOnce({ kvitto: "B: Middag fredag", angra: angraB });
+    render(Skal({ onTalk, inspelare: falskInspelare() }));
+    await prataOchKlar();
+    fireEvent.click(screen.getByRole("button", { name: "Ångra" }));
+    await flush();
+    expect(screen.getByRole("button", { name: "Ångrar…" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Stäng" }));
+    expect(falt()).toBeNull();
+    await prataOchKlar();
+    expect(screen.getByRole("status").textContent).toBe("B: Middag fredag");
+    act(() => (utfall === "los" ? svarA.los() : svarA.avvisa(new Error("A gick inte att ta bort"))));
+    await flush();
+    // ⛔ B står kvar, med sin egen Ångra som går att trycka. Varken "Ångrat" eller A:s fel får ritas över den.
+    expect(screen.getByRole("status").textContent).toBe("B: Middag fredag");
+    expect(screen.queryByRole("alert")).toBeNull();
+    const angraKnapp = screen.getByRole("button", { name: "Ångra" });
+    expect(angraKnapp.getAttribute("aria-disabled")).not.toBe("true");
+    act(() => vi.advanceTimersByTime(SPARAT_MS * 3));
+    expect(falt()).not.toBeNull();
+    expect(angraB).not.toHaveBeenCalled();
+  }
+
+  it("⛔ en Ångra på kvitto A som lyckas efter att kvitto B visas ritar inte Ångrat över B", async () => {
+    await angraPaABesvaradEfterB("los");
+  });
+
+  it("⛔ en Ångra på kvitto A som faller efter att kvitto B visas ritar inte över B, men felet rapporteras (regel 5)", async () => {
+    const konsol = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      await angraPaABesvaradEfterB("avvisa");
+      const rapporter = konsol.mock.calls.filter((c) => c[2]?.steg === "angra");
+      expect(rapporter).toHaveLength(1);
+      expect(rapporter[0][1].message).toBe("A gick inte att ta bort");
+    } finally {
+      konsol.mockRestore();
+    }
+  });
+
   it("utan kvitto är det Sparat och fältet stängs, som före 0.97.0", async () => {
     render(Skal({ onTalk: async () => "ett-id", inspelare: falskInspelare() }));
     await prataOchKlar();
@@ -138,6 +192,44 @@ describe("kvittot i fältet", () => {
     render(Skal({ onTalk: () => new Promise(() => {}), skickarText: "Agenten arbetar…", inspelare: falskInspelare() }));
     await prataOchKlar();
     expect(screen.getByRole("status").textContent).toBe("Agenten arbetar…");
+  });
+
+  it("⛔ ett moduls mål (Biblioteket) säger Sparar…, inte appens skickarText", async () => {
+    // Det är modulens `spara` som arbetar där, inte appens agent. "Agenten arbetar…" hade varit osant.
+    const spara = vi.fn(() => new Promise(() => {}));
+    const onTalk = vi.fn(() => new Promise(() => {}));
+    const modul = {
+      id: "bibliotek",
+      namn: { sv: "Bibliotek", en: "Library" },
+      nav: [],
+      routes: [],
+      samlingar: [],
+      kallor: {},
+      skapar: [],
+      hubb: null,
+      tillagg: [{ plats: "inspelning.mal", id: "spara", etikett: { sv: "Spara i Biblioteket", en: "Save in the library" }, spara }],
+    };
+    render(
+      <OpsAppShell
+        brand="Ops"
+        nav={[{ href: "/", label: "Start" }]}
+        activeHref="/"
+        talk={{ onTalk, inspelare: falskInspelare(), skickarText: "Agenten arbetar…", mal: [{ id: "handelse", etikett: "Händelse" }] }}
+        skapa={{ lage: "g", moduler: validateModuler([modul]), aktivGrupp: { id: "g", moduler: ["bibliotek"] } }}
+      >
+        <p>x</p>
+      </OpsAppShell>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Skapa" }));
+    const rad = screen.getAllByRole("button", { name: "TALK, prata in" }).find((k) => !k.closest("header"));
+    fireEvent.click(/** @type {HTMLElement} */ (rad));
+    await flush();
+    fireEvent.click(screen.getByRole("radio", { name: "Spara i Biblioteket" }));
+    fireEvent.click(screen.getByRole("button", { name: "Klar, spara inspelningen" }));
+    await flush();
+    expect(spara).toHaveBeenCalledTimes(1);
+    expect(onTalk).not.toHaveBeenCalled();
+    expect(screen.getByRole("status").textContent).toBe("Sparar…");
   });
 
   it("⛔ skalet kastar på en tom skickarText vid uppstart", () => {
@@ -191,7 +283,7 @@ describe("useTalk och kvittot", () => {
     expect(result.current.kvitto).toBe(null);
   });
 
-  it("⛔ en Ångra som faller efter avmonteringen sätter inget och rapporterar inget", async () => {
+  it("⛔ en Ångra som faller efter avmonteringen sätter inget, men felet rapporteras (regel 5: ingen tyst nedsläppsväg)", async () => {
     const svar = uppskjutet();
     const { result, unmount } = await krokMedKvitto(() => svar.lofte);
     act(() => result.current.angra());
@@ -200,7 +292,10 @@ describe("useTalk och kvittot", () => {
       unmount();
       svar.avvisa(new Error("för sent"));
       await vanta();
-      expect(konsol).not.toHaveBeenCalled();
+      // Exakt en rad: rapporten. Ingen varning från React om ett tillstånd som sattes efter avmonteringen.
+      expect(konsol).toHaveBeenCalledTimes(1);
+      expect(konsol.mock.calls[0][1].message).toBe("för sent");
+      expect(konsol.mock.calls[0][2]).toMatchObject({ yta: "OpsTalk", steg: "angra", kvittotBorta: true });
     } finally {
       konsol.mockRestore();
     }
@@ -297,6 +392,36 @@ describe("fältets form", () => {
     expect(radio.every((r) => r.className.split(/\s+/).includes("flex-1") && r.className.split(/\s+/).includes("basis-0"))).toBe(true);
     fireEvent.click(within(grupp).getByRole("radio", { name: "Händelse" }));
     expect(onValj).toHaveBeenCalledWith("handelse");
+  });
+
+  it("⛔ statusregionen finns innan den får text, och det är samma element genom skickar, kvittot, Ångrat och Sparat", () => {
+    // En region som skapas samtidigt som den får text läses ofta inte upp. Den ska finnas, tom och dold, redan medan man pratar.
+    const { rerender } = render(<OpsInspelning lage="lyssnar" {...faltProps} />);
+    const region = screen.getByRole("status");
+    expect(region.getAttribute("aria-live")).toBe("polite");
+    expect(region.textContent).toBe("");
+    expect(region.className.split(/\s+/)).toContain("sr-only");
+    rerender(<OpsInspelning lage="skickar" skickarText="Agenten arbetar…" {...faltProps} />);
+    expect(screen.getByRole("status")).toBe(region);
+    expect(region.textContent).toBe("Agenten arbetar…");
+    expect(region.className.split(/\s+/)).not.toContain("sr-only");
+    const kvitto = { text: "Inlagt: Rep", kanAngra: true, angrar: false, angrat: false };
+    rerender(<OpsInspelning lage="sparat" kvitto={kvitto} onAngra={() => {}} {...faltProps} />);
+    expect(screen.getByRole("status")).toBe(region);
+    expect(region.textContent).toBe("Inlagt: Rep");
+    rerender(<OpsInspelning lage="sparat" kvitto={{ ...kvitto, angrat: true }} onAngra={() => {}} {...faltProps} />);
+    expect(screen.getByRole("status")).toBe(region);
+    expect(region.textContent).toBe("Ångrat");
+    rerender(<OpsInspelning lage="sparat" {...faltProps} />);
+    expect(screen.getByRole("status")).toBe(region);
+    expect(region.textContent).toBe("Sparat");
+  });
+
+  it("⛔ ett tryck på Ångra medan den pågår når inte appen, också om kroken inte spärrat", () => {
+    const onAngra = vi.fn();
+    render(<OpsInspelning lage="sparat" kvitto={{ text: "Inlagt: Rep", kanAngra: true, angrar: true, angrat: false }} onAngra={onAngra} {...faltProps} />);
+    fireEvent.click(screen.getByRole("button", { name: "Ångrar…" }));
+    expect(onAngra).not.toHaveBeenCalled();
   });
 
   it("⛔ X står till vänster och Klar fyller resten, i samma höjd", () => {
