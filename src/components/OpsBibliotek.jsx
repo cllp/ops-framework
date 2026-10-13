@@ -6,7 +6,7 @@ import { OpsDokument } from "./OpsDokument.jsx";
 import { OpsMarkdown } from "./OpsMarkdown.jsx";
 import { OpsModal } from "./OpsModal.jsx";
 import { OpsSvepRad } from "./OpsSvepRad.jsx";
-import { ADRESSFORM, BIBLIOTEKTYPER, arLjudpost, farAndra, filInmatningsfel, filSort, filtreraBibliotek, inmatningsfel, ljudDatum, ljudRubrik, normaliseraAdress, trimSomRegeln } from "../lib/bibliotek.js";
+import { ADRESSFORM, BIBLIOTEKTYPER, MAX_TAGGAR, allaTaggar, arLjudpost, farAndra, normaliseraTagg, normaliseraTaggar, taggarFel, filInmatningsfel, filSort, filtreraBibliotek, inmatningsfel, ljudDatum, ljudRubrik, normaliseraAdress, trimSomRegeln } from "../lib/bibliotek.js";
 import { HOPP_SEKUNDER, formateraTid, ljudStyrning } from "../lib/ljudspelare.js";
 import { useInspelningOppnare } from "./OpsAppShell.jsx";
 import { cx } from "../lib/cx.js";
@@ -14,6 +14,8 @@ import { arInstallningslage } from "../lib/apparark.js";
 import { modulTillbaka } from "../lib/modulram.js";
 import { radBehallare, radKlass } from "../lib/radKlass.js";
 import { OpsButton, knappKlass } from "./OpsButton.jsx";
+import { OpsChip } from "./OpsChip.jsx";
+import { OpsTag } from "./OpsTag.jsx";
 import { OpsLjudspelare } from "./OpsLjudspelare.jsx";
 import { OpsEmpty } from "./OpsEmpty.jsx";
 import { OpsField, OpsInput, OpsTextarea } from "./OpsField.jsx";
@@ -101,7 +103,7 @@ import { OpsView } from "./OpsView.jsx";
  * @param {(post: import("../lib/bibliotek.js").Bibliotekspost & { id: string }) => void} props.onOppna
  * @param {() => void} props.onStang
  * @param {(typ: "anteckning" | "lank" | "fil") => void} props.onSkapa
- * @param {(inmatning: { id?: string, typ: string, rubrik: string, text?: string, url?: string }) => void | boolean | Promise<void | boolean>} props.onSpara Kastar den eller avvisas löftet visas felet i formuläret och läget står kvar (0.93.0). `false` betyder att det inte gick.
+ * @param {(inmatning: { id?: string, typ?: string, rubrik?: string, text?: string, url?: string, taggar?: string[] }) => void | boolean | Promise<void | boolean>} props.onSpara Kastar den eller avvisas löftet visas felet i formuläret och läget står kvar (0.93.0). `false` betyder att det inte gick.
  * @param {(id: string) => void | Promise<void>} [props.onRadera] Tar bort posten efter bekräftelse. Saknas den och någon bekräftar visas felet, posten rörs inte.
  * @param {(inmatning: { id?: string, rubrik: string, fil: File }) => void | Promise<void>} [props.onLaddaUpp] Sparar en fil. Saknas den och någon försöker visas felet, filen laddas inte upp.
  * @param {(inmatning: { id: string, durationMs?: number, peaks?: string }) => void | Promise<void>} [props.onFyllLjud] Skriver längd och våg på en post som saknar dem. Listan räknar dem i bakgrunden, utan att någon trycker på spela. (0.93.0) Anropas bara när `jag` får ändra posten (`farAndra`): reglerna nekar alla andra, och längden visas ändå.
@@ -141,6 +143,8 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
   const [rostFel, setRostFel] = useState("");
   const [ljus, setLjus] = useState("");
   const [sok, setSok] = useState("");
+  const [valdaTaggar, setValdaTaggar] = useState(/** @type {string[]} */ ([]));
+  const [taggar, setTaggar] = useState(/** @type {null | (import("../lib/bibliotek.js").Bibliotekspost & { id: string })} */ (null));
   const [startLage, setStartLage] = useState(/** @type {"las" | "redigera"} */ ("las"));
   const [byter, setByter] = useState(/** @type {null | (import("../lib/bibliotek.js").Bibliotekspost & { id: string })} */ (null));
   const [namnUtkast, setNamnUtkast] = useState("");
@@ -361,6 +365,8 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
         onValj: () => (iDetalj && sattRedigera ? sattRedigera("redigera") : oppnaMed(post, "redigera")),
       });
       ut.push({ id: "namn", etikett: "Byt namn", onValj: () => borjaNamn(post) });
+      // ⛔ TAGGAR I SAMMA MENY SOM BYT NAMN (lifehub.app#214, #226: långtrycket). Samma rätt som att ändra posten: författaren och admin.
+      ut.push({ id: "taggar", etikett: "Taggar", onValj: () => setTaggar(post) });
     }
     const lank = lankAttKopiera(post);
     if (lank) ut.push({ id: "kopiera", etikett: "Kopiera länk", onValj: () => kopieraLank(lank) });
@@ -404,7 +410,11 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
     ljud: poster.filter((p) => arLjudpost(p)).length,
     fil: poster.filter((p) => p.typ === "fil" && !arLjudpost(p)).length,
   };
-  const synliga = filtreraBibliotek(poster, { flik, sok });
+  // ⛔ GRUPPENS TAGGAR RÄKNAS UR POSTERNA (regel 2). Ett val på en tagg som inte längre finns (sista posten raderad eller omtaggad)
+  // faller bort, annars hade listan stått tom med ett filter ingen kan se eller ta bort.
+  const gruppensTaggar = allaTaggar(poster);
+  const valda = valdaTaggar.filter((t) => gruppensTaggar.some((g) => g.tagg === t));
+  const synliga = filtreraBibliotek(poster, { flik, sok, taggar: valda });
   const installningar = Boolean(ram && modul && arInstallningslage(/** @type {string} */ (activeHref)));
   if (installningar && modul) {
     return (
@@ -464,6 +474,18 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
                     ) : null}
                   </div>
                   {rostFel ? <p role="alert">{rostFel}</p> : null}
+                  {gruppensTaggar.length > 0 ? (
+                    <div role="group" aria-label="Taggar" data-bibliotek-taggfilter="" className="flex flex-wrap gap-2">
+                      {gruppensTaggar.map(({ tagg, antal: n }) => {
+                        const pa = valda.includes(tagg);
+                        return (
+                          <OpsChip key={tagg} selected={pa} onClick={() => setValdaTaggar(pa ? valda.filter((t) => t !== tagg) : [...valda, tagg])}>
+                            {`#${tagg} ${n}`}
+                          </OpsChip>
+                        );
+                      })}
+                    </div>
+                  ) : null}
                 </div>
                 {trasiga.length > 0 ? (
                   <div role="status" data-bibliotek-trasiga={trasiga.length} className="text-meta text-ink-muted">
@@ -486,9 +508,9 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
                   <OpsEmpty busy title="Hämtar biblioteket" />
                 ) : synliga.length === 0 ? (
                   <OpsEmpty
-                    icon={sok ? null : <Library size={28} />}
-                    title={sok ? "Inga träffar." : poster.length === 0 ? "Biblioteket är tomt." : flik === "anteckning" ? "Inga anteckningar ännu." : flik === "lank" ? "Inga länkar ännu." : flik === "ljud" ? "Inga ljud ännu." : "Inga filer ännu."}
-                    description={sok ? `Inget matchar "${sok}".` : "Lägg till en anteckning, en länk, ett ljud eller en fil."}
+                    icon={sok || valda.length > 0 ? null : <Library size={28} />}
+                    title={sok || valda.length > 0 ? "Inga träffar." : poster.length === 0 ? "Biblioteket är tomt." : flik === "anteckning" ? "Inga anteckningar ännu." : flik === "lank" ? "Inga länkar ännu." : flik === "ljud" ? "Inga ljud ännu." : "Inga filer ännu."}
+                    description={sok ? `Inget matchar "${sok}"${valda.length > 0 ? ` med ${valda.map((t) => `#${t}`).join(" och ")}` : ""}.` : valda.length > 0 ? `Inget här har ${valda.map((t) => `#${t}`).join(" och ")}.` : "Lägg till en anteckning, en länk, ett ljud eller en fil."}
                   />
                 ) : (
                   <OpsList ariaLabel="Biblioteket" divided>
@@ -514,7 +536,7 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
                             namn={namn}
                             meny={meny}
                             ikon={<PostMark post={post} bildAdress={bild && lage.lage === "klar" ? lage.adress : ""} />}
-                            meta={postRad(post)}
+                            meta={medTaggar(postRad(post), post)}
                             onOppna={() => oppnaMed(post, "las")}
                           />
                         </OpsSvepRad>
@@ -569,6 +591,14 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
         <OpsField label="Rubrik" error={namnFel || undefined}>
           <OpsInput value={namnUtkast} onChange={setNamnUtkast} ariaLabel="Nytt namn" />
         </OpsField>
+      </OpsModal>
+      <OpsModal
+        open={taggar !== null}
+        onOpenChange={(oppen) => { if (!oppen) setTaggar(null); }}
+        title="Taggar"
+        size="sm"
+      >
+        {taggar ? <TaggRedigerare key={taggar.id} post={taggar} forslag={gruppensTaggar.map((g) => g.tagg)} onSpara={onSpara} onKlar={() => setTaggar(null)} /> : <p>Ingen post vald.</p>}
       </OpsModal>
       <OpsModal
         open={delar !== null}
@@ -743,6 +773,116 @@ function ljudMetaRad(post) {
 }
 
 /**
+ * Metaraden med postens taggar efter: "Anteckning · 2 okt · #kvitto · #bil". Taggarna står i texten och inte bara som färg, så de
+ * hörs i skärmläsaren och syns i en smal rad.
+ *
+ * @param {string} meta @param {{ taggar?: readonly string[] }} post
+ */
+function medTaggar(meta, post) {
+  const t = Array.isArray(post.taggar) ? post.taggar.map((x) => `#${x}`) : [];
+  return [meta, ...t].filter(Boolean).join(" · ");
+}
+
+/**
+ * Taggarna på en post: de som finns, med en knapp per tagg som tar bort den, ett fält som lägger till, och gruppens andra taggar
+ * som förslag. Sparar genom samma `onSpara` som Byt namn, med bara `taggar` ändrat.
+ *
+ * ⛔ FELET STÅR I RUTAN OCH RUTAN STÅR KVAR (samma som Byt namn sedan 0.93.0): en tagg som inte går att spara, eller ett sparande som
+ * föll, får aldrig se ut som att det gick.
+ *
+ * @param {{ post: import("../lib/bibliotek.js").Bibliotekspost & { id: string }, forslag: readonly string[], onSpara?: (inmatning: { id?: string, typ?: string, rubrik?: string, taggar?: string[] }) => void | boolean | Promise<void | boolean>, onKlar: () => void }} props
+ */
+function TaggRedigerare({ post, forslag, onSpara, onKlar }) {
+  const [lista, setLista] = useState(/** @type {string[]} */ (Array.isArray(post.taggar) ? [...post.taggar] : []));
+  const [utkast, setUtkast] = useState("");
+  const [fel, setFel] = useState("");
+  const [sparar, setSparar] = useState(false);
+  /** @param {string} ord @param {boolean} [franFaltet] Bara då töms fältet: ett förslag får inte radera det personen håller på att skriva. */
+  const lagg = (ord, franFaltet = true) => {
+    const ny = normaliseraTaggar([...lista, ...ord.split(",")]);
+    const problem = taggarFel(ny);
+    if (problem) {
+      setFel(problem);
+      return false;
+    }
+    setFel("");
+    setLista(ny);
+    if (franFaltet) setUtkast("");
+    return true;
+  };
+  const spara = async () => {
+    let ny = lista;
+    if (normaliseraTagg(utkast)) {
+      ny = normaliseraTaggar([...lista, ...utkast.split(",")]);
+      const problem = taggarFel(ny);
+      if (problem) {
+        setFel(problem);
+        return;
+      }
+    }
+    // ⛔ OFÖRÄNDRAT SPARAS INTE (granskningen av PR 363): ett sparande flyttar posten överst i listan (`andrad`), och det hade hänt
+    // fast personen bara öppnade och stängde rutan.
+    const fore = Array.isArray(post.taggar) ? post.taggar : [];
+    if (ny.length === fore.length && ny.every((t, i) => t === fore[i])) {
+      onKlar();
+      return;
+    }
+    if (typeof onSpara !== "function") {
+      setFel("Sparandet är inte kopplat. Taggarna ändrades inte.");
+      return;
+    }
+    setSparar(true);
+    try {
+      const svar = await onSpara({ id: post.id, taggar: ny });
+      if (svar === false) throw new Error("Taggarna kunde inte sparas.");
+      onKlar();
+    } catch (e) {
+      setFel(e instanceof Error && e.message ? e.message : String(e));
+    } finally {
+      setSparar(false);
+    }
+  };
+  const ovriga = forslag.filter((t) => !lista.includes(t));
+  return (
+    <div className="flex flex-col gap-4" data-bibliotek-taggruta="">
+      {lista.length > 0 ? (
+        <div className="flex flex-wrap gap-2">
+          {lista.map((t) => <OpsTag key={t} label={`#${t}`} onRemove={() => setLista(lista.filter((x) => x !== t))} removeLabel={`Ta bort taggen ${t}`} />)}
+        </div>
+      ) : (
+        <p className="m-0 text-meta text-ink-muted">Posten har inga taggar.</p>
+      )}
+      {/* ⛔ ETT FORMULÄR OCH INTE EN TANGENTHANTERARE: `OpsInput` tar medvetet ingen `onKeyDown` (stängt API), och Enter i ett fält
+          skickar formuläret i varje webbläsare. Enter lägger alltså till taggen, och Spara nedan sparar. */}
+      <form
+        className="flex items-end gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (normaliseraTagg(utkast)) lagg(utkast);
+        }}
+      >
+        <div className="min-w-0 flex-1">
+          <OpsField label="Ny tagg" hint={`Högst ${MAX_TAGGAR}. Skriv och tryck Lägg till, eller skilj flera med komma.`}>
+            <OpsInput value={utkast} onChange={setUtkast} ariaLabel="Ny tagg" placeholder="till exempel kvitto" />
+          </OpsField>
+        </div>
+        <OpsButton type="submit" variant="secondary" disabled={!normaliseraTagg(utkast)}>Lägg till</OpsButton>
+      </form>
+      {ovriga.length > 0 ? (
+        <div role="group" aria-label="Gruppens taggar" className="flex flex-wrap gap-2">
+          {ovriga.map((t) => <OpsChip key={t} onClick={() => lagg(t, false)}>{`#${t}`}</OpsChip>)}
+        </div>
+      ) : null}
+      {fel ? <p role="alert" className="m-0 text-meta text-danger">{fel}</p> : null}
+      <div className="flex justify-end gap-2">
+        <OpsButton variant="secondary" onClick={onKlar}>Avbryt</OpsButton>
+        <OpsButton variant="primary" busy={sparar} onClick={spara}>Spara</OpsButton>
+      </div>
+    </div>
+  );
+}
+
+/**
  * Gemensam listrad: ⋯ via `OpsAtgardsblad`, och antingen standardrad (ikon,
  * rubrik, meta) eller eget innehåll (ljudraden med spelare). Svepet sitter utanför.
  *
@@ -779,6 +919,7 @@ function BibliotekListrad({ namn, meny, ikon = null, meta = "", onOppna, childre
 function Ljudrad({ post, lage, onOppna, onMeta }) {
   const rubrik = ljudRubrik(post);
   const meta = ljudMetaRad(post);
+  const taggrad = medTaggar("", post);
   const text = (
     <button
       type="button"
@@ -804,7 +945,8 @@ function Ljudrad({ post, lage, onOppna, onMeta }) {
           onOppna={onOppna}
           onMeta={(inmata) => onMeta(post.id, inmata)}
         />
-      ) : (
+      ) : null}
+      {lage.lage === "klar" ? null : (
         <>
           <div className="flex min-w-0 items-center gap-3">
             <span className="inline-flex size-11 shrink-0 items-center justify-center rounded-full bg-sunken text-ink-muted" aria-hidden="true" />
@@ -817,6 +959,8 @@ function Ljudrad({ post, lage, onOppna, onMeta }) {
           )}
         </>
       )}
+      {/* Taggarna under rubriken, i båda lägena: efter spelaren när ljudet är klart, efter rubrikraden och statusen annars. */}
+      {taggrad ? <span data-bibliotek-taggar="" className="block truncate text-meta text-ink-muted">{taggrad}</span> : null}
     </div>
   );
 }

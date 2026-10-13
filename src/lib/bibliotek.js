@@ -54,6 +54,23 @@ export const MAX_BIBLIOTEKFILNAMN = 200;
 export const MAX_BIBLIOTEKSOKVAG = 1024;
 
 /**
+ * ⛔ TAGGAR (lifehub.app#214, CP 2026-10-13: "Precis som i sessionstudio skall man kunna tagga artefakter så att det blir lättare att
+ * filtrera och hitta sina saker även om det är mkt."). En post bär högst `MAX_TAGGAR` taggar. En tagg är gemener, siffror, mellanslag
+ * och bindestreck, börjar och slutar med en bokstav eller siffra och är högst `MAX_TAGGLANGD` tecken.
+ *
+ * ⛔ GEMENER I DOKUMENTET, INTE BARA I VISNINGEN. "Kvitto" och "kvitto" hade annars blivit två taggar i filtret, och två
+ * sanningar om samma sak (regel 2). `normaliseraTaggar` gör om det personen skriver, och regeln kräver formen.
+ *
+ * ⛔ MÖNSTRET SKRIVS IN I REGELN (`regelRegex`), så modell och regel kan inte glida isär. Därför är bokstäverna uppräknade och
+ * inte `\p{L}`: Firestores `matches()` får inga omvända snedstreck härifrån. Tecknen täcker svenska, norska, danska, tyska och
+ * franska accenter. En tagg med ett tecken utanför dem skrivs om eller avvisas med ett skäl, aldrig tyst.
+ */
+export const MAX_TAGGAR = 8;
+export const MAX_TAGGLANGD = 24;
+const TAGGTECKEN = "a-z0-9åäöæøüéèêàâçîïôûëÿ";
+export const TAGGFORM = new RegExp(`^[${TAGGTECKEN}]([${TAGGTECKEN} -]{0,${MAX_TAGGLANGD - 2}}[${TAGGTECKEN}])?$`);
+
+/**
  * Format en fil får ha. Bild, ljud och dokument. En sort per fält hade varit
  * en andra typ, och CP valde en typ.
  */
@@ -209,7 +226,7 @@ export function peaksGiltiga(peaks) {
  * `text` hör till en anteckning och `url` till en länk. Regeln kräver att den
  * andra saknas, så en anteckning inte kan bära en adress vid sidan av texten.
  */
-export const BIBLIOTEKFALT = /** @type {const} */ (["groupId", "typ", "rubrik", "text", "url", "fil", "utskrift", "durationMs", "peaks", "skapadAv", "skapad", "andrad"]);
+export const BIBLIOTEKFALT = /** @type {const} */ (["groupId", "typ", "rubrik", "text", "url", "fil", "utskrift", "durationMs", "peaks", "taggar", "skapadAv", "skapad", "andrad"]);
 
 /**
  * En länks adress: http eller https, och sedan bara synliga ASCII-tecken.
@@ -242,6 +259,7 @@ const FORVALTARROLLER = /** @type {const} */ (["agare", "admin"]);
  * @property {{ sokvag: string, namn: string, mime: string, byte: number }} [fil] Bara på en fil.
  * @property {string} [utskrift] Bara på ett ljud. Saknas fältet har ingen bett om en utskrift. Tom sträng är en utskrift utan ord.
  * @property {number} [durationMs] Bara på ett ljud. Millisekunder. Saknas fältet är längden inte räknad än.
+ * @property {string[]} [taggar] (0.100.0) Högst `MAX_TAGGAR`, var och en i `TAGGFORM`, utan dubbletter. Saknas fältet har posten inga.
  * @property {string} [peaks] Bara på ett ljud. Vågen som en sträng: `LJUD_STOLPAR` tecken ur `TOPP_TECKEN`, ett per stolpe (`kodaToppar`, `avkodaToppar`). Saknas fältet är vågen inte räknad än.
  * @property {import("./skapare.js").Skapare} skapadAv
  * @property {number} skapad Millisekunder.
@@ -415,6 +433,69 @@ export function ljudMetaFel(d) {
 }
 
 /**
+ * En tagg som den sparas: gemener, ändarnas mellanslag borta, mellanslag i rad till ett, och `#` i början borta (den som skriver
+ * "#kvitto" menar taggen kvitto). Det som då inte är i `TAGGFORM` lämnas som det är, så att `taggarFel` säger vad som är fel.
+ *
+ * @param {unknown} v
+ * @returns {string}
+ */
+export function normaliseraTagg(v) {
+  // ⛔ NFC FÖRST (granskningen av PR 363): inklistrad text från macOS kan bära "å" som a plus en kombinerande ring, och den formen
+  // står inte i TAGGFORM. Personen ser samma bokstav, så felet hade varit obegripligt.
+  return str(v).normalize("NFC").replace(/^#+/, "").toLocaleLowerCase("sv").replace(/\s+/g, " ").trim();
+}
+
+/**
+ * Taggarna som de sparas, i den ordning de skrevs och utan dubbletter. En tom tagg tas bort. Allt annat lämnas åt `taggarFel`.
+ *
+ * @param {unknown} v
+ * @returns {string[]}
+ */
+export function normaliseraTaggar(v) {
+  if (!Array.isArray(v)) return [];
+  /** @type {string[]} */
+  const ut = [];
+  for (const t of v) {
+    const n = normaliseraTagg(t);
+    if (n && !ut.includes(n)) ut.push(n);
+  }
+  return ut;
+}
+
+/**
+ * Skälet till att taggarna inte får sparas, eller `null`. Samma villkor som regeln: en lista, högst `MAX_TAGGAR`, var och en i
+ * `TAGGFORM`, inga dubbletter.
+ *
+ * @param {unknown} v
+ * @returns {string | null}
+ */
+export function taggarFel(v) {
+  if (!Array.isArray(v)) return "Taggarna ska vara en lista.";
+  if (v.length > MAX_TAGGAR) return `Posten har ${v.length} taggar. Taket är ${MAX_TAGGAR}.`;
+  for (const t of v) {
+    if (typeof t !== "string" || !TAGGFORM.test(t)) {
+      return `Taggen "${typeof t === "string" ? t : String(t)}" går inte att spara. En tagg är högst ${MAX_TAGGLANGD} tecken, med bokstäver, siffror, mellanslag och bindestreck.`;
+    }
+  }
+  if (new Set(v).size !== v.length) return "Samma tagg står två gånger.";
+  return null;
+}
+
+/**
+ * Gruppens taggar, räknade ur posterna, flest först och sedan i bokstavsordning. Ingen egen samling: listan är härledd ur
+ * posterna (regel 2), och en tagg utan poster finns inte.
+ *
+ * @param {ReadonlyArray<{ taggar?: unknown }>} poster
+ * @returns {Array<{ tagg: string, antal: number }>}
+ */
+export function allaTaggar(poster) {
+  /** @type {Map<string, number>} */
+  const antal = new Map();
+  for (const p of poster) for (const t of Array.isArray(p.taggar) ? p.taggar : []) if (typeof t === "string") antal.set(t, (antal.get(t) ?? 0) + 1);
+  return [...antal].map(([tagg, n]) => ({ tagg, antal: n })).sort((a, b) => b.antal - a.antal || a.tagg.localeCompare(b.tagg, "sv"));
+}
+
+/**
  * Får den här personen ändra eller radera posten? Samma villkor som regelns
  * `update` och, sedan #311, som regelns `delete`: författaren, eller ägare
  * eller admin i gruppen. Båda kräver ett aktivt medlemskap (`opsArMedlem`).
@@ -454,6 +535,10 @@ export function inmatningsfel(d) {
   const rubrik = str(d.rubrik);
   if (!rubrik) return "Rubriken saknas.";
   if (rubrik.length > MAX_BIBLIOTEKRUBRIK) return `Rubriken är ${rubrik.length} tecken. Taket är ${MAX_BIBLIOTEKRUBRIK}.`;
+  if ("taggar" in d && d.taggar != null) {
+    const tf = taggarFel(d.taggar);
+    if (tf) return tf;
+  }
 
   if (typ === "anteckning") {
     if ("url" in d && d.url != null && str(d.url) !== "") return "En anteckning har text, och ingen adress.";
@@ -527,6 +612,7 @@ export function postFel(d) {
  */
 export function byggPost(d) {
   if (d && typeof d === "object" && str(d.typ) === "lank" && "url" in d) d = { ...d, url: normaliseraAdress(d.url) };
+  if (d && typeof d === "object" && "taggar" in d && Array.isArray(d.taggar)) d = { ...d, taggar: normaliseraTaggar(d.taggar) };
   if (d && typeof d === "object" && str(d.typ) === "fil" && d.fil && typeof d.fil === "object") {
     d = { ...d, fil: { .../** @type {object} */ (d.fil), mime: normaliseraMime(/** @type {any} */ (d.fil).mime) } };
   }
@@ -543,6 +629,8 @@ export function byggPost(d) {
     skapad: /** @type {number} */ (d.skapad),
     andrad: /** @type {number} */ (d.andrad),
   };
+  // ⛔ EN TOM LISTA SPARAS INTE: en post utan taggar saknar fältet, så "inga taggar" har en form och inte två.
+  if (Array.isArray(d.taggar) && d.taggar.length > 0) post.taggar = /** @type {string[]} */ ([...d.taggar]);
   if (typ === "anteckning") post.text = str(d.text);
   else if (typ === "lank") post.url = str(d.url);
   else {
@@ -565,7 +653,10 @@ export function byggPost(d) {
  *
  * @template {Bibliotekspost & { id?: string }} T
  * @param {readonly T[]} poster
- * @param {{ flik?: string, sok?: string }} [val]
+ * ⛔ TAGGARNA ÄR "OCH" (0.100.0): två valda taggar visar posterna som bär båda. Det är så filtret blir smalare för varje val, som
+ * flikarna. Sökningen läser också taggarna, så den som skriver "kvitto" hittar en post taggad kvitto.
+ *
+ * @param {{ flik?: string, sok?: string, taggar?: readonly string[] }} [val]
  * @returns {T[]}
  */
 export function filtreraBibliotek(poster, val = {}) {
@@ -573,8 +664,11 @@ export function filtreraBibliotek(poster, val = {}) {
   if (!(/** @type {readonly string[]} */ (BIBLIOTEKFLIKAR).includes(flik))) {
     throw new Error(`filtreraBibliotek: okänd flik "${flik}". Giltiga: ${BIBLIOTEKFLIKAR.join(", ")}.`);
   }
-  const sok = str(val.sok).toLowerCase();
+  // ⛔ "#kvitto" SÖKER PÅ TAGGEN (granskningen av PR 363): raden visar taggen med #, och den som söker skriver det den ser.
+  const sok = str(val.sok).toLowerCase().replace(/^#+/, "");
+  const valda = Array.isArray(val.taggar) ? val.taggar : [];
   return [...poster]
+    .filter((p) => valda.every((t) => Array.isArray(p.taggar) && p.taggar.includes(t)))
     .filter((p) => {
       if (flik === "alla") return true;
       if (flik === "ljud") return arLjudpost(p);
@@ -583,7 +677,7 @@ export function filtreraBibliotek(poster, val = {}) {
     })
     .filter((p) => {
       if (!sok) return true;
-      const hay = `${p.rubrik}\n${p.text ?? ""}\n${p.url ?? ""}\n${p.fil?.namn ?? ""}`.toLowerCase();
+      const hay = `${p.rubrik}\n${p.text ?? ""}\n${p.url ?? ""}\n${p.fil?.namn ?? ""}\n${(p.taggar ?? []).join("\n")}`.toLowerCase();
       return hay.includes(sok);
     })
     .sort((a, b) => b.andrad - a.andrad || a.rubrik.localeCompare(b.rubrik, "sv"));
