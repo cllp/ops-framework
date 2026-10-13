@@ -94,10 +94,44 @@ finns och väljer.
 ⛔ **Modulrepot skapas när den första community-modulen finns**, inte före. Ett tomt repo är ett ställe som ser ut att vara
 på väg någonstans (kanonens regel 8, omvänt).
 
-### Ekonomi är en kärnmodul
+### Kärnappar och community-appar i samma katalog
 
-Ekonomi är kod och följer med instansens version. Den hämtas inte ur katalogen. Moduler som är kod och inte går genom
-sandlådan finns bara i kärnan.
+CP 2026-10-13, med en skärmbild av Hubben där Ekonomi, Meddelanden och Bibliotek har var sin brytare: "Vi kan ha Chatt och
+Bibliotek som inbyggda appar. Även Ekonomi. Men Ekonomi är en väldigt specifik app. Skall ju inte vara tillgänglig för alla."
+
+- **Kärnappar** är kod och följer med instansens version: Meddelanden, Bibliotek och Ekonomi. De hämtas inte ur katalogen,
+  men de står i samma lista som community-apparna och styrs med samma reglage. Hämta slår då bara på appen direkt.
+- **Community-appar** är beskrivningar som hämtas på riktigt.
+- För hub-admin ser båda likadana ut: en lista och ett reglage.
+
+⛔ **De befintliga kärnapparna är inte det första provet av byggsätt A.** Meddelanden bär chatten, agenten och TALK. Ekonomi
+har bankkoppling och serverjobb. Bibliotek har filer med egna regler. Att bygga om dem först hade krävt hela plattformen innan
+det enkla fallet var bevisat, och riskerat funktioner som används varje dag. Bibliotek är kandidaten att flytta först, när
+motorn har en fildel.
+
+### Hub-admin väljer vilka grupper som får en app
+
+CP 2026-10-13: "Om jag vill att ekonomi-modulen skall vara tillgänglig för min grupp och inte en annan grupp så går det inte
+idag. Skall vi utöka hubadmin till att välja specifika grupper som kan installera appar. Alla eller valda grupper?" Och: "Då
+kör vi på det."
+
+Varje app i Hubben har tre lägen i stället för en brytare:
+
+| Läge | Betyder |
+|---|---|
+| **Av** | Ingen grupp kan lägga till appen |
+| **Alla grupper** | Varje grupp kan lägga till den (dagens läge) |
+| **Valda grupper** | Bara grupperna hub-admin kryssat i |
+
+- Gruppens ägare ser bara de appar gruppen får lägga till.
+- ⛔ **En grupp som plockas bort ur listan får appen dold, inte raderad.** Datan står kvar, precis som när en grupp slår av en
+  app i dag.
+- En ny grupp får ingenting av sig själv när läget är Valda grupper.
+- ⛔ **Servern prövar valet när en grupp slår på en app**, inte bara knappen. Det är en uppslagning mot hubbens inställning,
+  inga läsregler per grupp.
+- Samma reglage används när en community-app hämtas: hub-admin väljer Alla grupper eller Valda grupper direkt.
+
+**Senare:** att en grupp kan efterfråga en app som den inte får lägga till. CP: "Men det kan vi ta senare."
 
 ## Det som inte bestäms här
 
@@ -109,6 +143,8 @@ sandlådan finns bara i kärnan.
 
 Skivorna står i epiken cllp/lifehub.app#213. Förslaget till ordning:
 
+0. **Hubben:** Av, Alla grupper eller Valda grupper per app, med serverns prövning. Kärnapparna i samma lista. Litet nog att
+   byggas före motorn.
 1. **Ramverket:** modulformat v1 och motorn för A: lista, tabell, formulär och knapp ur en beskrivning, regelfragmentet för
    moduldata och prov mot emulatorn. Utlåningen är exemplet.
 2. **Instansen:** beskrivningar sparade i instansen och påslagna per grupp, i samma lista som appens moduler (`groups.moduler`).
