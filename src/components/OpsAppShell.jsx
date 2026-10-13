@@ -1593,6 +1593,24 @@ function OpsAppShellRitad({
     maxSekunder: valtMal?.maxSekunder,
   });
   /**
+   * ⛔ VALET GÄLLER EN INSPELNING, INTE SESSIONEN (0.94.3, lifehub.app#187). `valtInspelning` sattes av
+   * Röstinspelning i en moduls Ny-meny, och av ett val i fältet, men återställdes aldrig. Efter en röstinspelning i
+   * Biblioteket, även en avbruten, stod Bibliotek kvar som valt nästa gång någon långtryckte på plus eller tryckte på
+   * TALK. TALK:s förval, appens första mål, hade flyttat utan att någon valt det. Därför nollas valet när inspelningen
+   * är över, alltså när läget går TILLBAKA till vila: efter Sparat, efter Avbryt och efter att ett fel stängts.
+   *
+   * ⛔ BARA PÅ ÖVERGÅNGEN, ALDRIG MEDAN LÄGET REDAN ÄR VILA. `oppnaInspelning` sätter målet och anropar `direkt()` i
+   * samma händelse, och `talkNasta` går vila → lyssnar synkront i den. React lägger ihop båda i en rendering, så
+   * effekten ser läget lyssnar och målet satt. En återställning på "läget är vila" hade ändå varit fel så fort
+   * övergången blev asynkron: den hade nollat det nyss valda målet innan inspelningen startat.
+   */
+  const foregaendeLage = useRef(talkStyr.lage);
+  useEffect(() => {
+    const forut = foregaendeLage.current;
+    foregaendeLage.current = talkStyr.lage;
+    if (talkStyr.lage === "vila" && forut !== "vila") setValtInspelning(null);
+  }, [talkStyr.lage]);
+  /**
    * Röstinspelning ur en moduls Ny-meny (0.90.8). Samma `useTalk` som plusset. Målet är modulens första
    * `inspelning.mal` i gruppen, förvalt innan fältet öppnas. Utan det målet kastas: en inspelning utan mottagare
    * hade försvunnit när personen tryckte Klar.

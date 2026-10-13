@@ -9,6 +9,22 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.94.3
+
+Inspelarens valda mål stod kvar efter inspelningen. lifehub.app#187, mätt i lifehub.app PR 200.
+
+### Felet
+
+- **Mätt:** efter en Röstinspelning ur Bibliotekets Ny-meny, sparad eller avbruten, stod Biblioteket kvar som valt mål nästa gång någon långtryckte på plusset eller tryckte på TALK. TALK:s förval, appens första mål ("Förslag" i lifehub.app), hade flyttat utan att någon valt det, och nästa inspelning hade hamnat i Biblioteket.
+- **Orsaken:** `OpsAppShell` håller målet i `valtInspelning`. `oppnaInspelning` sätter det, och ett val i fältet sätter det, men ingenting nollade det. Samma sak gällde ett mål som valdes i fältet under en plusinspelning: valet låg kvar till nästa gång.
+
+### Rättelsen
+
+- **`OpsAppShell`:** `valtInspelning` blir `null` när inspelningen är över, alltså när `talkStyr.lage` går från ett annat läge tillbaka till `"vila"`: efter Sparat, efter Avbryt och efter att ett fel stängts. Bara på övergången, aldrig medan läget redan är vila: `oppnaInspelning` sätter målet och anropar `direkt()` i samma händelse, och en återställning på "läget är vila" hade nollat målet innan inspelningen startat om övergången någon gång blir asynkron.
+- **Tre nya prov i `bibliotek-plus.test.jsx`:** sparad röstinspelning, avbruten röstinspelning (med ett val i fältet under en plusinspelning) och att röstinspelningen fortfarande sparas i modulens mål efter en återställning. De två första är röda utan rättelsen och gröna med den.
+
+---
+
 ## 0.94.2
 
 Samarbetet står i kanon, överst efter metaregeln. Ingen kod ändras.
