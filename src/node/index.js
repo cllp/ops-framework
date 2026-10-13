@@ -174,3 +174,14 @@ export {
   mejlregelfragment,
   normaliseraMejlsprak,
 } from "./mejl.js";
+
+/*
+ * ⛔ BESKRIVNA APPAR PÅ NODSIDAN (0.99.0, beslut 0005, lifehub.app#213). Agentens verktyg `skapaApp` bygger en beskrivning på servern, och den ska
+ * prövas med SAMMA funktion som klienten läser med, så att "giltig" inte kan betyda två saker. Felen är skrivna för en agent som rättar sig efter
+ * dem. `byggBeskrivningsdokument` ger dokumentet och dess id för Admin SDK: formen finns på ett ställe. Filen är ren.
+ */
+export {
+  BESKRIVNINGSFORMAT, FALTTYPER, VISNINGAR, BESKRIVNINGSIDFORM, MAX_BESKRIVNINGSNAMN, MAX_APPBESKRIVNING, MIN_LISTOR, MAX_LISTOR, MIN_FALT, MAX_FALT, MIN_VAL, MAX_VAL, MAX_VALTEXT,
+  MAX_TEXTVARDE, MAX_LANGTEXTVARDE, MAX_LANKVARDE, BESKRIVNINGSFALT, LISTFALT, FALTFALT, BESKRIVENAPPDATAFALT, BESKRIVNINGSDOKUMENTFALT,
+  validateBeskrivning, validateRad, beskrivningsId, byggBeskrivningsdokument,
+} from "../lib/beskrivenapp.js";

@@ -171,7 +171,7 @@ mörkt deklareras **en gång**; blocken som aktiverar den får bara peka.
 
 ### Komponenter
 
-**138 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
+**139 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
 eller `...rest`. Ett okänt värde kastar med läsbar text i stället för att rendera
 något godtyckligt.
 
@@ -2225,6 +2225,7 @@ En andra ingång, för det som behöver en token. Buntas **inte** för webbläsa
 | `bakfyllKatalogGrupp({ kalla, samlingar, groupId, torr?, grupper? })` | 0.33.0, #162. Ger katalograder utan grupp appens `groupId` och nyckeln `groupId|id`, tar bort den gamla raden, och seedar grupper som saknar kataloger, ALLT i en batch. Torrkörning förval. Se bakfyllnaden under katalogtabellen ovan och ordningen i CHANGELOG 0.33.0 |
 | `createAgentService({ kalla, samlingar? })` | 0.60.0, cllp/lifehub.app#47. Gruppens agent: `satStatus({ uid, groupId, status })` (bara ägaren, `aktiv` eller `avstangd`, aldrig ta bort) och `sakerstall({ groupId, skarpt })` för engångssteget (idempotent, torrt skriver inget). Se [Gruppens agent är medlem](#gruppens-agent-är-medlem-0600-clllplifehubapp47) |
 | `seedaKataloger({ kalla, groupId, standardvarden })` | #161, #162. Seedar en befintlig grupps kataloger, en `createCatalogSource(...).seeda()` per katalog. ⛔ `skapaGrupp` anropar den inte längre (0.33.0): den skriver katalogerna i sin egen batch. `standardvarden` är ett objekt, en nyckel per katalog (samlingens namn): värdet är antingen en lista rader (genväg för `{ standard: rader }`) eller katalogens fulla `createCatalogSource`-konfiguration (`standard`, `ikoner`, `textnycklar`, `faser`, `farger`). Bygger EN `createCatalogSource` per katalog, med `groupId` inbakat, och kör dess `.seeda()`. Svarar `{ [namn]: { seedade, antal, orsak? } }`, en rad per katalog, aldrig en sammanslagen bool. Katalogerna seedas i turordning, inte parallellt |
+| `validateBeskrivning`, `validateRad`, `byggBeskrivningsdokument`, `beskrivningsId`, `BESKRIVNINGSFORMAT`, `FALTTYPER`, `VISNINGAR`, `BESKRIVNINGSIDFORM`, `MAX_BESKRIVNINGSNAMN`, `MAX_APPBESKRIVNING`, `MIN_LISTOR`, `MAX_LISTOR`, `MIN_FALT`, `MAX_FALT`, `MIN_VAL`, `MAX_VAL`, `MAX_VALTEXT`, `MAX_TEXTVARDE`, `MAX_LANGTEXTVARDE`, `MAX_LANKVARDE`, `BESKRIVNINGSFALT`, `LISTFALT`, `FALTFALT`, `BESKRIVENAPPDATAFALT`, `BESKRIVNINGSDOKUMENTFALT` | 0.99.0, lifehub.app#213. **Samma funktioner och samma tak som i huvudingången.** Agentens `skapaApp` bygger en beskrivning på servern och prövar den med exakt den funktion klienten läser med, så "giltig" inte kan betyda två saker. `byggBeskrivningsdokument` ger dokumentet och dess id för Admin SDK. Se [Beskrivna appar](#beskrivna-appar-byggsätt-a-0990-lifehubapp213) |
 | `createMailQueue`, `createMailSender`, `createNodemailerTransport`, `createMockMailTransport`, `byggMejl`, `byggMejlhandelse`, `losMejlsprak`, `normaliseraMejlsprak`, `SPARRADA_MEJLDOMANER`, `mejlregelfragment` | 0.76.0, #101. Mejlkö, utskick och regler. Se [Mejl](#mejl-0760-101) |
 
 ⛔ **Varför en egen ingång och inte bara en modul till.** Allt som når
@@ -2796,6 +2797,64 @@ Gruppens slutsatser. En person lyfter en rad ur ett meddelande i en tråd. Agent
 | `minnesregelfragment` | samlingsnamnet. Limmas in efter `regelfragment()`. Medlem läser. Person lyfter som sig själv. Den som lyfte eller ägaren ändrar och tar bort. Ingen klient skriver i agentens namn |
 | `onLyftTillMinnet` | prop på `OpsMeddelanden` och `OpsTrad`. Utan den finns ingen knapp "Lyft till minnet". Anropas med `{ samtal, trad, meddelande, text, av }` |
 | `minneHref` | prop på samma komponenter. Utan den finns ingen länk "Minnet" |
+
+---
+
+## Beskrivna appar (byggsätt A, 0.99.0, lifehub.app#213)
+
+En app är en BESKRIVNING (data), och motorn ritar och sparar den. Beslutet står i `docs/beslut/0005-moduler-som-beskrivning.md`:
+en beskrivning kan bara be motorn om listor och fält ur en sluten uppsättning, och därför behöver den ingen granskning och kan inte
+nå mer än gruppens medlemmar redan når. CP 2026-10-13: "Nu skall vi skapa funktionen för att bygga appar från agenten under natten."
+Samlingsnamnen skickar appen in, som alltid. Modellen (`validateBeskrivning`, `validateRad` och taken) finns också i
+`ops-framework/node`, så appens Cloud Functions validerar med samma funktion som klienten.
+
+**Formatet, version 1:**
+
+```json
+{
+  "format": 1,
+  "id": "utlaning",
+  "namn": "Utlåning",
+  "ikon": "book",
+  "beskrivning": "Vad som är utlånat, till vem, och när det ska tillbaka.",
+  "listor": [
+    {
+      "id": "saker",
+      "namn": "Saker",
+      "falt": [
+        { "id": "namn", "namn": "Sak", "typ": "text", "krav": true },
+        { "id": "lanad-av", "namn": "Lånad av", "typ": "person" },
+        { "id": "tillbaka", "namn": "Tillbaka", "typ": "datum" },
+        { "id": "skick", "namn": "Skick", "typ": "val", "val": ["Bra", "Sliten", "Trasig"] }
+      ],
+      "rubrikfalt": "namn",
+      "visning": "lista"
+    }
+  ]
+}
+```
+
+Id är små bokstäver, siffror och bindestreck (`lanad-av`, inte `lanad_av`), börjar med en bokstav, 2 till 40 tecken. `ikon` är ett namn
+ur `GRUPPIKONKATALOG`. 1 till 5 listor och 1 till 20 fält per lista. Fälttyperna är `text`, `langtext`, `tal`, `datum`, `val`, `janej`,
+`lank` och `person`. `val` krävs på typen `val` (2 till 30 alternativ) och hör inte hemma på någon annan. `rubrikfalt` är id på ett fält
+av typen `text`. `visning` är `lista` (förval) eller `tabell`. Ett okänt fält är ett fel överallt.
+
+| | |
+|---|---|
+| `validateBeskrivning(b)` | `{ ok: true, beskrivning }` (normaliserad: texter trimmade, `krav` och `visning` alltid satta, idempotent) eller `{ ok: false, fel }`. ⛔ `fel` är ALLA fel, inte det första, och varje börjar med sökvägen: `listor[0].falt[2].typ: okänd typ "siffra". Giltiga: text, langtext, tal, datum, val, janej, lank, person.` De är skrivna för en agent som rättar sig efter dem. Högst 25 skrivs ut, resten räknas |
+| `validateRad(beskrivning, listaId, varden)` | `{ ok: true, varden }` (normaliserade) eller `{ ok: false, fel, faltfel }`. `fel` bär sökvägen (`varden.namn: krävs.`), `faltfel` är samma text per fält-id utan sökväg, för ett formulär. text högst 200 tecken, `langtext` 4000, `tal` ett ändligt tal, `datum` ett riktigt datum `ÅÅÅÅ-MM-DD`, `val` ett av alternativen, `janej` sant eller falskt, `lank` http eller https (`ADRESSFORM`, högst 2000), `person` ett uid. Krävda fält ska ha ett värde, okända fält är fel, och ett tomt värde utelämnas |
+| `byggBeskrivningsdokument({ groupId, beskrivning, skapadAv, skapad })` | dokumentet som skrivs och dess id, `{ id, data }`. Klienten och en server med Admin SDK bygger det här, så formen finns på ett ställe. Kastar med alla fel när beskrivningen inte håller |
+| `beskrivningsId(groupId, appId)` | dokumentets id för en beskrivning: samma schema som `modulinstallningsId` (längd, grupp, app, skilda av `~`). Appens id står bara i `beskrivning.id`, aldrig som ett eget fält |
+| `BESKRIVNINGSFORMAT`, `FALTTYPER`, `VISNINGAR`, `BESKRIVNINGSIDFORM` | formatets version, de åtta typerna, de två visningarna och formen på ett id. Regeln skriver samma id-uttryck via `regelRegex` |
+| `MAX_BESKRIVNINGSNAMN`, `MAX_APPBESKRIVNING`, `MIN_LISTOR`, `MAX_LISTOR`, `MIN_FALT`, `MAX_FALT`, `MIN_VAL`, `MAX_VAL`, `MAX_VALTEXT`, `MAX_TEXTVARDE`, `MAX_LANGTEXTVARDE`, `MAX_LANKVARDE` | taken, samma tal i valideringen och i regelfragmenten |
+| `BESKRIVNINGSFALT`, `LISTFALT`, `FALTFALT`, `BESKRIVENAPPDATAFALT`, `BESKRIVNINGSDOKUMENTFALT` | fälten beskrivningen, en lista och ett fält får bära, och fälten en rad och ett beskrivningsdokument har i databasen (regelns `hasOnly`) |
+| `createBeskrivenAppKalla({ source, collection, groupId, beskrivning, skapare })` | raderna i en app. `beskrivning` krävs och prövas när källan skapas (en som inte håller kastar med alla fel). `appId` härleds ur den; anges den måste den vara samma. `las` svarar `{ rader, kalla, fel, trasiga }`, nyast ändrad först, och kastar inte: en tom lista med `kalla: "databas"` är en tom app, `kalla: "fel"` är en läsning som inte gick. En rad utan sin form (fel grupp eller app, en lista som inte finns) står i `trasiga` och släcker inte de andra. En rad vars värden inte längre passar beskrivningen är INTE trasig. `skapa({ lista, varden })` och `spara(id, varden)` kör `validateRad` före skrivningen, sätter grupp, app, skapare och klockslag själva, och `spara` ersätter värdena. `taBort(id)`. De vägrar en rad i en annan grupp eller app. Frågan är `where: { groupId, appId }` och sorteringen görs i klienten, så inget sammansatt index behövs |
+| `createBeskrivningskalla({ source, collection, groupId, skapare })` | beskrivningarna. `lista()` svarar `{ beskrivningar, kalla, fel, trasiga }`, `las(appId)` ger `{ post, kalla, fel }` (`post: null` är en app som inte finns), `spara(beskrivning)` skapar eller ändrar (skaparen och `skapad` står stilla) och kastar med alla fel när beskrivningen inte håller, `taBort(appId)`. Raderna i appen tas inte bort med beskrivningen. En beskrivning som inte håller läses inte: den står i `trasiga` |
+| `OpsBeskrivenApp` | `{ beskrivning, kalla, jag, medlemmar, sprak?, hubHref?, hubEtikett?, onNavigate?, ram?, activeHref?, modul? }`. Flikar per lista (ingen flikrad när det finns en lista), sök, Ny, raderna som lista eller tabell, och ett formulär ur fältens typ (`OpsInput`, `OpsTextarea`, `OpsDatePicker`, `OpsSelect`, `OpsSwitch`). Spara, Avbryt och Ta bort (med fråga). Ett fel visas, tyst aldrig. `jag` krävs (`{ uid, roll }` eller `null`) och `farAndra` avgör vem som får ändra, som i Biblioteket. `medlemmar` är gruppens medlemskap: fält av typen person väljer ur de aktiva personerna (inte agenten). Ingenting ur beskrivningen blir HTML, och en länk visas som text. En beskrivning som inte håller ritas som en banner med felen och kastar inte. Ordlistan är `ORD_OPSBESKRIVENAPP` (sv och en) |
+| `beskrivenappdataregelfragment` | samlingsnamnet för ALL appdata. Limmas in efter `regelfragment()`. Medlem läser. En person (inte en agent) skapar som sig själv, med serverns klocka. Skaparen eller admin ändrar och raderar. Gruppen, appen, listan, skaparen och `skapad` står stilla. ⛔ Regeln låser FORMEN (fälten, `appId` och `lista` på id-form, `varden` en map med högst `MAX_FALT` fält) och läser aldrig beskrivningen: ett värde av fel typ kan skrivas förbi klienten, bara i skribentens egen grupp. `validateRad` prövar innehållet. Inget uttryck per värde, så den går inte över Firestores tak på 1000 uttryck |
+| `beskrivningsregelfragment` | samlingsnamnet för beskrivningarna. Limmas in efter `regelfragment()`. Medlem läser. Ägare och admin skapar, ändrar och raderar, bara som person. Id:t är bundet till kroppen (grupp och `beskrivning.id`). Regeln låser beskrivningens yttre form och inte fälttyperna. Servern (Admin SDK) går förbi reglerna och validerar själv |
+
+⛔ **Reglerna ska vara deployade INNAN klienten börjar läsa samlingarna.** En regel i `main` är inte en regel i produktion (bolag-ops, 2026-09-27).
 
 ---
 

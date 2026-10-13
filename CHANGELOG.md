@@ -9,6 +9,77 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.99.0
+
+**Beskrivna appar, byggsätt A.** En app är en beskrivning (data), och motorn ritar och sparar den. Beslut 0005, nattens första skiva i
+[lifehub.app#213](https://github.com/cllp/lifehub.app/issues/213).
+
+CP 2026-10-13: "Nu skall vi skapa funktionen för att bygga appar från agenten under natten." Agenten ska kunna bygga en app åt en grupp
+utan att skriva kod. Kod körs som den inloggade personen eller med Admin SDK, och en beskrivning kan bara BE motorn om listor och fält ur
+en sluten uppsättning (beslut 0005, "kod får nycklarna, en beskrivning får bara be"). Därför behövs ingen granskning av en beskrivning,
+och därför är formatet strängt: ett okänt fält är ett fel och släpps inte tyst igenom.
+
+### Nytt
+
+- **Formatet, version 1:** `{ format: 1, id, namn, ikon, beskrivning, listor: [{ id, namn, falt: [{ id, namn, typ, krav?, val? }], rubrikfalt, visning? }] }`.
+  Åtta fälttyper: `text`, `langtext`, `tal`, `datum`, `val`, `janej`, `lank`, `person`. 1 till 5 listor och 1 till 20 fält per lista. Id är små
+  bokstäver, siffror och bindestreck (2 till 40 tecken). `ikon` är ett namn ur `GRUPPIKONKATALOG`, ingen andra lista.
+- **`validateBeskrivning(b)`** ger `{ ok: true, beskrivning }` (normaliserad och idempotent) eller `{ ok: false, fel }` med ALLA fel, inte det
+  första, och varje med sökvägen och vad som gäller: `listor[0].falt[2].typ: okänd typ "siffra". Giltiga: text, langtext, tal, datum, val,
+  janej, lank, person.` De är skrivna för en agent som rättar sig efter dem.
+- **`validateRad(beskrivning, listaId, varden)`** prövar en rads värden mot fältens typer, krav och okända fält, och ger `{ ok: true, varden }`
+  eller `{ ok: false, fel, faltfel }` (`faltfel` är texten per fält-id, för ett formulär).
+- **`createBeskrivenAppKalla`** (raderna) och **`createBeskrivningskalla`** (beskrivningarna). Båda tar `source`, `collection`, `groupId` och
+  `skapare`, och båda prövar innan de skriver. Appen namnger samlingarna.
+- **`beskrivenappdataregelfragment(namn)`** och **`beskrivningsregelfragment(namn)`**, med emulatorprov (29 prov i `rules/__tests__/beskrivenapp.test.mjs`).
+- **`OpsBeskrivenApp`**: flikar per lista, sök, Ny, raderna som lista eller tabell, ett formulär ur fältens typ, Spara, Avbryt och Ta bort med
+  fråga. Bara ramverkets egna delar, och ingenting ur beskrivningen blir HTML.
+- **`byggBeskrivningsdokument`** och **`beskrivningsId`**: dokumentets form och id på ett ställe, för klienten och för en server med Admin SDK.
+- **`ops-framework/node`** bär modellen (`validateBeskrivning`, `validateRad`, `byggBeskrivningsdokument`, `beskrivningsId` och alla tak), så att
+  appens Cloud Functions validerar med samma funktion som klienten.
+
+### För appen
+
+1. **Klistra in två fragment i `firestore.rules`**, efter `regelfragment()`, med samlingsnamn appen väljer:
+
+   ```js
+   import { beskrivenappdataregelfragment, beskrivningsregelfragment } from "ops-framework";
+   beskrivenappdataregelfragment("appdata");        // ALL appdata, en samling för alla beskrivna appar
+   beskrivningsregelfragment("appbeskrivningar");   // beskrivningarna själva
+   ```
+
+   ⛔ **Deploya reglerna INNAN den klienthalva som börjar läsa samlingarna mergas.** En regel i `main` är inte en regel i produktion
+   (bolag-ops, 2026-09-27: `Missing or insufficient permissions` över hela Inkorgen). Catch-all nekar allt som inte har ett block.
+2. **Skapa källorna och montera vyn:**
+
+   ```js
+   const beskrivningar = createBeskrivningskalla({ source, collection: "appbeskrivningar", groupId, skapare });
+   const { beskrivningar: appar } = await beskrivningar.lista();       // bara de som håller, resten står i trasiga
+   const kalla = createBeskrivenAppKalla({ source, collection: "appdata", groupId, beskrivning: appar[0].beskrivning, skapare });
+   <OpsBeskrivenApp beskrivning={appar[0].beskrivning} kalla={kalla} jag={jag} medlemmar={medlemmar} hubHref="/" />
+   ```
+
+3. **På servern (agentens `skapaApp`):** `validateBeskrivning` och svara modellen med `fel` tills den är giltig. Skriv sedan med Admin SDK:
+   `const { id, data } = byggBeskrivningsdokument({ groupId, beskrivning, skapadAv, skapad: Date.now() })` och `set(id, data)`.
+   Importera från `ops-framework/node`, inte från huvudingången.
+
+### Beslut att granska
+
+- ⛔ **Regeln för raderna läser aldrig beskrivningen.** Beslut 0005: en regel för all appdata. Den låser formen (fälten, `appId` och `lista` på
+  id-form, `varden` en map med högst 20 fält, skapare, klocka) och `validateRad` låser innehållet i klienten och på servern. Konsekvensen är
+  mätt i provet: en medlem som skriver förbi klienten kan lägga ett värde av fel typ i en rad i sin EGEN grupp. Vyn visar det som text och
+  kastar inte. Regeln hade annars behövt ett `get()` av beskrivningen vid varje skrivning, och då hänger varje apps skrivning på ett annat
+  dokument. Inget uttryck per värde, så den går inte över Firestores tak på 1000 uttryck (bibliotekets [#349](https://github.com/cllp/ops-framework/issues/349)).
+- ⛔ **Appens id står bara i `beskrivning.id`.** Beskrivningsdokumentet har inget eget `id`-fält (planen nämnde ett): dokumentets id härleds
+  (`beskrivningsId`, samma schema som modulinställningarna) och reglerna binder id:t till kroppen. Ett tredje ställe för samma id hade
+  varit en andra sanning.
+- ⛔ **Id med bindestreck.** `lanad-av`, inte `lanad_av`: id-formen är en delmängd av `ID_FORM` utan understreck, så att tilde-delningen i
+  dokumentets id är entydig och ett app-id aldrig kan krocka med en annan del. Felet säger det.
+- **En rad vars värden inte längre passar beskrivningen läses ändå.** Agenten kan ta bort ett fält. Prövar läsningen värdena blir en app som
+  utvecklats osynlig för sin egen data. Bara en rad som saknar sin form (fel grupp eller app, en lista som inte finns) är trasig.
+- **Att ta bort en beskrivning tar inte bort raderna.** En borttagen app kan skapas igen med samma id, och då är raderna tillbaka. Att städa
+  dem är en körning med Admin SDK.
+
 ## 0.98.0
 
 **Rättat före utgivningen:** publiceringen föll på `chatt-live-text` ("expected 'boka re' to be ''"). Kom läget "fel" i en tidigare rendering än den tömda texten stod en halv mening kvar i chattens fält. Fältet går nu tillbaka till texten från före mikrofonen så fort försöket slutar utan text.
