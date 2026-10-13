@@ -15,12 +15,15 @@
  *   RADERA   författaren ja, admin och ägare i gruppen ja. Annan medlem, admin i
  *            en annan grupp, avslutat medlemskap, avslutad admin, agent och
  *            utloggad: nej (#311)
+ *   VÅGEN    en sträng med 48 tecken ur A-Z a-z 0-9 - _ (#349). Skapa med våg ja,
+ *            fel längd, fel tecken, en lista av tal och en våg på något som inte
+ *            är ett ljud nej. Bakfyllnad av längd och våg med oförändrad `andrad` ja.
  *
  * Reglerna skrivs av `scripts/skriv-provregler.mjs` ur `bibliotekregelfragment("bibliotek")`.
  */
 
 import { medlemskapsId } from "../../src/lib/grupp.js";
-import { MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, MAX_BIBLIOTEKUTSKRIFT, byggPost, inmatningsfel, postFel } from "../../src/lib/bibliotek.js";
+import { LJUD_STOLPAR, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, MAX_BIBLIOTEKUTSKRIFT, TOPP_TECKEN, byggPost, inmatningsfel, kodaToppar, postFel } from "../../src/lib/bibliotek.js";
 import assert from "node:assert/strict";
 import { after, before, describe, it } from "node:test";
 import { assertFails, assertSucceeds, initializeTestEnvironment } from "@firebase/rules-unit-testing";
@@ -77,6 +80,25 @@ const nyLank = (extra = {}) => {
   return { ...utanText, typ: "lank", rubrik: "Verket", url: "https://bolagsverket.se/", ...extra };
 };
 
+/** Ett nytt ljud med serverns klocka nu. `{postId}` i sökvägen byts av `skapa` mot postens eget id. */
+const nyttLjud = (extra = {}) => {
+  const { text: _text, ...utanText } = ny();
+  return {
+    ...utanText,
+    typ: "fil",
+    rubrik: "Idé",
+    fil: { sokvag: "grupper/cps-ab/bibliotek/{postId}/ide.webm", namn: "ide.webm", mime: "audio/webm", byte: 1200 },
+    ...extra,
+  };
+};
+/**
+ * Vågar som regeln ska släppa in. En realistisk (ur modellens `kodaToppar`), och två skrivna för hand som inte kommer ur den:
+ * så ingen sida är facit åt sig själv (regel 4). `-_` är de två tecknen som skiljer base64url från base64.
+ */
+const VAG = kodaToppar(Array.from({ length: LJUD_STOLPAR }, (_, i) => (i % 7 === 0 ? 1 : (i % 5) / 5)));
+const VAG_A = "A".repeat(48);
+const VAG_KANTER = "-_".repeat(24);
+
 /** @type {import("@firebase/rules-unit-testing").RulesTestEnvironment} */
 let miljo;
 
@@ -118,6 +140,10 @@ before(async () => {
     await setDoc(doc(db, "bibliotek/cps-ljud-eget"), gammaltLjud(MEDLEM, "cps-ljud-eget"));
     await setDoc(doc(db, "bibliotek/cps-ljud-annans"), gammaltLjud(ANNAN, "cps-ljud-annans"));
     await setDoc(doc(db, "bibliotek/cps-ljud-nekas"), gammaltLjud(MEDLEM, "cps-ljud-nekas"));
+    // Ljud för bakfyllnaden av längd och våg (#349), ett per prov så att proven inte ändrar varandras underlag.
+    for (const id of ["cps-vag-eget", "cps-vag-i-tur", "cps-vag-admin", "cps-vag-nej", "cps-vag-fel", "cps-vag-klocka"]) {
+      await setDoc(doc(db, `bibliotek/${id}`), gammaltLjud(MEDLEM, id));
+    }
   });
 });
 
@@ -428,10 +454,7 @@ describe("bibliotekets regler: ändra och radera", () => {
     const gammal = T0 - EN_TIMME;
     // Författaren fyller i längden utan att röra klockan, och admin gör det på någon annans ljud.
     //
-    // ⛔ VÅGEN (`peaks`) PROVAS INTE HÄR, MED FLIT. Mätt 2026-10-12 på main före den här ändringen: en skrivning med 48 toppar,
-    // både skapa och ändra, nekas av emulatorn med "maximum of 1000 expressions to evaluate has been reached". Det är
-    // en gräns som `opsBibliotekToppar` redan går över, oberoende av klockan, och ett prov som väntar sig ja där vore rött
-    // av fel skäl. Se PR-texten. Klockundantaget gäller även `peaks` i texten, men bevisas bara för `durationMs`.
+    // Vågen (`peaks`) har sina egna prov längre ner, under "bibliotekets regler: vågen" (#349).
     await assertSucceeds(updateDoc(doc(db(MEDLEM), "bibliotek/cps-ljud-eget"), { durationMs: 4000, andrad: gammal }));
     await assertSucceeds(updateDoc(doc(db(ADMIN), "bibliotek/cps-ljud-annans"), { durationMs: 4100, andrad: gammal }));
     // En annan medlem får inte skriva, med eller utan klockan.
@@ -476,5 +499,100 @@ describe("bibliotekets regler: ändra och radera", () => {
       kvar = await getDoc(doc(ctx.firestore(), "bibliotek/radera-nej"));
     });
     assert.equal(kvar?.exists(), true);
+  });
+});
+
+describe("bibliotekets regler: vågen (#349)", () => {
+  // ⛔ BAKGRUNDEN. Mätt 2026-10-12 i emulatorn, före den här ändringen: en skrivning med `peaks` som 48 tal nekades med
+  // "maximum of 1000 expressions to evaluate has been reached", både skapa och ändra. CP 2026-10-13 20:24 fick det som
+  // "Missing or insufficient permissions." när han sparade en röstinspelning på iPhone. Vågen är nu en sträng och prövas med
+  // ett uttryck. Proven nedan är skrivna så att varje villkor i `opsBibliotekToppar` och i ljud-grenen ändrar ett utfall.
+
+  it("⛔ en medlem skapar ett ljud med full våg och längd (nekades före 0.98.0)", async () => {
+    await assertSucceeds(skapa(MEDLEM, nyttLjud({ durationMs: 4000, peaks: VAG })));
+    // Vågen utan längd, och längden utan våg, är också giltiga ljud.
+    await assertSucceeds(skapa(MEDLEM, nyttLjud({ peaks: VAG })));
+    await assertSucceeds(skapa(MEDLEM, nyttLjud({ durationMs: 4000 })));
+    // Alfabetets kanter: första och sista tecknet, och de två som skiljer base64url från base64.
+    await assertSucceeds(skapa(MEDLEM, nyttLjud({ peaks: VAG_A })));
+    await assertSucceeds(skapa(MEDLEM, nyttLjud({ peaks: VAG_KANTER })));
+    // Hela alfabetet, alla 64 tecken, i en våg: regeln släpper in varje nivå modellen kan skriva.
+    await assertSucceeds(skapa(MEDLEM, nyttLjud({ peaks: (TOPP_TECKEN + TOPP_TECKEN).slice(0, 48) })));
+    await assertSucceeds(skapa(MEDLEM, nyttLjud({ peaks: TOPP_TECKEN.slice(16) })));
+  });
+
+  it("fel längd på vågen är ett nej: för kort, för lång och tom", async () => {
+    await assertFails(skapa(MEDLEM, nyttLjud({ peaks: VAG_A.slice(1) })));
+    await assertFails(skapa(MEDLEM, nyttLjud({ peaks: `${VAG_A}A` })));
+    await assertFails(skapa(MEDLEM, nyttLjud({ peaks: "" })));
+    await assertFails(skapa(MEDLEM, nyttLjud({ peaks: "A" })));
+  });
+
+  it("ett tecken utanför alfabetet är ett nej, också med rätt längd", async () => {
+    // Plats 0, mitten och sista platsen, så att ingen del av strängen går oprövad.
+    for (const fel of ["+", "/", "=", " ", ".", "å", "\\", "\n", "\t", "\u0000"]) {
+      await assertFails(skapa(MEDLEM, nyttLjud({ peaks: fel + VAG_A.slice(1) })));
+      await assertFails(skapa(MEDLEM, nyttLjud({ peaks: VAG_A.slice(0, 24) + fel + VAG_A.slice(25) })));
+      await assertFails(skapa(MEDLEM, nyttLjud({ peaks: VAG_A.slice(1) + fel })));
+    }
+    // En avslutande radbrytning på en annars rätt våg: `matches()` ska vara en helmatchning och inte en delmatchning.
+    await assertFails(skapa(MEDLEM, nyttLjud({ peaks: `${VAG_A.slice(1)}\n` })));
+    await assertFails(skapa(MEDLEM, nyttLjud({ peaks: `${VAG_A}\n` })));
+  });
+
+  it("⛔ den gamla formen, en lista av tal, nekas, och en våg av fel typ också", async () => {
+    await assertFails(skapa(MEDLEM, nyttLjud({ peaks: Array.from({ length: 48 }, () => 0.5) })));
+    await assertFails(skapa(MEDLEM, nyttLjud({ peaks: Array.from({ length: 48 }, () => "A") })));
+    await assertFails(skapa(MEDLEM, nyttLjud({ peaks: 48 })));
+    await assertFails(skapa(MEDLEM, nyttLjud({ peaks: null })));
+    await assertFails(skapa(MEDLEM, nyttLjud({ peaks: { 0: "A" } })));
+  });
+
+  it("en våg hör bara till ett ljud: en bild, en anteckning och en länk får den inte", async () => {
+    await assertFails(skapa(MEDLEM, nyttLjud({ fil: { sokvag: "grupper/cps-ab/bibliotek/{postId}/k.jpg", namn: "k.jpg", mime: "image/jpeg", byte: 1200 }, peaks: VAG })));
+    await assertFails(skapa(MEDLEM, nyttLjud({ fil: { sokvag: "grupper/cps-ab/bibliotek/{postId}/a.pdf", namn: "a.pdf", mime: "application/pdf", byte: 1200 }, peaks: VAG })));
+    await assertFails(skapa(MEDLEM, ny({ peaks: VAG })));
+    await assertFails(skapa(MEDLEM, nyLank({ peaks: VAG })));
+  });
+
+  it("⛔ bakfyllnaden av längd och våg med oförändrad andrad går igenom, i ett anrop och i två (nekades före 0.98.0)", async () => {
+    const gammal = T0 - EN_TIMME;
+    // Ett anrop med båda fälten, som app-sidans `onFyllLjud` skickade dem tillsammans.
+    await assertSucceeds(updateDoc(doc(db(MEDLEM), "bibliotek/cps-vag-eget"), { durationMs: 4000, peaks: VAG, andrad: gammal }));
+    // Två anrop i tur och ordning, som OpsBibliotek skickar dem: längden, sedan vågen. Klockan står stilla båda gångerna.
+    await assertSucceeds(updateDoc(doc(db(MEDLEM), "bibliotek/cps-vag-i-tur"), { durationMs: 4000, andrad: gammal }));
+    await assertSucceeds(updateDoc(doc(db(MEDLEM), "bibliotek/cps-vag-i-tur"), { peaks: VAG, andrad: gammal }));
+    // Admin fyller i någon annans ljud.
+    await assertSucceeds(updateDoc(doc(db(ADMIN), "bibliotek/cps-vag-admin"), { durationMs: 4100, peaks: VAG_KANTER, andrad: gammal }));
+    // Och vågen kan bytas mot en annan giltig, utan klockan.
+    await assertSucceeds(updateDoc(doc(db(MEDLEM), "bibliotek/cps-vag-eget"), { peaks: VAG_A, andrad: gammal }));
+    /** @type {import("firebase/firestore").DocumentSnapshot | undefined} */
+    let efter;
+    await miljo.withSecurityRulesDisabled(async (ctx) => {
+      efter = await getDoc(doc(ctx.firestore(), "bibliotek/cps-vag-i-tur"));
+    });
+    assert.equal(efter?.data()?.peaks, VAG);
+    assert.equal(efter?.data()?.durationMs, 4000);
+    assert.equal(efter?.data()?.andrad, gammal);
+  });
+
+  it("bakfyllnaden nekas för fel våg, fel person och allt som är mer än längd och våg", async () => {
+    const gammal = T0 - EN_TIMME;
+    // Fel form på vågen i en ändring, med och utan serverns klocka.
+    await assertFails(updateDoc(doc(db(MEDLEM), "bibliotek/cps-vag-fel"), { peaks: VAG_A.slice(1), andrad: gammal }));
+    await assertFails(updateDoc(doc(db(MEDLEM), "bibliotek/cps-vag-fel"), { peaks: `${VAG_A.slice(1)}+`, andrad: gammal }));
+    await assertFails(updateDoc(doc(db(MEDLEM), "bibliotek/cps-vag-fel"), { peaks: Array.from({ length: 48 }, () => 0.5), andrad: gammal }));
+    await assertFails(updateDoc(doc(db(MEDLEM), "bibliotek/cps-vag-fel"), { durationMs: 4000, peaks: VAG_A.slice(1), andrad: gammal }));
+    await assertFails(updateDoc(doc(db(MEDLEM), "bibliotek/cps-vag-fel"), { peaks: VAG_A.slice(1), andrad: Date.now() }));
+    // En annan medlem skriver inte, med eller utan klockan.
+    await assertFails(updateDoc(doc(db(ANNAN), "bibliotek/cps-vag-nej"), { peaks: VAG, andrad: gammal }));
+    await assertFails(updateDoc(doc(db(ANNAN), "bibliotek/cps-vag-nej"), { peaks: VAG, andrad: Date.now() }));
+    // Vågen med något annat i samma skrivning är en riktig ändring och kräver serverns klocka.
+    await assertFails(updateDoc(doc(db(MEDLEM), "bibliotek/cps-vag-klocka"), { peaks: VAG, rubrik: "Ny rubrik", andrad: gammal }));
+    await assertFails(updateDoc(doc(db(MEDLEM), "bibliotek/cps-vag-klocka"), { peaks: VAG, andrad: gammal + 1 }));
+    await assertSucceeds(updateDoc(doc(db(MEDLEM), "bibliotek/cps-vag-klocka"), { peaks: VAG, rubrik: "Ny rubrik", andrad: Date.now() }));
+    // Ingen våg på en anteckning, med vilken klocka som helst.
+    await assertFails(updateDoc(doc(db(MEDLEM), "bibliotek/cps-protokoll"), { peaks: VAG, andrad: T0 }));
+    await assertFails(updateDoc(doc(db(MEDLEM), "bibliotek/cps-protokoll"), { peaks: VAG, andrad: Date.now() }));
   });
 });

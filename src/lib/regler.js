@@ -38,7 +38,7 @@ import {
 import { ID_FORM, KATALOGAVGRANSARE, KATEGORIFALT } from "./katalog.js";
 import { INSTALLNINGSVARDEFALT, MAX_INSTALLNINGSGRUPP, MAX_INSTALLNINGSID, MAX_INSTALLNINGSTEXT, MAX_MODULINSTALLNINGAR, MODULINSTALLNINGFALT, VISA_I_HUVUDMENYN } from "./modulinstallningar.js";
 import { MAX_TYPAVVIKELSER, MAX_TYPID, MAX_TYPNAMN, MODULTYPID_FORM, TYPAVVIKELSEFALT, TYPYTOR } from "./modultyper.js";
-import { ADRESSFORM, BIBLIOTEKFALT, BIBLIOTEKTYPER, FILFALT, LJUD_STOLPAR, MAX_BIBLIOTEKFIL, MAX_BIBLIOTEKFILNAMN, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKSOKVAG, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, MAX_BIBLIOTEKUTSKRIFT, MAX_LJUD_MS, filMimeMonster } from "./bibliotek.js";
+import { ADRESSFORM, BIBLIOTEKFALT, BIBLIOTEKTYPER, FILFALT, LJUD_STOLPAR, MAX_BIBLIOTEKFIL, MAX_BIBLIOTEKFILNAMN, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKSOKVAG, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, MAX_BIBLIOTEKUTSKRIFT, MAX_LJUD_MS, TOPPFORM, filMimeMonster } from "./bibliotek.js";
 import { MAX_MINNESID, MAX_MINNESTEXT, MINNESFALT, MINNESKALLAFALT, MINNESKALLOR } from "./minne.js";
 import { SKAPARFALT } from "./skapare.js";
 import { KONFIGHANDELSER, KONFIGLOGGFALT } from "./konfiglogg.js";
@@ -1615,23 +1615,6 @@ export function bibliotekregelfragment(namn, sokvag = {}) {
     throw new Error(`bibliotekregelfragment: typerna är ${BIBLIOTEKTYPER.join(", ")}. Fragmentet har grenar för anteckning, lank och fil, och en ny typ behöver sin egen.`);
   }
 
-  // Firestore vägrar en enda för lång &&-kedja ("Expression is too complex").
-  // Dela därför stolparna i bitar om åtta; varje hjälpfunktion håller sig under taket.
-  const toppChunk = 8;
-  const toppDelar = [];
-  for (let start = 0; start < LJUD_STOLPAR; start += toppChunk) {
-    const slut = Math.min(start + toppChunk, LJUD_STOLPAR);
-    const villkor = Array.from({ length: slut - start }, (_, j) => {
-      const i = start + j;
-      return `p[${i}] is number && p[${i}] >= 0 && p[${i}] <= 1`;
-    }).join("\n        && ");
-    const n = start / toppChunk;
-    toppDelar.push({ n, villkor });
-  }
-  const toppHjalp = toppDelar.map(({ n, villkor }) => `    function opsBibliotekToppar${n}(p) {
-      return ${villkor};
-    }`).join("\n\n");
-  const toppAnrop = toppDelar.map(({ n }) => `opsBibliotekToppar${n}(p)`).join("\n        && ");
   return `    // ══ Ramverkets bibliotek. GENERERAD, ändra inte för hand ══
     //
     // Källa: ops-framework, bibliotekregelfragment() i src/lib/regler.js. Kräver regelfragment() ovanför.
@@ -1639,11 +1622,14 @@ export function bibliotekregelfragment(namn, sokvag = {}) {
     // En tid i millisekunder nära serverns klocka (samma uttryck som samtalens opsNu).
 ${nuRegelfunktion("opsBiblioteketNu")}
 
-${toppHjalp}
-
+    // ⛔ VÅGEN ÄR EN STRÄNG, ETT TECKEN PER STOLPE, och prövas med ETT uttryck (https://github.com/cllp/ops-framework/issues/349).
+    // CP 2026-10-13: en röstinspelning med våg nekades med "Missing or insufficient permissions.", eftersom 48 tal som
+    // vart och ett prövades för sig gick över Firestores tak på 1000 uttryck per skrivning. Längd och teckenmängd är samma
+    // matches(): mönstret kommer ur TOPPFORM i bibliotek.js, så det inte kan glida isär från modellens peaksGiltiga.
+    // Ingen separat "is string" eller size(): mönstret kräver exakt ${LJUD_STOLPAR} tecken, och matches() på något som
+    // inte är en sträng är ett fel, och ett fel är ett nej (regel 4: ett villkor som inte kan ändra utfallet är ingen spärr).
     function opsBibliotekToppar(p) {
-      return p is list && p.size() == ${LJUD_STOLPAR}
-        && ${toppAnrop};
+      return p.matches('${regelRegex(TOPPFORM)}');
     }
 
     // Filens sökväg är EXAKT {gruppPrefix}/{groupId}/{postPrefix}/{postId}/{filnamn}: fem segment, postens egen grupp och

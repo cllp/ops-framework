@@ -104,7 +104,7 @@ import { OpsView } from "./OpsView.jsx";
  * @param {(inmatning: { id?: string, typ: string, rubrik: string, text?: string, url?: string }) => void | boolean | Promise<void | boolean>} props.onSpara Kastar den eller avvisas löftet visas felet i formuläret och läget står kvar (0.93.0). `false` betyder att det inte gick.
  * @param {(id: string) => void | Promise<void>} [props.onRadera] Tar bort posten efter bekräftelse. Saknas den och någon bekräftar visas felet, posten rörs inte.
  * @param {(inmatning: { id?: string, rubrik: string, fil: File }) => void | Promise<void>} [props.onLaddaUpp] Sparar en fil. Saknas den och någon försöker visas felet, filen laddas inte upp.
- * @param {(inmatning: { id: string, durationMs?: number, peaks?: number[] }) => void | Promise<void>} [props.onFyllLjud] Skriver längd och våg på en post som saknar dem. Listan räknar dem i bakgrunden, utan att någon trycker på spela. (0.93.0) Anropas bara när `jag` får ändra posten (`farAndra`): reglerna nekar alla andra, och längden visas ändå.
+ * @param {(inmatning: { id: string, durationMs?: number, peaks?: string }) => void | Promise<void>} [props.onFyllLjud] Skriver längd och våg på en post som saknar dem. Listan räknar dem i bakgrunden, utan att någon trycker på spela. (0.93.0) Anropas bara när `jag` får ändra posten (`farAndra`): reglerna nekar alla andra, och längden visas ändå.
  * @param {(post: { fil?: { sokvag?: string } }) => string} [props.filUrl] Appen ger adressen till en fil. Tom sträng visas som att adressen saknas. Synkron, och vinner när den är ifylld.
  * @param {(sokvag: string) => Promise<string>} [props.hamtaAdress] (0.88.2) Nedladdningsadressen för `fil.sokvag`, när `filUrl` är tom. Svaret cachas per sökväg, så listan och detaljen delar den. Medan den hämtas visas inte "Filen har ingen adress."
  * @param {unknown} [props.onSpelaIn] Borttagen (0.90.8). Skickas den kastas ett fel: listan hade en egen inspelare, och att tysta propen hade sett ut som att ljudet fortfarande sparades där.
@@ -154,7 +154,7 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
   const [status, setStatus] = useState("");
   const adresser = useFilAdresser(poster, vald, filUrl, hamtaAdress);
   const adressFor = (/** @type {{ typ?: string, fil?: { sokvag?: string, mime?: string } }} */ post) => losAdress(post, filUrl, hamtaAdress, adresser);
-  const [fylld, setFylld] = useState(/** @type {Record<string, { durationMs?: number, peaks?: number[] }>} */ ({}));
+  const [fylld, setFylld] = useState(/** @type {Record<string, { durationMs?: number, peaks?: string }>} */ ({}));
   const sparatMeta = useRef(/** @type {Set<string>} */ (new Set()));
   const onFyllRef = useRef(onFyllLjud);
   onFyllRef.current = onFyllLjud;
@@ -173,7 +173,7 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
    * Bakgrund: spelaren räknar längd och toppar utan att någon trycker på spela,
    * och det här skriver dem på posten så nästa lista visar längden direkt.
    * @param {string} id
-   * @param {{ durationMs?: number, peaks?: number[] }} meta
+   * @param {{ durationMs?: number, peaks?: string }} meta
    */
   function togMeta(id, meta) {
     if (!id || !meta || (!meta.durationMs && !meta.peaks)) return;
@@ -194,14 +194,15 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
     // visas ändå ur `fylld` ovan: den är en visning, skrivningen är en hjälp till nästa lista.
     const post = poster.find((p) => p.id === id) ?? (vald && vald.id === id ? vald : null);
     if (!post || !farAndra(post, jag)) return;
-    // ⛔ LÄNGDEN OCH VÅGEN SKICKAS SOM TVÅ ANROP, I TUR OCH ORDNING (0.93.0). En skrivning med `peaks` nekas i dag av reglernas
-    // uttryckstak (https://github.com/cllp/ops-framework/issues/349), och bar den längden i samma skrivning nekades den med. Nu
-    // går längden igenom även när vågen avvisas. I tur och ordning, inte samtidigt: `spara` läser raden och skriver om den, och
-    // två samtidiga skrivningar hade lämnat den andra med en rad utan den förstas fält.
+    // ⛔ LÄNGDEN OCH VÅGEN SKICKAS SOM TVÅ ANROP, I TUR OCH ORDNING (0.93.0). Då nekades en skrivning med `peaks` av reglernas
+    // uttryckstak (https://github.com/cllp/ops-framework/issues/349), och bar den längden i samma skrivning nekades den med. Vågen är
+    // sedan 0.98.0 en sträng som prövas med ett uttryck, så taket är borta, men delningen står kvar: en app som ännu inte deployat
+    // de nya reglerna nekar vågen, och längden ska gå igenom ändå. I tur och ordning, inte samtidigt: `spara` läser raden och skriver
+    // om den, och två samtidiga skrivningar hade lämnat den andra med en rad utan den förstas fält.
     //
     // ⛔ ETT FEL SYNS I KONSOLEN MED POSTENS ID, det sväljs inte. Listan visar längden ändå (`fylld`), men ett skrivfel som
     // försvinner ser ut som att det gick bra, och då vet ingen varför längden saknas nästa gång listan öppnas.
-    /** @type {Array<{ nyckel: string, vad: string, del: { durationMs?: number, peaks?: number[] } }>} */
+    /** @type {Array<{ nyckel: string, vad: string, del: { durationMs?: number, peaks?: string } }>} */
     const delar = [];
     if (meta.durationMs) delar.push({ nyckel: `${id}:langd:${meta.durationMs}`, vad: "längden", del: { durationMs: meta.durationMs } });
     if (meta.peaks) delar.push({ nyckel: `${id}:vag:${meta.peaks.length}`, vad: "vågen", del: { peaks: meta.peaks } });
@@ -773,7 +774,7 @@ function BibliotekListrad({ namn, meny, ikon = null, meta = "", onOppna, childre
  * Ikonen ritas inte här. Den och spelknappen på samma rad är det som överlappade.
  * ⋯ och svep kommer från `BibliotekListrad` / `OpsSvepRad`, samma som övriga typer.
  *
- * @param {{ post: import("../lib/bibliotek.js").Bibliotekspost & { id: string }, lage: Adresslage, onOppna: () => void, onMeta: (id: string, meta: { durationMs?: number, peaks?: number[] }) => void }} props
+ * @param {{ post: import("../lib/bibliotek.js").Bibliotekspost & { id: string }, lage: Adresslage, onOppna: () => void, onMeta: (id: string, meta: { durationMs?: number, peaks?: string }) => void }} props
  */
 function Ljudrad({ post, lage, onOppna, onMeta }) {
   const rubrik = ljudRubrik(post);
@@ -917,7 +918,7 @@ function NyKnapp({ flik, onSkapa, onRost }) {
 /**
  * Bild öppnas i förhandsvisning. PDF och övrigt i ny flik. Utan adress sägs det.
  *
- * @param {{ post: { id?: string, typ?: string, rubrik?: string, skapad?: number, durationMs?: number, peaks?: number[], fil?: { namn?: string, mime?: string, byte?: number, sokvag?: string } }, lage: Adresslage, kopplad: boolean, onLjus?: (adress: string) => void, onMeta?: (id: string, meta: { durationMs?: number, peaks?: number[] }) => void }} props
+ * @param {{ post: { id?: string, typ?: string, rubrik?: string, skapad?: number, durationMs?: number, peaks?: string, fil?: { namn?: string, mime?: string, byte?: number, sokvag?: string } }, lage: Adresslage, kopplad: boolean, onLjus?: (adress: string) => void, onMeta?: (id: string, meta: { durationMs?: number, peaks?: string }) => void }} props
  */
 function FilVisning({ post, lage, kopplad, onLjus, onMeta }) {
   const sort = filSort(post.fil?.mime);
@@ -999,7 +1000,7 @@ function Adress({ url }) {
  * @param {(post: { id: string }) => { text: string, forslag?: "anteckning" | "arende" } | Promise<{ text: string, forslag?: "anteckning" | "arende" }>} [props.onSkrivUt]
  * @param {(inmatning: { id: string, satt: "anteckning" | "arende" }) => void | Promise<void>} [props.onGorForslag]
  * @param {(post: import("../lib/bibliotek.js").Bibliotekspost & { id: string }, iDetalj: boolean, sattRedigera?: (lage: "redigera") => void) => import("./OpsAtgardsblad.jsx").Atgard[]} props.menyFor
- * @param {(id: string, meta: { durationMs?: number, peaks?: number[] }) => void} [props.onMeta]
+ * @param {(id: string, meta: { durationMs?: number, peaks?: string }) => void} [props.onMeta]
  */
 function Detalj({ post, skapar, jag, startLage, onStang, onSpara, onLaddaUpp, filUrl, adressFor, onLjus, onSkrivUt, onGorForslag, menyFor, onMeta }) {
   const typ = skapar ?? post?.typ ?? "anteckning";

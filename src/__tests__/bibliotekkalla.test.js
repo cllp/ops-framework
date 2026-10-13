@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { createMemorySource } from "../data/adapters.js";
 import { createBibliotekskalla } from "../data/bibliotekkalla.js";
+import { kodaToppar } from "../lib/bibliotek.js";
 
 const skapare = () => ({ uid: "uid-1", namn: "Kim", typ: "manniska", kalla: "bibliotek" });
 
@@ -187,8 +188,7 @@ describe("createBibliotekskalla", () => {
     });
     expect(inspelad.durationMs).toBe(4200);
     expect(Object.hasOwn(inspelad, "peaks")).toBe(false);
-    const toppar = Array.from({ length: 48 }, () => 0.5);
-    toppar[0] = 1;
+    const toppar = kodaToppar(Array.from({ length: 48 }, (_, i) => (i === 0 ? 1 : 0.5)));
     const medVag = await kalla.laddaUppFil({
       rubrik: "Våg",
       fil: { name: "vag.webm", type: "audio/webm", size: 80 },
@@ -196,10 +196,78 @@ describe("createBibliotekskalla", () => {
       peaks: toppar,
     });
     expect(medVag.durationMs).toBe(9000);
-    expect(medVag.peaks[0]).toBe(1);
+    // ⛔ Vågen skrivs som en sträng (#349): en lista av 48 tal nekades av reglerna, så ingen post får bära den.
+    expect(typeof medVag.peaks).toBe("string");
+    expect(medVag.peaks).toBe(toppar);
+    expect(medVag.peaks[0]).toBe("_");
     await expect(nekad.laddaUppFil({ rubrik: "Nekad", fil: { name: "a.jpg", type: "image/jpeg", size: 10 } })).rejects.toThrow(/nekad/);
     const efter = await nekad.las();
     expect(efter.poster.map((p) => p.rubrik)).not.toContain("Nekad");
+  });
+
+  it("⛔ en röstinspelning sparas med vågen som en sträng, inte som 48 tal (#349)", async () => {
+    // CP 2026-10-13: en inspelning med våg nekades av reglerna ("Missing or insufficient permissions."). Provet kör vägen
+    // som inspelningen går: filen avkodas, topparna räknas, och det som skrivs till källan är en sträng.
+    const tidigareAudio = globalThis.AudioContext;
+    globalThis.AudioContext = class {
+      async decodeAudioData() {
+        const kanal = new Float32Array(48 * 4);
+        kanal.fill(0.25);
+        for (let i = 0; i < 4; i++) kanal[i] = 1;
+        return { duration: 4, getChannelData: () => kanal };
+      }
+      async close() {}
+    };
+    try {
+      const source = createMemorySource();
+      const kalla = createBibliotekskalla({
+        source,
+        collection: "bibliotek",
+        groupId: "cps-ab",
+        skapare,
+        lagring: { laddaUpp: async (/** @type {{ sokvag: string }} */ i) => ({ url: "minne://x", sokvag: i.sokvag }) },
+        sokvag: ({ groupId, postId, namn }) => `grupper/${groupId}/bibliotek/${postId}/${namn}`,
+      });
+      const sparad = await kalla.laddaUppFil({
+        rubrik: "Idé",
+        fil: { name: "ide.webm", type: "audio/webm", size: 100 },
+        blob: { arrayBuffer: async () => new ArrayBuffer(8) },
+      });
+      const lagrad = await source.read("bibliotek", sparad.id);
+      expect(typeof lagrad?.peaks).toBe("string");
+      expect(lagrad?.peaks).toMatch(/^[A-Za-z0-9_-]{48}$/);
+      // Första stolpen är den högsta (1), och de andra är en fjärdedel av den: A är 0 och _ är 1.
+      expect(String(lagrad?.peaks)[0]).toBe("_");
+      expect(String(lagrad?.peaks)[1]).toBe(kodaToppar(Array(48).fill(0.25))[0]);
+      expect(lagrad?.durationMs).toBe(4000);
+      // Och posten går att läsa tillbaka genom källans egen validering.
+      const las = await kalla.las();
+      expect(las.trasiga).toEqual([]);
+      expect(las.poster[0].peaks).toBe(lagrad?.peaks);
+    } finally {
+      if (tidigareAudio) globalThis.AudioContext = tidigareAudio;
+      else delete globalThis.AudioContext;
+    }
+  });
+
+  it("en lista av tal från anroparen räknas inte som en våg: vågen räknas ur filen i stället", async () => {
+    const source = createMemorySource();
+    const kalla = createBibliotekskalla({
+      source,
+      collection: "bibliotek",
+      groupId: "cps-ab",
+      skapare,
+      lagring: { laddaUpp: async (/** @type {{ sokvag: string }} */ i) => ({ url: "minne://x", sokvag: i.sokvag }) },
+      sokvag: ({ groupId, postId, namn }) => `grupper/${groupId}/bibliotek/${postId}/${namn}`,
+    });
+    const sparad = await kalla.laddaUppFil({
+      rubrik: "Idé",
+      fil: { name: "ide.webm", type: "audio/webm", size: 100 },
+      durationMs: 3000,
+      peaks: /** @type {any} */ (Array.from({ length: 48 }, () => 0.5)),
+    });
+    expect(Object.hasOwn(sparad, "peaks")).toBe(false);
+    expect(sparad.durationMs).toBe(3000);
   });
 
   it("sparar utskriften på ljudet och behåller den när rubriken ändras", async () => {
@@ -215,19 +283,20 @@ describe("createBibliotekskalla", () => {
     const omdopt = await kalla.spara({ id: skapad.id, rubrik: "Omdöpt", fil });
     expect(omdopt.rubrik).toBe("Omdöpt");
     expect(omdopt.utskrift).toBe("Hej");
-    const toppar = Array.from({ length: 48 }, (_, i) => (i === 1 ? 1 : 0.2));
+    const tal = (/** @type {number} */ ett) => Array.from({ length: 48 }, (_, i) => (i === ett ? 1 : 0.2));
+    const toppar = kodaToppar(tal(1));
     const medLangd = await kalla.spara({ id: skapad.id, rubrik: "Omdöpt", fil, durationMs: 4000, peaks: toppar });
     expect(medLangd.durationMs).toBe(4000);
-    expect(medLangd.peaks).toHaveLength(48);
+    expect(medLangd.peaks).toBe(toppar);
     const kvar = await kalla.spara({ id: skapad.id, rubrik: "Kvar", fil });
     expect(kvar.durationMs).toBe(4000);
-    expect(kvar.peaks[1]).toBe(1);
+    expect(kvar.peaks).toBe(toppar);
     // onFyllLjud skickar bara id + meta: rubrik och fil ska stå kvar.
-    const fylld = await kalla.spara({ id: skapad.id, durationMs: 5500, peaks: toppar.map((t, i) => (i === 2 ? 1 : t)) });
+    const fylld = await kalla.spara({ id: skapad.id, durationMs: 5500, peaks: kodaToppar(tal(2)) });
     expect(fylld.rubrik).toBe("Kvar");
     expect(fylld.fil).toEqual(fil);
     expect(fylld.durationMs).toBe(5500);
-    expect(fylld.peaks[2]).toBe(1);
+    expect(fylld.peaks).toBe(kodaToppar(tal(2)));
     const bild = { ...fil, mime: "image/jpeg", namn: "k.jpg", sokvag: "grupper/cps-ab/bibliotek/p/k.jpg" };
     await expect(kalla.spara({ id: skapad.id, rubrik: "Bild", fil: bild, utskrift: "Hej" })).rejects.toThrow(/Bara ett ljud/);
   });
@@ -238,7 +307,7 @@ describe("createBibliotekskalla", () => {
       const source = createMemorySource();
       const kalla = createBibliotekskalla({ source, collection: "bibliotek", groupId: "cps-ab", skapare });
       const fil = { sokvag: "grupper/cps-ab/bibliotek/p/ide.webm", namn: "ide.webm", mime: "audio/webm", byte: 100 };
-      const toppar = Array.from({ length: 48 }, (_, i) => (i === 1 ? 1 : 0.2));
+      const toppar = kodaToppar(Array.from({ length: 48 }, (_, i) => (i === 1 ? 1 : 0.2)));
 
       vi.setSystemTime(1_700_000_000_000);
       const skapad = await kalla.spara({ typ: "fil", rubrik: "Idé", fil });
@@ -252,7 +321,7 @@ describe("createBibliotekskalla", () => {
       vi.setSystemTime(1_700_003_700_000);
       const fylld = await kalla.spara({ id: skapad.id, durationMs: 4000, peaks: toppar });
       expect(fylld.durationMs).toBe(4000);
-      expect(fylld.peaks).toHaveLength(48);
+      expect(fylld.peaks).toBe(toppar);
       expect(fylld.andrad).toBe(1_700_000_100_000);
       expect(fylld.skapad).toBe(1_700_000_000_000);
       const lasta = (await kalla.las()).poster.find((p) => p.id === skapad.id);

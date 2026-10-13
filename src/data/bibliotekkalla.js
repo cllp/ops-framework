@@ -21,7 +21,7 @@
  * gruppen, också en trasig rad, när `radera` får `jag` och `anteckna`.
  */
 
-import { byggPost, farAndra, filInmatningsfel, filSort, normaliseraMime, peaksGiltiga, postFel, trimSomRegeln, MAX_LJUD_MS } from "../lib/bibliotek.js";
+import { byggPost, farAndra, filInmatningsfel, filSort, kodaToppar, normaliseraMime, peaksGiltiga, postFel, trimSomRegeln, MAX_LJUD_MS } from "../lib/bibliotek.js";
 import { metaUrBytes } from "../lib/ljudspelare.js";
 import { byggSkapare } from "../lib/skapare.js";
 
@@ -211,7 +211,7 @@ export function createBibliotekskalla(config) {
      * kan kräva att den finns. Föll uppladdningen tas en ny post tillbaka. Går inte
      * det heller kastas båda felen, inget sväljs.
      *
-     * @param {{ rubrik?: string, namn?: string, fil: { name?: string, namn?: string, type?: string, mime?: string, size?: number, byte?: number, arrayBuffer?: () => Promise<ArrayBuffer> }, blob?: Blob | { arrayBuffer?: () => Promise<ArrayBuffer> }, id?: string, rapportera?: (andel: number) => void, durationMs?: number, peaks?: number[], sekunder?: number }} inmatning
+     * @param {{ rubrik?: string, namn?: string, fil: { name?: string, namn?: string, type?: string, mime?: string, size?: number, byte?: number, arrayBuffer?: () => Promise<ArrayBuffer> }, blob?: Blob | { arrayBuffer?: () => Promise<ArrayBuffer> }, id?: string, rapportera?: (andel: number) => void, durationMs?: number, peaks?: string, sekunder?: number }} inmatning `peaks` är vågen som den sparas (`kodaToppar`). En lista av tal räknas inte som en våg, och vågen räknas då ur filen.
      */
     async laddaUppFil(inmatning) {
       if (typeof sokvag !== "function") {
@@ -289,15 +289,15 @@ export function createBibliotekskalla(config) {
  * så listan ändå visar en längd. En bild får inget av det.
  *
  * @param {{ durationMs?: unknown, peaks?: unknown, sekunder?: unknown, blob?: { arrayBuffer?: () => Promise<ArrayBuffer> }, fil?: { arrayBuffer?: () => Promise<ArrayBuffer> } }} inmatning
- * @returns {Promise<{ durationMs: number | undefined, peaks: number[] | undefined }>}
+ * @returns {Promise<{ durationMs: number | undefined, peaks: string | undefined }>} `peaks` är vågen som den sparas (`kodaToppar`).
  */
 async function lasLjudmeta(inmatning) {
   /** @type {number | undefined} */
   let durationMs = Number.isInteger(inmatning?.durationMs) && /** @type {number} */ (inmatning.durationMs) > 0 && /** @type {number} */ (inmatning.durationMs) <= MAX_LJUD_MS
     ? /** @type {number} */ (inmatning.durationMs)
     : undefined;
-  /** @type {number[] | undefined} */
-  let peaks = peaksGiltiga(inmatning?.peaks) ? [.../** @type {number[]} */ (inmatning.peaks)] : undefined;
+  /** @type {string | undefined} */
+  let peaks = peaksGiltiga(inmatning?.peaks) ? inmatning.peaks : undefined;
   if (durationMs != null && peaks != null) return { durationMs, peaks };
   const kalla = inmatning?.blob ?? inmatning?.fil;
   const las = kalla && typeof kalla.arrayBuffer === "function" ? kalla.arrayBuffer.bind(kalla) : null;
@@ -307,7 +307,7 @@ async function lasLjudmeta(inmatning) {
       const meta = await metaUrBytes(data);
       if (meta) {
         if (durationMs == null && meta.durationMs > 0) durationMs = meta.durationMs;
-        if (peaks == null) peaks = meta.peaks;
+        if (peaks == null) peaks = kodaToppar(meta.peaks);
       }
     } catch {
       /* avkodningen är en hjälp. Uppladdningen ska inte falla för att vågen inte gick att räkna. */

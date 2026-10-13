@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import { peaksGiltiga } from "../lib/bibliotek.js";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { avkodaToppar, kodaToppar, toppListaGiltig } from "../lib/bibliotek.js";
 import {
   HOPP_SEKUNDER,
   PILHOPP_SEKUNDER,
@@ -51,9 +51,9 @@ import { OpsSpinner } from "./OpsSpinner.jsx";
  * @param {boolean} [props.kompakt] Listans rad: spela, rubrik, meta, våg. Inte hopp, hastighet eller nedladdning.
  * @param {string} [props.meta] Datum och längd under rubriken, i kompakt läge.
  * @param {number} [props.durationMs] Sparad längd. Visas innan elementet hunnit läsa filen.
- * @param {number[]} [props.peaks] Sparade toppar, `LJUD_STOLPAR` tal mellan 0 och 1.
+ * @param {string} [props.peaks] Sparad våg, som den ligger på posten: `LJUD_STOLPAR` tecken, ett per stolpe (`kodaToppar`). Allt annat, till exempel en gammal lista av tal, räknas som att ingen våg är sparad, och spelaren räknar fram den ur ljudet.
  * @param {() => void} [props.onOppna] Rubriken i kompakt läge öppnar detaljen.
- * @param {(meta: { durationMs?: number, peaks?: number[] }) => void} [props.onMeta] När längd eller toppar räknats fram.
+ * @param {(meta: { durationMs?: number, peaks?: string }) => void} [props.onMeta] När längd eller toppar räknats fram. `peaks` är vågen som den sparas (`kodaToppar`), samma form som `props.peaks`.
  * @param {string} [props.styrId] Kopplar ⋯-menyn till den här spelaren.
  */
 export function OpsLjudspelare(props) {
@@ -84,10 +84,9 @@ export function OpsLjudspelare(props) {
   if (durationMs !== undefined && durationMs !== null && typeof durationMs !== "number") {
     throw new Error("OpsLjudspelare: durationMs ska vara ett tal, millisekunder.");
   }
-  if (peaks !== undefined && peaks !== null && !Array.isArray(peaks)) {
-    throw new Error("OpsLjudspelare: peaks ska vara en lista av tal.");
-  }
-
+  // ⛔ `peaks` KASTAR INTE PÅ FEL FORM, till skillnad från propsen ovan. De är anropets val och ett fel där är ett fel i anropet.
+  // Vågen är DATA ur en post, och en post som bär något annat än strängen (en gammal lista, ett skadat fält) ska rita en våg som
+  // räknas om, inte en vy som kastar (https://github.com/cllp/ops-framework/issues/349).
   const [adress, setAdress] = useState(typeof src === "string" ? src : "");
   const [hamtar, setHamtar] = useState(false);
   const [adressFel, setAdressFel] = useState("");
@@ -149,7 +148,8 @@ export function OpsLjudspelare(props) {
   }, [src, sokvag]);
 
   const sparadMs = Number.isInteger(durationMs) && /** @type {number} */ (durationMs) > 0 ? /** @type {number} */ (durationMs) : 0;
-  const sparadeToppar = peaksGiltiga(peaks) ? /** @type {number[]} */ (peaks) : null;
+  // Memoerad på strängen: ritlistan är en ny array vid varje avkodning, och effekten nedan startar om när den byter identitet.
+  const sparadeToppar = useMemo(() => avkodaToppar(peaks), [peaks]);
 
   if (hamtar) {
     return (
@@ -204,7 +204,7 @@ function startFel(e) {
 }
 
 /**
- * @param {{ adress: string, namn: string, visaNamn: boolean, kompakt: boolean, meta: string, durationMs: number, peaks: number[] | null, onOppna: (() => void) | null, onMeta: ((meta: { durationMs?: number, peaks?: number[] }) => void) | null, styrId: string }} props
+ * @param {{ adress: string, namn: string, visaNamn: boolean, kompakt: boolean, meta: string, durationMs: number, peaks: number[] | null, onOppna: (() => void) | null, onMeta: ((meta: { durationMs?: number, peaks?: string }) => void) | null, styrId: string }} props
  */
 function Spelare({ adress, namn, visaNamn, kompakt, meta, durationMs, peaks, onOppna, onMeta, styrId }) {
   const ljud = useRef(/** @type {HTMLAudioElement | null} */ (null));
@@ -245,16 +245,17 @@ function Spelare({ adress, namn, visaNamn, kompakt, meta, durationMs, peaks, onO
   })();
 
   const rapportera = (/** @type {number} */ sek, /** @type {number[] | null} */ toppar) => {
-    /** @type {{ durationMs?: number, peaks?: number[] }} */
+    /** @type {{ durationMs?: number, peaks?: string }} */
     const ut = {};
     const ms = langdArKand(sek) ? Math.round(sek * 1000) : 0;
     if (ms && ms !== skickat.current.durationMs) {
       skickat.current.durationMs = ms;
       ut.durationMs = ms;
     }
-    if (toppar && peaksGiltiga(toppar) && !skickat.current.peaks) {
+    if (toppar && toppListaGiltig(toppar) && !skickat.current.peaks) {
       skickat.current.peaks = true;
-      ut.peaks = toppar;
+      // Ut går vågen som den sparas (en sträng), inte som den ritas.
+      ut.peaks = kodaToppar(toppar);
     }
     if (ut.durationMs || ut.peaks) onMetaRef.current?.(ut);
   };
@@ -391,13 +392,13 @@ function Spelare({ adress, namn, visaNamn, kompakt, meta, durationMs, peaks, onO
   }, [durationMs]);
 
   useEffect(() => {
-    if (peaks && peaksGiltiga(peaks)) {
+    if (peaks) {
       setStolpar(peaks);
       setVag("toppar");
       return undefined;
     }
     const cachad = lasStolpar(adress);
-    if (cachad && peaksGiltiga(cachad)) {
+    if (cachad && toppListaGiltig(cachad)) {
       setStolpar(cachad);
       setVag("toppar");
       rapportera(0, cachad);

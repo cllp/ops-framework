@@ -1393,7 +1393,8 @@ function BibliotekLjudYta({ oppnaDetalj = false }) {
   const Bib = Ops.OpsBibliotek;
   const bygg = Ops.byggPost;
   const stolpar = Ops.LJUD_STOLPAR || 48;
-  if (!Bib || !bygg) return <p data-saknas="OpsBibliotek">OpsBibliotek saknas</p>;
+  const koda = Ops.kodaToppar;
+  if (!Bib || !bygg || !koda) return <p data-saknas="OpsBibliotek">OpsBibliotek saknas</p>;
   const tid = Date.UTC(2026, 9, 8, 10, 0);
   const skapare = { uid: "uid-1", namn: "Kim", typ: "manniska", kalla: "bibliotek" };
   const peaks = Array.from({ length: stolpar }, (_, i) => Math.round(Math.abs(Math.sin(i / 2.2)) * 1000) / 1000);
@@ -1407,7 +1408,8 @@ function BibliotekLjudYta({ oppnaDetalj = false }) {
       rubrik: "Hyllan i hallen",
       fil,
       durationMs: 4000,
-      peaks,
+      // Vågen sparas som en sträng (0.98.0), inte som en lista av tal.
+      peaks: koda(peaks),
       skapadAv: skapare,
       skapad: tid,
       andrad: tid,

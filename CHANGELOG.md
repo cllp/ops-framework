@@ -9,6 +9,70 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.98.0
+
+Chattens mikrofon skriver orden i skrivfältet medan man pratar, som TALK. Av som förval: appen slår på det.
+
+CP 2026-10-13, med en skärmbild av chattens skrivfält och raden "Skriver ut det inspelade…" under det efter inspelningen: "VI behöver ha
+samma snabba text utskrift även i chatten. Kan vi ordna det?" Och sedan: "kör".
+
+Samma version bär en rättning i Biblioteket: en röstinspelning med våg gick inte att spara (se Rättat nedan).
+
+### Nytt
+
+- **`igenkanning`** på `OpsMeddelanden`, `OpsSamtal` och `OpsTrad`, samma val som `useTalk({ igenkanning })`. Med `true` och en
+  webbläsare som har taligenkänning skrivs orden i skrivfältet medan de sägs, och den som stoppar har texten kvar att rätta och
+  skicka. Ingenting skickas av sig självt. Det som stod i fältet före mikrofonen ligger kvar, och orden läggs efter med ett
+  mellanslag. Fältet är skrivskyddat medan mikrofonen lyssnar (varje delresultat skriver hela fältet, och Enter skickar inte en halv
+  mening), och statusraden säger då "Lyssnar. Orden skrivs i fältet medan du pratar. Tryck på ljudvågen när du är klar."
+  (`texter.lyssnar`, `role="status"` som förut). Ljudvågens knapp heter och bär `aria-pressed` som förut.
+- **Ingen andra kopia av igenkänningen.** Chatten kör `useTalk` med `igenkanning`, alltså `webblasarensIgenkanning` i `lib/talk.js`:
+  samma omstart efter tystnad, samma språk (`igenkanningensSprak`, ur appens språk) och samma "hellre ingen text än en halv". TALK
+  är orörd.
+
+### Rättat
+
+- ⛔ **En röstinspelning gick inte att spara i Biblioteket ([#349](https://github.com/cllp/ops-framework/issues/349)).** CP 2026-10-13
+  20:24, i Chrome på iPhone: en inspelning sparades och svaret blev "Missing or insufficient permissions." Rotorsaken: vågen
+  (`peaks`, 48 tal) skrevs på posten när den skapades, och reglerna prövade varje tal som ett eget uttryck. Firestore räknar högst
+  1000 uttryck per skrivning, så varje skapande av en inspelning med våg nekades, och bakfyllnaden av en gammal inspelning
+  (`onFyllLjud`) nekades av samma skäl. Mätt i emulatorn 2026-10-12 med "maximum of 1000 expressions to evaluate has been reached".
+  Att dela prövningen i bitar om åtta (0.92.4) flyttade taket men tog inte bort det.
+  **Nu är vågen en sträng**, ett tecken per stolpe, 64 nivåer (tecknen A-Z, a-z, 0-9, `-` och `_`), och regeln prövar den med ett
+  enda `matches()`. Fältet heter fortfarande `peaks`, men är en sträng i stället för en lista av tal.
+- **`kodaToppar` och `avkodaToppar`** (nya exporter): `kodaToppar` gör `LJUD_STOLPAR` tal mellan 0 och 1 till strängen som sparas
+  (och kastar på fel form), `avkodaToppar` gör tillbaka strängen till tal att rita, eller `null` när det inte finns någon sparad våg.
+  `peaksGiltiga` prövar nu strängen. `byggPost` och `postFel` avvisar en lista av tal. Mönstret i regeln och i `peaksGiltiga` är
+  samma uttryck (`TOPPFORM`), och alfabetet och längden bor på ett ställe.
+- **`OpsLjudspelare`:** `peaks` tar strängen, och `onMeta` lämnar `peaks` i samma form, så posten går rakt in och rakt ut.
+  `OpsBibliotek` skickar `post.peaks` oförändrad och `onFyllLjud` får strängen. En `peaks` som inte är en giltig sträng kastar inte
+  (den kastade förut på allt som inte var en lista): den räknas som att ingen våg är sparad, och spelaren räknar fram den ur ljudet.
+- **`createBibliotekskalla.laddaUppFil`** räknar vågen ur filen och skriver strängen. En inskickad `peaks` som är en lista av tal
+  räknas inte som en våg, och vågen räknas ur filen i stället.
+- ⛔ **Ingen migrering behövs.** Varje skrivning med vågen som lista nekades av reglerna, så ingen post i någon databas bär den.
+  Läsaren tål den ändå.
+
+### Oförändrat, med flit
+
+- ⛔ **Av som förval.** Granskningen av PR 358 (MÅSTE 3) kopplade bort igenkänningen i skrivfältet, eftersom Chrome skickar talet
+  till Google och Safari till Apple, och ingen app ska börja göra det bara genom att pinna om. Skälet gäller fortfarande. Utan
+  `igenkanning` är chatten exakt som i 0.97.0 (provet i `chatt-skrivfalt.test.jsx` står kvar och mäter det).
+- **Den gamla vägen är kvar som reserv.** Saknas igenkänningen (Firefox), nekas den eller faller den mitt i, blir texten tom: de halva
+  orden tas bort ur fältet, ljudet spelas in som förut och `onTranscribe` skriver ut med "Skriver ut det inspelade…". Faller också den
+  står felet kvar med Försök igen, och ljudet sparas. Ljudvågen kräver därför fortfarande `onTranscribe`.
+- Avbryt kastar orden som hörts och lämnar fältet som det var.
+
+### För appen
+
+Slå på med `igenkanning` (eller `igenkanning={true}`) på det som ritar chatten. Det är appens beslut, så som det är i `talk.igenkanning`.
+
+⛔ **Bibliotekets regler måste deployas FÖRE klienten som skriver vågen som sträng** (samma ordning som varje ny regel: en regel i
+main är inte en regel i produktion). Regenerera appens regelfil ur `bibliotekregelfragment()` (`opsBibliotekToppar` är nu
+`p.matches('[A-Za-z0-9_-]{48}')`, utan bitarna `opsBibliotekToppar0` till `5`), deploya reglerna, och pinna sedan om appen. Pinnas
+appen om först nekar de gamla reglerna en våg som sträng (`p is list`), och inspelningen faller som förut. Längden går igenom ändå,
+eftersom `OpsBibliotek` skickar längd och våg som två anrop. Appar som själva anropar `byggPost`, `createBibliotekskalla.spara`
+eller `OpsLjudspelare` med `peaks` ska skicka strängen (`kodaToppar`), inte en lista av tal.
+
 ## 0.97.0
 
 TALK kan svara med ett kvitto som går att ångra, statusraden medan appen arbetar går att ange, och fältet är ritat om.
@@ -294,7 +358,7 @@ Två regelfragment ändras, så en app som limmar in dem måste skriva om sina r
 - `bibliotekregelfragment`: filens sökväg måste ligga i postens egen grupp (säkerhet, se ovan). En app med andra lagringsprefix än `grupper` och `bibliotek` skickar dem som andra argument.
 - `bibliotekregelfragment`: en uppdatering som bara rör `durationMs`/`peaks` får lämna `andrad` som den var. Deployas reglerna inte först nekas bakgrundsskrivningen av längden, och listan visar längden ändå.
 
-⛔ **Känd gräns, inte åtgärdad här ([#349](https://github.com/cllp/ops-framework/issues/349)):** en skrivning med `peaks` (48 tal) nekas av Firestore med "maximum of 1000 expressions to evaluate has been reached", både `create` och `update`, mätt i emulatorn på main före den här versionen. Längden ensam (`durationMs`) går igenom. Vågen kan alltså inte sparas på posten förrän `opsBibliotekToppar` görs billigare.
+⛔ **Känd gräns, inte åtgärdad här ([#349](https://github.com/cllp/ops-framework/issues/349)):** en skrivning med `peaks` (48 tal) nekas av Firestore med "maximum of 1000 expressions to evaluate has been reached", både `create` och `update`, mätt i emulatorn på main före den här versionen. Längden ensam (`durationMs`) går igenom. Vågen kan alltså inte sparas på posten förrän `opsBibliotekToppar` görs billigare. (Åtgärdat i 0.98.0: vågen är en sträng.)
 
 ---
 

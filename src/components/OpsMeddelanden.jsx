@@ -176,6 +176,7 @@ import { AgentIkon, AndraIkon, BildIkon, FastIkon, FilIkon, KameraIkon, LjudvagI
  * @property {string} [stoppaAgenten] Förval "Stoppa agenten".
  * @property {string} [spelarIn] Förval "Spelar in. Tryck på ljudvågen för att skriva ut det.".
  * @property {string} [skriverUt] Förval "Skriver ut det inspelade…".
+ * @property {string} [lyssnar] (0.98.0) Mikrofonen medan orden skrivs i fältet live (appen har slagit på `igenkanning`). Förval "Lyssnar. Orden skrivs i fältet medan du pratar. Tryck på ljudvågen när du är klar.".
  * @property {string} [transkriptionFel] Förval "Det inspelade kunde inte skrivas ut.".
  * @property {string} [forsokIgen] Förval "Försök igen".
  * @property {string} [kastaLjudet] Förval "Kasta ljudet".
@@ -285,6 +286,7 @@ const TEXTER = {
   stoppaAgenten: "Stoppa agenten",
   spelarIn: "Spelar in. Tryck på ljudvågen för att skriva ut det.",
   skriverUt: "Skriver ut det inspelade…",
+  lyssnar: "Lyssnar. Orden skrivs i fältet medan du pratar. Tryck på ljudvågen när du är klar.",
   transkriptionFel: "Det inspelade kunde inte skrivas ut.",
   forsokIgen: "Försök igen",
   kastaLjudet: "Kasta ljudet",
@@ -586,6 +588,9 @@ function texterPa(sprak, texter) {
  * @param {(sid: string, tid?: string) => void} [props.onStoppaAgent] Appens sätt att stoppa agenten. Med den står stopp i fältet medan
  *   agenten arbetar. Utan den ingen sådan knapp.
  * @param {import("../lib/talk.js").Inspelare} [props.inspelare] Bara för prov. Förval: webbläsarens inspelning, TALK:s.
+ * @param {import("../lib/talk.js").Igenkanning | boolean} [props.igenkanning] (0.98.0) Text i skrivfältet medan man pratar, som TALK:s `igenkanning`.
+ *   ⛔ AV SOM FÖRVAL, av samma skäl som i TALK: webbläsaren skickar talet till Googles eller Apples taltjänst, och det är appens val. `true`
+ *   slår på webbläsarens taligenkänning när den finns. Utan den, eller när den saknas eller faller, gäller `onTranscribe` som förut.
  * @param {(filer: File[], slag: "bild" | "foto" | "fil") => void} [props.onBifoga] (0.77.0, #292) Skickas till `OpsSamtal` och `OpsTrad`.
  *   Med `bilagor` på källan ritas pluset ändå, och filen läses av ramverket. `onBifoga` anropas då inte.
  * @param {string} [props.mejl] (0.80.0, #301) Adressen appen skickar in. Utan den ritas ingen mejlknapp. Ramverket känner inga adresser.
@@ -599,7 +604,7 @@ function texterPa(sprak, texter) {
  * @param {import("../lib/modul.js").Modul | null} [props.modul] (0.89.0) Manifestet inställningarna läser. Krävs med `ram`, tillsammans med `tillbaka.hubHref`.
  * @param {(agent: { id: string, namn: string }) => void} [props.onVisaAgent] (0.90.0) Tryck på agentens namn och ikon i samtalets huvud, och på agentens avatar i en tråd, öppnar den agentens inställningar. Utan den är huvudet text.
  */
-export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt, nytt, onValj, onOlasta, valtTrad, onValjTrad, sprak: sprakProp, texter = {}, postkort, onTranscribe, onStoppaAgent, inspelare, onBifoga, mejl, onLyftTillMinnet, minneHref, tillbaka, ram = null, activeHref, modul = null, onVisaAgent }) {
+export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt, nytt, onValj, onOlasta, valtTrad, onValjTrad, sprak: sprakProp, texter = {}, postkort, onTranscribe, onStoppaAgent, inspelare, igenkanning, onBifoga, mejl, onLyftTillMinnet, minneHref, tillbaka, ram = null, activeHref, modul = null, onVisaAgent }) {
   kravRam(ram, "OpsMeddelanden");
   if (ram && (typeof activeHref !== "string" || activeHref === "" || !modul || typeof tillbaka?.hubHref !== "string")) {
     throw new Error("OpsMeddelanden: ram kräver activeHref, modul och tillbaka.hubHref. Inställningsläget använder samma tillbaka-rad som listan.");
@@ -944,6 +949,7 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
             onTranscribe={onTranscribe}
             onStoppaAgent={onStoppaAgent}
             inspelare={inspelare}
+            igenkanning={igenkanning}
             kalla={kalla}
             uid={uid}
             samtal={vald.samtal}
@@ -972,6 +978,7 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
             onTranscribe={onTranscribe}
             onStoppaAgent={onStoppaAgent}
             inspelare={inspelare}
+            igenkanning={igenkanning}
             // ⛔ Om källan har trådar avgör OpsSamtal själv (`harTradar`), en vakt och inte två (regel 4).
             onOppnaTrad={valjTrad}
             tradminne={tradminne.current}
@@ -1179,9 +1186,9 @@ const MAX_FORSLAG = 6;
  * inspelningsväg i ramverket, inte två. ⛔ LJUDET FÖRSVINNER ALDRIG TYST: faller transkriberingen står felet utskrivet, ljudet
  * sparas, och "Försök igen" skickar samma ljud på nytt; bara "Kasta ljudet" tar bort det.
  *
- * @param {{ text: string, setText: (t: string) => void, skickar: boolean, onSkicka: (extra?: { namner?: string[] }) => void, texter: Required<Meddelandetexter>, fokus?: boolean, omnamnande?: Omnamnande | null, fokusNyckel?: string, onEscape?: () => void, platstext?: string, onTranscribe?: (blob: Blob) => Promise<string>, inspelare?: import("../lib/talk.js").Inspelare, onBifoga?: (filer: File[], slag: "bild" | "foto" | "fil") => void, harBilaga?: boolean, kamera?: "okand" | "ja" | "nej", agentArbetar?: boolean, onStoppaAgent?: () => void }} props
+ * @param {{ text: string, setText: (t: string) => void, skickar: boolean, onSkicka: (extra?: { namner?: string[] }) => void, texter: Required<Meddelandetexter>, fokus?: boolean, omnamnande?: Omnamnande | null, fokusNyckel?: string, onEscape?: () => void, platstext?: string, onTranscribe?: (blob: Blob) => Promise<string>, inspelare?: import("../lib/talk.js").Inspelare, igenkanning?: import("../lib/talk.js").Igenkanning | boolean, onBifoga?: (filer: File[], slag: "bild" | "foto" | "fil") => void, harBilaga?: boolean, kamera?: "okand" | "ja" | "nej", agentArbetar?: boolean, onStoppaAgent?: () => void }} props
  */
-function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, fokus = false, omnamnande = null, fokusNyckel, onEscape, platstext, onTranscribe, inspelare, onBifoga, harBilaga = false, kamera = "nej", agentArbetar = false, onStoppaAgent }) {
+function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, fokus = false, omnamnande = null, fokusNyckel, onEscape, platstext, onTranscribe, inspelare, igenkanning, onBifoga, harBilaga = false, kamera = "nej", agentArbetar = false, onStoppaAgent }) {
   const ruta = useRef(/** @type {HTMLTextAreaElement | null} */ (null));
   const listId = useId();
   const valda = useRef(/** @type {Map<string, string>} */ (new Map()));
@@ -1203,7 +1210,7 @@ function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, fokus = false,
   useEffect(() => {
     if (fokusNyckel) ruta.current?.focus({ preventScroll: true });
   }, [fokusNyckel]);
-  const rost = useRostinmatning({ onTranscribe, inspelare, text, setText, ruta });
+  const rost = useRostinmatning({ onTranscribe, inspelare, igenkanning, text, setText, ruta });
   /** @param {string} v @param {number} markor */
   const las = (v, markor) => {
     if (!omnamnande) return setFraga(null);
@@ -1227,6 +1234,8 @@ function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, fokus = false,
     const namner = [...valda.current].filter(([, namn]) => text.includes(`@${namn}`)).map(([uid]) => uid);
     valda.current = new Map();
     setFraga(null);
+    // ⛔ Medan orden skrivs in live är fältet inte klart: Enter skulle skicka en halv mening och lämna mikrofonen kvar.
+    if (rost.live) return;
     // ⛔ "@alla" står ensamt (modellen): hela gruppen är redan alla.
     onSkicka(namner.length ? { namner: namner.includes("alla") ? ["alla"] : namner } : undefined);
   };
@@ -1277,6 +1286,9 @@ function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, fokus = false,
       <textarea
         ref={ruta}
         value={text}
+        // ⛔ SKRIVSKYDDAD MEDAN ORDEN KOMMER IN (0.98.0). Varje nytt delresultat skriver hela fältet, så en tangent som trycks mitt i
+        // hade skrivits över vid nästa ord. Det som skrevs före mikrofonen ligger kvar, och fältet öppnas när personen trycker klar.
+        readOnly={rost.live}
         onChange={(e) => {
           setText(e.target.value);
           las(e.target.value, e.target.selectionStart ?? e.target.value.length);
@@ -1375,40 +1387,80 @@ function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, fokus = false,
  *
  * ⛔ LJUDET SPARAS NÄR TRANSKRIBERINGEN FALLER, så att "Försök igen" kan skicka samma ljud; bara "Kasta ljudet" tar bort det.
  *
- * @param {{ onTranscribe?: (blob: Blob) => Promise<string>, inspelare?: import("../lib/talk.js").Inspelare, text: string, setText: (t: string) => void, ruta: { current: HTMLTextAreaElement | null } }} p
+ * ⛔ TEXT MEDAN MAN PRATAR (0.98.0). CP 2026-10-13, med en skärmbild av "Skriver ut det inspelade…" under skrivfältet: "VI behöver ha
+ * samma snabba text utskrift även i chatten." Med `igenkanning` skriver fältet orden medan de sägs, och den som stoppar har texten kvar
+ * att rätta och skicka. Igenkänningen är TALK:s egen (`useTalk({ igenkanning })`, `webblasarensIgenkanning` i `talk.js`): ingen andra kopia,
+ * så omstarten, felen och "hellre ingen text än en halv" gäller här med. Ljudet spelas in som förut, och när texten saknas (igenkänningen
+ * finns inte, nekades eller föll mitt i) tar `onTranscribe` över precis som före 0.98.0. Ingenting skickas av sig självt.
+ *
+ * ⛔ IGENKÄNNINGEN ÄR APPENS VAL, INTE SKRIVFÄLTETS (granskningen av PR 358, MÅSTE 3). Förut stod den bortkopplad här med skälet att ingen
+ * app ska börja skicka chattens tal till Google eller Apple bara genom att pinna om. Det skälet gäller fortfarande, så den är av som
+ * förval och slås på av appen med `igenkanning`, som i TALK.
+ *
+ * @param {{ onTranscribe?: (blob: Blob) => Promise<string>, inspelare?: import("../lib/talk.js").Inspelare, igenkanning?: import("../lib/talk.js").Igenkanning | boolean, text: string, setText: (t: string) => void, ruta: { current: HTMLTextAreaElement | null } }} p
  */
-function useRostinmatning({ onTranscribe, inspelare, text, setText, ruta }) {
+function useRostinmatning({ onTranscribe, inspelare, igenkanning, text, setText, ruta }) {
   const sparat = useRef(/** @type {Blob | null} */ (null));
   const textNu = useRef(text);
   textNu.current = text;
   const [forsoker, setForsoker] = useState(false);
   const [omfel, setOmfel] = useState(/** @type {string | null} */ (null));
+  /**
+   * Texten i fältet när mikrofonen trycktes, eller `null` när orden inte skrivs in live. Det som skrevs före mikrofonen ligger kvar,
+   * och det som hörs läggs efter det med ett mellanslag.
+   */
+  const liveBas = useRef(/** @type {string | null} */ (null));
+  /** @param {string} fore @param {string} ny */
+  const sammanfoga = (fore, ny) => (fore && !/\s$/.test(fore) ? `${fore} ${ny}` : `${fore}${ny}`);
   /** @param {string} ut */
   const lagg = (ut) => {
     const ren = String(ut ?? "").trim();
     if (!ren) throw new Error("Inget hördes i det inspelade.");
-    const fore = textNu.current;
-    setText(fore && !/\s$/.test(fore) ? `${fore} ${ren}` : `${fore}${ren}`);
+    // ⛔ Efter en live-inspelning som föll är fältet ännu inte tillbaka på sin bas (effekten nedan körs efter renderingen), så basen läses
+    // härifrån och inte ur fältet. Annars hade en halv text som visats live blivit kvar framför den utskrivna.
+    setText(sammanfoga(liveBas.current ?? textNu.current, ren));
     requestAnimationFrame(() => ruta.current?.focus());
   };
   const talk = useTalk({
     inspelare,
+    igenkanning,
     onKlick: () => {},
-    // ⛔ INGEN WEBBLÄSARIGENKÄNNING I SKRIVFÄLTET (granskningen av PR 358, MÅSTE 3). Talet går bara till appens egen
-    // transkribering (`onTranscribe`), så att ingen app börjar skicka chattens tal till Google eller Apple bara genom att pinna om.
-    onTalk: async (blob) => {
+    // Text som följer med är hel (TALK släpper aldrig med en halv). Då behövs ingen transkribering. Utan text, och när igenkänningen
+    // är av, saknas eller föll, är det ljudet som gäller som före 0.98.0.
+    onTalk: async (blob, meta) => {
+      if (meta.text) {
+        lagg(meta.text);
+        sparat.current = null;
+        return;
+      }
       sparat.current = blob;
       if (!onTranscribe) throw new Error("Ingen transkribering.");
       lagg(await onTranscribe(blob));
       sparat.current = null;
     },
   });
+  // ⛔ ORDEN SKRIVS IN I FÄLTET MEDAN DE SÄGS. `talk.text` är allt som hörts hittills i försöket och blir tom när försöket kastas eller
+  // igenkänningen faller, och då går fältet tillbaka till sin bas av sig självt. Ett Avbryt och en igenkänning som föll behöver alltså
+  // ingen egen städning.
+  useEffect(() => {
+    if (liveBas.current === null) return;
+    setText(talk.text ? sammanfoga(liveBas.current, talk.text) : liveBas.current);
+    // `setText` och `sammanfoga` är nya varje rendering, och det som ska köra effekten är ändringen av texten.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [talk.text]);
+  useEffect(() => {
+    if (talk.lage === "vila" || talk.lage === "sparat" || talk.lage === "fel") liveBas.current = null;
+  }, [talk.lage]);
+  const spelarNu = talk.lage === "haller" || talk.lage === "lyssnar";
   return {
+    /** Orden skrivs in i fältet nu: igenkänningen är påslagen, finns i webbläsaren, och mikrofonen är öppen. */
+    live: spelarNu && talk.medText,
     lage: forsoker ? /** @type {const} */ ("skickar") : talk.lage,
     fel: omfel ?? talk.fel,
     harLjud: () => Boolean(sparat.current),
     starta: () => {
       setOmfel(null);
+      liveBas.current = talk.medText ? textNu.current : null;
       talk.direkt();
     },
     skrivUt: () => talk.skickaIn(),
@@ -1447,9 +1499,9 @@ function useRostinmatning({ onTranscribe, inspelare, text, setText, ruta }) {
 function Rostrad({ rost, texter: t }) {
   if (rost.lage === "haller" || rost.lage === "lyssnar") {
     return (
-      <p data-rostlage="spelar" role="status" className="m-0 flex shrink-0 items-center gap-2 border-t border-line px-3 pt-2 text-meta text-ink-secondary">
+      <p data-rostlage="spelar" data-live={rost.live ? "" : undefined} role="status" className="m-0 flex shrink-0 items-center gap-2 border-t border-line px-3 pt-2 text-meta text-ink-secondary">
         <span aria-hidden="true" className="size-2 rounded-full bg-danger motion-safe:animate-pulse" />
-        {t.spelarIn}
+        {rost.live ? t.lyssnar : t.spelarIn}
       </p>
     );
   }
@@ -1757,12 +1809,15 @@ function agentDeltagare(samtal, uid, medlemmar) {
  * @param {(sid: string, tid?: string) => void} [props.onStoppaAgent] Appens sätt att stoppa agenten. Med den står stopp i fältet medan
  *   agenten arbetar. Utan den ingen sådan knapp.
  * @param {import("../lib/talk.js").Inspelare} [props.inspelare] Bara för prov. Förval: webbläsarens inspelning, TALK:s.
+ * @param {import("../lib/talk.js").Igenkanning | boolean} [props.igenkanning] (0.98.0) Text i skrivfältet medan man pratar, som TALK:s `igenkanning`.
+ *   ⛔ AV SOM FÖRVAL, av samma skäl som i TALK: webbläsaren skickar talet till Googles eller Apples taltjänst, och det är appens val. `true`
+ *   slår på webbläsarens taligenkänning när den finns. Utan den, eller när den saknas eller faller, gäller `onTranscribe` som förut.
  * @param {(filer: File[], slag: "bild" | "foto" | "fil") => void} [props.onBifoga] (0.77.0, #292) Ritar pluset. Med `bilagor` på
  *   källan läser ramverket filen själv och den här anropas inte. Utan `bilagor` lämnas filerna hit, och utan den ritas inget plus.
  * @param {string} [props.mejl] (0.80.0, #301) Adressen appen skickar in. Utan den ritas ingen mejlknapp.
  * @param {(agent: { id: string, namn: string }) => void} [props.onVisaAgent] (0.90.0) Gör namn och ikon i ett agentsamtal till en knapp.
  */
-export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, namnFor, medlemmar, onLast, onSkickat, utkast, onOppnaTrad, tradminne, fokusRot, onFokuserad, sprak: sprakProp, texter = {}, postkort, onTranscribe, onStoppaAgent, inspelare, onBifoga: onBifogaProp, mejl, onVisaAgent }) {
+export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, namnFor, medlemmar, onLast, onSkickat, utkast, onOppnaTrad, tradminne, fokusRot, onFokuserad, sprak: sprakProp, texter = {}, postkort, onTranscribe, onStoppaAgent, inspelare, igenkanning, onBifoga: onBifogaProp, mejl, onVisaAgent }) {
   // ⛔ Språket ur appens `OpsSprakProvider` när appen inte gav ett (0.46.0, cllp/bolag-ops#528).
   const sprakKontext = useOpsSprak();
   const sprak = sprakProp ?? sprakKontext;
@@ -2051,6 +2106,7 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
         platstext={samtal.slag === "grupp" ? t.skrivGrupp : samtal.slag === "agent" ? t.skrivAgent : t.skriv}
         onTranscribe={onTranscribe}
         inspelare={inspelare}
+        igenkanning={igenkanning}
         onBifoga={bilage.onBifoga}
         harBilaga={Boolean(bilage.bilaga)}
         kamera={bilage.kamera}
@@ -2330,6 +2386,9 @@ function Meddelanderader({ meddelanden, uid, namnFor, medlemmar, locale, visaNam
  * @param {(sid: string, tid?: string) => void} [props.onStoppaAgent] Appens sätt att stoppa agenten. Med den står stopp i fältet medan
  *   agenten arbetar. Utan den ingen sådan knapp.
  * @param {import("../lib/talk.js").Inspelare} [props.inspelare] Bara för prov. Förval: webbläsarens inspelning, TALK:s.
+ * @param {import("../lib/talk.js").Igenkanning | boolean} [props.igenkanning] (0.98.0) Text i skrivfältet medan man pratar, som TALK:s `igenkanning`.
+ *   ⛔ AV SOM FÖRVAL, av samma skäl som i TALK: webbläsaren skickar talet till Googles eller Apples taltjänst, och det är appens val. `true`
+ *   slår på webbläsarens taligenkänning när den finns. Utan den, eller när den saknas eller faller, gäller `onTranscribe` som förut.
  * @param {(filer: File[], slag: "bild" | "foto" | "fil") => void} [props.onBifoga] (0.77.0, #292) Samma som på `OpsSamtal`.
  * @param {string} [props.sprak]
  * @param {Meddelandetexter} [props.texter]
@@ -2339,7 +2398,7 @@ function Meddelanderader({ meddelanden, uid, namnFor, medlemmar, locale, visaNam
  * @param {string} [props.minneHref] (0.86.0) Länk till minnesvyn i trådens huvud. Utan den ingen länk.
  * @param {(agent: { id: string, namn: string }) => void} [props.onVisaAgent] (0.90.0) Agentens avatar i tråden öppnar inställningarna.
  */
-export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, medlemmar, onStang, onSvarat, onDopt, sprak: sprakProp, texter = {}, postkort, onTranscribe, onStoppaAgent, inspelare, onBifoga: onBifogaProp, mejl, onLyftTillMinnet, minneHref, onVisaAgent }) {
+export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, medlemmar, onStang, onSvarat, onDopt, sprak: sprakProp, texter = {}, postkort, onTranscribe, onStoppaAgent, inspelare, igenkanning, onBifoga: onBifogaProp, mejl, onLyftTillMinnet, minneHref, onVisaAgent }) {
   if (!harTradar(kallan)) throw new Error("OpsTrad: källan har inga trådar. Skicka `tradar` till createSamtalskalla, med samma namn som till samtalsregelfragment.");
   const kalla = kallan;
   const sprakKontext = useOpsSprak();
@@ -2629,6 +2688,7 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
         platstext={t.skrivTrad}
         onTranscribe={onTranscribe}
         inspelare={inspelare}
+        igenkanning={igenkanning}
         onBifoga={bilage.onBifoga}
         harBilaga={Boolean(bilage.bilaga)}
         kamera={bilage.kamera}
