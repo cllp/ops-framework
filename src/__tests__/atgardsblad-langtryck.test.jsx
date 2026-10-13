@@ -81,6 +81,47 @@ describe("⛔ långtrycket och släppet", () => {
     expect(oppna).toHaveBeenCalledTimes(1);
   });
 
+  it("Stäng i arket stänger inte i släppet: arket står kvar (granskningen av PR 364)", () => {
+    medBredd(true);
+    rendera();
+    hallIn();
+    peka(document, "pointerup");
+    fireEvent.click(screen.getByRole("button", { name: "Stäng" }));
+    expect(screen.getByRole("menuitem", { name: "Öppna" })).toBeInTheDocument();
+  });
+
+  it("pointercancel räknas som släpp, och rörelse efter att menyn öppnats avbryter inte mätningen", () => {
+    medBredd(true);
+    const oppna = rendera();
+    hallIn();
+    // Fingret glider en bit över arket innan det lyfts. Släppet ska fortfarande vara skyddat.
+    act(() => {
+      document.dispatchEvent(new MouseEvent("pointermove", { bubbles: true, clientX: 120, clientY: 520 }));
+    });
+    act(() => {
+      vi.advanceTimersByTime(600);
+    });
+    peka(document, "pointercancel");
+    fireEvent.click(screen.getByRole("menuitem", { name: "Öppna" }));
+    expect(oppna).not.toHaveBeenCalled();
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+    fireEvent.click(screen.getByRole("menuitem", { name: "Öppna" }));
+    expect(oppna).toHaveBeenCalledTimes(1);
+  });
+
+  it("ett släpp som aldrig kommer låser inte menyn: efter taket går ett tryck fram", () => {
+    medBredd(true);
+    const oppna = rendera();
+    hallIn();
+    act(() => {
+      vi.advanceTimersByTime(2100);
+    });
+    fireEvent.click(screen.getByRole("menuitem", { name: "Öppna" }));
+    expect(oppna).toHaveBeenCalledTimes(1);
+  });
+
   it("⋮ öppnar utan spärr: första trycket på en rad väljer den", () => {
     medBredd(true);
     const oppna = rendera();

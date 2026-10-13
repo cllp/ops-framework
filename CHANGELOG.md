@@ -20,8 +20,10 @@ oftast Öppna.
 
 ### Rättat
 
-- `OpsAtgardsblad` ignorerar klicket från samma tryck som öppnade menyn med ett långt tryck. Spärren släpps strax efter att fingret
-  lyfts (`SLAPP_SKYDD_MS`, 400 ms), så nästa tryck på en rad väljer den. Menyn som öppnas med ⋮ har ingen spärr.
+- `OpsAtgardsblad` ignorerar klick i menyn eller arket, Stäng inräknad, inom 400 ms (`SLAPP_SKYDD_MS`) efter att fingret som öppnade
+  den med ett långt tryck lyfts (eller gesten avbröts). Det är ett tidsfönster och inget tillstånd: ett klick efter det går alltid
+  fram. Rörelse efter att menyn öppnats avbryter inte mätningen, och ett släpp som aldrig kommer låser inte menyn längre än 2 s.
+  Menyn som öppnas med ⋮ har ingen spärr.
 - Bibliotekets listrad visar taggarna på en egen rad under metaraden. I metaraden kapades de av anteckningens text ("#kvi…"), sett i
   skärmbilden i 390 bredd.
 - Taggrutans Lägg till står i höjd med fältet. Hjälptexten ligger under raden.
