@@ -21,6 +21,7 @@ import {
   tidUrAndel,
 } from "../lib/ljudspelare.js";
 import { isAudio } from "../lib/file.js";
+import { kodaToppar } from "../lib/bibliotek.js";
 
 describe("ljudspelarens räkning", () => {
   it("tiden, hastigheten och spolningen håller sig inom ljudet", () => {
@@ -241,7 +242,7 @@ describe("OpsLjudspelare", () => {
   });
 
   it("kompakt rad visar rubrik och våg, och gömmer hopp, hastighet och nedladdning", () => {
-    const peaks = Array.from({ length: STOLPAR }, (_, i) => (i % 5 === 0 ? 1 : 0.2));
+    const peaks = kodaToppar(Array.from({ length: STOLPAR }, (_, i) => (i % 5 === 0 ? 1 : 0.2)));
     render(
       <OpsLjudspelare
         kompakt
@@ -264,6 +265,19 @@ describe("OpsLjudspelare", () => {
     expect(document.querySelector("[data-ljud-vag]")?.getAttribute("data-ljud-vag")).toBe("toppar");
     const reglage = screen.getByRole("slider", { name: "Spola i Hyllan" });
     expect(reglage).not.toBeDisabled();
+  });
+
+  it("⛔ en våg som inte är den sparade strängen kastar inte: en gammal lista, fel längd och skräp ritas som en våg som räknas om (#349)", () => {
+    const gammalLista = Array.from({ length: STOLPAR }, (_, i) => (i % 5 === 0 ? 1 : 0.2));
+    for (const peaks of [gammalLista, "ABC", "!".repeat(STOLPAR), 42, {}]) {
+      const { unmount } = render(
+        <OpsLjudspelare kompakt src="https://exempel.se/a.webm" namn="Hyllan" durationMs={4000} peaks={/** @type {any} */ (peaks)} onOppna={() => {}} />,
+      );
+      expect(screen.getByRole("button", { name: "Hyllan" }), JSON.stringify(peaks)).toBeInTheDocument();
+      // Ingen sparad våg: spelaren väntar på att räkna fram den, den ritar inte den gamla listan.
+      expect(document.querySelector("[data-ljud-vag]")?.getAttribute("data-ljud-vag"), JSON.stringify(peaks)).toBe("vantar");
+      unmount();
+    }
   });
 
   it("⛔ gammal post utan durationMs får längden uträknad och visad, inte bara dold", async () => {

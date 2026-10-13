@@ -124,14 +124,82 @@ export function ljudRubrik(post) {
 }
 
 /**
- * Toppar som får sparas: exakt `LJUD_STOLPAR` tal mellan 0 och 1.
+ * Tecknen vågen sparas med: base64url, 64 nivåer. Ordningen är nivåns värde, `A` är 0 och `_` är 63.
+ *
+ * ⛔ VÅGEN SPARAS SOM EN STRÄNG, ETT TECKEN PER STOLPE (https://github.com/cllp/ops-framework/issues/349).
+ * CP 2026-10-13 20:24, i Chrome på iPhone: en röstinspelning sparades i Biblioteket och svaret blev "Missing or
+ * insufficient permissions." Reglerna prövade varje av de 48 topparna som ett eget uttryck, och Firestore räknar
+ * högst 1000 uttryck per skrivning. Både att skapa en inspelning med våg och bakfyllnaden av en gammal nekades med
+ * "maximum of 1000 expressions to evaluate has been reached", mätt i emulatorn. Att dela prövningen i bitar om åtta
+ * (0.92.4) flyttade taket men tog inte bort det. En sträng prövas med ett uttryck, `matches()`, oavsett hur många
+ * stolpar den har, och 64 nivåer är mer än en våg på en telefonskärm kan visa.
+ */
+export const TOPP_TECKEN = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+
+/** Antal nivåer en stolpe kan ha. Härlett ur tecknen: en andra siffra för samma sak hade glidit isär. */
+export const TOPP_NIVAER = TOPP_TECKEN.length;
+
+/**
+ * Formen en sparad våg har: exakt `LJUD_STOLPAR` tecken ur `TOPP_TECKEN`. Regeln skriver samma uttryck via
+ * `regelRegex`, och `peaksGiltiga` prövar mot det här, så att regeln och modellen inte kan säga olika (regel 2).
+ * Att klassen här och tecknen ovan är samma mängd bevisas i `bibliotek.test.js`.
+ */
+export const TOPPFORM = new RegExp(`^[A-Za-z0-9_-]{${LJUD_STOLPAR}}$`);
+
+/**
+ * Räknade toppar, som de ritas: exakt `LJUD_STOLPAR` tal mellan 0 och 1. Det här är ritformen, aldrig det som
+ * sparas. Det som sparas är strängen `kodaToppar` ger.
+ *
+ * @param {unknown} toppar
+ * @returns {toppar is number[]}
+ */
+export function toppListaGiltig(toppar) {
+  if (!Array.isArray(toppar) || toppar.length !== LJUD_STOLPAR) return false;
+  return toppar.every((n) => typeof n === "number" && Number.isFinite(n) && n >= 0 && n <= 1);
+}
+
+/**
+ * Vågen som den sparas på posten: en sträng med `LJUD_STOLPAR` tecken ur `TOPP_TECKEN`.
+ *
+ * ⛔ EN LISTA MED FEL FORM KASTAR, den klipps inte till. En våg som tyst fick tre stolpar för lite hade sparats och
+ * sedan sett ut som en inspelning med ett kort ljud.
+ *
+ * @param {readonly number[]} toppar `LJUD_STOLPAR` tal mellan 0 och 1.
+ * @returns {string}
+ */
+export function kodaToppar(toppar) {
+  if (!toppListaGiltig(toppar)) {
+    throw new Error(`kodaToppar: vågen ska vara ${LJUD_STOLPAR} tal mellan 0 och 1.`);
+  }
+  return toppar.map((v) => TOPP_TECKEN[Math.round(v * (TOPP_NIVAER - 1))]).join("");
+}
+
+/**
+ * Vågen som den sparas, tillbaka till tal att rita. `null` när det inte finns någon sparad våg att rita: fältet
+ * saknas, är en lista, har fel längd eller bär ett tecken utanför `TOPP_TECKEN`. Spelaren räknar då fram vågen ur
+ * ljudet, som för en post som aldrig fått någon.
+ *
+ * ⛔ EN GAMMAL LISTA ÄR "INGEN VÅG", INTE ETT FEL. Vågen sparades som en lista av 48 tal innan 0.98.0, men ingen
+ * skrivning med den formen gick någonsin igenom reglerna (se `TOPP_TECKEN`), så det finns ingen sådan post i en
+ * databas och ingen migrering behövs. Läsaren tål den ändå: en källa som inte är Firestore, eller en post som
+ * skrivits för hand, ska ge en våg som räknas om och inte en vy som kastar.
  *
  * @param {unknown} peaks
- * @returns {peaks is number[]}
+ * @returns {number[] | null}
+ */
+export function avkodaToppar(peaks) {
+  if (!peaksGiltiga(peaks)) return null;
+  return Array.from(peaks, (tecken) => TOPP_TECKEN.indexOf(tecken) / (TOPP_NIVAER - 1));
+}
+
+/**
+ * Toppar som får sparas: en sträng med exakt `LJUD_STOLPAR` tecken ur `TOPP_TECKEN`.
+ *
+ * @param {unknown} peaks
+ * @returns {peaks is string}
  */
 export function peaksGiltiga(peaks) {
-  if (!Array.isArray(peaks) || peaks.length !== LJUD_STOLPAR) return false;
-  return peaks.every((n) => typeof n === "number" && Number.isFinite(n) && n >= 0 && n <= 1);
+  return typeof peaks === "string" && TOPPFORM.test(peaks);
 }
 
 /**
@@ -174,7 +242,7 @@ const FORVALTARROLLER = /** @type {const} */ (["agare", "admin"]);
  * @property {{ sokvag: string, namn: string, mime: string, byte: number }} [fil] Bara på en fil.
  * @property {string} [utskrift] Bara på ett ljud. Saknas fältet har ingen bett om en utskrift. Tom sträng är en utskrift utan ord.
  * @property {number} [durationMs] Bara på ett ljud. Millisekunder. Saknas fältet är längden inte räknad än.
- * @property {number[]} [peaks] Bara på ett ljud. `LJUD_STOLPAR` tal mellan 0 och 1. Saknas fältet är vågen inte räknad än.
+ * @property {string} [peaks] Bara på ett ljud. Vågen som en sträng: `LJUD_STOLPAR` tecken ur `TOPP_TECKEN`, ett per stolpe (`kodaToppar`, `avkodaToppar`). Saknas fältet är vågen inte räknad än.
  * @property {import("./skapare.js").Skapare} skapadAv
  * @property {number} skapad Millisekunder.
  * @property {number} andrad Millisekunder.
@@ -341,7 +409,7 @@ export function ljudMetaFel(d) {
     }
   }
   if (harP && !peaksGiltiga(d.peaks)) {
-    return `Vågen ska ha ${LJUD_STOLPAR} toppar, var och en mellan 0 och 1.`;
+    return `Vågen ska vara en sträng med ${LJUD_STOLPAR} tecken, ett per topp, ur A-Z, a-z, 0-9, - och _.`;
   }
   return null;
 }
@@ -482,7 +550,7 @@ export function byggPost(d) {
     post.fil = { sokvag: str(fil.sokvag), namn: str(fil.namn), mime: normaliseraMime(fil.mime), byte: /** @type {number} */ (fil.byte) };
     if ("utskrift" in d && d.utskrift != null) post.utskrift = /** @type {string} */ (d.utskrift);
     if ("durationMs" in d && d.durationMs != null) post.durationMs = /** @type {number} */ (d.durationMs);
-    if ("peaks" in d && d.peaks != null) post.peaks = [.../** @type {number[]} */ (d.peaks)];
+    if ("peaks" in d && d.peaks != null) post.peaks = /** @type {string} */ (d.peaks);
   }
   return post;
 }

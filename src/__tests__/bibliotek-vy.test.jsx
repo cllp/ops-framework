@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import { OpsBibliotek } from "../components/OpsBibliotek.jsx";
 import { ANGRA_MS } from "../components/OpsSvepRad.jsx";
 import { LANGTRYCK_MS } from "../lib/apparark.js";
-import { byggPost } from "../lib/bibliotek.js";
+import { byggPost, kodaToppar } from "../lib/bibliotek.js";
 
 /**
  * Listan och detaljen. jsdom mäter att texten finns och att ett tryck byter vy.
@@ -428,7 +428,7 @@ describe("OpsBibliotek", () => {
         rubrik: "Idé 2026-10-08 21:05",
         fil: { sokvag: "grupper/my/bibliotek/p/ide.webm", namn: "ide.webm", mime: "audio/webm", byte: 4000 },
         durationMs: 4000,
-        peaks: Array.from({ length: 48 }, (_, i) => (i % 4 === 0 ? 1 : 0.25)),
+        peaks: kodaToppar(Array.from({ length: 48 }, (_, i) => (i % 4 === 0 ? 1 : 0.25))),
         skapadAv: skapare,
         skapad: tid,
         andrad: tid,
@@ -504,7 +504,7 @@ describe("OpsBibliotek", () => {
   });
 
   it("⛔ längden och vågen skickas som två anrop, i ordning: avvisas vågen sparas längden ändå, och felet loggas med postens id", async () => {
-    // https://github.com/cllp/ops-framework/issues/349: en skrivning med peaks nekas av reglernas uttryckstak.
+    // https://github.com/cllp/ops-framework/issues/349: en app som ännu inte deployat de nya reglerna nekar vågen, och längden ska gå igenom ändå.
     const tidigareAudio = globalThis.AudioContext;
     globalThis.AudioContext = class {
       async decodeAudioData() {
@@ -540,6 +540,8 @@ describe("OpsBibliotek", () => {
       await waitFor(() => expect(onFyllLjud).toHaveBeenCalledTimes(2));
       expect(Object.keys(anrop[0]).sort()).toEqual(["durationMs", "id"]);
       expect(Object.keys(anrop[1]).sort()).toEqual(["id", "peaks"]);
+      // Vågen går ut som den sparas, en sträng (#349), inte som 48 tal.
+      expect(anrop[1].peaks).toMatch(/^[A-Za-z0-9_-]{48}$/);
       await waitFor(() => expect(logg).toHaveBeenCalled());
       const rad = logg.mock.calls.find((a) => String(a[0]).includes("vågen"));
       expect(rad?.[0]).toContain("ljud-vag");
