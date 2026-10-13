@@ -1394,7 +1394,13 @@ function useRostinmatning({ onTranscribe, inspelare, text, setText, ruta }) {
   const talk = useTalk({
     inspelare,
     onKlick: () => {},
-    onTalk: async (blob) => {
+    onTalk: async (blob, meta) => {
+      // ⛔ TEXTEN FRÅN WEBBLÄSAREN GÅR DIREKT IN I FÄLTET (0.96.0). Ingen väntan på servern. Saknas den gäller ljudet som förut.
+      if (meta?.text) {
+        lagg(meta.text);
+        sparat.current = null;
+        return;
+      }
       sparat.current = blob;
       if (!onTranscribe) throw new Error("Ingen transkribering.");
       lagg(await onTranscribe(blob));

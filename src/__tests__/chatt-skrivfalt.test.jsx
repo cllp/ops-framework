@@ -81,6 +81,37 @@ describe("skrivfältet", () => {
     expect(document.querySelector("[data-rostlage]")).toBeNull();
     expect(screen.getByRole("button", { name: "Skicka" })).toBeTruthy();
   });
+  it("⛔ med webbläsarens text (0.96.0) hamnar orden i fältet direkt, utan att servern frågas", async () => {
+    const { s, a } = await underlag();
+    const insp = provinspelare();
+    const onTranscribe = vi.fn(async () => "fel väg");
+    class SR {
+      constructor() {
+        /** @type {any} */ this.onresult = null;
+        /** @type {any} */ this.onend = null;
+        SR.senast = this;
+      }
+      start() {}
+      stop() {
+        queueMicrotask(() => this.onend?.());
+      }
+      abort() {}
+    }
+    /** @type {any} */ SR.senast = null;
+    vi.stubGlobal("webkitSpeechRecognition", SR);
+    try {
+      render(<OpsMeddelanden kalla={s} uid="anna" groupId="g" gruppNamn="G" medlemmar={MEDLEMMAR} valt={a.id} onTranscribe={onTranscribe} inspelare={insp} />);
+      await within(await screen.findByRole("log")).findByText("Hej");
+      fireEvent.click(screen.getByRole("button", { name: "Prata in" }));
+      await waitFor(() => expect(SR.senast).not.toBeNull());
+      act(() => SR.senast.onresult({ resultIndex: 0, results: [Object.assign([{ transcript: "påminn mig på fredag" }], { isFinal: true })] }));
+      fireEvent.click(screen.getByRole("button", { name: "Skriv ut det inspelade" }));
+      await waitFor(() => expect(ruta().value).toBe("påminn mig på fredag"));
+      expect(onTranscribe).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
   it("⛔ en misslyckad transkribering säger det, behåller ljudet, och Försök igen skickar samma ljud", async () => {
     const { s, a } = await underlag();
     const insp = provinspelare();

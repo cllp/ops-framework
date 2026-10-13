@@ -9,6 +9,36 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.96.0
+
+TALK visar texten medan man pratar, och den hela texten följer med till appen. Chattens skrivfält använder den direkt.
+
+CP 2026-10-13: "Min upplevelse är att det nu tar lång tid för transkribering och det är ingen smidig AI upplevelse." Och om
+förslagen i lifehub.app#209: "vi kör på 3 direkt", alltså text som syns medan man pratar.
+
+### Nytt
+
+- **`webblasarensIgenkanning()`** i `lib/talk.js`: webbläsarens taligenkänning (`SpeechRecognition`, i Safari och Chrome
+  `webkitSpeechRecognition`), eller `null` när den saknas. Den startar om sig själv när Chrome avslutar efter tystnad och
+  behåller det som redan hörts. Ett fel under igenkänningen gör hela texten tom, så att en halv text aldrig följer med som om
+  den vore hel. Tystnad (`no-speech`) är inget fel.
+- **`useTalk`** startar igenkänningen när mikrofonen är öppen, visar texten (`text` i det kroken lämnar) och lämnar den i
+  `onTalk(blob, { text })` när den är hel. **Ljudet spelas in som förut, alltid.** Utan text får appen bara ljudet.
+  `useTalk({ igenkanning: false })`, och `talk.igenkanning: false` i `OpsAppShell`, stänger av den.
+- **`OpsInspelning` och `OpsTalk`** tar `text` och visar den medan man pratar och medan det sparas, med `aria-live="polite"`.
+- **Chattens skrivfält** lägger in texten direkt när den finns, utan att fråga `onTranscribe`. Saknas den gäller ljudet som förut.
+
+### Vart ljudet går
+
+Chrome skickar ljudet till Googles taltjänst och Safari till Apples. Det är en annan väg än appens egen modell. Därför går den
+att stänga av per app.
+
+### Prov
+
+`talk-text.test.jsx` (12 prov) och ett nytt fall i `chatt-skrivfalt.test.jsx`, med fejkad `SpeechRecognition`. Röda utan sin
+rättelse: en halv text som hel, ingen omstart, texten följer inte med, Avbryt kastar inte texten, och skrivfältet som frågar
+servern trots texten.
+
 ## 0.95.1
 
 Rullningslistens tumme syns i båda lägena, och väljarens lista är minst lika bred som fältet.
