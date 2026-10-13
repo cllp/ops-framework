@@ -40,7 +40,7 @@ import { INSTALLNINGSVARDEFALT, MAX_INSTALLNINGSGRUPP, MAX_INSTALLNINGSID, MAX_I
 import { MAX_TYPAVVIKELSER, MAX_TYPID, MAX_TYPNAMN, MODULTYPID_FORM, TYPAVVIKELSEFALT, TYPYTOR } from "./modultyper.js";
 import { ADRESSFORM, BIBLIOTEKFALT, BIBLIOTEKTYPER, FILFALT, LJUD_STOLPAR, MAX_BIBLIOTEKFIL, MAX_BIBLIOTEKFILNAMN, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKSOKVAG, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, MAX_BIBLIOTEKUTSKRIFT, MAX_LJUD_MS, TOPPFORM, filMimeMonster } from "./bibliotek.js";
 import { MAX_MINNESID, MAX_MINNESTEXT, MINNESFALT, MINNESKALLAFALT, MINNESKALLOR } from "./minne.js";
-import { SKAPARFALT } from "./skapare.js";
+import { MAX_SKAPARKALLA, MAX_SKAPARNAMN, SKAPARFALT } from "./skapare.js";
 import { BESKRIVENAPPDATAFALT, BESKRIVNINGSDOKUMENTFALT, BESKRIVNINGSFALT, BESKRIVNINGSFORMAT, BESKRIVNINGSIDFORM, MAX_APPBESKRIVNING, MAX_BESKRIVNINGSNAMN, MAX_FALT, MAX_LISTOR, MIN_LISTOR } from "./beskrivenapp.js";
 import { KONFIGHANDELSER, KONFIGLOGGFALT } from "./konfiglogg.js";
 import { DATUMFORM, KALENDERFALT, KALENDERFARGER, KALENDERPOSTFALT, MAX_KALENDERNAMN, MAX_POSTBESKRIVNING, MAX_POSTPLATS, MAX_POSTTITEL, MINKALENDERFALT, TIDPUNKTSFORM } from "./kalendrar.js";
@@ -1929,9 +1929,10 @@ ${nuRegelfunktion("opsModulinstallningNu")}
  *   - LÄSA: aktiv medlem i radens grupp. En fråga utan `groupId` går inte att bevisa och nekas.
  *   - SKAPA: aktiv medlem som är en person (inte en agent), som sig själv (`skapadAv.uid`), med `skapad` och `andrad` nära
  *     serverns klocka och en rad med rätt form.
- *   - ÄNDRA: den som skapade raden, eller ägare eller admin i gruppen. Gruppen, appen, listan, skaparen och `skapad` står
- *     stilla, och `andrad` är serverns klocka.
- *   - RADERA: den som skapade raden (med aktivt medlemskap), eller ägare eller admin i gruppen.
+ *   - ÄNDRA: den som skapade raden, eller ägare eller admin i gruppen, och admin bara som person (`typ == 'person'`, som i
+ *     beskrivningarna: en agent med adminroll skriver inte i gruppens rader). Gruppen, appen, listan, skaparen och `skapad`
+ *     står stilla, och `andrad` är serverns klocka.
+ *   - RADERA: den som skapade raden (med aktivt medlemskap), eller ägare eller admin i gruppen, admin bara som person.
  *
  * ══ ⛔ REGELN ÄR EN FÖR ALLA APPAR, OCH DEN VET INTE VAD EN APP HANDLAR OM ═════
  *
@@ -1940,8 +1941,13 @@ ${nuRegelfunktion("opsModulinstallningNu")}
  * då hänger varje apps skrivning på ett annat dokument som kan saknas, ha ändrats eller ha fel form. Regeln låser FORMEN (rätt
  * fält, rätt grupp, `appId` och `lista` på id-form, högst `MAX_FALT` värden i `varden`) och `validateRad` i klienten och på
  * servern låser INNEHÅLLET (typ, längd, krav). Det betyder att en medlem som skriver förbi klienten kan lägga ett värde av fel
- * typ eller ett för långt värde i en rad i sin EGEN grupp (dokumentet är ändå högst en megabyte). Vyn visar det då som text, den
- * kastar inte. Ingen annan grupp ser raden, och ingen annan medlems rad går att ändra.
+ * typ eller ett för långt värde i en rad i sin EGEN grupp (dokumentet är ändå högst en megabyte). ⛔ ANTALET rader är inte
+ * begränsat alls: en regel kan inte räkna dokument i en samling, och beslut 0005 valde EN regel för all appdata utan en räknare per
+ * grupp eller app. En medlem kan alltså skriva hur många rader som helst i sin grupp. Det är en känd lucka och inget beslut om att
+ * ingen gräns behövs, och en gräns hör till en server som räknar, inte till regeln. Vyn kortar det den ritar och söker
+ * (`OpsBeskrivenApp`, `kapa`) och visar värden av fel typ som text, den kastar inte. Ingen annan grupp ser raden, och ingen annan
+ * medlems rad går att ändra. `skapadAv.namn` och `skapadAv.kalla` har tak (`MAX_SKAPARNAMN`, `MAX_SKAPARKALLA`), för det är de
+ * två texterna i raden som ritas utan att passera beskrivningen.
  *
  * ⛔ INGEN LOOP OVER VÄRDENA, och det är med flit. Firestore räknar högst 1000 uttryck per skrivning, och en regel som prövade
  * varje värde för sig gick över taket redan med 48 tal i biblioteket (https://github.com/cllp/ops-framework/issues/349). Här
@@ -1974,8 +1980,10 @@ ${nuRegelfunktion("opsBeskrivenappNu")}
         && d.varden.size() <= ${MAX_FALT}
         && d.skapadAv.keys().hasOnly([${lista(SKAPARFALT)}])
         && d.skapadAv.namn is string
+        && d.skapadAv.namn.size() <= ${MAX_SKAPARNAMN}
         && d.skapadAv.typ == "manniska"
         && d.skapadAv.kalla is string
+        && d.skapadAv.kalla.size() <= ${MAX_SKAPARKALLA}
         && d.andrad >= d.skapad;
     }
 
@@ -1996,10 +2004,10 @@ ${nuRegelfunktion("opsBeskrivenappNu")}
         && opsBeskrivenappRadGiltig(request.resource.data)
         && (
           (opsArMedlem(resource.data.groupId) && resource.data.skapadAv.uid == request.auth.uid)
-          || opsArAdmin(resource.data.groupId)
+          || (opsArAdmin(resource.data.groupId) && opsMedlemskapet(resource.data.groupId).data.typ == 'person')
         );
       allow delete: if (opsArMedlem(resource.data.groupId) && resource.data.skapadAv.uid == request.auth.uid)
-        || opsArAdmin(resource.data.groupId);
+        || (opsArAdmin(resource.data.groupId) && opsMedlemskapet(resource.data.groupId).data.typ == 'person');
     }
 `;
 }
@@ -2067,8 +2075,10 @@ ${nuRegelfunktion("opsBeskrivningNu")}
         && d.beskrivning.listor.size() <= ${MAX_LISTOR}
         && d.skapadAv.keys().hasOnly([${lista(SKAPARFALT)}])
         && d.skapadAv.namn is string
+        && d.skapadAv.namn.size() <= ${MAX_SKAPARNAMN}
         && d.skapadAv.typ == "manniska"
         && d.skapadAv.kalla is string
+        && d.skapadAv.kalla.size() <= ${MAX_SKAPARKALLA}
         && d.andrad >= d.skapad;
     }
 

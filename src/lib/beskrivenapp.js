@@ -46,6 +46,13 @@ export const BESKRIVNINGSFORMAT = 1;
 /** Fälttyperna i format 1. Slutna: en agent kan inte hitta på en egen. */
 export const FALTTYPER = /** @type {const} */ (["text", "langtext", "tal", "datum", "val", "janej", "lank", "person"]);
 
+/**
+ * Fält-id som är upptagna. `id` är radens egen nyckel: tabellen nycklar raden på `row.id`, och ett fält med id `id` skrev över den
+ * (dubbla nycklar, granskningen av 0.99.0). Bara `id` är upptaget: `constructor` och de andra nycklarna på ett objekt är giltiga id,
+ * eftersom vyn och prövningen läser dem med `Object.hasOwn` och aldrig rakt ur objektet.
+ */
+export const RESERVERADE_FALTID = /** @type {const} */ (["id"]);
+
 /** Hur en lista visas. `lista` är förvalet. */
 export const VISNINGAR = /** @type {const} */ (["lista", "tabell"]);
 
@@ -271,6 +278,9 @@ function byggFalt(v, sokvag, fel, sedda) {
   const start = fel.length;
   okandaNycklar(o, FALTFALT, sokvag, fel);
   const id = idVarde(o.id, `${sokvag}.id`, fel, sedda, "fältet");
+  if (id !== null && (/** @type {readonly string[]} */ (RESERVERADE_FALTID)).includes(id)) {
+    fel.push(`${sokvag}.id: ${visa(id)} är upptaget, det är radens egen nyckel. Välj ett annat id, till exempel ${visa(`${id}-nummer`)}.`);
+  }
   const namn = textVarde(o.namn, `${sokvag}.namn`, fel, { min: 1, max: MAX_BESKRIVNINGSNAMN });
 
   /** @type {Falt["typ"] | null} */

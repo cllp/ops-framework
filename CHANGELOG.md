@@ -31,7 +31,7 @@ och därför är formatet strängt: ett okänt fält är ett fel och släpps int
   eller `{ ok: false, fel, faltfel }` (`faltfel` är texten per fält-id, för ett formulär).
 - **`createBeskrivenAppKalla`** (raderna) och **`createBeskrivningskalla`** (beskrivningarna). Båda tar `source`, `collection`, `groupId` och
   `skapare`, och båda prövar innan de skriver. Appen namnger samlingarna.
-- **`beskrivenappdataregelfragment(namn)`** och **`beskrivningsregelfragment(namn)`**, med emulatorprov (32 prov i `rules/__tests__/beskrivenapp.test.mjs`, och 66 mutationer av de genererade reglerna dödade).
+- **`beskrivenappdataregelfragment(namn)`** och **`beskrivningsregelfragment(namn)`**, med emulatorprov (36 prov i `rules/__tests__/beskrivenapp.test.mjs`). Mutationskörning mot de genererade reglerna: 81 mutanter (varje villkor i de två fragmenten togs bort eller gjordes sant, ett i taget), 81 dödade, mätt efter granskningens rättningar nedan. Siffran som stod här tidigare, 66, gick inte att reproducera: granskaren fick 57 av 62.
 - **`OpsBeskrivenApp`**: flikar per lista, sök, Ny, raderna som lista eller tabell, ett formulär ur fältens typ, Spara, Avbryt och Ta bort med
   fråga. Bara ramverkets egna delar, och ingenting ur beskrivningen blir HTML.
 - **`byggBeskrivningsdokument`** och **`beskrivningsId`**: dokumentets form och id på ett ställe, för klienten och för en server med Admin SDK.
@@ -79,6 +79,25 @@ och därför är formatet strängt: ett okänt fält är ett fel och släpps int
   utvecklats osynlig för sin egen data. Bara en rad som saknar sin form (fel grupp eller app, en lista som inte finns) är trasig.
 - **Att ta bort en beskrivning tar inte bort raderna.** En borttagen app kan skapas igen med samma id, och då är raderna tillbaka. Att städa
   dem är en körning med Admin SDK.
+
+### Rättat efter granskningen
+
+Ett oberoende granskningspass över de beskrivna apparna hittade inga MÅSTE. Det här är BÖR och provluckor, alla rättade.
+
+- **Ett fält-id som `constructor` visade funktionen `Object`.** `rad.varden[id]` rakt av ger prototypens nyckel för en rad som saknar fältet, och vyn skrev
+  "function Object() { [native code] }" i listan, fyllde formuläret med den och sparade den. Alla läsningar av en rads värden och av formulärets fältfel
+  går nu genom `Object.hasOwn`. `constructor` är kvar som giltigt id (det är en slug), bara `id` är upptaget.
+- **Ett fält med id `id` skrev över radens nyckel i tabellen** (dubbla nycklar i `OpsTable`). `validateBeskrivning` avvisar nu fält-id `id` med ett fel som
+  föreslår `id-nummer` (`RESERVERADE_FALTID`), och tabellen sätter radens id sist.
+- **Stora värden ritades i full längd och sökningen gjorde `toLowerCase` på dem för varje rad vid varje tangenttryck.** Vyn kortar nu det den ritar och
+  söker (text och val till `MAX_TEXTVARDE`, länk till `MAX_LANKVARDE`, lång text till raden, värden av fel typ också, skaparens namn i rubrikraden).
+  Regelfragmenten begränsar `skapadAv.namn` och `skapadAv.kalla` (`MAX_SKAPARNAMN` och `MAX_SKAPARKALLA`, 100, nya i `skapare.js`, samma tal i regeln och i
+  `byggSkapare`). Regelns huvud säger nu också att ANTALET rader inte är begränsat: en regel kan inte räkna dokument. Det är en känd lucka, inget beslut.
+- **En agent med adminroll kunde ändra och radera gruppens rader** (raderna saknade `typ == 'person'` på adminvägen, beskrivningarna hade det). Rättat, med prov.
+- **Fem mutanter överlevde de första proven** (`skapadAv.namn is string` i båda fragmenten, beskrivningens `skapadAv.keys().hasOnly`, dess `skapadAv.kalla is string`
+  och `opsBeskrivningNu(andrad)` vid skapande), och en sjätte hittades vid omkörningen (`t is int`, ett decimaltal nära nu släpptes igenom). Alla har prov nu. Mot de
+  gamla proven överlevde de fem, mot de nya dör de.
+- **`byggSkapare` kortar ett namn över 100 tecken och kastar på en `kalla` över 100.** Utan det hade en lång profiltext gett varje skrivning "Missing or insufficient permissions".
 
 ### TALK: Svara, bara appens mål i mikrofonen, och andra omgången på iPhone
 

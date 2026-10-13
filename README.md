@@ -2836,8 +2836,8 @@ Samlingsnamnen skickar appen in, som alltid. Modellen (`validateBeskrivning`, `v
 
 Id är små bokstäver, siffror och bindestreck (`lanad-av`, inte `lanad_av`), börjar med en bokstav, 2 till 40 tecken. `ikon` är ett namn
 ur `GRUPPIKONKATALOG`. 1 till 5 listor och 1 till 20 fält per lista. Fälttyperna är `text`, `langtext`, `tal`, `datum`, `val`, `janej`,
-`lank` och `person`. `val` krävs på typen `val` (2 till 30 alternativ) och hör inte hemma på någon annan. `rubrikfalt` är id på ett fält
-av typen `text`. `visning` är `lista` (förval) eller `tabell`. Ett okänt fält är ett fel överallt.
+`lank` och `person`. `val` krävs på typen `val` (2 till 30 alternativ) och hör inte hemma på någon annan. Fält-id:t `id` är upptaget (det är
+radens egen nyckel), använd till exempel `id-nummer`. `rubrikfalt` är id på ett fält av typen `text`. `visning` är `lista` (förval) eller `tabell`. Ett okänt fält är ett fel överallt.
 
 | | |
 |---|---|

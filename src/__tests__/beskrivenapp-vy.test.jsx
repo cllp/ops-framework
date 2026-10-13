@@ -5,6 +5,8 @@ import { OpsBeskrivenApp } from "../components/OpsBeskrivenApp.jsx";
 import { OpsSprakProvider } from "../components/OpsSprak.jsx";
 import { createMemorySource } from "../data/adapters.js";
 import { createBeskrivenAppKalla } from "../data/beskrivenappkalla.js";
+import { MAX_LANKVARDE, MAX_TEXTVARDE } from "../lib/beskrivenapp.js";
+import { MAX_SKAPARNAMN } from "../lib/skapare.js";
 
 /**
  * Den beskrivna appens vy. jsdom mäter att rätt text och rätt kontroller finns och att ett tryck gör rätt sak i källan.
@@ -482,5 +484,140 @@ describe("OpsBeskrivenApp: propsen som krävs", () => {
     expect(() => render(<OpsBeskrivenApp beskrivning={utlaning()} kalla={kalla()} medlemmar={[]} jag={MIG} ram={{ farAndra: true }} />)).toThrow(/ram kräver activeHref och modul/);
     expect(() => render(<OpsBeskrivenApp beskrivning={utlaning()} kalla={kalla()} medlemmar={[]} jag={MIG} ram={{}} />)).toThrow(/ram.farAndra krävs/);
     spy.mockRestore();
+  });
+});
+
+describe("OpsBeskrivenApp: ett fält-id får aldrig läsa ur prototypen", () => {
+  // `constructor` är ett giltigt id (små bokstäver) och en nyckel på varje objekt. Läses `rad.varden["constructor"]` rakt av
+  // är värdet för en rad som saknar fältet funktionen `Object`, och vyn skrev "function Object() { [native code] }" i listan,
+  // fyllde formuläret med den och sparade den. Mätt av granskningen av 0.99.0.
+  const medKonstruktor = () => {
+    const besk = utlaning();
+    besk.listor[0].falt.push({ id: "constructor", namn: "Konstruktör", typ: "text" });
+    return besk;
+  };
+
+  it("en rad som saknar fältet visar ingenting för det, i listan och i sökningen", async () => {
+    const { user } = montera({ besk: medKonstruktor(), seed: [{ id: "a", ...rad({ varden: { namn: "Borr" } }) }] });
+    const radknapp = await screen.findByRole("button", { name: "Borr" });
+    expect(radknapp.textContent).not.toMatch(/function|native code|Konstruktör/);
+    await user.type(screen.getByRole("searchbox", { name: "Sök: Saker" }), "native");
+    expect(screen.getByText("Inga träffar.")).toBeInTheDocument();
+  });
+
+  it("formuläret startar med ett tomt fält och sparar inte funktionens text", async () => {
+    const { source, user } = montera({ besk: medKonstruktor(), seed: [{ id: "a", ...rad({ varden: { namn: "Borr" } }) }] });
+    await user.click(await screen.findByRole("button", { name: "Borr" }));
+    expect(screen.getByLabelText(/Konstruktör/)).toHaveValue("");
+    // Inget fältfel heller: `faltfel["constructor"]` på ett tomt objekt är samma funktion.
+    expect(screen.queryByText(/function|native code/)).toBeNull();
+    await skriv(user, /Sak/, "Borrmaskin");
+    await user.click(screen.getByRole("button", { name: "Spara" }));
+    await screen.findByRole("button", { name: "Borrmaskin" });
+    expect((await source.read("appdata", "a")).varden).toEqual({ namn: "Borrmaskin" });
+  });
+
+  it("ett fält som faktiskt heter constructor och har ett värde visas, fylls i och sparas som vilket annat fält som helst", async () => {
+    const varden = { namn: "Borr", constructor: "Bosch" };
+    const { source, user } = montera({ besk: medKonstruktor(), seed: [{ id: "a", ...rad({ varden }) }] });
+    const radknapp = await screen.findByRole("button", { name: "Borr" });
+    expect(radknapp).toHaveTextContent("Konstruktör: Bosch");
+    await user.click(radknapp);
+    expect(screen.getByLabelText(/Konstruktör/)).toHaveValue("Bosch");
+    await skriv(user, /Konstruktör/, "Makita");
+    await user.click(screen.getByRole("button", { name: "Spara" }));
+    await screen.findByRole("button", { name: "Borr" });
+    const sparad = (await source.read("appdata", "a")).varden;
+    expect(Object.hasOwn(sparad, "constructor")).toBe(true);
+    expect(sparad.constructor).toBe("Makita");
+  });
+
+  it("ett fältfel på ett annat fält hamnar inte på constructor", async () => {
+    const besk = medKonstruktor();
+    besk.listor[0].falt[4].typ = "tal";
+    const { user } = montera({ besk });
+    await screen.findByText("Saker är tom.");
+    await user.click(screen.getByRole("button", { name: "Ny rad i Saker" }));
+    await user.click(screen.getByRole("button", { name: "Spara" }));
+    // Bara "Sak" (krävs) är fel. Konstruktör-fältet är orört och bär inget fel.
+    expect(await screen.findByText("krävs.")).toBeInTheDocument();
+    expect(screen.getByLabelText(/Sak/)).toBeInvalid();
+    expect(screen.getByLabelText(/Konstruktör/)).not.toBeInvalid();
+  });
+
+  it("tabellen läser samma sätt: en rad utan fältet får en tom cell", async () => {
+    const besk = medKonstruktor();
+    besk.listor[0].visning = "tabell";
+    montera({ besk, seed: [{ id: "a", ...rad({ varden: { namn: "Borr" } }) }] });
+    const tabell = await screen.findByRole("table", { name: "Saker" });
+    expect(within(tabell).getAllByRole("cell").map((c) => c.textContent).join("|")).not.toMatch(/function|native code/);
+  });
+});
+
+describe("OpsBeskrivenApp: fältet id är upptaget", () => {
+  it("en beskrivning med ett fält som heter id ritas inte: felet säger varför och vad man skriver i stället", () => {
+    const besk = utlaning();
+    besk.listor[1].falt.push({ id: "id", namn: "Löpnummer", typ: "tal" });
+    const kalla = createBeskrivenAppKalla({ source: createMemorySource(), collection: "appdata", groupId: "cps-ab", beskrivning: utlaning(), skapare: skapare() });
+    render(<OpsBeskrivenApp beskrivning={besk} kalla={kalla} jag={MIG} medlemmar={MEDLEMMAR} />);
+    expect(screen.getByText("Appen går inte att visa.")).toBeInTheDocument();
+    expect(screen.getByText(/listor\[1\]\.falt\[3\]\.id: "id" är upptaget, det är radens egen nyckel/)).toBeInTheDocument();
+    expect(screen.queryByRole("table")).toBeNull();
+  });
+});
+
+describe("OpsBeskrivenApp: ett stort värde ritas och söks bara till sitt tak", () => {
+  // Regeln låser inte hur långt ett värde är (den känner inte beskrivningen), och validateRad körs bara i klienten. En rad skriven
+  // förbi klienten kan alltså bära ett värde på hundratals kilobyte. Vyn kortar det den ritar, och sökningen läser det som ritas.
+  const STORT = 5000;
+  const lang = (marke) => `${"a".repeat(1000)}${marke}${"b".repeat(STORT)}`;
+
+  it("text och val kortas till MAX_TEXTVARDE i listan, rubriken och sökningen", async () => {
+    const { user } = montera({ seed: [{ id: "a", ...rad({ varden: { namn: lang("RUBRIKMARKE"), skick: lang("SKICKMARKE") } }) }] });
+    const radknapp = await screen.findByRole("button", { name: /^a+/ });
+    expect(radknapp.getAttribute("aria-label")).toHaveLength(MAX_TEXTVARDE);
+    expect(radknapp.getAttribute("aria-label")).toMatch(/\.\.\.$/);
+    // Rubrik (200) plus fältets namn och ett värde (200): ingenting av de 6000 tecknen som skrevs.
+    expect(radknapp.textContent.length).toBeLessThanOrEqual(MAX_TEXTVARDE + "Skick: ".length + MAX_TEXTVARDE);
+    // Det som låg bortom taket finns inte att söka på, för det ritas inte.
+    await user.type(screen.getByRole("searchbox", { name: "Sök: Saker" }), "skickmarke");
+    expect(screen.getByText("Inga träffar.")).toBeInTheDocument();
+  });
+
+  it("en länk kortas till MAX_LANKVARDE, och en lång text till raden i listan", async () => {
+    const besk = utlaning();
+    besk.listor[0].falt.push({ id: "lank", namn: "Sida", typ: "lank" }, { id: "anteckning", namn: "Anteckning", typ: "langtext" });
+    const varden = { namn: "Borr", lank: `https://example.com/${"x".repeat(STORT)}`, anteckning: "y".repeat(STORT) };
+    montera({ besk, seed: [{ id: "a", ...rad({ varden }) }] });
+    const radknapp = await screen.findByRole("button", { name: "Borr" });
+    const meta = radknapp.querySelector("[data-beskriven-rad] > span:last-child").textContent;
+    // METAFALT (3) fält visas: Sida (högst 2000), Anteckning (högst 80). Bortom dem skulle 10 000 tecken ha stått här.
+    expect(meta.length).toBeLessThanOrEqual("Sida: ".length + MAX_LANKVARDE + " · Anteckning: ".length + 80);
+    expect(meta).toContain("...");
+  });
+
+  it("tabellens celler kortas på samma sätt", async () => {
+    const besk = utlaning();
+    besk.listor[0].visning = "tabell";
+    montera({ besk, seed: [{ id: "a", ...rad({ varden: { namn: "Borr", skick: lang("X") } }) }] });
+    const tabell = await screen.findByRole("table", { name: "Saker" });
+    const celler = within(tabell).getAllByRole("cell").map((c) => c.textContent);
+    expect(Math.max(...celler.map((c) => c.length))).toBeLessThanOrEqual(MAX_TEXTVARDE);
+  });
+
+  it("ett värde av fel typ kortas också: en lång text i ett talfält ritas inte i full längd", async () => {
+    montera({ seed: [{ id: "p", ...rad({ lista: "personer", varden: { namn: "Kim", antal: "9".repeat(STORT) } }) }] });
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("tab", { name: /Personer/ }));
+    const tabell = await screen.findByRole("table", { name: "Personer" });
+    expect(Math.max(...within(tabell).getAllByRole("cell").map((c) => c.textContent.length))).toBeLessThanOrEqual(MAX_TEXTVARDE);
+  });
+
+  it("skaparens namn kortas i formulärets rubrikrad", async () => {
+    const skapadAv = { uid: "uid-2", namn: "N".repeat(STORT), typ: "manniska", kalla: "appar" };
+    const { user } = montera({ seed: [{ id: "a", ...rad({ skapadAv }) }] });
+    await user.click(await screen.findByRole("button", { name: "Borr" }));
+    const rubrikrad = screen.getByText(/Skapad av N+/);
+    expect(rubrikrad.textContent.length).toBeLessThanOrEqual("Saker · Skapad av .".length + MAX_SKAPARNAMN);
   });
 });

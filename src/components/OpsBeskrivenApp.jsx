@@ -23,6 +23,7 @@ import { formatDate } from "../lib/format.js";
 import { modulTillbaka } from "../lib/modulram.js";
 import { ordet } from "../lib/ord.js";
 import { personnamn } from "../lib/personnamn.js";
+import { MAX_SKAPARNAMN } from "../lib/skapare.js";
 
 /**
  * En beskriven app: flikar per lista, sök, Ny, och raderna som lista eller tabell (beslut 0005, lifehub.app#213).
@@ -190,6 +191,37 @@ const METAFALT = 3;
 const MAX_METATEXT = 80;
 
 /**
+ * Värdet i en rad för ett fält, eller `undefined` när raden inte bär fältet.
+ *
+ * ⛔ ALDRIG `rad.varden[id]` RAKT AV. Ett fält-id är en slug, och `constructor` är en slug och en nyckel på varje objekt: en rad som
+ * saknar fältet gav då funktionen `Object`, och vyn skrev "function Object() { [native code] }" i listan, fyllde formuläret med den
+ * och sparade den (granskningen av 0.99.0). `Object.hasOwn` släpper bara in det raden själv bär.
+ *
+ * @param {{ varden?: Record<string, unknown> } | null | undefined} rad
+ * @param {string} id
+ * @returns {unknown}
+ */
+function radvarde(rad, id) {
+  const v = rad?.varden;
+  return v && typeof v === "object" && Object.hasOwn(v, id) ? v[id] : undefined;
+}
+
+/**
+ * Texten kortad till högst `max` tecken, med tre punkter sist. Taket gäller det som RITAS och det som SÖKS, inte det som sparas.
+ *
+ * ⛔ UTAN TAK RITAS VARJE VÄRDE I FULL LÄNGD. Regeln låser antalet fält i en rad men inte hur långt ett värde är (den känner inte
+ * beskrivningen, se `beskrivenappdataregelfragment`), och `validateRad` körs bara i klienten. Ett värde på hundratals kilobyte skrivet
+ * förbi klienten hade ritats helt i varje rad, och sökningen gör `toLowerCase` på det för varje rad vid varje tangenttryck.
+ *
+ * @param {string} s
+ * @param {number} max
+ * @returns {string}
+ */
+function kapa(s, max) {
+  return s.length > max ? `${s.slice(0, max - 3)}...` : s;
+}
+
+/**
  * Personerna en person-väljare erbjuder: aktiva medlemmar som är personer, inte agenten.
  * @param {ReadonlyArray<{ userId: string, namn?: string, typ?: string, status?: string }>} medlemmar
  */
@@ -210,11 +242,11 @@ function visaVarde(falt, varde, ctx) {
   const locale = ctx.sprak === "en" ? "en-GB" : "sv-SE";
   switch (falt.typ) {
     case "janej":
-      return varde === true ? ctx.ord("ja") : varde === false ? ctx.ord("nej") : String(varde);
+      return varde === true ? ctx.ord("ja") : varde === false ? ctx.ord("nej") : kapa(String(varde), MAX_TEXTVARDE);
     case "datum":
-      return typeof varde === "string" && /^\d{4}-\d{2}-\d{2}$/.test(varde) ? formatDate(varde, { locale }) : String(varde);
+      return typeof varde === "string" && /^\d{4}-\d{2}-\d{2}$/.test(varde) ? formatDate(varde, { locale }) : kapa(String(varde), MAX_TEXTVARDE);
     case "tal":
-      return typeof varde === "number" && Number.isFinite(varde) ? new Intl.NumberFormat(locale).format(varde) : String(varde);
+      return typeof varde === "number" && Number.isFinite(varde) ? new Intl.NumberFormat(locale).format(varde) : kapa(String(varde), MAX_TEXTVARDE);
     case "person": {
       const m = ctx.medlemmar.find((x) => x.userId === varde);
       if (!m) return ctx.ord("okandMedlem");
@@ -222,11 +254,14 @@ function visaVarde(falt, varde, ctx) {
       return n.text;
     }
     case "langtext": {
-      const s = String(varde).replace(/\s+/g, " ").trim();
-      return s.length > MAX_METATEXT ? `${s.slice(0, MAX_METATEXT - 3)}...` : s;
+      // Bara början normaliseras: en text på en megabyte ska inte gås igenom för att sedan kortas till 80 tecken.
+      const s = String(varde).slice(0, MAX_LANGTEXTVARDE).replace(/\s+/g, " ").trim();
+      return kapa(s, MAX_METATEXT);
     }
+    case "lank":
+      return kapa(String(varde), MAX_LANKVARDE);
     default:
-      return String(varde);
+      return kapa(String(varde), MAX_TEXTVARDE);
   }
 }
 
@@ -275,7 +310,7 @@ function Appvy({ b, kalla, jag, medlemmar, sprak, tillbaka }) {
   /** @param {import("../lib/beskrivenapp.js").Lista} lista @param {import("../data/beskrivenappkalla.js").Beskrivenapprad} rad */
   const rubrikFor = (lista, rad) => {
     const falt = lista.falt.find((f) => f.id === lista.rubrikfalt);
-    const r = falt ? visaVarde(falt, rad.varden[lista.rubrikfalt], ctx) : "";
+    const r = falt ? visaVarde(falt, radvarde(rad, lista.rubrikfalt), ctx) : "";
     return r || t("utanRubrik");
   };
 
@@ -283,7 +318,7 @@ function Appvy({ b, kalla, jag, medlemmar, sprak, tillbaka }) {
   const metaFor = (lista, rad) =>
     lista.falt
       .filter((f) => f.id !== lista.rubrikfalt)
-      .map((f) => ({ f, v: visaVarde(f, rad.varden[f.id], ctx) }))
+      .map((f) => ({ f, v: visaVarde(f, radvarde(rad, f.id), ctx) }))
       .filter((x) => x.v)
       .slice(0, METAFALT)
       .map((x) => `${x.f.namn}: ${x.v}`)
@@ -296,7 +331,7 @@ function Appvy({ b, kalla, jag, medlemmar, sprak, tillbaka }) {
   const traffar = (lista, rad) => {
     const q = sok.trim().toLowerCase();
     if (!q) return true;
-    return lista.falt.some((f) => visaVarde(f, rad.varden[f.id], ctx).toLowerCase().includes(q));
+    return lista.falt.some((f) => visaVarde(f, radvarde(rad, f.id), ctx).toLowerCase().includes(q));
   };
 
   async function taBort() {
@@ -479,7 +514,7 @@ function Tabell({ lista, rader, ctx, rubrikFor, onOppna }) {
   const kolumner = faltIOrdning.map((f) => ({ key: f.id, label: f.namn, numeric: f.typ === "tal" }));
   const rows = rader.map((rad) => {
     /** @type {Record<string, import("react").ReactNode>} */
-    const celler = { id: rad.id };
+    const celler = {};
     for (const f of faltIOrdning) {
       celler[f.id] = f.id === lista.rubrikfalt ? (
         <button
@@ -490,8 +525,11 @@ function Tabell({ lista, rader, ctx, rubrikFor, onOppna }) {
         >
           {rubrikFor(lista, rad)}
         </button>
-      ) : visaVarde(f, rad.varden[f.id], ctx);
+      ) : visaVarde(f, radvarde(rad, f.id), ctx);
     }
+    // Radens id SIST: OpsTable nycklar raden på `row.id`, och ett fält vars id var `id` hade annars skrivit över det (dubbla nycklar).
+    // Beskrivningen reserverar `id` som fält-id (`validateBeskrivning`), så det här är försvar på djupet och ingen väg att lita på.
+    celler.id = rad.id;
     return celler;
   });
   return <OpsTable columns={kolumner} rows={rows} caption={lista.namn} hideCaption />;
@@ -574,7 +612,7 @@ function Radformular({ b, lista, rad, kan, medlemmar, sprak, rubrik, onStang, on
     }
   }
 
-  const skapare = rad?.skapadAv?.namn ? fyll(t("skapadAv"), { namn: rad.skapadAv.namn }) : rad ? t("skaparSaknas") : "";
+  const skapare = rad?.skapadAv?.namn ? fyll(t("skapadAv"), { namn: kapa(rad.skapadAv.namn, MAX_SKAPARNAMN) }) : rad ? t("skaparSaknas") : "";
 
   return (
     <div data-beskriven-app-rad={rad?.id ?? "ny"} className="flex min-w-0 flex-col gap-4">
@@ -593,7 +631,7 @@ function Radformular({ b, lista, rad, kan, medlemmar, sprak, rubrik, onStang, on
         }}
       >
         {lista.falt.map((f) => {
-          const fel = faltfel[f.id];
+          const fel = Object.hasOwn(faltfel, f.id) ? faltfel[f.id] : undefined;
           const v = utkast[f.id];
           if (f.typ === "janej") {
             return (
@@ -634,7 +672,7 @@ function startvarden(lista, rad) {
   /** @type {Record<string, string | boolean>} */
   const ut = {};
   for (const f of lista.falt) {
-    const v = rad?.varden?.[f.id];
+    const v = radvarde(rad, f.id);
     if (f.typ === "janej") ut[f.id] = v === true;
     else ut[f.id] = v === undefined || v === null ? "" : String(v);
   }

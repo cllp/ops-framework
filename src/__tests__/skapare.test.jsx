@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { SKAPARTYPER, arGammalForm, byggSkapare, laesSkapare, skaparensNamn } from "../lib/skapare.js";
+import { MAX_SKAPARKALLA, MAX_SKAPARNAMN, SKAPARTYPER, arGammalForm, byggSkapare, laesSkapare, skaparensNamn } from "../lib/skapare.js";
 
 /**
  * Vem som skapade en post (cllp/ops-framework#106).
@@ -37,6 +37,19 @@ describe("byggSkapare", () => {
 
   it("faller till okand när typ inte anges", () => {
     expect(byggSkapare({}).typ).toBe("okand");
+  });
+
+  it("kortar ett namn över taket och släpper ett kort namn orört, så en klient aldrig skriver det regeln nekar", () => {
+    // Regelfragmenten för beskrivna appar nekar `skapadAv.namn.size() > MAX_SKAPARNAMN`. Utan taket här fick en lång profiltext
+    // varje skrivning nekad med "Missing or insufficient permissions".
+    expect(byggSkapare({ namn: "n".repeat(MAX_SKAPARNAMN + 50), typ: "manniska" }).namn).toHaveLength(MAX_SKAPARNAMN);
+    expect(byggSkapare({ namn: "n".repeat(MAX_SKAPARNAMN), typ: "manniska" }).namn).toHaveLength(MAX_SKAPARNAMN);
+    expect(byggSkapare({ namn: "Kim Åkesson", typ: "manniska" }).namn).toBe("Kim Åkesson");
+  });
+
+  it("kastar på en kalla över taket: den sätts av kod och för lång är ett programfel", () => {
+    expect(byggSkapare({ kalla: "k".repeat(MAX_SKAPARKALLA), typ: "agent" }).kalla).toHaveLength(MAX_SKAPARKALLA);
+    expect(() => byggSkapare({ kalla: "k".repeat(MAX_SKAPARKALLA + 1), typ: "agent" })).toThrow(/kalla är 101 tecken/);
   });
 
   it("har precis tre sorter", () => {

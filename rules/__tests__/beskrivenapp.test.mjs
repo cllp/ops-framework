@@ -9,13 +9,16 @@
  *   LÄSA     egen grupp ja, annan grupp nej, utan grupp nej, avslutat medlemskap nej, utloggad nej
  *   SKAPA    medlem ja. I en annan grupp, i någon annans namn, som agent, med avslutat medlemskap, med extra fält, utan fält, med
  *            ett id som inte är ett id, med varden som inte är en map eller har för många fält, med fel klocka: nej
- *   ÄNDRA    skaparen ja, admin ja, ägare ja. Annan medlem, admin i en annan grupp, avslutat medlemskap: nej. Gruppen, appen,
+ *   ÄNDRA    skaparen ja, admin ja, ägare ja. Annan medlem, admin i en annan grupp, avslutat medlemskap, agent med adminroll: nej. Gruppen, appen,
  *            listan, skaparen och skapad står stilla.
  *   RADERA   skaparen ja, admin och ägare ja. Annan medlem, avslutad skapare, agent, utloggad: nej
  *
  * ⛔ DET REGELN INTE PRÖVAR STÅR HÄR SOM PROV, med flit: ett värde av fel typ i `varden` släpps igenom, eftersom regeln inte känner
  * beskrivningen. Det prövas i `validateRad` (src/__tests__/beskrivenapp.test.js). Ett prov som visar gränsen hindrar att någon
  * tror att regeln skyddar mer än den gör.
+ *
+ * SKAPARENS FÄLT   namn och kalla ska vara text (inte en lista, en map eller ett tal) och högst MAX_SKAPARNAMN och MAX_SKAPARKALLA tecken, i
+ *            raderna och i beskrivningarna. Skaparen får inte bära extra nycklar.
  *
  * DESCRIPTIONS (samlingen `appbeskrivningar`)
  *   LÄSA     medlem ja, annan grupp nej
@@ -28,6 +31,7 @@
  */
 
 import { beskrivningsId, MAX_FALT } from "../../src/lib/beskrivenapp.js";
+import { MAX_SKAPARKALLA, MAX_SKAPARNAMN } from "../../src/lib/skapare.js";
 import { medlemskapsId } from "../../src/lib/grupp.js";
 import { after, before, describe, it } from "node:test";
 import { assertFails, assertSucceeds, initializeTestEnvironment } from "@firebase/rules-unit-testing";
@@ -176,6 +180,17 @@ describe("radernas regler: skapa", () => {
     await assertFails(setDoc(doc(db(MEDLEM), nyRadId()), rad({ skapadAv: { uid: MEDLEM, namn: "Kim", typ: "manniska" } })));
   });
 
+  it("skaparens namn och kalla ska vara text av rimlig längd: en lista, en map, ett tal, null eller för långt nekas", async () => {
+    // Listan och mappen är det som skiljer `is string` från `size()`: de har en size() och passerar längdkontrollen.
+    for (const fel of [["x"], { x: 1 }, 5, true, null]) {
+      await assertFails(setDoc(doc(db(MEDLEM), nyRadId()), rad({ skapadAv: { ...person(MEDLEM), namn: fel } })));
+      await assertFails(setDoc(doc(db(MEDLEM), nyRadId()), rad({ skapadAv: { ...person(MEDLEM), kalla: fel } })));
+    }
+    await assertFails(setDoc(doc(db(MEDLEM), nyRadId()), rad({ skapadAv: { ...person(MEDLEM), namn: "n".repeat(MAX_SKAPARNAMN + 1) } })));
+    await assertFails(setDoc(doc(db(MEDLEM), nyRadId()), rad({ skapadAv: { ...person(MEDLEM), kalla: "k".repeat(MAX_SKAPARKALLA + 1) } })));
+    await assertSucceeds(setDoc(doc(db(MEDLEM), nyRadId()), rad({ skapadAv: { ...person(MEDLEM), namn: "n".repeat(MAX_SKAPARNAMN), kalla: "k".repeat(MAX_SKAPARKALLA) } })));
+  });
+
   it("appId och lista ska vara id: små bokstäver, siffror, bindestreck, 2 till 40 tecken", async () => {
     for (const id of ["Utlaning", "utlan_ing", "u", "x".repeat(41), "1saker", "med mellanslag", "", "a/b", 7, null]) {
       await assertFails(setDoc(doc(db(MEDLEM), nyRadId()), rad({ appId: id })));
@@ -203,6 +218,8 @@ describe("radernas regler: skapa", () => {
     await assertFails(setDoc(doc(db(MEDLEM), nyRadId()), rad({ skapad: nu - ar, andrad: nu })));
     await assertFails(setDoc(doc(db(MEDLEM), nyRadId()), rad({ skapad: nu + 60_000, andrad: nu })));
     await assertFails(setDoc(doc(db(MEDLEM), nyRadId()), rad({ skapad: "nu", andrad: "nu" })));
+    // Klockan är ett heltal i millisekunder. Ett decimaltal nära nu är inte det, och jämförelserna mot serverns klocka släpper in det.
+    await assertFails(setDoc(doc(db(MEDLEM), nyRadId()), rad({ skapad: nu + 0.5, andrad: nu + 0.5 })));
   });
 
   it("GRÄNSEN: regeln känner inte beskrivningen, så ett värde av fel typ släpps in. validateRad är den som prövar det", async () => {
@@ -228,6 +245,13 @@ describe("radernas regler: ändra", () => {
     }
     await assertFails(updateDoc(doc(db(AVSLUTAD), avslutadSkapare), { varden: { namn: "Stulet" }, andrad: nu() }));
     await assertFails(updateDoc(doc(utloggad(), vag), { varden: { namn: "Stulet" }, andrad: nu() }));
+  });
+
+  it("en agent med adminroll ändrar inte gruppens rader, men en person med adminroll gör det", async () => {
+    const vag = await lagg("appdata", rad());
+    await assertFails(updateDoc(doc(db(AGENT_ADMIN), vag), { varden: { namn: "Agentens" }, andrad: nu() }));
+    // Samma ändring av en person med adminroll går, så att nejet beror på typen och inte på något annat i ändringen.
+    await assertSucceeds(updateDoc(doc(db(ADMIN), vag), { varden: { namn: "Adminens" }, andrad: nu() }));
   });
 
   it("gruppen, appen, listan, skaparen och skapad står stilla", async () => {
@@ -271,6 +295,14 @@ describe("radernas regler: radera", () => {
   });
 });
 
+describe("radernas regler: radera, agenten", () => {
+  it("en agent med adminroll raderar inte någon annans rad, men en person med adminroll gör det", async () => {
+    const vag = await lagg("appdata", rad());
+    await assertFails(deleteDoc(doc(db(AGENT_ADMIN), vag)));
+    await assertSucceeds(deleteDoc(doc(db(ADMIN), vag)));
+  });
+});
+
 describe("beskrivningarnas regler: läsa", () => {
   it("en medlem läser sin grupps appar och inte den andras", async () => {
     const egen = await lagg("appbeskrivningar", dok(), beskrivningsId(CPS, "las-egen"));
@@ -301,6 +333,19 @@ describe("beskrivningarnas regler: skapa", () => {
   it("i någon annans namn, eller som agent: nej", async () => {
     await assertFails(setDoc(doc(db(ADMIN), bid(CPS, "namn-1")), dok("namn-1", { skapadAv: person(AGARE) })));
     await assertFails(setDoc(doc(db(ADMIN), bid(CPS, "namn-2")), dok("namn-2", { skapadAv: { ...person(ADMIN), typ: "agent" } })));
+  });
+
+  it("skaparen bär inga extra nycklar, och namn och kalla är text av rimlig längd", async () => {
+    await assertFails(setDoc(doc(db(ADMIN), bid(CPS, "skapare-1")), dok("skapare-1", { skapadAv: { ...person(ADMIN), extra: 1 } })));
+    await assertFails(setDoc(doc(db(ADMIN), bid(CPS, "skapare-2")), dok("skapare-2", { skapadAv: { uid: ADMIN, namn: "Kim", typ: "manniska" } })));
+    // Listan och mappen har en size() och passerar längdkontrollen, så det är `is string` som nekar dem.
+    for (const [i, fel] of [["x"], { x: 1 }, 5, true, null].entries()) {
+      await assertFails(setDoc(doc(db(ADMIN), bid(CPS, `skapare-n${i}`)), dok(`skapare-n${i}`, { skapadAv: { ...person(ADMIN), namn: fel } })));
+      await assertFails(setDoc(doc(db(ADMIN), bid(CPS, `skapare-k${i}`)), dok(`skapare-k${i}`, { skapadAv: { ...person(ADMIN), kalla: fel } })));
+    }
+    await assertFails(setDoc(doc(db(ADMIN), bid(CPS, "skapare-3")), dok("skapare-3", { skapadAv: { ...person(ADMIN), namn: "n".repeat(MAX_SKAPARNAMN + 1) } })));
+    await assertFails(setDoc(doc(db(ADMIN), bid(CPS, "skapare-4")), dok("skapare-4", { skapadAv: { ...person(ADMIN), kalla: "k".repeat(MAX_SKAPARKALLA + 1) } })));
+    await assertSucceeds(setDoc(doc(db(ADMIN), bid(CPS, "skapare-5")), dok("skapare-5", { skapadAv: { ...person(ADMIN), namn: "n".repeat(MAX_SKAPARNAMN), kalla: "k".repeat(MAX_SKAPARKALLA) } })));
   });
 
   it("id:t är bundet till kroppen: grupp och app måste stämma, och ägaren av A skriver inte på B:s plats", async () => {
@@ -347,6 +392,11 @@ describe("beskrivningarnas regler: skapa", () => {
     await assertFails(setDoc(doc(db(ADMIN), bid(CPS, "tid-1")), dok("tid-1", { skapad: nu + 10 * ar, andrad: nu + 10 * ar })));
     await assertFails(setDoc(doc(db(ADMIN), bid(CPS, "tid-2")), dok("tid-2", { skapad: nu + 60_000, andrad: nu })));
     await assertFails(setDoc(doc(db(ADMIN), bid(CPS, "tid-3")), dok("tid-3", { skapad: nu - ar, andrad: nu })));
+    // Skapad nu och andrad tio år fram: `andrad >= skapad` håller, så det är `andrad` som måste vara nära serverns klocka.
+    await assertFails(setDoc(doc(db(ADMIN), bid(CPS, "tid-4")), dok("tid-4", { skapad: nu, andrad: nu + 10 * ar })));
+    await assertFails(setDoc(doc(db(ADMIN), bid(CPS, "tid-5")), dok("tid-5", { skapad: nu, andrad: nu + ar })));
+    // Heltal i millisekunder: ett decimaltal nära nu passerar jämförelserna men inte `is int`.
+    await assertFails(setDoc(doc(db(ADMIN), bid(CPS, "tid-6")), dok("tid-6", { skapad: nu + 0.5, andrad: nu + 0.5 })));
   });
 
   it("GRÄNSEN: regeln prövar inte fälttyperna, så en skev lista släpps in. validateBeskrivning prövar den, och läsaren släpper inte igenom den", async () => {

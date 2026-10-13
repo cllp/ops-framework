@@ -238,6 +238,22 @@ describe("validateBeskrivning: det som avvisas", () => {
     expect(fel(c)).toEqual(['listor[0].falt[4].id: fältet "namn" står två gånger. Varje id ska vara unikt.']);
   });
 
+  it("fält-id:t id är upptaget, det är radens egen nyckel, och felet säger vad man kan skriva i stället", () => {
+    // Tabellen nycklar raden på `row.id`. Ett fält med id `id` skrev över den, och raderna fick dubbla nycklar (granskningen av 0.99.0).
+    const b = /** @type {any} */ (utlaning());
+    b.listor[0].falt.push({ id: "id", namn: "Löpnummer", typ: "tal" });
+    expect(fel(b)).toEqual(['listor[0].falt[4].id: "id" är upptaget, det är radens egen nyckel. Välj ett annat id, till exempel "id-nummer".']);
+    // Bara id är upptaget. `constructor` är ett giltigt id, eftersom vyn och prövningen läser med Object.hasOwn.
+    const c = /** @type {any} */ (utlaning());
+    c.listor[0].falt.push({ id: "constructor", namn: "Konstruktör", typ: "text" }, { id: "id-nummer", namn: "Nummer", typ: "tal" });
+    expect(validateBeskrivning(c).ok).toBe(true);
+    // En lista eller en app får heta id: reservationen gäller fält, där radens värden bor.
+    const d = /** @type {any} */ (utlaning());
+    d.id = "id";
+    d.listor[0].id = "id";
+    expect(validateBeskrivning(d).ok).toBe(true);
+  });
+
   it("fält: 1 till 20 per lista", () => {
     const tom = medLista((l) => {
       l.falt = [];
@@ -384,6 +400,19 @@ describe("validateRad", () => {
     // Ett nyckelnamn som kunde peka på prototypen är också bara ett okänt fält.
     const proto = JSON.parse('{"namn":"Sak","__proto__":{"x":1}}');
     expect(nej(proto).fel[0]).toMatch(/^varden\.__proto__: okänt fält/);
+  });
+
+  it("ett fält som heter constructor bär bara det raden själv skriver: saknas det utelämnas det, finns det kommer det tillbaka", () => {
+    const b = utlaning();
+    b.listor[0].falt.push({ id: "constructor", namn: "Konstruktör", typ: "text" });
+    const utan = validateRad(b, "saker", { namn: "Sak" });
+    expect(utan.ok && Object.hasOwn(utan.varden, "constructor")).toBe(false);
+    const med = validateRad(b, "saker", { namn: "Sak", constructor: "Bosch" });
+    expect(med.ok && Object.hasOwn(med.varden, "constructor") && med.varden.constructor).toBe("Bosch");
+    // Ett krävt constructor-fält som saknas är ett fel, inte en funktion som räknas som ett värde.
+    b.listor[0].falt[4].krav = true;
+    const kravt = validateRad(b, "saker", { namn: "Sak" });
+    expect(!kravt.ok && kravt.faltfel).toEqual({ constructor: "krävs." });
   });
 
   it("listan måste finnas och värdena måste vara ett objekt", () => {
