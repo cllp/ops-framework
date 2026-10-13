@@ -24,6 +24,7 @@
 import { byggPost, farAndra, filInmatningsfel, filSort, kodaToppar, normaliseraMime, peaksGiltiga, postFel, trimSomRegeln, MAX_LJUD_MS } from "../lib/bibliotek.js";
 import { metaUrBytes } from "../lib/ljudspelare.js";
 import { byggSkapare } from "../lib/skapare.js";
+import { FALT_BORT } from "./contract.js";
 
 /**
  * @typedef {object} Bibliotekssvar
@@ -158,9 +159,15 @@ export function createBibliotekskalla(config) {
       else if (id && tidigare && "durationMs" in tidigare) underlag.durationMs = tidigare.durationMs;
       if (inmatning && "peaks" in inmatning) underlag.peaks = inmatning.peaks;
       else if (id && tidigare && "peaks" in tidigare) underlag.peaks = tidigare.peaks;
+      // ⛔ TAGGARNA (0.100.0). Ges de i inmatningen gäller de, annars står postens kvar. En tom lista betyder "inga taggar".
+      if (inmatning && "taggar" in inmatning) underlag.taggar = inmatning.taggar;
+      else if (id && tidigare && "taggar" in tidigare) underlag.taggar = tidigare.taggar;
       const post = byggPost(underlag);
       if (id) {
-        await source.update(collection, id, post);
+        // ⛔ EN UPPDATERING SLÅR IHOP, DEN ERSÄTTER INTE. Tog personen bort sista taggen saknas fältet i `post`, och utan `FALT_BORT`
+        // hade de gamla taggarna stått kvar i dokumentet medan vyn sade att de var borta.
+        const bort = tidigare && "taggar" in tidigare && !("taggar" in post) ? { taggar: FALT_BORT } : {};
+        await source.update(collection, id, { ...post, ...bort });
         return { ...post, id };
       }
       const skapad = await source.create(collection, post);

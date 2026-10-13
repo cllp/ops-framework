@@ -9,6 +9,37 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.100.0
+
+**Taggar i Biblioteket.** [lifehub.app#214](https://github.com/cllp/lifehub.app/issues/214) och långtrycksmenyn i
+[lifehub.app#226](https://github.com/cllp/lifehub.app/issues/226).
+
+CP 2026-10-13: "Precis som i sessionstudio skall man kunna tagga artefakter så att det blir lättare att filtrera och hitta sina saker även
+om det är mkt." Långtrycket fanns redan (`OpsAtgardsblad`, mätt i Chromium med pekskärm i telefonstorlek), och taggarna ligger i samma
+meny som Byt namn.
+
+### Nytt
+
+- **Fältet `taggar`** på en bibliotekspost: högst `MAX_TAGGAR` (8), var och en i `TAGGFORM` (gemener, siffror, mellanslag och
+  bindestreck, högst `MAX_TAGGLANGD` = 24 tecken), utan dubbletter. En post utan taggar saknar fältet.
+- **`normaliseraTagg`, `normaliseraTaggar`, `taggarFel`, `allaTaggar`.** "#Kvitto" blir "kvitto". `allaTaggar` räknar gruppens taggar ur
+  posterna, flest först: det finns ingen egen samling för taggar, och en tagg utan poster finns inte.
+- **`filtreraBibliotek(poster, { taggar })`**: valda taggar är OCH. Sökningen läser också taggarna.
+- **Vyn:** en rad taggar under sökfältet (`OpsChip`, tryck för att filtrera, tryck igen för att släppa), postens taggar efter metaraden
+  ("Anteckning · 2 okt · #kvitto · #bil"), och **Taggar** i ⋯ och i långtrycket för den som får ändra posten. Rutan visar postens taggar
+  med en knapp per tagg som tar bort den, ett fält där Enter lägger till, och gruppens andra taggar som förslag.
+- **Källan** (`createBibliotekskalla.spara`) tar `{ id, taggar }`. En borttagen sista tagg tas bort ur dokumentet med `FALT_BORT`: en
+  uppdatering slår ihop, och utan det hade de gamla taggarna stått kvar.
+
+### Regler
+
+- `bibliotekregelfragment` släpper `taggar` och prövar listan, taket, dubbletterna och varje plats mot `TAGGFORM` ur samma konstant
+  (`regelRegex`). Regler har ingen loop, så platserna är utrullade till taket. Provet i `rules/__tests__/bibliotek.test.mjs` skriver samma
+  taggar som modellen prövar och kräver samma utfall, och det är sett rött utan villkoret.
+
+⛔ **Appen genererar om sina regler** (`check-regelfragment --skriv` i lifehub.app) och **deployar reglerna före klienten**: en klient som
+skriver `taggar` mot gamla regler får "Missing or insufficient permissions."
+
 ## 0.99.0
 
 **Beskrivna appar, byggsätt A.** En app är en beskrivning (data), och motorn ritar och sparar den. Beslut 0005, nattens första skiva i

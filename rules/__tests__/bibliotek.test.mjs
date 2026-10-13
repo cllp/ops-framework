@@ -23,7 +23,7 @@
  */
 
 import { medlemskapsId } from "../../src/lib/grupp.js";
-import { LJUD_STOLPAR, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, MAX_BIBLIOTEKUTSKRIFT, TOPP_TECKEN, byggPost, inmatningsfel, kodaToppar, postFel } from "../../src/lib/bibliotek.js";
+import { LJUD_STOLPAR, MAX_TAGGAR, MAX_TAGGLANGD, taggarFel, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, MAX_BIBLIOTEKUTSKRIFT, TOPP_TECKEN, byggPost, inmatningsfel, kodaToppar, postFel } from "../../src/lib/bibliotek.js";
 import assert from "node:assert/strict";
 import { after, before, describe, it } from "node:test";
 import { assertFails, assertSucceeds, initializeTestEnvironment } from "@firebase/rules-unit-testing";
@@ -594,5 +594,40 @@ describe("bibliotekets regler: vågen (#349)", () => {
     // Ingen våg på en anteckning, med vilken klocka som helst.
     await assertFails(updateDoc(doc(db(MEDLEM), "bibliotek/cps-protokoll"), { peaks: VAG, andrad: T0 }));
     await assertFails(updateDoc(doc(db(MEDLEM), "bibliotek/cps-protokoll"), { peaks: VAG, andrad: Date.now() }));
+  });
+});
+
+describe("bibliotekets regler: taggar (0.100.0, lifehub.app#214)", () => {
+  it("en post med taggar skapas, ändras och blir av med dem, och en tom lista går också", async () => {
+    await assertSucceeds(setDoc(doc(db(MEDLEM), "bibliotek/cps-tagg"), ny({ taggar: ["kvitto", "bil 2024"] })));
+    await assertSucceeds(updateDoc(doc(db(MEDLEM), "bibliotek/cps-tagg"), { taggar: ["kvitto", "bil 2024", "år-2025"], andrad: Date.now() }));
+    await assertSucceeds(updateDoc(doc(db(MEDLEM), "bibliotek/cps-tagg"), { taggar: deleteField(), andrad: Date.now() }));
+    await assertSucceeds(setDoc(doc(db(MEDLEM), "bibliotek/cps-tagg-tom"), ny({ taggar: [] })));
+  });
+
+  it("taket, dubbletterna, formen och typen: nej", async () => {
+    const full = Array.from({ length: MAX_TAGGAR }, (_, i) => `t${i}`);
+    await assertSucceeds(setDoc(doc(db(MEDLEM), "bibliotek/cps-tagg-full"), ny({ taggar: full })));
+    await assertFails(setDoc(doc(db(MEDLEM), "bibliotek/cps-tagg-for-manga"), ny({ taggar: [...full, "en till"] })));
+    await assertFails(setDoc(doc(db(MEDLEM), "bibliotek/cps-tagg-dubbel"), ny({ taggar: ["kvitto", "kvitto"] })));
+    await assertFails(setDoc(doc(db(MEDLEM), "bibliotek/cps-tagg-sist"), ny({ taggar: ["kvitto", "t1", "t2", "t3", "t4", "t5", "t6", "Fel"] })));
+    await assertFails(setDoc(doc(db(MEDLEM), "bibliotek/cps-tagg-strang"), ny({ taggar: "kvitto" })));
+    await assertFails(setDoc(doc(db(MEDLEM), "bibliotek/cps-tagg-tal"), ny({ taggar: [3] })));
+    // En annan medlem taggar inte någon annans post, på samma sätt som hen inte byter namn på den.
+    await assertFails(updateDoc(doc(db(ANNAN), "bibliotek/cps-tagg"), { taggar: ["kapat"], andrad: Date.now() }));
+  });
+
+  it("⛔ regeln och modellen säger samma sak om varje tagg (regel 2: en sanning, två uttryck)", async () => {
+    const kandidater = ["kvitto", "bil 2024", "år-2025", "école", "a", "a".repeat(MAX_TAGGLANGD), "a".repeat(MAX_TAGGLANGD + 1), "Bil", " bil", "bil ", "-bil", "bil-", "bil/2024", "bil\n", "bil\u00a0x", "#bil", "ünïcödé"];
+    let i = 0;
+    for (const t of kandidater) {
+      i += 1;
+      const modellen = taggarFel([t]) === null;
+      const skrivning = setDoc(doc(db(MEDLEM), `bibliotek/cps-tagg-lika-${i}`), ny({ taggar: [t] }));
+      if (modellen) await assertSucceeds(skrivning);
+      else await assertFails(skrivning);
+    }
+    // Golv: båda utfallen förekommer, annars mäter slingan ingenting.
+    assert.ok(kandidater.some((t) => taggarFel([t]) === null) && kandidater.some((t) => taggarFel([t]) !== null));
   });
 });

@@ -38,7 +38,7 @@ import {
 import { ID_FORM, KATALOGAVGRANSARE, KATEGORIFALT } from "./katalog.js";
 import { INSTALLNINGSVARDEFALT, MAX_INSTALLNINGSGRUPP, MAX_INSTALLNINGSID, MAX_INSTALLNINGSTEXT, MAX_MODULINSTALLNINGAR, MODULINSTALLNINGFALT, VISA_I_HUVUDMENYN } from "./modulinstallningar.js";
 import { MAX_TYPAVVIKELSER, MAX_TYPID, MAX_TYPNAMN, MODULTYPID_FORM, TYPAVVIKELSEFALT, TYPYTOR } from "./modultyper.js";
-import { ADRESSFORM, BIBLIOTEKFALT, BIBLIOTEKTYPER, FILFALT, LJUD_STOLPAR, MAX_BIBLIOTEKFIL, MAX_BIBLIOTEKFILNAMN, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKSOKVAG, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, MAX_BIBLIOTEKUTSKRIFT, MAX_LJUD_MS, TOPPFORM, filMimeMonster } from "./bibliotek.js";
+import { ADRESSFORM, BIBLIOTEKFALT, BIBLIOTEKTYPER, FILFALT, LJUD_STOLPAR, MAX_BIBLIOTEKFIL, MAX_BIBLIOTEKFILNAMN, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKSOKVAG, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, MAX_BIBLIOTEKUTSKRIFT, MAX_LJUD_MS, MAX_TAGGAR, TAGGFORM, TOPPFORM, filMimeMonster } from "./bibliotek.js";
 import { MAX_MINNESID, MAX_MINNESTEXT, MINNESFALT, MINNESKALLAFALT, MINNESKALLOR } from "./minne.js";
 import { MAX_SKAPARKALLA, MAX_SKAPARNAMN, SKAPARFALT } from "./skapare.js";
 import { BESKRIVENAPPDATAFALT, BESKRIVNINGSDOKUMENTFALT, BESKRIVNINGSFALT, BESKRIVNINGSFORMAT, BESKRIVNINGSIDFORM, MAX_APPBESKRIVNING, MAX_BESKRIVNINGSNAMN, MAX_FALT, MAX_LISTOR, MIN_LISTOR } from "./beskrivenapp.js";
@@ -1652,8 +1652,19 @@ ${nuRegelfunktion("opsBiblioteketNu")}
         && !d.fil.sokvag.matches('(?s).*[\\x00-\\x1f].*');
     }
 
+    // ⛔ TAGGARNA (0.100.0, lifehub.app#214): en lista, högst ${MAX_TAGGAR}, inga dubbletter, och varje tagg i TAGGFORM ur bibliotek.js.
+    // Regler har ingen loop, så varje plats prövas för sig, rullad ut till taket. Mönstret är samma uttryck som modellens
+    // taggarFel (regelRegex), så de två kan inte glida isär. En plats bortom listans längd prövas inte: size() < k+1.
+    function opsBibliotekTaggar(t) {
+      return t is list
+        && t.size() <= ${MAX_TAGGAR}
+        && t.toSet().size() == t.size()
+${Array.from({ length: MAX_TAGGAR }, (_, k) => `        && (t.size() < ${k + 1} || t[${k}].matches('${regelRegex(TAGGFORM)}'))`).join("\n")};
+    }
+
     function opsBibliotekspostGiltig(d, postId) {
       return d.keys().hasOnly([${lista(BIBLIOTEKFALT)}])
+        && (!d.keys().hasAny(["taggar"]) || opsBibliotekTaggar(d.taggar))
         && d.rubrik.trim().size() > 0
         && d.rubrik.size() <= ${MAX_BIBLIOTEKRUBRIK}
         && d.skapadAv.keys().hasOnly([${lista(SKAPARFALT)}])
