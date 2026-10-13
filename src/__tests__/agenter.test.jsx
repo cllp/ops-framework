@@ -222,6 +222,9 @@ describe("OpsAgenter", () => {
     expect(screen.queryByText("kort.md")).toBeNull();
     expect(screen.queryByText("abc123")).toBeNull();
     expect(screen.getByRole("switch", { name: /Använd den här kunskapen/ })).toBeTruthy();
+    // ⛔ 0.95.0: importens filfält är dolt bakom ramverkets knapp, aldrig webbläsarens "Välj fil" (CP 2026-10-13).
+    expect(screen.getByLabelText("Importera en fil")).toHaveClass("hidden");
+    expect(screen.getByRole("button", { name: "Välj fil" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Spara instruktioner" }));
     expect(onSparaInstruktioner).toHaveBeenCalledWith("Var kort.");
     expect(screen.getByRole("status").textContent).toBe("Sparat.");

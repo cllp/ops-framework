@@ -9,6 +9,41 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.95.0
+
+Inga ostylade webbläsarkontroller, varken i ramverket eller i apparna, och en vakt som apparna kör.
+
+CP 2026-10-13, med skärmbilder från Life Hub Identity där Leverantör under AI-nycklar visar webbläsarens egen grå `<select>`-lista: "Alla dropdowns mm skall vara brandade från ramverket och uppåt. Det skall aldrig finnas en ostylad komponent som använder webläsarens scroll eller style."
+
+### Mätt samma dag
+
+- `src/components/OpsSelect.jsx` sade själv att rå `<select>` är förbjuden i produkt-UI.
+- `src/components/OpsBibliotek.jsx:1324` hade ändå en rå `<select aria-label="Grupp att dela till">`.
+- Identity hade tre i `web/src/main.ts`, byggda som HTML i strängar. De rättas i Identity, inte här.
+- Ingen vakt fångade något av det. Förbudet stod i en kommentar.
+- Genomsökningen av hela `src/` hittade två till: ett **synligt** `<input type="file">` i `OpsBibliotek` (filposten) och ett i `OpsAgenter` (importera kunskap), alltså webbläsarens "Välj fil, ingen fil vald". Inga `<datalist>`, inga `type="date"`, `"time"`, `"color"` och liknande.
+- Ramverket hade **ingen rullningsliststil alls**. Tjugo komponentfiler med `overflow-auto` och sidan själv ritade operativsystemets list.
+
+### Rättelserna
+
+- **`OpsBibliotek`, delning:** gruppvalet är `OpsSelect` i en `OpsField` med etiketten "Dela till", samma tillgängliga namn ("Grupp att dela till") och samma beteende.
+- **`OpsBibliotek`, filposten, och `OpsAgenter`, importera kunskap:** filfältet är dolt (`hidden`) bakom en `OpsButton` ("Välj fil", i Biblioteket "Byt fil" när en fil är vald). Biblioteket skriver ut den valda filens namn, och tomheten med: "Ingen fil vald." eller "Den sparade filen behålls." när en befintlig post redigeras. `OpsAgenter` får ordet `valjFil` (sv och en).
+- **Rullningslisten i basskiktet (`tokens.css`):** `* { scrollbar-width: thin; scrollbar-color: ... }` för Chrome, Edge och Firefox, och `::-webkit-scrollbar` bakom `@supports not (scrollbar-color: auto)` för Safari. Tummen är `--color-ink-muted` till hälften genomskinlig, skenan är genomskinlig, så listen följer ljust och mörkt läge och en instans brandfil. Basskiktet och inte `ops-ramverk`, så en verktygsklass som avsiktligt döljer en list fortfarande vinner. Appar får den utan att göra något.
+
+### Vakterna
+
+- **Ny: `scripts/check-webblasarkontroller.mjs`** (`npm run check:webblasarkontroller`, i `npm run check`). Fäller `<select`, `<datalist`, `createElement("select" | "datalist")`, `type="date"`, `"time"`, `"datetime-local"`, `"month"`, `"week"` och `"color"` (som attribut, escapat i en sträng, som `el.type =` och via `setAttribute`), och ett synligt `<input type="file">` eller `type="range"`. Läser `.js`, `.jsx`, `.ts`, `.tsx` och `.mjs`, kommentarer bort och strängar kvar. Undantagslistan står i vakten med skäl, och den är tom. Golv 150 filer i ramverket och 5 i en app. Taket är noll i ramverket; en app med kända fynd sätter `--tak=N`, och vakten är röd både över och under taket.
+- **I en app:** `node node_modules/ops-framework/scripts/check-webblasarkontroller.mjs src`. Mallen i `create-ops-app` kör den i `check`, i CI och i `pre-push-gate.sh`.
+- **`check-page-frame`** kräver nu också rullningslistens regler i basskiktet, ur tokens och utan hårdkodad färg.
+- **Bevisat i båda riktningarna.** Mot `src/` före rättelsen: röd med tre fynd (`OpsBibliotek.jsx:1324` `<select>`, `OpsBibliotek.jsx:1128` och `OpsAgenter.jsx:874` synligt filfält). Efter: grön, 236 filer, 0 fynd. `test-guards` planterar en rå select i en sträng i en `.ts`-fil, en i JSX, en `<datalist>`, `type="date"`, ett escapat `type=\"datetime-local\"`, `createElement("select")` och ett synligt filfält, och kräver rött för vart och ett; ett dolt filfält, `<Select.Root>` och en kommentar som citerar förbudet kräver grönt; ett tak över utfallet, ett för tunt underlag och en fel sökväg kräver rött. `check-page-frame` provas röd utan `scrollbar-color`, utan Safaris tumme och med en hexfärg, och mot 0.94.3:s `tokens.css`.
+- **Två nya prov i `bibliotek-vy.test.jsx`** (gruppvalet väljer den andra gruppen genom väljaren och den når `onDela`; filfältet är dolt och den valda filen skrivs ut) och ett tillägg i `agenter.test.jsx`. Båda Biblioteksproven är röda mot 0.94.3:s `OpsBibliotek.jsx`.
+
+### Vad vakten inte bevisar
+
+- Att en kontroll SER rätt ut. Den mäter att webbläsarens egen kontroll inte används, inte hur ersättaren ritas. Rullningslistens utseende är en CSS-regel som vaktas på plats, inte en mätning i en webbläsare.
+
+---
+
 ## 0.94.3
 
 Inspelarens valda mål stod kvar efter inspelningen. lifehub.app#187, mätt i lifehub.app PR 200.

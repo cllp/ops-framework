@@ -238,7 +238,12 @@ ramverkets vakter i `npm run check`:
 ```bash
 node node_modules/ops-framework/scripts/check-token-overrides.mjs src/index.css
 node node_modules/ops-framework/scripts/check-closed-api.mjs src
+node node_modules/ops-framework/scripts/check-webblasarkontroller.mjs src
 ```
+
+Den sista fäller webbläsarens egna kontroller (`<select>`, `<datalist>`,
+`type="date"` och syskonen, och ett synligt `<input type="file">`), även i HTML
+byggd i strängar. Har appen kända fynd: `--tak=N`, och taket får bara sjunka.
 
 ```bash
 npm run build

@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { AGENTMODELLER, modellKanValjas, modellUrId } from "../lib/agentmodeller.js";
 import { agentIHref, agentInstallningsHref, AGENTER_ID } from "../lib/agenter.js";
 import { arInstallningslage } from "../lib/apparark.js";
@@ -111,6 +111,7 @@ export const ORD_OPSAGENTER = {
   redigera: { sv: "Redigera", en: "Edit" },
   taBort: { sv: "Ta bort", en: "Remove" },
   importera: { sv: "Importera en fil", en: "Import a file" },
+  valjFil: { sv: "Välj fil", en: "Choose file" },
   importeraHint: { sv: "Välj en fil med kunskapen. Den ska ha ett namn och en beskrivning.", en: "Choose a file with the knowledge. It should have a name and a description." },
   minne: { sv: "Minne", en: "Memory" },
   anvandMinne: { sv: "Använd minnet i svaren", en: "Use memory in replies" },
@@ -617,6 +618,7 @@ function AgentFalt(props) {
   const [verktygsval, setVerktygsval] = useState(() => Object.fromEntries(props.verktyg.map((v) => [v.namn, v.pa])));
   const [minneText, setMinneText] = useState("");
   const [skillFel, setSkillFel] = useState("");
+  const importFalt = useRef(/** @type {HTMLInputElement | null} */ (null));
   const [redigerar, setRedigerar] = useState(/** @type {null | { id: string, namn: string, beskrivning: string, text: string, aktiv: boolean, alltidMed: boolean, publik: boolean, kalla: string }} */ (null));
 
   useEffect(() => {
@@ -871,11 +873,16 @@ function AgentFalt(props) {
                 <OpsButton onClick={() => { setRedigerar(null); setSkillFel(""); }}>{t("nySkill")}</OpsButton>
               </div>
               <OpsField label={t("importera")} hint={t("importeraHint")}>
+                {/* ⛔ Det råa filfältet är dolt och knappen är ramverkets (0.95.0). Förut stod webbläsarens egen
+                    "Välj fil, ingen fil vald" synlig här, och den går inte att forma. CP 2026-10-13: "Det skall
+                    aldrig finnas en ostylad komponent som använder webläsarens scroll eller style." */}
+                <OpsButton variant="secondary" onClick={() => importFalt.current?.click()}>{t("valjFil")}</OpsButton>
                 <input
+                  ref={importFalt}
                   aria-label={t("importera")}
                   type="file"
                   accept=".md,text/markdown"
-                  className="min-h-11 text-etikett text-ink"
+                  className="hidden"
                   onChange={(e) => {
                     const fil = e.target.files?.[0];
                     e.target.value = "";
