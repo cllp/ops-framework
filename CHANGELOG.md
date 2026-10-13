@@ -99,6 +99,17 @@ Ett oberoende granskningspass över de beskrivna apparna hittade inga MÅSTE. De
   gamla proven överlevde de fem, mot de nya dör de.
 - **`byggSkapare` kortar ett namn över 100 tecken och kastar på en `kalla` över 100.** Utan det hade en lång profiltext gett varje skrivning "Missing or insufficient permissions".
 
+### Rättat före utgivningen: `chatt-live-text` föll bara på CI
+
+Publiceringen av 0.99.0 föll på `chatt-live-text.test.jsx:173` ("expected 'boka re' to be ''"), både före och efter rättelsen i 0.98.0 (d85132f). Den rättelsen var en gissning
+om vilken effekt som kom först, och den rörde inte orsaken.
+
+- **Orsaken:** fältet gick tillbaka till sin bas i en `useEffect` (`useRostinmatning`). En passiv effekt körs EFTER att renderingen är målad, så renderingen där läget blev "fel" stod i DOM:en med felmeddelandet och den halva
+  meningen i fältet samtidigt, tills en senare uppgift tömde den. Provet läste fältet direkt efter att felet hittats, och på en maskin där React:s tidsfönster (5 ms) tar slut
+  hinner testbibliotekets `setTimeout(0)` före effekten. Mätt: med `performance.now` låtsat långsam gav provet "expected 'boka re' to be ''" tre gånger av tre. Produkten hade samma glipa: en bild med felet och den halva meningen, som också går att skicka medan den står där.
+- **Rättelsen i produkten:** de två effekterna är `useLayoutEffect`. De körs före målningen och deras `setText` renderas synkront i samma uppgift. Provet är orört.
+- **Nytt prov som mäter glipan direkt** (`en MutationObserver` körs som mikrouppgift direkt efter en rendering): rött mot `useEffect` varje gång, grönt mot `useLayoutEffect`. Och ett prov för den väg där `talk.text` aldrig töms (inspelningen går inte att avsluta), som visar att läges-effektens återställning behövs och inte var död kod.
+
 ### TALK: Svara, bara appens mål i mikrofonen, och andra omgången på iPhone
 
 TALK: bara appens mål i mikrofonen, Svara efter ett kvitto, och en andra omgång som inte längre faller tyst. CP 2026-10-13 kväll.

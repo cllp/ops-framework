@@ -1442,17 +1442,25 @@ function useRostinmatning({ onTranscribe, inspelare, igenkanning, text, setText,
   // ⛔ ORDEN SKRIVS IN I FÄLTET MEDAN DE SÄGS. `talk.text` är allt som hörts hittills i försöket och blir tom när försöket kastas eller
   // igenkänningen faller, och då går fältet tillbaka till sin bas av sig självt. Ett Avbryt och en igenkänning som föll behöver alltså
   // ingen egen städning.
-  useEffect(() => {
+  //
+  // ⛔ DE TVÅ EFFEKTERNA ÄR LAYOUT-EFFEKTER OCH SKA VARA DET (publiceringen av 0.99.0, `chatt-live-text`: "expected 'boka re' to be ''",
+  // bara på CI). En `useEffect` körs EFTER att renderingen är målad. Renderingen där läget blev "fel" (felet med Försök igen) stod då i
+  // DOM:en med den halva meningen kvar i fältet, och först en senare uppgift tömde den. Glipan är en bild som målas, och på en långsam
+  // maskin (CI, en gammal telefon) är den lång nog att något annat hinner läsa fältet i den. Det första försöket (d85132f) lade tillbaka
+  // basen i läges-effekten också, vilket inte rörde saken: basen återställdes redan, men för sent. En layout-effekt körs före målningen
+  // och dess `setText` renderas synkront i samma uppgift, så felet och fältet syns aldrig i olika tillstånd.
+  useLayoutEffect(() => {
     if (liveBas.current === null) return;
     setText(talk.text ? sammanfoga(liveBas.current, talk.text) : liveBas.current);
     // `setText` och `sammanfoga` är nya varje rendering, och det som ska köra effekten är ändringen av texten.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [talk.text]);
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (talk.lage !== "vila" && talk.lage !== "sparat" && talk.lage !== "fel") return;
     // ⛔ FÄLTET TILLBAKA TILL SIN BAS NÄR FÖRSÖKET SLUTAR UTAN TEXT (publiceringen av 0.98.0, körning 129: "expected 'boka re'
     // to be ''"). Effekten för `talk.text` ovan lägger tillbaka basen när texten töms, men kom läget "fel" i en tidigare
     // rendering än den tömda texten var basen redan glömd, och den halva meningen stod kvar i fältet som om den vore hel.
+    // (Den förklaringen var en gissning, och rättelsen här löste inte felet: det var effektens TIMING, se ovan.)
     // Vid "sparat" har `lagg` redan skrivit basen och den hela texten, och fältet rörs inte.
     if (liveBas.current !== null && talk.lage !== "sparat") setText(liveBas.current);
     liveBas.current = null;
