@@ -46,6 +46,9 @@ function lasSmal(fraga = "(max-width: 767px)") {
   return window.matchMedia(fraga).matches;
 }
 
+/** Hur länge efter att fingret lyfts som klicket från samma tryck ignoreras. Klicket kommer inom några tiotal millisekunder. */
+const SLAPP_SKYDD_MS = 400;
+
 /**
  * @param {object} props
  * @param {string} props.namn Postens namn. Knappen och menyn annonserar det.
@@ -58,6 +61,13 @@ export function OpsAtgardsblad({ namn, poster, children = null, baraKnapp = fals
   const [oppen, setOppen] = useState(false);
   const [smal, setSmal] = useState(() => lasSmal());
   const langt = useRef(false);
+  /**
+   * ⛔ FINGRET SOM ÖPPNADE MENYN VÄLJER INGET NÄR DET LYFTS (0.100.1, lifehub.app#226). På en smal skärm är menyn ett ark nerifrån.
+   * Hölls en rad i nedre halvan av skärmen låg arket under fingret när det lyftes, och klicket som följer släppet träffade raden
+   * där, oftast Öppna. Mätt i Chromium med pekskärm i iPhone-storlek: rad ett och två gav menyn, rad tre och fyra öppnade posten.
+   * Spärren gäller bara klicket från samma tryck: den släpps strax efter att fingret lyfts, och ett nytt tryck på en rad väljer den.
+   */
+  const slappSkydd = useRef(false);
   const menyRef = useRef(/** @type {HTMLDivElement | null} */ (null));
 
   useEffect(() => {
@@ -95,6 +105,7 @@ export function OpsAtgardsblad({ namn, poster, children = null, baraKnapp = fals
     const startY = e.clientY;
     const timer = setTimeout(() => {
       langt.current = true;
+      slappSkydd.current = true;
       setOppen(true);
     }, LANGTRYCK_MS);
     const move = (/** @type {PointerEvent} */ ev) => {
@@ -105,6 +116,8 @@ export function OpsAtgardsblad({ namn, poster, children = null, baraKnapp = fals
     };
     const slapp = () => {
       clearTimeout(timer);
+      // Klicket efter släppet kommer i en senare händelse. Spärren släpps efter den, inte i samma ögonblick.
+      if (slappSkydd.current) setTimeout(() => { slappSkydd.current = false; }, SLAPP_SKYDD_MS);
       document.removeEventListener("pointermove", move);
       document.removeEventListener("pointerup", slapp);
       document.removeEventListener("pointercancel", slapp);
@@ -149,6 +162,10 @@ export function OpsAtgardsblad({ namn, poster, children = null, baraKnapp = fals
           tabIndex={-1}
           className={radKlass({ stor: true })}
           onClick={() => {
+            if (slappSkydd.current) {
+              slappSkydd.current = false;
+              return;
+            }
             setOppen(false);
             p.onValj();
           }}
