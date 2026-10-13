@@ -4,8 +4,9 @@
 > kopia** av det här avsnittet mellan markörer, och en vakt blir röd när kopian
 > ligger efter. Ändra aldrig kopian i ett konsumentrepo: ändra här.
 >
-> Reglerna är hämtade ur SessionStudios `CLAUDE.md`, men bara de som handlar om
-> **hantverk**. Allt som var svar på SessionStudios egna begränsningar (hybrid
+> Reglerna är hämtade ur SessionStudios `CLAUDE.md`, `memory/samarbete.md` och
+> `memory/development-process-and-roles.md`, men bara de som handlar om
+> **hantverk** och samarbete. Allt som var svar på SessionStudios egna begränsningar (hybrid
 > Postgres och Firestore, artefaktmodellen, Apple-utgivning) är medvetet utelämnat.
 > Det hör till den domänen och skulle bli cargo cult här.
 
@@ -37,13 +38,17 @@ inte alls, och samma kväll fick CP fråga "LÄS REGLERNA FÖR HUR JAG VILL ATT 
 SAMARBETAR. VISST FINNS DOM I MINNET?". Svaret var nej. Därför står det här,
 direkt efter metaregeln, och kommer med i varje repos genererade kopia.
 
+Händelsen ovan bär hela avsnittet. Där en punkt har en egen händelse står den
+vid punkten, och fulltexten med alla skäl finns i SessionStudios
+`memory/samarbete.md`.
+
 **Varför det finns:** de flesta misstag agenter gör mot CP är inte tekniska. De
 är att fråga i stället för att föreslå, att sätta igång innan han sagt kör, att
 vika sig för snabbt eller tjata för länge, och att skriva så mycket att det
 viktiga försvinner.
 
 **Hållningen, CP:s egen bild:** det ska vara som ett eget team där vi känner
-varandra, inte som ett team man lagt ut för att det är billigt. Ett eget team
+varandra, inte som ett team man lagt ut på andra sidan jorden för att det är billigt. Ett eget team
 kan produkten och användarna, säger ifrån när något inte håller och tar ansvar
 för helheten. Ett utlagt team gör precis det som står i ordern, även när ordern
 är fel.
@@ -55,7 +60,7 @@ försvarbart beslut. När en fråga ändå måste ställas: med en rekommendatio
 skälet, aldrig som en meny.
 
 Skilj på två sorters frågor. Den som lämnar tillbaka tankearbetet ("hur vill du
-att det här ska fungera?") är förbjuden. Den där svaret bara finns hos CP
+att detta ska fungera?") är förbjuden. Den där svaret bara finns hos CP
 (pengar, prioritering, varumärke, vad som känns rätt för användaren) är
 obligatorisk, för alternativet är att vi gissar i hans ställe.
 
@@ -72,7 +77,12 @@ Undantag: P0 i produktion, och stående auktoriseringar han redan gett.
 
 | Agenten äger | CP äger |
 |---|---|
-| Koden, arkitekturen, konsekvenserna, genomförandet | Produkten, användarna, pengarna, prioriteringen, vad "klar" betyder |
+| Koden, arkitekturen, konsekvenserna, genomförandet (men aldrig sitt eget godkännande, regel 9) | Produkten, användarna, pengarna, prioriteringen, vad "klar" betyder |
+
+Om koden har CP mindre inblick, och det säger han själv. Om användarna,
+marknaden och vad som känns rätt är han enda källan, och en agent som kör över
+honom där gissar med ett självförtroende den inte har täckning för. Vem som
+mergar och deployar är olika i olika repon och står i repots egen `CLAUDE.md`.
 
 Utmana honom i hans domän med argument, aldrig genom att bara köra.
 
@@ -112,7 +122,8 @@ inte kan formulera användarkonsekvensen har inte förstått ändringen.
 
 Varje leverans avslutas med observationer: idéer, luckor, saker som blir bättre
 om något ändras. Ribban: flagga bara det du själv skulle vilja lägga nästa
-arbetspass på. Har du inget att flagga, säg det (regel 5).
+arbetspass på. Utan ribba blir punkten brus, och brus läses inte. Har du inget
+att flagga, säg det (regel 5).
 
 ### S10. Öppna dialog vid vägskäl
 
@@ -128,16 +139,24 @@ telefonen, mellan flera agenter.
 
 1. **Börja med området**, en fetstilt rad först.
 2. **Några rader, inte några stycken.** Ett chattmeddelande är en notis.
-3. **Först det som ska göras, sedan läget.** Varje steg CP ska ta (merge,
-   deploy, körning) står med full länk och ett kontrollsteg. Ett ärendenummer
-   utan vad det gäller säger ingenting.
-4. **Resonemanget hör hemma i ärendet eller PR:en**, där det går att hitta igen.
+3. **Resonemanget hör hemma i ärendet eller PR:en**, där det går att hitta igen.
    Chatten får slutsatsen.
+4. **En sak per meddelande.** Två spår i samma meddelande betyder att det andra
+   inte lästes.
 5. **Narrera inte processen.** "Nu gör jag X, sedan Y" är ingen information.
+6. **Först det som ska göras, sedan läget, och varje steg med sin länk.** Den här
+   punkten kommer inte från SessionStudio utan från ops-plattformarna, CP
+   2026-10-12: "TA ALLTID MED EXAKT INSTRUKTION ... Jag behöver ALLTID LÄNK."
+   Varje steg någon ska ta (merge, deploy, körning) står med full länk och ett
+   kontrollsteg. Ett ärendenummer utan vad det gäller säger ingenting.
 
 Det som väger tyngre än korthet: ett kort meddelande som döljer en osäkerhet,
 ett mätvärde eller ett fynd som borde ändra hans beslut är sämre än ett långt.
 Korta ned **berättandet**, aldrig **fynden**.
+
+Läs inte det sista som ett undantag från korthet. Ett fynd får inte försvinna,
+men det betyder inte att det ska stå i chatten: ett fynd CP behöver agera på
+skrivs kort i chatten och i sin helhet i ärendet.
 
 **Underhåll:** ändras något i det här avsnittet ändras det med CP, inte åt honom.
 
@@ -174,14 +193,26 @@ läs-sedan-skriv-kontroll.
 En rapport är ett tips, aldrig ett bevis. Det gäller en agents sammanfattning,
 en anteckning i ett dokument, och en siffra du själv skrev i går.
 
-Två mätfel som redan kostat oss dagar, båda värda att känna igen:
+Tre mätfel som redan kostat oss dagar, alla värda att känna igen:
 
 - **Noll träffar är inte ett svar.** Det är en fråga om vad du sökte igenom. En
   sökning i fel repo-kopia gav "commiten existerar inte" om commits som fanns.
 - **En anteckning om tillstånd ruttnar, en tagg gör det inte.** Läs
   utrullat läge ur taggen, inte ur ett dokument som beskrev taggen en gång.
+- **Kod visar vad som kan hända, bara data visar vad som har hänt.**
+  SessionStudio 2026-08-27, två fall samma dag. En funktion klassades som
+  bakgrundstrigger på sitt namnprefix `migrate*` och var i själva verket en
+  stängd callable. En granskning skrev att två röster raderats permanent,
+  "verifierat rad för rad", och höjde till P1. Ingenting var raderat. Koden var
+  densamma oavsett utfall; det som avgjorde var hur många nycklar fältet hade
+  i databasen, och det står inte i koden.
 
-Innan du beskriver ett läge: mät det nu.
+Innan du beskriver ett läge: mät det nu. Rör påståendet vad som finns i
+produktion: mät, eller säg att du inte kan, och skriv **hypotes** när det är en
+hypotes. Ett larm på obekräftad omfattning får höjas, men det stängs med en
+mätning och inte med mer kodläsning, och den som höjer det säger vilken mätning
+som skulle avgöra saken. Kan ingen mäta just nu: skriv mätuppdraget som eget
+ärende i stället för att bygga en fix på en gissning.
 
 ## 4. Ett prov som aldrig setts falla är ingen vakt.
 
@@ -326,24 +357,7 @@ skälet. Den tredje är det som stryks, och vad det hade kostat i datamodell,
 regler eller prestanda. Ytan följer förebilden. Modellen bakom den följer
 den här regeln. Ingen funktion kommer med bara för att förebilden har den.
 
-## 14. En slutsats om verkligheten dras ur data, aldrig ur kod.
-
-SessionStudio 2026-08-27, två fall samma dag. En funktion klassades som
-bakgrundstrigger på sitt namnprefix `migrate*` och var i själva verket en
-stängd callable. En granskning skrev att två röster raderats permanent,
-"verifierat rad för rad", och höjde till P1. Ingenting var raderat: koden var
-identisk i båda fallen, och det som avgjorde var hur många nycklar ett fält
-faktiskt hade i databasen. Det står inte i koden.
-
-Kod visar vad som **kan** hända. Bara data visar vad som **har** hänt.
-
-**Regeln:** rör påståendet vad som finns i produktion: mät, eller säg att du
-inte kan. Skriv **hypotes** när det är en hypotes. Ett larm på obekräftad
-omfattning får höjas, men det stängs med en mätning och inte med mer kodläsning.
-Kan ingen mäta just nu: skriv mätuppdraget som eget ärende i stället för att
-bygga en fix på en gissning.
-
-## 15. Ett rött utfall som passerar isolerat är en misslyckad mätning, inte ett resultat.
+## 14. Ett rött utfall som passerar isolerat är en misslyckad mätning, inte ett resultat.
 
 SessionStudio 2026-08-27, mätt två gånger: en agent rapporterade 12 röda
 webbprov i sin arbetskopia, och samma svit på samma commit gav noll fel när den
@@ -354,9 +368,12 @@ En grind som slumpmässigt är röd tvingar fram ett val mellan att blockera bra
 arbete och att lära sig ignorera rött. Båda är sämre än ingen grind, eftersom
 båda ser ut som kvalitetskontroll.
 
-**Regeln:** kör tunga sviter ensamma eller i följd. Rött som blir grönt isolerat
-skrivs som en misslyckad mätning, med båda utfallen, aldrig som "flaky" och
-aldrig som en regression.
+Samma läge finns här: flera agenter bygger, provar och tar montage på samma
+maskin under ett pass.
+
+**Regeln:** så länge flera agenter och sviter delar maskin körs tunga sviter
+ensamma eller i följd. Ett rött utfall som passerar isolerat är inte ett
+resultat utan en mätning som misslyckades. Skriv det så, med båda utfallen.
 
 ---
 

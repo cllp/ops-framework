@@ -16,7 +16,9 @@ Samarbetet står i kanon, överst efter metaregeln. Ingen kod ändras.
 ### Vad
 
 - **Avsnittet "Samarbetet" (S1 till S11) i `CLAUDE.md`**, ur SessionStudios `memory/samarbete.md`: förslag i stället för förhör, vänta på kör, vem som äger vad, utmana en gång, kort skrivet med området först och varje steg med sin länk. CP 2026-10-12: "Detta måste finnas högst upp i minnet i varje repo." Det fanns bara i SessionStudio, och samma kväll fick CP fråga om reglerna fanns i minnet här. De gjorde det inte.
-- **Regel 14 och 15** ur SessionStudios arbetssätt: en slutsats om verkligheten dras ur data och aldrig ur kod, och ett rött utfall som passerar isolerat är en misslyckad mätning.
+- **Regel 3 får ett tredje mätfel** ur SessionStudios arbetssätt: kod visar vad som kan hända, bara data visar vad som har hänt.
+- **Regel 14** ur samma källa: ett rött utfall som passerar isolerat är en misslyckad mätning, inte ett resultat.
+- **`lifehub.app`** står med bland konsumentrepona i inledningen. Det bär redan en genererad kopia.
 - **`AGENTS.md`**: en hänvisning till `CLAUDE.md` för agenter som läser den filen i stället (Codex, Cursor). Den är en hänvisning och ingen kopia, så den kan inte glida isär.
 
 ### Vad som inte kom med
