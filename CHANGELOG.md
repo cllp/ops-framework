@@ -80,6 +80,25 @@ och därför är formatet strängt: ett okänt fält är ett fel och släpps int
 - **Att ta bort en beskrivning tar inte bort raderna.** En borttagen app kan skapas igen med samma id, och då är raderna tillbaka. Att städa
   dem är en körning med Admin SDK.
 
+### TALK: Svara, bara appens mål i mikrofonen, och andra omgången på iPhone
+
+TALK: bara appens mål i mikrofonen, Svara efter ett kvitto, och en andra omgång som inte längre faller tyst. CP 2026-10-13 kväll.
+
+### Ändrat
+
+- **Mikrofonen erbjuder bara appens mål.** CP: "Ja vi kör på bara text för att få en bra användarupplevelse." Huvudets mikrofon, långtrycket på plus och raden "TALK, prata in" visade modulernas mål (Spara i Biblioteket) bredvid appens, så att en röst till agenten kunde hamna i Biblioteket med ett knapptryck fel. Skalet delar nu listan från `malForInspelning` (som är oförändrad): appens mål till mikrofonen, modulens mål bara genom modulens egen rad (Ny-menyn: Röstinspelning), som öppnar fältet låst till målet utan val. Valet "Skickas till" ritas bara när det finns fler än ett mål, så med ett ensamt appmål finns inget val alls. Utan `talk` öppnar raden "Spela in" fältet låst till modulens första mål.
+- Fokus går till **Svara** när ett kvitto kommer (förut Stäng). Skälet: nästa steg i en dialog med agenten är att svara.
+
+### Nytt
+
+- **Svara** på kvittot (CP 22:13, efter en följdfråga från agenten: "Efter att jag pratat en gång finns bara stäng. Sedan kan jag inte börja om."). Primär knapp med mikrofonen som startar en ny omgång i samma fält till samma mål, rensar kvittot och förra omgångens text. Stäng är sekundär, Ångra finns kvar med `angra`. Svara spärras medan Ångra pågår. `talk.svaraText` byter ordet (förval "Svara", på engelska "Reply").
+- `useTalk().textFel` och `TALK_TEXTFEL`: fältet säger när texten uteblir (se Rättat).
+
+### Rättat
+
+- **Andra gången man pratade fungerade inte i Safari på iPhone** (CP 22:15). `webblasarensIgenkanning().stoppa()` gav upp efter `IGENKANNING_VANTA_MS` när webbläsaren aldrig sade `end`, men lät igenkännaren leva. Safari tillåter bara en aktiv igenkänning, så `start()` i nästa omgång kastade InvalidStateError, felet sväljdes, och fältet stod med sin platstext utan att något förklarade varför. Nu stängs den gamla igenkännaren (`abort`) både när `stoppa` ger upp och innan en ny startas, och en start som ändå faller, eller ett riktigt fel under tiden, går till felrapporten och till fältet (`role="alert"`, ljudet spelas in och sparas ändå). Igenkännarens `starta` tar valfri `onFel(kod)`. Förra omgångens text rensas nu när nästa börjar, inte först när mikrofonen öppnats. Mätt mot en fejkad Safari-igenkänning med regeln "bara en aktiv", inte mot en riktig iPhone.
+
+
 ## 0.98.0
 
 **Rättat före utgivningen:** publiceringen föll på `chatt-live-text` ("expected 'boka re' to be ''"). Kom läget "fel" i en tidigare rendering än den tömda texten stod en halv mening kvar i chattens fält. Fältet går nu tillbaka till texten från före mikrofonen så fort försöket slutar utan text.

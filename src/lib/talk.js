@@ -27,6 +27,8 @@
  * webbläsare och utan mikrofon.
  */
 
+import { rapporteraFel } from "./felrapport.js";
+
 /** Hur länge ett tryck måste ligga kvar för att vara ett långtryck. Samma tal som kalenderns snabbtitt och SessionStudio. */
 export const LANGTRYCK_MS = 450;
 
@@ -66,6 +68,14 @@ export const SPARAT_MS = 1400;
  * lifehub.app skickar "Agenten arbetar…", eftersom det är agenten och inte en uppladdning som tar tiden (lifehub.app#219).
  */
 export const TALK_SKICKAR_TEXT = "Sparar…";
+
+/**
+ * Knappen som startar en ny omgång i samma fält när kvittot står kvar (0.99.0). CP 2026-10-13 22:13, efter att agenten ställt en
+ * följdfråga: "Efter att jag pratat en gång finns bara stäng. Sedan kan jag inte börja om." Appen kan byta ordet med
+ * `talk.svaraText`, och språket följer `OpsSprakProvider`.
+ * @type {Readonly<Record<"sv" | "en", string>>}
+ */
+export const TALK_SVARA_TEXT = Object.freeze({ sv: "Svara", en: "Reply" });
 
 /**
  * Kastar när `skickarText` är satt men inte en sträng med innehåll. EN kontroll för kroken och skalet: skalet prövar den vid
@@ -424,7 +434,8 @@ export function talkFeltext(fel, val = {}) {
 
 /**
  * @typedef {object} Igenkanning
- * @property {(val: { sprak: string, onText: (text: string) => void }) => void} starta Börjar lyssna. `onText` får hela texten hittills.
+ * @property {(val: { sprak: string, onText: (text: string) => void, onFel?: (kod: string) => void }) => void} starta Börjar lyssna. `onText` får hela texten hittills.
+ *   `onFel` (0.99.0) får en kod när igenkänningen inte går att starta eller faller med ett riktigt fel, så att fältet kan säga det.
  * @property {() => Promise<string>} stoppa Slutar och ger den slutliga texten, eller tom sträng när den inte går att lita på.
  * @property {() => void} kasta Slutar utan att vänta.
  */
@@ -439,6 +450,14 @@ export const IGENKANNING_VANTA_MS = 1500;
  * en mening, och texten är då avhuggen. Vår egen avbrytning (`kasta`) syns aldrig här: dess hanterare är bortkopplade.
  */
 const TYSTA_FEL = ["no-speech"];
+
+/**
+ * ⛔ SÄGER ATT TEXTEN UTEBLIR (0.99.0). CP 2026-10-13 22:15, iPhone/Safari: "Det är som att andra gången jag försöker spela in så
+ * funkar det inte." En igenkänning som inte gick att starta andra gången sväljdes: texten blev tom, platstexten "Prata, så syns
+ * texten här" stod kvar för evigt, och inspelningen pågick utan att något visade att orden inte hördes. Nu står detta i fältet.
+ * Ljudet spelas in och sparas ändå, så meningen är sann.
+ */
+export const TALK_TEXTFEL = "Texten kan inte visas just nu. Det du säger spelas in ändå och sparas som ljud.";
 
 /** Så många omstarter per sekund innan igenkänningen räknas som trasig. En som tar slut direkt efter start loopar annars. */
 const MAX_OMSTARTER_PER_SEKUND = 3;
@@ -487,9 +506,32 @@ export function webblasarensIgenkanning(miljo = {}) {
   /** @type {(() => void) | null} */
   let narSlut = null;
   const hel = () => `${slutlig} ${pagaende}`.replace(/\s+/g, " ").trim();
+  /** @param {unknown} fel */
+  const felkod = (fel) => (fel instanceof Error && fel.name ? fel.name : "okant-fel");
+  /**
+   * ⛔ ETT FEL SOM INGEN SER ÄR ETT TYST NEDSLÄPP (regel 5). Koden går till fältet (`onFel`) och till felrapporten. En
+   * hanterare som i sin tur kastar får inte ta ned igenkänningen, och inte heller sluta rapporteras.
+   * @param {((kod: string) => void) | undefined} onFel @param {string} kod
+   */
+  const meld = (onFel, kod) => {
+    rapporteraFel(new Error(`Taligenkänningen föll: ${kod}`), { yta: "talk", steg: "igenkanning", kod });
+    try {
+      onFel?.(kod);
+    } catch (fel) {
+      rapporteraFel(fel, { yta: "talk", steg: "igenkanning-onFel" });
+    }
+  };
+  /** Stänger en igenkännare vi är klara med. `abort` är idempotent i webbläsarna, och ett fel här ska inte stoppa något. */
+  const stang = (/** @type {any} */ gammal) => {
+    try {
+      gammal?.abort();
+    } catch {
+      // Redan stängd.
+    }
+  };
 
-  /** @param {number} mitt @param {string} sprak @param {(text: string) => void} onText */
-  const ny = (mitt, sprak, onText) => {
+  /** @param {number} mitt @param {string} sprak @param {(text: string) => void} onText @param {((kod: string) => void) | undefined} onFel */
+  const ny = (mitt, sprak, onText, onFel) => {
     const rec = new SR();
     rec.lang = sprak;
     rec.continuous = true;
@@ -510,7 +552,10 @@ export function webblasarensIgenkanning(miljo = {}) {
       onText(hel());
     };
     rec.onerror = (/** @type {any} */ e) => {
-      if (galler() && !TYSTA_FEL.includes(e?.error)) trasig = true;
+      if (galler() && !TYSTA_FEL.includes(e?.error)) {
+        trasig = true;
+        meld(onFel, String(e?.error || "okant-fel"));
+      }
     };
     rec.onend = () => {
       if (!galler()) return;
@@ -526,11 +571,12 @@ export function webblasarensIgenkanning(miljo = {}) {
           trasig = true;
         } else {
           try {
-            r = ny(mitt, sprak, onText);
+            r = ny(mitt, sprak, onText, onFel);
             r.start();
             return;
-          } catch {
+          } catch (fel) {
             trasig = true;
+            meld(onFel, felkod(fel));
           }
         }
       }
@@ -543,8 +589,14 @@ export function webblasarensIgenkanning(miljo = {}) {
   };
 
   return {
-    starta({ sprak, onText }) {
+    starta({ sprak, onText, onFel }) {
       forsok += 1;
+      // ⛔ DEN FÖRRA OMGÅNGENS IGENKÄNNARE STÄNGS INNAN EN NY STARTAS (0.99.0). Safari, och iOS i synnerhet, tillåter bara EN
+      // aktiv igenkänning, och `start()` på en andra kastar InvalidStateError. En igenkännare som `stoppa()` gett upp på (väntetiden
+      // gick ut utan att webbläsaren sade `end`) levde kvar, och nästa omgång föll tyst: texten blev tom och inget förklarade varför.
+      // Numret räknades redan upp, så den gamlas hanterare gör ingenting när den till slut säger sitt.
+      stang(r);
+      r = null;
       aktiv = true;
       trasig = false;
       slutlig = "";
@@ -552,11 +604,12 @@ export function webblasarensIgenkanning(miljo = {}) {
       starter = [];
       narSlut = null;
       try {
-        r = ny(forsok, sprak, onText);
+        r = ny(forsok, sprak, onText, onFel);
         r.start();
-      } catch {
+      } catch (fel) {
         trasig = true;
         aktiv = false;
+        meld(onFel, felkod(fel));
       }
     },
     stoppa() {
@@ -569,7 +622,9 @@ export function webblasarensIgenkanning(miljo = {}) {
         const sluta = (iTid) => {
           if (gjort) return;
           gjort = true;
-          // ⛔ TIDEN TOG SLUT: webbläsaren gav aldrig sitt sista besked, och texten kan sakna slutet.
+          // ⛔ TIDEN TOG SLUT: webbläsaren gav aldrig sitt sista besked, och texten kan sakna slutet. Igenkännaren stängs då här,
+          // annars lever den kvar och blockerar nästa omgång (se `starta`).
+          if (!iTid && mitt === forsok) stang(r);
           klar(!iTid || trasig || mitt !== forsok ? "" : hel());
         };
         narSlut = () => sluta(true);

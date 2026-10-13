@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { AVBRYT_FRAGA_SEKUNDER, LANGTRYCK_MS, MAX_SEKUNDER, SPARAT_MS, TALK_PLATSTEXT, TALK_SKICKAR_TEXT, igenkanningensSprak, kanBeOmMikrofon, kontrolleraSkickarText, talkFeltext, talkKvitto, talkNasta, webblasarensIgenkanning, webblasarensInspelare } from "../lib/talk.js";
+import { AVBRYT_FRAGA_SEKUNDER, LANGTRYCK_MS, MAX_SEKUNDER, SPARAT_MS, TALK_PLATSTEXT, TALK_SKICKAR_TEXT, TALK_SVARA_TEXT, TALK_TEXTFEL, igenkanningensSprak, kanBeOmMikrofon, kontrolleraSkickarText, talkFeltext, talkKvitto, talkNasta, webblasarensIgenkanning, webblasarensInspelare } from "../lib/talk.js";
 import { useOpsSprak } from "./OpsSprak.jsx";
 import { formateraTid } from "../lib/ljudspelare.js";
 import { rapporteraFel } from "../lib/felrapport.js";
@@ -33,8 +33,11 @@ import { OpsSpinner } from "./OpsSpinner.jsx";
  *   `true` slår på webbläsarens taligenkänning när den finns. Utan den lämnas bara ljudet, som före 0.96.0.
  * @property {string} [skickarText] (0.97.0) Statusraden medan det inspelade lämnas till appen. Förval `TALK_SKICKAR_TEXT`
  *   ("Sparar…"). lifehub.app skickar "Agenten arbetar…". En tom sträng eller något annat än en sträng kastar.
+ * @property {string} [svaraText] (0.99.0) Ordet på knappen som startar en ny omgång när ett kvitto står kvar ("Svara", på engelska "Reply").
+ *   En tom sträng eller något annat än en sträng kastar.
  * @property {number} [maxSekunder] Tak i sekunder. Förval `MAX_SEKUNDER` (120), så TALK inte ändras. Bibliotekets idé använder 600.
- * @property {ReadonlyArray<{ id: string, etikett: string }>} [mal] Appens egna mål i fältet. Modulernas mål läggs till av skalet.
+ * @property {ReadonlyArray<{ id: string, etikett: string }>} [mal] Appens egna mål i fältet. ⛔ (0.99.0) Mikrofonen erbjuder bara dessa. Modulernas
+ *   mål (`inspelning.mal`) nås bara genom modulens egen rad (Ny-menyn: Röstinspelning), som öppnar fältet låst till målet utan val.
  */
 
 /**
@@ -94,6 +97,8 @@ export function useTalk({ onTalk, onKlick, inspelare, igenkanning, skickarText, 
   };
   /** Det som hörts hittills i det pågående försöket, för fältet. */
   const [text, setText] = useState("");
+  /** (0.99.0) Igenkänningen föll eller gick inte att starta: fältet säger det i stället för att ligga tyst med sin platstext. */
+  const [textFel, setTextFel] = useState("");
   /**
    * ⛔ KVITTOT (0.97.0, lifehub.app#219). Finns bara i läget sparat, och nollas av varje händelse som lämnar det: Stäng, en ny
    * inspelning, ett långtryck. `angraForsok` räknas upp samtidigt, så att en Ångra som svarar efter att kvittot försvunnit
@@ -163,6 +168,7 @@ export function useTalk({ onTalk, onKlick, inspelare, igenkanning, skickarText, 
         setKanIgen(false);
         setFramsteg(null);
         setText("");
+        setTextFel("");
         kastaText();
         try {
           insp().kasta();
@@ -175,6 +181,10 @@ export function useTalk({ onTalk, onKlick, inspelare, igenkanning, skickarText, 
         startTid.current = Date.now();
         mikStart.current = 0;
         setSekunder(0);
+        // ⛔ EN NY OMGÅNG BÖRJAR TOM (0.99.0). Förut stod förra omgångens text kvar tills mikrofonen öppnats, och efter ett kvitto
+        // (Svara) hade den gamla texten legat kvar under den nya frågan i den tid mikrofonprompten tog.
+        setText("");
+        setTextFel("");
         if (mikrofonenUpptagenAv && mikrofonenUpptagenAv !== inspRef) {
           skicka({ typ: "fel", text: TALK_UPPTAGEN });
           return;
@@ -197,6 +207,10 @@ export function useTalk({ onTalk, onKlick, inspelare, igenkanning, skickarText, 
                   sprak: igenkanningensSprak(sprakRef.current),
                   onText: (t) => {
                     if (mitt === forsok.current && monterad.current) setText(t);
+                  },
+                  // ⛔ Ett fel härifrån får aldrig vara tyst (regel 5): fältet säger att texten uteblir, och ljudet spelas in ändå.
+                  onFel: () => {
+                    if (mitt === forsok.current && monterad.current) setTextFel(TALK_TEXTFEL);
                   },
                 });
               } catch (fel) {
@@ -427,6 +441,8 @@ export function useTalk({ onTalk, onKlick, inspelare, igenkanning, skickarText, 
     framsteg,
     kanIgen,
     text,
+    /** (0.99.0) Texten uteblir: igenkänningen föll eller gick inte att starta. Tom när allt är som det ska. */
+    textFel,
     /** (0.97.0) Om texten kan komma alls: igenkänningen är påslagen och finns i webbläsaren. Fältet ritar då textytan. */
     medText: igk() !== null,
     skickarText: skickarText ?? TALK_SKICKAR_TEXT,
@@ -487,7 +503,8 @@ export function TalkPrickar({ niva, lyssnar, skickar = false }) {
  *   1. En lugn rad med prickarna och tiden, dämpad (`text-ink-muted`). Den säger att det spelar in, mer behövs inte.
  *   2. Texten man pratar in, i brödtextens storlek (`text-brod`, 16 px). Den är fältets huvudsak. Ytan har en fast minsta
  *      höjd på tre rader så att fältet inte hoppar när orden kommer, och den rullar inuti när texten blir lång.
- *   3. Målvalet, när appen gett flera mål: en segmenterad rad med lika breda delar och en liten etikett, aldrig staplade knappar.
+ *   3. Målvalet, när det finns FLER ÄN ETT mål (0.99.0; ett ensamt mål är inget val): en segmenterad rad med lika breda delar och en
+ *      liten etikett, aldrig staplade knappar.
  *   4. En knapprad: X (rund, sekundär) till vänster och den primära knappen som fyller resten. Samma höjd, samma rundning.
  *
  * ⛔ SEKUNDÄR ÄR `bg-hover`, INTE `bg-sunken`. I ljust läge är `sunken` (#FBF9F4) nästan samma färg som fältets `raised`
@@ -512,7 +529,7 @@ const STATUSKLASS = {
 /** Textytan: brödtext, tre rader minst, rullar inuti. */
 const TEXTYTA = "m-0 min-h-18 max-h-36 overflow-y-auto text-brod [overflow-wrap:anywhere]";
 
-const INSPELNING_PROPS = ["lage", "fel", "niva", "sekunder", "tak", "framsteg", "kanIgen", "text", "medText", "skickarText", "kvitto", "onAngra", "onKlar", "onAvbryt", "onIgen", "onStart", "onTillatMikrofon", "onInstallningar", "marke", "mal", "valt", "onValj"];
+const INSPELNING_PROPS = ["lage", "fel", "niva", "sekunder", "tak", "framsteg", "kanIgen", "text", "textFel", "medText", "skickarText", "svaraText", "kvitto", "onAngra", "onSvara", "onKlar", "onAvbryt", "onIgen", "onStart", "onTillatMikrofon", "onInstallningar", "marke", "mal", "valt", "onValj"];
 
 /**
  * @typedef {object} TalkKvittoVy Kvittot som fältet ritar (0.97.0). Kommer ur `useTalk().kvitto`.
@@ -536,8 +553,9 @@ const INSPELNING_PROPS = ["lage", "fel", "niva", "sekunder", "tak", "framsteg", 
  * ⛔ MÅLEN ÄR EN LISTA, INTE ETT NAMN PÅ EN MODUL. `mal` är `{ id, etikett }`. Vem som äger ett mål vet anroparen.
  * Biblioteket syns här bara om någon skickat in etiketten.
  *
- * ⛔ KVITTOT (0.97.0). Med `kvitto` säger fältet vad appen gjorde, med Ångra (sekundär) och Stäng (primär), tills
- * personen stänger det. Formen står i filhuvudet ovanför `PRIMAR`.
+ * ⛔ KVITTOT (0.97.0). Med `kvitto` säger fältet vad appen gjorde, med Ångra och Stäng, tills personen stänger det. Formen står i
+ * filhuvudet ovanför `PRIMAR`. (0.99.0) Med `onSvara` är Svara den primära knappen (en ny omgång i samma fält, till samma mål) och
+ * Stäng och Ångra är sekundära. Fokus går till Svara när kvittot kommer.
  *
  * @param {object} props
  * @param {import("../lib/talk.js").Talklage} props.lage
@@ -550,9 +568,13 @@ const INSPELNING_PROPS = ["lage", "fel", "niva", "sekunder", "tak", "framsteg", 
  * @param {string} [props.text] (0.96.0) Det som hörts. Visas medan man pratar och medan det sparas.
  * @param {boolean} [props.medText] (0.97.0) Text kan komma (`useTalk().medText`). Då ritas textytan med sin fasta höjd, och
  *   platstexten `TALK_PLATSTEXT` står i den tills något hörts. Utan den ritas ytan bara när det finns text.
+ * @param {string} [props.textFel] (0.99.0) Texten uteblir (`useTalk().textFel`). Fältet säger det i stället för att stå med sin platstext.
  * @param {string} [props.skickarText] (0.97.0) Statusraden medan det sparas. Förval `TALK_SKICKAR_TEXT`.
+ * @param {string} [props.svaraText] (0.99.0) Ordet på Svara. Förval `TALK_SVARA_TEXT` på språket som gäller.
  * @param {TalkKvittoVy | null} [props.kvitto] (0.97.0) Kvittot i läget sparat.
  * @param {() => void} [props.onAngra] (0.97.0) Ångra på kvittot.
+ * @param {() => void} [props.onSvara] (0.99.0) Svara på kvittot: en ny omgång i samma fält, till samma mål. Utan den ritas ingen Svara,
+ *   och Stäng är den primära knappen som förut.
  * @param {() => void} props.onKlar
  * @param {() => void} props.onAvbryt
  * @param {() => void} props.onIgen
@@ -560,7 +582,9 @@ const INSPELNING_PROPS = ["lage", "fel", "niva", "sekunder", "tak", "framsteg", 
  * @param {() => void} [props.onTillatMikrofon] (0.92.0) När mikrofonen nekats: knappen "Tillåt mikrofon" ber igen med en gest. Utan den används `onStart` om den finns.
  * @param {() => void} [props.onInstallningar]
  * @param {import("react").ReactNode} [props.marke]
- * @param {ReadonlyArray<{ id: string, etikett: string }>} [props.mal]
+ * @param {ReadonlyArray<{ id: string, etikett: string }>} [props.mal] (0.99.0)
+ *   ⛔ Ett val ritas bara när det finns FLER ÄN ETT mål. Ett ensamt
+ *   mål är inget val, och en rad som inte går att ändra är bara brus (CP 2026-10-13: "bara text för att få en bra användarupplevelse").
  * @param {string | null} [props.valt]
  * @param {(id: string) => void} [props.onValj]
  */
@@ -569,10 +593,13 @@ export function OpsInspelning(props) {
   if (okanda.length > 0) {
     throw new Error(`OpsInspelning: okända props ${okanda.join(", ")}. Tillåtna: ${INSPELNING_PROPS.join(", ")}.`);
   }
-  const { lage, fel, niva, sekunder, tak, framsteg, kanIgen, text = "", medText = false, skickarText = TALK_SKICKAR_TEXT, kvitto = null, onAngra, onKlar, onAvbryt, onIgen, onStart, onTillatMikrofon, onInstallningar, marke, mal = [], valt = null, onValj } = props;
+  const { lage, fel, niva, sekunder, tak, framsteg, kanIgen, text = "", textFel = "", medText = false, skickarText = TALK_SKICKAR_TEXT, svaraText, kvitto = null, onAngra, onSvara, onKlar, onAvbryt, onIgen, onStart, onTillatMikrofon, onInstallningar, marke, mal = [], valt = null, onValj } = props;
   const [fragar, setFragar] = useState(false);
   const fortsatt = useRef(/** @type {HTMLButtonElement | null} */ (null));
   const stang = useRef(/** @type {HTMLButtonElement | null} */ (null));
+  const svara = useRef(/** @type {HTMLButtonElement | null} */ (null));
+  const sprak = useOpsSprak();
+  const svaraOrd = svaraText ?? TALK_SVARA_TEXT[sprak === "en" ? "en" : "sv"];
   const malEtikett = useId();
   const lyssnar = lage === "haller" || lage === "lyssnar";
   /** Kvittot står med sina knappar: Ångra och Stäng. */
@@ -587,12 +614,15 @@ export function OpsInspelning(props) {
   }, [fragar]);
 
   /**
-   * ⛔ FOKUS TILL STÄNG NÄR KVITTOT KOMMER, INTE TILL ÅNGRA. Klar, som var fokuserad, försvinner när läget byts, och utan ett
-   * nytt mål hamnar tangentbordet i sidans topp. Ångra hade varit fel mål: ett Enter av vana hade tagit bort det appen nyss gjort.
-   * Bara på övergången, så att en Ångra som faller inte flyttar fokus från knappen personen just tryckte på.
+   * ⛔ FOKUS TILL SVARA NÄR KVITTOT KOMMER (0.99.0), OCH FÖRE DET TILL STÄNG, INTE TILL ÅNGRA. Klar, som var fokuserad, försvinner
+   * när läget byts, och utan ett nytt mål hamnar tangentbordet i sidans topp. Ångra hade varit fel mål: ett Enter av vana hade
+   * tagit bort det appen nyss gjort. Svara är det naturliga nästa steget i en dialog med agenten (CP 2026-10-13 22:13, efter en
+   * följdfråga: "Efter att jag pratat en gång finns bara stäng"), och ett Enter av vana där startar bara en ny omgång som går att
+   * avbryta. Utan `onSvara` är Stäng kvar som mål. Bara på övergången, så att en Ångra som faller inte flyttar fokus från
+   * knappen personen just tryckte på.
    */
   useEffect(() => {
-    if (kvittoKnappar) stang.current?.focus();
+    if (kvittoKnappar) (svara.current ?? stang.current)?.focus();
   }, [kvittoKnappar]);
 
   const avbryt = () => {
@@ -633,6 +663,8 @@ export function OpsInspelning(props) {
   const statusLage = lage === "skickar" ? "skickar" : lage === "sparat" ? (kvitto ? "kvitto" : "sparat") : null;
   const valtId = valt ?? (mal[0] ? mal[0].id : null);
   const visaTextyta = (lyssnar && (medText || Boolean(text))) || (lage === "skickar" && Boolean(text));
+  /** Ett val finns bara när det finns något att välja mellan. */
+  const visaMal = lyssnar && mal.length > 1;
   const kanTillatMikrofon = !kanIgen && kanBeOmMikrofon(fel) && typeof (onTillatMikrofon || onStart) === "function";
 
   return (
@@ -658,12 +690,16 @@ export function OpsInspelning(props) {
           <p data-talk-text="" aria-live="polite" className={`${TEXTYTA} text-ink`}>
             {text}
           </p>
-        ) : (
+        ) : textFel ? null : (
           <p data-talk-platstext="" className={`${TEXTYTA} text-ink-muted`}>
             {TALK_PLATSTEXT}
           </p>
         )
       ) : null}
+      {/* ⛔ TEXTEN UTEBLIR OCH FÄLTET SÄGER DET (0.99.0, regel 5). Förut svaldes ett fall i igenkänningen, och platstexten stod
+          kvar som ett löfte som aldrig infriades. `role="alert"` eftersom raden föds med sin text, och en region som föds med
+          innehåll läses inte alltid upp. */}
+      {lyssnar && textFel ? <p role="alert" data-talk-textfel="" className="m-0 text-etikett text-ink-secondary">{textFel}</p> : null}
       {/* ⛔ STATUSREGIONEN STÅR KVAR OCH BYTER TEXT (0.97.0). Förut skapades en ny `role="status"` i samma ögonblick som den
           fick sin text, och skärmläsare läser ofta inte upp en region som föds med innehåll: kvittot, "Ångrat" och
           "Agenten arbetar…" kunde passera tyst. Nu finns den från första läget i fältet, dold och tom medan man pratar, i samma
@@ -717,7 +753,26 @@ export function OpsInspelning(props) {
                   {kvitto.angrar ? "Ångrar…" : "Ångra"}
                 </button>
               ) : null}
-              <button ref={stang} type="button" data-talk-stang="" onClick={onAvbryt} className={PRIMAR}>Stäng</button>
+              {/* ⛔ STÄNG ÄR SEKUNDÄR NÄR SVARA FINNS (0.99.0): den primära knappen är det man oftast vill, att svara agenten.
+                  Svara snurrar inte och byter inte ord, men spärras medan Ångra pågår (`aria-disabled`, så fokus stannar):
+                  en ny omgång hade rensat kvittot under en Ångra som ännu inte svarat. */}
+              <button ref={stang} type="button" data-talk-stang="" onClick={onAvbryt} className={onSvara ? SEKUNDAR_ORD : PRIMAR}>Stäng</button>
+              {onSvara ? (
+                <button
+                  ref={svara}
+                  type="button"
+                  data-talk-svara=""
+                  aria-disabled={kvitto.angrar || undefined}
+                  onClick={() => {
+                    if (kvitto.angrar) return;
+                    onSvara();
+                  }}
+                  className={PRIMAR}
+                >
+                  <MikrofonIkon size={18} />
+                  {svaraOrd}
+                </button>
+              ) : null}
             </div>
           ) : null}
         </>
@@ -746,7 +801,7 @@ export function OpsInspelning(props) {
           </div>
         </div>
       ) : null}
-      {lyssnar && mal.length > 0 ? (
+      {visaMal ? (
         <div className="flex min-w-0 flex-col gap-1.5">
           <span id={malEtikett} className="text-meta text-ink-muted">Skickas till</span>
           {/* ⛔ SPÅRET ÄR NEDSÄNKT OCH DET VALDA LYFT, i båda lägena. `bg-raised` som valt blev MÖRKARE än spåret i mörkt läge
@@ -801,10 +856,13 @@ export function OpsInspelning(props) {
  *   framsteg?: number | null,
  *   kanIgen?: boolean,
  *   text?: string,
+ *   textFel?: string,
  *   medText?: boolean,
  *   skickarText?: string,
+ *   svaraText?: string,
  *   kvitto?: TalkKvittoVy | null,
  *   onAngra?: () => void,
+ *   onSvara?: () => void,
  *   onSkicka: () => void,
  *   onAvbryt: () => void,
  *   onIgen?: () => void,
@@ -816,7 +874,7 @@ export function OpsInspelning(props) {
  *   onValj?: (id: string) => void,
  * }} props `medText`, `skickarText`, `kvitto` och `onAngra` (0.97.0) kommer ur `useTalk` med samma namn (`onAngra` är `angra`).
  */
-export function OpsTalk({ lage, fel, niva, sekunder = 0, tak = MAX_SEKUNDER, framsteg = null, kanIgen = false, text = "", medText = false, skickarText = TALK_SKICKAR_TEXT, kvitto = null, onAngra, onSkicka, onAvbryt, onIgen = () => {}, onTillatMikrofon, onInstallningar, marke, mal = [], valt = null, onValj }) {
+export function OpsTalk({ lage, fel, niva, sekunder = 0, tak = MAX_SEKUNDER, framsteg = null, kanIgen = false, text = "", textFel = "", medText = false, skickarText = TALK_SKICKAR_TEXT, svaraText, kvitto = null, onAngra, onSvara, onSkicka, onAvbryt, onIgen = () => {}, onTillatMikrofon, onInstallningar, marke, mal = [], valt = null, onValj }) {
   if (lage === "vila" || lage === "trycker") return null;
   return (
     <div
@@ -836,10 +894,13 @@ export function OpsTalk({ lage, fel, niva, sekunder = 0, tak = MAX_SEKUNDER, fra
           framsteg={framsteg}
           kanIgen={kanIgen}
           text={text}
+          textFel={textFel}
           medText={medText}
           skickarText={skickarText}
+          svaraText={svaraText}
           kvitto={kvitto}
           onAngra={onAngra}
+          onSvara={onSvara}
           onKlar={onSkicka}
           onAvbryt={onAvbryt}
           onIgen={onIgen}
