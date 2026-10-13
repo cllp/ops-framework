@@ -132,6 +132,99 @@ describe("plussets inspelare och modulens mål", () => {
     expect(spara.mock.calls[0][0].grupp).toBe(grupp);
   });
 
+  describe("⛔ valet gäller en inspelning, inte sessionen (0.94.3, lifehub.app#187)", () => {
+    /** @param {ReturnType<typeof vi.fn>} spara @param {ReturnType<typeof vi.fn>} onTalk */
+    function skal(spara, onTalk) {
+      const grupp = { id: "g", moduler: ["bibliotek"] };
+      return render(
+        <OpsAppShell
+          brand="Ops"
+          nav={nav}
+          activeHref="/"
+          talk={{ onTalk, inspelare, mal: [{ id: "forslag", etikett: "Förslag" }, { id: "meddelande", etikett: "Meddelande" }] }}
+          skapa={{ lage: "g", moduler: validateModuler([bibliotekModul(spara)]), aktivGrupp: grupp }}
+        >
+          <OpsBibliotek poster={[]} jag={{ uid: "u", roll: "medlem" }} onOppna={() => {}} onStang={() => {}} onSkapa={() => {}} onSpara={() => {}} hubHref="/hub" />
+        </OpsAppShell>,
+      );
+    }
+
+    const rostinspelning = () => {
+      fireEvent.click(screen.getByRole("button", { name: "Ny post" }));
+      fireEvent.click(screen.getByRole("menuitem", { name: "Röstinspelning" }));
+    };
+
+    /** Huvudets mikrofon, samma väg som raden i Skapa (`oppnaSkapa(TALK_FORM)`). */
+    const talkIHuvudet = () => {
+      const knapp = screen.getAllByRole("button", { name: "TALK, prata in" }).find((k) => k.closest("header"));
+      if (!knapp) throw new Error("TALK-knappen i huvudet saknas");
+      fireEvent.click(knapp);
+    };
+
+    it("efter en sparad röstinspelning i Biblioteket börjar nästa inspelning ur plusset och TALK på appens första mål", async () => {
+      const spara = vi.fn();
+      const onTalk = vi.fn();
+      skal(spara, onTalk);
+      rostinspelning();
+      expect(screen.getByRole("radio", { name: "Spara i Biblioteket" })).toHaveAttribute("aria-checked", "true");
+      fireEvent.click(screen.getByRole("button", { name: "Klar, spara inspelningen" }));
+      await waitFor(() => expect(spara).toHaveBeenCalledTimes(1));
+      // Sparat står kvar i SPARAT_MS och fälls sedan till vila. Först då är inspelningen över.
+      await waitFor(() => expect(screen.queryByRole("dialog", { name: "TALK" })).toBeNull(), { timeout: 3000 });
+
+      oppnaTalk();
+      expect(screen.getByRole("radio", { name: "Förslag" })).toHaveAttribute("aria-checked", "true");
+      expect(screen.getByRole("radio", { name: "Spara i Biblioteket" })).toHaveAttribute("aria-checked", "false");
+      fireEvent.click(screen.getByRole("button", { name: "Avbryt" }));
+      expect(screen.queryByRole("dialog", { name: "TALK" })).toBeNull();
+
+      talkIHuvudet();
+      expect(screen.getByRole("radio", { name: "Förslag" })).toHaveAttribute("aria-checked", "true");
+      fireEvent.click(screen.getByRole("button", { name: "Klar, spara inspelningen" }));
+      await waitFor(() => expect(onTalk).toHaveBeenCalledTimes(1));
+      expect(onTalk.mock.calls[0][1].mal).toEqual({ id: "forslag" });
+      expect(spara).toHaveBeenCalledTimes(1);
+    });
+
+    it("samma sak när röstinspelningen i Biblioteket avbryts, och när målet valdes i fältet", async () => {
+      const spara = vi.fn();
+      const onTalk = vi.fn();
+      skal(spara, onTalk);
+      rostinspelning();
+      expect(screen.getByRole("radio", { name: "Spara i Biblioteket" })).toHaveAttribute("aria-checked", "true");
+      fireEvent.click(screen.getByRole("button", { name: "Avbryt" }));
+      expect(screen.queryByRole("dialog", { name: "TALK" })).toBeNull();
+
+      talkIHuvudet();
+      expect(screen.getByRole("radio", { name: "Förslag" })).toHaveAttribute("aria-checked", "true");
+      expect(screen.getByRole("radio", { name: "Spara i Biblioteket" })).toHaveAttribute("aria-checked", "false");
+      // Ett val i fältet under en plusinspelning gäller den inspelningen och inte nästa.
+      fireEvent.click(screen.getByRole("radio", { name: "Meddelande" }));
+      fireEvent.click(screen.getByRole("button", { name: "Avbryt" }));
+
+      oppnaTalk();
+      expect(screen.getByRole("radio", { name: "Förslag" })).toHaveAttribute("aria-checked", "true");
+      expect(screen.getByRole("radio", { name: "Meddelande" })).toHaveAttribute("aria-checked", "false");
+      expect(spara).not.toHaveBeenCalled();
+      expect(onTalk).not.toHaveBeenCalled();
+    });
+
+    it("återställningen nollar inte målet innan röstinspelningen startat: den sparas i modulens mål, också andra gången", async () => {
+      const spara = vi.fn();
+      const onTalk = vi.fn();
+      skal(spara, onTalk);
+      rostinspelning();
+      fireEvent.click(screen.getByRole("button", { name: "Avbryt" }));
+      // Andra röstinspelningen kommer efter en övergång till vila, alltså efter en återställning.
+      rostinspelning();
+      expect(screen.getByRole("radio", { name: "Spara i Biblioteket" })).toHaveAttribute("aria-checked", "true");
+      expect(screen.getByText("0:00 / 2:00")).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Klar, spara inspelningen" }));
+      await waitFor(() => expect(spara).toHaveBeenCalledTimes(1));
+      expect(onTalk).not.toHaveBeenCalled();
+    });
+  });
+
   describe("⛔ taket följer målet (0.93.0)", () => {
     afterEach(() => {
       vi.useRealTimers();
