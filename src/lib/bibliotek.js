@@ -440,7 +440,9 @@ export function ljudMetaFel(d) {
  * @returns {string}
  */
 export function normaliseraTagg(v) {
-  return str(v).replace(/^#+/, "").toLocaleLowerCase("sv").replace(/\s+/g, " ").trim();
+  // ⛔ NFC FÖRST (granskningen av PR 363): inklistrad text från macOS kan bära "å" som a plus en kombinerande ring, och den formen
+  // står inte i TAGGFORM. Personen ser samma bokstav, så felet hade varit obegripligt.
+  return str(v).normalize("NFC").replace(/^#+/, "").toLocaleLowerCase("sv").replace(/\s+/g, " ").trim();
 }
 
 /**
@@ -662,7 +664,8 @@ export function filtreraBibliotek(poster, val = {}) {
   if (!(/** @type {readonly string[]} */ (BIBLIOTEKFLIKAR).includes(flik))) {
     throw new Error(`filtreraBibliotek: okänd flik "${flik}". Giltiga: ${BIBLIOTEKFLIKAR.join(", ")}.`);
   }
-  const sok = str(val.sok).toLowerCase();
+  // ⛔ "#kvitto" SÖKER PÅ TAGGEN (granskningen av PR 363): raden visar taggen med #, och den som söker skriver det den ser.
+  const sok = str(val.sok).toLowerCase().replace(/^#+/, "");
   const valda = Array.isArray(val.taggar) ? val.taggar : [];
   return [...poster]
     .filter((p) => valda.every((t) => Array.isArray(p.taggar) && p.taggar.includes(t)))

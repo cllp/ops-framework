@@ -28,6 +28,11 @@ const post = (/** @type {string} */ id, /** @type {string} */ rubrik, /** @type 
 describe("⛔ taggarnas modell", () => {
   it("skrivs om till gemener, utan # och med ett mellanslag, i den ordning de skrevs och utan dubbletter", () => {
     expect(normaliseraTaggar(["#Kvitto", "kvitto", "  Bil   2024 ", "", "BIL 2024"])).toEqual(["kvitto", "bil 2024"]);
+    // ⛔ NFD (granskningen av PR 363): "år" som a plus kombinerande ring, som inklistrad text från macOS kan bära, blir "år" och går att spara.
+    const nfd = "a\u030Ar";
+    expect(nfd).not.toBe("år");
+    expect(normaliseraTaggar([nfd])).toEqual(["år"]);
+    expect(taggarFel(normaliseraTaggar([nfd]))).toBeNull();
   });
 
   it("formen, taket och dubbletterna: samma skäl som regeln prövar", () => {
@@ -55,6 +60,8 @@ describe("⛔ taggarnas modell", () => {
     expect(filtreraBibliotek(poster, { taggar: ["kvitto"] }).map((p) => p.id).sort()).toEqual(["a", "b"]);
     expect(filtreraBibliotek(poster, { taggar: ["kvitto", "bil"] }).map((p) => p.id)).toEqual(["a"]);
     expect(filtreraBibliotek(poster, { sok: "bil" }).map((p) => p.id)).toEqual(["a"]);
+    // Den som söker skriver det raden visar, med # (granskningen av PR 363).
+    expect(filtreraBibliotek(poster, { sok: "#bil" }).map((p) => p.id)).toEqual(["a"]);
     expect(filtreraBibliotek(poster, {}).length).toBe(3);
     expect(allaTaggar(poster)).toEqual([{ tagg: "kvitto", antal: 2 }, { tagg: "bil", antal: 1 }]);
   });
@@ -75,6 +82,7 @@ describe("⛔ taggarna i källan", () => {
     const ny = await kalla.spara({ typ: "anteckning", rubrik: "Tankning", text: "350 kr.", taggar: ["#Kvitto", "bil"] });
     expect((await source.read("bibliotek", ny.id))?.taggar).toEqual(["kvitto", "bil"]);
     await kalla.spara({ id: ny.id, rubrik: "Tankning Visby" });
+    await kalla.spara({ id: ny.id, taggar: undefined });
     expect((await source.read("bibliotek", ny.id))?.taggar).toEqual(["kvitto", "bil"]);
     await kalla.spara({ id: ny.id, taggar: [] });
     const efter = await source.read("bibliotek", ny.id);
@@ -141,6 +149,29 @@ describe("⛔ taggarna i vyn", () => {
     fireEvent.click(within(ruta).getByRole("button", { name: "Spara" }));
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "Taggar" })).toBeNull());
     expect(screen.getByText(/#bil · #mat/)).toBeInTheDocument();
+  });
+
+  it("oförändrade taggar sparas inte: rutan stängs och posten flyttar inte överst (granskningen av PR 363)", async () => {
+    let anrop = 0;
+    render(
+      <OpsBibliotek poster={[post("a", "Tankning", ["kvitto"])]} jag={{ uid: "uid-1", roll: "medlem" }} vald={null} skapar={null} onOppna={() => {}} onStang={() => {}} onSkapa={() => {}} onSpara={() => { anrop += 1; }} hubHref="/hub" />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Tankning" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Taggar" }));
+    const ruta = await screen.findByRole("dialog", { name: "Taggar" });
+    fireEvent.click(within(ruta).getByRole("button", { name: "Spara" }));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Taggar" })).toBeNull());
+    expect(anrop).toBe(0);
+  });
+
+  it("ett förslag tömmer inte det personen håller på att skriva", async () => {
+    render(<Harness start={[post("a", "Tankning", undefined), post("b", "Lunch", ["mat"])]} />);
+    fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Tankning" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Taggar" }));
+    const ruta = await screen.findByRole("dialog", { name: "Taggar" });
+    fireEvent.change(within(ruta).getByRole("textbox", { name: "Ny tagg" }), { target: { value: "kvi" } });
+    fireEvent.click(within(within(ruta).getByRole("group", { name: "Gruppens taggar" })).getByRole("button", { name: "#mat" }));
+    expect(within(ruta).getByRole("textbox", { name: "Ny tagg" })).toHaveValue("kvi");
   });
 
   it("en tagg som inte går att spara säger varför, och rutan står kvar", async () => {

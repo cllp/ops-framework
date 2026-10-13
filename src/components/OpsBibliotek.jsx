@@ -797,7 +797,8 @@ function TaggRedigerare({ post, forslag, onSpara, onKlar }) {
   const [utkast, setUtkast] = useState("");
   const [fel, setFel] = useState("");
   const [sparar, setSparar] = useState(false);
-  const lagg = (/** @type {string} */ ord) => {
+  /** @param {string} ord @param {boolean} [franFaltet] Bara då töms fältet: ett förslag får inte radera det personen håller på att skriva. */
+  const lagg = (ord, franFaltet = true) => {
     const ny = normaliseraTaggar([...lista, ...ord.split(",")]);
     const problem = taggarFel(ny);
     if (problem) {
@@ -806,7 +807,7 @@ function TaggRedigerare({ post, forslag, onSpara, onKlar }) {
     }
     setFel("");
     setLista(ny);
-    setUtkast("");
+    if (franFaltet) setUtkast("");
     return true;
   };
   const spara = async () => {
@@ -818,6 +819,13 @@ function TaggRedigerare({ post, forslag, onSpara, onKlar }) {
         setFel(problem);
         return;
       }
+    }
+    // ⛔ OFÖRÄNDRAT SPARAS INTE (granskningen av PR 363): ett sparande flyttar posten överst i listan (`andrad`), och det hade hänt
+    // fast personen bara öppnade och stängde rutan.
+    const fore = Array.isArray(post.taggar) ? post.taggar : [];
+    if (ny.length === fore.length && ny.every((t, i) => t === fore[i])) {
+      onKlar();
+      return;
     }
     if (typeof onSpara !== "function") {
       setFel("Sparandet är inte kopplat. Taggarna ändrades inte.");
@@ -862,7 +870,7 @@ function TaggRedigerare({ post, forslag, onSpara, onKlar }) {
       </form>
       {ovriga.length > 0 ? (
         <div role="group" aria-label="Gruppens taggar" className="flex flex-wrap gap-2">
-          {ovriga.map((t) => <OpsChip key={t} onClick={() => lagg(t)}>{`#${t}`}</OpsChip>)}
+          {ovriga.map((t) => <OpsChip key={t} onClick={() => lagg(t, false)}>{`#${t}`}</OpsChip>)}
         </div>
       ) : null}
       {fel ? <p role="alert" className="m-0 text-meta text-danger">{fel}</p> : null}
@@ -938,7 +946,6 @@ function Ljudrad({ post, lage, onOppna, onMeta }) {
           onMeta={(inmata) => onMeta(post.id, inmata)}
         />
       ) : null}
-      {taggrad ? <span data-bibliotek-taggar="" className="block truncate text-meta text-ink-muted">{taggrad}</span> : null}
       {lage.lage === "klar" ? null : (
         <>
           <div className="flex min-w-0 items-center gap-3">
@@ -952,6 +959,8 @@ function Ljudrad({ post, lage, onOppna, onMeta }) {
           )}
         </>
       )}
+      {/* Taggarna under rubriken, i båda lägena: efter spelaren när ljudet är klart, efter rubrikraden och statusen annars. */}
+      {taggrad ? <span data-bibliotek-taggar="" className="block truncate text-meta text-ink-muted">{taggrad}</span> : null}
     </div>
   );
 }

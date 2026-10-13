@@ -160,13 +160,15 @@ export function createBibliotekskalla(config) {
       if (inmatning && "peaks" in inmatning) underlag.peaks = inmatning.peaks;
       else if (id && tidigare && "peaks" in tidigare) underlag.peaks = tidigare.peaks;
       // ⛔ TAGGARNA (0.100.0). Ges de i inmatningen gäller de, annars står postens kvar. En tom lista betyder "inga taggar".
-      if (inmatning && "taggar" in inmatning) underlag.taggar = inmatning.taggar;
+      if (inmatning && "taggar" in inmatning && inmatning.taggar !== undefined) underlag.taggar = inmatning.taggar;
       else if (id && tidigare && "taggar" in tidigare) underlag.taggar = tidigare.taggar;
       const post = byggPost(underlag);
       if (id) {
         // ⛔ EN UPPDATERING SLÅR IHOP, DEN ERSÄTTER INTE. Tog personen bort sista taggen saknas fältet i `post`, och utan `FALT_BORT`
         // hade de gamla taggarna stått kvar i dokumentet medan vyn sade att de var borta.
-        const bort = tidigare && "taggar" in tidigare && !("taggar" in post) ? { taggar: FALT_BORT } : {};
+        // Bara när dokumentet bär taggar: en tom lista från en annan klient tas inte bort av en ifyllnad av längd och våg, som regeln
+        // då hade nekat (taggar räknas som ändrat fält).
+        const bort = tidigare && Array.isArray(tidigare.taggar) && tidigare.taggar.length > 0 && !("taggar" in post) ? { taggar: FALT_BORT } : {};
         await source.update(collection, id, { ...post, ...bort });
         return { ...post, id };
       }
