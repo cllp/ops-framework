@@ -343,3 +343,196 @@ export function talkFeltext(fel, val = {}) {
   const text = fel instanceof Error ? fel.message : String(fel || "");
   return text || "Inspelningen gick inte att starta.";
 }
+
+/*
+ * ══ ⛔ TEXT MEDAN MAN PRATAR (0.96.0, cllp/lifehub.app#209) ═════════════════════════════════════════════════════════
+ *
+ * CP 2026-10-13: "Min upplevelse är att det nu tar lång tid för transkribering och det är ingen smidig AI upplevelse." Och
+ * om förslagen: "vi kör på 3 direkt", alltså text som syns medan man pratar.
+ *
+ * Webbläsarens taligenkänning (`SpeechRecognition`, i Safari och Chrome `webkitSpeechRecognition`) ger orden medan de sägs.
+ * Fältet visar dem, och när texten är hel följer den med till appen (`onTalk(blob, { text })`). Appen kan då skicka texten i
+ * stället för ljudet, och text tolkas på en bråkdel av tiden.
+ *
+ * ⛔ LJUDET SPELAS IN SOM FÖRUT, ALLTID. Igenkänningen är ett tillägg, aldrig en ersättning. Saknar webbläsaren den (Firefox),
+ * nekas den, eller faller den mitt i, blir texten tom och appen får ljudet som i dag. En halv text följer aldrig med som om den
+ * vore hel (arbetsreglernas punkt 5): ett fel under igenkänningen gör hela texten ogiltig.
+ *
+ * ⛔ VART LJUDET GÅR. Chrome skickar ljudet till Googles taltjänst och Safari till Apples. Det är en annan väg än appens egen
+ * modell, och därför kan appen stänga av den (`useTalk({ igenkanning: false })`).
+ */
+
+/**
+ * @typedef {object} Igenkanning
+ * @property {(val: { sprak: string, onText: (text: string) => void }) => void} starta Börjar lyssna. `onText` får hela texten hittills.
+ * @property {() => Promise<string>} stoppa Slutar och ger den slutliga texten, eller tom sträng när den inte går att lita på.
+ * @property {() => void} kasta Slutar utan att vänta.
+ */
+
+/** Så länge `stoppa` väntar på att webbläsaren lämnar sitt sista resultat. */
+export const IGENKANNING_VANTA_MS = 1500;
+
+/**
+ * Fel som bara betyder tystnad. Igenkänningen fortsätter, och texten är fortfarande hel.
+ *
+ * ⛔ "aborted" STÅR INTE HÄR (granskningen av PR 358, MÅSTE 2). Ett samtal på iOS eller ett annat ljudpass avbryter mitt i
+ * en mening, och texten är då avhuggen. Vår egen avbrytning (`kasta`) syns aldrig här: dess hanterare är bortkopplade.
+ */
+const TYSTA_FEL = ["no-speech"];
+
+/** Så många omstarter per sekund innan igenkänningen räknas som trasig. En som tar slut direkt efter start loopar annars. */
+const MAX_OMSTARTER_PER_SEKUND = 3;
+
+/**
+ * Språkkoden igenkänningen vill ha, ur appens språk ("sv" ger "sv-SE").
+ * @param {string} sprak
+ */
+export function igenkanningensSprak(sprak) {
+  const s = String(sprak || "").toLowerCase();
+  if (s.startsWith("en")) return "en-US";
+  return "sv-SE";
+}
+
+/**
+ * Webbläsarens taligenkänning, eller `null` när den saknas.
+ *
+ * ⛔ STARTAR OM SIG SJÄLV. Chrome avslutar en igenkänning efter en stunds tystnad även med `continuous`, och utan omstart hade
+ * texten slutat växa mitt i en mening. Den text som redan är slutlig sparas mellan omstarterna.
+ *
+ * ⛔ VARJE FÖRSÖK HAR SITT NUMMER (granskningen av PR 358, MÅSTE 1). En avbruten igenkännare kan leverera `onend` eller
+ * `onresult` efter att nästa försök startat, och utan numret skrev den in i det nya försökets text eller startade en andra
+ * igenkännare som aldrig stoppades. Varje hanterare gör ingenting när försöket den hör till inte längre är det pågående.
+ *
+ * ⛔ HELLRE INGEN TEXT ÄN EN HALV (MÅSTE 2). Står ett ord kvar som aldrig blev slutligt när igenkänningen stoppas, eller ger
+ * webbläsaren aldrig sitt sista besked inom väntetiden, blir texten tom, och appen får ljudet som förut.
+ *
+ * @param {{ SpeechRecognition?: any, setTimeout?: typeof setTimeout, nu?: () => number }} [miljo]
+ * @returns {Igenkanning | null}
+ */
+export function webblasarensIgenkanning(miljo = {}) {
+  const g = /** @type {any} */ (typeof globalThis !== "undefined" ? globalThis : {});
+  const SR = miljo.SpeechRecognition || g.SpeechRecognition || g.webkitSpeechRecognition;
+  if (typeof SR !== "function") return null;
+  const vanta = miljo.setTimeout || setTimeout;
+  const nu = miljo.nu || Date.now;
+  /** @type {any} */
+  let r = null;
+  let forsok = 0;
+  let aktiv = false;
+  let trasig = false;
+  let slutlig = "";
+  let pagaende = "";
+  /** @type {number[]} */
+  let starter = [];
+  /** @type {(() => void) | null} */
+  let narSlut = null;
+  const hel = () => `${slutlig} ${pagaende}`.replace(/\s+/g, " ").trim();
+
+  /** @param {number} mitt @param {string} sprak @param {(text: string) => void} onText */
+  const ny = (mitt, sprak, onText) => {
+    const rec = new SR();
+    rec.lang = sprak;
+    rec.continuous = true;
+    rec.interimResults = true;
+    const galler = () => mitt === forsok && rec === r;
+    rec.onresult = (/** @type {any} */ e) => {
+      if (!galler()) return;
+      let nyaSlutliga = "";
+      let delvis = "";
+      for (let i = e.resultIndex; i < e.results.length; i += 1) {
+        const res = e.results[i];
+        const t = res[0]?.transcript ?? "";
+        if (res.isFinal) nyaSlutliga += `${t} `;
+        else delvis += t;
+      }
+      if (nyaSlutliga) slutlig = `${slutlig} ${nyaSlutliga}`.trim();
+      pagaende = delvis;
+      onText(hel());
+    };
+    rec.onerror = (/** @type {any} */ e) => {
+      if (galler() && !TYSTA_FEL.includes(e?.error)) trasig = true;
+    };
+    rec.onend = () => {
+      if (!galler()) return;
+      if (aktiv && !trasig) {
+        // Mitt i: webbläsaren tog en paus. Det pågående hör till texten, och lyssnandet fortsätter.
+        if (pagaende) {
+          slutlig = `${slutlig} ${pagaende}`.trim();
+          pagaende = "";
+        }
+        const t = nu();
+        starter = [...starter.filter((x) => t - x < 1000), t];
+        if (starter.length > MAX_OMSTARTER_PER_SEKUND) {
+          trasig = true;
+        } else {
+          try {
+            r = ny(mitt, sprak, onText);
+            r.start();
+            return;
+          } catch {
+            trasig = true;
+          }
+        }
+      }
+      // Vid stopp: ett ord som aldrig blev slutligt gör texten ofullständig.
+      if (pagaende) trasig = true;
+      narSlut?.();
+      narSlut = null;
+    };
+    return rec;
+  };
+
+  return {
+    starta({ sprak, onText }) {
+      forsok += 1;
+      aktiv = true;
+      trasig = false;
+      slutlig = "";
+      pagaende = "";
+      starter = [];
+      narSlut = null;
+      try {
+        r = ny(forsok, sprak, onText);
+        r.start();
+      } catch {
+        trasig = true;
+        aktiv = false;
+      }
+    },
+    stoppa() {
+      if (!r || !aktiv) return Promise.resolve("");
+      aktiv = false;
+      const mitt = forsok;
+      return new Promise((klar) => {
+        let gjort = false;
+        /** @param {boolean} iTid */
+        const sluta = (iTid) => {
+          if (gjort) return;
+          gjort = true;
+          // ⛔ TIDEN TOG SLUT: webbläsaren gav aldrig sitt sista besked, och texten kan sakna slutet.
+          klar(!iTid || trasig || mitt !== forsok ? "" : hel());
+        };
+        narSlut = () => sluta(true);
+        vanta(() => sluta(false), IGENKANNING_VANTA_MS);
+        try {
+          r.stop();
+        } catch {
+          trasig = true;
+          sluta(true);
+        }
+      });
+    },
+    kasta() {
+      forsok += 1;
+      aktiv = false;
+      narSlut = null;
+      const gammal = r;
+      r = null;
+      try {
+        gammal?.abort();
+      } catch {
+        // Redan stängd.
+      }
+    },
+  };
+}

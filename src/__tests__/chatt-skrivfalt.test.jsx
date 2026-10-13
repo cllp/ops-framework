@@ -81,6 +81,36 @@ describe("skrivfältet", () => {
     expect(document.querySelector("[data-rostlage]")).toBeNull();
     expect(screen.getByRole("button", { name: "Skicka" })).toBeTruthy();
   });
+  it("⛔ webbläsarens taligenkänning används aldrig i skrivfältet: talet går bara till appens egen transkribering (granskningen av PR 358)", async () => {
+    const { s, a } = await underlag();
+    const insp = provinspelare();
+    const onTranscribe = vi.fn(async () => "från appen");
+    class SR {
+      constructor() {
+        /** @type {any} */ this.onresult = null;
+        /** @type {any} */ this.onend = null;
+        SR.senast = this;
+      }
+      start() {}
+      stop() {
+        queueMicrotask(() => this.onend?.());
+      }
+      abort() {}
+    }
+    /** @type {any} */ SR.senast = null;
+    vi.stubGlobal("webkitSpeechRecognition", SR);
+    try {
+      render(<OpsMeddelanden kalla={s} uid="anna" groupId="g" gruppNamn="G" medlemmar={MEDLEMMAR} valt={a.id} onTranscribe={onTranscribe} inspelare={insp} />);
+      await within(await screen.findByRole("log")).findByText("Hej");
+      fireEvent.click(screen.getByRole("button", { name: "Prata in" }));
+      fireEvent.click(await screen.findByRole("button", { name: "Skriv ut det inspelade" }));
+      await waitFor(() => expect(ruta().value).toBe("från appen"));
+      expect(onTranscribe).toHaveBeenCalledTimes(1);
+      expect(SR.senast).toBeNull();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
   it("⛔ en misslyckad transkribering säger det, behåller ljudet, och Försök igen skickar samma ljud", async () => {
     const { s, a } = await underlag();
     const insp = provinspelare();

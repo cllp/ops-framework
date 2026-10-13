@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AVBRYT_FRAGA_SEKUNDER, LANGTRYCK_MS, MAX_SEKUNDER, SPARAT_MS, kanBeOmMikrofon, talkFeltext, talkNasta, webblasarensInspelare } from "../lib/talk.js";
+import { AVBRYT_FRAGA_SEKUNDER, LANGTRYCK_MS, MAX_SEKUNDER, SPARAT_MS, igenkanningensSprak, kanBeOmMikrofon, talkFeltext, talkNasta, webblasarensIgenkanning, webblasarensInspelare } from "../lib/talk.js";
+import { useOpsSprak } from "./OpsSprak.jsx";
 import { formateraTid } from "../lib/ljudspelare.js";
 import { rapporteraFel } from "../lib/felrapport.js";
 import { KryssIkon, KugghjulIkon, MikrofonIkon, StoppIkon } from "./icons.jsx";
@@ -12,12 +13,16 @@ import { OpsSpinner } from "./OpsSpinner.jsx";
 
 /**
  * @typedef {object} TalkVal
- * @property {(blob: Blob, meta: { mimeType: string, sekunder: number, rapportera: (andel: number) => void }) => Promise<void> | void} onTalk Appens mottagare.
+ * @property {(blob: Blob, meta: { mimeType: string, sekunder: number, rapportera: (andel: number) => void, text?: string }) => Promise<void> | void} onTalk Appens mottagare.
+ *   `text` (0.96.0) är det webbläsarens taligenkänning hörde, och finns bara när den är hel. Saknas den gäller ljudet.
  *   ⛔ Kastar den eller avvisar löftet visas felet i fältet, med Försök igen. Ett ljud som tyst försvann hade sett ut som ett skickat.
  *   `rapportera` tar 0 till 1, samma kvot som `bytesTransferred / totalBytes` i `uploadBytesResumable`. Utan anrop visas en snurra.
  * @property {() => void} [onInstallningar] Kugghjulet i fältet. Utan den ritas inget kugghjul.
  * @property {import("react").ReactNode} [marke] Märket längst till vänster i fältet, vanligen hubbens.
  * @property {import("../lib/talk.js").Inspelare} [inspelare] Bara för prov. Förval: webbläsarens `MediaRecorder`.
+ * @property {import("../lib/talk.js").Igenkanning | boolean} [igenkanning] (0.96.0) Text medan man pratar. ⛔ AV SOM FÖRVAL
+ *   (granskningen av PR 358, MÅSTE 3): webbläsaren skickar då talet till Googles eller Apples taltjänst, och det är appens val.
+ *   `true` slår på webbläsarens taligenkänning när den finns. Utan den lämnas bara ljudet, som före 0.96.0.
  * @property {number} [maxSekunder] Tak i sekunder. Förval `MAX_SEKUNDER` (120), så TALK inte ändras. Bibliotekets idé använder 600.
  * @property {ReadonlyArray<{ id: string, etikett: string }>} [mal] Appens egna mål i fältet. Modulernas mål läggs till av skalet.
  */
@@ -37,7 +42,7 @@ export const TALK_UPPTAGEN = "En annan inspelning pågår redan. Avsluta den fö
 /**
  * @param {TalkVal & { onKlick: () => void }} val `onKlick` är det ett vanligt tryck gör, Skapa.
  */
-export function useTalk({ onTalk, onKlick, inspelare, maxSekunder = MAX_SEKUNDER }) {
+export function useTalk({ onTalk, onKlick, inspelare, igenkanning, maxSekunder = MAX_SEKUNDER }) {
   if (!Number.isInteger(maxSekunder) || maxSekunder < 1) {
     throw new Error(`useTalk: maxSekunder ska vara ett positivt heltal, fick ${String(maxSekunder)}. Ett tyst tak hade antingen klippt direkt eller spelat in utan slut.`);
   }
@@ -66,6 +71,24 @@ export function useTalk({ onTalk, onKlick, inspelare, maxSekunder = MAX_SEKUNDER
   const insp = () => {
     if (!inspRef.current) inspRef.current = webblasarensInspelare();
     return inspRef.current;
+  };
+  const sprak = useOpsSprak();
+  const sprakRef = useRef(sprak);
+  sprakRef.current = sprak;
+  /** Igenkänningen, skapad första gången den behövs. `null` när webbläsaren saknar den eller appen stängt av den. */
+  const igkRef = useRef(/** @type {import("../lib/talk.js").Igenkanning | null | undefined} */ (igenkanning === true ? undefined : igenkanning && typeof igenkanning === "object" ? igenkanning : null));
+  const igk = () => {
+    if (igkRef.current === undefined) igkRef.current = webblasarensIgenkanning();
+    return igkRef.current;
+  };
+  /** Det som hörts hittills i det pågående försöket, för fältet. */
+  const [text, setText] = useState("");
+  const kastaText = () => {
+    try {
+      igk()?.kasta();
+    } catch (fel) {
+      rapporteraFel(fel, { yta: "OpsTalk", steg: "kasta-text" });
+    }
   };
   const rensa = () => {
     if (timer.current) clearTimeout(timer.current);
@@ -111,6 +134,8 @@ export function useTalk({ onTalk, onKlick, inspelare, maxSekunder = MAX_SEKUNDER
         senast.current = null;
         setKanIgen(false);
         setFramsteg(null);
+        setText("");
+        kastaText();
         try {
           insp().kasta();
         } catch (fel) {
@@ -137,6 +162,18 @@ export function useTalk({ onTalk, onKlick, inspelare, maxSekunder = MAX_SEKUNDER
               mikStart.current = Date.now();
               setSekunder(0);
               planeraTak();
+              // ⛔ TEXTEN BÖRJAR NÄR MIKROFONEN ÄR ÖPPEN, inte vid trycket. Ett fel här stoppar aldrig inspelningen.
+              setText("");
+              try {
+                igk()?.starta({
+                  sprak: igenkanningensSprak(sprakRef.current),
+                  onText: (t) => {
+                    if (mitt === forsok.current && monterad.current) setText(t);
+                  },
+                });
+              } catch (fel) {
+                rapporteraFel(fel, { yta: "OpsTalk", steg: "starta-text" });
+              }
               return;
             }
             // ⛔ Ett avbrutet eller avmonterat försök vars mikrofon öppnades efteråt. Står ett nyare försök och spelar in rör vi
@@ -159,7 +196,7 @@ export function useTalk({ onTalk, onKlick, inspelare, maxSekunder = MAX_SEKUNDER
           });
       }
       /**
-       * @param {{ blob: Blob, mimeType: string, sekunder: number }} post
+       * @param {{ blob: Blob, mimeType: string, sekunder: number, text?: string }} post
        */
       const lamna = (post) => {
         setFramsteg(null);
@@ -170,7 +207,7 @@ export function useTalk({ onTalk, onKlick, inspelare, maxSekunder = MAX_SEKUNDER
           setFramsteg(Math.min(1, Math.max(0, n)));
         };
         return Promise.resolve()
-          .then(() => onTalk(post.blob, { mimeType: post.mimeType, sekunder: post.sekunder, rapportera }))
+          .then(() => onTalk(post.blob, { mimeType: post.mimeType, sekunder: post.sekunder, rapportera, ...(post.text ? { text: post.text } : {}) }))
           .then(() => {
             if (!monterad.current) return;
             senast.current = null;
@@ -197,11 +234,18 @@ export function useTalk({ onTalk, onKlick, inspelare, maxSekunder = MAX_SEKUNDER
           lamna(post);
           return;
         }
-        insp()
-          .stoppa()
-          .finally(frigor)
-          .then((post) => {
+        // ⛔ TEXTEN OCH LJUDET STOPPAS SAMTIDIGT. Texten följer med bara om igenkänningen var hel hela vägen.
+        const texten = Promise.resolve()
+          .then(() => igk()?.stoppa() ?? "")
+          .catch((fel) => {
+            rapporteraFel(fel, { yta: "OpsTalk", steg: "stoppa-text" });
+            return "";
+          });
+        Promise.all([insp().stoppa().finally(frigor), texten])
+          .then(([ljud, hord]) => {
             if (mitt !== forsok.current || !monterad.current) return;
+            const post = { ...ljud, ...(hord ? { text: hord } : {}) };
+            setText(hord);
             senast.current = post;
             setKanIgen(true);
             return lamna(post);
@@ -246,7 +290,10 @@ export function useTalk({ onTalk, onKlick, inspelare, maxSekunder = MAX_SEKUNDER
       forsok.current += 1;
       rensa();
       rensaTak();
-      if (lageRef.current.lage === "haller" || lageRef.current.lage === "lyssnar") inspRef.current?.kasta();
+      if (lageRef.current.lage === "haller" || lageRef.current.lage === "lyssnar") {
+        inspRef.current?.kasta();
+        igkRef.current?.kasta();
+      }
       frigor();
     };
   }, []);
@@ -306,6 +353,7 @@ export function useTalk({ onTalk, onKlick, inspelare, maxSekunder = MAX_SEKUNDER
     tak: maxSekunder,
     framsteg,
     kanIgen,
+    text,
   };
 }
 
@@ -355,7 +403,7 @@ const SEKUNDAR = "inline-flex size-11 shrink-0 cursor-pointer items-center justi
 const TEXTKNAPP = "inline-flex min-h-11 shrink-0 cursor-pointer items-center justify-center rounded-full px-4 text-meta font-medium text-danger hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
 const KUGG = "inline-flex size-12 shrink-0 cursor-pointer items-center justify-center rounded-full bg-sunken text-ink hover:bg-accent-faint focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
 
-const INSPELNING_PROPS = ["lage", "fel", "niva", "sekunder", "tak", "framsteg", "kanIgen", "onKlar", "onAvbryt", "onIgen", "onStart", "onTillatMikrofon", "onInstallningar", "marke", "mal", "valt", "onValj"];
+const INSPELNING_PROPS = ["lage", "fel", "niva", "sekunder", "tak", "framsteg", "kanIgen", "text", "onKlar", "onAvbryt", "onIgen", "onStart", "onTillatMikrofon", "onInstallningar", "marke", "mal", "valt", "onValj"];
 
 /**
  * Den enda inspelaren. TALK-fältet och Biblioteket bäddar in den, och plusset använder samma.
@@ -378,6 +426,7 @@ const INSPELNING_PROPS = ["lage", "fel", "niva", "sekunder", "tak", "framsteg", 
  * @param {number} props.tak
  * @param {number | null} props.framsteg
  * @param {boolean} props.kanIgen
+ * @param {string} [props.text] (0.96.0) Det som hörts. Visas medan man pratar och medan det sparas.
  * @param {() => void} props.onKlar
  * @param {() => void} props.onAvbryt
  * @param {() => void} props.onIgen
@@ -394,7 +443,7 @@ export function OpsInspelning(props) {
   if (okanda.length > 0) {
     throw new Error(`OpsInspelning: okända props ${okanda.join(", ")}. Tillåtna: ${INSPELNING_PROPS.join(", ")}.`);
   }
-  const { lage, fel, niva, sekunder, tak, framsteg, kanIgen, onKlar, onAvbryt, onIgen, onStart, onTillatMikrofon, onInstallningar, marke, mal = [], valt = null, onValj } = props;
+  const { lage, fel, niva, sekunder, tak, framsteg, kanIgen, text = "", onKlar, onAvbryt, onIgen, onStart, onTillatMikrofon, onInstallningar, marke, mal = [], valt = null, onValj } = props;
   const [fragar, setFragar] = useState(false);
   const fortsatt = useRef(/** @type {HTMLButtonElement | null} */ (null));
   const lyssnar = lage === "haller" || lage === "lyssnar";
@@ -457,6 +506,11 @@ export function OpsInspelning(props) {
             </button>
           ) : null}
         </div>
+      ) : null}
+      {(lyssnar || lage === "skickar") && text ? (
+        <p data-talk-text="" aria-live="polite" className="m-0 max-h-32 overflow-y-auto text-meta text-ink [overflow-wrap:anywhere]">
+          {text}
+        </p>
       ) : null}
       {lage === "skickar" ? (
         <div className="flex min-w-0 flex-col gap-2">
@@ -537,6 +591,7 @@ export function OpsInspelning(props) {
  *   tak?: number,
  *   framsteg?: number | null,
  *   kanIgen?: boolean,
+ *   text?: string,
  *   onSkicka: () => void,
  *   onAvbryt: () => void,
  *   onIgen?: () => void,
@@ -548,7 +603,7 @@ export function OpsInspelning(props) {
  *   onValj?: (id: string) => void,
  * }} props
  */
-export function OpsTalk({ lage, fel, niva, sekunder = 0, tak = MAX_SEKUNDER, framsteg = null, kanIgen = false, onSkicka, onAvbryt, onIgen = () => {}, onTillatMikrofon, onInstallningar, marke, mal = [], valt = null, onValj }) {
+export function OpsTalk({ lage, fel, niva, sekunder = 0, tak = MAX_SEKUNDER, framsteg = null, kanIgen = false, text = "", onSkicka, onAvbryt, onIgen = () => {}, onTillatMikrofon, onInstallningar, marke, mal = [], valt = null, onValj }) {
   if (lage === "vila" || lage === "trycker") return null;
   return (
     <div
@@ -567,6 +622,7 @@ export function OpsTalk({ lage, fel, niva, sekunder = 0, tak = MAX_SEKUNDER, fra
           tak={tak}
           framsteg={framsteg}
           kanIgen={kanIgen}
+          text={text}
           onKlar={onSkicka}
           onAvbryt={onAvbryt}
           onIgen={onIgen}

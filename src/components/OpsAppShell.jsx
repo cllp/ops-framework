@@ -846,7 +846,7 @@ export function useOppnaHandelse() {
  *   Utan `skapa`, eller utan NÅGOT den kan visa (inga `handelse`/`arende` OCH modulerna i `ingenGrupp`/`tomt`-
  *   läge), ritas inget plus alls (tomhet är ett svar, arbetsreglernas punkt 5).
  * @param {string} [props.skapaLabel] Skärmläsarnamn på plusknappen.
- * @param {Omit<import("./OpsTalk.jsx").TalkVal, "onTalk"> & { mal?: ReadonlyArray<{ id: string, etikett: string }>, onTalk: (blob: Blob, meta: { mimeType: string, sekunder: number, rapportera: (andel: number) => void, mal?: { id: string } }) => Promise<void> | void }} [props.talk] TALK (0.57.0, cllp/lifehub.app#2): långtryck på bottenradens plus
+ * @param {Omit<import("./OpsTalk.jsx").TalkVal, "onTalk"> & { mal?: ReadonlyArray<{ id: string, etikett: string }>, onTalk: (blob: Blob, meta: { mimeType: string, sekunder: number, rapportera: (andel: number) => void, mal?: { id: string }, text?: string }) => Promise<void> | void }} [props.talk] TALK (0.57.0, cllp/lifehub.app#2): långtryck på bottenradens plus
  *   spelar in, och Skapa får raden "TALK, prata in" först. Ljudet lämnas till `talk.onTalk`. När ett mål är valt
  *   bär `meta.mal` dess id. `mal` är appens egna mål (händelse, meddelande). Modulernas mål på platsen
  *   `inspelning.mal` läggs till, och de sparas av modulens `spara`, inte av `onTalk`. ⛔ Utan `talk` finns varken
@@ -1588,6 +1588,7 @@ function OpsAppShellRitad({
     },
     onKlick: () => (harFasta ? setSkapaBottenOppen(true) : primaryAction?.onClick()),
     inspelare: talk?.inspelare,
+    igenkanning: talk?.igenkanning,
     // ⛔ TAKET ÄR MÅLETS (0.93.0). Ett mål ur en modul kan bära `maxSekunder` (Bibliotekets idé: `IDE_MAX_SEKUNDER`, 10 minuter).
     // Utan det, och för appens egna mål, gäller TALK:s 120 sekunder. Förut anropades kroken utan tak alls, så ingen modul kunde få mer.
     maxSekunder: valtMal?.maxSekunder,
@@ -2418,6 +2419,7 @@ function OpsAppShellRitad({
           tak={talkStyr.tak}
           framsteg={talkStyr.framsteg}
           kanIgen={talkStyr.kanIgen}
+          text={talkStyr.text}
           onSkicka={talkStyr.skickaIn}
           onAvbryt={talkStyr.avbryt}
           onIgen={talkStyr.igen}
