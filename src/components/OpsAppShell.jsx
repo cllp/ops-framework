@@ -13,7 +13,7 @@ import { Counter } from "./counter.jsx";
 import { ArendePlusIkon, ChevronNedIkon, HandelsePlusIkon, KryssIkon, MeddelandeIkon, MenuIcon, MikrofonIkon, PlusIkon, GruppIkon } from "./icons.jsx";
 import { OpsTalk, useTalk } from "./OpsTalk.jsx";
 import { OpsTooltip } from "./OpsTooltip.jsx";
-import { TALK_PRATA_IN, talkKnappNamn } from "../lib/talk.js";
+import { TALK_PRATA_IN, kontrolleraSkickarText, talkKnappNamn } from "../lib/talk.js";
 import { byggFasta, djupAktiv, validateFasta } from "./fasta.jsx";
 import { huvudknappKlass, huvudPlusKlass, radBehallare, radKlass } from "../lib/radKlass.js";
 import { rapporteraFel } from "../lib/felrapport.js";
@@ -846,12 +846,15 @@ export function useOppnaHandelse() {
  *   Utan `skapa`, eller utan NÅGOT den kan visa (inga `handelse`/`arende` OCH modulerna i `ingenGrupp`/`tomt`-
  *   läge), ritas inget plus alls (tomhet är ett svar, arbetsreglernas punkt 5).
  * @param {string} [props.skapaLabel] Skärmläsarnamn på plusknappen.
- * @param {Omit<import("./OpsTalk.jsx").TalkVal, "onTalk"> & { mal?: ReadonlyArray<{ id: string, etikett: string }>, onTalk: (blob: Blob, meta: { mimeType: string, sekunder: number, rapportera: (andel: number) => void, mal?: { id: string }, text?: string }) => Promise<void> | void }} [props.talk] TALK (0.57.0, cllp/lifehub.app#2): långtryck på bottenradens plus
+ * @param {Omit<import("./OpsTalk.jsx").TalkVal, "onTalk"> & { mal?: ReadonlyArray<{ id: string, etikett: string }>, onTalk: (blob: Blob, meta: { mimeType: string, sekunder: number, rapportera: (andel: number) => void, mal?: { id: string }, text?: string }) => Promise<void | import("../lib/talk.js").Talkkvitto> | void | import("../lib/talk.js").Talkkvitto }} [props.talk] TALK (0.57.0, cllp/lifehub.app#2): långtryck på bottenradens plus
  *   spelar in, och Skapa får raden "TALK, prata in" först. Ljudet lämnas till `talk.onTalk`. När ett mål är valt
  *   bär `meta.mal` dess id. `mal` är appens egna mål (händelse, meddelande). Modulernas mål på platsen
  *   `inspelning.mal` läggs till, och de sparas av modulens `spara`, inte av `onTalk`. ⛔ Utan `talk` finns varken
  *   långtrycket eller raden, om ingen modul erbjuder ett mål: en knapp som spelar in men inte har någon mottagare hade tappat det man sade. (#276) På dator
  *   får huvudet också en mikrofonknapp bredvid plusset, som gör det raden gör.
+ *   (0.97.0, lifehub.app#219) `onTalk` får lösa till `{ kvitto, angra? }`: fältet visar då kvittot med Ångra och Stäng i stället
+ *   för Sparat. `talk.skickarText` är statusraden medan `onTalk` arbetar (förval "Sparar…"). ⛔ Den gäller bara appens mål:
+ *   när ett moduls mål är valt (Biblioteket) är det modulens `spara` som arbetar, och där står förvalet.
  * @param {string} [props.closeLabel] Skärmläsarnamn på stängknappen i bottenradens skapa-ark (bara med `fasta`).
  * @param {string} [props.nyHandelseEtikett] Ramverkets rad för `skapa.handelse`.
  * @param {string} [props.nyttArendeEtikett] Ramverkets rad för `skapa.arende`.
@@ -925,6 +928,7 @@ function OpsAppShellRitad({
   if (talk !== undefined && (!talk || typeof talk.onTalk !== "function")) {
     throw new Error("OpsAppShell: \"talk\" måste ha onTalk (funktion). Utan mottagare hade det man sade försvunnit tyst.");
   }
+  if (talk) kontrolleraSkickarText(talk.skickarText, "OpsAppShell talk");
   if (skapa) {
     const gammalInspelning = /** @type {{ spelaIn?: unknown, ideInspelare?: unknown }} */ (skapa);
     if (typeof gammalInspelning.spelaIn === "function" || gammalInspelning.ideInspelare !== undefined) {
@@ -1589,6 +1593,8 @@ function OpsAppShellRitad({
     onKlick: () => (harFasta ? setSkapaBottenOppen(true) : primaryAction?.onClick()),
     inspelare: talk?.inspelare,
     igenkanning: talk?.igenkanning,
+    // ⛔ "Agenten arbetar…" när inspelningen går till Biblioteket hade varit osant: där är det modulens `spara` som arbetar.
+    skickarText: valtMal?.spara ? undefined : talk?.skickarText,
     // ⛔ TAKET ÄR MÅLETS (0.93.0). Ett mål ur en modul kan bära `maxSekunder` (Bibliotekets idé: `IDE_MAX_SEKUNDER`, 10 minuter).
     // Utan det, och för appens egna mål, gäller TALK:s 120 sekunder. Förut anropades kroken utan tak alls, så ingen modul kunde få mer.
     maxSekunder: valtMal?.maxSekunder,
@@ -2420,6 +2426,10 @@ function OpsAppShellRitad({
           framsteg={talkStyr.framsteg}
           kanIgen={talkStyr.kanIgen}
           text={talkStyr.text}
+          medText={talkStyr.medText}
+          skickarText={talkStyr.skickarText}
+          kvitto={talkStyr.kvitto}
+          onAngra={talkStyr.angra}
           onSkicka={talkStyr.skickaIn}
           onAvbryt={talkStyr.avbryt}
           onIgen={talkStyr.igen}

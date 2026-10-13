@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { AVBRYT_FRAGA_SEKUNDER, LANGTRYCK_MS, MAX_SEKUNDER, SPARAT_MS, igenkanningensSprak, kanBeOmMikrofon, talkFeltext, talkNasta, webblasarensIgenkanning, webblasarensInspelare } from "../lib/talk.js";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { AVBRYT_FRAGA_SEKUNDER, LANGTRYCK_MS, MAX_SEKUNDER, SPARAT_MS, TALK_PLATSTEXT, TALK_SKICKAR_TEXT, igenkanningensSprak, kanBeOmMikrofon, kontrolleraSkickarText, talkFeltext, talkKvitto, talkNasta, webblasarensIgenkanning, webblasarensInspelare } from "../lib/talk.js";
 import { useOpsSprak } from "./OpsSprak.jsx";
 import { formateraTid } from "../lib/ljudspelare.js";
 import { rapporteraFel } from "../lib/felrapport.js";
-import { KryssIkon, KugghjulIkon, MikrofonIkon, StoppIkon } from "./icons.jsx";
+import { BockIkon, KryssIkon, KugghjulIkon, MikrofonIkon, StoppIkon } from "./icons.jsx";
 import { OpsSpinner } from "./OpsSpinner.jsx";
 
 /**
@@ -13,8 +13,12 @@ import { OpsSpinner } from "./OpsSpinner.jsx";
 
 /**
  * @typedef {object} TalkVal
- * @property {(blob: Blob, meta: { mimeType: string, sekunder: number, rapportera: (andel: number) => void, text?: string }) => Promise<void> | void} onTalk Appens mottagare.
+ * @property {(blob: Blob, meta: { mimeType: string, sekunder: number, rapportera: (andel: number) => void, text?: string }) => Promise<void | import("../lib/talk.js").Talkkvitto> | void | import("../lib/talk.js").Talkkvitto} onTalk Appens mottagare.
  *   `text` (0.96.0) är det webbläsarens taligenkänning hörde, och finns bara när den är hel. Saknas den gäller ljudet.
+ *   (0.97.0, lifehub.app#219) Löser den till `{ kvitto, angra? }` visar fältet kvittot, med Ångra när `angra` finns och Stäng,
+ *   och döljs inte av sig självt. Ångra anropar `angra()`: lyckas den står "Ångrat" och fältet döljs, faller den står felet kvar.
+ *   Allt annat (ingenting, ett id) är Sparat som förut. Ett kvitto utan text, eller en `angra` som inte är en funktion, rapporteras
+ *   som fel och fältet säger Sparat, eftersom det appen gjorde redan är gjort.
  *   ⛔ Kastar den eller avvisar löftet visas felet i fältet, med Försök igen. Ett ljud som tyst försvann hade sett ut som ett skickat.
  *   `rapportera` tar 0 till 1, samma kvot som `bytesTransferred / totalBytes` i `uploadBytesResumable`. Utan anrop visas en snurra.
  * @property {() => void} [onInstallningar] Kugghjulet i fältet. Utan den ritas inget kugghjul.
@@ -23,6 +27,8 @@ import { OpsSpinner } from "./OpsSpinner.jsx";
  * @property {import("../lib/talk.js").Igenkanning | boolean} [igenkanning] (0.96.0) Text medan man pratar. ⛔ AV SOM FÖRVAL
  *   (granskningen av PR 358, MÅSTE 3): webbläsaren skickar då talet till Googles eller Apples taltjänst, och det är appens val.
  *   `true` slår på webbläsarens taligenkänning när den finns. Utan den lämnas bara ljudet, som före 0.96.0.
+ * @property {string} [skickarText] (0.97.0) Statusraden medan det inspelade lämnas till appen. Förval `TALK_SKICKAR_TEXT`
+ *   ("Sparar…"). lifehub.app skickar "Agenten arbetar…". En tom sträng eller något annat än en sträng kastar.
  * @property {number} [maxSekunder] Tak i sekunder. Förval `MAX_SEKUNDER` (120), så TALK inte ändras. Bibliotekets idé använder 600.
  * @property {ReadonlyArray<{ id: string, etikett: string }>} [mal] Appens egna mål i fältet. Modulernas mål läggs till av skalet.
  */
@@ -42,10 +48,11 @@ export const TALK_UPPTAGEN = "En annan inspelning pågår redan. Avsluta den fö
 /**
  * @param {TalkVal & { onKlick: () => void }} val `onKlick` är det ett vanligt tryck gör, Skapa.
  */
-export function useTalk({ onTalk, onKlick, inspelare, igenkanning, maxSekunder = MAX_SEKUNDER }) {
+export function useTalk({ onTalk, onKlick, inspelare, igenkanning, skickarText, maxSekunder = MAX_SEKUNDER }) {
   if (!Number.isInteger(maxSekunder) || maxSekunder < 1) {
     throw new Error(`useTalk: maxSekunder ska vara ett positivt heltal, fick ${String(maxSekunder)}. Ett tyst tak hade antingen klippt direkt eller spelat in utan slut.`);
   }
+  kontrolleraSkickarText(skickarText, "useTalk");
   const [tillstand, setTillstand] = useState(/** @type {{ lage: import("../lib/talk.js").Talklage, fel?: string }} */ ({ lage: "vila" }));
   const lageRef = useRef(tillstand);
   lageRef.current = tillstand;
@@ -83,6 +90,19 @@ export function useTalk({ onTalk, onKlick, inspelare, igenkanning, maxSekunder =
   };
   /** Det som hörts hittills i det pågående försöket, för fältet. */
   const [text, setText] = useState("");
+  /**
+   * ⛔ KVITTOT (0.97.0, lifehub.app#219). Finns bara i läget sparat, och nollas av varje händelse som lämnar det: Stäng, en ny
+   * inspelning, ett långtryck. `angraForsok` räknas upp samtidigt, så att en Ångra som svarar efter att kvittot försvunnit
+   * inte sätter något. Refen speglar staten, så att ett andra tryck i samma ögonblick ser att Ångra redan pågår.
+   * @typedef {{ text: string, angra: (() => Promise<void>) | null, status: "visas" | "angrar" | "angrat", fel?: string }} Kvittolage
+   */
+  const [kvitto, setKvittoState] = useState(/** @type {Kvittolage | null} */ (null));
+  const kvittoRef = useRef(/** @type {Kvittolage | null} */ (null));
+  const angraForsok = useRef(0);
+  const setKvitto = (/** @type {Kvittolage | null} */ k) => {
+    kvittoRef.current = k;
+    setKvittoState(k);
+  };
   const kastaText = () => {
     try {
       igk()?.kasta();
@@ -127,6 +147,10 @@ export function useTalk({ onTalk, onKlick, inspelare, igenkanning, maxSekunder =
       const nasta = talkNasta(lageRef.current, h);
       lageRef.current = nasta;
       setTillstand({ lage: nasta.lage, ...(nasta.fel ? { fel: nasta.fel } : {}) });
+      if (nasta.lage !== "sparat" && kvittoRef.current) {
+        angraForsok.current += 1;
+        setKvitto(null);
+      }
       if (nasta.gor === "klick") onKlick();
       if (nasta.gor === "kasta") {
         forsok.current += 1;
@@ -208,10 +232,23 @@ export function useTalk({ onTalk, onKlick, inspelare, igenkanning, maxSekunder =
         };
         return Promise.resolve()
           .then(() => onTalk(post.blob, { mimeType: post.mimeType, sekunder: post.sekunder, rapportera, ...(post.text ? { text: post.text } : {}) }))
-          .then(() => {
+          .then((svar) => {
             if (!monterad.current) return;
             senast.current = null;
             setKanIgen(false);
+            /** @type {{ text: string, angra: (() => Promise<void>) | null } | null} */
+            let k = null;
+            try {
+              k = talkKvitto(svar);
+            } catch (fel) {
+              // ⛔ INTE FÖRSÖK IGEN. Appen har redan gjort det den skulle, och ett nytt försök hade gjort det två gånger.
+              // Felet är appens och går till felrapporten. Personen får det som är sant: att det sparades.
+              rapporteraFel(fel, { yta: "OpsTalk", steg: "kvitto" });
+            }
+            if (k) {
+              angraForsok.current += 1;
+              setKvitto({ ...k, status: "visas" });
+            }
             skicka({ typ: "klar" });
           })
           .catch((fel) => {
@@ -277,11 +314,39 @@ export function useTalk({ onTalk, onKlick, inspelare, igenkanning, maxSekunder =
     // `planeraTak` läser bara refar, så den behöver inte stå här. Ändringen av taket är det som ska köra den.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [maxSekunder]);
+  // ⛔ ETT KVITTO DÖLJS INTE AV SIG SJÄLVT (0.97.0). Det är där personen ser vad som gjordes, och Ångra får inte försvinna
+  // medan hen läser. Bara Sparat utan kvitto, och Ångrat, står en kort stund.
+  const kvittoStatus = kvitto ? kvitto.status : null;
   useEffect(() => {
     if (tillstand.lage !== "sparat") return undefined;
+    if (kvittoStatus && kvittoStatus !== "angrat") return undefined;
     const id = setTimeout(() => skickaRef.current({ typ: "dolj" }), SPARAT_MS);
     return () => clearTimeout(id);
-  }, [tillstand.lage]);
+  }, [tillstand.lage, kvittoStatus]);
+
+  /**
+   * Ångra på kvittot. ⛔ ETT TRYCK I TAGET: ett andra tryck medan den pågår gör ingenting, annars hade appen ombetts ta bort
+   * samma sak två gånger. Faller den står felet kvar och Ångra går att trycka igen.
+   */
+  const angra = () => {
+    const k = kvittoRef.current;
+    if (!k || !k.angra || k.status !== "visas" || lageRef.current.lage !== "sparat") return;
+    angraForsok.current += 1;
+    const mitt = angraForsok.current;
+    const gor = k.angra;
+    setKvitto({ text: k.text, angra: gor, status: "angrar" });
+    Promise.resolve()
+      .then(() => gor())
+      .then(() => {
+        if (mitt !== angraForsok.current || !monterad.current) return;
+        setKvitto({ text: k.text, angra: gor, status: "angrat" });
+      })
+      .catch((fel) => {
+        if (mitt !== angraForsok.current || !monterad.current) return;
+        rapporteraFel(fel, { yta: "OpsTalk", steg: "angra" });
+        setKvitto({ text: k.text, angra: gor, status: "visas", fel: fel instanceof Error && fel.message ? fel.message : "Det gick inte att ångra." });
+      });
+  };
 
   useEffect(() => {
     monterad.current = true;
@@ -354,6 +419,12 @@ export function useTalk({ onTalk, onKlick, inspelare, igenkanning, maxSekunder =
     framsteg,
     kanIgen,
     text,
+    /** (0.97.0) Om texten kan komma alls: igenkänningen är påslagen och finns i webbläsaren. Fältet ritar då textytan. */
+    medText: igk() !== null,
+    skickarText: skickarText ?? TALK_SKICKAR_TEXT,
+    /** (0.97.0) Kvittot i läget sparat, eller `null`. */
+    kvitto: kvitto ? { text: kvitto.text, kanAngra: Boolean(kvitto.angra), angrar: kvitto.status === "angrar", angrat: kvitto.status === "angrat", ...(kvitto.fel ? { fel: kvitto.fel } : {}) } : null,
+    angra,
   };
 }
 
@@ -397,13 +468,45 @@ export function TalkPrickar({ niva, lyssnar, skickar = false }) {
   );
 }
 
-const PRIMAR = "inline-flex min-h-11 min-w-11 flex-1 cursor-pointer items-center justify-center gap-2 rounded-full bg-accent px-4 text-meta font-medium text-accent-contrast hover:bg-accent-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-default disabled:opacity-50";
-const VAL = "inline-flex min-h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-full bg-sunken px-4 text-meta font-medium text-ink hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
-const SEKUNDAR = "inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full bg-sunken text-ink hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
-const TEXTKNAPP = "inline-flex min-h-11 shrink-0 cursor-pointer items-center justify-center rounded-full px-4 text-meta font-medium text-danger hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
-const KUGG = "inline-flex size-12 shrink-0 cursor-pointer items-center justify-center rounded-full bg-sunken text-ink hover:bg-accent-faint focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
+/*
+ * ══ ⛔ FÄLTETS FORM (0.97.0, lifehub.app#219) ═════════════════════════════════════════════════════════════════════════
+ *
+ * CP 2026-10-13, i Chrome på iPhone: "knapparna är asfula", "jättekonstigt", och "Kanske texten ska vara lite större som visar
+ * vad man pratar in?". Före 0.97.0 stod målvalet som två fullbreddsknappar i guld och sand ovanför Klar, så att det valda
+ * målet såg ut precis som Klar, och texten man pratade in var 12 px (`text-meta`), mindre än knapparna under den.
+ *
+ * Hierarkin nu, uppifrån:
+ *   1. En lugn rad med prickarna och tiden, dämpad (`text-ink-muted`). Den säger att det spelar in, mer behövs inte.
+ *   2. Texten man pratar in, i brödtextens storlek (`text-brod`, 16 px). Den är fältets huvudsak. Ytan har en fast minsta
+ *      höjd på tre rader så att fältet inte hoppar när orden kommer, och den rullar inuti när texten blir lång.
+ *   3. Målvalet, när appen gett flera mål: en segmenterad rad med lika breda delar och en liten etikett, aldrig staplade knappar.
+ *   4. En knapprad: X (rund, sekundär) till vänster och den primära knappen som fyller resten. Samma höjd, samma rundning.
+ *
+ * ⛔ SEKUNDÄR ÄR `bg-hover`, INTE `bg-sunken`. I ljust läge är `sunken` (#FBF9F4) nästan samma färg som fältets `raised`
+ * (#fefcf6), och krysset syntes då bara som en ikon som flöt i luften.
+ */
 
-const INSPELNING_PROPS = ["lage", "fel", "niva", "sekunder", "tak", "framsteg", "kanIgen", "text", "onKlar", "onAvbryt", "onIgen", "onStart", "onTillatMikrofon", "onInstallningar", "marke", "mal", "valt", "onValj"];
+/** Primär knapp i fältets knapprad: fyller resten av raden. */
+const PRIMAR = "inline-flex min-h-12 min-w-12 flex-1 cursor-pointer items-center justify-center gap-2 rounded-full bg-accent px-5 text-etikett font-medium text-accent-contrast hover:bg-accent-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-default disabled:opacity-60";
+/** Sekundär knapp med ord, samma höjd och rundning som den primära. */
+const SEKUNDAR_ORD = "inline-flex min-h-12 min-w-12 flex-1 cursor-pointer items-center justify-center gap-2 rounded-full bg-hover px-5 text-etikett font-medium text-ink hover:bg-line focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-default disabled:opacity-60";
+/** Det runda krysset till vänster i knappraden. */
+const SEKUNDAR = "inline-flex size-12 shrink-0 cursor-pointer items-center justify-center rounded-full bg-hover text-ink hover:bg-line focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
+/** Kugghjulet i den övre raden: lika lugnt som tiden bredvid. */
+const KUGG = "inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full text-ink-muted hover:bg-hover hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
+/** Textytan: brödtext, tre rader minst, rullar inuti. */
+const TEXTYTA = "m-0 min-h-18 max-h-36 overflow-y-auto text-brod [overflow-wrap:anywhere]";
+
+const INSPELNING_PROPS = ["lage", "fel", "niva", "sekunder", "tak", "framsteg", "kanIgen", "text", "medText", "skickarText", "kvitto", "onAngra", "onKlar", "onAvbryt", "onIgen", "onStart", "onTillatMikrofon", "onInstallningar", "marke", "mal", "valt", "onValj"];
+
+/**
+ * @typedef {object} TalkKvittoVy Kvittot som fältet ritar (0.97.0). Kommer ur `useTalk().kvitto`.
+ * @property {string} text
+ * @property {boolean} kanAngra
+ * @property {boolean} angrar Ångra pågår: knappen snurrar och går inte att trycka.
+ * @property {boolean} angrat Ångra lyckades: fältet säger Ångrat och döljs.
+ * @property {string} [fel] Ångra föll. Står kvar med `role="alert"`.
+ */
 
 /**
  * Den enda inspelaren. TALK-fältet och Biblioteket bäddar in den, och plusset använder samma.
@@ -418,6 +521,9 @@ const INSPELNING_PROPS = ["lage", "fel", "niva", "sekunder", "tak", "framsteg", 
  * ⛔ MÅLEN ÄR EN LISTA, INTE ETT NAMN PÅ EN MODUL. `mal` är `{ id, etikett }`. Vem som äger ett mål vet anroparen.
  * Biblioteket syns här bara om någon skickat in etiketten.
  *
+ * ⛔ KVITTOT (0.97.0). Med `kvitto` säger fältet vad appen gjorde, med Ångra (sekundär) och Stäng (primär), tills
+ * personen stänger det. Formen står i filhuvudet ovanför `PRIMAR`.
+ *
  * @param {object} props
  * @param {import("../lib/talk.js").Talklage} props.lage
  * @param {string} [props.fel]
@@ -427,6 +533,11 @@ const INSPELNING_PROPS = ["lage", "fel", "niva", "sekunder", "tak", "framsteg", 
  * @param {number | null} props.framsteg
  * @param {boolean} props.kanIgen
  * @param {string} [props.text] (0.96.0) Det som hörts. Visas medan man pratar och medan det sparas.
+ * @param {boolean} [props.medText] (0.97.0) Text kan komma (`useTalk().medText`). Då ritas textytan med sin fasta höjd, och
+ *   platstexten `TALK_PLATSTEXT` står i den tills något hörts. Utan den ritas ytan bara när det finns text.
+ * @param {string} [props.skickarText] (0.97.0) Statusraden medan det sparas. Förval `TALK_SKICKAR_TEXT`.
+ * @param {TalkKvittoVy | null} [props.kvitto] (0.97.0) Kvittot i läget sparat.
+ * @param {() => void} [props.onAngra] (0.97.0) Ångra på kvittot.
  * @param {() => void} props.onKlar
  * @param {() => void} props.onAvbryt
  * @param {() => void} props.onIgen
@@ -443,9 +554,10 @@ export function OpsInspelning(props) {
   if (okanda.length > 0) {
     throw new Error(`OpsInspelning: okända props ${okanda.join(", ")}. Tillåtna: ${INSPELNING_PROPS.join(", ")}.`);
   }
-  const { lage, fel, niva, sekunder, tak, framsteg, kanIgen, text = "", onKlar, onAvbryt, onIgen, onStart, onTillatMikrofon, onInstallningar, marke, mal = [], valt = null, onValj } = props;
+  const { lage, fel, niva, sekunder, tak, framsteg, kanIgen, text = "", medText = false, skickarText = TALK_SKICKAR_TEXT, kvitto = null, onAngra, onKlar, onAvbryt, onIgen, onStart, onTillatMikrofon, onInstallningar, marke, mal = [], valt = null, onValj } = props;
   const [fragar, setFragar] = useState(false);
   const fortsatt = useRef(/** @type {HTMLButtonElement | null} */ (null));
+  const malEtikett = useId();
   const lyssnar = lage === "haller" || lage === "lyssnar";
 
   useEffect(() => {
@@ -479,97 +591,146 @@ export function OpsInspelning(props) {
 
   if (fragar && lyssnar) {
     return (
-      <div data-ops-inspelning="" data-inspelning="fraga" className="flex w-full min-w-0 flex-col gap-2">
-        <p className="m-0 text-meta text-ink">Kasta den här inspelningen?</p>
-        <div className="flex items-center gap-2">
+      <div data-ops-inspelning="" data-inspelning="fraga" className="flex w-full min-w-0 flex-col gap-4">
+        <p className="m-0 text-brod text-ink">Kasta den här inspelningen?</p>
+        <div className="flex items-center gap-3">
+          <button type="button" onClick={() => { setFragar(false); onAvbryt(); }} className={`${SEKUNDAR_ORD} text-danger`}>Kasta</button>
           <button ref={fortsatt} type="button" onClick={() => setFragar(false)} className={PRIMAR}>Fortsätt</button>
-          <button type="button" onClick={() => { setFragar(false); onAvbryt(); }} className={TEXTKNAPP}>Kasta</button>
         </div>
       </div>
     );
   }
 
   const procent = framsteg == null ? null : Math.round(framsteg * 100);
-
   const valtId = valt ?? (mal[0] ? mal[0].id : null);
+  const visaTextyta = (lyssnar && (medText || Boolean(text))) || (lage === "skickar" && Boolean(text));
+  const kanTillatMikrofon = !kanIgen && kanBeOmMikrofon(fel) && typeof (onTillatMikrofon || onStart) === "function";
 
   return (
-    <div data-ops-inspelning="" data-inspelning={lage} className="flex w-full min-w-0 flex-col gap-2">
-      {lyssnar ? (
-        <div className="flex min-w-0 items-center gap-2">
-          {marke ? <span aria-hidden="true" className="flex size-9 shrink-0 items-center justify-center">{marke}</span> : null}
-          <TalkPrickar niva={niva} lyssnar />
-          <span data-inspelning-tid="" className="shrink-0 text-meta font-medium text-ink tabular-nums">{formateraTid(sekunder)} / {formateraTid(tak)}</span>
-          {onInstallningar ? (
-            <button type="button" aria-label="Inställningar för TALK" onClick={onInstallningar} className={KUGG}>
-              <KugghjulIkon />
+    <div data-ops-inspelning="" data-inspelning={lage} className="flex w-full min-w-0 flex-col gap-3">
+      {/* ⛔ RADEN STÅR KVAR MEDAN DET SKICKAS, med stilla och dämpade prickar. Utan den flyttade texten upp en rad i samma
+          ögonblick som man tryckte Klar, och det såg ut som att något annat än texten hade hänt. */}
+      {lyssnar || lage === "skickar" ? (
+        <div className="flex min-h-11 min-w-0 items-center gap-2">
+          {marke ? <span aria-hidden="true" className="flex size-7 shrink-0 items-center justify-center">{marke}</span> : null}
+          <TalkPrickar niva={niva} lyssnar={lyssnar} skickar={!lyssnar} />
+          <span data-inspelning-tid="" className="shrink-0 text-meta text-ink-muted tabular-nums">{formateraTid(sekunder)} / {formateraTid(tak)}</span>
+          {onInstallningar && lyssnar ? (
+            <button type="button" aria-label="Inställningar för TALK" onClick={onInstallningar} className={`${KUGG} -my-1 -mr-1`}>
+              <KugghjulIkon size={18} />
             </button>
           ) : null}
+          {/* Kugghjulets plats står kvar medan det skickas, så att tiden inte flyttar sig. */}
+          {onInstallningar && !lyssnar ? <span aria-hidden="true" className="-my-1 -mr-1 size-11 shrink-0" /> : null}
         </div>
       ) : null}
-      {(lyssnar || lage === "skickar") && text ? (
-        <p data-talk-text="" aria-live="polite" className="m-0 max-h-32 overflow-y-auto text-meta text-ink [overflow-wrap:anywhere]">
-          {text}
-        </p>
+      {visaTextyta ? (
+        text ? (
+          <p data-talk-text="" aria-live="polite" className={`${TEXTYTA} text-ink`}>
+            {text}
+          </p>
+        ) : (
+          <p data-talk-platstext="" className={`${TEXTYTA} text-ink-muted`}>
+            {TALK_PLATSTEXT}
+          </p>
+        )
       ) : null}
       {lage === "skickar" ? (
         <div className="flex min-w-0 flex-col gap-2">
-          <p role="status" className="m-0 flex items-center gap-2 text-meta font-medium text-ink">
+          <p role="status" className="m-0 flex min-h-12 items-center gap-2 text-etikett text-ink-secondary">
             {procent == null ? <OpsSpinner size="sm" decorative /> : null}
-            {procent == null ? "Sparar…" : `Sparar… ${procent} %`}
+            {procent == null ? skickarText : `${skickarText} ${procent} %`}
           </p>
           {procent != null ? (
-            <div role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={procent} aria-label="Sparar" className="h-1.5 w-full overflow-hidden rounded-full bg-line">
+            <div role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={procent} aria-label={skickarText} className="h-1.5 w-full overflow-hidden rounded-full bg-line">
               <div className="h-full bg-accent" style={{ width: `${procent}%` }} />
             </div>
           ) : null}
         </div>
       ) : null}
-      {lage === "sparat" ? <p role="status" className="m-0 text-meta font-medium text-ink">Sparat</p> : null}
+      {lage === "sparat" && !kvitto ? (
+        <p role="status" className="m-0 flex min-h-12 items-center gap-2 text-etikett font-medium text-ink">
+          <span aria-hidden="true" className="flex size-7 shrink-0 items-center justify-center rounded-full bg-accent-subtle text-accent"><BockIkon size={14} /></span>
+          Sparat
+        </p>
+      ) : null}
+      {lage === "sparat" && kvitto ? (
+        <>
+          <p role="status" data-talk-kvitto="" className="m-0 flex items-start gap-3 text-brod text-ink [overflow-wrap:anywhere]">
+            <span aria-hidden="true" className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-accent-subtle text-accent"><BockIkon size={14} /></span>
+            <span className="min-w-0">{kvitto.angrat ? "Ångrat" : kvitto.text}</span>
+          </p>
+          {kvitto.fel ? <p role="alert" data-talk-fel="" className="m-0 text-etikett text-danger">{kvitto.fel}</p> : null}
+          {!kvitto.angrat ? (
+            <div className="flex items-center gap-3">
+              {kvitto.kanAngra ? (
+                <button type="button" data-talk-angra="" disabled={kvitto.angrar} aria-busy={kvitto.angrar || undefined} onClick={onAngra} className={SEKUNDAR_ORD}>
+                  {kvitto.angrar ? <OpsSpinner size="sm" decorative /> : null}
+                  {kvitto.angrar ? "Ångrar…" : "Ångra"}
+                </button>
+              ) : null}
+              <button type="button" data-talk-stang="" onClick={onAvbryt} className={PRIMAR}>Stäng</button>
+            </div>
+          ) : null}
+        </>
+      ) : null}
       {lage === "fel" ? (
-        <div className="flex min-w-0 flex-col gap-2">
-          <p role="alert" data-talk-fel="" className="m-0 text-meta text-danger">{fel || "Något gick fel."}</p>
-          <div className="flex flex-wrap items-center gap-2">
+        <div className="flex min-w-0 flex-col gap-3">
+          <p role="alert" data-talk-fel="" className="m-0 text-etikett text-danger">{fel || "Något gick fel."}</p>
+          <div className="flex items-center gap-3">
+            {kanIgen || kanTillatMikrofon ? (
+              <button type="button" aria-label="Avbryt" data-talk-avbryt="" onClick={onAvbryt} className={SEKUNDAR}>
+                <KryssIkon size={18} />
+              </button>
+            ) : null}
             {kanIgen ? (
               <button type="button" onClick={onIgen} className={PRIMAR}>Försök igen</button>
             ) : null}
-            {!kanIgen && kanBeOmMikrofon(fel) && typeof (onTillatMikrofon || onStart) === "function" ? (
+            {kanTillatMikrofon ? (
               <button type="button" data-talk-mikrofon="" onClick={onTillatMikrofon || onStart} className={PRIMAR}>
                 <MikrofonIkon size={18} />
                 Tillåt mikrofon
               </button>
             ) : null}
-            {!kanIgen && !(kanBeOmMikrofon(fel) && typeof (onTillatMikrofon || onStart) === "function") ? (
+            {!kanIgen && !kanTillatMikrofon ? (
               <button type="button" onClick={onAvbryt} className={PRIMAR}>Stäng</button>
-            ) : null}
-            {kanIgen || (kanBeOmMikrofon(fel) && typeof (onTillatMikrofon || onStart) === "function") ? (
-              <button type="button" aria-label="Avbryt" data-talk-avbryt="" onClick={onAvbryt} className={SEKUNDAR}>
-                <KryssIkon size={18} />
-              </button>
             ) : null}
           </div>
         </div>
       ) : null}
       {lyssnar && mal.length > 0 ? (
-        <div role="radiogroup" aria-label="Vart inspelningen sparas" className="flex flex-col gap-2">
-          {mal.map((m) => {
-            const vald = m.id === valtId;
-            return (
-              <button key={m.id} type="button" role="radio" aria-checked={vald} data-inspelning-mal={m.id} onClick={() => onValj?.(m.id)} className={vald ? "inline-flex min-h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-full bg-accent px-4 text-meta font-medium text-accent-contrast hover:bg-accent-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent" : VAL}>
-                {m.etikett}
-              </button>
-            );
-          })}
+        <div className="flex min-w-0 flex-col gap-1.5">
+          <span id={malEtikett} className="text-meta text-ink-muted">Skickas till</span>
+          {/* ⛔ SPÅRET ÄR NEDSÄNKT OCH DET VALDA LYFT, i båda lägena. `bg-raised` som valt blev MÖRKARE än spåret i mörkt läge
+              (#262d26 mot #323a32), alltså omvänt. `sunken` med en hårlinje och `hover` som valt går åt rätt håll i båda. */}
+          <div role="radiogroup" aria-labelledby={malEtikett} className="flex min-w-0 gap-1 rounded-full bg-sunken p-1 ring-1 ring-line ring-inset">
+            {mal.map((m) => {
+              const vald = m.id === valtId;
+              return (
+                <button
+                  key={m.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={vald}
+                  data-inspelning-mal={m.id}
+                  onClick={() => onValj?.(m.id)}
+                  className={`inline-flex min-h-11 min-w-0 flex-1 basis-0 cursor-pointer items-center justify-center rounded-full px-2 text-center text-etikett leading-tight [overflow-wrap:anywhere] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${vald ? "bg-hover font-medium text-ink" : "text-ink-muted hover:text-ink"}`}
+                >
+                  {m.etikett}
+                </button>
+              );
+            })}
+          </div>
         </div>
       ) : null}
       {lyssnar ? (
-        <div className="flex items-center gap-2">
-          <button type="button" aria-label="Klar, spara inspelningen" data-talk-skicka="" onClick={onKlar} className={PRIMAR}>
-            <StoppIkon size={16} />
-            Klar
-          </button>
+        <div className="flex items-center gap-3">
           <button type="button" aria-label="Avbryt" data-talk-avbryt="" onClick={avbryt} className={SEKUNDAR}>
             <KryssIkon size={18} />
+          </button>
+          <button type="button" aria-label="Klar, spara inspelningen" data-talk-skicka="" onClick={onKlar} className={PRIMAR}>
+            <StoppIkon size={14} />
+            Klar
           </button>
         </div>
       ) : null}
@@ -592,6 +753,10 @@ export function OpsInspelning(props) {
  *   framsteg?: number | null,
  *   kanIgen?: boolean,
  *   text?: string,
+ *   medText?: boolean,
+ *   skickarText?: string,
+ *   kvitto?: TalkKvittoVy | null,
+ *   onAngra?: () => void,
  *   onSkicka: () => void,
  *   onAvbryt: () => void,
  *   onIgen?: () => void,
@@ -601,9 +766,9 @@ export function OpsInspelning(props) {
  *   mal?: ReadonlyArray<{ id: string, etikett: string }>,
  *   valt?: string | null,
  *   onValj?: (id: string) => void,
- * }} props
+ * }} props `medText`, `skickarText`, `kvitto` och `onAngra` (0.97.0) kommer ur `useTalk` med samma namn (`onAngra` är `angra`).
  */
-export function OpsTalk({ lage, fel, niva, sekunder = 0, tak = MAX_SEKUNDER, framsteg = null, kanIgen = false, text = "", onSkicka, onAvbryt, onIgen = () => {}, onTillatMikrofon, onInstallningar, marke, mal = [], valt = null, onValj }) {
+export function OpsTalk({ lage, fel, niva, sekunder = 0, tak = MAX_SEKUNDER, framsteg = null, kanIgen = false, text = "", medText = false, skickarText = TALK_SKICKAR_TEXT, kvitto = null, onAngra, onSkicka, onAvbryt, onIgen = () => {}, onTillatMikrofon, onInstallningar, marke, mal = [], valt = null, onValj }) {
   if (lage === "vila" || lage === "trycker") return null;
   return (
     <div
@@ -613,7 +778,7 @@ export function OpsTalk({ lage, fel, niva, sekunder = 0, tak = MAX_SEKUNDER, fra
       data-lage={lage}
       className="fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+5.5rem)] z-(--z-dropdown) mx-auto max-w-md md:bottom-6"
     >
-      <div className="rounded-2xl border border-line-strong bg-raised p-3 shadow-lg">
+      <div className="rounded-3xl border border-line-strong bg-raised p-4 shadow-lg">
         <OpsInspelning
           lage={lage}
           fel={fel}
@@ -623,6 +788,10 @@ export function OpsTalk({ lage, fel, niva, sekunder = 0, tak = MAX_SEKUNDER, fra
           framsteg={framsteg}
           kanIgen={kanIgen}
           text={text}
+          medText={medText}
+          skickarText={skickarText}
+          kvitto={kvitto}
+          onAngra={onAngra}
           onKlar={onSkicka}
           onAvbryt={onAvbryt}
           onIgen={onIgen}

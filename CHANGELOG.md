@@ -9,6 +9,54 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.97.0
+
+TALK kan svara med ett kvitto som går att ångra, statusraden medan appen arbetar går att ange, och fältet är ritat om.
+
+CP 2026-10-13, i Chrome på iPhone: "knapparna är asfula", "jättekonstigt", och "Gör en grafisk genomlysning också. Så att det
+blir riktigt snyggt och clean. Kanske texten ska vara lite större som visar vad man pratar in?" Samma dag beslutades att TALK
+i lifehub.app ska gå till gruppens agent, som gör det man bad om och svarar med ett kvitto (lifehub.app#219). Det här är
+ramverkets del av den skivan.
+
+### Nytt
+
+- **Kvitto och Ångra.** `onTalk` får lösa till `{ kvitto, angra? }`. Fältet visar då kvittot med en bock, **Ångra** (bara när
+  `angra` finns, sekundär) och **Stäng** (primär), och döljs inte av sig självt. Ångra snurrar och är inaktiv medan den pågår, och
+  ett andra tryck gör ingenting. Lyckas den står "Ångrat" i `SPARAT_MS`, sedan stängs fältet. Faller den står felet med
+  `role="alert"`, Stäng står kvar och Ångra går att trycka igen. En ny inspelning, ett långtryck eller Stäng rensar kvittot, och en
+  Ångra som svarar efter att kvittot försvunnit, eller efter avmonteringen, sätter ingenting. Allt annat `onTalk` löser till
+  (ingenting, ett id) är Sparat som förut. Läses av `talkKvitto` i `lib/talk.js`.
+- **`skickarText`**, i `useTalk` och `talk.skickarText` i `OpsAppShell`: statusraden medan appen arbetar. Förval
+  `TALK_SKICKAR_TEXT`, "Sparar…". En sträng utan innehåll, eller något annat än en sträng, kastar; skalet prövar den vid uppstart.
+  ⛔ Den gäller bara appens mål. När ett moduls mål är valt (Biblioteket) är det modulens `spara` som arbetar, och där står förvalet.
+- **`useTalk` lämnar `medText`, `skickarText`, `kvitto` och `angra`**, och `OpsTalk` och `OpsInspelning` tar dem (`onAngra` för
+  `angra`). Skalet kopplar dem samma väg som `text`.
+
+### Fältet, ritat om
+
+- **Texten man pratar in är fältets huvudsak**, i brödtextens storlek (`text-brod`, 16 px, förut `text-meta`, 12 px), med en
+  minsta höjd på tre rader så att fältet inte hoppar när orden kommer. Den rullar inuti när den blir lång. Med igenkänningen
+  påslagen och inget hört står den dämpade platstexten `TALK_PLATSTEXT`, "Prata, så syns texten här". ⛔ Bara då: utan
+  igenkänning (av som förval, Firefox) hade raden lovat text som aldrig kommer.
+- **Den övre raden är lugn**: prickarna, tiden och kugghjulet i `ink-muted`. Den står kvar medan det skickas, med stilla prickar,
+  så att texten inte flyttar sig när man trycker Klar.
+- **Knapparna är en rad**: X (rund, sekundär) till vänster och den primära knappen som fyller resten, samma höjd (48 px) och
+  samma rundning. Samma form i felläget och i frågan om att kasta. Sekundärt är `bg-hover`: `bg-sunken` är nästan samma färg som
+  fältet i ljust läge, och krysset flöt då i luften.
+- **Målvalet är en segmenterad rad** med etiketten "Skickas till", lika breda delar, i stället för staplade knappar i fältets
+  primärfärg som såg ut som Klar. Spåret är nedsänkt och det valda lyft i båda lägena. Rollerna `radiogroup` och `radio` med
+  `aria-checked` står kvar.
+
+### Prov
+
+`talk-kvitto.test.jsx`, 20 prov, flödet genom `OpsAppShell talk={...}` och kroken direkt där en knapp inte kan visa felet. Varje
+prov sett rött med sin rättelse borttagen och grönt med den. Inga befintliga prov behövde ändras.
+
+### Bilder
+
+Före och efter vid 390 px i ljust och mörkt läge, i lägena lyssnar med text, lyssnar utan text, skickar och sparat med kvitto,
+tagna med Playwright mot en byggd sida. De bifogas i PR:en.
+
 ## 0.96.0
 
 TALK kan visa texten medan man pratar, och den hela texten följer med till appen. Av som förval: appen slår på det.
