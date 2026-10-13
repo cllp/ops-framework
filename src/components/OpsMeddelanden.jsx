@@ -1449,7 +1449,13 @@ function useRostinmatning({ onTranscribe, inspelare, igenkanning, text, setText,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [talk.text]);
   useEffect(() => {
-    if (talk.lage === "vila" || talk.lage === "sparat" || talk.lage === "fel") liveBas.current = null;
+    if (talk.lage !== "vila" && talk.lage !== "sparat" && talk.lage !== "fel") return;
+    // ⛔ FÄLTET TILLBAKA TILL SIN BAS NÄR FÖRSÖKET SLUTAR UTAN TEXT (publiceringen av 0.98.0, körning 129: "expected 'boka re'
+    // to be ''"). Effekten för `talk.text` ovan lägger tillbaka basen när texten töms, men kom läget "fel" i en tidigare
+    // rendering än den tömda texten var basen redan glömd, och den halva meningen stod kvar i fältet som om den vore hel.
+    // Vid "sparat" har `lagg` redan skrivit basen och den hela texten, och fältet rörs inte.
+    if (liveBas.current !== null && talk.lage !== "sparat") setText(liveBas.current);
+    liveBas.current = null;
   }, [talk.lage]);
   const spelarNu = talk.lage === "haller" || talk.lage === "lyssnar";
   return {
