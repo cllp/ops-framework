@@ -1,6 +1,6 @@
 import * as Select from "@radix-ui/react-select";
 import { cx } from "../lib/cx.js";
-import { faltTriggerKlass, faltYtaKlass, valjAlternativKlass } from "../lib/radKlass.js";
+import { faltListaBreddKlass, faltTriggerKlass, faltYtaKlass, valjAlternativKlass } from "../lib/radKlass.js";
 import { useFieldBinding } from "./OpsField.jsx";
 import { BockIkon, ChevronNedIkon } from "./icons.jsx";
 
@@ -53,7 +53,7 @@ export function OpsSelect({ options, value, onChange, placeholder = "Välj", dis
         <Select.Content
           position="popper"
           sideOffset={4}
-          className={cx(faltYtaKlass, "overflow-hidden")}
+          className={cx(faltYtaKlass, faltListaBreddKlass, "overflow-hidden")}
         >
           <Select.Viewport className="max-h-72 p-1">
             {options.map((o) => (

@@ -131,6 +131,9 @@ jobs:
       # alltså hör den hemma här och inte i `check`.
       - run: npm run build
       - run: npm run check:skalyta
+      # ⛔ Rullningslistens tumme och väljarens listbredd (0.95.1). jsdom ritar ingen list och räknar ingen bredd, och
+      # Playwright döljer listerna som standard, så vakten startar Chromium utan `--hide-scrollbars`.
+      - run: npm run check:kontrollyta
       # ⛔ Brandfilen och egen CSS (0.94.0): en instans ska kunna branda ramverket i en fil och lägga på CSS som vinner utan
       # `!important`. Det är påståenden om beräknad stil, så jsdom ser dem inte. Kör sina egna röda bevis (`--bevisa`).
       - run: npm run check:brand

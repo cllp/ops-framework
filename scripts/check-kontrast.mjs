@@ -323,6 +323,172 @@ export function granska(tokens, tema) {
   return brott;
 }
 
+/*
+ * ══ ⛔ RULLNINGSLISTENS TUMME (0.95.1) ══════════════════════════════════════
+ *
+ * 0.95.0 målade tummen i `ink-muted` till hälften genomskinlig. Mätt i
+ * lifehub.app:s ompinning: i mörkt läge syntes den knappt i Idags ruta, sämre
+ * än operativsystemets list den ersatte. Räknat efter blandningen gav den 1,77
+ * till 2,34:1, och ingen vakt kunde se det: paren ovan är text mot yta, och
+ * tummen är varken text eller ett token utan ett UTTRYCK i basskiktet.
+ *
+ * ⛔ DÄRFÖR LÄSER VAKTEN UTTRYCKET OCH INTE ETT TOKENNAMN. En rad i `PAR` med
+ * "ink-muted mot canvas" hade varit grön i 0.95.0 också, eftersom tokenet i sig
+ * klarar 3:1. Felet satt i `color-mix(... 50%, transparent)`, alltså är det den
+ * som måste räknas: tokenets färg, sammansatt med sin genomskinlighet över
+ * varje yta listen står på.
+ *
+ * Fyra uttryck, alla ur basskiktet i tokens.css:
+ *   - standarden i vila, `* { scrollbar-color }` (Chrome, Edge, Firefox)
+ *   - standarden under pekaren, `:hover { scrollbar-color }`
+ *   - Safaris tumme, `::-webkit-scrollbar-thumb { background }`
+ *   - Safaris tumme under pekaren, `::-webkit-scrollbar-thumb:hover`
+ *
+ * Kraven är WCAG 1.4.11, 3:1, i båda teman och mot varje yta i `RULLYTOR`, och
+ * att hover är minst lika stark som vila mot samma yta. Ett uttryck som saknas
+ * eller inte går att läsa är ett brott och inte noll mätningar.
+ */
+
+/** Ytorna en rullande lista står på. `elevated` är menyer och popovrar. */
+export const RULLYTOR = ["canvas", "surface", "raised", "sunken", "elevated"];
+
+/**
+ * Basskiktets regler som `{ selektor, kropp }`, utan kommentarer.
+ * @param {string} css
+ */
+function basregler(css) {
+  const start = /@layer\s+base\s*\{/.exec(css);
+  if (!start) return [];
+  let djup = 0;
+  let block = "";
+  for (let i = start.index + start[0].length - 1; i < css.length; i += 1) {
+    if (css[i] === "{") djup += 1;
+    else if (css[i] === "}") {
+      djup -= 1;
+      if (djup === 0) {
+        block = css.slice(start.index, i + 1);
+        break;
+      }
+    }
+  }
+  return [...block.replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/([^{};]+)\{([^{}]*)\}/g)].map((m) => ({ selektor: m[1].trim(), kropp: m[2] }));
+}
+
+/**
+ * Ett färguttryck som token och täckning. Förstår `var(--color-x)` och
+ * `color-mix(in srgb, var(--color-x) N%, transparent)`, de två former tummen
+ * har haft. Allt annat ger null, och det blir ett brott hos den som frågar.
+ * @param {string} uttryck
+ * @returns {{ token: string, tackning: number } | null}
+ */
+export function lasFarguttryck(uttryck) {
+  const u = uttryck.trim();
+  const mix = /^color-mix\(\s*in\s+srgb\s*,\s*var\(--color-([a-z0-9-]+)\)\s+(\d+(?:\.\d+)?)%\s*,\s*transparent\s*\)/.exec(u);
+  if (mix) return { token: mix[1], tackning: Number(mix[2]) / 100 };
+  const v = /^var\(--color-([a-z0-9-]+)\)/.exec(u);
+  if (v) return { token: v[1], tackning: 1 };
+  return null;
+}
+
+/**
+ * De fyra tumuttrycken ur basskiktet. Ett som saknas står som `uttryck: null`.
+ * @param {string} css
+ * @returns {{ vad: string, motor: "standard" | "webkit", lage: "vila" | "hover", uttryck: string | null }[]}
+ */
+export function tumuttryck(css) {
+  const regler = basregler(css);
+  /** @param {(r: { selektor: string, kropp: string }) => boolean} val @param {{ exec: (kropp: string) => (string | null)[] | null }} egenskap */
+  const forsta = (val, egenskap) => {
+    for (const r of regler.filter(val)) {
+      const m = egenskap.exec(r.kropp);
+      if (m && m[1]) return m[1].trim();
+    }
+    return null;
+  };
+  /*
+   * ⛔ FÖRSTA VÄRDET RÄKNAS MED KLAMRAR, inte med ett mönster. Första versionen
+   * läste `color-mix(in srgb, var(--color-ink-muted) 50%, transparent)` som
+   * "color-mix(in", eftersom uttrycket har ett mellanslag mitt i sig och en
+   * inre `var(...)` som stänger före den yttre.
+   */
+  const scrollbarColor = { exec: (/** @type {string} */ kropp) => {
+    const m = /scrollbar-color\s*:\s*/.exec(kropp);
+    if (!m) return null;
+    const rest = kropp.slice(m.index + m[0].length);
+    let djup = 0;
+    for (let i = 0; i < rest.length; i += 1) {
+      if (rest[i] === "(") djup += 1;
+      else if (rest[i] === ")") djup -= 1;
+      else if (djup === 0 && /[\s;]/.test(rest[i])) return [null, rest.slice(0, i)];
+    }
+    return [null, rest];
+  } };
+  const bakgrund = /background\s*:\s*([^;]+);/;
+  return [
+    { vad: "tummen i vila (standarden)", motor: "standard", lage: "vila", uttryck: forsta((r) => r.selektor === "*", scrollbarColor) },
+    { vad: "tummen under pekaren (standarden)", motor: "standard", lage: "hover", uttryck: forsta((r) => /:hover$/.test(r.selektor) && !r.selektor.includes("::"), scrollbarColor) },
+    { vad: "tummen i vila (Safari)", motor: "webkit", lage: "vila", uttryck: forsta((r) => r.selektor === "::-webkit-scrollbar-thumb", bakgrund) },
+    { vad: "tummen under pekaren (Safari)", motor: "webkit", lage: "hover", uttryck: forsta((r) => r.selektor === "::-webkit-scrollbar-thumb:hover", bakgrund) },
+  ];
+}
+
+/**
+ * Tummens kontrast mot varje yta i ett tema. Ger rader att skriva ut och brott.
+ *
+ * ⛔ GENOMSKINLIGHETEN RÄKNAS MOT YTAN, inte mot vitt eller svart. Halva
+ * `ink-muted` över mörk `raised` är en annan färg än halva `ink-muted` över
+ * mörk `canvas`, och båda förekommer.
+ *
+ * @param {string} css @param {Record<string, string>} tokens @param {"light"|"dark"} tema
+ */
+export function granskaRullningslist(css, tokens, tema) {
+  /** @type {string[]} */
+  const brott = [];
+  /** @type {{ vad: string, yta: string, kvot: number }[]} */
+  const matt = [];
+  const uttryck = tumuttryck(css);
+  /** @type {Record<string, Record<string, number>>} */
+  const vila = {};
+  for (const t of uttryck) {
+    if (!t.uttryck) {
+      brott.push(`${tema}: ${t.vad} saknas i basskiktet. Utan uttrycket finns ingen tumme att mäta, och listen ritas i webbläsarens egen färg.`);
+      continue;
+    }
+    const farguttryck = lasFarguttryck(t.uttryck);
+    if (!farguttryck) {
+      brott.push(`${tema}: ${t.vad} är \`${t.uttryck}\`, som vakten inte kan räkna. Använd var(--color-x) eller color-mix(in srgb, var(--color-x) N%, transparent).`);
+      continue;
+    }
+    if (!tokens[farguttryck.token]) {
+      brott.push(`${tema}: ${t.vad} pekar på --color-${farguttryck.token}, som inte finns.`);
+      continue;
+    }
+    for (const yta of RULLYTOR) {
+      const under = farg(tokens, yta);
+      if (!under) {
+        brott.push(`${tema}: ytan --color-${yta} finns inte, alltså går tummen inte att mäta mot den.`);
+        continue;
+      }
+      const [r, g, b] = rgba(/** @type {string} */ (farg(tokens, farguttryck.token, yta)));
+      const [ur, ug, ub] = rgba(under);
+      const a = farguttryck.tackning;
+      const tumme = "#" + [[r, ur], [g, ug], [b, ub]].map(([c, u]) => Math.round(c * a + u * (1 - a)).toString(16).padStart(2, "0")).join("");
+      const kvot = contrast(tumme, under);
+      matt.push({ vad: t.vad, yta, kvot });
+      if (kvot < GRAFIK) {
+        brott.push(`${tema}: ${t.vad} ger ${kvot.toFixed(2)}:1 mot ${yta} (\`${t.uttryck}\`). Tummen visar var man är i listan, kravet är ${GRAFIK}:1 (WCAG 1.4.11).`);
+      }
+      if (t.lage === "vila") {
+        vila[t.motor] ??= {};
+        vila[t.motor][yta] = kvot;
+      } else if (vila[t.motor]?.[yta] !== undefined && kvot < vila[t.motor][yta]) {
+        brott.push(`${tema}: ${t.vad} ger ${kvot.toFixed(2)}:1 mot ${yta}, svagare än vilans ${vila[t.motor][yta].toFixed(2)}:1. Hover ska vara starkare.`);
+      }
+    }
+  }
+  return { brott, matt };
+}
+
 if (import.meta.url === `file://${process.argv[1]}`) {
   if (!fs.existsSync(TOKENS)) {
     console.error(`check-kontrast: hittar inte ${TOKENS}. Fel sökväg i vakten, inte ett godkänt utfall.`);
@@ -366,10 +532,38 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     process.exit(1);
   }
 
+  /*
+   * ⛔ TUMMEN HAR SITT EGET GOLV: fyra uttryck mot alla ytor i båda teman. Ett
+   * saknat uttryck är redan ett brott ovan, men golvet fångar också en tokenfil
+   * där ytorna inte gick att läsa och mätningen tyst blev kortare.
+   */
+  /** @type {string[]} */
+  const tumrader = [];
+  let tummatt = 0;
+  for (const tema of /** @type {const} */ (["light", "dark"])) {
+    let tokens;
+    try {
+      tokens = lasTokens(css, tema);
+    } catch {
+      continue;
+    }
+    const { brott: tb, matt } = granskaRullningslist(css, tokens, tema);
+    brott.push(...tb);
+    tummatt += matt.length;
+    for (const m of matt) tumrader.push(`  ${tema.padEnd(5)} ${(m.vad + " mot " + m.yta).padEnd(52)} ${m.kvot.toFixed(2)}:1`);
+  }
+  const tumgolv = 4 * RULLYTOR.length * 2;
+  if (tummatt < tumgolv && brott.length === 0) {
+    console.error(`check-kontrast: bara ${tummatt} av ${tumgolv} mätningar av rullningslistens tumme gick att göra i ${TOKENS}. Tummen mäts alltså inte.`);
+    process.exit(1);
+  }
+
   if (brott.length) {
     console.error("check-kontrast: par som inte håller\n\n" + brott.map((b) => `  ${b}`).join("\n") + "\n");
     process.exit(1);
   }
   console.log(`check-kontrast: ${PAR.length} par i 2 teman, alla över AA`);
   console.log(rader.join("\n"));
+  console.log(`check-kontrast: rullningslistens tumme, ${tummatt} mätningar, alla minst ${GRAFIK}:1 och hover minst som vila`);
+  console.log(tumrader.join("\n"));
 }
