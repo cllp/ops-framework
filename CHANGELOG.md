@@ -11,6 +11,8 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ## 0.98.0
 
+**Rättat före utgivningen:** publiceringen föll på `chatt-live-text` ("expected 'boka re' to be ''"). Kom läget "fel" i en tidigare rendering än den tömda texten stod en halv mening kvar i chattens fält. Fältet går nu tillbaka till texten från före mikrofonen så fort försöket slutar utan text.
+
 Chattens mikrofon skriver orden i skrivfältet medan man pratar, som TALK. Av som förval: appen slår på det.
 
 CP 2026-10-13, med en skärmbild av chattens skrivfält och raden "Skriver ut det inspelade…" under det efter inspelningen: "VI behöver ha
