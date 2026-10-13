@@ -31,7 +31,7 @@ och därför är formatet strängt: ett okänt fält är ett fel och släpps int
   eller `{ ok: false, fel, faltfel }` (`faltfel` är texten per fält-id, för ett formulär).
 - **`createBeskrivenAppKalla`** (raderna) och **`createBeskrivningskalla`** (beskrivningarna). Båda tar `source`, `collection`, `groupId` och
   `skapare`, och båda prövar innan de skriver. Appen namnger samlingarna.
-- **`beskrivenappdataregelfragment(namn)`** och **`beskrivningsregelfragment(namn)`**, med emulatorprov (29 prov i `rules/__tests__/beskrivenapp.test.mjs`).
+- **`beskrivenappdataregelfragment(namn)`** och **`beskrivningsregelfragment(namn)`**, med emulatorprov (32 prov i `rules/__tests__/beskrivenapp.test.mjs`, och 66 mutationer av de genererade reglerna dödade).
 - **`OpsBeskrivenApp`**: flikar per lista, sök, Ny, raderna som lista eller tabell, ett formulär ur fältens typ, Spara, Avbryt och Ta bort med
   fråga. Bara ramverkets egna delar, och ingenting ur beskrivningen blir HTML.
 - **`byggBeskrivningsdokument`** och **`beskrivningsId`**: dokumentets form och id på ett ställe, för klienten och för en server med Admin SDK.

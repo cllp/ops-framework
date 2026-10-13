@@ -199,6 +199,8 @@ describe("radernas regler: skapa", () => {
     await assertFails(setDoc(doc(db(MEDLEM), nyRadId()), rad({ skapad: nu + 10 * ar, andrad: nu + 10 * ar })));
     await assertFails(setDoc(doc(db(MEDLEM), nyRadId()), rad({ skapad: nu - ar, andrad: nu - ar })));
     await assertFails(setDoc(doc(db(MEDLEM), nyRadId()), rad({ andrad: nu + ar })));
+    // Skapad långt bak med andrad nu: `andrad >= skapad` håller, så det är `skapad` som måste vara nära serverns klocka.
+    await assertFails(setDoc(doc(db(MEDLEM), nyRadId()), rad({ skapad: nu - ar, andrad: nu })));
     await assertFails(setDoc(doc(db(MEDLEM), nyRadId()), rad({ skapad: nu + 60_000, andrad: nu })));
     await assertFails(setDoc(doc(db(MEDLEM), nyRadId()), rad({ skapad: "nu", andrad: "nu" })));
   });
@@ -344,6 +346,7 @@ describe("beskrivningarnas regler: skapa", () => {
     const ar = 365 * 24 * 3_600_000;
     await assertFails(setDoc(doc(db(ADMIN), bid(CPS, "tid-1")), dok("tid-1", { skapad: nu + 10 * ar, andrad: nu + 10 * ar })));
     await assertFails(setDoc(doc(db(ADMIN), bid(CPS, "tid-2")), dok("tid-2", { skapad: nu + 60_000, andrad: nu })));
+    await assertFails(setDoc(doc(db(ADMIN), bid(CPS, "tid-3")), dok("tid-3", { skapad: nu - ar, andrad: nu })));
   });
 
   it("GRÄNSEN: regeln prövar inte fälttyperna, så en skev lista släpps in. validateBeskrivning prövar den, och läsaren släpper inte igenom den", async () => {
@@ -380,6 +383,28 @@ describe("beskrivningarnas regler: ändra", () => {
     await assertFails(updateDoc(doc(db(ADMIN), vag), { beskrivning: beskrivning("stilla", { namn: "x" }) }));
     await assertFails(updateDoc(doc(db(ADMIN), vag), { beskrivning: beskrivning("stilla", { format: 2 }), andrad: nu() }));
     await assertFails(updateDoc(doc(db(ADMIN), vag), { extra: 1, andrad: nu() }));
+  });
+});
+
+describe("beskrivningarnas regler: en rad vars id inte stämmer med kroppen är låst", () => {
+  // En sådan rad kan inte skapas genom reglerna, men den kan finnas (skriven med Admin SDK, eller före id-bindningen). Då ska
+  // en klient varken kunna flytta den till en annan grupp eller ändra den: det var "låst åt fel håll"-hålet i modulinställningarna.
+  const nu = () => Date.now();
+
+  it("ägaren av den gamla gruppen flyttar den inte till gruppen som id:t pekar på", async () => {
+    const id = beskrivningsId(MIRANDA, "flytt");
+    const vag = await lagg("appbeskrivningar", dok("flytt"), id);
+    await assertFails(updateDoc(doc(db(ADMIN), vag), { groupId: MIRANDA, andrad: nu() }));
+  });
+
+  it("och den går inte att ändra alls, eftersom den inte hör ihop med sitt id", async () => {
+    const vag = await lagg("appbeskrivningar", dok("flytt-2"), beskrivningsId(MIRANDA, "flytt-2"));
+    await assertFails(updateDoc(doc(db(ADMIN), vag), { beskrivning: beskrivning("flytt-2", { namn: "Nytt" }), andrad: nu() }));
+  });
+
+  it("appens id i kroppen går inte att rätta till så att den passar id:t", async () => {
+    const vag = await lagg("appbeskrivningar", dok("gammalt-id"), beskrivningsId(CPS, "nytt-id"));
+    await assertFails(updateDoc(doc(db(ADMIN), vag), { beskrivning: beskrivning("nytt-id"), andrad: nu() }));
   });
 });
 
