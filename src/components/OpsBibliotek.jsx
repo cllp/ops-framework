@@ -18,6 +18,7 @@ import { OpsLjudspelare } from "./OpsLjudspelare.jsx";
 import { OpsEmpty } from "./OpsEmpty.jsx";
 import { OpsField, OpsInput, OpsTextarea } from "./OpsField.jsx";
 import { OpsList } from "./OpsList.jsx";
+import { OpsSelect } from "./OpsSelect.jsx";
 import { useOpsSprak } from "./OpsSprak.jsx";
 import { OpsTabPanel, OpsTabs } from "./OpsTabs.jsx";
 import { TillbakaKnapp } from "./TillbakaKnapp.jsx";
@@ -1007,6 +1008,7 @@ function Detalj({ post, skapar, jag, startLage, onStang, onSpara, onLaddaUpp, fi
   const [url, setUrl] = useState(post && !skapar && post.typ === "lank" ? post.url ?? "" : "");
   const [formfel, setFormfel] = useState("");
   const [valdFil, setValdFil] = useState(/** @type {File | null} */ (null));
+  const filFalt = useRef(/** @type {HTMLInputElement | null} */ (null));
   const [lage, setLage] = useState(/** @type {"las" | "redigera"} */ (skapar ? "redigera" : startLage));
   const nyckel = `${skapar ?? ""}:${post?.id ?? ""}`;
 
@@ -1125,10 +1127,17 @@ function Detalj({ post, skapar, jag, startLage, onStang, onSpara, onLaddaUpp, fi
         </OpsField>
       ) : typ === "fil" ? (
         <OpsField label="Fil">
+          {/* ⛔ Det råa filfältet är dolt och knappen är ramverkets (0.95.0). Förut stod webbläsarens egen "Välj fil,
+              ingen fil vald" synlig här. Namnet på den valda filen skrivs ut, och tomheten med (arbetsreglerna, punkt 5). */}
+          <div className="flex flex-wrap items-center gap-2">
+            <OpsButton variant="secondary" onClick={() => filFalt.current?.click()}>{valdFil ? "Byt fil" : "Välj fil"}</OpsButton>
+            <span className="min-w-0 truncate text-etikett text-ink-muted">{valdFil ? valdFil.name : post && !skapar ? "Den sparade filen behålls." : "Ingen fil vald."}</span>
+          </div>
           <input
+            ref={filFalt}
             type="file"
             aria-label="Fil"
-            className="text-brod text-ink"
+            className="hidden"
             onChange={(e) => {
               const vald = e.target.files?.[0] ?? null;
               if (!vald) {
@@ -1319,12 +1328,17 @@ function DelaKontroll({ id, grupper, onDela }) {
   };
   return (
     <div data-bibliotek-dela="" className="flex flex-col gap-2">
-      <label className="text-meta text-ink-muted">
-        Dela till
-        <select aria-label="Grupp att dela till" value={mal} onChange={(e) => setMal(e.target.value)} className="ml-2">
-          {grupper.map((g) => <option key={g.id} value={g.id}>{g.namn}</option>)}
-        </select>
-      </label>
+      {/* ⛔ OpsSelect och inte en rå `<select>` (0.95.0). CP 2026-10-13: "Det skall aldrig finnas en ostylad
+          komponent som använder webläsarens scroll eller style." Den här listan var webbläsarens egen, i ramverket
+          självt, trots att OpsSelect sade att den är förbjuden. `check-webblasarkontroller` fäller den nu. */}
+      <OpsField label="Dela till">
+        <OpsSelect
+          ariaLabel="Grupp att dela till"
+          value={mal}
+          onChange={setMal}
+          options={grupper.map((g) => ({ value: g.id, label: g.namn }))}
+        />
+      </OpsField>
       {fel ? <p role="alert">{fel}</p> : null}
       <div className="flex gap-2">
         <OpsButton variant="secondary" onClick={() => kor("flytta")}>Flytta</OpsButton>

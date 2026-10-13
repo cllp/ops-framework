@@ -34,6 +34,9 @@ node node_modules/ops-framework/scripts/check-token-overrides.mjs src/index.css
 steg "Stängt API"
 node node_modules/ops-framework/scripts/check-closed-api.mjs src
 
+steg "Inga ostylade webbläsarkontroller"
+node node_modules/ops-framework/scripts/check-webblasarkontroller.mjs src
+
 steg "Tester"
 npm run test
 

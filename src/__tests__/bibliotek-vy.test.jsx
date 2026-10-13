@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { OpsBibliotek } from "../components/OpsBibliotek.jsx";
@@ -288,6 +289,34 @@ describe("OpsBibliotek", () => {
     expect(onDela).toHaveBeenCalledWith({ id: "a", groupId: "miranda-ab", satt: "kopiera" });
     fireEvent.click(screen.getByRole("button", { name: "Flytta" }));
     expect(onDela).toHaveBeenCalledWith({ id: "a", groupId: "miranda-ab", satt: "flytta" });
+  });
+
+  // ⛔ 0.95.0: gruppvalet är OpsSelect och inte webbläsarens `<select>` (CP 2026-10-13). Provet väljer den ANDRA
+  // gruppen, för med en enda grupp hade ett val som aldrig når `onDela` varit grönt.
+  it("delning väljer grupp i ramverkets väljare, aldrig i webbläsarens", async () => {
+    const onDela = vi.fn();
+    const user = userEvent.setup();
+    render(<Harness grupper={[{ id: "miranda-ab", namn: "Miranda" }, { id: "cps-ab", namn: "CPS" }]} onDela={onDela} />);
+    fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Protokoll" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Dela" }));
+    expect(document.querySelector("select")).toBeNull();
+    const valjare = screen.getByRole("combobox", { name: "Grupp att dela till" });
+    expect(valjare).toHaveTextContent("Miranda");
+    await user.click(valjare);
+    await user.click(screen.getByRole("option", { name: "CPS" }));
+    await user.click(screen.getByRole("button", { name: "Kopiera" }));
+    expect(onDela).toHaveBeenCalledWith({ id: "a", groupId: "cps-ab", satt: "kopiera" });
+  });
+
+  it("filfältet är dolt bakom ramverkets knapp och den valda filen skrivs ut", () => {
+    render(<Harness onLaddaUpp={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Ny post" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Fil" }));
+    expect(screen.getByLabelText("Fil")).toHaveClass("hidden");
+    expect(screen.getByText("Ingen fil vald.")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Fil"), { target: { files: [new File(["x"], "kvitto.pdf", { type: "application/pdf" })] } });
+    expect(screen.getByText("kvitto.pdf")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Byt fil" })).toBeInTheDocument();
   });
 
   it("skriv ut visar texten, och ingenting skapas förrän personen väljer", async () => {

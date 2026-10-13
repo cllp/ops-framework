@@ -1400,6 +1400,64 @@
     outline: 2px solid var(--color-accent);
     outline-offset: 2px;
   }
+
+  /*
+   * ⛔ RULLNINGSLISTEN ÄR RAMVERKETS, PÅ VARJE RULLANDE YTA (0.95.0).
+   *
+   * CP 2026-10-13: "Det skall aldrig finnas en ostylad komponent som använder
+   * webläsarens scroll eller style." Mätt samma dag: ramverket hade ingen
+   * rullningsliststil alls. Varje `overflow-auto` i komponenterna (tjugo filer)
+   * och sidan själv ritade operativsystemets list: grå i ljust läge, ljusgrå
+   * mot en mörk yta i mörkt läge, och olika på varje maskin.
+   *
+   * ⛔ `*` OCH INTE EN KLASS. En klass hade varit en sak varje rullande yta
+   * måste minnas, i ramverket och i varje app, och det var just det minnet som
+   * saknades. Här får alla ytor listen utan att göra något.
+   *
+   * ⛔ BASSKIKTET OCH INTE `ops-ramverk`. En yta som avsiktligt döljer sin list
+   * (`[scrollbar-width:none]` på en svepbar rad) ska fortfarande vinna, och
+   * verktygsklasserna ligger efter basskiktet i lagerordningen.
+   *
+   * ⛔ TOKENS, INTE FÄRGER. Tummen är `--color-ink-muted` till hälften
+   * genomskinlig och skenan är genomskinlig, alltså följer listen ljust och
+   * mörkt läge och en instans brandfil utan en rad till.
+   *
+   * ⛔ TVÅ MOTORER. `scrollbar-color` och `scrollbar-width` är standarden
+   * (Chrome, Edge, Firefox). Safari saknar `scrollbar-color`, och där målas
+   * listen med `::-webkit-scrollbar`. Blocket står bakom `@supports not`, för
+   * Chrome slutar läsa standarden om båda finns.
+   *
+   * `scripts/check-page-frame.mjs` blir röd om något av det försvinner.
+   */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--color-ink-muted) 50%, transparent) transparent;
+  }
+
+  @supports not (scrollbar-color: auto) {
+    ::-webkit-scrollbar {
+      width: 10px;
+      height: 10px;
+      background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: color-mix(in srgb, var(--color-ink-muted) 50%, transparent);
+      background-clip: padding-box;
+      border: 2px solid transparent;
+      border-radius: var(--radius-full);
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--color-ink-muted);
+      background-clip: padding-box;
+    }
+
+    ::-webkit-scrollbar-track,
+    ::-webkit-scrollbar-corner {
+      background: transparent;
+    }
+  }
 }
 
 /*

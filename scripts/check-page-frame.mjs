@@ -86,4 +86,65 @@ if (!/scrollbar-gutter:\s*stable/.test(kropp)) {
   process.exit(1);
 }
 
-console.log("check-page-frame: basskiktets `html`-regel reserverar rullningslistens plats");
+/*
+ * ══ ⛔ RULLNINGSLISTENS UTSEENDE (0.95.0) ════════════════════════════════
+ *
+ * CP 2026-10-13: "Det skall aldrig finnas en ostylad komponent som använder
+ * webläsarens scroll eller style." Ramverket hade då ingen rullningsliststil
+ * alls, och tjugo komponentfiler med `overflow-auto` ritade operativsystemets
+ * list. Samma felklass som raden ovan: en CSS-regel ingen provsvit ser. Tas den
+ * bort är varje lista åter grå och systemfärgad, och allt är grönt.
+ *
+ * ⛔ LÄSER BASSKIKTETS BLOCK, inte hela filen, och kräver tre saker:
+ *   1. en `*`-regel med `scrollbar-width` och en `scrollbar-color` ur tokens
+ *      (standarden, Chrome, Edge och Firefox),
+ *   2. `::-webkit-scrollbar-thumb` målad ur tokens (Safari, som saknar
+ *      `scrollbar-color`),
+ *   3. ingen hårdkodad färg i någon av dem, för den byter inte med mörkt läge.
+ */
+const basStart = /@layer\s+base\s*\{/.exec(css);
+/** @type {string} */
+let basblock = "";
+if (basStart) {
+  let djup = 0;
+  for (let i = basStart.index + basStart[0].length - 1; i < css.length; i += 1) {
+    if (css[i] === "{") djup += 1;
+    else if (css[i] === "}") {
+      djup -= 1;
+      if (djup === 0) {
+        basblock = css.slice(basStart.index, i + 1);
+        break;
+      }
+    }
+  }
+}
+const basUtanKommentarer = basblock.replace(/\/\*[\s\S]*?\*\//g, "");
+const regler = [...basUtanKommentarer.matchAll(/([^{};]+)\{([^{}]*)\}/g)].map((m) => ({ selektor: m[1].trim(), kropp: m[2] }));
+
+/** @type {string[]} */
+const rullbrott = [];
+const stjarna = regler.filter((r) => r.selektor === "*");
+if (!stjarna.some((r) => /scrollbar-width\s*:\s*thin/.test(r.kropp))) {
+  rullbrott.push("basskiktet saknar `* { scrollbar-width: thin }`. Listen ritas då i webbläsarens fulla bredd och form.");
+}
+if (!stjarna.some((r) => /scrollbar-color\s*:[^;]*var\(--color-/.test(r.kropp))) {
+  rullbrott.push("basskiktet saknar `* { scrollbar-color: ... }` ur ett token. Listen målas då i systemets grå, som inte byter med mörkt läge.");
+}
+const tumme = regler.filter((r) => r.selektor === "::-webkit-scrollbar-thumb");
+if (!tumme.some((r) => /background\s*:[^;]*var\(--color-/.test(r.kropp))) {
+  rullbrott.push("basskiktet saknar `::-webkit-scrollbar-thumb` målad ur ett token. Safari, som saknar `scrollbar-color`, ritar då sin egen list.");
+}
+for (const r of [...stjarna, ...regler.filter((x) => x.selektor.includes("::-webkit-scrollbar"))]) {
+  const hex = /#[0-9a-fA-F]{3,8}\b|\brgba?\(/.exec(r.kropp);
+  if (hex) rullbrott.push(`\`${r.selektor}\` har ett hårdkodat färgvärde (${hex[0]}). Det byter inte med mörkt läge; använd ett token.`);
+}
+
+if (rullbrott.length > 0) {
+  console.error("check-page-frame: rullningslisten är inte ramverkets.\n");
+  for (const b of rullbrott) console.error(`  ${b}`);
+  console.error("\n  CP 2026-10-13: \"Det skall aldrig finnas en ostylad komponent som använder webläsarens scroll eller style.\"");
+  console.error("  Se kommentaren i tokens.css. ⛔ Lägg den tillbaka här, aldrig som en override i en app.");
+  process.exit(1);
+}
+
+console.log("check-page-frame: basskiktets `html`-regel reserverar rullningslistens plats, och listen målas ur tokens i båda motorerna");

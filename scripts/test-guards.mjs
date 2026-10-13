@@ -1047,6 +1047,106 @@ kravRott(
   );
 
   kravGront("sidram 4: den riktiga tokenfilen är grön", [sidramsvakt, "tokens/tokens.css"]);
+
+  // ⛔ 0.95.0: rullningslistens utseende. CP 2026-10-13: "Det skall aldrig finnas
+  // en ostylad komponent som använder webläsarens scroll eller style." Tre sätt
+  // listen försvinner utan att något prov ser det.
+  kravRott(
+    "sidram 5: standardens scrollbar-color borttagen",
+    [sidramsvakt, tokenkopia("sr5", (s) => s.replace(/\n\s*scrollbar-color: color-mix\([^;]*;/, ""))],
+    "scrollbar-color",
+  );
+  kravRott(
+    "sidram 6: Safaris tumme borttagen",
+    [sidramsvakt, tokenkopia("sr6", (s) => s.replace(/\n\s*::-webkit-scrollbar-thumb \{[^}]*\}/, ""))],
+    "::-webkit-scrollbar-thumb",
+  );
+  // Den troliga framtida ändringen: någon justerar tummen med ett hexvärde. Då
+  // finns en färg som inte byter med mörkt läge.
+  kravRott(
+    "sidram 7: hårdkodad färg på listen",
+    [sidramsvakt, tokenkopia("sr7", (s) => s.replace(/(\n\s*scrollbar-color: )color-mix\([^;]*;/, "$1#999 transparent;"))],
+    "hårdkodat färgvärde",
+  );
+}
+
+// ── Vakten mot ostylade webbläsarkontroller (0.95.0) ────────────────────────
+//
+// ⛔ CP 2026-10-13, Life Hub Identity: webbläsarens egen grå `<select>` under
+// AI-nycklar. "Det skall aldrig finnas en ostylad komponent som använder
+// webläsarens scroll eller style." Ramverket hade själv en rå `<select>` i
+// `OpsBibliotek.jsx` trots att `OpsSelect` förbjöd den i en kommentar. Varje
+// mönster vakten fäller provas här, i JSX och i strängar, och golvet med.
+{
+  const kontrollvakt = "scripts/check-webblasarkontroller.mjs";
+  const kontrollmapp = path.join(arbetsmapp, "webblasarkontroller");
+
+  kravGront("webbläsarkontroller: ramverkets riktiga src/ är grön", [kontrollvakt]);
+
+  /** @param {string} namn @param {string} innehall @param {string} [filnamn] @returns {string} */
+  const appkopia = (namn, innehall, filnamn = "Prov.jsx") => {
+    const mapp = path.join(kontrollmapp, namn);
+    fs.cpSync(path.join(rot, "src", "components"), mapp, { recursive: true });
+    fs.writeFileSync(path.join(mapp, filnamn), innehall);
+    return mapp;
+  };
+
+  // ⛔ Fixturen som är hela skälet till att vakten läser strängar: Identity bygger HTML i strängar.
+  kravRott(
+    "webbläsarkontroller 1: rå select inuti en sträng",
+    [kontrollvakt, appkopia("k1", 'export const html = `<label>Leverantör <select name="lev"><option>A</option></select></label>`;\n', "main.ts")],
+    "<select>",
+  );
+  kravRott(
+    "webbläsarkontroller 2: rå select i JSX",
+    [kontrollvakt, appkopia("k2", "export function P() {\n  return <select aria-label=\"x\"><option>a</option></select>;\n}\n")],
+    "<select>",
+  );
+  kravRott(
+    "webbläsarkontroller 3: datalist",
+    [kontrollvakt, appkopia("k3", 'export const h = "<input list=\\"l\\"><datalist id=\\"l\\"></datalist>";\n', "lista.js")],
+    "<datalist>",
+  );
+  kravRott(
+    "webbläsarkontroller 4: type=\"date\" i JSX",
+    [kontrollvakt, appkopia("k4", 'export function P() {\n  return <input type="date" />;\n}\n')],
+    "type=date/time/color",
+  );
+  kravRott(
+    "webbläsarkontroller 5: escapad type=\\\"datetime-local\\\" i en sträng",
+    [kontrollvakt, appkopia("k5", 'export const h = "<input type=\\"datetime-local\\">";\n', "falt.ts")],
+    "type=date/time/color",
+  );
+  kravRott(
+    "webbläsarkontroller 6: el.type = \"time\" och createElement(\"select\")",
+    [kontrollvakt, appkopia("k6", 'const s = document.createElement("select");\nconst t = document.createElement("input");\nt.type = "time";\nexport { s, t };\n', "dom.js")],
+    "createElement(select/datalist)",
+  );
+  kravRott(
+    "webbläsarkontroller 7: synligt filfält",
+    [kontrollvakt, appkopia("k7", 'export function P() {\n  return <input type="file" aria-hidden="true" onChange={(e) => e.target.files} />;\n}\n')],
+    'synligt <input type="file">',
+  );
+  // ⛔ Grönt åt andra hållet: ett dolt filfält bakom en knapp, Radix `<Select.Root>` och en
+  // kommentar som citerar förbudet är inga brott. En vakt som är röd mot korrekt kod stängs av.
+  kravGront("webbläsarkontroller 8: dolt filfält, Select.Root och kommentar är gröna", [
+    kontrollvakt,
+    appkopia(
+      "k8",
+      '/** Rå `<select>` och `type="date"` är förbjudna. */\nimport * as Select from "@radix-ui/react-select";\nexport function P() {\n  return <><Select.Root /><input type="file" className="hidden" onChange={(e) => e.target.files} /></>;\n}\n',
+    ),
+  ]);
+  kravRott(
+    "webbläsarkontroller 9: taket får bara sjunka",
+    [kontrollvakt, appkopia("k9", "export const ingenting = 1;\n"), "--tak=2"],
+    "Taket får bara sjunka",
+  );
+
+  const tunnmapp = path.join(kontrollmapp, "tunn");
+  fs.mkdirSync(tunnmapp, { recursive: true });
+  fs.writeFileSync(path.join(tunnmapp, "Ensam.jsx"), "export function Ensam() { return null; }\n");
+  kravRott("webbläsarkontroller golv: för få filer lästa", [kontrollvakt, tunnmapp], "väntat minst");
+  kravRott("webbläsarkontroller golv: fel sökväg", [kontrollvakt, path.join(kontrollmapp, "finns-inte")], "finns inte");
 }
 
 // ── Reglagevakten ───────────────────────────────────────────────────────────

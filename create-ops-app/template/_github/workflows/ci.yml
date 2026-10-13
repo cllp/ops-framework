@@ -36,6 +36,8 @@ jobs:
         run: node node_modules/ops-framework/scripts/check-token-overrides.mjs src/index.css
       - name: Stängt API
         run: node node_modules/ops-framework/scripts/check-closed-api.mjs src
+      - name: Inga ostylade webbläsarkontroller
+        run: node node_modules/ops-framework/scripts/check-webblasarkontroller.mjs src
       - name: Tester
         run: npm run test
       - name: Bygge
