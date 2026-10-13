@@ -40,7 +40,8 @@ import { INSTALLNINGSVARDEFALT, MAX_INSTALLNINGSGRUPP, MAX_INSTALLNINGSID, MAX_I
 import { MAX_TYPAVVIKELSER, MAX_TYPID, MAX_TYPNAMN, MODULTYPID_FORM, TYPAVVIKELSEFALT, TYPYTOR } from "./modultyper.js";
 import { ADRESSFORM, BIBLIOTEKFALT, BIBLIOTEKTYPER, FILFALT, LJUD_STOLPAR, MAX_BIBLIOTEKFIL, MAX_BIBLIOTEKFILNAMN, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKSOKVAG, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, MAX_BIBLIOTEKUTSKRIFT, MAX_LJUD_MS, TOPPFORM, filMimeMonster } from "./bibliotek.js";
 import { MAX_MINNESID, MAX_MINNESTEXT, MINNESFALT, MINNESKALLAFALT, MINNESKALLOR } from "./minne.js";
-import { SKAPARFALT } from "./skapare.js";
+import { MAX_SKAPARKALLA, MAX_SKAPARNAMN, SKAPARFALT } from "./skapare.js";
+import { BESKRIVENAPPDATAFALT, BESKRIVNINGSDOKUMENTFALT, BESKRIVNINGSFALT, BESKRIVNINGSFORMAT, BESKRIVNINGSIDFORM, MAX_APPBESKRIVNING, MAX_BESKRIVNINGSNAMN, MAX_FALT, MAX_LISTOR, MIN_LISTOR } from "./beskrivenapp.js";
 import { KONFIGHANDELSER, KONFIGLOGGFALT } from "./konfiglogg.js";
 import { DATUMFORM, KALENDERFALT, KALENDERFARGER, KALENDERPOSTFALT, MAX_KALENDERNAMN, MAX_POSTBESKRIVNING, MAX_POSTPLATS, MAX_POSTTITEL, MINKALENDERFALT, TIDPUNKTSFORM } from "./kalendrar.js";
 import { KOMMENTARBILAGAFALT, KOMMENTARBILAGA_TYPER, KOMMENTARFALT, LASMARKESFALT, MAX_BILAGENAMN, MAX_HANDELSEKOMMENTAR, MAX_KOMMENTARBILAGA, SVARSFALT, SVARSVAL } from "./handelsemodell.js";
@@ -1916,6 +1917,191 @@ ${nuRegelfunktion("opsModulinstallningNu")}
         && opsModulinstallningNu(request.resource.data.uppdaterad)
         && opsModulinstallningRadGiltig(request.resource.data);
       allow delete: if false;
+    }
+`;
+}
+
+/**
+ * Regelfragmentet för ALL data i beskrivna appar, en samling för alla appar (beslut 0005, lifehub.app#213).
+ *
+ * ══ ⛔ VAD SOM GÄLLER ═════════════════════════════════════════════════
+ *
+ *   - LÄSA: aktiv medlem i radens grupp. En fråga utan `groupId` går inte att bevisa och nekas.
+ *   - SKAPA: aktiv medlem som är en person (inte en agent), som sig själv (`skapadAv.uid`), med `skapad` och `andrad` nära
+ *     serverns klocka och en rad med rätt form.
+ *   - ÄNDRA: den som skapade raden, eller ägare eller admin i gruppen, och admin bara som person (`typ == 'person'`, som i
+ *     beskrivningarna: en agent med adminroll skriver inte i gruppens rader). Gruppen, appen, listan, skaparen och `skapad`
+ *     står stilla, och `andrad` är serverns klocka.
+ *   - RADERA: den som skapade raden (med aktivt medlemskap), eller ägare eller admin i gruppen, admin bara som person.
+ *
+ * ══ ⛔ REGELN ÄR EN FÖR ALLA APPAR, OCH DEN VET INTE VAD EN APP HANDLAR OM ═════
+ *
+ * Beslut 0005: "all moduldata ligger i ett generiskt hem med `groupId`, och en regel gäller för alla moduler: gruppens aktiva
+ * medlemmar." Regeln läser därför aldrig beskrivningen. Det skulle kräva ett `get()` av appens beskrivning vid varje skrivning, och
+ * då hänger varje apps skrivning på ett annat dokument som kan saknas, ha ändrats eller ha fel form. Regeln låser FORMEN (rätt
+ * fält, rätt grupp, `appId` och `lista` på id-form, högst `MAX_FALT` värden i `varden`) och `validateRad` i klienten och på
+ * servern låser INNEHÅLLET (typ, längd, krav). Det betyder att en medlem som skriver förbi klienten kan lägga ett värde av fel
+ * typ eller ett för långt värde i en rad i sin EGEN grupp (dokumentet är ändå högst en megabyte). ⛔ ANTALET rader är inte
+ * begränsat alls: en regel kan inte räkna dokument i en samling, och beslut 0005 valde EN regel för all appdata utan en räknare per
+ * grupp eller app. En medlem kan alltså skriva hur många rader som helst i sin grupp. Det är en känd lucka och inget beslut om att
+ * ingen gräns behövs, och en gräns hör till en server som räknar, inte till regeln. Vyn kortar det den ritar och söker
+ * (`OpsBeskrivenApp`, `kapa`) och visar värden av fel typ som text, den kastar inte. Ingen annan grupp ser raden, och ingen annan
+ * medlems rad går att ändra. `skapadAv.namn` och `skapadAv.kalla` har tak (`MAX_SKAPARNAMN`, `MAX_SKAPARKALLA`), för det är de
+ * två texterna i raden som ritas utan att passera beskrivningen.
+ *
+ * ⛔ INGEN LOOP OVER VÄRDENA, och det är med flit. Firestore räknar högst 1000 uttryck per skrivning, och en regel som prövade
+ * varje värde för sig gick över taket redan med 48 tal i biblioteket (https://github.com/cllp/ops-framework/issues/349). Här
+ * prövas `varden` med två uttryck, `is map` och `size()`, hur många fält appen än har.
+ *
+ * ⛔ RAMVERKET KÄNNER INTE SAMLINGSNAMNET. Fragmentet använder `opsArMedlem`, `opsMedlemskapet` och `opsArAdmin` ur
+ * `regelfragment()`, och ska limmas in efter det. Reglerna ska vara deployade INNAN klienten börjar läsa samlingen: en regel i
+ * `main` är inte en regel i produktion.
+ *
+ * @param {string} namn Samlingsnamnet appen valt.
+ * @returns {string}
+ */
+export function beskrivenappdataregelfragment(namn) {
+  const samling = kontrolleraNamn(namn, "beskrivenappdata");
+  const lista = (/** @type {readonly string[]} */ f) => f.map((x) => `"${x}"`).join(", ");
+  const idMonster = regelRegex(BESKRIVNINGSIDFORM);
+
+  return `    // ══ Ramverkets beskrivna appar, raderna. GENERERAD, ändra inte för hand ══
+    //
+    // Källa: ops-framework, beskrivenappdataregelfragment() i src/lib/regler.js. Kräver regelfragment() ovanför.
+    // Värdenas typ och längd prövas av validateRad i klienten och på servern, inte här: se funktionens huvud.
+
+${nuRegelfunktion("opsBeskrivenappNu")}
+
+    function opsBeskrivenappRadGiltig(d) {
+      return d.keys().hasOnly([${lista(BESKRIVENAPPDATAFALT)}])
+        && d.appId.matches('${idMonster}')
+        && d.lista.matches('${idMonster}')
+        && d.varden is map
+        && d.varden.size() <= ${MAX_FALT}
+        && d.skapadAv.keys().hasOnly([${lista(SKAPARFALT)}])
+        && d.skapadAv.namn is string
+        && d.skapadAv.namn.size() <= ${MAX_SKAPARNAMN}
+        && d.skapadAv.typ == "manniska"
+        && d.skapadAv.kalla is string
+        && d.skapadAv.kalla.size() <= ${MAX_SKAPARKALLA}
+        && d.andrad >= d.skapad;
+    }
+
+    match /${samling}/{id} {
+      allow read: if opsArMedlem(resource.data.groupId);
+      allow create: if opsArMedlem(request.resource.data.groupId)
+        && opsMedlemskapet(request.resource.data.groupId).data.typ == 'person'
+        && request.resource.data.skapadAv.uid == request.auth.uid
+        && opsBeskrivenappNu(request.resource.data.skapad)
+        && opsBeskrivenappNu(request.resource.data.andrad)
+        && opsBeskrivenappRadGiltig(request.resource.data);
+      allow update: if request.resource.data.groupId == resource.data.groupId
+        && request.resource.data.appId == resource.data.appId
+        && request.resource.data.lista == resource.data.lista
+        && request.resource.data.skapad == resource.data.skapad
+        && request.resource.data.skapadAv == resource.data.skapadAv
+        && opsBeskrivenappNu(request.resource.data.andrad)
+        && opsBeskrivenappRadGiltig(request.resource.data)
+        && (
+          (opsArMedlem(resource.data.groupId) && resource.data.skapadAv.uid == request.auth.uid)
+          || (opsArAdmin(resource.data.groupId) && opsMedlemskapet(resource.data.groupId).data.typ == 'person')
+        );
+      allow delete: if (opsArMedlem(resource.data.groupId) && resource.data.skapadAv.uid == request.auth.uid)
+        || (opsArAdmin(resource.data.groupId) && opsMedlemskapet(resource.data.groupId).data.typ == 'person');
+    }
+`;
+}
+
+/**
+ * Regelfragmentet för beskrivningarna själva, en rad per grupp och app (beslut 0005, lifehub.app#213).
+ *
+ * ══ ⛔ VAD SOM GÄLLER ═════════════════════════════════════════════════
+ *
+ *   - LÄSA: aktiv medlem i radens grupp.
+ *   - SKAPA, ÄNDRA OCH RADERA: ägare eller admin i gruppen, och bara en person (`typ == 'person'`), som sig själv vid
+ *     skapande (`skapadAv.uid`). En vanlig medlem skriver inte: en beskrivning bestämmer vad gruppens medlemmar ser och skriver,
+ *     och det är gruppens förvaltares sak. Gruppens ägare slår sedan på appen (`groups.moduler`, ägarfält).
+ *   - Gruppen, appens id, skaparen och `skapad` står stilla vid en ändring. Klockan är serverns.
+ *
+ * ⛔ SERVERN SKRIVER OCKSÅ, och regeln behöver inget för det: appens Cloud Function (agentens `skapaApp`) skriver med Admin SDK, som
+ * går förbi reglerna. Därför validerar servern med `validateBeskrivning` och bygger dokumentet med `byggBeskrivningsdokument`, samma
+ * funktioner som klienten. Det är servern som prövar innehållet, och regeln är skalet runt det.
+ *
+ * ⛔ REGELN LÅSER BARA BESKRIVNINGENS YTTERSTA FORM: rätt fält, `format`, id på id-form, namnets längd och antalet listor. Resten
+ * (fälttyper, alternativ, rubrikfält) prövar `validateBeskrivning`, som regeln inte kan uttrycka utan en loop över listor och
+ * fält. En ägare som skriver förbi klienten kan alltså lägga en skev beskrivning i sin egen grupp, och vyn visar då appen som
+ * trasig med felen (`createBeskrivningskalla.lista` släpper den inte igenom) i stället för att rita den.
+ *
+ * ⛔ DOKUMENTETS ID ÄR BUNDET TILL KROPPEN, samma skäl som modulinställningarna (0.93.0): id:t har tre delar skilda av `~` (längd,
+ * grupp, app), grupp måste vara kroppens `groupId` och app måste vara `beskrivning.id`. Utan det kunde ägaren av grupp A skriva en
+ * rad på grupp B:s id, och B:s ägare hade varit utelåst från sin egen app.
+ *
+ * ⛔ RAMVERKET KÄNNER INTE SAMLINGSNAMNET. Fragmentet använder `opsArMedlem`, `opsArAdmin` och `opsMedlemskapet` ur
+ * `regelfragment()`, och ska limmas in efter det.
+ *
+ * @param {string} namn Samlingsnamnet appen valt.
+ * @returns {string}
+ */
+export function beskrivningsregelfragment(namn) {
+  const samling = kontrolleraNamn(namn, "beskrivningar");
+  const lista = (/** @type {readonly string[]} */ f) => f.map((x) => `"${x}"`).join(", ");
+  const idMonster = regelRegex(BESKRIVNINGSIDFORM);
+
+  return `    // ══ Ramverkets beskrivna appar, beskrivningarna. GENERERAD, ändra inte för hand ══
+    //
+    // Källa: ops-framework, beskrivningsregelfragment() i src/lib/regler.js. Kräver regelfragment() ovanför.
+    // Beskrivningens innehåll (fälttyper, alternativ, rubrikfält) prövas av validateBeskrivning, inte här: se funktionens huvud.
+
+${nuRegelfunktion("opsBeskrivningNu")}
+
+    // Dokumentets id är tre delar skilda av tilde: längd, grupp, app. Grupp och app måste vara kroppens egna.
+    // Varken ID_FORM (gruppen) eller BESKRIVNINGSIDFORM (appen) släpper in ett tilde, så uppdelningen är entydig.
+    function opsBeskrivningIdStammer(id, d) {
+      return id.split('~').size() == 3
+        && id.split('~')[1] == d.groupId
+        && id.split('~')[2] == d.beskrivning.id;
+    }
+
+    function opsBeskrivningGiltig(d) {
+      return d.keys().hasOnly([${lista(BESKRIVNINGSDOKUMENTFALT)}])
+        && d.beskrivning.keys().hasOnly([${lista(BESKRIVNINGSFALT)}])
+        && d.beskrivning.format == ${BESKRIVNINGSFORMAT}
+        && d.beskrivning.id.matches('${idMonster}')
+        && d.beskrivning.namn.trim().size() > 0
+        && d.beskrivning.namn.size() <= ${MAX_BESKRIVNINGSNAMN}
+        && d.beskrivning.beskrivning.size() <= ${MAX_APPBESKRIVNING}
+        && d.beskrivning.listor is list
+        && d.beskrivning.listor.size() >= ${MIN_LISTOR}
+        && d.beskrivning.listor.size() <= ${MAX_LISTOR}
+        && d.skapadAv.keys().hasOnly([${lista(SKAPARFALT)}])
+        && d.skapadAv.namn is string
+        && d.skapadAv.namn.size() <= ${MAX_SKAPARNAMN}
+        && d.skapadAv.typ == "manniska"
+        && d.skapadAv.kalla is string
+        && d.skapadAv.kalla.size() <= ${MAX_SKAPARKALLA}
+        && d.andrad >= d.skapad;
+    }
+
+    match /${samling}/{id} {
+      allow read: if opsArMedlem(resource.data.groupId);
+      allow create: if opsArAdmin(request.resource.data.groupId)
+        && opsMedlemskapet(request.resource.data.groupId).data.typ == 'person'
+        && request.resource.data.skapadAv.uid == request.auth.uid
+        && opsBeskrivningIdStammer(id, request.resource.data)
+        && opsBeskrivningNu(request.resource.data.skapad)
+        && opsBeskrivningNu(request.resource.data.andrad)
+        && opsBeskrivningGiltig(request.resource.data);
+      allow update: if opsArAdmin(resource.data.groupId)
+        && opsMedlemskapet(resource.data.groupId).data.typ == 'person'
+        && request.resource.data.groupId == resource.data.groupId
+        && request.resource.data.beskrivning.id == resource.data.beskrivning.id
+        && request.resource.data.skapad == resource.data.skapad
+        && request.resource.data.skapadAv == resource.data.skapadAv
+        && opsBeskrivningIdStammer(id, request.resource.data)
+        && opsBeskrivningNu(request.resource.data.andrad)
+        && opsBeskrivningGiltig(request.resource.data);
+      allow delete: if opsArAdmin(resource.data.groupId)
+        && opsMedlemskapet(resource.data.groupId).data.typ == 'person';
     }
 `;
 }

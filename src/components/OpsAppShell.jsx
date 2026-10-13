@@ -849,7 +849,10 @@ export function useOppnaHandelse() {
  * @param {Omit<import("./OpsTalk.jsx").TalkVal, "onTalk"> & { mal?: ReadonlyArray<{ id: string, etikett: string }>, onTalk: (blob: Blob, meta: { mimeType: string, sekunder: number, rapportera: (andel: number) => void, mal?: { id: string }, text?: string }) => Promise<void | import("../lib/talk.js").Talkkvitto> | void | import("../lib/talk.js").Talkkvitto }} [props.talk] TALK (0.57.0, cllp/lifehub.app#2): långtryck på bottenradens plus
  *   spelar in, och Skapa får raden "TALK, prata in" först. Ljudet lämnas till `talk.onTalk`. När ett mål är valt
  *   bär `meta.mal` dess id. `mal` är appens egna mål (händelse, meddelande). Modulernas mål på platsen
- *   `inspelning.mal` läggs till, och de sparas av modulens `spara`, inte av `onTalk`. ⛔ Utan `talk` finns varken
+ *   `inspelning.mal` sparas av modulens `spara`, inte av `onTalk`. ⛔ (0.99.0) Mikrofonen (huvudets knapp, långtryck på plus, raden
+ *   TALK, prata in) erbjuder BARA appens mål, och med ett enda mål ritas inget val alls. Ett moduls mål nås bara genom modulens egen rad
+ *   (Ny-menyn: Röstinspelning, `useOppnaInspelning`), som öppnar fältet låst till målet, utan val. `talk.svaraText` är ordet på Svara
+ *   (förval "Svara", på engelska "Reply"): efter ett kvitto startar den en ny omgång i samma fält, till samma mål. ⛔ Utan `talk` finns varken
  *   långtrycket eller raden, om ingen modul erbjuder ett mål: en knapp som spelar in men inte har någon mottagare hade tappat det man sade. (#276) På dator
  *   får huvudet också en mikrofonknapp bredvid plusset, som gör det raden gör.
  *   (0.97.0, lifehub.app#219) `onTalk` får lösa till `{ kvitto, angra? }`: fältet visar då kvittot med Ångra och Stäng i stället
@@ -929,6 +932,9 @@ function OpsAppShellRitad({
     throw new Error("OpsAppShell: \"talk\" måste ha onTalk (funktion). Utan mottagare hade det man sade försvunnit tyst.");
   }
   if (talk) kontrolleraSkickarText(talk.skickarText, "OpsAppShell talk");
+  if (talk && talk.svaraText !== undefined && (typeof talk.svaraText !== "string" || !talk.svaraText.trim())) {
+    throw new Error(`OpsAppShell: talk.svaraText ska vara en sträng som inte är tom, fick ${typeof talk.svaraText === "string" ? JSON.stringify(talk.svaraText) : typeof talk.svaraText}. En knapp utan ord går inte att trycka på.`);
+  }
   if (skapa) {
     const gammalInspelning = /** @type {{ spelaIn?: unknown, ideInspelare?: unknown }} */ (skapa);
     if (typeof gammalInspelning.spelaIn === "function" || gammalInspelning.ideInspelare !== undefined) {
@@ -1344,6 +1350,13 @@ function OpsAppShellRitad({
   // ⛔ PLATSEN `handelse.atgard` (0.60.0, #251, beslut 0003): bara moduler som är påslagna i gruppen, och en avslagen moduls komponent anropas inte.
   const handelseAtgarder = skapa?.moduler ? tillaggFor({ moduler: skapa.moduler, grupp: skapa.aktivGrupp, plats: "handelse.atgard" }) : [];
   const inspelningsMal = malForInspelning({ appMal: talk?.mal, moduler: skapa?.moduler, grupp: skapa?.aktivGrupp, sprak: skapa?.sprak ?? sprak });
+  // ⛔ TVÅ SORTERS MÅL, TVÅ VÄGAR IN (0.99.0). CP 2026-10-13 kväll: "Ja vi kör på bara text för att få en bra användarupplevelse."
+  // `malForInspelning` ger båda sorterna i en lista, och det är den som var felet i hur skalet använde den: mikrofonen (huvudets
+  // knapp, långtrycket på plus, raden TALK, prata in) erbjöd modulernas mål bredvid appens, så en röst som ställde en fråga till
+  // agenten kunde hamna i Biblioteket med ett knapptryck fel. Appens mål (`spara` saknas) är det mikrofonen erbjuder. Modulens mål
+  // (`spara` är en funktion) nås bara genom modulens egen rad, Röstinspelning i Ny-menyn (`useOppnaInspelning`), som öppnar fältet
+  // låst till målet och utan val. Listan och dess kontrakt är oförändrade: det är skalet som delar den.
+  const appInspelningsMal = inspelningsMal.filter((m) => typeof m.spara !== "function");
   const harRamverksrader = Boolean(talk) || inspelningsMal.length > 0 || Boolean(skapa?.handelse) || handelseAtgarder.length > 0 || Boolean(skapa?.arende) || typeof skapa?.grupp === "function" || typeof skapa?.nyttMeddelande === "function";
   // ⛔ TOMHET ÄR ETT SVAR: INGET PLUS ALLS NÄR DET INTE FINNS NÅGOT ATT VISA.
   // En knapp som öppnar en tom popover är sämre än ingen knapp, den lär den
@@ -1579,7 +1592,10 @@ function OpsAppShellRitad({
   const [skapaBottenOppen, setSkapaBottenOppen] = useState(false);
   // ⛔ Kroken körs alltid (krokarnas regel), men utan `talk` når ingen den: plusset får ingen `talk` och raden ritas inte.
   const [valtInspelning, setValtInspelning] = useState(/** @type {string | null} */ (null));
-  const valtMal = inspelningsMal.find((m) => m.id === valtInspelning) ?? inspelningsMal[0] ?? null;
+  // Ett valt id gäller appens mål (valet i fältet) eller ett modulmål (modulens rad). Utan val är det appens första mål, aldrig en modul.
+  const valtMal = inspelningsMal.find((m) => m.id === valtInspelning) ?? appInspelningsMal[0] ?? null;
+  /** Fältet är låst till en moduls mål: inget val ritas, och ingen annan mottagare finns. */
+  const laastTillModul = typeof valtMal?.spara === "function";
   const talkStyr = useTalk({
     onTalk: (blob, meta) => {
       if (valtMal?.spara) {
@@ -1652,8 +1668,10 @@ function OpsAppShellRitad({
               mikrofonen i huvudet gör samma sak, och två vägar till samma inspelning i samma plus är en för mycket.
               Telefonens plus tas i lane 11. */}
           {talk && talkRad ? <OpsPanelRow icon={<MikrofonIkon size={18} />} label={TALK_PRATA_IN} accent onClick={() => oppna(TALK_FORM)} /> : null}
+          {/* ⛔ UTAN `talk` FINNS INGET APPMÅL, och mikrofonen har då bara modulens mål att gå till. Raden öppnar fältet låst till
+              det första, som modulens egen rad gör (0.99.0). Förut valde `valtMal` det av sig självt, vilket är det som inte längre gäller. */}
           {!talk && inspelningsMal.length > 0 ? (
-            <OpsPanelRow icon={<MikrofonIkon size={18} />} label="Spela in" onClick={() => { stang(); talkStyr.direkt(); }} />
+            <OpsPanelRow icon={<MikrofonIkon size={18} />} label="Spela in" onClick={() => { stang(); const forsta = inspelningsMal.find((m) => typeof m.spara === "function"); if (forsta) setValtInspelning(forsta.id); talkStyr.direkt(); }} />
           ) : null}
           {skapa?.handelse ? (
             <OpsPanelRow
@@ -2426,17 +2444,20 @@ function OpsAppShellRitad({
           framsteg={talkStyr.framsteg}
           kanIgen={talkStyr.kanIgen}
           text={talkStyr.text}
+          textFel={talkStyr.textFel}
           medText={talkStyr.medText}
           skickarText={talkStyr.skickarText}
+          svaraText={talk?.svaraText}
           kvitto={talkStyr.kvitto}
           onAngra={talkStyr.angra}
+          onSvara={talkStyr.direkt}
           onSkicka={talkStyr.skickaIn}
           onAvbryt={talkStyr.avbryt}
           onIgen={talkStyr.igen}
           onTillatMikrofon={talkStyr.direkt}
           onInstallningar={talk?.onInstallningar}
           marke={talk?.marke}
-          mal={inspelningsMal.map((m) => ({ id: m.id, etikett: m.etikett }))}
+          mal={laastTillModul ? [] : appInspelningsMal.map((m) => ({ id: m.id, etikett: m.etikett }))}
           valt={valtMal?.id ?? null}
           onValj={setValtInspelning}
         />

@@ -9,6 +9,126 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.99.0
+
+**Beskrivna appar, byggsätt A.** En app är en beskrivning (data), och motorn ritar och sparar den. Beslut 0005, nattens första skiva i
+[lifehub.app#213](https://github.com/cllp/lifehub.app/issues/213).
+
+CP 2026-10-13: "Nu skall vi skapa funktionen för att bygga appar från agenten under natten." Agenten ska kunna bygga en app åt en grupp
+utan att skriva kod. Kod körs som den inloggade personen eller med Admin SDK, och en beskrivning kan bara BE motorn om listor och fält ur
+en sluten uppsättning (beslut 0005, "kod får nycklarna, en beskrivning får bara be"). Därför behövs ingen granskning av en beskrivning,
+och därför är formatet strängt: ett okänt fält är ett fel och släpps inte tyst igenom.
+
+### Nytt
+
+- **Formatet, version 1:** `{ format: 1, id, namn, ikon, beskrivning, listor: [{ id, namn, falt: [{ id, namn, typ, krav?, val? }], rubrikfalt, visning? }] }`.
+  Åtta fälttyper: `text`, `langtext`, `tal`, `datum`, `val`, `janej`, `lank`, `person`. 1 till 5 listor och 1 till 20 fält per lista. Id är små
+  bokstäver, siffror och bindestreck (2 till 40 tecken). `ikon` är ett namn ur `GRUPPIKONKATALOG`, ingen andra lista.
+- **`validateBeskrivning(b)`** ger `{ ok: true, beskrivning }` (normaliserad och idempotent) eller `{ ok: false, fel }` med ALLA fel, inte det
+  första, och varje med sökvägen och vad som gäller: `listor[0].falt[2].typ: okänd typ "siffra". Giltiga: text, langtext, tal, datum, val,
+  janej, lank, person.` De är skrivna för en agent som rättar sig efter dem.
+- **`validateRad(beskrivning, listaId, varden)`** prövar en rads värden mot fältens typer, krav och okända fält, och ger `{ ok: true, varden }`
+  eller `{ ok: false, fel, faltfel }` (`faltfel` är texten per fält-id, för ett formulär).
+- **`createBeskrivenAppKalla`** (raderna) och **`createBeskrivningskalla`** (beskrivningarna). Båda tar `source`, `collection`, `groupId` och
+  `skapare`, och båda prövar innan de skriver. Appen namnger samlingarna.
+- **`beskrivenappdataregelfragment(namn)`** och **`beskrivningsregelfragment(namn)`**, med emulatorprov (36 prov i `rules/__tests__/beskrivenapp.test.mjs`). Mutationskörning mot de genererade reglerna: 81 mutanter (varje villkor i de två fragmenten togs bort eller gjordes sant, ett i taget), 81 dödade, mätt efter granskningens rättningar nedan. Siffran som stod här tidigare, 66, gick inte att reproducera: granskaren fick 57 av 62.
+- **`OpsBeskrivenApp`**: flikar per lista, sök, Ny, raderna som lista eller tabell, ett formulär ur fältens typ, Spara, Avbryt och Ta bort med
+  fråga. Bara ramverkets egna delar, och ingenting ur beskrivningen blir HTML.
+- **`byggBeskrivningsdokument`** och **`beskrivningsId`**: dokumentets form och id på ett ställe, för klienten och för en server med Admin SDK.
+- **`ops-framework/node`** bär modellen (`validateBeskrivning`, `validateRad`, `byggBeskrivningsdokument`, `beskrivningsId` och alla tak), så att
+  appens Cloud Functions validerar med samma funktion som klienten.
+
+### För appen
+
+1. **Klistra in två fragment i `firestore.rules`**, efter `regelfragment()`, med samlingsnamn appen väljer:
+
+   ```js
+   import { beskrivenappdataregelfragment, beskrivningsregelfragment } from "ops-framework";
+   beskrivenappdataregelfragment("appdata");        // ALL appdata, en samling för alla beskrivna appar
+   beskrivningsregelfragment("appbeskrivningar");   // beskrivningarna själva
+   ```
+
+   ⛔ **Deploya reglerna INNAN den klienthalva som börjar läsa samlingarna mergas.** En regel i `main` är inte en regel i produktion
+   (bolag-ops, 2026-09-27: `Missing or insufficient permissions` över hela Inkorgen). Catch-all nekar allt som inte har ett block.
+2. **Skapa källorna och montera vyn:**
+
+   ```js
+   const beskrivningar = createBeskrivningskalla({ source, collection: "appbeskrivningar", groupId, skapare });
+   const { beskrivningar: appar } = await beskrivningar.lista();       // bara de som håller, resten står i trasiga
+   const kalla = createBeskrivenAppKalla({ source, collection: "appdata", groupId, beskrivning: appar[0].beskrivning, skapare });
+   <OpsBeskrivenApp beskrivning={appar[0].beskrivning} kalla={kalla} jag={jag} medlemmar={medlemmar} hubHref="/" />
+   ```
+
+3. **På servern (agentens `skapaApp`):** `validateBeskrivning` och svara modellen med `fel` tills den är giltig. Skriv sedan med Admin SDK:
+   `const { id, data } = byggBeskrivningsdokument({ groupId, beskrivning, skapadAv, skapad: Date.now() })` och `set(id, data)`.
+   Importera från `ops-framework/node`, inte från huvudingången.
+
+### Beslut att granska
+
+- ⛔ **Regeln för raderna läser aldrig beskrivningen.** Beslut 0005: en regel för all appdata. Den låser formen (fälten, `appId` och `lista` på
+  id-form, `varden` en map med högst 20 fält, skapare, klocka) och `validateRad` låser innehållet i klienten och på servern. Konsekvensen är
+  mätt i provet: en medlem som skriver förbi klienten kan lägga ett värde av fel typ i en rad i sin EGEN grupp. Vyn visar det som text och
+  kastar inte. Regeln hade annars behövt ett `get()` av beskrivningen vid varje skrivning, och då hänger varje apps skrivning på ett annat
+  dokument. Inget uttryck per värde, så den går inte över Firestores tak på 1000 uttryck (bibliotekets [#349](https://github.com/cllp/ops-framework/issues/349)).
+- ⛔ **Appens id står bara i `beskrivning.id`.** Beskrivningsdokumentet har inget eget `id`-fält (planen nämnde ett): dokumentets id härleds
+  (`beskrivningsId`, samma schema som modulinställningarna) och reglerna binder id:t till kroppen. Ett tredje ställe för samma id hade
+  varit en andra sanning.
+- ⛔ **Id med bindestreck.** `lanad-av`, inte `lanad_av`: id-formen är en delmängd av `ID_FORM` utan understreck, så att tilde-delningen i
+  dokumentets id är entydig och ett app-id aldrig kan krocka med en annan del. Felet säger det.
+- **En rad vars värden inte längre passar beskrivningen läses ändå.** Agenten kan ta bort ett fält. Prövar läsningen värdena blir en app som
+  utvecklats osynlig för sin egen data. Bara en rad som saknar sin form (fel grupp eller app, en lista som inte finns) är trasig.
+- **Att ta bort en beskrivning tar inte bort raderna.** En borttagen app kan skapas igen med samma id, och då är raderna tillbaka. Att städa
+  dem är en körning med Admin SDK.
+
+### Rättat efter granskningen
+
+Ett oberoende granskningspass över de beskrivna apparna hittade inga MÅSTE. Det här är BÖR och provluckor, alla rättade.
+
+- **Ett fält-id som `constructor` visade funktionen `Object`.** `rad.varden[id]` rakt av ger prototypens nyckel för en rad som saknar fältet, och vyn skrev
+  "function Object() { [native code] }" i listan, fyllde formuläret med den och sparade den. Alla läsningar av en rads värden och av formulärets fältfel
+  går nu genom `Object.hasOwn`. `constructor` är kvar som giltigt id (det är en slug), bara `id` är upptaget.
+- **Ett fält med id `id` skrev över radens nyckel i tabellen** (dubbla nycklar i `OpsTable`). `validateBeskrivning` avvisar nu fält-id `id` med ett fel som
+  föreslår `id-nummer` (`RESERVERADE_FALTID`), och tabellen sätter radens id sist.
+- **Stora värden ritades i full längd och sökningen gjorde `toLowerCase` på dem för varje rad vid varje tangenttryck.** Vyn kortar nu det den ritar och
+  söker (text och val till `MAX_TEXTVARDE`, länk till `MAX_LANKVARDE`, lång text till raden, värden av fel typ också, skaparens namn i rubrikraden).
+  Regelfragmenten begränsar `skapadAv.namn` och `skapadAv.kalla` (`MAX_SKAPARNAMN` och `MAX_SKAPARKALLA`, 100, nya i `skapare.js`, samma tal i regeln och i
+  `byggSkapare`). Regelns huvud säger nu också att ANTALET rader inte är begränsat: en regel kan inte räkna dokument. Det är en känd lucka, inget beslut.
+- **En agent med adminroll kunde ändra och radera gruppens rader** (raderna saknade `typ == 'person'` på adminvägen, beskrivningarna hade det). Rättat, med prov.
+- **Fem mutanter överlevde de första proven** (`skapadAv.namn is string` i båda fragmenten, beskrivningens `skapadAv.keys().hasOnly`, dess `skapadAv.kalla is string`
+  och `opsBeskrivningNu(andrad)` vid skapande), och en sjätte hittades vid omkörningen (`t is int`, ett decimaltal nära nu släpptes igenom). Alla har prov nu. Mot de
+  gamla proven överlevde de fem, mot de nya dör de.
+- **`byggSkapare` kortar ett namn över 100 tecken och kastar på en `kalla` över 100.** Utan det hade en lång profiltext gett varje skrivning "Missing or insufficient permissions".
+
+### Rättat före utgivningen: `chatt-live-text` föll bara på CI
+
+Publiceringen av 0.99.0 föll på `chatt-live-text.test.jsx:173` ("expected 'boka re' to be ''"), både före och efter rättelsen i 0.98.0 (d85132f). Den rättelsen var en gissning
+om vilken effekt som kom först, och den rörde inte orsaken.
+
+- **Orsaken:** fältet gick tillbaka till sin bas i en `useEffect` (`useRostinmatning`). En passiv effekt körs EFTER att renderingen är målad, så renderingen där läget blev "fel" stod i DOM:en med felmeddelandet och den halva
+  meningen i fältet samtidigt, tills en senare uppgift tömde den. Provet läste fältet direkt efter att felet hittats, och på en maskin där React:s tidsfönster (5 ms) tar slut
+  hinner testbibliotekets `setTimeout(0)` före effekten. Mätt: med `performance.now` låtsat långsam gav provet "expected 'boka re' to be ''" tre gånger av tre. Produkten hade samma glipa: en bild med felet och den halva meningen, som också går att skicka medan den står där.
+- **Rättelsen i produkten:** de två effekterna är `useLayoutEffect`. De körs före målningen och deras `setText` renderas synkront i samma uppgift. Provet är orört.
+- **Nytt prov som mäter glipan direkt** (`en MutationObserver` körs som mikrouppgift direkt efter en rendering): rött mot `useEffect` varje gång, grönt mot `useLayoutEffect`. Och ett prov för den väg där `talk.text` aldrig töms (inspelningen går inte att avsluta), som visar att läges-effektens återställning behövs och inte var död kod.
+
+### TALK: Svara, bara appens mål i mikrofonen, och andra omgången på iPhone
+
+TALK: bara appens mål i mikrofonen, Svara efter ett kvitto, och en andra omgång som inte längre faller tyst. CP 2026-10-13 kväll.
+
+### Ändrat
+
+- **Mikrofonen erbjuder bara appens mål.** CP: "Ja vi kör på bara text för att få en bra användarupplevelse." Huvudets mikrofon, långtrycket på plus och raden "TALK, prata in" visade modulernas mål (Spara i Biblioteket) bredvid appens, så att en röst till agenten kunde hamna i Biblioteket med ett knapptryck fel. Skalet delar nu listan från `malForInspelning` (som är oförändrad): appens mål till mikrofonen, modulens mål bara genom modulens egen rad (Ny-menyn: Röstinspelning), som öppnar fältet låst till målet utan val. Valet "Skickas till" ritas bara när det finns fler än ett mål, så med ett ensamt appmål finns inget val alls. Utan `talk` öppnar raden "Spela in" fältet låst till modulens första mål.
+- Fokus går till **Svara** när ett kvitto kommer (förut Stäng). Skälet: nästa steg i en dialog med agenten är att svara.
+
+### Nytt
+
+- **Svara** på kvittot (CP 22:13, efter en följdfråga från agenten: "Efter att jag pratat en gång finns bara stäng. Sedan kan jag inte börja om."). Primär knapp med mikrofonen som startar en ny omgång i samma fält till samma mål, rensar kvittot och förra omgångens text. Stäng är sekundär, Ångra finns kvar med `angra`. Svara spärras medan Ångra pågår. `talk.svaraText` byter ordet (förval "Svara", på engelska "Reply").
+- `useTalk().textFel` och `TALK_TEXTFEL`: fältet säger när texten uteblir (se Rättat).
+
+### Rättat
+
+- **Andra gången man pratade fungerade inte i Safari på iPhone** (CP 22:15). `webblasarensIgenkanning().stoppa()` gav upp efter `IGENKANNING_VANTA_MS` när webbläsaren aldrig sade `end`, men lät igenkännaren leva. Safari tillåter bara en aktiv igenkänning, så `start()` i nästa omgång kastade InvalidStateError, felet sväljdes, och fältet stod med sin platstext utan att något förklarade varför. Nu stängs den gamla igenkännaren (`abort`) både när `stoppa` ger upp och innan en ny startas, och en start som ändå faller, eller ett riktigt fel under tiden, går till felrapporten och till fältet (`role="alert"`, ljudet spelas in och sparas ändå). Igenkännarens `starta` tar valfri `onFel(kod)`. Förra omgångens text rensas nu när nästa börjar, inte först när mikrofonen öppnats. Mätt mot en fejkad Safari-igenkänning med regeln "bara en aktiv", inte mot en riktig iPhone.
+
+
 ## 0.98.0
 
 **Rättat före utgivningen:** publiceringen föll på `chatt-live-text` ("expected 'boka re' to be ''"). Kom läget "fel" i en tidigare rendering än den tömda texten stod en halv mening kvar i chattens fält. Fältet går nu tillbaka till texten från före mikrofonen så fort försöket slutar utan text.

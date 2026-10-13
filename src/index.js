@@ -239,7 +239,7 @@ export { sokGruppikoner, forslagUrGruppnamn, VANLIGA_GRUPPIKONER } from "./lib/g
 export { medlemsinfo } from "./lib/gruppmedlemmar.js";
 export { personnamn, NAMN_SAKNAS } from "./lib/personnamn.js";
 export { OpsGruppSida } from "./components/OpsGruppSida.jsx";
-export { regelfragment, gruppadSamling, generateRules, lagringsregelfragment, katalogregelfragment, konfigloggregelfragment, samtalsregelfragment, kalenderregelfragment, handelseregelfragment, bibliotekregelfragment, minnesregelfragment, modulinstallningsregelfragment } from "./lib/regler.js";
+export { regelfragment, gruppadSamling, generateRules, lagringsregelfragment, katalogregelfragment, konfigloggregelfragment, samtalsregelfragment, kalenderregelfragment, handelseregelfragment, bibliotekregelfragment, minnesregelfragment, modulinstallningsregelfragment, beskrivenappdataregelfragment, beskrivningsregelfragment } from "./lib/regler.js";
 /*
  * ⛔ MEJLKÖNS REGLER (0.76.0, #101). Text in och text ut, ingen React, och inget
  * beroende till transporten. Fragmentet står för sig: klienten läser inte kön
@@ -318,6 +318,17 @@ export { OpsInstallningar, ORD_OPSINSTALLNINGAR, useInstallningspanel } from "./
 export { VISA_I_HUVUDMENYN, sattHuvudmeny, huvudmenyInom, installningarFor, installningsVarden } from "./lib/modulinstallningar.js";
 export { createModulinstallningskalla } from "./data/modulinstallningskalla.js";
 export { OpsModulInstallningar, ORD_OPSMODULINSTALLNINGAR } from "./components/OpsModulInstallningar.jsx";
+/*
+ * ⛔ BESKRIVNA APPAR, BYGGSÄTT A (0.99.0, beslut 0005, lifehub.app#213). En app är en beskrivning, motorn ritar och sparar den. Modellen
+ * (`validateBeskrivning`, `validateRad` och taken) ligger OCKSÅ i `ops-framework/node`, så appens Cloud Functions validerar med samma funktion.
+ */
+export {
+  BESKRIVNINGSFORMAT, FALTTYPER, VISNINGAR, BESKRIVNINGSIDFORM, MAX_BESKRIVNINGSNAMN, MAX_APPBESKRIVNING, MIN_LISTOR, MAX_LISTOR, MIN_FALT, MAX_FALT, MIN_VAL, MAX_VAL, MAX_VALTEXT,
+  MAX_TEXTVARDE, MAX_LANGTEXTVARDE, MAX_LANKVARDE, BESKRIVNINGSFALT, LISTFALT, FALTFALT, BESKRIVENAPPDATAFALT, BESKRIVNINGSDOKUMENTFALT,
+  validateBeskrivning, validateRad, beskrivningsId, byggBeskrivningsdokument,
+} from "./lib/beskrivenapp.js";
+export { createBeskrivenAppKalla, createBeskrivningskalla } from "./data/beskrivenappkalla.js";
+export { OpsBeskrivenApp, ORD_OPSBESKRIVENAPP } from "./components/OpsBeskrivenApp.jsx";
 /*
  * ⛔ SAMTALEN (0.34.0, #182, #185): gruppchatt, privata meddelanden och Assistent-tråden som EN modell. Formerna och
  * nyckeln är rena funktioner, källan går genom en datakälla, och Firebase importeras aldrig här.

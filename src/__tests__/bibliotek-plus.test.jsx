@@ -49,7 +49,9 @@ function oppnaTalk() {
 }
 
 describe("plussets inspelare och modulens mål", () => {
-  it("visar Spara i Biblioteket när modulen är på, och Klar anropar modulens spara", async () => {
+  it("⛔ mikrofonen erbjuder bara appens mål, aldrig Biblioteket, även när modulen är på (0.99.0)", async () => {
+    // CP 2026-10-13 kväll: "Ja vi kör på bara text för att få en bra användarupplevelse." Före 0.99.0 stod Spara i Biblioteket som
+    // ett tredje val i mikrofonens fält, och en röst till agenten kunde hamna i Biblioteket. Biblioteket nås nu bara via sin egen rad.
     const spara = vi.fn();
     const onTalk = vi.fn();
     const grupp = { id: "g", moduler: ["bibliotek"] };
@@ -68,15 +70,30 @@ describe("plussets inspelare och modulens mål", () => {
     oppnaTalk();
     expect(screen.getByRole("radio", { name: "Händelse" })).toHaveAttribute("aria-checked", "true");
     expect(screen.getByRole("radio", { name: "Meddelande" })).toHaveAttribute("aria-checked", "false");
-    fireEvent.click(screen.getByRole("radio", { name: "Spara i Biblioteket" }));
-    expect(screen.getByRole("button", { name: "Klar, spara inspelningen" })).toBeTruthy();
+    expect(screen.queryByRole("radio", { name: "Spara i Biblioteket" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Klar, spara inspelningen" }));
-    await waitFor(() => expect(spara).toHaveBeenCalledTimes(1));
-    expect(onTalk).not.toHaveBeenCalled();
-    const inmatning = spara.mock.calls[0][0];
-    expect(inmatning.mimeType).toBe("audio/webm");
-    expect(inmatning.grupp).toBe(grupp);
-    expect(typeof inmatning.rapportera).toBe("function");
+    await waitFor(() => expect(onTalk).toHaveBeenCalledTimes(1));
+    expect(onTalk.mock.calls[0][1].mal).toEqual({ id: "handelse" });
+    expect(spara).not.toHaveBeenCalled();
+  });
+
+  it("⛔ med ETT appmål och en modul på ritas inget val i mikrofonens fält, och ljudet går till appmålet (0.99.0)", async () => {
+    const spara = vi.fn();
+    const onTalk = vi.fn();
+    const moduler = validateModuler([bibliotekModul(spara)]);
+    render(
+      <OpsAppShell brand="Ops" nav={nav} activeHref="/" talk={{ onTalk, inspelare, mal: [{ id: "agenten", etikett: "Agenten" }] }} skapa={{ lage: "g", moduler, aktivGrupp: { id: "g", moduler: ["bibliotek"] } }}>
+        <p>x</p>
+      </OpsAppShell>,
+    );
+    oppnaTalk();
+    expect(screen.queryByText("Skickas till")).toBeNull();
+    expect(screen.queryByRole("radiogroup")).toBeNull();
+    expect(screen.queryByRole("radio")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Klar, spara inspelningen" }));
+    await waitFor(() => expect(onTalk).toHaveBeenCalledTimes(1));
+    expect(onTalk.mock.calls[0][1].mal).toEqual({ id: "agenten" });
+    expect(spara).not.toHaveBeenCalled();
   });
 
   it("en avstängd modul syns inte, och Händelse lämnas till onTalk", async () => {
@@ -104,7 +121,7 @@ describe("plussets inspelare och modulens mål", () => {
     expect(spara).not.toHaveBeenCalled();
   });
 
-  it("Röstinspelning i Ny-menyn öppnar plussets inspelare med Biblioteket förvalt", async () => {
+  it("Röstinspelning i Ny-menyn öppnar plussets inspelare låst till Biblioteket, utan val (0.99.0)", async () => {
     const spara = vi.fn();
     const onTalk = vi.fn();
     const grupp = { id: "g", moduler: ["bibliotek"] };
@@ -123,8 +140,9 @@ describe("plussets inspelare och modulens mål", () => {
     expect(document.querySelector("[data-bibliotek-inspelning]")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Ny post" }));
     fireEvent.click(screen.getByRole("menuitem", { name: "Röstinspelning" }));
-    expect(screen.getByRole("radio", { name: "Spara i Biblioteket" })).toHaveAttribute("aria-checked", "true");
-    expect(screen.getByRole("radio", { name: "Händelse" })).toHaveAttribute("aria-checked", "false");
+    // Låst: inga val alls, varken Biblioteket eller appens mål. Mottagaren är den modulens rad pekade på.
+    expect(screen.queryByRole("radio")).toBeNull();
+    expect(screen.queryByText("Skickas till")).toBeNull();
     expect(screen.getByText("0:00 / 2:00")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Klar, spara inspelningen" }));
     await waitFor(() => expect(spara).toHaveBeenCalledTimes(1));
@@ -166,7 +184,7 @@ describe("plussets inspelare och modulens mål", () => {
       const onTalk = vi.fn();
       skal(spara, onTalk);
       rostinspelning();
-      expect(screen.getByRole("radio", { name: "Spara i Biblioteket" })).toHaveAttribute("aria-checked", "true");
+      expect(screen.queryByRole("radio")).toBeNull();
       fireEvent.click(screen.getByRole("button", { name: "Klar, spara inspelningen" }));
       await waitFor(() => expect(spara).toHaveBeenCalledTimes(1));
       // Sparat står kvar i SPARAT_MS och fälls sedan till vila. Först då är inspelningen över.
@@ -174,7 +192,7 @@ describe("plussets inspelare och modulens mål", () => {
 
       oppnaTalk();
       expect(screen.getByRole("radio", { name: "Förslag" })).toHaveAttribute("aria-checked", "true");
-      expect(screen.getByRole("radio", { name: "Spara i Biblioteket" })).toHaveAttribute("aria-checked", "false");
+      expect(screen.queryByRole("radio", { name: "Spara i Biblioteket" })).toBeNull();
       fireEvent.click(screen.getByRole("button", { name: "Avbryt" }));
       expect(screen.queryByRole("dialog", { name: "TALK" })).toBeNull();
 
@@ -191,13 +209,13 @@ describe("plussets inspelare och modulens mål", () => {
       const onTalk = vi.fn();
       skal(spara, onTalk);
       rostinspelning();
-      expect(screen.getByRole("radio", { name: "Spara i Biblioteket" })).toHaveAttribute("aria-checked", "true");
+      expect(screen.queryByRole("radio")).toBeNull();
       fireEvent.click(screen.getByRole("button", { name: "Avbryt" }));
       expect(screen.queryByRole("dialog", { name: "TALK" })).toBeNull();
 
       talkIHuvudet();
       expect(screen.getByRole("radio", { name: "Förslag" })).toHaveAttribute("aria-checked", "true");
-      expect(screen.getByRole("radio", { name: "Spara i Biblioteket" })).toHaveAttribute("aria-checked", "false");
+      expect(screen.queryByRole("radio", { name: "Spara i Biblioteket" })).toBeNull();
       // Ett val i fältet under en plusinspelning gäller den inspelningen och inte nästa.
       fireEvent.click(screen.getByRole("radio", { name: "Meddelande" }));
       fireEvent.click(screen.getByRole("button", { name: "Avbryt" }));
@@ -217,7 +235,7 @@ describe("plussets inspelare och modulens mål", () => {
       fireEvent.click(screen.getByRole("button", { name: "Avbryt" }));
       // Andra röstinspelningen kommer efter en övergång till vila, alltså efter en återställning.
       rostinspelning();
-      expect(screen.getByRole("radio", { name: "Spara i Biblioteket" })).toHaveAttribute("aria-checked", "true");
+      expect(screen.queryByRole("radio")).toBeNull();
       expect(screen.getByText("0:00 / 2:00")).toBeInTheDocument();
       fireEvent.click(screen.getByRole("button", { name: "Klar, spara inspelningen" }));
       await waitFor(() => expect(spara).toHaveBeenCalledTimes(1));
@@ -284,26 +302,21 @@ describe("plussets inspelare och modulens mål", () => {
       expect(stoppa).toHaveBeenCalledTimes(1);
     });
 
-    it("byter personen mål medan det spelar in räknas taket om från starten, åt båda håll", async () => {
+    it("⛔ mikrofonen når aldrig Bibliotekets tak: TALK klipps vid 2:00 och erbjuder inte Biblioteket (0.99.0)", async () => {
+      // Före 0.99.0 kunde personen byta till Biblioteket mitt i en inspelning, och taket räknades om från starten (120 till 600 s och
+      // tillbaka). Biblioteket är inte längre ett val i mikrofonen, så den vägen finns inte. Taket följer fortfarande det valda målet
+      // (provet ovan, och `useTalk` provas direkt i talk-forsok); det som provas här är att mikrofonen håller sig vid sitt eget.
       vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "Date"] });
       const stoppa = vi.fn(async () => ({ blob: new Blob(["a"]), mimeType: "audio/webm", sekunder: 1 }));
       skal(stoppa, IDE_MAX_SEKUNDER);
-      // TALK i plusmenyn börjar på appens första mål (120 s). Efter en minut väljs Biblioteket (600 s).
       fireEvent.click(screen.getByRole("button", { name: "Skapa" }));
       const rad = screen.getAllByRole("button", { name: "TALK, prata in" }).find((knapp) => !knapp.closest("header"));
       if (!rad) throw new Error("TALK-raden saknas i Skapa");
       fireEvent.click(rad);
       await gaFram(0);
       expect(screen.getByText(/\/ 2:00$/)).toBeInTheDocument();
-      await gaFram(60);
-      fireEvent.click(screen.getByRole("radio", { name: "Spara i Biblioteket" }));
-      await gaFram(0);
-      expect(screen.getByText(/\/ 10:00$/)).toBeInTheDocument();
-      await gaFram(90);
-      expect(stoppa).not.toHaveBeenCalled();
-      // Tillbaka till ett mål med 120 s när 150 s gått: inspelningen avslutas direkt, målet tar inte längre ljud.
-      fireEvent.click(screen.getByRole("radio", { name: "Händelse" }));
-      await gaFram(0);
+      expect(screen.queryByRole("radio", { name: "Spara i Biblioteket" })).toBeNull();
+      await gaFram(121);
       expect(stoppa).toHaveBeenCalledTimes(1);
     });
   });

@@ -58,6 +58,16 @@ export const SKAPARTYPER = /** @type {const} */ (["manniska", "agent", "okand"])
  */
 export const SKAPARFALT = /** @type {const} */ (["uid", "namn", "typ", "kalla"]);
 
+/**
+ * Taken för `namn` och `kalla`, som regelfragmenten för beskrivna appar skriver in ur de här konstanterna (en sanning för taket).
+ *
+ * ⛔ UTAN TAK ÄR FÄLTEN BARA BEGRÄNSADE AV DOKUMENTETS EGEN STORLEK. Regeln prövade att `namn` och `kalla` var text, men inte hur
+ * lång: ett namn på hundratals kilobyte skrivet förbi klienten ritades i full längd i varje vy som visar vem som skapade raden
+ * (granskningen av 0.99.0). `byggSkapare` håller samma tak, så att en klient aldrig skriver det regeln nekar.
+ */
+export const MAX_SKAPARNAMN = 100;
+export const MAX_SKAPARKALLA = 100;
+
 /** @type {Skapare} */
 const OKAND = Object.freeze({ uid: null, namn: "", typ: "okand", kalla: "" });
 
@@ -81,11 +91,17 @@ export function byggSkapare(d = {}) {
     throw new Error(`byggSkapare: okänd typ "${typ}". Giltiga: ${SKAPARTYPER.join(", ")}.`);
   }
   const uid = text(d.uid);
+  const kalla = text(d.kalla);
+  // `kalla` sätts av appens kod och är ett jobb- eller vynamn: för långt är ett programfel, som en okänd `typ`.
+  if (kalla.length > MAX_SKAPARKALLA) {
+    throw new Error(`byggSkapare: kalla är ${kalla.length} tecken. Högst ${MAX_SKAPARKALLA}. Det är ett jobb- eller vynamn, inte en text.`);
+  }
   return {
     uid: uid || null,
-    namn: text(d.namn),
+    // `namn` är en persons visningsnamn och kommer ur en profil appen inte styr: det kortas i stället för att stoppa skrivningen.
+    namn: text(d.namn).slice(0, MAX_SKAPARNAMN).trimEnd(),
     typ: /** @type {Skapare["typ"]} */ (typ),
-    kalla: text(d.kalla),
+    kalla,
   };
 }
 

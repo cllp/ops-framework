@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, renderHook, screen, within } from "@testing-library/react";
-import { OpsAppShell } from "../components/OpsAppShell.jsx";
+import { OpsAppShell, useOppnaInspelning } from "../components/OpsAppShell.jsx";
 import { OpsInspelning, useTalk } from "../components/OpsTalk.jsx";
 import { LANGTRYCK_MS, SPARAT_MS, TALK_PLATSTEXT, talkKvitto } from "../lib/talk.js";
 import { validateModuler } from "../lib/modul.js";
@@ -37,6 +37,12 @@ function uppskjutet() {
   return { lofte, los, avvisa };
 }
 
+/** Modulens egen rad, som Bibliotekets Ny-meny: den enda vägen till ett moduls mål. */
+function ModulensRad() {
+  const oppna = useOppnaInspelning();
+  return <button type="button" onClick={() => oppna("bibliotek")}>Röstinspelning i Biblioteket</button>;
+}
+
 const fasta = { idag: { href: "/" }, kalender: { href: "/kalender" }, hub: { href: "/hub" } };
 /** @param {any} talk */
 const Skal = (talk) => (
@@ -70,8 +76,9 @@ describe("kvittot i fältet", () => {
     const dialog = /** @type {HTMLElement} */ (falt());
     expect(within(dialog).getByRole("status").textContent).toBe("Inlagt: Rep, torsdag 22 okt 19:00");
     expect(within(dialog).getByRole("button", { name: "Ångra" })).toBeTruthy();
-    // ⛔ Fokus på Stäng, inte på Ångra: ett Enter av vana ska stänga, inte ta bort det appen nyss gjorde.
-    expect(document.activeElement).toBe(within(dialog).getByRole("button", { name: "Stäng" }));
+    // ⛔ Fokus på Svara (0.99.0; före dess på Stäng), inte på Ångra: ett Enter av vana ska svara agenten, inte ta bort det appen
+    // nyss gjorde. Skälet till bytet: CP 2026-10-13 22:13, "Efter att jag pratat en gång finns bara stäng."
+    expect(document.activeElement).toBe(within(dialog).getByRole("button", { name: "Svara" }));
     // ⛔ Döljs inte av sig självt, som Sparat gör.
     act(() => vi.advanceTimersByTime(SPARAT_MS * 5));
     expect(falt()).not.toBeNull();
@@ -195,6 +202,7 @@ describe("kvittot i fältet", () => {
   });
 
   it("⛔ ett moduls mål (Biblioteket) säger Sparar…, inte appens skickarText", async () => {
+    // 0.99.0: Biblioteket nås inte längre ur mikrofonen utan bara genom modulens egen rad, här en knapp som anropar `useOppnaInspelning`.
     // Det är modulens `spara` som arbetar där, inte appens agent. "Agenten arbetar…" hade varit osant.
     const spara = vi.fn(() => new Promise(() => {}));
     const onTalk = vi.fn(() => new Promise(() => {}));
@@ -217,14 +225,12 @@ describe("kvittot i fältet", () => {
         talk={{ onTalk, inspelare: falskInspelare(), skickarText: "Agenten arbetar…", mal: [{ id: "handelse", etikett: "Händelse" }] }}
         skapa={{ lage: "g", moduler: validateModuler([modul]), aktivGrupp: { id: "g", moduler: ["bibliotek"] } }}
       >
-        <p>x</p>
+        <ModulensRad />
       </OpsAppShell>,
     );
-    fireEvent.click(screen.getByRole("button", { name: "Skapa" }));
-    const rad = screen.getAllByRole("button", { name: "TALK, prata in" }).find((k) => !k.closest("header"));
-    fireEvent.click(/** @type {HTMLElement} */ (rad));
+    fireEvent.click(screen.getByRole("button", { name: "Röstinspelning i Biblioteket" }));
     await flush();
-    fireEvent.click(screen.getByRole("radio", { name: "Spara i Biblioteket" }));
+    expect(screen.queryByRole("radio")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Klar, spara inspelningen" }));
     await flush();
     expect(spara).toHaveBeenCalledTimes(1);

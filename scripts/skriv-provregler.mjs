@@ -18,7 +18,7 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { mejlregelfragment } from "../src/lib/mejl.js";
-import { bibliotekregelfragment, gruppadSamling, handelseregelfragment, kalenderregelfragment, katalogregelfragment, konfigloggregelfragment, minnesregelfragment, modulinstallningsregelfragment, regelfragment, samtalsregelfragment } from "../src/lib/regler.js";
+import { beskrivenappdataregelfragment, beskrivningsregelfragment, bibliotekregelfragment, gruppadSamling, handelseregelfragment, kalenderregelfragment, katalogregelfragment, konfigloggregelfragment, minnesregelfragment, modulinstallningsregelfragment, regelfragment, samtalsregelfragment } from "../src/lib/regler.js";
 
 const rot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const ut = path.join(rot, "rules", "provregler.rules");
@@ -51,6 +51,9 @@ const ut = path.join(rot, "rules", "provregler.rules");
  *
  * ⛔ MODULINSTÄLLNINGAR (0.88.0): `modulinstallningsregelfragment("modulinstallningar")`. Namnet är påhittat,
  *   samma sak som hos en app. Pinnen till huvudmenyn provas inte här: den ligger kvar på gruppen.
+ *
+ * ⛔ BESKRIVNA APPAR (0.99.0): `beskrivenappdataregelfragment("appdata")` och `beskrivningsregelfragment("appbeskrivningar")`.
+ *   Namnen är påhittade, som hos en app.
  */
 const text = `rules_version = '2';
 
@@ -69,6 +72,8 @@ ${mejlregelfragment("mejlko")}
 ${bibliotekregelfragment("bibliotek")}
 ${minnesregelfragment("gruppmine")}
 ${modulinstallningsregelfragment("modulinstallningar")}
+${beskrivenappdataregelfragment("appdata")}
+${beskrivningsregelfragment("appbeskrivningar")}
     // Påhittad app-samling (se filhuvudet): appens eget block, med ramverkets fält prövade av opsHandelsefaltGiltiga.
     match /kalhandelser/{id} {
       allow read: if opsArMedlem(resource.data.groupId);

@@ -176,6 +176,50 @@ describe("chattens mikrofon med text medan man pratar", () => {
     }
   });
 
+  it("⛔ den halva meningen står aldrig kvar i fältet medan felet redan syns: fältet och felet ändras i samma rendering", async () => {
+    // Publiceringen av 0.99.0 föll om och om igen på raden `expect(ruta().value).toBe("")` i provet ovan, bara på CI. Orsaken var inte provet:
+    // fältet gick tillbaka till sin bas i en `useEffect`, och en passiv effekt körs EFTER att renderingen med felet är målad. Mellan de två
+    // stod felet och den halva meningen i DOM:en samtidigt (och på en telefon målades den bilden). Provet läste i den glipan när
+    // webbläsaren hann köra sin timer före React:s nästa uppgift, vilket en långsam maskin gör. Här mäts glipan direkt: en MutationObserver
+    // körs som mikrouppgift DIREKT efter en rendering, före varje timer och varje passiv effekt, så den ser exakt vad som målas först.
+    try {
+      const { f, rec } = await borjaPrata({ onTranscribe: vi.fn().mockRejectedValue(new Error("Tjänsten svarade 503.")) });
+      f.resultat(rec, [["boka re", false]]);
+      expect(ruta().value).toBe("boka re");
+      /** @type {string[]} */
+      const sett = [];
+      const iakttagare = new MutationObserver(() => {
+        if (document.querySelector("[role='alert']")) sett.push(ruta().value);
+      });
+      iakttagare.observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true });
+      act(() => rec.onerror({ error: "network" }));
+      fireEvent.click(screen.getByRole("button", { name: "Skriv ut det inspelade" }));
+      await screen.findByRole("alert");
+      iakttagare.disconnect();
+      // Golv: iakttagaren såg felet minst en gång. Utan det vore provet grönt av att ingenting lästes.
+      expect(sett.length).toBeGreaterThan(0);
+      expect(sett).toEqual(sett.map(() => ""));
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("⛔ en inspelning som inte går att avsluta lämnar inte den halva meningen i fältet, bara felet", async () => {
+    // Här töms aldrig `talk.text` (stoppa() av ljudet faller före `setText(hord)`), så det är läges-effekten som ensam lägger tillbaka basen.
+    try {
+      const { insp, f, rec } = await borjaPrata({ fore: "  " });
+      insp.stoppa.mockRejectedValue(new Error("Mikrofonen släpptes."));
+      f.resultat(rec, [["boka re", false]]);
+      expect(ruta().value).toBe("  boka re");
+      fireEvent.click(screen.getByRole("button", { name: "Skriv ut det inspelade" }));
+      const fel = await screen.findByRole("alert");
+      expect(fel.textContent).toContain("Mikrofonen släpptes.");
+      expect(ruta().value).toBe("  ");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("utan taligenkänning i webbläsaren gäller den gamla vägen: spelar in, Skriver ut det inspelade…, och appens text i fältet", async () => {
     const { s, a } = await underlag();
     const insp = provinspelare();
