@@ -9,6 +9,39 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.98.0
+
+Chattens mikrofon skriver orden i skrivfältet medan man pratar, som TALK. Av som förval: appen slår på det.
+
+CP 2026-10-13, med en skärmbild av chattens skrivfält och raden "Skriver ut det inspelade…" under det efter inspelningen: "VI behöver ha
+samma snabba text utskrift även i chatten. Kan vi ordna det?" Och sedan: "kör".
+
+### Nytt
+
+- **`igenkanning`** på `OpsMeddelanden`, `OpsSamtal` och `OpsTrad`, samma val som `useTalk({ igenkanning })`. Med `true` och en
+  webbläsare som har taligenkänning skrivs orden i skrivfältet medan de sägs, och den som stoppar har texten kvar att rätta och
+  skicka. Ingenting skickas av sig självt. Det som stod i fältet före mikrofonen ligger kvar, och orden läggs efter med ett
+  mellanslag. Fältet är skrivskyddat medan mikrofonen lyssnar (varje delresultat skriver hela fältet, och Enter skickar inte en halv
+  mening), och statusraden säger då "Lyssnar. Orden skrivs i fältet medan du pratar. Tryck på ljudvågen när du är klar."
+  (`texter.lyssnar`, `role="status"` som förut). Ljudvågens knapp heter och bär `aria-pressed` som förut.
+- **Ingen andra kopia av igenkänningen.** Chatten kör `useTalk` med `igenkanning`, alltså `webblasarensIgenkanning` i `lib/talk.js`:
+  samma omstart efter tystnad, samma språk (`igenkanningensSprak`, ur appens språk) och samma "hellre ingen text än en halv". TALK
+  är orörd.
+
+### Oförändrat, med flit
+
+- ⛔ **Av som förval.** Granskningen av PR 358 (MÅSTE 3) kopplade bort igenkänningen i skrivfältet, eftersom Chrome skickar talet
+  till Google och Safari till Apple, och ingen app ska börja göra det bara genom att pinna om. Skälet gäller fortfarande. Utan
+  `igenkanning` är chatten exakt som i 0.97.0 (provet i `chatt-skrivfalt.test.jsx` står kvar och mäter det).
+- **Den gamla vägen är kvar som reserv.** Saknas igenkänningen (Firefox), nekas den eller faller den mitt i, blir texten tom: de halva
+  orden tas bort ur fältet, ljudet spelas in som förut och `onTranscribe` skriver ut med "Skriver ut det inspelade…". Faller också den
+  står felet kvar med Försök igen, och ljudet sparas. Ljudvågen kräver därför fortfarande `onTranscribe`.
+- Avbryt kastar orden som hörts och lämnar fältet som det var.
+
+### För appen
+
+Slå på med `igenkanning` (eller `igenkanning={true}`) på det som ritar chatten. Det är appens beslut, så som det är i `talk.igenkanning`.
+
 ## 0.97.0
 
 TALK kan svara med ett kvitto som går att ångra, statusraden medan appen arbetar går att ange, och fältet är ritat om.
