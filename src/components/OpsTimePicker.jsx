@@ -1,6 +1,6 @@
 import * as Select from "@radix-ui/react-select";
 import { cx } from "../lib/cx.js";
-import { faltTriggerKlass, faltYtaKlass, valjAlternativKlass } from "../lib/radKlass.js";
+import { faltListaBreddKlass, faltTriggerKlass, faltYtaKlass, valjAlternativKlass } from "../lib/radKlass.js";
 import { useFieldBinding } from "./OpsField.jsx";
 import { BockIkon, ChevronNedIkon } from "./icons.jsx";
 
@@ -81,7 +81,7 @@ export function OpsTimePicker({ value, onChange, disabled = false, allowEmpty = 
         </Select.Icon>
       </Select.Trigger>
       <Select.Portal>
-        <Select.Content position="popper" sideOffset={4} className={cx(faltYtaKlass, "overflow-hidden")}>
+        <Select.Content position="popper" sideOffset={4} className={cx(faltYtaKlass, faltListaBreddKlass, "overflow-hidden")}>
           <Select.Viewport className="max-h-52 overscroll-contain p-1">
             {allowEmpty ? (
               <Select.Item value={TOM} className={valjAlternativKlass({ dampad: true })}>

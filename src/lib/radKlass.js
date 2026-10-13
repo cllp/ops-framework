@@ -270,6 +270,19 @@ export function faltTriggerKlass({ invalid = false, filled = true } = {}) {
 export const faltYtaKlass = "z-(--z-dropdown) rounded-base border border-line bg-surface shadow-lg";
 
 /**
+ * En lista ur en fältknapp (`OpsSelect`, `OpsTimePicker`) är minst lika bred som knappen.
+ *
+ * ⛔ 0.95.1, mätt i Identitys montage av AI-nycklar (lifehub.identity, `docs/jamforelser/kontroller/ai-leverantor-1440.jpg`):
+ * fältet Leverantör var cirka 640 px och den öppna listan cirka 150 px, alltså bara så bred som "Annan / custom". Listan såg
+ * ut att höra till något annat än fältet den öppnades ur. Radix `Select.Content` i `position="popper"` sätter
+ * `--radix-select-trigger-width` på innehållet; den används här och ingen bredd mäts för hand.
+ *
+ * ⛔ MIN OCH INTE BREDD. Ett alternativ som är längre än fältet ska fortfarande få plats, som i ett smalt tidsfält.
+ * `scripts/check-kontrollyta.mjs` mäter det i en riktig webbläsare, jsdom ritar ingen bredd.
+ */
+export const faltListaBreddKlass = "min-w-(--radix-select-trigger-width)";
+
+/**
  * Ett alternativ i en LISTA I ETT FORMULÄR (`OpsSelect`, `OpsTimePicker`): Radix `Select.Item`. 0.31.2.
  *
  * ══ ⛔ SS FORMULÄRLISTA, MÄTT (CP 2026-09-29 19:50: "Typsnitten är inte syncade. Stor text ... Har ni verkligen gått igenom allt?") ═══

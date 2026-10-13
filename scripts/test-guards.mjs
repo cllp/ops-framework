@@ -1053,7 +1053,7 @@ kravRott(
   // listen försvinner utan att något prov ser det.
   kravRott(
     "sidram 5: standardens scrollbar-color borttagen",
-    [sidramsvakt, tokenkopia("sr5", (s) => s.replace(/\n\s*scrollbar-color: color-mix\([^;]*;/, ""))],
+    [sidramsvakt, tokenkopia("sr5", (s) => s.replace(/\n\s*scrollbar-color: var\(--color-ink-muted\) transparent;/, ""))],
     "scrollbar-color",
   );
   kravRott(
@@ -1065,7 +1065,7 @@ kravRott(
   // finns en färg som inte byter med mörkt läge.
   kravRott(
     "sidram 7: hårdkodad färg på listen",
-    [sidramsvakt, tokenkopia("sr7", (s) => s.replace(/(\n\s*scrollbar-color: )color-mix\([^;]*;/, "$1#999 transparent;"))],
+    [sidramsvakt, tokenkopia("sr7", (s) => s.replace(/(\n\s*scrollbar-color: )var\(--color-ink-muted\) transparent;/, "$1#999 transparent;"))],
     "hårdkodat färgvärde",
   );
 }
@@ -1659,6 +1659,36 @@ const gruppmapp = fs.mkdtempSync(path.join(rot, ".ops-vaktprov-"));
   kravRott("kontrast golv: tokens utan paren", [kontrastvakt, tokenkopia("k3", () => ":root { --color-ink: #000; }\n")], "gick att mäta");
 
   kravRott("kontrast golv: fel sökväg", [kontrastvakt, path.join(arbetsmapp, "finns-inte.css")], "hittar inte");
+
+  // ⛔ 0.95.1: RULLNINGSLISTENS TUMME, exakt det uttryck 0.95.0 skeppade. Tokenet
+  // `ink-muted` klarar 3:1 för sig, alltså hade ett par på tokenet varit grönt;
+  // det är halva genomskinligheten som fäller den.
+  kravRott(
+    "kontrast: tummen tillbaka till 0.95.0:s halva ink-muted",
+    [kontrastvakt, tokenkopia("k4", (css) => css.replace("scrollbar-color: var(--color-ink-muted) transparent;", "scrollbar-color: color-mix(in srgb, var(--color-ink-muted) 50%, transparent) transparent;"))],
+    "WCAG 1.4.11",
+  );
+
+  kravRott(
+    "kontrast: tummen under pekaren saknas",
+    [kontrastvakt, tokenkopia("k5", (css) => css.replace(/:where\(:not\(html\)\):hover\s*\{[^}]*\}/, ""))],
+    "saknas i basskiktet",
+  );
+
+  // ⛔ Hover som är svagare än vila men fortfarande över 3:1: bara kravet
+  // "starkare" fäller den, alltså är det det som prövas.
+  kravRott(
+    "kontrast: tummen svagare under pekaren än i vila",
+    [
+      kontrastvakt,
+      tokenkopia("k6", (css) =>
+        css
+          .replace("scrollbar-color: var(--color-ink-muted) transparent;", "scrollbar-color: var(--color-ink) transparent;")
+          .replace(/(:where\(:not\(html\)\):hover\s*\{\s*scrollbar-color:) var\(--color-ink\)/, "$1 var(--color-ink-muted)"),
+      ),
+    ],
+    "Hover ska vara starkare",
+  );
 }
 
 // ── Gruppnyckeln: exakt en per rad (#136) ─────────────────────────────────

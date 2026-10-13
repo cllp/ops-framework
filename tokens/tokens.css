@@ -1418,20 +1418,77 @@
    * (`[scrollbar-width:none]` på en svepbar rad) ska fortfarande vinna, och
    * verktygsklasserna ligger efter basskiktet i lagerordningen.
    *
-   * ⛔ TOKENS, INTE FÄRGER. Tummen är `--color-ink-muted` till hälften
-   * genomskinlig och skenan är genomskinlig, alltså följer listen ljust och
-   * mörkt läge och en instans brandfil utan en rad till.
+   * ⛔ TOKENS, INTE FÄRGER. Tummen och skenan följer ljust och mörkt läge och
+   * en instans brandfil utan en rad till.
+   *
+   * ══ ⛔ TUMMEN ÄR HEL `ink-muted`, ALDRIG GENOMSKINLIG (0.95.1) ══════════════
+   *
+   * 0.95.0 målade tummen `color-mix(in srgb, var(--color-ink-muted) 50%,
+   * transparent)`. Mätt i lifehub.app:s ompinning (PR 206): i mörkt läge
+   * syntes den knappt i Idags ruta, sämre än operativsystemets grå list den
+   * ersatte, och mot Identitys beige yta var den också svag. Räknat ur tokens
+   * efter blandningen gav den 1,77 till 1,80:1 i ljust läge och 2,11 till
+   * 2,34:1 i mörkt, mot `canvas`, `surface`, `raised`, `sunken` och
+   * `elevated`. Tummen visar
+   * var man är i listan, alltså är den en grafisk del som WCAG 1.4.11 kräver
+   * 3:1 av.
+   *
+   * Hel `ink-muted` ger 3,65 till 3,86:1 i ljust läge och 4,18 till 5,45:1 i
+   * mörkt. Det är tokenets dokumenterade roll: dekor och delar som bär läge
+   * utan att vara text, 3:1 men inte 4,5:1 (`scripts/check-kontrast.mjs`).
+   *
+   * ══ ⛔ HOVER ÄR `ink`, PÅ DEN RULLANDE YTAN OCH INTE PÅ TUMMEN ═══════════════
+   *
+   * Standarden har inget tillstånd för tummen: `scrollbar-color` sätts på
+   * elementet, så det som går att styra är "pekaren är över ytan". Det är också
+   * då listen behövs.
+   *
+   * ⛔ `ink` OCH INTE `ink-secondary`, och det är mätt, inte smak. Chromium
+   * tonar själv tummen när pekaren står PÅ den, mot en mellangrå, och det går
+   * inte att stänga av. Mätt i Chromium 141: hovrad `ink-secondary` blir då
+   * #818780 i mörkt läge, 3,84:1 mot `raised`, alltså SVAGARE än vilans
+   * 4,47:1 i exakt det ögonblick man tar tag i den. Hovrad `ink` blir #aeb1ae,
+   * 6,53:1, och i ljust läge #625757, 6,78:1. Bara `ink` gör hover starkare än
+   * vila i alla tre lägena.
+   *
+   * ⛔ INTE PÅ `html`. Sidan är hovrad så fort pekaren är i fönstret, alltså
+   * hade sidans list alltid stått i full `ink`: en nästan vit stång längs
+   * kanten i mörkt läge. Sidans list vilar därför i `ink-muted`, och Chromiums
+   * egen toning ger den 3,01:1 mot `canvas` i mörkt läge när pekaren står på
+   * tummen. Det är över kravet, och det enda tillståndet där hover inte är
+   * starkare än vila.
+   *
+   * ══ ⛔ STEGPILARNA I CHROMIUM PÅ LINUX OCH WINDOWS GÅR INTE ATT TA BORT ═════
+   *
+   * Chromium ritar pilknappar i listens ändar på plattformar utan overlay-lister,
+   * i tummens färg. Mätt i Chromium 141: när `scrollbar-color` eller
+   * `scrollbar-width` är satt läser Chromium INGET av `::-webkit-scrollbar*`,
+   * och då inte heller `::-webkit-scrollbar-button { display: none }`. Regeln
+   * provades och gav pixel för pixel samma bild. Den enda vägen att bli av med
+   * pilarna är att släppa standarden i Chromium och måla allt med
+   * `::-webkit-scrollbar`, en väg Chromium själv kallar icke-standard och som
+   * Firefox inte har. Pilarna fanns också i operativsystemets list före 0.95.0,
+   * alltså är de ingen försämring. Därför står ingen `-button`-regel här: den
+   * hade varit en rad Chrome ignorerar och en läsare tror på.
    *
    * ⛔ TVÅ MOTORER. `scrollbar-color` och `scrollbar-width` är standarden
    * (Chrome, Edge, Firefox). Safari saknar `scrollbar-color`, och där målas
    * listen med `::-webkit-scrollbar`. Blocket står bakom `@supports not`, för
-   * Chrome slutar läsa standarden om båda finns.
+   * Chrome slutar läsa standarden om båda finns. Där finns ett riktigt
+   * tumtillstånd, och det får samma färger: `ink-muted` i vila, `ink` under
+   * pekaren.
    *
-   * `scripts/check-page-frame.mjs` blir röd om något av det försvinner.
+   * `scripts/check-page-frame.mjs` blir röd om något av det försvinner, och
+   * `scripts/check-kontrast.mjs` räknar tummens kontrast ur just de här
+   * raderna och blir röd under 3:1 eller när hover inte är starkare än vila.
    */
   * {
     scrollbar-width: thin;
-    scrollbar-color: color-mix(in srgb, var(--color-ink-muted) 50%, transparent) transparent;
+    scrollbar-color: var(--color-ink-muted) transparent;
+  }
+
+  :where(:not(html)):hover {
+    scrollbar-color: var(--color-ink) transparent;
   }
 
   @supports not (scrollbar-color: auto) {
@@ -1442,14 +1499,14 @@
     }
 
     ::-webkit-scrollbar-thumb {
-      background: color-mix(in srgb, var(--color-ink-muted) 50%, transparent);
+      background: var(--color-ink-muted);
       background-clip: padding-box;
       border: 2px solid transparent;
       border-radius: var(--radius-full);
     }
 
     ::-webkit-scrollbar-thumb:hover {
-      background: var(--color-ink-muted);
+      background: var(--color-ink);
       background-clip: padding-box;
     }
 

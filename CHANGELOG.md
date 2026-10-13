@@ -9,6 +9,30 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.95.1
+
+Rullningslistens tumme syns i båda lägena, och väljarens lista är minst lika bred som fältet.
+
+### Felet
+
+- **Tummen.** 0.95.0 målade den `color-mix(in srgb, var(--color-ink-muted) 50%, transparent)`. Mätt i lifehub.app:s ompinning till 0.95.0 (montaget `docs/jamforelser/rullningslist-idag-390.jpg` i lifehub.app PR 206): i mörkt läge syntes tummen knappt mot `bg-surface`, mest i Idags ruta, och operativsystemets grå list före 0.95.0 syntes bättre. Mot Identitys beige yta var den också svag. Räknat ur tokens efter blandningen: 1,77 till 1,80:1 i ljust läge och 2,11 till 2,34:1 i mörkt, mot `canvas`, `surface`, `raised`, `sunken` och `elevated`. WCAG 1.4.11 kräver 3:1 av en grafisk del som visar läget. Standardvägen hade dessutom inget hover-läge alls.
+- **Väljarens lista.** I Identitys AI-nycklar (`docs/jamforelser/kontroller/ai-leverantor-1440.jpg` i lifehub.identity) var fältet Leverantör cirka 640 px och den öppna listan i `OpsSelect` cirka 150 px, bara så bred som "Annan / custom". Mätt här: 131 px under en 608 px knapp. Samma `Select.Content` finns i `OpsTimePicker`.
+- **Ingen vakt såg något av det.** `check-kontrast` mätte text mot yta, och tummen är ett uttryck och inte ett token: ett par "ink-muted mot canvas" hade varit grönt i 0.95.0 också. jsdom ritar ingen list och räknar ingen bredd.
+
+### Rättelsen
+
+- **Tummen är hel `--color-ink-muted`** i vila: 3,65 till 3,86:1 i ljust läge och 4,18 till 5,45:1 i mörkt.
+- **Med pekaren på den rullande ytan är den `--color-ink`** (`:where(:not(html)):hover`), i Safari på `::-webkit-scrollbar-thumb:hover`. `ink` och inte `ink-secondary`, mätt i Chromium 141: Chromium tonar själv tummen mot en mellangrå när pekaren står på den, och hovrad `ink-secondary` blev då 3,84:1 i mörkt läge mot `raised`, svagare än vilans 4,47:1. Hovrad `ink` blir 6,53:1 där. `html` är undantagen, annars hade sidans list alltid stått i full `ink` så fort pekaren är i fönstret.
+- **Bara tokens.** En instans brandfil styr fortfarande listen. `examples/brand/lifehub.css` skriver inte över `canvas`, `surface`, `raised`, `sunken`, `elevated`, `ink-muted` eller `ink`, alltså gäller samma tal för Life Hub.
+- **Stegpilarna i Chromium på Linux och Windows står kvar, med skälet i `tokens.css`.** När `scrollbar-color` eller `scrollbar-width` är satt läser Chromium inget av `::-webkit-scrollbar*`; `::-webkit-scrollbar-button { display: none }` provades och gav en bild som var identisk byte för byte. Den enda vägen bort är att släppa standarden i Chromium. Pilarna fanns också i operativsystemets list före 0.95.0.
+- **`OpsSelect` och `OpsTimePicker`:** listan får `min-w-(--radix-select-trigger-width)` (`faltListaBreddKlass` i `radKlass.js`), variabeln Radix själv sätter i `position="popper"`. Min och inte bredd, så ett alternativ längre än fältet får plats.
+
+### Vakterna
+
+- **`check-kontrast`** räknar nu tummen ur de fyra uttrycken i basskiktet (standarden i vila och under pekaren, Safaris tumme i vila och under pekaren), sammansatta med sin genomskinlighet över fem ytor i båda teman. Röd under 3:1, röd när hover är svagare än vila, röd när ett uttryck saknas eller inte går att läsa. Golv 40 mätningar. Röd mot 0.95.0:s `tokens.css` (1,77 till 2,34:1, och hover saknas). `test-guards` planterar 0.95.0:s uttryck, tar bort hover-regeln och vänder vila och hover, och kräver rött för alla tre.
+- **Ny: `scripts/check-kontrollyta.mjs`** (`npm run check:kontrollyta`, i `check:all` och i CI-jobbet med webbläsare). Startar Chromium utan `--hide-scrollbars`, ritar listor på `canvas`, `surface` och `raised` och en väljare i Identitys 640 px, i ljust och mörkt läge och i 1440 och 390 px. Mäter tummens ritade pixel i vila, med pekaren på ytan och med pekaren på tummen, och att väljarens lista är minst lika bred som knappen. Golv: varje lista måste ha en ritad list och en tumme, väljaren sex alternativ. Röd mot 0.95.0 med 20 brott av 40 mätningar, grön nu. `--bilder` och `--montage` ger montaget i `docs/jamforelser/0.95.1/`.
+- **`startaWebblasare`** tar `{ visaRullningslister: true }`.
+
 ## 0.95.0
 
 Inga ostylade webbläsarkontroller, varken i ramverket eller i apparna, och en vakt som apparna kör.

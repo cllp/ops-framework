@@ -119,8 +119,14 @@ function serveraDist(distmapp) {
   });
 }
 
-/** @returns {Promise<{ browser: any, varifran: string }>} */
-export async function startaWebblasare() {
+/**
+ * @param {object} [alternativ]
+ * @param {boolean} [alternativ.visaRullningslister] Playwright startar headless Chromium med `--hide-scrollbars`, alltså
+ *   ritas ingen rullningslist alls och en mätning av den mäter ingenting (0.95.1). Satt tar den bort flaggan.
+ * @returns {Promise<{ browser: any, varifran: string }>}
+ */
+export async function startaWebblasare(alternativ = {}) {
+  const startval = alternativ.visaRullningslister ? { ignoreDefaultArgs: ["--hide-scrollbars"] } : {};
   /** @type {any} */
   let chromium;
   try {
@@ -140,13 +146,13 @@ export async function startaWebblasare() {
   /** @type {string[]} */
   const misslyckanden = [];
   try {
-    return { browser: await chromium.launch(), varifran: "playwrights egen installation" };
+    return { browser: await chromium.launch(startval), varifran: "playwrights egen installation" };
   } catch (e) {
     misslyckanden.push(`standard: ${/** @type {Error} */ (e).message.split("\n")[0]}`);
   }
   for (const sokvag of KANDIDATER) {
     try {
-      return { browser: await chromium.launch({ executablePath: sokvag }), varifran: sokvag };
+      return { browser: await chromium.launch({ ...startval, executablePath: sokvag }), varifran: sokvag };
     } catch (e) {
       misslyckanden.push(`${sokvag}: ${/** @type {Error} */ (e).message.split("\n")[0]}`);
     }
