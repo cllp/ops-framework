@@ -2727,7 +2727,7 @@ function Meddelanderader({ meddelanden, uid, namnFor, medlemmar, locale, visaNam
               </div>
             ) : null}
             {m.id === nyttFran ? (
-              <div data-nytt-sedan-sist="" role="separator" aria-label={texter.nyttSedanSist} className="my-2 flex items-center gap-2 text-liten font-medium text-accent">
+              <div data-nytt-sedan-sist="" role="separator" aria-label={texter.nyttSedanSist} className="my-2 flex items-center gap-2 text-liten text-accent">
                 <span aria-hidden="true" className="h-px flex-1 bg-accent" />
                 <span>{texter.nyttSedanSist}</span>
                 <span aria-hidden="true" className="h-px flex-1 bg-accent" />

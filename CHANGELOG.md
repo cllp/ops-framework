@@ -9,6 +9,111 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.106.0
+
+**Chatten (#386): Meddelanden och Inkorgen är kärna, samtal per ämne med agenten, båda språken, läsa bakåt, skrivfältet på
+telefon, en Mer-knapp per meddelande, en inkorg som lever utan fokus. Och tal i alla textfält, och en bild som öppnas stor.**
+
+Epiken cllp/ops-framework#386 och gapanalysen i dess kommentar. Skissen: gruppen överst i Meddelanden, sedan agenten som en rad
+("Hugo, gruppens agent", "3 samtal, senast ..."), sedan personerna, och agentens rad leder till ämnena med Nytt samtal överst.
+Skärmbilder mot en byggd yta, 390 och 1280 px: `docs/jamforelser/0.106.0/` (`node scripts/check-skalyta.mjs --bara-0106 --bilder
+docs/jamforelser/0.106.0`, avsnitt 47).
+
+### Tillagt: kärnmoduler
+
+- `defineModule({ ..., karna: true })`: modulen finns alltid i varje grupp, står aldrig bland det som kan installeras (hubben, Redigera
+  grupp, Appar-arket) och dess På går inte att stänga av. `medKarna(ids, moduler)` är läsvägen: gruppens `moduler` med de kärnmoduler
+  som saknas sist. Hubben, arket, huvudmenyn, tilläggen, navigationen, hjälpen och typerna läser genom den, så en grupp som sparats
+  utan kärnan får tillbaka den när den läses. `arKarna(m)` och `karnmoduler(moduler)`. Hur många moduler som helst kan vara kärna.
+- Appens del: `karna: true` i `meddelandenManifest()` (lifehub.app `web/src/data/samtal.jsx`). Inkorgen är i lifehub.app en fast länk
+  i skalet och ingen modul, och behöver inget märke.
+
+### Tillagt: samtal per ämne med agenten
+
+- Ett ämne är ett eget agentsamtal med en fjärde del i nyckeln, `<groupId>|<a>|<b>|<ämnesid>`. Det befintliga agentsamtalet står kvar
+  som det första ämnet, utan migrering. `samtalsnyckel({ ..., amne })`, `kravAmne`, `nyttAmnesId`, `amnesId`, `parnyckel`,
+  `AMNES_FORM`, `AMNESFALT` (`rubrik`, `arkiverad`), `kravAmnesrubrik`, `MAX_AMNESRUBRIK` (80), `amnesrubrik` (satt rubrik, annars
+  `autonamn`, annars `NAMNLOST_AMNE`). `delaSamtalsnyckel` läser fyra delar.
+- `createSamtalskalla({ amnen: true })`: `nyttAmne` (inte skrivet), `skickaIAmne` (samtalet skapas med första meddelandet),
+  `oppnaAmne({ groupId, uid, agent, text, rubrik? })` för TALK:s Agent, `sattRubrik`, `arkivera`. Översikten hoppar över ett
+  arkiverat ämne innan dess meddelanden läses, och `oversikt({ ..., arkiverade: true })` ger bara de arkiverade. `harAmnen(kalla)`.
+- `samtalsregelfragment({ amnen: true })`: nyckeln med ämnesid, `rubrik` vid skapelsen och ändring av `rubrik` och `arkiverad` av
+  personen i ett agentsamtal. Inget raderas. Läsregeln är oförändrad. Regelprov: `rules/__tests__/amnen.test.mjs`.
+- `OpsMeddelanden`: agenten som en rad i inkorgen med antalet samtal, ämneslistan med Nytt samtal, ämnets rubrik i huvudet och
+  Arkivera. `valtAgent`, `nytt="agent"`, och `onValj(id, { agent })`.
+
+### Tillagt: chatten på båda språken (#385)
+
+- Varje förval i `Meddelandetexter` och i Chattinfo har en engelsk form (`ORD_MEDDELANDEN`, `ORD_CHATTINFO`), och vyerna sätter sitt
+  språk som kontext för det de ritar.
+
+### Tillagt: läsa bakåt
+
+- Vyn följer slutet bara för den som står där (inom 96 px), också när agentens status, ett förslag eller skrivfältet ändrar höjden.
+  Den som läst bakåt rycks inte ned, och Till senaste säger antalet nya och att agenten arbetar. Ett eget meddelande rullar alltid ned.
+- Nytt sedan sist står före det första olästa från någon annan, härlett ur läsmärket.
+
+### Tillagt: skrivfältet på telefon
+
+- 16 px under 768 (iOS zoomar in under det), 14 på dator. Växer med texten till 160 px och rullar sedan inuti sig. `enterKeyHint`
+  är send. Ovanför tangentbordet: det `visualViewport` täcker dras av från chattens höjd.
+- Nära taket står "3700 av 4000 tecken". Över taket står hela texten kvar, raden säger hur mycket för lång, och Skicka är avstängd.
+- Ett scroll-event som köats medan fältet krympte och körs efter att tangentbordet krympt loggen läses inte längre som att personen
+  rullat bort (mätt i 47 (5)).
+
+### Tillagt: en Mer-knapp per meddelande på telefon
+
+- Under 768 px står en ⋮ (`OpsAtgardsblad`) under varje bubbla, med de sex reaktionerna överst och sedan Svara i tråd, Lyft till
+  minnet, Svara med citat, Fäst och Kopiera. Kopiera säger Kopierat, eller att urklippet inte släppte in. Trådens märke och nålen på
+  ett fäst meddelande står kvar. På dator är raden oförändrad.
+- Bara den ena uppsättningen ritas när bredden är känd (`matchMedia`, en lyssnare per lista): mätt 23,8 element per meddelande vid
+  390 px och 26 vid 1280, mot 26 i 0.105.0 (avsnitt 47 (6), ett tak som bara får sjunka).
+- `OpsAtgardsblad overst`: något som står överst i rutan, under namnet.
+
+### Tillagt: en inkorg som lever utan fokus
+
+- `createSamtalskalla({ levandeInkorg: true })` ger `bevakaInkorg` (en lyssnare per samtal på det senaste meddelandet, `limit: 1`) och
+  `inkorgsrad` (en rad ur översikten). `useSamtal` läser om bara den rad som fått ett meddelande från någon annan; ett eget läser
+  ingenting. `harLevandeInkorg(kalla)`.
+- Mätt i Firestore-emulatorn (`rules/__tests__/inkorg-levande.test.mjs`, tre samtal med 60 meddelanden): hel översikt 156 dokument
+  i 8 frågor (det 0.105.0 läste vid varje fokus), lyssnarnas första bild 3 dokument, ett nytt meddelande 1 dokument, radläsningen
+  efter det 51 dokument i 2 frågor. Ingen ny samling och ingen ny regel.
+
+### Tillagt: en bild öppnas stor vid tryck
+
+- I kommentarerna, i chatten och i Chattinfo är en bilds miniatyr en knapp som visar bilden i full storlek i en dialog, med Ladda ned
+  i dialogens fot. Fokus går tillbaka till miniatyren när dialogen stängs. `ORD_BILAGAVISNING` på svenska och engelska.
+
+### ⛔ Brytande: tal är förval i textfälten
+
+- `OpsTextarea` och `OpsInput` av typen `text` får ljudvågen utan att appen bett om den, när fältet har `onChange`, inte är
+  skrivskyddat, och webbläsaren har taligenkänning. ⛔ **Webbläsarens taligenkänning skickar ljudet till Googles (Chrome) eller
+  Apples (Safari) taltjänst.** Fram till 0.105.0 var den därför av som förval. Ingenting spelas in förrän personen trycker på
+  ljudvågen, och ingenting skrivs in förrän hen trycker Klar. `tal={false}` stänger av per fält.
+- Aldrig för `password`, `email`, `number`, `search`, `tel` och `url`, och ett `tal` på dem kastar.
+- Knappen i ett formulärfält är diskret: ingen kant och ingen skugga, dämpad ikon. Samma ikon och storlek som chattens röstknapp.
+  Skalytans avsnitt 45 krävde förut kant, som chattens, och kräver nu ingen.
+
+### ⛔ Brytande: annat som ser annorlunda ut eller beter sig annorlunda
+
+- Chattens skrivfält har ingen `maxLength`: text över taket står kvar och Skicka är avstängd, i stället för att kapas.
+- En bild i en kommentar eller ett meddelande är en knapp och inte en nedladdningslänk. Ett prov som letar efter länken till en bild
+  hittar den i dialogens fot.
+- På telefon står Reagera, Fäst, Svara med citat och Svara i tråd i Mer-menyn och inte under bubblan.
+
+### Ordning för appen
+
+- Med `amnen`: reglerna från `samtalsregelfragment({ amnen: true })` deployas FÖRE klienten som skapar ämnen, annars nekas den
+  fjärde delen i nyckeln.
+- `levandeInkorg` och `karna` kräver inga regler.
+
+### Inte mätt
+
+- En riktig iPhone (Safari, tangentbordet, zoomen): skrivfältet är mätt i Chromium med iPhonens användaragent och ett låtsat
+  `visualViewport`. WebKit finns inte på maskinen.
+- Firestore i produktion: inkorgens kostnad är mätt i emulatorn.
+- Agentens server, som sätter ett ämnes rubrik med sitt första svar.
+
 ## 0.105.0
 
 **TALK: efter talet står Meddelande, Händelse, Ärende och Agent med ord, och Agent tar det sagda till appen. Agentens förslag är
