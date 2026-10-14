@@ -192,6 +192,27 @@ describe("förslagen i chatten", () => {
     }
   });
 
+  it("⛔ i en tråd ritas inga förslag, varken under roten eller under ett agentsvar (granskningen av PR 387)", async () => {
+    const kalla = createMemorySource({});
+    const s = /** @type {any} */ (createSamtalskalla({ kalla, tradar: "tradar" }));
+    const g = await s.oppnaGrupp({ groupId: "g", uid: "anna" });
+    await kalla.create(`samtal/${g.id}/meddelanden`, { id: "rot", text: "Jag kan skapa ärendet.", av: "ops", tid: 1000, forslag: [{ id: "r1", etikett: "Rotens förslag" }] });
+    await s.skickaITrad(g.id, "rot", { text: "Gör det", av: "anna" });
+    await kalla.create(`samtal/${g.id}/tradar/rot/meddelanden`, { id: "t2", text: "Agentens svar i tråden", av: "ops", tid: 9_000_000_000_000, forslag: [{ id: "t1", etikett: "Trådens förslag" }] });
+    const onForslag = vi.fn(async () => ({ utfall: /** @type {const} */ ("ok") }));
+    // Golvet: utan tråd står rotens förslag, så att provet mäter tråden och inte data som aldrig ritas.
+    const { unmount } = render(<OpsMeddelanden kalla={s} uid="anna" groupId="g" gruppNamn="G" medlemmar={MEDLEMMAR} valt={g.id} onForslag={onForslag} />);
+    expect(await screen.findByRole("button", { name: "Rotens förslag" })).toBeTruthy();
+    unmount();
+
+    render(<OpsMeddelanden kalla={s} uid="anna" groupId="g" gruppNamn="G" medlemmar={MEDLEMMAR} valt={g.id} valtTrad="rot" onForslag={onForslag} />);
+    expect(await screen.findByText("Agentens svar i tråden")).toBeTruthy();
+    expect(screen.getAllByText("Jag kan skapa ärendet.").length).toBeGreaterThan(0);
+    expect(screen.queryByRole("button", { name: "Rotens förslag" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Trådens förslag" })).toBeNull();
+    expect(document.querySelector("[data-ops-forslag]")).toBeNull();
+  });
+
   it("⛔ utan onForslag ritas inga knappar", async () => {
     await chatten();
     expect(screen.queryByRole("button", { name: /Skapa ärendet/ })).toBeNull();

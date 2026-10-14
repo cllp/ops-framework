@@ -633,6 +633,9 @@ export function texterPa(sprak, texter) {
  *   förslag som knappar under hens svar (`OpsForslag`). Ett meddelande från en medlem av typen agent som bär `forslag` (`{ id, etikett,
  *   ikon?, text? }`, skrivet av appens server) får knapparna, och ett tryck anropar den här med samtalet, meddelandet och förslagets id.
  *   Utan den ritas inga knappar. ⛔ Ramverket vet inte vad ett förslag gör: det avgör appens server, och trycket är personens begäran.
+ *   ⛔ Servern ska pröva `{ sid, mid, id }` mot det LAGRADE meddelandet (skrivet av en agent, med förslaget `id`) och mot att den som
+ *   trycker är deltagare i samtalet, och utföra det lagrade förslaget, aldrig något klienten skickat (se `lib/forslag.js`). ⛔ I en tråd
+ *   ritas inga förslag, varken under roten eller under ett svar.
  * @param {string} [props.nyttUtkast] (0.105.0) Texten som står i skrivfältet när läget "nytt" öppnas, till exempel det man sade i TALK och
  *   valde Meddelande för. Ingenting skickas: personen väljer mottagare och trycker Skicka.
  */

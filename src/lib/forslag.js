@@ -13,6 +13,25 @@
  * Ett förslag är `{ id, etikett, ikon? }`. Vad trycket gör, och om det är tillåtet, avgör appens `onForslag(id)` och appens
  * server. Ramverket ritar knappen, ser till att ett tryck blir ett anrop, och säger utfallet.
  *
+ * ══ ⛔ SERVERN PRÖVAR TRYCKET, INTE KNAPPEN (granskningen av PR 387) ═══════════════════════════════════════════════════
+ *
+ * `OpsMeddelanden onForslag` får `{ sid, mid, id }`: samtalet, meddelandet och förslaget. Allt tre kommer från klienten och går att
+ * skriva för hand, så appens server ska, innan den gör något:
+ *
+ * 1. läsa det LAGRADE meddelandet `mid` i samtalet `sid`, och kontrollera att det är skrivet av en agent och bär ett förslag med `id`
+ *    (det är det lagrade förslaget som utförs, aldrig något klienten skickat med),
+ * 2. kontrollera att den som trycker är deltagare i samtalet `sid`, och
+ * 3. avgöra om förslaget redan är använt, så att ett tryck från två flikar inte utför det två gånger.
+ *
+ * Ramverkets lås mot dubbelklick gäller bara i en flik och är en bekvämlighet, inte ett skydd. Och fältet `forslag` på ett
+ * meddelande ska bara servern kunna skriva: att ramverket bara ritar knappar under en agents svar är inte en regel, det är ytan.
+ *
+ * ══ ⛔ INGA FÖRSLAG I TRÅDAR ═══════════════════════════════════════════════════════════════════════════════════════════
+ *
+ * `OpsMeddelanden` ritar förslag bara i samtalets egna rader, aldrig i en tråd (`OpsTrad`): varken under trådens rot eller under ett
+ * agentsvar i tråden. Ett förslag i en tråd hade behövt trådens id i anropet, och den servern som prövar trycket vet då inte var
+ * meddelandet ligger. Agenten som vill föreslå något svarar i samtalet.
+ *
  * Rena funktioner här, så att formen går att prova utan komponent.
  */
 

@@ -56,6 +56,11 @@ läge: `docs/jamforelser/0.105.0/` (`node scripts/check-skalyta.mjs --bara-talkv
 - `OpsMeddelanden onForslag({ sid, mid, id })`: under ett meddelande från en medlem av typen agent som bär fältet `forslag` (skrivet av
   appens server) ritas `OpsForslag`. En persons meddelande med samma fält får inga knappar. Ett felformat förslag ur databasen hoppas
   över och rapporteras, i stället för att fälla chatten.
+- ⛔ I en tråd ritas inga förslag, varken under trådens rot eller under ett agentsvar i tråden. Agenten som vill föreslå något svarar i
+  samtalet. (Granskningen av PR 387: det stod ingenstans.)
+- ⛔ Appens server ska pröva `{ sid, mid, id }` mot det LAGRADE meddelandet, att det är skrivet av en agent och bär förslaget `id`, och
+  mot att den som trycker är deltagare i samtalet `sid`; den utför det lagrade förslaget, aldrig något klienten skickat, och ser om det
+  redan är använt. Ramverkets lås mot dubbelklick gäller en flik och är en bekvämlighet, inte ett skydd. Står i `lib/forslag.js`.
 - `OpsMeddelanden nyttUtkast`: texten som står i skrivfältet när läget "nytt" öppnas, för Meddelande i TALK. Ingenting skickas.
 - `src/lib/forslag.js`: `kontrolleraForslag`, `forslagUrData`, `forslagetsFel`, `forslagssvar`, `FORSLAG_IKONER`, `MAX_FORSLAG` (4),
   `MAX_FORSLAG_ETIKETT` (80) och `MAX_FORSLAG_TEXT` (240). Orden `forslagen`, `forslagPagar`, `forslagKlart`, `forslagNekat` och
