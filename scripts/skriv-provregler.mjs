@@ -65,7 +65,7 @@ ${gruppadSamling("handelser")}
 ${gruppadSamling("konfig", { agareKravsForSkrivning: true })}
 ${katalogregelfragment("kataloger")}
 ${konfigloggregelfragment("konfiglogg")}
-${samtalsregelfragment({ tradar: "tradar", status: "status", reaktioner: "reaktioner", omnamnanden: true, citat: true, fasta: "fasta", bilagor: true, bilagaSamling: "bilagor", tyst: "tyst" })}
+${samtalsregelfragment({ tradar: "tradar", status: "status", reaktioner: "reaktioner", omnamnanden: true, citat: true, fasta: "fasta", bilagor: true, bilagaSamling: "bilagor", tyst: "tyst", amnen: true })}
 ${kalenderregelfragment()}
 ${handelseregelfragment()}
 ${mejlregelfragment("mejlko")}

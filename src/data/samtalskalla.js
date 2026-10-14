@@ -1,7 +1,7 @@
 import { NAMN_SAKNAS } from "../lib/personnamn.js";
 import { FALT_BORT } from "./contract.js";
 import { KOMMENTARBILAGAFALT } from "../lib/handelsemodell.js";
-import { AGENTSTATUS_ID, FASTA_TAK, REAKTIONSTAK, arNamnd, bilagenyckel, byggFastning, byggMeddelande, byggReaktion, byggSamtal, byggTrad, kravTradnamn, motpart, olastaI, samtalsnyckel, synligText, undersamlingskrock } from "../lib/samtal.js";
+import { AGENTSTATUS_ID, FASTA_TAK, REAKTIONSTAK, amnesId, arNamnd, bilagenyckel, byggFastning, byggMeddelande, byggReaktion, byggSamtal, byggTrad, kravAmnesrubrik, kravTradnamn, motpart, nyttAmnesId, olastaI, samtalsnyckel, synligText, undersamlingskrock } from "../lib/samtal.js";
 
 /**
  * Samtalskällan: läser och skriver ramverkets samtal genom en datakälla (0.34.0, #182, #185).
@@ -48,11 +48,15 @@ import { AGENTSTATUS_ID, FASTA_TAK, REAKTIONSTAK, arNamnd, bilagenyckel, byggFas
  *   appen skickar in.
  * @param {string} [konfig.tyst] (0.80.0, #301) Samlingsnamnet för tysta notiser, `<samtal>/{sid}/<tyst>/{uid}` med `{ tyst: bool }`.
  *   ⛔ INGET FÖRVAL. Utan det finns ingen tystning, och `samtalsnotiser` beter sig som förut.
+ * @param {boolean} [konfig.amnen] (0.106.0, #386 skiva 2) `true` slår på samtal per ämne med agenten: `nyttAmne`, `skickaIAmne`,
+ *   `oppnaAmne`, `sattRubrik` och `arkivera`, och översikten hoppar över arkiverade ämnen. ⛔ INGET FÖRVAL: utan det finns ett
+ *   agentsamtal per person, som förut. Samma val som till `samtalsregelfragment({ amnen: true })`, som släpper in den fjärde delen i
+ *   nyckeln, `rubrik` och `arkiverad`.
  * @param {number} [konfig.sida] Hur många av de senaste meddelandena som läses per samtal. Förval 50.
  * @param {() => number} [konfig.klocka] Förval `Date.now`. Prov byter den.
  */
 export function createSamtalskalla(konfig) {
-  const { kalla, samtal = "samtal", meddelanden = "meddelanden", last = "last", tradar, status, reaktioner, omnamnanden, citat, fasta, bilagor, bilagaSamling, tyst, sida = 50, klocka = Date.now } = konfig ?? /** @type {any} */ ({});
+  const { kalla, samtal = "samtal", meddelanden = "meddelanden", last = "last", tradar, status, reaktioner, omnamnanden, citat, fasta, bilagor, bilagaSamling, tyst, amnen, sida = 50, klocka = Date.now } = konfig ?? /** @type {any} */ ({});
   if (!kalla || typeof kalla.list !== "function") {
     throw new Error("createSamtalskalla: kalla krävs, en datakälla (createFirestoreSource, createMemorySource).");
   }
@@ -67,6 +71,7 @@ export function createSamtalskalla(konfig) {
   undersamlingskrock({ meddelanden, last, tradar, status, reaktioner, fasta, bilagaSamling, tyst }, "createSamtalskalla");
   if (omnamnanden !== undefined && typeof omnamnanden !== "boolean") throw new Error("createSamtalskalla: omnamnanden är true eller utelämnat.");
   if (citat !== undefined && typeof citat !== "boolean") throw new Error("createSamtalskalla: citat är true eller utelämnat.");
+  if (amnen !== undefined && amnen !== true) throw new Error("createSamtalskalla: amnen är true eller utelämnat.");
   if (bilagor !== undefined && bilagor !== true) throw new Error("createSamtalskalla: bilagor är true eller utelämnat.");
   if (bilagor === true && bilagaSamling === undefined) throw new Error("createSamtalskalla: bilagor: true kräver bilagaSamling, samlingsnamnet för filerna. Samma namn som till samtalsregelfragment.");
   if (bilagor !== true && bilagaSamling !== undefined) throw new Error("createSamtalskalla: bilagaSamling kräver bilagor: true.");
@@ -330,11 +335,16 @@ export function createSamtalskalla(konfig) {
    * ⛔ `olastaRader` är de olästa meddelanden andra skrev, ur samma läsning. Den härledda notisen "nämnd i gruppchatten" läser dem,
    * utan en läsning till.
    *
-   * @param {{ groupId: string, uid: string }} fraga
-   * @returns {Promise<Array<{ samtal: import("../lib/samtal.js").Samtal, senaste: (import("../lib/samtal.js").Meddelande & { id: string }) | null, olasta: number, olastaFler?: boolean, olastaRader?: Array<import("../lib/samtal.js").Meddelande & { id: string }>, lastTill: number, motpart: string | null, tyst?: boolean }>>}
+   * @param {{ groupId: string, uid: string, arkiverade?: boolean }} fraga `arkiverade` (0.106.0): bara de arkiverade ämnena med agenten, för listan "Arkiverade". Utan `amnen` på källan finns inga.
+   * @returns {Promise<Array<{ samtal: import("../lib/samtal.js").Samtal, senaste: (import("../lib/samtal.js").Meddelande & { id: string }) | null, olasta: number, olastaFler?: boolean, olastaRader?: Array<import("../lib/samtal.js").Meddelande & { id: string }>, lastTill: number, motpart: string | null, tyst?: boolean, forsta?: Array<import("../lib/samtal.js").Meddelande & { id: string }> }>>}
    */
-  async function oversikt({ groupId, uid }) {
-    const alla = await lista({ groupId, uid });
+  async function oversikt({ groupId, uid, arkiverade = false }) {
+    /*
+     * ⛔ ETT ARKIVERAT ÄMNE KOSTAR NOLL LÄSNINGAR (0.106.0, #386). Samtalsdokumentet är redan läst, och ett arkiverat ämne sorteras bort
+     * INNAN dess meddelanden läses. Utan det hade varje ämne man någonsin haft med agenten kostat 50 meddelanden och ett läsmärke vid
+     * varje omläsning av inkorgen. Med `arkiverade: true` läses tvärtom bara de arkiverade, för listan "Arkiverade".
+     */
+    const alla = (await lista({ groupId, uid })).filter((s) => (amnen === true && s.slag === "agent" ? (s.arkiverad === true) === arkiverade : !arkiverade));
     const rader = await Promise.all(
       alla.map(async (s) => {
         const [ms, till, tystad] = await Promise.all([
@@ -353,11 +363,84 @@ export function createSamtalskalla(konfig) {
           motpart: motpart(s, uid),
           // ⛔ Bara när appen slagit på tystning. Utan nyckeln är raden densamma som förut.
           ...(tyst === undefined ? {} : { tyst: tystad }),
+          // ⛔ (0.106.0) De äldsta lästa meddelandena, för ämnets härledda rubrik (`amnesrubrik`). Bara för ett agentsamtal med `amnen`.
+          // (bedömning) Är sidan full är de äldsta lästa inte samtalets första. Agenten sätter rubriken med sitt första svar, så det
+          // härledda behövs nästan bara för korta samtal, och en läsning till per ämne hade kostat mer än den ger.
+          ...(amnen === true && s.slag === "agent" ? { forsta: ms.slice(0, 3) } : {}),
         };
       }),
     );
-    return rader.sort((a, b) => (b.senaste?.tid ?? b.samtal.skapad ?? 0) - (a.senaste?.tid ?? a.samtal.skapad ?? 0));
+    // ⛔ Ett ämne utan meddelanden visas inte: det är ett ämne vars första meddelande inte gick att skriva efter samtalet (0.106.0).
+    return rader
+      .filter((r) => !(r.senaste === null && amnesId(r.samtal.id)))
+      .sort((a, b) => (b.senaste?.tid ?? b.samtal.skapad ?? 0) - (a.senaste?.tid ?? a.samtal.skapad ?? 0));
   }
+
+  /*
+   * ══ ⛔ SAMTAL PER ÄMNE MED AGENTEN (0.106.0, #386 skiva 2) ═════════════════════════════════════════════════════════════
+   *
+   * Modellen och skälen står i `lib/samtal.js`. Här: hur källan skapar, skriver och ändrar ett ämne. Bara med `amnen: true`.
+   */
+
+  /**
+   * Ett nytt ämne med agenten, INTE SKRIVET. Id:t genereras här och används vid första Skicka (`skickaIAmne`), så att ett Nytt samtal
+   * som ångras inte lämnar ett tomt ämne.
+   * @param {{ groupId: string, uid: string, agent: string, rubrik?: string | null }} d
+   * @returns {import("../lib/samtal.js").Samtal}
+   */
+  function nyttAmne({ groupId, uid, agent, rubrik }) {
+    const tid = klocka();
+    return byggSamtal({ groupId, slag: "agent", deltagare: [uid, agent], skapadAv: uid, skapad: tid, amne: nyttAmnesId(tid), rubrik });
+  }
+
+  /**
+   * Skickar i ett ämne och skapar ämnet först, om det inte finns. Meddelandet byggs FÖRST: ett tomt meddelande ska inte lämna ett
+   * tomt ämne efter sig, samma princip som `skickaITrad`.
+   *
+   * ⛔ FÖRST SAMTALET, SEDAN MEDDELANDET. Regeln för meddelandet kräver att samtalet finns. Faller den andra skrivningen står ett tomt
+   * ämne kvar, och översikten döljer det (ett ämne utan meddelanden).
+   *
+   * @param {import("../lib/samtal.js").Samtal} s Ur `nyttAmne`, eller ett ämne som redan finns.
+   * @param {{ text: string, av: string, namner?: ReadonlyArray<string> | null, svarPa?: string | null, bilaga?: import("../lib/file.js").Bilaga | null }} d
+   */
+  async function skickaIAmne(s, d) {
+    const m = nyttMeddelande(d, "samtalskalla.skickaIAmne");
+    if (!s || s.slag !== "agent") throw new Error("samtalskalla.skickaIAmne: ett ämne är ett samtal med agenten.");
+    const finns = await kalla.read(samtal, s.id);
+    if (!finns) await skapaEllerHamta(s, d.av);
+    return skrivMeddelande(meddelandevag(s.id), s.id, m);
+  }
+
+  /**
+   * Ett nytt ämne med sitt första meddelande, i ett anrop. För TALK:s Agent: det sagda blir första raden i ett eget ämne.
+   * @param {{ groupId: string, uid: string, agent: string, text: string, rubrik?: string | null }} d
+   * @returns {Promise<{ samtal: import("../lib/samtal.js").Samtal, meddelande: any }>}
+   */
+  async function oppnaAmne({ groupId, uid, agent, text, rubrik }) {
+    const s = nyttAmne({ groupId, uid, agent, rubrik });
+    const meddelande = await skickaIAmne(s, { text, av: uid });
+    return { samtal: s, meddelande };
+  }
+
+  /**
+   * Sätter ämnets rubrik, eller (med `null` eller tomt) går tillbaka till den härledda. Regeln släpper bara igenom ett agentsamtal.
+   * @param {string} sid @param {string | null} rubrik
+   */
+  async function sattRubrik(sid, rubrik) {
+    const r = kravAmnesrubrik(rubrik, "samtalskalla.sattRubrik");
+    return kalla.update(samtal, sid, { rubrik: r ?? FALT_BORT });
+  }
+
+  /**
+   * Arkiverar ämnet, eller tar fram det igen. Ett framtaget ämne bär inget fält, samma som ett som aldrig arkiverats.
+   * @param {string} sid @param {boolean} pa
+   */
+  async function arkivera(sid, pa) {
+    if (typeof pa !== "boolean") throw new Error("samtalskalla.arkivera: pa är true eller false.");
+    return kalla.update(samtal, sid, { arkiverad: pa ? true : FALT_BORT });
+  }
+
+  const amnesfunktioner = amnen === true ? { amnen: true, nyttAmne, skickaIAmne, oppnaAmne, sattRubrik, arkivera } : {};
 
   /*
    * ══ ⛔ TRÅDARNA (0.68.0, cllp/lifehub.app#60) ═══════════════════════════════════════════════════════════════════
@@ -734,6 +817,7 @@ export function createSamtalskalla(konfig) {
     ...fastfunktioner,
     ...bilagefunktioner,
     ...tystfunktioner,
+    ...amnesfunktioner,
     ...(omnamnanden === true ? { omnamnanden: true } : {}),
     ...(citat === true ? { citat: true } : {}),
     ...(bilagor === true ? { bilagor: true } : {}),
@@ -807,6 +891,26 @@ export function harReaktioner(kalla) {
  */
 export function harFasta(kalla) {
   return Boolean(kalla) && typeof (/** @type {any} */ (kalla).lossa) === "function";
+}
+
+/**
+ * @typedef {object} Amnesfunktioner (0.106.0, #386) Det en samtalskälla har när appen skickat `amnen: true`.
+ * @property {true} amnen
+ * @property {(d: { groupId: string, uid: string, agent: string, rubrik?: string | null }) => import("../lib/samtal.js").Samtal} nyttAmne
+ * @property {(s: import("../lib/samtal.js").Samtal, d: { text: string, av: string, namner?: ReadonlyArray<string> | null, svarPa?: string | null, bilaga?: import("../lib/file.js").Bilaga | null }) => Promise<any>} skickaIAmne
+ * @property {(d: { groupId: string, uid: string, agent: string, text: string, rubrik?: string | null }) => Promise<{ samtal: import("../lib/samtal.js").Samtal, meddelande: any }>} oppnaAmne
+ * @property {(sid: string, rubrik: string | null) => Promise<any>} sattRubrik
+ * @property {(sid: string, pa: boolean) => Promise<any>} arkivera
+ */
+
+/**
+ * Har källan samtal per ämne med agenten, alltså har appen slagit på dem med `amnen: true`? (0.106.0, #386)
+ * @template {object} K
+ * @param {K | null | undefined} kalla
+ * @returns {kalla is K & Amnesfunktioner}
+ */
+export function harAmnen(kalla) {
+  return Boolean(kalla) && typeof (/** @type {any} */ (kalla).skickaIAmne) === "function";
 }
 
 /**

@@ -1654,6 +1654,49 @@ function KarnaScen() {
   );
 }
 
+
+/*
+ * 0.106.0 (#386 skiva 2): samtal per ämne med agenten. Inkorgen med agenten som en rad, agentens samtal och ett ämne. Avsnitt 47 (2).
+ * Komponenten styr valen själv (inget `valt`), så att ett klick i sidan går samma väg som hos en person.
+ */
+const MEDLEMMAR_A = [
+  { userId: "anna", namn: "Anna Ek", typ: "person", status: "aktiv" },
+  { userId: "bo", namn: "Bo Lind", typ: "person", status: "aktiv" },
+  { userId: "ops", namn: "Hugo", typ: "agent", status: "aktiv" },
+];
+let amneskallan = null;
+async function byggAmneskalla() {
+  let t = new Date(2026, 9, 6, 9, 0).getTime();
+  const kalla = Ops.createMemorySource({});
+  const s = Ops.createSamtalskalla({ kalla, klocka: () => (t += 60000), amnen: true, status: "status" });
+  const g = await s.oppnaGrupp({ groupId: "g1", uid: "anna" });
+  await s.skicka(g.id, { text: "Styrelsemötet flyttas till fredag.", av: "bo" });
+  const forsta = await s.oppnaPrivat({ groupId: "g1", uid: "anna", annan: "ops", slag: "agent" });
+  await s.skicka(forsta.id, { text: "Vilka fakturor är obetalda?", av: "anna" });
+  await kalla.create(`samtal/${forsta.id}/meddelanden`, { text: "**Två fakturor** är obetalda: Bokio och Telia.", av: "ops", tid: (t += 60000) });
+  if (typeof s.oppnaAmne === "function") {
+    const resa = await s.oppnaAmne({ groupId: "g1", uid: "anna", agent: "ops", text: "Boka tåget till Stockholm på fredag morgon" });
+    await kalla.update("samtal", resa.samtal.id, { rubrik: "Resan till Stockholm" });
+    await kalla.create(`samtal/${resa.samtal.id}/meddelanden`, { text: "Jag hittar tre avgångar före nio. Vill du ha den första?", av: "ops", tid: (t += 60000) });
+    const moms = await s.oppnaAmne({ groupId: "g1", uid: "anna", agent: "ops", text: "Hur ligger momsen till för augusti?" });
+    await kalla.create(`samtal/${moms.samtal.id}/meddelanden`, { text: "Den är deklarerad och betald.", av: "ops", tid: (t += 60000) });
+  }
+  const p = await s.oppnaPrivat({ groupId: "g1", uid: "bo", annan: "anna" });
+  await s.skicka(p.id, { text: "Lunch i morgon?", av: "bo" });
+  return s;
+}
+function AmnesScen() {
+  const [k, setK] = useState(amneskallan);
+  if (!Ops.OpsMeddelanden) return <Full><p data-saknas="OpsMeddelanden">OpsMeddelanden saknas</p></Full>;
+  if (!k) {
+    byggAmneskalla().then((x) => {
+      amneskallan = x;
+      setK(x);
+    });
+  }
+  return <Full>{k ? <Ops.OpsMeddelanden kalla={k} uid="anna" groupId="g1" gruppNamn="Claes Philip Staiger AB" medlemmar={MEDLEMMAR_A} /> : <p>Laddar</p>}</Full>;
+}
+
 function Scen() {
   const s = window.__skal;
   if (s === "menyer") return <Menyer />;
@@ -1994,6 +2037,7 @@ function Scen() {
   // Appar-hyllan över bottenraden, med pluset i mitten. Utan `skapa` finns ingen upphöjd knapp, och utan `apparArk` är Appar en länk.
   if (s === "apparark") return <ApparArkScen />;
   if (s === "karna") return <KarnaScen />;
+  if (s === "amnen") return <AmnesScen />;
   if (s === "installning") {
     return (
       <Skal>

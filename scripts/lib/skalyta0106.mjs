@@ -78,9 +78,62 @@ export async function karnan(v) {
 }
 
 /**
+ * Träffytan för ett element: bredd och höjd i den ritade rutan.
+ * @param {import("playwright").Page} page @param {string} valjare
+ */
+async function ruta(page, valjare) {
+  return page.evaluate((v) => {
+    const el = document.querySelector(v);
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    return { w: r.width, h: r.height, l: r.left, r: r.right, t: r.top, b: r.bottom, text: (el.textContent || "").trim() };
+  }, valjare);
+}
+
+/**
+ * (2) SAMTAL PER ÄMNE MED AGENTEN (skiva 2). Inkorgen har gruppen överst, sedan agenten som en rad med "gruppens agent" och antalet
+ * samtal, sedan personerna. Agentens rad öppnar agentens samtal: Nytt samtal överst (44 px hög), och ett ämne per rad med rubriken.
+ * Ett ämne visar rubriken i huvudet och en rad tillbaka till agenten (44 px). Golv: minst tre ämnen i listan.
+ * @param {Verktyg} v
+ */
+export async function amnen(v) {
+  for (const vp of BREDDER) {
+    const namn = `47 (2) ämnen ${vp.width} px`;
+    await del(v, namn, "amnen", vp, null, async (page) => {
+      await page.locator("[data-agentrad='ops']").waitFor({ timeout: 4000 });
+      const ordning = await page.evaluate(() => [...document.querySelectorAll("[data-samtalslista] [data-samtalsrad], [data-samtalslista] [data-agentrad]")].map((el) => el.getAttribute("data-samtalsrad") ?? "agent"));
+      const rad = await ruta(page, "[data-agentrad='ops']");
+      v.matt.push(`${namn}: inkorgen ${JSON.stringify(ordning)}, agentens rad ${JSON.stringify(rad?.text)} ${rad?.h.toFixed(0)} px`);
+      v.krav(JSON.stringify(ordning) === JSON.stringify(["grupp", "agent", "personer"]), `${namn}: inkorgen är ${JSON.stringify(ordning)}, väntat gruppen, agenten, personen.`);
+      v.krav(Boolean(rad && rad.text.includes("Hugo, gruppens agent") && /3 samtal, senast/.test(rad.text) && rad.h >= 43.5), `${namn}: agentens rad är ${JSON.stringify(rad)}, väntat "Hugo, gruppens agent" och "3 samtal, senast", minst 44 px.`);
+      await bild(v, page, `amnen-inkorg-${vp.width}.png`);
+      await page.locator("[data-agentrad='ops']").click();
+      await page.locator("[data-agentens-samtal]").waitFor({ timeout: 4000 });
+      const nytt = await ruta(page, "[data-nytt-amne]");
+      const rader = await page.evaluate(() => [...document.querySelectorAll("[data-amnesrad]")].map((el) => { const r = el.getBoundingClientRect(); return { h: r.height, r: r.right, text: (el.textContent || "").trim().slice(0, 40) }; }));
+      v.matt.push(`${namn}: Nytt samtal ${nytt?.w.toFixed(0)}x${nytt?.h.toFixed(0)}, ämnen ${JSON.stringify(rader.map((r) => r.text))}`);
+      v.krav(Boolean(nytt && nytt.h >= 43.5 && nytt.r <= vp.width + 0.5), `${namn}: Nytt samtal är ${JSON.stringify(nytt)}, väntat minst 44 px hög och inom fönstret.`);
+      v.krav(rader.length >= 3, `${namn}: ${rader.length} ämnen i listan, väntat minst 3. Golv.`);
+      v.krav(rader.every((r) => r.h >= 43.5 && r.r <= vp.width + 0.5), `${namn}: en ämnesrad är lägre än 44 px eller sticker ut (${JSON.stringify(rader)}).`);
+      v.krav(rader.some((r) => r.text.startsWith("Resan till Stockholm")), `${namn}: rubriken agenten satt syns inte i listan (${JSON.stringify(rader)}).`);
+      await bild(v, page, `amnen-lista-${vp.width}.png`);
+      await page.locator("[data-amnesrad]").first().click();
+      await page.locator("[data-amnesrubrik]").waitFor({ timeout: 4000 });
+      const huvud = await ruta(page, "[data-amnesrubrik]");
+      const tillbaka = await ruta(page, "[data-tillbaka-agent]");
+      v.matt.push(`${namn}: ämnets huvud ${JSON.stringify(huvud?.text)}, tillbaka ${tillbaka?.h.toFixed(0)} px`);
+      v.krav(Boolean(huvud && huvud.text.length > 0 && huvud.r <= vp.width + 0.5), `${namn}: ämnets rubrik saknas i huvudet (${JSON.stringify(huvud)}).`);
+      v.krav(Boolean(tillbaka && tillbaka.h >= 43.5 && tillbaka.text === "Hugo"), `${namn}: raden tillbaka till agenten är ${JSON.stringify(tillbaka)}, väntat "Hugo" och minst 44 px.`);
+      await bild(v, page, `amnen-samtal-${vp.width}.png`);
+    });
+  }
+}
+
+/**
  * Alla delar i ordning. Varje skiva lägger till sin rad här.
  * @param {Verktyg} v
  */
 export async function chattepiken0106(v) {
   await karnan(v);
+  await amnen(v);
 }

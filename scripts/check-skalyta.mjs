@@ -167,7 +167,7 @@ async function oppna(scen, viewport, tema = standardtema, skala = 1, aktiv = nul
   // ⛔ Chattens scen har en fast klocka, samma dag som scenens meddelanden (2026-10-06 från 09:00). Utan den stod det "I går"
   // eller ett annat datum i bilderna beroende på när de togs, och de gick inte att återskapa (granskningen av PR 286).
   // Rörelse av, också: en puls eller en övergång mitt i en bild gör att samma scen ger en annan bild.
-  if (scen === "chattnatt" || scen === "chattinfo") {
+  if (scen === "chattnatt" || scen === "chattinfo" || scen === "amnen" || scen.startsWith("chatt0106")) {
     await page.clock.setFixedTime(new Date(2026, 9, 6, 22, 0));
     await page.emulateMedia({ reducedMotion: "reduce" });
   }

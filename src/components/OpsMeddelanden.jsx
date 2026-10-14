@@ -5,9 +5,9 @@ import { cx } from "../lib/cx.js";
 import { formatDate, formatTime, formatRelativeDate } from "../lib/format.js";
 import { KOMMENTARBILAGA_TYPER, MAX_KOMMENTARBILAGA, bilagaUrDokument, kommentarbilagaFel } from "../lib/handelsemodell.js";
 import { readAttachment } from "../lib/file.js";
-import { AGENTSTATUS_MAX_ALDER, MAX_MEDDELANDE, MAX_TRADNAMN, REAKTIONSKODER, agentstatus, bilagenyckel, delaSamtalsnyckel, samtalsdeltagare, samtalsnyckel, summeraReaktioner, synligText, tradensNamn } from "../lib/samtal.js";
+import { AGENTSTATUS_MAX_ALDER, MAX_MEDDELANDE, MAX_TRADNAMN, REAKTIONSKODER, agentstatus, amnesrubrik, bilagenyckel, delaSamtalsnyckel, samtalsdeltagare, samtalsnyckel, summeraReaktioner, synligText, tradensNamn } from "../lib/samtal.js";
 import { useSamtal } from "../data/useSamtal.jsx";
-import { harBilagor, harCitat, harFasta, harOmnamnanden, harReaktioner, harStatus, harTradar, harTyst } from "../data/samtalskalla.js";
+import { harAmnen, harBilagor, harCitat, harFasta, harOmnamnanden, harReaktioner, harStatus, harTradar, harTyst } from "../data/samtalskalla.js";
 import { BilagaVisning } from "./BilagaVisning.jsx";
 import { CHATTINFO_TEXTER, OpsChattinfo } from "./OpsChattinfo.jsx";
 import { OpsTooltip } from "./OpsTooltip.jsx";
@@ -29,7 +29,7 @@ import { REAKTIONSVY, reaktionsnamnPa } from "./reaktionsvy.js";
 import { OpsForslag } from "./OpsForslag.jsx";
 import { forslagUrData } from "../lib/forslag.js";
 import { rapporteraFel } from "../lib/felrapport.js";
-import { AgentIkon, AndraIkon, BildIkon, FastIkon, FilIkon, KameraIkon, MappIkon, MejlIkon, NotisIkon, PanelIkon, StoppIkon, TystIkon, ChevronHogerIkon, ChevronNedIkon, CiteraIkon, ChevronVansterIkon, GruppIkon, KryssIkon, LasIkon, LeendeIkon, MeddelandeIkon, PlusIkon, SkickaIkon, SokIkon, TradIkon } from "./icons.jsx";
+import { AgentIkon, AndraIkon, ArkiveraIkon, TaFramIkon, BildIkon, FastIkon, FilIkon, KameraIkon, MappIkon, MejlIkon, NotisIkon, PanelIkon, StoppIkon, TystIkon, ChevronHogerIkon, ChevronNedIkon, CiteraIkon, ChevronVansterIkon, GruppIkon, KryssIkon, LasIkon, LeendeIkon, MeddelandeIkon, PlusIkon, SkickaIkon, SokIkon, TradIkon } from "./icons.jsx";
 
 /**
  * Meddelanden: inkorgen med gruppchatten och de privata samtalen, och samtalet bredvid (0.34.0, #182, #185).
@@ -208,6 +208,20 @@ import { AgentIkon, AndraIkon, BildIkon, FastIkon, FilIkon, KameraIkon, MappIkon
  * @property {string} [bilagorFel]
  * @property {string} [lankarUrLaddade]
  * @property {string} [aldreLankar]
+ * @property {string} [nyttSamtal] (0.106.0, #386) Knappen och det nya ämnets rubrik innan något skickats. Förval "Nytt samtal".
+ * @property {string} [gruppensAgent] Raden under agentens namn. Förval "gruppens agent".
+ * @property {string} [antalSamtal] `{n}` byts mot antalet. Förval "{n} samtal".
+ * @property {string} [senast] Förled till tiden. Förval "senast".
+ * @property {string} [ingaSamtalAgent] Förval "Inga samtal än. Börja ett nytt.".
+ * @property {string} [samtalUtanText] Ett ämnes rubrik när ingen text finns att härleda den ur. Förval "Samtal utan text".
+ * @property {string} [samtalMed] Agentlistans namn för skärmläsaren. `{namn}` byts mot agentens namn. Förval "Samtal med {namn}".
+ * @property {string} [arkivera] Förval "Arkivera".
+ * @property {string} [taFram] Förval "Ta fram".
+ * @property {string} [visaArkiverade] Förval "Visa arkiverade".
+ * @property {string} [doljArkiverade] Förval "Dölj arkiverade".
+ * @property {string} [ingaArkiverade] Förval "Inga arkiverade samtal.".
+ * @property {string} [arkivFel] Förval "Samtalet kunde inte arkiveras.".
+ * @property {string} [arkiveratRad] Raden i ett arkiverat ämne. Förval "Arkiverat. Det syns inte i listan förrän du tar fram det.".
  */
 
 /**
@@ -338,6 +352,20 @@ const TEXTER = {
   agentSkriver: "Agenten skriver",
   agentFastnat: "Agenten har inte svarat på två minuter. Skriv igen om du fortfarande väntar.",
   agentstatusFel: "Agentens status kunde inte läsas.",
+  nyttSamtal: "Nytt samtal",
+  gruppensAgent: "gruppens agent",
+  antalSamtal: "{n} samtal",
+  senast: "senast",
+  ingaSamtalAgent: "Inga samtal än. Börja ett nytt.",
+  samtalUtanText: "Samtal utan text",
+  samtalMed: "Samtal med {namn}",
+  arkivera: "Arkivera",
+  taFram: "Ta fram",
+  visaArkiverade: "Visa arkiverade",
+  doljArkiverade: "Dölj arkiverade",
+  ingaArkiverade: "Inga arkiverade samtal.",
+  arkivFel: "Samtalet kunde inte arkiveras.",
+  arkiveratRad: "Arkiverat. Det syns inte i listan förrän du tar fram det.",
 };
 
 /**
@@ -593,11 +621,16 @@ export function texterPa(sprak, texter) {
  * @param {ReadonlyArray<Medlemsrad>} props.medlemmar Gruppens medlemskap, för namn och bilder.
  * @param {string | null} [props.valt] Valt samtal, när appen styr det (t.ex. ur adressen). Tråden ritas på id:t också när
  *   samtalet ännu inte finns bland raderna (0.63.0, #263).
- * @param {boolean} [props.nytt] (0.63.0, #263) Läget "nytt" i högerpanelen, när appen styr det (t.ex. ur adressen, `?nytt=1`).
- *   Utelämnad: komponenten håller läget själv.
- * @param {(samtalId: string | null, val?: { nytt: true }) => void} [props.onValj] Anropas med det valda samtalet, eller med
+ * @param {boolean | "agent"} [props.nytt] (0.63.0, #263) Läget "nytt" i högerpanelen, när appen styr det (t.ex. ur adressen, `?nytt=1`).
+ *   Utelämnad: komponenten håller läget själv. (0.106.0, #386) `"agent"` öppnar ett nytt ämne med agenten (`valtAgent`, annars gruppens
+ *   första agent), med `nyttUtkast` i skrivfältet. Ämnet skapas först när personen skickar. Utan `amnen` på källan är `"agent"` samma
+ *   som `true`.
+ * @param {string | null} [props.valtAgent] (0.106.0, #386) Agenten vars samtal visas i högerpanelen, när appen styr det. Utelämnad:
+ *   komponenten håller valet själv. Gäller bara med `amnen` på källan.
+ * @param {(samtalId: string | null, val?: { nytt?: true | "agent", agent?: string }) => void} [props.onValj] Anropas med det valda samtalet, eller med
  *   `(null, { nytt: true })` när läget "nytt" öppnas. Ett anrop utan `val` betyder att läget "nytt" är stängt. EN signal för
- *   båda, så att en app som har dem i adressen skriver adressen en gång.
+ *   båda, så att en app som har dem i adressen skriver adressen en gång. (0.106.0) `(null, { agent })` när agentens samtal visas,
+ *   och `(null, { nytt: "agent", agent })` när ett nytt ämne öppnas.
  * @param {(antal: number, val: { fler: boolean }) => void} [props.onOlasta] Anropas med antalet olästa när det ändras, för ingångens räknare.
  *   `val.fler` (chattens nattskiva): antalet är ett golv, eftersom en räkning nådde sidans storlek. Skicka det till `OpsMeddelandeLank olastaFler`.
  * @param {string | null} [props.valtTrad] (0.68.0) Vald tråd i gruppchatten, rotmeddelandets id, när appen styr det (t.ex. ur
@@ -639,7 +672,7 @@ export function texterPa(sprak, texter) {
  * @param {string} [props.nyttUtkast] (0.105.0) Texten som står i skrivfältet när läget "nytt" öppnas, till exempel det man sade i TALK och
  *   valde Meddelande för. Ingenting skickas: personen väljer mottagare och trycker Skicka.
  */
-export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt, nytt, onValj, onOlasta, valtTrad, onValjTrad, sprak: sprakProp, texter = {}, postkort, onTranscribe, onStoppaAgent, inspelare, igenkanning, onBifoga, mejl, onLyftTillMinnet, minneHref, tillbaka, ram = null, activeHref, modul = null, onVisaAgent, onForslag, nyttUtkast }) {
+export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt, nytt, valtAgent, onValj, onOlasta, valtTrad, onValjTrad, sprak: sprakProp, texter = {}, postkort, onTranscribe, onStoppaAgent, inspelare, igenkanning, onBifoga, mejl, onLyftTillMinnet, minneHref, tillbaka, ram = null, activeHref, modul = null, onVisaAgent, onForslag, nyttUtkast }) {
   kravRam(ram, "OpsMeddelanden");
   if (onForslag !== undefined && typeof onForslag !== "function") throw new Error(`OpsMeddelanden: onForslag ska vara en funktion, fick ${typeof onForslag}.`);
   if (nyttUtkast !== undefined && typeof nyttUtkast !== "string") throw new Error(`OpsMeddelanden: nyttUtkast ska vara en sträng, fick ${typeof nyttUtkast}.`);
@@ -653,16 +686,28 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
   const locale = sprak === "en" ? "en-GB" : "sv-SE";
   const { rader, laddar, fel, olasta, olastaFler, lasOm, laggIn } = useSamtal({ kalla, groupId, uid });
   const [egetVal, setEgetVal] = useState(/** @type {string | null} */ (null));
-  const [egetNytt, setEgetNytt] = useState(false);
+  const [egetNytt, setEgetNytt] = useState(/** @type {boolean | "agent"} */ (false));
+  const [egenAgent, setEgenAgent] = useState(/** @type {string | null} */ (null));
+  // ⛔ SAMTAL PER ÄMNE BARA NÄR KÄLLAN HAR DEM (0.106.0, #386). Utan `amnen` är inkorgen, valen och vyerna exakt som förut.
+  const medAmnen = harAmnen(kalla);
+  const nyttVarde = groupId ? (nytt !== undefined ? nytt : egetNytt) : false;
   // ⛔ Läget "nytt" vinner över ett valt samtal: det är det man senast bad om.
-  const nyttLage = Boolean(groupId) && (nytt !== undefined ? nytt : egetNytt);
-  const valdId = nyttLage ? null : valt !== undefined ? valt : egetVal;
-  /** @param {string | null} id @param {{ nytt: true }} [val] */
+  const nyttAmneLage = medAmnen && nyttVarde === "agent";
+  const nyttLage = Boolean(nyttVarde) && !nyttAmneLage;
+  const valdId = nyttLage || nyttAmneLage ? null : valt !== undefined ? valt : egetVal;
+  /** @param {string | null} id @param {{ nytt?: true | "agent", agent?: string }} [val] */
   const valj = (id, val) => {
     if (valt === undefined) setEgetVal(id);
-    if (nytt === undefined) setEgetNytt(Boolean(val?.nytt));
+    if (nytt === undefined) setEgetNytt(val?.nytt ?? false);
+    if (valtAgent === undefined) setEgenAgent(val?.agent ?? null);
     onValj?.(id, val);
   };
+  /** Gruppens aktiva agenter, i medlemslistans ordning (0.106.0). */
+  const agenter = useMemo(() => (medlemmar ?? []).filter((m) => m && m.typ === "agent" && (m.status ?? "aktiv") === "aktiv").map((m) => m.userId), [medlemmar]);
+  const agentVal = valtAgent !== undefined ? valtAgent : egenAgent;
+  // Agenten vars samtal visas, och agenten ett nytt ämne skrivs till: den valda, annars gruppens första.
+  const listadAgent = medAmnen && !nyttLage && !nyttAmneLage && !valdId ? agentVal : null;
+  const nyAgent = nyttAmneLage ? agentVal ?? agenter[0] ?? null : null;
   // Det man skrev i läget "nytt" innan man valt någon följer med in i tråden.
   const utkast = useRef(/** @type {{ id: string, text: string } | null} */ (null));
   const [filter, setFilter] = useState(/** @type {"alla" | "olasta"} */ ("alla"));
@@ -680,6 +725,9 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
   useEffect(() => {
     if (nytt === undefined) setEgetNytt(false);
   }, [groupId, nytt]);
+  useEffect(() => {
+    if (valtAgent === undefined) setEgenAgent(null);
+  }, [groupId, valtAgent]);
 
   const namn = useMemo(() => {
     /** @type {Map<string, Medlemsrad>} */
@@ -710,14 +758,44 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
   }, [rader, gruppSid, groupId, laddar, fel]);
 
   const nu = Date.now();
+  const q = sok.trim().toLocaleLowerCase("sv");
   const visade = allaRader
     .filter((r) => (filter === "olasta" ? r.olasta > 0 : true))
     .filter((r) => {
-      const q = sok.trim().toLocaleLowerCase("sv");
       if (!q) return true;
       const rubrik = r.samtal.slag === "grupp" ? gruppNamn : namnFor(r.motpart ?? "");
       return rubrik.toLocaleLowerCase("sv").includes(q) || (r.senaste?.text ?? "").toLocaleLowerCase("sv").includes(q);
     });
+  /*
+   * ══ ⛔ AGENTEN SOM EN RAD (0.106.0, #386 skiva 2, skissen CP godkände) ═══════════════════════════════════════════════════
+   *
+   * Grupperna överst, sedan en rad per agent ("Hugo, gruppens agent", "3 samtal, senast 14:32"), sedan personerna. Agentens ämnen
+   * listas inte i inkorgen: raden leder till agentens samtal, och räknaren är summan av ämnenas olästa. En agent utan samtal har ändå
+   * sin rad, eftersom raden är vägen till ett nytt. Utan `amnen` på källan är listan som förut.
+   */
+  /** @typedef {{ typ: "agent", agent: string, rader: typeof allaRader, olasta: number, olastaFler: boolean, senaste: (typeof allaRader)[number]["senaste"] }} Agentpost */
+  /** @type {Agentpost[]} */
+  const agentposter = useMemo(() => {
+    if (!medAmnen) return [];
+    const ids = [...agenter];
+    for (const r of rader) if (r.samtal.slag === "agent" && r.motpart && !ids.includes(r.motpart)) ids.push(r.motpart);
+    return ids.map((agent) => {
+      const egna = rader.filter((r) => r.samtal.slag === "agent" && r.motpart === agent);
+      const senaste = egna.reduce((b, r) => (r.senaste && (!b || r.senaste.tid > b.tid) ? r.senaste : b), /** @type {(typeof allaRader)[number]["senaste"]} */ (null));
+      return { typ: /** @type {const} */ ("agent"), agent, rader: egna, olasta: egna.reduce((n, r) => n + r.olasta, 0), olastaFler: egna.some((r) => r.olastaFler === true), senaste };
+    });
+  }, [medAmnen, agenter, rader]);
+  const visadeAgentposter = agentposter
+    .filter((a) => (filter === "olasta" ? a.olasta > 0 : true))
+    .filter((a) => !q || namnFor(a.agent).toLocaleLowerCase("sv").includes(q) || a.rader.some((r) => (r.senaste?.text ?? "").toLocaleLowerCase("sv").includes(q) || String(r.samtal.rubrik ?? "").toLocaleLowerCase("sv").includes(q)));
+  /** @type {Array<{ typ: "rad", r: (typeof allaRader)[number] } | Agentpost>} */
+  const poster = medAmnen
+    ? [
+        ...visade.filter((r) => r.samtal.slag === "grupp").map((r) => ({ typ: /** @type {const} */ ("rad"), r })),
+        ...visadeAgentposter,
+        ...visade.filter((r) => r.samtal.slag === "personer").map((r) => ({ typ: /** @type {const} */ ("rad"), r })),
+      ]
+    : visade.map((r) => ({ typ: /** @type {const} */ ("rad"), r }));
   /*
    * ⛔ TRÅDEN RITAS PÅ DET VALDA ID:T, INTE PÅ LISTAN (#263, SS `ChatInboxPanel.jsx:186-191`). Raden ur listan när den finns.
    * Annars läses gruppen och paret ur nyckeln: ett id i en annan grupp, eller ett par jag inte är med i, ritar ingen tråd.
@@ -734,10 +812,14 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
     if ("slag" in d) return { samtal: { id: valdId, groupId: d.groupId, slag: "grupp", skapad: 0, skapadAv: "" }, senaste: null, olasta: 0, lastTill: 0, motpart: null, ej: true };
     if (!d.deltagare.includes(uid)) return null;
     const annan = d.deltagare[0] === uid ? d.deltagare[1] : d.deltagare[0];
-    const slag = namn.get(annan)?.typ === "agent" ? "agent" : "personer";
+    // ⛔ (0.106.0) Ett ämne har bara agenten som slag: nyckelns fjärde del finns inte på ett personsamtal.
+    const slag = "amne" in d || namn.get(annan)?.typ === "agent" ? "agent" : "personer";
     return { samtal: { id: valdId, groupId: d.groupId, slag, deltagare: d.deltagare, skapad: 0, skapadAv: "" }, senaste: null, olasta: 0, lastTill: 0, motpart: annan };
   }, [valdId, allaRader, groupId, uid, namn]);
-  const hoger = nyttLage || Boolean(vald);
+  const hoger = nyttLage || nyttAmneLage || Boolean(vald) || Boolean(listadAgent);
+  // ⛔ (0.106.0) Ett ämne med agenten har sin egen rad tillbaka till agentens samtal, som tråden har sin till gruppchatten.
+  const iAmne = medAmnen && (nyttAmneLage || vald?.samtal.slag === "agent");
+  const amnesAgent = nyttAmneLage ? nyAgent : vald?.samtal.slag === "agent" ? vald.motpart : null;
   // ⛔ TRÅDEN GÄLLER BARA GRUPPCHATTEN, och ett nytt samtalsval stänger den (0.68.0). Ett trådid kvar från förra samtalet hade
   // öppnat en tråd under fel samtal.
   const [egenTrad, setEgenTrad] = useState(/** @type {string | null} */ (null));
@@ -874,7 +956,7 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
             <p className="m-0 px-2 py-6 text-center text-meta text-ink-muted" role="status">
               …
             </p>
-          ) : visade.length === 0 ? (
+          ) : poster.length === 0 ? (
             <div className="flex flex-col items-center px-4 py-10 text-center">
               <span className="text-ink-muted">
                 <MeddelandeIkon size={40} />
@@ -883,7 +965,45 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
             </div>
           ) : (
             <ul className="m-0 flex list-none flex-col gap-0.5 p-0">
-              {visade.map((r) => {
+              {poster.map((post) => {
+                if (post.typ === "agent") {
+                  const aktivAgent = listadAgent === post.agent || amnesAgent === post.agent;
+                  const m = namn.get(post.agent);
+                  return (
+                    <li key={`agent-${post.agent}`}>
+                      <button
+                        type="button"
+                        data-agentrad={post.agent}
+                        aria-current={aktivAgent || undefined}
+                        onClick={() => valj(null, { agent: post.agent })}
+                        className={cx(
+                          "flex w-full cursor-pointer items-center gap-3 rounded-card px-3 py-1.5 text-left transition-colors duration-(--duration-fast) ease-standard focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
+                          aktivAgent ? "bg-hover" : "hover:bg-hover",
+                        )}
+                      >
+                        <span className="relative shrink-0">
+                          <span aria-hidden="true" className="inline-flex">
+                            <OpsIdentity name={m?.namn || t.agent} seed={post.agent} size="md" icon={AgentIkon} rund />
+                          </span>
+                          <OpsCountBadge count={post.olasta} fler={post.olastaFler} text={t.olastaText} placement="corner" />
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="flex min-w-0 items-center gap-2">
+                            <span className={cx("min-w-0 flex-1 truncate text-etikett font-medium", post.olasta > 0 ? "text-ink" : "text-ink-secondary")}>
+                              {namnFor(post.agent)}
+                              <span className="font-normal text-ink-muted">, {t.gruppensAgent}</span>
+                            </span>
+                            {post.senaste ? <span data-tid="" className="shrink-0 text-liten tabular-nums text-ink-muted">{radtid(post.senaste.tid, nu, locale)}</span> : null}
+                          </span>
+                          <span data-agentrad-antal="" className="mt-0.5 block truncate text-meta text-ink-muted">
+                            {post.rader.length === 0 ? t.ingaSamtalAgent : `${t.antalSamtal.replace("{n}", String(post.rader.length))}${post.senaste ? `, ${t.senast} ${radtid(post.senaste.tid, nu, locale)}` : ""}`}
+                          </span>
+                        </span>
+                      </button>
+                    </li>
+                  );
+                }
+                const r = post.r;
                 const aktiv = r.samtal.id === valdId;
                 const s = r.senaste;
                 return (
@@ -936,7 +1056,7 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
         aria-label={nyttLage ? t.nytt : vald ? rubrikFor(vald) : t.valjSamtal}
         className={cx("min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden bg-surface md:flex md:rounded-xl", hoger ? "flex" : "hidden")}
       >
-        {hoger && !(vald && tradId) ? (
+        {hoger && !(vald && tradId) && !iAmne ? (
           /* Telefon: en rad "‹ Tillbaka" överst, som SS (`ChatInboxPanel.jsx:880-892`). Läget "nytt" har samma rad.
              ⛔ INTE I EN TRÅD (0.68.0): tråden har sin egen rad tillbaka till gruppchatten, och två rader tillbaka ovanför
              varandra, till två olika ställen, är samma sorts dubblering som den dubblerade hamburgaren i #164. */
@@ -976,6 +1096,39 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
               laggIn(s);
               valj(s.id);
             }}
+          />
+        ) : nyttAmneLage && groupId && nyAgent ? (
+          /* ⛔ ETT NYTT ÄMNE ÄR INTE SKRIVET (0.106.0): `nyttAmne` ger id:t, och första Skicka skapar samtalet och meddelandet. */
+          <NyttAmne
+            key={`${groupId}|${nyAgent}`}
+            kalla={/** @type {any} */ (kalla)}
+            uid={uid}
+            groupId={groupId}
+            agent={nyAgent}
+            utkast={nyttUtkast}
+            samtalsprops={{ postkort, onTranscribe, onStoppaAgent, inspelare, igenkanning, namnFor, medlemmar, sprak, texter: t, onBifoga, mejl, onVisaAgent, onForslag }}
+            marke={<OpsIdentity name={namn.get(nyAgent)?.namn || t.agent} seed={nyAgent} size="md" icon={AgentIkon} rund />}
+            onTillbaka={() => valj(null, { agent: nyAgent })}
+            onSkapat={(s, m) => {
+              laggIn(s, m);
+              valj(s.id);
+            }}
+          />
+        ) : listadAgent && groupId ? (
+          <AgentensSamtal
+            key={`${groupId}|${listadAgent}`}
+            kalla={/** @type {any} */ (kalla)}
+            uid={uid}
+            groupId={groupId}
+            agent={listadAgent}
+            agentnamn={namnFor(listadAgent)}
+            marke={<OpsIdentity name={namn.get(listadAgent)?.namn || t.agent} seed={listadAgent} size="md" icon={AgentIkon} rund />}
+            rader={rader.filter((r) => r.samtal.slag === "agent" && r.motpart === listadAgent)}
+            texter={t}
+            locale={locale}
+            onValj={(sid) => valj(sid)}
+            onNytt={() => valj(null, { nytt: "agent", agent: listadAgent })}
+            onAndrat={lasOm}
           />
         ) : vald && tradId ? (
           <OpsTrad
@@ -1036,6 +1189,7 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
             mejl={mejl}
             onVisaAgent={onVisaAgent}
             onForslag={onForslag}
+            {...(iAmne && amnesAgent ? { amne: { agentnamn: namnFor(amnesAgent), onTillbaka: () => valj(null, { agent: amnesAgent }), onAndrat: lasOm } } : {})}
           />
         ) : (
           <div className="flex flex-1 flex-col items-center justify-center px-6 text-center">
@@ -1080,6 +1234,165 @@ function OppnaGruppchatt({ kalla, uid, groupId, texter: t, onOppnad }) {
           {t.oppnarGrupp}
         </p>
       )}
+    </div>
+  );
+}
+
+/**
+ * Ett nytt ämne med agenten (0.106.0, #386 skiva 2): samtalsvyn med ett ämne som inte är skrivet än. Id:t tas en gång när vyn
+ * öppnas (`nyttAmne`), och första Skicka skapar samtalet och meddelandet (`skickaIAmne`). Ett Nytt samtal som ångras lämnar
+ * ingenting efter sig.
+ *
+ * @param {{ kalla: any, uid: string, groupId: string, agent: string, utkast?: string, marke: import("react").ReactNode, samtalsprops: Record<string, any>, onTillbaka: () => void, onSkapat: (s: import("../lib/samtal.js").Samtal, m: any) => void }} props
+ */
+function NyttAmne({ kalla, uid, groupId, agent, utkast, marke, samtalsprops, onTillbaka, onSkapat }) {
+  const [samtal] = useState(() => kalla.nyttAmne({ groupId, uid, agent }));
+  const p = /** @type {any} */ (samtalsprops);
+  return (
+    <OpsSamtal
+      {...p}
+      kalla={kalla}
+      uid={uid}
+      samtal={samtal}
+      rubrik=""
+      marke={marke}
+      utkast={utkast ?? ""}
+      ny
+      amne={{ agentnamn: p.namnFor(agent), onTillbaka }}
+      onSkapat={onSkapat}
+    />
+  );
+}
+
+/**
+ * Agentens samtal (0.106.0, #386 skiva 2, skissen CP godkände): "Nytt samtal" överst, och under den ett samtal per ämne med
+ * rubriken, senaste raden och tiden. Arkiverade ämnen läses först när "Visa arkiverade" trycks, och då en gång.
+ *
+ * ⛔ RADERNA KOMMER UR INKORGENS ÖVERSIKT, de läses inte en gång till. Inkorgen har redan läst varje ämnes senaste meddelanden och
+ * läsmärke, och en andra läsning hade gett två sanningar om samma oläst.
+ *
+ * @param {{ kalla: any, uid: string, groupId: string, agent: string, agentnamn: string, marke: import("react").ReactNode, rader: ReadonlyArray<any>, texter: Required<Meddelandetexter>, locale: string, onValj: (sid: string) => void, onNytt: () => void, onAndrat?: () => void }} props
+ */
+function AgentensSamtal({ kalla, uid, groupId, agent, agentnamn, marke, rader, texter: t, locale, onValj, onNytt, onAndrat }) {
+  const [arkiv, setArkiv] = useState(/** @type {{ oppen: boolean, rader: any[] | null, fel: string | null }} */ ({ oppen: false, rader: null, fel: null }));
+  const nu = Date.now();
+  const lasArkiv = () => {
+    setArkiv({ oppen: true, rader: null, fel: null });
+    kalla.oversikt({ groupId, uid, arkiverade: true }).then(
+      (/** @type {any[]} */ r) => setArkiv({ oppen: true, rader: r.filter((x) => x.motpart === agent), fel: null }),
+      (/** @type {any} */ e) => setArkiv({ oppen: true, rader: null, fel: e instanceof Error ? e.message : String(e) }),
+    );
+  };
+  const taFram = async (/** @type {string} */ sid) => {
+    try {
+      await kalla.arkivera(sid, false);
+      onAndrat?.();
+      lasArkiv();
+    } catch (e) {
+      setArkiv((a) => ({ ...a, fel: `${t.arkivFel} ${e instanceof Error ? e.message : String(e)}` }));
+    }
+  };
+  /** @param {any} r @param {boolean} arkiverad */
+  const rad = (r, arkiverad) => {
+    const s = r.senaste;
+    const rubrik = amnesrubrik(r.samtal, r.forsta ?? (s ? [s] : []), t.samtalUtanText);
+    return (
+      <li key={r.samtal.id} className="flex items-center gap-1">
+        <button
+          type="button"
+          data-amnesrad={r.samtal.id}
+          onClick={() => onValj(r.samtal.id)}
+          className="flex min-h-11 min-w-0 flex-1 cursor-pointer items-center gap-3 rounded-card px-3 py-2 text-left transition-colors duration-(--duration-fast) ease-standard hover:bg-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
+        >
+          <span className="min-w-0 flex-1">
+            <span className="flex min-w-0 items-center gap-2">
+              <span className={cx("min-w-0 flex-1 truncate text-etikett font-medium", r.olasta > 0 ? "text-ink" : "text-ink-secondary")}>{rubrik}</span>
+              {s ? <span data-tid="" className="shrink-0 text-liten tabular-nums text-ink-muted">{radtid(s.tid, nu, locale)}</span> : null}
+            </span>
+            {s ? (
+              <span className={cx("mt-0.5 block truncate text-meta", r.olasta > 0 ? "text-ink-secondary" : "text-ink-muted")}>
+                <span className="text-ink-muted">{s.av === uid ? t.du : agentnamn}: </span>
+                {synligText(s)}
+              </span>
+            ) : null}
+          </span>
+          <OpsCountBadge count={r.olasta} fler={r.olastaFler === true} text={t.olastaText} />
+        </button>
+        {arkiverad ? (
+          <button
+            type="button"
+            data-ta-fram={r.samtal.id}
+            onClick={() => taFram(r.samtal.id)}
+            className="inline-flex min-h-11 shrink-0 cursor-pointer items-center gap-1 rounded-base px-2 text-meta text-accent hover:bg-accent-faint focus-visible:outline-2 focus-visible:outline-accent"
+          >
+            <TaFramIkon size={14} />
+            {t.taFram}
+          </button>
+        ) : null}
+      </li>
+    );
+  };
+  return (
+    <div data-agentens-samtal={agent} className="flex min-h-0 flex-1 flex-col">
+      <header className="flex shrink-0 items-center gap-3 border-b border-line px-3 py-2.5">
+        {marke}
+        <div className="min-w-0 flex-1">
+          <h3 className="m-0 truncate text-etikett font-semibold text-ink">{agentnamn}</h3>
+          <p className="m-0 flex items-center gap-1 text-liten text-ink-muted">
+            <LasIkon size={10} />
+            <span className="truncate">{t.gruppensAgent}</span>
+          </p>
+        </div>
+      </header>
+      <div className="min-h-0 flex-1 overflow-y-auto px-2 py-2">
+        <button
+          type="button"
+          data-nytt-amne=""
+          onClick={onNytt}
+          className="flex min-h-11 w-full cursor-pointer items-center gap-2 rounded-card border border-dashed border-line px-3 py-2 text-left text-etikett font-medium text-accent transition-colors duration-(--duration-fast) ease-standard hover:bg-accent-faint focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
+        >
+          <PlusIkon size={16} />
+          {t.nyttSamtal}
+        </button>
+        {rader.length === 0 ? (
+          <p data-amnen-tomt="" className="m-0 px-3 py-4 text-meta text-ink-muted">
+            {t.ingaSamtalAgent}
+          </p>
+        ) : (
+          <ul aria-label={t.samtalMed.replace("{namn}", agentnamn)} className="m-0 mt-1 flex list-none flex-col gap-0.5 p-0">
+            {[...rader].sort((a, b) => (b.senaste?.tid ?? b.samtal.skapad ?? 0) - (a.senaste?.tid ?? a.samtal.skapad ?? 0)).map((r) => rad(r, false))}
+          </ul>
+        )}
+        <div className="mt-2 border-t border-line pt-1">
+          <button
+            type="button"
+            data-visa-arkiverade=""
+            aria-expanded={arkiv.oppen}
+            onClick={() => (arkiv.oppen ? setArkiv({ oppen: false, rader: null, fel: null }) : lasArkiv())}
+            className="inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-base px-3 text-meta text-ink-secondary hover:bg-hover hover:text-ink focus-visible:outline-2 focus-visible:outline-accent"
+          >
+            <ArkiveraIkon size={14} />
+            {arkiv.oppen ? t.doljArkiverade : t.visaArkiverade}
+          </button>
+          {arkiv.oppen ? (
+            arkiv.fel ? (
+              <p role="alert" data-arkiv-fel="" className="m-0 px-3 py-2 text-meta text-danger">
+                {arkiv.fel}
+              </p>
+            ) : arkiv.rader === null ? (
+              <p role="status" className="m-0 px-3 py-2 text-meta text-ink-muted">
+                …
+              </p>
+            ) : arkiv.rader.length === 0 ? (
+              <p data-arkiv-tomt="" className="m-0 px-3 py-2 text-meta text-ink-muted">
+                {t.ingaArkiverade}
+              </p>
+            ) : (
+              <ul className="m-0 flex list-none flex-col gap-0.5 p-0">{arkiv.rader.map((r) => rad(r, true))}</ul>
+            )
+          ) : null}
+        </div>
+      </div>
     </div>
   );
 }
@@ -1742,15 +2055,25 @@ function agentDeltagare(samtal, uid, medlemmar) {
  *   källan läser ramverket filen själv och den här anropas inte. Utan `bilagor` lämnas filerna hit, och utan den ritas inget plus.
  * @param {string} [props.mejl] (0.80.0, #301) Adressen appen skickar in. Utan den ritas ingen mejlknapp.
  * @param {(agent: { id: string, namn: string }) => void} [props.onVisaAgent] (0.90.0) Gör namn och ikon i ett agentsamtal till en knapp.
+ * @param {{ agentnamn: string, onTillbaka: () => void, onAndrat?: () => void }} [props.amne] (0.106.0, #386) Samtalet är ett ämne med
+ *   agenten: huvudet visar ämnets rubrik och Arkivera, och en rad överst leder tillbaka till agentens samtal. Kräver `amnen` på källan.
+ * @param {boolean} [props.ny] (0.106.0) Ämnet är inte skrivet än (`nyttAmne`). Ingenting läses, och första Skicka skapar samtalet och
+ *   meddelandet med `skickaIAmne`. Kräver `amne`.
+ * @param {(samtal: import("../lib/samtal.js").Samtal, meddelande: any) => void} [props.onSkapat] (0.106.0) Anropas när ett nytt ämne skapats.
  */
-export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, namnFor, medlemmar, onLast, onSkickat, utkast, onOppnaTrad, tradminne, fokusRot, onFokuserad, sprak: sprakProp, texter = {}, postkort, onTranscribe, onStoppaAgent, inspelare, igenkanning, onBifoga: onBifogaProp, mejl, onVisaAgent, onForslag }) {
+export function OpsSamtal({ kalla, uid, samtal, rubrik: rubrikProp, marke, lastTill = 0, namnFor, medlemmar, onLast, onSkickat, utkast, onOppnaTrad, tradminne, fokusRot, onFokuserad, sprak: sprakProp, texter = {}, postkort, onTranscribe, onStoppaAgent, inspelare, igenkanning, onBifoga: onBifogaProp, mejl, onVisaAgent, onForslag, amne: amneProp, ny = false, onSkapat }) {
   // ⛔ Språket ur appens `OpsSprakProvider` när appen inte gav ett (0.46.0, cllp/bolag-ops#528).
   const sprakKontext = useOpsSprak();
   const sprak = sprakProp ?? sprakKontext;
   const t = texterPa(sprak, texter);
   const bilage = useBilageutkast(kalla, onBifogaProp, t);
   const locale = sprak === "en" ? "en-GB" : "sv-SE";
-  const [meddelanden, setMeddelanden] = useState(/** @type {Array<import("../lib/samtal.js").Meddelande & { id: string }> | null} */ (null));
+  // ⛔ ETT ÄMNE BARA MED KÄLLANS ÄMNEN OCH ETT AGENTSAMTAL (0.106.0). Ett nytt ämne läser ingenting: samtalet finns inte, och regeln
+  // hade nekat varje läsning under det. Därför får varje lyssnare `null` som källa tills första Skicka skapat det.
+  const amne = amneProp && harAmnen(kalla) && samtal.slag === "agent" ? amneProp : null;
+  const arNy = Boolean(amne && ny);
+  const las = arNy ? null : kalla;
+  const [meddelanden, setMeddelanden] = useState(/** @type {Array<import("../lib/samtal.js").Meddelande & { id: string }> | null} */ (arNy ? [] : null));
   const [fel, setFel] = useState(/** @type {Error | null} */ (null));
   const [text, setText] = useState(utkast ?? "");
   const [skickar, setSkickar] = useState(false);
@@ -1760,19 +2083,33 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
   const loggRef = useRef(/** @type {HTMLDivElement | null} */ (null));
   const historik = useHistorik({ kalla, sid: samtal.id, live: meddelanden, logg: loggRef });
   const alla = historik.alla;
-  const reakt = useReaktioner(harReaktioner(kalla) ? kalla : null, samtal.id, undefined, uid);
+  const reakt = useReaktioner(harReaktioner(las) ? las : null, samtal.id, undefined, uid);
   // ⛔ Citat bara utanför gruppchatten (regeln kräver det): där är tråden svaret.
   const medCitat = harCitat(kalla) && samtal.slag !== "grupp";
   const [svarPa, setSvarPa] = useState(/** @type {(import("../lib/samtal.js").Meddelande & { id: string }) | null} */ (null));
-  const citatuppslag = useCitatuppslag(medCitat || alla.some((m) => m.svarPa) ? kalla : null, samtal.id, alla);
+  const citatuppslag = useCitatuppslag(las && (medCitat || alla.some((m) => m.svarPa)) ? kalla : null, samtal.id, alla);
   const sok = useSokISamtal(alla, loggRef);
-  const fasta = useFasta(harFasta(kalla) ? kalla : null, samtal.id, uid);
-  const agentlage = useAgentstatusdok(harStatus(kalla) ? kalla : null, samtal.id, undefined);
+  const fasta = useFasta(harFasta(las) ? las : null, samtal.id, uid);
+  const agentlage = useAgentstatusdok(harStatus(las) ? las : null, samtal.id, undefined);
   const { rader: tradar, fel: tradfel } = useTradmarken({ kalla: medTradar ? kalla : null, sid: samtal.id, meddelanden: meddelanden ? alla : null, minne: tradminne });
   const slut = useRef(/** @type {HTMLDivElement | null} */ (null));
   const [info, setInfo] = useState(false);
-  const { tyst, vaxla: vaxlaTyst } = useTystnad(kalla, samtal.id, uid, setFel);
+  const { tyst, vaxla: vaxlaTyst } = useTystnad(las, samtal.id, uid, setFel);
   const infoposter = useMemo(() => alla.map((m) => ({ m })), [alla]);
+  const [arkiv, setArkiv] = useState(samtal.arkiverad === true);
+  const rubrik = amne ? amnesrubrik(samtal, alla.slice(0, 3), arNy ? t.nyttSamtal : t.samtalUtanText) : rubrikProp;
+  const vaxlaArkiv = async () => {
+    if (!amne || !harAmnen(kalla)) return;
+    try {
+      await kalla.arkivera(samtal.id, !arkiv);
+      setArkiv(!arkiv);
+      amne.onAndrat?.();
+      // Ett arkiverat ämne lämnas: det syns inte längre i listan man kom från.
+      if (!arkiv) amne.onTillbaka();
+    } catch (e) {
+      setFel(new Error(`${t.arkivFel} ${e instanceof Error ? e.message : String(e)}`));
+    }
+  };
   const filer = useChattinfoFiler({ kalla, sid: samtal.id, oppen: info, poster: infoposter, felText: t.bilagorFel });
   const post = mejlHref(mejl);
 
@@ -1786,6 +2123,7 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
   };
 
   useEffect(() => {
+    if (arNy) return undefined;
     const stang = kalla.prenumerera(samtal.id, {
       onData: (rader) => {
         setMeddelanden(rader);
@@ -1797,7 +2135,7 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
     if (!stang) lasIn();
     return () => stang?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [kalla, samtal.id]);
+  }, [kalla, samtal.id, arNy]);
 
   // Läsmärket: den senaste tiden i samtalet, om den är senare än det förra märket.
   useEffect(() => {
@@ -1837,8 +2175,11 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
     setSkickar(true);
     let skickat = false;
     try {
-      const ny = await kalla.skicka(samtal.id, { text: ut, av: uid, ...(extra?.namner ? { namner: extra.namner } : {}), ...(svarPa ? { svarPa: svarPa.id } : {}), ...(!tal && bilage.bilaga ? { bilaga: bilage.bilaga } : {}) });
+      const d = { text: ut, av: uid, ...(extra?.namner ? { namner: extra.namner } : {}), ...(svarPa ? { svarPa: svarPa.id } : {}), ...(!tal && bilage.bilaga ? { bilaga: bilage.bilaga } : {}) };
+      // ⛔ Ett nytt ämne skapas här, med sitt första meddelande (0.106.0).
+      const ny = arNy && harAmnen(kalla) ? await kalla.skickaIAmne(samtal, d) : await kalla.skicka(samtal.id, d);
       skickat = true;
+      if (arNy) onSkapat?.(samtal, ny);
       if (!tal) {
         setText("");
         bilage.tom();
@@ -1846,7 +2187,7 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
       setSvarPa(null);
       if (ny && typeof ny.tid === "number") onSkickat?.(/** @type {any} */ (ny));
       // Med en prenumeration kommer meddelandet av sig självt. Utan den läses samtalet om.
-      if (!lyssnar.current) await lasIn();
+      if (!lyssnar.current && !arNy) await lasIn();
     } catch (e) {
       // ⛔ Bara sändningen kastar. Föll läsningen efteråt är meddelandet redan skickat, och ett Försök igen hade skickat det två gånger.
       if (tal && !skickat) throw e;
@@ -1861,10 +2202,33 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
   const agentId = agent && onVisaAgent ? agentDeltagare(samtal, uid, medlemmar) : "";
 
   return (
-    <div data-ops-samtal={samtal.slag} className={cx("relative flex min-h-0 flex-1", info ? "flex-col md:flex-row" : "flex-col")}>
+    <div data-ops-samtal={samtal.slag} data-amne={amne ? (arNy ? "ny" : samtal.id) : undefined} className={cx("relative flex min-h-0 flex-1", info ? "flex-col md:flex-row" : "flex-col")}>
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+      {amne ? (
+        /* ⛔ TILLBAKA TILL AGENTENS SAMTAL (0.106.0), på telefon och dator, som tråden har sin rad till gruppchatten. */
+        <button
+          type="button"
+          data-tillbaka-agent=""
+          onClick={amne.onTillbaka}
+          className="inline-flex min-h-11 shrink-0 cursor-pointer items-center gap-1.5 border-b border-line px-3 text-meta text-ink-secondary hover:text-ink focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
+        >
+          <ChevronVansterIkon size={14} />
+          <span className="min-w-0 truncate">{amne.agentnamn}</span>
+        </button>
+      ) : null}
       <header className="flex shrink-0 items-center gap-3 border-b border-line px-3 py-2.5">
-        {agentId ? (
+        {amne ? (
+          <>
+            {marke}
+            <div className="min-w-0 flex-1">
+              <h3 data-amnesrubrik="" className="m-0 truncate text-etikett font-semibold text-ink">{rubrik}</h3>
+              <p data-privat-rad="" className="m-0 flex items-center gap-1 text-liten text-ink-muted">
+                <LasIkon size={10} />
+                <span className="truncate">{arkiv ? t.arkiveratRad : `${amne.agentnamn}, ${t.agentRad}`}</span>
+              </p>
+            </div>
+          </>
+        ) : agentId ? (
           <button
             type="button"
             data-visa-agent={agentId}
@@ -1894,12 +2258,17 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
           </>
         )}
         <div className="flex shrink-0 items-center">
+          {amne && !arNy ? (
+            <Verktygsknapp etikett={arkiv ? t.taFram : t.arkivera} dataAttr="arkiv" pressed={arkiv} onClick={vaxlaArkiv}>
+              {arkiv ? <TaFramIkon size={16} /> : <ArkiveraIkon size={16} />}
+            </Verktygsknapp>
+          ) : null}
           {post ? (
             <Verktygsknapp etikett={t.mejl} dataAttr="mejl" href={post}>
               <MejlIkon size={16} />
             </Verktygsknapp>
           ) : null}
-          {harTyst(kalla) ? (
+          {harTyst(las) ? (
             <Verktygsknapp etikett={tyst ? t.notiserTysta : t.tystaNotiser} dataAttr="tyst" pressed={tyst} onClick={vaxlaTyst}>
               {tyst ? <TystIkon size={16} /> : <NotisIkon size={16} />}
             </Verktygsknapp>
