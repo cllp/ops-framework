@@ -207,7 +207,7 @@ export function OpsAtgardsblad({ namn, poster, children = null, baraKnapp = fals
   ) : (
     <div
       data-ops-atgard=""
-      className={kort ? "flex w-full items-start gap-1 py-3 pr-1 pl-3" : "flex w-full items-center gap-1 px-4 py-3"}
+      className={kort ? "flex w-full items-start gap-1 py-4 pr-1 pl-4" : "flex w-full items-center gap-1 px-4 py-3"}
       onPointerDown={ner}
       onContextMenu={(e) => {
         e.preventDefault();

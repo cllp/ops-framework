@@ -184,7 +184,7 @@ export function OpsSvepRad({ children, atgarder = [], kort = false }) {
   return (
     <li
       data-ops-svep={angra ? "angra" : oppna > 0 ? "oppen" : "stangd"}
-      className={cx("relative overflow-hidden", kort && "rounded-md")}
+      className={cx("relative overflow-hidden", kort && "rounded-xl")}
       onPointerDown={ner}
       onClickCapture={(e) => {
         if (!svept.current) return;

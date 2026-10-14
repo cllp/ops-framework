@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import * as Popover from "@radix-ui/react-popover";
-import { Check, ChevronDown, File as FilIkon, FileText, Globe, Image as BildIkon, Library, Mic, Plus, Tag, X } from "lucide-react";
+import { Check, File as FilIkon, FileText, Globe, Image as BildIkon, Library, Mic, Plus, SlidersHorizontal, Tag, X } from "lucide-react";
 import { OpsAtgardsblad } from "./OpsAtgardsblad.jsx";
 import { OpsDokument } from "./OpsDokument.jsx";
 import { OpsMarkdown } from "./OpsMarkdown.jsx";
@@ -15,6 +15,7 @@ import { modulTillbaka } from "../lib/modulram.js";
 import { radBehallare, radKlass } from "../lib/radKlass.js";
 import { OpsButton } from "./OpsButton.jsx";
 import { OpsLjudspelare } from "./OpsLjudspelare.jsx";
+import { OpsSpelaKnapp, OpsSpelarKontroller, useSpelare } from "./OpsSpelare.jsx";
 import { OpsEmpty } from "./OpsEmpty.jsx";
 import { OpsField, OpsInput, OpsTextarea } from "./OpsField.jsx";
 import { OpsSelect } from "./OpsSelect.jsx";
@@ -139,7 +140,6 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
   const sprak = useOpsSprak();
   const oppnaInspelning = useInspelningOppnare();
   const [flik, setFlik] = useState(/** @type {Flik} */ ("alla"));
-  const smal = useSmal();
   const [rostFel, setRostFel] = useState("");
   const [ljus, setLjus] = useState("");
   const [sok, setSok] = useState("");
@@ -492,9 +492,11 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
           <Detalj key={`${skaparTyp ?? ""}:${vald?.id ?? ""}:${startLage}`} post={vald ? medFyll(vald) : null} skapar={skaparTyp} jag={jag} startLage={startLage} onStang={onStang} onSpara={onSpara} onLaddaUpp={onLaddaUpp} filUrl={filUrl} adressFor={adressFor} onLjus={setLjus} onSkrivUt={onSkrivUt} onGorForslag={onGorForslag} menyFor={menyFor} onMeta={togMeta} />
         ) : (
           <div data-bibliotek-huvud="" className="flex min-w-0 flex-col gap-3">
-            {/* ⛔ SESSIONSTUDIOS HUVUD (0.102.0): platsen med "N objekt" till höger, flikarna, och sök, Taggar och "+ Ny" på en
-                rad. Platsväljaren är en rubrik med pil när det finns fler än en plats, som SessionStudios biblioteksväljare. */}
+            {/* ⛔ SESSIONSTUDIOS HUVUD, SOM I APPEN (0.102.0, CP 2026-10-14 med skärmbilder från SessionStudios app: "Listningen
+                och taggar i föregående bild."): antalet till vänster och platsen som ett piller till höger, sedan sök, "+ Ny" och
+                Taggar på en rad, och flikarna som en rad man rullar i sidled. */}
             <div className="flex min-w-0 items-center justify-between gap-3">
+              <span data-bibliotek-antal="" className="shrink-0 text-meta text-ink-muted">{poster.length === 1 ? "1 objekt" : `${poster.length} objekt`}</span>
               {platser.length >= 2 && plats ? (
                 <PlatsValjare
                   platser={platser}
@@ -505,17 +507,12 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
                     if (typeof onPlats === "function") onPlats(v);
                   }}
                 />
-              ) : (
-                <span aria-hidden="true" />
-              )}
-              <span data-bibliotek-antal="" className="shrink-0 text-meta text-ink-muted">{poster.length === 1 ? "1 objekt" : `${poster.length} objekt`}</span>
+              ) : null}
             </div>
-            <Flikar smal={smal} flikar={synligaFlikar} antal={antal} flik={aktivFlik} onFlik={setFlik} />
             <div className="flex min-w-0 items-center gap-2">
               <div className="min-w-0 flex-1">
                 <OpsInput value={sok} onChange={setSok} type="search" ariaLabel="Sök i biblioteket" placeholder="Sök..." />
               </div>
-              <TaggFilter taggar={gruppensTaggar} valda={valda} onValda={setValdaTaggar} />
               {jag ? (
                 <NyKnapp
                   flik={aktivFlik}
@@ -530,7 +527,9 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
                   }}
                 />
               ) : null}
+              <TaggFilter taggar={gruppensTaggar} valda={valda} onValda={setValdaTaggar} />
             </div>
+            <Flikar flikar={synligaFlikar} antal={antal} flik={aktivFlik} onFlik={setFlik} />
             {rostFel ? <p role="alert">{rostFel}</p> : null}
             {trasiga.length > 0 ? (
               <div role="status" data-bibliotek-trasiga={trasiga.length} className="text-meta text-ink-muted">
@@ -661,10 +660,10 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
 }
 
 /**
- * "+ Ny" som SessionStudios: en fylld knapp i accent med hörn som fälten, inte ett piller (0.102.0). `knappKlass` ritar alltid ett
+ * "+ Ny" som i SessionStudios app: en knapp med kant och hörn som fälten, inte ett piller (0.102.0). `knappKlass` ritar alltid ett
  * piller, och på en telefon bröt pillret raden med sök och Taggar till två.
  */
-const NY_KLASS = "inline-flex min-h-11 shrink-0 cursor-pointer items-center gap-1.5 rounded-md bg-accent px-4 text-etikett font-medium text-accent-contrast hover:bg-accent-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
+const NY_KLASS = "inline-flex min-h-11 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border border-line bg-transparent px-4 text-etikett font-medium text-ink hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
 
 const TYPNAMN = /** @type {const} */ ({ anteckning: "Anteckning", lank: "Länk", fil: "Fil" });
 const NYTT_NAMN = /** @type {const} */ ({ anteckning: "Ny anteckning", lank: "Ny länk", fil: "Ny fil", ljud: "Ny röstinspelning" });
@@ -792,12 +791,12 @@ function useFilAdresser(poster, vald, filUrl, hamtaAdress) {
  * @type {ReadonlyArray<{ id: Flik, namn: string, ikon: import("react").ReactNode, alltid?: boolean }>}
  */
 const FLIKAR = [
-  { id: "alla", namn: "Allt", ikon: <Library size={12} aria-hidden="true" />, alltid: true },
-  { id: "ljud", namn: "Ljud", ikon: <Mic size={12} aria-hidden="true" />, alltid: true },
-  { id: "anteckning", namn: "Anteckningar", ikon: <FileText size={12} aria-hidden="true" /> },
-  { id: "bild", namn: "Bilder", ikon: <BildIkon size={12} aria-hidden="true" /> },
-  { id: "fil", namn: "Dokument", ikon: <FilIkon size={12} aria-hidden="true" /> },
-  { id: "lank", namn: "Länkar", ikon: <Globe size={12} aria-hidden="true" /> },
+  { id: "alla", namn: "Allt", ikon: <Library size={16} aria-hidden="true" />, alltid: true },
+  { id: "ljud", namn: "Ljud", ikon: <Mic size={16} aria-hidden="true" />, alltid: true },
+  { id: "anteckning", namn: "Anteckningar", ikon: <FileText size={16} aria-hidden="true" /> },
+  { id: "bild", namn: "Bilder", ikon: <BildIkon size={16} aria-hidden="true" /> },
+  { id: "fil", namn: "Dokument", ikon: <FilIkon size={16} aria-hidden="true" /> },
+  { id: "lank", namn: "Länkar", ikon: <Globe size={16} aria-hidden="true" /> },
 ];
 
 /**
@@ -810,47 +809,20 @@ const TAGGBAKGRUND = ["bg-tagg-1", "bg-tagg-2", "bg-tagg-3", "bg-tagg-4", "bg-ta
 const taggKlass = (tagg) => TAGGBAKGRUND[taggfarg(tagg) - 1];
 
 /**
- * Under 768 px. Samma gräns som `OpsAtgardsblad` och SessionStudios kompakta läge, där flikraden blir en väljare.
- */
-function useSmal() {
-  const fraga = "(max-width: 767px)";
-  const las = () => typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia(fraga).matches;
-  const [smal, setSmal] = useState(las);
-  useEffect(() => {
-    if (typeof window.matchMedia !== "function") return undefined;
-    const mq = window.matchMedia(fraga);
-    const nu = () => setSmal(mq.matches);
-    nu();
-    mq.addEventListener("change", nu);
-    return () => mq.removeEventListener("change", nu);
-  }, []);
-  return smal;
-}
-
-/**
- * Flikarna: en segmentrad som SessionStudios, och på en smal skärm en väljare med namnet och antalet ("Allt (4)"), som där.
+ * Flikarna som i SessionStudios app: en rad man rullar i sidled, med ikon, namn och antal, och den valda på en ljusare platta.
  *
  * ⛔ DET HÄR ÄR INTE EKONOMINS FLIKRAD LÄNGRE (0.102.0). CP 2026-10-08 bad om navigering "på liknande sätt" som Ekonomi, och
  * 0.83.0 gav Biblioteket Ekonomis `OpsTabs`. CP 2026-10-14, med SessionStudios bibliotek bredvid: "Det måste se ut exakt som
- * SessionStudio. Kan inte se ut som det för nu." Det senare beslutet gäller, och tillbaka-raden och rytmen från 0.83.0 står kvar.
+ * SessionStudio." Det senare beslutet gäller, och tillbaka-raden och rytmen från 0.83.0 står kvar.
  *
- * @param {{ smal: boolean, flikar: ReadonlyArray<{ id: Flik, namn: string, ikon: import("react").ReactNode }>, antal: Record<Flik, number>, flik: Flik, onFlik: (f: Flik) => void }} props
+ * ⛔ OCKSÅ PÅ TELEFONEN EN RAD, INTE EN VÄLJARE. SessionStudios webb gör flikarna till en rullgardin på smal skärm, men appen, som
+ * CP visade, har raden. En rad visar alla typer och antalen utan ett extra tryck.
+ *
+ * @param {{ flikar: ReadonlyArray<{ id: Flik, namn: string, ikon: import("react").ReactNode }>, antal: Record<Flik, number>, flik: Flik, onFlik: (f: Flik) => void }} props
  */
-function Flikar({ smal, flikar, antal, flik, onFlik }) {
-  if (smal) {
-    return (
-      <div data-bibliotek-flikar="valjare">
-        <OpsSelect
-          ariaLabel="Typ i biblioteket"
-          value={flik}
-          onChange={(v) => onFlik(/** @type {Flik} */ (v))}
-          options={flikar.map((f) => ({ value: f.id, label: `${f.namn} (${antal[f.id]})` }))}
-        />
-      </div>
-    );
-  }
+function Flikar({ flikar, antal, flik, onFlik }) {
   return (
-    <div role="tablist" aria-label="Typ i biblioteket" data-bibliotek-flikar="rad" className="flex min-w-0 flex-wrap gap-1 rounded-md bg-surface p-1.5">
+    <div role="tablist" aria-label="Typ i biblioteket" data-bibliotek-flikar="rad" className="-mx-1 flex min-w-0 gap-1 overflow-x-auto px-1 pb-1 [scrollbar-width:none]">
       {flikar.map((f) => {
         const vald = f.id === flik;
         return (
@@ -861,14 +833,14 @@ function Flikar({ smal, flikar, antal, flik, onFlik }) {
             aria-selected={vald}
             onClick={() => onFlik(f.id)}
             className={cx(
-              "inline-flex min-h-9 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-sm px-4 text-meta font-medium",
-              "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-              vald ? "bg-accent text-accent-contrast" : "text-ink-muted hover:text-ink-secondary",
+              "inline-flex min-h-11 shrink-0 cursor-pointer items-center gap-2 whitespace-nowrap rounded-lg px-4 text-etikett font-medium",
+              "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
+              vald ? "bg-raised text-ink" : "text-ink-muted hover:text-ink-secondary",
             )}
           >
             {f.ikon}
             <span>{f.namn}</span>
-            <span className={cx("text-hjalp tabular-nums", vald ? "opacity-60" : "")}>{antal[f.id]}</span>
+            <span className="tabular-nums">{antal[f.id]}</span>
           </button>
         );
       })}
@@ -877,7 +849,8 @@ function Flikar({ smal, flikar, antal, flik, onFlik }) {
 }
 
 /**
- * Platsen som rubrik med en pil, och en lista med platserna under (SessionStudios biblioteksväljare). Den valda har en bock.
+ * Platsen som ett piller med reglage-ikonen, och en lista med platserna under (SessionStudios "My Library" i appen). Den valda
+ * har en bock.
  *
  * @param {{ platser: readonly { id: string, namn: string }[], plats: string, onPlats: (id: string) => void }} props
  */
@@ -889,11 +862,10 @@ function PlatsValjare({ platser, plats, onPlats }) {
       <Popover.Root open={oppen} onOpenChange={setOppen}>
         <Popover.Trigger
           aria-label={`Vilket bibliotek: ${namn}`}
-          className="inline-flex min-h-11 min-w-0 cursor-pointer items-center gap-2 rounded-md bg-transparent text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          className="inline-flex min-h-11 min-w-0 cursor-pointer items-center gap-2 rounded-full border border-ink-secondary px-4 text-etikett font-medium text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         >
-          <Library size={20} aria-hidden="true" className="shrink-0 text-ink" />
-          <span className="min-w-0 truncate text-titel font-bold text-ink">{namn}</span>
-          <ChevronDown size={16} aria-hidden="true" className="shrink-0 text-ink-muted" />
+          <SlidersHorizontal size={18} aria-hidden="true" className="shrink-0" />
+          <span className="min-w-0 truncate">{namn}</span>
         </Popover.Trigger>
         <Popover.Portal>
           <Popover.Content align="start" sideOffset={4} collisionPadding={8} className={cx("z-(--z-dropdown) min-w-56 p-1", radBehallare())}>
@@ -939,14 +911,12 @@ function TaggFilter({ taggar, valda, onValda }) {
         data-bibliotek-taggfilter=""
         aria-label={aktiv ? `Taggar, ${valda.length} valda` : "Taggar"}
         className={cx(
-          "inline-flex min-h-11 shrink-0 cursor-pointer items-center gap-1.5 rounded-md border px-3 text-etikett font-medium",
+          "inline-flex min-h-11 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border px-4 text-etikett font-medium",
           "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-          aktiv ? "border-transparent bg-accent text-accent-contrast" : "border-line bg-surface text-ink-secondary hover:text-ink",
+          aktiv ? "border-transparent bg-accent text-accent-contrast" : "border-line bg-raised text-ink hover:bg-hover",
         )}
       >
-        <Tag size={16} aria-hidden="true" />
         <span>{aktiv ? `Taggar (${valda.length})` : "Taggar"}</span>
-        <ChevronDown size={14} aria-hidden="true" className="opacity-70" />
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Content align="end" sideOffset={4} collisionPadding={8} className={cx("z-(--z-dropdown) w-64 max-w-[calc(100vw-1rem)] p-2", radBehallare())}>
@@ -1050,28 +1020,28 @@ function TaggRad({ post, kanAndra, forslag, valda = [], onFilter, onSpara }) {
     <div data-bibliotek-taggar="" className="flex min-w-0 flex-col gap-1">
       <div className="flex min-w-0 flex-wrap items-center gap-1">
         {lista.map((t) => (
-          <span key={t} data-bibliotek-tagg={t} className={cx("pointer-events-auto inline-flex h-6 max-w-full items-center rounded-full text-hjalp font-medium text-tagg-text", taggKlass(t))}>
+          <span key={t} data-bibliotek-tagg={t} className={cx("pointer-events-auto inline-flex h-7 max-w-full items-center rounded-full text-meta font-medium text-tagg-text", taggKlass(t))}>
             {typeof onFilter === "function" ? (
               <button
                 type="button"
                 onClick={() => onFilter(t)}
                 aria-pressed={valda.includes(t)}
                 aria-label={`Visa bara ${t}`}
-                className={cx("h-full min-w-0 cursor-pointer truncate rounded-full bg-transparent pl-2 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent", kanAndra ? "pr-0.5" : "pr-2")}
+                className={cx("h-full min-w-0 cursor-pointer truncate rounded-full bg-transparent pl-2.5 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent", kanAndra ? "pr-0.5" : "pr-2.5")}
               >
                 {t}
               </button>
             ) : (
-              <span className={cx("min-w-0 truncate pl-2", kanAndra ? "pr-0.5" : "pr-2")}>{t}</span>
+              <span className={cx("min-w-0 truncate pl-2.5", kanAndra ? "pr-0.5" : "pr-2.5")}>{t}</span>
             )}
             {kanAndra ? (
               <button
                 type="button"
                 aria-label={`Ta bort taggen ${t}`}
                 onClick={() => spara(lista.filter((x) => x !== t))}
-                className="mr-0.5 inline-flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-full bg-transparent hover:bg-black/10 focus-visible:outline-2 focus-visible:outline-accent"
+                className="mr-1 inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-full bg-transparent hover:bg-black/10 focus-visible:outline-2 focus-visible:outline-accent"
               >
-                <X size={10} aria-hidden="true" />
+                <X size={12} aria-hidden="true" />
               </button>
             ) : null}
           </span>
@@ -1106,10 +1076,10 @@ function TaggRad({ post, kanAndra, forslag, valda = [], onFilter, onSpara }) {
                   if (normaliseraTagg(utkast)) laggTill(utkast);
                   setSkriver(false);
                 }}
-                className="h-6 w-32 rounded-full border border-line bg-transparent px-2 text-hjalp text-ink outline-none focus:border-accent"
+                className="h-8 w-36 rounded-full border border-line bg-transparent px-3 text-meta text-ink outline-none focus:border-accent"
               />
               {forslagen.length > 0 ? (
-                <span role="listbox" aria-label="Förslag" className={cx("absolute top-7 left-0 z-(--z-dropdown) flex min-w-32 flex-col p-1", radBehallare())}>
+                <span role="listbox" aria-label="Förslag" className={cx("absolute top-9 left-0 z-(--z-dropdown) flex min-w-32 flex-col p-1", radBehallare())}>
                   {forslagen.map((t) => (
                     <button
                       key={t}
@@ -1134,9 +1104,9 @@ function TaggRad({ post, kanAndra, forslag, valda = [], onFilter, onSpara }) {
                 setFel("");
                 setSkriver(true);
               }}
-              className="pointer-events-auto inline-flex h-6 cursor-pointer items-center gap-1 rounded-full border border-dashed border-line bg-transparent px-2.5 text-hjalp font-semibold text-ink-secondary hover:border-accent hover:text-accent focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
+              className="pointer-events-auto inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-full border border-dashed border-ink-muted/50 bg-transparent px-3 text-meta font-medium text-ink-secondary hover:border-accent hover:text-accent focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
             >
-              <Tag size={12} aria-hidden="true" />
+              <Tag size={14} aria-hidden="true" />
               {lista.length === 0 ? "Lägg till tagg" : "Tagg"}
             </button>
           )
@@ -1155,24 +1125,41 @@ function TaggRad({ post, kanAndra, forslag, valda = [], onFilter, onSpara }) {
 function TypIkon({ post }) {
   if (post.typ === "fil") {
     const sort = filSort(post.fil?.mime);
-    if (sort === "ljud") return <Mic size={16} aria-hidden="true" className="text-typ-ljud" />;
-    if (sort === "bild") return <BildIkon size={16} aria-hidden="true" className="text-ink" />;
-    return <FilIkon size={16} aria-hidden="true" className="text-ink" />;
+    if (sort === "ljud") return <Mic size={20} aria-hidden="true" className="text-typ-ljud" />;
+    if (sort === "bild") return <BildIkon size={20} aria-hidden="true" className="text-typ-lank" />;
+    return <FilIkon size={20} aria-hidden="true" className="text-ink-secondary" />;
   }
-  if (post.typ === "lank") return <Globe size={16} aria-hidden="true" className="text-typ-lank" />;
-  return <FileText size={16} aria-hidden="true" className="text-typ-anteckning" />;
+  if (post.typ === "lank") return <Globe size={20} aria-hidden="true" className="text-typ-lank" />;
+  return <FileText size={20} aria-hidden="true" className="text-typ-anteckning" />;
 }
 
 /**
- * Typetiketten i versaler: "ANTECKNINGAR", "LÄNKAR", "LJUD · WEBM", "DOKUMENT · PDF". Ändelsen ur filnamnet, annars ur MIME.
+ * Plattan bakom ikonen, i typens ton (SessionStudios app): ljud rosa, länk och bild blå, anteckning lila, dokument neutral.
+ *
+ * @param {{ typ: string, fil?: { mime?: string } }} post
+ */
+function plattKlass(post) {
+  if (post.typ === "fil") {
+    const sort = filSort(post.fil?.mime);
+    if (sort === "ljud") return "bg-typ-ljud/15";
+    if (sort === "bild") return "bg-typ-lank/15";
+    return "bg-raised";
+  }
+  if (post.typ === "lank") return "bg-typ-lank/15";
+  return "bg-typ-anteckning/15";
+}
+
+/**
+ * Typetiketten i versaler och i singular, som i SessionStudios app ("SONG", "RECORDING · M4A"): "ANTECKNING", "LÄNK",
+ * "LJUD · WEBM", "BILD · HEIC", "DOKUMENT · PDF". Ändelsen ur filnamnet, annars ur MIME.
  *
  * @param {{ typ: string, fil?: { namn?: string, mime?: string } }} post
  */
 function typEtikett(post) {
-  if (post.typ === "anteckning") return "Anteckningar";
-  if (post.typ === "lank") return "Länkar";
+  if (post.typ === "anteckning") return "Anteckning";
+  if (post.typ === "lank") return "Länk";
   const sort = filSort(post.fil?.mime);
-  const namn = sort === "ljud" ? "Ljud" : sort === "bild" ? "Bilder" : "Dokument";
+  const namn = sort === "ljud" ? "Ljud" : sort === "bild" ? "Bild" : "Dokument";
   const ur = /\.([a-z0-9]{1,6})$/i.exec(post.fil?.namn ?? "")?.[1] ?? /\/([a-z0-9.+-]+)$/i.exec(post.fil?.mime ?? "")?.[1]?.replace(/^x-/, "") ?? "";
   return ur ? `${namn} · ${ur}` : namn;
 }
@@ -1221,6 +1208,7 @@ function kortMeta(post) {
  * @param {{ post: import("../lib/bibliotek.js").Bibliotekspost & { id: string }, lage: Adresslage, meny: import("./OpsAtgardsblad.jsx").Atgard[], svep: any[], onOppna: () => void, onMeta: (id: string, meta: { durationMs?: number, peaks?: string }) => void, taggrad: import("react").ReactNode }} props
  */
 function BibliotekKort({ post, lage, meny, svep, onOppna, onMeta, taggrad }) {
+  const spelare = useSpelare();
   const ljud = arLjudpost(post);
   const bild = post.typ === "fil" && filSort(post.fil?.mime) === "bild";
   const namn = ljud ? ljudRubrik(post) : trimSomRegeln(post.rubrik) || "Post";
@@ -1228,18 +1216,21 @@ function BibliotekKort({ post, lage, meny, svep, onOppna, onMeta, taggrad }) {
   const meta = kortMeta(post);
   // Ljudet bär sin status i metaraden när adressen inte är klar: "Hämtar ljudet." eller felet. Aldrig tyst (regel 5).
   const ljudStatus = ljud && lage.lage !== "klar" ? (lage.lage === "hamtar" ? "Hämtar ljudet." : lage.fel || "Filen har ingen adress.") : "";
+  // I skalet spelar ljudet i skalets spelare, med knappen till höger. Utanför skalet finns ingen spelrad, och kortet har då en egen
+  // liten spelare där ikonen står.
+  const iSkalet = Boolean(spelare);
   return (
     <OpsSvepRad kort atgarder={svep}>
       <OpsAtgardsblad kort namn={namn} poster={meny}>
-        <div data-bibliotek-kort={ljud ? "ljud" : bild ? "bild" : post.typ === "fil" ? "dokument" : post.typ} className="relative flex min-w-0 flex-1 items-start gap-3">
+        <div data-bibliotek-kort={ljud ? "ljud" : bild ? "bild" : post.typ === "fil" ? "dokument" : post.typ} className="relative flex min-w-0 flex-1 items-start gap-4">
           <button
             type="button"
             aria-label={namn}
             onClick={onOppna}
-            className="absolute inset-0 z-0 cursor-pointer rounded-md bg-transparent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            className="absolute inset-0 z-0 cursor-pointer rounded-lg bg-transparent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           />
-          <span data-bibliotek-ikon={post.typ} className={cx("relative flex shrink-0 items-center justify-center", ljud ? "-mt-1.5 w-4 [&>*]:-mx-2" : "pointer-events-none mt-0.5")}>
-            {ljud && lage.lage === "klar" ? (
+          <span data-bibliotek-ikon={post.typ} className={cx("relative flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-full", ljud && !iSkalet ? "" : "pointer-events-none", plattKlass(post))}>
+            {ljud && !iSkalet && lage.lage === "klar" ? (
               <OpsLjudspelare
                 liten
                 src={lage.adress}
@@ -1250,23 +1241,37 @@ function BibliotekKort({ post, lage, meny, svep, onOppna, onMeta, taggrad }) {
                 onMeta={(inmata) => onMeta(post.id, inmata)}
               />
             ) : bild && lage.lage === "klar" ? (
-              <img src={lage.adress} alt="" aria-hidden="true" className="size-12 rounded-sm border border-line object-cover" />
+              <img src={lage.adress} alt="" aria-hidden="true" className="size-11 object-cover" />
             ) : (
               <span aria-hidden="true"><TypIkon post={post} /></span>
             )}
           </span>
           <div className="pointer-events-none relative flex min-w-0 flex-1 flex-col gap-1.5">
-            <span className="block truncate text-etikett font-medium text-ink">{namn}</span>
+            <span className="block truncate text-brod font-medium text-ink">{namn}</span>
+            <span data-bibliotek-typ="" className="text-meta tracking-wide text-ink-muted uppercase">{typEtikett(post)}</span>
             {taggrad}
-            <span data-bibliotek-typ="" className="text-hjalp tracking-wide text-ink-muted uppercase">{typEtikett(post)}</span>
             {forhands ? <span data-bibliotek-forhands-text="" className="line-clamp-2 text-meta text-ink-secondary wrap-anywhere">{forhands}</span> : null}
             {meta.length > 0 ? (
-              <span data-bibliotek-metarad="" className="flex flex-wrap gap-3 text-hjalp text-ink-muted">
+              <span data-bibliotek-metarad="" className="flex flex-wrap gap-3 text-meta text-ink-muted">
                 {meta.map((m) => <span key={m} data-ljud-langd={m.includes(":") ? "" : undefined}>{m}</span>)}
               </span>
             ) : null}
             {ljudStatus ? <span role={lage.lage === "fel" ? "alert" : "status"} className={cx("text-meta", lage.lage === "hamtar" ? "text-ink-secondary" : "text-danger")}>{ljudStatus}</span> : null}
           </div>
+          {ljud && iSkalet && lage.lage === "klar" ? (
+            <span className="relative shrink-0">
+              <OpsSpelaKnapp
+                spar={{
+                  id: post.id,
+                  namn,
+                  src: lage.adress,
+                  durationMs: post.durationMs,
+                  peaks: post.peaks,
+                  onMeta: (m) => onMeta(post.id, m),
+                }}
+              />
+            </span>
+          ) : null}
         </div>
       </OpsAtgardsblad>
     </OpsSvepRad>
@@ -1375,6 +1380,7 @@ function NyKnapp({ flik, onSkapa, onRost }) {
  * @param {{ post: { id?: string, typ?: string, rubrik?: string, skapad?: number, durationMs?: number, peaks?: string, fil?: { namn?: string, mime?: string, byte?: number, sokvag?: string } }, lage: Adresslage, kopplad: boolean, onLjus?: (adress: string) => void, onMeta?: (id: string, meta: { durationMs?: number, peaks?: string }) => void }} props
  */
 function FilVisning({ post, lage, kopplad, onLjus, onMeta }) {
+  const spelare = useSpelare();
   const sort = filSort(post.fil?.mime);
   const namn = post.fil?.namn ?? "Fil";
   const rad = `${namn}${filStorlek(post.fil?.byte) ? ` · ${filStorlek(post.fil?.byte)}` : ""}`;
@@ -1400,6 +1406,11 @@ function FilVisning({ post, lage, kopplad, onLjus, onMeta }) {
   if (sort === "ljud") {
     const rubrik = ljudRubrik(post);
     const id = post.id || "";
+    // ⛔ I SKALET ÄR DETALJENS SPELARE SKALETS (0.102.0): vågen och kontrollerna styr spelraden, så ljudet spelar vidare när man
+    // går tillbaka till listan. Utanför skalet spelar posten själv, som förut.
+    if (spelare) {
+      return <OpsSpelarKontroller spar={{ id, namn: rubrik, src: adress, durationMs: post.durationMs, peaks: post.peaks, onMeta: id && onMeta ? (m) => onMeta(id, m) : undefined }} />;
+    }
     return (
       <OpsLjudspelare
         src={adress}
