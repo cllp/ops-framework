@@ -1802,6 +1802,35 @@ function LasScen() {
   );
 }
 
+/*
+ * 0.106.0 (#386 skiva 6): en Mer-knapp per meddelande på telefon. Gruppchatten med trådar, reaktioner och fästa, fem meddelanden,
+ * ett fäst och ett med en reaktion. Avsnitt 47 (6).
+ */
+let merkallan = null;
+function MerScen() {
+  const [k, setK] = useState(merkallan);
+  if (!Ops.OpsMeddelanden) return <Full><p data-saknas="OpsMeddelanden">OpsMeddelanden saknas</p></Full>;
+  if (!k) {
+    (async () => {
+      let t = new Date(2026, 9, 6, 9, 0).getTime();
+      const kalla = levande(Ops.createMemorySource({}));
+      const s = Ops.createSamtalskalla({ kalla, klocka: () => (t += 60000), tradar: "tradar", reaktioner: "reaktioner", omnamnanden: true, citat: true, fasta: "fasta" });
+      const g = await s.oppnaGrupp({ groupId: "g1", uid: "anna" });
+      const m1 = await s.skicka(g.id, { text: "Styrelsemötet flyttas till fredag klockan tio.", av: "bo" });
+      if (typeof s.reagera === "function") await s.reagera(g.id, { mid: m1.id, kod: "tumme", av: "anna" });
+      await s.skicka(g.id, { text: "Bra, jag läser protokollet innan dess.", av: "anna" });
+      const m3 = await s.skicka(g.id, { text: "Momsen för augusti ska in senast den tolfte.", av: "bo" });
+      if (typeof s.fast === "function") await s.fast(g.id, { mid: m3.id, av: "anna" });
+      await s.skicka(g.id, { text: "Jag tar den i morgon förmiddag.", av: "anna" });
+      await s.skicka(g.id, { text: "Tack. Säg till om underlaget saknas.", av: "bo" });
+      const x = { s, g: g.id };
+      merkallan = x;
+      setK(x);
+    })();
+  }
+  return <Full>{k ? <Ops.OpsMeddelanden kalla={k.s} uid="anna" groupId="g1" gruppNamn="Claes Philip Staiger AB" medlemmar={MEDLEMMAR_A} valt={k.g} onValj={() => {}} /> : <p>Laddar</p>}</Full>;
+}
+
 function Scen() {
   const s = window.__skal;
   if (s === "menyer") return <Menyer />;
@@ -2145,6 +2174,7 @@ function Scen() {
   if (s === "amnen") return <AmnesScen />;
   if (s === "chatt0106-en") return <EngelskScen />;
   if (s === "chatt0106-las") return <LasScen />;
+  if (s === "chatt0106-mer") return <MerScen />;
   if (s === "installning") {
     return (
       <Skal>

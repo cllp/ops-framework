@@ -345,6 +345,87 @@ export async function skrivfaltet(v) {
 }
 
 /**
+ * (6) EN MER-KNAPP PER MEDDELANDE PÅ TELEFON (skiva 6). Gruppchatten med trådar, reaktioner och fästa, fem meddelanden.
+ *   390 px, iPhonens användaragent och pekskärm (Chromium):
+ *   (a) under varje bubbla syns ingen lös åtgärd (Reagera, Fäst, Svara med citat, Svara i tråd), bara innehåll: tiden, en reaktion,
+ *       nålen på ett fäst meddelande; och exakt en ⋮ per meddelande, med träffyta minst 44 x 44;
+ *   (b) ⋮ på det sista meddelandet, närmast skrivfältet, öppnar en meny som ryms i fönstret, med sex reaktioner överst och posterna
+ *       Svara i tråd, Fäst och Kopiera;
+ *   (c) Kopiera lägger meddelandets text i urklippet (läst tillbaka ur webbläsaren) och raden säger Kopierat.
+ *   1280 px: ingen ⋮, och Reagera syns när pekaren står på meddelandet, som förut.
+ * Golv: minst fem meddelanden.
+ * @param {Verktyg} v
+ */
+export async function merKnappen(v) {
+  for (const vp of BREDDER) {
+    const namn = `47 (6) Mer-knappen ${vp.width} px`;
+    const telefon = vp.width < 768;
+    await del(v, namn, "chatt0106-mer", vp, null, async (page) => {
+      await page.locator("[data-ops-samtal] [data-meddelande]").nth(4).waitFor({ timeout: 4000 });
+      await page.waitForFunction(() => !document.querySelector("[data-tradmarke='okand']"), null, { timeout: 4000 });
+      const rader = await page.evaluate(() =>
+        [...document.querySelectorAll("[data-ops-samtal] [data-meddelande]")].map((rad) => {
+          const syns = (/** @type {Element} */ el) => {
+            const r = el.getBoundingClientRect();
+            return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== "hidden";
+          };
+          const losa = [...rad.querySelectorAll("[data-reagera], [data-citera], [data-fast][aria-pressed='false'], [data-tradmarke='ny'], [data-lyft-minne]")].filter(syns);
+          const mer = [...rad.querySelectorAll("[data-mer] button")].filter(syns).map((b) => {
+            const r = b.getBoundingClientRect();
+            return { w: Math.round(r.width), h: Math.round(r.height) };
+          });
+          return { losa: losa.map((el) => [...el.attributes].map((a) => a.name).find((n) => n.startsWith("data-"))), mer };
+        }),
+      );
+      v.matt.push(`${namn}: ${rader.length} meddelanden, ${JSON.stringify(rader)}`);
+      v.krav(rader.length >= 5, `${namn}: ${rader.length} meddelanden, väntat minst 5. Golv.`);
+      if (telefon) {
+        // (a)
+        const losa = rader.flatMap((r) => r.losa);
+        v.krav(losa.length === 0, `${namn}: (a) lösa åtgärder syns under bubblorna: ${JSON.stringify(losa)}.`);
+        v.krav(rader.every((r) => r.mer.length === 1 && r.mer[0].w >= 44 && r.mer[0].h >= 44), `${namn}: (a) inte exakt en ⋮ om minst 44 x 44 per meddelande: ${JSON.stringify(rader.map((r) => r.mer))}.`);
+        await bild(v, page, `mer-rader-${vp.width}.png`);
+        // (b)
+        const sista = page.locator("[data-ops-samtal] [data-meddelande]").last();
+        await sista.locator("[data-mer] button").click();
+        const meny = page.locator("[role=menu]");
+        await meny.waitFor({ timeout: 4000 });
+        const m = await page.evaluate(() => {
+          const ruta = /** @type {HTMLElement} */ (document.querySelector("[role=menu]")).parentElement;
+          const r = /** @type {HTMLElement} */ (ruta).getBoundingClientRect();
+          return {
+            ruta: { l: r.left, t: r.top, r: r.right, b: r.bottom },
+            fonster: { w: window.innerWidth, h: window.innerHeight },
+            reaktioner: document.querySelectorAll("[data-mer-reaktioner] button").length,
+            poster: [...document.querySelectorAll("[role=menu] [role=menuitem]")].map((el) => (el.textContent || "").trim()),
+          };
+        });
+        v.matt.push(`${namn}: (b) menyn ${JSON.stringify(m)}`);
+        const ryms = m.ruta.l >= 0 && m.ruta.t >= 0 && m.ruta.r <= m.fonster.w && m.ruta.b <= m.fonster.h;
+        v.krav(ryms, `${namn}: (b) menyn ryms inte i fönstret: ${JSON.stringify(m.ruta)}.`);
+        v.krav(m.reaktioner === 6 && ["Svara i tråd", "Fäst", "Kopiera"].every((p) => m.poster.includes(p)), `${namn}: (b) menyn har ${m.reaktioner} reaktioner och ${JSON.stringify(m.poster)}.`);
+        await bild(v, page, `mer-meny-${vp.width}.png`);
+        // (c)
+        await page.locator("[role=menu] [role=menuitem]", { hasText: "Kopiera" }).click();
+        await page.locator("[data-kopierat]").waitFor({ timeout: 4000 });
+        const k = await page.evaluate(async () => ({ rad: document.querySelector("[data-kopierat]")?.textContent, urklipp: await navigator.clipboard.readText().catch((e) => `fel: ${e.message}`) }));
+        v.matt.push(`${namn}: (c) ${JSON.stringify(k)}`);
+        v.krav(k.rad === "Kopierat" && k.urklipp === "Tack. Säg till om underlaget saknas.", `${namn}: (c) Kopiera gav ${JSON.stringify(k)}.`);
+      } else {
+        v.krav(rader.every((r) => r.mer.length === 0), `${namn}: en ⋮ syns på dator: ${JSON.stringify(rader.map((r) => r.mer))}.`);
+        const forsta = page.locator("[data-ops-samtal] [data-meddelande]").first();
+        await forsta.locator("[data-bubbla]").hover();
+        await page.waitForTimeout(250);
+        const reagera = await forsta.locator("[data-reagera]").evaluate((el) => ({ opacitet: getComputedStyle(el).opacity, b: Math.round(el.getBoundingClientRect().width) }));
+        v.matt.push(`${namn}: Reagera vid hover ${JSON.stringify(reagera)}`);
+        v.krav(reagera.opacitet === "1" && reagera.b >= 44, `${namn}: Reagera syns inte vid hover: ${JSON.stringify(reagera)}.`);
+        await bild(v, page, `mer-dator-hover-${vp.width}.png`);
+      }
+    }, telefon ? { kontext: { ...IPHONE, permissions: ["clipboard-read", "clipboard-write"] }, sakert: true } : {});
+  }
+}
+
+/**
  * Alla delar i ordning. Varje skiva lägger till sin rad här.
  * @param {Verktyg} v
  */
@@ -354,4 +435,5 @@ export async function chattepiken0106(v) {
   await engelska(v);
   await lasaBakat(v);
   await skrivfaltet(v);
+  await merKnappen(v);
 }

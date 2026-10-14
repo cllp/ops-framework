@@ -154,7 +154,7 @@ function krav(ok, text) {
 }
 
 /**
- * @param {string} scen @param {{ width: number, height: number }} viewport @param {string} [tema] @param {number} [skala] @param {string | null} [aktiv] @param {number} [manga] @param {{ kontext?: object, init?: string }} [extra]
+ * @param {string} scen @param {{ width: number, height: number }} viewport @param {string} [tema] @param {number} [skala] @param {string | null} [aktiv] @param {number} [manga] @param {{ kontext?: object, init?: string, sakert?: boolean }} [extra]
  */
 async function oppna(scen, viewport, tema = standardtema, skala = 1, aktiv = null, manga = 0, extra = {}) {
   // `extra` (0.106.0, avsnitt 47): `kontext` läggs till kontextens val (telefonens användaragent, pekskärm), och `init` körs före sidan.
@@ -173,7 +173,14 @@ async function oppna(scen, viewport, tema = standardtema, skala = 1, aktiv = nul
     await page.clock.setFixedTime(new Date(2026, 9, 6, 22, 0));
     await page.emulateMedia({ reducedMotion: "reduce" });
   }
-  await page.setContent(sida(scen, aktiv, manga));
+  // `sakert` (0.106.0, avsnitt 47 (6)): sidan står på en https-adress i stället för about:blank, så att webbläsaren räknar den som
+  // säker och släpper in urklippet. Allt på sidan är inbäddat, så adressen hämtar ingenting.
+  if (/** @type {any} */ (extra).sakert) {
+    await page.route("https://skalyta.invalid/", (r) => r.fulfill({ status: 200, contentType: "text/html", body: sida(scen, aktiv, manga) }));
+    await page.goto("https://skalyta.invalid/");
+  } else {
+    await page.setContent(sida(scen, aktiv, manga));
+  }
   await page.waitForFunction("window.__redo === true", null, { timeout: 5000 }).catch(() => {});
   if (fel.length) throw new Error(`sidan "${scen}" kastade: ${fel[0]}`);
   return { page, context };

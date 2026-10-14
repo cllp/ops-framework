@@ -47,8 +47,10 @@ export const ORD_OPSATGARDSBLAD = {
  * @param {import("react").ReactNode} [props.children] Raden som tar långtryck och högerklick. Utan barn ritas bara knappen.
  * @param {boolean} [props.baraKnapp] Bara ⋮, utan radomslag. För ett öppet dokument.
  * @param {boolean} [props.kort] (0.102.0) Raden är ett kort: ⋮ uppe till höger i stället för mitt på raden, och tätare kant.
+ * @param {(stang: () => void) => import("react").ReactNode} [props.overst] (0.106.0, #386) Något som står överst i rutan, under namnet
+ *   och före posterna: chattens reaktioner, som på telefonen bor i samma meny som meddelandets åtgärder. Får en funktion som stänger.
  */
-export function OpsAtgardsblad({ namn, poster, children = null, baraKnapp = false, kort = false }) {
+export function OpsAtgardsblad({ namn, poster, children = null, baraKnapp = false, kort = false, overst }) {
   const sprak = useOpsSprak();
   const [oppen, setOppen] = useState(false);
   /*
@@ -70,7 +72,8 @@ export function OpsAtgardsblad({ namn, poster, children = null, baraKnapp = fals
   if (typeof namn !== "string" || namn === "") {
     throw new Error("OpsAtgardsblad: namn krävs. Knappen och menyn annonserar vilken post det gäller, och utan namn är ⋮ en ikon utan ord.");
   }
-  if (!Array.isArray(poster) || poster.length === 0) {
+  // Utan poster och utan något överst finns ingen meny. Med bara det översta (en meddelandes reaktioner) finns den.
+  if (!Array.isArray(poster) || (poster.length === 0 && !overst)) {
     return baraKnapp ? null : children;
   }
   for (const p of poster) {
@@ -184,7 +187,8 @@ export function OpsAtgardsblad({ namn, poster, children = null, baraKnapp = fals
           onFocusOutside={(e) => e.preventDefault()}
         >
           <p data-ops-atgard-namn="" className="m-0 truncate px-3 pt-2 pb-1 text-meta font-medium text-ink-muted">{namn}</p>
-          {rader}
+          {overst ? overst(() => setOppen(false)) : null}
+          {poster.length > 0 ? rader : null}
         </Popover.Content>
       </Popover.Portal>
     </Popover.Root>

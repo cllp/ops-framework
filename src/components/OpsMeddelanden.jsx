@@ -29,7 +29,8 @@ import { REAKTIONSVY, reaktionsnamnPa } from "./reaktionsvy.js";
 import { OpsForslag } from "./OpsForslag.jsx";
 import { forslagUrData } from "../lib/forslag.js";
 import { rapporteraFel } from "../lib/felrapport.js";
-import { AgentIkon, AndraIkon, ArkiveraIkon, TaFramIkon, BildIkon, FastIkon, FilIkon, KameraIkon, MappIkon, MejlIkon, NotisIkon, PanelIkon, StoppIkon, TystIkon, ChevronHogerIkon, ChevronNedIkon, CiteraIkon, ChevronVansterIkon, GruppIkon, KryssIkon, LasIkon, LeendeIkon, MeddelandeIkon, PlusIkon, SkickaIkon, SokIkon, TradIkon } from "./icons.jsx";
+import { OpsAtgardsblad } from "./OpsAtgardsblad.jsx";
+import { AgentIkon, AndraIkon, KopieraIkon, ArkiveraIkon, TaFramIkon, BildIkon, FastIkon, FilIkon, KameraIkon, MappIkon, MejlIkon, NotisIkon, PanelIkon, StoppIkon, TystIkon, ChevronHogerIkon, ChevronNedIkon, CiteraIkon, ChevronVansterIkon, GruppIkon, KryssIkon, LasIkon, LeendeIkon, MeddelandeIkon, PlusIkon, SkickaIkon, SokIkon, TradIkon } from "./icons.jsx";
 
 /**
  * Meddelanden: inkorgen med gruppchatten och de privata samtalen, och samtalet bredvid (0.34.0, #182, #185).
@@ -141,6 +142,10 @@ import { AgentIkon, AndraIkon, ArkiveraIkon, TaFramIkon, BildIkon, FastIkon, Fil
  * @property {string} [reagera] (chattens nattskiva) Knappen som öppnar reaktionerna. Förval "Reagera".
  * @property {string} [valjReaktion] Gruppens namn för skärmläsaren. Förval "Välj en reaktion".
  * @property {string} [duHarReagerat] Läggs till i en reaktions namn när den är din. Förval "du har reagerat".
+ * @property {string} [kopiera] (0.106.0, #386) Posten i meddelandets meny på telefon. Förval "Kopiera".
+ * @property {string} [kopierat] Raden efter en lyckad kopiering. Förval "Kopierat".
+ * @property {string} [kopieraFel] När webbläsaren inte släpper in urklippet. Förval "Texten kunde inte kopieras.".
+ * @property {string} [dittMeddelande] Menyns namn för ett eget meddelande. Förval "Ditt meddelande".
  * @property {string} [reaktionFel] Förval "Reaktionen kunde inte sparas.".
  * @property {string} [reaktionerFel] Förval "Reaktionerna kunde inte hämtas.".
  * @property {string} [reaktionerFler] När läsningen nådde sitt tak. Förval "Äldre reaktioner visas inte.".
@@ -328,6 +333,10 @@ const ORD_MEDDELANDEN = {
   reagera: { sv: "Reagera", en: "React" },
   valjReaktion: { sv: "Välj en reaktion", en: "Choose a reaction" },
   duHarReagerat: { sv: "du har reagerat", en: "you reacted" },
+  kopiera: { sv: "Kopiera", en: "Copy" },
+  kopierat: { sv: "Kopierat", en: "Copied" },
+  kopieraFel: { sv: "Texten kunde inte kopieras.", en: "The text could not be copied." },
+  dittMeddelande: { sv: "Ditt meddelande", en: "Your message" },
   reaktionFel: { sv: "Reaktionen kunde inte sparas.", en: "The reaction could not be saved." },
   reaktionerFel: { sv: "Reaktionerna kunde inte hämtas.", en: "The reactions could not be loaded." },
   reaktionerFler: { sv: "Äldre reaktioner visas inte.", en: "Older reactions are not shown." },
@@ -2487,12 +2496,14 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik: rubrikProp, marke, lastT
                         className={cx(
                           /* ⛔ KAN 6: träffytan är 44 px, men raden växer inte: de negativa marginalerna lägger ytan i luften
                              mellan meddelandena. KAN 9: på dator syns "Svara i tråd" först när pekaren eller fokus är på
-                             meddelandet, så att en lång chatt inte blir en rad knappar. På telefon finns ingen hover, och en
-                             meny vore ett steg till för det vanligaste: där står den kvar. Märket syns alltid, det är innehåll. */
-                          "-my-2 inline-flex min-h-11 max-w-full cursor-pointer items-center gap-1 rounded-full px-2 text-liten transition-[color,background-color,opacity] duration-(--duration-fast) ease-standard focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
+                             meddelandet, så att en lång chatt inte blir en rad knappar. Märket syns alltid, det är innehåll.
+                             ⛔ 0.106.0 (#386 skiva 6): på telefon stod "Svara i tråd" här under varje meddelande, med skälet att en
+                             meny vore ett steg till. Med tre ikoner bredvid blev det fyra lösa åtgärder per bubbla, och CP bad om
+                             en Mer-knapp. Där bor den nu, som första post (`merFor`). */
+                          "-my-2 min-h-11 max-w-full cursor-pointer items-center gap-1 rounded-full px-2 text-liten transition-[color,background-color,opacity] duration-(--duration-fast) ease-standard focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
                           finns
-                            ? "text-accent hover:bg-accent-faint"
-                            : "text-ink-muted hover:bg-hover hover:text-ink md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 md:focus-visible:opacity-100",
+                            ? "inline-flex text-accent hover:bg-accent-faint"
+                            : "hidden text-ink-muted hover:bg-hover hover:text-ink md:inline-flex md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 md:focus-visible:opacity-100",
                         )}
                       >
                         <TradIkon size={12} />
@@ -2509,6 +2520,11 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik: rubrikProp, marke, lastT
                     </>
                   );
                 }
+              : undefined
+          }
+          merFor={
+            medTradar
+              ? (m) => (tradar.get(m.id)?.finns ? [] : [{ id: "trad", etikett: t.svaraITrad, ikon: <TradIkon size={16} />, onValj: () => onOppnaTrad?.(m.id) }])
               : undefined
           }
         />
@@ -2672,6 +2688,8 @@ function useTradmarken({ kalla, sid, meddelanden, minne }) {
  * @param {boolean} props.visaNamn Avsändarens namn över en annans bubbla (gruppchatten och tråden).
  * @param {(m: import("../lib/samtal.js").Meddelande & { id: string }) => import("react").ReactNode} [props.efter] Det som står efter
  *   tiden under bubblan: trådens märke i gruppchatten.
+ * @param {(m: import("../lib/samtal.js").Meddelande & { id: string }) => import("./OpsAtgardsblad.jsx").Atgard[]} [props.merFor] (0.106.0,
+ *   #386) Vyns egna åtgärder för meddelandet i telefonens meny: "Svara i tråd" i gruppchatten, "Lyft till minnet" i tråden.
  * @param {number} [props.forraTid] Tiden på meddelandet före det första, när listan fortsätter en annan (trådens svar efter
  *   roten). Samma dag ger då ingen ny avdelare: två "I dag" på rad är en avdelare som inte avdelar något.
  * @param {ReturnType<typeof useReaktioner>} [props.reakt] (chattens nattskiva) Reaktionerna, när källan har dem.
@@ -2688,7 +2706,7 @@ function useTradmarken({ kalla, sid, meddelanden, minne }) {
  * @param {(f: { sid: string, mid: string, id: string }) => Promise<import("../lib/forslag.js").Forslagssvar>} [props.onForslag] (0.105.0) Förslagen under agentens svar.
  * @param {string | null} [props.nyttFran] (0.106.0) Meddelandet som avdelaren "Nytt sedan sist" står före.
  */
-function Meddelanderader({ meddelanden, uid, namnFor, medlemmar, locale, visaNamn, efter, forraTid, reakt, texter = TEXTER, citat, traffar, fasta, postkort, kalla, sid, trad, onVisaAgent, onForslag, nyttFran = null }) {
+function Meddelanderader({ meddelanden, uid, namnFor, medlemmar, locale, visaNamn, efter, merFor, forraTid, reakt, texter = TEXTER, citat, traffar, fasta, postkort, kalla, sid, trad, onVisaAgent, onForslag, nyttFran = null }) {
   const medlemsbild = (/** @type {string} */ id) => (medlemmar ?? []).find((m) => m.userId === id)?.bild || undefined;
   const medlemstyp = (/** @type {string} */ id) => (medlemmar ?? []).find((m) => m.userId === id)?.typ;
   return (
@@ -2777,37 +2795,7 @@ function Meddelanderader({ meddelanden, uid, namnFor, medlemmar, locale, visaNam
                   <AgentensForslag varde={/** @type {any} */ (m).forslag} sid={sid} mid={m.id} onForslag={onForslag} />
                 ) : null}
                 {reakt?.pa ? <Reaktionschips m={m} egen={egen} reakt={reakt} texter={texter} /> : null}
-                <span className={cx("relative mt-0.5 flex max-w-full items-center gap-1.5", egen ? "mr-1 flex-row-reverse" : "ml-1")}>
-                  <span className="text-liten tabular-nums text-ink-muted">{formatTime(m.tid, { locale })}</span>
-                  {extra}
-                  {reakt?.pa ? <ReageraKnapp m={m} egen={egen} reakt={reakt} texter={texter} /> : null}
-                  {fasta ? (
-                    <button
-                      type="button"
-                      data-fast={m.id}
-                      aria-label={fasta.ids.has(m.id) ? texter.lossa : texter.fast}
-                      aria-pressed={fasta.ids.has(m.id)}
-                      onClick={() => fasta.vaxla(m.id)}
-                      className={cx(
-                        "-my-2 inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full transition-[color,background-color,opacity] duration-(--duration-fast) ease-standard hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
-                        fasta.ids.has(m.id) ? "text-accent" : "text-ink-muted hover:text-ink md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 md:focus-visible:opacity-100",
-                      )}
-                    >
-                      <FastIkon size={16} />
-                    </button>
-                  ) : null}
-                  {citat?.pa ? (
-                    <button
-                      type="button"
-                      data-citera={m.id}
-                      aria-label={texter.citera}
-                      onClick={() => citat.onCitera(m)}
-                      className="-my-2 inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full text-ink-muted transition-[color,background-color,opacity] duration-(--duration-fast) ease-standard hover:bg-hover hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 md:focus-visible:opacity-100"
-                    >
-                      <CiteraIkon size={16} />
-                    </button>
-                  ) : null}
-                </span>
+                <Meddelandemeta m={m} egen={egen} locale={locale} extra={extra} mer={merFor?.(m) ?? []} namn={egen ? texter.dittMeddelande : `${texter.svarPa} ${namnFor(m.av)}`} reakt={reakt} fasta={fasta} citat={citat} texter={texter} />
               </div>
             </div>
           </div>
@@ -2953,12 +2941,17 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
             type="button"
             data-lyft-minne={m.id}
             onClick={() => lyft(m)}
-            className="-my-2 inline-flex min-h-11 max-w-full cursor-pointer items-center rounded-full px-2 text-liten text-accent transition-colors duration-(--duration-fast) ease-standard hover:bg-accent-faint focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
+            className="-my-2 hidden min-h-11 max-w-full cursor-pointer items-center rounded-full px-2 text-liten text-accent transition-colors duration-(--duration-fast) ease-standard hover:bg-accent-faint focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent md:inline-flex"
           >
             {t.lyftTillMinnet}
           </button>
         );
       }
+    : undefined;
+  // På telefon bor "Lyft till minnet" i meddelandets meny (0.106.0, #386 skiva 6), med samma villkor: bara när det finns text.
+  const lyftMer = onLyftTillMinnet
+    ? (/** @type {import("../lib/samtal.js").Meddelande & { id: string }} */ m) =>
+        typeof m.text === "string" && m.text.trim() ? [{ id: "minne", etikett: t.lyftTillMinnet, onValj: () => lyft(m) }] : []
     : undefined;
   // Roten står i gruppchatten, svaren i tråden: trådens id hör till svarens filnycklar, inte rotens.
   const infoposter = useMemo(() => [...(rot ? [{ m: rot }] : []), ...historik.alla.map((m) => ({ m, trad: tid }))], [rot, historik.alla, tid]);
@@ -3134,7 +3127,7 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
         ) : null}
         <div data-rotmeddelande="" className="border-b border-line pb-2">
           {rot ? (
-            <Meddelanderader meddelanden={[rot]} efter={lyftEfter} kalla={kalla} sid={samtal.id} uid={uid} namnFor={namnFor} medlemmar={medlemmar} locale={locale} visaNamn texter={t} onVisaAgent={onVisaAgent} />
+            <Meddelanderader meddelanden={[rot]} efter={lyftEfter} merFor={lyftMer} kalla={kalla} sid={samtal.id} uid={uid} namnFor={namnFor} medlemmar={medlemmar} locale={locale} visaNamn texter={t} onVisaAgent={onVisaAgent} />
           ) : rot === null ? (
             <p className="m-0 py-3 text-meta text-ink-muted">{t.rotSaknas}</p>
           ) : null}
@@ -3144,7 +3137,7 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
         </p>
         <VisaAldre historik={historik} texter={t} />
         <Reaktionslage reakt={reakt} texter={t} />
-        <Meddelanderader meddelanden={historik.alla} efter={lyftEfter} reakt={reakt} texter={t} postkort={postkort} kalla={kalla} sid={samtal.id} trad={tid} traffar={sok.oppen ? { ids: sok.traffar, aktuell: sok.aktuell } : null} uid={uid} namnFor={namnFor} medlemmar={medlemmar} locale={locale} visaNamn forraTid={rot?.tid} onVisaAgent={onVisaAgent} />
+        <Meddelanderader meddelanden={historik.alla} efter={lyftEfter} merFor={lyftMer} reakt={reakt} texter={t} postkort={postkort} kalla={kalla} sid={samtal.id} trad={tid} traffar={sok.oppen ? { ids: sok.traffar, aktuell: sok.aktuell } : null} uid={uid} namnFor={namnFor} medlemmar={medlemmar} locale={locale} visaNamn forraTid={rot?.tid} onVisaAgent={onVisaAgent} />
         <Agentrad lage={agentlage} texter={t} />
       </div>
       <TillSenaste lage={lasposition} arbetar={arbetsord(agentlage)} texter={t} />
@@ -3646,6 +3639,128 @@ function Reaktionschips({ m, egen, reakt, texter: t }) {
 }
 
 /**
+ * Raden under bubblan: tiden, vyns innehåll (trådens märke), och meddelandets åtgärder.
+ *
+ * ⛔ EN MER-KNAPP PER MEDDELANDE PÅ TELEFON (0.106.0, #386 skiva 6). Under 768 px stod Reagera, Fäst och Svara med citat som tre lösa
+ * ikoner under varje bubbla, och "Svara i tråd" som en fjärde rad text, eftersom en telefon inte har hover. En lång chatt blev en
+ * rad knappar per meddelande, och de 44 px breda ytorna låg tätt nog att träffa fel. På telefon står nu en ⋮ (`OpsAtgardsblad`, samma
+ * meny som Biblioteket) med reaktionerna överst och sedan alla åtgärder, plus Kopiera, som inte fanns alls: på en telefon går en
+ * bubblas text inte att markera utan att sidan förstorar. På dator är raden oförändrad: ikonerna syns vid hover och fokus.
+ * Det som är INNEHÅLL står kvar på båda: trådens märke "3 svar" och nålen på ett fäst meddelande.
+ *
+ * @param {{ m: import("../lib/samtal.js").Meddelande & { id: string }, egen: boolean, locale: string, extra: import("react").ReactNode,
+ *   mer: import("./OpsAtgardsblad.jsx").Atgard[], namn: string, reakt?: ReturnType<typeof useReaktioner>,
+ *   fasta?: { pa?: boolean, ids: Set<string>, vaxla: (mid: string) => void } | null,
+ *   citat?: { pa: boolean, onCitera: (m: import("../lib/samtal.js").Meddelande & { id: string }) => void } | null,
+ *   texter: Required<Meddelandetexter> }} props
+ */
+function Meddelandemeta({ m, egen, locale, extra, mer, namn, reakt, fasta, citat, texter: t }) {
+  const [kopia, setKopia] = useState(/** @type {null | "ok" | "fel"} */ (null));
+  useEffect(() => {
+    if (!kopia) return undefined;
+    const tid = setTimeout(() => setKopia(null), 2500);
+    return () => clearTimeout(tid);
+  }, [kopia]);
+  const fast = Boolean(fasta?.ids.has(m.id));
+  const text = typeof m.text === "string" ? m.text.trim() : "";
+  /** @type {import("./OpsAtgardsblad.jsx").Atgard[]} */
+  const poster = [...mer];
+  if (citat?.pa) poster.push({ id: "citera", etikett: t.citera, ikon: <CiteraIkon size={16} />, onValj: () => citat.onCitera(m) });
+  if (fasta) poster.push({ id: "fast", etikett: fast ? t.lossa : t.fast, ikon: <FastIkon size={16} />, onValj: () => fasta.vaxla(m.id) });
+  if (text) {
+    poster.push({
+      id: "kopiera",
+      etikett: t.kopiera,
+      ikon: <KopieraIkon size={16} />,
+      // ⛔ Ett nekat urklipp sägs (regel 5): utan raden hade knappen sett ut att fungera.
+      onValj: () => {
+        const urklipp = typeof navigator === "undefined" ? undefined : navigator.clipboard;
+        if (!urklipp?.writeText) {
+          setKopia("fel");
+          return;
+        }
+        urklipp.writeText(text).then(
+          () => setKopia("ok"),
+          () => setKopia("fel"),
+        );
+      },
+    });
+  }
+  const reaktioner = reakt?.pa
+    ? (/** @type {() => void} */ stang) => {
+        const egna = new Set((reakt.sammanfattning.get(m.id) ?? []).filter((r) => r.egen).map((r) => r.kod));
+        return (
+          <div role="group" aria-label={t.valjReaktion} data-mer-reaktioner={m.id} className="flex justify-between gap-0.5 px-1 pb-1">
+            {REAKTIONSKODER.map((kod) => (
+              <button
+                key={kod}
+                type="button"
+                data-valj-reaktion={kod}
+                aria-label={reaktionsnamn(kod, t)}
+                aria-pressed={egna.has(kod)}
+                onClick={() => {
+                  reakt.vaxla(m.id, kod);
+                  stang();
+                }}
+                className={cx(
+                  "inline-flex size-11 cursor-pointer items-center justify-center rounded-full transition-colors duration-(--duration-fast) ease-standard hover:bg-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
+                  egna.has(kod) && "bg-accent-faint",
+                )}
+              >
+                <Reaktionsikon kod={kod} vald={egna.has(kod)} size={20} />
+              </button>
+            ))}
+          </div>
+        );
+      }
+    : undefined;
+  return (
+    <span className={cx("relative mt-0.5 flex max-w-full items-center gap-1.5", egen ? "mr-1 flex-row-reverse" : "ml-1")}>
+      <span className="text-liten tabular-nums text-ink-muted">{formatTime(m.tid, { locale })}</span>
+      {extra}
+      {reakt?.pa ? <ReageraKnapp m={m} egen={egen} reakt={reakt} texter={t} /> : null}
+      {fasta ? (
+        <button
+          type="button"
+          data-fast={m.id}
+          aria-label={fast ? t.lossa : t.fast}
+          aria-pressed={fast}
+          onClick={() => fasta.vaxla(m.id)}
+          className={cx(
+            "-my-2 size-11 shrink-0 cursor-pointer items-center justify-center rounded-full transition-[color,background-color,opacity] duration-(--duration-fast) ease-standard hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
+            // Nålen på ett fäst meddelande är innehåll och står kvar på telefon; Fäst på ett annat är en åtgärd och bor i menyn.
+            fast ? "inline-flex text-accent" : "hidden text-ink-muted hover:text-ink md:inline-flex md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 md:focus-visible:opacity-100",
+          )}
+        >
+          <FastIkon size={16} />
+        </button>
+      ) : null}
+      {citat?.pa ? (
+        <button
+          type="button"
+          data-citera={m.id}
+          aria-label={t.citera}
+          onClick={() => citat.onCitera(m)}
+          className="-my-2 hidden size-11 shrink-0 cursor-pointer items-center justify-center rounded-full text-ink-muted transition-[color,background-color,opacity] duration-(--duration-fast) ease-standard hover:bg-hover hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent md:inline-flex md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 md:focus-visible:opacity-100"
+        >
+          <CiteraIkon size={16} />
+        </button>
+      ) : null}
+      {poster.length > 0 || reaktioner ? (
+        <span data-mer={m.id} className="-my-2 inline-flex md:hidden">
+          <OpsAtgardsblad baraKnapp namn={namn} poster={poster} overst={reaktioner} />
+        </span>
+      ) : null}
+      {kopia ? (
+        <span role="status" data-kopierat={kopia} className={cx("text-liten", kopia === "fel" ? "text-danger" : "text-ink-muted")}>
+          {kopia === "ok" ? t.kopierat : t.kopieraFel}
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
+/**
  * "Reagera" och väljaren med de sex reaktionerna.
  *
  * ⛔ TANGENTBORDET FÅR SAMMA VÄG SOM PEKAREN (SS #1701: en verktygsrad som bara syns vid hovring finns inte för tangentbordet).
@@ -3678,7 +3793,8 @@ function ReageraKnapp({ m, egen, reakt, texter: t }) {
         aria-controls={oppen ? panelId : undefined}
         onClick={() => setOppen((o) => !o)}
         className={cx(
-          "-my-2 inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full text-ink-muted transition-[color,background-color,opacity] duration-(--duration-fast) ease-standard hover:bg-hover hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
+          // Under 768 px bor Reagera i meddelandets meny (0.106.0, #386 skiva 6), med reaktionerna överst.
+          "-my-2 hidden size-11 shrink-0 cursor-pointer items-center justify-center rounded-full text-ink-muted transition-[color,background-color,opacity] duration-(--duration-fast) ease-standard hover:bg-hover hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent md:inline-flex",
           oppen ? "text-ink" : "md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 md:focus-visible:opacity-100",
         )}
       >
