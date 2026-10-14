@@ -80,6 +80,14 @@ Skyddet i `OpsApparArk` som låter ett äldre sparande som avvisas efter ett nya
 PR 384 (BÖR 2) tog bort det och fick 15 av 15 gröna. `apparark.test.jsx` har nu ett prov med tre synliga appar och två Klar i följd,
 där det första avvisas efter det andra. Ordningen från det andra står kvar och inget fel visas. Rött med skyddet bortkopplat, grönt med det.
 
+### Rättat: inspelarens egna fel följer språket
+
+Två fel som `webblasarensInspelare` kastar ritades på svenska i en app på engelska, eftersom de inte stod i `ORD_TALK` (granskningen
+av PR 384, BÖR 3): "Den här webbläsaren kan inte spela in ljud." och "Ingen inspelning pågår.". De står nu där som `felInspelningSaknas`
+och `felIngenPagar`, tillsammans med det tredje felet inspelaren kastar ("Inspelningen avbröts innan mikrofonen öppnades.",
+`felAvbrotsForeMikrofon`), och inspelaren kastar den svenska formen därifrån. Prov i `talk-sprak.test.jsx`, som hämtar felen ur
+inspelaren själv: rött före, grönt med.
+
 ### Ändrat: röstinmatningen har ett hem
 
 Talet bodde inbyggt i chattens skrivfält (`OpsMeddelanden.jsx`). Det är utbrutet till `OpsRostinmatning.jsx`

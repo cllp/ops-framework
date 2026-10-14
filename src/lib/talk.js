@@ -99,6 +99,9 @@ export const ORD_TALK = {
   felUpptagen: { sv: "En annan inspelning pågår redan. Avsluta den först.", en: "Another recording is already in progress. Finish it first." },
   felEjTillaten: { sv: "Mikrofonen är inte tillåten. Ge sidan tillgång till mikrofonen i webbläsarens inställningar.", en: "The microphone is not allowed. Give the page access to the microphone in the browser settings." },
   felIngenMikrofon: { sv: "Ingen mikrofon hittades.", en: "No microphone was found." },
+  felInspelningSaknas: { sv: "Den här webbläsaren kan inte spela in ljud.", en: "This browser cannot record audio." },
+  felIngenPagar: { sv: "Ingen inspelning pågår.", en: "No recording is in progress." },
+  felAvbrotsForeMikrofon: { sv: "Inspelningen avbröts innan mikrofonen öppnades.", en: "The recording was stopped before the microphone opened." },
   felSparradAvSidan: { sv: "Mikrofonen är spärrad av sidan som visar appen. Öppna appen i ett eget fönster för att spela in.", en: "The microphone is blocked by the page showing the app. Open the app in its own window to record." },
   ingetLjud: { sv: "Mikrofonen gav inget ljud, och inget hördes som text. Ingenting skickades. Tryck på Spela in igen och prata en gång till.", en: "The microphone gave no audio, and nothing was heard as text. Nothing was sent. Press Record again and speak once more." },
   textFel: { sv: "Texten kan inte visas just nu. Det du säger spelas in ändå och sparas som ljud.", en: "The text can't be shown right now. What you say is still recorded and saved as audio." },
@@ -503,7 +506,7 @@ export function webblasarensInspelare(miljo = {}) {
     const s = await /** @type {MediaDevices} */ (md).getUserMedia({ audio: true });
     if (mitt !== forsok) {
       s.getTracks().forEach((t) => t.stop());
-      throw new Error("Inspelningen avbröts innan mikrofonen öppnades.");
+      throw new Error(ORD_TALK.felAvbrotsForeMikrofon.sv);
     }
     return s;
   };
@@ -516,7 +519,7 @@ export function webblasarensInspelare(miljo = {}) {
   };
   return {
     async starta() {
-      if (!md || !MR) throw new Error("Den här webbläsaren kan inte spela in ljud.");
+      if (!md || !MR) throw new Error(ORD_TALK.felInspelningSaknas.sv);
       forsok += 1;
       const mitt = forsok;
       let ny = await hamta(mitt);
@@ -561,7 +564,7 @@ export function webblasarensInspelare(miljo = {}) {
     stoppa() {
       return new Promise((klar, fel) => {
         if (!rec) {
-          fel(new Error("Ingen inspelning pågår."));
+          fel(new Error(ORD_TALK.felIngenPagar.sv));
           return;
         }
         const r = rec;

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { OpsInspelning } from "../components/OpsTalk.jsx";
 import { OpsSprakProvider } from "../components/OpsSprak.jsx";
 import { OpsField, OpsTextarea } from "../components/OpsField.jsx";
-import { TALK_INGET_LJUD, kanSpelaInIgen } from "../lib/talk.js";
+import { TALK_INGET_LJUD, kanSpelaInIgen, webblasarensInspelare } from "../lib/talk.js";
 
 /*
  * TALK:s yta på appens språk (0.104.0). Upptäckt när `OpsTextarea` fick tal: fältets egna ord var engelska i en app på engelska, men
@@ -82,5 +82,24 @@ describe("TALK:s yta följer språket", () => {
     const klar = within(yta).getByRole("button", { name: "Done, insert what you said" });
     expect(klar.textContent).toBe("Done");
     expect(within(yta).getByRole("button", { name: "Cancel" })).toBeTruthy();
+  });
+});
+
+/*
+ * ⛔ INSPELARENS EGNA FEL (granskningen av PR 384, BÖR 3). Två fel som webbläsarens inspelare kastar stod inte i `ORD_TALK` och ritades
+ * därför på svenska i en app på engelska. Felen hämtas här ur inspelaren själv, inte ur en avskrift, så att provet följer texten den kastar.
+ */
+describe("inspelarens fel följer språket", () => {
+  it("⛔ en webbläsare utan inspelning, och ett stopp utan inspelning, ritas på engelska", async () => {
+    const insp = webblasarensInspelare({});
+    const utanStod = await insp.starta().then(() => "", (e) => e.message);
+    const utanInspelning = await insp.stoppa().then(() => "", (e) => e.message);
+    expect(utanStod).not.toBe("");
+    expect(utanInspelning).not.toBe("");
+    const { unmount } = render(<Yta lage="fel" fel={utanStod} kanIgen={false} />);
+    expect(screen.getByRole("alert").textContent).toBe("This browser cannot record audio.");
+    unmount();
+    render(<Yta lage="fel" fel={utanInspelning} kanIgen={false} />);
+    expect(screen.getByRole("alert").textContent).toBe("No recording is in progress.");
   });
 });
