@@ -76,7 +76,7 @@ export function OpsForslag(props) {
               aria-disabled={pagar || klar || undefined}
               aria-busy={pagar || undefined}
               onClick={() => tryck(f.id)}
-              className="inline-flex min-h-11 min-w-0 cursor-pointer items-center gap-2 self-start rounded-full border border-line-strong bg-raised px-4 text-left text-etikett font-medium text-ink hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent aria-disabled:cursor-default aria-disabled:opacity-60 [overflow-wrap:anywhere]"
+              className="inline-flex min-h-11 min-w-0 cursor-pointer items-center gap-2 self-start rounded-3xl border border-line-strong bg-raised px-4 py-2 text-left text-etikett font-medium text-ink hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent aria-disabled:cursor-default aria-disabled:opacity-60 [overflow-wrap:anywhere]"
             >
               {pagar ? <OpsSpinner size="sm" decorative /> : <Ikon size={16} />}
               <span className="min-w-0">{f.etikett}</span>

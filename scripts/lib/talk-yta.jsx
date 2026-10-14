@@ -2,8 +2,9 @@ import { createRoot } from "react-dom/client";
 import * as Ops from "OPS_DIST";
 
 /*
- * Ytan för skärmbilden av TALK-fältets samtal (0.103.0, `scripts/talk-montage.mjs`). Skalet med `talk` och `skapa`, en inspelare
- * utan mikrofon och en igenkänning som hör en mening per omgång. Agentens kvitton är de appen hade svarat med.
+ * Ytan för skärmbilden av TALK-fältets val (0.103.0, ändrad 0.105.0, `scripts/talk-montage.mjs`). Skalet med `talk` och `skapa`, en
+ * inspelare utan mikrofon och en igenkänning som hör en mening. Med `onAgent` står valen Meddelande, Händelse, Ärende och Agent efter
+ * Klar. Kvittona används inte längre i bilden: dialogen med agenten står i chatten sedan 0.105.0.
  */
 
 const SAGT = [
@@ -42,7 +43,8 @@ function App() {
         igenkanning,
         skickarText: "Agenten arbetar…",
         onTalk: async () => ({ kvitto: KVITTON[Math.min(omgang++, KVITTON.length - 1)], angra: async () => {} }),
-        onFortsatt: () => {},
+        onMeddelande: () => {},
+        onAgent: () => {},
       }}
       skapa={{
         lage: "g1",
