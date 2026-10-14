@@ -92,22 +92,23 @@ Det Svara gjorde som inget annat gör: en röstdialog med agenten utan att lämn
 
 ### Prov
 
-- `src/__tests__/talk-val.test.jsx` (18 prov): läget hört, de fyra valen med ord i rätt ordning och fokus, Agent en gång och fältet
-  stängt, ett fel i Agent som visar texten och valen igen, Ärende i stället efter ett fel i Agent, utan agent som förut, inget hört som förut, ett val per mottagare, Stäng, Meddelande, Ärende och
-  Händelse ifyllda, en mottagare som kastar, engelska, och det stängda API:t. Mot 0.104.0: 14 röda, 4 gröna: de två om `talkForifyllt`,
-  "utan agent som förut" och "inget hört som förut", som mäter att det som inte ändrats är orört.
-- `src/__tests__/forslag.test.jsx` (10 prov): knappen och förhandsvisningen, ett tryck ett anrop, ett nej, ett fel som går att försöka
+- `src/__tests__/talk-val.test.jsx` (24 prov): läget hört, de fyra valen med ord i rätt ordning och fokus, Agent en gång och fältet
+  stängt, ett fel i Agent som visar texten och valen igen, felraden som finns från början, Ärende i stället efter ett fel i Agent,
+  inget Skickas till med agent, utan agent som förut, inget hört som förut, ett val per mottagare, färdiga noder utan val, Stäng,
+  Meddelande, Ärende och Händelse ifyllda, det sagda inte i adressen, en ny förifyllning som ersätter ett öppet ärende, en mottagare
+  som kastar, engelska, och det stängda API:t. Mot 0.104.0:s `OpsAppShell`, `OpsMeddelanden`, `OpsTalk` och `lib/talk.js`: 20 röda,
+  4 gröna: de två om `talkForifyllt`, "utan agent som förut" och "inget hört som förut", som mäter att det som inte ändrats är orört.
+- `src/__tests__/forslag.test.jsx` (11 prov): två knappar med eget lås och egen statusrad, ett tryck ett anrop, ett nej, ett fel som går att försöka
   igen, fel form från appen, stängt API, data ur databasen, knapparna under agentens svar men inte under en persons, inga knappar utan
   `onForslag`, och `nyttUtkast`. Mot 0.104.0:s `OpsAppShell`, `OpsMeddelanden` och `OpsTalk` (med 0.105.0:s `OpsForslag` och ordlista
-  kvar, eftersom komponenten hämtar sina ord ur `lib/talk.js`): 2 röda, 8 gröna. De två röda är chattens prov, knapparna under agentens
-  svar och `nyttUtkast`. ⛔ "En knapp per förslag" hade först bara ett förslag och kunde därför inte se om låset eller statusraden
+  kvar, eftersom komponenten hämtar sina ord ur `lib/talk.js`): 3 röda, 8 gröna. De tre röda är chattens prov: knapparna under agentens
+  svar, inga förslag i en tråd (vars golv kräver rotens knapp utanför tråden) och `nyttUtkast`. ⛔ "En knapp per förslag" hade först bara ett förslag och kunde därför inte se om låset eller statusraden
   delades; nu har det två, och ett tryck på det ena lämnar det andra orört. Rött med låset gemensamt och med statusraden gemensam.
   (Granskningen av PR 387.) De sju om `OpsForslag` och `forslagUrData` mäter bara de nya filerna och kan inte bli röda mot gammal kod, så de
   mäts genom att koppla bort det de vaktar: utan spärren i `OpsForslag` är dubbelklicket och nejet röda, och utan `kontrolleraForslag`
   är det stängda API:t rött. Med villkoret "bara agentens svar" bortkopplat i chatten är chattens prov rött. ⛔ Det var det inte i
   första versionen av provet: "en persons meddelande" var skrivet av den som tittade, och dess knappar filtrerades redan bort som egna,
-  så villkoret mättes inte. Provet har nu också ett meddelande från en annan person. Proven om fel form från appen och "inga
-  knappar utan `onForslag`" är inte mätta röda.
+  så villkoret mättes inte. Provet har nu också ett meddelande från en annan person. Provet för "inga knappar utan `onForslag`" är inte mätt rött. Proven för ett avvisat löfte och för fel form från appen är röda med felets egen text i statusraden (se ovan om `felForslag`).
 - `src/__tests__/talk-samtal.test.jsx` och `src/__tests__/talk-svara-andra-gangen.test.jsx` är borttagna. ⛔ Första versionen av
   0.105.0 sade att de togs bort "med det de mätte", och det var inte sant: nio av proven mätte inte Svara eller samtalsytan, och
   granskningen av PR 387 fann att de försvunnit. De står nu kvar, med andra omgången startad med mikrofonen i stället för med Svara.
