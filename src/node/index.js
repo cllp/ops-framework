@@ -153,6 +153,9 @@ export { medlemsinfo } from "../lib/gruppmedlemmar.js";
  */
 export { typerForGrupp } from "../lib/modultyper.js";
 export { MAX_SEKUNDER, LJUDFORMAT } from "../lib/talk.js";
+// ⛔ 0.105.0: förslagens form på serversidan också. Appens server bygger knapparna som `OpsMeddelanden` ritar, och prövar dem med samma
+// funktion som komponenten, så att ett tak eller en ikon inte står på två ställen.
+export { FORSLAG_IKONER, MAX_FORSLAG, MAX_FORSLAG_ETIKETT, MAX_FORSLAG_TEXT, forslagetsFel, kontrolleraForslag } from "../lib/forslag.js";
 export { personnamn, NAMN_SAKNAS } from "../lib/personnamn.js";
 
 /*

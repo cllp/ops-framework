@@ -903,8 +903,12 @@ async function textfaltMedTal() {
 async function talkValOchForslag() {
   for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
     const namn = `valen efter talet ${vp.width} px`;
-    const { page, context } = await oppna("talk-val", vp, "dark");
+    /** @type {import("playwright").Page} */
+    let page;
+    /** @type {import("playwright").BrowserContext | null} */
+    let context = null;
     try {
+      ({ page, context } = await oppna("talk-val", vp, "dark"));
       await page.locator(vp.width >= 768 ? "header [data-talk-huvud]" : "[data-talk-knapp]").click();
       await page.locator("[data-talk-skicka]").click();
       await page.locator("[data-talk-val]").waitFor({ timeout: 4000 });
@@ -945,12 +949,16 @@ async function talkValOchForslag() {
     } catch (e) {
       krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
     }
-    await context.close();
+    await context?.close();
   }
   for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
     const namn = `förslagen i chatten ${vp.width} px`;
-    const { page, context } = await oppna("chatt-forslag", vp, "dark");
+    /** @type {import("playwright").Page} */
+    let page;
+    /** @type {import("playwright").BrowserContext | null} */
+    let context = null;
     try {
+      ({ page, context } = await oppna("chatt-forslag", vp, "dark"));
       await page.locator("[data-ops-forslag] button").first().waitFor({ timeout: 4000 });
       const m = await page.evaluate(() => {
         const knappar = [...document.querySelectorAll("[data-ops-forslag] button")].map((k) => {
@@ -979,7 +987,7 @@ async function talkValOchForslag() {
     } catch (e) {
       krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
     }
-    await context.close();
+    await context?.close();
   }
 }
 

@@ -50,6 +50,8 @@ läge: `docs/jamforelser/0.105.0/` (`node scripts/check-skalyta.mjs --bara-talkv
 - `src/lib/forslag.js`: `kontrolleraForslag`, `forslagUrData`, `forslagetsFel`, `forslagssvar`, `FORSLAG_IKONER`, `MAX_FORSLAG` (4),
   `MAX_FORSLAG_ETIKETT` (80) och `MAX_FORSLAG_TEXT` (240). Orden `forslagen`, `forslagPagar`, `forslagKlart`, `forslagNekat` och
   `felForslag` i `ORD_TALK`.
+- Nodsidan (`ops-framework/node`) exporterar `FORSLAG_IKONER`, `MAX_FORSLAG`, `MAX_FORSLAG_ETIKETT`, `MAX_FORSLAG_TEXT`, `forslagetsFel`
+  och `kontrolleraForslag`, så att appens server bygger knapparna med samma tak och samma prövning som chatten ritar dem med.
 
 ### ⛔ Brytande: Svara, samtalet i fältet och Fortsätt i chatten är borta
 
@@ -90,7 +92,10 @@ Det Svara gjorde som inget annat gör: en röstdialog med agenten utan att lämn
 - `check-skalyta.mjs` avsnitt 46 (`--bara-talkval`), vid 390 och 1280 px: valen med ord som inte klipps, träffbara på 44x44, inne i fältet
   och fönstret, fokus på Meddelande och inget lämnat innan personen valt; Agent lämnar det sagda till `onAgent`; i chatten två förslag
   minst 44 px höga inne i fönstret med förhandsvisningen, ett dubbelklick ger ett anrop med samtalet, meddelandet och id, och utfallet
-  står under knappen; inget rullar i sidled.
+  står under knappen; inget rullar i sidled. Mot 0.104.0:s dist: 4 brott av 4 (valen och förslagen finns inte). Med 0.105.0: 54
+  kontroller utan brott. Hela `check-skalyta.mjs`: 2746 kontroller utan brott. ⛔ En körning av `--bara-talkval` direkt efter ett bygge
+  föll en gång på att mittknappen inte gick att klicka inom 4 s vid 390 px, och samma körning en gång till var grön; det är en
+  misslyckad mätning enligt regel 14 och inte ett resultat, men orsaken är inte utredd.
 
 ## 0.104.0
 
