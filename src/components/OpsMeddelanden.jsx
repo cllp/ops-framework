@@ -19,7 +19,7 @@ import { usePersonnamn } from "./usePersonnamn.js";
 import { OpsIconLink } from "./OpsIconLink.jsx";
 import { arInstallningslage } from "../lib/apparark.js";
 import { ModulLageKnapp, OpsModulRam, kravRam } from "./OpsModulRam.jsx";
-import { OpsHubTillbaka } from "./OpsTillbaka.jsx";
+import { OpsHubTillbaka, VYHUVUD_KLASS, VYIKON_KLASS, VYRUBRIK_KLASS } from "./OpsTillbaka.jsx";
 import { OpsMottagare } from "./OpsMottagare.jsx";
 import { OpsSkapaRubrik } from "./OpsSkapaRubrik.jsx";
 import { OpsCountBadge } from "./counter.jsx";
@@ -777,11 +777,13 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
             <OpsHubTillbaka {...tillbaka} rubrik={false} />
           </div>
         ) : null}
-        <div data-meddelanden-huvud="" className="flex shrink-0 items-center gap-2 px-3 pt-3 pb-1">
-          <span className="text-accent">
+        {/* ⛔ FÖREBILDEN FÖR VARJE VYS HUVUD (0.102.0): klasserna bor i `OpsTillbaka.jsx` och delas med `OpsHubTillbaka` och
+            `OpsViewHeader`. */}
+        <div data-meddelanden-huvud="" data-vyhuvud="" className={`shrink-0 px-3 pt-3 pb-1 ${VYHUVUD_KLASS}`}>
+          <span aria-hidden="true" className={VYIKON_KLASS}>
             <MeddelandeIkon size={18} />
           </span>
-          <h2 className="m-0 min-w-0 flex-1 truncate text-etikett font-semibold text-ink">{t.rubrik}</h2>
+          <h2 className={VYRUBRIK_KLASS}>{t.rubrik}</h2>
           {groupId ? (
             <button
               type="button"

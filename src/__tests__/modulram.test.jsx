@@ -85,9 +85,11 @@ describe("modulramen", () => {
       </OpsHuvudmenyProvider>,
     );
     const sidrubrik = screen.getByRole("heading", { name: "Ekonomi · Inställningar" });
-    // 0.94.0: vikten är rollens (`text-sida` bär 600 i profilen), så ingen klass lägger en vikt ovanpå den. Provar `check-typografi`.
-    expect(sidrubrik.className).toContain("text-sida");
-    expect(sidrubrik.className).not.toMatch(/font-(?:bold|semibold)/);
+    // ⛔ ÄNDRAT (0.102.0, regel 9: granskaren godkänner): vyns huvud är Meddelandens tunna rad, etikettens storlek och vikt 600,
+    // med Klar på samma rad. CP 2026-10-14: "Kolla header panelen på chatt ... Gör dessa enhetliga." Förut `text-sida`, 20 px.
+    expect(sidrubrik.className).toContain("text-etikett");
+    expect(sidrubrik.className).not.toContain("text-sida");
+    expect(sidrubrik.closest("[data-vyhuvud]")?.querySelector("[data-modul-lage-knapp='klar']")).toBeTruthy();
     expect(screen.queryByRole("link", { name: /Tillbaka/ })).toBeNull();
     expect(screen.getByRole("link", { name: "Klar" }).getAttribute("href")).toBe("/ekonomi");
     expect(screen.queryByText("översikten")).toBeNull();
@@ -273,8 +275,11 @@ describe("modulramen", () => {
     const slot = document.querySelector("[data-modul-huvud-atgard]");
     expect(slot?.className).toContain("ml-auto");
     expect(slot?.querySelector("[data-modul-lage-knapp='klar']")).toBeTruthy();
-    expect(slot?.parentElement?.querySelector("h1")).toBeNull();
-    expect(screen.getByRole("heading", { name: "Ekonomi · Inställningar" })).toBeTruthy();
+    // ⛔ ÄNDRAT (0.102.0): Klar står på rubrikens rad också när Tillbaka finns, och Tillbaka har sin egen rad ovanför.
+    // Förut stod Klar på Tillbaka-raden och rubriken i 20 px under den, tre rader i huvudet.
+    expect(slot?.parentElement?.querySelector("h1")?.textContent).toBe("Ekonomi · Inställningar");
+    const tillbakaLank = screen.getByRole("link", { name: /Tillbaka till/ });
+    expect(tillbakaLank.closest("[data-vyhuvud]")).toBeNull();
     unmount();
 
     render(

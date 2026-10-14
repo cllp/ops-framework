@@ -347,7 +347,9 @@ describe("OpsBibliotek: Mitt bibliotek i menyn", () => {
         onPlats={onPlats}
       />,
     );
-    expect(document.querySelector("[data-bibliotek-antal]")?.textContent).toBe("1 objekt");
+    // ⛔ ÄNDRAT (0.102.0, regel 9): antalet står i fliken Allt, inte på en egen rad "1 objekt". Växlaren står i vyns huvud.
+    expect(screen.getByRole("tab", { name: /^Allt/ }).textContent).toContain("1");
+    expect(screen.getByRole("button", { name: "Vilket bibliotek: CPS" }).closest("[data-vyhuvud]")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Vilket bibliotek: CPS" }));
     const meny = screen.getByRole("menu", { name: "Vilket bibliotek" });
     expect(within(meny).getAllByRole("menuitemradio").map((r) => r.textContent)).toEqual(["CPS", "Mitt bibliotek"]);
@@ -361,10 +363,10 @@ describe("OpsBibliotek: Mitt bibliotek i menyn", () => {
     expect(onPlats).toHaveBeenCalledWith(MITT_MAL.id);
   });
 
-  it("med en enda plats syns ingen växlare, men antalet står kvar", () => {
+  it("med en enda plats syns ingen växlare, men antalet står kvar i fliken Allt", () => {
     render(<Vy poster={[gruppPost(KIM)]} jag={{ uid: KIM, roll: "medlem" }} grupper={[]} platser={[{ id: "cps-ab", namn: "CPS" }]} plats="cps-ab" />);
     expect(screen.queryByRole("button", { name: /^Vilket bibliotek/ })).toBeNull();
     expect(document.querySelector("[data-bibliotek-plats]")).toBeNull();
-    expect(document.querySelector("[data-bibliotek-antal]")?.textContent).toBe("1 objekt");
+    expect(screen.getByRole("tab", { name: /^Allt/ }).textContent).toContain("1");
   });
 });
