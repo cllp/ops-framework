@@ -101,6 +101,9 @@ describe("en Mer-knapp per meddelande på telefon", () => {
     fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Meddelande från Bo Lind" }));
     fireEvent.click(await screen.findByRole("menuitem", { name: "Svara med citat" }));
     expect(document.querySelector("[data-svarar-pa]")).toBeTruthy();
+    // ⛔ Fokus står kvar i skrivfältet när menyn stängts, inte på ⋮ (mätt i check-skalyta, chatt (5) vid 390 px).
+    await new Promise((r) => setTimeout(r, 30));
+    expect(document.activeElement).toBe(screen.getByRole("textbox", { name: "Skriv ett meddelande" }));
   });
 
   it("⛔ med känd bredd ritas bara den ena uppsättningen: Mer på telefon, de lösa knapparna på dator (regel 13)", async () => {

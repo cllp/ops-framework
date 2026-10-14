@@ -3737,7 +3737,7 @@ function Meddelandemeta({ m, egen, locale, bredd, extra, mer, namn, reakt, fasta
                   stang();
                 }}
                 className={cx(
-                  "inline-flex size-11 cursor-pointer items-center justify-center rounded-full transition-colors duration-(--duration-fast) ease-standard hover:bg-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
+                  "inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full transition-colors duration-(--duration-fast) ease-standard hover:bg-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
                   egna.has(kod) && "bg-accent-faint",
                 )}
               >

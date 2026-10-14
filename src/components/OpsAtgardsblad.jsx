@@ -175,7 +175,9 @@ export function OpsAtgardsblad({ namn, poster, children = null, baraKnapp = fals
           sideOffset={4}
           collisionPadding={8}
           aria-label={etikett}
-          className={cx("z-(--z-dropdown) w-56 max-w-[calc(100vw-1rem)]", radBehallare())}
+          // ⛔ BREDARE MED NÅGOT ÖVERST (0.106.0, #386 skiva 6). Chattens sex reaktioner om 44 px fick 34 px i en ruta på 224 px (mätt i
+          // check-skalyta, chatt (3) vid 390 px). 288 px rymmer sex knappar om 44 px med mellanrum.
+          className={cx("z-(--z-dropdown) max-w-[calc(100vw-1rem)]", overst ? "w-72" : "w-56", radBehallare())}
           onOpenAutoFocus={fokusForsta}
           onClickCapture={stoppaSlappet}
           /*
@@ -185,6 +187,15 @@ export function OpsAtgardsblad({ namn, poster, children = null, baraKnapp = fals
            * Ett klick utanför stänger fortfarande.
            */
           onFocusOutside={(e) => e.preventDefault()}
+          /*
+           * ⛔ EN POST SOM FLYTTAR FOKUS FÅR BEHÅLLA DET (0.106.0, #386 skiva 6). Svara med citat i chattens Mer-meny lägger fokus i
+           * skrivfältet, och Radix lämnade sedan tillbaka det till ⋮ när rutan stängdes: det man skrev hamnade på knappen (mätt i
+           * check-skalyta, chatt (5) vid 390 px). Står fokus utanför rutan och inte på sidan är det postens val, och det står kvar.
+           */
+          onCloseAutoFocus={(e) => {
+            const aktiv = typeof document === "undefined" ? null : document.activeElement;
+            if (aktiv && aktiv !== document.body && !menyRef.current?.contains(aktiv)) e.preventDefault();
+          }}
         >
           <p data-ops-atgard-namn="" className="m-0 truncate px-3 pt-2 pb-1 text-meta font-medium text-ink-muted">{namn}</p>
           {overst ? overst(() => setOppen(false)) : null}

@@ -309,27 +309,32 @@ async function chattensNattskiva() {
         krav(chips.some((c) => c.namn === "Tummen upp, 2, du har reagerat" && c.tryckt === "true"), `${namn}: Annas egen reaktion ska vara tryckt och säga det (${JSON.stringify(chips)}).`);
         if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `chatt-3-reaktioner-chips-${vp.width}.png`) });
         const rad = page.locator("[data-ops-samtal] [data-meddelande]").filter({ has: page.locator("[data-reaktion]") }).last();
+        // ⛔ 0.106.0 (#386 skiva 6): på telefon står reaktionerna överst i meddelandets Mer-meny, inte bakom en lös Reagera.
+        const telefon = vp.width < 768;
         await rad.hover();
-        const knapp = rad.locator("[data-reagera]");
+        const knapp = telefon ? rad.locator("[data-mer] button") : rad.locator("[data-reagera]");
         const kb = await knapp.boundingBox();
-        krav(!!kb && kb.width >= 43.5 && kb.height >= 43.5, `${namn}: Reagera har ${kb?.width}x${kb?.height} px, väntat 44x44.`);
+        krav(!!kb && kb.width >= 43.5 && kb.height >= 43.5, `${namn}: ${telefon ? "Mer" : "Reagera"} har ${kb?.width}x${kb?.height} px, väntat 44x44.`);
         await knapp.focus();
         await page.keyboard.press("Enter");
-        await page.waitForSelector("[data-reaktionsvaljare]", { timeout: 3000 });
-        const val = await page.evaluate(() => {
-          const v = /** @type {HTMLElement} */ (document.querySelector("[data-reaktionsvaljare]"));
+        const valjare = telefon ? "[data-mer-reaktioner]" : "[data-reaktionsvaljare]";
+        await page.waitForSelector(valjare, { timeout: 3000 });
+        const val = await page.evaluate((valjare) => {
+          const v = /** @type {HTMLElement} */ (document.querySelector(valjare));
           const kn = [...v.querySelectorAll("button")].map((b) => b.getBoundingClientRect());
           const ikoner = [...v.querySelectorAll("button")].filter((b) => b.querySelectorAll("svg.lucide").length === 1).length;
           return { antal: kn.length, ikoner, emoji: /\p{Extended_Pictographic}/u.test(v.textContent || ""), minst: Math.min(...kn.map((r) => Math.min(r.width, r.height))), inom: kn.every((r) => r.left >= 0 && r.right <= window.innerWidth && r.top >= 0), fokus: document.activeElement?.getAttribute("data-valj-reaktion") ?? null };
-        });
+        }, valjare);
         matt.push(`${namn}: väljaren ${JSON.stringify(val)}`);
         krav(val.ikoner === 6 && !val.emoji, `${namn}: väljaren ska rita sex Lucide-ikoner och ingen emoji (${JSON.stringify(val)}).`);
         krav(val.antal === 6 && val.minst >= 43.5 && val.inom, `${namn}: väljaren ska ha sex knappar om 44 px inom fönstret (${JSON.stringify(val)}).`);
-        krav(val.fokus === "tumme", `${namn}: fokus ska stå på första reaktionen när väljaren öppnats (${val.fokus}).`);
+        // På telefon tar menyns första post fokus (`OpsAtgardsblad`), och reaktionerna nås med Tab.
+        if (!telefon) krav(val.fokus === "tumme", `${namn}: fokus ska stå på första reaktionen när väljaren öppnats (${val.fokus}).`);
         if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `chatt-3-reaktioner-valjare-${vp.width}.png`) });
         await page.keyboard.press("Escape");
-        const efter = await page.evaluate(() => ({ oppen: Boolean(document.querySelector("[data-reaktionsvaljare]")), fokus: document.activeElement?.hasAttribute("data-reagera") ?? false }));
-        krav(!efter.oppen && efter.fokus, `${namn}: Escape ska stänga väljaren och lämna fokus på Reagera (${JSON.stringify(efter)}).`);
+        await page.waitForTimeout(100);
+        const efter = await page.evaluate((telefon) => ({ oppen: Boolean(document.querySelector(telefon ? "[data-mer-reaktioner]" : "[data-reaktionsvaljare]")), fokus: telefon ? Boolean(document.activeElement?.closest("[data-mer]")) : document.activeElement?.hasAttribute("data-reagera") ?? false }), telefon);
+        krav(!efter.oppen && efter.fokus, `${namn}: Escape ska stänga väljaren och lämna fokus på ${telefon ? "Mer" : "Reagera"} (${JSON.stringify(efter)}).`);
         krav((await over(page)) <= 0, `${namn}: sidan flödar över ${await over(page)} px horisontellt.`);
       } catch (e) {
         krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
@@ -372,12 +377,16 @@ async function chattensNattskiva() {
       const { page, context } = await oppna("chattnatt", vp, standardtema, 1, "privat");
       const namn = `chatt (5) citat och sök ${vp.width}`;
       try {
-        await page.waitForSelector('[data-ops-samtal="personer"] [data-citera]', { timeout: 6000 });
+        // ⛔ 0.106.0 (#386 skiva 6): på telefon nås Svara med citat genom meddelandets Mer-meny.
+        const telefon = vp.width < 768;
+        await page.waitForSelector(telefon ? '[data-ops-samtal="personer"] [data-mer]' : '[data-ops-samtal="personer"] [data-citera]', { timeout: 6000 });
         const rad = page.locator('[data-ops-samtal="personer"] [data-meddelande="annans"]').first();
         await rad.hover();
-        const kb = await rad.locator("[data-citera]").boundingBox();
-        krav(!!kb && kb.width >= 43.5 && kb.height >= 43.5, `${namn}: Svara med citat har ${kb?.width}x${kb?.height} px, väntat 44x44.`);
-        await rad.locator("[data-citera]").click();
+        const citeraKnapp = telefon ? rad.locator("[data-mer] button") : rad.locator("[data-citera]");
+        const kb = await citeraKnapp.boundingBox();
+        krav(!!kb && kb.width >= 43.5 && kb.height >= 43.5, `${namn}: ${telefon ? "Mer" : "Svara med citat"} har ${kb?.width}x${kb?.height} px, väntat 44x44.`);
+        await citeraKnapp.click();
+        if (telefon) await page.locator("[role=menu] [role=menuitem]", { hasText: "Svara med citat" }).click();
         const strip = await page.evaluate(() => {
           const el = /** @type {HTMLElement} */ (document.querySelector("[data-svarar-pa]"));
           const form = /** @type {HTMLElement} */ (document.querySelector('[data-ops-samtal="personer"] form'));
@@ -4538,7 +4547,10 @@ for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
     const finns = chatt.marken.filter((m) => m.slag === "finns");
     krav(finns.length === 1 && finns[0].text === "3 svar", `${namn}: väntat ett märke "3 svar" (utan rotens text) på meddelandet med tråden, fick ${JSON.stringify(finns.map((m) => m.text))}.`);
     krav(chatt.marken.some((m) => m.slag === "ny" && m.text === "Svara i tråd"), `${namn}: inget meddelande bär "Svara i tråd".`);
-    krav(chatt.marken.length >= 2 && chatt.marken.every((m) => m.h >= 43.5 && m.inom), `${namn}: märkena ska ha 44 px träffyta och rymmas i loggen (${JSON.stringify(chatt.marken)}). Golv: minst 2.`);
+    // ⛔ 0.106.0 (#386 skiva 6): på telefon bor "Svara i tråd" i meddelandets Mer-meny (avsnitt 47 (6)), och knappen under bubblan
+    // har ingen höjd där. Märket "3 svar" är innehåll och har sina 44 px på båda bredderna.
+    const synligaMarken = vp.width < 768 ? chatt.marken.filter((m) => m.slag !== "ny") : chatt.marken;
+    krav(chatt.marken.length >= 2 && synligaMarken.length >= 1 && synligaMarken.every((m) => m.h >= 43.5 && m.inom), `${namn}: märkena ska ha 44 px träffyta och rymmas i loggen (${JSON.stringify(chatt.marken)}). Golv: minst 2.`);
     krav(finns.every((m) => m.opacitet === "1"), `${namn}: märket ska alltid synas (${JSON.stringify(finns.map((m) => m.opacitet))}).`);
     const nya = chatt.marken.filter((m) => m.slag === "ny");
     if (vp.width >= 1024) {

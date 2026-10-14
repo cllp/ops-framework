@@ -412,6 +412,7 @@ export async function merKnappen(v) {
             ruta: { l: r.left, t: r.top, r: r.right, b: r.bottom },
             fonster: { w: window.innerWidth, h: window.innerHeight },
             reaktioner: document.querySelectorAll("[data-mer-reaktioner] button").length,
+            minst: Math.min(...[...document.querySelectorAll("[data-mer-reaktioner] button")].map((b) => Math.min(b.getBoundingClientRect().width, b.getBoundingClientRect().height))),
             poster: [...document.querySelectorAll("[role=menu] [role=menuitem]")].map((el) => (el.textContent || "").trim()),
           };
         });
@@ -419,6 +420,7 @@ export async function merKnappen(v) {
         const ryms = m.ruta.l >= 0 && m.ruta.t >= 0 && m.ruta.r <= m.fonster.w && m.ruta.b <= m.fonster.h;
         v.krav(ryms, `${namn}: (b) menyn ryms inte i fönstret: ${JSON.stringify(m.ruta)}.`);
         v.krav(m.reaktioner === 6 && ["Svara i tråd", "Fäst", "Kopiera"].every((p) => m.poster.includes(p)), `${namn}: (b) menyn har ${m.reaktioner} reaktioner och ${JSON.stringify(m.poster)}.`);
+        v.krav(m.minst >= 43.5, `${namn}: (b) en reaktion i menyn är ${m.minst} px, väntat 44.`);
         await bild(v, page, `mer-meny-${vp.width}.png`);
         // (c)
         await page.locator("[role=menu] [role=menuitem]", { hasText: "Kopiera" }).click();
