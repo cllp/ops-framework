@@ -88,16 +88,23 @@ export function OpsAtgardsblad({ namn, poster, children = null, baraKnapp = fals
    * @param {any} e
    */
   function tangenter(e) {
-    const rot = menyRef.current;
+    const rot = /** @type {HTMLElement | null} */ (e.currentTarget);
     if (!rot) return;
-    const rader = [...rot.querySelectorAll("[role='menuitem']")];
+    /*
+     * ⛔ PILARNA NÅR OCKSÅ DET SOM STÅR ÖVERST (granskningen av PR 390). Chattens sex reaktioner ligger ovanför posterna, och pilarna
+     * gick bara mellan posterna: en tangentbordsanvändare som öppnade Mer-menyn kunde inte nå en reaktion annat än med Tab, som i en
+     * `role="menu"` inte är vägen. Alla knappar i menyn, i den ordning de ritas, är en enda lista. Vänster och höger går i listan
+     * när fokus står bland det översta, där raden går i sidled.
+     */
+    const rader = [...rot.querySelectorAll("[data-ops-atgard-overst] button:not(:disabled), [role='menuitem']")];
     if (rader.length === 0) return;
     const index = rader.indexOf(/** @type {Element} */ (document.activeElement));
     const nu = index < 0 ? 0 : index;
-    if (e.key === "ArrowDown") {
+    const iOverst = document.activeElement instanceof Element && Boolean(document.activeElement.closest("[data-ops-atgard-overst]"));
+    if (e.key === "ArrowDown" || (iOverst && e.key === "ArrowRight")) {
       e.preventDefault();
       /** @type {HTMLElement} */ (rader[(nu + 1) % rader.length]).focus();
-    } else if (e.key === "ArrowUp") {
+    } else if (e.key === "ArrowUp" || (iOverst && e.key === "ArrowLeft")) {
       e.preventDefault();
       /** @type {HTMLElement} */ (rader[(nu - 1 + rader.length) % rader.length]).focus();
     } else if (e.key === "Home") {
@@ -110,7 +117,7 @@ export function OpsAtgardsblad({ namn, poster, children = null, baraKnapp = fals
   }
 
   const rader = (
-    <div ref={menyRef} role="menu" aria-label={namn} onKeyDown={tangenter} className="flex flex-col p-1">
+    <div ref={menyRef} role="menu" aria-label={namn} className="flex flex-col p-1">
       {poster.map((p) => (
         <button
           key={p.id}
@@ -179,6 +186,7 @@ export function OpsAtgardsblad({ namn, poster, children = null, baraKnapp = fals
           // check-skalyta, chatt (3) vid 390 px). 288 px rymmer sex knappar om 44 px med mellanrum.
           className={cx("z-(--z-dropdown) max-w-[calc(100vw-1rem)]", overst ? "w-72" : "w-56", radBehallare())}
           onOpenAutoFocus={fokusForsta}
+          onKeyDown={tangenter}
           onClickCapture={stoppaSlappet}
           /*
            * Långtryck sätter `open` utan ett klick på ⋮. Fokus ligger då kvar
@@ -194,11 +202,11 @@ export function OpsAtgardsblad({ namn, poster, children = null, baraKnapp = fals
            */
           onCloseAutoFocus={(e) => {
             const aktiv = typeof document === "undefined" ? null : document.activeElement;
-            if (aktiv && aktiv !== document.body && !menyRef.current?.contains(aktiv)) e.preventDefault();
+            if (aktiv && aktiv !== document.body && !menyRef.current?.contains(aktiv) && !aktiv.closest("[data-ops-atgard-overst]")) e.preventDefault();
           }}
         >
           <p data-ops-atgard-namn="" className="m-0 truncate px-3 pt-2 pb-1 text-meta font-medium text-ink-muted">{namn}</p>
-          {overst ? overst(() => setOppen(false)) : null}
+          {overst ? <div data-ops-atgard-overst="">{overst(() => setOppen(false))}</div> : null}
           {poster.length > 0 ? rader : null}
         </Popover.Content>
       </Popover.Portal>
