@@ -81,11 +81,12 @@ export const TAGGFORM = new RegExp(`^[${TAGGTECKEN}]([${TAGGTECKEN} -]{0,${MAX_T
  * jämförelse med den inloggades uid. Allt annat (fälten, filen, taggarna, sökvägen, storage-regeln) är detsamma som i en grupp, så
  * en post blir inte en annan sorts post när den flyttas.
  *
- * ⛔ PREFIXET KAN INTE KROCKA MED EN GRUPP. Ett grupp-id följer `ID_FORM`, som inte släpper igenom `~`. Resten är uid:t, utan
- * snedstreck (sökvägen i lagringen delar på dem), utan `~` och utan blanktecken.
+ * ⛔ PREFIXET KAN INTE KROCKA MED EN GRUPP. Ett grupp-id följer `ID_FORM`, som inte släpper igenom `~`. Resten är uid:t, med de
+ * tecken ett Firebase-uid har: bokstäver, siffror, `-` och `_`. Ett snedstreck hade delat sökvägen i lagringen, och ett styrtecken
+ * hade godtagits av modellen men nekats av sökvägsregeln (granskningen av PR 365).
  */
 export const MITT_PREFIX = "mitt~";
-export const MITTFORM = /^mitt~[^/~\s]{1,128}$/;
+export const MITTFORM = /^mitt~[A-Za-z0-9_-]{1,128}$/;
 
 /**
  * Platsen för en persons eget bibliotek.
@@ -95,7 +96,7 @@ export const MITTFORM = /^mitt~[^/~\s]{1,128}$/;
 export function mittBibliotek(uid) {
   const id = typeof uid === "string" ? uid.trim() : "";
   const plats = `${MITT_PREFIX}${id}`;
-  if (!MITTFORM.test(plats)) throw new Error(`mittBibliotek: "${id}" går inte att använda som plats. Ett uid utan snedstreck, ~ och blanktecken krävs.`);
+  if (!MITTFORM.test(plats)) throw new Error(`mittBibliotek: "${id}" går inte att använda som plats. Ett uid med bokstäver, siffror, - och _ krävs.`);
   return plats;
 }
 

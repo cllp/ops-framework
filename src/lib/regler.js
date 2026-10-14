@@ -501,21 +501,30 @@ export function lagringsregelfragment(konfig = {}) {
     }
     // ⛔ MITT BIBLIOTEK (0.101.0): platsen ${MITT_PREFIX}<uid> är den inloggades egen. Där läser och skriver bara hen, och bara
     // filer till en post hen själv skrivit. Ingen roll ur memberships gäller där.
+    // Grenarna utesluter varandra, samma skäl som i bibliotekets regel för posterna: en plats som ser ut som ${MITT_PREFIX}… prövas aldrig mot memberships.
     function opsFilMitt(gid) {
       return request.auth != null && gid == '${MITT_PREFIX}' + request.auth.uid;
     }
+    function opsFilArMitt(gid) {
+      return gid.matches('${MITT_PREFIX}.*');
+    }
+    function opsFilPlatsMedlem(gid) {
+      return opsFilArMitt(gid) ? opsFilMitt(gid) : opsFilArMedlem(gid);
+    }
     function opsFilFarSkriva(gid, postId) {
-      return (opsFilMitt(gid) || opsFilArMedlem(gid))
+      return opsFilPlatsMedlem(gid)
         && firestore.exists(/databases/(default)/documents/${samling}/$(postId))
         && firestore.get(/databases/(default)/documents/${samling}/$(postId)).data.groupId == gid
         && (
           firestore.get(/databases/(default)/documents/${samling}/$(postId)).data.skapadAv.uid == request.auth.uid
-          || firestore.get(/databases/(default)/documents/${medlemskap}/$(request.auth.uid + '${MEDLEMSKAPSAVGRANSARE}' + gid)).data.roll == 'agare'
-          || firestore.get(/databases/(default)/documents/${medlemskap}/$(request.auth.uid + '${MEDLEMSKAPSAVGRANSARE}' + gid)).data.roll == 'admin'
+          || (!opsFilArMitt(gid) && (
+            firestore.get(/databases/(default)/documents/${medlemskap}/$(request.auth.uid + '${MEDLEMSKAPSAVGRANSARE}' + gid)).data.roll == 'agare'
+            || firestore.get(/databases/(default)/documents/${medlemskap}/$(request.auth.uid + '${MEDLEMSKAPSAVGRANSARE}' + gid)).data.roll == 'admin'
+          ))
         );
     }
     match /${grupp}/{groupId}/${postPrefix}/{postId}/{filnamn} {
-      allow read: if opsFilMitt(groupId) || opsFilArMedlem(groupId);
+      allow read: if opsFilPlatsMedlem(groupId);
       allow create, update: if opsFilFarSkriva(groupId, postId)
         && request.resource.size <= ${MAX_BIBLIOTEKFIL}
         && request.resource.contentType.matches('${filMimeMonster()}');
@@ -1673,6 +1682,19 @@ ${Array.from({ length: MAX_TAGGAR }, (_, k) => `        && (t.size() < ${k + 1} 
       return request.auth != null && gid == '${MITT_PREFIX}' + request.auth.uid;
     }
 
+    // ⛔ GRENARNA UTESLUTER VARANDRA (granskningen av PR 365). En plats som ser ut som ${MITT_PREFIX}… prövas BARA mot uid:t, aldrig mot
+    // memberships. Med "eller" hade ett medlemskap vars groupId råkade vara ${MITT_PREFIX}<uid> öppnat någons eget bibliotek för läsning,
+    // ändring och radering, sett i emulatorn. Inget skapar ett sådant medlemskap i dag, men ett skydd som vilar på det är inget skydd.
+    function opsBibliotekArMitt(gid) {
+      return gid is string && gid.matches('${MITT_PREFIX}.*');
+    }
+    function opsBibliotekPlatsMedlem(gid) {
+      return opsBibliotekArMitt(gid) ? opsBibliotekMitt(gid) : opsArMedlem(gid);
+    }
+    function opsBibliotekPlatsAdmin(gid) {
+      return opsBibliotekArMitt(gid) ? false : opsArAdmin(gid);
+    }
+
     function opsBibliotekspostGiltig(d, postId) {
       return d.keys().hasOnly([${lista(BIBLIOTEKFALT)}])
         && (!d.keys().hasAny(["taggar"]) || opsBibliotekTaggar(d.taggar))
@@ -1721,10 +1743,11 @@ ${Array.from({ length: MAX_TAGGAR }, (_, k) => `        && (t.size() < ${k + 1} 
     }
 
     match /${samling}/{id} {
-      allow read: if opsBibliotekMitt(resource.data.groupId) || opsArMedlem(resource.data.groupId);
+      allow read: if opsBibliotekPlatsMedlem(resource.data.groupId);
       allow create: if (
-          opsBibliotekMitt(request.resource.data.groupId)
-          || (opsArMedlem(request.resource.data.groupId) && opsMedlemskapet(request.resource.data.groupId).data.typ == 'person')
+          opsBibliotekArMitt(request.resource.data.groupId)
+            ? opsBibliotekMitt(request.resource.data.groupId)
+            : (opsArMedlem(request.resource.data.groupId) && opsMedlemskapet(request.resource.data.groupId).data.typ == 'person')
         )
         && request.resource.data.skapadAv.uid == request.auth.uid
         && opsBiblioteketNu(request.resource.data.skapad)
@@ -1741,11 +1764,11 @@ ${Array.from({ length: MAX_TAGGAR }, (_, k) => `        && (t.size() < ${k + 1} 
         )
         && opsBibliotekspostGiltig(request.resource.data, id)
         && (
-          ((opsBibliotekMitt(resource.data.groupId) || opsArMedlem(resource.data.groupId)) && resource.data.skapadAv.uid == request.auth.uid)
-          || opsArAdmin(resource.data.groupId)
+          (opsBibliotekPlatsMedlem(resource.data.groupId) && resource.data.skapadAv.uid == request.auth.uid)
+          || opsBibliotekPlatsAdmin(resource.data.groupId)
         );
-      allow delete: if ((opsBibliotekMitt(resource.data.groupId) || opsArMedlem(resource.data.groupId)) && resource.data.skapadAv.uid == request.auth.uid)
-        || opsArAdmin(resource.data.groupId);
+      allow delete: if (opsBibliotekPlatsMedlem(resource.data.groupId) && resource.data.skapadAv.uid == request.auth.uid)
+        || opsBibliotekPlatsAdmin(resource.data.groupId);
     }
 `;
 }

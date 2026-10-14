@@ -355,7 +355,12 @@ export async function flyttaBibliotekspost(inmatning) {
   if (post.typ === "fil" && post.fil) {
     if (typeof hamtaFil !== "function") throw new Error("flyttaBibliotekspost: hamtaFil krävs för att flytta en fil.");
     const blob = await hamtaFil(post.fil.sokvag);
-    const byte = Number.isInteger(/** @type {any} */ (blob)?.size) ? /** @type {any} */ (blob).size : post.fil.byte;
+    // ⛔ BYTEN STÄMS AV MOT POSTEN INNAN NÅGOT SKRIVS (granskningen av PR 365). En `hamtaFil` som fick en felsida i stället för filen
+    // hade annars laddat upp den som filen och sedan raderat originalet. Storleken står på posten, och den ska stämma exakt.
+    const byte = Number.isInteger(/** @type {any} */ (blob)?.size) ? /** @type {any} */ (blob).size : -1;
+    if (byte !== post.fil.byte) {
+      throw new Error(`Filen kunde inte hämtas hel (${byte < 0 ? "ingen storlek" : `${byte} byte`}, posten säger ${post.fil.byte}). Ingenting flyttades.`);
+    }
     ny = await till.laddaUppFil({
       rubrik: post.rubrik,
       namn: post.fil.namn,

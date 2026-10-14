@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { OpsBibliotek } from "../components/OpsBibliotek.jsx";
 import { createMemorySource } from "../data/adapters.js";
 import { createBibliotekskalla, flyttaBibliotekspost } from "../data/bibliotekkalla.js";
-import { arMittBibliotek, byggPost, farAndra, mittBibliotek, mittJag, postFel } from "../lib/bibliotek.js";
+import { LJUD_STOLPAR, arMittBibliotek, byggPost, farAndra, kodaToppar, mittBibliotek, mittJag, postFel } from "../lib/bibliotek.js";
 
 /**
  * Mitt bibliotek (0.101.0, lifehub.app#226): en plats som bara ägaren ser, och flytten mellan den och gruppen.
@@ -88,7 +88,7 @@ describe("flyttaBibliotekspost", () => {
     expect((await mitt.las()).poster).toHaveLength(1);
   });
 
-  it("en fil flyttas genom sina byte till den nya platsens sökväg, med längd, våg och taggar", async () => {
+  it("en fil flyttas genom sina byte till den nya platsens sökväg, med taggarna", async () => {
     const { source, grupp, mitt, laddaUppMitt } = tvaPlatser();
     const rad = byggPost({
       groupId: "cps-ab",
@@ -109,6 +109,50 @@ describe("flyttaBibliotekspost", () => {
     expect(ny.taggar).toEqual(["kvitto"]);
     expect(laddaUppMitt).toHaveBeenCalledWith(expect.objectContaining({ fil: blob, contentType: "application/pdf" }));
     expect(await source.read("bibliotek", "f1")).toBeNull();
+  });
+
+  it("ett ljud flyttas med längd, våg och utskrift", async () => {
+    const { source, grupp, mitt } = tvaPlatser();
+    const peaks = kodaToppar(Array.from({ length: LJUD_STOLPAR }, (_, i) => (i % 3) / 3));
+    const rad = byggPost({
+      groupId: "cps-ab",
+      typ: "fil",
+      rubrik: "Idé",
+      fil: { sokvag: "grupper/cps-ab/bibliotek/l1/ide.webm", namn: "ide.webm", mime: "audio/webm", byte: 3 },
+      durationMs: 4200,
+      peaks,
+      utskrift: "Ring Bokio.",
+      skapadAv: skapare(KIM),
+      skapad: tid,
+      andrad: tid,
+    });
+    await source.create("bibliotek", { ...rad, id: "l1" });
+    const ny = await flyttaBibliotekspost({ fran: grupp, till: mitt, id: "l1", satt: "flytta", hamtaFil: async () => new Blob(["abc"], { type: "audio/webm" }) });
+    expect(ny.durationMs).toBe(4200);
+    expect(ny.peaks).toBe(peaks);
+    expect(ny.utskrift).toBe("Ring Bokio.");
+    const lagrad = await source.read("bibliotek", ny.id);
+    expect(lagrad?.utskrift).toBe("Ring Bokio.");
+  });
+
+  it("byte som inte stämmer med posten flyttar ingenting", async () => {
+    const { source, grupp, mitt, laddaUppMitt } = tvaPlatser();
+    const rad = byggPost({ groupId: "cps-ab", typ: "fil", rubrik: "K", fil: { sokvag: "grupper/cps-ab/bibliotek/f2/k.pdf", namn: "k.pdf", mime: "application/pdf", byte: 4 }, skapadAv: skapare(KIM), skapad: tid, andrad: tid });
+    await source.create("bibliotek", { ...rad, id: "f2" });
+    await expect(flyttaBibliotekspost({ fran: grupp, till: mitt, id: "f2", satt: "flytta", hamtaFil: async () => new Blob(["<html>fel</html>"]) })).rejects.toThrow(/Ingenting flyttades/);
+    expect(laddaUppMitt).not.toHaveBeenCalled();
+    expect(await source.read("bibliotek", "f2")).not.toBeNull();
+    expect((await mitt.las()).poster).toHaveLength(0);
+  });
+
+  it("faller uppladdningen står originalet kvar och ingen kopia finns", async () => {
+    const { source, grupp, mitt, laddaUppMitt } = tvaPlatser();
+    laddaUppMitt.mockRejectedValueOnce(new Error("nätet föll"));
+    const rad = byggPost({ groupId: "cps-ab", typ: "fil", rubrik: "K", fil: { sokvag: "grupper/cps-ab/bibliotek/f3/k.pdf", namn: "k.pdf", mime: "application/pdf", byte: 4 }, skapadAv: skapare(KIM), skapad: tid, andrad: tid });
+    await source.create("bibliotek", { ...rad, id: "f3" });
+    await expect(flyttaBibliotekspost({ fran: grupp, till: mitt, id: "f3", satt: "flytta", hamtaFil: async () => new Blob(["abcd"]) })).rejects.toThrow("nätet föll");
+    expect(await source.read("bibliotek", "f3")).not.toBeNull();
+    expect((await mitt.las()).poster).toHaveLength(0);
   });
 
   it("faller borttagningen säger felet att posten nu finns på båda ställena", async () => {
@@ -184,6 +228,30 @@ describe("OpsBibliotek: Mitt bibliotek i menyn", () => {
     fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Protokoll" }));
     fireEvent.click(screen.getByRole("menuitem", { name: "Kopiera till Mitt bibliotek" }));
     expect(await screen.findByText("Filen kunde inte hämtas.")).toBeInTheDocument();
+  });
+
+  it("medan flytten pågår finns inga flyttval för posten, så ett andra tryck inte gör en andra kopia", async () => {
+    /** @type {(v?: unknown) => void} */
+    let slapp = () => {};
+    const onDela = vi.fn(() => new Promise((los) => { slapp = los; }));
+    render(<Vy poster={[gruppPost(KIM)]} jag={{ uid: KIM, roll: "medlem" }} grupper={[MITT_MAL]} onDela={onDela} />);
+    fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Protokoll" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Flytta till Mitt bibliotek" }));
+    await waitFor(() => expect(onDela).toHaveBeenCalledTimes(1));
+    expect(await screen.findByText("Flyttar till Mitt bibliotek…")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Protokoll" }));
+    expect(screen.queryByRole("menuitem", { name: "Flytta till Mitt bibliotek" })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: "Kopiera till Mitt bibliotek" })).toBeNull();
+    slapp();
+    expect(await screen.findByText("Flyttad till Mitt bibliotek.")).toBeInTheDocument();
+  });
+
+  it("en admin kopierar någon annans post till en annan grupp men flyttar den inte", () => {
+    render(<Vy poster={[gruppPost(ANNAN)]} jag={{ uid: KIM, roll: "admin" }} grupper={[{ id: "kor-ab", namn: "Kören" }]} />);
+    fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Protokoll" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Till en annan grupp" }));
+    expect(screen.getByRole("button", { name: "Kopiera" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Flytta" })).toBeNull();
   });
 
   it("växlaren visar båda platserna och byter plats", () => {

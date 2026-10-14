@@ -33,6 +33,18 @@ läsregel som avgör synlighet per post, och det är permissions-träsket (kanon
   författaren) och Kopiera till Mitt bibliotek, och i Mitt bibliotek Dela med gruppen. Medan det pågår och när det är klart står
   det i statusraden, och ett fel står kvar med skälet.
 
+### Granskningen av PR 365
+
+- Reglernas grenar utesluter varandra. En plats som ser ut som `mitt~…` prövas bara mot uid:t och aldrig mot `memberships`, i
+  Firestore och i storage. Med "eller" hade ett medlemskap vars `groupId` råkade vara någons plats öppnat den, sett i emulatorn.
+  `byggMedlemskap` avvisar dessutom ett `groupId` som inte är ett grupp-id.
+- Storage-reglerna har sitt första prov (`rules/__tests__/lagring-bibliotek.test.mjs`, storage-emulatorn), och `test:rules` kör
+  `--only firestore,storage`.
+- `flyttaBibliotekspost` stämmer av byten mot postens storlek innan något skrivs.
+- Bara författaren flyttar, också till en annan grupp. En admin kopierar. Medan en flytt ur menyn pågår visas inga flyttval för
+  posten.
+- `MITTFORM` godtar bara ett uid:s tecken: bokstäver, siffror, `-` och `_`.
+
 ### Ändrat
 
 - Menyvalet Dela heter Till en annan grupp (Dela med en grupp i Mitt bibliotek). Postens egen grupp står inte bland målen.

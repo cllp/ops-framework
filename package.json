@@ -80,7 +80,7 @@
     "check:lasversion": "node scripts/check-lasversion.mjs",
     "check:viewport-guard": "node scripts/test-viewport-guard.mjs",
     "regler:skriv": "node scripts/skriv-provregler.mjs",
-    "test:rules": "npm run regler:skriv && npx --yes firebase-tools@14 emulators:exec --only firestore --project regelprov \"node --test --test-concurrency=1 rules/__tests__/*.test.mjs\"",
+    "test:rules": "npm run regler:skriv && npx --yes firebase-tools@14 emulators:exec --only firestore,storage --project regelprov \"node --test --test-concurrency=1 rules/__tests__/*.test.mjs\"",
     "check:exempelmodul": "node scripts/check-exempelmodul.mjs",
     "check:prova-modul": "node scripts/prova-modul.mjs examples/paminnelser/index.js --grupp bolaget",
     "check:regelgenerator": "node scripts/check-regelgenerator.mjs",

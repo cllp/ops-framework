@@ -97,7 +97,7 @@ import { OpsView } from "./OpsView.jsx";
  * @param {readonly (import("../lib/bibliotek.js").Bibliotekspost & { id: string })[]} props.poster
  * @param {string | null} [props.fel] Läsningen misslyckades. Tom lista med fel är inte "biblioteket är tomt".
  * @param {readonly { id: string, fel: string, groupId?: string, skapadAv?: { uid?: string | null } }[]} [props.trasiga] Rader källan inte kunde läsa (`las().trasiga`). De visas som ett antal med skäl, aldrig tyst. Den som får raderar raden.
- * @param {{ uid: string, roll: string, groupId?: string } | null} props.jag Den inloggades aktiva medlemskap i gruppen, eller `null` när personen inte är medlem. Krävs.
+ * @param {{ uid: string, roll: string, groupId?: string, status?: string } | null} props.jag Den inloggades aktiva medlemskap i gruppen, eller `null` när personen inte är medlem. Krävs.
  * @param {boolean} [props.laddar]
  * @param {(import("../lib/bibliotek.js").Bibliotekspost & { id: string }) | null} [props.vald]
  * @param {"anteckning" | "lank" | "fil" | null} [props.skapar]
@@ -159,6 +159,8 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
   const [raderar, setRaderar] = useState(/** @type {string | null} */ (null));
   const [raderaFel, setRaderaFel] = useState("");
   const [delar, setDelar] = useState(/** @type {null | (import("../lib/bibliotek.js").Bibliotekspost & { id: string })} */ (null));
+  // Poster som flyttas eller kopieras just nu, ur menyn. Deras flyttval visas inte förrän svaret kommit.
+  const [flyttar, setFlyttar] = useState(/** @type {string[]} */ ([]));
   const [status, setStatus] = useState("");
   const adresser = useFilAdresser(poster, vald, filUrl, hamtaAdress);
   const adressFor = (/** @type {{ typ?: string, fil?: { sokvag?: string, mime?: string } }} */ post) => losAdress(post, filUrl, hamtaAdress, adresser);
@@ -386,18 +388,26 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
     // ⛔ MITT BIBLIOTEK OCH GRUPPEN (0.101.0, lifehub.app#226). Beslutet: "Flytta till Mitt bibliotek / Dela med gruppen" i samma
     // meny som Byt namn. Att flytta ut ur gruppen får bara författaren: en admin som flyttade någon annans post till sitt eget
     // bibliotek hade tagit den från gruppen. Att kopiera dit får den som läser, eftersom läsningen redan ger innehållet.
+    //
+    // ⛔ SAMMA GRÄNS FÖR EN ANNAN GRUPP (granskningen av PR 365): en flytt tar posten ur gruppen och gör den som flyttar till
+    // författare, så bara författaren flyttar. En admin kopierar. Och medan en flytt av posten pågår visas inga flyttval för den:
+    // ett andra tryck hade gjort två kopior och sedan sagt att posten låg på båda ställena, vilket inte hade varit sant.
     const mitt = grupper.find((g) => arMittBibliotek(g.id) && g.id !== post.groupId);
     const andra = grupper.filter((g) => !arMittBibliotek(g.id) && g.id !== post.groupId);
     const ensam = arMittBibliotek(post.groupId);
-    if (mitt && !ensam && jag) {
-      if (post.skapadAv?.uid === jag.uid) ut.push({ id: "till-mitt", etikett: "Flytta till Mitt bibliotek", onValj: () => delaDirekt(post, mitt, "flytta") });
-      ut.push({ id: "kopia-mitt", etikett: "Kopiera till Mitt bibliotek", onValj: () => delaDirekt(post, mitt, "kopiera") });
-    }
-    if (far && andra.length > 0) {
-      if (ensam && andra.length === 1) {
-        ut.push({ id: "dela-grupp", etikett: `Dela med ${andra[0].namn}`, onValj: () => delaDirekt(post, andra[0], "flytta") });
-      } else {
-        ut.push({ id: "dela", etikett: ensam ? "Dela med en grupp" : "Till en annan grupp", onValj: () => setDelar(post) });
+    const aktiv = Boolean(jag) && (jag?.status === undefined || jag?.status === "aktiv");
+    const egen = aktiv && post.skapadAv?.uid === jag?.uid;
+    if (!flyttar.includes(post.id)) {
+      if (mitt && !ensam && aktiv) {
+        if (egen) ut.push({ id: "till-mitt", etikett: "Flytta till Mitt bibliotek", onValj: () => delaDirekt(post, mitt, "flytta") });
+        ut.push({ id: "kopia-mitt", etikett: "Kopiera till Mitt bibliotek", onValj: () => delaDirekt(post, mitt, "kopiera") });
+      }
+      if (aktiv && andra.length > 0 && (egen || far)) {
+        if (ensam && andra.length === 1) {
+          ut.push({ id: "dela-grupp", etikett: `Dela med ${andra[0].namn}`, onValj: () => delaDirekt(post, andra[0], "flytta") });
+        } else {
+          ut.push({ id: "dela", etikett: ensam ? "Dela med en grupp" : "Till en annan grupp", onValj: () => setDelar(post) });
+        }
       }
     }
     if (far) ut.push({ id: "radera", etikett: "Radera", fara: true, onValj: () => fragaRadera(post.id) });
@@ -419,12 +429,21 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
       setStatus("Flytten är inte kopplad. Posten är kvar.");
       return;
     }
+    if (flyttar.includes(post.id)) return;
+    setFlyttar((f) => [...f, post.id]);
+    const klar = () => setFlyttar((f) => f.filter((id) => id !== post.id));
     setStatus(satt === "flytta" ? `Flyttar till ${mal.namn}…` : `Kopierar till ${mal.namn}…`);
     Promise.resolve()
       .then(() => onDela({ id: post.id, groupId: mal.id, satt }))
       .then(
-        () => setStatus(satt === "flytta" ? `Flyttad till ${mal.namn}.` : `Kopierad till ${mal.namn}.`),
-        (e) => setStatus(e instanceof Error && e.message ? e.message : String(e)),
+        () => {
+          klar();
+          setStatus(satt === "flytta" ? `Flyttad till ${mal.namn}.` : `Kopierad till ${mal.namn}.`);
+        },
+        (e) => {
+          klar();
+          setStatus(e instanceof Error && e.message ? e.message : String(e));
+        },
       );
   }
 
@@ -669,6 +688,7 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
           <DelaKontroll
             id={delar.id}
             grupper={grupper.filter((g) => !arMittBibliotek(g.id) && g.id !== delar.groupId)}
+            kanFlytta={Boolean(jag) && delar.skapadAv?.uid === jag?.uid}
             onDela={onDela}
             onKlar={(text) => {
               setDelar(null);
@@ -1523,15 +1543,16 @@ function UtskriftKontroll({ post, onSkrivUt, onGorForslag }) {
 }
 
 /**
- * @param {{ id: string, grupper: readonly { id: string, namn: string }[], onDela?: (inmatning: { id: string, groupId: string, satt: "flytta" | "kopiera" }) => void | Promise<void>, onKlar?: (text: string) => void }} props
+ * @param {{ id: string, grupper: readonly { id: string, namn: string }[], onDela?: (inmatning: { id: string, groupId: string, satt: "flytta" | "kopiera" }) => void | Promise<void>, onKlar?: (text: string) => void, kanFlytta?: boolean }} props `kanFlytta` är falskt för den som inte skrev posten: en admin kopierar men flyttar inte någon annans post.
  */
-function DelaKontroll({ id, grupper, onDela, onKlar }) {
+function DelaKontroll({ id, grupper, onDela, onKlar, kanFlytta = true }) {
   const [mal, setMal] = useState(grupper[0]?.id ?? "");
   const [fel, setFel] = useState("");
   const [pagar, setPagar] = useState(/** @type {"flytta" | "kopiera" | null} */ (null));
   if (grupper.length === 0) return null;
   const kor = (/** @type {"flytta" | "kopiera"} */ satt) => {
     if (pagar) return;
+    if (satt === "flytta" && !kanFlytta) return;
     if (!mal) {
       setFel("Välj en grupp.");
       return;
@@ -1573,7 +1594,7 @@ function DelaKontroll({ id, grupper, onDela, onKlar }) {
       </OpsField>
       {fel ? <p role="alert">{fel}</p> : null}
       <div className="flex gap-2">
-        <OpsButton variant="secondary" busy={pagar === "flytta"} onClick={() => kor("flytta")}>Flytta</OpsButton>
+        {kanFlytta ? <OpsButton variant="secondary" busy={pagar === "flytta"} onClick={() => kor("flytta")}>Flytta</OpsButton> : null}
         <OpsButton variant="secondary" busy={pagar === "kopiera"} onClick={() => kor("kopiera")}>Kopiera</OpsButton>
       </div>
     </div>

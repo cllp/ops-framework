@@ -27,6 +27,8 @@ const rot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..
 const AGARE = "uidKimMitt";
 const ANNAN = "uidAnnanMitt";
 const ADMIN = "uidAdminMitt";
+/** Har en planterad medlemsrad vars groupId är Kims plats. Ingen kod skapar en sådan, men regeln får inte vila på det. */
+const INKRAKT = "uidInkraktMitt";
 const CPS = "cps-ab";
 const MIN = mittBibliotek(AGARE);
 const ANNANS = mittBibliotek(ANNAN);
@@ -58,6 +60,7 @@ before(async () => {
     const db = ctx.firestore();
     await setDoc(doc(db, `memberships/${medlemskapsId(ADMIN, CPS)}`), { userId: ADMIN, groupId: CPS, roll: "admin", typ: "person", status: "aktiv" });
     await setDoc(doc(db, `memberships/${medlemskapsId(AGARE, CPS)}`), { userId: AGARE, groupId: CPS, roll: "medlem", typ: "person", status: "aktiv" });
+    await setDoc(doc(db, `memberships/${INKRAKT}|${MIN}`), { userId: INKRAKT, groupId: MIN, roll: "admin", typ: "person", status: "aktiv" });
     await setDoc(doc(db, "bibliotek/min-post"), ny());
     await setDoc(doc(db, "bibliotek/min-andra"), ny({ rubrik: "Andra" }));
     await setDoc(doc(db, "bibliotek/annans-post"), ny({ groupId: ANNANS, skapadAv: skapare(ANNAN) }));
@@ -80,6 +83,12 @@ describe("Mitt bibliotek: läsa", () => {
   });
   it("en admin i en grupp läser inte", async () => {
     await assertFails(getDoc(doc(som(ADMIN), "bibliotek/min-post")));
+  });
+  it("ett medlemskap vars grupp är platsen öppnar den inte, varken för läsning, ändring eller radering", async () => {
+    await assertFails(getDoc(doc(som(INKRAKT), "bibliotek/min-post")));
+    await assertFails(updateDoc(doc(som(INKRAKT), "bibliotek/min-post"), { rubrik: "Kapat", andrad: Date.now() }));
+    await assertFails(deleteDoc(doc(som(INKRAKT), "bibliotek/min-post")));
+    await assertFails(setDoc(doc(som(INKRAKT), "bibliotek/planterad"), ny({ skapadAv: skapare(INKRAKT) })));
   });
   it("utloggad läser inte", async () => {
     await assertFails(getDoc(doc(miljo.unauthenticatedContext().firestore(), "bibliotek/min-post")));
