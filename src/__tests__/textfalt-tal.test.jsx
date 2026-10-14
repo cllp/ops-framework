@@ -134,6 +134,38 @@ describe("tal i OpsTextarea", () => {
     }
   });
 
+  /*
+   * ⛔ 0.104.0, granskningen av PR 384 (KAN 4). Markören lades efter det inskrivna också när appen avvisade det (`onChange` utan att
+   * värdet ändrades), så att den hoppade fram i en text som aldrig ändrats. Den står nu kvar där den stod.
+   */
+  it("⛔ avvisar appen det inskrivna står markören kvar där den stod", async () => {
+    try {
+      const f = fejkadIgenkanning();
+      vi.stubGlobal("webkitSpeechRecognition", f.SR);
+      const onAndra = vi.fn();
+      render(
+        <OpsField label="Beskriv appen">
+          <OpsTextarea value="Abcdefghij" onChange={onAndra} rows={5} tal={{ igenkanning: true, inspelare: provinspelare() }} />
+        </OpsField>,
+      );
+      falt().focus();
+      falt().setSelectionRange(2, 2);
+      fireEvent.select(falt());
+      fireEvent.click(screen.getByRole("button", { name: "Prata in" }));
+      await waitFor(() => expect(f.instanser[0]?.startad).toBe(true));
+      f.resultat(f.instanser[0], [["hej", true]]);
+      fireEvent.click(klar());
+      await waitFor(() => expect(yta()).toBeNull());
+      expect(onAndra).toHaveBeenCalledWith("Ab hej cdefghij");
+      expect(falt().value).toBe("Abcdefghij");
+      expect(document.activeElement).toBe(falt());
+      await act(async () => {});
+      expect(falt().selectionStart).toBe(2);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("⛔ Avbryt ändrar ingenting, och fokus går tillbaka till fältet", async () => {
     try {
       const { f, rec, onAndra, insp } = await borjaPrata({ start: "Orört", markor: [2, 2] });

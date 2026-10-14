@@ -356,8 +356,14 @@ function TalTextarea({ f, value, onChange, placeholder, name, rows, disabled, ma
   const besked = useId();
   /** Markören senast den stod i fältet. `null` tills den gjort det: då hamnar det sagda sist. */
   const markor = useRef(/** @type {{ start: number, slut: number } | null} */ (null));
-  /** Var markören ska stå när fältet kommer tillbaka: efter det inskrivna, eller där den stod före Avbryt. */
-  const tillbakaTill = useRef(/** @type {{ start: number, slut: number } | null} */ (null));
+  /**
+   * Var markören ska stå när fältet kommer tillbaka: efter det inskrivna, eller där den stod före Avbryt.
+   *
+   * ⛔ `varde` ÄR VÄRDET DEN POSITIONEN GÄLLER (0.104.0, granskningen av PR 384, KAN 4). Avvisar appen det inskrivna (värdet blir inte
+   * det väntade) läggs markören tillbaka där den stod (`annars`) och inte efter en text som aldrig kom in. Utan det hoppade den fram i
+   * en oförändrad text, och positionen låg kvar och kunde läggas när fältet senare växte av något annat.
+   */
+  const tillbakaTill = useRef(/** @type {{ start: number, slut: number, varde?: string, annars?: { start: number, slut: number } | null } | null} */ (null));
   const [kapat, setKapat] = useState(/** @type {"nej" | "kapat" | "fullt"} */ ("nej"));
   const vardeRef = useRef(value);
   vardeRef.current = value;
@@ -371,8 +377,7 @@ function TalTextarea({ f, value, onChange, placeholder, name, rows, disabled, ma
     onTal: (ut) => {
       const r = skrivInTal(vardeRef.current, markor.current, ut, maxLength);
       setKapat(r.kapat);
-      tillbakaTill.current = { start: r.markor, slut: r.markor };
-      markor.current = { start: r.markor, slut: r.markor };
+      tillbakaTill.current = { start: r.markor, slut: r.markor, varde: r.varde, annars: markor.current };
       if (r.varde !== vardeRef.current) andraRef.current(r.varde);
     },
   });
@@ -382,14 +387,20 @@ function TalTextarea({ f, value, onChange, placeholder, name, rows, disabled, ma
     const m = tillbakaTill.current;
     if (!el) return;
     el.focus({ preventScroll: true });
-    if (m) el.setSelectionRange(Math.min(m.start, el.value.length), Math.min(m.slut, el.value.length));
+    // Värdet kan komma en rendering senare: står det inte där än läggs markören där den stod, och effekten nedan flyttar den när det kommer.
+    const dit = m && (m.varde === undefined || el.value === m.varde) ? m : m?.annars;
+    if (dit) {
+      el.setSelectionRange(Math.min(dit.start, el.value.length), Math.min(dit.slut, el.value.length));
+      markor.current = { start: el.selectionStart ?? dit.start, slut: el.selectionEnd ?? dit.slut };
+    }
   };
   useRostfokus(rost, ytaRef, lagg);
   useEffect(() => {
     if (!rost.yta && tillbakaTill.current && ruta.current && document.activeElement === ruta.current) {
       const m = tillbakaTill.current;
-      if (m.slut <= ruta.current.value.length) {
+      if ((m.varde === undefined || ruta.current.value === m.varde) && m.slut <= ruta.current.value.length) {
         ruta.current.setSelectionRange(m.start, m.slut);
+        markor.current = { start: m.start, slut: m.slut };
         tillbakaTill.current = null;
       }
     }
@@ -414,6 +425,8 @@ function TalTextarea({ f, value, onChange, placeholder, name, rows, disabled, ma
             value={value}
             onChange={(e) => {
               if (kapat !== "nej") setKapat("nej");
+              // En ändring av fältet gör en väntande position inaktuell: den gällde texten före ändringen.
+              tillbakaTill.current = null;
               markor.current = { start: e.target.selectionStart ?? e.target.value.length, slut: e.target.selectionEnd ?? e.target.value.length };
               onChange(e.target.value);
             }}

@@ -103,6 +103,13 @@ utan blanksteg sist (ett enda för långt ord kapas fortfarande mitt i), och få
 mellanslaget i stället: `skrivInTal("abcde", null, "x", 6)` ger "abcdex". Prov i `textfalt-tal.test.jsx`: 3 röda före, gröna med. Två
 befintliga påståenden ändrades och behöver en annan granskare (regel 9).
 
+### Rättat: markören står kvar när appen avvisar det sagda
+
+När appen avvisade det inskrivna (`onChange` utan att värdet ändrades) lade `OpsTextarea` ändå markören efter det inskrivna, så att den
+hoppade fram i en text som aldrig ändrats, och positionen låg kvar tills fältet blev långt nog (granskningen av PR 384, KAN 4). Den
+väntande positionen bär nu värdet den gäller: blir värdet inte det väntade läggs markören där den stod, och en ändring av fältet tömmer
+positionen. Prov i `textfalt-tal.test.jsx`: rött före (markören på 7 i stället för 2), grönt med.
+
 ### Ändrat: röstinmatningen har ett hem
 
 Talet bodde inbyggt i chattens skrivfält (`OpsMeddelanden.jsx`). Det är utbrutet till `OpsRostinmatning.jsx`
