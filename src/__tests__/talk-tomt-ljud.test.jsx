@@ -142,7 +142,8 @@ describe("andra omgången efter agentens fråga (lifehub.app#253)", () => {
     const dialog = /** @type {HTMLElement} */ (falt());
     expect(within(dialog).getByRole("status").textContent).toBe("Vilken dag är repet?");
 
-    fireEvent.click(within(dialog).getByRole("button", { name: "Svara" }));
+    // ⛔ 0.105.0: Svara är borta. Den andra omgången startas med mikrofonen, som efter vilket kvitto som helst.
+    fireEvent.click(huvudMikrofon());
     await flush();
     act(() => tel.sag("på torsdag"));
     await klar();
@@ -172,7 +173,7 @@ describe("andra omgången efter agentens fråga (lifehub.app#253)", () => {
       await flush();
       act(() => tel.sag("påminn mig om repet"));
       await klar();
-      fireEvent.click(screen.getByRole("button", { name: "Svara" }));
+      fireEvent.click(huvudMikrofon());
       await flush();
       act(() => tel.sag("på torsdag"));
       await klar();
