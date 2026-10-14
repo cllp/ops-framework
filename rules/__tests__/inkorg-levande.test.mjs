@@ -8,7 +8,7 @@
  * och lyssnarnas ögonblicksbilder (dokument som läggs till eller ändras, det Firestore tar betalt för efter den första bilden).
  *
  * Underlaget: gruppchatten och två privata samtal med 60 meddelanden var, så att en rad läser en hel sida (50). Siffrorna skrivs ut.
- * Proven säger vad som MÅSTE gälla: lyssnarna läser ett dokument per samtal och ett per nytt meddelande, och en radläsning är en rad
+ * Proven säger vad som MÅSTE gälla: lyssnarna läser två dokument per samtal (de två senaste meddelandena) och ett per nytt meddelande, och en radläsning är en rad
  * ur översikten, aldrig hela inkorgen. Och reglerna släpper in lyssnarens fråga utan att något ändrats i dem.
  *
  * Kör: npm run test:rules
@@ -99,7 +99,7 @@ function raknandeSdk() {
 }
 
 describe("⛔ en inkorg som lever: kostnaden, mätt", () => {
-  it("lyssnarna läser ett dokument per samtal och ett per nytt meddelande; en radläsning är en rad, inte inkorgen", async () => {
+  it("lyssnarna läser två dokument per samtal och ett per nytt meddelande; en radläsning är en rad, inte inkorgen", async () => {
     const { sdk: rsdk, r } = raknandeSdk();
     const kalla = createFirestoreSource({ db: miljo.authenticatedContext(ANNA).firestore(), sdk: rsdk });
     const s = /** @type {any} */ (createSamtalskalla({ kalla, levandeInkorg: true }));
@@ -144,7 +144,7 @@ describe("⛔ en inkorg som lever: kostnaden, mätt", () => {
     );
     assert.equal(ny.olasta, 1);
     assert.equal(ny.senaste.text, "Har du sett protokollet?");
-    assert.equal(forstaBild, 3, "Den första bilden är ett dokument per samtal (limit 1).");
+    assert.equal(forstaBild, 6, "Den första bilden är två dokument per samtal (limit 2: omgranskningen av PR 390, en lyssnare på ett meddelande slog ihop meddelanden).");
     assert.equal(nyttMeddelande, 1, "Ett nytt meddelande är ett dokument till lyssnaren.");
     // En rad: en sida meddelanden och läsmärket. Översikten: samtalslistan plus en sådan per samtal.
     assert.equal(radlasning.dokument, 50 + 1);

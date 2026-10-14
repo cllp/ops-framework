@@ -67,12 +67,17 @@ docs/jamforelser/0.106.0`, avsnitt 47).
 
 ### Tillagt: en inkorg som lever utan fokus
 
-- `createSamtalskalla({ levandeInkorg: true })` ger `bevakaInkorg` (en lyssnare per samtal på det senaste meddelandet, `limit: 1`) och
-  `inkorgsrad` (en rad ur översikten). `useSamtal` läser om bara den rad som fått ett meddelande från någon annan; ett eget läser
-  ingenting. `harLevandeInkorg(kalla)`.
+- `createSamtalskalla({ levandeInkorg: true })` ger `bevakaInkorg` (en lyssnare per samtal på de två senaste meddelandena, `limit: 2`),
+  `inkorgsrad` (en rad ur översikten) och `inkorgsradMed`. `harLevandeInkorg(kalla)`.
+- Ett meddelande från någon annan räknas in i raden ur det lyssnaren har (`inkorgsradMed`) i stället för att raden läses om: ett
+  dokument (läsmärket) i stället för 51. Raden läses om när den inte går att räkna med säkerhet: lyssnaren slog ihop meddelanden
+  (det näst senaste i bilden är inte det raden har), olästa är redan ett golv, eller samtalet är öppet. Ett eget meddelande läser
+  ingenting.
 - Mätt i Firestore-emulatorn (`rules/__tests__/inkorg-levande.test.mjs`, tre samtal med 60 meddelanden): hel översikt 156 dokument
-  i 8 frågor (det 0.105.0 läste vid varje fokus), lyssnarnas första bild 3 dokument, ett nytt meddelande 1 dokument, radläsningen
-  efter det 51 dokument i 2 frågor. Ingen ny samling och ingen ny regel.
+  i 8 frågor (det 0.105.0 läste vid varje fokus), lyssnarnas första bild 6 dokument, ett nytt meddelande 1 dokument, och när raden
+  ändå läses om 51 dokument i 2 frågor. Ingen ny samling och ingen ny regel.
+- Läsmärket syns när nästa meddelande kommer och vid fokus. En prenumeration på ett enda dokument finns inte i datakontraktet, och en
+  fråga på samlingen `last` nekas av reglerna, så en läsning på en annan enhet syns inte i samma stund.
 
 ### Tillagt: en bild öppnas stor vid tryck
 

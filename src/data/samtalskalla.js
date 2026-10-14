@@ -53,7 +53,7 @@ import { AGENTSTATUS_ID, FASTA_TAK, REAKTIONSTAK, amnesId, arNamnd, bilagenyckel
  *   agentsamtal per person, som förut. Samma val som till `samtalsregelfragment({ amnen: true })`, som släpper in den fjärde delen i
  *   nyckeln, `rubrik` och `arkiverad`.
  * @param {boolean} [konfig.levandeInkorg] (0.106.0, #386 skiva 7) `true` ger `bevakaInkorg`: en lyssnare per samtal i inkorgen på
- *   dess SENASTE meddelande (`limit: 1`), och `inkorgsrad`, som läser om en rad. `useSamtal` läser då om den rad som fått ett meddelande
+ *   dess TVÅ senaste meddelanden (`limit: 2`, se `inkorgsradMed`), och `inkorgsrad`, som läser om en rad. `useSamtal` läser då om den rad som fått ett meddelande
  *   från någon annan, i stället för att vänta på att fönstret får fokus. ⛔ INGET FÖRVAL: varje synligt samtal är en lyssnare, och det
  *   är appens val. Ingen ny samling och ingen ny regel: frågan är samma läsning av meddelandena som chatten redan gör.
  *   Kostnaden är mätt i emulatorn, `rules/__tests__/inkorg-levande.test.mjs`.
@@ -370,21 +370,21 @@ export function createSamtalskalla(konfig) {
    * ══ ⛔ EN INKORG SOM LEVER (0.106.0, #386 skiva 7) ═══════════════════════════════════════════════════════════════════════
    *
    * Gapanalysen i #386: räknarna för andra samtal stod still tills fönstret fick fokus, så den som satt i ett ämne såg inte att agenten
-   * svarat i ett annat. En lyssnare per samtal på dess SENASTE meddelande, inte på sidan: den första ögonblicksbilden är ett dokument
+   * svarat i ett annat. En lyssnare per samtal på dess TVÅ senaste meddelanden, inte på sidan: den första ögonblicksbilden är två dokument
    * per samtal, och varje nytt meddelande ett dokument till. Vad som läses om när något kommit avgör `useSamtal`.
    *
    * Utan `subscribe` på källan (minnesadaptern) finns ingen lyssnare, och svaret är `null`: inkorgen läses då som förut, vid fokus.
    *
    * @param {ReadonlyArray<string>} sids Samtalen som står i inkorgen.
-   * @param {{ onSenaste: (sid: string, m: (import("../lib/samtal.js").Meddelande & { id: string }) | null) => void, onError: (fel: Error) => void }} lyssnare
+   * @param {{ onSenaste: (sid: string, m: (import("../lib/samtal.js").Meddelande & { id: string }) | null, foregaende: (import("../lib/samtal.js").Meddelande & { id: string }) | null) => void, onError: (fel: Error) => void }} lyssnare
    * @returns {(() => void) | null}
    */
   function bevakaInkorg(sids, lyssnare) {
     if (typeof kalla.subscribe !== "function") return null;
     const subscribe = /** @type {NonNullable<typeof kalla.subscribe>} */ (kalla.subscribe);
     const stang = sids.map((sid) =>
-      subscribe(meddelandevag(sid), { sortBy: "tid", direction: "desc", limit: 1 }, {
-        onData: (rader) => lyssnare.onSenaste(sid, rader[0] ?? null),
+      subscribe(meddelandevag(sid), { sortBy: "tid", direction: "desc", limit: 2 }, {
+        onData: (rader) => lyssnare.onSenaste(sid, rader[0] ?? null, rader[1] ?? null),
         onError: lyssnare.onError,
       }),
     );
@@ -392,40 +392,59 @@ export function createSamtalskalla(konfig) {
   }
 
   /**
-   * ⛔ ETT MEDDELANDE FRÅN NÅGON ANNAN RÄKNAS IN LOKALT (granskningen av PR 390). `bevakaInkorg` har redan meddelandet i handen, och
-   * att läsa om hela raden för det (`sida` meddelanden, mätt ~51 dokument per klient och meddelande) betalade en andra gång för något
-   * lyssnaren just fått. Raden räknas fram ur sig själv: de olästa och deras rader, `senaste`, och fönstret den lästes ur.
+   * ⛔ ETT MEDDELANDE RÄKNAS IN LOKALT (granskningen av PR 390). `bevakaInkorg` har redan meddelandet i handen, och att läsa om hela
+   * raden för det (`sida` meddelanden, mätt ~51 dokument per klient och meddelande) betalade en andra gång för något lyssnaren just
+   * fått. Raden räknas fram ur sig själv: de olästa och deras rader, `senaste`, och fönstret den lästes ur.
    *
-   * ⛔ `null` BETYDER "LÄS OM", och det gäller när raden inte går att räkna med säkerhet: summan är redan ett golv (`olastaFler`),
-   * meddelandet gör den till ett (sidan blir full med dess äldsta ändå oläst), meddelandet kommer i oordning eller delar tid med ett
-   * annat så att det som faller ur fönstret inte kan pekas ut, eller raden saknar fönstret (läst före levande inkorg). Hellre en
-   * läsning för mycket än en siffra som ser exakt ut och inte är det (regel 5).
+   * ⛔ BARA OM LYSSNAREN INTE SLAGIT IHOP MEDDELANDEN (omgranskningen av PR 390, MÅSTE 1). Lyssnaren ser de två senaste. Är det näst
+   * senaste inte det raden redan har som `senaste` har ett meddelande kommit emellan (två innan svaret levererades, flera i en
+   * ögonblicksbild, en flik som kopplas upp igen), och då räknas ingenting lokalt: svaret är `null`. Mätt: Bo skickar två samtidigt,
+   * lyssnaren på ETT meddelande gav 1 olästa mot sant 2.
    *
-   * Läsmärket flyttas inte här: en annan enhet som läst samtalet syns, som förut, vid nästa hela omläsning (fokus).
+   * ⛔ LÄSMÄRKET LÄSES FÖR ETT MEDDELANDE FRÅN NÅGON ANNAN (1 dokument, mot sidan om 50). En annan enhet kan ha läst samtalet sedan
+   * raden senast lästes, och 2 olästa mot sant 1 var vad omgranskningen mätte. Kontrakten har ingen prenumeration på ETT dokument,
+   * och en fråga på samlingen `last` nekas av reglerna (de släpper bara in läsningen av det egna dokumentet), så läsmärket syns när
+   * nästa meddelande kommer och vid fokus, som i 0.105.0 men för ett dokument i stället för 51. Ett eget meddelande läser ingenting.
+   *
+   * ⛔ `null` BETYDER "LÄS OM", och det gäller när raden inte går att räkna med säkerhet: lyssnaren slog ihop meddelanden, summan är
+   * redan ett golv (`olastaFler`), meddelandet gör den till ett (sidan blir full med dess äldsta ändå oläst), meddelandet kommer i
+   * oordning eller delar tid med ett annat så att det som faller ur fönstret inte kan pekas ut, läsmärket gick bakåt, eller raden
+   * saknar fönstret (läst före levande inkorg). Hellre en läsning för mycket än en siffra som ser exakt ut och inte är det (regel 5).
+   * Ett eget meddelande i en rad utan fönster (en rad `laggIn` lagt lokalt) får bara ett nytt `senaste`, som förut.
+   *
    * `forsta` (ämnets härledda rubrik) fylls på så länge fönstret inte är fullt, och lämnas annars: i ett fullt fönster är de äldsta
    * lästa ändå inte samtalets första (se `inkorgsrad`).
    *
    * @param {Inkorgsrad & { fonster?: number[] }} rad
-   * @param {import("../lib/samtal.js").Meddelande & { id: string }} m
+   * @param {import("../lib/samtal.js").Meddelande & { id: string }} m Det senaste meddelandet i lyssnarens bild.
    * @param {string} uid
-   * @returns {(Inkorgsrad & { fonster: number[] }) | null}
+   * @param {(import("../lib/samtal.js").Meddelande & { id: string }) | null | undefined} foregaende Det näst senaste i samma bild, `null` om det inte finns något, `undefined` om anroparen inte vet.
+   * @returns {Promise<Inkorgsrad | null>}
    */
-  function inkorgsradMed(rad, m, uid) {
-    const tider = rad?.fonster;
-    if (!m || !Array.isArray(tider) || !Array.isArray(rad.olastaRader) || rad.olastaFler === true) return null;
+  async function inkorgsradMed(rad, m, uid, foregaende) {
+    if (!m || !rad) return null;
+    const egen = m.av === uid;
+    const tider = rad.fonster;
+    if (!Array.isArray(tider)) return egen ? { ...rad, senaste: m } : null;
+    if (!Array.isArray(rad.olastaRader) || foregaende === undefined || rad.olastaFler === true) return null;
+    // ⛔ Slog lyssnaren ihop meddelanden? Det näst senaste ska vara det raden redan har.
+    if ((foregaende?.id ?? null) !== (rad.senaste?.id ?? null)) return null;
     if (tider.length > 0 && m.tid <= tider[tider.length - 1]) return null;
     const fullt = tider.length >= sida;
     const nya = [...tider, m.tid].slice(-sida);
     if (fullt && nya[0] === tider[0]) return null;
-    if (nya.length >= sida && nya[0] > rad.lastTill) return null;
-    const kvar = fullt ? rad.olastaRader.filter((r) => r.tid >= nya[0]) : rad.olastaRader;
-    const olastaRader = m.av !== uid && m.tid > rad.lastTill ? [...kvar, m] : kvar;
+    const till = egen ? rad.lastTill : await lastTill(rad.samtal.id, uid);
+    if (till < rad.lastTill) return null;
+    if (nya.length >= sida && nya[0] > till) return null;
+    const kvar = (fullt ? rad.olastaRader.filter((r) => r.tid >= nya[0]) : rad.olastaRader).filter((r) => r.tid > till);
+    const olastaRader = !egen && m.tid > till ? [...kvar, m] : kvar;
     return {
       ...rad,
       senaste: m,
       olasta: olastaRader.length,
       olastaFler: false,
       olastaRader,
+      lastTill: till,
       fonster: nya,
       ...(rad.forsta && !fullt && rad.forsta.length < 3 ? { forsta: [...rad.forsta, m] } : {}),
     };
@@ -1021,8 +1040,8 @@ export function harAmnen(kalla) {
 /**
  * @typedef {object} Inkorgsfunktioner (0.106.0, #386 skiva 7) Det en samtalskälla har när appen skickat `levandeInkorg: true`.
  * @property {(s: import("../lib/samtal.js").Samtal, uid: string) => Promise<Inkorgsrad>} inkorgsrad
- * @property {(rad: Inkorgsrad, m: any, uid: string) => Inkorgsrad | null} inkorgsradMed Raden med ett nytt meddelande från någon annan inräknat, eller `null` när raden måste läsas om.
- * @property {(sids: ReadonlyArray<string>, lyssnare: { onSenaste: (sid: string, m: any) => void, onError: (fel: Error) => void }) => (() => void) | null} bevakaInkorg
+ * @property {(rad: Inkorgsrad, m: any, uid: string, foregaende?: any) => Promise<Inkorgsrad | null>} inkorgsradMed Raden med ett nytt meddelande inräknat, eller `null` när raden måste läsas om.
+ * @property {(sids: ReadonlyArray<string>, lyssnare: { onSenaste: (sid: string, m: any, foregaende?: any) => void, onError: (fel: Error) => void }) => (() => void) | null} bevakaInkorg
  */
 
 /**

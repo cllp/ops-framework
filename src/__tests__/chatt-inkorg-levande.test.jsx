@@ -77,8 +77,8 @@ describe("en inkorg som lever utan fokus", () => {
     render(<OpsMeddelanden kalla={s} uid="anna" groupId="g" gruppNamn="G" medlemmar={MEDLEMMAR} onOlasta={(n) => olasta.push(n)} />);
     await waitFor(() => expect(rakning.lyssnare.filter((l) => l.c.endsWith("/meddelanden")).length).toBe(3));
     const lyssnare = rakning.lyssnare.filter((l) => l.c.endsWith("/meddelanden"));
-    // Golv och form: tre samtal, tre lyssnare, var och en på ETT meddelande.
-    expect(lyssnare.map((l) => l.q.limit)).toEqual([1, 1, 1]);
+    // Golv och form: tre samtal, tre lyssnare, var och en på de TVÅ senaste meddelandena (omgranskningen: ett slog ihop meddelanden).
+    expect(lyssnare.map((l) => l.q.limit)).toEqual([2, 2, 2]);
     expect(new Set(lyssnare.map((l) => l.c)).size).toBe(3);
     await waitFor(() => expect(radFor("Bo Lind").textContent).toContain("Hej Bo"));
     nollstall();
@@ -89,10 +89,11 @@ describe("en inkorg som lever utan fokus", () => {
       // Golv: raden och räknaren har följt med, räknade ur meddelandet lyssnaren fick.
       await waitFor(() => expect(radFor("Bo Lind").textContent).toContain(text));
       await waitFor(() => expect(olasta.at(-1)).toBe(i + 1));
-      // Tak: ingen läsning alls för ett inkommande meddelande. Förut en sida (50) och läsmärket, ~51 dokument.
+      // Tak: ingen meddelandeläsning alls för ett inkommande meddelande, bara läsmärket (ett dokument). Förut en sida (50) och läsmärket.
       expect(rakning.list).toEqual([]);
-      expect(rakning.read).toEqual([]);
+      expect(rakning.read).toEqual([`samtal/${bo.id}/last`]);
       expect(rakning.lyssnare).toEqual([]);
+      nollstall();
     }
   });
 
@@ -108,13 +109,15 @@ describe("en inkorg som lever utan fokus", () => {
     });
     await waitFor(() => expect(radFor("Bo Lind").textContent).toContain("Ett"));
     expect(rakning.list).toEqual([]);
+    nollstall();
     // "Två" fyller sidan (3) och dess äldsta är oläst: summan är ett golv, och bara då läses raden om.
     await act(async () => {
       await s.skicka(bo.id, { text: "Två", av: "bo" });
     });
     await waitFor(() => expect(radFor("Bo Lind").textContent).toContain("Två"));
     await waitFor(() => expect(rakning.list).toEqual([`samtal/${bo.id}/meddelanden`]));
-    expect(rakning.read).toEqual([`samtal/${bo.id}/last`]);
+    // Läsmärket lästes av den lokala räkningen (som gav upp) och av omläsningen av raden.
+    expect(rakning.read).toEqual([`samtal/${bo.id}/last`, `samtal/${bo.id}/last`]);
   });
 
   it("⛔ ett eget meddelande i ett annat fönster läser ingenting, och raden visar det ändå", async () => {
@@ -148,29 +151,126 @@ describe("inkorgsradMed: när en rad inte går att räkna med säkerhet", () => 
   const samtal = { id: "g|anna|bo", groupId: "g", slag: "personer", deltagare: ["anna", "bo"], skapad: 1, skapadAv: "anna" };
   const m = (/** @type {number} */ tid, av = "bo") => ({ id: `m${tid}`, text: `t${tid}`, av, tid });
   const rad = (/** @type {any} */ over = {}) => ({ samtal, senaste: m(20), olasta: 1, olastaFler: false, olastaRader: [m(20)], lastTill: 10, motpart: "bo", fonster: [5, 20], ...over });
-  const kalla = /** @type {any} */ (createSamtalskalla({ kalla: levandeKalla(), levandeInkorg: true, sida: 3 }));
+  /** Källan med ett läsmärke för Anna i samtalet (det en annan enhet kan ha flyttat). */
+  const kallaMed = (/** @type {number} */ till) => /** @type {any} */ (createSamtalskalla({ kalla: levandeKalla({ [`samtal/${samtal.id}/last`]: [{ id: "anna", lastTill: till }] }), levandeInkorg: true, sida: 3 }));
 
-  it("räknar in ett nytt meddelande från någon annan: senaste, olästa och rader", () => {
-    const ny = kalla.inkorgsradMed(rad(), m(30), "anna");
+  it("räknar in ett nytt meddelande från någon annan: senaste, olästa och rader", async () => {
+    const ny = await kallaMed(10).inkorgsradMed(rad(), m(30), "anna", m(20));
     expect(ny.senaste.id).toBe("m30");
     expect(ny.olasta).toBe(2);
     expect(ny.olastaRader.map((r) => r.id)).toEqual(["m20", "m30"]);
     expect(ny.fonster).toEqual([5, 20, 30]);
   });
 
-  it("⛔ läser om (null) när summan redan är ett golv, när sidan blir full med sin äldsta oläst, vid oordning och utan fönster", () => {
-    expect(kalla.inkorgsradMed(rad({ olastaFler: true }), m(30), "anna")).toBeNull();
-    expect(kalla.inkorgsradMed(rad({ lastTill: 1 }), m(30), "anna")).toBeNull();
-    expect(kalla.inkorgsradMed(rad(), m(20), "anna")).toBeNull();
-    expect(kalla.inkorgsradMed(rad({ fonster: undefined }), m(30), "anna")).toBeNull();
+  it("⛔ läser om (null) när summan redan är ett golv, när sidan blir full med sin äldsta oläst, vid oordning, utan fönster och utan besked om föregående", async () => {
+    const k = kallaMed(10);
+    expect(await k.inkorgsradMed(rad({ olastaFler: true }), m(30), "anna", m(20))).toBeNull();
+    expect(await k.inkorgsradMed(rad({ fonster: [15, 20] }), m(30), "anna", m(20))).toBeNull();
+    expect(await k.inkorgsradMed(rad(), m(20), "anna", m(20))).toBeNull();
+    expect(await k.inkorgsradMed(rad({ fonster: undefined }), m(30), "anna", m(20))).toBeNull();
+    expect(await k.inkorgsradMed(rad(), m(30), "anna")).toBeNull();
   });
 
-  it("ett fullt fönster glider: det som faller ur räknas bort, och delad tid kräver omläsning", () => {
+  it("⛔ lyssnaren slog ihop meddelanden: det näst senaste i bilden är inte det raden har, och raden läses om", async () => {
+    const k = kallaMed(10);
+    // Raden har m20. Bilden bär m40 och m30: m30 har raden aldrig sett.
+    expect(await k.inkorgsradMed(rad(), m(40), "anna", m(30))).toBeNull();
+    // Och bilden med bara ett meddelande, men raden har ett: det kan inte stämma.
+    expect(await k.inkorgsradMed(rad(), m(40), "anna", null)).toBeNull();
+    // Ett tomt samtal får sitt första meddelande utan att läsas om.
+    const forsta = await k.inkorgsradMed(rad({ senaste: null, olasta: 0, olastaRader: [], fonster: [] }), m(30), "anna", null);
+    expect(forsta.olasta).toBe(1);
+  });
+
+  it("⛔ läsmärket läses: en annan enhet har läst, och det som lästs räknas inte som oläst", async () => {
+    const ny = await kallaMed(20).inkorgsradMed(rad(), m(30), "anna", m(20));
+    expect(ny.lastTill).toBe(20);
+    expect(ny.olasta).toBe(1);
+    expect(ny.olastaRader.map((r) => r.id)).toEqual(["m30"]);
+  });
+
+  it("ett eget meddelande läser inget och ändrar inga olästa, och en rad utan fönster får bara ett nytt senaste", async () => {
+    const k = kallaMed(10);
+    const eget = await k.inkorgsradMed(rad(), m(30, "anna"), "anna", m(20));
+    expect(eget.olasta).toBe(1);
+    expect(eget.fonster).toEqual([5, 20, 30]);
+    const utanFonster = await k.inkorgsradMed(rad({ fonster: undefined }), m(30, "anna"), "anna");
+    expect(utanFonster.senaste.id).toBe("m30");
+  });
+
+  it("ett fullt fönster glider: det som faller ur räknas bort, och delad tid kräver omläsning", async () => {
     const fullt = rad({ lastTill: 12, fonster: [5, 11, 20], olastaRader: [m(20)] });
-    const ny = kalla.inkorgsradMed(fullt, m(30), "anna");
+    const ny = await kallaMed(12).inkorgsradMed(fullt, m(30), "anna", m(20));
     expect(ny.fonster).toEqual([11, 20, 30]);
     expect(ny.olasta).toBe(2);
-    expect(kalla.inkorgsradMed(rad({ lastTill: 12, fonster: [5, 5, 20] }), m(30), "anna")).toBeNull();
+    expect(await kallaMed(12).inkorgsradMed(rad({ lastTill: 12, fonster: [5, 5, 20] }), m(30), "anna", m(20))).toBeNull();
+  });
+});
+
+describe("omgranskningen av PR 390: lokal räkning som inte får ljuga", () => {
+  /** Källan med en lyssnare som provet styr för hand: den riktiga ersätts, så att vad lyssnaren levererar och när är provets val. */
+  function styrdKalla(/** @type {any} */ s) {
+    /** @type {any} */
+    let pa = null;
+    const kalla = /** @type {any} */ ({ ...s, bevakaInkorg: (/** @type {string[]} */ _sids, /** @type {any} */ l) => ((pa = l), () => {}) });
+    return { kalla, lyssnare: () => pa };
+  }
+  const boRad = (/** @type {any[]} */ rader, /** @type {string} */ id) => rader.find((r) => r.samtal.id === id);
+
+  it("⛔ MÅSTE 1: två meddelanden som lyssnaren slår ihop ger 2 olästa, inte 1", async () => {
+    const { s, bo } = await underlag();
+    const { kalla, lyssnare } = styrdKalla(s);
+    const { result } = renderHook(() => useSamtal({ kalla, groupId: "g", uid: "anna" }));
+    await waitFor(() => expect(result.current.rader.length).toBe(3));
+    await waitFor(() => expect(lyssnare()).not.toBeNull());
+    // Golv: raden har inga olästa innan.
+    expect(boRad(result.current.rader, bo.id).olasta).toBe(0);
+    await s.skicka(bo.id, { text: "Ett", av: "bo" });
+    await s.skicka(bo.id, { text: "Två", av: "bo" });
+    const [tva, ett] = (await s.meddelanden(bo.id)).slice(-2).reverse();
+    // Lyssnaren levererar bilden med båda på en gång: det senaste, och det näst senaste som raden inte har.
+    await act(async () => lyssnare().onSenaste(bo.id, tva, ett));
+    await waitFor(() => expect(boRad(result.current.rader, bo.id).olasta).toBe(2));
+    expect(result.current.olasta).toBe(2);
+  });
+
+  it("⛔ BÖR 2: en annan enhet har läst samtalet, och nästa meddelande räknas mot det läsmärket", async () => {
+    const { s, bo } = await underlag();
+    const olasta = /** @type {number[]} */ ([]);
+    render(<OpsMeddelanden kalla={s} uid="anna" groupId="g" gruppNamn="G" medlemmar={MEDLEMMAR} onOlasta={(n) => olasta.push(n)} />);
+    await waitFor(() => expect(radFor("Bo Lind").textContent).toContain("Hej Bo"));
+    await act(async () => {
+      await s.skicka(bo.id, { text: "Första", av: "bo" });
+    });
+    await waitFor(() => expect(olasta.at(-1)).toBe(1));
+    // Telefonen läser samtalet: läsmärket flyttas förbi "Första".
+    const forsta = (await s.meddelanden(bo.id)).at(-1);
+    await act(async () => {
+      await s.markeraLast(bo.id, "anna", forsta.tid);
+    });
+    await act(async () => {
+      await s.skicka(bo.id, { text: "Andra", av: "bo" });
+    });
+    await waitFor(() => expect(radFor("Bo Lind").textContent).toContain("Andra"));
+    // Sant: ett oläst ("Andra"). Utan läsmärket i räkningen: 2.
+    await waitFor(() => expect(olasta.at(-1)).toBe(1));
+  });
+
+  it("⛔ BÖR 3: i det öppna samtalet blinkar räknaren inte till 1 för varje meddelande", async () => {
+    const { s, bo } = await underlag();
+    const olasta = /** @type {number[]} */ ([]);
+    render(<OpsMeddelanden kalla={s} uid="anna" groupId="g" gruppNamn="G" medlemmar={MEDLEMMAR} valt={bo.id} onOlasta={(n) => olasta.push(n)} />);
+    await waitFor(() => expect(screen.getAllByText("Hej Bo").length).toBeGreaterThan(0));
+    for (const text of ["Ett", "Två", "Tre"]) {
+      await act(async () => {
+        await s.skicka(bo.id, { text, av: "bo" });
+      });
+      await waitFor(() => expect(screen.getAllByText(text).length).toBeGreaterThan(0));
+      await new Promise((r) => setTimeout(r, 30));
+    }
+    // Golv: räknaren rapporterades, annars mäter provet ingenting.
+    expect(olasta.length).toBeGreaterThan(0);
+    expect(olasta.filter((n) => n !== 0)).toEqual([]);
   });
 });
 
@@ -216,7 +316,7 @@ describe("den läsning som startade sist vinner, per rad", () => {
     await act(async () => oversikter[0]([rad(0, "Hej", 10)]));
     await waitFor(() => expect(pa).not.toBeNull());
     // Bo skriver: raden läses om (startar först).
-    act(() => pa.onSenaste(samtal.id, { id: "m20", text: "Ny", av: "bo", tid: 20 }));
+    await act(async () => pa.onSenaste(samtal.id, { id: "m20", text: "Ny", av: "bo", tid: 20 }));
     expect(radlasningar.length).toBe(1);
     // Samtalet är öppet och markeras läst, och hela inkorgen läses om (startar sedan).
     act(() => {

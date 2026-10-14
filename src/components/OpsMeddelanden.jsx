@@ -722,7 +722,6 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
   const sprak = sprakProp ?? sprakKontext;
   const t = texterPa(sprak, texter);
   const locale = sprak === "en" ? "en-GB" : "sv-SE";
-  const { rader, laddar, fel, olasta, olastaFler, lasOm, laggIn } = useSamtal({ kalla, groupId, uid });
   const [egetVal, setEgetVal] = useState(/** @type {string | null} */ (null));
   const [egetNytt, setEgetNytt] = useState(/** @type {boolean | "agent"} */ (false));
   const [egenAgent, setEgenAgent] = useState(/** @type {string | null} */ (null));
@@ -733,6 +732,8 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
   const nyttAmneLage = medAmnen && nyttVarde === "agent";
   const nyttLage = Boolean(nyttVarde) && !nyttAmneLage;
   const valdId = nyttLage || nyttAmneLage ? null : valt !== undefined ? valt : egetVal;
+  // ⛔ `oppet`: det öppna samtalet räknas inte lokalt av inkorgen (omgranskningen av PR 390), se `useSamtal`.
+  const { rader, laddar, fel, olasta, olastaFler, lasOm, laggIn } = useSamtal({ kalla, groupId, uid, oppet: valdId });
   /** @param {string | null} id @param {{ nytt?: true | "agent", agent?: string }} [val] */
   const valj = (id, val) => {
     if (valt === undefined) setEgetVal(id);
