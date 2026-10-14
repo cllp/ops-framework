@@ -1,11 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { OpsAppShell } from "../components/OpsAppShell.jsx";
-import { AVBRYT_FRAGA_SEKUNDER, LANGTRYCK_MS, MIKROFON_SPARRAD_AV_SIDAN, SPARAT_MS, TALK_ORD, kanBeOmMikrofon, mikrofonenTillatenAvSidan, talkFeltext, talkNasta, valjFormat } from "../lib/talk.js";
+import { LANGTRYCK_MS as GENVAG_MS } from "../lib/apparark.js";
+import { AVBRYT_FRAGA_SEKUNDER, MIKROFON_SPARRAD_AV_SIDAN, SPARAT_MS, kanBeOmMikrofon, mikrofonenTillatenAvSidan, talkFeltext, talkNasta, valjFormat } from "../lib/talk.js";
 
 /*
  * 0.57.0, cllp/lifehub.app#2. CP 2026-10-04: långtryck på plusset visar bara TALK, ett fält kommer fram så att man
  * pratar vidare utan att hålla inne, mikrofonen skickar och krysset avbryter. Raden "TALK, prata in" står först i Skapa.
+ *
+ * ⛔ 0.103.0: PLUSSET ÄR EN MIKROFON. CP 2026-10-14, "kör": "TALK med Microfon-ikon direkt". Ett vanligt tryck på mittknappen
+ * startar TALK, och ett långtryck öppnar skapa-listan (utan TALK-raden). Långtrycket som spelade in är borta, och proven
+ * nedan som höll in plusset för att starta trycker nu på mikrofonen.
  */
 
 describe("flödet är en ren funktion", () => {
@@ -97,27 +102,29 @@ const Skal = (extra = {}) => (
 );
 const plus = () => /** @type {HTMLElement} */ (document.querySelector("[data-talk-knapp]"));
 const flush = () => act(async () => {});
+/** Ett vanligt tryck på mikrofonen i bottenraden (0.103.0). */
+const tryck = async () => {
+  fireEvent.click(plus());
+  await flush();
+};
 
 describe("plusset i bottenraden", () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
 
-  it("⛔ långtryck visar bara TALK, släppet lämnar fältet öppet, och mikrofonen skickar ljudet till appen", async () => {
+  it("⛔ ett tryck på mikrofonen startar TALK utan att hålla, och Klar skickar ljudet till appen", async () => {
     const insp = falskInspelare();
     const onTalk = vi.fn();
     render(Skal({ talk: { onTalk, inspelare: insp } }));
-    fireEvent.pointerDown(plus(), { button: 0 });
-    act(() => vi.advanceTimersByTime(LANGTRYCK_MS));
-    await flush();
+    // Mittknappen är en mikrofon, inte ett plus, och heter det den gör.
+    expect(plus().getAttribute("aria-label")).toBe("TALK, prata in");
+    expect(plus().getAttribute("data-talk-knapp")).toBe("vila");
+    await tryck();
     expect(insp.starta).toHaveBeenCalledTimes(1);
-    expect(plus().textContent).toBe(TALK_ORD);
-    expect(plus().getAttribute("aria-label")).toBe(TALK_ORD);
-
-    fireEvent.pointerUp(plus());
-    fireEvent.click(plus());
     expect(screen.getByRole("dialog", { name: "TALK" })).toBeTruthy();
-    // ⛔ Klicket efter långtrycket öppnade inte Skapa.
+    // ⛔ Trycket öppnade inte Skapa.
     expect(screen.queryByRole("dialog", { name: "Skapa" })).toBeNull();
+    expect(plus().getAttribute("data-talk-knapp")).toBe("lyssnar");
 
     const klar = screen.getByRole("button", { name: "Klar, spara inspelningen" });
     expect(klar.className).toContain("bg-accent");
@@ -136,26 +143,49 @@ describe("plusset i bottenraden", () => {
     expect(screen.queryByRole("dialog", { name: "TALK" })).toBeNull();
   });
 
-  it("ett vanligt tryck öppnar Skapa som förut, och spelar inte in", async () => {
+  it("⛔ ett långtryck på mikrofonen öppnar skapa-listan utan TALK-raden, och spelar inte in", async () => {
     const insp = falskInspelare();
-    render(Skal({ talk: { onTalk: vi.fn(), inspelare: insp } }));
+    render(Skal({ talk: { onTalk: vi.fn(), inspelare: insp }, skapa: { arende: true } }));
     fireEvent.pointerDown(plus(), { button: 0 });
-    act(() => vi.advanceTimersByTime(LANGTRYCK_MS - 100));
+    act(() => vi.advanceTimersByTime(GENVAG_MS));
     fireEvent.pointerUp(plus());
+    // Klicket som följer släppet startar inte TALK ovanpå listan.
     fireEvent.click(plus());
     await flush();
     expect(insp.starta).not.toHaveBeenCalled();
-    expect(screen.getByRole("dialog", { name: "Skapa" })).toBeTruthy();
+    const ark = screen.getByRole("dialog", { name: "Skapa" });
+    expect(ark.textContent).toContain("Nytt ärende");
+    expect(ark.textContent).not.toContain("TALK, prata in");
+  });
+
+  it("⛔ utan något att skapa går mikrofonen inte att hålla in: långtrycket gör ingenting, trycket efteråt är TALK", async () => {
+    const insp = falskInspelare();
+    render(Skal({ talk: { onTalk: vi.fn(), inspelare: insp } }));
+    expect(plus().className).not.toContain("[-webkit-touch-callout:none]");
+    fireEvent.pointerDown(plus(), { button: 0 });
+    act(() => vi.advanceTimersByTime(GENVAG_MS * 2));
+    fireEvent.pointerUp(plus());
+    expect(screen.queryByRole("dialog", { name: "Skapa" })).toBeNull();
+    fireEvent.click(plus());
+    await flush();
+    expect(insp.starta).toHaveBeenCalledTimes(1);
+  });
+
+  it("⛔ utan talk är mittknappen plusset som förut: ett tryck öppnar Skapa, och ingen mikrofon finns", async () => {
+    render(Skal({ skapa: { arende: true } }));
+    const knapp = /** @type {HTMLElement} */ (document.querySelector("nav button[aria-label='Skapa']"));
+    expect(knapp).toBeTruthy();
+    expect(knapp.hasAttribute("data-talk-knapp")).toBe(false);
+    fireEvent.click(knapp);
+    await flush();
+    expect(screen.getByRole("dialog", { name: "Skapa" }).textContent).toContain("Nytt ärende");
   });
 
   it("krysset kastar, och appen får ingenting", async () => {
     const insp = falskInspelare();
     const onTalk = vi.fn();
     render(Skal({ talk: { onTalk, inspelare: insp } }));
-    fireEvent.pointerDown(plus(), { button: 0 });
-    act(() => vi.advanceTimersByTime(LANGTRYCK_MS));
-    await flush();
-    fireEvent.pointerUp(plus());
+    await tryck();
     fireEvent.click(screen.getByRole("button", { name: "Avbryt" }));
     expect(insp.kasta).toHaveBeenCalled();
     expect(onTalk).not.toHaveBeenCalled();
@@ -166,9 +196,7 @@ describe("plusset i bottenraden", () => {
     const fel = Object.assign(new Error("x"), { name: "NotAllowedError" });
     const insp = falskInspelare({ startFel: fel });
     render(Skal({ talk: { onTalk: vi.fn(), inspelare: insp } }));
-    fireEvent.pointerDown(plus(), { button: 0 });
-    act(() => vi.advanceTimersByTime(LANGTRYCK_MS));
-    await flush();
+    await tryck();
     expect(document.querySelector("[data-talk-fel]")?.textContent).toMatch(/Mikrofonen är inte tillåten/);
     expect(screen.getByRole("button", { name: "Tillåt mikrofon" })).toBeInTheDocument();
     insp.starta = vi.fn(async () => {});
@@ -182,9 +210,7 @@ describe("plusset i bottenraden", () => {
     Object.defineProperty(document, "permissionsPolicy", { configurable: true, value: { allowsFeature: (/** @type {string} */ f) => f !== "microphone" } });
     try {
       render(Skal({ talk: { onTalk: vi.fn(), inspelare: falskInspelare({ startFel: fel }) } }));
-      fireEvent.pointerDown(plus(), { button: 0 });
-      act(() => vi.advanceTimersByTime(LANGTRYCK_MS));
-      await flush();
+      await tryck();
       expect(document.querySelector("[data-talk-fel]")?.textContent).toBe(MIKROFON_SPARRAD_AV_SIDAN);
       expect(screen.queryByRole("button", { name: "Tillåt mikrofon" })).toBeNull();
     } finally {
@@ -195,9 +221,7 @@ describe("plusset i bottenraden", () => {
   it("⛔ en mottagare som fallerar syns i fältet, ett tyst fel hade sett ut som skickat", async () => {
     const onTalk = vi.fn(() => Promise.reject(new Error("Servern svarade inte.")));
     render(Skal({ talk: { onTalk, inspelare: falskInspelare() } }));
-    fireEvent.pointerDown(plus(), { button: 0 });
-    act(() => vi.advanceTimersByTime(LANGTRYCK_MS));
-    await flush();
+    await tryck();
     fireEvent.click(screen.getByRole("button", { name: "Klar, spara inspelningen" }));
     await flush();
     expect(document.querySelector("[data-talk-fel]")?.textContent).toBe("Servern svarade inte.");
@@ -215,9 +239,7 @@ describe("plusset i bottenraden", () => {
       return Promise.resolve();
     });
     render(Skal({ talk: { onTalk, inspelare: falskInspelare() } }));
-    fireEvent.pointerDown(plus(), { button: 0 });
-    act(() => vi.advanceTimersByTime(LANGTRYCK_MS));
-    await flush();
+    await tryck();
     fireEvent.click(screen.getByRole("button", { name: "Klar, spara inspelningen" }));
     await flush();
     expect(screen.getByRole("alert").textContent).toBe("Uppladdningen föll.");
@@ -237,9 +259,7 @@ describe("plusset i bottenraden", () => {
       return new Promise(() => {});
     });
     render(Skal({ talk: { onTalk, inspelare: falskInspelare() } }));
-    fireEvent.pointerDown(plus(), { button: 0 });
-    act(() => vi.advanceTimersByTime(LANGTRYCK_MS));
-    await flush();
+    await tryck();
     fireEvent.click(screen.getByRole("button", { name: "Klar, spara inspelningen" }));
     await flush();
     act(() => rapport?.(0.4));
@@ -254,9 +274,7 @@ describe("plusset i bottenraden", () => {
   it("utan andel står det Sparar med en snurra, inte en procentsiffra", async () => {
     const onTalk = vi.fn(() => new Promise(() => {}));
     render(Skal({ talk: { onTalk, inspelare: falskInspelare() } }));
-    fireEvent.pointerDown(plus(), { button: 0 });
-    act(() => vi.advanceTimersByTime(LANGTRYCK_MS));
-    await flush();
+    await tryck();
     fireEvent.click(screen.getByRole("button", { name: "Klar, spara inspelningen" }));
     await flush();
     const status = screen.getByRole("status");
@@ -269,10 +287,7 @@ describe("plusset i bottenraden", () => {
   it("en lång inspelning frågar innan den kastas, en kort gör det inte", async () => {
     const insp = falskInspelare();
     const { unmount } = render(Skal({ talk: { onTalk: vi.fn(), inspelare: insp } }));
-    fireEvent.pointerDown(plus(), { button: 0 });
-    act(() => vi.advanceTimersByTime(LANGTRYCK_MS));
-    await flush();
-    fireEvent.pointerUp(plus());
+    await tryck();
     act(() => vi.advanceTimersByTime(AVBRYT_FRAGA_SEKUNDER * 1000));
     fireEvent.click(screen.getByRole("button", { name: "Avbryt" }));
     expect(insp.kasta).not.toHaveBeenCalled();
@@ -288,19 +303,20 @@ describe("plusset i bottenraden", () => {
 });
 
 describe("raden i Skapa", () => {
-  it("TALK, prata in står först och öppnar fältet utan att man håller", async () => {
-    const insp = falskInspelare();
-    render(Skal({ talk: { onTalk: vi.fn(), inspelare: insp }, skapa: { arende: true } }));
-    fireEvent.click(plus());
-    const ark = screen.getByRole("dialog", { name: "Skapa" });
-    const knappar = Array.from(ark.querySelectorAll("button")).map((b) => b.textContent?.trim()).filter(Boolean);
-    expect(knappar[0]).toBe("TALK, prata in");
-    fireEvent.click(screen.getByRole("button", { name: "TALK, prata in" }));
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 5));
-    });
-    expect(insp.starta).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole("dialog", { name: "TALK" })).toBeTruthy();
+  it("⛔ arket från mikrofonens långtryck har ingen TALK-rad: ett tryck på samma knapp är TALK (0.103.0)", async () => {
+    vi.useFakeTimers();
+    try {
+      render(Skal({ talk: { onTalk: vi.fn(), inspelare: falskInspelare() }, skapa: { arende: true } }));
+      fireEvent.pointerDown(plus(), { button: 0 });
+      act(() => vi.advanceTimersByTime(GENVAG_MS));
+      fireEvent.pointerUp(plus());
+      const ark = screen.getByRole("dialog", { name: "Skapa" });
+      const knappar = Array.from(ark.querySelectorAll("button")).map((b) => b.textContent?.trim()).filter(Boolean);
+      expect(knappar[0]).toBe("Nytt ärende");
+      expect(knappar).not.toContain("TALK, prata in");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("utan fasta har huvudets plus TALK-raden, annars når en smal skärm den inte", () => {
@@ -412,23 +428,20 @@ describe("mikrofonknappen i huvudet", () => {
     expect(huvudknapp()?.getAttribute("aria-label")).toBe("TALK, prata in");
   });
 
-  it("⛔ ett tryck under lyssnar, skickar eller håll startar ingen andra inspelning", async () => {
-    vi.useFakeTimers();
-    try {
-      // Håll: långtryck på bottenradens plus, sedan huvudets knapp medan fingret ligger kvar.
+  it("⛔ ett tryck under lyssnar eller skickar startar ingen andra inspelning, varken i huvudet eller på bottenradens mikrofon", async () => {
+    {
+      // 0.103.0: bottenradens mikrofon startar med ett tryck. Ett andra tryck där, och ett på huvudets knapp, startar inget nytt.
+      // (Läget håll finns inte längre från mittknappen: långtrycket som spelade in är borta.)
       const insp = falskInspelare();
       const { unmount } = render(Skal({ talk: { onTalk: vi.fn(), inspelare: insp }, skapa: { arende: true } }));
-      fireEvent.pointerDown(plus(), { button: 0 });
-      act(() => vi.advanceTimersByTime(LANGTRYCK_MS));
-      await flush();
-      expect(plus().getAttribute("data-talk-knapp")).toBe("haller");
+      await tryck();
+      expect(plus().getAttribute("data-talk-knapp")).toBe("lyssnar");
+      await tryck();
       fireEvent.click(/** @type {HTMLElement} */ (huvudknapp()));
       await flush();
       expect(insp.starta).toHaveBeenCalledTimes(1);
-      expect(plus().getAttribute("data-talk-knapp")).toBe("haller");
+      expect(plus().getAttribute("data-talk-knapp")).toBe("lyssnar");
       unmount();
-    } finally {
-      vi.useRealTimers();
     }
 
     // Lyssnar och skickar: huvudets knapp startar, sedan trycks den igen i varje läge.
@@ -454,7 +467,7 @@ describe("mikrofonknappen i huvudet", () => {
     await act(async () => klar());
   });
 
-  it("⛔ saknas på mobil: display bärs av EN klass, gömd under md, och bottenraden får ingen mikrofon", () => {
+  it("⛔ saknas på mobil: display bärs av EN klass, gömd under md, och bottenradens mikrofon är mittknappen och inte en andra huvudknapp", () => {
     render(Skal({ talk: { onTalk: vi.fn(), inspelare: falskInspelare() }, skapa: { arende: true } }));
     const klasser = /** @type {HTMLElement} */ (huvudknapp()).className.split(/\s+/);
     expect(klasser).toContain("hidden");

@@ -3,12 +3,14 @@ import { definierade, forvalda } from "../lib/ord.js";
 import { useOpsSprak } from "./OpsSprak.jsx";
 import * as Dialog from "@radix-ui/react-dialog";
 import { cx } from "../lib/cx.js";
-import { KryssIkon, MenuIcon, PlusIkon } from "./icons.jsx";
+import { KryssIkon, MenuIcon, PlusIkon, SkapaMarkeIkon } from "./icons.jsx";
 import { TALK_ORD } from "../lib/talk.js";
 import { entryActive, validateNav } from "../lib/nav.js";
 import { OpsCountBadge } from "./counter.jsx";
 import { radBehallare, radKlass } from "../lib/radKlass.js";
 import { kordarePafunktion, MenyAvdelningar, menyAppAvdelning, menyFot, menySektioner, MenyTillbakaKnapp, validateMeny } from "./OpsMeny.jsx";
+import { useSkapaGenvag } from "./OpsSkapaGenvag.jsx";
+import { LANGTRYCK_KLASS, useLangtryck } from "./useLangtryck.js";
 
 /**
  * Bottennavigering för smal skärm (under `md`). Renderas av `OpsAppShell` men
@@ -64,13 +66,14 @@ const MAX_IN_ROW_WITH_ACTION = 3;
  * @param {string} [props.sheetLabel] Rubrik i överflödes-sheeten (annonseras av skärmläsaren).
  * @param {string} [props.closeLabel] Skärmläsarnamn på stängknappen i sheeten.
  * @param {string} [props.badgeText] Skärmläsarord efter siffran i en badge, t.ex. "olästa" eller "att göra". Appen bestämmer vad den räknar.
- * @param {{ label: string, onClick: () => void, icon?: import("react").ReactNode, talk?: { lage: string, knapp: Record<string, any> } }} [props.primaryAction] Det man GÖR här, inte går till. Ritas som en rund knapp mitt i raden. `label` är knappens namn för skärmläsare och står aldrig som text: en rund knapp har ingen plats för ord.
+ * @param {Huvudatgarden} [props.primaryAction] Det man GÖR här, inte går till. Ritas som en rund knapp mitt i raden. `label` är knappens namn för skärmläsare och står aldrig som text: en rund knapp har ingen plats för ord.
  * @param {import("react").ReactNode} [props.menuExtras] Extra kontroller i Mer-sheeten (samma som header-hamburgaren), t.ex. tema och helskärm.
  * @param {import("./OpsMeny.jsx").MenyKonfiguration} [props.meny] Skalets meny (#164, andra granskningen), SAMMA `meny`-prop som
  *   `OpsAppShell` (`meny.sektioner`, `meny.onLoggaUt`, `meny.appVersion`, `meny.rubrik`,
  *   `meny.loggaUtEtikett`). Sheeten visar samma innehåll och i samma ordning som header-
  *   hamburgaren: appens sektioner, navigeringens överflödsrader, `menuExtras`, Logga ut, versionerna.
  *   `meny.rubrik` styr då även sheetens rubrikrad (annars `sheetLabel`).
+ * @param {string} [props.langtryckText] (0.103.0, #382) Andra halvan av mittknappens namn när den är en mikrofon med skapa bakom: "Håll inne för att skapa". Namnet blir "TALK, prata in. Håll inne för att skapa", så att den som inte ser plusset hör att det finns en väg till.
  * @param {{ href: string, oppen: boolean, onOppen: (oppen: boolean) => void }} [props.ark] (0.89.0) Fliken med det här href öppnar app-arket i stället för att navigera. Medan arket är öppet är den fliken den aktiva.
  */
 function OpsBottomNavRitad({
@@ -84,6 +87,7 @@ function OpsBottomNavRitad({
   sheetLabel = ORD_OPSBOTTOMNAV.sheetLabel.sv,
   closeLabel = ORD_OPSBOTTOMNAV.closeLabel.sv,
   badgeText = ORD_OPSBOTTOMNAV.badgeText.sv,
+  langtryckText = ORD_OPSBOTTOMNAV.langtryckText.sv,
   menuExtras,
   meny,
   ark,
@@ -106,6 +110,9 @@ function OpsBottomNavRitad({
       "OpsBottomNav: primaryAction måste ha label (sträng) och onClick (funktion). " +
         "Etiketten är knappens enda namn för den som inte ser den, och en rund knapp utan namn är en knapp ingen kan använda.",
     );
+  }
+  if (primaryAction && primaryAction.langtryck !== undefined && typeof primaryAction.langtryck !== "function") {
+    throw new Error("OpsBottomNav: primaryAction.langtryck måste vara en funktion eller utelämnas. En knapp som ser ut att gå att hålla in och inte gör något är värre än ingen genväg.");
   }
 
   const tak = primaryAction ? MAX_IN_ROW_WITH_ACTION : MAX_IN_ROW;
@@ -174,7 +181,7 @@ function OpsBottomNavRitad({
           />
         ))}
 
-        {primaryAction ? <Huvudatgard atgard={primaryAction} /> : null}
+        {primaryAction ? <Huvudatgard atgard={primaryAction} langtryckText={langtryckText} /> : null}
 
         {inRow.slice(brytpunkt).map((entry) => (
           <BottomPost
@@ -275,15 +282,55 @@ function OpsBottomNavRitad({
  * etikett. En knapp på 56 px rymmer inget ord, och ett avhugget ord under den
  * ser ut som ett fel.
  *
- * ⛔ MED `talk` (0.57.0, cllp/lifehub.app#2) är ett långtryck TALK och ett vanligt tryck `onClick` som förut. `talk`
- * är vad `useTalk` lämnar, så den som äger kroken äger också fältet (`OpsTalk`) och raden i Skapa.
+ * ⛔ MED `talk.knapp` (0.57.0, cllp/lifehub.app#2) är ett långtryck TALK och ett vanligt tryck `onClick` som förut. `talk.knapp`
+ * är vad `useTalk` lämnar, för den som bygger en egen rad med `OpsBottomNav` fristående.
  *
- * @param {{ atgard: { label: string, onClick: () => void, icon?: import("react").ReactNode, talk?: { lage: string, knapp: Record<string, any> } } }} props
+ * ⛔ I SKALET ÄR KNAPPEN EN MIKROFON (0.103.0). CP 2026-10-14, "kör": "TALK med Microfon-ikon direkt ... Då skulle vi kunna göra
+ * +:et till en Mikrofon". Skalet skickar då `talk: { lage }` utan `knapp`, `icon` en mikrofon och `onClick` som startar TALK:
+ * ett vanligt tryck spelar in, utan att hålla. `langtryck` är vad ett långtryck öppnar (skalets skapa-lista, se `OpsAppShell`),
+ * med samma `useLangtryck` som ikonerna i raden. Utan `langtryck` går knappen inte att hålla in.
+ *
+ * @typedef {object} Huvudatgarden
+ * @property {string} label
+ * @property {() => void} onClick
+ * @property {import("react").ReactNode} [icon]
+ * @property {{ lage: string, knapp?: Record<string, any> }} [talk] Läget syns på knappen (`data-talk-knapp`). Med `knapp` styr kroken trycket.
+ * @property {() => void} [langtryck] (0.103.0) Vad ett långtryck öppnar. Gäller inte med `talk.knapp`, där långtrycket är TALK.
+ *
+ * ⛔ MIKROFONEN BÄR ETT PLUS NÄR SKAPA FINNS BAKOM DEN (0.103.0, #382). CP 2026-10-14: "Undra om man i den ikonen kan ha en stor
+ * mikrofon och liksom lite bakomliggande ett plus som indikerar det." Ett långtryck som ingenting på knappen avslöjar är en väg
+ * bara den hittar som redan vet om den.
+ *
+ * ⛔ PLUSSET LIGGER BAKOM MIKROFONEN, INTE FRAMFÖR (granskningen av PR 383, BÖR 5). Första versionen ritade mikrofonen i 24 px,
+ * ungefär 43 % av cirkeln, och plusset som ett eget märke med ring i hörnet, alltså framför och som en notisbricka. Det var inte
+ * vad CP beskrev. Nu är mikrofonen stor (31 px i 56 px-cirkeln) och plusset större (20 px) men dämpat (`opacity-60` på
+ * `accent-contrast`), förskjutet upp till höger och ritat FÖRE mikrofonen. Mikrofonens kapsel är fylld i knappens färg
+ * (`[&_path:first-child]:fill-accent`, med hover: lucides kapsel är ritningens första `path`), så där de möts täcker mikrofonen plusset och det läses som att det ligger bakom.
+ * Mätt i `check-skalyta.mjs` avsnitt 39 och i `mikrofon-montage.mjs`: storlekarna, att plusset står inom cirkeln, att de överlappar
+ * och att plusset ligger före i ordningen.
+ *
+ * Plusset ritas bara när långtrycket öppnar skapa (en mikrofon, `talk` utan `knapp`, och `langtryck`). Utan `talk` är knappen själv
+ * plusset, och med `talk.knapp` är långtrycket TALK. Namnet får samma villkor: "TALK, prata in. Håll inne för att skapa".
+ *
+ * ⛔ BARA I VILA (granskningen av PR 383, KAN 8). Medan TALK lyssnar, sparar eller visar ett kvitto går knappen inte att hålla in,
+ * plusset ritas inte och namnet saknar andra halvan: fältet står öppet, och en lista ovanpå det hade varit ett andra ärende mitt i
+ * det första.
+ *
+ * ⛔ TANGENTBORDET (granskningen av PR 383, MÅSTE 1). Enter startar TALK, så skapa-listan nås med Shift+F10 eller ContextMenu
+ * (`useLangtryck`), och knappen säger det med `aria-haspopup="dialog"` (listan är ett Radix-ark, `role="dialog"`) och
+ * `aria-keyshortcuts`. Före 0.103.0 öppnade Enter listan, och utan den här vägen hade listan inte gått att nå utan pekare under 768 px.
+ *
+ * @param {{ atgard: Huvudatgarden, langtryckText: string }} props
  */
-function Huvudatgard({ atgard }) {
+function Huvudatgard({ atgard, langtryckText }) {
   const talk = atgard.talk;
-  // ⛔ MED TALK STYR KROKEN KLICKET (`useTalk`): ett långtryck följs av ett klick, och det får inte öppna Skapa.
-  const handelser = talk ? talk.knapp : { onClick: atgard.onClick };
+  const knapp = talk?.knapp;
+  const vilar = !talk || talk.lage === "vila";
+  const harLangtryck = !knapp && vilar && typeof atgard.langtryck === "function";
+  const skapaBakom = Boolean(talk) && harLangtryck;
+  const lang = useLangtryck({ onLangtryck: harLangtryck ? atgard.langtryck ?? null : null, haptik: true });
+  // ⛔ MED `talk.knapp` STYR KROKEN KLICKET (`useTalk`): ett långtryck följs av ett klick, och det får inte öppna Skapa.
+  const handelser = knapp ? knapp : { ...lang.handelser, onClick: atgard.onClick };
   const haller = talk?.lage === "haller";
   return (
     <div className="flex shrink-0 items-start justify-center px-1">
@@ -291,16 +338,45 @@ function Huvudatgard({ atgard }) {
         type="button"
         {...handelser}
         data-talk-knapp={talk ? talk.lage : undefined}
-        aria-label={haller ? TALK_ORD : atgard.label}
+        aria-label={haller ? TALK_ORD : skapaBakom ? `${atgard.label}. ${langtryckText}` : atgard.label}
+        aria-haspopup={lang.aktiv ? "dialog" : undefined}
+        aria-keyshortcuts={lang.kortkommando}
         className={cx(
-          "translate-y-[calc(0.25rem-var(--bottom-nav-overhang))] inline-flex size-14 cursor-pointer touch-none items-center justify-center rounded-full select-none [-webkit-touch-callout:none]",
+          "group relative translate-y-[calc(0.25rem-var(--bottom-nav-overhang))] inline-flex size-14 cursor-pointer items-center justify-center rounded-full",
+          // `touch-none` och utan förhandsvisning bara när knappen går att hålla in: en vanlig knapp ska bete sig som en.
+          (knapp || lang.aktiv) && cx("touch-none", LANGTRYCK_KLASS),
           "bg-accent text-accent-contrast ring-4 ring-surface",
           "transition-colors duration-(--duration-fast) ease-standard hover:bg-accent-hover",
           "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
         )}
       >
         {/* ⛔ CP 2026-10-04: "Den skall bara heta en sak. TALK medans man håller inne knappen." */}
-        {haller ? <span className="text-etikett font-semibold tracking-wide">{TALK_ORD}</span> : (atgard.icon ?? <PlusIkon size={26} />)}
+        {haller ? (
+          <span className="text-etikett font-semibold tracking-wide">{TALK_ORD}</span>
+        ) : skapaBakom ? (
+          <>
+            {/* ⛔ PLUSSET FÖRST, sedan mikrofonen: det som ritas senare ligger framför. */}
+            <span
+              data-skapa-marke=""
+              aria-hidden="true"
+              className="pointer-events-none absolute top-[9px] right-[10px] inline-flex size-5 items-center justify-center opacity-60 [&_svg]:[stroke-width:3]"
+            >
+              <SkapaMarkeIkon size={20} />
+            </span>
+            <span
+              data-skapa-ikon=""
+              className={cx(
+                "relative inline-flex translate-y-px [&_svg]:size-[31px]",
+                // Kapseln fylld i knappens färg: där mikrofonen och plusset möts syns mikrofonen, inte plusset.
+                "[&_path:first-child]:fill-accent [&_path:first-child]:transition-colors [&_path:first-child]:duration-(--duration-fast) group-hover:[&_path:first-child]:fill-accent-hover",
+              )}
+            >
+              {atgard.icon ?? <PlusIkon size={31} />}
+            </span>
+          </>
+        ) : (
+          (atgard.icon ?? <PlusIkon size={26} />)
+        )}
       </button>
     </div>
   );
@@ -342,6 +418,9 @@ function platsKlass(active) {
 function BottomPost({ entry, activeHref, ark, onClick, badgeText }) {
   const arArk = Boolean(ark && entry.href === ark.href);
   const active = ark?.oppen ? arArk : entryActive(entry, activeHref);
+  // ⛔ 0.103.0: ETT LÅNGTRYCK PÅ IKONEN SKAPAR I MODULEN (`entry.skapa`), se `OpsSkapaGenvag.jsx`. Ett vanligt tryck gör det det
+  // alltid gjort. Kroken anropas före grenarna, så att både arkets knapp och länken får den (krokarnas regel).
+  const genvag = useSkapaGenvag(entry.skapa, entry.label);
   if (arArk && ark) {
     return (
       <button
@@ -349,8 +428,14 @@ function BottomPost({ entry, activeHref, ark, onClick, badgeText }) {
         aria-expanded={ark.oppen}
         aria-controls="ops-appar-ark"
         aria-current={active ? "page" : undefined}
-        onClick={() => ark.onOppen(!ark.oppen)}
-        className={platsKlass(active)}
+        {...genvag.handelser}
+        data-skapa-genvag={genvag.aktiv ? entry.skapa : undefined}
+        aria-keyshortcuts={genvag.kortkommando}
+        onClick={() => {
+          genvag.tryckt();
+          ark.onOppen(!ark.oppen);
+        }}
+        className={cx(platsKlass(active), genvag.klass)}
       >
         <span className="relative inline-flex [&_svg]:size-6">
           {entry.icon ?? <span className="inline-block size-6 rounded-full border-2 border-current" aria-hidden="true" />}
@@ -360,19 +445,25 @@ function BottomPost({ entry, activeHref, ark, onClick, badgeText }) {
       </button>
     );
   }
-  return <BottomLank entry={entry} active={active} onClick={onClick} badgeText={badgeText} />;
+  return <BottomLank entry={entry} active={active} onClick={onClick} badgeText={badgeText} genvag={genvag} />;
 }
 
 /**
- * @param {{ entry: import("../lib/nav.js").NavPost, active: boolean, onClick: (e: any) => void, badgeText: string }} props
+ * @param {{ entry: import("../lib/nav.js").NavPost, active: boolean, onClick: (e: any) => void, badgeText: string, genvag: ReturnType<typeof useSkapaGenvag> }} props
  */
-function BottomLank({ entry, active, onClick, badgeText }) {
+function BottomLank({ entry, active, onClick, badgeText, genvag }) {
   return (
     <a
       href={entry.href}
-      onClick={onClick}
+      {...genvag.handelser}
+      data-skapa-genvag={genvag.aktiv ? entry.skapa : undefined}
+      aria-keyshortcuts={genvag.kortkommando}
+      onClick={(e) => {
+        genvag.tryckt();
+        onClick(e);
+      }}
       aria-current={active ? "page" : undefined}
-      className={platsKlass(active)}
+      className={cx(platsKlass(active), genvag.klass)}
     >
       <span className="relative inline-flex [&_svg]:size-6">
         {entry.icon ?? <span className="inline-block size-6 rounded-full border-2 border-current" aria-hidden="true" />}
@@ -431,6 +522,7 @@ export const ORD_OPSBOTTOMNAV = {
   sheetLabel: { sv: "Meny", en: "Menu" },
   closeLabel: { sv: "Stäng", en: "Close" },
   badgeText: { sv: "nya", en: "new" },
+  langtryckText: { sv: "Håll inne för att skapa", en: "Hold to create" },
 };
 
 /**

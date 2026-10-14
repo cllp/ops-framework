@@ -54,6 +54,7 @@ import { build } from "esbuild";
 import postcss from "postcss";
 import tailwind from "@tailwindcss/postcss";
 import { startaWebblasare } from "./lib/matVyport.mjs";
+import { kravPaMittknappen, matMittknappen } from "./lib/mittknappMatt.mjs";
 
 const rot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const argv = process.argv.slice(2);
@@ -490,15 +491,23 @@ async function chattensNattskiva() {
         if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `chatt-8-skrivfalt-${vp.width}.png`) });
         await page.locator('[data-ops-samtal="agent"] [data-mikrofon]').click();
         await page.waitForSelector('[data-rostlage="spelar"]', { timeout: 3000 });
-        const spelar = await m("spelar");
+        // ⛔ ÄNDRAT 0.103.0: under inspelningen står TALK:s yta i fältets plats (CP 2026-10-14, "inte gå en omväg via textfältet"), med
+        // Avbryt och Klar. Förut mättes stopp och ljudvåg inne i det rundade fältet.
+        const spelar = await page.evaluate(() => {
+          const b = (/** @type {Element} */ e) => e.getBoundingClientRect();
+          const y = /** @type {HTMLElement} */ (document.querySelector('[data-ops-samtal="agent"] [data-rostyta]'));
+          const knappar = [...y.querySelectorAll("button")].map((k) => ({ namn: k.getAttribute("aria-label"), w: b(k).width, h: b(k).height, inom: b(k).left >= b(y).left - 0.5 && b(k).right <= b(y).right + 0.5 }));
+          return { knappar, falt: Boolean(document.querySelector('[data-ops-samtal="agent"] [data-skrivruta]')), inspelning: Boolean(y.querySelector("[data-ops-inspelning]")) };
+        });
         matt.push(`${namn}: ${JSON.stringify(spelar)}`);
-        krav(spelar.knappar.length === 2 && spelar.knappar.every((k) => k.w >= 43.5 && k.h >= 43.5 && k.iFaltet) && spelar.knappar[0].namn === "Avbryt inspelningen", `${namn}: under inspelningen står stopp och ljudvåg i fältet, 44 px (${JSON.stringify(spelar.knappar)}).`);
+        krav(spelar.inspelning && !spelar.falt && spelar.knappar.map((k) => k.namn).join("|") === "Avbryt|Klar, skicka det du sagt" && spelar.knappar.every((k) => k.w >= 43.5 && k.h >= 43.5 && k.inom), `${namn}: under inspelningen står TALK:s yta i fältets plats med Avbryt och Klar, 44 px (${JSON.stringify(spelar)}).`);
         if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `chatt-8-inspelning-${vp.width}.png`) });
-        await page.locator('[data-ops-samtal="agent"] [data-mikrofon]').click();
-        await page.waitForFunction(() => /** @type {HTMLTextAreaElement | null} */ (document.querySelector('[data-ops-samtal="agent"] textarea'))?.value.length > 0, null, { timeout: 4000 });
+        await page.locator('[data-ops-samtal="agent"] [data-rostyta] [data-talk-skicka]').click();
+        // ⛔ ÄNDRAT 0.103.0: det utskrivna skickas och står i loggen, och fältet kommer tillbaka tomt med ljudvågen.
+        await page.waitForFunction(() => !document.querySelector('[data-ops-samtal="agent"] [data-rostyta]') && [...document.querySelectorAll('[data-ops-samtal="agent"] [role=log] [data-bubbla]')].some((x) => (x.textContent || "").includes("Påminn mig om momsen på fredag")), null, { timeout: 4000 });
         const klar = await m("klar");
         matt.push(`${namn}: ${JSON.stringify(klar)}`);
-        krav(klar.text === "Påminn mig om momsen på fredag" && klar.rad === null && klar.knappar.some((k) => k.namn === "Skicka"), `${namn}: det utskrivna ska stå i fältet, oskickat, med Skicka (${JSON.stringify(klar)}).`);
+        krav(klar.text === "" && klar.rad === null && klar.knappar.length === 1 && klar.knappar[0].namn === "Prata in", `${namn}: det utskrivna ska stå i loggen och fältet vara tomt med ljudvågen (${JSON.stringify(klar)}).`);
         if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `chatt-8-utskrivet-${vp.width}.png`) });
         krav((await over(page)) <= 0, `${namn}: sidan flödar över ${await over(page)} px horisontellt.`);
       } catch (e) {
@@ -5822,25 +5831,45 @@ for (const [namn, vp] of /** @type {const} */ ([["apparaden 390 px", { width: 39
 
 // ══ 39. TALK VID 390 OCH 1280 PX (0.57.0, cllp/lifehub.app#2) ════════════════════════════════════════════════════════════════
 // CP 2026-10-04: långtryck på plusset visar bara TALK, ett fält kommer fram och ligger kvar när man släpper, mikrofonen
-// skickar. På telefon mäts hållet på riktigt (mus ned, vänta, mus upp). På dator finns ingen bottenrad, så fältet öppnas ur
+// skickar. ⛔ 0.103.0: på telefon är mittknappen en mikrofon och ett tryck startar fältet. På dator finns ingen bottenrad, så fältet öppnas ur
 // raden "TALK, prata in" i huvudets plus. Mätt: fältet står helt inom skärmen och OVANFÖR bottenraden (ett fält under tummen
 // som täcker plusset hade gjort att man inte ser var man tryckte), knapparna är minst 44 px, och sidan flödar inte i sidled.
 for (const [namn, vp] of /** @type {const} */ ([["TALK 390 px", { width: 390, height: 844 }], ["TALK 1280 px", { width: 1280, height: 900 }]])) {
   const { page, context } = await oppna("talk", vp);
   try {
     if (vp.width < 768) {
-      const plus = page.locator("[data-talk-knapp]");
-      await plus.waitFor({ timeout: 4000 });
-      const r = await plus.boundingBox();
-      if (!r) throw new Error("plusset har ingen yta");
-      await page.mouse.move(r.x + r.width / 2, r.y + r.height / 2);
-      await page.mouse.down();
-      await page.waitForTimeout(650);
-      const haller = await plus.evaluate((b) => ({ text: (b.textContent || "").trim(), lage: b.getAttribute("data-talk-knapp") }));
-      matt.push(`${namn}: medan fingret ligger kvar ${JSON.stringify(haller)}`);
-      krav(haller.text === "TALK" && haller.lage === "haller", `${namn}: plusset visar ${JSON.stringify(haller.text)} i läget ${haller.lage} under hållet, väntat bara TALK.`);
-      if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `talk-haller-${vp.width}.png`) });
-      await page.mouse.up();
+      // ⛔ 0.103.0: MITTKNAPPEN ÄR EN MIKROFON, och ett vanligt tryck startar TALK. CP 2026-10-14, "kör": "TALK med Microfon-ikon
+      // direkt". Hållet som mättes här (knappen visade TALK medan fingret låg kvar) finns inte längre från mittknappen.
+      const mik = page.locator("[data-talk-knapp]");
+      await mik.waitFor({ timeout: 4000 });
+      const fore = await mik.evaluate((b) => ({ namn: b.getAttribute("aria-label"), lage: b.getAttribute("data-talk-knapp"), svg: Boolean(b.querySelector("svg")) }));
+      matt.push(`${namn}: mittknappen före trycket ${JSON.stringify(fore)}`);
+      // ⛔ #382: ytan har `skapa`, så ett långtryck öppnar skapa-listan och namnet säger det.
+      const vantatNamn = "TALK, prata in. Håll inne för att skapa";
+      krav(fore.namn === vantatNamn && fore.lage === "vila" && fore.svg, `${namn}: mittknappen heter ${JSON.stringify(fore.namn)} i läget ${fore.lage}, väntat ${JSON.stringify(vantatNamn)} i vila med en ikon.`);
+      // ⛔ PLUSSET BAKOM MIKROFONEN (0.103.0, #382; granskningen av PR 383, BÖR 5). CP 2026-10-14: "en stor mikrofon och liksom
+      // lite bakomliggande ett plus som indikerar det". Kraven och mätningen står i `scripts/lib/mittknappMatt.mjs`, samma som
+      // `mikrofon-montage.mjs` läser: knappen 56 px, mikrofonen 30 till 32 px, plusset 18 till 20 px upp till höger med strecken
+      // inom cirkeln, före mikrofonen i ordningen och mött av dess kapsel, kapseln i knappens färg, plusset dämpat men synligt.
+      // ⛔ Före granskningen krävdes motsatsen: ett märke med ring som INTE fick överlappa mikrofonen. Det var en notisbricka framför.
+      const plusMatt = await mik.evaluate(matMittknappen);
+      const plusKrav = kravPaMittknappen(plusMatt);
+      for (const rad of plusKrav.rader) matt.push(`${namn}: ${rad}`);
+      for (const f of plusKrav.fel) krav(false, `${namn}: ${f}`);
+      krav(plusKrav.rader.length > 0, `${namn}: mittknappen mättes inte (${JSON.stringify(plusMatt)}).`);
+      // ⛔ TANGENTBORDET (granskningen av PR 383, MÅSTE 1): Shift+F10 öppnar skapa-listan i en riktig webbläsare, och dess egen
+      // kontextmeny läggs inte ovanpå (det syns inte i en skärmbild, men `contextmenu` ska vara stoppad).
+      const tangentAttr = await mik.evaluate((b) => ({ popup: b.getAttribute("aria-haspopup"), kort: b.getAttribute("aria-keyshortcuts") }));
+      krav(tangentAttr.popup === "dialog" && tangentAttr.kort === "Shift+F10", `${namn}: mittknappen har aria-haspopup ${tangentAttr.popup} och aria-keyshortcuts ${tangentAttr.kort}, väntat dialog och Shift+F10.`);
+      await mik.focus();
+      await page.keyboard.press("Shift+F10");
+      const lista = page.getByRole("dialog", { name: "Skapa" });
+      await lista.waitFor({ timeout: 4000 });
+      matt.push(`${namn}: Shift+F10 på mittknappen öppnade skapa-listan`);
+      await page.keyboard.press("Escape");
+      await lista.waitFor({ state: "detached", timeout: 4000 });
+      if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `talk-mikrofon-${vp.width}.png`) });
+      await mik.click();
     } else {
       // ⛔ 0.78.0 (lane 19): huvudets plus har ingen TALK-rad på bred skärm. Raden ska vara borta, och vägen in är
       // mikrofonknappen i huvudet (#276), som gör exakt det raden gjorde.
@@ -5865,7 +5894,7 @@ for (const [namn, vp] of /** @type {const} */ ([["TALK 390 px", { width: 390, he
       return { lage: falt.getAttribute("data-lage"), l: fr.left, r: fr.right, t: fr.top, b: fr.bottom, navTopp: nav ? nav.getBoundingClientRect().top : null, knappar, prickar: falt.querySelectorAll("[data-talk-prickar] > span").length, scroll: document.documentElement.scrollWidth, klient: document.documentElement.clientWidth };
     });
     matt.push(`${namn}: fältet ${m.lage} ${m.l.toFixed(0)}..${m.r.toFixed(0)} x ${m.t.toFixed(0)}..${m.b.toFixed(0)}, bottenraden från ${m.navTopp}, knappar ${JSON.stringify(m.knappar.map((k) => [k.namn, Math.round(k.w), Math.round(k.h)]))}, ${m.prickar} prickar`);
-    krav(m.lage === "lyssnar", `${namn}: fältet är i läget ${m.lage} efter släppet, väntat lyssnar (släppet avslutar inte).`);
+    krav(m.lage === "lyssnar", `${namn}: fältet är i läget ${m.lage} efter trycket, väntat lyssnar.`);
     krav(m.l >= 0 && m.r <= vp.width && m.b <= vp.height, `${namn}: fältet går utanför skärmen (${m.l.toFixed(0)}..${m.r.toFixed(0)}, botten ${m.b.toFixed(0)}).`);
     if (m.navTopp !== null) krav(m.b <= m.navTopp, `${namn}: fältet slutar på ${m.b.toFixed(0)} och bottenraden börjar på ${m.navTopp.toFixed(0)}. Fältet ska stå ovanför.`);
     if (vp.width < 768) krav(m.navTopp !== null, `${namn}: ingen bottenrad hittades på telefon.`);
@@ -6555,7 +6584,7 @@ for (const [namn, vp] of /** @type {const} */ ([["TALK-knappen 1280 px", { width
       });
       matt.push(`${namn}: huvudets knapp display ${m.display}, ${m.w}x${m.h} px; bottenradens plus ${JSON.stringify(m.plus)}`);
       krav(m.finns, `${namn}: knappen finns inte i dokumentet alls. Den ska finnas och vara gömd med CSS, annars mäts inte att det är CSS:en som gömmer den.`);
-      krav(!m.finns || m.display === "none" && m.w === 0 && m.h === 0 && m.synligaMikrofoner === 0, `${namn}: huvudets mikrofon syns på telefon (display ${m.display}, ${m.w}x${m.h}). Mobilens väg är långtryck på bottenradens plus.`);
+      krav(!m.finns || m.display === "none" && m.w === 0 && m.h === 0 && m.synligaMikrofoner === 0, `${namn}: huvudets mikrofon syns på telefon (display ${m.display}, ${m.w}x${m.h}). Mobilens väg är bottenradens mikrofon (0.103.0).`);
       krav(!!m.plus && m.plus.w >= 43.5, `${namn}: bottenradens plus hittades inte, eller är mindre än 44 px (${JSON.stringify(m.plus)}).`);
       if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `talk-knapp-${vp.width}.png`) });
     }

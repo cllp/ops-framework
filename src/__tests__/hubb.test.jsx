@@ -688,3 +688,26 @@ describe("⛔ hubbPoster: ett modul-id som heter som något på Object.prototype
     });
   }
 });
+
+describe("⛔ Appar har vyns tunna huvud med åtgärden (0.103.0, CP 2026-10-14)", () => {
+  const G = (/** @type {string[]} */ ids) => ({ id: "bolaget", namn: { sv: "Claes Philip Staiger AB" }, moduler: ids });
+  it("rubriken Appar står i huvudet, och appens åtgärd står på samma rad och gör det den ska", async () => {
+    const { OpsVyAtgard } = await import("../components/OpsTillbaka.jsx");
+    const skapa = vi.fn();
+    render(<OpsGruppHubb grupp={G(["ekonomi"])} moduler={moduler()} atgard={<OpsVyAtgard onClick={skapa}>Skapa app</OpsVyAtgard>} />);
+    const rubrik = screen.getByRole("heading", { name: "Appar" });
+    const huvud = rubrik.closest("[data-vyhuvud]");
+    expect(huvud).toBeTruthy();
+    const knapp = within(/** @type {HTMLElement} */ (huvud)).getByRole("button", { name: "Skapa app" });
+    fireEvent.click(knapp);
+    expect(skapa).toHaveBeenCalledTimes(1);
+  });
+
+  it("utan åtgärd står bara rubriken, och en åtgärd utan onClick kastar", async () => {
+    const { OpsVyAtgard } = await import("../components/OpsTillbaka.jsx");
+    render(<OpsGruppHubb grupp={G(["ekonomi"])} moduler={moduler()} />);
+    const huvud = screen.getByRole("heading", { name: "Appar" }).closest("[data-vyhuvud]");
+    expect(within(/** @type {HTMLElement} */ (huvud)).queryAllByRole("button")).toHaveLength(0);
+    expect(() => render(<OpsVyAtgard onClick={/** @type {any} */ (undefined)}>X</OpsVyAtgard>)).toThrow(/onClick krävs/);
+  });
+});

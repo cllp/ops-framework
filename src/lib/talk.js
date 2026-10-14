@@ -28,6 +28,7 @@
  */
 
 import { rapporteraFel } from "./felrapport.js";
+import { ordet } from "./ord.js";
 
 /** Hur länge ett tryck måste ligga kvar för att vara ett långtryck. Samma tal som kalenderns snabbtitt och SessionStudio. */
 export const LANGTRYCK_MS = 450;
@@ -36,22 +37,33 @@ export const LANGTRYCK_MS = 450;
 export const TALK_ORD = "TALK";
 
 /**
- * Namnet på vägen in i TALK utan att hålla (#276): raden i Skapa och huvudets mikrofonknapp på dator. EN sträng, så
- * att raden och knappen inte kan börja heta olika saker.
+ * Mikrofonknappens namn per läge och språk (#276, granskningen av PR 383, BÖR 2). Namnet är det skärmläsaren läser och det tooltipen
+ * visar, så den som inte ser att knappen är tänd hör det i stället. ⛔ EN TABELL FÖR BÅDA SPRÅKEN: förut fanns namnen bara på svenska,
+ * och på engelska blev mittknappen "TALK, prata in. Hold to create", halvt svenskt, eftersom andra halvan kom ur bottenradens ordbok.
+ * @type {import("./ord.js").Ordbok}
  */
-export const TALK_PRATA_IN = "TALK, prata in";
+export const ORD_TALKKNAPP = {
+  prataIn: { sv: "TALK, prata in", en: "TALK, speak" },
+  lyssnar: { sv: "TALK, lyssnar", en: "TALK, listening" },
+  sparar: { sv: "TALK, sparar", en: "TALK, saving" },
+  sparat: { sv: "TALK, sparat", en: "TALK, saved" },
+};
 
 /**
- * Huvudets mikrofonknapp säger vilket läge inspelningen är i (#276). Namnet är det skärmläsaren läser och det tooltipen
- * visar, så den som inte ser att knappen är tänd hör det i stället.
+ * Namnet på vägen in i TALK utan att hålla (#276): raden i Skapa och huvudets mikrofonknapp på dator. EN sträng, så
+ * att raden och knappen inte kan börja heta olika saker. Svenska; på andra språk `talkKnappNamn("vila", sprak)`.
+ */
+export const TALK_PRATA_IN = ORD_TALKKNAPP.prataIn.sv;
+
+/**
+ * Huvudets mikrofonknapp och bottenradens mikrofon säger vilket läge inspelningen är i (#276), på språket som gäller.
  * @param {Talklage} lage
+ * @param {string} [sprak] "sv" eller "en". Ett språk utan text ger svenska, som `ordet`.
  * @returns {string}
  */
-export function talkKnappNamn(lage) {
-  if (lage === "haller" || lage === "lyssnar") return `${TALK_ORD}, lyssnar`;
-  if (lage === "skickar") return `${TALK_ORD}, sparar`;
-  if (lage === "sparat") return `${TALK_ORD}, sparat`;
-  return TALK_PRATA_IN;
+export function talkKnappNamn(lage, sprak = "sv") {
+  const nyckel = lage === "haller" || lage === "lyssnar" ? "lyssnar" : lage === "skickar" ? "sparar" : lage === "sparat" ? "sparat" : "prataIn";
+  return ordet(ORD_TALKKNAPP, nyckel, sprak);
 }
 
 /**
@@ -125,6 +137,88 @@ export function talkKvitto(svar) {
     throw new Error(`TALK: kvittots angra ska vara en funktion, fick ${typeof angra}. Utan den ritas ingen Ångra.`);
   }
   return { text: kvitto.trim(), angra: typeof angra === "function" ? /** @type {() => Promise<void>} */ (angra) : null };
+}
+
+/*
+ * ══ ⛔ SAMTALET SOM UNDERLAG (0.103.0) ═══════════════════════════════════════════════════════════════════════════════
+ *
+ * CP 2026-10-14: "vi kanske vill kunna att skapa ett ärende manuellt på det som sägs genom att klicka på skapa ärende, händelse
+ * eller meddelande själv med den man pratar in? [...] där historiken finns med om man pratat med agenten olika omgångar." Fältet
+ * håller därför en rad per omgång som nådde kvittot, och tre ikoner i dess rubrikrad lämnar hela samtalet vidare. Personen
+ * justerar och sparar själv i formuläret, och agenten är inte inblandad. Raderna, underlaget och förifyllningen står här, som
+ * rena funktioner, så att de går att prova utan fält och utan skal.
+ */
+
+/**
+ * En omgång i fältets samtal: det personen sade och agentens kvitto.
+ * @typedef {object} Talkrad
+ * @property {string} hord Det som hördes (`text` till `onTalk`). Tom när taligenkänningen var av eller föll: då finns bara ljudet.
+ * @property {string} kvitto Agentens kvitto, som det stod i fältet.
+ * @property {boolean} angrat Ångra lyckades på den här omgången.
+ */
+
+/**
+ * Det en mottagare får när personen trycker på en av rubrikradens ikoner.
+ * @typedef {object} Talkunderlag
+ * @property {string} text Det personen sade, omgångarna åtskilda med en tom rad. Omgångar där inget hördes hoppas över.
+ * @property {string} samtal Hela samtalet, en rad per replik: "Du: …" och "Agenten: …". Ett ångrat kvitto bär "(ångrat)".
+ * @property {ReadonlyArray<Talkrad>} rader Omgångarna, i ordning. Kopior: mottagaren kan inte ändra fältets historik.
+ */
+
+/**
+ * Underlaget ur fältets historik, eller `null` när inget av det personen sade hördes.
+ *
+ * ⛔ `null` NÄR INGEN TEXT FINNS, OCH DÅ RITAS INGA IKONER. Utan taligenkänning (av som förval) har ramverket bara ljudet, och
+ * ett ärende "av samtalet" hade öppnats tomt eller med agentens kvitto som rubrik. En knapp som lovar samtalet och lämnar
+ * ingenting är samma tysta nedsläpp som regel 5 förbjuder, bara med ett formulär framför.
+ *
+ * @param {ReadonlyArray<Talkrad>} rader
+ * @returns {Talkunderlag | null}
+ */
+export function talkUnderlag(rader) {
+  const sagt = rader.map((r) => r.hord.trim()).filter(Boolean);
+  if (sagt.length === 0) return null;
+  const samtal = rader
+    .flatMap((r) => [...(r.hord.trim() ? [`Du: ${r.hord.trim()}`] : []), `Agenten: ${r.kvitto}${r.angrat ? " (ångrat)" : ""}`])
+    .join("\n");
+  return { text: sagt.join("\n\n"), samtal, rader: rader.map((r) => ({ hord: r.hord, kvitto: r.kvitto, angrat: r.angrat })) };
+}
+
+/**
+ * Längsta rubrik skalet fyller i ur samtalet (0.103.0). ⛔ Formuläret är appens och ramverket vet inte dess tak, så talet är valt
+ * under det appar faktiskt har: bolag-ops tar 120 tecken både för en händelses rubrik (`MAX_RUBRIK`) och ett ärendes (`MAX_TITLE`),
+ * mätt 2026-10-14. 80 ryms i båda och läses på en rad i telefonens lista.
+ */
+export const TALK_RUBRIK_MAX = 80;
+
+/**
+ * Rubrik och beskrivning ur det personen sade, för ett formulär som öppnas ifyllt (0.103.0).
+ *
+ * Regeln:
+ *   1. Rubriken är FÖRSTA MENINGEN: fram till en punkt, ett utrop eller ett frågetecken som följs av en stor bokstav eller av
+ *      textens slut, eller fram till första radbrytningen. "kl. 19" delar alltså inte. En avslutande punkt tas bort (en rubrik
+ *      har ingen), och första bokstaven blir stor: taligenkänningen skriver ofta allt med gemener.
+ *   2. Beskrivningen är RESTEN, efter första meningen. Tom när allt som sades var en mening.
+ *   3. ⛔ ÄR FÖRSTA MENINGEN LÄNGRE ÄN TAKET kapas rubriken vid sista mellanslaget före taket och får "…", och då är
+ *      beskrivningen HELA TEXTEN. Annars hade slutet av första meningen försvunnit mellan rubriken och beskrivningen.
+ *      Chromes taligenkänning sätter sällan punkt på svenska, så det här är det vanliga fallet och inte ett undantag.
+ *
+ * @param {string} text Underlagets `text`.
+ * @param {number} [tak] Förval `TALK_RUBRIK_MAX`.
+ * @returns {{ rubrik: string, beskrivning: string }}
+ */
+export function talkForifyllt(text, tak = TALK_RUBRIK_MAX) {
+  if (!Number.isInteger(tak) || tak < 2) throw new Error(`talkForifyllt: taket ska vara ett heltal från 2, fick ${String(tak)}.`);
+  const ren = String(text ?? "").trim();
+  const slut = ren.search(/[.!?](?=\s+\p{Lu}|\s*$)|\n/u);
+  const forsta = (slut === -1 ? ren : ren.slice(0, ren[slut] === "\n" ? slut : slut + 1)).trim();
+  const rest = slut === -1 ? "" : ren.slice(slut + 1).trim();
+  const utanPunkt = forsta.replace(/\.$/, "");
+  const stor = utanPunkt ? utanPunkt.charAt(0).toLocaleUpperCase("sv") + utanPunkt.slice(1) : "";
+  if (stor.length <= tak) return { rubrik: stor, beskrivning: rest };
+  const kap = stor.slice(0, tak - 1);
+  const mellan = kap.lastIndexOf(" ");
+  return { rubrik: `${(mellan > tak / 2 ? kap.slice(0, mellan) : kap).trimEnd()}…`, beskrivning: ren };
 }
 
 /** Längsta inspelningen. Ett fält som glömts öppet ska inte spela in i en timme. */
@@ -241,10 +335,53 @@ export function kanBeOmMikrofon(feltext) {
 }
 
 /**
+ * ⛔ INGET LJUD OCH INGEN TEXT (lifehub.app#253). CP 2026-10-14 på iPhone: "Ljudinspelning. Efter att jag fått en fråga så kan man
+ * inte spela in mer ljud." Andra omgången i samma samtal gav 0 byte ljud och ingen text, och `useTalk` lämnade ändå det tomma till
+ * appen. Appen skickade det vidare, servern svarade "Inget ljud kom fram. Försök igen.", och Försök igen skickade samma 0 byte en
+ * gång till, för alltid. Nu skickas ingenting, fältet säger det här, och Spela in igen startar en ny omgång med ny ström och ny
+ * igenkänning. Meningen säger vad som hände och vad man gör, och den är sann: ingenting lämnade telefonen.
+ */
+export const TALK_INGET_LJUD = "Mikrofonen gav inget ljud, och inget hördes som text. Ingenting skickades. Tryck på Spela in igen och prata en gång till.";
+
+/**
+ * Om fältet ska erbjuda en ny inspelning i stället för Försök igen: när det som fanns att skicka var tomt (`TALK_INGET_LJUD`).
+ * Försök igen hade skickat samma tomma ljud igen.
+ * @param {string | undefined} feltext
+ * @returns {boolean}
+ */
+export function kanSpelaInIgen(feltext) {
+  return feltext === TALK_INGET_LJUD;
+}
+
+/**
+ * Om alla ljudspår i en ström är tysta enligt webbläsaren: `muted` eller redan avslutade. En ström utan spår, eller ett spår som inte
+ * säger något om sig (proven), räknas inte som tyst.
+ * @param {unknown} strom
+ * @returns {boolean}
+ */
+export function tystStrom(strom) {
+  const s = /** @type {any} */ (strom);
+  const spar = typeof s?.getAudioTracks === "function" ? s.getAudioTracks() : typeof s?.getTracks === "function" ? s.getTracks() : [];
+  return Array.isArray(spar) && spar.length > 0 && spar.every((t) => t?.muted === true || t?.readyState === "ended");
+}
+
+/**
+ * Det inspelaren såg om strömmen, för felrapporten när ljudet blev tomt (lifehub.app#253). ⛔ SKÄLET ÄR REGEL 3: orsaken på iOS är en
+ * hypotes, och de här fälten är det som kan avgöra den ur en riktig telefon.
+ * @typedef {object} Inspelningsdiagnos
+ * @property {boolean} tystVidStart Strömmen som spelades in var tyst när inspelningen började (efter en eventuell omhämtning).
+ * @property {boolean} omhamtad Den första strömmen var tyst och en ny hämtades.
+ * @property {boolean} tystVidStopp Strömmen var tyst när inspelningen stoppades.
+ * @property {number} bitar Antalet bitar med data som webbläsaren lämnade.
+ */
+
+/**
  * En inspelare: det komponenten behöver av webbläsaren, och inget mer.
  * @typedef {object} Inspelare
  * @property {() => Promise<void>} starta Öppnar mikrofonen och börjar spela in. Kastar med webbläsarens fel.
- * @property {() => Promise<{ blob: Blob, mimeType: string, sekunder: number }>} stoppa Slutar och lämnar ljudet.
+ * @property {() => Promise<{ blob: Blob, mimeType: string, sekunder: number, diagnos?: Inspelningsdiagnos }>} stoppa Slutar och lämnar ljudet.
+ *   ⛔ Ljudet kan vara 0 byte (en tyst ström ger inga bitar). Inspelaren kastar inte för det: `useTalk` avgör om något finns att skicka,
+ *   eftersom bara den vet om texten kom fram.
  * @property {() => void} kasta Slutar och kastar ljudet. Mikrofonen släpps.
  * @property {() => number} niva Ljudnivån just nu, 0 till 1, för prickarna.
  */
@@ -282,6 +419,21 @@ export function webblasarensInspelare(miljo = {}) {
    * inspelningsprick. Ett försök som bara avbrutits, utan en ny start, stänger `useTalk` när svaret kommer.
    */
   let forsok = 0;
+  /** Det `starta` såg om strömmen, för `diagnos`. */
+  let tystVidStart = false;
+  let omhamtad = false;
+  /**
+   * Strömmen för försöket `mitt`, eller ett fel när ett nyare försök startat under tiden (då stängs den direkt, se `forsok`).
+   * @param {number} mitt
+   */
+  const hamta = async (mitt) => {
+    const s = await /** @type {MediaDevices} */ (md).getUserMedia({ audio: true });
+    if (mitt !== forsok) {
+      s.getTracks().forEach((t) => t.stop());
+      throw new Error("Inspelningen avbröts innan mikrofonen öppnades.");
+    }
+    return s;
+  };
   const slapp = () => {
     strom?.getTracks().forEach((t) => t.stop());
     strom = null;
@@ -294,11 +446,23 @@ export function webblasarensInspelare(miljo = {}) {
       if (!md || !MR) throw new Error("Den här webbläsaren kan inte spela in ljud.");
       forsok += 1;
       const mitt = forsok;
-      const ny = await md.getUserMedia({ audio: true });
-      if (mitt !== forsok) {
+      let ny = await hamta(mitt);
+      omhamtad = false;
+      /*
+       * ⛔ EN TYST STRÖM HÄMTAS OM, EN GÅNG (lifehub.app#253). ⛔ HYPOTES, INTE MÄTT PÅ EN IPHONE: WebKit på iOS kan lämna en ström
+       * vars spår alla är `muted` när taligenkänningen (`SpeechRecognition`) nyss haft mikrofonen, eftersom den tar ljudet genom
+       * en egen väg och telefonen har ett ljudpass åt gången. En inspelning på en sådan ström ger 0 byte, och det var vad andra
+       * omgången efter agentens fråga gav (servern svarade "Inget ljud kom fram"). Skälet att pröva en ny ström är att det är
+       * billigt och inte kan göra en fungerande inspelning sämre: en ström som inte är tyst rörs inte. EN gång och inte i en
+       * slinga: är också den nya tyst spelas den in ändå, och blir ljudet tomt säger fältet det (`TALK_INGET_LJUD`).
+       * Vad som faktiskt hände står i `diagnos`, som `useTalk` rapporterar när ljudet blev tomt.
+       */
+      if (tystStrom(ny)) {
         ny.getTracks().forEach((t) => t.stop());
-        throw new Error("Inspelningen avbröts innan mikrofonen öppnades.");
+        omhamtad = true;
+        ny = await hamta(mitt);
       }
+      tystVidStart = tystStrom(ny);
       strom = ny;
       valtFormat = valjFormat(MR.isTypeSupported?.bind(MR));
       rec = new MR(strom, valtFormat ? { mimeType: valtFormat } : undefined);
@@ -335,10 +499,12 @@ export function webblasarensInspelare(miljo = {}) {
           const mimeType = r.mimeType || (bitar[0] && bitar[0].type) || valtFormat || "audio/mp4";
           const blob = new Blob(bitar, { type: mimeType });
           const sekunder = Math.round((nu() - start) / 100) / 10;
+          /** @type {Inspelningsdiagnos} */
+          const diagnos = { tystVidStart, omhamtad, tystVidStopp: tystStrom(strom), bitar: bitar.length };
           rec = null;
           valtFormat = "";
           slapp();
-          klar({ blob, mimeType, sekunder });
+          klar({ blob, mimeType, sekunder, diagnos });
         };
         r.stop();
       });
@@ -482,8 +648,16 @@ export function igenkanningensSprak(sprak) {
  * `onresult` efter att nästa försök startat, och utan numret skrev den in i det nya försökets text eller startade en andra
  * igenkännare som aldrig stoppades. Varje hanterare gör ingenting när försöket den hör till inte längre är det pågående.
  *
- * ⛔ HELLRE INGEN TEXT ÄN EN HALV (MÅSTE 2). Står ett ord kvar som aldrig blev slutligt när igenkänningen stoppas, eller ger
- * webbläsaren aldrig sitt sista besked inom väntetiden, blir texten tom, och appen får ljudet som förut.
+ * ⛔ HELLRE INGEN TEXT ÄN EN HALV (MÅSTE 2). Ger webbläsaren aldrig sitt sista besked inom väntetiden, faller igenkänningen
+ * med ett riktigt fel, eller avbryts den utifrån (`aborted`), blir texten tom, och appen får ljudet som förut.
+ *
+ * ⛔ ÄNDRAT 0.103.0: PRELIMINÄR TEXT VID ETT STOPP SOM PERSONEN BAD OM ÄR TEXTEN. MÅSTE 2 räknade förut också den här texten som
+ * halv, och då kastades den. CP 2026-10-14 såg "Skriver ut det inspelade…" under chattens skrivfält fast appen slagit på
+ * igenkänningen. ⛔ HYPOTES, INTE MÄTT PÅ EN IPHONE: Safari på iOS markerar ofta inget resultat som slutligt i `continuous`-läge, så
+ * allt som hördes stod som preliminärt när `onend` kom efter `stop()`, och hela texten blev tom varje gång. Webbläsaren har då
+ * sagt sitt sista ord (`onend` kom inom väntetiden, inget fel), och det preliminära är dess bästa bud på det som sades fram till
+ * stoppet: samma bud som redan räknas som hel text när Chrome tar en paus mitt i (`onend` medan den lyssnar, nedan). Det som
+ * fortfarande gör texten ogiltig är det som verkligen hugger av den: ett fel, ett avbrott och en väntetid som tar slut.
  *
  * @param {{ SpeechRecognition?: any, setTimeout?: typeof setTimeout, nu?: () => number }} [miljo]
  * @returns {Igenkanning | null}
@@ -580,8 +754,12 @@ export function webblasarensIgenkanning(miljo = {}) {
           }
         }
       }
-      // Vid stopp: ett ord som aldrig blev slutligt gör texten ofullständig.
-      if (pagaende) trasig = true;
+      // ⛔ Vid stopp: det preliminära hör till texten (0.103.0, se filhuvudet ovanför `webblasarensIgenkanning`). Förut gjorde ett
+      // ord som aldrig blev slutligt hela texten ogiltig, och på iOS blev det inget ord som var slutligt.
+      if (pagaende) {
+        slutlig = `${slutlig} ${pagaende}`.trim();
+        pagaende = "";
+      }
       narSlut?.();
       narSlut = null;
     };

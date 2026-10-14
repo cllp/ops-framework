@@ -9,6 +9,171 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.103.0
+
+**Samtalet i TALK-fältet, och tre ikoner som gör det till ett meddelande, en händelse eller ett ärende. Mittknappen är en
+mikrofon, och ett långtryck på ikonerna i raden skapar i modulen.**
+
+CP 2026-10-14: "vi kanske vill kunna att skapa ett ärende manuellt på det som sägs genom att klicka på skapa ärende, händelse
+eller meddelande själv med den man pratar in? Inte så dumt med 3 knappar/ikoner när man pratat in som option, där historiken
+finns med om man pratat med agenten olika omgångar. Så bubblans storlek med texten får en fixed size men texten scrollar där i,
+och överst finns en headerbar med ikonerna för chatt, händelse, kalender där man för in all text från konversationen direkt. Och
+om det är i en chatt så är flödet 'fortsätt i chatten'." Skärmbilder mot en byggd yta, 390 och 1280 px i mörkt läge:
+`docs/jamforelser/0.103.0/` (`node scripts/talk-montage.mjs`).
+
+CP 2026-10-14, "kör" på förslaget: "Långpress på ikoner och TALK med Microfon-ikon direkt? ... Att håller man inne knappen på
+kalender kommer man direkt in i skapa ny händelse, default datum är idag (det skall alltid ställas in om det inte finns nåt
+datum). Under appar, blir det 'Skapa app', under Ärenden blir det Skapa ärende. Grupp-ikonen i telefonen långpress blir skapa
+grupp. Då skulle vi kunna göra +:et till en Mikrofon". Skärmbilder mot en byggd yta, 390 px i mörkt läge:
+`docs/jamforelser/0.103.0/ramverk-mikrofon-390.png`, `ramverk-tips-390.png` och `ramverk-kalender-hall-390.png`
+(`node scripts/mikrofon-montage.mjs`).
+
+Tal i chatten medan man pratar, 390 px i mörkt läge: `docs/jamforelser/0.103.0/ramverk-chatt-tal-390.png`
+(`node scripts/chatt-tal-montage.mjs`). Förebilden är ramverkets eget TALK-fält, `ramverk-samtal-390.png`.
+
+### Tillagt: Appar har vyns huvud, och "+ Skapa app" står i det
+
+CP 2026-10-14, med en skärmbild av Appar där sidan började direkt med korten och "Skapa en app" var ett eget kort längst ned: "App
+panelen och Skapa app kan få vara enligt samma princip i header som meddelanden."
+
+- `OpsGruppHubb` ritar vyns tunna huvud: ikonen, "Appar" och `atgard` (ny prop).
+- `OpsVyAtgard`: åtgärden i ett vyhuvud, med Meddelandens form. `OpsMeddelanden` använder den för "+ Nytt meddelande".
+
+### Granskningen av PR 383
+
+- Plussets streck sätts med en klass på plussets ram (`[&_svg]:[stroke-width:3]`). `strokeWidth={3}` på ikonen gjorde ingenting, eftersom `.lucide { stroke-width }` i tokens.css går före attributet: plusset ritades 1,25 px mot mikrofonens 1,94. Skalytans vakt kräver nu att plusset är minst lika tjockt som mikrofonen (rött utan klassen, grönt med den).
+
+- **Skapa-listan går att nå utan pekare** (MÅSTE 1). Före 0.103.0 öppnade Enter på plusset listan. När plusset blev en mikrofon
+  startade Enter TALK, och listan nåddes bara med ett långtryck, alltså inte alls med tangentbordet under 768 px (också när en dator
+  zoomar 200 %). Shift+F10 och tangenten ContextMenu på mikrofonen öppnar nu listan, och knappen bär `aria-haspopup="dialog"` och
+  `aria-keyshortcuts="Shift+F10"`. Vägen ligger i `useLangtryck`, så samma tangenter öppnar genvägen på ikonerna med `skapa`
+  (Kalender, Inkorgen, gruppväxlaren, med `aria-keyshortcuts`) och menyn i `OpsAtgardsblad`. Tangenten sätter inget släppskydd, och
+  kontextmenyn som webbläsaren skickar efter den stoppas. Prov i `skapa-genvag.test.jsx` och `atgardsblad-langtryck.test.jsx`, och
+  Shift+F10 i en riktig webbläsare i `check-skalyta.mjs` avsnitt 39.
+- **Mikrofonens namn är helt engelskt på engelska** (BÖR 2): "TALK, speak. Hold to create" i stället för "TALK, prata in. Hold to
+  create". Namnen per läge står i `ORD_TALKKNAPP` (`lib/talk.js`), och `talkKnappNamn(lage, sprak)` tar språket. Huvudets
+  mikrofon och raden "TALK, prata in" i den gamla modellen följer samma tabell. `TALK_PRATA_IN` är kvar och är den svenska raden.
+- **Bilderna av samtalet är tagna om** (BÖR 3): `ramverk-samtal-390.png` och `ramverk-samtal-1280.png` visar mikrofonen i
+  bottenraden, inte plusset.
+- **En stor mikrofon med plusset bakom** (BÖR 5). Förut var mikrofonen 24 px, ungefär 43 % av cirkeln, och plusset ett märke med
+  ring framför den som en notisbricka. Nu är mikrofonen 31 px, plusset 20 px med `opacity-60`, förskjutet upp till höger, ritat före
+  mikrofonen och täckt av dess kapsel där de möts. `check-skalyta.mjs` avsnitt 39 kräver det i stället för motsatsen, och
+  `ramverk-mikrofon-390.png` och `ramverk-mikrofon-ljus-390.png` är tagna om. Plusset syns i båda lägena.
+- **TALK-fältets nya kant står här** (KAN 7). Fältet står ovanför bottenraden och spelraden med samma kant som arken
+  (`--bottom-nav-h`, `--safe-bottom` och `--spelrad-h`, plus 0,75 rem), i stället för `env(safe-area-inset-bottom) + 5.5rem`, en
+  gissning av bottenradens höjd som inte räknade med spelraden och lade fältet delvis över den (granskningen av PR 366, BÖR 3).
+- **Under inspelning går mittknappen inte att hålla in** (KAN 8). Medan TALK lyssnar, sparar eller visar ett kvitto öppnar varken
+  långtrycket eller tangenten skapa-listan, plusset ritas inte, och namnet är bara "TALK, lyssnar" utan "Håll inne för att skapa".
+
+### ⛔ Brytande
+
+- **Med `talk` är bottenradens mittknapp en mikrofon, inte ett plus.** Ett vanligt tryck startar TALK direkt (samma
+  `talkStyr.direkt()` som huvudets mikrofon). Knappen heter "TALK, prata in" (`talkKnappNamn`) i stället för "Skapa", och
+  `data-talk-knapp` bär läget som förut. En app vars prov letar efter `nav button[aria-label="Skapa"]` med `talk` påslaget
+  behöver se över det.
+- **Mittknappens namn har en andra halva när ett långtryck skapar: "TALK, prata in. Håll inne för att skapa"** (#382). En app vars
+  prov letar efter mittknappen med exakt `aria-label="TALK, prata in"` och `skapa` påslaget behöver se över det. Utan något i
+  skapa-listan heter den som förut.
+- **Långtrycket som spelade in är borta från mittknappen.** Före 0.103.0 spelade ett långtryck på plusset in och ett vanligt
+  tryck öppnade Skapa. Nu är ett vanligt tryck TALK, och ett långtryck öppnar skapa-listan. Läget håll (`haller`) nås inte
+  längre från skalet. `OpsBottomNav` fristående med `primaryAction.talk.knapp` ur `useTalk` beter sig som förut.
+- **Tal i chattens skrivfält skickas direkt, som i TALK.** CP 2026-10-14, med en skärmbild av agentchatten där "Skriver ut det
+  inspelade…" stod under skrivfältet: "Sedan funkar inte tal i meddelanden på samma sätt som TALK, det skall skrivas ut text i realtid
+  och inte gå en omväg via textfältet." Ljudvågen visar TALK:s inspelningsyta (`OpsInspelning`) i skrivfältets plats, texten står i
+  ytan medan den hörs, och Klar skickar den som ett meddelande i den öppna tråden, samma väg som Skicka. Före 0.103.0 skrevs orden in
+  i fältet och personen tryckte Skicka själv. Ingen färdig text: det som stod i ytan skickas. Ingenting hört: `onTranscribe` skriver
+  ut ljudet ("Skriver ut det inspelade…" i ytan) och resultatet skickas. Utan `igenkanning` är det alltid den vägen, och även då
+  skickas resultatet direkt. Fältets utkast ligger kvar och skickas inte med. Ett fel står i ytan med Försök igen och texten eller
+  ljudet kvar. En app vars prov letar efter "Skriv ut det inspelade", "Avbryt inspelningen" eller "Kasta ljudet" behöver se över det:
+  ytan har TALK:s Avbryt, Klar ("Klar, skicka det du sagt") och Försök igen.
+- **Texterna `skrivUt`, `stoppaInspelning`, `spelarIn`, `lyssnar`, `forsokIgen`, `kastaLjudet` och `stang` är borta ur
+  `Meddelandetexter`.** Raderna de hörde till finns inte längre. Nya: `talKlar`, `talSkickar`, `talSkickaFel`, `talTextFel`.
+  Ingen av dem står i lifehub.app:s eller bolag-ops `web/src` (mätt 2026-10-14 i lokala kopior från 2026-10-14 respektive 2026-10-07).
+- **"Ny händelse" får alltid en dag.** `HandelseSkapare.form` fick `datum: null` när panelen öppnades utan dag; nu får den idag
+  (`idagI()`, Stockholms dag, samma som kalenderns), utom i redigeringsläge. Dagen skrivs inte i adressen.
+
+### Tillagt
+
+- `useTalk().historik`: en rad per omgång som nådde kvittot, med det som hördes och agentens kvitto (`{ hord, kvitto, angrat }`).
+  Den överlever Svara och töms när fältet går tillbaka till vila. Ångrat syns på omgången kvittot hör till.
+- Fältet: när kvittot står visas samtalet i en rullande yta med fast höjd (`min(15rem, 34dvh)`), personens repliker som bubblor
+  till höger och agentens med bocken. Ytan rullar till sista raden när ett nytt kvitto kommer och går att nå med tangentbordet.
+  Ångra, Stäng och Svara står under ytan och syns alltid. Svara är fortfarande den primära knappen och får fokus.
+- Rubrikraden överst med tre ikoner: Meddelande, Händelse och Ärende ("Skapa ett ... av samtalet"). Ett tryck lämnar
+  `{ text, samtal, rader }` till mottagaren och stänger fältet. En ikon ritas bara med en mottagare och bara när något av det
+  personen sade hördes. Kastar mottagaren står felet i fältet och samtalet finns kvar.
+- `OpsAppShell talk.onFortsatt(underlag)` och `talk.fortsattEtikett` ("Fortsätt i chatten"): Meddelande går till appen.
+  Händelse och Ärende öppnar skalets egna formulär med `forifyllt: { rubrik, beskrivning }`, härledda med `talkForifyllt`
+  (rubriken är första meningen, högst 80 tecken, beskrivningen resten). `skapa.arende` och `HandelseSkapare.form` får `forifyllt`,
+  `null` när panelen öppnats på annat sätt.
+
+- **Långtryck på en ikon skapar i modulen.** En nav-post (`nav`, och `fasta.idag`, `fasta.kalender`, `fasta.hub`) och en
+  `OpsIconLink` tar `skapa`, en nyckel som `useOppnaSkapa()` tar ("handelse", "arende", "grupp", "meddelande" eller en moduls
+  registrerings id). Ett långtryck på ikonen i bottenraden eller i huvudet öppnar samma panel som raden i plusset, och ett
+  vanligt tryck navigerar som förut. Kalender bär "handelse" från början (`FASTA_SKAPA`). Gruppväxlaren i huvudet ger "Ny
+  grupp" när skalet kan skapa en grupp. Inkorgen ger "Nytt ärende" med `<OpsIconLink skapa="arende" />`. `validateNav` kastar
+  för en nyckel med fel form, för "talk" och för `skapa` på ett barn.
+- **Mikrofonen bär ett plus när ett långtryck skapar** (#382). CP 2026-10-14: "Ett kort press på talk öppnar ju då dialogen för
+  att kunna prata in med agenten direkt. Och i den dialogen så finns ikonerna. Men om jag pressar en lång press på talk så blir det
+  plusmenyn. Så att man kan lägga till manuellt utan att gå till talk. Undra om man i den ikonen kan ha en stor mikrofon och liksom
+  lite bakomliggande ett plus som indikerar det." Mikrofonen ritas i 31 px, och ett dämpat plus på 20 px (`data-skapa-marke`) står
+  upp till höger bakom den: det ritas före mikrofonen, och mikrofonens kapsel är fylld i knappens färg så att den täcker plusset där
+  de möts. Bara när långtrycket öppnar skapa-listan, och bara medan TALK vilar. Ny text: `ORD_OPSBOTTOMNAV.langtryckText` ("Håll
+  inne för att skapa", "Hold to create") och propen `OpsBottomNav langtryckText`. Ny ikon: `SkapaMarkeIkon`. Skärmbilder, 390 px i
+  mörkt och ljust läge: `docs/jamforelser/0.103.0/ramverk-mikrofon-390.png` och `ramverk-mikrofon-ljus-390.png`
+  (`node scripts/mikrofon-montage.mjs`). Mätningen och kraven står i `scripts/lib/mittknappMatt.mjs`, som både montaget och
+  `check-skalyta.mjs` avsnitt 39 läser.
+- Ingen genväg utan mottagare: har skalet ingen panel för nyckeln just nu (en modul som inte är påslagen, ett `skapa` utan
+  posten, en ikon utanför skalet) får ikonen inga händelser och går inte att hålla in, med webbläsarens vanliga meny kvar.
+- Långtrycket stoppar iOS förhandsvisning av länken (`-webkit-touch-callout: none`) och Androids kontextmeny medan ett tryck
+  pågår, sväljer klicket som följer släppet och vibrerar kort där webbläsaren kan (`navigator.vibrate`). Ett högerklick med
+  mus på en länk får sin vanliga meny.
+- En tipsrad ovanför bottenraden första gången en ikon med genväg trycks: "Tips: håll in Kalender så öppnas Ny händelse
+  direkt." En gång per webbläsare (`localStorage`, nyckeln `ops-skapa-genvag-tips`), inte från 768 px och inte efter att någon
+  redan hållit in en ikon.
+- `OpsInspelning klarEtikett`: namnet Klar läses upp med. Förval "Klar, spara inspelningen" som förut; chattens skrivfält ger
+  "Klar, skicka det du sagt". En tom sträng kastar.
+- `useLangtryck` (intern): hålltiden, rörelsetoleransen och släppskyddet som `OpsAtgardsblad` hade, flyttade till en krok som
+  `OpsAtgardsblad`, ikonerna och mikrofonen delar.
+
+### Rättat
+
+- **Taligenkänningen kastade allt som hörts när inget resultat blivit slutligt före stoppet** (`webblasarensIgenkanning`). Det är den
+  troliga orsaken till att CP såg "Skriver ut det inspelade…" fast lifehub.app slagit på `igenkanning`. ⛔ Hypotes, inte mätt på en
+  iPhone: Safari på iOS markerar ofta inget resultat som slutligt i `continuous`-läge, så texten blev tom varje gång, chatten föll till
+  `onTranscribe` och TALK skickade bara ljudet. Nu räknas den preliminära texten som hel när personen stoppat och webbläsaren sagt
+  `end` inom väntetiden, samma bud som redan räknades när Chrome tar en paus mitt i. Ett fel, ett avbrott (`aborted`) och en väntetid
+  som tar slut ger fortfarande tom text (granskningen av PR 358, MÅSTE 2, som i övrigt står kvar).
+- **Andra omgången efter agentens fråga skickade 0 byte och ingen text, och Försök igen skickade samma tomma ljud igen**
+  (cllp/lifehub.app#253, CP 2026-10-14 på iPhone: "Efter att jag fått en fråga så kan man inte spela in mer ljud"). `useTalk`
+  lämnar aldrig längre tomt ljud utan text till `onTalk`: fältet säger `TALK_INGET_LJUD`, rapporterar det inspelaren såg om
+  strömmen (`diagnos` från `webblasarensInspelare().stoppa()`), och visar Spela in igen i stället för Försök igen. En ström där
+  alla spår är tysta (`muted`) hämtas om en gång innan inspelningen börjar. ⛔ Hypotes, inte mätt på en iPhone: WebKit ger en tyst
+  ström när taligenkänningen nyss haft mikrofonen. Mätt i koden: att det tomma gick vidare och att Försök igen inte kunde ge något
+  annat (`talk-tomt-ljud.test.jsx`).
+
+### Borttaget, och var vägen nu går
+
+- **Plusmenyn är inte längre mittknappens tryck när `talk` finns.** Samma lista (`renderSkapaLista`) öppnas av ett långtryck på
+  mikrofonen, utan raden "TALK, prata in", och bara när den har något utöver TALK. Den ligger kvar där för att modulernas
+  registreringar och platsen `handelse.atgard` inte har någon annan väg på telefon.
+- Ny händelse: långtryck på Kalender. Nytt ärende: långtryck på Inkorgen (appen sätter `skapa="arende"`). Ny grupp:
+  långtryck på gruppikonen. Nytt meddelande: Meddelandens eget Nytt. På dator är plusset i huvudet kvar med hela listan,
+  och mikrofonen bredvid det.
+- Utan `talk` är mittknappen plusset med dagens beteende.
+
+### Medvetet utelämnat
+
+- "Skapa app" under Appar är inte ramverkets: ramverket har ingen sådan registrering. Appen sätter `fasta.hub.skapa` till sin
+  registrerings id, och utan den går Appar inte att hålla in.
+- Tipsraden visas inte för gruppväxlaren: ett tryck på den öppnar ett ark över skärmen, och en rad under arket hade räknats
+  som visad utan att ha setts.
+
+- Samtalet står inte i adressen. `?skapa=` skrivs som vanligt, men det som sades skrivs inte i webbläsarens historik, och en
+  omladdning öppnar formuläret tomt.
+- Agentens repliker kommer inte med i formulärets beskrivning, bara det personen sade. Hela samtalet finns i underlaget
+  (`samtal`) för den mottagare som vill ha det.
+
 ## 0.102.0
 
 **Biblioteket som SessionStudios, och en kortare meny.** [lifehub.app#214](https://github.com/cllp/lifehub.app/issues/214),

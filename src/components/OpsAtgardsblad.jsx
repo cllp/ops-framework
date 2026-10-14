@@ -1,11 +1,11 @@
 import { useRef, useState } from "react";
 import * as Popover from "@radix-ui/react-popover";
 import { MoreVertical } from "lucide-react";
-import { LANGTRYCK_MS } from "../lib/apparark.js";
 import { cx } from "../lib/cx.js";
 import { ordet } from "../lib/ord.js";
 import { radBehallare, radKlass } from "../lib/radKlass.js";
 import { useOpsSprak } from "./OpsSprak.jsx";
+import { useLangtryck } from "./useLangtryck.js";
 
 /**
  * Långtryck, högerklick och en ⋮-knapp öppnar samma åtgärder för en post.
@@ -16,7 +16,7 @@ import { useOpsSprak } from "./OpsSprak.jsx";
  * ⋮ och högerklick, samma poster. Ett långtryck som också var ett klick hade
  * både öppnat menyn och posten. Klicket sväljs när hålltiden nåtts.
  *
- * Hålltiden är `LANGTRYCK_MS` i `apparark.js`, samma som app-arket. En egen
+ * Hålltiden är `LANGTRYCK_MS` i `apparark.js`, samma som app-arket, genom `useLangtryck` (0.103.0). En egen
  * millisekund här hade glidit isär.
  *
  * Komponenten känner ingen fil: den får poster och anropar dem.
@@ -40,11 +40,6 @@ export const ORD_OPSATGARDSBLAD = {
  * @property {import("react").ReactNode} [ikon]
  */
 
-/** Hur länge efter att fingret lyfts som klicket från samma tryck ignoreras. Klicket kommer inom några tiotal millisekunder. */
-const SLAPP_SKYDD_MS = 400;
-/** Ett släpp som aldrig kom (avbruten gest, förlorad händelse) håller inte menyn låst längre än så här efter att den öppnades. */
-const SLAPP_SKYDD_TAK_MS = 2000;
-
 /**
  * @param {object} props
  * @param {string} props.namn Postens namn. Knappen och menyn annonserar det.
@@ -56,32 +51,20 @@ const SLAPP_SKYDD_TAK_MS = 2000;
 export function OpsAtgardsblad({ namn, poster, children = null, baraKnapp = false, kort = false }) {
   const sprak = useOpsSprak();
   const [oppen, setOppen] = useState(false);
-  const langt = useRef(false);
-  /**
+  /*
    * ⛔ FINGRET SOM ÖPPNADE MENYN VÄLJER INGET NÄR DET LYFTS (0.100.1, lifehub.app#226). På en smal skärm var menyn då ett ark nerifrån.
    * Hölls en rad i nedre halvan av skärmen låg arket under fingret när det lyftes, och klicket som följer släppet träffade raden
    * där, oftast Öppna. Mätt i Chromium med pekskärm i iPhone-storlek: rad ett och två gav menyn, rad tre och fyra öppnade posten.
-   * Spärren gäller bara klicket från samma tryck, och det är ett TIDSFÖNSTER och inget tillstånd (granskningen av PR 364): klick inom
-   * `SLAPP_SKYDD_MS` efter att fingret lyfts ignoreras, i hela arket (också Stäng), och ett klick efter det går alltid fram. Ett
-   * tillstånd som släpptes först av ett klick på en rad hade svalt nästa riktiga tryck när släppet landade någon annanstans.
-   * `oppnad` och `slappt` är millisekunder (`Date.now()`); `slappt` är `null` tills fingret lyfts.
+   * Spärren gäller bara klicket från samma tryck, och den är ett tidsfönster (`iSlappet`), se `useLangtryck`.
    * Spärren står kvar med rutan (0.102.0): den förankras vid raden som hölls in, och kan ligga under fingret på samma sätt.
+   * ⛔ 0.103.0: LOGIKEN BOR I `useLangtryck`, som skalets ikoner också använder. Den stod här, och en andra kopia i bottenraden
+   * hade glidit isär från den.
    */
-  const slappSkydd = useRef(/** @type {null | { oppnad: number, slappt: number | null }} */ (null));
-  /** Ska ett klick i menyn just nu ignoreras som släppet efter långtrycket? */
-  const iSlappet = () => {
-    const s = slappSkydd.current;
-    if (!s) return false;
-    const nu = Date.now();
-    if (s.slappt === null) return nu - s.oppnad < SLAPP_SKYDD_TAK_MS;
-    return nu - s.slappt < SLAPP_SKYDD_MS;
-  };
-  /** Klick i arket eller menyn som kommer i släppet stoppas innan de når en knapp, Stäng inräknad. @param {any} e */
-  const stoppaSlappet = (e) => {
-    if (!iSlappet()) return;
-    e.preventDefault();
-    e.stopPropagation();
-  };
+  const { handelser, iSlappet, stoppaSlappet } = useLangtryck({
+    onLangtryck: () => setOppen(true),
+    hogerklick: true,
+    hoppaOver: (mal) => mal instanceof Element && Boolean(mal.closest("[data-ops-atgard-knapp]")),
+  });
   const menyRef = useRef(/** @type {HTMLDivElement | null} */ (null));
 
   if (typeof namn !== "string" || namn === "") {
@@ -97,41 +80,6 @@ export function OpsAtgardsblad({ namn, poster, children = null, baraKnapp = fals
   }
 
   const etikett = ordet(ORD_OPSATGARDSBLAD, "atgarder", sprak).replace("{namn}", namn);
-
-  /**
-   * @param {any} e
-   */
-  function ner(e) {
-    if (e.button !== 0) return;
-    if (e.target instanceof Element && e.target.closest("[data-ops-atgard-knapp]")) return;
-    langt.current = false;
-    const startX = e.clientX;
-    const startY = e.clientY;
-    const timer = setTimeout(() => {
-      langt.current = true;
-      slappSkydd.current = { oppnad: Date.now(), slappt: null };
-      setOppen(true);
-    }, LANGTRYCK_MS);
-    const move = (/** @type {PointerEvent} */ ev) => {
-      // ⛔ EFTER ATT MENYN ÖPPNATS AVBRYTER RÖRELSE INGENTING: fingret ligger kvar, och släppet ska fortfarande mätas när det kommer.
-      if (langt.current) return;
-      if (Math.hypot(ev.clientX - startX, ev.clientY - startY) > 8) {
-        clearTimeout(timer);
-        slapp();
-      }
-    };
-    const slapp = () => {
-      clearTimeout(timer);
-      // Klicket efter släppet kommer i en senare händelse. Fönstret räknas från släppet, inte från att menyn öppnades.
-      if (slappSkydd.current && slappSkydd.current.slappt === null) slappSkydd.current = { ...slappSkydd.current, slappt: Date.now() };
-      document.removeEventListener("pointermove", move);
-      document.removeEventListener("pointerup", slapp);
-      document.removeEventListener("pointercancel", slapp);
-    };
-    document.addEventListener("pointermove", move);
-    document.addEventListener("pointerup", slapp);
-    document.addEventListener("pointercancel", slapp);
-  }
 
   /**
    * @param {any} e
@@ -208,17 +156,7 @@ export function OpsAtgardsblad({ namn, poster, children = null, baraKnapp = fals
     <div
       data-ops-atgard=""
       className={kort ? "flex w-full items-start gap-1 py-4 pr-1 pl-4" : "flex w-full items-center gap-1 px-4 py-3"}
-      onPointerDown={ner}
-      onContextMenu={(e) => {
-        e.preventDefault();
-        setOppen(true);
-      }}
-      onClickCapture={(e) => {
-        if (!langt.current) return;
-        langt.current = false;
-        e.preventDefault();
-        e.stopPropagation();
-      }}
+      {...handelser}
     >
       <div className={cx("flex min-w-0 flex-1 gap-3", kort ? "items-start" : "items-center")}>{children}</div>
       {knapp}
