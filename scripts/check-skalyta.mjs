@@ -54,6 +54,7 @@ import { build } from "esbuild";
 import postcss from "postcss";
 import tailwind from "@tailwindcss/postcss";
 import { startaWebblasare } from "./lib/matVyport.mjs";
+import { kravPaMittknappen, matMittknappen } from "./lib/mittknappMatt.mjs";
 
 const rot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const argv = process.argv.slice(2);
@@ -5846,24 +5847,27 @@ for (const [namn, vp] of /** @type {const} */ ([["TALK 390 px", { width: 390, he
       // ⛔ #382: ytan har `skapa`, så ett långtryck öppnar skapa-listan och namnet säger det.
       const vantatNamn = "TALK, prata in. Håll inne för att skapa";
       krav(fore.namn === vantatNamn && fore.lage === "vila" && fore.svg, `${namn}: mittknappen heter ${JSON.stringify(fore.namn)} i läget ${fore.lage}, väntat ${JSON.stringify(vantatNamn)} i vila med en ikon.`);
-      // ⛔ PLUSSET BAKOM MIKROFONEN (0.103.0, #382). CP 2026-10-14: "en stor mikrofon och liksom lite bakomliggande ett plus som
-      // indikerar det". Mätt: knappen är fortfarande en 56 px cirkel, märket finns, är minst 12 px, och står med sin ring (2 px)
-      // helt inom knappens cirkel. Ett märke utanför hade brutit cirkeln och den runda knappens lyft ovan.
-      const plusMatt = await mik.evaluate((b) => {
-        const r = b.getBoundingClientRect();
-        const m = b.querySelector("[data-skapa-marke]");
-        const mr = m ? m.getBoundingClientRect() : null;
-        return { w: r.width, h: r.height, x: r.x, y: r.y, marke: mr ? { x: mr.x, y: mr.y, w: mr.width, h: mr.height, svg: Boolean(m?.querySelector("svg")), dold: m?.getAttribute("aria-hidden") === "true" } : null };
-      });
-      const ringPx = 2;
-      const plusUtanfor = plusMatt.marke
-        ? Math.hypot(plusMatt.marke.x + plusMatt.marke.w / 2 - (plusMatt.x + plusMatt.w / 2), plusMatt.marke.y + plusMatt.marke.h / 2 - (plusMatt.y + plusMatt.h / 2)) + plusMatt.marke.w / 2 + ringPx - plusMatt.w / 2
-        : null;
-      matt.push(`${namn}: mittknappen ${plusMatt.w}x${plusMatt.h} px, plusmärket ${JSON.stringify(plusMatt.marke)}, ${plusUtanfor === null ? "inget märke" : `${(-plusUtanfor).toFixed(1)} px innanför cirkeln med ring`}`);
-      krav(Math.abs(plusMatt.w - 56) < 0.5 && Math.abs(plusMatt.h - 56) < 0.5, `${namn}: mittknappen är ${plusMatt.w}x${plusMatt.h} px, väntat 56x56.`);
-      krav(!!plusMatt.marke && plusMatt.marke.svg && plusMatt.marke.dold, `${namn}: mittknappen saknar plusmärket (${JSON.stringify(plusMatt.marke)}), väntat ett dolt märke med en ikon när ett långtryck skapar.`);
-      krav(!!plusMatt.marke && plusMatt.marke.w >= 12 && plusMatt.marke.h >= 12, `${namn}: plusmärket är ${plusMatt.marke?.w}x${plusMatt.marke?.h} px, väntat minst 12 px.`);
-      krav(plusUtanfor !== null && plusUtanfor <= 0, `${namn}: plusmärket med ring går ${plusUtanfor?.toFixed(1)} px utanför knappens cirkel, väntat helt inom.`);
+      // ⛔ PLUSSET BAKOM MIKROFONEN (0.103.0, #382; granskningen av PR 383, BÖR 5). CP 2026-10-14: "en stor mikrofon och liksom
+      // lite bakomliggande ett plus som indikerar det". Kraven och mätningen står i `scripts/lib/mittknappMatt.mjs`, samma som
+      // `mikrofon-montage.mjs` läser: knappen 56 px, mikrofonen 30 till 32 px, plusset 18 till 20 px upp till höger med strecken
+      // inom cirkeln, före mikrofonen i ordningen och mött av dess kapsel, kapseln i knappens färg, plusset dämpat men synligt.
+      // ⛔ Före granskningen krävdes motsatsen: ett märke med ring som INTE fick överlappa mikrofonen. Det var en notisbricka framför.
+      const plusMatt = await mik.evaluate(matMittknappen);
+      const plusKrav = kravPaMittknappen(plusMatt);
+      for (const rad of plusKrav.rader) matt.push(`${namn}: ${rad}`);
+      for (const f of plusKrav.fel) krav(false, `${namn}: ${f}`);
+      krav(plusKrav.rader.length > 0, `${namn}: mittknappen mättes inte (${JSON.stringify(plusMatt)}).`);
+      // ⛔ TANGENTBORDET (granskningen av PR 383, MÅSTE 1): Shift+F10 öppnar skapa-listan i en riktig webbläsare, och dess egen
+      // kontextmeny läggs inte ovanpå (det syns inte i en skärmbild, men `contextmenu` ska vara stoppad).
+      const tangentAttr = await mik.evaluate((b) => ({ popup: b.getAttribute("aria-haspopup"), kort: b.getAttribute("aria-keyshortcuts") }));
+      krav(tangentAttr.popup === "dialog" && tangentAttr.kort === "Shift+F10", `${namn}: mittknappen har aria-haspopup ${tangentAttr.popup} och aria-keyshortcuts ${tangentAttr.kort}, väntat dialog och Shift+F10.`);
+      await mik.focus();
+      await page.keyboard.press("Shift+F10");
+      const lista = page.getByRole("dialog", { name: "Skapa" });
+      await lista.waitFor({ timeout: 4000 });
+      matt.push(`${namn}: Shift+F10 på mittknappen öppnade skapa-listan`);
+      await page.keyboard.press("Escape");
+      await lista.waitFor({ state: "detached", timeout: 4000 });
       if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `talk-mikrofon-${vp.width}.png`) });
       await mik.click();
     } else {

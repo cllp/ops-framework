@@ -115,8 +115,36 @@ describe("plusset bakom mikrofonen", () => {
     render(Skal({ sprak: "en", talk: { onTalk: vi.fn(), inspelare: falskInspelare() }, skapa: { lage: "g1", handelse: { form: Handelseform, katalog: null } } }));
     // Bottenraden heter "Quick navigation" på engelska, så knappen hittas på sitt attribut.
     const knapp = /** @type {HTMLElement} */ (document.querySelector("nav[data-ops-bottenrad] [data-talk-knapp]"));
-    expect(knapp.getAttribute("aria-label")).toContain("Hold to create");
-    expect(knapp.getAttribute("aria-label")).not.toContain("Håll inne");
+    // ⛔ Granskningen av PR 383, BÖR 2: HELA namnet på engelska. "TALK, prata in. Hold to create" var halvt svenskt.
+    expect(knapp.getAttribute("aria-label")).toBe("TALK, speak. Hold to create");
+    // Huvudets mikrofon har samma namn utan andra halvan, ur samma tabell.
+    const huvud = /** @type {HTMLElement} */ (document.querySelector("header [data-talk-huvud]"));
+    expect(huvud.getAttribute("aria-label")).toBe("TALK, speak");
+  });
+
+  it("⛔ under inspelning går mittknappen inte att hålla in, och namnet lovar inget långtryck (granskningen av PR 383, KAN 8)", async () => {
+    render(Skal({ talk: { onTalk: vi.fn(), inspelare: falskInspelare() }, skapa: { lage: "g1", handelse: { form: Handelseform, katalog: null } } }));
+    fireEvent.click(mitten());
+    await flush();
+    expect(mitten().getAttribute("data-talk-knapp")).toBe("lyssnar");
+    expect(mitten().getAttribute("aria-label")).toBe("TALK, lyssnar");
+    expect(marke()).toBeNull();
+    expect(mitten().hasAttribute("aria-keyshortcuts")).toBe(false);
+    // Varken fingret eller tangentbordet öppnar skapa-listan medan TALK lyssnar.
+    fireEvent.pointerDown(mitten(), { button: 0 });
+    act(() => vi.advanceTimersByTime(LANGTRYCK_MS));
+    fireEvent.pointerUp(mitten());
+    await flush();
+    fireEvent.keyDown(mitten(), { key: "F10", shiftKey: true });
+    await flush();
+    expect(screen.queryByRole("dialog", { name: "Skapa" })).toBeNull();
+  });
+
+  it("⛔ plusset ritas före mikrofonen, så att mikrofonen ligger framför (granskningen av PR 383, BÖR 5)", () => {
+    render(Skal({ talk: { onTalk: vi.fn(), inspelare: falskInspelare() }, skapa: { lage: "g1", handelse: { form: Handelseform, katalog: null } } }));
+    const ikon = /** @type {Element} */ (mitten().querySelector("[data-skapa-ikon]"));
+    // Geometrin (storlekar, överlapp, inom cirkeln) mäts i check-skalyta.mjs avsnitt 39: jsdom kör ingen CSS.
+    expect(marke()?.compareDocumentPosition(ikon) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("⛔ utan talk ritas inget plusmärke: knappen är själv plusset, och namnet är Skapa", () => {
@@ -129,6 +157,76 @@ describe("plusset bakom mikrofonen", () => {
     render(Skal({ talk: { onTalk: vi.fn(), inspelare: falskInspelare() } }));
     expect(marke()).toBeNull();
     expect(mitten().getAttribute("aria-label")).toBe("TALK, prata in");
+  });
+});
+
+/*
+ * ⛔ GRANSKNINGEN AV PR 383, MÅSTE 1. Före 0.103.0 öppnade Enter på plusset skapa-listan. Med mikrofonen startar Enter TALK, och
+ * listan nåddes bara med ett långtryck. Under 768 px (också när en dator zoomar 200 %) fanns då ingen väg dit utan pekare.
+ * Tangenten ContextMenu och Shift+F10 är kontextmenyns tangenter, och de öppnar det långtrycket öppnar.
+ */
+describe("tangentbordet når det långtrycket når", () => {
+  /** @param {HTMLElement} el @param {Record<string, any>} tangent */
+  const tryck = async (el, tangent) => {
+    fireEvent.keyDown(el, tangent);
+    await flush();
+  };
+
+  for (const [namn, tangent] of /** @type {const} */ ([["Shift+F10", { key: "F10", shiftKey: true }], ["ContextMenu", { key: "ContextMenu" }]])) {
+    it(`⛔ ${namn} på mikrofonen öppnar skapa-listan och startar inte TALK`, async () => {
+      const insp = falskInspelare();
+      render(Skal({ talk: { onTalk: vi.fn(), inspelare: insp }, skapa: { lage: "g1", handelse: { form: Handelseform, katalog: null } } }));
+      await tryck(mitten(), tangent);
+      expect(screen.getByRole("dialog", { name: "Skapa" }).textContent).toContain("Ny händelse");
+      expect(insp.starta).not.toHaveBeenCalled();
+    });
+
+    it(`⛔ ${namn} på Kalender öppnar Ny händelse och navigerar inte`, async () => {
+      const onNavigate = vi.fn();
+      render(Skal({ onNavigate, skapa: { lage: "g1", handelse: { form: Handelseform, katalog: null } } }));
+      await tryck(kalender(), tangent);
+      expect(screen.getByRole("region", { name: "Ny händelse" })).toBeTruthy();
+      expect(onNavigate).not.toHaveBeenCalled();
+    });
+  }
+
+  it("⛔ mikrofonen säger att den har en lista bakom sig och vilken tangent som öppnar den", () => {
+    render(Skal({ talk: { onTalk: vi.fn(), inspelare: falskInspelare() }, skapa: { lage: "g1", handelse: { form: Handelseform, katalog: null } } }));
+    expect(mitten().getAttribute("aria-haspopup")).toBe("dialog");
+    expect(mitten().getAttribute("aria-keyshortcuts")).toBe("Shift+F10");
+    expect(kalender().getAttribute("aria-keyshortcuts")).toBe("Shift+F10");
+  });
+
+  it("⛔ kontextmenyn som webbläsaren skickar efter tangenten stoppas, så att dess egen meny inte läggs ovanpå", async () => {
+    render(Skal({ talk: { onTalk: vi.fn(), inspelare: falskInspelare() }, skapa: { lage: "g1", handelse: { form: Handelseform, katalog: null } } }));
+    const knapp = mitten();
+    await tryck(knapp, { key: "ContextMenu" });
+    // `fireEvent` svarar falskt när händelsen stoppades (`preventDefault`).
+    expect(fireEvent.contextMenu(knapp)).toBe(false);
+  });
+
+  it("⛔ utan något bakom finns ingen tangent: attributen saknas och Shift+F10 öppnar inget", async () => {
+    const onNavigate = vi.fn();
+    render(Skal({ onNavigate, talk: { onTalk: vi.fn(), inspelare: falskInspelare() }, skapa: { lage: "g1", arende: () => <form /> } }));
+    // Kalenderns nyckel "handelse" har ingen mottagare här.
+    expect(kalender().hasAttribute("aria-keyshortcuts")).toBe(false);
+    await tryck(kalender(), { key: "F10", shiftKey: true });
+    expect(screen.queryByRole("region", { name: "Ny händelse" })).toBeNull();
+    cleanup();
+    render(Skal({ talk: { onTalk: vi.fn(), inspelare: falskInspelare() } }));
+    expect(mitten().hasAttribute("aria-haspopup")).toBe(false);
+    expect(mitten().hasAttribute("aria-keyshortcuts")).toBe(false);
+    await tryck(mitten(), { key: "F10", shiftKey: true });
+    expect(screen.queryByRole("dialog", { name: "Skapa" })).toBeNull();
+  });
+
+  it("F10 utan Shift och andra tangenter gör ingenting", async () => {
+    const insp = falskInspelare();
+    render(Skal({ talk: { onTalk: vi.fn(), inspelare: insp }, skapa: { lage: "g1", handelse: { form: Handelseform, katalog: null } } }));
+    await tryck(mitten(), { key: "F10" });
+    await tryck(mitten(), { key: "a", shiftKey: true });
+    expect(screen.queryByRole("dialog", { name: "Skapa" })).toBeNull();
+    expect(insp.starta).not.toHaveBeenCalled();
   });
 });
 

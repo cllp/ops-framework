@@ -299,18 +299,34 @@ function OpsBottomNavRitad({
  *
  * ⛔ MIKROFONEN BÄR ETT PLUS NÄR SKAPA FINNS BAKOM DEN (0.103.0, #382). CP 2026-10-14: "Undra om man i den ikonen kan ha en stor
  * mikrofon och liksom lite bakomliggande ett plus som indikerar det." Ett långtryck som ingenting på knappen avslöjar är en väg
- * bara den hittar som redan vet om den. Plusset är ett eget märke i övre högra hörnet (`data-skapa-marke`), i omvända färger
- * (`accent-contrast` med plusset i `accent`) och med en ring i knappens färg, så att det inte flyter ihop med mikrofonen. Mikrofonen
- * flyttas 2 px ned åt vänster och ritas i 24 px i stället för 26, så att de två inte överlappar: mätt i `check-skalyta.mjs`.
- * Märket ritas bara när långtrycket öppnar skapa (en mikrofon, `talk` utan `knapp`, och `langtryck`). Utan `talk` är knappen
- * själv plusset, och med `talk.knapp` är långtrycket TALK. Namnet får samma villkor: "TALK, prata in. Håll inne för att skapa".
+ * bara den hittar som redan vet om den.
+ *
+ * ⛔ PLUSSET LIGGER BAKOM MIKROFONEN, INTE FRAMFÖR (granskningen av PR 383, BÖR 5). Första versionen ritade mikrofonen i 24 px,
+ * ungefär 43 % av cirkeln, och plusset som ett eget märke med ring i hörnet, alltså framför och som en notisbricka. Det var inte
+ * vad CP beskrev. Nu är mikrofonen stor (31 px i 56 px-cirkeln) och plusset större (20 px) men dämpat (`opacity-60` på
+ * `accent-contrast`), förskjutet upp till höger och ritat FÖRE mikrofonen. Mikrofonens kapsel är fylld i knappens färg
+ * (`[&_path:first-child]:fill-accent`, med hover: lucides kapsel är ritningens första `path`), så där de möts täcker mikrofonen plusset och det läses som att det ligger bakom.
+ * Mätt i `check-skalyta.mjs` avsnitt 39 och i `mikrofon-montage.mjs`: storlekarna, att plusset står inom cirkeln, att de överlappar
+ * och att plusset ligger före i ordningen.
+ *
+ * Plusset ritas bara när långtrycket öppnar skapa (en mikrofon, `talk` utan `knapp`, och `langtryck`). Utan `talk` är knappen själv
+ * plusset, och med `talk.knapp` är långtrycket TALK. Namnet får samma villkor: "TALK, prata in. Håll inne för att skapa".
+ *
+ * ⛔ BARA I VILA (granskningen av PR 383, KAN 8). Medan TALK lyssnar, sparar eller visar ett kvitto går knappen inte att hålla in,
+ * plusset ritas inte och namnet saknar andra halvan: fältet står öppet, och en lista ovanpå det hade varit ett andra ärende mitt i
+ * det första.
+ *
+ * ⛔ TANGENTBORDET (granskningen av PR 383, MÅSTE 1). Enter startar TALK, så skapa-listan nås med Shift+F10 eller ContextMenu
+ * (`useLangtryck`), och knappen säger det med `aria-haspopup="dialog"` (listan är ett Radix-ark, `role="dialog"`) och
+ * `aria-keyshortcuts`. Före 0.103.0 öppnade Enter listan, och utan den här vägen hade listan inte gått att nå utan pekare under 768 px.
  *
  * @param {{ atgard: Huvudatgarden, langtryckText: string }} props
  */
 function Huvudatgard({ atgard, langtryckText }) {
   const talk = atgard.talk;
   const knapp = talk?.knapp;
-  const harLangtryck = !knapp && typeof atgard.langtryck === "function";
+  const vilar = !talk || talk.lage === "vila";
+  const harLangtryck = !knapp && vilar && typeof atgard.langtryck === "function";
   const skapaBakom = Boolean(talk) && harLangtryck;
   const lang = useLangtryck({ onLangtryck: harLangtryck ? atgard.langtryck ?? null : null, haptik: true });
   // ⛔ MED `talk.knapp` STYR KROKEN KLICKET (`useTalk`): ett långtryck följs av ett klick, och det får inte öppna Skapa.
@@ -323,6 +339,8 @@ function Huvudatgard({ atgard, langtryckText }) {
         {...handelser}
         data-talk-knapp={talk ? talk.lage : undefined}
         aria-label={haller ? TALK_ORD : skapaBakom ? `${atgard.label}. ${langtryckText}` : atgard.label}
+        aria-haspopup={lang.aktiv ? "dialog" : undefined}
+        aria-keyshortcuts={lang.kortkommando}
         className={cx(
           "group relative translate-y-[calc(0.25rem-var(--bottom-nav-overhang))] inline-flex size-14 cursor-pointer items-center justify-center rounded-full",
           // `touch-none` och utan förhandsvisning bara när knappen går att hålla in: en vanlig knapp ska bete sig som en.
@@ -337,15 +355,23 @@ function Huvudatgard({ atgard, langtryckText }) {
           <span className="text-etikett font-semibold tracking-wide">{TALK_ORD}</span>
         ) : skapaBakom ? (
           <>
-            <span data-skapa-ikon="" className="inline-flex -translate-x-0.5 translate-y-0.5 [&_svg]:size-6">
-              {atgard.icon ?? <PlusIkon size={24} />}
-            </span>
+            {/* ⛔ PLUSSET FÖRST, sedan mikrofonen: det som ritas senare ligger framför. */}
             <span
               data-skapa-marke=""
               aria-hidden="true"
-              className="pointer-events-none absolute right-2 top-2 inline-flex size-4 items-center justify-center rounded-full bg-accent-contrast text-accent ring-2 ring-accent transition-colors duration-(--duration-fast) ease-standard group-hover:ring-accent-hover"
+              className="pointer-events-none absolute top-[9px] right-[10px] inline-flex size-5 items-center justify-center opacity-60"
             >
-              <SkapaMarkeIkon size={12} />
+              <SkapaMarkeIkon size={20} />
+            </span>
+            <span
+              data-skapa-ikon=""
+              className={cx(
+                "relative inline-flex translate-y-px [&_svg]:size-[31px]",
+                // Kapseln fylld i knappens färg: där mikrofonen och plusset möts syns mikrofonen, inte plusset.
+                "[&_path:first-child]:fill-accent [&_path:first-child]:transition-colors [&_path:first-child]:duration-(--duration-fast) group-hover:[&_path:first-child]:fill-accent-hover",
+              )}
+            >
+              {atgard.icon ?? <PlusIkon size={31} />}
             </span>
           </>
         ) : (
@@ -404,6 +430,7 @@ function BottomPost({ entry, activeHref, ark, onClick, badgeText }) {
         aria-current={active ? "page" : undefined}
         {...genvag.handelser}
         data-skapa-genvag={genvag.aktiv ? entry.skapa : undefined}
+        aria-keyshortcuts={genvag.kortkommando}
         onClick={() => {
           genvag.tryckt();
           ark.onOppen(!ark.oppen);
@@ -430,6 +457,7 @@ function BottomLank({ entry, active, onClick, badgeText, genvag }) {
       href={entry.href}
       {...genvag.handelser}
       data-skapa-genvag={genvag.aktiv ? entry.skapa : undefined}
+      aria-keyshortcuts={genvag.kortkommando}
       onClick={(e) => {
         genvag.tryckt();
         onClick(e);

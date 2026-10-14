@@ -28,6 +28,7 @@
  */
 
 import { rapporteraFel } from "./felrapport.js";
+import { ordet } from "./ord.js";
 
 /** Hur länge ett tryck måste ligga kvar för att vara ett långtryck. Samma tal som kalenderns snabbtitt och SessionStudio. */
 export const LANGTRYCK_MS = 450;
@@ -36,22 +37,33 @@ export const LANGTRYCK_MS = 450;
 export const TALK_ORD = "TALK";
 
 /**
- * Namnet på vägen in i TALK utan att hålla (#276): raden i Skapa och huvudets mikrofonknapp på dator. EN sträng, så
- * att raden och knappen inte kan börja heta olika saker.
+ * Mikrofonknappens namn per läge och språk (#276, granskningen av PR 383, BÖR 2). Namnet är det skärmläsaren läser och det tooltipen
+ * visar, så den som inte ser att knappen är tänd hör det i stället. ⛔ EN TABELL FÖR BÅDA SPRÅKEN: förut fanns namnen bara på svenska,
+ * och på engelska blev mittknappen "TALK, prata in. Hold to create", halvt svenskt, eftersom andra halvan kom ur bottenradens ordbok.
+ * @type {import("./ord.js").Ordbok}
  */
-export const TALK_PRATA_IN = "TALK, prata in";
+export const ORD_TALKKNAPP = {
+  prataIn: { sv: "TALK, prata in", en: "TALK, speak" },
+  lyssnar: { sv: "TALK, lyssnar", en: "TALK, listening" },
+  sparar: { sv: "TALK, sparar", en: "TALK, saving" },
+  sparat: { sv: "TALK, sparat", en: "TALK, saved" },
+};
 
 /**
- * Huvudets mikrofonknapp säger vilket läge inspelningen är i (#276). Namnet är det skärmläsaren läser och det tooltipen
- * visar, så den som inte ser att knappen är tänd hör det i stället.
+ * Namnet på vägen in i TALK utan att hålla (#276): raden i Skapa och huvudets mikrofonknapp på dator. EN sträng, så
+ * att raden och knappen inte kan börja heta olika saker. Svenska; på andra språk `talkKnappNamn("vila", sprak)`.
+ */
+export const TALK_PRATA_IN = ORD_TALKKNAPP.prataIn.sv;
+
+/**
+ * Huvudets mikrofonknapp och bottenradens mikrofon säger vilket läge inspelningen är i (#276), på språket som gäller.
  * @param {Talklage} lage
+ * @param {string} [sprak] "sv" eller "en". Ett språk utan text ger svenska, som `ordet`.
  * @returns {string}
  */
-export function talkKnappNamn(lage) {
-  if (lage === "haller" || lage === "lyssnar") return `${TALK_ORD}, lyssnar`;
-  if (lage === "skickar") return `${TALK_ORD}, sparar`;
-  if (lage === "sparat") return `${TALK_ORD}, sparat`;
-  return TALK_PRATA_IN;
+export function talkKnappNamn(lage, sprak = "sv") {
+  const nyckel = lage === "haller" || lage === "lyssnar" ? "lyssnar" : lage === "skickar" ? "sparar" : lage === "sparat" ? "sparat" : "prataIn";
+  return ordet(ORD_TALKKNAPP, nyckel, sprak);
 }
 
 /**

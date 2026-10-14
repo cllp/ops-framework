@@ -16,6 +16,12 @@ import { LANGTRYCK_MS } from "../lib/apparark.js";
  *     långtryck på en länk hade annars både öppnat genvägen och navigerat.
  *   - `iSlappet` och `stoppaSlappet` är släppskyddet: ett tidsfönster efter att fingret lyfts, inom vilket ett klick på det som
  *     nyss öppnats inte räknas. Det är `OpsAtgardsblad`s menyrader som behöver det, se dess filhuvud.
+ *   - ⛔ TANGENTBORDET: Shift+F10 och tangenten ContextMenu öppnar samma sak (granskningen av PR 383, MÅSTE 1). Före 0.103.0 öppnade
+ *     Enter på bottenradens plus skapa-listan. När plusset blev en mikrofon startade Enter TALK, och listan gick bara att nå med ett
+ *     långtryck, alltså inte alls utan pekare under 768 px (också när en dator zoomar 200 %). Shift+F10 och ContextMenu är
+ *     kontextmenyns tangenter i alla plattformar, och ett långtryck är telefonens kontextmeny. `kortkommando` är tangentens namn för
+ *     `aria-keyshortcuts`. Tangenten sätter inget släppskydd: inget finger lyfts, så nästa Enter i det som öppnats ska räknas. Den
+ *     `contextmenu` som webbläsaren skickar efter tangenten stoppas, så att dess egen meny inte läggs ovanpå.
  *   - Utan `onLangtryck` ger kroken inga händelser alls. ⛔ EN GENVÄG UTAN MOTTAGARE SKA INTE GÅ ATT HÅLLA IN: med tomma händelser
  *     och utan `LANGTRYCK_KLASS` beter sig ytan exakt som innan, med länkens vanliga förhandsvisning och kontextmeny.
  */
@@ -24,6 +30,17 @@ import { LANGTRYCK_MS } from "../lib/apparark.js";
 export const SLAPP_SKYDD_MS = 400;
 /** Ett släpp som aldrig kom (avbruten gest, förlorad händelse) håller inte spärren längre än så här efter att trycket nåddes. */
 export const SLAPP_SKYDD_TAK_MS = 2000;
+/** Tangenten som öppnar det ett långtryck öppnar, i den form `aria-keyshortcuts` tar. ContextMenu fungerar också, men saknas på Mac. */
+export const KORTKOMMANDO = "Shift+F10";
+/** Inom så lång tid efter tangenten räknas en `contextmenu` som webbläsarens svar på den (Windows skickar den när tangenten släpps). */
+const TANGENT_MENY_MS = 1000;
+
+/** Är tangenten kontextmenyns: Shift+F10 eller ContextMenu? @param {any} e @returns {boolean} */
+export function arKontextTangent(e) {
+  if (e.key === "ContextMenu") return true;
+  return e.key === "F10" && e.shiftKey === true && !e.ctrlKey && !e.altKey && !e.metaKey;
+}
+
 /** Rörelse som avbryter ett långtryck. Ett finger som ligger still darrar några pixlar, ett som rullar flyttar sig mer. */
 const RORELSE_PX = 8;
 
@@ -53,7 +70,7 @@ export function vibrera() {
  *   Utan: kontextmenyn stoppas bara medan ett tryck pågår, så att högerklick med mus på en länk fungerar som förut (ny flik).
  * @param {(mal: EventTarget | null) => boolean} [val.hoppaOver] Ett tryck som börjar på det här målet räknas inte (⋮ i raden).
  * @param {boolean} [val.haptik] Vibrera när långtrycket nås. Förval falskt.
- * @returns {{ aktiv: boolean, handelser: Record<string, (e: any) => void>, iSlappet: () => boolean, stoppaSlappet: (e: any) => void }}
+ * @returns {{ aktiv: boolean, handelser: Record<string, (e: any) => void>, kortkommando: string | undefined, iSlappet: () => boolean, stoppaSlappet: (e: any) => void }}
  */
 export function useLangtryck({ onLangtryck, hogerklick = false, hoppaOver, haptik = false }) {
   const langt = useRef(false);
@@ -67,6 +84,8 @@ export function useLangtryck({ onLangtryck, hogerklick = false, hoppaOver, hapti
   const timer = useRef(/** @type {ReturnType<typeof setTimeout> | null} */ (null));
   const pagar = useRef(false);
   const stada = useRef(/** @type {null | (() => void)} */ (null));
+  /** När tangenten senast öppnade genvägen (`Date.now()`), så att kontextmenyn som följer den kan stoppas. */
+  const tangentTid = useRef(/** @type {number | null} */ (null));
   const senaste = useRef(onLangtryck);
   senaste.current = onLangtryck;
 
@@ -95,7 +114,7 @@ export function useLangtryck({ onLangtryck, hogerklick = false, hoppaOver, hapti
     e.stopPropagation();
   };
 
-  if (typeof onLangtryck !== "function") return { aktiv: false, handelser: {}, iSlappet, stoppaSlappet };
+  if (typeof onLangtryck !== "function") return { aktiv: false, handelser: {}, kortkommando: undefined, iSlappet, stoppaSlappet };
 
   const utlos = () => {
     if (timer.current) clearTimeout(timer.current);
@@ -143,10 +162,25 @@ export function useLangtryck({ onLangtryck, hogerklick = false, hoppaOver, hapti
 
   return {
     aktiv: true,
+    kortkommando: KORTKOMMANDO,
     handelser: {
       onPointerDown: ner,
       /** @param {any} e */
+      onKeyDown: (e) => {
+        if (!arKontextTangent(e)) return;
+        if (hoppaOver && hoppaOver(e.target)) return;
+        e.preventDefault();
+        tangentTid.current = Date.now();
+        senaste.current?.();
+      },
+      /** @param {any} e */
       onContextMenu: (e) => {
+        // Kontextmenyn som webbläsaren skickar efter Shift+F10 eller ContextMenu: genvägen är redan öppnad av tangenten.
+        if (tangentTid.current !== null && Date.now() - tangentTid.current < TANGENT_MENY_MS) {
+          tangentTid.current = null;
+          e.preventDefault();
+          return;
+        }
         if (hogerklick) {
           e.preventDefault();
           senaste.current?.();

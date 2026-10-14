@@ -79,6 +79,7 @@ export function OpsIconLink({ href, icon, label, onNavigate, badge, badgeText = 
       href={href}
       {...genvag.handelser}
       data-skapa-genvag={genvag.aktiv ? skapa ?? undefined : undefined}
+      aria-keyshortcuts={genvag.kortkommando}
       onClick={(e) => {
         genvag.tryckt();
         if (onNavigate) onNavigate(href, e);

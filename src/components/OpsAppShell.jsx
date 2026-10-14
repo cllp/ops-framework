@@ -14,7 +14,7 @@ import { Counter } from "./counter.jsx";
 import { ArendePlusIkon, ChevronNedIkon, HandelsePlusIkon, KryssIkon, MeddelandeIkon, MenuIcon, MikrofonIkon, PlusIkon, GruppIkon } from "./icons.jsx";
 import { OpsTalk, useTalk } from "./OpsTalk.jsx";
 import { OpsTooltip } from "./OpsTooltip.jsx";
-import { TALK_PRATA_IN, kontrolleraSkickarText, talkForifyllt, talkKnappNamn } from "../lib/talk.js";
+import { kontrolleraSkickarText, talkForifyllt, talkKnappNamn } from "../lib/talk.js";
 import { byggFasta, djupAktiv, validateFasta } from "./fasta.jsx";
 import { huvudknappKlass, huvudPlusKlass, radBehallare, radKlass } from "../lib/radKlass.js";
 import { rapporteraFel } from "../lib/felrapport.js";
@@ -799,7 +799,7 @@ export function useOppnaHandelse() {
 function GenvagRam({ nyckel, ikon, tips = true, className, children }) {
   const g = useSkapaGenvag(nyckel, ikon);
   return (
-    <div className={cx(className, g.klass)} {...g.handelser} data-skapa-genvag={g.aktiv ? nyckel : undefined} onClick={g.aktiv && tips ? () => g.tryckt() : undefined}>
+    <div className={cx(className, g.klass)} {...g.handelser} data-skapa-genvag={g.aktiv ? nyckel : undefined} aria-keyshortcuts={g.kortkommando} onClick={g.aktiv && tips ? () => g.tryckt() : undefined}>
       {children}
     </div>
   );
@@ -1759,7 +1759,7 @@ function OpsAppShellRitad({
               mikrofonen i huvudet gör samma sak, och två vägar till samma inspelning i samma plus är en för mycket.
               ⛔ 0.103.0: inte heller i bottenradens ark, som mikrofonens långtryck öppnar. Kvar är den gamla modellens
               huvudplus på telefon, där ingen mikrofon står bredvid. */}
-          {talk && talkRad ? <OpsPanelRow icon={<MikrofonIkon size={18} />} label={TALK_PRATA_IN} accent onClick={() => oppna(TALK_FORM)} /> : null}
+          {talk && talkRad ? <OpsPanelRow icon={<MikrofonIkon size={18} />} label={talkKnappNamn("vila", sprak)} accent onClick={() => oppna(TALK_FORM)} /> : null}
           {/* ⛔ UTAN `talk` FINNS INGET APPMÅL, och mikrofonen har då bara modulens mål att gå till. Raden öppnar fältet låst till
               det första, som modulens egen rad gör (0.99.0). Förut valde `valtMal` det av sig självt, vilket är det som inte längre gäller. */}
           {!talk && inspelningsMal.length > 0 ? (
@@ -1873,9 +1873,9 @@ function OpsAppShellRitad({
     if (!bas || !talk) return bas;
     const langtryck = harFasta ? (skapaListaUtomTalk ? () => setSkapaBottenOppen(true) : undefined) : bas.onClick;
     return {
-      label: talkKnappNamn(talkStyr.lage),
+      label: talkKnappNamn(talkStyr.lage, sprak),
       onClick: () => oppnaSkapa(TALK_FORM),
-      icon: <MikrofonIkon size={26} />,
+      icon: <MikrofonIkon size={31} />,
       talk: { lage: talkStyr.lage },
       ...(langtryck ? { langtryck } : {}),
     };
@@ -2337,11 +2337,11 @@ function OpsAppShellRitad({
                 ⛔ LÄGET SYNS: tänd (`aktiv`) medan den lyssnar eller skickar, och namnet säger samma sak för den som
                 lyssnar (`talkKnappNamn`). Utan `talk` ritas ingen knapp: en mikrofon utan mottagare hade tappat det man sade. */}
             {talk ? (
-              <OpsTooltip content={talkKnappNamn(talkStyr.lage)} side="bottom">
+              <OpsTooltip content={talkKnappNamn(talkStyr.lage, sprak)} side="bottom">
                 <button
                   type="button"
                   data-talk-huvud={talkStyr.lage}
-                  aria-label={talkKnappNamn(talkStyr.lage)}
+                  aria-label={talkKnappNamn(talkStyr.lage, sprak)}
                   onClick={() => oppnaSkapa(TALK_FORM)}
                   className={huvudknappKlass({
                     visning: "hidden md:inline-flex",

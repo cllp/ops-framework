@@ -39,6 +39,30 @@ panelen och Skapa app kan få vara enligt samma princip i header som meddelanden
 - `OpsGruppHubb` ritar vyns tunna huvud: ikonen, "Appar" och `atgard` (ny prop).
 - `OpsVyAtgard`: åtgärden i ett vyhuvud, med Meddelandens form. `OpsMeddelanden` använder den för "+ Nytt meddelande".
 
+### Granskningen av PR 383
+
+- **Skapa-listan går att nå utan pekare** (MÅSTE 1). Före 0.103.0 öppnade Enter på plusset listan. När plusset blev en mikrofon
+  startade Enter TALK, och listan nåddes bara med ett långtryck, alltså inte alls med tangentbordet under 768 px (också när en dator
+  zoomar 200 %). Shift+F10 och tangenten ContextMenu på mikrofonen öppnar nu listan, och knappen bär `aria-haspopup="dialog"` och
+  `aria-keyshortcuts="Shift+F10"`. Vägen ligger i `useLangtryck`, så samma tangenter öppnar genvägen på ikonerna med `skapa`
+  (Kalender, Inkorgen, gruppväxlaren, med `aria-keyshortcuts`) och menyn i `OpsAtgardsblad`. Tangenten sätter inget släppskydd, och
+  kontextmenyn som webbläsaren skickar efter den stoppas. Prov i `skapa-genvag.test.jsx` och `atgardsblad-langtryck.test.jsx`, och
+  Shift+F10 i en riktig webbläsare i `check-skalyta.mjs` avsnitt 39.
+- **Mikrofonens namn är helt engelskt på engelska** (BÖR 2): "TALK, speak. Hold to create" i stället för "TALK, prata in. Hold to
+  create". Namnen per läge står i `ORD_TALKKNAPP` (`lib/talk.js`), och `talkKnappNamn(lage, sprak)` tar språket. Huvudets
+  mikrofon och raden "TALK, prata in" i den gamla modellen följer samma tabell. `TALK_PRATA_IN` är kvar och är den svenska raden.
+- **Bilderna av samtalet är tagna om** (BÖR 3): `ramverk-samtal-390.png` och `ramverk-samtal-1280.png` visar mikrofonen i
+  bottenraden, inte plusset.
+- **En stor mikrofon med plusset bakom** (BÖR 5). Förut var mikrofonen 24 px, ungefär 43 % av cirkeln, och plusset ett märke med
+  ring framför den som en notisbricka. Nu är mikrofonen 31 px, plusset 20 px med `opacity-60`, förskjutet upp till höger, ritat före
+  mikrofonen och täckt av dess kapsel där de möts. `check-skalyta.mjs` avsnitt 39 kräver det i stället för motsatsen, och
+  `ramverk-mikrofon-390.png` och `ramverk-mikrofon-ljus-390.png` är tagna om. Plusset syns i båda lägena.
+- **TALK-fältets nya kant står här** (KAN 7). Fältet står ovanför bottenraden och spelraden med samma kant som arken
+  (`--bottom-nav-h`, `--safe-bottom` och `--spelrad-h`, plus 0,75 rem), i stället för `env(safe-area-inset-bottom) + 5.5rem`, en
+  gissning av bottenradens höjd som inte räknade med spelraden och lade fältet delvis över den (granskningen av PR 366, BÖR 3).
+- **Under inspelning går mittknappen inte att hålla in** (KAN 8). Medan TALK lyssnar, sparar eller visar ett kvitto öppnar varken
+  långtrycket eller tangenten skapa-listan, plusset ritas inte, och namnet är bara "TALK, lyssnar" utan "Håll inne för att skapa".
+
 ### ⛔ Brytande
 
 - **Med `talk` är bottenradens mittknapp en mikrofon, inte ett plus.** Ett vanligt tryck startar TALK direkt (samma
@@ -90,13 +114,13 @@ panelen och Skapa app kan få vara enligt samma princip i header som meddelanden
 - **Mikrofonen bär ett plus när ett långtryck skapar** (#382). CP 2026-10-14: "Ett kort press på talk öppnar ju då dialogen för
   att kunna prata in med agenten direkt. Och i den dialogen så finns ikonerna. Men om jag pressar en lång press på talk så blir det
   plusmenyn. Så att man kan lägga till manuellt utan att gå till talk. Undra om man i den ikonen kan ha en stor mikrofon och liksom
-  lite bakomliggande ett plus som indikerar det." Ett litet märke i knappens övre högra hörn (`data-skapa-marke`, 16 px, omvända
-  färger med en ring i knappens färg) och mikrofonen 2 px ned åt vänster, så att de två inte flyter ihop. Bara när långtrycket
-  öppnar skapa-listan. Ny text: `ORD_OPSBOTTOMNAV.langtryckText` ("Håll inne för att skapa", "Hold to create") och propen
-  `OpsBottomNav langtryckText`. Ny ikon: `SkapaMarkeIkon`. Skärmbilder, 390 px i mörkt och ljust läge:
-  `docs/jamforelser/0.103.0/ramverk-mikrofon-390.png` och `ramverk-mikrofon-ljus-390.png` (`node scripts/mikrofon-montage.mjs`,
-  som också mäter att märket står inom cirkeln och inte överlappar mikrofonen). `check-skalyta.mjs` avsnitt 39 kräver märket,
-  56 px för knappen och att märket med ring står inom cirkeln.
+  lite bakomliggande ett plus som indikerar det." Mikrofonen ritas i 31 px, och ett dämpat plus på 20 px (`data-skapa-marke`) står
+  upp till höger bakom den: det ritas före mikrofonen, och mikrofonens kapsel är fylld i knappens färg så att den täcker plusset där
+  de möts. Bara när långtrycket öppnar skapa-listan, och bara medan TALK vilar. Ny text: `ORD_OPSBOTTOMNAV.langtryckText` ("Håll
+  inne för att skapa", "Hold to create") och propen `OpsBottomNav langtryckText`. Ny ikon: `SkapaMarkeIkon`. Skärmbilder, 390 px i
+  mörkt och ljust läge: `docs/jamforelser/0.103.0/ramverk-mikrofon-390.png` och `ramverk-mikrofon-ljus-390.png`
+  (`node scripts/mikrofon-montage.mjs`). Mätningen och kraven står i `scripts/lib/mittknappMatt.mjs`, som både montaget och
+  `check-skalyta.mjs` avsnitt 39 läser.
 - Ingen genväg utan mottagare: har skalet ingen panel för nyckeln just nu (en modul som inte är påslagen, ett `skapa` utan
   posten, en ikon utanför skalet) får ikonen inga händelser och går inte att hålla in, med webbläsarens vanliga meny kvar.
 - Långtrycket stoppar iOS förhandsvisning av länken (`-webkit-touch-callout: none`) och Androids kontextmeny medan ett tryck

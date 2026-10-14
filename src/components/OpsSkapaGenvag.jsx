@@ -138,12 +138,13 @@ export function OpsSkapaGenvagar({ mal, children }) {
  *
  * @param {string | null | undefined} nyckel Vad ett långtryck skapar, en nyckel som `useOppnaSkapa()` tar.
  * @param {string} ikon Ikonens namn, för tipsraden ("håll in Kalender").
- * @returns {{ aktiv: boolean, namn: string | null, handelser: Record<string, (e: any) => void>, klass: string, tryckt: () => void }}
+ * @returns {{ aktiv: boolean, namn: string | null, handelser: Record<string, (e: any) => void>, kortkommando: string | undefined, klass: string, tryckt: () => void }}
  */
 export function useSkapaGenvag(nyckel, ikon) {
   const g = useContext(SkapaGenvagKontext);
   const mal = g && typeof nyckel === "string" && nyckel !== "" ? g.mal(nyckel) : null;
-  const { aktiv, handelser } = useLangtryck({
+  // ⛔ `kortkommando` (granskningen av PR 383, MÅSTE 1): Shift+F10 öppnar genvägen, och ytan säger det med `aria-keyshortcuts`.
+  const { aktiv, handelser, kortkommando } = useLangtryck({
     onLangtryck: mal && g
       ? () => {
           g.hollIn();
@@ -156,6 +157,7 @@ export function useSkapaGenvag(nyckel, ikon) {
     aktiv,
     namn: mal ? mal.namn : null,
     handelser,
+    kortkommando,
     klass: aktiv ? LANGTRYCK_KLASS : "",
     tryckt: () => {
       if (mal && g) g.tryckt(ikon, mal.namn);

@@ -174,3 +174,17 @@ describe("⛔ långtrycket och släppet", () => {
     expect(oppna).toHaveBeenCalledTimes(1);
   });
 });
+
+/*
+ * ⛔ GRANSKNINGEN AV PR 383, MÅSTE 1: långtrycket har en väg för tangentbordet, och den går genom samma krok som raden här använder.
+ * Shift+F10 öppnar menyn, och det får inte sätta släppskyddet: inget finger ska lyftas, så nästa Enter på en rad ska välja den.
+ */
+describe("⛔ tangentbordet", () => {
+  it("Shift+F10 på raden öppnar menyn, och första valet tas direkt", () => {
+    medBredd(true);
+    const oppna = rendera();
+    fireEvent.keyDown(screen.getByRole("button", { name: "Tankning" }), { key: "F10", shiftKey: true });
+    fireEvent.click(screen.getByRole("menuitem", { name: "Öppna" }));
+    expect(oppna).toHaveBeenCalledTimes(1);
+  });
+});

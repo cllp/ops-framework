@@ -113,11 +113,11 @@ export function PlusIkon({ size = 24 }) {
 
 /**
  * ⛔ Plusset bakom mittknappens mikrofon (0.103.0, #382). CP 2026-10-14: "en stor mikrofon och liksom lite bakomliggande ett plus
- * som indikerar det". Samma lucide-plus som `PlusIkon`, men tjockare: märket är 16 px, och med `PlusIkon`s 1,5 i streck hade plusset
- * blivit en hårstrålinje på 0,75 px som inte gick att läsa på en telefon.
+ * som indikerar det". Samma lucide-plus som `PlusIkon`, men tjockare: det är dämpat och delvis täckt av mikrofonen (granskningen av
+ * PR 383, BÖR 5), och med `PlusIkon`s 1,5 i streck hade det försvunnit mot knappens färg på en telefon.
  * @param {{ size?: number }} props
  */
-export function SkapaMarkeIkon({ size = 12 }) {
+export function SkapaMarkeIkon({ size = 20 }) {
   return <Plus size={size} aria-hidden="true" strokeWidth={3} />;
 }
 

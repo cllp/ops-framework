@@ -2434,12 +2434,18 @@ behövs?"
 
 - **Mittknappen är en mikrofon när skalet har `talk`.** Ett vanligt tryck startar TALK direkt, samma inspelning som huvudets
   mikrofon på dator. Utan `talk` är knappen plusset med dagens beteende, så att en app utan TALK inte tappar sin skapaväg.
-- ⛔ **Mikrofonen bär ett litet plus när ett långtryck skapar** (#382). CP 2026-10-14: "Undra om man i den ikonen kan ha en stor
-  mikrofon och liksom lite bakomliggande ett plus som indikerar det." Märket står i knappens övre högra hörn (`data-skapa-marke`,
-  16 px, `accent-contrast` med plusset i `accent` och en ring i knappens färg), mikrofonen 2 px ned åt vänster så att de inte
-  överlappar. Namnet blir "TALK, prata in. Håll inne för att skapa" ("Hold to create" på engelska, `ORD_OPSBOTTOMNAV.langtryckText`).
-  Märket och den andra halvan av namnet finns bara när långtrycket öppnar skapa-listan: inte utan `talk`, inte när skapa-listan är
-  tom, och inte med `primaryAction.talk.knapp`, där långtrycket är TALK.
+- ⛔ **Mikrofonen är stor och bär ett plus bakom sig när ett långtryck skapar** (#382). CP 2026-10-14: "Undra om man i den ikonen
+  kan ha en stor mikrofon och liksom lite bakomliggande ett plus som indikerar det." Mikrofonen ritas i 31 px i 56 px-cirkeln.
+  Plusset (`data-skapa-marke`, 20 px, `accent-contrast` med `opacity-60`) står upp till höger, ritas före mikrofonen och täcks där
+  de möts av mikrofonens kapsel, som är fylld i knappens färg. Mätt i `check-skalyta.mjs` avsnitt 39 och `mikrofon-montage.mjs`
+  (`scripts/lib/mittknappMatt.mjs`). Namnet blir "TALK, prata in. Håll inne för att skapa" och på engelska "TALK, speak. Hold to
+  create" (`ORD_TALKKNAPP` i `lib/talk.js` och `ORD_OPSBOTTOMNAV.langtryckText`). Plusset och den andra halvan av namnet finns bara
+  när långtrycket öppnar skapa-listan: inte utan `talk`, inte när skapa-listan är tom, inte medan TALK lyssnar, sparar eller visar
+  ett kvitto, och inte med `primaryAction.talk.knapp`, där långtrycket är TALK.
+- ⛔ **Tangentbordet når det långtrycket når.** Enter på mikrofonen startar TALK, så skapa-listan öppnas med Shift+F10 eller
+  tangenten ContextMenu, och knappen bär `aria-haspopup="dialog"` och `aria-keyshortcuts="Shift+F10"`. Samma tangenter öppnar
+  genvägen på en ikon med `skapa` (`aria-keyshortcuts` där också) och menyn i `OpsAtgardsblad`. Kontextmenyn som webbläsaren skickar
+  efter tangenten stoppas.
 - **Ett långtryck på en ikon skapar i den modulen.** En nav-post och en `OpsIconLink` tar `skapa`, en nyckel som
   `useOppnaSkapa()` tar, och skalet öppnar den med sin `oppnaSkapa`: samma panel som raden i plusset.
 
