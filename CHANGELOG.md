@@ -110,6 +110,13 @@ hoppade fram i en text som aldrig ändrats, och positionen låg kvar tills fält
 väntande positionen bär nu värdet den gäller: blir värdet inte det väntade läggs markören där den stod, och en ändring av fältet tömmer
 positionen. Prov i `textfalt-tal.test.jsx`: rött före (markören på 7 i stället för 2), grönt med.
 
+### Rättat: talytan i ett textfält bär fältets namn
+
+Ytan som står i fältets plats medan man pratar hade inget namn, så den som lyssnar hörde "Klar" och "Avbryt" utan att veta vilket
+fält de gällde (granskningen av PR 384, KAN 7). Ytan är nu en grupp med fältets namn: etiketten i `OpsField` via `aria-labelledby`
+(etiketten har fått ett id, `etikettId` i fältets kontext), annars fältets `ariaLabel`. Chattens yta är oförändrad. Prov i
+`textfalt-tal.test.jsx`: 2 röda före, gröna med.
+
 ### Ändrat: röstinmatningen har ett hem
 
 Talet bodde inbyggt i chattens skrivfält (`OpsMeddelanden.jsx`). Det är utbrutet till `OpsRostinmatning.jsx`

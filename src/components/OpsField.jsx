@@ -20,6 +20,7 @@ import { useOpsSprak } from "./OpsSprak.jsx";
 /**
  * @typedef {object} FieldBinding
  * @property {string} id
+ * @property {string} [etikettId] (0.104.0) Etikettens id, så att en yta som står i fältets plats kan bära fältets namn.
  * @property {string} [describedBy]
  * @property {boolean} invalid
  * @property {boolean} required
@@ -63,11 +64,11 @@ export function OpsField({ label, hint, error, required = false, labelSize = "st
   }
 
   return (
-    <FieldContext.Provider value={{ id, describedBy, invalid: Boolean(error), required: required }}>
+    <FieldContext.Provider value={{ id, etikettId: `${id}-etikett`, describedBy, invalid: Boolean(error), required: required }}>
       <div className="flex flex-col gap-1">
         {/* ⛔ #167: font-medium, inte font-semibold. Samma mätning som
             OpsStat/OpsTable, se OpsStat.jsx. */}
-        <label htmlFor={id} className={etikettKlass}>
+        <label id={`${id}-etikett`} htmlFor={id} className={etikettKlass}>
           {label}
           {required ? (
             <span className="text-danger" aria-hidden="true">
@@ -93,7 +94,7 @@ export function OpsField({ label, hint, error, required = false, labelSize = "st
   );
 }
 
-/** @returns {{ id?: string, describedBy?: string, invalid: boolean, required: boolean }} */
+/** @returns {{ id?: string, etikettId?: string, describedBy?: string, invalid: boolean, required: boolean }} */
 export function useFieldBinding() {
   return useContext(FieldContext) ?? { invalid: false, required: false };
 }
@@ -346,7 +347,7 @@ function sendGenvag(onSend) {
  * ⛔ YTAN STÅR I FÄLTETS PLATS MEDAN RÖSTEN ARBETAR, som i chatten. Fältets text ligger kvar orörd hos appen och kommer tillbaka med
  * det sagda inskrivet, eller oförändrad efter Avbryt. Fokus går tillbaka till fältet i båda fallen, med markören efter det inskrivna.
  *
- * @param {{ f: { id?: string, describedBy?: string, invalid: boolean, required: boolean }, value: string, onChange: (v: string) => void, placeholder?: string, name?: string, rows: number, disabled: boolean, maxLength?: number, ariaLabel?: string, onSend?: () => void, tal: Textfaltstal }} props
+ * @param {{ f: { id?: string, etikettId?: string, describedBy?: string, invalid: boolean, required: boolean }, value: string, onChange: (v: string) => void, placeholder?: string, name?: string, rows: number, disabled: boolean, maxLength?: number, ariaLabel?: string, onSend?: () => void, tal: Textfaltstal }} props
  */
 function TalTextarea({ f, value, onChange, placeholder, name, rows, disabled, maxLength, ariaLabel, onSend, tal }) {
   const sprak = useOpsSprak();
@@ -410,7 +411,7 @@ function TalTextarea({ f, value, onChange, placeholder, name, rows, disabled, ma
   return (
     <div data-textfalt-tal="" className="flex min-w-0 flex-col gap-1">
       {rost.yta ? (
-        <Rostyta rost={rost} klarEtikett={o.klar} ytaRef={ytaRef} ram="falt" />
+        <Rostyta rost={rost} klarEtikett={o.klar} ytaRef={ytaRef} ram="falt" namn={f.etikettId ? { etikettId: f.etikettId } : ariaLabel ? { text: ariaLabel } : undefined} />
       ) : (
         <div className="relative min-w-0">
           <textarea

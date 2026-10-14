@@ -181,11 +181,24 @@ const RAMAR = {
  *
  * `data-rostlage` säger läget för proven och skalytan: "spelar", "skickar", "skriver" (appens utskrift) och "fel".
  *
- * @param {{ rost: Rost, klarEtikett: string, ytaRef: import("react").RefObject<HTMLDivElement | null>, ram: "chatt" | "falt" }} props
+ * ⛔ `namn` GÖR YTAN TILL EN GRUPP MED FÄLTETS NAMN (0.104.0, granskningen av PR 384, KAN 7). Ytan står i fältets plats, och utan namn
+ * hörde den som lyssnar "Klar" och "Avbryt" utan att veta vilket fält de gällde. `etikettId` pekar på fältets etikett i `OpsField`,
+ * `text` är fältets `ariaLabel`. Chattens yta har inget namn: den står där skrivfältet står, och samtalets rubrik säger var man är.
+ *
+ * @param {{ rost: Rost, klarEtikett: string, ytaRef: import("react").RefObject<HTMLDivElement | null>, ram: "chatt" | "falt", namn?: { etikettId?: string, text?: string } }} props
  */
-export function Rostyta({ rost, klarEtikett, ytaRef, ram }) {
+export function Rostyta({ rost, klarEtikett, ytaRef, ram, namn }) {
   return (
-    <div ref={ytaRef} data-rostyta="" data-rostlage={rost.ytlage} data-live={rost.live ? "" : undefined} className={RAMAR[ram]}>
+    <div
+      ref={ytaRef}
+      data-rostyta=""
+      data-rostlage={rost.ytlage}
+      data-live={rost.live ? "" : undefined}
+      className={RAMAR[ram]}
+      role={namn ? "group" : undefined}
+      aria-labelledby={namn?.etikettId}
+      aria-label={namn?.etikettId ? undefined : namn?.text}
+    >
       <div className="rounded-3xl border border-line-strong bg-raised p-4 shadow-sm">
         <OpsInspelning
           lage={rost.lage}

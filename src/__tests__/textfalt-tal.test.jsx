@@ -166,6 +166,33 @@ describe("tal i OpsTextarea", () => {
     }
   });
 
+  /*
+   * ⛔ 0.104.0, granskningen av PR 384 (KAN 7). Ytan står i fältets plats medan man pratar, men hade inget namn: den som lyssnar hörde
+   * "Klar" och "Avbryt" utan att veta vilket fält de gällde. Ytan är nu en grupp med fältets namn, ur etiketten eller `ariaLabel`.
+   */
+  it("⛔ ytan bär fältets namn, ur etiketten i OpsField", async () => {
+    try {
+      await borjaPrata({ start: "En app" });
+      const grupp = screen.getByRole("group", { name: "Beskriv appen" });
+      expect(grupp.contains(klar())).toBe(true);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("⛔ ytan bär fältets namn, ur ariaLabel utan OpsField", async () => {
+    try {
+      const f = fejkadIgenkanning();
+      vi.stubGlobal("webkitSpeechRecognition", f.SR);
+      render(<OpsTextarea value="" onChange={() => {}} ariaLabel="Anteckning" tal={{ igenkanning: true, inspelare: provinspelare() }} />);
+      fireEvent.click(screen.getByRole("button", { name: "Prata in" }));
+      await waitFor(() => expect(f.instanser[0]?.startad).toBe(true));
+      expect(screen.getByRole("group", { name: "Anteckning" }).contains(klar())).toBe(true);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("⛔ Avbryt ändrar ingenting, och fokus går tillbaka till fältet", async () => {
     try {
       const { f, rec, onAndra, insp } = await borjaPrata({ start: "Orört", markor: [2, 2] });
