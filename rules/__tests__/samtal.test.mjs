@@ -232,6 +232,17 @@ describe("⛔ meddelanden: den som får läsa skriver som sig själv, ingen änd
     await assertFails(setDoc(doc(som(ANNA), `samtal/${annaBo}/meddelanden/a6`), msg(ANNA, { rubrik: "x" })));
     await assertFails(setDoc(doc(som(ANNA), `samtal/${annaBo}/meddelanden/a7`), msg(ANNA, { tid: nu() + 86400000 })));
   });
+  it("⛔ fältet forslag (0.105.0) nekas från en klient, i privat samtal, gruppchatt och agentsamtal (granskningen av PR 387)", async () => {
+    // Förslagen är knappar där trycket är personens begäran, och bara appens server skriver dem under agentens svar. En klient som
+    // fick skriva fältet hade kunnat lägga en knapp under sitt eget meddelande och få servern att pröva ett förslag den aldrig gav.
+    const forslag = [{ id: "f1", etikett: "Skapa ärendet" }];
+    // Golvet: samma meddelande utan fältet går igenom, så att det är fältet som nekas och inget annat.
+    await assertSucceeds(setDoc(doc(som(ANNA), `samtal/${annaBo}/meddelanden/fs0`), msg(ANNA)));
+    await assertFails(setDoc(doc(som(ANNA), `samtal/${annaBo}/meddelanden/fs1`), msg(ANNA, { forslag })));
+    await assertFails(setDoc(doc(som(CECILIA), `samtal/${grupp}/meddelanden/fs2`), msg(CECILIA, { forslag })));
+    await assertFails(setDoc(doc(som(ANNA), `samtal/${annaAgent}/meddelanden/fs3`), msg(ANNA, { forslag })));
+    await assertFails(setDoc(doc(som(ANNA), `samtal/${annaAgent}/meddelanden/fs4`), msg(ANNA, { forslag: [] })));
+  });
   it("⛔ ett meddelande ändras inte och raderas inte, inte ens av avsändaren", async () => {
     await assertFails(updateDoc(doc(som(ANNA), `samtal/${annaBo}/meddelanden/m1`), { text: "Något annat" }));
     await assertFails(deleteDoc(doc(som(ANNA), `samtal/${annaBo}/meddelanden/m1`)));

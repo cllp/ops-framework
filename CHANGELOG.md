@@ -120,6 +120,10 @@ Det Svara gjorde som inget annat gör: en röstdialog med agenten utan att lämn
   skrivet i adressen (1) och `key` på ärendeformuläret (1).
   `talk-kvitto.test.jsx` (fokus på Stäng i stället för Svara) och `talk-tomt-ljud.test.jsx` (andra omgången startas med mikrofonen i
   stället för med Svara) är ändrade och behöver en annan granskare (regel 9).
+- `rules/__tests__/samtal.test.mjs` (1 nytt, mot Firestore-emulatorn): en klient som skriver fältet `forslag` nekas i privat samtal,
+  gruppchatt och agentsamtal, med ett golv där samma meddelande utan fältet går igenom. Rött med `forslag` tillagt i
+  `MEDDELANDEFALT`. Reglerna är oförändrade: fältet nekades redan som okänt, och provet gör det till en regel som syns.
+  (Granskningen av PR 387.)
 - `check-skalyta.mjs` avsnitt 46 (`--bara-talkval`), vid 390 och 1280 px: valen med ord som inte klipps, träffbara på 44x44, inne i fältet
   och fönstret, fokus på Meddelande och inget lämnat innan personen valt; Agent lämnar det sagda till `onAgent`; i chatten två förslag
   minst 44 px höga inne i fönstret med förhandsvisningen, ett dubbelklick ger ett anrop med samtalet, meddelandet och id, och utfallet
