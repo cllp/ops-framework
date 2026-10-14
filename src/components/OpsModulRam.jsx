@@ -195,7 +195,7 @@ export function OpsModulRam({ modul, activeHref, hubHref, hubEtikett, onNavigate
   return (
     <OpsView
       tillbaka={{
-        ...modulTillbaka({ namn: rubrik, hubHref, hubEtikett, onNavigate, sprak, modulId: modul.id }),
+        ...modulTillbaka({ namn: rubrik, hubHref, hubEtikett, onNavigate, sprak, modulId: modul.id, ikon: /** @type {import("react").ReactNode} */ (modul.hubb?.ikon) }),
         ...(atgard ? { atgard } : {}),
       }}
     >

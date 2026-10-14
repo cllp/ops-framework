@@ -81,7 +81,7 @@ export function radBehallare({ ark = false } = {}) {
  * Dimningen och arket delar talet. Två handskrivna calc glider isär, och då
  * täcker den ena pluset medan den andra slutar vid raden.
  */
-export const arkOvanforRad = "bottom-[calc(var(--bottom-nav-h)+var(--safe-bottom))]";
+export const arkOvanforRad = "bottom-[calc(var(--bottom-nav-h)+var(--safe-bottom)+var(--spelrad-h,0px))]";
 
 /**
  * Lagret för den hyllan: `--z-ark`, under `--z-chrome`.

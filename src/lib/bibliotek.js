@@ -28,9 +28,13 @@ export const BIBLIOTEKTYPER = /** @type {const} */ (["anteckning", "lank", "fil"
 
 /**
  * Flikar i vyn. `ljud` är härlett ur fil+MIME (0.92.0, lifehub.app#163), inte en
- * egen typ i dokumentet. Filer-fliken är då bild och dokument, utan ljud.
+ * egen typ i dokumentet.
+ *
+ * ⛔ BILDER OCH DOKUMENT ÄR TVÅ FLIKAR (0.102.0, CP 2026-10-14: "Det måste se ut exakt som SessionStudio"). SessionStudios
+ * bibliotek har Allt, Inspelningar, Anteckningar, Bilder, Dokument och Länkar. `bild` är en fil med bild-MIME, och `fil` är
+ * resten av filerna, alltså dokumenten. Båda härledda ur MIME som ljudet, ingen ny typ i dokumentet. Ordningen är SessionStudios.
  */
-export const BIBLIOTEKFLIKAR = /** @type {const} */ (["alla", "anteckning", "lank", "ljud", "fil"]);
+export const BIBLIOTEKFLIKAR = /** @type {const} */ (["alla", "ljud", "anteckning", "bild", "fil", "lank"]);
 
 /** Tak. Samma tal skrivs in i regelfragmentet, ur de här konstanterna. */
 export const MAX_BIBLIOTEKRUBRIK = 200;
@@ -543,6 +547,27 @@ export function allaTaggar(poster) {
   return [...antal].map(([tagg, n]) => ({ tagg, antal: n })).sort((a, b) => b.antal - a.antal || a.tagg.localeCompare(b.tagg, "sv"));
 }
 
+/** Hur många taggfärger det finns: `--color-tagg-1` till `--color-tagg-8` i tokens. */
+export const TAGGFARGER = 8;
+
+/**
+ * Taggens färg som ett tal 1 till `TAGGFARGER`, alltid samma för samma tagg.
+ *
+ * ⛔ SESSIONSTUDIOS HASH, TECKEN FÖR TECKEN (0.102.0, `tagColorFromHash` i `packages/shared/artifactTags.js`): `(h << 5) - h + c`
+ * med 32-bitars heltal, och index `abs(h) % 8`. Samma tagg får alltså samma ton här som där, vilket är det CP jämför mot. Färgen
+ * väljs inte och lagras inte: den härleds ur namnet (regel 2), och en egen färgväljare per tagg hade varit ett fält till på varje
+ * post att hålla i takt.
+ *
+ * @param {string} tagg
+ * @returns {number}
+ */
+export function taggfarg(tagg) {
+  const ord = normaliseraTagg(tagg);
+  let h = 0;
+  for (const c of ord) h = ((h << 5) - h + c.charCodeAt(0)) | 0;
+  return (Math.abs(h) % TAGGFARGER) + 1;
+}
+
 /**
  * Får den här personen ändra eller radera posten? Samma villkor som regelns
  * `update` och, sedan #311, som regelns `delete`: författaren, eller ägare
@@ -699,8 +724,8 @@ export function byggPost(d) {
  * samling för sökord hade varit en kopia av rubriken.
  *
  * ⛔ LJUD ÄR INTE EN TYP (0.92.0). Fliken `ljud` filtrerar `typ === "fil"` med
- * ljud-MIME. Fliken `fil` tar resten av filerna (bild och dokument), så samma
- * post inte syns under båda.
+ * ljud-MIME, `bild` bild-MIME, och `fil` resten (dokumenten, 0.102.0), så samma
+ * post aldrig syns under två flikar.
  *
  * @template {Bibliotekspost & { id?: string }} T
  * @param {readonly T[]} poster
@@ -723,7 +748,8 @@ export function filtreraBibliotek(poster, val = {}) {
     .filter((p) => {
       if (flik === "alla") return true;
       if (flik === "ljud") return arLjudpost(p);
-      if (flik === "fil") return p.typ === "fil" && !arLjudpost(p);
+      if (flik === "bild") return p.typ === "fil" && filSort(p.fil?.mime) === "bild";
+      if (flik === "fil") return p.typ === "fil" && filSort(p.fil?.mime) === "dokument";
       return p.typ === flik;
     })
     .filter((p) => {

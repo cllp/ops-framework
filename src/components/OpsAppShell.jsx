@@ -4,6 +4,7 @@ import { useOpsSprak } from "./OpsSprak.jsx";
 import * as Popover from "@radix-ui/react-popover";
 import * as Dialog from "@radix-ui/react-dialog";
 import { cx } from "../lib/cx.js";
+import { OpsSpelareProvider } from "./OpsSpelare.jsx";
 import { OpsBrand } from "./OpsBrand.jsx";
 import { OpsBottomNav } from "./OpsBottomNav.jsx";
 import { OpsApparArk } from "./OpsApparArk.jsx";
@@ -1947,7 +1948,10 @@ function OpsAppShellRitad({
     ? navLista.map((p, i) => (i === 2 ? { ...p, children: (moduler ?? []).flatMap((m) => [{ href: m.href, label: m.label }, ...(m.children ?? [])]) } : p))
     : navLista;
 
+  // ⛔ SKALET ÄGER SPELAREN (0.102.0): ett ljud som startas i en vy spelar vidare när man byter sida, med spelraden ovanför
+  // bottenraden. Se OpsSpelare.jsx.
   return (
+    <OpsSpelareProvider>
     <OppnaSkapaKontext.Provider value={oppnaFranApp}>
     <OppnaHandelseKontext.Provider value={handelsepanel ? oppnaHandelse : null}>
     <OppnaInspelningKontext.Provider value={oppnaInspelning}>
@@ -2371,7 +2375,7 @@ function OpsAppShellRitad({
       {/* `padding-bottom` lika med bottenradens höjd plus säker yta, men bara
           under md där baren finns. Utan den ligger sista kortet under baren, och
           det upptäcks först när någon inte hittar sin sista rad. */}
-      <main className="pb-[calc(var(--bottom-nav-h)+var(--safe-bottom))] md:pb-0">
+      <main className="pb-[calc(var(--bottom-nav-h)+var(--safe-bottom)+var(--spelrad-h,0px))] md:pb-(--spelrad-h,0px)">
         {/* ⛔ #159: ALLTID PÅ, se OpsFelgrans filhuvud. Ingen prop stänger av den. */}
         <OpsFelgrans felmottagare={felmottagare} rubrik={felRubrik} beskrivning={felBeskrivning} laddaOmEtikett={laddaOmEtikett}>
           {/* ⛔ 0.31.0: APPENS VY ÄR KVAR I DOM:EN, DOLD, medan skapa-panelen visas. Tillbaka återställer då exakt vyn man kom
@@ -2528,6 +2532,7 @@ function OpsAppShellRitad({
     </OppnaInspelningKontext.Provider>
     </OppnaHandelseKontext.Provider>
     </OppnaSkapaKontext.Provider>
+    </OpsSpelareProvider>
   );
 }
 

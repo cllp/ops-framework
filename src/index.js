@@ -62,6 +62,7 @@ export { OpsFloatingSummary } from "./components/OpsFloatingSummary.jsx";
 export { OpsScrollArea } from "./components/OpsScrollArea.jsx";
 export { OpsFilePicker } from "./components/OpsFilePicker.jsx";
 export { OpsLjudspelare } from "./components/OpsLjudspelare.jsx";
+export { OpsSpelareProvider, OpsSpelaKnapp, OpsSpelarKontroller, useSpelare, ORD_OPSSPELARE } from "./components/OpsSpelare.jsx";
 // ⛔ `readAttachment` och `MAX_SIDE` exporteras MED FLIT inte. En app som läser filer
 // själv har gått runt komponenten, och då finns två ställen som bestämmer vad som
 // ryms. `isImage` och `sizeText` behövs för att VISA en sparad bilaga, alltså
@@ -302,7 +303,7 @@ export { OpsHubblista } from "./components/OpsHubbar.jsx";
 export { OpsGruppFormular } from "./components/OpsGruppFormular.jsx";
 export { sakerstallAnvandare, sparaInstallningar, andringen } from "./lib/profil.js";
 export { createCatalogSource } from "./data/katalogkalla.js";
-export { BIBLIOTEKTYPER, BIBLIOTEKFLIKAR, BIBLIOTEKFALT, FILFALT, FILMIME, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, MAX_BIBLIOTEKFIL, MAX_BIBLIOTEKFILNAMN, MAX_BIBLIOTEKSOKVAG, MAX_BIBLIOTEKUTSKRIFT, IDE_MAX_SEKUNDER, LJUD_STOLPAR, MAX_LJUD_MS, ADRESSFORM, inmatningsfel, filInmatningsfel, filFel, filSort, arLjudpost, filMimeMonster, normaliseraMime, utskriftFel, ideRubrik, ljudRubrik, ljudDatum, peaksGiltiga, kodaToppar, avkodaToppar, ljudMetaFel, postFel, byggPost, filtreraBibliotek, normaliseraAdress, farAndra, MAX_TAGGAR, MAX_TAGGLANGD, TAGGFORM, normaliseraTagg, normaliseraTaggar, taggarFel, allaTaggar, MITT_PREFIX, MITTFORM, mittBibliotek, arMittBibliotek, mittJag } from "./lib/bibliotek.js";
+export { BIBLIOTEKTYPER, BIBLIOTEKFLIKAR, BIBLIOTEKFALT, FILFALT, FILMIME, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, MAX_BIBLIOTEKFIL, MAX_BIBLIOTEKFILNAMN, MAX_BIBLIOTEKSOKVAG, MAX_BIBLIOTEKUTSKRIFT, IDE_MAX_SEKUNDER, LJUD_STOLPAR, MAX_LJUD_MS, ADRESSFORM, inmatningsfel, filInmatningsfel, filFel, filSort, arLjudpost, filMimeMonster, normaliseraMime, utskriftFel, ideRubrik, ljudRubrik, ljudDatum, peaksGiltiga, kodaToppar, avkodaToppar, ljudMetaFel, postFel, byggPost, filtreraBibliotek, normaliseraAdress, farAndra, MAX_TAGGAR, MAX_TAGGLANGD, TAGGFORM, normaliseraTagg, normaliseraTaggar, taggarFel, allaTaggar, taggfarg, TAGGFARGER, MITT_PREFIX, MITTFORM, mittBibliotek, arMittBibliotek, mittJag } from "./lib/bibliotek.js";
 export { createBibliotekskalla, flyttaBibliotekspost } from "./data/bibliotekkalla.js";
 export { OpsBibliotek } from "./components/OpsBibliotek.jsx";
 export { MINNESKALLOR, MINNESFALT, MINNESKALLAFALT, MAX_MINNESTEXT, MAX_MINNESID, farAndraMinne, minnesradFel, byggMinnesrad } from "./lib/minne.js";

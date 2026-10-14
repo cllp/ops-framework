@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ADRESSFORM, BIBLIOTEKFALT, BIBLIOTEKFLIKAR, BIBLIOTEKTYPER, LJUD_STOLPAR, MAX_BIBLIOTEKUTSKRIFT, MAX_LJUD_MS, TOPPFORM, TOPP_NIVAER, TOPP_TECKEN, arLjudpost, avkodaToppar, byggPost, farAndra, filtreraBibliotek, ideRubrik, inmatningsfel, kodaToppar, ljudDatum, ljudRubrik, normaliseraAdress, peaksGiltiga, postFel, toppListaGiltig, trimSomRegeln } from "../lib/bibliotek.js";
+import { ADRESSFORM, BIBLIOTEKFALT, BIBLIOTEKFLIKAR, BIBLIOTEKTYPER, LJUD_STOLPAR, MAX_BIBLIOTEKUTSKRIFT, MAX_LJUD_MS, TOPPFORM, TOPP_NIVAER, TOPP_TECKEN, arLjudpost, avkodaToppar, byggPost, farAndra, filtreraBibliotek, ideRubrik, inmatningsfel, kodaToppar, ljudDatum, ljudRubrik, normaliseraAdress, peaksGiltiga, postFel, taggfarg, toppListaGiltig, trimSomRegeln } from "../lib/bibliotek.js";
 import { SKAPARFALT, byggSkapare } from "../lib/skapare.js";
 
 /**
@@ -192,8 +192,8 @@ describe("bibliotekets post", () => {
     expect(filtreraBibliotek(poster, { sok: "finns inte" })).toEqual([]);
   });
 
-  it("⛔ Ljud-fliken är härledd ur MIME, och Filer räknar inte ljud (lifehub.app#163)", () => {
-    expect(BIBLIOTEKFLIKAR).toEqual(["alla", "anteckning", "lank", "ljud", "fil"]);
+  it("⛔ flikarna är SessionStudios, och Ljud, Bilder och Dokument är härledda ur MIME utan att en post syns under två (0.102.0)", () => {
+    expect(BIBLIOTEKFLIKAR).toEqual(["alla", "ljud", "anteckning", "bild", "fil", "lank"]);
     const bas = { ...anteckning, typ: "fil", text: undefined };
     const ljud = {
       ...byggPost({
@@ -212,10 +212,45 @@ describe("bibliotekets post", () => {
       }),
       id: "i",
     };
+    const pdf = {
+      ...byggPost({
+        ...bas,
+        rubrik: "Avtal",
+        fil: { sokvag: "grupper/cps-ab/bibliotek/p1/a.pdf", namn: "a.pdf", mime: "application/pdf", byte: 100 },
+        andrad: tid + 2,
+      }),
+      id: "d",
+    };
+    const alla = [ljud, bild, pdf];
     expect(arLjudpost(ljud)).toBe(true);
     expect(arLjudpost(bild)).toBe(false);
-    expect(filtreraBibliotek([ljud, bild], { flik: "ljud" }).map((p) => p.id)).toEqual(["l"]);
-    expect(filtreraBibliotek([ljud, bild], { flik: "fil" }).map((p) => p.id)).toEqual(["i"]);
+    expect(filtreraBibliotek(alla, { flik: "ljud" }).map((p) => p.id)).toEqual(["l"]);
+    expect(filtreraBibliotek(alla, { flik: "bild" }).map((p) => p.id)).toEqual(["i"]);
+    // `fil` är Dokument: varken bild eller ljud.
+    expect(filtreraBibliotek(alla, { flik: "fil" }).map((p) => p.id)).toEqual(["d"]);
+    // Golv: varje post ligger under exakt en av filflikarna, så ingen av raderna ovan är grön av ett tomt urval.
+    const per = ["ljud", "bild", "fil"].flatMap((flik) => filtreraBibliotek(alla, { flik }).map((p) => p.id));
+    expect(per.sort()).toEqual(["d", "i", "l"]);
+    expect(filtreraBibliotek(alla, { flik: "alla" })).toHaveLength(3);
+  });
+
+  it("⛔ taggens färg är SessionStudios hash, och samma tagg får samma färg oavsett hur den skrevs (0.102.0)", () => {
+    // Värdena är SessionStudios `tagColorFromHash` för samma ord, så samma tagg har samma ton här som där.
+    expect(taggfarg("idé")).toBe(7);
+    expect(taggfarg("styrelse")).toBe(4);
+    expect(taggfarg("2026")).toBe(3);
+    expect(taggfarg("kvitto")).toBe(8);
+    expect(taggfarg("bil")).toBe(6);
+    expect(taggfarg("faktura")).toBe(1);
+    // Taggen normaliseras först: versaler, # och NFD ("e" plus kombinerande accent, som inklistrad text från macOS kan bära) ger
+    // samma färg. Utan normaliseringen ger NFD-formen 8, inte 7.
+    expect(taggfarg("#Idé")).toBe(7);
+    expect(taggfarg("ide\u0301")).toBe(7);
+    // Alltid 1 till 8, också för tomt.
+    for (const t of ["", "a", "bil 2024", "år-2025", "x".repeat(40)]) {
+      expect(taggfarg(t)).toBeGreaterThanOrEqual(1);
+      expect(taggfarg(t)).toBeLessThanOrEqual(8);
+    }
   });
 
   it("mellanslag är tomt, och adressen prövas mot ADRESSFORM som regeln", () => {

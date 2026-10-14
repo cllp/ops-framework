@@ -322,6 +322,23 @@ export function ljudStyrning(id) {
   return styrningar.get(id) ?? null;
 }
 
+/**
+ * Texten när `play()` avvisas, eller tom när avvisningen inte är ett fel (0.102.0, utbruten ur `OpsLjudspelare`).
+ *
+ * ⛔ `AbortError` ÄR INGET FEL. Webbläsaren avvisar ett väntande `play()` när källan byts, när någon pausar eller när spelaren
+ * stängs. Skalets spelare skrev förut "Ljudet kunde inte spelas." på det spår som faktiskt spelade (granskningen av PR 366,
+ * MÅSTE 1). En funktion för båda spelarna, så att de inte säger olika saker om samma fel.
+ *
+ * @param {unknown} e
+ * @returns {string}
+ */
+export function startFelText(e) {
+  const namn = e && typeof e === "object" && "name" in e ? String(/** @type {any} */ (e).name) : "";
+  if (namn === "AbortError") return "";
+  if (namn === "NotAllowedError") return "Webbläsaren tillät inte uppspelningen. Tryck på Spela igen.";
+  return "Ljudet gick inte att spela.";
+}
+
 /** Tömmer spärren och våg-cachen. Proven anropar den, appen gör det inte. */
 export function nollstallSpelare() {
   registrerade.clear();

@@ -9,6 +9,81 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.102.0
+
+**Biblioteket som SessionStudios, och en kortare meny.** [lifehub.app#214](https://github.com/cllp/lifehub.app/issues/214),
+[lifehub.app#226](https://github.com/cllp/lifehub.app/issues/226).
+
+CP 2026-10-14: "Det måste se ut exakt som SessionStudio ... Separera hellre artefakter i listan på ett bättre sätt som
+SessionStudio. Måste vara supersnyggt." Och om långtrycksmenyn: "Kanske popup med en kortare meny för artefakten? Vad är detta
+med hastighet mm och spolning när en låt/ljud inte ens har startat?" Montage sida vid sida med SessionStudios riktiga
+`MyLibraryPanel` i mörkt läge: `docs/jamforelser/0.102.0/`.
+
+### ⛔ Brytande
+
+- `ORD_OPSATGARDSBLAD.stang` är borttagen, och `OpsAtgardsblad` är inte längre ett ark från botten under 768 px utan en kort ruta
+  vid raden på alla bredder.
+- `BIBLIOTEKFLIKAR` har fliken `bild`, och `filtreraBibliotek({ flik: "fil" })` ger dokumenten utan bilderna.
+- `OpsHubTillbaka` och `OpsViewHeader` ritar vyns tunna huvud (se nedan). `atgard` står på rubrikens rad, inte på Tillbaka-raden.
+  En app som mätt rubrikens storlek eller letat efter åtgärden på Tillbaka-raden behöver se över det.
+- Bibliotekets rad "N objekt" (`data-bibliotek-antal`) är borta. Antalet står i fliken Allt.
+
+### Ändrat
+
+- **Vyns huvud är Meddelandens, i varje vy.** CP 2026-10-14, med skärmbilder av Meddelanden, Bibliotek och Inkorg från telefonen:
+  "Kolla header panelen på chatt. Den är mycket tunnare och bättre än bibliotek. Gör dessa enhetliga med utgångspunkt från
+  meddelanden. Inkorgen börjar nästan i halva panelen." `OpsHubTillbaka`, `OpsViewHeader` och `OpsMeddelanden` delar en rad:
+  ikonen i accent, namnet i etikettens storlek och vikt 600, och åtgärderna till höger (`VYHUVUD_KLASS`, `VYRUBRIK_KLASS`,
+  `VYIKON_KLASS`). `ikon` på `OpsHubTillbaka`, `OpsViewHeader` och `modulTillbaka`, och `OpsModulRam` skickar modulens `hubb.ikon`.
+- `OpsBibliotek`: varje post är ett eget kort med luft emellan, som kortet i SessionStudios app (CP:s skärmbilder i
+  `docs/jamforelser/0.102.0/forebild-ss-app-*.png`). Kortet har en rund ikonplatta i typens färg, rubriken, typen i singular
+  med format ("DOKUMENT · PDF"), taggarna som färgade piller, en förhandsvisning och en metarad (storlek, längd och datum).
+  Ett ljud spelas med en rund knapp till höger, i skalets spelare.
+- Huvudet: "N objekt" och platsen som en pill, sedan sök, "+ Ny" och Taggar på en rad, och flikarna som piller som rullar i
+  sidled på alla bredder.
+- Flikarna är Allt, Ljud, Anteckningar, Bilder, Dokument och Länkar. Tomma flikar döljs, utom Allt och Ljud.
+  `BIBLIOTEKFLIKAR` har `bild` som en ny flik, och `fil` är nu dokumenten, utan bilderna.
+- Taggarna ändras på kortet: lägg till med ett fält med förslag, ta bort med krysset, och ett tryck på en tagg filtrerar.
+  Rutan Taggar i menyn är borta. Filtret är en knapp Taggar med en panel, och den gamla raden med `#tagg` under sökfältet är
+  borta.
+- Menyn är kortare. Öppna, Taggar, 10 sekunder bakåt och framåt, Hastighet, Ladda ned och Redigera i listan är borta, och
+  Kopiera till Mitt bibliotek för författaren ligger i "Flytta eller kopiera".
+- `OpsAtgardsblad` är en liten ruta vid raden på alla bredder, med postens namn överst. Arket nerifrån med Stäng är borta.
+  `ORD_OPSATGARDSBLAD.stang` är borttagen.
+- `OpsLjudspelare` visar hopp och hastighet först när ljudet startats. Ladda ned syns hela tiden.
+
+### Tillagt
+
+- **Skalets spelare** (`OpsSpelareProvider`, `OpsSpelaKnapp`, `OpsSpelarKontroller`, `useSpelare`, `ORD_OPSSPELARE`), som
+  SessionStudios. CP 2026-10-14: "Kolla SessionStudio och spelaren. Men gärna med waveform också." `OpsAppShell` lägger
+  providern runt sidan. Ett ljud som startas spelar vidare medan man byter vy, i en spelrad ovanför bottenraden (från 768 px i
+  ett hörn). Ett tryck på namnet öppnar arket med vågen, spolning, -10 och +10, hastigheten och Ladda ned. Låsskärmen och
+  hörlurarna styr den via Media Session. En `<audio>` för hela skalet, och en i taget med `OpsLjudspelare` och chattens bilagor.
+- `taggfarg(tagg)` och `TAGGFARGER`: taggens färg 1 till 8 med SessionStudios hash, och tokens `--color-tagg-1` till
+  `--color-tagg-8`, `--color-tagg-text` och `--color-typ-anteckning`, `--color-typ-ljud` och `--color-typ-lank`.
+- `OpsLjudspelare` läget `liten`, och `kort` på `OpsSvepRad` och `OpsAtgardsblad`.
+
+### Granskningen av PR 366
+
+- Vyns rubrik (`VYRUBRIK_KLASS`) bär `font-display` igen. Det tunna huvudet tog etikettens storlek och tappade typsnittsrollen
+  med den, så en brandfil som byter `--font-display` ändrade inte längre vyns namn. `check:brand` fångade det i CI.
+- Skalets spelare skriver inget fel när ett äldre `play()` avvisas efter ett byte av spår, en paus eller en stängning. `startFelText`
+  i `lib/ljudspelare.js` är texten för båda spelarna, och tom för `AbortError`.
+- Spelraden tar sin plats: höjden står i `--spelrad-h`, och ytorna som slutar vid bottenraden räknar in den. Förut låg den över
+  skrivfältet i Meddelanden, och från 768 px täckte hörnrutan skicka-knappen. Från 768 px är den en list längst ned.
+- Bibliotekets flikar är Radix Tabs: piltangenter, Home och End, och fliken styr panelen.
+- Vågen i skalets spelare spolar 5 s med piltangenterna, och Home och End går till början och slutet.
+- `OpsLjudspelare liten` är 44 px och lämnar felet till kortet med `onFel`, så att det syns och inte bara hörs.
+- Media Session rensas när skalet avmonteras.
+- Dela i Mitt bibliotek kräver fortfarande att man äger posten eller får ändra den, som försvar i djupet.
+- Flikraden tonar ut mot högerkanten, så att det syns att fler flikar finns.
+
+### Rättat
+
+- Väljaren i Flytta eller kopiera heter det den visar ("Flytta eller kopiera till"). Förut stod "Till" synligt och ett annat
+  namn för skärmläsaren.
+- Escape i taggfältet sparar inte det avbrutna utkastet, också när webbläsaren tar bort fokus från fältet i samma ögonblick.
+
 ## 0.101.0
 
 **Mitt bibliotek, och flytt mellan det och gruppen.** [lifehub.app#226](https://github.com/cllp/lifehub.app/issues/226).

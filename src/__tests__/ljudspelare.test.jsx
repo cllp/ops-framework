@@ -424,4 +424,60 @@ describe("OpsLjudspelare", () => {
     act(() => slapp());
     await waitFor(() => expect(screen.getByRole("button", { name: "Pausa Idé" })).toBeInTheDocument());
   });
+
+  it("⛔ hopp och hastighet saknas innan ljudet startats, Ladda ned syns hela tiden, och efter Spela finns de (0.102.0)", async () => {
+    // CP 2026-10-14: "Vad är detta med hastighet mm och spolning när en låt/ljud inte ens har startat?"
+    render(<OpsLjudspelare src="https://exempel.se/a.webm" namn="Idé" />);
+    const el = /** @type {HTMLAudioElement} */ (document.querySelector("audio"));
+    act(() => sattLangd(el, 100));
+    await waitFor(() => expect(document.querySelector("[data-ljud-tid]")?.textContent).toMatch(/1:40/));
+    expect(document.querySelector("[data-ljudspelare]")?.getAttribute("data-ljudspelare")).toBe("full");
+    expect(screen.queryByRole("button", { name: "10 sekunder bakåt" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "10 sekunder framåt" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Uppspelningshastighet/ })).toBeNull();
+    expect(screen.getByRole("link", { name: /Ladda ned/ })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Spela Idé" }));
+    expect(await screen.findByRole("button", { name: "Pausa Idé" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "10 sekunder bakåt" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "10 sekunder framåt" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Uppspelningshastighet 1×" })).toBeInTheDocument();
+    // Pausat efter att ha spelat en bit: knapparna står kvar, för det finns nu en plats att hoppa från.
+    act(() => {
+      el.currentTime = 12;
+      el.dispatchEvent(new Event("timeupdate"));
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Pausa Idé" }));
+    expect(await screen.findByRole("button", { name: "Spela Idé" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "10 sekunder bakåt" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Ladda ned/ })).toBeInTheDocument();
+  });
+
+  it("⛔ liten lämnar felet till anroparen, och knappen är 44 px (granskningen av PR 366, BÖR 6)", async () => {
+    HTMLMediaElement.prototype.play = function nekad() {
+      const e = new Error("nej");
+      e.name = "NotAllowedError";
+      return Promise.reject(e);
+    };
+    const onFel = vi.fn();
+    render(<OpsLjudspelare liten src="https://exempel.se/a.webm" namn="Idé" durationMs={4000} onFel={onFel} />);
+    const knapp = screen.getByRole("button", { name: /Idé/ });
+    expect(knapp.className).toContain("size-11");
+    fireEvent.click(knapp);
+    await waitFor(() => expect(onFel).toHaveBeenLastCalledWith("Webbläsaren tillät inte uppspelningen. Tryck på Spela igen."));
+  });
+
+  it("⛔ liten är bara spela och pausa: ingen våg, inget reglage, inga hopp och ingen nedladdning, inte heller när den spelar (0.102.0)", async () => {
+    render(<OpsLjudspelare liten src="https://exempel.se/a.webm" namn="Idé" durationMs={4000} />);
+    expect(document.querySelector("[data-ljudspelare]")?.getAttribute("data-ljudspelare")).toBe("liten");
+    expect(document.querySelector("audio")).toHaveAttribute("src", "https://exempel.se/a.webm");
+    expect(screen.getAllByRole("button")).toHaveLength(1);
+    fireEvent.click(screen.getByRole("button", { name: "Spela Idé" }));
+    expect(await screen.findByRole("button", { name: "Pausa Idé" })).toBeInTheDocument();
+    expect(screen.getAllByRole("button")).toHaveLength(1);
+    expect(screen.queryByRole("slider")).toBeNull();
+    expect(screen.queryByRole("link", { name: /Ladda ned/ })).toBeNull();
+    expect(document.querySelector("[data-ljud-stolpe]")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Pausa Idé" }));
+    expect(await screen.findByRole("button", { name: "Spela Idé" })).toBeInTheDocument();
+  });
 });

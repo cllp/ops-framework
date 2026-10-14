@@ -22,6 +22,20 @@ const poster = [
 
 const FORFATTARE = { uid: "uid-1", roll: "medlem" };
 
+/** En bild, ett dokument och ett ljud: de tre sorterna fil som flikarna delar upp. */
+function filposter() {
+  /** @param {string} id @param {string} rubrik @param {{ namn: string, mime: string }} fil @param {number} steg */
+  const fil = (id, rubrik, { namn, mime }, steg) => ({
+    ...byggPost({ groupId: "cps-ab", typ: "fil", rubrik, fil: { sokvag: `grupper/cps-ab/bibliotek/${id}/${namn}`, namn, mime, byte: 2048 }, skapadAv: skapare, skapad: tid, andrad: tid + steg }),
+    id,
+  });
+  return [
+    fil("bild", "Kvitto", { namn: "kvitto.jpg", mime: "image/jpeg" }, 2),
+    fil("pdf", "Avtal", { namn: "avtal.pdf", mime: "application/pdf" }, 3),
+    fil("ljud", "Idé", { namn: "ide.webm", mime: "audio/webm" }, 4),
+  ];
+}
+
 function Harness({ start = poster, lasfel = null, jag = FORFATTARE, trasiga = [], onNavigate = undefined, onRadera = undefined, onLaddaUpp = undefined, onSpelaIn = undefined, inspelare = undefined, filUrl = undefined, hamtaAdress = undefined, grupper = [], onDela = undefined, onSkrivUt = undefined, onGorForslag = undefined, onFyllLjud = undefined, onSparaOverride = undefined }) {
   const [vald, setVald] = useState(/** @type {(typeof poster)[number] | null} */ (null));
   const [skapar, setSkapar] = useState(/** @type {"anteckning" | "lank" | null} */ (null));
@@ -284,14 +298,14 @@ describe("OpsBibliotek", () => {
     const onDela = vi.fn(() => Promise.resolve());
     render(<Harness grupper={[{ id: "miranda-ab", namn: "Miranda" }]} onDela={onDela} />);
     fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Protokoll" }));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Till en annan grupp" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Flytta eller kopiera" }));
     expect(onDela).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Kopiera" }));
     await waitFor(() => expect(onDela).toHaveBeenCalledWith({ id: "a", groupId: "miranda-ab", satt: "kopiera" }));
     expect(await screen.findByText("Kopierad till Miranda.")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Kopiera" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Protokoll" }));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Till en annan grupp" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Flytta eller kopiera" }));
     fireEvent.click(screen.getByRole("button", { name: "Flytta" }));
     await waitFor(() => expect(onDela).toHaveBeenCalledWith({ id: "a", groupId: "miranda-ab", satt: "flytta" }));
   });
@@ -300,7 +314,7 @@ describe("OpsBibliotek", () => {
     const onDela = vi.fn(() => Promise.reject(new Error("Posten kopierades, men kunde inte tas bort där den låg (nej). Den finns nu på båda ställena.")));
     render(<Harness grupper={[{ id: "miranda-ab", namn: "Miranda" }]} onDela={onDela} />);
     fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Protokoll" }));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Till en annan grupp" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Flytta eller kopiera" }));
     fireEvent.click(screen.getByRole("button", { name: "Flytta" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Den finns nu på båda ställena.");
     expect(screen.getByRole("button", { name: "Flytta" })).toBeInTheDocument();
@@ -314,9 +328,10 @@ describe("OpsBibliotek", () => {
     const user = userEvent.setup();
     render(<Harness grupper={[{ id: "miranda-ab", namn: "Miranda" }, { id: "kor-ab", namn: "Kören" }, { id: "cps-ab", namn: "CPS" }]} onDela={onDela} />);
     fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Protokoll" }));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Till en annan grupp" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Flytta eller kopiera" }));
     expect(document.querySelector("select")).toBeNull();
-    const valjare = screen.getByRole("combobox", { name: "Grupp att dela till" });
+    expect(screen.getByRole("dialog", { name: "Flytta eller kopiera" })).toBeInTheDocument();
+    const valjare = screen.getByRole("combobox", { name: "Flytta eller kopiera till" });
     expect(valjare).toHaveTextContent("Miranda");
     await user.click(valjare);
     expect(screen.queryByRole("option", { name: "CPS" })).toBeNull();
@@ -437,7 +452,7 @@ describe("OpsBibliotek", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Behörighet saknas.");
   });
 
-  it("ett ljud har rubrik, längd och en spelknapp, inte ikon och hopp i samma rad", () => {
+  it("ett ljud är ett kort som de andra: liten spelknapp där ikonen står, rubrik, typetikett och längd, inga hopp", () => {
     const ljud = {
       ...byggPost({
         groupId: "cps-ab",
@@ -453,18 +468,47 @@ describe("OpsBibliotek", () => {
       id: "ljud",
     };
     render(<Harness start={[ljud]} filUrl={() => "https://exempel.se/ide.webm"} />);
-    const rad = document.querySelector("[data-bibliotek-ljudrad]");
-    expect(rad).not.toBeNull();
-    expect(rad?.querySelector("[data-bibliotek-ikon]")).toBeNull();
-    expect(screen.getByRole("button", { name: "Idé 2026-10-08 21:05" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Spela Idé 2026-10-08 21:05" })).toBeInTheDocument();
-    expect(document.querySelector("[data-ljud-langd]")?.textContent).toMatch(/0:04/);
+    const lista = screen.getByRole("list", { name: "Biblioteket" });
+    const kort = /** @type {HTMLElement} */ (lista.querySelector("[data-bibliotek-kort]"));
+    expect(kort.getAttribute("data-bibliotek-kort")).toBe("ljud");
+    // Spelknappen står där ikonen står på de andra korten, och den är spelarens lilla läge.
+    const ikon = /** @type {HTMLElement} */ (kort.querySelector("[data-bibliotek-ikon]"));
+    expect(ikon.querySelector("[data-ljudspelare='liten']")).not.toBeNull();
+    expect(within(ikon).getByRole("button", { name: "Spela Idé 2026-10-08 21:05" })).toBeInTheDocument();
+    expect(within(kort).getByRole("button", { name: "Idé 2026-10-08 21:05" })).toBeInTheDocument();
+    expect(kort.querySelector("[data-bibliotek-typ]")?.textContent).toBe("Ljud · webm");
+    expect(document.querySelector("[data-ljud-langd]")?.textContent).toBe("0:04");
     expect(screen.queryByRole("button", { name: "10 sekunder bakåt" })).toBeNull();
+    expect(screen.queryByRole("slider")).toBeNull();
     expect(screen.queryByRole("link", { name: /Ladda ned/ })).toBeNull();
+    expect(document.querySelector("[data-bibliotek-ljudrad]")).toBeNull();
+  });
+
+  it("⛔ menyn för ett ljud är kort: Byt namn, Kopiera länk och Radera, och ingen spelarstyrning, Taggar eller Öppna (0.102.0)", () => {
+    // CP 2026-10-14, med en skärmbild av en meny med tio rader: "Vad är detta med hastighet mm och spolning när en låt/ljud inte
+    // ens har startat?"
+    const ljud = {
+      ...byggPost({
+        groupId: "cps-ab",
+        typ: "fil",
+        rubrik: "Idé 2026-10-08 21:05",
+        fil: { sokvag: "grupper/my/bibliotek/p/ide.webm", namn: "ide.webm", mime: "audio/webm", byte: 4000 },
+        durationMs: 4000,
+        skapadAv: skapare,
+        skapad: tid,
+        andrad: tid,
+      }),
+      id: "ljud",
+    };
+    render(<Harness start={[ljud]} filUrl={() => "https://exempel.se/ide.webm"} />);
     fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Idé 2026-10-08 21:05" }));
-    expect(screen.getByRole("menuitem", { name: "Ladda ned" })).toBeInTheDocument();
-    expect(screen.getByRole("menuitem", { name: "10 sekunder bakåt" })).toBeInTheDocument();
-    expect(screen.getByRole("menuitem", { name: "Hastighet" })).toBeInTheDocument();
+    const meny = screen.getByRole("menu", { name: "Idé 2026-10-08 21:05" });
+    expect(within(meny).getAllByRole("menuitem").map((r) => r.textContent)).toEqual(["Byt namn", "Kopiera länk", "Radera"]);
+    for (const borta of ["Hastighet", "10 sekunder bakåt", "10 sekunder framåt", "Taggar", "Öppna", "Ladda ned", "Redigera"]) {
+      expect(within(meny).queryByRole("menuitem", { name: borta }), borta).toBeNull();
+    }
+    // Namnet står överst i rutan, så det syns vilken post menyn gäller.
+    expect(document.querySelector("[data-ops-atgard-namn]")?.textContent).toBe("Idé 2026-10-08 21:05");
   });
 
   it("⛔ längden skrivs på posten bara av den som får ändra den, men visas för alla", async () => {
@@ -592,7 +636,13 @@ describe("OpsBibliotek", () => {
     expect(rubrik).toBeInTheDocument();
     fireEvent.click(rubrik);
     expect(screen.getByRole("heading", { level: 1, name: /^Röstinspelning / })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "10 sekunder bakåt" })).toBeInTheDocument();
+    // Detaljen har den fulla spelaren. Hopp och hastighet kommer först när ljudet startats (provat i ljudspelare.test.jsx), och
+    // Ladda ned står där hela tiden.
+    expect(document.querySelector("[data-ljudspelare]")?.getAttribute("data-ljudspelare")).toBe("full");
+    expect(screen.getByRole("button", { name: /^Spela Röstinspelning / })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Ladda ned/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "10 sekunder bakåt" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Uppspelningshastighet/ })).toBeNull();
   });
 
   it("trasiga rader visas som ett antal med skäl, inte tyst", () => {
@@ -640,25 +690,105 @@ describe("OpsBibliotek", () => {
     }
   });
 
-  it("typerna är en flikrad med ikon, namn och antal, också 0, och en flik byter urvalet", () => {
-    render(<Harness start={[poster[0]]} />);
+  it("flikarna är SessionStudios med ikon, namn och antal, en tom flik döljs men Allt och Ljud syns alltid, och en flik byter urvalet", () => {
+    const { unmount } = render(<Harness start={[poster[0]]} />);
     const rad = screen.getByRole("tablist", { name: "Typ i biblioteket" });
     const flikar = within(rad).getAllByRole("tab");
-    expect(flikar.map((f) => f.textContent)).toEqual(["Alla 1", "Anteckningar 1", "Länkar 0", "Ljud 0", "Filer 0"]);
+    expect(flikar.map((f) => f.textContent)).toEqual(["Allt1", "Ljud0", "Anteckningar1"]);
     expect(flikar.every((f) => f.querySelector("svg"))).toBe(true);
     expect(flikar[0]).toHaveAttribute("aria-selected", "true");
-    fireEvent.mouseDown(flikar[2], { button: 0, ctrlKey: false });
-    expect(within(rad).getByRole("tab", { name: "Länkar 0" })).toHaveAttribute("aria-selected", "true");
+    fireEvent.mouseDown(within(rad).getByRole("tab", { name: /^Ljud/ }), { button: 0 });
+    expect(within(rad).getByRole("tab", { name: /^Ljud/ })).toHaveAttribute("aria-selected", "true");
     expect(screen.queryByRole("button", { name: "Protokoll" })).toBeNull();
-    expect(screen.getByText("Inga länkar ännu.")).toBeInTheDocument();
+    expect(screen.getByText("Inget här ännu.")).toBeInTheDocument();
+    unmount();
+
+    // Med varje typ finns alla sex, i SessionStudios ordning.
+    render(<Harness start={[...poster, ...filposter()]} />);
+    const alla = screen.getByRole("tablist", { name: "Typ i biblioteket" });
+    expect(within(alla).getAllByRole("tab").map((f) => f.textContent)).toEqual(["Allt5", "Ljud1", "Anteckningar1", "Bilder1", "Dokument1", "Länkar1"]);
+  });
+
+  it("⛔ Bilder och Dokument delar upp filerna, och ljudet står under Ljud och inte under någon av dem (0.102.0)", () => {
+    render(<Harness start={[...poster, ...filposter()]} />);
+    const rad = screen.getByRole("tablist", { name: "Typ i biblioteket" });
+    /** @param {RegExp} namn */
+    const under = (namn) => {
+      fireEvent.mouseDown(within(rad).getByRole("tab", { name: namn }), { button: 0 });
+      expect(within(rad).getByRole("tab", { name: namn })).toHaveAttribute("aria-selected", "true");
+      return [...screen.getByRole("list", { name: "Biblioteket" }).querySelectorAll("[data-bibliotek-kort]")].map((k) => k.getAttribute("data-bibliotek-kort"));
+    };
+    expect(under(/^Bilder/)).toEqual(["bild"]);
+    expect(screen.getByRole("button", { name: "Kvitto" })).toBeInTheDocument();
+    expect(under(/^Dokument/)).toEqual(["dokument"]);
+    expect(screen.getByRole("button", { name: "Avtal" })).toBeInTheDocument();
+    expect(under(/^Ljud/)).toEqual(["ljud"]);
+    expect(under(/^Länkar/)).toEqual(["lank"]);
+    expect(under(/^Allt/)).toHaveLength(5);
+  });
+
+  it("en flik som töms medan den är vald faller tillbaka till Allt och försvinner", () => {
+    const { rerender } = render(<OpsBibliotek poster={[...poster, ...filposter()]} jag={FORFATTARE} onOppna={() => {}} onStang={() => {}} onSkapa={() => {}} onSpara={() => {}} hubHref="/hub" />);
+    fireEvent.mouseDown(screen.getByRole("tab", { name: /^Bilder/ }), { button: 0 });
+    expect(screen.getByRole("tab", { name: /^Bilder/ })).toHaveAttribute("aria-selected", "true");
+    rerender(<OpsBibliotek poster={poster} jag={FORFATTARE} onOppna={() => {}} onStang={() => {}} onSkapa={() => {}} onSpara={() => {}} hubHref="/hub" />);
+    expect(screen.queryByRole("tab", { name: /^Bilder/ })).toBeNull();
+    expect(screen.getByRole("tab", { name: /^Allt/ })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("button", { name: "Protokoll" })).toBeInTheDocument();
+  });
+
+  it("⛔ flikarna är samma flikrad på smal och bred skärm, aldrig en väljare, med samma tomma flikar dolda (0.102.0)", () => {
+    // Under 768 px var flikarna först en OpsSelect. SessionStudios app har samma rad som på webben, som man rullar i sidled.
+    const tidigare = window.matchMedia;
+    try {
+      for (const smal of [true, false]) {
+        Object.defineProperty(window, "matchMedia", {
+          configurable: true,
+          writable: true,
+          value: (/** @type {string} */ q) => ({ media: q, matches: smal && q === "(max-width: 767px)", addEventListener() {}, removeEventListener() {} }),
+        });
+        const { unmount } = render(<Harness start={[poster[0]]} />);
+        expect(screen.queryByRole("combobox", { name: "Typ i biblioteket" })).toBeNull();
+        const rad = screen.getByRole("tablist", { name: "Typ i biblioteket" });
+        expect(within(rad).getAllByRole("tab").map((f) => f.textContent)).toEqual(["Allt1", "Ljud0", "Anteckningar1"]);
+        fireEvent.mouseDown(within(rad).getByRole("tab", { name: /^Ljud/ }), { button: 0 });
+        expect(within(rad).getByRole("tab", { name: /^Ljud/ })).toHaveAttribute("aria-selected", "true");
+        expect(screen.queryByRole("button", { name: "Protokoll" })).toBeNull();
+        unmount();
+      }
+    } finally {
+      Object.defineProperty(window, "matchMedia", { configurable: true, writable: true, value: tidigare });
+    }
+  });
+
+  it("⛔ flikarna går med piltangenterna, Home och End, och fliken styr panelen (granskningen av PR 366, MÅSTE 3)", async () => {
+    render(<Harness />);
+    const allt = screen.getByRole("tab", { name: /^Allt/ });
+    act(() => allt.focus());
+    fireEvent.keyDown(allt, { key: "ArrowRight" });
+    await waitFor(() => expect(document.activeElement?.getAttribute("role")).toBe("tab"));
+    const andra = /** @type {HTMLElement} */ (document.activeElement);
+    expect(andra).not.toBe(allt);
+    await waitFor(() => expect(andra).toHaveAttribute("aria-selected", "true"));
+    fireEvent.keyDown(andra, { key: "Home" });
+    await waitFor(() => expect(document.activeElement).toBe(allt));
+    await waitFor(() => expect(allt).toHaveAttribute("aria-selected", "true"));
+    const panel = document.getElementById(/** @type {string} */ (allt.getAttribute("aria-controls")));
+    expect(panel?.getAttribute("role")).toBe("tabpanel");
+    expect(within(/** @type {HTMLElement} */ (panel)).getByRole("button", { name: "Protokoll" })).toBeTruthy();
   });
 
   it("sökordet står kvar när fliken byts", () => {
     render(<Harness />);
     fireEvent.change(screen.getByRole("searchbox", { name: "Sök i biblioteket" }), { target: { value: "bokslut" } });
-    fireEvent.mouseDown(screen.getByRole("tab", { name: /Anteckningar/ }), { button: 0, ctrlKey: false });
+    fireEvent.mouseDown(screen.getByRole("tab", { name: /^Anteckningar/ }), { button: 0 });
+    // Golv: fliken bytte verkligen, annars hade Protokoll stått kvar under Allt och provet varit grönt utan att mäta något.
+    expect(screen.getByRole("tab", { name: /^Anteckningar/ })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("searchbox", { name: "Sök i biblioteket" })).toHaveValue("bokslut");
     expect(screen.getByRole("button", { name: "Protokoll" })).toBeInTheDocument();
+    fireEvent.mouseDown(screen.getByRole("tab", { name: /^Länkar/ }), { button: 0 });
+    expect(screen.getByRole("searchbox", { name: "Sök i biblioteket" })).toHaveValue("bokslut");
+    expect(screen.getByText("Inga träffar.")).toBeInTheDocument();
   });
 
   it("+ Ny under Alla ger ett val, och under en typ skapar den typen direkt", () => {
@@ -669,7 +799,7 @@ describe("OpsBibliotek", () => {
     fireEvent.click(within(meny).getByRole("menuitem", { name: "Anteckning" }));
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Ny anteckning");
     fireEvent.click(screen.getByRole("button", { name: "Tillbaka" }));
-    fireEvent.mouseDown(screen.getByRole("tab", { name: /Länkar/ }), { button: 0, ctrlKey: false });
+    fireEvent.mouseDown(screen.getByRole("tab", { name: /^Länkar/ }), { button: 0 });
     expect(screen.queryByRole("button", { name: "Ny post" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Ny länk" }));
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Ny länk");
@@ -762,7 +892,8 @@ describe("OpsBibliotek", () => {
       const rad2 = screen.getByRole("button", { name: "Protokoll" }).closest("[data-ops-atgard]");
       peka(/** @type {HTMLElement} */ (rad2), "pointerdown", 20, 20);
       act(() => { vi.advanceTimersByTime(LANGTRYCK_MS); });
-      expect(screen.getByRole("menuitem", { name: "Öppna" })).toBeInTheDocument();
+      // ⛔ 0.102.0: ingen Öppna i menyn, ett tryck på kortet öppnar redan.
+      expect(screen.queryByRole("menuitem", { name: "Öppna" })).toBeNull();
       expect(screen.getByRole("menuitem", { name: "Byt namn" })).toBeInTheDocument();
       expect(screen.getByRole("menuitem", { name: "Radera" })).toBeInTheDocument();
       fireEvent.click(screen.getByRole("button", { name: "Protokoll" }));
@@ -775,14 +906,21 @@ describe("OpsBibliotek", () => {
     const { unmount } = render(<Harness />);
     const yta = screen.getByRole("button", { name: "Protokoll" }).closest("[data-ops-atgard]");
     fireEvent.contextMenu(/** @type {HTMLElement} */ (yta));
-    expect(screen.getByRole("menuitem", { name: "Redigera" })).toBeInTheDocument();
+    const meny = screen.getByRole("menu", { name: "Protokoll" });
+    // Högerklick ger samma korta meny som ⋮ och långtrycket. Redigera finns i detaljen, inte i listan.
+    expect(within(meny).getAllByRole("menuitem").map((r) => r.textContent)).toEqual(["Byt namn", "Radera"]);
     unmount();
 
     render(<Harness />);
     fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Protokoll" }));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Öppna" }));
+    expect(within(screen.getByRole("menu", { name: "Protokoll" })).getAllByRole("menuitem").map((r) => r.textContent)).toEqual(["Byt namn", "Radera"]);
+    fireEvent.keyDown(screen.getByRole("menu", { name: "Protokoll" }), { key: "Escape" });
+    fireEvent.click(screen.getByRole("button", { name: "Protokoll" }));
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Protokoll");
     expect(screen.queryByRole("textbox")).toBeNull();
+    // I detaljen står Redigera först i menyn.
+    fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Protokoll" }));
+    expect(screen.getAllByRole("menuitem").map((r) => r.textContent)).toEqual(["Redigera", "Byt namn", "Radera"]);
   });
 
   it("⛔ ett sparande som avvisas syns i formuläret och står kvar i redigering, och två tryck sparar en gång", async () => {
@@ -795,6 +933,7 @@ describe("OpsBibliotek", () => {
       avvisa = reject;
     }));
     const { unmount } = render(<Harness onSparaOverride={onSpara} />);
+    fireEvent.click(screen.getByRole("button", { name: "Protokoll" }));
     fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Protokoll" }));
     fireEvent.click(screen.getByRole("menuitem", { name: "Redigera" }));
     fireEvent.change(screen.getByRole("textbox", { name: "Text" }), { target: { value: "Ändrad text." } });
@@ -820,6 +959,7 @@ describe("OpsBibliotek", () => {
     // Ett kast direkt i onSpara är samma sak.
     const kastar = vi.fn(() => { throw new Error("Nekades av reglerna."); });
     render(<Harness onSparaOverride={kastar} />);
+    fireEvent.click(screen.getByRole("button", { name: "Protokoll" }));
     fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Protokoll" }));
     fireEvent.click(screen.getByRole("menuitem", { name: "Redigera" }));
     fireEvent.click(screen.getByRole("button", { name: "Spara" }));
@@ -876,6 +1016,7 @@ describe("OpsBibliotek", () => {
     asynk.unmount();
 
     render(<Harness onSparaOverride={() => false} />);
+    fireEvent.click(screen.getByRole("button", { name: "Protokoll" }));
     fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Protokoll" }));
     fireEvent.click(screen.getByRole("menuitem", { name: "Redigera" }));
     fireEvent.click(screen.getByRole("button", { name: "Spara" }));
