@@ -1,6 +1,6 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { useState } from "react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { OpsBibliotek } from "../components/OpsBibliotek.jsx";
 import { createMemorySource } from "../data/adapters.js";
 import { createBibliotekskalla } from "../data/bibliotekkalla.js";
@@ -11,11 +11,14 @@ import { bibliotekregelfragment } from "../lib/regler.js";
  * ⛔ TAGGAR I BIBLIOTEKET (0.100.0, lifehub.app#214 och #226).
  *
  * CP 2026-10-13: "Precis som i sessionstudio skall man kunna tagga artefakter så att det blir lättare att filtrera och hitta sina
- * saker även om det är mkt." Och om långtrycket: "Man ska kunna hålla inne fingret ... och få upp menyn om att ändra namn eller ta
- * bort". Taggarna ligger därför i samma meny som Byt namn, och filtret är en rad under sökfältet.
+ * saker även om det är mkt."
  *
- * Proven mäter modellen (formen, taket, dubbletterna), källan (en borttagen sista tagg försvinner ur dokumentet) och vyn (filtret,
- * menyn och rutan). Att regeln säger samma sak som modellen mäts i `rules/__tests__/bibliotek.test.mjs` mot emulatorn.
+ * ⛔ 0.102.0: taggarna ligger på kortet som i SessionStudio, inte i menyn. Taggrutan i ⋯ och raden med #tagg under sökfältet är
+ * borta, och filtret är knappen Taggar bredvid sökfältet. Proven som gällde rutan prövar nu samma skydd på kortets taggrad: Enter
+ * lägger till, förslagen, ta bort, oförändrat sparas inte, felet syns och taggarna går tillbaka, och den utan rätt kan inte ändra.
+ *
+ * Proven mäter modellen (formen, taket, dubbletterna), källan (en borttagen sista tagg försvinner ur dokumentet) och vyn (filtret
+ * och kortets taggrad). Att regeln säger samma sak som modellen mäts i `rules/__tests__/bibliotek.test.mjs` mot emulatorn.
  */
 
 const tid = 1_700_000_000_000;
@@ -92,105 +95,275 @@ describe("⛔ taggarna i källan", () => {
   });
 });
 
-/** Vyn med ett eget `onSpara` som skriver tillbaka i listan, som appen gör. */
-function Harness({ start }) {
+/**
+ * Vyn med ett eget `onSpara` som skriver tillbaka i listan, som appen gör. `anrop` får varje inmatning, och `fel` gör att
+ * sparandet avvisas med det felet (`false` betyder att källan svarar false).
+ *
+ * @param {{ start: any[], jag?: any, anrop?: any[], fel?: Error | false | null }} props
+ */
+function Harness({ start, jag = { uid: "uid-1", roll: "medlem" }, anrop = [], fel = null }) {
   const [poster, setPoster] = useState(start);
   return (
     <OpsBibliotek
       poster={poster}
-      jag={{ uid: "uid-1", roll: "medlem" }}
+      jag={jag}
       vald={null}
       skapar={null}
       onOppna={() => {}}
       onStang={() => {}}
       onSkapa={() => {}}
       onSpara={async (/** @type {any} */ inmatning) => {
+        anrop.push(inmatning);
+        if (fel === false) return false;
+        if (fel) throw fel;
         setPoster((/** @type {any[]} */ nu) => nu.map((p) => (p.id === inmatning.id ? post(p.id, p.rubrik, inmatning.taggar) : p)));
+        return undefined;
       }}
       hubHref="/hub"
     />
   );
 }
 
+/** Kortet för en post, ur listan. @param {string} rubrik */
+const kortet = (rubrik) => /** @type {HTMLElement} */ (screen.getByRole("button", { name: rubrik }).closest("li"));
+/** Taggarna på kortet, i ordning. @param {string} rubrik */
+const taggarPa = (rubrik) => [...kortet(rubrik).querySelectorAll("[data-bibliotek-tagg]")].map((n) => n.getAttribute("data-bibliotek-tagg"));
+/** Öppnar fältet "Ny tagg" på kortet. @param {string} rubrik */
+function oppnaFalt(rubrik) {
+  const k = kortet(rubrik);
+  fireEvent.click(within(k).getByRole("button", { name: /^(Lägg till tagg|Tagg)$/ }));
+  return within(k).getByRole("textbox", { name: "Ny tagg" });
+}
+
 describe("⛔ taggarna i vyn", () => {
-  it("raden under sökfältet filtrerar, och ett tryck till släpper", () => {
+  it("Taggar bredvid sökfältet filtrerar med flerval (OCH), räknar valen, Rensa alla släpper, och ett tryck till tar bort ett val", () => {
     render(<Harness start={[post("a", "Tankning", ["kvitto", "bil"]), post("b", "Lunch", ["kvitto"]), post("c", "Protokoll", undefined)]} />);
-    const rad = screen.getByRole("group", { name: "Taggar" });
-    const bil = within(rad).getByRole("button", { name: "#bil 1" });
-    expect(within(rad).getByRole("button", { name: "#kvitto 2" })).toHaveAttribute("aria-pressed", "false");
-    fireEvent.click(bil);
-    expect(bil).toHaveAttribute("aria-pressed", "true");
+    const knapp = screen.getByRole("button", { name: "Taggar" });
+    expect(knapp.closest(".flex.items-center")?.contains(screen.getByRole("searchbox", { name: "Sök i biblioteket" }))).toBe(true);
+    fireEvent.click(knapp);
+    const meny = screen.getByRole("menu", { name: "Taggar" });
+    const rader = within(meny).getAllByRole("menuitemcheckbox");
+    // Flest först, med antal.
+    expect(rader.map((r) => r.textContent)).toEqual(["kvitto2", "bil1"]);
+    expect(screen.queryByRole("button", { name: "Rensa alla" })).toBeNull();
+    fireEvent.click(within(meny).getByRole("menuitemcheckbox", { name: /^bil/ }));
+    expect(within(meny).getByRole("menuitemcheckbox", { name: /^bil/ })).toHaveAttribute("aria-checked", "true");
+    expect(within(meny).getByRole("menuitemcheckbox", { name: /^kvitto/ })).toHaveAttribute("aria-checked", "false");
+    expect(screen.getByRole("button", { name: "Taggar, 1 valda" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Tankning" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Lunch" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Protokoll" })).toBeNull();
-    fireEvent.click(bil);
+    fireEvent.click(within(meny).getByRole("menuitemcheckbox", { name: /^kvitto/ }));
+    expect(screen.getByRole("button", { name: "Taggar, 2 valda" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Tankning" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Lunch" })).toBeNull();
+    fireEvent.click(within(meny).getByRole("menuitemcheckbox", { name: /^bil/ }));
+    expect(screen.getByRole("button", { name: "Lunch" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Protokoll" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Rensa alla" }));
+    expect(screen.getByRole("button", { name: "Taggar" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Protokoll" })).toBeInTheDocument();
   });
 
-  it("utan taggar i gruppen ritas ingen rad, och raden visar postens taggar i texten", () => {
+  it("en tagg på kortet filtrerar på sig själv, och ett tryck till släpper", () => {
+    render(<Harness start={[post("a", "Tankning", ["kvitto", "bil"]), post("b", "Lunch", ["kvitto"]), post("c", "Protokoll", undefined)]} />);
+    const bil = within(kortet("Tankning")).getByRole("button", { name: "Visa bara bil" });
+    expect(bil).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(bil);
+    expect(within(kortet("Tankning")).getByRole("button", { name: "Visa bara bil" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.queryByRole("button", { name: "Lunch" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Taggar, 1 valda" })).toBeInTheDocument();
+    fireEvent.click(within(kortet("Tankning")).getByRole("button", { name: "Visa bara bil" }));
+    expect(screen.getByRole("button", { name: "Protokoll" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Taggar" })).toBeInTheDocument();
+  });
+
+  it("utan taggar säger panelen det, och raden med #tagg under sökfältet finns inte", () => {
     const { unmount } = render(<Harness start={[post("c", "Protokoll", undefined)]} />);
-    expect(screen.queryByRole("group", { name: "Taggar" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Taggar" }));
+    expect(screen.getByText("Inga taggar ännu. Lägg till en på en post.")).toBeInTheDocument();
+    expect(screen.queryByRole("menuitemcheckbox")).toBeNull();
     unmount();
     render(<Harness start={[post("a", "Tankning", ["kvitto", "bil"])]} />);
-    expect(screen.getByText(/#kvitto · #bil/)).toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Taggar" })).toBeNull();
+    expect(screen.queryByText(/#kvitto/)).toBeNull();
+    // Taggarna står på kortet, i den ordning de skrevs, med sin färg.
+    expect(taggarPa("Tankning")).toEqual(["kvitto", "bil"]);
+    const kvitto = /** @type {HTMLElement} */ (kortet("Tankning").querySelector("[data-bibliotek-tagg='kvitto']"));
+    expect(kvitto.className).toContain("bg-tagg-8");
+    expect(/** @type {HTMLElement} */ (kortet("Tankning").querySelector("[data-bibliotek-tagg='bil']")).className).toContain("bg-tagg-6");
   });
 
-  it("Taggar i ⋯ lägger till med Enter, föreslår gruppens andra, tar bort, och sparar", async () => {
-    render(<Harness start={[post("a", "Tankning", ["kvitto"]), post("b", "Lunch", ["mat"])]} />);
+  it("ingen Taggar i ⋯ längre, varken för författaren eller för andra", () => {
+    render(<Harness start={[post("a", "Tankning", ["kvitto"])]} />);
     fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Tankning" }));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Taggar" }));
-    const ruta = await screen.findByRole("dialog", { name: "Taggar" });
-    const falt = within(ruta).getByRole("textbox", { name: "Ny tagg" });
-    fireEvent.change(falt, { target: { value: "#Bil" } });
-    fireEvent.submit(falt.closest("form"));
-    expect(within(ruta).getByText("#bil")).toBeInTheDocument();
-    fireEvent.click(within(within(ruta).getByRole("group", { name: "Gruppens taggar" })).getByRole("button", { name: "#mat" }));
-    fireEvent.click(within(ruta).getByRole("button", { name: "Ta bort taggen kvitto" }));
-    fireEvent.click(within(ruta).getByRole("button", { name: "Spara" }));
-    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Taggar" })).toBeNull());
-    expect(screen.getByText(/#bil · #mat/)).toBeInTheDocument();
-  });
-
-  it("oförändrade taggar sparas inte: rutan stängs och posten flyttar inte överst (granskningen av PR 363)", async () => {
-    let anrop = 0;
-    render(
-      <OpsBibliotek poster={[post("a", "Tankning", ["kvitto"])]} jag={{ uid: "uid-1", roll: "medlem" }} vald={null} skapar={null} onOppna={() => {}} onStang={() => {}} onSkapa={() => {}} onSpara={() => { anrop += 1; }} hubHref="/hub" />,
-    );
-    fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Tankning" }));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Taggar" }));
-    const ruta = await screen.findByRole("dialog", { name: "Taggar" });
-    fireEvent.click(within(ruta).getByRole("button", { name: "Spara" }));
-    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Taggar" })).toBeNull());
-    expect(anrop).toBe(0);
-  });
-
-  it("ett förslag tömmer inte det personen håller på att skriva", async () => {
-    render(<Harness start={[post("a", "Tankning", undefined), post("b", "Lunch", ["mat"])]} />);
-    fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Tankning" }));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Taggar" }));
-    const ruta = await screen.findByRole("dialog", { name: "Taggar" });
-    fireEvent.change(within(ruta).getByRole("textbox", { name: "Ny tagg" }), { target: { value: "kvi" } });
-    fireEvent.click(within(within(ruta).getByRole("group", { name: "Gruppens taggar" })).getByRole("button", { name: "#mat" }));
-    expect(within(ruta).getByRole("textbox", { name: "Ny tagg" })).toHaveValue("kvi");
-  });
-
-  it("en tagg som inte går att spara säger varför, och rutan står kvar", async () => {
-    render(<Harness start={[post("a", "Tankning", undefined)]} />);
-    fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Tankning" }));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Taggar" }));
-    const ruta = await screen.findByRole("dialog", { name: "Taggar" });
-    expect(within(ruta).getByText("Posten har inga taggar.")).toBeInTheDocument();
-    fireEvent.change(within(ruta).getByRole("textbox", { name: "Ny tagg" }), { target: { value: "bil/2024" } });
-    fireEvent.click(within(ruta).getByRole("button", { name: "Lägg till" }));
-    expect(within(ruta).getByRole("alert")).toHaveTextContent(/går inte att spara/);
-  });
-
-  it("en annan medlem får ingen Taggar i menyn", () => {
-    render(
-      <OpsBibliotek poster={[post("a", "Tankning", ["kvitto"])]} jag={{ uid: "uid-annan", roll: "medlem" }} vald={null} skapar={null} onOppna={() => {}} onStang={() => {}} onSkapa={() => {}} onSpara={() => {}} hubHref="/hub" />,
-    );
-    fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Tankning" }));
-    expect(screen.getByRole("menuitem", { name: "Öppna" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "Byt namn" })).toBeInTheDocument();
     expect(screen.queryByRole("menuitem", { name: "Taggar" })).toBeNull();
+  });
+
+  it("kortets taggrad lägger till med Enter, föreslår gruppens andra, tar bort, och sparar direkt", async () => {
+    /** @type {any[]} */
+    const anrop = [];
+    render(<Harness anrop={anrop} start={[post("a", "Tankning", ["kvitto"]), post("b", "Lunch", ["mat"])]} />);
+    let falt = oppnaFalt("Tankning");
+    // Förslagen är gruppens taggar som posten inte redan har.
+    expect(within(kortet("Tankning")).getAllByRole("option").map((o) => o.textContent)).toEqual(["mat"]);
+    fireEvent.change(falt, { target: { value: "#Bil" } });
+    // Det som skrivs filtrerar förslagen.
+    expect(within(kortet("Tankning")).queryByRole("option")).toBeNull();
+    fireEvent.keyDown(falt, { key: "Enter" });
+    await waitFor(() => expect(anrop).toEqual([{ id: "a", taggar: ["kvitto", "bil"] }]));
+    await waitFor(() => expect(taggarPa("Tankning")).toEqual(["kvitto", "bil"]));
+    // Fältet står kvar öppet och tömt, för nästa tagg.
+    falt = within(kortet("Tankning")).getByRole("textbox", { name: "Ny tagg" });
+    expect(falt).toHaveValue("");
+    fireEvent.click(within(kortet("Tankning")).getByRole("option", { name: "mat" }));
+    await waitFor(() => expect(anrop.at(-1)).toEqual({ id: "a", taggar: ["kvitto", "bil", "mat"] }));
+    fireEvent.click(within(kortet("Tankning")).getByRole("button", { name: "Ta bort taggen kvitto" }));
+    await waitFor(() => expect(anrop.at(-1)).toEqual({ id: "a", taggar: ["bil", "mat"] }));
+    await waitFor(() => expect(taggarPa("Tankning")).toEqual(["bil", "mat"]));
+    expect(anrop).toHaveLength(3);
+    // Den andra posten rördes inte.
+    expect(taggarPa("Lunch")).toEqual(["mat"]);
+  });
+
+  it("komma lägger till, Escape stänger fältet utan att spara, och Backspace i tomt fält tar bort den sista", async () => {
+    /** @type {any[]} */
+    const anrop = [];
+    render(<Harness anrop={anrop} start={[post("a", "Tankning", ["kvitto"])]} />);
+    let falt = oppnaFalt("Tankning");
+    fireEvent.change(falt, { target: { value: "bil," } });
+    await waitFor(() => expect(anrop).toEqual([{ id: "a", taggar: ["kvitto", "bil"] }]));
+    falt = within(kortet("Tankning")).getByRole("textbox", { name: "Ny tagg" });
+    fireEvent.change(falt, { target: { value: "halv" } });
+    fireEvent.keyDown(falt, { key: "Escape" });
+    expect(within(kortet("Tankning")).queryByRole("textbox", { name: "Ny tagg" })).toBeNull();
+    await act(async () => {});
+    expect(anrop).toHaveLength(1);
+    await waitFor(() => expect(taggarPa("Tankning")).toEqual(["kvitto", "bil"]));
+    falt = oppnaFalt("Tankning");
+    fireEvent.keyDown(falt, { key: "Backspace" });
+    await waitFor(() => expect(anrop.at(-1)).toEqual({ id: "a", taggar: ["kvitto"] }));
+    await waitFor(() => expect(taggarPa("Tankning")).toEqual(["kvitto"]));
+    // Backspace i ett fält med text tar inte bort en tagg.
+    falt = within(kortet("Tankning")).getByRole("textbox", { name: "Ny tagg" });
+    fireEvent.change(falt, { target: { value: "x" } });
+    fireEvent.keyDown(falt, { key: "Backspace" });
+    // Sparandet går i nästa mikrouppgift, så frånvaron mäts först efter att den hunnit köra.
+    await act(async () => {});
+    expect(anrop).toHaveLength(2);
+    expect(taggarPa("Tankning")).toEqual(["kvitto"]);
+  });
+
+  it("⛔ Escape följt av blur i samma ögonblick sparar inte det avbrutna utkastet (som en webbläsare som tar fokus när fältet försvinner)", async () => {
+    /** @type {any[]} */
+    const anrop = [];
+    render(<Harness anrop={anrop} start={[post("a", "Tankning", ["kvitto"])]} />);
+    const falt = oppnaFalt("Tankning");
+    fireEvent.change(falt, { target: { value: "avbruten" } });
+    act(() => {
+      fireEvent.keyDown(falt, { key: "Escape" });
+      fireEvent.blur(falt);
+    });
+    await act(async () => {});
+    expect(anrop).toHaveLength(0);
+    expect(taggarPa("Tankning")).toEqual(["kvitto"]);
+    // Nästa gång fältet öppnas sparar blur som vanligt.
+    const igen = oppnaFalt("Tankning");
+    fireEvent.change(igen, { target: { value: "bil" } });
+    fireEvent.blur(igen);
+    await waitFor(() => expect(anrop).toEqual([{ id: "a", taggar: ["kvitto", "bil"] }]));
+  });
+
+  it("oförändrade taggar sparas inte: en tagg posten redan har, samma tagg i en annan form, och ett tomt fält (granskningen av PR 363)", async () => {
+    /** @type {any[]} */
+    const anrop = [];
+    render(<Harness anrop={anrop} start={[post("a", "Tankning", ["kvitto"])]} />);
+    const falt = oppnaFalt("Tankning");
+    fireEvent.keyDown(falt, { key: "Enter" });
+    fireEvent.change(falt, { target: { value: "kvitto" } });
+    fireEvent.keyDown(falt, { key: "Enter" });
+    fireEvent.change(falt, { target: { value: "#KVITTO" } });
+    fireEvent.keyDown(falt, { key: "Enter" });
+    fireEvent.change(falt, { target: { value: "   " } });
+    fireEvent.keyDown(falt, { key: "Enter" });
+    await act(async () => {});
+    expect(anrop).toEqual([]);
+    expect(taggarPa("Tankning")).toEqual(["kvitto"]);
+    // Golv: en ny tagg i samma fält sparas, så raderna ovan är inte gröna av ett fält som aldrig sparar.
+    fireEvent.change(falt, { target: { value: "bil" } });
+    fireEvent.keyDown(falt, { key: "Enter" });
+    await waitFor(() => expect(anrop).toEqual([{ id: "a", taggar: ["kvitto", "bil"] }]));
+  });
+
+  it("ett sparande som faller syns, och taggarna går tillbaka till de sparade", async () => {
+    /** @type {any[]} */
+    const anrop = [];
+    const { unmount } = render(<Harness anrop={anrop} fel={new Error("Nekades av reglerna.")} start={[post("a", "Tankning", ["kvitto"])]} />);
+    const falt = oppnaFalt("Tankning");
+    fireEvent.change(falt, { target: { value: "bil" } });
+    fireEvent.keyDown(falt, { key: "Enter" });
+    expect(await within(kortet("Tankning")).findByRole("alert")).toHaveTextContent("Nekades av reglerna.");
+    expect(anrop).toEqual([{ id: "a", taggar: ["kvitto", "bil"] }]);
+    expect(taggarPa("Tankning")).toEqual(["kvitto"]);
+    // Att ta bort faller på samma sätt och står kvar.
+    fireEvent.click(within(kortet("Tankning")).getByRole("button", { name: "Ta bort taggen kvitto" }));
+    await waitFor(() => expect(anrop).toHaveLength(2));
+    await waitFor(() => expect(taggarPa("Tankning")).toEqual(["kvitto"]));
+    expect(within(kortet("Tankning")).getByRole("alert")).toHaveTextContent("Nekades av reglerna.");
+    unmount();
+
+    render(<Harness fel={false} start={[post("a", "Tankning", ["kvitto"])]} />);
+    const falt2 = oppnaFalt("Tankning");
+    fireEvent.change(falt2, { target: { value: "bil" } });
+    fireEvent.keyDown(falt2, { key: "Enter" });
+    expect(await within(kortet("Tankning")).findByRole("alert")).toHaveTextContent("Taggarna kunde inte sparas.");
+    expect(taggarPa("Tankning")).toEqual(["kvitto"]);
+  });
+
+  it("en tagg som inte går att spara säger varför och skickas inte", async () => {
+    /** @type {any[]} */
+    const anrop = [];
+    render(<Harness anrop={anrop} start={[post("a", "Tankning", undefined)]} />);
+    const falt = oppnaFalt("Tankning");
+    fireEvent.change(falt, { target: { value: "bil/2024" } });
+    fireEvent.keyDown(falt, { key: "Enter" });
+    expect(within(kortet("Tankning")).getByRole("alert")).toHaveTextContent(/går inte att spara/);
+    await act(async () => {});
+    expect(anrop).toEqual([]);
+    expect(taggarPa("Tankning")).toEqual([]);
+  });
+
+  it("en post utan taggar har Lägg till tagg, och en med taggar har Tagg", () => {
+    render(<Harness start={[post("a", "Tankning", undefined), post("b", "Lunch", ["mat"])]} />);
+    expect(within(kortet("Tankning")).getByRole("button", { name: "Lägg till tagg" })).toBeInTheDocument();
+    expect(within(kortet("Lunch")).getByRole("button", { name: "Tagg" })).toBeInTheDocument();
+    expect(within(kortet("Lunch")).queryByRole("button", { name: "Lägg till tagg" })).toBeNull();
+  });
+
+  it("en annan medlem ser taggarna och kan filtrera, men får inga kryss och ingen Lägg till tagg, och en admin får dem", () => {
+    const poster = [post("a", "Tankning", ["kvitto"]), post("b", "Lunch", undefined)];
+    const { unmount } = render(<Harness jag={{ uid: "uid-annan", roll: "medlem" }} start={poster} />);
+    expect(taggarPa("Tankning")).toEqual(["kvitto"]);
+    expect(within(kortet("Tankning")).getByRole("button", { name: "Visa bara kvitto" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Ta bort taggen kvitto" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Lägg till tagg" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Tagg" })).toBeNull();
+    expect(screen.queryByRole("textbox", { name: "Ny tagg" })).toBeNull();
+    // En post utan taggar har ingen taggrad alls för den som inte får ändra.
+    expect(kortet("Lunch").querySelector("[data-bibliotek-taggar]")).toBeNull();
+    unmount();
+
+    render(<Harness jag={{ uid: "uid-annan", roll: "admin" }} start={poster} />);
+    expect(screen.getByRole("button", { name: "Ta bort taggen kvitto" })).toBeInTheDocument();
+    expect(within(kortet("Lunch")).getByRole("button", { name: "Lägg till tagg" })).toBeInTheDocument();
+  });
+
+  it("den som inte är medlem (jag: null) ser taggarna men kan inte ändra dem", () => {
+    const onSpara = vi.fn();
+    render(<OpsBibliotek poster={[post("a", "Tankning", ["kvitto"])]} jag={null} vald={null} skapar={null} onOppna={() => {}} onStang={() => {}} onSkapa={() => {}} onSpara={onSpara} hubHref="/hub" />);
+    expect(taggarPa("Tankning")).toEqual(["kvitto"]);
+    expect(screen.queryByRole("button", { name: "Ta bort taggen kvitto" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Tagg" })).toBeNull();
   });
 });

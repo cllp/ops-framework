@@ -973,6 +973,9 @@ function TaggRad({ post, kanAndra, forslag, valda = [], onFilter, onSpara }) {
   const [visas, setVisas] = useState(/** @type {string[] | null} */ (null));
   const [skriver, setSkriver] = useState(false);
   const [utkast, setUtkast] = useState("");
+  // ⛔ ESCAPE AVBRYTER, ÄVEN OM FÄLTET SEDAN TAPPAR FOKUS. Fältet tas bort i samma rendering som Escape, och en webbläsare som
+  // skickar blur då hade sett det gamla utkastet i `onBlur` och sparat taggen man just avbröt.
+  const avbruten = useRef(false);
   const [fel, setFel] = useState("");
   const lista = visas ?? sparade;
 
@@ -1066,6 +1069,7 @@ function TaggRad({ post, kanAndra, forslag, valda = [], onFilter, onSpara }) {
                     e.preventDefault();
                     laggTill(utkast);
                   } else if (e.key === "Escape") {
+                    avbruten.current = true;
                     setUtkast("");
                     setSkriver(false);
                   } else if (e.key === "Backspace" && utkast === "" && lista.length > 0) {
@@ -1073,7 +1077,8 @@ function TaggRad({ post, kanAndra, forslag, valda = [], onFilter, onSpara }) {
                   }
                 }}
                 onBlur={() => {
-                  if (normaliseraTagg(utkast)) laggTill(utkast);
+                  if (!avbruten.current && normaliseraTagg(utkast)) laggTill(utkast);
+                  avbruten.current = false;
                   setSkriver(false);
                 }}
                 className="h-8 w-36 rounded-full border border-line bg-transparent px-3 text-meta text-ink outline-none focus:border-accent"
@@ -1102,6 +1107,7 @@ function TaggRad({ post, kanAndra, forslag, valda = [], onFilter, onSpara }) {
               type="button"
               onClick={() => {
                 setFel("");
+                avbruten.current = false;
                 setSkriver(true);
               }}
               className="pointer-events-auto inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-full border border-dashed border-ink-muted/50 bg-transparent px-3 text-meta font-medium text-ink-secondary hover:border-accent hover:text-accent focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
@@ -1812,9 +1818,10 @@ function DelaKontroll({ id, grupper, onDela, onKlar, onStart, onSlut, kanFlytta 
       {/* ⛔ OpsSelect och inte en rå `<select>` (0.95.0). CP 2026-10-13: "Det skall aldrig finnas en ostylad
           komponent som använder webläsarens scroll eller style." Den här listan var webbläsarens egen, i ramverket
           självt, trots att OpsSelect sade att den är förbjuden. `check-webblasarkontroller` fäller den nu. */}
-      <OpsField label="Till">
+      {/* ⛔ NAMNET ÄR DEN SYNLIGA ETIKETTEN. Här stod "Till" synligt och ett annat namn i `ariaLabel`, vilket OpsSelect förbjuder
+          inne i en OpsField: den som hör namnet och den som ser etiketten fick två olika ord för samma fält. */}
+      <OpsField label="Flytta eller kopiera till">
         <OpsSelect
-          ariaLabel="Plats att flytta eller kopiera till"
           value={mal}
           onChange={setMal}
           options={grupper.map((g) => ({ value: g.id, label: g.namn }))}

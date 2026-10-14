@@ -1,4 +1,5 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { OpsBibliotek } from "../components/OpsBibliotek.jsx";
@@ -197,19 +198,41 @@ function Vy({ poster, jag, grupper, onDela = vi.fn(() => Promise.resolve()), pla
 }
 
 describe("OpsBibliotek: Mitt bibliotek i menyn", () => {
-  it("författaren får Flytta och Kopiera till Mitt bibliotek, och flytten säger när den är klar", async () => {
+  it("författaren får Flytta till Mitt bibliotek, och flytten säger när den är klar", async () => {
     const onDela = vi.fn(() => Promise.resolve());
     render(<Vy poster={[gruppPost(KIM)]} jag={{ uid: KIM, roll: "medlem" }} grupper={[MITT_MAL]} onDela={onDela} />);
     fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Protokoll" }));
+    // ⛔ 0.102.0: författarens kopia till Mitt bibliotek ligger i "Flytta eller kopiera", inte som en egen rad.
+    expect(screen.queryByRole("menuitem", { name: "Kopiera till Mitt bibliotek" })).toBeNull();
     fireEvent.click(screen.getByRole("menuitem", { name: "Flytta till Mitt bibliotek" }));
     await waitFor(() => expect(onDela).toHaveBeenCalledWith({ id: "a", groupId: MITT_MAL.id, satt: "flytta" }));
     expect(await screen.findByText("Flyttad till Mitt bibliotek.")).toBeInTheDocument();
+  });
+
+  it("författaren kopierar till Mitt bibliotek i Flytta eller kopiera, där Mitt bibliotek står bland platserna (0.102.0)", async () => {
+    const onDela = vi.fn(() => Promise.resolve());
+    const user = userEvent.setup();
+    render(<Vy poster={[gruppPost(KIM)]} jag={{ uid: KIM, roll: "medlem" }} grupper={[MITT_MAL, { id: "kor-ab", namn: "Kören" }]} onDela={onDela} />);
+    fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Protokoll" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Flytta eller kopiera" }));
+    const ruta = screen.getByRole("dialog", { name: "Flytta eller kopiera" });
+    const valjare = within(ruta).getByRole("combobox", { name: "Flytta eller kopiera till" });
+    // ⛔ Namnet är den synliga etiketten, inte ett eget ord bara för skärmläsaren.
+    expect(within(ruta).getByText("Flytta eller kopiera till")).toBeInTheDocument();
+    expect(valjare).toHaveTextContent("Mitt bibliotek");
+    await user.click(valjare);
+    expect(screen.getAllByRole("option").map((o) => o.textContent)).toEqual(["Mitt bibliotek", "Kören"]);
+    await user.click(screen.getByRole("option", { name: "Mitt bibliotek" }));
+    await user.click(within(ruta).getByRole("button", { name: "Kopiera" }));
+    expect(onDela).toHaveBeenCalledWith({ id: "a", groupId: MITT_MAL.id, satt: "kopiera" });
+    expect(await screen.findByText("Kopierad till Mitt bibliotek.")).toBeInTheDocument();
   });
 
   it("en annan medlem, också en admin, får bara kopiera till sitt eget bibliotek", () => {
     render(<Vy poster={[gruppPost(ANNAN)]} jag={{ uid: KIM, roll: "admin" }} grupper={[MITT_MAL]} />);
     fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Protokoll" }));
     expect(screen.queryByRole("menuitem", { name: "Flytta till Mitt bibliotek" })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: "Flytta eller kopiera" })).toBeNull();
     expect(screen.getByRole("menuitem", { name: "Kopiera till Mitt bibliotek" })).toBeInTheDocument();
   });
 
@@ -222,12 +245,31 @@ describe("OpsBibliotek: Mitt bibliotek i menyn", () => {
     await waitFor(() => expect(onDela).toHaveBeenCalledWith({ id: "m", groupId: "cps-ab", satt: "flytta" }));
   });
 
+  it("i Mitt bibliotek med flera grupper heter det Dela med en grupp, och rutan har samma titel och bara grupperna (0.102.0)", async () => {
+    const user = userEvent.setup();
+    render(<Vy poster={[minPost]} jag={mittJag(KIM)} grupper={[MITT_MAL, { id: "cps-ab", namn: "CPS" }, { id: "kor-ab", namn: "Kören" }]} />);
+    fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Utkast" }));
+    expect(screen.queryByRole("menuitem", { name: /^Dela med (CPS|Kören)$/ })).toBeNull();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Dela med en grupp" }));
+    const ruta = screen.getByRole("dialog", { name: "Dela med en grupp" });
+    await user.click(within(ruta).getByRole("combobox", { name: "Flytta eller kopiera till" }));
+    expect(screen.getAllByRole("option").map((o) => o.textContent)).toEqual(["CPS", "Kören"]);
+  });
+
   it("ett fel i flytten står kvar med skälet", async () => {
     const onDela = vi.fn(() => Promise.reject(new Error("Filen kunde inte hämtas.")));
-    render(<Vy poster={[gruppPost(KIM)]} jag={{ uid: KIM, roll: "medlem" }} grupper={[MITT_MAL]} onDela={onDela} />);
+    const { unmount } = render(<Vy poster={[gruppPost(KIM)]} jag={{ uid: KIM, roll: "medlem" }} grupper={[MITT_MAL]} onDela={onDela} />);
+    fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Protokoll" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Flytta till Mitt bibliotek" }));
+    expect(await screen.findByText("Filen kunde inte hämtas.")).toBeInTheDocument();
+    unmount();
+    // Samma sak för kopian, den väg en annan medlem har.
+    const kopia = vi.fn(() => Promise.reject(new Error("Filen kunde inte hämtas.")));
+    render(<Vy poster={[gruppPost(ANNAN)]} jag={{ uid: KIM, roll: "medlem" }} grupper={[MITT_MAL]} onDela={kopia} />);
     fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Protokoll" }));
     fireEvent.click(screen.getByRole("menuitem", { name: "Kopiera till Mitt bibliotek" }));
     expect(await screen.findByText("Filen kunde inte hämtas.")).toBeInTheDocument();
+    expect(kopia).toHaveBeenCalledWith({ id: "a", groupId: MITT_MAL.id, satt: "kopiera" });
   });
 
   it("medan flytten pågår finns inga flyttval för posten, så ett andra tryck inte gör en andra kopia", async () => {
@@ -242,6 +284,9 @@ describe("OpsBibliotek: Mitt bibliotek i menyn", () => {
     fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Protokoll" }));
     expect(screen.queryByRole("menuitem", { name: "Flytta till Mitt bibliotek" })).toBeNull();
     expect(screen.queryByRole("menuitem", { name: "Kopiera till Mitt bibliotek" })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: "Flytta eller kopiera" })).toBeNull();
+    // Golv: menyn är öppen och har sina andra rader, så frånvaron ovan är inte en meny som aldrig öppnades.
+    expect(screen.getByRole("menuitem", { name: "Byt namn" })).toBeInTheDocument();
     slapp();
     expect(await screen.findByText("Flyttad till Mitt bibliotek.")).toBeInTheDocument();
   });
@@ -250,29 +295,47 @@ describe("OpsBibliotek: Mitt bibliotek i menyn", () => {
     /** @type {(v?: unknown) => void} */
     let slapp = () => {};
     const onDela = vi.fn(() => new Promise((los) => { slapp = los; }));
+    const user = userEvent.setup();
     render(<Vy poster={[gruppPost(KIM)]} jag={{ uid: KIM, roll: "medlem" }} grupper={[MITT_MAL, { id: "kor-ab", namn: "Kören" }]} onDela={onDela} />);
     fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Protokoll" }));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Till en annan grupp" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Flytta eller kopiera" }));
+    await user.click(screen.getByRole("combobox", { name: "Flytta eller kopiera till" }));
+    await user.click(screen.getByRole("option", { name: "Kören" }));
     fireEvent.click(screen.getByRole("button", { name: "Flytta" }));
     await waitFor(() => expect(onDela).toHaveBeenCalledTimes(1));
     fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
     await waitFor(() => expect(screen.queryByRole("button", { name: "Flytta" })).toBeNull());
     fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Protokoll" }));
     expect(screen.queryByRole("menuitem", { name: "Flytta till Mitt bibliotek" })).toBeNull();
-    expect(screen.queryByRole("menuitem", { name: "Till en annan grupp" })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: "Flytta eller kopiera" })).toBeNull();
+    expect(screen.getByRole("menuitem", { name: "Byt namn" })).toBeInTheDocument();
     slapp();
     expect(await screen.findByText("Flyttad till Kören.")).toBeInTheDocument();
   });
 
-  it("en admin kopierar någon annans post till en annan grupp men flyttar den inte", () => {
-    render(<Vy poster={[gruppPost(ANNAN)]} jag={{ uid: KIM, roll: "admin" }} grupper={[{ id: "kor-ab", namn: "Kören" }]} />);
+  it("en admin kopierar någon annans post till en annan grupp men flyttar den inte", async () => {
+    const user = userEvent.setup();
+    render(<Vy poster={[gruppPost(ANNAN)]} jag={{ uid: KIM, roll: "admin" }} grupper={[MITT_MAL, { id: "kor-ab", namn: "Kören" }]} />);
     fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Protokoll" }));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Till en annan grupp" }));
-    expect(screen.getByRole("button", { name: "Kopiera" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Flytta" })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: "Flytta eller kopiera" })).toBeNull();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Kopiera till en annan grupp" }));
+    const ruta = screen.getByRole("dialog", { name: "Kopiera" });
+    expect(within(ruta).getByRole("button", { name: "Kopiera" })).toBeInTheDocument();
+    expect(within(ruta).queryByRole("button", { name: "Flytta" })).toBeNull();
+    // Mitt bibliotek står inte i rutan för den som inte skrev posten: kopian dit är menyns egen rad.
+    await user.click(within(ruta).getByRole("combobox", { name: "Flytta eller kopiera till" }));
+    expect(screen.getAllByRole("option").map((o) => o.textContent)).toEqual(["Kören"]);
   });
 
-  it("växlaren visar båda platserna och byter plats", () => {
+  it("en vanlig medlem som inte skrev posten får ingen Kopiera till en annan grupp", () => {
+    render(<Vy poster={[gruppPost(ANNAN)]} jag={{ uid: KIM, roll: "medlem" }} grupper={[MITT_MAL, { id: "kor-ab", namn: "Kören" }]} />);
+    fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Protokoll" }));
+    expect(screen.getByRole("menuitem", { name: "Kopiera till Mitt bibliotek" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Kopiera till en annan grupp" })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: "Flytta eller kopiera" })).toBeNull();
+  });
+
+  it("växlaren är en knapp med platsens namn, visar båda platserna med den valda markerad, och byter plats", () => {
     const onPlats = vi.fn();
     render(
       <Vy
@@ -284,14 +347,24 @@ describe("OpsBibliotek: Mitt bibliotek i menyn", () => {
         onPlats={onPlats}
       />,
     );
-    const vaxlare = screen.getByRole("tablist", { name: "Vilket bibliotek" });
-    expect(vaxlare).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("tab", { name: "Mitt bibliotek" }));
+    expect(document.querySelector("[data-bibliotek-antal]")?.textContent).toBe("1 objekt");
+    fireEvent.click(screen.getByRole("button", { name: "Vilket bibliotek: CPS" }));
+    const meny = screen.getByRole("menu", { name: "Vilket bibliotek" });
+    expect(within(meny).getAllByRole("menuitemradio").map((r) => r.textContent)).toEqual(["CPS", "Mitt bibliotek"]);
+    expect(within(meny).getByRole("menuitemradio", { name: "CPS" })).toHaveAttribute("aria-checked", "true");
+    expect(within(meny).getByRole("menuitemradio", { name: "Mitt bibliotek" })).toHaveAttribute("aria-checked", "false");
+    // Den valda platsen igen byter ingenting.
+    fireEvent.click(within(meny).getByRole("menuitemradio", { name: "CPS" }));
+    expect(onPlats).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Vilket bibliotek: CPS" }));
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "Mitt bibliotek" }));
     expect(onPlats).toHaveBeenCalledWith(MITT_MAL.id);
   });
 
-  it("med en enda plats syns ingen växlare", () => {
+  it("med en enda plats syns ingen växlare, men antalet står kvar", () => {
     render(<Vy poster={[gruppPost(KIM)]} jag={{ uid: KIM, roll: "medlem" }} grupper={[]} platser={[{ id: "cps-ab", namn: "CPS" }]} plats="cps-ab" />);
-    expect(screen.queryByRole("tablist", { name: "Vilket bibliotek" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Vilket bibliotek/ })).toBeNull();
+    expect(document.querySelector("[data-bibliotek-plats]")).toBeNull();
+    expect(document.querySelector("[data-bibliotek-antal]")?.textContent).toBe("1 objekt");
   });
 });

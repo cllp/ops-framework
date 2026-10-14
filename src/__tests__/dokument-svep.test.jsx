@@ -36,6 +36,21 @@ const poster = [
 ];
 
 describe("OpsSvepRad", () => {
+  it("kort ger raden kortets hörn och yta, utan kort är raden listans rad (0.102.0)", () => {
+    const atgarder = [{ id: "radera", etikett: "Radera", fara: true, onValj: () => {} }];
+    const { unmount } = render(<ul><OpsSvepRad atgarder={atgarder}><span>Rad</span></OpsSvepRad></ul>);
+    const vanlig = /** @type {HTMLElement} */ (document.querySelector("[data-ops-svep]"));
+    // Hörnens storlek är formen (mäts i montaget). Här mäts att kortet har rundade hörn och raden inte.
+    expect(vanlig.className).not.toMatch(/\brounded-/);
+    expect(screen.getByText("Rad").parentElement?.className).toContain("bg-canvas");
+    unmount();
+    render(<ul><OpsSvepRad kort atgarder={atgarder}><span>Rad</span></OpsSvepRad></ul>);
+    const kort = /** @type {HTMLElement} */ (document.querySelector("[data-ops-svep]"));
+    expect(kort.className).toMatch(/\brounded-/);
+    expect(screen.getByText("Rad").parentElement?.className).toContain("bg-surface");
+    expect(screen.getByText("Rad").parentElement?.className).not.toContain("bg-canvas");
+  });
+
   it("utan åtgärder är raden en vanlig li, och ett kort svep avslöjar ingenting", () => {
     const { unmount } = render(<ul><OpsSvepRad><span>Rad</span></OpsSvepRad></ul>);
     expect(screen.getByText("Rad")).toBeInTheDocument();
@@ -300,20 +315,45 @@ describe("OpsAtgardsblad", () => {
     }
   });
 
-  it("under 768 px är ytan ett ark med Stäng, inte bara menyn", () => {
-    const stad = medBredd(true);
-    try {
-      render(
-        <OpsAtgardsblad namn="Filen" poster={poster}>
-          <button type="button">Filen</button>
-        </OpsAtgardsblad>,
-      );
-      fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Filen" }));
-      expect(screen.getByRole("button", { name: "Stäng" })).toBeInTheDocument();
-      expect(screen.getByRole("menuitem", { name: "Öppna" })).toBeInTheDocument();
-    } finally {
-      stad();
+  it("⛔ på alla bredder är ytan samma ruta vid raden, med namnet överst och utan Stäng, och kort ger kortets kant (0.102.0)", () => {
+    // Förut var ytan under 768 px ett ark nerifrån med Stäng. CP 2026-10-14: "Kanske popup med en kortare meny för artefakten?"
+    for (const smal of [true, false]) {
+      const stad = medBredd(smal);
+      try {
+        const { unmount } = render(
+          <OpsAtgardsblad namn="Filen" poster={poster}>
+            <button type="button">Filen</button>
+          </OpsAtgardsblad>,
+        );
+        fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Filen" }));
+        expect(screen.queryByRole("button", { name: "Stäng" })).toBeNull();
+        expect(screen.getByRole("menuitem", { name: "Öppna" })).toBeInTheDocument();
+        const namn = document.querySelector("[data-ops-atgard-namn]");
+        expect(namn?.textContent).toBe("Filen");
+        // Rutan är Radix popover, förankrad i raden: ingen modal som låser resten av sidan.
+        const ruta = namn?.closest("[data-radix-popper-content-wrapper]");
+        expect(ruta).not.toBeNull();
+        expect(document.querySelector("[aria-modal='true']")).toBeNull();
+        unmount();
+      } finally {
+        stad();
+      }
     }
+    const { unmount } = render(
+      <OpsAtgardsblad namn="Filen" poster={poster}>
+        <button type="button">Filen</button>
+      </OpsAtgardsblad>,
+    );
+    expect(document.querySelector("[data-ops-atgard]")?.className).toContain("items-center");
+    unmount();
+    render(
+      <OpsAtgardsblad kort namn="Filen" poster={poster}>
+        <button type="button">Filen</button>
+      </OpsAtgardsblad>,
+    );
+    // Kortet bär ⋮ uppe till höger, alltså toppställt, och tätare kant.
+    expect(document.querySelector("[data-ops-atgard]")?.className).toContain("items-start");
+    expect(document.querySelector("[data-ops-atgard]")?.className).not.toContain("px-4");
   });
 });
 
