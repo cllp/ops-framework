@@ -42,8 +42,9 @@ function falskInspelare() {
 }
 
 /** Klar, och vänta tills kvittot (eller sparningen) står. */
+/** ⛔ ÄNDRAT 0.104.0: Klars namn följer språket (`ORD_TALK.klarNamn`), så på engelska heter knappen "Done, save the recording". */
 async function klar() {
-  fireEvent.click(screen.getByRole("button", { name: "Klar, spara inspelningen" }));
+  fireEvent.click(screen.getByRole("button", { name: /^(Klar, spara inspelningen|Done, save the recording)$/ }));
   await flush();
 }
 
