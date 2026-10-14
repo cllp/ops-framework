@@ -27,8 +27,10 @@ läge: `docs/jamforelser/0.105.0/` (`node scripts/check-skalyta.mjs --bara-talkv
   står kvar där den stod medan man pratade, och under den frågan "Vad ska hända med det du sa?" med fyra knappar med ord i ett
   rutnät med två kolumner: Meddelande, Händelse, Ärende och Agent. Fokus går till det första valet. Stäng kastar det sagda.
 - **Agent** lämnar texten till `onAgent` och stänger fältet när löftet löser sig, eftersom appen tar över (lifehub.app skickar texten
-  till chatten med agenten och öppnar den). Avvisas löftet står felet i fältet, och Försök igen går till agenten igen, aldrig till
-  `onTalk`. Ett andra tryck medan det pågår gör ingenting.
+  till chatten med agenten och öppnar den). ⛔ Avvisas löftet går fältet tillbaka till valen: det sagda och de fyra valen står kvar
+  med felet (`role="alert"`), så att den som inte nådde agenten kan välja Meddelande eller Ärende i stället, och ett nytt tryck på
+  Agent är Försök igen, aldrig `onTalk`. (Granskningen av PR 387: i första versionen blev det läget `fel` med en egen Försök igen,
+  och då stod varken texten eller valen kvar.) Ett andra tryck medan det pågår gör ingenting.
 - **Händelse** och **Ärende** öppnar skalets formulär ifyllda (`talkForifyllt`), som rubrikradens ikoner gjorde i 0.103.0.
   **Meddelande** lämnar `{ text }` till `talk.onMeddelande`. Ett val ritas bara när dess mottagare finns.
 - Utan `onAgent`, eller när inget hördes (igenkänningen av eller föll), är flödet som förut: Klar lämnar ljudet och texten till `onTalk`.
@@ -81,7 +83,7 @@ Det Svara gjorde som inget annat gör: en röstdialog med agenten utan att lämn
 ### Prov
 
 - `src/__tests__/talk-val.test.jsx` (18 prov): läget hört, de fyra valen med ord i rätt ordning och fokus, Agent en gång och fältet
-  stängt, Försök igen till agenten, utan agent som förut, inget hört som förut, ett val per mottagare, Stäng, Meddelande, Ärende och
+  stängt, ett fel i Agent som visar texten och valen igen, Ärende i stället efter ett fel i Agent, utan agent som förut, inget hört som förut, ett val per mottagare, Stäng, Meddelande, Ärende och
   Händelse ifyllda, en mottagare som kastar, engelska, och det stängda API:t. Mot 0.104.0: 14 röda, 4 gröna: de två om `talkForifyllt`,
   "utan agent som förut" och "inget hört som förut", som mäter att det som inte ändrats är orört.
 - `src/__tests__/forslag.test.jsx` (10 prov): knappen och förhandsvisningen, ett tryck ett anrop, ett nej, ett fel som går att försöka

@@ -893,7 +893,8 @@ function GenvagRam({ nyckel, ikon, tips = true, className, children }) {
  *   när ett moduls mål är valt (Biblioteket) är det modulens `spara` som arbetar, och där står förvalet.
  *   (0.105.0) Med `talk.onAgent` lämnar Klar inte det sagda till `onTalk`. Fältet visar texten och valen Meddelande, Händelse, Ärende och
  *   Agent, med ord. Agent lämnar texten till `talk.onAgent(text)` och stänger fältet när löftet löser sig: appen tar över (lifehub.app
- *   skickar texten till chatten med agenten och öppnar den). Händelse öppnar skalets "Ny händelse" och Ärende skalets "Nytt ärende"
+ *   skickar texten till chatten med agenten och öppnar den). Avvisas löftet står det sagda och valen kvar med felet, och ett nytt
+ *   tryck på Agent försöker igen. Händelse öppnar skalets "Ny händelse" och Ärende skalets "Nytt ärende"
  *   med `forifyllt` (`talkForifyllt`), och ritas bara när `skapa.handelse` är ett formulär (`HandelseSkapare`) respektive `skapa.arende`
  *   är en funktion. Meddelande lämnar underlaget (`Talkunderlag`, `{ text }`) till `talk.onMeddelande` och ritas bara med den.
  *   Hördes inget (igenkänningen av) går ljudet till `onTalk` som förut. När ett moduls mål är valt (Biblioteket) gäller modulens

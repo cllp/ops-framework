@@ -288,7 +288,8 @@ export function useTalk({ onTalk, onKlick, onAgent, inspelare, igenkanning, skic
       };
       /**
        * Agent (0.105.0): det sagda till appens `onAgent`. ⛔ FÄLTET STÄNGS NÄR APPEN SVARAT, för appen tar över (chatten öppnas). Ett
-       * fel står kvar med Försök igen och texten, och Försök igen går hit igen, inte till `onTalk` (`senastMal`).
+       * fel tar fältet tillbaka till valen med texten och felet (`agentFel`), så att personen kan välja Meddelande eller Ärende i
+       * stället, och ett nytt tryck på Agent går hit igen, aldrig till `onTalk`.
        * @param {{ blob: Blob, mimeType: string, sekunder: number, text?: string }} post
        */
       const lamnaTillAgent = (post) => {
@@ -308,8 +309,7 @@ export function useTalk({ onTalk, onKlick, onAgent, inspelare, igenkanning, skic
           .catch((fel) => {
             if (!monterad.current) return;
             rapporteraFel(fel, { yta: "OpsTalk", steg: "agent" });
-            setKanIgen(true);
-            skicka({ typ: "fel", text: fel instanceof Error && fel.message ? fel.message : ORD_TALK.felAgent.sv });
+            skicka({ typ: "agentFel", text: fel instanceof Error && fel.message ? fel.message : ORD_TALK.felAgent.sv });
           });
       };
       if (nasta.gor === "agent") {
@@ -901,6 +901,8 @@ export function OpsInspelning(props) {
         <div role="group" aria-labelledby={valFraga} data-talk-val="" className="flex min-w-0 flex-col gap-2">
           <p id={valFraga} className="m-0 text-meta text-ink-muted">{o("valFragan")}</p>
           {vidareFel ? <p role="alert" data-talk-vidarefel="" className="m-0 text-etikett text-danger">{talkTextPa(vidareFel, sprak)}</p> : null}
+          {/* ⛔ AGENTEN NÅDDES INTE (granskningen av PR 387): felet står vid valen, och Agent är Försök igen. */}
+          {fel && !vidareFel ? <p role="alert" data-talk-agentfel="" className="m-0 text-etikett text-danger">{talkTextPa(fel, sprak)}</p> : null}
           <div className="grid min-w-0 grid-cols-2 gap-2">
             {val.map((x, i) => {
               const Ikon = x.nyckel === "meddelande" ? MeddelandeIkon : x.nyckel === "handelse" ? HandelsePlusIkon : x.nyckel === "arende" ? ArendePlusIkon : AgentIkon;

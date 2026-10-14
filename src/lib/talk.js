@@ -306,7 +306,7 @@ export const MAX_SEKUNDER = 120;
  */
 
 /**
- * @typedef {{ typ: "ner" } | { typ: "direkt" } | { typ: "langtryck" } | { typ: "upp" } | { typ: "skicka" } | { typ: "igen" } | { typ: "avbryt" } | { typ: "klar" } | { typ: "dolj" } | { typ: "fel", text: string } | { typ: "tak" } | { typ: "hort" } | { typ: "agent" } | { typ: "lamnat" }} Talkhandelse
+ * @typedef {{ typ: "ner" } | { typ: "direkt" } | { typ: "langtryck" } | { typ: "upp" } | { typ: "skicka" } | { typ: "igen" } | { typ: "avbryt" } | { typ: "klar" } | { typ: "dolj" } | { typ: "fel", text: string } | { typ: "tak" } | { typ: "hort" } | { typ: "agent" } | { typ: "agentFel", text: string } | { typ: "lamnat" }} Talkhandelse
  */
 
 /**
@@ -320,6 +320,10 @@ export const MAX_SEKUNDER = 120;
  *
  * ⛔ LÄGET HÖRT (0.105.0) LÄMNAR INGENTING SJÄLVT. Bara ett val gör något: Agent (`agent`) lämnar det sagda till appens `onAgent`, och
  * Meddelande, Händelse och Ärende lämnar det till sin mottagare och stänger (`lamnat`). Stäng kastar.
+ *
+ * ⛔ FALLER AGENT GÅR FÄLTET TILLBAKA TILL HÖRT, med felet (`agentFel`, granskningen av PR 387). Förut blev det läget `fel` med Försök
+ * igen, och då stod varken det sagda eller valen kvar: den som inte nådde agenten kunde inte välja Meddelande eller Ärende i stället.
+ * Ett nytt tryck på Agent är Försök igen.
  *
  * @param {{ lage: Talklage, fel?: string }} nu
  * @param {Talkhandelse} h
@@ -356,6 +360,7 @@ export function talkNasta(nu, h) {
       if (h.typ === "hort") return bli("hort");
       // Agenten tog emot det sagda och appen tog över (chatten öppnades): fältet har inget mer att visa.
       if (h.typ === "lamnat") return bli("vila", "kasta");
+      if (h.typ === "agentFel") return bli("hort", null, h.text);
       if (h.typ === "fel") return bli("fel", null, h.text);
       return bli("skickar");
     case "hort":
@@ -364,7 +369,7 @@ export function talkNasta(nu, h) {
       if (h.typ === "direkt") return bli("lyssnar", "starta");
       if (h.typ === "ner") return bli("trycker");
       if (h.typ === "fel") return bli("fel", null, h.text);
-      return bli("hort");
+      return bli("hort", null, nu.fel);
     case "sparat":
       if (h.typ === "dolj" || h.typ === "avbryt") return bli("vila");
       // Bekräftelsen låser inte nästa inspelning. Ett nytt tryck på mikrofonen får börja direkt.

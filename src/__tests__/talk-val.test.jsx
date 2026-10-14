@@ -96,6 +96,9 @@ describe("läget hört i flödet", () => {
     expect(talkNasta({ lage: "hort" }, { typ: "agent" })).toEqual({ lage: "skickar", gor: "agent" });
     expect(talkNasta({ lage: "hort" }, { typ: "avbryt" })).toEqual({ lage: "vila", gor: "kasta" });
     expect(talkNasta({ lage: "skickar" }, { typ: "lamnat" })).toEqual({ lage: "vila", gor: "kasta" });
+    // ⛔ Agenten nåddes inte: tillbaka till valen med felet, och ett nytt Agent rensar det.
+    expect(talkNasta({ lage: "skickar" }, { typ: "agentFel", text: "Nej" })).toEqual({ lage: "hort", gor: null, fel: "Nej" });
+    expect(talkNasta({ lage: "hort", fel: "Nej" }, { typ: "agent" })).toEqual({ lage: "skickar", gor: "agent" });
   });
 });
 
@@ -137,21 +140,52 @@ describe("valen efter talet", () => {
     expect(falt()).toBeNull();
   });
 
-  it("⛔ faller onAgent står felet i fältet med Försök igen, och Försök igen går till agenten igen, inte till onTalk", async () => {
+  it("⛔ faller onAgent står felet vid valen, det sagda och de fyra valen står kvar, och Agent försöker igen (granskningen av PR 387)", async () => {
     const konsol = vi.spyOn(console, "error").mockImplementation(() => {});
     try {
       const onAgent = vi.fn().mockRejectedValueOnce(new Error("Chatten gick inte att öppna.")).mockResolvedValue(undefined);
-      const t = Skal({ talk: { onAgent } });
+      const t = Skal({ talk: { onAgent, onMeddelande: vi.fn() }, skapa: FORMULAR });
       await prata();
       fireEvent.click(screen.getByRole("button", { name: "Agent" }));
       await flush();
-      expect(screen.getByRole("alert").textContent).toBe("Chatten gick inte att öppna.");
-      fireEvent.click(screen.getByRole("button", { name: "Försök igen" }));
+      const dialog = /** @type {HTMLElement} */ (falt());
+      expect(dialog.getAttribute("data-lage")).toBe("hort");
+      expect(within(dialog).getByRole("alert").textContent).toBe("Chatten gick inte att öppna.");
+      expect(within(dialog).getByText(SAGT[0])).toBeTruthy();
+      expect(valen()).toEqual(["Meddelande", "Händelse", "Ärende", "Agent"]);
+      // ⛔ Agent är Försök igen: ingen egen knapp för det.
+      expect(within(dialog).queryByRole("button", { name: "Försök igen" })).toBeNull();
+      fireEvent.click(screen.getByRole("button", { name: "Agent" }));
       await flush();
       expect(onAgent).toHaveBeenCalledTimes(2);
       expect(onAgent).toHaveBeenLastCalledWith(SAGT[0]);
       expect(t.onTalk).not.toHaveBeenCalled();
       expect(falt()).toBeNull();
+    } finally {
+      konsol.mockRestore();
+    }
+  });
+
+  it("⛔ faller onAgent går det att välja Ärende i stället, ifyllt med det sagda", async () => {
+    const konsol = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const onAgent = vi.fn(async () => {
+        throw new Error("Chatten gick inte att öppna.");
+      });
+      const arende = ({ formId, forifyllt }) => (
+        <form id={formId}>
+          <input aria-label="Rubrik" defaultValue={forifyllt?.rubrik ?? ""} />
+        </form>
+      );
+      Skal({ talk: { onAgent }, skapa: { lage: "g1", arende } });
+      await prata();
+      fireEvent.click(screen.getByRole("button", { name: "Agent" }));
+      await flush();
+      fireEvent.click(screen.getByRole("button", { name: "Ärende" }));
+      await flush();
+      expect(falt()).toBeNull();
+      expect(/** @type {HTMLInputElement} */ (screen.getByRole("textbox", { name: "Rubrik" })).value).toBe("Boka rep med bandet");
+      expect(onAgent).toHaveBeenCalledTimes(1);
     } finally {
       konsol.mockRestore();
     }
