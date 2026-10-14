@@ -74,6 +74,12 @@ Stoppa agenten, Klar ("Done, send what you said"), statusraderna och utskriftsfe
 skrivfältet ritas också på chattens språk när appen ger `sprak` utan `OpsSprakProvider`. Chattens övriga texter är fortfarande bara
 svenska: cllp/ops-framework#385. Prov i `chatt-talsprak.test.jsx`: 5 av 6 röda mot koden före (svenskan grön i båda), 6 av 6 gröna med.
 
+### Prov: Appar-arkets skydd mot ett gammalt avvisat sparande
+
+Skyddet i `OpsApparArk` som låter ett äldre sparande som avvisas efter ett nyare vara (`sparaForsok`) saknade prov: granskningen av
+PR 384 (BÖR 2) tog bort det och fick 15 av 15 gröna. `apparark.test.jsx` har nu ett prov med tre synliga appar och två Klar i följd,
+där det första avvisas efter det andra. Ordningen från det andra står kvar och inget fel visas. Rött med skyddet bortkopplat, grönt med det.
+
 ### Ändrat: röstinmatningen har ett hem
 
 Talet bodde inbyggt i chattens skrivfält (`OpsMeddelanden.jsx`). Det är utbrutet till `OpsRostinmatning.jsx`
