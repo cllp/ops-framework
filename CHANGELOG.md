@@ -128,8 +128,10 @@ Det Svara gjorde som inget annat gör: en röstdialog med agenten utan att lämn
 - `check-skalyta.mjs` avsnitt 46 (`--bara-talkval`), vid 390 och 1280 px: valen med ord som inte klipps, träffbara på 44x44, inne i fältet
   och fönstret, fokus på Meddelande och inget lämnat innan personen valt; Agent lämnar det sagda till `onAgent`; i chatten två förslag
   minst 44 px höga inne i fönstret med förhandsvisningen, ett dubbelklick ger ett anrop med samtalet, meddelandet och id, och utfallet
-  står under knappen; inget rullar i sidled. Mot 0.104.0:s dist: 4 brott av 4 (valen och förslagen finns inte). Med 0.105.0: 54
-  kontroller utan brott. Hela `check-skalyta.mjs`: 2746 kontroller utan brott. ⛔ En körning av `--bara-talkval` direkt efter ett bygge
+  står under knappen; inget rullar i sidled. Rött med en mutation (inget fokus på första valet och ingen förhandsvisning): 4 brott
+  av 54, fokus och förhandsvisning vid 390 och 1280 px. Med 0.105.0: 54 kontroller utan brott. ⛔ Här stod först "mot 0.104.0:s
+  dist: 4 brott av 4", men alla fyra var en krasch ("Cannot read properties of null (reading 'useContext')", två React-kopior när
+  en annan dist laddas) och inte en mätning (granskningen av PR 387, varv 2). Hela `check-skalyta.mjs`: 2746 kontroller utan brott. ⛔ En körning av `--bara-talkval` direkt efter ett bygge
   föll en gång på att mittknappen inte gick att klicka inom 4 s vid 390 px, och samma körning en gång till var grön; det är en
   misslyckad mätning enligt regel 14 och inte ett resultat, men orsaken är inte utredd.
 - Rytmen mellan publika block: `OpsPublikHjalte` med bild följd av ett `OpsPublikAvsnitt` fick 0 px luft, eftersom rytmregeln bara
