@@ -97,7 +97,9 @@ describe("OpsForslag", () => {
       render(<OpsForslag forslag={FORSLAG} onForslag={onForslag} />);
       fireEvent.click(screen.getByRole("button", { name: /Skapa ärendet/ }));
       await vanta();
-      expect(screen.getByRole("status").textContent).toBe("Ingen kontakt med servern.");
+      // ⛔ Personen får våra ord. Felets egen text går till felrapporten.
+      expect(screen.getByRole("status").textContent).toBe("Förslaget gick inte att utföra.");
+      expect(konsol.mock.calls.map((c) => c.map(String).join(" ")).join("\n")).toContain("Ingen kontakt med servern.");
       fireEvent.click(screen.getByRole("button", { name: /Skapa ärendet/ }));
       await vanta();
       expect(onForslag).toHaveBeenCalledTimes(2);
@@ -113,7 +115,9 @@ describe("OpsForslag", () => {
       render(<OpsForslag forslag={FORSLAG} onForslag={async () => /** @type {any} */ ("ja")} />);
       fireEvent.click(screen.getByRole("button", { name: /Skapa ärendet/ }));
       await vanta();
-      expect(screen.getByRole("status").textContent).toMatch(/onForslag ska lösa till/);
+      // ⛔ Den tekniska texten står inte för personen, bara i felrapporten.
+      expect(screen.getByRole("status").textContent).toBe("Förslaget gick inte att utföra.");
+      expect(konsol.mock.calls.map((c) => c.map(String).join(" ")).join("\n")).toMatch(/onForslag ska lösa till/);
     } finally {
       konsol.mockRestore();
     }

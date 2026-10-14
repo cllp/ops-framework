@@ -47,7 +47,10 @@ läge: `docs/jamforelser/0.105.0/` (`node scripts/check-skalyta.mjs --bara-talkv
 - `OpsForslag forslag={[{ id, etikett, ikon?, text? }]} onForslag={(id) => ...}`: en knapp per förslag med etiketten och en kort
   förhandsvisning under. `onForslag` löser till `{ utfall: "ok" | "nekad", text? }`, och utfallet står i en statusrad under knappen.
   ⛔ Ett tryck är ett anrop: ett dubbelklick ger ett, och efter Klart eller Gjordes inte gör knappen ingenting. Ett avvisat löfte är ett
-  fel som går att försöka igen, eftersom inget gjordes; att ett förslag bara kan utföras en gång är appens servers sak.
+  fel som går att försöka igen, eftersom inget gjordes; att ett förslag bara kan utföras en gång är appens servers sak. ⛔ Ett fel står
+  som "Förslaget gick inte att utföra." (`felForslag`) på personens språk, och felets egen text går bara till felrapporten
+  (`rapporteraFel`): den är skriven för den som bygger, inte för den som tryckte. (Granskningen av PR 387: första versionen visade
+  felets `message` ordagrant, till exempel "onForslag ska lösa till …".)
 - `OpsMeddelanden onForslag({ sid, mid, id })`: under ett meddelande från en medlem av typen agent som bär fältet `forslag` (skrivet av
   appens server) ritas `OpsForslag`. En persons meddelande med samma fält får inga knappar. Ett felformat förslag ur databasen hoppas
   över och rapporteras, i stället för att fälla chatten.

@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { forslagssvar, kontrolleraForslag } from "../lib/forslag.js";
-import { talkOrd, talkTextPa, ORD_TALK } from "../lib/talk.js";
+import { talkOrd } from "../lib/talk.js";
 import { rapporteraFel } from "../lib/felrapport.js";
 import { useOpsSprak } from "./OpsSprak.jsx";
 import { OpsSpinner } from "./OpsSpinner.jsx";
@@ -11,6 +11,9 @@ import { ArendePlusIkon, BockIkon, GruppIkon, HandelsePlusIkon, HubIkon, Meddela
  *
  * ⛔ ETT TRYCK ÄR ETT ANROP. Ett andra tryck medan anropet pågår gör ingenting, och efter Klart eller Gjordes inte gör knappen
  * ingenting mer. Spärren står i en ref, inte bara i tillståndet: två tryck i samma ögonblick hinner inte se ett nytt tillstånd.
+ * ⛔ ETT FEL SÄGS MED VÅRA ORD, INTE MED FELETS (granskningen av PR 387). `felForslag` står i statusraden på personens språk, och felets
+ * egen text ("onForslag ska lösa till …", ett serverfel) går bara till felrapporten: den är skriven för den som bygger, inte för den
+ * som tryckte.
  * ⛔ ETT FEL GÅR ATT FÖRSÖKA IGEN. Ett avvisat löfte betyder att trycket inte nådde fram eller att appen föll, och då har inget
  * gjorts. Att ett förslag bara kan utföras en gång är serverns sak: den ser om det redan är använt.
  * ⛔ aria-disabled OCH INTE disabled. En knapp som blir `disabled` tappar fokus, och tangentbordet hamnar i sidans topp.
@@ -57,7 +60,7 @@ export function OpsForslag(props) {
       .catch((fel) => {
         rapporteraFel(fel, { yta: "OpsForslag", steg: "tryck" });
         spard.current.delete(id);
-        if (monterad.current) setUtfall((/** @type {Utfallen} */ u) => ({ ...u, [id]: { lage: "fel", text: fel instanceof Error && fel.message ? fel.message : ORD_TALK.felForslag.sv } }));
+        if (monterad.current) setUtfall((/** @type {Utfallen} */ u) => ({ ...u, [id]: { lage: "fel", text: "" } }));
       });
   };
 
@@ -86,7 +89,7 @@ export function OpsForslag(props) {
               {u?.lage === "pagar" ? talkOrd("forslagPagar", sprak) : null}
               {u?.lage === "ok" ? u.text || talkOrd("forslagKlart", sprak) : null}
               {u?.lage === "nekad" ? u.text || talkOrd("forslagNekat", sprak) : null}
-              {u?.lage === "fel" ? talkTextPa(u.text, sprak) : null}
+              {u?.lage === "fel" ? talkOrd("felForslag", sprak) : null}
             </p>
           </div>
         );
