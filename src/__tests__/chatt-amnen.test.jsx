@@ -97,6 +97,26 @@ describe("källan", () => {
     expect(await kalla.read("samtal", nytt.id)).toMatchObject({ slag: "agent", deltagare: ["anna", "ops"], skapadAv: "anna" });
     expect((await s.meddelanden(nytt.id)).map((m) => m.text)).toEqual(["Boka resan"]);
   });
+  it("⛔ samtalsdokumentet läses en gång per ämne, inte före varje meddelande (granskningen av PR 390)", async () => {
+    const { kalla, s } = await underlag();
+    const lasningar = /** @type {string[]} */ ([]);
+    const read = kalla.read.bind(kalla);
+    kalla.read = async (c, id) => {
+      if (c === "samtal") lasningar.push(id);
+      return read(c, id);
+    };
+    const nytt = s.nyttAmne({ groupId: "g", uid: "anna", agent: "ops" });
+    await s.skickaIAmne(nytt, { text: "Ett", av: "anna" });
+    await s.skickaIAmne(nytt, { text: "Två", av: "anna" });
+    await s.skickaIAmne(nytt, { text: "Tre", av: "anna" });
+    // Golv: tre meddelanden skrevs. Tak: en läsning av samtalet (förut tre).
+    expect((await s.meddelanden(nytt.id)).map((m) => m.text)).toEqual(["Ett", "Två", "Tre"]);
+    expect(lasningar).toEqual([nytt.id]);
+    // Ett annat ämne läses för sig.
+    const annat = s.nyttAmne({ groupId: "g", uid: "anna", agent: "ops" });
+    await s.skickaIAmne(annat, { text: "Annat", av: "anna" });
+    expect(lasningar).toEqual([nytt.id, annat.id]);
+  });
   it("⛔ översikten hoppar över ett arkiverat ämne utan att läsa dess meddelanden, och läser bara de arkiverade på begäran", async () => {
     const { lasta, s, moms } = await underlag();
     await s.arkivera(moms.id, true);

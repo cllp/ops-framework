@@ -489,10 +489,26 @@ export function createSamtalskalla(konfig) {
   async function skickaIAmne(s, d) {
     const m = nyttMeddelande(d, "samtalskalla.skickaIAmne");
     if (!s || s.slag !== "agent") throw new Error("samtalskalla.skickaIAmne: ett ämne är ett samtal med agenten.");
-    const finns = await kalla.read(samtal, s.id);
-    if (!finns) await skapaEllerHamta(s, d.av);
-    return skrivMeddelande(meddelandevag(s.id), s.id, m);
+    /*
+     * ⛔ SAMTALSDOKUMENTET LÄSES EN GÅNG PER ÄMNE OCH KÄLLA, inte före varje meddelande (granskningen av PR 390). Läsningen avgör bara
+     * om samtalet ska skapas först, och ett ämne som redan setts finnas (läst, eller skapat härifrån) behöver inte frågas om. Kontrollen
+     * försvagas inte: regeln för meddelandet kräver ändå att samtalet finns (`exists`), så en skrivning mot ett samtal som försvunnit
+     * nekas, och då glöms ämnet här och nästa försök läser och skapar om det behövs.
+     */
+    if (!kandaAmnen.has(s.id)) {
+      const finns = await kalla.read(samtal, s.id);
+      if (!finns) await skapaEllerHamta(s, d.av);
+      kandaAmnen.add(s.id);
+    }
+    try {
+      return await skrivMeddelande(meddelandevag(s.id), s.id, m);
+    } catch (fel) {
+      kandaAmnen.delete(s.id);
+      throw fel;
+    }
   }
+  /** Ämnen som redan setts finnas i den här källan (se `skickaIAmne`). */
+  const kandaAmnen = new Set();
 
   /**
    * Ett nytt ämne med sitt första meddelande, i ett anrop. För TALK:s Agent: det sagda blir första raden i ett eget ämne.
