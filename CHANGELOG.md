@@ -35,6 +35,17 @@ TALK funktionen även här på skapa app." Skärmbilder mot en byggd yta, 390 oc
 - `tal` kräver `onChange`, och ett `tal` utan både `igenkanning` och `onTranscribe` eller med en okänd nyckel kastar.
 - Fältets ord på svenska och engelska: `ORD_OPSTEXTAREA_TAL` (knappen heter "Prata in" och "Dictate").
 
+### Rättat: TALK:s yta följer appens språk
+
+Inspelningsytan (`OpsInspelning`, och därmed TALK-fältet, chattens och textfältets yta) hade sina ord bara på svenska: "Klar",
+"Avbryt", "Försök igen", "Stäng", "Sparat", "Ångra", platstexten, rubrikradens ikoner och TALK:s egna fel. Sett när textfältets egna
+ord var engelska men ytans inte var det. Orden står nu i `ORD_TALK` (`lib/talk.js`) och läses med `ordet` på språket ur
+`useOpsSprak`. Klars namn följer med ("Done, save the recording"). De svenska konstanterna (`TALK_INGET_LJUD`, `TALK_TEXTFEL`,
+`TALK_SKICKAR_TEXT` med flera) läser sin text ur ordlistan, så att meningen står på ett ställe. Ett fel bär sin svenska text i
+tillståndet, så att `kanSpelaInIgen` och `kanBeOmMikrofon` känner igen det, och översätts när det ritas; ett fel från appen ritas
+som det är. Prov i `talk-sprak.test.jsx`: 5 av 7 röda mot koden före rättelsen, alla 7 gröna med den (de två som är gröna i båda
+mäter att appens egen text och svenskan är orörda).
+
 ### Ändrat: röstinmatningen har ett hem
 
 Talet bodde inbyggt i chattens skrivfält (`OpsMeddelanden.jsx`). Det är utbrutet till `OpsRostinmatning.jsx`

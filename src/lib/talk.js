@@ -50,6 +50,79 @@ export const ORD_TALKKNAPP = {
 };
 
 /**
+ * ⛔ TALK:S EGNA ORD PÅ BÅDA SPRÅKEN (0.104.0). Inspelningsytan (`OpsInspelning`) hade sina knappar, statusrader och fel bara på
+ * svenska: i en app som ritas på engelska stod "Klar", "Avbryt" och "Försök igen" kvar. Upptäckt när `OpsTextarea` fick tal och
+ * fältets egna ord var engelska medan ytans inte var det. Ytan läser nu orden här, på språket ur `useOpsSprak`.
+ *
+ * ⛔ DEN SVENSKA TEXTEN STÅR BARA HÄR. Konstanterna nedan (`TALK_SKICKAR_TEXT`, `TALK_PLATSTEXT`, `TALK_INGET_LJUD`, `TALK_TEXTFEL`,
+ * `MIKROFON_SPARRAD_AV_SIDAN`) är ordens svenska form, så att en mening inte kan stå på två ställen och glida isär (regel 2).
+ *
+ * ⛔ FELEN BÄR SIN SVENSKA TEXT I TILLSTÅNDET OCH ÖVERSÄTTS NÄR DE RITAS (`talkTextPa`). `kanSpelaInIgen` och `kanBeOmMikrofon` känner
+ * igen felet på dess text, och den texten får inte bero på språket. Ett fel från appen (det `onTalk` kastar) ritas som det är.
+ * @type {import("./ord.js").Ordbok}
+ */
+export const ORD_TALK = {
+  klar: { sv: "Klar", en: "Done" },
+  klarNamn: { sv: "Klar, spara inspelningen", en: "Done, save the recording" },
+  avbryt: { sv: "Avbryt", en: "Cancel" },
+  forsokIgen: { sv: "Försök igen", en: "Try again" },
+  stang: { sv: "Stäng", en: "Close" },
+  spelaIn: { sv: "Spela in", en: "Record" },
+  spelaInIgen: { sv: "Spela in igen", en: "Record again" },
+  tillatMikrofon: { sv: "Tillåt mikrofon", en: "Allow microphone" },
+  kastaFraga: { sv: "Kasta den här inspelningen?", en: "Discard this recording?" },
+  kasta: { sv: "Kasta", en: "Discard" },
+  fortsatt: { sv: "Fortsätt", en: "Continue" },
+  installningar: { sv: "Inställningar för TALK", en: "TALK settings" },
+  samtalet: { sv: "Samtalet", en: "The conversation" },
+  gorNagot: { sv: "Gör något av samtalet", en: "Make something of the conversation" },
+  du: { sv: "Du: ", en: "You: " },
+  agenten: { sv: "Agenten: ", en: "Agent: " },
+  angratPrefix: { sv: "Ångrat: ", en: "Undone: " },
+  sparat: { sv: "Sparat", en: "Saved" },
+  angrat: { sv: "Ångrat", en: "Undone" },
+  angra: { sv: "Ångra", en: "Undo" },
+  angrar: { sv: "Ångrar…", en: "Undoing…" },
+  skickasTill: { sv: "Skickas till", en: "Send to" },
+  vidareMeddelande: { sv: "Skapa ett meddelande av samtalet", en: "Make a message of the conversation" },
+  vidareHandelse: { sv: "Skapa en händelse av samtalet", en: "Make an event of the conversation" },
+  vidareArende: { sv: "Skapa ett ärende av samtalet", en: "Make a case of the conversation" },
+  skickar: { sv: "Sparar…", en: "Saving…" },
+  platstext: { sv: "Prata, så syns texten här", en: "Speak, and the text appears here" },
+  felOkant: { sv: "Något gick fel.", en: "Something went wrong." },
+  felSpara: { sv: "Det inspelade kunde inte sparas.", en: "The recording could not be saved." },
+  felIngetKvar: { sv: "Inget ljud finns kvar att spara.", en: "No audio is left to save." },
+  felAvsluta: { sv: "Inspelningen gick inte att avsluta.", en: "The recording could not be stopped." },
+  felStarta: { sv: "Inspelningen gick inte att starta.", en: "The recording could not be started." },
+  felAngra: { sv: "Det gick inte att ångra.", en: "It could not be undone." },
+  felVidare: { sv: "Samtalet gick inte att lämna vidare.", en: "The conversation could not be passed on." },
+  felUpptagen: { sv: "En annan inspelning pågår redan. Avsluta den först.", en: "Another recording is already in progress. Finish it first." },
+  felEjTillaten: { sv: "Mikrofonen är inte tillåten. Ge sidan tillgång till mikrofonen i webbläsarens inställningar.", en: "The microphone is not allowed. Give the page access to the microphone in the browser settings." },
+  felIngenMikrofon: { sv: "Ingen mikrofon hittades.", en: "No microphone was found." },
+  felSparradAvSidan: { sv: "Mikrofonen är spärrad av sidan som visar appen. Öppna appen i ett eget fönster för att spela in.", en: "The microphone is blocked by the page showing the app. Open the app in its own window to record." },
+  ingetLjud: { sv: "Mikrofonen gav inget ljud, och inget hördes som text. Ingenting skickades. Tryck på Spela in igen och prata en gång till.", en: "The microphone gave no audio, and nothing was heard as text. Nothing was sent. Press Record again and speak once more." },
+  textFel: { sv: "Texten kan inte visas just nu. Det du säger spelas in ändå och sparas som ljud.", en: "The text can't be shown right now. What you say is still recorded and saved as audio." },
+};
+
+/** Ett ord ur `ORD_TALK` på ett språk. @param {keyof typeof ORD_TALK} nyckel @param {string} sprak */
+export function talkOrd(nyckel, sprak) {
+  return ordet(ORD_TALK, nyckel, sprak);
+}
+
+/**
+ * En text från TALK på ett språk: är den ett av TALK:s egna ord i sin svenska form (ett fel i tillståndet, statusraden "Sparar…")
+ * ges den på `sprak`, annars ritas den som den är, eftersom den då är appens.
+ * @param {string} text
+ * @param {string} sprak
+ * @returns {string}
+ */
+export function talkTextPa(text, sprak) {
+  if (!text) return text;
+  for (const t of Object.values(ORD_TALK)) if (t.sv === text) return /** @type {any} */ (t)[sprak] || t.sv;
+  return text;
+}
+
+/**
  * Namnet på vägen in i TALK utan att hålla (#276): raden i Skapa och huvudets mikrofonknapp på dator. EN sträng, så
  * att raden och knappen inte kan börja heta olika saker. Svenska; på andra språk `talkKnappNamn("vila", sprak)`.
  */
@@ -79,7 +152,7 @@ export const SPARAT_MS = 1400;
  * Statusraden medan det inspelade lämnas till appen, när appen inte säger något annat (`talk.skickarText`, 0.97.0).
  * lifehub.app skickar "Agenten arbetar…", eftersom det är agenten och inte en uppladdning som tar tiden (lifehub.app#219).
  */
-export const TALK_SKICKAR_TEXT = "Sparar…";
+export const TALK_SKICKAR_TEXT = ORD_TALK.skickar.sv;
 
 /**
  * Knappen som startar en ny omgång i samma fält när kvittot står kvar (0.99.0). CP 2026-10-13 22:13, efter att agenten ställt en
@@ -106,7 +179,7 @@ export function kontrolleraSkickarText(varde, vem) {
  * Platstexten i textytan medan man pratar och inget hörts ännu (0.97.0). ⛔ BARA NÄR TEXT FAKTISKT KAN KOMMA: utan
  * igenkänning (av som förval, Firefox) hade raden lovat något som aldrig händer.
  */
-export const TALK_PLATSTEXT = "Prata, så syns texten här";
+export const TALK_PLATSTEXT = ORD_TALK.platstext.sv;
 
 /**
  * Kvittot appen kan lösa `onTalk` till (0.97.0, lifehub.app#219): vad som gjordes, och hur det tas bort igen.
@@ -341,7 +414,7 @@ export function kanBeOmMikrofon(feltext) {
  * gång till, för alltid. Nu skickas ingenting, fältet säger det här, och Spela in igen startar en ny omgång med ny ström och ny
  * igenkänning. Meningen säger vad som hände och vad man gör, och den är sann: ingenting lämnade telefonen.
  */
-export const TALK_INGET_LJUD = "Mikrofonen gav inget ljud, och inget hördes som text. Ingenting skickades. Tryck på Spela in igen och prata en gång till.";
+export const TALK_INGET_LJUD = ORD_TALK.ingetLjud.sv;
 
 /**
  * Om fältet ska erbjuda en ny inspelning i stället för Försök igen: när det som fanns att skicka var tomt (`TALK_INGET_LJUD`).
@@ -555,7 +628,7 @@ export function mikrofonenTillatenAvSidan(doc = globalThis.document) {
 }
 
 /** När sidans Permissions-Policy spärrar mikrofonen. Exporteras för appar som vill visa samma ord. */
-export const MIKROFON_SPARRAD_AV_SIDAN = "Mikrofonen är spärrad av sidan som visar appen. Öppna appen i ett eget fönster för att spela in.";
+export const MIKROFON_SPARRAD_AV_SIDAN = ORD_TALK.felSparradAvSidan.sv;
 
 /**
  * Felet som en människa läser, ur webbläsarens fel. ⛔ ORDET OCH INTE NAMNET: "NotAllowedError" säger ingenting i en
@@ -573,11 +646,11 @@ export function talkFeltext(fel, val = {}) {
   if (namn === "NotAllowedError" || namn === "SecurityError") {
     const sidanTillater = "sidanTillater" in val ? val.sidanTillater : mikrofonenTillatenAvSidan();
     if (sidanTillater === false) return MIKROFON_SPARRAD_AV_SIDAN;
-    return "Mikrofonen är inte tillåten. Ge sidan tillgång till mikrofonen i webbläsarens inställningar.";
+    return ORD_TALK.felEjTillaten.sv;
   }
-  if (namn === "NotFoundError") return "Ingen mikrofon hittades.";
+  if (namn === "NotFoundError") return ORD_TALK.felIngenMikrofon.sv;
   const text = fel instanceof Error ? fel.message : String(fel || "");
-  return text || "Inspelningen gick inte att starta.";
+  return text || ORD_TALK.felStarta.sv;
 }
 
 /*
@@ -623,7 +696,7 @@ const TYSTA_FEL = ["no-speech"];
  * texten här" stod kvar för evigt, och inspelningen pågick utan att något visade att orden inte hördes. Nu står detta i fältet.
  * Ljudet spelas in och sparas ändå, så meningen är sann.
  */
-export const TALK_TEXTFEL = "Texten kan inte visas just nu. Det du säger spelas in ändå och sparas som ljud.";
+export const TALK_TEXTFEL = ORD_TALK.textFel.sv;
 
 /** Så många omstarter per sekund innan igenkänningen räknas som trasig. En som tar slut direkt efter start loopar annars. */
 const MAX_OMSTARTER_PER_SEKUND = 3;
