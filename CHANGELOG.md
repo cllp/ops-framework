@@ -95,6 +95,14 @@ engelska fast det var appens text (granskningen av PR 384, KAN 5). Uppslaget gä
 och statusraden `skickar`. Prov i `talk-sprak.test.jsx`: knappnamnen röda före och gröna med, och alla fel och statusrader översätts,
 med ett golv på 15 nycklar.
 
+### Rättat: tal som når `maxLength` kapas vid ett ordslut
+
+`skrivInTal` kapade det sagda mitt i ett ord och kunde lämna ett mellanslag sist ("Abc en lång "), och när bara mellanslaget framför
+inte fick plats sade fältet att det var fullt fast det sagda fick plats (granskningen av PR 384, KAN 6). Nu klipps det vid ett ordslut
+utan blanksteg sist (ett enda för långt ord kapas fortfarande mitt i), och får det sagda plats utan mellanslaget framför släpps
+mellanslaget i stället: `skrivInTal("abcde", null, "x", 6)` ger "abcdex". Prov i `textfalt-tal.test.jsx`: 3 röda före, gröna med. Två
+befintliga påståenden ändrades och behöver en annan granskare (regel 9).
+
 ### Ändrat: röstinmatningen har ett hem
 
 Talet bodde inbyggt i chattens skrivfält (`OpsMeddelanden.jsx`). Det är utbrutet till `OpsRostinmatning.jsx`

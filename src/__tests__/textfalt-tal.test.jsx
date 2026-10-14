@@ -156,7 +156,9 @@ describe("tal i OpsTextarea", () => {
       f.resultat(rec, [["en lång mening som inte ryms", true]]);
       fireEvent.click(klar());
       await waitFor(() => expect(yta()).toBeNull());
-      expect(falt().value).toBe("Abc en lång ");
+      // ⛔ ÄNDRAT 0.104.0 (granskningen av PR 384, KAN 6): här stod "Abc en lång " med ett mellanslag sist. Kapningen klipper nu vid
+      // ordslutet och lämnar inget blanksteg efter sig. Ändringen av provet behöver en annan granskare (regel 9).
+      expect(falt().value).toBe("Abc en lång");
       expect(falt().value.length).toBeLessThanOrEqual(12);
       const status = /** @type {HTMLElement} */ (document.querySelector("[data-tal-kapat]"));
       expect(status.getAttribute("data-tal-kapat")).toBe("kapat");
@@ -253,6 +255,21 @@ describe("skrivInTal", () => {
   it("håller maxLength: kapar och säger det, och säger när inget fick plats", () => {
     expect(skrivInTal("abc", null, "defgh", 6)).toEqual({ varde: "abc de", markor: 6, kapat: "kapat" });
     expect(skrivInTal("abcdef", null, "x", 6)).toEqual({ varde: "abcdef", markor: 6, kapat: "fullt" });
-    expect(skrivInTal("abcde", null, "x", 6)).toEqual({ varde: "abcde", markor: 5, kapat: "fullt" });
+  });
+
+  /*
+   * ⛔ ÄNDRAT 0.104.0 (granskningen av PR 384, KAN 6). Här stod att `skrivInTal("abcde", null, "x", 6)` ger "fullt". Fältet var inte
+   * fullt: "x" fick plats, det var mellanslaget framför som inte gjorde det, och fältet sade "inget av det du sa fick plats". Nu
+   * släpps mellanslaget i stället för det sagda. Ändringen av provet behöver en annan granskare (regel 9).
+   */
+  it("⛔ får det sagda plats utan mellanslaget framför skrivs det in, och fältet säger inte att det är fullt", () => {
+    expect(skrivInTal("abcde", null, "x", 6)).toEqual({ varde: "abcdex", markor: 6, kapat: "nej" });
+  });
+
+  it("⛔ kapningen klipper vid ett ordslut och lämnar inget mellanslag sist", () => {
+    expect(skrivInTal("", null, "hej världen", 7)).toEqual({ varde: "hej", markor: 3, kapat: "kapat" });
+    expect(skrivInTal("Notera", null, "köp mjölk i dag", 17)).toEqual({ varde: "Notera köp mjölk", markor: 16, kapat: "kapat" });
+    // Ett snitt som råkar falla på ett mellanslag lämnar det inte heller kvar.
+    expect(skrivInTal("", null, "en två tre", 7)).toEqual({ varde: "en två", markor: 6, kapat: "kapat" });
   });
 });

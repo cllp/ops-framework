@@ -199,13 +199,27 @@ export const ORD_OPSTEXTAREA_TAL = {
 };
 
 /**
+ * Texten kapad till högst `n` tecken, vid ett ordslut och utan blanksteg sist (0.104.0, granskningen av PR 384, KAN 6). Ett enda ord
+ * som är längre än `n` kapas mitt i, eftersom ingenting av det annars hade kommit med.
+ * @param {string} text @param {number} n
+ */
+function kapaVidOrd(text, n) {
+  if (text.length <= n) return text;
+  const snitt = text.slice(0, n);
+  if (/\s/.test(text[n])) return snitt.trimEnd();
+  const ordslut = snitt.search(/\s\S*$/);
+  return (ordslut > 0 ? snitt.slice(0, ordslut) : snitt).trimEnd();
+}
+
+/**
  * Var det sagda skrivs in, och vad som fick plats.
  *
  * ⛔ DÄR MARKÖREN STOD, ELLER SIST. En markering ersätts, som när man skriver. Ett mellanslag läggs till där det sagda annars hade
  * suttit ihop med ett ord på någon sida, så att "Beskriv" och "en app" inte blir "Beskriven app".
  *
  * ⛔ `maxLength` GÄLLER ÄVEN DET SAGDA. Webbläsaren håller taket bara för det som skrivs; ett värde som sätts av koden hade gått förbi
- * det tyst. Det som inte får plats kapas, och `kapat` säger att det hände (regel 5).
+ * det tyst. Det som inte får plats kapas vid ett ordslut, och `kapat` säger att det hände (regel 5). Får det sagda plats bara utan
+ * mellanslaget framför släpps mellanslaget (0.104.0).
  *
  * @param {string} varde
  * @param {{ start: number, slut: number } | null} markor `null`: markören har aldrig stått i fältet, och det sagda hamnar sist.
@@ -226,9 +240,16 @@ export function skrivInTal(varde, markor, ut, max) {
   if (typeof max === "number" && max >= 0) {
     const plats = Math.max(0, max - fore.length - efter.length);
     if (mitt.length > plats) {
-      mitt = `${fram}${ut}`.slice(0, plats);
-      if (!mitt.trim()) mitt = "";
-      kapat = mitt ? "kapat" : "fullt";
+      if (`${fram}${ut}`.length <= plats) mitt = `${fram}${ut}`;
+      else if (ut.length <= plats) {
+        // ⛔ Får det sagda plats utan mellanslaget framför släpps mellanslaget, inte det sagda (0.104.0, granskningen av PR 384, KAN 6).
+        mitt = ut;
+      } else {
+        const rum = plats - fram.length;
+        const del = rum > 0 ? kapaVidOrd(ut, rum) : "";
+        mitt = del ? `${fram}${del}` : "";
+        kapat = mitt ? "kapat" : "fullt";
+      }
     }
   }
   return { varde: `${fore}${mitt}${efter}`, markor: fore.length + mitt.length, kapat };
