@@ -134,6 +134,37 @@ describe("tal i OpsTextarea", () => {
     }
   });
 
+  // ⛔ Andra granskningsvarvet av PR 384 (BÖR): när det sagda inte ryms säger fältet det sant, på båda språken.
+  for (const [sprak, mik, klarNamn, text] of /** @type {const} */ ([
+    ["sv", "Prata in", "Klar, skriv in det du sagt", "Fältet rymmer 6 tecken, och det du sa fick inte plats."],
+    ["en", "Dictate", "Done, insert what you said", "The field holds 6 characters, and what you said did not fit."],
+  ])) {
+    it(`⛔ (${sprak}) ryms det sagda bara ihop med ett ord står fältet kvar, och statusraden säger att det inte fick plats`, async () => {
+      try {
+        const f = fejkadIgenkanning();
+        vi.stubGlobal("webkitSpeechRecognition", f.SR);
+        const onAndra = vi.fn();
+        render(
+          <OpsSprakProvider sprak={sprak}>
+            <Formular start="abcde" maxLength={6} tal={{ igenkanning: true, inspelare: provinspelare() }} onAndra={onAndra} />
+          </OpsSprakProvider>,
+        );
+        fireEvent.click(screen.getByRole("button", { name: mik }));
+        await waitFor(() => expect(f.instanser[0]?.startad).toBe(true));
+        f.resultat(f.instanser[0], [["x", true]]);
+        fireEvent.click(within(yta()).getByRole("button", { name: klarNamn }));
+        await waitFor(() => expect(yta()).toBeNull());
+        expect(onAndra).not.toHaveBeenCalled();
+        expect(falt().value).toBe("abcde");
+        const status = /** @type {HTMLElement} */ (document.querySelector("[data-tal-kapat]"));
+        expect(status.getAttribute("data-tal-kapat")).toBe("fickInte");
+        expect(status.textContent).toBe(text);
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
+  }
+
   /*
    * ⛔ 0.104.0, granskningen av PR 384 (KAN 4). Markören lades efter det inskrivna också när appen avvisade det (`onChange` utan att
    * värdet ändrades), så att den hoppade fram i en text som aldrig ändrats. Den står nu kvar där den stod.
@@ -332,11 +363,30 @@ describe("skrivInTal", () => {
 
   /*
    * ⛔ ÄNDRAT 0.104.0 (granskningen av PR 384, KAN 6). Här stod att `skrivInTal("abcde", null, "x", 6)` ger "fullt". Fältet var inte
-   * fullt: "x" fick plats, det var mellanslaget framför som inte gjorde det, och fältet sade "inget av det du sa fick plats". Nu
-   * släpps mellanslaget i stället för det sagda. Ändringen av provet behöver en annan granskare (regel 9).
+   * fullt: "x" fick plats, det var mellanslaget framför som inte gjorde det, och fältet sade "inget av det du sa fick plats".
+   *
+   * ⛔ ÄNDRAT IGEN 0.104.0 (andra granskningsvarvet av PR 384, BÖR). Rättelsen ovan gav "abcdex": det sagda limmades ihop med ordet
+   * före utan besked, vilket är en tyst väg (regel 5). Nu läggs det sagda aldrig in utan avskiljare. Får det bara plats ihop med ett
+   * ord utelämnas det, värdet står kvar, och fältet säger sant att det sagda inte fick plats (`fickInte`), inte att fältet är fullt.
+   * Båda ändringarna av provet behöver en annan granskare (regel 9).
    */
-  it("⛔ får det sagda plats utan mellanslaget framför skrivs det in, och fältet säger inte att det är fullt", () => {
-    expect(skrivInTal("abcde", null, "x", 6)).toEqual({ varde: "abcdex", markor: 6, kapat: "nej" });
+  it("⛔ får det sagda bara plats ihop med ett ord utelämnas det, och fältet säger att det inte fick plats", () => {
+    expect(skrivInTal("abcde", null, "x", 6)).toEqual({ varde: "abcde", markor: 5, kapat: "fickInte" });
+  });
+
+  // ⛔ Andra granskningsvarvet av PR 384 (BÖR): de två exemplen granskningen gav, där det sagda limmades ihop med ett ord.
+  it("⛔ avskiljaren efter behålls: \"Hej världen\" med \"stora\" vid 4 och 16 tecken limmas inte till \"storavärlden\"", () => {
+    const r = skrivInTal("Hej världen", { start: 4, slut: 4 }, "stora", 16);
+    expect(r.varde).not.toMatch(/[a-zåäö]världen/);
+    expect(r).toEqual({ varde: "Hej stor världen", markor: 9, kapat: "kapat" });
+  });
+
+  it("⛔ avskiljare på båda sidor: \"abcd\" med \"xx yy\" vid 2 och 9 tecken blir inte \"abxx yycd\"", () => {
+    expect(skrivInTal("abcd", { start: 2, slut: 2 }, "xx yy", 9)).toEqual({ varde: "ab xx cd", markor: 6, kapat: "kapat" });
+  });
+
+  it("⛔ en markering som det sagda inte ryms i står kvar: inget tas bort när inget kommer in", () => {
+    expect(skrivInTal("abcd", { start: 2, slut: 3 }, "x", 4)).toEqual({ varde: "abcd", markor: 2, kapat: "fickInte" });
   });
 
   it("⛔ kapningen klipper vid ett ordslut och lämnar inget mellanslag sist", () => {

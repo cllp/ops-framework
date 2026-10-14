@@ -123,6 +123,16 @@ fält de gällde (granskningen av PR 384, KAN 7). Ytan är nu en grupp med fält
 (granskningen av PR 384, KAN 8). Felet säger nu vad det fick ("null. Utelämna tal, eller ge false, …", "en lista", `"ja"`). Prov i
 `textfalt-tal.test.jsx`: rött före, grönt med.
 
+### Rättat: det sagda limmas aldrig ihop med ett ord
+
+Rättelsen av KAN 6 släppte mellanslaget före eller efter för att det sagda skulle rymmas, och då limmades det ihop med ordet bredvid
+utan besked: "Hej världen" fick "stora" som "Hej storavärlden", och "abcd" fick "xx yy" som "abxx yycd" (andra granskningsvarvet av
+PR 384, BÖR). Det är en tyst väg (regel 5). `skrivInTal` behåller nu avskiljarna på båda sidor och kapar det sagda inom det som blir
+kvar ("Hej stor världen", "ab xx cd"). Får det bara plats ihop med ett ord kommer det inte in alls, värdet och en markering står kvar,
+och fältet säger "Fältet rymmer {max} tecken, och det du sa fick inte plats." (engelska: "The field holds {max} characters, and what
+you said did not fit."). `fullt` sägs bara när fältet är fullt. Prov i `textfalt-tal.test.jsx`: 6 röda mot `fa1e637`, gröna med.
+Påståendet om `skrivInTal("abcde", null, "x", 6)` är ändrat en gång till, med en ny ⛔ ÄNDRAT-rad (regel 9).
+
 ### Ändrat: röstinmatningen har ett hem
 
 Talet bodde inbyggt i chattens skrivfält (`OpsMeddelanden.jsx`). Det är utbrutet till `OpsRostinmatning.jsx`

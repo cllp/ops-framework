@@ -197,6 +197,7 @@ export const ORD_OPSTEXTAREA_TAL = {
   textFel: { sv: "Texten kan inte visas just nu. Det du säger spelas in ändå och skrivs ut när du är klar.", en: "The text can't be shown right now. What you say is still recorded and transcribed when you finish." },
   kapat: { sv: "Det du sa kortades: fältet rymmer {max} tecken.", en: "What you said was shortened: the field holds {max} characters." },
   fullt: { sv: "Fältet är fullt ({max} tecken), så inget av det du sa fick plats.", en: "The field is full ({max} characters), so none of what you said fit." },
+  fickInte: { sv: "Fältet rymmer {max} tecken, och det du sa fick inte plats.", en: "The field holds {max} characters, and what you said did not fit." },
 };
 
 /**
@@ -219,14 +220,15 @@ function kapaVidOrd(text, n) {
  * suttit ihop med ett ord på någon sida, så att "Beskriv" och "en app" inte blir "Beskriven app".
  *
  * ⛔ `maxLength` GÄLLER ÄVEN DET SAGDA. Webbläsaren håller taket bara för det som skrivs; ett värde som sätts av koden hade gått förbi
- * det tyst. Det som inte får plats kapas vid ett ordslut, och `kapat` säger att det hände (regel 5). Får det sagda plats bara utan
- * mellanslaget framför släpps mellanslaget (0.104.0).
+ * det tyst. Det som inte får plats kapas vid ett ordslut, och `kapat` säger att det hände (regel 5). Avskiljarna släpps aldrig: får det
+ * sagda bara plats ihop med ett ord kommer det inte in alls, värdet står kvar, och `kapat` är `fickInte` (eller `fullt` när fältet är
+ * fullt).
  *
  * @param {string} varde
  * @param {{ start: number, slut: number } | null} markor `null`: markören har aldrig stått i fältet, och det sagda hamnar sist.
  * @param {string} ut Det sagda, utan blanksteg i kanterna.
  * @param {number | undefined} max
- * @returns {{ varde: string, markor: number, kapat: "nej" | "kapat" | "fullt" }}
+ * @returns {{ varde: string, markor: number, kapat: "nej" | "kapat" | "fullt" | "fickInte" }}
  */
 export function skrivInTal(varde, markor, ut, max) {
   const start = markor ? Math.min(Math.max(0, markor.start), varde.length) : varde.length;
@@ -236,20 +238,22 @@ export function skrivInTal(varde, markor, ut, max) {
   const fram = fore && !/\s$/.test(fore) ? " " : "";
   const bak = efter && !/^\s/.test(efter) ? " " : "";
   let mitt = `${fram}${ut}${bak}`;
-  /** @type {"nej" | "kapat" | "fullt"} */
+  /** @type {"nej" | "kapat" | "fullt" | "fickInte"} */
   let kapat = "nej";
   if (typeof max === "number" && max >= 0) {
     const plats = Math.max(0, max - fore.length - efter.length);
     if (mitt.length > plats) {
-      if (`${fram}${ut}`.length <= plats) mitt = `${fram}${ut}`;
-      else if (ut.length <= plats) {
-        // ⛔ Får det sagda plats utan mellanslaget framför släpps mellanslaget, inte det sagda (0.104.0, granskningen av PR 384, KAN 6).
-        mitt = ut;
+      // ⛔ AVSKILJARNA FÅR ALDRIG SLÄPPAS (andra granskningsvarvet av PR 384, BÖR). En tidigare rättelse släppte mellanslaget före eller
+      // efter för att få det sagda att rymmas, och "Hej världen" fick "stora" som "Hej storavärlden" utan besked: en tyst väg
+      // (regel 5). Det sagda kapas nu inom det som blir kvar när avskiljarna fått sin plats.
+      const rum = plats - fram.length - bak.length;
+      const del = rum > 0 ? kapaVidOrd(ut, rum) : "";
+      if (del) {
+        mitt = `${fram}${del}${bak}`;
+        kapat = "kapat";
       } else {
-        const rum = plats - fram.length;
-        const del = rum > 0 ? kapaVidOrd(ut, rum) : "";
-        mitt = del ? `${fram}${del}` : "";
-        kapat = mitt ? "kapat" : "fullt";
+        // Inget kommer in, så inget tas bort heller: en markering står kvar. `fullt` bara när fältet verkligen är fullt.
+        return { varde, markor: start, kapat: plats === 0 ? "fullt" : "fickInte" };
       }
     }
   }
@@ -368,7 +372,7 @@ function TalTextarea({ f, value, onChange, placeholder, name, rows, disabled, ma
    * en oförändrad text, och positionen låg kvar och kunde läggas när fältet senare växte av något annat.
    */
   const tillbakaTill = useRef(/** @type {{ start: number, slut: number, varde?: string, annars?: { start: number, slut: number } | null } | null} */ (null));
-  const [kapat, setKapat] = useState(/** @type {"nej" | "kapat" | "fullt"} */ ("nej"));
+  const [kapat, setKapat] = useState(/** @type {"nej" | "kapat" | "fullt" | "fickInte"} */ ("nej"));
   const vardeRef = useRef(value);
   vardeRef.current = value;
   const andraRef = useRef(onChange);
