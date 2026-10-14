@@ -280,32 +280,49 @@ describe("OpsBibliotek", () => {
     expect(() => render(<Harness onSpelaIn={() => {}} />)).toThrow(/inspelning\.mal/);
   });
 
-  it("delning frågar innan den flyttar", () => {
-    const onDela = vi.fn();
+  it("delning frågar innan den flyttar, och rutan stängs först när det gick", async () => {
+    const onDela = vi.fn(() => Promise.resolve());
     render(<Harness grupper={[{ id: "miranda-ab", namn: "Miranda" }]} onDela={onDela} />);
     fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Protokoll" }));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Dela" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Till en annan grupp" }));
+    expect(onDela).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Kopiera" }));
-    expect(onDela).toHaveBeenCalledWith({ id: "a", groupId: "miranda-ab", satt: "kopiera" });
+    await waitFor(() => expect(onDela).toHaveBeenCalledWith({ id: "a", groupId: "miranda-ab", satt: "kopiera" }));
+    expect(await screen.findByText("Kopierad till Miranda.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Kopiera" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Protokoll" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Till en annan grupp" }));
     fireEvent.click(screen.getByRole("button", { name: "Flytta" }));
-    expect(onDela).toHaveBeenCalledWith({ id: "a", groupId: "miranda-ab", satt: "flytta" });
+    await waitFor(() => expect(onDela).toHaveBeenCalledWith({ id: "a", groupId: "miranda-ab", satt: "flytta" }));
+  });
+
+  it("ett fel i delningen står kvar i rutan med skälet", async () => {
+    const onDela = vi.fn(() => Promise.reject(new Error("Posten kopierades, men kunde inte tas bort där den låg (nej). Den finns nu på båda ställena.")));
+    render(<Harness grupper={[{ id: "miranda-ab", namn: "Miranda" }]} onDela={onDela} />);
+    fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Protokoll" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Till en annan grupp" }));
+    fireEvent.click(screen.getByRole("button", { name: "Flytta" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Den finns nu på båda ställena.");
+    expect(screen.getByRole("button", { name: "Flytta" })).toBeInTheDocument();
   });
 
   // ⛔ 0.95.0: gruppvalet är OpsSelect och inte webbläsarens `<select>` (CP 2026-10-13). Provet väljer den ANDRA
   // gruppen, för med en enda grupp hade ett val som aldrig når `onDela` varit grönt.
-  it("delning väljer grupp i ramverkets väljare, aldrig i webbläsarens", async () => {
-    const onDela = vi.fn();
+  // ⛔ 0.101.0: postens egen grupp står inte i listan. Att "flytta" dit hade varit en kopia på samma ställe.
+  it("delning väljer grupp i ramverkets väljare, aldrig i webbläsarens, och inte postens egen grupp", async () => {
+    const onDela = vi.fn(() => Promise.resolve());
     const user = userEvent.setup();
-    render(<Harness grupper={[{ id: "miranda-ab", namn: "Miranda" }, { id: "cps-ab", namn: "CPS" }]} onDela={onDela} />);
+    render(<Harness grupper={[{ id: "miranda-ab", namn: "Miranda" }, { id: "kor-ab", namn: "Kören" }, { id: "cps-ab", namn: "CPS" }]} onDela={onDela} />);
     fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Protokoll" }));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Dela" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Till en annan grupp" }));
     expect(document.querySelector("select")).toBeNull();
     const valjare = screen.getByRole("combobox", { name: "Grupp att dela till" });
     expect(valjare).toHaveTextContent("Miranda");
     await user.click(valjare);
-    await user.click(screen.getByRole("option", { name: "CPS" }));
+    expect(screen.queryByRole("option", { name: "CPS" })).toBeNull();
+    await user.click(screen.getByRole("option", { name: "Kören" }));
     await user.click(screen.getByRole("button", { name: "Kopiera" }));
-    expect(onDela).toHaveBeenCalledWith({ id: "a", groupId: "cps-ab", satt: "kopiera" });
+    expect(onDela).toHaveBeenCalledWith({ id: "a", groupId: "kor-ab", satt: "kopiera" });
   });
 
   it("filfältet är dolt bakom ramverkets knapp och den valda filen skrivs ut", () => {

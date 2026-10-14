@@ -6,7 +6,7 @@ import { OpsDokument } from "./OpsDokument.jsx";
 import { OpsMarkdown } from "./OpsMarkdown.jsx";
 import { OpsModal } from "./OpsModal.jsx";
 import { OpsSvepRad } from "./OpsSvepRad.jsx";
-import { ADRESSFORM, BIBLIOTEKTYPER, MAX_TAGGAR, allaTaggar, arLjudpost, farAndra, normaliseraTagg, normaliseraTaggar, taggarFel, filInmatningsfel, filSort, filtreraBibliotek, inmatningsfel, ljudDatum, ljudRubrik, normaliseraAdress, trimSomRegeln } from "../lib/bibliotek.js";
+import { ADRESSFORM, BIBLIOTEKTYPER, MAX_TAGGAR, allaTaggar, arLjudpost, arMittBibliotek, farAndra, normaliseraTagg, normaliseraTaggar, taggarFel, filInmatningsfel, filSort, filtreraBibliotek, inmatningsfel, ljudDatum, ljudRubrik, normaliseraAdress, trimSomRegeln } from "../lib/bibliotek.js";
 import { HOPP_SEKUNDER, formateraTid, ljudStyrning } from "../lib/ljudspelare.js";
 import { useInspelningOppnare } from "./OpsAppShell.jsx";
 import { cx } from "../lib/cx.js";
@@ -20,6 +20,7 @@ import { OpsLjudspelare } from "./OpsLjudspelare.jsx";
 import { OpsEmpty } from "./OpsEmpty.jsx";
 import { OpsField, OpsInput, OpsTextarea } from "./OpsField.jsx";
 import { OpsList } from "./OpsList.jsx";
+import { OpsSegmented } from "./OpsSegmented.jsx";
 import { OpsSelect } from "./OpsSelect.jsx";
 import { useOpsSprak } from "./OpsSprak.jsx";
 import { OpsTabPanel, OpsTabs } from "./OpsTabs.jsx";
@@ -111,8 +112,11 @@ import { OpsView } from "./OpsView.jsx";
  * @param {(sokvag: string) => Promise<string>} [props.hamtaAdress] (0.88.2) Nedladdningsadressen för `fil.sokvag`, när `filUrl` är tom. Svaret cachas per sökväg, så listan och detaljen delar den. Medan den hämtas visas inte "Filen har ingen adress."
  * @param {unknown} [props.onSpelaIn] Borttagen (0.90.8). Skickas den kastas ett fel: listan hade en egen inspelare, och att tysta propen hade sett ut som att ljudet fortfarande sparades där.
  * @param {unknown} [props.inspelare] Borttagen tillsammans med listans inspelare. Skickas den kastas ett fel.
- * @param {readonly { id: string, namn: string }[]} [props.grupper] Grupper posten kan flyttas eller kopieras till.
- * @param {(inmatning: { id: string, groupId: string, satt: "flytta" | "kopiera" }) => void | Promise<void>} [props.onDela] Flytta eller kopiera. Saknas den visas felet, posten är kvar.
+ * @param {readonly { id: string, namn: string }[]} [props.grupper] Platser posten kan flyttas eller kopieras till. Mitt bibliotek (`mittBibliotek(uid)`) är en av dem när appen ger den (0.101.0): menyn får då Flytta till och Kopiera till Mitt bibliotek, och i Mitt bibliotek Dela med gruppen.
+ * @param {(inmatning: { id: string, groupId: string, satt: "flytta" | "kopiera" }) => void | Promise<void>} [props.onDela] Flytta eller kopiera. Saknas den visas felet, posten är kvar. `flyttaBibliotekspost` gör flytten.
+ * @param {readonly { id: string, namn: string }[]} [props.platser] (0.101.0) Platserna personen växlar mellan, till exempel gruppens bibliotek och Mitt bibliotek. Färre än två: ingen växlare.
+ * @param {string} [props.plats] (0.101.0) Platsen som visas nu, ett `id` ur `platser`.
+ * @param {(id: string) => void} [props.onPlats] (0.101.0) Personen valde en annan plats.
  * @param {(post: { id: string }) => { text: string, forslag?: "anteckning" | "arende" } | Promise<{ text: string, forslag?: "anteckning" | "arende" }>} [props.onSkrivUt] Ber servern om en utskrift. Felet visas, också ett dygnstak.
  * @param {(inmatning: { id: string, satt: "anteckning" | "arende" }) => void | Promise<void>} [props.onGorForslag] Personen väljer. Inget skapas utan trycket.
  * @param {string} [props.modulId] (0.88.1) Modulens id i appen, förval "bibliotek". Står den i huvudmenyn har listan ingen tillbaka-rad.
@@ -123,7 +127,7 @@ import { OpsView } from "./OpsView.jsx";
  * @param {string} [props.activeHref] (0.89.0) Krävs tillsammans med `ram` och `modul`. `?lage=installningar` visar inställningarna.
  * @param {import("../lib/modul.js").Modul | null} [props.modul] (0.89.0) Manifestet inställningarna läser. Krävs med `ram`.
  */
-export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false, vald = null, skapar = null, jag, onOppna, onStang, onSkapa, onSpara, onRadera, onLaddaUpp, onFyllLjud, onSpelaIn, inspelare, filUrl, hamtaAdress, grupper = [], onDela, onSkrivUt, onGorForslag, hubHref, hubEtikett, onNavigate, modulId = "bibliotek", ram = null, activeHref, modul = null }) {
+export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false, vald = null, skapar = null, jag, onOppna, onStang, onSkapa, onSpara, onRadera, onLaddaUpp, onFyllLjud, onSpelaIn, inspelare, filUrl, hamtaAdress, grupper = [], onDela, platser = [], plats, onPlats, onSkrivUt, onGorForslag, hubHref, hubEtikett, onNavigate, modulId = "bibliotek", ram = null, activeHref, modul = null }) {
   if (jag === undefined) {
     throw new Error("OpsBibliotek: jag krävs, den inloggades aktiva medlemskap i gruppen ({ uid, roll }), eller null när personen inte är medlem. Utan propen ser en medlem ut som en som bara får läsa.");
   }
@@ -379,11 +383,49 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
         { id: "ned", etikett: "Ladda ned", onValj: () => ljudStyrning(id)?.laddaNed() },
       );
     }
-    if (far && grupper.length > 0 && typeof onDela === "function") {
-      ut.push({ id: "dela", etikett: "Dela", onValj: () => setDelar(post) });
+    // ⛔ MITT BIBLIOTEK OCH GRUPPEN (0.101.0, lifehub.app#226). Beslutet: "Flytta till Mitt bibliotek / Dela med gruppen" i samma
+    // meny som Byt namn. Att flytta ut ur gruppen får bara författaren: en admin som flyttade någon annans post till sitt eget
+    // bibliotek hade tagit den från gruppen. Att kopiera dit får den som läser, eftersom läsningen redan ger innehållet.
+    const mitt = grupper.find((g) => arMittBibliotek(g.id) && g.id !== post.groupId);
+    const andra = grupper.filter((g) => !arMittBibliotek(g.id) && g.id !== post.groupId);
+    const ensam = arMittBibliotek(post.groupId);
+    if (mitt && !ensam && jag) {
+      if (post.skapadAv?.uid === jag.uid) ut.push({ id: "till-mitt", etikett: "Flytta till Mitt bibliotek", onValj: () => delaDirekt(post, mitt, "flytta") });
+      ut.push({ id: "kopia-mitt", etikett: "Kopiera till Mitt bibliotek", onValj: () => delaDirekt(post, mitt, "kopiera") });
+    }
+    if (far && andra.length > 0) {
+      if (ensam && andra.length === 1) {
+        ut.push({ id: "dela-grupp", etikett: `Dela med ${andra[0].namn}`, onValj: () => delaDirekt(post, andra[0], "flytta") });
+      } else {
+        ut.push({ id: "dela", etikett: ensam ? "Dela med en grupp" : "Till en annan grupp", onValj: () => setDelar(post) });
+      }
     }
     if (far) ut.push({ id: "radera", etikett: "Radera", fara: true, onValj: () => fragaRadera(post.id) });
     return ut;
+  }
+
+  /**
+   * Flytta eller kopiera direkt ur menyn, utan väljare: målet är redan ett (Mitt bibliotek, eller den enda gruppen).
+   *
+   * ⛔ SVARET SYNS. Medan det pågår står det i statusraden, och ett fel står kvar där med skälet. En flytt som tyst inte blev
+   * av hade lämnat personen att tro att posten låg i sitt eget bibliotek.
+   *
+   * @param {{ id: string }} post
+   * @param {{ id: string, namn: string }} mal
+   * @param {"flytta" | "kopiera"} satt
+   */
+  function delaDirekt(post, mal, satt) {
+    if (typeof onDela !== "function") {
+      setStatus("Flytten är inte kopplad. Posten är kvar.");
+      return;
+    }
+    setStatus(satt === "flytta" ? `Flyttar till ${mal.namn}…` : `Kopierar till ${mal.namn}…`);
+    Promise.resolve()
+      .then(() => onDela({ id: post.id, groupId: mal.id, satt }))
+      .then(
+        () => setStatus(satt === "flytta" ? `Flyttad till ${mal.namn}.` : `Kopierad till ${mal.namn}.`),
+        (e) => setStatus(e instanceof Error && e.message ? e.message : String(e)),
+      );
   }
 
   /**
@@ -438,6 +480,21 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
         {detalj ? (
           <Detalj key={`${skaparTyp ?? ""}:${vald?.id ?? ""}:${startLage}`} post={vald ? medFyll(vald) : null} skapar={skaparTyp} jag={jag} startLage={startLage} onStang={onStang} onSpara={onSpara} onLaddaUpp={onLaddaUpp} filUrl={filUrl} adressFor={adressFor} onLjus={setLjus} onSkrivUt={onSkrivUt} onGorForslag={onGorForslag} menyFor={menyFor} onMeta={togMeta} />
         ) : (
+          <div className="flex min-w-0 flex-col gap-3">
+            {platser.length >= 2 && plats ? (
+              <div data-bibliotek-plats={arMittBibliotek(plats) ? "mitt" : "grupp"}>
+                <OpsSegmented
+                  ariaLabel="Vilket bibliotek"
+                  value={plats}
+                  onChange={(v) => {
+                    setValdaTaggar([]);
+                    setStatus("");
+                    if (typeof onPlats === "function") onPlats(v);
+                  }}
+                  options={platser.map((p) => ({ value: p.id, label: p.namn }))}
+                />
+              </div>
+            ) : null}
           <OpsTabs
             ariaLabel="Typ i biblioteket"
             medOrd
@@ -549,6 +606,7 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
               </div>
             </OpsTabPanel>
           </OpsTabs>
+          </div>
         )}
         {ljus ? (
           <div role="dialog" aria-label="Förhandsvisning" data-bibliotek-ljus="" className="flex flex-col gap-2">
@@ -607,7 +665,17 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
         title="Dela"
         size="sm"
       >
-        {delar ? <DelaKontroll id={delar.id} grupper={grupper} onDela={onDela} /> : <p>Ingen post vald.</p>}
+        {delar ? (
+          <DelaKontroll
+            id={delar.id}
+            grupper={grupper.filter((g) => !arMittBibliotek(g.id) && g.id !== delar.groupId)}
+            onDela={onDela}
+            onKlar={(text) => {
+              setDelar(null);
+              setStatus(text);
+            }}
+          />
+        ) : <p>Ingen post vald.</p>}
       </OpsModal>
     </OpsView>
   );
@@ -1455,13 +1523,15 @@ function UtskriftKontroll({ post, onSkrivUt, onGorForslag }) {
 }
 
 /**
- * @param {{ id: string, grupper: readonly { id: string, namn: string }[], onDela?: (inmatning: { id: string, groupId: string, satt: "flytta" | "kopiera" }) => void | Promise<void> }} props
+ * @param {{ id: string, grupper: readonly { id: string, namn: string }[], onDela?: (inmatning: { id: string, groupId: string, satt: "flytta" | "kopiera" }) => void | Promise<void>, onKlar?: (text: string) => void }} props
  */
-function DelaKontroll({ id, grupper, onDela }) {
+function DelaKontroll({ id, grupper, onDela, onKlar }) {
   const [mal, setMal] = useState(grupper[0]?.id ?? "");
   const [fel, setFel] = useState("");
+  const [pagar, setPagar] = useState(/** @type {"flytta" | "kopiera" | null} */ (null));
   if (grupper.length === 0) return null;
   const kor = (/** @type {"flytta" | "kopiera"} */ satt) => {
+    if (pagar) return;
     if (!mal) {
       setFel("Välj en grupp.");
       return;
@@ -1470,14 +1540,23 @@ function DelaKontroll({ id, grupper, onDela }) {
       setFel("Delning är inte kopplad. Posten är kvar.");
       return;
     }
-    try {
-      const svar = onDela({ id, groupId: mal, satt });
-      if (svar && typeof svar.then === "function") {
-        svar.catch((e) => setFel(e instanceof Error ? e.message : String(e)));
-      }
-    } catch (e) {
-      setFel(e instanceof Error ? e.message : String(e));
-    }
+    const namn = grupper.find((g) => g.id === mal)?.namn ?? mal;
+    setFel("");
+    setPagar(satt);
+    // ⛔ RUTAN STÄNGS FÖRST NÄR DET GICK (0.101.0). Förut stod den kvar utan besked efter ett lyckat tryck, och ett andra tryck
+    // på Flytta hade försökt flytta en post som redan var borta.
+    Promise.resolve()
+      .then(() => onDela({ id, groupId: mal, satt }))
+      .then(
+        () => {
+          setPagar(null);
+          if (typeof onKlar === "function") onKlar(satt === "flytta" ? `Flyttad till ${namn}.` : `Kopierad till ${namn}.`);
+        },
+        (e) => {
+          setPagar(null);
+          setFel(e instanceof Error ? e.message : String(e));
+        },
+      );
   };
   return (
     <div data-bibliotek-dela="" className="flex flex-col gap-2">
@@ -1494,8 +1573,8 @@ function DelaKontroll({ id, grupper, onDela }) {
       </OpsField>
       {fel ? <p role="alert">{fel}</p> : null}
       <div className="flex gap-2">
-        <OpsButton variant="secondary" onClick={() => kor("flytta")}>Flytta</OpsButton>
-        <OpsButton variant="secondary" onClick={() => kor("kopiera")}>Kopiera</OpsButton>
+        <OpsButton variant="secondary" busy={pagar === "flytta"} onClick={() => kor("flytta")}>Flytta</OpsButton>
+        <OpsButton variant="secondary" busy={pagar === "kopiera"} onClick={() => kor("kopiera")}>Kopiera</OpsButton>
       </div>
     </div>
   );

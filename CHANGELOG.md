@@ -9,6 +9,33 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.101.0
+
+**Mitt bibliotek, och flytt mellan det och gruppen.** [lifehub.app#226](https://github.com/cllp/lifehub.app/issues/226).
+
+CP 2026-10-13: en post ska "antingen kunna vara helt privata till mig själv eller visa till gruppen". Beslutet på #226: privat är en
+egen plats bredvid gruppens, och att dela är att flytta posten dit. En flagga "privat" på en post i gruppens samling hade krävt en
+läsregel som avgör synlighet per post, och det är permissions-träsket (kanonens regel 13).
+
+### Tillagt
+
+- Platsen `mitt~<uid>` (`mittBibliotek`, `arMittBibliotek`, `mittJag`, `MITT_PREFIX`, `MITTFORM`). En post där är en vanlig
+  bibliotekspost med samma fält, filer och taggar. `postFel` godtar platsen. `farAndra` släpper bara ägaren där.
+- Regelgrenar: `bibliotekregelfragment` släpper läsning, skapande, ändring och radering på `mitt~<uid>` för den inloggade med det
+  uid:t och ingen annan, också inte en admin i en grupp. `lagringsregelfragment({ bibliotek })` gör samma sak för filerna.
+- `flyttaBibliotekspost({ fran, till, id, satt, hamtaFil })`: kopian först, originalet sedan. En halv flytt säger att posten finns
+  på båda ställena. En fil flyttas genom sina byte till den nya platsens sökväg. Källan har `hamta(id)`, och `laddaUppFil` tar
+  `taggar` och `utskrift` så att en flyttad post har dem från första skrivningen.
+- `OpsBibliotek`: växlaren `platser`, `plats` och `onPlats` ovanför flikarna. I menyn Flytta till Mitt bibliotek (bara
+  författaren) och Kopiera till Mitt bibliotek, och i Mitt bibliotek Dela med gruppen. Medan det pågår och när det är klart står
+  det i statusraden, och ett fel står kvar med skälet.
+
+### Ändrat
+
+- Menyvalet Dela heter Till en annan grupp (Dela med en grupp i Mitt bibliotek). Postens egen grupp står inte bland målen.
+  Rutan har Flytta och Kopiera med framsteg, och den stängs först när det gick. Förut stod den kvar utan besked efter ett lyckat
+  tryck.
+
 ## 0.100.1
 
 **Långtrycket öppnar menyn också på en låg rad.** [lifehub.app#226](https://github.com/cllp/lifehub.app/issues/226).

@@ -71,6 +71,53 @@ const TAGGTECKEN = "a-z0-9åäöæøüéèêàâçîïôûëÿ";
 export const TAGGFORM = new RegExp(`^[${TAGGTECKEN}]([${TAGGTECKEN} -]{0,${MAX_TAGGLANGD - 2}}[${TAGGTECKEN}])?$`);
 
 /**
+ * ⛔ MITT BIBLIOTEK ÄR EN PLATS, INTE EN FLAGGA (0.101.0, lifehub.app#226). CP 2026-10-13: en post "ska antingen kunna vara helt
+ * privata till mig själv eller visa till gruppen". Beslutet på #226 var att privat är en egen plats bredvid gruppens, och att dela
+ * är att flytta posten dit.
+ *
+ * En flagga "privat" på en post i gruppens samling hade krävt en läsregel som avgör synlighet per post, och en lista i gruppen hade
+ * då varit en fråga regeln inte kan bevisa. Det är permissions-träsket (kanonens regel 13, SessionStudios ADR-020). Platsen är i
+ * stället ett eget värde i `groupId`: `mitt~<uid>`. Frågan `where groupId == "mitt~<uid>"` går att bevisa, och regeln är en enda
+ * jämförelse med den inloggades uid. Allt annat (fälten, filen, taggarna, sökvägen, storage-regeln) är detsamma som i en grupp, så
+ * en post blir inte en annan sorts post när den flyttas.
+ *
+ * ⛔ PREFIXET KAN INTE KROCKA MED EN GRUPP. Ett grupp-id följer `ID_FORM`, som inte släpper igenom `~`. Resten är uid:t, utan
+ * snedstreck (sökvägen i lagringen delar på dem), utan `~` och utan blanktecken.
+ */
+export const MITT_PREFIX = "mitt~";
+export const MITTFORM = /^mitt~[^/~\s]{1,128}$/;
+
+/**
+ * Platsen för en persons eget bibliotek.
+ * @param {unknown} uid
+ * @returns {string}
+ */
+export function mittBibliotek(uid) {
+  const id = typeof uid === "string" ? uid.trim() : "";
+  const plats = `${MITT_PREFIX}${id}`;
+  if (!MITTFORM.test(plats)) throw new Error(`mittBibliotek: "${id}" går inte att använda som plats. Ett uid utan snedstreck, ~ och blanktecken krävs.`);
+  return plats;
+}
+
+/**
+ * Är platsen någons eget bibliotek, och inte en grupp?
+ * @param {unknown} groupId
+ * @returns {boolean}
+ */
+export function arMittBibliotek(groupId) {
+  return typeof groupId === "string" && MITTFORM.test(groupId);
+}
+
+/**
+ * `jag` i ens eget bibliotek. Personen är ensam där och får ändra allt hen skrivit, vilket är allt som finns.
+ * @param {string} uid
+ * @returns {{ uid: string, roll: "agare", groupId: string, status: "aktiv" }}
+ */
+export function mittJag(uid) {
+  return { uid, roll: "agare", groupId: mittBibliotek(uid), status: "aktiv" };
+}
+
+/**
  * Format en fil får ha. Bild, ljud och dokument. En sort per fält hade varit
  * en andra typ, och CP valde en typ.
  */
@@ -513,6 +560,9 @@ export function allaTaggar(poster) {
  */
 export function farAndra(post, jag) {
   if (!post || !jag || typeof jag.uid !== "string" || !jag.uid) return false;
+  // ⛔ I ETT EGET BIBLIOTEK GÄLLER BARA ÄGAREN (0.101.0). En roll i en grupp ger ingenting här: regeln jämför platsen med
+  // den inloggades uid och inget annat, och en admin i någon grupp hade annars sett knappar regeln nekar.
+  if (arMittBibliotek(post.groupId)) return post.groupId === `${MITT_PREFIX}${jag.uid}` && post.skapadAv?.uid === jag.uid;
   if (jag.status !== undefined && jag.status !== "aktiv") return false;
   if (jag.groupId !== undefined && jag.groupId !== post.groupId) return false;
   if (post.skapadAv?.uid === jag.uid) return true;
@@ -589,7 +639,7 @@ export function postFel(d) {
   if (yta) return yta;
 
   const groupId = str(d.groupId);
-  if (!ID_FORM.test(groupId)) return `Gruppen "${groupId}" är inte ett grupp-id.`;
+  if (!ID_FORM.test(groupId) && !MITTFORM.test(groupId)) return `Gruppen "${groupId}" är inte ett grupp-id.`;
 
   const skapadAv = byggSkapare(/** @type {any} */ (d.skapadAv && typeof d.skapadAv === "object" ? d.skapadAv : {}));
   if (!skapadAv.uid) return "Posten saknar vem som skrev den.";

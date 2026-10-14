@@ -38,7 +38,7 @@ import {
 import { ID_FORM, KATALOGAVGRANSARE, KATEGORIFALT } from "./katalog.js";
 import { INSTALLNINGSVARDEFALT, MAX_INSTALLNINGSGRUPP, MAX_INSTALLNINGSID, MAX_INSTALLNINGSTEXT, MAX_MODULINSTALLNINGAR, MODULINSTALLNINGFALT, VISA_I_HUVUDMENYN } from "./modulinstallningar.js";
 import { MAX_TYPAVVIKELSER, MAX_TYPID, MAX_TYPNAMN, MODULTYPID_FORM, TYPAVVIKELSEFALT, TYPYTOR } from "./modultyper.js";
-import { ADRESSFORM, BIBLIOTEKFALT, BIBLIOTEKTYPER, FILFALT, LJUD_STOLPAR, MAX_BIBLIOTEKFIL, MAX_BIBLIOTEKFILNAMN, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKSOKVAG, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, MAX_BIBLIOTEKUTSKRIFT, MAX_LJUD_MS, MAX_TAGGAR, TAGGFORM, TOPPFORM, filMimeMonster } from "./bibliotek.js";
+import { ADRESSFORM, BIBLIOTEKFALT, BIBLIOTEKTYPER, FILFALT, LJUD_STOLPAR, MITT_PREFIX, MAX_BIBLIOTEKFIL, MAX_BIBLIOTEKFILNAMN, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKSOKVAG, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, MAX_BIBLIOTEKUTSKRIFT, MAX_LJUD_MS, MAX_TAGGAR, TAGGFORM, TOPPFORM, filMimeMonster } from "./bibliotek.js";
 import { MAX_MINNESID, MAX_MINNESTEXT, MINNESFALT, MINNESKALLAFALT, MINNESKALLOR } from "./minne.js";
 import { MAX_SKAPARKALLA, MAX_SKAPARNAMN, SKAPARFALT } from "./skapare.js";
 import { BESKRIVENAPPDATAFALT, BESKRIVNINGSDOKUMENTFALT, BESKRIVNINGSFALT, BESKRIVNINGSFORMAT, BESKRIVNINGSIDFORM, MAX_APPBESKRIVNING, MAX_BESKRIVNINGSNAMN, MAX_FALT, MAX_LISTOR, MIN_LISTOR } from "./beskrivenapp.js";
@@ -499,8 +499,13 @@ export function lagringsregelfragment(konfig = {}) {
       return opsFilHarMedlemskap(gid)
         && firestore.get(/databases/(default)/documents/${medlemskap}/$(request.auth.uid + '${MEDLEMSKAPSAVGRANSARE}' + gid)).data.status == 'aktiv';
     }
+    // ⛔ MITT BIBLIOTEK (0.101.0): platsen ${MITT_PREFIX}<uid> är den inloggades egen. Där läser och skriver bara hen, och bara
+    // filer till en post hen själv skrivit. Ingen roll ur memberships gäller där.
+    function opsFilMitt(gid) {
+      return request.auth != null && gid == '${MITT_PREFIX}' + request.auth.uid;
+    }
     function opsFilFarSkriva(gid, postId) {
-      return opsFilArMedlem(gid)
+      return (opsFilMitt(gid) || opsFilArMedlem(gid))
         && firestore.exists(/databases/(default)/documents/${samling}/$(postId))
         && firestore.get(/databases/(default)/documents/${samling}/$(postId)).data.groupId == gid
         && (
@@ -510,7 +515,7 @@ export function lagringsregelfragment(konfig = {}) {
         );
     }
     match /${grupp}/{groupId}/${postPrefix}/{postId}/{filnamn} {
-      allow read: if opsFilArMedlem(groupId);
+      allow read: if opsFilMitt(groupId) || opsFilArMedlem(groupId);
       allow create, update: if opsFilFarSkriva(groupId, postId)
         && request.resource.size <= ${MAX_BIBLIOTEKFIL}
         && request.resource.contentType.matches('${filMimeMonster()}');
@@ -1662,6 +1667,12 @@ ${nuRegelfunktion("opsBiblioteketNu")}
 ${Array.from({ length: MAX_TAGGAR }, (_, k) => `        && (t.size() < ${k + 1} || t[${k}].matches('${regelRegex(TAGGFORM)}'))`).join("\n")};
     }
 
+    // ⛔ MITT BIBLIOTEK (0.101.0, lifehub.app#226): platsen ${MITT_PREFIX}<uid> är den inloggades egen, och bara hens. En jämförelse med
+    // request.auth.uid, inget uppslag: ingen roll i någon grupp ger något här. Ett grupp-id kan inte se ut så, eftersom ett grupp-id aldrig har ett ~.
+    function opsBibliotekMitt(gid) {
+      return request.auth != null && gid == '${MITT_PREFIX}' + request.auth.uid;
+    }
+
     function opsBibliotekspostGiltig(d, postId) {
       return d.keys().hasOnly([${lista(BIBLIOTEKFALT)}])
         && (!d.keys().hasAny(["taggar"]) || opsBibliotekTaggar(d.taggar))
@@ -1710,9 +1721,11 @@ ${Array.from({ length: MAX_TAGGAR }, (_, k) => `        && (t.size() < ${k + 1} 
     }
 
     match /${samling}/{id} {
-      allow read: if opsArMedlem(resource.data.groupId);
-      allow create: if opsArMedlem(request.resource.data.groupId)
-        && opsMedlemskapet(request.resource.data.groupId).data.typ == 'person'
+      allow read: if opsBibliotekMitt(resource.data.groupId) || opsArMedlem(resource.data.groupId);
+      allow create: if (
+          opsBibliotekMitt(request.resource.data.groupId)
+          || (opsArMedlem(request.resource.data.groupId) && opsMedlemskapet(request.resource.data.groupId).data.typ == 'person')
+        )
         && request.resource.data.skapadAv.uid == request.auth.uid
         && opsBiblioteketNu(request.resource.data.skapad)
         && opsBiblioteketNu(request.resource.data.andrad)
@@ -1728,10 +1741,10 @@ ${Array.from({ length: MAX_TAGGAR }, (_, k) => `        && (t.size() < ${k + 1} 
         )
         && opsBibliotekspostGiltig(request.resource.data, id)
         && (
-          (opsArMedlem(resource.data.groupId) && resource.data.skapadAv.uid == request.auth.uid)
+          ((opsBibliotekMitt(resource.data.groupId) || opsArMedlem(resource.data.groupId)) && resource.data.skapadAv.uid == request.auth.uid)
           || opsArAdmin(resource.data.groupId)
         );
-      allow delete: if (opsArMedlem(resource.data.groupId) && resource.data.skapadAv.uid == request.auth.uid)
+      allow delete: if ((opsBibliotekMitt(resource.data.groupId) || opsArMedlem(resource.data.groupId)) && resource.data.skapadAv.uid == request.auth.uid)
         || opsArAdmin(resource.data.groupId);
     }
 `;
