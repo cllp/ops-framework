@@ -191,6 +191,8 @@ med hastighet mm och spolning när en låt/ljud inte ens har startat?" Montage s
 
 ### Granskningen av PR 366
 
+- Vyns rubrik (`VYRUBRIK_KLASS`) bär `font-display` igen. Det tunna huvudet tog etikettens storlek och tappade typsnittsrollen
+  med den, så en brandfil som byter `--font-display` ändrade inte längre vyns namn. `check:brand` fångade det i CI.
 - Skalets spelare skriver inget fel när ett äldre `play()` avvisas efter ett byte av spår, en paus eller en stängning. `startFelText`
   i `lib/ljudspelare.js` är texten för båda spelarna, och tom för `AbortError`.
 - Spelraden tar sin plats: höjden står i `--spelrad-h`, och ytorna som slutar vid bottenraden räknar in den. Förut låg den över

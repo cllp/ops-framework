@@ -43,8 +43,14 @@ export const SIDRUBRIK_KLASS = "m-0 font-display text-sida leading-tight trackin
  * samma två klasser, så att de inte kan glida isär.
  */
 export const VYHUVUD_KLASS = "flex min-w-0 items-center gap-2";
-/** Namnet i vyns huvud. Se `VYHUVUD_KLASS`. */
-export const VYRUBRIK_KLASS = "m-0 min-w-0 flex-1 truncate text-etikett font-semibold text-ink";
+/**
+ * Namnet i vyns huvud. Se `VYHUVUD_KLASS`.
+ *
+ * ⛔ `font-display` står kvar fast storleken blev etikettens. Utan den följde rubriken brödtextens typsnitt, och en
+ * brandfil som byter `--font-display` ändrade inte längre vyns namn: `check:brand` blev röd i CI på 0.102.0 (9a1bfed).
+ * Storleken är en roll, typsnittet en annan, och båda ska gå att byta var för sig.
+ */
+export const VYRUBRIK_KLASS = "m-0 min-w-0 flex-1 truncate font-display text-etikett font-semibold text-ink";
 /**
  * En åtgärd i vyns huvud: "+ Nytt meddelande", "+ Skapa app" (0.103.0).
  *
