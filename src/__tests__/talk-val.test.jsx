@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { OpsAppShell } from "../components/OpsAppShell.jsx";
 import { OpsInspelning } from "../components/OpsTalk.jsx";
 import { OpsSprakProvider } from "../components/OpsSprak.jsx";
@@ -173,6 +173,28 @@ describe("valen efter talet", () => {
     expect(document.querySelector("[data-talk-val]")).toBeNull();
     expect(t.onTalk).toHaveBeenCalledTimes(1);
     expect(onAgent).not.toHaveBeenCalled();
+  });
+
+  it("⛔ med agent och flera mål står inget Skickas till medan man pratar, eftersom målet inte används (granskningen av PR 387)", async () => {
+    const mal = [{ id: "agenten", etikett: "Agenten" }, { id: "anteckning", etikett: "Anteckning" }];
+    // Golvet: utan agent står valet, så att provet mäter villkoret och inte ett fält utan mål.
+    const utan = Skal({ talk: { mal } });
+    fireEvent.click(huvudMikrofon());
+    await flush();
+    expect(screen.getByRole("radiogroup", { name: "Skickas till" })).toBeTruthy();
+    fireEvent.click(within(/** @type {HTMLElement} */ (falt())).getByRole("button", { name: /^Avbryt/ }));
+    await flush();
+    expect(utan.onTalk).not.toHaveBeenCalled();
+    cleanup();
+
+    Skal({ talk: { mal, onAgent: vi.fn() } });
+    fireEvent.click(huvudMikrofon());
+    await flush();
+    expect(falt()).toBeTruthy();
+    expect(screen.queryByRole("radiogroup", { name: "Skickas till" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /^Klar/ }));
+    await flush();
+    expect(valen()).toEqual(["Agent"]);
   });
 
   it("bara valen med en mottagare: Händelse och Agent när bara händelseformuläret och agenten finns", async () => {

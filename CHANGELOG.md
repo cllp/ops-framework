@@ -33,6 +33,9 @@ läge: `docs/jamforelser/0.105.0/` (`node scripts/check-skalyta.mjs --bara-talkv
   **Meddelande** lämnar `{ text }` till `talk.onMeddelande`. Ett val ritas bara när dess mottagare finns.
 - Utan `onAgent`, eller när inget hördes (igenkänningen av eller föll), är flödet som förut: Klar lämnar ljudet och texten till `onTalk`.
   Ett fält låst till ett moduls mål (Bibliotekets röstinspelning) får inga val.
+- ⛔ Med `onAgent` och taligenkänningen på står inget "Skickas till" medan man pratar, också när appen har flera mål: personen väljer
+  vart det sagda ska efteråt, och ett mål som valdes under talet hade inte använts. Hördes inget går ljudet till `onTalk` med appens
+  första mål. Utan igenkänning kommer inga val, och då står målvalet som förut. (Granskningen av PR 387.)
 - `useTalk` tar `onAgent` och ger `agent()` och `medAgent`. `OpsInspelning` tar `onAgent`. `talkKnappNamn("hort")` är "TALK, välj vad
   som ska hända".
 - Orden står i `ORD_TALK` på svenska och engelska: `valFragan`, `valMeddelande`, `valHandelse`, `valArende`, `valAgent`, `felAgent`.

@@ -823,8 +823,12 @@ export function OpsInspelning(props) {
   const statusLage = lage === "skickar" ? "skickar" : lage === "sparat" ? (kvitto ? "kvitto" : "sparat") : null;
   const valtId = valt ?? (mal[0] ? mal[0].id : null);
   const visaTextyta = (lyssnar && (medText || Boolean(text))) || ((lage === "skickar" || hort) && Boolean(text));
-  /** Ett val finns bara när det finns något att välja mellan. */
-  const visaMal = lyssnar && mal.length > 1;
+  /**
+   * Ett val finns bara när det finns något att välja mellan. ⛔ (0.105.0, granskningen av PR 387) Och inte när valen kommer efter talet
+   * (`onAgent` med texten på): då bestämmer personen vart det sagda ska efteråt, och "Skickas till" medan man pratar hade frågat om
+   * ett mål som inte används. Hördes inget går ljudet till `onTalk` med appens första mål, som förut när valet inte rörts.
+   */
+  const visaMal = lyssnar && mal.length > 1 && !(onAgent && medText);
   const kanTillatMikrofon = !kanIgen && kanBeOmMikrofon(fel) && typeof (onTillatMikrofon || onStart) === "function";
   /** (lifehub.app#253) Det som fanns att skicka var tomt: en ny inspelning, inte Försök igen, som hade skickat samma tomma ljud. */
   const kanNyInspelning = !kanIgen && !kanTillatMikrofon && kanSpelaInIgen(fel) && typeof (onTillatMikrofon || onStart) === "function";
