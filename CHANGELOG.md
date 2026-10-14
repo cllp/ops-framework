@@ -133,6 +133,14 @@ och fältet säger "Fältet rymmer {max} tecken, och det du sa fick inte plats."
 you said did not fit."). `fullt` sägs bara när fältet är fullt. Prov i `textfalt-tal.test.jsx`: 6 röda mot `fa1e637`, gröna med.
 Påståendet om `skrivInTal("abcde", null, "x", 6)` är ändrat en gång till, med en ny ⛔ ÄNDRAT-rad (regel 9).
 
+### Prov: chattens tillägg till utskriftsfelet är engelska på engelska
+
+En mutation som skrev "Ingen utskrift finns." och "Inget hördes i det inspelade." på svenska i chattens `rosttexter` var grön (andra
+granskningsvarvet av PR 384, KAN 2). `chatt-talsprak.test.jsx` prövar nu alla röst-ord som chatten ger röstinmatningen på engelska,
+med ett golv på 7 nycklar, och "Nothing was heard in the recording." genom chattens yta. "Ingen utskrift" går inte att nå genom chattens
+yta, eftersom mikrofonen bara ritas med `onTranscribe`, så `rosttexter` och `texterPa` exporteras från filen för proven (inte ur
+ramverket). Båda mutationerna är röda med proven.
+
 ### Ändrat: röstinmatningen har ett hem
 
 Talet bodde inbyggt i chattens skrivfält (`OpsMeddelanden.jsx`). Det är utbrutet till `OpsRostinmatning.jsx`

@@ -577,7 +577,7 @@ export function OpsMeddelandeLank({ href, olasta, olastaFler = false, etikett = 
  * @param {string} sprak
  * @param {Partial<typeof TEXTER> & { reaktionsnamn?: Record<string, string> }} texter
  */
-function texterPa(sprak, texter) {
+export function texterPa(sprak, texter) {
   return { ...TEXTER, ...talordPa(sprak), ...texter, reaktionsnamn: { ...reaktionsnamnPa(sprak), ...texter.reaktionsnamn } };
 }
 
@@ -1425,12 +1425,15 @@ function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, sprak, fokus =
 }
 
 /**
+ * ⛔ EXPORTERAD FRÅN FILEN FÖR PROVEN, INTE UR RAMVERKET (`src/index.js`), liksom `texterPa`. `ingenUtskrift` går inte att nå genom
+ * chattens yta, eftersom mikrofonen bara ritas med `onTranscribe` (andra granskningsvarvet av PR 384, KAN 2), så språket prövas här.
+ *
  * Chattens texter i röstinmatningens form (`useRostinmatning`, 0.104.0). Chatten SKICKAR det sagda, så det är chattens ord som står
  * i ytan, på chattens språk (`ORD_MEDDELANDEN_TAL`).
  * @param {Required<Meddelandetexter>} t
  * @returns {import("./OpsRostinmatning.jsx").Rosttexter}
  */
-function rosttexter(t) {
+export function rosttexter(t) {
   return {
     transkriptionFel: t.transkriptionFel,
     ingenUtskrift: t.talIngenUtskrift,

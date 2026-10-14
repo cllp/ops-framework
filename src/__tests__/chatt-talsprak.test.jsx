@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { OpsMeddelanden } from "../components/OpsMeddelanden.jsx";
+import { OpsMeddelanden, rosttexter, texterPa } from "../components/OpsMeddelanden.jsx";
 import { OpsSprakProvider } from "../components/OpsSprak.jsx";
 import { createMemorySource } from "../data/adapters.js";
 import { createSamtalskalla } from "../data/samtalskalla.js";
@@ -80,5 +80,28 @@ describe("chattens röst-ord på chattens språk", () => {
     await within(await screen.findByRole("log")).findByText("Hej");
     fireEvent.click(screen.getByRole("button", { name: "Dictate" }));
     expect(await within(yta()).findByRole("button", { name: "Done, post it" })).toBeTruthy();
+  });
+});
+
+/*
+ * ⛔ TILLÄGGEN TILL UTSKRIFTSFELET (andra granskningsvarvet av PR 384, KAN 2). "Ingen utskrift finns." och "Inget hördes i det inspelade."
+ * hängs på `transkriptionFel`. En mutation som skrev dem på svenska i `rosttexter` var grön, eftersom inget prov läste dem på engelska.
+ */
+describe("utskriftsfelets tillägg på engelska", () => {
+  it("⛔ alla röst-ord som chatten ger röstinmatningen är engelska på engelska och svenska på svenska", () => {
+    const en = rosttexter(texterPa("en", {}));
+    const sv = rosttexter(texterPa("sv", {}));
+    // Golv: en tom form hade gjort provet grönt utan att mäta något (regel 4).
+    expect(Object.keys(en).length).toBeGreaterThanOrEqual(7);
+    expect(en.ingenUtskrift).toBe("No transcription is available.");
+    expect(en.ingetHordes).toBe("Nothing was heard in the recording.");
+    for (const k of /** @type {Array<keyof typeof en>} */ (Object.keys(en))) expect(en[k], k).not.toBe(sv[k]);
+  });
+
+  it("⛔ en tom utskrift från appen: \"Nothing was heard in the recording.\"", async () => {
+    await chattPaEngelska("prop", async () => "");
+    fireEvent.click(screen.getByRole("button", { name: "Dictate" }));
+    fireEvent.click(await within(yta()).findByRole("button", { name: "Done, send what you said" }));
+    await waitFor(() => expect(within(yta()).getByRole("alert").textContent).toBe("The recording could not be transcribed. Nothing was heard in the recording."));
   });
 });
