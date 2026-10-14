@@ -5945,11 +5945,10 @@ for (const [namn, vp] of /** @type {const} */ ([["TALK 390 px", { width: 390, he
       // ⛔ #382: ytan har `skapa`, så ett långtryck öppnar skapa-listan och namnet säger det.
       const vantatNamn = "TALK, prata in. Håll inne för att skapa";
       krav(fore.namn === vantatNamn && fore.lage === "vila" && fore.svg, `${namn}: mittknappen heter ${JSON.stringify(fore.namn)} i läget ${fore.lage}, väntat ${JSON.stringify(vantatNamn)} i vila med en ikon.`);
-      // ⛔ PLUSSET BAKOM MIKROFONEN (0.103.0, #382; granskningen av PR 383, BÖR 5). CP 2026-10-14: "en stor mikrofon och liksom
-      // lite bakomliggande ett plus som indikerar det". Kraven och mätningen står i `scripts/lib/mittknappMatt.mjs`, samma som
-      // `mikrofon-montage.mjs` läser: knappen 56 px, mikrofonen 30 till 32 px, plusset 18 till 20 px upp till höger med strecken
-      // inom cirkeln, före mikrofonen i ordningen och mött av dess kapsel, kapseln i knappens färg, plusset dämpat men synligt.
-      // ⛔ Före granskningen krävdes motsatsen: ett märke med ring som INTE fick överlappa mikrofonen. Det var en notisbricka framför.
+      // ⛔ ÄNDRAT 0.104.0: INGET PLUS PÅ MITTKNAPPEN. CP 2026-10-14: "Sak bara vi måste ta bort plusset till plus-knappen. Den ser
+      // bara skräpig ut." I 0.103.0 krävdes här ett plus bakom mikrofonen (#382, "en stor mikrofon och liksom lite bakomliggande ett
+      // plus"). Kraven och mätningen står i `scripts/lib/mittknappMatt.mjs`, samma som `mikrofon-montage.mjs` läser: knappen 56 px,
+      // inget plus, mikrofonen 30 till 32 px mitt i cirkeln, och namnet nämner långtrycket.
       const plusMatt = await mik.evaluate(matMittknappen);
       const plusKrav = kravPaMittknappen(plusMatt);
       for (const rad of plusKrav.rader) matt.push(`${namn}: ${rad}`);

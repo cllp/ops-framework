@@ -2434,7 +2434,11 @@ behövs?"
 
 - **Mittknappen är en mikrofon när skalet har `talk`.** Ett vanligt tryck startar TALK direkt, samma inspelning som huvudets
   mikrofon på dator. Utan `talk` är knappen plusset med dagens beteende, så att en app utan TALK inte tappar sin skapaväg.
-- ⛔ **Mikrofonen är stor och bär ett plus bakom sig när ett långtryck skapar** (#382). CP 2026-10-14: "Undra om man i den ikonen
+- ⛔ **ÄNDRAT 0.104.0: pluset är borta.** CP 2026-10-14: "Sak bara vi måste ta bort plusset till plus-knappen. Den ser bara
+  skräpig ut." Mikrofonen ensam är knappen, 31 px och mitt i cirkeln. Långtrycket, Shift+F10, ContextMenu, `aria-haspopup` och
+  namnet "TALK, prata in. Håll inne för att skapa" finns kvar; namnet är nu det enda som säger att långtrycket finns. Punkten
+  nedan beskriver 0.103.0. Mätt i `scripts/lib/mittknappMatt.mjs`.
+- (0.103.0) **Mikrofonen är stor och bar ett plus bakom sig när ett långtryck skapar** (#382). CP 2026-10-14: "Undra om man i den ikonen
   kan ha en stor mikrofon och liksom lite bakomliggande ett plus som indikerar det." Mikrofonen ritas i 31 px i 56 px-cirkeln.
   Plusset (`data-skapa-marke`, 20 px, `accent-contrast` med `opacity-60`) står upp till höger, ritas före mikrofonen och täcks där
   de möts av mikrofonens kapsel, som är fylld i knappens färg. Mätt i `check-skalyta.mjs` avsnitt 39 och `mikrofon-montage.mjs`

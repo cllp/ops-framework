@@ -54,6 +54,17 @@ släpps när det avvisas eller kastar, så att arket visar propens ordning och f
 inte det nyare. Felraden har ramverkets felfärg (`text-etikett text-danger`), förut stod den ostylad. Prov i `apparark.test.jsx`:
 avvisat löfte röd mot koden före (ordningen låg kvar), synkront kast röd på den ostylade raden, båda gröna med rättelsen.
 
+### Ändrat: mittknappen är bara en mikrofon
+
+CP 2026-10-14: "Sak bara vi måste ta bort plusset till plus-knappen. Den ser bara skräpig ut." Det lilla pluset bakom mikrofonen
+på `OpsBottomNav`s mittknapp, från 0.103.0, är borttaget, och `SkapaMarkeIkon` med det. Mikrofonen är lika stor som förut (31 px)
+och står mitt i cirkeln. Långtrycket öppnar fortfarande skapa-listan, och Shift+F10, ContextMenu, `aria-haspopup="dialog"`,
+`aria-keyshortcuts` och namnet ("TALK, prata in. Håll inne för att skapa") är kvar. Vakten `scripts/lib/mittknappMatt.mjs`
+(skalytans avsnitt 39 och `mikrofon-montage.mjs`) kräver nu att inget plus ritas, att mikrofonen är 30 till 32 px och centrerad, och
+att namnet nämner långtrycket: röd mot 0.103.0:s knapp ("mittknappen ritar ett plus"), grön med ändringen. Bilder vid 390 px:
+`docs/jamforelser/0.104.0/ramverk-mikrofon-390.png` och `ramverk-mikrofon-ljus-390.png`. `mikrofon-montage.mjs` skriver nu sina
+bilder under versionen som byggs.
+
 ### Ändrat: röstinmatningen har ett hem
 
 Talet bodde inbyggt i chattens skrivfält (`OpsMeddelanden.jsx`). Det är utbrutet till `OpsRostinmatning.jsx`
