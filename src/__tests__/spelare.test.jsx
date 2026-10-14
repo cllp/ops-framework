@@ -155,7 +155,7 @@ describe("OpsSpelare", () => {
     ritaISkal(<OpsSpelarKontroller spar={IDE} />);
     fireEvent.click(screen.getByRole("button", { name: "Spela Idé" }));
     const fel = await screen.findByRole("alert");
-    expect(fel.textContent).toContain("Webbläsaren stoppade uppspelningen");
+    expect(fel.textContent).toContain("Webbläsaren tillät inte uppspelningen");
     expect(screen.getAllByRole("button", { name: "Spela Idé" }).length).toBeGreaterThan(0);
   });
 
@@ -167,5 +167,71 @@ describe("OpsSpelare", () => {
     registreraSpelare(annan);
     act(() => baraEnSpelar(annan));
     await waitFor(() => expect(screen.getAllByRole("button", { name: "Spela Idé" }).length).toBe(2));
+  });
+
+  it("⛔ ett avbrutet play() efter ett byte av spår skriver inget fel på det som spelar (granskningen av PR 366, MÅSTE 1)", async () => {
+    /** @type {Array<{ resolve: () => void, reject: (e: Error) => void }>} */
+    const vantar = [];
+    HTMLMediaElement.prototype.play = function vantande() {
+      return new Promise((resolve, reject) => {
+        vantar.push({
+          resolve: () => {
+            Object.defineProperty(this, "paused", { configurable: true, value: false });
+            this.dispatchEvent(new Event("play"));
+            resolve(undefined);
+          },
+          reject,
+        });
+      });
+    };
+    ritaISkal(
+      <>
+        <OpsSpelaKnapp spar={IDE} />
+        <OpsSpelaKnapp spar={JAZZ} />
+      </>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Spela Idé" }));
+    await waitFor(() => expect(vantar.length).toBe(1));
+    fireEvent.click(screen.getByRole("button", { name: "Spela R jazz" }));
+    await waitFor(() => expect(vantar.length).toBe(2));
+    // Webbläsaren avvisar det första med AbortError när källan byts, och ett senare fel på det gamla försöket kommer också för sent.
+    const avbrott = new Error("avbrutet");
+    avbrott.name = "AbortError";
+    await act(async () => {
+      vantar[1].resolve();
+      vantar[0].reject(avbrott);
+    });
+    const rad = await screen.findByRole("region", { name: "Spelar R jazz" });
+    expect(rad.textContent).toContain("Tryck för att spola");
+    expect(rad.textContent).not.toMatch(/kunde inte|gick inte/);
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("⛔ spelraden står i --spelrad-h medan den visas, och höjden tas bort när den stängs (MÅSTE 2)", async () => {
+    const rot = document.documentElement;
+    ritaISkal(<OpsSpelaKnapp spar={IDE} />);
+    expect(rot.style.getPropertyValue("--spelrad-h")).toBe("");
+    fireEvent.click(screen.getByRole("button", { name: "Spela Idé" }));
+    await screen.findByRole("region", { name: "Spelar Idé" });
+    expect(rot.style.getPropertyValue("--spelrad-h")).toMatch(/^\d+px$/);
+    fireEvent.click(screen.getByRole("button", { name: "Stäng spelaren" }));
+    expect(rot.style.getPropertyValue("--spelrad-h")).toBe("");
+  });
+
+  it("piltangenterna spolar fem sekunder, Home och End går till början och slutet (BÖR 4)", async () => {
+    ritaISkal(<OpsSpelarKontroller spar={IDE} />);
+    fireEvent.click(screen.getByRole("button", { name: "Spela Idé" }));
+    await screen.findByRole("button", { name: /^Uppspelningshastighet/ });
+    const spola = screen.getByRole("slider", { name: "Spola i Idé" });
+    fireEvent.keyDown(spola, { key: "ArrowRight" });
+    expect(ljudet().currentTime).toBe(5);
+    fireEvent.keyDown(spola, { key: "ArrowRight" });
+    expect(ljudet().currentTime).toBe(10);
+    fireEvent.keyDown(spola, { key: "ArrowLeft" });
+    expect(ljudet().currentTime).toBe(5);
+    fireEvent.keyDown(spola, { key: "End" });
+    expect(ljudet().currentTime).toBe(30);
+    fireEvent.keyDown(spola, { key: "Home" });
+    expect(ljudet().currentTime).toBe(0);
   });
 });

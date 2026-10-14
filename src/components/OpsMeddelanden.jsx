@@ -761,7 +761,7 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
        avsnitt 29: utan den enda pixeln för huvudets kant rullade hela sidan en pixel, och skrivfältet hamnade under bottenraden. */
     <div
       data-ops-meddelanden=""
-      className="flex h-[calc(100dvh-var(--safe-top)-var(--topbar-height)-1px-var(--bottom-nav-h)-var(--safe-bottom))] min-h-0 flex-col bg-canvas md:h-[calc(100dvh-var(--safe-top)-var(--topbar-height)-1px)] md:flex-row md:gap-2 md:p-2"
+      className="flex h-[calc(100dvh-var(--safe-top)-var(--topbar-height)-1px-var(--bottom-nav-h)-var(--safe-bottom)-var(--spelrad-h,0px))] min-h-0 flex-col bg-canvas md:h-[calc(100dvh-var(--safe-top)-var(--topbar-height)-1px-var(--spelrad-h,0px))] md:flex-row md:gap-2 md:p-2"
     >
       {/* ── Listan ─────────────────────────────────────────────────────────────────────────── */}
       <section

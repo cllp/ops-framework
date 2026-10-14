@@ -1,9 +1,10 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { ChevronDown, X } from "lucide-react";
 import { avkodaToppar, kodaToppar, toppListaGiltig } from "../lib/bibliotek.js";
 import {
   HOPP_SEKUNDER,
+  PILHOPP_SEKUNDER,
   STOLPAR,
   baraEnSpelar,
   formateraTid,
@@ -15,6 +16,7 @@ import {
   nastaHastighet,
   plattaStolpar,
   registreraSpelare,
+  startFelText,
 } from "../lib/ljudspelare.js";
 import { cx } from "../lib/cx.js";
 import { radBehallare } from "../lib/radKlass.js";
@@ -117,6 +119,11 @@ export function OpsSpelareProvider({ children }) {
   const sparRef = useRef(spar);
   sparRef.current = spar;
   const handtag = useRef({ pausa: () => ljud.current?.pause() });
+  /**
+   * ⛔ VILKET `play()` SOM ÄR DET SENASTE (granskningen av PR 366, MÅSTE 1). Ett svar på ett äldre försök, efter ett byte av spår,
+   * en paus eller en stängning, får aldrig skriva ett fel på det som spelar nu.
+   */
+  const forsok = useRef(0);
 
   useEffect(() => registreraSpelare(handtag.current), []);
 
@@ -201,27 +208,37 @@ export function OpsSpelareProvider({ children }) {
     }
     baraEnSpelar(handtag.current);
     setLaddar(true);
+    const mitt = ++forsok.current;
     Promise.resolve()
       .then(() => el.play())
       .then(
-        () => setLaddar(false),
+        () => {
+          if (mitt === forsok.current) setLaddar(false);
+        },
         (e) => {
+          if (mitt !== forsok.current) return;
           setLaddar(false);
-          setFel(e instanceof Error && e.name === "NotAllowedError" ? "Webbläsaren stoppade uppspelningen. Tryck på spela igen." : "Ljudet kunde inte spelas.");
+          // `AbortError` är ingen felväg, se `startFelText`.
+          const text = startFelText(e);
+          if (text) setFel(text);
         },
       );
   }, [hastighet]);
 
-  const pausa = useCallback(() => ljud.current?.pause(), []);
+  const pausa = useCallback(() => {
+    forsok.current += 1;
+    setLaddar(false);
+    ljud.current?.pause();
+  }, []);
 
   const vaxla = useCallback((/** @type {Spar} */ ny) => {
     const el = ljud.current;
     if (el && sparRef.current?.src === ny.src && !el.paused) {
-      el.pause();
+      pausa();
       return;
     }
     spela(ny);
-  }, [spela]);
+  }, [spela, pausa]);
 
   const sok = useCallback((/** @type {number} */ sekunder) => {
     const el = ljud.current;
@@ -246,6 +263,8 @@ export function OpsSpelareProvider({ children }) {
   }, [hastighet]);
 
   const stang = useCallback(() => {
+    forsok.current += 1;
+    setLaddar(false);
     const el = ljud.current;
     if (el) {
       el.pause();
@@ -302,6 +321,17 @@ export function OpsSpelareProvider({ children }) {
     if (ms) ms.playbackState = spar ? (spelar ? "playing" : "paused") : "none";
   }, [spar, spelar]);
 
+  // Skalet avmonteras (utloggning): låsskärmen ska inte visa ett spår som inte längre finns (granskningen av PR 366, KAN 12).
+  useEffect(
+    () => () => {
+      const ms = typeof navigator !== "undefined" ? navigator.mediaSession : undefined;
+      if (!ms) return;
+      ms.metadata = null;
+      ms.playbackState = "none";
+    },
+    [],
+  );
+
   const lage = useMemo(
     () => /** @type {Spelarlage} */ ({ spar, spelar, laddar, tid, langd, hastighet, toppar, fel, spela, vaxla, pausa, sok, hoppaOm, bytHastighet, stang, oppnaArk: () => setArkOppet(true) }),
     [spar, spelar, laddar, tid, langd, hastighet, toppar, fel, spela, vaxla, pausa, sok, hoppaOm, bytHastighet, stang],
@@ -313,11 +343,7 @@ export function OpsSpelareProvider({ children }) {
       {/* ⛔ playsInline: iOS Safari startar annars i fullskärm. preload=metadata räcker för längden. */}
       <audio ref={ljud} preload="metadata" playsInline className="sr-only" />
       {spar ? (
-        <>
-          {/* Luft under sidan, så att sista raden inte hamnar under spelraden. */}
-          <div aria-hidden="true" className="h-20 md:h-0" />
-          <Spelrad lage={lage} />
-        </>
+        <Spelrad lage={lage} />
       ) : null}
       <Spelarark lage={lage} oppen={arkOppet && Boolean(spar)} onOppen={setArkOppet} />
     </SpelarKontext.Provider>
@@ -332,16 +358,39 @@ export function OpsSpelareProvider({ children }) {
  */
 function Spelrad({ lage }) {
   const { spar, spelar, laddar, tid, langd, fel } = lage;
+  const rad = useRef(/** @type {HTMLDivElement | null} */ (null));
+  /*
+   * ⛔ SPELRADEN TAR SIN PLATS, DEN LÄGGER SIG INTE ÖVER (granskningen av PR 366, MÅSTE 2). Förut låg den fast ovanför bottenraden
+   * med en tom ruta på `h-20` under sidan, och det räckte bara för sidor som rullar i dokumentet: Meddelanden är exakt fönstrets
+   * höjd, så spelraden låg över skrivfältet, och från 768 px täckte hörnrutan skicka-knappen. Nu mäts raden och höjden står i
+   * `--spelrad-h` på dokumentet, och varje yta som slutar vid bottenraden räknar in den (`main`, `OpsMeddelanden`,
+   * `arkOvanforRad`, toasten, den flytande summan och kalenderlagren), med `0px` som förval när ingen spelare finns.
+   * Från 768 px är raden en list längst ned i full bredd, inte en ruta i hörnet.
+   */
+  useLayoutEffect(() => {
+    const el = rad.current;
+    const rot = typeof document !== "undefined" ? document.documentElement : null;
+    if (!el || !rot) return undefined;
+    const satt = () => rot.style.setProperty("--spelrad-h", `${Math.ceil(el.getBoundingClientRect().height)}px`);
+    satt();
+    const ro = typeof ResizeObserver === "function" ? new ResizeObserver(satt) : null;
+    ro?.observe(el);
+    return () => {
+      ro?.disconnect();
+      rot.style.removeProperty("--spelrad-h");
+    };
+  }, [Boolean(spar)]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!spar) return null;
   const pos = langd > 0 ? Math.min(1, tid / langd) : 0;
   return (
     <div
+      ref={rad}
       role="region"
       aria-label={`Spelar ${spar.namn}`}
       data-ops-spelrad=""
       className={cx(
         "fixed inset-x-0 bottom-[calc(var(--bottom-nav-h)+var(--safe-bottom))] z-(--z-chrome) border-t border-line bg-raised",
-        "md:inset-x-auto md:right-4 md:bottom-4 md:w-96 md:rounded-md md:border md:shadow-lg",
+        "md:bottom-(--safe-bottom)",
       )}
     >
       <div aria-hidden="true" className="h-0.5 bg-line">
@@ -497,6 +546,20 @@ export function OpsSpelarKontroller({ spar, stor = false }) {
               return;
             }
             lage.sok(kvot * langd);
+          }}
+          // ⛔ PILARNA FLYTTAR 5 SEKUNDER, SOM I `OpsLjudspelare` (granskningen av PR 366, BÖR 4). Med steget 1 av 1000 flyttade en
+          // pil en tusendel av spåret, och README lovar att tangentbordet fungerar.
+          onKeyDown={(e) => {
+            if (!aktiv || !langd) return;
+            const fram = e.key === "ArrowRight" || e.key === "ArrowUp";
+            const bak = e.key === "ArrowLeft" || e.key === "ArrowDown";
+            if (fram || bak) {
+              e.preventDefault();
+              lage.sok(hoppa(tid, langd, fram ? PILHOPP_SEKUNDER : -PILHOPP_SEKUNDER));
+            } else if (e.key === "Home" || e.key === "End") {
+              e.preventDefault();
+              lage.sok(e.key === "Home" ? 0 : langd);
+            }
           }}
           className="absolute inset-0 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
         />

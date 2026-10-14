@@ -65,7 +65,7 @@ export function OpsKalenderlager({ lista, dolda, onVaxla, onHantera, tomText, kn
           className={cx(
             "fixed z-(--z-modal) flex flex-col outline-none",
             radBehallare({ ark: true }),
-            "inset-x-0 bottom-[calc(var(--bottom-nav-h)+var(--safe-bottom))] max-h-[min(24rem,70dvh)] pb-(--safe-bottom)",
+            "inset-x-0 bottom-[calc(var(--bottom-nav-h)+var(--safe-bottom)+var(--spelrad-h,0px))] max-h-[min(24rem,70dvh)] pb-(--safe-bottom)",
             "md:inset-x-auto md:bottom-auto md:left-1/2 md:top-1/2 md:w-80 md:max-w-[calc(100vw-2rem)] md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-base md:border md:pb-0",
           )}
         >

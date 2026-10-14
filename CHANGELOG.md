@@ -19,8 +19,22 @@ SessionStudio. Måste vara supersnyggt." Och om långtrycksmenyn: "Kanske popup 
 med hastighet mm och spolning när en låt/ljud inte ens har startat?" Montage sida vid sida med SessionStudios riktiga
 `MyLibraryPanel` i mörkt läge: `docs/jamforelser/0.102.0/`.
 
+### ⛔ Brytande
+
+- `ORD_OPSATGARDSBLAD.stang` är borttagen, och `OpsAtgardsblad` är inte längre ett ark från botten under 768 px utan en kort ruta
+  vid raden på alla bredder.
+- `BIBLIOTEKFLIKAR` har fliken `bild`, och `filtreraBibliotek({ flik: "fil" })` ger dokumenten utan bilderna.
+- `OpsHubTillbaka` och `OpsViewHeader` ritar vyns tunna huvud (se nedan). `atgard` står på rubrikens rad, inte på Tillbaka-raden.
+  En app som mätt rubrikens storlek eller letat efter åtgärden på Tillbaka-raden behöver se över det.
+- Bibliotekets rad "N objekt" (`data-bibliotek-antal`) är borta. Antalet står i fliken Allt.
+
 ### Ändrat
 
+- **Vyns huvud är Meddelandens, i varje vy.** CP 2026-10-14, med skärmbilder av Meddelanden, Bibliotek och Inkorg från telefonen:
+  "Kolla header panelen på chatt. Den är mycket tunnare och bättre än bibliotek. Gör dessa enhetliga med utgångspunkt från
+  meddelanden. Inkorgen börjar nästan i halva panelen." `OpsHubTillbaka`, `OpsViewHeader` och `OpsMeddelanden` delar en rad:
+  ikonen i accent, namnet i etikettens storlek och vikt 600, och åtgärderna till höger (`VYHUVUD_KLASS`, `VYRUBRIK_KLASS`,
+  `VYIKON_KLASS`). `ikon` på `OpsHubTillbaka`, `OpsViewHeader` och `modulTillbaka`, och `OpsModulRam` skickar modulens `hubb.ikon`.
 - `OpsBibliotek`: varje post är ett eget kort med luft emellan, som kortet i SessionStudios app (CP:s skärmbilder i
   `docs/jamforelser/0.102.0/forebild-ss-app-*.png`). Kortet har en rund ikonplatta i typens färg, rubriken, typen i singular
   med format ("DOKUMENT · PDF"), taggarna som färgade piller, en förhandsvisning och en metarad (storlek, längd och datum).
@@ -48,6 +62,19 @@ med hastighet mm och spolning när en låt/ljud inte ens har startat?" Montage s
 - `taggfarg(tagg)` och `TAGGFARGER`: taggens färg 1 till 8 med SessionStudios hash, och tokens `--color-tagg-1` till
   `--color-tagg-8`, `--color-tagg-text` och `--color-typ-anteckning`, `--color-typ-ljud` och `--color-typ-lank`.
 - `OpsLjudspelare` läget `liten`, och `kort` på `OpsSvepRad` och `OpsAtgardsblad`.
+
+### Granskningen av PR 366
+
+- Skalets spelare skriver inget fel när ett äldre `play()` avvisas efter ett byte av spår, en paus eller en stängning. `startFelText`
+  i `lib/ljudspelare.js` är texten för båda spelarna, och tom för `AbortError`.
+- Spelraden tar sin plats: höjden står i `--spelrad-h`, och ytorna som slutar vid bottenraden räknar in den. Förut låg den över
+  skrivfältet i Meddelanden, och från 768 px täckte hörnrutan skicka-knappen. Från 768 px är den en list längst ned.
+- Bibliotekets flikar är Radix Tabs: piltangenter, Home och End, och fliken styr panelen.
+- Vågen i skalets spelare spolar 5 s med piltangenterna, och Home och End går till början och slutet.
+- `OpsLjudspelare liten` är 44 px och lämnar felet till kortet med `onFel`, så att det syns och inte bara hörs.
+- Media Session rensas när skalet avmonteras.
+- Dela i Mitt bibliotek kräver fortfarande att man äger posten eller får ändra den, som försvar i djupet.
+- Flikraden tonar ut mot högerkanten, så att det syns att fler flikar finns.
 
 ### Rättat
 

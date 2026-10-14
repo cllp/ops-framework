@@ -388,10 +388,12 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
     const aktiv = Boolean(jag) && (jag?.status === undefined || jag?.status === "aktiv");
     const egen = aktiv && post.skapadAv?.uid === jag?.uid;
     if (aktiv && !flyttar.includes(post.id)) {
-      if (ensam) {
+      // ⛔ `egen || far` STÅR KVAR SOM FÖRSVAR I DJUPET (granskningen av PR 366, KAN 10). I dag läser bara ägaren Mitt bibliotek, men
+      // menyn ska inte lita på att reglerna alltid säger det.
+      if (ensam && (egen || far)) {
         if (andra.length === 1) ut.push({ id: "dela-grupp", etikett: `Dela med ${andra[0].namn}`, onValj: () => delaDirekt(post, andra[0], "flytta") });
         else if (andra.length > 1) ut.push({ id: "dela", etikett: "Dela med en grupp", onValj: () => setDelar(post) });
-      } else {
+      } else if (!ensam) {
         if (mitt) {
           ut.push(egen
             ? { id: "till-mitt", etikett: "Flytta till Mitt bibliotek", onValj: () => delaDirekt(post, mitt, "flytta") }
@@ -838,7 +840,9 @@ function Flikar({ flikar, antal }) {
    * pilarna gjorde ingenting. `OpsTabs` säger samma sak i sitt filhuvud. Utseendet är SessionStudios piller, beteendet Radix.
    */
   return (
-    <Tabs.List aria-label="Typ i biblioteket" data-bibliotek-flikar="rad" className="-mx-1 flex min-w-0 gap-1 overflow-x-auto px-1 pb-1 [scrollbar-width:none]">
+    // Raden tonar ut mot högerkanten, som SessionStudios där sista fliken är avklippt: annars syns det inte att fler flikar finns
+    // när raden slutar jämnt vid en flik (granskningen av PR 366, montaget).
+    <Tabs.List aria-label="Typ i biblioteket" data-bibliotek-flikar="rad" className="-mx-1 flex min-w-0 gap-1 overflow-x-auto px-1 pb-1 [mask-image:linear-gradient(to_right,black_calc(100%-2rem),transparent)] [scrollbar-width:none]">
       {flikar.map((f) => (
         <Tabs.Trigger
           key={f.id}
@@ -1231,7 +1235,8 @@ function BibliotekKort({ post, lage, meny, svep, onOppna, onMeta, taggrad }) {
   const forhands = forhandsText(post);
   const meta = kortMeta(post);
   // Ljudet bär sin status i metaraden när adressen inte är klar: "Hämtar ljudet." eller felet. Aldrig tyst (regel 5).
-  const ljudStatus = ljud && lage.lage !== "klar" ? (lage.lage === "hamtar" ? "Hämtar ljudet." : lage.fel || "Filen har ingen adress.") : "";
+  const [spelFel, setSpelFel] = useState("");
+  const ljudStatus = ljud && lage.lage !== "klar" ? (lage.lage === "hamtar" ? "Hämtar ljudet." : lage.fel || "Filen har ingen adress.") : spelFel;
   // I skalet spelar ljudet i skalets spelare, med knappen till höger. Utanför skalet finns ingen spelrad, och kortet har då en egen
   // liten spelare där ikonen står.
   const iSkalet = Boolean(spelare);
@@ -1255,6 +1260,7 @@ function BibliotekKort({ post, lage, meny, svep, onOppna, onMeta, taggrad }) {
                 peaks={post.peaks}
                 styrId={post.id}
                 onMeta={(inmata) => onMeta(post.id, inmata)}
+                onFel={setSpelFel}
               />
             ) : bild && lage.lage === "klar" ? (
               <img src={lage.adress} alt="" aria-hidden="true" className="size-11 object-cover" />
@@ -1272,7 +1278,7 @@ function BibliotekKort({ post, lage, meny, svep, onOppna, onMeta, taggrad }) {
                 {meta.map((m) => <span key={m} data-ljud-langd={m.includes(":") ? "" : undefined}>{m}</span>)}
               </span>
             ) : null}
-            {ljudStatus ? <span role={lage.lage === "fel" ? "alert" : "status"} className={cx("text-meta", lage.lage === "hamtar" ? "text-ink-secondary" : "text-danger")}>{ljudStatus}</span> : null}
+            {ljudStatus ? <span role={lage.lage === "hamtar" ? "status" : "alert"} className={cx("text-meta", lage.lage === "hamtar" ? "text-ink-secondary" : "text-danger")}>{ljudStatus}</span> : null}
           </div>
           {ljud && iSkalet && lage.lage === "klar" ? (
             <span className="relative shrink-0">
