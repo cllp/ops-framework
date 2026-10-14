@@ -475,6 +475,57 @@ export async function inkorgenLever(v) {
   }
 }
 
+/** En `webkitSpeechRecognition` som finns men aldrig startas här: förvalet syns som i Chrome och Safari. */
+const FALSK_IGENKANNING = `window.webkitSpeechRecognition = class { start() {} stop() {} abort() {} };`;
+
+/**
+ * (8) TAL I ALLA TEXTFÄLT (skiva 8). Ett formulär med ett fält på en rad och ett på flera rader, båda med lång text, och lösenord,
+ * e-post, sök och nummer. Vid 390 och 1280 px:
+ *   (a) text och långtext har var sin ljudvåg, utan att appen bett om den, med träffyta minst 44 x 44 och samma ikon som chatten
+ *       (`LjudvagIkon`, lucide-ikonen "audio-lines");
+ *   (b) ljudvågen ligger inte över texten: fältets textyta slutar före knappens vänsterkant;
+ *   (c) lösenord, e-post, sök och nummer har ingen ljudvåg.
+ * Golv: sex fält.
+ * @param {Verktyg} v
+ */
+export async function talIAllaFalt(v) {
+  for (const vp of BREDDER) {
+    const namn = `47 (8) tal i alla textfält ${vp.width} px`;
+    await del(v, namn, "tal-alla-falt", vp, null, async (page) => {
+      await page.locator("[data-tal-falt]").nth(5).waitFor({ timeout: 4000 });
+      const m = await page.evaluate(() =>
+        [...document.querySelectorAll("[data-tal-falt]")].map((rad) => {
+          const falt = /** @type {HTMLElement} */ (rad.querySelector("input, textarea"));
+          const knappar = [...rad.querySelectorAll("[data-mikrofon]")];
+          const k = knappar[0];
+          const r = falt.getBoundingClientRect();
+          const cs = getComputedStyle(falt);
+          const textSlut = r.right - parseFloat(cs.paddingRight) - parseFloat(cs.borderRightWidth);
+          const kr = k ? k.getBoundingClientRect() : null;
+          return {
+            slag: rad.getAttribute("data-tal-falt"),
+            knappar: knappar.length,
+            ikon: k ? (k.querySelector("svg")?.getAttribute("class") || "").includes("audio-lines") : false,
+            traff: kr ? { w: Math.round(kr.width), h: Math.round(kr.height) } : null,
+            textSlut: Math.round(textSlut),
+            knappVanster: kr ? Math.round(kr.left) : null,
+            inneIFaltet: kr ? kr.top >= r.top - 0.5 && kr.bottom <= r.bottom + 0.5 && kr.right <= r.right + 0.5 : null,
+          };
+        }),
+      );
+      v.matt.push(`${namn}: ${JSON.stringify(m)}`);
+      v.krav(m.length >= 6, `${namn}: ${m.length} fält, väntat minst 6. Golv.`);
+      for (const f of m.filter((x) => x.slag === "text" || x.slag === "langtext")) {
+        v.krav(f.knappar === 1 && f.ikon && Boolean(f.traff && f.traff.w >= 44 && f.traff.h >= 44), `${namn}: (a) ${f.slag} har ${f.knappar} ljudvågor, ikon ${f.ikon}, träffyta ${JSON.stringify(f.traff)}.`);
+        v.krav(f.knappVanster !== null && f.textSlut <= f.knappVanster && f.inneIFaltet === true, `${namn}: (b) i ${f.slag} slutar texten vid ${f.textSlut} och knappen börjar vid ${f.knappVanster} (inne i fältet ${f.inneIFaltet}).`);
+      }
+      const utan = m.filter((x) => ["password", "email", "search", "number"].includes(String(x.slag)));
+      v.krav(utan.length === 4 && utan.every((x) => x.knappar === 0), `${namn}: (c) ljudvåg i ${JSON.stringify(utan.filter((x) => x.knappar > 0).map((x) => x.slag))}.`);
+      await bild(v, page, `tal-falt-${vp.width}.png`);
+    }, { init: FALSK_IGENKANNING, ...(vp.width < 768 ? { kontext: IPHONE } : {}) });
+  }
+}
+
 /**
  * Alla delar i ordning. Varje skiva lägger till sin rad här.
  * @param {Verktyg} v
@@ -487,4 +538,5 @@ export async function chattepiken0106(v) {
   await skrivfaltet(v);
   await merKnappen(v);
   await inkorgenLever(v);
+  await talIAllaFalt(v);
 }

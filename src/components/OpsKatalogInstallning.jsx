@@ -360,7 +360,7 @@ export function OpsKatalogInstallning({
           {fel ? <OpsBanner tone="danger" title="Det gick inte att spara">{fel}</OpsBanner> : null}
 
           <OpsField label="Nyckel" hint="Ändras aldrig. Varje rad i databasen pekar på den, så en omdöpning senare byter bara namnet och behåller kopplingen." required>
-            <OpsInput value={utkast.id} onChange={(v) => setUtkast({ ...utkast, id: v })} disabled={Boolean(redigerar)} name="id" />
+            <OpsInput value={utkast.id} onChange={(v) => setUtkast({ ...utkast, id: v })} disabled={Boolean(redigerar)} name="id" tal={false} />
           </OpsField>
 
           <OpsField label="Namn på svenska" required>

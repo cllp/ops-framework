@@ -4,6 +4,7 @@ import { forvalda } from "../lib/ord.js";
 import { faltKlass } from "../lib/radKlass.js";
 import { Mikrofonknapp, Rostyta, useRostfokus, useRostinmatning } from "./OpsRostinmatning.jsx";
 import { useOpsSprak } from "./OpsSprak.jsx";
+import { webblasarensIgenkanning } from "../lib/talk.js";
 
 /**
  * Fält, etikett, hjälptext och fel.
@@ -125,6 +126,10 @@ const TILLATNA_TYPER = ["text", "email", "search", "tel", "url", "password", "nu
  * @param {boolean} [props.readOnly]
  * @param {number} [props.maxLength]
  * @param {string} [props.ariaLabel] Bara när fältet står utanför en OpsField.
+ * @param {boolean | Textfaltstal} [props.tal] (0.106.0, #386 skiva 8) Tal i fältet, som i `OpsTextarea`: en ljudvåg vid fältets slut,
+ *   och Klar skriver in det sagda där markören stod. ⛔ PÅ SOM FÖRVAL för `text` när fältet har `onChange` och webbläsaren har
+ *   taligenkänning (se `talForval`). `tal={false}` stänger av. ⛔ ALDRIG för `password`, `email`, `number`, `search`, `tel` och `url`
+ *   (`UTAN_TAL`): ett `tal` på dem kastar.
  */
 export function OpsInput({
   value,
@@ -137,6 +142,7 @@ export function OpsInput({
   readOnly = false,
   maxLength,
   ariaLabel,
+  tal,
 }) {
   if (!TILLATNA_TYPER.includes(type)) {
     throw new Error(
@@ -145,6 +151,16 @@ export function OpsInput({
     );
   }
   const f = useFieldBinding();
+  if ((/** @type {readonly string[]} */ (UTAN_TAL)).includes(type)) {
+    if (tal !== undefined && tal !== false) {
+      throw new Error(`OpsInput: tal finns inte för type="${type}". ${UTAN_TAL_SKAL} Utelämna tal, eller ge false.`);
+    }
+  } else {
+    const t = talForval(tal, onChange, readOnly, "OpsInput");
+    if (t) {
+      return <TalFalt slag="input" f={f} value={value ?? ""} onChange={/** @type {(v: string) => void} */ (onChange)} placeholder={placeholder} name={name} disabled={disabled} maxLength={maxLength} ariaLabel={ariaLabel} typ={type} autoComplete={autoComplete} tal={t} />;
+    }
+  }
   return (
     <input
       id={f.id}
@@ -180,6 +196,55 @@ export function OpsInput({
 
 /** Nycklarna `tal` får ha. Ett okänt namn är ett stavfel, och ett stavfel i `onTranscribe` hade tagit bort reserven tyst. */
 const TALNYCKLAR = ["igenkanning", "onTranscribe", "inspelare"];
+
+/**
+ * Fälttyper där tal aldrig erbjuds (0.106.0, #386 skiva 8).
+ *
+ * ⛔ CP bad om tal i alla textfält, men inte i lösenord, e-post, nummer, datum och sök. Datum finns inte som `OpsInput` (det är
+ * `OpsDatePicker`). Lösenord: det sagda hade gått till Googles eller Apples taltjänst. E-post, nummer: en taltjänst skriver "anna
+ * snabel-a exempel punkt se" och "tjugo", inte adressen och talet. Sök: rutan ger svar medan man skriver, och en yta som tar fältets
+ * plats bryter det. (bedömning) `tel` och `url` av samma skäl som e-post och nummer.
+ */
+const UTAN_TAL = /** @type {const} */ (["password", "email", "number", "search", "tel", "url"]);
+const UTAN_TAL_SKAL = "Taltjänsten skriver ord, inte lösenord, adresser, tal eller sökningar.";
+
+/**
+ * Vad `tal` blir (0.106.0, #386 skiva 8).
+ *
+ * ⛔ PÅ SOM FÖRVAL. CP 2026-10-14: tal i alla textfält. Utelämnat `tal` är `{ igenkanning: true }` när fältet har `onChange` och inte är
+ * skrivskyddat, och ljudvågen står bara där webbläsaren har taligenkänning (`SpeechRecognition`, i Chrome och Safari
+ * `webkitSpeechRecognition`): utan den hade knappen bara kunnat ge ett fel. ⛔ WEBBLÄSAREN SKICKAR TALET TILL GOOGLES ELLER APPLES
+ * TALTJÄNST, och fram till 0.105.0 var det därför av som förval. Ingenting skickas förrän personen trycker på ljudvågen och pratar,
+ * och ingenting skrivs in förrän hen trycker Klar. En app som inte vill det ger `tal={false}` per fält.
+ *
+ * @param {boolean | Textfaltstal | undefined} tal
+ * @param {unknown} onChange
+ * @param {boolean} skrivskyddat
+ * @param {string} vem
+ * @returns {Textfaltstal | null}
+ */
+function talForval(tal, onChange, skrivskyddat, vem) {
+  if (tal === false) return null;
+  // Utan taligenkänning i webbläsaren blir förvalet ett vanligt fält, med samma DOM som förut: ingen omslutning, ingen knapp.
+  if (tal === undefined) return typeof onChange === "function" && !skrivskyddat && webblasarensIgenkanning() !== null ? { igenkanning: true } : null;
+  if (tal !== true && (!tal || typeof tal !== "object" || Array.isArray(tal))) {
+    // ⛔ VAD DET VAR, INTE `typeof` (0.104.0, granskningen av PR 384, KAN 8): `typeof null` är "object", och "fick object" om null
+    // säger ingenting om felet.
+    const fick = tal === null ? "null. Utelämna tal, eller ge false, för ett fält utan mikrofon" : Array.isArray(tal) ? "en lista" : typeof tal === "string" ? JSON.stringify(tal) : String(tal);
+    throw new Error(`${vem}: tal ska vara true eller { igenkanning?, onTranscribe?, inspelare? }, fick ${fick}.`);
+  }
+  if (typeof onChange !== "function") {
+    throw new Error(`${vem}: tal kräver onChange. Det sagda skrivs in i fältet genom den, och utan den hade Klar inte gjort något.`);
+  }
+  if (tal === true) return { igenkanning: true };
+  const okanda = Object.keys(tal).filter((k) => !TALNYCKLAR.includes(k));
+  if (okanda.length) throw new Error(`${vem}: okända nycklar i tal: ${okanda.join(", ")}. Tillåtna: ${TALNYCKLAR.join(", ")}.`);
+  if (tal.onTranscribe !== undefined && typeof tal.onTranscribe !== "function") throw new Error(`${vem}: tal.onTranscribe ska vara en funktion.`);
+  if (!tal.igenkanning && !tal.onTranscribe) {
+    throw new Error(`${vem}: tal behöver igenkanning eller onTranscribe. Utan någon av dem finns inget som kan göra text av det sagda, och mikrofonen hade bara kunnat ge ett fel.`);
+  }
+  return tal;
+}
 
 /**
  * ⛔ FÄLTETS ORD PÅ BÅDA SPRÅKEN. TALK:s egen yta (`OpsInspelning`) har sina ord; de här är fältets: knappens namn, Klars namn,
@@ -279,31 +344,17 @@ export function skrivInTal(varde, markor, ut, max) {
  *
  *   ⛔ ENTER ENSAMT SKICKAR ALDRIG. En textarea bär flera rader, och en ruta där
  *   Enter skickar gör radbrytning omöjlig utan att man först lärt sig en genväg.
- * @param {boolean | Textfaltstal} [props.tal] (0.104.0) Tal i fältet: en mikrofon i fältets nedre hörn. Ett tryck visar TALK:s yta med
+ * @param {boolean | Textfaltstal} [props.tal] (0.104.0) Tal i fältet: en ljudvåg i fältets nedre hörn. Ett tryck visar TALK:s yta med
  *   texten medan den hörs, Klar skriver in det sagda där markören stod (eller sist), och Avbryt ändrar ingenting. Fältet skickar
- *   inget. Se `Textfaltstal` och `TalTextarea`. ⛔ Kräver `onChange`: det sagda skrivs in genom den, som allt annat i fältet.
+ *   inget. Se `Textfaltstal` och `TalFalt`. ⛔ Kräver `onChange`: det sagda skrivs in genom den, som allt annat i fältet.
+ *   ⛔ PÅ SOM FÖRVAL SEDAN 0.106.0 (#386 skiva 8), när fältet har `onChange` och webbläsaren har taligenkänning (`talForval`).
+ *   `tal={false}` stänger av.
  */
 export function OpsTextarea({ value, onChange, placeholder, name, rows = 4, disabled = false, maxLength, ariaLabel, onSend, tal }) {
   const f = useFieldBinding();
-  if (tal !== undefined && tal !== false) {
-    if (tal !== true && (!tal || typeof tal !== "object" || Array.isArray(tal))) {
-      // ⛔ VAD DET VAR, INTE `typeof` (0.104.0, granskningen av PR 384, KAN 8): `typeof null` är "object", och "fick object" om null
-      // säger ingenting om felet.
-      const fick = tal === null ? "null. Utelämna tal, eller ge false, för ett fält utan mikrofon" : Array.isArray(tal) ? "en lista" : typeof tal === "string" ? JSON.stringify(tal) : String(tal);
-      throw new Error(`OpsTextarea: tal ska vara true eller { igenkanning?, onTranscribe?, inspelare? }, fick ${fick}.`);
-    }
-    if (typeof onChange !== "function") {
-      throw new Error("OpsTextarea: tal kräver onChange. Det sagda skrivs in i fältet genom den, och utan den hade Klar inte gjort något.");
-    }
-    if (tal !== true) {
-      const okanda = Object.keys(tal).filter((k) => !TALNYCKLAR.includes(k));
-      if (okanda.length) throw new Error(`OpsTextarea: okända nycklar i tal: ${okanda.join(", ")}. Tillåtna: ${TALNYCKLAR.join(", ")}.`);
-      if (tal.onTranscribe !== undefined && typeof tal.onTranscribe !== "function") throw new Error("OpsTextarea: tal.onTranscribe ska vara en funktion.");
-      if (!tal.igenkanning && !tal.onTranscribe) {
-        throw new Error("OpsTextarea: tal behöver igenkanning eller onTranscribe. Utan någon av dem finns inget som kan göra text av det sagda, och mikrofonen hade bara kunnat ge ett fel.");
-      }
-    }
-    return <TalTextarea f={f} value={value ?? ""} onChange={onChange} placeholder={placeholder} name={name} rows={rows} disabled={disabled} maxLength={maxLength} ariaLabel={ariaLabel} onSend={onSend} tal={tal === true ? { igenkanning: true } : tal} />;
+  const t = talForval(tal, onChange, false, "OpsTextarea");
+  if (t) {
+    return <TalFalt slag="textarea" f={f} value={value ?? ""} onChange={/** @type {(v: string) => void} */ (onChange)} placeholder={placeholder} name={name} rows={rows} disabled={disabled} maxLength={maxLength} ariaLabel={ariaLabel} onSend={onSend} tal={t} />;
   }
   return (
     <textarea
@@ -337,7 +388,7 @@ function sendGenvag(onSend) {
 }
 
 /**
- * `OpsTextarea` med tal (0.104.0).
+ * `OpsTextarea` och `OpsInput` med tal (0.104.0, `OpsInput` och förvalet 0.106.0).
  *
  * ══ ⛔ HÄNDELSEN ═════════════════════════════════════════════════════════════════════════════════════════════════════════════
  *
@@ -354,12 +405,15 @@ function sendGenvag(onSend) {
  * ⛔ YTAN STÅR I FÄLTETS PLATS MEDAN RÖSTEN ARBETAR, som i chatten. Fältets text ligger kvar orörd hos appen och kommer tillbaka med
  * det sagda inskrivet, eller oförändrad efter Avbryt. Fokus går tillbaka till fältet i båda fallen, med markören efter det inskrivna.
  *
- * @param {{ f: { id?: string, etikettId?: string, describedBy?: string, invalid: boolean, required: boolean }, value: string, onChange: (v: string) => void, placeholder?: string, name?: string, rows: number, disabled: boolean, maxLength?: number, ariaLabel?: string, onSend?: () => void, tal: Textfaltstal }} props
+ * ⛔ ETT FÄLT PÅ EN RAD (0.106.0, #386 skiva 8): ljudvågen står vid fältets slut, mitt i höjden, och fältet har plats för den (`pe-12`).
+ * Det sagda skrivs in på en rad: radbrytningar i det taltjänsten gav blir mellanslag, eftersom ett `input` inte bär dem.
+ *
+ * @param {{ slag: "textarea" | "input", f: { id?: string, etikettId?: string, describedBy?: string, invalid: boolean, required: boolean }, value: string, onChange: (v: string) => void, placeholder?: string, name?: string, rows?: number, disabled: boolean, maxLength?: number, ariaLabel?: string, onSend?: () => void, typ?: string, autoComplete?: string, tal: Textfaltstal }} props
  */
-function TalTextarea({ f, value, onChange, placeholder, name, rows, disabled, maxLength, ariaLabel, onSend, tal }) {
+function TalFalt({ slag, f, value, onChange, placeholder, name, rows, disabled, maxLength, ariaLabel, onSend, typ, autoComplete, tal }) {
   const sprak = useOpsSprak();
   const o = /** @type {Record<keyof typeof ORD_OPSTEXTAREA_TAL, string>} */ (forvalda(ORD_OPSTEXTAREA_TAL, sprak));
-  const ruta = useRef(/** @type {HTMLTextAreaElement | null} */ (null));
+  const ruta = useRef(/** @type {HTMLTextAreaElement & HTMLInputElement | null} */ (null));
   const ytaRef = useRef(/** @type {HTMLDivElement | null} */ (null));
   const besked = useId();
   /** Markören senast den stod i fältet. `null` tills den gjort det: då hamnar det sagda sist. */
@@ -386,7 +440,8 @@ function TalTextarea({ f, value, onChange, placeholder, name, rows, disabled, ma
     inspelare: tal.inspelare,
     igenkanning: tal.igenkanning,
     texter: o,
-    onTal: (ut) => {
+    onTal: (sagt) => {
+      const ut = slag === "input" ? sagt.replace(/\s*[\r\n]+\s*/g, " ").trim() : sagt;
       const r = skrivInTal(vardeRef.current, markor.current, ut, maxLength);
       setKapat(r.kapat);
       tillbakaTill.current = { start: r.markor, slut: r.markor, varde: r.varde, annars: markor.current };
@@ -425,36 +480,40 @@ function TalTextarea({ f, value, onChange, placeholder, name, rows, disabled, ma
         <Rostyta rost={rost} klarEtikett={o.klar} ytaRef={ytaRef} ram="falt" namn={f.etikettId ? { etikettId: f.etikettId } : ariaLabel ? { text: ariaLabel } : undefined} />
       ) : (
         <div className="relative min-w-0">
-          <textarea
-            ref={ruta}
-            onKeyDown={sendGenvag(onSend)}
-            onSelect={(e) => {
-              const el = /** @type {HTMLTextAreaElement} */ (e.target);
-              markor.current = { start: el.selectionStart ?? el.value.length, slut: el.selectionEnd ?? el.value.length };
-            }}
-            id={f.id}
-            className={cx(faltKlass({ invalid: f.invalid }), "block resize-y", kanGeText && "pe-14")}
-            value={value}
-            onChange={(e) => {
-              if (kapat !== "nej") setKapat("nej");
-              markor.current = { start: e.target.selectionStart ?? e.target.value.length, slut: e.target.selectionEnd ?? e.target.value.length };
-              onChange(e.target.value);
-            }}
-            placeholder={placeholder}
-            name={name}
-            rows={rows}
-            disabled={disabled}
-            maxLength={maxLength}
-            required={f.required || undefined}
-            aria-label={ariaLabel}
-            aria-invalid={f.invalid || undefined}
-            aria-describedby={cx(f.describedBy, kapattext && besked) || undefined}
-          />
+          {(() => {
+            const egenskaper = {
+              ref: ruta,
+              onSelect: (/** @type {any} */ e) => {
+                const el = /** @type {HTMLTextAreaElement} */ (e.target);
+                markor.current = { start: el.selectionStart ?? el.value.length, slut: el.selectionEnd ?? el.value.length };
+              },
+              id: f.id,
+              value,
+              onChange: (/** @type {any} */ e) => {
+                if (kapat !== "nej") setKapat("nej");
+                markor.current = { start: e.target.selectionStart ?? e.target.value.length, slut: e.target.selectionEnd ?? e.target.value.length };
+                onChange(e.target.value);
+              },
+              placeholder,
+              name,
+              disabled,
+              maxLength,
+              required: f.required || undefined,
+              "aria-label": ariaLabel,
+              "aria-invalid": f.invalid || undefined,
+              "aria-describedby": cx(f.describedBy, kapattext && besked) || undefined,
+            };
+            return slag === "input" ? (
+              <input {...egenskaper} type={typ ?? "text"} autoComplete={autoComplete} className={cx(faltKlass({ invalid: f.invalid }), "block", kanGeText && "pe-12")} />
+            ) : (
+              <textarea {...egenskaper} onKeyDown={sendGenvag(onSend)} rows={rows} className={cx(faltKlass({ invalid: f.invalid }), "block resize-y", kanGeText && "pe-14")} />
+            );
+          })()}
           {kanGeText && !disabled ? (
             <Mikrofonknapp
               lage={rost.lage}
               etikett={o.prataIn}
-              placering="falt"
+              placering={slag === "input" ? "rad-falt" : "falt"}
               onClick={() => {
                 setKapat("nej");
                 tillbakaTill.current = markor.current;

@@ -1861,6 +1861,31 @@ function InkorgScen() {
   return <Full>{k ? <Ops.OpsMeddelanden kalla={k.s} uid="anna" groupId="g1" gruppNamn="Claes Philip Staiger AB" medlemmar={medlemmar} onValj={() => {}} {...(window.__aktiv === "samtal" ? { valt: k.cia } : {})} /> : <p>Laddar</p>}</Full>;
 }
 
+/*
+ * 0.106.0 (#386 skiva 8): tal i alla textfält, som förval. Ett formulär som en egen app: text, långtext, och de typer som aldrig får
+ * tal. Sidan har en fejkad `webkitSpeechRecognition` (avsnittets init-skript), så att förvalet syns som i Chrome och Safari. Avsnitt 47 (8).
+ */
+function TalAllaScen() {
+  const { OpsView, OpsField, OpsInput, OpsTextarea } = Ops;
+  const [v, setV] = useState({ namn: "Styrelsemöte med banken om lånet till den nya lokalen i Visby", besk: "Vi går igenom offerten, amorteringen och vad som händer om räntan stiger igen under hösten.", los: "hemligt", epost: "anna@exempel.se", sok: "moms", tal: "12" });
+  const satt = (k) => (x) => setV((u) => ({ ...u, [k]: x }));
+  return (
+    <Full>
+      <OpsView>
+        <div className="flex max-w-2xl flex-col gap-4">
+          <p className="m-0 text-rubrik text-ink">Nytt möte</p>
+          <div data-tal-falt="text"><OpsField label="Rubrik"><OpsInput value={v.namn} onChange={satt("namn")} /></OpsField></div>
+          <div data-tal-falt="langtext"><OpsField label="Beskrivning"><OpsTextarea value={v.besk} onChange={satt("besk")} rows={3} /></OpsField></div>
+          <div data-tal-falt="password"><OpsField label="Lösenord"><OpsInput type="password" value={v.los} onChange={satt("los")} /></OpsField></div>
+          <div data-tal-falt="email"><OpsField label="E-post"><OpsInput type="email" value={v.epost} onChange={satt("epost")} /></OpsField></div>
+          <div data-tal-falt="search"><OpsField label="Sök"><OpsInput type="search" value={v.sok} onChange={satt("sok")} /></OpsField></div>
+          <div data-tal-falt="number"><OpsField label="Antal"><OpsInput type="number" value={v.tal} onChange={satt("tal")} /></OpsField></div>
+        </div>
+      </OpsView>
+    </Full>
+  );
+}
+
 function Scen() {
   const s = window.__skal;
   if (s === "menyer") return <Menyer />;
@@ -2206,6 +2231,7 @@ function Scen() {
   if (s === "chatt0106-las") return <LasScen />;
   if (s === "chatt0106-mer") return <MerScen />;
   if (s === "chatt0106-inkorg") return <InkorgScen />;
+  if (s === "tal-alla-falt") return <TalAllaScen />;
   if (s === "installning") {
     return (
       <Skal>

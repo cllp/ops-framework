@@ -224,21 +224,36 @@ export function Rostyta({ rost, klarEtikett, ytaRef, ram, namn }) {
 }
 
 /**
- * Mikrofonen i ett fält: en ljudvåg i en rund knapp. ⛔ TRÄFFYTAN ÄR KNAPPEN, 44 PX; cirkeln inuti är det man ser. Samma knapp i
- * chattens skrivfält och i `OpsTextarea`, så att de två ser likadana ut och inte kan glida isär.
+ * Mikrofonen i ett fält: en ljudvåg i en rund knapp. ⛔ TRÄFFYTAN ÄR KNAPPEN, 44 PX; cirkeln inuti är det man ser. Samma knapp och samma
+ * ikon (`LjudvagIkon`) i chattens skrivfält och i `OpsTextarea` och `OpsInput`, så att de ser likadana ut och inte kan glida isär.
  *
- * @param {{ lage: string, etikett: string, onClick: () => void, placering?: "rad" | "falt" }} props `falt`: i textfältets nedre hörn.
+ * ⛔ DISKRET I FORMULÄRENS FÄLT (0.106.0, #386 skiva 8). Med tal som förval står ljudvågen i varje textfält, och en vit cirkel med kant
+ * och skugga i varje fält hade gjort ett formulär till en rad knappar. I `falt` och `rad-falt` är cirkeln utan kant och skugga och
+ * ikonen dämpad, tills pekaren eller fokus är på den. Chattens skrivfält (`rad`) behåller sin cirkel: där är rösten ett sätt att skicka.
+ *
+ * @param {{ lage: string, etikett: string, onClick: () => void, placering?: "rad" | "falt" | "rad-falt" }} props `falt`: i textfältets
+ *   nedre hörn. `rad-falt`: vid slutet av ett fält på en rad, mitt i höjden.
  */
 export function Mikrofonknapp({ lage, etikett, onClick, placering = "rad" }) {
+  const iFalt = placering !== "rad";
   return (
     <button
       type="button"
       data-mikrofon={lage}
       aria-label={etikett}
       onClick={onClick}
-      className={cx("group/knapp inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full focus-visible:outline-none", placering === "falt" && "absolute end-3 bottom-0.5")}
+      className={cx(
+        "group/knapp inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full focus-visible:outline-none",
+        placering === "falt" && "absolute end-3 bottom-0.5",
+        placering === "rad-falt" && "absolute end-0.5 top-1/2 -translate-y-1/2",
+      )}
     >
-      <span className="inline-flex size-9 items-center justify-center rounded-full border border-line bg-surface text-ink shadow-sm transition-colors duration-(--duration-fast) ease-standard group-hover/knapp:bg-hover group-focus-visible/knapp:outline-2 group-focus-visible/knapp:outline-offset-1 group-focus-visible/knapp:outline-accent">
+      <span
+        className={cx(
+          "inline-flex size-9 items-center justify-center rounded-full transition-colors duration-(--duration-fast) ease-standard group-focus-visible/knapp:outline-2 group-focus-visible/knapp:outline-offset-1 group-focus-visible/knapp:outline-accent",
+          iFalt ? "text-ink-muted group-hover/knapp:bg-hover group-hover/knapp:text-ink" : "border border-line bg-surface text-ink shadow-sm group-hover/knapp:bg-hover",
+        )}
+      >
         <LjudvagIkon size={18} />
       </span>
     </button>

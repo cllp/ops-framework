@@ -867,7 +867,10 @@ async function textfaltMedTal() {
       if (m.falt && m.knapp && m.cirkel) {
         matt.push(`${namn}: knappen ${m.knapp.w}x${m.knapp.h} px, cirkel ${m.cirkel.w} px med kant ${m.cirkelKant}, ikon ${m.ikon} px, innehållet slutar ${m.innehallHoger?.toFixed(1)} och knappen börjar ${m.knapp.x.toFixed(1)}, sidan rullar ${m.over} px, fältet ${m.faltRullar} px`);
         krav(Math.abs(m.knapp.w - 44) < 0.5 && Math.abs(m.knapp.h - 44) < 0.5, `${namn}: knappen är ${m.knapp.w}x${m.knapp.h} px, väntat 44x44 som chattens.`);
-        krav(Math.abs(m.cirkel.w - 36) < 0.5 && Math.abs(m.cirkel.h - 36) < 0.5 && m.cirkelRadie >= 18 && m.cirkelKant >= 1, `${namn}: cirkeln är ${m.cirkel.w}x${m.cirkel.h} px med rundning ${m.cirkelRadie} och kant ${m.cirkelKant}, väntat en 36 px cirkel med kant som chattens.`);
+        // ⛔ 0.106.0 (#386 skiva 8): UTAN KANT I ETT FORMULÄRFÄLT. Med tal som förval står ljudvågen i varje textfält, och CP bad om den
+        // diskret. Ikonen och storleken är chattens; kanten och skuggan är bara chattens, där rösten är ett sätt att skicka. Fram till
+        // 0.105.0 krävde raden här kant, som chattens.
+        krav(Math.abs(m.cirkel.w - 36) < 0.5 && Math.abs(m.cirkel.h - 36) < 0.5 && m.cirkelRadie >= 18 && m.cirkelKant === 0, `${namn}: cirkeln är ${m.cirkel.w}x${m.cirkel.h} px med rundning ${m.cirkelRadie} och kant ${m.cirkelKant}, väntat en 36 px cirkel utan kant (diskret i ett formulärfält).`);
         krav(Math.abs(m.ikon - 18) < 0.5, `${namn}: ikonen är ${m.ikon} px, väntat 18 som chattens.`);
         krav(m.namn === "Prata in", `${namn}: knappen heter ${JSON.stringify(m.namn)}, väntat "Prata in".`);
         krav(m.knapp.x >= m.falt.x - 0.5 && m.knapp.hoger <= m.falt.hoger + 0.5 && m.knapp.y >= m.falt.y - 0.5 && m.knapp.botten <= m.falt.botten + 0.5, `${namn}: knappen (${JSON.stringify(m.knapp)}) står inte helt inne i fältet (${JSON.stringify(m.falt)}).`);

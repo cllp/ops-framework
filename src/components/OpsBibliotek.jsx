@@ -1646,7 +1646,7 @@ function Detalj({ post, skapar, jag, startLage, onStang, onSpara, onLaddaUpp, fi
         </OpsField>
       ) : (
         <OpsField label="Adress">
-          <OpsInput value={url} onChange={setUrl} ariaLabel="Adress" placeholder="https://" />
+          <OpsInput value={url} onChange={setUrl} ariaLabel="Adress" placeholder="https://" tal={false} />
         </OpsField>
       )}
     </>
