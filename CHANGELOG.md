@@ -9,6 +9,49 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.104.0
+
+**Tal i vanliga textfält: `OpsTextarea` tar `tal`, och ett tryck på mikrofonen skriver in det sagda i fältet.**
+
+CP 2026-10-14, med en skärmbild av Skapa app i lifehub.app (ett `OpsTextarea` med "Beskriv appen du vill ha"): "Jag vill gärna ha
+TALK funktionen även här på skapa app." Skärmbilder mot en byggd yta, 390 och 1280 px, i vila och medan man pratar:
+`docs/jamforelser/0.104.0/` (`node scripts/check-skalyta.mjs --bara-textfalt --bilder docs/jamforelser/0.104.0`).
+
+### Tillagt: `tal` på `OpsTextarea`
+
+- `tal={true}` eller `tal={{ igenkanning?, onTranscribe?, inspelare? }}` ger en mikrofon i fältets nedre hörn, samma knapp som i
+  chattens skrivfält. Ett tryck visar TALK:s inspelningsyta med texten medan den hörs. **Klar skriver in det sagda där markören
+  stod**, eller sist när markören aldrig stått i fältet, med ett mellanslag där orden annars suttit ihop. **Avbryt ändrar ingenting.**
+  Fältet skickar inget, till skillnad från chatten. Fokus går tillbaka till fältet efter Klar och Avbryt, med markören efter det
+  inskrivna.
+- Samma regler som chatten och TALK: den preliminära texten räknas vid stopp, `onTranscribe` är reserven när igenkänningen inte gav
+  någon text eller saknas i webbläsaren, mikrofonen släpps i alla vägar ut, och ett fel står i ytan med Försök igen. **Inget tomt
+  skrivs in tyst** (rättelsen för cllp/lifehub.app#253): kommer utskriften tillbaka tom, eller finns varken text eller utskrift, säger
+  ytan det.
+- **`maxLength` gäller även det sagda.** Det som inte får plats kapas, och fältet säger det på en statusrad under fältet ("Det du sa
+  kortades: fältet rymmer N tecken.", eller att fältet är fullt). Raden försvinner vid nästa ändring.
+- Mikrofonen ritas bara när den kan ge text: med `onTranscribe`, eller med igenkänning som webbläsaren har. `tal={true}` slår på
+  igenkänningen; i objektformen är den av som förval, som i TALK, eftersom webbläsaren skickar talet till Google eller Apple.
+- `tal` kräver `onChange`, och ett `tal` utan både `igenkanning` och `onTranscribe` eller med en okänd nyckel kastar.
+- Fältets ord på svenska och engelska: `ORD_OPSTEXTAREA_TAL` (knappen heter "Prata in" och "Dictate").
+
+### Ändrat: röstinmatningen har ett hem
+
+Talet bodde inbyggt i chattens skrivfält (`OpsMeddelanden.jsx`). Det är utbrutet till `OpsRostinmatning.jsx`
+(`useRostinmatning`, `useRostfokus`, `Rostyta`, `Mikrofonknapp`), och både chatten och `OpsTextarea` använder det. Den enda
+skillnaden mellan dem skickas in som `onTal`: chatten skickar, fältet skriver in. Chattens beteende och texter är oförändrade, och
+dess prov (`chatt-live-text`, `chatt-talk-krock`, `chatt-skrivfalt`, `chatt-bilagor`) är gröna utan ändringar.
+
+### Vakter
+
+- `src/__tests__/textfalt-tal.test.jsx`: Klar skriver in vid markören, sist utan markör, Avbryt ändrar inget, `maxLength` kapar och
+  säger det, reserven via `onTranscribe`, inget tomt skrivs in tyst, mikrofonen bara när den kan ge text, och `skrivInTal`. Röda mot
+  0.103.0 (11 av 12; den tolfte mäter att ett fält utan `tal` är som förut), och var och en röd när just dess beteende tas bort.
+- `check-skalyta.mjs` avsnitt 45 (`--bara-textfalt`), vid 390 och 1280 px: knappen 44 px med en 36 px cirkel och 18 px ikon som
+  chattens, träffbar på 44x44, helt inne i fältet; fältets text slutar före knappen; inget rullar i sidled; ett tryck ger ytan i
+  fältets plats med fokus på Klar, och Klar skriver in det sagda sist med markören efter. Rött mot 0.103.0 (6 av 6), och rött på
+  överlappet när fältet saknar utfyllnaden till höger.
+
 ## 0.103.0
 
 **Samtalet i TALK-fältet, och tre ikoner som gör det till ett meddelande, en händelse eller ett ärende. Mittknappen är en

@@ -42,6 +42,7 @@
  *       node scripts/check-skalyta.mjs --bilder <mapp>   skriver skärmbilderna dit (för montaget, regel 12)
  *       node scripts/check-skalyta.mjs --bara-chatt      bara avsnitt 29g, chattens nattskiva (#273), för en snabb körning
  *       node scripts/check-skalyta.mjs --bara-appar      bara Appar-hyllan mot plusknappen (0.90.6)
+ *       node scripts/check-skalyta.mjs --bara-textfalt   bara avsnitt 45, tal i ett vanligt textfält (0.104.0)
  *       node scripts/check-skalyta.mjs --chattbredder 390,1024   29g i andra bredder än 390 och 1280
  *       node scripts/check-skalyta.mjs --tema dark        alla sidor i mörkt tema (förebilden CP jämför mot är mörk)
  */
@@ -795,6 +796,103 @@ async function apparArkOrdning() {
     krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
   }
   await context.close();
+}
+
+// ══ 45. TAL I ETT VANLIGT TEXTFÄLT (0.104.0) ═════════════════════════════════════════════════════════════════════════════════════════
+// CP 2026-10-14, med en skärmbild av Skapa app i lifehub.app (ett `OpsTextarea` med "Beskriv appen du vill ha"): "Jag vill gärna ha
+// TALK funktionen även här på skapa app." jsdom kör ingen CSS, så knappens mått, att texten inte går in under den och att inget rullar
+// i sidled går bara att se här. Vid 390 och 1280 px, scenen `textfalt-tal`:
+//   (1) MIKROFONEN SOM I CHATTENS FÄLT: en 44 px knapp med en 36 px cirkel med kant och en 18 px ikon, träffbar på minst 44x44 där
+//       ett tryck landar (`elementFromPoint`), och helt inne i fältets ruta.
+//   (2) INGET ÖVERLAPP MED TEXTEN: fältets innehållsruta (rutan minus kant och utfyllnad till höger) slutar vid mikrofonens vänsterkant
+//       eller före den, så att ingen rad kan gå in under knappen.
+//   (3) INGET RULLAR I SIDLED: varken sidan eller fältet.
+//   (4) ETT TRYCK GER TALK:S YTA i fältets plats, med texten medan den hörs, inom fönstret och med fokus på Klar. Klar skriver in det
+//       sagda sist i fältet, och fokus står i fältet med markören efter det inskrivna.
+// ⛔ GOLV: fältet, mikrofonen och minst 100 tecken text måste finnas, annars rött.
+async function textfaltMedTal() {
+  for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
+    const namn = `textfältet med tal ${vp.width} px`;
+    const { page, context } = await oppna("textfalt-tal", vp);
+    try {
+      await page.waitForSelector("textarea", { timeout: 4000 });
+      const m = await page.evaluate(() => {
+        const falt = /** @type {HTMLTextAreaElement | null} */ (document.querySelector("[data-textfalt-tal] textarea"));
+        const knapp = document.querySelector("[data-textfalt-tal] [data-mikrofon]");
+        const cirkel = knapp?.querySelector("span");
+        const svg = knapp?.querySelector("svg");
+        const ruta = (/** @type {Element | null | undefined} */ el) => {
+          if (!el) return null;
+          const r = el.getBoundingClientRect();
+          return { x: r.x, y: r.y, w: r.width, h: r.height, hoger: r.right, botten: r.bottom };
+        };
+        const cs = falt ? getComputedStyle(falt) : null;
+        const ccs = cirkel ? getComputedStyle(cirkel) : null;
+        return {
+          falt: ruta(falt),
+          innehallHoger: falt && cs ? falt.getBoundingClientRect().right - parseFloat(cs.borderRightWidth) - parseFloat(cs.paddingRight) : null,
+          faltRullar: falt ? falt.scrollWidth - falt.clientWidth : null,
+          tecken: falt ? falt.value.length : 0,
+          knapp: ruta(knapp),
+          cirkel: ruta(cirkel),
+          cirkelKant: ccs ? parseFloat(ccs.borderTopWidth) : 0,
+          cirkelRadie: ccs ? parseFloat(ccs.borderTopLeftRadius) : 0,
+          ikon: svg ? svg.getBoundingClientRect().width : 0,
+          namn: knapp?.getAttribute("aria-label") ?? null,
+          over: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        };
+      });
+      krav(!!m.falt && !!m.knapp && m.tecken >= 100, `${namn}: fältet (${!!m.falt}), mikrofonen (${!!m.knapp}) eller minst 100 tecken text (${m.tecken}) saknas.`);
+      if (m.falt && m.knapp && m.cirkel) {
+        matt.push(`${namn}: knappen ${m.knapp.w}x${m.knapp.h} px, cirkel ${m.cirkel.w} px med kant ${m.cirkelKant}, ikon ${m.ikon} px, innehållet slutar ${m.innehallHoger?.toFixed(1)} och knappen börjar ${m.knapp.x.toFixed(1)}, sidan rullar ${m.over} px, fältet ${m.faltRullar} px`);
+        krav(Math.abs(m.knapp.w - 44) < 0.5 && Math.abs(m.knapp.h - 44) < 0.5, `${namn}: knappen är ${m.knapp.w}x${m.knapp.h} px, väntat 44x44 som chattens.`);
+        krav(Math.abs(m.cirkel.w - 36) < 0.5 && Math.abs(m.cirkel.h - 36) < 0.5 && m.cirkelRadie >= 18 && m.cirkelKant >= 1, `${namn}: cirkeln är ${m.cirkel.w}x${m.cirkel.h} px med rundning ${m.cirkelRadie} och kant ${m.cirkelKant}, väntat en 36 px cirkel med kant som chattens.`);
+        krav(Math.abs(m.ikon - 18) < 0.5, `${namn}: ikonen är ${m.ikon} px, väntat 18 som chattens.`);
+        krav(m.namn === "Prata in", `${namn}: knappen heter ${JSON.stringify(m.namn)}, väntat "Prata in".`);
+        krav(m.knapp.x >= m.falt.x - 0.5 && m.knapp.hoger <= m.falt.hoger + 0.5 && m.knapp.y >= m.falt.y - 0.5 && m.knapp.botten <= m.falt.botten + 0.5, `${namn}: knappen (${JSON.stringify(m.knapp)}) står inte helt inne i fältet (${JSON.stringify(m.falt)}).`);
+        krav(m.innehallHoger !== null && m.innehallHoger <= m.knapp.x + 0.5, `${namn}: fältets text får gå till ${m.innehallHoger?.toFixed(1)} px, men knappen börjar vid ${m.knapp.x.toFixed(1)}: raderna går in under mikrofonen.`);
+        krav(m.over <= 0 && (m.faltRullar ?? 1) <= 0, `${namn}: sidan rullar ${m.over} px och fältet ${m.faltRullar} px i sidled, väntat inget.`);
+      }
+      const traff = await matTraffyta(page, "[data-textfalt-tal] [data-mikrofon]");
+      krav(traff.length === 1, `${namn}: ${traff.length} mikrofoner mättes med elementFromPoint, väntat 1.`);
+      for (const t of traff) krav(t.mittTraff && t.w >= 43.5 && t.h >= 43.5, `${namn}: mikrofonen träffas bara på ${t.w}x${t.h} px där ett tryck landar, väntat minst 44x44.`);
+      if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `textfalt-tal-${vp.width}.png`) });
+      const fore = await page.evaluate(() => /** @type {any} */ (window).__textfalt);
+      await page.locator("[data-textfalt-tal] [data-mikrofon]").click();
+      await page.locator('[data-textfalt-tal] [data-rostyta][data-rostlage="spelar"]').waitFor({ timeout: 4000 });
+      await page.waitForFunction(() => (document.querySelector("[data-rostyta] [data-talk-text]")?.textContent || "").endsWith("per barn"), null, { timeout: 4000 });
+      const y = await page.evaluate(() => {
+        const el = /** @type {HTMLElement} */ (document.querySelector("[data-rostyta]"));
+        const r = el.getBoundingClientRect();
+        return { x: r.x, hoger: r.right, w: r.width, falt: Boolean(document.querySelector("[data-textfalt-tal] textarea")), fokus: document.activeElement?.getAttribute("aria-label") ?? null, over: document.documentElement.scrollWidth - document.documentElement.clientWidth };
+      });
+      matt.push(`${namn}, spelar: ytan ${y.w.toFixed(1)} px från ${y.x.toFixed(1)}, fältet ${y.falt ? "kvar" : "borta"}, fokus ${JSON.stringify(y.fokus)}, sidan rullar ${y.over} px`);
+      krav(!y.falt && y.x >= 0 && y.hoger <= vp.width + 0.5 && y.over <= 0, `${namn}: ytan står inte i fältets plats inom fönstret (${JSON.stringify(y)}).`);
+      krav(y.fokus === "Klar, skriv in det du sagt", `${namn}: fokus står på ${JSON.stringify(y.fokus)} medan man pratar, väntat Klar.`);
+      if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `textfalt-tal-spelar-${vp.width}.png`) });
+      await page.locator("[data-rostyta] [data-talk-skicka]").click();
+      await page.locator("[data-textfalt-tal] textarea").waitFor({ timeout: 4000 });
+      await page.waitForTimeout(100);
+      const efter = await page.evaluate(() => {
+        const f = /** @type {HTMLTextAreaElement} */ (document.querySelector("[data-textfalt-tal] textarea"));
+        return { varde: f.value, fokus: document.activeElement === f, markor: f.selectionStart, langd: f.value.length };
+      });
+      matt.push(`${namn}, efter Klar: ${efter.langd} tecken, fokus i fältet ${efter.fokus}, markören ${efter.markor}`);
+      krav(efter.varde === `${fore} och en lista över läxor per barn`, `${namn}: efter Klar står ${JSON.stringify(efter.varde.slice(-60))} sist, väntat det sagda skrivet sist i fältet.`);
+      krav(efter.fokus && efter.markor === efter.langd, `${namn}: efter Klar är fokus ${efter.fokus ? "i fältet" : "inte i fältet"} med markören vid ${efter.markor} av ${efter.langd}, väntat i fältet efter det inskrivna.`);
+    } catch (e) {
+      krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+    }
+    await context.close();
+  }
+}
+
+// `--bara-textfalt`: bara avsnitt 45, tal i ett vanligt textfält. Hela körningen kör det också.
+if (argv.includes("--bara-textfalt")) {
+  await textfaltMedTal();
+  await browser.close();
+  avsluta();
+  process.exit(0);
 }
 
 if (argv.includes("--bara-appar")) {
@@ -6596,6 +6694,7 @@ for (const [namn, vp] of /** @type {const} */ ([["TALK-knappen 1280 px", { width
 
 await apparArkHylla();
 await apparArkOrdning();
+await textfaltMedTal();
 
 await browser.close();
 avsluta();
