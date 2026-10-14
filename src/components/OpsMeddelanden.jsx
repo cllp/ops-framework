@@ -2707,6 +2707,7 @@ function useTradmarken({ kalla, sid, meddelanden, minne }) {
  * @param {string | null} [props.nyttFran] (0.106.0) Meddelandet som avdelaren "Nytt sedan sist" står före.
  */
 function Meddelanderader({ meddelanden, uid, namnFor, medlemmar, locale, visaNamn, efter, merFor, forraTid, reakt, texter = TEXTER, citat, traffar, fasta, postkort, kalla, sid, trad, onVisaAgent, onForslag, nyttFran = null }) {
+  const bredd = useBredd();
   const medlemsbild = (/** @type {string} */ id) => (medlemmar ?? []).find((m) => m.userId === id)?.bild || undefined;
   const medlemstyp = (/** @type {string} */ id) => (medlemmar ?? []).find((m) => m.userId === id)?.typ;
   return (
@@ -2795,7 +2796,7 @@ function Meddelanderader({ meddelanden, uid, namnFor, medlemmar, locale, visaNam
                   <AgentensForslag varde={/** @type {any} */ (m).forslag} sid={sid} mid={m.id} onForslag={onForslag} />
                 ) : null}
                 {reakt?.pa ? <Reaktionschips m={m} egen={egen} reakt={reakt} texter={texter} /> : null}
-                <Meddelandemeta m={m} egen={egen} locale={locale} extra={extra} mer={merFor?.(m) ?? []} namn={egen ? texter.dittMeddelande : `${texter.svarPa} ${namnFor(m.av)}`} reakt={reakt} fasta={fasta} citat={citat} texter={texter} />
+                <Meddelandemeta m={m} egen={egen} locale={locale} bredd={bredd} extra={extra} mer={merFor?.(m) ?? []} namn={egen ? texter.dittMeddelande : `${texter.svarPa} ${namnFor(m.av)}`} reakt={reakt} fasta={fasta} citat={citat} texter={texter} />
               </div>
             </div>
           </div>
@@ -3638,6 +3639,37 @@ function Reaktionschips({ m, egen, reakt, texter: t }) {
   );
 }
 
+/** Tailwinds `md`, samma tal som `OpsPanel`: under 48rem är skärmen smal. */
+const SMAL_SKARM = "(max-width: 47.99rem)";
+
+/**
+ * Smal eller bred skärm, för meddelandenas åtgärder (0.106.0, #386 skiva 6). ⛔ EN LYSSNARE PER LISTA, inte per meddelande.
+ *
+ * ⛔ MÄTT, REGEL 13: med Mer-knappen OCH de lösa knapparna i DOM:en för varje meddelande (CSS väljer vilka som syns) tog ett samtal
+ * nästan dubbelt så lång tid att rita i jsdom. Med bredden känd ritas bara den ena uppsättningen, och telefonen får färre element per
+ * meddelande än i 0.105.0 (mätt i check-skalyta 47 (6)). `null` när `matchMedia` saknas (jsdom, serverrendering): då ritas båda och
+ * CSS väljer, som förut.
+ * @returns {"smal" | "bred" | null}
+ */
+function useBredd() {
+  /** @returns {"smal" | "bred" | null} */
+  const las = () => (typeof window === "undefined" || typeof window.matchMedia !== "function" ? null : window.matchMedia(SMAL_SKARM).matches ? "smal" : "bred");
+  const [bredd, setBredd] = useState(las);
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return undefined;
+    const fraga = window.matchMedia(SMAL_SKARM);
+    const lyssna = () => setBredd(fraga.matches ? "smal" : "bred");
+    lyssna();
+    if (typeof fraga.addEventListener === "function") {
+      fraga.addEventListener("change", lyssna);
+      return () => fraga.removeEventListener("change", lyssna);
+    }
+    fraga.addListener?.(lyssna);
+    return () => fraga.removeListener?.(lyssna);
+  }, []);
+  return bredd;
+}
+
 /**
  * Raden under bubblan: tiden, vyns innehåll (trådens märke), och meddelandets åtgärder.
  *
@@ -3648,13 +3680,15 @@ function Reaktionschips({ m, egen, reakt, texter: t }) {
  * bubblas text inte att markera utan att sidan förstorar. På dator är raden oförändrad: ikonerna syns vid hover och fokus.
  * Det som är INNEHÅLL står kvar på båda: trådens märke "3 svar" och nålen på ett fäst meddelande.
  *
- * @param {{ m: import("../lib/samtal.js").Meddelande & { id: string }, egen: boolean, locale: string, extra: import("react").ReactNode,
+ * @param {{ m: import("../lib/samtal.js").Meddelande & { id: string }, egen: boolean, locale: string, bredd: "smal" | "bred" | null, extra: import("react").ReactNode,
  *   mer: import("./OpsAtgardsblad.jsx").Atgard[], namn: string, reakt?: ReturnType<typeof useReaktioner>,
  *   fasta?: { pa?: boolean, ids: Set<string>, vaxla: (mid: string) => void } | null,
  *   citat?: { pa: boolean, onCitera: (m: import("../lib/samtal.js").Meddelande & { id: string }) => void } | null,
  *   texter: Required<Meddelandetexter> }} props
  */
-function Meddelandemeta({ m, egen, locale, extra, mer, namn, reakt, fasta, citat, texter: t }) {
+function Meddelandemeta({ m, egen, locale, bredd, extra, mer, namn, reakt, fasta, citat, texter: t }) {
+  const losa = bredd !== "smal";
+  const merKnapp = bredd !== "bred";
   const [kopia, setKopia] = useState(/** @type {null | "ok" | "fel"} */ (null));
   useEffect(() => {
     if (!kopia) return undefined;
@@ -3718,8 +3752,8 @@ function Meddelandemeta({ m, egen, locale, extra, mer, namn, reakt, fasta, citat
     <span className={cx("relative mt-0.5 flex max-w-full items-center gap-1.5", egen ? "mr-1 flex-row-reverse" : "ml-1")}>
       <span className="text-liten tabular-nums text-ink-muted">{formatTime(m.tid, { locale })}</span>
       {extra}
-      {reakt?.pa ? <ReageraKnapp m={m} egen={egen} reakt={reakt} texter={t} /> : null}
-      {fasta ? (
+      {reakt?.pa && losa ? <ReageraKnapp m={m} egen={egen} reakt={reakt} texter={t} /> : null}
+      {fasta && (losa || fast) ? (
         <button
           type="button"
           data-fast={m.id}
@@ -3735,7 +3769,7 @@ function Meddelandemeta({ m, egen, locale, extra, mer, namn, reakt, fasta, citat
           <FastIkon size={16} />
         </button>
       ) : null}
-      {citat?.pa ? (
+      {citat?.pa && losa ? (
         <button
           type="button"
           data-citera={m.id}
@@ -3746,7 +3780,7 @@ function Meddelandemeta({ m, egen, locale, extra, mer, namn, reakt, fasta, citat
           <CiteraIkon size={16} />
         </button>
       ) : null}
-      {poster.length > 0 || reaktioner ? (
+      {merKnapp && (poster.length > 0 || reaktioner) ? (
         <span data-mer={m.id} className="-my-2 inline-flex md:hidden">
           <OpsAtgardsblad baraKnapp namn={namn} poster={poster} overst={reaktioner} />
         </span>

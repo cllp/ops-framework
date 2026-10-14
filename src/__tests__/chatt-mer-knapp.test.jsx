@@ -103,6 +103,21 @@ describe("en Mer-knapp per meddelande på telefon", () => {
     expect(document.querySelector("[data-svarar-pa]")).toBeTruthy();
   });
 
+  it("⛔ med känd bredd ritas bara den ena uppsättningen: Mer på telefon, de lösa knapparna på dator (regel 13)", async () => {
+    const { s, g } = await underlag();
+    for (const [smal, finns, saknas] of /** @type {const} */ ([[true, "[data-mer]", "[data-reagera]"], [false, "[data-reagera]", "[data-mer]"]])) {
+      vi.stubGlobal("matchMedia", (/** @type {string} */ q) => ({ matches: smal, media: q, addEventListener() {}, removeEventListener() {} }));
+      const { unmount } = render(<OpsMeddelanden kalla={s} uid="anna" groupId="g" gruppNamn="G" medlemmar={MEDLEMMAR} valt={g.id} />);
+      await within(await screen.findByRole("log")).findByText("Fäst den här");
+      expect(document.querySelectorAll(finns).length).toBe(2);
+      expect(document.querySelectorAll(saknas).length).toBe(0);
+      // Nålen på det fästa meddelandet står kvar på båda.
+      expect(document.querySelectorAll("[data-fast][aria-pressed='true']").length).toBe(1);
+      unmount();
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("⛔ ett urklipp som inte släpper in sägs, och tystnar inte", async () => {
     const { s, p } = await underlag();
     Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: () => Promise.reject(new Error("nekad")) } });

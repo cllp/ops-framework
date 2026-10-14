@@ -345,6 +345,13 @@ export async function skrivfaltet(v) {
 }
 
 /**
+ * Element per meddelande i scenen `chatt0106-mer`, mätt med 0.105.0 (`--dist`): 26 vid både 390 och 1280 px. 0.106.0 mätt: 23,8 och 26.
+ * ⛔ Med Mer-knappen och de lösa knapparna i DOM:en samtidigt (före `useBredd`) var det fler, och chatten ritades nästan dubbelt så långsamt
+ * i jsdom. Taket får bara sjunka.
+ */
+const TAK_ELEMENT_PER_MEDDELANDE = { telefon: 26, dator: 26 };
+
+/**
  * (6) EN MER-KNAPP PER MEDDELANDE PÅ TELEFON (skiva 6). Gruppchatten med trådar, reaktioner och fästa, fem meddelanden.
  *   390 px, iPhonens användaragent och pekskärm (Chromium):
  *   (a) under varje bubbla syns ingen lös åtgärd (Reagera, Fäst, Svara med citat, Svara i tråd), bara innehåll: tiden, en reaktion,
@@ -379,6 +386,14 @@ export async function merKnappen(v) {
       );
       v.matt.push(`${namn}: ${rader.length} meddelanden, ${JSON.stringify(rader)}`);
       v.krav(rader.length >= 5, `${namn}: ${rader.length} meddelanden, väntat minst 5. Golv.`);
+      // ⛔ REGEL 13: inte tyngre. Element per meddelande, mätt mot 0.105.0 i samma scen (TAK, får bara sjunka).
+      const element = await page.evaluate(() => {
+        const rader = [...document.querySelectorAll("[data-ops-samtal] [data-meddelande]")];
+        return rader.length ? Math.round((rader.reduce((n, r) => n + r.querySelectorAll("*").length, 0) / rader.length) * 10) / 10 : 0;
+      });
+      const tak = telefon ? TAK_ELEMENT_PER_MEDDELANDE.telefon : TAK_ELEMENT_PER_MEDDELANDE.dator;
+      v.matt.push(`${namn}: ${element} element per meddelande (tak ${tak}, 0.105.0)`);
+      v.krav(element > 0 && element <= tak, `${namn}: ${element} element per meddelande, över taket ${tak} som 0.105.0 hade.`);
       if (telefon) {
         // (a)
         const losa = rader.flatMap((r) => r.losa);
