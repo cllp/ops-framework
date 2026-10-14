@@ -119,6 +119,25 @@ describe("en inkorg som lever utan fokus", () => {
   });
 });
 
+describe("gruppbyte", () => {
+  it("⛔ ett byte av grupp öppnar inga lyssnare på den förra gruppens samtal (granskningen av PR 390)", async () => {
+    const { s, g, bo, cia, rakning, nollstall } = await underlag();
+    const h = await s.oppnaGrupp({ groupId: "h", uid: "anna" });
+    await s.skicka(h.id, { text: "Hej h", av: "anna" });
+    const { result, rerender } = renderHook((/** @type {{ groupId: string }} */ { groupId }) => useSamtal({ kalla: s, groupId, uid: "anna" }), { initialProps: { groupId: "g" } });
+    // Golv: gruppen g har tre samtal och får tre lyssnare, annars mäter provet ingenting.
+    await waitFor(() => expect(rakning.lyssnare.filter((l) => l.c.endsWith("/meddelanden")).length).toBe(3));
+    await waitFor(() => expect(result.current.rader.length).toBe(3));
+    nollstall();
+    rerender({ groupId: "h" });
+    await waitFor(() => expect(result.current.rader.map((r) => r.samtal.id)).toEqual([h.id]));
+    const forra = new Set([g.id, bo.id, cia.id].map((id) => `samtal/${id}/meddelanden`));
+    // Taket: ingen lyssnare öppnades på något av g:s samtal efter bytet. Den nya gruppens enda samtal får sin lyssnare.
+    expect(rakning.lyssnare.filter((l) => forra.has(l.c))).toEqual([]);
+    expect(rakning.lyssnare.filter((l) => l.c.endsWith("/meddelanden")).map((l) => l.c)).toEqual([`samtal/${h.id}/meddelanden`]);
+  });
+});
+
 describe("den läsning som startade sist vinner, per rad", () => {
   it("⛔ en radläsning som startade före en hel omläsning skriver inte över den, fast den svarar sist", async () => {
     // Ett samtal med en fejkad källa där svaren styrs för hand.

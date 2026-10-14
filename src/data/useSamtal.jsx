@@ -153,7 +153,12 @@ export function useSamtal({ kalla, groupId, uid }) {
    * Den levande inkorgen. Nyckeln är samtalen som står i listan, så lyssnarna byts bara när ett samtal kommer till eller försvinner,
    * inte vid varje omläsning.
    */
-  const sidnyckel = lage.rader.map((r) => r.samtal.id).sort().join("\n");
+  /*
+   * ⛔ BARA DEN GRUPP SOM VISAS (granskningen av PR 390). Vid ett gruppbyte står den förra gruppens rader kvar i `lage` en
+   * rendering till, och effekten kör med den nya `groupId`: nyckeln byggd ur dem öppnade lyssnare på förra gruppens samtal (mätt: 4)
+   * som stängdes igen när raderna tömdes. Ett samtal i en annan grupp hör aldrig hemma i den här inkorgens nyckel.
+   */
+  const sidnyckel = lage.rader.filter((r) => r.samtal.groupId === groupId).map((r) => r.samtal.id).sort().join("\n");
   useEffect(() => {
     if (!harLevandeInkorg(kalla) || !groupId || !uid || !sidnyckel) return undefined;
     let oppen = true;
