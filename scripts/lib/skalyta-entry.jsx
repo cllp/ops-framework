@@ -1886,6 +1886,51 @@ function TalAllaScen() {
   );
 }
 
+/*
+ * 0.106.0 (#386 skiva 9): bild i kommentarer. En tråd med Bos skärmbild (ritad på en canvas, så att den har riktiga mått) och
+ * skrivrutan med bilagor. `window.__skrivna` bär det som skickats. Avsnitt 47 (9).
+ */
+function kommentarbild() {
+  const c = document.createElement("canvas");
+  c.width = 900;
+  c.height = 560;
+  const g = c.getContext("2d");
+  g.fillStyle = "#f4efe6";
+  g.fillRect(0, 0, 900, 560);
+  g.fillStyle = "#8a6d3b";
+  g.fillRect(40, 40, 820, 70);
+  g.fillStyle = "#ffffff";
+  g.font = "bold 34px sans-serif";
+  g.fillText("Offert: lokalen i Visby", 64, 88);
+  g.fillStyle = "#333333";
+  g.font = "26px sans-serif";
+  ["Hyra per månad: 18 400 kr", "Tillträde: 1 december", "Uppsägning: 9 månader"].forEach((t, i) => g.fillText(t, 64, 180 + i * 60));
+  const dataUrl = c.toDataURL("image/jpeg", 0.85);
+  return { dataUrl, namn: "offert.jpg", typ: "image/jpeg", tecken: dataUrl.length, bredd: 900, hojd: 560 };
+}
+function KommentarBildScen() {
+  const [lista, setLista] = useState(() => [{ id: "k1", text: "Här är offerten för lokalen.", skapad: "2026-10-06T09:00:00.000Z", skapadAv: { uid: "bo", namn: "Bo Lind" }, bilaga: kommentarbild() }]);
+  window.__skrivna = window.__skrivna ?? [];
+  return (
+    <Full>
+      <Ops.OpsView>
+        <div className="flex max-w-2xl flex-col gap-4">
+          <p className="m-0 text-rubrik text-ink">Styrelsemöte</p>
+          <Ops.OpsKommentarer
+            bilagor
+            kommentarer={lista}
+            uid="anna"
+            onSkriv={(text, { bilaga }) => {
+              window.__skrivna.push({ text, bilaga: Boolean(bilaga) });
+              setLista((l) => [...l, { id: `k${l.length + 1}`, text, skapad: "2026-10-06T10:00:00.000Z", skapadAv: { uid: "anna", namn: "Anna Ek" }, ...(bilaga ? { bilaga } : {}) }]);
+            }}
+          />
+        </div>
+      </Ops.OpsView>
+    </Full>
+  );
+}
+
 function Scen() {
   const s = window.__skal;
   if (s === "menyer") return <Menyer />;
@@ -2232,6 +2277,7 @@ function Scen() {
   if (s === "chatt0106-mer") return <MerScen />;
   if (s === "chatt0106-inkorg") return <InkorgScen />;
   if (s === "tal-alla-falt") return <TalAllaScen />;
+  if (s === "kommentar-bild") return <KommentarBildScen />;
   if (s === "installning") {
     return (
       <Skal>

@@ -526,6 +526,59 @@ export async function talIAllaFalt(v) {
   }
 }
 
+/** En PNG på 2 x 2 bildpunkter, för filväljaren. */
+const LITEN_PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGP8z8DAwMDAxMDAwMDAAAANHQEDasKb6QAAAABJRU5ErkJggg==", "base64");
+
+/**
+ * (9) BILD I KOMMENTARER (skiva 9). En tråd med Bos skärmbild och skrivrutan med bilagor. Vid 390 och 1280 px:
+ *   (a) knappen för att bifoga (filväljarens "Välj fil") är minst 44 px hög;
+ *   (b) miniatyren är en knapp, och ett tryck visar bilden i en dialog, större än miniatyren och inom fönstret, med Ladda ned;
+ *       stängd är dialogen borta;
+ *   (c) en vald bild visas före sändning, och ingenting skickas förrän Skicka; efter Skicka står bilden i den nya kommentaren.
+ * @param {Verktyg} v
+ */
+export async function bildIKommentarer(v) {
+  for (const vp of BREDDER) {
+    const namn = `47 (9) bild i kommentarer ${vp.width} px`;
+    await del(v, namn, "kommentar-bild", vp, null, async (page) => {
+      await page.locator("[data-ops-kommentarer] [data-bilaga-forstora]").first().waitFor({ timeout: 4000 });
+      // (a)
+      const valj = page.locator("[data-kommentar-bilaga] button", { hasText: "Välj fil" });
+      const vb = await valj.boundingBox();
+      v.krav(Boolean(vb && vb.height >= 43.5), `${namn}: (a) knappen för att bifoga är ${vb?.height} px hög, väntat minst 44.`);
+      // (b)
+      const mini = page.locator("[data-ops-kommentarer] [data-bilaga-forstora]").first();
+      const mb = await mini.boundingBox();
+      await bild(v, page, `kommentar-bild-${vp.width}.png`);
+      await mini.click();
+      const dialog = page.locator("[role=dialog]");
+      await dialog.waitFor({ timeout: 4000 });
+      await page.locator("[data-bilaga-stor]").evaluate((el) => /** @type {HTMLImageElement} */ (el).decode?.().catch(() => {}));
+      const stor = await page.evaluate(() => {
+        const img = /** @type {HTMLImageElement} */ (document.querySelector("[data-bilaga-stor]"));
+        const r = img.getBoundingClientRect();
+        const d = /** @type {HTMLElement} */ (document.querySelector("[role=dialog]")).getBoundingClientRect();
+        return { w: Math.round(r.width), h: Math.round(r.height), inne: d.left >= -0.5 && d.right <= window.innerWidth + 0.5 && d.top >= -0.5 && d.bottom <= window.innerHeight + 0.5, ned: Boolean(document.querySelector("[role=dialog] [data-bilaga-ladda-ned][download]")) };
+      });
+      v.matt.push(`${namn}: (b) miniatyren ${JSON.stringify(mb && { w: Math.round(mb.width), h: Math.round(mb.height) })}, den stora ${JSON.stringify(stor)}`);
+      v.krav(Boolean(mb && stor.w > mb.width && stor.inne && stor.ned), `${namn}: (b) den stora bilden ${JSON.stringify(stor)} är inte större än miniatyren (${mb?.width}) inom fönstret med Ladda ned.`);
+      await bild(v, page, `kommentar-bild-stor-${vp.width}.png`);
+      await page.keyboard.press("Escape");
+      await dialog.waitFor({ state: "detached", timeout: 4000 });
+      // (c)
+      await page.locator("[data-kommentar-bilaga] input[type=file]").setInputFiles({ name: "skiss.png", mimeType: "image/png", buffer: LITEN_PNG });
+      await page.locator("[data-kommentar-bilaga] img").waitFor({ timeout: 4000 });
+      const fore = await page.evaluate(() => /** @type {any} */ (window).__skrivna.length);
+      await bild(v, page, `kommentar-forhand-${vp.width}.png`);
+      await page.locator("[data-ops-kommentarer] button", { hasText: "Skicka" }).click();
+      await page.locator("[data-ops-kommentarer] [data-bilaga-forstora]").nth(1).waitFor({ timeout: 4000 });
+      const efter = await page.evaluate(() => /** @type {any} */ (window).__skrivna);
+      v.matt.push(`${namn}: (c) skickat före Skicka ${fore}, efter ${JSON.stringify(efter)}`);
+      v.krav(fore === 0 && efter.length === 1 && efter[0].bilaga === true, `${namn}: (c) före Skicka ${fore} skickade, efter ${JSON.stringify(efter)}.`);
+    }, vp.width < 768 ? { kontext: IPHONE } : {});
+  }
+}
+
 /**
  * Alla delar i ordning. Varje skiva lägger till sin rad här.
  * @param {Verktyg} v
@@ -539,4 +592,5 @@ export async function chattepiken0106(v) {
   await merKnappen(v);
   await inkorgenLever(v);
   await talIAllaFalt(v);
+  await bildIKommentarer(v);
 }
