@@ -77,6 +77,17 @@ if (kortlage) {
       await page.getByRole("button", { name: "Åtgärder för Protokoll styrelsemöte" }).click();
       await page.getByRole("menuitem", { name: "Byt namn" }).waitFor();
     }],
+    // ⛔ Spelaren: spela Idé-posten ur listan, då kommer spelraden, och ett tryck på namnet öppnar arket med ljudvågen.
+    ["spelrad-390", "spelrad", { width: 390, height: 844 }, async (page) => {
+      await page.getByRole("button", { name: /^Spela Idé 2026-10-10/ }).click();
+      await page.locator("[data-ops-spelrad]").waitFor();
+    }],
+    ["spelarark-390", "spelarark", { width: 390, height: 844 }, async (page) => {
+      await page.getByRole("button", { name: /^Spela Idé 2026-10-10/ }).click();
+      await page.getByRole("button", { name: /^Öppna spelaren för Idé/ }).click();
+      await page.getByRole("dialog").waitFor();
+      await page.getByRole("slider", { name: /^Spola i Idé/ }).waitFor();
+    }],
   ]) {
     const context = await browser.newContext({ viewport, deviceScaleFactor: 1, colorScheme: "dark" });
     const page = await context.newPage();
@@ -87,17 +98,21 @@ if (kortlage) {
       throw new Error(`${namn}: listan ritades inte. ${fel.join("\n") || e.message}`);
     });
     if (efterAtt) await efterAtt(page);
+    // Musen bort, så att kortet man tryckte på inte fotograferas i hovringsläge.
+    await page.mouse.move(0, 0);
     await page.waitForTimeout(300);
     if (fel.length) throw new Error(`${namn}: ${fel.join("\n")}`);
     const fil = path.join(ut, `ramverk-${namn}.png`);
-    await page.screenshot({ path: fil, fullPage: namn !== "meny-390" });
+    await page.screenshot({ path: fil, fullPage: namn.startsWith("lista") });
     console.log(fil);
     bilder.push({ namn, fil });
     await context.close();
   }
   for (const { namn, fil } of bilder) {
     const bredd = namn.endsWith("1280") ? "1280" : "390";
-    const fore = path.join(ut, `forebild-ss-${bredd}.png`);
+    // Listan och menyn mot SessionStudios webb, spelaren mot CP:s skärmbilder ur SessionStudios app.
+    const forenamn = namn === "lista-390" ? "forebild-ss-app-lista.png" : namn === "spelrad-390" ? "forebild-ss-app-spelrad.png" : namn === "spelarark-390" ? "forebild-ss-app-ark.png" : `forebild-ss-${bredd}.png`;
+    const fore = path.join(ut, forenamn);
     if (!fs.existsSync(fore)) throw new Error(`bibliotek-montage: förebilden ${fore} saknas`);
     const context = await browser.newContext({ viewport: { width: bredd === "1280" ? 2700 : 1000, height: 1400 }, deviceScaleFactor: 1 });
     const page = await context.newPage();
@@ -112,7 +127,7 @@ if (kortlage) {
       img { width: ${max}; height: auto; border: 1px solid #555; }
     </style></head><body><div class="rad">
       <figure><figcaption>Ramverket 0.102.0, ${bredd} px, mörkt</figcaption><img src="data:image/png;base64,${vanster}" alt="Ramverket"></figure>
-      <figure><figcaption>SessionStudio, MyLibraryPanel, ${bredd} px, mörkt</figcaption><img src="data:image/png;base64,${hoger}" alt="SessionStudio"></figure>
+      <figure><figcaption>SessionStudio, ${forenamn.includes("-app-") ? "appen (CP:s skärmbild)" : "MyLibraryPanel"}, ${bredd} px, mörkt</figcaption><img src="data:image/png;base64,${hoger}" alt="SessionStudio"></figure>
     </div></body></html>`);
     const montage = path.join(ut, `montage-${namn}.png`);
     await page.locator(".rad").screenshot({ path: montage });

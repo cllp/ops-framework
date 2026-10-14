@@ -428,7 +428,7 @@ function SpelaKnapp({ spelar, laddar, namn, storlek, onClick, disabled = false }
       onClick={onClick}
       className={cx(
         "inline-flex shrink-0 cursor-pointer items-center justify-center rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-60",
-        storlek === "stor" ? "size-20 bg-accent text-accent-contrast hover:bg-accent-hover" : storlek === "mellan" ? "size-11 bg-accent text-accent-contrast hover:bg-accent-hover" : "size-11 bg-raised text-ink hover:bg-hover",
+        storlek === "stor" ? "size-20 bg-accent text-accent-contrast hover:bg-accent-hover" : storlek === "mellan" ? "size-11 bg-accent text-accent-contrast hover:bg-accent-hover" : "size-11 border border-line bg-raised text-ink hover:bg-hover",
       )}
     >
       {laddar ? <OpsSpinner size="sm" decorative /> : spelar ? <PausaIkon size={ikon} /> : <SpelaIkon size={ikon} />}
