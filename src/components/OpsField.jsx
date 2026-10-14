@@ -370,6 +370,10 @@ function TalTextarea({ f, value, onChange, placeholder, name, rows, disabled, ma
    * ⛔ `varde` ÄR VÄRDET DEN POSITIONEN GÄLLER (0.104.0, granskningen av PR 384, KAN 4). Avvisar appen det inskrivna (värdet blir inte
    * det väntade) läggs markören tillbaka där den stod (`annars`) och inte efter en text som aldrig kom in. Utan det hoppade den fram i
    * en oförändrad text, och positionen låg kvar och kunde läggas när fältet senare växte av något annat.
+   *
+   * ⛔ INGEN TÖMNING I `onChange` (andra granskningsvarvet av PR 384, KAN 3). Där tömdes positionen vid varje ändring, men det gjorde
+   * ingenting: positionen läggs bara när värdet är exakt `varde`, så en avvisad position som ligger kvar läggs aldrig. Den skrivs över
+   * nästa gång mikrofonen trycks.
    */
   const tillbakaTill = useRef(/** @type {{ start: number, slut: number, varde?: string, annars?: { start: number, slut: number } | null } | null} */ (null));
   const [kapat, setKapat] = useState(/** @type {"nej" | "kapat" | "fullt" | "fickInte"} */ ("nej"));
@@ -433,8 +437,6 @@ function TalTextarea({ f, value, onChange, placeholder, name, rows, disabled, ma
             value={value}
             onChange={(e) => {
               if (kapat !== "nej") setKapat("nej");
-              // En ändring av fältet gör en väntande position inaktuell: den gällde texten före ändringen.
-              tillbakaTill.current = null;
               markor.current = { start: e.target.selectionStart ?? e.target.value.length, slut: e.target.selectionEnd ?? e.target.value.length };
               onChange(e.target.value);
             }}

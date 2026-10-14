@@ -141,6 +141,12 @@ med ett golv på 7 nycklar, och "Nothing was heard in the recording." genom chat
 yta, eftersom mikrofonen bara ritas med `onTranscribe`, så `rosttexter` och `texterPa` exporteras från filen för proven (inte ur
 ramverket). Båda mutationerna är röda med proven.
 
+### Städat: död tömning av markörens position i `OpsTextarea`
+
+`onChange` tömde den väntande markörpositionen vid varje ändring, men det gjorde ingenting (andra granskningsvarvet av PR 384, KAN 3).
+Positionen läggs bara när fältets värde är exakt det väntade, så en avvisad position som ligger kvar läggs aldrig, och den skrivs över
+nästa gång mikrofonen trycks. Raden är borttagen och skälet står vid `tillbakaTill`. Fältets 96 prov är gröna utan den, som de var med den.
+
 ### Ändrat: röstinmatningen har ett hem
 
 Talet bodde inbyggt i chattens skrivfält (`OpsMeddelanden.jsx`). Det är utbrutet till `OpsRostinmatning.jsx`
