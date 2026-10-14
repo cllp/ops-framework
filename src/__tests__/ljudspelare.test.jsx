@@ -452,6 +452,20 @@ describe("OpsLjudspelare", () => {
     expect(screen.getByRole("link", { name: /Ladda ned/ })).toBeInTheDocument();
   });
 
+  it("⛔ liten lämnar felet till anroparen, och knappen är 44 px (granskningen av PR 366, BÖR 6)", async () => {
+    HTMLMediaElement.prototype.play = function nekad() {
+      const e = new Error("nej");
+      e.name = "NotAllowedError";
+      return Promise.reject(e);
+    };
+    const onFel = vi.fn();
+    render(<OpsLjudspelare liten src="https://exempel.se/a.webm" namn="Idé" durationMs={4000} onFel={onFel} />);
+    const knapp = screen.getByRole("button", { name: /Idé/ });
+    expect(knapp.className).toContain("size-11");
+    fireEvent.click(knapp);
+    await waitFor(() => expect(onFel).toHaveBeenLastCalledWith("Webbläsaren tillät inte uppspelningen. Tryck på Spela igen."));
+  });
+
   it("⛔ liten är bara spela och pausa: ingen våg, inget reglage, inga hopp och ingen nedladdning, inte heller när den spelar (0.102.0)", async () => {
     render(<OpsLjudspelare liten src="https://exempel.se/a.webm" namn="Idé" durationMs={4000} />);
     expect(document.querySelector("[data-ljudspelare]")?.getAttribute("data-ljudspelare")).toBe("liten");

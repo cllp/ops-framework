@@ -17,6 +17,7 @@ import {
   plattaStolpar,
   registreraSpelare,
   registreraStyrning,
+  startFelText,
   tidUrAndel,
 } from "../lib/ljudspelare.js";
 import { cx } from "../lib/cx.js";
@@ -49,8 +50,11 @@ import { OpsSpinner } from "./OpsSpinner.jsx";
  * @param {string} [props.namn]
  * @param {boolean} [props.visaNamn] Rita namnet ovanför i det fulla läget. I kompakt läge är namnet alltid radens rubrik.
  * @param {boolean} [props.kompakt] Listans rad: spela, rubrik, meta, våg. Inte hopp, hastighet eller nedladdning.
- * @param {boolean} [props.liten] (0.102.0) Bara spela och pausa, en rund knapp på 32 px. Bibliotekets kort efter SessionStudio, där
+ * @param {boolean} [props.liten] (0.102.0) Bara spela och pausa, en rund knapp på 44 px. Bibliotekets kort efter SessionStudio, där
  *   rubriken, taggarna och längden står i kortet och spelknappen står där ikonen står på de andra korten (lifehub.app#163).
+ * @param {(fel: string) => void} [props.onFel] (0.102.0) Felet i läget `liten`, så att anroparen kan visa det där det får plats. Tom
+ *   sträng när felet är borta. Läget `liten` har ingen egen yta för text, och ett fel som bara skärmläsaren hör är tyst för den som ser
+ *   skärmen (granskningen av PR 366, BÖR 6).
  * @param {string} [props.meta] Datum och längd under rubriken, i kompakt läge.
  * @param {number} [props.durationMs] Sparad längd. Visas innan elementet hunnit läsa filen.
  * @param {string} [props.peaks] Sparad våg, som den ligger på posten: `LJUD_STOLPAR` tecken, ett per stolpe (`kodaToppar`). Allt annat, till exempel en gammal lista av tal, räknas som att ingen våg är sparad, och spelaren räknar fram den ur ljudet.
@@ -59,12 +63,12 @@ import { OpsSpinner } from "./OpsSpinner.jsx";
  * @param {string} [props.styrId] Kopplar ⋯-menyn till den här spelaren.
  */
 export function OpsLjudspelare(props) {
-  const tillatna = ["src", "sokvag", "hamtaAdress", "namn", "visaNamn", "kompakt", "liten", "meta", "durationMs", "peaks", "onOppna", "onMeta", "styrId"];
+  const tillatna = ["src", "sokvag", "hamtaAdress", "namn", "visaNamn", "kompakt", "liten", "meta", "durationMs", "peaks", "onOppna", "onMeta", "onFel", "styrId"];
   const okanda = Object.keys(props).filter((k) => !tillatna.includes(k));
   if (okanda.length > 0) {
     throw new Error(`OpsLjudspelare: okända props ${okanda.join(", ")}. Tillåtna: ${tillatna.join(", ")}.`);
   }
-  const { src = "", sokvag = "", hamtaAdress, namn = "", visaNamn = true, kompakt = false, liten = false, meta = "", durationMs, peaks, onOppna, onMeta, styrId = "" } = props;
+  const { src = "", sokvag = "", hamtaAdress, namn = "", visaNamn = true, kompakt = false, liten = false, meta = "", durationMs, peaks, onOppna, onMeta, onFel, styrId = "" } = props;
   if (hamtaAdress !== undefined && typeof hamtaAdress !== "function") {
     throw new Error("OpsLjudspelare: hamtaAdress ska vara en funktion (sokvag) => adress. Det är lagringens adress, alltså getDownloadURL.");
   }
@@ -180,6 +184,7 @@ export function OpsLjudspelare(props) {
       peaks={sparadeToppar}
       onOppna={typeof onOppna === "function" ? onOppna : null}
       onMeta={typeof onMeta === "function" ? onMeta : null}
+      onFel={typeof onFel === "function" ? onFel : null}
       styrId={typeof styrId === "string" ? styrId : ""}
     />
   );
@@ -196,20 +201,11 @@ function mediaFel(el) {
   return "Ljudet gick inte att spela.";
 }
 
-/**
- * @param {unknown} e
- */
-function startFel(e) {
-  const namn = e && typeof e === "object" && "name" in e ? String(/** @type {any} */ (e).name) : "";
-  if (namn === "AbortError") return "";
-  if (namn === "NotAllowedError") return "Webbläsaren tillät inte uppspelningen. Tryck på Spela igen.";
-  return "Ljudet gick inte att spela.";
-}
 
 /**
- * @param {{ adress: string, namn: string, visaNamn: boolean, kompakt: boolean, liten: boolean, meta: string, durationMs: number, peaks: number[] | null, onOppna: (() => void) | null, onMeta: ((meta: { durationMs?: number, peaks?: string }) => void) | null, styrId: string }} props
+ * @param {{ adress: string, namn: string, visaNamn: boolean, kompakt: boolean, liten: boolean, meta: string, durationMs: number, peaks: number[] | null, onOppna: (() => void) | null, onMeta: ((meta: { durationMs?: number, peaks?: string }) => void) | null, onFel: ((fel: string) => void) | null, styrId: string }} props
  */
-function Spelare({ adress, namn, visaNamn, kompakt, liten, meta, durationMs, peaks, onOppna, onMeta, styrId }) {
+function Spelare({ adress, namn, visaNamn, kompakt, liten, meta, durationMs, peaks, onOppna, onMeta, onFel, styrId }) {
   const ljud = useRef(/** @type {HTMLAudioElement | null} */ (null));
   const begart = useRef(false);
   const drar = useRef(false);
@@ -222,6 +218,11 @@ function Spelare({ adress, namn, visaNamn, kompakt, liten, meta, durationMs, pea
   const [langd, setLangd] = useState(durationMs > 0 ? durationMs / 1000 : 0);
   const [hastighet, setHastighet] = useState(1);
   const [fel, setFel] = useState("");
+  const felMottagare = useRef(onFel);
+  felMottagare.current = onFel;
+  useEffect(() => {
+    felMottagare.current?.(fel);
+  }, [fel]);
   const [stolpar, setStolpar] = useState(() => peaks ?? lasStolpar(adress) ?? plattaStolpar());
   const [vag, setVag] = useState(peaks || lasStolpar(adress) ? "toppar" : "vantar");
   const onMetaRef = useRef(onMeta);
@@ -472,7 +473,7 @@ function Spelare({ adress, namn, visaNamn, kompakt, liten, meta, durationMs, pea
     const svar = el.play();
     if (svar && typeof svar.then === "function") {
       svar.catch((e) => {
-        const text = startFel(e);
+        const text = startFelText(e);
         setLaddar(false);
         setSpelar(false);
         if (text) setFel(text);
@@ -617,11 +618,11 @@ function Spelare({ adress, namn, visaNamn, kompakt, liten, meta, durationMs, pea
           aria-busy={laddar || undefined}
           disabled={laddar}
           onClick={spelaEllerPausa}
-          className="inline-flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-full bg-accent-subtle text-typ-ljud hover:bg-accent-faint focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-wait disabled:opacity-60"
+          className="inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full bg-accent-subtle text-typ-ljud hover:bg-accent-faint focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-wait disabled:opacity-60"
         >
-          {laddar ? <OpsSpinner size="sm" decorative /> : spelar ? <PausaIkon size={14} /> : <SpelaIkon size={14} />}
+          {laddar ? <OpsSpinner size="sm" decorative /> : spelar ? <PausaIkon size={16} /> : <SpelaIkon size={16} />}
         </button>
-        {fel ? <span role="alert" className="sr-only">{fel}</span> : null}
+        {fel && !onFel ? <span role="alert" className="sr-only">{fel}</span> : null}
       </span>
     );
   }

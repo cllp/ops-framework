@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import * as Popover from "@radix-ui/react-popover";
+import * as Tabs from "@radix-ui/react-tabs";
 import { Check, File as FilIkon, FileText, Globe, Image as BildIkon, Library, Mic, Plus, SlidersHorizontal, Tag, X } from "lucide-react";
 import { OpsAtgardsblad } from "./OpsAtgardsblad.jsx";
 import { OpsDokument } from "./OpsDokument.jsx";
@@ -387,10 +388,12 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
     const aktiv = Boolean(jag) && (jag?.status === undefined || jag?.status === "aktiv");
     const egen = aktiv && post.skapadAv?.uid === jag?.uid;
     if (aktiv && !flyttar.includes(post.id)) {
-      if (ensam) {
+      // ⛔ `egen || far` STÅR KVAR SOM FÖRSVAR I DJUPET (granskningen av PR 366, KAN 10). I dag läser bara ägaren Mitt bibliotek, men
+      // menyn ska inte lita på att reglerna alltid säger det.
+      if (ensam && (egen || far)) {
         if (andra.length === 1) ut.push({ id: "dela-grupp", etikett: `Dela med ${andra[0].namn}`, onValj: () => delaDirekt(post, andra[0], "flytta") });
         else if (andra.length > 1) ut.push({ id: "dela", etikett: "Dela med en grupp", onValj: () => setDelar(post) });
-      } else {
+      } else if (!ensam) {
         if (mitt) {
           ut.push(egen
             ? { id: "till-mitt", etikett: "Flytta till Mitt bibliotek", onValj: () => delaDirekt(post, mitt, "flytta") }
@@ -477,9 +480,31 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
     );
   }
   const visaKnapp = Boolean(ram && ram.farAndra);
+  const platsValjare =
+    platser.length >= 2 && plats ? (
+      <PlatsValjare
+        platser={platser}
+        plats={plats}
+        onPlats={(v) => {
+          setValdaTaggar([]);
+          setStatus("");
+          if (typeof onPlats === "function") onPlats(v);
+        }}
+      />
+    ) : null;
+  // ⛔ HUVUDET ÄR MEDDELANDENS (0.102.0, CP 2026-10-14: "Kolla header panelen på chatt. Den är mycket tunnare och bättre än
+  // bibliotek. Gör dessa enhetliga"): ikonen, "Bibliotek", platsen som piller och kugghjulet på en rad. Raden "N objekt" är
+  // borta: antalet står redan i fliken Allt, och två ställen för samma tal är två ställen som kan säga olika (regel 2).
+  const atgard =
+    platsValjare || visaKnapp ? (
+      <>
+        {platsValjare}
+        {visaKnapp ? <ModulLageKnapp ram={ram} activeHref={/** @type {string} */ (activeHref)} onNavigate={onNavigate} sprak={sprak} installningar={false} /> : null}
+      </>
+    ) : null;
   const listTillbaka = {
-    ...modulTillbaka({ namn: "Bibliotek", hubHref, hubEtikett, onNavigate, sprak, modulId }),
-    ...(visaKnapp ? { atgard: <ModulLageKnapp ram={ram} activeHref={/** @type {string} */ (activeHref)} onNavigate={onNavigate} sprak={sprak} installningar={false} /> } : {}),
+    ...modulTillbaka({ namn: "Bibliotek", hubHref, hubEtikett, onNavigate, sprak, modulId, ikon: <Library size={18} /> }),
+    ...(atgard ? { atgard } : {}),
   };
 
   // ⛔ DETALJEN HAR SIN EGEN TILLBAKA, TILL LISTAN. Två "Tillbaka" på samma sida, en till hubben och en till listan, hade
@@ -493,22 +518,8 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
         ) : (
           <div data-bibliotek-huvud="" className="flex min-w-0 flex-col gap-3">
             {/* ⛔ SESSIONSTUDIOS HUVUD, SOM I APPEN (0.102.0, CP 2026-10-14 med skärmbilder från SessionStudios app: "Listningen
-                och taggar i föregående bild."): antalet till vänster och platsen som ett piller till höger, sedan sök, "+ Ny" och
-                Taggar på en rad, och flikarna som en rad man rullar i sidled. */}
-            <div className="flex min-w-0 items-center justify-between gap-3">
-              <span data-bibliotek-antal="" className="shrink-0 text-meta text-ink-muted">{poster.length === 1 ? "1 objekt" : `${poster.length} objekt`}</span>
-              {platser.length >= 2 && plats ? (
-                <PlatsValjare
-                  platser={platser}
-                  plats={plats}
-                  onPlats={(v) => {
-                    setValdaTaggar([]);
-                    setStatus("");
-                    if (typeof onPlats === "function") onPlats(v);
-                  }}
-                />
-              ) : null}
-            </div>
+                och taggar i föregående bild."): sök, "+ Ny" och Taggar på en rad, och flikarna som en rad man rullar i sidled.
+                Platsen som piller står i vyns huvud, bredvid kugghjulet. */}
             <div className="flex min-w-0 items-center gap-2">
               <div className="min-w-0 flex-1">
                 <OpsInput value={sok} onChange={setSok} type="search" ariaLabel="Sök i biblioteket" placeholder="Sök..." />
@@ -529,7 +540,8 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
               ) : null}
               <TaggFilter taggar={gruppensTaggar} valda={valda} onValda={setValdaTaggar} />
             </div>
-            <Flikar flikar={synligaFlikar} antal={antal} flik={aktivFlik} onFlik={setFlik} />
+            <Tabs.Root value={aktivFlik} onValueChange={(v) => setFlik(/** @type {Flik} */ (v))} className="flex min-w-0 flex-col gap-3">
+            <Flikar flikar={synligaFlikar} antal={antal} />
             {rostFel ? <p role="alert">{rostFel}</p> : null}
             {trasiga.length > 0 ? (
               <div role="status" data-bibliotek-trasiga={trasiga.length} className="text-meta text-ink-muted">
@@ -546,7 +558,7 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
                 </ul>
               </div>
             ) : null}
-            <div role="tabpanel" aria-label={FLIKAR.find((f) => f.id === aktivFlik)?.namn ?? "Allt"} className="flex min-w-0 flex-col gap-3">
+            <Tabs.Content value={aktivFlik} data-bibliotek-panel="" aria-label={FLIKAR.find((f) => f.id === aktivFlik)?.namn ?? "Allt"} className="flex min-w-0 flex-col gap-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
               {fel ? (
                 <p role="alert" data-bibliotek-fel="">{fel}</p>
               ) : laddar ? (
@@ -586,7 +598,8 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
                   })}
                 </ul>
               )}
-            </div>
+            </Tabs.Content>
+            </Tabs.Root>
             {status ? <p role="status">{status}</p> : null}
           </div>
         )}
@@ -818,33 +831,34 @@ const taggKlass = (tagg) => TAGGBAKGRUND[taggfarg(tagg) - 1];
  * ⛔ OCKSÅ PÅ TELEFONEN EN RAD, INTE EN VÄLJARE. SessionStudios webb gör flikarna till en rullgardin på smal skärm, men appen, som
  * CP visade, har raden. En rad visar alla typer och antalen utan ett extra tryck.
  *
- * @param {{ flikar: ReadonlyArray<{ id: Flik, namn: string, ikon: import("react").ReactNode }>, antal: Record<Flik, number>, flik: Flik, onFlik: (f: Flik) => void }} props
+ * @param {{ flikar: ReadonlyArray<{ id: Flik, namn: string, ikon: import("react").ReactNode }>, antal: Record<Flik, number> }} props
  */
-function Flikar({ flikar, antal, flik, onFlik }) {
+function Flikar({ flikar, antal }) {
+  /*
+   * ⛔ RADIX TABS, INTE HANDBYGGDA FLIKAR (granskningen av PR 366, MÅSTE 3). Raden hade `role="tablist"` och `role="tab"` men
+   * inga piltangenter, ingen Home och End, ingen rörlig `tabIndex` och ingen `aria-controls`: skärmläsaren sade "flik 1 av 6" och
+   * pilarna gjorde ingenting. `OpsTabs` säger samma sak i sitt filhuvud. Utseendet är SessionStudios piller, beteendet Radix.
+   */
   return (
-    <div role="tablist" aria-label="Typ i biblioteket" data-bibliotek-flikar="rad" className="-mx-1 flex min-w-0 gap-1 overflow-x-auto px-1 pb-1 [scrollbar-width:none]">
-      {flikar.map((f) => {
-        const vald = f.id === flik;
-        return (
-          <button
-            key={f.id}
-            type="button"
-            role="tab"
-            aria-selected={vald}
-            onClick={() => onFlik(f.id)}
-            className={cx(
-              "inline-flex min-h-11 shrink-0 cursor-pointer items-center gap-2 whitespace-nowrap rounded-lg px-4 text-etikett font-medium",
-              "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
-              vald ? "bg-raised text-ink" : "text-ink-muted hover:text-ink-secondary",
-            )}
-          >
-            {f.ikon}
-            <span>{f.namn}</span>
-            <span className="tabular-nums">{antal[f.id]}</span>
-          </button>
-        );
-      })}
-    </div>
+    // Raden tonar ut mot högerkanten, som SessionStudios där sista fliken är avklippt: annars syns det inte att fler flikar finns
+    // när raden slutar jämnt vid en flik (granskningen av PR 366, montaget).
+    <Tabs.List aria-label="Typ i biblioteket" data-bibliotek-flikar="rad" className="-mx-1 flex min-w-0 gap-1 overflow-x-auto px-1 pb-1 [mask-image:linear-gradient(to_right,black_calc(100%-2rem),transparent)] [scrollbar-width:none]">
+      {flikar.map((f) => (
+        <Tabs.Trigger
+          key={f.id}
+          value={f.id}
+          className={cx(
+            "inline-flex min-h-11 shrink-0 cursor-pointer items-center gap-2 whitespace-nowrap rounded-lg px-4 text-etikett font-medium",
+            "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
+            "text-ink-muted hover:text-ink-secondary data-[state=active]:bg-raised data-[state=active]:text-ink",
+          )}
+        >
+          {f.ikon}
+          <span>{f.namn}</span>
+          <span className="tabular-nums">{antal[f.id]}</span>
+        </Tabs.Trigger>
+      ))}
+    </Tabs.List>
   );
 }
 
@@ -1221,7 +1235,8 @@ function BibliotekKort({ post, lage, meny, svep, onOppna, onMeta, taggrad }) {
   const forhands = forhandsText(post);
   const meta = kortMeta(post);
   // Ljudet bär sin status i metaraden när adressen inte är klar: "Hämtar ljudet." eller felet. Aldrig tyst (regel 5).
-  const ljudStatus = ljud && lage.lage !== "klar" ? (lage.lage === "hamtar" ? "Hämtar ljudet." : lage.fel || "Filen har ingen adress.") : "";
+  const [spelFel, setSpelFel] = useState("");
+  const ljudStatus = ljud && lage.lage !== "klar" ? (lage.lage === "hamtar" ? "Hämtar ljudet." : lage.fel || "Filen har ingen adress.") : spelFel;
   // I skalet spelar ljudet i skalets spelare, med knappen till höger. Utanför skalet finns ingen spelrad, och kortet har då en egen
   // liten spelare där ikonen står.
   const iSkalet = Boolean(spelare);
@@ -1245,6 +1260,7 @@ function BibliotekKort({ post, lage, meny, svep, onOppna, onMeta, taggrad }) {
                 peaks={post.peaks}
                 styrId={post.id}
                 onMeta={(inmata) => onMeta(post.id, inmata)}
+                onFel={setSpelFel}
               />
             ) : bild && lage.lage === "klar" ? (
               <img src={lage.adress} alt="" aria-hidden="true" className="size-11 object-cover" />
@@ -1262,7 +1278,7 @@ function BibliotekKort({ post, lage, meny, svep, onOppna, onMeta, taggrad }) {
                 {meta.map((m) => <span key={m} data-ljud-langd={m.includes(":") ? "" : undefined}>{m}</span>)}
               </span>
             ) : null}
-            {ljudStatus ? <span role={lage.lage === "fel" ? "alert" : "status"} className={cx("text-meta", lage.lage === "hamtar" ? "text-ink-secondary" : "text-danger")}>{ljudStatus}</span> : null}
+            {ljudStatus ? <span role={lage.lage === "hamtar" ? "status" : "alert"} className={cx("text-meta", lage.lage === "hamtar" ? "text-ink-secondary" : "text-danger")}>{ljudStatus}</span> : null}
           </div>
           {ljud && iSkalet && lage.lage === "klar" ? (
             <span className="relative shrink-0">

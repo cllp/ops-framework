@@ -697,7 +697,7 @@ describe("OpsBibliotek", () => {
     expect(flikar.map((f) => f.textContent)).toEqual(["Allt1", "Ljud0", "Anteckningar1"]);
     expect(flikar.every((f) => f.querySelector("svg"))).toBe(true);
     expect(flikar[0]).toHaveAttribute("aria-selected", "true");
-    fireEvent.click(within(rad).getByRole("tab", { name: /^Ljud/ }));
+    fireEvent.mouseDown(within(rad).getByRole("tab", { name: /^Ljud/ }), { button: 0 });
     expect(within(rad).getByRole("tab", { name: /^Ljud/ })).toHaveAttribute("aria-selected", "true");
     expect(screen.queryByRole("button", { name: "Protokoll" })).toBeNull();
     expect(screen.getByText("Inget här ännu.")).toBeInTheDocument();
@@ -714,7 +714,7 @@ describe("OpsBibliotek", () => {
     const rad = screen.getByRole("tablist", { name: "Typ i biblioteket" });
     /** @param {RegExp} namn */
     const under = (namn) => {
-      fireEvent.click(within(rad).getByRole("tab", { name: namn }));
+      fireEvent.mouseDown(within(rad).getByRole("tab", { name: namn }), { button: 0 });
       expect(within(rad).getByRole("tab", { name: namn })).toHaveAttribute("aria-selected", "true");
       return [...screen.getByRole("list", { name: "Biblioteket" }).querySelectorAll("[data-bibliotek-kort]")].map((k) => k.getAttribute("data-bibliotek-kort"));
     };
@@ -729,7 +729,7 @@ describe("OpsBibliotek", () => {
 
   it("en flik som töms medan den är vald faller tillbaka till Allt och försvinner", () => {
     const { rerender } = render(<OpsBibliotek poster={[...poster, ...filposter()]} jag={FORFATTARE} onOppna={() => {}} onStang={() => {}} onSkapa={() => {}} onSpara={() => {}} hubHref="/hub" />);
-    fireEvent.click(screen.getByRole("tab", { name: /^Bilder/ }));
+    fireEvent.mouseDown(screen.getByRole("tab", { name: /^Bilder/ }), { button: 0 });
     expect(screen.getByRole("tab", { name: /^Bilder/ })).toHaveAttribute("aria-selected", "true");
     rerender(<OpsBibliotek poster={poster} jag={FORFATTARE} onOppna={() => {}} onStang={() => {}} onSkapa={() => {}} onSpara={() => {}} hubHref="/hub" />);
     expect(screen.queryByRole("tab", { name: /^Bilder/ })).toBeNull();
@@ -751,7 +751,7 @@ describe("OpsBibliotek", () => {
         expect(screen.queryByRole("combobox", { name: "Typ i biblioteket" })).toBeNull();
         const rad = screen.getByRole("tablist", { name: "Typ i biblioteket" });
         expect(within(rad).getAllByRole("tab").map((f) => f.textContent)).toEqual(["Allt1", "Ljud0", "Anteckningar1"]);
-        fireEvent.click(within(rad).getByRole("tab", { name: /^Ljud/ }));
+        fireEvent.mouseDown(within(rad).getByRole("tab", { name: /^Ljud/ }), { button: 0 });
         expect(within(rad).getByRole("tab", { name: /^Ljud/ })).toHaveAttribute("aria-selected", "true");
         expect(screen.queryByRole("button", { name: "Protokoll" })).toBeNull();
         unmount();
@@ -761,15 +761,32 @@ describe("OpsBibliotek", () => {
     }
   });
 
+  it("⛔ flikarna går med piltangenterna, Home och End, och fliken styr panelen (granskningen av PR 366, MÅSTE 3)", async () => {
+    render(<Harness />);
+    const allt = screen.getByRole("tab", { name: /^Allt/ });
+    act(() => allt.focus());
+    fireEvent.keyDown(allt, { key: "ArrowRight" });
+    await waitFor(() => expect(document.activeElement?.getAttribute("role")).toBe("tab"));
+    const andra = /** @type {HTMLElement} */ (document.activeElement);
+    expect(andra).not.toBe(allt);
+    await waitFor(() => expect(andra).toHaveAttribute("aria-selected", "true"));
+    fireEvent.keyDown(andra, { key: "Home" });
+    await waitFor(() => expect(document.activeElement).toBe(allt));
+    await waitFor(() => expect(allt).toHaveAttribute("aria-selected", "true"));
+    const panel = document.getElementById(/** @type {string} */ (allt.getAttribute("aria-controls")));
+    expect(panel?.getAttribute("role")).toBe("tabpanel");
+    expect(within(/** @type {HTMLElement} */ (panel)).getByRole("button", { name: "Protokoll" })).toBeTruthy();
+  });
+
   it("sökordet står kvar när fliken byts", () => {
     render(<Harness />);
     fireEvent.change(screen.getByRole("searchbox", { name: "Sök i biblioteket" }), { target: { value: "bokslut" } });
-    fireEvent.click(screen.getByRole("tab", { name: /^Anteckningar/ }));
+    fireEvent.mouseDown(screen.getByRole("tab", { name: /^Anteckningar/ }), { button: 0 });
     // Golv: fliken bytte verkligen, annars hade Protokoll stått kvar under Allt och provet varit grönt utan att mäta något.
     expect(screen.getByRole("tab", { name: /^Anteckningar/ })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("searchbox", { name: "Sök i biblioteket" })).toHaveValue("bokslut");
     expect(screen.getByRole("button", { name: "Protokoll" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("tab", { name: /^Länkar/ }));
+    fireEvent.mouseDown(screen.getByRole("tab", { name: /^Länkar/ }), { button: 0 });
     expect(screen.getByRole("searchbox", { name: "Sök i biblioteket" })).toHaveValue("bokslut");
     expect(screen.getByText("Inga träffar.")).toBeInTheDocument();
   });
@@ -782,7 +799,7 @@ describe("OpsBibliotek", () => {
     fireEvent.click(within(meny).getByRole("menuitem", { name: "Anteckning" }));
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Ny anteckning");
     fireEvent.click(screen.getByRole("button", { name: "Tillbaka" }));
-    fireEvent.click(screen.getByRole("tab", { name: /^Länkar/ }));
+    fireEvent.mouseDown(screen.getByRole("tab", { name: /^Länkar/ }), { button: 0 });
     expect(screen.queryByRole("button", { name: "Ny post" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Ny länk" }));
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Ny länk");

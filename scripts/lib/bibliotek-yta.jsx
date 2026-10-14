@@ -128,8 +128,26 @@ function Yta() {
       onNavigate={(_href, e) => e.preventDefault()}
     />
   );
-  // Skalets spelare runt biblioteket i montagen av korten (0.102.0), som i appen.
-  return ["kort", "meny", "spelrad", "spelarark"].includes(start) ? <Ops.OpsSpelareProvider>{bibliotek}</Ops.OpsSpelareProvider> : bibliotek;
+  // Skalets spelare runt biblioteket i montagen av korten (0.102.0), som i appen. Spelarens lägen får också den riktiga bottenraden,
+  // så att montaget visar spelraden där den hamnar i appen och inte ovanför en tom yta (granskningen av PR 366, montaget).
+  const navrad = ["spelrad", "spelarark"].includes(start) ? (
+    <Ops.OpsBottomNav
+      nav={[
+        { href: "/idag", label: "Idag", icon: <span aria-hidden="true">◻</span> },
+        { href: "/kalender", label: "Kalender", icon: <span aria-hidden="true">◻</span> },
+        { href: "/bibliotek", label: "Bibliotek", icon: <span aria-hidden="true">◻</span> },
+        { href: "/appar", label: "Appar", icon: <span aria-hidden="true">◻</span> },
+      ]}
+      activeHref="/bibliotek"
+      onNavigate={(_href, e) => e?.preventDefault?.()}
+    />
+  ) : null;
+  return ["kort", "meny", "spelrad", "spelarark"].includes(start) ? (
+    <Ops.OpsSpelareProvider>
+      <div className="pb-[calc(var(--bottom-nav-h)+var(--safe-bottom)+var(--spelrad-h,0px))]">{bibliotek}</div>
+      {navrad}
+    </Ops.OpsSpelareProvider>
+  ) : bibliotek;
 }
 
 createRoot(document.getElementById("root")).render(<Yta />);

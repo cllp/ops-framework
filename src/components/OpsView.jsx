@@ -1,6 +1,6 @@
 import { cx } from "../lib/cx.js";
 import { OpsHelp } from "./OpsHelp.jsx";
-import { OpsHubTillbaka, SIDRUBRIK_KLASS } from "./OpsTillbaka.jsx";
+import { OpsHubTillbaka, VYHUVUD_KLASS, VYIKON_KLASS, VYRUBRIK_KLASS } from "./OpsTillbaka.jsx";
 
 /**
  * Vyskalet. Varje sida i en ops-app ligger i en av dessa.
@@ -75,12 +75,16 @@ export function OpsView({ width = "normal", tillbaka, children }) {
  * @param {import("react").ReactNode} [props.actions] Knappar till höger om rubriken.
  * @param {string} [props.hjalpHref] (0.92.1) När satt öppnar frågetecknet hjälpsidan (djuplänk) i stället för hopfällningen.
  * @param {(href: string, event: any) => void} [props.onNavigate]
+ * @param {import("react").ReactNode} [props.ikon] (0.102.0) Vyns ikon före namnet, i accent, som i Meddelanden.
  */
-export function OpsViewHeader({ title, description, actions, hjalpHref, onNavigate }) {
+export function OpsViewHeader({ title, description, actions, hjalpHref, onNavigate, ikon }) {
   return (
     // `flex-wrap` är inte kosmetik: utan den trycks knapparna ut ur skärmen på
     // telefon och blir onåbara. Raden bryter i stället för att svämma över.
-    <header className="mb-6 flex flex-wrap items-start justify-between gap-4">
+    // ⛔ (0.102.0) SAMMA TUNNA HUVUD SOM MEDDELANDEN (`VYHUVUD_KLASS`): ikon, namn och åtgärder på en rad. Förut en rubrik i
+    // 20 px och `mb-6`, och CP:s Inkorg "börjar nästan i halva panelen".
+    <header data-vyhuvud="" className={`mb-3 flex-wrap justify-between ${VYHUVUD_KLASS}`}>
+      {ikon ? <span aria-hidden="true" className={VYIKON_KLASS}>{ikon}</span> : null}
       {/*
         ⛔ BESKRIVNINGEN LIGGER BAKOM ETT FRÅGETECKEN sedan 2026-09-22. CP: "Låt
         texter komma fram med hjälp av att man trycker på ett frågetecken, så
@@ -100,7 +104,7 @@ export function OpsViewHeader({ title, description, actions, hjalpHref, onNaviga
         gest som i modulramen, när vyn hör till en app med `hjalp`.
       */}
       <OpsHelp
-        title={<h1 className={SIDRUBRIK_KLASS}>{title}</h1>}
+        title={<h1 className={VYRUBRIK_KLASS}>{title}</h1>}
         href={hjalpHref}
         onNavigate={onNavigate}
         label={hjalpHref ? "Öppna hjälpen" : "Visa förklaring"}

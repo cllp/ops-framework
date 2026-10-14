@@ -2440,7 +2440,7 @@ function OpsAppShellRitad({
       {/* `padding-bottom` lika med bottenradens höjd plus säker yta, men bara
           under md där baren finns. Utan den ligger sista kortet under baren, och
           det upptäcks först när någon inte hittar sin sista rad. */}
-      <main className="pb-[calc(var(--bottom-nav-h)+var(--safe-bottom))] md:pb-0">
+      <main className="pb-[calc(var(--bottom-nav-h)+var(--safe-bottom)+var(--spelrad-h,0px))] md:pb-(--spelrad-h,0px)">
         {/* ⛔ #159: ALLTID PÅ, se OpsFelgrans filhuvud. Ingen prop stänger av den. */}
         <OpsFelgrans felmottagare={felmottagare} rubrik={felRubrik} beskrivning={felBeskrivning} laddaOmEtikett={laddaOmEtikett}>
           {/* ⛔ 0.31.0: APPENS VY ÄR KVAR I DOM:EN, DOLD, medan skapa-panelen visas. Tillbaka återställer då exakt vyn man kom

@@ -34,6 +34,20 @@ import { useIHuvudmenyn } from "./OpsHuvudmeny.jsx";
 export const SIDRUBRIK_KLASS = "m-0 font-display text-sida leading-tight tracking-tight text-ink";
 
 /**
+ * ⛔ VYNS HUVUD ÄR MEDDELANDENS HUVUD (0.102.0). CP 2026-10-14 med skärmbilder av Meddelanden, Bibliotek och Inkorg från
+ * telefonen: "Kolla header panelen på chatt. Den är mycket tunnare och bättre än bibliotek. Gör dessa enhetliga med
+ * utgångspunkt från meddelanden. Inkorgen börjar nästan i halva panelen." Biblioteket och Inkorgen hade en rubrik i 20 px på
+ * egen rad, med luft under, och Meddelanden en enda rad: modulens ikon i accent, namnet i etikettens storlek och vikt 600, och
+ * åtgärderna till höger. Den raden är nu huvudet överallt, i `OpsHubTillbaka`, `OpsViewHeader` och `OpsMeddelanden`, med
+ * samma två klasser, så att de inte kan glida isär.
+ */
+export const VYHUVUD_KLASS = "flex min-w-0 items-center gap-2";
+/** Namnet i vyns huvud. Se `VYHUVUD_KLASS`. */
+export const VYRUBRIK_KLASS = "m-0 min-w-0 flex-1 truncate text-etikett font-semibold text-ink";
+/** Ikonens plats i vyns huvud, i accent. */
+export const VYIKON_KLASS = "inline-flex shrink-0 text-accent [&>svg]:size-[18px]";
+
+/**
  * @param {object} props
  * @param {string} props.hubHref Hubbens `href`: länkens mål när `steg` är tom.
  * @param {string} props.etikett Den nuvarande sidans namn. Rubriken när `rubrik` är sant.
@@ -46,8 +60,9 @@ export const SIDRUBRIK_KLASS = "m-0 font-display text-sida leading-tight trackin
  * @param {boolean} [props.rubrik] Rita sidans rubrik under länken. Förval falskt.
  * @param {string} [props.modul] (0.88.1) Modulens id. Står modulen i huvudmenyn (`OpsHuvudmenyProvider`) ritas ingen länk, bara rubriken: en fäst modul är inbyggd.
  * @param {import("react").ReactNode} [props.atgard] (0.89.0) Något till höger om rubriken, på samma rad. Kugghjulet i modulramen. Utan rubrik och utan åtgärd ritas ingenting när modulen är fäst.
+ * @param {import("react").ReactNode} [props.ikon] (0.102.0) Modulens ikon före namnet, i accent, som i Meddelanden.
  */
-export function OpsHubTillbaka({ hubHref, etikett, steg = [], hubEtikett = "Appar", onNavigate, brodsmulaEtikett = "Var du är", tillbakaEtikett = "Tillbaka", tillbakaTillEtikett = "Tillbaka till", rubrik = false, modul, atgard = null }) {
+export function OpsHubTillbaka({ hubHref, etikett, steg = [], hubEtikett = "Appar", onNavigate, brodsmulaEtikett = "Var du är", tillbakaEtikett = "Tillbaka", tillbakaTillEtikett = "Tillbaka till", rubrik = false, modul, atgard = null, ikon = null }) {
   const fast = useIHuvudmenyn(modul);
   if (typeof hubHref !== "string" || hubHref === "") {
     throw new Error("OpsHubTillbaka: hubHref krävs. Tillbaka-raden är ett steg upp till Hub, och en rad som inte vet vart den leder är en knapp som inte gör något.");
@@ -73,29 +88,25 @@ export function OpsHubTillbaka({ hubHref, etikett, steg = [], hubEtikett = "Appa
       </a>
     </nav>
   );
-  const rubrikrad = rubrik ? <h1 className={SIDRUBRIK_KLASS}>{etikett}</h1> : null;
   /*
-   * Kugghjulet och Klar sitter i huvudets bakre kant. Finns Tillbaka står de
-   * på den raden, så en lång rubrik ("Meddelanden · Inställningar") inte
-   * tränger dem mot texten. Utan Tillbaka, en fäst modul, står de på rubrikraden.
+   * ⛔ EN RAD: IKON, NAMN OCH ÅTGÄRD (0.102.0, se `VYHUVUD_KLASS`). Tillbaka står på egen rad ovanför när modulen inte är fäst.
+   * Förut stod kugghjulet på Tillbaka-raden och namnet i 20 px under den, så huvudet tog tre rader. Nu kortas ett långt namn
+   * ("Meddelanden · Inställningar") med `truncate` i stället för att trycka åtgärden ur raden.
    */
-  const atgardsplats = atgard ? <div data-modul-huvud-atgard="" className="ml-auto shrink-0">{atgard}</div> : null;
+  const atgardsplats = atgard ? <div data-modul-huvud-atgard="" className="ml-auto flex shrink-0 items-center gap-1">{atgard}</div> : null;
+  const rubrikrad = rubrik ? (
+    <div data-vyhuvud="" className={VYHUVUD_KLASS}>
+      {ikon ? <span aria-hidden="true" className={VYIKON_KLASS}>{ikon}</span> : null}
+      <h1 className={VYRUBRIK_KLASS}>{etikett}</h1>
+      {atgardsplats}
+    </div>
+  ) : atgard ? (
+    <div className={VYHUVUD_KLASS}>{atgardsplats}</div>
+  ) : null;
   return (
     <div className="flex w-full flex-col gap-1" data-tillbaka-fast={fast ? "" : undefined} data-modul-huvud={atgard ? "" : undefined}>
-      {atgard ? (
-        <>
-          <div className="flex w-full items-center gap-3">
-            <div className="min-w-0 flex-1">{lank && atgard ? lank : rubrikrad}</div>
-            {atgardsplats}
-          </div>
-          {lank && atgard ? rubrikrad : null}
-        </>
-      ) : (
-        <>
-          {lank}
-          {rubrikrad}
-        </>
-      )}
+      {lank}
+      {rubrikrad}
     </div>
   );
 }
