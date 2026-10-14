@@ -195,7 +195,7 @@ något godtyckligt.
 |---|---|
 | `OpsField` | `label`, `hint`, `error`, `required`, `labelSize` standard \| liten, `children`. ⛔ `liten` (0.32.1) är SS profilens etikett (10/400, dämpad, `ProfileView.jsx:245`); standard (14/500) är SS formulärens. |
 | `OpsInput` | `value`, `onChange`, `type` text \| email \| search \| tel \| url \| password \| number, `placeholder`, `name`, `autoComplete`, `disabled`, `readOnly`, `maxLength`, `ariaLabel` |
-| `OpsTextarea` | `value`, `onChange`, `placeholder`, `name`, `rows`, `disabled`, `maxLength`, `ariaLabel` |
+| `OpsTextarea` | `value`, `onChange`, `placeholder`, `name`, `rows`, `disabled`, `maxLength`, `ariaLabel`, `onSend`, `tal`. ⛔ **`tal` (0.104.0):** `true` eller `{ igenkanning?, onTranscribe?, inspelare? }` ger en mikrofon i fältets nedre hörn, samma som i chattens skrivfält. Ett tryck visar TALK:s yta med texten medan den hörs, Klar skriver in det sagda där markören stod (eller sist), Avbryt ändrar ingenting, och fältet skickar inget. `onTranscribe` är reserven när igenkänningen saknas eller inte gav text, och inget tomt skrivs in tyst. `maxLength` gäller även det sagda: det kapas, och fältet säger det. `tal={true}` slår på webbläsarens igenkänning; i objektformen är den av som förval. Kräver `onChange`. Mikrofonen ritas bara när något kan ge text. Ord på svenska och engelska: `ORD_OPSTEXTAREA_TAL` |
 | `OpsSelect` | `options` [{value, label, disabled}], `value`, `onChange`, `placeholder`, `disabled`, `ariaLabel` |
 | `OpsDatePicker` | `value` ISO-datum, `onChange`, `placeholder`, `disabled`, `ariaLabel`, `clearLabel`. Öppnar en kalender som går att bläddra i även med ett valt datum, och ritas ovanför en `OpsModal` (`--z-dropdown` ligger över `--z-modal` sedan 0.31.0). |
 | `OpsTimePicker` | `value` `"HH:MM"` (24 h), `onChange`, `disabled`, `allowEmpty`, `timAriaLabel`, `minutAriaLabel`. Timme och minut i två listor med ett kolon emellan, som SessionStudios `ThemedTimeSelect.jsx`. ⛔ **Formulär får aldrig använda rå `<input type="date">` eller `type="time">`**: de ritas av operativsystemet, ser olika ut överallt och går inte att sätta tokens på. Datum är `OpsDatePicker`, tid är `OpsTimePicker`, båda med ett värde som är en sträng och inte ett `Date`. |
@@ -2434,7 +2434,11 @@ behövs?"
 
 - **Mittknappen är en mikrofon när skalet har `talk`.** Ett vanligt tryck startar TALK direkt, samma inspelning som huvudets
   mikrofon på dator. Utan `talk` är knappen plusset med dagens beteende, så att en app utan TALK inte tappar sin skapaväg.
-- ⛔ **Mikrofonen är stor och bär ett plus bakom sig när ett långtryck skapar** (#382). CP 2026-10-14: "Undra om man i den ikonen
+- ⛔ **ÄNDRAT 0.104.0: plusset är borta.** CP 2026-10-14: "Sak bara vi måste ta bort plusset till plus-knappen. Den ser bara
+  skräpig ut." Mikrofonen ensam är knappen, 31 px och mitt i cirkeln. Långtrycket, Shift+F10, ContextMenu, `aria-haspopup` och
+  namnet "TALK, prata in. Håll inne för att skapa" finns kvar; namnet är nu det enda som säger att långtrycket finns. Punkten
+  nedan beskriver 0.103.0. Mätt i `scripts/lib/mittknappMatt.mjs`.
+- (0.103.0) **Mikrofonen är stor och bar ett plus bakom sig när ett långtryck skapar** (#382). CP 2026-10-14: "Undra om man i den ikonen
   kan ha en stor mikrofon och liksom lite bakomliggande ett plus som indikerar det." Mikrofonen ritas i 31 px i 56 px-cirkeln.
   Plusset (`data-skapa-marke`, 20 px, `accent-contrast` med `opacity-60`) står upp till höger, ritas före mikrofonen och täcks där
   de möts av mikrofonens kapsel, som är fylld i knappens färg. Mätt i `check-skalyta.mjs` avsnitt 39 och `mikrofon-montage.mjs`

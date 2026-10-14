@@ -185,6 +185,60 @@ describe("OpsAppShell apparArk", () => {
     expect(idOrdning(screen.getByRole("dialog"))).toEqual(["ekonomi", "resor"]);
   });
 
+  /*
+   * ⛔ 0.104.0: en ordning som inte sparades visas inte. Förut låg den hållna ordningen kvar när `onOrdning` avvisade, också efter
+   * att arket stängts och öppnats igen, och det såg ut som att flytten gått igenom.
+   */
+  for (const [namn, onOrdning] of /** @type {const} */ ([
+    ["avvisar sitt löfte", () => Promise.reject(new Error("Ordningen kunde inte sparas."))],
+    ["kastar direkt", () => { throw new Error("Ordningen kunde inte sparas."); }],
+  ])) {
+    it(`⛔ när onOrdning ${namn} syns felet, och propens ordning visas direkt och efter att arket öppnats igen`, async () => {
+      skal({ ark: { onOrdning } });
+      const dialog = oppnaOrdning();
+      fireEvent.keyDown(within(dialog).getByRole("option", { name: "Ekonomi" }), { key: "ArrowRight" });
+      expect(idOrdning(dialog)).toEqual(["resor", "ekonomi"]);
+      fireEvent.click(screen.getByRole("button", { name: "Klar" }));
+      await act(async () => {});
+      const fel = within(screen.getByRole("dialog")).getByRole("alert");
+      expect(fel.textContent).toBe("Ordningen kunde inte sparas.");
+      expect(fel.className).toContain("text-danger");
+      expect(idOrdning(screen.getByRole("dialog"))).toEqual(["ekonomi", "resor"]);
+      fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+      fireEvent.click(within(screen.getByRole("navigation", { name: "Snabbnavigering" })).getByRole("button", { name: "Appar" }));
+      expect(idOrdning(screen.getByRole("dialog"))).toEqual(["ekonomi", "resor"]);
+    });
+  }
+
+  /*
+   * ⛔ 0.104.0, granskningen av PR 384 (BÖR 2): ett äldre sparande som avvisas EFTER ett nyare rör inte det nyare. Utan skyddet
+   * (`sparaForsok`) släppte det gamla avvisandet den hållna ordningen, och arket hoppade tillbaka till propens ordning med ett fel
+   * som gällde en ordning ingen längre bad om. Tre synliga appar, så att två flyttar i följd ger tre olika ordningar.
+   */
+  it("⛔ två Klar i följd: det första avvisas efter det andra, och ordningen från det andra står kvar utan fel", async () => {
+    const KALENDER = modul("kalender", "Kalender", "/kalender");
+    /** @type {Array<(e: Error) => void>} */
+    const avvisa = [];
+    const onOrdning = vi.fn(() => new Promise((_ok, fel) => avvisa.push(fel)));
+    skal({ ark: { moduler: [EKONOMI, RESOR, INKORG, KALENDER], grupp: { moduler: ["inkorg", "ekonomi", "resor", "kalender"], huvudmeny: ["ekonomi"] }, onOrdning } });
+    let dialog = oppnaOrdning();
+    expect(idOrdning(dialog)).toEqual(["ekonomi", "resor", "kalender"]);
+    fireEvent.keyDown(within(dialog).getByRole("option", { name: "Ekonomi" }), { key: "ArrowRight" });
+    fireEvent.click(screen.getByRole("button", { name: "Klar" }));
+    expect(idOrdning(screen.getByRole("dialog"))).toEqual(["resor", "ekonomi", "kalender"]);
+    fireEvent.click(screen.getByRole("button", { name: "Byt ordning" }));
+    dialog = screen.getByRole("dialog");
+    fireEvent.keyDown(within(dialog).getByRole("option", { name: "Kalender" }), { key: "ArrowLeft" });
+    fireEvent.click(screen.getByRole("button", { name: "Klar" }));
+    expect(onOrdning).toHaveBeenCalledTimes(2);
+    expect(idOrdning(screen.getByRole("dialog"))).toEqual(["resor", "kalender", "ekonomi"]);
+    await act(async () => {
+      avvisa[0](new Error("Den första ordningen kunde inte sparas."));
+    });
+    expect(within(screen.getByRole("dialog")).queryByRole("alert")).toBeNull();
+    expect(idOrdning(screen.getByRole("dialog"))).toEqual(["resor", "kalender", "ekonomi"]);
+  });
+
   it("ett långt tryck öppnar inställningsläget", () => {
     vi.useFakeTimers();
     try {

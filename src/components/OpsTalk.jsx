@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { AVBRYT_FRAGA_SEKUNDER, LANGTRYCK_MS, MAX_SEKUNDER, SPARAT_MS, TALK_PLATSTEXT, TALK_SKICKAR_TEXT, TALK_INGET_LJUD, TALK_SVARA_TEXT, TALK_TEXTFEL, igenkanningensSprak, kanBeOmMikrofon, kanSpelaInIgen, kontrolleraSkickarText, talkFeltext, talkKvitto, talkNasta, talkUnderlag, webblasarensIgenkanning, webblasarensInspelare } from "../lib/talk.js";
+import { AVBRYT_FRAGA_SEKUNDER, LANGTRYCK_MS, MAX_SEKUNDER, SPARAT_MS, TALK_SKICKAR_TEXT, TALK_INGET_LJUD, TALK_SVARA_TEXT, TALK_TEXTFEL, ORD_TALK, igenkanningensSprak, kanBeOmMikrofon, kanSpelaInIgen, kontrolleraSkickarText, talkFeltext, talkKvitto, talkNasta, talkOrd, talkTextPa, talkUnderlag, webblasarensIgenkanning, webblasarensInspelare } from "../lib/talk.js";
 import { useOpsSprak } from "./OpsSprak.jsx";
 import { formateraTid } from "../lib/ljudspelare.js";
 import { rapporteraFel } from "../lib/felrapport.js";
@@ -51,7 +51,7 @@ import { OpsTooltip } from "./OpsTooltip.jsx";
 let mikrofonenUpptagenAv = null;
 
 /** Felet när en annan del av sidan redan spelar in. */
-export const TALK_UPPTAGEN = "En annan inspelning pågår redan. Avsluta den först.";
+export const TALK_UPPTAGEN = ORD_TALK.felUpptagen.sv;
 
 /**
  * @param {TalkVal & { onKlick: () => void }} val `onKlick` är det ett vanligt tryck gör, Skapa.
@@ -287,7 +287,7 @@ export function useTalk({ onTalk, onKlick, inspelare, igenkanning, skickarText, 
           .catch((fel) => {
             if (!monterad.current) return;
             rapporteraFel(fel, { yta: "OpsTalk", steg: "skicka" });
-            skicka({ typ: "fel", text: fel instanceof Error && fel.message ? fel.message : "Det inspelade kunde inte sparas." });
+            skicka({ typ: "fel", text: fel instanceof Error && fel.message ? fel.message : ORD_TALK.felSpara.sv });
           });
       };
       if (nasta.gor === "skicka" || nasta.gor === "igen") {
@@ -298,7 +298,7 @@ export function useTalk({ onTalk, onKlick, inspelare, igenkanning, skickarText, 
         if (nasta.gor === "igen") {
           const post = senast.current;
           if (!post) {
-            skicka({ typ: "fel", text: "Inget ljud finns kvar att spara." });
+            skicka({ typ: "fel", text: ORD_TALK.felIngetKvar.sv });
             return;
           }
           lamna(post);
@@ -345,7 +345,7 @@ export function useTalk({ onTalk, onKlick, inspelare, igenkanning, skickarText, 
           .catch((fel) => {
             if (mitt !== forsok.current || !monterad.current) return;
             rapporteraFel(fel, { yta: "OpsTalk", steg: "stoppa" });
-            skicka({ typ: "fel", text: fel instanceof Error && fel.message ? fel.message : "Inspelningen gick inte att avsluta." });
+            skicka({ typ: "fel", text: fel instanceof Error && fel.message ? fel.message : ORD_TALK.felAvsluta.sv });
           });
       }
     },
@@ -406,7 +406,7 @@ export function useTalk({ onTalk, onKlick, inspelare, igenkanning, skickarText, 
         const inaktuellt = mitt !== angraForsok.current || !monterad.current;
         rapporteraFel(fel, { yta: "OpsTalk", steg: "angra", ...(inaktuellt ? { kvittotBorta: true } : {}) });
         if (inaktuellt) return;
-        setKvitto({ text: k.text, angra: gor, status: "visas", fel: fel instanceof Error && fel.message ? fel.message : "Det gick inte att ångra." });
+        setKvitto({ text: k.text, angra: gor, status: "visas", fel: fel instanceof Error && fel.message ? fel.message : ORD_TALK.felAngra.sv });
       });
   };
 
@@ -587,17 +587,16 @@ const IKONKNAPP = `${KUGG} aria-disabled:cursor-default aria-disabled:opacity-60
 
 /** De tre mottagarna i rubrikradens ordning (0.103.0). Namnen är de knapparna läses upp med, och tooltipen visar samma ord. */
 const VIDARE = /** @type {const} */ ([
-  { nyckel: "meddelande", etikett: "Skapa ett meddelande av samtalet" },
-  { nyckel: "handelse", etikett: "Skapa en händelse av samtalet" },
-  { nyckel: "arende", etikett: "Skapa ett ärende av samtalet" },
+  { nyckel: "meddelande", ord: "vidareMeddelande" },
+  { nyckel: "handelse", ord: "vidareHandelse" },
+  { nyckel: "arende", ord: "vidareArende" },
 ]);
 
-/**
- * Namnet Klar läses upp med i TALK (0.103.0). ⛔ EN KONSTANT OCH INTE ETT FÖRVAL I PARAMETERLISTAN: namnet stod förut direkt i knappen,
- * och `check-sprak` räknar svenska förval i parametrarna. Ordet följer inte språket, eftersom ordet på knappen (Klar) inte heller gör
- * det, och ett uppläst namn som inte innehåller det synliga ordet går inte att säga åt en röststyrning.
+/*
+ * Namnet Klar läses upp med i TALK (0.103.0) är `ORD_TALK.klarNamn` (0.104.0). ⛔ INTE ETT FÖRVAL I PARAMETERLISTAN: `check-sprak`
+ * räknar svenska förval i parametrarna. Sedan 0.104.0 följer namnet språket, liksom ordet på knappen: ett uppläst namn som inte
+ * innehåller det synliga ordet går inte att säga åt en röststyrning, och det gäller på båda språken.
  */
-const TALK_KLAR_NAMN = "Klar, spara inspelningen";
 
 const INSPELNING_PROPS = ["lage", "fel", "niva", "sekunder", "tak", "framsteg", "kanIgen", "text", "textFel", "medText", "skickarText", "svaraText", "kvitto", "onAngra", "onSvara", "onKlar", "onAvbryt", "onIgen", "onStart", "onTillatMikrofon", "onInstallningar", "marke", "mal", "valt", "onValj", "historik", "vidare", "fortsattEtikett", "klarEtikett"];
 
@@ -670,7 +669,7 @@ const INSPELNING_PROPS = ["lage", "fel", "niva", "sekunder", "tak", "framsteg", 
  *   personen sade hördes. Kastar mottagaren står felet i fältet och samtalet finns kvar.
  * @param {string} [props.fortsattEtikett] (0.103.0) Namnet på Meddelande när appen säger att man står i en chatt ("Fortsätt i chatten").
  *   Utan den heter ikonen "Skapa ett meddelande av samtalet".
- * @param {string} [props.klarEtikett] (0.103.0) Namnet Klar läses upp med. Förval "Klar, spara inspelningen". Chattens skrivfält
+ * @param {string} [props.klarEtikett] (0.103.0) Namnet Klar läses upp med. Förval `ORD_TALK.klarNamn` på språket som gäller (0.104.0). Chattens skrivfält
  *   skickar det sagda som ett meddelande, och där hade "spara inspelningen" sagt något annat än det som händer. Ordet på skärmen är
  *   Klar i båda. En tom sträng eller något annat än en sträng kastar.
  */
@@ -679,7 +678,7 @@ export function OpsInspelning(props) {
   if (okanda.length > 0) {
     throw new Error(`OpsInspelning: okända props ${okanda.join(", ")}. Tillåtna: ${INSPELNING_PROPS.join(", ")}.`);
   }
-  const { lage, fel, niva, sekunder, tak, framsteg, kanIgen, text = "", textFel = "", medText = false, skickarText = TALK_SKICKAR_TEXT, svaraText, kvitto = null, onAngra, onSvara, onKlar, onAvbryt, onIgen, onStart, onTillatMikrofon, onInstallningar, marke, mal = [], valt = null, onValj, historik = [], vidare, fortsattEtikett, klarEtikett = TALK_KLAR_NAMN } = props;
+  const { lage, fel, niva, sekunder, tak, framsteg, kanIgen, text = "", textFel = "", medText = false, skickarText = TALK_SKICKAR_TEXT, svaraText, kvitto = null, onAngra, onSvara, onKlar, onAvbryt, onIgen, onStart, onTillatMikrofon, onInstallningar, marke, mal = [], valt = null, onValj, historik = [], vidare, fortsattEtikett, klarEtikett: klarEtikettProp } = props;
   if (vidare !== undefined) {
     const felaktiga = vidare && typeof vidare === "object" ? Object.entries(vidare).filter(([k, v]) => !VIDARE.some((x) => x.nyckel === k) || typeof v !== "function").map(([k]) => k) : [typeof vidare];
     if (felaktiga.length > 0) {
@@ -689,8 +688,8 @@ export function OpsInspelning(props) {
   if (fortsattEtikett !== undefined && (typeof fortsattEtikett !== "string" || !fortsattEtikett.trim())) {
     throw new Error(`OpsInspelning: fortsattEtikett ska vara en sträng som inte är tom, fick ${typeof fortsattEtikett === "string" ? JSON.stringify(fortsattEtikett) : typeof fortsattEtikett}. En ikon utan namn går inte att hitta för den som lyssnar.`);
   }
-  if (typeof klarEtikett !== "string" || !klarEtikett.trim()) {
-    throw new Error(`OpsInspelning: klarEtikett ska vara en sträng som inte är tom, fick ${typeof klarEtikett === "string" ? JSON.stringify(klarEtikett) : typeof klarEtikett}. En knapp utan namn går inte att hitta för den som lyssnar.`);
+  if (klarEtikettProp !== undefined && (typeof klarEtikettProp !== "string" || !klarEtikettProp.trim())) {
+    throw new Error(`OpsInspelning: klarEtikett ska vara en sträng som inte är tom, fick ${typeof klarEtikettProp === "string" ? JSON.stringify(klarEtikettProp) : typeof klarEtikettProp}. En knapp utan namn går inte att hitta för den som lyssnar.`);
   }
   const [fragar, setFragar] = useState(false);
   /** Felet när en mottagare kastade (0.103.0). Samtalet står kvar, så att det går att trycka igen eller stänga. */
@@ -700,6 +699,9 @@ export function OpsInspelning(props) {
   const stang = useRef(/** @type {HTMLButtonElement | null} */ (null));
   const svara = useRef(/** @type {HTMLButtonElement | null} */ (null));
   const sprak = useOpsSprak();
+  /** Ytans egna ord på språket som gäller (0.104.0, `ORD_TALK`). @param {keyof typeof ORD_TALK} k */
+  const o = (k) => talkOrd(k, sprak);
+  const klarEtikett = klarEtikettProp ?? o("klarNamn");
   const svaraOrd = svaraText ?? TALK_SVARA_TEXT[sprak === "en" ? "en" : "sv"];
   const malEtikett = useId();
   const lyssnar = lage === "haller" || lage === "lyssnar";
@@ -761,7 +763,7 @@ export function OpsInspelning(props) {
       }
     } catch (fel) {
       rapporteraFel(fel, { yta: "OpsTalk", steg: `vidare-${nyckel}` });
-      setVidareFel(fel instanceof Error && fel.message ? fel.message : "Samtalet gick inte att lämna vidare.");
+      setVidareFel(fel instanceof Error && fel.message ? fel.message : ORD_TALK.felVidare.sv);
       return;
     }
     onAvbryt();
@@ -780,9 +782,9 @@ export function OpsInspelning(props) {
     if (typeof onStart !== "function") return null;
     return (
       <div data-ops-inspelning="" data-lage={lage} className="flex w-full min-w-0">
-        <button type="button" aria-label="Spela in" data-inspelning="start" onClick={onStart} className={PRIMAR}>
+        <button type="button" aria-label={o("spelaIn")} data-inspelning="start" onClick={onStart} className={PRIMAR}>
           <MikrofonIkon size={18} />
-          Spela in
+          {o("spelaIn")}
         </button>
       </div>
     );
@@ -791,16 +793,18 @@ export function OpsInspelning(props) {
   if (fragar && lyssnar) {
     return (
       <div data-ops-inspelning="" data-inspelning="fraga" className="flex w-full min-w-0 flex-col gap-4">
-        <p className="m-0 text-brod text-ink">Kasta den här inspelningen?</p>
+        <p className="m-0 text-brod text-ink">{o("kastaFraga")}</p>
         <div className="flex items-center gap-3">
-          <button type="button" onClick={() => { setFragar(false); onAvbryt(); }} className={`${SEKUNDAR_ORD} text-danger`}>Kasta</button>
-          <button ref={fortsatt} type="button" onClick={() => setFragar(false)} className={PRIMAR}>Fortsätt</button>
+          <button type="button" onClick={() => { setFragar(false); onAvbryt(); }} className={`${SEKUNDAR_ORD} text-danger`}>{o("kasta")}</button>
+          <button ref={fortsatt} type="button" onClick={() => setFragar(false)} className={PRIMAR}>{o("fortsatt")}</button>
         </div>
       </div>
     );
   }
 
   const procent = framsteg == null ? null : Math.round(framsteg * 100);
+  /** Statusraden medan det sparas. TALK:s eget "Sparar…" på språket som gäller, appens text som den är. */
+  const skickarVisas = talkTextPa(skickarText, sprak);
   /** Vad statusregionen säger. `null`: tom och dold. */
   const statusLage = lage === "skickar" ? "skickar" : lage === "sparat" ? (kvitto ? "kvitto" : "sparat") : null;
   const valtId = valt ?? (mal[0] ? mal[0].id : null);
@@ -821,7 +825,7 @@ export function OpsInspelning(props) {
           <TalkPrickar niva={niva} lyssnar={lyssnar} skickar={!lyssnar} />
           <span data-inspelning-tid="" className="shrink-0 text-meta text-ink-muted tabular-nums">{formateraTid(sekunder)} / {formateraTid(tak)}</span>
           {onInstallningar && lyssnar ? (
-            <button type="button" aria-label="Inställningar för TALK" onClick={onInstallningar} className={`${KUGG} -my-1 -mr-1`}>
+            <button type="button" aria-label={o("installningar")} onClick={onInstallningar} className={`${KUGG} -my-1 -mr-1`}>
               <KugghjulIkon size={18} />
             </button>
           ) : null}
@@ -836,14 +840,14 @@ export function OpsInspelning(props) {
           </p>
         ) : textFel ? null : (
           <p data-talk-platstext="" className={`${TEXTYTA} text-ink-muted`}>
-            {TALK_PLATSTEXT}
+            {o("platstext")}
           </p>
         )
       ) : null}
       {/* ⛔ TEXTEN UTEBLIR OCH FÄLTET SÄGER DET (0.99.0, regel 5). Förut svaldes ett fall i igenkänningen, och platstexten stod
           kvar som ett löfte som aldrig infriades. `role="alert"` eftersom raden föds med sin text, och en region som föds med
           innehåll läses inte alltid upp. */}
-      {lyssnar && textFel ? <p role="alert" data-talk-textfel="" className="m-0 text-etikett text-ink-secondary">{textFel}</p> : null}
+      {lyssnar && textFel ? <p role="alert" data-talk-textfel="" className="m-0 text-etikett text-ink-secondary">{talkTextPa(textFel, sprak)}</p> : null}
       {/* ⛔ STATUSREGIONEN STÅR KVAR OCH BYTER TEXT (0.97.0). Förut skapades en ny `role="status"` i samma ögonblick som den
           fick sin text, och skärmläsare läser ofta inte upp en region som föds med innehåll: kvittot, "Ångrat" och
           "Agenten arbetar…" kunde passera tyst. Nu finns den från första läget i fältet, dold och tom medan man pratar, i samma
@@ -854,10 +858,10 @@ export function OpsInspelning(props) {
       {ikoner.length > 0 ? (
         <div data-talk-rubrikrad="" className="flex min-h-11 min-w-0 items-center gap-2">
           {marke ? <span aria-hidden="true" className="flex size-7 shrink-0 items-center justify-center">{marke}</span> : null}
-          <span className="min-w-0 flex-1 text-meta text-ink-muted">Samtalet</span>
-          <div role="group" aria-label="Gör något av samtalet" className="-my-1 -mr-1 flex shrink-0 items-center gap-1">
+          <span className="min-w-0 flex-1 text-meta text-ink-muted">{o("samtalet")}</span>
+          <div role="group" aria-label={o("gorNagot")} className="-my-1 -mr-1 flex shrink-0 items-center gap-1">
             {ikoner.map((x) => {
-              const namn = x.nyckel === "meddelande" && fortsattEtikett ? fortsattEtikett : x.etikett;
+              const namn = x.nyckel === "meddelande" && fortsattEtikett ? fortsattEtikett : o(x.ord);
               const Ikon = x.nyckel === "meddelande" ? MeddelandeIkon : x.nyckel === "handelse" ? HandelsePlusIkon : ArendePlusIkon;
               return (
                 <OpsTooltip key={x.nyckel} content={namn} side="top">
@@ -885,7 +889,7 @@ export function OpsInspelning(props) {
         ref={samtalsyta}
         data-talk-samtal={samtaletStar ? "" : undefined}
         role={samtaletStar ? "region" : undefined}
-        aria-label={samtaletStar ? "Samtalet" : undefined}
+        aria-label={samtaletStar ? o("samtalet") : undefined}
         tabIndex={samtaletStar ? 0 : undefined}
         className={samtaletStar ? SAMTALSYTA : "contents"}
       >
@@ -893,47 +897,47 @@ export function OpsInspelning(props) {
           <ol data-talk-historik="" className="m-0 flex list-none flex-col gap-3 p-0">
             {tidigare.map((r, i) => (
               <li key={i} data-talk-omgang="" className="flex flex-col gap-3">
-                {r.hord.trim() ? <p className={DU_BUBBLA}><span className="sr-only">Du: </span>{r.hord.trim()}</p> : null}
+                {r.hord.trim() ? <p className={DU_BUBBLA}><span className="sr-only">{o("du")}</span>{r.hord.trim()}</p> : null}
                 <p className={`${AGENT_RAD} text-ink-secondary`}>
                   <span aria-hidden="true" className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-accent-subtle text-accent"><BockIkon size={14} /></span>
-                  <span className="min-w-0"><span className="sr-only">Agenten: </span>{r.angrat ? `Ångrat: ${r.kvitto}` : r.kvitto}</span>
+                  <span className="min-w-0"><span className="sr-only">{o("agenten")}</span>{r.angrat ? `${o("angratPrefix")}${r.kvitto}` : r.kvitto}</span>
                 </p>
               </li>
             ))}
           </ol>
         ) : null}
-        {nuHord ? <p data-talk-du="" className={DU_BUBBLA}><span className="sr-only">Du: </span>{nuHord}</p> : null}
+        {nuHord ? <p data-talk-du="" className={DU_BUBBLA}><span className="sr-only">{o("du")}</span>{nuHord}</p> : null}
         <p role="status" aria-live="polite" data-talk-status={statusLage || undefined} data-talk-kvitto={statusLage === "kvitto" ? "" : undefined} className={STATUSKLASS[statusLage || "tom"]}>
           {statusLage === "skickar" ? (
             <>
               {procent == null ? <OpsSpinner size="sm" decorative /> : null}
-              {procent == null ? skickarText : `${skickarText} ${procent} %`}
+              {procent == null ? skickarVisas : `${skickarVisas} ${procent} %`}
             </>
           ) : null}
           {statusLage === "sparat" ? (
             <>
               <span aria-hidden="true" className="flex size-7 shrink-0 items-center justify-center rounded-full bg-accent-subtle text-accent"><BockIkon size={14} /></span>
-              Sparat
+              {o("sparat")}
             </>
           ) : null}
           {statusLage === "kvitto" && kvitto ? (
             <>
               <span aria-hidden="true" className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-accent-subtle text-accent"><BockIkon size={14} /></span>
-              <span className="min-w-0">{kvitto.angrat ? "Ångrat" : kvitto.text}</span>
+              <span className="min-w-0">{kvitto.angrat ? o("angrat") : kvitto.text}</span>
             </>
           ) : null}
         </p>
       </div>
       {lage === "skickar" && procent != null ? (
         // `-mt-1`: raden och stapeln hörde ihop med 8 px emellan, och fältets mellanrum är 12.
-        <div role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={procent} aria-label={skickarText} className="-mt-1 h-1.5 w-full overflow-hidden rounded-full bg-line">
+        <div role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={procent} aria-label={skickarVisas} className="-mt-1 h-1.5 w-full overflow-hidden rounded-full bg-line">
           <div className="h-full bg-accent" style={{ width: `${procent}%` }} />
         </div>
       ) : null}
       {lage === "sparat" && kvitto ? (
         <>
-          {kvitto.fel ? <p role="alert" data-talk-fel="" className="m-0 text-etikett text-danger">{kvitto.fel}</p> : null}
-          {vidareFel && !kvitto.angrat ? <p role="alert" data-talk-vidarefel="" className="m-0 text-etikett text-danger">{vidareFel}</p> : null}
+          {kvitto.fel ? <p role="alert" data-talk-fel="" className="m-0 text-etikett text-danger">{talkTextPa(kvitto.fel, sprak)}</p> : null}
+          {vidareFel && !kvitto.angrat ? <p role="alert" data-talk-vidarefel="" className="m-0 text-etikett text-danger">{talkTextPa(vidareFel, sprak)}</p> : null}
           {!kvitto.angrat ? (
             <div className="flex items-center gap-3">
               {kvitto.kanAngra ? (
@@ -951,13 +955,13 @@ export function OpsInspelning(props) {
                   className={SEKUNDAR_ORD}
                 >
                   {kvitto.angrar ? <OpsSpinner size="sm" decorative /> : null}
-                  {kvitto.angrar ? "Ångrar…" : "Ångra"}
+                  {kvitto.angrar ? o("angrar") : o("angra")}
                 </button>
               ) : null}
               {/* ⛔ STÄNG ÄR SEKUNDÄR NÄR SVARA FINNS (0.99.0): den primära knappen är det man oftast vill, att svara agenten.
                   Svara snurrar inte och byter inte ord, men spärras medan Ångra pågår (`aria-disabled`, så fokus stannar):
                   en ny omgång hade rensat kvittot under en Ångra som ännu inte svarat. */}
-              <button ref={stang} type="button" data-talk-stang="" onClick={onAvbryt} className={onSvara ? SEKUNDAR_ORD : PRIMAR}>Stäng</button>
+              <button ref={stang} type="button" data-talk-stang="" onClick={onAvbryt} className={onSvara ? SEKUNDAR_ORD : PRIMAR}>{o("stang")}</button>
               {onSvara ? (
                 <button
                   ref={svara}
@@ -980,37 +984,37 @@ export function OpsInspelning(props) {
       ) : null}
       {lage === "fel" ? (
         <div className="flex min-w-0 flex-col gap-3">
-          <p role="alert" data-talk-fel="" className="m-0 text-etikett text-danger">{fel || "Något gick fel."}</p>
+          <p role="alert" data-talk-fel="" className="m-0 text-etikett text-danger">{fel ? talkTextPa(fel, sprak) : o("felOkant")}</p>
           <div className="flex items-center gap-3">
             {kanIgen || kanTillatMikrofon || kanNyInspelning ? (
-              <button type="button" aria-label="Avbryt" data-talk-avbryt="" onClick={onAvbryt} className={SEKUNDAR}>
+              <button type="button" aria-label={o("avbryt")} data-talk-avbryt="" onClick={onAvbryt} className={SEKUNDAR}>
                 <KryssIkon size={18} />
               </button>
             ) : null}
             {kanIgen ? (
-              <button type="button" onClick={onIgen} className={PRIMAR}>Försök igen</button>
+              <button type="button" onClick={onIgen} className={PRIMAR}>{o("forsokIgen")}</button>
             ) : null}
             {kanTillatMikrofon ? (
               <button type="button" data-talk-mikrofon="" onClick={onTillatMikrofon || onStart} className={PRIMAR}>
                 <MikrofonIkon size={18} />
-                Tillåt mikrofon
+                {o("tillatMikrofon")}
               </button>
             ) : null}
             {kanNyInspelning ? (
               <button type="button" data-talk-spela-in-igen="" onClick={onTillatMikrofon || onStart} className={PRIMAR}>
                 <MikrofonIkon size={18} />
-                Spela in igen
+                {o("spelaInIgen")}
               </button>
             ) : null}
             {!kanIgen && !kanTillatMikrofon && !kanNyInspelning ? (
-              <button type="button" onClick={onAvbryt} className={PRIMAR}>Stäng</button>
+              <button type="button" onClick={onAvbryt} className={PRIMAR}>{o("stang")}</button>
             ) : null}
           </div>
         </div>
       ) : null}
       {visaMal ? (
         <div className="flex min-w-0 flex-col gap-1.5">
-          <span id={malEtikett} className="text-meta text-ink-muted">Skickas till</span>
+          <span id={malEtikett} className="text-meta text-ink-muted">{o("skickasTill")}</span>
           {/* ⛔ SPÅRET ÄR NEDSÄNKT OCH DET VALDA LYFT, i båda lägena. `bg-raised` som valt blev MÖRKARE än spåret i mörkt läge
               (#262d26 mot #323a32), alltså omvänt. `sunken` med en hårlinje och `hover` som valt går åt rätt håll i båda. */}
           <div role="radiogroup" aria-labelledby={malEtikett} className="flex min-w-0 gap-1 rounded-full bg-sunken p-1 ring-1 ring-line ring-inset">
@@ -1035,12 +1039,12 @@ export function OpsInspelning(props) {
       ) : null}
       {lyssnar ? (
         <div className="flex items-center gap-3">
-          <button type="button" aria-label="Avbryt" data-talk-avbryt="" onClick={avbryt} className={SEKUNDAR}>
+          <button type="button" aria-label={o("avbryt")} data-talk-avbryt="" onClick={avbryt} className={SEKUNDAR}>
             <KryssIkon size={18} />
           </button>
           <button type="button" aria-label={klarEtikett} data-talk-skicka="" onClick={onKlar} className={PRIMAR}>
             <StoppIkon size={14} />
-            Klar
+            {o("klar")}
           </button>
         </div>
       ) : null}

@@ -94,19 +94,20 @@ describe("mittknappen", () => {
 
 /*
  * ⛔ #382. CP 2026-10-14: "Undra om man i den ikonen kan ha en stor mikrofon och liksom lite bakomliggande ett plus som indikerar
- * det." Plusset säger att långtrycket finns, och namnet säger det till den som inte ser plusset. Båda gäller bara när ett långtryck
- * faktiskt öppnar skapa: ett plus utan något bakom vore ett löfte knappen inte håller.
+ * det." ⛔ ÄNDRAT 0.104.0, CP 2026-10-14: "Sak bara vi måste ta bort plusset till plus-knappen. Den ser bara skräpig ut." Plusset är
+ * borta, och namnet är det som säger att långtrycket finns. Det gäller fortfarande bara när ett långtryck faktiskt öppnar skapa.
  */
-describe("plusset bakom mikrofonen", () => {
+describe("mikrofonen utan plus, och namnet som säger håll inne", () => {
   const marke = () => mitten().querySelector("[data-skapa-marke]");
 
-  it("⛔ med talk och skapa bakom bär mikrofonen ett plus, och namnet säger håll inne", async () => {
+  it("⛔ med talk och skapa bakom ritas bara mikrofonen, namnet säger håll inne, och långtrycket öppnar skapa", async () => {
     render(Skal({ talk: { onTalk: vi.fn(), inspelare: falskInspelare() }, skapa: { lage: "g1", handelse: { form: Handelseform, katalog: null } } }));
-    expect(marke()).not.toBeNull();
-    expect(marke()?.querySelector("svg")).not.toBeNull();
-    expect(marke()?.getAttribute("aria-hidden")).toBe("true");
+    expect(marke()).toBeNull();
+    expect(mitten().querySelectorAll("svg").length).toBe(1);
+    expect(mitten().querySelector("[data-skapa-ikon] svg")).not.toBeNull();
     expect(mitten().getAttribute("aria-label")).toContain("Håll inne för att skapa");
-    // Och långtrycket som plusset lovar finns: skapa-listan öppnas.
+    expect(mitten().getAttribute("aria-haspopup")).toBe("dialog");
+    expect(mitten().getAttribute("aria-keyshortcuts")).toBe("Shift+F10");
     await hallIn(mitten());
     expect(screen.getByRole("dialog", { name: "Skapa" }).textContent).toContain("Ny händelse");
   });
@@ -138,13 +139,6 @@ describe("plusset bakom mikrofonen", () => {
     fireEvent.keyDown(mitten(), { key: "F10", shiftKey: true });
     await flush();
     expect(screen.queryByRole("dialog", { name: "Skapa" })).toBeNull();
-  });
-
-  it("⛔ plusset ritas före mikrofonen, så att mikrofonen ligger framför (granskningen av PR 383, BÖR 5)", () => {
-    render(Skal({ talk: { onTalk: vi.fn(), inspelare: falskInspelare() }, skapa: { lage: "g1", handelse: { form: Handelseform, katalog: null } } }));
-    const ikon = /** @type {Element} */ (mitten().querySelector("[data-skapa-ikon]"));
-    // Geometrin (storlekar, överlapp, inom cirkeln) mäts i check-skalyta.mjs avsnitt 39: jsdom kör ingen CSS.
-    expect(marke()?.compareDocumentPosition(ikon) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("⛔ utan talk ritas inget plusmärke: knappen är själv plusset, och namnet är Skapa", () => {

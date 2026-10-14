@@ -1,7 +1,7 @@
 /**
  * Skärmbilder av bottenraden med mikrofonen och långtrycken (0.103.0) mot en byggd dist, 390 px i mörkt läge:
  *   - `ramverk-mikrofon-390.png`: bottenraden med mikrofonen i mitten, Inkorgen och gruppikonen i huvudet.
- *   - `ramverk-mikrofon-ljus-390.png`: samma i ljust läge. (#382) Plusset bakom mikrofonen ska gå att se i båda.
+ *   - `ramverk-mikrofon-ljus-390.png`: samma i ljust läge. (0.104.0) Mikrofonen ensam, utan plus, i båda.
  *   - `ramverk-tips-390.png`: tipsraden efter första vanliga trycket på Kalender.
  *   - `ramverk-kalender-hall-390.png`: Ny händelse efter ett långtryck på Kalender, med dagen formuläret fick.
  *
@@ -21,7 +21,9 @@ import { startaWebblasare } from "./lib/matVyport.mjs";
 import { kravPaMittknappen, matMittknappen } from "./lib/mittknappMatt.mjs";
 
 const rot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const ut = path.join(rot, "docs", "jamforelser", "0.103.0");
+// ⛔ 0.104.0: bilderna hamnar under versionen som byggs, så att en ny körning inte skriver över förra versionens bilder.
+const version = JSON.parse(fs.readFileSync(path.join(rot, "package.json"), "utf8")).version;
+const ut = path.join(rot, "docs", "jamforelser", version);
 fs.mkdirSync(ut, { recursive: true });
 
 const { sida, stada } = await byggYta({ rot, yta: path.join("scripts", "lib", "mikrofon-yta.jsx"), namn: "mikrofon" });
@@ -50,7 +52,7 @@ try {
   const kalender = (/** @type {import("playwright").Page} */ page) => page.locator("nav[aria-label='Snabbnavigering'] a[href='/kalender']");
 
   /**
-   * ⛔ #382, granskningen av PR 383 BÖR 5: en stor mikrofon med plusset bakom. Mätningen och kraven är samma som i
+   * ⛔ 0.104.0: mikrofonen ensam, utan plus (CP 2026-10-14: "Den ser bara skräpig ut."). Mätningen och kraven är samma som i
    * `check-skalyta.mjs` avsnitt 39 (`scripts/lib/mittknappMatt.mjs`). Talen skrivs ut, så att den som läser körningen ser vad som mättes.
    * @param {import("playwright").Page} page
    */

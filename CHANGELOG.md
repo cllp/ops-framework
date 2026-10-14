@@ -9,6 +9,161 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.104.0
+
+**Tal i vanliga textfält: `OpsTextarea` tar `tal`, och ett tryck på mikrofonen skriver in det sagda i fältet.**
+
+CP 2026-10-14, med en skärmbild av Skapa app i lifehub.app (ett `OpsTextarea` med "Beskriv appen du vill ha"): "Jag vill gärna ha
+TALK funktionen även här på skapa app." Skärmbilder mot en byggd yta, 390 och 1280 px, i vila och medan man pratar:
+`docs/jamforelser/0.104.0/` (`node scripts/check-skalyta.mjs --bara-textfalt --bilder docs/jamforelser/0.104.0`).
+
+### Tillagt: `tal` på `OpsTextarea`
+
+- `tal={true}` eller `tal={{ igenkanning?, onTranscribe?, inspelare? }}` ger en mikrofon i fältets nedre hörn, samma knapp som i
+  chattens skrivfält. Ett tryck visar TALK:s inspelningsyta med texten medan den hörs. **Klar skriver in det sagda där markören
+  stod**, eller sist när markören aldrig stått i fältet, med ett mellanslag där orden annars suttit ihop. **Avbryt ändrar ingenting.**
+  Fältet skickar inget, till skillnad från chatten. Fokus går tillbaka till fältet efter Klar och Avbryt, med markören efter det
+  inskrivna.
+- Samma regler som chatten och TALK: den preliminära texten räknas vid stopp, `onTranscribe` är reserven när igenkänningen inte gav
+  någon text eller saknas i webbläsaren, mikrofonen släpps i alla vägar ut, och ett fel står i ytan med Försök igen. **Inget tomt
+  skrivs in tyst** (rättelsen för cllp/lifehub.app#253): kommer utskriften tillbaka tom, eller finns varken text eller utskrift, säger
+  ytan det.
+- **`maxLength` gäller även det sagda.** Det som inte får plats kapas, och fältet säger det på en statusrad under fältet ("Det du sa
+  kortades: fältet rymmer N tecken.", eller att fältet är fullt). Raden försvinner vid nästa ändring.
+- Mikrofonen ritas bara när den kan ge text: med `onTranscribe`, eller med igenkänning som webbläsaren har. `tal={true}` slår på
+  igenkänningen; i objektformen är den av som förval, som i TALK, eftersom webbläsaren skickar talet till Google eller Apple.
+- `tal` kräver `onChange`, och ett `tal` utan både `igenkanning` och `onTranscribe` eller med en okänd nyckel kastar.
+- Fältets ord på svenska och engelska: `ORD_OPSTEXTAREA_TAL` (knappen heter "Prata in" och "Dictate").
+
+### Rättat: TALK:s yta följer appens språk
+
+Inspelningsytan (`OpsInspelning`, och därmed TALK-fältet, chattens och textfältets yta) hade sina ord bara på svenska: "Klar",
+"Avbryt", "Försök igen", "Stäng", "Sparat", "Ångra", platstexten, rubrikradens ikoner och TALK:s egna fel. Sett när textfältets egna
+ord var engelska men ytans inte var det. Orden står nu i `ORD_TALK` (`lib/talk.js`) och läses med `ordet` på språket ur
+`useOpsSprak`. Klars namn följer med ("Done, save the recording"). De svenska konstanterna (`TALK_INGET_LJUD`, `TALK_TEXTFEL`,
+`TALK_SKICKAR_TEXT` med flera) läser sin text ur ordlistan, så att meningen står på ett ställe. Ett fel bär sin svenska text i
+tillståndet, så att `kanSpelaInIgen` och `kanBeOmMikrofon` känner igen det, och översätts när det ritas; ett fel från appen ritas
+som det är. Prov i `talk-sprak.test.jsx`: 5 av 7 röda mot koden före rättelsen, alla 7 gröna med den (de två som är gröna i båda
+mäter att appens egen text och svenskan är orörda).
+
+### Rättat: Appar-arket visar inte en ordning som aldrig sparades
+
+När `onOrdning` avvisade sitt löfte låg den hållna ordningen kvar i `OpsApparArk`: felet stod i arket, men rutorna visade
+ordningen som aldrig sparades, också efter att arket stängts och öppnats igen. Nu hålls ordningen bara medan sparandet pågår och
+släpps när det avvisas eller kastar, så att arket visar propens ordning och felet. Ett äldre anrop som avvisas efter ett nyare rör
+inte det nyare. Felraden har ramverkets felfärg (`text-etikett text-danger`), förut stod den ostylad. Prov i `apparark.test.jsx`:
+avvisat löfte röd mot koden före (ordningen låg kvar), synkront kast röd på den ostylade raden, båda gröna med rättelsen.
+
+### Ändrat: mittknappen är bara en mikrofon
+
+CP 2026-10-14: "Sak bara vi måste ta bort plusset till plus-knappen. Den ser bara skräpig ut." Det lilla plusset bakom mikrofonen
+på `OpsBottomNav`s mittknapp, från 0.103.0, är borttaget, och `SkapaMarkeIkon` med det. Mikrofonen är lika stor som förut (31 px)
+och står mitt i cirkeln. Långtrycket öppnar fortfarande skapa-listan, och Shift+F10, ContextMenu, `aria-haspopup="dialog"`,
+`aria-keyshortcuts` och namnet ("TALK, prata in. Håll inne för att skapa") är kvar. Vakten `scripts/lib/mittknappMatt.mjs`
+(skalytans avsnitt 39 och `mikrofon-montage.mjs`) kräver nu att inget plus ritas, att mikrofonen är 30 till 32 px och centrerad, och
+att namnet nämner långtrycket: röd mot 0.103.0:s knapp ("mittknappen ritar ett plus"), grön med ändringen. Bilder vid 390 px:
+`docs/jamforelser/0.104.0/ramverk-mikrofon-390.png` och `ramverk-mikrofon-ljus-390.png`. `mikrofon-montage.mjs` skriver nu sina
+bilder under versionen som byggs.
+
+### Rättat: chattens röst-ord följer chattens språk
+
+I en chatt på engelska stod det synliga ordet "Done" på Klar, men namnet som lästes upp var det svenska "Klar, skicka det du sagt"
+(granskningen av PR 384, MÅSTE 1). Chattens röst-ord står nu i `ORD_MEDDELANDEN_TAL` på båda språken: mikrofonens namn ("Dictate"),
+Stoppa agenten, Klar ("Done, send what you said"), statusraderna och utskriftsfelen, med två nya nycklar `talIngenUtskrift` och
+`talIngetHordes` i `Meddelandetexter`. `texterPa` väljer dem på chattens språk, och appens egna `texter` vinner som förut. Ytan i
+skrivfältet ritas också på chattens språk när appen ger `sprak` utan `OpsSprakProvider`. Chattens övriga texter är fortfarande bara
+svenska: cllp/ops-framework#385. Prov i `chatt-talsprak.test.jsx`: 5 av 6 röda mot koden före (svenskan grön i båda), 6 av 6 gröna med.
+
+### Prov: Appar-arkets skydd mot ett gammalt avvisat sparande
+
+Skyddet i `OpsApparArk` som låter ett äldre sparande som avvisas efter ett nyare vara (`sparaForsok`) saknade prov: granskningen av
+PR 384 (BÖR 2) tog bort det och fick 15 av 15 gröna. `apparark.test.jsx` har nu ett prov med tre synliga appar och två Klar i följd,
+där det första avvisas efter det andra. Ordningen från det andra står kvar och inget fel visas. Rött med skyddet bortkopplat, grönt med det.
+
+### Rättat: inspelarens egna fel följer språket
+
+Två fel som `webblasarensInspelare` kastar ritades på svenska i en app på engelska, eftersom de inte stod i `ORD_TALK` (granskningen
+av PR 384, BÖR 3): "Den här webbläsaren kan inte spela in ljud." och "Ingen inspelning pågår.". De står nu där som `felInspelningSaknas`
+och `felIngenPagar`, tillsammans med det tredje felet inspelaren kastar ("Inspelningen avbröts innan mikrofonen öppnades.",
+`felAvbrotsForeMikrofon`), och inspelaren kastar den svenska formen därifrån. Prov i `talk-sprak.test.jsx`, som hämtar felen ur
+inspelaren själv: rött före, grönt med.
+
+### Rättat: `talkTextPa` översätter bara TALK:s fel och statusrader
+
+`talkTextPa` slog upp varje ord i `ORD_TALK`, så ett fel från appen som råkade heta som en knapp ("Stäng", "Klar") ritades på
+engelska fast det var appens text (granskningen av PR 384, KAN 5). Uppslaget gäller nu bara felen (`fel*`, `ingetLjud`, `textFel`)
+och statusraden `skickar`. Prov i `talk-sprak.test.jsx`: knappnamnen röda före och gröna med, och alla fel och statusrader översätts,
+med ett golv på 15 nycklar.
+
+### Rättat: tal som når `maxLength` kapas vid ett ordslut
+
+`skrivInTal` kapade det sagda mitt i ett ord och kunde lämna ett mellanslag sist ("Abc en lång "), och när bara mellanslaget framför
+inte fick plats sade fältet att det var fullt fast det sagda fick plats (granskningen av PR 384, KAN 6). Nu klipps det vid ett ordslut
+utan blanksteg sist (ett enda för långt ord kapas fortfarande mitt i), och får det sagda plats utan mellanslaget framför släpps
+mellanslaget i stället: `skrivInTal("abcde", null, "x", 6)` ger "abcdex". Prov i `textfalt-tal.test.jsx`: 3 röda före, gröna med. Två
+befintliga påståenden ändrades och behöver en annan granskare (regel 9).
+
+### Rättat: markören står kvar när appen avvisar det sagda
+
+När appen avvisade det inskrivna (`onChange` utan att värdet ändrades) lade `OpsTextarea` ändå markören efter det inskrivna, så att den
+hoppade fram i en text som aldrig ändrats, och positionen låg kvar tills fältet blev långt nog (granskningen av PR 384, KAN 4). Den
+väntande positionen bär nu värdet den gäller: blir värdet inte det väntade läggs markören där den stod, och en ändring av fältet tömmer
+positionen. Prov i `textfalt-tal.test.jsx`: rött före (markören på 7 i stället för 2), grönt med.
+
+### Rättat: talytan i ett textfält bär fältets namn
+
+Ytan som står i fältets plats medan man pratar hade inget namn, så den som lyssnar hörde "Klar" och "Avbryt" utan att veta vilket
+fält de gällde (granskningen av PR 384, KAN 7). Ytan är nu en grupp med fältets namn: etiketten i `OpsField` via `aria-labelledby`
+(etiketten har fått ett id, `etikettId` i fältets kontext), annars fältets `ariaLabel`. Chattens yta är oförändrad. Prov i
+`textfalt-tal.test.jsx`: 2 röda före, gröna med.
+
+### Rättat: `tal` med fel form ger ett begripligt fel
+
+`OpsTextarea` med `tal={null}` kastade "fick object", eftersom `typeof null` är "object", och en lista föll igenom till ett annat fel
+(granskningen av PR 384, KAN 8). Felet säger nu vad det fick ("null. Utelämna tal, eller ge false, …", "en lista", `"ja"`). Prov i
+`textfalt-tal.test.jsx`: rött före, grönt med.
+
+### Rättat: det sagda limmas aldrig ihop med ett ord
+
+Rättelsen av KAN 6 släppte mellanslaget före eller efter för att det sagda skulle rymmas, och då limmades det ihop med ordet bredvid
+utan besked: "Hej världen" fick "stora" som "Hej storavärlden", och "abcd" fick "xx yy" som "abxx yycd" (andra granskningsvarvet av
+PR 384, BÖR). Det är en tyst väg (regel 5). `skrivInTal` behåller nu avskiljarna på båda sidor och kapar det sagda inom det som blir
+kvar ("Hej stor världen", "ab xx cd"). Får det bara plats ihop med ett ord kommer det inte in alls, värdet och en markering står kvar,
+och fältet säger "Fältet rymmer {max} tecken, och det du sa fick inte plats." (engelska: "The field holds {max} characters, and what
+you said did not fit."). `fullt` sägs bara när fältet är fullt. Prov i `textfalt-tal.test.jsx`: 6 röda mot `fa1e637`, gröna med.
+Påståendet om `skrivInTal("abcde", null, "x", 6)` är ändrat en gång till, med en ny ⛔ ÄNDRAT-rad (regel 9).
+
+### Prov: chattens tillägg till utskriftsfelet är engelska på engelska
+
+En mutation som skrev "Ingen utskrift finns." och "Inget hördes i det inspelade." på svenska i chattens `rosttexter` var grön (andra
+granskningsvarvet av PR 384, KAN 2). `chatt-talsprak.test.jsx` prövar nu alla röst-ord som chatten ger röstinmatningen på engelska,
+med ett golv på 7 nycklar, och "Nothing was heard in the recording." genom chattens yta. "Ingen utskrift" går inte att nå genom chattens
+yta, eftersom mikrofonen bara ritas med `onTranscribe`, så `rosttexter` och `texterPa` exporteras från filen för proven (inte ur
+ramverket). Båda mutationerna är röda med proven.
+
+### Städat: död tömning av markörens position i `OpsTextarea`
+
+`onChange` tömde den väntande markörpositionen vid varje ändring, men det gjorde ingenting (andra granskningsvarvet av PR 384, KAN 3).
+Positionen läggs bara när fältets värde är exakt det väntade, så en avvisad position som ligger kvar läggs aldrig, och den skrivs över
+nästa gång mikrofonen trycks. Raden är borttagen och skälet står vid `tillbakaTill`. Fältets 96 prov är gröna utan den, som de var med den.
+
+### Ändrat: röstinmatningen har ett hem
+
+Talet bodde inbyggt i chattens skrivfält (`OpsMeddelanden.jsx`). Det är utbrutet till `OpsRostinmatning.jsx`
+(`useRostinmatning`, `useRostfokus`, `Rostyta`, `Mikrofonknapp`), och både chatten och `OpsTextarea` använder det. Den enda
+skillnaden mellan dem skickas in som `onTal`: chatten skickar, fältet skriver in. Chattens beteende och texter är oförändrade, och
+dess prov (`chatt-live-text`, `chatt-talk-krock`, `chatt-skrivfalt`, `chatt-bilagor`) är gröna utan ändringar.
+
+### Vakter
+
+- `src/__tests__/textfalt-tal.test.jsx`: Klar skriver in vid markören, sist utan markör, Avbryt ändrar inget, `maxLength` kapar och
+  säger det, reserven via `onTranscribe`, inget tomt skrivs in tyst, mikrofonen bara när den kan ge text, och `skrivInTal`. Röda mot
+  0.103.0 (11 av 12; den tolfte mäter att ett fält utan `tal` är som förut), och var och en röd när just dess beteende tas bort.
+- `check-skalyta.mjs` avsnitt 45 (`--bara-textfalt`), vid 390 och 1280 px: knappen 44 px med en 36 px cirkel och 18 px ikon som
+  chattens, träffbar på 44x44, helt inne i fältet; fältets text slutar före knappen; inget rullar i sidled; ett tryck ger ytan i
+  fältets plats med fokus på Klar, och Klar skriver in det sagda sist med markören efter. Rött mot 0.103.0 (6 av 6), och rött på
+  överlappet när fältet saknar utfyllnaden till höger.
+
 ## 0.103.0
 
 **Samtalet i TALK-fältet, och tre ikoner som gör det till ett meddelande, en händelse eller ett ärende. Mittknappen är en

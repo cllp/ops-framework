@@ -3,7 +3,7 @@ import { definierade, forvalda } from "../lib/ord.js";
 import { useOpsSprak } from "./OpsSprak.jsx";
 import * as Dialog from "@radix-ui/react-dialog";
 import { cx } from "../lib/cx.js";
-import { KryssIkon, MenuIcon, PlusIkon, SkapaMarkeIkon } from "./icons.jsx";
+import { KryssIkon, MenuIcon, PlusIkon } from "./icons.jsx";
 import { TALK_ORD } from "../lib/talk.js";
 import { entryActive, validateNav } from "../lib/nav.js";
 import { OpsCountBadge } from "./counter.jsx";
@@ -309,8 +309,11 @@ function OpsBottomNavRitad({
  * Mätt i `check-skalyta.mjs` avsnitt 39 och i `mikrofon-montage.mjs`: storlekarna, att plusset står inom cirkeln, att de överlappar
  * och att plusset ligger före i ordningen.
  *
- * Plusset ritas bara när långtrycket öppnar skapa (en mikrofon, `talk` utan `knapp`, och `langtryck`). Utan `talk` är knappen själv
- * plusset, och med `talk.knapp` är långtrycket TALK. Namnet får samma villkor: "TALK, prata in. Håll inne för att skapa".
+ * ⛔ ÄNDRAT 0.104.0: PLUSSET ÄR BORTA. CP 2026-10-14: "Sak bara vi måste ta bort plusset till plus-knappen. Den ser bara skräpig
+ * ut." De två styckena ovan beskriver 0.103.0 och står kvar som historik. Mikrofonen ensam är knappen, lika stor som förut (31 px)
+ * och mitt i cirkeln. Långtrycket finns kvar, och det är namnet som säger det: "TALK, prata in. Håll inne för att skapa", bara när
+ * långtrycket öppnar skapa (en mikrofon, `talk` utan `knapp`, och `langtryck`). Utan `talk` är knappen själv plusset, och med
+ * `talk.knapp` är långtrycket TALK. Mätt i `scripts/lib/mittknappMatt.mjs`.
  *
  * ⛔ BARA I VILA (granskningen av PR 383, KAN 8). Medan TALK lyssnar, sparar eller visar ett kvitto går knappen inte att hålla in,
  * plusset ritas inte och namnet saknar andra halvan: fältet står öppet, och en lista ovanpå det hade varit ett andra ärende mitt i
@@ -327,7 +330,7 @@ function Huvudatgard({ atgard, langtryckText }) {
   const knapp = talk?.knapp;
   const vilar = !talk || talk.lage === "vila";
   const harLangtryck = !knapp && vilar && typeof atgard.langtryck === "function";
-  const skapaBakom = Boolean(talk) && harLangtryck;
+  const skapaGenomLangtryck = Boolean(talk) && harLangtryck;
   const lang = useLangtryck({ onLangtryck: harLangtryck ? atgard.langtryck ?? null : null, haptik: true });
   // ⛔ MED `talk.knapp` STYR KROKEN KLICKET (`useTalk`): ett långtryck följs av ett klick, och det får inte öppna Skapa.
   const handelser = knapp ? knapp : { ...lang.handelser, onClick: atgard.onClick };
@@ -338,7 +341,7 @@ function Huvudatgard({ atgard, langtryckText }) {
         type="button"
         {...handelser}
         data-talk-knapp={talk ? talk.lage : undefined}
-        aria-label={haller ? TALK_ORD : skapaBakom ? `${atgard.label}. ${langtryckText}` : atgard.label}
+        aria-label={haller ? TALK_ORD : skapaGenomLangtryck ? `${atgard.label}. ${langtryckText}` : atgard.label}
         aria-haspopup={lang.aktiv ? "dialog" : undefined}
         aria-keyshortcuts={lang.kortkommando}
         className={cx(
@@ -353,27 +356,11 @@ function Huvudatgard({ atgard, langtryckText }) {
         {/* ⛔ CP 2026-10-04: "Den skall bara heta en sak. TALK medans man håller inne knappen." */}
         {haller ? (
           <span className="text-etikett font-semibold tracking-wide">{TALK_ORD}</span>
-        ) : skapaBakom ? (
-          <>
-            {/* ⛔ PLUSSET FÖRST, sedan mikrofonen: det som ritas senare ligger framför. */}
-            <span
-              data-skapa-marke=""
-              aria-hidden="true"
-              className="pointer-events-none absolute top-[9px] right-[10px] inline-flex size-5 items-center justify-center opacity-60 [&_svg]:[stroke-width:3]"
-            >
-              <SkapaMarkeIkon size={20} />
-            </span>
-            <span
-              data-skapa-ikon=""
-              className={cx(
-                "relative inline-flex translate-y-px [&_svg]:size-[31px]",
-                // Kapseln fylld i knappens färg: där mikrofonen och plusset möts syns mikrofonen, inte plusset.
-                "[&_path:first-child]:fill-accent [&_path:first-child]:transition-colors [&_path:first-child]:duration-(--duration-fast) group-hover:[&_path:first-child]:fill-accent-hover",
-              )}
-            >
-              {atgard.icon ?? <PlusIkon size={31} />}
-            </span>
-          </>
+        ) : skapaGenomLangtryck ? (
+          // ⛔ 0.104.0: bara mikrofonen, 31 px och mitt i cirkeln. Plusset bakom den är borta (se filhuvudet ovanför).
+          <span data-skapa-ikon="" className="inline-flex [&_svg]:size-[31px]">
+            {atgard.icon ?? <PlusIkon size={31} />}
+          </span>
         ) : (
           (atgard.icon ?? <PlusIkon size={26} />)
         )}

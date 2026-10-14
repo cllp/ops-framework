@@ -367,6 +367,46 @@ function TalkScen() {
 }
 
 /*
+ * 0.104.0: tal i ett vanligt textfält, avsnitt 45. CP 2026-10-14, med en skärmbild av Skapa app i lifehub.app: "Jag vill gärna ha
+ * TALK funktionen även här på skapa app." Ett `OpsTextarea` med `tal` i en `OpsField`, med så mycket text att raderna når fältets
+ * högra kant, så att ett överlapp med mikrofonen syns. En inspelare utan mikrofon och en igenkänning som skriver en mening ord för ord.
+ * Det inskrivna värdet står i `window.__textfalt`. Saknas `tal` i den byggda versionen ritas fältet utan mikrofon, och avsnittet blir
+ * rött på det.
+ */
+const TEXTFALT_MENING = "och en lista över läxor per barn";
+function TextfaltTalScen() {
+  const { OpsView } = Ops;
+  const [v, setV] = useState("En app där familjen ser veckans aktiviteter, vem som hämtar och lämnar, och vad som behöver handlas till helgen.");
+  window.__textfalt = v;
+  const inspelare = {
+    starta: async () => {},
+    stoppa: async () => ({ blob: new Blob(["ljud"], { type: "audio/webm" }), mimeType: "audio/webm", sekunder: 3 }),
+    kasta: () => {},
+    niva: () => 0.45,
+  };
+  const igenkanning = {
+    starta: (/** @type {any} */ { onText }) => {
+      const ord = TEXTFALT_MENING.split(" ");
+      ord.forEach((_, i) => setTimeout(() => onText(ord.slice(0, i + 1).join(" ")), 40 * (i + 1)));
+    },
+    stoppa: async () => TEXTFALT_MENING,
+    kasta: () => {},
+  };
+  return (
+    <Full>
+      <OpsView>
+        <div className="flex max-w-2xl flex-col gap-4">
+          <p className="m-0 text-rubrik text-ink">Skapa app</p>
+          <OpsField label="Beskriv appen du vill ha" hint="Skriv eller prata in vad appen ska göra.">
+            <Ops.OpsTextarea value={v} onChange={setV} rows={5} maxLength={2000} tal={{ igenkanning, onTranscribe: async () => TEXTFALT_MENING, inspelare }} />
+          </OpsField>
+        </div>
+      </OpsView>
+    </Full>
+  );
+}
+
+/*
  * 0.37.0 (#179 F2): Hantera kalendrar. Gruppens kalendrar (Styrelsen förvald, Resor, en arkiverad) och mina (Privat,
  * Träning), med sparningar som skriver tillbaka i scenens tillstånd och i `window.__sparat`, som en app med en källa.
  * Saknas `OpsKalendrar` i den byggda versionen (0.36.0) ritas en markör, och avsnitt 31 blir rött på det.
@@ -1750,6 +1790,7 @@ function Scen() {
     return <KalenderTillganglighetScen variant={7} />;
   }
   if (s === "talk") return <TalkScen />;
+  if (s === "textfalt-tal") return <TextfaltTalScen />;
   if (s === "kalendrar") return <KalendrarScen />;
   if (s === "ny-handelse") return <NyHandelseScen />;
   if (s === "ny-handelse-nav") return <NavNyHandelseScen />;
