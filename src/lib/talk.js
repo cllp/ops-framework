@@ -113,15 +113,23 @@ export function talkOrd(nyckel, sprak) {
 }
 
 /**
- * En text från TALK på ett språk: är den ett av TALK:s egna ord i sin svenska form (ett fel i tillståndet, statusraden "Sparar…")
- * ges den på `sprak`, annars ritas den som den är, eftersom den då är appens.
+ * De ord i `ORD_TALK` som kan stå i tillståndet: felen (`fel*`, `ingetLjud`, `textFel`) och statusraden `skickar` ("Sparar…").
+ *
+ * ⛔ BARA DE (granskningen av PR 384, KAN 5). Förut slogs varje ord upp, så ett fel från appen som råkade heta som en knapp ("Stäng",
+ * "Klar") ritades på engelska fast det var appens text. Knapparnas ord ritas direkt med `talkOrd` och behöver aldrig slås upp.
+ */
+const TALK_TILLSTANDSORD = Object.entries(ORD_TALK).filter(([k]) => k.startsWith("fel") || k === "ingetLjud" || k === "textFel" || k === "skickar").map(([, t]) => t);
+
+/**
+ * En text från TALK på ett språk: är den ett av TALK:s fel eller statusrader i sin svenska form (`TALK_TILLSTANDSORD`) ges den på
+ * `sprak`, annars ritas den som den är, eftersom den då är appens.
  * @param {string} text
  * @param {string} sprak
  * @returns {string}
  */
 export function talkTextPa(text, sprak) {
   if (!text) return text;
-  for (const t of Object.values(ORD_TALK)) if (t.sv === text) return /** @type {any} */ (t)[sprak] || t.sv;
+  for (const t of TALK_TILLSTANDSORD) if (t.sv === text) return /** @type {any} */ (t)[sprak] || t.sv;
   return text;
 }
 

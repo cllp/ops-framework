@@ -88,6 +88,13 @@ och `felIngenPagar`, tillsammans med det tredje felet inspelaren kastar ("Inspel
 `felAvbrotsForeMikrofon`), och inspelaren kastar den svenska formen därifrån. Prov i `talk-sprak.test.jsx`, som hämtar felen ur
 inspelaren själv: rött före, grönt med.
 
+### Rättat: `talkTextPa` översätter bara TALK:s fel och statusrader
+
+`talkTextPa` slog upp varje ord i `ORD_TALK`, så ett fel från appen som råkade heta som en knapp ("Stäng", "Klar") ritades på
+engelska fast det var appens text (granskningen av PR 384, KAN 5). Uppslaget gäller nu bara felen (`fel*`, `ingetLjud`, `textFel`)
+och statusraden `skickar`. Prov i `talk-sprak.test.jsx`: knappnamnen röda före och gröna med, och alla fel och statusrader översätts,
+med ett golv på 15 nycklar.
+
 ### Ändrat: röstinmatningen har ett hem
 
 Talet bodde inbyggt i chattens skrivfält (`OpsMeddelanden.jsx`). Det är utbrutet till `OpsRostinmatning.jsx`

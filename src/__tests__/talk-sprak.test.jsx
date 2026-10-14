@@ -103,3 +103,25 @@ describe("inspelarens fel följer språket", () => {
     expect(screen.getByRole("alert").textContent).toBe("No recording is in progress.");
   });
 });
+
+/*
+ * ⛔ BARA FEL OCH STATUS ÖVERSÄTTS (granskningen av PR 384, KAN 5). `talkTextPa` slog upp varje ord i `ORD_TALK`, så ett fel från appen
+ * som råkade heta som en knapp ("Stäng", "Klar") ritades på engelska trots att det var appens text.
+ */
+describe("talkTextPa slår bara upp TALK:s fel och statusrader", () => {
+  it("⛔ en text som heter som en knapp är appens och ritas som den är", async () => {
+    const { talkTextPa } = await import("../lib/talk.js");
+    for (const text of ["Stäng", "Klar", "Avbryt", "Sparat", "Ångra"]) expect(talkTextPa(text, "en")).toBe(text);
+  });
+
+  it("⛔ TALK:s fel och statusrader översätts, alla", async () => {
+    const { ORD_TALK, talkTextPa } = await import("../lib/talk.js");
+    const nycklar = Object.keys(ORD_TALK).filter((k) => k.startsWith("fel") || ["ingetLjud", "textFel", "skickar"].includes(k));
+    // Golv: en tom lista hade gjort provet grönt utan att mäta något (regel 4).
+    expect(nycklar.length).toBeGreaterThanOrEqual(15);
+    for (const k of nycklar) {
+      const ord = /** @type {any} */ (ORD_TALK)[k];
+      expect(talkTextPa(ord.sv, "en"), k).toBe(ord.en);
+    }
+  });
+});
