@@ -187,7 +187,7 @@ const KAL_POSTER = [
   { id: "tandlakare", date: "2026-10-20", title: "Tandläkaren", not: "09:00-10:00", kalender: kk("privat"), typ: "ledig", status: "oppet" },
 ];
 /*
- * 0.105.1 (CP 2026-10-14, skärmbild av månadsvyn i mörkt tema): etiketterna i en dagsruta får aldrig rinna ut ur den. Fyra veckor i
+ * 0.106.0 (CP 2026-10-14, skärmbild av månadsvyn i mörkt tema): etiketterna i en dagsruta får aldrig rinna ut ur den. Fyra veckor i
  * oktober och november 2026, var och en en egen sort av rad (idag är onsdag 14 oktober):
  *   19-25 okt  utan band: dag 20 har två vanliga etiketter, och ingen plats ska reserveras.
  *   26 okt-1 nov  CP:s rad: dag 28 har två vanliga etiketter, dag 29 en röd heldagspost ("Test"). Bandet ligger bara på dag 29.

@@ -478,7 +478,7 @@ export function bandIVecka(rad, entries) {
  * Hur många band-filer varje dag i veckan måste reservera plats för: filen längst ned av de band som täcker just den dagen, räknad
  * uppifrån, alltså `fil + 1`. En dag som inget band täcker reserverar ingenting.
  *
- * ⛔ PER DAG OCH INTE PER VECKA (0.105.1, CP 2026-10-14). Förut lades veckans djupaste filer på varje ruta i raden. En vecka med ett
+ * ⛔ PER DAG OCH INTE PER VECKA (0.106.0, CP 2026-10-14). Förut lades veckans djupaste filer på varje ruta i raden. En vecka med ett
  * enda heldagsband på torsdagen tryckte då ned etiketterna på måndagen, tisdagen och alla andra dagar som inget band låg över, och
  * rutan har en fast höjd som etiketterna då rann ut ur. SS reserverar per rad (`MonthGrid.jsx:190-200`) och har samma fel; förebilden
  * är ett golv och inte ett tak (regel 13). Platsen finns för att bandet ska ligga UNDER siffran på de dagar bandet ligger: där inget

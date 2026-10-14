@@ -1095,7 +1095,7 @@ const BANDHOJD = 20;
 const BANDLUFT = 2;
 
 /**
- * Höjden i px som en dagsruta reserverar under siffran för sina `filer` band-filer, 0 för en ruta utan band (0.105.1).
+ * Höjden i px som en dagsruta reserverar under siffran för sina `filer` band-filer, 0 för en ruta utan band (0.106.0).
  * @param {number} filer @returns {number}
  */
 function bandplats(filer) {
@@ -1106,7 +1106,7 @@ function bandplats(filer) {
  * Hur långt in från rutans kant ett bands rundade ände börjar, i px: rutans kant (1) och dess luft (`sm:p-2`, 8), alltså samma
  * kant som pillren inne i rutan. En ände som fortsätter i nästa eller förra veckan står 1 px in, precis innanför rutans kant.
  *
- * ⛔ ETT BAND LIGGER INNANFÖR RUTAN, INTE ÖVER DESS KANT (0.105.1, CP 2026-10-14: "Test går ut över rutans högra kant"). Bandet ritas
+ * ⛔ ETT BAND LIGGER INNANFÖR RUTAN, INTE ÖVER DESS KANT (0.106.0, CP 2026-10-14: "Test går ut över rutans högra kant"). Bandet ritas
  * som ett överlägg över hela veckoraden och fyllde förut kolumnens hela bredd: ett band på en enda dag täckte rutans kant på båda
  * sidor och såg ut att rinna ut ur rutan, där pillren på dagarna bredvid står 9 px in.
  */
@@ -1832,12 +1832,12 @@ export function OpsCalendar({
                     {rows.map((row, i) => {
                       const nycklar = row.map((day) => (day === null ? null : dateKey(ar, month, day)));
                       const bitar = bandIVecka(nycklar, synligaPoster);
-                      // ⛔ PLATS PER DAG, inte per vecka (0.105.1): bara en dag som ett band täcker reserverar plats under siffran.
+                      // ⛔ PLATS PER DAG, inte per vecka (0.106.0): bara en dag som ett band täcker reserverar plats under siffran.
                       const filerPerDag = reserveradeFiler(bitar);
                       const forsta = row.find((d) => d !== null);
                       const veckodagar = /** @type {string[]} */ (nycklar.filter(Boolean));
                       const helaVeckan = veckodagar.length > 0 && veckodagar.every((d) => chosen.includes(d));
-                      // ⛔ RADENS SPÅR ÄR MINST 80 PX OCH VÄXER MED RUTORNA (0.105.1, `sm:auto-rows`): golvet SS har som `min-h-20` på varje
+                      // ⛔ RADENS SPÅR ÄR MINST 80 PX OCH VÄXER MED RUTORNA (0.106.0, `sm:auto-rows`): golvet SS har som `min-h-20` på varje
                       // ruta, flyttat hit så att en ruta vars innehåll är högre än proportionen kan göra raden högre i stället för att
                       // rinna ut ur sig. Se `Dagruta`. Under 640 px har rutorna ingen minsta höjd (proportionen ensam).
                       return (

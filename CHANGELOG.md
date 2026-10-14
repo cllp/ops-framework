@@ -99,6 +99,14 @@ docs/jamforelser/0.106.0`, avsnitt 47).
   `ORD_CHATTINFO`), och vyerna sätter sitt språk som kontext för det de ritar. De engelska förvalen är nya, och en app som läser
   förvalen på engelska ser dem nu i Meddelanden och Chattinfo.
 
+### Rättat: kalenderns månadsvy
+
+- Etiketterna ligger inom sina dagsrutor, och bandplatsen räknas per dag och inte per vecka. CP 2026-10-14, med en skärmbild: en röd
+  etikett gick ut över rutans högra kant. Bandplatsen reserverades för hela veckoraden, rutan hade fast höjd och kunde inte växa, och
+  bandet täckte rutans kant. Nu reserverar bara en dag som ett band täcker plats, raden växer med innehållet och alla rutor i veckan
+  följer med. Skalytans avsnitt 48 mäter det vid 390, 640, 1024 och 1280 px.
+- ⛔ Ett dagsband ligger 9 px in från rutans kant, så en lång titel kortas något tidigare än förut.
+
 ### Ordning för appen
 
 - Med `amnen`: reglerna från `samtalsregelfragment({ amnen: true })` deployas FÖRE klienten som skapar ämnen, annars nekas den

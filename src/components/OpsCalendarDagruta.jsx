@@ -83,7 +83,7 @@ export function Dagruta({ day, dayKey, entries, markerade, spann, enkla, isToday
       {...pekare}
       className={cx(
         /*
-         * ⛔ FRÅN 640 PX VÄXER RADEN MED INNEHÅLLET, OCH ALLA RUTOR I VECKAN FÖLJER MED (0.105.1, CP 2026-10-14, med en skärmbild i
+         * ⛔ FRÅN 640 PX VÄXER RADEN MED INNEHÅLLET, OCH ALLA RUTOR I VECKAN FÖLJER MED (0.106.0, CP 2026-10-14, med en skärmbild i
          * mörkt tema: "Attest st..." och "Kolla o..." på dag 28 stod långt ned och rann ut under rutans nederkant).
          * Förut: `sm:min-h-20` ovanpå `aspect-[1/1.1]`. En fast minsta höjd i px gör att rutan inte längre kan växa ur sitt innehåll,
          * så etiketterna som inte fick plats ritades utanför. Golvet på 80 px bor nu i radens spår (`OpsCalendar`, `auto-rows`), där

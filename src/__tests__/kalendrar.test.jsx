@@ -148,7 +148,7 @@ describe("månadsvyns logik (F1)", () => {
     ]);
   });
 
-  it("⛔ reserverar band-plats per dag och inte per vecka (0.105.1)", () => {
+  it("⛔ reserverar band-plats per dag och inte per vecka (0.106.0)", () => {
     const vecka = ["2026-10-05", "2026-10-06", "2026-10-07", "2026-10-08", "2026-10-09", "2026-10-10", "2026-10-11"];
     // Ett enda heldagsband på fredagen: bara fredagen reserverar plats. Förut fick alla sju dagar en fils höjd.
     expect(reserveradeFiler(bandIVecka(vecka, [{ id: "c", date: "2026-10-09", allDay: true, title: "C" }]))).toEqual([0, 0, 0, 0, 1, 0, 0]);
@@ -164,7 +164,7 @@ describe("månadsvyns logik (F1)", () => {
     expect(reserveradeFiler([])).toEqual([0, 0, 0, 0, 0, 0, 0]);
   });
 
-  it("⛔ bara en ruta som ett band täcker får plats för bandet under siffran (0.105.1)", () => {
+  it("⛔ bara en ruta som ett band täcker får plats för bandet under siffran (0.106.0)", () => {
     kal();
     // Semestern 14-16 oktober är ett heldagsband. Rutorna den täcker reserverar plats, grannarna den 12, 13, 17 och 18 gör det inte.
     const plats = (/** @type {string} */ d) => document.querySelector(`[data-cal-day="${d}"] [data-bandplats]`);

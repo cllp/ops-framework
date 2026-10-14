@@ -4865,7 +4865,7 @@ for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
         krav(JSON.stringify(band.streckSemester) === JSON.stringify(["2026-10-09", "2026-10-10", "2026-10-11", "2026-10-12", "2026-10-13"]), `${namn}: semesterns streck står i ${JSON.stringify(band.streckSemester)}, väntat den 9 till 13 oktober, över veckogränsen.`);
       } else {
         krav(band.konferens.length + band.semester.length + band.heldag.length >= 3, `${namn}: ${band.konferens.length + band.semester.length + band.heldag.length} bandbitar, väntat minst 3 (golv).`);
-        // ⛔ 0.105.1 (CP 2026-10-14, "Test går ut över rutans högra kant"): bandets rundade ände ligger 9 px innanför rutans kant, samma
+        // ⛔ 0.106.0 (CP 2026-10-14, "Test går ut över rutans högra kant"): bandets rundade ände ligger 9 px innanför rutans kant, samma
         // kant som pillren (rutans kant 1 och luft 8), och inte på kanten. Till 0.105.0 krävdes här kanten själv (±2 px), vilket var just
         // det som såg ut att rinna ut ur rutan på en post över en enda dag. Avsnitt 48 mäter att inget band ligger över en kant.
         krav(band.konferens.length === 1 && !!band.c5 && !!band.c7 && Math.abs(band.konferens[0].x - (band.c5.x + 9)) < 1.5 && Math.abs(band.konferens[0].x + band.konferens[0].w - (band.c7.r - 9)) < 1.5, `${namn}: konferensen 5-7 oktober är ${band.konferens.length} bitar ${JSON.stringify(band.konferens)}, väntat ETT band från 9 px innanför den 5:ans vänsterkant till 9 px innanför den 7:ans högerkant (${JSON.stringify(band.c5)}, ${JSON.stringify(band.c7)}).`);
