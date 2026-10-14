@@ -5843,7 +5843,27 @@ for (const [namn, vp] of /** @type {const} */ ([["TALK 390 px", { width: 390, he
       await mik.waitFor({ timeout: 4000 });
       const fore = await mik.evaluate((b) => ({ namn: b.getAttribute("aria-label"), lage: b.getAttribute("data-talk-knapp"), svg: Boolean(b.querySelector("svg")) }));
       matt.push(`${namn}: mittknappen före trycket ${JSON.stringify(fore)}`);
-      krav(fore.namn === "TALK, prata in" && fore.lage === "vila" && fore.svg, `${namn}: mittknappen heter ${JSON.stringify(fore.namn)} i läget ${fore.lage}, väntat "TALK, prata in" i vila med en ikon.`);
+      // ⛔ #382: ytan har `skapa`, så ett långtryck öppnar skapa-listan och namnet säger det.
+      const vantatNamn = "TALK, prata in. Håll inne för att skapa";
+      krav(fore.namn === vantatNamn && fore.lage === "vila" && fore.svg, `${namn}: mittknappen heter ${JSON.stringify(fore.namn)} i läget ${fore.lage}, väntat ${JSON.stringify(vantatNamn)} i vila med en ikon.`);
+      // ⛔ PLUSSET BAKOM MIKROFONEN (0.103.0, #382). CP 2026-10-14: "en stor mikrofon och liksom lite bakomliggande ett plus som
+      // indikerar det". Mätt: knappen är fortfarande en 56 px cirkel, märket finns, är minst 12 px, och står med sin ring (2 px)
+      // helt inom knappens cirkel. Ett märke utanför hade brutit cirkeln och den runda knappens lyft ovan.
+      const plusMatt = await mik.evaluate((b) => {
+        const r = b.getBoundingClientRect();
+        const m = b.querySelector("[data-skapa-marke]");
+        const mr = m ? m.getBoundingClientRect() : null;
+        return { w: r.width, h: r.height, x: r.x, y: r.y, marke: mr ? { x: mr.x, y: mr.y, w: mr.width, h: mr.height, svg: Boolean(m?.querySelector("svg")), dold: m?.getAttribute("aria-hidden") === "true" } : null };
+      });
+      const ringPx = 2;
+      const plusUtanfor = plusMatt.marke
+        ? Math.hypot(plusMatt.marke.x + plusMatt.marke.w / 2 - (plusMatt.x + plusMatt.w / 2), plusMatt.marke.y + plusMatt.marke.h / 2 - (plusMatt.y + plusMatt.h / 2)) + plusMatt.marke.w / 2 + ringPx - plusMatt.w / 2
+        : null;
+      matt.push(`${namn}: mittknappen ${plusMatt.w}x${plusMatt.h} px, plusmärket ${JSON.stringify(plusMatt.marke)}, ${plusUtanfor === null ? "inget märke" : `${(-plusUtanfor).toFixed(1)} px innanför cirkeln med ring`}`);
+      krav(Math.abs(plusMatt.w - 56) < 0.5 && Math.abs(plusMatt.h - 56) < 0.5, `${namn}: mittknappen är ${plusMatt.w}x${plusMatt.h} px, väntat 56x56.`);
+      krav(!!plusMatt.marke && plusMatt.marke.svg && plusMatt.marke.dold, `${namn}: mittknappen saknar plusmärket (${JSON.stringify(plusMatt.marke)}), väntat ett dolt märke med en ikon när ett långtryck skapar.`);
+      krav(!!plusMatt.marke && plusMatt.marke.w >= 12 && plusMatt.marke.h >= 12, `${namn}: plusmärket är ${plusMatt.marke?.w}x${plusMatt.marke?.h} px, väntat minst 12 px.`);
+      krav(plusUtanfor !== null && plusUtanfor <= 0, `${namn}: plusmärket med ring går ${plusUtanfor?.toFixed(1)} px utanför knappens cirkel, väntat helt inom.`);
       if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `talk-mikrofon-${vp.width}.png`) });
       await mik.click();
     } else {

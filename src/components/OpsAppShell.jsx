@@ -6,7 +6,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { cx } from "../lib/cx.js";
 import { OpsSpelareProvider } from "./OpsSpelare.jsx";
 import { OpsBrand } from "./OpsBrand.jsx";
-import { OpsBottomNav } from "./OpsBottomNav.jsx";
+import { OpsBottomNav, ORD_OPSBOTTOMNAV } from "./OpsBottomNav.jsx";
 import { OpsApparArk } from "./OpsApparArk.jsx";
 import { OpsGruppanel, OpsGruppvaxlare } from "./OpsGruppanel.jsx";
 import { entryActive, validateNav } from "../lib/nav.js";
@@ -2563,6 +2563,8 @@ function OpsAppShellRitad({
         menuLabel={menuLabel}
         navLabel={bottomNavLabel}
         badgeText={badgeText}
+        // ⛔ #382: skalets `sprak` når inte bottenradens ordbok via kontexten, så texten läses ur den här, ur samma tabell.
+        langtryckText={forvalda(ORD_OPSBOTTOMNAV, sprak).langtryckText}
         menuExtras={menuExtras}
         meny={meny ? { sprak, ...meny, app: [...flyttadeRader, ...(meny.app ?? [])] } : meny}
         ark={apparArk && apparHref ? { href: apparHref, oppen: arkOppen, onOppen: setArkOppen } : undefined}

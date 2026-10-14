@@ -45,6 +45,9 @@ panelen och Skapa app kan få vara enligt samma princip i header som meddelanden
   `talkStyr.direkt()` som huvudets mikrofon). Knappen heter "TALK, prata in" (`talkKnappNamn`) i stället för "Skapa", och
   `data-talk-knapp` bär läget som förut. En app vars prov letar efter `nav button[aria-label="Skapa"]` med `talk` påslaget
   behöver se över det.
+- **Mittknappens namn har en andra halva när ett långtryck skapar: "TALK, prata in. Håll inne för att skapa"** (#382). En app vars
+  prov letar efter mittknappen med exakt `aria-label="TALK, prata in"` och `skapa` påslaget behöver se över det. Utan något i
+  skapa-listan heter den som förut.
 - **Långtrycket som spelade in är borta från mittknappen.** Före 0.103.0 spelade ett långtryck på plusset in och ett vanligt
   tryck öppnade Skapa. Nu är ett vanligt tryck TALK, och ett långtryck öppnar skapa-listan. Läget håll (`haller`) nås inte
   längre från skalet. `OpsBottomNav` fristående med `primaryAction.talk.knapp` ur `useTalk` beter sig som förut.
@@ -84,6 +87,16 @@ panelen och Skapa app kan få vara enligt samma princip i header som meddelanden
   vanligt tryck navigerar som förut. Kalender bär "handelse" från början (`FASTA_SKAPA`). Gruppväxlaren i huvudet ger "Ny
   grupp" när skalet kan skapa en grupp. Inkorgen ger "Nytt ärende" med `<OpsIconLink skapa="arende" />`. `validateNav` kastar
   för en nyckel med fel form, för "talk" och för `skapa` på ett barn.
+- **Mikrofonen bär ett plus när ett långtryck skapar** (#382). CP 2026-10-14: "Ett kort press på talk öppnar ju då dialogen för
+  att kunna prata in med agenten direkt. Och i den dialogen så finns ikonerna. Men om jag pressar en lång press på talk så blir det
+  plusmenyn. Så att man kan lägga till manuellt utan att gå till talk. Undra om man i den ikonen kan ha en stor mikrofon och liksom
+  lite bakomliggande ett plus som indikerar det." Ett litet märke i knappens övre högra hörn (`data-skapa-marke`, 16 px, omvända
+  färger med en ring i knappens färg) och mikrofonen 2 px ned åt vänster, så att de två inte flyter ihop. Bara när långtrycket
+  öppnar skapa-listan. Ny text: `ORD_OPSBOTTOMNAV.langtryckText` ("Håll inne för att skapa", "Hold to create") och propen
+  `OpsBottomNav langtryckText`. Ny ikon: `SkapaMarkeIkon`. Skärmbilder, 390 px i mörkt och ljust läge:
+  `docs/jamforelser/0.103.0/ramverk-mikrofon-390.png` och `ramverk-mikrofon-ljus-390.png` (`node scripts/mikrofon-montage.mjs`,
+  som också mäter att märket står inom cirkeln och inte överlappar mikrofonen). `check-skalyta.mjs` avsnitt 39 kräver märket,
+  56 px för knappen och att märket med ring står inom cirkeln.
 - Ingen genväg utan mottagare: har skalet ingen panel för nyckeln just nu (en modul som inte är påslagen, ett `skapa` utan
   posten, en ikon utanför skalet) får ikonen inga händelser och går inte att hålla in, med webbläsarens vanliga meny kvar.
 - Långtrycket stoppar iOS förhandsvisning av länken (`-webkit-touch-callout: none`) och Androids kontextmeny medan ett tryck

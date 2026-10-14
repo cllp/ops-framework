@@ -111,6 +111,16 @@ export function PlusIkon({ size = 24 }) {
   return <Plus size={size} aria-hidden="true" strokeWidth={1.5} />;
 }
 
+/**
+ * ⛔ Plusset bakom mittknappens mikrofon (0.103.0, #382). CP 2026-10-14: "en stor mikrofon och liksom lite bakomliggande ett plus
+ * som indikerar det". Samma lucide-plus som `PlusIkon`, men tjockare: märket är 16 px, och med `PlusIkon`s 1,5 i streck hade plusset
+ * blivit en hårstrålinje på 0,75 px som inte gick att läsa på en telefon.
+ * @param {{ size?: number }} props
+ */
+export function SkapaMarkeIkon({ size = 12 }) {
+  return <Plus size={size} aria-hidden="true" strokeWidth={3} />;
+}
+
 /** @param {{ size?: number }} props */
 export function BockIkon({ size = 16 }) {
   return <Check size={size} aria-hidden="true" strokeWidth={1.5} />;

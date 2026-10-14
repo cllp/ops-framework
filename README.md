@@ -2433,8 +2433,13 @@ vi kunna göra +:et till en Mikrofon och sedan har vi ju ikonerna där för att 
 behövs?"
 
 - **Mittknappen är en mikrofon när skalet har `talk`.** Ett vanligt tryck startar TALK direkt, samma inspelning som huvudets
-  mikrofon på dator. Ingen plusikon i den. Utan `talk` är knappen plusset med dagens beteende, så att en app utan TALK inte
-  tappar sin skapaväg.
+  mikrofon på dator. Utan `talk` är knappen plusset med dagens beteende, så att en app utan TALK inte tappar sin skapaväg.
+- ⛔ **Mikrofonen bär ett litet plus när ett långtryck skapar** (#382). CP 2026-10-14: "Undra om man i den ikonen kan ha en stor
+  mikrofon och liksom lite bakomliggande ett plus som indikerar det." Märket står i knappens övre högra hörn (`data-skapa-marke`,
+  16 px, `accent-contrast` med plusset i `accent` och en ring i knappens färg), mikrofonen 2 px ned åt vänster så att de inte
+  överlappar. Namnet blir "TALK, prata in. Håll inne för att skapa" ("Hold to create" på engelska, `ORD_OPSBOTTOMNAV.langtryckText`).
+  Märket och den andra halvan av namnet finns bara när långtrycket öppnar skapa-listan: inte utan `talk`, inte när skapa-listan är
+  tom, och inte med `primaryAction.talk.knapp`, där långtrycket är TALK.
 - **Ett långtryck på en ikon skapar i den modulen.** En nav-post och en `OpsIconLink` tar `skapa`, en nyckel som
   `useOppnaSkapa()` tar, och skalet öppnar den med sin `oppnaSkapa`: samma panel som raden i plusset.
 

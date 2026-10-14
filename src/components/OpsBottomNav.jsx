@@ -3,7 +3,7 @@ import { definierade, forvalda } from "../lib/ord.js";
 import { useOpsSprak } from "./OpsSprak.jsx";
 import * as Dialog from "@radix-ui/react-dialog";
 import { cx } from "../lib/cx.js";
-import { KryssIkon, MenuIcon, PlusIkon } from "./icons.jsx";
+import { KryssIkon, MenuIcon, PlusIkon, SkapaMarkeIkon } from "./icons.jsx";
 import { TALK_ORD } from "../lib/talk.js";
 import { entryActive, validateNav } from "../lib/nav.js";
 import { OpsCountBadge } from "./counter.jsx";
@@ -73,6 +73,7 @@ const MAX_IN_ROW_WITH_ACTION = 3;
  *   `meny.loggaUtEtikett`). Sheeten visar samma innehåll och i samma ordning som header-
  *   hamburgaren: appens sektioner, navigeringens överflödsrader, `menuExtras`, Logga ut, versionerna.
  *   `meny.rubrik` styr då även sheetens rubrikrad (annars `sheetLabel`).
+ * @param {string} [props.langtryckText] (0.103.0, #382) Andra halvan av mittknappens namn när den är en mikrofon med skapa bakom: "Håll inne för att skapa". Namnet blir "TALK, prata in. Håll inne för att skapa", så att den som inte ser plusset hör att det finns en väg till.
  * @param {{ href: string, oppen: boolean, onOppen: (oppen: boolean) => void }} [props.ark] (0.89.0) Fliken med det här href öppnar app-arket i stället för att navigera. Medan arket är öppet är den fliken den aktiva.
  */
 function OpsBottomNavRitad({
@@ -86,6 +87,7 @@ function OpsBottomNavRitad({
   sheetLabel = ORD_OPSBOTTOMNAV.sheetLabel.sv,
   closeLabel = ORD_OPSBOTTOMNAV.closeLabel.sv,
   badgeText = ORD_OPSBOTTOMNAV.badgeText.sv,
+  langtryckText = ORD_OPSBOTTOMNAV.langtryckText.sv,
   menuExtras,
   meny,
   ark,
@@ -179,7 +181,7 @@ function OpsBottomNavRitad({
           />
         ))}
 
-        {primaryAction ? <Huvudatgard atgard={primaryAction} /> : null}
+        {primaryAction ? <Huvudatgard atgard={primaryAction} langtryckText={langtryckText} /> : null}
 
         {inRow.slice(brytpunkt).map((entry) => (
           <BottomPost
@@ -295,12 +297,22 @@ function OpsBottomNavRitad({
  * @property {{ lage: string, knapp?: Record<string, any> }} [talk] Läget syns på knappen (`data-talk-knapp`). Med `knapp` styr kroken trycket.
  * @property {() => void} [langtryck] (0.103.0) Vad ett långtryck öppnar. Gäller inte med `talk.knapp`, där långtrycket är TALK.
  *
- * @param {{ atgard: Huvudatgarden }} props
+ * ⛔ MIKROFONEN BÄR ETT PLUS NÄR SKAPA FINNS BAKOM DEN (0.103.0, #382). CP 2026-10-14: "Undra om man i den ikonen kan ha en stor
+ * mikrofon och liksom lite bakomliggande ett plus som indikerar det." Ett långtryck som ingenting på knappen avslöjar är en väg
+ * bara den hittar som redan vet om den. Plusset är ett eget märke i övre högra hörnet (`data-skapa-marke`), i omvända färger
+ * (`accent-contrast` med plusset i `accent`) och med en ring i knappens färg, så att det inte flyter ihop med mikrofonen. Mikrofonen
+ * flyttas 2 px ned åt vänster och ritas i 24 px i stället för 26, så att de två inte överlappar: mätt i `check-skalyta.mjs`.
+ * Märket ritas bara när långtrycket öppnar skapa (en mikrofon, `talk` utan `knapp`, och `langtryck`). Utan `talk` är knappen
+ * själv plusset, och med `talk.knapp` är långtrycket TALK. Namnet får samma villkor: "TALK, prata in. Håll inne för att skapa".
+ *
+ * @param {{ atgard: Huvudatgarden, langtryckText: string }} props
  */
-function Huvudatgard({ atgard }) {
+function Huvudatgard({ atgard, langtryckText }) {
   const talk = atgard.talk;
   const knapp = talk?.knapp;
-  const lang = useLangtryck({ onLangtryck: !knapp && typeof atgard.langtryck === "function" ? atgard.langtryck : null, haptik: true });
+  const harLangtryck = !knapp && typeof atgard.langtryck === "function";
+  const skapaBakom = Boolean(talk) && harLangtryck;
+  const lang = useLangtryck({ onLangtryck: harLangtryck ? atgard.langtryck ?? null : null, haptik: true });
   // ⛔ MED `talk.knapp` STYR KROKEN KLICKET (`useTalk`): ett långtryck följs av ett klick, och det får inte öppna Skapa.
   const handelser = knapp ? knapp : { ...lang.handelser, onClick: atgard.onClick };
   const haller = talk?.lage === "haller";
@@ -310,9 +322,9 @@ function Huvudatgard({ atgard }) {
         type="button"
         {...handelser}
         data-talk-knapp={talk ? talk.lage : undefined}
-        aria-label={haller ? TALK_ORD : atgard.label}
+        aria-label={haller ? TALK_ORD : skapaBakom ? `${atgard.label}. ${langtryckText}` : atgard.label}
         className={cx(
-          "translate-y-[calc(0.25rem-var(--bottom-nav-overhang))] inline-flex size-14 cursor-pointer items-center justify-center rounded-full",
+          "group relative translate-y-[calc(0.25rem-var(--bottom-nav-overhang))] inline-flex size-14 cursor-pointer items-center justify-center rounded-full",
           // `touch-none` och utan förhandsvisning bara när knappen går att hålla in: en vanlig knapp ska bete sig som en.
           (knapp || lang.aktiv) && cx("touch-none", LANGTRYCK_KLASS),
           "bg-accent text-accent-contrast ring-4 ring-surface",
@@ -321,7 +333,24 @@ function Huvudatgard({ atgard }) {
         )}
       >
         {/* ⛔ CP 2026-10-04: "Den skall bara heta en sak. TALK medans man håller inne knappen." */}
-        {haller ? <span className="text-etikett font-semibold tracking-wide">{TALK_ORD}</span> : (atgard.icon ?? <PlusIkon size={26} />)}
+        {haller ? (
+          <span className="text-etikett font-semibold tracking-wide">{TALK_ORD}</span>
+        ) : skapaBakom ? (
+          <>
+            <span data-skapa-ikon="" className="inline-flex -translate-x-0.5 translate-y-0.5 [&_svg]:size-6">
+              {atgard.icon ?? <PlusIkon size={24} />}
+            </span>
+            <span
+              data-skapa-marke=""
+              aria-hidden="true"
+              className="pointer-events-none absolute right-2 top-2 inline-flex size-4 items-center justify-center rounded-full bg-accent-contrast text-accent ring-2 ring-accent transition-colors duration-(--duration-fast) ease-standard group-hover:ring-accent-hover"
+            >
+              <SkapaMarkeIkon size={12} />
+            </span>
+          </>
+        ) : (
+          (atgard.icon ?? <PlusIkon size={26} />)
+        )}
       </button>
     </div>
   );
@@ -465,6 +494,7 @@ export const ORD_OPSBOTTOMNAV = {
   sheetLabel: { sv: "Meny", en: "Menu" },
   closeLabel: { sv: "Stäng", en: "Close" },
   badgeText: { sv: "nya", en: "new" },
+  langtryckText: { sv: "Håll inne för att skapa", en: "Hold to create" },
 };
 
 /**

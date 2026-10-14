@@ -74,7 +74,7 @@ describe("mittknappen", () => {
   it("⛔ med talk är den en mikrofon, och ett vanligt tryck startar TALK", async () => {
     const insp = falskInspelare();
     render(Skal({ talk: { onTalk: vi.fn(), inspelare: insp }, skapa: { lage: "g1", handelse: { form: Handelseform, katalog: null } } }));
-    expect(mitten().getAttribute("aria-label")).toBe("TALK, prata in");
+    expect(mitten().getAttribute("aria-label")).toBe("TALK, prata in. Håll inne för att skapa");
     fireEvent.click(mitten());
     await flush();
     expect(insp.starta).toHaveBeenCalledTimes(1);
@@ -89,6 +89,46 @@ describe("mittknappen", () => {
     fireEvent.click(mitten());
     await flush();
     expect(screen.getByRole("dialog", { name: "Skapa" }).textContent).toContain("Ny händelse");
+  });
+});
+
+/*
+ * ⛔ #382. CP 2026-10-14: "Undra om man i den ikonen kan ha en stor mikrofon och liksom lite bakomliggande ett plus som indikerar
+ * det." Plusset säger att långtrycket finns, och namnet säger det till den som inte ser plusset. Båda gäller bara när ett långtryck
+ * faktiskt öppnar skapa: ett plus utan något bakom vore ett löfte knappen inte håller.
+ */
+describe("plusset bakom mikrofonen", () => {
+  const marke = () => mitten().querySelector("[data-skapa-marke]");
+
+  it("⛔ med talk och skapa bakom bär mikrofonen ett plus, och namnet säger håll inne", async () => {
+    render(Skal({ talk: { onTalk: vi.fn(), inspelare: falskInspelare() }, skapa: { lage: "g1", handelse: { form: Handelseform, katalog: null } } }));
+    expect(marke()).not.toBeNull();
+    expect(marke()?.querySelector("svg")).not.toBeNull();
+    expect(marke()?.getAttribute("aria-hidden")).toBe("true");
+    expect(mitten().getAttribute("aria-label")).toContain("Håll inne för att skapa");
+    // Och långtrycket som plusset lovar finns: skapa-listan öppnas.
+    await hallIn(mitten());
+    expect(screen.getByRole("dialog", { name: "Skapa" }).textContent).toContain("Ny händelse");
+  });
+
+  it("⛔ på engelska säger namnet hold to create", () => {
+    render(Skal({ sprak: "en", talk: { onTalk: vi.fn(), inspelare: falskInspelare() }, skapa: { lage: "g1", handelse: { form: Handelseform, katalog: null } } }));
+    // Bottenraden heter "Quick navigation" på engelska, så knappen hittas på sitt attribut.
+    const knapp = /** @type {HTMLElement} */ (document.querySelector("nav[data-ops-bottenrad] [data-talk-knapp]"));
+    expect(knapp.getAttribute("aria-label")).toContain("Hold to create");
+    expect(knapp.getAttribute("aria-label")).not.toContain("Håll inne");
+  });
+
+  it("⛔ utan talk ritas inget plusmärke: knappen är själv plusset, och namnet är Skapa", () => {
+    render(Skal({ skapa: { lage: "g1", handelse: { form: Handelseform, katalog: null } } }));
+    expect(marke()).toBeNull();
+    expect(mitten().getAttribute("aria-label")).toBe("Skapa");
+  });
+
+  it("⛔ med talk men utan något att skapa ritas inget plus, och namnet lovar inget långtryck", () => {
+    render(Skal({ talk: { onTalk: vi.fn(), inspelare: falskInspelare() } }));
+    expect(marke()).toBeNull();
+    expect(mitten().getAttribute("aria-label")).toBe("TALK, prata in");
   });
 });
 
