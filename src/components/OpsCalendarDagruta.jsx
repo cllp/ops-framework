@@ -91,7 +91,7 @@ export function Dagruta({ day, dayKey, entries, markerade, spann, enkla, isToday
          *
          * ⛔ `sm:w-full` ÄR EN DEL AV SAMMA ÅTGÄRD OCH FÅR INTE TAS BORT. En ruta med proportion och sträckt höjd räknar om sin bredd ur
          * höjden (höjd / 1,1), och växer då ur sin kolumn: mätt, novemberraden hade rutor 91,8 px breda mot 83,6, 10 px ut ur
-         * raden och utan glapp mellan dem (check-skalyta avsnitt 47 (e), rött utan raden, grönt med).
+         * raden och utan glapp mellan dem (check-skalyta avsnitt 48 (e), rött utan raden, grönt med).
          */
         "relative flex aspect-[1/1.1] min-w-0 cursor-pointer select-none flex-col items-stretch border p-1 text-left sm:w-full sm:self-stretch sm:p-2",
         "transition-[background-color,border-color,transform] duration-(--duration-fast) ease-standard",

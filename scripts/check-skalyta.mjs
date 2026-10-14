@@ -45,7 +45,7 @@
  *       node scripts/check-skalyta.mjs --bara-textfalt   bara avsnitt 45, tal i ett vanligt textfält (0.104.0)
  *       node scripts/check-skalyta.mjs --bara-talkval    bara avsnitt 46, valen efter talet och förslagen i chatten (0.105.0)
  *       node scripts/check-skalyta.mjs --bara-0106       bara avsnitt 47, chattepiken 0.106.0 (#386), i scripts/lib/skalyta0106.mjs
- *       node scripts/check-skalyta.mjs --bara-etiketter  bara avsnitt 48, etiketterna inom sina dagsrutor i månadsvyn (0.106.0)
+ *       node scripts/check-skalyta.mjs --bara-etiketter  bara avsnitt 48, etiketterna inom sina dagsrutor i månadsvyn (0.106.0); med --tema dark som CP:s skärm
  *       node scripts/check-skalyta.mjs --chattbredder 390,1024   29g i andra bredder än 390 och 1280
  *       node scripts/check-skalyta.mjs --tema dark        alla sidor i mörkt tema (förebilden CP jämför mot är mörk)
  */
@@ -4867,7 +4867,7 @@ for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
         krav(band.konferens.length + band.semester.length + band.heldag.length >= 3, `${namn}: ${band.konferens.length + band.semester.length + band.heldag.length} bandbitar, väntat minst 3 (golv).`);
         // ⛔ 0.105.1 (CP 2026-10-14, "Test går ut över rutans högra kant"): bandets rundade ände ligger 9 px innanför rutans kant, samma
         // kant som pillren (rutans kant 1 och luft 8), och inte på kanten. Till 0.105.0 krävdes här kanten själv (±2 px), vilket var just
-        // det som såg ut att rinna ut ur rutan på en post över en enda dag. Avsnitt 47 mäter att inget band ligger över en kant.
+        // det som såg ut att rinna ut ur rutan på en post över en enda dag. Avsnitt 48 mäter att inget band ligger över en kant.
         krav(band.konferens.length === 1 && !!band.c5 && !!band.c7 && Math.abs(band.konferens[0].x - (band.c5.x + 9)) < 1.5 && Math.abs(band.konferens[0].x + band.konferens[0].w - (band.c7.r - 9)) < 1.5, `${namn}: konferensen 5-7 oktober är ${band.konferens.length} bitar ${JSON.stringify(band.konferens)}, väntat ETT band från 9 px innanför den 5:ans vänsterkant till 9 px innanför den 7:ans högerkant (${JSON.stringify(band.c5)}, ${JSON.stringify(band.c7)}).`);
         krav(band.semester.length === 2, `${namn}: semestern 9-13 oktober är ${band.semester.length} bitar, väntat 2 (en per vecka, SS getSpanSegmentsForWeekRow).`);
         krav(band.heldag.length === 1, `${namn}: heldagen 1 oktober är ${band.heldag.length} bitar, väntat 1 (heldag ritas som band).`);
@@ -6850,12 +6850,13 @@ for (const [namn, vp] of /** @type {const} */ ([["TALK-knappen 1280 px", { width
   await context.close();
 }
 
-// ══ 47. ETIKETTERNA LIGGER INOM SINA DAGSRUTOR I MÅNADSVYN VID 390 OCH 1280 PX (0.105.1) ═════════════════════════════════════════
+// ══ 48. ETIKETTERNA LIGGER INOM SINA DAGSRUTOR I MÅNADSVYN VID 390, 640, 1024 OCH 1280 PX (0.106.0) ═══════════════════════════════
 // CP 2026-10-14, med en skärmbild av månadsvyn i mörkt tema: dag 28 hade två etiketter som stod långt ned och rann ut under rutans
 // nederkant, och dag 29 en röd etikett ("Test") som satt högt och gick ut över rutans högra kant. Dag 20, en vecka utan band, var rätt.
 // Rotorsaken (OpsCalendar `bandhojd`): platsen för banden räknades per VECKORAD och lades på varje ruta i raden, också de som inget
 // band ligger på, och rutan har en fast höjd (`aspect-[1/1.1]`) som innehållet inte växer ur. jsdom kör ingen CSS, så inget enhetsprov
-// kunde se det: det här mäter de renderade rutorna i en riktig webbläsare. Scenen `kalender-etiketter` (skalyta-entry.jsx) har fyra
+// kunde se det: det här mäter de renderade rutorna i en riktig webbläsare, vid 390 (märken), 1280 (CP:s skärm) och de två bredder där
+// rutorna är smalast med piller (640, där de börjar, och 1024 med dagpanelen bredvid). Scenen `kalender-etiketter` (skalyta-entry.jsx) har fyra
 // veckor, en per sort av rad: utan band, ett band på EN dag, ett flerdagsband med etiketter både under och utanför det, och två filer.
 // Krav, varje del för sig, alla mätta på de ritade rutorna:
 //   (a) INOM RUTAN. Varje etikett (från 640 px pillren, "+N" och banden, under 640 px prickarna, strecken och "+N") ligger helt inom
@@ -6871,7 +6872,7 @@ for (const [namn, vp] of /** @type {const} */ ([["TALK-knappen 1280 px", { width
 // Golv per bredd: minst 28 rutor, minst 10 etiketter (från 640 px minst 10 piller och 4 bandbitar; under 640 minst 8 märken), minst
 // 2 rutor under ett band, minst 2 rutor utan band i veckor med band och minst 1 normalruta (en vecka utan band med ett piller).
 async function kalenderEtiketter() {
-  for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
+  for (const vp of [{ width: 390, height: 844 }, { width: 640, height: 900 }, { width: 1024, height: 900 }, { width: 1280, height: 900 }]) {
     const namn = `etiketter ${vp.width}`;
     const { page, context } = await oppna("kalender-etiketter", vp, "dark");
     try {
