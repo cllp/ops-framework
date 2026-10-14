@@ -115,10 +115,13 @@ export function PlusIkon({ size = 24 }) {
  * ⛔ Plusset bakom mittknappens mikrofon (0.103.0, #382). CP 2026-10-14: "en stor mikrofon och liksom lite bakomliggande ett plus
  * som indikerar det". Samma lucide-plus som `PlusIkon`, men tjockare: det är dämpat och delvis täckt av mikrofonen (granskningen av
  * PR 383, BÖR 5), och med `PlusIkon`s 1,5 i streck hade det försvunnit mot knappens färg på en telefon.
+ * ⛔ STRECKET SÄTTS AV PLATSEN, INTE HÄR (granskningen av PR 383, varv 2). `.lucide { stroke-width: var(--icon-stroke-width) }` i
+ * tokens.css går före SVG-attributet, så `strokeWidth={3}` här ritades som 1,5. Mittknappen sätter strecket med en klass på
+ * plussets ram, och skalytans vakt kräver att plusset är minst lika tjockt som mikrofonen.
  * @param {{ size?: number }} props
  */
 export function SkapaMarkeIkon({ size = 20 }) {
-  return <Plus size={size} aria-hidden="true" strokeWidth={3} />;
+  return <Plus size={size} aria-hidden="true" />;
 }
 
 /** @param {{ size?: number }} props */

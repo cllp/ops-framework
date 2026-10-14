@@ -359,7 +359,7 @@ function Huvudatgard({ atgard, langtryckText }) {
             <span
               data-skapa-marke=""
               aria-hidden="true"
-              className="pointer-events-none absolute top-[9px] right-[10px] inline-flex size-5 items-center justify-center opacity-60"
+              className="pointer-events-none absolute top-[9px] right-[10px] inline-flex size-5 items-center justify-center opacity-60 [&_svg]:[stroke-width:3]"
             >
               <SkapaMarkeIkon size={20} />
             </span>

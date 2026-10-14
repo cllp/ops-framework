@@ -92,6 +92,10 @@ export function kravPaMittknappen(m) {
   krav(mik.length >= 2, `mikrofonens ritning har ${mik.length} delar, väntat minst 2: mätningen mäter inget.`);
   krav(plus.length >= 2, `plusset har ${plus.length} streck, väntat 2: mätningen mäter inget.`);
   krav(m.marke.b >= 17.5 && m.marke.b <= 20.5 && m.marke.h >= 17.5 && m.marke.h <= 20.5, `plusset är ${m.marke.b}x${m.marke.h} px, väntat 18 till 20.`);
+  krav(
+    m.plusStreck >= m.mikStreck - 0.05,
+    `plussets streck är ${m.plusStreck.toFixed(2)} px mot mikrofonens ${m.mikStreck.toFixed(2)}: dämpat och delvis täckt blir ett tunnare streck en blek linje på en telefon.`,
+  );
   krav(m.markeDold, "plusset är inte dolt för skärmläsare (aria-hidden), men namnet säger redan håll inne.");
   krav(ytterst <= radie, `plussets streck går ${(ytterst - radie).toFixed(1)} px utanför knappens cirkel, väntat helt inom.`);
   krav(plusMitt.x > 4 && plusMitt.y < -4, `plussets mitt står ${plusMitt.x.toFixed(1)}, ${plusMitt.y.toFixed(1)} px från knappens, väntat upp till höger.`);

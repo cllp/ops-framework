@@ -41,6 +41,8 @@ panelen och Skapa app kan få vara enligt samma princip i header som meddelanden
 
 ### Granskningen av PR 383
 
+- Plussets streck sätts med en klass på plussets ram (`[&_svg]:[stroke-width:3]`). `strokeWidth={3}` på ikonen gjorde ingenting, eftersom `.lucide { stroke-width }` i tokens.css går före attributet: plusset ritades 1,25 px mot mikrofonens 1,94. Skalytans vakt kräver nu att plusset är minst lika tjockt som mikrofonen (rött utan klassen, grönt med den).
+
 - **Skapa-listan går att nå utan pekare** (MÅSTE 1). Före 0.103.0 öppnade Enter på plusset listan. När plusset blev en mikrofon
   startade Enter TALK, och listan nåddes bara med ett långtryck, alltså inte alls med tangentbordet under 768 px (också när en dator
   zoomar 200 %). Shift+F10 och tangenten ContextMenu på mikrofonen öppnar nu listan, och knappen bär `aria-haspopup="dialog"` och
