@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { useState } from "react";
 import { OpsField, OpsInput, OpsTextarea } from "../components/OpsField.jsx";
 
@@ -105,5 +105,21 @@ describe("tal i alla textfält", () => {
     const yta = /** @type {HTMLElement} */ (document.querySelector("[data-rostyta]"));
     fireEvent.click(within(yta).getByRole("button", { name: "Klar, skriv in det du sagt" }));
     await waitFor(() => expect(/** @type {HTMLInputElement} */ (screen.getByRole("textbox", { name: "Fält" })).value).toBe("Möte med banken fredag"));
+  });
+  it("⛔ tal={true} på ett skrivskyddat fält ger ett skrivskyddat fält utan mikrofon (granskningen av PR 390)", () => {
+    vi.stubGlobal("webkitSpeechRecognition", fejkadIgenkanning().SR);
+    // Golv: samma fält utan readOnly har både mikrofon och ett skrivbart fält, annars mäter provet ingenting.
+    const { unmount } = render(<Falt tal={true} />);
+    expect(mikrofon()).toBeTruthy();
+    expect(/** @type {HTMLInputElement} */ (screen.getByRole("textbox", { name: "Fält" })).readOnly).toBe(false);
+    unmount();
+    render(<Falt tal={true} readOnly />);
+    expect(/** @type {HTMLInputElement} */ (screen.getByRole("textbox", { name: "Fält" })).readOnly).toBe(true);
+    expect(mikrofon()).toBeNull();
+    // Objektformen (en egen taltjänst) ger samma sak.
+    cleanup();
+    render(<Falt tal={{ onTranscribe: async () => "x" }} readOnly />);
+    expect(/** @type {HTMLInputElement} */ (screen.getByRole("textbox", { name: "Fält" })).readOnly).toBe(true);
+    expect(mikrofon()).toBeNull();
   });
 });

@@ -158,7 +158,7 @@ export function OpsInput({
   } else {
     const t = talForval(tal, onChange, readOnly, "OpsInput");
     if (t) {
-      return <TalFalt slag="input" f={f} value={value ?? ""} onChange={/** @type {(v: string) => void} */ (onChange)} placeholder={placeholder} name={name} disabled={disabled} maxLength={maxLength} ariaLabel={ariaLabel} typ={type} autoComplete={autoComplete} tal={t} />;
+      return <TalFalt slag="input" f={f} value={value ?? ""} onChange={/** @type {(v: string) => void} */ (onChange)} placeholder={placeholder} name={name} disabled={disabled} readOnly={readOnly} maxLength={maxLength} ariaLabel={ariaLabel} typ={type} autoComplete={autoComplete} tal={t} />;
     }
   }
   return (
@@ -408,9 +408,9 @@ function sendGenvag(onSend) {
  * ⛔ ETT FÄLT PÅ EN RAD (0.106.0, #386 skiva 8): ljudvågen står vid fältets slut, mitt i höjden, och fältet har plats för den (`pe-12`).
  * Det sagda skrivs in på en rad: radbrytningar i det taltjänsten gav blir mellanslag, eftersom ett `input` inte bär dem.
  *
- * @param {{ slag: "textarea" | "input", f: { id?: string, etikettId?: string, describedBy?: string, invalid: boolean, required: boolean }, value: string, onChange: (v: string) => void, placeholder?: string, name?: string, rows?: number, disabled: boolean, maxLength?: number, ariaLabel?: string, onSend?: () => void, typ?: string, autoComplete?: string, tal: Textfaltstal }} props
+ * @param {{ slag: "textarea" | "input", f: { id?: string, etikettId?: string, describedBy?: string, invalid: boolean, required: boolean }, value: string, onChange: (v: string) => void, placeholder?: string, name?: string, rows?: number, disabled: boolean, readOnly?: boolean, maxLength?: number, ariaLabel?: string, onSend?: () => void, typ?: string, autoComplete?: string, tal: Textfaltstal }} props
  */
-function TalFalt({ slag, f, value, onChange, placeholder, name, rows, disabled, maxLength, ariaLabel, onSend, typ, autoComplete, tal }) {
+function TalFalt({ slag, f, value, onChange, placeholder, name, rows, disabled, readOnly = false, maxLength, ariaLabel, onSend, typ, autoComplete, tal }) {
   const sprak = useOpsSprak();
   const o = /** @type {Record<keyof typeof ORD_OPSTEXTAREA_TAL, string>} */ (forvalda(ORD_OPSTEXTAREA_TAL, sprak));
   const ruta = useRef(/** @type {HTMLTextAreaElement & HTMLInputElement | null} */ (null));
@@ -472,7 +472,11 @@ function TalFalt({ slag, f, value, onChange, placeholder, name, rows, disabled, 
       }
     }
   }, [value, rost.yta]);
-  const kanGeText = Boolean(tal.onTranscribe) || rost.medText;
+  /*
+   * ⛔ ETT SKRIVSKYDDAT FÄLT FÅR INGEN MIKROFON (granskningen av PR 390). `readOnly` följde inte med hit: `tal={true}` på ett fält med
+   * `readOnly` gav ett skrivbart fält, och talknappen skrev in text i det. Utan knapp finns heller ingen väg till talytan.
+   */
+  const kanGeText = !readOnly && (Boolean(tal.onTranscribe) || rost.medText);
   const kapattext = kapat === "nej" ? "" : o[kapat].replace("{max}", String(maxLength));
   return (
     <div data-textfalt-tal="" className="flex min-w-0 flex-col gap-1">
@@ -497,6 +501,7 @@ function TalFalt({ slag, f, value, onChange, placeholder, name, rows, disabled, 
               placeholder,
               name,
               disabled,
+              readOnly,
               maxLength,
               required: f.required || undefined,
               "aria-label": ariaLabel,
