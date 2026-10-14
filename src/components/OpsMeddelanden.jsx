@@ -1,4 +1,4 @@
-import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { OpsSprakProvider, useOpsSprak } from "./OpsSprak.jsx";
 import { forvalda, ordet } from "../lib/ord.js";
 import { cx } from "../lib/cx.js";
@@ -221,6 +221,9 @@ import { AgentIkon, AndraIkon, ArkiveraIkon, TaFramIkon, BildIkon, FastIkon, Fil
  * @property {string} [doljArkiverade] Förval "Dölj arkiverade".
  * @property {string} [ingaArkiverade] Förval "Inga arkiverade samtal.".
  * @property {string} [arkivFel] Förval "Samtalet kunde inte arkiveras.".
+ * @property {string} [tillSenaste] (0.106.0, #386 skiva 4) Knappen när man läser bakåt. Förval "Till senaste".
+ * @property {string} [nyaMeddelanden] `{n}` byts mot antalet nya sedan man lämnade slutet. Förval "{n} nya".
+ * @property {string} [nyttSedanSist] Avdelaren i loggen, härledd ur läsmärket. Förval "Nytt sedan sist".
  * @property {string} [annatSkickas] (0.106.0, #385) Felet i röstytan när ett annat meddelande skickas. Förval "Ett annat meddelande skickas just nu.".
  * @property {string} [ingenText] (0.106.0, #385) Felet i röstytan när inget hördes att skicka. Förval "Det finns ingen text att skicka.".
  * @property {string} [sokPlats] (0.106.0, #385) Platsen i sökningen. `{i}` och `{n}` byts. Förval "{i} av {n}".
@@ -374,6 +377,9 @@ const ORD_MEDDELANDEN = {
   ingaArkiverade: { sv: "Inga arkiverade samtal.", en: "No archived conversations." },
   arkivFel: { sv: "Samtalet kunde inte arkiveras.", en: "The conversation could not be archived." },
   arkiveratRad: { sv: "Arkiverat. Det syns inte i listan förrän du tar fram det.", en: "Archived. It is not in the list until you restore it." },
+  tillSenaste: { sv: "Till senaste", en: "Jump to latest" },
+  nyaMeddelanden: { sv: "{n} nya", en: "{n} new" },
+  nyttSedanSist: { sv: "Nytt sedan sist", en: "New since last time" },
   annatSkickas: { sv: "Ett annat meddelande skickas just nu.", en: "Another message is being sent right now." },
   ingenText: { sv: "Det finns ingen text att skicka.", en: "There is no text to send." },
   sokPlats: { sv: "{i} av {n}", en: "{i} of {n}" },
@@ -1197,7 +1203,8 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
             samtal={vald.samtal}
             rubrik={rubrikFor(vald)}
             marke={markeFor(vald, "md")}
-            lastTill={vald.lastTill}
+            // ⛔ (0.106.0) Läsmärket bara när inkorgen har raden: ett samtal öppnat ur adressen har inget känt märke än.
+            lastTill={allaRader.some((r) => r.samtal.id === vald.samtal.id && !r.ej) ? vald.lastTill : undefined}
             namnFor={namnFor}
             medlemmar={medlemmar}
             onLast={lasOm}
@@ -2082,7 +2089,7 @@ function agentDeltagare(samtal, uid, medlemmar) {
  *   meddelandet med `skickaIAmne`. Kräver `amne`.
  * @param {(samtal: import("../lib/samtal.js").Samtal, meddelande: any) => void} [props.onSkapat] (0.106.0) Anropas när ett nytt ämne skapats.
  */
-export function OpsSamtal({ kalla, uid, samtal, rubrik: rubrikProp, marke, lastTill = 0, namnFor, medlemmar, onLast, onSkickat, utkast, onOppnaTrad, tradminne, fokusRot, onFokuserad, sprak: sprakProp, texter = {}, postkort, onTranscribe, onStoppaAgent, inspelare, igenkanning, onBifoga: onBifogaProp, mejl, onVisaAgent, onForslag, amne: amneProp, ny = false, onSkapat }) {
+export function OpsSamtal({ kalla, uid, samtal, rubrik: rubrikProp, marke, lastTill: lastTillProp, namnFor, medlemmar, onLast, onSkickat, utkast, onOppnaTrad, tradminne, fokusRot, onFokuserad, sprak: sprakProp, texter = {}, postkort, onTranscribe, onStoppaAgent, inspelare, igenkanning, onBifoga: onBifogaProp, mejl, onVisaAgent, onForslag, amne: amneProp, ny = false, onSkapat }) {
   // ⛔ Språket ur appens `OpsSprakProvider` när appen inte gav ett (0.46.0, cllp/bolag-ops#528).
   const sprakKontext = useOpsSprak();
   const sprak = sprakProp ?? sprakKontext;
@@ -2098,12 +2105,25 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik: rubrikProp, marke, lastT
   const [fel, setFel] = useState(/** @type {Error | null} */ (null));
   const [text, setText] = useState(utkast ?? "");
   const [skickar, setSkickar] = useState(false);
-  const markt = useRef(lastTill);
+  const markt = useRef(lastTillProp ?? 0);
   const lyssnar = useRef(false);
   const medTradar = Boolean(onOppnaTrad) && samtal.slag === "grupp" && harTradar(kalla);
   const loggRef = useRef(/** @type {HTMLDivElement | null} */ (null));
   const historik = useHistorik({ kalla, sid: samtal.id, live: meddelanden, logg: loggRef });
   const alla = historik.alla;
+  const lasposition = useLasposition({ logg: loggRef, alla, uid, laddat: meddelanden !== null });
+  /*
+   * ⛔ "NYTT SEDAN SIST" HÄRLEDS UR LÄSMÄRKET SOM DET VAR NÄR SAMTALET ÖPPNADES (0.106.0, #386 skiva 4). Inget sparas och ingenting
+   * läses till: märket kommer med inkorgens rad. Avdelaren står före det första meddelandet från någon annan efter märket, och bara när
+   * något före märket också är laddat: står allt efter märket är hela samtalet nytt, och en avdelare överst avdelar ingenting. Utan
+   * läsmärke (samtalet öppnat ur adressen innan inkorgen svarat) ritas ingen avdelare, eftersom märket inte är känt.
+   */
+  const [markeVidOppning] = useState(lastTillProp);
+  const nyttFran = useMemo(() => {
+    if (typeof markeVidOppning !== "number" || ny) return null;
+    if (!alla.some((m) => m.tid <= markeVidOppning)) return null;
+    return alla.find((m) => m.av !== uid && m.tid > markeVidOppning)?.id ?? null;
+  }, [alla, markeVidOppning, uid, ny]);
   const reakt = useReaktioner(harReaktioner(las) ? las : null, samtal.id, undefined, uid);
   // ⛔ Citat bara utanför gruppchatten (regeln kräver det): där är tråden svaret.
   const medCitat = harCitat(kalla) && samtal.slag !== "grupp";
@@ -2113,7 +2133,6 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik: rubrikProp, marke, lastT
   const fasta = useFasta(harFasta(las) ? las : null, samtal.id, uid);
   const agentlage = useAgentstatusdok(harStatus(las) ? las : null, samtal.id, undefined);
   const { rader: tradar, fel: tradfel } = useTradmarken({ kalla: medTradar ? kalla : null, sid: samtal.id, meddelanden: meddelanden ? alla : null, minne: tradminne });
-  const slut = useRef(/** @type {HTMLDivElement | null} */ (null));
   const [info, setInfo] = useState(false);
   const { tyst, vaxla: vaxlaTyst } = useTystnad(las, samtal.id, uid, setFel);
   const infoposter = useMemo(() => alla.map((m) => ({ m })), [alla]);
@@ -2166,8 +2185,7 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik: rubrikProp, marke, lastT
       markt.current = senast;
       kalla.markeraLast(samtal.id, uid, senast).then(() => onLast?.(), () => {});
     }
-    // ⛔ Bara när något NYTT kommit: en sida bakåt ("Visa äldre") ändrar inte `meddelanden` och ska inte rulla till slutet.
-    slut.current?.scrollIntoView?.({ block: "end" });
+    // ⛔ (0.106.0) Rullningen sköts av `useLasposition`: den som läser bakåt rycks inte ned.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [meddelanden]);
 
@@ -2306,6 +2324,7 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik: rubrikProp, marke, lastT
       {sok.oppen ? <Sokrad sok={sok} antal={alla.length} kanFinnasAldre={historik.kanFinnasAldre} texter={t} /> : null}
       <Fastarad fasta={fasta} kalla={kalla} sid={samtal.id} laddade={alla} uid={uid} namnFor={namnFor} texter={t} />
 
+      <div className="relative flex min-h-0 flex-1 flex-col">
       <div ref={loggRef} role="log" aria-label={rubrik} className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
         {fel ? (
           <OpsBanner tone="danger" title={t.fel}>
@@ -2331,6 +2350,7 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik: rubrikProp, marke, lastT
         ) : null}
         <Meddelanderader
           meddelanden={alla}
+          nyttFran={nyttFran}
           reakt={reakt}
           texter={t}
           kalla={kalla}
@@ -2406,7 +2426,8 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik: rubrikProp, marke, lastT
           }
         />
         <Agentrad lage={agentlage} texter={t} />
-        <div ref={slut} />
+      </div>
+      <TillSenaste lage={lasposition} arbetar={arbetsord(agentlage)} texter={t} />
       </div>
 
       {svarPa ? (
@@ -2578,8 +2599,9 @@ function useTradmarken({ kalla, sid, meddelanden, minne }) {
  * @param {string} [props.trad] Trådens id, när raderna är svar i en tråd. Det står i filens nyckel (`bilagenyckel`).
  * @param {(agent: { id: string, namn: string }) => void} [props.onVisaAgent] (0.90.0) Agentens avatar i en tråd öppnar inställningarna.
  * @param {(f: { sid: string, mid: string, id: string }) => Promise<import("../lib/forslag.js").Forslagssvar>} [props.onForslag] (0.105.0) Förslagen under agentens svar.
+ * @param {string | null} [props.nyttFran] (0.106.0) Meddelandet som avdelaren "Nytt sedan sist" står före.
  */
-function Meddelanderader({ meddelanden, uid, namnFor, medlemmar, locale, visaNamn, efter, forraTid, reakt, texter = TEXTER, citat, traffar, fasta, postkort, kalla, sid, trad, onVisaAgent, onForslag }) {
+function Meddelanderader({ meddelanden, uid, namnFor, medlemmar, locale, visaNamn, efter, forraTid, reakt, texter = TEXTER, citat, traffar, fasta, postkort, kalla, sid, trad, onVisaAgent, onForslag, nyttFran = null }) {
   const medlemsbild = (/** @type {string} */ id) => (medlemmar ?? []).find((m) => m.userId === id)?.bild || undefined;
   const medlemstyp = (/** @type {string} */ id) => (medlemmar ?? []).find((m) => m.userId === id)?.typ;
   return (
@@ -2596,6 +2618,13 @@ function Meddelanderader({ meddelanden, uid, namnFor, medlemmar, locale, visaNam
             {nyDag ? (
               <div className="flex justify-center py-3">
                 <span className="rounded-full bg-canvas px-3 py-1 text-liten text-ink-muted">{forstaVersal(formatRelativeDate(m.tid, { locale }))}</span>
+              </div>
+            ) : null}
+            {m.id === nyttFran ? (
+              <div data-nytt-sedan-sist="" role="separator" aria-label={texter.nyttSedanSist} className="my-2 flex items-center gap-2 text-liten font-medium text-accent">
+                <span aria-hidden="true" className="h-px flex-1 bg-accent" />
+                <span>{texter.nyttSedanSist}</span>
+                <span aria-hidden="true" className="h-px flex-1 bg-accent" />
               </div>
             ) : null}
             <div data-meddelande={egen ? "eget" : "annans"} className={cx("group flex gap-2", fortsattning ? "mt-px" : "mt-2", egen ? "flex-row-reverse" : "")}>
@@ -2759,7 +2788,6 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
   const [redigerar, setRedigerar] = useState(false);
   const [utkastNamn, setUtkastNamn] = useState("");
   const lyssnar = useRef(false);
-  const slut = useRef(/** @type {HTMLDivElement | null} */ (null));
   const tradlogg = useRef(/** @type {HTMLDivElement | null} */ (null));
   const historik = useHistorik({ kalla, sid: samtal.id, trad: tid, live: svar, logg: tradlogg });
   const sok = useSokISamtal(historik.alla, tradlogg);
@@ -2809,9 +2837,8 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kalla, samtal.id, tid]);
 
-  useEffect(() => {
-    slut.current?.scrollIntoView?.({ block: "end" });
-  }, [svar]);
+  // ⛔ (0.106.0) Rullningen sköts av `useLasposition`, som i samtalet: den som läser bakåt i tråden rycks inte ned.
+  const lasposition = useLasposition({ logg: tradlogg, alla: historik.alla, uid, laddat: svar !== null });
 
   const namn = tradensNamn(trad, [...(rot ? [rot] : []), ...historik.alla]);
   /** @param {import("../lib/samtal.js").Meddelande & { id: string }} m */
@@ -3006,6 +3033,7 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
       </header>
       {sok.oppen ? <Sokrad sok={sok} antal={historik.alla.length} kanFinnasAldre={historik.kanFinnasAldre} texter={t} /> : null}
 
+      <div className="relative flex min-h-0 flex-1 flex-col">
       <div ref={tradlogg} role="log" aria-label={namn} className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
         {fel ? (
           <OpsBanner tone="danger" title={t.tradFel}>
@@ -3031,7 +3059,8 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
         <Reaktionslage reakt={reakt} texter={t} />
         <Meddelanderader meddelanden={historik.alla} efter={lyftEfter} reakt={reakt} texter={t} postkort={postkort} kalla={kalla} sid={samtal.id} trad={tid} traffar={sok.oppen ? { ids: sok.traffar, aktuell: sok.aktuell } : null} uid={uid} namnFor={namnFor} medlemmar={medlemmar} locale={locale} visaNamn forraTid={rot?.tid} onVisaAgent={onVisaAgent} />
         <Agentrad lage={agentlage} texter={t} />
-        <div ref={slut} />
+      </div>
+      <TillSenaste lage={lasposition} arbetar={arbetsord(agentlage)} texter={t} />
       </div>
 
       <Bilageutkast bilaga={bilage.bilaga} fel={bilage.fel} onTaBort={bilage.tom} texter={t} />
@@ -3160,6 +3189,122 @@ function useAgentstatusdok(kalla, sid, tid) {
     };
   }, [kalla, sid, tid]);
   return lage;
+}
+
+/** Närmare slutet än så räknas som att stå vid slutet, i pixlar (0.106.0, #386 skiva 4). Ungefär en bubbla. */
+export const SLUTTROSKEL = 96;
+
+/**
+ * Läspositionen i en logg (0.106.0, #386 skiva 4): följ slutet för den som står där, och låt den som läser bakåt vara.
+ *
+ * ══ ⛔ VARFÖR ═══════════════════════════════════════════════════════════════════════════════════════════════════════════
+ *
+ * Före 0.106.0 rullade loggen till slutet vid VARJE ögonblicksbild (`slut.scrollIntoView`), också när man läste äldre meddelanden:
+ * den som läste bakåt rycktes ned när någon skrev. Och tvärtom: CP 2026-10-14, med en skärmbild från telefonen, raden "Agenten
+ * tänker •••" kom in under sista meddelandet men sidan rullade inte, så den hamnade under skrivfältet och syntes inte. Statusraden,
+ * ett förslagskort och ett skrivfält som växer ändrar höjden utan att något nytt meddelande kommer, och då rullade ingenting.
+ *
+ * ⛔ ETT TILLSTÅND OCH TRE SIGNALER. `vidSlutet` sätts av rullningen: inom `SLUTTROSKEL` från slutet. Står man där följer vyn med
+ * när innehållet ändras (MutationObserver i loggen), när loggen själv byter storlek (ResizeObserver, skrivfältet växer eller
+ * tangentbordet kommer) och när en bild laddas. Har man rullat upp händer ingenting med rullningen, och nya meddelanden från andra
+ * räknas till "Till senaste". Ett eget meddelande rullar alltid till slutet: den som skickar vill se det.
+ *
+ * ⛔ EN SIDA BAKÅT ÄR INTE NYTT. Bara meddelanden med en tid efter den senaste som redan setts räknas.
+ *
+ * @param {{ logg: { current: HTMLElement | null }, alla: ReadonlyArray<{ id: string, av: string, tid: number }>, uid: string, laddat: boolean }} p
+ */
+function useLasposition({ logg, alla, uid, laddat }) {
+  const vidSlutet = useRef(true);
+  const [uppe, setUppe] = useState(false);
+  const [nya, setNya] = useState(0);
+  const sett = useRef(/** @type {Set<string>} */ (new Set()));
+  const senastTid = useRef(-Infinity);
+  const forsta = useRef(true);
+  const tillSlutet = useCallback(() => {
+    const el = logg.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+    vidSlutet.current = true;
+    setUppe(false);
+    setNya(0);
+  }, [logg]);
+  useEffect(() => {
+    const el = logg.current;
+    if (!el) return undefined;
+    const rulla = () => {
+      const vid = el.scrollHeight - el.scrollTop - el.clientHeight <= SLUTTROSKEL;
+      vidSlutet.current = vid;
+      setUppe(!vid);
+      if (vid) setNya(0);
+    };
+    const folj = () => {
+      if (vidSlutet.current) el.scrollTop = el.scrollHeight;
+    };
+    el.addEventListener("scroll", rulla, { passive: true });
+    el.addEventListener("load", folj, true);
+    const mo = typeof MutationObserver === "function" ? new MutationObserver(folj) : null;
+    mo?.observe(el, { childList: true, subtree: true, characterData: true });
+    const ro = typeof ResizeObserver === "function" ? new ResizeObserver(folj) : null;
+    ro?.observe(el);
+    return () => {
+      el.removeEventListener("scroll", rulla);
+      el.removeEventListener("load", folj, true);
+      mo?.disconnect();
+      ro?.disconnect();
+    };
+  }, [logg]);
+  useLayoutEffect(() => {
+    if (!laddat) return;
+    const nyaEfter = alla.filter((m) => !sett.current.has(m.id) && m.tid > senastTid.current);
+    for (const m of alla) {
+      sett.current.add(m.id);
+      if (m.tid > senastTid.current) senastTid.current = m.tid;
+    }
+    if (forsta.current) {
+      forsta.current = false;
+      tillSlutet();
+      return;
+    }
+    if (nyaEfter.length === 0) return;
+    if (vidSlutet.current || nyaEfter.some((m) => m.av === uid)) tillSlutet();
+    else setNya((n) => n + nyaEfter.filter((m) => m.av !== uid).length);
+  }, [alla, laddat, uid, tillSlutet]);
+  return { uppe, nya, tillSlutet };
+}
+
+/**
+ * "Till senaste" över skrivfältet, när man läst bakåt (0.106.0, #386 skiva 4). Visar antalet nya sedan man lämnade slutet, och att
+ * agenten arbetar: den som läser bakåt ska se att ett svar är på väg utan att ryckas ned till det.
+ * @param {{ lage: ReturnType<typeof useLasposition>, arbetar: null | "tanker" | "skriver", texter: Required<Meddelandetexter> }} props
+ */
+function TillSenaste({ lage, arbetar, texter: t }) {
+  if (!lage.uppe) return null;
+  const antal = lage.nya > 0 ? t.nyaMeddelanden.replace("{n}", String(lage.nya)) : "";
+  const agent = arbetar === "tanker" ? t.agentTanker : arbetar === "skriver" ? t.agentSkriver : "";
+  return (
+    <button
+      type="button"
+      data-till-senaste={lage.nya}
+      data-agent-arbetar={arbetar ?? undefined}
+      aria-label={[t.tillSenaste, antal, agent].filter(Boolean).join(", ")}
+      onClick={lage.tillSlutet}
+      className="absolute right-3 bottom-2 z-10 inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-full border border-line bg-surface px-3 text-meta font-medium text-ink shadow-md transition-colors duration-(--duration-fast) ease-standard hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+    >
+      {arbetar ? (
+        <span aria-hidden="true" className="inline-flex text-accent motion-safe:animate-pulse">
+          <AgentIkon size={14} />
+        </span>
+      ) : null}
+      <span aria-hidden="true">{antal || t.tillSenaste}</span>
+      <ChevronNedIkon size={14} />
+    </button>
+  );
+}
+
+/** Agentens läge som ett ord för "Till senaste", eller `null` när den inte arbetar. @param {ReturnType<typeof useAgentstatusdok>} lage */
+function arbetsord(lage) {
+  const v = agentstatus(lage.dok, Date.now());
+  return v && !("fel" in v) ? v.lage : null;
 }
 
 /**

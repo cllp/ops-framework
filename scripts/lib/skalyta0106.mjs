@@ -172,6 +172,92 @@ export async function engelska(v) {
 }
 
 /**
+ * Var en rad står mot loggens synliga del och skrivfältet. `inne` när hela raden är inom loggens fönster och ovanför skrivfältet.
+ * @param {import("playwright").Page} page @param {string} valjare
+ */
+async function iSikte(page, valjare) {
+  return page.evaluate((v) => {
+    const el = [...document.querySelectorAll(v)].pop();
+    const logg = document.querySelector("[data-ops-samtal] [role=log]");
+    const falt = document.querySelector("[data-skrivfalt]");
+    if (!el || !logg) return null;
+    const r = el.getBoundingClientRect();
+    const l = logg.getBoundingClientRect();
+    const f = falt ? falt.getBoundingClientRect().top : Infinity;
+    return { topp: r.top, botten: r.bottom, loggTopp: l.top, loggBotten: l.bottom, falt: f, inne: r.top >= l.top - 0.5 && r.bottom <= l.bottom + 0.5 && r.bottom <= f + 0.5 };
+  }, valjare);
+}
+
+/**
+ * (4) LÄSA BAKÅT OCH AGENTENS STATUS (skiva 4, och CP:s skärmbild 2026-10-14: "Agenten tänker" hamnade under skrivfältet).
+ *   (a) Står man vid slutet och agentens status kommer, står raden helt inom loggen, ovanför skrivfältet.
+ *   (b) Ett förslagskort som kommer med agentens svar syns också helt.
+ *   (c) Har man rullat upp och ett svar kommer, står loggen kvar (högst 2 px), och "Till senaste" visar "1 nya" och att agenten
+ *       arbetar, minst 44 px hög och inom fönstret. Ett tryck tar en till slutet.
+ * Golv: loggen måste kunna rulla (minst 200 px mer innehåll än fönster), annars mäter (c) ingenting.
+ * @param {Verktyg} v
+ */
+export async function lasaBakat(v) {
+  for (const vp of BREDDER) {
+    const namn = `47 (4) läsa bakåt ${vp.width} px`;
+    await del(v, namn, "chatt0106-las", vp, null, async (page) => {
+      await page.locator("[data-ops-samtal] [data-meddelande]").first().waitFor({ timeout: 4000 });
+      await page.waitForTimeout(150);
+      const rullbar = await page.evaluate(() => { const l = /** @type {HTMLElement} */ (document.querySelector("[data-ops-samtal] [role=log]")); return l.scrollHeight - l.clientHeight; });
+      v.krav(rullbar >= 200, `${namn}: loggen rullar ${rullbar} px, väntat minst 200. Golv.`);
+      // (a)
+      await page.evaluate(() => { const x = /** @type {any} */ (window).__las; return x.kalla.create(`samtal/${x.sid}/status`, { id: "agent", lage: "tanker", sedan: Date.now() }); });
+      await page.locator("[data-agentstatus='tanker']").waitFor({ timeout: 4000 });
+      await page.waitForTimeout(150);
+      const a = await iSikte(page, "[data-agentstatus]");
+      v.matt.push(`${namn}: (a) "Agenten tänker" ${JSON.stringify(a)}`);
+      v.krav(Boolean(a?.inne), `${namn}: (a) raden "Agenten tänker" står inte helt inom loggen ovanför skrivfältet (${JSON.stringify(a)}).`);
+      await bild(v, page, `lasa-status-${vp.width}.png`);
+      // (b)
+      await page.evaluate(() => {
+        const x = /** @type {any} */ (window).__las;
+        return Promise.all([
+          x.kalla.remove(`samtal/${x.sid}/status`, "agent"),
+          x.kalla.create(`samtal/${x.sid}/meddelanden`, { text: "Jag kan boka mötet med banken på fredag klockan tio.", av: "ops", tid: x.tid(), forslag: [{ id: "f1", etikett: "Boka mötet", ikon: "kalender", text: "Fredag 10.00, banken" }, { id: "f2", etikett: "Välj en annan tid" }] }),
+        ]);
+      });
+      await page.locator("[data-ops-forslag]").waitFor({ timeout: 4000 });
+      await page.waitForTimeout(150);
+      const b = await iSikte(page, "[data-ops-forslag]");
+      v.matt.push(`${namn}: (b) förslagen ${JSON.stringify(b)}`);
+      v.krav(Boolean(b?.inne), `${namn}: (b) förslagskortet står inte helt inom loggen ovanför skrivfältet (${JSON.stringify(b)}).`);
+      // (c)
+      await page.evaluate(() => { const l = /** @type {HTMLElement} */ (document.querySelector("[data-ops-samtal] [role=log]")); l.scrollTop = 0; });
+      await page.waitForTimeout(150);
+      const fore = await page.evaluate(() => /** @type {HTMLElement} */ (document.querySelector("[data-ops-samtal] [role=log]")).scrollTop);
+      await page.evaluate(() => {
+        const x = /** @type {any} */ (window).__las;
+        return Promise.all([
+          x.kalla.create(`samtal/${x.sid}/meddelanden`, { text: "En sak till om banken.", av: "ops", tid: x.tid() }),
+          x.kalla.create(`samtal/${x.sid}/status`, { id: "agent", lage: "skriver", sedan: Date.now() }),
+        ]);
+      });
+      await page.locator("[data-agentstatus='skriver']").waitFor({ timeout: 4000, state: "attached" });
+      await page.waitForTimeout(200);
+      const efter = await page.evaluate(() => /** @type {HTMLElement} */ (document.querySelector("[data-ops-samtal] [role=log]")).scrollTop);
+      const knapp = await ruta(page, "[data-till-senaste]");
+      const etikett = await page.locator("[data-till-senaste]").getAttribute("aria-label").catch(() => null);
+      v.matt.push(`${namn}: (c) rullning ${fore} till ${efter}, knappen ${JSON.stringify(knapp)} "${etikett}"`);
+      v.krav(Math.abs(efter - fore) <= 2, `${namn}: (c) loggen rycktes från ${fore} till ${efter} när ett svar kom.`);
+      v.krav(Boolean(knapp && knapp.h >= 43.5 && knapp.r <= vp.width + 0.5 && knapp.b <= vp.height + 0.5), `${namn}: (c) Till senaste saknas, är lägre än 44 px eller står utanför fönstret (${JSON.stringify(knapp)}).`);
+      v.krav(etikett === "Till senaste, 1 nya, Agenten skriver", `${namn}: (c) Till senaste heter ${JSON.stringify(etikett)}, väntat "Till senaste, 1 nya, Agenten skriver".`);
+      await bild(v, page, `lasa-till-senaste-${vp.width}.png`);
+      if (knapp) {
+        await page.locator("[data-till-senaste]").click();
+        await page.waitForTimeout(150);
+        const sist = await iSikte(page, "[data-agentstatus]");
+        v.krav(Boolean(sist?.inne), `${namn}: (c) efter Till senaste står agentens rad inte i sikte (${JSON.stringify(sist)}).`);
+      }
+    });
+  }
+}
+
+/**
  * Alla delar i ordning. Varje skiva lägger till sin rad här.
  * @param {Verktyg} v
  */
@@ -179,4 +265,5 @@ export async function chattepiken0106(v) {
   await karnan(v);
   await amnen(v);
   await engelska(v);
+  await lasaBakat(v);
 }

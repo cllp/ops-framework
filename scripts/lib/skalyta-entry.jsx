@@ -1723,6 +1723,84 @@ function EngelskScen() {
   return <Full>{k ? <Ops.OpsMeddelanden kalla={k.s} uid="anna" groupId="g1" gruppNamn="Claes Philip Staiger AB" medlemmar={MEDLEMMAR_A} sprak="en" {...(window.__aktiv === "agent" ? { valtAgent: "ops" } : { valt: k.g })} /> : <p>Laddar</p>}</Full>;
 }
 
+
+/*
+ * 0.106.0 (#386 skiva 4): läsa bakåt och agentens status. En källa som säger till när något skrivs (som provens `levandeKalla`),
+ * så att sidan kan skriva "från servern" medan vakten mäter. `window.__las` bär källan och samtalets id. Avsnitt 47 (4).
+ */
+function levande(bas) {
+  // ⛔ BARA LYSSNARNA PÅ SAMMA SAMLING SÄGS TILL, som i Firestore. En källa som väckte alla lyssnare vid varje skrivning hade
+  // gett meddelandena en ny ögonblicksbild när statusen skrevs, och då hade 0.105.0 rullat av en slump och mätts som grön.
+  const lyssnare = new Set();
+  const signal = (c) => [...lyssnare].forEach((l) => (c === undefined || l.c === c ? l() : null));
+  const med = (f) => async (...a) => {
+    const svar = await f(...a);
+    signal(typeof a[0] === "string" ? a[0] : undefined);
+    return svar;
+  };
+  return {
+    ...bas,
+    create: med(bas.create),
+    update: med(bas.update),
+    remove: med(bas.remove),
+    batch: async (ops) => {
+      const svar = await bas.batch(ops);
+      signal(undefined);
+      return svar;
+    },
+    subscribe(c, q, l) {
+      let oppen = true;
+      const las = () => bas.list(c, q).then((r) => oppen && l.onData(r), (e) => oppen && l.onError(e));
+      las.c = c;
+      lyssnare.add(las);
+      las();
+      return () => {
+        oppen = false;
+        lyssnare.delete(las);
+      };
+    },
+  };
+}
+let laskallan = null;
+function LasScen() {
+  const [k, setK] = useState(laskallan);
+  if (!Ops.OpsMeddelanden) return <Full><p data-saknas="OpsMeddelanden">OpsMeddelanden saknas</p></Full>;
+  if (!k) {
+    (async () => {
+      let t = new Date(2026, 9, 6, 9, 0).getTime();
+      const kalla = levande(Ops.createMemorySource({}));
+      const s = Ops.createSamtalskalla({ kalla, klocka: () => (t += 60000), status: "status" });
+      const a = await s.oppnaPrivat({ groupId: "g1", uid: "anna", annan: "ops", slag: "agent" });
+      for (let i = 1; i <= 16; i += 1) {
+        if (i % 2) await s.skicka(a.id, { text: `Fråga ${i}: hur ligger vi till med punkt ${i} i planen för hösten?`, av: "anna" });
+        else await kalla.create(`samtal/${a.id}/meddelanden`, { text: `Svar ${i}: punkt ${i - 1} är klar, och nästa steg är att boka mötet med banken.`, av: "ops", tid: (t += 60000) });
+      }
+      const x = { s, kalla, sid: a.id, tid: () => (t += 60000) };
+      window.__las = x;
+      laskallan = x;
+      setK(x);
+    })();
+  }
+  return (
+    <Full>
+      {k ? (
+        <Ops.OpsMeddelanden
+          kalla={k.s}
+          uid="anna"
+          groupId="g1"
+          gruppNamn="Claes Philip Staiger AB"
+          medlemmar={MEDLEMMAR_A}
+          valt={k.sid}
+          onValj={() => {}}
+          onForslag={async () => ({ status: "ok", text: "Klart" })}
+        />
+      ) : (
+        <p>Laddar</p>
+      )}
+    </Full>
+  );
+}
+
 function Scen() {
   const s = window.__skal;
   if (s === "menyer") return <Menyer />;
@@ -2065,6 +2143,7 @@ function Scen() {
   if (s === "karna") return <KarnaScen />;
   if (s === "amnen") return <AmnesScen />;
   if (s === "chatt0106-en") return <EngelskScen />;
+  if (s === "chatt0106-las") return <LasScen />;
   if (s === "installning") {
     return (
       <Skal>
