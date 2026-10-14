@@ -23,9 +23,9 @@ import { OpsHubTillbaka, OpsVyAtgard, VYHUVUD_KLASS, VYIKON_KLASS, VYRUBRIK_KLAS
 import { OpsMottagare } from "./OpsMottagare.jsx";
 import { OpsSkapaRubrik } from "./OpsSkapaRubrik.jsx";
 import { OpsCountBadge } from "./counter.jsx";
-import { OpsInspelning, useTalk } from "./OpsTalk.jsx";
+import { Mikrofonknapp, Rostyta, useRostfokus, useRostinmatning } from "./OpsRostinmatning.jsx";
 import { REAKTIONSVY, reaktionsnamnPa } from "./reaktionsvy.js";
-import { AgentIkon, AndraIkon, BildIkon, FastIkon, FilIkon, KameraIkon, LjudvagIkon, MappIkon, MejlIkon, NotisIkon, PanelIkon, StoppIkon, TystIkon, ChevronHogerIkon, ChevronNedIkon, CiteraIkon, ChevronVansterIkon, GruppIkon, KryssIkon, LasIkon, LeendeIkon, MeddelandeIkon, PlusIkon, SkickaIkon, SokIkon, TradIkon } from "./icons.jsx";
+import { AgentIkon, AndraIkon, BildIkon, FastIkon, FilIkon, KameraIkon, MappIkon, MejlIkon, NotisIkon, PanelIkon, StoppIkon, TystIkon, ChevronHogerIkon, ChevronNedIkon, CiteraIkon, ChevronVansterIkon, GruppIkon, KryssIkon, LasIkon, LeendeIkon, MeddelandeIkon, PlusIkon, SkickaIkon, SokIkon, TradIkon } from "./icons.jsx";
 
 /**
  * Meddelanden: inkorgen med gruppchatten och de privata samtalen, och samtalet bredvid (0.34.0, #182, #185).
@@ -1214,29 +1214,25 @@ function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, fokus = false,
     // ⛔ "@alla" står ensamt (modellen): hela gruppen är redan alla.
     return namner.length ? { namner: namner.includes("alla") ? ["alla"] : namner } : undefined;
   };
-  const rost = useRostinmatning({ onTranscribe, inspelare, igenkanning, texter: t, onSkickaTal: (ut) => Promise.resolve(onSkicka({ ...namnerI(ut), text: ut })) });
-  const rostyta = useRef(/** @type {HTMLDivElement | null} */ (null));
   /*
-   * ⛔ FOKUS FÖLJER YTAN. Mikrofonen som trycktes försvinner när ytan kommer, och utan ett nytt mål hamnar tangentbordet i sidans topp.
-   * I ytan går fokus till Klar, och i ett fel till den sista knappen (Försök igen eller Stäng). När ytan går tillbaka till fältet får
-   * textrutan fokus, som efter Skicka.
+   * ══ ⛔ RÖSTEN SOM I TALK, INTE VIA FÄLTET (0.103.0). Logiken är ramverkets gemensamma sedan 0.104.0 (`useRostinmatning`). ══
+   *
+   * CP 2026-10-14: "Sedan funkar inte tal i meddelanden på samma sätt som TALK, det skall skrivas ut text i realtid och inte gå en
+   * omväg via textfältet." Före 0.103.0 skrevs orden in i skrivfältet medan man pratade (0.98.0), och den som stoppade fick rätta och
+   * trycka Skicka. Nu står texten i TALK:s yta medan man pratar, och Klar skickar den direkt i den öppna tråden, samma väg som Skicka
+   * (`onSkicka({ text })`). Vilken text som skickas står i `useRostinmatning`.
+   *
+   * ⛔ DET SOM STOD I FÄLTET LIGGER KVAR, OCH BARA DET SAGDA SKICKAS. Mikrofonen står bara i ett fält utan text och utan bilaga (samma
+   * villkor som Skickas `disabled`, 0.84.0), och ytan täcker fältet medan den arbetar, så det som kan stå där är blanksteg. Valet gäller
+   * ändå för det fall någon ändrar villkoret: ett utkast är personens eget och skickas när hen trycker Skicka. Ett meddelande som
+   * skickats går inte att ta tillbaka, medan ett utkast som står kvar syns och går att skicka eller sudda. Att skicka det med det sagda
+   * hade gjort ett misstag som inte går att ångra av ett som syns. Ett citat som väntar (Svarar på) går med, som med Skicka.
+   * (`OpsTextarea` gör tvärtom och skriver in det sagda i fältet, eftersom ett fält i ett formulär inte skickar något.)
    */
-  const ytaFanns = useRef(false);
-  useEffect(() => {
-    const yta = rostyta.current;
-    if (rost.yta && yta) {
-      ytaFanns.current = true;
-      if (!yta.contains(document.activeElement)) {
-        const knappar = /** @type {HTMLElement[]} */ ([...yta.querySelectorAll("button")]);
-        (/** @type {HTMLElement | null} */ (yta.querySelector("[data-talk-skicka]")) ?? knappar[knappar.length - 1] ?? null)?.focus({ preventScroll: true });
-      }
-      return;
-    }
-    if (!rost.yta && ytaFanns.current) {
-      ytaFanns.current = false;
-      ruta.current?.focus({ preventScroll: true });
-    }
-  }, [rost.yta, rost.lage]);
+  const rost = useRostinmatning({ onTranscribe, inspelare, igenkanning, texter: rosttexter(t), onTal: (ut) => Promise.resolve(onSkicka({ ...namnerI(ut), text: ut })) });
+  const rostyta = useRef(/** @type {HTMLDivElement | null} */ (null));
+  // ⛔ FOKUS FÖLJER YTAN (`useRostfokus`). När ytan går tillbaka till fältet får textrutan fokus, som efter Skicka.
+  useRostfokus(rost, rostyta, () => ruta.current?.focus({ preventScroll: true }));
   /** @param {string} v @param {number} markor */
   const las = (v, markor) => {
     if (!omnamnande) return setFraga(null);
@@ -1281,28 +1277,7 @@ function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, fokus = false,
    */
   if (rost.yta) {
     return (
-      <div ref={rostyta} data-rostyta="" data-rostlage={rost.ytlage} data-live={rost.live ? "" : undefined} className="shrink-0 border-t border-line px-3 py-2">
-        <div className="rounded-3xl border border-line-strong bg-raised p-4 shadow-sm">
-          <OpsInspelning
-            lage={rost.lage}
-            fel={rost.fel}
-            niva={rost.niva}
-            sekunder={rost.sekunder}
-            tak={rost.tak}
-            framsteg={null}
-            kanIgen={rost.kanIgen}
-            text={rost.text}
-            textFel={rost.textFel}
-            medText={rost.medText}
-            skickarText={rost.skickarText}
-            klarEtikett={t.talKlar}
-            onKlar={rost.klar}
-            onAvbryt={rost.avbryt}
-            onIgen={rost.igen}
-            onTillatMikrofon={rost.starta}
-          />
-        </div>
-      </div>
+      <Rostyta rost={rost} klarEtikett={t.talKlar} ytaRef={rostyta} ram="chatt" />
     );
   }
   return (
@@ -1398,17 +1373,7 @@ function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, fokus = false,
         </button>
       ) : null}
       {visaMik ? (
-        <button
-          type="button"
-          data-mikrofon={rost.lage}
-          aria-label={t.prataIn}
-          onClick={() => rost.starta()}
-          className="group/knapp inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full focus-visible:outline-none"
-        >
-          <span className="inline-flex size-9 items-center justify-center rounded-full border border-line bg-surface text-ink shadow-sm transition-colors duration-(--duration-fast) ease-standard group-hover/knapp:bg-hover group-focus-visible/knapp:outline-2 group-focus-visible/knapp:outline-offset-1 group-focus-visible/knapp:outline-accent">
-            <LjudvagIkon size={18} />
-          </span>
-        </button>
+        <Mikrofonknapp lage={rost.lage} etikett={t.prataIn} onClick={() => rost.starta()} />
       ) : (
         <button
           type="submit"
@@ -1428,121 +1393,20 @@ function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, fokus = false,
 }
 
 /**
- * Röstinmatningen i skrivfältet: TALK:s inspelning (`useTalk`) och yta (`OpsInspelning`), och det sagda som ett meddelande (0.103.0).
- *
- * ══ ⛔ SOM I TALK, INTE VIA FÄLTET (0.103.0) ═════════════════════════════════════════════════════════════════════════════════════
- *
- * CP 2026-10-14: "Sedan funkar inte tal i meddelanden på samma sätt som TALK, det skall skrivas ut text i realtid och inte gå en
- * omväg via textfältet." Före 0.103.0 skrevs orden in i skrivfältet medan man pratade (0.98.0), och den som stoppade fick rätta och
- * trycka Skicka. Nu står texten i TALK:s yta medan man pratar, och Klar skickar den direkt i den öppna tråden, samma väg som Skicka
- * (`onSkicka({ text })`). Vilken text som skickas, i den här ordningen:
- *   1. Igenkänningens hela text (`meta.text` från `useTalk`).
- *   2. Annars det som stod i ytan när inspelningen slutade (`talk.text`): det personen såg är det som skickas. ⛔ INTE när
- *      igenkänningen föll (`talk.textFel`): ytan har då sagt att texten inte kan visas och att det sagda skrivs ut, och en halv
- *      mening som skickades i stället hade varit ett annat löfte än det som stod.
- *   3. Annars, och bara då, appens `onTranscribe` på ljudet. Ytan säger "Skriver ut det inspelade…" så länge, och resultatet skickas
- *      när det kommer.
- * Utan `igenkanning`, eller där webbläsaren saknar den, är det alltid steg 3, och resultatet skickas lika direkt: ett beteende, inte två.
- *
- * ⛔ DET SOM STOD I FÄLTET LIGGER KVAR, OCH BARA DET SAGDA SKICKAS. Mikrofonen står bara i ett fält utan text och utan bilaga (samma
- * villkor som Skickas `disabled`, 0.84.0), och ytan täcker fältet medan den arbetar, så det som kan stå där är blanksteg. Valet gäller
- * ändå för det fall någon ändrar villkoret: ett utkast är personens eget och skickas när hen trycker Skicka. Ett meddelande som
- * skickats går inte att ta tillbaka, medan ett utkast som står kvar syns och går att skicka eller sudda. Att skicka det med det sagda
- * hade gjort ett misstag som inte går att ångra av ett som syns. Ett citat som väntar (Svarar på) går med, som med Skicka.
- *
- * ⛔ DET SAGDA FÖRSVINNER ALDRIG TYST (regel 5). Faller utskriften eller sändningen står felet i ytan med Försök igen, som i TALK.
- * Försök igen skickar samma text om den redan fanns, och skriver annars ut samma ljud på nytt. Bara krysset tar bort ljudet och texten.
- *
- * ⛔ IGENKÄNNINGEN ÄR APPENS VAL, INTE SKRIVFÄLTETS (granskningen av PR 358, MÅSTE 3). Den är av som förval och slås på av appen med
- * `igenkanning`, som i TALK, eftersom webbläsaren skickar talet till Google eller Apple.
- *
- * @param {{ onTranscribe?: (blob: Blob) => Promise<string>, inspelare?: import("../lib/talk.js").Inspelare, igenkanning?: import("../lib/talk.js").Igenkanning | boolean, texter: Required<Meddelandetexter>, onSkickaTal: (text: string) => Promise<void> }} p
+ * Chattens texter i röstinmatningens form (`useRostinmatning`, 0.104.0). Chatten SKICKAR det sagda, så det är chattens ord som står
+ * i ytan. Tilläggen efter `transkriptionFel` är oförändrade sedan 0.103.0.
+ * @param {Required<Meddelandetexter>} t
+ * @returns {import("./OpsRostinmatning.jsx").Rosttexter}
  */
-function useRostinmatning({ onTranscribe, inspelare, igenkanning, texter: t, onSkickaTal }) {
-  /** Det som stod i ytan senast medan inspelningen pågick, eller tom när igenkänningen föll. Steg 2 ovan. */
-  const visat = useRef("");
-  /** Texten som ska skickas, när den väl är bestämd. Försök igen efter en sändning som föll skriver då inte ut ljudet en gång till. */
-  const bestamd = useRef(/** @type {string | null} */ (null));
-  /** Vad ytan säger medan Klar arbetar: att det sagda skickas, eller att appen skriver ut ljudet. */
-  const [steg, setSteg] = useState(/** @type {"skickar" | "skriver"} */ ("skickar"));
-  /** Texten som skickas just nu, så att ytan visar den till meddelandet står i tråden. */
-  const [skickas, setSkickas] = useState("");
-  const skickaRef = useRef(onSkickaTal);
-  skickaRef.current = onSkickaTal;
-  const nollstall = () => {
-    visat.current = "";
-    bestamd.current = null;
-    setSteg("skickar");
-    setSkickas("");
-  };
-  const talk = useTalk({
-    inspelare,
-    igenkanning,
-    onKlick: () => {},
-    onTalk: async (blob, meta) => {
-      let ut = bestamd.current;
-      if (ut === null) {
-        const hort = String(meta.text || visat.current || "").trim();
-        if (hort) {
-          ut = hort;
-        } else {
-          if (!onTranscribe) throw new Error(`${t.transkriptionFel} Ingen utskrift finns.`);
-          setSteg("skriver");
-          setSkickas("");
-          /** @type {string} */
-          let utskrivet;
-          try {
-            utskrivet = String((await onTranscribe(blob)) ?? "").trim();
-          } catch (e) {
-            throw new Error(`${t.transkriptionFel}${e instanceof Error && e.message ? ` ${e.message}` : ""}`);
-          }
-          if (!utskrivet) throw new Error(`${t.transkriptionFel} Inget hördes i det inspelade.`);
-          ut = utskrivet;
-        }
-        bestamd.current = ut;
-      }
-      setSteg("skickar");
-      setSkickas(ut);
-      try {
-        await skickaRef.current(ut);
-      } catch (e) {
-        throw new Error(`${t.talSkickaFel}${e instanceof Error && e.message ? ` ${e.message}` : ""}`);
-      }
-      nollstall();
-    },
-  });
-  const spelarNu = talk.lage === "haller" || talk.lage === "lyssnar";
-  // ⛔ Medan inspelningen pågår är det här det personen ser. Läst vid varje rendering, så att också taket (`MAX_SEKUNDER`), som
-  // stoppar utan Klar, får med texten.
-  if (spelarNu) visat.current = talk.textFel ? "" : talk.text;
-  /** Ytan står i fältets plats i de här lägena. I "sparat" är meddelandet skickat och fältet tillbaka. */
-  const yta = spelarNu || talk.lage === "skickar" || talk.lage === "fel";
+function rosttexter(t) {
   return {
-    yta,
-    /** Läget för `data-rostlage`. */
-    ytlage: talk.lage === "fel" ? "fel" : talk.lage === "skickar" ? (steg === "skriver" ? "skriver" : "skickar") : "spelar",
-    /** Texten syns i ytan medan den hörs: igenkänningen är påslagen, finns i webbläsaren, och mikrofonen är öppen. */
-    live: spelarNu && talk.medText,
-    lage: talk.lage,
-    fel: talk.fel,
-    niva: talk.niva,
-    sekunder: talk.sekunder,
-    tak: talk.tak,
-    kanIgen: talk.kanIgen,
-    medText: talk.medText,
-    text: talk.lage === "skickar" ? skickas : talk.text,
-    textFel: talk.textFel ? t.talTextFel : "",
-    skickarText: steg === "skriver" ? t.skriverUt : t.talSkickar,
-    starta: () => {
-      nollstall();
-      talk.direkt();
-    },
-    klar: () => talk.skickaIn(),
-    igen: () => talk.igen(),
-    avbryt: () => {
-      nollstall();
-      talk.avbryt();
-    },
+    transkriptionFel: t.transkriptionFel,
+    ingenUtskrift: "Ingen utskrift finns.",
+    ingetHordes: "Inget hördes i det inspelade.",
+    lamnaFel: t.talSkickaFel,
+    textFel: t.talTextFel,
+    skriverUt: t.skriverUt,
+    lamnar: t.talSkickar,
   };
 }
 
