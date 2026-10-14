@@ -110,11 +110,50 @@ describe("webblasarensIgenkanning", () => {
     await expect(igk.stoppa()).resolves.toBe("det nya");
   });
 
-  it("⛔ bara preliminär text kvar när den stoppas ger tom text (MÅSTE 2)", async () => {
+  /*
+   * ⛔ ÄNDRAT 0.103.0. Här stod "bara preliminär text kvar när den stoppas ger tom text (MÅSTE 2)". CP 2026-10-14 såg "Skriver ut det
+   * inspelade…" i chatten fast igenkänningen var påslagen, och den regeln är den troliga orsaken (hypotes, inte mätt på en iPhone):
+   * Safari på iOS gör sällan ett resultat slutligt i `continuous`-läge, så allt som hördes var preliminärt vid stoppet och kastades.
+   * Webbläsaren har sagt sitt sista ord när `onend` kommer efter `stop()`, och det preliminära är då det som sades. Det som hugger av
+   * texten (ett fel, ett avbrott, en väntetid som tar slut) ger fortfarande tom text, se proven runt omkring.
+   */
+  it("⛔ preliminär text när den stoppas och webbläsaren säger slut är texten (ÄNDRAT 0.103.0)", async () => {
     const f = fejkadIgenkanning();
     const igk = /** @type {any} */ (webblasarensIgenkanning({ SpeechRecognition: f.SR }));
     igk.starta({ sprak: "sv-SE", onText: () => {} });
     f.resultat(f.instanser[0], [["boka rep på", false]]);
+    await expect(igk.stoppa()).resolves.toBe("boka rep på");
+  });
+
+  it("⛔ som Safari på iOS: inget resultat blir någonsin slutligt, och hela det hörda följer med vid stopp", async () => {
+    const f = fejkadIgenkanning();
+    const igk = /** @type {any} */ (webblasarensIgenkanning({ SpeechRecognition: f.SR }));
+    /** @type {string[]} */
+    const sett = [];
+    igk.starta({ sprak: "sv-SE", onText: (t) => sett.push(t) });
+    f.resultat(f.instanser[0], [["boka", false]]);
+    f.resultat(f.instanser[0], [["boka rep", false]]);
+    f.resultat(f.instanser[0], [["boka rep på torsdag", false]]);
+    expect(sett.at(-1)).toBe("boka rep på torsdag");
+    await expect(igk.stoppa()).resolves.toBe("boka rep på torsdag");
+  });
+
+  it("⛔ preliminär text efter en paus mitt i och vid stoppet blir en text, utan dubbletter", async () => {
+    const f = fejkadIgenkanning();
+    const igk = /** @type {any} */ (webblasarensIgenkanning({ SpeechRecognition: f.SR }));
+    igk.starta({ sprak: "sv-SE", onText: () => {} });
+    f.resultat(f.instanser[0], [["boka rep", false]]);
+    f.instanser[0].onend();
+    f.resultat(f.instanser[1], [["på torsdag", false]]);
+    await expect(igk.stoppa()).resolves.toBe("boka rep på torsdag");
+  });
+
+  it("⛔ preliminär text och ett fel efter den ger fortfarande tom text (MÅSTE 2)", async () => {
+    const f = fejkadIgenkanning();
+    const igk = /** @type {any} */ (webblasarensIgenkanning({ SpeechRecognition: f.SR }));
+    igk.starta({ sprak: "sv-SE", onText: () => {} });
+    f.resultat(f.instanser[0], [["boka rep på", false]]);
+    f.instanser[0].onerror({ error: "network" });
     await expect(igk.stoppa()).resolves.toBe("");
   });
 

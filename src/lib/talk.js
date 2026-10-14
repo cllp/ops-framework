@@ -564,8 +564,16 @@ export function igenkanningensSprak(sprak) {
  * `onresult` efter att nästa försök startat, och utan numret skrev den in i det nya försökets text eller startade en andra
  * igenkännare som aldrig stoppades. Varje hanterare gör ingenting när försöket den hör till inte längre är det pågående.
  *
- * ⛔ HELLRE INGEN TEXT ÄN EN HALV (MÅSTE 2). Står ett ord kvar som aldrig blev slutligt när igenkänningen stoppas, eller ger
- * webbläsaren aldrig sitt sista besked inom väntetiden, blir texten tom, och appen får ljudet som förut.
+ * ⛔ HELLRE INGEN TEXT ÄN EN HALV (MÅSTE 2). Ger webbläsaren aldrig sitt sista besked inom väntetiden, faller igenkänningen
+ * med ett riktigt fel, eller avbryts den utifrån (`aborted`), blir texten tom, och appen får ljudet som förut.
+ *
+ * ⛔ ÄNDRAT 0.103.0: PRELIMINÄR TEXT VID ETT STOPP SOM PERSONEN BAD OM ÄR TEXTEN. MÅSTE 2 räknade förut också den här texten som
+ * halv, och då kastades den. CP 2026-10-14 såg "Skriver ut det inspelade…" under chattens skrivfält fast appen slagit på
+ * igenkänningen. ⛔ HYPOTES, INTE MÄTT PÅ EN IPHONE: Safari på iOS markerar ofta inget resultat som slutligt i `continuous`-läge, så
+ * allt som hördes stod som preliminärt när `onend` kom efter `stop()`, och hela texten blev tom varje gång. Webbläsaren har då
+ * sagt sitt sista ord (`onend` kom inom väntetiden, inget fel), och det preliminära är dess bästa bud på det som sades fram till
+ * stoppet: samma bud som redan räknas som hel text när Chrome tar en paus mitt i (`onend` medan den lyssnar, nedan). Det som
+ * fortfarande gör texten ogiltig är det som verkligen hugger av den: ett fel, ett avbrott och en väntetid som tar slut.
  *
  * @param {{ SpeechRecognition?: any, setTimeout?: typeof setTimeout, nu?: () => number }} [miljo]
  * @returns {Igenkanning | null}
@@ -662,8 +670,12 @@ export function webblasarensIgenkanning(miljo = {}) {
           }
         }
       }
-      // Vid stopp: ett ord som aldrig blev slutligt gör texten ofullständig.
-      if (pagaende) trasig = true;
+      // ⛔ Vid stopp: det preliminära hör till texten (0.103.0, se filhuvudet ovanför `webblasarensIgenkanning`). Förut gjorde ett
+      // ord som aldrig blev slutligt hela texten ogiltig, och på iOS blev det inget ord som var slutligt.
+      if (pagaende) {
+        slutlig = `${slutlig} ${pagaende}`.trim();
+        pagaende = "";
+      }
       narSlut?.();
       narSlut = null;
     };
