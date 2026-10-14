@@ -32,6 +32,10 @@ async function del(v, namn, scen, vp, aktiv, fn) {
     const o = await v.oppna(scen, vp, "light", 1, aktiv);
     context = o.context;
     await fn(o.page);
+    // ⛔ En kommentar som hamnat som text i JSX (hänt i arbetet med skiva 3: ett `/* ... */` efter en ny omslutande tagg ritades som
+    // ett stycke text överst i chatten, och varje jsdom-prov var grönt).
+    const kommentar = await o.page.evaluate(() => (document.body.innerText || "").includes("/* ⛔"));
+    v.krav(!kommentar, `${namn}: en kodkommentar står som text på sidan.`);
     const o2 = await over(o.page);
     v.krav(o2 <= 0, `${namn}: sidan rullar ${o2} px i sidled.`);
   } catch (e) {
@@ -129,6 +133,44 @@ export async function amnen(v) {
   }
 }
 
+/** Svenska förval som inte får stå i en engelsk chatt. Ett urval: det fullständiga provet är jsdom-provet `chatt-sprak.test.jsx`. */
+const SVENSKA = ["Skicka", "Skriv till gruppen", "Sök i samtalet", "Chattinfo", "Reagera", "Svara i tråd", "Fäst", "Olästa", "Nytt meddelande", "Meddelanden", "Tysta notiser", "Nytt samtal", "gruppens agent", "Visa arkiverade", "Prata in", "Alla i gruppen ser det här"];
+
+/**
+ * (3) CHATTEN PÅ ENGELSKA (skiva 3, #385). Gruppchatten och agentens samtal med `sprak="en"`: inga svenska förval i texter, namn
+ * och platstexter, platstexten "Write to the group" syns hel i fältet, och inget rullar i sidled. Golv: minst 8 engelska ord hittas.
+ * @param {Verktyg} v
+ */
+export async function engelska(v) {
+  for (const vp of BREDDER) {
+    for (const aktiv of ["grupp", "agent"]) {
+      const namn = `47 (3) engelska ${aktiv} ${vp.width} px`;
+      await del(v, namn, "chatt0106-en", vp, aktiv, async (page) => {
+        await page.locator(aktiv === "grupp" ? "[data-ops-samtal] [data-meddelande]" : "[data-agentens-samtal]").first().waitFor({ timeout: 4000 });
+        const m = await page.evaluate((svenska) => {
+          const texter = [...document.querySelectorAll("[data-ops-meddelanden] *")].flatMap((el) => [
+            ...[...el.childNodes].filter((n) => n.nodeType === 3).map((n) => (n.textContent || "").trim()),
+            el.getAttribute("aria-label") ?? "",
+            el.getAttribute("placeholder") ?? "",
+          ]).filter(Boolean);
+          const hel = (/** @type {string} */ ord) => new RegExp(`(?<![\\p{L}])${ord}(?![\\p{L}])`, "u");
+          const ruta = document.querySelector("[data-skrivfalt] textarea");
+          return {
+            svenska: svenska.filter((o) => texter.some((t) => hel(o).test(t))),
+            engelska: ["Messages", "New message", "All", "Unread", "Search messages", "Send", "Write to the group", "Search the conversation", "Chat info", "React", "Reply in thread", "Pin", "New conversation", "the group's agent", "Show archived"].filter((o) => texter.some((t) => hel(o).test(t))),
+            platstext: ruta ? { text: ruta.getAttribute("placeholder"), ryms: ruta.scrollWidth <= ruta.clientWidth + 1 } : null,
+          };
+        }, SVENSKA);
+        v.matt.push(`${namn}: svenska ${JSON.stringify(m.svenska)}, engelska ${m.engelska.length}, platstext ${JSON.stringify(m.platstext)}`);
+        v.krav(m.svenska.length === 0, `${namn}: svenska förval i en engelsk chatt: ${JSON.stringify(m.svenska)}.`);
+        v.krav(m.engelska.length >= (aktiv === "grupp" ? 8 : 4), `${namn}: ${m.engelska.length} engelska ord hittades (${JSON.stringify(m.engelska)}). Golv.`);
+        if (aktiv === "grupp") v.krav(Boolean(m.platstext && m.platstext.text === "Write to the group" && m.platstext.ryms), `${namn}: platstexten är ${JSON.stringify(m.platstext)}.`);
+        await bild(v, page, `engelska-${aktiv}-${vp.width}.png`);
+      });
+    }
+  }
+}
+
 /**
  * Alla delar i ordning. Varje skiva lägger till sin rad här.
  * @param {Verktyg} v
@@ -136,4 +178,5 @@ export async function amnen(v) {
 export async function chattepiken0106(v) {
   await karnan(v);
   await amnen(v);
+  await engelska(v);
 }

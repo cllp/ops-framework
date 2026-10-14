@@ -1,6 +1,6 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { OpsSprakProvider, useOpsSprak } from "./OpsSprak.jsx";
-import { ordet } from "../lib/ord.js";
+import { forvalda, ordet } from "../lib/ord.js";
 import { cx } from "../lib/cx.js";
 import { formatDate, formatTime, formatRelativeDate } from "../lib/format.js";
 import { KOMMENTARBILAGA_TYPER, MAX_KOMMENTARBILAGA, bilagaUrDokument, kommentarbilagaFel } from "../lib/handelsemodell.js";
@@ -9,7 +9,7 @@ import { AGENTSTATUS_MAX_ALDER, MAX_MEDDELANDE, MAX_TRADNAMN, REAKTIONSKODER, ag
 import { useSamtal } from "../data/useSamtal.jsx";
 import { harAmnen, harBilagor, harCitat, harFasta, harOmnamnanden, harReaktioner, harStatus, harTradar, harTyst } from "../data/samtalskalla.js";
 import { BilagaVisning } from "./BilagaVisning.jsx";
-import { CHATTINFO_TEXTER, OpsChattinfo } from "./OpsChattinfo.jsx";
+import { CHATTINFO_TEXTER, ORD_CHATTINFO, OpsChattinfo } from "./OpsChattinfo.jsx";
 import { OpsTooltip } from "./OpsTooltip.jsx";
 import { OpsMarkdown } from "./OpsMarkdown.jsx";
 import { splitInline } from "../lib/markdown.js";
@@ -221,6 +221,9 @@ import { AgentIkon, AndraIkon, ArkiveraIkon, TaFramIkon, BildIkon, FastIkon, Fil
  * @property {string} [doljArkiverade] Förval "Dölj arkiverade".
  * @property {string} [ingaArkiverade] Förval "Inga arkiverade samtal.".
  * @property {string} [arkivFel] Förval "Samtalet kunde inte arkiveras.".
+ * @property {string} [annatSkickas] (0.106.0, #385) Felet i röstytan när ett annat meddelande skickas. Förval "Ett annat meddelande skickas just nu.".
+ * @property {string} [ingenText] (0.106.0, #385) Felet i röstytan när inget hördes att skicka. Förval "Det finns ingen text att skicka.".
+ * @property {string} [sokPlats] (0.106.0, #385) Platsen i sökningen. `{i}` och `{n}` byts. Förval "{i} av {n}".
  * @property {string} [arkiveratRad] Raden i ett arkiverat ämne. Förval "Arkiverat. Det syns inte i listan förrän du tar fram det.".
  */
 
@@ -255,118 +258,134 @@ function talordPa(sprak) {
   return /** @type {any} */ (Object.fromEntries(Object.keys(ORD_MEDDELANDEN_TAL).map((k) => [k, ordet(ORD_MEDDELANDEN_TAL, k, sprak)])));
 }
 
-/** @type {Required<Meddelandetexter>} */
-const TEXTER = {
-  ...CHATTINFO_TEXTER,
-  rubrik: "Meddelanden",
-  nytt: "Nytt meddelande",
-  alla: "Alla",
-  olasta: "Olästa",
-  sok: "Sök i meddelanden",
-  rensaSok: "Rensa sökningen",
-  tomt: "Inga samtal än",
-  tomtOlasta: "Inget oläst",
-  ingenTraff: "Ingen träff",
-  valjSamtal: "Välj ett samtal",
-  tillbaka: "Tillbaka",
-  grupp: "Grupp",
-  privat: "Privat",
-  agent: "Agent",
-  oppnaInstallningar: "öppna inställningar",
-  privatRad: "Bara ni två ser det här",
-  gruppRad: "Alla i gruppen ser det här",
-  agentRad: "Bara du och agenten ser det här",
-  inga: "Inga meddelanden än",
-  skriv: "Skriv ett meddelande",
-  skicka: "Skicka",
-  du: "Du",
-  olastaText: "olästa",
-  fel: "Meddelandena kunde inte hämtas",
-  till: "Till",
-  valjMottagare: "Välj vem meddelandet ska till.",
-  oppnaFel: "Samtalet kunde inte öppnas",
-  ingenAnnan: "Det finns ingen annan i gruppen att skriva till.",
-  helaGruppen: "Hela gruppen",
-  gruppTom: "Alla i gruppen ser det som skrivs här.",
-  oppnarGrupp: "Öppnar gruppchatten…",
-  svaraITrad: "Svara i tråd",
-  lyftTillMinnet: "Lyft till minnet",
-  minnet: "Minnet",
-  lyftMisslyckades: "Raden lyftes inte",
-  svar: "svar",
-  tradRad: "Alla i gruppen ser tråden",
-  tradFel: "Tråden kunde inte hämtas",
-  ingaSvar: "Inga svar än. Skriv det första.",
-  dopOm: "Döp om",
-  tradnamn: "Trådens namn",
-  spara: "Spara",
-  avbryt: "Avbryt",
-  automatisktNamn: "Använd det automatiska namnet",
-  rotSaknas: "Meddelandet tråden startades ur går inte att läsa.",
-  tradarFel: "Trådarna kunde inte hämtas.",
-  tradHamtas: "Tråden hämtas",
-  svarPa: "Meddelande från",
-  visaAldre: "Visa äldre",
-  hamtarAldre: "Hämtar äldre…",
-  ingaAldre: "Inga äldre meddelanden",
-  aldreFel: "Äldre meddelanden kunde inte hämtas.",
-  reagera: "Reagera",
-  valjReaktion: "Välj en reaktion",
-  duHarReagerat: "du har reagerat",
-  reaktionFel: "Reaktionen kunde inte sparas.",
-  reaktionerFel: "Reaktionerna kunde inte hämtas.",
-  reaktionerFler: "Äldre reaktioner visas inte.",
-  reaktionsnamn: {},
-  skrivGrupp: "Skriv till gruppen",
-  skrivAgent: "Fråga agenten",
-  skrivTrad: "Svara i tråden",
-  bifoga: "Bifoga",
-  bifogaBild: "Bifoga bild",
-  taFoto: "Ta foto",
-  valjFil: "Välj fil",
-  bilagaText: "Bilaga från",
-  taBortBilaga: "Ta bort bilagan",
-  enBilaga: "Ett meddelande bär en bilaga. Välj en fil.",
-  bilagaTrasig: "Bilagan går inte att visa.",
-  ...talordPa("sv"),
-  postkortFel: "Länken kunde inte slås upp.",
-  fast: "Fäst",
-  lossa: "Lossa",
-  fastaRubrik: "{n} fästa",
-  fastaFel: "Fästa meddelanden kunde inte hämtas.",
-  fastFel: "Fästningen kunde inte sparas.",
-  fastaFler: "Äldre fästningar visas inte.",
-  citera: "Svara med citat",
-  svararPa: "Svarar på",
-  avbrytCitat: "Avbryt citatet",
-  citatSaknas: "Meddelandet går inte att läsa.",
-  sokISamtalet: "Sök i samtalet",
-  stangSok: "Stäng sökningen",
-  nastaTraff: "Nästa träff",
-  forraTraff: "Föregående träff",
-  ingenTraffLaddade: "Ingen träff bland de laddade meddelandena.",
-  sokOmfang: "Söker bland de {n} laddade meddelandena. Visa äldre för att söka längre bak.",
-  allaNamn: "alla",
-  namnForslag: "Nämn någon",
-  agentTanker: "Agenten tänker",
-  agentSkriver: "Agenten skriver",
-  agentFastnat: "Agenten har inte svarat på två minuter. Skriv igen om du fortfarande väntar.",
-  agentstatusFel: "Agentens status kunde inte läsas.",
-  nyttSamtal: "Nytt samtal",
-  gruppensAgent: "gruppens agent",
-  antalSamtal: "{n} samtal",
-  senast: "senast",
-  ingaSamtalAgent: "Inga samtal än. Börja ett nytt.",
-  samtalUtanText: "Samtal utan text",
-  samtalMed: "Samtal med {namn}",
-  arkivera: "Arkivera",
-  taFram: "Ta fram",
-  visaArkiverade: "Visa arkiverade",
-  doljArkiverade: "Dölj arkiverade",
-  ingaArkiverade: "Inga arkiverade samtal.",
-  arkivFel: "Samtalet kunde inte arkiveras.",
-  arkiveratRad: "Arkiverat. Det syns inte i listan förrän du tar fram det.",
+/**
+ * ══ ⛔ CHATTENS ORD PÅ BÅDA SPRÅKEN (0.106.0, #385) ════════════════════════════════════════════════════════════════════════════
+ *
+ * Granskningen av PR 384, MÅSTE 1: i en chatt med `sprak="en"` stod "Skicka", "Skriv till gruppen", "Fäst", "Svara med citat" och
+ * "Sök i samtalet" kvar på svenska, eftersom bara röst-orden (`ORD_MEDDELANDEN_TAL`) och reaktionernas namn hade en engelsk form.
+ * Nu har varje nyckel i `Meddelandetexter` sin engelska form här, i samma form som röst-orden, och `texterPa` väljer språket före
+ * appens egna `texter`. Den svenska formen står bara här: `TEXTER` läser den härifrån (regel 2).
+ * @type {import("../lib/ord.js").Ordbok}
+ */
+const ORD_MEDDELANDEN = {
+  rubrik: { sv: "Meddelanden", en: "Messages" },
+  nytt: { sv: "Nytt meddelande", en: "New message" },
+  alla: { sv: "Alla", en: "All" },
+  olasta: { sv: "Olästa", en: "Unread" },
+  sok: { sv: "Sök i meddelanden", en: "Search messages" },
+  rensaSok: { sv: "Rensa sökningen", en: "Clear the search" },
+  tomt: { sv: "Inga samtal än", en: "No conversations yet" },
+  tomtOlasta: { sv: "Inget oläst", en: "Nothing unread" },
+  ingenTraff: { sv: "Ingen träff", en: "No match" },
+  valjSamtal: { sv: "Välj ett samtal", en: "Choose a conversation" },
+  tillbaka: { sv: "Tillbaka", en: "Back" },
+  grupp: { sv: "Grupp", en: "Group" },
+  privat: { sv: "Privat", en: "Private" },
+  agent: { sv: "Agent", en: "Agent" },
+  oppnaInstallningar: { sv: "öppna inställningar", en: "open settings" },
+  privatRad: { sv: "Bara ni två ser det här", en: "Only the two of you see this" },
+  gruppRad: { sv: "Alla i gruppen ser det här", en: "Everyone in the group sees this" },
+  agentRad: { sv: "Bara du och agenten ser det här", en: "Only you and the agent see this" },
+  inga: { sv: "Inga meddelanden än", en: "No messages yet" },
+  skriv: { sv: "Skriv ett meddelande", en: "Write a message" },
+  skicka: { sv: "Skicka", en: "Send" },
+  du: { sv: "Du", en: "You" },
+  olastaText: { sv: "olästa", en: "unread" },
+  fel: { sv: "Meddelandena kunde inte hämtas", en: "The messages could not be loaded" },
+  till: { sv: "Till", en: "To" },
+  valjMottagare: { sv: "Välj vem meddelandet ska till.", en: "Choose who the message is for." },
+  oppnaFel: { sv: "Samtalet kunde inte öppnas", en: "The conversation could not be opened" },
+  ingenAnnan: { sv: "Det finns ingen annan i gruppen att skriva till.", en: "There is no one else in the group to write to." },
+  helaGruppen: { sv: "Hela gruppen", en: "The whole group" },
+  gruppTom: { sv: "Alla i gruppen ser det som skrivs här.", en: "Everyone in the group sees what is written here." },
+  oppnarGrupp: { sv: "Öppnar gruppchatten…", en: "Opening the group chat…" },
+  svaraITrad: { sv: "Svara i tråd", en: "Reply in thread" },
+  lyftTillMinnet: { sv: "Lyft till minnet", en: "Save to memory" },
+  minnet: { sv: "Minnet", en: "Memory" },
+  lyftMisslyckades: { sv: "Raden lyftes inte", en: "The line was not saved" },
+  svar: { sv: "svar", en: "replies" },
+  tradRad: { sv: "Alla i gruppen ser tråden", en: "Everyone in the group sees the thread" },
+  tradFel: { sv: "Tråden kunde inte hämtas", en: "The thread could not be loaded" },
+  ingaSvar: { sv: "Inga svar än. Skriv det första.", en: "No replies yet. Write the first." },
+  dopOm: { sv: "Döp om", en: "Rename" },
+  tradnamn: { sv: "Trådens namn", en: "Thread name" },
+  spara: { sv: "Spara", en: "Save" },
+  avbryt: { sv: "Avbryt", en: "Cancel" },
+  automatisktNamn: { sv: "Använd det automatiska namnet", en: "Use the automatic name" },
+  rotSaknas: { sv: "Meddelandet tråden startades ur går inte att läsa.", en: "The message the thread was started from cannot be read." },
+  tradarFel: { sv: "Trådarna kunde inte hämtas.", en: "The threads could not be loaded." },
+  tradHamtas: { sv: "Tråden hämtas", en: "Loading the thread" },
+  svarPa: { sv: "Meddelande från", en: "Message from" },
+  visaAldre: { sv: "Visa äldre", en: "Show older" },
+  hamtarAldre: { sv: "Hämtar äldre…", en: "Loading older…" },
+  ingaAldre: { sv: "Inga äldre meddelanden", en: "No older messages" },
+  aldreFel: { sv: "Äldre meddelanden kunde inte hämtas.", en: "Older messages could not be loaded." },
+  reagera: { sv: "Reagera", en: "React" },
+  valjReaktion: { sv: "Välj en reaktion", en: "Choose a reaction" },
+  duHarReagerat: { sv: "du har reagerat", en: "you reacted" },
+  reaktionFel: { sv: "Reaktionen kunde inte sparas.", en: "The reaction could not be saved." },
+  reaktionerFel: { sv: "Reaktionerna kunde inte hämtas.", en: "The reactions could not be loaded." },
+  reaktionerFler: { sv: "Äldre reaktioner visas inte.", en: "Older reactions are not shown." },
+  skrivGrupp: { sv: "Skriv till gruppen", en: "Write to the group" },
+  skrivAgent: { sv: "Fråga agenten", en: "Ask the agent" },
+  skrivTrad: { sv: "Svara i tråden", en: "Reply in the thread" },
+  bifoga: { sv: "Bifoga", en: "Attach" },
+  bifogaBild: { sv: "Bifoga bild", en: "Attach image" },
+  taFoto: { sv: "Ta foto", en: "Take photo" },
+  valjFil: { sv: "Välj fil", en: "Choose file" },
+  bilagaText: { sv: "Bilaga från", en: "Attachment from" },
+  taBortBilaga: { sv: "Ta bort bilagan", en: "Remove the attachment" },
+  enBilaga: { sv: "Ett meddelande bär en bilaga. Välj en fil.", en: "A message carries one attachment. Choose one file." },
+  bilagaTrasig: { sv: "Bilagan går inte att visa.", en: "The attachment cannot be shown." },
+  postkortFel: { sv: "Länken kunde inte slås upp.", en: "The link could not be looked up." },
+  fast: { sv: "Fäst", en: "Pin" },
+  lossa: { sv: "Lossa", en: "Unpin" },
+  fastaRubrik: { sv: "{n} fästa", en: "{n} pinned" },
+  fastaFel: { sv: "Fästa meddelanden kunde inte hämtas.", en: "Pinned messages could not be loaded." },
+  fastFel: { sv: "Fästningen kunde inte sparas.", en: "The pin could not be saved." },
+  fastaFler: { sv: "Äldre fästningar visas inte.", en: "Older pins are not shown." },
+  citera: { sv: "Svara med citat", en: "Reply with quote" },
+  svararPa: { sv: "Svarar på", en: "Replying to" },
+  avbrytCitat: { sv: "Avbryt citatet", en: "Cancel the quote" },
+  citatSaknas: { sv: "Meddelandet går inte att läsa.", en: "The message cannot be read." },
+  sokISamtalet: { sv: "Sök i samtalet", en: "Search the conversation" },
+  stangSok: { sv: "Stäng sökningen", en: "Close the search" },
+  nastaTraff: { sv: "Nästa träff", en: "Next match" },
+  forraTraff: { sv: "Föregående träff", en: "Previous match" },
+  ingenTraffLaddade: { sv: "Ingen träff bland de laddade meddelandena.", en: "No match among the loaded messages." },
+  sokOmfang: { sv: "Söker bland de {n} laddade meddelandena. Visa äldre för att söka längre bak.", en: "Searching the {n} loaded messages. Show older to search further back." },
+  allaNamn: { sv: "alla", en: "everyone" },
+  namnForslag: { sv: "Nämn någon", en: "Mention someone" },
+  agentTanker: { sv: "Agenten tänker", en: "The agent is thinking" },
+  agentSkriver: { sv: "Agenten skriver", en: "The agent is writing" },
+  agentFastnat: { sv: "Agenten har inte svarat på två minuter. Skriv igen om du fortfarande väntar.", en: "The agent has not answered for two minutes. Write again if you are still waiting." },
+  agentstatusFel: { sv: "Agentens status kunde inte läsas.", en: "The agent's status could not be read." },
+  nyttSamtal: { sv: "Nytt samtal", en: "New conversation" },
+  gruppensAgent: { sv: "gruppens agent", en: "the group's agent" },
+  antalSamtal: { sv: "{n} samtal", en: "{n} conversations" },
+  senast: { sv: "senast", en: "latest" },
+  ingaSamtalAgent: { sv: "Inga samtal än. Börja ett nytt.", en: "No conversations yet. Start a new one." },
+  samtalUtanText: { sv: "Samtal utan text", en: "Conversation without text" },
+  samtalMed: { sv: "Samtal med {namn}", en: "Conversations with {namn}" },
+  arkivera: { sv: "Arkivera", en: "Archive" },
+  taFram: { sv: "Ta fram", en: "Restore" },
+  visaArkiverade: { sv: "Visa arkiverade", en: "Show archived" },
+  doljArkiverade: { sv: "Dölj arkiverade", en: "Hide archived" },
+  ingaArkiverade: { sv: "Inga arkiverade samtal.", en: "No archived conversations." },
+  arkivFel: { sv: "Samtalet kunde inte arkiveras.", en: "The conversation could not be archived." },
+  arkiveratRad: { sv: "Arkiverat. Det syns inte i listan förrän du tar fram det.", en: "Archived. It is not in the list until you restore it." },
+  annatSkickas: { sv: "Ett annat meddelande skickas just nu.", en: "Another message is being sent right now." },
+  ingenText: { sv: "Det finns ingen text att skicka.", en: "There is no text to send." },
+  sokPlats: { sv: "{i} av {n}", en: "{i} of {n}" },
 };
+
+/** @type {Required<Meddelandetexter>} */
+const TEXTER = /** @type {any} */ ({
+  ...CHATTINFO_TEXTER,
+  ...forvalda(ORD_MEDDELANDEN, "sv"),
+  reaktionsnamn: {},
+  ...talordPa("sv"),
+});
 
 /**
  * Tiden på en rad: klockslag i dag, annars datum.
@@ -609,7 +628,7 @@ export function OpsMeddelandeLank({ href, olasta, olastaFler = false, etikett = 
  * @param {Partial<typeof TEXTER> & { reaktionsnamn?: Record<string, string> }} texter
  */
 export function texterPa(sprak, texter) {
-  return { ...TEXTER, ...talordPa(sprak), ...texter, reaktionsnamn: { ...reaktionsnamnPa(sprak), ...texter.reaktionsnamn } };
+  return { ...TEXTER, ...forvalda(ORD_CHATTINFO, sprak), ...forvalda(ORD_MEDDELANDEN, sprak), ...talordPa(sprak), ...texter, reaktionsnamn: { ...reaktionsnamnPa(sprak), ...texter.reaktionsnamn } };
 }
 
 /**
@@ -875,9 +894,10 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
   }
 
   return (
-    /* ⛔ HÖJDEN ÄR FÖNSTRET MINUS SKALETS RAMAR (huvudet med sin kant på 1 px, och bottenraden under md), så att listan och
+    <OpsSprakProvider sprak={sprak}>
+    {/* ⛔ HÖJDEN ÄR FÖNSTRET MINUS SKALETS RAMAR (huvudet med sin kant på 1 px, och bottenraden under md), så att listan och
        samtalet rullar var för sig och skrivfältet står kvar längst ned, som SS (`h-full`, `:957`). Mätt i check-skalyta
-       avsnitt 29: utan den enda pixeln för huvudets kant rullade hela sidan en pixel, och skrivfältet hamnade under bottenraden. */
+       avsnitt 29: utan den enda pixeln för huvudets kant rullade hela sidan en pixel, och skrivfältet hamnade under bottenraden. */}
     <div
       data-ops-meddelanden=""
       className="flex h-[calc(100dvh-var(--safe-top)-var(--topbar-height)-1px-var(--bottom-nav-h)-var(--safe-bottom)-var(--spelrad-h,0px))] min-h-0 flex-col bg-canvas md:h-[calc(100dvh-var(--safe-top)-var(--topbar-height)-1px-var(--spelrad-h,0px))] md:flex-row md:gap-2 md:p-2"
@@ -1201,6 +1221,7 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
         )}
       </section>
     </div>
+    </OpsSprakProvider>
   );
 }
 
@@ -2169,8 +2190,8 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik: rubrikProp, marke, lastT
   const skicka = async (extra) => {
     const tal = typeof extra?.text === "string";
     const ut = tal ? /** @type {string} */ (extra?.text) : text;
-    if (tal && skickar) throw new Error("Ett annat meddelande skickas just nu.");
-    if (tal && !ut.trim()) throw new Error("Det finns ingen text att skicka.");
+    if (tal && skickar) throw new Error(t.annatSkickas);
+    if (tal && !ut.trim()) throw new Error(t.ingenText);
     if (skickar || (!ut.trim() && !bilage.bilaga)) return;
     setSkickar(true);
     let skickat = false;
@@ -2202,6 +2223,7 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik: rubrikProp, marke, lastT
   const agentId = agent && onVisaAgent ? agentDeltagare(samtal, uid, medlemmar) : "";
 
   return (
+    <OpsSprakProvider sprak={sprak}>
     <div data-ops-samtal={samtal.slag} data-amne={amne ? (arNy ? "ny" : samtal.id) : undefined} className={cx("relative flex min-h-0 flex-1", info ? "flex-col md:flex-row" : "flex-col")}>
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       {amne ? (
@@ -2442,6 +2464,7 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik: rubrikProp, marke, lastT
         </div>
       ) : null}
     </div>
+    </OpsSprakProvider>
   );
 }
 
@@ -2835,8 +2858,8 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
   const skicka = async (extra) => {
     const tal = typeof extra?.text === "string";
     const ut = tal ? /** @type {string} */ (extra?.text) : text;
-    if (tal && skickar) throw new Error("Ett annat meddelande skickas just nu.");
-    if (tal && !ut.trim()) throw new Error("Det finns ingen text att skicka.");
+    if (tal && skickar) throw new Error(t.annatSkickas);
+    if (tal && !ut.trim()) throw new Error(t.ingenText);
     if (skickar || (!ut.trim() && !bilage.bilaga)) return;
     setSkickar(true);
     let skickat = false;
@@ -2872,6 +2895,7 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
   };
 
   return (
+    <OpsSprakProvider sprak={sprak}>
     <div data-ops-trad="" className="relative flex min-h-0 flex-1 flex-col">
       <button
         type="button"
@@ -3048,6 +3072,7 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
       ) : null}
       </div>
     </div>
+    </OpsSprakProvider>
   );
 }
 
@@ -3605,7 +3630,7 @@ function Sokrad({ sok, antal, kanFinnasAldre, texter: t }) {
           />
         </label>
         <span data-sok-plats="" role="status" className="min-w-12 text-center text-liten tabular-nums text-ink-muted">
-          {sok.q.trim() ? `${sok.plats} av ${sok.antal}` : ""}
+          {sok.q.trim() ? t.sokPlats.replace("{i}", String(sok.plats)).replace("{n}", String(sok.antal)) : ""}
         </span>
         <button type="button" aria-label={t.forraTraff} disabled={sok.antal < 2} onClick={sok.forra} className="inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-base text-ink-muted hover:bg-hover disabled:cursor-default disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-accent">
           <span className="inline-flex -rotate-90"><ChevronHogerIkon size={16} /></span>

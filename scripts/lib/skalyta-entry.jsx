@@ -1697,6 +1697,32 @@ function AmnesScen() {
   return <Full>{k ? <Ops.OpsMeddelanden kalla={k} uid="anna" groupId="g1" gruppNamn="Claes Philip Staiger AB" medlemmar={MEDLEMMAR_A} /> : <p>Laddar</p>}</Full>;
 }
 
+
+/*
+ * 0.106.0 (#385): chatten på engelska, gruppchatten och agentens samtal, med `sprak="en"`. Avsnitt 47 (3). `window.__aktiv` väljer
+ * "grupp" eller "agent".
+ */
+let engelskakallan = null;
+function EngelskScen() {
+  const [k, setK] = useState(engelskakallan);
+  if (!Ops.OpsMeddelanden) return <Full><p data-saknas="OpsMeddelanden">OpsMeddelanden saknas</p></Full>;
+  if (!k) {
+    (async () => {
+      let t = new Date(2026, 9, 6, 9, 0).getTime();
+      const kalla = Ops.createMemorySource({});
+      const s = Ops.createSamtalskalla({ kalla, klocka: () => (t += 60000), tradar: "tradar", reaktioner: "reaktioner", omnamnanden: true, fasta: "fasta", tyst: "tyst", amnen: true });
+      const g = await s.oppnaGrupp({ groupId: "g1", uid: "anna" });
+      const m = await s.skicka(g.id, { text: "The board meeting moves to Friday at ten.", av: "bo" });
+      if (typeof s.reagera === "function") await s.reagera(g.id, { mid: m.id, kod: "tumme", av: "anna" });
+      await s.skicka(g.id, { text: "Good, I will read the minutes.", av: "anna" });
+      const x = { s, g: g.id };
+      engelskakallan = x;
+      setK(x);
+    })();
+  }
+  return <Full>{k ? <Ops.OpsMeddelanden kalla={k.s} uid="anna" groupId="g1" gruppNamn="Claes Philip Staiger AB" medlemmar={MEDLEMMAR_A} sprak="en" {...(window.__aktiv === "agent" ? { valtAgent: "ops" } : { valt: k.g })} /> : <p>Laddar</p>}</Full>;
+}
+
 function Scen() {
   const s = window.__skal;
   if (s === "menyer") return <Menyer />;
@@ -2038,6 +2064,7 @@ function Scen() {
   if (s === "apparark") return <ApparArkScen />;
   if (s === "karna") return <KarnaScen />;
   if (s === "amnen") return <AmnesScen />;
+  if (s === "chatt0106-en") return <EngelskScen />;
   if (s === "installning") {
     return (
       <Skal>
