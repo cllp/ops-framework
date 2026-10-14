@@ -21,11 +21,12 @@ med hastighet mm och spolning när en låt/ljud inte ens har startat?" Montage s
 
 ### Ändrat
 
-- `OpsBibliotek`: varje post är ett eget kort med luft emellan, som SessionStudios. Kortet har typens ikon i typens färg,
-  rubriken, taggarna som färgade piller, typetiketten i versaler ("DOKUMENT · PDF"), en förhandsvisning och en metarad
-  (storlek, längd och datum). Ljudet spelas på kortet med en liten spelknapp där ikonen står.
-- Huvudet: platsen som rubrik med en pil och "N objekt", flikarna som en segmentrad (en väljare under 768 px), och sök,
-  Taggar och "+ Ny" på en rad.
+- `OpsBibliotek`: varje post är ett eget kort med luft emellan, som kortet i SessionStudios app (CP:s skärmbilder i
+  `docs/jamforelser/0.102.0/forebild-ss-app-*.png`). Kortet har en rund ikonplatta i typens färg, rubriken, typen i singular
+  med format ("DOKUMENT · PDF"), taggarna som färgade piller, en förhandsvisning och en metarad (storlek, längd och datum).
+  Ett ljud spelas med en rund knapp till höger, i skalets spelare.
+- Huvudet: "N objekt" och platsen som en pill, sedan sök, "+ Ny" och Taggar på en rad, och flikarna som piller som rullar i
+  sidled på alla bredder.
 - Flikarna är Allt, Ljud, Anteckningar, Bilder, Dokument och Länkar. Tomma flikar döljs, utom Allt och Ljud.
   `BIBLIOTEKFLIKAR` har `bild` som en ny flik, och `fil` är nu dokumenten, utan bilderna.
 - Taggarna ändras på kortet: lägg till med ett fält med förslag, ta bort med krysset, och ett tryck på en tagg filtrerar.
@@ -39,9 +40,20 @@ med hastighet mm och spolning när en låt/ljud inte ens har startat?" Montage s
 
 ### Tillagt
 
+- **Skalets spelare** (`OpsSpelareProvider`, `OpsSpelaKnapp`, `OpsSpelarKontroller`, `useSpelare`, `ORD_OPSSPELARE`), som
+  SessionStudios. CP 2026-10-14: "Kolla SessionStudio och spelaren. Men gärna med waveform också." `OpsAppShell` lägger
+  providern runt sidan. Ett ljud som startas spelar vidare medan man byter vy, i en spelrad ovanför bottenraden (från 768 px i
+  ett hörn). Ett tryck på namnet öppnar arket med vågen, spolning, -10 och +10, hastigheten och Ladda ned. Låsskärmen och
+  hörlurarna styr den via Media Session. En `<audio>` för hela skalet, och en i taget med `OpsLjudspelare` och chattens bilagor.
 - `taggfarg(tagg)` och `TAGGFARGER`: taggens färg 1 till 8 med SessionStudios hash, och tokens `--color-tagg-1` till
   `--color-tagg-8`, `--color-tagg-text` och `--color-typ-anteckning`, `--color-typ-ljud` och `--color-typ-lank`.
 - `OpsLjudspelare` läget `liten`, och `kort` på `OpsSvepRad` och `OpsAtgardsblad`.
+
+### Rättat
+
+- Väljaren i Flytta eller kopiera heter det den visar ("Flytta eller kopiera till"). Förut stod "Till" synligt och ett annat
+  namn för skärmläsaren.
+- Escape i taggfältet sparar inte det avbrutna utkastet, också när webbläsaren tar bort fokus från fältet i samma ögonblick.
 
 ## 0.101.0
 
