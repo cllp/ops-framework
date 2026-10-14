@@ -12,6 +12,7 @@ import {
   arkiveraKalender,
   byggGruppkalender,
   byggMinKalender,
+  idagI,
   flyttaKalender,
   kalenderIdUrNamn,
   kalenderval,
@@ -362,7 +363,7 @@ describe("skalets Ny händelse: kalender, Kräv svar och dagen (F2, F3, #206)", 
     expect([u.searchParams.get("skapa"), u.searchParams.get("datum")]).toEqual(["handelse", "2026-10-12"]);
   });
 
-  it("#206: dagen följer med vid en omladdning, och inte utan parametern", async () => {
+  it("#206: dagen följer med vid en omladdning, och utan parametern är den idag (0.103.0), utan att skrivas i adressen", async () => {
     mottaget = [];
     window.history.replaceState(null, "", "/?skapa=handelse&datum=2026-10-12");
     const { unmount } = render(<Skal />);
@@ -372,7 +373,9 @@ describe("skalets Ny händelse: kalender, Kräv svar och dagen (F2, F3, #206)", 
     window.history.replaceState(null, "", "/?skapa=handelse");
     render(<Skal />);
     await waitFor(() => expect(mottaget.length).toBeGreaterThan(0));
-    expect(senast().datum).toBeNull();
+    // ⛔ CP 2026-10-14: "default datum är idag (det skall alltid ställas in om det inte finns nåt datum)". Förut `null`.
+    expect(senast().datum).toBe(idagI());
+    expect(new URL(window.location.href).searchParams.get("datum")).toBeNull();
   });
 
   it("#206: ett datum som inte finns kastar, och dagen stängs ur adressen med panelen", async () => {

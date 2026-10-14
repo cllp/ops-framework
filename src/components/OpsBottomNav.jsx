@@ -9,6 +9,8 @@ import { entryActive, validateNav } from "../lib/nav.js";
 import { OpsCountBadge } from "./counter.jsx";
 import { radBehallare, radKlass } from "../lib/radKlass.js";
 import { kordarePafunktion, MenyAvdelningar, menyAppAvdelning, menyFot, menySektioner, MenyTillbakaKnapp, validateMeny } from "./OpsMeny.jsx";
+import { useSkapaGenvag } from "./OpsSkapaGenvag.jsx";
+import { LANGTRYCK_KLASS, useLangtryck } from "./useLangtryck.js";
 
 /**
  * Bottennavigering för smal skärm (under `md`). Renderas av `OpsAppShell` men
@@ -64,7 +66,7 @@ const MAX_IN_ROW_WITH_ACTION = 3;
  * @param {string} [props.sheetLabel] Rubrik i överflödes-sheeten (annonseras av skärmläsaren).
  * @param {string} [props.closeLabel] Skärmläsarnamn på stängknappen i sheeten.
  * @param {string} [props.badgeText] Skärmläsarord efter siffran i en badge, t.ex. "olästa" eller "att göra". Appen bestämmer vad den räknar.
- * @param {{ label: string, onClick: () => void, icon?: import("react").ReactNode, talk?: { lage: string, knapp: Record<string, any> } }} [props.primaryAction] Det man GÖR här, inte går till. Ritas som en rund knapp mitt i raden. `label` är knappens namn för skärmläsare och står aldrig som text: en rund knapp har ingen plats för ord.
+ * @param {Huvudatgarden} [props.primaryAction] Det man GÖR här, inte går till. Ritas som en rund knapp mitt i raden. `label` är knappens namn för skärmläsare och står aldrig som text: en rund knapp har ingen plats för ord.
  * @param {import("react").ReactNode} [props.menuExtras] Extra kontroller i Mer-sheeten (samma som header-hamburgaren), t.ex. tema och helskärm.
  * @param {import("./OpsMeny.jsx").MenyKonfiguration} [props.meny] Skalets meny (#164, andra granskningen), SAMMA `meny`-prop som
  *   `OpsAppShell` (`meny.sektioner`, `meny.onLoggaUt`, `meny.appVersion`, `meny.rubrik`,
@@ -106,6 +108,9 @@ function OpsBottomNavRitad({
       "OpsBottomNav: primaryAction måste ha label (sträng) och onClick (funktion). " +
         "Etiketten är knappens enda namn för den som inte ser den, och en rund knapp utan namn är en knapp ingen kan använda.",
     );
+  }
+  if (primaryAction && primaryAction.langtryck !== undefined && typeof primaryAction.langtryck !== "function") {
+    throw new Error("OpsBottomNav: primaryAction.langtryck måste vara en funktion eller utelämnas. En knapp som ser ut att gå att hålla in och inte gör något är värre än ingen genväg.");
   }
 
   const tak = primaryAction ? MAX_IN_ROW_WITH_ACTION : MAX_IN_ROW;
@@ -275,15 +280,29 @@ function OpsBottomNavRitad({
  * etikett. En knapp på 56 px rymmer inget ord, och ett avhugget ord under den
  * ser ut som ett fel.
  *
- * ⛔ MED `talk` (0.57.0, cllp/lifehub.app#2) är ett långtryck TALK och ett vanligt tryck `onClick` som förut. `talk`
- * är vad `useTalk` lämnar, så den som äger kroken äger också fältet (`OpsTalk`) och raden i Skapa.
+ * ⛔ MED `talk.knapp` (0.57.0, cllp/lifehub.app#2) är ett långtryck TALK och ett vanligt tryck `onClick` som förut. `talk.knapp`
+ * är vad `useTalk` lämnar, för den som bygger en egen rad med `OpsBottomNav` fristående.
  *
- * @param {{ atgard: { label: string, onClick: () => void, icon?: import("react").ReactNode, talk?: { lage: string, knapp: Record<string, any> } } }} props
+ * ⛔ I SKALET ÄR KNAPPEN EN MIKROFON (0.103.0). CP 2026-10-14, "kör": "TALK med Microfon-ikon direkt ... Då skulle vi kunna göra
+ * +:et till en Mikrofon". Skalet skickar då `talk: { lage }` utan `knapp`, `icon` en mikrofon och `onClick` som startar TALK:
+ * ett vanligt tryck spelar in, utan att hålla. `langtryck` är vad ett långtryck öppnar (skalets skapa-lista, se `OpsAppShell`),
+ * med samma `useLangtryck` som ikonerna i raden. Utan `langtryck` går knappen inte att hålla in.
+ *
+ * @typedef {object} Huvudatgarden
+ * @property {string} label
+ * @property {() => void} onClick
+ * @property {import("react").ReactNode} [icon]
+ * @property {{ lage: string, knapp?: Record<string, any> }} [talk] Läget syns på knappen (`data-talk-knapp`). Med `knapp` styr kroken trycket.
+ * @property {() => void} [langtryck] (0.103.0) Vad ett långtryck öppnar. Gäller inte med `talk.knapp`, där långtrycket är TALK.
+ *
+ * @param {{ atgard: Huvudatgarden }} props
  */
 function Huvudatgard({ atgard }) {
   const talk = atgard.talk;
-  // ⛔ MED TALK STYR KROKEN KLICKET (`useTalk`): ett långtryck följs av ett klick, och det får inte öppna Skapa.
-  const handelser = talk ? talk.knapp : { onClick: atgard.onClick };
+  const knapp = talk?.knapp;
+  const lang = useLangtryck({ onLangtryck: !knapp && typeof atgard.langtryck === "function" ? atgard.langtryck : null, haptik: true });
+  // ⛔ MED `talk.knapp` STYR KROKEN KLICKET (`useTalk`): ett långtryck följs av ett klick, och det får inte öppna Skapa.
+  const handelser = knapp ? knapp : { ...lang.handelser, onClick: atgard.onClick };
   const haller = talk?.lage === "haller";
   return (
     <div className="flex shrink-0 items-start justify-center px-1">
@@ -293,7 +312,9 @@ function Huvudatgard({ atgard }) {
         data-talk-knapp={talk ? talk.lage : undefined}
         aria-label={haller ? TALK_ORD : atgard.label}
         className={cx(
-          "translate-y-[calc(0.25rem-var(--bottom-nav-overhang))] inline-flex size-14 cursor-pointer touch-none items-center justify-center rounded-full select-none [-webkit-touch-callout:none]",
+          "translate-y-[calc(0.25rem-var(--bottom-nav-overhang))] inline-flex size-14 cursor-pointer items-center justify-center rounded-full",
+          // `touch-none` och utan förhandsvisning bara när knappen går att hålla in: en vanlig knapp ska bete sig som en.
+          (knapp || lang.aktiv) && cx("touch-none", LANGTRYCK_KLASS),
           "bg-accent text-accent-contrast ring-4 ring-surface",
           "transition-colors duration-(--duration-fast) ease-standard hover:bg-accent-hover",
           "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
@@ -342,6 +363,9 @@ function platsKlass(active) {
 function BottomPost({ entry, activeHref, ark, onClick, badgeText }) {
   const arArk = Boolean(ark && entry.href === ark.href);
   const active = ark?.oppen ? arArk : entryActive(entry, activeHref);
+  // ⛔ 0.103.0: ETT LÅNGTRYCK PÅ IKONEN SKAPAR I MODULEN (`entry.skapa`), se `OpsSkapaGenvag.jsx`. Ett vanligt tryck gör det det
+  // alltid gjort. Kroken anropas före grenarna, så att både arkets knapp och länken får den (krokarnas regel).
+  const genvag = useSkapaGenvag(entry.skapa, entry.label);
   if (arArk && ark) {
     return (
       <button
@@ -349,8 +373,13 @@ function BottomPost({ entry, activeHref, ark, onClick, badgeText }) {
         aria-expanded={ark.oppen}
         aria-controls="ops-appar-ark"
         aria-current={active ? "page" : undefined}
-        onClick={() => ark.onOppen(!ark.oppen)}
-        className={platsKlass(active)}
+        {...genvag.handelser}
+        data-skapa-genvag={genvag.aktiv ? entry.skapa : undefined}
+        onClick={() => {
+          genvag.tryckt();
+          ark.onOppen(!ark.oppen);
+        }}
+        className={cx(platsKlass(active), genvag.klass)}
       >
         <span className="relative inline-flex [&_svg]:size-6">
           {entry.icon ?? <span className="inline-block size-6 rounded-full border-2 border-current" aria-hidden="true" />}
@@ -360,19 +389,24 @@ function BottomPost({ entry, activeHref, ark, onClick, badgeText }) {
       </button>
     );
   }
-  return <BottomLank entry={entry} active={active} onClick={onClick} badgeText={badgeText} />;
+  return <BottomLank entry={entry} active={active} onClick={onClick} badgeText={badgeText} genvag={genvag} />;
 }
 
 /**
- * @param {{ entry: import("../lib/nav.js").NavPost, active: boolean, onClick: (e: any) => void, badgeText: string }} props
+ * @param {{ entry: import("../lib/nav.js").NavPost, active: boolean, onClick: (e: any) => void, badgeText: string, genvag: ReturnType<typeof useSkapaGenvag> }} props
  */
-function BottomLank({ entry, active, onClick, badgeText }) {
+function BottomLank({ entry, active, onClick, badgeText, genvag }) {
   return (
     <a
       href={entry.href}
-      onClick={onClick}
+      {...genvag.handelser}
+      data-skapa-genvag={genvag.aktiv ? entry.skapa : undefined}
+      onClick={(e) => {
+        genvag.tryckt();
+        onClick(e);
+      }}
       aria-current={active ? "page" : undefined}
-      className={platsKlass(active)}
+      className={cx(platsKlass(active), genvag.klass)}
     >
       <span className="relative inline-flex [&_svg]:size-6">
         {entry.icon ?? <span className="inline-block size-6 rounded-full border-2 border-current" aria-hidden="true" />}

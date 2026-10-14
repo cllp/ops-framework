@@ -4,6 +4,8 @@ import { huvudknappKlass } from "../lib/radKlass.js";
 import { OpsCountBadge, OpsFelBadge } from "./counter.jsx";
 import { OpsIdentity } from "./OpsIdentity.jsx";
 import { OpsTooltip } from "./OpsTooltip.jsx";
+import { useSkapaGenvag } from "./OpsSkapaGenvag.jsx";
+import { validateSkapaNyckel } from "../lib/nav.js";
 
 /**
  * En destination som en ikon, för åtgärdsklustret längst till höger i toppraden.
@@ -51,14 +53,20 @@ import { OpsTooltip } from "./OpsTooltip.jsx";
  *   i, ingen platta utan en RING vid hover (`ring-line-strong`) och i accent när man står på sidan. Mätt ur SessionStudio
  *   (`AppHeader.jsx:463`: `p-0.5 rounded-full`, `hover:ring-2 hover:ring-border-hover`, aktiv `ring-2 ring-accent`).
  *   Är `icon` en `OpsIdentity` görs den till `size="avatar"` åt dig, så appen inte behöver känna till måttet.
+ * @param {string | null} [props.skapa] (0.103.0) Vad ett långtryck på ikonen skapar, en nyckel som `useOppnaSkapa()` tar. Inkorgen
+ *   ger `skapa="arende"`: håll in ikonen så öppnas "Nytt ärende". CP 2026-10-14: "under Ärenden blir det Skapa ärende". Skalet
+ *   öppnar nyckeln med sin `oppnaSkapa`. Utanför skalet, eller när nyckeln saknar mottagare, går ikonen inte att hålla in, och
+ *   ett vanligt tryck navigerar som förut. Se `OpsSkapaGenvag.jsx`.
  */
-export function OpsIconLink({ href, icon, label, onNavigate, badge, badgeText = "nya", badgeFler = false, badgeFel, active = false, kvarIHuvudet = false, avatar = false }) {
+export function OpsIconLink({ href, icon, label, onNavigate, badge, badgeText = "nya", badgeFler = false, badgeFel, active = false, kvarIHuvudet = false, avatar = false, skapa }) {
   void kvarIHuvudet;
   if (!label) {
     throw new Error(
       "OpsIconLink: label krävs. En ikonlänk utan namn läses upp som sin adress, alltså \"/inkorg\", och det är inte ett namn på något.",
     );
   }
+  validateSkapaNyckel(skapa, "OpsIconLink", label);
+  const genvag = useSkapaGenvag(skapa, label);
 
   if (badgeFel !== undefined && badgeFel !== null && (typeof badgeFel !== "string" || !badgeFel.trim())) {
     throw new Error("OpsIconLink: badgeFel måste vara orden som säger vad som gick fel (eller utelämnas). Ett felmärke utan ord är ett utropstecken ingen kan läsa upp.");
@@ -69,14 +77,18 @@ export function OpsIconLink({ href, icon, label, onNavigate, badge, badgeText = 
   const lank = (
     <a
       href={href}
+      {...genvag.handelser}
+      data-skapa-genvag={genvag.aktiv ? skapa ?? undefined : undefined}
       onClick={(e) => {
+        genvag.tryckt();
         if (onNavigate) onNavigate(href, e);
       }}
       aria-current={active ? "page" : undefined}
       // ⛔ Namnet innehåller INTE antalet. Räknaren har sin egen uppläsning, och
       // vore talet också i namnet skulle "Inkorg, 3 nya, 3 nya" läsas upp.
       aria-label={label}
-      className={
+      className={cx(
+        genvag.klass,
         avatar
           ? cx(
               // ⛔ 32 px knapp från `xl` (1280 px), 28 px avatar, ring vid hover.
@@ -91,8 +103,8 @@ export function OpsIconLink({ href, icon, label, onNavigate, badge, badgeText = 
               // åtgärdsklustret ser ut som ett påslaget läge, alltså som att man
               // tryckt på en växlare, inte som "du är här".
               huvudknappKlass({ aktiv: active ? "mork" : false }),
-            )
-      }
+            ),
+      )}
     >
       <span
         aria-hidden="true"

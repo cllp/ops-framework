@@ -5769,25 +5769,22 @@ for (const [namn, vp] of /** @type {const} */ ([["apparaden 390 px", { width: 39
 
 // ══ 39. TALK VID 390 OCH 1280 PX (0.57.0, cllp/lifehub.app#2) ════════════════════════════════════════════════════════════════
 // CP 2026-10-04: långtryck på plusset visar bara TALK, ett fält kommer fram och ligger kvar när man släpper, mikrofonen
-// skickar. På telefon mäts hållet på riktigt (mus ned, vänta, mus upp). På dator finns ingen bottenrad, så fältet öppnas ur
+// skickar. ⛔ 0.103.0: på telefon är mittknappen en mikrofon och ett tryck startar fältet. På dator finns ingen bottenrad, så fältet öppnas ur
 // raden "TALK, prata in" i huvudets plus. Mätt: fältet står helt inom skärmen och OVANFÖR bottenraden (ett fält under tummen
 // som täcker plusset hade gjort att man inte ser var man tryckte), knapparna är minst 44 px, och sidan flödar inte i sidled.
 for (const [namn, vp] of /** @type {const} */ ([["TALK 390 px", { width: 390, height: 844 }], ["TALK 1280 px", { width: 1280, height: 900 }]])) {
   const { page, context } = await oppna("talk", vp);
   try {
     if (vp.width < 768) {
-      const plus = page.locator("[data-talk-knapp]");
-      await plus.waitFor({ timeout: 4000 });
-      const r = await plus.boundingBox();
-      if (!r) throw new Error("plusset har ingen yta");
-      await page.mouse.move(r.x + r.width / 2, r.y + r.height / 2);
-      await page.mouse.down();
-      await page.waitForTimeout(650);
-      const haller = await plus.evaluate((b) => ({ text: (b.textContent || "").trim(), lage: b.getAttribute("data-talk-knapp") }));
-      matt.push(`${namn}: medan fingret ligger kvar ${JSON.stringify(haller)}`);
-      krav(haller.text === "TALK" && haller.lage === "haller", `${namn}: plusset visar ${JSON.stringify(haller.text)} i läget ${haller.lage} under hållet, väntat bara TALK.`);
-      if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `talk-haller-${vp.width}.png`) });
-      await page.mouse.up();
+      // ⛔ 0.103.0: MITTKNAPPEN ÄR EN MIKROFON, och ett vanligt tryck startar TALK. CP 2026-10-14, "kör": "TALK med Microfon-ikon
+      // direkt". Hållet som mättes här (knappen visade TALK medan fingret låg kvar) finns inte längre från mittknappen.
+      const mik = page.locator("[data-talk-knapp]");
+      await mik.waitFor({ timeout: 4000 });
+      const fore = await mik.evaluate((b) => ({ namn: b.getAttribute("aria-label"), lage: b.getAttribute("data-talk-knapp"), svg: Boolean(b.querySelector("svg")) }));
+      matt.push(`${namn}: mittknappen före trycket ${JSON.stringify(fore)}`);
+      krav(fore.namn === "TALK, prata in" && fore.lage === "vila" && fore.svg, `${namn}: mittknappen heter ${JSON.stringify(fore.namn)} i läget ${fore.lage}, väntat "TALK, prata in" i vila med en ikon.`);
+      if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `talk-mikrofon-${vp.width}.png`) });
+      await mik.click();
     } else {
       // ⛔ 0.78.0 (lane 19): huvudets plus har ingen TALK-rad på bred skärm. Raden ska vara borta, och vägen in är
       // mikrofonknappen i huvudet (#276), som gör exakt det raden gjorde.
@@ -5812,7 +5809,7 @@ for (const [namn, vp] of /** @type {const} */ ([["TALK 390 px", { width: 390, he
       return { lage: falt.getAttribute("data-lage"), l: fr.left, r: fr.right, t: fr.top, b: fr.bottom, navTopp: nav ? nav.getBoundingClientRect().top : null, knappar, prickar: falt.querySelectorAll("[data-talk-prickar] > span").length, scroll: document.documentElement.scrollWidth, klient: document.documentElement.clientWidth };
     });
     matt.push(`${namn}: fältet ${m.lage} ${m.l.toFixed(0)}..${m.r.toFixed(0)} x ${m.t.toFixed(0)}..${m.b.toFixed(0)}, bottenraden från ${m.navTopp}, knappar ${JSON.stringify(m.knappar.map((k) => [k.namn, Math.round(k.w), Math.round(k.h)]))}, ${m.prickar} prickar`);
-    krav(m.lage === "lyssnar", `${namn}: fältet är i läget ${m.lage} efter släppet, väntat lyssnar (släppet avslutar inte).`);
+    krav(m.lage === "lyssnar", `${namn}: fältet är i läget ${m.lage} efter trycket, väntat lyssnar.`);
     krav(m.l >= 0 && m.r <= vp.width && m.b <= vp.height, `${namn}: fältet går utanför skärmen (${m.l.toFixed(0)}..${m.r.toFixed(0)}, botten ${m.b.toFixed(0)}).`);
     if (m.navTopp !== null) krav(m.b <= m.navTopp, `${namn}: fältet slutar på ${m.b.toFixed(0)} och bottenraden börjar på ${m.navTopp.toFixed(0)}. Fältet ska stå ovanför.`);
     if (vp.width < 768) krav(m.navTopp !== null, `${namn}: ingen bottenrad hittades på telefon.`);
@@ -6502,7 +6499,7 @@ for (const [namn, vp] of /** @type {const} */ ([["TALK-knappen 1280 px", { width
       });
       matt.push(`${namn}: huvudets knapp display ${m.display}, ${m.w}x${m.h} px; bottenradens plus ${JSON.stringify(m.plus)}`);
       krav(m.finns, `${namn}: knappen finns inte i dokumentet alls. Den ska finnas och vara gömd med CSS, annars mäts inte att det är CSS:en som gömmer den.`);
-      krav(!m.finns || m.display === "none" && m.w === 0 && m.h === 0 && m.synligaMikrofoner === 0, `${namn}: huvudets mikrofon syns på telefon (display ${m.display}, ${m.w}x${m.h}). Mobilens väg är långtryck på bottenradens plus.`);
+      krav(!m.finns || m.display === "none" && m.w === 0 && m.h === 0 && m.synligaMikrofoner === 0, `${namn}: huvudets mikrofon syns på telefon (display ${m.display}, ${m.w}x${m.h}). Mobilens väg är bottenradens mikrofon (0.103.0).`);
       krav(!!m.plus && m.plus.w >= 43.5, `${namn}: bottenradens plus hittades inte, eller är mindre än 44 px (${JSON.stringify(m.plus)}).`);
       if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `talk-knapp-${vp.width}.png`) });
     }

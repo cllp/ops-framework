@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, renderHook, screen, within } from "@testing-library/react";
 import { OpsAppShell, useOppnaInspelning } from "../components/OpsAppShell.jsx";
 import { OpsInspelning, useTalk } from "../components/OpsTalk.jsx";
-import { LANGTRYCK_MS, SPARAT_MS, TALK_PLATSTEXT, talkKvitto } from "../lib/talk.js";
+import { SPARAT_MS, TALK_PLATSTEXT, talkKvitto } from "../lib/talk.js";
 import { validateModuler } from "../lib/modul.js";
 
 /*
@@ -54,13 +54,10 @@ const plus = () => /** @type {HTMLElement} */ (document.querySelector("[data-tal
 const flush = () => act(async () => {});
 const falt = () => screen.queryByRole("dialog", { name: "TALK" });
 
-/** Långtryck, släpp och Klar. */
+/** Ett tryck på mikrofonen i bottenraden (0.103.0: ett tryck räcker, långtrycket som spelade in är borta), sedan Klar. */
 async function prataOchKlar() {
-  fireEvent.pointerDown(plus(), { button: 0 });
-  act(() => vi.advanceTimersByTime(LANGTRYCK_MS));
-  await flush();
-  fireEvent.pointerUp(plus());
   fireEvent.click(plus());
+  await flush();
   fireEvent.click(screen.getByRole("button", { name: "Klar, spara inspelningen" }));
   await flush();
 }

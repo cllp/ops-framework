@@ -1,3 +1,5 @@
+import { ID_FORM } from "./katalog.js";
+
 /**
  * Delade regler för navigeringen: validering av nav-kontraktet och matchning av
  * aktiv post. Både OpsAppShell (toppraden) och OpsBottomNav (bottenraden) läser
@@ -5,7 +7,7 @@
  * glider isär.
  *
  * Nav-kontraktet:
- *   { href, label, icon?, badge?, children?: { href, label }[] }
+ *   { href, label, icon?, badge?, skapa?, children?: { href, label }[] }
  * EN nivå barn, aldrig fler. Se issue #1 för varför djupare hierarki är en egen
  * vy, inte en djupare meny.
  */
@@ -19,7 +21,30 @@
  * @property {string | { sv: string, en?: string } | null} [info] (0.30.1) EN kort rad under namnet på modulens kort i Hub.
  *   Utelämnad: ingen rad. `null`: ramverket skriver "Inget nytt" (tomhet är ett svar, arbetsreglernas punkt 5).
  * @property {{ href: string, label: string, badge?: number, info?: string | { sv: string, en?: string } | null }[]} [children] EN nivå, aldrig fler.
+ * @property {string | null} [skapa] (0.103.0) Vad ett långtryck på postens ikon skapar: en nyckel som `useOppnaSkapa()` tar
+ *   ("handelse", "arende", "grupp", "meddelande" eller en moduls registrerings id). Skalet öppnar den med sin `oppnaSkapa`.
+ *   Har nyckeln ingen mottagare i skalet just nu händer inget, och ikonen går inte att hålla in. `null` eller utelämnad: ingen genväg.
+ *   Bara på en post i raden, inte på ett barn: barnen ritas som rader i en meny, och där finns ingen ikon att hålla in.
  */
+
+
+/**
+ * `skapa` är en nyckel eller `null`/utelämnad. Formen är en registrerings id (`ID_FORM`, samma som `skapar[].id` i `modul.js`). ⛔ En tom sträng och en nyckel med fel form kastar: en genväg som aldrig kan få en
+ * mottagare hade sett ut som en ikon man kan hålla in och inte gjort något, och felet hade bara syntes som tystnad.
+ * ⛔ "talk" kastar också: TALK är mittknappen och ingen skapa-panel, och en genväg dit hade varit en andra mikrofon.
+ * @param {any} skapa
+ * @param {string} component
+ * @param {string} label
+ */
+export function validateSkapaNyckel(skapa, component, label) {
+  if (skapa === undefined || skapa === null) return;
+  if (typeof skapa !== "string" || !ID_FORM.test(skapa)) {
+    throw new Error(`${component}: skapa på "${label}" måste vara en nyckel som useOppnaSkapa() tar ("handelse", "arende", "grupp", "meddelande" eller en registrerings id), eller null. Fick ${JSON.stringify(skapa)}.`);
+  }
+  if (skapa === "talk") {
+    throw new Error(`${component}: skapa på "${label}" är "talk". TALK är mittknappen och ingen skapa-panel: en genväg dit hade varit en andra mikrofon.`);
+  }
+}
 
 /**
  * `info` är en icke-tom sträng, ett `{ sv, en? }` med icke-tom `sv`, `null` eller utelämnad.
@@ -54,6 +79,7 @@ export function validateNav(nav, component) {
       throw new Error(`${component}: varje nav-post måste ha href och label som strängar.`);
     }
     validateInfo(entry.info, component, entry.label);
+    validateSkapaNyckel(entry.skapa, component, entry.label);
     if (entry.children === undefined) continue;
     if (!Array.isArray(entry.children)) {
       throw new Error(`${component}: nav-postens children måste vara en lista av { href, label }.`);
@@ -63,6 +89,9 @@ export function validateNav(nav, component) {
         throw new Error(`${component}: varje barn i children måste ha href och label som strängar.`);
       }
       validateInfo(children.info, component, children.label);
+      if (children.skapa !== undefined && children.skapa !== null) {
+        throw new Error(`${component}: barnet "${children.label}" har skapa. En genväg är ett långtryck på en ikon i raden, och ett barn ritas som en rad i en meny utan ikon att hålla in. Lägg skapa på föräldern.`);
+      }
       if (children.children !== undefined) {
         throw new Error(
           `${component}: nav får ha EN nivå barn. Posten "${children.label}" ligger i children och har själv children. ` +

@@ -29,7 +29,7 @@ import { OpsEmpty } from "./OpsEmpty.jsx";
 import { OpsField } from "./OpsField.jsx";
 import { OpsSelect } from "./OpsSelect.jsx";
 import { OpsSwitch } from "./OpsToggle.jsx";
-import { giltigtDatum, kalenderval } from "../lib/kalendrar.js";
+import { giltigtDatum, idagI, kalenderval } from "../lib/kalendrar.js";
 import { OppnaHandelseKontext } from "../lib/handelsekontext.js";
 import { HANDELSEPARAM, handelseIdUrAdress, medHandelse } from "../lib/handelsepanel.js";
 import { KALENDERIKON_KOMPONENT } from "../lib/kalenderikoner.js";
@@ -37,6 +37,7 @@ import { text } from "../lib/sprak.js";
 import { skapalaget, typerAttValja } from "../lib/skapa.js";
 import { malForInspelning, tillaggFor } from "../lib/tillagg.js";
 import { kordarePafunktion, MenyAvdelningar, menyAppAvdelning, menyFot, MenyRubrikRad, menySektioner, validateMeny } from "./OpsMeny.jsx";
+import { OpsSkapaGenvagar, useSkapaGenvag } from "./OpsSkapaGenvag.jsx";
 
 /**
  * ⛔ EN VÄG IN I INSPELNINGEN UTAN ATT HÅLLA (#276): raden i Skapa och huvudets mikrofonknapp lämnar SAMMA form till
@@ -789,6 +790,22 @@ export function useOppnaHandelse() {
 }
 
 /**
+ * En yta i huvudet som går att hålla in (0.103.0): gruppväxlaren, där långtrycket är "Ny grupp". Samma `useSkapaGenvag` som
+ * bottenradens ikoner. Utan mottagare är det en vanlig `div` utan händelser.
+ * ⛔ `tips={false}` för gruppväxlaren: ett tryck på den öppnar ett ark över skärmen, och en tipsrad under arket hade setts av
+ * ingen och ändå räknats som visad.
+ * @param {{ nyckel: string, ikon: string, tips?: boolean, className?: string, children: import("react").ReactNode }} props
+ */
+function GenvagRam({ nyckel, ikon, tips = true, className, children }) {
+  const g = useSkapaGenvag(nyckel, ikon);
+  return (
+    <div className={cx(className, g.klass)} {...g.handelser} data-skapa-genvag={g.aktiv ? nyckel : undefined} onClick={g.aktiv && tips ? () => g.tryckt() : undefined}>
+      {children}
+    </div>
+  );
+}
+
+/**
  * @param {object} props
  * @param {import("react").ReactNode} [props.brand] Märket (0.31.0: TEXT, inga bilder). En sträng blir märkets `namn` (rad 1, förval "OPS HUB", första ordet ljusgrått och resten gråorange); en egen `<OpsBrand namn undertext monogram />` används som den är, med panelläget inklonat. Rad 2 är den aktiva gruppens namn när `grupper` finns och en grupp är vald, annars `undertext` på appens egen `OpsBrand`. Länkar till startsidan. ⛔ Före 0.31.0 var `brand` appens namn och ritades under en bild; nu är den märket självt, så en app som vill ha "OPS HUB" utelämnar propen.
  * @param {import("../lib/nav.js").NavPost[]} [props.nav] Toppdestinationer, den GAMLA modellen. `{ href, label }` räcker; `icon`, `badge` och `children` (en nivå) är valfria tillägg. ⛔ Krävs när `fasta` saknas, och FÅR INTE skickas tillsammans med `fasta` (två modeller för samma rad är två sanningar, skalet kastar).
@@ -809,7 +826,7 @@ export function useOppnaHandelse() {
  *   avatar har ingen meny, den är en direktlänk till profilen, och menyn är
  *   skalets EGEN hamburgare (se `meny`-propen nedan), inte en andra Popover
  *   bredvid avataren i det här facket. Se README §Skalet för exemplet.
- * @param {{ label: string, onClick: () => void, icon?: import("react").ReactNode }} [props.primaryAction] Det man GÖR i appen, inte går till. Blir en rund knapp mitt i bottenraden på telefon. ⛔ På bred skärm finns ingen bottenrad, så appen sätter samma åtgärd i `actions` själv: skalet gissar inte var en knapp hör hemma i en toppradslayout det inte äger.
+ * @param {{ label: string, onClick: () => void, icon?: import("react").ReactNode }} [props.primaryAction] Det man GÖR i appen, inte går till. Blir en rund knapp mitt i bottenraden på telefon. ⛔ På bred skärm finns ingen bottenrad, så appen sätter samma åtgärd i `actions` själv: skalet gissar inte var en knapp hör hemma i en toppradslayout det inte äger. ⛔ (0.103.0) Med `talk` är knappen en mikrofon: ett tryck spelar in, och `onClick` nås med ett långtryck.
  * @param {string} [props.menuLabel] Text på Meny-platsen i bottenraden.
  * @param {string} [props.navLabel] Skärmläsarnamn på toppradens navigering.
  * @param {string} [props.submenuLabel] Verb för chevronens namn på en post med undermeny,
@@ -861,10 +878,12 @@ export function useOppnaHandelse() {
  *   Utan `skapa`, eller utan NÅGOT den kan visa (inga `handelse`/`arende` OCH modulerna i `ingenGrupp`/`tomt`-
  *   läge), ritas inget plus alls (tomhet är ett svar, arbetsreglernas punkt 5).
  * @param {string} [props.skapaLabel] Skärmläsarnamn på plusknappen.
- * @param {Omit<import("./OpsTalk.jsx").TalkVal, "onTalk"> & { mal?: ReadonlyArray<{ id: string, etikett: string }>, onFortsatt?: (underlag: import("../lib/talk.js").Talkunderlag) => void, fortsattEtikett?: string, onTalk: (blob: Blob, meta: { mimeType: string, sekunder: number, rapportera: (andel: number) => void, mal?: { id: string }, text?: string }) => Promise<void | import("../lib/talk.js").Talkkvitto> | void | import("../lib/talk.js").Talkkvitto }} [props.talk] TALK (0.57.0, cllp/lifehub.app#2): långtryck på bottenradens plus
- *   spelar in, och Skapa får raden "TALK, prata in" först. Ljudet lämnas till `talk.onTalk`. När ett mål är valt
+ * @param {Omit<import("./OpsTalk.jsx").TalkVal, "onTalk"> & { mal?: ReadonlyArray<{ id: string, etikett: string }>, onFortsatt?: (underlag: import("../lib/talk.js").Talkunderlag) => void, fortsattEtikett?: string, onTalk: (blob: Blob, meta: { mimeType: string, sekunder: number, rapportera: (andel: number) => void, mal?: { id: string }, text?: string }) => Promise<void | import("../lib/talk.js").Talkkvitto> | void | import("../lib/talk.js").Talkkvitto }} [props.talk] TALK (0.57.0, cllp/lifehub.app#2). ⛔ (0.103.0) Bottenradens mittknapp
+ *   är då en mikrofon: ett vanligt tryck spelar in, och ett långtryck öppnar skapa-listan (utan TALK-raden) när den har något.
+ *   Före 0.103.0 spelade ett långtryck på plusset in och ett tryck öppnade Skapa. Huvudets plus (bred skärm, och den gamla
+ *   modellen på telefon) får raden "TALK, prata in" först där ingen mikrofon står bredvid. Ljudet lämnas till `talk.onTalk`. När ett mål är valt
  *   bär `meta.mal` dess id. `mal` är appens egna mål (händelse, meddelande). Modulernas mål på platsen
- *   `inspelning.mal` sparas av modulens `spara`, inte av `onTalk`. ⛔ (0.99.0) Mikrofonen (huvudets knapp, långtryck på plus, raden
+ *   `inspelning.mal` sparas av modulens `spara`, inte av `onTalk`. ⛔ (0.99.0) Mikrofonen (huvudets knapp, bottenradens mikrofon, raden
  *   TALK, prata in) erbjuder BARA appens mål, och med ett enda mål ritas inget val alls. Ett moduls mål nås bara genom modulens egen rad
  *   (Ny-menyn: Röstinspelning, `useOppnaInspelning`), som öppnar fältet låst till målet, utan val. `talk.svaraText` är ordet på Svara
  *   (förval "Svara", på engelska "Reply"): efter ett kvitto startar den en ny omgång i samma fält, till samma mål. ⛔ Utan `talk` finns varken
@@ -1504,7 +1523,12 @@ function OpsAppShellRitad({
     const Form = /** @type {any} */ (r.form);
     skapaHarFormKonsument = true;
     skapaModalTitel = skapaForm.redigera ? redigeraHandelseEtikett : text(r.namn, skapaSprak);
-    const kalenderProps = r.id === "handelse" ? { datum: skapaForm.datum ?? null, ...(skapaForm.redigera ? { redigera: skapaForm.redigera } : { forifyllt: skapaForm.forifyllt ?? null }), kalender: skapaKalender, kravSvar: skapaKalender?.slag === "grupp" && kravSvarPa, blockerar: skapaKalender?.slag === "mina" && skapaBlockerar } : {};
+    // ⛔ 0.103.0: EN NY HÄNDELSE HAR ALLTID EN DAG. CP 2026-10-14: "default datum är idag (det skall alltid ställas in om det inte
+    // finns nåt datum)". Förut fick formuläret `datum: null` när panelen öppnades utan dag (plusset, TALK-fältets ikon, långtrycket
+    // på Kalender), och då var dagen tom tills personen valde. Dagen är idag i `STANDARD_TIDSZON`, samma "idag" som kalendern ramar
+    // in (`idagI`, se `OpsCalendar`), och den skrivs inte i adressen: en omladdning i morgon ska ge morgondagen, inte gårdagen.
+    // I redigeringsläge är den `null` som förut: där bär händelsen sin egen dag.
+    const kalenderProps = r.id === "handelse" ? { datum: skapaForm.datum ?? (skapaForm.redigera ? null : idagI()), ...(skapaForm.redigera ? { redigera: skapaForm.redigera } : { forifyllt: skapaForm.forifyllt ?? null }), kalender: skapaKalender, kravSvar: skapaKalender?.slag === "grupp" && kravSvarPa, blockerar: skapaKalender?.slag === "mina" && skapaBlockerar } : {};
     skapaModalInnehall = (
       <div className="flex flex-col gap-3">
         {r.katalog !== null && !egenPost ? (
@@ -1566,6 +1590,7 @@ function OpsAppShellRitad({
   // lista som huvudets plus (`renderSkapaLista`, en funktion, inte en kopia).
   // Huvudets plus göms då under `md`: två plus på samma skärm är två ställen
   // att fråga "vad skapar den här", och de skulle glida isär.
+  // ⛔ 0.103.0: med `talk` är mittknappen en mikrofon, och samma lista nås med ett långtryck på den (`bottenAtgard`).
   const bottenPlus = harFasta && visaSkapaKnapp;
 
   // ══ ⛔ ÅTGÄRDER SOM INTE RYMS UNDER `md` FLYTTAR TILL MENYN (0.30.1) ═══════
@@ -1732,7 +1757,8 @@ function OpsAppShellRitad({
         <div className="flex flex-col gap-0.5 px-1">
           {/* ⛔ TALK I TELEFONENS PLUS (CP 2026-10-04). På bred skärm är raden borta (0.78.0, lane 19):
               mikrofonen i huvudet gör samma sak, och två vägar till samma inspelning i samma plus är en för mycket.
-              Telefonens plus tas i lane 11. */}
+              ⛔ 0.103.0: inte heller i bottenradens ark, som mikrofonens långtryck öppnar. Kvar är den gamla modellens
+              huvudplus på telefon, där ingen mikrofon står bredvid. */}
           {talk && talkRad ? <OpsPanelRow icon={<MikrofonIkon size={18} />} label={TALK_PRATA_IN} accent onClick={() => oppna(TALK_FORM)} /> : null}
           {/* ⛔ UTAN `talk` FINNS INGET APPMÅL, och mikrofonen har då bara modulens mål att gå till. Raden öppnar fältet låst till
               det första, som modulens egen rad gör (0.99.0). Förut valde `valtMal` det av sig självt, vilket är det som inte längre gäller. */}
@@ -1798,6 +1824,62 @@ function OpsAppShellRitad({
       ) : null}
     </>
   );
+
+  // ══ ⛔ LÅNGTRYCK PÅ IKONERNA SKAPAR I MODULEN (0.103.0) ══════════════════════════════════════════════════════════════════
+  //
+  // CP 2026-10-14, "kör": Kalender ger Ny händelse, Inkorgen Nytt ärende, gruppikonen Ny grupp, och plusset blir en mikrofon.
+  // En nav-post eller en `OpsIconLink` bär en NYCKEL (`skapa`), och här avgörs om den har en mottagare: samma
+  // `skapaFormFranNyckel` som adressen och `useOppnaSkapa`, och samma krav som plussets rader (en moduls registrering bara när
+  // `skapalaget` är redo, "Ny grupp" bara som formulär). ⛔ Ingen mottagare ger `null`, och då går ikonen inte att hålla in.
+  /**
+   * @param {string} nyckel
+   * @returns {{ namn: string, oppna: () => void } | null}
+   */
+  const genvagMal = (nyckel) => {
+    // ⛔ "Ny grupp" har två vägar, som gruppanelens knapp: skalets formulär (`skapa.grupp`) går före appens `grupper.onSkapa`.
+    if (nyckel === "grupp") return typeof grupperOnSkapa === "function" ? { namn: nyGruppEtikett, oppna: grupperOnSkapa } : null;
+    const form = skapaFormFranNyckel(skapa, nyckel, { nyHandelseEtikett });
+    if (!form) return null;
+    if (form.kind === "modul" && form.registrering.id !== "handelse" && !skapaModulerRedo) return null;
+    const namn =
+      form.kind === "arende" ? nyttArendeEtikett
+        : form.kind === "meddelande" ? nyttMeddelandeEtikett
+          : form.kind === "handelse" ? nyHandelseEtikett
+            : form.kind === "modul" ? text(form.registrering.namn, skapa?.sprak ?? sprak)
+              : null;
+    return namn ? { namn, oppna: () => oppnaSkapa(form) } : null;
+  };
+  /**
+   * Finns det något i plussets lista UTÖVER TALK? Bara då har mikrofonen ett långtryck (0.103.0). Raderna för händelsen, ärendet,
+   * meddelandet och gruppen har en annan väg på telefon (långtrycket på Kalender, på Inkorgen, gruppikonen och Meddelandens
+   * eget Nytt), men modulernas registreringar och platsen `handelse.atgard` har ingen: utan listan hade de inte gått att nå där.
+   */
+  const skapaListaUtomTalk =
+    (!talk && inspelningsMal.length > 0) ||
+    Boolean(skapa?.handelse) ||
+    handelseAtgarder.length > 0 ||
+    Boolean(skapa?.arende) ||
+    typeof skapa?.grupp === "function" ||
+    typeof skapa?.nyttMeddelande === "function" ||
+    skapaModulerRedo;
+  /**
+   * Mittknappen i bottenraden. ⛔ MED `talk` ÄR DEN EN MIKROFON (0.103.0): ett vanligt tryck startar TALK (`talkStyr.direkt()`, samma
+   * form som huvudets knapp och raden), och ett långtryck öppnar skapa-listan när den har något (`skapaListaUtomTalk`), i den gamla
+   * modellen appens `primaryAction`. Utan `talk` är den plusset som förut, och dess tryck öppnar listan.
+   * ⛔ Långtrycket som spelade in (0.57.0) är borta: ett tryck räcker, och fältet låg ändå kvar när man släppte.
+   */
+  const bottenAtgard = (() => {
+    const bas = harFasta ? (visaSkapaKnapp ? { label: skapaLabel, onClick: () => setSkapaBottenOppen(true) } : undefined) : primaryAction;
+    if (!bas || !talk) return bas;
+    const langtryck = harFasta ? (skapaListaUtomTalk ? () => setSkapaBottenOppen(true) : undefined) : bas.onClick;
+    return {
+      label: talkKnappNamn(talkStyr.lage),
+      onClick: () => oppnaSkapa(TALK_FORM),
+      icon: <MikrofonIkon size={26} />,
+      talk: { lage: talkStyr.lage },
+      ...(langtryck ? { langtryck } : {}),
+    };
+  })();
 
   // ⛔ En sträng blir ett riktigt märke, inte fet text. Skälet är att det
   // vanliga fallet ska vara det rätta fallet: skriver man `brand="OPS HUB"`
@@ -2020,6 +2102,7 @@ function OpsAppShellRitad({
     <OppnaSkapaKontext.Provider value={oppnaFranApp}>
     <OppnaHandelseKontext.Provider value={handelsepanel ? oppnaHandelse : null}>
     <OppnaInspelningKontext.Provider value={oppnaInspelning}>
+    <OpsSkapaGenvagar mal={genvagMal}>
     <div className="min-h-dvh bg-canvas">
       {/* ⛔ 0.31.2 (CP 2026-09-29 22:33, appen på hemskärmen, iOS standalone med `viewport-fit=cover` och `black-translucent`): HEADERN
           BÖRJAR VID SKÄRMENS ÖVERKANT OCH BÄR SJÄLV DEN SÄKRA ZONEN SOM PADDING (`top-0`, `pt-(--safe-top)`). Före 0.31.2 var den
@@ -2107,7 +2190,7 @@ function OpsAppShellRitad({
               med `OpsPanel`.
             */}
             {grupper ? (
-              <div className="min-w-0 lg:hidden">
+              <GenvagRam nyckel="grupp" ikon={grupper.etikett ?? "Byt grupp"} tips={false} className="min-w-0 lg:hidden">
                 <OpsGruppvaxlare
                   grupper={grupper.lista}
                   aktiv={grupper.aktiv}
@@ -2122,7 +2205,7 @@ function OpsAppShellRitad({
                   hubbar={hubbar}
                   onRedigera={grupperOnRedigera}
                 />
-              </div>
+              </GenvagRam>
             ) : null}
           </div>
 
@@ -2248,7 +2331,7 @@ function OpsAppShellRitad({
                 (plusset, sedan raden). Knappen ligger direkt efter plusset, och den gör EXAKT det raden gör: samma form
                 till `oppnaSkapa`, alltså `talkStyr.direkt()`. Raden i huvudets plus är borta sedan 0.78.0.
                 ⛔ BARA FRÅN `md` (`hidden md:inline-flex`, en klass, se `huvudknappKlass`). Mobilen har redan sin väg:
-                långtryck på bottenradens plus. En andra mikrofon i mobilens huvud hade gett två vägar på samma skärm.
+                bottenradens mittknapp är en mikrofon (0.103.0). En andra mikrofon i mobilens huvud hade gett två vägar på samma skärm.
                 ⛔ Inte `talkStyr.knapp`: de händelserna är plussets, där ett vanligt tryck är Skapa och bara ett
                 långtryck spelar in. Här är ett vanligt tryck inspelningen.
                 ⛔ LÄGET SYNS: tänd (`aktiv`) medan den lyssnar eller skickar, och namnet säger samma sak för den som
@@ -2476,10 +2559,7 @@ function OpsAppShellRitad({
         moreNav={[...(harFasta ? [] : navLista.slice(Math.min(smaltTak, primaryAction ? 3 : 4))), ...(meny ? [] : flyttadeRader)]}
         activeHref={activeHref}
         onNavigate={onNavigate}
-        primaryAction={(() => {
-          const pa = harFasta ? (visaSkapaKnapp ? { label: skapaLabel, onClick: () => setSkapaBottenOppen(true) } : undefined) : primaryAction;
-          return pa && talk ? { ...pa, talk: { lage: talkStyr.lage, knapp: talkStyr.knapp } } : pa;
-        })()}
+        primaryAction={bottenAtgard}
         menuLabel={menuLabel}
         navLabel={bottomNavLabel}
         badgeText={badgeText}
@@ -2568,7 +2648,9 @@ function OpsAppShellRitad({
                     setTimeout(() => oppnaSkapa(form), 0);
                   },
                   () => setSkapaBottenOppen(false),
-                  { talkRad: true },
+                  // ⛔ 0.103.0: INGEN TALK-RAD I ARKET. Med `talk` öppnas arket av ett långtryck på mikrofonen, och ett vanligt tryck
+                  // på samma knapp är TALK: en rad i arket hade varit en andra väg till samma inspelning. Utan `talk` finns ingen rad.
+                  { talkRad: false },
                 )}
               </div>
             </Dialog.Content>
@@ -2597,6 +2679,7 @@ function OpsAppShellRitad({
         />
       ) : null}
     </div>
+    </OpsSkapaGenvagar>
     </OppnaInspelningKontext.Provider>
     </OppnaHandelseKontext.Provider>
     </OppnaSkapaKontext.Provider>

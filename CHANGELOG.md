@@ -11,7 +11,8 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ## 0.103.0
 
-**Samtalet i TALK-fältet, och tre ikoner som gör det till ett meddelande, en händelse eller ett ärende.**
+**Samtalet i TALK-fältet, och tre ikoner som gör det till ett meddelande, en händelse eller ett ärende. Mittknappen är en
+mikrofon, och ett långtryck på ikonerna i raden skapar i modulen.**
 
 CP 2026-10-14: "vi kanske vill kunna att skapa ett ärende manuellt på det som sägs genom att klicka på skapa ärende, händelse
 eller meddelande själv med den man pratar in? Inte så dumt med 3 knappar/ikoner när man pratat in som option, där historiken
@@ -19,6 +20,25 @@ finns med om man pratat med agenten olika omgångar. Så bubblans storlek med te
 och överst finns en headerbar med ikonerna för chatt, händelse, kalender där man för in all text från konversationen direkt. Och
 om det är i en chatt så är flödet 'fortsätt i chatten'." Skärmbilder mot en byggd yta, 390 och 1280 px i mörkt läge:
 `docs/jamforelser/0.103.0/` (`node scripts/talk-montage.mjs`).
+
+CP 2026-10-14, "kör" på förslaget: "Långpress på ikoner och TALK med Microfon-ikon direkt? ... Att håller man inne knappen på
+kalender kommer man direkt in i skapa ny händelse, default datum är idag (det skall alltid ställas in om det inte finns nåt
+datum). Under appar, blir det 'Skapa app', under Ärenden blir det Skapa ärende. Grupp-ikonen i telefonen långpress blir skapa
+grupp. Då skulle vi kunna göra +:et till en Mikrofon". Skärmbilder mot en byggd yta, 390 px i mörkt läge:
+`docs/jamforelser/0.103.0/ramverk-mikrofon-390.png`, `ramverk-tips-390.png` och `ramverk-kalender-hall-390.png`
+(`node scripts/mikrofon-montage.mjs`).
+
+### ⛔ Brytande
+
+- **Med `talk` är bottenradens mittknapp en mikrofon, inte ett plus.** Ett vanligt tryck startar TALK direkt (samma
+  `talkStyr.direkt()` som huvudets mikrofon). Knappen heter "TALK, prata in" (`talkKnappNamn`) i stället för "Skapa", och
+  `data-talk-knapp` bär läget som förut. En app vars prov letar efter `nav button[aria-label="Skapa"]` med `talk` påslaget
+  behöver se över det.
+- **Långtrycket som spelade in är borta från mittknappen.** Före 0.103.0 spelade ett långtryck på plusset in och ett vanligt
+  tryck öppnade Skapa. Nu är ett vanligt tryck TALK, och ett långtryck öppnar skapa-listan. Läget håll (`haller`) nås inte
+  längre från skalet. `OpsBottomNav` fristående med `primaryAction.talk.knapp` ur `useTalk` beter sig som förut.
+- **"Ny händelse" får alltid en dag.** `HandelseSkapare.form` fick `datum: null` när panelen öppnades utan dag; nu får den idag
+  (`idagI()`, Stockholms dag, samma som kalenderns), utom i redigeringsläge. Dagen skrivs inte i adressen.
 
 ### Tillagt
 
@@ -35,7 +55,39 @@ om det är i en chatt så är flödet 'fortsätt i chatten'." Skärmbilder mot e
   (rubriken är första meningen, högst 80 tecken, beskrivningen resten). `skapa.arende` och `HandelseSkapare.form` får `forifyllt`,
   `null` när panelen öppnats på annat sätt.
 
+- **Långtryck på en ikon skapar i modulen.** En nav-post (`nav`, och `fasta.idag`, `fasta.kalender`, `fasta.hub`) och en
+  `OpsIconLink` tar `skapa`, en nyckel som `useOppnaSkapa()` tar ("handelse", "arende", "grupp", "meddelande" eller en moduls
+  registrerings id). Ett långtryck på ikonen i bottenraden eller i huvudet öppnar samma panel som raden i plusset, och ett
+  vanligt tryck navigerar som förut. Kalender bär "handelse" från början (`FASTA_SKAPA`). Gruppväxlaren i huvudet ger "Ny
+  grupp" när skalet kan skapa en grupp. Inkorgen ger "Nytt ärende" med `<OpsIconLink skapa="arende" />`. `validateNav` kastar
+  för en nyckel med fel form, för "talk" och för `skapa` på ett barn.
+- Ingen genväg utan mottagare: har skalet ingen panel för nyckeln just nu (en modul som inte är påslagen, ett `skapa` utan
+  posten, en ikon utanför skalet) får ikonen inga händelser och går inte att hålla in, med webbläsarens vanliga meny kvar.
+- Långtrycket stoppar iOS förhandsvisning av länken (`-webkit-touch-callout: none`) och Androids kontextmeny medan ett tryck
+  pågår, sväljer klicket som följer släppet och vibrerar kort där webbläsaren kan (`navigator.vibrate`). Ett högerklick med
+  mus på en länk får sin vanliga meny.
+- En tipsrad ovanför bottenraden första gången en ikon med genväg trycks: "Tips: håll in Kalender så öppnas Ny händelse
+  direkt." En gång per webbläsare (`localStorage`, nyckeln `ops-skapa-genvag-tips`), inte från 768 px och inte efter att någon
+  redan hållit in en ikon.
+- `useLangtryck` (intern): hålltiden, rörelsetoleransen och släppskyddet som `OpsAtgardsblad` hade, flyttade till en krok som
+  `OpsAtgardsblad`, ikonerna och mikrofonen delar.
+
+### Borttaget, och var vägen nu går
+
+- **Plusmenyn är inte längre mittknappens tryck när `talk` finns.** Samma lista (`renderSkapaLista`) öppnas av ett långtryck på
+  mikrofonen, utan raden "TALK, prata in", och bara när den har något utöver TALK. Den ligger kvar där för att modulernas
+  registreringar och platsen `handelse.atgard` inte har någon annan väg på telefon.
+- Ny händelse: långtryck på Kalender. Nytt ärende: långtryck på Inkorgen (appen sätter `skapa="arende"`). Ny grupp:
+  långtryck på gruppikonen. Nytt meddelande: Meddelandens eget Nytt. På dator är plusset i huvudet kvar med hela listan,
+  och mikrofonen bredvid det.
+- Utan `talk` är mittknappen plusset med dagens beteende.
+
 ### Medvetet utelämnat
+
+- "Skapa app" under Appar är inte ramverkets: ramverket har ingen sådan registrering. Appen sätter `fasta.hub.skapa` till sin
+  registrerings id, och utan den går Appar inte att hålla in.
+- Tipsraden visas inte för gruppväxlaren: ett tryck på den öppnar ett ark över skärmen, och en rad under arket hade räknats
+  som visad utan att ha setts.
 
 - Samtalet står inte i adressen. `?skapa=` skrivs som vanligt, men det som sades skrivs inte i webbläsarens historik, och en
   omladdning öppnar formuläret tomt.

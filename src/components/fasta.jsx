@@ -1,5 +1,5 @@
 import { HubIkon, IdagIkon, KalenderIkon } from "./icons.jsx";
-import { validateNav } from "../lib/nav.js";
+import { validateNav, validateSkapaNyckel } from "../lib/nav.js";
 import { text } from "../lib/sprak.js";
 
 /**
@@ -36,10 +36,18 @@ export const FASTA_NAMN = /** @type {const} */ ({
 export const FASTA_ORDNING = /** @type {const} */ (["idag", "kalender", "hub"]);
 
 /**
+ * Vad ett långtryck på en fast post skapar när appen inte sagt något (0.103.0). CP 2026-10-14: "håller man inne knappen på kalender
+ * kommer man direkt in i skapa ny händelse". Kalendern är ramverkets och Ny händelse ramverkets rad, så den genvägen är ramverkets.
+ * ⛔ Idag och Appar har ingen: vad Idag skapar är inte givet, och "Skapa app" är appens registrering, inte ramverkets. Appen sätter
+ * `fasta.hub.skapa` till den nyckeln. Ett `null` stänger av genvägen.
+ */
+export const FASTA_SKAPA = /** @type {const} */ ({ idag: null, kalender: "handelse", hub: null });
+
+/**
  * @typedef {object} FastaKonfiguration
- * @property {{ href: string }} idag
- * @property {{ href: string }} kalender
- * @property {{ href: string }} hub
+ * @property {{ href: string, skapa?: string | null }} idag
+ * @property {{ href: string, skapa?: string | null }} kalender `skapa` förval "handelse" (`FASTA_SKAPA`).
+ * @property {{ href: string, skapa?: string | null }} hub
  */
 
 /**
@@ -54,6 +62,7 @@ export function validateFasta(fasta, vem) {
     if (!fasta[nyckel] || typeof fasta[nyckel].href !== "string" || fasta[nyckel].href === "") {
       throw new Error(`${vem}: fasta.${nyckel}.href saknas. De tre fasta posterna är Idag, Kalender och Hub, och alla tre måste veta vart de leder. Ordning, namn och ikon äger ramverket.`);
     }
+    validateSkapaNyckel(fasta[nyckel].skapa, vem, `fasta.${nyckel}`);
   }
 }
 
@@ -66,13 +75,18 @@ export function validateFasta(fasta, vem) {
  */
 export function byggFasta(fasta, moduler, sprak) {
   validateNav(moduler, "OpsAppShell: moduler");
+  /** @param {"idag" | "kalender" | "hub"} n */
+  const skapa = (n) => {
+    const s = fasta[n].skapa === undefined ? FASTA_SKAPA[n] : fasta[n].skapa;
+    return s ? { skapa: s } : {};
+  };
   return [
-    { href: fasta.idag.href, label: text(FASTA_NAMN.idag, sprak), icon: <IdagIkon /> },
-    { href: fasta.kalender.href, label: text(FASTA_NAMN.kalender, sprak), icon: <KalenderIkon /> },
+    { href: fasta.idag.href, label: text(FASTA_NAMN.idag, sprak), icon: <IdagIkon />, ...skapa("idag") },
+    { href: fasta.kalender.href, label: text(FASTA_NAMN.kalender, sprak), icon: <KalenderIkon />, ...skapa("kalender") },
     // ⛔ Barnen är modulerna, med sina egna barn (en nivå) i sin tur. `validateNav`
     // godtar bara EN nivå, och det är modulernas nivå: Hubs egen rad skickas
     // därför aldrig genom den.
-    { href: fasta.hub.href, label: text(FASTA_NAMN.hub, sprak), icon: <HubIkon />, children: /** @type {any} */ (moduler) },
+    { href: fasta.hub.href, label: text(FASTA_NAMN.hub, sprak), icon: <HubIkon />, ...skapa("hub"), children: /** @type {any} */ (moduler) },
   ];
 }
 
