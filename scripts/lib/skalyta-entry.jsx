@@ -186,6 +186,42 @@ const KAL_POSTER = [
   { id: "moms", date: "2026-09-14", title: "Momsdeklaration", typ: "deadline", status: "klart" },
   { id: "tandlakare", date: "2026-10-20", title: "Tandläkaren", not: "09:00-10:00", kalender: kk("privat"), typ: "ledig", status: "oppet" },
 ];
+/*
+ * 0.105.1 (CP 2026-10-14, skärmbild av månadsvyn i mörkt tema): etiketterna i en dagsruta får aldrig rinna ut ur den. Fyra veckor i
+ * oktober och november 2026, var och en en egen sort av rad (idag är onsdag 14 oktober):
+ *   19-25 okt  utan band: dag 20 har två vanliga etiketter, och ingen plats ska reserveras.
+ *   26 okt-1 nov  CP:s rad: dag 28 har två vanliga etiketter, dag 29 en röd heldagspost ("Test"). Bandet ligger bara på dag 29.
+ *   2-8 nov    ett flerdagsband (3-5 nov) och vanliga etiketter både på dagar under bandet (4 nov) och utanför det (7 nov).
+ *   9-15 nov   två filer: ett flerdagsband (9-12 nov) och en heldag (10 nov) som överlappar, och två etiketter på dag 14 utan band.
+ */
+const ETIK_IDAG = new Date(2026, 9, 14, 12);
+const ETIK_POSTER = [
+  { id: "e20a", date: "2026-10-20", title: "Godkänn utlägg" },
+  { id: "e20b", date: "2026-10-20", title: "Förra månadens bokslut" },
+  { id: "e28a", date: "2026-10-28", title: "Attest stämma" },
+  { id: "e28b", date: "2026-10-28", title: "Kolla om momsen" },
+  { id: "e29", date: "2026-10-29", allDay: true, title: "Test", kalender: { id: "rod", namn: "Röd", farg: 3 } },
+  { id: "e3", date: "2026-11-03", endDate: "2026-11-05", title: "Konferens i Visby" },
+  { id: "e4a", date: "2026-11-04", title: "Lunch med revisorn" },
+  { id: "e4b", date: "2026-11-04", title: "Ring banken" },
+  { id: "e7a", date: "2026-11-07", title: "Städa kontoret" },
+  { id: "e7b", date: "2026-11-07", title: "Beställ kaffe" },
+  { id: "e9", date: "2026-11-09", endDate: "2026-11-12", title: "Resa till Stockholm" },
+  { id: "e10", date: "2026-11-10", allDay: true, title: "Deklarationsdag", kalender: { id: "rod", namn: "Röd", farg: 3 } },
+  { id: "e14a", date: "2026-11-14", title: "Sätt budget" },
+  { id: "e14b", date: "2026-11-14", title: "Boka lokal" },
+  { id: "e14c", date: "2026-11-14", title: "Skicka inbjudan" },
+];
+function KalenderEtiketterScen() {
+  const { OpsView, OpsCalendar } = Ops;
+  return (
+    <Full>
+      <OpsView>
+        <OpsCalendar ariaLabel="Kalender" entries={ETIK_POSTER} today={ETIK_IDAG} monthsBack={0} monthsForward={1} lagring={{ getItem: () => null, setItem: () => {} }} />
+      </OpsView>
+    </Full>
+  );
+}
 window.__lagring = {};
 window.__skapat = [];
 window.__hantera = 0;
@@ -2188,6 +2224,7 @@ function Scen() {
   if (s === "fullyta-idag") return <FullYta vy="idag" />;
   if (s === "fullyta-kalender") return <FullYta vy="kalender" />;
   if (s === "kalender") return <KalenderScen />;
+  if (s === "kalender-etiketter") return <KalenderEtiketterScen />;
   if (s === "kalender-appar") return <KalenderApparScen />;
   if (s === "kalender-tillganglighet") return <KalenderTillganglighetScen variant={7} />;
   if (s === "kalender-tillganglighet-3") return <KalenderTillganglighetScen variant={3} />;

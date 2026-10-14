@@ -45,6 +45,7 @@
  *       node scripts/check-skalyta.mjs --bara-textfalt   bara avsnitt 45, tal i ett vanligt textfält (0.104.0)
  *       node scripts/check-skalyta.mjs --bara-talkval    bara avsnitt 46, valen efter talet och förslagen i chatten (0.105.0)
  *       node scripts/check-skalyta.mjs --bara-0106       bara avsnitt 47, chattepiken 0.106.0 (#386), i scripts/lib/skalyta0106.mjs
+ *       node scripts/check-skalyta.mjs --bara-etiketter  bara avsnitt 48, etiketterna inom sina dagsrutor i månadsvyn (0.106.0)
  *       node scripts/check-skalyta.mjs --chattbredder 390,1024   29g i andra bredder än 390 och 1280
  *       node scripts/check-skalyta.mjs --tema dark        alla sidor i mörkt tema (förebilden CP jämför mot är mörk)
  */
@@ -1018,6 +1019,14 @@ async function talkValOchForslag() {
 const verktyg0106 = { oppna, krav, matt, bildmapp };
 if (argv.includes("--bara-0106")) {
   await chattepiken0106(verktyg0106);
+  await browser.close();
+  avsluta();
+  process.exit(0);
+}
+
+// `--bara-etiketter`: bara avsnitt 48. Hela körningen kör det också.
+if (argv.includes("--bara-etiketter")) {
+  await kalenderEtiketter();
   await browser.close();
   avsluta();
   process.exit(0);
@@ -4856,7 +4865,10 @@ for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
         krav(JSON.stringify(band.streckSemester) === JSON.stringify(["2026-10-09", "2026-10-10", "2026-10-11", "2026-10-12", "2026-10-13"]), `${namn}: semesterns streck står i ${JSON.stringify(band.streckSemester)}, väntat den 9 till 13 oktober, över veckogränsen.`);
       } else {
         krav(band.konferens.length + band.semester.length + band.heldag.length >= 3, `${namn}: ${band.konferens.length + band.semester.length + band.heldag.length} bandbitar, väntat minst 3 (golv).`);
-        krav(band.konferens.length === 1 && !!band.c5 && !!band.c7 && Math.abs(band.konferens[0].x - band.c5.x) < 2 && Math.abs(band.konferens[0].x + band.konferens[0].w - band.c7.r) < 2, `${namn}: konferensen 5-7 oktober är ${band.konferens.length} bitar ${JSON.stringify(band.konferens)}, väntat ETT band från den 5:e till den 7:e (${JSON.stringify(band.c5)}, ${JSON.stringify(band.c7)}).`);
+        // ⛔ 0.105.1 (CP 2026-10-14, "Test går ut över rutans högra kant"): bandets rundade ände ligger 9 px innanför rutans kant, samma
+        // kant som pillren (rutans kant 1 och luft 8), och inte på kanten. Till 0.105.0 krävdes här kanten själv (±2 px), vilket var just
+        // det som såg ut att rinna ut ur rutan på en post över en enda dag. Avsnitt 47 mäter att inget band ligger över en kant.
+        krav(band.konferens.length === 1 && !!band.c5 && !!band.c7 && Math.abs(band.konferens[0].x - (band.c5.x + 9)) < 1.5 && Math.abs(band.konferens[0].x + band.konferens[0].w - (band.c7.r - 9)) < 1.5, `${namn}: konferensen 5-7 oktober är ${band.konferens.length} bitar ${JSON.stringify(band.konferens)}, väntat ETT band från 9 px innanför den 5:ans vänsterkant till 9 px innanför den 7:ans högerkant (${JSON.stringify(band.c5)}, ${JSON.stringify(band.c7)}).`);
         krav(band.semester.length === 2, `${namn}: semestern 9-13 oktober är ${band.semester.length} bitar, väntat 2 (en per vecka, SS getSpanSegmentsForWeekRow).`);
         krav(band.heldag.length === 1, `${namn}: heldagen 1 oktober är ${band.heldag.length} bitar, väntat 1 (heldag ritas som band).`);
         krav(band.konferens.length === 1 && band.siffra5 !== null && band.konferens[0].y >= band.siffra5 - 0.5, `${namn}: bandet börjar på y=${band.konferens[0] && band.konferens[0].y}, siffran slutar ${band.siffra5}: bandet ska ligga under siffran (SS #999).`);
@@ -6838,11 +6850,126 @@ for (const [namn, vp] of /** @type {const} */ ([["TALK-knappen 1280 px", { width
   await context.close();
 }
 
+// ══ 47. ETIKETTERNA LIGGER INOM SINA DAGSRUTOR I MÅNADSVYN VID 390 OCH 1280 PX (0.105.1) ═════════════════════════════════════════
+// CP 2026-10-14, med en skärmbild av månadsvyn i mörkt tema: dag 28 hade två etiketter som stod långt ned och rann ut under rutans
+// nederkant, och dag 29 en röd etikett ("Test") som satt högt och gick ut över rutans högra kant. Dag 20, en vecka utan band, var rätt.
+// Rotorsaken (OpsCalendar `bandhojd`): platsen för banden räknades per VECKORAD och lades på varje ruta i raden, också de som inget
+// band ligger på, och rutan har en fast höjd (`aspect-[1/1.1]`) som innehållet inte växer ur. jsdom kör ingen CSS, så inget enhetsprov
+// kunde se det: det här mäter de renderade rutorna i en riktig webbläsare. Scenen `kalender-etiketter` (skalyta-entry.jsx) har fyra
+// veckor, en per sort av rad: utan band, ett band på EN dag, ett flerdagsband med etiketter både under och utanför det, och två filer.
+// Krav, varje del för sig, alla mätta på de ritade rutorna:
+//   (a) INOM RUTAN. Varje etikett (från 640 px pillren, "+N" och banden, under 640 px prickarna, strecken och "+N") ligger helt inom
+//       sin dagsrutas insida, innanför kanten, åt alla fyra håll. Ett band över flera dagar ligger inom första och sista rutans insida.
+//   (b) INGEN ÖVERLAPP. Ett piller ligger inte ovanpå ett band, och inte över dagsiffran.
+//   (c) PLATS BARA DÄR ETT BAND LIGGER (från 640 px). En ruta som inget band täcker reserverar ingen plats: dess första piller står
+//       lika långt under dagsiffran som i en vecka utan band (mätt, inte antaget: dag 20 är den normalen), också när en annan ruta i
+//       samma vecka bär ett band.
+//   (d) LIKA HÖGA RUTOR (från 640 px). Raden växer när innehållet kräver det (platsen för ett band och två piller ryms inte i
+//       proportionen 1:1,1 vid 1280), och då följer alla rutor i veckan med: ingen ruta är kortare än sin granne.
+//   (e) LIKA BREDA RUTOR, INOM RADEN. En ruta som sträcks i höjd räknar om sin bredd ur proportionen 1:1,1 om bredden inte är låst,
+//       och växer då ur sin kolumn (mätt i den första åtgärdens bild: novemberraden hade rutor 5 px för breda, utan glapp).
+// Golv per bredd: minst 28 rutor, minst 10 etiketter (från 640 px minst 10 piller och 4 bandbitar; under 640 minst 8 märken), minst
+// 2 rutor under ett band, minst 2 rutor utan band i veckor med band och minst 1 normalruta (en vecka utan band med ett piller).
+async function kalenderEtiketter() {
+  for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
+    const namn = `etiketter ${vp.width}`;
+    const { page, context } = await oppna("kalender-etiketter", vp, "dark");
+    try {
+      await page.waitForSelector('section[aria-label="Kalender"] [data-veckorad]', { timeout: 4000 });
+      await page.waitForTimeout(300);
+      const m = await page.evaluate(() => {
+        const rut = (/** @type {Element} */ e) => { const r = e.getBoundingClientRect(); return { l: r.left, t: r.top, r: r.right, b: r.bottom }; };
+        const syns = (/** @type {Element} */ e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(e).visibility !== "hidden"; };
+        // Insidan: innanför kanten. En etikett som täcker kanten går ut över rutan, också när den slutar vid ytterkanten.
+        const insida = (/** @type {Element} */ e) => { const cs = getComputedStyle(e); const r = rut(e); return { l: r.l + parseFloat(cs.borderLeftWidth), t: r.t + parseFloat(cs.borderTopWidth), r: r.r - parseFloat(cs.borderRightWidth), b: r.b - parseFloat(cs.borderBottomWidth) }; };
+        const TOL = 0.5;
+        const utanfor = (/** @type {{l:number,t:number,r:number,b:number}} */ x, /** @type {{l:number,t:number,r:number,b:number}} */ i) => ({
+          vanster: Math.max(0, i.l - x.l), hoger: Math.max(0, x.r - i.r), topp: Math.max(0, i.t - x.t), botten: Math.max(0, x.b - i.b),
+        });
+        const spill = (/** @type {{vanster:number,hoger:number,topp:number,botten:number}} */ u) => u.vanster > TOL || u.hoger > TOL || u.topp > TOL || u.botten > TOL;
+        const delar = (/** @type {{vanster:number,hoger:number,topp:number,botten:number}} */ u) => Object.entries(u).filter(([, v]) => v > TOL).map(([k, v]) => `${k} ${v.toFixed(1)} px`).join(", ");
+        const korsar = (/** @type {{l:number,t:number,r:number,b:number}} */ a, /** @type {{l:number,t:number,r:number,b:number}} */ b) => Math.min(a.r, b.r) - Math.max(a.l, b.l) > 1 && Math.min(a.b, b.b) - Math.max(a.t, b.t) > 1;
+        const ut = { rutor: 0, etiketter: 0, pillerAntal: 0, bandbitar: 0, markenAntal: 0, rutorUnderBand: 0, rutorUtanBandIBandVecka: 0, brottInom: /** @type {string[]} */ ([]), brottOverlapp: /** @type {string[]} */ ([]), glapp: /** @type {{ dag: string, glapp: number, bandVecka: boolean }[]} */ ([]), brottHojd: /** @type {string[]} */ ([]), brottBredd: /** @type {string[]} */ ([]) };
+        for (const rad of document.querySelectorAll("[data-veckorad]")) {
+          const rutor = [...rad.querySelectorAll("[data-cal-day]")];
+          const bitar = [...rad.querySelectorAll("[data-bandbit]")].filter(syns);
+          // Vilka rutor ett band ligger över, i sidled (bandets mitt i kolumnerna ger startkolumn och spann).
+          const tackta = new Set();
+          for (const bit of bitar) {
+            const br = rut(bit);
+            const under = rutor.filter((r) => { const x = rut(r); return Math.min(x.r, br.r) - Math.max(x.l, br.l) > 2; });
+            for (const r of under) tackta.add(r);
+            if (under.length === 0) { ut.brottInom.push(`bandet ${bit.getAttribute("data-bandbit")} ligger över ingen ruta`); continue; }
+            const forsta = insida(under[0]);
+            const sista = insida(under[under.length - 1]);
+            const botten = Math.min(...under.map((r) => insida(r).b));
+            const u = utanfor(br, { l: forsta.l, t: Math.min(...under.map((r) => insida(r).t)), r: sista.r, b: botten });
+            ut.bandbitar += 1;
+            ut.etiketter += 1;
+            if (spill(u)) ut.brottInom.push(`bandet "${(bit.textContent || "").trim()}" (${under.map((r) => r.getAttribute("data-cal-day")).join(", ")}) ligger utanför rutorna: ${delar(u)}`);
+          }
+          const bredder = rutor.map((r) => rut(r).r - rut(r).l);
+          const radR = rut(rad).r;
+          if (bredder.length > 0 && (Math.max(...bredder) - Math.min(...bredder) > TOL || Math.max(...rutor.map((r) => rut(r).r)) > radR + TOL)) ut.brottBredd.push(`veckan med ${rutor[0].getAttribute("data-cal-day")} har rutor med bredderna ${[...new Set(bredder.map((b) => b.toFixed(1)))].join(" och ")} px och sista rutans högerkant ${Math.max(...rutor.map((r) => rut(r).r)).toFixed(1)} mot radens ${radR.toFixed(1)}`);
+          const hojder = rutor.map((r) => rut(r).b - rut(r).t);
+          if (hojder.length > 0 && Math.max(...hojder) - Math.min(...hojder) > TOL) ut.brottHojd.push(`veckan med ${rutor[0].getAttribute("data-cal-day")} har rutor med höjderna ${[...new Set(hojder.map((h) => h.toFixed(1)))].join(" och ")} px`);
+          for (const ruta of rutor) {
+            const dag = /** @type {string} */ (ruta.getAttribute("data-cal-day"));
+            ut.rutor += 1;
+            const inre = insida(ruta);
+            if (tackta.has(ruta)) ut.rutorUnderBand += 1; else if (bitar.length > 0) ut.rutorUtanBandIBandVecka += 1;
+            const siffra = ruta.querySelector("[data-dagnummer]");
+            const siffraR = siffra ? rut(siffra) : null;
+            const pillerEls = [...ruta.querySelectorAll("[data-kalender-piller] > span")].filter(syns);
+            const markenEls = [...ruta.querySelectorAll("[data-prick], [data-streck], [data-plus]")].filter(syns);
+            for (const e of [...pillerEls, ...markenEls]) {
+              const u = utanfor(rut(e), inre);
+              ut.etiketter += 1;
+              if (e.closest("[data-kalender-piller]")) ut.pillerAntal += 1; else ut.markenAntal += 1;
+              if (spill(u)) ut.brottInom.push(`etiketten "${(e.textContent || "").trim() || e.getAttribute("data-prick") || e.getAttribute("data-streck") || "märke"}" i ${dag} ligger utanför rutan: ${delar(u)}`);
+            }
+            for (const p of pillerEls) {
+              const pr = rut(p);
+              for (const bit of bitar) if (korsar(pr, rut(bit))) ut.brottOverlapp.push(`pillret "${(p.textContent || "").trim()}" i ${dag} ligger ovanpå bandet "${(bit.textContent || "").trim()}"`);
+              if (siffraR && korsar(pr, siffraR)) ut.brottOverlapp.push(`pillret "${(p.textContent || "").trim()}" i ${dag} ligger över dagsiffran`);
+            }
+            const forsta = pillerEls.find((e) => !/^\+\d+$/.test((e.textContent || "").trim())) ?? pillerEls[0];
+            if (forsta && siffraR && !tackta.has(ruta)) ut.glapp.push({ dag, glapp: rut(forsta).t - siffraR.b, bandVecka: bitar.length > 0 });
+          }
+        }
+        return ut;
+      });
+      // Normalen är glappet i en vecka utan band: dagsiffrans rad och pillrets luft, som de är där inget band spelar in.
+      const normal = m.glapp.filter((g) => !g.bandVecka);
+      const normalen = normal.length > 0 ? Math.min(...normal.map((g) => g.glapp)) : null;
+      matt.push(`${namn}: ${m.rutor} rutor, ${m.etiketter} etiketter (${m.pillerAntal} piller, ${m.markenAntal} märken, ${m.bandbitar} bandbitar), ${m.rutorUnderBand} rutor under band, ${m.rutorUtanBandIBandVecka} utan band i en vecka med band; första pillret under siffran: normalen ${normalen === null ? "saknas" : normalen.toFixed(1) + " px"}, ${m.glapp.filter((g) => g.bandVecka).map((g) => `${g.dag} ${g.glapp.toFixed(1)} px`).join(", ") || "inga rutor utan band i veckor med band"}`);
+      const telefon = vp.width < 640;
+      krav(m.rutor >= 28, `${namn}: ${m.rutor} rutor mättes, väntat minst 28 (golv: fyra veckor).`);
+      krav(telefon ? m.markenAntal >= 8 : m.pillerAntal >= 10 && m.bandbitar >= 4, `${namn}: ${m.pillerAntal} piller, ${m.markenAntal} märken och ${m.bandbitar} bandbitar mättes, väntat ${telefon ? "minst 8 märken" : "minst 10 piller och 4 bandbitar"} (golv).`);
+      if (!telefon) krav(m.rutorUnderBand >= 2 && m.rutorUtanBandIBandVecka >= 2, `${namn}: ${m.rutorUnderBand} rutor under band och ${m.rutorUtanBandIBandVecka} utan band i veckor med band, väntat minst 2 av vardera (golv).`);
+      if (!telefon) krav(normalen !== null, `${namn}: ingen normalruta mättes (en vecka utan band med ett piller), väntat minst 1 (golv). Utan den finns inget att jämföra platsen mot.`);
+      for (const t of m.brottInom) krav(false, `${namn} (a): ${t}.`);
+      for (const t of m.brottOverlapp) krav(false, `${namn} (b): ${t}.`);
+      if (normalen !== null) for (const g of m.glapp.filter((x) => x.bandVecka)) krav(g.glapp <= normalen + 0.5, `${namn} (c): ${g.dag} står första pillret ${g.glapp.toFixed(1)} px under dagsiffran utan att något band täcker rutan, normalen i en vecka utan band är ${normalen.toFixed(1)} px.`);
+      for (const t of m.brottHojd) krav(false, `${namn} (d): ${t}.`);
+      for (const t of m.brottBredd) krav(false, `${namn} (e): ${t}.`);
+      // En bild per månad, själva månadens ruta och inte fönstret: alla fyra veckorna ska synas (för montaget i PR:en).
+      if (bildmapp) {
+        for (const manad of ["2026-10", "2026-11"]) await page.locator(`[data-kalender-manad="${manad}"]`).screenshot({ path: path.join(bildmapp, `kalender-etiketter-${manad}-${vp.width}.png`) });
+      }
+    } catch (e) {
+      krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+    }
+    await context.close();
+  }
+}
+
 await apparArkHylla();
 await apparArkOrdning();
 await textfaltMedTal();
 await talkValOchForslag();
 await chattepiken0106(verktyg0106);
+await kalenderEtiketter();
 
 await browser.close();
 avsluta();

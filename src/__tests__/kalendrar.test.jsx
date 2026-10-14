@@ -15,7 +15,7 @@ import {
   validateMinaKalendrar,
 } from "../lib/kalendrar.js";
 import { KATEGORIFALT } from "../lib/katalog.js";
-import { bandIVecka, datumOmfang, isoVecka, kalenderfonster, perDay, traffar, valjDag, valjIntervall, valjVecka } from "../lib/calendar.js";
+import { bandIVecka, datumOmfang, isoVecka, kalenderfonster, perDay, reserveradeFiler, traffar, valjDag, valjIntervall, valjVecka } from "../lib/calendar.js";
 
 /*
  * 0.36.0 (#179 F0 och F1). Datakontraktet för kalendrarna och de delar av månadsvyn som är logik. Regelproven ligger i
@@ -146,6 +146,30 @@ describe("månadsvyns logik (F1)", () => {
       ["b", 1, 6, true, false, 1],
       ["c", 4, 1, true, true, 0],
     ]);
+  });
+
+  it("⛔ reserverar band-plats per dag och inte per vecka (0.105.1)", () => {
+    const vecka = ["2026-10-05", "2026-10-06", "2026-10-07", "2026-10-08", "2026-10-09", "2026-10-10", "2026-10-11"];
+    // Ett enda heldagsband på fredagen: bara fredagen reserverar plats. Förut fick alla sju dagar en fils höjd.
+    expect(reserveradeFiler(bandIVecka(vecka, [{ id: "c", date: "2026-10-09", allDay: true, title: "C" }]))).toEqual([0, 0, 0, 0, 1, 0, 0]);
+    // Två band som överlappar: A täcker tisdag till torsdag (fil 0), B onsdag till lördag (fil 1). Dagen reserverar filen längst ned
+    // av de band som täcker den, och en dag som bara B täcker reserverar båda filerna (B ligger i rad två).
+    const tva = bandIVecka(vecka, [
+      { id: "a", date: "2026-10-06", endDate: "2026-10-08", title: "A" },
+      { id: "b", date: "2026-10-07", endDate: "2026-10-10", title: "B" },
+    ]);
+    expect(tva.map((b) => [b.entry.id, b.fil])).toEqual([["a", 0], ["b", 1]]);
+    expect(reserveradeFiler(tva)).toEqual([0, 1, 2, 2, 2, 2, 0]);
+    // Inga band alls: sju nollor och inte en tom lista (en tom lista går inte att skilja från "ostält").
+    expect(reserveradeFiler([])).toEqual([0, 0, 0, 0, 0, 0, 0]);
+  });
+
+  it("⛔ bara en ruta som ett band täcker får plats för bandet under siffran (0.105.1)", () => {
+    kal();
+    // Semestern 14-16 oktober är ett heldagsband. Rutorna den täcker reserverar plats, grannarna den 12, 13, 17 och 18 gör det inte.
+    const plats = (/** @type {string} */ d) => document.querySelector(`[data-cal-day="${d}"] [data-bandplats]`);
+    for (const d of ["2026-10-14", "2026-10-15", "2026-10-16"]) expect(plats(d), d).not.toBeNull();
+    for (const d of ["2026-10-12", "2026-10-13", "2026-10-17", "2026-10-18"]) expect(plats(d), d).toBeNull();
   });
 
   it("väljer, veckar och drar som SS", () => {

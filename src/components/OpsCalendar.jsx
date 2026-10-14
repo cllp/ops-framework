@@ -26,6 +26,7 @@ import {
   franNyckel,
   bandIVecka,
   arBand,
+  reserveradeFiler,
   isoVecka,
   datumOmfang,
   valjDag,
@@ -1094,6 +1095,25 @@ const BANDHOJD = 20;
 const BANDLUFT = 2;
 
 /**
+ * Höjden i px som en dagsruta reserverar under siffran för sina `filer` band-filer, 0 för en ruta utan band (0.105.1).
+ * @param {number} filer @returns {number}
+ */
+function bandplats(filer) {
+  return filer > 0 ? filer * BANDHOJD + (filer - 1) * BANDLUFT + 4 : 0;
+}
+
+/**
+ * Hur långt in från rutans kant ett bands rundade ände börjar, i px: rutans kant (1) och dess luft (`sm:p-2`, 8), alltså samma
+ * kant som pillren inne i rutan. En ände som fortsätter i nästa eller förra veckan står 1 px in, precis innanför rutans kant.
+ *
+ * ⛔ ETT BAND LIGGER INNANFÖR RUTAN, INTE ÖVER DESS KANT (0.105.1, CP 2026-10-14: "Test går ut över rutans högra kant"). Bandet ritas
+ * som ett överlägg över hela veckoraden och fyllde förut kolumnens hela bredd: ett band på en enda dag täckte rutans kant på båda
+ * sidor och såg ut att rinna ut ur rutan, där pillren på dagarna bredvid står 9 px in.
+ */
+const BANDKANT_AVSLUT = 9;
+const BANDKANT_FORTSATTER = 1;
+
+/**
  * Banden över en veckorad: flerdagsposter och heldag (SS `MonthGrid.jsx:186-294`).
  *
  * ⛔ DEKOR FÖR DEN SOM SER, OCH `pointer-events-none`. Posten räknas i varje dagsrutas knappnamn och står i dagpanelen,
@@ -1120,7 +1140,7 @@ function Band({ bitar, veckonummer }) {
           <span
             key={`${b.entry.id}-${b.startCol}`}
             data-bandbit={b.entry.id}
-            style={{ gridColumn: `${b.startCol + 1} / span ${b.colSpan}`, gridRow: b.fil + 1 }}
+            style={{ gridColumn: `${b.startCol + 1} / span ${b.colSpan}`, gridRow: b.fil + 1, marginLeft: b.borjar ? BANDKANT_AVSLUT : BANDKANT_FORTSATTER, marginRight: b.slutar ? BANDKANT_AVSLUT : BANDKANT_FORTSATTER }}
             className={cx(
               "flex min-w-0 items-center truncate px-1.5 text-liten text-ink",
               postklasser(b.entry).ton,
@@ -1812,16 +1832,19 @@ export function OpsCalendar({
                     {rows.map((row, i) => {
                       const nycklar = row.map((day) => (day === null ? null : dateKey(ar, month, day)));
                       const bitar = bandIVecka(nycklar, synligaPoster);
-                      const filer = bitar.reduce((m, b) => Math.max(m, b.fil + 1), 0);
-                      const bandhojd = filer > 0 ? filer * BANDHOJD + (filer - 1) * BANDLUFT + 4 : 0;
+                      // ⛔ PLATS PER DAG, inte per vecka (0.105.1): bara en dag som ett band täcker reserverar plats under siffran.
+                      const filerPerDag = reserveradeFiler(bitar);
                       const forsta = row.find((d) => d !== null);
                       const veckodagar = /** @type {string[]} */ (nycklar.filter(Boolean));
                       const helaVeckan = veckodagar.length > 0 && veckodagar.every((d) => chosen.includes(d));
+                      // ⛔ RADENS SPÅR ÄR MINST 80 PX OCH VÄXER MED RUTORNA (0.105.1, `sm:auto-rows`): golvet SS har som `min-h-20` på varje
+                      // ruta, flyttat hit så att en ruta vars innehåll är högre än proportionen kan göra raden högre i stället för att
+                      // rinna ut ur sig. Se `Dagruta`. Under 640 px har rutorna ingen minsta höjd (proportionen ensam).
                       return (
                         <div
                           key={i}
                           data-veckorad=""
-                          className={cx("relative grid gap-1 sm:gap-1.5 [--ops-bandtopp:1.75rem] sm:[--ops-bandtopp:2.25rem]", gridKlass)}
+                          className={cx("relative grid gap-1 sm:auto-rows-[minmax(5rem,auto)] sm:gap-1.5 [--ops-bandtopp:1.75rem] sm:[--ops-bandtopp:2.25rem]", gridKlass)}
                         >
                           {veckonummer ? (
                             <button
@@ -1858,7 +1881,7 @@ export function OpsCalendar({
                                 chosen={chosen.includes(dayKey)}
                                 forhand={!!svep && svep.has(dayKey)}
                                 sok={traffDagar ? (traffDagar.has(dayKey) ? "traff" : "miss") : ""}
-                                bandhojd={bandhojd}
+                                bandhojd={bandplats(filerPerDag[j])}
                                 pekare={pekareFor(dayKey)}
                                 dekor={dagdekor ? dagdekor(dayKey) : undefined}
                               />

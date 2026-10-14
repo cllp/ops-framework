@@ -475,6 +475,30 @@ export function bandIVecka(rad, entries) {
 }
 
 /**
+ * Hur många band-filer varje dag i veckan måste reservera plats för: filen längst ned av de band som täcker just den dagen, räknad
+ * uppifrån, alltså `fil + 1`. En dag som inget band täcker reserverar ingenting.
+ *
+ * ⛔ PER DAG OCH INTE PER VECKA (0.105.1, CP 2026-10-14). Förut lades veckans djupaste filer på varje ruta i raden. En vecka med ett
+ * enda heldagsband på torsdagen tryckte då ned etiketterna på måndagen, tisdagen och alla andra dagar som inget band låg över, och
+ * rutan har en fast höjd som etiketterna då rann ut ur. SS reserverar per rad (`MonthGrid.jsx:190-200`) och har samma fel; förebilden
+ * är ett golv och inte ett tak (regel 13). Platsen finns för att bandet ska ligga UNDER siffran på de dagar bandet ligger: där inget
+ * band ligger behövs den inte.
+ *
+ * ⛔ EN FIL SOM STÅR ENSAM PÅ EN LÅG DAG RESERVERAR OCKSÅ FILERNA OVANFÖR: bandet ligger i sin fils rad, och raderna ovanför står tomma
+ * på just den dagen men finns kvar, annars hamnar bandet på siffran.
+ *
+ * @param {Bandbit[]} bitar Veckans band, ur `bandIVecka`.
+ * @returns {number[]} Sju tal, ett per kolumn, 0 när inget band täcker dagen.
+ */
+export function reserveradeFiler(bitar) {
+  const filer = [0, 0, 0, 0, 0, 0, 0];
+  for (const b of bitar) {
+    for (let kol = b.startCol; kol < b.startCol + b.colSpan && kol < filer.length; kol += 1) filer[kol] = Math.max(filer[kol], b.fil + 1);
+  }
+  return filer;
+}
+
+/**
  * Om en post är ett band (flerdag eller heldag) och därför inte ett märke i rutan.
  * @param {CalendarEntry} e @returns {boolean}
  */
