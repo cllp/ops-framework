@@ -2624,7 +2624,7 @@ En modul utan egna fält utelämnar `installningar` eller skriver `[]`. Pinnen f
   inställningar. **`medKarna(ids, moduler)`** är läsvägen: gruppens `moduler` med de kärnmoduler som saknas sist. Hubben, arket,
   huvudmenyn, tilläggen, navigationen, hjälpen och typerna läser genom den, så en grupp som sparats utan kärnan får tillbaka den
   när den läses, och nästa sparning skriver den med. **`arKarna(m)`** och **`karnmoduler(moduler)`** svarar på frågan för en modul
-  och för registret. Meddelanden är tänkt som kärna: appen sätter `karna: true` på sitt manifest.
+  och för registret. Hur många moduler som helst kan vara kärna. Meddelanden och Inkorgen är tänkta som kärna (CP 2026-10-14): appen sätter `karna: true` på deras manifest.
 
 **Gamla adresser.** Bokmärken och länkar i Inkorgen pekar på adresser som fanns före flytten. Appen skriver en lista, och
 **`byggOmdirigeringar`** validerar den vid uppstart:

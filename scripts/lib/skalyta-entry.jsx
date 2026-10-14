@@ -1627,13 +1627,14 @@ function ApparArkScen() {
 function KarnaScen() {
   const bygg = Ops.defineModule;
   if (!bygg || !Ops.OpsGruppHubb) return <p data-saknas="defineModule">defineModule saknas</p>;
-  const ikoner = { ekonomi: <Wallet size={24} />, bibliotek: <FileText size={24} />, meddelanden: <Inbox size={24} />, kontakter: <LayoutGrid size={24} /> };
-  const moduler = Object.entries({ ekonomi: "Ekonomi", bibliotek: "Bibliotek", meddelanden: "Meddelanden", kontakter: "Kontakter" }).map(([id, etikett]) => {
+  // Två kärnmoduler: Meddelanden och Inkorgen (CP 2026-10-14: Inkorgen är också inbyggd).
+  const ikoner = { ekonomi: <Wallet size={24} />, bibliotek: <FileText size={24} />, meddelanden: <Inbox size={24} />, inkorg: <Bell size={24} />, kontakter: <LayoutGrid size={24} /> };
+  const moduler = Object.entries({ ekonomi: "Ekonomi", bibliotek: "Bibliotek", meddelanden: "Meddelanden", inkorg: "Inkorg", kontakter: "Kontakter" }).map(([id, etikett]) => {
     const ikon = ikoner[id];
     let m;
     try {
       // En äldre version känner inte `karna` och kastar på fältet. Då byggs modulen utan, och provet blir rött på rätt sak.
-      m = bygg({ id, namn: { sv: etikett, en: etikett }, nav: [], routes: [], samlingar: [], kallor: {}, skapar: [], hubb: { ikon, rutt: `/${id}`, startsida: "start", delar: [{ id: "start", namn: { sv: "Start", en: "Start" }, ikon, rutt: `/${id}/start` }] }, ...(id === "meddelanden" ? { karna: true } : {}) });
+      m = bygg({ id, namn: { sv: etikett, en: etikett }, nav: [], routes: [], samlingar: [], kallor: {}, skapar: [], hubb: { ikon, rutt: `/${id}`, startsida: "start", delar: [{ id: "start", namn: { sv: "Start", en: "Start" }, ikon, rutt: `/${id}/start` }] }, ...(id === "meddelanden" || id === "inkorg" ? { karna: true } : {}) });
     } catch {
       m = bygg({ id, namn: { sv: etikett, en: etikett }, nav: [], routes: [], samlingar: [], kallor: {}, skapar: [], hubb: { ikon, rutt: `/${id}`, startsida: "start", delar: [{ id: "start", namn: { sv: "Start", en: "Start" }, ikon, rutt: `/${id}/start` }] } });
     }

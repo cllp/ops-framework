@@ -66,15 +66,15 @@ export async function karnan(v) {
       }));
       v.matt.push(`${namn}: kort ${JSON.stringify(m.kort)}, att installera ${JSON.stringify(m.valbara)}`);
       v.krav(m.kort.length >= 3, `${namn}: ${m.kort.length} kort i hubben, väntat minst 3. Golv.`);
-      v.krav(m.kort.includes("/meddelanden"), `${namn}: hubben ritar inte Meddelanden fast den är kärna (${JSON.stringify(m.kort)}).`);
-      v.krav(m.valbara.length >= 1 && !m.valbara.includes("meddelanden"), `${namn}: listan att installera är ${JSON.stringify(m.valbara)}, väntat Kontakter och inte Meddelanden.`);
+      v.krav(m.kort.includes("/meddelanden") && m.kort.includes("/inkorg"), `${namn}: hubben ritar inte båda kärnmodulerna, Meddelanden och Inkorgen (${JSON.stringify(m.kort)}).`);
+      v.krav(m.valbara.length >= 1 && !m.valbara.includes("meddelanden") && !m.valbara.includes("inkorg"), `${namn}: listan att installera är ${JSON.stringify(m.valbara)}, väntat Kontakter och ingen kärnmodul.`);
       await bild(v, page, `karna-hubb-${vp.width}.png`);
       if (vp.width < 768) {
         await page.locator("[data-ops-bottenrad]").getByRole("button", { name: "Appar" }).click();
         await page.waitForSelector("[data-appar-ark]");
         const ark = await page.evaluate(() => [...document.querySelectorAll("[data-appar-ark] [data-ark-id]")].map((el) => el.getAttribute("data-ark-id")));
         v.matt.push(`${namn}: arket ${JSON.stringify(ark)}`);
-        v.krav(ark.length >= 3 && ark.includes("meddelanden"), `${namn}: arket är ${JSON.stringify(ark)}, väntat minst tre appar med Meddelanden.`);
+        v.krav(ark.length >= 4 && ark.includes("meddelanden") && ark.includes("inkorg"), `${namn}: arket är ${JSON.stringify(ark)}, väntat minst fyra appar med Meddelanden och Inkorgen.`);
         await bild(v, page, `karna-ark-${vp.width}.png`);
       }
     });

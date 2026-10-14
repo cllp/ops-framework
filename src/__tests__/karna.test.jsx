@@ -68,6 +68,29 @@ describe("manifestet", () => {
   });
 });
 
+describe("två kärnmoduler (CP: Inkorgen är också inbyggd)", () => {
+  const INKORG = modul("inkorg", "Inkorg", { karna: true });
+  const TVA = [EKONOMI, MEDDELANDEN, INKORG, RESOR];
+  const UTAN_BADA = { ...UTAN, moduler: ["resor"], huvudmeny: [] };
+  it("⛔ båda läggs tillbaka i registrets ordning, och ingen av dem går att installera eller välja", async () => {
+    expect(karnmoduler(TVA)).toEqual(["meddelanden", "inkorg"]);
+    expect(medKarna(["resor"], TVA)).toEqual(["resor", "meddelanden", "inkorg"]);
+    expect(medKarna(["inkorg", "resor"], TVA)).toEqual(["inkorg", "resor", "meddelanden"]);
+    expect(hubbForGrupp({ grupp: UTAN_BADA, moduler: TVA }).kort.map((m) => m.id)).toEqual(["resor", "meddelanden", "inkorg"]);
+    render(<OpsGruppHubb grupp={UTAN_BADA} moduler={TVA} installera={{ href: "/installera" }} />);
+    expect([...document.querySelectorAll("[data-hubb-valbar]")].map((el) => el.getAttribute("data-hubb-valbar"))).toEqual(["ekonomi"]);
+  });
+  it("⛔ Redigera grupp ritar ingen av dem och sparar båda", async () => {
+    const onSpara = vi.fn(async () => {});
+    render(<OpsGruppFormular formId="f" grupp={UTAN_BADA} onSpara={onSpara} moduler={{ valbara: valbaraModuler(TVA), agare: true }} />);
+    const val = /** @type {HTMLElement} */ (document.querySelector("[data-gruppmoduler]"));
+    expect([...val.querySelectorAll("[data-modul]")].map((el) => el.getAttribute("data-modul"))).toEqual(["ekonomi", "resor"]);
+    fireEvent.submit(/** @type {HTMLFormElement} */ (document.querySelector("form#f")));
+    await waitFor(() => expect(onSpara).toHaveBeenCalled());
+    expect(/** @type {any} */ (onSpara.mock.calls[0])[0].grupp.moduler).toEqual(["resor", "meddelanden", "inkorg"]);
+  });
+});
+
 describe("läsvägen ger tillbaka kärnan", () => {
   it("⛔ hubben, arket och huvudmenyn ritar Meddelanden fast den sparade listan saknar den", () => {
     expect(hubbForGrupp({ grupp: UTAN, moduler: ALLA }).kort.map((m) => m.id)).toEqual(["ekonomi", "meddelanden"]);
