@@ -65,6 +65,15 @@ att namnet nämner långtrycket: röd mot 0.103.0:s knapp ("mittknappen ritar et
 `docs/jamforelser/0.104.0/ramverk-mikrofon-390.png` och `ramverk-mikrofon-ljus-390.png`. `mikrofon-montage.mjs` skriver nu sina
 bilder under versionen som byggs.
 
+### Rättat: chattens röst-ord följer chattens språk
+
+I en chatt på engelska stod det synliga ordet "Done" på Klar, men namnet som lästes upp var det svenska "Klar, skicka det du sagt"
+(granskningen av PR 384, MÅSTE 1). Chattens röst-ord står nu i `ORD_MEDDELANDEN_TAL` på båda språken: mikrofonens namn ("Dictate"),
+Stoppa agenten, Klar ("Done, send what you said"), statusraderna och utskriftsfelen, med två nya nycklar `talIngenUtskrift` och
+`talIngetHordes` i `Meddelandetexter`. `texterPa` väljer dem på chattens språk, och appens egna `texter` vinner som förut. Ytan i
+skrivfältet ritas också på chattens språk när appen ger `sprak` utan `OpsSprakProvider`. Chattens övriga texter är fortfarande bara
+svenska: cllp/ops-framework#385. Prov i `chatt-talsprak.test.jsx`: 5 av 6 röda mot koden före (svenskan grön i båda), 6 av 6 gröna med.
+
 ### Ändrat: röstinmatningen har ett hem
 
 Talet bodde inbyggt i chattens skrivfält (`OpsMeddelanden.jsx`). Det är utbrutet till `OpsRostinmatning.jsx`

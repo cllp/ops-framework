@@ -1,5 +1,6 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { useOpsSprak } from "./OpsSprak.jsx";
+import { OpsSprakProvider, useOpsSprak } from "./OpsSprak.jsx";
+import { ordet } from "../lib/ord.js";
 import { cx } from "../lib/cx.js";
 import { formatDate, formatTime, formatRelativeDate } from "../lib/format.js";
 import { KOMMENTARBILAGA_TYPER, MAX_KOMMENTARBILAGA, bilagaUrDokument, kommentarbilagaFel } from "../lib/handelsemodell.js";
@@ -178,6 +179,8 @@ import { AgentIkon, AndraIkon, BildIkon, FastIkon, FilIkon, KameraIkon, MappIkon
  * @property {string} [transkriptionFel] Förval "Det inspelade kunde inte skrivas ut.".
  * @property {string} [talSkickaFel] (0.103.0) När det sagda inte gick att skicka. Förval "Det du sa kunde inte skickas.".
  * @property {string} [talTextFel] (0.103.0) När taligenkänningen föll medan man pratar. Förval "Texten kan inte visas just nu. Det du säger spelas in ändå och skrivs ut när du trycker Klar.".
+ * @property {string} [talIngenUtskrift] (0.104.0) Tillägg till `transkriptionFel` när appen inte gav `onTranscribe`. Förval "Ingen utskrift finns.".
+ * @property {string} [talIngetHordes] (0.104.0) Tillägg till `transkriptionFel` när utskriften blev tom. Förval "Inget hördes i det inspelade.".
  * @property {string} [postkortFel] (chattens nattskiva) När appens uppslag av en länk föll. Förval "Länken kunde inte slås upp.".
  * @property {string} [agentTanker] (#273) Förval "Agenten tänker".
  * @property {string} [agentSkriver] (#273) Förval "Agenten skriver".
@@ -203,6 +206,37 @@ import { AgentIkon, AndraIkon, BildIkon, FastIkon, FilIkon, KameraIkon, MappIkon
  * @property {string} [lankarUrLaddade]
  * @property {string} [aldreLankar]
  */
+
+/**
+ * ⛔ CHATTENS RÖST-ORD PÅ BÅDA SPRÅKEN (0.104.0, granskningen av PR 384, MÅSTE 1). När TALK:s yta fick engelska ord blev det synliga
+ * ordet på Klar "Done" i en engelsk chatt, medan namnet som lästes upp var det svenska "Klar, skicka det du sagt". Det synliga
+ * ordet och namnet ska stämma, så chattens röst-ord står här på båda språken, och `texterPa` väljer dem på chattens språk. Den
+ * svenska formen står bara här: `TEXTER` läser den härifrån (regel 2). Appens egna `texter` vinner som förut.
+ *
+ * Resten av chattens texter är fortfarande bara svenska: det är ett eget arbete (cllp/ops-framework#385).
+ * @type {import("../lib/ord.js").Ordbok}
+ */
+const ORD_MEDDELANDEN_TAL = {
+  prataIn: { sv: "Prata in", en: "Dictate" },
+  stoppaAgenten: { sv: "Stoppa agenten", en: "Stop the agent" },
+  talKlar: { sv: "Klar, skicka det du sagt", en: "Done, send what you said" },
+  talSkickar: { sv: "Skickar…", en: "Sending…" },
+  skriverUt: { sv: "Skriver ut det inspelade…", en: "Transcribing the recording…" },
+  transkriptionFel: { sv: "Det inspelade kunde inte skrivas ut.", en: "The recording could not be transcribed." },
+  talIngenUtskrift: { sv: "Ingen utskrift finns.", en: "No transcription is available." },
+  talIngetHordes: { sv: "Inget hördes i det inspelade.", en: "Nothing was heard in the recording." },
+  talSkickaFel: { sv: "Det du sa kunde inte skickas.", en: "What you said could not be sent." },
+  talTextFel: { sv: "Texten kan inte visas just nu. Det du säger spelas in ändå och skrivs ut när du trycker Klar.", en: "The text can't be shown right now. What you say is still recorded and transcribed when you press Done." },
+};
+
+/**
+ * Röst-orden på ett språk. Ett språk utan text ger svenska, som `ordet`.
+ * @param {string} sprak
+ * @returns {Pick<Required<Meddelandetexter>, "prataIn" | "stoppaAgenten" | "talKlar" | "talSkickar" | "skriverUt" | "transkriptionFel" | "talIngenUtskrift" | "talIngetHordes" | "talSkickaFel" | "talTextFel">}
+ */
+function talordPa(sprak) {
+  return /** @type {any} */ (Object.fromEntries(Object.keys(ORD_MEDDELANDEN_TAL).map((k) => [k, ordet(ORD_MEDDELANDEN_TAL, k, sprak)])));
+}
 
 /** @type {Required<Meddelandetexter>} */
 const TEXTER = {
@@ -277,14 +311,7 @@ const TEXTER = {
   taBortBilaga: "Ta bort bilagan",
   enBilaga: "Ett meddelande bär en bilaga. Välj en fil.",
   bilagaTrasig: "Bilagan går inte att visa.",
-  prataIn: "Prata in",
-  stoppaAgenten: "Stoppa agenten",
-  talKlar: "Klar, skicka det du sagt",
-  talSkickar: "Skickar…",
-  skriverUt: "Skriver ut det inspelade…",
-  transkriptionFel: "Det inspelade kunde inte skrivas ut.",
-  talSkickaFel: "Det du sa kunde inte skickas.",
-  talTextFel: "Texten kan inte visas just nu. Det du säger spelas in ändå och skrivs ut när du trycker Klar.",
+  ...talordPa("sv"),
   postkortFel: "Länken kunde inte slås upp.",
   fast: "Fäst",
   lossa: "Lossa",
@@ -551,7 +578,7 @@ export function OpsMeddelandeLank({ href, olasta, olastaFler = false, etikett = 
  * @param {Partial<typeof TEXTER> & { reaktionsnamn?: Record<string, string> }} texter
  */
 function texterPa(sprak, texter) {
-  return { ...TEXTER, ...texter, reaktionsnamn: { ...reaktionsnamnPa(sprak), ...texter.reaktionsnamn } };
+  return { ...TEXTER, ...talordPa(sprak), ...texter, reaktionsnamn: { ...reaktionsnamnPa(sprak), ...texter.reaktionsnamn } };
 }
 
 /**
@@ -922,6 +949,7 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
             groupId={groupId}
             medlemmar={medlemmar}
             texter={t}
+            sprak={sprak}
             onOppnat={(s, text) => {
               // Ett samtal i en grupp som inte längre visas når aldrig hit: `NyttSamtal` monteras om per grupp (`key`), och en
               // avmonterad gör ingenting med svaret (`monterad`). En egen gruppkontroll här var grön utan sig själv i varje prov
@@ -1049,9 +1077,9 @@ function OppnaGruppchatt({ kalla, uid, groupId, texter: t, onOppnad }) {
  *
  * ⛔ DET MAN SKRIVIT INNAN VALET FÖLJER MED, och ett Skicka utan mottagare säger vad som saknas i stället för att inte göra något.
  *
- * @param {{ kalla: ReturnType<typeof import("../data/samtalskalla.js").createSamtalskalla>, uid: string, groupId: string, medlemmar: ReadonlyArray<Medlemsrad>, texter: Required<Meddelandetexter>, gruppMarke: import("react").ReactNode, onOppnat: (samtal: import("../lib/samtal.js").Samtal, text: string) => void }} props
+ * @param {{ kalla: ReturnType<typeof import("../data/samtalskalla.js").createSamtalskalla>, uid: string, groupId: string, medlemmar: ReadonlyArray<Medlemsrad>, texter: Required<Meddelandetexter>, sprak: string, gruppMarke: import("react").ReactNode, onOppnat: (samtal: import("../lib/samtal.js").Samtal, text: string) => void }} props
  */
-function NyttSamtal({ kalla, uid, groupId, medlemmar, texter: t, gruppMarke, onOppnat }) {
+function NyttSamtal({ kalla, uid, groupId, medlemmar, texter: t, sprak, gruppMarke, onOppnat }) {
   const [mottagare, setMottagare] = useState(/** @type {import("../lib/samtal.js").Mottagare | null} */ (null));
   const [text, setTextState] = useState("");
   // ⛔ Texten läses ur en ref när samtalet öppnats, inte ur stängningen: det man skrev MEDAN `oppnaPrivat` pågick följer med.
@@ -1133,6 +1161,7 @@ function NyttSamtal({ kalla, uid, groupId, medlemmar, texter: t, gruppMarke, onO
         setText={setText}
         skickar={oppnar}
         texter={t}
+        sprak={sprak}
         onSkicka={() => {
           if (!mottagare) setFel({ falt: "till", text: t.valjMottagare });
         }}
@@ -1181,9 +1210,9 @@ const MAX_FORSLAG = 6;
  * `onSkicka` får `{ text }` när det är det sagda som skickas. Den ska då lösa när meddelandet är skickat och avvisa när det inte gick,
  * så att ytan kan säga det; utan `text` skickar den fältets text som förut.
  *
- * @param {{ text: string, setText: (t: string) => void, skickar: boolean, onSkicka: (extra?: { namner?: string[], text?: string }) => void | Promise<void>, texter: Required<Meddelandetexter>, fokus?: boolean, omnamnande?: Omnamnande | null, fokusNyckel?: string, onEscape?: () => void, platstext?: string, onTranscribe?: (blob: Blob) => Promise<string>, inspelare?: import("../lib/talk.js").Inspelare, igenkanning?: import("../lib/talk.js").Igenkanning | boolean, onBifoga?: (filer: File[], slag: "bild" | "foto" | "fil") => void, harBilaga?: boolean, kamera?: "okand" | "ja" | "nej", agentArbetar?: boolean, onStoppaAgent?: () => void }} props
+ * @param {{ text: string, setText: (t: string) => void, skickar: boolean, onSkicka: (extra?: { namner?: string[], text?: string }) => void | Promise<void>, texter: Required<Meddelandetexter>, sprak: string, fokus?: boolean, omnamnande?: Omnamnande | null, fokusNyckel?: string, onEscape?: () => void, platstext?: string, onTranscribe?: (blob: Blob) => Promise<string>, inspelare?: import("../lib/talk.js").Inspelare, igenkanning?: import("../lib/talk.js").Igenkanning | boolean, onBifoga?: (filer: File[], slag: "bild" | "foto" | "fil") => void, harBilaga?: boolean, kamera?: "okand" | "ja" | "nej", agentArbetar?: boolean, onStoppaAgent?: () => void }} props
  */
-function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, fokus = false, omnamnande = null, fokusNyckel, onEscape, platstext, onTranscribe, inspelare, igenkanning, onBifoga, harBilaga = false, kamera = "nej", agentArbetar = false, onStoppaAgent }) {
+function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, sprak, fokus = false, omnamnande = null, fokusNyckel, onEscape, platstext, onTranscribe, inspelare, igenkanning, onBifoga, harBilaga = false, kamera = "nej", agentArbetar = false, onStoppaAgent }) {
   const ruta = useRef(/** @type {HTMLTextAreaElement | null} */ (null));
   const listId = useId();
   const valda = useRef(/** @type {Map<string, string>} */ (new Map()));
@@ -1276,8 +1305,11 @@ function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, fokus = false,
    * `data-rostlage` säger läget för proven och skalytan: "spelar", "skickar", "skriver" (appens utskrift) och "fel".
    */
   if (rost.yta) {
+    // ⛔ Ytan ritas på chattens språk, inte bara appens: annars blir det synliga ordet och namnet olika när appen ger `sprak` (0.104.0).
     return (
-      <Rostyta rost={rost} klarEtikett={t.talKlar} ytaRef={rostyta} ram="chatt" />
+      <OpsSprakProvider sprak={sprak}>
+        <Rostyta rost={rost} klarEtikett={t.talKlar} ytaRef={rostyta} ram="chatt" />
+      </OpsSprakProvider>
     );
   }
   return (
@@ -1394,15 +1426,15 @@ function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, fokus = false,
 
 /**
  * Chattens texter i röstinmatningens form (`useRostinmatning`, 0.104.0). Chatten SKICKAR det sagda, så det är chattens ord som står
- * i ytan. Tilläggen efter `transkriptionFel` är oförändrade sedan 0.103.0.
+ * i ytan, på chattens språk (`ORD_MEDDELANDEN_TAL`).
  * @param {Required<Meddelandetexter>} t
  * @returns {import("./OpsRostinmatning.jsx").Rosttexter}
  */
 function rosttexter(t) {
   return {
     transkriptionFel: t.transkriptionFel,
-    ingenUtskrift: "Ingen utskrift finns.",
-    ingetHordes: "Inget hördes i det inspelade.",
+    ingenUtskrift: t.talIngenUtskrift,
+    ingetHordes: t.talIngetHordes,
     lamnaFel: t.talSkickaFel,
     textFel: t.talTextFel,
     skriverUt: t.skriverUt,
@@ -1988,6 +2020,7 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
         skickar={skickar}
         onSkicka={skicka}
         texter={t}
+        sprak={sprak}
         fokus={utkast !== undefined}
         omnamnande={omnamnandeFor(kalla, samtal.slag, medlemmar, uid, namnFor)}
         fokusNyckel={svarPa?.id}
@@ -2588,6 +2621,7 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
         skickar={skickar}
         onSkicka={skicka}
         texter={t}
+        sprak={sprak}
         fokus
         omnamnande={omnamnandeFor(kalla, samtal.slag, medlemmar, uid, namnFor)}
         platstext={t.skrivTrad}
