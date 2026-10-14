@@ -123,14 +123,20 @@ describe("OpsForslag", () => {
 const MEDLEMMAR = [
   { userId: "anna", namn: "Anna Ek", typ: "person", status: "aktiv" },
   { userId: "ops", namn: "Ops-agenten", typ: "agent", status: "aktiv" },
+  { userId: "bo", namn: "Bo Ek", typ: "person", status: "aktiv" },
 ];
 
-/** Chatten med agenten: personens fråga och agentens svar med ett förslag, och en persons meddelande med samma fält. */
+/**
+ * Chatten med agenten: personens fråga och agentens svar med ett förslag, och två persons meddelanden med samma fält. ⛔ Det ena är
+ * skrivet av en ANNAN person än den som tittar: den som tittar har sina egna meddelanden filtrerade redan av `egen`, så bara det andra
+ * mäter villkoret att knapparna står under en agents svar.
+ */
 async function chatten(/** @type {Record<string, any>} */ props = {}) {
   const kalla = createMemorySource({});
   const s = /** @type {any} */ (createSamtalskalla({ kalla }));
   const a = await s.oppnaPrivat({ groupId: "g", uid: "anna", annan: "ops", slag: "agent" });
   await kalla.create(`samtal/${a.id}/meddelanden`, { id: "m1", text: "ja gör det", av: "anna", tid: 1000, forslag: [{ id: "falsk", etikett: "Personens falska förslag" }] });
+  await kalla.create(`samtal/${a.id}/meddelanden`, { id: "m1-bo", text: "gör det", av: "bo", tid: 1500, forslag: [{ id: "bos", etikett: "Bos falska förslag" }] });
   await kalla.create(`samtal/${a.id}/meddelanden`, { id: "m1-agent", text: "Jag kan skapa ärendet åt dig.", av: "ops", tid: 2000, forslag: [...FORSLAG, { id: "trasig" }] });
   render(<OpsMeddelanden kalla={s} uid="anna" groupId="g" gruppNamn="G" medlemmar={MEDLEMMAR} valt={a.id} {...props} />);
   await within(await screen.findByRole("log")).findByText("Jag kan skapa ärendet åt dig.");
@@ -147,6 +153,8 @@ describe("förslagen i chatten", () => {
       expect(screen.getByText("Fakturan från mars har inte kommit.")).toBeTruthy();
       // ⛔ En persons meddelande med fältet `forslag` får inga knappar: ett förslag lägger agenten fram.
       expect(screen.queryByRole("button", { name: "Personens falska förslag" })).toBeNull();
+      expect(screen.getByText("gör det")).toBeTruthy();
+      expect(screen.queryByRole("button", { name: "Bos falska förslag" })).toBeNull();
       // Det trasiga förslaget hoppades över och rapporterades.
       expect(konsol.mock.calls.map((c) => c.map(String).join(" ")).join("\n")).toContain("förslag i meddelandet hoppades över");
       fireEvent.click(knapp);

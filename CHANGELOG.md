@@ -83,9 +83,14 @@ Det Svara gjorde som inget annat gör: en röstdialog med agenten utan att lämn
   "utan agent som förut" och "inget hört som förut", som mäter att det som inte ändrats är orört.
 - `src/__tests__/forslag.test.jsx` (10 prov): knappen och förhandsvisningen, ett tryck ett anrop, ett nej, ett fel som går att försöka
   igen, fel form från appen, stängt API, data ur databasen, knapparna under agentens svar men inte under en persons, inga knappar utan
-  `onForslag`, och `nyttUtkast`. Mot 0.104.0:s komponenter och skal: 7 röda, 3 gröna (stängt API, data ur databasen
-  och "inga knappar utan `onForslag`", som bara mäter de nya filerna och därför inte kan vara röda mot det gamla skalet). Med spärren i `OpsForslag`
-  bortkopplad: dubbelklicket och nejet röda. Med villkoret "bara agentens svar" bortkopplat i chatten: provet röd.
+  `onForslag`, och `nyttUtkast`. Mot 0.104.0:s `OpsAppShell`, `OpsMeddelanden` och `OpsTalk` (med 0.105.0:s `OpsForslag` och ordlista
+  kvar, eftersom komponenten hämtar sina ord ur `lib/talk.js`): 2 röda, 8 gröna. De två röda är chattens prov, knapparna under agentens
+  svar och `nyttUtkast`. De sju om `OpsForslag` och `forslagUrData` mäter bara de nya filerna och kan inte bli röda mot gammal kod, så de
+  mäts genom att koppla bort det de vaktar: utan spärren i `OpsForslag` är dubbelklicket och nejet röda, och utan `kontrolleraForslag`
+  är det stängda API:t rött. Med villkoret "bara agentens svar" bortkopplat i chatten är chattens prov rött. ⛔ Det var det inte i
+  första versionen av provet: "en persons meddelande" var skrivet av den som tittade, och dess knappar filtrerades redan bort som egna,
+  så villkoret mättes inte. Provet har nu också ett meddelande från en annan person. Proven om fel form från appen och "inga
+  knappar utan `onForslag`" är inte mätta röda.
 - `src/__tests__/talk-samtal.test.jsx` och `src/__tests__/talk-svara-andra-gangen.test.jsx` är borttagna med det de mätte.
   `talk-kvitto.test.jsx` (fokus på Stäng i stället för Svara) och `talk-tomt-ljud.test.jsx` (andra omgången startas med mikrofonen i
   stället för med Svara) är ändrade och behöver en annan granskare (regel 9).
