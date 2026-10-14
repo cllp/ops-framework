@@ -319,3 +319,19 @@ describe("OpsInspelning visar texten", () => {
     expect(container.querySelector("[data-talk-text]")).toBe(null);
   });
 });
+
+describe("OpsInspelning klarEtikett (0.103.0)", () => {
+  const bas = { lage: /** @type {const} */ ("lyssnar"), niva: () => 0, sekunder: 2, tak: 120, framsteg: null, kanIgen: false, onKlar: () => {}, onAvbryt: () => {}, onIgen: () => {} };
+  it("förvalet är det TALK alltid hetat, och chattens namn byter bara det som läses upp", () => {
+    const { unmount } = render(<OpsInspelning {...bas} />);
+    expect(screen.getByRole("button", { name: "Klar, spara inspelningen" }).textContent).toBe("Klar");
+    unmount();
+    render(<OpsInspelning {...bas} klarEtikett="Klar, skicka det du sagt" />);
+    expect(screen.getByRole("button", { name: "Klar, skicka det du sagt" }).textContent).toBe("Klar");
+  });
+  it("⛔ ett tomt namn kastar: en knapp utan namn går inte att hitta för den som lyssnar", () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(() => render(<OpsInspelning {...bas} klarEtikett=" " />)).toThrow(/klarEtikett/);
+    vi.restoreAllMocks();
+  });
+});

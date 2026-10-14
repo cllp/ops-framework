@@ -5,12 +5,17 @@ import { createMemorySource } from "../data/adapters.js";
 import { createSamtalskalla } from "../data/samtalskalla.js";
 
 /*
- * Text i chattens skrivfält medan man pratar (0.98.0). CP 2026-10-13, med en skärmbild av "Skriver ut det inspelade…" under skrivfältet:
- * "VI behöver ha samma snabba text utskrift även i chatten."
+ * Tal i chatten som i TALK (0.103.0). CP 2026-10-14, med en skärmbild av agentchatten där "Skriver ut det inspelade…" stod under
+ * skrivfältet: "Sedan funkar inte tal i meddelanden på samma sätt som TALK, det skall skrivas ut text i realtid och inte gå en omväg
+ * via textfältet."
  *
- * ⛔ HÄR MÄTS BETEENDE MED EN FEJKAD WEBBLÄSARE (samma `SpeechRecognition` som TALK:s prov): orden syns i fältet medan de sägs, den
- * slutliga texten ligger kvar när man stoppar utan att något skickas, det som stod i fältet före mikrofonen ligger kvar, och utan
- * igenkänning eller när den faller gäller den gamla vägen (inspelning och `onTranscribe`) oförändrad. Att igenkänningen är AV som förval
+ * ⛔ ÄNDRAT 0.103.0, HELA FILEN. Här mättes förut 0.98.0:s väg: orden skrevs in i skrivfältet medan de sades, fältet var skrivskyddat,
+ * och den som stoppade fick texten i fältet att rätta och skicka själv. Det är just den omvägen CP ville bort från. Nu mäts att
+ * texten står i TALK:s yta (`OpsInspelning`) i fältets plats medan man pratar, att Klar skickar den direkt i tråden utan att fältet rörs,
+ * att appens `onTranscribe` bara används när inget hördes och att dess resultat också skickas direkt, att ett fel står kvar med
+ * Försök igen, att Avbryt inte skickar något, och att det sagda i agentens samtal är ett vanligt meddelande.
+ *
+ * ⛔ HÄR MÄTS BETEENDE MED EN FEJKAD WEBBLÄSARE (samma `SpeechRecognition` som TALK:s prov). Att igenkänningen är AV som förval
  * mäts i chatt-skrivfalt.test.jsx och rörs inte här.
  */
 
@@ -30,8 +35,11 @@ function provinspelare() {
   };
 }
 
-/** En fejkad `SpeechRecognition`. Provet styr resultat, fel och slut. */
-function fejkadIgenkanning() {
+/**
+ * En fejkad `SpeechRecognition`. Provet styr resultat, fel och slut.
+ * @param {{ tystVidStopp?: boolean }} [val] `tystVidStopp`: webbläsaren säger aldrig `end` efter `stop()`, så att väntetiden tar slut.
+ */
+function fejkadIgenkanning(val = {}) {
   /** @type {any[]} */
   const instanser = [];
   class SR {
@@ -46,7 +54,7 @@ function fejkadIgenkanning() {
       this.startad = true;
     }
     stop() {
-      queueMicrotask(() => this.onend?.());
+      if (!val.tystVidStopp) queueMicrotask(() => this.onend?.());
     }
     abort() {}
   }
@@ -65,175 +73,218 @@ async function underlag() {
 }
 
 const ruta = () => /** @type {HTMLTextAreaElement} */ (screen.getByRole("textbox", { name: "Skriv ett meddelande" }));
+const yta = () => /** @type {HTMLElement} */ (document.querySelector("[data-rostyta]"));
+const klar = () => within(yta()).getByRole("button", { name: "Klar, skicka det du sagt" });
+/** Meddelandena i samtalet, i ordning. @param {any} kalla @param {string} id */
+const meddelanden = async (kalla, id) => (await kalla.list(`samtal/${id}/meddelanden`)).sort((/** @type {any} */ x, /** @type {any} */ y) => x.tid - y.tid);
 
-/** Renderar chatten med igenkänning påslagen och trycker på mikrofonen. Ger igenkännaren när den lyssnar. */
-async function borjaPrata(/** @type {{ igenkanning?: boolean, onTranscribe?: any, fore?: string }} */ val = {}) {
+/**
+ * Renderar chatten med igenkänning påslagen och trycker på mikrofonen. Ger igenkännaren när den lyssnar.
+ * @param {{ igenkanning?: boolean, onTranscribe?: any, fore?: string, tystVidStopp?: boolean }} [val]
+ */
+async function borjaPrata(val = {}) {
   const { kalla, s, a } = await underlag();
   const insp = provinspelare();
-  const f = fejkadIgenkanning();
+  const f = fejkadIgenkanning({ tystVidStopp: val.tystVidStopp });
   vi.stubGlobal("webkitSpeechRecognition", f.SR);
   const onTranscribe = val.onTranscribe ?? vi.fn(async () => "från servern");
-  render(<OpsMeddelanden kalla={s} uid="anna" groupId="g" gruppNamn="G" medlemmar={MEDLEMMAR} valt={a.id} onTranscribe={onTranscribe} inspelare={insp} igenkanning={val.igenkanning ?? true} />);
+  // Källan är fryst, så spionen sitter på en kopia med samma funktioner. Meddelandet når ändå den riktiga källan.
+  const skicka = vi.fn((/** @type {any[]} */ ...x) => s.skicka(...x));
+  const k = { ...s, skicka };
+  render(<OpsMeddelanden kalla={k} uid="anna" groupId="g" gruppNamn="G" medlemmar={MEDLEMMAR} valt={a.id} onTranscribe={onTranscribe} inspelare={insp} igenkanning={val.igenkanning ?? true} />);
   await within(await screen.findByRole("log")).findByText("Hej");
   if (val.fore !== undefined) fireEvent.change(ruta(), { target: { value: val.fore } });
   fireEvent.click(screen.getByRole("button", { name: "Prata in" }));
   await waitFor(() => expect(f.instanser[0]?.startad).toBe(true));
-  return { kalla, a, insp, f, onTranscribe, rec: f.instanser[0] };
+  return { kalla, s: k, a, insp, f, onTranscribe, skicka, rec: f.instanser[0] };
 }
 
-describe("chattens mikrofon med text medan man pratar", () => {
-  it("⛔ orden syns i fältet medan de sägs, fältet är skrivskyddat och en polite status säger att det lyssnar", async () => {
+describe("chattens mikrofon som TALK", () => {
+  it("⛔ texten syns i TALK:s yta medan den sägs, i skrivfältets plats, och fältet är borta under tiden", async () => {
     try {
       const { f, rec } = await borjaPrata();
+      expect(yta()?.getAttribute("data-rostlage")).toBe("spelar");
+      expect(yta()?.hasAttribute("data-live")).toBe(true);
+      expect(yta().querySelector("[data-ops-inspelning]")).not.toBeNull();
+      expect(screen.queryByRole("textbox", { name: "Skriv ett meddelande" })).toBeNull();
       f.resultat(rec, [["boka rep", false]]);
-      expect(ruta().value).toBe("boka rep");
+      expect(yta().querySelector("[data-talk-text]")?.textContent).toBe("boka rep");
       f.resultat(rec, [["boka rep på torsdag", false]]);
-      expect(ruta().value).toBe("boka rep på torsdag");
-      expect(ruta().readOnly).toBe(true);
-      const knapp = screen.getByRole("button", { name: "Skriv ut det inspelade" });
-      expect(knapp.getAttribute("aria-pressed")).toBe("true");
-      const status = document.querySelector("[data-rostlage='spelar']");
-      expect(status?.getAttribute("role")).toBe("status");
-      expect(status?.textContent).toContain("Lyssnar");
+      expect(yta().querySelector("[data-talk-text]")?.textContent).toBe("boka rep på torsdag");
+      // TALK:s delar: prickarna, tiden, Avbryt och Klar.
+      expect(yta().querySelector("[data-talk-prickar]")).not.toBeNull();
+      expect(yta().querySelector("[data-inspelning-tid]")?.textContent).toContain("/ 2:00");
+      expect(within(yta()).getByRole("button", { name: "Avbryt" })).toBeTruthy();
+      expect(klar()).toBeTruthy();
+      // ⛔ Fokus i ytan, på Klar: mikrofonen som trycktes finns inte längre.
+      expect(document.activeElement).toBe(klar());
       expect(rec.lang).toBe("sv-SE");
     } finally {
       vi.unstubAllGlobals();
     }
   });
 
-  it("⛔ den slutliga texten ligger kvar efter stopp, fältet öppnas, och ingenting skickas eller transkriberas", async () => {
+  it("⛔ Klar skickar texten direkt i tråden, fältet rörs inte, och ingenting transkriberas", async () => {
     try {
-      const { kalla, a, f, rec, onTranscribe } = await borjaPrata();
+      const { kalla, a, f, rec, onTranscribe, skicka } = await borjaPrata();
       f.resultat(rec, [["boka rep på torsdag", true]]);
-      fireEvent.click(screen.getByRole("button", { name: "Skriv ut det inspelade" }));
-      await waitFor(() => expect(screen.queryByRole("button", { name: "Skriv ut det inspelade" })).toBeNull());
-      await waitFor(() => expect(ruta().value).toBe("boka rep på torsdag"));
-      expect(ruta().readOnly).toBe(false);
+      fireEvent.click(klar());
+      await waitFor(() => expect(skicka).toHaveBeenCalledTimes(1));
+      expect(skicka).toHaveBeenCalledWith(a.id, { text: "boka rep på torsdag", av: "anna" });
+      await waitFor(() => expect(yta()).toBeNull());
+      const alla = await meddelanden(kalla, a.id);
+      expect(alla.map((/** @type {any} */ m) => m.text)).toEqual(["Hej", "boka rep på torsdag"]);
+      expect(within(screen.getByRole("log")).getByText("boka rep på torsdag")).toBeTruthy();
       expect(onTranscribe).not.toHaveBeenCalled();
-      expect(await kalla.list(`samtal/${a.id}/meddelanden`)).toHaveLength(1);
-      expect(screen.getByRole("button", { name: "Skicka" })).toBeTruthy();
-      expect(document.querySelector("[data-rostlage]")).toBeNull();
-    } finally {
-      vi.unstubAllGlobals();
-    }
-  });
-
-  it("⛔ det som stod i fältet före mikrofonen ligger kvar och orden läggs efter", async () => {
-    try {
-      // Mikrofonen finns bara i ett fält utan innehåll, så det som kan stå där är blanksteg. Basen läses ändå ur fältet.
-      const { f, rec } = await borjaPrata({ fore: "  " });
-      f.resultat(rec, [["hej", false]]);
-      expect(ruta().value).toBe("  hej");
-      f.resultat(rec, [["hej alla", true]]);
-      fireEvent.click(screen.getByRole("button", { name: "Skriv ut det inspelade" }));
-      await waitFor(() => expect(ruta().value).toBe("  hej alla"));
-    } finally {
-      vi.unstubAllGlobals();
-    }
-  });
-
-  it("⛔ Avbryt kastar orden som hörts och lämnar fältet som det var", async () => {
-    try {
-      const { f, rec, onTranscribe } = await borjaPrata();
-      f.resultat(rec, [["boka rep", false]]);
-      expect(ruta().value).toBe("boka rep");
-      fireEvent.click(screen.getByRole("button", { name: "Avbryt inspelningen" }));
-      await waitFor(() => expect(ruta().value).toBe(""));
-      expect(onTranscribe).not.toHaveBeenCalled();
-    } finally {
-      vi.unstubAllGlobals();
-    }
-  });
-
-  it("⛔ en igenkänning som faller ger den gamla vägen: halva orden försvinner ur fältet och appens transkribering skriver ut", async () => {
-    try {
-      const { f, rec, onTranscribe } = await borjaPrata();
-      f.resultat(rec, [["boka re", false]]);
-      expect(ruta().value).toBe("boka re");
-      act(() => rec.onerror({ error: "network" }));
-      fireEvent.click(screen.getByRole("button", { name: "Skriv ut det inspelade" }));
-      await waitFor(() => expect(ruta().value).toBe("från servern"));
-      expect(onTranscribe).toHaveBeenCalledTimes(1);
-    } finally {
-      vi.unstubAllGlobals();
-    }
-  });
-
-  it("⛔ en igenkänning som faller och en transkribering som faller säger det, aldrig tyst", async () => {
-    try {
-      const { f, rec } = await borjaPrata({ onTranscribe: vi.fn().mockRejectedValue(new Error("Tjänsten svarade 503.")) });
-      f.resultat(rec, [["boka re", false]]);
-      act(() => rec.onerror({ error: "network" }));
-      fireEvent.click(screen.getByRole("button", { name: "Skriv ut det inspelade" }));
-      const fel = await screen.findByRole("alert");
-      expect(fel.textContent).toContain("Det inspelade kunde inte skrivas ut.");
-      expect(fel.textContent).toContain("Tjänsten svarade 503.");
-      // Ljudet finns kvar för Försök igen, och den halva texten ligger inte kvar i fältet som om den vore hel.
-      expect(within(fel).getByRole("button", { name: "Försök igen" })).toBeTruthy();
       expect(ruta().value).toBe("");
+      expect(document.activeElement).toBe(ruta());
     } finally {
       vi.unstubAllGlobals();
     }
   });
 
-  it("⛔ den halva meningen står aldrig kvar i fältet medan felet redan syns: fältet och felet ändras i samma rendering", async () => {
-    // Publiceringen av 0.99.0 föll om och om igen på raden `expect(ruta().value).toBe("")` i provet ovan, bara på CI. Orsaken var inte provet:
-    // fältet gick tillbaka till sin bas i en `useEffect`, och en passiv effekt körs EFTER att renderingen med felet är målad. Mellan de två
-    // stod felet och den halva meningen i DOM:en samtidigt (och på en telefon målades den bilden). Provet läste i den glipan när
-    // webbläsaren hann köra sin timer före React:s nästa uppgift, vilket en långsam maskin gör. Här mäts glipan direkt: en MutationObserver
-    // körs som mikrouppgift DIREKT efter en rendering, före varje timer och varje passiv effekt, så den ser exakt vad som målas först.
+  it("⛔ webbläsaren säger aldrig sitt sista ord: det som stod i ytan skickas, inte en utskrift av ljudet", async () => {
     try {
-      const { f, rec } = await borjaPrata({ onTranscribe: vi.fn().mockRejectedValue(new Error("Tjänsten svarade 503.")) });
-      f.resultat(rec, [["boka re", false]]);
-      expect(ruta().value).toBe("boka re");
-      /** @type {string[]} */
-      const sett = [];
-      const iakttagare = new MutationObserver(() => {
-        if (document.querySelector("[role='alert']")) sett.push(ruta().value);
-      });
-      iakttagare.observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true });
-      act(() => rec.onerror({ error: "network" }));
-      fireEvent.click(screen.getByRole("button", { name: "Skriv ut det inspelade" }));
-      await screen.findByRole("alert");
-      iakttagare.disconnect();
-      // Golv: iakttagaren såg felet minst en gång. Utan det vore provet grönt av att ingenting lästes.
-      expect(sett.length).toBeGreaterThan(0);
-      expect(sett).toEqual(sett.map(() => ""));
+      // Som Safari på iOS när `end` inte kommer inom väntetiden: igenkänningen lämnar ingen hel text, men ytan visade orden.
+      const { kalla, a, f, rec, onTranscribe } = await borjaPrata({ tystVidStopp: true });
+      f.resultat(rec, [["boka rep på torsdag", false]]);
+      fireEvent.click(klar());
+      await waitFor(async () => expect((await meddelanden(kalla, a.id)).map((/** @type {any} */ m) => m.text)).toEqual(["Hej", "boka rep på torsdag"]), { timeout: 4000 });
+      expect(onTranscribe).not.toHaveBeenCalled();
     } finally {
       vi.unstubAllGlobals();
     }
   });
 
-  it("⛔ en inspelning som inte går att avsluta lämnar inte den halva meningen i fältet, bara felet", async () => {
-    // Här töms aldrig `talk.text` (stoppa() av ljudet faller före `setText(hord)`), så det är läges-effekten som ensam lägger tillbaka basen.
+  it("⛔ det som stod i fältet ligger kvar, och bara det sagda skickas", async () => {
     try {
-      const { insp, f, rec } = await borjaPrata({ fore: "  " });
-      insp.stoppa.mockRejectedValue(new Error("Mikrofonen släpptes."));
-      f.resultat(rec, [["boka re", false]]);
-      expect(ruta().value).toBe("  boka re");
-      fireEvent.click(screen.getByRole("button", { name: "Skriv ut det inspelade" }));
-      const fel = await screen.findByRole("alert");
-      expect(fel.textContent).toContain("Mikrofonen släpptes.");
+      // Mikrofonen finns bara i ett fält utan innehåll, så det som kan stå där är blanksteg.
+      const { kalla, a, f, rec } = await borjaPrata({ fore: "  " });
+      f.resultat(rec, [["hej alla", true]]);
+      fireEvent.click(klar());
+      await waitFor(() => expect(yta()).toBeNull());
+      expect((await meddelanden(kalla, a.id)).at(-1).text).toBe("hej alla");
       expect(ruta().value).toBe("  ");
     } finally {
       vi.unstubAllGlobals();
     }
   });
 
-  it("utan taligenkänning i webbläsaren gäller den gamla vägen: spelar in, Skriver ut det inspelade…, och appens text i fältet", async () => {
-    const { s, a } = await underlag();
+  it("⛔ Avbryt skickar ingenting, transkriberar ingenting, och lämnar fältet som det var", async () => {
+    try {
+      const { kalla, a, f, rec, onTranscribe, skicka, insp } = await borjaPrata();
+      f.resultat(rec, [["boka rep", false]]);
+      fireEvent.click(within(yta()).getByRole("button", { name: "Avbryt" }));
+      await waitFor(() => expect(yta()).toBeNull());
+      expect(insp.kasta).toHaveBeenCalled();
+      expect(skicka).not.toHaveBeenCalled();
+      expect(onTranscribe).not.toHaveBeenCalled();
+      expect(await meddelanden(kalla, a.id)).toHaveLength(1);
+      expect(ruta().value).toBe("");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("⛔ en igenkänning som faller: ytan säger det, appen skriver ut ljudet medan ytan säger det, och resultatet skickas", async () => {
+    try {
+      let svara = /** @type {(t: string) => void} */ (() => {});
+      const onTranscribe = vi.fn(() => new Promise((res) => (svara = res)));
+      const { kalla, a, f, rec, insp } = await borjaPrata({ onTranscribe });
+      f.resultat(rec, [["boka re", false]]);
+      act(() => rec.onerror({ error: "network" }));
+      expect(yta().querySelector("[data-talk-textfel]")?.textContent).toBe("Texten kan inte visas just nu. Det du säger spelas in ändå och skrivs ut när du trycker Klar.");
+      fireEvent.click(klar());
+      await waitFor(() => expect(yta()?.getAttribute("data-rostlage")).toBe("skriver"));
+      expect(within(yta()).getByRole("status").textContent).toBe("Skriver ut det inspelade…");
+      // ⛔ Den halva meningen skickas inte: ytan hade sagt att texten inte kunde visas.
+      expect(onTranscribe).toHaveBeenCalledWith(insp.blob);
+      await act(async () => svara("boka rep på torsdag"));
+      await waitFor(() => expect(yta()).toBeNull());
+      expect((await meddelanden(kalla, a.id)).map((/** @type {any} */ m) => m.text)).toEqual(["Hej", "boka rep på torsdag"]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("⛔ en utskrift som faller står kvar med Försök igen, och Försök igen skriver ut samma ljud och skickar", async () => {
+    try {
+      const onTranscribe = vi.fn().mockRejectedValueOnce(new Error("Tjänsten svarade 503.")).mockResolvedValueOnce("andra försöket");
+      const { kalla, a, insp } = await borjaPrata({ onTranscribe });
+      // Inget hördes alls: då, och bara då, är det appens utskrift.
+      fireEvent.click(klar());
+      const fel = await within(yta()).findByRole("alert");
+      expect(yta().getAttribute("data-rostlage")).toBe("fel");
+      expect(fel.textContent).toBe("Det inspelade kunde inte skrivas ut. Tjänsten svarade 503.");
+      expect(await meddelanden(kalla, a.id)).toHaveLength(1);
+      fireEvent.click(within(yta()).getByRole("button", { name: "Försök igen" }));
+      await waitFor(() => expect(yta()).toBeNull());
+      expect(onTranscribe).toHaveBeenNthCalledWith(2, insp.blob);
+      expect((await meddelanden(kalla, a.id)).at(-1).text).toBe("andra försöket");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("⛔ en sändning som faller står kvar med Försök igen och texten, och Försök igen skickar samma text en gång", async () => {
+    try {
+      const { kalla, a, f, rec, onTranscribe, skicka } = await borjaPrata();
+      skicka.mockRejectedValueOnce(new Error("Nätet är nere."));
+      f.resultat(rec, [["boka rep", true]]);
+      fireEvent.click(klar());
+      const fel = await within(yta()).findByRole("alert");
+      expect(fel.textContent).toBe("Det du sa kunde inte skickas. Nätet är nere.");
+      // Felet står i ytan, inte som en banderoll i loggen.
+      expect(within(screen.getByRole("log")).queryByText(/Nätet är nere/)).toBeNull();
+      fireEvent.click(within(yta()).getByRole("button", { name: "Försök igen" }));
+      await waitFor(() => expect(yta()).toBeNull());
+      expect(skicka).toHaveBeenCalledTimes(2);
+      expect(skicka).toHaveBeenLastCalledWith(a.id, { text: "boka rep", av: "anna" });
+      expect((await meddelanden(kalla, a.id)).map((/** @type {any} */ m) => m.text)).toEqual(["Hej", "boka rep"]);
+      expect(onTranscribe).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("⛔ i agentens samtal är det sagda ett vanligt meddelande till agenten, samma post som Skicka ger", async () => {
+    try {
+      const { kalla, a, f, rec, skicka } = await borjaPrata();
+      f.resultat(rec, [["vad har jag i morgon", true]]);
+      fireEvent.click(klar());
+      await waitFor(() => expect(yta()).toBeNull());
+      fireEvent.change(ruta(), { target: { value: "och på fredag" } });
+      fireEvent.click(screen.getByRole("button", { name: "Skicka" }));
+      await waitFor(() => expect(skicka).toHaveBeenCalledTimes(2));
+      const [sagt, skrivet] = skicka.mock.calls.map((c) => c[1]);
+      expect(Object.keys(sagt).sort()).toEqual(Object.keys(skrivet).sort());
+      expect(sagt).toEqual({ text: "vad har jag i morgon", av: "anna" });
+      const sist = (await meddelanden(kalla, a.id)).slice(-2);
+      expect(sist.map((/** @type {any} */ m) => [m.text, m.av])).toEqual([["vad har jag i morgon", "anna"], ["och på fredag", "anna"]]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("⛔ utan taligenkänning i webbläsaren: Skriver ut det inspelade… i ytan, och appens text skickas direkt", async () => {
+    // ⛔ ÄNDRAT 0.103.0. Förut hamnade appens text i fältet ("och appens text i fältet"). Nu är det samma beteende som med igenkänning:
+    // det som blev text skickas.
+    const { kalla, s, a } = await underlag();
     const insp = provinspelare();
-    let klar = /** @type {(t: string) => void} */ (() => {});
-    const onTranscribe = vi.fn(() => new Promise((res) => (klar = res)));
+    let svara = /** @type {(t: string) => void} */ (() => {});
+    const onTranscribe = vi.fn(() => new Promise((res) => (svara = res)));
     render(<OpsMeddelanden kalla={s} uid="anna" groupId="g" gruppNamn="G" medlemmar={MEDLEMMAR} valt={a.id} onTranscribe={onTranscribe} inspelare={insp} igenkanning />);
     await within(await screen.findByRole("log")).findByText("Hej");
     fireEvent.click(screen.getByRole("button", { name: "Prata in" }));
     await waitFor(() => expect(insp.starta).toHaveBeenCalled());
-    expect(ruta().readOnly).toBe(false);
-    expect(document.querySelector("[data-rostlage='spelar']")?.textContent).toContain("Spelar in. Tryck på ljudvågen");
-    fireEvent.click(await screen.findByRole("button", { name: "Skriv ut det inspelade" }));
-    expect((await screen.findByRole("status")).textContent).toBe("Skriver ut det inspelade…");
-    await act(async () => klar("påminn mig på fredag"));
-    await waitFor(() => expect(ruta().value).toBe("påminn mig på fredag"));
+    expect(yta().hasAttribute("data-live")).toBe(false);
+    // Ingen platstext om text som aldrig kommer.
+    expect(yta().querySelector("[data-talk-platstext]")).toBeNull();
+    fireEvent.click(klar());
+    await waitFor(() => expect(within(yta()).getByRole("status").textContent).toBe("Skriver ut det inspelade…"));
+    await act(async () => svara("påminn mig på fredag"));
+    await waitFor(() => expect(yta()).toBeNull());
+    expect((await meddelanden(kalla, a.id)).at(-1).text).toBe("påminn mig på fredag");
+    expect(ruta().value).toBe("");
   });
 });

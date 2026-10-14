@@ -570,7 +570,14 @@ const VIDARE = /** @type {const} */ ([
   { nyckel: "arende", etikett: "Skapa ett ärende av samtalet" },
 ]);
 
-const INSPELNING_PROPS = ["lage", "fel", "niva", "sekunder", "tak", "framsteg", "kanIgen", "text", "textFel", "medText", "skickarText", "svaraText", "kvitto", "onAngra", "onSvara", "onKlar", "onAvbryt", "onIgen", "onStart", "onTillatMikrofon", "onInstallningar", "marke", "mal", "valt", "onValj", "historik", "vidare", "fortsattEtikett"];
+/**
+ * Namnet Klar läses upp med i TALK (0.103.0). ⛔ EN KONSTANT OCH INTE ETT FÖRVAL I PARAMETERLISTAN: namnet stod förut direkt i knappen,
+ * och `check-sprak` räknar svenska förval i parametrarna. Ordet följer inte språket, eftersom ordet på knappen (Klar) inte heller gör
+ * det, och ett uppläst namn som inte innehåller det synliga ordet går inte att säga åt en röststyrning.
+ */
+const TALK_KLAR_NAMN = "Klar, spara inspelningen";
+
+const INSPELNING_PROPS = ["lage", "fel", "niva", "sekunder", "tak", "framsteg", "kanIgen", "text", "textFel", "medText", "skickarText", "svaraText", "kvitto", "onAngra", "onSvara", "onKlar", "onAvbryt", "onIgen", "onStart", "onTillatMikrofon", "onInstallningar", "marke", "mal", "valt", "onValj", "historik", "vidare", "fortsattEtikett", "klarEtikett"];
 
 /**
  * Mottagarna av samtalet (0.103.0). Var och en får underlaget när personen trycker på dess ikon. En nyckel som saknas ritar ingen
@@ -641,13 +648,16 @@ const INSPELNING_PROPS = ["lage", "fel", "niva", "sekunder", "tak", "framsteg", 
  *   personen sade hördes. Kastar mottagaren står felet i fältet och samtalet finns kvar.
  * @param {string} [props.fortsattEtikett] (0.103.0) Namnet på Meddelande när appen säger att man står i en chatt ("Fortsätt i chatten").
  *   Utan den heter ikonen "Skapa ett meddelande av samtalet".
+ * @param {string} [props.klarEtikett] (0.103.0) Namnet Klar läses upp med. Förval "Klar, spara inspelningen". Chattens skrivfält
+ *   skickar det sagda som ett meddelande, och där hade "spara inspelningen" sagt något annat än det som händer. Ordet på skärmen är
+ *   Klar i båda. En tom sträng eller något annat än en sträng kastar.
  */
 export function OpsInspelning(props) {
   const okanda = Object.keys(props).filter((k) => !INSPELNING_PROPS.includes(k));
   if (okanda.length > 0) {
     throw new Error(`OpsInspelning: okända props ${okanda.join(", ")}. Tillåtna: ${INSPELNING_PROPS.join(", ")}.`);
   }
-  const { lage, fel, niva, sekunder, tak, framsteg, kanIgen, text = "", textFel = "", medText = false, skickarText = TALK_SKICKAR_TEXT, svaraText, kvitto = null, onAngra, onSvara, onKlar, onAvbryt, onIgen, onStart, onTillatMikrofon, onInstallningar, marke, mal = [], valt = null, onValj, historik = [], vidare, fortsattEtikett } = props;
+  const { lage, fel, niva, sekunder, tak, framsteg, kanIgen, text = "", textFel = "", medText = false, skickarText = TALK_SKICKAR_TEXT, svaraText, kvitto = null, onAngra, onSvara, onKlar, onAvbryt, onIgen, onStart, onTillatMikrofon, onInstallningar, marke, mal = [], valt = null, onValj, historik = [], vidare, fortsattEtikett, klarEtikett = TALK_KLAR_NAMN } = props;
   if (vidare !== undefined) {
     const felaktiga = vidare && typeof vidare === "object" ? Object.entries(vidare).filter(([k, v]) => !VIDARE.some((x) => x.nyckel === k) || typeof v !== "function").map(([k]) => k) : [typeof vidare];
     if (felaktiga.length > 0) {
@@ -656,6 +666,9 @@ export function OpsInspelning(props) {
   }
   if (fortsattEtikett !== undefined && (typeof fortsattEtikett !== "string" || !fortsattEtikett.trim())) {
     throw new Error(`OpsInspelning: fortsattEtikett ska vara en sträng som inte är tom, fick ${typeof fortsattEtikett === "string" ? JSON.stringify(fortsattEtikett) : typeof fortsattEtikett}. En ikon utan namn går inte att hitta för den som lyssnar.`);
+  }
+  if (typeof klarEtikett !== "string" || !klarEtikett.trim()) {
+    throw new Error(`OpsInspelning: klarEtikett ska vara en sträng som inte är tom, fick ${typeof klarEtikett === "string" ? JSON.stringify(klarEtikett) : typeof klarEtikett}. En knapp utan namn går inte att hitta för den som lyssnar.`);
   }
   const [fragar, setFragar] = useState(false);
   /** Felet när en mottagare kastade (0.103.0). Samtalet står kvar, så att det går att trycka igen eller stänga. */
@@ -995,7 +1008,7 @@ export function OpsInspelning(props) {
           <button type="button" aria-label="Avbryt" data-talk-avbryt="" onClick={avbryt} className={SEKUNDAR}>
             <KryssIkon size={18} />
           </button>
-          <button type="button" aria-label="Klar, spara inspelningen" data-talk-skicka="" onClick={onKlar} className={PRIMAR}>
+          <button type="button" aria-label={klarEtikett} data-talk-skicka="" onClick={onKlar} className={PRIMAR}>
             <StoppIkon size={14} />
             Klar
           </button>

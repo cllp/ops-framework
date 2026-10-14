@@ -490,15 +490,23 @@ async function chattensNattskiva() {
         if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `chatt-8-skrivfalt-${vp.width}.png`) });
         await page.locator('[data-ops-samtal="agent"] [data-mikrofon]').click();
         await page.waitForSelector('[data-rostlage="spelar"]', { timeout: 3000 });
-        const spelar = await m("spelar");
+        // ⛔ ÄNDRAT 0.103.0: under inspelningen står TALK:s yta i fältets plats (CP 2026-10-14, "inte gå en omväg via textfältet"), med
+        // Avbryt och Klar. Förut mättes stopp och ljudvåg inne i det rundade fältet.
+        const spelar = await page.evaluate(() => {
+          const b = (/** @type {Element} */ e) => e.getBoundingClientRect();
+          const y = /** @type {HTMLElement} */ (document.querySelector('[data-ops-samtal="agent"] [data-rostyta]'));
+          const knappar = [...y.querySelectorAll("button")].map((k) => ({ namn: k.getAttribute("aria-label"), w: b(k).width, h: b(k).height, inom: b(k).left >= b(y).left - 0.5 && b(k).right <= b(y).right + 0.5 }));
+          return { knappar, falt: Boolean(document.querySelector('[data-ops-samtal="agent"] [data-skrivruta]')), inspelning: Boolean(y.querySelector("[data-ops-inspelning]")) };
+        });
         matt.push(`${namn}: ${JSON.stringify(spelar)}`);
-        krav(spelar.knappar.length === 2 && spelar.knappar.every((k) => k.w >= 43.5 && k.h >= 43.5 && k.iFaltet) && spelar.knappar[0].namn === "Avbryt inspelningen", `${namn}: under inspelningen står stopp och ljudvåg i fältet, 44 px (${JSON.stringify(spelar.knappar)}).`);
+        krav(spelar.inspelning && !spelar.falt && spelar.knappar.map((k) => k.namn).join("|") === "Avbryt|Klar, skicka det du sagt" && spelar.knappar.every((k) => k.w >= 43.5 && k.h >= 43.5 && k.inom), `${namn}: under inspelningen står TALK:s yta i fältets plats med Avbryt och Klar, 44 px (${JSON.stringify(spelar)}).`);
         if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `chatt-8-inspelning-${vp.width}.png`) });
-        await page.locator('[data-ops-samtal="agent"] [data-mikrofon]').click();
-        await page.waitForFunction(() => /** @type {HTMLTextAreaElement | null} */ (document.querySelector('[data-ops-samtal="agent"] textarea'))?.value.length > 0, null, { timeout: 4000 });
+        await page.locator('[data-ops-samtal="agent"] [data-rostyta] [data-talk-skicka]').click();
+        // ⛔ ÄNDRAT 0.103.0: det utskrivna skickas och står i loggen, och fältet kommer tillbaka tomt med ljudvågen.
+        await page.waitForFunction(() => !document.querySelector('[data-ops-samtal="agent"] [data-rostyta]') && [...document.querySelectorAll('[data-ops-samtal="agent"] [role=log] [data-bubbla]')].some((x) => (x.textContent || "").includes("Påminn mig om momsen på fredag")), null, { timeout: 4000 });
         const klar = await m("klar");
         matt.push(`${namn}: ${JSON.stringify(klar)}`);
-        krav(klar.text === "Påminn mig om momsen på fredag" && klar.rad === null && klar.knappar.some((k) => k.namn === "Skicka"), `${namn}: det utskrivna ska stå i fältet, oskickat, med Skicka (${JSON.stringify(klar)}).`);
+        krav(klar.text === "" && klar.rad === null && klar.knappar.length === 1 && klar.knappar[0].namn === "Prata in", `${namn}: det utskrivna ska stå i loggen och fältet vara tomt med ljudvågen (${JSON.stringify(klar)}).`);
         if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `chatt-8-utskrivet-${vp.width}.png`) });
         krav((await over(page)) <= 0, `${namn}: sidan flödar över ${await over(page)} px horisontellt.`);
       } catch (e) {

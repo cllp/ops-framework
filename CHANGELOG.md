@@ -28,6 +28,9 @@ grupp. Då skulle vi kunna göra +:et till en Mikrofon". Skärmbilder mot en byg
 `docs/jamforelser/0.103.0/ramverk-mikrofon-390.png`, `ramverk-tips-390.png` och `ramverk-kalender-hall-390.png`
 (`node scripts/mikrofon-montage.mjs`).
 
+Tal i chatten medan man pratar, 390 px i mörkt läge: `docs/jamforelser/0.103.0/ramverk-chatt-tal-390.png`
+(`node scripts/chatt-tal-montage.mjs`). Förebilden är ramverkets eget TALK-fält, `ramverk-samtal-390.png`.
+
 ### Tillagt: Appar har vyns huvud, och "+ Skapa app" står i det
 
 CP 2026-10-14, med en skärmbild av Appar där sidan började direkt med korten och "Skapa en app" var ett eget kort längst ned: "App
@@ -45,6 +48,18 @@ panelen och Skapa app kan få vara enligt samma princip i header som meddelanden
 - **Långtrycket som spelade in är borta från mittknappen.** Före 0.103.0 spelade ett långtryck på plusset in och ett vanligt
   tryck öppnade Skapa. Nu är ett vanligt tryck TALK, och ett långtryck öppnar skapa-listan. Läget håll (`haller`) nås inte
   längre från skalet. `OpsBottomNav` fristående med `primaryAction.talk.knapp` ur `useTalk` beter sig som förut.
+- **Tal i chattens skrivfält skickas direkt, som i TALK.** CP 2026-10-14, med en skärmbild av agentchatten där "Skriver ut det
+  inspelade…" stod under skrivfältet: "Sedan funkar inte tal i meddelanden på samma sätt som TALK, det skall skrivas ut text i realtid
+  och inte gå en omväg via textfältet." Ljudvågen visar TALK:s inspelningsyta (`OpsInspelning`) i skrivfältets plats, texten står i
+  ytan medan den hörs, och Klar skickar den som ett meddelande i den öppna tråden, samma väg som Skicka. Före 0.103.0 skrevs orden in
+  i fältet och personen tryckte Skicka själv. Ingen färdig text: det som stod i ytan skickas. Ingenting hört: `onTranscribe` skriver
+  ut ljudet ("Skriver ut det inspelade…" i ytan) och resultatet skickas. Utan `igenkanning` är det alltid den vägen, och även då
+  skickas resultatet direkt. Fältets utkast ligger kvar och skickas inte med. Ett fel står i ytan med Försök igen och texten eller
+  ljudet kvar. En app vars prov letar efter "Skriv ut det inspelade", "Avbryt inspelningen" eller "Kasta ljudet" behöver se över det:
+  ytan har TALK:s Avbryt, Klar ("Klar, skicka det du sagt") och Försök igen.
+- **Texterna `skrivUt`, `stoppaInspelning`, `spelarIn`, `lyssnar`, `forsokIgen`, `kastaLjudet` och `stang` är borta ur
+  `Meddelandetexter`.** Raderna de hörde till finns inte längre. Nya: `talKlar`, `talSkickar`, `talSkickaFel`, `talTextFel`.
+  Ingen av dem står i lifehub.app:s eller bolag-ops `web/src` (mätt 2026-10-14 i lokala kopior från 2026-10-14 respektive 2026-10-07).
 - **"Ny händelse" får alltid en dag.** `HandelseSkapare.form` fick `datum: null` när panelen öppnades utan dag; nu får den idag
   (`idagI()`, Stockholms dag, samma som kalenderns), utom i redigeringsläge. Dagen skrivs inte i adressen.
 
@@ -77,8 +92,19 @@ panelen och Skapa app kan få vara enligt samma princip i header som meddelanden
 - En tipsrad ovanför bottenraden första gången en ikon med genväg trycks: "Tips: håll in Kalender så öppnas Ny händelse
   direkt." En gång per webbläsare (`localStorage`, nyckeln `ops-skapa-genvag-tips`), inte från 768 px och inte efter att någon
   redan hållit in en ikon.
+- `OpsInspelning klarEtikett`: namnet Klar läses upp med. Förval "Klar, spara inspelningen" som förut; chattens skrivfält ger
+  "Klar, skicka det du sagt". En tom sträng kastar.
 - `useLangtryck` (intern): hålltiden, rörelsetoleransen och släppskyddet som `OpsAtgardsblad` hade, flyttade till en krok som
   `OpsAtgardsblad`, ikonerna och mikrofonen delar.
+
+### Rättat
+
+- **Taligenkänningen kastade allt som hörts när inget resultat blivit slutligt före stoppet** (`webblasarensIgenkanning`). Det är den
+  troliga orsaken till att CP såg "Skriver ut det inspelade…" fast lifehub.app slagit på `igenkanning`. ⛔ Hypotes, inte mätt på en
+  iPhone: Safari på iOS markerar ofta inget resultat som slutligt i `continuous`-läge, så texten blev tom varje gång, chatten föll till
+  `onTranscribe` och TALK skickade bara ljudet. Nu räknas den preliminära texten som hel när personen stoppat och webbläsaren sagt
+  `end` inom väntetiden, samma bud som redan räknades när Chrome tar en paus mitt i. Ett fel, ett avbrott (`aborted`) och en väntetid
+  som tar slut ger fortfarande tom text (granskningen av PR 358, MÅSTE 2, som i övrigt står kvar).
 
 ### Borttaget, och var vägen nu går
 

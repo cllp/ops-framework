@@ -7,10 +7,12 @@ import { createSamtalskalla } from "../data/samtalskalla.js";
 /**
  * Etapp 8 av chattens nattskiva: skrivfältet efter CP:s förebild, med röstinmatning. Bilagorna väntar på modulen i PR 277.
  *
- * ⛔ HÄR MÄTS BETEENDE: platstexten följer samtalet, ljudvågen finns bara med `onTranscribe`, rösten går in i fältet utan att skickas,
- * en misslyckad transkribering säger det och behåller ljudet för ett nytt försök, stopp finns bara när något pågår, och plus finns
- * inte utan bilagemodulen. Utseendet och 44 px mäts i check-skalyta 29g (8).
+ * ⛔ HÄR MÄTS BETEENDE: platstexten följer samtalet, ljudvågen finns bara med `onTranscribe`, rösten skickas som ett meddelande (0.103.0,
+ * förut gick den in i fältet utan att skickas), en misslyckad transkribering säger det och behåller ljudet för ett nytt försök, stopp
+ * finns bara när något pågår, och plus finns inte utan bilagemodulen. Utseendet och 44 px mäts i check-skalyta 29g (8).
  */
+
+const yta = () => /** @type {HTMLElement} */ (document.querySelector("[data-rostyta]"));
 
 const MEDLEMMAR = [
   { userId: "anna", namn: "Anna Ek", typ: "person", status: "aktiv" },
@@ -62,7 +64,9 @@ describe("skrivfältet", () => {
     expect(document.querySelector("[data-stopp]")).toBeNull();
     expect(screen.getByRole("button", { name: "Skicka" })).toBeTruthy();
   });
-  it("⛔ rösten: ljudvågen spelar in, ett andra tryck skriver ut, och texten hamnar i fältet utan att skickas", async () => {
+  // ⛔ ÄNDRAT 0.103.0. Här stod "ett andra tryck skriver ut, och texten hamnar i fältet utan att skickas". CP 2026-10-14: tal i
+  // meddelanden ska fungera som TALK och "inte gå en omväg via textfältet". Klar i TALK:s yta skickar nu det utskrivna direkt.
+  it("⛔ rösten: ljudvågen öppnar TALK:s yta, Klar skriver ut, och det utskrivna skickas utan att gå via fältet", async () => {
     const { kalla, s, a } = await underlag();
     const insp = provinspelare();
     const onTranscribe = vi.fn(async () => "påminn mig på fredag");
@@ -72,14 +76,15 @@ describe("skrivfältet", () => {
     fireEvent.change(ruta(), { target: { value: "" } });
     fireEvent.click(screen.getByRole("button", { name: "Prata in" }));
     await waitFor(() => expect(insp.starta).toHaveBeenCalled());
-    expect((await screen.findByText(/Spelar in/)).closest("[role=status]")).not.toBeNull();
-    expect(screen.getByRole("button", { name: "Avbryt inspelningen" })).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Skriv ut det inspelade" }));
-    await waitFor(() => expect(ruta().value).toBe("påminn mig på fredag"));
+    expect(yta().getAttribute("data-rostlage")).toBe("spelar");
+    expect(within(yta()).getByRole("button", { name: "Avbryt" })).toBeTruthy();
+    fireEvent.click(within(yta()).getByRole("button", { name: "Klar, skicka det du sagt" }));
+    await waitFor(() => expect(yta()).toBeNull());
     expect(onTranscribe).toHaveBeenCalledWith(insp.blob);
-    expect(await kalla.list(`samtal/${a.id}/meddelanden`)).toHaveLength(1);
-    expect(document.querySelector("[data-rostlage]")).toBeNull();
-    expect(screen.getByRole("button", { name: "Skicka" })).toBeTruthy();
+    const alla = await kalla.list(`samtal/${a.id}/meddelanden`);
+    expect(alla.map((/** @type {any} */ m) => m.text).sort()).toEqual(["Hej", "påminn mig på fredag"]);
+    expect(ruta().value).toBe("");
+    expect(screen.getByRole("button", { name: "Prata in" })).toBeTruthy();
   });
   it("⛔ webbläsarens taligenkänning används aldrig i skrivfältet: talet går bara till appens egen transkribering (granskningen av PR 358)", async () => {
     const { s, a } = await underlag();
@@ -103,14 +108,17 @@ describe("skrivfältet", () => {
       render(<OpsMeddelanden kalla={s} uid="anna" groupId="g" gruppNamn="G" medlemmar={MEDLEMMAR} valt={a.id} onTranscribe={onTranscribe} inspelare={insp} />);
       await within(await screen.findByRole("log")).findByText("Hej");
       fireEvent.click(screen.getByRole("button", { name: "Prata in" }));
-      fireEvent.click(await screen.findByRole("button", { name: "Skriv ut det inspelade" }));
-      await waitFor(() => expect(ruta().value).toBe("från appen"));
+      fireEvent.click(await screen.findByRole("button", { name: "Klar, skicka det du sagt" }));
+      await waitFor(() => expect(yta()).toBeNull());
+      // ⛔ ÄNDRAT 0.103.0: det utskrivna skickas i stället för att hamna i fältet. Det provet vaktar (ingen igenkänning) är oförändrat.
+      expect((await s.meddelanden(a.id)).map((/** @type {any} */ m) => m.text)).toContain("från appen");
       expect(onTranscribe).toHaveBeenCalledTimes(1);
       expect(SR.senast).toBeNull();
     } finally {
       vi.unstubAllGlobals();
     }
   });
+  // ⛔ ÄNDRAT 0.103.0: felet står i TALK:s yta i fältets plats, och det andra försöket skickas i stället för att läggas i fältet.
   it("⛔ en misslyckad transkribering säger det, behåller ljudet, och Försök igen skickar samma ljud", async () => {
     const { s, a } = await underlag();
     const insp = provinspelare();
@@ -119,16 +127,18 @@ describe("skrivfältet", () => {
     await within(await screen.findByRole("log")).findByText("Hej");
     fireEvent.click(screen.getByRole("button", { name: "Prata in" }));
     await waitFor(() => expect(insp.starta).toHaveBeenCalled());
-    fireEvent.click(await screen.findByRole("button", { name: "Skriv ut det inspelade" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Klar, skicka det du sagt" }));
     const fel = await screen.findByRole("alert");
     expect(fel.textContent).toContain("Det inspelade kunde inte skrivas ut.");
     expect(fel.textContent).toContain("Tjänsten svarade 503.");
-    fireEvent.click(within(fel).getByRole("button", { name: "Försök igen" }));
-    await waitFor(() => expect(ruta().value).toBe("andra försöket"));
+    fireEvent.click(within(yta()).getByRole("button", { name: "Försök igen" }));
+    await waitFor(() => expect(yta()).toBeNull());
     expect(onTranscribe).toHaveBeenNthCalledWith(2, insp.blob);
+    expect((await s.meddelanden(a.id)).map((/** @type {any} */ m) => m.text)).toContain("andra försöket");
     expect(screen.queryByRole("alert")).toBeNull();
   });
-  it("⛔ Kasta ljudet är det enda som tar bort det, och stopp under inspelningen avbryter utan transkribering", async () => {
+  // ⛔ ÄNDRAT 0.103.0: "Kasta ljudet" och stoppknappen under inspelningen är TALK:s kryss (Avbryt) i ytan.
+  it("⛔ krysset är det enda som tar bort ljudet, och krysset under inspelningen avbryter utan transkribering", async () => {
     const { s, a } = await underlag();
     const insp = provinspelare();
     const onTranscribe = vi.fn().mockRejectedValue(new Error("nej"));
@@ -136,16 +146,20 @@ describe("skrivfältet", () => {
     await within(await screen.findByRole("log")).findByText("Hej");
     fireEvent.click(screen.getByRole("button", { name: "Prata in" }));
     await waitFor(() => expect(insp.starta).toHaveBeenCalled());
-    fireEvent.click(await screen.findByRole("button", { name: "Avbryt inspelningen" }));
+    fireEvent.click(within(yta()).getByRole("button", { name: "Avbryt" }));
     await waitFor(() => expect(insp.kasta).toHaveBeenCalled());
     expect(onTranscribe).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Prata in" }));
     await waitFor(() => expect(insp.starta).toHaveBeenCalledTimes(2));
-    fireEvent.click(await screen.findByRole("button", { name: "Skriv ut det inspelade" }));
-    const fel = await screen.findByRole("alert");
-    fireEvent.click(within(fel).getByRole("button", { name: "Kasta ljudet" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Klar, skicka det du sagt" }));
+    await screen.findByRole("alert");
+    // Ljudet finns kvar så länge felet står: Försök igen är kvar tills krysset trycks.
+    expect(within(yta()).getByRole("button", { name: "Försök igen" })).toBeTruthy();
+    fireEvent.click(within(yta()).getByRole("button", { name: "Avbryt" }));
     expect(screen.queryByRole("alert")).toBeNull();
+    expect(yta()).toBeNull();
     expect(ruta().value).toBe("");
+    expect(onTranscribe).toHaveBeenCalledTimes(1);
   });
   it("⛔ stopp för agenten bara när den arbetar och appen gett onStoppaAgent", async () => {
     const { kalla, s, a } = await underlag({ status: true });
