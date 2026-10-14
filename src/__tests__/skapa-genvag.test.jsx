@@ -94,7 +94,7 @@ describe("mittknappen", () => {
 
 /*
  * ⛔ #382. CP 2026-10-14: "Undra om man i den ikonen kan ha en stor mikrofon och liksom lite bakomliggande ett plus som indikerar
- * det." ⛔ ÄNDRAT 0.104.0, CP 2026-10-14: "Sak bara vi måste ta bort plusset till plus-knappen. Den ser bara skräpig ut." Pluset är
+ * det." ⛔ ÄNDRAT 0.104.0, CP 2026-10-14: "Sak bara vi måste ta bort plusset till plus-knappen. Den ser bara skräpig ut." Plusset är
  * borta, och namnet är det som säger att långtrycket finns. Det gäller fortfarande bara när ett långtryck faktiskt öppnar skapa.
  */
 describe("mikrofonen utan plus, och namnet som säger håll inne", () => {

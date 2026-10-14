@@ -63,6 +63,6 @@ export function kravPaMittknappen(m, val = {}) {
   krav(!m.marke && m.ritningar === 1, `mittknappen ritar ett plus (${m.marke ? "data-skapa-marke finns" : `${m.ritningar} ritningar`}), väntat bara mikrofonen. CP 2026-10-14: "Den ser bara skräpig ut."`);
   krav(m.ikon.b >= 29.5 && m.ikon.b <= 32.5, `mikrofonen är ${m.ikon.b} px, väntat 30 till 32 px i 56 px-cirkeln, som i 0.103.0.`);
   krav(Math.abs(dx) <= 1.5 && Math.abs(dy) <= 1.5, `mikrofonens mitt står ${dx.toFixed(1)}, ${dy.toFixed(1)} px från knappens, väntat högst 1,5 px åt varje håll.`);
-  krav(typeof m.namn === "string" && m.namn.endsWith(`. ${langtryckText}`), `mittknappen heter ${JSON.stringify(m.namn)}, väntat att namnet slutar med ". ${langtryckText}": utan pluset är namnet det enda som säger att långtrycket finns.`);
+  krav(typeof m.namn === "string" && m.namn.endsWith(`. ${langtryckText}`), `mittknappen heter ${JSON.stringify(m.namn)}, väntat att namnet slutar med ". ${langtryckText}": utan plusset är namnet det enda som säger att långtrycket finns.`);
   return { rader, fel };
 }

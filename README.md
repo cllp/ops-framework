@@ -2434,7 +2434,7 @@ behövs?"
 
 - **Mittknappen är en mikrofon när skalet har `talk`.** Ett vanligt tryck startar TALK direkt, samma inspelning som huvudets
   mikrofon på dator. Utan `talk` är knappen plusset med dagens beteende, så att en app utan TALK inte tappar sin skapaväg.
-- ⛔ **ÄNDRAT 0.104.0: pluset är borta.** CP 2026-10-14: "Sak bara vi måste ta bort plusset till plus-knappen. Den ser bara
+- ⛔ **ÄNDRAT 0.104.0: plusset är borta.** CP 2026-10-14: "Sak bara vi måste ta bort plusset till plus-knappen. Den ser bara
   skräpig ut." Mikrofonen ensam är knappen, 31 px och mitt i cirkeln. Långtrycket, Shift+F10, ContextMenu, `aria-haspopup` och
   namnet "TALK, prata in. Håll inne för att skapa" finns kvar; namnet är nu det enda som säger att långtrycket finns. Punkten
   nedan beskriver 0.103.0. Mätt i `scripts/lib/mittknappMatt.mjs`.

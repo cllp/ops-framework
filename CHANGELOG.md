@@ -56,7 +56,7 @@ avvisat löfte röd mot koden före (ordningen låg kvar), synkront kast röd p�
 
 ### Ändrat: mittknappen är bara en mikrofon
 
-CP 2026-10-14: "Sak bara vi måste ta bort plusset till plus-knappen. Den ser bara skräpig ut." Det lilla pluset bakom mikrofonen
+CP 2026-10-14: "Sak bara vi måste ta bort plusset till plus-knappen. Den ser bara skräpig ut." Det lilla plusset bakom mikrofonen
 på `OpsBottomNav`s mittknapp, från 0.103.0, är borttaget, och `SkapaMarkeIkon` med det. Mikrofonen är lika stor som förut (31 px)
 och står mitt i cirkeln. Långtrycket öppnar fortfarande skapa-listan, och Shift+F10, ContextMenu, `aria-haspopup="dialog"`,
 `aria-keyshortcuts` och namnet ("TALK, prata in. Håll inne för att skapa") är kvar. Vakten `scripts/lib/mittknappMatt.mjs`
