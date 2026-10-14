@@ -48,7 +48,7 @@ export function createFirebaseStorageSource(config) {
     throw new Error(`createFirebaseStorageSource: sdk saknar ${missing.join(", ")}. Skicka in hela modulen "firebase/storage", inte enskilda funktioner.`);
   }
 
-  const { ref, uploadBytes, uploadBytesResumable, getDownloadURL, deleteObject } = sdk;
+  const { ref, uploadBytes, uploadBytesResumable, getDownloadURL, deleteObject, getBlob } = sdk;
 
   return createStorageSource({
     name: "firebase-storage",
@@ -92,6 +92,18 @@ export function createFirebaseStorageSource(config) {
       const s = typeof sokvag === "string" ? sokvag.trim() : "";
       if (!s) throw new Error("createFirebaseStorageSource.adress: sokvag krävs.");
       return getDownloadURL(ref(storage, s));
+    },
+
+    /*
+     * ⛔ BYTEN GÅR VIA SDK:N, MED INLOGGNINGEN (0.101.0, lifehub.app#226). `getBlob` skickar personens token, så storage-regeln
+     * avgör vem som får läsa, precis som för `adress`. Mätt 2026-10-14 mot lifehub-my: v0-ändpunkten svarar med
+     * `access-control-allow-origin: *`, också på ett 403, så ingen CORS-inställning på bucketen behövs.
+     */
+    async hamta(sokvag) {
+      const s = typeof sokvag === "string" ? sokvag.trim() : "";
+      if (!s) throw new Error("createFirebaseStorageSource.hamta: sokvag krävs.");
+      if (typeof getBlob !== "function") throw new Error('createFirebaseStorageSource.hamta: sdk saknar getBlob. Skicka in hela modulen "firebase/storage".');
+      return getBlob(ref(storage, s));
     },
 
     async taBort(sokvag) {

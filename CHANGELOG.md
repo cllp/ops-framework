@@ -26,6 +26,9 @@ läsregel som avgör synlighet per post, och det är permissions-träsket (kanon
 - `flyttaBibliotekspost({ fran, till, id, satt, hamtaFil })`: kopian först, originalet sedan. En halv flytt säger att posten finns
   på båda ställena. En fil flyttas genom sina byte till den nya platsens sökväg. Källan har `hamta(id)`, och `laddaUppFil` tar
   `taggar` och `utskrift` så att en flyttad post har dem från första skrivningen.
+- `createFirebaseStorageSource` har `hamta(sokvag)`, som ger filens byte med `getBlob` och personens inloggning. Det är vägen
+  `flyttaBibliotekspost` tar för en fil (`hamtaFil`). Mätt mot lifehub-my: Storage svarar med `access-control-allow-origin: *`,
+  så ingen CORS-inställning behövs.
 - `OpsBibliotek`: växlaren `platser`, `plats` och `onPlats` ovanför flikarna. I menyn Flytta till Mitt bibliotek (bara
   författaren) och Kopiera till Mitt bibliotek, och i Mitt bibliotek Dela med gruppen. Medan det pågår och när det är klart står
   det i statusraden, och ett fel står kvar med skälet.
