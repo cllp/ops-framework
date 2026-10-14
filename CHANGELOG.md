@@ -9,6 +9,137 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.105.0
+
+**TALK: efter talet står Meddelande, Händelse, Ärende och Agent med ord, och Agent tar det sagda till appen. Agentens förslag är
+knappar under svaret i chatten (`OpsForslag`).**
+
+CP 2026-10-14, med en skärmbild av TALK-panelen där agenten svarat på ett "ja gör det" med en lista över spärrens ord: "talk gör att
+man pratar in så att man ser texten direkt i realtid. Sen så finns de tre knapparna där direkt. Meddelande, ärende, kalender. Och sen
+så adderar vi en agentknapp. Så att man får trycka på agenten om man vill att agenten ska svara för att hålla en dialog." Förslaget
+han godkände: knappraden efter talet, agenten svarar bara när man trycker Agent, och en åtgärd agenten föreslår visas som en knapp där
+trycket är personens begäran. Därefter, om var dialogen står: "Kör chatten". Skärmbilder mot en byggd yta, 390 och 1280 px i mörkt
+läge: `docs/jamforelser/0.105.0/` (`node scripts/check-skalyta.mjs --bara-talkval --tema dark --bilder docs/jamforelser/0.105.0`).
+
+### Tillagt: valen efter talet
+
+- `OpsAppShell talk.onAgent(text)`. Med den lämnar Klar inte det sagda till `onTalk`. Fältet går till det nya läget `hort`: texten
+  står kvar där den stod medan man pratade, och under den frågan "Vad ska hända med det du sa?" med fyra knappar med ord i ett
+  rutnät med två kolumner: Meddelande, Händelse, Ärende och Agent. Fokus går till det första valet. Stäng kastar det sagda.
+- **Agent** lämnar texten till `onAgent` och stänger fältet när löftet löser sig, eftersom appen tar över (lifehub.app skickar texten
+  till chatten med agenten och öppnar den). ⛔ Avvisas löftet går fältet tillbaka till valen: det sagda och de fyra valen står kvar
+  med felet (`role="alert"`), så att den som inte nådde agenten kan välja Meddelande eller Ärende i stället, och ett nytt tryck på
+  Agent är Försök igen, aldrig `onTalk`. (Granskningen av PR 387: i första versionen blev det läget `fel` med en egen Försök igen,
+  och då stod varken texten eller valen kvar.) Ett andra tryck medan det pågår gör ingenting. Felraden (`role="alert"`) finns från
+  det att Klar trycks, tom och dold, och byter text, av samma skäl som statusregionen: en region som föds med sin text läses inte
+  alltid upp.
+- **Händelse** och **Ärende** öppnar skalets formulär ifyllda (`talkForifyllt`), som rubrikradens ikoner gjorde i 0.103.0.
+  **Meddelande** lämnar `{ text }` till `talk.onMeddelande`. Ett val ritas bara när dess mottagare finns.
+- Utan `onAgent`, eller när inget hördes (igenkänningen av eller föll), är flödet som förut: Klar lämnar ljudet och texten till `onTalk`.
+  Ett fält låst till ett moduls mål (Bibliotekets röstinspelning) får inga val.
+- ⛔ Med `onAgent` och taligenkänningen på står inget "Skickas till" medan man pratar, också när appen har flera mål: personen väljer
+  vart det sagda ska efteråt, och ett mål som valdes under talet hade inte använts. Hördes inget går ljudet till `onTalk` med appens
+  första mål. Utan igenkänning kommer inga val, och då står målvalet som förut. (Granskningen av PR 387.)
+- `useTalk` tar `onAgent` och ger `agent()` och `medAgent`. `OpsInspelning` tar `onAgent`. `talkKnappNamn("hort")` är "TALK, välj vad
+  som ska hända".
+- Orden står i `ORD_TALK` på svenska och engelska: `valFragan`, `valMeddelande`, `valHandelse`, `valArende`, `valAgent`, `felAgent`.
+
+### Tillagt: `OpsForslag`, och förslagen under agentens svar i chatten
+
+- `OpsForslag forslag={[{ id, etikett, ikon?, text? }]} onForslag={(id) => ...}`: en knapp per förslag med etiketten och en kort
+  förhandsvisning under. `onForslag` löser till `{ utfall: "ok" | "nekad", text? }`, och utfallet står i en statusrad under knappen.
+  ⛔ Ett tryck är ett anrop: ett dubbelklick ger ett, och efter Klart eller Gjordes inte gör knappen ingenting. Ett avvisat löfte är ett
+  fel som går att försöka igen, eftersom inget gjordes; att ett förslag bara kan utföras en gång är appens servers sak. ⛔ Ett fel står
+  som "Förslaget gick inte att utföra." (`felForslag`) på personens språk, och felets egen text går bara till felrapporten
+  (`rapporteraFel`): den är skriven för den som bygger, inte för den som tryckte. (Granskningen av PR 387: första versionen visade
+  felets `message` ordagrant, till exempel "onForslag ska lösa till …".)
+- `OpsMeddelanden onForslag({ sid, mid, id })`: under ett meddelande från en medlem av typen agent som bär fältet `forslag` (skrivet av
+  appens server) ritas `OpsForslag`. En persons meddelande med samma fält får inga knappar. Ett felformat förslag ur databasen hoppas
+  över och rapporteras, i stället för att fälla chatten.
+- ⛔ I en tråd ritas inga förslag, varken under trådens rot eller under ett agentsvar i tråden. Agenten som vill föreslå något svarar i
+  samtalet. (Granskningen av PR 387: det stod ingenstans.)
+- ⛔ Appens server ska pröva `{ sid, mid, id }` mot det LAGRADE meddelandet, att det är skrivet av en agent och bär förslaget `id`, och
+  mot att den som trycker är deltagare i samtalet `sid`; den utför det lagrade förslaget, aldrig något klienten skickat, och ser om det
+  redan är använt. Ramverkets lås mot dubbelklick gäller en flik och är en bekvämlighet, inte ett skydd. Står i `lib/forslag.js`.
+- `OpsMeddelanden nyttUtkast`: texten som står i skrivfältet när läget "nytt" öppnas, för Meddelande i TALK. Ingenting skickas.
+- `src/lib/forslag.js`: `kontrolleraForslag`, `forslagUrData`, `forslagetsFel`, `forslagssvar`, `FORSLAG_IKONER`, `MAX_FORSLAG` (4),
+  `MAX_FORSLAG_ETIKETT` (80) och `MAX_FORSLAG_TEXT` (240). Orden `forslagen`, `forslagPagar`, `forslagKlart`, `forslagNekat` och
+  `felForslag` i `ORD_TALK`.
+- Nodsidan (`ops-framework/node`) exporterar `FORSLAG_IKONER`, `MAX_FORSLAG`, `MAX_FORSLAG_ETIKETT`, `MAX_FORSLAG_TEXT`, `forslagetsFel`
+  och `kontrolleraForslag`, så att appens server bygger knapparna med samma tak och samma prövning som chatten ritar dem med.
+
+### ⛔ Brytande: Svara, samtalet i fältet och Fortsätt i chatten är borta
+
+Mätt i 0.103.0 och 0.104.0: Svara (0.99.0) startade en ny omgång i fältet efter agentens kvitto, `useTalk().historik` (0.103.0) höll
+omgångarna, samtalsytan ritade dem, rubrikradens tre ikoner lämnade samtalet vidare när kvittot stod, och `talk.onFortsatt` med
+`fortsattEtikett` ("Fortsätt i chatten") öppnade samtalet med agenten. Med Agent hamnar dialogen i chatten, och då hade varje del gjort
+samma sak som något som redan finns: Svara som chattens skrivfält (som har sin egen mikrofon med text i realtid sedan 0.103.0),
+historiken som samtalet i chatten, ikonerna som valen, och Fortsätt i chatten som Agent. Två kopior av samma samtal hade glidit isär
+(regel 2).
+
+- Borta: `talk.svaraText`, `talk.onFortsatt`, `talk.fortsattEtikett`, `useTalk().historik`, `OpsInspelning`s `svaraText`, `onSvara`,
+  `historik` och `fortsattEtikett`, `TALK_SVARA_TEXT`, och orden `samtalet`, `gorNagot`, `du`, `agenten`, `angratPrefix`,
+  `vidareMeddelande`, `vidareHandelse` och `vidareArende` i `ORD_TALK`.
+- ⛔ Skalet kastar när `talk.svaraText`, `talk.onFortsatt` eller `talk.fortsattEtikett` ges, med vad som ersätter dem. En nyckel som
+  tyst ignorerades hade varit en knapp som försvann utan förklaring. `OpsInspelning` kastar på de borttagna som okända props.
+- `Talkunderlag` är `{ text }`, det som sades. `samtal` och `rader` är borta, och `talkUnderlag` tar texten i stället för raderna.
+- Kvittot (0.97.0) med Ångra finns kvar för ett `onTalk` som löser till `{ kvitto, angra? }`. Stäng är nu den primära knappen och får
+  fokus, som före 0.99.0.
+- Statusregionen står direkt i fältet i varje läge. Samtalsytan som var dess förälder i 0.103.0 är borta.
+
+Det Svara gjorde som inget annat gör: en röstdialog med agenten utan att lämna sidan man står på. Den finns nu i chatten, som TALK
+öppnar. Ingen app har bett om att stanna kvar på sidan.
+
+### Prov
+
+- `src/__tests__/talk-val.test.jsx` (24 prov): läget hört, de fyra valen med ord i rätt ordning och fokus, Agent en gång och fältet
+  stängt, ett fel i Agent som visar texten och valen igen, felraden som finns från början, Ärende i stället efter ett fel i Agent,
+  inget Skickas till med agent, utan agent som förut, inget hört som förut, ett val per mottagare, färdiga noder utan val, Stäng,
+  Meddelande, Ärende och Händelse ifyllda, det sagda inte i adressen, en ny förifyllning som ersätter ett öppet ärende, en mottagare
+  som kastar, engelska, och det stängda API:t. Mot 0.104.0:s `OpsAppShell`, `OpsMeddelanden`, `OpsTalk` och `lib/talk.js`: 20 röda,
+  4 gröna: de två om `talkForifyllt`, "utan agent som förut" och "inget hört som förut", som mäter att det som inte ändrats är orört.
+- `src/__tests__/forslag.test.jsx` (11 prov): två knappar med eget lås och egen statusrad, ett tryck ett anrop, ett nej, ett fel som går att försöka
+  igen, fel form från appen, stängt API, data ur databasen, knapparna under agentens svar men inte under en persons, inga knappar utan
+  `onForslag`, och `nyttUtkast`. Mot 0.104.0:s `OpsAppShell`, `OpsMeddelanden` och `OpsTalk` (med 0.105.0:s `OpsForslag` och ordlista
+  kvar, eftersom komponenten hämtar sina ord ur `lib/talk.js`): 3 röda, 8 gröna. De tre röda är chattens prov: knapparna under agentens
+  svar, inga förslag i en tråd (vars golv kräver rotens knapp utanför tråden) och `nyttUtkast`. ⛔ "En knapp per förslag" hade först bara ett förslag och kunde därför inte se om låset eller statusraden
+  delades; nu har det två, och ett tryck på det ena lämnar det andra orört. Rött med låset gemensamt och med statusraden gemensam.
+  (Granskningen av PR 387.) De sju om `OpsForslag` och `forslagUrData` mäter bara de nya filerna och kan inte bli röda mot gammal kod, så de
+  mäts genom att koppla bort det de vaktar: utan spärren i `OpsForslag` är dubbelklicket och nejet röda, och utan `kontrolleraForslag`
+  är det stängda API:t rött. Med villkoret "bara agentens svar" bortkopplat i chatten är chattens prov rött. ⛔ Det var det inte i
+  första versionen av provet: "en persons meddelande" var skrivet av den som tittade, och dess knappar filtrerades redan bort som egna,
+  så villkoret mättes inte. Provet har nu också ett meddelande från en annan person. Provet för "inga knappar utan `onForslag`" är inte mätt rött. Proven för ett avvisat löfte och för fel form från appen är röda med felets egen text i statusraden (se ovan om `felForslag`).
+- `src/__tests__/talk-samtal.test.jsx` och `src/__tests__/talk-svara-andra-gangen.test.jsx` är borttagna. ⛔ Första versionen av
+  0.105.0 sade att de togs bort "med det de mätte", och det var inte sant: nio av proven mätte inte Svara eller samtalsytan, och
+  granskningen av PR 387 fann att de försvunnit. De står nu kvar, med andra omgången startad med mikrofonen i stället för med Svara.
+  `talk-andra-omgangen.test.jsx` (6 prov, ur talk-svara-andra-gangen): taket som räknas om mitt i en inspelning, de två Safari-proven
+  för `webblasarensIgenkanning`, de två skalproven "öppna, prata, kvitto, stäng, öppna, prata" och mikrofonströmmen som släpps.
+  `talk-val.test.jsx` (3 nya, ur talk-samtal): Händelse och Ärende ritas inte när `skapa` är en färdig nod, det sagda står inte i
+  adressen (`not.toContain("noterna")`), och en ny förifyllning ersätter ett ärende som redan stod öppet. Vart och ett mätt rött med
+  det det vaktar bortkopplat: omräkningen av taket (1 rött), stängningen av förra igenkännaren i `starta` och `stoppa` (2), felbeskedet
+  när `start()` kastar (2), `slapp` som stoppar spåren (1), villkoren `handelseSkapareFinns` och `typeof skapa.arende` (1), det sagda
+  skrivet i adressen (1) och `key` på ärendeformuläret (1).
+  `talk-kvitto.test.jsx` (fokus på Stäng i stället för Svara) och `talk-tomt-ljud.test.jsx` (andra omgången startas med mikrofonen i
+  stället för med Svara) är ändrade och behöver en annan granskare (regel 9).
+- `rules/__tests__/samtal.test.mjs` (1 nytt, mot Firestore-emulatorn): en klient som skriver fältet `forslag` nekas i privat samtal,
+  gruppchatt och agentsamtal, med ett golv där samma meddelande utan fältet går igenom. Rött med `forslag` tillagt i
+  `MEDDELANDEFALT`. Reglerna är oförändrade: fältet nekades redan som okänt, och provet gör det till en regel som syns.
+  (Granskningen av PR 387.)
+- `check-skalyta.mjs` avsnitt 46 (`--bara-talkval`), vid 390 och 1280 px: valen med ord som inte klipps, träffbara på 44x44, inne i fältet
+  och fönstret, fokus på Meddelande och inget lämnat innan personen valt; Agent lämnar det sagda till `onAgent`; i chatten två förslag
+  minst 44 px höga inne i fönstret med förhandsvisningen, ett dubbelklick ger ett anrop med samtalet, meddelandet och id, och utfallet
+  står under knappen; inget rullar i sidled. Rött med en mutation (inget fokus på första valet och ingen förhandsvisning): 4 brott
+  av 54, fokus och förhandsvisning vid 390 och 1280 px. Med 0.105.0: 54 kontroller utan brott. ⛔ Här stod först "mot 0.104.0:s
+  dist: 4 brott av 4", men alla fyra var en krasch ("Cannot read properties of null (reading 'useContext')", två React-kopior när
+  en annan dist laddas) och inte en mätning (granskningen av PR 387, varv 2). Hela `check-skalyta.mjs`: 2746 kontroller utan brott. ⛔ En körning av `--bara-talkval` direkt efter ett bygge
+  föll en gång på att mittknappen inte gick att klicka inom 4 s vid 390 px, och samma körning en gång till var grön; det är en
+  misslyckad mätning enligt regel 14 och inte ett resultat, men orsaken är inte utredd.
+- Rytmen mellan publika block: `OpsPublikHjalte` med bild följd av ett `OpsPublikAvsnitt` fick 0 px luft, eftersom rytmregeln bara
+  kände ljusa block och avsnitt efter avsnitt (CP 2026-10-14, Identitys startsida, #388). Regeln i `tokens.css` (mellan `RYTM` och
+  `SLUT RYTM`) har nu fallet `[data-ops-publik="hjalte"][data-med-bild] + [data-ops-publik="avsnitt"]`: 80 px, 96 px från `sm`, samma
+  luft som mellan två avsnitt. `check-brand.mjs` mäter paret i Chromium (provsidan `hjalteavsnitt` i `scripts/lib/publik-prov.jsx`) vid
+  1280 och 390 px, med golv: minst ett par mätt. Rött med just det fallets väljarrad bortkopplad (`--bevisa`), grönt med den.
+
 ## 0.104.0
 
 **Tal i vanliga textfält: `OpsTextarea` tar `tal`, och ett tryck på mikrofonen skriver in det sagda i fältet.**

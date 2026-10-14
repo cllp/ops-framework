@@ -367,6 +367,101 @@ function TalkScen() {
 }
 
 /*
+ * 0.105.0: valen efter talet, avsnitt 46. CP 2026-10-14, med en skärmbild av TALK-panelen: "Sen så finns de tre knapparna där direkt.
+ * Meddelande, ärende, kalender. Och sen så adderar vi en agentknapp." En igenkänning som hör en mening, och mottagare för alla fyra
+ * valen. Det som valts står i `window.__talkval`. Saknas valen i den byggda versionen lämnar Klar det sagda till `onTalk`, och avsnittet
+ * blir rött på det (`window.__talkval` får "onTalk").
+ */
+const TALKVAL_MENING = "Skapa ett ärende om att fakturan från mars inte har kommit, och påminn mig på fredag";
+function TalkValScen() {
+  window.__talkval = window.__talkval || [];
+  const inspelare = {
+    starta: async () => {},
+    stoppa: async () => ({ blob: new Blob(["ljud"], { type: "audio/webm" }), mimeType: "audio/webm", sekunder: 4 }),
+    kasta: () => {},
+    niva: () => 0.45,
+  };
+  const igenkanning = {
+    starta: (/** @type {any} */ { onText }) => onText(TALKVAL_MENING),
+    stoppa: async () => TALKVAL_MENING,
+    kasta: () => {},
+  };
+  return (
+    <Full
+      skapa={{ handelse: { form: (/** @type {any} */ p) => <form id={p.formId} />, katalog: null }, arende: (/** @type {any} */ p) => <form id={p.formId} /> }}
+      talk={{
+        onTalk: () => void window.__talkval.push("onTalk"),
+        onAgent: (/** @type {string} */ text) => void window.__talkval.push(`agent:${text}`),
+        onMeddelande: () => void window.__talkval.push("meddelande"),
+        inspelare,
+        igenkanning,
+        marke: <span className="inline-flex size-8 items-center justify-center rounded-full bg-accent text-etikett font-bold text-accent-contrast">M</span>,
+      }}
+    >
+      <Ops.OpsView>
+        <p>Idag</p>
+      </Ops.OpsView>
+    </Full>
+  );
+}
+
+/*
+ * 0.105.0: förslagen under agentens svar i chatten, avsnitt 46. Personens "ja gör det", och agentens svar med två förslag: ett ärende med
+ * en förhandsvisning och en händelse. Ett tryck svarar "ok" efter en kort stund. Trycken står i `window.__forslag`.
+ */
+function ChattForslagScen() {
+  const [kalla, setKalla] = useState(/** @type {any} */ (null));
+  const [sid, setSid] = useState("");
+  window.__forslag = window.__forslag || [];
+  if (!Ops.OpsMeddelanden || !Ops.createSamtalskalla) return <Full><p data-saknas="OpsMeddelanden">OpsMeddelanden saknas</p></Full>;
+  if (!kalla) {
+    (async () => {
+      const kallan = Ops.createMemorySource({});
+      const k = Ops.createSamtalskalla({ kalla: kallan });
+      const a = await k.oppnaPrivat({ groupId: "g3", uid: "cp", annan: "ops", slag: "agent" });
+      const t = new Date(2026, 9, 14, 9, 0).getTime();
+      await kallan.create(`samtal/${a.id}/meddelanden`, { id: "m0", text: "Fakturan från Telia för mars har inte kommit. Jag behöver påminna dem.", av: "cp", tid: t });
+      await kallan.create(`samtal/${a.id}/meddelanden`, { id: "m0-agent", text: "Ska jag skapa ett ärende om fakturan och lägga in en påminnelse?", av: "ops", tid: t + 60000 });
+      await kallan.create(`samtal/${a.id}/meddelanden`, { id: "m1", text: "ja gör det", av: "cp", tid: t + 120000 });
+      await kallan.create(`samtal/${a.id}/meddelanden`, {
+        id: "m1-agent",
+        text: "Här är förslagen. Tryck på det du vill att jag gör.",
+        av: "ops",
+        tid: t + 180000,
+        forslag: [
+          { id: "f1", etikett: "Skapa ärendet: Fakturan från Telia för mars saknas", ikon: "arende", text: "Fakturan för mars har inte kommit. Kontakta Telia och be om en kopia." },
+          { id: "f2", etikett: "Lägg in: Påminn Telia, fredag 17 okt 09:00", ikon: "handelse" },
+        ],
+      });
+      setSid(a.id);
+      setKalla(k);
+    })();
+  }
+  return (
+    <Full aktivGrupp="g3">
+      {kalla ? (
+        <Ops.OpsMeddelanden
+          kalla={kalla}
+          uid="cp"
+          groupId="g3"
+          gruppNamn="Ops"
+          medlemmar={[
+            { userId: "cp", namn: "Claes Philip", typ: "person", status: "aktiv" },
+            { userId: "ops", namn: "Ops-agenten", typ: "agent", status: "aktiv" },
+          ]}
+          valt={sid}
+          onForslag={async (/** @type {any} */ f) => {
+            window.__forslag.push(f);
+            await new Promise((r) => setTimeout(r, 150));
+            return { utfall: "ok", text: "Skapat: Fakturan från Telia för mars saknas" };
+          }}
+        />
+      ) : null}
+    </Full>
+  );
+}
+
+/*
  * 0.104.0: tal i ett vanligt textfält, avsnitt 45. CP 2026-10-14, med en skärmbild av Skapa app i lifehub.app: "Jag vill gärna ha
  * TALK funktionen även här på skapa app." Ett `OpsTextarea` med `tal` i en `OpsField`, med så mycket text att raderna når fältets
  * högra kant, så att ett överlapp med mikrofonen syns. En inspelare utan mikrofon och en igenkänning som skriver en mening ord för ord.
@@ -1791,6 +1886,8 @@ function Scen() {
   }
   if (s === "talk") return <TalkScen />;
   if (s === "textfalt-tal") return <TextfaltTalScen />;
+  if (s === "talk-val") return <TalkValScen />;
+  if (s === "chatt-forslag") return <ChattForslagScen />;
   if (s === "kalendrar") return <KalendrarScen />;
   if (s === "ny-handelse") return <NyHandelseScen />;
   if (s === "ny-handelse-nav") return <NavNyHandelseScen />;

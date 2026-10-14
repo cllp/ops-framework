@@ -43,6 +43,7 @@
  *       node scripts/check-skalyta.mjs --bara-chatt      bara avsnitt 29g, chattens nattskiva (#273), för en snabb körning
  *       node scripts/check-skalyta.mjs --bara-appar      bara Appar-hyllan mot plusknappen (0.90.6)
  *       node scripts/check-skalyta.mjs --bara-textfalt   bara avsnitt 45, tal i ett vanligt textfält (0.104.0)
+ *       node scripts/check-skalyta.mjs --bara-talkval    bara avsnitt 46, valen efter talet och förslagen i chatten (0.105.0)
  *       node scripts/check-skalyta.mjs --chattbredder 390,1024   29g i andra bredder än 390 och 1280
  *       node scripts/check-skalyta.mjs --tema dark        alla sidor i mörkt tema (förebilden CP jämför mot är mörk)
  */
@@ -885,6 +886,117 @@ async function textfaltMedTal() {
     }
     await context.close();
   }
+}
+
+// ══ 46. VALEN EFTER TALET OCH FÖRSLAGEN I CHATTEN (0.105.0) ═══════════════════════════════════════════════════════════════════════
+// CP 2026-10-14, med en skärmbild av TALK-panelen: "Sen så finns de tre knapparna där direkt. Meddelande, ärende, kalender. Och sen så
+// adderar vi en agentknapp." Och "Kör chatten": agentens förslag står som knappar under svaret i chatten. jsdom kör ingen CSS, så att
+// orden ryms, att knapparna går att träffa och att inget rullar i sidled går bara att se här. Vid 390 och 1280 px:
+//   (1) VALEN: efter Klar står fyra knappar med ord, Meddelande, Händelse, Ärende och Agent i den ordningen, varje träffbar på minst
+//       44x44 där ett tryck landar, med ordet helt synligt (inte avklippt), inne i fältet och fönstret. Fokus på Meddelande, och
+//       ingenting har lämnats till appen ännu.
+//   (2) AGENT lämnar det sagda till `onAgent` och stänger fältet.
+//   (3) FÖRSLAGEN: under agentens svar står två knappar med sina etiketter, minst 44 px höga, inne i fönstret, med förhandsvisningen
+//       under den första. Ett dubbelklick ger ett anrop, med samtalet, meddelandet och förslagets id, och utfallet står under knappen.
+//   (4) INGET RULLAR I SIDLED.
+// ⛔ GOLV: fyra val och två förslag måste finnas, annars rött.
+async function talkValOchForslag() {
+  for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
+    const namn = `valen efter talet ${vp.width} px`;
+    /** @type {import("playwright").Page} */
+    let page;
+    /** @type {import("playwright").BrowserContext | null} */
+    let context = null;
+    try {
+      ({ page, context } = await oppna("talk-val", vp, "dark"));
+      await page.locator(vp.width >= 768 ? "header [data-talk-huvud]" : "[data-talk-knapp]").click();
+      await page.locator("[data-talk-skicka]").click();
+      await page.locator("[data-talk-val]").waitFor({ timeout: 4000 });
+      const m = await page.evaluate(() => {
+        const falt = /** @type {HTMLElement} */ (document.querySelector("[data-ops-talk]"));
+        const fr = falt.getBoundingClientRect();
+        const knappar = [...document.querySelectorAll("[data-talk-valt]")].map((k) => {
+          const r = k.getBoundingClientRect();
+          const ord = /** @type {HTMLElement | null} */ (k.querySelector("span"));
+          return { text: (k.textContent || "").trim(), l: r.left, r: r.right, t: r.top, b: r.bottom, h: r.height, klippt: ord ? ord.scrollWidth > ord.clientWidth + 0.5 : true };
+        });
+        return {
+          knappar,
+          falt: { l: fr.left, r: fr.right, t: fr.top, b: fr.bottom },
+          fokus: (document.activeElement?.textContent || "").trim(),
+          lamnat: /** @type {any} */ (window).__talkval.slice(),
+          over: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        };
+      });
+      matt.push(`${namn}: ${m.knappar.map((k) => `${k.text} ${(k.r - k.l).toFixed(0)}x${k.h.toFixed(0)}${k.klippt ? " klippt" : ""}`).join(", ")}, fokus ${JSON.stringify(m.fokus)}, lämnat ${JSON.stringify(m.lamnat)}, sidan rullar ${m.over} px`);
+      krav(m.knappar.length === 4, `${namn}: ${m.knappar.length} val, väntat 4. Lämnat till appen: ${JSON.stringify(m.lamnat)}.`);
+      krav(JSON.stringify(m.knappar.map((k) => k.text)) === JSON.stringify(["Meddelande", "Händelse", "Ärende", "Agent"]), `${namn}: valen är ${JSON.stringify(m.knappar.map((k) => k.text))}, väntat Meddelande, Händelse, Ärende, Agent.`);
+      for (const k of m.knappar) {
+        krav(!k.klippt, `${namn}: ordet ${JSON.stringify(k.text)} är avklippt.`);
+        krav(k.l >= m.falt.l - 0.5 && k.r <= m.falt.r + 0.5 && k.l >= 0 && k.r <= vp.width + 0.5 && k.b <= vp.height + 0.5, `${namn}: ${k.text} står utanför fältet eller fönstret (${JSON.stringify(k)}).`);
+      }
+      krav(m.fokus === "Meddelande", `${namn}: fokus står på ${JSON.stringify(m.fokus)}, väntat Meddelande.`);
+      krav(m.lamnat.length === 0, `${namn}: appen fick ${JSON.stringify(m.lamnat)} innan personen valt något.`);
+      krav(m.over <= 0, `${namn}: sidan rullar ${m.over} px i sidled.`);
+      const traff = await matTraffyta(page, "[data-talk-valt]");
+      krav(traff.length === 4, `${namn}: ${traff.length} val mättes med elementFromPoint, väntat 4.`);
+      for (const t of traff) krav(t.mittTraff && t.w >= 43.5 && t.h >= 43.5, `${namn}: ${t.namn} träffas bara på ${t.w}x${t.h} px, väntat minst 44x44.`);
+      if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `talk-val-${vp.width}.png`) });
+      await page.locator('[data-talk-valt="agent"]').click();
+      await page.waitForFunction(() => !document.querySelector("[data-ops-talk]"), null, { timeout: 4000 });
+      const efter = await page.evaluate(() => /** @type {any} */ (window).__talkval.slice());
+      krav(JSON.stringify(efter) === JSON.stringify(["agent:Skapa ett ärende om att fakturan från mars inte har kommit, och påminn mig på fredag"]), `${namn}: Agent lämnade ${JSON.stringify(efter)}, väntat det sagda till onAgent.`);
+    } catch (e) {
+      krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+    }
+    await context?.close();
+  }
+  for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
+    const namn = `förslagen i chatten ${vp.width} px`;
+    /** @type {import("playwright").Page} */
+    let page;
+    /** @type {import("playwright").BrowserContext | null} */
+    let context = null;
+    try {
+      ({ page, context } = await oppna("chatt-forslag", vp, "dark"));
+      await page.locator("[data-ops-forslag] button").first().waitFor({ timeout: 4000 });
+      const m = await page.evaluate(() => {
+        const knappar = [...document.querySelectorAll("[data-ops-forslag] button")].map((k) => {
+          const r = k.getBoundingClientRect();
+          return { text: (k.textContent || "").trim(), l: r.left, r: r.right, h: r.height, rullar: k.scrollWidth > k.clientWidth + 0.5 };
+        });
+        const forhand = document.querySelector("[data-forslag-text]");
+        return { knappar, forhand: forhand ? (forhand.textContent || "").trim() : "", over: document.documentElement.scrollWidth - document.documentElement.clientWidth };
+      });
+      matt.push(`${namn}: ${m.knappar.map((k) => `${JSON.stringify(k.text.slice(0, 24))} ${(k.r - k.l).toFixed(0)}x${k.h.toFixed(0)}`).join(", ")}, förhandsvisning ${m.forhand.length} tecken, sidan rullar ${m.over} px`);
+      krav(m.knappar.length === 2, `${namn}: ${m.knappar.length} förslag, väntat 2.`);
+      krav(m.knappar[0]?.text === "Skapa ärendet: Fakturan från Telia för mars saknas", `${namn}: första förslaget säger ${JSON.stringify(m.knappar[0]?.text)}.`);
+      for (const k of m.knappar) {
+        krav(k.h >= 43.5 && !k.rullar && k.l >= 0 && k.r <= vp.width + 0.5, `${namn}: ${JSON.stringify(k.text.slice(0, 30))} är ${k.h} px hög, rullar ${k.rullar}, eller står utanför fönstret (${k.l.toFixed(0)} till ${k.r.toFixed(0)}).`);
+      }
+      krav(m.forhand.startsWith("Fakturan för mars"), `${namn}: förhandsvisningen under förslaget saknas (${JSON.stringify(m.forhand)}).`);
+      krav(m.over <= 0, `${namn}: sidan rullar ${m.over} px i sidled.`);
+      if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `chatt-forslag-${vp.width}.png`) });
+      await page.locator("[data-ops-forslag] button").first().dblclick();
+      await page.locator('[data-forslag="f1"][data-forslag-lage="ok"]').waitFor({ timeout: 4000 });
+      const tryck = await page.evaluate(() => /** @type {any} */ (window).__forslag.slice());
+      krav(tryck.length === 1 && tryck[0].mid === "m1-agent" && tryck[0].id === "f1" && typeof tryck[0].sid === "string" && tryck[0].sid, `${namn}: trycken gav ${JSON.stringify(tryck)}, väntat ett anrop med samtalet, m1-agent och f1.`);
+      const utfall = await page.locator('[data-forslag="f1"] [role="status"]').textContent();
+      krav((utfall || "").startsWith("Skapat:"), `${namn}: utfallet under knappen är ${JSON.stringify(utfall)}.`);
+      if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `chatt-forslag-klart-${vp.width}.png`) });
+    } catch (e) {
+      krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+    }
+    await context?.close();
+  }
+}
+
+// `--bara-talkval`: bara avsnitt 46. Hela körningen kör det också.
+if (argv.includes("--bara-talkval")) {
+  await talkValOchForslag();
+  await browser.close();
+  avsluta();
+  process.exit(0);
 }
 
 // `--bara-textfalt`: bara avsnitt 45, tal i ett vanligt textfält. Hela körningen kör det också.
@@ -6694,6 +6806,7 @@ for (const [namn, vp] of /** @type {const} */ ([["TALK-knappen 1280 px", { width
 await apparArkHylla();
 await apparArkOrdning();
 await textfaltMedTal();
+await talkValOchForslag();
 
 await browser.close();
 avsluta();

@@ -26,6 +26,9 @@ import { OpsSkapaRubrik } from "./OpsSkapaRubrik.jsx";
 import { OpsCountBadge } from "./counter.jsx";
 import { Mikrofonknapp, Rostyta, useRostfokus, useRostinmatning } from "./OpsRostinmatning.jsx";
 import { REAKTIONSVY, reaktionsnamnPa } from "./reaktionsvy.js";
+import { OpsForslag } from "./OpsForslag.jsx";
+import { forslagUrData } from "../lib/forslag.js";
+import { rapporteraFel } from "../lib/felrapport.js";
 import { AgentIkon, AndraIkon, BildIkon, FastIkon, FilIkon, KameraIkon, MappIkon, MejlIkon, NotisIkon, PanelIkon, StoppIkon, TystIkon, ChevronHogerIkon, ChevronNedIkon, CiteraIkon, ChevronVansterIkon, GruppIkon, KryssIkon, LasIkon, LeendeIkon, MeddelandeIkon, PlusIkon, SkickaIkon, SokIkon, TradIkon } from "./icons.jsx";
 
 /**
@@ -626,9 +629,20 @@ export function texterPa(sprak, texter) {
  * @param {string} [props.activeHref] (0.89.0) Krävs med `ram`. `?lage=installningar` ersätter chatten med inställningarna.
  * @param {import("../lib/modul.js").Modul | null} [props.modul] (0.89.0) Manifestet inställningarna läser. Krävs med `ram`, tillsammans med `tillbaka.hubHref`.
  * @param {(agent: { id: string, namn: string }) => void} [props.onVisaAgent] (0.90.0) Tryck på agentens namn och ikon i samtalets huvud, och på agentens avatar i en tråd, öppnar den agentens inställningar. Utan den är huvudet text.
+ * @param {(f: { sid: string, mid: string, id: string }) => Promise<import("../lib/forslag.js").Forslagssvar>} [props.onForslag] (0.105.0) Agentens
+ *   förslag som knappar under hens svar (`OpsForslag`). Ett meddelande från en medlem av typen agent som bär `forslag` (`{ id, etikett,
+ *   ikon?, text? }`, skrivet av appens server) får knapparna, och ett tryck anropar den här med samtalet, meddelandet och förslagets id.
+ *   Utan den ritas inga knappar. ⛔ Ramverket vet inte vad ett förslag gör: det avgör appens server, och trycket är personens begäran.
+ *   ⛔ Servern ska pröva `{ sid, mid, id }` mot det LAGRADE meddelandet (skrivet av en agent, med förslaget `id`) och mot att den som
+ *   trycker är deltagare i samtalet, och utföra det lagrade förslaget, aldrig något klienten skickat (se `lib/forslag.js`). ⛔ I en tråd
+ *   ritas inga förslag, varken under roten eller under ett svar.
+ * @param {string} [props.nyttUtkast] (0.105.0) Texten som står i skrivfältet när läget "nytt" öppnas, till exempel det man sade i TALK och
+ *   valde Meddelande för. Ingenting skickas: personen väljer mottagare och trycker Skicka.
  */
-export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt, nytt, onValj, onOlasta, valtTrad, onValjTrad, sprak: sprakProp, texter = {}, postkort, onTranscribe, onStoppaAgent, inspelare, igenkanning, onBifoga, mejl, onLyftTillMinnet, minneHref, tillbaka, ram = null, activeHref, modul = null, onVisaAgent }) {
+export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt, nytt, onValj, onOlasta, valtTrad, onValjTrad, sprak: sprakProp, texter = {}, postkort, onTranscribe, onStoppaAgent, inspelare, igenkanning, onBifoga, mejl, onLyftTillMinnet, minneHref, tillbaka, ram = null, activeHref, modul = null, onVisaAgent, onForslag, nyttUtkast }) {
   kravRam(ram, "OpsMeddelanden");
+  if (onForslag !== undefined && typeof onForslag !== "function") throw new Error(`OpsMeddelanden: onForslag ska vara en funktion, fick ${typeof onForslag}.`);
+  if (nyttUtkast !== undefined && typeof nyttUtkast !== "string") throw new Error(`OpsMeddelanden: nyttUtkast ska vara en sträng, fick ${typeof nyttUtkast}.`);
   if (ram && (typeof activeHref !== "string" || activeHref === "" || !modul || typeof tillbaka?.hubHref !== "string")) {
     throw new Error("OpsMeddelanden: ram kräver activeHref, modul och tillbaka.hubHref. Inställningsläget använder samma tillbaka-rad som listan.");
   }
@@ -943,6 +957,7 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
            */
           <NyttSamtal
             key={groupId}
+            utkast={nyttUtkast}
             gruppMarke={<OpsIdentity name={gruppNamn} seed={groupId} size="sm" icon={GruppIkon} />}
             kalla={kalla}
             uid={uid}
@@ -1020,6 +1035,7 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
             onBifoga={onBifoga}
             mejl={mejl}
             onVisaAgent={onVisaAgent}
+            onForslag={onForslag}
           />
         ) : (
           <div className="flex flex-1 flex-col items-center justify-center px-6 text-center">
@@ -1077,13 +1093,13 @@ function OppnaGruppchatt({ kalla, uid, groupId, texter: t, onOppnad }) {
  *
  * ⛔ DET MAN SKRIVIT INNAN VALET FÖLJER MED, och ett Skicka utan mottagare säger vad som saknas i stället för att inte göra något.
  *
- * @param {{ kalla: ReturnType<typeof import("../data/samtalskalla.js").createSamtalskalla>, uid: string, groupId: string, medlemmar: ReadonlyArray<Medlemsrad>, texter: Required<Meddelandetexter>, sprak: string, gruppMarke: import("react").ReactNode, onOppnat: (samtal: import("../lib/samtal.js").Samtal, text: string) => void }} props
+ * @param {{ kalla: ReturnType<typeof import("../data/samtalskalla.js").createSamtalskalla>, uid: string, groupId: string, medlemmar: ReadonlyArray<Medlemsrad>, texter: Required<Meddelandetexter>, sprak: string, gruppMarke: import("react").ReactNode, onOppnat: (samtal: import("../lib/samtal.js").Samtal, text: string) => void, utkast?: string }} props
  */
-function NyttSamtal({ kalla, uid, groupId, medlemmar, texter: t, sprak, gruppMarke, onOppnat }) {
+function NyttSamtal({ kalla, uid, groupId, medlemmar, texter: t, sprak, gruppMarke, onOppnat, utkast = "" }) {
   const [mottagare, setMottagare] = useState(/** @type {import("../lib/samtal.js").Mottagare | null} */ (null));
-  const [text, setTextState] = useState("");
+  const [text, setTextState] = useState(utkast);
   // ⛔ Texten läses ur en ref när samtalet öppnats, inte ur stängningen: det man skrev MEDAN `oppnaPrivat` pågick följer med.
-  const textNu = useRef("");
+  const textNu = useRef(utkast);
   const setText = (/** @type {string} */ v) => {
     textNu.current = v;
     setTextState(v);
@@ -1711,6 +1727,7 @@ function agentDeltagare(samtal, uid, medlemmar) {
  * @param {string} [props.sprak]
  * @param {Meddelandetexter} [props.texter]
  * @param {Postkort} [props.postkort] (chattens nattskiva) Länkar till appens poster som kort.
+ * @param {(f: { sid: string, mid: string, id: string }) => Promise<import("../lib/forslag.js").Forslagssvar>} [props.onForslag] (0.105.0) Förslagen under agentens svar, se `OpsMeddelanden`.
  * @param {(blob: Blob) => Promise<string>} [props.onTranscribe] (chattens nattskiva) Appens transkribering. Med den ritas ljudvågen i
  *   skrivfältet. ⛔ (0.103.0) Det sagda skickas som ett meddelande när man trycker Klar, och `onTranscribe` används bara när inget av det
  *   hördes (se `useRostinmatning`). Utan den ingen ljudvåg.
@@ -1726,7 +1743,7 @@ function agentDeltagare(samtal, uid, medlemmar) {
  * @param {string} [props.mejl] (0.80.0, #301) Adressen appen skickar in. Utan den ritas ingen mejlknapp.
  * @param {(agent: { id: string, namn: string }) => void} [props.onVisaAgent] (0.90.0) Gör namn och ikon i ett agentsamtal till en knapp.
  */
-export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, namnFor, medlemmar, onLast, onSkickat, utkast, onOppnaTrad, tradminne, fokusRot, onFokuserad, sprak: sprakProp, texter = {}, postkort, onTranscribe, onStoppaAgent, inspelare, igenkanning, onBifoga: onBifogaProp, mejl, onVisaAgent }) {
+export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, namnFor, medlemmar, onLast, onSkickat, utkast, onOppnaTrad, tradminne, fokusRot, onFokuserad, sprak: sprakProp, texter = {}, postkort, onTranscribe, onStoppaAgent, inspelare, igenkanning, onBifoga: onBifogaProp, mejl, onVisaAgent, onForslag }) {
   // ⛔ Språket ur appens `OpsSprakProvider` när appen inte gav ett (0.46.0, cllp/bolag-ops#528).
   const sprakKontext = useOpsSprak();
   const sprak = sprakProp ?? sprakKontext;
@@ -1931,6 +1948,7 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
           traffar={sok.oppen ? { ids: sok.traffar, aktuell: sok.aktuell } : null}
           fasta={fasta.pa ? fasta : null}
           postkort={postkort}
+          onForslag={onForslag}
           uid={uid}
           namnFor={namnFor}
           medlemmar={medlemmar}
@@ -2167,8 +2185,9 @@ function useTradmarken({ kalla, sid, meddelanden, minne }) {
  * @param {string} [props.sid]
  * @param {string} [props.trad] Trådens id, när raderna är svar i en tråd. Det står i filens nyckel (`bilagenyckel`).
  * @param {(agent: { id: string, namn: string }) => void} [props.onVisaAgent] (0.90.0) Agentens avatar i en tråd öppnar inställningarna.
+ * @param {(f: { sid: string, mid: string, id: string }) => Promise<import("../lib/forslag.js").Forslagssvar>} [props.onForslag] (0.105.0) Förslagen under agentens svar.
  */
-function Meddelanderader({ meddelanden, uid, namnFor, medlemmar, locale, visaNamn, efter, forraTid, reakt, texter = TEXTER, citat, traffar, fasta, postkort, kalla, sid, trad, onVisaAgent }) {
+function Meddelanderader({ meddelanden, uid, namnFor, medlemmar, locale, visaNamn, efter, forraTid, reakt, texter = TEXTER, citat, traffar, fasta, postkort, kalla, sid, trad, onVisaAgent, onForslag }) {
   const medlemsbild = (/** @type {string} */ id) => (medlemmar ?? []).find((m) => m.userId === id)?.bild || undefined;
   const medlemstyp = (/** @type {string} */ id) => (medlemmar ?? []).find((m) => m.userId === id)?.typ;
   return (
@@ -2244,6 +2263,11 @@ function Meddelanderader({ meddelanden, uid, namnFor, medlemmar, locale, visaNam
                   />
                 ) : null}
                 {postkort ? <Postkortrad text={m.text} postkort={postkort} egen={egen} texter={texter} /> : null}
+                {/* ⛔ BARA UNDER EN AGENTS SVAR (0.105.0). Ett meddelande från en person som bär `forslag` (en klient skrev förbi
+                    reglerna, eller ett fält med samma namn) får inga knappar: ett förslag är något agenten lägger fram. */}
+                {onForslag && !egen && sid && medlemstyp(m.av) === "agent" && /** @type {any} */ (m).forslag !== undefined ? (
+                  <AgentensForslag varde={/** @type {any} */ (m).forslag} sid={sid} mid={m.id} onForslag={onForslag} />
+                ) : null}
                 {reakt?.pa ? <Reaktionschips m={m} egen={egen} reakt={reakt} texter={texter} /> : null}
                 <span className={cx("relative mt-0.5 flex max-w-full items-center gap-1.5", egen ? "mr-1 flex-row-reverse" : "ml-1")}>
                   <span className="text-liten tabular-nums text-ink-muted">{formatTime(m.tid, { locale })}</span>
@@ -3437,4 +3461,23 @@ function Postkortrad({ text, postkort, egen, texter: t }) {
 function agentArbetar(lage) {
   const v = agentstatus(lage.dok, Date.now());
   return Boolean(v && !("fel" in v));
+}
+
+/**
+ * Förslagen ur ett agentsvar som det kom ur databasen (0.105.0). ⛔ ETT FELFORMAT FÖRSLAG FÄLLER INTE CHATTEN: det hoppas över och
+ * rapporteras, en gång per meddelande (regel 5). Knapparna ritas av `OpsForslag`, samma som en app kan rita var som helst.
+ * @param {{ varde: unknown, sid: string, mid: string, onForslag: (f: { sid: string, mid: string, id: string }) => Promise<import("../lib/forslag.js").Forslagssvar> }} props
+ */
+function AgentensForslag({ varde, sid, mid, onForslag }) {
+  const { forslag, fel } = useMemo(() => forslagUrData(varde), [varde]);
+  const feltext = fel.join(" | ");
+  useEffect(() => {
+    if (feltext) rapporteraFel(new Error(`OpsMeddelanden: förslag i meddelandet hoppades över: ${feltext}`), { yta: "OpsMeddelanden", steg: "forslag", sid, mid });
+  }, [feltext, sid, mid]);
+  if (forslag.length === 0) return null;
+  return (
+    <div className="mt-1.5 w-full min-w-0">
+      <OpsForslag forslag={forslag} onForslag={(id) => onForslag({ sid, mid, id })} />
+    </div>
+  );
 }

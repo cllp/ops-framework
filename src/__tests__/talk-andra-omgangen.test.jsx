@@ -1,22 +1,19 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, fireEvent, render, renderHook, screen, within } from "@testing-library/react";
-import { OpsAppShell, useOppnaInspelning } from "../components/OpsAppShell.jsx";
-import { OpsSprakProvider } from "../components/OpsSprak.jsx";
+import { act, fireEvent, render, renderHook, screen } from "@testing-library/react";
+import { OpsAppShell } from "../components/OpsAppShell.jsx";
 import { useTalk } from "../components/OpsTalk.jsx";
 import { IGENKANNING_VANTA_MS, TALK_TEXTFEL, webblasarensIgenkanning, webblasarensInspelare } from "../lib/talk.js";
-import { validateModuler } from "../lib/modul.js";
 
 /*
- * Svara efter ett kvitto, och att andra omgången fungerar (0.99.0). Två händelser, båda CP 2026-10-13 kväll:
+ * Andra omgången i TALK (0.99.0), flyttat hit ur `talk-svara-andra-gangen.test.jsx` när Svara togs bort i 0.105.0. ⛔ PROVEN HÄR
+ * MÄTTE ALDRIG SVARA, bara att en andra omgång fungerar, och den finns kvar: man stänger fältet och trycker på mikrofonen igen.
+ * Granskningen av PR 387 fann att de försvann med filen. De står här oförändrade utom att andra omgången startas med mikrofonen.
  *
- * 22:13, med en skärmbild av panelen efter att agenten ställt en följdfråga: "Efter att jag pratat en gång finns bara stäng. Sedan
- * kan jag inte börja om." Kvittot hade Ångra och Stäng, och ingen väg att svara i samma panel.
- *
- * 22:15, iPhone/Safari: "Det är som att andra gången jag försöker spela in så funkar det inte." Rotorsaken som går att visa i koden:
- * `webblasarensIgenkanning().stoppa()` gav upp efter `IGENKANNING_VANTA_MS` när webbläsaren aldrig sade `end`, men lät igenkännaren
- * leva. Safari tillåter bara EN aktiv igenkänning, så `start()` på nästa omgångs instans kastade InvalidStateError. Felet sväljdes:
- * texten blev tom, platstexten stod kvar, och ingenting förklarade varför. ⛔ Provet använder en fejkad Safari-igenkänning med den
- * regeln. Den är inte en riktig iPhone: det som är mätt är koden mot regeln, inte regeln mot Apple.
+ * Händelsen, CP 2026-10-13 22:15, iPhone/Safari: "Det är som att andra gången jag försöker spela in så funkar det inte." Rotorsaken
+ * som går att visa i koden: `webblasarensIgenkanning().stoppa()` gav upp efter `IGENKANNING_VANTA_MS` när webbläsaren aldrig sade
+ * `end`, men lät igenkännaren leva. Safari tillåter bara EN aktiv igenkänning, så `start()` på nästa omgångs instans kastade
+ * InvalidStateError. Felet sväljdes: texten blev tom, platstexten stod kvar, och ingenting förklarade varför. ⛔ Provet använder en
+ * fejkad Safari-igenkänning med den regeln. Den är inte en riktig iPhone: det som är mätt är koden mot regeln, inte regeln mot Apple.
  */
 
 const flush = () => act(async () => {});
@@ -40,161 +37,6 @@ function falskInspelare() {
     niva: () => 0.5,
   };
 }
-
-/** Klar, och vänta tills kvittot (eller sparningen) står. */
-/** ⛔ ÄNDRAT 0.104.0: Klars namn följer språket (`ORD_TALK.klarNamn`), så på engelska heter knappen "Done, save the recording". */
-async function klar() {
-  fireEvent.click(screen.getByRole("button", { name: /^(Klar, spara inspelningen|Done, save the recording)$/ }));
-  await flush();
-}
-
-describe("Svara efter ett kvitto", () => {
-  beforeEach(() => vi.useFakeTimers());
-  afterEach(() => vi.useRealTimers());
-
-  it("⛔ efter kvittot finns Svara (primär, med mikrofonen) och Stäng, och Svara startar en ny omgång till SAMMA mål", async () => {
-    const insp = falskInspelare();
-    const onTalk = vi.fn(async () => ({ kvitto: "Vill du ha ett ärende eller en påminnelse?" }));
-    render(Skal({ onTalk, inspelare: insp, mal: [{ id: "agenten", etikett: "Agenten" }] }));
-    fireEvent.click(huvudMikrofon());
-    await flush();
-    expect(insp.starta).toHaveBeenCalledTimes(1);
-    await klar();
-    const dialog = /** @type {HTMLElement} */ (falt());
-    expect(within(dialog).getByRole("status").textContent).toBe("Vill du ha ett ärende eller en påminnelse?");
-    const svara = within(dialog).getByRole("button", { name: "Svara" });
-    expect(svara.querySelector("svg")).not.toBeNull();
-    expect(svara.className).toContain("bg-accent");
-    expect(within(dialog).getByRole("button", { name: "Stäng" }).className).not.toContain("bg-accent ");
-    // ⛔ Fokus på Svara: det naturliga nästa steget i en dialog med agenten.
-    expect(document.activeElement).toBe(svara);
-
-    fireEvent.click(svara);
-    await flush();
-    // En ny omgång i SAMMA panel: inspelaren startad igen, kvittot borta, fältet lyssnar.
-    expect(insp.starta).toHaveBeenCalledTimes(2);
-    expect(falt()).not.toBeNull();
-    expect(screen.queryByText("Vill du ha ett ärende eller en påminnelse?")).toBeNull();
-    expect(screen.queryByRole("button", { name: "Svara" })).toBeNull();
-    await klar();
-    expect(onTalk).toHaveBeenCalledTimes(2);
-    expect(/** @type {any[]} */ (onTalk.mock.calls[0])[1].mal).toEqual({ id: "agenten" });
-    expect(/** @type {any[]} */ (onTalk.mock.calls[1])[1].mal).toEqual({ id: "agenten" });
-  });
-
-  it("⛔ Ångra finns kvar bredvid Svara och fungerar", async () => {
-    const angra = vi.fn(async () => {});
-    render(Skal({ onTalk: async () => ({ kvitto: "Inlagt: Rep", angra }), inspelare: falskInspelare() }));
-    fireEvent.click(huvudMikrofon());
-    await flush();
-    await klar();
-    const dialog = /** @type {HTMLElement} */ (falt());
-    expect(within(dialog).getByRole("button", { name: "Svara" })).toBeTruthy();
-    fireEvent.click(within(dialog).getByRole("button", { name: "Ångra" }));
-    await flush();
-    expect(angra).toHaveBeenCalledTimes(1);
-    expect(within(dialog).getByRole("status").textContent).toBe("Ångrat");
-  });
-
-  it("⛔ en gammal text står inte kvar under det nya svaret medan mikrofonen öppnas", async () => {
-    // Utan rensning låg förra omgångens text kvar i hela tiden mikrofonprompten tog, och såg ut som det nya svaret.
-    const insp = falskInspelare();
-    const igenkanning = { starta: vi.fn(), stoppa: vi.fn(async () => "boka rep torsdag"), kasta: vi.fn() };
-    render(Skal({ onTalk: async () => ({ kvitto: "Vilken tid?" }), inspelare: insp, igenkanning }));
-    fireEvent.click(huvudMikrofon());
-    await flush();
-    await klar();
-    expect(falt()).not.toBeNull();
-    let oppna = () => {};
-    insp.starta.mockImplementationOnce(() => new Promise((a) => { oppna = () => a(undefined); }));
-    fireEvent.click(screen.getByRole("button", { name: "Svara" }));
-    await flush();
-    expect(document.querySelector("[data-talk-text]")).toBeNull();
-    expect(screen.queryByText("boka rep torsdag")).toBeNull();
-    oppna();
-    await flush();
-    expect(igenkanning.starta).toHaveBeenCalledTimes(2);
-  });
-
-  it("⛔ Svara spärras medan Ångra pågår: en ny omgång hade rensat kvittot under en Ångra som inte svarat", async () => {
-    let klarAngra = () => {};
-    const angra = vi.fn(() => new Promise((a) => { klarAngra = () => a(undefined); }));
-    const insp = falskInspelare();
-    render(Skal({ onTalk: async () => ({ kvitto: "Inlagt: Rep", angra }), inspelare: insp }));
-    fireEvent.click(huvudMikrofon());
-    await flush();
-    await klar();
-    fireEvent.click(screen.getByRole("button", { name: "Ångra" }));
-    await flush();
-    const svara = screen.getByRole("button", { name: "Svara" });
-    expect(svara).toHaveAttribute("aria-disabled", "true");
-    fireEvent.click(svara);
-    await flush();
-    expect(insp.starta).toHaveBeenCalledTimes(1);
-    klarAngra();
-    await flush();
-    expect(screen.getByRole("status").textContent).toBe("Ångrat");
-  });
-
-  it("ordet följer språket och kan bytas av appen", async () => {
-    const { unmount } = render(<OpsSprakProvider sprak="en">{Skal({ onTalk: async () => ({ kvitto: "Done" }), inspelare: falskInspelare() })}</OpsSprakProvider>);
-    fireEvent.click(huvudMikrofon());
-    await flush();
-    await klar();
-    expect(screen.getByRole("button", { name: "Reply" })).toBeTruthy();
-    unmount();
-    render(Skal({ onTalk: async () => ({ kvitto: "Klart" }), inspelare: falskInspelare(), svaraText: "Fortsätt" }));
-    fireEvent.click(huvudMikrofon());
-    await flush();
-    await klar();
-    expect(screen.getByRole("button", { name: "Fortsätt" })).toBeTruthy();
-  });
-
-  it("⛔ skalet kastar på en tom svaraText vid uppstart", () => {
-    const konsol = vi.spyOn(console, "error").mockImplementation(() => {});
-    try {
-      expect(() => render(Skal({ onTalk: async () => {}, svaraText: " " }))).toThrow(/svaraText/);
-    } finally {
-      konsol.mockRestore();
-    }
-  });
-
-  it("⛔ en inspelning låst till Biblioteket fortsätter till Biblioteket när man trycker Svara (utan val)", async () => {
-    const spara = vi.fn(async () => ({ kvitto: "Sparat i Biblioteket" }));
-    const modul = {
-      id: "bibliotek",
-      namn: { sv: "Bibliotek", en: "Library" },
-      nav: [],
-      routes: [],
-      samlingar: [],
-      kallor: {},
-      skapar: [],
-      hubb: null,
-      tillagg: [{ plats: "inspelning.mal", id: "spara", etikett: { sv: "Spara i Biblioteket", en: "Save in the library" }, spara }],
-    };
-    function Rad() {
-      const oppna = useOppnaInspelning();
-      return <button type="button" onClick={() => oppna("bibliotek")}>Röstinspelning i Biblioteket</button>;
-    }
-    const onTalk = vi.fn();
-    render(
-      <OpsAppShell brand="Ops" fasta={fasta} activeHref="/" talk={{ onTalk, inspelare: falskInspelare(), mal: [{ id: "agenten", etikett: "Agenten" }] }} skapa={{ lage: "g", moduler: validateModuler([modul]), aktivGrupp: { id: "g", moduler: ["bibliotek"] } }}>
-        <Rad />
-      </OpsAppShell>,
-    );
-    fireEvent.click(screen.getByRole("button", { name: "Röstinspelning i Biblioteket" }));
-    await flush();
-    expect(screen.queryByRole("radio")).toBeNull();
-    await klar();
-    expect(spara).toHaveBeenCalledTimes(1);
-    fireEvent.click(screen.getByRole("button", { name: "Svara" }));
-    await flush();
-    expect(screen.queryByRole("radio")).toBeNull();
-    await klar();
-    expect(spara).toHaveBeenCalledTimes(2);
-    expect(onTalk).not.toHaveBeenCalled();
-  });
-});
 
 describe("tak som följer målet, direkt på kroken", () => {
   beforeEach(() => vi.useFakeTimers());
@@ -338,6 +180,7 @@ describe("andra omgången med en Safari-lik igenkänning", () => {
       fireEvent.click(screen.getByRole("button", { name: "Stäng" }));
       expect(falt()).toBeNull();
 
+      // ⛔ ANDRA OMGÅNGEN MED MIKROFONEN (0.105.0): Svara finns inte längre.
       f.bete.stop = "slut";
       fireEvent.click(huvudMikrofon());
       await flush();

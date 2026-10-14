@@ -73,9 +73,9 @@ describe("kvittot i fältet", () => {
     const dialog = /** @type {HTMLElement} */ (falt());
     expect(within(dialog).getByRole("status").textContent).toBe("Inlagt: Rep, torsdag 22 okt 19:00");
     expect(within(dialog).getByRole("button", { name: "Ångra" })).toBeTruthy();
-    // ⛔ Fokus på Svara (0.99.0; före dess på Stäng), inte på Ångra: ett Enter av vana ska svara agenten, inte ta bort det appen
-    // nyss gjorde. Skälet till bytet: CP 2026-10-13 22:13, "Efter att jag pratat en gång finns bara stäng."
-    expect(document.activeElement).toBe(within(dialog).getByRole("button", { name: "Svara" }));
+    // ⛔ Fokus på Stäng, inte på Ångra: ett Enter av vana ska inte ta bort det appen nyss gjorde. (0.99.0 till 0.104.0 låg fokus på
+    // Svara. Svara är borta i 0.105.0: dialogen med agenten står i chatten, CP 2026-10-14 "Kör chatten".)
+    expect(document.activeElement).toBe(within(dialog).getByRole("button", { name: "Stäng" }));
     // ⛔ Döljs inte av sig självt, som Sparat gör.
     act(() => vi.advanceTimersByTime(SPARAT_MS * 5));
     expect(falt()).not.toBeNull();

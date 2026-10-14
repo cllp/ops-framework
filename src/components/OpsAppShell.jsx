@@ -878,26 +878,27 @@ function GenvagRam({ nyckel, ikon, tips = true, className, children }) {
  *   Utan `skapa`, eller utan NÅGOT den kan visa (inga `handelse`/`arende` OCH modulerna i `ingenGrupp`/`tomt`-
  *   läge), ritas inget plus alls (tomhet är ett svar, arbetsreglernas punkt 5).
  * @param {string} [props.skapaLabel] Skärmläsarnamn på plusknappen.
- * @param {Omit<import("./OpsTalk.jsx").TalkVal, "onTalk"> & { mal?: ReadonlyArray<{ id: string, etikett: string }>, onFortsatt?: (underlag: import("../lib/talk.js").Talkunderlag) => void, fortsattEtikett?: string, onTalk: (blob: Blob, meta: { mimeType: string, sekunder: number, rapportera: (andel: number) => void, mal?: { id: string }, text?: string }) => Promise<void | import("../lib/talk.js").Talkkvitto> | void | import("../lib/talk.js").Talkkvitto }} [props.talk] TALK (0.57.0, cllp/lifehub.app#2). ⛔ (0.103.0) Bottenradens mittknapp
+ * @param {Omit<import("./OpsTalk.jsx").TalkVal, "onTalk"> & { mal?: ReadonlyArray<{ id: string, etikett: string }>, onMeddelande?: (underlag: import("../lib/talk.js").Talkunderlag) => void, onAgent?: (text: string) => void | Promise<void>, onTalk: (blob: Blob, meta: { mimeType: string, sekunder: number, rapportera: (andel: number) => void, mal?: { id: string }, text?: string }) => Promise<void | import("../lib/talk.js").Talkkvitto> | void | import("../lib/talk.js").Talkkvitto }} [props.talk] TALK (0.57.0, cllp/lifehub.app#2). ⛔ (0.103.0) Bottenradens mittknapp
  *   är då en mikrofon: ett vanligt tryck spelar in, och ett långtryck öppnar skapa-listan (utan TALK-raden) när den har något.
  *   Före 0.103.0 spelade ett långtryck på plusset in och ett tryck öppnade Skapa. Huvudets plus (bred skärm, och den gamla
  *   modellen på telefon) får raden "TALK, prata in" först där ingen mikrofon står bredvid. Ljudet lämnas till `talk.onTalk`. När ett mål är valt
  *   bär `meta.mal` dess id. `mal` är appens egna mål (händelse, meddelande). Modulernas mål på platsen
  *   `inspelning.mal` sparas av modulens `spara`, inte av `onTalk`. ⛔ (0.99.0) Mikrofonen (huvudets knapp, bottenradens mikrofon, raden
  *   TALK, prata in) erbjuder BARA appens mål, och med ett enda mål ritas inget val alls. Ett moduls mål nås bara genom modulens egen rad
- *   (Ny-menyn: Röstinspelning, `useOppnaInspelning`), som öppnar fältet låst till målet, utan val. `talk.svaraText` är ordet på Svara
- *   (förval "Svara", på engelska "Reply"): efter ett kvitto startar den en ny omgång i samma fält, till samma mål. ⛔ Utan `talk` finns varken
+ *   (Ny-menyn: Röstinspelning, `useOppnaInspelning`), som öppnar fältet låst till målet, utan val. ⛔ Utan `talk` finns varken
  *   långtrycket eller raden, om ingen modul erbjuder ett mål: en knapp som spelar in men inte har någon mottagare hade tappat det man sade. (#276) På dator
  *   får huvudet också en mikrofonknapp bredvid plusset, som gör det raden gör.
  *   (0.97.0, lifehub.app#219) `onTalk` får lösa till `{ kvitto, angra? }`: fältet visar då kvittot med Ångra och Stäng i stället
  *   för Sparat. `talk.skickarText` är statusraden medan `onTalk` arbetar (förval "Sparar…"). ⛔ Den gäller bara appens mål:
  *   när ett moduls mål är valt (Biblioteket) är det modulens `spara` som arbetar, och där står förvalet.
- *   (0.103.0) När kvittot står har fältet en rubrikrad med tre ikoner som lämnar hela samtalet vidare (`Talkunderlag`:
- *   `{ text, samtal, rader }`) och stänger fältet. Händelse öppnar skalets "Ny händelse" och Ärende skalets "Nytt ärende" med
- *   `forifyllt` (`TalkForifyllt`), och ritas bara när `skapa.handelse` är ett formulär (`HandelseSkapare`) respektive `skapa.arende`
- *   är en funktion. Meddelande lämnar underlaget till `talk.onFortsatt(underlag)` och ritas bara med den. `talk.fortsattEtikett`
- *   ("Fortsätt i chatten") är ikonens namn när appen säger att man står i en chatt; utan den heter den "Skapa ett meddelande av
- *   samtalet". ⛔ Agenten är inte inblandad: personen justerar och sparar själv.
+ *   (0.105.0) Med `talk.onAgent` lämnar Klar inte det sagda till `onTalk`. Fältet visar texten och valen Meddelande, Händelse, Ärende och
+ *   Agent, med ord. Agent lämnar texten till `talk.onAgent(text)` och stänger fältet när löftet löser sig: appen tar över (lifehub.app
+ *   skickar texten till chatten med agenten och öppnar den). Avvisas löftet står det sagda och valen kvar med felet, och ett nytt
+ *   tryck på Agent försöker igen. Händelse öppnar skalets "Ny händelse" och Ärende skalets "Nytt ärende"
+ *   med `forifyllt` (`talkForifyllt`), och ritas bara när `skapa.handelse` är ett formulär (`HandelseSkapare`) respektive `skapa.arende`
+ *   är en funktion. Meddelande lämnar underlaget (`Talkunderlag`, `{ text }`) till `talk.onMeddelande` och ritas bara med den.
+ *   Hördes inget (igenkänningen av) går ljudet till `onTalk` som förut. När ett moduls mål är valt (Biblioteket) gäller modulens
+ *   `spara` och inga val. ⛔ 0.105.0 tog bort `svaraText`, `onFortsatt` och `fortsattEtikett`, och skalet kastar om de skickas.
  * @param {string} [props.closeLabel] Skärmläsarnamn på stängknappen i bottenradens skapa-ark (bara med `fasta`).
  * @param {string} [props.nyHandelseEtikett] Ramverkets rad för `skapa.handelse`.
  * @param {string} [props.nyttArendeEtikett] Ramverkets rad för `skapa.arende`.
@@ -972,20 +973,23 @@ function OpsAppShellRitad({
     throw new Error("OpsAppShell: \"talk\" måste ha onTalk (funktion). Utan mottagare hade det man sade försvunnit tyst.");
   }
   if (talk) kontrolleraSkickarText(talk.skickarText, "OpsAppShell talk");
-  if (talk && talk.svaraText !== undefined && (typeof talk.svaraText !== "string" || !talk.svaraText.trim())) {
-    throw new Error(`OpsAppShell: talk.svaraText ska vara en sträng som inte är tom, fick ${typeof talk.svaraText === "string" ? JSON.stringify(talk.svaraText) : typeof talk.svaraText}. En knapp utan ord går inte att trycka på.`);
+  /*
+   * ⛔ 0.105.0: SVARA OCH FORTSÄTT I CHATTEN ÄR BORTA, OCH EN APP SOM FORTFARANDE SKICKAR DEM FÅR ETT FEL. CP 2026-10-14: "Kör chatten".
+   * Dialogen med agenten står i chatten (Agent), inte i fältet, så Svara (`svaraText`) och "Fortsätt i chatten" (`onFortsatt`,
+   * `fortsattEtikett`) hade gjort samma sak som Agent. En nyckel som tyst ignorerades hade varit en knapp som försvann utan förklaring.
+   */
+  if (talk) {
+    const borta = /** @type {const} */ ([
+      ["svaraText", "Svara är borta: dialogen med agenten står i chatten, och Agent tar dit det sagda (talk.onAgent)."],
+      ["onFortsatt", "Meddelande heter talk.onMeddelande, och Fortsätt i chatten är Agent (talk.onAgent)."],
+      ["fortsattEtikett", "Fortsätt i chatten är Agent (talk.onAgent), och Meddelande har ett fast ord."],
+    ]).filter(([k]) => /** @type {any} */ (talk)[k] !== undefined);
+    if (borta.length) throw new Error(`OpsAppShell: talk.${borta.map(([k]) => k).join(" och talk.")} finns inte sedan 0.105.0. ${borta.map(([, v]) => v).join(" ")}`);
   }
-  // ⛔ 0.103.0: SAMTALETS MOTTAGARE PRÖVAS VID UPPSTART, som `svaraText`. Ikonen ritas först när någon pratat klart, och ett fel
-  // som syns först då är för sent. En etikett utan mottagare är ett namn på en knapp som inte finns.
-  if (talk && talk.onFortsatt !== undefined && typeof talk.onFortsatt !== "function") {
-    throw new Error(`OpsAppShell: talk.onFortsatt ska vara en funktion, fick ${typeof talk.onFortsatt}. Ikonen Meddelande lämnar samtalet dit, och utan en funktion att anropa hade den inte gjort något.`);
-  }
-  if (talk && talk.fortsattEtikett !== undefined) {
-    if (typeof talk.fortsattEtikett !== "string" || !talk.fortsattEtikett.trim()) {
-      throw new Error(`OpsAppShell: talk.fortsattEtikett ska vara en sträng som inte är tom, fick ${typeof talk.fortsattEtikett === "string" ? JSON.stringify(talk.fortsattEtikett) : typeof talk.fortsattEtikett}.`);
-    }
-    if (typeof talk.onFortsatt !== "function") {
-      throw new Error("OpsAppShell: talk.fortsattEtikett utan talk.onFortsatt. Etiketten är namnet på ikonen som lämnar samtalet till chatten, och utan mottagare ritas ingen ikon.");
+  // ⛔ MOTTAGARNA PRÖVAS VID UPPSTART. Valen ritas först när någon pratat klart, och ett fel som syns först då är för sent.
+  for (const k of /** @type {const} */ (["onMeddelande", "onAgent"])) {
+    if (talk && talk[k] !== undefined && typeof talk[k] !== "function") {
+      throw new Error(`OpsAppShell: talk.${k} ska vara en funktion, fick ${talk[k] === null ? "null" : typeof talk[k]}. Valet lämnar det sagda dit, och utan en funktion att anropa hade det inte gjort något.`);
     }
   }
   if (skapa) {
@@ -1669,6 +1673,8 @@ function OpsAppShellRitad({
       return talk.onTalk(blob, valtMal ? { ...meta, mal: { id: valtMal.id } } : meta);
     },
     onKlick: () => (harFasta ? setSkapaBottenOppen(true) : primaryAction?.onClick()),
+    // ⛔ AGENT BARA FÖR APPENS MÅL (0.105.0). Ett fält låst till Biblioteket sparar ljudet där, och ett val hade lämnat det någon annanstans.
+    onAgent: !laastTillModul && typeof talk?.onAgent === "function" ? talk.onAgent : undefined,
     inspelare: talk?.inspelare,
     igenkanning: talk?.igenkanning,
     // ⛔ "Agenten arbetar…" när inspelningen går till Biblioteket hade varit osant: där är det modulens `spara` som arbetar.
@@ -1712,17 +1718,17 @@ function OpsAppShellRitad({
     talkStyr.direkt();
   };
 
-  // ══ ⛔ SAMTALETS TRE MOTTAGARE (0.103.0) ══════════════════════════════════════════════════════════════════════════════
+  // ══ ⛔ VALENS TRE MOTTAGARE (0.103.0, 0.105.0) ═════════════════════════════════════════════════════════════════════════
   //
-  // CP 2026-10-14: "Inte så dumt med 3 knappar/ikoner när man pratat in som option [...] Och om det är i en chatt så är flödet
-  // 'fortsätt i chatten'." Händelse och Ärende är skalets egna formulär, och skalet öppnar dem med samtalet ifyllt
-  // (`talkForifyllt`). Meddelande är appens: skalet vet inte vilken chatt man står i, så den går till `talk.onFortsatt`.
+  // CP 2026-10-14: "Sen så finns de tre knapparna där direkt. Meddelande, ärende, kalender." Händelse och Ärende är skalets egna
+  // formulär, och skalet öppnar dem med det sagda ifyllt (`talkForifyllt`). Meddelande är appens: skalet vet inte vart ett meddelande
+  // ska, så det går till `talk.onMeddelande`. Agent är den fjärde, och går till `talk.onAgent` genom kroken.
   // ⛔ EN NYCKEL BARA NÄR MOTTAGAREN FINNS. "Ny händelse" som färdig nod och "Nytt ärende" som färdig nod kan inte ta emot
   // startvärden, och en ikon som lovade samtalet men öppnade ett tomt formulär hade varit fel. Skalet låter dem vara.
   const talkOppningar = useRef(0);
   /** @type {import("./OpsTalk.jsx").TalkVidare} */
   const talkVidare = {
-    ...(typeof talk?.onFortsatt === "function" ? { meddelande: /** @type {NonNullable<typeof talk.onFortsatt>} */ (talk.onFortsatt) } : {}),
+    ...(typeof talk?.onMeddelande === "function" ? { meddelande: /** @type {NonNullable<typeof talk.onMeddelande>} */ (talk.onMeddelande) } : {}),
     ...(handelseSkapareFinns(skapa)
       ? {
           handelse: (/** @type {import("../lib/talk.js").Talkunderlag} */ u) => {
@@ -2345,7 +2351,7 @@ function OpsAppShellRitad({
                   onClick={() => oppnaSkapa(TALK_FORM)}
                   className={huvudknappKlass({
                     visning: "hidden md:inline-flex",
-                    aktiv: talkStyr.lage === "haller" || talkStyr.lage === "lyssnar" || talkStyr.lage === "skickar" || talkStyr.lage === "sparat",
+                    aktiv: talkStyr.lage === "haller" || talkStyr.lage === "lyssnar" || talkStyr.lage === "skickar" || talkStyr.lage === "hort" || talkStyr.lage === "sparat",
                   })}
                 >
                   <MikrofonIkon size={24} />
@@ -2598,10 +2604,8 @@ function OpsAppShellRitad({
           textFel={talkStyr.textFel}
           medText={talkStyr.medText}
           skickarText={talkStyr.skickarText}
-          svaraText={talk?.svaraText}
           kvitto={talkStyr.kvitto}
           onAngra={talkStyr.angra}
-          onSvara={talkStyr.direkt}
           onSkicka={talkStyr.skickaIn}
           onAvbryt={talkStyr.avbryt}
           onIgen={talkStyr.igen}
@@ -2611,9 +2615,8 @@ function OpsAppShellRitad({
           mal={laastTillModul ? [] : appInspelningsMal.map((m) => ({ id: m.id, etikett: m.etikett }))}
           valt={valtMal?.id ?? null}
           onValj={setValtInspelning}
-          historik={talkStyr.historik}
-          vidare={talkVidare}
-          fortsattEtikett={talk?.fortsattEtikett}
+          vidare={laastTillModul ? undefined : talkVidare}
+          onAgent={talkStyr.medAgent ? talkStyr.agent : undefined}
         />
       ) : null}
 

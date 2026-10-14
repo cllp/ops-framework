@@ -47,6 +47,7 @@ export const ORD_TALKKNAPP = {
   lyssnar: { sv: "TALK, lyssnar", en: "TALK, listening" },
   sparar: { sv: "TALK, sparar", en: "TALK, saving" },
   sparat: { sv: "TALK, sparat", en: "TALK, saved" },
+  hort: { sv: "TALK, välj vad som ska hända", en: "TALK, choose what happens" },
 };
 
 /**
@@ -74,19 +75,20 @@ export const ORD_TALK = {
   kasta: { sv: "Kasta", en: "Discard" },
   fortsatt: { sv: "Fortsätt", en: "Continue" },
   installningar: { sv: "Inställningar för TALK", en: "TALK settings" },
-  samtalet: { sv: "Samtalet", en: "The conversation" },
-  gorNagot: { sv: "Gör något av samtalet", en: "Make something of the conversation" },
-  du: { sv: "Du: ", en: "You: " },
-  agenten: { sv: "Agenten: ", en: "Agent: " },
-  angratPrefix: { sv: "Ångrat: ", en: "Undone: " },
+  valFragan: { sv: "Vad ska hända med det du sa?", en: "What should happen with what you said?" },
+  valMeddelande: { sv: "Meddelande", en: "Message" },
+  valHandelse: { sv: "Händelse", en: "Event" },
+  valArende: { sv: "Ärende", en: "Case" },
+  valAgent: { sv: "Agent", en: "Agent" },
+  forslagen: { sv: "Förslag från agenten", en: "Suggestions from the agent" },
+  forslagPagar: { sv: "Utför…", en: "Working…" },
+  forslagKlart: { sv: "Klart", en: "Done" },
+  forslagNekat: { sv: "Gjordes inte", en: "Not done" },
   sparat: { sv: "Sparat", en: "Saved" },
   angrat: { sv: "Ångrat", en: "Undone" },
   angra: { sv: "Ångra", en: "Undo" },
   angrar: { sv: "Ångrar…", en: "Undoing…" },
   skickasTill: { sv: "Skickas till", en: "Send to" },
-  vidareMeddelande: { sv: "Skapa ett meddelande av samtalet", en: "Make a message of the conversation" },
-  vidareHandelse: { sv: "Skapa en händelse av samtalet", en: "Make an event of the conversation" },
-  vidareArende: { sv: "Skapa ett ärende av samtalet", en: "Make a case of the conversation" },
   skickar: { sv: "Sparar…", en: "Saving…" },
   platstext: { sv: "Prata, så syns texten här", en: "Speak, and the text appears here" },
   felOkant: { sv: "Något gick fel.", en: "Something went wrong." },
@@ -95,7 +97,9 @@ export const ORD_TALK = {
   felAvsluta: { sv: "Inspelningen gick inte att avsluta.", en: "The recording could not be stopped." },
   felStarta: { sv: "Inspelningen gick inte att starta.", en: "The recording could not be started." },
   felAngra: { sv: "Det gick inte att ångra.", en: "It could not be undone." },
-  felVidare: { sv: "Samtalet gick inte att lämna vidare.", en: "The conversation could not be passed on." },
+  felVidare: { sv: "Det du sa gick inte att lämna vidare.", en: "What you said could not be passed on." },
+  felAgent: { sv: "Det du sa nådde inte agenten.", en: "What you said did not reach the agent." },
+  felForslag: { sv: "Förslaget gick inte att utföra.", en: "The suggestion could not be carried out." },
   felUpptagen: { sv: "En annan inspelning pågår redan. Avsluta den först.", en: "Another recording is already in progress. Finish it first." },
   felEjTillaten: { sv: "Mikrofonen är inte tillåten. Ge sidan tillgång till mikrofonen i webbläsarens inställningar.", en: "The microphone is not allowed. Give the page access to the microphone in the browser settings." },
   felIngenMikrofon: { sv: "Ingen mikrofon hittades.", en: "No microphone was found." },
@@ -146,7 +150,7 @@ export const TALK_PRATA_IN = ORD_TALKKNAPP.prataIn.sv;
  * @returns {string}
  */
 export function talkKnappNamn(lage, sprak = "sv") {
-  const nyckel = lage === "haller" || lage === "lyssnar" ? "lyssnar" : lage === "skickar" ? "sparar" : lage === "sparat" ? "sparat" : "prataIn";
+  const nyckel = lage === "haller" || lage === "lyssnar" ? "lyssnar" : lage === "skickar" ? "sparar" : lage === "sparat" ? "sparat" : lage === "hort" ? "hort" : "prataIn";
   return ordet(ORD_TALKKNAPP, nyckel, sprak);
 }
 
@@ -164,14 +168,6 @@ export const SPARAT_MS = 1400;
  * lifehub.app skickar "Agenten arbetar…", eftersom det är agenten och inte en uppladdning som tar tiden (lifehub.app#219).
  */
 export const TALK_SKICKAR_TEXT = ORD_TALK.skickar.sv;
-
-/**
- * Knappen som startar en ny omgång i samma fält när kvittot står kvar (0.99.0). CP 2026-10-13 22:13, efter att agenten ställt en
- * följdfråga: "Efter att jag pratat en gång finns bara stäng. Sedan kan jag inte börja om." Appen kan byta ordet med
- * `talk.svaraText`, och språket följer `OpsSprakProvider`.
- * @type {Readonly<Record<"sv" | "en", string>>}
- */
-export const TALK_SVARA_TEXT = Object.freeze({ sv: "Svara", en: "Reply" });
 
 /**
  * Kastar när `skickarText` är satt men inte en sträng med innehåll. EN kontroll för kroken och skalet: skalet prövar den vid
@@ -224,48 +220,35 @@ export function talkKvitto(svar) {
 }
 
 /*
- * ══ ⛔ SAMTALET SOM UNDERLAG (0.103.0) ═══════════════════════════════════════════════════════════════════════════════
+ * ══ ⛔ DET SAGDA SOM UNDERLAG (0.103.0, ändrat 0.105.0) ══════════════════════════════════════════════════════════════════
  *
- * CP 2026-10-14: "vi kanske vill kunna att skapa ett ärende manuellt på det som sägs genom att klicka på skapa ärende, händelse
- * eller meddelande själv med den man pratar in? [...] där historiken finns med om man pratat med agenten olika omgångar." Fältet
- * håller därför en rad per omgång som nådde kvittot, och tre ikoner i dess rubrikrad lämnar hela samtalet vidare. Personen
- * justerar och sparar själv i formuläret, och agenten är inte inblandad. Raderna, underlaget och förifyllningen står här, som
- * rena funktioner, så att de går att prova utan fält och utan skal.
+ * CP 2026-10-14, med en skärmbild av TALK-panelen: "talk gör att man pratar in så att man ser texten direkt i realtid. Sen så finns
+ * de tre knapparna där direkt. Meddelande, ärende, kalender. Och sen så adderar vi en agentknapp." Och efter förslaget om var
+ * dialogen ska stå: "Kör chatten". Dialogen med agenten står i chatten, inte i fältet. Fältet håller därför ingen historik längre,
+ * och underlaget en mottagare får är det personen sade i den här omgången.
+ *
+ * ⛔ 0.103.0 HADE HISTORIKEN OCH `samtal` OCH `rader` I UNDERLAGET. De fanns för att fältet bar en dialog med flera omgångar
+ * (Svara). Den dialogen är flyttad till chatten (Agent), så en historik i fältet hade varit en andra kopia av samtalet som står där.
  */
 
 /**
- * En omgång i fältets samtal: det personen sade och agentens kvitto.
- * @typedef {object} Talkrad
- * @property {string} hord Det som hördes (`text` till `onTalk`). Tom när taligenkänningen var av eller föll: då finns bara ljudet.
- * @property {string} kvitto Agentens kvitto, som det stod i fältet.
- * @property {boolean} angrat Ångra lyckades på den här omgången.
- */
-
-/**
- * Det en mottagare får när personen trycker på en av rubrikradens ikoner.
+ * Det en mottagare får när personen trycker på Meddelande, Händelse eller Ärende.
  * @typedef {object} Talkunderlag
- * @property {string} text Det personen sade, omgångarna åtskilda med en tom rad. Omgångar där inget hördes hoppas över.
- * @property {string} samtal Hela samtalet, en rad per replik: "Du: …" och "Agenten: …". Ett ångrat kvitto bär "(ångrat)".
- * @property {ReadonlyArray<Talkrad>} rader Omgångarna, i ordning. Kopior: mottagaren kan inte ändra fältets historik.
+ * @property {string} text Det personen sade.
  */
 
 /**
- * Underlaget ur fältets historik, eller `null` när inget av det personen sade hördes.
+ * Underlaget ur det som hördes, eller `null` när inget hördes.
  *
- * ⛔ `null` NÄR INGEN TEXT FINNS, OCH DÅ RITAS INGA IKONER. Utan taligenkänning (av som förval) har ramverket bara ljudet, och
- * ett ärende "av samtalet" hade öppnats tomt eller med agentens kvitto som rubrik. En knapp som lovar samtalet och lämnar
- * ingenting är samma tysta nedsläpp som regel 5 förbjuder, bara med ett formulär framför.
+ * ⛔ `null` NÄR INGEN TEXT FINNS, OCH DÅ RITAS INGA VAL. En knapp som lovar det sagda och lämnar ingenting är samma tysta nedsläpp
+ * som regel 5 förbjuder, bara med ett formulär framför.
  *
- * @param {ReadonlyArray<Talkrad>} rader
+ * @param {string} text
  * @returns {Talkunderlag | null}
  */
-export function talkUnderlag(rader) {
-  const sagt = rader.map((r) => r.hord.trim()).filter(Boolean);
-  if (sagt.length === 0) return null;
-  const samtal = rader
-    .flatMap((r) => [...(r.hord.trim() ? [`Du: ${r.hord.trim()}`] : []), `Agenten: ${r.kvitto}${r.angrat ? " (ångrat)" : ""}`])
-    .join("\n");
-  return { text: sagt.join("\n\n"), samtal, rader: rader.map((r) => ({ hord: r.hord, kvitto: r.kvitto, angrat: r.angrat })) };
+export function talkUnderlag(text) {
+  const t = typeof text === "string" ? text.trim() : "";
+  return t ? { text: t } : null;
 }
 
 /**
@@ -309,19 +292,21 @@ export function talkForifyllt(text, tak = TALK_RUBRIK_MAX) {
 export const MAX_SEKUNDER = 120;
 
 /**
- * @typedef {"vila" | "trycker" | "haller" | "lyssnar" | "skickar" | "sparat" | "fel"} Talklage
+ * @typedef {"vila" | "trycker" | "haller" | "lyssnar" | "skickar" | "hort" | "sparat" | "fel"} Talklage
  * - `vila`: inget pågår.
  * - `trycker`: fingret är nere men långtrycket har inte inträffat. Ett släpp här är ett vanligt klick.
  * - `haller`: långtrycket har inträffat och inspelningen pågår medan fingret ligger kvar. Knappen visar TALK.
  * - `lyssnar`: fingret är släppt och inspelningen fortsätter i fältet.
  * - `skickar`: inspelningen är stoppad och ljudet lämnas till appen. Fältet säger Sparar.
+ * - `hort` (0.105.0): inspelningen är stoppad, det sagda står i fältet, och personen väljer vad som ska hända: Meddelande, Händelse,
+ *   Ärende eller Agent. Bara när appen ger `onAgent` och något hördes. Inget har lämnats till appen ännu.
  * - `sparat`: appen tog emot ljudet. Fältet säger Sparat en kort stund, sedan vila. Med ett kvitto (0.97.0) står kvittot kvar
  *   med Ångra och Stäng tills personen stänger det, och efter en lyckad Ångra står "Ångrat" en kort stund.
  * - `fel`: mikrofonen gick inte att öppna, eller appen svarade med ett fel. Fältet säger varför.
  */
 
 /**
- * @typedef {{ typ: "ner" } | { typ: "direkt" } | { typ: "langtryck" } | { typ: "upp" } | { typ: "skicka" } | { typ: "igen" } | { typ: "avbryt" } | { typ: "klar" } | { typ: "dolj" } | { typ: "fel", text: string } | { typ: "tak" }} Talkhandelse
+ * @typedef {{ typ: "ner" } | { typ: "direkt" } | { typ: "langtryck" } | { typ: "upp" } | { typ: "skicka" } | { typ: "igen" } | { typ: "avbryt" } | { typ: "klar" } | { typ: "dolj" } | { typ: "fel", text: string } | { typ: "tak" } | { typ: "hort" } | { typ: "agent" } | { typ: "agentFel", text: string } | { typ: "lamnat" }} Talkhandelse
  */
 
 /**
@@ -333,12 +318,19 @@ export const MAX_SEKUNDER = 120;
  * ⛔ "UPP" FÖRE LÅNGTRYCKET ÄR ETT KLICK, och klicket är Skapa som förut. Ett tryck som råkade bli 300 ms ska aldrig
  * starta en inspelning.
  *
+ * ⛔ LÄGET HÖRT (0.105.0) LÄMNAR INGENTING SJÄLVT. Bara ett val gör något: Agent (`agent`) lämnar det sagda till appens `onAgent`, och
+ * Meddelande, Händelse och Ärende lämnar det till sin mottagare och stänger (`lamnat`). Stäng kastar.
+ *
+ * ⛔ FALLER AGENT GÅR FÄLTET TILLBAKA TILL HÖRT, med felet (`agentFel`, granskningen av PR 387). Förut blev det läget `fel` med Försök
+ * igen, och då stod varken det sagda eller valen kvar: den som inte nådde agenten kunde inte välja Meddelande eller Ärende i stället.
+ * Ett nytt tryck på Agent är Försök igen.
+ *
  * @param {{ lage: Talklage, fel?: string }} nu
  * @param {Talkhandelse} h
- * @returns {{ lage: Talklage, fel?: string, gor: null | "klick" | "starta" | "skicka" | "igen" | "kasta" }}
+ * @returns {{ lage: Talklage, fel?: string, gor: null | "klick" | "starta" | "skicka" | "igen" | "kasta" | "agent" }}
  */
 export function talkNasta(nu, h) {
-  /** @param {Talklage} lage @param {null | "klick" | "starta" | "skicka" | "igen" | "kasta"} [gor] @param {string} [fel] */
+  /** @param {Talklage} lage @param {null | "klick" | "starta" | "skicka" | "igen" | "kasta" | "agent"} [gor] @param {string} [fel] */
   const bli = (lage, gor = null, fel = undefined) => ({ lage, gor, ...(fel ? { fel } : {}) });
   switch (nu.lage) {
     case "vila":
@@ -365,8 +357,19 @@ export function talkNasta(nu, h) {
     case "skickar":
       // ⛔ Ett andra tryck på Klar medan sparningen pågår gör ingenting. Ljudet är redan stoppat och lämnat.
       if (h.typ === "klar") return bli("sparat");
+      if (h.typ === "hort") return bli("hort");
+      // Agenten tog emot det sagda och appen tog över (chatten öppnades): fältet har inget mer att visa.
+      if (h.typ === "lamnat") return bli("vila", "kasta");
+      if (h.typ === "agentFel") return bli("hort", null, h.text);
       if (h.typ === "fel") return bli("fel", null, h.text);
       return bli("skickar");
+    case "hort":
+      if (h.typ === "agent") return bli("skickar", "agent");
+      if (h.typ === "lamnat" || h.typ === "avbryt") return bli("vila", "kasta");
+      if (h.typ === "direkt") return bli("lyssnar", "starta");
+      if (h.typ === "ner") return bli("trycker");
+      if (h.typ === "fel") return bli("fel", null, h.text);
+      return bli("hort", null, nu.fel);
     case "sparat":
       if (h.typ === "dolj" || h.typ === "avbryt") return bli("vila");
       // Bekräftelsen låser inte nästa inspelning. Ett nytt tryck på mikrofonen får börja direkt.
