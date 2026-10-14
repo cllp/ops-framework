@@ -778,6 +778,9 @@ export function byggMedlemskap(d) {
   const groupId = rensa(rad.groupId);
   if (!userId) throw new Error("memberships: userId krävs.");
   if (!groupId) throw new Error("memberships: groupId krävs. Det är den enda gruppnyckeln, och regeln slår upp exakt den.");
+  // ⛔ GRUPP-ID:T HAR GRUPPENS FORM (granskningen av PR 365, 0.101.0). Ett medlemskap i "mitt~<uid>" hade sett ut som ett medlemskap i
+  // någons eget bibliotek. Reglerna prövar aldrig den platsen mot memberships, men raden ska inte heller gå att bygga.
+  if (!ID_FORM.test(groupId)) throw new Error(`memberships: "${groupId}" är inte ett grupp-id. Ett grupp-id är små bokstäver, siffror, - och _.`);
   const id = medlemskapsId(userId, groupId);
   avvisaOkanda("memberships", rad, MEDLEMSKAPSFALT, id);
 

@@ -8,3 +8,4 @@ rules/provregler.rules
 
 # Genererad av scripts/generate-framework-version.mjs ur package.json. Se filhuvudet.
 src/lib/frameworkVersion.generated.js
+rules/provlagring.rules

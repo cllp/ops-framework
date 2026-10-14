@@ -18,7 +18,7 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { mejlregelfragment } from "../src/lib/mejl.js";
-import { beskrivenappdataregelfragment, beskrivningsregelfragment, bibliotekregelfragment, gruppadSamling, handelseregelfragment, kalenderregelfragment, katalogregelfragment, konfigloggregelfragment, minnesregelfragment, modulinstallningsregelfragment, regelfragment, samtalsregelfragment } from "../src/lib/regler.js";
+import { beskrivenappdataregelfragment, beskrivningsregelfragment, bibliotekregelfragment, lagringsregelfragment, gruppadSamling, handelseregelfragment, kalenderregelfragment, katalogregelfragment, konfigloggregelfragment, minnesregelfragment, modulinstallningsregelfragment, regelfragment, samtalsregelfragment } from "../src/lib/regler.js";
 
 const rot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const ut = path.join(rot, "rules", "provregler.rules");
@@ -96,4 +96,23 @@ ${beskrivningsregelfragment("appbeskrivningar")}
 fs.mkdirSync(path.dirname(ut), { recursive: true });
 fs.writeFileSync(ut, text, "utf8");
 console.log(`skriv-provregler: ${path.relative(rot, ut)}, ${text.split("\n").length} rader`);
+
+/*
+ * ⛔ STORAGE-REGLERNA PROVAS OCKSÅ (granskningen av PR 365, 0.101.0). `lagringsregelfragment({ bibliotek })` hade inget prov i något
+ * repo, och Mitt biblioteks gren där var alltså ett påstående. Samma namn som Firestore-reglerna ovan, så att storage-regelns
+ * uppslag (`firestore.get`) träffar de rader proven lägger in.
+ */
+const utLagring = path.join(rot, "rules", "provlagring.rules");
+const lagring = `rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+${lagringsregelfragment({ bibliotek: { gruppPrefix: "grupper", postPrefix: "bibliotek", samling: "bibliotek" } })}
+    match /{allaFiler=**} {
+      allow read, write: if false;
+    }
+  }
+}
+`;
+fs.writeFileSync(utLagring, lagring, "utf8");
+console.log(`skriv-provregler: ${path.relative(rot, utLagring)}, ${lagring.split("\n").length} rader`);
 process.exit(0);

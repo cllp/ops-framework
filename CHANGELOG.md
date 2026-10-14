@@ -9,6 +9,51 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.101.0
+
+**Mitt bibliotek, och flytt mellan det och gruppen.** [lifehub.app#226](https://github.com/cllp/lifehub.app/issues/226).
+
+CP 2026-10-13: en post ska "antingen kunna vara helt privata till mig själv eller visa till gruppen". Beslutet på #226: privat är en
+egen plats bredvid gruppens, och att dela är att flytta posten dit. En flagga "privat" på en post i gruppens samling hade krävt en
+läsregel som avgör synlighet per post, och det är permissions-träsket (kanonens regel 13).
+
+### Tillagt
+
+- Platsen `mitt~<uid>` (`mittBibliotek`, `arMittBibliotek`, `mittJag`, `MITT_PREFIX`, `MITTFORM`). En post där är en vanlig
+  bibliotekspost med samma fält, filer och taggar. `postFel` godtar platsen. `farAndra` släpper bara ägaren där.
+- Regelgrenar: `bibliotekregelfragment` släpper läsning, skapande, ändring och radering på `mitt~<uid>` för den inloggade med det
+  uid:t och ingen annan, också inte en admin i en grupp. `lagringsregelfragment({ bibliotek })` gör samma sak för filerna.
+- `flyttaBibliotekspost({ fran, till, id, satt, hamtaFil })`: kopian först, originalet sedan. En halv flytt säger att posten finns
+  på båda ställena. En fil flyttas genom sina byte till den nya platsens sökväg. Källan har `hamta(id)`, och `laddaUppFil` tar
+  `taggar` och `utskrift` så att en flyttad post har dem från första skrivningen.
+- `createFirebaseStorageSource` har `hamta(sokvag)`, som ger filens byte med `getBlob` och personens inloggning. Det är vägen
+  `flyttaBibliotekspost` tar för en fil (`hamtaFil`). Mätt mot lifehub-my: Storage svarar med `access-control-allow-origin: *`,
+  så ingen CORS-inställning behövs.
+- `OpsBibliotek`: växlaren `platser`, `plats` och `onPlats` ovanför flikarna. I menyn Flytta till Mitt bibliotek (bara
+  författaren) och Kopiera till Mitt bibliotek, och i Mitt bibliotek Dela med gruppen. Medan det pågår och när det är klart står
+  det i statusraden, och ett fel står kvar med skälet.
+
+### Granskningen av PR 365
+
+- Reglernas grenar utesluter varandra. En plats som ser ut som `mitt~…` prövas bara mot uid:t och aldrig mot `memberships`, i
+  Firestore och i storage. Med "eller" hade ett medlemskap vars `groupId` råkade vara någons plats öppnat den, sett i emulatorn.
+  `byggMedlemskap` avvisar dessutom ett `groupId` som inte är ett grupp-id.
+- Storage-reglerna har sitt första prov (`rules/__tests__/lagring-bibliotek.test.mjs`, storage-emulatorn), och `test:rules` kör
+  `--only firestore,storage`.
+- `flyttaBibliotekspost` stämmer av byten mot postens storlek innan något skrivs.
+- Bara författaren flyttar, också till en annan grupp. En admin kopierar. Medan en flytt ur menyn pågår visas inga flyttval för
+  posten.
+- `MITTFORM` godtar bara ett uid:s tecken: bokstäver, siffror, `-` och `_`. Regelns prov på prefixet är `(?s)`, så också en
+  radbrytning i platsen hålls i rätt gren (varv 2).
+- Varv 2: en flytt ur rutan Till en annan grupp lägger också posten i spärren, så att flyttvalen inte kommer tillbaka om rutan stängs
+  innan flytten är klar. Storage-provet har ett fall till: en annan medlem i gruppen skriver inte över någon annans fil.
+
+### Ändrat
+
+- Menyvalet Dela heter Till en annan grupp (Dela med en grupp i Mitt bibliotek). Postens egen grupp står inte bland målen.
+  Rutan har Flytta och Kopiera med framsteg, och den stängs först när det gick. Förut stod den kvar utan besked efter ett lyckat
+  tryck.
+
 ## 0.100.1
 
 **Långtrycket öppnar menyn också på en låg rad.** [lifehub.app#226](https://github.com/cllp/lifehub.app/issues/226).

@@ -108,6 +108,25 @@ describe("createFirebaseStorageSource: kontrollen av konfigurationen", () => {
     expect(sdk.uploadBytes).toHaveBeenLastCalledWith(referens, "ljud", { contentType: "audio/webm" });
   });
 
+  it("hämtar en fils byte med getBlob, och säger det när SDK:n saknar den (0.101.0)", async () => {
+    const referens = { path: "grupper/cps-ab/bibliotek/p/a.pdf" };
+    const blob = new Blob(["abc"]);
+    const sdk = {
+      ref: vi.fn(() => referens),
+      uploadBytes: vi.fn(async () => {}),
+      getDownloadURL: vi.fn(async () => "https://x"),
+      deleteObject: vi.fn(async () => {}),
+      getBlob: vi.fn(async () => blob),
+    };
+    const lagring = createFirebaseStorageSource({ storage: /** @type {any} */ ({}), sdk });
+    await expect(lagring.hamta?.("grupper/cps-ab/bibliotek/p/a.pdf")).resolves.toBe(blob);
+    expect(sdk.getBlob).toHaveBeenCalledWith(referens);
+    await expect(lagring.hamta?.("  ")).rejects.toThrow(/sokvag krävs/);
+    const { getBlob: _g, ...utan } = sdk;
+    const utanBlob = createFirebaseStorageSource({ storage: /** @type {any} */ ({}), sdk: utan });
+    await expect(utanBlob.hamta?.("a/b")).rejects.toThrow(/saknar getBlob/);
+  });
+
   it("⛔ rapportera får procent via uploadBytesResumable (lifehub.app#163)", async () => {
     const referens = { path: "grupper/my/bibliotek/p/ide.m4a" };
     /** @type {Array<(snap: { bytesTransferred: number, totalBytes: number }) => void>} */

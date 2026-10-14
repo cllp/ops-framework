@@ -109,13 +109,31 @@ export function createBibliotekskalla(config) {
     },
 
     /**
+     * En post, eller `null` när den inte finns. Kastar när raden hör till en annan plats eller inte går att läsa, så att en
+     * flytt aldrig bygger på en post den inte förstod (0.101.0).
+     *
+     * @param {string} id
+     * @returns {Promise<(import("../lib/bibliotek.js").Bibliotekspost & { id: string }) | null>}
+     */
+    async hamta(id) {
+      const nyckel = typeof id === "string" ? id.trim() : "";
+      if (!nyckel) throw new Error("createBibliotekskalla.hamta: id krävs.");
+      const rad = await source.read(collection, nyckel);
+      if (!rad) return null;
+      if (rad.groupId !== groupId) throw new Error(`Biblioteket: posten hör till "${rad.groupId}" och inte till "${groupId}".`);
+      const fel = postFel(rad);
+      if (fel) throw new Error(`Biblioteket: posten ${nyckel} går inte att läsa. ${fel}`);
+      return { ...byggPost(rad), id: nyckel };
+    },
+
+    /**
      * Ny post, eller en ändring av en som redan finns.
      *
      * Författare och klockslag sätts här. Vyn skickar typ, rubrik och text
      * eller adress. En vy som fick skriva `skapadAv` hade kunnat lägga raden
      * i någon annans namn, och regeln hade sagt nej först i produktion.
      *
-     * @param {{ id?: string, typ?: string, rubrik?: string, text?: string, url?: string }} inmatning
+     * @param {{ id?: string, typ?: string, rubrik?: string, text?: string, url?: string, taggar?: string[], durationMs?: number, peaks?: string, utskrift?: string, fil?: unknown }} inmatning
      */
     async spara(inmatning) {
       const id = typeof inmatning?.id === "string" ? inmatning.id.trim() : "";
@@ -220,7 +238,7 @@ export function createBibliotekskalla(config) {
      * kan kräva att den finns. Föll uppladdningen tas en ny post tillbaka. Går inte
      * det heller kastas båda felen, inget sväljs.
      *
-     * @param {{ rubrik?: string, namn?: string, fil: { name?: string, namn?: string, type?: string, mime?: string, size?: number, byte?: number, arrayBuffer?: () => Promise<ArrayBuffer> }, blob?: Blob | { arrayBuffer?: () => Promise<ArrayBuffer> }, id?: string, rapportera?: (andel: number) => void, durationMs?: number, peaks?: string, sekunder?: number }} inmatning `peaks` är vågen som den sparas (`kodaToppar`). En lista av tal räknas inte som en våg, och vågen räknas då ur filen.
+     * @param {{ rubrik?: string, namn?: string, fil: { name?: string, namn?: string, type?: string, mime?: string, size?: number, byte?: number, arrayBuffer?: () => Promise<ArrayBuffer> }, blob?: Blob | { arrayBuffer?: () => Promise<ArrayBuffer> }, id?: string, rapportera?: (andel: number) => void, durationMs?: number, peaks?: string, sekunder?: number, taggar?: string[], utskrift?: string }} inmatning `peaks` är vågen som den sparas (`kodaToppar`). En lista av tal räknas inte som en våg, och vågen räknas då ur filen.
      */
     async laddaUppFil(inmatning) {
       if (typeof sokvag !== "function") {
@@ -265,6 +283,12 @@ export function createBibliotekskalla(config) {
       else if (tidigare && "durationMs" in tidigare) underlag.durationMs = tidigare.durationMs;
       if (meta.peaks != null) underlag.peaks = meta.peaks;
       else if (tidigare && "peaks" in tidigare) underlag.peaks = tidigare.peaks;
+      // ⛔ TAGGAR OCH UTSKRIFT FÖLJER MED EN FLYTT (0.101.0). Ges de här skrivs de i samma skrivning som filen, så en flyttad post
+      // aldrig syns en stund utan sina taggar. Ges de inte står postens kvar.
+      if (Array.isArray(inmatning?.taggar)) underlag.taggar = inmatning.taggar;
+      else if (tidigare && "taggar" in tidigare) underlag.taggar = tidigare.taggar;
+      if (ljud && typeof inmatning?.utskrift === "string") underlag.utskrift = inmatning.utskrift;
+      else if (tidigare && "utskrift" in tidigare) underlag.utskrift = tidigare.utskrift;
       const post = byggPost(underlag);
       if (tidigare) await source.update(collection, nyckel, post);
       else await source.create(collection, { ...post, id: nyckel });
@@ -290,6 +314,80 @@ export function createBibliotekskalla(config) {
       return { ...post, id: nyckel };
     },
   };
+}
+
+/**
+ * Flyttar eller kopierar en post från en plats till en annan (0.101.0, lifehub.app#226): från gruppen till Mitt bibliotek, från
+ * Mitt bibliotek till en grupp, eller mellan två grupper.
+ *
+ * ⛔ KOPIAN SKRIVS FÖRST, ORIGINALET TAS BORT SEDAN. I den ordningen kan en flytt som faller halvvägs bara lämna posten på två
+ * ställen, aldrig på inget. Faller borttagningen säger felet det rakt ut: att posten nu finns på båda ställena. En tyst halv
+ * flytt hade sett ut som att den gått bra (regel 5).
+ *
+ * ⛔ EN FLYTT ÄR EN NY POST PÅ DEN NYA PLATSEN, MED DEN SOM FLYTTAR SOM FÖRFATTARE. Regeln låter ingen skriva i någon annans namn,
+ * och i Mitt bibliotek får bara ägaren skriva. Klockslagen blir nya av samma skäl: regeln kräver serverns klocka vid skapandet.
+ * Rubriken, texten, adressen, filen, taggarna, längden, vågen och utskriften följer med.
+ *
+ * ⛔ EN FIL FLYTTAS GENOM SINA BYTE. Sökvägen bär platsen (`grupper/<plats>/bibliotek/<post>/<fil>`), och storage-regeln släpper
+ * bara den som får skriva på den platsen. `hamtaFil` hämtar byten från den gamla platsen, och `laddaUppFil` lägger dem på den nya.
+ * Den gamla filen tar servern bort när den gamla posten raderas.
+ *
+ * @param {{
+ *   fran: ReturnType<typeof createBibliotekskalla>,
+ *   till: ReturnType<typeof createBibliotekskalla>,
+ *   id: string,
+ *   satt: "flytta" | "kopiera",
+ *   hamtaFil?: (sokvag: string) => Promise<Blob>,
+ * }} inmatning
+ * @returns {Promise<import("../lib/bibliotek.js").Bibliotekspost & { id: string }>} Posten på den nya platsen.
+ */
+export async function flyttaBibliotekspost(inmatning) {
+  const { fran, till, id, satt, hamtaFil } = inmatning ?? /** @type {any} */ ({});
+  if (satt !== "flytta" && satt !== "kopiera") throw new Error(`flyttaBibliotekspost: satt är "flytta" eller "kopiera", inte "${satt}".`);
+  if (!fran || !till || typeof fran.hamta !== "function" || typeof till.spara !== "function") {
+    throw new Error("flyttaBibliotekspost: fran och till krävs, två källor ur createBibliotekskalla.");
+  }
+  if (fran.groupId === till.groupId) throw new Error("Posten ligger redan där.");
+  const post = await fran.hamta(id);
+  if (!post) throw new Error("Posten finns inte längre.");
+  /** @type {import("../lib/bibliotek.js").Bibliotekspost & { id: string }} */
+  let ny;
+  if (post.typ === "fil" && post.fil) {
+    if (typeof hamtaFil !== "function") throw new Error("flyttaBibliotekspost: hamtaFil krävs för att flytta en fil.");
+    const blob = await hamtaFil(post.fil.sokvag);
+    // ⛔ BYTEN STÄMS AV MOT POSTEN INNAN NÅGOT SKRIVS (granskningen av PR 365). En `hamtaFil` som fick en felsida i stället för filen
+    // hade annars laddat upp den som filen och sedan raderat originalet. Storleken står på posten, och den ska stämma exakt.
+    const byte = Number.isInteger(/** @type {any} */ (blob)?.size) ? /** @type {any} */ (blob).size : -1;
+    if (byte !== post.fil.byte) {
+      throw new Error(`Filen kunde inte hämtas hel (${byte < 0 ? "ingen storlek" : `${byte} byte`}, posten säger ${post.fil.byte}). Ingenting flyttades.`);
+    }
+    ny = await till.laddaUppFil({
+      rubrik: post.rubrik,
+      namn: post.fil.namn,
+      fil: { name: post.fil.namn, type: post.fil.mime, size: byte },
+      blob,
+      ...(post.durationMs != null ? { durationMs: post.durationMs } : {}),
+      ...(post.peaks != null ? { peaks: post.peaks } : {}),
+      ...(post.taggar ? { taggar: post.taggar } : {}),
+      ...(post.utskrift != null ? { utskrift: post.utskrift } : {}),
+    });
+  } else {
+    ny = await till.spara({
+      typ: post.typ,
+      rubrik: post.rubrik,
+      ...(post.typ === "anteckning" ? { text: post.text } : { url: post.url }),
+      ...(post.taggar ? { taggar: post.taggar } : {}),
+    });
+  }
+  if (satt === "flytta") {
+    try {
+      await fran.radera(post.id);
+    } catch (e) {
+      const skal = e instanceof Error ? e.message : String(e);
+      throw new Error(`Posten kopierades, men kunde inte tas bort där den låg (${skal}). Den finns nu på båda ställena.`);
+    }
+  }
+  return ny;
 }
 
 /**
