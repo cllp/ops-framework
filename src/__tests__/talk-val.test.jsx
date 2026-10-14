@@ -166,6 +166,23 @@ describe("valen efter talet", () => {
     }
   });
 
+  it("⛔ felraden vid valen finns från början, tom, och det är samma rad som får felet (granskningen av PR 387)", async () => {
+    const konsol = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      Skal({ talk: { onAgent: vi.fn(async () => { throw new Error("Chatten gick inte att öppna."); }) } });
+      await prata();
+      const rad = within(/** @type {HTMLElement} */ (falt())).getByRole("alert");
+      expect(rad.textContent).toBe("");
+      fireEvent.click(screen.getByRole("button", { name: "Agent" }));
+      await flush();
+      expect(rad.isConnected).toBe(true);
+      expect(within(/** @type {HTMLElement} */ (falt())).getByRole("alert")).toBe(rad);
+      expect(rad.textContent).toBe("Chatten gick inte att öppna.");
+    } finally {
+      konsol.mockRestore();
+    }
+  });
+
   it("⛔ faller onAgent går det att välja Ärende i stället, ifyllt med det sagda", async () => {
     const konsol = vi.spyOn(console, "error").mockImplementation(() => {});
     try {

@@ -759,6 +759,8 @@ export function OpsInspelning(props) {
   }, [hort]);
 
   const underlag = hort ? talkUnderlag(text) : null;
+  /** Felet vid valen: ett val vars mottagare kastade, annars en Agent som inte nådde fram. */
+  const valFel = hort ? vidareFel || fel || "" : "";
   /** Valen som ritas: bara de med en mottagare, och bara när något hördes. */
   const val = underlag ? VALEN.filter((x) => (x.nyckel === "agent" ? typeof onAgent === "function" : typeof vidare?.[x.nyckel] === "function")) : [];
   /**
@@ -897,12 +899,18 @@ export function OpsInspelning(props) {
           <div className="h-full bg-accent" style={{ width: `${procent}%` }} />
         </div>
       ) : null}
+      {/* ⛔ EN FELRAD SOM FINNS FRÅN BÖRJAN OCH BYTER TEXT (granskningen av PR 387), samma skäl som statusregionen: en region som föds
+          med sin text läses inte alltid upp. Den bär både ett val vars mottagare kastade och en Agent som inte nådde fram (`fel`, och då
+          är Agent Försök igen). Den står i `skickar` och `hort`, alltså redan medan Agent arbetar, så att det är SAMMA element som får
+          felet. Medan man pratar finns den inte: där har igenkänningen sin egen felrad (`textFel`). Tom och dold tills något gick fel. */}
+      {hort || lage === "skickar" ? (
+        <p role="alert" data-talk-valfel={valFel ? "" : undefined} className={valFel ? "m-0 text-etikett text-danger" : "sr-only"}>
+          {valFel ? talkTextPa(valFel, sprak) : null}
+        </p>
+      ) : null}
       {hort ? (
         <div role="group" aria-labelledby={valFraga} data-talk-val="" className="flex min-w-0 flex-col gap-2">
           <p id={valFraga} className="m-0 text-meta text-ink-muted">{o("valFragan")}</p>
-          {vidareFel ? <p role="alert" data-talk-vidarefel="" className="m-0 text-etikett text-danger">{talkTextPa(vidareFel, sprak)}</p> : null}
-          {/* ⛔ AGENTEN NÅDDES INTE (granskningen av PR 387): felet står vid valen, och Agent är Försök igen. */}
-          {fel && !vidareFel ? <p role="alert" data-talk-agentfel="" className="m-0 text-etikett text-danger">{talkTextPa(fel, sprak)}</p> : null}
           <div className="grid min-w-0 grid-cols-2 gap-2">
             {val.map((x, i) => {
               const Ikon = x.nyckel === "meddelande" ? MeddelandeIkon : x.nyckel === "handelse" ? HandelsePlusIkon : x.nyckel === "arende" ? ArendePlusIkon : AgentIkon;

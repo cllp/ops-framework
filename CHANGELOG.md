@@ -30,7 +30,9 @@ läge: `docs/jamforelser/0.105.0/` (`node scripts/check-skalyta.mjs --bara-talkv
   till chatten med agenten och öppnar den). ⛔ Avvisas löftet går fältet tillbaka till valen: det sagda och de fyra valen står kvar
   med felet (`role="alert"`), så att den som inte nådde agenten kan välja Meddelande eller Ärende i stället, och ett nytt tryck på
   Agent är Försök igen, aldrig `onTalk`. (Granskningen av PR 387: i första versionen blev det läget `fel` med en egen Försök igen,
-  och då stod varken texten eller valen kvar.) Ett andra tryck medan det pågår gör ingenting.
+  och då stod varken texten eller valen kvar.) Ett andra tryck medan det pågår gör ingenting. Felraden (`role="alert"`) finns från
+  det att Klar trycks, tom och dold, och byter text, av samma skäl som statusregionen: en region som föds med sin text läses inte
+  alltid upp.
 - **Händelse** och **Ärende** öppnar skalets formulär ifyllda (`talkForifyllt`), som rubrikradens ikoner gjorde i 0.103.0.
   **Meddelande** lämnar `{ text }` till `talk.onMeddelande`. Ett val ritas bara när dess mottagare finns.
 - Utan `onAgent`, eller när inget hördes (igenkänningen av eller föll), är flödet som förut: Klar lämnar ljudet och texten till `onTalk`.
