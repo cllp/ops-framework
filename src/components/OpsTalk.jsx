@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { AVBRYT_FRAGA_SEKUNDER, LANGTRYCK_MS, MAX_SEKUNDER, SPARAT_MS, TALK_PLATSTEXT, TALK_SKICKAR_TEXT, TALK_SVARA_TEXT, TALK_TEXTFEL, igenkanningensSprak, kanBeOmMikrofon, kontrolleraSkickarText, talkFeltext, talkKvitto, talkNasta, webblasarensIgenkanning, webblasarensInspelare } from "../lib/talk.js";
+import { AVBRYT_FRAGA_SEKUNDER, LANGTRYCK_MS, MAX_SEKUNDER, SPARAT_MS, TALK_PLATSTEXT, TALK_SKICKAR_TEXT, TALK_SVARA_TEXT, TALK_TEXTFEL, igenkanningensSprak, kanBeOmMikrofon, kontrolleraSkickarText, talkFeltext, talkKvitto, talkNasta, talkUnderlag, webblasarensIgenkanning, webblasarensInspelare } from "../lib/talk.js";
 import { useOpsSprak } from "./OpsSprak.jsx";
 import { formateraTid } from "../lib/ljudspelare.js";
 import { rapporteraFel } from "../lib/felrapport.js";
-import { BockIkon, KryssIkon, KugghjulIkon, MikrofonIkon, StoppIkon } from "./icons.jsx";
+import { ArendePlusIkon, BockIkon, HandelsePlusIkon, KryssIkon, KugghjulIkon, MeddelandeIkon, MikrofonIkon, StoppIkon } from "./icons.jsx";
 import { OpsSpinner } from "./OpsSpinner.jsx";
+import { OpsTooltip } from "./OpsTooltip.jsx";
 
 /**
  * TALK i komponenterna: kroken som binder ihop flödet, inspelaren och plusknappen, och fältet som ligger över appen
@@ -112,6 +113,18 @@ export function useTalk({ onTalk, onKlick, inspelare, igenkanning, skickarText, 
     kvittoRef.current = k;
     setKvittoState(k);
   };
+  /**
+   * ⛔ SAMTALETS HISTORIK (0.103.0). En rad per omgång som nådde kvittot, med det som hördes och agentens kvitto. Den överlever
+   * Svara, eftersom en ny omgång är en fortsättning av samma samtal, och töms när fältet går tillbaka till vila: Stäng, Avbryt,
+   * ett fel som stängs, ett vanligt tryck på plusset. Ett samtal som stått kvar till nästa gång någon tryckte på mikrofonen hade
+   * blandat ihop två samtal i samma ärende. Refen speglar staten av samma skäl som kvittots.
+   */
+  const [historik, setHistorikState] = useState(/** @type {ReadonlyArray<import("../lib/talk.js").Talkrad>} */ ([]));
+  const historikRef = useRef(/** @type {ReadonlyArray<import("../lib/talk.js").Talkrad>} */ ([]));
+  const setHistorik = (/** @type {ReadonlyArray<import("../lib/talk.js").Talkrad>} */ h) => {
+    historikRef.current = h;
+    setHistorikState(h);
+  };
   const kastaText = () => {
     try {
       igk()?.kasta();
@@ -160,6 +173,7 @@ export function useTalk({ onTalk, onKlick, inspelare, igenkanning, skickarText, 
         angraForsok.current += 1;
         setKvitto(null);
       }
+      if (nasta.lage === "vila" && historikRef.current.length > 0) setHistorik([]);
       if (nasta.gor === "klick") onKlick();
       if (nasta.gor === "kasta") {
         forsok.current += 1;
@@ -266,6 +280,7 @@ export function useTalk({ onTalk, onKlick, inspelare, igenkanning, skickarText, 
             if (k) {
               angraForsok.current += 1;
               setKvitto({ ...k, status: "visas" });
+              setHistorik([...historikRef.current, { hord: post.text ?? "", kvitto: k.text, angrat: false }]);
             }
             skicka({ typ: "klar" });
           })
@@ -358,6 +373,9 @@ export function useTalk({ onTalk, onKlick, inspelare, igenkanning, skickarText, 
       .then(() => {
         if (mitt !== angraForsok.current || !monterad.current) return;
         setKvitto({ text: k.text, angra: gor, status: "angrat" });
+        // Ångrat syns i historiken: det är den sista omgången, den som kvittot hör till.
+        const h = historikRef.current;
+        if (h.length > 0) setHistorik([...h.slice(0, -1), { ...h[h.length - 1], angrat: true }]);
       })
       .catch((fel) => {
         // ⛔ RAPPORTERAS ALLTID, ÄVEN NÄR KVITTOT ÄR BORTA (regel 5). Stängdes fältet, kom en ny inspelning eller avmonterades
@@ -449,6 +467,8 @@ export function useTalk({ onTalk, onKlick, inspelare, igenkanning, skickarText, 
     /** (0.97.0) Kvittot i läget sparat, eller `null`. */
     kvitto: kvitto ? { text: kvitto.text, kanAngra: Boolean(kvitto.angra), angrar: kvitto.status === "angrar", angrat: kvitto.status === "angrat", ...(kvitto.fel ? { fel: kvitto.fel } : {}) } : null,
     angra,
+    /** (0.103.0) Samtalets omgångar, den sista är den kvittot hör till. Töms när fältet går tillbaka till vila. */
+    historik,
   };
 }
 
@@ -528,8 +548,35 @@ const STATUSKLASS = {
 };
 /** Textytan: brödtext, tre rader minst, rullar inuti. */
 const TEXTYTA = "m-0 min-h-18 max-h-36 overflow-y-auto text-brod [overflow-wrap:anywhere]";
+/**
+ * ⛔ SAMTALSYTAN HAR FAST HÖJD (0.103.0). CP 2026-10-14: "bubblans storlek med texten får en fixed size men texten scrollar där i".
+ * Höjden är densamma från första kvittot till det tionde, så att fältet inte växer uppåt över appen för varje omgång och knapparna
+ * under ytan står kvar där tummen var. `min(15rem, 34dvh)`: 240 px på en telefon i stående läge (390 × 844, där 34 % är 287 px),
+ * och en tredjedel av skärmen i liggande läge, där 240 px hade tryckt knapparna under fältets kant. `dvh` och inte `vh`: Safaris
+ * adressrad räknas inte in i `vh`.
+ */
+const SAMTALSYTA = "flex h-[min(15rem,34dvh)] min-h-0 flex-col gap-3 overflow-y-auto overscroll-contain rounded-2xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
+/** Personens repliker i samtalsytan: en lugn bubbla till höger, som i en chatt. */
+const DU_BUBBLA = "m-0 max-w-[85%] self-end rounded-2xl bg-hover px-3 py-2 text-brod text-ink [overflow-wrap:anywhere]";
+/** Agentens repliker: bocken och texten, som kvittot alltid sett ut. */
+const AGENT_RAD = "m-0 flex items-start gap-3 text-brod [overflow-wrap:anywhere]";
+/** Rubrikradens ikonknappar: 44 px träffyta, lika lugna som kugghjulet. */
+const IKONKNAPP = `${KUGG} aria-disabled:cursor-default aria-disabled:opacity-60`;
 
-const INSPELNING_PROPS = ["lage", "fel", "niva", "sekunder", "tak", "framsteg", "kanIgen", "text", "textFel", "medText", "skickarText", "svaraText", "kvitto", "onAngra", "onSvara", "onKlar", "onAvbryt", "onIgen", "onStart", "onTillatMikrofon", "onInstallningar", "marke", "mal", "valt", "onValj"];
+/** De tre mottagarna i rubrikradens ordning (0.103.0). Namnen är de knapparna läses upp med, och tooltipen visar samma ord. */
+const VIDARE = /** @type {const} */ ([
+  { nyckel: "meddelande", etikett: "Skapa ett meddelande av samtalet" },
+  { nyckel: "handelse", etikett: "Skapa en händelse av samtalet" },
+  { nyckel: "arende", etikett: "Skapa ett ärende av samtalet" },
+]);
+
+const INSPELNING_PROPS = ["lage", "fel", "niva", "sekunder", "tak", "framsteg", "kanIgen", "text", "textFel", "medText", "skickarText", "svaraText", "kvitto", "onAngra", "onSvara", "onKlar", "onAvbryt", "onIgen", "onStart", "onTillatMikrofon", "onInstallningar", "marke", "mal", "valt", "onValj", "historik", "vidare", "fortsattEtikett"];
+
+/**
+ * Mottagarna av samtalet (0.103.0). Var och en får underlaget när personen trycker på dess ikon. En nyckel som saknas ritar ingen
+ * ikon: en knapp utan mottagare hade inte gjort något.
+ * @typedef {{ meddelande?: (u: import("../lib/talk.js").Talkunderlag) => void, handelse?: (u: import("../lib/talk.js").Talkunderlag) => void, arende?: (u: import("../lib/talk.js").Talkunderlag) => void }} TalkVidare
+ */
 
 /**
  * @typedef {object} TalkKvittoVy Kvittot som fältet ritar (0.97.0). Kommer ur `useTalk().kvitto`.
@@ -587,14 +634,33 @@ const INSPELNING_PROPS = ["lage", "fel", "niva", "sekunder", "tak", "framsteg", 
  *   mål är inget val, och en rad som inte går att ändra är bara brus (CP 2026-10-13: "bara text för att få en bra användarupplevelse").
  * @param {string | null} [props.valt]
  * @param {(id: string) => void} [props.onValj]
+ * @param {ReadonlyArray<import("../lib/talk.js").Talkrad>} [props.historik] (0.103.0) Samtalets omgångar (`useTalk().historik`). När
+ *   kvittot står visas de i en rullande yta med fast höjd, den sista som den aktuella omgången.
+ * @param {TalkVidare} [props.vidare] (0.103.0) Mottagarna i rubrikradens tre ikoner (Meddelande, Händelse, Ärende). Ett tryck lämnar
+ *   underlaget (`talkUnderlag`) till mottagaren och stänger fältet. ⛔ En ikon ritas bara när dess mottagare finns och när något av det
+ *   personen sade hördes. Kastar mottagaren står felet i fältet och samtalet finns kvar.
+ * @param {string} [props.fortsattEtikett] (0.103.0) Namnet på Meddelande när appen säger att man står i en chatt ("Fortsätt i chatten").
+ *   Utan den heter ikonen "Skapa ett meddelande av samtalet".
  */
 export function OpsInspelning(props) {
   const okanda = Object.keys(props).filter((k) => !INSPELNING_PROPS.includes(k));
   if (okanda.length > 0) {
     throw new Error(`OpsInspelning: okända props ${okanda.join(", ")}. Tillåtna: ${INSPELNING_PROPS.join(", ")}.`);
   }
-  const { lage, fel, niva, sekunder, tak, framsteg, kanIgen, text = "", textFel = "", medText = false, skickarText = TALK_SKICKAR_TEXT, svaraText, kvitto = null, onAngra, onSvara, onKlar, onAvbryt, onIgen, onStart, onTillatMikrofon, onInstallningar, marke, mal = [], valt = null, onValj } = props;
+  const { lage, fel, niva, sekunder, tak, framsteg, kanIgen, text = "", textFel = "", medText = false, skickarText = TALK_SKICKAR_TEXT, svaraText, kvitto = null, onAngra, onSvara, onKlar, onAvbryt, onIgen, onStart, onTillatMikrofon, onInstallningar, marke, mal = [], valt = null, onValj, historik = [], vidare, fortsattEtikett } = props;
+  if (vidare !== undefined) {
+    const felaktiga = vidare && typeof vidare === "object" ? Object.entries(vidare).filter(([k, v]) => !VIDARE.some((x) => x.nyckel === k) || typeof v !== "function").map(([k]) => k) : [typeof vidare];
+    if (felaktiga.length > 0) {
+      throw new Error(`OpsInspelning: vidare ska vara { meddelande?, handelse?, arende? } med funktioner, fel i: ${felaktiga.join(", ")}. En ikon vars mottagare inte går att anropa hade inte gjort något.`);
+    }
+  }
+  if (fortsattEtikett !== undefined && (typeof fortsattEtikett !== "string" || !fortsattEtikett.trim())) {
+    throw new Error(`OpsInspelning: fortsattEtikett ska vara en sträng som inte är tom, fick ${typeof fortsattEtikett === "string" ? JSON.stringify(fortsattEtikett) : typeof fortsattEtikett}. En ikon utan namn går inte att hitta för den som lyssnar.`);
+  }
   const [fragar, setFragar] = useState(false);
+  /** Felet när en mottagare kastade (0.103.0). Samtalet står kvar, så att det går att trycka igen eller stänga. */
+  const [vidareFel, setVidareFel] = useState("");
+  const samtalsyta = useRef(/** @type {HTMLDivElement | null} */ (null));
   const fortsatt = useRef(/** @type {HTMLButtonElement | null} */ (null));
   const stang = useRef(/** @type {HTMLButtonElement | null} */ (null));
   const svara = useRef(/** @type {HTMLButtonElement | null} */ (null));
@@ -623,7 +689,48 @@ export function OpsInspelning(props) {
    */
   useEffect(() => {
     if (kvittoKnappar) (svara.current ?? stang.current)?.focus();
+    // Ett gammalt fel från en mottagare hör till kvittot det stod under.
+    setVidareFel("");
   }, [kvittoKnappar]);
+
+  /** Kvittot står, med samtalet i sin yta. Också medan Ångrat står: ytan ska inte krympa i sista stund. */
+  const samtaletStar = lage === "sparat" && Boolean(kvitto);
+  const tidigare = samtaletStar ? historik.slice(0, -1) : [];
+  const nuHord = samtaletStar && historik.length > 0 ? historik[historik.length - 1].hord.trim() : "";
+  /**
+   * ⛔ YTAN RULLAR TILL SISTA RADEN NÄR NÅGOT NYTT KOMMER (0.103.0): ett kvitto efter Svara, och Ångrat. Utan det stod den nya
+   * omgången under ytans kant efter den andra eller tredje omgången, och fältet såg ut att visa förra svaret.
+   */
+  const sistaKvitto = kvitto ? `${kvitto.angrat ? "1" : "0"}${kvitto.text}` : "";
+  useEffect(() => {
+    const el = samtalsyta.current;
+    if (samtaletStar && el) el.scrollTop = el.scrollHeight;
+  }, [samtaletStar, historik.length, sistaKvitto]);
+
+  const underlag = kvittoKnappar ? talkUnderlag(historik) : null;
+  /** Ikonerna som ritas: bara de med en mottagare, och bara när det finns något av samtalet att lämna. */
+  const ikoner = underlag && vidare ? VIDARE.filter((x) => typeof vidare[x.nyckel] === "function") : [];
+  /**
+   * Ett tryck på en ikon. ⛔ MOTTAGAREN FÖRST, STÄNGNINGEN SEDAN: kastar mottagaren (ett formulär som inte finns, ett fel i
+   * appen) står felet i fältet och samtalet finns kvar. Stängt först hade samtalet försvunnit med felet. Ett löfte som avvisas
+   * rapporteras, eftersom fältet då redan är stängt.
+   * @param {"meddelande" | "handelse" | "arende"} nyckel
+   */
+  const lamnaVidare = (nyckel) => {
+    const mottagare = vidare?.[nyckel];
+    if (kvitto?.angrar || !underlag || typeof mottagare !== "function") return;
+    try {
+      const svar = /** @type {unknown} */ (mottagare(underlag));
+      if (svar && typeof (/** @type {any} */ (svar).then) === "function") {
+        /** @type {Promise<unknown>} */ (svar).catch((fel) => rapporteraFel(fel, { yta: "OpsTalk", steg: `vidare-${nyckel}` }));
+      }
+    } catch (fel) {
+      rapporteraFel(fel, { yta: "OpsTalk", steg: `vidare-${nyckel}` });
+      setVidareFel(fel instanceof Error && fel.message ? fel.message : "Samtalet gick inte att lämna vidare.");
+      return;
+    }
+    onAvbryt();
+  };
 
   const avbryt = () => {
     if (lyssnar && sekunder >= AVBRYT_FRAGA_SEKUNDER && !fragar) {
@@ -704,26 +811,82 @@ export function OpsInspelning(props) {
           fick sin text, och skärmläsare läser ofta inte upp en region som föds med innehåll: kvittot, "Ångrat" och
           "Agenten arbetar…" kunde passera tyst. Nu finns den från första läget i fältet, dold och tom medan man pratar, i samma
           plats i trädet, så att det är SAMMA element som får texten. */}
-      <p role="status" aria-live="polite" data-talk-status={statusLage || undefined} data-talk-kvitto={statusLage === "kvitto" ? "" : undefined} className={STATUSKLASS[statusLage || "tom"]}>
-        {statusLage === "skickar" ? (
-          <>
-            {procent == null ? <OpsSpinner size="sm" decorative /> : null}
-            {procent == null ? skickarText : `${skickarText} ${procent} %`}
-          </>
+      {/* ⛔ RUBRIKRADEN ÖVERST NÄR KVITTOT STÅR (0.103.0): tre ikoner som gör samtalet till ett meddelande, en händelse eller ett
+          ärende. Ikoner och inte ord, eftersom raden är ett val vid sidan av och inte fältets huvudsak: Svara är fortfarande den
+          stora knappen. Namnet och tooltipen säger vad som händer. Raden ritas bara när minst en ikon har en mottagare. */}
+      {ikoner.length > 0 ? (
+        <div data-talk-rubrikrad="" className="flex min-h-11 min-w-0 items-center gap-2">
+          {marke ? <span aria-hidden="true" className="flex size-7 shrink-0 items-center justify-center">{marke}</span> : null}
+          <span className="min-w-0 flex-1 text-meta text-ink-muted">Samtalet</span>
+          <div role="group" aria-label="Gör något av samtalet" className="-my-1 -mr-1 flex shrink-0 items-center gap-1">
+            {ikoner.map((x) => {
+              const namn = x.nyckel === "meddelande" && fortsattEtikett ? fortsattEtikett : x.etikett;
+              const Ikon = x.nyckel === "meddelande" ? MeddelandeIkon : x.nyckel === "handelse" ? HandelsePlusIkon : ArendePlusIkon;
+              return (
+                <OpsTooltip key={x.nyckel} content={namn} side="top">
+                  <button
+                    type="button"
+                    aria-label={namn}
+                    data-talk-vidare={x.nyckel}
+                    aria-disabled={kvitto?.angrar || undefined}
+                    onClick={() => lamnaVidare(x.nyckel)}
+                    className={IKONKNAPP}
+                  >
+                    <Ikon size={20} />
+                  </button>
+                </OpsTooltip>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
+      {/* ⛔ SAMTALSYTAN ÄR STATUSREGIONENS FÖRÄLDER I VARJE LÄGE (0.103.0). Den finns från första läget som `contents` (ingen egen
+          ruta), och blir den rullande ytan när kvittot står. Utan det hade statusregionen fått en ny förälder i samma ögonblick som
+          kvittot kom, alltså blivit ett nytt element, och det är det 0.97.0 skrev in nedan att den inte får bli. Ytan är
+          fokuserbar, så att den går att rulla med tangentbordet. */}
+      <div
+        ref={samtalsyta}
+        data-talk-samtal={samtaletStar ? "" : undefined}
+        role={samtaletStar ? "region" : undefined}
+        aria-label={samtaletStar ? "Samtalet" : undefined}
+        tabIndex={samtaletStar ? 0 : undefined}
+        className={samtaletStar ? SAMTALSYTA : "contents"}
+      >
+        {tidigare.length > 0 ? (
+          <ol data-talk-historik="" className="m-0 flex list-none flex-col gap-3 p-0">
+            {tidigare.map((r, i) => (
+              <li key={i} data-talk-omgang="" className="flex flex-col gap-3">
+                {r.hord.trim() ? <p className={DU_BUBBLA}><span className="sr-only">Du: </span>{r.hord.trim()}</p> : null}
+                <p className={`${AGENT_RAD} text-ink-secondary`}>
+                  <span aria-hidden="true" className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-accent-subtle text-accent"><BockIkon size={14} /></span>
+                  <span className="min-w-0"><span className="sr-only">Agenten: </span>{r.angrat ? `Ångrat: ${r.kvitto}` : r.kvitto}</span>
+                </p>
+              </li>
+            ))}
+          </ol>
         ) : null}
-        {statusLage === "sparat" ? (
-          <>
-            <span aria-hidden="true" className="flex size-7 shrink-0 items-center justify-center rounded-full bg-accent-subtle text-accent"><BockIkon size={14} /></span>
-            Sparat
-          </>
-        ) : null}
-        {statusLage === "kvitto" && kvitto ? (
-          <>
-            <span aria-hidden="true" className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-accent-subtle text-accent"><BockIkon size={14} /></span>
-            <span className="min-w-0">{kvitto.angrat ? "Ångrat" : kvitto.text}</span>
-          </>
-        ) : null}
-      </p>
+        {nuHord ? <p data-talk-du="" className={DU_BUBBLA}><span className="sr-only">Du: </span>{nuHord}</p> : null}
+        <p role="status" aria-live="polite" data-talk-status={statusLage || undefined} data-talk-kvitto={statusLage === "kvitto" ? "" : undefined} className={STATUSKLASS[statusLage || "tom"]}>
+          {statusLage === "skickar" ? (
+            <>
+              {procent == null ? <OpsSpinner size="sm" decorative /> : null}
+              {procent == null ? skickarText : `${skickarText} ${procent} %`}
+            </>
+          ) : null}
+          {statusLage === "sparat" ? (
+            <>
+              <span aria-hidden="true" className="flex size-7 shrink-0 items-center justify-center rounded-full bg-accent-subtle text-accent"><BockIkon size={14} /></span>
+              Sparat
+            </>
+          ) : null}
+          {statusLage === "kvitto" && kvitto ? (
+            <>
+              <span aria-hidden="true" className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-accent-subtle text-accent"><BockIkon size={14} /></span>
+              <span className="min-w-0">{kvitto.angrat ? "Ångrat" : kvitto.text}</span>
+            </>
+          ) : null}
+        </p>
+      </div>
       {lage === "skickar" && procent != null ? (
         // `-mt-1`: raden och stapeln hörde ihop med 8 px emellan, och fältets mellanrum är 12.
         <div role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={procent} aria-label={skickarText} className="-mt-1 h-1.5 w-full overflow-hidden rounded-full bg-line">
@@ -733,6 +896,7 @@ export function OpsInspelning(props) {
       {lage === "sparat" && kvitto ? (
         <>
           {kvitto.fel ? <p role="alert" data-talk-fel="" className="m-0 text-etikett text-danger">{kvitto.fel}</p> : null}
+          {vidareFel && !kvitto.angrat ? <p role="alert" data-talk-vidarefel="" className="m-0 text-etikett text-danger">{vidareFel}</p> : null}
           {!kvitto.angrat ? (
             <div className="flex items-center gap-3">
               {kvitto.kanAngra ? (
@@ -872,9 +1036,13 @@ export function OpsInspelning(props) {
  *   mal?: ReadonlyArray<{ id: string, etikett: string }>,
  *   valt?: string | null,
  *   onValj?: (id: string) => void,
+ *   historik?: ReadonlyArray<import("../lib/talk.js").Talkrad>,
+ *   vidare?: TalkVidare,
+ *   fortsattEtikett?: string,
  * }} props `medText`, `skickarText`, `kvitto` och `onAngra` (0.97.0) kommer ur `useTalk` med samma namn (`onAngra` är `angra`).
+ *   `historik` (0.103.0) är `useTalk().historik`, och `vidare` och `fortsattEtikett` går som de är till `OpsInspelning`.
  */
-export function OpsTalk({ lage, fel, niva, sekunder = 0, tak = MAX_SEKUNDER, framsteg = null, kanIgen = false, text = "", textFel = "", medText = false, skickarText = TALK_SKICKAR_TEXT, svaraText, kvitto = null, onAngra, onSvara, onSkicka, onAvbryt, onIgen = () => {}, onTillatMikrofon, onInstallningar, marke, mal = [], valt = null, onValj }) {
+export function OpsTalk({ lage, fel, niva, sekunder = 0, tak = MAX_SEKUNDER, framsteg = null, kanIgen = false, text = "", textFel = "", medText = false, skickarText = TALK_SKICKAR_TEXT, svaraText, kvitto = null, onAngra, onSvara, onSkicka, onAvbryt, onIgen = () => {}, onTillatMikrofon, onInstallningar, marke, mal = [], valt = null, onValj, historik = [], vidare, fortsattEtikett }) {
   if (lage === "vila" || lage === "trycker") return null;
   return (
     <div
@@ -910,6 +1078,9 @@ export function OpsTalk({ lage, fel, niva, sekunder = 0, tak = MAX_SEKUNDER, fra
           mal={mal}
           valt={valt}
           onValj={onValj}
+          historik={historik}
+          vidare={vidare}
+          fortsattEtikett={fortsattEtikett}
         />
       </div>
     </div>

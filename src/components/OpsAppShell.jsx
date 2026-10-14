@@ -14,7 +14,7 @@ import { Counter } from "./counter.jsx";
 import { ArendePlusIkon, ChevronNedIkon, HandelsePlusIkon, KryssIkon, MeddelandeIkon, MenuIcon, MikrofonIkon, PlusIkon, GruppIkon } from "./icons.jsx";
 import { OpsTalk, useTalk } from "./OpsTalk.jsx";
 import { OpsTooltip } from "./OpsTooltip.jsx";
-import { TALK_PRATA_IN, kontrolleraSkickarText, talkKnappNamn } from "../lib/talk.js";
+import { TALK_PRATA_IN, kontrolleraSkickarText, talkForifyllt, talkKnappNamn } from "../lib/talk.js";
 import { byggFasta, djupAktiv, validateFasta } from "./fasta.jsx";
 import { huvudknappKlass, huvudPlusKlass, radBehallare, radKlass } from "../lib/radKlass.js";
 import { rapporteraFel } from "../lib/felrapport.js";
@@ -501,6 +501,18 @@ function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, s
  * @property {string} [redigera] (0.40.0, #214) Händelsens id när formuläret öppnats för att ÄNDRA den (`HandelseSkapare.redigera`). Formuläret läser
  *   händelsen ur appens källa, fyller i fälten och sparar en ändring i stället för en ny rad. `typ`, `kalender` och `kravSvar` är redan ifyllda ur den.
  * @property {boolean} [blockerar] (0.37.0) "Blockerar tillgänglighet" är på. Alltid `false` i en gruppkalender.
+ * @property {TalkForifyllt | null} [forifyllt] (0.103.0) Startvärden ur ett samtal med TALK, när formuläret öppnats av fältets ikon
+ *   Händelse, annars `null`. Formuläret fyller i rubriken och beskrivningen; personen ändrar och sparar själv. Se `TalkForifyllt`.
+ */
+
+/**
+ * Startvärdena ett formulär får när det öppnats ur TALK-fältets rubrikrad (0.103.0). Härledda ur det personen sade med
+ * `talkForifyllt` i `lib/talk.js`: rubriken är första meningen (högst `TALK_RUBRIK_MAX` tecken), beskrivningen resten.
+ * ⛔ STARTVÄRDEN, INTE ETT BESLUT. Formuläret visar dem i sina vanliga fält, och ingenting sparas förrän personen sparar.
+ * ⛔ DE STÅR INTE I ADRESSEN. `?skapa=handelse` och `?skapa=arende` skrivs som vanligt, så att Tillbaka fungerar, men det som
+ * sades skrivs inte i `&`-parametrar: det hade hamnat i webbläsarens historik och i varje server som loggar adresser, och ett
+ * samtal är längre än en adress bör vara. En omladdning öppnar därför samma formulär tomt.
+ * @typedef {{ rubrik: string, beskrivning: string }} TalkForifyllt
  */
 
 /**
@@ -532,13 +544,15 @@ function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, s
  * @property {import("react").ReactNode | HandelseSkapare} [handelse] Ramverkets egen rad "Ny händelse". `null`/utelämnad döljer raden.
  *   Ett färdigt `ReactNode` (som förut) eller, från 0.30.0 (#173), ett `HandelseSkapare`: ett formulär OCH en katalog
  *   med händelsetyper, så typvalet och `{ groupId, typ, onKlar }` fungerar precis som för en moduls registrering.
- * @property {import("react").ReactNode | ((arg: { formId: string, mal: { sektion: string, id: string } | null, onKlar: () => void }) => import("react").ReactNode)} [arende] Ramverkets egen rad "Nytt ärende".
+ * @property {import("react").ReactNode | ((arg: { formId: string, mal: { sektion: string, id: string } | null, onKlar: () => void, forifyllt: TalkForifyllt | null }) => import("react").ReactNode)} [arende] Ramverkets egen rad "Nytt ärende".
  *   Ett färdigt `ReactNode` (som förut) eller, från 0.31.1, en FUNKTION `({ formId, mal, onKlar }) => nod`: appen sätter `id={formId}` på sitt
  *   `<form>` och panelens `sparaEtikett` ritar då den gemensamma Spara-knappen. En färdig nod har ingen `formId` att ta emot, och för
  *   den ritas ingen Spara (annars en död knapp).
  *   ⛔ `onKlar` (0.44.0, bolag-ops#508) stänger panelen efter en lyckad skrivning, som för "Ny grupp" och "Nytt meddelande". Utan den
  *   kunde formuläret visa sitt kvitto men inte stänga panelen, och skalets Spara stod kvar under kvittot och pekade på ett formulär som
  *   inte fanns längre. CP: "Spara knappen kvar när man sparat ett ärende ... vet inte om det är sparat."
+ *   `forifyllt` (0.103.0) är startvärden ur ett samtal med TALK när panelen öppnats av fältets ikon Ärende, annars `null`
+ *   (`TalkForifyllt`). Bara funktionsformen får dem, och bara med den ritar fältet ikonen: en färdig nod kan inte fyllas i.
  * @property {(arg: { formId: string, onKlar: () => void }) => import("react").ReactNode} [grupp] (0.32.0, #180) Ramverkets egen rad "Ny grupp".
  *   En FUNKTION som ritar formuläret, normalt `({ formId, onKlar }) => <OpsGruppFormular formId={formId} onKlar={onKlar} onSkapa={...} onSkapad={...} />`.
  *   Med den ritar skalet raden i plusset OCH gör "Skapa grupp" i gruppanelen till samma panel (växlarens ark på telefon har ingen sedan 0.37.0): `grupper.onSkapa` behövs då inte,
@@ -609,10 +623,10 @@ function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, s
 /**
  * Ritar `skapa.arende` när det är en funktion (0.31.1). Som en EGEN komponent och inte ett direktanrop i skalets render: en app
  * som använder hooks i sin funktion får då dem på en stabil plats, i stället för i skalets villkorliga gren.
- * @param {{ rita: (arg: { formId: string, mal: any, onKlar: () => void }) => import("react").ReactNode, formId: string, mal: any, onKlar: () => void }} props
+ * @param {{ rita: (arg: { formId: string, mal: any, onKlar: () => void, forifyllt: TalkForifyllt | null }) => import("react").ReactNode, formId: string, mal: any, onKlar: () => void, forifyllt: TalkForifyllt | null }} props
  */
-function ArendeRitare({ rita, formId, mal, onKlar }) {
-  return <>{rita({ formId, mal, onKlar })}</>;
+function ArendeRitare({ rita, formId, mal, onKlar, forifyllt }) {
+  return <>{rita({ formId, mal, onKlar, forifyllt })}</>;
 }
 
 /**
@@ -847,7 +861,7 @@ export function useOppnaHandelse() {
  *   Utan `skapa`, eller utan NÅGOT den kan visa (inga `handelse`/`arende` OCH modulerna i `ingenGrupp`/`tomt`-
  *   läge), ritas inget plus alls (tomhet är ett svar, arbetsreglernas punkt 5).
  * @param {string} [props.skapaLabel] Skärmläsarnamn på plusknappen.
- * @param {Omit<import("./OpsTalk.jsx").TalkVal, "onTalk"> & { mal?: ReadonlyArray<{ id: string, etikett: string }>, onTalk: (blob: Blob, meta: { mimeType: string, sekunder: number, rapportera: (andel: number) => void, mal?: { id: string }, text?: string }) => Promise<void | import("../lib/talk.js").Talkkvitto> | void | import("../lib/talk.js").Talkkvitto }} [props.talk] TALK (0.57.0, cllp/lifehub.app#2): långtryck på bottenradens plus
+ * @param {Omit<import("./OpsTalk.jsx").TalkVal, "onTalk"> & { mal?: ReadonlyArray<{ id: string, etikett: string }>, onFortsatt?: (underlag: import("../lib/talk.js").Talkunderlag) => void, fortsattEtikett?: string, onTalk: (blob: Blob, meta: { mimeType: string, sekunder: number, rapportera: (andel: number) => void, mal?: { id: string }, text?: string }) => Promise<void | import("../lib/talk.js").Talkkvitto> | void | import("../lib/talk.js").Talkkvitto }} [props.talk] TALK (0.57.0, cllp/lifehub.app#2): långtryck på bottenradens plus
  *   spelar in, och Skapa får raden "TALK, prata in" först. Ljudet lämnas till `talk.onTalk`. När ett mål är valt
  *   bär `meta.mal` dess id. `mal` är appens egna mål (händelse, meddelande). Modulernas mål på platsen
  *   `inspelning.mal` sparas av modulens `spara`, inte av `onTalk`. ⛔ (0.99.0) Mikrofonen (huvudets knapp, långtryck på plus, raden
@@ -859,6 +873,12 @@ export function useOppnaHandelse() {
  *   (0.97.0, lifehub.app#219) `onTalk` får lösa till `{ kvitto, angra? }`: fältet visar då kvittot med Ångra och Stäng i stället
  *   för Sparat. `talk.skickarText` är statusraden medan `onTalk` arbetar (förval "Sparar…"). ⛔ Den gäller bara appens mål:
  *   när ett moduls mål är valt (Biblioteket) är det modulens `spara` som arbetar, och där står förvalet.
+ *   (0.103.0) När kvittot står har fältet en rubrikrad med tre ikoner som lämnar hela samtalet vidare (`Talkunderlag`:
+ *   `{ text, samtal, rader }`) och stänger fältet. Händelse öppnar skalets "Ny händelse" och Ärende skalets "Nytt ärende" med
+ *   `forifyllt` (`TalkForifyllt`), och ritas bara när `skapa.handelse` är ett formulär (`HandelseSkapare`) respektive `skapa.arende`
+ *   är en funktion. Meddelande lämnar underlaget till `talk.onFortsatt(underlag)` och ritas bara med den. `talk.fortsattEtikett`
+ *   ("Fortsätt i chatten") är ikonens namn när appen säger att man står i en chatt; utan den heter den "Skapa ett meddelande av
+ *   samtalet". ⛔ Agenten är inte inblandad: personen justerar och sparar själv.
  * @param {string} [props.closeLabel] Skärmläsarnamn på stängknappen i bottenradens skapa-ark (bara med `fasta`).
  * @param {string} [props.nyHandelseEtikett] Ramverkets rad för `skapa.handelse`.
  * @param {string} [props.nyttArendeEtikett] Ramverkets rad för `skapa.arende`.
@@ -935,6 +955,19 @@ function OpsAppShellRitad({
   if (talk) kontrolleraSkickarText(talk.skickarText, "OpsAppShell talk");
   if (talk && talk.svaraText !== undefined && (typeof talk.svaraText !== "string" || !talk.svaraText.trim())) {
     throw new Error(`OpsAppShell: talk.svaraText ska vara en sträng som inte är tom, fick ${typeof talk.svaraText === "string" ? JSON.stringify(talk.svaraText) : typeof talk.svaraText}. En knapp utan ord går inte att trycka på.`);
+  }
+  // ⛔ 0.103.0: SAMTALETS MOTTAGARE PRÖVAS VID UPPSTART, som `svaraText`. Ikonen ritas först när någon pratat klart, och ett fel
+  // som syns först då är för sent. En etikett utan mottagare är ett namn på en knapp som inte finns.
+  if (talk && talk.onFortsatt !== undefined && typeof talk.onFortsatt !== "function") {
+    throw new Error(`OpsAppShell: talk.onFortsatt ska vara en funktion, fick ${typeof talk.onFortsatt}. Ikonen Meddelande lämnar samtalet dit, och utan en funktion att anropa hade den inte gjort något.`);
+  }
+  if (talk && talk.fortsattEtikett !== undefined) {
+    if (typeof talk.fortsattEtikett !== "string" || !talk.fortsattEtikett.trim()) {
+      throw new Error(`OpsAppShell: talk.fortsattEtikett ska vara en sträng som inte är tom, fick ${typeof talk.fortsattEtikett === "string" ? JSON.stringify(talk.fortsattEtikett) : typeof talk.fortsattEtikett}.`);
+    }
+    if (typeof talk.onFortsatt !== "function") {
+      throw new Error("OpsAppShell: talk.fortsattEtikett utan talk.onFortsatt. Etiketten är namnet på ikonen som lämnar samtalet till chatten, och utan mottagare ritas ingen ikon.");
+    }
   }
   if (skapa) {
     const gammalInspelning = /** @type {{ spelaIn?: unknown, ideInspelare?: unknown }} */ (skapa);
@@ -1035,7 +1068,7 @@ function OpsAppShellRitad({
   // ReactNode i state, se `skapaTyp` nedan för skälet).
   const [skapaOppen, setSkapaOppen] = useState(false);
   const [skapaForm, setSkapaFormRaw] = useState(
-    /** @type {{ kind: "handelse" | "arende" | "grupp" | "meddelande" } | { kind: "redigeragrupp", groupId: string } | { kind: "modul", registrering: any, datum?: string | null, redigera?: string } | null} */ (null),
+    /** @type {{ kind: "handelse" | "grupp" | "meddelande" } | { kind: "arende", forifyllt?: TalkForifyllt, oppning?: number } | { kind: "redigeragrupp", groupId: string } | { kind: "modul", registrering: any, datum?: string | null, redigera?: string, forifyllt?: TalkForifyllt, oppning?: number } | null} */ (null),
   );
   // ⛔ VALD TYP PER REGISTRERING, INTE INUTI `skapaForm`. Ett värde sparat i
   // `skapaForm` vid öppningstillfället är fruset: `OpsSelect`s `onChange`
@@ -1446,7 +1479,10 @@ function OpsAppShellRitad({
     // ⛔ 0.31.1: `arende` FÅR VARA EN FUNKTION `({ formId, mal }) => nod`, så appen kan ge sitt `<form id={formId}>` och använda
     // panelens gemensamma Spara (`sparaEtikett`). En färdig nod fungerar som förut. En nod har ingen `formId` att ta emot, och
     // därför ritas Spara inte för den (se `skapaHarFormKonsument`): en knapp som pekar på ett id ingen känner är en död knapp.
-    skapaModalInnehall = typeof skapa?.arende === "function" ? <ArendeRitare rita={skapa.arende} formId={skapaFormId} mal={skapaMal} onKlar={() => stangSkapa(true)} /> : skapa?.arende;
+    // ⛔ 0.103.0: EN NY FÖRIFYLLNING ÄR ETT NYTT FORMULÄR (`key`). Appens formulär läser `forifyllt` i sina `useState`-förvärden,
+    // och stod "Nytt ärende" redan öppet när ikonen trycktes hade samma formulär annars behållit sina gamla fält.
+    const arendeForm = /** @type {{ forifyllt?: TalkForifyllt, oppning?: number }} */ (skapaForm);
+    skapaModalInnehall = typeof skapa?.arende === "function" ? <ArendeRitare key={arendeForm.oppning ? `talk-${arendeForm.oppning}` : undefined} rita={skapa.arende} formId={skapaFormId} mal={skapaMal} onKlar={() => stangSkapa(true)} forifyllt={arendeForm.forifyllt ?? null} /> : skapa?.arende;
     skapaHarFormKonsument = typeof skapa?.arende === "function";
   } else if (skapaForm?.kind === "grupp" && typeof skapa?.grupp === "function") {
     skapaModalTitel = nyGruppEtikett;
@@ -1468,7 +1504,7 @@ function OpsAppShellRitad({
     const Form = /** @type {any} */ (r.form);
     skapaHarFormKonsument = true;
     skapaModalTitel = skapaForm.redigera ? redigeraHandelseEtikett : text(r.namn, skapaSprak);
-    const kalenderProps = r.id === "handelse" ? { datum: skapaForm.datum ?? null, ...(skapaForm.redigera ? { redigera: skapaForm.redigera } : {}), kalender: skapaKalender, kravSvar: skapaKalender?.slag === "grupp" && kravSvarPa, blockerar: skapaKalender?.slag === "mina" && skapaBlockerar } : {};
+    const kalenderProps = r.id === "handelse" ? { datum: skapaForm.datum ?? null, ...(skapaForm.redigera ? { redigera: skapaForm.redigera } : { forifyllt: skapaForm.forifyllt ?? null }), kalender: skapaKalender, kravSvar: skapaKalender?.slag === "grupp" && kravSvarPa, blockerar: skapaKalender?.slag === "mina" && skapaBlockerar } : {};
     skapaModalInnehall = (
       <div className="flex flex-col gap-3">
         {r.katalog !== null && !egenPost ? (
@@ -1485,7 +1521,7 @@ function OpsAppShellRitad({
             (samma skäl som gamla `OpsSkapa`): i "redo"-läget är de samma
             värde, men beslutet om vad "aktiv grupp" betyder ligger på ETT
             ställe. */}
-        <Form groupId={skapaEffektivGrupp} typ={vald} mal={skapaEffektivtMal} formId={skapaFormId} {...kalenderProps} onKlar={() => { skapa?.onKlar?.({ registrering: r.id, typ: vald }); stangSkapa(); }} />
+        <Form key={skapaForm.oppning ? `talk-${skapaForm.oppning}` : undefined} groupId={skapaEffektivGrupp} typ={vald} mal={skapaEffektivtMal} formId={skapaFormId} {...kalenderProps} onKlar={() => { skapa?.onKlar?.({ registrering: r.id, typ: vald }); stangSkapa(); }} />
         {/* ⛔ 0.37.0 (#179 F3): VALEN SOM HÖR TILL KALENDERN, EFTER APPENS FÄLT. "Kräv svar" bara i en gruppkalender, "Blockerar
             tillgänglighet" bara i en av mina: i en egen kalender finns inga svar, och gruppens händelser blockerar inte någons
             tillgänglighet. "Skicka mejl" visas inte, se `HandelseSkapare.kalendrar`. */}
@@ -1649,6 +1685,35 @@ function OpsAppShellRitad({
     }
     setValtInspelning(traffar[0].id);
     talkStyr.direkt();
+  };
+
+  // ══ ⛔ SAMTALETS TRE MOTTAGARE (0.103.0) ══════════════════════════════════════════════════════════════════════════════
+  //
+  // CP 2026-10-14: "Inte så dumt med 3 knappar/ikoner när man pratat in som option [...] Och om det är i en chatt så är flödet
+  // 'fortsätt i chatten'." Händelse och Ärende är skalets egna formulär, och skalet öppnar dem med samtalet ifyllt
+  // (`talkForifyllt`). Meddelande är appens: skalet vet inte vilken chatt man står i, så den går till `talk.onFortsatt`.
+  // ⛔ EN NYCKEL BARA NÄR MOTTAGAREN FINNS. "Ny händelse" som färdig nod och "Nytt ärende" som färdig nod kan inte ta emot
+  // startvärden, och en ikon som lovade samtalet men öppnade ett tomt formulär hade varit fel. Skalet låter dem vara.
+  const talkOppningar = useRef(0);
+  /** @type {import("./OpsTalk.jsx").TalkVidare} */
+  const talkVidare = {
+    ...(typeof talk?.onFortsatt === "function" ? { meddelande: /** @type {NonNullable<typeof talk.onFortsatt>} */ (talk.onFortsatt) } : {}),
+    ...(handelseSkapareFinns(skapa)
+      ? {
+          handelse: (/** @type {import("../lib/talk.js").Talkunderlag} */ u) => {
+            talkOppningar.current += 1;
+            oppnaSkapa({ ...skapaFormFranNyckel(skapa, "handelse", { nyHandelseEtikett }), forifyllt: talkForifyllt(u.text), oppning: talkOppningar.current });
+          },
+        }
+      : {}),
+    ...(typeof skapa?.arende === "function"
+      ? {
+          arende: (/** @type {import("../lib/talk.js").Talkunderlag} */ u) => {
+            talkOppningar.current += 1;
+            oppnaSkapa({ kind: "arende", forifyllt: talkForifyllt(u.text), oppning: talkOppningar.current });
+          },
+        }
+      : {}),
   };
 
   /**
@@ -2464,6 +2529,9 @@ function OpsAppShellRitad({
           mal={laastTillModul ? [] : appInspelningsMal.map((m) => ({ id: m.id, etikett: m.etikett }))}
           valt={valtMal?.id ?? null}
           onValj={setValtInspelning}
+          historik={talkStyr.historik}
+          vidare={talkVidare}
+          fortsattEtikett={talk?.fortsattEtikett}
         />
       ) : null}
 

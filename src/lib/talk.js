@@ -127,6 +127,88 @@ export function talkKvitto(svar) {
   return { text: kvitto.trim(), angra: typeof angra === "function" ? /** @type {() => Promise<void>} */ (angra) : null };
 }
 
+/*
+ * ══ ⛔ SAMTALET SOM UNDERLAG (0.103.0) ═══════════════════════════════════════════════════════════════════════════════
+ *
+ * CP 2026-10-14: "vi kanske vill kunna att skapa ett ärende manuellt på det som sägs genom att klicka på skapa ärende, händelse
+ * eller meddelande själv med den man pratar in? [...] där historiken finns med om man pratat med agenten olika omgångar." Fältet
+ * håller därför en rad per omgång som nådde kvittot, och tre ikoner i dess rubrikrad lämnar hela samtalet vidare. Personen
+ * justerar och sparar själv i formuläret, och agenten är inte inblandad. Raderna, underlaget och förifyllningen står här, som
+ * rena funktioner, så att de går att prova utan fält och utan skal.
+ */
+
+/**
+ * En omgång i fältets samtal: det personen sade och agentens kvitto.
+ * @typedef {object} Talkrad
+ * @property {string} hord Det som hördes (`text` till `onTalk`). Tom när taligenkänningen var av eller föll: då finns bara ljudet.
+ * @property {string} kvitto Agentens kvitto, som det stod i fältet.
+ * @property {boolean} angrat Ångra lyckades på den här omgången.
+ */
+
+/**
+ * Det en mottagare får när personen trycker på en av rubrikradens ikoner.
+ * @typedef {object} Talkunderlag
+ * @property {string} text Det personen sade, omgångarna åtskilda med en tom rad. Omgångar där inget hördes hoppas över.
+ * @property {string} samtal Hela samtalet, en rad per replik: "Du: …" och "Agenten: …". Ett ångrat kvitto bär "(ångrat)".
+ * @property {ReadonlyArray<Talkrad>} rader Omgångarna, i ordning. Kopior: mottagaren kan inte ändra fältets historik.
+ */
+
+/**
+ * Underlaget ur fältets historik, eller `null` när inget av det personen sade hördes.
+ *
+ * ⛔ `null` NÄR INGEN TEXT FINNS, OCH DÅ RITAS INGA IKONER. Utan taligenkänning (av som förval) har ramverket bara ljudet, och
+ * ett ärende "av samtalet" hade öppnats tomt eller med agentens kvitto som rubrik. En knapp som lovar samtalet och lämnar
+ * ingenting är samma tysta nedsläpp som regel 5 förbjuder, bara med ett formulär framför.
+ *
+ * @param {ReadonlyArray<Talkrad>} rader
+ * @returns {Talkunderlag | null}
+ */
+export function talkUnderlag(rader) {
+  const sagt = rader.map((r) => r.hord.trim()).filter(Boolean);
+  if (sagt.length === 0) return null;
+  const samtal = rader
+    .flatMap((r) => [...(r.hord.trim() ? [`Du: ${r.hord.trim()}`] : []), `Agenten: ${r.kvitto}${r.angrat ? " (ångrat)" : ""}`])
+    .join("\n");
+  return { text: sagt.join("\n\n"), samtal, rader: rader.map((r) => ({ hord: r.hord, kvitto: r.kvitto, angrat: r.angrat })) };
+}
+
+/**
+ * Längsta rubrik skalet fyller i ur samtalet (0.103.0). ⛔ Formuläret är appens och ramverket vet inte dess tak, så talet är valt
+ * under det appar faktiskt har: bolag-ops tar 120 tecken både för en händelses rubrik (`MAX_RUBRIK`) och ett ärendes (`MAX_TITLE`),
+ * mätt 2026-10-14. 80 ryms i båda och läses på en rad i telefonens lista.
+ */
+export const TALK_RUBRIK_MAX = 80;
+
+/**
+ * Rubrik och beskrivning ur det personen sade, för ett formulär som öppnas ifyllt (0.103.0).
+ *
+ * Regeln:
+ *   1. Rubriken är FÖRSTA MENINGEN: fram till en punkt, ett utrop eller ett frågetecken som följs av en stor bokstav eller av
+ *      textens slut, eller fram till första radbrytningen. "kl. 19" delar alltså inte. En avslutande punkt tas bort (en rubrik
+ *      har ingen), och första bokstaven blir stor: taligenkänningen skriver ofta allt med gemener.
+ *   2. Beskrivningen är RESTEN, efter första meningen. Tom när allt som sades var en mening.
+ *   3. ⛔ ÄR FÖRSTA MENINGEN LÄNGRE ÄN TAKET kapas rubriken vid sista mellanslaget före taket och får "…", och då är
+ *      beskrivningen HELA TEXTEN. Annars hade slutet av första meningen försvunnit mellan rubriken och beskrivningen.
+ *      Chromes taligenkänning sätter sällan punkt på svenska, så det här är det vanliga fallet och inte ett undantag.
+ *
+ * @param {string} text Underlagets `text`.
+ * @param {number} [tak] Förval `TALK_RUBRIK_MAX`.
+ * @returns {{ rubrik: string, beskrivning: string }}
+ */
+export function talkForifyllt(text, tak = TALK_RUBRIK_MAX) {
+  if (!Number.isInteger(tak) || tak < 2) throw new Error(`talkForifyllt: taket ska vara ett heltal från 2, fick ${String(tak)}.`);
+  const ren = String(text ?? "").trim();
+  const slut = ren.search(/[.!?](?=\s+\p{Lu}|\s*$)|\n/u);
+  const forsta = (slut === -1 ? ren : ren.slice(0, ren[slut] === "\n" ? slut : slut + 1)).trim();
+  const rest = slut === -1 ? "" : ren.slice(slut + 1).trim();
+  const utanPunkt = forsta.replace(/\.$/, "");
+  const stor = utanPunkt ? utanPunkt.charAt(0).toLocaleUpperCase("sv") + utanPunkt.slice(1) : "";
+  if (stor.length <= tak) return { rubrik: stor, beskrivning: rest };
+  const kap = stor.slice(0, tak - 1);
+  const mellan = kap.lastIndexOf(" ");
+  return { rubrik: `${(mellan > tak / 2 ? kap.slice(0, mellan) : kap).trimEnd()}…`, beskrivning: ren };
+}
+
 /** Längsta inspelningen. Ett fält som glömts öppet ska inte spela in i en timme. */
 export const MAX_SEKUNDER = 120;
 
