@@ -151,7 +151,7 @@ export function OpsFloatingSummary({ label, value, tone = "neutral", hint, onDis
      * Omslaget spänner hela bredden så bubblan kan centreras med flex; utan det
      * hade den osynliga remsan ätit varje tryck längs nederkanten.
      */
-    <div className="pointer-events-none fixed inset-x-0 bottom-[calc(var(--bottom-nav-h)+var(--safe-bottom)+var(--bottom-nav-overhang)+0.75rem+var(--spelrad-h,0px))] z-(--z-sticky) flex justify-center px-5 md:bottom-[calc(var(--safe-bottom)+1.25rem)]">
+    <div className="pointer-events-none fixed inset-x-0 bottom-[calc(var(--bottom-nav-h)+var(--safe-bottom)+var(--bottom-nav-overhang)+0.75rem+var(--spelrad-h,0px))] z-(--z-sticky) flex justify-center px-5 md:bottom-[calc(var(--safe-bottom)+1.25rem+var(--spelrad-h,0px))]">
       {/* ⛔ `rounded-3xl` OCH INTE `rounded-full`. Pillerformen hörde till en rad
           text. Två rader gör rutan omkring 70 px hög, och en helrund kant på den
           höjden äter 35 px i vardera änden av en bubbla som är 320 px bred. Det
