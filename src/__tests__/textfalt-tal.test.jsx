@@ -303,6 +303,20 @@ describe("tal i OpsTextarea", () => {
   });
 });
 
+describe("tal med fel form", () => {
+  // ⛔ 0.104.0, granskningen av PR 384 (KAN 8): `tal={null}` gav "fick object", eftersom `typeof null` är "object".
+  it("⛔ tal={null} och en lista säger vad de är, inte object", () => {
+    const fel = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      expect(() => render(<OpsTextarea value="" onChange={() => {}} tal={/** @type {any} */ (null)} />)).toThrow(/fick null\. Utelämna tal/);
+      expect(() => render(<OpsTextarea value="" onChange={() => {}} tal={/** @type {any} */ ([])} />)).toThrow(/fick en lista/);
+      expect(() => render(<OpsTextarea value="" onChange={() => {}} tal={/** @type {any} */ ("ja")} />)).toThrow(/fick "ja"/);
+    } finally {
+      fel.mockRestore();
+    }
+  });
+});
+
 describe("skrivInTal", () => {
   it("skriver in vid markören, ersätter en markering och lägger mellanslag där orden annars suttit ihop", () => {
     expect(skrivInTal("Beskriv", null, "en app", undefined)).toEqual({ varde: "Beskriv en app", markor: 14, kapat: "nej" });

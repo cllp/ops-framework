@@ -282,8 +282,11 @@ export function skrivInTal(varde, markor, ut, max) {
 export function OpsTextarea({ value, onChange, placeholder, name, rows = 4, disabled = false, maxLength, ariaLabel, onSend, tal }) {
   const f = useFieldBinding();
   if (tal !== undefined && tal !== false) {
-    if (tal !== true && (!tal || typeof tal !== "object")) {
-      throw new Error(`OpsTextarea: tal ska vara true eller { igenkanning?, onTranscribe? }, fick ${typeof tal}.`);
+    if (tal !== true && (!tal || typeof tal !== "object" || Array.isArray(tal))) {
+      // ⛔ VAD DET VAR, INTE `typeof` (0.104.0, granskningen av PR 384, KAN 8): `typeof null` är "object", och "fick object" om null
+      // säger ingenting om felet.
+      const fick = tal === null ? "null. Utelämna tal, eller ge false, för ett fält utan mikrofon" : Array.isArray(tal) ? "en lista" : typeof tal === "string" ? JSON.stringify(tal) : String(tal);
+      throw new Error(`OpsTextarea: tal ska vara true eller { igenkanning?, onTranscribe?, inspelare? }, fick ${fick}.`);
     }
     if (typeof onChange !== "function") {
       throw new Error("OpsTextarea: tal kräver onChange. Det sagda skrivs in i fältet genom den, och utan den hade Klar inte gjort något.");

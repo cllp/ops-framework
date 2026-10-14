@@ -117,6 +117,12 @@ fält de gällde (granskningen av PR 384, KAN 7). Ytan är nu en grupp med fält
 (etiketten har fått ett id, `etikettId` i fältets kontext), annars fältets `ariaLabel`. Chattens yta är oförändrad. Prov i
 `textfalt-tal.test.jsx`: 2 röda före, gröna med.
 
+### Rättat: `tal` med fel form ger ett begripligt fel
+
+`OpsTextarea` med `tal={null}` kastade "fick object", eftersom `typeof null` är "object", och en lista föll igenom till ett annat fel
+(granskningen av PR 384, KAN 8). Felet säger nu vad det fick ("null. Utelämna tal, eller ge false, …", "en lista", `"ja"`). Prov i
+`textfalt-tal.test.jsx`: rött före, grönt med.
+
 ### Ändrat: röstinmatningen har ett hem
 
 Talet bodde inbyggt i chattens skrivfält (`OpsMeddelanden.jsx`). Det är utbrutet till `OpsRostinmatning.jsx`
