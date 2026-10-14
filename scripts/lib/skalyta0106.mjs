@@ -10,7 +10,7 @@
 
 import path from "node:path";
 
-/** @typedef {{ oppna: (scen: string, vp: { width: number, height: number }, tema?: string, skala?: number, aktiv?: string | null, manga?: number) => Promise<{ page: import("playwright").Page, context: import("playwright").BrowserContext }>, krav: (ok: boolean, text: string) => void, matt: string[], bildmapp: string | null }} Verktyg */
+/** @typedef {{ oppna: (scen: string, vp: { width: number, height: number }, tema?: string, skala?: number, aktiv?: string | null, manga?: number, extra?: { kontext?: object, init?: string }) => Promise<{ page: import("playwright").Page, context: import("playwright").BrowserContext }>, krav: (ok: boolean, text: string) => void, matt: string[], bildmapp: string | null }} Verktyg */
 
 export const BREDDER = [
   { width: 390, height: 844 },
@@ -24,12 +24,13 @@ const over = (page) => page.evaluate(() => document.documentElement.scrollWidth 
  * Kör en del i en egen sida, och gör ett avbrott till ett brott i stället för ett kast.
  * @param {Verktyg} v @param {string} namn @param {string} scen @param {{ width: number, height: number }} vp @param {string | null} aktiv
  * @param {(page: import("playwright").Page) => Promise<void>} fn
+ * @param {{ kontext?: object, init?: string }} [extra]
  */
-async function del(v, namn, scen, vp, aktiv, fn) {
+async function del(v, namn, scen, vp, aktiv, fn, extra = {}) {
   /** @type {import("playwright").BrowserContext | null} */
   let context = null;
   try {
-    const o = await v.oppna(scen, vp, "light", 1, aktiv);
+    const o = await v.oppna(scen, vp, "light", 1, aktiv, 0, extra);
     context = o.context;
     await fn(o.page);
     // ⛔ En kommentar som hamnat som text i JSX (hänt i arbetet med skiva 3: ett `/* ... */` efter en ny omslutande tagg ritades som
@@ -257,6 +258,92 @@ export async function lasaBakat(v) {
   }
 }
 
+/** En iPhone i Chromium: användaragenten, pekskärmen och mobilens vyport. ⛔ Inte Safari: WebKit finns inte på maskinen. */
+const IPHONE = { isMobile: true, hasTouch: true, userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1" };
+
+/**
+ * Ett `visualViewport` vi styr, så att ett tangentbord går att låtsas. Chromium har inget virtuellt tangentbord. Skriptet körs före sidan.
+ */
+const FALSKT_VV = `(() => {
+  const vv = new EventTarget();
+  let h = window.innerHeight;
+  Object.defineProperty(vv, "height", { get: () => h });
+  Object.defineProperty(vv, "width", { get: () => window.innerWidth });
+  Object.defineProperty(vv, "offsetTop", { get: () => 0 });
+  Object.defineProperty(vv, "offsetLeft", { get: () => 0 });
+  Object.defineProperty(vv, "scale", { get: () => 1 });
+  Object.defineProperty(window, "visualViewport", { configurable: true, get: () => vv });
+  window.__tangentbord = (px) => { h = window.innerHeight - px; vv.dispatchEvent(new Event("resize")); };
+})();`;
+
+/**
+ * (5) SKRIVFÄLTET PÅ TELEFON (skiva 5). Vid 390 px med iPhonens användaragent och pekskärm (i Chromium, inte Safari):
+ *   (a) fältets text är minst 16 px (iOS zoomar in under det); vid 1280 px 14 px, som bubblorna;
+ *   (b) fältet växer med fem rader, och agentens statusrad står kvar i sikte ovanför fältet medan det växer;
+ *   (c) med 30 rader stannar höjden vid taket (160 px plus ramen) och fältet rullar inuti sig;
+ *   (d) nära taket syns räknaren inom fönstret, och över taket står hela texten kvar, raden säger det och Skicka är avstängd;
+ *   (e) ett tangentbord på 300 px (ett `visualViewport` som krymper) lägger fältets underkant ovanför tangentbordet.
+ * ⛔ En riktig iPhone är inte mätt: zoomen och tangentbordet är Safaris beteende, och här mäts det ramverket gör åt dem.
+ * @param {Verktyg} v
+ */
+export async function skrivfaltet(v) {
+  for (const vp of BREDDER) {
+    const namn = `47 (5) skrivfältet ${vp.width} px`;
+    const telefon = vp.width < 768;
+    await del(v, namn, "chatt0106-las", vp, null, async (page) => {
+      await page.locator("[data-ops-samtal] [data-meddelande]").first().waitFor({ timeout: 4000 });
+      const falt = page.locator("[data-skrivfalt] textarea");
+      const stil = await falt.evaluate((el) => ({ px: parseFloat(getComputedStyle(el).fontSize), h: el.getBoundingClientRect().height }));
+      v.matt.push(`${namn}: (a) ${stil.px} px, höjd ${stil.h.toFixed(0)}`);
+      v.krav(telefon ? stil.px >= 16 : stil.px >= 14, `${namn}: (a) fältets text är ${stil.px} px, väntat ${telefon ? "minst 16" : "minst 14"}.`);
+      // (b)
+      await page.evaluate(() => { const x = /** @type {any} */ (window).__las; return x.kalla.create(`samtal/${x.sid}/status`, { id: "agent", lage: "tanker", sedan: Date.now() }); });
+      await page.locator("[data-agentstatus='tanker']").waitFor({ timeout: 4000 });
+      await falt.fill("Första raden\nandra\ntredje\nfjärde\nfemte");
+      await page.waitForTimeout(200);
+      const fem = await falt.evaluate((el) => el.getBoundingClientRect().height);
+      const status = await iSikte(page, "[data-agentstatus]");
+      v.matt.push(`${namn}: (b) fem rader ${fem.toFixed(0)} px, statusraden ${JSON.stringify(status)}`);
+      v.krav(fem > stil.h + 40, `${namn}: (b) fältet växte från ${stil.h.toFixed(0)} till ${fem.toFixed(0)} px med fem rader, väntat minst 40 px till.`);
+      v.krav(Boolean(status?.inne), `${namn}: (b) agentens statusrad hamnade utom sikte när fältet växte (${JSON.stringify(status)}).`);
+      await bild(v, page, `skrivfalt-fem-rader-${vp.width}.png`);
+      // (c)
+      await falt.fill(Array.from({ length: 30 }, (_, i) => `Rad ${i + 1}`).join("\n"));
+      await page.waitForTimeout(150);
+      const tak = await falt.evaluate((el) => ({ h: el.getBoundingClientRect().height, rullar: el.scrollHeight > el.clientHeight + 1 }));
+      v.matt.push(`${namn}: (c) 30 rader ${JSON.stringify(tak)}`);
+      v.krav(tak.h <= 162.5 && tak.h >= 150 && tak.rullar, `${namn}: (c) med 30 rader är fältet ${tak.h.toFixed(0)} px och rullar ${tak.rullar}, väntat taket (160 px) och rullning inuti.`);
+      // (d)
+      await falt.fill("a".repeat(3700));
+      const nara = await ruta(page, "[data-langdraknare='nara']");
+      await falt.fill("a".repeat(4100));
+      const over = await ruta(page, "[data-langdraknare='over']");
+      const varde = await falt.inputValue();
+      const avstangd = await page.locator("[data-skrivfalt] button[type=submit]").isDisabled();
+      v.matt.push(`${namn}: (d) nära ${JSON.stringify(nara?.text)}, över ${JSON.stringify(over?.text)}, ${varde.length} tecken kvar, Skicka avstängd ${avstangd}`);
+      v.krav(Boolean(nara && nara.text === "3700 av 4000 tecken" && nara.b <= vp.height + 0.5), `${namn}: (d) räknaren nära taket är ${JSON.stringify(nara)}.`);
+      v.krav(Boolean(over && over.text.startsWith("Texten är 100 tecken för lång") && over.b <= vp.height + 0.5) && varde.length === 4100 && avstangd, `${namn}: (d) över taket: ${JSON.stringify(over)}, ${varde.length} tecken, Skicka avstängd ${avstangd}.`);
+      await bild(v, page, `skrivfalt-over-taket-${vp.width}.png`);
+      // (e)
+      if (telefon) {
+        await falt.fill("Hej");
+        await page.evaluate(() => /** @type {any} */ (window).__tangentbord(300));
+        await page.waitForTimeout(200);
+        const kant = await page.evaluate(() => ({ botten: /** @type {HTMLElement} */ (document.querySelector("[data-skrivfalt]")).getBoundingClientRect().bottom, synligt: window.innerHeight - 300 }));
+        v.matt.push(`${namn}: (e) tangentbord 300 px: fältets underkant ${kant.botten.toFixed(0)}, synligt till ${kant.synligt}`);
+        v.krav(kant.botten <= kant.synligt + 1, `${namn}: (e) skrivfältet slutar vid ${kant.botten.toFixed(0)} px, under tangentbordet som börjar vid ${kant.synligt}.`);
+        // ⛔ Och vyn följer med: personen stod vid slutet och har inte rört skärmen. Mätt utan följ-fixen: Till senaste kom fram och
+        // loggen stod 98 px från slutet, beroende på om webbläsarens scroll-event hann köras före tangentbordet (därför också jsdom-provet).
+        const slut = await page.evaluate(() => { const l = /** @type {HTMLElement} */ (document.querySelector("[data-ops-samtal] [role=log]")); return { kvar: Math.round(l.scrollHeight - l.scrollTop - l.clientHeight), knapp: Boolean(document.querySelector("[data-till-senaste]")) }; });
+        const statusrad = await iSikte(page, "[data-agentstatus]");
+        v.matt.push(`${namn}: (e) efter tangentbordet ${JSON.stringify(slut)}, statusraden ${JSON.stringify(statusrad)}`);
+        v.krav(slut.kvar <= 2 && !slut.knapp && Boolean(statusrad?.inne), `${namn}: (e) vyn följde inte med när tangentbordet öppnades: ${JSON.stringify(slut)}, statusraden ${JSON.stringify(statusrad)}.`);
+        await bild(v, page, `skrivfalt-tangentbord-${vp.width}.png`);
+      }
+    }, telefon ? { kontext: IPHONE, init: FALSKT_VV } : { init: FALSKT_VV });
+  }
+}
+
 /**
  * Alla delar i ordning. Varje skiva lägger till sin rad här.
  * @param {Verktyg} v
@@ -266,4 +353,5 @@ export async function chattepiken0106(v) {
   await amnen(v);
   await engelska(v);
   await lasaBakat(v);
+  await skrivfaltet(v);
 }

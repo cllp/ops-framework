@@ -221,6 +221,8 @@ import { AgentIkon, AndraIkon, ArkiveraIkon, TaFramIkon, BildIkon, FastIkon, Fil
  * @property {string} [doljArkiverade] Förval "Dölj arkiverade".
  * @property {string} [ingaArkiverade] Förval "Inga arkiverade samtal.".
  * @property {string} [arkivFel] Förval "Samtalet kunde inte arkiveras.".
+ * @property {string} [langd] (0.106.0, #386 skiva 5) Räknaren nära taket. `{n}` och `{max}` byts. Förval "{n} av {max} tecken".
+ * @property {string} [forLang] (0.106.0) Raden när texten är över taket. `{over}` byts. Förval "Texten är {over} tecken för lång. Korta den för att skicka.".
  * @property {string} [tillSenaste] (0.106.0, #386 skiva 4) Knappen när man läser bakåt. Förval "Till senaste".
  * @property {string} [nyaMeddelanden] `{n}` byts mot antalet nya sedan man lämnade slutet. Förval "{n} nya".
  * @property {string} [nyttSedanSist] Avdelaren i loggen, härledd ur läsmärket. Förval "Nytt sedan sist".
@@ -378,6 +380,8 @@ const ORD_MEDDELANDEN = {
   arkivFel: { sv: "Samtalet kunde inte arkiveras.", en: "The conversation could not be archived." },
   arkiveratRad: { sv: "Arkiverat. Det syns inte i listan förrän du tar fram det.", en: "Archived. It is not in the list until you restore it." },
   tillSenaste: { sv: "Till senaste", en: "Jump to latest" },
+  langd: { sv: "{n} av {max} tecken", en: "{n} of {max} characters" },
+  forLang: { sv: "Texten är {over} tecken för lång. Korta den för att skicka.", en: "The text is {over} characters too long. Shorten it to send." },
   nyaMeddelanden: { sv: "{n} nya", en: "{n} new" },
   nyttSedanSist: { sv: "Nytt sedan sist", en: "New since last time" },
   annatSkickas: { sv: "Ett annat meddelande skickas just nu.", en: "Another message is being sent right now." },
@@ -737,6 +741,7 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
   const utkast = useRef(/** @type {{ id: string, text: string } | null} */ (null));
   const [filter, setFilter] = useState(/** @type {"alla" | "olasta"} */ ("alla"));
   const [sok, setSok] = useState("");
+  const tangentbord = useTangentbord();
 
   useEffect(() => {
     onOlasta?.(olasta, { fler: olastaFler });
@@ -906,7 +911,9 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
        avsnitt 29: utan den enda pixeln för huvudets kant rullade hela sidan en pixel, och skrivfältet hamnade under bottenraden. */}
     <div
       data-ops-meddelanden=""
-      className="flex h-[calc(100dvh-var(--safe-top)-var(--topbar-height)-1px-var(--bottom-nav-h)-var(--safe-bottom)-var(--spelrad-h,0px))] min-h-0 flex-col bg-canvas md:h-[calc(100dvh-var(--safe-top)-var(--topbar-height)-1px-var(--spelrad-h,0px))] md:flex-row md:gap-2 md:p-2"
+      data-tangentbord={tangentbord > 0 ? tangentbord : undefined}
+      style={tangentbord > 0 ? /** @type {any} */ ({ "--tangentbord": `${tangentbord}px` }) : undefined}
+      className="flex h-[calc(100dvh-var(--safe-top)-var(--topbar-height)-1px-max(var(--bottom-nav-h)+var(--safe-bottom),var(--tangentbord,0px))-var(--spelrad-h,0px))] min-h-0 flex-col bg-canvas md:h-[calc(100dvh-var(--safe-top)-var(--topbar-height)-1px-var(--spelrad-h,0px))] md:flex-row md:gap-2 md:p-2"
     >
       {/* ── Listan ─────────────────────────────────────────────────────────────────────────── */}
       <section
@@ -1233,6 +1240,35 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
 }
 
 /**
+ * Hur mycket av fönstret tangentbordet täcker, i pixlar, ur `visualViewport` (0.106.0, #386 skiva 5). 0 utan tangentbord, och 0 där
+ * API:t saknas.
+ *
+ * ⛔ VARFÖR. Höjden var `100dvh` minus skalets ramar, och `dvh` följer inte iOS-tangentbordet: fönstret som layouten räknar med står
+ * kvar, och tangentbordet läggs över dess nedre del. Skrivfältet kunde då hamna under tangentbordet. Ramverket visste det redan
+ * (`OpsSkapaPanel.jsx`, samma `visualViewport`), men chatten gjorde det inte. Här dras det tangentbordet täcker av från chattens höjd,
+ * i stället för bottenraden som det ändå ligger över (`max()` i klassen), så att skrivfältet står ovanför tangentbordet.
+ *
+ * ⛔ (hypotes, inte mätt på en riktig iPhone) Chromium har inget virtuellt tangentbord. Skalytan prövar med ett `visualViewport` som
+ * krymper, check-skalyta 47 (5), och en riktig iPhone är inte mätt.
+ */
+function useTangentbord() {
+  const [tackt, setTackt] = useState(0);
+  useEffect(() => {
+    const vv = typeof window !== "undefined" ? window.visualViewport : null;
+    if (!vv) return undefined;
+    const mat = () => setTackt(Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop)));
+    mat();
+    vv.addEventListener("resize", mat);
+    vv.addEventListener("scroll", mat);
+    return () => {
+      vv.removeEventListener("resize", mat);
+      vv.removeEventListener("scroll", mat);
+    };
+  }, []);
+  return tackt;
+}
+
+/**
  * Gruppchatten som ingen har öppnat än (0.68.0): skapas med `oppnaGrupp` när någon öppnar raden, och läggs sedan in i listan
  * (`onOppnad`), så att vyn ritar det riktiga samtalet. Fel står kvar som en banderoll, aldrig tyst.
  *
@@ -1537,6 +1573,15 @@ function NyttSamtal({ kalla, uid, groupId, medlemmar, texter: t, sprak, gruppMar
 const MAX_FORSLAG = 6;
 
 /**
+ * Skrivfältets tak i höjd, i pixlar (0.106.0, #386 skiva 5). Ungefär sex rader i 16 px. Över det rullar fältet inuti sig självt.
+ * (bedömning) SS har 120 px; sex rader ryms på en telefon med tangentbordet uppe och lämnar ändå loggen synlig.
+ */
+export const SKRIVFALT_TAK = 160;
+
+/** Så nära taket visas räknaren, i tecken. Samma avstånd som SS (`chatLimits.js`, de sista 500). */
+export const RAKNARE_FRAN = 500;
+
+/**
  * Trådens skrivfält: en textruta och knappen Skicka. Samma i ett samtal och i läget "nytt", så att det första meddelandet
  * skrivs på samma ställe som alla andra (SS: trådens `ComposerBar`).
  *
@@ -1572,6 +1617,7 @@ const MAX_FORSLAG = 6;
 function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, sprak, fokus = false, omnamnande = null, fokusNyckel, onEscape, platstext, onTranscribe, inspelare, igenkanning, onBifoga, harBilaga = false, kamera = "nej", agentArbetar = false, onStoppaAgent }) {
   const ruta = useRef(/** @type {HTMLTextAreaElement | null} */ (null));
   const listId = useId();
+  const raknarId = useId();
   const valda = useRef(/** @type {Map<string, string>} */ (new Map()));
   const [fraga, setFraga] = useState(/** @type {{ start: number, q: string } | null} */ (null));
   const [aktiv, setAktiv] = useState(0);
@@ -1644,6 +1690,33 @@ function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, sprak, fokus =
     setFraga(null);
     onSkicka(extra);
   };
+  /*
+   * ══ ⛔ FÄLTET VÄXER MED TEXTEN, TILL ETT TAK (0.106.0, #386 skiva 5) ═════════════════════════════════════════════════════
+   *
+   * Förut var fältet en rad (`rows={1}`) som rullade inuti sig själv, så den som skrev ett längre svar såg en rad åt gången. Nu följer
+   * höjden texten upp till `SKRIVFALT_TAK`. Höjden mäts ur `scrollHeight` efter att den nollställts, i en layouteffekt så att ingen ram
+   * ritas med fel höjd. jsdom har ingen layout (`scrollHeight` 0), och då rörs inte höjden.
+   */
+  useLayoutEffect(() => {
+    const el = ruta.current;
+    if (!el) return;
+    el.style.height = "auto";
+    const h = el.scrollHeight;
+    if (h <= 0) {
+      el.style.height = "";
+      return;
+    }
+    el.style.height = `${Math.min(h, SKRIVFALT_TAK)}px`;
+    el.style.overflowY = h > SKRIVFALT_TAK ? "auto" : "hidden";
+  }, [text]);
+  /*
+   * ⛔ INGEN TYST KAPNING (regel 5). Förut stod taket som `maxLength`, och en inklistrad text över 4000 tecken kapades utan ett ord.
+   * Nu står hela texten kvar, räknaren syns de sista `RAKNARE_FRAN` tecknen, och över taket säger en rad hur mycket för lång den är
+   * och Skicka är avstängd. Samma tak som modellen (`MAX_MEDDELANDE`), som regeln också har.
+   */
+  const langd = text.trim().length;
+  const forLang = langd > MAX_MEDDELANDE;
+  const visaRaknare = text.length >= MAX_MEDDELANDE - RAKNARE_FRAN;
   const visaStopp = agentArbetar && Boolean(onStoppaAgent);
   /*
    * ⛔ EN VALD BILAGA ÄR INNEHÅLL (0.84.0, #315). Ljudvågen står bara där Skicka annars står när fältet verkligen är tomt:
@@ -1735,17 +1808,21 @@ function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, sprak, fokus =
           // ⛔ Enter skickar, Skift plus Enter bryter raden, som SS skrivfält (`ComposerBar.jsx`).
           if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
             e.preventDefault();
-            skicka();
+            if (!forLang) skicka();
           }
         }}
         rows={1}
-        maxLength={MAX_MEDDELANDE}
+        enterKeyHint="send"
         placeholder={platstext ?? t.skriv}
         aria-label={t.skriv}
+        aria-invalid={forLang || undefined}
+        aria-describedby={visaRaknare ? raknarId : undefined}
         aria-controls={oppen ? listId : undefined}
         aria-activedescendant={oppen ? `${listId}-${aktiv}` : undefined}
         aria-autocomplete={omnamnande ? "list" : undefined}
-        className="max-h-32 min-h-11 min-w-0 flex-1 resize-none rounded-3xl bg-transparent px-3.5 py-2.5 text-etikett text-ink outline-none placeholder:text-ink-muted"
+        // ⛔ 16 PX PÅ TELEFON (0.106.0, #386 skiva 5): iOS Safari zoomar in på ett fält med mindre text när det får fokus, och sidan står
+        // sedan inzoomad. `text-brod` är 16 px, `md:text-etikett` behåller 14 px på dator, som bubblorna.
+        className="min-h-11 min-w-0 flex-1 resize-none overflow-hidden rounded-3xl bg-transparent px-3.5 py-2.5 text-brod text-ink outline-none placeholder:text-ink-muted md:text-etikett"
       />
       {visaStopp ? (
         <button
@@ -1767,7 +1844,7 @@ function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, sprak, fokus =
         <button
           type="submit"
           aria-label={t.skicka}
-          disabled={skickar || tomt}
+          disabled={skickar || tomt || forLang}
           className="group/knapp inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full focus-visible:outline-none disabled:cursor-default disabled:opacity-40"
         >
           <span className="inline-flex size-9 items-center justify-center rounded-full bg-accent text-accent-contrast transition-colors duration-(--duration-fast) ease-standard group-hover/knapp:bg-accent-hover group-focus-visible/knapp:outline-2 group-focus-visible/knapp:outline-offset-1 group-focus-visible/knapp:outline-accent">
@@ -1777,6 +1854,16 @@ function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, sprak, fokus =
       )}
       </div>
     </form>
+    {visaRaknare ? (
+      <p
+        id={raknarId}
+        data-langdraknare={forLang ? "over" : "nara"}
+        role={forLang ? "alert" : "status"}
+        className={cx("m-0 shrink-0 px-4 pb-1.5 text-right text-liten tabular-nums", forLang ? "text-danger" : "text-ink-muted")}
+      >
+        {forLang ? t.forLang.replace("{over}", String(langd - MAX_MEDDELANDE)) : t.langd.replace("{n}", String(text.length)).replace("{max}", String(MAX_MEDDELANDE))}
+      </p>
+    ) : null}
     </>
   );
 }
@@ -3231,7 +3318,25 @@ function useLasposition({ logg, alla, uid, laddat }) {
   useEffect(() => {
     const el = logg.current;
     if (!el) return undefined;
+    // ⛔ Måtten vid senaste läsningen. Ett scroll-event köas i webbläsaren och körs i nästa bildruta, mot den geometri som gäller DÅ.
+    // Mätt i check-skalyta 47 (5), Chromium 390 px: skrivfältet krympte (loggen växte och webbläsaren drog ned scrollTop), och innan
+    // eventet hann köras öppnades tangentbordet och loggen krympte 232 px. Eventet läste då "långt från slutet", vyn slutade följa och
+    // Till senaste kom fram fast personen aldrig rört skärmen. En rullning personen gör ändrar inte måtten; en layoutändring gör det.
+    // Har måtten ändrats sedan sist, och vyn stod vid slutet, är eventet layoutens och inte personens: vyn följer med i stället.
+    // En logg som aldrig ritats (dold flik, ingen layout) har inga mått att jämföra med: då avgör rullningen själv.
+    /** @type {null | { sh: number, ch: number }} */
+    let matt = null;
+    const spara = () => {
+      matt = el.scrollHeight || el.clientHeight ? { sh: el.scrollHeight, ch: el.clientHeight } : null;
+    };
+    spara();
     const rulla = () => {
+      if (vidSlutet.current && matt && (el.scrollHeight !== matt.sh || el.clientHeight !== matt.ch)) {
+        el.scrollTop = el.scrollHeight;
+        spara();
+        return;
+      }
+      spara();
       const vid = el.scrollHeight - el.scrollTop - el.clientHeight <= SLUTTROSKEL;
       vidSlutet.current = vid;
       setUppe(!vid);
@@ -3239,6 +3344,7 @@ function useLasposition({ logg, alla, uid, laddat }) {
     };
     const folj = () => {
       if (vidSlutet.current) el.scrollTop = el.scrollHeight;
+      spara();
     };
     el.addEventListener("scroll", rulla, { passive: true });
     el.addEventListener("load", folj, true);

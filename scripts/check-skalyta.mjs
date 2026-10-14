@@ -154,10 +154,12 @@ function krav(ok, text) {
 }
 
 /**
- * @param {string} scen @param {{ width: number, height: number }} viewport @param {string} [tema] @param {number} [skala] @param {string | null} [aktiv] @param {number} [manga]
+ * @param {string} scen @param {{ width: number, height: number }} viewport @param {string} [tema] @param {number} [skala] @param {string | null} [aktiv] @param {number} [manga] @param {{ kontext?: object, init?: string }} [extra]
  */
-async function oppna(scen, viewport, tema = standardtema, skala = 1, aktiv = null, manga = 0) {
-  const context = await browser.newContext({ viewport, deviceScaleFactor: skala });
+async function oppna(scen, viewport, tema = standardtema, skala = 1, aktiv = null, manga = 0, extra = {}) {
+  // `extra` (0.106.0, avsnitt 47): `kontext` läggs till kontextens val (telefonens användaragent, pekskärm), och `init` körs före sidan.
+  const context = await browser.newContext({ viewport, deviceScaleFactor: skala, .../** @type {any} */ (extra).kontext });
+  if (/** @type {any} */ (extra).init) await context.addInitScript(/** @type {any} */ (extra).init);
   const page = await context.newPage();
   // 0.31.2: en kort tidsgräns, så att ett saknat element (röd mot en äldre dist) blir ett brott och inte 30 sekunders väntan.
   page.setDefaultTimeout(4000);
