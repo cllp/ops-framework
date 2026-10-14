@@ -322,7 +322,6 @@ export function ljudStyrning(id) {
   return styrningar.get(id) ?? null;
 }
 
-/** Tömmer spärren och våg-cachen. Proven anropar den, appen gör det inte. */
 /**
  * Texten när `play()` avvisas, eller tom när avvisningen inte är ett fel (0.102.0, utbruten ur `OpsLjudspelare`).
  *
@@ -340,6 +339,7 @@ export function startFelText(e) {
   return "Ljudet gick inte att spela.";
 }
 
+/** Tömmer spärren och våg-cachen. Proven anropar den, appen gör det inte. */
 export function nollstallSpelare() {
   registrerade.clear();
   stolpCache.clear();

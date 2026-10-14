@@ -1395,66 +1395,69 @@ for (const bredd of [768, 834, 900, 1023, 1024]) {
 }
 
 // Ljudraden (0.92.4). CP:s telefon: spelknappen låg på musikikonen, längden var 0:00, vågen en platt rand,
-// och rubriken syntes inte. Listan ska ha ett element till vänster, rubrik, datum och längd, våg och ⋯.
+// och rubriken syntes inte.
+// ⛔ ÄNDRAT (0.102.0): ljudet är ett kort som de andra posterna, som SessionStudios app (CP 2026-10-14: "Listningen och taggar i
+// föregående bild."). Utanför skalet står en spelknapp på 44 px där ikonen står, rubriken, typen, längden och ⋯. Vågen hör till
+// detaljen och skalets ark, inte till kortet. Det som står kvar från 0.92.4: knappen och rubriken överlappar inte, längden är
+// riktig, rubriken syns, och ingen hopp- eller hastighetsknapp står i listan.
 {
   for (const vp of [{ width: 390, height: 844, mark: "390" }, { width: 1280, height: 900, mark: "1280" }]) {
     const { page, context } = await oppna("bibliotekljud", vp);
     const m = await page.evaluate(() => {
-      const rader = [...document.querySelectorAll("[data-bibliotek-ljudrad]")];
-      // Första raden är den utan namn (Röstinspelning). Rubriken som CP döpte sitter på sin egen rad.
-      const rad = rader.find((r) => [...r.querySelectorAll("button")].some((b) => b.getAttribute("aria-label") === "Hyllan i hallen")) || null;
+      const kort = [...document.querySelectorAll('[data-bibliotek-kort="ljud"]')];
+      const rad = kort.find((r) => [...r.querySelectorAll("button")].some((b) => b.getAttribute("aria-label") === "Hyllan i hallen")) || null;
       const play = rad ? [...rad.querySelectorAll("button")].find((b) => (b.getAttribute("aria-label") || "").startsWith("Spela")) : null;
-      const titel = rad ? [...rad.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Hyllan i hallen") : null;
+      const titel = rad ? [...rad.querySelectorAll("span")].find((el) => (el.textContent || "").trim() === "Hyllan i hallen") : null;
       const meny = [...document.querySelectorAll("button")].find((b) => (b.getAttribute("aria-label") || "").startsWith("Åtgärder för Hyllan"));
       const pr = play ? play.getBoundingClientRect() : null;
       const tr = titel ? titel.getBoundingClientRect() : null;
       const mr = meny ? meny.getBoundingClientRect() : null;
-      const hojder = [...(rad ? rad.querySelectorAll("[data-ljud-hojd]") : [])].map((el) => el.getAttribute("data-ljud-hojd"));
       const overlap = pr && tr ? !(pr.right <= tr.left + 1 || tr.right <= pr.left + 1 || pr.bottom <= tr.top + 1 || tr.bottom <= pr.top + 1) : true;
       return {
         saknas: document.querySelector("[data-saknas]")?.textContent || "",
-        antal: rader.length,
-        ikon: !!(rad && rad.querySelector("[data-bibliotek-ikon]")),
+        antal: kort.length,
         play: pr ? { w: pr.width, h: pr.height } : null,
-        titel: tr ? { w: tr.width, h: tr.height, text: titel.textContent || "" } : null,
+        titel: tr ? { w: tr.width, h: tr.height, text: titel?.textContent || "" } : null,
         meny: mr ? { w: mr.width, h: mr.height } : null,
         overlap,
-        vag: new Set(hojder).size,
-        hopp: [...document.querySelectorAll("button")].some((b) => (b.getAttribute("aria-label") || "") === "10 sekunder bakåt"),
-        langd: rad?.querySelector("[data-ljud-langd]")?.textContent || "",
-        rubriker: [...document.querySelectorAll("[data-bibliotek-ljudrad] button")].map((b) => b.getAttribute("aria-label") || ""),
+        hopp: [...document.querySelectorAll("button")].some((b) => (b.getAttribute("aria-label") || "") === "10 sekunder bakåt" || (b.getAttribute("aria-label") || "").startsWith("Uppspelningshastighet")),
+        langd: rad?.querySelector("[data-bibliotek-metarad]")?.textContent || "",
+        rubriker: kort.map((k) => k.querySelector("button")?.getAttribute("aria-label") || ""),
         dok: document.documentElement.scrollWidth - document.documentElement.clientWidth,
       };
     });
     matt.push(`bibliotek ljud ${vp.mark}: ${JSON.stringify(m)}`);
     krav(!m.saknas, `bibliotek ljud ${vp.mark}: ${m.saknas || "scenen ritades inte"}.`);
-    krav(m.antal >= 2, `bibliotek ljud ${vp.mark}: ${m.antal} ljudrader, väntat 2.`);
-    krav(!m.ikon, `bibliotek ljud ${vp.mark}: musikikonen ligger kvar bredvid spelknappen.`);
+    krav(m.antal >= 2, `bibliotek ljud ${vp.mark}: ${m.antal} ljudkort, väntat 2.`);
     krav(m.play && m.play.w >= 43.5 && m.play.h >= 43.5, `bibliotek ljud ${vp.mark}: spelknappen är ${m.play ? `${m.play.w.toFixed(0)}x${m.play.h.toFixed(0)}` : "borta"}, väntat minst 44.`);
     krav(m.meny && m.meny.w >= 43.5 && m.meny.h >= 43.5, `bibliotek ljud ${vp.mark}: ⋯ är ${m.meny ? `${m.meny.w.toFixed(0)}x${m.meny.h.toFixed(0)}` : "borta"}, väntat minst 44.`);
-    krav(m.titel && m.titel.h >= 43.5 && m.titel.text.includes("Hyllan"), `bibliotek ljud ${vp.mark}: rubriken saknas (${JSON.stringify(m.titel)}).`);
+    krav(m.titel && m.titel.h > 0 && m.titel.text.includes("Hyllan"), `bibliotek ljud ${vp.mark}: rubriken saknas (${JSON.stringify(m.titel)}).`);
     krav(!m.overlap, `bibliotek ljud ${vp.mark}: spelknappen överlappar rubriken.`);
-    krav(m.vag >= 3, `bibliotek ljud ${vp.mark}: vågen har ${m.vag} höjder, väntat riktiga toppar.`);
-    krav(!m.hopp, `bibliotek ljud ${vp.mark}: hopp, hastighet eller samma kontroller syns i listan.`);
-    krav(m.langd.includes("0:04"), `bibliotek ljud ${vp.mark}: längden är "${m.langd}", väntat datum och 0:04.`);
+    krav(!m.hopp, `bibliotek ljud ${vp.mark}: hopp eller hastighet syns i listan.`);
+    krav(m.langd.includes("0:04"), `bibliotek ljud ${vp.mark}: metaraden är "${m.langd}", väntat längden 0:04.`);
     krav(m.rubriker.some((r) => r.startsWith("Röstinspelning")), `bibliotek ljud ${vp.mark}: fallback-rubriken saknas (${m.rubriker.join(" | ")}).`);
     krav(m.dok <= 1, `bibliotek ljud ${vp.mark}: sidan flödar ${m.dok} px i sidled.`);
     if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `bibliotek-ljud-${vp.mark}.png`) });
     await context.close();
   }
+  // ⛔ ÄNDRAT (0.102.0): hopp och hastighet syns först när ljudet startats (CP 2026-10-14: "Vad är detta med hastighet mm och
+  // spolning när en låt/ljud inte ens har startat?"), och menyn har varken nedladdning eller hopp. Ladda ned står i detaljen.
   for (const vp of [{ width: 390, height: 844, mark: "390" }, { width: 1280, height: 900, mark: "1280" }]) {
     const { page, context } = await oppna("bibliotekljuddetalj", vp);
     const rubrik = await page.getByRole("heading", { name: "Hyllan i hallen" }).count();
-    const hopp = await page.getByRole("button", { name: "10 sekunder bakåt" }).count();
+    // Hoppen får stå avstängda (skalets kontroller, som SessionStudios ark), men inte gå att trycka på före start.
+    const hopp = await page.getByRole("button", { name: "10 sekunder bakåt", disabled: false }).count();
     const hast = await page.getByRole("button", { name: /Uppspelningshastighet/ }).count();
     const ned = await page.getByRole("link", { name: /Ladda ned/ }).count();
+    const spela = await page.getByRole("button", { name: /^Spela/ }).count();
     krav(rubrik === 1, `bibliotek ljud detalj ${vp.mark}: rubriken syns ${rubrik} gånger.`);
-    krav(hopp === 1 && hast === 1 && ned === 1, `bibliotek ljud detalj ${vp.mark}: hopp ${hopp}, hastighet ${hast}, ladda ned ${ned}.`);
+    krav(spela >= 1 && hopp === 0 && hast === 0 && ned === 1, `bibliotek ljud detalj ${vp.mark}: spela ${spela}, hopp ${hopp}, hastighet ${hast}, ladda ned ${ned}, väntat spela, ladda ned och inga hopp före start.`);
     if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `bibliotek-ljud-detalj-${vp.mark}.png`) });
     await page.getByRole("button", { name: "Åtgärder för Hyllan i hallen" }).click();
     const menyNed = await page.getByRole("menuitem", { name: "Ladda ned" }).count();
     const menyHopp = await page.getByRole("menuitem", { name: "10 sekunder bakåt" }).count();
-    krav(menyNed === 1 && menyHopp === 1, `bibliotek ljud detalj ${vp.mark}: menyn har nedladdning ${menyNed} och hopp ${menyHopp}.`);
+    const menyAlla = await page.getByRole("menuitem").count();
+    krav(menyAlla >= 1 && menyNed === 0 && menyHopp === 0, `bibliotek ljud detalj ${vp.mark}: menyn har ${menyAlla} val, nedladdning ${menyNed} och hopp ${menyHopp}, väntat en kort meny utan dem.`);
     await context.close();
   }
   if (bildmapp) {
@@ -3826,6 +3829,56 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
   }
   matt.push(`fullyta: ${vyerMatta.size} vyer och ${lagenMatta.size} lägen mätta`);
   krav(vyerMatta.size >= 2 && lagenMatta.size >= 3, `fullyta: bara ${vyerMatta.size} vyer och ${lagenMatta.size} lägen mätta, väntat minst 2 och 3 (golv: ett gap som inte mättes är inte grönt).`);
+}
+
+// ⛔ SPELRADEN (0.102.0, granskningen av PR 366 varv 2, MÅSTE 1). Med skalets spelrad öppen ska Idag och Kalender sluta vid
+// spelradens överkant och inte under den, och dokumentet ska inte rulla ovanpå ytans egen rullning (`main` har spelradens höjd i
+// sin utfyllnad). Spelraden ritas här som den ritas i skalet: en fast rad med `data-ops-spelrad` ovanför bottenraden, och dess
+// höjd i `--spelrad-h` på dokumentet. Golv: båda vyerna mätta, och raden fanns.
+{
+  /** @type {Set<string>} */
+  const matta = new Set();
+  for (const vy of /** @type {const} */ (["idag", "kalender"])) {
+    const context = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+    const page = await context.newPage();
+    page.setDefaultTimeout(4000);
+    await page.emulateMedia({ colorScheme: standardtema === "dark" ? "dark" : "light" });
+    await page.route("http://skalyta.test/**", (r) => r.fulfill({ contentType: "text/html; charset=utf-8", body: sida(`fullyta-${vy}`) }));
+    await page.goto("http://skalyta.test/");
+    await page.waitForFunction("window.__redo === true", null, { timeout: 5000 }).catch(() => {});
+    await page.waitForTimeout(300);
+    await page.evaluate(() => {
+      const nav = document.querySelector('nav[aria-label="Snabbnavigering"]');
+      const navTop = nav ? nav.getBoundingClientRect().top : window.innerHeight;
+      const rad = document.createElement("div");
+      rad.setAttribute("data-ops-spelrad", "");
+      rad.style.cssText = `position:fixed;left:0;right:0;height:64px;top:${navTop - 64}px;background:#333;z-index:30`;
+      document.body.append(rad);
+      document.documentElement.style.setProperty("--spelrad-h", "64px");
+    });
+    await page.waitForTimeout(400);
+    const m = await page.evaluate(() => {
+      const rad = document.querySelector("[data-ops-spelrad]");
+      const yta = /** @type {HTMLElement | null} */ (document.querySelector('main [style*="--fullhojd"]'));
+      return {
+        radTop: rad ? rad.getBoundingClientRect().top : null,
+        ytaBottom: yta ? yta.getBoundingClientRect().bottom : null,
+        dok: document.documentElement.scrollHeight,
+        fonster: window.innerHeight,
+      };
+    });
+    if (m.radTop === null || m.ytaBottom === null) {
+      krav(false, `spelrad ${vy}: ${m.radTop === null ? "spelraden" : "ytan"} hittades inte, inget att mäta.`);
+    } else {
+      matta.add(vy);
+      const gap = m.radTop - m.ytaBottom;
+      matt.push(`spelrad ${vy}: ytans underkant ${m.ytaBottom}, spelradens överkant ${m.radTop}, gap ${gap.toFixed(1)} px, dokument ${m.dok} mot fönster ${m.fonster}`);
+      krav(Math.abs(gap) <= 1, `spelrad ${vy}: ${gap.toFixed(1)} px mellan ytans underkant och spelradens överkant, väntat 0 +- 1. ${gap < -1 ? "Spelraden ligger över ytans nedersta rader." : "Ytan slutar för tidigt."}`);
+      krav(m.dok <= m.fonster + 1, `spelrad ${vy}: dokumentet är ${m.dok} px högt i ett fönster på ${m.fonster}, och rullar ovanpå ytans egen rullning.`);
+    }
+    await context.close();
+  }
+  krav(matta.size >= 2, `spelrad: bara ${matta.size} vyer mätta, väntat 2 (golv).`);
 }
 
 // ══ 25. HÄNDELSEKORTET OCH INKORGSRADEN MOT SS VID 390 PX (0.32.1) ══════════════════════════════════════════════════════

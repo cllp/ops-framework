@@ -104,6 +104,18 @@ function synligBottenrad() {
 }
 
 /**
+ * Skalets spelrad (0.102.0), om den syns. Den ligger fast ovanför bottenraden (på en dator längst ned), och en yta som slutar vid
+ * bottenraden hade haft sina nedersta rader under den (granskningen av PR 366, varv 2, MÅSTE 1).
+ * @returns {DOMRect | null}
+ */
+function synligSpelrad() {
+  const rad = document.querySelector("[data-ops-spelrad]");
+  if (!rad) return null;
+  const r = rad.getBoundingClientRect();
+  return r.height > 0 ? r : null;
+}
+
+/**
  * Den säkra ytan i botten i pixlar. `--safe-bottom` är `env(...)`, och ett
  * `env()` i en egen egenskap går inte att läsa som ett tal ur
  * `getComputedStyle`: därför mäts den som höjden på en osynlig låda.
@@ -160,7 +172,11 @@ export function useFullHeight(ref) {
       const topp = Math.max(0, Math.round(rect.top + (window.scrollY || 0)));
       const rad = synligBottenrad();
       const fonster = window.innerHeight || window.visualViewport?.height || RESERV_BOTTEN;
-      const botten = Math.max(0, Math.round(rad ? rad.top : fonster - sakerBotten()));
+      const spelrad = synligSpelrad();
+      // ⛔ Ytan slutar vid det som ligger högst av bottenraden och spelraden. `main` har spelradens höjd i sin nedre utfyllnad,
+      // så dokumentet blir fortfarande exakt fönstrets höjd och rullar inte ovanpå ytans egen rullning.
+      const kant = Math.min(rad ? rad.top : fonster - sakerBotten(), spelrad ? spelrad.top : Infinity);
+      const botten = Math.max(0, Math.round(kant));
       setMat((f) => (f.topp === topp && f.botten === botten ? f : { topp, botten }));
     };
 
