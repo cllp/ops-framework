@@ -181,6 +181,12 @@ describe("valen efter talet", () => {
     expect(valen()).toEqual(["Händelse", "Agent"]);
   });
 
+  it("⛔ färdiga noder kan inte fyllas i: Händelse och Ärende ritas inte när skapa är en färdig nod (ur talk-samtal, 0.103.0)", async () => {
+    Skal({ talk: { onAgent: vi.fn() }, skapa: { lage: "g1", handelse: <p>h</p>, arende: <p>ä</p> } });
+    await prata();
+    expect(valen()).toEqual(["Agent"]);
+  });
+
   it("⛔ Stäng kastar det sagda utan att något anropas", async () => {
     const onAgent = vi.fn();
     const onMeddelande = vi.fn();
@@ -219,6 +225,42 @@ describe("valen efter talet", () => {
     expect(/** @type {HTMLInputElement} */ (screen.getByRole("textbox", { name: "Rubrik" })).value).toBe("Boka rep med bandet");
     expect(/** @type {HTMLTextAreaElement} */ (screen.getByRole("textbox", { name: "Beskrivning" })).value).toBe("Ta med noterna.");
     expect(new URL(window.location.href).searchParams.get("skapa")).toBe("arende");
+  });
+
+  it("⛔ det sagda står inte i adressen, bara att Nytt ärende är öppet (ur talk-samtal, 0.103.0)", async () => {
+    const arende = ({ formId, forifyllt }) => (
+      <form id={formId}>
+        <textarea aria-label="Beskrivning" defaultValue={forifyllt?.beskrivning ?? ""} />
+      </form>
+    );
+    Skal({ talk: { onAgent: vi.fn() }, skapa: { lage: "g1", arende } });
+    await prata();
+    fireEvent.click(screen.getByRole("button", { name: "Ärende" }));
+    await flush();
+    expect(/** @type {HTMLTextAreaElement} */ (screen.getByRole("textbox", { name: "Beskrivning" })).value).toBe("Ta med noterna.");
+    const u = new URL(window.location.href);
+    expect(u.searchParams.get("skapa")).toBe("arende");
+    // ⛔ Det man sade hade annars hamnat i webbläsarens historik.
+    expect(window.location.href).not.toContain("noterna");
+    expect(window.location.href).not.toContain("Boka");
+  });
+
+  it("⛔ en ny förifyllning ersätter ett ärende som redan stod öppet (ur talk-samtal, 0.103.0)", async () => {
+    const arende = ({ formId, forifyllt }) => (
+      <form id={formId}>
+        <input aria-label="Rubrik" defaultValue={forifyllt?.rubrik ?? ""} />
+      </form>
+    );
+    Skal({ talk: { onAgent: vi.fn() }, skapa: { lage: "g1", arende } });
+    // Första gången ifyllt, sedan pratar man igen med panelen öppen och väljer Ärende en gång till.
+    await prata();
+    fireEvent.click(screen.getByRole("button", { name: "Ärende" }));
+    await flush();
+    expect(/** @type {HTMLInputElement} */ (screen.getByRole("textbox", { name: "Rubrik" })).value).toBe("Boka rep med bandet");
+    await prata();
+    fireEvent.click(screen.getByRole("button", { name: "Ärende" }));
+    await flush();
+    expect(/** @type {HTMLInputElement} */ (screen.getByRole("textbox", { name: "Rubrik" })).value).toBe("Torsdag klockan sju");
   });
 
   it("⛔ Händelse öppnar skalets Ny händelse med forifyllt", async () => {

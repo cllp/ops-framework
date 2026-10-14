@@ -91,7 +91,16 @@ Det Svara gjorde som inget annat gör: en röstdialog med agenten utan att lämn
   första versionen av provet: "en persons meddelande" var skrivet av den som tittade, och dess knappar filtrerades redan bort som egna,
   så villkoret mättes inte. Provet har nu också ett meddelande från en annan person. Proven om fel form från appen och "inga
   knappar utan `onForslag`" är inte mätta röda.
-- `src/__tests__/talk-samtal.test.jsx` och `src/__tests__/talk-svara-andra-gangen.test.jsx` är borttagna med det de mätte.
+- `src/__tests__/talk-samtal.test.jsx` och `src/__tests__/talk-svara-andra-gangen.test.jsx` är borttagna. ⛔ Första versionen av
+  0.105.0 sade att de togs bort "med det de mätte", och det var inte sant: nio av proven mätte inte Svara eller samtalsytan, och
+  granskningen av PR 387 fann att de försvunnit. De står nu kvar, med andra omgången startad med mikrofonen i stället för med Svara.
+  `talk-andra-omgangen.test.jsx` (6 prov, ur talk-svara-andra-gangen): taket som räknas om mitt i en inspelning, de två Safari-proven
+  för `webblasarensIgenkanning`, de två skalproven "öppna, prata, kvitto, stäng, öppna, prata" och mikrofonströmmen som släpps.
+  `talk-val.test.jsx` (3 nya, ur talk-samtal): Händelse och Ärende ritas inte när `skapa` är en färdig nod, det sagda står inte i
+  adressen (`not.toContain("noterna")`), och en ny förifyllning ersätter ett ärende som redan stod öppet. Vart och ett mätt rött med
+  det det vaktar bortkopplat: omräkningen av taket (1 rött), stängningen av förra igenkännaren i `starta` och `stoppa` (2), felbeskedet
+  när `start()` kastar (2), `slapp` som stoppar spåren (1), villkoren `handelseSkapareFinns` och `typeof skapa.arende` (1), det sagda
+  skrivet i adressen (1) och `key` på ärendeformuläret (1).
   `talk-kvitto.test.jsx` (fokus på Stäng i stället för Svara) och `talk-tomt-ljud.test.jsx` (andra omgången startas med mikrofonen i
   stället för med Svara) är ändrade och behöver en annan granskare (regel 9).
 - `check-skalyta.mjs` avsnitt 46 (`--bara-talkval`), vid 390 och 1280 px: valen med ord som inte klipps, träffbara på 44x44, inne i fältet
