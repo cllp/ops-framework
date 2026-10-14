@@ -102,6 +102,7 @@ export function OpsApparArk({ oppen, onOppen, moduler, grupp, farAndra, onOrdnin
   const [drar, setDrar] = useState(/** @type {string | null} */ (null));
   const [mal, setMal] = useState(/** @type {string | null} */ (null));
   const [fel, setFel] = useState("");
+  const sparaForsok = useRef(0);
   const drag = useRef(/** @type {{ y: number, dy: number } | null} */ (null));
   const pek = useRef(/** @type {{ id: string, mal: string | null } | null} */ (null));
   const startOrdning = useRef(/** @type {string[] | null} */ (null));
@@ -157,20 +158,34 @@ export function OpsApparArk({ oppen, onOppen, moduler, grupp, farAndra, onOrdnin
     onNavigate?.(href, e);
   };
 
-  /** @param {string[]} nasta @returns {boolean} Sant när anropet gick iväg. */
-  const spara = (nasta) => {
+  /**
+   * ⛔ EN ORDNING SOM INTE SPARADES VISAS INTE (0.104.0). Förut låg den hållna ordningen (`hallen`) kvar när `onOrdning` avvisade sitt
+   * löfte: felet stod i arket, men rutorna visade ordningen som aldrig sparades, också efter att arket stängts och öppnats igen. Det
+   * såg ut som att flytten gått igenom. Nu sätts `hallen` bara när anropet gått iväg, och släpps när löftet avvisas, så att arket
+   * visar propens ordning och felet. Ett äldre anrop som avvisas efter ett nyare rör inte det nyare (`sparaForsok`).
+   * @param {string[]} nasta Hela modullistan som skickas. @param {string[]} visas Det arket håller medan sparandet pågår.
+   */
+  const spara = (nasta, visas) => {
     if (typeof onOrdning !== "function") {
       setFel(t("sparandeSaknas"));
-      return false;
+      return;
     }
     setFel("");
+    sparaForsok.current += 1;
+    const mitt = sparaForsok.current;
     try {
       const svar = onOrdning(nasta);
-      if (svar && typeof svar.then === "function") svar.catch((e) => setFel(e instanceof Error ? e.message : String(e)));
-      return true;
+      setHallen(visas);
+      if (svar && typeof svar.then === "function") {
+        svar.catch((e) => {
+          if (mitt !== sparaForsok.current) return;
+          setHallen(null);
+          setFel(e instanceof Error ? e.message : String(e));
+        });
+      }
     } catch (e) {
+      setHallen(null);
       setFel(e instanceof Error ? e.message : String(e));
-      return false;
     }
   };
 
@@ -187,7 +202,7 @@ export function OpsApparArk({ oppen, onOppen, moduler, grupp, farAndra, onOrdnin
     const fran = startOrdning.current;
     if (grupp && ut && fran) {
       const samma = fran.length === ut.length && fran.every((id, i) => id === ut[i]);
-      if (!samma && spara(ordningMedSynliga(grupp.moduler, propIds, ut))) setHallen(ut);
+      if (!samma) spara(ordningMedSynliga(grupp.moduler, propIds, ut), ut);
     }
     nollstallPek();
   };
@@ -330,7 +345,8 @@ export function OpsApparArk({ oppen, onOppen, moduler, grupp, farAndra, onOrdnin
             ) : null}
           </div>
           <div className="min-h-0 flex-1 overflow-auto px-3 pb-4">
-            {fel ? <p role="alert">{fel}</p> : null}
+            {/* ⛔ Felet med ramverkets felfärg och etikettstorlek, som TALK:s och fältens fel (0.104.0). Förut stod det ostylat. */}
+            {fel ? <p role="alert" data-appar-ark-fel="" className="m-0 pb-2 text-etikett text-danger">{fel}</p> : null}
             {!grupp ? <p role="status">{t("hamtar")}</p> : null}
             {grupp && visade.length === 0 ? <p data-appar-ark-tom="">{t("inga")}</p> : null}
             <ul

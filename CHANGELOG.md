@@ -46,6 +46,14 @@ tillståndet, så att `kanSpelaInIgen` och `kanBeOmMikrofon` känner igen det, o
 som det är. Prov i `talk-sprak.test.jsx`: 5 av 7 röda mot koden före rättelsen, alla 7 gröna med den (de två som är gröna i båda
 mäter att appens egen text och svenskan är orörda).
 
+### Rättat: Appar-arket visar inte en ordning som aldrig sparades
+
+När `onOrdning` avvisade sitt löfte låg den hållna ordningen kvar i `OpsApparArk`: felet stod i arket, men rutorna visade
+ordningen som aldrig sparades, också efter att arket stängts och öppnats igen. Nu hålls ordningen bara medan sparandet pågår och
+släpps när det avvisas eller kastar, så att arket visar propens ordning och felet. Ett äldre anrop som avvisas efter ett nyare rör
+inte det nyare. Felraden har ramverkets felfärg (`text-etikett text-danger`), förut stod den ostylad. Prov i `apparark.test.jsx`:
+avvisat löfte röd mot koden före (ordningen låg kvar), synkront kast röd på den ostylade raden, båda gröna med rättelsen.
+
 ### Ändrat: röstinmatningen har ett hem
 
 Talet bodde inbyggt i chattens skrivfält (`OpsMeddelanden.jsx`). Det är utbrutet till `OpsRostinmatning.jsx`

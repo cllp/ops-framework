@@ -185,6 +185,31 @@ describe("OpsAppShell apparArk", () => {
     expect(idOrdning(screen.getByRole("dialog"))).toEqual(["ekonomi", "resor"]);
   });
 
+  /*
+   * ⛔ 0.104.0: en ordning som inte sparades visas inte. Förut låg den hållna ordningen kvar när `onOrdning` avvisade, också efter
+   * att arket stängts och öppnats igen, och det såg ut som att flytten gått igenom.
+   */
+  for (const [namn, onOrdning] of /** @type {const} */ ([
+    ["avvisar sitt löfte", () => Promise.reject(new Error("Ordningen kunde inte sparas."))],
+    ["kastar direkt", () => { throw new Error("Ordningen kunde inte sparas."); }],
+  ])) {
+    it(`⛔ när onOrdning ${namn} syns felet, och propens ordning visas direkt och efter att arket öppnats igen`, async () => {
+      skal({ ark: { onOrdning } });
+      const dialog = oppnaOrdning();
+      fireEvent.keyDown(within(dialog).getByRole("option", { name: "Ekonomi" }), { key: "ArrowRight" });
+      expect(idOrdning(dialog)).toEqual(["resor", "ekonomi"]);
+      fireEvent.click(screen.getByRole("button", { name: "Klar" }));
+      await act(async () => {});
+      const fel = within(screen.getByRole("dialog")).getByRole("alert");
+      expect(fel.textContent).toBe("Ordningen kunde inte sparas.");
+      expect(fel.className).toContain("text-danger");
+      expect(idOrdning(screen.getByRole("dialog"))).toEqual(["ekonomi", "resor"]);
+      fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+      fireEvent.click(within(screen.getByRole("navigation", { name: "Snabbnavigering" })).getByRole("button", { name: "Appar" }));
+      expect(idOrdning(screen.getByRole("dialog"))).toEqual(["ekonomi", "resor"]);
+    });
+  }
+
   it("ett långt tryck öppnar inställningsläget", () => {
     vi.useFakeTimers();
     try {
