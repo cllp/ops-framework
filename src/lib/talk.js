@@ -323,10 +323,53 @@ export function kanBeOmMikrofon(feltext) {
 }
 
 /**
+ * ⛔ INGET LJUD OCH INGEN TEXT (lifehub.app#253). CP 2026-10-14 på iPhone: "Ljudinspelning. Efter att jag fått en fråga så kan man
+ * inte spela in mer ljud." Andra omgången i samma samtal gav 0 byte ljud och ingen text, och `useTalk` lämnade ändå det tomma till
+ * appen. Appen skickade det vidare, servern svarade "Inget ljud kom fram. Försök igen.", och Försök igen skickade samma 0 byte en
+ * gång till, för alltid. Nu skickas ingenting, fältet säger det här, och Spela in igen startar en ny omgång med ny ström och ny
+ * igenkänning. Meningen säger vad som hände och vad man gör, och den är sann: ingenting lämnade telefonen.
+ */
+export const TALK_INGET_LJUD = "Mikrofonen gav inget ljud, och inget hördes som text. Ingenting skickades. Tryck på Spela in igen och prata en gång till.";
+
+/**
+ * Om fältet ska erbjuda en ny inspelning i stället för Försök igen: när det som fanns att skicka var tomt (`TALK_INGET_LJUD`).
+ * Försök igen hade skickat samma tomma ljud igen.
+ * @param {string | undefined} feltext
+ * @returns {boolean}
+ */
+export function kanSpelaInIgen(feltext) {
+  return feltext === TALK_INGET_LJUD;
+}
+
+/**
+ * Om alla ljudspår i en ström är tysta enligt webbläsaren: `muted` eller redan avslutade. En ström utan spår, eller ett spår som inte
+ * säger något om sig (proven), räknas inte som tyst.
+ * @param {unknown} strom
+ * @returns {boolean}
+ */
+export function tystStrom(strom) {
+  const s = /** @type {any} */ (strom);
+  const spar = typeof s?.getAudioTracks === "function" ? s.getAudioTracks() : typeof s?.getTracks === "function" ? s.getTracks() : [];
+  return Array.isArray(spar) && spar.length > 0 && spar.every((t) => t?.muted === true || t?.readyState === "ended");
+}
+
+/**
+ * Det inspelaren såg om strömmen, för felrapporten när ljudet blev tomt (lifehub.app#253). ⛔ SKÄLET ÄR REGEL 3: orsaken på iOS är en
+ * hypotes, och de här fälten är det som kan avgöra den ur en riktig telefon.
+ * @typedef {object} Inspelningsdiagnos
+ * @property {boolean} tystVidStart Strömmen som spelades in var tyst när inspelningen började (efter en eventuell omhämtning).
+ * @property {boolean} omhamtad Den första strömmen var tyst och en ny hämtades.
+ * @property {boolean} tystVidStopp Strömmen var tyst när inspelningen stoppades.
+ * @property {number} bitar Antalet bitar med data som webbläsaren lämnade.
+ */
+
+/**
  * En inspelare: det komponenten behöver av webbläsaren, och inget mer.
  * @typedef {object} Inspelare
  * @property {() => Promise<void>} starta Öppnar mikrofonen och börjar spela in. Kastar med webbläsarens fel.
- * @property {() => Promise<{ blob: Blob, mimeType: string, sekunder: number }>} stoppa Slutar och lämnar ljudet.
+ * @property {() => Promise<{ blob: Blob, mimeType: string, sekunder: number, diagnos?: Inspelningsdiagnos }>} stoppa Slutar och lämnar ljudet.
+ *   ⛔ Ljudet kan vara 0 byte (en tyst ström ger inga bitar). Inspelaren kastar inte för det: `useTalk` avgör om något finns att skicka,
+ *   eftersom bara den vet om texten kom fram.
  * @property {() => void} kasta Slutar och kastar ljudet. Mikrofonen släpps.
  * @property {() => number} niva Ljudnivån just nu, 0 till 1, för prickarna.
  */
@@ -364,6 +407,21 @@ export function webblasarensInspelare(miljo = {}) {
    * inspelningsprick. Ett försök som bara avbrutits, utan en ny start, stänger `useTalk` när svaret kommer.
    */
   let forsok = 0;
+  /** Det `starta` såg om strömmen, för `diagnos`. */
+  let tystVidStart = false;
+  let omhamtad = false;
+  /**
+   * Strömmen för försöket `mitt`, eller ett fel när ett nyare försök startat under tiden (då stängs den direkt, se `forsok`).
+   * @param {number} mitt
+   */
+  const hamta = async (mitt) => {
+    const s = await /** @type {MediaDevices} */ (md).getUserMedia({ audio: true });
+    if (mitt !== forsok) {
+      s.getTracks().forEach((t) => t.stop());
+      throw new Error("Inspelningen avbröts innan mikrofonen öppnades.");
+    }
+    return s;
+  };
   const slapp = () => {
     strom?.getTracks().forEach((t) => t.stop());
     strom = null;
@@ -376,11 +434,23 @@ export function webblasarensInspelare(miljo = {}) {
       if (!md || !MR) throw new Error("Den här webbläsaren kan inte spela in ljud.");
       forsok += 1;
       const mitt = forsok;
-      const ny = await md.getUserMedia({ audio: true });
-      if (mitt !== forsok) {
+      let ny = await hamta(mitt);
+      omhamtad = false;
+      /*
+       * ⛔ EN TYST STRÖM HÄMTAS OM, EN GÅNG (lifehub.app#253). ⛔ HYPOTES, INTE MÄTT PÅ EN IPHONE: WebKit på iOS kan lämna en ström
+       * vars spår alla är `muted` när taligenkänningen (`SpeechRecognition`) nyss haft mikrofonen, eftersom den tar ljudet genom
+       * en egen väg och telefonen har ett ljudpass åt gången. En inspelning på en sådan ström ger 0 byte, och det var vad andra
+       * omgången efter agentens fråga gav (servern svarade "Inget ljud kom fram"). Skälet att pröva en ny ström är att det är
+       * billigt och inte kan göra en fungerande inspelning sämre: en ström som inte är tyst rörs inte. EN gång och inte i en
+       * slinga: är också den nya tyst spelas den in ändå, och blir ljudet tomt säger fältet det (`TALK_INGET_LJUD`).
+       * Vad som faktiskt hände står i `diagnos`, som `useTalk` rapporterar när ljudet blev tomt.
+       */
+      if (tystStrom(ny)) {
         ny.getTracks().forEach((t) => t.stop());
-        throw new Error("Inspelningen avbröts innan mikrofonen öppnades.");
+        omhamtad = true;
+        ny = await hamta(mitt);
       }
+      tystVidStart = tystStrom(ny);
       strom = ny;
       valtFormat = valjFormat(MR.isTypeSupported?.bind(MR));
       rec = new MR(strom, valtFormat ? { mimeType: valtFormat } : undefined);
@@ -417,10 +487,12 @@ export function webblasarensInspelare(miljo = {}) {
           const mimeType = r.mimeType || (bitar[0] && bitar[0].type) || valtFormat || "audio/mp4";
           const blob = new Blob(bitar, { type: mimeType });
           const sekunder = Math.round((nu() - start) / 100) / 10;
+          /** @type {Inspelningsdiagnos} */
+          const diagnos = { tystVidStart, omhamtad, tystVidStopp: tystStrom(strom), bitar: bitar.length };
           rec = null;
           valtFormat = "";
           slapp();
-          klar({ blob, mimeType, sekunder });
+          klar({ blob, mimeType, sekunder, diagnos });
         };
         r.stop();
       });

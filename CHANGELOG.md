@@ -105,6 +105,13 @@ panelen och Skapa app kan få vara enligt samma princip i header som meddelanden
   `onTranscribe` och TALK skickade bara ljudet. Nu räknas den preliminära texten som hel när personen stoppat och webbläsaren sagt
   `end` inom väntetiden, samma bud som redan räknades när Chrome tar en paus mitt i. Ett fel, ett avbrott (`aborted`) och en väntetid
   som tar slut ger fortfarande tom text (granskningen av PR 358, MÅSTE 2, som i övrigt står kvar).
+- **Andra omgången efter agentens fråga skickade 0 byte och ingen text, och Försök igen skickade samma tomma ljud igen**
+  (cllp/lifehub.app#253, CP 2026-10-14 på iPhone: "Efter att jag fått en fråga så kan man inte spela in mer ljud"). `useTalk`
+  lämnar aldrig längre tomt ljud utan text till `onTalk`: fältet säger `TALK_INGET_LJUD`, rapporterar det inspelaren såg om
+  strömmen (`diagnos` från `webblasarensInspelare().stoppa()`), och visar Spela in igen i stället för Försök igen. En ström där
+  alla spår är tysta (`muted`) hämtas om en gång innan inspelningen börjar. ⛔ Hypotes, inte mätt på en iPhone: WebKit ger en tyst
+  ström när taligenkänningen nyss haft mikrofonen. Mätt i koden: att det tomma gick vidare och att Försök igen inte kunde ge något
+  annat (`talk-tomt-ljud.test.jsx`).
 
 ### Borttaget, och var vägen nu går
 

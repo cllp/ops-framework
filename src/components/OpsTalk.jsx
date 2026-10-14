@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { AVBRYT_FRAGA_SEKUNDER, LANGTRYCK_MS, MAX_SEKUNDER, SPARAT_MS, TALK_PLATSTEXT, TALK_SKICKAR_TEXT, TALK_SVARA_TEXT, TALK_TEXTFEL, igenkanningensSprak, kanBeOmMikrofon, kontrolleraSkickarText, talkFeltext, talkKvitto, talkNasta, talkUnderlag, webblasarensIgenkanning, webblasarensInspelare } from "../lib/talk.js";
+import { AVBRYT_FRAGA_SEKUNDER, LANGTRYCK_MS, MAX_SEKUNDER, SPARAT_MS, TALK_PLATSTEXT, TALK_SKICKAR_TEXT, TALK_INGET_LJUD, TALK_SVARA_TEXT, TALK_TEXTFEL, igenkanningensSprak, kanBeOmMikrofon, kanSpelaInIgen, kontrolleraSkickarText, talkFeltext, talkKvitto, talkNasta, talkUnderlag, webblasarensIgenkanning, webblasarensInspelare } from "../lib/talk.js";
 import { useOpsSprak } from "./OpsSprak.jsx";
 import { formateraTid } from "../lib/ljudspelare.js";
 import { rapporteraFel } from "../lib/felrapport.js";
@@ -314,7 +314,29 @@ export function useTalk({ onTalk, onKlick, inspelare, igenkanning, skickarText, 
         Promise.all([insp().stoppa().finally(frigor), texten])
           .then(([ljud, hord]) => {
             if (mitt !== forsok.current || !monterad.current) return;
-            const post = { ...ljud, ...(hord ? { text: hord } : {}) };
+            /*
+             * ⛔ TOM TEXT OCH TOMT LJUD SKICKAS ALDRIG (lifehub.app#253). Förut gick 0 byte och ingen text till appen ändå, appen
+             * skickade dem till sin server, och fältet visade serverns "Inget ljud kom fram. Försök igen." Försök igen lämnade sedan
+             * samma 0 byte en gång till. Nu stannar det här: inget anrop, fältet säger vad som hände (`TALK_INGET_LJUD`), och Spela in
+             * igen startar en ny omgång. Samtalets historik står kvar, eftersom läget fel inte är vila. Det som sågs om strömmen går
+             * till felrapporten, eftersom orsaken på iOS är en hypotes som bara en riktig telefon kan avgöra (regel 3).
+             */
+            if (!hord && !(ljud.blob && ljud.blob.size > 0)) {
+              rapporteraFel(new Error("TALK: inspelningen gav inget ljud och ingen text, och inget skickades."), {
+                yta: "OpsTalk",
+                steg: "tomt-ljud",
+                sekunder: ljud.sekunder,
+                igenkanning: igk() !== null,
+                omgang: historikRef.current.length + 1,
+                ...(ljud.diagnos ?? {}),
+              });
+              senast.current = null;
+              setKanIgen(false);
+              setText("");
+              skicka({ typ: "fel", text: TALK_INGET_LJUD });
+              return undefined;
+            }
+            const post = { blob: ljud.blob, mimeType: ljud.mimeType, sekunder: ljud.sekunder, ...(hord ? { text: hord } : {}) };
             setText(hord);
             senast.current = post;
             setKanIgen(true);
@@ -786,6 +808,8 @@ export function OpsInspelning(props) {
   /** Ett val finns bara när det finns något att välja mellan. */
   const visaMal = lyssnar && mal.length > 1;
   const kanTillatMikrofon = !kanIgen && kanBeOmMikrofon(fel) && typeof (onTillatMikrofon || onStart) === "function";
+  /** (lifehub.app#253) Det som fanns att skicka var tomt: en ny inspelning, inte Försök igen, som hade skickat samma tomma ljud. */
+  const kanNyInspelning = !kanIgen && !kanTillatMikrofon && kanSpelaInIgen(fel) && typeof (onTillatMikrofon || onStart) === "function";
 
   return (
     <div data-ops-inspelning="" data-inspelning={lage} className="flex w-full min-w-0 flex-col gap-3">
@@ -958,7 +982,7 @@ export function OpsInspelning(props) {
         <div className="flex min-w-0 flex-col gap-3">
           <p role="alert" data-talk-fel="" className="m-0 text-etikett text-danger">{fel || "Något gick fel."}</p>
           <div className="flex items-center gap-3">
-            {kanIgen || kanTillatMikrofon ? (
+            {kanIgen || kanTillatMikrofon || kanNyInspelning ? (
               <button type="button" aria-label="Avbryt" data-talk-avbryt="" onClick={onAvbryt} className={SEKUNDAR}>
                 <KryssIkon size={18} />
               </button>
@@ -972,7 +996,13 @@ export function OpsInspelning(props) {
                 Tillåt mikrofon
               </button>
             ) : null}
-            {!kanIgen && !kanTillatMikrofon ? (
+            {kanNyInspelning ? (
+              <button type="button" data-talk-spela-in-igen="" onClick={onTillatMikrofon || onStart} className={PRIMAR}>
+                <MikrofonIkon size={18} />
+                Spela in igen
+              </button>
+            ) : null}
+            {!kanIgen && !kanTillatMikrofon && !kanNyInspelning ? (
               <button type="button" onClick={onAvbryt} className={PRIMAR}>Stäng</button>
             ) : null}
           </div>
