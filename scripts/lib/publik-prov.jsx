@@ -2,7 +2,9 @@
  * Provsidorna för det publika skalet. INTE en app och exporteras inte: `check-brand` och `montage-publik` ritar dem med RIKTIG
  * CSS i Chromium. Scenariot och innehållet väljs med `window.__prov` (satt före sidan laddas):
  *
- *   { sida: "start" | "kort", innehall: <scripts/lib/publik-innehall.mjs>, loggaMitt?: boolean }
+ *   { sida: "start" | "kort" | "hjalteavsnitt", innehall: <scripts/lib/publik-innehall.mjs>, loggaMitt?: boolean }
+ *
+ * `hjalteavsnitt` är hjälten med bild direkt följd av ett avsnitt (Identitys startsida, #388): det fall rytmregeln saknade.
  *
  * `loggaMitt` är det BEVIS-läge `check-brand --bevisa` använder: toppraden läggs i en smal centrerad kolumn, alltså den
  * komposition CP kritiserade ("loggan i mitten"), så att provet "loggan ligger på samma plats" kan ses falla.
@@ -45,6 +47,13 @@ function Sida() {
           <OpsPublikUppmaning title={i.uppmaning.title} primar={i.uppmaning.primar} sekundar={i.uppmaning.sekundar}>
             {i.uppmaning.text}
           </OpsPublikUppmaning>
+        </>
+      ) : sida === "hjalteavsnitt" ? (
+        <>
+          <OpsPublikHjalte {...i.hjalte} />
+          <OpsPublikAvsnitt eyebrow={i.kort.avsnitt.eyebrow} title={i.kort.avsnitt.title} ingress={i.kort.avsnitt.ingress}>
+            {i.kort.avsnitt.text ? <OpsPublikText>{i.kort.avsnitt.text}</OpsPublikText> : null}
+          </OpsPublikAvsnitt>
         </>
       ) : (
         <>

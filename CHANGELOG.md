@@ -132,6 +132,11 @@ Det Svara gjorde som inget annat gör: en röstdialog med agenten utan att lämn
   kontroller utan brott. Hela `check-skalyta.mjs`: 2746 kontroller utan brott. ⛔ En körning av `--bara-talkval` direkt efter ett bygge
   föll en gång på att mittknappen inte gick att klicka inom 4 s vid 390 px, och samma körning en gång till var grön; det är en
   misslyckad mätning enligt regel 14 och inte ett resultat, men orsaken är inte utredd.
+- Rytmen mellan publika block: `OpsPublikHjalte` med bild följd av ett `OpsPublikAvsnitt` fick 0 px luft, eftersom rytmregeln bara
+  kände ljusa block och avsnitt efter avsnitt (CP 2026-10-14, Identitys startsida, #388). Regeln i `tokens.css` (mellan `RYTM` och
+  `SLUT RYTM`) har nu fallet `[data-ops-publik="hjalte"][data-med-bild] + [data-ops-publik="avsnitt"]`: 80 px, 96 px från `sm`, samma
+  luft som mellan två avsnitt. `check-brand.mjs` mäter paret i Chromium (provsidan `hjalteavsnitt` i `scripts/lib/publik-prov.jsx`) vid
+  1280 och 390 px, med golv: minst ett par mätt. Rött med just det fallets väljarrad bortkopplad (`--bevisa`), grönt med den.
 
 ## 0.104.0
 

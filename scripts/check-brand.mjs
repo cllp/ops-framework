@@ -42,7 +42,8 @@
  *    13. Spärrningen: varje publik rubrik (hjälte, block, sida, avsnitt) är lika bred som med SS `-0,01em` (`--letter-spacing-tight`),
  *        ur rollens egen token och inte en klass. Rött utan spärrningen (`--bevisa`).
  *    12. Rytmen mellan blocken ägs av ramverket: 96 px mellan två ljusa block, efter fotohjälten och före uppmaningen, 0 mellan
- *        olika toner; innehållssidans avsnitt 96 px (80 under `sm`). Rött utan regeln (`--bevisa`).
+ *        olika toner; innehållssidans avsnitt 96 px (80 under `sm`), och samma luft mellan en hjälte med bild och ett avsnitt
+ *        (#388, Identitys startsida; golv: minst ett sådant par mätt). Rött utan regeln (`--bevisa`).
  *    11. Kontrasten för varje text mot sin bakgrund i varje ton, i båda brandfilerna (WCAG AA).
  *
  * ⛔ GOLV: provet kräver minst 20 mätningar och minst 20 kontraktsvariabler. Ett prov som blir grönt av att inget
@@ -115,6 +116,10 @@ if (argv.includes("--bevisa")) {
     const utanRytm = original.replace(/\/\* RYTM \*\/[\s\S]*?\/\* SLUT RYTM \*\//, "");
     if (utanRytm === original) throw new Error("check-brand --bevisa: tokens.css har ingen RYTM-regel att ta bort.");
     fs.writeFileSync(path.join(mapp, "tokens-utan-rytm.css"), utanRytm);
+    // Hjälte med bild följd av avsnitt (#388): bara de två väntelinjerna för just det fallet tas bort, resten av rytmen står kvar.
+    const utanHjalteAvsnitt = original.replace(/^\s*\[data-ops-publik="hjalte"\]\[data-med-bild\] \+ \[data-ops-publik="avsnitt"\],\n/gm, "");
+    if (utanHjalteAvsnitt === original) throw new Error("check-brand --bevisa: tokens.css har inget fall hjälte med bild + avsnitt att ta bort.");
+    fs.writeFileSync(path.join(mapp, "tokens-utan-hjalteavsnitt.css"), utanHjalteAvsnitt);
     // Spärrningen: rollernas `--letter-spacing` tas bort, alltså som före runda 2 av granskningen av PR 350.
     const utanSparrning = original.replace(/^\s*--text-publik-(?:rubrik|sida|block)--letter-spacing:[^;]*;\n/gm, "");
     if (utanSparrning === original) throw new Error("check-brand --bevisa: tokens.css har ingen spärrning på rubrikrollerna att ta bort.");
@@ -137,6 +142,7 @@ if (argv.includes("--bevisa")) {
       { namn: "rött: utan lagren vinner ramverkets mörkeralias över instansens regel", args: ["--tokens", path.join(mapp, "tokens-utan-lager.css")], forvantat: "över ramverkets mörkeralias" },
       { namn: "rött: en brandfil utan typsnittsraden ändrar inte den publika rubriken", args: ["--brand", path.join(mapp, "brand-utan-publik.css")], forvantat: "brandfilen ändrade inte den publika rubriken" },
       { namn: "rött: utan ramverkets rytmregel ligger blocken tätt, 0 px i stället för 96", args: ["--tokens", path.join(mapp, "tokens-utan-rytm.css")], forvantat: "rytmen:", flera: true },
+      { namn: "rött: utan fallet hjälte med bild följd av avsnitt blir luften 0 px i stället för 80 och 96", args: ["--tokens", path.join(mapp, "tokens-utan-hjalteavsnitt.css")], forvantat: "hjälte med bild till avsnitt", flera: true },
       { namn: "rött: innehållssidans överrad i appens accent blir guld på kräm och styrs inte av brandfilen", args: ["--dist", path.join(mapp, "dist-gamla-farger.js")], forvantat: "innehållssidan", flera: true },
       { namn: "rött: utan spärrningen på rubrikrollerna är rubrikerna bredare än SS", args: ["--tokens", path.join(mapp, "tokens-utan-sparrning.css")], forvantat: "spärrningen:", flera: true },
       { namn: "rött: toppraden i en smal centrerad kolumn flyttar loggan mellan sidor", args: ["--logga-mitt"], forvantat: "loggan ligger inte på samma plats", flera: true },
@@ -459,7 +465,7 @@ try {
   const demo = innehall();
   /** @typedef {{ x: number, y: number, w: number, h: number }} Rect */
   /**
-   * @param {string} css @param {"start" | "kort"} sidan @param {number} bredd @param {{ tema?: "light" | "dark", meny?: boolean, scroll?: number }} [val]
+   * @param {string} css @param {"start" | "kort" | "hjalteavsnitt"} sidan @param {number} bredd @param {{ tema?: "light" | "dark", meny?: boolean, scroll?: number }} [val]
    */
   async function publik(css, sidan, bredd, val = {}) {
     const context = await browser.newContext({ viewport: { width: bredd, height: 900 } });
@@ -599,6 +605,16 @@ try {
       const luft = +(av[1].top - av[0].bottom).toFixed(2);
       const vantat = bredd >= 640 ? 96 : 80;
       krav(Math.abs(luft - vantat) <= 0.5, `rytmen: avståndet mellan två avsnitt är ${luft} px vid ${bredd} px, väntat ${vantat} (SS space-y-20 sm:space-y-24)`);
+    }
+    // Hjälte med bild följd av ett avsnitt (CP 2026-10-14, Identitys startsida, #388): samma luft som mellan två avsnitt, aldrig 0.
+    // Golvet: minst ett sådant par mätt, annars mäter provet ingenting (tomt underlag).
+    const hjAv = await publik(cssSS, "hjalteavsnitt", bredd);
+    const par = hjAv.rytm.map((e, k, alla) => ({ a: alla[k - 1], b: e })).filter(({ a, b }) => a && a.typ === "hjalte" && b.typ === "avsnitt");
+    krav(par.length >= 1, `rytmen: inget par hjälte med bild följd av avsnitt mättes vid ${bredd} px (${hjAv.rytm.length} element), provet mäter ingenting`);
+    for (const { a, b } of par) {
+      const luft = +(b.top - a.bottom).toFixed(2);
+      const vantat = bredd >= 640 ? 96 : 80;
+      krav(Math.abs(luft - vantat) <= 0.5, `rytmen: avståndet hjälte med bild till avsnitt är ${luft} px vid ${bredd} px, väntat ${vantat}. Luften efter fotohjälten före ett avsnitt ägs av ramverkets CSS (80 px, 96 px från sm).`);
     }
   }
   // 13. Spärrningen: varje publik rubrik är lika bred som med SS spärrning -0,01em. Rött utan den (`--bevisa`).
