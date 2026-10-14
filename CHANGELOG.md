@@ -43,7 +43,10 @@ läsregel som avgör synlighet per post, och det är permissions-träsket (kanon
 - `flyttaBibliotekspost` stämmer av byten mot postens storlek innan något skrivs.
 - Bara författaren flyttar, också till en annan grupp. En admin kopierar. Medan en flytt ur menyn pågår visas inga flyttval för
   posten.
-- `MITTFORM` godtar bara ett uid:s tecken: bokstäver, siffror, `-` och `_`.
+- `MITTFORM` godtar bara ett uid:s tecken: bokstäver, siffror, `-` och `_`. Regelns prov på prefixet är `(?s)`, så också en
+  radbrytning i platsen hålls i rätt gren (varv 2).
+- Varv 2: en flytt ur rutan Till en annan grupp lägger också posten i spärren, så att flyttvalen inte kommer tillbaka om rutan stängs
+  innan flytten är klar. Storage-provet har ett fall till: en annan medlem i gruppen skriver inte över någon annans fil.
 
 ### Ändrat
 

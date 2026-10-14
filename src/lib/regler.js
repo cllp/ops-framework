@@ -506,7 +506,7 @@ export function lagringsregelfragment(konfig = {}) {
       return request.auth != null && gid == '${MITT_PREFIX}' + request.auth.uid;
     }
     function opsFilArMitt(gid) {
-      return gid.matches('${MITT_PREFIX}.*');
+      return gid.matches('(?s)${MITT_PREFIX}.*');
     }
     function opsFilPlatsMedlem(gid) {
       return opsFilArMitt(gid) ? opsFilMitt(gid) : opsFilArMedlem(gid);
@@ -1686,7 +1686,7 @@ ${Array.from({ length: MAX_TAGGAR }, (_, k) => `        && (t.size() < ${k + 1} 
     // memberships. Med "eller" hade ett medlemskap vars groupId råkade vara ${MITT_PREFIX}<uid> öppnat någons eget bibliotek för läsning,
     // ändring och radering, sett i emulatorn. Inget skapar ett sådant medlemskap i dag, men ett skydd som vilar på det är inget skydd.
     function opsBibliotekArMitt(gid) {
-      return gid is string && gid.matches('${MITT_PREFIX}.*');
+      return gid is string && gid.matches('(?s)${MITT_PREFIX}.*');
     }
     function opsBibliotekPlatsMedlem(gid) {
       return opsBibliotekArMitt(gid) ? opsBibliotekMitt(gid) : opsArMedlem(gid);

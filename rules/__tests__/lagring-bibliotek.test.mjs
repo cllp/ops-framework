@@ -6,7 +6,8 @@
  *
  *   MITT      ägaren laddar upp och läser sin fil. En annan person läser och laddar inte upp. Ett planterat medlemskap vars grupp är
  *             platsen öppnar den inte. En uppladdning till en post som inte finns nekas.
- *   GRUPP     en medlem laddar upp till sin egen post och läser. En icke-medlem läser inte.
+ *   GRUPP     en medlem laddar upp till sin egen post och läser. En icke-medlem läser inte. En annan medlem läser men skriver inte
+ *             över någon annans fil.
  *   RADERA    ingen klient raderar en fil, inte ens ägaren: servern gör det när posten tas bort.
  *
  * Reglerna skrivs av `scripts/skriv-provregler.mjs` (`rules/provlagring.rules`).
@@ -27,6 +28,7 @@ const rot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..
 const AGARE = "uidKimLagring";
 const ANNAN = "uidAnnanLagring";
 const INKRAKT = "uidInkraktLagring";
+const MEDLEM = "uidMedlemLagring";
 const CPS = "cps-ab";
 const MIN = mittBibliotek(AGARE);
 const BYTE = new Uint8Array([37, 80, 68, 70]);
@@ -62,6 +64,7 @@ before(async () => {
   await miljo.withSecurityRulesDisabled(async (ctx) => {
     const db = ctx.firestore();
     await setDoc(doc(db, `memberships/${medlemskapsId(AGARE, CPS)}`), { userId: AGARE, groupId: CPS, roll: "medlem", typ: "person", status: "aktiv" });
+    await setDoc(doc(db, `memberships/${medlemskapsId(MEDLEM, CPS)}`), { userId: MEDLEM, groupId: CPS, roll: "medlem", typ: "person", status: "aktiv" });
     await setDoc(doc(db, `memberships/${INKRAKT}|${MIN}`), { userId: INKRAKT, groupId: MIN, roll: "admin", typ: "person", status: "aktiv" });
     await setDoc(doc(db, "bibliotek/m1"), post(MIN, AGARE, "m1"));
     await setDoc(doc(db, "bibliotek/g1"), post(CPS, AGARE, "g1"));
@@ -98,5 +101,9 @@ describe("Lagring: gruppens bibliotek", () => {
     await assertSucceeds(uploadBytes(ref(lagringSom(AGARE), `grupper/${CPS}/bibliotek/g1/kvitto.pdf`), BYTE, PDF));
     await assertSucceeds(getBytes(ref(lagringSom(AGARE), `grupper/${CPS}/bibliotek/g1/kvitto.pdf`)));
     await assertFails(getBytes(ref(lagringSom(ANNAN), `grupper/${CPS}/bibliotek/g1/kvitto.pdf`)));
+  });
+  it("en annan medlem i gruppen läser men skriver inte över någon annans fil", async () => {
+    await assertSucceeds(getBytes(ref(lagringSom(MEDLEM), `grupper/${CPS}/bibliotek/g1/kvitto.pdf`)));
+    await assertFails(uploadBytes(ref(lagringSom(MEDLEM), `grupper/${CPS}/bibliotek/g1/kvitto.pdf`), BYTE, PDF));
   });
 });

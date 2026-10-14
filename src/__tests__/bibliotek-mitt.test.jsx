@@ -246,6 +246,24 @@ describe("OpsBibliotek: Mitt bibliotek i menyn", () => {
     expect(await screen.findByText("Flyttad till Mitt bibliotek.")).toBeInTheDocument();
   });
 
+  it("en flytt ur rutan spärrar flyttvalen också när rutan stängs innan den är klar", async () => {
+    /** @type {(v?: unknown) => void} */
+    let slapp = () => {};
+    const onDela = vi.fn(() => new Promise((los) => { slapp = los; }));
+    render(<Vy poster={[gruppPost(KIM)]} jag={{ uid: KIM, roll: "medlem" }} grupper={[MITT_MAL, { id: "kor-ab", namn: "Kören" }]} onDela={onDela} />);
+    fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Protokoll" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Till en annan grupp" }));
+    fireEvent.click(screen.getByRole("button", { name: "Flytta" }));
+    await waitFor(() => expect(onDela).toHaveBeenCalledTimes(1));
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Flytta" })).toBeNull());
+    fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Protokoll" }));
+    expect(screen.queryByRole("menuitem", { name: "Flytta till Mitt bibliotek" })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: "Till en annan grupp" })).toBeNull();
+    slapp();
+    expect(await screen.findByText("Flyttad till Kören.")).toBeInTheDocument();
+  });
+
   it("en admin kopierar någon annans post till en annan grupp men flyttar den inte", () => {
     render(<Vy poster={[gruppPost(ANNAN)]} jag={{ uid: KIM, roll: "admin" }} grupper={[{ id: "kor-ab", namn: "Kören" }]} />);
     fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Protokoll" }));

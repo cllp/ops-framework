@@ -690,6 +690,8 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
             grupper={grupper.filter((g) => !arMittBibliotek(g.id) && g.id !== delar.groupId)}
             kanFlytta={Boolean(jag) && delar.skapadAv?.uid === jag?.uid}
             onDela={onDela}
+            onStart={(id) => setFlyttar((f) => (f.includes(id) ? f : [...f, id]))}
+            onSlut={(id) => setFlyttar((f) => f.filter((x) => x !== id))}
             onKlar={(text) => {
               setDelar(null);
               setStatus(text);
@@ -1543,9 +1545,9 @@ function UtskriftKontroll({ post, onSkrivUt, onGorForslag }) {
 }
 
 /**
- * @param {{ id: string, grupper: readonly { id: string, namn: string }[], onDela?: (inmatning: { id: string, groupId: string, satt: "flytta" | "kopiera" }) => void | Promise<void>, onKlar?: (text: string) => void, kanFlytta?: boolean }} props `kanFlytta` är falskt för den som inte skrev posten: en admin kopierar men flyttar inte någon annans post.
+ * @param {{ id: string, grupper: readonly { id: string, namn: string }[], onDela?: (inmatning: { id: string, groupId: string, satt: "flytta" | "kopiera" }) => void | Promise<void>, onKlar?: (text: string) => void, onStart?: (id: string) => void, onSlut?: (id: string) => void, kanFlytta?: boolean }} props `onStart` och `onSlut` lägger posten i listans spärr medan flytten pågår, också om rutan stängs under tiden (granskningen av PR 365, varv 2). `kanFlytta` är falskt för den som inte skrev posten: en admin kopierar men flyttar inte någon annans post.
  */
-function DelaKontroll({ id, grupper, onDela, onKlar, kanFlytta = true }) {
+function DelaKontroll({ id, grupper, onDela, onKlar, onStart, onSlut, kanFlytta = true }) {
   const [mal, setMal] = useState(grupper[0]?.id ?? "");
   const [fel, setFel] = useState("");
   const [pagar, setPagar] = useState(/** @type {"flytta" | "kopiera" | null} */ (null));
@@ -1564,6 +1566,7 @@ function DelaKontroll({ id, grupper, onDela, onKlar, kanFlytta = true }) {
     const namn = grupper.find((g) => g.id === mal)?.namn ?? mal;
     setFel("");
     setPagar(satt);
+    if (typeof onStart === "function") onStart(id);
     // ⛔ RUTAN STÄNGS FÖRST NÄR DET GICK (0.101.0). Förut stod den kvar utan besked efter ett lyckat tryck, och ett andra tryck
     // på Flytta hade försökt flytta en post som redan var borta.
     Promise.resolve()
@@ -1571,10 +1574,12 @@ function DelaKontroll({ id, grupper, onDela, onKlar, kanFlytta = true }) {
       .then(
         () => {
           setPagar(null);
+          if (typeof onSlut === "function") onSlut(id);
           if (typeof onKlar === "function") onKlar(satt === "flytta" ? `Flyttad till ${namn}.` : `Kopierad till ${namn}.`);
         },
         (e) => {
           setPagar(null);
+          if (typeof onSlut === "function") onSlut(id);
           setFel(e instanceof Error ? e.message : String(e));
         },
       );
