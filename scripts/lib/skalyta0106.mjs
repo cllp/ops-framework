@@ -347,9 +347,10 @@ export async function skrivfaltet(v) {
 /**
  * Element per meddelande i scenen `chatt0106-mer`, mätt med 0.105.0 (`--dist`): 26 vid både 390 och 1280 px. 0.106.0 mätt: 23,8 och 26.
  * ⛔ Med Mer-knappen och de lösa knapparna i DOM:en samtidigt (före `useBredd`) var det fler, och chatten ritades nästan dubbelt så långsamt
- * i jsdom. Taket får bara sjunka.
+ * i jsdom. Taket får bara sjunka, och det följer det mätta (granskningen av PR 390): telefonen mätt 23,8 har taket 24. Ett tak på 26
+ * hade släppt in två element till per meddelande utan att vakten blev röd. Datorn är oförändrad mot 0.105.0 och har kvar 26.
  */
-const TAK_ELEMENT_PER_MEDDELANDE = { telefon: 26, dator: 26 };
+const TAK_ELEMENT_PER_MEDDELANDE = { telefon: 24, dator: 26 };
 
 /**
  * (6) EN MER-KNAPP PER MEDDELANDE PÅ TELEFON (skiva 6). Gruppchatten med trådar, reaktioner och fästa, fem meddelanden.
@@ -392,8 +393,8 @@ export async function merKnappen(v) {
         return rader.length ? Math.round((rader.reduce((n, r) => n + r.querySelectorAll("*").length, 0) / rader.length) * 10) / 10 : 0;
       });
       const tak = telefon ? TAK_ELEMENT_PER_MEDDELANDE.telefon : TAK_ELEMENT_PER_MEDDELANDE.dator;
-      v.matt.push(`${namn}: ${element} element per meddelande (tak ${tak}, 0.105.0)`);
-      v.krav(element > 0 && element <= tak, `${namn}: ${element} element per meddelande, över taket ${tak} som 0.105.0 hade.`);
+      v.matt.push(`${namn}: ${element} element per meddelande (tak ${tak}, 0.105.0 hade 26)`);
+      v.krav(element > 0 && element <= tak, `${namn}: ${element} element per meddelande, över taket ${tak} (0.105.0 hade 26).`);
       if (telefon) {
         // (a)
         const losa = rader.flatMap((r) => r.losa);
