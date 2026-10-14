@@ -90,7 +90,9 @@ Det Svara gjorde som inget annat gör: en röstdialog med agenten utan att lämn
   igen, fel form från appen, stängt API, data ur databasen, knapparna under agentens svar men inte under en persons, inga knappar utan
   `onForslag`, och `nyttUtkast`. Mot 0.104.0:s `OpsAppShell`, `OpsMeddelanden` och `OpsTalk` (med 0.105.0:s `OpsForslag` och ordlista
   kvar, eftersom komponenten hämtar sina ord ur `lib/talk.js`): 2 röda, 8 gröna. De två röda är chattens prov, knapparna under agentens
-  svar och `nyttUtkast`. De sju om `OpsForslag` och `forslagUrData` mäter bara de nya filerna och kan inte bli röda mot gammal kod, så de
+  svar och `nyttUtkast`. ⛔ "En knapp per förslag" hade först bara ett förslag och kunde därför inte se om låset eller statusraden
+  delades; nu har det två, och ett tryck på det ena lämnar det andra orört. Rött med låset gemensamt och med statusraden gemensam.
+  (Granskningen av PR 387.) De sju om `OpsForslag` och `forslagUrData` mäter bara de nya filerna och kan inte bli röda mot gammal kod, så de
   mäts genom att koppla bort det de vaktar: utan spärren i `OpsForslag` är dubbelklicket och nejet röda, och utan `kontrolleraForslag`
   är det stängda API:t rött. Med villkoret "bara agentens svar" bortkopplat i chatten är chattens prov rött. ⛔ Det var det inte i
   första versionen av provet: "en persons meddelande" var skrivet av den som tittade, och dess knappar filtrerades redan bort som egna,

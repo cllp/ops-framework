@@ -29,11 +29,33 @@ function utestaende() {
 }
 
 describe("OpsForslag", () => {
-  it("⛔ en knapp per förslag med etiketten, förhandsvisningen under och ett namn på gruppen", () => {
-    render(<OpsForslag forslag={FORSLAG} onForslag={vi.fn()} />);
+  it("⛔ en knapp per förslag med etiketten, förhandsvisningen under och ett namn på gruppen, och varje förslag har eget lås och egen statusrad", async () => {
+    const TVA = [...FORSLAG, { id: "f2", etikett: "Lägg in: Påminn Telia", ikon: /** @type {const} */ ("handelse") }];
+    const forsta = utestaende();
+    const onForslag = vi.fn((/** @type {string} */ id) => (id === "f1" ? forsta.p : Promise.resolve({ utfall: /** @type {const} */ ("ok"), text: "Inlagt" })));
+    render(<OpsForslag forslag={TVA} onForslag={onForslag} />);
     const grupp = screen.getByRole("group", { name: "Förslag från agenten" });
-    expect(within(grupp).getByRole("button", { name: "Skapa ärendet: Fakturan saknas" })).toBeTruthy();
+    const ett = within(grupp).getByRole("button", { name: "Skapa ärendet: Fakturan saknas" });
+    const tva = within(grupp).getByRole("button", { name: "Lägg in: Påminn Telia" });
     expect(within(grupp).getByText("Fakturan från mars har inte kommit.")).toBeTruthy();
+    const status = within(grupp).getAllByRole("status");
+    expect(status).toHaveLength(2);
+    // ⛔ Medan det första pågår är det andra orört: inte spärrat och utan text.
+    fireEvent.click(ett);
+    await vanta();
+    expect(ett).toHaveAttribute("aria-disabled", "true");
+    expect(tva).not.toHaveAttribute("aria-disabled");
+    expect(status[1].textContent).toBe("");
+    fireEvent.click(tva);
+    await vanta();
+    expect(onForslag).toHaveBeenCalledTimes(2);
+    expect(onForslag).toHaveBeenLastCalledWith("f2");
+    expect(status[1].textContent).toBe("Inlagt");
+    // Det första väntar fortfarande, och dess rad säger det och inte det andras utfall.
+    expect(status[0].textContent).toBe("Utför…");
+    await act(async () => forsta.losa({ utfall: "ok", text: "Skapat" }));
+    expect(status[0].textContent).toBe("Skapat");
+    expect(status[1].textContent).toBe("Inlagt");
   });
 
   it("⛔ ett tryck är ett anrop: dubbelklick ger ett, och efter Klart gör knappen ingenting mer", async () => {
