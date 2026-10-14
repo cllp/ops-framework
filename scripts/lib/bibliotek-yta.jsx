@@ -24,7 +24,18 @@ const ljud2 = filPost("ljud2", "R jazz", { sokvag: "grupper/my/bibliotek/ljud/rj
 const pdfPost = filPost("pdf", "Inbetalningskort", { sokvag: "grupper/cps-ab/bibliotek/pdf/kort.pdf", namn: "inbetalningskort.pdf", mime: "application/pdf", byte: 244 * 1024 });
 const pdf2 = filPost("pdf2", "Presskit", { sokvag: "grupper/cps-ab/bibliotek/pdf/press.pdf", namn: "presskit.pdf", mime: "application/pdf", byte: 1005 * 1024 });
 
+// SessionStudios förebild (0.102.0, docs/jamforelser/0.102.0): samma fyra poster och taggar som i SessionStudios bild.
+const MITT = "mitt~uid-1";
+const kortPoster = [
+  { ...filPost("k-ide", "Idé 2026-10-10 00:11", { sokvag: "grupper/mitt~uid-1/bibliotek/k-ide/ide.webm", namn: "ide.webm", mime: "audio/webm", byte: 402 * 1024 }, { groupId: MITT, taggar: ["idé"], durationMs: 64000 }), groupId: MITT },
+  { ...Ops.byggPost({ groupId: MITT, typ: "anteckning", rubrik: "Protokoll styrelsemöte", text: "Vi beslutade om bokslutet och nästa möte i november.", taggar: ["styrelse", "2026"], skapadAv: skapare, skapad: tid, andrad: tid + 3 }), id: "k-prot" },
+  { ...filPost("k-kvitto", "Kvitto Tankning Visby", { sokvag: "grupper/mitt~uid-1/bibliotek/k-kvitto/kvitto.pdf", namn: "kvitto.pdf", mime: "application/pdf", byte: 239 * 1024 }, { groupId: MITT, taggar: ["kvitto", "bil"] }), groupId: MITT },
+  { ...Ops.byggPost({ groupId: MITT, typ: "lank", rubrik: "Bolagsverket", url: "https://bolagsverket.se", skapadAv: skapare, skapad: tid - 5, andrad: tid - 1 }), id: "k-lank" },
+];
+
 const SKIVPOSTER = {
+  kort: kortPoster,
+  meny: kortPoster,
   alla: [poster[0], poster[1], ljudPost, bildPost, pdfPost],
   inspelningar: [ljudPost, ljud2],
   bilder: [bildPost, bild2],
@@ -87,7 +98,10 @@ function Yta() {
       onSpara={() => {}}
       onRadera={() => {}}
       filUrl={skiva ? filUrl : undefined}
-      grupper={start === "utskrift" ? [{ id: "miranda-ab", namn: "Miranda" }] : []}
+      grupper={start === "utskrift" ? [{ id: "miranda-ab", namn: "Miranda" }] : start === "kort" || start === "meny" ? [{ id: "cps-ab", namn: "CPS AB" }, { id: MITT, namn: "Mitt bibliotek" }] : []}
+      platser={start === "kort" || start === "meny" ? [{ id: MITT, namn: "Mitt bibliotek" }, { id: "cps-ab", namn: "CPS AB" }] : []}
+      plats={start === "kort" || start === "meny" ? MITT : undefined}
+      onPlats={() => {}}
       onDela={() => {}}
       onSkrivUt={start === "utskrift" ? async () => ({ text: "Vi tar upp hyllan i nästa möte.", forslag: "anteckning" }) : undefined}
       onGorForslag={() => {}}

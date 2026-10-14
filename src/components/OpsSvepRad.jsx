@@ -52,8 +52,10 @@ export const ORD_OPSSVEPRAD = {
  * @param {object} props
  * @param {import("react").ReactNode} props.children
  * @param {readonly SvepAtgard[]} [props.atgarder]
+ * @param {boolean} [props.kort] (0.102.0) Raden är ett kort: rundade hörn, ytans färg och hovring, som Bibliotekets kort efter
+ *   SessionStudio. Utan den är raden en rad i en lista med avdelare, som förut.
  */
-export function OpsSvepRad({ children, atgarder = [] }) {
+export function OpsSvepRad({ children, atgarder = [], kort = false }) {
   const sprak = useOpsSprak();
   const t = (/** @type {keyof typeof ORD_OPSSVEPRAD} */ nyckel) => ordet(ORD_OPSSVEPRAD, nyckel, sprak);
   const [oppna, setOppna] = useState(0);
@@ -182,7 +184,7 @@ export function OpsSvepRad({ children, atgarder = [] }) {
   return (
     <li
       data-ops-svep={angra ? "angra" : oppna > 0 ? "oppen" : "stangd"}
-      className="relative overflow-hidden"
+      className={cx("relative overflow-hidden", kort && "rounded-md")}
       onPointerDown={ner}
       onClickCapture={(e) => {
         if (!svept.current) return;
@@ -214,7 +216,7 @@ export function OpsSvepRad({ children, atgarder = [] }) {
         ))}
       </div>
       <div
-        className={cx("relative bg-canvas touch-pan-y", drar ? "select-none" : "transition-transform duration-(--duration-fast) ease-standard motion-reduce:transition-none")}
+        className={cx("relative touch-pan-y", kort ? "bg-surface transition-colors hover:bg-hover" : "bg-canvas", drar ? "select-none" : "transition-transform duration-(--duration-fast) ease-standard motion-reduce:transition-none")}
         style={{ transform: oppna > 0 ? `translateX(-${oppna}px)` : undefined }}
       >
         {angra ? (

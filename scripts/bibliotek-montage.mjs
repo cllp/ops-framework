@@ -19,7 +19,10 @@ const tokensFil = path.join(rot, "tokens", "tokens.css");
 const lageArg = process.argv[2];
 const skivor = lageArg === "skivor";
 const laslage = lageArg === "laslage";
-const ut = skivor
+const kortlage = lageArg === "kort";
+const ut = kortlage
+  ? path.join(rot, "docs", "jamforelser", "0.102.0")
+  : skivor
   ? path.join(rot, "docs", "jamforelser", "bibliotek-filer-ljud")
   : laslage
     ? path.join(rot, "docs", "jamforelser", "0.90.4")
@@ -62,6 +65,64 @@ const sida = (lage) =>
 
 const { browser, varifran } = await startaWebblasare();
 console.log(`webbläsare: ${varifran}`);
+
+// ⛔ 0.102.0: listan som SessionStudios kort, och den korta menyn. Mörkt läge, eftersom förebilderna är tagna i mörkt.
+// Förebilderna är SessionStudios riktiga MyLibraryPanel, renderad med Playwright (forebild-ss-390.png, forebild-ss-1280.png).
+if (kortlage) {
+  const bilder = [];
+  for (const [namn, lage, viewport, efterAtt] of [
+    ["lista-390", "kort", { width: 390, height: 1000 }, null],
+    ["lista-1280", "kort", { width: 1280, height: 800 }, null],
+    ["meny-390", "meny", { width: 390, height: 1000 }, async (page) => {
+      await page.getByRole("button", { name: "Åtgärder för Protokoll styrelsemöte" }).click();
+      await page.getByRole("menuitem", { name: "Byt namn" }).waitFor();
+    }],
+  ]) {
+    const context = await browser.newContext({ viewport, deviceScaleFactor: 1, colorScheme: "dark" });
+    const page = await context.newPage();
+    const fel = [];
+    page.on("pageerror", (e) => fel.push(e.message));
+    await page.setContent(sida(lage), { waitUntil: "load" });
+    await page.waitForSelector("[data-bibliotek]", { timeout: 8000 }).catch((e) => {
+      throw new Error(`${namn}: listan ritades inte. ${fel.join("\n") || e.message}`);
+    });
+    if (efterAtt) await efterAtt(page);
+    await page.waitForTimeout(300);
+    if (fel.length) throw new Error(`${namn}: ${fel.join("\n")}`);
+    const fil = path.join(ut, `ramverk-${namn}.png`);
+    await page.screenshot({ path: fil, fullPage: namn !== "meny-390" });
+    console.log(fil);
+    bilder.push({ namn, fil });
+    await context.close();
+  }
+  for (const { namn, fil } of bilder) {
+    const bredd = namn.endsWith("1280") ? "1280" : "390";
+    const fore = path.join(ut, `forebild-ss-${bredd}.png`);
+    if (!fs.existsSync(fore)) throw new Error(`bibliotek-montage: förebilden ${fore} saknas`);
+    const context = await browser.newContext({ viewport: { width: bredd === "1280" ? 2700 : 1000, height: 1400 }, deviceScaleFactor: 1 });
+    const page = await context.newPage();
+    const vanster = fs.readFileSync(fil).toString("base64");
+    const hoger = fs.readFileSync(fore).toString("base64");
+    const max = bredd === "1280" ? "1290px" : "420px";
+    await page.setContent(`<!doctype html><html><head><meta charset="utf-8"><style>
+      body { margin: 0; background: #2a2a2a; font-family: sans-serif; color: #eee; }
+      .rad { display: flex; gap: 16px; padding: 16px; align-items: flex-start; width: max-content; }
+      figure { margin: 0; }
+      figcaption { font-size: 14px; margin-bottom: 8px; }
+      img { width: ${max}; height: auto; border: 1px solid #555; }
+    </style></head><body><div class="rad">
+      <figure><figcaption>Ramverket 0.102.0, ${bredd} px, mörkt</figcaption><img src="data:image/png;base64,${vanster}" alt="Ramverket"></figure>
+      <figure><figcaption>SessionStudio, MyLibraryPanel, ${bredd} px, mörkt</figcaption><img src="data:image/png;base64,${hoger}" alt="SessionStudio"></figure>
+    </div></body></html>`);
+    const montage = path.join(ut, `montage-${namn}.png`);
+    await page.locator(".rad").screenshot({ path: montage });
+    console.log(montage);
+    await context.close();
+  }
+  await browser.close();
+  fs.rmSync(arbetsmapp, { recursive: true, force: true });
+  process.exit(0);
+}
 
 if (skivor) {
   const forebild = path.join(rot, "docs", "jamforelser", "forebild-ss-bibliotek");

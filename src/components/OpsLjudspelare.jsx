@@ -49,6 +49,8 @@ import { OpsSpinner } from "./OpsSpinner.jsx";
  * @param {string} [props.namn]
  * @param {boolean} [props.visaNamn] Rita namnet ovanför i det fulla läget. I kompakt läge är namnet alltid radens rubrik.
  * @param {boolean} [props.kompakt] Listans rad: spela, rubrik, meta, våg. Inte hopp, hastighet eller nedladdning.
+ * @param {boolean} [props.liten] (0.102.0) Bara spela och pausa, en rund knapp på 32 px. Bibliotekets kort efter SessionStudio, där
+ *   rubriken, taggarna och längden står i kortet och spelknappen står där ikonen står på de andra korten (lifehub.app#163).
  * @param {string} [props.meta] Datum och längd under rubriken, i kompakt läge.
  * @param {number} [props.durationMs] Sparad längd. Visas innan elementet hunnit läsa filen.
  * @param {string} [props.peaks] Sparad våg, som den ligger på posten: `LJUD_STOLPAR` tecken, ett per stolpe (`kodaToppar`). Allt annat, till exempel en gammal lista av tal, räknas som att ingen våg är sparad, och spelaren räknar fram den ur ljudet.
@@ -57,12 +59,12 @@ import { OpsSpinner } from "./OpsSpinner.jsx";
  * @param {string} [props.styrId] Kopplar ⋯-menyn till den här spelaren.
  */
 export function OpsLjudspelare(props) {
-  const tillatna = ["src", "sokvag", "hamtaAdress", "namn", "visaNamn", "kompakt", "meta", "durationMs", "peaks", "onOppna", "onMeta", "styrId"];
+  const tillatna = ["src", "sokvag", "hamtaAdress", "namn", "visaNamn", "kompakt", "liten", "meta", "durationMs", "peaks", "onOppna", "onMeta", "styrId"];
   const okanda = Object.keys(props).filter((k) => !tillatna.includes(k));
   if (okanda.length > 0) {
     throw new Error(`OpsLjudspelare: okända props ${okanda.join(", ")}. Tillåtna: ${tillatna.join(", ")}.`);
   }
-  const { src = "", sokvag = "", hamtaAdress, namn = "", visaNamn = true, kompakt = false, meta = "", durationMs, peaks, onOppna, onMeta, styrId = "" } = props;
+  const { src = "", sokvag = "", hamtaAdress, namn = "", visaNamn = true, kompakt = false, liten = false, meta = "", durationMs, peaks, onOppna, onMeta, styrId = "" } = props;
   if (hamtaAdress !== undefined && typeof hamtaAdress !== "function") {
     throw new Error("OpsLjudspelare: hamtaAdress ska vara en funktion (sokvag) => adress. Det är lagringens adress, alltså getDownloadURL.");
   }
@@ -172,6 +174,7 @@ export function OpsLjudspelare(props) {
       namn={typeof namn === "string" ? namn : ""}
       visaNamn={visaNamn !== false}
       kompakt={kompakt === true}
+      liten={liten === true}
       meta={typeof meta === "string" ? meta : ""}
       durationMs={sparadMs}
       peaks={sparadeToppar}
@@ -204,9 +207,9 @@ function startFel(e) {
 }
 
 /**
- * @param {{ adress: string, namn: string, visaNamn: boolean, kompakt: boolean, meta: string, durationMs: number, peaks: number[] | null, onOppna: (() => void) | null, onMeta: ((meta: { durationMs?: number, peaks?: string }) => void) | null, styrId: string }} props
+ * @param {{ adress: string, namn: string, visaNamn: boolean, kompakt: boolean, liten: boolean, meta: string, durationMs: number, peaks: number[] | null, onOppna: (() => void) | null, onMeta: ((meta: { durationMs?: number, peaks?: string }) => void) | null, styrId: string }} props
  */
-function Spelare({ adress, namn, visaNamn, kompakt, meta, durationMs, peaks, onOppna, onMeta, styrId }) {
+function Spelare({ adress, namn, visaNamn, kompakt, liten, meta, durationMs, peaks, onOppna, onMeta, styrId }) {
   const ljud = useRef(/** @type {HTMLAudioElement | null} */ (null));
   const begart = useRef(false);
   const drar = useRef(false);
@@ -601,6 +604,28 @@ function Spelare({ adress, namn, visaNamn, kompakt, meta, durationMs, peaks, onO
     </button>
   );
 
+  // Startad: spelar nu, eller har spelat en bit. Läses ur tillståndet som redan finns, inget eget fält.
+  const startad = spelar || tid > 0;
+
+  if (liten) {
+    return (
+      <span data-ljudspelare="liten" className="inline-flex flex-col">
+        <audio ref={ljud} src={adress} preload="metadata" playsInline className="sr-only" />
+        <button
+          type="button"
+          aria-label={knappNamn}
+          aria-busy={laddar || undefined}
+          disabled={laddar}
+          onClick={spelaEllerPausa}
+          className="inline-flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-full bg-accent-subtle text-typ-ljud hover:bg-accent-faint focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-wait disabled:opacity-60"
+        >
+          {laddar ? <OpsSpinner size="sm" decorative /> : spelar ? <PausaIkon size={14} /> : <SpelaIkon size={14} />}
+        </button>
+        {fel ? <span role="alert" className="sr-only">{fel}</span> : null}
+      </span>
+    );
+  }
+
   return (
     <div data-ljudspelare={kompakt ? "kompakt" : "full"} className="flex w-full min-w-0 flex-col gap-1.5">
       {/*
@@ -646,7 +671,11 @@ function Spelare({ adress, namn, visaNamn, kompakt, meta, durationMs, peaks, onO
               )}
             </span>
           </div>
+          {/* ⛔ HOPP OCH HASTIGHET FÖRST NÄR LJUDET STARTATS (0.102.0). CP 2026-10-14: "Vad är detta med hastighet mm och spolning
+              när en låt/ljud inte ens har startat?" Innan första tryck på spela finns inget att hoppa i och ingen hastighet att byta.
+              Ladda ned står kvar hela tiden. */}
           <div className="flex flex-wrap items-center gap-x-1 gap-y-1">
+            {startad ? (<>
             <button type="button" aria-label="10 sekunder bakåt" disabled={!langd} onClick={() => hoppaOm(-HOPP_SEKUNDER)} className={biKlass}>
               <HoppaBakatIkon size={16} />
               <span aria-hidden="true" className="text-liten text-ink-secondary">-10</span>
@@ -663,6 +692,7 @@ function Spelare({ adress, namn, visaNamn, kompakt, meta, durationMs, peaks, onO
             >
               {hastighetText(hastighet)}
             </button>
+            </>) : null}
             <a
               href={adress}
               download={etikett || "ljud"}

@@ -461,6 +461,25 @@
   --color-slag-2: #a8781a;
   --color-slag-3: #3a68b0;
 
+  /* ─── Biblioteket: taggar och typer (0.102.0, lifehub.app#214 och #226) ───
+   * CP 2026-10-14: "Det måste se ut exakt som SessionStudio." Taggarna är SessionStudios åtta dämpade toner
+   * (`packages/shared/artifactTags.js`, `TAG_COLORS`), en helfylld pill med mörk text. Samma tagg får alltid samma ton
+   * (`taggfarg` i `lib/bibliotek.js`). Typernas ikonfärger är SessionStudios `CAT_COLORS`: anteckning, ljud och länk.
+   * Länkens blå är mörkare i ljust läge, så ikonen klarar 3:1 mot ytan.
+   * ──────────────────────────────────────────────────────────────────────── */
+  --color-tagg-1: #8B7D9C;
+  --color-tagg-2: #8a9b8a;
+  --color-tagg-3: #B5838D;
+  --color-tagg-4: #6B9B9B;
+  --color-tagg-5: #B07D62;
+  --color-tagg-6: #8a95a5;
+  --color-tagg-7: #9C8B7D;
+  --color-tagg-8: #7d9c8b;
+  --color-tagg-text: #121218;
+  --color-typ-anteckning: #8B7D9C;
+  --color-typ-ljud: #B5838D;
+  --color-typ-lank: #2f6fd6;
+
   /* ─── Diagram ────────────────────────────────────────────────────────────
    * Sex chart-toner och en ordnad skala, för när en yta ska bära identitet
    * eller storlek.
@@ -986,6 +1005,18 @@
   --dark-slag-1: #3b976b;
   --dark-slag-2: #b98d2e;
   --dark-slag-3: #5a85c8;
+  --dark-tagg-1: #8B7D9C;
+  --dark-tagg-2: #8a9b8a;
+  --dark-tagg-3: #B5838D;
+  --dark-tagg-4: #6B9B9B;
+  --dark-tagg-5: #B07D62;
+  --dark-tagg-6: #8a95a5;
+  --dark-tagg-7: #9C8B7D;
+  --dark-tagg-8: #7d9c8b;
+  --dark-tagg-text: #121218;
+  --dark-typ-anteckning: #8B7D9C;
+  --dark-typ-ljud: #B5838D;
+  --dark-typ-lank: #60a5fa;
 
   /* ⛔ #167: `--dark-chart-1..6` (tidigare `--dark-series-1..6`, samma tal,
    * bara omdöpt) och `--dark-shadow-sm/md/lg` flyttade upp i det genererade
@@ -1237,6 +1268,18 @@
     --color-slag-1: var(--dark-slag-1);
     --color-slag-2: var(--dark-slag-2);
     --color-slag-3: var(--dark-slag-3);
+    --color-tagg-1: var(--dark-tagg-1);
+    --color-tagg-2: var(--dark-tagg-2);
+    --color-tagg-3: var(--dark-tagg-3);
+    --color-tagg-4: var(--dark-tagg-4);
+    --color-tagg-5: var(--dark-tagg-5);
+    --color-tagg-6: var(--dark-tagg-6);
+    --color-tagg-7: var(--dark-tagg-7);
+    --color-tagg-8: var(--dark-tagg-8);
+    --color-tagg-text: var(--dark-tagg-text);
+    --color-typ-anteckning: var(--dark-typ-anteckning);
+    --color-typ-ljud: var(--dark-typ-ljud);
+    --color-typ-lank: var(--dark-typ-lank);
     --color-chart-1: var(--dark-chart-1);
     --color-chart-2: var(--dark-chart-2);
     --color-chart-3: var(--dark-chart-3);
@@ -1330,6 +1373,18 @@
   --color-slag-1: var(--dark-slag-1);
   --color-slag-2: var(--dark-slag-2);
   --color-slag-3: var(--dark-slag-3);
+  --color-tagg-1: var(--dark-tagg-1);
+  --color-tagg-2: var(--dark-tagg-2);
+  --color-tagg-3: var(--dark-tagg-3);
+  --color-tagg-4: var(--dark-tagg-4);
+  --color-tagg-5: var(--dark-tagg-5);
+  --color-tagg-6: var(--dark-tagg-6);
+  --color-tagg-7: var(--dark-tagg-7);
+  --color-tagg-8: var(--dark-tagg-8);
+  --color-tagg-text: var(--dark-tagg-text);
+  --color-typ-anteckning: var(--dark-typ-anteckning);
+  --color-typ-ljud: var(--dark-typ-ljud);
+  --color-typ-lank: var(--dark-typ-lank);
   --color-chart-1: var(--dark-chart-1);
   --color-chart-2: var(--dark-chart-2);
   --color-chart-3: var(--dark-chart-3);

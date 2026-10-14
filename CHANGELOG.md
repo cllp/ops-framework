@@ -9,6 +9,40 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.102.0
+
+**Biblioteket som SessionStudios, och en kortare meny.** [lifehub.app#214](https://github.com/cllp/lifehub.app/issues/214),
+[lifehub.app#226](https://github.com/cllp/lifehub.app/issues/226).
+
+CP 2026-10-14: "Det måste se ut exakt som SessionStudio ... Separera hellre artefakter i listan på ett bättre sätt som
+SessionStudio. Måste vara supersnyggt." Och om långtrycksmenyn: "Kanske popup med en kortare meny för artefakten? Vad är detta
+med hastighet mm och spolning när en låt/ljud inte ens har startat?" Montage sida vid sida med SessionStudios riktiga
+`MyLibraryPanel` i mörkt läge: `docs/jamforelser/0.102.0/`.
+
+### Ändrat
+
+- `OpsBibliotek`: varje post är ett eget kort med luft emellan, som SessionStudios. Kortet har typens ikon i typens färg,
+  rubriken, taggarna som färgade piller, typetiketten i versaler ("DOKUMENT · PDF"), en förhandsvisning och en metarad
+  (storlek, längd och datum). Ljudet spelas på kortet med en liten spelknapp där ikonen står.
+- Huvudet: platsen som rubrik med en pil och "N objekt", flikarna som en segmentrad (en väljare under 768 px), och sök,
+  Taggar och "+ Ny" på en rad.
+- Flikarna är Allt, Ljud, Anteckningar, Bilder, Dokument och Länkar. Tomma flikar döljs, utom Allt och Ljud.
+  `BIBLIOTEKFLIKAR` har `bild` som en ny flik, och `fil` är nu dokumenten, utan bilderna.
+- Taggarna ändras på kortet: lägg till med ett fält med förslag, ta bort med krysset, och ett tryck på en tagg filtrerar.
+  Rutan Taggar i menyn är borta. Filtret är en knapp Taggar med en panel, och den gamla raden med `#tagg` under sökfältet är
+  borta.
+- Menyn är kortare. Öppna, Taggar, 10 sekunder bakåt och framåt, Hastighet, Ladda ned och Redigera i listan är borta, och
+  Kopiera till Mitt bibliotek för författaren ligger i "Flytta eller kopiera".
+- `OpsAtgardsblad` är en liten ruta vid raden på alla bredder, med postens namn överst. Arket nerifrån med Stäng är borta.
+  `ORD_OPSATGARDSBLAD.stang` är borttagen.
+- `OpsLjudspelare` visar hopp och hastighet först när ljudet startats. Ladda ned syns hela tiden.
+
+### Tillagt
+
+- `taggfarg(tagg)` och `TAGGFARGER`: taggens färg 1 till 8 med SessionStudios hash, och tokens `--color-tagg-1` till
+  `--color-tagg-8`, `--color-tagg-text` och `--color-typ-anteckning`, `--color-typ-ljud` och `--color-typ-lank`.
+- `OpsLjudspelare` läget `liten`, och `kort` på `OpsSvepRad` och `OpsAtgardsblad`.
+
 ## 0.101.0
 
 **Mitt bibliotek, och flytt mellan det och gruppen.** [lifehub.app#226](https://github.com/cllp/lifehub.app/issues/226).

@@ -1,5 +1,4 @@
-import { useEffect, useRef, useState } from "react";
-import * as Dialog from "@radix-ui/react-dialog";
+import { useRef, useState } from "react";
 import * as Popover from "@radix-ui/react-popover";
 import { MoreVertical } from "lucide-react";
 import { LANGTRYCK_MS } from "../lib/apparark.js";
@@ -20,13 +19,16 @@ import { useOpsSprak } from "./OpsSprak.jsx";
  * Hålltiden är `LANGTRYCK_MS` i `apparark.js`, samma som app-arket. En egen
  * millisekund här hade glidit isär.
  *
- * Under 768 px är ytan ett ark från botten. På md och uppåt en meny. Komponenten
- * känner ingen fil: den får poster och anropar dem.
+ * Komponenten känner ingen fil: den får poster och anropar dem.
+ *
+ * ⛔ EN RUTA VID RADEN, INTE ETT ARK NERIFRÅN (0.102.0). CP 2026-10-14, med en skärmbild av arket i mörkt läge med tio rader:
+ * "Kanske popup med en kortare meny för artefakten?" Under 768 px var menyn ett ark över halva skärmen, med postens namn och
+ * Stäng överst. Nu är den samma lilla ruta på alla bredder, förankrad i raden som hölls in eller i ⋮, med postens namn som en
+ * rad överst så att det syns vilken post menyn gäller. Utanför rutan och Escape stänger, som förut.
  */
 
 export const ORD_OPSATGARDSBLAD = {
   atgarder: { sv: "Åtgärder för {namn}", en: "Actions for {namn}" },
-  stang: { sv: "Stäng", en: "Close" },
 };
 
 /**
@@ -37,14 +39,6 @@ export const ORD_OPSATGARDSBLAD = {
  * @property {boolean} [fara]
  * @property {import("react").ReactNode} [ikon]
  */
-
-/**
- * @param {string} [fraga]
- */
-function lasSmal(fraga = "(max-width: 767px)") {
-  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
-  return window.matchMedia(fraga).matches;
-}
 
 /** Hur länge efter att fingret lyfts som klicket från samma tryck ignoreras. Klicket kommer inom några tiotal millisekunder. */
 const SLAPP_SKYDD_MS = 400;
@@ -57,20 +51,21 @@ const SLAPP_SKYDD_TAK_MS = 2000;
  * @param {readonly Atgard[]} props.poster
  * @param {import("react").ReactNode} [props.children] Raden som tar långtryck och högerklick. Utan barn ritas bara knappen.
  * @param {boolean} [props.baraKnapp] Bara ⋮, utan radomslag. För ett öppet dokument.
+ * @param {boolean} [props.kort] (0.102.0) Raden är ett kort: ⋮ uppe till höger i stället för mitt på raden, och tätare kant.
  */
-export function OpsAtgardsblad({ namn, poster, children = null, baraKnapp = false }) {
+export function OpsAtgardsblad({ namn, poster, children = null, baraKnapp = false, kort = false }) {
   const sprak = useOpsSprak();
   const [oppen, setOppen] = useState(false);
-  const [smal, setSmal] = useState(() => lasSmal());
   const langt = useRef(false);
   /**
-   * ⛔ FINGRET SOM ÖPPNADE MENYN VÄLJER INGET NÄR DET LYFTS (0.100.1, lifehub.app#226). På en smal skärm är menyn ett ark nerifrån.
+   * ⛔ FINGRET SOM ÖPPNADE MENYN VÄLJER INGET NÄR DET LYFTS (0.100.1, lifehub.app#226). På en smal skärm var menyn då ett ark nerifrån.
    * Hölls en rad i nedre halvan av skärmen låg arket under fingret när det lyftes, och klicket som följer släppet träffade raden
    * där, oftast Öppna. Mätt i Chromium med pekskärm i iPhone-storlek: rad ett och två gav menyn, rad tre och fyra öppnade posten.
    * Spärren gäller bara klicket från samma tryck, och det är ett TIDSFÖNSTER och inget tillstånd (granskningen av PR 364): klick inom
    * `SLAPP_SKYDD_MS` efter att fingret lyfts ignoreras, i hela arket (också Stäng), och ett klick efter det går alltid fram. Ett
    * tillstånd som släpptes först av ett klick på en rad hade svalt nästa riktiga tryck när släppet landade någon annanstans.
    * `oppnad` och `slappt` är millisekunder (`Date.now()`); `slappt` är `null` tills fingret lyfts.
+   * Spärren står kvar med rutan (0.102.0): den förankras vid raden som hölls in, och kan ligga under fingret på samma sätt.
    */
   const slappSkydd = useRef(/** @type {null | { oppnad: number, slappt: number | null }} */ (null));
   /** Ska ett klick i menyn just nu ignoreras som släppet efter långtrycket? */
@@ -89,15 +84,6 @@ export function OpsAtgardsblad({ namn, poster, children = null, baraKnapp = fals
   };
   const menyRef = useRef(/** @type {HTMLDivElement | null} */ (null));
 
-  useEffect(() => {
-    if (typeof window.matchMedia !== "function") return undefined;
-    const mq = window.matchMedia("(max-width: 767px)");
-    const las = () => setSmal(mq.matches);
-    las();
-    mq.addEventListener("change", las);
-    return () => mq.removeEventListener("change", las);
-  }, []);
-
   if (typeof namn !== "string" || namn === "") {
     throw new Error("OpsAtgardsblad: namn krävs. Knappen och menyn annonserar vilken post det gäller, och utan namn är ⋮ en ikon utan ord.");
   }
@@ -111,7 +97,6 @@ export function OpsAtgardsblad({ namn, poster, children = null, baraKnapp = fals
   }
 
   const etikett = ordet(ORD_OPSATGARDSBLAD, "atgarder", sprak).replace("{namn}", namn);
-  const stang = ordet(ORD_OPSATGARDSBLAD, "stang", sprak);
 
   /**
    * @param {any} e
@@ -206,19 +191,7 @@ export function OpsAtgardsblad({ namn, poster, children = null, baraKnapp = fals
 
   const knappKlass = "inline-flex min-h-11 min-w-11 shrink-0 cursor-pointer items-center justify-center rounded-md text-ink-secondary hover:bg-hover hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
   const knappInnehall = <MoreVertical size={20} aria-hidden="true" />;
-  const knapp = smal ? (
-    <button
-      type="button"
-      data-ops-atgard-knapp=""
-      aria-label={etikett}
-      aria-haspopup="menu"
-      aria-expanded={oppen}
-      className={knappKlass}
-      onClick={() => setOppen((v) => !v)}
-    >
-      {knappInnehall}
-    </button>
-  ) : (
+  const knapp = (
     <Popover.Trigger
       type="button"
       data-ops-atgard-knapp=""
@@ -234,7 +207,7 @@ export function OpsAtgardsblad({ namn, poster, children = null, baraKnapp = fals
   ) : (
     <div
       data-ops-atgard=""
-      className="flex w-full items-center gap-1 px-4 py-3"
+      className={kort ? "flex w-full items-start gap-1 py-3 pr-1 pl-3" : "flex w-full items-center gap-1 px-4 py-3"}
       onPointerDown={ner}
       onContextMenu={(e) => {
         e.preventDefault();
@@ -247,50 +220,21 @@ export function OpsAtgardsblad({ namn, poster, children = null, baraKnapp = fals
         e.stopPropagation();
       }}
     >
-      <div className="flex min-w-0 flex-1 items-center gap-3">{children}</div>
+      <div className={cx("flex min-w-0 flex-1 gap-3", kort ? "items-start" : "items-center")}>{children}</div>
       {knapp}
     </div>
   );
 
-  if (smal) {
-    return (
-      <>
-        {rad}
-        <Dialog.Root open={oppen} onOpenChange={setOppen}>
-          <Dialog.Portal>
-            <Dialog.Overlay className="fixed inset-0 z-(--z-overlay) bg-scrim" />
-            <Dialog.Content
-              className={cx(
-                "fixed inset-x-0 bottom-0 z-(--z-modal) flex max-h-[calc(100dvh-var(--safe-top))] flex-col pb-(--safe-bottom)",
-                radBehallare({ ark: true }),
-              )}
-              onOpenAutoFocus={fokusForsta}
-              onClickCapture={stoppaSlappet}
-              aria-describedby={undefined}
-            >
-              <div className="mx-auto mt-2 h-1 w-10 rounded-full bg-line" aria-hidden="true" />
-              <div className="flex items-center justify-between gap-3 px-4 pt-3 pb-1">
-                <Dialog.Title className="m-0 truncate text-etikett font-medium text-ink">{namn}</Dialog.Title>
-                <Dialog.Close className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md text-etikett text-ink-secondary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
-                  {stang}
-                </Dialog.Close>
-              </div>
-              {rader}
-            </Dialog.Content>
-          </Dialog.Portal>
-        </Dialog.Root>
-      </>
-    );
-  }
-
   return (
     <Popover.Root open={oppen} onOpenChange={setOppen}>
-      {rad}
+      {baraKnapp ? rad : <Popover.Anchor asChild>{rad}</Popover.Anchor>}
       <Popover.Portal>
         <Popover.Content
           align="end"
           sideOffset={4}
-          className={cx("z-(--z-dropdown) min-w-52", radBehallare())}
+          collisionPadding={8}
+          aria-label={etikett}
+          className={cx("z-(--z-dropdown) w-56 max-w-[calc(100vw-1rem)]", radBehallare())}
           onOpenAutoFocus={fokusForsta}
           onClickCapture={stoppaSlappet}
           /*
@@ -301,6 +245,7 @@ export function OpsAtgardsblad({ namn, poster, children = null, baraKnapp = fals
            */
           onFocusOutside={(e) => e.preventDefault()}
         >
+          <p data-ops-atgard-namn="" className="m-0 truncate px-3 pt-2 pb-1 text-meta font-medium text-ink-muted">{namn}</p>
           {rader}
         </Popover.Content>
       </Popover.Portal>
