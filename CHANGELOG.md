@@ -42,11 +42,6 @@ docs/jamforelser/0.106.0`, avsnitt 47).
 - `OpsMeddelanden`: agenten som en rad i inkorgen med antalet samtal, ämneslistan med Nytt samtal, ämnets rubrik i huvudet och
   Arkivera. `valtAgent`, `nytt="agent"`, och `onValj(id, { agent })`.
 
-### Tillagt: chatten på båda språken (#385)
-
-- Varje förval i `Meddelandetexter` och i Chattinfo har en engelsk form (`ORD_MEDDELANDEN`, `ORD_CHATTINFO`), och vyerna sätter sitt
-  språk som kontext för det de ritar.
-
 ### Tillagt: läsa bakåt
 
 - Vyn följer slutet bara för den som står där (inom 96 px), också när agentens status, ett förslag eller skrivfältet ändrar höjden.
@@ -100,6 +95,9 @@ docs/jamforelser/0.106.0`, avsnitt 47).
 - En bild i en kommentar eller ett meddelande är en knapp och inte en nedladdningslänk. Ett prov som letar efter länken till en bild
   hittar den i dialogens fot.
 - På telefon står Reagera, Fäst, Svara med citat och Svara i tråd i Mer-menyn och inte under bubblan.
+- Chatten på båda språken (#385): varje förval i `Meddelandetexter` och i Chattinfo har en engelsk form (`ORD_MEDDELANDEN`,
+  `ORD_CHATTINFO`), och vyerna sätter sitt språk som kontext för det de ritar. De engelska förvalen är nya, och en app som läser
+  förvalen på engelska ser dem nu i Meddelanden och Chattinfo.
 
 ### Ordning för appen
 
