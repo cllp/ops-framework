@@ -1050,7 +1050,9 @@ export function OpsTalk({ lage, fel, niva, sekunder = 0, tak = MAX_SEKUNDER, fra
       aria-label="TALK"
       data-ops-talk=""
       data-lage={lage}
-      className="fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+5.5rem)] z-(--z-dropdown) mx-auto max-w-md md:bottom-6"
+      // ⛔ SAMMA KANT SOM ARKEN, PLUS LUFT (granskningen av PR 366, BÖR 3). Här stod `env(...)+5.5rem`, en gissning av bottenradens
+      // höjd som varken följde tokenen eller räknade med skalets spelrad, så fältet låg delvis över dem.
+      className="fixed inset-x-3 bottom-[calc(var(--bottom-nav-h)+var(--safe-bottom)+var(--spelrad-h,0px)+0.75rem)] z-(--z-dropdown) mx-auto max-w-md md:bottom-[calc(1.5rem+var(--spelrad-h,0px))]"
     >
       <div className="rounded-3xl border border-line-strong bg-raised p-4 shadow-lg">
         <OpsInspelning
