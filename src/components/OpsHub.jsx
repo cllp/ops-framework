@@ -5,8 +5,8 @@ import { validateNav } from "../lib/nav.js";
 import { OpsCountBadge } from "./counter.jsx";
 import { OpsButton } from "./OpsButton.jsx";
 import { OpsEmpty } from "./OpsEmpty.jsx";
-import { ChevronNedIkon } from "./icons.jsx";
-import { OpsView } from "./OpsView.jsx";
+import { ChevronNedIkon, HubIkon } from "./icons.jsx";
+import { OpsView, OpsViewHeader } from "./OpsView.jsx";
 import { radKlass } from "../lib/radKlass.js";
 import { OpsHubTillbaka } from "./OpsTillbaka.jsx";
 
@@ -104,13 +104,14 @@ export function OpsHub({
   return ram ? <OpsView>{innehall}</OpsView> : innehall;
 }
 
-/** @type {Record<"sv"|"en", { tomRubrik: string, tomText: (namn: string, medVag: boolean) => string, valbara: string, ingaValbara: string, installera: string, agarenInstallerar: string, ingaRitbara: string, ingaRitbaraText: string, saknadRubrik: string, interegistrerad: (id: string) => string, ingetKort: (id: string) => string, moduler: (namn: string) => string }>} */
+/** @type {Record<"sv"|"en", { rubrik: string, tomRubrik: string, tomText: (namn: string, medVag: boolean) => string, valbara: string, ingaValbara: string, installera: string, agarenInstallerar: string, ingaRitbara: string, ingaRitbaraText: string, saknadRubrik: string, interegistrerad: (id: string) => string, ingetKort: (id: string) => string, moduler: (namn: string) => string }>} */
 const GRUPPHUBB_TEXT = {
   sv: {
     tomRubrik: "Gruppen har inga appar ännu",
     tomText: (namn, medVag) => medVag
       ? `${namn} har inga appar ännu. Välj vilka som ska finnas här.`
       : `${namn} har inga appar ännu. Ägaren väljer vilka som ska finnas här.`,
+    rubrik: "Appar",
     valbara: "Appar som kan läggas till",
     ingaValbara: "Det finns inga appar att lägga till.",
     installera: "Installera",
@@ -127,6 +128,7 @@ const GRUPPHUBB_TEXT = {
     tomText: (namn, medVag) => medVag
       ? `${namn} has no apps yet. Choose which ones belong here.`
       : `${namn} has no apps yet. The owner chooses which ones belong here.`,
+    rubrik: "Apps",
     valbara: "Apps that can be added",
     ingaValbara: "There are no apps to add.",
     installera: "Install",
@@ -236,8 +238,9 @@ function ValbaraAppar({ moduler, sprak, t, installera, onNavigate, visaAgarRad =
  * @param {string} [props.badgeText]
  * @param {boolean} [props.ram] Ritas i `OpsView`. Förval sant.
  * @param {{ href?: string, onClick?: (id?: string) => void, onInstallera?: (id: string) => void, etikett?: string }} [props.installera] Vägen till modulvalet. Appen skickar den bara för ägaren (0.87.0, lifehub.app#129). `onInstallera` installerar just den appen. Utan den anropas `onClick` med appens id, eller så öppnas `href`.
+ * @param {import("react").ReactNode} [props.atgard] (0.103.0) Åtgärden i sidans huvud, till exempel `<OpsVyAtgard>Skapa app</OpsVyAtgard>`.
  */
-export function OpsGruppHubb({ grupp, moduler, activeHref = "", onNavigate, sprak: sprakProp, info, badge, badgeText, ram = true, installera }) {
+export function OpsGruppHubb({ grupp, moduler, activeHref = "", onNavigate, sprak: sprakProp, info, badge, badgeText, ram = true, installera, atgard }) {
   // ⛔ Språket ur appens `OpsSprakProvider` när appen inte gav ett (0.46.0, cllp/bolag-ops#528).
   const sprakKontext = useOpsSprak();
   const sprak = sprakProp ?? sprakKontext;
@@ -255,6 +258,9 @@ export function OpsGruppHubb({ grupp, moduler, activeHref = "", onNavigate, spra
   ) : null;
   const innehall = (
     <div className="flex flex-col gap-4" data-grupphubb={grupp.id}>
+      {/* ⛔ SIDAN HAR VYNS TUNNA HUVUD (0.103.0), som Meddelanden: ikonen, "Appar" och appens åtgärd. CP 2026-10-14: "App panelen och
+          Skapa app kan få vara enligt samma princip i header som meddelanden." Förut började sidan direkt med korten. */}
+      <OpsViewHeader title={t.rubrik} ikon={<HubIkon size={18} />} actions={atgard ?? undefined} />
       {poster.length > 0 ? (
         <KortRutnat poster={poster} activeHref={activeHref} onNavigate={onNavigate} ariaLabel={t.moduler(gruppnamn)} badgeText={badgeText ?? (sprak === "en" ? "new" : "nya")} sprak={sprak} />
       ) : saknade.length > 0 ? (

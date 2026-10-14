@@ -1,4 +1,5 @@
 import { cx } from "../lib/cx.js";
+import { PlusIkon } from "./icons.jsx";
 import { ChevronVansterIkon } from "./icons.jsx";
 import { useIHuvudmenyn } from "./OpsHuvudmeny.jsx";
 
@@ -44,6 +45,32 @@ export const SIDRUBRIK_KLASS = "m-0 font-display text-sida leading-tight trackin
 export const VYHUVUD_KLASS = "flex min-w-0 items-center gap-2";
 /** Namnet i vyns huvud. Se `VYHUVUD_KLASS`. */
 export const VYRUBRIK_KLASS = "m-0 min-w-0 flex-1 truncate text-etikett font-semibold text-ink";
+/**
+ * En åtgärd i vyns huvud: "+ Nytt meddelande", "+ Skapa app" (0.103.0).
+ *
+ * ⛔ EN KNAPP FÖR VARJE VYS SKAPA, MED MEDDELANDENS FORM. CP 2026-10-14 med en skärmbild av Appar: "App panelen och Skapa app kan
+ * få vara enligt samma princip i header som meddelanden." Meddelanden hade sin knapp handskriven, och Appar ett eget kort med en
+ * knapp och en förklarande rad. Nu är det samma komponent, accentfärgad text med plus, 44 px hög, och den står i huvudets rad.
+ *
+ * @param {{ children: import("react").ReactNode, onClick: () => void, pressed?: boolean, ariaLabel?: string, plus?: boolean }} props
+ */
+export function OpsVyAtgard({ children, onClick, pressed, ariaLabel, plus = true }) {
+  if (typeof onClick !== "function") throw new Error("OpsVyAtgard: onClick krävs. En knapp i huvudet som inte gör något är en tyst nedsläppsväg.");
+  return (
+    <button
+      type="button"
+      data-vy-atgard=""
+      aria-pressed={pressed}
+      aria-label={ariaLabel}
+      onClick={onClick}
+      className="inline-flex min-h-11 shrink-0 cursor-pointer items-center gap-1 rounded-base px-2 text-meta font-medium text-accent transition-colors duration-(--duration-fast) ease-standard hover:bg-accent-faint focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
+    >
+      {plus ? <PlusIkon size={14} /> : null}
+      <span>{children}</span>
+    </button>
+  );
+}
+
 /** Ikonens plats i vyns huvud, i accent. */
 export const VYIKON_KLASS = "inline-flex shrink-0 text-accent [&>svg]:size-[18px]";
 

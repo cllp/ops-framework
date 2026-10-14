@@ -16,6 +16,7 @@ export { OpsBottomNav } from "./components/OpsBottomNav.jsx";
 export { OpsTalk, OpsInspelning, useTalk, TALK_PRICKAR } from "./components/OpsTalk.jsx";
 export { LANGTRYCK_MS, TALK_ORD, MAX_SEKUNDER, LJUDFORMAT, MIKROFON_SPARRAD_AV_SIDAN, mikrofonenTillatenAvSidan, kanBeOmMikrofon, talkNasta, valjFormat, talkFeltext, webblasarensInspelare } from "./lib/talk.js";
 export { OpsHub, OpsHubModul, OpsHubTillbaka, OpsGruppHubb } from "./components/OpsHub.jsx";
+export { OpsVyAtgard } from "./components/OpsTillbaka.jsx";
 export { OpsModulSida } from "./components/OpsModulSida.jsx";
 export { OpsApparArk, ORD_OPSAPPARARK } from "./components/OpsApparArk.jsx";
 export { OpsModulRam, ORD_OPSMODULRAM } from "./components/OpsModulRam.jsx";

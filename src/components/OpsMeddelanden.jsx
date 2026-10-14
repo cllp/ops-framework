@@ -19,7 +19,7 @@ import { usePersonnamn } from "./usePersonnamn.js";
 import { OpsIconLink } from "./OpsIconLink.jsx";
 import { arInstallningslage } from "../lib/apparark.js";
 import { ModulLageKnapp, OpsModulRam, kravRam } from "./OpsModulRam.jsx";
-import { OpsHubTillbaka, VYHUVUD_KLASS, VYIKON_KLASS, VYRUBRIK_KLASS } from "./OpsTillbaka.jsx";
+import { OpsHubTillbaka, OpsVyAtgard, VYHUVUD_KLASS, VYIKON_KLASS, VYRUBRIK_KLASS } from "./OpsTillbaka.jsx";
 import { OpsMottagare } from "./OpsMottagare.jsx";
 import { OpsSkapaRubrik } from "./OpsSkapaRubrik.jsx";
 import { OpsCountBadge } from "./counter.jsx";
@@ -785,15 +785,9 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
           </span>
           <h2 className={VYRUBRIK_KLASS}>{t.rubrik}</h2>
           {groupId ? (
-            <button
-              type="button"
-              aria-pressed={nyttLage}
-              onClick={() => valj(null, { nytt: true })}
-              className="inline-flex min-h-11 cursor-pointer items-center gap-1 rounded-base px-2 text-meta font-medium text-accent transition-colors duration-(--duration-fast) ease-standard hover:bg-accent-faint focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
-            >
-              <PlusIkon size={14} />
-              <span>{t.nytt}</span>
-            </button>
+            <OpsVyAtgard pressed={nyttLage} onClick={() => valj(null, { nytt: true })}>
+              {t.nytt}
+            </OpsVyAtgard>
           ) : null}
           <ModulLageKnapp ram={ram} activeHref={activeHref ?? ""} onNavigate={tillbaka?.onNavigate} sprak={sprak} installningar={false} />
         </div>

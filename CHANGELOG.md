@@ -28,6 +28,14 @@ grupp. Då skulle vi kunna göra +:et till en Mikrofon". Skärmbilder mot en byg
 `docs/jamforelser/0.103.0/ramverk-mikrofon-390.png`, `ramverk-tips-390.png` och `ramverk-kalender-hall-390.png`
 (`node scripts/mikrofon-montage.mjs`).
 
+### Tillagt: Appar har vyns huvud, och "+ Skapa app" står i det
+
+CP 2026-10-14, med en skärmbild av Appar där sidan började direkt med korten och "Skapa en app" var ett eget kort längst ned: "App
+panelen och Skapa app kan få vara enligt samma princip i header som meddelanden."
+
+- `OpsGruppHubb` ritar vyns tunna huvud: ikonen, "Appar" och `atgard` (ny prop).
+- `OpsVyAtgard`: åtgärden i ett vyhuvud, med Meddelandens form. `OpsMeddelanden` använder den för "+ Nytt meddelande".
+
 ### ⛔ Brytande
 
 - **Med `talk` är bottenradens mittknapp en mikrofon, inte ett plus.** Ett vanligt tryck startar TALK direkt (samma
