@@ -77,10 +77,16 @@ describe("⛔ skapa ett ämne", () => {
     await assertSucceeds(setDoc(doc(som(ANNA), `samtal/${sid}`), nytt()));
     await assertSucceeds(setDoc(doc(som(ANNA), `samtal/${sid}/meddelanden/m1`), { text: "Hej", av: ANNA, tid: nu() }));
   });
-  it("⛔ ett ämnesid utanför formen nekas: versaler, bindestreck, för långt, tomt", async () => {
-    for (const fel of [`${bas}|A_stor`, `${bas}|a-b`, `${bas}|${"a".repeat(41)}`, `${bas}|`]) {
+  it("⛔ ett ämnesid utanför formen nekas: versaler, bindestreck, tomt", async () => {
+    for (const fel of [`${bas}|A_stor`, `${bas}|a-b`, `${bas}|`]) {
       await assertFails(setDoc(doc(som(ANNA), `samtal/${fel}`), nytt()));
     }
+  });
+  it("⛔ längden är gränsen: 40 tecken med a_ går igenom, 41 nekas (granskningen av PR 390: förut saknade id:t prefixet och mätte formen)", async () => {
+    // Samma prefix och samma tecken i båda. Det enda som skiljer är ett tecken till.
+    await assertSucceeds(setDoc(doc(som(ANNA), `samtal/${amne(`a_${"a".repeat(38)}`)}`), nytt()));
+    // Byggs för hand: `samtalsnyckel` nekar redan ett för långt ämne, och provet gäller regeln.
+    await assertFails(setDoc(doc(som(ANNA), `samtal/${bas}|a_${"a".repeat(39)}`), nytt()));
   });
   it("⛔ fem delar, eller ett annat par i nyckeln, nekas", async () => {
     await assertFails(setDoc(doc(som(ANNA), `samtal/${bas}|a_x|a_y`), nytt()));
