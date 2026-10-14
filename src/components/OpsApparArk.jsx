@@ -7,6 +7,7 @@ import { arkHyllaZ, arkOvanforRad, radBehallare } from "../lib/radKlass.js";
 import { text } from "../lib/sprak.js";
 import { ChevronHogerIkon, ChevronVansterIkon, HubIkon } from "./icons.jsx";
 import { useOpsSprak } from "./OpsSprak.jsx";
+import { medKarna } from "../lib/karna.js";
 
 /**
  * App-arket (0.89.0).
@@ -202,7 +203,9 @@ export function OpsApparArk({ oppen, onOppen, moduler, grupp, farAndra, onOrdnin
     const fran = startOrdning.current;
     if (grupp && ut && fran) {
       const samma = fran.length === ut.length && fran.every((id, i) => id === ut[i]);
-      if (!samma) spara(ordningMedSynliga(grupp.moduler, propIds, ut), ut);
+      // ⛔ Hela listan som den lästes, med kärnan (0.106.0, #386). Utan den hade en kärnmodul som saknas i den sparade listan
+      // stått i arket men inte i `alla`, och `ordningMedSynliga` hade tappat den.
+      if (!samma) spara(ordningMedSynliga(medKarna(grupp.moduler, moduler ?? []), propIds, ut), ut);
     }
     nollstallPek();
   };

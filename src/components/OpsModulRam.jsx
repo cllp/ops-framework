@@ -15,6 +15,7 @@ import { useOpsSprak } from "./OpsSprak.jsx";
 import { OpsSwitch } from "./OpsToggle.jsx";
 import { OpsView } from "./OpsView.jsx";
 import { modulTillbaka } from "../lib/modulram.js";
+import { arKarna, medKarna } from "../lib/karna.js";
 
 /**
  * Modulens ram: visning eller inställningar (0.89.0).
@@ -52,6 +53,7 @@ export const ORD_OPSMODULRAM = {
   allmant: { sv: "Allmänt", en: "General" },
   pa: { sv: "På", en: "On" },
   paHint: { sv: "Appen är installerad i gruppen.", en: "The app is installed in the group." },
+  karnaHint: { sv: "Appen hör till ramverket och finns alltid i gruppen. Den går inte att stänga av.", en: "The app is part of the framework and is always in the group. It cannot be turned off." },
   ikon: { sv: "Ikon", en: "Icon" },
   ikonText: { sv: "Appens ikon.", en: "The app's icon." },
   ordning: { sv: "Ordning", en: "Order" },
@@ -263,7 +265,8 @@ export function InstallningsInnehall({ modul, ram, sprak }) {
   const [listor, setListor] = useState(/** @type {{ moduler: string[], huvudmeny: string[] } | null} */ (null));
   const [boolUtkast, setBoolUtkast] = useState(/** @type {Record<string, boolean>} */ ({}));
   const [ikonOpp, setIkonOpp] = useState(false);
-  const moduler = listor ? listor.moduler : [...propModuler];
+  // ⛔ En kärnmodul är alltid på (0.106.0, #386, `karna.js`): listan läses med den, också när den sparade saknar den.
+  const moduler = listor ? listor.moduler : medKarna(propModuler, [modul]);
   const huvudmeny = listor ? listor.huvudmeny : [...propHuvud];
   const pa = moduler.includes(modul.id);
   const plats = moduler.indexOf(modul.id);
@@ -320,9 +323,9 @@ export function InstallningsInnehall({ modul, ram, sprak }) {
             <OpsSwitch
               placering="rad"
               label={t("pa")}
-              hint={t("paHint")}
+              hint={arKarna(modul) ? t("karnaHint") : t("paHint")}
               checked={pa}
-              disabled={!ram.farAndra || !grupp}
+              disabled={!ram.farAndra || !grupp || arKarna(modul)}
               onChange={(nasta) => {
                 if (!grupp) return;
                 if (typeof ram.onOrdning !== "function") {

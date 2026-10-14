@@ -183,6 +183,7 @@ export { provaModul, provrapport, GRUPPDATAYTOR, PROV_FRAMMANDE_GRUPP } from "./
  * vid render, ägarens avvikelse (`typavvikelser` på gruppen) och märket «från <modul>».
  */
 export { TYPYTOR, MODULTYPAVGRANSARE, MAX_TYPAVVIKELSER, MAX_TYPNAMN, modultypId, delaModultypId, byggTypavvikelser, medAvvikelse, typerForGrupp, bidragForGrupp, typenForRad, typmarke, typensUrsprung, typerTillValg } from "./lib/modultyper.js";
+export { arKarna, karnmoduler, medKarna } from "./lib/karna.js";
 export { hubbForGrupp, valbaraModuler, hubbPoster, huvudmenyPoster, modulLage, byggOmdirigeringar, omdirigera, kontrolleraOmdirigeringar } from "./lib/hubb.js";
 /*
  * Tilläggen (0.60.0, #251, beslut 0003): en app pluggar in i en plats ramverkets yta erbjuder, och ändrar aldrig ytan.

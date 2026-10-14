@@ -7,6 +7,7 @@
 
 import { GENERELL_HJALP, GRUND_ID } from "./generell.js";
 import { lasHjalpAnkare } from "../lib/modilhjalp.js";
+import { medKarna } from "../lib/karna.js";
 
 /**
  * @typedef {import("../lib/modilhjalp.js").HjalpAvsnitt} HjalpAvsnitt
@@ -141,7 +142,8 @@ export function hjalpSektioner({ moduler, grupp }) {
     },
   ];
 
-  const pa = Array.isArray(grupp?.moduler) ? grupp.moduler : [];
+  // ⛔ Kärnmodulernas hjälp står alltid med (0.106.0, #386, `karna.js`).
+  const pa = medKarna(grupp?.moduler, moduler);
   const kanda = new Map((moduler || []).map((m) => [m.id, m]));
   /** @type {Set<string>} */
   const lagda = new Set();

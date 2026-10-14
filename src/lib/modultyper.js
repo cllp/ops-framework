@@ -70,6 +70,7 @@
 import { ID_FORM, kategorin, valjbara } from "./katalog.js";
 import { SLAGPLATSER } from "./slag.js";
 import { byggNamn, text } from "./sprak.js";
+import { medKarna } from "./karna.js";
 
 /**
  * Listorna en modul kan bidra till. Ramverkets, och de går inte att lägga till.
@@ -445,8 +446,10 @@ function bidrag(modul, t, yta, avvikelser, pa) {
 function allaBidrag(yta, sammanhang) {
   /** @type {Typval[]} */
   const ut = [];
+  // ⛔ En kärnmodul är alltid påslagen (0.106.0, #386, `karna.js`).
+  const paslagna = medKarna(sammanhang.modulerPa, sammanhang.moduler);
   sammanhang.moduler.forEach((modul) => {
-    const pa = sammanhang.modulerPa.includes(modul.id);
+    const pa = paslagna.includes(modul.id);
     for (const t of modul.typer[yta]) ut.push(bidrag(modul, t, yta, sammanhang.avvikelser, pa));
   });
   return ut.map((t, i) => Object.freeze({ ...t, ordning: i }));

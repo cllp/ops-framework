@@ -1619,6 +1619,41 @@ function ApparArkScen() {
   );
 }
 
+
+/*
+ * 0.106.0 (#386 skiva 1): Meddelanden är kärna. Gruppen har SPARATS UTAN den (som en grupp där ägaren avinstallerade den före
+ * 0.106.0), och hubben och arket ska ändå rita den, och hubben ska inte erbjuda den som en app att installera. Avsnitt 47 (1).
+ */
+function KarnaScen() {
+  const bygg = Ops.defineModule;
+  if (!bygg || !Ops.OpsGruppHubb) return <p data-saknas="defineModule">defineModule saknas</p>;
+  const ikoner = { ekonomi: <Wallet size={24} />, bibliotek: <FileText size={24} />, meddelanden: <Inbox size={24} />, kontakter: <LayoutGrid size={24} /> };
+  const moduler = Object.entries({ ekonomi: "Ekonomi", bibliotek: "Bibliotek", meddelanden: "Meddelanden", kontakter: "Kontakter" }).map(([id, etikett]) => {
+    const ikon = ikoner[id];
+    let m;
+    try {
+      // En äldre version känner inte `karna` och kastar på fältet. Då byggs modulen utan, och provet blir rött på rätt sak.
+      m = bygg({ id, namn: { sv: etikett, en: etikett }, nav: [], routes: [], samlingar: [], kallor: {}, skapar: [], hubb: { ikon, rutt: `/${id}`, startsida: "start", delar: [{ id: "start", namn: { sv: "Start", en: "Start" }, ikon, rutt: `/${id}/start` }] }, ...(id === "meddelanden" ? { karna: true } : {}) });
+    } catch {
+      m = bygg({ id, namn: { sv: etikett, en: etikett }, nav: [], routes: [], samlingar: [], kallor: {}, skapar: [], hubb: { ikon, rutt: `/${id}`, startsida: "start", delar: [{ id: "start", namn: { sv: "Start", en: "Start" }, ikon, rutt: `/${id}/start` }] } });
+    }
+    return m;
+  });
+  const grupp = { id: "g1", namn: { sv: "Claes Philip Staiger AB", en: "Claes Philip Staiger AB" }, moduler: ["ekonomi", "bibliotek"], huvudmeny: [] };
+  return (
+    <OpsAppShell
+      fasta={{ idag: { href: "/" }, kalender: { href: "/kalender" }, hub: { href: "/hub" } }}
+      moduler={[]}
+      activeHref="/hub"
+      onNavigate={gaTill}
+      skapa={{ handelse: <p>Formulär</p> }}
+      apparArk={{ moduler, grupp, farAndra: true, onOrdning: (lista) => { window.__ordning = lista; } }}
+    >
+      <Ops.OpsGruppHubb grupp={grupp} moduler={moduler} installera={{ href: "/installera" }} />
+    </OpsAppShell>
+  );
+}
+
 function Scen() {
   const s = window.__skal;
   if (s === "menyer") return <Menyer />;
@@ -1958,6 +1993,7 @@ function Scen() {
   }
   // Appar-hyllan över bottenraden, med pluset i mitten. Utan `skapa` finns ingen upphöjd knapp, och utan `apparArk` är Appar en länk.
   if (s === "apparark") return <ApparArkScen />;
+  if (s === "karna") return <KarnaScen />;
   if (s === "installning") {
     return (
       <Skal>

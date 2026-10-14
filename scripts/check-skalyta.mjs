@@ -44,6 +44,7 @@
  *       node scripts/check-skalyta.mjs --bara-appar      bara Appar-hyllan mot plusknappen (0.90.6)
  *       node scripts/check-skalyta.mjs --bara-textfalt   bara avsnitt 45, tal i ett vanligt textfält (0.104.0)
  *       node scripts/check-skalyta.mjs --bara-talkval    bara avsnitt 46, valen efter talet och förslagen i chatten (0.105.0)
+ *       node scripts/check-skalyta.mjs --bara-0106       bara avsnitt 47, chattepiken 0.106.0 (#386), i scripts/lib/skalyta0106.mjs
  *       node scripts/check-skalyta.mjs --chattbredder 390,1024   29g i andra bredder än 390 och 1280
  *       node scripts/check-skalyta.mjs --tema dark        alla sidor i mörkt tema (förebilden CP jämför mot är mörk)
  */
@@ -57,6 +58,7 @@ import postcss from "postcss";
 import tailwind from "@tailwindcss/postcss";
 import { startaWebblasare } from "./lib/matVyport.mjs";
 import { kravPaMittknappen, matMittknappen } from "./lib/mittknappMatt.mjs";
+import { chattepiken0106 } from "./lib/skalyta0106.mjs";
 
 const rot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const argv = process.argv.slice(2);
@@ -989,6 +991,15 @@ async function talkValOchForslag() {
     }
     await context?.close();
   }
+}
+
+// `--bara-0106`: bara avsnitt 47, chattepiken 0.106.0 (#386). Hela körningen kör det också. Delarna står i scripts/lib/skalyta0106.mjs.
+const verktyg0106 = { oppna, krav, matt, bildmapp };
+if (argv.includes("--bara-0106")) {
+  await chattepiken0106(verktyg0106);
+  await browser.close();
+  avsluta();
+  process.exit(0);
 }
 
 // `--bara-talkval`: bara avsnitt 46. Hela körningen kör det också.
@@ -6807,6 +6818,7 @@ await apparArkHylla();
 await apparArkOrdning();
 await textfaltMedTal();
 await talkValOchForslag();
+await chattepiken0106(verktyg0106);
 
 await browser.close();
 avsluta();

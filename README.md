@@ -2618,6 +2618,12 @@ En modul utan egna fält utelämnar `installningar` eller skriver `[]`. Pinnen f
   bara redigeringsläge och bara ägaren; en admin ser inte fältet, och reglerna avvisar det ändå). ⛔ Sedan 0.60.0 (#251)
   är det **alla** registrerade moduler, också de utan kort, och varje rad bär "Syns på: ..." härlett ur manifestet
   (`synsPa`). En modul utan kort men med tillägg är inte en saknad rad i `hubbForGrupp`; en utan kort och utan tillägg är det.
+- **Kärnmoduler (0.106.0, #386).** `karna: true` i `defineModule` gör modulen till en del av ramverket: den finns alltid i varje
+  grupp, står aldrig bland det som kan installeras (hubbens lista, Redigera grupp) och dess På går inte att stänga av i appens
+  inställningar. **`medKarna(ids, moduler)`** är läsvägen: gruppens `moduler` med de kärnmoduler som saknas sist. Hubben, arket,
+  huvudmenyn, tilläggen, navigationen, hjälpen och typerna läser genom den, så en grupp som sparats utan kärnan får tillbaka den
+  när den läses, och nästa sparning skriver den med. **`arKarna(m)`** och **`karnmoduler(moduler)`** svarar på frågan för en modul
+  och för registret. Meddelanden är tänkt som kärna: appen sätter `karna: true` på sitt manifest.
 
 **Gamla adresser.** Bokmärken och länkar i Inkorgen pekar på adresser som fanns före flytten. Appen skriver en lista, och
 **`byggOmdirigeringar`** validerar den vid uppstart:

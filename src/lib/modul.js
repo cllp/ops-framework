@@ -57,7 +57,7 @@ import { PLATSER } from "./tillagg.js";
  * saknas. Ett `ikoner`-fält som byggaren skrev högst upp och som ramverket
  * slängde utan ett ljud blir en modul som ser hel ut och saknar sin halva.
  */
-const MODULFALT = ["id", "namn", "nav", "routes", "samlingar", "kallor", "skapar", "hubb", "typer", "tillagg", "installningar", "kopplingar", "hjalp"];
+const MODULFALT = ["id", "namn", "nav", "routes", "samlingar", "kallor", "skapar", "hubb", "typer", "tillagg", "installningar", "kopplingar", "hjalp", "karna"];
 
 /**
  * Fälten ett tillägg får bära (0.60.0, #251). Allt annat avvisas, av samma skäl som `MODULFALT`.
@@ -136,6 +136,8 @@ export const KALLTYPER = /** @type {const} */ (["handelser", "sok", "hjalp", "no
  * @property {ReadonlyArray<import("./modulinstallningar.js").Installningsdeklaration>} installningar (0.88.0) Modulens egna inställningar per grupp. ⛔ Alltid en lista, tom när manifestet utelämnade fältet. Pinnen till huvudmenyn ingår inte: den är ramverkets och skrivs på gruppen. Se `modulinstallningar.js`.
  * @property {ReadonlyArray<import("./kopplingar.js").Kopplingsdeklaration>} kopplingar (0.89.0) Kopplingar modulen visar i inställningarna. ⛔ Alltid en lista, tom när manifestet utelämnade fältet. Hemligheter hör inte hemma här. Se `kopplingar.js`.
  * @property {import("./modilhjalp.js").ModulHjalp | null} hjalp (0.92.1) FAQ på hjälpsidan. ⛔ `null` när fältet utelämnades. Det här är inte `kallor.hjalp`. Se `modilhjalp.js`.
+ * @property {boolean} karna (0.106.0, #386) En kärnmodul: hör till ramverket, finns alltid i varje grupp, och går inte att installera
+ *   eller ta bort. ⛔ Alltid utskriven, `false` när manifestet utelämnade fältet. Se `karna.js`.
  */
 
 /**
@@ -467,6 +469,15 @@ export function defineModule(manifest) {
   const hjalp = byggModulHjalp(d.hjalp, var_);
 
   /*
+   * ⛔ KÄRNAN ÄR VALFRI I MANIFESTET, ALLTID UTSKRIVEN I MODULEN (0.106.0, #386). Bara `true` eller `false`: en sträng som "ja" hade
+   * sett ut som ett påslag och varit ett tyst nej, och en kärnmodul som tyst inte är det kan avinstalleras igen (regel 5).
+   */
+  if (d.karna !== undefined && typeof d.karna !== "boolean") {
+    throw var_("karna", `är true, false eller utelämnat, inte ${JSON.stringify(d.karna)}. En kärnmodul finns alltid i varje grupp, se karna.js.`);
+  }
+  const karna = d.karna === true;
+
+  /*
    * ⛔ FRYST, av samma skäl som katalogen: ett manifest som går att ändra efter
    * uppstart är ett manifest valideringen inte längre uttalar sig om.
    */
@@ -489,6 +500,7 @@ export function defineModule(manifest) {
     installningar,
     kopplingar,
     hjalp,
+    karna,
   });
 }
 
