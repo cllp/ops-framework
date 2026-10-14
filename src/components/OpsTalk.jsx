@@ -902,8 +902,10 @@ export function OpsInspelning(props) {
       {/* ⛔ EN FELRAD SOM FINNS FRÅN BÖRJAN OCH BYTER TEXT (granskningen av PR 387), samma skäl som statusregionen: en region som föds
           med sin text läses inte alltid upp. Den bär både ett val vars mottagare kastade och en Agent som inte nådde fram (`fel`, och då
           är Agent Försök igen). Den står i `skickar` och `hort`, alltså redan medan Agent arbetar, så att det är SAMMA element som får
-          felet. Medan man pratar finns den inte: där har igenkänningen sin egen felrad (`textFel`). Tom och dold tills något gick fel. */}
-      {hort || lage === "skickar" ? (
+          felet. Medan man pratar finns den inte: där har igenkänningen sin egen felrad (`textFel`). Tom och dold tills något gick fel.
+          ⛔ BARA MED `onAgent`, alltså där valen finns: `hort` nås bara med den. Chattens mikrofon (`OpsRostinmatning`) ritar samma
+          `OpsInspelning` utan val, och där var en tom felrad i `skickar` den första `alert` man hittade, före chattens egen. */}
+      {(hort || lage === "skickar") && typeof onAgent === "function" ? (
         <p role="alert" data-talk-valfel={valFel ? "" : undefined} className={valFel ? "m-0 text-etikett text-danger" : "sr-only"}>
           {valFel ? talkTextPa(valFel, sprak) : null}
         </p>
