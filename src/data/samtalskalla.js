@@ -353,6 +353,8 @@ export function createSamtalskalla(konfig) {
       olasta: olastaI(ms, till, uid),
       olastaFler: ms.length >= sida && ms[0].tid > till,
       olastaRader,
+      // ⛔ (0.106.0, granskningen av PR 390) Tiderna i det fönster som lästes, för `inkorgsradMed`. Bara med en levande inkorg.
+      ...(levandeInkorg === true ? { fonster: ms.map((m) => m.tid) } : {}),
       lastTill: till,
       motpart: motpart(s, uid),
       // ⛔ Bara när appen slagit på tystning. Utan nyckeln är raden densamma som förut.
@@ -388,7 +390,47 @@ export function createSamtalskalla(konfig) {
     );
     return () => stang.forEach((f) => f());
   }
-  const inkorgsfunktioner = levandeInkorg === true ? { inkorgsrad, bevakaInkorg } : {};
+
+  /**
+   * ⛔ ETT MEDDELANDE FRÅN NÅGON ANNAN RÄKNAS IN LOKALT (granskningen av PR 390). `bevakaInkorg` har redan meddelandet i handen, och
+   * att läsa om hela raden för det (`sida` meddelanden, mätt ~51 dokument per klient och meddelande) betalade en andra gång för något
+   * lyssnaren just fått. Raden räknas fram ur sig själv: de olästa och deras rader, `senaste`, och fönstret den lästes ur.
+   *
+   * ⛔ `null` BETYDER "LÄS OM", och det gäller när raden inte går att räkna med säkerhet: summan är redan ett golv (`olastaFler`),
+   * meddelandet gör den till ett (sidan blir full med dess äldsta ändå oläst), meddelandet kommer i oordning eller delar tid med ett
+   * annat så att det som faller ur fönstret inte kan pekas ut, eller raden saknar fönstret (läst före levande inkorg). Hellre en
+   * läsning för mycket än en siffra som ser exakt ut och inte är det (regel 5).
+   *
+   * Läsmärket flyttas inte här: en annan enhet som läst samtalet syns, som förut, vid nästa hela omläsning (fokus).
+   * `forsta` (ämnets härledda rubrik) fylls på så länge fönstret inte är fullt, och lämnas annars: i ett fullt fönster är de äldsta
+   * lästa ändå inte samtalets första (se `inkorgsrad`).
+   *
+   * @param {Inkorgsrad & { fonster?: number[] }} rad
+   * @param {import("../lib/samtal.js").Meddelande & { id: string }} m
+   * @param {string} uid
+   * @returns {(Inkorgsrad & { fonster: number[] }) | null}
+   */
+  function inkorgsradMed(rad, m, uid) {
+    const tider = rad?.fonster;
+    if (!m || !Array.isArray(tider) || !Array.isArray(rad.olastaRader) || rad.olastaFler === true) return null;
+    if (tider.length > 0 && m.tid <= tider[tider.length - 1]) return null;
+    const fullt = tider.length >= sida;
+    const nya = [...tider, m.tid].slice(-sida);
+    if (fullt && nya[0] === tider[0]) return null;
+    if (nya.length >= sida && nya[0] > rad.lastTill) return null;
+    const kvar = fullt ? rad.olastaRader.filter((r) => r.tid >= nya[0]) : rad.olastaRader;
+    const olastaRader = m.av !== uid && m.tid > rad.lastTill ? [...kvar, m] : kvar;
+    return {
+      ...rad,
+      senaste: m,
+      olasta: olastaRader.length,
+      olastaFler: false,
+      olastaRader,
+      fonster: nya,
+      ...(rad.forsta && !fullt && rad.forsta.length < 3 ? { forsta: [...rad.forsta, m] } : {}),
+    };
+  }
+  const inkorgsfunktioner = levandeInkorg === true ? { inkorgsrad, inkorgsradMed, bevakaInkorg } : {};
 
   /**
    * Inkorgens rader: varje samtal med det senaste meddelandet, antal olästa och läsmärket, nyast först.
@@ -957,12 +999,13 @@ export function harAmnen(kalla) {
 
 /**
  * En rad i inkorgen, ur `oversikt` och `inkorgsrad`.
- * @typedef {{ samtal: import("../lib/samtal.js").Samtal, senaste: (import("../lib/samtal.js").Meddelande & { id: string }) | null, olasta: number, olastaFler?: boolean, olastaRader?: Array<import("../lib/samtal.js").Meddelande & { id: string }>, lastTill: number, motpart: string | null, tyst?: boolean, forsta?: Array<import("../lib/samtal.js").Meddelande & { id: string }> }} Inkorgsrad
+ * @typedef {{ samtal: import("../lib/samtal.js").Samtal, senaste: (import("../lib/samtal.js").Meddelande & { id: string }) | null, olasta: number, olastaFler?: boolean, olastaRader?: Array<import("../lib/samtal.js").Meddelande & { id: string }>, lastTill: number, motpart: string | null, tyst?: boolean, forsta?: Array<import("../lib/samtal.js").Meddelande & { id: string }>, fonster?: number[] }} Inkorgsrad
  */
 
 /**
  * @typedef {object} Inkorgsfunktioner (0.106.0, #386 skiva 7) Det en samtalskälla har när appen skickat `levandeInkorg: true`.
  * @property {(s: import("../lib/samtal.js").Samtal, uid: string) => Promise<Inkorgsrad>} inkorgsrad
+ * @property {(rad: Inkorgsrad, m: any, uid: string) => Inkorgsrad | null} inkorgsradMed Raden med ett nytt meddelande från någon annan inräknat, eller `null` när raden måste läsas om.
  * @property {(sids: ReadonlyArray<string>, lyssnare: { onSenaste: (sid: string, m: any) => void, onError: (fel: Error) => void }) => (() => void) | null} bevakaInkorg
  */
 

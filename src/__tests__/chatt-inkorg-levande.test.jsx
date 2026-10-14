@@ -41,10 +41,10 @@ function raknadKalla() {
   return { kalla: k, rakning, nollstall: () => Object.assign(rakning, { list: [], read: [], lyssnare: [] }) };
 }
 
-async function underlag(levandeInkorg = true) {
+async function underlag(levandeInkorg = true, sida = 50) {
   const r = raknadKalla();
   let t = new Date(2026, 9, 14, 9, 0).getTime();
-  const s = /** @type {any} */ (createSamtalskalla({ kalla: r.kalla, klocka: () => (t += 60000), ...(levandeInkorg ? { levandeInkorg: true } : {}) }));
+  const s = /** @type {any} */ (createSamtalskalla({ kalla: r.kalla, klocka: () => (t += 60000), sida, ...(levandeInkorg ? { levandeInkorg: true } : {}) }));
   const g = await s.oppnaGrupp({ groupId: "g", uid: "anna" });
   await s.skicka(g.id, { text: "God morgon", av: "anna" });
   const bo = await s.oppnaPrivat({ groupId: "g", uid: "anna", annan: "bo" });
@@ -70,10 +70,11 @@ describe("en inkorg som lever utan fokus", () => {
     expect(olasta.at(-1)).toBe(1);
   });
 
-  it("⛔ kostnaden: en lyssnare per samtal på det senaste meddelandet, och ett nytt meddelande läser om bara den raden", async () => {
+  it("⛔ kostnaden: en lyssnare per samtal på det senaste meddelandet, och ett nytt meddelande kostar noll läsningar", async () => {
     const { s, bo, rakning, nollstall } = await underlag();
     nollstall();
-    render(<OpsMeddelanden kalla={s} uid="anna" groupId="g" gruppNamn="G" medlemmar={MEDLEMMAR} />);
+    const olasta = /** @type {number[]} */ ([]);
+    render(<OpsMeddelanden kalla={s} uid="anna" groupId="g" gruppNamn="G" medlemmar={MEDLEMMAR} onOlasta={(n) => olasta.push(n)} />);
     await waitFor(() => expect(rakning.lyssnare.filter((l) => l.c.endsWith("/meddelanden")).length).toBe(3));
     const lyssnare = rakning.lyssnare.filter((l) => l.c.endsWith("/meddelanden"));
     // Golv och form: tre samtal, tre lyssnare, var och en på ETT meddelande.
@@ -81,15 +82,39 @@ describe("en inkorg som lever utan fokus", () => {
     expect(new Set(lyssnare.map((l) => l.c)).size).toBe(3);
     await waitFor(() => expect(radFor("Bo Lind").textContent).toContain("Hej Bo"));
     nollstall();
+    for (const [i, text] of ["En fråga till", "Och en till"].entries()) {
+      await act(async () => {
+        await s.skicka(bo.id, { text, av: "bo" });
+      });
+      // Golv: raden och räknaren har följt med, räknade ur meddelandet lyssnaren fick.
+      await waitFor(() => expect(radFor("Bo Lind").textContent).toContain(text));
+      await waitFor(() => expect(olasta.at(-1)).toBe(i + 1));
+      // Tak: ingen läsning alls för ett inkommande meddelande. Förut en sida (50) och läsmärket, ~51 dokument.
+      expect(rakning.list).toEqual([]);
+      expect(rakning.read).toEqual([]);
+      expect(rakning.lyssnare).toEqual([]);
+    }
+  });
+
+  it("⛔ när olästa blir ett golv (sidan full med sin äldsta oläst) läses raden om, och bara den", async () => {
+    const { s, bo, rakning, nollstall } = await underlag(true, 3);
+    render(<OpsMeddelanden kalla={s} uid="anna" groupId="g" gruppNamn="G" medlemmar={MEDLEMMAR} />);
+    await waitFor(() => expect(rakning.lyssnare.filter((l) => l.c.endsWith("/meddelanden")).length).toBe(3));
+    await waitFor(() => expect(radFor("Bo Lind").textContent).toContain("Hej Bo"));
+    nollstall();
+    // Samtalet har "Hej Bo" (eget). "Ett" ger två meddelanden i sidan om tre: räknas lokalt, noll läsningar.
     await act(async () => {
-      await s.skicka(bo.id, { text: "En fråga till", av: "bo" });
+      await s.skicka(bo.id, { text: "Ett", av: "bo" });
     });
-    await waitFor(() => expect(radFor("Bo Lind").textContent).toContain("En fråga till"));
-    // Bara Bos rad: dess meddelanden och dess läsmärke. Ingen samtalslista, inget annat samtal, ingen ny lyssnare.
-    expect(rakning.list.filter((c) => c !== `samtal/${bo.id}/meddelanden`)).toEqual([]);
-    expect(rakning.list.length).toBe(1);
+    await waitFor(() => expect(radFor("Bo Lind").textContent).toContain("Ett"));
+    expect(rakning.list).toEqual([]);
+    // "Två" fyller sidan (3) och dess äldsta är oläst: summan är ett golv, och bara då läses raden om.
+    await act(async () => {
+      await s.skicka(bo.id, { text: "Två", av: "bo" });
+    });
+    await waitFor(() => expect(radFor("Bo Lind").textContent).toContain("Två"));
+    await waitFor(() => expect(rakning.list).toEqual([`samtal/${bo.id}/meddelanden`]));
     expect(rakning.read).toEqual([`samtal/${bo.id}/last`]);
-    expect(rakning.lyssnare).toEqual([]);
   });
 
   it("⛔ ett eget meddelande i ett annat fönster läser ingenting, och raden visar det ändå", async () => {
@@ -116,6 +141,36 @@ describe("en inkorg som lever utan fokus", () => {
     await new Promise((r) => setTimeout(r, 50));
     expect(radFor("Bo Lind").textContent).not.toContain("Inte sedd");
     expect(rakning.lyssnare.filter((l) => l.c.endsWith("/meddelanden"))).toEqual([]);
+  });
+});
+
+describe("inkorgsradMed: när en rad inte går att räkna med säkerhet", () => {
+  const samtal = { id: "g|anna|bo", groupId: "g", slag: "personer", deltagare: ["anna", "bo"], skapad: 1, skapadAv: "anna" };
+  const m = (/** @type {number} */ tid, av = "bo") => ({ id: `m${tid}`, text: `t${tid}`, av, tid });
+  const rad = (/** @type {any} */ over = {}) => ({ samtal, senaste: m(20), olasta: 1, olastaFler: false, olastaRader: [m(20)], lastTill: 10, motpart: "bo", fonster: [5, 20], ...over });
+  const kalla = /** @type {any} */ (createSamtalskalla({ kalla: levandeKalla(), levandeInkorg: true, sida: 3 }));
+
+  it("räknar in ett nytt meddelande från någon annan: senaste, olästa och rader", () => {
+    const ny = kalla.inkorgsradMed(rad(), m(30), "anna");
+    expect(ny.senaste.id).toBe("m30");
+    expect(ny.olasta).toBe(2);
+    expect(ny.olastaRader.map((r) => r.id)).toEqual(["m20", "m30"]);
+    expect(ny.fonster).toEqual([5, 20, 30]);
+  });
+
+  it("⛔ läser om (null) när summan redan är ett golv, när sidan blir full med sin äldsta oläst, vid oordning och utan fönster", () => {
+    expect(kalla.inkorgsradMed(rad({ olastaFler: true }), m(30), "anna")).toBeNull();
+    expect(kalla.inkorgsradMed(rad({ lastTill: 1 }), m(30), "anna")).toBeNull();
+    expect(kalla.inkorgsradMed(rad(), m(20), "anna")).toBeNull();
+    expect(kalla.inkorgsradMed(rad({ fonster: undefined }), m(30), "anna")).toBeNull();
+  });
+
+  it("ett fullt fönster glider: det som faller ur räknas bort, och delad tid kräver omläsning", () => {
+    const fullt = rad({ lastTill: 12, fonster: [5, 11, 20], olastaRader: [m(20)] });
+    const ny = kalla.inkorgsradMed(fullt, m(30), "anna");
+    expect(ny.fonster).toEqual([11, 20, 30]);
+    expect(ny.olasta).toBe(2);
+    expect(kalla.inkorgsradMed(rad({ lastTill: 12, fonster: [5, 5, 20] }), m(30), "anna")).toBeNull();
   });
 });
 

@@ -50,8 +50,9 @@ function sammanfoga(fran, lokala, uid) {
  *
  * ⛔ OCH LEVER UTAN FOKUS NÄR KÄLLAN HAR `levandeInkorg` (0.106.0, #386 skiva 7). Gapanalysen: den som satt i ett ämne såg inte att
  * agenten svarat i ett annat, för inkorgen lästes bara om när fönstret fick fokus. Nu lyssnar inkorgen på det SENASTE meddelandet i
- * varje samtal den visar (`bevakaInkorg`, `limit: 1`). Ett nytt meddelande från någon annan läser om DEN raden (`inkorgsrad`), inte
- * hela inkorgen. Ett eget meddelande läser ingenting: det ändrar inte de olästa, bara raden "senaste". Kostnaden är mätt i emulatorn,
+ * varje samtal den visar (`bevakaInkorg`, `limit: 1`). Ett nytt meddelande från någon annan räknas in i DEN raden ur det lyssnaren
+ * redan har (`inkorgsradMed`, noll läsningar), och raden läses om (`inkorgsrad`) bara när den inte går att räkna med säkerhet, till
+ * exempel när olästa redan är ett golv (`olastaFler`). Aldrig hela inkorgen. Ett eget meddelande läser ingenting: det ändrar inte de olästa, bara raden "senaste". Kostnaden är mätt i emulatorn,
  * `rules/__tests__/inkorg-levande.test.mjs`. Ett nytt samtal som någon annan startar syns fortfarande först vid fokus: det har ingen
  * rad att lyssna på (en lyssnare på samtalslistan vore nästa steg, och en egen kostnad).
  *
@@ -188,6 +189,16 @@ export function useSamtal({ kalla, groupId, uid }) {
         }
         if (!rad) {
           lasOm();
+          return;
+        }
+        /*
+         * ⛔ Lyssnaren har meddelandet: räkna in det i raden i stället för att läsa om den (granskningen av PR 390, mätt ~51 dokument
+         * per klient och inkommande meddelande). `null` betyder att raden inte går att räkna med säkerhet (`olastaFler`, ett fullt
+         * fönster, oordning), och då läses den om som förut. En källa utan `inkorgsradMed` läser alltid om.
+         */
+        const lokalt = typeof kalla.inkorgsradMed === "function" ? kalla.inkorgsradMed(rad, m, uid) : null;
+        if (lokalt) {
+          uppdatera(sid, ++lasning.current, () => lokalt);
           return;
         }
         const nummer = ++lasning.current;
