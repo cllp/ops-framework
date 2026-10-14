@@ -9,6 +9,39 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.103.0
+
+**Samtalet i TALK-fältet, och tre ikoner som gör det till ett meddelande, en händelse eller ett ärende.**
+
+CP 2026-10-14: "vi kanske vill kunna att skapa ett ärende manuellt på det som sägs genom att klicka på skapa ärende, händelse
+eller meddelande själv med den man pratar in? Inte så dumt med 3 knappar/ikoner när man pratat in som option, där historiken
+finns med om man pratat med agenten olika omgångar. Så bubblans storlek med texten får en fixed size men texten scrollar där i,
+och överst finns en headerbar med ikonerna för chatt, händelse, kalender där man för in all text från konversationen direkt. Och
+om det är i en chatt så är flödet 'fortsätt i chatten'." Skärmbilder mot en byggd yta, 390 och 1280 px i mörkt läge:
+`docs/jamforelser/0.103.0/` (`node scripts/talk-montage.mjs`).
+
+### Tillagt
+
+- `useTalk().historik`: en rad per omgång som nådde kvittot, med det som hördes och agentens kvitto (`{ hord, kvitto, angrat }`).
+  Den överlever Svara och töms när fältet går tillbaka till vila. Ångrat syns på omgången kvittot hör till.
+- Fältet: när kvittot står visas samtalet i en rullande yta med fast höjd (`min(15rem, 34dvh)`), personens repliker som bubblor
+  till höger och agentens med bocken. Ytan rullar till sista raden när ett nytt kvitto kommer och går att nå med tangentbordet.
+  Ångra, Stäng och Svara står under ytan och syns alltid. Svara är fortfarande den primära knappen och får fokus.
+- Rubrikraden överst med tre ikoner: Meddelande, Händelse och Ärende ("Skapa ett ... av samtalet"). Ett tryck lämnar
+  `{ text, samtal, rader }` till mottagaren och stänger fältet. En ikon ritas bara med en mottagare och bara när något av det
+  personen sade hördes. Kastar mottagaren står felet i fältet och samtalet finns kvar.
+- `OpsAppShell talk.onFortsatt(underlag)` och `talk.fortsattEtikett` ("Fortsätt i chatten"): Meddelande går till appen.
+  Händelse och Ärende öppnar skalets egna formulär med `forifyllt: { rubrik, beskrivning }`, härledda med `talkForifyllt`
+  (rubriken är första meningen, högst 80 tecken, beskrivningen resten). `skapa.arende` och `HandelseSkapare.form` får `forifyllt`,
+  `null` när panelen öppnats på annat sätt.
+
+### Medvetet utelämnat
+
+- Samtalet står inte i adressen. `?skapa=` skrivs som vanligt, men det som sades skrivs inte i webbläsarens historik, och en
+  omladdning öppnar formuläret tomt.
+- Agentens repliker kommer inte med i formulärets beskrivning, bara det personen sade. Hela samtalet finns i underlaget
+  (`samtal`) för den mottagare som vill ha det.
+
 ## 0.102.0
 
 **Biblioteket som SessionStudios, och en kortare meny.** [lifehub.app#214](https://github.com/cllp/lifehub.app/issues/214),
