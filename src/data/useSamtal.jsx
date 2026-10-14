@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { motpart } from "../lib/samtal.js";
+import { rapporteraFel } from "../lib/felrapport.js";
+import { harLevandeInkorg } from "./samtalskalla.js";
 
 /** @typedef {Awaited<ReturnType<ReturnType<typeof import("./samtalskalla.js").createSamtalskalla>["oversikt"]>>} Rader */
 /** @typedef {Map<string, { samtal: import("../lib/samtal.js").Samtal, senaste: (import("../lib/samtal.js").Meddelande & { id: string }) | null }>} Lokala */
@@ -46,6 +48,13 @@ function sammanfoga(fran, lokala, uid) {
  * ⛔ LÄSES OM NÄR FÖNSTRET FÅR FOKUS. Ingen realtidsnärvaro i 0.34.0 (se CHANGELOG), men den som kommer tillbaka till
  * fliken ska inte se en inkorg från i morse.
  *
+ * ⛔ OCH LEVER UTAN FOKUS NÄR KÄLLAN HAR `levandeInkorg` (0.106.0, #386 skiva 7). Gapanalysen: den som satt i ett ämne såg inte att
+ * agenten svarat i ett annat, för inkorgen lästes bara om när fönstret fick fokus. Nu lyssnar inkorgen på det SENASTE meddelandet i
+ * varje samtal den visar (`bevakaInkorg`, `limit: 1`). Ett nytt meddelande från någon annan läser om DEN raden (`inkorgsrad`), inte
+ * hela inkorgen. Ett eget meddelande läser ingenting: det ändrar inte de olästa, bara raden "senaste". Kostnaden är mätt i emulatorn,
+ * `rules/__tests__/inkorg-levande.test.mjs`. Ett nytt samtal som någon annan startar syns fortfarande först vid fokus: det har ingen
+ * rad att lyssna på (en lyssnare på samtalslistan vore nästa steg, och en egen kostnad).
+ *
  * ⛔ `laggIn` LÄGGER IN EN RAD LOKALT DIREKT, OCH LÄSER SEDAN OM (0.63.0, #263). Den som just öppnat eller skrivit i ett samtal
  * ska se det i listan i samma stund, inte vid nästa `focus`. CP 2026-10-06: "Chatten dök upp långt senare", och frågan
  * skickades två gånger. Inget sparas: raden hålls i minnet tills källan själv har svarat med samtalet och med ett meddelande
@@ -66,6 +75,14 @@ export function useSamtal({ kalla, groupId, uid }) {
   const kallsvar = useRef(/** @type {Rader} */ ([]));
   /** Raderna som lagts in lokalt och som källan ännu inte svarat med. Nyckel: samtalets id. */
   const lokala = useRef(/** @type {Lokala} */ (new Map()));
+  /*
+   * ⛔ DEN LÄSNING SOM STARTADE SIST VINNER, PER RAD (0.106.0, skiva 7). En hel omläsning och en omläsning av en rad kan vara ute
+   * samtidigt: ett meddelande kommer i det öppna samtalet, raden läses om, samtalet markeras läst och hela inkorgen läses om. Svarar
+   * raden sist hade den skrivit "1 oläst" över ett samtal man sitter i, ur ett läsmärke som hann flyttas. Varje läsning får ett
+   * nummer när den startar, och en rad skrivs bara av en läsning som startade senare än den som skrev raden förra gången.
+   */
+  const lasning = useRef(0);
+  const radNummer = useRef(/** @type {Map<string, number>} */ (new Map()));
   /*
    * ⛔ GRUPPEN SOM VISAS JUST NU, INTE DEN SOM GÄLLDE NÄR ETT ANROP BÖRJADE (granskningen av PR 264, tredje varvet). Ett gruppbyte
    * medan `oppnaPrivat` pågick lade in förra gruppens samtal i den nya inkorgen: anroparen höll kvar `laggIn` ur renderingen där
@@ -95,10 +112,17 @@ export function useSamtal({ kalla, groupId, uid }) {
     if (gruppNu.current !== groupId) return;
     const nr = ++levande.current;
     const aktuell = () => nr === levande.current;
+    const startnummer = ++lasning.current;
     try {
-      const rader = await kalla.oversikt({ groupId, uid });
+      const svar = await kalla.oversikt({ groupId, uid });
       // ⛔ Ett sent svar för en grupp man redan lämnat skrivs inte in i den nya gruppens inkorg.
       if (aktuell()) {
+        // En rad som en senare startad radläsning redan skrivit står kvar (se `lasning`).
+        const rader = svar.map((r) => {
+          if ((radNummer.current.get(r.samtal.id) ?? 0) > startnummer) return kallsvar.current.find((k) => k.samtal.id === r.samtal.id) ?? r;
+          radNummer.current.set(r.samtal.id, startnummer);
+          return r;
+        });
         kallsvar.current = rader;
         const s = sammanfoga(rader, lokala.current, uid);
         lokala.current = s.kvar;
@@ -112,6 +136,7 @@ export function useSamtal({ kalla, groupId, uid }) {
   useEffect(() => {
     lokala.current = new Map();
     kallsvar.current = [];
+    radNummer.current = new Map();
     setLage((f) => ({ ...f, rader: [], laddar: true, fel: null }));
     lasOm();
     if (typeof window === "undefined") return undefined;
@@ -123,6 +148,57 @@ export function useSamtal({ kalla, groupId, uid }) {
       levande.current += 1;
     };
   }, [lasOm]);
+
+  /*
+   * Den levande inkorgen. Nyckeln är samtalen som står i listan, så lyssnarna byts bara när ett samtal kommer till eller försvinner,
+   * inte vid varje omläsning.
+   */
+  const sidnyckel = lage.rader.map((r) => r.samtal.id).sort().join("\n");
+  useEffect(() => {
+    if (!harLevandeInkorg(kalla) || !groupId || !uid || !sidnyckel) return undefined;
+    let oppen = true;
+    /** Lägger in en rad i källans svar och ritar om, om ingen läsning som startade senare redan skrivit raden (se `lasning`). */
+    const uppdatera = (/** @type {string} */ sid, /** @type {number} */ nummer, /** @type {(r: Rader[number]) => Rader[number]} */ f) => {
+      if (!oppen || gruppNu.current !== groupId) return;
+      if (!kallsvar.current.some((r) => r.samtal.id === sid)) {
+        lasOm();
+        return;
+      }
+      if ((radNummer.current.get(sid) ?? 0) > nummer) return;
+      radNummer.current.set(sid, nummer);
+      kallsvar.current = kallsvar.current.map((r) => (r.samtal.id === sid ? f(r) : r));
+      const s = sammanfoga(kallsvar.current, lokala.current, uid);
+      lokala.current = s.kvar;
+      setLage((forra) => ({ rader: s.rader, laddar: false, fel: forra.fel }));
+    };
+    const stang = kalla.bevakaInkorg(sidnyckel.split("\n"), {
+      onSenaste: (sid, m) => {
+        if (!oppen || !m) return;
+        const rad = kallsvar.current.find((r) => r.samtal.id === sid);
+        // Den första bilden från lyssnaren är det inkorgen redan har: inget nytt, ingen läsning.
+        if (rad?.senaste && (rad.senaste.id === m.id || rad.senaste.tid > m.tid)) return;
+        if (m.av === uid) {
+          uppdatera(sid, ++lasning.current, (r) => ({ ...r, senaste: m }));
+          return;
+        }
+        if (!rad) {
+          lasOm();
+          return;
+        }
+        const nummer = ++lasning.current;
+        kalla.inkorgsrad(rad.samtal, uid).then(
+          (ny) => uppdatera(sid, nummer, () => ny),
+          (fel) => rapporteraFel(fel, { yta: "useSamtal", steg: "inkorgsrad", sid }),
+        );
+      },
+      // ⛔ En lyssnare som faller tömmer inte inkorgen: raderna står kvar och läses om vid fokus, som förut. Felet loggas (regel 5).
+      onError: (fel) => rapporteraFel(fel, { yta: "useSamtal", steg: "bevakaInkorg", groupId }),
+    });
+    return () => {
+      oppen = false;
+      stang?.();
+    };
+  }, [kalla, groupId, uid, sidnyckel, lasOm]);
 
   // `senaste`: det man just skickade, om något.
   const laggIn = useCallback(

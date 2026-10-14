@@ -1831,6 +1831,36 @@ function MerScen() {
   return <Full>{k ? <Ops.OpsMeddelanden kalla={k.s} uid="anna" groupId="g1" gruppNamn="Claes Philip Staiger AB" medlemmar={MEDLEMMAR_A} valt={k.g} onValj={() => {}} /> : <p>Laddar</p>}</Full>;
 }
 
+/*
+ * 0.106.0 (#386 skiva 7): en inkorg som lever. Levande källa och `levandeInkorg`, gruppchatten och två privata samtal. `window.__inkorg`
+ * bär källan och Bos samtal, så att sidan kan skriva "från Bo" utan att fönstret får fokus. `window.__aktiv === "samtal"` öppnar
+ * samtalet med Cia. Avsnitt 47 (7).
+ */
+let inkorgskallan = null;
+function InkorgScen() {
+  const [k, setK] = useState(inkorgskallan);
+  if (!Ops.OpsMeddelanden) return <Full><p data-saknas="OpsMeddelanden">OpsMeddelanden saknas</p></Full>;
+  if (!k) {
+    (async () => {
+      let t = new Date(2026, 9, 6, 9, 0).getTime();
+      const kalla = levande(Ops.createMemorySource({}));
+      const s = Ops.createSamtalskalla({ kalla, klocka: () => (t += 60000), levandeInkorg: true });
+      const g = await s.oppnaGrupp({ groupId: "g1", uid: "anna" });
+      await s.skicka(g.id, { text: "Styrelsemötet flyttas till fredag.", av: "anna" });
+      const bo = await s.oppnaPrivat({ groupId: "g1", uid: "anna", annan: "bo" });
+      await s.skicka(bo.id, { text: "Hej Bo, har du underlaget?", av: "anna" });
+      const cia = await s.oppnaPrivat({ groupId: "g1", uid: "anna", annan: "cia" });
+      await s.skicka(cia.id, { text: "Hej Cia, när ses vi?", av: "anna" });
+      const x = { s, bo: bo.id, cia: cia.id };
+      window.__inkorg = x;
+      inkorgskallan = x;
+      setK(x);
+    })();
+  }
+  const medlemmar = [...MEDLEMMAR_A, { userId: "cia", namn: "Cia Berg", typ: "person", status: "aktiv" }];
+  return <Full>{k ? <Ops.OpsMeddelanden kalla={k.s} uid="anna" groupId="g1" gruppNamn="Claes Philip Staiger AB" medlemmar={medlemmar} onValj={() => {}} {...(window.__aktiv === "samtal" ? { valt: k.cia } : {})} /> : <p>Laddar</p>}</Full>;
+}
+
 function Scen() {
   const s = window.__skal;
   if (s === "menyer") return <Menyer />;
@@ -2175,6 +2205,7 @@ function Scen() {
   if (s === "chatt0106-en") return <EngelskScen />;
   if (s === "chatt0106-las") return <LasScen />;
   if (s === "chatt0106-mer") return <MerScen />;
+  if (s === "chatt0106-inkorg") return <InkorgScen />;
   if (s === "installning") {
     return (
       <Skal>

@@ -52,11 +52,16 @@ import { AGENTSTATUS_ID, FASTA_TAK, REAKTIONSTAK, amnesId, arNamnd, bilagenyckel
  *   `oppnaAmne`, `sattRubrik` och `arkivera`, och översikten hoppar över arkiverade ämnen. ⛔ INGET FÖRVAL: utan det finns ett
  *   agentsamtal per person, som förut. Samma val som till `samtalsregelfragment({ amnen: true })`, som släpper in den fjärde delen i
  *   nyckeln, `rubrik` och `arkiverad`.
+ * @param {boolean} [konfig.levandeInkorg] (0.106.0, #386 skiva 7) `true` ger `bevakaInkorg`: en lyssnare per samtal i inkorgen på
+ *   dess SENASTE meddelande (`limit: 1`), och `inkorgsrad`, som läser om en rad. `useSamtal` läser då om den rad som fått ett meddelande
+ *   från någon annan, i stället för att vänta på att fönstret får fokus. ⛔ INGET FÖRVAL: varje synligt samtal är en lyssnare, och det
+ *   är appens val. Ingen ny samling och ingen ny regel: frågan är samma läsning av meddelandena som chatten redan gör.
+ *   Kostnaden är mätt i emulatorn, `rules/__tests__/inkorg-levande.test.mjs`.
  * @param {number} [konfig.sida] Hur många av de senaste meddelandena som läses per samtal. Förval 50.
  * @param {() => number} [konfig.klocka] Förval `Date.now`. Prov byter den.
  */
 export function createSamtalskalla(konfig) {
-  const { kalla, samtal = "samtal", meddelanden = "meddelanden", last = "last", tradar, status, reaktioner, omnamnanden, citat, fasta, bilagor, bilagaSamling, tyst, amnen, sida = 50, klocka = Date.now } = konfig ?? /** @type {any} */ ({});
+  const { kalla, samtal = "samtal", meddelanden = "meddelanden", last = "last", tradar, status, reaktioner, omnamnanden, citat, fasta, bilagor, bilagaSamling, tyst, amnen, levandeInkorg, sida = 50, klocka = Date.now } = konfig ?? /** @type {any} */ ({});
   if (!kalla || typeof kalla.list !== "function") {
     throw new Error("createSamtalskalla: kalla krävs, en datakälla (createFirestoreSource, createMemorySource).");
   }
@@ -72,6 +77,7 @@ export function createSamtalskalla(konfig) {
   if (omnamnanden !== undefined && typeof omnamnanden !== "boolean") throw new Error("createSamtalskalla: omnamnanden är true eller utelämnat.");
   if (citat !== undefined && typeof citat !== "boolean") throw new Error("createSamtalskalla: citat är true eller utelämnat.");
   if (amnen !== undefined && amnen !== true) throw new Error("createSamtalskalla: amnen är true eller utelämnat.");
+  if (levandeInkorg !== undefined && levandeInkorg !== true) throw new Error("createSamtalskalla: levandeInkorg är true eller utelämnat.");
   if (bilagor !== undefined && bilagor !== true) throw new Error("createSamtalskalla: bilagor är true eller utelämnat.");
   if (bilagor === true && bilagaSamling === undefined) throw new Error("createSamtalskalla: bilagor: true kräver bilagaSamling, samlingsnamnet för filerna. Samma namn som till samtalsregelfragment.");
   if (bilagor !== true && bilagaSamling !== undefined) throw new Error("createSamtalskalla: bilagaSamling kräver bilagor: true.");
@@ -326,6 +332,65 @@ export function createSamtalskalla(konfig) {
   }
 
   /**
+   * Inkorgens rad för ETT samtal: senaste meddelandet, olästa, läsmärket och (med `tyst`) tystnaden. `oversikt` läser varje rad så,
+   * och `useSamtal` läser om en enda rad när `bevakaInkorg` säger att den fått ett meddelande (0.106.0, #386 skiva 7).
+   * Kostnad: `sida` meddelanden, läsmärket och tystnaden, alltså samma som en rad i översikten.
+   *
+   * @param {import("../lib/samtal.js").Samtal} s
+   * @param {string} uid
+   * @returns {Promise<Inkorgsrad>}
+   */
+  async function inkorgsrad(s, uid) {
+    const [ms, till, tystad] = await Promise.all([
+      lasMeddelanden(s.id),
+      lastTill(s.id, uid),
+      tyst === undefined ? Promise.resolve(false) : tystFor(s.id, uid),
+    ]);
+    const olastaRader = ms.filter((m) => m && m.av !== uid && m.tid > till);
+    return {
+      samtal: s,
+      senaste: ms[ms.length - 1] ?? null,
+      olasta: olastaI(ms, till, uid),
+      olastaFler: ms.length >= sida && ms[0].tid > till,
+      olastaRader,
+      lastTill: till,
+      motpart: motpart(s, uid),
+      // ⛔ Bara när appen slagit på tystning. Utan nyckeln är raden densamma som förut.
+      ...(tyst === undefined ? {} : { tyst: tystad }),
+      // ⛔ (0.106.0) De äldsta lästa meddelandena, för ämnets härledda rubrik (`amnesrubrik`). Bara för ett agentsamtal med `amnen`.
+      // (bedömning) Är sidan full är de äldsta lästa inte samtalets första. Agenten sätter rubriken med sitt första svar, så det
+      // härledda behövs nästan bara för korta samtal, och en läsning till per ämne hade kostat mer än den ger.
+      ...(amnen === true && s.slag === "agent" ? { forsta: ms.slice(0, 3) } : {}),
+    };
+  }
+
+  /**
+   * ══ ⛔ EN INKORG SOM LEVER (0.106.0, #386 skiva 7) ═══════════════════════════════════════════════════════════════════════
+   *
+   * Gapanalysen i #386: räknarna för andra samtal stod still tills fönstret fick fokus, så den som satt i ett ämne såg inte att agenten
+   * svarat i ett annat. En lyssnare per samtal på dess SENASTE meddelande, inte på sidan: den första ögonblicksbilden är ett dokument
+   * per samtal, och varje nytt meddelande ett dokument till. Vad som läses om när något kommit avgör `useSamtal`.
+   *
+   * Utan `subscribe` på källan (minnesadaptern) finns ingen lyssnare, och svaret är `null`: inkorgen läses då som förut, vid fokus.
+   *
+   * @param {ReadonlyArray<string>} sids Samtalen som står i inkorgen.
+   * @param {{ onSenaste: (sid: string, m: (import("../lib/samtal.js").Meddelande & { id: string }) | null) => void, onError: (fel: Error) => void }} lyssnare
+   * @returns {(() => void) | null}
+   */
+  function bevakaInkorg(sids, lyssnare) {
+    if (typeof kalla.subscribe !== "function") return null;
+    const subscribe = /** @type {NonNullable<typeof kalla.subscribe>} */ (kalla.subscribe);
+    const stang = sids.map((sid) =>
+      subscribe(meddelandevag(sid), { sortBy: "tid", direction: "desc", limit: 1 }, {
+        onData: (rader) => lyssnare.onSenaste(sid, rader[0] ?? null),
+        onError: lyssnare.onError,
+      }),
+    );
+    return () => stang.forEach((f) => f());
+  }
+  const inkorgsfunktioner = levandeInkorg === true ? { inkorgsrad, bevakaInkorg } : {};
+
+  /**
    * Inkorgens rader: varje samtal med det senaste meddelandet, antal olästa och läsmärket, nyast först.
    *
    * ⛔ `olastaFler` (chattens nattskiva): de olästa räknas över de senaste `sida` meddelandena. Är sidan full och dess äldsta ändå
@@ -336,7 +401,7 @@ export function createSamtalskalla(konfig) {
    * utan en läsning till.
    *
    * @param {{ groupId: string, uid: string, arkiverade?: boolean }} fraga `arkiverade` (0.106.0): bara de arkiverade ämnena med agenten, för listan "Arkiverade". Utan `amnen` på källan finns inga.
-   * @returns {Promise<Array<{ samtal: import("../lib/samtal.js").Samtal, senaste: (import("../lib/samtal.js").Meddelande & { id: string }) | null, olasta: number, olastaFler?: boolean, olastaRader?: Array<import("../lib/samtal.js").Meddelande & { id: string }>, lastTill: number, motpart: string | null, tyst?: boolean, forsta?: Array<import("../lib/samtal.js").Meddelande & { id: string }> }>>}
+   * @returns {Promise<Inkorgsrad[]>}
    */
   async function oversikt({ groupId, uid, arkiverade = false }) {
     /*
@@ -345,31 +410,7 @@ export function createSamtalskalla(konfig) {
      * varje omläsning av inkorgen. Med `arkiverade: true` läses tvärtom bara de arkiverade, för listan "Arkiverade".
      */
     const alla = (await lista({ groupId, uid })).filter((s) => (amnen === true && s.slag === "agent" ? (s.arkiverad === true) === arkiverade : !arkiverade));
-    const rader = await Promise.all(
-      alla.map(async (s) => {
-        const [ms, till, tystad] = await Promise.all([
-          lasMeddelanden(s.id),
-          lastTill(s.id, uid),
-          tyst === undefined ? Promise.resolve(false) : tystFor(s.id, uid),
-        ]);
-        const olastaRader = ms.filter((m) => m && m.av !== uid && m.tid > till);
-        return {
-          samtal: s,
-          senaste: ms[ms.length - 1] ?? null,
-          olasta: olastaI(ms, till, uid),
-          olastaFler: ms.length >= sida && ms[0].tid > till,
-          olastaRader,
-          lastTill: till,
-          motpart: motpart(s, uid),
-          // ⛔ Bara när appen slagit på tystning. Utan nyckeln är raden densamma som förut.
-          ...(tyst === undefined ? {} : { tyst: tystad }),
-          // ⛔ (0.106.0) De äldsta lästa meddelandena, för ämnets härledda rubrik (`amnesrubrik`). Bara för ett agentsamtal med `amnen`.
-          // (bedömning) Är sidan full är de äldsta lästa inte samtalets första. Agenten sätter rubriken med sitt första svar, så det
-          // härledda behövs nästan bara för korta samtal, och en läsning till per ämne hade kostat mer än den ger.
-          ...(amnen === true && s.slag === "agent" ? { forsta: ms.slice(0, 3) } : {}),
-        };
-      }),
-    );
+    const rader = await Promise.all(alla.map((s) => inkorgsrad(s, uid)));
     // ⛔ Ett ämne utan meddelanden visas inte: det är ett ämne vars första meddelande inte gick att skriva efter samtalet (0.106.0).
     return rader
       .filter((r) => !(r.senaste === null && amnesId(r.samtal.id)))
@@ -818,6 +859,7 @@ export function createSamtalskalla(konfig) {
     ...bilagefunktioner,
     ...tystfunktioner,
     ...amnesfunktioner,
+    ...inkorgsfunktioner,
     ...(omnamnanden === true ? { omnamnanden: true } : {}),
     ...(citat === true ? { citat: true } : {}),
     ...(bilagor === true ? { bilagor: true } : {}),
@@ -911,6 +953,27 @@ export function harFasta(kalla) {
  */
 export function harAmnen(kalla) {
   return Boolean(kalla) && typeof (/** @type {any} */ (kalla).skickaIAmne) === "function";
+}
+
+/**
+ * En rad i inkorgen, ur `oversikt` och `inkorgsrad`.
+ * @typedef {{ samtal: import("../lib/samtal.js").Samtal, senaste: (import("../lib/samtal.js").Meddelande & { id: string }) | null, olasta: number, olastaFler?: boolean, olastaRader?: Array<import("../lib/samtal.js").Meddelande & { id: string }>, lastTill: number, motpart: string | null, tyst?: boolean, forsta?: Array<import("../lib/samtal.js").Meddelande & { id: string }> }} Inkorgsrad
+ */
+
+/**
+ * @typedef {object} Inkorgsfunktioner (0.106.0, #386 skiva 7) Det en samtalskälla har när appen skickat `levandeInkorg: true`.
+ * @property {(s: import("../lib/samtal.js").Samtal, uid: string) => Promise<Inkorgsrad>} inkorgsrad
+ * @property {(sids: ReadonlyArray<string>, lyssnare: { onSenaste: (sid: string, m: any) => void, onError: (fel: Error) => void }) => (() => void) | null} bevakaInkorg
+ */
+
+/**
+ * Lever källans inkorg, alltså har appen skickat `levandeInkorg: true`? (0.106.0, #386 skiva 7) Samma form som `harTradar`.
+ * @template {object} K
+ * @param {K | null | undefined} kalla
+ * @returns {kalla is K & Inkorgsfunktioner}
+ */
+export function harLevandeInkorg(kalla) {
+  return Boolean(kalla) && typeof (/** @type {any} */ (kalla).bevakaInkorg) === "function";
 }
 
 /**

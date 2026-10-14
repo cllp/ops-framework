@@ -426,6 +426,39 @@ export async function merKnappen(v) {
 }
 
 /**
+ * (7) EN INKORG SOM LEVER (skiva 7). Ingen `focus` skickas. Vid 390 px står inkorgen ensam, vid 1280 px står samtalet med Cia öppet
+ * bredvid listan. Bo skriver i sitt samtal, och inom två sekunder står hans rad med texten och en räknare på 1, och Olästa-filtret
+ * räknar 1. Golv: tre rader i inkorgen.
+ * @param {Verktyg} v
+ */
+export async function inkorgenLever(v) {
+  for (const vp of BREDDER) {
+    const namn = `47 (7) inkorgen lever ${vp.width} px`;
+    const telefon = vp.width < 768;
+    await del(v, namn, "chatt0106-inkorg", vp, telefon ? null : "samtal", async (page) => {
+      const bo = page.locator("[data-ops-meddelanden] button", { hasText: "Bo Lind" }).first();
+      await bo.waitFor({ timeout: 4000 });
+      await page.locator("[data-ops-meddelanden] button", { hasText: "Hej Bo, har du underlaget?" }).first().waitFor({ timeout: 4000 });
+      const antal = await page.evaluate(() => [...document.querySelectorAll("[data-ops-meddelanden] button")].filter((b) => /Bo Lind|Cia Berg|Claes Philip Staiger AB/.test(b.textContent || "") && (b.textContent || "").length < 200).length);
+      v.krav(antal >= 3, `${namn}: ${antal} rader i inkorgen, väntat minst 3. Golv.`);
+      const fokus = await page.evaluate(() => {
+        /** @type {any} */ (window).__fokus = 0;
+        window.addEventListener("focus", () => (/** @type {any} */ (window).__fokus += 1));
+        const x = /** @type {any} */ (window).__inkorg;
+        return x.s.skicka(x.bo, { text: "Ja, jag skickar det i eftermiddag.", av: "bo" }).then(() => 0);
+      });
+      const kom = await page.locator("[data-ops-meddelanden] button", { hasText: "Ja, jag skickar det i eftermiddag." }).first().waitFor({ timeout: 2000 }).then(() => true, () => false);
+      const rad = kom ? await page.locator("[data-ops-meddelanden] button", { hasText: "Ja, jag skickar det i eftermiddag." }).first().evaluate((el) => (el.textContent || "").replace(/\s+/g, " ").trim()) : null;
+      const fokuser = await page.evaluate(() => /** @type {any} */ (window).__fokus);
+      v.matt.push(`${namn}: raden efter Bos meddelande ${JSON.stringify(rad)}, fokus-händelser ${fokuser + fokus}`);
+      v.krav(kom && fokuser === 0, `${namn}: Bos meddelande nådde inte inkorgen inom två sekunder utan fokus (${JSON.stringify(rad)}, fokus ${fokuser}).`);
+      v.krav(Boolean(rad && /\b1\b/.test(rad)), `${namn}: Bos rad bär ingen räknare på 1: ${JSON.stringify(rad)}.`);
+      await bild(v, page, `inkorg-lever-${vp.width}.png`);
+    }, telefon ? { kontext: IPHONE } : {});
+  }
+}
+
+/**
  * Alla delar i ordning. Varje skiva lägger till sin rad här.
  * @param {Verktyg} v
  */
@@ -436,4 +469,5 @@ export async function chattepiken0106(v) {
   await lasaBakat(v);
   await skrivfaltet(v);
   await merKnappen(v);
+  await inkorgenLever(v);
 }
