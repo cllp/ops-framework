@@ -242,6 +242,28 @@ describe("takten och hållens identitet (granskningen av PR 392 varv 3)", () => 
       av();
     }
   });
+
+  it("⛔ BÖR 2: ett tidigare håll som avgörs sent släpper inte ett senare", async () => {
+    /** @type {Array<() => void>} */
+    const losare = [];
+    const fanga = vi.fn(() => new Promise((klar) => losare.push(() => klar(undefined))));
+    const av = registreraFelmottagare({ fanga, satt: vi.fn() });
+    try {
+      rapporteraFel(new Error("håll 1"));
+      // Håll 1 släpps av taket. Håll 2 börjar.
+      await vi.advanceTimersByTimeAsync(FELMOTTAGARE_HALL_MS + 10);
+      rapporteraFel(new Error("håll 2"));
+      expect(fanga).toHaveBeenCalledTimes(2);
+      // Håll 1:s löfte avgörs nu, mitt i håll 2.
+      losare[0]();
+      await vi.advanceTimersByTimeAsync(1);
+      rapporteraFel(new Error("medan håll 2 står"));
+      // Röd utan identitetskontrollen: håll 1 släppte håll 2, och felet levererades mitt i håll 2:s skrivning.
+      expect(fanga).toHaveBeenCalledTimes(2);
+    } finally {
+      av();
+    }
+  });
 });
 
 /** En vy som kastar så fort den monteras. */
