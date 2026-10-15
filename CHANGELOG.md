@@ -9,18 +9,80 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
-## 0.106.1
+## 0.107.0
+
+**TALK: felkanalen når komponenterna, och förra omgången är släppt innan nästa öppnar mikrofonen (cllp/lifehub.app#253).**
+
+CP 2026-10-15 07:25 på iPhone, appen på ramverket 0.104.0: efter agentens svar gick det inte att spela in igen, och fältet sade
+`TALK_INGET_LJUD` ("Mikrofonen gav inget ljud, och inget hördes som text"). CP: "Det är som att mikrofonen låser sig." Både ljudet
+och taligenkänningens text var tomma, och diagnosen som skulle ha sagt varför nådde aldrig appen.
+
+**Vad som är mätt och vad som är hypotes.** Mätt i koden, med prov som är röda utan rättelsen: att diagnosen inte nådde appens
+mottagare, och fyra sätt koden kunde lämna något från förra omgången öppet (nedan). **Hypotes, inte mätt på en iPhone:** att WebKit
+på iOS håller telefonens ljudpass medan en taligenkännare inte sagt `end`, eller medan en `AudioContext` inte stängts, och att nästa
+`getUserMedia` då ger ett tyst spår. Väntan nedan tar bort de möjligheterna. ⛔ **Det rättar inte säkert CP:s fall:** i hans väg (Klar,
+valen, Agent) hade förra igenkännaren redan sagt `end` när det sagda kom fram, eftersom texten annars hade varit tom
+(`webblasarensIgenkanning().stoppa`). Vad som faktiskt hände avgörs av diagnosen, som nu kan nå appen. Texten i fältet när det ändå
+blir tomt är oförändrad, `TALK_INGET_LJUD`.
+
+### Tillagt: en förvald felmottagare
+
+- `registreraFelmottagare(felmottagare)` gör mottagaren förvald: varje `rapporteraFel(fel, sammanhang)` utan eget tredje argument
+  når den, också TALK:s diagnos. Returnerar en funktion som tar bort just den registreringen, och den senast registrerade gäller.
+  Kastar när mottagaren saknar `fanga`, eftersom en sådan hade tappat varje fel tyst.
+- `OpsAuthProvider` och `OpsAppShell` med `felmottagare` registrerar den själva medan de är monterade. **En app ger alltså
+  `felmottagare` till `OpsAuthProvider` en gång**, formen `{ fanga, satt }`, och behöver inget annat. Ramverket känner fortfarande inget
+  konto och inget samlingsnamn. ⛔ Ändrat beteende: en `felmottagare` utan `fanga` på någon av dem kastar nu när den monteras, i
+  stället för att tyst ignoreras.
+
+### Rättat: förra omgången är släppt innan nästa öppnar mikrofonen
+
+- **Förra igenkännaren har sagt `end` innan nästa omgång öppnar mikrofonen.** `webblasarensIgenkanning().slapp()` gör `abort()` och
+  väntar på `end`, högst `IGENKANNING_SLAPP_MS` (1 s), så att en `end` som aldrig kommer inte hänger fältet. `useTalk` väntar på den
+  före `getUserMedia`, och nästa igenkännare startar först när mikrofonen är öppen. Finns inget att vänta på öppnas mikrofonen i
+  samma tryck som förut. Förut gjorde `kasta()` och ett `stoppa()` vars väntetid gått ut `abort()` utan att vänta.
+- **Förra omgångens `AudioContext` är stängd innan nästa öppnar mikrofonen**, högst `LJUDKONTEXT_VANTA_MS` (1 s). Förut anropades
+  `close()` utan att någon väntade på den.
+- **`stoppa` hänger inte på en inspelare som redan stannat.** När ett spår tar slut stannar `MediaRecorder` av sig själv, och `stop()`
+  på en inspelare som inte spelar in ger inget `stop`-event. Förut väntade `stoppa` då för evigt: fältet stod på Sparar och
+  mikrofonspärren (`mikrofonenUpptagenAv`) släpptes aldrig, så ingen annan del av sidan kunde spela in. Nu svarar den direkt, och
+  väntar annars högst `STOPP_VANTA_MS` (2 s).
+- **En start som faller efter att mikrofonen öppnats stänger den** (`new MediaRecorder` eller `start()` kastar). Förut stod strömmen
+  kvar tills någon utifrån anropade `kasta()`.
+- **En mikrofon som öppnas efter `kasta()` spelar inte in.** `kasta()` räknar upp försöket, så att en ström som kommer efteråt stängs
+  i stället för att kopplas in.
+- Igenkännaren stängs när `useTalk` avmonteras i varje läge, inte bara medan det spelas in.
+- Varje omgång skapade redan en ny `SpeechRecognition` (`webblasarensIgenkanning().starta`); det är kontrollerat och oförändrat.
+
+### Tillagt: diagnosen säger vad som hände
+
+Blir en inspelning tom (`steg: "tomt-ljud"`) bär rapporten också `omgang` (omgångens nummer i kroken), `forraIgenkanningHann` och
+`forraIgenkanningMs` (om förra igenkännaren hann säga `end`, och hur långt efter `stop()` eller `abort()`; `null` när ingen fanns),
+`sparVidStart` och `sparVidStopp` (varje spårs `readyState`, `muted` och `enabled`), `ljudkontextVidStart` och `ljudkontextVidStopp`
+(`AudioContext.state`, eller `"ingen"`), `forraLjudkontext` (om förra `close()` hann, och på hur många ms), `stannadeSjalv` och
+`stoppetHann`. Inga personuppgifter och ingen text som personen sagt. `sparLage(strom)` i `lib/talk.js` läser spåren.
+
+### Prov
+
+`src/__tests__/talk-mikrofonlas.test.jsx`, 8 prov, med en falsk telefon som följer hypotesens regel (ett tyst spår och en döv
+igenkännare medan en igenkännare inte sagt `end`). Varje rättelse togs bort en i taget och provet sågs rött: utan registreringen i
+`OpsAuthProvider` 2 röda (diagnosen nådde inte mottagaren), utan den i `OpsAppShell` 1, utan väntan på igenkännaren 2 (omgång 2 gav
+`TALK_INGET_LJUD`), utan genvägen och taket i `stoppa` 1 (löftet löstes aldrig), utan släppet vid en fallande start 1, utan
+uppräkningen i `kasta` 1, utan väntan på ljudkontexten 1. Alla 8 gröna med rättelserna. `talk-tomt-ljud.test.jsx` förväntar sig
+diagnosens nya fält.
+
+### Också i 0.107.0: två KAN-punkter ur granskningen av PR 387 (#389)
 
 **Två KAN-punkter ur granskningen av PR 387: felet i läget hört har ett prov, och skalytans fokusfel är en rad och inte 5,8 MB.**
 [#389](https://github.com/cllp/ops-framework/issues/389). Ingen ändring i ramverkets beteende, bara prov och ett mätmeddelande.
 
-### Provat
+#### Provat
 
 - `talkNasta` i läget `hort`: raden `return bli("hort", null, nu.fel)` behövs och har nu ett prov. Felet från `agentFel` läses av
   `OpsTalk` (`valFel`) och ska stå kvar när personen trycker Klar, Skicka, Dölj eller får ett tak, upp eller igen medan hen läser det.
   Muteras raden till `bli("hort")` blir `talk-val.test.jsx` rött (`fel: "Nej"` saknas). Förut var alla prov gröna med mutationen.
 
-### Rättat
+#### Rättat
 
 - `scripts/check-skalyta.mjs`, valen efter talet: felmeddelandet för fokus skriver taggnamnet och de första 60 tecknen av texten
   (`body "Boka rep med bandet. Boka rep med bande…"`) och inte hela elementets `textContent`. På `body` var det hela dokumentet,
