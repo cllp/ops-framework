@@ -79,8 +79,8 @@ export const ORD_OPSKALENDRAR = {
  * @param {ReadonlyArray<import("../lib/kalendrar.js").MinKalender>} props.mina Mina kalendrar, också arkiverade.
  * @param {string} props.groupId
  * @param {boolean} props.kanAndraGruppens Ägare eller admin i gruppen.
- * @param {(rader: import("../lib/kalendrar.js").Gruppkalender[]) => Promise<unknown> | void} props.onSparaGruppens
- * @param {(rader: import("../lib/kalendrar.js").MinKalender[]) => Promise<unknown> | void} props.onSparaMina
+ * @param {(rader: import("../lib/kalendrar.js").Gruppkalender[], sprak: string) => Promise<unknown> | void} props.onSparaGruppens
+ * @param {(rader: import("../lib/kalendrar.js").MinKalender[], sprak: string) => Promise<unknown> | void} props.onSparaMina
  * @param {string} [props.gruppNamn] Står i gruppsektionens rubrik ("Alfa AB:s kalendrar"). Utan den "Gruppens kalendrar".
  * @param {string} [props.sprak]
  */
@@ -123,7 +123,7 @@ export function OpsKalendrar({ gruppens, mina, groupId, kanAndraGruppens, onSpar
 
 /**
  * En sektion: listan, arkiverade och redigeraren.
- * @param {{ slag: "grupp" | "mina", rubrik: string, hjalp: string, tomText?: string, lista: ReadonlyArray<any>, kanAndra: boolean, lasText: string, sprak: string, bygg: (r: Record<string, any>) => any, onSpara: (rader: any[]) => Promise<unknown> | void }} props
+ * @param {{ slag: "grupp" | "mina", rubrik: string, hjalp: string, tomText?: string, lista: ReadonlyArray<any>, kanAndra: boolean, lasText: string, sprak: string, bygg: (r: Record<string, any>) => any, onSpara: (rader: any[], sprak: string) => Promise<unknown> | void }} props
  */
 function Sektion({ slag, rubrik, hjalp, tomText, lista, kanAndra, lasText, sprak, bygg, onSpara }) {
   const rubrikId = useId();
@@ -147,7 +147,9 @@ function Sektion({ slag, rubrik, hjalp, tomText, lista, kanAndra, lasText, sprak
        * eller ovanför listan, som alla andra fel här. Mina kalendrar har ingen etikett och kontrolleras inte.
        */
       if (slag === "grupp") kontrolleraGithubEtiketter(lista, { rader: byggda, sprak });
-      await onSpara(byggda);
+      // ⛔ Vyns språk följer med som andra argument, så att en app som sparar genom källan (`sparaGruppens(groupId, rader, { sprak })`) skriver
+      // ett eventuellt etikettfel på samma språk som vyn, och inte på svenska.
+      await onSpara(byggda, sprak);
       return true;
     } catch (e) {
       // ⛔ FELET VISAS, DET SVÄLJS INTE. En kalender som inte sparades och inte säger det ser ut som att knappen inte fungerar.

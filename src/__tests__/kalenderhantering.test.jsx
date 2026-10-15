@@ -14,6 +14,7 @@ import {
   byggMinKalender,
   idagI,
   flyttaKalender,
+  kalenderForEtikett,
   kalenderIdUrNamn,
   kalenderval,
   nastaOrdning,
@@ -216,6 +217,26 @@ describe("källorna mot minneskällan", () => {
     await expect(k.sparaGruppens(G, [gk("styrelse", { githubEtikett: "Styrelsen", arkiverad: false })])).rejects.toThrow(/används av både/);
   });
 
+  it("⛔ kalenderForEtikett väljer den kalender som gruppens() listar först: samma ordning, inte en andra sortering", async () => {
+    const kalla = createMemorySource();
+    const k = createKalenderkalla({ kalla });
+    // Tre med samma etikett (en dubblett som slank igenom skrivs rakt i källan, förbi kontrollen), blandad ordning och samma `ordning` på två.
+    for (const [id, ordning] of [["cesar", 10], ["alfa", 30], ["beta", 10]]) {
+      await kalla.create("gruppkalendrar", { ...gk(id, { ordning, githubEtikett: "Dubblett" }), id: `${G}|${id}` });
+    }
+    const lista = await k.gruppens(G);
+    expect(lista.map((x) => x.id)).toEqual(["beta", "cesar", "alfa"]);
+    expect(kalenderForEtikett(lista, "dubblett")?.id).toBe(lista[0].id);
+  });
+
+  it("sparaGruppens tål null som tredje argument, och språket når felet", async () => {
+    const kalla = createMemorySource();
+    const k = createKalenderkalla({ kalla });
+    await k.sparaGruppens(G, [gk("styrelse", { githubEtikett: "Styrelsen" })], null);
+    await expect(k.sparaGruppens(G, [gk("resor", { githubEtikett: "styrelsen" })], null)).rejects.toThrow(/används av både/);
+    await expect(k.sparaGruppens(G, [gk("resor", { githubEtikett: "styrelsen" })], { sprak: "en" })).rejects.toThrow(/is used by both/);
+  });
+
   it("githubEtikett: bara en rad med etikett kostar en läsning, en ordningsändring gör det inte", async () => {
     const kalla = createMemorySource();
     let lasningar = 0;
@@ -362,6 +383,16 @@ describe("OpsKalendrar (F2)", () => {
     fireEvent.click(within(sektion).getByRole("button", { name: "Ta fram Gammal" }));
     expect(await within(sektion).findByRole("alert")).toHaveTextContent('The GitHub label "styrelsen" is used by both "Styrelse" and "Gammal".');
     expect(gruppens).toEqual([]);
+  });
+
+  it("⛔ vyns språk följer med som andra argument till onSparaGruppens och onSparaMina", async () => {
+    /** @type {any[]} */
+    const anrop = [];
+    visa({ sprak: "en", onSparaGruppens: (/** @type {any} */ r, /** @type {any} */ s) => { anrop.push(["grupp", r.length, s]); }, onSparaMina: (/** @type {any} */ r, /** @type {any} */ s) => { anrop.push(["mina", r.length, s]); } });
+    fireEvent.click(within(screen.getByRole("region", { name: "Gruppens kalendrar" })).getByRole("button", { name: "Arkivera Resor" }));
+    fireEvent.click(within(screen.getByRole("region", { name: "Mina kalendrar" })).getByRole("button", { name: "Arkivera Privat" }));
+    await waitFor(() => expect(anrop).toHaveLength(2));
+    expect(anrop).toEqual([["grupp", 1, "en"], ["mina", 1, "en"]]);
   });
 
   it("arkiverar och flyttar, och arkiverade står under en egen rubrik", async () => {

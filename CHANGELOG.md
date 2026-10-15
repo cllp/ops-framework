@@ -33,7 +33,15 @@ lägga till därifrån, av tre skäl: `byggGruppkalender` kastade på okända f�
   dokumentnyckeln och en regel kan inte se en annan rad, och en nyckel härledd ur etiketten vore den spegel regeln förbjuder. Två admins
   som sparar samma etikett i samma sekund kan alltså ge två kalendrar med samma etikett. Därför kastar `validateGruppkalendrar` INTE på
   en dubblett (ett kast där hade gjort hela gruppens kalenderlista oläsbar vid varje uppstart): dubbletten ska synas, och felet kommer
-  nästa gång någon av de två rörs. Appen bör välja deterministiskt (första i `ordning`) om den ändå ser två.
+  nästa gång någon av de två rörs. Vilken av två som äger etiketten avgörs av `kalenderForEtikett` (se nedan), inte av appen.
+- **`kalenderForEtikett(kalendrar, etikett)` (granskningen av PR 395, BÖR 1).** Kalendern som äger en etikett: den första icke-arkiverade
+  vars `githubEtikett` matchar enligt `githubEtikettNyckel`, och vid en dubblett den som står först i `ordning`, sedan `id`. Tom etikett
+  eller ingen träff ger `null`; listan ändras inte. Sorteringen är `efterOrdning`, flyttad ur `kalenderkalla.js` (där den stod två gånger)
+  till `kalendrar.js`, så att källans `gruppens()` och vinnaren ur en dubblett följer samma jämförelse och "första i ordningen" inte är
+  en konvention som två appar kan tolka olika (regel 2). Exporteras ur `src/index.js`.
+- **Språket följer med (granskningen, KAN).** `OpsKalendrar` anropar `onSparaGruppens(rader, sprak)` och `onSparaMina(rader, sprak)`, så att
+  en app som sparar genom källan kan skicka vyns språk vidare (`sparaGruppens(groupId, rader, { sprak })`) och få ett eventuellt
+  etikettfel på samma språk som vyn. `sparaGruppens` tål nu `null` som tredje argument. Ett befintligt `(rader) => ...` fungerar som förut.
 - **Reglerna (kalenderregelfragment).** `githubEtikett` står i `hasOnly` för `gruppkalendrar`, med villkoret att fältet saknas eller är en
   sträng vars `size()` är 1 till 50. Generatorn för gruppade samlingar fick ett internt `villkor` (efter fältlistan, för både `create` och
   `update`); övriga samlingar får exakt samma text som förut (`check-regelgenerator`). ⛔ **Appen måste deploya reglerna FÖRE klienten som

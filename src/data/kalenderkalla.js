@@ -1,5 +1,5 @@
 import { gruppensRader, katalognyckel } from "../lib/katalog.js";
-import { byggGruppkalender, byggKalenderpost, byggMinKalender, kontrolleraGithubEtiketter, validateGruppkalendrar, validateMinaKalendrar } from "../lib/kalendrar.js";
+import { byggGruppkalender, byggKalenderpost, byggMinKalender, efterOrdning, kontrolleraGithubEtiketter, validateGruppkalendrar, validateMinaKalendrar } from "../lib/kalendrar.js";
 import { byggKommentar, byggSvar } from "../lib/handelsemodell.js";
 
 /**
@@ -60,7 +60,7 @@ export function createKalenderkalla(konfig) {
    */
   async function lasGruppens(groupId) {
     const rader = await kalla.list(gruppkalendrar, { where: { groupId } });
-    return validateGruppkalendrar(gruppensRader(rader, { groupId }).rader).sort((a, b) => a.ordning - b.ordning || a.id.localeCompare(b.id));
+    return validateGruppkalendrar(gruppensRader(rader, { groupId }).rader).sort(efterOrdning);
   }
 
   return Object.freeze({
@@ -80,9 +80,11 @@ export function createKalenderkalla(konfig) {
      * mellan två som sparar samtidigt (ingen regel ser en annan rad), och det står i CHANGELOG 0.108.0.
      *
      * @param {string} groupId @param {ReadonlyArray<Record<string, any>>} rader
-     * @param {{ sprak?: string }} [val] `sprak`: språket felet om en upptagen etikett skrivs på. Förval svenska.
+     * @param {{ sprak?: string } | null} [val] `sprak`: språket felet om en upptagen etikett skrivs på. Förval svenska. `null` tolereras
+     *   (en app som skickar vidare ett tomt val ska inte få ett TypeError i stället för en sparning).
      */
-    async sparaGruppens(groupId, rader, { sprak = "sv" } = {}) {
+    async sparaGruppens(groupId, rader, val) {
+      const sprak = val?.sprak ?? "sv";
       const byggda = rader.map((r) => {
         if (r.groupId && r.groupId !== groupId) throw new Error(`kalenderkalla: kalendern "${r.id}" hör till gruppen "${r.groupId}" och sparas inte i "${groupId}".`);
         return byggGruppkalender({ ...r, groupId });
@@ -94,7 +96,7 @@ export function createKalenderkalla(konfig) {
     /** Mina kalendrar, också arkiverade, validerade och i sin ordning. @param {string} uid */
     async mina(uid) {
       const rader = await kalla.list(minaVag(uid));
-      return validateMinaKalendrar(rader).sort((a, b) => a.ordning - b.ordning || a.id.localeCompare(b.id));
+      return validateMinaKalendrar(rader).sort(efterOrdning);
     },
 
     /** Sparar en eller flera av mina kalendrar. @param {string} uid @param {ReadonlyArray<Record<string, any>>} rader */

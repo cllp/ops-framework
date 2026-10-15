@@ -265,6 +265,41 @@ export function kontrolleraGithubEtiketter(lista, { rader = [], sprak = "sv" } =
 }
 
 /**
+ * Kalendrarnas ordning: `ordning`, sedan `id`. EN jämförelse för alla som sorterar kalendrar (0.108.0, granskningen av PR 395).
+ *
+ * ⛔ HIT FLYTTADE SORTERINGEN FRÅN `kalenderkalla.js`, där den stod två gånger (gruppens och mina). `kalenderForEtikett` väljer vinnaren
+ * ur en dubblett med den, och en egen jämförelse bredvid hade gjort "första i ordningen" till en konvention som två appar kan tolka olika
+ * (arbetsreglernas punkt 2). Källan sorterar med den här, alltså är "första" alltid den kalender `gruppens()` listar först.
+ *
+ * @param {{ ordning: number, id: string }} a @param {{ ordning: number, id: string }} b
+ * @returns {number}
+ */
+export const efterOrdning = (a, b) => a.ordning - b.ordning || a.id.localeCompare(b.id);
+
+/**
+ * Kalendern som äger en GitHub-etikett: den första icke-arkiverade vars `githubEtikett` matchar enligt `githubEtikettNyckel`, eller `null`.
+ *
+ * ⛔ DET HÄR ÄR BESLUTET "FÖRSTA TRÄFF I ORDNINGEN" SOM KOD (cllp/lifehub.app#259, beslut 3), OCH DEN ENDA PLATSEN DET FINNS PÅ. Unikheten
+ * kontrolleras vid sparande (`kontrolleraGithubEtiketter`) men kan inte garanteras: två admins som sparar samtidigt kan ge en dubblett.
+ * Då vinner den som står först i `efterOrdning`, samma ordning som `createKalenderkalla().gruppens()` listar i. En app som kopplar ett
+ * ärende till en kalender ska anropa den här och inte söka själv.
+ *
+ * ⛔ EN TOM ETIKETT GER `null`, OCH DET ÄR INTE SAMMA SAK SOM ATT INGEN MATCHAR. Kalendrar utan etikett har nyckeln `""`, så en jämförelse
+ * som inte hoppade över den hade gett ett ärende utan etikett den första kalendern utan etikett.
+ *
+ * ⛔ ARKIVERADE RÄKNAS INTE, som i `kontrolleraGithubEtiketter`: en arkiverad kalender ritas inte, så ärendena hamnar inte i den.
+ * Listan ändras inte (kopian sorteras).
+ *
+ * @template {{ id: string, ordning: number, arkiverad?: boolean, githubEtikett?: string }} K
+ * @param {ReadonlyArray<K>} kalendrar @param {unknown} etikett @returns {K | null}
+ */
+export function kalenderForEtikett(kalendrar, etikett) {
+  const nyckel = githubEtikettNyckel(etikett);
+  if (!nyckel) return null;
+  return [...kalendrar].sort(efterOrdning).find((k) => !k.arkiverad && githubEtikettNyckel(k.githubEtikett) === nyckel) ?? null;
+}
+
+/**
  * Validerar en grupps kalendrar vid uppstart.
  *
  * ⛔ HÖGST EN FÖRVALD, OCH DEN FÅR INTE VARA ARKIVERAD. Två förvalda gör "var hamnar en post utan kalender" till en

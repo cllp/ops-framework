@@ -11,6 +11,7 @@ import {
   giltigtDatum,
   githubEtikettNyckel,
   idagI,
+  kalenderForEtikett,
   kontrolleraGithubEtiketter,
   kontrolleraTidszon,
   postTillRad,
@@ -159,6 +160,50 @@ describe("gruppkalenderns githubEtikett (0.108.0, cllp/lifehub.app#259)", () => 
       const lista2 = [byggGruppkalender(gk({ id: "a", namn: { sv: "A $& B" }, githubEtikett: "x" }))];
       expect(() => kontrolleraGithubEtiketter(lista2, { rader: [byggGruppkalender(gk({ id: "b", githubEtikett: "x" }))] })).toThrow('"A $& B"');
     });
+  });
+});
+
+describe("kalenderForEtikett: vem som äger en etikett, och första i ordningen vinner (0.108.0, granskningen av PR 395)", () => {
+  const k = (id, extra = {}) => byggGruppkalender(gk({ id, ...extra }));
+
+  it("träff: kalendern vars etikett matchar", () => {
+    const lista = [k("styrelse", { githubEtikett: "styrelsen" }), k("resor", { githubEtikett: "resor" })];
+    expect(kalenderForEtikett(lista, "resor")?.id).toBe("resor");
+  });
+
+  it("⛔ skiftläge och blanksteg spelar ingen roll, i etiketten som söks och i den som lagrats", () => {
+    const lista = [k("styrelse", { githubEtikett: "Styrelsen" })];
+    expect(kalenderForEtikett(lista, "  STYRELSEN ")?.id).toBe("styrelse");
+    expect(kalenderForEtikett([k("a", { githubEtikett: "ÅTGÄRD" })], "åtgärd")?.id).toBe("a");
+  });
+
+  it("⛔ en dubblett: den första i ordningen vinner (ordning, sedan id), oavsett listans egen ordning", () => {
+    const a = k("alfa", { githubEtikett: "x", ordning: 20 });
+    const b = k("beta", { githubEtikett: "X", ordning: 10 });
+    const c = k("cesar", { githubEtikett: "x", ordning: 10 });
+    expect(kalenderForEtikett([a, c, b], "x")?.id).toBe("beta"); // lägst ordning, och beta före cesar på id
+    expect(kalenderForEtikett([c, b, a], "x")?.id).toBe("beta");
+    expect(kalenderForEtikett([a, c], "x")?.id).toBe("cesar");
+  });
+
+  it("⛔ listan ändras inte", () => {
+    const lista = [k("b", { githubEtikett: "x", ordning: 2 }), k("a", { githubEtikett: "y", ordning: 1 })];
+    const fore = lista.map((x) => x.id);
+    kalenderForEtikett(lista, "x");
+    expect(lista.map((x) => x.id)).toEqual(fore);
+  });
+
+  it("⛔ en arkiverad kalender räknas inte, så nästa i ordningen vinner", () => {
+    const lista = [k("forsta", { githubEtikett: "x", ordning: 0, arkiverad: true }), k("andra", { githubEtikett: "x", ordning: 10 })];
+    expect(kalenderForEtikett(lista, "x")?.id).toBe("andra");
+    expect(kalenderForEtikett([lista[0]], "x")).toBeNull();
+  });
+
+  it("⛔ ingen träff ger null, och en tom etikett ger null trots att kalendrar utan etikett finns", () => {
+    const lista = [k("styrelse", { githubEtikett: "styrelsen" }), k("resor")];
+    expect(kalenderForEtikett(lista, "okand")).toBeNull();
+    expect(kalenderForEtikett([], "x")).toBeNull();
+    for (const tom of ["", "   ", undefined, null, 5]) expect(kalenderForEtikett(lista, tom)).toBeNull();
   });
 });
 
