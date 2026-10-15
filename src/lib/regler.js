@@ -43,7 +43,7 @@ import { MAX_MINNESID, MAX_MINNESTEXT, MINNESFALT, MINNESKALLAFALT, MINNESKALLOR
 import { MAX_SKAPARKALLA, MAX_SKAPARNAMN, SKAPARFALT } from "./skapare.js";
 import { BESKRIVENAPPDATAFALT, BESKRIVNINGSDOKUMENTFALT, BESKRIVNINGSFALT, BESKRIVNINGSFORMAT, BESKRIVNINGSIDFORM, MAX_APPBESKRIVNING, MAX_BESKRIVNINGSNAMN, MAX_FALT, MAX_LISTOR, MIN_LISTOR } from "./beskrivenapp.js";
 import { KONFIGHANDELSER, KONFIGLOGGFALT } from "./konfiglogg.js";
-import { DATUMFORM, KALENDERFALT, KALENDERFARGER, KALENDERPOSTFALT, MAX_KALENDERNAMN, MAX_POSTBESKRIVNING, MAX_POSTPLATS, MAX_POSTTITEL, MINKALENDERFALT, TIDPUNKTSFORM } from "./kalendrar.js";
+import { DATUMFORM, KALENDERFALT, KALENDERFARGER, KALENDERPOSTFALT, MAX_GITHUBETIKETT, MAX_KALENDERNAMN, MAX_POSTBESKRIVNING, MAX_POSTPLATS, MAX_POSTTITEL, MINKALENDERFALT, TIDPUNKTSFORM } from "./kalendrar.js";
 import { KOMMENTARBILAGAFALT, KOMMENTARBILAGA_TYPER, KOMMENTARFALT, LASMARKESFALT, MAX_BILAGENAMN, MAX_HANDELSEKOMMENTAR, MAX_KOMMENTARBILAGA, SVARSFALT, SVARSVAL } from "./handelsemodell.js";
 import { AMNESFALT, AMNES_REGEL, BILAGA_TRADSKILJE, BILAGEMARKEFALT, FASTFALT, MAX_AMNESRUBRIK, GRUPPSAMTAL, LASTFALT, MAX_MEDDELANDE, MAX_NAMNER, MAX_TRADNAMN, MAX_UIDLANGD, MEDDELANDEFALT, NAMNERFALT, NAMNER_ALLA, REAKTIONSFALT, SVARPAFALT, REAKTIONSKODER, SAMTALSAVGRANSARE, SAMTALSFALT, TRADFALT, undersamlingskrock } from "./samtal.js";
 
@@ -580,7 +580,10 @@ export function gruppadSamling(samling, config = {}) {
  * ramverkets val per samling, inte något ett manifest ska kunna ställa in.
  *
  * @param {string} samling
- * @param {{ skrivvillkor: "opsArMedlem" | "opsArAdmin" | "opsArAgare", falt?: ReadonlyArray<string> | null, nyckelMedGrupp: boolean }} config
+ * @param {{ skrivvillkor: "opsArMedlem" | "opsArAdmin" | "opsArAgare", falt?: ReadonlyArray<string> | null, nyckelMedGrupp: boolean, villkor?: ReadonlyArray<string> }} config
+ *   `villkor` (0.108.0): regeluttryck som gäller ytterligare på raden, vid både skapande och ändring, efter fältlistan. Ett villkor
+ *   per element, var och ett ett helt uttryck. Utelämnat eller tomt skrivs ingenting, så att en samling utan villkor får samma
+ *   text som förut (provet mot `rules/__fixturer__/genererad.rules` mäter det).
  * @returns {string}
  */
 function gruppadSamlingBlock(samling, config) {
@@ -599,7 +602,14 @@ function gruppadSamlingBlock(samling, config) {
       `gruppadSamling: "${namn}" har en tom fältlista. Det hade genererat keys().hasOnly([]), alltså en regel som avvisar varje rad. Utelämna falt om samlingen inte ska formvalideras.`,
     );
   }
-  const formrad = falt ? `\n        && request.resource.data.keys().hasOnly([${falt.map((f) => `"${f}"`).join(", ")}])` : "";
+  const faltrad = falt ? `\n        && request.resource.data.keys().hasOnly([${falt.map((f) => `"${f}"`).join(", ")}])` : "";
+  /*
+   * ⛔ VILLKOREN EFTER FÄLTLISTAN, I SAMMA RAD-GRUPP, så att en diff mot förra versionen visar exakt vilket villkor som tillkom
+   * (0.108.0, `githubEtikett`). De gäller både `create` och `update`, eftersom en ändring av ett fält på en befintlig rad är lika
+   * mycket ett skrivande som en ny rad.
+   */
+  const villkorsrad = (config.villkor ?? []).map((v) => `\n        && ${v}`).join("");
+  const formrad = faltrad + villkorsrad;
   /*
    * ⛔ NYCKELN BÖRJAR PÅ RADENS EGEN GRUPP (0.33.0, katalogerna). Utan den här raden kunde en admin i
    * grupp A skapa dokumentet `B|uppgift` med `groupId: "A"`: skapelsen släpps in (A är hens grupp),
@@ -1390,6 +1400,9 @@ const regeluttryck = (r) => r.source.replace(/^\^/, "").replace(/\$$/, "").repla
  *
  *   - GRUPPENS KALENDRAR: exakt katalogens block (medlem läser, ägare och admin skriver, nyckeln `groupId|id`, aldrig
  *     radering), med kalenderns fält (`KALENDERFALT`). Samma motor som typerna, alltså samma regel.
+ *     ⛔ (0.108.0, cllp/lifehub.app#259) `githubEtikett` är ett valfritt fält: det saknas, eller är en sträng på 1 till
+ *     `MAX_GITHUBETIKETT` (50) tecken. Fältet står i `hasOnly`, så en klient som skriver det mot äldre regler nekas.
+ *     ⛔ APPEN DEPLOYAR REGLERNA FÖRE KLIENTEN som skriver fältet: en regel i main är inte en regel i produktion.
  *   - MINA KALENDRAR: bara ägaren läser och skriver, nyckeln är radens `id`, namnet är en sträng med tak och färgen en
  *     av de sex. Aldrig radering: en kalender arkiveras, och posterna i den finns kvar och går att flytta.
  *   - POSTERNA I MINA KALENDRAR: bara ägaren. Kalendern måste finnas bland ÄGARENS kalendrar och inte vara arkiverad,
@@ -1423,12 +1436,23 @@ export function kalenderregelfragment(namn = {}) {
    * som skriver genom adaptern och är röd mot 0.36.0:s regel.
    */
   const utanId = (/** @type {readonly string[]} */ f) => f.filter((x) => x !== "id");
+  /*
+   * ⛔ `githubEtikett` ÄR VALFRI (0.108.0, cllp/lifehub.app#259): fältet saknas, eller är en sträng på 1 till `MAX_GITHUBETIKETT`
+   * tecken. Samma tal som `byggGruppkalender` kastar på, hämtat ur samma konstant. Regeln kräver INTE att strängen är trimmad
+   * eller unik: det första är byggarens sak, det andra kan ingen regel pröva eftersom den inte ser en annan rad (se
+   * `kontrolleraGithubEtiketter` om fönstret det lämnar).
+   */
+  const etikett = "request.resource.data.githubEtikett";
+  const githubEtikettVillkor = `(!('githubEtikett' in request.resource.data)
+          || (${etikett} is string
+            && ${etikett}.size() >= 1
+            && ${etikett}.size() <= ${MAX_GITHUBETIKETT}))`;
 
   return `    // ══ Ramverkets kalendrar (0.37.0). GENERERAD, ändra inte för hand ══
     //
     // Källa: ops-framework, kalenderregelfragment() i src/lib/regler.js. Kräver regelfragment() ovanför.
 
-${gruppadSamlingBlock(gruppkalendrar, { skrivvillkor: "opsArAdmin", falt: [...KALENDERFALT], nyckelMedGrupp: true })}
+${gruppadSamlingBlock(gruppkalendrar, { skrivvillkor: "opsArAdmin", falt: [...KALENDERFALT], nyckelMedGrupp: true, villkor: [githubEtikettVillkor] })}
     function opsMinKalender(uid, kid) {
       return /databases/$(database)/documents/${anvandare}/$(uid)/${minaKalendrar}/$(kid);
     }

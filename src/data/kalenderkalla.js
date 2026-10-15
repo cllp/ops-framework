@@ -1,5 +1,5 @@
 import { gruppensRader, katalognyckel } from "../lib/katalog.js";
-import { byggGruppkalender, byggKalenderpost, byggMinKalender, validateGruppkalendrar, validateMinaKalendrar } from "../lib/kalendrar.js";
+import { byggGruppkalender, byggKalenderpost, byggMinKalender, kontrolleraGithubEtiketter, validateGruppkalendrar, validateMinaKalendrar } from "../lib/kalendrar.js";
 import { byggKommentar, byggSvar } from "../lib/handelsemodell.js";
 
 /**
@@ -53,25 +53,41 @@ export function createKalenderkalla(konfig) {
     return { skrivna: ops.length, atomar: ops.length === 1 };
   }
 
+  /**
+   * Gruppens kalendrar, alla, också arkiverade, validerade och i sin ordning. En funktion och inte en metod, så att
+   * `sparaGruppens` når den utan `this` (en app som plockar ut metoden ur källan ska inte få den att gå sönder).
+   * @param {string} groupId
+   */
+  async function lasGruppens(groupId) {
+    const rader = await kalla.list(gruppkalendrar, { where: { groupId } });
+    return validateGruppkalendrar(gruppensRader(rader, { groupId }).rader).sort((a, b) => a.ordning - b.ordning || a.id.localeCompare(b.id));
+  }
+
   return Object.freeze({
     /**
      * Gruppens kalendrar, alla, också arkiverade (inställningsvyn visar dem), validerade och i sin ordning.
      * @param {string} groupId
      */
-    async gruppens(groupId) {
-      const rader = await kalla.list(gruppkalendrar, { where: { groupId } });
-      return validateGruppkalendrar(gruppensRader(rader, { groupId }).rader).sort((a, b) => a.ordning - b.ordning || a.id.localeCompare(b.id));
-    },
+    gruppens: lasGruppens,
 
     /**
      * Sparar en eller flera av gruppens kalendrar (ny, ändrad, arkiverad, förvald, ordning).
+     *
+     * ⛔ EN GITHUB-ETIKETT FÅR INTE FINNAS PÅ TVÅ ICKE-ARKIVERADE KALENDRAR (0.108.0, cllp/lifehub.app#259), jämförd utan skiftläge
+     * (`kontrolleraGithubEtiketter`). Kontrollen läser gruppens kalendrar och lägger raderna som ska skrivas över dem, så den ser
+     * läget EFTER skrivningen. ⛔ BARA NÄR EN RAD SOM SKRIVS BÄR EN ETIKETT OCH INTE ÄR ARKIVERAD: en ordningsändring, en förvald
+     * eller en arkivering kan inte skapa en dubblett, och ska inte kosta en läsning varje gång. Läs-sedan-skriv lämnar ett fönster
+     * mellan två som sparar samtidigt (ingen regel ser en annan rad), och det står i CHANGELOG 0.108.0.
+     *
      * @param {string} groupId @param {ReadonlyArray<Record<string, any>>} rader
+     * @param {{ sprak?: string }} [val] `sprak`: språket felet om en upptagen etikett skrivs på. Förval svenska.
      */
-    async sparaGruppens(groupId, rader) {
+    async sparaGruppens(groupId, rader, { sprak = "sv" } = {}) {
       const byggda = rader.map((r) => {
         if (r.groupId && r.groupId !== groupId) throw new Error(`kalenderkalla: kalendern "${r.id}" hör till gruppen "${r.groupId}" och sparas inte i "${groupId}".`);
         return byggGruppkalender({ ...r, groupId });
       });
+      if (byggda.some((k) => k.githubEtikett && !k.arkiverad)) kontrolleraGithubEtiketter(await lasGruppens(groupId), { rader: byggda, sprak });
       return skriv(byggda.map((k) => ({ collection: gruppkalendrar, data: { ...k, id: katalognyckel(groupId, k.id) } })));
     },
 

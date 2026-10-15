@@ -43,6 +43,7 @@
  */
 
 import { byggKategori, ID_FORM, KATEGORIFALT, katalognyckel, valjbara } from "./katalog.js";
+import { ordet } from "./ord.js";
 import { text } from "./sprak.js";
 
 /** Färgerna en kalender får ha: identitetspalettens sex toner (`--color-identity-1` till `-6`). */
@@ -56,9 +57,10 @@ export const KALENDERIKONER = /** @type {const} */ (["kalender", "grupp", "portf
 
 /**
  * Fälten en gruppkalender bär, HÄRLEDDA ur katalogens och inte skrivna för hand: katalogens fält utan `fas`, plus
- * `forvald` och `iFlodet`. Ändras `KATEGORIFALT` följer den här listan med, och regelfragmentet läser DEN här.
+ * `forvald`, `iFlodet` och `githubEtikett` (0.108.0, valfritt). Ändras `KATEGORIFALT` följer den här listan med, och
+ * regelfragmentet läser DEN här.
  */
-export const KALENDERFALT = /** @type {readonly string[]} */ ([...KATEGORIFALT.filter((f) => f !== "fas"), "forvald", "iFlodet"]);
+export const KALENDERFALT = /** @type {readonly string[]} */ ([...KATEGORIFALT.filter((f) => f !== "fas"), "forvald", "iFlodet", "githubEtikett"]);
 
 /** Fälten en av mina kalendrar bär. Ingen grupp (den ligger under användaren), inga texter (ett språk: ägarens). */
 export const MINKALENDERFALT = /** @type {const} */ (["id", "namn", "farg", "ikon", "ordning", "forvald", "iFlodet", "arkiverad"]);
@@ -68,6 +70,8 @@ export const KALENDERPOSTFALT = /** @type {const} */ (["id", "kalenderId", "tite
 
 /** Tak som en rad i en regel kan hålla, och som ett formulär kan visa. */
 export const MAX_KALENDERNAMN = 80;
+/** GitHubs gräns för ett etikettnamn. Regeln (`kalenderregelfragment`) och formuläret läser samma tal. */
+export const MAX_GITHUBETIKETT = 50;
 export const MAX_POSTTITEL = 200;
 export const MAX_POSTBESKRIVNING = 2000;
 export const MAX_POSTPLATS = 200;
@@ -95,6 +99,9 @@ const rensa = (v) => (typeof v === "string" ? v.trim() : "");
  * @property {string} groupId
  * @property {boolean} forvald
  * @property {boolean} iFlodet
+ * @property {string} [githubEtikett] (0.108.0) Etiketten på de GitHub-ärenden som ritas i den här kalendern. Utelämnad
+ *   när kalendern saknar en, aldrig en tom sträng och aldrig `null`. Unik inom gruppen utan hänsyn till skiftläge, se
+ *   `githubEtikettNyckel` och `kontrolleraGithubEtiketter`.
  */
 
 /**
@@ -137,13 +144,56 @@ function bool(v, falt, var_) {
 }
 
 /**
+ * Jämförelsenyckeln för en GitHub-etikett: trimmad och i gemener (0.108.0, cllp/lifehub.app#259).
+ *
+ * ⛔ DEN HÄR FUNKTIONEN ÄR SANNINGEN OM NÄR TVÅ ETIKETTER ÄR SAMMA. GitHub skiljer inte på "Styrelsen" och "styrelsen" när den
+ * söker på etikett, så två kalendrar vars etiketter bara skiljer i skiftläge hade fått samma ärenden ritade i båda. Appen
+ * jämför ärendenas etiketter mot kalendrarnas med den här funktionen och skriver ingen egen: en andra jämförelse hade
+ * glidit isär den dag ena trimmar och andra inte (arbetsreglernas punkt 2).
+ *
+ * ⛔ TOMT SVAR BETYDER "INGEN ETIKETT" OCH ÄR INTE EN NYCKEL. Saknad, `null`, en annan typ än sträng och en sträng av bara
+ * blanksteg ger alla `""`, så att `githubEtikettNyckel(kalender.githubEtikett)` går att anropa på en kalender som saknar
+ * fältet. Den som kopplar nyckeln till en kalender ska hoppa över `""`, annars hamnar alla ärenden utan etikett i samma.
+ *
+ * @param {unknown} etikett
+ * @returns {string}
+ */
+export function githubEtikettNyckel(etikett) {
+  return typeof etikett === "string" ? etikett.trim().toLowerCase() : "";
+}
+
+/**
+ * Fältet `githubEtikett` på en gruppkalender: utelämnat, eller en trimmad sträng på 1 till `MAX_GITHUBETIKETT` tecken.
+ *
+ * ⛔ EN TOM STRÄNG TAS BORT, DEN LAGRAS INTE. "" och "   " betyder att etiketten rensats i formuläret, och ett fält som
+ * är tomt är ett fält med två betydelser (saknas, tomt) i varje läsare. Regeln (`kalenderregelfragment`) kräver längd 1 till 50
+ * för just det skälet. `undefined` är "inte angiven" och ger samma utfall. `null` och allt som inte är en sträng kastar:
+ * regeln hade nekat det, och en klient som tror att den sparat har då fel (samma val som `bool`).
+ *
+ * ⛔ LÄNGDEN ÄR `.length`, ALLTSÅ UTF-16-ENHETER, OCH DET ÄR MÄTT MOT REGELN OCH INTE ANTAGET. Regelns `size()` räknade i emulatorn "å"
+ * som en enhet (50 släpps in, 51 nekas) och en emoji som två (25 släpps in, 26 nekas), se `rules/__tests__/kalendrar.test.mjs`. Räknade
+ * klienten kodpunkter hade den släppt in en etikett med 30 emojier som regeln sedan nekar, och felet hade kommit som "Missing or
+ * insufficient permissions" i stället för som en mening. Klienten är aldrig mildare än regeln. Följden för en emojietikett är att
+ * taket i praktiken är 25 av dem, vilket är strängare än GitHubs 50 tecken och därmed på den säkra sidan.
+ *
+ * @param {unknown} v @param {string} id @returns {string} Den trimmade etiketten, eller `""` när fältet ska utelämnas.
+ */
+function githubEtikettFalt(v, id) {
+  if (v === undefined) return "";
+  if (typeof v !== "string") throw new Error(`gruppkalendrar: githubEtikett för "${id}" måste vara en sträng eller utelämnas, inte ${JSON.stringify(v)}.`);
+  const etikett = v.trim();
+  if (etikett.length > MAX_GITHUBETIKETT) throw new Error(`gruppkalendrar: githubEtikett för "${id}" är ${etikett.length} tecken, taket är ${MAX_GITHUBETIKETT} (GitHubs gräns för ett etikettnamn).`);
+  return etikett;
+}
+
+/**
  * Bygger en gruppkalender, eller kastar med skälet.
  *
  * @param {Record<string, any>} d
  * @returns {Gruppkalender}
  */
 export function byggGruppkalender(d) {
-  const { forvald, iFlodet, ...resten } = d && typeof d === "object" ? d : /** @type {Record<string, any>} */ ({});
+  const { forvald, iFlodet, githubEtikett, ...resten } = d && typeof d === "object" ? d : /** @type {Record<string, any>} */ ({});
   /*
    * ⛔ `fas` AVVISAS AV `byggKategori` (`faser: false`), SÅ DEN BEHÖVER INTE KONTROLLERAS HÄR. Det som tas bort nedan
    * är nyckeln `fas: null` som bygget alltid lägger till, inte ett värde någon skickat in.
@@ -151,11 +201,67 @@ export function byggGruppkalender(d) {
   const bas = byggKategori(resten, { katalog: "gruppkalendrar", faser: false, platser: KALENDERFARGER, ikoner: KALENDERIKONER });
   const { fas: _fas, ...utanFas } = bas;
   const id = bas.id;
+  const etikett = githubEtikettFalt(githubEtikett, id);
   return {
-    .../** @type {Omit<Gruppkalender, "forvald" | "iFlodet">} */ (/** @type {unknown} */ (utanFas)),
+    .../** @type {Omit<Gruppkalender, "forvald" | "iFlodet" | "githubEtikett">} */ (/** @type {unknown} */ (utanFas)),
     forvald: bool(forvald, `forvald för "${id}"`, "gruppkalendrar"),
     iFlodet: bool(iFlodet, `iFlodet för "${id}"`, "gruppkalendrar"),
+    // ⛔ Nyckeln utelämnas när etiketten saknas, den sätts inte till "" eller null (regelns hasOnly + längd 1 till 50).
+    ...(etikett ? { githubEtikett: etikett } : {}),
   };
+}
+
+/**
+ * Meningarna när två kalendrar vill ha samma etikett. Svenska och engelska, och språket väljs av den som anropar.
+ * @type {import("./ord.js").Ordbok}
+ */
+export const ORD_ETIKETTKROCK = {
+  krock: {
+    sv: "GitHub-etiketten \"{etikett}\" används av både \"{a}\" och \"{b}\". Varje kalender behöver en egen etikett, och stora och små bokstäver räknas som samma.",
+    en: "The GitHub label \"{etikett}\" is used by both \"{a}\" and \"{b}\". Each calendar needs its own label, and upper and lower case count as the same.",
+  },
+};
+
+/**
+ * Kontrollerar att ingen etikett används av två av gruppens kalendrar, jämförd med `githubEtikettNyckel`, eller kastar.
+ *
+ * ══ ⛔ VAR OCH VARFÖR ═══════════════════════════════════════════════════════════
+ *
+ * Anropas där en kalender SKAPAS ELLER REDIGERAS (`sparaGruppens` i kalenderkällan och `OpsKalendrar`), aldrig i
+ * `validateGruppkalendrar`. Valideringen körs vid läsning, och två admins som sparar samma etikett samtidigt (ingen regel kan
+ * se en annan rad, så ingen constraint finns att luta sig mot) hade då gjort att hela gruppens kalenderlista kastade vid varje
+ * uppstart. En dubblett som slank igenom ska synas som en dubblett, inte som en kalender som inte går att öppna. Arbetsreglernas
+ * punkt 2 vill ha en riktig constraint, men Firestore har bara dokumentnyckeln, och en nyckel härledd ur etiketten vore den
+ * spegel punkten förbjuder. Kontrollen är alltså läs-sedan-skriv, och den lämnar ett fönster som står utskrivet i CHANGELOG 0.108.0.
+ *
+ * ⛔ DE SOM RÄKNAS ÄR DE ICKE-ARKIVERADE. En arkiverad kalender ritas inte, så den tar inte en etikett ifrån en ny. Tas den
+ * fram (`arkiveraKalender` med `false`) går den genom samma kontroll, eftersom raden som skrivs då är en icke-arkiverad.
+ *
+ * ⛔ MED `rader` ÄR DET BARA DE SOM SKRIVS SOM KAN KROCKA. Finns en dubblett sedan förut (två som sparade samtidigt) ska den inte hindra
+ * en admin från att ändra en tredje kalender: felet kommer när någon av de två rörs, och då med båda namnen. Utan `rader` kontrolleras
+ * hela listan.
+ *
+ * @param {ReadonlyArray<Gruppkalender>} lista Gruppens kalendrar som de står nu.
+ * @param {{ rader?: ReadonlyArray<Gruppkalender>, sprak?: string }} [val] `rader`: de som ska skrivas. De läggs över listan
+ *   på `id` (en ändrad ersätter sin gamla, en ny läggs till) innan kontrollen, så att man ser läget EFTER skrivningen.
+ * @returns {ReadonlyArray<Gruppkalender>} Listan efter skrivningen.
+ */
+export function kontrolleraGithubEtiketter(lista, { rader = [], sprak = "sv" } = {}) {
+  const efter = [...lista.filter((k) => !rader.some((r) => r.id === k.id)), ...rader];
+  const kandidater = rader.length > 0 ? rader : efter;
+  for (const k of kandidater) {
+    const nyckel = k.arkiverad ? "" : githubEtikettNyckel(k.githubEtikett);
+    if (!nyckel) continue;
+    const annan = efter.find((x) => x.id !== k.id && !x.arkiverad && githubEtikettNyckel(x.githubEtikett) === nyckel);
+    if (!annan) continue;
+    const meddelande = ordet(ORD_ETIKETTKROCK, "krock", sprak)
+      // ⛔ Funktioner som ersättning, så att ett `$&` i ett namn skrivs som det står och inte tolkas av `replace`.
+      .replace("{etikett}", () => String(k.githubEtikett))
+      .replace("{a}", () => text(annan.namn, sprak))
+      .replace("{b}", () => text(k.namn, sprak));
+    throw Object.assign(new Error(meddelande), { kod: "githubEtikettKrock", etikett: nyckel, kalendrar: [annan.id, k.id] });
+  }
+  return efter;
 }
 
 /**
