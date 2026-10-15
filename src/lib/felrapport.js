@@ -100,8 +100,10 @@ const registrerade = [];
  * @returns {() => void} Avregistrerar just den här registreringen.
  */
 export function registreraFelmottagare(felmottagare) {
-  if (!felmottagare || typeof felmottagare.fanga !== "function") {
-    throw new Error("registreraFelmottagare: mottagaren ska ha formen { fanga, satt }. Utan fanga hade varje fel tappats tyst.");
+  if (!felmottagare || typeof felmottagare.fanga !== "function" || typeof felmottagare.satt !== "function") {
+    // ⛔ OCKSÅ `satt` (granskningen av PR 392, KAN 3): `OpsAuthProvider` anropar `satt` vid varje inloggningsbyte utan att pröva den,
+    // och en mottagare utan den hade kastat där i stället för här, där felet säger vad som saknas.
+    throw new Error("registreraFelmottagare: mottagaren ska ha formen { fanga, satt }, två funktioner. Utan fanga hade varje fel tappats tyst, och utan satt kastar inloggningen vid varje byte.");
   }
   const post = { felmottagare };
   registrerade.push(post);

@@ -194,6 +194,8 @@ describe("A. felkanalen når komponenterna (lifehub.app#253)", () => {
       expect(forsta.fanga).not.toHaveBeenCalled();
       avAndra();
       expect(() => registreraFelmottagare(/** @type {any} */ ({ satt: () => {} }))).toThrow(/fanga/);
+      // (Granskningen av PR 392, KAN 3) Också satt: inloggningen anropar den vid varje byte.
+      expect(() => registreraFelmottagare(/** @type {any} */ ({ fanga: () => {} }))).toThrow(/satt/);
     } finally {
       konsol.mockRestore();
     }
