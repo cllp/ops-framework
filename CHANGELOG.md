@@ -20,7 +20,11 @@ och taligenkänningens text var tomma, och diagnosen som skulle ha sagt varför 
 **Vad som är mätt och vad som är hypotes.** Mätt i koden, med prov som är röda utan rättelsen: att diagnosen inte nådde appens
 mottagare, och fyra sätt koden kunde lämna något från förra omgången öppet (nedan). **Hypotes, inte mätt på en iPhone:** att WebKit
 på iOS håller telefonens ljudpass medan en taligenkännare inte sagt `end`, eller medan en `AudioContext` inte stängts, och att nästa
-`getUserMedia` då ger ett tyst spår. Väntan nedan tar bort de möjligheterna. ⛔ **Det rättar inte säkert CP:s fall:** i hans väg (Klar,
+`getUserMedia` då ger ett tyst spår. Väntan nedan tar bort de möjligheterna. **Antaget, inte mätt (KAN 1):** att väntan inte bryter
+mot iOS krav på en användargest. I den vanliga vägen anropas `getUserMedia` fortfarande synkront i trycket; bara när förra
+igenkännaren inte sagt `end` eller förra ljudkontexten inte stängts kommer det upp till 1 s plus 1 s senare. WebKit kräver enligt
+granskarens bedömning ingen gest för `getUserMedia` själv, och `AudioContext` och `SpeechRecognition.start()` startade redan efter
+mikrofonen förut. Faller `getUserMedia` av det skälet syns det som ett fel i fältet och i rapporten. ⛔ **Det rättar inte säkert CP:s fall:** i hans väg (Klar,
 valen, Agent) hade förra igenkännaren redan sagt `end` när det sagda kom fram, eftersom texten annars hade varit tom
 (`webblasarensIgenkanning().stoppa`). Vad som faktiskt hände avgörs av diagnosen, som nu kan nå appen. Texten i fältet när det ändå
 blir tomt är oförändrad, `TALK_INGET_LJUD`.
@@ -28,12 +32,27 @@ blir tomt är oförändrad, `TALK_INGET_LJUD`.
 ### Tillagt: en förvald felmottagare
 
 - `registreraFelmottagare(felmottagare)` gör mottagaren förvald: varje `rapporteraFel(fel, sammanhang)` utan eget tredje argument
-  når den, också TALK:s diagnos. Returnerar en funktion som tar bort just den registreringen, och den senast registrerade gäller.
-  Kastar när mottagaren saknar `fanga`, eftersom en sådan hade tappat varje fel tyst.
+  når den. **Det gäller alla komponenters rapporter, inte bara TALK:s diagnos** (granskningen av PR 392, KAN 5): också `OpsCalendar`
+  (dolda lager och appar, veckonummer), `OpsMeddelanden` (`sid`, `mid` och valideringstexten för ett förslag som hoppades över),
+  `useSamtal` (`groupId`, `sid`), `OpsForslag`, skalets adressläsning och taligenkänningens fel. Granskaren hittade inga
+  personuppgifter i dem. Returnerar en funktion som tar bort just den registreringen, och den senast registrerade gäller.
+  Kastar när mottagaren saknar `fanga` eller `satt` (KAN 3): utan `fanga` hade varje fel tappats tyst, och utan `satt` kastar
+  inloggningen vid varje byte.
+- **En mottagare som rapporterar sina egna fel går inte i rekursion** (BÖR 1). Medan en mottagare hanterar ett fel går ett nytt fel
+  till samma mottagare bara till konsolen, med en rad som säger det. "Hanterar" är medan `fanga` körs och, om den returnerar ett
+  löfte, tills löftet avgjorts. ⛔ **En mottagare som skriver asynkront ska returnera sitt löfte**, till exempel
+  `fanga(fel) { return addDoc(...).catch((e) => rapporteraFel(e)) }`; en som inte gör det skyddas inte. Utan skyddet mätte granskaren
+  3 809 anrop av `fanga` för ett fel, och en nekad skrivning vars fel mottagaren rapporterar loopar utan slut. Priset: ett annat fel
+  som kommer just medan en skrivning pågår går bara till konsolen.
 - `OpsAuthProvider` och `OpsAppShell` med `felmottagare` registrerar den själva medan de är monterade. **En app ger alltså
   `felmottagare` till `OpsAuthProvider` en gång**, formen `{ fanga, satt }`, och behöver inget annat. Ramverket känner fortfarande inget
-  konto och inget samlingsnamn. ⛔ Ändrat beteende: en `felmottagare` utan `fanga` på någon av dem kastar nu när den monteras, i
-  stället för att tyst ignoreras.
+  konto och inget samlingsnamn. ⛔ Ändrat beteende: en `felmottagare` utan `fanga` eller `satt` på någon av dem kastar nu när den
+  monteras, i stället för att tyst ignoreras.
+- ⛔ Lämnat (KAN 2): ger en app två OLIKA mottagare, en till `OpsAuthProvider` och en till `OpsAppShell` inuti den, gäller
+  inloggningens för `rapporteraFel` utan tredje argument, eftersom barnets effekt körs först och föräldern registrerar sist.
+  Felgränsen ger fortfarande skalets. Ingen konsument ger två olika i dag (granskaren läste lifehub.app och bolag-ops), och att
+  ändra ordningen hade krävt en prioritet mellan komponenterna för ett fall som inte finns. Ge samma mottagare till båda, eller bara
+  till `OpsAuthProvider`.
 
 ### Rättat: förra omgången är släppt innan nästa öppnar mikrofonen
 
@@ -42,11 +61,12 @@ blir tomt är oförändrad, `TALK_INGET_LJUD`.
   före `getUserMedia`, och nästa igenkännare startar först när mikrofonen är öppen. Finns inget att vänta på öppnas mikrofonen i
   samma tryck som förut. Förut gjorde `kasta()` och ett `stoppa()` vars väntetid gått ut `abort()` utan att vänta.
 - **Förra omgångens `AudioContext` är stängd innan nästa öppnar mikrofonen**, högst `LJUDKONTEXT_VANTA_MS` (1 s). Förut anropades
-  `close()` utan att någon väntade på den.
+  `close()` utan att någon väntade på den. En `close()` som inte löst sig inom taket väntas inte på igen i nästa omgång (KAN 4).
 - **`stoppa` hänger inte på en inspelare som redan stannat.** När ett spår tar slut stannar `MediaRecorder` av sig själv, och `stop()`
   på en inspelare som inte spelar in ger inget `stop`-event. Förut väntade `stoppa` då för evigt: fältet stod på Sparar och
   mikrofonspärren (`mikrofonenUpptagenAv`) släpptes aldrig, så ingen annan del av sidan kunde spela in. Nu svarar den direkt, och
-  väntar annars högst `STOPP_VANTA_MS` (2 s).
+  väntar annars högst `STOPP_VANTA_MS` (2 s). ⛔ När taket går ut nollas också `ondataavailable` (MÅSTE 1), liksom i `kasta()`: annars
+  hamnade en bit som kom efter taket först i nästa omgångs ljud (granskaren mätte 8 byte i stället för 2).
 - **En start som faller efter att mikrofonen öppnats stänger den** (`new MediaRecorder` eller `start()` kastar). Förut stod strömmen
   kvar tills någon utifrån anropade `kasta()`.
 - **En mikrofon som öppnas efter `kasta()` spelar inte in.** `kasta()` räknar upp försöket, så att en ström som kommer efteråt stängs
@@ -70,6 +90,13 @@ igenkännare medan en igenkännare inte sagt `end`). Varje rättelse togs bort e
 `TALK_INGET_LJUD`), utan genvägen och taket i `stoppa` 1 (löftet löstes aldrig), utan släppet vid en fallande start 1, utan
 uppräkningen i `kasta` 1, utan väntan på ljudkontexten 1. Alla 8 gröna med rättelserna. `talk-tomt-ljud.test.jsx` förväntar sig
 diagnosens nya fält.
+
+Granskningen av PR 392 fann tre rättelser som aldrig setts falla: det PR:en kallade "genvägen och taket i `stoppa`" var bara
+genvägen, och taket på väntan efter ljudkontexten och stängningen vid avmontering var gröna utan sig. Nya prov, en commit per fynd,
+alla röda utan sin rättelse och gröna med den: taket i `stoppa` (2 röda utan taket, 1 utan nollningen i `avsluta`, 1 utan den i
+`kasta`), skyddet mot rekursion i `felrapport.test.jsx` (2 röda utan skyddet, 1 utan den asynkrona delen), taket på
+ljudkontexten (1), stängningen vid avmontering i lägena skickar och hört (2), kontrollen av `satt` (1) och en `close()` som
+väntas på en gång (1). `talk-mikrofonlas.test.jsx` har nu 15 prov.
 
 ### Också i 0.107.0: två KAN-punkter ur granskningen av PR 387 (#389)
 
