@@ -124,4 +124,49 @@ describe("⛔ P0: felraden när Skicka nekas står med sin text, ovanför loggen
     // Texten står kvar, så att den kan skickas igen.
     expect(/** @type {HTMLTextAreaElement} */ (screen.getByRole("textbox", { name: "Skriv ett meddelande" })).value).toBe("Hur ligger momsen till?");
   });
+
+  it("⛔ felraden nollas vid nästa Skicka, så att den inte står kvar ovanför ett meddelande som gick fram (KAN 2 efter PR 392)", async () => {
+    const { kalla, regler } = regelkalla();
+    const s = /** @type {any} */ (createSamtalskalla({ kalla, amnen: true }));
+    const g = await s.oppnaGrupp({ groupId: "g", uid: "anna" });
+    await s.skicka(g.id, { text: "Hej gruppen", av: "anna" });
+    regler.nekaNyttSamtal = true;
+    let valt = /** @type {string | null} */ (null);
+    render(<OpsMeddelanden kalla={s} uid="anna" groupId="g" gruppNamn="Gruppen" medlemmar={MEDLEMMAR} nytt="agent" valt={null} onValj={(id) => (valt = id)} />);
+    await waitFor(() => expect(document.querySelector("[data-amne='ny']")).toBeTruthy());
+    fireEvent.change(screen.getByRole("textbox", { name: "Skriv ett meddelande" }), { target: { value: "Hur ligger momsen till?" } });
+    fireEvent.click(screen.getByRole("button", { name: "Skicka" }));
+    await screen.findByText("Meddelandet kunde inte skickas");
+    // Regeln är nu deployad: nästa Skicka går fram.
+    regler.nekaNyttSamtal = false;
+    fireEvent.click(screen.getByRole("button", { name: "Skicka" }));
+    await waitFor(() => expect(valt).toMatch(/^g\|anna\|ops\|a_/));
+    // Röd utan `setSkickaFel(null)` i `skicka`: raden stod kvar.
+    await waitFor(() => expect(screen.queryByText("Meddelandet kunde inte skickas")).toBeNull());
+  });
+});
+
+describe("⛔ kända ämnen i lista (KAN 1 efter PR 392)", () => {
+  it("ett ämne som setts i lista skapas inte igen när man skickar i det", async () => {
+    const { kalla } = regelkalla();
+    /** @type {string[]} */
+    const skapelser = [];
+    const raknande = /** @type {any} */ ({
+      ...kalla,
+      async create(/** @type {string} */ c, /** @type {any} */ d) {
+        if (c === "samtal") skapelser.push(d.id);
+        return kalla.create(c, d);
+      },
+    });
+    const forsta = /** @type {any} */ (createSamtalskalla({ kalla: raknande, amnen: true }));
+    const { samtal } = await forsta.oppnaAmne({ groupId: "g", uid: "anna", agent: "ops", text: "Hur ligger momsen till?" });
+    expect(skapelser).toEqual([samtal.id]);
+    // En ny källa, som efter en omladdning: ämnet är okänt tills översikten listat det.
+    const andra = /** @type {any} */ (createSamtalskalla({ kalla: raknande, amnen: true }));
+    const listan = await andra.lista({ groupId: "g", uid: "anna" });
+    expect(listan.map((/** @type {any} */ s) => s.id)).toContain(samtal.id);
+    await andra.skickaIAmne(listan.find((/** @type {any} */ s) => s.id === samtal.id), { text: "Och nästa kvartal?", av: "anna" });
+    // Röd utan registreringen i `lista`: en skapelse till försöktes.
+    expect(skapelser).toEqual([samtal.id]);
+  });
 });

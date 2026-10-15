@@ -9,6 +9,23 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.107.1
+
+Prov och en kommentar, ingen ändrad funktion. Från överlämningen till Grok 2026-10-15 14:45.
+
+- **KAN 1 efter PR 392: registreringen av kända ämnen i `lista` har ett prov.** `chatt-nytt-amne-regler.test.jsx` räknar
+  skapelserna av samtal: ett ämne som setts i `lista` (en ny källa, som efter en omladdning) skapas inte igen när man skickar i det.
+  Rött när raden i `lista` tas bort, grönt med den.
+- **KAN 2 efter PR 392: felraden nollas vid nästa Skicka, med prov.** Ett nekat skick ger "Meddelandet kunde inte skickas", och nästa
+  Skicka som går fram tar bort raden. Rött utan `setSkickaFel(null)` i `skicka`, grönt med den.
+- **#385, chattens texter på båda språken:** mätt att det redan är levererat i 0.106.0 (`ORD_MEDDELANDEN`, provet `chatt-sprak.test.jsx`).
+  Den inaktuella kommentaren vid `ORD_MEDDELANDEN_TAL` som sa att resten bara fanns på svenska är rättad.
+- **#391 lämnas:** texten kastas i `oppnaInspelning` (röstinspelningen) och fångas som larm av anroparen. En mening för användaren
+  kräver att anroparen skiljer fallet från ett utvecklarfel, så det är inte ett rent textbyte, och det ligger på talvägen, som väntar
+  på CP:s beslut.
+
+---
+
 ## 0.107.0
 
 ### ⛔ P0: ett Nytt samtal med agenten gick inte att skicka (produktion, appen på 0.106.0)
