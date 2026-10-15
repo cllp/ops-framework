@@ -38,8 +38,58 @@
  */
 
 /**
+ * ══ ⛔ DEN FÖRVALDA MOTTAGAREN (0.107.0, cllp/lifehub.app#253) ═══════════
+ *
+ * CP 2026-10-15 på iPhone: efter agentens svar gick det inte att spela in
+ * igen, och fältet sade att mikrofonen inte gav något ljud. OpsTalk skickade
+ * en diagnos med `rapporteraFel(fel, sammanhang)`, men utan tredje argument,
+ * och bara felgränsen i `OpsAppShell` fick appens mottagare. Diagnosen hamnade
+ * alltså i konsolen på en telefon ingen kunde öppna utvecklarverktygen på, och
+ * varje misslyckande var omätt (regel 3).
+ *
+ * Därför finns en förvald mottagare: appen ger den EN gång (`OpsAuthProvider`
+ * eller `OpsAppShell` med `felmottagare`, eller `registreraFelmottagare` för
+ * en app som inte använder någon av dem), och varje `rapporteraFel` utan
+ * eget tredje argument når den. Ramverket känner fortfarande inget konto och
+ * inget samlingsnamn: mottagaren är appens, och ramverket bär bara vidare.
+ *
+ * ⛔ EN STAPEL, INTE EN ENDA PLATS. Flera komponenter kan registrera samma
+ * mottagare (en app ger den både till inloggningen och skalet), och en som
+ * avmonteras får inte ta bort en annans. Den senast registrerade gäller, och
+ * avregistreringen tar bara bort sin egen post.
+ * @type {Array<{ felmottagare: Felmottagare }>}
+ */
+const registrerade = [];
+
+/**
+ * Gör `felmottagare` till den förvalda mottagaren för `rapporteraFel`.
+ * Kastar när den inte har `fanga`: en mottagare som inte går att anropa hade
+ * sett ut som en kopplad felkanal och tappat varje fel tyst (regel 5).
+ *
+ * @param {Felmottagare} felmottagare
+ * @returns {() => void} Avregistrerar just den här registreringen.
+ */
+export function registreraFelmottagare(felmottagare) {
+  if (!felmottagare || typeof felmottagare.fanga !== "function") {
+    throw new Error("registreraFelmottagare: mottagaren ska ha formen { fanga, satt }. Utan fanga hade varje fel tappats tyst.");
+  }
+  const post = { felmottagare };
+  registrerade.push(post);
+  return () => {
+    const i = registrerade.indexOf(post);
+    if (i !== -1) registrerade.splice(i, 1);
+  };
+}
+
+/** Den förvalda mottagaren just nu, eller `null`. @returns {Felmottagare | null} */
+export function forvaldFelmottagare() {
+  return registrerade.length > 0 ? registrerade[registrerade.length - 1].felmottagare : null;
+}
+
+/**
  * Rapporterar ett fel. Skriver ALLTID till konsolen, och vidarebefordrar
- * ALLTID till mottagaren när en sådan finns.
+ * ALLTID till mottagaren när en sådan finns: den som ges här, annars den
+ * förvalda (`registreraFelmottagare`).
  *
  * ⛔ SKRIVER TILL KONSOLEN ÄVEN NÄR EN MOTTAGARE FINNS, och det är medvetet.
  * En loggpunkt som bara pratar med mottagaren gör felsökning UTAN nätverk
@@ -53,14 +103,15 @@
  *
  * @param {unknown} fel
  * @param {Record<string, unknown>} [sammanhang]
- * @param {Felmottagare | null | undefined} [felmottagare]
+ * @param {Felmottagare | null | undefined} [felmottagare] Utan den (eller med `null`) gäller den förvalda.
  */
 export function rapporteraFel(fel, sammanhang, felmottagare) {
   // eslint-disable-next-line no-console -- det HÄR är loggpunkten. Se filhuvudet.
   console.error("ops-framework:", fel, sammanhang ?? {});
-  if (!felmottagare || typeof felmottagare.fanga !== "function") return;
+  const mottagare = felmottagare ?? forvaldFelmottagare();
+  if (!mottagare || typeof mottagare.fanga !== "function") return;
   try {
-    felmottagare.fanga(fel, sammanhang);
+    mottagare.fanga(fel, sammanhang);
   } catch (mottagarfel) {
     // eslint-disable-next-line no-console
     console.error("ops-framework: felmottagaren själv kastade", mottagarfel);

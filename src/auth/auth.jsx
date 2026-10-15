@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { OpsInloggning } from "../components/OpsInloggning.jsx";
 import { OpsLaddaSkelett } from "../components/OpsLaddaSkelett.jsx";
 import { OpsView, OpsViewHeader } from "../components/OpsView.jsx";
+import { registreraFelmottagare } from "../lib/felrapport.js";
 
 /**
  * Inloggning och roller.
@@ -277,11 +278,18 @@ export function createGoogleAuth(config) {
  * den enda platsen som SÄKERT vet vem som är inloggad: uid och, om appens
  * `fetchProfile` skickat med den, `groupId`. ALDRIG e-post, se felrapport.js
  * filhuvud: `User.email` finns på objektet men skickas medvetet inte vidare.
+ *
+ * (0.107.0) Mottagaren registreras också som förvald (`registreraFelmottagare`), så att varje `rapporteraFel`
+ * utan eget tredje argument når den. Det är den formen appen använder: `felmottagare` här, en gång.
  */
 export function OpsAuthProvider({ authentication, children, felmottagare }) {
   const [user, setUser] = useState(/** @type {User | null} */ (null));
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(/** @type {Error | null} */ (null));
+
+  // ⛔ (0.107.0, lifehub.app#253) Mottagaren blir förvald för hela sidan medan inloggningen är monterad, så att
+  // `rapporteraFel` utan eget tredje argument (TALK:s diagnos) når den. Se `registreraFelmottagare`.
+  useEffect(() => (felmottagare ? registreraFelmottagare(felmottagare) : undefined), [felmottagare]);
 
   useEffect(() => {
     const av = authentication.subscribe((a) => {

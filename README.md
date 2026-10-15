@@ -1343,6 +1343,7 @@ tyst, med eller utan ett sådant konto.
 | | |
 |---|---|
 | `rapporteraFel(fel, sammanhang, felmottagare)` | loggpunkten. Skriver **alltid** till `console.error`, oavsett mottagare eller miljö: det är det garanterade golvet. Finns en `felmottagare` kallas även dess `fanga(fel, sammanhang)`. Kastar aldrig, även om mottagaren själv kastar (fångas och loggas separat) |
+| `registreraFelmottagare(felmottagare)` | (0.107.0, cllp/lifehub.app#253) gör mottagaren **förvald**: varje `rapporteraFel` utan eget tredje argument når den, också komponenternas egna rapporter (TALK:s diagnos när en inspelning blev tom). Returnerar en funktion som avregistrerar just den registreringen. Den senast registrerade gäller. Kastar när mottagaren saknar `fanga`. `OpsAuthProvider` och `OpsAppShell` med `felmottagare` registrerar den själva medan de är monterade, så en app som ger `felmottagare` till någon av dem behöver inte anropa funktionen. Före 0.107.0 nådde bara felgränsen mottagaren, och TALK:s diagnos stannade i konsolen |
 | `OpsAppShell props.felmottagare` | felgränsen (alltid på, ingen prop stänger av den) kallar `rapporteraFel` i `componentDidCatch` med `felmottagare` och ett sammanhang som bär felytans id |
 | `OpsAppShell props.felRubrik`, `felBeskrivning`, `laddaOmEtikett` | texten på felytan |
 | `OpsAuthProvider props.felmottagare` | kallar `felmottagare.satt({ uid, groupId })` vid varje inloggningsbyte, `satt(null)` vid utloggning. **Aldrig e-post**, även när den finns på `User`-objektet |
