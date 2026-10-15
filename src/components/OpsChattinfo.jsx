@@ -6,31 +6,39 @@ import { BilagaVisning } from "./BilagaVisning.jsx";
 import { BildIkon, FilIkon, GruppIkon, LankIkon, KryssIkon } from "./icons.jsx";
 import { OpsIdentity } from "./OpsIdentity.jsx";
 import { OpsTabs, OpsTabPanel } from "./OpsTabs.jsx";
+import { forvalda } from "../lib/ord.js";
 
 /**
  * Texterna panelen och verktygsraden delar (0.80.0, #301). Ett hem, så att knappen och fliken inte får olika namn.
  */
-export const CHATTINFO_TEXTER = {
-  mejl: "Mejl",
-  tystaNotiser: "Tysta notiser",
-  notiserTysta: "Notiser är tysta",
-  chattinfo: "Chattinfo",
-  stangChattinfo: "Stäng chattinfo",
-  medlemmar: "Medlemmar",
-  bilder: "Bilder",
-  dokument: "Dokument",
-  lankar: "Länkar",
-  ingaMedlemmar: "Inga medlemmar.",
-  ingaBilder: "Inga bilder.",
-  ingaDokument: "Inga dokument.",
-  ingaLankar: "Inga länkar.",
-  hamtarBilaga: "Hämtar bilagan…",
-  hamtarBilagor: "Hämtar bilagor…",
-  bilagorFler: "Äldre bilagor visas inte.",
-  bilagorFel: "Bilagorna kunde inte hämtas.",
-  lankarUrLaddade: "Länkarna är de som står i de laddade meddelandena.",
-  aldreLankar: "Det kan finnas fler länkar i äldre meddelanden.",
+/**
+ * Chattinfos ord på båda språken (0.106.0, #385). Den svenska formen står bara här, och `CHATTINFO_TEXTER` läser den härifrån.
+ * ⛔ Ingen `@type Ordbok` här: typen ska bära nycklarna, så att `texter` i panelen prövas mot dem.
+ */
+export const ORD_CHATTINFO = {
+  mejl: { sv: "Mejl", en: "Email" },
+  tystaNotiser: { sv: "Tysta notiser", en: "Mute notifications" },
+  notiserTysta: { sv: "Notiser är tysta", en: "Notifications are muted" },
+  chattinfo: { sv: "Chattinfo", en: "Chat info" },
+  stangChattinfo: { sv: "Stäng chattinfo", en: "Close chat info" },
+  medlemmar: { sv: "Medlemmar", en: "Members" },
+  bilder: { sv: "Bilder", en: "Images" },
+  dokument: { sv: "Dokument", en: "Documents" },
+  lankar: { sv: "Länkar", en: "Links" },
+  ingaMedlemmar: { sv: "Inga medlemmar.", en: "No members." },
+  ingaBilder: { sv: "Inga bilder.", en: "No images." },
+  ingaDokument: { sv: "Inga dokument.", en: "No documents." },
+  ingaLankar: { sv: "Inga länkar.", en: "No links." },
+  hamtarBilaga: { sv: "Hämtar bilagan…", en: "Loading the attachment…" },
+  hamtarBilagor: { sv: "Hämtar bilagor…", en: "Loading attachments…" },
+  bilagorFler: { sv: "Äldre bilagor visas inte.", en: "Older attachments are not shown." },
+  bilagorFel: { sv: "Bilagorna kunde inte hämtas.", en: "The attachments could not be loaded." },
+  lankarUrLaddade: { sv: "Länkarna är de som står i de laddade meddelandena.", en: "The links are the ones in the loaded messages." },
+  aldreLankar: { sv: "Det kan finnas fler länkar i äldre meddelanden.", en: "There may be more links in older messages." },
 };
+
+/** Chattinfos förval på svenska, ur `ORD_CHATTINFO`. */
+export const CHATTINFO_TEXTER = /** @type {Record<keyof typeof ORD_CHATTINFO, string>} */ (forvalda(ORD_CHATTINFO, "sv"));
 
 /**
  * Panelen Chattinfo: Medlemmar, Bilder, Dokument och Länkar (0.80.0, #301).

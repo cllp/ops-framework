@@ -186,6 +186,42 @@ const KAL_POSTER = [
   { id: "moms", date: "2026-09-14", title: "Momsdeklaration", typ: "deadline", status: "klart" },
   { id: "tandlakare", date: "2026-10-20", title: "Tandläkaren", not: "09:00-10:00", kalender: kk("privat"), typ: "ledig", status: "oppet" },
 ];
+/*
+ * 0.106.0 (CP 2026-10-14, skärmbild av månadsvyn i mörkt tema): etiketterna i en dagsruta får aldrig rinna ut ur den. Fyra veckor i
+ * oktober och november 2026, var och en en egen sort av rad (idag är onsdag 14 oktober):
+ *   19-25 okt  utan band: dag 20 har två vanliga etiketter, och ingen plats ska reserveras.
+ *   26 okt-1 nov  CP:s rad: dag 28 har två vanliga etiketter, dag 29 en röd heldagspost ("Test"). Bandet ligger bara på dag 29.
+ *   2-8 nov    ett flerdagsband (3-5 nov) och vanliga etiketter både på dagar under bandet (4 nov) och utanför det (7 nov).
+ *   9-15 nov   två filer: ett flerdagsband (9-12 nov) och en heldag (10 nov) som överlappar, och två etiketter på dag 14 utan band.
+ */
+const ETIK_IDAG = new Date(2026, 9, 14, 12);
+const ETIK_POSTER = [
+  { id: "e20a", date: "2026-10-20", title: "Godkänn utlägg" },
+  { id: "e20b", date: "2026-10-20", title: "Förra månadens bokslut" },
+  { id: "e28a", date: "2026-10-28", title: "Attest stämma" },
+  { id: "e28b", date: "2026-10-28", title: "Kolla om momsen" },
+  { id: "e29", date: "2026-10-29", allDay: true, title: "Test", kalender: { id: "rod", namn: "Röd", farg: 3 } },
+  { id: "e3", date: "2026-11-03", endDate: "2026-11-05", title: "Konferens i Visby" },
+  { id: "e4a", date: "2026-11-04", title: "Lunch med revisorn" },
+  { id: "e4b", date: "2026-11-04", title: "Ring banken" },
+  { id: "e7a", date: "2026-11-07", title: "Städa kontoret" },
+  { id: "e7b", date: "2026-11-07", title: "Beställ kaffe" },
+  { id: "e9", date: "2026-11-09", endDate: "2026-11-12", title: "Resa till Stockholm" },
+  { id: "e10", date: "2026-11-10", allDay: true, title: "Deklarationsdag", kalender: { id: "rod", namn: "Röd", farg: 3 } },
+  { id: "e14a", date: "2026-11-14", title: "Sätt budget" },
+  { id: "e14b", date: "2026-11-14", title: "Boka lokal" },
+  { id: "e14c", date: "2026-11-14", title: "Skicka inbjudan" },
+];
+function KalenderEtiketterScen() {
+  const { OpsView, OpsCalendar } = Ops;
+  return (
+    <Full>
+      <OpsView>
+        <OpsCalendar ariaLabel="Kalender" entries={ETIK_POSTER} today={ETIK_IDAG} monthsBack={0} monthsForward={1} lagring={{ getItem: () => null, setItem: () => {} }} />
+      </OpsView>
+    </Full>
+  );
+}
 window.__lagring = {};
 window.__skapat = [];
 window.__hantera = 0;
@@ -1619,6 +1655,318 @@ function ApparArkScen() {
   );
 }
 
+
+/*
+ * 0.106.0 (#386 skiva 1): Meddelanden är kärna. Gruppen har SPARATS UTAN den (som en grupp där ägaren avinstallerade den före
+ * 0.106.0), och hubben och arket ska ändå rita den, och hubben ska inte erbjuda den som en app att installera. Avsnitt 47 (1).
+ */
+function KarnaScen() {
+  const bygg = Ops.defineModule;
+  if (!bygg || !Ops.OpsGruppHubb) return <p data-saknas="defineModule">defineModule saknas</p>;
+  // Två kärnmoduler: Meddelanden och Inkorgen (CP 2026-10-14: Inkorgen är också inbyggd).
+  const ikoner = { ekonomi: <Wallet size={24} />, bibliotek: <FileText size={24} />, meddelanden: <Inbox size={24} />, inkorg: <Bell size={24} />, kontakter: <LayoutGrid size={24} /> };
+  const moduler = Object.entries({ ekonomi: "Ekonomi", bibliotek: "Bibliotek", meddelanden: "Meddelanden", inkorg: "Inkorg", kontakter: "Kontakter" }).map(([id, etikett]) => {
+    const ikon = ikoner[id];
+    let m;
+    try {
+      // En äldre version känner inte `karna` och kastar på fältet. Då byggs modulen utan, och provet blir rött på rätt sak.
+      m = bygg({ id, namn: { sv: etikett, en: etikett }, nav: [], routes: [], samlingar: [], kallor: {}, skapar: [], hubb: { ikon, rutt: `/${id}`, startsida: "start", delar: [{ id: "start", namn: { sv: "Start", en: "Start" }, ikon, rutt: `/${id}/start` }] }, ...(id === "meddelanden" || id === "inkorg" ? { karna: true } : {}) });
+    } catch {
+      m = bygg({ id, namn: { sv: etikett, en: etikett }, nav: [], routes: [], samlingar: [], kallor: {}, skapar: [], hubb: { ikon, rutt: `/${id}`, startsida: "start", delar: [{ id: "start", namn: { sv: "Start", en: "Start" }, ikon, rutt: `/${id}/start` }] } });
+    }
+    return m;
+  });
+  const grupp = { id: "g1", namn: { sv: "Claes Philip Staiger AB", en: "Claes Philip Staiger AB" }, moduler: ["ekonomi", "bibliotek"], huvudmeny: [] };
+  return (
+    <OpsAppShell
+      fasta={{ idag: { href: "/" }, kalender: { href: "/kalender" }, hub: { href: "/hub" } }}
+      moduler={[]}
+      activeHref="/hub"
+      onNavigate={gaTill}
+      skapa={{ handelse: <p>Formulär</p> }}
+      apparArk={{ moduler, grupp, farAndra: true, onOrdning: (lista) => { window.__ordning = lista; } }}
+    >
+      <Ops.OpsGruppHubb grupp={grupp} moduler={moduler} installera={{ href: "/installera" }} />
+    </OpsAppShell>
+  );
+}
+
+
+/*
+ * 0.106.0 (#386 skiva 2): samtal per ämne med agenten. Inkorgen med agenten som en rad, agentens samtal och ett ämne. Avsnitt 47 (2).
+ * Komponenten styr valen själv (inget `valt`), så att ett klick i sidan går samma väg som hos en person.
+ */
+const MEDLEMMAR_A = [
+  { userId: "anna", namn: "Anna Ek", typ: "person", status: "aktiv" },
+  { userId: "bo", namn: "Bo Lind", typ: "person", status: "aktiv" },
+  { userId: "ops", namn: "Hugo", typ: "agent", status: "aktiv" },
+];
+let amneskallan = null;
+async function byggAmneskalla() {
+  let t = new Date(2026, 9, 6, 9, 0).getTime();
+  const kalla = Ops.createMemorySource({});
+  const s = Ops.createSamtalskalla({ kalla, klocka: () => (t += 60000), amnen: true, status: "status" });
+  const g = await s.oppnaGrupp({ groupId: "g1", uid: "anna" });
+  await s.skicka(g.id, { text: "Styrelsemötet flyttas till fredag.", av: "bo" });
+  const forsta = await s.oppnaPrivat({ groupId: "g1", uid: "anna", annan: "ops", slag: "agent" });
+  await s.skicka(forsta.id, { text: "Vilka fakturor är obetalda?", av: "anna" });
+  await kalla.create(`samtal/${forsta.id}/meddelanden`, { text: "**Två fakturor** är obetalda: Bokio och Telia.", av: "ops", tid: (t += 60000) });
+  if (typeof s.oppnaAmne === "function") {
+    const resa = await s.oppnaAmne({ groupId: "g1", uid: "anna", agent: "ops", text: "Boka tåget till Stockholm på fredag morgon" });
+    await kalla.update("samtal", resa.samtal.id, { rubrik: "Resan till Stockholm" });
+    await kalla.create(`samtal/${resa.samtal.id}/meddelanden`, { text: "Jag hittar tre avgångar före nio. Vill du ha den första?", av: "ops", tid: (t += 60000) });
+    const moms = await s.oppnaAmne({ groupId: "g1", uid: "anna", agent: "ops", text: "Hur ligger momsen till för augusti?" });
+    await kalla.create(`samtal/${moms.samtal.id}/meddelanden`, { text: "Den är deklarerad och betald.", av: "ops", tid: (t += 60000) });
+  }
+  const p = await s.oppnaPrivat({ groupId: "g1", uid: "bo", annan: "anna" });
+  await s.skicka(p.id, { text: "Lunch i morgon?", av: "bo" });
+  return s;
+}
+function AmnesScen() {
+  const [k, setK] = useState(amneskallan);
+  if (!Ops.OpsMeddelanden) return <Full><p data-saknas="OpsMeddelanden">OpsMeddelanden saknas</p></Full>;
+  if (!k) {
+    byggAmneskalla().then((x) => {
+      amneskallan = x;
+      setK(x);
+    });
+  }
+  return <Full>{k ? <Ops.OpsMeddelanden kalla={k} uid="anna" groupId="g1" gruppNamn="Claes Philip Staiger AB" medlemmar={MEDLEMMAR_A} /> : <p>Laddar</p>}</Full>;
+}
+
+
+/*
+ * 0.106.0 (#385): chatten på engelska, gruppchatten och agentens samtal, med `sprak="en"`. Avsnitt 47 (3). `window.__aktiv` väljer
+ * "grupp" eller "agent".
+ */
+let engelskakallan = null;
+function EngelskScen() {
+  const [k, setK] = useState(engelskakallan);
+  if (!Ops.OpsMeddelanden) return <Full><p data-saknas="OpsMeddelanden">OpsMeddelanden saknas</p></Full>;
+  if (!k) {
+    (async () => {
+      let t = new Date(2026, 9, 6, 9, 0).getTime();
+      const kalla = Ops.createMemorySource({});
+      const s = Ops.createSamtalskalla({ kalla, klocka: () => (t += 60000), tradar: "tradar", reaktioner: "reaktioner", omnamnanden: true, fasta: "fasta", tyst: "tyst", amnen: true });
+      const g = await s.oppnaGrupp({ groupId: "g1", uid: "anna" });
+      const m = await s.skicka(g.id, { text: "The board meeting moves to Friday at ten.", av: "bo" });
+      if (typeof s.reagera === "function") await s.reagera(g.id, { mid: m.id, kod: "tumme", av: "anna" });
+      await s.skicka(g.id, { text: "Good, I will read the minutes.", av: "anna" });
+      const x = { s, g: g.id };
+      engelskakallan = x;
+      setK(x);
+    })();
+  }
+  return <Full>{k ? <Ops.OpsMeddelanden kalla={k.s} uid="anna" groupId="g1" gruppNamn="Claes Philip Staiger AB" medlemmar={MEDLEMMAR_A} sprak="en" {...(window.__aktiv === "agent" ? { valtAgent: "ops" } : { valt: k.g })} /> : <p>Laddar</p>}</Full>;
+}
+
+
+/*
+ * 0.106.0 (#386 skiva 4): läsa bakåt och agentens status. En källa som säger till när något skrivs (som provens `levandeKalla`),
+ * så att sidan kan skriva "från servern" medan vakten mäter. `window.__las` bär källan och samtalets id. Avsnitt 47 (4).
+ */
+function levande(bas) {
+  // ⛔ BARA LYSSNARNA PÅ SAMMA SAMLING SÄGS TILL, som i Firestore. En källa som väckte alla lyssnare vid varje skrivning hade
+  // gett meddelandena en ny ögonblicksbild när statusen skrevs, och då hade 0.105.0 rullat av en slump och mätts som grön.
+  const lyssnare = new Set();
+  const signal = (c) => [...lyssnare].forEach((l) => (c === undefined || l.c === c ? l() : null));
+  const med = (f) => async (...a) => {
+    const svar = await f(...a);
+    signal(typeof a[0] === "string" ? a[0] : undefined);
+    return svar;
+  };
+  return {
+    ...bas,
+    create: med(bas.create),
+    update: med(bas.update),
+    remove: med(bas.remove),
+    batch: async (ops) => {
+      const svar = await bas.batch(ops);
+      signal(undefined);
+      return svar;
+    },
+    subscribe(c, q, l) {
+      let oppen = true;
+      const las = () => bas.list(c, q).then((r) => oppen && l.onData(r), (e) => oppen && l.onError(e));
+      las.c = c;
+      lyssnare.add(las);
+      las();
+      return () => {
+        oppen = false;
+        lyssnare.delete(las);
+      };
+    },
+  };
+}
+let laskallan = null;
+function LasScen() {
+  const [k, setK] = useState(laskallan);
+  if (!Ops.OpsMeddelanden) return <Full><p data-saknas="OpsMeddelanden">OpsMeddelanden saknas</p></Full>;
+  if (!k) {
+    (async () => {
+      let t = new Date(2026, 9, 6, 9, 0).getTime();
+      const kalla = levande(Ops.createMemorySource({}));
+      const s = Ops.createSamtalskalla({ kalla, klocka: () => (t += 60000), status: "status" });
+      const a = await s.oppnaPrivat({ groupId: "g1", uid: "anna", annan: "ops", slag: "agent" });
+      for (let i = 1; i <= 16; i += 1) {
+        if (i % 2) await s.skicka(a.id, { text: `Fråga ${i}: hur ligger vi till med punkt ${i} i planen för hösten?`, av: "anna" });
+        else await kalla.create(`samtal/${a.id}/meddelanden`, { text: `Svar ${i}: punkt ${i - 1} är klar, och nästa steg är att boka mötet med banken.`, av: "ops", tid: (t += 60000) });
+      }
+      const x = { s, kalla, sid: a.id, tid: () => (t += 60000) };
+      window.__las = x;
+      laskallan = x;
+      setK(x);
+    })();
+  }
+  return (
+    <Full>
+      {k ? (
+        <Ops.OpsMeddelanden
+          kalla={k.s}
+          uid="anna"
+          groupId="g1"
+          gruppNamn="Claes Philip Staiger AB"
+          medlemmar={MEDLEMMAR_A}
+          valt={k.sid}
+          onValj={() => {}}
+          onForslag={async () => ({ status: "ok", text: "Klart" })}
+        />
+      ) : (
+        <p>Laddar</p>
+      )}
+    </Full>
+  );
+}
+
+/*
+ * 0.106.0 (#386 skiva 6): en Mer-knapp per meddelande på telefon. Gruppchatten med trådar, reaktioner och fästa, fem meddelanden,
+ * ett fäst och ett med en reaktion. Avsnitt 47 (6).
+ */
+let merkallan = null;
+function MerScen() {
+  const [k, setK] = useState(merkallan);
+  if (!Ops.OpsMeddelanden) return <Full><p data-saknas="OpsMeddelanden">OpsMeddelanden saknas</p></Full>;
+  if (!k) {
+    (async () => {
+      let t = new Date(2026, 9, 6, 9, 0).getTime();
+      const kalla = levande(Ops.createMemorySource({}));
+      const s = Ops.createSamtalskalla({ kalla, klocka: () => (t += 60000), tradar: "tradar", reaktioner: "reaktioner", omnamnanden: true, citat: true, fasta: "fasta" });
+      const g = await s.oppnaGrupp({ groupId: "g1", uid: "anna" });
+      const m1 = await s.skicka(g.id, { text: "Styrelsemötet flyttas till fredag klockan tio.", av: "bo" });
+      if (typeof s.reagera === "function") await s.reagera(g.id, { mid: m1.id, kod: "tumme", av: "anna" });
+      await s.skicka(g.id, { text: "Bra, jag läser protokollet innan dess.", av: "anna" });
+      const m3 = await s.skicka(g.id, { text: "Momsen för augusti ska in senast den tolfte.", av: "bo" });
+      if (typeof s.fast === "function") await s.fast(g.id, { mid: m3.id, av: "anna" });
+      await s.skicka(g.id, { text: "Jag tar den i morgon förmiddag.", av: "anna" });
+      await s.skicka(g.id, { text: "Tack. Säg till om underlaget saknas.", av: "bo" });
+      const x = { s, g: g.id };
+      merkallan = x;
+      setK(x);
+    })();
+  }
+  return <Full>{k ? <Ops.OpsMeddelanden kalla={k.s} uid="anna" groupId="g1" gruppNamn="Claes Philip Staiger AB" medlemmar={MEDLEMMAR_A} valt={k.g} onValj={() => {}} /> : <p>Laddar</p>}</Full>;
+}
+
+/*
+ * 0.106.0 (#386 skiva 7): en inkorg som lever. Levande källa och `levandeInkorg`, gruppchatten och två privata samtal. `window.__inkorg`
+ * bär källan och Bos samtal, så att sidan kan skriva "från Bo" utan att fönstret får fokus. `window.__aktiv === "samtal"` öppnar
+ * samtalet med Cia. Avsnitt 47 (7).
+ */
+let inkorgskallan = null;
+function InkorgScen() {
+  const [k, setK] = useState(inkorgskallan);
+  if (!Ops.OpsMeddelanden) return <Full><p data-saknas="OpsMeddelanden">OpsMeddelanden saknas</p></Full>;
+  if (!k) {
+    (async () => {
+      let t = new Date(2026, 9, 6, 9, 0).getTime();
+      const kalla = levande(Ops.createMemorySource({}));
+      const s = Ops.createSamtalskalla({ kalla, klocka: () => (t += 60000), levandeInkorg: true });
+      const g = await s.oppnaGrupp({ groupId: "g1", uid: "anna" });
+      await s.skicka(g.id, { text: "Styrelsemötet flyttas till fredag.", av: "anna" });
+      const bo = await s.oppnaPrivat({ groupId: "g1", uid: "anna", annan: "bo" });
+      await s.skicka(bo.id, { text: "Hej Bo, har du underlaget?", av: "anna" });
+      const cia = await s.oppnaPrivat({ groupId: "g1", uid: "anna", annan: "cia" });
+      await s.skicka(cia.id, { text: "Hej Cia, när ses vi?", av: "anna" });
+      const x = { s, bo: bo.id, cia: cia.id };
+      window.__inkorg = x;
+      inkorgskallan = x;
+      setK(x);
+    })();
+  }
+  const medlemmar = [...MEDLEMMAR_A, { userId: "cia", namn: "Cia Berg", typ: "person", status: "aktiv" }];
+  return <Full>{k ? <Ops.OpsMeddelanden kalla={k.s} uid="anna" groupId="g1" gruppNamn="Claes Philip Staiger AB" medlemmar={medlemmar} onValj={() => {}} {...(window.__aktiv === "samtal" ? { valt: k.cia } : {})} /> : <p>Laddar</p>}</Full>;
+}
+
+/*
+ * 0.106.0 (#386 skiva 8): tal i alla textfält, som förval. Ett formulär som en egen app: text, långtext, och de typer som aldrig får
+ * tal. Sidan har en fejkad `webkitSpeechRecognition` (avsnittets init-skript), så att förvalet syns som i Chrome och Safari. Avsnitt 47 (8).
+ */
+function TalAllaScen() {
+  const { OpsView, OpsField, OpsInput, OpsTextarea } = Ops;
+  const [v, setV] = useState({ namn: "Styrelsemöte med banken om lånet till den nya lokalen i Visby", besk: "Vi går igenom offerten, amorteringen och vad som händer om räntan stiger igen under hösten.", los: "hemligt", epost: "anna@exempel.se", sok: "moms", tal: "12" });
+  const satt = (k) => (x) => setV((u) => ({ ...u, [k]: x }));
+  return (
+    <Full>
+      <OpsView>
+        <div className="flex max-w-2xl flex-col gap-4">
+          <p className="m-0 text-rubrik text-ink">Nytt möte</p>
+          <div data-tal-falt="text"><OpsField label="Rubrik"><OpsInput value={v.namn} onChange={satt("namn")} /></OpsField></div>
+          <div data-tal-falt="langtext"><OpsField label="Beskrivning"><OpsTextarea value={v.besk} onChange={satt("besk")} rows={3} /></OpsField></div>
+          <div data-tal-falt="password"><OpsField label="Lösenord"><OpsInput type="password" value={v.los} onChange={satt("los")} /></OpsField></div>
+          <div data-tal-falt="email"><OpsField label="E-post"><OpsInput type="email" value={v.epost} onChange={satt("epost")} /></OpsField></div>
+          <div data-tal-falt="search"><OpsField label="Sök"><OpsInput type="search" value={v.sok} onChange={satt("sok")} /></OpsField></div>
+          <div data-tal-falt="number"><OpsField label="Antal"><OpsInput type="number" value={v.tal} onChange={satt("tal")} /></OpsField></div>
+        </div>
+      </OpsView>
+    </Full>
+  );
+}
+
+/*
+ * 0.106.0 (#386 skiva 9): bild i kommentarer. En tråd med Bos skärmbild (ritad på en canvas, så att den har riktiga mått) och
+ * skrivrutan med bilagor. `window.__skrivna` bär det som skickats. Avsnitt 47 (9).
+ */
+function kommentarbild() {
+  const c = document.createElement("canvas");
+  c.width = 900;
+  c.height = 560;
+  const g = c.getContext("2d");
+  g.fillStyle = "#f4efe6";
+  g.fillRect(0, 0, 900, 560);
+  g.fillStyle = "#8a6d3b";
+  g.fillRect(40, 40, 820, 70);
+  g.fillStyle = "#ffffff";
+  g.font = "bold 34px sans-serif";
+  g.fillText("Offert: lokalen i Visby", 64, 88);
+  g.fillStyle = "#333333";
+  g.font = "26px sans-serif";
+  ["Hyra per månad: 18 400 kr", "Tillträde: 1 december", "Uppsägning: 9 månader"].forEach((t, i) => g.fillText(t, 64, 180 + i * 60));
+  const dataUrl = c.toDataURL("image/jpeg", 0.85);
+  return { dataUrl, namn: "offert.jpg", typ: "image/jpeg", tecken: dataUrl.length, bredd: 900, hojd: 560 };
+}
+function KommentarBildScen() {
+  const [lista, setLista] = useState(() => [{ id: "k1", text: "Här är offerten för lokalen.", skapad: "2026-10-06T09:00:00.000Z", skapadAv: { uid: "bo", namn: "Bo Lind" }, bilaga: kommentarbild() }]);
+  window.__skrivna = window.__skrivna ?? [];
+  return (
+    <Full>
+      <Ops.OpsView>
+        <div className="flex max-w-2xl flex-col gap-4">
+          <p className="m-0 text-rubrik text-ink">Styrelsemöte</p>
+          <Ops.OpsKommentarer
+            bilagor
+            kommentarer={lista}
+            uid="anna"
+            onSkriv={(text, { bilaga }) => {
+              window.__skrivna.push({ text, bilaga: Boolean(bilaga) });
+              setLista((l) => [...l, { id: `k${l.length + 1}`, text, skapad: "2026-10-06T10:00:00.000Z", skapadAv: { uid: "anna", namn: "Anna Ek" }, ...(bilaga ? { bilaga } : {}) }]);
+            }}
+          />
+        </div>
+      </Ops.OpsView>
+    </Full>
+  );
+}
+
 function Scen() {
   const s = window.__skal;
   if (s === "menyer") return <Menyer />;
@@ -1876,6 +2224,7 @@ function Scen() {
   if (s === "fullyta-idag") return <FullYta vy="idag" />;
   if (s === "fullyta-kalender") return <FullYta vy="kalender" />;
   if (s === "kalender") return <KalenderScen />;
+  if (s === "kalender-etiketter") return <KalenderEtiketterScen />;
   if (s === "kalender-appar") return <KalenderApparScen />;
   if (s === "kalender-tillganglighet") return <KalenderTillganglighetScen variant={7} />;
   if (s === "kalender-tillganglighet-3") return <KalenderTillganglighetScen variant={3} />;
@@ -1958,6 +2307,14 @@ function Scen() {
   }
   // Appar-hyllan över bottenraden, med pluset i mitten. Utan `skapa` finns ingen upphöjd knapp, och utan `apparArk` är Appar en länk.
   if (s === "apparark") return <ApparArkScen />;
+  if (s === "karna") return <KarnaScen />;
+  if (s === "amnen") return <AmnesScen />;
+  if (s === "chatt0106-en") return <EngelskScen />;
+  if (s === "chatt0106-las") return <LasScen />;
+  if (s === "chatt0106-mer") return <MerScen />;
+  if (s === "chatt0106-inkorg") return <InkorgScen />;
+  if (s === "tal-alla-falt") return <TalAllaScen />;
+  if (s === "kommentar-bild") return <KommentarBildScen />;
   if (s === "installning") {
     return (
       <Skal>

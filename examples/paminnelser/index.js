@@ -181,6 +181,12 @@ export const paminnelser = defineModule({
   ],
 
   /*
+   * `karna` (0.106.0): en kärnmodul finns alltid i varje grupp och går inte att avinstallera. Påminnelser är en vanlig modul som
+   * gruppen väljer, så fältet är `false`. Meddelanden är exemplet på en kärnmodul.
+   */
+  karna: false,
+
+  /*
    * ⛔ MODULENS KORT I HUBBEN OCH DESS INSIDA (0.38.0, #184). Kortet leder till
    * `rutt`, som visar startsidan, och delarna är modulens egen navigation.
    * Ägaren väljer modulen i gruppens inställningar, och hubben ritar kortet

@@ -28,6 +28,7 @@
  */
 
 import { text } from "./sprak.js";
+import { medKarna } from "./karna.js";
 
 /**
  * @typedef {import("./modul.js").Modul & { hubb: import("./modul.js").Hubbkort }} Hubbmodul
@@ -74,7 +75,8 @@ export function hubbForGrupp({ grupp, moduler }) {
   const kort = [];
   /** @type {Saknad[]} */
   const saknade = [];
-  for (const id of grupp.moduler) {
+  // ⛔ Kärnmodulerna räknas alltid som installerade (0.106.0, #386, `karna.js`).
+  for (const id of medKarna(grupp.moduler, moduler)) {
     const m = registrerade.get(id);
     if (!m) saknade.push(Object.freeze({ id, skal: /** @type {const} */ ("inte-registrerad") }));
     else if (m.hubb) kort.push(/** @type {Hubbmodul} */ (m));
@@ -163,7 +165,7 @@ export function huvudmenyPoster({ grupp, moduler, sprak = "sv", badge = {}, badg
   const valda = Array.isArray(grupp.huvudmeny) ? grupp.huvudmeny : [];
   if (valda.length === 0) return [];
   const registrerade = new Map((moduler ?? []).map((m) => [m.id, m]));
-  return (grupp.moduler ?? [])
+  return medKarna(grupp.moduler, moduler)
     .filter((id) => valda.includes(id))
     .map((id) => registrerade.get(id))
     .filter((m) => Boolean(m?.hubb))

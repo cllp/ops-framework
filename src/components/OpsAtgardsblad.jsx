@@ -47,8 +47,10 @@ export const ORD_OPSATGARDSBLAD = {
  * @param {import("react").ReactNode} [props.children] Raden som tar långtryck och högerklick. Utan barn ritas bara knappen.
  * @param {boolean} [props.baraKnapp] Bara ⋮, utan radomslag. För ett öppet dokument.
  * @param {boolean} [props.kort] (0.102.0) Raden är ett kort: ⋮ uppe till höger i stället för mitt på raden, och tätare kant.
+ * @param {(stang: () => void) => import("react").ReactNode} [props.overst] (0.106.0, #386) Något som står överst i rutan, under namnet
+ *   och före posterna: chattens reaktioner, som på telefonen bor i samma meny som meddelandets åtgärder. Får en funktion som stänger.
  */
-export function OpsAtgardsblad({ namn, poster, children = null, baraKnapp = false, kort = false }) {
+export function OpsAtgardsblad({ namn, poster, children = null, baraKnapp = false, kort = false, overst }) {
   const sprak = useOpsSprak();
   const [oppen, setOppen] = useState(false);
   /*
@@ -70,7 +72,8 @@ export function OpsAtgardsblad({ namn, poster, children = null, baraKnapp = fals
   if (typeof namn !== "string" || namn === "") {
     throw new Error("OpsAtgardsblad: namn krävs. Knappen och menyn annonserar vilken post det gäller, och utan namn är ⋮ en ikon utan ord.");
   }
-  if (!Array.isArray(poster) || poster.length === 0) {
+  // Utan poster och utan något överst finns ingen meny. Med bara det översta (en meddelandes reaktioner) finns den.
+  if (!Array.isArray(poster) || (poster.length === 0 && !overst)) {
     return baraKnapp ? null : children;
   }
   for (const p of poster) {
@@ -85,16 +88,23 @@ export function OpsAtgardsblad({ namn, poster, children = null, baraKnapp = fals
    * @param {any} e
    */
   function tangenter(e) {
-    const rot = menyRef.current;
+    const rot = /** @type {HTMLElement | null} */ (e.currentTarget);
     if (!rot) return;
-    const rader = [...rot.querySelectorAll("[role='menuitem']")];
+    /*
+     * ⛔ PILARNA NÅR OCKSÅ DET SOM STÅR ÖVERST (granskningen av PR 390). Chattens sex reaktioner ligger ovanför posterna, och pilarna
+     * gick bara mellan posterna: en tangentbordsanvändare som öppnade Mer-menyn kunde inte nå en reaktion annat än med Tab, som i en
+     * `role="menu"` inte är vägen. Alla knappar i menyn, i den ordning de ritas, är en enda lista. Vänster och höger går i listan
+     * när fokus står bland det översta, där raden går i sidled.
+     */
+    const rader = [...rot.querySelectorAll("[data-ops-atgard-overst] button:not(:disabled), [role='menuitem']")];
     if (rader.length === 0) return;
     const index = rader.indexOf(/** @type {Element} */ (document.activeElement));
     const nu = index < 0 ? 0 : index;
-    if (e.key === "ArrowDown") {
+    const iOverst = document.activeElement instanceof Element && Boolean(document.activeElement.closest("[data-ops-atgard-overst]"));
+    if (e.key === "ArrowDown" || (iOverst && e.key === "ArrowRight")) {
       e.preventDefault();
       /** @type {HTMLElement} */ (rader[(nu + 1) % rader.length]).focus();
-    } else if (e.key === "ArrowUp") {
+    } else if (e.key === "ArrowUp" || (iOverst && e.key === "ArrowLeft")) {
       e.preventDefault();
       /** @type {HTMLElement} */ (rader[(nu - 1 + rader.length) % rader.length]).focus();
     } else if (e.key === "Home") {
@@ -107,7 +117,7 @@ export function OpsAtgardsblad({ namn, poster, children = null, baraKnapp = fals
   }
 
   const rader = (
-    <div ref={menyRef} role="menu" aria-label={namn} onKeyDown={tangenter} className="flex flex-col p-1">
+    <div ref={menyRef} role="menu" aria-label={namn} className="flex flex-col p-1">
       {poster.map((p) => (
         <button
           key={p.id}
@@ -172,8 +182,11 @@ export function OpsAtgardsblad({ namn, poster, children = null, baraKnapp = fals
           sideOffset={4}
           collisionPadding={8}
           aria-label={etikett}
-          className={cx("z-(--z-dropdown) w-56 max-w-[calc(100vw-1rem)]", radBehallare())}
+          // ⛔ BREDARE MED NÅGOT ÖVERST (0.106.0, #386 skiva 6). Chattens sex reaktioner om 44 px fick 34 px i en ruta på 224 px (mätt i
+          // check-skalyta, chatt (3) vid 390 px). 288 px rymmer sex knappar om 44 px med mellanrum.
+          className={cx("z-(--z-dropdown) max-w-[calc(100vw-1rem)]", overst ? "w-72" : "w-56", radBehallare())}
           onOpenAutoFocus={fokusForsta}
+          onKeyDown={tangenter}
           onClickCapture={stoppaSlappet}
           /*
            * Långtryck sätter `open` utan ett klick på ⋮. Fokus ligger då kvar
@@ -182,9 +195,19 @@ export function OpsAtgardsblad({ namn, poster, children = null, baraKnapp = fals
            * Ett klick utanför stänger fortfarande.
            */
           onFocusOutside={(e) => e.preventDefault()}
+          /*
+           * ⛔ EN POST SOM FLYTTAR FOKUS FÅR BEHÅLLA DET (0.106.0, #386 skiva 6). Svara med citat i chattens Mer-meny lägger fokus i
+           * skrivfältet, och Radix lämnade sedan tillbaka det till ⋮ när rutan stängdes: det man skrev hamnade på knappen (mätt i
+           * check-skalyta, chatt (5) vid 390 px). Står fokus utanför rutan och inte på sidan är det postens val, och det står kvar.
+           */
+          onCloseAutoFocus={(e) => {
+            const aktiv = typeof document === "undefined" ? null : document.activeElement;
+            if (aktiv && aktiv !== document.body && !menyRef.current?.contains(aktiv) && !aktiv.closest("[data-ops-atgard-overst]")) e.preventDefault();
+          }}
         >
           <p data-ops-atgard-namn="" className="m-0 truncate px-3 pt-2 pb-1 text-meta font-medium text-ink-muted">{namn}</p>
-          {rader}
+          {overst ? <div data-ops-atgard-overst="">{overst(() => setOppen(false))}</div> : null}
+          {poster.length > 0 ? rader : null}
         </Popover.Content>
       </Popover.Portal>
     </Popover.Root>

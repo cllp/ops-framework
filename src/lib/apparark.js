@@ -13,6 +13,8 @@
  * gången någon sparade bara den ena.
  */
 
+import { medKarna } from "./karna.js";
+
 /** Frågeparametern som gör inställningsläget adresserbart. */
 export const LAGE_PARAM = "lage";
 
@@ -78,7 +80,8 @@ export function arkRader(grupp, moduler) {
   if (!grupp || !Array.isArray(grupp.moduler)) return [];
   const reg = new Map((moduler ?? []).map((m) => [m.id, m]));
   const pin = new Set(Array.isArray(grupp.huvudmeny) ? grupp.huvudmeny : []);
-  return grupp.moduler
+  // ⛔ Kärnmodulerna står alltid i arket (0.106.0, #386, `karna.js`).
+  return medKarna(grupp.moduler, moduler)
     .map((id) => reg.get(id))
     .filter((m) => Boolean(m?.hubb))
     .map((m) => {

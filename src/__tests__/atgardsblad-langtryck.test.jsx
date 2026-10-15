@@ -188,3 +188,43 @@ describe("⛔ tangentbordet", () => {
     expect(oppna).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("⛔ pilarna når också det som står överst (granskningen av PR 390)", () => {
+  it("från första posten går uppåt till den sista reaktionen, höger går mellan reaktionerna och nedåt tillbaka till posten", async () => {
+    vi.useRealTimers();
+    medBredd(false);
+    render(
+      <OpsAtgardsblad
+        namn="Meddelande"
+        poster={[{ id: "kopiera", etikett: "Kopiera", onValj: () => {} }]}
+        overst={() => (
+          <div role="group" aria-label="Reagera">
+            {["a", "b", "c"].map((k) => (
+              <button key={k} type="button" aria-label={`reaktion ${k}`}>
+                {k}
+              </button>
+            ))}
+          </div>
+        )}
+      >
+        <span>text</span>
+      </OpsAtgardsblad>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Åtgärder|Meddelande/ }));
+    const post = await screen.findByRole("menuitem", { name: "Kopiera" });
+    // Golv: reaktionerna och posten finns, annars mäter provet ingenting.
+    expect(screen.getAllByRole("button", { name: /^reaktion / }).length).toBe(3);
+    await vi.waitFor(() => expect(document.activeElement).toBe(post));
+    const tryck = (/** @type {string} */ key) => fireEvent.keyDown(/** @type {Element} */ (document.activeElement), { key });
+    tryck("ArrowUp");
+    expect(document.activeElement?.getAttribute("aria-label")).toBe("reaktion c");
+    tryck("ArrowLeft");
+    expect(document.activeElement?.getAttribute("aria-label")).toBe("reaktion b");
+    tryck("ArrowRight");
+    tryck("ArrowRight");
+    // Sist bland reaktionerna går höger vidare till posten, och listan är sluten.
+    expect(document.activeElement).toBe(post);
+    tryck("ArrowDown");
+    expect(document.activeElement?.getAttribute("aria-label")).toBe("reaktion a");
+  });
+});

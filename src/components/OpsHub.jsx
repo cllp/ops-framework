@@ -13,6 +13,7 @@ import { OpsHubTillbaka } from "./OpsTillbaka.jsx";
 export { OpsHubTillbaka };
 import { text } from "../lib/sprak.js";
 import { hubbForGrupp, hubbPoster } from "../lib/hubb.js";
+import { arKarna, medKarna } from "../lib/karna.js";
 
 /**
  * Hub: appens moduler som ett rutnät av kort (0.30.0, #173).
@@ -250,7 +251,9 @@ export function OpsGruppHubb({ grupp, moduler, activeHref = "", onNavigate, spra
   // ⛔ 0.83.0: korten får modulens delar, så att de fälls ut med en chevron. Toppradens rullgardin ber inte om dem.
   const poster = hubbPoster(kort, { sprak, info, badge, delar: true });
   // Appar med ett kort som gruppen inte har. En modul utan kort (hubb: null) blir ingen rad här: den syns inte i hubben.
-  const tillaggningsbara = moduler.filter((m) => m.hubb && !grupp.moduler.includes(m.id));
+  // ⛔ En kärnmodul står aldrig här (0.106.0, #386): den är alltid installerad, och `medKarna` räknar den så.
+  const installerade = medKarna(grupp.moduler, moduler);
+  const tillaggningsbara = moduler.filter((m) => m.hubb && !arKarna(m) && !installerade.includes(m.id));
   const medVag = Boolean(installera && (installera.href || installera.onClick || installera.onInstallera));
   // Appar gruppen inte har ska synas också när andra redan är installerade. Tom grupp listar dem i tomläget nedan, så de inte står två gånger.
   const valbarSektion = tillaggningsbara.length > 0 && (poster.length > 0 || saknade.length > 0) ? (

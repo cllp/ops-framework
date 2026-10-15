@@ -82,7 +82,18 @@ export function Dagruta({ day, dayKey, entries, markerade, spann, enkla, isToday
       aria-label={label}
       {...pekare}
       className={cx(
-        "relative flex aspect-[1/1.1] min-w-0 cursor-pointer select-none flex-col items-stretch border p-1 text-left sm:min-h-20 sm:p-2",
+        /*
+         * ⛔ FRÅN 640 PX VÄXER RADEN MED INNEHÅLLET, OCH ALLA RUTOR I VECKAN FÖLJER MED (0.106.0, CP 2026-10-14, med en skärmbild i
+         * mörkt tema: "Attest st..." och "Kolla o..." på dag 28 stod långt ned och rann ut under rutans nederkant).
+         * Förut: `sm:min-h-20` ovanpå `aspect-[1/1.1]`. En fast minsta höjd i px gör att rutan inte längre kan växa ur sitt innehåll,
+         * så etiketterna som inte fick plats ritades utanför. Golvet på 80 px bor nu i radens spår (`OpsCalendar`, `auto-rows`), där
+         * det kan följas av att spåret blir högre, och rutan sträcks till spåret (`sm:self-stretch`).
+         *
+         * ⛔ `sm:w-full` ÄR EN DEL AV SAMMA ÅTGÄRD OCH FÅR INTE TAS BORT. En ruta med proportion och sträckt höjd räknar om sin bredd ur
+         * höjden (höjd / 1,1), och växer då ur sin kolumn: mätt, novemberraden hade rutor 91,8 px breda mot 83,6, 10 px ut ur
+         * raden och utan glapp mellan dem (check-skalyta avsnitt 48 (e), rött utan raden, grönt med).
+         */
+        "relative flex aspect-[1/1.1] min-w-0 cursor-pointer select-none flex-col items-stretch border p-1 text-left sm:w-full sm:self-stretch sm:p-2",
         "transition-[background-color,border-color,transform] duration-(--duration-fast) ease-standard",
         "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
         /*

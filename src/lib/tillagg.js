@@ -14,6 +14,7 @@
  */
 
 import { text } from "./sprak.js";
+import { medKarna } from "./karna.js";
 
 /**
  * Platserna på händelseytan.
@@ -114,7 +115,8 @@ export function tillaggFor({ moduler, grupp, plats }) {
   if (!PLATSER.includes(plats)) {
     throw new Error(`tillaggFor: platsen "${plats}" finns inte. Platserna är ramverkets: ${PLATSER.join(", ")}.`);
   }
-  const pa = new Set(grupp?.moduler ?? []);
+  // ⛔ En kärnmodul är alltid påslagen (0.106.0, #386, `karna.js`).
+  const pa = new Set(medKarna(grupp?.moduler, moduler));
   /** @type {Array<any>} */
   const ut = [];
   for (const modul of moduler ?? []) {

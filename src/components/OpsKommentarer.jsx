@@ -180,7 +180,7 @@ function OpsKommentarerRitad({
                     <span className="text-meta text-ink-muted">{formatDagOchKlockslag(k.skapad, { locale })}</span>
                   </div>
                   {k.text ? <p className="m-0 whitespace-pre-wrap break-words text-brod text-ink">{k.text}</p> : null}
-                  {k.bilaga?.dataUrl ? <Kommentarbilaga bilaga={k.bilaga} namn={namn} bilagaText={bilagaText} /> : null}
+                  {k.bilaga?.dataUrl ? <Kommentarbilaga bilaga={k.bilaga} namn={namn} bilagaText={bilagaText} sprak={sprak} /> : null}
                 </div>
                 {min && onTaBort ? (
                   <OpsButton variant="ghost" size="sm" busy={tarBort === k.id} disabled={tarBort !== null} ariaLabel={`${taBortEtikett}, ${(k.text || k.bilaga?.namn || "").slice(0, 40)}`} onClick={() => taBort(k.id)}>
@@ -244,10 +244,10 @@ export const ORD_OPSKOMMENTARER = {
  * ⛔ INGEN `<iframe>` FÖR EN PDF, av samma skäl som i `OpsFilePicker`: den ritas olika i varje webbläsare, och en tom ruta ser ut
  * som att filen inte kom fram.
  *
- * @param {{ bilaga: import("../lib/file.js").Bilaga, namn: string, bilagaText: string }} props
+ * @param {{ bilaga: import("../lib/file.js").Bilaga, namn: string, bilagaText: string, sprak?: string }} props
  */
-function Kommentarbilaga({ bilaga, namn, bilagaText }) {
-  return <BilagaVisning bilaga={bilaga} alt={`${bilagaText} ${namn}: ${bilaga.namn}`} />;
+function Kommentarbilaga({ bilaga, namn, bilagaText, sprak }) {
+  return <BilagaVisning bilaga={bilaga} alt={`${bilagaText} ${namn}: ${bilaga.namn}`} sprak={sprak} />;
 }
 
 /**

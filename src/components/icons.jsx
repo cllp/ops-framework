@@ -35,7 +35,7 @@
  * i takt för hand: talet kan inte läsas ur en CSS-variabel inuti en JSX-prop.
  */
 
-import { Archive, ArchiveRestore, AudioLines, BellOff, Camera, Flame, Folder, Image as BildLucide, Laugh, Link, Mail, PartyPopper, Pause, Pin, Play, Reply, SkipBack, SkipForward, Square, ThumbsUp, ArrowDownUp, ArrowRight, Bell, BookOpen, Briefcase, Building2, Calendar, CalendarDays, CalendarPlus, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, Crown, ExternalLink, FileText, Globe, Hash, Heart, Home, Inbox, Info, Layers, LayoutGrid, Lock, LogOut, MessageSquare, MessagesSquare, Mic, Search as SokLucide, SendHorizontal, Bot, MapPin, Maximize2, Menu, Minimize2, Monitor, Moon, MoreHorizontal, PanelRightOpen, Paperclip, Pencil, Plus, Settings, SlidersHorizontal, Smile, Star, Sun, User, UserX, Users, UsersRound, X, Zap } from "lucide-react";
+import { Archive, ArchiveRestore, AudioLines, Copy, BellOff, Camera, Flame, Folder, Image as BildLucide, Laugh, Link, Mail, PartyPopper, Pause, Pin, Play, Reply, SkipBack, SkipForward, Square, ThumbsUp, ArrowDownUp, ArrowRight, Bell, BookOpen, Briefcase, Building2, Calendar, CalendarDays, CalendarPlus, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, Crown, ExternalLink, FileText, Globe, Hash, Heart, Home, Inbox, Info, Layers, LayoutGrid, Lock, LogOut, MessageSquare, MessagesSquare, Mic, Search as SokLucide, SendHorizontal, Bot, MapPin, Maximize2, Menu, Minimize2, Monitor, Moon, MoreHorizontal, PanelRightOpen, Paperclip, Pencil, Plus, Settings, SlidersHorizontal, Smile, Star, Sun, User, UserX, Users, UsersRound, X, Zap } from "lucide-react";
 
 /** Reaktionen "tumme" (0.75.0). @param {{ size?: number }} props */
 export function TummeUppIkon({ size = 20 }) {
@@ -484,6 +484,11 @@ export function FastIkon({ size = 16 }) {
 /** Svara med citat i ett privat samtal (chattens nattskiva). @param {{ size?: number }} props */
 export function CiteraIkon({ size = 16 }) {
   return <Reply size={size} aria-hidden="true" strokeWidth={1.5} />;
+}
+
+/** Kopiera ett meddelandes text (0.106.0, #386). @param {{ size?: number }} props */
+export function KopieraIkon({ size = 16 }) {
+  return <Copy size={size} aria-hidden="true" strokeWidth={1.5} />;
 }
 
 /** Röstinmatning i skrivfältet: en ljudvåg (chattens nattskiva). @param {{ size?: number }} props */

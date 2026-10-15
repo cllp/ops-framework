@@ -1,15 +1,15 @@
-import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { OpsSprakProvider, useOpsSprak } from "./OpsSprak.jsx";
-import { ordet } from "../lib/ord.js";
+import { forvalda, ordet } from "../lib/ord.js";
 import { cx } from "../lib/cx.js";
 import { formatDate, formatTime, formatRelativeDate } from "../lib/format.js";
 import { KOMMENTARBILAGA_TYPER, MAX_KOMMENTARBILAGA, bilagaUrDokument, kommentarbilagaFel } from "../lib/handelsemodell.js";
 import { readAttachment } from "../lib/file.js";
-import { AGENTSTATUS_MAX_ALDER, MAX_MEDDELANDE, MAX_TRADNAMN, REAKTIONSKODER, agentstatus, bilagenyckel, delaSamtalsnyckel, samtalsdeltagare, samtalsnyckel, summeraReaktioner, synligText, tradensNamn } from "../lib/samtal.js";
+import { AGENTSTATUS_MAX_ALDER, MAX_MEDDELANDE, MAX_TRADNAMN, REAKTIONSKODER, agentstatus, amnesrubrik, bilagenyckel, delaSamtalsnyckel, samtalsdeltagare, samtalsnyckel, summeraReaktioner, synligText, tradensNamn } from "../lib/samtal.js";
 import { useSamtal } from "../data/useSamtal.jsx";
-import { harBilagor, harCitat, harFasta, harOmnamnanden, harReaktioner, harStatus, harTradar, harTyst } from "../data/samtalskalla.js";
+import { harAmnen, harBilagor, harCitat, harFasta, harOmnamnanden, harReaktioner, harStatus, harTradar, harTyst } from "../data/samtalskalla.js";
 import { BilagaVisning } from "./BilagaVisning.jsx";
-import { CHATTINFO_TEXTER, OpsChattinfo } from "./OpsChattinfo.jsx";
+import { CHATTINFO_TEXTER, ORD_CHATTINFO, OpsChattinfo } from "./OpsChattinfo.jsx";
 import { OpsTooltip } from "./OpsTooltip.jsx";
 import { OpsMarkdown } from "./OpsMarkdown.jsx";
 import { splitInline } from "../lib/markdown.js";
@@ -29,7 +29,8 @@ import { REAKTIONSVY, reaktionsnamnPa } from "./reaktionsvy.js";
 import { OpsForslag } from "./OpsForslag.jsx";
 import { forslagUrData } from "../lib/forslag.js";
 import { rapporteraFel } from "../lib/felrapport.js";
-import { AgentIkon, AndraIkon, BildIkon, FastIkon, FilIkon, KameraIkon, MappIkon, MejlIkon, NotisIkon, PanelIkon, StoppIkon, TystIkon, ChevronHogerIkon, ChevronNedIkon, CiteraIkon, ChevronVansterIkon, GruppIkon, KryssIkon, LasIkon, LeendeIkon, MeddelandeIkon, PlusIkon, SkickaIkon, SokIkon, TradIkon } from "./icons.jsx";
+import { OpsAtgardsblad } from "./OpsAtgardsblad.jsx";
+import { AgentIkon, AndraIkon, KopieraIkon, ArkiveraIkon, TaFramIkon, BildIkon, FastIkon, FilIkon, KameraIkon, MappIkon, MejlIkon, NotisIkon, PanelIkon, StoppIkon, TystIkon, ChevronHogerIkon, ChevronNedIkon, CiteraIkon, ChevronVansterIkon, GruppIkon, KryssIkon, LasIkon, LeendeIkon, MeddelandeIkon, PlusIkon, SkickaIkon, SokIkon, TradIkon } from "./icons.jsx";
 
 /**
  * Meddelanden: inkorgen med gruppchatten och de privata samtalen, och samtalet bredvid (0.34.0, #182, #185).
@@ -141,6 +142,10 @@ import { AgentIkon, AndraIkon, BildIkon, FastIkon, FilIkon, KameraIkon, MappIkon
  * @property {string} [reagera] (chattens nattskiva) Knappen som öppnar reaktionerna. Förval "Reagera".
  * @property {string} [valjReaktion] Gruppens namn för skärmläsaren. Förval "Välj en reaktion".
  * @property {string} [duHarReagerat] Läggs till i en reaktions namn när den är din. Förval "du har reagerat".
+ * @property {string} [kopiera] (0.106.0, #386) Posten i meddelandets meny på telefon. Förval "Kopiera".
+ * @property {string} [kopierat] Raden efter en lyckad kopiering. Förval "Kopierat".
+ * @property {string} [kopieraFel] När webbläsaren inte släpper in urklippet. Förval "Texten kunde inte kopieras.".
+ * @property {string} [dittMeddelande] Menyns namn för ett eget meddelande. Förval "Ditt meddelande".
  * @property {string} [reaktionFel] Förval "Reaktionen kunde inte sparas.".
  * @property {string} [reaktionerFel] Förval "Reaktionerna kunde inte hämtas.".
  * @property {string} [reaktionerFler] När läsningen nådde sitt tak. Förval "Äldre reaktioner visas inte.".
@@ -208,6 +213,28 @@ import { AgentIkon, AndraIkon, BildIkon, FastIkon, FilIkon, KameraIkon, MappIkon
  * @property {string} [bilagorFel]
  * @property {string} [lankarUrLaddade]
  * @property {string} [aldreLankar]
+ * @property {string} [nyttSamtal] (0.106.0, #386) Knappen och det nya ämnets rubrik innan något skickats. Förval "Nytt samtal".
+ * @property {string} [gruppensAgent] Raden under agentens namn. Förval "gruppens agent".
+ * @property {string} [antalSamtal] `{n}` byts mot antalet. Förval "{n} samtal".
+ * @property {string} [senast] Förled till tiden. Förval "senast".
+ * @property {string} [ingaSamtalAgent] Förval "Inga samtal än. Börja ett nytt.".
+ * @property {string} [samtalUtanText] Ett ämnes rubrik när ingen text finns att härleda den ur. Förval "Samtal utan text".
+ * @property {string} [samtalMed] Agentlistans namn för skärmläsaren. `{namn}` byts mot agentens namn. Förval "Samtal med {namn}".
+ * @property {string} [arkivera] Förval "Arkivera".
+ * @property {string} [taFram] Förval "Ta fram".
+ * @property {string} [visaArkiverade] Förval "Visa arkiverade".
+ * @property {string} [doljArkiverade] Förval "Dölj arkiverade".
+ * @property {string} [ingaArkiverade] Förval "Inga arkiverade samtal.".
+ * @property {string} [arkivFel] Förval "Samtalet kunde inte arkiveras.".
+ * @property {string} [langd] (0.106.0, #386 skiva 5) Räknaren nära taket. `{n}` och `{max}` byts. Förval "{n} av {max} tecken".
+ * @property {string} [forLang] (0.106.0) Raden när texten är över taket. `{over}` byts. Förval "Texten är {over} tecken för lång. Korta den för att skicka.".
+ * @property {string} [tillSenaste] (0.106.0, #386 skiva 4) Knappen när man läser bakåt. Förval "Till senaste".
+ * @property {string} [nyaMeddelanden] `{n}` byts mot antalet nya sedan man lämnade slutet. Förval "{n} nya".
+ * @property {string} [nyttSedanSist] Avdelaren i loggen, härledd ur läsmärket. Förval "Nytt sedan sist".
+ * @property {string} [annatSkickas] (0.106.0, #385) Felet i röstytan när ett annat meddelande skickas. Förval "Ett annat meddelande skickas just nu.".
+ * @property {string} [ingenText] (0.106.0, #385) Felet i röstytan när inget hördes att skicka. Förval "Det finns ingen text att skicka.".
+ * @property {string} [sokPlats] (0.106.0, #385) Platsen i sökningen. `{i}` och `{n}` byts. Förval "{i} av {n}".
+ * @property {string} [arkiveratRad] Raden i ett arkiverat ämne. Förval "Arkiverat. Det syns inte i listan förrän du tar fram det.".
  */
 
 /**
@@ -241,104 +268,143 @@ function talordPa(sprak) {
   return /** @type {any} */ (Object.fromEntries(Object.keys(ORD_MEDDELANDEN_TAL).map((k) => [k, ordet(ORD_MEDDELANDEN_TAL, k, sprak)])));
 }
 
-/** @type {Required<Meddelandetexter>} */
-const TEXTER = {
-  ...CHATTINFO_TEXTER,
-  rubrik: "Meddelanden",
-  nytt: "Nytt meddelande",
-  alla: "Alla",
-  olasta: "Olästa",
-  sok: "Sök i meddelanden",
-  rensaSok: "Rensa sökningen",
-  tomt: "Inga samtal än",
-  tomtOlasta: "Inget oläst",
-  ingenTraff: "Ingen träff",
-  valjSamtal: "Välj ett samtal",
-  tillbaka: "Tillbaka",
-  grupp: "Grupp",
-  privat: "Privat",
-  agent: "Agent",
-  oppnaInstallningar: "öppna inställningar",
-  privatRad: "Bara ni två ser det här",
-  gruppRad: "Alla i gruppen ser det här",
-  agentRad: "Bara du och agenten ser det här",
-  inga: "Inga meddelanden än",
-  skriv: "Skriv ett meddelande",
-  skicka: "Skicka",
-  du: "Du",
-  olastaText: "olästa",
-  fel: "Meddelandena kunde inte hämtas",
-  till: "Till",
-  valjMottagare: "Välj vem meddelandet ska till.",
-  oppnaFel: "Samtalet kunde inte öppnas",
-  ingenAnnan: "Det finns ingen annan i gruppen att skriva till.",
-  helaGruppen: "Hela gruppen",
-  gruppTom: "Alla i gruppen ser det som skrivs här.",
-  oppnarGrupp: "Öppnar gruppchatten…",
-  svaraITrad: "Svara i tråd",
-  lyftTillMinnet: "Lyft till minnet",
-  minnet: "Minnet",
-  lyftMisslyckades: "Raden lyftes inte",
-  svar: "svar",
-  tradRad: "Alla i gruppen ser tråden",
-  tradFel: "Tråden kunde inte hämtas",
-  ingaSvar: "Inga svar än. Skriv det första.",
-  dopOm: "Döp om",
-  tradnamn: "Trådens namn",
-  spara: "Spara",
-  avbryt: "Avbryt",
-  automatisktNamn: "Använd det automatiska namnet",
-  rotSaknas: "Meddelandet tråden startades ur går inte att läsa.",
-  tradarFel: "Trådarna kunde inte hämtas.",
-  tradHamtas: "Tråden hämtas",
-  svarPa: "Meddelande från",
-  visaAldre: "Visa äldre",
-  hamtarAldre: "Hämtar äldre…",
-  ingaAldre: "Inga äldre meddelanden",
-  aldreFel: "Äldre meddelanden kunde inte hämtas.",
-  reagera: "Reagera",
-  valjReaktion: "Välj en reaktion",
-  duHarReagerat: "du har reagerat",
-  reaktionFel: "Reaktionen kunde inte sparas.",
-  reaktionerFel: "Reaktionerna kunde inte hämtas.",
-  reaktionerFler: "Äldre reaktioner visas inte.",
-  reaktionsnamn: {},
-  skrivGrupp: "Skriv till gruppen",
-  skrivAgent: "Fråga agenten",
-  skrivTrad: "Svara i tråden",
-  bifoga: "Bifoga",
-  bifogaBild: "Bifoga bild",
-  taFoto: "Ta foto",
-  valjFil: "Välj fil",
-  bilagaText: "Bilaga från",
-  taBortBilaga: "Ta bort bilagan",
-  enBilaga: "Ett meddelande bär en bilaga. Välj en fil.",
-  bilagaTrasig: "Bilagan går inte att visa.",
-  ...talordPa("sv"),
-  postkortFel: "Länken kunde inte slås upp.",
-  fast: "Fäst",
-  lossa: "Lossa",
-  fastaRubrik: "{n} fästa",
-  fastaFel: "Fästa meddelanden kunde inte hämtas.",
-  fastFel: "Fästningen kunde inte sparas.",
-  fastaFler: "Äldre fästningar visas inte.",
-  citera: "Svara med citat",
-  svararPa: "Svarar på",
-  avbrytCitat: "Avbryt citatet",
-  citatSaknas: "Meddelandet går inte att läsa.",
-  sokISamtalet: "Sök i samtalet",
-  stangSok: "Stäng sökningen",
-  nastaTraff: "Nästa träff",
-  forraTraff: "Föregående träff",
-  ingenTraffLaddade: "Ingen träff bland de laddade meddelandena.",
-  sokOmfang: "Söker bland de {n} laddade meddelandena. Visa äldre för att söka längre bak.",
-  allaNamn: "alla",
-  namnForslag: "Nämn någon",
-  agentTanker: "Agenten tänker",
-  agentSkriver: "Agenten skriver",
-  agentFastnat: "Agenten har inte svarat på två minuter. Skriv igen om du fortfarande väntar.",
-  agentstatusFel: "Agentens status kunde inte läsas.",
+/**
+ * ══ ⛔ CHATTENS ORD PÅ BÅDA SPRÅKEN (0.106.0, #385) ════════════════════════════════════════════════════════════════════════════
+ *
+ * Granskningen av PR 384, MÅSTE 1: i en chatt med `sprak="en"` stod "Skicka", "Skriv till gruppen", "Fäst", "Svara med citat" och
+ * "Sök i samtalet" kvar på svenska, eftersom bara röst-orden (`ORD_MEDDELANDEN_TAL`) och reaktionernas namn hade en engelsk form.
+ * Nu har varje nyckel i `Meddelandetexter` sin engelska form här, i samma form som röst-orden, och `texterPa` väljer språket före
+ * appens egna `texter`. Den svenska formen står bara här: `TEXTER` läser den härifrån (regel 2).
+ * @type {import("../lib/ord.js").Ordbok}
+ */
+const ORD_MEDDELANDEN = {
+  rubrik: { sv: "Meddelanden", en: "Messages" },
+  nytt: { sv: "Nytt meddelande", en: "New message" },
+  alla: { sv: "Alla", en: "All" },
+  olasta: { sv: "Olästa", en: "Unread" },
+  sok: { sv: "Sök i meddelanden", en: "Search messages" },
+  rensaSok: { sv: "Rensa sökningen", en: "Clear the search" },
+  tomt: { sv: "Inga samtal än", en: "No conversations yet" },
+  tomtOlasta: { sv: "Inget oläst", en: "Nothing unread" },
+  ingenTraff: { sv: "Ingen träff", en: "No match" },
+  valjSamtal: { sv: "Välj ett samtal", en: "Choose a conversation" },
+  tillbaka: { sv: "Tillbaka", en: "Back" },
+  grupp: { sv: "Grupp", en: "Group" },
+  privat: { sv: "Privat", en: "Private" },
+  agent: { sv: "Agent", en: "Agent" },
+  oppnaInstallningar: { sv: "öppna inställningar", en: "open settings" },
+  privatRad: { sv: "Bara ni två ser det här", en: "Only the two of you see this" },
+  gruppRad: { sv: "Alla i gruppen ser det här", en: "Everyone in the group sees this" },
+  agentRad: { sv: "Bara du och agenten ser det här", en: "Only you and the agent see this" },
+  inga: { sv: "Inga meddelanden än", en: "No messages yet" },
+  skriv: { sv: "Skriv ett meddelande", en: "Write a message" },
+  skicka: { sv: "Skicka", en: "Send" },
+  du: { sv: "Du", en: "You" },
+  olastaText: { sv: "olästa", en: "unread" },
+  fel: { sv: "Meddelandena kunde inte hämtas", en: "The messages could not be loaded" },
+  till: { sv: "Till", en: "To" },
+  valjMottagare: { sv: "Välj vem meddelandet ska till.", en: "Choose who the message is for." },
+  oppnaFel: { sv: "Samtalet kunde inte öppnas", en: "The conversation could not be opened" },
+  ingenAnnan: { sv: "Det finns ingen annan i gruppen att skriva till.", en: "There is no one else in the group to write to." },
+  helaGruppen: { sv: "Hela gruppen", en: "The whole group" },
+  gruppTom: { sv: "Alla i gruppen ser det som skrivs här.", en: "Everyone in the group sees what is written here." },
+  oppnarGrupp: { sv: "Öppnar gruppchatten…", en: "Opening the group chat…" },
+  svaraITrad: { sv: "Svara i tråd", en: "Reply in thread" },
+  lyftTillMinnet: { sv: "Lyft till minnet", en: "Save to memory" },
+  minnet: { sv: "Minnet", en: "Memory" },
+  lyftMisslyckades: { sv: "Raden lyftes inte", en: "The line was not saved" },
+  svar: { sv: "svar", en: "replies" },
+  tradRad: { sv: "Alla i gruppen ser tråden", en: "Everyone in the group sees the thread" },
+  tradFel: { sv: "Tråden kunde inte hämtas", en: "The thread could not be loaded" },
+  ingaSvar: { sv: "Inga svar än. Skriv det första.", en: "No replies yet. Write the first." },
+  dopOm: { sv: "Döp om", en: "Rename" },
+  tradnamn: { sv: "Trådens namn", en: "Thread name" },
+  spara: { sv: "Spara", en: "Save" },
+  avbryt: { sv: "Avbryt", en: "Cancel" },
+  automatisktNamn: { sv: "Använd det automatiska namnet", en: "Use the automatic name" },
+  rotSaknas: { sv: "Meddelandet tråden startades ur går inte att läsa.", en: "The message the thread was started from cannot be read." },
+  tradarFel: { sv: "Trådarna kunde inte hämtas.", en: "The threads could not be loaded." },
+  tradHamtas: { sv: "Tråden hämtas", en: "Loading the thread" },
+  svarPa: { sv: "Meddelande från", en: "Message from" },
+  visaAldre: { sv: "Visa äldre", en: "Show older" },
+  hamtarAldre: { sv: "Hämtar äldre…", en: "Loading older…" },
+  ingaAldre: { sv: "Inga äldre meddelanden", en: "No older messages" },
+  aldreFel: { sv: "Äldre meddelanden kunde inte hämtas.", en: "Older messages could not be loaded." },
+  reagera: { sv: "Reagera", en: "React" },
+  valjReaktion: { sv: "Välj en reaktion", en: "Choose a reaction" },
+  duHarReagerat: { sv: "du har reagerat", en: "you reacted" },
+  kopiera: { sv: "Kopiera", en: "Copy" },
+  kopierat: { sv: "Kopierat", en: "Copied" },
+  kopieraFel: { sv: "Texten kunde inte kopieras.", en: "The text could not be copied." },
+  dittMeddelande: { sv: "Ditt meddelande", en: "Your message" },
+  reaktionFel: { sv: "Reaktionen kunde inte sparas.", en: "The reaction could not be saved." },
+  reaktionerFel: { sv: "Reaktionerna kunde inte hämtas.", en: "The reactions could not be loaded." },
+  reaktionerFler: { sv: "Äldre reaktioner visas inte.", en: "Older reactions are not shown." },
+  skrivGrupp: { sv: "Skriv till gruppen", en: "Write to the group" },
+  skrivAgent: { sv: "Fråga agenten", en: "Ask the agent" },
+  skrivTrad: { sv: "Svara i tråden", en: "Reply in the thread" },
+  bifoga: { sv: "Bifoga", en: "Attach" },
+  bifogaBild: { sv: "Bifoga bild", en: "Attach image" },
+  taFoto: { sv: "Ta foto", en: "Take photo" },
+  valjFil: { sv: "Välj fil", en: "Choose file" },
+  bilagaText: { sv: "Bilaga från", en: "Attachment from" },
+  taBortBilaga: { sv: "Ta bort bilagan", en: "Remove the attachment" },
+  enBilaga: { sv: "Ett meddelande bär en bilaga. Välj en fil.", en: "A message carries one attachment. Choose one file." },
+  bilagaTrasig: { sv: "Bilagan går inte att visa.", en: "The attachment cannot be shown." },
+  postkortFel: { sv: "Länken kunde inte slås upp.", en: "The link could not be looked up." },
+  fast: { sv: "Fäst", en: "Pin" },
+  lossa: { sv: "Lossa", en: "Unpin" },
+  fastaRubrik: { sv: "{n} fästa", en: "{n} pinned" },
+  fastaFel: { sv: "Fästa meddelanden kunde inte hämtas.", en: "Pinned messages could not be loaded." },
+  fastFel: { sv: "Fästningen kunde inte sparas.", en: "The pin could not be saved." },
+  fastaFler: { sv: "Äldre fästningar visas inte.", en: "Older pins are not shown." },
+  citera: { sv: "Svara med citat", en: "Reply with quote" },
+  svararPa: { sv: "Svarar på", en: "Replying to" },
+  avbrytCitat: { sv: "Avbryt citatet", en: "Cancel the quote" },
+  citatSaknas: { sv: "Meddelandet går inte att läsa.", en: "The message cannot be read." },
+  sokISamtalet: { sv: "Sök i samtalet", en: "Search the conversation" },
+  stangSok: { sv: "Stäng sökningen", en: "Close the search" },
+  nastaTraff: { sv: "Nästa träff", en: "Next match" },
+  forraTraff: { sv: "Föregående träff", en: "Previous match" },
+  ingenTraffLaddade: { sv: "Ingen träff bland de laddade meddelandena.", en: "No match among the loaded messages." },
+  sokOmfang: { sv: "Söker bland de {n} laddade meddelandena. Visa äldre för att söka längre bak.", en: "Searching the {n} loaded messages. Show older to search further back." },
+  allaNamn: { sv: "alla", en: "everyone" },
+  namnForslag: { sv: "Nämn någon", en: "Mention someone" },
+  agentTanker: { sv: "Agenten tänker", en: "The agent is thinking" },
+  agentSkriver: { sv: "Agenten skriver", en: "The agent is writing" },
+  agentFastnat: { sv: "Agenten har inte svarat på två minuter. Skriv igen om du fortfarande väntar.", en: "The agent has not answered for two minutes. Write again if you are still waiting." },
+  agentstatusFel: { sv: "Agentens status kunde inte läsas.", en: "The agent's status could not be read." },
+  nyttSamtal: { sv: "Nytt samtal", en: "New conversation" },
+  gruppensAgent: { sv: "gruppens agent", en: "the group's agent" },
+  antalSamtal: { sv: "{n} samtal", en: "{n} conversations" },
+  senast: { sv: "senast", en: "latest" },
+  ingaSamtalAgent: { sv: "Inga samtal än. Börja ett nytt.", en: "No conversations yet. Start a new one." },
+  samtalUtanText: { sv: "Samtal utan text", en: "Conversation without text" },
+  samtalMed: { sv: "Samtal med {namn}", en: "Conversations with {namn}" },
+  arkivera: { sv: "Arkivera", en: "Archive" },
+  taFram: { sv: "Ta fram", en: "Restore" },
+  visaArkiverade: { sv: "Visa arkiverade", en: "Show archived" },
+  doljArkiverade: { sv: "Dölj arkiverade", en: "Hide archived" },
+  ingaArkiverade: { sv: "Inga arkiverade samtal.", en: "No archived conversations." },
+  arkivFel: { sv: "Samtalet kunde inte arkiveras.", en: "The conversation could not be archived." },
+  arkiveratRad: { sv: "Arkiverat. Det syns inte i listan förrän du tar fram det.", en: "Archived. It is not in the list until you restore it." },
+  tillSenaste: { sv: "Till senaste", en: "Jump to latest" },
+  langd: { sv: "{n} av {max} tecken", en: "{n} of {max} characters" },
+  forLang: { sv: "Texten är {over} tecken för lång. Korta den för att skicka.", en: "The text is {over} characters too long. Shorten it to send." },
+  nyaMeddelanden: { sv: "{n} nya", en: "{n} new" },
+  nyttSedanSist: { sv: "Nytt sedan sist", en: "New since last time" },
+  annatSkickas: { sv: "Ett annat meddelande skickas just nu.", en: "Another message is being sent right now." },
+  ingenText: { sv: "Det finns ingen text att skicka.", en: "There is no text to send." },
+  sokPlats: { sv: "{i} av {n}", en: "{i} of {n}" },
 };
+
+/** @type {Required<Meddelandetexter>} */
+const TEXTER = /** @type {any} */ ({
+  ...CHATTINFO_TEXTER,
+  ...forvalda(ORD_MEDDELANDEN, "sv"),
+  reaktionsnamn: {},
+  ...talordPa("sv"),
+});
 
 /**
  * Tiden på en rad: klockslag i dag, annars datum.
@@ -581,7 +647,7 @@ export function OpsMeddelandeLank({ href, olasta, olastaFler = false, etikett = 
  * @param {Partial<typeof TEXTER> & { reaktionsnamn?: Record<string, string> }} texter
  */
 export function texterPa(sprak, texter) {
-  return { ...TEXTER, ...talordPa(sprak), ...texter, reaktionsnamn: { ...reaktionsnamnPa(sprak), ...texter.reaktionsnamn } };
+  return { ...TEXTER, ...forvalda(ORD_CHATTINFO, sprak), ...forvalda(ORD_MEDDELANDEN, sprak), ...talordPa(sprak), ...texter, reaktionsnamn: { ...reaktionsnamnPa(sprak), ...texter.reaktionsnamn } };
 }
 
 /**
@@ -593,11 +659,16 @@ export function texterPa(sprak, texter) {
  * @param {ReadonlyArray<Medlemsrad>} props.medlemmar Gruppens medlemskap, för namn och bilder.
  * @param {string | null} [props.valt] Valt samtal, när appen styr det (t.ex. ur adressen). Tråden ritas på id:t också när
  *   samtalet ännu inte finns bland raderna (0.63.0, #263).
- * @param {boolean} [props.nytt] (0.63.0, #263) Läget "nytt" i högerpanelen, när appen styr det (t.ex. ur adressen, `?nytt=1`).
- *   Utelämnad: komponenten håller läget själv.
- * @param {(samtalId: string | null, val?: { nytt: true }) => void} [props.onValj] Anropas med det valda samtalet, eller med
+ * @param {boolean | "agent"} [props.nytt] (0.63.0, #263) Läget "nytt" i högerpanelen, när appen styr det (t.ex. ur adressen, `?nytt=1`).
+ *   Utelämnad: komponenten håller läget själv. (0.106.0, #386) `"agent"` öppnar ett nytt ämne med agenten (`valtAgent`, annars gruppens
+ *   första agent), med `nyttUtkast` i skrivfältet. Ämnet skapas först när personen skickar. Utan `amnen` på källan är `"agent"` samma
+ *   som `true`.
+ * @param {string | null} [props.valtAgent] (0.106.0, #386) Agenten vars samtal visas i högerpanelen, när appen styr det. Utelämnad:
+ *   komponenten håller valet själv. Gäller bara med `amnen` på källan.
+ * @param {(samtalId: string | null, val?: { nytt?: true | "agent", agent?: string }) => void} [props.onValj] Anropas med det valda samtalet, eller med
  *   `(null, { nytt: true })` när läget "nytt" öppnas. Ett anrop utan `val` betyder att läget "nytt" är stängt. EN signal för
- *   båda, så att en app som har dem i adressen skriver adressen en gång.
+ *   båda, så att en app som har dem i adressen skriver adressen en gång. (0.106.0) `(null, { agent })` när agentens samtal visas,
+ *   och `(null, { nytt: "agent", agent })` när ett nytt ämne öppnas.
  * @param {(antal: number, val: { fler: boolean }) => void} [props.onOlasta] Anropas med antalet olästa när det ändras, för ingångens räknare.
  *   `val.fler` (chattens nattskiva): antalet är ett golv, eftersom en räkning nådde sidans storlek. Skicka det till `OpsMeddelandeLank olastaFler`.
  * @param {string | null} [props.valtTrad] (0.68.0) Vald tråd i gruppchatten, rotmeddelandets id, när appen styr det (t.ex. ur
@@ -639,7 +710,7 @@ export function texterPa(sprak, texter) {
  * @param {string} [props.nyttUtkast] (0.105.0) Texten som står i skrivfältet när läget "nytt" öppnas, till exempel det man sade i TALK och
  *   valde Meddelande för. Ingenting skickas: personen väljer mottagare och trycker Skicka.
  */
-export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt, nytt, onValj, onOlasta, valtTrad, onValjTrad, sprak: sprakProp, texter = {}, postkort, onTranscribe, onStoppaAgent, inspelare, igenkanning, onBifoga, mejl, onLyftTillMinnet, minneHref, tillbaka, ram = null, activeHref, modul = null, onVisaAgent, onForslag, nyttUtkast }) {
+export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt, nytt, valtAgent, onValj, onOlasta, valtTrad, onValjTrad, sprak: sprakProp, texter = {}, postkort, onTranscribe, onStoppaAgent, inspelare, igenkanning, onBifoga, mejl, onLyftTillMinnet, minneHref, tillbaka, ram = null, activeHref, modul = null, onVisaAgent, onForslag, nyttUtkast }) {
   kravRam(ram, "OpsMeddelanden");
   if (onForslag !== undefined && typeof onForslag !== "function") throw new Error(`OpsMeddelanden: onForslag ska vara en funktion, fick ${typeof onForslag}.`);
   if (nyttUtkast !== undefined && typeof nyttUtkast !== "string") throw new Error(`OpsMeddelanden: nyttUtkast ska vara en sträng, fick ${typeof nyttUtkast}.`);
@@ -651,22 +722,36 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
   const sprak = sprakProp ?? sprakKontext;
   const t = texterPa(sprak, texter);
   const locale = sprak === "en" ? "en-GB" : "sv-SE";
-  const { rader, laddar, fel, olasta, olastaFler, lasOm, laggIn } = useSamtal({ kalla, groupId, uid });
   const [egetVal, setEgetVal] = useState(/** @type {string | null} */ (null));
-  const [egetNytt, setEgetNytt] = useState(false);
+  const [egetNytt, setEgetNytt] = useState(/** @type {boolean | "agent"} */ (false));
+  const [egenAgent, setEgenAgent] = useState(/** @type {string | null} */ (null));
+  // ⛔ SAMTAL PER ÄMNE BARA NÄR KÄLLAN HAR DEM (0.106.0, #386). Utan `amnen` är inkorgen, valen och vyerna exakt som förut.
+  const medAmnen = harAmnen(kalla);
+  const nyttVarde = groupId ? (nytt !== undefined ? nytt : egetNytt) : false;
   // ⛔ Läget "nytt" vinner över ett valt samtal: det är det man senast bad om.
-  const nyttLage = Boolean(groupId) && (nytt !== undefined ? nytt : egetNytt);
-  const valdId = nyttLage ? null : valt !== undefined ? valt : egetVal;
-  /** @param {string | null} id @param {{ nytt: true }} [val] */
+  const nyttAmneLage = medAmnen && nyttVarde === "agent";
+  const nyttLage = Boolean(nyttVarde) && !nyttAmneLage;
+  const valdId = nyttLage || nyttAmneLage ? null : valt !== undefined ? valt : egetVal;
+  // ⛔ `oppet`: det öppna samtalet räknas inte lokalt av inkorgen (omgranskningen av PR 390), se `useSamtal`.
+  const { rader, laddar, fel, olasta, olastaFler, lasOm, laggIn } = useSamtal({ kalla, groupId, uid, oppet: valdId });
+  /** @param {string | null} id @param {{ nytt?: true | "agent", agent?: string }} [val] */
   const valj = (id, val) => {
     if (valt === undefined) setEgetVal(id);
-    if (nytt === undefined) setEgetNytt(Boolean(val?.nytt));
+    if (nytt === undefined) setEgetNytt(val?.nytt ?? false);
+    if (valtAgent === undefined) setEgenAgent(val?.agent ?? null);
     onValj?.(id, val);
   };
+  /** Gruppens aktiva agenter, i medlemslistans ordning (0.106.0). */
+  const agenter = useMemo(() => (medlemmar ?? []).filter((m) => m && m.typ === "agent" && (m.status ?? "aktiv") === "aktiv").map((m) => m.userId), [medlemmar]);
+  const agentVal = valtAgent !== undefined ? valtAgent : egenAgent;
+  // Agenten vars samtal visas, och agenten ett nytt ämne skrivs till: den valda, annars gruppens första.
+  const listadAgent = medAmnen && !nyttLage && !nyttAmneLage && !valdId ? agentVal : null;
+  const nyAgent = nyttAmneLage ? agentVal ?? agenter[0] ?? null : null;
   // Det man skrev i läget "nytt" innan man valt någon följer med in i tråden.
   const utkast = useRef(/** @type {{ id: string, text: string } | null} */ (null));
   const [filter, setFilter] = useState(/** @type {"alla" | "olasta"} */ ("alla"));
   const [sok, setSok] = useState("");
+  const tangentbord = useTangentbord();
 
   useEffect(() => {
     onOlasta?.(olasta, { fler: olastaFler });
@@ -680,6 +765,9 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
   useEffect(() => {
     if (nytt === undefined) setEgetNytt(false);
   }, [groupId, nytt]);
+  useEffect(() => {
+    if (valtAgent === undefined) setEgenAgent(null);
+  }, [groupId, valtAgent]);
 
   const namn = useMemo(() => {
     /** @type {Map<string, Medlemsrad>} */
@@ -710,14 +798,44 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
   }, [rader, gruppSid, groupId, laddar, fel]);
 
   const nu = Date.now();
+  const q = sok.trim().toLocaleLowerCase("sv");
   const visade = allaRader
     .filter((r) => (filter === "olasta" ? r.olasta > 0 : true))
     .filter((r) => {
-      const q = sok.trim().toLocaleLowerCase("sv");
       if (!q) return true;
       const rubrik = r.samtal.slag === "grupp" ? gruppNamn : namnFor(r.motpart ?? "");
       return rubrik.toLocaleLowerCase("sv").includes(q) || (r.senaste?.text ?? "").toLocaleLowerCase("sv").includes(q);
     });
+  /*
+   * ══ ⛔ AGENTEN SOM EN RAD (0.106.0, #386 skiva 2, skissen CP godkände) ═══════════════════════════════════════════════════
+   *
+   * Grupperna överst, sedan en rad per agent ("Hugo, gruppens agent", "3 samtal, senast 14:32"), sedan personerna. Agentens ämnen
+   * listas inte i inkorgen: raden leder till agentens samtal, och räknaren är summan av ämnenas olästa. En agent utan samtal har ändå
+   * sin rad, eftersom raden är vägen till ett nytt. Utan `amnen` på källan är listan som förut.
+   */
+  /** @typedef {{ typ: "agent", agent: string, rader: typeof allaRader, olasta: number, olastaFler: boolean, senaste: (typeof allaRader)[number]["senaste"] }} Agentpost */
+  /** @type {Agentpost[]} */
+  const agentposter = useMemo(() => {
+    if (!medAmnen) return [];
+    const ids = [...agenter];
+    for (const r of rader) if (r.samtal.slag === "agent" && r.motpart && !ids.includes(r.motpart)) ids.push(r.motpart);
+    return ids.map((agent) => {
+      const egna = rader.filter((r) => r.samtal.slag === "agent" && r.motpart === agent);
+      const senaste = egna.reduce((b, r) => (r.senaste && (!b || r.senaste.tid > b.tid) ? r.senaste : b), /** @type {(typeof allaRader)[number]["senaste"]} */ (null));
+      return { typ: /** @type {const} */ ("agent"), agent, rader: egna, olasta: egna.reduce((n, r) => n + r.olasta, 0), olastaFler: egna.some((r) => r.olastaFler === true), senaste };
+    });
+  }, [medAmnen, agenter, rader]);
+  const visadeAgentposter = agentposter
+    .filter((a) => (filter === "olasta" ? a.olasta > 0 : true))
+    .filter((a) => !q || namnFor(a.agent).toLocaleLowerCase("sv").includes(q) || a.rader.some((r) => (r.senaste?.text ?? "").toLocaleLowerCase("sv").includes(q) || String(r.samtal.rubrik ?? "").toLocaleLowerCase("sv").includes(q)));
+  /** @type {Array<{ typ: "rad", r: (typeof allaRader)[number] } | Agentpost>} */
+  const poster = medAmnen
+    ? [
+        ...visade.filter((r) => r.samtal.slag === "grupp").map((r) => ({ typ: /** @type {const} */ ("rad"), r })),
+        ...visadeAgentposter,
+        ...visade.filter((r) => r.samtal.slag === "personer").map((r) => ({ typ: /** @type {const} */ ("rad"), r })),
+      ]
+    : visade.map((r) => ({ typ: /** @type {const} */ ("rad"), r }));
   /*
    * ⛔ TRÅDEN RITAS PÅ DET VALDA ID:T, INTE PÅ LISTAN (#263, SS `ChatInboxPanel.jsx:186-191`). Raden ur listan när den finns.
    * Annars läses gruppen och paret ur nyckeln: ett id i en annan grupp, eller ett par jag inte är med i, ritar ingen tråd.
@@ -734,10 +852,14 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
     if ("slag" in d) return { samtal: { id: valdId, groupId: d.groupId, slag: "grupp", skapad: 0, skapadAv: "" }, senaste: null, olasta: 0, lastTill: 0, motpart: null, ej: true };
     if (!d.deltagare.includes(uid)) return null;
     const annan = d.deltagare[0] === uid ? d.deltagare[1] : d.deltagare[0];
-    const slag = namn.get(annan)?.typ === "agent" ? "agent" : "personer";
+    // ⛔ (0.106.0) Ett ämne har bara agenten som slag: nyckelns fjärde del finns inte på ett personsamtal.
+    const slag = "amne" in d || namn.get(annan)?.typ === "agent" ? "agent" : "personer";
     return { samtal: { id: valdId, groupId: d.groupId, slag, deltagare: d.deltagare, skapad: 0, skapadAv: "" }, senaste: null, olasta: 0, lastTill: 0, motpart: annan };
   }, [valdId, allaRader, groupId, uid, namn]);
-  const hoger = nyttLage || Boolean(vald);
+  const hoger = nyttLage || nyttAmneLage || Boolean(vald) || Boolean(listadAgent);
+  // ⛔ (0.106.0) Ett ämne med agenten har sin egen rad tillbaka till agentens samtal, som tråden har sin till gruppchatten.
+  const iAmne = medAmnen && (nyttAmneLage || vald?.samtal.slag === "agent");
+  const amnesAgent = nyttAmneLage ? nyAgent : vald?.samtal.slag === "agent" ? vald.motpart : null;
   // ⛔ TRÅDEN GÄLLER BARA GRUPPCHATTEN, och ett nytt samtalsval stänger den (0.68.0). Ett trådid kvar från förra samtalet hade
   // öppnat en tråd under fel samtal.
   const [egenTrad, setEgenTrad] = useState(/** @type {string | null} */ (null));
@@ -793,12 +915,15 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
   }
 
   return (
-    /* ⛔ HÖJDEN ÄR FÖNSTRET MINUS SKALETS RAMAR (huvudet med sin kant på 1 px, och bottenraden under md), så att listan och
+    <OpsSprakProvider sprak={sprak}>
+    {/* ⛔ HÖJDEN ÄR FÖNSTRET MINUS SKALETS RAMAR (huvudet med sin kant på 1 px, och bottenraden under md), så att listan och
        samtalet rullar var för sig och skrivfältet står kvar längst ned, som SS (`h-full`, `:957`). Mätt i check-skalyta
-       avsnitt 29: utan den enda pixeln för huvudets kant rullade hela sidan en pixel, och skrivfältet hamnade under bottenraden. */
+       avsnitt 29: utan den enda pixeln för huvudets kant rullade hela sidan en pixel, och skrivfältet hamnade under bottenraden. */}
     <div
       data-ops-meddelanden=""
-      className="flex h-[calc(100dvh-var(--safe-top)-var(--topbar-height)-1px-var(--bottom-nav-h)-var(--safe-bottom)-var(--spelrad-h,0px))] min-h-0 flex-col bg-canvas md:h-[calc(100dvh-var(--safe-top)-var(--topbar-height)-1px-var(--spelrad-h,0px))] md:flex-row md:gap-2 md:p-2"
+      data-tangentbord={tangentbord > 0 ? tangentbord : undefined}
+      style={tangentbord > 0 ? /** @type {any} */ ({ "--tangentbord": `${tangentbord}px` }) : undefined}
+      className="flex h-[calc(100dvh-var(--safe-top)-var(--topbar-height)-1px-max(var(--bottom-nav-h)+var(--safe-bottom),var(--tangentbord,0px))-var(--spelrad-h,0px))] min-h-0 flex-col bg-canvas md:h-[calc(100dvh-var(--safe-top)-var(--topbar-height)-1px-var(--spelrad-h,0px))] md:flex-row md:gap-2 md:p-2"
     >
       {/* ── Listan ─────────────────────────────────────────────────────────────────────────── */}
       <section
@@ -874,7 +999,7 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
             <p className="m-0 px-2 py-6 text-center text-meta text-ink-muted" role="status">
               …
             </p>
-          ) : visade.length === 0 ? (
+          ) : poster.length === 0 ? (
             <div className="flex flex-col items-center px-4 py-10 text-center">
               <span className="text-ink-muted">
                 <MeddelandeIkon size={40} />
@@ -883,7 +1008,45 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
             </div>
           ) : (
             <ul className="m-0 flex list-none flex-col gap-0.5 p-0">
-              {visade.map((r) => {
+              {poster.map((post) => {
+                if (post.typ === "agent") {
+                  const aktivAgent = listadAgent === post.agent || amnesAgent === post.agent;
+                  const m = namn.get(post.agent);
+                  return (
+                    <li key={`agent-${post.agent}`}>
+                      <button
+                        type="button"
+                        data-agentrad={post.agent}
+                        aria-current={aktivAgent || undefined}
+                        onClick={() => valj(null, { agent: post.agent })}
+                        className={cx(
+                          "flex w-full cursor-pointer items-center gap-3 rounded-card px-3 py-1.5 text-left transition-colors duration-(--duration-fast) ease-standard focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
+                          aktivAgent ? "bg-hover" : "hover:bg-hover",
+                        )}
+                      >
+                        <span className="relative shrink-0">
+                          <span aria-hidden="true" className="inline-flex">
+                            <OpsIdentity name={m?.namn || t.agent} seed={post.agent} size="md" icon={AgentIkon} rund />
+                          </span>
+                          <OpsCountBadge count={post.olasta} fler={post.olastaFler} text={t.olastaText} placement="corner" />
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="flex min-w-0 items-center gap-2">
+                            <span className={cx("min-w-0 flex-1 truncate text-etikett font-medium", post.olasta > 0 ? "text-ink" : "text-ink-secondary")}>
+                              {namnFor(post.agent)}
+                              <span className="font-normal text-ink-muted">, {t.gruppensAgent}</span>
+                            </span>
+                            {post.senaste ? <span data-tid="" className="shrink-0 text-liten tabular-nums text-ink-muted">{radtid(post.senaste.tid, nu, locale)}</span> : null}
+                          </span>
+                          <span data-agentrad-antal="" className="mt-0.5 block truncate text-meta text-ink-muted">
+                            {post.rader.length === 0 ? t.ingaSamtalAgent : `${t.antalSamtal.replace("{n}", String(post.rader.length))}${post.senaste ? `, ${t.senast} ${radtid(post.senaste.tid, nu, locale)}` : ""}`}
+                          </span>
+                        </span>
+                      </button>
+                    </li>
+                  );
+                }
+                const r = post.r;
                 const aktiv = r.samtal.id === valdId;
                 const s = r.senaste;
                 return (
@@ -936,7 +1099,7 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
         aria-label={nyttLage ? t.nytt : vald ? rubrikFor(vald) : t.valjSamtal}
         className={cx("min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden bg-surface md:flex md:rounded-xl", hoger ? "flex" : "hidden")}
       >
-        {hoger && !(vald && tradId) ? (
+        {hoger && !(vald && tradId) && !iAmne ? (
           /* Telefon: en rad "‹ Tillbaka" överst, som SS (`ChatInboxPanel.jsx:880-892`). Läget "nytt" har samma rad.
              ⛔ INTE I EN TRÅD (0.68.0): tråden har sin egen rad tillbaka till gruppchatten, och två rader tillbaka ovanför
              varandra, till två olika ställen, är samma sorts dubblering som den dubblerade hamburgaren i #164. */
@@ -976,6 +1139,39 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
               laggIn(s);
               valj(s.id);
             }}
+          />
+        ) : nyttAmneLage && groupId && nyAgent ? (
+          /* ⛔ ETT NYTT ÄMNE ÄR INTE SKRIVET (0.106.0): `nyttAmne` ger id:t, och första Skicka skapar samtalet och meddelandet. */
+          <NyttAmne
+            key={`${groupId}|${nyAgent}`}
+            kalla={/** @type {any} */ (kalla)}
+            uid={uid}
+            groupId={groupId}
+            agent={nyAgent}
+            utkast={nyttUtkast}
+            samtalsprops={{ postkort, onTranscribe, onStoppaAgent, inspelare, igenkanning, namnFor, medlemmar, sprak, texter: t, onBifoga, mejl, onVisaAgent, onForslag }}
+            marke={<OpsIdentity name={namn.get(nyAgent)?.namn || t.agent} seed={nyAgent} size="md" icon={AgentIkon} rund />}
+            onTillbaka={() => valj(null, { agent: nyAgent })}
+            onSkapat={(s, m) => {
+              laggIn(s, m);
+              valj(s.id);
+            }}
+          />
+        ) : listadAgent && groupId ? (
+          <AgentensSamtal
+            key={`${groupId}|${listadAgent}`}
+            kalla={/** @type {any} */ (kalla)}
+            uid={uid}
+            groupId={groupId}
+            agent={listadAgent}
+            agentnamn={namnFor(listadAgent)}
+            marke={<OpsIdentity name={namn.get(listadAgent)?.namn || t.agent} seed={listadAgent} size="md" icon={AgentIkon} rund />}
+            rader={rader.filter((r) => r.samtal.slag === "agent" && r.motpart === listadAgent)}
+            texter={t}
+            locale={locale}
+            onValj={(sid) => valj(sid)}
+            onNytt={() => valj(null, { nytt: "agent", agent: listadAgent })}
+            onAndrat={lasOm}
           />
         ) : vald && tradId ? (
           <OpsTrad
@@ -1024,7 +1220,8 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
             samtal={vald.samtal}
             rubrik={rubrikFor(vald)}
             marke={markeFor(vald, "md")}
-            lastTill={vald.lastTill}
+            // ⛔ (0.106.0) Läsmärket bara när inkorgen har raden: ett samtal öppnat ur adressen har inget känt märke än.
+            lastTill={allaRader.some((r) => r.samtal.id === vald.samtal.id && !r.ej) ? vald.lastTill : undefined}
             namnFor={namnFor}
             medlemmar={medlemmar}
             onLast={lasOm}
@@ -1036,6 +1233,7 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
             mejl={mejl}
             onVisaAgent={onVisaAgent}
             onForslag={onForslag}
+            {...(iAmne && amnesAgent ? { amne: { agentnamn: namnFor(amnesAgent), onTillbaka: () => valj(null, { agent: amnesAgent }), onAndrat: lasOm } } : {})}
           />
         ) : (
           <div className="flex flex-1 flex-col items-center justify-center px-6 text-center">
@@ -1047,7 +1245,37 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
         )}
       </section>
     </div>
+    </OpsSprakProvider>
   );
+}
+
+/**
+ * Hur mycket av fönstret tangentbordet täcker, i pixlar, ur `visualViewport` (0.106.0, #386 skiva 5). 0 utan tangentbord, och 0 där
+ * API:t saknas.
+ *
+ * ⛔ VARFÖR. Höjden var `100dvh` minus skalets ramar, och `dvh` följer inte iOS-tangentbordet: fönstret som layouten räknar med står
+ * kvar, och tangentbordet läggs över dess nedre del. Skrivfältet kunde då hamna under tangentbordet. Ramverket visste det redan
+ * (`OpsSkapaPanel.jsx`, samma `visualViewport`), men chatten gjorde det inte. Här dras det tangentbordet täcker av från chattens höjd,
+ * i stället för bottenraden som det ändå ligger över (`max()` i klassen), så att skrivfältet står ovanför tangentbordet.
+ *
+ * ⛔ (hypotes, inte mätt på en riktig iPhone) Chromium har inget virtuellt tangentbord. Skalytan prövar med ett `visualViewport` som
+ * krymper, check-skalyta 47 (5), och en riktig iPhone är inte mätt.
+ */
+function useTangentbord() {
+  const [tackt, setTackt] = useState(0);
+  useEffect(() => {
+    const vv = typeof window !== "undefined" ? window.visualViewport : null;
+    if (!vv) return undefined;
+    const mat = () => setTackt(Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop)));
+    mat();
+    vv.addEventListener("resize", mat);
+    vv.addEventListener("scroll", mat);
+    return () => {
+      vv.removeEventListener("resize", mat);
+      vv.removeEventListener("scroll", mat);
+    };
+  }, []);
+  return tackt;
 }
 
 /**
@@ -1080,6 +1308,165 @@ function OppnaGruppchatt({ kalla, uid, groupId, texter: t, onOppnad }) {
           {t.oppnarGrupp}
         </p>
       )}
+    </div>
+  );
+}
+
+/**
+ * Ett nytt ämne med agenten (0.106.0, #386 skiva 2): samtalsvyn med ett ämne som inte är skrivet än. Id:t tas en gång när vyn
+ * öppnas (`nyttAmne`), och första Skicka skapar samtalet och meddelandet (`skickaIAmne`). Ett Nytt samtal som ångras lämnar
+ * ingenting efter sig.
+ *
+ * @param {{ kalla: any, uid: string, groupId: string, agent: string, utkast?: string, marke: import("react").ReactNode, samtalsprops: Record<string, any>, onTillbaka: () => void, onSkapat: (s: import("../lib/samtal.js").Samtal, m: any) => void }} props
+ */
+function NyttAmne({ kalla, uid, groupId, agent, utkast, marke, samtalsprops, onTillbaka, onSkapat }) {
+  const [samtal] = useState(() => kalla.nyttAmne({ groupId, uid, agent }));
+  const p = /** @type {any} */ (samtalsprops);
+  return (
+    <OpsSamtal
+      {...p}
+      kalla={kalla}
+      uid={uid}
+      samtal={samtal}
+      rubrik=""
+      marke={marke}
+      utkast={utkast ?? ""}
+      ny
+      amne={{ agentnamn: p.namnFor(agent), onTillbaka }}
+      onSkapat={onSkapat}
+    />
+  );
+}
+
+/**
+ * Agentens samtal (0.106.0, #386 skiva 2, skissen CP godkände): "Nytt samtal" överst, och under den ett samtal per ämne med
+ * rubriken, senaste raden och tiden. Arkiverade ämnen läses först när "Visa arkiverade" trycks, och då en gång.
+ *
+ * ⛔ RADERNA KOMMER UR INKORGENS ÖVERSIKT, de läses inte en gång till. Inkorgen har redan läst varje ämnes senaste meddelanden och
+ * läsmärke, och en andra läsning hade gett två sanningar om samma oläst.
+ *
+ * @param {{ kalla: any, uid: string, groupId: string, agent: string, agentnamn: string, marke: import("react").ReactNode, rader: ReadonlyArray<any>, texter: Required<Meddelandetexter>, locale: string, onValj: (sid: string) => void, onNytt: () => void, onAndrat?: () => void }} props
+ */
+function AgentensSamtal({ kalla, uid, groupId, agent, agentnamn, marke, rader, texter: t, locale, onValj, onNytt, onAndrat }) {
+  const [arkiv, setArkiv] = useState(/** @type {{ oppen: boolean, rader: any[] | null, fel: string | null }} */ ({ oppen: false, rader: null, fel: null }));
+  const nu = Date.now();
+  const lasArkiv = () => {
+    setArkiv({ oppen: true, rader: null, fel: null });
+    kalla.oversikt({ groupId, uid, arkiverade: true }).then(
+      (/** @type {any[]} */ r) => setArkiv({ oppen: true, rader: r.filter((x) => x.motpart === agent), fel: null }),
+      (/** @type {any} */ e) => setArkiv({ oppen: true, rader: null, fel: e instanceof Error ? e.message : String(e) }),
+    );
+  };
+  const taFram = async (/** @type {string} */ sid) => {
+    try {
+      await kalla.arkivera(sid, false);
+      onAndrat?.();
+      lasArkiv();
+    } catch (e) {
+      setArkiv((a) => ({ ...a, fel: `${t.arkivFel} ${e instanceof Error ? e.message : String(e)}` }));
+    }
+  };
+  /** @param {any} r @param {boolean} arkiverad */
+  const rad = (r, arkiverad) => {
+    const s = r.senaste;
+    const rubrik = amnesrubrik(r.samtal, r.forsta ?? (s ? [s] : []), t.samtalUtanText);
+    return (
+      <li key={r.samtal.id} className="flex items-center gap-1">
+        <button
+          type="button"
+          data-amnesrad={r.samtal.id}
+          onClick={() => onValj(r.samtal.id)}
+          className="flex min-h-11 min-w-0 flex-1 cursor-pointer items-center gap-3 rounded-card px-3 py-2 text-left transition-colors duration-(--duration-fast) ease-standard hover:bg-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
+        >
+          <span className="min-w-0 flex-1">
+            <span className="flex min-w-0 items-center gap-2">
+              <span className={cx("min-w-0 flex-1 truncate text-etikett font-medium", r.olasta > 0 ? "text-ink" : "text-ink-secondary")}>{rubrik}</span>
+              {s ? <span data-tid="" className="shrink-0 text-liten tabular-nums text-ink-muted">{radtid(s.tid, nu, locale)}</span> : null}
+            </span>
+            {s ? (
+              <span className={cx("mt-0.5 block truncate text-meta", r.olasta > 0 ? "text-ink-secondary" : "text-ink-muted")}>
+                <span className="text-ink-muted">{s.av === uid ? t.du : agentnamn}: </span>
+                {synligText(s)}
+              </span>
+            ) : null}
+          </span>
+          <OpsCountBadge count={r.olasta} fler={r.olastaFler === true} text={t.olastaText} />
+        </button>
+        {arkiverad ? (
+          <button
+            type="button"
+            data-ta-fram={r.samtal.id}
+            onClick={() => taFram(r.samtal.id)}
+            className="inline-flex min-h-11 shrink-0 cursor-pointer items-center gap-1 rounded-base px-2 text-meta text-accent hover:bg-accent-faint focus-visible:outline-2 focus-visible:outline-accent"
+          >
+            <TaFramIkon size={14} />
+            {t.taFram}
+          </button>
+        ) : null}
+      </li>
+    );
+  };
+  return (
+    <div data-agentens-samtal={agent} className="flex min-h-0 flex-1 flex-col">
+      <header className="flex shrink-0 items-center gap-3 border-b border-line px-3 py-2.5">
+        {marke}
+        <div className="min-w-0 flex-1">
+          <h3 className="m-0 truncate text-etikett font-semibold text-ink">{agentnamn}</h3>
+          <p className="m-0 flex items-center gap-1 text-liten text-ink-muted">
+            <LasIkon size={10} />
+            <span className="truncate">{t.gruppensAgent}</span>
+          </p>
+        </div>
+      </header>
+      <div className="min-h-0 flex-1 overflow-y-auto px-2 py-2">
+        <button
+          type="button"
+          data-nytt-amne=""
+          onClick={onNytt}
+          className="flex min-h-11 w-full cursor-pointer items-center gap-2 rounded-card border border-dashed border-line px-3 py-2 text-left text-etikett font-medium text-accent transition-colors duration-(--duration-fast) ease-standard hover:bg-accent-faint focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
+        >
+          <PlusIkon size={16} />
+          {t.nyttSamtal}
+        </button>
+        {rader.length === 0 ? (
+          <p data-amnen-tomt="" className="m-0 px-3 py-4 text-meta text-ink-muted">
+            {t.ingaSamtalAgent}
+          </p>
+        ) : (
+          <ul aria-label={t.samtalMed.replace("{namn}", agentnamn)} className="m-0 mt-1 flex list-none flex-col gap-0.5 p-0">
+            {[...rader].sort((a, b) => (b.senaste?.tid ?? b.samtal.skapad ?? 0) - (a.senaste?.tid ?? a.samtal.skapad ?? 0)).map((r) => rad(r, false))}
+          </ul>
+        )}
+        <div className="mt-2 border-t border-line pt-1">
+          <button
+            type="button"
+            data-visa-arkiverade=""
+            aria-expanded={arkiv.oppen}
+            onClick={() => (arkiv.oppen ? setArkiv({ oppen: false, rader: null, fel: null }) : lasArkiv())}
+            className="inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-base px-3 text-meta text-ink-secondary hover:bg-hover hover:text-ink focus-visible:outline-2 focus-visible:outline-accent"
+          >
+            <ArkiveraIkon size={14} />
+            {arkiv.oppen ? t.doljArkiverade : t.visaArkiverade}
+          </button>
+          {arkiv.oppen ? (
+            arkiv.fel ? (
+              <p role="alert" data-arkiv-fel="" className="m-0 px-3 py-2 text-meta text-danger">
+                {arkiv.fel}
+              </p>
+            ) : arkiv.rader === null ? (
+              <p role="status" className="m-0 px-3 py-2 text-meta text-ink-muted">
+                …
+              </p>
+            ) : arkiv.rader.length === 0 ? (
+              <p data-arkiv-tomt="" className="m-0 px-3 py-2 text-meta text-ink-muted">
+                {t.ingaArkiverade}
+              </p>
+            ) : (
+              <ul className="m-0 flex list-none flex-col gap-0.5 p-0">{arkiv.rader.map((r) => rad(r, true))}</ul>
+            )
+          ) : null}
+        </div>
+      </div>
     </div>
   );
 }
@@ -1196,6 +1583,15 @@ function NyttSamtal({ kalla, uid, groupId, medlemmar, texter: t, sprak, gruppMar
 const MAX_FORSLAG = 6;
 
 /**
+ * Skrivfältets tak i höjd, i pixlar (0.106.0, #386 skiva 5). Ungefär sex rader i 16 px. Över det rullar fältet inuti sig självt.
+ * (bedömning) SS har 120 px; sex rader ryms på en telefon med tangentbordet uppe och lämnar ändå loggen synlig.
+ */
+export const SKRIVFALT_TAK = 160;
+
+/** Så nära taket visas räknaren, i tecken. Samma avstånd som SS (`chatLimits.js`, de sista 500). */
+export const RAKNARE_FRAN = 500;
+
+/**
  * Trådens skrivfält: en textruta och knappen Skicka. Samma i ett samtal och i läget "nytt", så att det första meddelandet
  * skrivs på samma ställe som alla andra (SS: trådens `ComposerBar`).
  *
@@ -1231,6 +1627,7 @@ const MAX_FORSLAG = 6;
 function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, sprak, fokus = false, omnamnande = null, fokusNyckel, onEscape, platstext, onTranscribe, inspelare, igenkanning, onBifoga, harBilaga = false, kamera = "nej", agentArbetar = false, onStoppaAgent }) {
   const ruta = useRef(/** @type {HTMLTextAreaElement | null} */ (null));
   const listId = useId();
+  const raknarId = useId();
   const valda = useRef(/** @type {Map<string, string>} */ (new Map()));
   const [fraga, setFraga] = useState(/** @type {{ start: number, q: string } | null} */ (null));
   const [aktiv, setAktiv] = useState(0);
@@ -1303,6 +1700,33 @@ function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, sprak, fokus =
     setFraga(null);
     onSkicka(extra);
   };
+  /*
+   * ══ ⛔ FÄLTET VÄXER MED TEXTEN, TILL ETT TAK (0.106.0, #386 skiva 5) ═════════════════════════════════════════════════════
+   *
+   * Förut var fältet en rad (`rows={1}`) som rullade inuti sig själv, så den som skrev ett längre svar såg en rad åt gången. Nu följer
+   * höjden texten upp till `SKRIVFALT_TAK`. Höjden mäts ur `scrollHeight` efter att den nollställts, i en layouteffekt så att ingen ram
+   * ritas med fel höjd. jsdom har ingen layout (`scrollHeight` 0), och då rörs inte höjden.
+   */
+  useLayoutEffect(() => {
+    const el = ruta.current;
+    if (!el) return;
+    el.style.height = "auto";
+    const h = el.scrollHeight;
+    if (h <= 0) {
+      el.style.height = "";
+      return;
+    }
+    el.style.height = `${Math.min(h, SKRIVFALT_TAK)}px`;
+    el.style.overflowY = h > SKRIVFALT_TAK ? "auto" : "hidden";
+  }, [text]);
+  /*
+   * ⛔ INGEN TYST KAPNING (regel 5). Förut stod taket som `maxLength`, och en inklistrad text över 4000 tecken kapades utan ett ord.
+   * Nu står hela texten kvar, räknaren syns de sista `RAKNARE_FRAN` tecknen, och över taket säger en rad hur mycket för lång den är
+   * och Skicka är avstängd. Samma tak som modellen (`MAX_MEDDELANDE`), som regeln också har.
+   */
+  const langd = text.trim().length;
+  const forLang = langd > MAX_MEDDELANDE;
+  const visaRaknare = text.length >= MAX_MEDDELANDE - RAKNARE_FRAN;
   const visaStopp = agentArbetar && Boolean(onStoppaAgent);
   /*
    * ⛔ EN VALD BILAGA ÄR INNEHÅLL (0.84.0, #315). Ljudvågen står bara där Skicka annars står när fältet verkligen är tomt:
@@ -1394,17 +1818,21 @@ function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, sprak, fokus =
           // ⛔ Enter skickar, Skift plus Enter bryter raden, som SS skrivfält (`ComposerBar.jsx`).
           if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
             e.preventDefault();
-            skicka();
+            if (!forLang) skicka();
           }
         }}
         rows={1}
-        maxLength={MAX_MEDDELANDE}
+        enterKeyHint="send"
         placeholder={platstext ?? t.skriv}
         aria-label={t.skriv}
+        aria-invalid={forLang || undefined}
+        aria-describedby={visaRaknare ? raknarId : undefined}
         aria-controls={oppen ? listId : undefined}
         aria-activedescendant={oppen ? `${listId}-${aktiv}` : undefined}
         aria-autocomplete={omnamnande ? "list" : undefined}
-        className="max-h-32 min-h-11 min-w-0 flex-1 resize-none rounded-3xl bg-transparent px-3.5 py-2.5 text-etikett text-ink outline-none placeholder:text-ink-muted"
+        // ⛔ 16 PX PÅ TELEFON (0.106.0, #386 skiva 5): iOS Safari zoomar in på ett fält med mindre text när det får fokus, och sidan står
+        // sedan inzoomad. `text-brod` är 16 px, `md:text-etikett` behåller 14 px på dator, som bubblorna.
+        className="min-h-11 min-w-0 flex-1 resize-none overflow-hidden rounded-3xl bg-transparent px-3.5 py-2.5 text-brod text-ink outline-none placeholder:text-ink-muted md:text-etikett"
       />
       {visaStopp ? (
         <button
@@ -1426,7 +1854,7 @@ function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, sprak, fokus =
         <button
           type="submit"
           aria-label={t.skicka}
-          disabled={skickar || tomt}
+          disabled={skickar || tomt || forLang}
           className="group/knapp inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full focus-visible:outline-none disabled:cursor-default disabled:opacity-40"
         >
           <span className="inline-flex size-9 items-center justify-center rounded-full bg-accent text-accent-contrast transition-colors duration-(--duration-fast) ease-standard group-hover/knapp:bg-accent-hover group-focus-visible/knapp:outline-2 group-focus-visible/knapp:outline-offset-1 group-focus-visible/knapp:outline-accent">
@@ -1436,6 +1864,16 @@ function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, sprak, fokus =
       )}
       </div>
     </form>
+    {visaRaknare ? (
+      <p
+        id={raknarId}
+        data-langdraknare={forLang ? "over" : "nara"}
+        role={forLang ? "alert" : "status"}
+        className={cx("m-0 shrink-0 px-4 pb-1.5 text-right text-liten tabular-nums", forLang ? "text-danger" : "text-ink-muted")}
+      >
+        {forLang ? t.forLang.replace("{over}", String(langd - MAX_MEDDELANDE)) : t.langd.replace("{n}", String(text.length)).replace("{max}", String(MAX_MEDDELANDE))}
+      </p>
+    ) : null}
     </>
   );
 }
@@ -1742,37 +2180,73 @@ function agentDeltagare(samtal, uid, medlemmar) {
  *   källan läser ramverket filen själv och den här anropas inte. Utan `bilagor` lämnas filerna hit, och utan den ritas inget plus.
  * @param {string} [props.mejl] (0.80.0, #301) Adressen appen skickar in. Utan den ritas ingen mejlknapp.
  * @param {(agent: { id: string, namn: string }) => void} [props.onVisaAgent] (0.90.0) Gör namn och ikon i ett agentsamtal till en knapp.
+ * @param {{ agentnamn: string, onTillbaka: () => void, onAndrat?: () => void }} [props.amne] (0.106.0, #386) Samtalet är ett ämne med
+ *   agenten: huvudet visar ämnets rubrik och Arkivera, och en rad överst leder tillbaka till agentens samtal. Kräver `amnen` på källan.
+ * @param {boolean} [props.ny] (0.106.0) Ämnet är inte skrivet än (`nyttAmne`). Ingenting läses, och första Skicka skapar samtalet och
+ *   meddelandet med `skickaIAmne`. Kräver `amne`.
+ * @param {(samtal: import("../lib/samtal.js").Samtal, meddelande: any) => void} [props.onSkapat] (0.106.0) Anropas när ett nytt ämne skapats.
  */
-export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, namnFor, medlemmar, onLast, onSkickat, utkast, onOppnaTrad, tradminne, fokusRot, onFokuserad, sprak: sprakProp, texter = {}, postkort, onTranscribe, onStoppaAgent, inspelare, igenkanning, onBifoga: onBifogaProp, mejl, onVisaAgent, onForslag }) {
+export function OpsSamtal({ kalla, uid, samtal, rubrik: rubrikProp, marke, lastTill: lastTillProp, namnFor, medlemmar, onLast, onSkickat, utkast, onOppnaTrad, tradminne, fokusRot, onFokuserad, sprak: sprakProp, texter = {}, postkort, onTranscribe, onStoppaAgent, inspelare, igenkanning, onBifoga: onBifogaProp, mejl, onVisaAgent, onForslag, amne: amneProp, ny = false, onSkapat }) {
   // ⛔ Språket ur appens `OpsSprakProvider` när appen inte gav ett (0.46.0, cllp/bolag-ops#528).
   const sprakKontext = useOpsSprak();
   const sprak = sprakProp ?? sprakKontext;
   const t = texterPa(sprak, texter);
   const bilage = useBilageutkast(kalla, onBifogaProp, t);
   const locale = sprak === "en" ? "en-GB" : "sv-SE";
-  const [meddelanden, setMeddelanden] = useState(/** @type {Array<import("../lib/samtal.js").Meddelande & { id: string }> | null} */ (null));
+  // ⛔ ETT ÄMNE BARA MED KÄLLANS ÄMNEN OCH ETT AGENTSAMTAL (0.106.0). Ett nytt ämne läser ingenting: samtalet finns inte, och regeln
+  // hade nekat varje läsning under det. Därför får varje lyssnare `null` som källa tills första Skicka skapat det.
+  const amne = amneProp && harAmnen(kalla) && samtal.slag === "agent" ? amneProp : null;
+  const arNy = Boolean(amne && ny);
+  const las = arNy ? null : kalla;
+  const [meddelanden, setMeddelanden] = useState(/** @type {Array<import("../lib/samtal.js").Meddelande & { id: string }> | null} */ (arNy ? [] : null));
   const [fel, setFel] = useState(/** @type {Error | null} */ (null));
   const [text, setText] = useState(utkast ?? "");
   const [skickar, setSkickar] = useState(false);
-  const markt = useRef(lastTill);
+  const markt = useRef(lastTillProp ?? 0);
   const lyssnar = useRef(false);
   const medTradar = Boolean(onOppnaTrad) && samtal.slag === "grupp" && harTradar(kalla);
   const loggRef = useRef(/** @type {HTMLDivElement | null} */ (null));
   const historik = useHistorik({ kalla, sid: samtal.id, live: meddelanden, logg: loggRef });
   const alla = historik.alla;
-  const reakt = useReaktioner(harReaktioner(kalla) ? kalla : null, samtal.id, undefined, uid);
+  const lasposition = useLasposition({ logg: loggRef, alla, uid, laddat: meddelanden !== null });
+  /*
+   * ⛔ "NYTT SEDAN SIST" HÄRLEDS UR LÄSMÄRKET SOM DET VAR NÄR SAMTALET ÖPPNADES (0.106.0, #386 skiva 4). Inget sparas och ingenting
+   * läses till: märket kommer med inkorgens rad. Avdelaren står före det första meddelandet från någon annan efter märket, och bara när
+   * något före märket också är laddat: står allt efter märket är hela samtalet nytt, och en avdelare överst avdelar ingenting. Utan
+   * läsmärke (samtalet öppnat ur adressen innan inkorgen svarat) ritas ingen avdelare, eftersom märket inte är känt.
+   */
+  const [markeVidOppning] = useState(lastTillProp);
+  const nyttFran = useMemo(() => {
+    if (typeof markeVidOppning !== "number" || ny) return null;
+    if (!alla.some((m) => m.tid <= markeVidOppning)) return null;
+    return alla.find((m) => m.av !== uid && m.tid > markeVidOppning)?.id ?? null;
+  }, [alla, markeVidOppning, uid, ny]);
+  const reakt = useReaktioner(harReaktioner(las) ? las : null, samtal.id, undefined, uid);
   // ⛔ Citat bara utanför gruppchatten (regeln kräver det): där är tråden svaret.
   const medCitat = harCitat(kalla) && samtal.slag !== "grupp";
   const [svarPa, setSvarPa] = useState(/** @type {(import("../lib/samtal.js").Meddelande & { id: string }) | null} */ (null));
-  const citatuppslag = useCitatuppslag(medCitat || alla.some((m) => m.svarPa) ? kalla : null, samtal.id, alla);
+  const citatuppslag = useCitatuppslag(las && (medCitat || alla.some((m) => m.svarPa)) ? kalla : null, samtal.id, alla);
   const sok = useSokISamtal(alla, loggRef);
-  const fasta = useFasta(harFasta(kalla) ? kalla : null, samtal.id, uid);
-  const agentlage = useAgentstatusdok(harStatus(kalla) ? kalla : null, samtal.id, undefined);
+  const fasta = useFasta(harFasta(las) ? las : null, samtal.id, uid);
+  const agentlage = useAgentstatusdok(harStatus(las) ? las : null, samtal.id, undefined);
   const { rader: tradar, fel: tradfel } = useTradmarken({ kalla: medTradar ? kalla : null, sid: samtal.id, meddelanden: meddelanden ? alla : null, minne: tradminne });
-  const slut = useRef(/** @type {HTMLDivElement | null} */ (null));
   const [info, setInfo] = useState(false);
-  const { tyst, vaxla: vaxlaTyst } = useTystnad(kalla, samtal.id, uid, setFel);
+  const { tyst, vaxla: vaxlaTyst } = useTystnad(las, samtal.id, uid, setFel);
   const infoposter = useMemo(() => alla.map((m) => ({ m })), [alla]);
+  const [arkiv, setArkiv] = useState(samtal.arkiverad === true);
+  const rubrik = amne ? amnesrubrik(samtal, alla.slice(0, 3), arNy ? t.nyttSamtal : t.samtalUtanText) : rubrikProp;
+  const vaxlaArkiv = async () => {
+    if (!amne || !harAmnen(kalla)) return;
+    try {
+      await kalla.arkivera(samtal.id, !arkiv);
+      setArkiv(!arkiv);
+      amne.onAndrat?.();
+      // Ett arkiverat ämne lämnas: det syns inte längre i listan man kom från.
+      if (!arkiv) amne.onTillbaka();
+    } catch (e) {
+      setFel(new Error(`${t.arkivFel} ${e instanceof Error ? e.message : String(e)}`));
+    }
+  };
   const filer = useChattinfoFiler({ kalla, sid: samtal.id, oppen: info, poster: infoposter, felText: t.bilagorFel });
   const post = mejlHref(mejl);
 
@@ -1786,6 +2260,7 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
   };
 
   useEffect(() => {
+    if (arNy) return undefined;
     const stang = kalla.prenumerera(samtal.id, {
       onData: (rader) => {
         setMeddelanden(rader);
@@ -1797,7 +2272,7 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
     if (!stang) lasIn();
     return () => stang?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [kalla, samtal.id]);
+  }, [kalla, samtal.id, arNy]);
 
   // Läsmärket: den senaste tiden i samtalet, om den är senare än det förra märket.
   useEffect(() => {
@@ -1805,10 +2280,14 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
     const senast = meddelanden[meddelanden.length - 1].tid;
     if (senast > markt.current) {
       markt.current = senast;
-      kalla.markeraLast(samtal.id, uid, senast).then(() => onLast?.(), () => {});
+      /*
+       * ⛔ `onLast` BARA OM INGET NYARE MÄRKE ÄR PÅ VÄG (omgranskningens andra varv). Kommer ett meddelande medan det förra märket
+       * skrivs läser inkorgen om vid det förra märkets svar, och räknar det nya som oläst (mätt: [1] med ett märke på 40 ms). Det
+       * nyare märket anropar `onLast` själv när det är skrivet.
+       */
+      kalla.markeraLast(samtal.id, uid, senast).then(() => (markt.current === senast ? onLast?.() : undefined), () => {});
     }
-    // ⛔ Bara när något NYTT kommit: en sida bakåt ("Visa äldre") ändrar inte `meddelanden` och ska inte rulla till slutet.
-    slut.current?.scrollIntoView?.({ block: "end" });
+    // ⛔ (0.106.0) Rullningen sköts av `useLasposition`: den som läser bakåt rycks inte ned.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [meddelanden]);
 
@@ -1831,14 +2310,17 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
   const skicka = async (extra) => {
     const tal = typeof extra?.text === "string";
     const ut = tal ? /** @type {string} */ (extra?.text) : text;
-    if (tal && skickar) throw new Error("Ett annat meddelande skickas just nu.");
-    if (tal && !ut.trim()) throw new Error("Det finns ingen text att skicka.");
+    if (tal && skickar) throw new Error(t.annatSkickas);
+    if (tal && !ut.trim()) throw new Error(t.ingenText);
     if (skickar || (!ut.trim() && !bilage.bilaga)) return;
     setSkickar(true);
     let skickat = false;
     try {
-      const ny = await kalla.skicka(samtal.id, { text: ut, av: uid, ...(extra?.namner ? { namner: extra.namner } : {}), ...(svarPa ? { svarPa: svarPa.id } : {}), ...(!tal && bilage.bilaga ? { bilaga: bilage.bilaga } : {}) });
+      const d = { text: ut, av: uid, ...(extra?.namner ? { namner: extra.namner } : {}), ...(svarPa ? { svarPa: svarPa.id } : {}), ...(!tal && bilage.bilaga ? { bilaga: bilage.bilaga } : {}) };
+      // ⛔ Ett nytt ämne skapas här, med sitt första meddelande (0.106.0).
+      const ny = arNy && harAmnen(kalla) ? await kalla.skickaIAmne(samtal, d) : await kalla.skicka(samtal.id, d);
       skickat = true;
+      if (arNy) onSkapat?.(samtal, ny);
       if (!tal) {
         setText("");
         bilage.tom();
@@ -1846,7 +2328,7 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
       setSvarPa(null);
       if (ny && typeof ny.tid === "number") onSkickat?.(/** @type {any} */ (ny));
       // Med en prenumeration kommer meddelandet av sig självt. Utan den läses samtalet om.
-      if (!lyssnar.current) await lasIn();
+      if (!lyssnar.current && !arNy) await lasIn();
     } catch (e) {
       // ⛔ Bara sändningen kastar. Föll läsningen efteråt är meddelandet redan skickat, och ett Försök igen hade skickat det två gånger.
       if (tal && !skickat) throw e;
@@ -1861,10 +2343,34 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
   const agentId = agent && onVisaAgent ? agentDeltagare(samtal, uid, medlemmar) : "";
 
   return (
-    <div data-ops-samtal={samtal.slag} className={cx("relative flex min-h-0 flex-1", info ? "flex-col md:flex-row" : "flex-col")}>
+    <OpsSprakProvider sprak={sprak}>
+    <div data-ops-samtal={samtal.slag} data-amne={amne ? (arNy ? "ny" : samtal.id) : undefined} className={cx("relative flex min-h-0 flex-1", info ? "flex-col md:flex-row" : "flex-col")}>
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+      {amne ? (
+        /* ⛔ TILLBAKA TILL AGENTENS SAMTAL (0.106.0), på telefon och dator, som tråden har sin rad till gruppchatten. */
+        <button
+          type="button"
+          data-tillbaka-agent=""
+          onClick={amne.onTillbaka}
+          className="inline-flex min-h-11 shrink-0 cursor-pointer items-center gap-1.5 border-b border-line px-3 text-meta text-ink-secondary hover:text-ink focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
+        >
+          <ChevronVansterIkon size={14} />
+          <span className="min-w-0 truncate">{amne.agentnamn}</span>
+        </button>
+      ) : null}
       <header className="flex shrink-0 items-center gap-3 border-b border-line px-3 py-2.5">
-        {agentId ? (
+        {amne ? (
+          <>
+            {marke}
+            <div className="min-w-0 flex-1">
+              <h3 data-amnesrubrik="" className="m-0 truncate text-etikett font-semibold text-ink">{rubrik}</h3>
+              <p data-privat-rad="" className="m-0 flex items-center gap-1 text-liten text-ink-muted">
+                <LasIkon size={10} />
+                <span className="truncate">{arkiv ? t.arkiveratRad : `${amne.agentnamn}, ${t.agentRad}`}</span>
+              </p>
+            </div>
+          </>
+        ) : agentId ? (
           <button
             type="button"
             data-visa-agent={agentId}
@@ -1894,12 +2400,17 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
           </>
         )}
         <div className="flex shrink-0 items-center">
+          {amne && !arNy ? (
+            <Verktygsknapp etikett={arkiv ? t.taFram : t.arkivera} dataAttr="arkiv" pressed={arkiv} onClick={vaxlaArkiv}>
+              {arkiv ? <TaFramIkon size={16} /> : <ArkiveraIkon size={16} />}
+            </Verktygsknapp>
+          ) : null}
           {post ? (
             <Verktygsknapp etikett={t.mejl} dataAttr="mejl" href={post}>
               <MejlIkon size={16} />
             </Verktygsknapp>
           ) : null}
-          {harTyst(kalla) ? (
+          {harTyst(las) ? (
             <Verktygsknapp etikett={tyst ? t.notiserTysta : t.tystaNotiser} dataAttr="tyst" pressed={tyst} onClick={vaxlaTyst}>
               {tyst ? <TystIkon size={16} /> : <NotisIkon size={16} />}
             </Verktygsknapp>
@@ -1915,6 +2426,7 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
       {sok.oppen ? <Sokrad sok={sok} antal={alla.length} kanFinnasAldre={historik.kanFinnasAldre} texter={t} /> : null}
       <Fastarad fasta={fasta} kalla={kalla} sid={samtal.id} laddade={alla} uid={uid} namnFor={namnFor} texter={t} />
 
+      <div className="relative flex min-h-0 flex-1 flex-col">
       <div ref={loggRef} role="log" aria-label={rubrik} className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
         {fel ? (
           <OpsBanner tone="danger" title={t.fel}>
@@ -1940,6 +2452,7 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
         ) : null}
         <Meddelanderader
           meddelanden={alla}
+          nyttFran={nyttFran}
           reakt={reakt}
           texter={t}
           kalla={kalla}
@@ -1989,12 +2502,14 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
                         className={cx(
                           /* ⛔ KAN 6: träffytan är 44 px, men raden växer inte: de negativa marginalerna lägger ytan i luften
                              mellan meddelandena. KAN 9: på dator syns "Svara i tråd" först när pekaren eller fokus är på
-                             meddelandet, så att en lång chatt inte blir en rad knappar. På telefon finns ingen hover, och en
-                             meny vore ett steg till för det vanligaste: där står den kvar. Märket syns alltid, det är innehåll. */
-                          "-my-2 inline-flex min-h-11 max-w-full cursor-pointer items-center gap-1 rounded-full px-2 text-liten transition-[color,background-color,opacity] duration-(--duration-fast) ease-standard focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
+                             meddelandet, så att en lång chatt inte blir en rad knappar. Märket syns alltid, det är innehåll.
+                             ⛔ 0.106.0 (#386 skiva 6): på telefon stod "Svara i tråd" här under varje meddelande, med skälet att en
+                             meny vore ett steg till. Med tre ikoner bredvid blev det fyra lösa åtgärder per bubbla, och CP bad om
+                             en Mer-knapp. Där bor den nu, som första post (`merFor`). */
+                          "-my-2 min-h-11 max-w-full cursor-pointer items-center gap-1 rounded-full px-2 text-liten transition-[color,background-color,opacity] duration-(--duration-fast) ease-standard focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
                           finns
-                            ? "text-accent hover:bg-accent-faint"
-                            : "text-ink-muted hover:bg-hover hover:text-ink md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 md:focus-visible:opacity-100",
+                            ? "inline-flex text-accent hover:bg-accent-faint"
+                            : "hidden text-ink-muted hover:bg-hover hover:text-ink md:inline-flex md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 md:focus-visible:opacity-100",
                         )}
                       >
                         <TradIkon size={12} />
@@ -2013,9 +2528,15 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
                 }
               : undefined
           }
+          merFor={
+            medTradar
+              ? (m) => (tradar.get(m.id)?.finns ? [] : [{ id: "trad", etikett: t.svaraITrad, ikon: <TradIkon size={16} />, onValj: () => onOppnaTrad?.(m.id) }])
+              : undefined
+          }
         />
         <Agentrad lage={agentlage} texter={t} />
-        <div ref={slut} />
+      </div>
+      <TillSenaste lage={lasposition} arbetar={arbetsord(agentlage)} texter={t} />
       </div>
 
       {svarPa ? (
@@ -2073,6 +2594,7 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
         </div>
       ) : null}
     </div>
+    </OpsSprakProvider>
   );
 }
 
@@ -2172,6 +2694,8 @@ function useTradmarken({ kalla, sid, meddelanden, minne }) {
  * @param {boolean} props.visaNamn Avsändarens namn över en annans bubbla (gruppchatten och tråden).
  * @param {(m: import("../lib/samtal.js").Meddelande & { id: string }) => import("react").ReactNode} [props.efter] Det som står efter
  *   tiden under bubblan: trådens märke i gruppchatten.
+ * @param {(m: import("../lib/samtal.js").Meddelande & { id: string }) => import("./OpsAtgardsblad.jsx").Atgard[]} [props.merFor] (0.106.0,
+ *   #386) Vyns egna åtgärder för meddelandet i telefonens meny: "Svara i tråd" i gruppchatten, "Lyft till minnet" i tråden.
  * @param {number} [props.forraTid] Tiden på meddelandet före det första, när listan fortsätter en annan (trådens svar efter
  *   roten). Samma dag ger då ingen ny avdelare: två "I dag" på rad är en avdelare som inte avdelar något.
  * @param {ReturnType<typeof useReaktioner>} [props.reakt] (chattens nattskiva) Reaktionerna, när källan har dem.
@@ -2186,8 +2710,10 @@ function useTradmarken({ kalla, sid, meddelanden, minne }) {
  * @param {string} [props.trad] Trådens id, när raderna är svar i en tråd. Det står i filens nyckel (`bilagenyckel`).
  * @param {(agent: { id: string, namn: string }) => void} [props.onVisaAgent] (0.90.0) Agentens avatar i en tråd öppnar inställningarna.
  * @param {(f: { sid: string, mid: string, id: string }) => Promise<import("../lib/forslag.js").Forslagssvar>} [props.onForslag] (0.105.0) Förslagen under agentens svar.
+ * @param {string | null} [props.nyttFran] (0.106.0) Meddelandet som avdelaren "Nytt sedan sist" står före.
  */
-function Meddelanderader({ meddelanden, uid, namnFor, medlemmar, locale, visaNamn, efter, forraTid, reakt, texter = TEXTER, citat, traffar, fasta, postkort, kalla, sid, trad, onVisaAgent, onForslag }) {
+function Meddelanderader({ meddelanden, uid, namnFor, medlemmar, locale, visaNamn, efter, merFor, forraTid, reakt, texter = TEXTER, citat, traffar, fasta, postkort, kalla, sid, trad, onVisaAgent, onForslag, nyttFran = null }) {
+  const bredd = useBredd();
   const medlemsbild = (/** @type {string} */ id) => (medlemmar ?? []).find((m) => m.userId === id)?.bild || undefined;
   const medlemstyp = (/** @type {string} */ id) => (medlemmar ?? []).find((m) => m.userId === id)?.typ;
   return (
@@ -2204,6 +2730,13 @@ function Meddelanderader({ meddelanden, uid, namnFor, medlemmar, locale, visaNam
             {nyDag ? (
               <div className="flex justify-center py-3">
                 <span className="rounded-full bg-canvas px-3 py-1 text-liten text-ink-muted">{forstaVersal(formatRelativeDate(m.tid, { locale }))}</span>
+              </div>
+            ) : null}
+            {m.id === nyttFran ? (
+              <div data-nytt-sedan-sist="" role="separator" aria-label={texter.nyttSedanSist} className="my-2 flex items-center gap-2 text-liten text-accent">
+                <span aria-hidden="true" className="h-px flex-1 bg-accent" />
+                <span>{texter.nyttSedanSist}</span>
+                <span aria-hidden="true" className="h-px flex-1 bg-accent" />
               </div>
             ) : null}
             <div data-meddelande={egen ? "eget" : "annans"} className={cx("group flex gap-2", fortsattning ? "mt-px" : "mt-2", egen ? "flex-row-reverse" : "")}>
@@ -2269,37 +2802,7 @@ function Meddelanderader({ meddelanden, uid, namnFor, medlemmar, locale, visaNam
                   <AgentensForslag varde={/** @type {any} */ (m).forslag} sid={sid} mid={m.id} onForslag={onForslag} />
                 ) : null}
                 {reakt?.pa ? <Reaktionschips m={m} egen={egen} reakt={reakt} texter={texter} /> : null}
-                <span className={cx("relative mt-0.5 flex max-w-full items-center gap-1.5", egen ? "mr-1 flex-row-reverse" : "ml-1")}>
-                  <span className="text-liten tabular-nums text-ink-muted">{formatTime(m.tid, { locale })}</span>
-                  {extra}
-                  {reakt?.pa ? <ReageraKnapp m={m} egen={egen} reakt={reakt} texter={texter} /> : null}
-                  {fasta ? (
-                    <button
-                      type="button"
-                      data-fast={m.id}
-                      aria-label={fasta.ids.has(m.id) ? texter.lossa : texter.fast}
-                      aria-pressed={fasta.ids.has(m.id)}
-                      onClick={() => fasta.vaxla(m.id)}
-                      className={cx(
-                        "-my-2 inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full transition-[color,background-color,opacity] duration-(--duration-fast) ease-standard hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
-                        fasta.ids.has(m.id) ? "text-accent" : "text-ink-muted hover:text-ink md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 md:focus-visible:opacity-100",
-                      )}
-                    >
-                      <FastIkon size={16} />
-                    </button>
-                  ) : null}
-                  {citat?.pa ? (
-                    <button
-                      type="button"
-                      data-citera={m.id}
-                      aria-label={texter.citera}
-                      onClick={() => citat.onCitera(m)}
-                      className="-my-2 inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full text-ink-muted transition-[color,background-color,opacity] duration-(--duration-fast) ease-standard hover:bg-hover hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 md:focus-visible:opacity-100"
-                    >
-                      <CiteraIkon size={16} />
-                    </button>
-                  ) : null}
-                </span>
+                <Meddelandemeta m={m} egen={egen} locale={locale} bredd={bredd} extra={extra} mer={merFor?.(m) ?? []} namn={egen ? texter.dittMeddelande : `${texter.svarPa} ${namnFor(m.av)}`} reakt={reakt} fasta={fasta} citat={citat} texter={texter} />
               </div>
             </div>
           </div>
@@ -2367,7 +2870,6 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
   const [redigerar, setRedigerar] = useState(false);
   const [utkastNamn, setUtkastNamn] = useState("");
   const lyssnar = useRef(false);
-  const slut = useRef(/** @type {HTMLDivElement | null} */ (null));
   const tradlogg = useRef(/** @type {HTMLDivElement | null} */ (null));
   const historik = useHistorik({ kalla, sid: samtal.id, trad: tid, live: svar, logg: tradlogg });
   const sok = useSokISamtal(historik.alla, tradlogg);
@@ -2417,9 +2919,8 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kalla, samtal.id, tid]);
 
-  useEffect(() => {
-    slut.current?.scrollIntoView?.({ block: "end" });
-  }, [svar]);
+  // ⛔ (0.106.0) Rullningen sköts av `useLasposition`, som i samtalet: den som läser bakåt i tråden rycks inte ned.
+  const lasposition = useLasposition({ logg: tradlogg, alla: historik.alla, uid, laddat: svar !== null });
 
   const namn = tradensNamn(trad, [...(rot ? [rot] : []), ...historik.alla]);
   /** @param {import("../lib/samtal.js").Meddelande & { id: string }} m */
@@ -2447,12 +2948,17 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
             type="button"
             data-lyft-minne={m.id}
             onClick={() => lyft(m)}
-            className="-my-2 inline-flex min-h-11 max-w-full cursor-pointer items-center rounded-full px-2 text-liten text-accent transition-colors duration-(--duration-fast) ease-standard hover:bg-accent-faint focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
+            className="-my-2 hidden min-h-11 max-w-full cursor-pointer items-center rounded-full px-2 text-liten text-accent transition-colors duration-(--duration-fast) ease-standard hover:bg-accent-faint focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent md:inline-flex"
           >
             {t.lyftTillMinnet}
           </button>
         );
       }
+    : undefined;
+  // På telefon bor "Lyft till minnet" i meddelandets meny (0.106.0, #386 skiva 6), med samma villkor: bara när det finns text.
+  const lyftMer = onLyftTillMinnet
+    ? (/** @type {import("../lib/samtal.js").Meddelande & { id: string }} */ m) =>
+        typeof m.text === "string" && m.text.trim() ? [{ id: "minne", etikett: t.lyftTillMinnet, onValj: () => lyft(m) }] : []
     : undefined;
   // Roten står i gruppchatten, svaren i tråden: trådens id hör till svarens filnycklar, inte rotens.
   const infoposter = useMemo(() => [...(rot ? [{ m: rot }] : []), ...historik.alla.map((m) => ({ m, trad: tid }))], [rot, historik.alla, tid]);
@@ -2466,8 +2972,8 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
   const skicka = async (extra) => {
     const tal = typeof extra?.text === "string";
     const ut = tal ? /** @type {string} */ (extra?.text) : text;
-    if (tal && skickar) throw new Error("Ett annat meddelande skickas just nu.");
-    if (tal && !ut.trim()) throw new Error("Det finns ingen text att skicka.");
+    if (tal && skickar) throw new Error(t.annatSkickas);
+    if (tal && !ut.trim()) throw new Error(t.ingenText);
     if (skickar || (!ut.trim() && !bilage.bilaga)) return;
     setSkickar(true);
     let skickat = false;
@@ -2503,6 +3009,7 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
   };
 
   return (
+    <OpsSprakProvider sprak={sprak}>
     <div data-ops-trad="" className="relative flex min-h-0 flex-1 flex-col">
       <button
         type="button"
@@ -2613,6 +3120,7 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
       </header>
       {sok.oppen ? <Sokrad sok={sok} antal={historik.alla.length} kanFinnasAldre={historik.kanFinnasAldre} texter={t} /> : null}
 
+      <div className="relative flex min-h-0 flex-1 flex-col">
       <div ref={tradlogg} role="log" aria-label={namn} className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
         {fel ? (
           <OpsBanner tone="danger" title={t.tradFel}>
@@ -2626,7 +3134,7 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
         ) : null}
         <div data-rotmeddelande="" className="border-b border-line pb-2">
           {rot ? (
-            <Meddelanderader meddelanden={[rot]} efter={lyftEfter} kalla={kalla} sid={samtal.id} uid={uid} namnFor={namnFor} medlemmar={medlemmar} locale={locale} visaNamn texter={t} onVisaAgent={onVisaAgent} />
+            <Meddelanderader meddelanden={[rot]} efter={lyftEfter} merFor={lyftMer} kalla={kalla} sid={samtal.id} uid={uid} namnFor={namnFor} medlemmar={medlemmar} locale={locale} visaNamn texter={t} onVisaAgent={onVisaAgent} />
           ) : rot === null ? (
             <p className="m-0 py-3 text-meta text-ink-muted">{t.rotSaknas}</p>
           ) : null}
@@ -2636,9 +3144,10 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
         </p>
         <VisaAldre historik={historik} texter={t} />
         <Reaktionslage reakt={reakt} texter={t} />
-        <Meddelanderader meddelanden={historik.alla} efter={lyftEfter} reakt={reakt} texter={t} postkort={postkort} kalla={kalla} sid={samtal.id} trad={tid} traffar={sok.oppen ? { ids: sok.traffar, aktuell: sok.aktuell } : null} uid={uid} namnFor={namnFor} medlemmar={medlemmar} locale={locale} visaNamn forraTid={rot?.tid} onVisaAgent={onVisaAgent} />
+        <Meddelanderader meddelanden={historik.alla} efter={lyftEfter} merFor={lyftMer} reakt={reakt} texter={t} postkort={postkort} kalla={kalla} sid={samtal.id} trad={tid} traffar={sok.oppen ? { ids: sok.traffar, aktuell: sok.aktuell } : null} uid={uid} namnFor={namnFor} medlemmar={medlemmar} locale={locale} visaNamn forraTid={rot?.tid} onVisaAgent={onVisaAgent} />
         <Agentrad lage={agentlage} texter={t} />
-        <div ref={slut} />
+      </div>
+      <TillSenaste lage={lasposition} arbetar={arbetsord(agentlage)} texter={t} />
       </div>
 
       <Bilageutkast bilaga={bilage.bilaga} fel={bilage.fel} onTaBort={bilage.tom} texter={t} />
@@ -2679,6 +3188,7 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
       ) : null}
       </div>
     </div>
+    </OpsSprakProvider>
   );
 }
 
@@ -2766,6 +3276,141 @@ function useAgentstatusdok(kalla, sid, tid) {
     };
   }, [kalla, sid, tid]);
   return lage;
+}
+
+/** Närmare slutet än så räknas som att stå vid slutet, i pixlar (0.106.0, #386 skiva 4). Ungefär en bubbla. */
+export const SLUTTROSKEL = 96;
+
+/**
+ * Läspositionen i en logg (0.106.0, #386 skiva 4): följ slutet för den som står där, och låt den som läser bakåt vara.
+ *
+ * ══ ⛔ VARFÖR ═══════════════════════════════════════════════════════════════════════════════════════════════════════════
+ *
+ * Före 0.106.0 rullade loggen till slutet vid VARJE ögonblicksbild (`slut.scrollIntoView`), också när man läste äldre meddelanden:
+ * den som läste bakåt rycktes ned när någon skrev. Och tvärtom: CP 2026-10-14, med en skärmbild från telefonen, raden "Agenten
+ * tänker •••" kom in under sista meddelandet men sidan rullade inte, så den hamnade under skrivfältet och syntes inte. Statusraden,
+ * ett förslagskort och ett skrivfält som växer ändrar höjden utan att något nytt meddelande kommer, och då rullade ingenting.
+ *
+ * ⛔ ETT TILLSTÅND OCH TRE SIGNALER. `vidSlutet` sätts av rullningen: inom `SLUTTROSKEL` från slutet. Står man där följer vyn med
+ * när innehållet ändras (MutationObserver i loggen), när loggen själv byter storlek (ResizeObserver, skrivfältet växer eller
+ * tangentbordet kommer) och när en bild laddas. Har man rullat upp händer ingenting med rullningen, och nya meddelanden från andra
+ * räknas till "Till senaste". Ett eget meddelande rullar alltid till slutet: den som skickar vill se det.
+ *
+ * ⛔ EN SIDA BAKÅT ÄR INTE NYTT. Bara meddelanden med en tid efter den senaste som redan setts räknas.
+ *
+ * @param {{ logg: { current: HTMLElement | null }, alla: ReadonlyArray<{ id: string, av: string, tid: number }>, uid: string, laddat: boolean }} p
+ */
+function useLasposition({ logg, alla, uid, laddat }) {
+  const vidSlutet = useRef(true);
+  const [uppe, setUppe] = useState(false);
+  const [nya, setNya] = useState(0);
+  const sett = useRef(/** @type {Set<string>} */ (new Set()));
+  const senastTid = useRef(-Infinity);
+  const forsta = useRef(true);
+  const tillSlutet = useCallback(() => {
+    const el = logg.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+    vidSlutet.current = true;
+    setUppe(false);
+    setNya(0);
+  }, [logg]);
+  useEffect(() => {
+    const el = logg.current;
+    if (!el) return undefined;
+    // ⛔ Måtten vid senaste läsningen. Ett scroll-event köas i webbläsaren och körs i nästa bildruta, mot den geometri som gäller DÅ.
+    // Mätt i check-skalyta 47 (5), Chromium 390 px: skrivfältet krympte (loggen växte och webbläsaren drog ned scrollTop), och innan
+    // eventet hann köras öppnades tangentbordet och loggen krympte 232 px. Eventet läste då "långt från slutet", vyn slutade följa och
+    // Till senaste kom fram fast personen aldrig rört skärmen. En rullning personen gör ändrar inte måtten; en layoutändring gör det.
+    // Har måtten ändrats sedan sist, och vyn stod vid slutet, är eventet layoutens och inte personens: vyn följer med i stället.
+    // En logg som aldrig ritats (dold flik, ingen layout) har inga mått att jämföra med: då avgör rullningen själv.
+    /** @type {null | { sh: number, ch: number }} */
+    let matt = null;
+    const spara = () => {
+      matt = el.scrollHeight || el.clientHeight ? { sh: el.scrollHeight, ch: el.clientHeight } : null;
+    };
+    spara();
+    const rulla = () => {
+      if (vidSlutet.current && matt && (el.scrollHeight !== matt.sh || el.clientHeight !== matt.ch)) {
+        el.scrollTop = el.scrollHeight;
+        spara();
+        return;
+      }
+      spara();
+      const vid = el.scrollHeight - el.scrollTop - el.clientHeight <= SLUTTROSKEL;
+      vidSlutet.current = vid;
+      setUppe(!vid);
+      if (vid) setNya(0);
+    };
+    const folj = () => {
+      if (vidSlutet.current) el.scrollTop = el.scrollHeight;
+      spara();
+    };
+    el.addEventListener("scroll", rulla, { passive: true });
+    el.addEventListener("load", folj, true);
+    const mo = typeof MutationObserver === "function" ? new MutationObserver(folj) : null;
+    mo?.observe(el, { childList: true, subtree: true, characterData: true });
+    const ro = typeof ResizeObserver === "function" ? new ResizeObserver(folj) : null;
+    ro?.observe(el);
+    return () => {
+      el.removeEventListener("scroll", rulla);
+      el.removeEventListener("load", folj, true);
+      mo?.disconnect();
+      ro?.disconnect();
+    };
+  }, [logg]);
+  useLayoutEffect(() => {
+    if (!laddat) return;
+    const nyaEfter = alla.filter((m) => !sett.current.has(m.id) && m.tid > senastTid.current);
+    for (const m of alla) {
+      sett.current.add(m.id);
+      if (m.tid > senastTid.current) senastTid.current = m.tid;
+    }
+    if (forsta.current) {
+      forsta.current = false;
+      tillSlutet();
+      return;
+    }
+    if (nyaEfter.length === 0) return;
+    if (vidSlutet.current || nyaEfter.some((m) => m.av === uid)) tillSlutet();
+    else setNya((n) => n + nyaEfter.filter((m) => m.av !== uid).length);
+  }, [alla, laddat, uid, tillSlutet]);
+  return { uppe, nya, tillSlutet };
+}
+
+/**
+ * "Till senaste" över skrivfältet, när man läst bakåt (0.106.0, #386 skiva 4). Visar antalet nya sedan man lämnade slutet, och att
+ * agenten arbetar: den som läser bakåt ska se att ett svar är på väg utan att ryckas ned till det.
+ * @param {{ lage: ReturnType<typeof useLasposition>, arbetar: null | "tanker" | "skriver", texter: Required<Meddelandetexter> }} props
+ */
+function TillSenaste({ lage, arbetar, texter: t }) {
+  if (!lage.uppe) return null;
+  const antal = lage.nya > 0 ? t.nyaMeddelanden.replace("{n}", String(lage.nya)) : "";
+  const agent = arbetar === "tanker" ? t.agentTanker : arbetar === "skriver" ? t.agentSkriver : "";
+  return (
+    <button
+      type="button"
+      data-till-senaste={lage.nya}
+      data-agent-arbetar={arbetar ?? undefined}
+      aria-label={[t.tillSenaste, antal, agent].filter(Boolean).join(", ")}
+      onClick={lage.tillSlutet}
+      className="absolute right-3 bottom-2 z-10 inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-full border border-line bg-surface px-3 text-meta font-medium text-ink shadow-md transition-colors duration-(--duration-fast) ease-standard hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+    >
+      {arbetar ? (
+        <span aria-hidden="true" className="inline-flex text-accent motion-safe:animate-pulse">
+          <AgentIkon size={14} />
+        </span>
+      ) : null}
+      <span aria-hidden="true">{antal || t.tillSenaste}</span>
+      <ChevronNedIkon size={14} />
+    </button>
+  );
+}
+
+/** Agentens läge som ett ord för "Till senaste", eller `null` när den inte arbetar. @param {ReturnType<typeof useAgentstatusdok>} lage */
+function arbetsord(lage) {
+  const v = agentstatus(lage.dok, Date.now());
+  return v && !("fel" in v) ? v.lage : null;
 }
 
 /**
@@ -3000,6 +3645,161 @@ function Reaktionschips({ m, egen, reakt, texter: t }) {
   );
 }
 
+/** Tailwinds `md`, samma tal som `OpsPanel`: under 48rem är skärmen smal. */
+const SMAL_SKARM = "(max-width: 47.99rem)";
+
+/**
+ * Smal eller bred skärm, för meddelandenas åtgärder (0.106.0, #386 skiva 6). ⛔ EN LYSSNARE PER LISTA, inte per meddelande.
+ *
+ * ⛔ MÄTT, REGEL 13: med Mer-knappen OCH de lösa knapparna i DOM:en för varje meddelande (CSS väljer vilka som syns) tog ett samtal
+ * nästan dubbelt så lång tid att rita i jsdom. Med bredden känd ritas bara den ena uppsättningen, och telefonen får färre element per
+ * meddelande än i 0.105.0 (mätt i check-skalyta 47 (6)). `null` när `matchMedia` saknas (jsdom, serverrendering): då ritas båda och
+ * CSS väljer, som förut.
+ * @returns {"smal" | "bred" | null}
+ */
+function useBredd() {
+  /** @returns {"smal" | "bred" | null} */
+  const las = () => (typeof window === "undefined" || typeof window.matchMedia !== "function" ? null : window.matchMedia(SMAL_SKARM).matches ? "smal" : "bred");
+  const [bredd, setBredd] = useState(las);
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return undefined;
+    const fraga = window.matchMedia(SMAL_SKARM);
+    const lyssna = () => setBredd(fraga.matches ? "smal" : "bred");
+    lyssna();
+    if (typeof fraga.addEventListener === "function") {
+      fraga.addEventListener("change", lyssna);
+      return () => fraga.removeEventListener("change", lyssna);
+    }
+    fraga.addListener?.(lyssna);
+    return () => fraga.removeListener?.(lyssna);
+  }, []);
+  return bredd;
+}
+
+/**
+ * Raden under bubblan: tiden, vyns innehåll (trådens märke), och meddelandets åtgärder.
+ *
+ * ⛔ EN MER-KNAPP PER MEDDELANDE PÅ TELEFON (0.106.0, #386 skiva 6). Under 768 px stod Reagera, Fäst och Svara med citat som tre lösa
+ * ikoner under varje bubbla, och "Svara i tråd" som en fjärde rad text, eftersom en telefon inte har hover. En lång chatt blev en
+ * rad knappar per meddelande, och de 44 px breda ytorna låg tätt nog att träffa fel. På telefon står nu en ⋮ (`OpsAtgardsblad`, samma
+ * meny som Biblioteket) med reaktionerna överst och sedan alla åtgärder, plus Kopiera, som inte fanns alls: på en telefon går en
+ * bubblas text inte att markera utan att sidan förstorar. På dator är raden oförändrad: ikonerna syns vid hover och fokus.
+ * Det som är INNEHÅLL står kvar på båda: trådens märke "3 svar" och nålen på ett fäst meddelande.
+ *
+ * @param {{ m: import("../lib/samtal.js").Meddelande & { id: string }, egen: boolean, locale: string, bredd: "smal" | "bred" | null, extra: import("react").ReactNode,
+ *   mer: import("./OpsAtgardsblad.jsx").Atgard[], namn: string, reakt?: ReturnType<typeof useReaktioner>,
+ *   fasta?: { pa?: boolean, ids: Set<string>, vaxla: (mid: string) => void } | null,
+ *   citat?: { pa: boolean, onCitera: (m: import("../lib/samtal.js").Meddelande & { id: string }) => void } | null,
+ *   texter: Required<Meddelandetexter> }} props
+ */
+function Meddelandemeta({ m, egen, locale, bredd, extra, mer, namn, reakt, fasta, citat, texter: t }) {
+  const losa = bredd !== "smal";
+  const merKnapp = bredd !== "bred";
+  const [kopia, setKopia] = useState(/** @type {null | "ok" | "fel"} */ (null));
+  useEffect(() => {
+    if (!kopia) return undefined;
+    const tid = setTimeout(() => setKopia(null), 2500);
+    return () => clearTimeout(tid);
+  }, [kopia]);
+  const fast = Boolean(fasta?.ids.has(m.id));
+  const text = typeof m.text === "string" ? m.text.trim() : "";
+  /** @type {import("./OpsAtgardsblad.jsx").Atgard[]} */
+  const poster = [...mer];
+  if (citat?.pa) poster.push({ id: "citera", etikett: t.citera, ikon: <CiteraIkon size={16} />, onValj: () => citat.onCitera(m) });
+  if (fasta) poster.push({ id: "fast", etikett: fast ? t.lossa : t.fast, ikon: <FastIkon size={16} />, onValj: () => fasta.vaxla(m.id) });
+  if (text) {
+    poster.push({
+      id: "kopiera",
+      etikett: t.kopiera,
+      ikon: <KopieraIkon size={16} />,
+      // ⛔ Ett nekat urklipp sägs (regel 5): utan raden hade knappen sett ut att fungera.
+      onValj: () => {
+        const urklipp = typeof navigator === "undefined" ? undefined : navigator.clipboard;
+        if (!urklipp?.writeText) {
+          setKopia("fel");
+          return;
+        }
+        urklipp.writeText(text).then(
+          () => setKopia("ok"),
+          () => setKopia("fel"),
+        );
+      },
+    });
+  }
+  const reaktioner = reakt?.pa
+    ? (/** @type {() => void} */ stang) => {
+        const egna = new Set((reakt.sammanfattning.get(m.id) ?? []).filter((r) => r.egen).map((r) => r.kod));
+        return (
+          <div role="group" aria-label={t.valjReaktion} data-mer-reaktioner={m.id} className="flex justify-between gap-0.5 px-1 pb-1">
+            {REAKTIONSKODER.map((kod) => (
+              <button
+                key={kod}
+                type="button"
+                data-valj-reaktion={kod}
+                aria-label={reaktionsnamn(kod, t)}
+                aria-pressed={egna.has(kod)}
+                onClick={() => {
+                  reakt.vaxla(m.id, kod);
+                  stang();
+                }}
+                className={cx(
+                  "inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full transition-colors duration-(--duration-fast) ease-standard hover:bg-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
+                  egna.has(kod) && "bg-accent-faint",
+                )}
+              >
+                <Reaktionsikon kod={kod} vald={egna.has(kod)} size={20} />
+              </button>
+            ))}
+          </div>
+        );
+      }
+    : undefined;
+  return (
+    <span className={cx("relative mt-0.5 flex max-w-full items-center gap-1.5", egen ? "mr-1 flex-row-reverse" : "ml-1")}>
+      <span className="text-liten tabular-nums text-ink-muted">{formatTime(m.tid, { locale })}</span>
+      {extra}
+      {reakt?.pa && losa ? <ReageraKnapp m={m} egen={egen} reakt={reakt} texter={t} /> : null}
+      {fasta && (losa || fast) ? (
+        <button
+          type="button"
+          data-fast={m.id}
+          aria-label={fast ? t.lossa : t.fast}
+          aria-pressed={fast}
+          onClick={() => fasta.vaxla(m.id)}
+          className={cx(
+            "-my-2 size-11 shrink-0 cursor-pointer items-center justify-center rounded-full transition-[color,background-color,opacity] duration-(--duration-fast) ease-standard hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
+            // Nålen på ett fäst meddelande är innehåll och står kvar på telefon; Fäst på ett annat är en åtgärd och bor i menyn.
+            fast ? "inline-flex text-accent" : "hidden text-ink-muted hover:text-ink md:inline-flex md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 md:focus-visible:opacity-100",
+          )}
+        >
+          <FastIkon size={16} />
+        </button>
+      ) : null}
+      {citat?.pa && losa ? (
+        <button
+          type="button"
+          data-citera={m.id}
+          aria-label={t.citera}
+          onClick={() => citat.onCitera(m)}
+          className="-my-2 hidden size-11 shrink-0 cursor-pointer items-center justify-center rounded-full text-ink-muted transition-[color,background-color,opacity] duration-(--duration-fast) ease-standard hover:bg-hover hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent md:inline-flex md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 md:focus-visible:opacity-100"
+        >
+          <CiteraIkon size={16} />
+        </button>
+      ) : null}
+      {merKnapp && (poster.length > 0 || reaktioner) ? (
+        <span data-mer={m.id} className="-my-2 inline-flex md:hidden">
+          <OpsAtgardsblad baraKnapp namn={namn} poster={poster} overst={reaktioner} />
+        </span>
+      ) : null}
+      {kopia ? (
+        <span role="status" data-kopierat={kopia} className={cx("text-liten", kopia === "fel" ? "text-danger" : "text-ink-muted")}>
+          {kopia === "ok" ? t.kopierat : t.kopieraFel}
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
 /**
  * "Reagera" och väljaren med de sex reaktionerna.
  *
@@ -3033,7 +3833,8 @@ function ReageraKnapp({ m, egen, reakt, texter: t }) {
         aria-controls={oppen ? panelId : undefined}
         onClick={() => setOppen((o) => !o)}
         className={cx(
-          "-my-2 inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full text-ink-muted transition-[color,background-color,opacity] duration-(--duration-fast) ease-standard hover:bg-hover hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
+          // Under 768 px bor Reagera i meddelandets meny (0.106.0, #386 skiva 6), med reaktionerna överst.
+          "-my-2 hidden size-11 shrink-0 cursor-pointer items-center justify-center rounded-full text-ink-muted transition-[color,background-color,opacity] duration-(--duration-fast) ease-standard hover:bg-hover hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent md:inline-flex",
           oppen ? "text-ink" : "md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 md:focus-visible:opacity-100",
         )}
       >
@@ -3236,7 +4037,7 @@ function Sokrad({ sok, antal, kanFinnasAldre, texter: t }) {
           />
         </label>
         <span data-sok-plats="" role="status" className="min-w-12 text-center text-liten tabular-nums text-ink-muted">
-          {sok.q.trim() ? `${sok.plats} av ${sok.antal}` : ""}
+          {sok.q.trim() ? t.sokPlats.replace("{i}", String(sok.plats)).replace("{n}", String(sok.antal)) : ""}
         </span>
         <button type="button" aria-label={t.forraTraff} disabled={sok.antal < 2} onClick={sok.forra} className="inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-base text-ink-muted hover:bg-hover disabled:cursor-default disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-accent">
           <span className="inline-flex -rotate-90"><ChevronHogerIkon size={16} /></span>

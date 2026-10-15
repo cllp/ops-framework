@@ -31,6 +31,7 @@
  */
 
 import { text } from "./sprak.js";
+import { medKarna } from "./karna.js";
 
 /**
  * Nyckeln under vilken den aktiva gruppen sparas, per person.
@@ -172,7 +173,8 @@ export function navForGrupp({ groupId, ramnav, moduler, mina }) {
   const nav = bas;
   /** @type {string[]} */
   const saknade = [];
-  for (const modulId of grupp.moduler) {
+  // ⛔ Kärnmodulerna är alltid med (0.106.0, #386, `karna.js`).
+  for (const modulId of medKarna(grupp.moduler, moduler)) {
     const modul = installerade.get(modulId);
     if (!modul) {
       saknade.push(modulId);

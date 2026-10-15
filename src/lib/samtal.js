@@ -54,6 +54,9 @@ export const SAMTALSSLAG = /** @type {const} */ (["grupp", "personer", "agent"])
 /** Fälten ett samtal får bära. `deltagare` bara för `personer` och `agent`. */
 export const SAMTALSFALT = /** @type {const} */ (["groupId", "slag", "deltagare", "skapad", "skapadAv"]);
 
+/** (0.106.0, #386) Fälten ett ämne med agenten får bära utöver `SAMTALSFALT`, och de enda som får ändras efter skapelsen. */
+export const AMNESFALT = /** @type {const} */ (["rubrik", "arkiverad"]);
+
 /** Fälten ett meddelande får bära. */
 export const MEDDELANDEFALT = /** @type {const} */ (["text", "av", "tid"]);
 
@@ -145,19 +148,144 @@ function kravGruppUtanAvgransare(groupId, vem) {
 /**
  * Samtalets nyckel, härledd ur gruppen och deltagarna.
  *
- * @param {{ groupId: string, slag: "grupp" | "personer" | "agent", deltagare?: ReadonlyArray<string> }} d
+ * @param {{ groupId: string, slag: "grupp" | "personer" | "agent", deltagare?: ReadonlyArray<string>, amne?: string | null }} d `amne` (0.106.0, #386): ett ämne med agenten, nyckelns fjärde del.
  * @returns {string}
  */
 export function samtalsnyckel(d) {
   const groupId = rensa(d?.groupId);
   if (!groupId) throw new Error("samtalsnyckel: groupId krävs. Ett samtal hör alltid till en grupp.");
   kravGruppUtanAvgransare(groupId, "samtalsnyckel");
-  if (d.slag === "grupp") return `${groupId}${SAMTALSAVGRANSARE}${GRUPPSAMTAL}`;
+  if (d.slag === "grupp") {
+    if (d.amne !== undefined && d.amne !== null) throw new Error("samtalsnyckel: gruppchatten har inga ämnen. Ett ämne är ett samtal med agenten.");
+    return `${groupId}${SAMTALSAVGRANSARE}${GRUPPSAMTAL}`;
+  }
   if (d.slag !== "personer" && d.slag !== "agent") {
     throw new Error(`samtalsnyckel: slaget "${d.slag}" finns inte. Giltiga: ${SAMTALSSLAG.join(", ")}.`);
   }
   const par = sorteradePar(d.deltagare, "samtalsnyckel");
-  return [groupId, ...par].join(SAMTALSAVGRANSARE);
+  if (d.amne === undefined || d.amne === null) return [groupId, ...par].join(SAMTALSAVGRANSARE);
+  // ⛔ BARA AGENTEN HAR ÄMNEN (0.106.0, #386 skiva 2). Två personer har ett samtal per par, som förut.
+  if (d.slag !== "agent") throw new Error("samtalsnyckel: bara ett samtal med agenten har ämnen. Två personer har ett samtal per par.");
+  return [groupId, ...par, kravAmne(d.amne, "samtalsnyckel")].join(SAMTALSAVGRANSARE);
+}
+
+/*
+ * ══ ⛔ SAMTAL PER ÄMNE MED AGENTEN (0.106.0, #386 skiva 2) ═══════════════════════════════════════════════════════════════════
+ *
+ * CP 2026-10-14: "det är bra att kunna skapa trådar i chatten. Så en konversation med agenten inte kluddar ner en annan." Före
+ * 0.106.0 fanns ETT samtal per person, agent och grupp, och varje fråga hamnade i samma historik, som agenten läste som sin.
+ *
+ * ⛔ ETT ÄMNE ÄR ETT EGET SAMTAL AV SLAGET `agent`, MED EN FJÄRDE DEL I NYCKELN, inte en tråd under agentsamtalet:
+ *
+ *   <groupId>|<a>|<b>              det befintliga agentsamtalet, står kvar som det första ämnet (ingen migrering)
+ *   <groupId>|<a>|<b>|<ämnesid>    ett nytt ämne
+ *
+ * Trådar har med avsikt varken läsmärke eller notis, och kräver ett rotmeddelande i huvudflödet. Ett samtal per ämne får allt som
+ * redan finns: läsmärke, olästa, notis, tystnad, bilagor, reaktioner, fästa, citat, sök, agentens status och stopp. Ingen ny
+ * samling och ingen ny läsregel: `opsFarLasaSamtal` gäller per dokument och bryr sig inte om nyckelns form.
+ *
+ * ⛔ INGEN `amne`-KOLUMN. Ämnets id står i nyckeln, på samma sätt som trådens id ÄR rotmeddelandets id (regel 2).
+ *
+ * ⛔ UNIKHETEN KOMMER UR NYCKELN, INTE UR EN FRÅGA FÖRE. Slumpdelen gör en krock osannolik, och sker den ändå är skapelsen en
+ * uppdatering som rör mer än `rubrik` och `arkiverad`, och regeln nekar den.
+ *
+ * ⛔ ETT ÄMNE SKAPAS MED SITT FÖRSTA MEDDELANDE, inte när man trycker Nytt samtal, samma princip som trådarna: ett Nytt samtal som
+ * ångras lämnar inget tomt ämne.
+ *
+ * ⛔ TVÅ FRIVILLIGA FÄLT PÅ SAMTALET, OCH BARA PÅ AGENTENS:
+ *   - `rubrik`: bara när agenten (appens server, Admin SDK) eller personen SATT en. Saknas den visas `amnesrubrik` ur de första
+ *     meddelandena, med samma regel som trådarnas namn (`autonamn`). Det härledda lagras aldrig.
+ *   - `arkiverad`: `true` när personen arkiverat ämnet. Ett agentsamtal har exakt EN människa, så samtalets eget fält är personens val.
+ *     Översikten hoppar över ett arkiverat ämne INNAN den läser dess meddelanden, så det kostar noll läsningar.
+ */
+
+/**
+ * Ämnesids form: `a_` och sedan små bokstäver, siffror och understreck, högst 40 tecken, och därmed aldrig nyckelns avgränsare.
+ * Regeln har samma uttryck.
+ *
+ * ⛔ PREFIXET `a_` ÄR EN AVGRÄNSNING, INTE PYNT. Utan det hade "g|a|b|c" varit ett giltigt ämne ("c" i gruppen g), och en nyckel
+ * som `samtalsnyckel` aldrig skrivit hade lästs baklänges som ett samtal (provet i samtal.test.js från 0.63.0, #263, föll på det).
+ */
+export const AMNES_FORM = /^a_[a-z0-9_]{1,38}$/;
+
+/** Regeluttrycket för ämnets id, utan ankare: reglernas `matches` kräver alltid hela strängen. Härlett ur `AMNES_FORM`. */
+export const AMNES_REGEL = AMNES_FORM.source.replace(/^\^/, "").replace(/\$$/, "");
+
+/** Tak för en ämnesrubrik, i tecken. Samma tak som trådens namn, och regeln har samma tal. */
+export const MAX_AMNESRUBRIK = 80;
+
+/** Rubriken när inget meddelande har någon text kvar efter rensningen. Utskriven, inte tom (regel 5). */
+export const NAMNLOST_AMNE = "Samtal utan text";
+
+/**
+ * @param {unknown} amne @param {string} vem
+ * @returns {string}
+ */
+export function kravAmne(amne, vem = "kravAmne") {
+  const a = typeof amne === "string" ? amne : "";
+  if (!AMNES_FORM.test(a)) {
+    throw new Error(`${vem}: ämnet ${JSON.stringify(amne)} är inget ämnesid. Formen är "a_" och sedan små bokstäver, siffror och understreck, högst 40 tecken: avgränsaren "${SAMTALSAVGRANSARE}" hade gjort nyckeln tvetydig.`);
+  }
+  return a;
+}
+
+/**
+ * Ett nytt ämnesid: "a_", tiden i base36, "_" och slump i base36. Samma mönster som meddelandenas id i källan.
+ * @param {number} [tid]
+ * @returns {string}
+ */
+export function nyttAmnesId(tid = Date.now()) {
+  const slump = globalThis.crypto.getRandomValues(new Uint32Array(2));
+  return kravAmne(`a_${tid.toString(36)}_${slump[0].toString(36)}${slump[1].toString(36)}`.slice(0, 40), "nyttAmnesId");
+}
+
+/**
+ * Ämnets id ur ett samtals id, eller `null` när samtalet inte är ett ämne (gruppchatten, ett personsamtal, det första agentsamtalet).
+ * @param {unknown} sid
+ * @returns {string | null}
+ */
+export function amnesId(sid) {
+  if (typeof sid !== "string") return null;
+  const delar = sid.split(SAMTALSAVGRANSARE);
+  return delar.length === 4 && AMNES_FORM.test(delar[3]) ? delar[3] : null;
+}
+
+/**
+ * Agentens samtal i par-nyckeln, utan ämnet: det alla ämnen med samma person och agent delar. Gruppchatten och ett personsamtal ger sig själva.
+ * @param {string} sid
+ * @returns {string}
+ */
+export function parnyckel(sid) {
+  return amnesId(sid) ? sid.split(SAMTALSAVGRANSARE).slice(0, 3).join(SAMTALSAVGRANSARE) : sid;
+}
+
+/**
+ * En rubrik någon satt, eller `null` för att gå tillbaka till den härledda. Kastar när den är för lång.
+ * @param {unknown} rubrik @param {string} [vem]
+ * @returns {string | null}
+ */
+export function kravAmnesrubrik(rubrik, vem = "kravAmnesrubrik") {
+  if (rubrik === null || rubrik === undefined) return null;
+  if (typeof rubrik !== "string") throw new Error(`${vem}: rubriken är text.`);
+  const r = rubrik.trim().replace(/\s+/g, " ");
+  if (!r) return null;
+  if (r.length > MAX_AMNESRUBRIK) throw new Error(`${vem}: rubriken är ${r.length} tecken, taket är ${MAX_AMNESRUBRIK}.`);
+  return r;
+}
+
+/**
+ * Rubriken som visas för ett ämne: den som sattes, annars den härledda ur de första meddelandena (`autonamn`, samma regel som
+ * trådarna). ⛔ ETT HEM: vyn och appens agent läser samma funktion, så att agenten och personen kallar ämnet samma sak.
+ * @param {{ rubrik?: unknown } | null | undefined} samtal
+ * @param {ReadonlyArray<{ text?: unknown }>} meddelanden De första meddelandena, äldst först.
+ * @param {string} [tom] Rubriken när ingen text finns. Förval `NAMNLOST_AMNE`.
+ * @returns {string}
+ */
+export function amnesrubrik(samtal, meddelanden, tom = NAMNLOST_AMNE) {
+  const satt = typeof samtal?.rubrik === "string" ? samtal.rubrik.trim() : "";
+  if (satt) return satt.slice(0, MAX_AMNESRUBRIK);
+  const harText = (meddelanden ?? []).some((m) => rensaForNamn(m?.text));
+  return harText ? autonamn(meddelanden) : tom;
 }
 
 /**
@@ -184,12 +312,16 @@ function sorteradePar(deltagare, vem) {
  * @property {ReadonlyArray<string>} [deltagare] Sorterade. Bara `personer` och `agent`.
  * @property {number} skapad Millisekunder sedan 1970.
  * @property {string} skapadAv
+ * @property {string} [rubrik] (0.106.0) Bara på ett agentsamtal, och bara när någon satt en.
+ * @property {boolean} [arkiverad] (0.106.0) Bara på ett agentsamtal, när personen arkiverat ämnet.
  */
 
 /**
  * Bygger ett samtal, eller kastar med skälet.
  *
- * @param {{ groupId: string, slag: string, deltagare?: ReadonlyArray<string>, skapad?: number, skapadAv: string }} d
+ * `amne` (0.106.0, #386): ett nytt ämne med agenten, id:t i nyckelns fjärde del. Det lagras inte som fält. `rubrik`: bara för ett ämne.
+ *
+ * @param {{ groupId: string, slag: string, deltagare?: ReadonlyArray<string>, skapad?: number, skapadAv: string, amne?: string | null, rubrik?: string | null }} d
  * @returns {Samtal}
  */
 export function byggSamtal(d) {
@@ -213,8 +345,12 @@ export function byggSamtal(d) {
   if (!deltagare.includes(skapadAv)) {
     throw new Error("byggSamtal: den som skapar ett privat samtal måste vara en av deltagarna.");
   }
-  const s = { groupId, slag: /** @type {"personer" | "agent"} */ (slag), deltagare: Object.freeze(deltagare), skapad, skapadAv };
-  return Object.freeze({ id: samtalsnyckel(s), ...s });
+  const amne = d.amne === undefined || d.amne === null ? null : kravAmne(d.amne, "byggSamtal");
+  if (amne && slag !== "agent") throw new Error("byggSamtal: bara ett samtal med agenten har ämnen.");
+  const rubrik = kravAmnesrubrik(d.rubrik, "byggSamtal");
+  if (rubrik && !amne) throw new Error("byggSamtal: en rubrik sätts på ett nytt ämne, inte på det första agentsamtalet eller ett personsamtal.");
+  const s = { groupId, slag: /** @type {"personer" | "agent"} */ (slag), deltagare: Object.freeze(deltagare), skapad, skapadAv, ...(rubrik ? { rubrik } : {}) };
+  return Object.freeze({ id: samtalsnyckel({ ...s, amne }), ...s });
 }
 
 /**
@@ -304,7 +440,9 @@ export function motpart(samtal, uid) {
  *
  * @param {unknown} id
  * @param {string | null} [groupId]
- * @returns {{ groupId: string, slag: "grupp" } | { groupId: string, deltagare: [string, string] } | null} `null` när id:t inte är en samtalsnyckel.
+ * (0.106.0, #386) En nyckel med fyra delar är ett ämne med agenten: `{ groupId, deltagare, amne }`. Slaget är då alltid `agent`.
+ *
+ * @returns {{ groupId: string, slag: "grupp" } | { groupId: string, deltagare: [string, string], amne?: string } | null} `null` när id:t inte är en samtalsnyckel.
  */
 export function delaSamtalsnyckel(id, groupId) {
   if (typeof groupId === "string") kravGruppUtanAvgransare(groupId, "delaSamtalsnyckel");
@@ -312,9 +450,10 @@ export function delaSamtalsnyckel(id, groupId) {
   const delar = id.split(SAMTALSAVGRANSARE);
   if (delar.some((d) => d.trim() === "" || d !== d.trim())) return null;
   if (delar.length === 2 && delar[1] === GRUPPSAMTAL) return { groupId: delar[0], slag: "grupp" };
-  if (delar.length !== 3 || delar[1] === delar[2]) return null;
+  if ((delar.length !== 3 && delar.length !== 4) || delar[1] === delar[2]) return null;
   // ⛔ Bara en nyckel som `samtalsnyckel` hade kunnat skriva: paret sorterat. Annars är det inget samtals id.
   if (!(delar[1] < delar[2])) return null;
+  if (delar.length === 4) return AMNES_FORM.test(delar[3]) ? { groupId: delar[0], deltagare: [delar[1], delar[2]], amne: delar[3] } : null;
   return { groupId: delar[0], deltagare: [delar[1], delar[2]] };
 }
 
@@ -450,8 +589,8 @@ export function undersamlingskrock(namn, vem) {
 /** Fälten en tråd får bära. `namn` bara när en person döpt om den. */
 export const TRADFALT = /** @type {const} */ (["skapad", "skapadAv", "namn"]);
 
-/** Tak för ett namn, i tecken. Regeln har samma tak, härlett härifrån. */
-export const MAX_TRADNAMN = 80;
+/** Tak för ett namn, i tecken. Regeln har samma tak, härlett härifrån. Samma tal som ämnets rubrik (`MAX_AMNESRUBRIK`). */
+export const MAX_TRADNAMN = MAX_AMNESRUBRIK;
 
 /** Hur långt ett härlett namn blir innan det kortas vid ett ordslut. */
 export const AUTONAMN_LANGD = 60;

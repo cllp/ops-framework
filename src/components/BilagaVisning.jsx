@@ -1,7 +1,18 @@
+import { useRef, useState } from "react";
 import { attachmentSize, isAudio, isImage } from "../lib/file.js";
 import { kommentarbilagaFel } from "../lib/handelsemodell.js";
+import { forvalda } from "../lib/ord.js";
 import { FilIkon } from "./icons.jsx";
 import { OpsLjudspelare } from "./OpsLjudspelare.jsx";
+import { OpsModal } from "./OpsModal.jsx";
+import { useOpsSprak } from "./OpsSprak.jsx";
+
+/** Orden i den stora bilden, på båda språken (0.106.0, #386 skiva 9). */
+export const ORD_BILAGAVISNING = {
+  visaStor: { sv: "Visa större", en: "View larger" },
+  laddaNed: { sv: "Ladda ned", en: "Download" },
+  stang: { sv: "Stäng", en: "Close" },
+};
 
 /**
  * Snabbvyn för en bilaga: bilden som en miniatyr som öppnas i full storlek, en fil som en nedladdningslänk med namn och storlek.
@@ -17,9 +28,18 @@ import { OpsLjudspelare } from "./OpsLjudspelare.jsx";
  * ⛔ ETT LJUD ÄR `OpsLjudspelare`, INTE EN NEDLADDNINGSLÄNK (0.90.8). Samma spelare som Biblioteket.
  * Märket blir `ljud` så en provning kan skilja det från en fil som fortfarande laddas ned.
  *
- * @param {{ bilaga: import("../lib/file.js").Bilaga, alt: string, marke?: string }} props
+ * ⛔ EN BILD ÖPPNAS STOR VID TRYCK, DEN LADDAS INTE NED (0.106.0, #386 skiva 9). Miniatyren var en nedladdningslänk: ett tryck på en
+ * skärmbild i en kommentar eller ett meddelande sparade filen i stället för att visa den, och på en telefon hamnade den i Hämtade
+ * filer. Nu är miniatyren en knapp som visar bilden i full storlek i en dialog (`OpsModal`: fokus fångas, Escape stänger, fokus
+ * tillbaka till miniatyren), och Ladda ned står i dialogens fot. Samma vy i kommentarerna, i chatten och i Chattinfo.
+ *
+ * @param {{ bilaga: import("../lib/file.js").Bilaga, alt: string, marke?: string, sprak?: string }} props
  */
-export function BilagaVisning({ bilaga, alt, marke = "data-kommentar-bilaga-visad" }) {
+export function BilagaVisning({ bilaga, alt, marke = "data-kommentar-bilaga-visad", sprak: sprakProp }) {
+  const kontext = useOpsSprak();
+  const o = /** @type {Record<keyof typeof ORD_BILAGAVISNING, string>} */ (forvalda(ORD_BILAGAVISNING, sprakProp ?? kontext));
+  const [stor, setStor] = useState(false);
+  const knapp = useRef(/** @type {HTMLButtonElement | null} */ (null));
   const fel = kommentarbilagaFel(bilaga);
   const ljud = !fel && isAudio(bilaga.typ);
   const bild = !fel && !ljud && isImage(bilaga.typ);
@@ -42,9 +62,40 @@ export function BilagaVisning({ bilaga, alt, marke = "data-kommentar-bilaga-visa
   }
   if (bild) {
     return (
-      <a href={bilaga.dataUrl} download={bilaga.namn || "bild"} {...attr} className="block w-fit">
-        <img src={bilaga.dataUrl} alt={alt} className="block max-h-40 max-w-full rounded-md border border-line" />
-      </a>
+      <>
+        <button
+          type="button"
+          {...attr}
+          data-bilaga-forstora=""
+          aria-label={`${o.visaStor}: ${alt}`}
+          ref={knapp}
+          onClick={() => setStor(true)}
+          className="block w-fit max-w-full cursor-zoom-in rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+        >
+          <img src={bilaga.dataUrl} alt={alt} className="block max-h-40 max-w-full rounded-md border border-line" />
+        </button>
+        {stor ? (
+          <OpsModal
+            open
+            // ⛔ Fokus tillbaka till miniatyren när dialogen stängs. Radix lämnar det till dialogens egen Trigger, och här finns ingen:
+            // utan raden hamnade fokus på sidans början (mätt i bild-oppnas-stor.test.jsx).
+            onOpenChange={(v) => {
+              setStor(v);
+              if (!v) setTimeout(() => knapp.current?.focus(), 0);
+            }}
+            title={bilaga.namn || alt}
+            size="lg"
+            closeLabel={o.stang}
+            footer={
+              <a href={bilaga.dataUrl} download={bilaga.namn || "bild"} data-bilaga-ladda-ned="" className="inline-flex min-h-11 items-center rounded-md px-3 text-etikett font-medium text-accent no-underline hover:bg-accent-faint focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
+                {o.laddaNed}
+              </a>
+            }
+          >
+            <img data-bilaga-stor="" src={bilaga.dataUrl} alt={alt} className="mx-auto block max-h-[70dvh] max-w-full object-contain" />
+          </OpsModal>
+        ) : null}
+      </>
     );
   }
   return (

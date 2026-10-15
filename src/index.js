@@ -183,6 +183,7 @@ export { provaModul, provrapport, GRUPPDATAYTOR, PROV_FRAMMANDE_GRUPP } from "./
  * vid render, ägarens avvikelse (`typavvikelser` på gruppen) och märket «från <modul>».
  */
 export { TYPYTOR, MODULTYPAVGRANSARE, MAX_TYPAVVIKELSER, MAX_TYPNAMN, modultypId, delaModultypId, byggTypavvikelser, medAvvikelse, typerForGrupp, bidragForGrupp, typenForRad, typmarke, typensUrsprung, typerTillValg } from "./lib/modultyper.js";
+export { arKarna, karnmoduler, medKarna } from "./lib/karna.js";
 export { hubbForGrupp, valbaraModuler, hubbPoster, huvudmenyPoster, modulLage, byggOmdirigeringar, omdirigera, kontrolleraOmdirigeringar } from "./lib/hubb.js";
 /*
  * Tilläggen (0.60.0, #251, beslut 0003): en app pluggar in i en plats ramverkets yta erbjuder, och ändrar aldrig ytan.
@@ -337,8 +338,8 @@ export { OpsBeskrivenApp, ORD_OPSBESKRIVENAPP } from "./components/OpsBeskrivenA
  * ⛔ SAMTALEN (0.34.0, #182, #185): gruppchatt, privata meddelanden och Assistent-tråden som EN modell. Formerna och
  * nyckeln är rena funktioner, källan går genom en datakälla, och Firebase importeras aldrig här.
  */
-export { SAMTALSSLAG, SAMTALSFALT, MEDDELANDEFALT, LASTFALT, MAX_MEDDELANDE, MOTTAGARSLAG, samtalsnyckel, byggSamtal, byggMeddelande, byggMottagare, olastaI, motpart, utdrag, TRADFALT, MAX_TRADNAMN, AUTONAMN_LANGD, AUTONAMN_MINST, NAMNLOS_TRAD, rensaForNamn, autonamn, tradensNamn, byggTrad, kravTradnamn, undersamlingskrock, AGENTSTATUS_ID, AGENTLAGEN, AGENTSTATUSFALT, AGENTSTATUS_MAX_ALDER, byggAgentstatus, agentstatus, REAKTIONSKODER, REAKTIONSFALT, REAKTIONSTAK, reaktionsnyckel, byggReaktion, summeraReaktioner, NAMNERFALT, NAMNER_ALLA, MAX_NAMNER, MAX_UIDLANGD, kravNamner, namnda, arNamnd, agentenNamnd, SVARPAFALT, FASTFALT, FASTA_TAK, byggFastning } from "./lib/samtal.js";
-export { createSamtalskalla, samtalsnotiser, harTradar, harStatus, harReaktioner, harOmnamnanden, harCitat, harFasta, harBilagor, harTyst } from "./data/samtalskalla.js";
+export { SAMTALSSLAG, SAMTALSFALT, MEDDELANDEFALT, LASTFALT, MAX_MEDDELANDE, MOTTAGARSLAG, samtalsnyckel, byggSamtal, byggMeddelande, byggMottagare, olastaI, motpart, utdrag, TRADFALT, MAX_TRADNAMN, AUTONAMN_LANGD, AUTONAMN_MINST, NAMNLOS_TRAD, rensaForNamn, autonamn, tradensNamn, byggTrad, kravTradnamn, undersamlingskrock, AGENTSTATUS_ID, AGENTLAGEN, AGENTSTATUSFALT, AGENTSTATUS_MAX_ALDER, byggAgentstatus, agentstatus, REAKTIONSKODER, REAKTIONSFALT, REAKTIONSTAK, reaktionsnyckel, byggReaktion, summeraReaktioner, NAMNERFALT, NAMNER_ALLA, MAX_NAMNER, MAX_UIDLANGD, kravNamner, namnda, arNamnd, agentenNamnd, SVARPAFALT, FASTFALT, FASTA_TAK, byggFastning, AMNESFALT, AMNES_FORM, MAX_AMNESRUBRIK, NAMNLOST_AMNE, kravAmne, nyttAmnesId, amnesId, parnyckel, kravAmnesrubrik, amnesrubrik } from "./lib/samtal.js";
+export { createSamtalskalla, samtalsnotiser, harTradar, harStatus, harReaktioner, harOmnamnanden, harCitat, harFasta, harBilagor, harTyst, harAmnen, harLevandeInkorg } from "./data/samtalskalla.js";
 export { useSamtal } from "./data/useSamtal.jsx";
 export { OpsMottagare } from "./components/OpsMottagare.jsx";
 export { OpsMeddelanden, OpsSamtal, OpsMeddelandeLank, OpsTrad } from "./components/OpsMeddelanden.jsx";

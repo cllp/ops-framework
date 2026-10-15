@@ -45,7 +45,7 @@ import { BESKRIVENAPPDATAFALT, BESKRIVNINGSDOKUMENTFALT, BESKRIVNINGSFALT, BESKR
 import { KONFIGHANDELSER, KONFIGLOGGFALT } from "./konfiglogg.js";
 import { DATUMFORM, KALENDERFALT, KALENDERFARGER, KALENDERPOSTFALT, MAX_KALENDERNAMN, MAX_POSTBESKRIVNING, MAX_POSTPLATS, MAX_POSTTITEL, MINKALENDERFALT, TIDPUNKTSFORM } from "./kalendrar.js";
 import { KOMMENTARBILAGAFALT, KOMMENTARBILAGA_TYPER, KOMMENTARFALT, LASMARKESFALT, MAX_BILAGENAMN, MAX_HANDELSEKOMMENTAR, MAX_KOMMENTARBILAGA, SVARSFALT, SVARSVAL } from "./handelsemodell.js";
-import { BILAGA_TRADSKILJE, BILAGEMARKEFALT, FASTFALT, GRUPPSAMTAL, LASTFALT, MAX_MEDDELANDE, MAX_NAMNER, MAX_TRADNAMN, MAX_UIDLANGD, MEDDELANDEFALT, NAMNERFALT, NAMNER_ALLA, REAKTIONSFALT, SVARPAFALT, REAKTIONSKODER, SAMTALSAVGRANSARE, SAMTALSFALT, TRADFALT, undersamlingskrock } from "./samtal.js";
+import { AMNESFALT, AMNES_REGEL, BILAGA_TRADSKILJE, BILAGEMARKEFALT, FASTFALT, MAX_AMNESRUBRIK, GRUPPSAMTAL, LASTFALT, MAX_MEDDELANDE, MAX_NAMNER, MAX_TRADNAMN, MAX_UIDLANGD, MEDDELANDEFALT, NAMNERFALT, NAMNER_ALLA, REAKTIONSFALT, SVARPAFALT, REAKTIONSKODER, SAMTALSAVGRANSARE, SAMTALSFALT, TRADFALT, undersamlingskrock } from "./samtal.js";
 
 /**
  * @typedef {object} Samlingsnamn
@@ -975,10 +975,16 @@ export function tradskiljeTeckenklass(t) {
  *   - TYSTA NOTISER (0.80.0, #301, med `tyst`): `<tyst>/{uid}` med `{ tyst: bool }`. Bara personen själv läser och skriver.
  *     Radera: aldrig. Utan nyckeln finns inget sådant block.
  *
+ *   - ÄMNEN MED AGENTEN (0.106.0, #386 skiva 2, med `amnen: true`): ett agentsamtal får skapas med en fjärde del i nyckeln,
+ *     `<groupId>|<a>|<b>|<ämnesid>` där ämnesid följer `AMNES_REGEL` (`a_` och sedan små bokstäver, siffror och understreck), och då med en frivillig `rubrik`. Ett agentsamtal får uppdateras av
+ *     sin person, och bara `rubrik` (text, 1 till `MAX_AMNESRUBRIK` tecken, eller borttagen) och `arkiverad` (bool, eller borttagen).
+ *     Gruppchatten och personsamtalen förblir oföränderliga, och ingenting raderas. ⛔ LÄSREGELN ÄNDRAS INTE: `opsFarLasaSamtal`
+ *     gäller per dokument och bryr sig inte om nyckelns form, så inga nya `get()` eller `exists()` och ingen ny läsväg.
+ *
  * ⛔ VARJE NY UNDERSAMLING ÄR EN NY NYCKEL, UTAN FÖRVAL (`tradar` 0.68.0, `status` #273). En app som inte skickar nyckeln får
  * byte för byte samma regeltext som innan nyckeln fanns, och det mäts mot fixturerna i `rules/__fixturer__/`.
  *
- * @param {{ samtal?: string, meddelanden?: string, last?: string, tradar?: string, status?: string, reaktioner?: string, omnamnanden?: boolean, citat?: boolean, fasta?: string, bilagor?: boolean, bilagaSamling?: string, tyst?: string, medlemskap?: string }} [namn]
+ * @param {{ samtal?: string, meddelanden?: string, last?: string, tradar?: string, status?: string, reaktioner?: string, omnamnanden?: boolean, citat?: boolean, fasta?: string, bilagor?: boolean, bilagaSamling?: string, tyst?: string, amnen?: boolean, medlemskap?: string }} [namn]
  * @returns {string}
  */
 export function samtalsregelfragment(namn = {}) {
@@ -1004,6 +1010,8 @@ export function samtalsregelfragment(namn = {}) {
   // ⛔ Meddelandets fält: modellens tre, och `namner` bara när appen slagit på omnämnandena. Utan dem är raden densamma som förut.
   if (namn.citat !== undefined && typeof namn.citat !== "boolean") throw new Error("samtalsregelfragment: citat är true eller utelämnat.");
   const citat = namn.citat === true;
+  if (namn.amnen !== undefined && namn.amnen !== true) throw new Error("samtalsregelfragment: amnen är true eller utelämnat.");
+  const amnen = namn.amnen === true;
   if (namn.bilagor !== undefined && namn.bilagor !== true) throw new Error("samtalsregelfragment: bilagor är true eller utelämnat.");
   const bilagor = namn.bilagor === true;
   // ⛔ Namnet kommer utifrån. Ett förval hade gett varje app en ny undersamling vid en ompinning som ingen bad om.
@@ -1020,7 +1028,7 @@ export function samtalsregelfragment(namn = {}) {
   const utanDeltagare = SAMTALSFALT.filter((f) => f !== "deltagare");
 
   // ⛔ Versionsraden nämner bara det appen slagit på, så att en app utan de nya nycklarna får samma text som förut.
-  const version = ["0.34.0", ...(tradar ? ["trådar 0.68.0"] : []), ...(status ? ["agentens status"] : []), ...(reaktioner ? ["reaktioner"] : []), ...(omnamnanden ? ["omnämnanden"] : []), ...(citat ? ["citat"] : []), ...(fasta ? ["fästa"] : []), ...(bilagor ? ["bilagor"] : []), ...(tyst ? ["tysta notiser"] : [])].join(", ");
+  const version = ["0.34.0", ...(tradar ? ["trådar 0.68.0"] : []), ...(status ? ["agentens status"] : []), ...(reaktioner ? ["reaktioner"] : []), ...(omnamnanden ? ["omnämnanden"] : []), ...(citat ? ["citat"] : []), ...(fasta ? ["fästa"] : []), ...(bilagor ? ["bilagor"] : []), ...(tyst ? ["tysta notiser"] : []), ...(amnen ? ["ämnen"] : [])].join(", ");
   // ⛔ Utan `bilagor` är de två raderna ordagrant de som stod här förut, så fixturen för 0.67.0 består.
   // Med `bilagor` prövas MÄRKET på meddelandet. Filens `dataUrl` prövas på bilagedokumentet, inte här.
   // ⛔ MÄRKET HAR SIN FIL, OCH ID:T KAN BÄRA EN (granskningen av PR 307). Ett märke utan fil hade gett en bubbla som säger
@@ -1069,6 +1077,37 @@ export function samtalsregelfragment(namn = {}) {
         && getAfter(opsBilagansMeddelande(sid, nyckel)).data.bilaga.typ == d.typ
         && getAfter(opsBilagansMeddelande(sid, nyckel)).data.tid == d.tid;
     }`;
+  // ⛔ ÄMNEN (0.106.0, #386): en gren till i nyckeln och en uppdatering av två fält. Utan nyckeln är texten byte för byte densamma.
+  // Avgränsaren står i en teckenklass i `split`, eftersom `split` tar ett reguljärt uttryck och "|" ensamt är ett alternativ.
+  const amnesfunktioner = amnen
+    ? `    // Ämnen med agenten (0.106.0): nyckeln är paret, och för ett ämne paret och ett ämnesid. Bara ett ämne bär rubrik vid skapelsen.
+    function opsSamtalsnyckelMedAmne(sid, d) {
+      return (sid == d.groupId + '${A}' + d.deltagare[0] + '${A}' + d.deltagare[1] && !('rubrik' in d))
+        || (d.slag == 'agent'
+          && sid.split('[${A}]').size() == 4
+          && sid == d.groupId + '${A}' + d.deltagare[0] + '${A}' + d.deltagare[1] + '${A}' + sid.split('[${A}]')[3]
+          && sid.split('[${A}]')[3].matches('${AMNES_REGEL}')
+          && opsGiltigAmnesrubrik(d));
+    }
+
+    // En ämnesrubrik: saknas (den härledda gäller) eller text inom taket.
+    function opsGiltigAmnesrubrik(d) {
+      return !('rubrik' in d) || (d.rubrik is string && d.rubrik.size() > 0 && d.rubrik.size() <= ${MAX_AMNESRUBRIK});
+    }
+
+    // Personen i ett agentsamtal ändrar rubrik och arkiv, inget annat. Gruppchatten och personsamtalen ändras aldrig.
+    function opsAmnesandring(fore, d) {
+      return opsInloggad()
+        && fore.slag == 'agent'
+        && request.auth.uid in fore.deltagare
+        && opsArAktivTyp(request.auth.uid, fore.groupId, 'person')
+        && d.diff(fore).affectedKeys().hasOnly([${lista(AMNESFALT)}])
+        && opsGiltigAmnesrubrik(d)
+        && (!('arkiverad' in d) || d.arkiverad is bool);
+    }
+
+`
+    : "";
   const bilagefunktion = bilagor ? `${bilagemarkeFunktion()}\n\n${bilagaRegelfunktion("opsMeddelandebilagaGiltig", { tid: true })}\n\n${bindningsfunktion}\n\n` : "";
   const R = SAMTALSAVGRANSARE;
   const citatfunktion = citat
@@ -1275,7 +1314,7 @@ ${texttak("            ", `tid + '${S}' + mid`)}
     // En tid i millisekunder nära serverns klocka.
 ${nuRegelfunktion("opsNu")}
 
-${tradfunktioner}${reaktionsfunktion}${namnerfunktion}${citatfunktion}${bilagefunktion}    // Ett nytt samtal: nyckeln härledd, skaparen en person i gruppen, i ett privat samtal båda aktiva medlemmar.
+${tradfunktioner}${reaktionsfunktion}${namnerfunktion}${citatfunktion}${bilagefunktion}${amnesfunktioner}    // Ett nytt samtal: nyckeln härledd, skaparen en person i gruppen, i ett privat samtal båda aktiva medlemmar.
     function opsNyttSamtal(sid, d) {
       return opsInloggad()
         && d.skapadAv == request.auth.uid
@@ -1287,13 +1326,13 @@ ${tradfunktioner}${reaktionsfunktion}${namnerfunktion}${citatfunktion}${bilagefu
             && d.keys().hasOnly([${lista(utanDeltagare)}])
             && sid == d.groupId + '${A}${GRUPPSAMTAL}')
           || ((d.slag == 'personer' || d.slag == 'agent')
-            && d.keys().hasOnly([${lista(SAMTALSFALT)}])
+            && d.keys().hasOnly([${lista(amnen ? [...SAMTALSFALT, "rubrik"] : SAMTALSFALT)}])
             && d.deltagare is list && d.deltagare.size() == 2
             && d.deltagare[0] is string && d.deltagare[1] is string
             && d.deltagare[0] < d.deltagare[1]
             && !d.deltagare[0].matches('.*[${A}].*') && !d.deltagare[1].matches('.*[${A}].*')
             && request.auth.uid in d.deltagare
-            && sid == d.groupId + '${A}' + d.deltagare[0] + '${A}' + d.deltagare[1]
+            && ${amnen ? `opsSamtalsnyckelMedAmne(sid, d)` : `sid == d.groupId + '${A}' + d.deltagare[0] + '${A}' + d.deltagare[1]`}
             && (d.slag == 'personer'
               ? opsArAktivTyp(d.deltagare[0], d.groupId, 'person') && opsArAktivTyp(d.deltagare[1], d.groupId, 'person')
               : opsArAktivTyp(d.deltagare[0], d.groupId, 'agent') || opsArAktivTyp(d.deltagare[1], d.groupId, 'agent')))
@@ -1303,7 +1342,8 @@ ${tradfunktioner}${reaktionsfunktion}${namnerfunktion}${citatfunktion}${bilagefu
     match /${samtal}/{sid} {
       allow read: if opsInloggad() && opsFarLasaSamtal(resource.data);
       allow create: if opsNyttSamtal(sid, request.resource.data);
-      allow update, delete: if false;
+      ${amnen ? `allow update: if opsAmnesandring(resource.data, request.resource.data);
+      allow delete: if false;` : "allow update, delete: if false;"}
 
       match /${meddelanden}/{mid} {
         allow read: if opsISamtal(sid);

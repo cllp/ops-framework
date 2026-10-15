@@ -13,6 +13,7 @@ import { OpsPill } from "./OpsPill.jsx";
 import { text as namnText } from "../lib/sprak.js";
 import { huvudmenyInom } from "../lib/modulinstallningar.js";
 import { synsPa, synsPaText } from "../lib/tillagg.js";
+import { arKarna, medKarna } from "../lib/karna.js";
 import { OpsSelect } from "./OpsSelect.jsx";
 import { BockIkon, ChevronNedIkon, KryssIkon, PlusIkon } from "./icons.jsx";
 import { OpsSpinner } from "./OpsSpinner.jsx";
@@ -353,7 +354,12 @@ export function OpsGruppFormular({ formId, onSkapa, onSkapad, onKlar, sprak: spr
    * en ändring ägaren aldrig gjorde (arbetsreglernas punkt 5).
    */
   const visaModulval = redigerar && modulval?.agare === true && Array.isArray(modulval.valbara);
-  const [valdaModuler, setValdaModuler] = useState(/** @type {string[]} */ ([...(befintlig?.moduler ?? [])]));
+  /*
+   * ⛔ KÄRNMODULERNA (0.106.0, #386): de står med i listan som sparas, också när den sparade saknar dem, och de ritas inte bland valen.
+   * En ägare kan varken installera eller ta bort en app som alltid finns (`karna.js`).
+   */
+  const [valdaModuler, setValdaModuler] = useState(/** @type {string[]} */ (medKarna(befintlig?.moduler ?? [], modulval?.valbara ?? [])));
+  const visadeValbara = (modulval?.valbara ?? []).filter((m) => !arKarna(m));
   /*
    * ⛔ HUVUDMENYN SPARAS BARA SOM DELMÄNGD (0.89.0, CP 2026-10-09).
    * Reglaget "Visa i huvudmenyn" ritas inte här. Det, ikonen, synligheten, kopplingarna och appens egna fält
@@ -606,13 +612,13 @@ export function OpsGruppFormular({ formId, onSkapa, onSkapad, onKlar, sprak: spr
         <section aria-label={t.modulerRubrik} data-gruppmoduler="" className="flex flex-col gap-2">
           <h3 className="m-0 text-etikett font-medium text-ink-secondary">{t.modulerRubrik}</h3>
           <p className="m-0 text-hjalp text-ink-muted">{t.modulerHint}</p>
-          {modulval.valbara.length === 0 ? (
+          {visadeValbara.length === 0 ? (
             <p className="m-0 text-etikett text-ink-secondary" data-moduler-tomt="">
               {t.modulerTomt}
             </p>
           ) : (
             <ul className="m-0 flex list-none flex-col gap-1 p-0">
-              {modulval.valbara.map((m) => {
+              {visadeValbara.map((m) => {
                 const vald = valdaModuler.includes(m.id);
                 const namnet = namnText(m.namn, sprak);
                 // ⛔ HÄRLETT UR MANIFESTET (0.60.0, #251, regel 2): nav eller kort ger "Egen yta", tillägg ger ytornas namn.

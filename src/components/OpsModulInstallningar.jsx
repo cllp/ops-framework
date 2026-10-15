@@ -2,6 +2,7 @@ import { text } from "../lib/sprak.js";
 import { Delrubrik, delrubrik, useInstallningspanel } from "./OpsInstallningar.jsx";
 import { useOpsSprak } from "./OpsSprak.jsx";
 import { useId } from "react";
+import { medKarna } from "../lib/karna.js";
 
 /**
  * Listan över gruppens appar, med en väg in i varje apps egna inställningar (0.88.0, omgjord 0.89.0).
@@ -58,7 +59,8 @@ export function OpsModulInstallningar({ moduler, grupp, agare, hrefFor, onNaviga
   }
   const sprak = useOpsSprak();
   const t = (/** @type {keyof typeof ORD_OPSMODULINSTALLNINGAR} */ nyckel) => text(ORD_OPSMODULINSTALLNINGAR[nyckel], sprak);
-  const installerade = (grupp?.moduler ?? [])
+  // ⛔ Kärnmodulerna är alltid installerade (0.106.0, #386, `karna.js`).
+  const installerade = (grupp ? medKarna(grupp.moduler, moduler) : [])
     .map((id) => moduler.find((m) => m.id === id))
     .filter((m) => Boolean(m));
 
