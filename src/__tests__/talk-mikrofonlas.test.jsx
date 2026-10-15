@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, renderHook, screen, within } from "@testing-library/react";
 import { OpsAppShell } from "../components/OpsAppShell.jsx";
 import { OpsAuthProvider } from "../auth/auth.jsx";
+import { useTalk } from "../components/OpsTalk.jsx";
 import { IGENKANNING_SLAPP_MS, IGENKANNING_VANTA_MS, LJUDKONTEXT_VANTA_MS, STOPP_VANTA_MS, TALK_INGET_LJUD, webblasarensIgenkanning, webblasarensInspelare } from "../lib/talk.js";
 
 /*
@@ -578,5 +579,41 @@ describe("taket på väntan efter förra AudioContext (granskningen av PR 392, B
     expect(md.getUserMedia).toHaveBeenCalledTimes(2);
     const ut = await insp.stoppa();
     expect(ut.diagnos?.forraLjudkontext).toEqual({ hann: false, ms: LJUDKONTEXT_VANTA_MS });
+  });
+});
+
+describe("igenkännaren stängs vid avmontering i varje läge (granskningen av PR 392, BÖR 3)", () => {
+  /** En inspelare som svarar direkt. */
+  const inspelare = () => ({
+    starta: vi.fn(async () => {}),
+    stoppa: vi.fn(async () => ({ blob: new Blob(["ljud"]), mimeType: "audio/mp4", sekunder: 1 })),
+    kasta: vi.fn(),
+    niva: () => 0,
+  });
+
+  it("⛔ i läget skickar, medan igenkännaren väntar på sitt sista besked", async () => {
+    const igenkanning = { starta: vi.fn(), stoppa: vi.fn(() => new Promise(() => {})), kasta: vi.fn() };
+    const { result, unmount } = renderHook(() => useTalk({ onTalk: async () => {}, onKlick: () => {}, inspelare: inspelare(), igenkanning: /** @type {any} */ (igenkanning) }));
+    act(() => result.current.direkt());
+    await flush();
+    act(() => result.current.skickaIn());
+    await flush();
+    expect(result.current.lage).toBe("skickar");
+    expect(igenkanning.kasta).not.toHaveBeenCalled();
+    unmount();
+    // Röd före rättelsen: kasta anropades bara om läget var haller eller lyssnar.
+    expect(igenkanning.kasta).toHaveBeenCalledTimes(1);
+  });
+
+  it("⛔ i läget hört, när det sagda står med valen", async () => {
+    const igenkanning = { starta: vi.fn(), stoppa: vi.fn(async () => "boka rep"), kasta: vi.fn() };
+    const { result, unmount } = renderHook(() => useTalk({ onTalk: async () => {}, onKlick: () => {}, onAgent: async () => {}, inspelare: inspelare(), igenkanning: /** @type {any} */ (igenkanning) }));
+    act(() => result.current.direkt());
+    await flush();
+    act(() => result.current.skickaIn());
+    await flush();
+    expect(result.current.lage).toBe("hort");
+    unmount();
+    expect(igenkanning.kasta).toHaveBeenCalledTimes(1);
   });
 });
