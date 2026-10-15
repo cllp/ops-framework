@@ -887,8 +887,12 @@ const TYSTA_FEL = ["no-speech"];
  */
 export const TALK_TEXTFEL = ORD_TALK.textFel.sv;
 
-/** Så många omstarter per sekund innan igenkänningen räknas som trasig. En som tar slut direkt efter start loopar annars. */
-const MAX_OMSTARTER_PER_SEKUND = 3;
+/** Så många SNABBA omstarter i rad innan igenkänningen räknas som trasig (#253). En snabb omstart är en igenkännare som levt kortare än {@link OMSTART_SNABB_MS}: en som tar slut direkt efter start loopar annars. */
+const MAX_SNABBA_OMSTARTER = 3;
+/** En omstart räknas som snabb när igenkännaren levde kortare än så (#253). */
+export const OMSTART_SNABB_MS = 1000;
+/** Pausen innan igenkänningen startas om (#253), så att WebKit hinner släppa mikrofonen mellan omgångarna. */
+export const OMSTART_PAUS_MS = 300;
 
 /**
  * Språkkoden igenkänningen vill ha, ur appens språk ("sv" ger "sv-SE").
@@ -898,6 +902,26 @@ export function igenkanningensSprak(sprak) {
   const s = String(sprak || "").toLowerCase();
   if (s.startsWith("en")) return "en-US";
   return "sv-SE";
+}
+
+/**
+ * Är webbläsaren WebKit (Safari på macOS, och ALLA webbläsare på iOS, som alla kör WebKit)? (#253)
+ *
+ * ⛔ WEBKIT KÖR INTE TALIGENKÄNNINGEN SAMTIDIGT SOM INSPELNINGEN. CP:s iPad föll med "aborted" i andra omgången
+ * (produktionens felkanal, Safari 26.6.1): hypotesen är att WebKit bara ger mikrofonen till en sak i taget, så
+ * `SpeechRecognition` och `MediaRecorder` slåss om den. På WebKit körs därför bara inspelningen, och texten tolkas på
+ * servern som förut. Chrome, som klarar båda, behåller den levande texten.
+ *
+ * ⛔ FORM, INTE VERSION: "AppleWebKit" utan "Chrome", "Chromium" eller "Edg". Chrome på iOS (CriOS) och Edge (EdgiOS) är också
+ * WebKit under skalet och fångas av att de saknar dem; Chrome på andra plattformar har dem. `jsdom` bär också "AppleWebKit" men
+ * är ingen riktig webbläsare, så proven kör igenkänningen som förut (det är bara den riktiga Safari som ska stängas av).
+ *
+ * @param {string} [ua] User agent-strängen, förvalt `navigator.userAgent`. Tom sträng är inte WebKit.
+ */
+export function arWebKit(ua = typeof navigator !== "undefined" ? navigator.userAgent : "") {
+  const s = String(ua || "");
+  if (!/AppleWebKit/.test(s)) return false;
+  return !/\b(Chrome|Chromium|Edg|jsdom|HeadlessChrome)\b/.test(s);
 }
 
 /**
@@ -921,13 +945,15 @@ export function igenkanningensSprak(sprak) {
  * stoppet: samma bud som redan räknas som hel text när Chrome tar en paus mitt i (`onend` medan den lyssnar, nedan). Det som
  * fortfarande gör texten ogiltig är det som verkligen hugger av den: ett fel, ett avbrott och en väntetid som tar slut.
  *
- * @param {{ SpeechRecognition?: any, setTimeout?: typeof setTimeout, nu?: () => number }} [miljo]
+ * @param {{ SpeechRecognition?: any, setTimeout?: typeof setTimeout, nu?: () => number, userAgent?: string }} [miljo]
  * @returns {Igenkanning | null}
  */
 export function webblasarensIgenkanning(miljo = {}) {
   const g = /** @type {any} */ (typeof globalThis !== "undefined" ? globalThis : {});
   const SR = miljo.SpeechRecognition || g.SpeechRecognition || g.webkitSpeechRecognition;
   if (typeof SR !== "function") return null;
+  // ⛔ WEBKIT: ingen taligenkänning, bara inspelning och serverns utskrift (#253). En inskjuten SR (proven) går förbi.
+  if (!miljo.SpeechRecognition && arWebKit(miljo.userAgent)) return null;
   const vanta = miljo.setTimeout || setTimeout;
   const nu = miljo.nu || Date.now;
   /** @type {any} */
@@ -937,8 +963,9 @@ export function webblasarensIgenkanning(miljo = {}) {
   let trasig = false;
   let slutlig = "";
   let pagaende = "";
-  /** @type {number[]} */
-  let starter = [];
+  // ⛔ #253: när det pågående försöket startade, och hur många snabba omstarter i rad som skett.
+  let forsokStart = 0;
+  let snabbaOmstarter = 0;
   /** @type {(() => void) | null} */
   let narSlut = null;
   /**
@@ -1024,21 +1051,33 @@ export function webblasarensIgenkanning(miljo = {}) {
           slutlig = `${slutlig} ${pagaende}`.trim();
           pagaende = "";
         }
-        const t = nu();
-        starter = [...starter.filter((x) => t - x < 1000), t];
-        if (starter.length > MAX_OMSTARTER_PER_SEKUND) {
+        // ⛔ #253: en omstart är snabb när igenkännaren levde kortare än OMSTART_SNABB_MS. Tre snabba i rad är en loop, och
+        // då blir det ett fel i fältet med koden "omstartsslinga" i stället för en tyst död. En omgång som levde länge nollar
+        // räknaren, så en lång inspelning med en paus då och då aldrig slår i taket.
+        const levde = nu() - forsokStart;
+        snabbaOmstarter = levde < OMSTART_SNABB_MS ? snabbaOmstarter + 1 : 0;
+        if (snabbaOmstarter > MAX_SNABBA_OMSTARTER) {
           trasig = true;
+          meld(onFel, "omstartsslinga");
         } else {
-          try {
-            r = ny(mitt, sprak, onText, onFel);
-            r.start();
-            return;
-          } catch (fel) {
-            // En igenkännare som aldrig startade säger aldrig `end`, och håller ingenting.
-            senaste?.markera();
-            trasig = true;
-            meld(onFel, felkod(fel));
-          }
+          // ⛔ #253: en kort paus innan omstarten, så att WebKit hinner släppa mikrofonen mellan omgångarna. Pausen körs på
+          // den inskjutbara `vanta`, så proven styr den. Hinner läget ändras under pausen (stopp, kast, fel) startas inget.
+          vanta(() => {
+            if (mitt !== forsok || !aktiv || trasig) return;
+            try {
+              forsokStart = nu();
+              r = ny(mitt, sprak, onText, onFel);
+              r.start();
+            } catch (fel) {
+              // En igenkännare som aldrig startade säger aldrig `end`, och håller ingenting.
+              senaste?.markera();
+              trasig = true;
+              meld(onFel, felkod(fel));
+              narSlut?.();
+              narSlut = null;
+            }
+          }, OMSTART_PAUS_MS);
+          return;
         }
       }
       // ⛔ Vid stopp: det preliminära hör till texten (0.103.0, se filhuvudet ovanför `webblasarensIgenkanning`). Förut gjorde ett
@@ -1054,6 +1093,7 @@ export function webblasarensIgenkanning(miljo = {}) {
   };
 
   return {
+    /** @param {{ sprak: string, onText: (text: string) => void, onFel?: (kod: string) => void }} val */
     starta({ sprak, onText, onFel }) {
       forsok += 1;
       // ⛔ DEN FÖRRA OMGÅNGENS IGENKÄNNARE STÄNGS INNAN EN NY STARTAS (0.99.0). Safari, och iOS i synnerhet, tillåter bara EN
@@ -1066,11 +1106,12 @@ export function webblasarensIgenkanning(miljo = {}) {
       trasig = false;
       slutlig = "";
       pagaende = "";
-      starter = [];
+      snabbaOmstarter = 0;
       narSlut = null;
       try {
         r = ny(forsok, sprak, onText, onFel);
         r.start();
+        forsokStart = nu();
       } catch (fel) {
         senaste?.markera();
         trasig = true;

@@ -16,7 +16,7 @@ import { OpsTalk, useTalk } from "./OpsTalk.jsx";
 import { OpsTooltip } from "./OpsTooltip.jsx";
 import { kontrolleraSkickarText, talkForifyllt, talkKnappNamn } from "../lib/talk.js";
 import { byggFasta, djupAktiv, validateFasta } from "./fasta.jsx";
-import { huvudknappKlass, huvudPlusKlass, radBehallare, radKlass } from "../lib/radKlass.js";
+import { huvudknappKlass, huvudPlusKlass, huvudTalkKlass, radBehallare, radKlass } from "../lib/radKlass.js";
 import { rapporteraFel, registreraFelmottagare } from "../lib/felrapport.js";
 import { OpsButton } from "./OpsButton.jsx";
 import { OpsIconLink } from "./OpsIconLink.jsx";
@@ -2354,8 +2354,7 @@ function OpsAppShellRitad({
                   data-talk-huvud={talkStyr.lage}
                   aria-label={talkKnappNamn(talkStyr.lage, sprak)}
                   onClick={() => oppnaSkapa(TALK_FORM)}
-                  className={huvudknappKlass({
-                    visning: "hidden md:inline-flex",
+                  className={huvudTalkKlass({
                     aktiv: talkStyr.lage === "haller" || talkStyr.lage === "lyssnar" || talkStyr.lage === "skickar" || talkStyr.lage === "hort" || talkStyr.lage === "sparat",
                   })}
                 >
