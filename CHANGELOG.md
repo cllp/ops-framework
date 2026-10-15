@@ -42,8 +42,11 @@ blir tomt är oförändrad, `TALK_INGET_LJUD`.
   till samma mottagare bara till konsolen, med en rad som säger det. "Hanterar" är medan `fanga` körs och, om den returnerar ett
   löfte, tills löftet avgjorts. ⛔ **En mottagare som skriver asynkront ska returnera sitt löfte**, till exempel
   `fanga(fel) { return addDoc(...).catch((e) => rapporteraFel(e)) }`; en som inte gör det skyddas inte. Utan skyddet mätte granskaren
-  3 809 anrop av `fanga` för ett fel, och en nekad skrivning vars fel mottagaren rapporterar loopar utan slut. Priset: ett annat fel
-  som kommer just medan en skrivning pågår går bara till konsolen.
+  3 809 anrop av `fanga` för ett fel, och en nekad skrivning vars fel mottagaren rapporterar loopar utan slut. ⛔ **Hållet har ett tak**,
+  `FELMOTTAGARE_HALL_MS` (5 s, granskningen av PR 392 varv 2, MÅSTE 1): ett löfte som aldrig avgörs, det vanliga för `addDoc` utan
+  nät, hade annars låst mottagaren för resten av sidans liv. Ett avvisat löfte släpper direkt, och ett thenable vars `then` kastar
+  låser inte. Priset: ett annat fel som kommer just medan en skrivning pågår går bara till konsolen, och **räknas** (varv 2, BÖR):
+  nästa fel som når mottagaren bär antalet som `tappade` i sammanhanget, så att ett bortfall går att skilja från inget fel.
 - `OpsAuthProvider` och `OpsAppShell` med `felmottagare` registrerar den själva medan de är monterade. **En app ger alltså
   `felmottagare` till `OpsAuthProvider` en gång**, formen `{ fanga, satt }`, och behöver inget annat. Ramverket känner fortfarande inget
   konto och inget samlingsnamn. ⛔ Ändrat beteende: en `felmottagare` utan `fanga` eller `satt` på någon av dem kastar nu när den
@@ -66,7 +69,9 @@ blir tomt är oförändrad, `TALK_INGET_LJUD`.
   på en inspelare som inte spelar in ger inget `stop`-event. Förut väntade `stoppa` då för evigt: fältet stod på Sparar och
   mikrofonspärren (`mikrofonenUpptagenAv`) släpptes aldrig, så ingen annan del av sidan kunde spela in. Nu svarar den direkt, och
   väntar annars högst `STOPP_VANTA_MS` (2 s). ⛔ När taket går ut nollas också `ondataavailable` (MÅSTE 1), liksom i `kasta()`: annars
-  hamnade en bit som kom efter taket först i nästa omgångs ljud (granskaren mätte 8 byte i stället för 2).
+  hamnade en bit som kom efter taket först i nästa omgångs ljud (granskaren mätte 8 byte i stället för 2). Genvägen tas bara när
+  stop-eventet faktiskt kommit (varv 2, KAN 1): enligt specifikationen blir inspelaren `inactive` innan sista biten och `stop` kommer
+  i en köad uppgift, och genvägen tappade då sista biten.
 - **En start som faller efter att mikrofonen öppnats stänger den** (`new MediaRecorder` eller `start()` kastar). Förut stod strömmen
   kvar tills någon utifrån anropade `kasta()`.
 - **En mikrofon som öppnas efter `kasta()` spelar inte in.** `kasta()` räknar upp försöket, så att en ström som kommer efteråt stängs
@@ -96,7 +101,8 @@ genvägen, och taket på väntan efter ljudkontexten och stängningen vid avmont
 alla röda utan sin rättelse och gröna med den: taket i `stoppa` (2 röda utan taket, 1 utan nollningen i `avsluta`, 1 utan den i
 `kasta`), skyddet mot rekursion i `felrapport.test.jsx` (2 röda utan skyddet, 1 utan den asynkrona delen), taket på
 ljudkontexten (1), stängningen vid avmontering i lägena skickar och hört (2), kontrollen av `satt` (1) och en `close()` som
-väntas på en gång (1). `talk-mikrofonlas.test.jsx` har nu 15 prov.
+väntas på en gång (1). Varv 2: hållets tak (1 röd utan taket), avvisningsgrenen (1), ett kastande thenable (1), räknaren för
+tappade fel (1) och genvägen i `stoppa` med sista biten i kö (1). `talk-mikrofonlas.test.jsx` har nu 16 prov.
 
 ### Också i 0.107.0: två KAN-punkter ur granskningen av PR 387 (#389)
 
