@@ -9,6 +9,24 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.106.1
+
+**Två KAN-punkter ur granskningen av PR 387: felet i läget hört har ett prov, och skalytans fokusfel är en rad och inte 5,8 MB.**
+[#389](https://github.com/cllp/ops-framework/issues/389). Ingen ändring i ramverkets beteende, bara prov och ett mätmeddelande.
+
+### Provat
+
+- `talkNasta` i läget `hort`: raden `return bli("hort", null, nu.fel)` behövs och har nu ett prov. Felet från `agentFel` läses av
+  `OpsTalk` (`valFel`) och ska stå kvar när personen trycker Klar, Skicka, Dölj eller får ett tak, upp eller igen medan hen läser det.
+  Muteras raden till `bli("hort")` blir `talk-val.test.jsx` rött (`fel: "Nej"` saknas). Förut var alla prov gröna med mutationen.
+
+### Rättat
+
+- `scripts/check-skalyta.mjs`, valen efter talet: felmeddelandet för fokus skriver taggnamnet och de första 60 tecknen av texten
+  (`body "Boka rep med bandet. Boka rep med bande…"`) och inte hela elementets `textContent`. På `body` var det hela dokumentet,
+  inklusive den inbäddade bundlen, 5,8 MB på en rad. Sidan lämnar numera också bara 61 tecken. Raden ligger i
+  `scripts/lib/fokusKort.mjs` med eget prov (`fokus-kort.test.js`).
+
 ## 0.106.0
 
 **Chatten (#386): Meddelanden och Inkorgen är kärna, samtal per ämne med agenten, båda språken, läsa bakåt, skrivfältet på

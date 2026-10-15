@@ -60,6 +60,7 @@ import tailwind from "@tailwindcss/postcss";
 import { startaWebblasare } from "./lib/matVyport.mjs";
 import { kravPaMittknappen, matMittknappen } from "./lib/mittknappMatt.mjs";
 import { chattepiken0106 } from "./lib/skalyta0106.mjs";
+import { fokusKort } from "./lib/fokusKort.mjs";
 
 const rot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const argv = process.argv.slice(2);
@@ -947,19 +948,21 @@ async function talkValOchForslag() {
         return {
           knappar,
           falt: { l: fr.left, r: fr.right, t: fr.top, b: fr.bottom },
-          fokus: (document.activeElement?.textContent || "").trim(),
+          // ⛔ Bara de första tecknen lämnar sidan: på body är textContent hela dokumentet (5,8 MB, #389). 61 räcker för att `fokusKort` ska se att det kapats.
+          fokus: (document.activeElement?.textContent || "").trim().slice(0, 61),
+          fokusTagg: document.activeElement?.tagName ?? null,
           lamnat: /** @type {any} */ (window).__talkval.slice(),
           over: document.documentElement.scrollWidth - document.documentElement.clientWidth,
         };
       });
-      matt.push(`${namn}: ${m.knappar.map((k) => `${k.text} ${(k.r - k.l).toFixed(0)}x${k.h.toFixed(0)}${k.klippt ? " klippt" : ""}`).join(", ")}, fokus ${JSON.stringify(m.fokus)}, lämnat ${JSON.stringify(m.lamnat)}, sidan rullar ${m.over} px`);
+      matt.push(`${namn}: ${m.knappar.map((k) => `${k.text} ${(k.r - k.l).toFixed(0)}x${k.h.toFixed(0)}${k.klippt ? " klippt" : ""}`).join(", ")}, fokus ${fokusKort(m.fokusTagg, m.fokus)}, lämnat ${JSON.stringify(m.lamnat)}, sidan rullar ${m.over} px`);
       krav(m.knappar.length === 4, `${namn}: ${m.knappar.length} val, väntat 4. Lämnat till appen: ${JSON.stringify(m.lamnat)}.`);
       krav(JSON.stringify(m.knappar.map((k) => k.text)) === JSON.stringify(["Meddelande", "Händelse", "Ärende", "Agent"]), `${namn}: valen är ${JSON.stringify(m.knappar.map((k) => k.text))}, väntat Meddelande, Händelse, Ärende, Agent.`);
       for (const k of m.knappar) {
         krav(!k.klippt, `${namn}: ordet ${JSON.stringify(k.text)} är avklippt.`);
         krav(k.l >= m.falt.l - 0.5 && k.r <= m.falt.r + 0.5 && k.l >= 0 && k.r <= vp.width + 0.5 && k.b <= vp.height + 0.5, `${namn}: ${k.text} står utanför fältet eller fönstret (${JSON.stringify(k)}).`);
       }
-      krav(m.fokus === "Meddelande", `${namn}: fokus står på ${JSON.stringify(m.fokus)}, väntat Meddelande.`);
+      krav(m.fokus === "Meddelande", `${namn}: fokus står på ${fokusKort(m.fokusTagg, m.fokus)}, väntat Meddelande.`);
       krav(m.lamnat.length === 0, `${namn}: appen fick ${JSON.stringify(m.lamnat)} innan personen valt något.`);
       krav(m.over <= 0, `${namn}: sidan rullar ${m.over} px i sidled.`);
       const traff = await matTraffyta(page, "[data-talk-valt]");

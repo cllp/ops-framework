@@ -99,6 +99,11 @@ describe("läget hört i flödet", () => {
     // ⛔ Agenten nåddes inte: tillbaka till valen med felet, och ett nytt Agent rensar det.
     expect(talkNasta({ lage: "skickar" }, { typ: "agentFel", text: "Nej" })).toEqual({ lage: "hort", gor: null, fel: "Nej" });
     expect(talkNasta({ lage: "hort", fel: "Nej" }, { typ: "agent" })).toEqual({ lage: "skickar", gor: "agent" });
+    // ⛔ Felet står kvar vid en händelse som inget val hanterar (#389). Raden `return bli("hort", null, nu.fel)` i talkNasta behövs: felet
+    // läses av OpsTalk (`valFel`), och utan raden försvinner det vid första klar, skicka eller dolj medan personen läser det.
+    for (const typ of /** @type {const} */ (["klar", "skicka", "dolj", "tak", "upp", "igen"])) {
+      expect(talkNasta({ lage: "hort", fel: "Nej" }, { typ })).toEqual({ lage: "hort", gor: null, fel: "Nej" });
+    }
   });
 });
 
