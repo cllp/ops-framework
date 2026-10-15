@@ -11,6 +11,31 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ## 0.107.0
 
+### ⛔ P0: ett Nytt samtal med agenten gick inte att skicka (produktion, appen på 0.106.0)
+
+CP 2026-10-15 i telefonen och på datorn: i ett Nytt samtal med agenten stod texten kvar efter Skicka, och under trådens huvud syntes
+i Safari på Mac en röd ram utan text, på Windows "Meddelandena kunde inte hämtas. Missing or insufficient permissions." TALK:s Agent
+(`oppnaAmne`) gick samma väg och föll likadant.
+
+- **Roten, mätt mot Firestore-emulatorn med de genererade reglerna och Firestore-källan** (`rules/__tests__/amnen-kalla.test.mjs`):
+  `skickaIAmne` läste samtalsdokumentet (`kalla.read`) för ett ämne som inte fanns. Läsregeln är `opsFarLasaSamtal(resource.data)`,
+  och för ett dokument som inte finns är `resource` null, så läsningen nekades ("Null value error" i regeln) och varken ämnet eller
+  meddelandet skrevs. Före rättelsen 2 av 4 röda (Nytt samtal och `oppnaAmne`), med den 4 av 4 gröna. Mätbygget och komponentproven
+  kör minneskällan, som inte har regler, och därför såg inget prov det.
+- **Rättat i klienten: samtalet läses aldrig.** Ett okänt ämne går samma väg som `oppnaPrivat`: skapa, och nekas skapelsen, hämta ur
+  listan. Ett ämne som setts i en listning är känt, så ett befintligt ämne skrivs aldrig om med `setDoc`.
+- **Läsregeln ändras inte, och det är ett val.** Den hade kunnat tåla ett dokument som inte finns (`resource == null` med personens uid i
+  nyckeln), men då hade rättelsen krävt en regeldeploy före klienten, och en läsning som bara svarar "finns inte" behövs inte när
+  skapelsen själv avgör det. En klienträttelse når produktion med ompinningen ensam.
+- **Lyssnaren på meddelanden:** mätt i ett komponentprov med en källa som har reglernas krav (`chatt-nytt-amne-regler.test.jsx`):
+  ett Nytt samtal som öppnas gör ingen nekad läsning och ingen prenumeration förrän första Skicka skapat ämnet (det var redan så i
+  0.106.0, `OpsSamtal` med `ny`), och efter skapelsen startar prenumerationen och meddelandet syns. Rubriken CP såg på Windows,
+  "Meddelandena kunde inte hämtas", stod över det nekade skicket, inte över en läsning.
+- **Felraden står ovanför loggen, med egen rubrik för ett nekat skick** ("Meddelandet kunde inte skickas", `skickaFel`). Förut stod
+  felet först i den rullande loggen, och i ett nytt ämne fyller den tomma vyn (`h-full`) loggen under det, så loggen blev högre än
+  sin ruta och följde slutet: felet rullades ur sikte. Att det låg i loggen är mätt i koden; att det är det som syntes i WebKit är
+  hypotes, eftersom provmiljön saknar WebKit (`playwright install webkit` når inte nätet här).
+
 **TALK: felkanalen når komponenterna, och förra omgången är släppt innan nästa öppnar mikrofonen (cllp/lifehub.app#253).**
 
 CP 2026-10-15 07:25 på iPhone, appen på ramverket 0.104.0: efter agentens svar gick det inte att spela in igen, och fältet sade
