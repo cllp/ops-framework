@@ -526,3 +526,57 @@ describe("taket i stoppa (granskningen av PR 392, MÅSTE 1)", () => {
     expect(tva.blob.size).toBe(2);
   });
 });
+
+describe("taket på väntan efter förra AudioContext (granskningen av PR 392, BÖR 2)", () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it("⛔ en close() som aldrig löser sig låser inte nästa omgång: den startar efter LJUDKONTEXT_VANTA_MS", async () => {
+    class AC {
+      constructor() {
+        this.state = "running";
+      }
+      createMediaStreamSource() {
+        return { connect() {} };
+      }
+      createAnalyser() {
+        return { fftSize: 0, frequencyBinCount: 4, getByteTimeDomainData() {} };
+      }
+      close() {
+        return new Promise(() => {});
+      }
+    }
+    class MR {
+      constructor() {
+        this.state = "inactive";
+        this.mimeType = "audio/mp4";
+        /** @type {any} */ this.ondataavailable = null;
+        /** @type {any} */ this.onstop = null;
+      }
+      start() {
+        this.state = "recording";
+      }
+      stop() {
+        this.state = "inactive";
+        queueMicrotask(() => this.onstop?.());
+      }
+    }
+    const md = { getUserMedia: vi.fn(async () => ({ getTracks: () => [{ stop() {} }], getAudioTracks: () => [{ stop() {} }] })) };
+    const insp = webblasarensInspelare({ mediaDevices: /** @type {any} */ (md), MediaRecorder: /** @type {any} */ (MR), AudioContext: /** @type {any} */ (AC) });
+    await insp.starta();
+    await insp.stoppa();
+    let startad = false;
+    insp.starta().then(() => {
+      startad = true;
+    });
+    await vi.advanceTimersByTimeAsync(LJUDKONTEXT_VANTA_MS - 10);
+    expect(startad).toBe(false);
+    expect(md.getUserMedia).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(20);
+    // Röd utan taket: getUserMedia anropades aldrig och omgången startade aldrig.
+    expect(startad).toBe(true);
+    expect(md.getUserMedia).toHaveBeenCalledTimes(2);
+    const ut = await insp.stoppa();
+    expect(ut.diagnos?.forraLjudkontext).toEqual({ hann: false, ms: LJUDKONTEXT_VANTA_MS });
+  });
+});
