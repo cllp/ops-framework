@@ -72,6 +72,10 @@ blir tomt är oförändrad, `TALK_INGET_LJUD`.
   nät, hade annars låst mottagaren för resten av sidans liv. Ett avvisat löfte släpper direkt, och ett thenable vars `then` kastar
   låser inte. Priset: ett annat fel som kommer just medan en skrivning pågår går bara till konsolen, och **räknas** (varv 2, BÖR):
   nästa fel som når mottagaren bär antalet som `tappade` i sammanhanget, så att ett bortfall går att skilja från inget fel.
+  ⛔ **Gränsen, som den är** (varv 3, BÖR 1): hållet bryter en loop bara när mottagarens eget fel kommer inom `FELMOTTAGARE_HALL_MS`.
+  En skrivning som faller långsammare gav 111 leveranser på 11 minuter. Därför har varje mottagare också ett **tak på takten**: en
+  skur på `FELMOTTAGARE_SKUR` (10) leveranser, och sedan en per `FELMOTTAGARE_PAFYLLNING_MS` (en minut). Det bryter inte en loop men
+  begränsar varje form av den, och det som inte går fram räknas i `tappade`.
 - `OpsAuthProvider` och `OpsAppShell` med `felmottagare` registrerar den själva medan de är monterade. **En app ger alltså
   `felmottagare` till `OpsAuthProvider` en gång**, formen `{ fanga, satt }`, och behöver inget annat. Ramverket känner fortfarande inget
   konto och inget samlingsnamn. ⛔ Ändrat beteende: en `felmottagare` utan `fanga` eller `satt` på någon av dem kastar nu när den
@@ -127,7 +131,9 @@ alla röda utan sin rättelse och gröna med den: taket i `stoppa` (2 röda utan
 `kasta`), skyddet mot rekursion i `felrapport.test.jsx` (2 röda utan skyddet, 1 utan den asynkrona delen), taket på
 ljudkontexten (1), stängningen vid avmontering i lägena skickar och hört (2), kontrollen av `satt` (1) och en `close()` som
 väntas på en gång (1). Varv 2: hållets tak (1 röd utan taket), avvisningsgrenen (1), ett kastande thenable (1), räknaren för
-tappade fel (1) och genvägen i `stoppa` med sista biten i kö (1). `talk-mikrofonlas.test.jsx` har nu 16 prov.
+tappade fel (1) och genvägen i `stoppa` med sista biten i kö (1). Varv 3: takten (2 röda utan den), identitetskontrollen som hindrar
+ett tidigare håll från att släppa ett senare (1) och nollningen av `stoppSett` i varje `starta` (1). `talk-mikrofonlas.test.jsx` har
+nu 17 prov.
 
 ### Också i 0.107.0: två KAN-punkter ur granskningen av PR 387 (#389)
 
