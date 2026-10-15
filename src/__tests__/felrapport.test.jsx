@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { rapporteraFel, registreraFelmottagare } from "../lib/felrapport.js";
+import { FELMOTTAGARE_HALL_MS, rapporteraFel, registreraFelmottagare } from "../lib/felrapport.js";
 import { OpsAppShell } from "../components/OpsAppShell.jsx";
 
 /**
@@ -95,6 +95,67 @@ describe("en mottagare som rapporterar sina egna fel (granskningen av PR 392, B�
       expect(skriv).toHaveBeenCalledTimes(1);
       // När skrivningen avgjorts är mottagaren fri, och ett nytt fel når den.
       rapporteraFel(new Error("ett annat fel"));
+      expect(fanga).toHaveBeenCalledTimes(2);
+    } finally {
+      av();
+    }
+  });
+});
+
+describe("hållet har ett tak (granskningen av PR 392 varv 2, MÅSTE 1)", () => {
+  let spion;
+  beforeEach(() => {
+    spion = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    spion.mockRestore();
+    vi.useRealTimers();
+  });
+
+  it("⛔ ett löfte som aldrig avgörs (en skrivning utan nät) låser inte mottagaren: efter taket når nästa fel den", async () => {
+    const fanga = vi.fn(() => new Promise(() => {}));
+    const av = registreraFelmottagare({ fanga, satt: vi.fn() });
+    try {
+      rapporteraFel(new Error("utan nät"));
+      await vi.advanceTimersByTimeAsync(FELMOTTAGARE_HALL_MS - 10);
+      rapporteraFel(new Error("medan skrivningen står"));
+      expect(fanga).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(20);
+      rapporteraFel(new Error("TALK: inspelningen gav inget ljud"), { steg: "tomt-ljud" });
+      // Röd utan taket: mottagaren var låst för resten av sidans liv, och diagnosen gick bara till konsolen.
+      expect(fanga).toHaveBeenCalledTimes(2);
+    } finally {
+      av();
+    }
+  });
+
+  it("⛔ ett avvisat löfte släpper mottagaren direkt, inte först vid taket", async () => {
+    const fanga = vi.fn(() => new Promise((_, nej) => setTimeout(() => nej(new Error("permission-denied")), 10)));
+    const av = registreraFelmottagare({ fanga, satt: vi.fn() });
+    try {
+      rapporteraFel(new Error("första"));
+      await vi.advanceTimersByTimeAsync(20);
+      rapporteraFel(new Error("andra"));
+      // Röd utan släppet i avvisningsgrenen: mottagaren hölls till taket, och det andra felet gick bara till konsolen.
+      expect(fanga).toHaveBeenCalledTimes(2);
+      expect(spion.mock.calls.map((c) => c.map(String).join(" ")).join("\n")).toContain("felmottagaren själv föll");
+    } finally {
+      av();
+    }
+  });
+
+  it("⛔ ett thenable vars then kastar låser inte mottagaren", () => {
+    const fanga = vi.fn(() => ({
+      then() {
+        throw new Error("trasigt then");
+      },
+    }));
+    const av = registreraFelmottagare({ fanga, satt: vi.fn() });
+    try {
+      rapporteraFel(new Error("första"));
+      rapporteraFel(new Error("andra"));
+      // Röd före rättelsen: asynkront läge sattes innan then anropades, så finally släppte aldrig.
       expect(fanga).toHaveBeenCalledTimes(2);
     } finally {
       av();

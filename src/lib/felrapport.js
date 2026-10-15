@@ -34,7 +34,8 @@
 /**
  * @typedef {object} Felmottagare
  * @property {(fel: unknown, sammanhang?: Record<string, unknown>) => void | Promise<unknown>} fanga ⛔ (0.107.0) Skriver mottagaren
- *   asynkront ska den RETURNERA löftet: medan det inte avgjorts går ett nytt fel bara till konsolen, inte tillbaka hit. Se
+ *   asynkront ska den RETURNERA löftet: medan det inte avgjorts, högst `FELMOTTAGARE_HALL_MS`, går ett nytt fel bara till konsolen,
+ *   inte tillbaka hit. Se
  *   `rapporteraFel` och "EN MOTTAGARE SOM RAPPORTERAR SINA EGNA FEL".
  * @property {(anvandare: { uid: string, groupId?: string } | null) => void} satt
  */
@@ -54,17 +55,32 @@
  * mottagare bara till konsolen. "Hanterar" är medan `fanga` körs, och om den
  * lämnar ett löfte, tills löftet avgjorts. ⛔ GRÄNSEN: en `fanga` som startar
  * en skrivning utan att returnera löftet kan ramverket inte se, och då skyddas
- * den inte. Därför ska en asynkron mottagare returnera sitt löfte. Priset: ett
- * annat fel som kommer just medan en skrivning pågår går bara till konsolen,
- * med en rad som säger det. Konsolen får alltid alla.
- * @type {Map<Felmottagare, number>}
+ * den inte. Därför ska en asynkron mottagare returnera sitt löfte.
+ *
+ * ⛔ HÅLLET HAR ETT TAK, `FELMOTTAGARE_HALL_MS` (granskningen av PR 392 varv 2,
+ * MÅSTE 1). Utan tak låste ett löfte som aldrig avgörs mottagaren för resten
+ * av sidans liv, och det är det vanliga fallet för en skrivning utan nät:
+ * `addDoc` löser sig först när servern kvitterat. Då hade varje senare fel,
+ * också TALK:s diagnos, bara gått till konsolen, just när det är svårast att
+ * mäta på annat sätt. Taket bryter ändå loopen: mottagarens `.catch` körs
+ * innan dess löfte avgörs, alltså medan hållet står.
  */
-const hanterar = new Map();
-/** @param {Felmottagare} m @param {number} d */
-const andraHanterar = (m, d) => {
-  const n = (hanterar.get(m) ?? 0) + d;
-  if (n > 0) hanterar.set(m, n);
-  else hanterar.delete(m);
+
+/** Längsta tid en mottagare hålls medan löftet från `fanga` inte avgjorts. */
+export const FELMOTTAGARE_HALL_MS = 5000;
+
+/** Mottagare som hanterar ett fel, med en egen post per håll. @type {Map<Felmottagare, object>} */
+const hallna = new Map();
+/**
+ * Håller mottagaren och lämnar en funktion som släpper just det hållet. Ett senare håll släpps inte av ett tidigare.
+ * @param {Felmottagare} m
+ */
+const halla = (m) => {
+  const post = {};
+  hallna.set(m, post);
+  return () => {
+    if (hallna.get(m) === post) hallna.delete(m);
+  };
 };
 
 /**
@@ -142,30 +158,29 @@ export function rapporteraFel(fel, sammanhang, felmottagare) {
   console.error("ops-framework:", fel, sammanhang ?? {});
   const mottagare = felmottagare ?? forvaldFelmottagare();
   if (!mottagare || typeof mottagare.fanga !== "function") return;
-  if (hanterar.has(mottagare)) {
+  if (hallna.has(mottagare)) {
     // eslint-disable-next-line no-console
     console.error("ops-framework: felet kom medan felmottagaren hanterade ett annat fel, och gick bara till konsolen");
     return;
   }
-  andraHanterar(mottagare, 1);
+  const slapp = halla(mottagare);
   let asynkron = false;
   try {
     const svar = /** @type {unknown} */ (mottagare.fanga(fel, sammanhang));
     if (svar && typeof (/** @type {any} */ (svar).then) === "function") {
+      /** @type {Promise<unknown>} */ (svar).then(slapp, (mottagarfel) => {
+        slapp();
+        // eslint-disable-next-line no-console
+        console.error("ops-framework: felmottagaren själv föll", mottagarfel);
+      });
+      // ⛔ Asynkron först när `then` tagit emot utan att kasta (varv 2, MÅSTE 1). Ett thenable vars `then` kastar låste förut för gott.
       asynkron = true;
-      /** @type {Promise<unknown>} */ (svar).then(
-        () => andraHanterar(mottagare, -1),
-        (mottagarfel) => {
-          andraHanterar(mottagare, -1);
-          // eslint-disable-next-line no-console
-          console.error("ops-framework: felmottagaren själv föll", mottagarfel);
-        },
-      );
+      setTimeout(slapp, FELMOTTAGARE_HALL_MS);
     }
   } catch (mottagarfel) {
     // eslint-disable-next-line no-console
     console.error("ops-framework: felmottagaren själv kastade", mottagarfel);
   } finally {
-    if (!asynkron) andraHanterar(mottagare, -1);
+    if (!asynkron) slapp();
   }
 }
