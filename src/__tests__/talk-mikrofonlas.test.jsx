@@ -619,3 +619,58 @@ describe("igenkännaren stängs vid avmontering i varje läge (granskningen av P
     expect(igenkanning.kasta).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("en close() som aldrig löser sig väntas på en gång (granskningen av PR 392, KAN 4)", () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it("⛔ omgången efter taket väntar inte igen när ingen ny ljudkontext skapats", async () => {
+    let skapade = 0;
+    class AC {
+      constructor() {
+        skapade += 1;
+        // Bara den första går att skapa. Därefter kastar konstruktorn, och ingen ny close() kommer.
+        if (skapade > 1) throw new Error("NotSupportedError");
+        this.state = "running";
+      }
+      createMediaStreamSource() {
+        return { connect() {} };
+      }
+      createAnalyser() {
+        return { fftSize: 0, frequencyBinCount: 4, getByteTimeDomainData() {} };
+      }
+      close() {
+        return new Promise(() => {});
+      }
+    }
+    class MR {
+      constructor() {
+        this.state = "inactive";
+        this.mimeType = "audio/mp4";
+        /** @type {any} */ this.ondataavailable = null;
+        /** @type {any} */ this.onstop = null;
+      }
+      start() {
+        this.state = "recording";
+      }
+      stop() {
+        this.state = "inactive";
+        queueMicrotask(() => this.onstop?.());
+      }
+    }
+    const md = { getUserMedia: vi.fn(async () => ({ getTracks: () => [{ stop() {} }], getAudioTracks: () => [{ stop() {} }] })) };
+    const insp = webblasarensInspelare({ mediaDevices: /** @type {any} */ (md), MediaRecorder: /** @type {any} */ (MR), AudioContext: /** @type {any} */ (AC) });
+    await insp.starta();
+    await insp.stoppa();
+    const andra = insp.starta();
+    await vi.advanceTimersByTimeAsync(LJUDKONTEXT_VANTA_MS + 10);
+    await andra;
+    await insp.stoppa();
+    // Tredje omgången: ingen ny ljudkontext stängdes, så det finns inget att vänta på.
+    await insp.starta();
+    // Röd före rättelsen: getUserMedia väntade 1 s till på samma close().
+    expect(md.getUserMedia).toHaveBeenCalledTimes(3);
+    const ut = await insp.stoppa();
+    expect(ut.diagnos?.forraLjudkontext).toBeNull();
+  });
+});

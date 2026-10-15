@@ -576,7 +576,9 @@ export function webblasarensInspelare(miljo = {}) {
       const sluta = (hann) => {
         if (gjort) return;
         gjort = true;
-        if (hann && stangs === p) stangs = null;
+        // ⛔ Också när taket gått ut (granskningen av PR 392, KAN 4). Annars väntade varje följande omgång 1 s på samma `close()` så
+        // länge ingen ny ljudkontext skapades (konstruktorn kastar). En gång räcker: den fick sin chans.
+        if (stangs === p) stangs = null;
         klar({ hann, ms: Math.max(0, nu() - t0) });
       };
       p.then(() => sluta(true), () => sluta(true));
