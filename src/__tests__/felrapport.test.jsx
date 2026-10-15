@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { rapporteraFel } from "../lib/felrapport.js";
+import { rapporteraFel, registreraFelmottagare } from "../lib/felrapport.js";
 import { OpsAppShell } from "../components/OpsAppShell.jsx";
 
 /**
@@ -47,6 +47,58 @@ describe("rapporteraFel", () => {
 
   it("en mottagare utan fanga-metod ignoreras tyst men kraschar inte", () => {
     expect(() => rapporteraFel(new Error("x"), undefined, /** @type {any} */ ({}))).not.toThrow();
+  });
+});
+
+describe("en mottagare som rapporterar sina egna fel (granskningen av PR 392, BÖR 1)", () => {
+  let spion;
+  beforeEach(() => {
+    spion = vi.spyOn(console, "error").mockImplementation(() => {});
+  });
+  afterEach(() => {
+    spion.mockRestore();
+    vi.useRealTimers();
+  });
+
+  it("⛔ synkront: en fanga som anropar rapporteraFel når inte sig själv igen", () => {
+    const fanga = vi.fn(() => {
+      rapporteraFel(new Error("inre"), { yta: "mottagaren" });
+    });
+    const av = registreraFelmottagare({ fanga, satt: vi.fn() });
+    try {
+      rapporteraFel(new Error("yttre"));
+      // Röd utan skyddet: 3 809 anrop för ett fel, tills stacken tog slut (granskarens mätning).
+      expect(fanga).toHaveBeenCalledTimes(1);
+      // Det inre felet syns ändå i konsolen, med en rad som säger varför det inte gick vidare.
+      const rader = spion.mock.calls.map((c) => c.map(String).join(" ")).join("\n");
+      expect(rader).toContain("inre");
+      expect(rader).toContain("gick bara till konsolen");
+      // Efteråt är mottagaren fri igen.
+      rapporteraFel(new Error("nästa"));
+      expect(fanga).toHaveBeenCalledTimes(2);
+    } finally {
+      av();
+    }
+  });
+
+  it("⛔ asynkront: en nekad skrivning vars fel mottagaren rapporterar loopar inte", async () => {
+    vi.useFakeTimers();
+    // Som en Firestore-skrivning som nekas av reglerna: löftet avvisas en stund senare.
+    const skriv = vi.fn(() => new Promise((_, nej) => setTimeout(() => nej(Object.assign(new Error("Missing or insufficient permissions."), { code: "permission-denied" })), 10)));
+    const fanga = vi.fn((/** @type {unknown} */ _fel) => skriv().catch((e) => rapporteraFel(e, { yta: "felmottagaren" })));
+    const av = registreraFelmottagare({ fanga, satt: vi.fn() });
+    try {
+      rapporteraFel(new Error("ursprunget"));
+      await vi.advanceTimersByTimeAsync(200);
+      // Röd utan skyddet: ett nytt fanga och en ny skrivning var tionde millisekund, utan slut.
+      expect(fanga).toHaveBeenCalledTimes(1);
+      expect(skriv).toHaveBeenCalledTimes(1);
+      // När skrivningen avgjorts är mottagaren fri, och ett nytt fel når den.
+      rapporteraFel(new Error("ett annat fel"));
+      expect(fanga).toHaveBeenCalledTimes(2);
+    } finally {
+      av();
+    }
   });
 });
 

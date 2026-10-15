@@ -33,9 +33,39 @@
 
 /**
  * @typedef {object} Felmottagare
- * @property {(fel: unknown, sammanhang?: Record<string, unknown>) => void} fanga
+ * @property {(fel: unknown, sammanhang?: Record<string, unknown>) => void | Promise<unknown>} fanga ⛔ (0.107.0) Skriver mottagaren
+ *   asynkront ska den RETURNERA löftet: medan det inte avgjorts går ett nytt fel bara till konsolen, inte tillbaka hit. Se
+ *   `rapporteraFel` och "EN MOTTAGARE SOM RAPPORTERAR SINA EGNA FEL".
  * @property {(anvandare: { uid: string, groupId?: string } | null) => void} satt
  */
+
+/**
+ * ══ ⛔ EN MOTTAGARE SOM RAPPORTERAR SINA EGNA FEL (granskningen av PR 392, BÖR 1) ══
+ *
+ * Med en förvald mottagare når ett `rapporteraFel` utan tredje argument
+ * mottagaren, också när det anropas inifrån mottagaren själv. Mätt av
+ * granskaren: en `fanga` som anropade `rapporteraFel` gav 3 809 anrop av
+ * `fanga` för ett enda fel, tills stacken tog slut. Den asynkrona formen är
+ * husets vanliga mönster och loopar utan slut: `fanga(fel) { return
+ * addDoc(...).catch((e) => rapporteraFel(e)) }`, där en skrivning som nekas
+ * (reglerna ännu inte deployade) ger ett nytt fel som skrivs, som nekas.
+ *
+ * Därför: medan en mottagare hanterar ett fel går ett nytt fel till samma
+ * mottagare bara till konsolen. "Hanterar" är medan `fanga` körs, och om den
+ * lämnar ett löfte, tills löftet avgjorts. ⛔ GRÄNSEN: en `fanga` som startar
+ * en skrivning utan att returnera löftet kan ramverket inte se, och då skyddas
+ * den inte. Därför ska en asynkron mottagare returnera sitt löfte. Priset: ett
+ * annat fel som kommer just medan en skrivning pågår går bara till konsolen,
+ * med en rad som säger det. Konsolen får alltid alla.
+ * @type {Map<Felmottagare, number>}
+ */
+const hanterar = new Map();
+/** @param {Felmottagare} m @param {number} d */
+const andraHanterar = (m, d) => {
+  const n = (hanterar.get(m) ?? 0) + d;
+  if (n > 0) hanterar.set(m, n);
+  else hanterar.delete(m);
+};
 
 /**
  * ══ ⛔ DEN FÖRVALDA MOTTAGAREN (0.107.0, cllp/lifehub.app#253) ═══════════
@@ -110,10 +140,30 @@ export function rapporteraFel(fel, sammanhang, felmottagare) {
   console.error("ops-framework:", fel, sammanhang ?? {});
   const mottagare = felmottagare ?? forvaldFelmottagare();
   if (!mottagare || typeof mottagare.fanga !== "function") return;
+  if (hanterar.has(mottagare)) {
+    // eslint-disable-next-line no-console
+    console.error("ops-framework: felet kom medan felmottagaren hanterade ett annat fel, och gick bara till konsolen");
+    return;
+  }
+  andraHanterar(mottagare, 1);
+  let asynkron = false;
   try {
-    mottagare.fanga(fel, sammanhang);
+    const svar = /** @type {unknown} */ (mottagare.fanga(fel, sammanhang));
+    if (svar && typeof (/** @type {any} */ (svar).then) === "function") {
+      asynkron = true;
+      /** @type {Promise<unknown>} */ (svar).then(
+        () => andraHanterar(mottagare, -1),
+        (mottagarfel) => {
+          andraHanterar(mottagare, -1);
+          // eslint-disable-next-line no-console
+          console.error("ops-framework: felmottagaren själv föll", mottagarfel);
+        },
+      );
+    }
   } catch (mottagarfel) {
     // eslint-disable-next-line no-console
     console.error("ops-framework: felmottagaren själv kastade", mottagarfel);
+  } finally {
+    if (!asynkron) andraHanterar(mottagare, -1);
   }
 }
