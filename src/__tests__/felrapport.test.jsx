@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { FELMOTTAGARE_HALL_MS, rapporteraFel, registreraFelmottagare } from "../lib/felrapport.js";
+import { FELMOTTAGARE_HALL_MS, FELMOTTAGARE_PAFYLLNING_MS, FELMOTTAGARE_SKUR, rapporteraFel, registreraFelmottagare } from "../lib/felrapport.js";
 import { OpsAppShell } from "../components/OpsAppShell.jsx";
 
 /**
@@ -192,6 +192,52 @@ describe("ett tappat fel är en siffra (granskningen av PR 392 varv 2, BÖR)", (
       await vi.advanceTimersByTimeAsync(300);
       rapporteraFel(new Error("sedan"));
       expect(/** @type {any} */ (fanga.mock.calls[2])[1]).toBeUndefined();
+    } finally {
+      av();
+    }
+  });
+});
+
+describe("takten och hållens identitet (granskningen av PR 392 varv 3)", () => {
+  let spion;
+  beforeEach(() => {
+    spion = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    spion.mockRestore();
+    vi.useRealTimers();
+  });
+
+  it("⛔ BÖR 1: en skrivning som faller efter taket på hållet loopar, men takten begränsar den", async () => {
+    // Granskarens mottagare: skrivningen avvisas efter 6 s, alltså efter FELMOTTAGARE_HALL_MS, och felet rapporteras.
+    const skriv = vi.fn(() => new Promise((_, nej) => setTimeout(() => nej(new Error("tidsgräns")), 6000)));
+    const fanga = vi.fn(() => skriv().catch((e) => rapporteraFel(e, { yta: "felmottagaren" })));
+    const av = registreraFelmottagare({ fanga, satt: vi.fn() });
+    try {
+      rapporteraFel(new Error("ursprunget"));
+      await vi.advanceTimersByTimeAsync(11 * 60_000);
+      // Röd utan takten: 111 leveranser på 11 minuter (granskarens mätning), en per drygt 6 s.
+      expect(fanga.mock.calls.length).toBeLessThanOrEqual(FELMOTTAGARE_SKUR + 11 + 1);
+      // Golv: loopen finns, annars mäter provet ingenting.
+      expect(fanga.mock.calls.length).toBeGreaterThan(FELMOTTAGARE_SKUR);
+    } finally {
+      av();
+    }
+  });
+
+  it("⛔ BÖR 1: en skur över taket räknas i tappade, och en leverans fylls på per minut", async () => {
+    const fanga = vi.fn();
+    const av = registreraFelmottagare({ fanga, satt: vi.fn() });
+    try {
+      for (let i = 0; i < FELMOTTAGARE_SKUR + 2; i += 1) rapporteraFel(new Error(`fel ${i}`), { i });
+      expect(fanga).toHaveBeenCalledTimes(FELMOTTAGARE_SKUR);
+      await vi.advanceTimersByTimeAsync(FELMOTTAGARE_PAFYLLNING_MS);
+      rapporteraFel(new Error("efter en minut"), { i: 99 });
+      expect(fanga).toHaveBeenCalledTimes(FELMOTTAGARE_SKUR + 1);
+      expect(/** @type {any} */ (fanga.mock.lastCall)[1]).toEqual({ i: 99, tappade: 2 });
+      rapporteraFel(new Error("direkt efter"));
+      expect(fanga).toHaveBeenCalledTimes(FELMOTTAGARE_SKUR + 1);
     } finally {
       av();
     }

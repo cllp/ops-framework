@@ -62,8 +62,18 @@
  * av sidans liv, och det är det vanliga fallet för en skrivning utan nät:
  * `addDoc` löser sig först när servern kvitterat. Då hade varje senare fel,
  * också TALK:s diagnos, bara gått till konsolen, just när det är svårast att
- * mäta på annat sätt. Taket bryter ändå loopen: mottagarens `.catch` körs
- * innan dess löfte avgörs, alltså medan hållet står.
+ * mäta på annat sätt. ⛔ GRÄNSEN, SOM DEN ÄR (varv 3, BÖR 1): hållet bryter
+ * loopen bara när mottagarens eget fel kommer inom `FELMOTTAGARE_HALL_MS`,
+ * eftersom `.catch` då körs medan hållet står. En skrivning som faller
+ * långsammare (granskaren mätte en som avvisas efter 6 s: 111 leveranser på
+ * 11 minuter) är fri när felet kommer, och då startar loopen igen.
+ *
+ * ⛔ DÄRFÖR OCKSÅ ETT TAK PÅ TAKTEN (varv 3, BÖR 1). Varje mottagare har
+ * `FELMOTTAGARE_SKUR` leveranser att ta av, och får tillbaka en per
+ * `FELMOTTAGARE_PAFYLLNING_MS` (en minut). Det bryter inte en loop, men
+ * begränsar varje form av den, oavsett hur lång mottagarens kedja är: efter
+ * en skur på tio går högst en leverans per minut fram. Det som inte går fram
+ * räknas i `tappade`, som nedan.
  *
  * ⛔ ETT TAPPAT FEL ÄR EN SIFFRA, INTE EN TYSTNAD (varv 2, BÖR). Ett fel som
  * kommer medan mottagaren är upptagen går bara till konsolen, och räknas.
@@ -74,6 +84,33 @@
 
 /** Längsta tid en mottagare hålls medan löftet från `fanga` inte avgjorts. */
 export const FELMOTTAGARE_HALL_MS = 5000;
+
+/** Så många leveranser en mottagare har att ta av innan takten begränsas (varv 3, BÖR 1). */
+export const FELMOTTAGARE_SKUR = 10;
+
+/** Så ofta en mottagare får tillbaka en leverans, när skuren är slut. */
+export const FELMOTTAGARE_PAFYLLNING_MS = 60_000;
+
+/** Leveranser kvar per mottagare, och när de räknades senast. @type {Map<Felmottagare, { kvar: number, vid: number }>} */
+const takt = new Map();
+/**
+ * Tar en leverans ur mottagarens skur, efter påfyllning. `false` när skuren är tom.
+ * @param {Felmottagare} m
+ */
+const taLeverans = (m) => {
+  const nu = Date.now();
+  const t = takt.get(m) ?? { kvar: FELMOTTAGARE_SKUR, vid: nu };
+  const nya = Math.floor((nu - t.vid) / FELMOTTAGARE_PAFYLLNING_MS);
+  if (nya > 0) {
+    t.kvar = Math.min(FELMOTTAGARE_SKUR, t.kvar + nya);
+    t.vid += nya * FELMOTTAGARE_PAFYLLNING_MS;
+  }
+  if (t.kvar >= FELMOTTAGARE_SKUR) t.vid = nu;
+  takt.set(m, t);
+  if (t.kvar < 1) return false;
+  t.kvar -= 1;
+  return true;
+};
 
 /** Mottagare som hanterar ett fel, med en egen post per håll. @type {Map<Felmottagare, object>} */
 const hallna = new Map();
@@ -170,6 +207,12 @@ export function rapporteraFel(fel, sammanhang, felmottagare) {
     tappade.set(mottagare, (tappade.get(mottagare) ?? 0) + 1);
     // eslint-disable-next-line no-console
     console.error("ops-framework: felet kom medan felmottagaren hanterade ett annat fel, och gick bara till konsolen");
+    return;
+  }
+  if (!taLeverans(mottagare)) {
+    tappade.set(mottagare, (tappade.get(mottagare) ?? 0) + 1);
+    // eslint-disable-next-line no-console
+    console.error(`ops-framework: felmottagaren har fått ${FELMOTTAGARE_SKUR} fel i en skur; felet gick bara till konsolen och räknas i tappade`);
     return;
   }
   const antalTappade = tappade.get(mottagare) ?? 0;
