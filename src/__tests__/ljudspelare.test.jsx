@@ -23,6 +23,9 @@ import {
 import { isAudio } from "../lib/file.js";
 import { kodaToppar } from "../lib/bibliotek.js";
 
+// #375: vald hastighet sparas i localStorage; varje prov börjar på 1×.
+beforeEach(() => localStorage.clear());
+
 describe("ljudspelarens räkning", () => {
   it("tiden, hastigheten och spolningen håller sig inom ljudet", () => {
     expect(formateraTid(0)).toBe("0:00");

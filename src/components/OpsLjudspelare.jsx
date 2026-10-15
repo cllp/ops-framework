@@ -8,6 +8,8 @@ import {
   baraEnSpelar,
   formateraTid,
   hastighetText,
+  sparadHastighet,
+  sparaHastighet,
   hoppa,
   langdArKand,
   lasLangdMedSok,
@@ -216,7 +218,7 @@ function Spelare({ adress, namn, visaNamn, kompakt, liten, meta, durationMs, pea
   const [laddar, setLaddar] = useState(false);
   const [tid, setTid] = useState(0);
   const [langd, setLangd] = useState(durationMs > 0 ? durationMs / 1000 : 0);
-  const [hastighet, setHastighet] = useState(1);
+  const [hastighet, setHastighet] = useState(sparadHastighet);
   const [fel, setFel] = useState("");
   const felMottagare = useRef(onFel);
   felMottagare.current = onFel;
@@ -502,6 +504,7 @@ function Spelare({ adress, namn, visaNamn, kompakt, liten, meta, durationMs, pea
   const bytHastighet = () => {
     const nasta = nastaHastighet(hastighet);
     setHastighet(nasta);
+    sparaHastighet(nasta);
     if (ljud.current) ljud.current.playbackRate = nasta;
   };
 
