@@ -101,3 +101,27 @@ describe("⛔ P0: Nytt samtal med agenten mot en källa med reglerna", () => {
     expect(screen.queryByText("Meddelandena kunde inte hämtas")).toBeNull();
   });
 });
+
+describe("⛔ P0: felraden när Skicka nekas står med sin text, ovanför loggen", () => {
+  it("ett nekat skick i ett Nytt samtal säger att meddelandet inte kunde skickas, och raden står utanför den rullande loggen", async () => {
+    const { kalla, regler } = regelkalla();
+    const s = /** @type {any} */ (createSamtalskalla({ kalla, amnen: true }));
+    const g = await s.oppnaGrupp({ groupId: "g", uid: "anna" });
+    await s.skicka(g.id, { text: "Hej gruppen", av: "anna" });
+    // Därefter nekas varje nytt samtal, som av en regel som ännu inte är deployad.
+    regler.nekaNyttSamtal = true;
+    render(<OpsMeddelanden kalla={s} uid="anna" groupId="g" gruppNamn="Gruppen" medlemmar={MEDLEMMAR} nytt="agent" valt={null} onValj={() => {}} />);
+    await waitFor(() => expect(document.querySelector("[data-amne='ny']")).toBeTruthy());
+    fireEvent.change(screen.getByRole("textbox", { name: "Skriv ett meddelande" }), { target: { value: "Hur ligger momsen till?" } });
+    fireEvent.click(screen.getByRole("button", { name: "Skicka" }));
+    const rubrik = await screen.findByText("Meddelandet kunde inte skickas");
+    expect(screen.getByText("Missing or insufficient permissions.")).toBeTruthy();
+    // Röd före rättelsen: rubriken var "Meddelandena kunde inte hämtas", och raden låg i loggen, där den tomma vyn under den
+    // fyllde loggens höjd och rullningen till slutet tog den ur sikte.
+    expect(screen.queryByText("Meddelandena kunde inte hämtas")).toBeNull();
+    expect(rubrik.closest("[role='log']")).toBeNull();
+    expect(rubrik.closest("[data-samtalsfel]")?.className).toContain("shrink-0");
+    // Texten står kvar, så att den kan skickas igen.
+    expect(/** @type {HTMLTextAreaElement} */ (screen.getByRole("textbox", { name: "Skriv ett meddelande" })).value).toBe("Hur ligger momsen till?");
+  });
+});
