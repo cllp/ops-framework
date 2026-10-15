@@ -694,6 +694,12 @@ export function webblasarensInspelare(miljo = {}) {
           if (gjort) return;
           gjort = true;
           r.onstop = null;
+          /*
+           * ⛔ OCKSÅ `ondataavailable` (granskningen av PR 392, MÅSTE 1). Gick taket ut stod den kvar och skrev till `bitar`, som nästa
+           * `starta` byter till en ny lista. En bit som kom efter taket hamnade då FÖRST i nästa omgångs ljud: mätt 8 byte i stället
+           * för 2, med det personen sade förra gången i början. Vid ett vanligt stopp har webbläsaren redan lämnat sista biten.
+           */
+          r.ondataavailable = null;
           // ⛔ Reserv är mp4: Safari sparar utan mimeType på bitarna. webm som
           // reserv hade gett en fil Chromium inte kunde spela när den egentligen
           // var AAC i en mp4-container.
@@ -726,6 +732,8 @@ export function webblasarensInspelare(miljo = {}) {
     kasta() {
       // ⛔ (0.107.0) Ett försök vars mikrofon ännu inte öppnats stängs när den öppnas (`hamta`), i stället för att börja spela in.
       forsok += 1;
+      // ⛔ Samma skäl som i `stoppa`: en bit som kommer efter kastet får inte hamna i nästa omgång (PR 392, MÅSTE 1).
+      if (rec) rec.ondataavailable = null;
       if (rec && rec.state !== "inactive") {
         rec.onstop = null;
         try {

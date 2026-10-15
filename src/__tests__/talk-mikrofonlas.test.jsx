@@ -431,3 +431,98 @@ describe("B. inspelaren släpper allt den öppnat", () => {
     expect(LJUDKONTEXT_VANTA_MS).toBeGreaterThan(400);
   });
 });
+
+describe("taket i stoppa (granskningen av PR 392, MÅSTE 1)", () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  /**
+   * En inspelare vars stop-event dröjer. `fordrojning[i]` är hur länge inspelare nummer i väntar efter `stop()` innan den lämnar sin
+   * sista bit (`text[i]`) och sitt stop-event. `Infinity` betyder aldrig.
+   * @param {number[]} fordrojning @param {string[]} text
+   */
+  function sengInspelning(fordrojning, text) {
+    /** @type {any[]} */
+    const spar = [];
+    let n = 0;
+    class MR {
+      constructor() {
+        this.nummer = n;
+        n += 1;
+        this.state = "inactive";
+        this.mimeType = "audio/mp4";
+        /** @type {any} */ this.ondataavailable = null;
+        /** @type {any} */ this.onstop = null;
+      }
+      start() {
+        this.state = "recording";
+      }
+      stop() {
+        this.state = "inactive";
+        const ms = fordrojning[this.nummer];
+        if (!Number.isFinite(ms)) return;
+        setTimeout(() => {
+          this.ondataavailable?.({ data: new Blob([text[this.nummer]], { type: "audio/mp4" }) });
+          this.onstop?.();
+        }, ms);
+      }
+    }
+    const md = {
+      getUserMedia: async () => {
+        const t = { muted: false, readyState: "live", enabled: true, stoppad: false, stop() { this.stoppad = true; this.readyState = "ended"; } };
+        spar.push(t);
+        return { getTracks: () => [t], getAudioTracks: () => [t] };
+      },
+    };
+    const insp = webblasarensInspelare({ mediaDevices: /** @type {any} */ (md), MediaRecorder: /** @type {any} */ (MR), AudioContext: undefined });
+    return { insp, spar };
+  }
+
+  it("⛔ ett stop-event som aldrig kommer: stoppa svarar efter STOPP_VANTA_MS och släpper spåret", async () => {
+    const { insp, spar } = sengInspelning([Infinity], ["x"]);
+    await insp.starta();
+    let svar = /** @type {any} */ (null);
+    insp.stoppa().then((v) => {
+      svar = v;
+    });
+    await vi.advanceTimersByTimeAsync(STOPP_VANTA_MS - 10);
+    expect(svar).toBeNull();
+    await vi.advanceTimersByTimeAsync(20);
+    // Röd utan taket: löftet löstes aldrig, fältet stod på Sparar och mikrofonspärren släpptes aldrig.
+    expect(svar).not.toBeNull();
+    expect(svar.diagnos).toMatchObject({ stannadeSjalv: false, stoppetHann: false });
+    expect(spar[0].stoppad).toBe(true);
+  });
+
+  it("⛔ en bit som kommer efter taket hamnar inte i nästa omgångs ljud", async () => {
+    // Omgång 1 lämnar 6 byte "GAMMAL" 3 s efter stop(), alltså efter taket. Omgång 2 lämnar 2 byte "ny" direkt.
+    const { insp } = sengInspelning([3000, 0], ["GAMMAL", "ny"]);
+    await insp.starta();
+    const forsta = insp.stoppa();
+    await vi.advanceTimersByTimeAsync(STOPP_VANTA_MS + 10);
+    const ett = await forsta;
+    expect(ett.diagnos?.stoppetHann).toBe(false);
+    expect(ett.blob.size).toBe(0);
+    await insp.starta();
+    // Förra omgångens bit kommer nu, medan omgång 2 spelar in.
+    await vi.advanceTimersByTimeAsync(1500);
+    const andra = insp.stoppa();
+    await vi.advanceTimersByTimeAsync(10);
+    const tva = await andra;
+    // Röd utan nollningen av `ondataavailable`: 8 byte, förra omgångens ljud först.
+    expect(tva.blob.size).toBe(2);
+  });
+
+  it("⛔ kasta: en bit som kommer efter kastet hamnar inte i nästa omgångs ljud", async () => {
+    const { insp } = sengInspelning([500, 0], ["GAMMAL", "ny"]);
+    await insp.starta();
+    insp.kasta();
+    await insp.starta();
+    await vi.advanceTimersByTimeAsync(600);
+    const andra = insp.stoppa();
+    await vi.advanceTimersByTimeAsync(10);
+    const tva = await andra;
+    // Röd utan nollningen i `kasta`: 8 byte.
+    expect(tva.blob.size).toBe(2);
+  });
+});
