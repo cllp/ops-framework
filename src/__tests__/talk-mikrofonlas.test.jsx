@@ -717,3 +717,50 @@ describe("genvägen i stoppa tappar inte sista biten (granskningen av PR 392 var
     expect(ut.diagnos).toMatchObject({ stannadeSjalv: false, stoppetHann: true });
   });
 });
+
+describe("stoppSett nollas i varje starta (granskningen av PR 392 varv 3, KAN)", () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it("⛔ en omgång där inspelaren stannade av sig själv bär inte sitt stopp in i nästa", async () => {
+    /** @type {any[]} */
+    const inspelare = [];
+    class MR {
+      constructor() {
+        this.state = "inactive";
+        this.mimeType = "audio/mp4";
+        /** @type {any} */ this.ondataavailable = null;
+        /** @type {any} */ this.onstop = null;
+        inspelare.push(this);
+      }
+      start() {
+        this.state = "recording";
+      }
+      stop() {
+        if (this.state === "inactive") return;
+        this.state = "inactive";
+        queueMicrotask(() => this.onstop?.());
+      }
+    }
+    const spar = () => ({ muted: false, readyState: "live", enabled: true, stop() { this.readyState = "ended"; } });
+    const insp = webblasarensInspelare({ mediaDevices: /** @type {any} */ ({ getUserMedia: async () => { const t = spar(); return { getTracks: () => [t], getAudioTracks: () => [t] }; } }), MediaRecorder: /** @type {any} */ (MR), AudioContext: undefined });
+    // Omgång 1: inspelaren stannar av sig själv och skickar sitt stop-event innan Klar.
+    await insp.starta();
+    inspelare[0].state = "inactive";
+    inspelare[0].onstop?.();
+    expect((await insp.stoppa()).diagnos?.stannadeSjalv).toBe(true);
+    // Omgång 2: inactive, men sista biten (5 byte) och stop ligger i kö.
+    await insp.starta();
+    inspelare[1].state = "inactive";
+    setTimeout(() => {
+      inspelare[1].ondataavailable?.({ data: new Blob(["sista"], { type: "audio/mp4" }) });
+      inspelare[1].onstop?.();
+    }, 0);
+    const svar = insp.stoppa();
+    await vi.advanceTimersByTimeAsync(10);
+    const ut = await svar;
+    // Röd utan nollningen: omgång 1:s stopp gällde också omgång 2, genvägen togs, och ljudet blev 0 byte.
+    expect(ut.blob.size).toBe(5);
+    expect(ut.diagnos?.stannadeSjalv).toBe(false);
+  });
+});
