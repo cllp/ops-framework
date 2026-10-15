@@ -674,3 +674,46 @@ describe("en close() som aldrig löser sig väntas på en gång (granskningen av
     expect(ut.diagnos?.forraLjudkontext).toBeNull();
   });
 });
+
+describe("genvägen i stoppa tappar inte sista biten (granskningen av PR 392 varv 2, KAN 1)", () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it("⛔ inspelaren är inactive men sista biten och stop ligger i kö: biten kommer med", async () => {
+    /** @type {any} */
+    let rec = null;
+    class MR {
+      constructor() {
+        this.state = "inactive";
+        this.mimeType = "audio/mp4";
+        /** @type {any} */ this.ondataavailable = null;
+        /** @type {any} */ this.onstop = null;
+        rec = this;
+      }
+      start() {
+        this.state = "recording";
+      }
+      stop() {
+        if (this.state === "inactive") return;
+        this.state = "inactive";
+        queueMicrotask(() => this.onstop?.());
+      }
+    }
+    const t = { muted: false, readyState: "live", enabled: true, stop() { this.readyState = "ended"; } };
+    const insp = webblasarensInspelare({ mediaDevices: /** @type {any} */ ({ getUserMedia: async () => ({ getTracks: () => [t], getAudioTracks: () => [t] }) }), MediaRecorder: /** @type {any} */ (MR), AudioContext: undefined });
+    await insp.starta();
+    // Spåret tar slut: som i specifikationen blir state inactive först, och sista biten (5 byte) och stop kommer i en köad uppgift.
+    rec.state = "inactive";
+    t.readyState = "ended";
+    setTimeout(() => {
+      rec.ondataavailable?.({ data: new Blob(["sista"], { type: "audio/mp4" }) });
+      rec.onstop?.();
+    }, 0);
+    const svar = insp.stoppa();
+    await vi.advanceTimersByTimeAsync(10);
+    const ut = await svar;
+    // Röd före rättelsen: genvägen svarade direkt på state, nollade ondataavailable, och ljudet blev 0 byte.
+    expect(ut.blob.size).toBe(5);
+    expect(ut.diagnos).toMatchObject({ stannadeSjalv: false, stoppetHann: true });
+  });
+});

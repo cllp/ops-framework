@@ -555,6 +555,8 @@ export function webblasarensInspelare(miljo = {}) {
   /** Det `starta` såg om strömmen, för `diagnos`. */
   let tystVidStart = false;
   let omhamtad = false;
+  /** Om den pågående inspelarens stop-event redan kommit (KAN 1, varv 2). */
+  let stoppSett = false;
   /** @type {Sparlage[]} */
   let sparVidStart = [];
   let ljudkontextVidStart = "ingen";
@@ -654,6 +656,15 @@ export function webblasarensInspelare(miljo = {}) {
         rec.ondataavailable = (e) => {
           if (e.data && e.data.size > 0) bitar.push(e.data);
         };
+        /*
+         * ⛔ OM STOPP-EVENTET REDAN KOMMIT (granskningen av PR 392 varv 2, KAN 1). Enligt specifikationen blir `state` "inactive" först,
+         * och sista `dataavailable` och `stop` kommer i en köad uppgift. Bara när `stop` faktiskt setts har webbläsaren lämnat allt,
+         * och bara då får `stoppa` svara direkt. `stoppa` byter hanteraren mot sin egen.
+         */
+        stoppSett = false;
+        rec.onstop = () => {
+          stoppSett = true;
+        };
         rec.start(250);
       } catch (fel) {
         rec = null;
@@ -689,7 +700,8 @@ export function webblasarensInspelare(miljo = {}) {
         const tystVidStopp = tystStrom(strom);
         const sparVidStopp = sparLage(strom);
         const ljudkontextVidStopp = String(ctx?.state ?? "ingen");
-        const stannadeSjalv = r.state === "inactive";
+        // ⛔ Stannad betyder att stop-eventet redan kommit (KAN 1, varv 2), inte bara att `state` är "inactive".
+        const stannadeSjalv = r.state === "inactive" && stoppSett;
         let gjort = false;
         /** @param {boolean} stoppetHann */
         const avsluta = (stoppetHann) => {
@@ -724,6 +736,8 @@ export function webblasarensInspelare(miljo = {}) {
         }
         r.onstop = () => avsluta(true);
         vanta(() => avsluta(false), STOPP_VANTA_MS);
+        // ⛔ En inspelare som är "inactive" men vars stop-event ligger i kö får inget nytt `stop()`: eventet kommer ändå, under taket.
+        if (r.state === "inactive") return;
         try {
           r.stop();
         } catch {
