@@ -889,7 +889,7 @@ export function menyPilar(e) {
  *
  * @param {{ platser: readonly { id: string, namn: string }[], plats: string, onPlats: (id: string) => void }} props
  */
-function PlatsValjare({ platser, plats, onPlats }) {
+export function PlatsValjare({ platser, plats, onPlats }) {
   const [oppen, setOppen] = useState(false);
   const namn = platser.find((p) => p.id === plats)?.namn ?? plats;
   return (
@@ -937,7 +937,7 @@ function PlatsValjare({ platser, plats, onPlats }) {
  *
  * @param {{ taggar: ReadonlyArray<{ tagg: string, antal: number }>, valda: readonly string[], onValda: (valda: string[]) => void }} props
  */
-function TaggFilter({ taggar, valda, onValda }) {
+export function TaggFilter({ taggar, valda, onValda }) {
   const [oppen, setOppen] = useState(false);
   const aktiv = valda.length > 0;
   return (
