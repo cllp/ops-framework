@@ -56,3 +56,25 @@ describe("en bild öppnas stor vid tryck", () => {
     expect(screen.queryByRole("button")).toBeNull();
   });
 });
+
+describe("bläddra mellan trådens bilder (#369)", () => {
+  it("med två bilder visar den stora vyn 1 av 2, och Nästa och piltangenten växlar", async () => {
+    const PNG2 = "data:image/png;base64,iVBORw0KGgoB";
+    const andra = { id: "a2", text: "Och här", skapad: "2026-10-14T09:05:00.000Z", skapadAv: { uid: "bo", namn: "Bo Lind" }, bilaga: { dataUrl: PNG2, namn: "andra.png", typ: "image/png", tecken: PNG2.length } };
+    render(<OpsKommentarer kommentarer={[kommentar, andra]} uid="anna" onSkriv={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: "Visa större: Bilaga från Bo Lind: skarm.png" }));
+    const dialog = await screen.findByRole("dialog", { name: "skarm.png" });
+    expect(dialog.querySelector("[data-bilaga-plats]")?.textContent).toBe("1 av 2");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Nästa bild" }));
+    expect(dialog.querySelector("[data-bilaga-stor]")?.getAttribute("src")).toBe(PNG2);
+    fireEvent.keyDown(/** @type {Element} */ (dialog.querySelector("[data-bilaga-galleri]")), { key: "ArrowRight" });
+    expect(dialog.querySelector("[data-bilaga-stor]")?.getAttribute("src")).toBe(PNG);
+  });
+
+  it("⛔ med en enda bild finns ingen bläddring", async () => {
+    render(<OpsKommentarer kommentarer={[kommentar]} uid="anna" onSkriv={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: "Visa större: Bilaga från Bo Lind: skarm.png" }));
+    const dialog = await screen.findByRole("dialog", { name: "skarm.png" });
+    expect(within(dialog).queryByRole("button", { name: "Nästa bild" })).toBeNull();
+  });
+});

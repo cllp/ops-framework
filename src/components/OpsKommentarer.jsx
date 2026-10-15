@@ -1,5 +1,6 @@
 import { useContext, useId, useState } from "react";
-import { KOMMENTARBILAGA_TYPER, MAX_HANDELSEKOMMENTAR, MAX_KOMMENTARBILAGA } from "../lib/handelsemodell.js";
+import { KOMMENTARBILAGA_TYPER, MAX_HANDELSEKOMMENTAR, MAX_KOMMENTARBILAGA, kommentarbilagaFel } from "../lib/handelsemodell.js";
+import { isImage } from "../lib/file.js";
 import { formatDagOchKlockslag } from "../lib/format.js";
 import { OppnaHandelseKontext } from "../lib/handelsekontext.js";
 import { handelseIdUrAdress } from "../lib/handelsepanel.js";
@@ -164,7 +165,9 @@ function OpsKommentarerRitad({
         </p>
       ) : (
         <ul className="m-0 flex list-none flex-col gap-2 p-0">
-          {kommentarer.map((/** @type {any} */ k) => {
+          {/* #369: alla bilder i tråden, så den stora vyn kan bläddra mellan dem. */}
+                    {kommentarer.map((/** @type {any} */ k) => {
+            const galleri = tradensBilder(kommentarer, (/** @type {any} */ x) => `${bilagaText} ${personnamn(x.skapadAv?.namn ?? "", x.skapadAv?.uid ?? "").text}: ${x.bilaga.namn}`);
             const avUid = k.skapadAv?.uid ?? null;
             const min = avUid !== null && avUid === uid;
             const { text: namn } = personnamn(k.skapadAv?.namn ?? "", avUid ?? "");
@@ -180,7 +183,7 @@ function OpsKommentarerRitad({
                     <span className="text-meta text-ink-muted">{formatDagOchKlockslag(k.skapad, { locale })}</span>
                   </div>
                   {k.text ? <p className="m-0 whitespace-pre-wrap break-words text-brod text-ink">{k.text}</p> : null}
-                  {k.bilaga?.dataUrl ? <Kommentarbilaga bilaga={k.bilaga} namn={namn} bilagaText={bilagaText} sprak={sprak} /> : null}
+                  {k.bilaga?.dataUrl ? <Kommentarbilaga bilaga={k.bilaga} namn={namn} bilagaText={bilagaText} sprak={sprak} galleri={galleri} /> : null}
                 </div>
                 {min && onTaBort ? (
                   <OpsButton variant="ghost" size="sm" busy={tarBort === k.id} disabled={tarBort !== null} ariaLabel={`${taBortEtikett}, ${(k.text || k.bilaga?.namn || "").slice(0, 40)}`} onClick={() => taBort(k.id)}>
@@ -244,10 +247,10 @@ export const ORD_OPSKOMMENTARER = {
  * ⛔ INGEN `<iframe>` FÖR EN PDF, av samma skäl som i `OpsFilePicker`: den ritas olika i varje webbläsare, och en tom ruta ser ut
  * som att filen inte kom fram.
  *
- * @param {{ bilaga: import("../lib/file.js").Bilaga, namn: string, bilagaText: string, sprak?: string }} props
+ * @param {{ bilaga: import("../lib/file.js").Bilaga, namn: string, bilagaText: string, sprak?: string, galleri?: { bilaga: any, alt: string }[] }} props
  */
-function Kommentarbilaga({ bilaga, namn, bilagaText, sprak }) {
-  return <BilagaVisning bilaga={bilaga} alt={`${bilagaText} ${namn}: ${bilaga.namn}`} sprak={sprak} />;
+function Kommentarbilaga({ bilaga, namn, bilagaText, sprak, galleri }) {
+  return <BilagaVisning bilaga={bilaga} alt={`${bilagaText} ${namn}: ${bilaga.namn}`} sprak={sprak} galleri={galleri} />;
 }
 
 /**
@@ -314,3 +317,16 @@ export const ORD_OPSKOMMENTARSRAD = {
   flerNya: { sv: "nya kommentarer", en: "new comments" },
   namnSaknas: { sv: "Namn saknas", en: "Name missing" },
 };
+
+/**
+ * Trådens bilder i ordning, för bläddringen i den stora vyn (#369).
+ *
+ * @param {any[]} kommentarer
+ * @param {(k: any) => string} altFor
+ * @returns {{ bilaga: any, alt: string }[]}
+ */
+function tradensBilder(kommentarer, altFor) {
+  return kommentarer
+    .filter((k) => k?.bilaga?.dataUrl && isImage(k.bilaga.typ) && !kommentarbilagaFel(k.bilaga))
+    .map((k) => ({ bilaga: k.bilaga, alt: altFor(k) }));
+}
