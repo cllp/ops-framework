@@ -163,6 +163,41 @@ describe("hållet har ett tak (granskningen av PR 392 varv 2, MÅSTE 1)", () => 
   });
 });
 
+describe("ett tappat fel är en siffra (granskningen av PR 392 varv 2, BÖR)", () => {
+  let spion;
+  beforeEach(() => {
+    spion = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    spion.mockRestore();
+    vi.useRealTimers();
+  });
+
+  it("⛔ fel som kom medan mottagaren var upptagen räknas, och nästa fel som når den bär antalet", async () => {
+    const fanga = vi.fn(() => new Promise((klar) => setTimeout(klar, 300)));
+    const av = registreraFelmottagare({ fanga, satt: vi.fn() });
+    try {
+      rapporteraFel(new Error("OpsCalendar"), { yta: "OpsCalendar" });
+      await vi.advanceTimersByTimeAsync(50);
+      rapporteraFel(new Error("OpsTalk"), { yta: "OpsTalk" });
+      rapporteraFel(new Error("useSamtal"), { yta: "useSamtal" });
+      await vi.advanceTimersByTimeAsync(300);
+      rapporteraFel(new Error("nästa"), { yta: "OpsForslag" });
+      expect(fanga).toHaveBeenCalledTimes(2);
+      // Första leveransen bär inget fält: inget var tappat. Röd utan räknaren: den andra saknar `tappade`.
+      expect(/** @type {any} */ (fanga.mock.calls[0])[1]).toEqual({ yta: "OpsCalendar" });
+      expect(/** @type {any} */ (fanga.mock.calls[1])[1]).toEqual({ yta: "OpsForslag", tappade: 2 });
+      // Räknaren nollas när antalet levererats.
+      await vi.advanceTimersByTimeAsync(300);
+      rapporteraFel(new Error("sedan"));
+      expect(/** @type {any} */ (fanga.mock.calls[2])[1]).toBeUndefined();
+    } finally {
+      av();
+    }
+  });
+});
+
 /** En vy som kastar så fort den monteras. */
 function Trasig() {
   throw new Error("vyn gick sönder");

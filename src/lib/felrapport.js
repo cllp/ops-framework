@@ -35,7 +35,7 @@
  * @typedef {object} Felmottagare
  * @property {(fel: unknown, sammanhang?: Record<string, unknown>) => void | Promise<unknown>} fanga ⛔ (0.107.0) Skriver mottagaren
  *   asynkront ska den RETURNERA löftet: medan det inte avgjorts, högst `FELMOTTAGARE_HALL_MS`, går ett nytt fel bara till konsolen,
- *   inte tillbaka hit. Se
+ *   inte tillbaka hit, och räknas i `tappade` på nästa fel som når hit. Se
  *   `rapporteraFel` och "EN MOTTAGARE SOM RAPPORTERAR SINA EGNA FEL".
  * @property {(anvandare: { uid: string, groupId?: string } | null) => void} satt
  */
@@ -64,6 +64,12 @@
  * också TALK:s diagnos, bara gått till konsolen, just när det är svårast att
  * mäta på annat sätt. Taket bryter ändå loopen: mottagarens `.catch` körs
  * innan dess löfte avgörs, alltså medan hållet står.
+ *
+ * ⛔ ETT TAPPAT FEL ÄR EN SIFFRA, INTE EN TYSTNAD (varv 2, BÖR). Ett fel som
+ * kommer medan mottagaren är upptagen går bara till konsolen, och räknas.
+ * Nästa fel som når mottagaren bär antalet som `tappade` i sammanhanget, så
+ * att ett bortfall går att skilja från inget fel (regel 5). Konsolen får
+ * alltid alla.
  */
 
 /** Längsta tid en mottagare hålls medan löftet från `fanga` inte avgjorts. */
@@ -71,6 +77,8 @@ export const FELMOTTAGARE_HALL_MS = 5000;
 
 /** Mottagare som hanterar ett fel, med en egen post per håll. @type {Map<Felmottagare, object>} */
 const hallna = new Map();
+/** Fel som gick bara till konsolen medan mottagaren var upptagen, sedan förra leveransen. @type {Map<Felmottagare, number>} */
+const tappade = new Map();
 /**
  * Håller mottagaren och lämnar en funktion som släpper just det hållet. Ett senare håll släpps inte av ett tidigare.
  * @param {Felmottagare} m
@@ -159,14 +167,18 @@ export function rapporteraFel(fel, sammanhang, felmottagare) {
   const mottagare = felmottagare ?? forvaldFelmottagare();
   if (!mottagare || typeof mottagare.fanga !== "function") return;
   if (hallna.has(mottagare)) {
+    tappade.set(mottagare, (tappade.get(mottagare) ?? 0) + 1);
     // eslint-disable-next-line no-console
     console.error("ops-framework: felet kom medan felmottagaren hanterade ett annat fel, och gick bara till konsolen");
     return;
   }
+  const antalTappade = tappade.get(mottagare) ?? 0;
+  tappade.delete(mottagare);
+  const ut = antalTappade > 0 ? { ...(sammanhang ?? {}), tappade: antalTappade } : sammanhang;
   const slapp = halla(mottagare);
   let asynkron = false;
   try {
-    const svar = /** @type {unknown} */ (mottagare.fanga(fel, sammanhang));
+    const svar = /** @type {unknown} */ (mottagare.fanga(fel, ut));
     if (svar && typeof (/** @type {any} */ (svar).then) === "function") {
       /** @type {Promise<unknown>} */ (svar).then(slapp, (mottagarfel) => {
         slapp();
