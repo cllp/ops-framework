@@ -25,6 +25,8 @@
  */
 
 export { createCaseMirror } from "./caseMirror.js";
+// ⛔ Samma `buildEntry` som formuläret, på servern utan React (#279). `caseModel.js` importerar ingenting.
+export { createCaseModel } from "../lib/caseModel.js";
 export { createActivityWriter } from "./aktivitet.js";
 
 /*

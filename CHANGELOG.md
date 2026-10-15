@@ -9,6 +9,21 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.109.0
+
+Paket P3 (ramverket: vakter, prov och små UI-fixar), Grok 2026-10-15. CP-regel: många ärenden per PR.
+
+- **`createCaseModel` på nodsidan (#279).** `ops-framework/node` exporterar samma `createCaseModel` som huvudingången, så att en server bygger inkorgsrader med formulärets `buildEntry` utan React och utan spegel. `src/lib/caseModel.js` importerar ingenting. Prov: `nod-casemodel.test.js` (rött före).
+- **Regeln läser filen en gång (#312 punkt 1).** `opsMarketHarFil` läser filen med `let` i stället för `existsAfter` och två `getAfter`. `opsArAktivTyp` lämnas: den står i samtalens grundtext, som proven låser byte för byte mot 0.67.0, och en ändring där är ett eget beslut. Regelproven 556 av 556 gröna, också mutationerna i `chattbilagor.test.mjs`. Reglerna deployas före klienten som vanligt.
+- **README om föräldralösa filer (#312 punkt 3):** `av` blir den som tog över filen; risken är teoretisk och står nu i README.
+- **"musik" ger music först (#269 punkt 2).** Synonymlistans första ord väger tyngre (0,9) än de följande (0,85). Rött före: audio-lines först.
+- **Taggförslagen med tangentbordet (#372, andra halvan).** Pil upp och ned markerar ett förslag, Enter väljer det, och fokus stannar i fältet med `aria-activedescendant` och `aria-controls`. Rött före.
+- **Ratten är matt (#371).** Plan yta i stället för gradient, och skenet runt nålen är borttaget, i både ljust och mörkt tema.
+
+Kvar i P3 (nästa varv): #370 (fälla in ikonerna i toppraden), #372 första halvan (pilnavigering i Plats och Taggar), #272 (count offline och emulatorprov), #269 punkt 1 och 3, #40 (nodsidans beroenden), #7 (vakten mot appinnehåll), #367 (ikonväljare i inställningarna), #368 (grupptyper, kräver design).
+
+---
+
 ## 0.108.0
 
 ### GitHub-etiketten på gruppkalendern (cllp/lifehub.app#259, steg 3, beslut 1)

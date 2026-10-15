@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import * as Popover from "@radix-ui/react-popover";
 import * as Tabs from "@radix-ui/react-tabs";
 import { Check, File as FilIkon, FileText, Globe, Image as BildIkon, Library, Mic, Plus, SlidersHorizontal, Tag, X } from "lucide-react";
@@ -1032,6 +1032,11 @@ function TaggRad({ post, kanAndra, forslag, valda = [], onFilter, onSpara }) {
     spara(ny);
   };
   const forslagen = forslag.filter((t) => !lista.includes(t) && t.includes(normaliseraTagg(utkast))).slice(0, 8);
+  // ⛔ TAGGFÖRSLAGEN MED TANGENTBORDET (#372): pil upp och ned flyttar markeringen i förslagen, Enter väljer den. Fokus stannar i
+  // fältet (aria-activedescendant), så Tab gör inte blur för att nå ett förslag.
+  const [aktivt, setAktivt] = useState(-1);
+  const listId = useId();
+  const markerat = aktivt >= 0 && aktivt < forslagen.length ? aktivt : -1;
   if (!kanAndra && lista.length === 0) return null;
   return (
     <div data-bibliotek-taggar="" className="flex min-w-0 flex-col gap-1">
@@ -1073,15 +1078,24 @@ function TaggRad({ post, kanAndra, forslag, valda = [], onFilter, onSpara }) {
                 maxLength={MAX_TAGGLANGD}
                 aria-label="Ny tagg"
                 placeholder="tagg"
+                aria-autocomplete="list"
+                aria-controls={forslagen.length > 0 ? listId : undefined}
+                aria-activedescendant={markerat >= 0 ? `${listId}-${markerat}` : undefined}
                 onChange={(e) => {
                   const v = e.target.value;
+                  setAktivt(-1);
                   if (v.endsWith(",")) laggTill(v);
                   else setUtkast(v);
                 }}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") {
+                  if ((e.key === "ArrowDown" || e.key === "ArrowUp") && forslagen.length > 0) {
                     e.preventDefault();
-                    laggTill(utkast);
+                    const steg = e.key === "ArrowDown" ? 1 : -1;
+                    setAktivt((markerat + steg + forslagen.length + (markerat < 0 && steg < 0 ? 1 : 0)) % forslagen.length);
+                  } else if (e.key === "Enter") {
+                    e.preventDefault();
+                    setAktivt(-1);
+                    laggTill(markerat >= 0 ? forslagen[markerat] : utkast);
                   } else if (e.key === "Escape") {
                     avbruten.current = true;
                     setUtkast("");
@@ -1098,16 +1112,19 @@ function TaggRad({ post, kanAndra, forslag, valda = [], onFilter, onSpara }) {
                 className="h-8 w-36 rounded-full border border-line bg-transparent px-3 text-meta text-ink outline-none focus:border-accent"
               />
               {forslagen.length > 0 ? (
-                <span role="listbox" aria-label="Förslag" className={cx("absolute top-9 left-0 z-(--z-dropdown) flex min-w-32 flex-col p-1", radBehallare())}>
-                  {forslagen.map((t) => (
+                <span id={listId} role="listbox" aria-label="Förslag" className={cx("absolute top-9 left-0 z-(--z-dropdown) flex min-w-32 flex-col p-1", radBehallare())}>
+                  {forslagen.map((t, i) => (
                     <button
                       key={t}
+                      id={`${listId}-${i}`}
                       type="button"
                       role="option"
-                      aria-selected={false}
+                      tabIndex={-1}
+                      aria-selected={i === markerat}
+                      data-markerat={i === markerat ? "" : undefined}
                       onMouseDown={(e) => e.preventDefault()}
                       onClick={() => laggTill(t)}
-                      className={radKlass()}
+                      className={radKlass({ active: i === markerat })}
                     >
                       <span aria-hidden="true" className={cx("size-2 shrink-0 rounded-full", taggKlass(t))} />
                       <span className="min-w-0 flex-1 truncate">{t}</span>

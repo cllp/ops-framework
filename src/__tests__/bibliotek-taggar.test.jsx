@@ -135,6 +135,33 @@ function oppnaFalt(rubrik) {
   return within(k).getByRole("textbox", { name: "Ny tagg" });
 }
 
+describe("⛔ taggförslagen med tangentbordet (#372)", () => {
+  it("pil ned markerar ett förslag med aria-activedescendant, Enter väljer det, och fokus stannar i fältet", async () => {
+    /** @type {any[]} */
+    const anrop = [];
+    render(<Harness start={[post("a", "Tankning", ["kvitto"]), post("b", "Lunch", ["mat", "middag"])]} anrop={anrop} />);
+    const falt = oppnaFalt("Tankning");
+    fireEvent.change(falt, { target: { value: "m" } });
+    const lista = within(kortet("Tankning")).getByRole("listbox", { name: "Förslag" });
+    expect(falt.getAttribute("aria-controls")).toBe(lista.id);
+    expect(falt.getAttribute("aria-activedescendant")).toBeNull();
+    fireEvent.keyDown(falt, { key: "ArrowDown" });
+    fireEvent.keyDown(falt, { key: "ArrowDown" });
+    const andra = within(lista).getAllByRole("option")[1];
+    // Rött före #372: inga pilar, inget markerat förslag.
+    expect(falt.getAttribute("aria-activedescendant")).toBe(andra.id);
+    expect(andra.getAttribute("aria-selected")).toBe("true");
+    fireEvent.keyDown(falt, { key: "ArrowUp" });
+    fireEvent.keyDown(falt, { key: "ArrowUp" });
+    const sista = within(lista).getAllByRole("option").at(-1);
+    expect(falt.getAttribute("aria-activedescendant")).toBe(sista?.id);
+    fireEvent.keyDown(falt, { key: "ArrowDown" });
+    const forsta = within(lista).getAllByRole("option")[0];
+    fireEvent.keyDown(falt, { key: "Enter" });
+    await waitFor(() => expect(anrop.at(-1)).toEqual({ id: "a", taggar: ["kvitto", forsta.textContent] }));
+  });
+});
+
 describe("⛔ taggarna i vyn", () => {
   it("Taggar bredvid sökfältet filtrerar med flerval (OCH), räknar valen, Rensa alla släpper, och ett tryck till tar bort ett val", () => {
     render(<Harness start={[post("a", "Tankning", ["kvitto", "bil"]), post("b", "Lunch", ["kvitto"]), post("c", "Protokoll", undefined)]} />);
