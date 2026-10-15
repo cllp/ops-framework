@@ -401,16 +401,23 @@ export function createSamtalskalla(konfig) {
    * ögonblicksbild, en flik som kopplas upp igen), och då räknas ingenting lokalt: svaret är `null`. Mätt: Bo skickar två samtidigt,
    * lyssnaren på ETT meddelande gav 1 olästa mot sant 2.
    *
-   * ⛔ LÄSMÄRKET LÄSES FÖR ETT MEDDELANDE FRÅN NÅGON ANNAN (1 dokument, mot sidan om 50). En annan enhet kan ha läst samtalet sedan
-   * raden senast lästes, och 2 olästa mot sant 1 var vad omgranskningen mätte. Kontrakten har ingen prenumeration på ETT dokument,
-   * och en fråga på samlingen `last` nekas av reglerna (de släpper bara in läsningen av det egna dokumentet), så läsmärket syns när
-   * nästa meddelande kommer och vid fokus, som i 0.105.0 men för ett dokument i stället för 51. Ett eget meddelande läser ingenting.
+   * ⛔ LÄSMÄRKET LÄSES FÖR VARJE MEDDELANDE, ÄVEN ETT EGET (1 dokument, mot sidan om 50). En annan enhet kan ha läst samtalet sedan
+   * raden senast lästes: 2 olästa mot sant 1 för ett meddelande från någon annan (omgranskningen), och för ett eget meddelande
+   * står datorn kvar på 1 fast den som svarar från telefonen har läst samtalet där (omgranskningens andra varv). Kontrakten har
+   * ingen prenumeration på ETT dokument, och en fråga på samlingen `last` nekas av reglerna (de släpper bara in läsningen av det
+   * egna dokumentet), så läsmärket syns när nästa meddelande kommer och vid fokus, som i 0.105.0 men för ett dokument i stället för 51.
+   *
+   * ⛔ `oppet`: SAMTALET ÄR ÖPPET OCH ETT MEDDELANDE KOMMER FRÅN NÅGON ANNAN. Då räknas ingenting och ingenting läses: raden får bara
+   * ett nytt `senaste` och ett längre `fonster`, och de olästa lämnas som de var. Det öppna samtalet markeras läst efter renderingen
+   * (en skrivning över nätet), och en läsning av raden dessförinnan fick läsmärket från innan och visade 1 i en stund (mätt: läsmärket
+   * skrivs 40 ms senare, `onOlasta` fick `[1, 1]` för två meddelanden). Det sanna värdet kommer när läsmärket är skrivet: vyn anropar
+   * `onLast`, och inkorgen läses om. Går fönstret inte att föra fram lämnas det (`undefined`), så att nästa meddelande läser raden.
    *
    * ⛔ `null` BETYDER "LÄS OM", och det gäller när raden inte går att räkna med säkerhet: lyssnaren slog ihop meddelanden, summan är
    * redan ett golv (`olastaFler`), meddelandet gör den till ett (sidan blir full med dess äldsta ändå oläst), meddelandet kommer i
    * oordning eller delar tid med ett annat så att det som faller ur fönstret inte kan pekas ut, läsmärket gick bakåt, eller raden
    * saknar fönstret (läst före levande inkorg). Hellre en läsning för mycket än en siffra som ser exakt ut och inte är det (regel 5).
-   * Ett eget meddelande i en rad utan fönster (en rad `laggIn` lagt lokalt) får bara ett nytt `senaste`, som förut.
+   * Ett eget meddelande eller ett meddelande i det öppna samtalet, i en rad utan fönster (en rad `laggIn` lagt lokalt), får bara ett nytt `senaste`, som förut.
    *
    * `forsta` (ämnets härledda rubrik) fylls på så länge fönstret inte är fullt, och lämnas annars: i ett fullt fönster är de äldsta
    * lästa ändå inte samtalets första (se `inkorgsrad`).
@@ -419,21 +426,28 @@ export function createSamtalskalla(konfig) {
    * @param {import("../lib/samtal.js").Meddelande & { id: string }} m Det senaste meddelandet i lyssnarens bild.
    * @param {string} uid
    * @param {(import("../lib/samtal.js").Meddelande & { id: string }) | null | undefined} foregaende Det näst senaste i samma bild, `null` om det inte finns något, `undefined` om anroparen inte vet.
+   * @param {boolean} [oppet] Samtalet är öppet nu: ett meddelande från någon annan ändrar bara `senaste` och `fonster`.
    * @returns {Promise<Inkorgsrad | null>}
    */
-  async function inkorgsradMed(rad, m, uid, foregaende) {
+  async function inkorgsradMed(rad, m, uid, foregaende, oppet = false) {
     if (!m || !rad) return null;
     const egen = m.av === uid;
+    const oppetAnnans = oppet && !egen;
     const tider = rad.fonster;
-    if (!Array.isArray(tider)) return egen ? { ...rad, senaste: m } : null;
-    if (!Array.isArray(rad.olastaRader) || foregaende === undefined || rad.olastaFler === true) return null;
+    if (!Array.isArray(tider)) return egen || oppet ? { ...rad, senaste: m } : null;
+    // Ett öppet samtal läses inte om här (läsmärket är inte skrivet än): raden får ett nytt `senaste` och tappar fönstret.
+    const ejRaknat = () => (oppetAnnans ? { ...rad, senaste: m, fonster: undefined } : null);
+    if (!Array.isArray(rad.olastaRader) || foregaende === undefined || rad.olastaFler === true) return ejRaknat();
     // ⛔ Slog lyssnaren ihop meddelanden? Det näst senaste ska vara det raden redan har.
-    if ((foregaende?.id ?? null) !== (rad.senaste?.id ?? null)) return null;
-    if (tider.length > 0 && m.tid <= tider[tider.length - 1]) return null;
+    if ((foregaende?.id ?? null) !== (rad.senaste?.id ?? null)) return ejRaknat();
+    if (tider.length > 0 && m.tid <= tider[tider.length - 1]) return ejRaknat();
     const fullt = tider.length >= sida;
     const nya = [...tider, m.tid].slice(-sida);
-    if (fullt && nya[0] === tider[0]) return null;
-    const till = egen ? rad.lastTill : await lastTill(rad.samtal.id, uid);
+    if (fullt && nya[0] === tider[0]) return ejRaknat();
+    const forsta = rad.forsta && !fullt && rad.forsta.length < 3 ? { forsta: [...rad.forsta, m] } : {};
+    if (oppetAnnans) return { ...rad, senaste: m, fonster: nya, ...forsta };
+    // ⛔ Läsmärket läses också för ett eget meddelande: en annan enhet kan ha läst samtalet.
+    const till = await lastTill(rad.samtal.id, uid);
     if (till < rad.lastTill) return null;
     if (nya.length >= sida && nya[0] > till) return null;
     const kvar = (fullt ? rad.olastaRader.filter((r) => r.tid >= nya[0]) : rad.olastaRader).filter((r) => r.tid > till);
@@ -446,7 +460,7 @@ export function createSamtalskalla(konfig) {
       olastaRader,
       lastTill: till,
       fonster: nya,
-      ...(rad.forsta && !fullt && rad.forsta.length < 3 ? { forsta: [...rad.forsta, m] } : {}),
+      ...forsta,
     };
   }
   const inkorgsfunktioner = levandeInkorg === true ? { inkorgsrad, inkorgsradMed, bevakaInkorg } : {};

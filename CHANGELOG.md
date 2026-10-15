@@ -70,9 +70,12 @@ docs/jamforelser/0.106.0`, avsnitt 47).
 - `createSamtalskalla({ levandeInkorg: true })` ger `bevakaInkorg` (en lyssnare per samtal på de två senaste meddelandena, `limit: 2`),
   `inkorgsrad` (en rad ur översikten) och `inkorgsradMed`. `harLevandeInkorg(kalla)`.
 - Ett meddelande från någon annan räknas in i raden ur det lyssnaren har (`inkorgsradMed`) i stället för att raden läses om: ett
-  dokument (läsmärket) i stället för 51. Raden läses om när den inte går att räkna med säkerhet: lyssnaren slog ihop meddelanden
-  (det näst senaste i bilden är inte det raden har), olästa är redan ett golv, eller samtalet är öppet. Ett eget meddelande läser
-  ingenting.
+  dokument (läsmärket) i stället för 51. Läsmärket läses för varje meddelande, också ett eget: den som svarar från telefonen har
+  läst samtalet där, och datorn ska inte stå kvar på 1. Raden läses om när den inte går att räkna med säkerhet: lyssnaren slog ihop
+  meddelanden (det näst senaste i bilden är inte det raden har) eller olästa är redan ett golv.
+- I det öppna samtalet får ett meddelande från någon annan bara ett nytt `senaste` (och ett längre fönster): inget räknas och inget
+  läses, för läsmärket skrivs strax efter över nätet och en läsning dessförinnan visade 1 en stund. När märket är skrivet anropar vyn
+  `onLast` och inkorgen läses om (inte om ett nyare märke redan är på väg). `inkorgsradMed` har ett femte argument, `oppet`.
 - Mätt i Firestore-emulatorn (`rules/__tests__/inkorg-levande.test.mjs`, tre samtal med 60 meddelanden): hel översikt 156 dokument
   i 8 frågor (det 0.105.0 läste vid varje fokus), lyssnarnas första bild 6 dokument, ett nytt meddelande 1 dokument, och när raden
   ändå läses om 51 dokument i 2 frågor. Ingen ny samling och ingen ny regel.

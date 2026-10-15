@@ -41,8 +41,16 @@ function raknadKalla() {
   return { kalla: k, rakning, nollstall: () => Object.assign(rakning, { list: [], read: [], lyssnare: [] }) };
 }
 
-async function underlag(levandeInkorg = true, sida = 50) {
+/**
+ * `lastFordrojning`: millisekunder innan en skrivning av ett läsmärke når källan. Minneskällan svarar direkt, och det döljer att
+ * läsmärket i verkligheten skrivs efter en rendering, över nätet (omgranskningens andra varv: ~40 ms).
+ */
+async function underlag(levandeInkorg = true, sida = 50, lastFordrojning = 0) {
   const r = raknadKalla();
+  if (lastFordrojning > 0) {
+    const skriv = r.kalla.create;
+    r.kalla.create = (/** @type {string} */ c, /** @type {any} */ d) => (c.endsWith("/last") ? new Promise((res) => setTimeout(res, lastFordrojning)).then(() => skriv(c, d)) : skriv(c, d));
+  }
   let t = new Date(2026, 9, 14, 9, 0).getTime();
   const s = /** @type {any} */ (createSamtalskalla({ kalla: r.kalla, klocka: () => (t += 60000), sida, ...(levandeInkorg ? { levandeInkorg: true } : {}) }));
   const g = await s.oppnaGrupp({ groupId: "g", uid: "anna" });
@@ -120,7 +128,7 @@ describe("en inkorg som lever utan fokus", () => {
     expect(rakning.read).toEqual([`samtal/${bo.id}/last`, `samtal/${bo.id}/last`]);
   });
 
-  it("⛔ ett eget meddelande i ett annat fönster läser ingenting, och raden visar det ändå", async () => {
+  it("⛔ ett eget meddelande i ett annat fönster läser bara läsmärket (1 dokument), och raden visar det", async () => {
     const { s, cia, rakning, nollstall } = await underlag();
     render(<OpsMeddelanden kalla={s} uid="anna" groupId="g" gruppNamn="G" medlemmar={MEDLEMMAR} />);
     await waitFor(() => expect(radFor("Cia Berg").textContent).toContain("Hej Cia"));
@@ -130,8 +138,31 @@ describe("en inkorg som lever utan fokus", () => {
       await s.skicka(cia.id, { text: "Skrivet i telefonen", av: "anna" });
     });
     await waitFor(() => expect(radFor("Cia Berg").textContent).toContain("Skrivet i telefonen"));
+    // Tak: inga meddelanden läses, bara läsmärket (en annan enhet kan ha läst samtalet).
     expect(rakning.list).toEqual([]);
-    expect(rakning.read).toEqual([]);
+    expect(rakning.read).toEqual([`samtal/${cia.id}/last`]);
+  });
+
+  it("⛔ BÖR B: Anna har 1 oläst på datorn och svarar från telefonen: datorn visar 0 vid det egna meddelandet", async () => {
+    const { s, bo } = await underlag();
+    const olasta = /** @type {number[]} */ ([]);
+    render(<OpsMeddelanden kalla={s} uid="anna" groupId="g" gruppNamn="G" medlemmar={MEDLEMMAR} onOlasta={(n) => olasta.push(n)} />);
+    await waitFor(() => expect(radFor("Bo Lind").textContent).toContain("Hej Bo"));
+    await act(async () => {
+      await s.skicka(bo.id, { text: "Har du tid?", av: "bo" });
+    });
+    // Golv: datorn visar 1 oläst, annars mäter provet ingenting.
+    await waitFor(() => expect(olasta.at(-1)).toBe(1));
+    // Telefonen läser samtalet (läsmärket flyttas) och Anna svarar där.
+    const fraga = (await s.meddelanden(bo.id)).at(-1);
+    await act(async () => {
+      await s.markeraLast(bo.id, "anna", fraga.tid);
+    });
+    await act(async () => {
+      await s.skicka(bo.id, { text: "Ja, nu", av: "anna" });
+    });
+    await waitFor(() => expect(radFor("Bo Lind").textContent).toContain("Ja, nu"));
+    await waitFor(() => expect(olasta.at(-1)).toBe(0));
   });
 
   it("⛔ utan levandeInkorg lyssnar inkorgen inte, och raden står still tills fokus, som förut", async () => {
@@ -189,13 +220,35 @@ describe("inkorgsradMed: när en rad inte går att räkna med säkerhet", () => 
     expect(ny.olastaRader.map((r) => r.id)).toEqual(["m30"]);
   });
 
-  it("ett eget meddelande läser inget och ändrar inga olästa, och en rad utan fönster får bara ett nytt senaste", async () => {
+  it("ett eget meddelande läser läsmärket: oförändrat om ingen läst, 0 om en annan enhet läst, och en rad utan fönster får bara ett nytt senaste", async () => {
     const k = kallaMed(10);
     const eget = await k.inkorgsradMed(rad(), m(30, "anna"), "anna", m(20));
     expect(eget.olasta).toBe(1);
     expect(eget.fonster).toEqual([5, 20, 30]);
+    // BÖR B: telefonen har läst förbi m20, och datorn ska inte stå kvar på 1.
+    const last = await kallaMed(20).inkorgsradMed(rad(), m(30, "anna"), "anna", m(20));
+    expect(last.olasta).toBe(0);
+    expect(last.olastaRader).toEqual([]);
+    expect(last.lastTill).toBe(20);
     const utanFonster = await k.inkorgsradMed(rad({ fonster: undefined }), m(30, "anna"), "anna");
     expect(utanFonster.senaste.id).toBe("m30");
+  });
+
+  it("⛔ BÖR A: i det öppna samtalet ändras bara senaste och fönstret, olästa lämnas och inget läses", async () => {
+    const lasningar = /** @type {string[]} */ ([]);
+    const bas = levandeKalla({ [`samtal/${samtal.id}/last`]: [{ id: "anna", lastTill: 10 }] });
+    const k = /** @type {any} */ (createSamtalskalla({ kalla: { ...bas, read: (/** @type {string} */ c, /** @type {string} */ id) => (lasningar.push(c), bas.read(c, id)) }, levandeInkorg: true, sida: 3 }));
+    const ny = await k.inkorgsradMed(rad({ olasta: 0, olastaRader: [] }), m(30), "anna", m(20), true);
+    expect(ny.senaste.id).toBe("m30");
+    expect(ny.olasta).toBe(0);
+    expect(ny.fonster).toEqual([5, 20, 30]);
+    expect(lasningar).toEqual([]);
+    // Går fönstret inte att föra fram (lyssnaren slog ihop meddelanden) lämnas det, och olästa lämnas ändå.
+    const ihop = await k.inkorgsradMed(rad({ olasta: 0, olastaRader: [] }), m(40), "anna", m(30), true);
+    expect(ihop.senaste.id).toBe("m40");
+    expect(ihop.olasta).toBe(0);
+    expect(ihop.fonster).toBeUndefined();
+    expect(lasningar).toEqual([]);
   });
 
   it("ett fullt fönster glider: det som faller ur räknas bort, och delad tid kräver omläsning", async () => {
@@ -271,6 +324,46 @@ describe("omgranskningen av PR 390: lokal räkning som inte får ljuga", () => {
     // Golv: räknaren rapporterades, annars mäter provet ingenting.
     expect(olasta.length).toBeGreaterThan(0);
     expect(olasta.filter((n) => n !== 0)).toEqual([]);
+  });
+});
+
+describe("omgranskningens andra varv: det öppna samtalet", () => {
+  it("⛔ BÖR A: läsmärket skrivs 40 ms efter meddelandet, och räknaren för det öppna samtalet visar aldrig mer än 0", async () => {
+    const { s, bo } = await underlag(true, 50, 40);
+    const olasta = /** @type {number[]} */ ([]);
+    render(<OpsMeddelanden kalla={s} uid="anna" groupId="g" gruppNamn="G" medlemmar={MEDLEMMAR} valt={bo.id} onOlasta={(n) => olasta.push(n)} />);
+    await waitFor(() => expect(screen.getAllByText("Hej Bo").length).toBeGreaterThan(0));
+    for (const text of ["Ett", "Två"]) {
+      await act(async () => {
+        await s.skicka(bo.id, { text, av: "bo" });
+      });
+      await waitFor(() => expect(screen.getAllByText(text).length).toBeGreaterThan(0));
+      // Rätt värde kommer när läsmärket är skrivet (onLast), och därefter står räknaren på 0.
+      await new Promise((r) => setTimeout(r, 120));
+    }
+    // Golv: räknaren rapporterades, annars mäter provet ingenting. Tak: aldrig över 0.
+    expect(olasta.length).toBeGreaterThan(0);
+    expect(olasta.filter((n) => n !== 0)).toEqual([]);
+    expect(olasta.at(-1)).toBe(0);
+  });
+
+  it("när samtalet stängs räknas nästa meddelande mot ett fönster som stämmer", async () => {
+    const { s, bo } = await underlag(true, 50, 40);
+    const olasta = /** @type {number[]} */ ([]);
+    const { rerender } = render(<OpsMeddelanden kalla={s} uid="anna" groupId="g" gruppNamn="G" medlemmar={MEDLEMMAR} valt={bo.id} onOlasta={(n) => olasta.push(n)} />);
+    await waitFor(() => expect(screen.getAllByText("Hej Bo").length).toBeGreaterThan(0));
+    await act(async () => {
+      await s.skicka(bo.id, { text: "Medan det är öppet", av: "bo" });
+    });
+    await waitFor(() => expect(screen.getAllByText("Medan det är öppet").length).toBeGreaterThan(0));
+    await new Promise((r) => setTimeout(r, 120));
+    rerender(<OpsMeddelanden kalla={s} uid="anna" groupId="g" gruppNamn="G" medlemmar={MEDLEMMAR} valt={null} onOlasta={(n) => olasta.push(n)} />);
+    await waitFor(() => expect(radFor("Bo Lind").textContent).toContain("Medan det är öppet"));
+    await act(async () => {
+      await s.skicka(bo.id, { text: "Efteråt", av: "bo" });
+    });
+    await waitFor(() => expect(radFor("Bo Lind").textContent).toContain("Efteråt"));
+    await waitFor(() => expect(olasta.at(-1)).toBe(1));
   });
 });
 

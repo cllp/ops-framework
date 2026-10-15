@@ -2280,7 +2280,12 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik: rubrikProp, marke, lastT
     const senast = meddelanden[meddelanden.length - 1].tid;
     if (senast > markt.current) {
       markt.current = senast;
-      kalla.markeraLast(samtal.id, uid, senast).then(() => onLast?.(), () => {});
+      /*
+       * ⛔ `onLast` BARA OM INGET NYARE MÄRKE ÄR PÅ VÄG (omgranskningens andra varv). Kommer ett meddelande medan det förra märket
+       * skrivs läser inkorgen om vid det förra märkets svar, och räknar det nya som oläst (mätt: [1] med ett märke på 40 ms). Det
+       * nyare märket anropar `onLast` själv när det är skrivet.
+       */
+      kalla.markeraLast(samtal.id, uid, senast).then(() => (markt.current === senast ? onLast?.() : undefined), () => {});
     }
     // ⛔ (0.106.0) Rullningen sköts av `useLasposition`: den som läser bakåt rycks inte ned.
     // eslint-disable-next-line react-hooks/exhaustive-deps

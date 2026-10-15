@@ -51,8 +51,8 @@ function sammanfoga(fran, lokala, uid) {
  * ⛔ OCH LEVER UTAN FOKUS NÄR KÄLLAN HAR `levandeInkorg` (0.106.0, #386 skiva 7). Gapanalysen: den som satt i ett ämne såg inte att
  * agenten svarat i ett annat, för inkorgen lästes bara om när fönstret fick fokus. Nu lyssnar inkorgen på de TVÅ senaste meddelandena i
  * varje samtal den visar (`bevakaInkorg`, `limit: 2`). Ett nytt meddelande räknas in i DEN raden ur det lyssnaren
- * redan har (`inkorgsradMed`; läsmärket läses för ett meddelande från någon annan, ett dokument), och raden läses om (`inkorgsrad`)
- * när den inte går att räkna med säkerhet: lyssnaren slog ihop meddelanden, olästa är ett golv (`olastaFler`), eller samtalet är öppet. Aldrig hela inkorgen. Ett eget meddelande läser ingenting: det ändrar inte de olästa, bara raden "senaste". Kostnaden är mätt i emulatorn,
+ * redan har (`inkorgsradMed`; läsmärket läses för varje meddelande, också ett eget, ett dokument), och raden läses om (`inkorgsrad`)
+ * när den inte går att räkna med säkerhet: lyssnaren slog ihop meddelanden eller olästa är ett golv (`olastaFler`). Aldrig hela inkorgen. I det öppna samtalet får ett meddelande från någon annan bara ett nytt "senaste": läsmärket skrivs strax efter, vyn anropar `onLast` och inkorgen läses om. Kostnaden är mätt i emulatorn,
  * `rules/__tests__/inkorg-levande.test.mjs`. Ett nytt samtal som någon annan startar syns fortfarande först vid fokus: det har ingen
  * rad att lyssna på (en lyssnare på samtalslistan vore nästa steg, och en egen kostnad).
  *
@@ -65,7 +65,7 @@ function sammanfoga(fran, lokala, uid) {
  * visar läggs aldrig in: ett svar som kommer efter ett gruppbyte hör till den förra gruppen.
  * Ingen spegelkolumn (`senast`) på samtalsdokumentet byggs för det (regel 2, se filhuvudet i `lib/samtal.js`).
  *
- * @param {{ kalla: ReturnType<typeof import("./samtalskalla.js").createSamtalskalla> | null | undefined, groupId: string | null | undefined, uid: string | null | undefined, oppet?: string | null }} arg `oppet`: samtalet som är öppet just nu. Ett meddelande från någon annan där räknas inte lokalt (se `bevakaInkorg`-effekten).
+ * @param {{ kalla: ReturnType<typeof import("./samtalskalla.js").createSamtalskalla> | null | undefined, groupId: string | null | undefined, uid: string | null | undefined, oppet?: string | null }} arg `oppet`: samtalet som är öppet just nu. Ett meddelande från någon annan där ändrar bara raden "senaste", inte de olästa (se `bevakaInkorg`-effekten).
  */
 export function useSamtal({ kalla, groupId, uid, oppet = null }) {
   const [lage, setLage] = useState(
@@ -201,11 +201,13 @@ export function useSamtal({ kalla, groupId, uid, oppet = null }) {
          * meddelanden, `olastaFler`, ett fullt fönster, oordning), och då läses den om som förut. En källa utan `inkorgsradMed` läser
          * alltid om.
          *
-         * ⛔ ETT MEDDELANDE FRÅN NÅGON ANNAN I DET ÖPPNA SAMTALET RÄKNAS INTE LOKALT (omgranskningen, BÖR 3). Det öppna samtalet markeras
-         * läst i samma stund, och en lokal räkning hann visa 1 innan läsmärket var skrivet (räknaren blinkade 0, 1, 0, 1). Där läses
-         * raden om efter läsmärket, som i 0.105.0. Ett eget meddelande där räknas lokalt: det ändrar inga olästa.
+         * ⛔ I DET ÖPPNA SAMTALET RÄKNAS OCH LÄSES INGENTING FÖR ETT MEDDELANDE FRÅN NÅGON ANNAN (omgranskningen, BÖR 3, andra varvet).
+         * Samtalet markeras läst efter renderingen, över nätet, och en läsning av raden dessförinnan fick läsmärket från innan och visade
+         * 1 (mätt: läsmärket skrivs 40 ms senare, `onOlasta` fick [1, 1] för två meddelanden). Raden får bara ett nytt `senaste` (och
+         * ett längre fönster, `inkorgsradMed` med `oppet`), de olästa lämnas, och när läsmärket är skrivet anropar vyn `onLast`, som
+         * läser om inkorgen: då kommer det sanna värdet. En källa utan `inkorgsradMed` läser alltid om.
          */
-        const lokalt = typeof kalla.inkorgsradMed === "function" && (m.av === uid || oppetNu.current !== sid) ? kalla.inkorgsradMed(rad, m, uid, foregaende) : Promise.resolve(null);
+        const lokalt = typeof kalla.inkorgsradMed === "function" ? kalla.inkorgsradMed(rad, m, uid, foregaende, oppetNu.current === sid) : Promise.resolve(null);
         lokalt
           .then((ny) => (ny ? uppdatera(sid, nummer, () => ny) : lasRaden()))
           .catch((fel) => rapporteraFel(fel, { yta: "useSamtal", steg: "inkorgsrad", sid }));
