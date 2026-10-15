@@ -15,6 +15,18 @@
  *     nyckel som inte börjar på radens grupp                nej
  *     radering                                              nej
  *
+ *   GRUPPKALENDERNS githubEtikett (0.108.0, cllp/lifehub.app#259), valfri: saknas, eller en sträng på 1 till 50 tecken
+ *     admin skapar en kalender med en giltig etikett        ja       <- röd mot 0.107.1: fältet fanns inte i hasOnly
+ *     samma, byggd av ramverkets egen byggare               ja
+ *     utan etikett (som förut)                              ja
+ *     50 tecken                                             ja
+ *     51 tecken                                             nej      <- röd utan längdvillkoret
+ *     tom sträng                                            nej      <- röd utan längdvillkoret
+ *     inte en sträng (tal, null, lista, bool)               nej      <- röd utan `is string`
+ *     lägga till, byta och ta bort etiketten på en rad      ja
+ *     ändra till en för lång etikett på en befintlig rad    nej
+ *     medlem sätter en etikett                              nej
+ *
  *   MINA KALENDRAR (under användaren)
  *     ägaren skapar och läser                               ja
  *     en annan inloggad läser                               nej      <- hela poängen
@@ -43,7 +55,8 @@ import { medlemskapsId } from "../../src/lib/grupp.js";
 import { byggGruppkalender, byggKalenderpost, byggMinKalender, gruppkalendernyckel } from "../../src/lib/kalendrar.js";
 import { after, before, describe, it } from "node:test";
 import { assertFails, assertSucceeds, initializeTestEnvironment } from "@firebase/rules-unit-testing";
-import { collection, deleteDoc, doc, getDoc, getDocs, setDoc, updateDoc } from "firebase/firestore";
+import { collection, deleteDoc, deleteField, doc, getDoc, getDocs, setDoc, updateDoc } from "firebase/firestore";
+import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -118,6 +131,61 @@ describe("gruppens kalendrar: katalogens regel med kalenderns fält", () => {
   it("⛔ en kalender raderas inte, den arkiveras", async () => {
     await assertFails(deleteDoc(doc(som(AGARE), `gruppkalendrar/${gruppkalendernyckel(G, "styrelse")}`)));
     await assertSucceeds(updateDoc(doc(som(AGARE), `gruppkalendrar/${gruppkalendernyckel(G, "styrelse")}`), { arkiverad: true, forvald: false }));
+  });
+});
+
+describe("⛔ gruppkalenderns githubEtikett (0.108.0): valfri, en sträng på 1 till 50 tecken", () => {
+  const nyckel = (/** @type {string} */ id) => `gruppkalendrar/${gruppkalendernyckel(G, id)}`;
+  // ⛔ Raden byggs UTAN etiketten och får den spridd efteråt: provet mäter REGELN, så den får inte bero på att byggaren släpper in eller stoppar värdet.
+  const rad = (/** @type {string} */ id, /** @type {Record<string, any>} */ extra = {}) => ({ ...gruppkal({ id, namn: { sv: id }, forvald: false }), ...extra });
+
+  it("admin skapar en kalender med en giltig etikett", async () => {
+    await assertSucceeds(setDoc(doc(som(ADMIN), nyckel("et-giltig")), rad("et-giltig", { githubEtikett: "styrelsen" })));
+    assert.equal((await getDoc(doc(som(MEDLEM), nyckel("et-giltig")))).data()?.githubEtikett, "styrelsen");
+  });
+  it("en rad byggd av ramverkets egen byggare med etikett släpps in (det en app faktiskt skriver)", async () => {
+    await assertSucceeds(setDoc(doc(som(ADMIN), nyckel("et-byggd")), gruppkal({ id: "et-byggd", forvald: false, githubEtikett: "  Resor " })));
+    assert.equal((await getDoc(doc(som(MEDLEM), nyckel("et-byggd")))).data()?.githubEtikett, "Resor");
+  });
+  it("en kalender utan etikett skapas som förut", async () => {
+    await assertSucceeds(setDoc(doc(som(ADMIN), nyckel("et-utan")), rad("et-utan")));
+  });
+  it("⛔ gränserna: 50 tecken släpps in, 51 nekas, och en tom sträng nekas", async () => {
+    await assertSucceeds(setDoc(doc(som(ADMIN), nyckel("et-femtio")), rad("et-femtio", { githubEtikett: "a".repeat(50) })));
+    await assertFails(setDoc(doc(som(ADMIN), nyckel("et-femtioett")), rad("et-femtioett", { githubEtikett: "a".repeat(51) })));
+    await assertFails(setDoc(doc(som(ADMIN), nyckel("et-tom")), rad("et-tom", { githubEtikett: "" })));
+  });
+  it("⛔ en etikett som inte är en sträng nekas: tal, null, lista och bool", async () => {
+    for (const [namn, varde] of [["tal", 5], ["null", null], ["lista", ["a"]], ["bool", true]]) {
+      await assertFails(setDoc(doc(som(ADMIN), nyckel(`et-${namn}`)), rad(`et-${namn}`, { githubEtikett: varde })));
+    }
+  });
+  it("⛔ en medlem sätter ingen etikett, den är gruppens konfiguration", async () => {
+    await assertFails(setDoc(doc(som(MEDLEM), nyckel("et-medlem")), rad("et-medlem", { githubEtikett: "medlemmens" })));
+    await assertFails(updateDoc(doc(som(MEDLEM), nyckel("et-giltig")), { githubEtikett: "kapad" }));
+  });
+  it("admin lägger till, byter och tar bort etiketten på en befintlig rad", async () => {
+    const ref = doc(som(ADMIN), nyckel("et-utan"));
+    await assertSucceeds(updateDoc(ref, { githubEtikett: "forsta" }));
+    await assertSucceeds(updateDoc(ref, { githubEtikett: "andra" }));
+    assert.equal((await getDoc(ref)).data()?.githubEtikett, "andra");
+    await assertSucceeds(updateDoc(ref, { githubEtikett: deleteField() }));
+    assert.equal("githubEtikett" in (await getDoc(ref)).data(), false);
+  });
+  it("⛔ en ändring till en för lång eller tom etikett på en befintlig rad nekas", async () => {
+    const ref = doc(som(ADMIN), nyckel("et-giltig"));
+    await assertFails(updateDoc(ref, { githubEtikett: "a".repeat(51) }));
+    await assertFails(updateDoc(ref, { githubEtikett: "" }));
+    await assertFails(updateDoc(ref, { githubEtikett: 7 }));
+    assert.equal((await getDoc(ref)).data()?.githubEtikett, "styrelsen");
+  });
+  it("å är en enhet, inte två byte: 50 släpps in, 51 nekas", async () => {
+    await assertSucceeds(setDoc(doc(som(ADMIN), nyckel("et-a-ring")), rad("et-a-ring", { githubEtikett: "å".repeat(50) })));
+    await assertFails(setDoc(doc(som(ADMIN), nyckel("et-a-ring-ett")), rad("et-a-ring-ett", { githubEtikett: "å".repeat(51) })));
+  });
+  it("⛔ en emoji är två UTF-16-enheter och regelns size() räknar enheter: 25 släpps in, 26 nekas (klienten räknar likadant, `.length`)", async () => {
+    await assertSucceeds(setDoc(doc(som(ADMIN), nyckel("et-emoji")), rad("et-emoji", { githubEtikett: "\u{1F4C5}".repeat(25) })));
+    await assertFails(setDoc(doc(som(ADMIN), nyckel("et-emoji-ett")), rad("et-emoji-ett", { githubEtikett: "\u{1F4C5}".repeat(26) })));
   });
 });
 

@@ -14,6 +14,7 @@ import {
   byggMinKalender,
   idagI,
   flyttaKalender,
+  kalenderForEtikett,
   kalenderIdUrNamn,
   kalenderval,
   nastaOrdning,
@@ -187,6 +188,66 @@ describe("källorna mot minneskällan", () => {
     await expect(k.sparaGruppens(G, [{ ...gk("x"), groupId: "annan" }])).rejects.toThrow(/sparas inte/);
   });
 
+  it("⛔ githubEtikett: sparas med raden, läses tillbaka, och en upptagen etikett vägras UTAN att något skrivs", async () => {
+    const kalla = createMemorySource();
+    const k = createKalenderkalla({ kalla });
+    await k.sparaGruppens(G, [gk("styrelse", { forvald: true, githubEtikett: "Styrelsen" }), gk("resor", { ordning: 10 })]);
+    expect((await k.gruppens(G)).map((x) => [x.id, x.githubEtikett])).toEqual([["styrelse", "Styrelsen"], ["resor", undefined]]);
+    // Samma etikett i annat skiftläge, på en ny och på en befintlig kalender.
+    await expect(k.sparaGruppens(G, [gk("moten", { githubEtikett: "styrelsen", ordning: 20 })])).rejects.toThrow(/används av både "Styrelse" och "Moten"/);
+    await expect(k.sparaGruppens(G, [gk("resor", { githubEtikett: " STYRELSEN ", ordning: 10 })], { sprak: "en" })).rejects.toThrow(/is used by both "Styrelse" and "Resor"/);
+    expect((await k.gruppens(G)).map((x) => x.id).sort()).toEqual(["resor", "styrelse"]);
+    expect((await k.gruppens(G)).find((x) => x.id === "resor")).not.toHaveProperty("githubEtikett");
+  });
+
+  it("githubEtikett: en kalender behåller sin etikett vid omsparande, tar bort den när den rensas, och en arkiverad håller den inte kvar", async () => {
+    const kalla = createMemorySource();
+    const k = createKalenderkalla({ kalla });
+    await k.sparaGruppens(G, [gk("styrelse", { githubEtikett: "Styrelsen" })]);
+    // Samma etikett på samma kalender (annan ordning) är ingen krock.
+    await k.sparaGruppens(G, [gk("styrelse", { githubEtikett: "STYRELSEN", ordning: 5 })]);
+    expect((await k.gruppens(G))[0].githubEtikett).toBe("STYRELSEN");
+    // ⛔ Rensas den skrivs raden utan fältet, och dokumentet ersätts: nyckeln finns inte kvar i lagret.
+    await k.sparaGruppens(G, [gk("styrelse", { githubEtikett: "" })]);
+    expect((await kalla.list("gruppkalendrar"))[0]).not.toHaveProperty("githubEtikett");
+    // Arkiverad håller den inte kvar, men tas den fram går den genom kontrollen.
+    await k.sparaGruppens(G, [gk("styrelse", { githubEtikett: "Styrelsen" })]);
+    await k.sparaGruppens(G, [gk("styrelse", { githubEtikett: "Styrelsen", arkiverad: true })]);
+    await k.sparaGruppens(G, [gk("moten", { githubEtikett: "styrelsen" })]);
+    await expect(k.sparaGruppens(G, [gk("styrelse", { githubEtikett: "Styrelsen", arkiverad: false })])).rejects.toThrow(/används av både/);
+  });
+
+  it("⛔ kalenderForEtikett väljer den kalender som gruppens() listar först: samma ordning, inte en andra sortering", async () => {
+    const kalla = createMemorySource();
+    const k = createKalenderkalla({ kalla });
+    // Tre med samma etikett (en dubblett som slank igenom skrivs rakt i källan, förbi kontrollen), blandad ordning och samma `ordning` på två.
+    for (const [id, ordning] of [["cesar", 10], ["alfa", 30], ["beta", 10]]) {
+      await kalla.create("gruppkalendrar", { ...gk(id, { ordning, githubEtikett: "Dubblett" }), id: `${G}|${id}` });
+    }
+    const lista = await k.gruppens(G);
+    expect(lista.map((x) => x.id)).toEqual(["beta", "cesar", "alfa"]);
+    expect(kalenderForEtikett(lista, "dubblett")?.id).toBe(lista[0].id);
+  });
+
+  it("sparaGruppens tål null som tredje argument, och språket når felet", async () => {
+    const kalla = createMemorySource();
+    const k = createKalenderkalla({ kalla });
+    await k.sparaGruppens(G, [gk("styrelse", { githubEtikett: "Styrelsen" })], null);
+    await expect(k.sparaGruppens(G, [gk("resor", { githubEtikett: "styrelsen" })], null)).rejects.toThrow(/används av både/);
+    await expect(k.sparaGruppens(G, [gk("resor", { githubEtikett: "styrelsen" })], { sprak: "en" })).rejects.toThrow(/is used by both/);
+  });
+
+  it("githubEtikett: bara en rad med etikett kostar en läsning, en ordningsändring gör det inte", async () => {
+    const kalla = createMemorySource();
+    let lasningar = 0;
+    const k = createKalenderkalla({ kalla: { ...kalla, list: async (/** @type {any[]} */ ...a) => { lasningar += 1; return kalla.list(...a); } } });
+    await k.sparaGruppens(G, [gk("styrelse"), gk("resor", { ordning: 10 })]);
+    await k.sparaGruppens(G, [gk("resor", { ordning: 0 })]);
+    expect(lasningar).toBe(0);
+    await k.sparaGruppens(G, [gk("resor", { githubEtikett: "resor" })]);
+    expect(lasningar).toBe(1);
+  });
+
   it("mina kalendrar och poster ligger under användaren, och en post i en arkiverad kalender vägras", async () => {
     const kalla = createMemorySource();
     const k = createKalenderkalla({ kalla });
@@ -251,11 +312,87 @@ describe("OpsKalendrar (F2)", () => {
     const { gruppens } = visa();
     const sektion = screen.getByRole("region", { name: "Gruppens kalendrar" });
     fireEvent.click(within(sektion).getByRole("button", { name: "Redigera Resor" }));
-    fireEvent.change(within(sektion).getByRole("textbox"), { target: { value: "Resor och möten" } });
+    // 0.108.0: gruppens redigerare har två textrutor (Namn och GitHub-etikett).
+    fireEvent.change(within(sektion).getByRole("textbox", { name: "Namn" }), { target: { value: "Resor och möten" } });
     fireEvent.click(within(sektion).getByRole("checkbox", { name: /Förvald/ }));
     fireEvent.click(within(sektion).getByRole("button", { name: "Spara ändringar" }));
     await waitFor(() => expect(gruppens).toHaveLength(1));
     expect(gruppens[0].map((/** @type {any} */ k) => [k.id, text(k.namn), k.forvald])).toEqual([["styrelse", "Styrelse", false], ["resor", "Resor och möten", true]]);
+  });
+
+  it("⛔ GitHub-etiketten finns i gruppens redigerare med hjälptext, och inte i mina kalendrars", () => {
+    visa();
+    const grupp = screen.getByRole("region", { name: "Gruppens kalendrar" });
+    fireEvent.click(within(grupp).getByRole("button", { name: "Ny kalender" }));
+    const ruta = within(grupp).getByRole("textbox", { name: "GitHub-etikett" });
+    expect(ruta).toHaveAttribute("maxlength", "50");
+    expect(ruta).toHaveAccessibleDescription("Ärenden med den här etiketten och ett datum (due:ÅÅÅÅ-MM-DD) visas i kalendern.");
+    const mina = screen.getByRole("region", { name: "Mina kalendrar" });
+    fireEvent.click(within(mina).getByRole("button", { name: "Ny kalender" }));
+    expect(within(mina).queryByRole("textbox", { name: "GitHub-etikett" })).toBeNull();
+    expect(within(mina).getAllByRole("textbox")).toHaveLength(1);
+  });
+
+  it("GitHub-etiketten på engelska, ur ordboken", () => {
+    visa({ sprak: "en" });
+    const grupp = screen.getByRole("region", { name: "Gruppens kalendrar" });
+    fireEvent.click(within(grupp).getByRole("button", { name: "Ny kalender" }));
+    const ruta = within(grupp).getByRole("textbox", { name: "GitHub label" });
+    expect(ruta).toHaveAccessibleDescription("Issues with this label and a date (due:YYYY-MM-DD) are shown in the calendar.");
+    expect(ruta).toHaveAttribute("placeholder", "For example board");
+  });
+
+  it("sätter, byter och rensar etiketten på en gruppkalender: trimmad, och borttagen när rutan är tom", async () => {
+    const { gruppens } = visa();
+    const sektion = screen.getByRole("region", { name: "Gruppens kalendrar" });
+    fireEvent.click(within(sektion).getByRole("button", { name: "Redigera Resor" }));
+    fireEvent.change(within(sektion).getByRole("textbox", { name: "GitHub-etikett" }), { target: { value: "  Resor " } });
+    fireEvent.click(within(sektion).getByRole("button", { name: "Spara ändringar" }));
+    await waitFor(() => expect(gruppens).toHaveLength(1));
+    expect(gruppens[0]).toEqual([expect.objectContaining({ id: "resor", githubEtikett: "Resor" })]);
+  });
+
+  it("⛔ rensas rutan försvinner nyckeln ur raden, den blir inte kvar och inte en tom sträng", async () => {
+    const { gruppens } = visa({ gruppens: [gk("styrelse", { forvald: true, githubEtikett: "Styrelsen" })] });
+    const sektion = screen.getByRole("region", { name: "Gruppens kalendrar" });
+    fireEvent.click(within(sektion).getByRole("button", { name: "Redigera Styrelse" }));
+    const ruta = within(sektion).getByRole("textbox", { name: "GitHub-etikett" });
+    expect(ruta).toHaveValue("Styrelsen");
+    fireEvent.change(ruta, { target: { value: "" } });
+    fireEvent.click(within(sektion).getByRole("button", { name: "Spara ändringar" }));
+    await waitFor(() => expect(gruppens).toHaveLength(1));
+    expect(gruppens[0][0]).not.toHaveProperty("githubEtikett");
+  });
+
+  it("⛔ en upptagen etikett (annat skiftläge) sparas inte, och felet är en hel mening på vyns språk", async () => {
+    const lista = [gk("styrelse", { forvald: true, githubEtikett: "Styrelsen" }), gk("resor", { ordning: 10 })];
+    const sv = visa({ gruppens: lista });
+    const sektion = screen.getByRole("region", { name: "Gruppens kalendrar" });
+    fireEvent.click(within(sektion).getByRole("button", { name: "Redigera Resor" }));
+    fireEvent.change(within(sektion).getByRole("textbox", { name: "GitHub-etikett" }), { target: { value: "STYRELSEN" } });
+    fireEvent.click(within(sektion).getByRole("button", { name: "Spara ändringar" }));
+    expect(await within(sektion).findByRole("alert")).toHaveTextContent('GitHub-etiketten "STYRELSEN" används av både "Styrelse" och "Resor".');
+    expect(sv.gruppens).toEqual([]);
+  });
+
+  it("⛔ samma fel på engelska, och att ta fram en arkiverad kalender vars etikett nu är upptagen vägras", async () => {
+    const lista = [gk("styrelse", { forvald: true, githubEtikett: "Styrelsen" }), gk("gammal", { arkiverad: true, githubEtikett: "styrelsen" })];
+    const { gruppens } = visa({ gruppens: lista, sprak: "en" });
+    const sektion = screen.getByRole("region", { name: "Gruppens kalendrar" });
+    fireEvent.click(within(sektion).getByText("Arkiverade (1)"));
+    fireEvent.click(within(sektion).getByRole("button", { name: "Ta fram Gammal" }));
+    expect(await within(sektion).findByRole("alert")).toHaveTextContent('The GitHub label "styrelsen" is used by both "Styrelse" and "Gammal".');
+    expect(gruppens).toEqual([]);
+  });
+
+  it("⛔ vyns språk följer med som andra argument till onSparaGruppens och onSparaMina", async () => {
+    /** @type {any[]} */
+    const anrop = [];
+    visa({ sprak: "en", onSparaGruppens: (/** @type {any} */ r, /** @type {any} */ s) => { anrop.push(["grupp", r.length, s]); }, onSparaMina: (/** @type {any} */ r, /** @type {any} */ s) => { anrop.push(["mina", r.length, s]); } });
+    fireEvent.click(within(screen.getByRole("region", { name: "Gruppens kalendrar" })).getByRole("button", { name: "Arkivera Resor" }));
+    fireEvent.click(within(screen.getByRole("region", { name: "Mina kalendrar" })).getByRole("button", { name: "Arkivera Privat" }));
+    await waitFor(() => expect(anrop).toHaveLength(2));
+    expect(anrop).toEqual([["grupp", 1, "en"], ["mina", 1, "en"]]);
   });
 
   it("arkiverar och flyttar, och arkiverade står under en egen rubrik", async () => {

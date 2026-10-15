@@ -9,6 +9,60 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.108.0
+
+### GitHub-etiketten på gruppkalendern (cllp/lifehub.app#259, steg 3, beslut 1)
+
+CP har sagt KÖR på beslut 1: en gruppkalender får ett fält `githubEtikett`, ett etikettnamn på GitHub som är unikt inom gruppen och jämförs
+utan skiftläge. Appen (lifehub.app PR 293) har redan byggt ritningen av ärenden med `due:` i kalendern och mätte att fältet inte gick att
+lägga till därifrån, av tre skäl: `byggGruppkalender` kastade på okända fält, regelfragmentet hade en stängd `hasOnly`-lista som appens
+`check-regelfragment` mäter byte för byte, och `OpsKalendrar` hade ingen plats för fältet.
+
+- **Fältet.** `byggGruppkalender` tar `githubEtikett` som ett valfritt fält: utelämnat, eller en trimmad sträng på 1 till 50 tecken
+  (`MAX_GITHUBETIKETT`, GitHubs gräns). En tom sträng eller bara blanksteg betyder att fältet tas bort och lagras inte (nyckeln saknas på
+  raden, aldrig `""` och aldrig `null`). `null` och allt som inte är en sträng kastar, eftersom regeln hade nekat det. `KALENDERFALT` har
+  fått fältet, så `hasOnly` och byggaren läser samma lista. Mina kalendrar har det inte, och `byggMinKalender` avvisar det.
+- **Jämförelsenyckeln, en sanning (regel 2).** `githubEtikettNyckel(etikett)` är trim och gemener, och `""` för allt som inte är en etikett.
+  Appen använder den för att koppla ett ärendes etiketter till en kalender och skriver ingen egen jämförelse. Exporteras ur `src/index.js`.
+- **Unikhet inom gruppen, utan skiftläge.** `kontrolleraGithubEtiketter(lista, { rader, sprak })` kastar en hel mening på svenska eller
+  engelska ("GitHub-etiketten ... används av både ... och ...") med `kod`, `etikett` och `kalendrar` på felet. Den körs där en kalender
+  skapas eller redigeras: `createKalenderkalla().sparaGruppens(groupId, rader, { sprak })` (som bara läser gruppen när en rad som skrivs
+  bär en etikett och inte är arkiverad) och `OpsKalendrar`. En arkiverad kalender håller inte kvar sin etikett, men tas den fram går den
+  genom samma kontroll. En dubblett som redan finns hindrar inte en ändring av en tredje kalender; den fångas när någon av de två rörs.
+- **⛔ Ett fönster som står utskrivet.** Kontrollen är läs-sedan-skriv. Regel 2 vill ha en riktig constraint, men Firestore har bara
+  dokumentnyckeln och en regel kan inte se en annan rad, och en nyckel härledd ur etiketten vore den spegel regeln förbjuder. Två admins
+  som sparar samma etikett i samma sekund kan alltså ge två kalendrar med samma etikett. Därför kastar `validateGruppkalendrar` INTE på
+  en dubblett (ett kast där hade gjort hela gruppens kalenderlista oläsbar vid varje uppstart): dubbletten ska synas, och felet kommer
+  nästa gång någon av de två rörs. Vilken av två som äger etiketten avgörs av `kalenderForEtikett` (se nedan), inte av appen.
+- **`kalenderForEtikett(kalendrar, etikett)` (granskningen av PR 395, BÖR 1).** Kalendern som äger en etikett: den första icke-arkiverade
+  vars `githubEtikett` matchar enligt `githubEtikettNyckel`, och vid en dubblett den som står först i `ordning`, sedan `id`. Tom etikett
+  eller ingen träff ger `null`; listan ändras inte. Sorteringen är `efterOrdning`, flyttad ur `kalenderkalla.js` (där den stod två gånger)
+  till `kalendrar.js`, så att källans `gruppens()` och vinnaren ur en dubblett följer samma jämförelse och "första i ordningen" inte är
+  en konvention som två appar kan tolka olika (regel 2). Exporteras ur `src/index.js`.
+- **Språket följer med (granskningen, KAN).** `OpsKalendrar` anropar `onSparaGruppens(rader, sprak)` och `onSparaMina(rader, sprak)`, så att
+  en app som sparar genom källan kan skicka vyns språk vidare (`sparaGruppens(groupId, rader, { sprak })`) och få ett eventuellt
+  etikettfel på samma språk som vyn. `sparaGruppens` tål nu `null` som tredje argument. Ett befintligt `(rader) => ...` fungerar som förut.
+- **Reglerna (kalenderregelfragment).** `githubEtikett` står i `hasOnly` för `gruppkalendrar`, med villkoret att fältet saknas eller är en
+  sträng vars `size()` är 1 till 50. Generatorn för gruppade samlingar fick ett internt `villkor` (efter fältlistan, för både `create` och
+  `update`); övriga samlingar får exakt samma text som förut (`check-regelgenerator`). ⛔ **Appen måste deploya reglerna FÖRE klienten som
+  skriver fältet.** En regel i main är inte en regel i produktion: en klient som skriver `githubEtikett` mot de gamla reglerna nekas på
+  `hasOnly`. `check-regelfragment` i appen blir röd tills dess fil regenererats, vilket är avsikten.
+- **⛔ Längden är mätt mot emulatorn och inte antagen.** Regelns `size()` räknar UTF-16-enheter: 50 `å` släpps in och 51 nekas, men en emoji
+  är två enheter (25 släpps in, 26 nekas). Klienten räknar därför med `.length`, så att den aldrig är mildare än regeln. En etikett av
+  emojier får i praktiken 25 tecken, vilket är strängare än GitHubs 50 och alltså på den säkra sidan.
+- **Vyn.** Gruppens redigerare i `OpsKalendrar` har en ruta "GitHub-etikett" (en: "GitHub label"), högst 50 tecken, utan tal-ingång, med
+  hjälptexten "Ärenden med den här etiketten och ett datum (due:ÅÅÅÅ-MM-DD) visas i kalendern." (en: "Issues with this label and a date
+  (due:YYYY-MM-DD) are shown in the calendar."). Texterna ligger i den nya ordboken `ORD_OPSKALENDRAR` (exporterad) och väljs på vyns
+  språk. Personliga kalendrar har inte rutan. En upptagen etikett sparas inte och felet står i redigeraren (eller ovanför listan när det
+  kom av "Ta fram"). Resten av vyns texter är fortfarande svenska och flyttas till ordboken när de rörs.
+- **För appen.** Redigeraren i gruppens sektion har nu två textrutor, så ett prov som gör `getByRole("textbox")` där träffar flera:
+  välj på namnet ("Namn" / "GitHub-etikett").
+- **Prov.** Datamodellen och källan i `kalendrar.test.jsx` och `kalenderhantering.test.jsx`; reglerna i `rules/__tests__/kalendrar.test.mjs`
+  mot Firestore-emulatorn (giltig etikett, 50 och 51, tom, tal, null, lista, bool, medlem nekas, lägga till, byta och ta bort på en
+  befintlig rad, å och emoji). Rött utan fixen och grönt med den står i PR-texten.
+
+---
+
 ## 0.107.1
 
 Prov och en kommentar, ingen ändrad funktion. Från överlämningen till Grok 2026-10-15 14:45.
