@@ -97,25 +97,40 @@ describe("källan", () => {
     expect(await kalla.read("samtal", nytt.id)).toMatchObject({ slag: "agent", deltagare: ["anna", "ops"], skapadAv: "anna" });
     expect((await s.meddelanden(nytt.id)).map((m) => m.text)).toEqual(["Boka resan"]);
   });
-  it("⛔ samtalsdokumentet läses en gång per ämne, inte före varje meddelande (granskningen av PR 390)", async () => {
+  it("⛔ samtalsdokumentet skapas en gång per ämne och läses aldrig (granskningen av PR 390, P0 2026-10-15)", async () => {
     const { kalla, s } = await underlag();
     const lasningar = /** @type {string[]} */ ([]);
+    const skapade = /** @type {string[]} */ ([]);
     const read = kalla.read.bind(kalla);
+    const create = kalla.create.bind(kalla);
     kalla.read = async (c, id) => {
       if (c === "samtal") lasningar.push(id);
       return read(c, id);
+    };
+    kalla.create = async (c, d) => {
+      if (c === "samtal") skapade.push(d.id);
+      return create(c, d);
     };
     const nytt = s.nyttAmne({ groupId: "g", uid: "anna", agent: "ops" });
     await s.skickaIAmne(nytt, { text: "Ett", av: "anna" });
     await s.skickaIAmne(nytt, { text: "Två", av: "anna" });
     await s.skickaIAmne(nytt, { text: "Tre", av: "anna" });
-    // Golv: tre meddelanden skrevs. Tak: en läsning av samtalet (förut tre).
+    // Golv: tre meddelanden skrevs. Tak: en skapelse av samtalet (PR 390: förut en läsning före varje meddelande).
     expect((await s.meddelanden(nytt.id)).map((m) => m.text)).toEqual(["Ett", "Två", "Tre"]);
-    expect(lasningar).toEqual([nytt.id]);
-    // Ett annat ämne läses för sig.
+    expect(skapade).toEqual([nytt.id]);
+    // ⛔ P0 2026-10-15: samtalet läses aldrig. Läsregeln nekar ett samtal som inte finns, och 0.106.0 läste det här.
+    expect(lasningar).toEqual([]);
+    // Ett annat ämne skapas för sig.
     const annat = s.nyttAmne({ groupId: "g", uid: "anna", agent: "ops" });
     await s.skickaIAmne(annat, { text: "Annat", av: "anna" });
-    expect(lasningar).toEqual([nytt.id, annat.id]);
+    expect(skapade).toEqual([nytt.id, annat.id]);
+    // Ett ämne som står i översikten är känt och skapas inte igen.
+    await s.oversikt({ groupId: "g", uid: "anna" });
+    const s2 = /** @type {any} */ (createSamtalskalla({ kalla, amnen: true }));
+    await s2.oversikt({ groupId: "g", uid: "anna" });
+    await s2.skickaIAmne(nytt, { text: "Fyra", av: "anna" });
+    expect(skapade).toEqual([nytt.id, annat.id]);
+    expect(lasningar).toEqual([]);
   });
   it("⛔ översikten hoppar över ett arkiverat ämne utan att läsa dess meddelanden, och läser bara de arkiverade på begäran", async () => {
     const { lasta, s, moms } = await underlag();
