@@ -17,7 +17,7 @@ import { OpsTooltip } from "./OpsTooltip.jsx";
 import { kontrolleraSkickarText, talkForifyllt, talkKnappNamn } from "../lib/talk.js";
 import { byggFasta, djupAktiv, validateFasta } from "./fasta.jsx";
 import { huvudknappKlass, huvudPlusKlass, radBehallare, radKlass } from "../lib/radKlass.js";
-import { rapporteraFel } from "../lib/felrapport.js";
+import { rapporteraFel, registreraFelmottagare } from "../lib/felrapport.js";
 import { OpsButton } from "./OpsButton.jsx";
 import { OpsIconLink } from "./OpsIconLink.jsx";
 import { OpsPanel, OpsPanelRow } from "./OpsPanel.jsx";
@@ -862,6 +862,8 @@ function GenvagRam({ nyckel, ikon, tips = true, className, children }) {
  *   se `OpsBottomNav`.
  * @param {import("../lib/felrapport.js").Felmottagare} [props.felmottagare] (#159) Kallas från felgränsen när en vy
  *   kastar. Utan den skrivs felet ändå till konsolen, se `rapporteraFel`: felgränsen går inte att stänga av.
+ *   (0.107.0) Registreras också som förvald mottagare (`registreraFelmottagare`) så länge skalet är monterat, så att
+ *   komponenternas egna rapporter (TALK:s diagnos) når den.
  * @param {string} [props.felRubrik] Rubriken på felytan.
  * @param {string} [props.felBeskrivning]
  * @param {string} [props.laddaOmEtikett]
@@ -998,6 +1000,9 @@ function OpsAppShellRitad({
       throw new Error("OpsAppShell: skapa.spelaIn är borta. Ett inspelningsmål registreras på modulen, platsen inspelning.mal. Ramverket hårdkodar inte Biblioteket.");
     }
   }
+  // ⛔ (0.107.0, lifehub.app#253) Mottagaren gäller hela sidan, inte bara felgränsen: TALK:s diagnos och varje annan
+  // `rapporteraFel` utan eget tredje argument når den. Se `registreraFelmottagare` i lib/felrapport.js.
+  useEffect(() => (felmottagare ? registreraFelmottagare(felmottagare) : undefined), [felmottagare]);
   if (harFasta) {
     validateFasta(fasta, "OpsAppShell");
     if (Array.isArray(nav) && nav.length > 0) {

@@ -356,4 +356,9 @@ export { formatCurrency, formatNumber, formatPercent, formatDate, formatDateTime
  * mottagare (Sentry) ligger i en EGEN ingång, `ops-framework/sentry`,
  * så beroendet bara laddas av den app som väljer det. Se `src/sentry.js`.
  */
-export { rapporteraFel } from "./lib/felrapport.js";
+/*
+ * ⛔ (0.107.0, lifehub.app#253) `registreraFelmottagare` gör appens mottagare förvald för varje `rapporteraFel` utan eget
+ * tredje argument. `OpsAuthProvider` och `OpsAppShell` med `felmottagare` gör det själva; funktionen är för en app som inte
+ * använder någon av dem.
+ */
+export { rapporteraFel, registreraFelmottagare } from "./lib/felrapport.js";

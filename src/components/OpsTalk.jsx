@@ -83,6 +83,12 @@ export function useTalk({ onTalk, onKlick, onAgent, inspelare, igenkanning, skic
    * vars mikrofon öppnades efteråt spelade in i bakgrunden, och efter avmonteringen skickades ljudet till appen efter 120 s.
    */
   const forsok = useRef(0);
+  /**
+   * ⛔ OMGÅNGENS NUMMER OCH HUR FÖRRA IGENKÄNNINGEN SLUTADE (0.107.0, lifehub.app#253), för diagnosen när en inspelning blev tom.
+   * `omgang` räknar starter som fick mikrofonspärren i den här kroken. Inget om personen, ingen text.
+   */
+  const omgang = useRef(0);
+  const forraIgenkanning = useRef(/** @type {import("../lib/talk.js").Igenkanningsslut | null} */ (null));
   const monterad = useRef(true);
   const [sekunder, setSekunder] = useState(0);
   const [framsteg, setFramsteg] = useState(/** @type {number | null} */ (null));
@@ -202,10 +208,47 @@ export function useTalk({ onTalk, onKlick, onAgent, inspelare, igenkanning, skic
         mikrofonenUpptagenAv = inspRef;
         forsok.current += 1;
         const mitt = forsok.current;
+        omgang.current += 1;
+        forraIgenkanning.current = null;
         rensaTak();
-        insp()
-          .starta()
-          .then(() => {
+        /*
+         * ⛔ FÖRRA OMGÅNGENS IGENKÄNNING ÄR AVSLUTAD INNAN MIKROFONEN ÖPPNAS (0.107.0, lifehub.app#253). `slapp` gör `abort()` och väntar
+         * på `end`, med ett tak (`IGENKANNING_SLAPP_MS`), så att en igenkännare som inte säger `end` inte hänger fältet. Den nya
+         * igenkännaren startas först när mikrofonen är öppen, nedan, och då är den förra alltså också borta. Hypotesen och skälet står
+         * vid `slapp` i lib/talk.js.
+         */
+        /*
+         * ⛔ INGEN VÄNTAN NÄR INGET ÄR KVAR: då öppnas mikrofonen i samma tryck som förut, synkront i händelsen. Bara när förra
+         * igenkännaren inte sagt `end` lämnar `slapp` ett löfte. Ett fel i `slapp` stoppar aldrig inspelningen.
+         */
+        /** @type {import("../lib/talk.js").Igenkanningsslut | null | Promise<import("../lib/talk.js").Igenkanningsslut | null>} */
+        let forraSlut = null;
+        try {
+          const g = igk();
+          forraSlut = g && typeof g.slapp === "function" ? g.slapp() : null;
+        } catch (fel) {
+          rapporteraFel(fel, { yta: "OpsTalk", steg: "slapp-text" });
+        }
+        /** @param {import("../lib/talk.js").Igenkanningsslut | null} slut */
+        const oppna = (slut) => {
+          // Ett avbrutet försök öppnar ingen mikrofon. Spärren släpptes av den väg som avbröt det.
+          if (mitt !== forsok.current || !monterad.current) return Promise.resolve(false);
+          forraIgenkanning.current = slut;
+          return insp()
+            .starta()
+            .then(() => true);
+        };
+        (forraSlut && typeof (/** @type {any} */ (forraSlut).then) === "function"
+          ? /** @type {Promise<import("../lib/talk.js").Igenkanningsslut | null>} */ (forraSlut)
+              .catch((fel) => {
+                rapporteraFel(fel, { yta: "OpsTalk", steg: "slapp-text" });
+                return null;
+              })
+              .then(oppna)
+          : oppna(/** @type {import("../lib/talk.js").Igenkanningsslut | null} */ (forraSlut))
+        )
+          .then((startad) => {
+            if (startad === false) return;
             if (mitt === forsok.current && monterad.current) {
               mikStart.current = Date.now();
               setSekunder(0);
@@ -359,6 +402,10 @@ export function useTalk({ onTalk, onKlick, onAgent, inspelare, igenkanning, skic
                 steg: "tomt-ljud",
                 sekunder: ljud.sekunder,
                 igenkanning: igk() !== null,
+                // ⛔ (0.107.0) Omgången och hur förra igenkänningen slutade. `null` för förra igenkänningen betyder att ingen fanns.
+                omgang: omgang.current,
+                forraIgenkanningHann: forraIgenkanning.current ? forraIgenkanning.current.hann : null,
+                forraIgenkanningMs: forraIgenkanning.current ? forraIgenkanning.current.ms : null,
                 ...(ljud.diagnos ?? {}),
               });
               senast.current = null;
@@ -453,7 +500,13 @@ export function useTalk({ onTalk, onKlick, onAgent, inspelare, igenkanning, skic
       rensaTak();
       if (lageRef.current.lage === "haller" || lageRef.current.lage === "lyssnar") {
         inspRef.current?.kasta();
+      }
+      // ⛔ (0.107.0) Igenkännaren stängs i varje läge, inte bara medan det spelas in: en som ännu inte sagt `end` efter Klar hade
+      // annars levt kvar efter att fältet försvunnit. `kasta` är ofarlig på en som redan slutat.
+      try {
         igkRef.current?.kasta();
+      } catch (fel) {
+        rapporteraFel(fel, { yta: "OpsTalk", steg: "kasta-text" });
       }
       frigor();
     };

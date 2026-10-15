@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { rapporteraFel } from "../lib/felrapport.js";
+import { FELMOTTAGARE_HALL_MS, FELMOTTAGARE_PAFYLLNING_MS, FELMOTTAGARE_SKUR, rapporteraFel, registreraFelmottagare } from "../lib/felrapport.js";
 import { OpsAppShell } from "../components/OpsAppShell.jsx";
 
 /**
@@ -47,6 +47,222 @@ describe("rapporteraFel", () => {
 
   it("en mottagare utan fanga-metod ignoreras tyst men kraschar inte", () => {
     expect(() => rapporteraFel(new Error("x"), undefined, /** @type {any} */ ({}))).not.toThrow();
+  });
+});
+
+describe("en mottagare som rapporterar sina egna fel (granskningen av PR 392, BÖR 1)", () => {
+  let spion;
+  beforeEach(() => {
+    spion = vi.spyOn(console, "error").mockImplementation(() => {});
+  });
+  afterEach(() => {
+    spion.mockRestore();
+    vi.useRealTimers();
+  });
+
+  it("⛔ synkront: en fanga som anropar rapporteraFel når inte sig själv igen", () => {
+    const fanga = vi.fn(() => {
+      rapporteraFel(new Error("inre"), { yta: "mottagaren" });
+    });
+    const av = registreraFelmottagare({ fanga, satt: vi.fn() });
+    try {
+      rapporteraFel(new Error("yttre"));
+      // Röd utan skyddet: 3 809 anrop för ett fel, tills stacken tog slut (granskarens mätning).
+      expect(fanga).toHaveBeenCalledTimes(1);
+      // Det inre felet syns ändå i konsolen, med en rad som säger varför det inte gick vidare.
+      const rader = spion.mock.calls.map((c) => c.map(String).join(" ")).join("\n");
+      expect(rader).toContain("inre");
+      expect(rader).toContain("gick bara till konsolen");
+      // Efteråt är mottagaren fri igen.
+      rapporteraFel(new Error("nästa"));
+      expect(fanga).toHaveBeenCalledTimes(2);
+    } finally {
+      av();
+    }
+  });
+
+  it("⛔ asynkront: en nekad skrivning vars fel mottagaren rapporterar loopar inte", async () => {
+    vi.useFakeTimers();
+    // Som en Firestore-skrivning som nekas av reglerna: löftet avvisas en stund senare.
+    const skriv = vi.fn(() => new Promise((_, nej) => setTimeout(() => nej(Object.assign(new Error("Missing or insufficient permissions."), { code: "permission-denied" })), 10)));
+    const fanga = vi.fn((/** @type {unknown} */ _fel) => skriv().catch((e) => rapporteraFel(e, { yta: "felmottagaren" })));
+    const av = registreraFelmottagare({ fanga, satt: vi.fn() });
+    try {
+      rapporteraFel(new Error("ursprunget"));
+      await vi.advanceTimersByTimeAsync(200);
+      // Röd utan skyddet: ett nytt fanga och en ny skrivning var tionde millisekund, utan slut.
+      expect(fanga).toHaveBeenCalledTimes(1);
+      expect(skriv).toHaveBeenCalledTimes(1);
+      // När skrivningen avgjorts är mottagaren fri, och ett nytt fel når den.
+      rapporteraFel(new Error("ett annat fel"));
+      expect(fanga).toHaveBeenCalledTimes(2);
+    } finally {
+      av();
+    }
+  });
+});
+
+describe("hållet har ett tak (granskningen av PR 392 varv 2, MÅSTE 1)", () => {
+  let spion;
+  beforeEach(() => {
+    spion = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    spion.mockRestore();
+    vi.useRealTimers();
+  });
+
+  it("⛔ ett löfte som aldrig avgörs (en skrivning utan nät) låser inte mottagaren: efter taket når nästa fel den", async () => {
+    const fanga = vi.fn(() => new Promise(() => {}));
+    const av = registreraFelmottagare({ fanga, satt: vi.fn() });
+    try {
+      rapporteraFel(new Error("utan nät"));
+      await vi.advanceTimersByTimeAsync(FELMOTTAGARE_HALL_MS - 10);
+      rapporteraFel(new Error("medan skrivningen står"));
+      expect(fanga).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(20);
+      rapporteraFel(new Error("TALK: inspelningen gav inget ljud"), { steg: "tomt-ljud" });
+      // Röd utan taket: mottagaren var låst för resten av sidans liv, och diagnosen gick bara till konsolen.
+      expect(fanga).toHaveBeenCalledTimes(2);
+    } finally {
+      av();
+    }
+  });
+
+  it("⛔ ett avvisat löfte släpper mottagaren direkt, inte först vid taket", async () => {
+    const fanga = vi.fn(() => new Promise((_, nej) => setTimeout(() => nej(new Error("permission-denied")), 10)));
+    const av = registreraFelmottagare({ fanga, satt: vi.fn() });
+    try {
+      rapporteraFel(new Error("första"));
+      await vi.advanceTimersByTimeAsync(20);
+      rapporteraFel(new Error("andra"));
+      // Röd utan släppet i avvisningsgrenen: mottagaren hölls till taket, och det andra felet gick bara till konsolen.
+      expect(fanga).toHaveBeenCalledTimes(2);
+      expect(spion.mock.calls.map((c) => c.map(String).join(" ")).join("\n")).toContain("felmottagaren själv föll");
+    } finally {
+      av();
+    }
+  });
+
+  it("⛔ ett thenable vars then kastar låser inte mottagaren", () => {
+    const fanga = vi.fn(() => ({
+      then() {
+        throw new Error("trasigt then");
+      },
+    }));
+    const av = registreraFelmottagare({ fanga, satt: vi.fn() });
+    try {
+      rapporteraFel(new Error("första"));
+      rapporteraFel(new Error("andra"));
+      // Röd före rättelsen: asynkront läge sattes innan then anropades, så finally släppte aldrig.
+      expect(fanga).toHaveBeenCalledTimes(2);
+    } finally {
+      av();
+    }
+  });
+});
+
+describe("ett tappat fel är en siffra (granskningen av PR 392 varv 2, BÖR)", () => {
+  let spion;
+  beforeEach(() => {
+    spion = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    spion.mockRestore();
+    vi.useRealTimers();
+  });
+
+  it("⛔ fel som kom medan mottagaren var upptagen räknas, och nästa fel som når den bär antalet", async () => {
+    const fanga = vi.fn(() => new Promise((klar) => setTimeout(klar, 300)));
+    const av = registreraFelmottagare({ fanga, satt: vi.fn() });
+    try {
+      rapporteraFel(new Error("OpsCalendar"), { yta: "OpsCalendar" });
+      await vi.advanceTimersByTimeAsync(50);
+      rapporteraFel(new Error("OpsTalk"), { yta: "OpsTalk" });
+      rapporteraFel(new Error("useSamtal"), { yta: "useSamtal" });
+      await vi.advanceTimersByTimeAsync(300);
+      rapporteraFel(new Error("nästa"), { yta: "OpsForslag" });
+      expect(fanga).toHaveBeenCalledTimes(2);
+      // Första leveransen bär inget fält: inget var tappat. Röd utan räknaren: den andra saknar `tappade`.
+      expect(/** @type {any} */ (fanga.mock.calls[0])[1]).toEqual({ yta: "OpsCalendar" });
+      expect(/** @type {any} */ (fanga.mock.calls[1])[1]).toEqual({ yta: "OpsForslag", tappade: 2 });
+      // Räknaren nollas när antalet levererats.
+      await vi.advanceTimersByTimeAsync(300);
+      rapporteraFel(new Error("sedan"));
+      expect(/** @type {any} */ (fanga.mock.calls[2])[1]).toBeUndefined();
+    } finally {
+      av();
+    }
+  });
+});
+
+describe("takten och hållens identitet (granskningen av PR 392 varv 3)", () => {
+  let spion;
+  beforeEach(() => {
+    spion = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    spion.mockRestore();
+    vi.useRealTimers();
+  });
+
+  it("⛔ BÖR 1: en skrivning som faller efter taket på hållet loopar, men takten begränsar den", async () => {
+    // Granskarens mottagare: skrivningen avvisas efter 6 s, alltså efter FELMOTTAGARE_HALL_MS, och felet rapporteras.
+    const skriv = vi.fn(() => new Promise((_, nej) => setTimeout(() => nej(new Error("tidsgräns")), 6000)));
+    const fanga = vi.fn(() => skriv().catch((e) => rapporteraFel(e, { yta: "felmottagaren" })));
+    const av = registreraFelmottagare({ fanga, satt: vi.fn() });
+    try {
+      rapporteraFel(new Error("ursprunget"));
+      await vi.advanceTimersByTimeAsync(11 * 60_000);
+      // Röd utan takten: 111 leveranser på 11 minuter (granskarens mätning), en per drygt 6 s.
+      expect(fanga.mock.calls.length).toBeLessThanOrEqual(FELMOTTAGARE_SKUR + 11 + 1);
+      // Golv: loopen finns, annars mäter provet ingenting.
+      expect(fanga.mock.calls.length).toBeGreaterThan(FELMOTTAGARE_SKUR);
+    } finally {
+      av();
+    }
+  });
+
+  it("⛔ BÖR 1: en skur över taket räknas i tappade, och en leverans fylls på per minut", async () => {
+    const fanga = vi.fn();
+    const av = registreraFelmottagare({ fanga, satt: vi.fn() });
+    try {
+      for (let i = 0; i < FELMOTTAGARE_SKUR + 2; i += 1) rapporteraFel(new Error(`fel ${i}`), { i });
+      expect(fanga).toHaveBeenCalledTimes(FELMOTTAGARE_SKUR);
+      await vi.advanceTimersByTimeAsync(FELMOTTAGARE_PAFYLLNING_MS);
+      rapporteraFel(new Error("efter en minut"), { i: 99 });
+      expect(fanga).toHaveBeenCalledTimes(FELMOTTAGARE_SKUR + 1);
+      expect(/** @type {any} */ (fanga.mock.lastCall)[1]).toEqual({ i: 99, tappade: 2 });
+      rapporteraFel(new Error("direkt efter"));
+      expect(fanga).toHaveBeenCalledTimes(FELMOTTAGARE_SKUR + 1);
+    } finally {
+      av();
+    }
+  });
+
+  it("⛔ BÖR 2: ett tidigare håll som avgörs sent släpper inte ett senare", async () => {
+    /** @type {Array<() => void>} */
+    const losare = [];
+    const fanga = vi.fn(() => new Promise((klar) => losare.push(() => klar(undefined))));
+    const av = registreraFelmottagare({ fanga, satt: vi.fn() });
+    try {
+      rapporteraFel(new Error("håll 1"));
+      // Håll 1 släpps av taket. Håll 2 börjar.
+      await vi.advanceTimersByTimeAsync(FELMOTTAGARE_HALL_MS + 10);
+      rapporteraFel(new Error("håll 2"));
+      expect(fanga).toHaveBeenCalledTimes(2);
+      // Håll 1:s löfte avgörs nu, mitt i håll 2.
+      losare[0]();
+      await vi.advanceTimersByTimeAsync(1);
+      rapporteraFel(new Error("medan håll 2 står"));
+      // Röd utan identitetskontrollen: håll 1 släppte håll 2, och felet levererades mitt i håll 2:s skrivning.
+      expect(fanga).toHaveBeenCalledTimes(2);
+    } finally {
+      av();
+    }
   });
 });
 

@@ -165,6 +165,9 @@ export function createSamtalskalla(konfig) {
   /** @param {string} sid */
   const lastvag = (sid) => `${samtal}/${sid}/${last}`;
 
+  /** Ämnen som redan setts finnas i den här källan: listade, eller skapade härifrån (se `skickaIAmne`). */
+  const kandaAmnen = new Set();
+
   /**
    * Gruppchatten och mina privata samtal i en grupp.
    *
@@ -181,7 +184,10 @@ export function createSamtalskalla(konfig) {
       kalla.list(samtal, { where: { groupId }, innehaller: { deltagare: uid } }),
     ]);
     const sedda = new Set();
-    return [...gruppens, ...mina].filter((s) => (sedda.has(s.id) ? false : (sedda.add(s.id), true)));
+    const ut = [...gruppens, ...mina].filter((s) => (sedda.has(s.id) ? false : (sedda.add(s.id), true)));
+    // ⛔ Ett ämne i listan finns: `skickaIAmne` skapar det inte igen (P0 2026-10-15, se där).
+    for (const s of ut) if (s.slag === "agent") kandaAmnen.add(s.id);
+    return ut;
   }
 
   /**
@@ -528,9 +534,16 @@ export function createSamtalskalla(konfig) {
      * försvagas inte: regeln för meddelandet kräver ändå att samtalet finns (`exists`), så en skrivning mot ett samtal som försvunnit
      * nekas, och då glöms ämnet här och nästa försök läser och skapar om det behövs.
      */
+    /*
+     * ⛔ P0 2026-10-15: LÄS ALDRIG ETT SAMTAL SOM KANSKE INTE FINNS. Här stod `kalla.read(samtal, s.id)`. Läsregeln är
+     * `opsFarLasaSamtal(resource.data)`, och för ett dokument som inte finns är `resource` null, så läsningen nekades ("Missing or
+     * insufficient permissions") och varken ämnet eller meddelandet skrevs: CP kunde inte skicka i ett Nytt samtal, och TALK:s Agent
+     * (`oppnaAmne`) föll på samma rad. Minneskällan har inga regler, så inget komponentprov såg det; emulatorprovet
+     * `rules/__tests__/amnen-kalla.test.mjs` gör det. Nu samma väg som `oppnaPrivat`: skapa, och nekas skapelsen, hämta ur listan.
+     * ⛔ Ett ämne som setts i en listning är känt (`lista` lägger in det), så ett befintligt ämne skrivs aldrig om med `setDoc`.
+     */
     if (!kandaAmnen.has(s.id)) {
-      const finns = await kalla.read(samtal, s.id);
-      if (!finns) await skapaEllerHamta(s, d.av);
+      await skapaEllerHamta(s, d.av);
       kandaAmnen.add(s.id);
     }
     try {
@@ -540,8 +553,6 @@ export function createSamtalskalla(konfig) {
       throw fel;
     }
   }
-  /** Ämnen som redan setts finnas i den här källan (se `skickaIAmne`). */
-  const kandaAmnen = new Set();
 
   /**
    * Ett nytt ämne med sitt första meddelande, i ett anrop. För TALK:s Agent: det sagda blir första raden i ett eget ämne.

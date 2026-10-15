@@ -33,13 +33,156 @@
 
 /**
  * @typedef {object} Felmottagare
- * @property {(fel: unknown, sammanhang?: Record<string, unknown>) => void} fanga
+ * @property {(fel: unknown, sammanhang?: Record<string, unknown>) => void | Promise<unknown>} fanga ⛔ (0.107.0) Skriver mottagaren
+ *   asynkront ska den RETURNERA löftet: medan det inte avgjorts, högst `FELMOTTAGARE_HALL_MS`, går ett nytt fel bara till konsolen,
+ *   inte tillbaka hit, och räknas i `tappade` på nästa fel som når hit. Se
+ *   `rapporteraFel` och "EN MOTTAGARE SOM RAPPORTERAR SINA EGNA FEL".
  * @property {(anvandare: { uid: string, groupId?: string } | null) => void} satt
  */
 
 /**
+ * ══ ⛔ EN MOTTAGARE SOM RAPPORTERAR SINA EGNA FEL (granskningen av PR 392, BÖR 1) ══
+ *
+ * Med en förvald mottagare når ett `rapporteraFel` utan tredje argument
+ * mottagaren, också när det anropas inifrån mottagaren själv. Mätt av
+ * granskaren: en `fanga` som anropade `rapporteraFel` gav 3 809 anrop av
+ * `fanga` för ett enda fel, tills stacken tog slut. Den asynkrona formen är
+ * husets vanliga mönster och loopar utan slut: `fanga(fel) { return
+ * addDoc(...).catch((e) => rapporteraFel(e)) }`, där en skrivning som nekas
+ * (reglerna ännu inte deployade) ger ett nytt fel som skrivs, som nekas.
+ *
+ * Därför: medan en mottagare hanterar ett fel går ett nytt fel till samma
+ * mottagare bara till konsolen. "Hanterar" är medan `fanga` körs, och om den
+ * lämnar ett löfte, tills löftet avgjorts. ⛔ GRÄNSEN: en `fanga` som startar
+ * en skrivning utan att returnera löftet kan ramverket inte se, och då skyddas
+ * den inte. Därför ska en asynkron mottagare returnera sitt löfte.
+ *
+ * ⛔ HÅLLET HAR ETT TAK, `FELMOTTAGARE_HALL_MS` (granskningen av PR 392 varv 2,
+ * MÅSTE 1). Utan tak låste ett löfte som aldrig avgörs mottagaren för resten
+ * av sidans liv, och det är det vanliga fallet för en skrivning utan nät:
+ * `addDoc` löser sig först när servern kvitterat. Då hade varje senare fel,
+ * också TALK:s diagnos, bara gått till konsolen, just när det är svårast att
+ * mäta på annat sätt. ⛔ GRÄNSEN, SOM DEN ÄR (varv 3, BÖR 1): hållet bryter
+ * loopen bara när mottagarens eget fel kommer inom `FELMOTTAGARE_HALL_MS`,
+ * eftersom `.catch` då körs medan hållet står. En skrivning som faller
+ * långsammare (granskaren mätte en som avvisas efter 6 s: 111 leveranser på
+ * 11 minuter) är fri när felet kommer, och då startar loopen igen.
+ *
+ * ⛔ DÄRFÖR OCKSÅ ETT TAK PÅ TAKTEN (varv 3, BÖR 1). Varje mottagare har
+ * `FELMOTTAGARE_SKUR` leveranser att ta av, och får tillbaka en per
+ * `FELMOTTAGARE_PAFYLLNING_MS` (en minut). Det bryter inte en loop, men
+ * begränsar varje form av den, oavsett hur lång mottagarens kedja är: efter
+ * en skur på tio går högst en leverans per minut fram. Det som inte går fram
+ * räknas i `tappade`, som nedan.
+ *
+ * ⛔ ETT TAPPAT FEL ÄR EN SIFFRA, INTE EN TYSTNAD (varv 2, BÖR). Ett fel som
+ * kommer medan mottagaren är upptagen går bara till konsolen, och räknas.
+ * Nästa fel som når mottagaren bär antalet som `tappade` i sammanhanget, så
+ * att ett bortfall går att skilja från inget fel (regel 5). Konsolen får
+ * alltid alla.
+ */
+
+/** Längsta tid en mottagare hålls medan löftet från `fanga` inte avgjorts. */
+export const FELMOTTAGARE_HALL_MS = 5000;
+
+/** Så många leveranser en mottagare har att ta av innan takten begränsas (varv 3, BÖR 1). */
+export const FELMOTTAGARE_SKUR = 10;
+
+/** Så ofta en mottagare får tillbaka en leverans, när skuren är slut. */
+export const FELMOTTAGARE_PAFYLLNING_MS = 60_000;
+
+/** Leveranser kvar per mottagare, och när de räknades senast. @type {Map<Felmottagare, { kvar: number, vid: number }>} */
+const takt = new Map();
+/**
+ * Tar en leverans ur mottagarens skur, efter påfyllning. `false` när skuren är tom.
+ * @param {Felmottagare} m
+ */
+const taLeverans = (m) => {
+  const nu = Date.now();
+  const t = takt.get(m) ?? { kvar: FELMOTTAGARE_SKUR, vid: nu };
+  const nya = Math.floor((nu - t.vid) / FELMOTTAGARE_PAFYLLNING_MS);
+  if (nya > 0) {
+    t.kvar = Math.min(FELMOTTAGARE_SKUR, t.kvar + nya);
+    t.vid += nya * FELMOTTAGARE_PAFYLLNING_MS;
+  }
+  if (t.kvar >= FELMOTTAGARE_SKUR) t.vid = nu;
+  takt.set(m, t);
+  if (t.kvar < 1) return false;
+  t.kvar -= 1;
+  return true;
+};
+
+/** Mottagare som hanterar ett fel, med en egen post per håll. @type {Map<Felmottagare, object>} */
+const hallna = new Map();
+/** Fel som gick bara till konsolen medan mottagaren var upptagen, sedan förra leveransen. @type {Map<Felmottagare, number>} */
+const tappade = new Map();
+/**
+ * Håller mottagaren och lämnar en funktion som släpper just det hållet. Ett senare håll släpps inte av ett tidigare.
+ * @param {Felmottagare} m
+ */
+const halla = (m) => {
+  const post = {};
+  hallna.set(m, post);
+  return () => {
+    if (hallna.get(m) === post) hallna.delete(m);
+  };
+};
+
+/**
+ * ══ ⛔ DEN FÖRVALDA MOTTAGAREN (0.107.0, cllp/lifehub.app#253) ═══════════
+ *
+ * CP 2026-10-15 på iPhone: efter agentens svar gick det inte att spela in
+ * igen, och fältet sade att mikrofonen inte gav något ljud. OpsTalk skickade
+ * en diagnos med `rapporteraFel(fel, sammanhang)`, men utan tredje argument,
+ * och bara felgränsen i `OpsAppShell` fick appens mottagare. Diagnosen hamnade
+ * alltså i konsolen på en telefon ingen kunde öppna utvecklarverktygen på, och
+ * varje misslyckande var omätt (regel 3).
+ *
+ * Därför finns en förvald mottagare: appen ger den EN gång (`OpsAuthProvider`
+ * eller `OpsAppShell` med `felmottagare`, eller `registreraFelmottagare` för
+ * en app som inte använder någon av dem), och varje `rapporteraFel` utan
+ * eget tredje argument når den. Ramverket känner fortfarande inget konto och
+ * inget samlingsnamn: mottagaren är appens, och ramverket bär bara vidare.
+ *
+ * ⛔ EN STAPEL, INTE EN ENDA PLATS. Flera komponenter kan registrera samma
+ * mottagare (en app ger den både till inloggningen och skalet), och en som
+ * avmonteras får inte ta bort en annans. Den senast registrerade gäller, och
+ * avregistreringen tar bara bort sin egen post.
+ * @type {Array<{ felmottagare: Felmottagare }>}
+ */
+const registrerade = [];
+
+/**
+ * Gör `felmottagare` till den förvalda mottagaren för `rapporteraFel`.
+ * Kastar när den inte har `fanga`: en mottagare som inte går att anropa hade
+ * sett ut som en kopplad felkanal och tappat varje fel tyst (regel 5).
+ *
+ * @param {Felmottagare} felmottagare
+ * @returns {() => void} Avregistrerar just den här registreringen.
+ */
+export function registreraFelmottagare(felmottagare) {
+  if (!felmottagare || typeof felmottagare.fanga !== "function" || typeof felmottagare.satt !== "function") {
+    // ⛔ OCKSÅ `satt` (granskningen av PR 392, KAN 3): `OpsAuthProvider` anropar `satt` vid varje inloggningsbyte utan att pröva den,
+    // och en mottagare utan den hade kastat där i stället för här, där felet säger vad som saknas.
+    throw new Error("registreraFelmottagare: mottagaren ska ha formen { fanga, satt }, två funktioner. Utan fanga hade varje fel tappats tyst, och utan satt kastar inloggningen vid varje byte.");
+  }
+  const post = { felmottagare };
+  registrerade.push(post);
+  return () => {
+    const i = registrerade.indexOf(post);
+    if (i !== -1) registrerade.splice(i, 1);
+  };
+}
+
+/** Den förvalda mottagaren just nu, eller `null`. @returns {Felmottagare | null} */
+export function forvaldFelmottagare() {
+  return registrerade.length > 0 ? registrerade[registrerade.length - 1].felmottagare : null;
+}
+
+/**
  * Rapporterar ett fel. Skriver ALLTID till konsolen, och vidarebefordrar
- * ALLTID till mottagaren när en sådan finns.
+ * ALLTID till mottagaren när en sådan finns: den som ges här, annars den
+ * förvalda (`registreraFelmottagare`).
  *
  * ⛔ SKRIVER TILL KONSOLEN ÄVEN NÄR EN MOTTAGARE FINNS, och det är medvetet.
  * En loggpunkt som bara pratar med mottagaren gör felsökning UTAN nätverk
@@ -53,16 +196,46 @@
  *
  * @param {unknown} fel
  * @param {Record<string, unknown>} [sammanhang]
- * @param {Felmottagare | null | undefined} [felmottagare]
+ * @param {Felmottagare | null | undefined} [felmottagare] Utan den (eller med `null`) gäller den förvalda.
  */
 export function rapporteraFel(fel, sammanhang, felmottagare) {
   // eslint-disable-next-line no-console -- det HÄR är loggpunkten. Se filhuvudet.
   console.error("ops-framework:", fel, sammanhang ?? {});
-  if (!felmottagare || typeof felmottagare.fanga !== "function") return;
+  const mottagare = felmottagare ?? forvaldFelmottagare();
+  if (!mottagare || typeof mottagare.fanga !== "function") return;
+  if (hallna.has(mottagare)) {
+    tappade.set(mottagare, (tappade.get(mottagare) ?? 0) + 1);
+    // eslint-disable-next-line no-console
+    console.error("ops-framework: felet kom medan felmottagaren hanterade ett annat fel, och gick bara till konsolen");
+    return;
+  }
+  if (!taLeverans(mottagare)) {
+    tappade.set(mottagare, (tappade.get(mottagare) ?? 0) + 1);
+    // eslint-disable-next-line no-console
+    console.error(`ops-framework: felmottagaren har fått ${FELMOTTAGARE_SKUR} fel i en skur; felet gick bara till konsolen och räknas i tappade`);
+    return;
+  }
+  const antalTappade = tappade.get(mottagare) ?? 0;
+  tappade.delete(mottagare);
+  const ut = antalTappade > 0 ? { ...(sammanhang ?? {}), tappade: antalTappade } : sammanhang;
+  const slapp = halla(mottagare);
+  let asynkron = false;
   try {
-    felmottagare.fanga(fel, sammanhang);
+    const svar = /** @type {unknown} */ (mottagare.fanga(fel, ut));
+    if (svar && typeof (/** @type {any} */ (svar).then) === "function") {
+      /** @type {Promise<unknown>} */ (svar).then(slapp, (mottagarfel) => {
+        slapp();
+        // eslint-disable-next-line no-console
+        console.error("ops-framework: felmottagaren själv föll", mottagarfel);
+      });
+      // ⛔ Asynkron först när `then` tagit emot utan att kasta (varv 2, MÅSTE 1). Ett thenable vars `then` kastar låste förut för gott.
+      asynkron = true;
+      setTimeout(slapp, FELMOTTAGARE_HALL_MS);
+    }
   } catch (mottagarfel) {
     // eslint-disable-next-line no-console
     console.error("ops-framework: felmottagaren själv kastade", mottagarfel);
+  } finally {
+    if (!asynkron) slapp();
   }
 }

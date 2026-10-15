@@ -111,6 +111,7 @@ import { AgentIkon, AndraIkon, KopieraIkon, ArkiveraIkon, TaFramIkon, BildIkon, 
  * @property {string} [du] Förval "Du".
  * @property {string} [olastaText] Substantivet efter räknarens siffra. Förval "olästa".
  * @property {string} [fel] Förval "Meddelandena kunde inte hämtas".
+ * @property {string} [skickaFel] (0.107.0) Rubriken när ett meddelande inte gick att skicka. Förval "Meddelandet kunde inte skickas".
  * @property {string} [till] Mottagarväljarens etikett i läget "nytt". Förval "Till".
  * @property {string} [valjMottagare] Felet när man skickar i läget "nytt" utan att ha valt någon. Förval "Välj vem meddelandet ska till.".
  * @property {string} [oppnaFel] Rubriken när samtalet inte kunde öppnas. Förval "Samtalet kunde inte öppnas".
@@ -302,6 +303,7 @@ const ORD_MEDDELANDEN = {
   du: { sv: "Du", en: "You" },
   olastaText: { sv: "olästa", en: "unread" },
   fel: { sv: "Meddelandena kunde inte hämtas", en: "The messages could not be loaded" },
+  skickaFel: { sv: "Meddelandet kunde inte skickas", en: "The message could not be sent" },
   till: { sv: "Till", en: "To" },
   valjMottagare: { sv: "Välj vem meddelandet ska till.", en: "Choose who the message is for." },
   oppnaFel: { sv: "Samtalet kunde inte öppnas", en: "The conversation could not be opened" },
@@ -2200,6 +2202,8 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik: rubrikProp, marke, lastT
   const las = arNy ? null : kalla;
   const [meddelanden, setMeddelanden] = useState(/** @type {Array<import("../lib/samtal.js").Meddelande & { id: string }> | null} */ (arNy ? [] : null));
   const [fel, setFel] = useState(/** @type {Error | null} */ (null));
+  /** (0.107.0) Ett meddelande som inte gick att skicka. Egen rubrik: förut stod "Meddelandena kunde inte hämtas" över ett nekat skick. */
+  const [skickaFel, setSkickaFel] = useState(/** @type {Error | null} */ (null));
   const [text, setText] = useState(utkast ?? "");
   const [skickar, setSkickar] = useState(false);
   const markt = useRef(lastTillProp ?? 0);
@@ -2314,6 +2318,7 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik: rubrikProp, marke, lastT
     if (tal && !ut.trim()) throw new Error(t.ingenText);
     if (skickar || (!ut.trim() && !bilage.bilaga)) return;
     setSkickar(true);
+    setSkickaFel(null);
     let skickat = false;
     try {
       const d = { text: ut, av: uid, ...(extra?.namner ? { namner: extra.namner } : {}), ...(svarPa ? { svarPa: svarPa.id } : {}), ...(!tal && bilage.bilaga ? { bilaga: bilage.bilaga } : {}) };
@@ -2332,7 +2337,9 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik: rubrikProp, marke, lastT
     } catch (e) {
       // ⛔ Bara sändningen kastar. Föll läsningen efteråt är meddelandet redan skickat, och ett Försök igen hade skickat det två gånger.
       if (tal && !skickat) throw e;
-      setFel(e instanceof Error ? e : new Error(String(e)));
+      const f = e instanceof Error ? e : new Error(String(e));
+      if (skickat) setFel(f);
+      else setSkickaFel(f);
     } finally {
       setSkickar(false);
     }
@@ -2426,13 +2433,29 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik: rubrikProp, marke, lastT
       {sok.oppen ? <Sokrad sok={sok} antal={alla.length} kanFinnasAldre={historik.kanFinnasAldre} texter={t} /> : null}
       <Fastarad fasta={fasta} kalla={kalla} sid={samtal.id} laddade={alla} uid={uid} namnFor={namnFor} texter={t} />
 
+      {/*
+       * ⛔ FELRADERNA STÅR OVANFÖR LOGGEN, INTE I DEN (P0 2026-10-15). CP i Safari på Mac: efter ett nekat Skicka i ett Nytt samtal syntes
+       * under huvudet en röd ram utan text. Felet stod först i loggen, och i ett nytt ämne fyller den tomma vyn (`h-full`) hela loggen
+       * under det, så loggen blev högre än sin ruta och följde slutet: felet rullades upp ur sikte och bara dess nedre kant syntes.
+       * Hypotes för just WebKit, inte mätt där (ingen WebKit i provmiljön); att felet låg i den rullande loggen är mätt i koden.
+       * `shrink-0`, så att raden aldrig trycks ihop av en kolumn med `min-h-0`.
+       */}
+      {fel || skickaFel ? (
+        <div data-samtalsfel="" className="flex shrink-0 flex-col gap-2 px-3 pt-2">
+          {skickaFel ? (
+            <OpsBanner tone="danger" title={t.skickaFel}>
+              {skickaFel.message}
+            </OpsBanner>
+          ) : null}
+          {fel ? (
+            <OpsBanner tone="danger" title={t.fel}>
+              {fel.message}
+            </OpsBanner>
+          ) : null}
+        </div>
+      ) : null}
       <div className="relative flex min-h-0 flex-1 flex-col">
       <div ref={loggRef} role="log" aria-label={rubrik} className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
-        {fel ? (
-          <OpsBanner tone="danger" title={t.fel}>
-            {fel.message}
-          </OpsBanner>
-        ) : null}
         {tradfel ? (
           /* ⛔ KAN 5: aldrig tyst. Meddelandena står kvar och "Svara i tråd" öppnar tråden, men raden säger att märkena kan saknas. */
           <p data-tradarfel="" role="status" className="m-0 py-1 text-center text-liten text-ink-muted">

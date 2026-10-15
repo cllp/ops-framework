@@ -9,6 +9,150 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.107.0
+
+### ⛔ P0: ett Nytt samtal med agenten gick inte att skicka (produktion, appen på 0.106.0)
+
+CP 2026-10-15 i telefonen och på datorn: i ett Nytt samtal med agenten stod texten kvar efter Skicka, och under trådens huvud syntes
+i Safari på Mac en röd ram utan text, på Windows "Meddelandena kunde inte hämtas. Missing or insufficient permissions." TALK:s Agent
+(`oppnaAmne`) gick samma väg och föll likadant.
+
+- **Roten, mätt mot Firestore-emulatorn med de genererade reglerna och Firestore-källan** (`rules/__tests__/amnen-kalla.test.mjs`):
+  `skickaIAmne` läste samtalsdokumentet (`kalla.read`) för ett ämne som inte fanns. Läsregeln är `opsFarLasaSamtal(resource.data)`,
+  och för ett dokument som inte finns är `resource` null, så läsningen nekades ("Null value error" i regeln) och varken ämnet eller
+  meddelandet skrevs. Före rättelsen 2 av 4 röda (Nytt samtal och `oppnaAmne`), med den 4 av 4 gröna. Mätbygget och komponentproven
+  kör minneskällan, som inte har regler, och därför såg inget prov det.
+- **Rättat i klienten: samtalet läses aldrig.** Ett okänt ämne går samma väg som `oppnaPrivat`: skapa, och nekas skapelsen, hämta ur
+  listan. Ett ämne som setts i en listning är känt, så ett befintligt ämne skrivs aldrig om med `setDoc`.
+- **Läsregeln ändras inte, och det är ett val.** Den hade kunnat tåla ett dokument som inte finns (`resource == null` med personens uid i
+  nyckeln), men då hade rättelsen krävt en regeldeploy före klienten, och en läsning som bara svarar "finns inte" behövs inte när
+  skapelsen själv avgör det. En klienträttelse når produktion med ompinningen ensam.
+- **Lyssnaren på meddelanden:** mätt i ett komponentprov med en källa som har reglernas krav (`chatt-nytt-amne-regler.test.jsx`):
+  ett Nytt samtal som öppnas gör ingen nekad läsning och ingen prenumeration förrän första Skicka skapat ämnet (det var redan så i
+  0.106.0, `OpsSamtal` med `ny`), och efter skapelsen startar prenumerationen och meddelandet syns. Rubriken CP såg på Windows,
+  "Meddelandena kunde inte hämtas", stod över det nekade skicket, inte över en läsning.
+- **Felraden står ovanför loggen, med egen rubrik för ett nekat skick** ("Meddelandet kunde inte skickas", `skickaFel`). Förut stod
+  felet först i den rullande loggen, och i ett nytt ämne fyller den tomma vyn (`h-full`) loggen under det, så loggen blev högre än
+  sin ruta och följde slutet: felet rullades ur sikte. Att det låg i loggen är mätt i koden; att det är det som syntes i WebKit är
+  hypotes, eftersom provmiljön saknar WebKit (`playwright install webkit` når inte nätet här).
+
+**TALK: felkanalen når komponenterna, och förra omgången är släppt innan nästa öppnar mikrofonen (cllp/lifehub.app#253).**
+
+CP 2026-10-15 07:25 på iPhone, appen på ramverket 0.104.0: efter agentens svar gick det inte att spela in igen, och fältet sade
+`TALK_INGET_LJUD` ("Mikrofonen gav inget ljud, och inget hördes som text"). CP: "Det är som att mikrofonen låser sig." Både ljudet
+och taligenkänningens text var tomma, och diagnosen som skulle ha sagt varför nådde aldrig appen.
+
+**Vad som är mätt och vad som är hypotes.** Mätt i koden, med prov som är röda utan rättelsen: att diagnosen inte nådde appens
+mottagare, och fyra sätt koden kunde lämna något från förra omgången öppet (nedan). **Hypotes, inte mätt på en iPhone:** att WebKit
+på iOS håller telefonens ljudpass medan en taligenkännare inte sagt `end`, eller medan en `AudioContext` inte stängts, och att nästa
+`getUserMedia` då ger ett tyst spår. Väntan nedan tar bort de möjligheterna. **Antaget, inte mätt (KAN 1):** att väntan inte bryter
+mot iOS krav på en användargest. I den vanliga vägen anropas `getUserMedia` fortfarande synkront i trycket; bara när förra
+igenkännaren inte sagt `end` eller förra ljudkontexten inte stängts kommer det upp till 1 s plus 1 s senare. WebKit kräver enligt
+granskarens bedömning ingen gest för `getUserMedia` själv, och `AudioContext` och `SpeechRecognition.start()` startade redan efter
+mikrofonen förut. Faller `getUserMedia` av det skälet syns det som ett fel i fältet och i rapporten. ⛔ **Det rättar inte säkert CP:s fall:** i hans väg (Klar,
+valen, Agent) hade förra igenkännaren redan sagt `end` när det sagda kom fram, eftersom texten annars hade varit tom
+(`webblasarensIgenkanning().stoppa`). Vad som faktiskt hände avgörs av diagnosen, som nu kan nå appen. Texten i fältet när det ändå
+blir tomt är oförändrad, `TALK_INGET_LJUD`.
+
+### Tillagt: en förvald felmottagare
+
+- `registreraFelmottagare(felmottagare)` gör mottagaren förvald: varje `rapporteraFel(fel, sammanhang)` utan eget tredje argument
+  når den. **Det gäller alla komponenters rapporter, inte bara TALK:s diagnos** (granskningen av PR 392, KAN 5): också `OpsCalendar`
+  (dolda lager och appar, veckonummer), `OpsMeddelanden` (`sid`, `mid` och valideringstexten för ett förslag som hoppades över),
+  `useSamtal` (`groupId`, `sid`), `OpsForslag`, skalets adressläsning och taligenkänningens fel. Granskaren hittade inga
+  personuppgifter i dem. Returnerar en funktion som tar bort just den registreringen, och den senast registrerade gäller.
+  Kastar när mottagaren saknar `fanga` eller `satt` (KAN 3): utan `fanga` hade varje fel tappats tyst, och utan `satt` kastar
+  inloggningen vid varje byte.
+- **En mottagare som rapporterar sina egna fel går inte i rekursion** (BÖR 1). Medan en mottagare hanterar ett fel går ett nytt fel
+  till samma mottagare bara till konsolen, med en rad som säger det. "Hanterar" är medan `fanga` körs och, om den returnerar ett
+  löfte, tills löftet avgjorts. ⛔ **En mottagare som skriver asynkront ska returnera sitt löfte**, till exempel
+  `fanga(fel) { return addDoc(...).catch((e) => rapporteraFel(e)) }`; en som inte gör det skyddas inte. Utan skyddet mätte granskaren
+  3 809 anrop av `fanga` för ett fel, och en nekad skrivning vars fel mottagaren rapporterar loopar utan slut. ⛔ **Hållet har ett tak**,
+  `FELMOTTAGARE_HALL_MS` (5 s, granskningen av PR 392 varv 2, MÅSTE 1): ett löfte som aldrig avgörs, det vanliga för `addDoc` utan
+  nät, hade annars låst mottagaren för resten av sidans liv. Ett avvisat löfte släpper direkt, och ett thenable vars `then` kastar
+  låser inte. Priset: ett annat fel som kommer just medan en skrivning pågår går bara till konsolen, och **räknas** (varv 2, BÖR):
+  nästa fel som når mottagaren bär antalet som `tappade` i sammanhanget, så att ett bortfall går att skilja från inget fel.
+  ⛔ **Gränsen, som den är** (varv 3, BÖR 1): hållet bryter en loop bara när mottagarens eget fel kommer inom `FELMOTTAGARE_HALL_MS`.
+  En skrivning som faller långsammare gav 111 leveranser på 11 minuter. Därför har varje mottagare också ett **tak på takten**: en
+  skur på `FELMOTTAGARE_SKUR` (10) leveranser, och sedan en per `FELMOTTAGARE_PAFYLLNING_MS` (en minut). Det bryter inte en loop men
+  begränsar varje form av den, och det som inte går fram räknas i `tappade`.
+- `OpsAuthProvider` och `OpsAppShell` med `felmottagare` registrerar den själva medan de är monterade. **En app ger alltså
+  `felmottagare` till `OpsAuthProvider` en gång**, formen `{ fanga, satt }`, och behöver inget annat. Ramverket känner fortfarande inget
+  konto och inget samlingsnamn. ⛔ Ändrat beteende: en `felmottagare` utan `fanga` eller `satt` på någon av dem kastar nu när den
+  monteras, i stället för att tyst ignoreras.
+- ⛔ Lämnat (KAN 2): ger en app två OLIKA mottagare, en till `OpsAuthProvider` och en till `OpsAppShell` inuti den, gäller
+  inloggningens för `rapporteraFel` utan tredje argument, eftersom barnets effekt körs först och föräldern registrerar sist.
+  Felgränsen ger fortfarande skalets. Ingen konsument ger två olika i dag (granskaren läste lifehub.app och bolag-ops), och att
+  ändra ordningen hade krävt en prioritet mellan komponenterna för ett fall som inte finns. Ge samma mottagare till båda, eller bara
+  till `OpsAuthProvider`.
+
+### Rättat: förra omgången är släppt innan nästa öppnar mikrofonen
+
+- **Förra igenkännaren har sagt `end` innan nästa omgång öppnar mikrofonen.** `webblasarensIgenkanning().slapp()` gör `abort()` och
+  väntar på `end`, högst `IGENKANNING_SLAPP_MS` (1 s), så att en `end` som aldrig kommer inte hänger fältet. `useTalk` väntar på den
+  före `getUserMedia`, och nästa igenkännare startar först när mikrofonen är öppen. Finns inget att vänta på öppnas mikrofonen i
+  samma tryck som förut. Förut gjorde `kasta()` och ett `stoppa()` vars väntetid gått ut `abort()` utan att vänta.
+- **Förra omgångens `AudioContext` är stängd innan nästa öppnar mikrofonen**, högst `LJUDKONTEXT_VANTA_MS` (1 s). Förut anropades
+  `close()` utan att någon väntade på den. En `close()` som inte löst sig inom taket väntas inte på igen i nästa omgång (KAN 4).
+- **`stoppa` hänger inte på en inspelare som redan stannat.** När ett spår tar slut stannar `MediaRecorder` av sig själv, och `stop()`
+  på en inspelare som inte spelar in ger inget `stop`-event. Förut väntade `stoppa` då för evigt: fältet stod på Sparar och
+  mikrofonspärren (`mikrofonenUpptagenAv`) släpptes aldrig, så ingen annan del av sidan kunde spela in. Nu svarar den direkt, och
+  väntar annars högst `STOPP_VANTA_MS` (2 s). ⛔ När taket går ut nollas också `ondataavailable` (MÅSTE 1), liksom i `kasta()`: annars
+  hamnade en bit som kom efter taket först i nästa omgångs ljud (granskaren mätte 8 byte i stället för 2). Genvägen tas bara när
+  stop-eventet faktiskt kommit (varv 2, KAN 1): enligt specifikationen blir inspelaren `inactive` innan sista biten och `stop` kommer
+  i en köad uppgift, och genvägen tappade då sista biten.
+- **En start som faller efter att mikrofonen öppnats stänger den** (`new MediaRecorder` eller `start()` kastar). Förut stod strömmen
+  kvar tills någon utifrån anropade `kasta()`.
+- **En mikrofon som öppnas efter `kasta()` spelar inte in.** `kasta()` räknar upp försöket, så att en ström som kommer efteråt stängs
+  i stället för att kopplas in.
+- Igenkännaren stängs när `useTalk` avmonteras i varje läge, inte bara medan det spelas in.
+- Varje omgång skapade redan en ny `SpeechRecognition` (`webblasarensIgenkanning().starta`); det är kontrollerat och oförändrat.
+
+### Tillagt: diagnosen säger vad som hände
+
+Blir en inspelning tom (`steg: "tomt-ljud"`) bär rapporten också `omgang` (omgångens nummer i kroken), `forraIgenkanningHann` och
+`forraIgenkanningMs` (om förra igenkännaren hann säga `end`, och hur långt efter `stop()` eller `abort()`; `null` när ingen fanns),
+`sparVidStart` och `sparVidStopp` (varje spårs `readyState`, `muted` och `enabled`), `ljudkontextVidStart` och `ljudkontextVidStopp`
+(`AudioContext.state`, eller `"ingen"`), `forraLjudkontext` (om förra `close()` hann, och på hur många ms), `stannadeSjalv` och
+`stoppetHann`. Inga personuppgifter och ingen text som personen sagt. `sparLage(strom)` i `lib/talk.js` läser spåren.
+
+### Prov
+
+`src/__tests__/talk-mikrofonlas.test.jsx`, 8 prov, med en falsk telefon som följer hypotesens regel (ett tyst spår och en döv
+igenkännare medan en igenkännare inte sagt `end`). Varje rättelse togs bort en i taget och provet sågs rött: utan registreringen i
+`OpsAuthProvider` 2 röda (diagnosen nådde inte mottagaren), utan den i `OpsAppShell` 1, utan väntan på igenkännaren 2 (omgång 2 gav
+`TALK_INGET_LJUD`), utan genvägen och taket i `stoppa` 1 (löftet löstes aldrig), utan släppet vid en fallande start 1, utan
+uppräkningen i `kasta` 1, utan väntan på ljudkontexten 1. Alla 8 gröna med rättelserna. `talk-tomt-ljud.test.jsx` förväntar sig
+diagnosens nya fält.
+
+Granskningen av PR 392 fann tre rättelser som aldrig setts falla: det PR:en kallade "genvägen och taket i `stoppa`" var bara
+genvägen, och taket på väntan efter ljudkontexten och stängningen vid avmontering var gröna utan sig. Nya prov, en commit per fynd,
+alla röda utan sin rättelse och gröna med den: taket i `stoppa` (2 röda utan taket, 1 utan nollningen i `avsluta`, 1 utan den i
+`kasta`), skyddet mot rekursion i `felrapport.test.jsx` (2 röda utan skyddet, 1 utan den asynkrona delen), taket på
+ljudkontexten (1), stängningen vid avmontering i lägena skickar och hört (2), kontrollen av `satt` (1) och en `close()` som
+väntas på en gång (1). Varv 2: hållets tak (1 röd utan taket), avvisningsgrenen (1), ett kastande thenable (1), räknaren för
+tappade fel (1) och genvägen i `stoppa` med sista biten i kö (1). Varv 3: takten (2 röda utan den), identitetskontrollen som hindrar
+ett tidigare håll från att släppa ett senare (1) och nollningen av `stoppSett` i varje `starta` (1). `talk-mikrofonlas.test.jsx` har
+nu 17 prov.
+
+### Också i 0.107.0: två KAN-punkter ur granskningen av PR 387 (#389)
+
+**Två KAN-punkter ur granskningen av PR 387: felet i läget hört har ett prov, och skalytans fokusfel är en rad och inte 5,8 MB.**
+[#389](https://github.com/cllp/ops-framework/issues/389). Ingen ändring i ramverkets beteende, bara prov och ett mätmeddelande.
+
+#### Provat
+
+- `talkNasta` i läget `hort`: raden `return bli("hort", null, nu.fel)` behövs och har nu ett prov. Felet från `agentFel` läses av
+  `OpsTalk` (`valFel`) och ska stå kvar när personen trycker Klar, Skicka, Dölj eller får ett tak, upp eller igen medan hen läser det.
+  Muteras raden till `bli("hort")` blir `talk-val.test.jsx` rött (`fel: "Nej"` saknas). Förut var alla prov gröna med mutationen.
+
+#### Rättat
+
+- `scripts/check-skalyta.mjs`, valen efter talet: felmeddelandet för fokus skriver taggnamnet och de första 60 tecknen av texten
+  (`body "Boka rep med bandet. Boka rep med bande…"`) och inte hela elementets `textContent`. På `body` var det hela dokumentet,
+  inklusive den inbäddade bundlen, 5,8 MB på en rad. Sidan lämnar numera också bara 61 tecken. Raden ligger i
+  `scripts/lib/fokusKort.mjs` med eget prov (`fokus-kort.test.js`).
+
 ## 0.106.0
 
 **Chatten (#386): Meddelanden och Inkorgen är kärna, samtal per ämne med agenten, båda språken, läsa bakåt, skrivfältet på

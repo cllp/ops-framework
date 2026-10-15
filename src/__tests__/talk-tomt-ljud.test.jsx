@@ -212,7 +212,20 @@ describe("webblasarensInspelare och en tyst ström", () => {
     expect(tel.mediaDevices.getUserMedia).toHaveBeenCalledTimes(2);
     expect(tel.spar[0].stoppad).toBe(true);
     expect(ut.blob.size).toBe(0);
-    expect(ut.diagnos).toEqual({ tystVidStart: true, omhamtad: true, tystVidStopp: true, bitar: 0 });
+    expect(ut.diagnos).toEqual({
+      tystVidStart: true,
+      omhamtad: true,
+      tystVidStopp: true,
+      bitar: 0,
+      // (0.107.0) Spårens läge, ljudkontexten och stoppet. Det falska spåret bär inget `enabled`, och det läses som påslaget.
+      sparVidStart: [{ readyState: "live", muted: true, enabled: true }],
+      sparVidStopp: [{ readyState: "live", muted: true, enabled: true }],
+      ljudkontextVidStart: "ingen",
+      ljudkontextVidStopp: "ingen",
+      forraLjudkontext: null,
+      stannadeSjalv: false,
+      stoppetHann: true,
+    });
   });
 
   it("rör inte en ström som hörs", async () => {
@@ -221,7 +234,7 @@ describe("webblasarensInspelare och en tyst ström", () => {
     const ut = await tel.inspelare.stoppa();
     expect(tel.mediaDevices.getUserMedia).toHaveBeenCalledTimes(1);
     expect(ut.blob.size).toBeGreaterThan(0);
-    expect(ut.diagnos).toEqual({ tystVidStart: false, omhamtad: false, tystVidStopp: false, bitar: 1 });
+    expect(ut.diagnos).toMatchObject({ tystVidStart: false, omhamtad: false, tystVidStopp: false, bitar: 1, sparVidStopp: [{ readyState: "live", muted: false, enabled: true }] });
   });
 
   it("tystStrom: bara när alla ljudspår är tysta eller avslutade, och aldrig för en ström utan spår", () => {
