@@ -314,10 +314,11 @@ describe("Kalendern: dagpanelens rad och snabbtitten öppnar panelen, och valda 
   const toppnavLank = (namn) => Array.from(/** @type {HTMLElement} */ (screen.getAllByRole("navigation").find((n) => n.closest("header"))).querySelectorAll("a")).find((a) => a.textContent === namn);
 
   it("raden i dagpanelen öppnar händelsen, och efter Tillbaka är dagen fortfarande vald", async () => {
+    // ⛔ #269 PUNKT 3: provet startade på översikten och klickade sig till kalendern, alltså två hela vyer per prov, och föll på
+    // tidsgränsen under full kedja. Det startar nu i kalendern som provet under, och dagen väljs med ett enkelt klick.
     const user = userEvent.setup();
-    render(<App />);
-    await user.click(/** @type {HTMLElement} */ (toppnavLank("Kalender")));
-    await user.click(/** @type {HTMLElement} */ (document.querySelector('[data-cal-day="2026-10-12"]')));
+    render(<App start="/kalender" />);
+    fireEvent.click(/** @type {HTMLElement} */ (document.querySelector('[data-cal-day="2026-10-12"]')));
     const rad = /** @type {HTMLElement} */ (document.querySelector("[data-dagpanel]"));
     // En post utan handelseId har ingen länk.
     expect(within(rad).queryByRole("link", { name: "En egen post" })).toBeNull();

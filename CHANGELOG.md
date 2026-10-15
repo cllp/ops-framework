@@ -20,7 +20,13 @@ Paket P3 (ramverket: vakter, prov och små UI-fixar), Grok 2026-10-15. CP-regel:
 - **Taggförslagen med tangentbordet (#372, andra halvan).** Pil upp och ned markerar ett förslag, Enter väljer det, och fokus stannar i fältet med `aria-activedescendant` och `aria-controls`. Rött före.
 - **Ratten är matt (#371).** Plan yta i stället för gradient, och skenet runt nålen är borttaget, i både ljust och mörkt tema.
 
-Kvar i P3 (nästa varv): #370 (fälla in ikonerna i toppraden), #372 första halvan (pilnavigering i Plats och Taggar), #272 (count offline och emulatorprov), #269 punkt 1 och 3, #40 (nodsidans beroenden), #7 (vakten mot appinnehåll), #367 (ikonväljare i inställningarna), #368 (grupptyper, kräver design).
+- **Pilarna i Plats och Taggar (#372, första halvan).** `menyPilar` ger pil upp och ned, Home och End i båda menyerna, och slår runt. Ingen ny Radix-del: Popover, bocken och "Rensa alla" står kvar. Prov: `bibliotek-menypilar.test.jsx`.
+- **Trådarnas count (#272).** Emulatorprov i `tradar.test.mjs`: aggregatfrågan går igenom för en medlem och nekas för främling, borttagen och utloggad. `antalSvar` faller tillbaka på listan med taket `sida` bara när felet är `unavailable` (offline); `permission-denied` och `failed-precondition` kastas vidare (`arNatfel`). Rött före.
+- **Rullningsvakten i 22b (#269 punkt 1).** Stod ikonväljaren under fönstrets halva måste behållaren ha rullat, och märket ha flyttats, minst 48 px (`RULL_MIN`). Vakten blir inte längre grön av att sidan ovanför krymper.
+- **handelsepanel.test.jsx (#269 punkt 3), delvis.** Det tyngsta provet startar i kalendern i stället för att rita översikten och klicka sig dit. Mätt ensamt: 817 till 717 ms. Roten är att provet ritar hela appen, och det står kvar; gränsen är inte höjd.
+- **Ikonväljaren i katalogerna (#367).** Med `ikonRitare` väljs ikonen i ett sökbart rutnät där ikonen syns, fortfarande bara ur tillåtelselistan. Utan `ikonRitare` står rullgardinen kvar. Texterna är bara svenska än så länge.
+
+Kvar ur P3, med skäl: #370 (fälla in tema, sök, AI och helskärm bakom en knapp i toppraden) ändrar skalets topprad och skalytevakterna, och behöver CP:s bild av knappen. #40 (nodsidans beroenden) är ett val mellan vägar som ändrar installationen för varje app. #7 (vakten mot appinnehåll) ska kalibreras mot repot innan den kopplas in. #368 är flyttad till Claude.
 
 ---
 

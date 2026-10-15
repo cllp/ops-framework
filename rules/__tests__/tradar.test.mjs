@@ -19,7 +19,7 @@
 
 import { after, before, describe, it } from "node:test";
 import { assertFails, assertSucceeds, initializeTestEnvironment } from "@firebase/rules-unit-testing";
-import { collection, deleteDoc, deleteField, doc, getDoc, getDocs, setDoc, updateDoc } from "firebase/firestore";
+import { collection, deleteDoc, deleteField, doc, getCountFromServer, getDoc, getDocs, setDoc, updateDoc } from "firebase/firestore";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -130,6 +130,13 @@ describe("⛔ läsa: gruppens aktiva medlemmar, ingen annan", () => {
     await assertSucceeds(getDoc(doc(som(CECILIA), tradVag())));
     await assertSucceeds(getDocs(collection(som(CECILIA), tradMsgVag())));
     await assertSucceeds(getDocs(collection(som(CECILIA), `samtal/${grupp}/tradar`)));
+  });
+  it("⛔ #272: aggregatfrågan (count) på trådens meddelanden går igenom för en medlem och nekas för främling, borttagen och utloggad", async () => {
+    const svar = await assertSucceeds(getCountFromServer(collection(som(CECILIA), tradMsgVag())));
+    if (svar.data().count !== 1) throw new Error(`count gav ${svar.data().count}, väntat 1`);
+    await assertFails(getCountFromServer(collection(som(FRAMLING), tradMsgVag())));
+    await assertFails(getCountFromServer(collection(som(DAVID), tradMsgVag())));
+    await assertFails(getCountFromServer(collection(utan(), tradMsgVag())));
   });
   it("⛔ en främling läser varken tråden eller meddelandena", async () => {
     await assertFails(getDoc(doc(som(FRAMLING), tradVag())));

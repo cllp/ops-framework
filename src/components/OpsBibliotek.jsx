@@ -863,6 +863,27 @@ function Flikar({ flikar, antal }) {
 }
 
 /**
+ * Pilarna i en meny (#372): upp och ned flyttar fokus mellan raderna, Home och End till första och sista, och det slår runt.
+ * Tab och Enter fungerar som förut. En egen liten hanterare i stället för Radix DropdownMenu, så att Popover, bocken och
+ * "Rensa alla" står kvar som de är.
+ *
+ * @param {import("react").KeyboardEvent<HTMLElement>} e
+ */
+export function menyPilar(e) {
+  const rader = /** @type {HTMLElement[]} */ ([...e.currentTarget.querySelectorAll('[role^="menuitem"]')]);
+  if (rader.length === 0) return;
+  const nu = rader.indexOf(/** @type {HTMLElement} */ (document.activeElement));
+  let till = -1;
+  if (e.key === "ArrowDown") till = nu < 0 ? 0 : (nu + 1) % rader.length;
+  else if (e.key === "ArrowUp") till = nu < 0 ? rader.length - 1 : (nu - 1 + rader.length) % rader.length;
+  else if (e.key === "Home") till = 0;
+  else if (e.key === "End") till = rader.length - 1;
+  if (till < 0) return;
+  e.preventDefault();
+  rader[till].focus();
+}
+
+/**
  * Platsen som ett piller med reglage-ikonen, och en lista med platserna under (SessionStudios "My Library" i appen). Den valda
  * har en bock.
  *
@@ -883,7 +904,7 @@ function PlatsValjare({ platser, plats, onPlats }) {
         </Popover.Trigger>
         <Popover.Portal>
           <Popover.Content align="start" sideOffset={4} collisionPadding={8} className={cx("z-(--z-dropdown) min-w-56 p-1", radBehallare())}>
-            <div role="menu" aria-label="Vilket bibliotek">
+            <div role="menu" aria-label="Vilket bibliotek" onKeyDown={menyPilar}>
               {platser.map((p) => (
                 <button
                   key={p.id}
@@ -945,7 +966,7 @@ function TaggFilter({ taggar, valda, onValda }) {
           {taggar.length === 0 ? (
             <p className="m-0 px-1 pt-2 text-meta text-ink-muted">Inga taggar ännu. Lägg till en på en post.</p>
           ) : (
-            <div role="menu" aria-label="Taggar" className="flex max-h-64 flex-col overflow-y-auto pt-1">
+            <div role="menu" aria-label="Taggar" onKeyDown={menyPilar} className="flex max-h-64 flex-col overflow-y-auto pt-1">
               {taggar.map(({ tagg, antal: n }) => {
                 const pa = valda.includes(tagg);
                 return (

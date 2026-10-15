@@ -3793,12 +3793,19 @@ for (const tema of /** @type {const} */ (["light", "dark"])) {
         const rulle = el ?? document.scrollingElement;
         if (!rulle) return null;
         const fore = Math.round(mal.getBoundingClientRect().top);
+        const start = rulle.scrollTop;
         rulle.scrollTop += mal.getBoundingClientRect().top - rulle.getBoundingClientRect().top - 16;
-        return { fore, efter: Math.round(mal.getBoundingClientRect().top), halva: innerHeight / 2 };
+        return { fore, efter: Math.round(mal.getBoundingClientRect().top), halva: innerHeight / 2, rullat: Math.round(rulle.scrollTop - start) };
       });
       await page.waitForTimeout(150);
       matt.push(`${etikett}: ikonväljarens överkant ${rullad ? `${rullad.fore} före och ${rullad.efter} efter rullningen` : "okänd"}`);
       krav(!!rullad && rullad.efter >= 0 && rullad.efter < rullad.halva, `${etikett}: ikonväljaren rullades inte fram till fönstrets övre halva (${JSON.stringify(rullad)}).`);
+      // ⛔ #269 PUNKT 1: vid 390 px var marginalen 6 px, så vakten kunde bli grön av att sidan ovanför krympte. Stod märket under
+      // halvan måste behållaren faktiskt ha rullat, och märket ha flyttats minst RULL_MIN px.
+      const RULL_MIN = 48;
+      if (rullad && rullad.fore >= rullad.halva) {
+        krav(rullad.rullat >= RULL_MIN && rullad.fore - rullad.efter >= RULL_MIN, `${etikett}: ikonväljaren flyttades bara ${rullad.fore - rullad.efter} px (rullat ${rullad.rullat}), kravet är ${RULL_MIN} (#269).`);
+      }
       if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `grupp-ikon-farg-${vp.width}-${tema === "dark" ? "morkt" : "ljust"}-ikoner.png`), fullPage: false });
     } catch (e) {
       krav(false, `${etikett}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
