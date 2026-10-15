@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { OpsAppShell } from "../components/OpsAppShell.jsx";
 import { OpsAuthProvider } from "../auth/auth.jsx";
-import { TALK_INGET_LJUD, webblasarensIgenkanning, webblasarensInspelare } from "../lib/talk.js";
+import { IGENKANNING_SLAPP_MS, IGENKANNING_VANTA_MS, LJUDKONTEXT_VANTA_MS, STOPP_VANTA_MS, TALK_INGET_LJUD, webblasarensIgenkanning, webblasarensInspelare } from "../lib/talk.js";
 
 /*
  * "Det är som att mikrofonen låser sig" (cllp/lifehub.app#253). CP 2026-10-15 07:25 på iPhone, appen på ramverket 0.104.0: efter
@@ -17,6 +17,10 @@ import { TALK_INGET_LJUD, webblasarensIgenkanning, webblasarensInspelare } from 
 
 const flush = () => act(async () => {
   for (let i = 0; i < 12; i += 1) await Promise.resolve();
+});
+/** @param {number} ms */
+const vantaMs = (ms) => act(async () => {
+  await vi.advanceTimersByTimeAsync(ms);
 });
 const falt = () => screen.queryByRole("dialog", { name: "TALK" });
 const huvudMikrofon = () => /** @type {HTMLElement} */ (document.querySelector("[data-talk-huvud]"));
@@ -154,7 +158,9 @@ describe("A. felkanalen når komponenterna (lifehub.app#253)", () => {
       const tomma = felmottagare.fanga.mock.calls.filter((c) => /** @type {any} */ (c[1])?.steg === "tomt-ljud");
       expect(tomma).toHaveLength(1);
       const sammanhang = /** @type {any} */ (tomma[0][1]);
-      expect(sammanhang).toMatchObject({ yta: "OpsTalk", tystVidStart: true, omhamtad: true, bitar: 0 });
+      expect(sammanhang).toMatchObject({ yta: "OpsTalk", omgang: 1, tystVidStart: true, omhamtad: true, bitar: 0, ljudkontextVidStart: "ingen", forraIgenkanningHann: null });
+      expect(sammanhang.sparVidStart).toEqual([{ readyState: "live", muted: true, enabled: true }]);
+      expect(sammanhang.sparVidStopp).toEqual([{ readyState: "live", muted: true, enabled: true }]);
       // ⛔ Ingen text och inget om personen: bara tal, sanningsvärden och tillstånd.
       for (const v of Object.values(sammanhang)) expect(["string", "number", "boolean", "object"]).toContain(typeof v);
       expect(JSON.stringify(sammanhang)).not.toMatch(/@/);
@@ -190,5 +196,238 @@ describe("A. felkanalen når komponenterna (lifehub.app#253)", () => {
     } finally {
       konsol.mockRestore();
     }
+  });
+});
+
+describe("B. mikrofonlåset: förra omgången är släppt innan nästa öppnas (lifehub.app#253)", () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it("⛔ omgång 1 med igenkänning, svar, omgång 2: en `end` som kommer sent låser inte nästa omgång", async () => {
+    // Första igenkännaren säger `end` först 2 s efter `stop()`, efter att `stoppa` gett upp (IGENKANNING_VANTA_MS) och anropat
+    // `abort()`, som ger `end` 300 ms senare. Svaret kommer före det, och personen trycker på mikrofonen direkt.
+    const tel = telefonMedEttLjudpass({ stoppEndMs: [2000, 0], abortEndMs: 300 });
+    const onTalk = vi.fn(async (/** @type {Blob} */ _blob, /** @type {{ text?: string }} */ meta) => ({ kvitto: meta.text ? `Inlagt: ${meta.text}` : "Vilken dag är repet?" }));
+    const felmottagare = attrapp();
+    const konsol = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      render(
+        <OpsAppShell brand="Ops" fasta={fasta} moduler={[]} activeHref="/" felmottagare={felmottagare} talk={{ onTalk, inspelare: tel.inspelare, igenkanning: tel.igenkanning, mal: [{ id: "agenten", etikett: "Agenten" }] }}>
+          <p>innehåll</p>
+        </OpsAppShell>,
+      );
+      fireEvent.click(huvudMikrofon());
+      await flush();
+      act(() => tel.sag("påminn mig om repet"));
+      await klar();
+      await vantaMs(IGENKANNING_VANTA_MS);
+      await flush();
+      expect(onTalk).toHaveBeenCalledTimes(1);
+      expect(within(/** @type {HTMLElement} */ (falt())).getByRole("status").textContent).toBe("Vilken dag är repet?");
+      // Förra igenkännaren har fått `abort()` men inte sagt `end`.
+      expect(tel.igenkannare[0].slut).toBe(false);
+
+      fireEvent.click(huvudMikrofon());
+      await flush();
+      await vantaMs(IGENKANNING_SLAPP_MS);
+      await flush();
+      act(() => tel.sag("på torsdag"));
+      await klar();
+      await vantaMs(50);
+      await flush();
+
+      // Röd före rättelsen: mikrofonen öppnades medan förra igenkännaren höll passet, spåret var tyst, den nya igenkännaren hörde
+      // ingenting, och fältet sade TALK_INGET_LJUD.
+      expect(screen.queryByText(TALK_INGET_LJUD)).toBeNull();
+      expect(onTalk).toHaveBeenCalledTimes(2);
+      const [blob, meta] = /** @type {[Blob, { text?: string }]} */ (/** @type {unknown} */ (onTalk.mock.calls[1]));
+      expect(meta.text).toBe("på torsdag");
+      expect(blob.size).toBeGreaterThan(0);
+      expect(tel.spar[1].muted).toBe(false);
+      expect(tel.igenkannare).toHaveLength(2);
+      expect(tel.spar.every((s) => s.stoppad)).toBe(true);
+    } finally {
+      konsol.mockRestore();
+    }
+  });
+
+  it("väntar högst IGENKANNING_SLAPP_MS på en `end` som aldrig kommer, och diagnosen säger det", async () => {
+    // `end` kommer aldrig, varken efter stop() eller abort(). Fältet får inte hänga: omgång 2 startar ändå efter taket.
+    const tel = telefonMedEttLjudpass({ stoppEndMs: [1e9, 0], abortEndMs: 1e9 });
+    const onTalk = vi.fn(async () => ({ kvitto: "Sparat i inkorgen" }));
+    const felmottagare = attrapp();
+    const konsol = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      render(
+        <OpsAppShell brand="Ops" fasta={fasta} moduler={[]} activeHref="/" felmottagare={felmottagare} talk={{ onTalk, inspelare: tel.inspelare, igenkanning: tel.igenkanning, mal: [{ id: "agenten", etikett: "Agenten" }] }}>
+          <p>innehåll</p>
+        </OpsAppShell>,
+      );
+      fireEvent.click(huvudMikrofon());
+      await flush();
+      await klar();
+      await vantaMs(IGENKANNING_VANTA_MS);
+      await flush();
+      fireEvent.click(huvudMikrofon());
+      await flush();
+      expect(tel.mediaDevices.getUserMedia).toHaveBeenCalledTimes(1);
+      await vantaMs(IGENKANNING_SLAPP_MS);
+      await flush();
+      // Två till: den tysta strömmen hämtas om en gång (`omhamtad`), och också den är tyst.
+      expect(tel.mediaDevices.getUserMedia).toHaveBeenCalledTimes(3);
+      // Spåret är tyst (passet hålls fortfarande) och igenkännaren döv: tomt, och diagnosen säger att förra inte hann.
+      await klar();
+      await vantaMs(IGENKANNING_VANTA_MS);
+      await flush();
+      expect(within(/** @type {HTMLElement} */ (falt())).getByRole("alert").textContent).toBe(TALK_INGET_LJUD);
+      const tomma = felmottagare.fanga.mock.calls.filter((c) => /** @type {any} */ (c[1])?.steg === "tomt-ljud");
+      expect(tomma).toHaveLength(1);
+      expect(tomma[0][1]).toMatchObject({ omgang: 2, forraIgenkanningHann: false, omhamtad: true, tystVidStart: true });
+      // Räknat från att förra omgången bad om `stop()`: väntetiden i `stoppa` plus taket i `slapp`.
+      expect(/** @type {any} */ (tomma[0][1]).forraIgenkanningMs).toBeGreaterThanOrEqual(IGENKANNING_SLAPP_MS);
+    } finally {
+      konsol.mockRestore();
+    }
+  });
+});
+
+describe("B. inspelaren släpper allt den öppnat", () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  /** En ström vars spår går att följa. */
+  const strom = () => {
+    const t = { muted: false, readyState: "live", enabled: true, stoppad: false, stop() { this.stoppad = true; this.readyState = "ended"; } };
+    return { t, s: { getTracks: () => [t], getAudioTracks: () => [t] } };
+  };
+
+  it("⛔ en inspelare som stannat av sig själv (spåret tog slut) hänger inte stoppa, och spåren släpps", async () => {
+    const { t, s } = strom();
+    /** @type {any} */
+    let rec = null;
+    class MR {
+      constructor() {
+        this.state = "inactive";
+        this.mimeType = "audio/mp4";
+        /** @type {any} */ this.ondataavailable = null;
+        /** @type {any} */ this.onstop = null;
+        rec = this;
+      }
+      start() {
+        this.state = "recording";
+      }
+      // Som i webbläsaren: stop() på en inspelare som inte spelar in gör ingenting, och inget stop-event kommer.
+      stop() {
+        if (this.state === "inactive") return;
+        this.state = "inactive";
+        queueMicrotask(() => this.onstop?.());
+      }
+    }
+    const insp = webblasarensInspelare({ mediaDevices: /** @type {any} */ ({ getUserMedia: async () => s }), MediaRecorder: /** @type {any} */ (MR), AudioContext: undefined });
+    await insp.starta();
+    // Spåret tar slut (ett samtal, ett annat ljudpass): inspelaren stannar och skickar sitt stop-event innan någon lyssnar.
+    rec.state = "inactive";
+    t.readyState = "ended";
+    rec.onstop?.();
+    let svar = /** @type {any} */ (null);
+    insp.stoppa().then((v) => {
+      svar = v;
+    });
+    await vi.advanceTimersByTimeAsync(STOPP_VANTA_MS + 10);
+    // Röd före rättelsen: löftet löstes aldrig, fältet stod på Sparar, och mikrofonspärren släpptes aldrig.
+    expect(svar).not.toBeNull();
+    expect(svar.diagnos).toMatchObject({ stannadeSjalv: true, stoppetHann: true, sparVidStopp: [{ readyState: "ended", muted: false, enabled: true }] });
+    expect(t.stoppad).toBe(true);
+  });
+
+  it("⛔ en start som faller efter att mikrofonen öppnats stänger spåret själv", async () => {
+    const { t, s } = strom();
+    class MR {
+      constructor() {
+        throw Object.assign(new Error("NotSupportedError"), { name: "NotSupportedError" });
+      }
+    }
+    const insp = webblasarensInspelare({ mediaDevices: /** @type {any} */ ({ getUserMedia: async () => s }), MediaRecorder: /** @type {any} */ (MR), AudioContext: undefined });
+    await expect(insp.starta()).rejects.toThrow("NotSupportedError");
+    // Röd före rättelsen: strömmen stod kvar öppen tills någon utifrån anropade kasta().
+    expect(t.stoppad).toBe(true);
+  });
+
+  it("⛔ en mikrofon som öppnas efter kasta() spelar inte in, och stängs", async () => {
+    const { t, s } = strom();
+    /** @type {(v: any) => void} */
+    let lamna = () => {};
+    const MR = vi.fn(function MR() {
+      return { state: "inactive", mimeType: "audio/mp4", start() { this.state = "recording"; }, stop() { this.state = "inactive"; } };
+    });
+    /** @type {any} */ (MR).isTypeSupported = () => true;
+    const insp = webblasarensInspelare({ mediaDevices: /** @type {any} */ ({ getUserMedia: () => new Promise((l) => { lamna = l; }) }), MediaRecorder: /** @type {any} */ (MR), AudioContext: undefined });
+    const start = insp.starta();
+    insp.kasta();
+    lamna(s);
+    await expect(start).rejects.toThrow();
+    // Röd före rättelsen: strömmen kopplades in och en MediaRecorder började spela in, utan att någon fält visade det.
+    expect(MR).not.toHaveBeenCalled();
+    expect(t.stoppad).toBe(true);
+  });
+
+  it("⛔ nästa omgång öppnar mikrofonen först när förra omgångens AudioContext stängts, högst LJUDKONTEXT_VANTA_MS", async () => {
+    /** @type {string[]} */
+    const logg = [];
+    class AC {
+      constructor() {
+        this.state = "running";
+      }
+      createMediaStreamSource() {
+        return { connect() {} };
+      }
+      createAnalyser() {
+        return { fftSize: 0, frequencyBinCount: 4, getByteTimeDomainData() {} };
+      }
+      close() {
+        logg.push("close");
+        return new Promise((l) => {
+          setTimeout(() => {
+            this.state = "closed";
+            logg.push("stängd");
+            l(undefined);
+          }, 400);
+        });
+      }
+    }
+    class MR {
+      constructor() {
+        this.state = "inactive";
+        this.mimeType = "audio/mp4";
+        /** @type {any} */ this.ondataavailable = null;
+        /** @type {any} */ this.onstop = null;
+      }
+      start() {
+        this.state = "recording";
+      }
+      stop() {
+        this.state = "inactive";
+        this.ondataavailable?.({ data: new Blob(["aac"]) });
+        queueMicrotask(() => this.onstop?.());
+      }
+    }
+    const md = {
+      getUserMedia: vi.fn(async () => {
+        logg.push("getUserMedia");
+        return strom().s;
+      }),
+    };
+    const insp = webblasarensInspelare({ mediaDevices: /** @type {any} */ (md), MediaRecorder: /** @type {any} */ (MR), AudioContext: /** @type {any} */ (AC) });
+    await insp.starta();
+    const forsta = await insp.stoppa();
+    expect(forsta.diagnos).toMatchObject({ ljudkontextVidStart: "running", ljudkontextVidStopp: "running", forraLjudkontext: null });
+    const andra = insp.starta();
+    await vi.advanceTimersByTimeAsync(500);
+    await andra;
+    // Röd före rättelsen: getUserMedia kom direkt efter close(), innan ljudkontexten stängts.
+    expect(logg).toEqual(["getUserMedia", "close", "stängd", "getUserMedia"]);
+    const ut = await insp.stoppa();
+    expect(ut.diagnos?.forraLjudkontext).toEqual({ hann: true, ms: 400 });
+    expect(LJUDKONTEXT_VANTA_MS).toBeGreaterThan(400);
   });
 });

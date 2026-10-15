@@ -460,7 +460,48 @@ export function tystStrom(strom) {
  * @property {boolean} omhamtad Den första strömmen var tyst och en ny hämtades.
  * @property {boolean} tystVidStopp Strömmen var tyst när inspelningen stoppades.
  * @property {number} bitar Antalet bitar med data som webbläsaren lämnade.
+ * @property {Sparlage[]} sparVidStart (0.107.0) Varje ljudspår när inspelningen började.
+ * @property {Sparlage[]} sparVidStopp (0.107.0) Varje ljudspår när inspelningen stoppades, före `stop()` på spåren.
+ * @property {string} ljudkontextVidStart (0.107.0) `AudioContext.state` när nivåmätaren kopplats in, eller "ingen".
+ * @property {string} ljudkontextVidStopp (0.107.0) `AudioContext.state` vid stoppet, före `close()`, eller "ingen".
+ * @property {{ hann: boolean, ms: number } | null} forraLjudkontext (0.107.0) Om förra omgångens `AudioContext.close()` hann
+ *   lösas innan den här omgångens `getUserMedia`, och hur länge det tog. `null` när ingen förra fanns.
+ * @property {boolean} stannadeSjalv (0.107.0) Inspelaren hade redan stannat när Klar trycktes (spåret tog slut), så inget
+ *   `stop`-event kunde komma.
+ * @property {boolean} stoppetHann (0.107.0) `stop`-eventet kom inom `STOPP_VANTA_MS`. `false` betyder att inspelaren gav upp på det.
  */
+
+/**
+ * Ett ljudspårs läge som webbläsaren beskriver det, för diagnosen (0.107.0). ⛔ INGET OM PERSONEN: inga etiketter, inga id:n,
+ * ingen enhetsbeteckning. Bara de tre fält som säger om spåret kunde ge ljud.
+ * @typedef {{ readyState: string, muted: boolean, enabled: boolean }} Sparlage
+ */
+
+/**
+ * Spårens läge i en ström (0.107.0). En ström utan spår ger en tom lista, och en som saknas likaså.
+ * @param {unknown} strom
+ * @returns {Sparlage[]}
+ */
+export function sparLage(strom) {
+  const s = /** @type {any} */ (strom);
+  const spar = typeof s?.getAudioTracks === "function" ? s.getAudioTracks() : typeof s?.getTracks === "function" ? s.getTracks() : [];
+  if (!Array.isArray(spar)) return [];
+  return spar.map((t) => ({ readyState: String(t?.readyState ?? "okant"), muted: t?.muted === true, enabled: t?.enabled !== false }));
+}
+
+/**
+ * Så länge en ny omgång väntar på att förra omgångens `AudioContext` stängts innan mikrofonen öppnas (0.107.0). Ett tak, så att en
+ * `close()` som aldrig löser sig inte låser fältet.
+ */
+export const LJUDKONTEXT_VANTA_MS = 1000;
+
+/**
+ * Så länge `stoppa` väntar på inspelarens `stop`-event (0.107.0). ⛔ SKÄLET: en inspelare vars spår tagit slut har redan stannat av
+ * sig själv, och `stop()` på en inspelare som inte spelar in gör ingenting, alltså kommer inget event. Förut väntade `stoppa` då för
+ * evigt: fältet stod på Sparar, mikrofonspärren (`mikrofonenUpptagenAv` i OpsTalk) släpptes aldrig, och ingen annan del av sidan
+ * kunde spela in.
+ */
+export const STOPP_VANTA_MS = 2000;
 
 /**
  * En inspelare: det komponenten behöver av webbläsaren, och inget mer.
@@ -479,7 +520,11 @@ export function tystStrom(strom) {
  * ⛔ MIKROFONEN SLÄPPS ALLTID, också när inspelningen kastas. En flik som håller mikrofonen öppen visar en röd prick i
  * statusraden, och den som ser den efter att ha tryckt på krysset slutar lita på knappen.
  *
- * @param {{ mediaDevices?: MediaDevices, MediaRecorder?: typeof MediaRecorder, AudioContext?: typeof AudioContext, nu?: () => number }} [miljo]
+ * ⛔ ALLT FÖRRA OMGÅNGEN ÖPPNADE ÄR SLÄPPT INNAN NÄSTA ÖPPNAS (0.107.0, lifehub.app#253). Spåren stoppas när omgången slutar, och
+ * en ny omgång väntar på förra omgångens `AudioContext.close()` (högst `LJUDKONTEXT_VANTA_MS`) innan den öppnar mikrofonen. ⛔ HYPOTES,
+ * INTE MÄTT PÅ EN IPHONE: att en ljudkontext som ännu inte stängts håller kvar telefonens ljudpass. Vad som hände står i `diagnos`.
+ *
+ * @param {{ mediaDevices?: MediaDevices, MediaRecorder?: typeof MediaRecorder, AudioContext?: typeof AudioContext, nu?: () => number, setTimeout?: (f: () => void, ms: number) => unknown }} [miljo]
  * @returns {Inspelare}
  */
 export function webblasarensInspelare(miljo = {}) {
@@ -487,6 +532,7 @@ export function webblasarensInspelare(miljo = {}) {
   const MR = miljo.MediaRecorder || (typeof MediaRecorder !== "undefined" ? MediaRecorder : undefined);
   const AC = miljo.AudioContext || (typeof AudioContext !== "undefined" ? AudioContext : undefined);
   const nu = miljo.nu || (() => Date.now());
+  const vanta = miljo.setTimeout || ((/** @type {() => void} */ f, /** @type {number} */ ms) => setTimeout(f, ms));
   /** @type {MediaStream | null} */
   let strom = null;
   /** @type {MediaRecorder | null} */
@@ -509,6 +555,34 @@ export function webblasarensInspelare(miljo = {}) {
   /** Det `starta` såg om strömmen, för `diagnos`. */
   let tystVidStart = false;
   let omhamtad = false;
+  /** @type {Sparlage[]} */
+  let sparVidStart = [];
+  let ljudkontextVidStart = "ingen";
+  /** @type {{ hann: boolean, ms: number } | null} */
+  let forraLjudkontext = null;
+  /** Förra omgångens `close()`, tills den löst sig. @type {Promise<void> | null} */
+  let stangs = null;
+  /**
+   * Väntar på förra omgångens `close()`, högst `LJUDKONTEXT_VANTA_MS`. `null` när ingen fanns.
+   * @returns {Promise<{ hann: boolean, ms: number } | null>}
+   */
+  const vantaPaLjudkontext = () => {
+    const p = stangs;
+    if (!p) return Promise.resolve(null);
+    const t0 = nu();
+    return new Promise((klar) => {
+      let gjort = false;
+      /** @param {boolean} hann */
+      const sluta = (hann) => {
+        if (gjort) return;
+        gjort = true;
+        if (hann && stangs === p) stangs = null;
+        klar({ hann, ms: Math.max(0, nu() - t0) });
+      };
+      p.then(() => sluta(true), () => sluta(true));
+      vanta(() => sluta(false), LJUDKONTEXT_VANTA_MS);
+    });
+  };
   /**
    * Strömmen för försöket `mitt`, eller ett fel när ett nyare försök startat under tiden (då stängs den direkt, se `forsok`).
    * @param {number} mitt
@@ -524,7 +598,18 @@ export function webblasarensInspelare(miljo = {}) {
   const slapp = () => {
     strom?.getTracks().forEach((t) => t.stop());
     strom = null;
-    ctx?.close().catch(() => {});
+    if (ctx) {
+      const c = ctx;
+      try {
+        const p = Promise.resolve(c.close()).catch(() => {});
+        stangs = p;
+        p.then(() => {
+          if (stangs === p) stangs = null;
+        });
+      } catch {
+        // En ljudkontext som redan är stängd kastar. Den håller ingenting.
+      }
+    }
     ctx = null;
     analys = null;
   };
@@ -533,6 +618,9 @@ export function webblasarensInspelare(miljo = {}) {
       if (!md || !MR) throw new Error(ORD_TALK.felInspelningSaknas.sv);
       forsok += 1;
       const mitt = forsok;
+      // ⛔ FÖRRA OMGÅNGENS LJUDKONTEXT FÖRST (0.107.0). Se filhuvudet ovanför. Ingen väntan när ingen fanns.
+      forraLjudkontext = stangs ? await vantaPaLjudkontext() : null;
+      if (mitt !== forsok) throw new Error(ORD_TALK.felAvbrotsForeMikrofon.sv);
       let ny = await hamta(mitt);
       omhamtad = false;
       /*
@@ -550,15 +638,30 @@ export function webblasarensInspelare(miljo = {}) {
         ny = await hamta(mitt);
       }
       tystVidStart = tystStrom(ny);
+      sparVidStart = sparLage(ny);
       strom = ny;
-      valtFormat = valjFormat(MR.isTypeSupported?.bind(MR));
-      rec = new MR(strom, valtFormat ? { mimeType: valtFormat } : undefined);
-      bitar = [];
-      rec.ondataavailable = (e) => {
-        if (e.data && e.data.size > 0) bitar.push(e.data);
-      };
-      rec.start(250);
+      /*
+       * ⛔ FALLER STARTEN EFTER ATT MIKROFONEN ÖPPNATS SLÄPPS DEN HÄR (0.107.0). Förut stod strömmen kvar när `new MediaRecorder` eller
+       * `start()` kastade, och bara en `kasta()` utifrån stängde den. En anropare som inte hann göra det (ett nyare försök ägde
+       * fältet) lämnade mikrofonen öppen med webbläsarens inspelningsprick.
+       */
+      try {
+        valtFormat = valjFormat(MR.isTypeSupported?.bind(MR));
+        rec = new MR(strom, valtFormat ? { mimeType: valtFormat } : undefined);
+        bitar = [];
+        rec.ondataavailable = (e) => {
+          if (e.data && e.data.size > 0) bitar.push(e.data);
+        };
+        rec.start(250);
+      } catch (fel) {
+        rec = null;
+        bitar = [];
+        valtFormat = "";
+        slapp();
+        throw fel;
+      }
       start = nu();
+      ljudkontextVidStart = "ingen";
       if (AC) {
         try {
           ctx = new AC();
@@ -570,6 +673,7 @@ export function webblasarensInspelare(miljo = {}) {
           // ⛔ Nivån är bara prickarnas rörelse. Utan den spelas det ändå in, och prickarna står stilla.
           analys = null;
         }
+        ljudkontextVidStart = String(ctx?.state ?? "ingen");
       }
     },
     stoppa() {
@@ -579,7 +683,17 @@ export function webblasarensInspelare(miljo = {}) {
           return;
         }
         const r = rec;
-        r.onstop = () => {
+        // ⛔ Läget före stoppet: när spåren stoppas i `slapp` säger de bara "ended".
+        const tystVidStopp = tystStrom(strom);
+        const sparVidStopp = sparLage(strom);
+        const ljudkontextVidStopp = String(ctx?.state ?? "ingen");
+        const stannadeSjalv = r.state === "inactive";
+        let gjort = false;
+        /** @param {boolean} stoppetHann */
+        const avsluta = (stoppetHann) => {
+          if (gjort) return;
+          gjort = true;
+          r.onstop = null;
           // ⛔ Reserv är mp4: Safari sparar utan mimeType på bitarna. webm som
           // reserv hade gett en fil Chromium inte kunde spela när den egentligen
           // var AAC i en mp4-container.
@@ -587,19 +701,38 @@ export function webblasarensInspelare(miljo = {}) {
           const blob = new Blob(bitar, { type: mimeType });
           const sekunder = Math.round((nu() - start) / 100) / 10;
           /** @type {Inspelningsdiagnos} */
-          const diagnos = { tystVidStart, omhamtad, tystVidStopp: tystStrom(strom), bitar: bitar.length };
-          rec = null;
-          valtFormat = "";
-          slapp();
+          const diagnos = { tystVidStart, omhamtad, tystVidStopp, bitar: bitar.length, sparVidStart, sparVidStopp, ljudkontextVidStart, ljudkontextVidStopp, forraLjudkontext, stannadeSjalv, stoppetHann };
+          if (rec === r) {
+            rec = null;
+            valtFormat = "";
+            slapp();
+          }
           klar({ blob, mimeType, sekunder, diagnos });
         };
-        r.stop();
+        // ⛔ EN INSPELARE SOM REDAN STANNAT GER INGET STOPP-EVENT (0.107.0). Se `STOPP_VANTA_MS`.
+        if (stannadeSjalv) {
+          avsluta(true);
+          return;
+        }
+        r.onstop = () => avsluta(true);
+        vanta(() => avsluta(false), STOPP_VANTA_MS);
+        try {
+          r.stop();
+        } catch {
+          avsluta(false);
+        }
       });
     },
     kasta() {
+      // ⛔ (0.107.0) Ett försök vars mikrofon ännu inte öppnats stängs när den öppnas (`hamta`), i stället för att börja spela in.
+      forsok += 1;
       if (rec && rec.state !== "inactive") {
         rec.onstop = null;
-        rec.stop();
+        try {
+          rec.stop();
+        } catch {
+          // Redan stoppad. Spåren stoppas nedan ändå.
+        }
       }
       rec = null;
       bitar = [];
@@ -691,10 +824,28 @@ export function talkFeltext(fel, val = {}) {
  *   `onFel` (0.99.0) får en kod när igenkänningen inte går att starta eller faller med ett riktigt fel, så att fältet kan säga det.
  * @property {() => Promise<string>} stoppa Slutar och ger den slutliga texten, eller tom sträng när den inte går att lita på.
  * @property {() => void} kasta Slutar utan att vänta.
+ * @property {() => Igenkanningsslut | null | Promise<Igenkanningsslut | null>} [slapp] (0.107.0) Avslutar förra omgångens igenkännare
+ *   helt: `abort()` om den inte redan sagt `end`, och väntar på `end`, högst `IGENKANNING_SLAPP_MS`. ⛔ ETT LÖFTE BARA NÄR DET FINNS
+ *   NÅGOT ATT VÄNTA PÅ: annars svaret direkt (`null` när ingen igenkännare funnits), så att mikrofonen öppnas i samma tryck som förut.
+ *   `useTalk` väntar på den innan nästa omgång öppnar mikrofonen. En app som ger en egen igenkänning utan `slapp` får ingen väntan.
+ */
+
+/**
+ * Hur förra omgångens igenkännare slutade (0.107.0), för diagnosen.
+ * @typedef {object} Igenkanningsslut
+ * @property {boolean} hann `end` kom: före anropet, eller inom `IGENKANNING_SLAPP_MS`.
+ * @property {number} ms Från att `stop()` eller `abort()` begärdes till `end`, eller till att taket gick ut. 0 när den slutade av
+ *   sig själv utan att något begärts.
  */
 
 /** Så länge `stoppa` väntar på att webbläsaren lämnar sitt sista resultat. */
 export const IGENKANNING_VANTA_MS = 1500;
+
+/**
+ * Så länge en ny omgång väntar på att förra omgångens igenkännare säger `end` efter `abort()` (0.107.0, lifehub.app#253). Ett tak, så
+ * att ett `end` som aldrig kommer inte låser fältet: då startar omgången ändå, och diagnosen säger `hann: false`.
+ */
+export const IGENKANNING_SLAPP_MS = 1000;
 
 /**
  * Fel som bara betyder tystnad. Igenkänningen fortsätter, och texten är fortfarande hel.
@@ -766,6 +917,16 @@ export function webblasarensIgenkanning(miljo = {}) {
   let starter = [];
   /** @type {(() => void) | null} */
   let narSlut = null;
+  /**
+   * ⛔ DEN SENAST SKAPADE IGENKÄNNAREN OCH OM DEN SAGT `end` (0.107.0, lifehub.app#253). `slapp` väntar på den innan nästa omgång.
+   * `begard` är när `stop()` eller `abort()` begärdes, `slutVid` när `end` kom.
+   * @type {{ rec: any, slut: Promise<void>, sett: boolean, begard: number, slutVid: number, markera: () => void } | null}
+   */
+  let senaste = null;
+  /** Noterar att ett slut begärts av den senaste igenkännaren, en gång. @param {any} rec */
+  const begar = (rec) => {
+    if (senaste && senaste.rec === rec && !senaste.begard) senaste.begard = nu();
+  };
   const hel = () => `${slutlig} ${pagaende}`.replace(/\s+/g, " ").trim();
   /** @param {unknown} fel */
   const felkod = (fel) => (fel instanceof Error && fel.name ? fel.name : "okant-fel");
@@ -784,6 +945,7 @@ export function webblasarensIgenkanning(miljo = {}) {
   };
   /** Stänger en igenkännare vi är klara med. `abort` är idempotent i webbläsarna, och ett fel här ska inte stoppa något. */
   const stang = (/** @type {any} */ gammal) => {
+    begar(gammal);
     try {
       gammal?.abort();
     } catch {
@@ -797,6 +959,16 @@ export function webblasarensIgenkanning(miljo = {}) {
     rec.lang = sprak;
     rec.continuous = true;
     rec.interimResults = true;
+    /** @type {() => void} */
+    let lossa = () => {};
+    const post = { rec, slut: new Promise((l) => { lossa = () => l(undefined); }), sett: false, begard: 0, slutVid: 0, markera: () => {} };
+    post.markera = () => {
+      if (post.sett) return;
+      post.sett = true;
+      post.slutVid = nu();
+      lossa();
+    };
+    senaste = post;
     const galler = () => mitt === forsok && rec === r;
     rec.onresult = (/** @type {any} */ e) => {
       if (!galler()) return;
@@ -819,6 +991,8 @@ export function webblasarensIgenkanning(miljo = {}) {
       }
     };
     rec.onend = () => {
+      // ⛔ Slutet noteras före försöksnumret: också en igenkännare som inte längre gäller har släppt mikrofonen när den säger `end`.
+      post.markera();
       if (!galler()) return;
       if (aktiv && !trasig) {
         // Mitt i: webbläsaren tog en paus. Det pågående hör till texten, och lyssnandet fortsätter.
@@ -836,6 +1010,8 @@ export function webblasarensIgenkanning(miljo = {}) {
             r.start();
             return;
           } catch (fel) {
+            // En igenkännare som aldrig startade säger aldrig `end`, och håller ingenting.
+            senaste?.markera();
             trasig = true;
             meld(onFel, felkod(fel));
           }
@@ -872,6 +1048,7 @@ export function webblasarensIgenkanning(miljo = {}) {
         r = ny(forsok, sprak, onText, onFel);
         r.start();
       } catch (fel) {
+        senaste?.markera();
         trasig = true;
         aktiv = false;
         meld(onFel, felkod(fel));
@@ -894,6 +1071,7 @@ export function webblasarensIgenkanning(miljo = {}) {
         };
         narSlut = () => sluta(true);
         vanta(() => sluta(false), IGENKANNING_VANTA_MS);
+        begar(r);
         try {
           r.stop();
         } catch {
@@ -908,11 +1086,40 @@ export function webblasarensIgenkanning(miljo = {}) {
       narSlut = null;
       const gammal = r;
       r = null;
+      begar(gammal);
       try {
         gammal?.abort();
       } catch {
         // Redan stängd.
       }
+    },
+    /*
+     * ⛔ FÖRRA OMGÅNGEN ÄR HELT AVSLUTAD INNAN NÄSTA BÖRJAR (0.107.0, lifehub.app#253). CP 2026-10-15 på iPhone: "Det är som att
+     * mikrofonen låser sig." Efter agentens svar gav nästa omgång varken ljud eller text. `kasta` och ett `stoppa` vars väntetid gått
+     * ut anropar `abort()` men väntar inte på `end`, och nästa omgång öppnade mikrofonen direkt. ⛔ HYPOTES, INTE MÄTT PÅ EN IPHONE:
+     * att WebKit på iOS håller telefonens ljudpass tills igenkännaren sagt `end`. Den här väntan tar bort den möjligheten, och
+     * `hann` och `ms` i diagnosen säger om den behövdes.
+     */
+    slapp() {
+      const p = senaste;
+      if (!p) return null;
+      if (p.sett) return { hann: true, ms: p.begard ? Math.max(0, p.slutVid - p.begard) : 0 };
+      forsok += 1;
+      aktiv = false;
+      narSlut = null;
+      if (r === p.rec) r = null;
+      stang(p.rec);
+      return new Promise((klar) => {
+        let gjort = false;
+        /** @param {boolean} hann */
+        const sluta = (hann) => {
+          if (gjort) return;
+          gjort = true;
+          klar({ hann, ms: Math.max(0, (hann ? p.slutVid : nu()) - p.begard) });
+        };
+        p.slut.then(() => sluta(true));
+        vanta(() => sluta(false), IGENKANNING_SLAPP_MS);
+      });
     },
   };
 }
