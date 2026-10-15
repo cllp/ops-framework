@@ -244,7 +244,7 @@ import { AgentIkon, AndraIkon, KopieraIkon, ArkiveraIkon, TaFramIkon, BildIkon, 
  * ordet och namnet ska stämma, så chattens röst-ord står här på båda språken, och `texterPa` väljer dem på chattens språk. Den
  * svenska formen står bara här: `TEXTER` läser den härifrån (regel 2). Appens egna `texter` vinner som förut.
  *
- * Resten av chattens texter är fortfarande bara svenska: det är ett eget arbete (cllp/ops-framework#385).
+ * Resten av chattens texter står i `ORD_MEDDELANDEN` nedan, på båda språken sedan 0.106.0 (#385, provet `chatt-sprak.test.jsx`).
  * @type {import("../lib/ord.js").Ordbok}
  */
 const ORD_MEDDELANDEN_TAL = {
