@@ -17,11 +17,11 @@ som en grupp, och den hanteras som Mitt projekt."
 ### `grupper.oversikt.hemgrupp`
 
 - Ny valfri `hemgrupp` (ett id i `grupper.lista`). Given: översikten ritar bottenraden som i en grupp, och `main` får bottenradens
-  marginal igen. Ett tryck i bottenraden anropar `grupper.onValj(hemgrupp)` före `onNavigate`, så Idag, Kalender och de andra
+  marginal igen. Ett tryck i bottenraden anropar `grupper.onValj(hemgrupp)` före `onNavigate`, om hemgruppen inte redan är aktiv, så Idag, Kalender och de andra
   öppnas i hemgruppen.
 - Utan `hemgrupp`, eller med ett id som inte finns i listan, är översikten som i 0.112.0: ingen bottenrad.
 - Huvudet är oförändrat i översikten: hemikonen till vänster, profilen till höger.
-- Prov: två nya i `src/__tests__/oversikt.test.jsx`. Trycket som väljer hemgruppen är rött utan ändringen; kontrollen (utan
+- Prov: tre nya i `src/__tests__/oversikt.test.jsx`. Trycket som väljer hemgruppen är rött utan ändringen; kontrollen (utan
   hemgrupp ingen bottenrad) är grön i båda.
 
 ## 0.112.0

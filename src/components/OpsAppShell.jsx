@@ -1937,7 +1937,8 @@ function OpsAppShellRitad({
   /** @type {((href: string, event: any) => void) | undefined} */
   const bottenNavigera = hemgrupp && grupper
     ? (href, event) => {
-        grupper.onValj(hemgrupp);
+        // Bara om hemgruppen inte redan är aktiv: en app som väljer den själv på översikten ska inte få ett andra val (och en andra navigering).
+        if (grupper.aktiv !== hemgrupp) grupper.onValj(hemgrupp);
         onNavigate?.(href, event);
       }
     : onNavigate;

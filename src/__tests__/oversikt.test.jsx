@@ -93,8 +93,8 @@ describe("Raden Översikt i gruppväxlaren (0.112.0)", () => {
 });
 
 describe("Hemgruppens bottenrad i översikten (0.113.0)", () => {
-  /** @param {{ hemgrupp?: string, onValj?: (id: string) => void, onNavigate?: (href: string, e: any) => void }} o */
-  const MedHem = ({ hemgrupp, onValj = () => {}, onNavigate = (_h, e) => e.preventDefault() }) => (
+  /** @param {{ aktiv?: string, hemgrupp?: string, onValj?: (id: string) => void, onNavigate?: (href: string, e: any) => void }} o */
+  const MedHem = ({ aktiv = "g2", hemgrupp, onValj = () => {}, onNavigate = (_h, e) => e.preventDefault() }) => (
     <OpsAppShell
       brand="Ops"
       fasta={fasta}
@@ -102,7 +102,7 @@ describe("Hemgruppens bottenrad i översikten (0.113.0)", () => {
       onNavigate={onNavigate}
       anvandare={profil}
       meny={{ sektioner: [], onLoggaUt: () => {} }}
-      grupper={{ lista, aktiv: "g2", onValj, oversikt: { aktiv: true, onValj: () => {}, hemgrupp } }}
+      grupper={{ lista, aktiv, onValj, oversikt: { aktiv: true, onValj: () => {}, hemgrupp } }}
     >
       <p>innehåll</p>
     </OpsAppShell>
@@ -115,6 +115,14 @@ describe("Hemgruppens bottenrad i översikten (0.113.0)", () => {
     const botten = screen.getByRole("navigation", { name: "Snabbnavigering" });
     await userEvent.setup().click(within(botten).getByRole("link", { name: /Idag/ }));
     expect(hande).toEqual(["valj:g1", "ga:/idag"]);
+  });
+
+  it("är hemgruppen redan aktiv väljs den inte igen, bara navigeringen sker", async () => {
+    /** @type {string[]} */
+    const hande = [];
+    render(<MedHem aktiv="g1" hemgrupp="g1" onValj={(id) => hande.push(`valj:${id}`)} onNavigate={(h, e) => { e.preventDefault(); hande.push(`ga:${h}`); }} />);
+    await userEvent.setup().click(within(screen.getByRole("navigation", { name: "Snabbnavigering" })).getByRole("link", { name: /Kalender/ }));
+    expect(hande).toEqual(["ga:/kalender"]);
   });
 
   it("utan hemgrupp, eller med ett id som inte finns, är översikten utan bottenrad (som 0.112.0)", () => {
