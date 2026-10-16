@@ -886,7 +886,7 @@ function GenvagRam({ nyckel, ikon, tips = true, className, children }) {
  *   Utan `skapa`, eller utan NÅGOT den kan visa (inga `handelse`/`arende` OCH modulerna i `ingenGrupp`/`tomt`-
  *   läge), ritas inget plus alls (tomhet är ett svar, arbetsreglernas punkt 5).
  * @param {string} [props.skapaLabel] Skärmläsarnamn på plusknappen.
- * @param {Omit<import("./OpsTalk.jsx").TalkVal, "onTalk"> & { mal?: ReadonlyArray<{ id: string, etikett: string }>, onMeddelande?: (underlag: import("../lib/talk.js").Talkunderlag) => void, onAgent?: (text: string) => void | Promise<void>, onTalk: (blob: Blob, meta: { mimeType: string, sekunder: number, rapportera: (andel: number) => void, mal?: { id: string }, text?: string }) => Promise<void | import("../lib/talk.js").Talkkvitto> | void | import("../lib/talk.js").Talkkvitto }} [props.talk] TALK (0.57.0, cllp/lifehub.app#2). ⛔ (0.103.0) Bottenradens mittknapp
+ * @param {Omit<import("./OpsTalk.jsx").TalkVal, "onTalk"> & { mal?: ReadonlyArray<{ id: string, etikett: string }>, onMeddelande?: (underlag: import("../lib/talk.js").Talkunderlag) => void, onAgent?: (text: string) => void | Promise<void>, onAnteckning?: (text: string) => void | Promise<void>, tillText?: (blob: Blob, meta: { mimeType: string, sekunder: number }) => Promise<string>, onTalk: (blob: Blob, meta: { mimeType: string, sekunder: number, rapportera: (andel: number) => void, mal?: { id: string }, text?: string }) => Promise<void | import("../lib/talk.js").Talkkvitto> | void | import("../lib/talk.js").Talkkvitto }} [props.talk] TALK (0.57.0, cllp/lifehub.app#2). ⛔ (0.103.0) Bottenradens mittknapp
  *   är då en mikrofon: ett vanligt tryck spelar in, och ett långtryck öppnar skapa-listan (utan TALK-raden) när den har något.
  *   Före 0.103.0 spelade ett långtryck på plusset in och ett tryck öppnade Skapa. Huvudets plus (bred skärm, och den gamla
  *   modellen på telefon) får raden "TALK, prata in" först där ingen mikrofon står bredvid. Ljudet lämnas till `talk.onTalk`. När ett mål är valt
@@ -905,7 +905,13 @@ function GenvagRam({ nyckel, ikon, tips = true, className, children }) {
  *   tryck på Agent försöker igen. Händelse öppnar skalets "Ny händelse" och Ärende skalets "Nytt ärende"
  *   med `forifyllt` (`talkForifyllt`), och ritas bara när `skapa.handelse` är ett formulär (`HandelseSkapare`) respektive `skapa.arende`
  *   är en funktion. Meddelande lämnar underlaget (`Talkunderlag`, `{ text }`) till `talk.onMeddelande` och ritas bara med den.
- *   Hördes inget (igenkänningen av) går ljudet till `onTalk` som förut. När ett moduls mål är valt (Biblioteket) gäller modulens
+ *   (0.114.0, cllp/ops-framework#402) Hördes inget (igenkänningen av, nekad eller saknas, som i Safari på iOS) står valen ÄNDÅ, direkt, och ljudet
+ *   går inte till `onTalk` (förut valde appen då åt personen). `talk.tillText(blob, { mimeType, sekunder })` skriver ut ljudet: fältet säger
+ *   "Skriver ut…", fyller i texten när den svarar, och ett val som tryckts före texten väntar på den. Ett fel i utskriften står i fältet med
+ *   valen kvar. Utan `tillText` säger fältet att ingen text kom fram. `talk.onAnteckning(text)` ger ett femte val, Anteckning (ritas bara med den):
+ *   fältet säger "Sparar…" och stängs när löftet löser sig, och ett fel står i fältet med valen kvar. Utan `talk.onAgent` är beteendet som förut:
+ *   ljudet går till `onTalk`. Ljud utan text går dessutom till felrapporten (`rapporteraFel`, steg `ingen-text`) med det som skiljer orsakerna åt.
+ *   När ett moduls mål är valt (Biblioteket) gäller modulens
  *   `spara` och inga val. ⛔ 0.105.0 tog bort `svaraText`, `onFortsatt` och `fortsattEtikett`, och skalet kastar om de skickas.
  * @param {string} [props.closeLabel] Skärmläsarnamn på stängknappen i bottenradens skapa-ark (bara med `fasta`).
  * @param {string} [props.nyHandelseEtikett] Ramverkets rad för `skapa.handelse`.
@@ -995,7 +1001,7 @@ function OpsAppShellRitad({
     if (borta.length) throw new Error(`OpsAppShell: talk.${borta.map(([k]) => k).join(" och talk.")} finns inte sedan 0.105.0. ${borta.map(([, v]) => v).join(" ")}`);
   }
   // ⛔ MOTTAGARNA PRÖVAS VID UPPSTART. Valen ritas först när någon pratat klart, och ett fel som syns först då är för sent.
-  for (const k of /** @type {const} */ (["onMeddelande", "onAgent"])) {
+  for (const k of /** @type {const} */ (["onMeddelande", "onAgent", "onAnteckning", "tillText"])) {
     if (talk && talk[k] !== undefined && typeof talk[k] !== "function") {
       throw new Error(`OpsAppShell: talk.${k} ska vara en funktion, fick ${talk[k] === null ? "null" : typeof talk[k]}. Valet lämnar det sagda dit, och utan en funktion att anropa hade det inte gjort något.`);
     }
@@ -1686,6 +1692,9 @@ function OpsAppShellRitad({
     onKlick: () => (harFasta ? setSkapaBottenOppen(true) : primaryAction?.onClick()),
     // ⛔ AGENT BARA FÖR APPENS MÅL (0.105.0). Ett fält låst till Biblioteket sparar ljudet där, och ett val hade lämnat det någon annanstans.
     onAgent: !laastTillModul && typeof talk?.onAgent === "function" ? talk.onAgent : undefined,
+    // ⛔ (0.114.0, cllp/ops-framework#402) Anteckning och utskriften hör till valen och gäller därför bara appens mål, som Agent.
+    onAnteckning: !laastTillModul && typeof talk?.onAnteckning === "function" ? talk.onAnteckning : undefined,
+    tillText: !laastTillModul && typeof talk?.tillText === "function" ? talk.tillText : undefined,
     inspelare: talk?.inspelare,
     igenkanning: talk?.igenkanning,
     // ⛔ "Agenten arbetar…" när inspelningen går till Biblioteket hade varit osant: där är det modulens `spara` som arbetar.
@@ -2652,6 +2661,10 @@ function OpsAppShellRitad({
           onValj={setValtInspelning}
           vidare={laastTillModul ? undefined : talkVidare}
           onAgent={talkStyr.medAgent ? talkStyr.agent : undefined}
+          onAnteckning={talkStyr.medAnteckning ? talkStyr.anteckning : undefined}
+          textVantar={talkStyr.textVantar}
+          utskriftFel={talkStyr.utskriftFel}
+          onSkrivUt={talkStyr.skrivUt}
         />
       ) : null}
 

@@ -9,6 +9,60 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.114.0
+
+Valen står alltid efter talet, Anteckning som val och orsaken mäts (cllp/ops-framework#402), och biblioteket visar en ny post
+direkt (cllp/ops-framework#403). CP 2026-10-17. Dessutom `fore` och `online` på `OpsGruppSida`.
+
+### TALK: valen efter talet står också utan text (`talk.tillText`, `talk.onAnteckning`)
+
+- CP, med en skärmbild från iPhone: han pratade in, "Agenten arbetar…" visades, och han hamnade direkt i chatten utan att få välja.
+  Rotorsaken, läst i koden: valen ritades bara när taligenkänningen gav text medan personen pratade. Utan text gick ljudet till
+  `onTalk`, och appen skickade det vidare till agenten, alltså valde appen åt personen.
+- Med `talk.onAgent` går fältet nu till valen även när ingen text hördes, och ljudet lämnas inte till `onTalk`, `onAgent` eller något
+  annat val av sig självt. Utan `onAgent` är beteendet som förut.
+- Ny valfri `talk.tillText(blob, { mimeType, sekunder }) => Promise<string>`: fältet säger "Skriver ut…" och fyller i texten när den
+  svarar. Valen går att trycka under tiden, och ett val som tryckts före texten väntar på den och lämnar den en gång. Faller utskriften
+  (eller ger den en tom text) står felet i fältet med valen kvar, och ett tryck på ett val skriver ut igen. Utan `tillText` säger fältet
+  att ingen text kom fram.
+- Ny valfri `talk.onAnteckning(text) => void | Promise<void>`: ett femte val, Anteckning, före Agent, som ritas bara när propen ges. Fältet
+  säger "Sparar…" och stängs när löftet löser sig, och faller det står felet i fältet och valen kvar. Ordtabellen har svenska och
+  engelska. Med fem val tar det sista hela raden.
+- `useTalk` tar `onAnteckning` och `tillText` och lämnar `anteckning`, `medAnteckning`, `textVantar`, `utskriftFel` och `skrivUt`.
+  `OpsInspelning` och `OpsTalk` tar `onAnteckning`, `textVantar`, `utskriftFel` och `onSkrivUt`. `talkNasta` har händelserna
+  `anteckning` och `anteckningFel`.
+- ⛔ **Bryter ett prov, med flit:** `talk-val.test.jsx` hävdade att ljud utan text med `onAgent` går till `onTalk`. Det är det som
+  ändrats, och provet säger nu det motsatta.
+
+### TALK: ljud utan text mäts (`rapporteraFel`, steget `ingen-text`)
+
+- Varför telefonens text uteblev var inte mätt, och felrapporten skickades bara när varken ljud eller text fanns. Nu går ljud utan text
+  till felrapporten med `igenkanning`, `utanIgenkanning` (`avstangd`, `webkit` eller `saknas`), `igenkanningStartade`,
+  `igenkanningStartHandelse`, `igenkanningFelkod` (den senaste felkoden, också `no-speech` och `aborted`), `omgang`, `standalone`,
+  `userAgent`, `sekunder`, `bytes`, `medVal` och `medUtskrift`. Ingen text från personen.
+- `Igenkanning.diagnos()` (valfri) ger `{ startade, startHandelse, felkod }` för omgången. Webbläsarens igenkänning nollar den vid varje
+  start. Ny `talkMiljo()` läser `standalone` och `userAgent`.
+- Felkoden vid ett kast i `start()` är nu kastets namn också när det inte är en `Error` i den här världen (`DOMException`).
+- Safari på iOS har ingen igenkänning här (`arWebKit`), så på en iPhone är `igenkanning` `false` med `utanIgenkanning: "webkit"`.
+
+### Gruppsidan: `fore` och `online` (`OpsGruppSida`, från granskningen av lifehub.app PR 341)
+
+- Ny valfri `fore` (ReactNode): ritas efter snabbvalen och före medlemslistan, så att appen kan visa gruppens läge överst. `children` ligger
+  kvar under som förut.
+- Ny valfri `online` (`ReadonlySet<string>` av userId): en grön prick på medlemmens avatar med `aria-label` "<namn> online"
+  (`etiketter.online` byter ordet), och sorteringen online först, sedan ägare, admin, medlem, sedan namn. Utan propen är ordningen och
+  utseendet som förut. En mängd som inte har `has()` kastar.
+
+### Biblioteket: en ny post syns direkt (`prenumerera`, `OpsBibliotek kalla`)
+
+- CP: efter en röstinspelning syntes inspelningen inte förrän han laddat om. Rotorsaken: `createBibliotekskalla` hade bara `las()`, en
+  engångsläsning, och listan prenumererade inte. Det gäller allt som skrivs utanför listans egen vy.
+- `createBibliotekskalla` får `prenumerera(lyssnare, onFel)` när datakällan har `subscribe` (frivillig, `contract.js`). Samma svar och
+  samma kontroll per rad som `las()`. Ett fel går till `onFel` och försvinner aldrig tyst. Saknas `subscribe` (eller svarar en routande
+  källa nej på `canSubscribe`) finns metoden inte, och `las()` gäller som förut. Ingen polling.
+- `OpsBibliotek` tar en ny valfri `kalla`. Med den läser vyn själv: `kalla.prenumerera` när den finns, annars `kalla.las()` en gång.
+  `poster`, `fel`, `trasiga` och `laddar` ges då inte (vyn kastar annars). Utan `kalla` är vyn som förut.
+
 ## 0.113.0
 
 Översikten får hemgruppens bottenrad (cllp/lifehub.app#319), Grok 2026-10-16. CP-beslut 11:14: "Översikten har samma bottenrad

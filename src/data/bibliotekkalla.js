@@ -19,6 +19,13 @@
  * inte heller tas bort. Att den hoppas över tyst hade varit regel 5 igen, så
  * vyn visar antalet och skälet. Sedan #311 raderar författaren eller admin i
  * gruppen, också en trasig rad, när `radera` får `jag` och `anteckna`.
+ *
+ * ⛔ EN NY POST SYNS DIREKT (0.114.0, cllp/ops-framework#403). CP 2026-10-17: efter en röstinspelning syntes inspelningen inte förrän
+ * han laddat om. Rotorsaken var att källan bara hade `las()`, en engångsläsning, och att ingen sade åt listan att läsa om när en
+ * annan källa (inspelningen, en flytt från en annan grupp, en annan persons ändring) skrev en rad. `prenumerera(lyssnare, onFel)`
+ * finns när datakällan har `subscribe` (frivillig, se `contract.js`) och ger samma svar som `las()` vid varje ändring, med samma
+ * kontroll per rad. Har källan ingen `subscribe` saknas metoden helt, och vyn läser med `las()` som förut: en metod som låtsades
+ * strömma utan att kunna hade varit den tysta nedfallsväg `contract.js` varnar för. Ingen polling.
  */
 
 import { byggPost, farAndra, filInmatningsfel, filSort, kodaToppar, normaliseraMime, peaksGiltiga, postFel, trimSomRegeln, MAX_LJUD_MS } from "../lib/bibliotek.js";
@@ -69,6 +76,94 @@ export function createBibliotekskalla(config) {
 
   const fraga = { where: { groupId } };
 
+  /**
+   * Raderna till ett svar. ⛔ EN KONTROLL, TVÅ VÄGAR: `las()` och `prenumerera()` går båda genom den här, så att en rad som
+   * den ena avvisar aldrig släpps igenom av den andra.
+   * @param {any[]} rader
+   * @returns {Bibliotekssvar}
+   */
+  const svarUr = (rader) => {
+    const poster = [];
+    /** @type {{ id: string, fel: string, groupId?: string, skapadAv?: { uid?: string | null } }[]} */
+    const trasiga = [];
+    for (const rad of rader) {
+      const id = String(rad?.id ?? "?");
+      const fel = rad?.groupId !== groupId
+        ? `Raden hör till gruppen "${rad?.groupId ?? ""}" och inte till "${groupId}".`
+        : postFel(rad);
+      if (fel) {
+        trasiga.push({
+          id,
+          fel,
+          ...(typeof rad?.groupId === "string" ? { groupId: rad.groupId } : {}),
+          ...(rad?.skapadAv && typeof rad.skapadAv === "object" ? { skapadAv: rad.skapadAv } : {}),
+        });
+        continue;
+      }
+      try {
+        poster.push({ ...byggPost(rad), id });
+      } catch (e) {
+        trasiga.push({ id, fel: e instanceof Error ? e.message : String(e) });
+      }
+    }
+    return { poster, kalla: "databas", fel: null, trasiga };
+  };
+
+  /**
+   * Strömmar källan den här samlingen? Frivillig `subscribe`, och en routande källa svarar per samling med `canSubscribe`
+   * (samma fråga som `useLiveCollection` ställer). Ett nej gör att `prenumerera` inte finns, inte att den kastar.
+   */
+  const kanStromma = typeof source.subscribe === "function"
+    && (typeof source.canSubscribe === "function" ? Boolean(source.canSubscribe(collection)) : true);
+
+  /**
+   * Prenumerationen (0.114.0, cllp/ops-framework#403). Lyssnaren får ett `Bibliotekssvar` (samma form som `las()`) första gången och vid
+   * varje ändring i gruppens rader. ⛔ ETT FEL FÖRSVINNER ALDRIG TYST: källans `onError`, ett fel när prenumerationen skulle öppnas och ett
+   * fel när en leverans skulle byggas går alla till `onFel`. Båda argumenten krävs, eftersom en lyssnare utan felväg är en vy som
+   * fortsätter visa den gamla listan som om den vore färsk. Returnerar en avregistrering som tål att anropas flera gånger, och efter
+   * den kommer inget mer.
+   *
+   * @param {(svar: Bibliotekssvar) => void} lyssnare
+   * @param {(fel: Error) => void} onFel
+   * @returns {() => void}
+   */
+  const prenumerera = (lyssnare, onFel) => {
+    if (typeof lyssnare !== "function") throw new Error("createBibliotekskalla.prenumerera: lyssnare krävs och ska vara en funktion.");
+    if (typeof onFel !== "function") {
+      throw new Error("createBibliotekskalla.prenumerera: onFel krävs och ska vara en funktion. Utan den hade ett fel i strömmen försvunnit tyst, och vyn hade fortsatt visa en gammal lista.");
+    }
+    let stangd = false;
+    /** @param {unknown} e */
+    const fel = (e) => {
+      if (!stangd) onFel(e instanceof Error ? e : new Error(String(e)));
+    };
+    /** @type {(() => void) | undefined} */
+    let avreg;
+    try {
+      avreg = source.subscribe(collection, fraga, {
+        onData: (/** @type {any[]} */ rader) => {
+          if (stangd) return;
+          let svar;
+          try {
+            svar = svarUr(rader);
+          } catch (e) {
+            fel(e);
+            return;
+          }
+          lyssnare(svar);
+        },
+        onError: fel,
+      });
+    } catch (e) {
+      fel(e);
+    }
+    return () => {
+      if (stangd) return;
+      stangd = true;
+      if (typeof avreg === "function") avreg();
+    };
+  };
+
   return {
     collection,
     groupId,
@@ -79,34 +174,14 @@ export function createBibliotekskalla(config) {
     async las() {
       try {
         const rader = await source.list(collection, fraga);
-        const poster = [];
-        /** @type {{ id: string, fel: string, groupId?: string, skapadAv?: { uid?: string | null } }[]} */
-        const trasiga = [];
-        for (const rad of rader) {
-          const id = String(rad?.id ?? "?");
-          const fel = rad?.groupId !== groupId
-            ? `Raden hör till gruppen "${rad?.groupId ?? ""}" och inte till "${groupId}".`
-            : postFel(rad);
-          if (fel) {
-            trasiga.push({
-              id,
-              fel,
-              ...(typeof rad?.groupId === "string" ? { groupId: rad.groupId } : {}),
-              ...(rad?.skapadAv && typeof rad.skapadAv === "object" ? { skapadAv: rad.skapadAv } : {}),
-            });
-            continue;
-          }
-          try {
-            poster.push({ ...byggPost(rad), id });
-          } catch (e) {
-            trasiga.push({ id, fel: e instanceof Error ? e.message : String(e) });
-          }
-        }
-        return { poster, kalla: "databas", fel: null, trasiga };
+        return svarUr(rader);
       } catch (fel) {
         return { poster: [], kalla: "fel", fel: fel instanceof Error ? fel : new Error(String(fel)), trasiga: [] };
       }
     },
+
+    // `prenumerera` finns BARA när källan kan strömma. Se filhuvudet.
+    ...(kanStromma ? { prenumerera } : {}),
 
     /**
      * En post, eller `null` när den inte finns. Kastar när raden hör till en annan plats eller inte går att läsa, så att en

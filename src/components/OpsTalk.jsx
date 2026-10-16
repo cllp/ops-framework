@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { AVBRYT_FRAGA_SEKUNDER, LANGTRYCK_MS, MAX_SEKUNDER, SPARAT_MS, TALK_SKICKAR_TEXT, TALK_INGET_LJUD, TALK_TEXTFEL, ORD_TALK, igenkanningensSprak, kanBeOmMikrofon, kanSpelaInIgen, kontrolleraSkickarText, talkFeltext, talkKvitto, talkNasta, talkOrd, talkTextPa, talkUnderlag, webblasarensIgenkanning, webblasarensInspelare } from "../lib/talk.js";
+import { AVBRYT_FRAGA_SEKUNDER, LANGTRYCK_MS, MAX_SEKUNDER, SPARAT_MS, TALK_SKICKAR_TEXT, TALK_INGET_LJUD, TALK_TEXTFEL, ORD_TALK, igenkanningensSprak, kanBeOmMikrofon, kanSpelaInIgen, kontrolleraSkickarText, talkFeltext, talkKvitto, talkMiljo, talkNasta, talkOrd, talkTextPa, talkUnderlag, webblasarensIgenkanning, arWebKit, webblasarensInspelare } from "../lib/talk.js";
 import { useOpsSprak } from "./OpsSprak.jsx";
 import { formateraTid } from "../lib/ljudspelare.js";
 import { rapporteraFel } from "../lib/felrapport.js";
-import { AgentIkon, ArendePlusIkon, BockIkon, HandelsePlusIkon, KryssIkon, KugghjulIkon, MeddelandeIkon, MikrofonIkon, StoppIkon } from "./icons.jsx";
+import { AgentIkon, AnteckningIkon, ArendePlusIkon, BockIkon, HandelsePlusIkon, KryssIkon, KugghjulIkon, MeddelandeIkon, MikrofonIkon, StoppIkon } from "./icons.jsx";
 import { OpsSpinner } from "./OpsSpinner.jsx";
 
 /**
@@ -36,8 +36,19 @@ import { OpsSpinner } from "./OpsSpinner.jsx";
  * @property {(text: string) => void | Promise<void>} [onAgent] (0.105.0) Agent-knappen. Med den lämnar Klar inte det sagda till `onTalk`:
  *   fältet visar texten och valen Meddelande, Händelse, Ärende och Agent (läget `hort`), och Agent lämnar texten hit. Fältet stängs
  *   när löftet löser sig, eftersom appen tar över (lifehub.app öppnar chatten med agenten). Avvisas löftet står felet i fältet med
- *   Försök igen och texten kvar. ⛔ BARA MED TEXT: hördes inget (igenkänningen av eller föll) går ljudet till `onTalk` som förut,
- *   eftersom det inte finns något att välja med.
+ *   Försök igen och texten kvar. (0.114.0) ⛔ VALEN STÅR ÄVEN UTAN TEXT: hördes inget (igenkänningen av, nekad eller saknas) går fältet ändå
+ *   till valen, direkt, och ljudet går inte till `onTalk`: den skickades förut vidare av appen, som då valde åt personen. Texten skrivs ut
+ *   av `tillText` om den finns. Utan `onAgent` är beteendet som förut: ljudet går till `onTalk`.
+ * @property {(blob: Blob, meta: { mimeType: string, sekunder: number }) => Promise<string>} [tillText] (0.114.0, cllp/ops-framework#402) Appens utskrift av ljudet.
+ *   Hördes ingen text medan personen pratade (igenkänningen av, nekad, eller en webbläsare som inte har den, till exempel Safari på iOS)
+ *   visar fältet ändå valen, direkt, med statusen "Skriver ut…" medan `tillText` arbetar, och fyller i texten när den svarar. Valen går
+ *   att trycka under tiden: ett val före texten väntar på den. ⛔ INGENTING LÄMNAS FÖRRÄN PERSONEN HAR TRYCKT: varken ljudet eller
+ *   texten går till `onAgent`, `onTalk` eller något annat val av sig självt. Avvisas löftet (eller löser det till en tom text) står felet
+ *   i fältet och valen kvar, och ett tryck på ett val försöker skriva ut igen. Utan `tillText` står valen ändå, med ett besked om att ingen
+ *   text kom fram. Gäller bara med `onAgent` (utan den är beteendet som förut: ljudet går till `onTalk`).
+ * @property {(text: string) => void | Promise<void>} [onAnteckning] (0.114.0, cllp/ops-framework#402) Ett femte val bland valen efter talet,
+ *   Anteckning, som ritas bara när den ges. Samma mönster som `onAgent`: fältet säger "Sparar…" medan löftet arbetar och stängs när det
+ *   löser sig, och avvisas det står felet i fältet och valen kvar, med texten. Valen finns bara med `onAgent`.
  * @property {number} [maxSekunder] Tak i sekunder. Förval `MAX_SEKUNDER` (120), så TALK inte ändras. Bibliotekets idé använder 600.
  * @property {ReadonlyArray<{ id: string, etikett: string }>} [mal] Appens egna mål i fältet. ⛔ (0.99.0) Mikrofonen erbjuder bara dessa. Modulernas
  *   mål (`inspelning.mal`) nås bara genom modulens egen rad (Ny-menyn: Röstinspelning), som öppnar fältet låst till målet utan val.
@@ -58,14 +69,36 @@ export const TALK_UPPTAGEN = ORD_TALK.felUpptagen.sv;
 /**
  * @param {TalkVal & { onKlick: () => void }} val `onKlick` är det ett vanligt tryck gör, Skapa.
  */
-export function useTalk({ onTalk, onKlick, onAgent, inspelare, igenkanning, skickarText, maxSekunder = MAX_SEKUNDER }) {
+export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, inspelare, igenkanning, skickarText, maxSekunder = MAX_SEKUNDER }) {
   if (onAgent !== undefined && typeof onAgent !== "function") {
     throw new Error(`useTalk: onAgent ska vara en funktion, fick ${onAgent === null ? "null" : typeof onAgent}. Agent-knappen lämnar det sagda dit, och utan en funktion hade trycket inte gjort något.`);
   }
+  for (const [namn, varde] of /** @type {const} */ ([["onAnteckning", onAnteckning], ["tillText", tillText]])) {
+    if (varde !== undefined && typeof varde !== "function") {
+      throw new Error(`useTalk: ${namn} ska vara en funktion, fick ${varde === null ? "null" : typeof varde}. ${namn === "onAnteckning" ? "Anteckning lämnar det sagda dit, och utan en funktion hade trycket inte gjort något." : "Utskriften av ljudet anropas när ingen text hördes, och utan en funktion hade texten aldrig kommit."}`);
+    }
+  }
   const onAgentRef = useRef(onAgent);
   onAgentRef.current = onAgent;
-  /** Vart det sagda senast lämnades, så att Försök igen går till samma mottagare. @type {{ current: "talk" | "agent" }} */
-  const senastMal = useRef(/** @type {"talk" | "agent"} */ ("talk"));
+  const onAnteckningRef = useRef(onAnteckning);
+  onAnteckningRef.current = onAnteckning;
+  const tillTextRef = useRef(tillText);
+  tillTextRef.current = tillText;
+  /** Vart det sagda senast lämnades, så att Försök igen går till samma mottagare. @type {{ current: "talk" | "agent" | "anteckning" }} */
+  const senastMal = useRef(/** @type {"talk" | "agent" | "anteckning"} */ ("talk"));
+  /** Samma som `senastMal`, som tillstånd: statusraden medan det lämnas säger olika saker för Anteckning och för appens egen mottagare. */
+  const [malSynligt, setMalSynligt] = useState(/** @type {"talk" | "agent" | "anteckning"} */ ("talk"));
+  /** @param {"talk" | "agent" | "anteckning"} m */
+  const satMal = (m) => {
+    senastMal.current = m;
+    setMalSynligt(m);
+  };
+  /**
+   * ⛔ UTSKRIFTEN NÄR INGEN TEXT HÖRDES (0.114.0, cllp/ops-framework#402). `pagar` medan `tillText` arbetar, `fel` när den föll eller
+   * gav tomt. Hör till fältets läge `hort` och nollas av varje kast och varje ny omgång.
+   */
+  const [utskrift, setUtskrift] = useState({ pagar: false, fel: "" });
+  const utskriftPagar = useRef(false);
   if (!Number.isInteger(maxSekunder) || maxSekunder < 1) {
     throw new Error(`useTalk: maxSekunder ska vara ett positivt heltal, fick ${String(maxSekunder)}. Ett tyst tak hade antingen klippt direkt eller spelat in utan slut.`);
   }
@@ -135,6 +168,10 @@ export function useTalk({ onTalk, onKlick, onAgent, inspelare, igenkanning, skic
       rapporteraFel(fel, { yta: "OpsTalk", steg: "kasta-text" });
     }
   };
+  const nollaUtskrift = () => {
+    utskriftPagar.current = false;
+    setUtskrift({ pagar: false, fel: "" });
+  };
   const rensa = () => {
     if (timer.current) clearTimeout(timer.current);
     timer.current = null;
@@ -166,6 +203,53 @@ export function useTalk({ onTalk, onKlick, onAgent, inspelare, igenkanning, skic
     tak.current = setTimeout(() => skickaRef.current({ typ: "tak" }), Math.max(0, kvar));
   };
 
+  /**
+   * ⛔ UTSKRIFTEN AV LJUDET NÄR INGEN TEXT HÖRDES (0.114.0, cllp/ops-framework#402). Appens `tillText` får ljudet och svarar med texten.
+   * Svaret fyller i fältet (`setText`) och sparas i `senast`, så att ett val som tryckts under tiden kan lämna den. `mitt` är försöket
+   * som utskriften hör till: stängs fältet eller börjar en ny omgång medan den arbetar gör ett sent svar ingenting. Ett fel, en tom text
+   * och ett svar som inte är en text går till felrapporten och till fältet (`utskrift.fel`), och inget val lämnar något förrän
+   * personen trycker igen. Ingen text från personen i rapporten, bara steget.
+   * @param {{ blob: Blob, mimeType: string, sekunder: number, text?: string }} post
+   * @param {number} mitt
+   */
+  const skrivUtLjudet = (post, mitt) => {
+    const fn = tillTextRef.current;
+    if (typeof fn !== "function" || utskriftPagar.current) return;
+    utskriftPagar.current = true;
+    setUtskrift({ pagar: true, fel: "" });
+    /** @param {string} meddelande */
+    const misslyckades = (meddelande) => {
+      utskriftPagar.current = false;
+      setUtskrift({ pagar: false, fel: meddelande });
+    };
+    Promise.resolve()
+      .then(() => fn(post.blob, { mimeType: post.mimeType, sekunder: post.sekunder }))
+      .then((svar) => {
+        if (mitt !== forsok.current || !monterad.current) return;
+        if (typeof svar !== "string") {
+          rapporteraFel(new Error(`TALK: tillText ska lösa till en text, fick ${svar === null ? "null" : typeof svar}.`), { yta: "OpsTalk", steg: "utskrift" });
+          misslyckades(ORD_TALK.felUtskrift.sv);
+          return;
+        }
+        const ren = svar.trim();
+        if (!ren) {
+          rapporteraFel(new Error("TALK: utskriften av ljudet gav en tom text."), { yta: "OpsTalk", steg: "utskrift", sekunder: post.sekunder });
+          misslyckades(ORD_TALK.felIngenText.sv);
+          return;
+        }
+        // Ordningen är avsiktlig: `senast` först, så att ett val som väntat på texten hittar den när fältet ritar om.
+        senast.current = { ...post, text: ren };
+        utskriftPagar.current = false;
+        setText(ren);
+        setUtskrift({ pagar: false, fel: "" });
+      })
+      .catch((fel) => {
+        if (mitt !== forsok.current || !monterad.current) return;
+        rapporteraFel(fel, { yta: "OpsTalk", steg: "utskrift" });
+        misslyckades(fel instanceof Error && fel.message ? fel.message : ORD_TALK.felUtskrift.sv);
+      });
+  };
+
   const skicka = useCallback(
     /** @param {import("../lib/talk.js").Talkhandelse} h */
     (h) => {
@@ -185,6 +269,7 @@ export function useTalk({ onTalk, onKlick, onAgent, inspelare, igenkanning, skic
         setFramsteg(null);
         setText("");
         setTextFel("");
+        nollaUtskrift();
         kastaText();
         try {
           insp().kasta();
@@ -201,6 +286,7 @@ export function useTalk({ onTalk, onKlick, onAgent, inspelare, igenkanning, skic
         // (Svara) hade den gamla texten legat kvar under den nya frågan i den tid mikrofonprompten tog.
         setText("");
         setTextFel("");
+        nollaUtskrift();
         if (mikrofonenUpptagenAv && mikrofonenUpptagenAv !== inspRef) {
           skicka({ typ: "fel", text: TALK_UPPTAGEN });
           return;
@@ -294,7 +380,7 @@ export function useTalk({ onTalk, onKlick, onAgent, inspelare, igenkanning, skic
        * @param {{ blob: Blob, mimeType: string, sekunder: number, text?: string }} post
        */
       const lamna = (post) => {
-        senastMal.current = "talk";
+        satMal("talk");
         setFramsteg(null);
         const rapportera = (/** @type {number} */ andel) => {
           if (!monterad.current) return;
@@ -336,7 +422,7 @@ export function useTalk({ onTalk, onKlick, onAgent, inspelare, igenkanning, skic
        * @param {{ blob: Blob, mimeType: string, sekunder: number, text?: string }} post
        */
       const lamnaTillAgent = (post) => {
-        senastMal.current = "agent";
+        satMal("agent");
         const mottagare = onAgentRef.current;
         return Promise.resolve()
           .then(() => {
@@ -355,13 +441,41 @@ export function useTalk({ onTalk, onKlick, onAgent, inspelare, igenkanning, skic
             skicka({ typ: "agentFel", text: fel instanceof Error && fel.message ? fel.message : ORD_TALK.felAgent.sv });
           });
       };
-      if (nasta.gor === "agent") {
+      /**
+       * Anteckning (0.114.0, cllp/ops-framework#402): det sagda till appens `onAnteckning`, samma mönster som Agent. ⛔ FÄLTET STÄNGS NÄR
+       * LÖFTET LÖSER SIG, och ett fel tar fältet tillbaka till valen med texten och felet (`anteckningFel`): en anteckning som inte
+       * sparades får aldrig se ut som en som gjorde det. Statusen medan den sparas är TALK:s eget "Sparar…", inte appens `skickarText`
+       * ("Agenten arbetar…" hade varit osant).
+       * @param {{ blob: Blob, mimeType: string, sekunder: number, text?: string }} post
+       */
+      const lamnaTillAnteckning = (post) => {
+        satMal("anteckning");
+        const mottagare = onAnteckningRef.current;
+        return Promise.resolve()
+          .then(() => {
+            if (typeof mottagare !== "function") throw new Error(ORD_TALK.felAnteckning.sv);
+            return mottagare(post.text ?? "");
+          })
+          .then(() => {
+            if (!monterad.current) return;
+            senast.current = null;
+            setKanIgen(false);
+            skicka({ typ: "lamnat" });
+          })
+          .catch((fel) => {
+            if (!monterad.current) return;
+            rapporteraFel(fel, { yta: "OpsTalk", steg: "anteckning" });
+            skicka({ typ: "anteckningFel", text: fel instanceof Error && fel.message ? fel.message : ORD_TALK.felAnteckning.sv });
+          });
+      };
+      if (nasta.gor === "agent" || nasta.gor === "anteckning") {
         const post = senast.current;
         if (!post?.text) {
           skicka({ typ: "fel", text: ORD_TALK.felIngetKvar.sv });
           return;
         }
-        lamnaTillAgent(post);
+        if (nasta.gor === "agent") lamnaTillAgent(post);
+        else lamnaTillAnteckning(post);
         return;
       }
       if (nasta.gor === "skicka" || nasta.gor === "igen") {
@@ -376,6 +490,7 @@ export function useTalk({ onTalk, onKlick, onAgent, inspelare, igenkanning, skic
             return;
           }
           if (senastMal.current === "agent") lamnaTillAgent(post);
+          else if (senastMal.current === "anteckning") lamnaTillAnteckning(post);
           else lamna(post);
           return;
         }
@@ -414,13 +529,48 @@ export function useTalk({ onTalk, onKlick, onAgent, inspelare, igenkanning, skic
               skicka({ typ: "fel", text: TALK_INGET_LJUD });
               return undefined;
             }
+            /*
+             * ⛔ LJUD UTAN TEXT MÄTS (0.114.0, cllp/ops-framework#402). CP 2026-10-17, iPhone: han pratade in och hamnade direkt i
+             * chatten utan att få välja. Varför telefonens text uteblev var inte mätt, och felrapporten skickades bara när varken ljud
+             * eller text fanns, så det här fallet syntes aldrig. Nu går det till felrapporten med det som skiljer orsakerna åt: fanns
+             * en igenkänning, startade den, hur slutade den (felkod, också `no-speech` och `aborted`), omgången, om sidan körs från
+             * hemskärmen och webbläsaren. ⛔ Ingen text från personen. `utanIgenkanning` säger varför ingen fanns: avstängd av appen,
+             * WebKit (Safari och alla webbläsare på iOS, se `arWebKit`) eller saknas i webbläsaren.
+             */
+            if (!hord) {
+              const finns = igk() !== null;
+              const diag = finns ? (igk()?.diagnos?.() ?? null) : null;
+              const miljo = talkMiljo();
+              rapporteraFel(new Error("TALK: det fanns ljud men ingen text."), {
+                yta: "OpsTalk",
+                steg: "ingen-text",
+                sekunder: ljud.sekunder,
+                bytes: ljud.blob.size,
+                igenkanning: finns,
+                utanIgenkanning: finns ? null : igenkanning === true ? (arWebKit() ? "webkit" : "saknas") : "avstangd",
+                igenkanningStartade: diag ? diag.startade : null,
+                igenkanningStartHandelse: diag ? diag.startHandelse : null,
+                igenkanningFelkod: diag ? diag.felkod : null,
+                omgang: omgang.current,
+                standalone: miljo.standalone,
+                userAgent: miljo.userAgent,
+                medVal: typeof onAgentRef.current === "function",
+                medUtskrift: typeof tillTextRef.current === "function",
+              });
+            }
             const post = { blob: ljud.blob, mimeType: ljud.mimeType, sekunder: ljud.sekunder, ...(hord ? { text: hord } : {}) };
             setText(hord);
             senast.current = post;
             setKanIgen(true);
             // ⛔ MED AGENT VÄLJER PERSONEN (0.105.0): det sagda står i fältet med valen, och inget lämnas förrän hen tryckt.
-            if (hord && typeof onAgentRef.current === "function") {
-              senastMal.current = "agent";
+            // (0.114.0) OCKSÅ NÄR INGEN TEXT HÖRDES: valen står ändå, direkt. Förut gick ljudet då till `onTalk` och appen skickade det
+            // vidare till agenten, alltså valde appen åt personen. Texten skrivs ut av appens `tillText` (om den finns) medan valen väntar.
+            if (typeof onAgentRef.current === "function") {
+              satMal("agent");
+              if (!hord) {
+                if (typeof tillTextRef.current === "function") skrivUtLjudet(post, mitt);
+                else setUtskrift({ pagar: false, fel: ORD_TALK.felIngenText.sv });
+              }
               skicka({ typ: "hort" });
               return undefined;
             }
@@ -572,7 +722,8 @@ export function useTalk({ onTalk, onKlick, onAgent, inspelare, igenkanning, skic
     textFel,
     /** (0.97.0) Om texten kan komma alls: igenkänningen är påslagen och finns i webbläsaren. Fältet ritar då textytan. */
     medText: igk() !== null,
-    skickarText: skickarText ?? TALK_SKICKAR_TEXT,
+    // ⛔ (0.114.0) Anteckning sparar i appen men är inte agentens arbete: appens `skickarText` ("Agenten arbetar…") hade varit osann där.
+    skickarText: malSynligt === "anteckning" ? TALK_SKICKAR_TEXT : (skickarText ?? TALK_SKICKAR_TEXT),
     /** (0.97.0) Kvittot i läget sparat, eller `null`. */
     kvitto: kvitto ? { text: kvitto.text, kanAngra: Boolean(kvitto.angra), angrar: kvitto.status === "angrar", angrat: kvitto.status === "angrat", ...(kvitto.fel ? { fel: kvitto.fel } : {}) } : null,
     angra,
@@ -580,6 +731,22 @@ export function useTalk({ onTalk, onKlick, onAgent, inspelare, igenkanning, skic
     agent: () => skicka({ typ: "agent" }),
     /** (0.105.0) Om appen gav `onAgent`. Fältet ritar då Agent bland valen. */
     medAgent: typeof onAgent === "function",
+    /** (0.114.0) Anteckning i läget hört: lämnar det sagda till `onAnteckning`. */
+    anteckning: () => skicka({ typ: "anteckning" }),
+    /** (0.114.0) Om appen gav `onAnteckning`. Fältet ritar då Anteckning bland valen. */
+    medAnteckning: typeof onAnteckning === "function",
+    /** (0.114.0) `tillText` arbetar: ljud utan text står i läget hört med statusen "Skriver ut…", och valen väntar på texten. */
+    textVantar: utskrift.pagar,
+    /** (0.114.0) Utskriften föll eller gav tomt, eller så finns ingen utskrift och ingen text. Tom när allt är som det ska. */
+    utskriftFel: utskrift.fel,
+    /** (0.114.0) Försöker skriva ut igen (ett tryck på ett val efter ett fel). `undefined` utan `tillText`. */
+    skrivUt:
+      typeof tillText === "function"
+        ? () => {
+            const post = senast.current;
+            if (post && !post.text && lageRef.current.lage === "hort") skrivUtLjudet(post, forsok.current);
+          }
+        : undefined,
   };
 }
 
@@ -654,6 +821,7 @@ const KUGG = "inline-flex size-11 shrink-0 cursor-pointer items-center justify-c
 const STATUSKLASS = {
   tom: "sr-only",
   skickar: "m-0 flex min-h-12 items-center gap-2 text-etikett text-ink-secondary",
+  utskrift: "m-0 flex min-h-12 items-center gap-2 text-etikett text-ink-secondary",
   sparat: "m-0 flex min-h-12 items-center gap-2 text-etikett font-medium text-ink",
   kvitto: "m-0 flex items-start gap-3 text-brod text-ink [overflow-wrap:anywhere]",
 };
@@ -667,11 +835,12 @@ const TEXTYTA = "m-0 min-h-18 max-h-36 overflow-y-auto text-brod [overflow-wrap:
  */
 const VAL = "inline-flex min-h-12 min-w-0 cursor-pointer items-center justify-center gap-2 rounded-full bg-hover px-3 text-etikett font-medium text-ink hover:bg-line focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent aria-disabled:cursor-default aria-disabled:opacity-60";
 
-/** Valen i den ordning de står (0.105.0). Agent sist: den som tar samtalet vidare till chatten. */
+/** Valen i den ordning de står (0.105.0). Agent sist: den som tar samtalet vidare till chatten. Anteckning (0.114.0) före den. */
 const VALEN = /** @type {const} */ ([
   { nyckel: "meddelande", ord: "valMeddelande" },
   { nyckel: "handelse", ord: "valHandelse" },
   { nyckel: "arende", ord: "valArende" },
+  { nyckel: "anteckning", ord: "valAnteckning" },
   { nyckel: "agent", ord: "valAgent" },
 ]);
 
@@ -681,7 +850,7 @@ const VALEN = /** @type {const} */ ([
  * innehåller det synliga ordet går inte att säga åt en röststyrning, och det gäller på båda språken.
  */
 
-const INSPELNING_PROPS = ["lage", "fel", "niva", "sekunder", "tak", "framsteg", "kanIgen", "text", "textFel", "medText", "skickarText", "kvitto", "onAngra", "onKlar", "onAvbryt", "onIgen", "onStart", "onTillatMikrofon", "onInstallningar", "marke", "mal", "valt", "onValj", "vidare", "onAgent", "klarEtikett"];
+const INSPELNING_PROPS = ["lage", "fel", "niva", "sekunder", "tak", "framsteg", "kanIgen", "text", "textFel", "medText", "skickarText", "kvitto", "onAngra", "onKlar", "onAvbryt", "onIgen", "onStart", "onTillatMikrofon", "onInstallningar", "marke", "mal", "valt", "onValj", "vidare", "onAgent", "onAnteckning", "textVantar", "utskriftFel", "onSkrivUt", "klarEtikett"];
 
 /**
  * Mottagarna av det sagda (0.103.0, 0.105.0). Var och en får underlaget när personen trycker på sitt val. En nyckel som saknas ritar
@@ -715,7 +884,7 @@ const INSPELNING_PROPS = ["lage", "fel", "niva", "sekunder", "tak", "framsteg", 
  * filhuvudet ovanför `PRIMAR`. Stäng är den primära knappen och får fokus.
  *
  * ⛔ VALEN EFTER TALET (0.105.0). I läget `hort` står det sagda kvar i textytan, och under det valen Meddelande, Händelse, Ärende och
- * Agent med ord. Ett val ritas bara när dess mottagare finns. Fokus går till det första valet, så att tangentbordet inte hamnar i
+ * Agent med ord (0.114.0: Anteckning före Agent, med `onAnteckning`). Valen står också när ingen text hördes. Ett val ritas bara när dess mottagare finns. Fokus går till det första valet, så att tangentbordet inte hamnar i
  * sidans topp när Klar försvinner. Inget val lämnar något av sig självt: det är personens tryck som gör det.
  *
  * @param {object} props
@@ -748,6 +917,11 @@ const INSPELNING_PROPS = ["lage", "fel", "niva", "sekunder", "tak", "framsteg", 
  * @param {TalkVidare} [props.vidare] (0.103.0, 0.105.0) Mottagarna av valen Meddelande, Händelse och Ärende i läget `hort`. Ett tryck lämnar
  *   underlaget (`talkUnderlag`) till mottagaren och stänger fältet. Kastar mottagaren står felet i fältet och det sagda finns kvar.
  * @param {() => void} [props.onAgent] (0.105.0) Agent i läget `hort` (`useTalk().agent`). Utan den ritas ingen Agent.
+ * @param {() => void} [props.onAnteckning] (0.114.0) Anteckning i läget `hort` (`useTalk().anteckning`). Utan den ritas ingen Anteckning.
+ * @param {boolean} [props.textVantar] (0.114.0) Utskriften av ljudet arbetar (`useTalk().textVantar`): fältet säger "Skriver ut…", valen står kvar
+ *   och går att trycka, och ett val som tryckts före texten väntar på den.
+ * @param {string} [props.utskriftFel] (0.114.0) Utskriften föll eller gav tomt (`useTalk().utskriftFel`). Står i felraden med valen kvar.
+ * @param {() => void} [props.onSkrivUt] (0.114.0) Försöker skriva ut igen (`useTalk().skrivUt`). Ett tryck på ett val utan text anropar den.
  * @param {string} [props.klarEtikett] (0.103.0) Namnet Klar läses upp med. Förval `ORD_TALK.klarNamn` på språket som gäller (0.104.0). Chattens skrivfält
  *   skickar det sagda som ett meddelande, och där hade "spara inspelningen" sagt något annat än det som händer. Ordet på skärmen är
  *   Klar i båda. En tom sträng eller något annat än en sträng kastar.
@@ -757,7 +931,7 @@ export function OpsInspelning(props) {
   if (okanda.length > 0) {
     throw new Error(`OpsInspelning: okända props ${okanda.join(", ")}. Tillåtna: ${INSPELNING_PROPS.join(", ")}.`);
   }
-  const { lage, fel, niva, sekunder, tak, framsteg, kanIgen, text = "", textFel = "", medText = false, skickarText = TALK_SKICKAR_TEXT, kvitto = null, onAngra, onKlar, onAvbryt, onIgen, onStart, onTillatMikrofon, onInstallningar, marke, mal = [], valt = null, onValj, vidare, onAgent, klarEtikett: klarEtikettProp } = props;
+  const { lage, fel, niva, sekunder, tak, framsteg, kanIgen, text = "", textFel = "", medText = false, skickarText = TALK_SKICKAR_TEXT, kvitto = null, onAngra, onKlar, onAvbryt, onIgen, onStart, onTillatMikrofon, onInstallningar, marke, mal = [], valt = null, onValj, vidare, onAgent, onAnteckning, textVantar = false, utskriftFel = "", onSkrivUt, klarEtikett: klarEtikettProp } = props;
   if (vidare !== undefined) {
     const nycklar = ["meddelande", "handelse", "arende"];
     const felaktiga = vidare && typeof vidare === "object" ? Object.entries(vidare).filter(([k, v]) => !nycklar.includes(k) || typeof v !== "function").map(([k]) => k) : [typeof vidare];
@@ -768,12 +942,17 @@ export function OpsInspelning(props) {
   if (onAgent !== undefined && typeof onAgent !== "function") {
     throw new Error(`OpsInspelning: onAgent ska vara en funktion, fick ${onAgent === null ? "null" : typeof onAgent}. Agent utan mottagare hade inte gjort något.`);
   }
+  if (onAnteckning !== undefined && typeof onAnteckning !== "function") {
+    throw new Error(`OpsInspelning: onAnteckning ska vara en funktion, fick ${onAnteckning === null ? "null" : typeof onAnteckning}. Anteckning utan mottagare hade inte gjort något.`);
+  }
   if (klarEtikettProp !== undefined && (typeof klarEtikettProp !== "string" || !klarEtikettProp.trim())) {
     throw new Error(`OpsInspelning: klarEtikett ska vara en sträng som inte är tom, fick ${typeof klarEtikettProp === "string" ? JSON.stringify(klarEtikettProp) : typeof klarEtikettProp}. En knapp utan namn går inte att hitta för den som lyssnar.`);
   }
   const [fragar, setFragar] = useState(false);
   /** Felet när en mottagare kastade (0.103.0). Det sagda står kvar, så att det går att trycka igen eller stänga. */
   const [vidareFel, setVidareFel] = useState("");
+  /** Valet som tryckts innan texten fanns (0.114.0). Det lämnas så fort texten kommer, och glöms om utskriften faller. */
+  const [vantarVal, setVantarVal] = useState(/** @type {string | null} */ (null));
   const fortsatt = useRef(/** @type {HTMLButtonElement | null} */ (null));
   const stang = useRef(/** @type {HTMLButtonElement | null} */ (null));
   const forstaVal = useRef(/** @type {HTMLButtonElement | null} */ (null));
@@ -808,14 +987,18 @@ export function OpsInspelning(props) {
   /** (0.105.0) Fokus till första valet när det sagda står, och ett gammalt fel från en mottagare hör till förra omgången. */
   useEffect(() => {
     setVidareFel("");
+    setVantarVal(null);
     if (hort) forstaVal.current?.focus();
   }, [hort]);
 
   const underlag = hort ? talkUnderlag(text) : null;
-  /** Felet vid valen: ett val vars mottagare kastade, annars en Agent som inte nådde fram. */
-  const valFel = hort ? vidareFel || fel || "" : "";
-  /** Valen som ritas: bara de med en mottagare, och bara när något hördes. */
-  const val = underlag ? VALEN.filter((x) => (x.nyckel === "agent" ? typeof onAgent === "function" : typeof vidare?.[x.nyckel] === "function")) : [];
+  /** Felet vid valen: ett val vars mottagare kastade, en Agent som inte nådde fram, eller en utskrift som föll. */
+  const valFel = hort ? vidareFel || fel || utskriftFel || "" : "";
+  /**
+   * Valen som ritas: bara de med en mottagare. ⛔ (0.114.0) OCKSÅ UTAN TEXT: ljud utan text ger ändå valen, direkt, och texten fylls i
+   * när appens utskrift svarat. Förut krävdes en text, och utan den lämnades ljudet till appen som valde åt personen.
+   */
+  const val = hort ? VALEN.filter((x) => (x.nyckel === "agent" ? typeof onAgent === "function" : x.nyckel === "anteckning" ? typeof onAnteckning === "function" : typeof vidare?.[x.nyckel] === "function")) : [];
   /**
    * Ett tryck på Meddelande, Händelse eller Ärende. ⛔ MOTTAGAREN FÖRST, STÄNGNINGEN SEDAN: kastar mottagaren (ett formulär som inte
    * finns, ett fel i appen) står felet i fältet och det sagda finns kvar. Stängt först hade det sagda försvunnit med felet. Ett löfte som
@@ -837,6 +1020,51 @@ export function OpsInspelning(props) {
     }
     onAvbryt();
   };
+
+  /** Utför ett val när texten finns. @param {"meddelande" | "handelse" | "arende" | "anteckning" | "agent"} nyckel */
+  const utfor = (nyckel) => {
+    if (nyckel === "agent") onAgent?.();
+    else if (nyckel === "anteckning") onAnteckning?.();
+    else lamnaVidare(nyckel);
+  };
+  /**
+   * Ett tryck på ett val (0.114.0). ⛔ MED TEXT lämnas den direkt, som förut. UTAN TEXT händer ingenting med ljudet: valet väntar på
+   * texten (`vantarVal`, och utskriften arbetar redan), eller, har utskriften fallit, försöker den igen och valet väntar på det. Finns
+   * ingen utskrift alls står beskedet att ingen text kom fram. Valet lämnar aldrig en tom text.
+   * @param {"meddelande" | "handelse" | "arende" | "anteckning" | "agent"} nyckel
+   */
+  const valj = (nyckel) => {
+    if (underlag) {
+      utfor(nyckel);
+      return;
+    }
+    if (textVantar) {
+      setVantarVal(nyckel);
+      return;
+    }
+    if (typeof onSkrivUt === "function") {
+      setVidareFel("");
+      setVantarVal(nyckel);
+      onSkrivUt();
+      return;
+    }
+    setVidareFel(ORD_TALK.felIngenText.sv);
+  };
+  // Texten kom medan ett val väntade: lämna den nu. Valet glöms först, så att det aldrig lämnas två gånger.
+  useEffect(() => {
+    if (!vantarVal || !underlag) return;
+    const nyckel = /** @type {"meddelande" | "handelse" | "arende" | "anteckning" | "agent"} */ (vantarVal);
+    setVantarVal(null);
+    utfor(nyckel);
+    // `utfor` läser bara props och `underlag`, som är det som ändrades.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vantarVal, underlag?.text]);
+  // Utskriften föll medan ett val väntade: valet glöms, och felet står i fältet med valen kvar.
+  useEffect(() => {
+    if (vantarVal && !underlag && !textVantar) setVantarVal(null);
+    // Bara övergången när utskriften slutar arbeta är det som ska pröva detta.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [textVantar]);
 
   const avbryt = () => {
     if (lyssnar && sekunder >= AVBRYT_FRAGA_SEKUNDER && !fragar) {
@@ -875,7 +1103,7 @@ export function OpsInspelning(props) {
   /** Statusraden medan det sparas. TALK:s eget "Sparar…" på språket som gäller, appens text som den är. */
   const skickarVisas = talkTextPa(skickarText, sprak);
   /** Vad statusregionen säger. `null`: tom och dold. */
-  const statusLage = lage === "skickar" ? "skickar" : lage === "sparat" ? (kvitto ? "kvitto" : "sparat") : null;
+  const statusLage = lage === "skickar" ? "skickar" : lage === "sparat" ? (kvitto ? "kvitto" : "sparat") : hort && textVantar && !text ? "utskrift" : null;
   const valtId = valt ?? (mal[0] ? mal[0].id : null);
   const visaTextyta = (lyssnar && (medText || Boolean(text))) || ((lage === "skickar" || hort) && Boolean(text));
   /**
@@ -933,6 +1161,12 @@ export function OpsInspelning(props) {
             {procent == null ? skickarVisas : `${skickarVisas} ${procent} %`}
           </>
         ) : null}
+        {statusLage === "utskrift" ? (
+          <>
+            <OpsSpinner size="sm" decorative />
+            {o("skriverUt")}
+          </>
+        ) : null}
         {statusLage === "sparat" ? (
           <>
             <span aria-hidden="true" className="flex size-7 shrink-0 items-center justify-center rounded-full bg-accent-subtle text-accent"><BockIkon size={14} /></span>
@@ -968,15 +1202,18 @@ export function OpsInspelning(props) {
           <p id={valFraga} className="m-0 text-meta text-ink-muted">{o("valFragan")}</p>
           <div className="grid min-w-0 grid-cols-2 gap-2">
             {val.map((x, i) => {
-              const Ikon = x.nyckel === "meddelande" ? MeddelandeIkon : x.nyckel === "handelse" ? HandelsePlusIkon : x.nyckel === "arende" ? ArendePlusIkon : AgentIkon;
+              const Ikon = x.nyckel === "meddelande" ? MeddelandeIkon : x.nyckel === "handelse" ? HandelsePlusIkon : x.nyckel === "arende" ? ArendePlusIkon : x.nyckel === "anteckning" ? AnteckningIkon : AgentIkon;
+              // ⛔ Ett udda antal val (fem med Anteckning) låter det sista ta hela raden, så att rutnätet inte lämnar ett hål.
+              const ensam = i === val.length - 1 && val.length % 2 === 1;
               return (
                 <button
                   key={x.nyckel}
                   ref={i === 0 ? forstaVal : undefined}
                   type="button"
                   data-talk-valt={x.nyckel}
-                  onClick={() => (x.nyckel === "agent" ? onAgent?.() : lamnaVidare(x.nyckel))}
-                  className={VAL}
+                  aria-busy={vantarVal === x.nyckel || undefined}
+                  onClick={() => valj(x.nyckel)}
+                  className={ensam ? `${VAL} col-span-2` : VAL}
                 >
                   <Ikon size={18} />
                   <span className="min-w-0 truncate">{o(x.ord)}</span>
@@ -1116,10 +1353,15 @@ export function OpsInspelning(props) {
  *   onValj?: (id: string) => void,
  *   vidare?: TalkVidare,
  *   onAgent?: () => void,
+ *   onAnteckning?: () => void,
+ *   textVantar?: boolean,
+ *   utskriftFel?: string,
+ *   onSkrivUt?: () => void,
  * }} props `medText`, `skickarText`, `kvitto` och `onAngra` (0.97.0) kommer ur `useTalk` med samma namn (`onAngra` är `angra`).
- *   `vidare` och `onAgent` (0.105.0: `useTalk().agent`) går som de är till `OpsInspelning`.
+ *   `vidare` och `onAgent` (0.105.0: `useTalk().agent`) går som de är till `OpsInspelning`, liksom `onAnteckning` (`useTalk().anteckning`),
+ *   `textVantar`, `utskriftFel` och `onSkrivUt` (0.114.0: `useTalk().textVantar`, `.utskriftFel`, `.skrivUt`).
  */
-export function OpsTalk({ lage, fel, niva, sekunder = 0, tak = MAX_SEKUNDER, framsteg = null, kanIgen = false, text = "", textFel = "", medText = false, skickarText = TALK_SKICKAR_TEXT, kvitto = null, onAngra, onSkicka, onAvbryt, onIgen = () => {}, onTillatMikrofon, onInstallningar, marke, mal = [], valt = null, onValj, vidare, onAgent }) {
+export function OpsTalk({ lage, fel, niva, sekunder = 0, tak = MAX_SEKUNDER, framsteg = null, kanIgen = false, text = "", textFel = "", medText = false, skickarText = TALK_SKICKAR_TEXT, kvitto = null, onAngra, onSkicka, onAvbryt, onIgen = () => {}, onTillatMikrofon, onInstallningar, marke, mal = [], valt = null, onValj, vidare, onAgent, onAnteckning, textVantar, utskriftFel, onSkrivUt }) {
   if (lage === "vila" || lage === "trycker") return null;
   return (
     <div
@@ -1157,6 +1399,10 @@ export function OpsTalk({ lage, fel, niva, sekunder = 0, tak = MAX_SEKUNDER, fra
           onValj={onValj}
           vidare={vidare}
           onAgent={onAgent}
+          onAnteckning={onAnteckning}
+          textVantar={textVantar}
+          utskriftFel={utskriftFel}
+          onSkrivUt={onSkrivUt}
         />
       </div>
     </div>
