@@ -9,6 +9,23 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.112.0
+
+Översikten som ett läge i skalet (cllp/lifehub.app#319), Grok 2026-10-16. CP 09:55 "Kör på detta", specen i
+cllp/lifehub.app#319 (kommentaren med Claudes plan).
+
+### Läget `ingenGrupp` går att välja (`grupper.oversikt`)
+
+- `OpsAppShell` tar `grupper.oversikt: { aktiv, onValj, etikett? }`. Med `aktiv` står skalet i översikten: ingen grupp är aktiv
+  (inte heller gruppnamnet under märket), och det som hör till en grupp ritas inte: flikarna, plusset, mikrofonen, `actions`,
+  gruppanelen och bottenraden. Kvar är växlaren med hemikonen till vänster på alla bredder och profilen (`anvandare`) till höger.
+  På dator finns hamburgaren kvar.
+- `OpsGruppvaxlare` tar `oversikt`. Raden **Översikt** står överst med hemikon (`HusIkon`), och att välja den anropar
+  `oversikt.onValj`, så att appen går ur gruppen. I översikten är knappen hemikonen och ingen grupprad är vald.
+- Ny ordtabell `ORD_OPSOVERSIKT` (sv "Översikt", en "Overview"), exporterad.
+- Utan `oversikt` är skalet och växlaren oförändrade.
+- Prov: `src/__tests__/oversikt.test.jsx` (fem prov, fyra röda utan ändringen, kontrollen grön i båda).
+
 ## 0.111.0
 
 Bygger på 0.110.0 (PR 396) och ges ut efter den.

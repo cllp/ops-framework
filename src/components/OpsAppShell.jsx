@@ -619,6 +619,10 @@ function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, s
  * @property {string} [flerAvatarerEtikett]
  * @property {string} [etikett] Skärmläsarnamn på `OpsGruppvaxlare`s ark (smal skärm).
  * @property {string} [nuEtikett] (0.31.1) Ordet före det aktiva namnet i växlarknappens skärmläsarnamn ("Byt grupp, nu: Alfa AB"). Förval "nu".
+ * @property {{ aktiv: boolean, onValj: () => void, etikett?: string }} [oversikt] (0.112.0, cllp/lifehub.app#319) Översikten, läget
+ *   `ingenGrupp` som ett VALT läge. Given: växlaren har raden Översikt (hemikon) överst, och att välja den anropar `onValj` (appen går ur
+ *   gruppen). Med `aktiv` står skalet i översiktsläget: hemikonen till vänster på alla bredder, profilen (`anvandare`) till höger, och
+ *   ingen bottenrad, inga flikar, inget plus, ingen mikrofon, inga `actions` och ingen gruppanel. `etikett` förval ur `ORD_OPSOVERSIKT`.
  */
 
 /**
@@ -1915,7 +1919,13 @@ function OpsAppShellRitad({
   // märkets `namn` (rad 1, "OPS HUB" när den utelämnas). Rad 2 är den aktiva gruppens namn
   // när `grupper` finns och en grupp är aktiv; utan grupp (personen är inte med i någon, eller
   // appen skickar inga `grupper`) används `undertext` på appens egen `OpsBrand`, annars ritas bara rad 1.
-  const aktivGrupp = grupper ? grupper.lista.find((g) => g.id === grupper.aktiv) : undefined;
+  /*
+   * ⛔ 0.112.0: ÖVERSIKTEN ÄR LÄGET `ingenGrupp`, VALT (cllp/lifehub.app#319). Förut fanns läget bara när personen saknade grupp.
+   * Nu kan appen välja det: då står man utanför grupperna, och allt som hör till en grupp (flikar, plus, mikrofon, actions,
+   * bottenrad, gruppanel) ritas inte. Kvar är hemikonen till vänster och profilen till höger, och på dator hamburgaren.
+   */
+  const iOversikt = Boolean(grupper?.oversikt?.aktiv);
+  const aktivGrupp = grupper && !iOversikt ? grupper.lista.find((g) => g.id === grupper.aktiv) : undefined;
   const gruppUndertext = aktivGrupp ? text(aktivGrupp.namn, grupper?.sprak ?? sprak).toLocaleUpperCase(grupper?.sprak ?? sprak) : undefined;
   const panelProp = grupper ? { panelInfalld: Boolean(grupper.infalld) } : {};
   // ⛔ 0.52.0: MED `hubbar` HETER MÄRKET DEN AKTIVA HUBBEN ("MY HUB"), om appen inte satt `brand`. Märket och listan säger då
@@ -2163,7 +2173,7 @@ function OpsAppShellRitad({
             <a
               href="/"
               onClick={(e) => onActivate("/", e)}
-              className={cx("shrink-0 rounded-base focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent", grupper ? "hidden lg:flex lg:items-center lg:gap-2" : "flex min-h-11 min-w-11 items-center md:block md:min-h-0 md:min-w-0")}
+              className={cx("shrink-0 rounded-base focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent", iOversikt ? "hidden" : grupper ? "hidden lg:flex lg:items-center lg:gap-2" : "flex min-h-11 min-w-11 items-center md:block md:min-h-0 md:min-w-0")}
             >
               {varumarke}
             </a>
@@ -2201,8 +2211,9 @@ function OpsAppShellRitad({
               med `OpsPanel`.
             */}
             {grupper ? (
-              <GenvagRam nyckel="grupp" ikon={grupper.etikett ?? "Byt grupp"} tips={false} className="min-w-0 lg:hidden">
+              <GenvagRam nyckel="grupp" ikon={grupper.etikett ?? "Byt grupp"} tips={false} className={iOversikt ? "min-w-0" : "min-w-0 lg:hidden"}>
                 <OpsGruppvaxlare
+                  oversikt={grupper.oversikt}
                   grupper={grupper.lista}
                   aktiv={grupper.aktiv}
                   onValj={grupper.onValj}
@@ -2225,7 +2236,7 @@ function OpsAppShellRitad({
               Med `1fr auto 1fr` stod flikarna mitt på SIDAN och rörde sig aldrig; i SS ligger de mitt i
               det som är kvar EFTER loggan, så de följer med när loggan går från 180 till 40 px.
               Under `md` tar luckan (`flex-1`) den plats flikarna lämnar, så åtgärderna hamnar till höger. */}
-          <nav aria-label={navLabel} className="hidden min-w-0 flex-1 items-center justify-center gap-1 md:flex">
+          <nav aria-label={navLabel} className={cx("hidden min-w-0 flex-1 items-center justify-center gap-1", !iOversikt && "md:flex")}>
             {inRow.map((s, i) => (
               <RowEntry
                 key={s.href}
@@ -2268,7 +2279,7 @@ function OpsAppShellRitad({
                 Ett tryck öppnar en popover med listan, aldrig en yta inuti
                 sidan; en rad öppnar en RIKTIG `OpsModal`, se filhuvudets
                 ärende (#168). */}
-            {visaSkapaKnapp ? (
+            {visaSkapaKnapp && !iOversikt ? (
               <Popover.Root open={skapaOppen} onOpenChange={setSkapaOppen}>
                 {/*
                   ⛔ FRÅN 0.60.0 EN FYLLD ACCENTCIRKEL PÅ DATOR (md och uppåt),
@@ -2347,7 +2358,7 @@ function OpsAppShellRitad({
                 långtryck spelar in. Här är ett vanligt tryck inspelningen.
                 ⛔ LÄGET SYNS: tänd (`aktiv`) medan den lyssnar eller skickar, och namnet säger samma sak för den som
                 lyssnar (`talkKnappNamn`). Utan `talk` ritas ingen knapp: en mikrofon utan mottagare hade tappat det man sade. */}
-            {talk ? (
+            {talk && !iOversikt ? (
               <OpsTooltip content={talkKnappNamn(talkStyr.lage, sprak)} side="bottom">
                 <button
                   type="button"
@@ -2362,7 +2373,7 @@ function OpsAppShellRitad({
                 </button>
               </OpsTooltip>
             ) : null}
-            {atgarderIHuvud}
+            {iOversikt ? null : atgarderIHuvud}
             {/* ⛔ Efter actions och FÖRE hamburgaren. Kontot är personens egen
                 yta och hör ihop med appens åtgärder; hamburgaren är resten av
                 navigeringen och ligger ytterst. Se noten vid propen. */}
@@ -2504,7 +2515,7 @@ function OpsAppShellRitad({
         {/* ⛔ 0.34.0: PANELENS HÖJD ÄR FÖNSTRET MINUS HUVUDET, OCH HUVUDET ÄR SÄKER ZON PLUS 56 PLUS SIN KANT PÅ 1 PX. Före 0.34.0 drogs
             bara 56 ifrån, så varje sida med gruppanelen var 1 px (plus den säkra zonen) högre än fönstret och rullade. Det syntes inte
             på en lång sida, men på Meddelanden (som fyller fönstret) gav det en rullning och en rullningslist. Mätt i check-skalyta avsnitt 29. */}
-        {grupper ? (
+        {grupper && !iOversikt ? (
           <div className="hidden shrink-0 lg:sticky lg:z-(--z-sticky-header) lg:top-[calc(var(--safe-top)+var(--topbar-height))] lg:block lg:h-[calc(100dvh-var(--safe-top)-var(--topbar-height)-1px)] lg:pl-4 lg:pt-5">
             <OpsGruppanel
               grupper={grupper.lista}
@@ -2533,7 +2544,7 @@ function OpsAppShellRitad({
       {/* `padding-bottom` lika med bottenradens höjd plus säker yta, men bara
           under md där baren finns. Utan den ligger sista kortet under baren, och
           det upptäcks först när någon inte hittar sin sista rad. */}
-      <main className="pb-[calc(var(--bottom-nav-h)+var(--safe-bottom)+var(--spelrad-h,0px))] md:pb-(--spelrad-h,0px)">
+      <main className={iOversikt ? "pb-[calc(var(--safe-bottom)+var(--spelrad-h,0px))] md:pb-(--spelrad-h,0px)" : "pb-[calc(var(--bottom-nav-h)+var(--safe-bottom)+var(--spelrad-h,0px))] md:pb-(--spelrad-h,0px)"}>
         {/* ⛔ #159: ALLTID PÅ, se OpsFelgrans filhuvud. Ingen prop stänger av den. */}
         <OpsFelgrans felmottagare={felmottagare} rubrik={felRubrik} beskrivning={felBeskrivning} laddaOmEtikett={laddaOmEtikett}>
           {/* ⛔ 0.31.0: APPENS VY ÄR KVAR I DOM:EN, DOLD, medan skapa-panelen visas. Tillbaka återställer då exakt vyn man kom
@@ -2564,6 +2575,8 @@ function OpsAppShellRitad({
       {/* ⛔ Botten-Mer speglar header-Mer, men får inte börja senare än barens
           tak. Med primaryAction rymmer baren 3 (OpsBottomNav); om smaltTak är 4
           skulle slice(smaltTak) hoppa över index 3 och göra den oåtkomlig under md. */}
+      {/* ⛔ 0.112.0: INGEN BOTTENRAD I ÖVERSIKTEN (cllp/lifehub.app#319). Raden är gruppens, och översikten står utanför grupperna. */}
+      {iOversikt ? null : (
       <OpsBottomNav
         nav={bottenNav}
         moreNav={[...(harFasta ? [] : navLista.slice(Math.min(smaltTak, primaryAction ? 3 : 4))), ...(meny ? [] : flyttadeRader)]}
@@ -2579,6 +2592,7 @@ function OpsAppShellRitad({
         meny={meny ? { sprak, ...meny, app: [...flyttadeRader, ...(meny.app ?? [])] } : meny}
         ark={apparArk && apparHref ? { href: apparHref, oppen: arkOppen, onOppen: setArkOppen } : undefined}
       />
+      )}
       {/* Hyllan, inte en modal som täcker raden. Lagret är `--z-ark` inuti
           OpsApparArk (`arkHyllaZ`), under kromet, så pluset i bottenraden
           målar över hyllans kant. */}
