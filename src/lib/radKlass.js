@@ -216,7 +216,7 @@ export function huvudPlusKlass({ synligMobil = true, aktiv = false } = {}) {
  */
 export function huvudTalkKlass({ aktiv = false } = {}) {
   return cx(
-    "relative size-11 shrink-0 cursor-pointer items-center justify-center rounded-full p-2.5 [&_svg]:size-6 xl:size-10 xl:p-2",
+    "relative size-11 shrink-0 cursor-pointer items-center justify-center rounded-full p-[9px] [&_svg]:size-6 xl:size-10 xl:p-[7px]",
     "hidden md:inline-flex",
     "transition-colors duration-(--duration-fast) ease-standard",
     aktiv

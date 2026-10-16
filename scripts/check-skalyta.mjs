@@ -6814,8 +6814,9 @@ for (const [namn, vp] of /** @type {const} */ ([["TALK-knappen 1280 px", { width
       krav(!!fore.knapp && !!fore.plus, `${namn}: knappen (${!!fore.knapp}) eller plusset (${!!fore.plus}) hittades inte i huvudet.`);
       if (fore.knapp && fore.plus) {
         matt.push(`${namn}: knappen ${fore.knapp.w}x${fore.knapp.h} px, ikon ${fore.knapp.ikon} px, mitt ${fore.knapp.mitt.toFixed(1)} (plusset ${fore.plus.mitt.toFixed(1)}), avstånd till plusset ${(fore.knapp.x - fore.plus.x - fore.plus.w).toFixed(1)} px, namn ${JSON.stringify(fore.namn)}`);
-        krav(Math.abs(fore.knapp.w - 36) < 0.5 && Math.abs(fore.knapp.h - 36) < 0.5 && fore.knapp.radie >= 18, `${namn}: knappen är ${fore.knapp.w}x${fore.knapp.h} px med rundning ${fore.knapp.radie}, väntat en 36 px cirkel som huvudets övriga ikonknappar.`);
-        krav(Math.abs(fore.knapp.ikon - 20) < 0.5, `${namn}: ikonen är ${fore.knapp.ikon} px, väntat 20 som huvudets övriga ikonknappar vid 1280.`);
+        // ⛔ #394: TALK är lika stor som plusset, så vakten mäter mot plusset och inte mot ett tal som kan glida.
+        krav(Math.abs(fore.knapp.w - fore.plus.w) < 0.5 && Math.abs(fore.knapp.h - fore.plus.h) < 0.5 && fore.knapp.radie >= 18, `${namn}: knappen är ${fore.knapp.w}x${fore.knapp.h} px med rundning ${fore.knapp.radie}, väntat lika stor som plusset (${fore.plus.w}x${fore.plus.h}).`);
+        krav(Math.abs(fore.knapp.ikon - fore.plus.ikon) < 0.5, `${namn}: ikonen är ${fore.knapp.ikon} px, väntat lika stor som plussets (${fore.plus.ikon}).`);
         krav(Math.abs(fore.knapp.mitt - fore.plus.mitt) <= 1, `${namn}: mittlinjen är ${fore.knapp.mitt.toFixed(1)} och plussets ${fore.plus.mitt.toFixed(1)}, väntat högst 1 px isär.`);
         const glipa = fore.knapp.x - fore.plus.x - fore.plus.w;
         krav(glipa >= 0 && glipa <= 4, `${namn}: knappen står ${glipa.toFixed(1)} px från plussets högerkant, väntat direkt bredvid (0 till 4 px).`);

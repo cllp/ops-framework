@@ -214,6 +214,40 @@ describe("webblasarensIgenkanning", () => {
     await expect(igk.stoppa()).resolves.toBe("");
   });
 
+  it("⛔ #253 (BÖR 2): en lång omgång nollar räknaren, så snabba omstarter före och efter den ger ingen omstartsslinga", () => {
+    const f = fejkadIgenkanning();
+    /** @type {Array<() => void>} */
+    const tidtagare = [];
+    /** @type {string[]} */
+    const fel = [];
+    let klocka = 1000;
+    const igk = /** @type {any} */ (webblasarensIgenkanning({ SpeechRecognition: f.SR, nu: () => klocka, setTimeout: (fn) => { tidtagare.push(fn); } }));
+    igk.starta({ sprak: "sv-SE", onText: () => {}, onFel: (/** @type {string} */ k) => fel.push(k) });
+    const slut = () => { f.instanser.at(-1).onend(); while (tidtagare.length) tidtagare.shift()(); };
+    for (let i = 0; i < 3; i += 1) slut();
+    klocka += 5000;
+    slut();
+    for (let i = 0; i < 3; i += 1) slut();
+    expect(fel).not.toContain("omstartsslinga");
+  });
+
+  it("⛔ #253 (BÖR 1): stopp under omstartspausen behåller den hörda texten", async () => {
+    const f = fejkadIgenkanning();
+    /** @type {Array<() => void>} */
+    const tidtagare = [];
+    let klocka = 2000;
+    const igk = /** @type {any} */ (webblasarensIgenkanning({ SpeechRecognition: f.SR, setTimeout: (fn) => { tidtagare.push(fn); }, nu: () => klocka }));
+    igk.starta({ sprak: "sv-SE", onText: () => {} });
+    f.resultat(f.instanser[0], [["boka rep", true]]);
+    // Som specen: en redan avslutad igenkännare ger inget nytt `end` på stop().
+    f.instanser[0].stop = () => {};
+    klocka += 5000;
+    f.instanser[0].onend();
+    const ut = igk.stoppa();
+    while (tidtagare.length) tidtagare.shift()();
+    await expect(ut).resolves.toBe("boka rep");
+  });
+
   it("språket följer appens", () => {
     expect(igenkanningensSprak("sv")).toBe("sv-SE");
     expect(igenkanningensSprak("en")).toBe("en-US");

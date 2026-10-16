@@ -966,6 +966,8 @@ export function webblasarensIgenkanning(miljo = {}) {
   // ⛔ #253: när det pågående försöket startade, och hur många snabba omstarter i rad som skett.
   let forsokStart = 0;
   let snabbaOmstarter = 0;
+  // ⛔ #253 (granskningen, BÖR 1): sant under omstartspausen, då ingen igenkännare lyssnar och `stop()` aldrig ger `end`.
+  let vantarPaOmstart = false;
   /** @type {(() => void) | null} */
   let narSlut = null;
   /**
@@ -1051,7 +1053,7 @@ export function webblasarensIgenkanning(miljo = {}) {
           slutlig = `${slutlig} ${pagaende}`.trim();
           pagaende = "";
         }
-        // ⛔ #253: en omstart är snabb när igenkännaren levde kortare än OMSTART_SNABB_MS. Tre snabba i rad är en loop, och
+        // ⛔ #253: en omstart är snabb när igenkännaren levde kortare än OMSTART_SNABB_MS. Den fjärde snabba i rad (efter tre omstarter) är en loop, och
         // då blir det ett fel i fältet med koden "omstartsslinga" i stället för en tyst död. En omgång som levde länge nollar
         // räknaren, så en lång inspelning med en paus då och då aldrig slår i taket.
         const levde = nu() - forsokStart;
@@ -1062,7 +1064,9 @@ export function webblasarensIgenkanning(miljo = {}) {
         } else {
           // ⛔ #253: en kort paus innan omstarten, så att WebKit hinner släppa mikrofonen mellan omgångarna. Pausen körs på
           // den inskjutbara `vanta`, så proven styr den. Hinner läget ändras under pausen (stopp, kast, fel) startas inget.
+          vantarPaOmstart = true;
           vanta(() => {
+            vantarPaOmstart = false;
             if (mitt !== forsok || !aktiv || trasig) return;
             try {
               forsokStart = nu();
@@ -1107,6 +1111,7 @@ export function webblasarensIgenkanning(miljo = {}) {
       slutlig = "";
       pagaende = "";
       snabbaOmstarter = 0;
+      vantarPaOmstart = false;
       narSlut = null;
       try {
         r = ny(forsok, sprak, onText, onFel);
@@ -1122,6 +1127,12 @@ export function webblasarensIgenkanning(miljo = {}) {
     stoppa() {
       if (!r || !aktiv) return Promise.resolve("");
       aktiv = false;
+      // ⛔ STOPP UNDER OMSTARTSPAUSEN (BÖR 1): den förra igenkännaren har redan sagt `end` och texten är hel. Att vänta på ett
+      // `end` som aldrig kommer gav förr en tom text efter väntetiden.
+      if (vantarPaOmstart) {
+        vantarPaOmstart = false;
+        return Promise.resolve(trasig ? "" : hel());
+      }
       const mitt = forsok;
       return new Promise((klar) => {
         let gjort = false;
