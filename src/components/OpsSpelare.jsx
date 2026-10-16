@@ -9,6 +9,8 @@ import {
   baraEnSpelar,
   formateraTid,
   hastighetText,
+  sparadHastighet,
+  sparaHastighet,
   hoppa,
   langdArKand,
   lasStolpar,
@@ -112,7 +114,7 @@ export function OpsSpelareProvider({ children }) {
   const [laddar, setLaddar] = useState(false);
   const [tid, setTid] = useState(0);
   const [langd, setLangd] = useState(0);
-  const [hastighet, setHastighet] = useState(1);
+  const [hastighet, setHastighet] = useState(sparadHastighet);
   const [toppar, setToppar] = useState(/** @type {number[] | null} */ (null));
   const [fel, setFel] = useState("");
   const [arkOppet, setArkOppet] = useState(false);
@@ -256,6 +258,7 @@ export function OpsSpelareProvider({ children }) {
   const bytHastighet = useCallback(() => {
     const ny = nastaHastighet(hastighet);
     setHastighet(ny);
+    sparaHastighet(ny);
     if (ljud.current) {
       ljud.current.defaultPlaybackRate = ny;
       ljud.current.playbackRate = ny;

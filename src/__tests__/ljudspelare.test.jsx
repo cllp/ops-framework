@@ -23,6 +23,9 @@ import {
 import { isAudio } from "../lib/file.js";
 import { kodaToppar } from "../lib/bibliotek.js";
 
+// #375: vald hastighet sparas i localStorage; varje prov börjar på 1×.
+beforeEach(() => localStorage.clear());
+
 describe("ljudspelarens räkning", () => {
   it("tiden, hastigheten och spolningen håller sig inom ljudet", () => {
     expect(formateraTid(0)).toBe("0:00");
@@ -479,5 +482,19 @@ describe("OpsLjudspelare", () => {
     expect(document.querySelector("[data-ljud-stolpe]")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Pausa Idé" }));
     expect(await screen.findByRole("button", { name: "Spela Idé" })).toBeInTheDocument();
+  });
+});
+
+describe("⛔ #375 (BÖR 1): OpsLjudspelare kommer ihåg hastigheten på enheten", () => {
+  it("börjar på den sparade hastigheten och sparar nästa", async () => {
+    localStorage.setItem("ops.spelare.hastighet", "1.5");
+    render(<OpsLjudspelare src="https://exempel.se/a.webm" namn="Idé" />);
+    const el = /** @type {HTMLAudioElement} */ (document.querySelector("audio"));
+    act(() => sattLangd(el, 100));
+    await waitFor(() => expect(document.querySelector("[data-ljud-tid]")?.textContent).toMatch(/1:40/));
+    fireEvent.change(screen.getByRole("slider", { name: "Spola i Idé" }), { target: { value: "500" } });
+    fireEvent.click(await screen.findByRole("button", { name: "Uppspelningshastighet 1,5×" }));
+    expect(localStorage.getItem("ops.spelare.hastighet")).toBe("2");
+    localStorage.clear();
   });
 });

@@ -29,6 +29,40 @@ export const PILHOPP_SEKUNDER = 5;
 /** Hastigheterna, i den ordning knappen växlar. 1 är varvets början. */
 export const HASTIGHETER = Object.freeze([1, 1.25, 1.5, 2]);
 
+/** Nyckeln i `localStorage` för den senast valda hastigheten (#375). Samma för alla spelare: hastigheten är personens, inte modulens. */
+export const HASTIGHET_NYCKEL = "ops.spelare.hastighet";
+
+/**
+ * Den hastighet personen senast valde på den här enheten, eller 1 (#375).
+ *
+ * ⛔ EN BEKVÄMLIGHET, ALDRIG DATA. Ligger i `localStorage`, får försvinna (privat fönster, rensad webbplatsdata), och då är det 1×.
+ * Ett värde som inte finns i `HASTIGHETER` räknas som 1, så knappens varv aldrig hamnar utanför listan.
+ *
+ * @returns {number}
+ */
+export function sparadHastighet() {
+  try {
+    const varde = Number(globalThis.localStorage?.getItem(HASTIGHET_NYCKEL));
+    return HASTIGHETER.includes(varde) ? varde : 1;
+  } catch {
+    return 1;
+  }
+}
+
+/**
+ * Kom ihåg vald hastighet till nästa gång en spelare öppnas (#375). Tyst om lagringen saknas: att glömma är ofarligt.
+ *
+ * @param {number} hastighet
+ */
+export function sparaHastighet(hastighet) {
+  if (!HASTIGHETER.includes(hastighet)) return;
+  try {
+    globalThis.localStorage?.setItem(HASTIGHET_NYCKEL, String(hastighet));
+  } catch {
+    /* privat läge: glöm */
+  }
+}
+
 /**
  * En längd webbläsaren faktiskt vet. `Infinity` är det MediaRecorder lämnar
  * på iOS och i webm/mp4, och det är inte en längd.

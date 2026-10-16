@@ -56,3 +56,52 @@ describe("en bild öppnas stor vid tryck", () => {
     expect(screen.queryByRole("button")).toBeNull();
   });
 });
+
+describe("bläddra mellan trådens bilder (#369)", () => {
+  it("med två bilder visar den stora vyn 1 av 2, och Nästa och piltangenten växlar", async () => {
+    const PNG2 = "data:image/png;base64,iVBORw0KGgoB";
+    const andra = { id: "a2", text: "Och här", skapad: "2026-10-14T09:05:00.000Z", skapadAv: { uid: "bo", namn: "Bo Lind" }, bilaga: { dataUrl: PNG2, namn: "andra.png", typ: "image/png", tecken: PNG2.length } };
+    render(<OpsKommentarer kommentarer={[kommentar, andra]} uid="anna" onSkriv={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: "Visa större: Bilaga från Bo Lind: skarm.png" }));
+    const dialog = await screen.findByRole("dialog", { name: "skarm.png" });
+    expect(dialog.querySelector("[data-bilaga-plats]")?.textContent).toBe("1 av 2");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Nästa bild" }));
+    expect(dialog.querySelector("[data-bilaga-stor]")?.getAttribute("src")).toBe(PNG2);
+    // ⛔ MÅSTE 2 (granskningen av PR 398): tangenten trycks där fokus faktiskt står, inte på galleriet.
+    fireEvent.keyDown(/** @type {Element} */ (document.activeElement), { key: "ArrowRight" });
+    expect(dialog.querySelector("[data-bilaga-stor]")?.getAttribute("src")).toBe(PNG);
+    fireEvent.keyDown(/** @type {Element} */ (document.activeElement), { key: "ArrowLeft" });
+    expect(dialog.querySelector("[data-bilaga-stor]")?.getAttribute("src")).toBe(PNG2);
+  });
+
+  it("⛔ piltangenten fungerar med fokus där dialogen lägger det när den öppnas", async () => {
+    const PNG2 = "data:image/png;base64,iVBORw0KGgoB";
+    const andra = { id: "a2", text: "", skapad: "2026-10-14T09:05:00.000Z", skapadAv: { uid: "bo", namn: "Bo Lind" }, bilaga: { dataUrl: PNG2, namn: "andra.png", typ: "image/png", tecken: PNG2.length } };
+    render(<OpsKommentarer kommentarer={[kommentar, andra]} uid="anna" onSkriv={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: "Visa större: Bilaga från Bo Lind: skarm.png" }));
+    const dialog = await screen.findByRole("dialog", { name: "skarm.png" });
+    await waitFor(() => expect(dialog.contains(document.activeElement)).toBe(true));
+    fireEvent.keyDown(/** @type {Element} */ (document.activeElement), { key: "ArrowRight" });
+    expect(dialog.querySelector("[data-bilaga-plats]")?.textContent).toBe("2 av 2");
+  });
+
+  it("⛔ BÖR 2: samma bild två gånger öppnas på sin egen plats", async () => {
+    const tre = [
+      kommentar,
+      { ...kommentar, id: "a2", skapad: "2026-10-14T09:01:00.000Z" },
+      { ...kommentar, id: "a3", skapad: "2026-10-14T09:02:00.000Z", bilaga: { ...bild, dataUrl: "data:image/png;base64,iVBORw0KGgoC", namn: "tredje.png" } },
+    ];
+    render(<OpsKommentarer kommentarer={tre} uid="anna" onSkriv={() => {}} />);
+    const knappar = screen.getAllByRole("button", { name: "Visa större: Bilaga från Bo Lind: skarm.png" });
+    fireEvent.click(knappar[1]);
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog.querySelector("[data-bilaga-plats]")?.textContent).toBe("2 av 3");
+  });
+
+  it("⛔ med en enda bild finns ingen bläddring", async () => {
+    render(<OpsKommentarer kommentarer={[kommentar]} uid="anna" onSkriv={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: "Visa större: Bilaga från Bo Lind: skarm.png" }));
+    const dialog = await screen.findByRole("dialog", { name: "skarm.png" });
+    expect(within(dialog).queryByRole("button", { name: "Nästa bild" })).toBeNull();
+  });
+});
