@@ -619,10 +619,12 @@ function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, s
  * @property {string} [flerAvatarerEtikett]
  * @property {string} [etikett] Skärmläsarnamn på `OpsGruppvaxlare`s ark (smal skärm).
  * @property {string} [nuEtikett] (0.31.1) Ordet före det aktiva namnet i växlarknappens skärmläsarnamn ("Byt grupp, nu: Alfa AB"). Förval "nu".
- * @property {{ aktiv: boolean, onValj: () => void, etikett?: string }} [oversikt] (0.112.0, cllp/lifehub.app#319) Översikten, läget
+ * @property {{ aktiv: boolean, onValj: () => void, etikett?: string, hemgrupp?: string }} [oversikt] (0.112.0, cllp/lifehub.app#319) Översikten, läget
  *   `ingenGrupp` som ett VALT läge. Given: växlaren har raden Översikt (hemikon) överst, och att välja den anropar `onValj` (appen går ur
  *   gruppen). Med `aktiv` står skalet i översiktsläget: hemikonen till vänster på alla bredder, profilen (`anvandare`) till höger, och
  *   ingen bottenrad, inga flikar, inget plus, ingen mikrofon, inga `actions` och ingen gruppanel. `etikett` förval ur `ORD_OPSOVERSIKT`.
+ *   ⛔ (0.113.0) `hemgrupp`: id på en grupp i `lista`. Given: översikten har gruppens bottenrad, och ett tryck i den väljer
+ *   hemgruppen (`onValj(hemgrupp)`) innan `onNavigate`. Ett id som inte finns i listan räknas som utelämnat.
  */
 
 /**
@@ -1925,6 +1927,20 @@ function OpsAppShellRitad({
    * bottenrad, gruppanel) ritas inte. Kvar är hemikonen till vänster och profilen till höger, och på dator hamburgaren.
    */
   const iOversikt = Boolean(grupper?.oversikt?.aktiv);
+  /*
+   * ⛔ 0.113.0: ÖVERSIKTEN HAR GRUPPENS BOTTENRAD, OCH DEN ÄR HEMGRUPPENS (CP 2026-10-16, cllp/lifehub.app#319). Appen anger
+   * `oversikt.hemgrupp` (i LifeHub Mitt projekt, första gruppen i växlaren). Då ritas bottenraden som i en grupp, och ett tryck
+   * i den väljer hemgruppen (`grupper.onValj`) innan den navigerar. Utan `hemgrupp` är översikten som i 0.112.0, utan bottenrad.
+   */
+  const hemgrupp = iOversikt && grupper?.oversikt?.hemgrupp && grupper.lista.some((g) => g.id === grupper.oversikt?.hemgrupp) ? grupper.oversikt.hemgrupp : null;
+  const utanBottenrad = iOversikt && !hemgrupp;
+  /** @type {((href: string, event: any) => void) | undefined} */
+  const bottenNavigera = hemgrupp && grupper
+    ? (href, event) => {
+        grupper.onValj(hemgrupp);
+        onNavigate?.(href, event);
+      }
+    : onNavigate;
   const aktivGrupp = grupper && !iOversikt ? grupper.lista.find((g) => g.id === grupper.aktiv) : undefined;
   const gruppUndertext = aktivGrupp ? text(aktivGrupp.namn, grupper?.sprak ?? sprak).toLocaleUpperCase(grupper?.sprak ?? sprak) : undefined;
   const panelProp = grupper ? { panelInfalld: Boolean(grupper.infalld) } : {};
@@ -2544,7 +2560,7 @@ function OpsAppShellRitad({
       {/* `padding-bottom` lika med bottenradens höjd plus säker yta, men bara
           under md där baren finns. Utan den ligger sista kortet under baren, och
           det upptäcks först när någon inte hittar sin sista rad. */}
-      <main className={iOversikt ? "pb-[calc(var(--safe-bottom)+var(--spelrad-h,0px))] md:pb-(--spelrad-h,0px)" : "pb-[calc(var(--bottom-nav-h)+var(--safe-bottom)+var(--spelrad-h,0px))] md:pb-(--spelrad-h,0px)"}>
+      <main className={utanBottenrad ? "pb-[calc(var(--safe-bottom)+var(--spelrad-h,0px))] md:pb-(--spelrad-h,0px)" : "pb-[calc(var(--bottom-nav-h)+var(--safe-bottom)+var(--spelrad-h,0px))] md:pb-(--spelrad-h,0px)"}>
         {/* ⛔ #159: ALLTID PÅ, se OpsFelgrans filhuvud. Ingen prop stänger av den. */}
         <OpsFelgrans felmottagare={felmottagare} rubrik={felRubrik} beskrivning={felBeskrivning} laddaOmEtikett={laddaOmEtikett}>
           {/* ⛔ 0.31.0: APPENS VY ÄR KVAR I DOM:EN, DOLD, medan skapa-panelen visas. Tillbaka återställer då exakt vyn man kom
@@ -2576,12 +2592,12 @@ function OpsAppShellRitad({
           tak. Med primaryAction rymmer baren 3 (OpsBottomNav); om smaltTak är 4
           skulle slice(smaltTak) hoppa över index 3 och göra den oåtkomlig under md. */}
       {/* ⛔ 0.112.0: INGEN BOTTENRAD I ÖVERSIKTEN (cllp/lifehub.app#319). Raden är gruppens, och översikten står utanför grupperna. */}
-      {iOversikt ? null : (
+      {utanBottenrad ? null : (
       <OpsBottomNav
         nav={bottenNav}
         moreNav={[...(harFasta ? [] : navLista.slice(Math.min(smaltTak, primaryAction ? 3 : 4))), ...(meny ? [] : flyttadeRader)]}
         activeHref={activeHref}
-        onNavigate={onNavigate}
+        onNavigate={bottenNavigera}
         primaryAction={bottenAtgard}
         menuLabel={menuLabel}
         navLabel={bottomNavLabel}

@@ -18,14 +18,14 @@ function Yta() {
       brand="LIFE HUB"
       fasta={fasta}
       activeHref={iOversikt ? "/" : "/idag"}
-      onNavigate={(_h, e) => e.preventDefault()}
+      onNavigate={(_h, e) => { e.preventDefault(); if (iOversikt) setLage("mitt"); }}
       actions={<Ops.OpsIconLink href="/inkorg" label="Inkorg" icon={<Ops.OpsIdentity name="I" seed="inkorg" size="sm" />} />}
       anvandare={<Ops.OpsIconLink href="/profil" label="Min profil" icon={<Ops.OpsIdentity name="Claes-Philip Staiger" seed="cp" size="sm" />} />}
       meny={{ sektioner: [], onLoggaUt: () => {} }}
-      grupper={{ lista, aktiv: iOversikt ? "mitt" : lage, onValj: setLage, oversikt: { aktiv: iOversikt, onValj: () => setLage("oversikt") } }}
+      grupper={{ lista, aktiv: iOversikt ? "mitt" : lage, onValj: setLage, oversikt: { aktiv: iOversikt, onValj: () => setLage("oversikt"), ...(window.__oversikt === "hem" ? { hemgrupp: "mitt" } : {}) } }}
     >
       <Ops.OpsView>
-        <Ops.OpsViewHeader title={iOversikt ? "Översikt" : "Idag"} description={iOversikt ? "Ditt läge i alla grupper." : "Staiger AB"} />
+        <Ops.OpsViewHeader title={iOversikt ? "Översikt" : "Idag"} description={iOversikt ? "Ditt läge i alla grupper." : (lista.find((g) => g.id === lage)?.namn ?? "")} />
         <div data-oversikt-yta="" />
       </Ops.OpsView>
     </Ops.OpsAppShell>
