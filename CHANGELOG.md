@@ -9,6 +9,13 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## Ej utgivet
+
+Paket 3, Grok 2026-10-17 natt. Ingen version, ingen release.
+
+- `huvudTalkKlass`: ringen runt mikrofonen i huvudet är två px i `border-ink-secondary` och ikonen i `text-ink`, i stället för
+  avdelarfärgen `border-line` (cllp/lifehub.app#327 (ringen runt mikrofonen)). Geometrin är oförändrad, 44 px och 40 px från `xl`.
+
 ## 0.113.0
 
 Översikten får hemgruppens bottenrad (cllp/lifehub.app#319), Grok 2026-10-16. CP-beslut 11:14: "Översikten har samma bottenrad
