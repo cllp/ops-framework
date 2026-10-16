@@ -486,7 +486,8 @@ const FALSK_IGENKANNING = `window.webkitSpeechRecognition = class { start() {} s
  *       (`LjudvagIkon`, lucide-ikonen "audio-lines");
  *   (b) ljudvågen ligger inte över texten: fältets textyta slutar före knappens vänsterkant;
  *   (c) lösenord, e-post, sök och nummer har ingen ljudvåg.
- * Golv: sex fält.
+ * Golv: sex fält. ⛔ #264 (CP 2026-10-16): vid 390 körs sidan som iPhone, där WebKit saknar igenkänning; mikrofonen finns ändå,
+ * eftersom sidan har en utskrift (`OpsTranskriberingProvider`) och fältet då spelar in och låter servern skriva ut.
  * @param {Verktyg} v
  */
 export async function talIAllaFalt(v) {

@@ -1072,10 +1072,10 @@ export function samtalsregelfragment(namn = {}) {
 
     // Märket har sin fil efter batchen, med samma namn och typ: samma jämförelse som opsBundenBilaga, åt andra hållet.
     // Utan den kunde ett nytt meddelande ta över en fil som saknar meddelande, under ett annat namn eller en annan typ.
+    // En läsning (#312): filen läses en gång, med let, i stället för existsAfter och två getAfter.
     function opsMarketHarFil(sid, nyckel, b) {
-      return existsAfter(opsBilagansFil(sid, nyckel))
-        && getAfter(opsBilagansFil(sid, nyckel)).data.namn == b.namn
-        && getAfter(opsBilagansFil(sid, nyckel)).data.typ == b.typ;
+      let f = getAfter(opsBilagansFil(sid, nyckel));
+      return f != null && f.data.namn == b.namn && f.data.typ == b.typ;
     }
 
     // Filen hör till ett meddelande som finns efter batchen, som den inloggade skrev, med samma namn, typ och tid.

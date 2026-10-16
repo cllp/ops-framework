@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import * as Popover from "@radix-ui/react-popover";
 import * as Tabs from "@radix-ui/react-tabs";
 import { Check, File as FilIkon, FileText, Globe, Image as BildIkon, Library, Mic, Plus, SlidersHorizontal, Tag, X } from "lucide-react";
@@ -863,12 +863,33 @@ function Flikar({ flikar, antal }) {
 }
 
 /**
+ * Pilarna i en meny (#372): upp och ned flyttar fokus mellan raderna, Home och End till första och sista, och det slår runt.
+ * Tab och Enter fungerar som förut. En egen liten hanterare i stället för Radix DropdownMenu, så att Popover, bocken och
+ * "Rensa alla" står kvar som de är.
+ *
+ * @param {import("react").KeyboardEvent<HTMLElement>} e
+ */
+export function menyPilar(e) {
+  const rader = /** @type {HTMLElement[]} */ ([...e.currentTarget.querySelectorAll('[role^="menuitem"]')]);
+  if (rader.length === 0) return;
+  const nu = rader.indexOf(/** @type {HTMLElement} */ (document.activeElement));
+  let till = -1;
+  if (e.key === "ArrowDown") till = nu < 0 ? 0 : (nu + 1) % rader.length;
+  else if (e.key === "ArrowUp") till = nu < 0 ? rader.length - 1 : (nu - 1 + rader.length) % rader.length;
+  else if (e.key === "Home") till = 0;
+  else if (e.key === "End") till = rader.length - 1;
+  if (till < 0) return;
+  e.preventDefault();
+  rader[till].focus();
+}
+
+/**
  * Platsen som ett piller med reglage-ikonen, och en lista med platserna under (SessionStudios "My Library" i appen). Den valda
  * har en bock.
  *
  * @param {{ platser: readonly { id: string, namn: string }[], plats: string, onPlats: (id: string) => void }} props
  */
-function PlatsValjare({ platser, plats, onPlats }) {
+export function PlatsValjare({ platser, plats, onPlats }) {
   const [oppen, setOppen] = useState(false);
   const namn = platser.find((p) => p.id === plats)?.namn ?? plats;
   return (
@@ -883,7 +904,7 @@ function PlatsValjare({ platser, plats, onPlats }) {
         </Popover.Trigger>
         <Popover.Portal>
           <Popover.Content align="start" sideOffset={4} collisionPadding={8} className={cx("z-(--z-dropdown) min-w-56 p-1", radBehallare())}>
-            <div role="menu" aria-label="Vilket bibliotek">
+            <div role="menu" aria-label="Vilket bibliotek" onKeyDown={menyPilar}>
               {platser.map((p) => (
                 <button
                   key={p.id}
@@ -916,7 +937,7 @@ function PlatsValjare({ platser, plats, onPlats }) {
  *
  * @param {{ taggar: ReadonlyArray<{ tagg: string, antal: number }>, valda: readonly string[], onValda: (valda: string[]) => void }} props
  */
-function TaggFilter({ taggar, valda, onValda }) {
+export function TaggFilter({ taggar, valda, onValda }) {
   const [oppen, setOppen] = useState(false);
   const aktiv = valda.length > 0;
   return (
@@ -945,7 +966,7 @@ function TaggFilter({ taggar, valda, onValda }) {
           {taggar.length === 0 ? (
             <p className="m-0 px-1 pt-2 text-meta text-ink-muted">Inga taggar ännu. Lägg till en på en post.</p>
           ) : (
-            <div role="menu" aria-label="Taggar" className="flex max-h-64 flex-col overflow-y-auto pt-1">
+            <div role="menu" aria-label="Taggar" onKeyDown={menyPilar} className="flex max-h-64 flex-col overflow-y-auto pt-1">
               {taggar.map(({ tagg, antal: n }) => {
                 const pa = valda.includes(tagg);
                 return (
@@ -1032,6 +1053,11 @@ function TaggRad({ post, kanAndra, forslag, valda = [], onFilter, onSpara }) {
     spara(ny);
   };
   const forslagen = forslag.filter((t) => !lista.includes(t) && t.includes(normaliseraTagg(utkast))).slice(0, 8);
+  // ⛔ TAGGFÖRSLAGEN MED TANGENTBORDET (#372): pil upp och ned flyttar markeringen i förslagen, Enter väljer den. Fokus stannar i
+  // fältet (aria-activedescendant), så Tab gör inte blur för att nå ett förslag.
+  const [aktivt, setAktivt] = useState(-1);
+  const listId = useId();
+  const markerat = aktivt >= 0 && aktivt < forslagen.length ? aktivt : -1;
   if (!kanAndra && lista.length === 0) return null;
   return (
     <div data-bibliotek-taggar="" className="flex min-w-0 flex-col gap-1">
@@ -1073,15 +1099,24 @@ function TaggRad({ post, kanAndra, forslag, valda = [], onFilter, onSpara }) {
                 maxLength={MAX_TAGGLANGD}
                 aria-label="Ny tagg"
                 placeholder="tagg"
+                aria-autocomplete="list"
+                aria-controls={forslagen.length > 0 ? listId : undefined}
+                aria-activedescendant={markerat >= 0 ? `${listId}-${markerat}` : undefined}
                 onChange={(e) => {
                   const v = e.target.value;
+                  setAktivt(-1);
                   if (v.endsWith(",")) laggTill(v);
                   else setUtkast(v);
                 }}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") {
+                  if ((e.key === "ArrowDown" || e.key === "ArrowUp") && forslagen.length > 0) {
                     e.preventDefault();
-                    laggTill(utkast);
+                    const steg = e.key === "ArrowDown" ? 1 : -1;
+                    setAktivt((markerat + steg + forslagen.length + (markerat < 0 && steg < 0 ? 1 : 0)) % forslagen.length);
+                  } else if (e.key === "Enter") {
+                    e.preventDefault();
+                    setAktivt(-1);
+                    laggTill(markerat >= 0 ? forslagen[markerat] : utkast);
                   } else if (e.key === "Escape") {
                     avbruten.current = true;
                     setUtkast("");
@@ -1098,16 +1133,19 @@ function TaggRad({ post, kanAndra, forslag, valda = [], onFilter, onSpara }) {
                 className="h-8 w-36 rounded-full border border-line bg-transparent px-3 text-meta text-ink outline-none focus:border-accent"
               />
               {forslagen.length > 0 ? (
-                <span role="listbox" aria-label="Förslag" className={cx("absolute top-9 left-0 z-(--z-dropdown) flex min-w-32 flex-col p-1", radBehallare())}>
-                  {forslagen.map((t) => (
+                <span id={listId} role="listbox" aria-label="Förslag" className={cx("absolute top-9 left-0 z-(--z-dropdown) flex min-w-32 flex-col p-1", radBehallare())}>
+                  {forslagen.map((t, i) => (
                     <button
                       key={t}
+                      id={`${listId}-${i}`}
                       type="button"
                       role="option"
-                      aria-selected={false}
+                      tabIndex={-1}
+                      aria-selected={i === markerat}
+                      data-markerat={i === markerat ? "" : undefined}
                       onMouseDown={(e) => e.preventDefault()}
                       onClick={() => laggTill(t)}
-                      className={radKlass()}
+                      className={radKlass({ active: i === markerat })}
                     >
                       <span aria-hidden="true" className={cx("size-2 shrink-0 rounded-full", taggKlass(t))} />
                       <span className="min-w-0 flex-1 truncate">{t}</span>

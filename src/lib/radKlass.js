@@ -200,6 +200,34 @@ export function huvudPlusKlass({ synligMobil = true, aktiv = false } = {}) {
 }
 
 /**
+ * TALK-knappen i toppraden (#394). CP 2026-10-15: "mikrofonen i webben borde bli lika stor som plusset." Den delade
+ * `huvudknappKlass` gav TALK en mindre, platt ikon (`xl:size-9`, ingen platta), medan plusset är en framträdande knapp.
+ *
+ * ⛔ SAMMA TYNGD SOM PLUSSET, INTE SAMMA FÄRG. Geometrin är identisk med `huvudPlusKlass` (`size-11`, `xl:size-10`, 24 px ikon),
+ * så de är lika stora. Men två fyllda accentcirklar bredvid varandra hade skrikit, så TALK får en platta med kant (`bg-surface`
+ * `border`) i stället för accentfyllningen: en knapp med ram och bakgrund, lika stor och lika tydlig som plusset. Medan den
+ * lyssnar tänds den i accent (`aktiv`), som förut.
+ *
+ * ⛔ DISPLAY ÄGS AV EN KLASSTRÄNG (se `huvudknappKlass`). TALK i huvudet syns bara från `md` (`hidden md:inline-flex`).
+ *
+ * @param {object} [val]
+ * @param {boolean} [val.aktiv] Igenkänningen lyssnar eller skickar: tänd i accent.
+ * @returns {string}
+ */
+export function huvudTalkKlass({ aktiv = false } = {}) {
+  return cx(
+    "relative size-11 shrink-0 cursor-pointer items-center justify-center rounded-full p-[9px] [&_svg]:size-6 xl:size-10 xl:p-[7px]",
+    "hidden md:inline-flex",
+    "transition-colors duration-(--duration-fast) ease-standard",
+    aktiv
+      ? "border border-accent bg-raised text-accent"
+      : "border border-line bg-surface text-ink-secondary hover:bg-raised hover:text-ink",
+    "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+    "after:absolute after:top-1/2 after:left-1/2 after:size-11 after:-translate-x-1/2 after:-translate-y-1/2 after:content-['']",
+  );
+}
+
+/**
  * En 40 px ruta med kant: en post i den infällda gruppremsan, chevronknappen där, och
  * loggans monogram (0.31.0). EN definition, för att de tre ska vara samma ruta.
  *

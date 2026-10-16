@@ -154,9 +154,14 @@ function ord(text) {
  * @param {string} o
  */
 function expandera(o) {
-  const ut = new Set([o]);
+  /*
+   * ⛔ SYNONYMENS FÖRSTA ORD VÄGER TYNGST (#269 punkt 2). "musik" gav audio-lines före music: båda var en hel namnträff på en
+   * synonym (0,9), och namnordningen skilde dem. Listans första engelska ord är ordets betydelse, de följande är närliggande.
+   * @type {Map<string, number>}
+   */
+  const ut = new Map([[o, 1]]);
   for (const [sv, en] of Object.entries(SVENSKA_SYNONYMER)) {
-    if (o.startsWith(sv) || (o.length >= MIN_ORD && sv.startsWith(o))) for (const e of en) ut.add(e);
+    if (o.startsWith(sv) || (o.length >= MIN_ORD && sv.startsWith(o))) en.forEach((e, i) => ut.set(e, Math.max(ut.get(e) ?? 0, i === 0 ? 0.9 : 0.85)));
   }
   return ut;
 }
@@ -206,7 +211,7 @@ export function sokGruppikoner(fraga, katalog = GRUPPIKONKATALOG) {
     let alla = true;
     for (const d of delar) {
       let b = 0;
-      for (const s of expandera(d)) b = Math.max(b, poang(ikon, s, s === d) * (s === d ? 1 : 0.9));
+      for (const [s, vikt] of expandera(d)) b = Math.max(b, poang(ikon, s, s === d) * vikt);
       if (b === 0) {
         alla = false;
         break;
@@ -236,7 +241,7 @@ export function forslagUrGruppnamn(gruppnamn, katalog = GRUPPIKONKATALOG) {
      * ⛔ ETT NAMN ÄR BÖJT, EN SÖKNING ÄR DET INTE. "Bandet" ska träffa sökordet "band", så här räcker det att ordet
      * BÖRJAR med ett sökord (minst tre tecken). I sökfältet gäller det omvända, att sökordet börjar med det man skrivit.
      */
-    const sokord = expandera(d);
+    const sokord = [...expandera(d).keys()];
     for (const ikon of katalog) {
       let b = 0;
       for (const s of sokord) b = Math.max(b, poang(ikon, s, s === d));

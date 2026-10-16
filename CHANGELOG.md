@@ -25,6 +25,37 @@ Bygger på 0.110.0 (PR 396) och ges ut efter den.
   `ChevronRight`), "N av M", och piltangenterna fungerar var fokus än står i dialogen (lyssnaren sitter på dokumentet medan
   dialogen är öppen).
 - Platsen anges av anroparen, så samma bild två gånger öppnas på sin egen plats. Bara kommentarstråden skickar `galleri` i dag.
+## 0.110.0
+
+Talvägen P1 (#253, #394), Grok 2026-10-15. Lagt på P3-paketets PR per CP (många ärenden per PR). Talvägen tas över av Grok (Claudes överlämning på lifehub.app#135, CP 21:34).
+
+- **WebKit kör bara inspelning, ingen taligenkänning samtidigt (#253).** CP:s iPad föll med "aborted" i andra omgången (produktionens felkanal, Safari 26.6.1). Hypotesen är att WebKit bara ger mikrofonen till en sak i taget, så `SpeechRecognition` och `MediaRecorder` slogs om den. `arWebKit(userAgent)` känner igen Safari och alla iOS-webbläsare (AppleWebKit utan Chrome/Chromium/Edg; `jsdom` räknas inte), och `webblasarensIgenkanning` ger `null` där, så bara inspelningen körs och texten tolkas på servern. Chrome behåller den levande texten. Verifieras på CP:s iPad efter deploy.
+- **300 ms paus mellan omstarterna, och ett ärligt fel vid en loop (#253).** Igenkänningen startar om sig själv när webbläsaren tar en paus; omstarten väntar nu `OMSTART_PAUS_MS` (300 ms) så att WebKit hinner släppa mikrofonen. En omstart räknas som snabb när igenkännaren levde kortare än `OMSTART_SNABB_MS` (1 s); den fjärde snabba i rad (efter tre omstarter) ger felet `omstartsslinga` i fältet (`onFel`) och en rapport, i stället för en tyst död. En lång omgång nollar räknaren (provad). Ett stopp under pausen behåller den hörda texten. Prov: falska igenkännare med inskjuten tidtagare, röda utan ändringen.
+- **TALK-knappen i webben lika stor som plusset, med ram och bakgrund (#394).** CP 2026-10-15: "mikrofonen i webben borde bli lika stor som plusset." `huvudTalkKlass` ger TALK samma geometri som `huvudPlusKlass` (`size-11`, `xl:size-10`, 24 px ikon, padding 9/7 px så att kanten ryms) och en platta med kant, så tyngden är plussets utan att skrika som en andra accentcirkel. Den tänds i accent medan den lyssnar. Prov i `talk.test.jsx`, och på riktigt i `check-skalyta` avsnitt 43.
+- **Tal i textfält på Safari och iOS faller tillbaka på inspelning (#264, CP 2026-10-16 07:07).** WebKit saknar pålitlig taligenkänning i webbläsaren, så ett fält med förvalt tal spelar där in och lämnar ljudet till appens utskrift, och texten skrivs in i fältet. Appen ger utskriften med den nya `OpsTranskriberingProvider` (`onTranscribe: (blob) => Promise<string>`). Utan provider och utan igenkänning har fältet ingen mikrofon, som förut. Gäller tills en egen app finns. Prov: iPhone-UA ger mikrofon med provider och ingen utan; `check-skalyta` 47 (8) mäter mikrofonen vid 390 px som iPhone.
+
+---
+
+## 0.109.0
+
+Paket P3 (ramverket: vakter, prov och små UI-fixar), Grok 2026-10-15. CP-regel: många ärenden per PR.
+
+- **`createCaseModel` på nodsidan (#279).** `ops-framework/node` exporterar samma `createCaseModel` som huvudingången, så att en server bygger inkorgsrader med formulärets `buildEntry` utan React och utan spegel. `src/lib/caseModel.js` importerar ingenting. Prov: `nod-casemodel.test.js` (rött före).
+- **Regeln läser filen en gång (#312 punkt 1).** `opsMarketHarFil` läser filen med `let` i stället för `existsAfter` och två `getAfter`. `opsArAktivTyp` lämnas: den står i samtalens grundtext, som proven låser byte för byte mot 0.67.0, och en ändring där är ett eget beslut. Regelproven 556 av 556 gröna, också mutationerna i `chattbilagor.test.mjs`. Reglerna deployas före klienten som vanligt.
+- **README om föräldralösa filer (#312 punkt 3):** `av` blir den som tog över filen; risken är teoretisk och står nu i README.
+- **"musik" ger music först (#269 punkt 2).** Synonymlistans första ord väger tyngre (0,9) än de följande (0,85). Rött före: audio-lines först.
+- **Taggförslagen med tangentbordet (#372, andra halvan).** Pil upp och ned markerar ett förslag, Enter väljer det, och fokus stannar i fältet med `aria-activedescendant` och `aria-controls`. Rött före.
+- **Ratten är matt (#371).** Plan yta i stället för gradient, och skenet runt nålen är borttaget, i både ljust och mörkt tema.
+
+- **Pilarna i Plats och Taggar (#372, första halvan).** `menyPilar` ger pil upp och ned, Home och End i båda menyerna, och slår runt. Ingen ny Radix-del: Popover, bocken och "Rensa alla" står kvar. Prov: `bibliotek-menypilar.test.jsx`.
+- **Trådarnas count (#272).** Emulatorprov i `tradar.test.mjs`: aggregatfrågan går igenom för en medlem och nekas för främling, borttagen och utloggad. `antalSvar` faller tillbaka på listan med taket `sida` bara när felet är `unavailable` (offline); `permission-denied` och `failed-precondition` kastas vidare (`arNatfel`). Rött före.
+- **Rullningsvakten i 22b (#269 punkt 1).** Stod ikonväljaren under fönstrets halva måste behållaren ha rullat, och märket ha flyttats, minst 48 px (`RULL_MIN`). Vakten blir inte längre grön av att sidan ovanför krymper.
+- **handelsepanel.test.jsx (#269 punkt 3), delvis.** Det tyngsta provet startar i kalendern i stället för att rita översikten och klicka sig dit. Mätt ensamt: 817 till 717 ms. Roten är att provet ritar hela appen, och det står kvar; gränsen är inte höjd.
+- **Ikonväljaren i katalogerna (#367).** Med `ikonRitare` väljs ikonen i ett sökbart rutnät där ikonen syns, fortfarande bara ur tillåtelselistan. Utan `ikonRitare` står rullgardinen kvar. Texterna är bara svenska än så länge.
+
+Kvar ur P3, med skäl: #370 (fälla in tema, sök, AI och helskärm bakom en knapp i toppraden) ändrar skalets topprad och skalytevakterna, och behöver CP:s bild av knappen. #40 (nodsidans beroenden) är ett val mellan vägar som ändrar installationen för varje app. #7 (vakten mot appinnehåll) ska kalibreras mot repot innan den kopplas in. #368 är flyttad till Claude.
+
+---
 
 ## 0.108.0
 
