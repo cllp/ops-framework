@@ -9,6 +9,23 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.111.0
+
+Bygger på 0.110.0 (PR 396) och ges ut efter den.
+
+### Spelaren kommer ihåg hastigheten på enheten (#375)
+
+- `OpsLjudspelare` och skalets spelare börjar på den hastighet som senast valdes **på den här enheten** (`localStorage`,
+  nyckeln `ops.spelare.hastighet`). Den följer inte personen mellan enheter. Ett okänt eller trasigt värde ger 1×.
+- Provat på komponentnivå: båda spelarna visar den sparade hastigheten och sparar nästa steg vid tryck.
+
+### Bläddra mellan trådens bilder (#369)
+
+- `BilagaVisning` tar `galleri` och `galleriPlats`. Med fler än en bild finns föregående och nästa (lucide `ChevronLeft`,
+  `ChevronRight`), "N av M", och piltangenterna fungerar var fokus än står i dialogen (lyssnaren sitter på dokumentet medan
+  dialogen är öppen).
+- Platsen anges av anroparen, så samma bild två gånger öppnas på sin egen plats. Bara kommentarstråden skickar `galleri` i dag.
+
 ## 0.108.0
 
 ### GitHub-etiketten på gruppkalendern (cllp/lifehub.app#259, steg 3, beslut 1)

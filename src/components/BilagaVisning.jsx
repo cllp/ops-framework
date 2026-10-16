@@ -1,4 +1,5 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { attachmentSize, isAudio, isImage } from "../lib/file.js";
 import { kommentarbilagaFel } from "../lib/handelsemodell.js";
 import { forvalda } from "../lib/ord.js";
@@ -36,23 +37,39 @@ export const ORD_BILAGAVISNING = {
  * filer. Nu är miniatyren en knapp som visar bilden i full storlek i en dialog (`OpsModal`: fokus fångas, Escape stänger, fokus
  * tillbaka till miniatyren), och Ladda ned står i dialogens fot. Samma vy i kommentarerna, i chatten och i Chattinfo.
  *
- * Bläddring (#369): `galleri` är alla bilder i samma tråd, i ordning. Med fler än en bild får den stora vyn Föregående och Nästa,
- * och piltangenterna växlar. Utan `galleri` är det bara den egna bilden, som förr.
+ * Bläddring (#369): `galleri` är alla bilder i samma tråd, i ordning, och `galleriPlats` den här bildens plats i den. Med fler än en
+ * bild får den stora vyn Föregående och Nästa, och piltangenterna växlar. Utan `galleri` är det bara den egna bilden, som förr.
+ * Bara kommentarerna skickar `galleri` i dag; chatten och Chattinfo visar en bild i taget.
  *
- * @param {{ bilaga: import("../lib/file.js").Bilaga, alt: string, marke?: string, sprak?: string, galleri?: { bilaga: import("../lib/file.js").Bilaga, alt: string }[] }} props
+ * ⛔ PLATSEN KOMMER FRÅN ANROPAREN (granskningen av PR 398, BÖR 2), inte ur en jämförelse av innehållet: samma skärmbild postad två
+ * gånger hade annars alltid öppnats på den första.
+ *
+ * ⛔ PILTANGENTERNA LYSSNAS PÅ DOKUMENTET medan vyn är öppen (MÅSTE 2). Fokus hamnar på Stäng när dialogen öppnas, utanför bilden.
+ *
+ * @param {{ bilaga: import("../lib/file.js").Bilaga, alt: string, marke?: string, sprak?: string, galleri?: { bilaga: import("../lib/file.js").Bilaga, alt: string }[], galleriPlats?: number }} props
  */
-export function BilagaVisning({ bilaga, alt, marke = "data-kommentar-bilaga-visad", sprak: sprakProp, galleri }) {
+export function BilagaVisning({ bilaga, alt, marke = "data-kommentar-bilaga-visad", sprak: sprakProp, galleri, galleriPlats }) {
   const kontext = useOpsSprak();
   const o = /** @type {Record<keyof typeof ORD_BILAGAVISNING, string>} */ (forvalda(ORD_BILAGAVISNING, sprakProp ?? kontext));
   const [stor, setStor] = useState(false);
   const [plats, setPlats] = useState(0);
   const lista = galleri && galleri.length > 1 ? galleri : [{ bilaga, alt }];
   const oppna = () => {
-    const i = lista.findIndex((g) => g.bilaga === bilaga || g.bilaga?.dataUrl === bilaga?.dataUrl);
+    const i = typeof galleriPlats === "number" && galleriPlats >= 0 && galleriPlats < lista.length ? galleriPlats : lista.findIndex((g) => g.bilaga === bilaga);
     setPlats(i < 0 ? 0 : i);
     setStor(true);
   };
   const steg = (/** @type {number} */ d) => setPlats((i) => (i + d + lista.length) % lista.length);
+  const antal = lista.length;
+  useEffect(() => {
+    if (!stor || antal < 2) return undefined;
+    const tangent = (/** @type {KeyboardEvent} */ e) => {
+      if (e.key === "ArrowRight") { e.preventDefault(); setPlats((i) => (i + 1) % antal); }
+      if (e.key === "ArrowLeft") { e.preventDefault(); setPlats((i) => (i - 1 + antal) % antal); }
+    };
+    document.addEventListener("keydown", tangent);
+    return () => document.removeEventListener("keydown", tangent);
+  }, [stor, antal]);
   const visad = lista[Math.min(plats, lista.length - 1)];
   const knapp = useRef(/** @type {HTMLButtonElement | null} */ (null));
   const fel = kommentarbilagaFel(bilaga);
@@ -109,19 +126,14 @@ export function BilagaVisning({ bilaga, alt, marke = "data-kommentar-bilaga-visa
           >
             <div
               data-bilaga-galleri={lista.length > 1 ? "" : undefined}
-              onKeyDown={(e) => {
-                if (lista.length < 2) return;
-                if (e.key === "ArrowRight") { e.preventDefault(); steg(1); }
-                if (e.key === "ArrowLeft") { e.preventDefault(); steg(-1); }
-              }}
               className="flex flex-col items-center gap-2"
             >
               <img data-bilaga-stor="" src={visad.bilaga.dataUrl} alt={visad.alt} className="mx-auto block max-h-[70dvh] max-w-full object-contain" />
               {lista.length > 1 ? (
                 <div className="flex items-center gap-3">
-                  <button type="button" data-bilaga-foregaende="" aria-label={o.foregaende} onClick={() => steg(-1)} className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md text-accent hover:bg-accent-faint focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">‹</button>
+                  <button type="button" data-bilaga-foregaende="" aria-label={o.foregaende} onClick={() => steg(-1)} className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md text-accent hover:bg-accent-faint focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"><ChevronLeft size={20} aria-hidden="true" /></button>
                   <span data-bilaga-plats="" className="text-meta text-ink-muted">{`${plats + 1} ${o.avBilder} ${lista.length}`}</span>
-                  <button type="button" data-bilaga-nasta="" aria-label={o.nasta} onClick={() => steg(1)} className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md text-accent hover:bg-accent-faint focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">›</button>
+                  <button type="button" data-bilaga-nasta="" aria-label={o.nasta} onClick={() => steg(1)} className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md text-accent hover:bg-accent-faint focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"><ChevronRight size={20} aria-hidden="true" /></button>
                 </div>
               ) : null}
             </div>

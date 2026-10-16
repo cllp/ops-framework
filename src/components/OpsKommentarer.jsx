@@ -138,6 +138,8 @@ function OpsKommentarerRitad({
     }
   };
 
+  // #369: trådens bilder räknas en gång (KAN 1), med kommentarens id så att platsen följer med (BÖR 2).
+  const galleri = tradensBilder(kommentarer ?? [], (/** @type {any} */ x) => `${bilagaText} ${personnamn(x.skapadAv?.namn ?? "", x.skapadAv?.uid ?? "").text}: ${x.bilaga.namn}`);
   return (
     <section
       data-ops-kommentarer=""
@@ -165,9 +167,7 @@ function OpsKommentarerRitad({
         </p>
       ) : (
         <ul className="m-0 flex list-none flex-col gap-2 p-0">
-          {/* #369: alla bilder i tråden, så den stora vyn kan bläddra mellan dem. */}
-                    {kommentarer.map((/** @type {any} */ k) => {
-            const galleri = tradensBilder(kommentarer, (/** @type {any} */ x) => `${bilagaText} ${personnamn(x.skapadAv?.namn ?? "", x.skapadAv?.uid ?? "").text}: ${x.bilaga.namn}`);
+          {kommentarer.map((/** @type {any} */ k) => {
             const avUid = k.skapadAv?.uid ?? null;
             const min = avUid !== null && avUid === uid;
             const { text: namn } = personnamn(k.skapadAv?.namn ?? "", avUid ?? "");
@@ -183,7 +183,7 @@ function OpsKommentarerRitad({
                     <span className="text-meta text-ink-muted">{formatDagOchKlockslag(k.skapad, { locale })}</span>
                   </div>
                   {k.text ? <p className="m-0 whitespace-pre-wrap break-words text-brod text-ink">{k.text}</p> : null}
-                  {k.bilaga?.dataUrl ? <Kommentarbilaga bilaga={k.bilaga} namn={namn} bilagaText={bilagaText} sprak={sprak} galleri={galleri} /> : null}
+                  {k.bilaga?.dataUrl ? <Kommentarbilaga bilaga={k.bilaga} namn={namn} bilagaText={bilagaText} sprak={sprak} galleri={galleri} galleriPlats={galleri.findIndex((g) => g.id === k.id)} /> : null}
                 </div>
                 {min && onTaBort ? (
                   <OpsButton variant="ghost" size="sm" busy={tarBort === k.id} disabled={tarBort !== null} ariaLabel={`${taBortEtikett}, ${(k.text || k.bilaga?.namn || "").slice(0, 40)}`} onClick={() => taBort(k.id)}>
@@ -247,10 +247,10 @@ export const ORD_OPSKOMMENTARER = {
  * ⛔ INGEN `<iframe>` FÖR EN PDF, av samma skäl som i `OpsFilePicker`: den ritas olika i varje webbläsare, och en tom ruta ser ut
  * som att filen inte kom fram.
  *
- * @param {{ bilaga: import("../lib/file.js").Bilaga, namn: string, bilagaText: string, sprak?: string, galleri?: { bilaga: any, alt: string }[] }} props
+ * @param {{ bilaga: import("../lib/file.js").Bilaga, namn: string, bilagaText: string, sprak?: string, galleri?: { bilaga: any, alt: string }[], galleriPlats?: number }} props
  */
-function Kommentarbilaga({ bilaga, namn, bilagaText, sprak, galleri }) {
-  return <BilagaVisning bilaga={bilaga} alt={`${bilagaText} ${namn}: ${bilaga.namn}`} sprak={sprak} galleri={galleri} />;
+function Kommentarbilaga({ bilaga, namn, bilagaText, sprak, galleri, galleriPlats }) {
+  return <BilagaVisning bilaga={bilaga} alt={`${bilagaText} ${namn}: ${bilaga.namn}`} sprak={sprak} galleri={galleri} galleriPlats={galleriPlats} />;
 }
 
 /**
@@ -323,10 +323,10 @@ export const ORD_OPSKOMMENTARSRAD = {
  *
  * @param {any[]} kommentarer
  * @param {(k: any) => string} altFor
- * @returns {{ bilaga: any, alt: string }[]}
+ * @returns {{ id: string, bilaga: any, alt: string }[]}
  */
 function tradensBilder(kommentarer, altFor) {
   return kommentarer
     .filter((k) => k?.bilaga?.dataUrl && isImage(k.bilaga.typ) && !kommentarbilagaFel(k.bilaga))
-    .map((k) => ({ bilaga: k.bilaga, alt: altFor(k) }));
+    .map((k) => ({ id: k.id, bilaga: k.bilaga, alt: altFor(k) }));
 }

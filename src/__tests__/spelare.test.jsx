@@ -235,3 +235,15 @@ describe("OpsSpelare", () => {
     expect(ljudet().currentTime).toBe(0);
   });
 });
+
+describe("⛔ #375 (BÖR 1): spelarna kommer ihåg hastigheten på enheten", () => {
+  it("skalets spelare börjar på den sparade hastigheten och sparar nästa", async () => {
+    localStorage.setItem("ops.spelare.hastighet", "1.5");
+    ritaISkal(<OpsSpelarKontroller spar={IDE} />);
+    fireEvent.click(screen.getByRole("button", { name: "Spela Idé" }));
+    const knapp = await screen.findByRole("button", { name: "Uppspelningshastighet 1,5×" });
+    fireEvent.click(knapp);
+    expect(localStorage.getItem("ops.spelare.hastighet")).toBe("2");
+    localStorage.clear();
+  });
+});

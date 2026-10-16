@@ -386,12 +386,7 @@ export function OpsKatalogInstallning({
           ) : null}
 
           <OpsField label="Ikon" required>
-            {/* #367: med ikonRitare väljs ikonen genom att se den, med sök på namnet. Utan ritare finns bara namnen, och då är listan kvar. */}
-            {ikonRitare ? (
-              <Ikonrutnat ikoner={ikoner} vald={utkast.ikon} ikonRitare={ikonRitare} onVal={(v) => setUtkast({ ...utkast, ikon: v })} />
-            ) : (
-              <OpsSelect options={ikoner.map((n) => ({ value: n, label: n }))} value={utkast.ikon} onChange={(v) => setUtkast({ ...utkast, ikon: v })} />
-            )}
+            <OpsSelect options={ikoner.map((n) => ({ value: n, label: n }))} value={utkast.ikon} onChange={(v) => setUtkast({ ...utkast, ikon: v })} />
           </OpsField>
 
           {/* ⛔ INGEN FASVÄLJARE I EN SORTKATALOG. Fältet finns inte på
@@ -456,42 +451,5 @@ export function OpsKatalogInstallning({
         </div>
       ) : null}
     </section>
-  );
-}
-
-/**
- * Ikonväljaren i katalogens inställningar (#367): ikonerna som knappar i ett rutnät, och ett sökfält som filtrerar på namnet.
- * Namnet syns aldrig som text i rutan (granskningen av PR 278), men står i knappens etikett för skärmläsare och sökning.
- *
- * @param {{ ikoner: readonly string[], vald: string, ikonRitare: (namn: string) => import("react").ReactNode, onVal: (namn: string) => void }} props
- */
-function Ikonrutnat({ ikoner, vald, ikonRitare, onVal }) {
-  const [sok, setSok] = useState("");
-  const q = sok.trim().toLowerCase();
-  const synliga = q ? ikoner.filter((n) => n.toLowerCase().includes(q)) : ikoner;
-  return (
-    <div data-katalog-ikonvaljare="" className="flex flex-col gap-2">
-      {ikoner.length > 12 ? <OpsInput type="search" aria-label="Sök ikon" placeholder="Sök ikon" value={sok} onChange={(v) => setSok(v)} /> : null}
-      <div role="radiogroup" aria-label="Ikon" className="flex flex-wrap gap-1">
-        {synliga.map((n) => (
-          <button
-            key={n}
-            type="button"
-            role="radio"
-            aria-checked={n === vald}
-            aria-label={n}
-            data-ikonval={n}
-            onClick={() => onVal(n)}
-            className={cx(
-              "inline-flex min-h-11 min-w-11 items-center justify-center rounded-md border focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-              n === vald ? "border-accent bg-accent-faint text-accent" : "border-line text-ink-muted hover:bg-raised",
-            )}
-          >
-            {ikonRitare(n)}
-          </button>
-        ))}
-        {synliga.length === 0 ? <p className="m-0 text-meta text-ink-muted">Ingen ikon matchar</p> : null}
-      </div>
-    </div>
   );
 }

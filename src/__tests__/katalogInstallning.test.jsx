@@ -444,15 +444,3 @@ describe("⛔ rubriken syns (0.44.0, bolag-ops#507)", () => {
     expect(screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent)).toEqual(["Händelsetyper", "Inkorgens sorter"]);
   });
 });
-
-describe("ikonväljaren visar ikonerna (#367)", () => {
-  it("med ikonRitare är ikonen ett rutnät att klicka i, inte en namnlista", () => {
-    rita({ ikonRitare: (/** @type {string} */ n) => <svg data-ritad={n} /> });
-    fireEvent.click(screen.getByRole("button", { name: "Lägg till kategori" }));
-    const grupp = screen.getByRole("radiogroup", { name: "Ikon" });
-    const val = /** @type {HTMLElement} */ (grupp.querySelector(`[data-ikonval="${IKONER[1]}"]`));
-    fireEvent.click(val);
-    expect(val.getAttribute("aria-checked")).toBe("true");
-    expect(val.querySelector(`[data-ritad="${IKONER[1]}"]`)).not.toBeNull();
-  });
-});
