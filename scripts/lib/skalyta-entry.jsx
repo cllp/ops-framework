@@ -1902,7 +1902,7 @@ function InkorgScen() {
  * tal. Sidan har en fejkad `webkitSpeechRecognition` (avsnittets init-skript), så att förvalet syns som i Chrome och Safari. Avsnitt 47 (8).
  */
 function TalAllaScen() {
-  const { OpsView, OpsField, OpsInput, OpsTextarea } = Ops;
+  const { OpsView, OpsField, OpsInput, OpsTextarea, OpsTranskriberingProvider } = Ops;
   const [v, setV] = useState({ namn: "Styrelsemöte med banken om lånet till den nya lokalen i Visby", besk: "Vi går igenom offerten, amorteringen och vad som händer om räntan stiger igen under hösten.", los: "hemligt", epost: "anna@exempel.se", sok: "moms", tal: "12" });
   const satt = (k) => (x) => setV((u) => ({ ...u, [k]: x }));
   return (
@@ -1910,12 +1910,14 @@ function TalAllaScen() {
       <OpsView>
         <div className="flex max-w-2xl flex-col gap-4">
           <p className="m-0 text-rubrik text-ink">Nytt möte</p>
+          <OpsTranskriberingProvider onTranscribe={async () => "utskrivet"}>
           <div data-tal-falt="text"><OpsField label="Rubrik"><OpsInput value={v.namn} onChange={satt("namn")} /></OpsField></div>
           <div data-tal-falt="langtext"><OpsField label="Beskrivning"><OpsTextarea value={v.besk} onChange={satt("besk")} rows={3} /></OpsField></div>
           <div data-tal-falt="password"><OpsField label="Lösenord"><OpsInput type="password" value={v.los} onChange={satt("los")} /></OpsField></div>
           <div data-tal-falt="email"><OpsField label="E-post"><OpsInput type="email" value={v.epost} onChange={satt("epost")} /></OpsField></div>
           <div data-tal-falt="search"><OpsField label="Sök"><OpsInput type="search" value={v.sok} onChange={satt("sok")} /></OpsField></div>
           <div data-tal-falt="number"><OpsField label="Antal"><OpsInput type="number" value={v.tal} onChange={satt("tal")} /></OpsField></div>
+          </OpsTranskriberingProvider>
         </div>
       </OpsView>
     </Full>

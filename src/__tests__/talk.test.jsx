@@ -377,6 +377,22 @@ describe("mikrofonknappen i huvudet", () => {
     expect(document.querySelector("header [aria-label^='TALK']")).toBeNull();
   });
 
+  it("⛔ #394: TALK-knappen är lika stor som plusset, och har ram och bakgrund (inte bara samma storlek)", () => {
+    render(Skal({ talk: { onTalk: vi.fn(), inspelare: falskInspelare() }, skapa: { arende: true } }));
+    const talk = /** @type {HTMLElement} */ (huvudknapp());
+    const plus = /** @type {HTMLElement} */ (document.querySelector("header button[aria-label='Skapa']"));
+    // Samma geometri som plusset: lika stor på alla brytpunkter, och samma ikonstorlek. jsdom kör ingen CSS, så storleken
+    // mäts som klasstoken, och på riktigt i check-skalyta avsnitt 43.
+    for (const token of ["size-11", "xl:size-10", "[&_svg]:size-6"]) {
+      expect(talk.className, token).toContain(token);
+      expect(plus.className, token).toContain(token);
+    }
+    // Ram och bakgrund, så tyngden är plussets. Den platta `huvudknappKlass`-varianten (xl:size-9, ingen platta) används inte.
+    expect(talk.className).toMatch(/border/);
+    expect(talk.className).toMatch(/bg-surface/);
+    expect(talk.className).not.toContain("xl:size-9");
+  });
+
   it("startar samma inspelning som raden: samma inspelare, samma fält, och ljudet når appen", async () => {
     const insp = falskInspelare();
     const onTalk = vi.fn();

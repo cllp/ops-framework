@@ -51,7 +51,7 @@ export { OpsSectionLabel } from "./components/OpsSectionLabel.jsx";
 export { OpsChip } from "./components/OpsChip.jsx";
 
 // ── Formulär ───────────────────────────────────────────────────────────────
-export { OpsField, OpsInput, OpsTextarea, ORD_OPSTEXTAREA_TAL } from "./components/OpsField.jsx";
+export { OpsField, OpsInput, OpsTextarea, OpsTranskriberingProvider, ORD_OPSTEXTAREA_TAL } from "./components/OpsField.jsx";
 export { OpsSelect } from "./components/OpsSelect.jsx";
 export { OpsDatePicker } from "./components/OpsDatePicker.jsx";
 export { OpsTimePicker } from "./components/OpsTimePicker.jsx";

@@ -662,7 +662,15 @@ export function createSamtalskalla(konfig) {
    * @returns {Promise<{ antal: number, fler: boolean }>}
    */
   async function antalSvar(sid, tid) {
-    if (typeof kalla.count === "function") return { antal: await kalla.count(tradmeddelandevag(sid, tid)), fler: false };
+    if (typeof kalla.count === "function") {
+      try {
+        return { antal: await kalla.count(tradmeddelandevag(sid, tid)), fler: false };
+      } catch (fel) {
+        // ⛔ #272: aggregatfrågan fungerar inte offline, men listan kan läsas ur cachen. Bara ett nätfel faller tillbaka.
+        // Ett regelfel (permission-denied) kastas vidare: en lista hade då dolt att reglerna säger nej.
+        if (!arNatfel(fel)) throw fel;
+      }
+    }
     const ms = await kalla.list(tradmeddelandevag(sid, tid), { limit: sida });
     return { antal: ms.length, fler: ms.length >= sida };
   }
@@ -1189,4 +1197,15 @@ export function samtalsnotiser({ samtal, uid, namnFor, href, titel = (namn) => `
       });
     return [...privata, ...namnda];
   };
+}
+
+/**
+ * Är felet att nätet saknas (#272)? Firestore säger `unavailable` när servern inte nås. `permission-denied`,
+ * `failed-precondition` (till exempel ett index som saknas) och allt annat är inte nätfel.
+ *
+ * @param {unknown} fel
+ */
+export function arNatfel(fel) {
+  const kod = /** @type {any} */ (fel)?.code;
+  return kod === "unavailable";
 }

@@ -385,9 +385,13 @@ export function OpsKatalogInstallning({
             </OpsField>
           ) : null}
 
-          <OpsField label="Ikon" required>
-            <OpsSelect options={ikoner.map((n) => ({ value: n, label: n }))} value={utkast.ikon} onChange={(v) => setUtkast({ ...utkast, ikon: v })} />
-          </OpsField>
+          {ikonRitare ? (
+            <IkonRutnat ikoner={ikoner} ikonRitare={ikonRitare} vald={utkast.ikon} onVal={(v) => setUtkast({ ...utkast, ikon: v })} />
+          ) : (
+            <OpsField label="Ikon" required>
+              <OpsSelect options={ikoner.map((n) => ({ value: n, label: n }))} value={utkast.ikon} onChange={(v) => setUtkast({ ...utkast, ikon: v })} />
+            </OpsField>
+          )}
 
           {/* ⛔ INGEN FASVÄLJARE I EN SORTKATALOG. Fältet finns inte på
               kategorin där, och en rullgardin för något som inte sparas är
@@ -451,5 +455,54 @@ export function OpsKatalogInstallning({
         </div>
       ) : null}
     </section>
+  );
+}
+
+/**
+ * Ikonerna som ett sökbart rutnät där man ser ikonen (#367, bolag-ops#532 och #534). Bara tillåtelselistan går att välja,
+ * så valet är lika stängt som rullgardinen. Sökningen matchar ikonens namn. Utan `ikonRitare` står rullgardinen kvar,
+ * eftersom ett rutnät utan bilder vore namnen som text igen.
+ *
+ * @param {{ ikoner: readonly string[], ikonRitare: (namn: string) => import("react").ReactNode, vald: string, onVal: (namn: string) => void }} props
+ */
+function IkonRutnat({ ikoner, ikonRitare, vald, onVal }) {
+  const [fraga, setFraga] = useState("");
+  const q = fraga.trim().toLowerCase();
+  const traffar = q ? ikoner.filter((n) => n.toLowerCase().includes(q)) : ikoner;
+  return (
+    <div data-katalog-ikoner="" role="group" aria-label="Ikon" className="flex flex-col gap-2">
+      <span className="text-meta font-semibold text-ink-secondary">Ikon</span>
+      <input
+        type="search"
+        value={fraga}
+        onChange={(e) => setFraga(e.target.value)}
+        placeholder="Sök ikon"
+        aria-label="Sök ikon"
+        autoComplete="off"
+        className="min-h-11 w-full rounded-base border-[1.5px] border-line bg-surface px-3 py-2 text-brod text-ink placeholder:text-ink-muted focus-visible:border-accent focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
+      />
+      {traffar.length === 0 ? (
+        <p className="m-0 text-meta text-ink-muted">Ingen ikon matchar.</p>
+      ) : (
+        <div className="flex max-h-56 flex-wrap gap-1 overflow-y-auto">
+          {traffar.map((n) => (
+            <button
+              key={n}
+              type="button"
+              aria-label={n}
+              title={n}
+              aria-pressed={n === vald}
+              onClick={() => onVal(n)}
+              className={cx(
+                "flex size-11 cursor-pointer items-center justify-center rounded-base border text-ink focus-visible:outline-2 focus-visible:outline-accent",
+                n === vald ? "border-accent bg-accent-subtle" : "border-transparent hover:bg-hover",
+              )}
+            >
+              {ikonRitare(n)}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 import { OpsKatalogInstallning } from "../components/OpsKatalogInstallning.jsx";
 import { validateKatalog } from "../lib/katalog.js";
 
@@ -163,6 +163,25 @@ describe("inställningsvyn", () => {
     // ens erbjuda det.
     expect(screen.queryByRole("textbox", { name: /Färg/ })).toBeNull();
     expect(screen.getByText(/mätta mot kontrastgolvet/)).toBeInTheDocument();
+  });
+
+  it("⛔ #367: med ikonRitare väljs ikonen i ett sökbart rutnät där man ser ikonen, och valet sparas", () => {
+    const onSpara = vi.fn();
+    rita({ onSpara, ikonRitare: (/** @type {string} */ n) => <svg data-ikon={n} /> });
+    fireEvent.click(screen.getByRole("button", { name: "Lägg till kategori" }));
+    const rutnat = /** @type {HTMLElement} */ (document.querySelector("[data-katalog-ikoner]"));
+    expect(rutnat.querySelectorAll("svg[data-ikon]")).toHaveLength(IKONER.length);
+    fireEvent.change(within(rutnat).getByRole("searchbox", { name: "Sök ikon" }), { target: { value: IKONER[1].slice(0, 3) } });
+    const knapp = within(rutnat).getByRole("button", { name: IKONER[1] });
+    fireEvent.click(knapp);
+    expect(knapp).toHaveAttribute("aria-pressed", "true");
+    fireEvent.change(within(rutnat).getByRole("searchbox", { name: "Sök ikon" }), { target: { value: "finnsinte" } });
+    expect(within(rutnat).getByText("Ingen ikon matchar.")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText(/Nyckel/), { target: { value: "resa" } });
+    fireEvent.change(screen.getByLabelText(/Namn på svenska/), { target: { value: "Resor" } });
+    fireEvent.change(screen.getByLabelText(/Namn på engelska/), { target: { value: "Travel" } });
+    fireEvent.click(screen.getByRole("button", { name: "Spara" }));
+    expect(onSpara.mock.calls[0][0]).toEqual(expect.objectContaining({ ikon: IKONER[1] }));
   });
 
   it("⛔ ikonen väljs ur tillåtelselistan och går inte att skriva fritt", () => {

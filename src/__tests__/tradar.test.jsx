@@ -202,6 +202,18 @@ describe("createSamtalskalla: trådarna", () => {
       expect(r.lasningar).toBe(count ? 1 : 5);
     }
   });
+  it("⛔ #272: offline faller antalSvar tillbaka på listan med taket, men ett regelfel kastas vidare", async () => {
+    for (const [code, faller] of [["unavailable", true], ["permission-denied", false], ["failed-precondition", false]]) {
+      const { k } = raknandeKalla({ count: true });
+      const s = medT(createSamtalskalla({ kalla: k, tradar: "tradar" }));
+      const g = await s.oppnaGrupp({ groupId: "g", uid: "anna" });
+      const rot = await s.skicka(g.id, { text: "Rot", av: "anna" });
+      for (let i = 0; i < 3; i += 1) await s.skickaITrad(g.id, rot.id, { text: `svar ${i}`, av: "bo" });
+      /** @type {any} */ (k).count = async () => { throw Object.assign(new Error(code), { code }); };
+      if (faller) expect(await s.antalSvar(g.id, rot.id)).toEqual({ antal: 3, fler: false });
+      else await expect(s.antalSvar(g.id, rot.id)).rejects.toThrow(code);
+    }
+  });
   it("⛔ dopOm sätter namnet, och null tar bort det så att det härledda gäller", async () => {
     const { samtal, grupp, rot } = await underlag();
     await medT(samtal).dopOm(grupp.id, rot.id, "Q3-budget");

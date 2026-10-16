@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { useState } from "react";
-import { OpsField, OpsInput, OpsTextarea } from "../components/OpsField.jsx";
+import { OpsField, OpsInput, OpsTextarea, OpsTranskriberingProvider } from "../components/OpsField.jsx";
 
 /*
  * Tal i alla textfält (0.106.0, #386 skiva 8). CP: tal som förval i `OpsTextarea` och i fält på en rad, när webbläsaren har
@@ -57,6 +57,28 @@ describe("tal i alla textfält", () => {
     unmount();
     render(<Falt mangrad />);
     expect(mikrofon()).toBeTruthy();
+  });
+
+  it("⛔ #264 (CP 07:07): på WebKit (iPhone) spelar fältet in och appens utskrift skriver in texten; utan utskrift ingen mikrofon", async () => {
+    vi.stubGlobal("webkitSpeechRecognition", fejkadIgenkanning().SR);
+    const ua = Object.getOwnPropertyDescriptor(window.navigator, "userAgent");
+    const satt = (/** @type {string} */ v) => Object.defineProperty(window.navigator, "userAgent", { value: v, configurable: true });
+    try {
+      satt("Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1");
+      const { unmount } = render(<Falt />);
+      expect(screen.queryAllByRole("button", { name: "Prata in" })).toHaveLength(0);
+      unmount();
+      const utskrift = vi.fn(async () => "boka rep");
+      const { unmount: av2 } = render(<OpsTranskriberingProvider onTranscribe={utskrift}><Falt /></OpsTranskriberingProvider>);
+      expect(screen.queryAllByRole("button", { name: "Prata in" })).toHaveLength(1);
+      av2();
+      satt("Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0 Mobile Safari/537.36");
+      render(<Falt />);
+      expect(screen.queryAllByRole("button", { name: "Prata in" })).toHaveLength(1);
+    } finally {
+      if (ua) Object.defineProperty(window.navigator, "userAgent", ua);
+      else delete (/** @type {any} */ (window.navigator)).userAgent;
+    }
   });
 
   it("⛔ utan taligenkänning är fältet som förut: ingen knapp, och samma DOM", () => {

@@ -45,6 +45,8 @@ describe("⛔ sökningen går på sökorden, inte på filnamnet", () => {
   it("svenska: musik ger samma ikoner, fotboll ger idrottsikoner", () => {
     const t = sokGruppikoner("musik");
     for (const n of ["music", "headphones", "guitar"]) expect(t, n).toContain(n);
+    // ⛔ #269 punkt 2: det svenska ordets betydelse före en närliggande synonym. Rött före: audio-lines först.
+    expect(t[0]).toBe("music");
     expect(sokGruppikoner("fotboll")).toEqual(expect.arrayContaining(["volleyball"]));
   });
 

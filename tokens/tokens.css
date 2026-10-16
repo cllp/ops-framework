@@ -1865,7 +1865,8 @@
     width: 28px;
     height: 28px;
     border-radius: 50%;
-    background: linear-gradient(145deg, var(--color-laborera-face-edge), var(--color-laborera-face));
+    /* Matt (#371, CP: "Gör ratten mer matt så den fungerar i både ljust och mörkt tema"): plan yta, ingen gradient och inget sken. */
+    background: var(--color-laborera-face);
     border: 1.5px solid var(--color-laborera-face-edge);
     position: relative;
     box-shadow: inset 0 0 0 5px var(--color-laborera-well);
@@ -1898,7 +1899,6 @@
 
   .ops-ratt-dial--justerad .ops-ratt-nal {
     background: var(--color-laborera-glow);
-    box-shadow: 0 0 6px color-mix(in srgb, var(--color-laborera-glow) 55%, transparent);
   }
 
   .ops-ratt-input {

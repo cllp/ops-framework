@@ -7,6 +7,24 @@ import { useOpsSprak } from "./OpsSprak.jsx";
 import { webblasarensIgenkanning } from "../lib/talk.js";
 
 /**
+ * Appens utskrift av inspelat ljud, för textfältens tal (#264, CP 2026-10-16 07:07).
+ *
+ * ⛔ RESERVEN PÅ SAFARI OCH iOS. Där finns ingen pålitlig taligenkänning i webbläsaren (`arWebKit`, #253), så ett fält med förvalt
+ * tal spelar i stället in, lämnar ljudet till appens `onTranscribe` och skriver in texten i fältet. Gäller tills en egen app finns.
+ * Utan provider och utan igenkänning har fältet ingen mikrofon, som förut.
+ */
+const TranskriberingKontext = createContext(/** @type {((blob: Blob) => Promise<string>) | null} */ (null));
+
+/**
+ * Ger alla textfält under sig en utskrift av ljud (#264). Läggs runt appen av den som har en server som skriver ut tal.
+ * @param {{ onTranscribe: (blob: Blob) => Promise<string>, children?: import("react").ReactNode }} props
+ */
+export function OpsTranskriberingProvider({ onTranscribe, children }) {
+  if (typeof onTranscribe !== "function") throw new Error("OpsTranskriberingProvider: onTranscribe ska vara en funktion som ger texten.");
+  return <TranskriberingKontext.Provider value={onTranscribe}>{children}</TranskriberingKontext.Provider>;
+}
+
+/**
  * Fält, etikett, hjälptext och fel.
  *
  * ⛔ Felet hör till fältet, aldrig till en global banner högst upp. Den som ska
@@ -151,12 +169,13 @@ export function OpsInput({
     );
   }
   const f = useFieldBinding();
+  const utskrift = useContext(TranskriberingKontext);
   if ((/** @type {readonly string[]} */ (UTAN_TAL)).includes(type)) {
     if (tal !== undefined && tal !== false) {
       throw new Error(`OpsInput: tal finns inte för type="${type}". ${UTAN_TAL_SKAL} Utelämna tal, eller ge false.`);
     }
   } else {
-    const t = talForval(tal, onChange, readOnly, "OpsInput");
+    const t = talForval(tal, onChange, readOnly, "OpsInput", utskrift);
     if (t) {
       return <TalFalt slag="input" f={f} value={value ?? ""} onChange={/** @type {(v: string) => void} */ (onChange)} placeholder={placeholder} name={name} disabled={disabled} readOnly={readOnly} maxLength={maxLength} ariaLabel={ariaLabel} typ={type} autoComplete={autoComplete} tal={t} />;
     }
@@ -221,12 +240,18 @@ const UTAN_TAL_SKAL = "Taltjänsten skriver ord, inte lösenord, adresser, tal e
  * @param {unknown} onChange
  * @param {boolean} skrivskyddat
  * @param {string} vem
+ * @param {((blob: Blob) => Promise<string>) | null} [utskrift]
  * @returns {Textfaltstal | null}
  */
-function talForval(tal, onChange, skrivskyddat, vem) {
+function talForval(tal, onChange, skrivskyddat, vem, utskrift = null) {
   if (tal === false) return null;
   // Utan taligenkänning i webbläsaren blir förvalet ett vanligt fält, med samma DOM som förut: ingen omslutning, ingen knapp.
-  if (tal === undefined) return typeof onChange === "function" && !skrivskyddat && webblasarensIgenkanning() !== null ? { igenkanning: true } : null;
+  // ⛔ #264: utan igenkänning men med appens utskrift (`OpsTranskriberingProvider`) spelar fältet in och servern skriver ut.
+  if (tal === undefined) {
+    if (typeof onChange !== "function" || skrivskyddat) return null;
+    if (webblasarensIgenkanning() !== null) return { igenkanning: true };
+    return utskrift ? { onTranscribe: utskrift } : null;
+  }
   if (tal !== true && (!tal || typeof tal !== "object" || Array.isArray(tal))) {
     // ⛔ VAD DET VAR, INTE `typeof` (0.104.0, granskningen av PR 384, KAN 8): `typeof null` är "object", och "fick object" om null
     // säger ingenting om felet.
@@ -352,7 +377,8 @@ export function skrivInTal(varde, markor, ut, max) {
  */
 export function OpsTextarea({ value, onChange, placeholder, name, rows = 4, disabled = false, maxLength, ariaLabel, onSend, tal }) {
   const f = useFieldBinding();
-  const t = talForval(tal, onChange, false, "OpsTextarea");
+  const utskrift = useContext(TranskriberingKontext);
+  const t = talForval(tal, onChange, false, "OpsTextarea", utskrift);
   if (t) {
     return <TalFalt slag="textarea" f={f} value={value ?? ""} onChange={/** @type {(v: string) => void} */ (onChange)} placeholder={placeholder} name={name} rows={rows} disabled={disabled} maxLength={maxLength} ariaLabel={ariaLabel} onSend={onSend} tal={t} />;
   }
