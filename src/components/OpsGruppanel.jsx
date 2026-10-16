@@ -5,8 +5,9 @@ import { OpsIdentity } from "./OpsIdentity.jsx";
 import { OpsCountBadge } from "./counter.jsx";
 import { OpsPanel } from "./OpsPanel.jsx";
 import { OpsPill } from "./OpsPill.jsx";
-import { AndraIkon, ChevronVansterIkon, ChevronHogerIkon, InfoIkon, PersonIkon, PlusIkon } from "./icons.jsx";
+import { AndraIkon, ChevronVansterIkon, ChevronHogerIkon, HusIkon, InfoIkon, PersonIkon, PlusIkon } from "./icons.jsx";
 import { text } from "../lib/sprak.js";
+import { forvalda } from "../lib/ord.js";
 import { gruppmarkeProps } from "../lib/gruppikoner.js";
 import { fargTillKulor } from "../lib/gruppfarg.js";
 import { OpsHubblista, aktivHubbNamn } from "./OpsHubbar.jsx";
@@ -667,6 +668,9 @@ export function OpsGruppanel({
  * @param {string} [props.gruppRubrik] (0.52.0) Rubriken över grupperna när `hubbar` är given. Förval "Grupper i <aktiv hubb>".
  * @param {(id: string) => void} [props.onRedigera] (0.58.0) Pennan bredvid raden, bara för `roll` `agare` eller `admin`. Samma callback som `OpsGruppanel`.
  * @param {string} [props.redigeraEtikett] Förval "Redigera grupp".
+ * @param {{ aktiv: boolean, onValj: () => void, etikett?: string }} [props.oversikt] (0.112.0, cllp/lifehub.app#319) Raden Översikt
+ *   överst, med hemikon. Att välja den anropar `onValj`, och appen går ur gruppen. Med `aktiv` är knappen hemikonen och namnet
+ *   "Översikt", och ingen grupprad är vald. Utelämnad: växlaren som förut.
  */
 export function OpsGruppvaxlare({
   grupper,
@@ -683,14 +687,19 @@ export function OpsGruppvaxlare({
   gruppRubrik,
   onRedigera,
   redigeraEtikett,
+  oversikt,
 }) {
   if (typeof onValj !== "function") {
     throw new Error("OpsGruppvaxlare: onValj krävs. En växlare som inte kan välja är en lista som ser ut som en kontroll.");
   }
   const mina = grupper ?? [];
-  const aktivRad = mina.find((g) => g.id === aktiv);
+  // ⛔ 0.112.0: I ÖVERSIKTEN ÄR INGEN GRUPP AKTIV, även om appen har en grupp i bakgrunden (cllp/lifehub.app#319).
+  const iOversikt = Boolean(oversikt?.aktiv);
+  const oversiktNamn = oversikt ? oversikt.etikett || forvalda(ORD_OPSOVERSIKT, sprak ?? "").etikett : "";
+  const aktivRad = iOversikt ? undefined : mina.find((g) => g.id === aktiv);
   // ⛔ UTAN AKTIV RAD HAR PERSONEN INGEN GRUPP (0.35.0): det enda tillståndet utan aktiv grupp, och det får ett eget namn, inte ett läge.
-  const aktivtNamn = aktivRad ? text(aktivRad.namn, sprak) : ingenGruppEtikett;
+  const aktivtNamn = iOversikt ? oversiktNamn : aktivRad ? text(aktivRad.namn, sprak) : ingenGruppEtikett;
+  const Tomikon = iOversikt ? HusIkon : PersonIkon;
   const [oppet, setOppet] = useState(false);
 
   return (
@@ -718,20 +727,20 @@ export function OpsGruppvaxlare({
               samma märke (`OpsIdentity rail`), och utan grupp (0.35.0: personen är inte med i någon) den neutrala `PersonIkon`. 44 px
               träffyta runt en 40 px ruta. Från `md` är det märket + namnet som förut. */}
           <span data-gruppmarke="" className={cx(gruppRutaKlass({ vald: Boolean(aktivRad), interaktiv: false }), "md:hidden")}>
-            {!aktivRad ? <PersonIkon size={16} /> : <OpsIdentity name={aktivtNamn} seed={aktiv} imageUrl={aktivRad?.bild || undefined} {...gruppmarkeProps(aktivRad)} size="rail" />}
+            {!aktivRad ? <Tomikon size={16} /> : <OpsIdentity name={aktivtNamn} seed={aktiv} imageUrl={aktivRad?.bild || undefined} {...gruppmarkeProps(aktivRad)} size="rail" />}
           </span>
           <span className="hidden items-center gap-2 md:flex">
-            {!aktivRad ? <PersonIkon size={18} /> : <OpsIdentity name={aktivtNamn} seed={aktiv} imageUrl={aktivRad?.bild || undefined} {...gruppmarkeProps(aktivRad)} size="sm" />}
+            {!aktivRad ? <Tomikon size={18} /> : <OpsIdentity name={aktivtNamn} seed={aktiv} imageUrl={aktivRad?.bild || undefined} {...gruppmarkeProps(aktivRad)} size="sm" />}
             <span className="min-w-0 truncate">{aktivtNamn}</span>
           </span>
         </button>
       }
     >
       {() => {
-        const rader = (
+        const gruppRader = (
           <EnkelGruppanelRader
             grupper={mina}
-            aktiv={aktiv}
+            aktiv={iOversikt ? "" : aktiv}
             onValj={onValj}
             onValjOchStang={() => setOppet(false)}
             sprak={sprak}
@@ -742,6 +751,12 @@ export function OpsGruppvaxlare({
             redigeraEtikett={redigeraEtikett}
           />
         );
+        const rader = oversikt ? (
+          <div className="flex flex-col gap-1.5">
+            <OversiktRad namn={oversiktNamn} vald={iOversikt} onValj={() => { oversikt.onValj(); setOppet(false); }} />
+            {gruppRader}
+          </div>
+        ) : gruppRader;
         if (!hubbar) return rader;
         // ⛔ 0.52.0: HUBBARNA ÖVERST, GRUPPERNA UNDER EN RUBRIK SOM NÄMNER HUBBEN. Se `OpsHubbar.jsx`. Samma ark och samma knapp
         // som förut, eftersom mobilen bara har en plats (CP 2026-10-04): hubben ligger en rad högre upp, inte på en egen knapp.
@@ -758,5 +773,39 @@ export function OpsGruppvaxlare({
         );
       }}
     </OpsPanel>
+  );
+}
+
+/**
+ * Växlarens ord för översikten (0.112.0, cllp/lifehub.app#319). En tabell per språk, som `ORD_OPSBOTTOMNAV`.
+ */
+export const ORD_OPSOVERSIKT = {
+  etikett: { sv: "Översikt", en: "Overview" },
+};
+
+/**
+ * Raden Översikt överst i växlarens ark. Samma form som en grupprad (`EnkelGruppanelRader`), med hemikonen i gruppmärkets ruta.
+ *
+ * @param {{ namn: string, vald: boolean, onValj: () => void }} props
+ */
+function OversiktRad({ namn, vald, onValj }) {
+  return (
+    <button
+      type="button"
+      data-oversikt=""
+      onClick={onValj}
+      aria-current={vald ? "true" : undefined}
+      aria-label={namn}
+      className={cx(
+        "flex min-h-11 min-w-0 items-center gap-2.5 border px-3 py-2 text-left",
+        RADIE,
+        "transition-colors duration-(--duration-fast) ease-standard",
+        "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+        vald ? "border-accent bg-accent/10" : "border-transparent hover:bg-sunken",
+      )}
+    >
+      <span className={gruppRutaKlass({ vald, interaktiv: false })}><HusIkon size={16} /></span>
+      <span className="min-w-0 flex-1 truncate text-etikett font-semibold text-ink">{namn}</span>
+    </button>
   );
 }
