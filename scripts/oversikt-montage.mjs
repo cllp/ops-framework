@@ -16,7 +16,7 @@ import { startaWebblasare } from "./lib/matVyport.mjs";
 const rot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const dist = path.join(rot, "dist", "index.js");
 const tokensFil = path.join(rot, "tokens", "tokens.css");
-const ut = path.join(rot, "docs", "jamforelser", "0.112.0");
+const ut = path.join(rot, "docs", "jamforelser", "0.113.0");
 fs.mkdirSync(ut, { recursive: true });
 
 if (!fs.existsSync(dist)) {
@@ -62,9 +62,16 @@ const vyer = [
     await page.locator("[data-oversikt]").waitFor();
   }],
   ["grupp", "grupp", null],
+  ["hem", "hem", null],
+  ["hem-idag", "hem", async (page) => {
+    await page.getByRole("navigation", { name: "Snabbnavigering" }).getByRole("link", { name: /Idag/ }).click();
+    await page.getByRole("heading", { name: /Idag/ }).first().waitFor();
+  }],
 ];
 for (const [namn, lage, efter] of vyer) {
   for (const viewport of [{ width: 390, height: 844, mark: "telefon-390" }, { width: 1280, height: 800, mark: "dator-1280" }]) {
+    // Bottenraden finns bara under md, så trycket i den fotograferas på telefon.
+    if (namn === "hem-idag" && viewport.width >= 768) continue;
     const context = await browser.newContext({ viewport, deviceScaleFactor: 1 });
     const page = await context.newPage();
     const fel = [];
