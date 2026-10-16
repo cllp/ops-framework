@@ -1735,7 +1735,8 @@ function OpsAppShellRitad({
       throw new Error(`OpsAppShell: modulen "${id}" har inget mål på platsen inspelning.mal i den här gruppen. Röstinspelningen sparas dit. Registrera tillägget och slå på modulen.`);
     }
     setValtInspelning(traffar[0].id);
-    talkStyr.direkt();
+    // ⛔ (0.114.0) Låst till modulens mål: bara inspelning, för där behövs ljudet. `onAgent` är inte uppdaterad än (samma händelse), så det sägs rakt ut.
+    talkStyr.direkt({ laast: true });
   };
 
   // ══ ⛔ VALENS TRE MOTTAGARE (0.103.0, 0.105.0) ═════════════════════════════════════════════════════════════════════════
@@ -2665,6 +2666,8 @@ function OpsAppShellRitad({
           textVantar={talkStyr.textVantar}
           utskriftFel={talkStyr.utskriftFel}
           onSkrivUt={talkStyr.skrivUt}
+          kanSpelaIStallet={talkStyr.kanSpelaIStallet}
+          onSpelaIStallet={talkStyr.spelaIStallet}
         />
       ) : null}
 

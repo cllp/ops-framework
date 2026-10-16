@@ -70,6 +70,7 @@ export const ORD_TALK = {
   stang: { sv: "Stäng", en: "Close" },
   spelaIn: { sv: "Spela in", en: "Record" },
   spelaInIgen: { sv: "Spela in igen", en: "Record again" },
+  spelaIStallet: { sv: "Spela in i stället", en: "Record instead" },
   tillatMikrofon: { sv: "Tillåt mikrofon", en: "Allow microphone" },
   kastaFraga: { sv: "Kasta den här inspelningen?", en: "Discard this recording?" },
   kasta: { sv: "Kasta", en: "Discard" },
@@ -101,6 +102,7 @@ export const ORD_TALK = {
   felAngra: { sv: "Det gick inte att ångra.", en: "It could not be undone." },
   felVidare: { sv: "Det du sa gick inte att lämna vidare.", en: "What you said could not be passed on." },
   felAgent: { sv: "Det du sa nådde inte agenten.", en: "What you said did not reach the agent." },
+  felIgenkanning: { sv: "Talet kunde inte skrivas ut medan du pratade. Spela in i stället, så skrivs det ut efteråt.", en: "Your speech could not be written out while you spoke. Record instead, and it is written out afterwards." },
   felAnteckning: { sv: "Anteckningen gick inte att spara.", en: "The note could not be saved." },
   felUtskrift: { sv: "Det du sa gick inte att skriva ut.", en: "What you said could not be written out." },
   felIngenText: { sv: "Ingen text kom fram, så det finns inget att lämna vidare. Stäng och prata in igen.", en: "No text came through, so there is nothing to pass on. Close and speak again." },
@@ -988,7 +990,11 @@ export function talkMiljo(miljo = {}) {
  * stoppet: samma bud som redan räknas som hel text när Chrome tar en paus mitt i (`onend` medan den lyssnar, nedan). Det som
  * fortfarande gör texten ogiltig är det som verkligen hugger av den: ett fel, ett avbrott och en väntetid som tar slut.
  *
- * @param {{ SpeechRecognition?: any, setTimeout?: typeof setTimeout, nu?: () => number, userAgent?: string }} [miljo]
+ * ⛔ (0.114.0, cllp/ops-framework#402) `tillatWebKit: true` ger igenkänningen också på WebKit. Förvalet är fortfarande `null` där (se `arWebKit`),
+ * eftersom igenkänningen och inspelaren slogs om mikrofonen. `useTalk` ber om den bara när inspelaren inte körs alls: TALK med valen
+ * (`onAgent`) på WebKit kör BARA igenkänningen, och då finns inget att slåss med.
+ *
+ * @param {{ SpeechRecognition?: any, setTimeout?: typeof setTimeout, nu?: () => number, userAgent?: string, tillatWebKit?: boolean }} [miljo]
  * @returns {Igenkanning | null}
  */
 export function webblasarensIgenkanning(miljo = {}) {
@@ -996,7 +1002,7 @@ export function webblasarensIgenkanning(miljo = {}) {
   const SR = miljo.SpeechRecognition || g.SpeechRecognition || g.webkitSpeechRecognition;
   if (typeof SR !== "function") return null;
   // ⛔ WEBKIT: ingen taligenkänning, bara inspelning och serverns utskrift (#253). En inskjuten SR (proven) går förbi.
-  if (!miljo.SpeechRecognition && arWebKit(miljo.userAgent)) return null;
+  if (!miljo.SpeechRecognition && !miljo.tillatWebKit && arWebKit(miljo.userAgent)) return null;
   const vanta = miljo.setTimeout || setTimeout;
   const nu = miljo.nu || Date.now;
   /** @type {any} */

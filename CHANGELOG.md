@@ -34,6 +34,27 @@ direkt (cllp/ops-framework#403). CP 2026-10-17. Dessutom `fore` och `online` på
 - ⛔ **Bryter ett prov, med flit:** `talk-val.test.jsx` hävdade att ljud utan text med `onAgent` går till `onTalk`. Det är det som
   ändrats, och provet säger nu det motsatta.
 
+### TALK på WebKit: valen kör bara igenkänningen (tar delvis tillbaka #253:s val)
+
+- Sedan 0.110.0 (cllp/lifehub.app#253) gav `webblasarensIgenkanning` `null` på WebKit (`arWebKit`), eftersom SpeechRecognition och
+  MediaRecorder slogs om mikrofonen. Följden: iPhone och iPad fick aldrig levande text, och då aldrig de snabba valen. Det är regressionen
+  CP märkte.
+- ⛔ **Det här tar delvis tillbaka #253:s val för TALK-valen, och skälet är att mikrofonen inte längre delas.** I TALK med valen
+  (`talk.onAgent`, inget låst inspelningsmål, `igenkanning: true`) kör en omgång på WebKit nu BARA igenkänningen och startar ingen
+  inspelare. Då slåss ingen om mikrofonen, texten växer fram, och valen kommer direkt vid Klar. #253:s val står kvar överallt där ljudet
+  behövs.
+- Faller igenkänningen (`onerror` med `not-allowed`, `service-not-allowed`, `aborted`, `audio-capture` eller omstartsslinga) eller blir
+  texten tom: fältet säger det och visar knappen **Spela in i stället**. Den kör inspelningen utan igenkänning (dagens WebKit-väg) och
+  sedan `tillText`. Felet rapporteras med steget `ingen-text` och felkoden (`igenkanningFelkod`), som tidigare, nu med
+  `baraIgenkanning: true`. Ingen inspelning har gjorts i det läget, så inget ljud går förlorat.
+- **Oförändrat:** ett låst inspelningsmål (Biblioteket, Röstinspelning) och appar utan `onAgent` behåller dagens WebKit-beteende, bara
+  inspelning, för där behövs ljudet. Utanför WebKit (Chrome) körs igenkänning och inspelning samtidigt som förut.
+- `webblasarensIgenkanning({ tillatWebKit: true })` ger igenkänningen också på WebKit. Förvalet är fortfarande `null` där. `useTalk`
+  ber om den bara för en omgång utan inspelare. `useTalk().direkt({ laast: true })` startar en omgång låst till ett mål (skalets
+  Röstinspelning gör det: målet och starten sker i samma händelse, före nästa rendering, så `onAgent` kan inte läsas ur propsen).
+  `useTalk` lämnar `kanSpelaIStallet` och `spelaIStallet`; `OpsInspelning` och `OpsTalk` tar `kanSpelaIStallet` och `onSpelaIStallet`.
+- På WebKit finns ingen inspelare som matar nivåprickarna i en sådan omgång, så de står stilla. Texten är det som visar att det lyssnas.
+
 ### TALK: ljud utan text mäts (`rapporteraFel`, steget `ingen-text`)
 
 - Varför telefonens text uteblev var inte mätt, och felrapporten skickades bara när varken ljud eller text fanns. Nu går ljud utan text

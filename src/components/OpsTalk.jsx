@@ -31,6 +31,9 @@ import { OpsSpinner } from "./OpsSpinner.jsx";
  * @property {import("../lib/talk.js").Igenkanning | boolean} [igenkanning] (0.96.0) Text medan man pratar. ⛔ AV SOM FÖRVAL
  *   (granskningen av PR 358, MÅSTE 3): webbläsaren skickar då talet till Googles eller Apples taltjänst, och det är appens val.
  *   `true` slår på webbläsarens taligenkänning när den finns. Utan den lämnas bara ljudet, som före 0.96.0.
+ *   (0.114.0) ⛔ PÅ WEBKIT (Safari, och alla webbläsare på iOS) kör TALK med valen (`onAgent`, inget låst mål) BARA igenkänningen och ingen
+ *   inspelare: de slogs om mikrofonen (#253), och med bara en av dem finns inget att slåss om. Faller den visas "Spela in i stället".
+ *   Utan `onAgent` och för ett låst mål gäller som förut att WebKit bara spelar in.
  * @property {string} [skickarText] (0.97.0) Statusraden medan det inspelade lämnas till appen. Förval `TALK_SKICKAR_TEXT`
  *   ("Sparar…"). lifehub.app skickar "Agenten arbetar…". En tom sträng eller något annat än en sträng kastar.
  * @property {(text: string) => void | Promise<void>} [onAgent] (0.105.0) Agent-knappen. Med den lämnar Klar inte det sagda till `onTalk`:
@@ -140,10 +143,36 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, insp
   sprakRef.current = sprak;
   /** Igenkänningen, skapad första gången den behövs. `null` när webbläsaren saknar den eller appen stängt av den. */
   const igkRef = useRef(/** @type {import("../lib/talk.js").Igenkanning | null | undefined} */ (igenkanning === true ? undefined : igenkanning && typeof igenkanning === "object" ? igenkanning : null));
-  const igk = () => {
+  /**
+   * ⛔ IGENKÄNNINGEN PÅ WEBKIT, BARA NÄR INSPELAREN INTE KÖRS (0.114.0, cllp/ops-framework#402). Sedan 0.110.0 (#253) ger
+   * `webblasarensIgenkanning()` `null` på WebKit, eftersom igenkänningen och inspelaren slogs om mikrofonen. Följden: en iPhone fick aldrig
+   * levande text, och då aldrig de snabba valen. `igk(true)` är den WebKit-tillåtande igenkänningen. Den används bara för en omgång som
+   * kör BARA igenkänningen (`barOmgang`), så ingen slåss om mikrofonen. Ger appen en egen igenkänning (ett objekt) är det samma för båda.
+   */
+  const igkWebRef = useRef(/** @type {import("../lib/talk.js").Igenkanning | null | undefined} */ (igenkanning === true ? undefined : igenkanning && typeof igenkanning === "object" ? igenkanning : null));
+  /** @param {boolean} [webkit] */
+  const igk = (webkit = false) => {
+    if (webkit) {
+      if (igkWebRef.current === undefined) igkWebRef.current = webblasarensIgenkanning({ tillatWebKit: true });
+      return igkWebRef.current;
+    }
     if (igkRef.current === undefined) igkRef.current = webblasarensIgenkanning();
     return igkRef.current;
   };
+  /** Igenkännarna som skapats, utan dubbletter: en egen igenkänning från appen är samma objekt i båda. */
+  const skapadeIgk = () => /** @type {import("../lib/talk.js").Igenkanning[]} */ ([...new Set([igkRef.current, igkWebRef.current].filter((g) => g))]);
+  /** Igenkänningen som den här omgången använder, eller `null`. Sätts vid start. @type {{ current: import("../lib/talk.js").Igenkanning | null }} */
+  const omgangsIgk = useRef(/** @type {import("../lib/talk.js").Igenkanning | null} */ (null));
+  /** Omgången kör BARA igenkänningen och ingen inspelare (TALK med valen på WebKit). */
+  const barOmgang = useRef(false);
+  /** Nästa start ska vara en inspelning utan igenkänning ("Spela in i stället"). */
+  const reservNasta = useRef(false);
+  /** Nästa start är låst till ett inspelningsmål (Biblioteket, Röstinspelning): bara inspelning, för där behövs ljudet. */
+  const laastStart = useRef(false);
+  /** Felet kom ur en omgång som bara körde igenkänningen: fältet erbjuder "Spela in i stället". */
+  const [reserv, setReserv] = useState(false);
+  /** Om den pågående omgången har en igenkänning, eller `null` före första starten. */
+  const [omgangsText, setOmgangsText] = useState(/** @type {boolean | null} */ (null));
   /** Det som hörts hittills i det pågående försöket, för fältet. */
   const [text, setText] = useState("");
   /** (0.99.0) Igenkänningen föll eller gick inte att starta: fältet säger det i stället för att ligga tyst med sin platstext. */
@@ -163,7 +192,7 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, insp
   };
   const kastaText = () => {
     try {
-      igk()?.kasta();
+      for (const g of skapadeIgk()) g?.kasta();
     } catch (fel) {
       rapporteraFel(fel, { yta: "OpsTalk", steg: "kasta-text" });
     }
@@ -201,6 +230,49 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, insp
     if (tak.current) clearTimeout(tak.current);
     const kvar = maxRef.current * 1000 - (Date.now() - mikStart.current);
     tak.current = setTimeout(() => skickaRef.current({ typ: "tak" }), Math.max(0, kvar));
+  };
+
+  /**
+   * Felrapporten `ingen-text` (0.114.0). ⛔ Ingen text från personen: bara siffror, flaggor och koder. Se `skicka` för vad den svarar på.
+   * @param {number} sekunder @param {number} bytes
+   */
+  const rapporteraIngenText = (sekunder, bytes) => {
+    const g = omgangsIgk.current;
+    const finns = g !== null;
+    const diag = finns ? (g.diagnos?.() ?? null) : null;
+    const miljo = talkMiljo();
+    rapporteraFel(new Error("TALK: det fanns ljud men ingen text."), {
+      yta: "OpsTalk",
+      steg: "ingen-text",
+      sekunder,
+      bytes,
+      igenkanning: finns,
+      utanIgenkanning: finns ? null : igenkanning === true ? (arWebKit() ? "webkit" : "saknas") : "avstangd",
+      igenkanningStartade: diag ? diag.startade : null,
+      igenkanningStartHandelse: diag ? diag.startHandelse : null,
+      igenkanningFelkod: diag ? diag.felkod : null,
+      omgang: omgang.current,
+      standalone: miljo.standalone,
+      userAgent: miljo.userAgent,
+      medVal: typeof onAgentRef.current === "function",
+      medUtskrift: typeof tillTextRef.current === "function",
+      // ⛔ (0.114.0) Omgången körde bara igenkänningen, utan inspelare, och en inspelning i stället har inte begärts än / begärdes.
+      baraIgenkanning: barOmgang.current,
+    });
+  };
+
+  /**
+   * ⛔ IGENKÄNNINGEN FÖLL I EN OMGÅNG UTAN INSPELARE (0.114.0, cllp/ops-framework#402). Det finns inget ljud att falla tillbaka på, så fältet
+   * säger det och erbjuder "Spela in i stället": en inspelning utan igenkänning (dagens WebKit-väg) som skrivs ut efteråt med `tillText`.
+   * Felet rapporteras med steget `ingen-text` och felkoden (`igenkanningFelkod`). Gör ingenting om omgången inte längre lyssnar.
+   * @param {number} mitt
+   */
+  const igenkanningenFoll = (mitt) => {
+    const l = lageRef.current.lage;
+    if (mitt !== forsok.current || !monterad.current || (l !== "haller" && l !== "lyssnar")) return;
+    rapporteraIngenText(mikStart.current ? Math.round((Date.now() - mikStart.current) / 100) / 10 : 0, 0);
+    setReserv(true);
+    skicka({ typ: "fel", text: ORD_TALK.felIgenkanning.sv });
   };
 
   /**
@@ -287,6 +359,25 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, insp
         setText("");
         setTextFel("");
         nollaUtskrift();
+        setReserv(false);
+        /*
+         * ⛔ VILKEN SORTS OMGÅNG (0.114.0, cllp/ops-framework#402). TALK med valen (`onAgent`) på WebKit kör BARA igenkänningen och startar
+         * ingen inspelare: de två slogs om mikrofonen (#253), och det var därför iPhone och iPad inte fick någon levande text och aldrig
+         * de snabba valen. Med en enda som lyssnar finns inget att slåss om. Texten växer fram, och valen kommer direkt vid Klar. Faller
+         * igenkänningen eller blir texten tom säger fältet det och erbjuder "Spela in i stället" (`reservNasta`), som kör inspelningen
+         * utan igenkänning.
+         * ⛔ BARA INSPELNING (dagens WebKit-väg) i tre fall: ett låst mål (Biblioteket, Röstinspelning: `laastStart`, eftersom där behövs
+         * ljudet), en app utan `onAgent` (inga val, och ljudet är det som lämnas), och "Spela in i stället". Utanför WebKit (Chrome)
+         * ändras inget: igenkänning och inspelning samtidigt.
+         */
+        const laast = laastStart.current;
+        const reservStart = reservNasta.current;
+        laastStart.current = false;
+        reservNasta.current = false;
+        const bara = !laast && !reservStart && typeof onAgentRef.current === "function" && arWebKit() && igk(true) !== null;
+        barOmgang.current = bara;
+        omgangsIgk.current = bara ? igk(true) : igk();
+        setOmgangsText(omgangsIgk.current !== null);
         if (mikrofonenUpptagenAv && mikrofonenUpptagenAv !== inspRef) {
           skicka({ typ: "fel", text: TALK_UPPTAGEN });
           return;
@@ -310,8 +401,11 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, insp
         /** @type {import("../lib/talk.js").Igenkanningsslut | null | Promise<import("../lib/talk.js").Igenkanningsslut | null>} */
         let forraSlut = null;
         try {
-          const g = igk();
-          forraSlut = g && typeof g.slapp === "function" ? g.slapp() : null;
+          // Båda igenkännarna (0.114.0): förra omgången kan ha kört den ena, och den här den andra.
+          const slut = skapadeIgk().map((g) => (typeof g.slapp === "function" ? g.slapp() : null));
+          forraSlut = slut.some((x) => x && typeof (/** @type {any} */ (x).then) === "function")
+            ? Promise.all(slut).then((alla) => alla.find(Boolean) ?? null)
+            : (slut.find(Boolean) ?? null);
         } catch (fel) {
           rapporteraFel(fel, { yta: "OpsTalk", steg: "slapp-text" });
         }
@@ -320,9 +414,8 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, insp
           // Ett avbrutet försök öppnar ingen mikrofon. Spärren släpptes av den väg som avbröt det.
           if (mitt !== forsok.current || !monterad.current) return Promise.resolve(false);
           forraIgenkanning.current = slut;
-          return insp()
-            .starta()
-            .then(() => true);
+          // ⛔ BARA IGENKÄNNING: ingen mikrofon öppnas av oss, och igenkänningen ber webbläsaren om den själv.
+          return (bara ? Promise.resolve() : insp().starta()).then(() => true);
         };
         (forraSlut && typeof (/** @type {any} */ (forraSlut).then) === "function"
           ? /** @type {Promise<import("../lib/talk.js").Igenkanningsslut | null>} */ (forraSlut)
@@ -342,14 +435,17 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, insp
               // ⛔ TEXTEN BÖRJAR NÄR MIKROFONEN ÄR ÖPPEN, inte vid trycket. Ett fel här stoppar aldrig inspelningen.
               setText("");
               try {
-                igk()?.starta({
+                omgangsIgk.current?.starta({
                   sprak: igenkanningensSprak(sprakRef.current),
                   onText: (t) => {
                     if (mitt === forsok.current && monterad.current) setText(t);
                   },
                   // ⛔ Ett fel härifrån får aldrig vara tyst (regel 5): fältet säger att texten uteblir, och ljudet spelas in ändå.
+                  // (0.114.0) I en omgång utan inspelare spelas inget in: då säger fältet det och erbjuder "Spela in i stället".
                   onFel: () => {
-                    if (mitt === forsok.current && monterad.current) setTextFel(TALK_TEXTFEL);
+                    if (mitt !== forsok.current || !monterad.current) return;
+                    if (bara) igenkanningenFoll(mitt);
+                    else setTextFel(TALK_TEXTFEL);
                   },
                 });
               } catch (fel) {
@@ -496,14 +592,34 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, insp
         }
         // ⛔ TEXTEN OCH LJUDET STOPPAS SAMTIDIGT. Texten följer med bara om igenkänningen var hel hela vägen.
         const texten = Promise.resolve()
-          .then(() => igk()?.stoppa() ?? "")
+          .then(() => omgangsIgk.current?.stoppa() ?? "")
           .catch((fel) => {
             rapporteraFel(fel, { yta: "OpsTalk", steg: "stoppa-text" });
             return "";
           });
-        Promise.all([insp().stoppa().finally(frigor), texten])
+        const bara = barOmgang.current;
+        // I en omgång utan inspelare finns inget ljud: bara klockan, och en tom blob som aldrig lämnas till appen.
+        /** @type {Promise<{ blob: Blob, mimeType: string, sekunder: number, diagnos?: import("../lib/talk.js").Inspelningsdiagnos }>} */
+        const ljudet = bara
+          ? Promise.resolve({ blob: new Blob([]), mimeType: "", sekunder: mikStart.current ? Math.round((Date.now() - mikStart.current) / 100) / 10 : 0 }).finally(frigor)
+          : insp().stoppa().finally(frigor);
+        Promise.all([ljudet, texten])
           .then(([ljud, hord]) => {
             if (mitt !== forsok.current || !monterad.current) return;
+            /*
+             * ⛔ EN OMGÅNG UTAN INSPELARE SOM INTE GAV TEXT (0.114.0, cllp/ops-framework#402): tom text, eller en app som under tiden slutat
+             * ge `onAgent` (då skulle en tom blob gå till `onTalk`). Inget ljud finns. Fältet säger det med "Spela in i stället", och
+             * felet går till felrapporten med `ingen-text` och igenkänningens felkod (`no-speech` när det bara var tyst).
+             */
+            if (bara && (!hord || typeof onAgentRef.current !== "function")) {
+              rapporteraIngenText(ljud.sekunder, 0);
+              senast.current = null;
+              setKanIgen(false);
+              setText("");
+              setReserv(true);
+              skicka({ typ: "fel", text: ORD_TALK.felIgenkanning.sv });
+              return undefined;
+            }
             /*
              * ⛔ TOM TEXT OCH TOMT LJUD SKICKAS ALDRIG (lifehub.app#253). Förut gick 0 byte och ingen text till appen ändå, appen
              * skickade dem till sin server, och fältet visade serverns "Inget ljud kom fram. Försök igen." Försök igen lämnade sedan
@@ -516,7 +632,7 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, insp
                 yta: "OpsTalk",
                 steg: "tomt-ljud",
                 sekunder: ljud.sekunder,
-                igenkanning: igk() !== null,
+                igenkanning: omgangsIgk.current !== null,
                 // ⛔ (0.107.0) Omgången och hur förra igenkänningen slutade. `null` för förra igenkänningen betyder att ingen fanns.
                 omgang: omgang.current,
                 forraIgenkanningHann: forraIgenkanning.current ? forraIgenkanning.current.hann : null,
@@ -537,27 +653,7 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, insp
              * hemskärmen och webbläsaren. ⛔ Ingen text från personen. `utanIgenkanning` säger varför ingen fanns: avstängd av appen,
              * WebKit (Safari och alla webbläsare på iOS, se `arWebKit`) eller saknas i webbläsaren.
              */
-            if (!hord) {
-              const finns = igk() !== null;
-              const diag = finns ? (igk()?.diagnos?.() ?? null) : null;
-              const miljo = talkMiljo();
-              rapporteraFel(new Error("TALK: det fanns ljud men ingen text."), {
-                yta: "OpsTalk",
-                steg: "ingen-text",
-                sekunder: ljud.sekunder,
-                bytes: ljud.blob.size,
-                igenkanning: finns,
-                utanIgenkanning: finns ? null : igenkanning === true ? (arWebKit() ? "webkit" : "saknas") : "avstangd",
-                igenkanningStartade: diag ? diag.startade : null,
-                igenkanningStartHandelse: diag ? diag.startHandelse : null,
-                igenkanningFelkod: diag ? diag.felkod : null,
-                omgang: omgang.current,
-                standalone: miljo.standalone,
-                userAgent: miljo.userAgent,
-                medVal: typeof onAgentRef.current === "function",
-                medUtskrift: typeof tillTextRef.current === "function",
-              });
-            }
+            if (!hord) rapporteraIngenText(ljud.sekunder, ljud.blob.size);
             const post = { blob: ljud.blob, mimeType: ljud.mimeType, sekunder: ljud.sekunder, ...(hord ? { text: hord } : {}) };
             setText(hord);
             senast.current = post;
@@ -654,7 +750,7 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, insp
       // ⛔ (0.107.0) Igenkännaren stängs i varje läge, inte bara medan det spelas in: en som ännu inte sagt `end` efter Klar hade
       // annars levt kvar efter att fältet försvunnit. `kasta` är ofarlig på en som redan slutat.
       try {
-        igkRef.current?.kasta();
+        for (const g of skapadeIgk()) g?.kasta();
       } catch (fel) {
         rapporteraFel(fel, { yta: "OpsTalk", steg: "kasta-text" });
       }
@@ -708,7 +804,15 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, insp
     lage: tillstand.lage,
     fel: tillstand.fel,
     knapp,
-    direkt: () => skicka({ typ: "direkt" }),
+    /**
+     * @param {{ laast?: boolean }} [val] (0.114.0) `laast`: starten är låst till ett inspelningsmål (Biblioteket, Röstinspelning), så den
+     *   kör bara inspelningen. Det kan inte läsas ur `onAgent`, för skalet sätter målet och startar i samma händelse, före nästa rendering.
+     *   Allt annat (en klickhändelse från "Tillåt mikrofon") är en vanlig start.
+     */
+    direkt: (val) => {
+      laastStart.current = Boolean(val && typeof val === "object" && /** @type {any} */ (val).laast === true);
+      skicka({ typ: "direkt" });
+    },
     skickaIn: () => skicka({ typ: "skicka" }),
     avbryt: () => skicka({ typ: "avbryt" }),
     igen: () => skicka({ typ: "igen" }),
@@ -721,7 +825,8 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, insp
     /** (0.99.0) Texten uteblir: igenkänningen föll eller gick inte att starta. Tom när allt är som det ska. */
     textFel,
     /** (0.97.0) Om texten kan komma alls: igenkänningen är påslagen och finns i webbläsaren. Fältet ritar då textytan. */
-    medText: igk() !== null,
+    // (0.114.0) Efter första starten är det omgångens egen igenkänning som gäller: "Spela in i stället" har ingen, och TALK med valen på WebKit har en.
+    medText: omgangsText ?? ((typeof onAgent === "function" && arWebKit() && igk(true) !== null) || igk() !== null),
     // ⛔ (0.114.0) Anteckning sparar i appen men är inte agentens arbete: appens `skickarText` ("Agenten arbetar…") hade varit osann där.
     skickarText: malSynligt === "anteckning" ? TALK_SKICKAR_TEXT : (skickarText ?? TALK_SKICKAR_TEXT),
     /** (0.97.0) Kvittot i läget sparat, eller `null`. */
@@ -739,6 +844,14 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, insp
     textVantar: utskrift.pagar,
     /** (0.114.0) Utskriften föll eller gav tomt, eller så finns ingen utskrift och ingen text. Tom när allt är som det ska. */
     utskriftFel: utskrift.fel,
+    /** (0.114.0) Igenkänningen föll i en omgång utan inspelare (fältet är i läget fel): "Spela in i stället" är möjlig. */
+    kanSpelaIStallet: reserv && tillstand.lage === "fel",
+    /** (0.114.0) Spela in i stället: en ny omgång med inspelning och utan igenkänning (dagens WebKit-väg), som skrivs ut efteråt med `tillText`. */
+    spelaIStallet: () => {
+      if (lageRef.current.lage !== "fel") return;
+      reservNasta.current = true;
+      skicka({ typ: "direkt" });
+    },
     /** (0.114.0) Försöker skriva ut igen (ett tryck på ett val efter ett fel). `undefined` utan `tillText`. */
     skrivUt:
       typeof tillText === "function"
@@ -850,7 +963,7 @@ const VALEN = /** @type {const} */ ([
  * innehåller det synliga ordet går inte att säga åt en röststyrning, och det gäller på båda språken.
  */
 
-const INSPELNING_PROPS = ["lage", "fel", "niva", "sekunder", "tak", "framsteg", "kanIgen", "text", "textFel", "medText", "skickarText", "kvitto", "onAngra", "onKlar", "onAvbryt", "onIgen", "onStart", "onTillatMikrofon", "onInstallningar", "marke", "mal", "valt", "onValj", "vidare", "onAgent", "onAnteckning", "textVantar", "utskriftFel", "onSkrivUt", "klarEtikett"];
+const INSPELNING_PROPS = ["lage", "fel", "niva", "sekunder", "tak", "framsteg", "kanIgen", "text", "textFel", "medText", "skickarText", "kvitto", "onAngra", "onKlar", "onAvbryt", "onIgen", "onStart", "onTillatMikrofon", "onInstallningar", "marke", "mal", "valt", "onValj", "vidare", "onAgent", "onAnteckning", "textVantar", "utskriftFel", "onSkrivUt", "kanSpelaIStallet", "onSpelaIStallet", "klarEtikett"];
 
 /**
  * Mottagarna av det sagda (0.103.0, 0.105.0). Var och en får underlaget när personen trycker på sitt val. En nyckel som saknas ritar
@@ -921,6 +1034,8 @@ const INSPELNING_PROPS = ["lage", "fel", "niva", "sekunder", "tak", "framsteg", 
  * @param {boolean} [props.textVantar] (0.114.0) Utskriften av ljudet arbetar (`useTalk().textVantar`): fältet säger "Skriver ut…", valen står kvar
  *   och går att trycka, och ett val som tryckts före texten väntar på den.
  * @param {string} [props.utskriftFel] (0.114.0) Utskriften föll eller gav tomt (`useTalk().utskriftFel`). Står i felraden med valen kvar.
+ * @param {boolean} [props.kanSpelaIStallet] (0.114.0) Igenkänningen föll i en omgång utan inspelare: läget `fel` ritar "Spela in i stället" (`useTalk().kanSpelaIStallet`).
+ * @param {() => void} [props.onSpelaIStallet] (0.114.0) "Spela in i stället" (`useTalk().spelaIStallet`): en inspelning utan igenkänning, som skrivs ut efteråt.
  * @param {() => void} [props.onSkrivUt] (0.114.0) Försöker skriva ut igen (`useTalk().skrivUt`). Ett tryck på ett val utan text anropar den.
  * @param {string} [props.klarEtikett] (0.103.0) Namnet Klar läses upp med. Förval `ORD_TALK.klarNamn` på språket som gäller (0.104.0). Chattens skrivfält
  *   skickar det sagda som ett meddelande, och där hade "spara inspelningen" sagt något annat än det som händer. Ordet på skärmen är
@@ -931,7 +1046,7 @@ export function OpsInspelning(props) {
   if (okanda.length > 0) {
     throw new Error(`OpsInspelning: okända props ${okanda.join(", ")}. Tillåtna: ${INSPELNING_PROPS.join(", ")}.`);
   }
-  const { lage, fel, niva, sekunder, tak, framsteg, kanIgen, text = "", textFel = "", medText = false, skickarText = TALK_SKICKAR_TEXT, kvitto = null, onAngra, onKlar, onAvbryt, onIgen, onStart, onTillatMikrofon, onInstallningar, marke, mal = [], valt = null, onValj, vidare, onAgent, onAnteckning, textVantar = false, utskriftFel = "", onSkrivUt, klarEtikett: klarEtikettProp } = props;
+  const { lage, fel, niva, sekunder, tak, framsteg, kanIgen, text = "", textFel = "", medText = false, skickarText = TALK_SKICKAR_TEXT, kvitto = null, onAngra, onKlar, onAvbryt, onIgen, onStart, onTillatMikrofon, onInstallningar, marke, mal = [], valt = null, onValj, vidare, onAgent, onAnteckning, textVantar = false, utskriftFel = "", onSkrivUt, kanSpelaIStallet = false, onSpelaIStallet, klarEtikett: klarEtikettProp } = props;
   if (vidare !== undefined) {
     const nycklar = ["meddelande", "handelse", "arende"];
     const felaktiga = vidare && typeof vidare === "object" ? Object.entries(vidare).filter(([k, v]) => !nycklar.includes(k) || typeof v !== "function").map(([k]) => k) : [typeof vidare];
@@ -1115,6 +1230,8 @@ export function OpsInspelning(props) {
   const kanTillatMikrofon = !kanIgen && kanBeOmMikrofon(fel) && typeof (onTillatMikrofon || onStart) === "function";
   /** (lifehub.app#253) Det som fanns att skicka var tomt: en ny inspelning, inte Försök igen, som hade skickat samma tomma ljud. */
   const kanNyInspelning = !kanIgen && !kanTillatMikrofon && kanSpelaInIgen(fel) && typeof (onTillatMikrofon || onStart) === "function";
+  /** (0.114.0) Igenkänningen föll utan att något spelades in: "Spela in i stället". */
+  const kanReserv = lage === "fel" && kanSpelaIStallet && typeof onSpelaIStallet === "function";
 
   return (
     <div data-ops-inspelning="" data-inspelning={lage} className="flex w-full min-w-0 flex-col gap-3">
@@ -1256,7 +1373,7 @@ export function OpsInspelning(props) {
         <div className="flex min-w-0 flex-col gap-3">
           <p role="alert" data-talk-fel="" className="m-0 text-etikett text-danger">{fel ? talkTextPa(fel, sprak) : o("felOkant")}</p>
           <div className="flex items-center gap-3">
-            {kanIgen || kanTillatMikrofon || kanNyInspelning ? (
+            {kanIgen || kanTillatMikrofon || kanNyInspelning || kanReserv ? (
               <button type="button" aria-label={o("avbryt")} data-talk-avbryt="" onClick={onAvbryt} className={SEKUNDAR}>
                 <KryssIkon size={18} />
               </button>
@@ -1276,7 +1393,13 @@ export function OpsInspelning(props) {
                 {o("spelaInIgen")}
               </button>
             ) : null}
-            {!kanIgen && !kanTillatMikrofon && !kanNyInspelning ? (
+            {kanReserv ? (
+              <button type="button" data-talk-reserv="" onClick={onSpelaIStallet} className={PRIMAR}>
+                <MikrofonIkon size={18} />
+                {o("spelaIStallet")}
+              </button>
+            ) : null}
+            {!kanIgen && !kanTillatMikrofon && !kanNyInspelning && !kanReserv ? (
               <button type="button" onClick={onAvbryt} className={PRIMAR}>{o("stang")}</button>
             ) : null}
           </div>
@@ -1357,11 +1480,13 @@ export function OpsInspelning(props) {
  *   textVantar?: boolean,
  *   utskriftFel?: string,
  *   onSkrivUt?: () => void,
+ *   kanSpelaIStallet?: boolean,
+ *   onSpelaIStallet?: () => void,
  * }} props `medText`, `skickarText`, `kvitto` och `onAngra` (0.97.0) kommer ur `useTalk` med samma namn (`onAngra` är `angra`).
  *   `vidare` och `onAgent` (0.105.0: `useTalk().agent`) går som de är till `OpsInspelning`, liksom `onAnteckning` (`useTalk().anteckning`),
  *   `textVantar`, `utskriftFel` och `onSkrivUt` (0.114.0: `useTalk().textVantar`, `.utskriftFel`, `.skrivUt`).
  */
-export function OpsTalk({ lage, fel, niva, sekunder = 0, tak = MAX_SEKUNDER, framsteg = null, kanIgen = false, text = "", textFel = "", medText = false, skickarText = TALK_SKICKAR_TEXT, kvitto = null, onAngra, onSkicka, onAvbryt, onIgen = () => {}, onTillatMikrofon, onInstallningar, marke, mal = [], valt = null, onValj, vidare, onAgent, onAnteckning, textVantar, utskriftFel, onSkrivUt }) {
+export function OpsTalk({ lage, fel, niva, sekunder = 0, tak = MAX_SEKUNDER, framsteg = null, kanIgen = false, text = "", textFel = "", medText = false, skickarText = TALK_SKICKAR_TEXT, kvitto = null, onAngra, onSkicka, onAvbryt, onIgen = () => {}, onTillatMikrofon, onInstallningar, marke, mal = [], valt = null, onValj, vidare, onAgent, onAnteckning, textVantar, utskriftFel, onSkrivUt, kanSpelaIStallet, onSpelaIStallet }) {
   if (lage === "vila" || lage === "trycker") return null;
   return (
     <div
@@ -1403,6 +1528,8 @@ export function OpsTalk({ lage, fel, niva, sekunder = 0, tak = MAX_SEKUNDER, fra
           textVantar={textVantar}
           utskriftFel={utskriftFel}
           onSkrivUt={onSkrivUt}
+          kanSpelaIStallet={kanSpelaIStallet}
+          onSpelaIStallet={onSpelaIStallet}
         />
       </div>
     </div>
