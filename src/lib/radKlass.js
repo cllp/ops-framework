@@ -216,8 +216,9 @@ export function huvudPlusKlass({ synligMobil = true, aktiv = false } = {}) {
  */
 export function huvudTalkKlass({ aktiv = false } = {}) {
   return cx(
-    // Samma ram som ramverkets ikonknappar: size-11, p-2.5 och 24 px ikon, som plusset. Ringen är en px (CP 2026-10-18).
-    "relative size-11 shrink-0 cursor-pointer items-center justify-center rounded-full p-2.5 [&_svg]:size-6 xl:size-10 xl:p-2",
+    // Samma storlek som plusset med 24 px ikon. Ringen är en px (CP 2026-10-18), så paddningen är en px mindre än plussets:
+    // 44 = 2 x (1 + 9) + 24 och 40 = 2 x (1 + 7) + 24, i temats spacing (2.25 och 1.75 x 4 px).
+    "relative size-11 shrink-0 cursor-pointer items-center justify-center rounded-full p-2.25 [&_svg]:size-6 xl:size-10 xl:p-1.75",
     // ⛔ AVSTÅND TILL PLUSSET (CP 2026-10-18): "sitter för nära". Temats spacing (`ml-2`, alltså 2 x --spacing), inget eget mått.
     "hidden md:inline-flex md:ml-2",
     "transition-colors duration-(--duration-fast) ease-standard",

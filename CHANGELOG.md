@@ -31,7 +31,7 @@ cllp/ops-framework#408 (ägarinbjudan ger admin, dov mikrofon, biblioteksfil med
 - Provet "rollen ur inbjudan följer med" använder nu admin, eftersom agare inte längre följer med.
 
 ### Mikrofonen i huvudet är dov i vila (CP 2026-10-18, efter cllp/ops-framework#401 (ringen runt mikrofonen))
-- `huvudTalkKlass`: en px ring i `border-line` och ikonen i `ink-muted` i vila. Hover och focus-visible ger `ink`, `bg-raised` och samma övergång som förut. `md:ml-2` ger avstånd till plusset med temats spacing. Geometrin är plussets (`p-2.5`, `xl:p-2`).
+- `huvudTalkKlass`: en px ring i `border-line` och ikonen i `ink-muted` i vila. Hover och focus-visible ger `ink`, `bg-raised` och samma övergång som förut. `md:ml-2` ger avstånd till plusset med temats spacing. Samma storlek och ikon som plusset (`p-2.25`, `xl:p-1.75` med en px ring). Vakten i `check-skalyta` väntar nu 6 till 14 px till plusset i stället för 0 till 4.
 - Prov för det aktiva läget (Claudes BÖR på cllp/ops-framework#401 (ringen runt mikrofonen)).
 
 ## 0.116.0
