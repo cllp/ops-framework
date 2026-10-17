@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { createMemorySource } from "../data/adapters.js";
 import { createBibliotekskalla } from "../data/bibliotekkalla.js";
-import { kodaToppar } from "../lib/bibliotek.js";
+import { MAX_BIBLIOTEKUTSKRIFT, kodaToppar } from "../lib/bibliotek.js";
 
 const skapare = () => ({ uid: "uid-1", namn: "Kim", typ: "manniska", kalla: "bibliotek" });
 
@@ -299,6 +299,24 @@ describe("createBibliotekskalla", () => {
     expect(fylld.peaks).toBe(kodaToppar(tal(2)));
     const bild = { ...fil, mime: "image/jpeg", namn: "k.jpg", sokvag: "grupper/cps-ab/bibliotek/p/k.jpg" };
     await expect(kalla.spara({ id: skapad.id, rubrik: "Bild", fil: bild, utskrift: "Hej" })).rejects.toThrow(/Bara ett ljud/);
+  });
+
+  it("⛔ en utskrift som servern skrev (utanför spara, som Admin SDK) läses, behålls av en omdöpning, och en för lång syns som trasig rad (cllp/lifehub.app#349)", async () => {
+    const source = createMemorySource();
+    const kalla = createBibliotekskalla({ source, collection: "bibliotek", groupId: "cps-ab", skapare });
+    const fil = { sokvag: "grupper/cps-ab/bibliotek/p/ide.webm", namn: "ide.webm", mime: "audio/webm", byte: 100 };
+    const skapad = await kalla.spara({ typ: "fil", rubrik: "Idé", fil });
+    await source.update("bibliotek", skapad.id, { utskrift: "Första versen\nandra raden\n\nRefräng" });
+    const lasning = await kalla.las();
+    expect(lasning.trasiga).toEqual([]);
+    expect(lasning.poster.find((p) => p.id === skapad.id)?.utskrift).toBe("Första versen\nandra raden\n\nRefräng");
+    const omdopt = await kalla.spara({ id: skapad.id, rubrik: "Omdöpt" });
+    expect(omdopt.utskrift).toBe("Första versen\nandra raden\n\nRefräng");
+    await source.update("bibliotek", skapad.id, { utskrift: "x".repeat(MAX_BIBLIOTEKUTSKRIFT + 1) });
+    const for_lang = await kalla.las();
+    expect(for_lang.poster.find((p) => p.id === skapad.id)).toBeUndefined();
+    expect(for_lang.trasiga).toHaveLength(1);
+    expect(for_lang.trasiga[0].fel).toMatch(/Taket/);
   });
 
   it("⛔ ett anrop som bara fyller i längd och våg flyttar inte andrad, men en riktig ändring gör det", async () => {

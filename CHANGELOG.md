@@ -16,6 +16,136 @@ Paket 3, Grok 2026-10-17 natt. Ingen version, ingen release.
 - `huvudTalkKlass`: ringen runt mikrofonen i huvudet är två px i `border-ink-secondary` och ikonen i `text-ink`, i stället för
   avdelarfärgen `border-line` (cllp/lifehub.app#327 (ringen runt mikrofonen)). Geometrin är oförändrad, 44 px och 40 px från `xl`.
 
+## 0.115.0
+
+Finputs på TALK efter 0.114.0 (cllp/lifehub.app#345 och #347) och utskrift av ljud i biblioteket (cllp/lifehub.app#349). CP 2026-10-17, iPhone:
+"det går snabbt och fint och texten kommer upp i realtid, även menyerna". Det fungerar, och det här är finputs.
+
+### TALK: ljudvågor när bara igenkänningen kör (#345 a)
+
+- På WebKit kör TALK med valen BARA igenkänningen (0.114.0), och nivåprickarna matades av en inspelare som inte finns: de stod stilla. De drivs nu av
+  igenkänningens egna händelser: `onsoundstart` och `onspeechstart` ger en liten puls (det lyssnar), varje resultat med ny text en puls vars
+  höjd följer hur mycket text som kom, och `onspeechend` eller en tystnad på `IGENKANNING_AVTA_MS` (400 ms) tar ned den. Samma komponent
+  (`TalkPrickar`) som när inspelaren matar, så det ser likadant ut.
+- ⛔ **Ingen egen mikrofonström:** striden om mikrofonen var orsaken till #253. Nivån är en uppskattning av "det pratas nu" ur text och händelser, inte en
+  mätning av ljudstyrkan (igenkänningen ger text, inte decibel), och pulserna ligger därför efter talet. Ny `skapaIgenkanningsniva` i `lib/talk.js`.
+- `Igenkanning.starta` tar en valfri `onLjud(typ)` med `ljud`, `tal` och `tystnad`. Den kopplas bara i en omgång utan inspelare; en omgång med inspelare
+  (Chrome, låst mål, "Spela in i stället") är exakt som förut, och en egen igenkänning från appen som inte känner till `onLjud` drivs av texten ensam.
+- ⛔ **`prefers-reduced-motion`:** med mindre rörelse flyttar sig inga prickar och ingen ändrar höjd; raden står stilla och blir ljusare när det pratas.
+  Det gäller `TalkPrickar` överallt, också när inspelaren matar den (förut ritades höjderna oavsett inställningen).
+
+### TALK: texten rullar med (#345 b)
+
+- Textytan rullar till slutet när ny text kommer. Har personen själv rullat upp stannar den där, och den följer med igen när hen är längst ner
+  (8 px tolerans). Det avgörs bara av rullhändelser, aldrig av att texten växer, och varje ny omgång börjar med att följa.
+
+### TALK: Anteckning visar ett kvitto (#345 c)
+
+- ⛔ **Bryter ett beteende, med flit:** när `onAnteckning` löst sig stängdes fältet. Nu visas kvittot "Anteckningen är sparad" som andra kvitton
+  (läget `sparat`, med Stäng), tills personen stänger det. Tre prov i `talk-ingen-text.test.jsx` hävdade att fältet stängs och säger nu det motsatta.
+- `onAnteckning` får lösa till `{ href?, etikett? }`: kvittot får då en länk ("Öppna anteckningen" när `etikett` saknas), så att appen kan peka på
+  biblioteket. Löser det till `undefined`, ett id eller något annat än en länk visas kvittot utan länk. Ny `talkAnteckningsLank` läser svaret.
+- En felformad länk (`href` som saknas eller inte är en text, en `etikett` som inte är en text, en adress som börjar med `javascript:`, `data:` eller
+  `vbscript:`) rapporteras (steget `anteckning-lank`) och kvittot visas utan länk: anteckningen är redan sparad, så den blir inte osparad av ett fel i svaret.
+- Nya `onLank(href, event)` på `OpsInspelning` och `OpsTalk`. Skalet ger sin `onNavigate` dit, så länken navigerar som skalets andra länkar. Fältet stängs efter trycket.
+- `useTalk().kvitto` bär `lank` när kvittot har en.
+
+### TALK: Kopiera (#347)
+
+- En liten ikonknapp Kopiera bredvid Stäng i läget hört, när det finns text. `navigator.clipboard.writeText(text)`, sedan "Kopierat" en kort stund
+  i fältet. Fältet stängs inte, och inget lämnas till appen. Faller urklippet (inget API, nekat eller ett kast) står felet i fältet, och steget
+  `kopiera` går till felrapporten. Ny `useKopiera` i `components/useKopiera.js`, som biblioteket delar. Orden på svenska och engelska i `ORD_TALK`.
+
+### Biblioteket: skriv ut ett ljud (#349)
+
+- Ny `onSkrivUt(post) => Promise<void>` på `OpsBibliotek`: knappen "Skriv ut texten" på en ljudpost som inte har någon utskrift. Medan löftet pågår står
+  "Skriver ut…" på posten. Ett fel (också ett dygnstak) står på posten och knappen finns kvar. ⛔ Texten kommer inte i svaret: servern skriver fältet
+  `utskrift` på posten, och vyn läser det ur listans post (också när `vald` är en äldre kopia) och visar det under spelaren med radbrytningarna bevarade
+  (`white-space: pre-wrap`), så att verser syns.
+- Under texten: Kopiera (samma krok som TALK, med "Kopierat") och "Gör en anteckning av texten", som anropar nya `onAnteckningAvUtskrift(post)` och bara
+  ritas när den ges. Lyckas den står "Anteckningen är sparad" en stund, faller den står felet på posten. Utan propsen ritas ingen knapp.
+- ⛔ **Bryter ett API, med flit:** `onSkrivUt` löste förut till `{ text, forslag }` och vyn höll en egen kopia av texten, med knapparna "Spara som
+  anteckning" och "Skapa ärende" (`onGorForslag`). Texten hör nu till posten (en sanning), och `onGorForslag` kastar ett fel som säger det. Två prov i
+  `bibliotek-vy.test.jsx` om den gamla utskriften är ersatta av `bibliotek-utskrift.test.jsx`.
+- Schemat och valideringen (`utskrift` på ett ljud, tak `MAX_BIBLIOTEKUTSKRIFT`) och `createBibliotekskalla` tillät redan fältet; nytt prov visar att en
+  text som servern skrivit läses, behålls av en omdöpning och att en för lång syns som trasig rad. `bibliotekregelfragment` är orörd: den släpper fortfarande
+  igenom en klientskrivning av fältet (högst 20 000 tecken, bara på ett ljud), och att nekan den är appens val.
+
+## 0.114.0
+
+Valen står alltid efter talet, Anteckning som val och orsaken mäts (cllp/ops-framework#402), och biblioteket visar en ny post
+direkt (cllp/ops-framework#403). CP 2026-10-17. Dessutom `fore` och `online` på `OpsGruppSida`.
+
+### TALK: valen efter talet står också utan text (`talk.tillText`, `talk.onAnteckning`)
+
+- CP, med en skärmbild från iPhone: han pratade in, "Agenten arbetar…" visades, och han hamnade direkt i chatten utan att få välja.
+  Rotorsaken, läst i koden: valen ritades bara när taligenkänningen gav text medan personen pratade. Utan text gick ljudet till
+  `onTalk`, och appen skickade det vidare till agenten, alltså valde appen åt personen.
+- Med `talk.onAgent` går fältet nu till valen även när ingen text hördes, och ljudet lämnas inte till `onTalk`, `onAgent` eller något
+  annat val av sig självt. Utan `onAgent` är beteendet som förut.
+- Ny valfri `talk.tillText(blob, { mimeType, sekunder }) => Promise<string>`: fältet säger "Skriver ut…" och fyller i texten när den
+  svarar. Valen går att trycka under tiden, och ett val som tryckts före texten väntar på den och lämnar den en gång. Faller utskriften
+  (eller ger den en tom text) står felet i fältet med valen kvar, och ett tryck på ett val skriver ut igen. Utan `tillText` säger fältet
+  att ingen text kom fram.
+- Ny valfri `talk.onAnteckning(text) => void | Promise<void>`: ett femte val, Anteckning, före Agent, som ritas bara när propen ges. Fältet
+  säger "Sparar…" och stängs när löftet löser sig, och faller det står felet i fältet och valen kvar. Ordtabellen har svenska och
+  engelska. Med fem val tar det sista hela raden.
+- `useTalk` tar `onAnteckning` och `tillText` och lämnar `anteckning`, `medAnteckning`, `textVantar`, `utskriftFel` och `skrivUt`.
+  `OpsInspelning` och `OpsTalk` tar `onAnteckning`, `textVantar`, `utskriftFel` och `onSkrivUt`. `talkNasta` har händelserna
+  `anteckning` och `anteckningFel`.
+- ⛔ **Bryter ett prov, med flit:** `talk-val.test.jsx` hävdade att ljud utan text med `onAgent` går till `onTalk`. Det är det som
+  ändrats, och provet säger nu det motsatta.
+
+### TALK på WebKit: valen kör bara igenkänningen (tar delvis tillbaka #253:s val)
+
+- Sedan 0.110.0 (cllp/lifehub.app#253) gav `webblasarensIgenkanning` `null` på WebKit (`arWebKit`), eftersom SpeechRecognition och
+  MediaRecorder slogs om mikrofonen. Följden: iPhone och iPad fick aldrig levande text, och då aldrig de snabba valen. Det är regressionen
+  CP märkte.
+- ⛔ **Det här tar delvis tillbaka #253:s val för TALK-valen, och skälet är att mikrofonen inte längre delas.** I TALK med valen
+  (`talk.onAgent`, inget låst inspelningsmål, `igenkanning: true`) kör en omgång på WebKit nu BARA igenkänningen och startar ingen
+  inspelare. Då slåss ingen om mikrofonen, texten växer fram, och valen kommer direkt vid Klar. #253:s val står kvar överallt där ljudet
+  behövs.
+- Faller igenkänningen (`onerror` med `not-allowed`, `service-not-allowed`, `aborted`, `audio-capture` eller omstartsslinga) eller blir
+  texten tom: fältet säger det och visar knappen **Spela in i stället**. Den kör inspelningen utan igenkänning (dagens WebKit-väg) och
+  sedan `tillText`. Felet rapporteras med steget `ingen-text` och felkoden (`igenkanningFelkod`), som tidigare, nu med
+  `baraIgenkanning: true`. Ingen inspelning har gjorts i det läget, så inget ljud går förlorat.
+- **Oförändrat:** ett låst inspelningsmål (Biblioteket, Röstinspelning) och appar utan `onAgent` behåller dagens WebKit-beteende, bara
+  inspelning, för där behövs ljudet. Utanför WebKit (Chrome) körs igenkänning och inspelning samtidigt som förut.
+- `webblasarensIgenkanning({ tillatWebKit: true })` ger igenkänningen också på WebKit. Förvalet är fortfarande `null` där. `useTalk`
+  ber om den bara för en omgång utan inspelare. `useTalk().direkt({ laast: true })` startar en omgång låst till ett mål (skalets
+  Röstinspelning gör det: målet och starten sker i samma händelse, före nästa rendering, så `onAgent` kan inte läsas ur propsen).
+  `useTalk` lämnar `kanSpelaIStallet` och `spelaIStallet`; `OpsInspelning` och `OpsTalk` tar `kanSpelaIStallet` och `onSpelaIStallet`.
+- På WebKit finns ingen inspelare som matar nivåprickarna i en sådan omgång, så de står stilla. Texten är det som visar att det lyssnas.
+
+### TALK: ljud utan text mäts (`rapporteraFel`, steget `ingen-text`)
+
+- Varför telefonens text uteblev var inte mätt, och felrapporten skickades bara när varken ljud eller text fanns. Nu går ljud utan text
+  till felrapporten med `igenkanning`, `utanIgenkanning` (`avstangd`, `webkit` eller `saknas`), `igenkanningStartade`,
+  `igenkanningStartHandelse`, `igenkanningFelkod` (den senaste felkoden, också `no-speech` och `aborted`), `omgang`, `standalone`,
+  `userAgent`, `sekunder`, `bytes`, `medVal` och `medUtskrift`. Ingen text från personen.
+- `Igenkanning.diagnos()` (valfri) ger `{ startade, startHandelse, felkod }` för omgången. Webbläsarens igenkänning nollar den vid varje
+  start. Ny `talkMiljo()` läser `standalone` och `userAgent`.
+- Felkoden vid ett kast i `start()` är nu kastets namn också när det inte är en `Error` i den här världen (`DOMException`).
+- Safari på iOS har ingen igenkänning här (`arWebKit`), så på en iPhone är `igenkanning` `false` med `utanIgenkanning: "webkit"`.
+
+### Gruppsidan: `fore` och `online` (`OpsGruppSida`, från granskningen av lifehub.app PR 341)
+
+- Ny valfri `fore` (ReactNode): ritas efter snabbvalen och före medlemslistan, så att appen kan visa gruppens läge överst. `children` ligger
+  kvar under som förut.
+- Ny valfri `online` (`ReadonlySet<string>` av userId): en grön prick på medlemmens avatar med `aria-label` "<namn> online"
+  (`etiketter.online` byter ordet), och sorteringen online först, sedan ägare, admin, medlem, sedan namn. Utan propen är ordningen och
+  utseendet som förut. En mängd som inte har `has()` kastar.
+
+### Biblioteket: en ny post syns direkt (`prenumerera`, `OpsBibliotek kalla`)
+
+- CP: efter en röstinspelning syntes inspelningen inte förrän han laddat om. Rotorsaken: `createBibliotekskalla` hade bara `las()`, en
+  engångsläsning, och listan prenumererade inte. Det gäller allt som skrivs utanför listans egen vy.
+- `createBibliotekskalla` får `prenumerera(lyssnare, onFel)` när datakällan har `subscribe` (frivillig, `contract.js`). Samma svar och
+  samma kontroll per rad som `las()`. Ett fel går till `onFel` och försvinner aldrig tyst. Saknas `subscribe` (eller svarar en routande
+  källa nej på `canSubscribe`) finns metoden inte, och `las()` gäller som förut. Ingen polling.
+- `OpsBibliotek` tar en ny valfri `kalla`. Med den läser vyn själv: `kalla.prenumerera` när den finns, annars `kalla.las()` en gång.
+  `poster`, `fel`, `trasiga` och `laddar` ges då inte (vyn kastar annars). Utan `kalla` är vyn som förut.
+
 ## 0.113.0
 
 Översikten får hemgruppens bottenrad (cllp/lifehub.app#319), Grok 2026-10-16. CP-beslut 11:14: "Översikten har samma bottenrad

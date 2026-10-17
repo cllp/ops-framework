@@ -35,7 +35,7 @@
  * i takt för hand: talet kan inte läsas ur en CSS-variabel inuti en JSX-prop.
  */
 
-import { Archive, ArchiveRestore, AudioLines, Copy, BellOff, Camera, Flame, Folder, Image as BildLucide, Laugh, Link, Mail, PartyPopper, Pause, Pin, Play, Reply, SkipBack, SkipForward, Square, ThumbsUp, ArrowDownUp, ArrowRight, Bell, BookOpen, Briefcase, Building2, Calendar, CalendarDays, CalendarPlus, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, Crown, ExternalLink, FileText, Globe, Hash, Heart, Home, Inbox, Info, Layers, LayoutGrid, Lock, LogOut, MessageSquare, MessagesSquare, Mic, Search as SokLucide, SendHorizontal, Bot, MapPin, Maximize2, Menu, Minimize2, Monitor, Moon, MoreHorizontal, PanelRightOpen, Paperclip, Pencil, Plus, Settings, SlidersHorizontal, Smile, Star, Sun, User, UserX, Users, UsersRound, X, Zap } from "lucide-react";
+import { Archive, ArchiveRestore, AudioLines, Copy, BellOff, Camera, Flame, Folder, Image as BildLucide, Laugh, Link, Mail, PartyPopper, Pause, Pin, Play, Reply, SkipBack, SkipForward, Square, StickyNote, ThumbsUp, ArrowDownUp, ArrowRight, Bell, BookOpen, Briefcase, Building2, Calendar, CalendarDays, CalendarPlus, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, Crown, ExternalLink, FileText, Globe, Hash, Heart, Home, Inbox, Info, Layers, LayoutGrid, Lock, LogOut, MessageSquare, MessagesSquare, Mic, Search as SokLucide, SendHorizontal, Bot, MapPin, Maximize2, Menu, Minimize2, Monitor, Moon, MoreHorizontal, PanelRightOpen, Paperclip, Pencil, Plus, Settings, SlidersHorizontal, Smile, Star, Sun, User, UserX, Users, UsersRound, X, Zap } from "lucide-react";
 
 /** Reaktionen "tumme" (0.75.0). @param {{ size?: number }} props */
 export function TummeUppIkon({ size = 20 }) {
@@ -416,6 +416,15 @@ export function LasIkon({ size = 14 }) {
 /** Sökfältet i inkorgen (SS `Search w-3 h-3`, `ChatInboxPanel.jsx:1067`). @param {{ size?: number }} props */
 export function SokIkon({ size = 14 }) {
   return <SokLucide size={size} aria-hidden="true" strokeWidth={1.5} />;
+}
+
+/**
+ * Anteckning (0.114.0, cllp/ops-framework#402): valet efter talet som sparar det sagda som en anteckning. `StickyNote` är ett
+ * lapp-blad och skiljer sig från `Inbox` (Ärende) och `MessageSquare` (Meddelande) bredvid, i samma tunna streck.
+ * @param {{ size?: number }} props
+ */
+export function AnteckningIkon({ size = 18 }) {
+  return <StickyNote size={size} aria-hidden="true" strokeWidth={1.5} />;
 }
 
 /** Agenten som mottagare och deltagare (0.34.0, plats för #185). @param {{ size?: number }} props */
