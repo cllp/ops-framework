@@ -214,7 +214,11 @@ export function OpsModulRam({ modul, activeHref, hubHref, hubEtikett, onNavigate
  * @property {(huvudmeny: string[]) => void | Promise<void>} [onSparaHuvudmeny]
  * @property {(inmatning: { modulId: string, varden: Record<string, boolean | string> }) => void | Promise<void>} [onSpara]
  * @property {Readonly<Record<string, boolean | string>> | null} [sparade]
- * @property {{ lage?: Readonly<Record<string, unknown>>, onAnslut?: (id: string) => void | Promise<void>, onKopplaFran?: (id: string) => void | Promise<void> }} [kopplingar]
+ * @property {{ lage?: Readonly<Record<string, unknown>>, onAnslut?: (id: string) => void | Promise<void>, onKopplaFran?: (id: string) => void | Promise<void>, kontroll?: Readonly<Record<string, import("react").ReactNode>> }} [kopplingar]
+ *   `kontroll` (Ej utgivet, cllp/lifehub.app#337): appens egen kontroll per koppling, i stället för Anslut och Koppla från. Nyckeln är kopplingens id.
+ *   ⛔ FÖR EN KOPPLING SOM BOR NÅGON ANNANSTANS. CP 2026-10-17 om Bank och Bokio: nyckeln kopplas i Mitt konto, och i gruppens modul väljer man
+ *   bara vilken koppling och vilka konton gruppen använder, som när man väljer repo för GitHub. Ingen Anslut-knapp i modulen. Med `kontroll[id]`
+ *   ritas den noden där knappen stod, för alla som ser inställningarna: appen avgör själv vad den som inte får ändra ser. Utan nyckeln är raden som förut.
  * @property {ReadonlyArray<import("../lib/kopplingar.js").Kopplingsdeklaration>} [deklarationer] När manifestet inte bär kopplingarna än (appen pinnad på en äldre ramverksversion).
  * @property {import("react").ReactNode} [egna] Modulens egen slot. Tomt läge när den saknas och manifestet inte har fält.
  * @property {import("react").ReactNode} [kropp] (0.90.0) Ersätter de tre standardavsnitten. Agenter använder den: inställningarna gäller en agent, inte appens på och av. Utan den ritas standardavsnitten.
@@ -469,7 +473,9 @@ export function InstallningsInnehall({ modul, ram, sprak }) {
                       {t("senasteSynk")}: {lage.senasteSynk == null ? t("ingenSynk") : formatDateTime(lage.senasteSynk, { locale: sprak === "en" ? "en" : "sv" })}
                     </p>
                     {lage.fel ? <OpsBanner tone="danger" title={lage.fel} /> : null}
-                    {ram.farAndra ? (
+                    {ram.kopplingar?.kontroll && Object.prototype.hasOwnProperty.call(ram.kopplingar.kontroll, k.id) ? (
+                      <div data-koppling-kontroll={k.id}>{ram.kopplingar.kontroll[k.id]}</div>
+                    ) : ram.farAndra ? (
                       <div>
                         {lage.status === "ansluten" || lage.status === "fel" ? (
                           <OpsButton
