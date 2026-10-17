@@ -90,8 +90,45 @@ import { OpsView } from "./OpsView.jsx";
  */
 
 /**
+ * ⛔ LISTAN LÄSER OM SJÄLV NÄR EN POST SKRIVS (0.114.0, cllp/ops-framework#403). CP 2026-10-17: efter en röstinspelning syntes den inte förrän
+ * han laddat om. Appen läste med `kalla.las()`, en engångsläsning, och ingenting sade åt listan att läsa om när en annan källa skrev en rad.
+ * Med `kalla` läser vyn själv: `kalla.prenumerera` när bibliotekskällan har den (datakällan har `subscribe`), annars `kalla.las()` en gång,
+ * som förut. Ingen polling. Ett fel i strömmen står i `fel` och ersätts av nästa lyckade leverans. Prenumerationen stängs när vyn
+ * lämnar eller `kalla` byts, så en kalla ska vara stabil mellan renderingar (skapa den en gång, `useMemo`).
+ * @param {{ las: () => Promise<{ poster: any[], kalla: string, fel: Error | null, trasiga: any[] }>, prenumerera?: (lyssnare: (svar: { poster: any[], kalla: string, fel: Error | null, trasiga: any[] }) => void, onFel: (fel: Error) => void) => () => void } | null | undefined} kalla
+ */
+function useBibliotekskalla(kalla) {
+  const [lage, setLage] = useState({ poster: /** @type {any[]} */ ([]), trasiga: /** @type {any[]} */ ([]), fel: /** @type {string | null} */ (null), laddar: Boolean(kalla) });
+  useEffect(() => {
+    if (!kalla) return undefined;
+    let levande = true;
+    setLage((f) => ({ ...f, laddar: true }));
+    /** @param {{ poster: any[], kalla: string, fel: Error | null, trasiga: any[] }} svar */
+    const till = (svar) => {
+      if (!levande) return;
+      setLage({ poster: svar.poster, trasiga: svar.trasiga, fel: svar.kalla === "fel" ? (svar.fel?.message || "?") : null, laddar: false });
+    };
+    if (typeof kalla.prenumerera === "function") {
+      const avreg = kalla.prenumerera(till, (e) => {
+        if (levande) setLage((f) => ({ ...f, fel: e.message || "?", laddar: false }));
+      });
+      return () => {
+        levande = false;
+        avreg();
+      };
+    }
+    kalla.las().then(till);
+    return () => {
+      levande = false;
+    };
+  }, [kalla]);
+  return kalla ? lage : null;
+}
+
+/**
  * @param {object} props
- * @param {readonly (import("../lib/bibliotek.js").Bibliotekspost & { id: string })[]} props.poster
+ * @param {{ las: () => Promise<any>, prenumerera?: (lyssnare: (svar: any) => void, onFel: (fel: Error) => void) => () => void }} [props.kalla] (0.114.0) Bibliotekskällan (`createBibliotekskalla`). Med den läser vyn själv och en ny post syns direkt, se `useBibliotekskalla`. Ges den ska `poster`, `fel`, `trasiga` och `laddar` utelämnas: vyn har då två sanningar om samma lista, och den ena hade vunnit tyst.
+ * @param {readonly (import("../lib/bibliotek.js").Bibliotekspost & { id: string })[]} [props.poster] Krävs om inte `kalla` ges (0.114.0).
  * @param {string | null} [props.fel] Läsningen misslyckades. Tom lista med fel är inte "biblioteket är tomt".
  * @param {readonly { id: string, fel: string, groupId?: string, skapadAv?: { uid?: string | null } }[]} [props.trasiga] Rader källan inte kunde läsa (`las().trasiga`). De visas som ett antal med skäl, aldrig tyst. Den som får raderar raden.
  * @param {{ uid: string, roll: string, groupId?: string, status?: string } | null} props.jag Den inloggades aktiva medlemskap i gruppen, eller `null` när personen inte är medlem. Krävs.
@@ -124,7 +161,13 @@ import { OpsView } from "./OpsView.jsx";
  * @param {string} [props.activeHref] (0.89.0) Krävs tillsammans med `ram` och `modul`. `?lage=installningar` visar inställningarna.
  * @param {import("../lib/modul.js").Modul | null} [props.modul] (0.89.0) Manifestet inställningarna läser. Krävs med `ram`.
  */
-export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false, vald = null, skapar = null, jag, onOppna, onStang, onSkapa, onSpara, onRadera, onLaddaUpp, onFyllLjud, onSpelaIn, inspelare, filUrl, hamtaAdress, grupper = [], onDela, platser = [], plats, onPlats, onSkrivUt, onGorForslag, hubHref, hubEtikett, onNavigate, modulId = "bibliotek", ram = null, activeHref, modul = null }) {
+export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, trasiga: trasigaProp = [], laddar: laddarProp = false, vald = null, skapar = null, jag, onOppna, onStang, onSkapa, onSpara, onRadera, onLaddaUpp, onFyllLjud, onSpelaIn, inspelare, filUrl, hamtaAdress, grupper = [], onDela, platser = [], plats, onPlats, onSkrivUt, onGorForslag, hubHref, hubEtikett, onNavigate, modulId = "bibliotek", ram = null, activeHref, modul = null }) {
+  if (kalla !== undefined && (posterProp !== undefined || felProp !== null || laddarProp !== false || (Array.isArray(trasigaProp) && trasigaProp.length > 0))) {
+    throw new Error("OpsBibliotek: kalla och poster/fel/trasiga/laddar kan inte ges tillsammans. Med kalla läser vyn själv, och två sanningar om samma lista hade låtit den ena vinna tyst.");
+  }
+  if (kalla === undefined && posterProp === undefined) {
+    throw new Error("OpsBibliotek: poster krävs, eller kalla (0.114.0). Utan någon av dem finns ingen lista att rita.");
+  }
   if (jag === undefined) {
     throw new Error("OpsBibliotek: jag krävs, den inloggades aktiva medlemskap i gruppen ({ uid, roll }), eller null när personen inte är medlem. Utan propen ser en medlem ut som en som bara får läsa.");
   }
@@ -140,6 +183,12 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
   }
   const sprak = useOpsSprak();
   const oppnaInspelning = useInspelningOppnare();
+  // ⛔ Listan kommer ur propsen eller ur kallan, aldrig ur båda (kastat ovan).
+  const levande = useBibliotekskalla(kalla);
+  const poster = levande ? levande.poster : /** @type {NonNullable<typeof posterProp>} */ (posterProp);
+  const fel = levande ? levande.fel : felProp;
+  const trasiga = levande ? levande.trasiga : trasigaProp;
+  const laddar = levande ? levande.laddar : laddarProp;
   const [flik, setFlik] = useState(/** @type {Flik} */ ("alla"));
   const [rostFel, setRostFel] = useState("");
   const [ljus, setLjus] = useState("");

@@ -222,13 +222,20 @@ describe("valen efter talet", () => {
     expect(/** @type {any} */ (t.onTalk.mock.calls[0])[1].text).toBe(SAGT[0]);
   });
 
-  it("⛔ hördes inget med agent går ljudet till onTalk som förut, eftersom det inte finns något att välja med", async () => {
-    const onAgent = vi.fn();
-    const t = Skal({ talk: { onAgent, igenkanning: false } });
-    await prata();
-    expect(document.querySelector("[data-talk-val]")).toBeNull();
-    expect(t.onTalk).toHaveBeenCalledTimes(1);
-    expect(onAgent).not.toHaveBeenCalled();
+  it("⛔ hördes inget med agent står valen ändå (0.114.0, #402): ljudet går inte till onTalk, så appen väljer aldrig åt personen", async () => {
+    // Före 0.114.0 gick ljudet här till `onTalk`, som appen skickade vidare till agenten. CP 2026-10-17: "Man ska få valet när man har
+    // pratat in." Utan `onAgent` är beteendet oförändrat, och det provas ovan ("utan agent syns inga val").
+    const konsol = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const onAgent = vi.fn();
+      const t = Skal({ talk: { onAgent, igenkanning: false } });
+      await prata();
+      expect(document.querySelector("[data-talk-val]")).not.toBeNull();
+      expect(t.onTalk).not.toHaveBeenCalled();
+      expect(onAgent).not.toHaveBeenCalled();
+    } finally {
+      konsol.mockRestore();
+    }
   });
 
   it("⛔ med agent och flera mål står inget Skickas till medan man pratar, eftersom målet inte används (granskningen av PR 387)", async () => {

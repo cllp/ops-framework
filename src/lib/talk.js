@@ -70,6 +70,7 @@ export const ORD_TALK = {
   stang: { sv: "Stäng", en: "Close" },
   spelaIn: { sv: "Spela in", en: "Record" },
   spelaInIgen: { sv: "Spela in igen", en: "Record again" },
+  spelaIStallet: { sv: "Spela in i stället", en: "Record instead" },
   tillatMikrofon: { sv: "Tillåt mikrofon", en: "Allow microphone" },
   kastaFraga: { sv: "Kasta den här inspelningen?", en: "Discard this recording?" },
   kasta: { sv: "Kasta", en: "Discard" },
@@ -80,6 +81,8 @@ export const ORD_TALK = {
   valHandelse: { sv: "Händelse", en: "Event" },
   valArende: { sv: "Ärende", en: "Case" },
   valAgent: { sv: "Agent", en: "Agent" },
+  valAnteckning: { sv: "Anteckning", en: "Note" },
+  skriverUt: { sv: "Skriver ut…", en: "Writing it out…" },
   forslagen: { sv: "Förslag från agenten", en: "Suggestions from the agent" },
   forslagPagar: { sv: "Utför…", en: "Working…" },
   forslagKlart: { sv: "Klart", en: "Done" },
@@ -99,6 +102,10 @@ export const ORD_TALK = {
   felAngra: { sv: "Det gick inte att ångra.", en: "It could not be undone." },
   felVidare: { sv: "Det du sa gick inte att lämna vidare.", en: "What you said could not be passed on." },
   felAgent: { sv: "Det du sa nådde inte agenten.", en: "What you said did not reach the agent." },
+  felIgenkanning: { sv: "Talet kunde inte skrivas ut medan du pratade. Spela in i stället, så skrivs det ut efteråt.", en: "Your speech could not be written out while you spoke. Record instead, and it is written out afterwards." },
+  felAnteckning: { sv: "Anteckningen gick inte att spara.", en: "The note could not be saved." },
+  felUtskrift: { sv: "Det du sa gick inte att skriva ut.", en: "What you said could not be written out." },
+  felIngenText: { sv: "Ingen text kom fram, så det finns inget att lämna vidare. Stäng och prata in igen.", en: "No text came through, so there is nothing to pass on. Close and speak again." },
   felForslag: { sv: "Förslaget gick inte att utföra.", en: "The suggestion could not be carried out." },
   felUpptagen: { sv: "En annan inspelning pågår redan. Avsluta den först.", en: "Another recording is already in progress. Finish it first." },
   felEjTillaten: { sv: "Mikrofonen är inte tillåten. Ge sidan tillgång till mikrofonen i webbläsarens inställningar.", en: "The microphone is not allowed. Give the page access to the microphone in the browser settings." },
@@ -299,14 +306,15 @@ export const MAX_SEKUNDER = 120;
  * - `lyssnar`: fingret är släppt och inspelningen fortsätter i fältet.
  * - `skickar`: inspelningen är stoppad och ljudet lämnas till appen. Fältet säger Sparar.
  * - `hort` (0.105.0): inspelningen är stoppad, det sagda står i fältet, och personen väljer vad som ska hända: Meddelande, Händelse,
- *   Ärende eller Agent. Bara när appen ger `onAgent` och något hördes. Inget har lämnats till appen ännu.
+ *   Ärende, Anteckning (0.114.0) eller Agent. Bara när appen ger `onAgent`. Inget har lämnats till appen ännu. (0.114.0) Också när
+ *   ingen text hördes: valen står då ändå, med statusen "Skriver ut…" om appen gav `tillText`, och ett val väntar på texten.
  * - `sparat`: appen tog emot ljudet. Fältet säger Sparat en kort stund, sedan vila. Med ett kvitto (0.97.0) står kvittot kvar
  *   med Ångra och Stäng tills personen stänger det, och efter en lyckad Ångra står "Ångrat" en kort stund.
  * - `fel`: mikrofonen gick inte att öppna, eller appen svarade med ett fel. Fältet säger varför.
  */
 
 /**
- * @typedef {{ typ: "ner" } | { typ: "direkt" } | { typ: "langtryck" } | { typ: "upp" } | { typ: "skicka" } | { typ: "igen" } | { typ: "avbryt" } | { typ: "klar" } | { typ: "dolj" } | { typ: "fel", text: string } | { typ: "tak" } | { typ: "hort" } | { typ: "agent" } | { typ: "agentFel", text: string } | { typ: "lamnat" }} Talkhandelse
+ * @typedef {{ typ: "ner" } | { typ: "direkt" } | { typ: "langtryck" } | { typ: "upp" } | { typ: "skicka" } | { typ: "igen" } | { typ: "avbryt" } | { typ: "klar" } | { typ: "dolj" } | { typ: "fel", text: string } | { typ: "tak" } | { typ: "hort" } | { typ: "agent" } | { typ: "agentFel", text: string } | { typ: "anteckning" } | { typ: "anteckningFel", text: string } | { typ: "lamnat" }} Talkhandelse
  */
 
 /**
@@ -327,10 +335,10 @@ export const MAX_SEKUNDER = 120;
  *
  * @param {{ lage: Talklage, fel?: string }} nu
  * @param {Talkhandelse} h
- * @returns {{ lage: Talklage, fel?: string, gor: null | "klick" | "starta" | "skicka" | "igen" | "kasta" | "agent" }}
+ * @returns {{ lage: Talklage, fel?: string, gor: null | "klick" | "starta" | "skicka" | "igen" | "kasta" | "agent" | "anteckning" }}
  */
 export function talkNasta(nu, h) {
-  /** @param {Talklage} lage @param {null | "klick" | "starta" | "skicka" | "igen" | "kasta" | "agent"} [gor] @param {string} [fel] */
+  /** @param {Talklage} lage @param {null | "klick" | "starta" | "skicka" | "igen" | "kasta" | "agent" | "anteckning"} [gor] @param {string} [fel] */
   const bli = (lage, gor = null, fel = undefined) => ({ lage, gor, ...(fel ? { fel } : {}) });
   switch (nu.lage) {
     case "vila":
@@ -360,11 +368,12 @@ export function talkNasta(nu, h) {
       if (h.typ === "hort") return bli("hort");
       // Agenten tog emot det sagda och appen tog över (chatten öppnades): fältet har inget mer att visa.
       if (h.typ === "lamnat") return bli("vila", "kasta");
-      if (h.typ === "agentFel") return bli("hort", null, h.text);
+      if (h.typ === "agentFel" || h.typ === "anteckningFel") return bli("hort", null, h.text);
       if (h.typ === "fel") return bli("fel", null, h.text);
       return bli("skickar");
     case "hort":
       if (h.typ === "agent") return bli("skickar", "agent");
+      if (h.typ === "anteckning") return bli("skickar", "anteckning");
       if (h.typ === "lamnat" || h.typ === "avbryt") return bli("vila", "kasta");
       if (h.typ === "direkt") return bli("lyssnar", "starta");
       if (h.typ === "ner") return bli("trycker");
@@ -848,10 +857,22 @@ export function talkFeltext(fel, val = {}) {
  *   `onFel` (0.99.0) får en kod när igenkänningen inte går att starta eller faller med ett riktigt fel, så att fältet kan säga det.
  * @property {() => Promise<string>} stoppa Slutar och ger den slutliga texten, eller tom sträng när den inte går att lita på.
  * @property {() => void} kasta Slutar utan att vänta.
+ * @property {() => Igenkanningsdiagnos} [diagnos] (0.114.0, cllp/ops-framework#402) Vad den här omgångens igenkänning gjorde, för felrapporten
+ *   när ljud fanns men ingen text. Inget om personen. En app som ger en egen igenkänning utan `diagnos` får `null` i rapporten.
  * @property {() => Igenkanningsslut | null | Promise<Igenkanningsslut | null>} [slapp] (0.107.0) Avslutar förra omgångens igenkännare
  *   helt: `abort()` om den inte redan sagt `end`, och väntar på `end`, högst `IGENKANNING_SLAPP_MS`. ⛔ ETT LÖFTE BARA NÄR DET FINNS
  *   NÅGOT ATT VÄNTA PÅ: annars svaret direkt (`null` när ingen igenkännare funnits), så att mikrofonen öppnas i samma tryck som förut.
  *   `useTalk` väntar på den innan nästa omgång öppnar mikrofonen. En app som ger en egen igenkänning utan `slapp` får ingen väntan.
+ */
+
+/**
+ * Vad omgångens igenkänning gjorde (0.114.0, cllp/ops-framework#402). Nollas av varje `starta`.
+ * @typedef {object} Igenkanningsdiagnos
+ * @property {boolean} startade `start()` anropades i omgången utan att kasta.
+ * @property {boolean} startHandelse Webbläsaren sade `start`: den lyssnar på riktigt. En igenkänning som startade men aldrig sade det är
+ *   typiskt en som mikrofonen nekats eller som webbläsaren tyst inte körde.
+ * @property {string | null} felkod Den senaste felkoden, också de tysta (`no-speech`) och `aborted`, eller namnet på ett kast vid
+ *   `start()` (till exempel `InvalidStateError`). `null` när inget fel kom.
  */
 
 /**
@@ -925,6 +946,30 @@ export function arWebKit(ua = typeof navigator !== "undefined" ? navigator.userA
 }
 
 /**
+ * Miljön TALK:s felrapport `ingen-text` bär (0.114.0, cllp/ops-framework#402): körs sidan från hemskärmen (`display-mode: standalone`,
+ * eller `navigator.standalone` på iOS), och vilken webbläsare det är. ⛔ Inget om personen. `matchMedia` och `navigator` kan saknas
+ * eller kasta (en rapport får aldrig själv fälla fältet), och då är svaret `null`, aldrig ett gissat `false`: `null` säger "ej mätt".
+ *
+ * @param {{ matchMedia?: (q: string) => { matches: boolean }, navigator?: { standalone?: boolean, userAgent?: string } }} [miljo] Bara för prov.
+ * @returns {{ standalone: boolean | null, userAgent: string | null }}
+ */
+export function talkMiljo(miljo = {}) {
+  const g = /** @type {any} */ (typeof globalThis !== "undefined" ? globalThis : {});
+  const nav = miljo.navigator ?? g.navigator;
+  const mm = miljo.matchMedia ?? (typeof g.matchMedia === "function" ? g.matchMedia.bind(g) : undefined);
+  /** @type {boolean | null} */
+  let standalone = null;
+  try {
+    if (typeof mm === "function") standalone = Boolean(mm("(display-mode: standalone)")?.matches);
+    if (nav && nav.standalone === true) standalone = true;
+    else if (standalone === null && nav && typeof nav.standalone === "boolean") standalone = nav.standalone;
+  } catch {
+    standalone = null;
+  }
+  return { standalone, userAgent: nav && typeof nav.userAgent === "string" ? nav.userAgent : null };
+}
+
+/**
  * Webbläsarens taligenkänning, eller `null` när den saknas.
  *
  * ⛔ STARTAR OM SIG SJÄLV. Chrome avslutar en igenkänning efter en stunds tystnad även med `continuous`, och utan omstart hade
@@ -945,7 +990,11 @@ export function arWebKit(ua = typeof navigator !== "undefined" ? navigator.userA
  * stoppet: samma bud som redan räknas som hel text när Chrome tar en paus mitt i (`onend` medan den lyssnar, nedan). Det som
  * fortfarande gör texten ogiltig är det som verkligen hugger av den: ett fel, ett avbrott och en väntetid som tar slut.
  *
- * @param {{ SpeechRecognition?: any, setTimeout?: typeof setTimeout, nu?: () => number, userAgent?: string }} [miljo]
+ * ⛔ (0.114.0, cllp/ops-framework#402) `tillatWebKit: true` ger igenkänningen också på WebKit. Förvalet är fortfarande `null` där (se `arWebKit`),
+ * eftersom igenkänningen och inspelaren slogs om mikrofonen. `useTalk` ber om den bara när inspelaren inte körs alls: TALK med valen
+ * (`onAgent`) på WebKit kör BARA igenkänningen, och då finns inget att slåss med.
+ *
+ * @param {{ SpeechRecognition?: any, setTimeout?: typeof setTimeout, nu?: () => number, userAgent?: string, tillatWebKit?: boolean }} [miljo]
  * @returns {Igenkanning | null}
  */
 export function webblasarensIgenkanning(miljo = {}) {
@@ -953,7 +1002,7 @@ export function webblasarensIgenkanning(miljo = {}) {
   const SR = miljo.SpeechRecognition || g.SpeechRecognition || g.webkitSpeechRecognition;
   if (typeof SR !== "function") return null;
   // ⛔ WEBKIT: ingen taligenkänning, bara inspelning och serverns utskrift (#253). En inskjuten SR (proven) går förbi.
-  if (!miljo.SpeechRecognition && arWebKit(miljo.userAgent)) return null;
+  if (!miljo.SpeechRecognition && !miljo.tillatWebKit && arWebKit(miljo.userAgent)) return null;
   const vanta = miljo.setTimeout || setTimeout;
   const nu = miljo.nu || Date.now;
   /** @type {any} */
@@ -970,6 +1019,12 @@ export function webblasarensIgenkanning(miljo = {}) {
   let vantarPaOmstart = false;
   /** @type {(() => void) | null} */
   let narSlut = null;
+  // ⛔ (0.114.0, cllp/ops-framework#402) DIAGNOSEN FÖR FELRAPPORTEN när ljud fanns men ingen text. Nollas av varje `starta`. Ingen text
+  // från personen: bara om igenkänningen startade, om webbläsaren sade `start`, och den senaste felkoden.
+  let startadeOmgang = false;
+  let startHandelse = false;
+  /** @type {string | null} */
+  let senasteFelkod = null;
   /**
    * ⛔ DEN SENAST SKAPADE IGENKÄNNAREN OCH OM DEN SAGT `end` (0.107.0, lifehub.app#253). `slapp` väntar på den innan nästa omgång.
    * `begard` är när `stop()` eller `abort()` begärdes, `slutVid` när `end` kom.
@@ -982,13 +1037,18 @@ export function webblasarensIgenkanning(miljo = {}) {
   };
   const hel = () => `${slutlig} ${pagaende}`.replace(/\s+/g, " ").trim();
   /** @param {unknown} fel */
-  const felkod = (fel) => (fel instanceof Error && fel.name ? fel.name : "okant-fel");
+  const felkod = (fel) => {
+    // (0.114.0) Också ett kast som inte är en `Error` i den här världen (en `DOMException` ur en annan): namnet är det diagnosen behöver.
+    const namn = /** @type {any} */ (fel)?.name;
+    return typeof namn === "string" && namn ? namn : "okant-fel";
+  };
   /**
    * ⛔ ETT FEL SOM INGEN SER ÄR ETT TYST NEDSLÄPP (regel 5). Koden går till fältet (`onFel`) och till felrapporten. En
    * hanterare som i sin tur kastar får inte ta ned igenkänningen, och inte heller sluta rapporteras.
    * @param {((kod: string) => void) | undefined} onFel @param {string} kod
    */
   const meld = (onFel, kod) => {
+    senasteFelkod = kod;
     rapporteraFel(new Error(`Taligenkänningen föll: ${kod}`), { yta: "talk", steg: "igenkanning", kod });
     try {
       onFel?.(kod);
@@ -1037,11 +1097,18 @@ export function webblasarensIgenkanning(miljo = {}) {
       pagaende = delvis;
       onText(hel());
     };
+    rec.onstart = () => {
+      if (galler()) startHandelse = true;
+    };
     rec.onerror = (/** @type {any} */ e) => {
-      if (galler() && !TYSTA_FEL.includes(e?.error)) {
-        trasig = true;
-        meld(onFel, String(e?.error || "okant-fel"));
+      if (!galler()) return;
+      if (TYSTA_FEL.includes(e?.error)) {
+        // ⛔ Också tystnaden noteras (0.114.0): `no-speech` är texten som uteblev, och det är den man söker efter i diagnosen.
+        senasteFelkod = String(e.error);
+        return;
       }
+      trasig = true;
+      meld(onFel, String(e?.error || "okant-fel"));
     };
     rec.onend = () => {
       // ⛔ Slutet noteras före försöksnumret: också en igenkännare som inte längre gäller har släppt mikrofonen när den säger `end`.
@@ -1100,6 +1167,9 @@ export function webblasarensIgenkanning(miljo = {}) {
     /** @param {{ sprak: string, onText: (text: string) => void, onFel?: (kod: string) => void }} val */
     starta({ sprak, onText, onFel }) {
       forsok += 1;
+      startadeOmgang = false;
+      startHandelse = false;
+      senasteFelkod = null;
       // ⛔ DEN FÖRRA OMGÅNGENS IGENKÄNNARE STÄNGS INNAN EN NY STARTAS (0.99.0). Safari, och iOS i synnerhet, tillåter bara EN
       // aktiv igenkänning, och `start()` på en andra kastar InvalidStateError. En igenkännare som `stoppa()` gett upp på (väntetiden
       // gick ut utan att webbläsaren sade `end`) levde kvar, och nästa omgång föll tyst: texten blev tom och inget förklarade varför.
@@ -1116,6 +1186,7 @@ export function webblasarensIgenkanning(miljo = {}) {
       try {
         r = ny(forsok, sprak, onText, onFel);
         r.start();
+        startadeOmgang = true;
         forsokStart = nu();
       } catch (fel) {
         senaste?.markera();
@@ -1168,6 +1239,10 @@ export function webblasarensIgenkanning(miljo = {}) {
       } catch {
         // Redan stängd.
       }
+    },
+    /** (0.114.0) Vad omgångens igenkänning gjorde. Läses efter `stoppa`, för felrapporten `ingen-text`. */
+    diagnos() {
+      return { startade: startadeOmgang, startHandelse, felkod: senasteFelkod };
     },
     /*
      * ⛔ FÖRRA OMGÅNGEN ÄR HELT AVSLUTAD INNAN NÄSTA BÖRJAR (0.107.0, lifehub.app#253). CP 2026-10-15 på iPhone: "Det är som att

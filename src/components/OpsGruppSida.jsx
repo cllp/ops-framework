@@ -48,10 +48,16 @@ import { AgentIkon, AndraIkon, MeddelandeIkon, PersonIkon, PlatsIkon } from "./i
  * @param {string} [props.agenterHref] (0.90.0) Länk till modulen Agenter. Med den ritas ingen strömbrytare: inställningarna bor i modulen.
  * @param {(href: string, event: any) => void} [props.onNavigate] Tar klicket på länken. Utan den följer webbläsaren adressen.
  * @param {string} [props.sprak]
- * @param {{ tillbaka?: string, redigera?: string, redigeraGrupp?: string, medlemmar?: string, inga?: string, agare?: string, admin?: string, ort?: string, ai?: string, avstangd?: string, agentPa?: string, agentPaHjalp?: string, skrivTill?: string }} [props.etiketter]
+ * @param {{ tillbaka?: string, redigera?: string, redigeraGrupp?: string, medlemmar?: string, inga?: string, agare?: string, admin?: string, ort?: string, ai?: string, avstangd?: string, agentPa?: string, agentPaHjalp?: string, skrivTill?: string, agenter?: string, online?: string }} [props.etiketter]
+ * @param {import("react").ReactNode} [props.fore] (0.114.0) Ritas efter snabbvalen och FÖRE medlemslistan, så att appen kan visa gruppens läge överst.
+ *   `children` ligger kvar under medlemmarna som förut. Utelämnad: ingenting ritas, och sidan är som förut.
+ * @param {ReadonlySet<string>} [props.online] (0.114.0) Vilka medlemmar (userId) som är online. Med den får varje online-medlem en grön
+ *   prick på avataren med `aria-label` "<namn> online", och listan sorteras online först, sedan ägare, admin, medlem, och inom varje
+ *   grupp på namn. ⛔ Utan propen är ordningen och utseendet som förut: ordningen ur `medlemmar`, ingen prick. En tom mängd är ett svar
+ *   ("ingen är online"): sorteringen gäller då ändå, och ingen prick ritas. Agenter har ingen närvaro här och står sist som förut.
  * @param {import("react").ReactNode} [props.children] Appens egna sektioner under medlemmarna.
  */
-export function OpsGruppSida({ grupp, medlemmar = [], agenter = [], snabbval = [], onTillbaka, onRedigera, onVisaMedlem, onVaxlaAgent, onSkrivTillAgent, agenterHref, onNavigate, sprak, etiketter, children }) {
+export function OpsGruppSida({ grupp, medlemmar = [], agenter = [], snabbval = [], onTillbaka, onRedigera, onVisaMedlem, onVaxlaAgent, onSkrivTillAgent, agenterHref, onNavigate, sprak, etiketter, fore, online, children }) {
   const personnamn = usePersonnamn();
   if (!grupp || typeof grupp.id !== "string" || !grupp.id) {
     throw new Error("OpsGruppSida: grupp krävs, med id och namn. En detaljsida utan grupp är en tom sida.");
@@ -59,10 +65,24 @@ export function OpsGruppSida({ grupp, medlemmar = [], agenter = [], snabbval = [
   if (agenterHref !== undefined && (typeof agenterHref !== "string" || !agenterHref)) {
     throw new Error("OpsGruppSida: agenterHref ska vara modulens adress. En tom länk ser ut som att inställningarna finns kvar på sidan.");
   }
-  const t = { tillbaka: "Tillbaka", redigera: "Redigera", redigeraGrupp: "Redigera grupp", medlemmar: "Medlemmar", inga: "Inga medlemmar", agare: "Ägare", admin: "Admin", ort: "Ort", ai: "AI", avstangd: "Avstängd", agentPa: "Agenten är på", agentPaHjalp: "Avstängd svarar den inte, varken i gruppchatten eller privat.", skrivTill: "Skriv till", agenter: "Agenter", ...(etiketter ?? {}) };
+  if (online !== undefined && (!online || typeof online.has !== "function")) {
+    throw new Error("OpsGruppSida: online ska vara en mängd av userId (Set), eller utelämnas. Utan has() går det inte att veta vem som är online, och en lista som låtsades sortera hade sett rätt ut.");
+  }
+  const t = { tillbaka: "Tillbaka", redigera: "Redigera", redigeraGrupp: "Redigera grupp", medlemmar: "Medlemmar", inga: "Inga medlemmar", agare: "Ägare", admin: "Admin", ort: "Ort", ai: "AI", avstangd: "Avstängd", agentPa: "Agenten är på", agentPaHjalp: "Avstängd svarar den inte, varken i gruppchatten eller privat.", skrivTill: "Skriv till", agenter: "Agenter", online: "online", ...(etiketter ?? {}) };
   const namn = text(grupp.namn, sprak);
   const kanRedigera = typeof onRedigera === "function" && (grupp.roll === "agare" || grupp.roll === "admin");
   const kanVaxlaAgent = !agenterHref && typeof onVaxlaAgent === "function" && grupp.roll === "agare";
+  /**
+   * ⛔ ORDNINGEN ÄNDRAS BARA MED `online` (0.114.0): online först, sedan ägare, admin, medlem, sedan namn. Utan propen är det `medlemmar` som den är.
+   * Namnet som sorteras på är det som visas (`personnamn`), inte uid:t, och sorteringen är svensk (å, ä, ö sist).
+   */
+  const ROLLORDNING = { agare: 0, admin: 1, medlem: 2 };
+  const medlemsrader = online
+    ? medlemmar
+        .map((m) => ({ m, visat: personnamn(m.namn, m.id).text, ar: online.has(m.id) }))
+        .sort((a, b) => Number(b.ar) - Number(a.ar) || (ROLLORDNING[a.m.roll] ?? 2) - (ROLLORDNING[b.m.roll] ?? 2) || a.visat.localeCompare(b.visat, "sv"))
+        .map((x) => x.m)
+    : medlemmar;
 
   return (
     <div className="mx-auto flex w-full max-w-3xl min-w-0 flex-col px-4 pt-6 pb-6 sm:px-5" data-gruppsida="">
@@ -114,6 +134,8 @@ export function OpsGruppSida({ grupp, medlemmar = [], agenter = [], snabbval = [
         </div>
       ) : null}
 
+      {fore ? <div className="mb-6 min-w-0" data-gruppsida-fore="">{fore}</div> : null}
+
       <section className="mb-6" aria-labelledby="gruppsida-medlemmar" data-gruppsida-medlemmar="">
         <h2 id="gruppsida-medlemmar" className="m-0 mb-2 flex items-center gap-1.5 text-sektion uppercase text-ink-muted">
           <PersonIkon size={14} />
@@ -123,12 +145,21 @@ export function OpsGruppSida({ grupp, medlemmar = [], agenter = [], snabbval = [
           <p className="m-0 text-etikett text-ink-muted">{t.inga}</p>
         ) : (
           <ul className="m-0 flex list-none flex-col gap-1 p-0">
-            {medlemmar.map((m) => {
+            {medlemsrader.map((m) => {
               // ⛔ ALDRIG ETT ID SOM NAMN (#218): medlemskapets namn, den inloggades eget, annars "Namn saknas".
               const { text: visat, saknas } = personnamn(m.namn, m.id);
               const rad = (
                 <>
-                  <OpsIdentity name={visat} seed={m.id} imageUrl={m.bild || undefined} size="medlem" />
+                  {online ? (
+                    <span className="relative flex shrink-0" data-medlem-avatar="">
+                      <OpsIdentity name={visat} seed={m.id} imageUrl={m.bild || undefined} size="medlem" />
+                      {online.has(m.id) ? (
+                        <span role="img" aria-label={`${visat} ${t.online}`} data-online="" className="absolute -right-0.5 -bottom-0.5 size-3 rounded-full bg-success ring-2 ring-canvas" />
+                      ) : null}
+                    </span>
+                  ) : (
+                    <OpsIdentity name={visat} seed={m.id} imageUrl={m.bild || undefined} size="medlem" />
+                  )}
                   <span className="min-w-0 flex-1">
                     <span className="text-etikett text-ink" data-namn-saknas={saknas ? "" : undefined}>{visat}</span>
                     {m.roll === "agare" || m.roll === "admin" ? (
