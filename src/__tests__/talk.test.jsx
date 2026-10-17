@@ -393,6 +393,17 @@ describe("mikrofonknappen i huvudet", () => {
     expect(talk.className).not.toContain("xl:size-9");
   });
 
+  it("⛔ #327 (ringen runt mikrofonen): ringen är lika framträdande som plusset, inte delarlinjens svaga färg", () => {
+    render(Skal({ talk: { onTalk: vi.fn(), inspelare: falskInspelare() }, skapa: { arende: true } }));
+    const talk = /** @type {HTMLElement} */ (huvudknapp());
+    // CP 2026-10-16: "ringen runt Mikrofonen i headern behöver en bättre kontrast så att den blir lika framträdande som +et".
+    // `border-line` är avdelarnas färg och försvann mot huvudet i mörkt tema. Ringen tar textens sekundära färg och två px.
+    expect(talk.className).not.toMatch(/(^|\s)border-line(\s|$)/);
+    expect(talk.className).toMatch(/(^|\s)border-2(\s|$)/);
+    expect(talk.className).toMatch(/(^|\s)border-ink-secondary(\s|$)/);
+    expect(talk.className).toMatch(/(^|\s)text-ink(\s|$)/);
+  });
+
   it("startar samma inspelning som raden: samma inspelare, samma fält, och ljudet når appen", async () => {
     const insp = falskInspelare();
     const onTalk = vi.fn();

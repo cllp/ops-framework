@@ -9,6 +9,13 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## Ej utgivet
+
+Paket 3, Grok 2026-10-17 natt. Ingen version, ingen release.
+
+- `huvudTalkKlass`: ringen runt mikrofonen i huvudet är två px i `border-ink-secondary` och ikonen i `text-ink`, i stället för
+  avdelarfärgen `border-line` (cllp/lifehub.app#327 (ringen runt mikrofonen)). Geometrin är oförändrad, 44 px och 40 px från `xl`.
+
 ## 0.115.0
 
 Finputs på TALK efter 0.114.0 (cllp/lifehub.app#345 och #347) och utskrift av ljud i biblioteket (cllp/lifehub.app#349). CP 2026-10-17, iPhone:

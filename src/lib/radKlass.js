@@ -216,12 +216,15 @@ export function huvudPlusKlass({ synligMobil = true, aktiv = false } = {}) {
  */
 export function huvudTalkKlass({ aktiv = false } = {}) {
   return cx(
-    "relative size-11 shrink-0 cursor-pointer items-center justify-center rounded-full p-[9px] [&_svg]:size-6 xl:size-10 xl:p-[7px]",
+    // Två px ring (#327): 44 = 2 x (2 + 8) + 24, och 40 = 2 x (2 + 6) + 24, så ikonen står kvar på samma plats som plussets.
+    "relative size-11 shrink-0 cursor-pointer items-center justify-center rounded-full p-2 [&_svg]:size-6 xl:size-10 xl:p-1.5",
     "hidden md:inline-flex",
     "transition-colors duration-(--duration-fast) ease-standard",
     aktiv
-      ? "border border-accent bg-raised text-accent"
-      : "border border-line bg-surface text-ink-secondary hover:bg-raised hover:text-ink",
+      ? "border-2 border-accent bg-raised text-accent"
+      : // ⛔ #327 (ringen runt mikrofonen): `border-line` är avdelarnas färg och syntes knappt i mörkt huvud. CP 2026-10-16:
+        // "lika framträdande som +et". Ringen bär textens sekundära färg i två px, ikonen textens egen.
+        "border-2 border-ink-secondary bg-surface text-ink hover:bg-raised hover:border-ink",
     "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
     "after:absolute after:top-1/2 after:left-1/2 after:size-11 after:-translate-x-1/2 after:-translate-y-1/2 after:content-['']",
   );
