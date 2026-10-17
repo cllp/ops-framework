@@ -9,6 +9,14 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## Ej utgivet
+
+Kopplingens kontroll är appens (cllp/lifehub.app#337), Grok 2026-10-17. Ingen version, ingen release.
+
+- `ram.kopplingar.kontroll`: en nod per kopplings-id som ritas där Anslut och Koppla från stod. CP 2026-10-17 om Bank och Bokio: nyckeln kopplas
+  i Mitt konto, och i gruppens modul väljer man bara vilken koppling och vilka konton gruppen använder, som när man väljer repo för GitHub. Ingen
+  Anslut-knapp i modulen. Noden ritas för alla som ser inställningarna, och appen avgör vad den som inte får ändra ser. Utan nyckeln är raden som förut.
+
 ## 0.115.0
 
 Finputs på TALK efter 0.114.0 (cllp/lifehub.app#345 och #347) och utskrift av ljud i biblioteket (cllp/lifehub.app#349). CP 2026-10-17, iPhone:
