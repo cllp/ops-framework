@@ -310,7 +310,9 @@ export function createBibliotekskalla(config) {
 
     /**
      * Sparar en filpost och laddar upp byte. Posten skrivs först, så storage-regeln
-     * kan kräva att den finns. Föll uppladdningen tas en ny post tillbaka. Går inte
+     * kan kräva att den finns. ⛔ Den skrivs med `fil.klar: false` och får `klar: true` först när byte finns
+     * (lifehub.app, CP 2026-10-18: en ljudpost vars fil aldrig kom fram). Stängs sidan mitt i uppladdningen hinner
+     * ingen återtagning köras, och då säger posten själv att filen inte blev klar, i stället för att peka på en fil som saknas. Föll uppladdningen tas en ny post tillbaka. Går inte
      * det heller kastas båda felen, inget sväljs.
      *
      * @param {{ rubrik?: string, namn?: string, fil: { name?: string, namn?: string, type?: string, mime?: string, size?: number, byte?: number, arrayBuffer?: () => Promise<ArrayBuffer> }, blob?: Blob | { arrayBuffer?: () => Promise<ArrayBuffer> }, id?: string, rapportera?: (andel: number) => void, durationMs?: number, peaks?: string, sekunder?: number, taggar?: string[], utskrift?: string }} inmatning `peaks` är vågen som den sparas (`kodaToppar`). En lista av tal räknas inte som en våg, och vågen räknas då ur filen.
@@ -349,7 +351,7 @@ export function createBibliotekskalla(config) {
         groupId,
         typ: "fil",
         rubrik,
-        fil: { sokvag: vag, namn, mime, byte },
+        fil: { sokvag: vag, namn, mime, byte, klar: false },
         skapadAv: tidigare ? tidigare.skapadAv : byggSkapare(skapare()),
         skapad: tidigare ? tidigare.skapad : nu,
         andrad: nu,
@@ -386,7 +388,10 @@ export function createBibliotekskalla(config) {
         }
         throw e;
       }
-      return { ...post, id: nyckel };
+      // ⛔ `andrad` FÖLJER MED: regeln kräver att en ändring av filen bär sin egen tid (opsBiblioteketNu).
+      const klar = { ...post, fil: { .../** @type {Record<string, unknown>} */ (post.fil), klar: true }, andrad: Date.now() };
+      await source.update(collection, nyckel, { fil: klar.fil, andrad: klar.andrad });
+      return /** @type {typeof post & { id: string }} */ ({ ...klar, id: nyckel });
     },
   };
 }

@@ -6819,7 +6819,8 @@ for (const [namn, vp] of /** @type {const} */ ([["TALK-knappen 1280 px", { width
         krav(Math.abs(fore.knapp.ikon - fore.plus.ikon) < 0.5, `${namn}: ikonen är ${fore.knapp.ikon} px, väntat lika stor som plussets (${fore.plus.ikon}).`);
         krav(Math.abs(fore.knapp.mitt - fore.plus.mitt) <= 1, `${namn}: mittlinjen är ${fore.knapp.mitt.toFixed(1)} och plussets ${fore.plus.mitt.toFixed(1)}, väntat högst 1 px isär.`);
         const glipa = fore.knapp.x - fore.plus.x - fore.plus.w;
-        krav(glipa >= 0 && glipa <= 4, `${namn}: knappen står ${glipa.toFixed(1)} px från plussets högerkant, väntat direkt bredvid (0 till 4 px).`);
+        // ⛔ CP 2026-10-18: mikrofonen "sitter för nära plusknappen". Avståndet är temats `md:ml-2` plus radens eget mellanrum.
+        krav(glipa >= 6 && glipa <= 14, `${namn}: knappen står ${glipa.toFixed(1)} px från plussets högerkant, väntat 6 till 14 px (temats ml-2 plus radens mellanrum).`);
         krav(fore.lage === "vila" && fore.namn === "TALK, prata in", `${namn}: före trycket är läget ${fore.lage} och namnet ${JSON.stringify(fore.namn)}, väntat vila och "TALK, prata in".`);
       }
       const traff = await matTraffyta(page, "header [data-talk-huvud]");

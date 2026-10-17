@@ -132,6 +132,19 @@ const efterKapplopp = (groupId, id, row) => {
 };
 
 /**
+ * Rollen en accepterad inbjudan ger. En väntande rad med rollen agare ger admin, aldrig agare.
+ *
+ * ⛔ GRUPPEN HAR EN ÄGARE (CP 2026-10-17). Man blir ägare bara genom överlämning, aldrig genom en
+ * inbjudan. Inbjudningar med rollen agare som skickades före beslutet kan fortfarande vänta, och
+ * accepten är den sista platsen där de kan stoppas. Rollen sänks i stället för att inbjudan avvisas,
+ * så att personen kommer in, med den högsta roll en inbjudan kan ge.
+ *
+ * @param {unknown} roll
+ * @returns {unknown}
+ */
+export const rollEfterAccept = (roll) => (roll === "agare" ? "admin" : roll);
+
+/**
  * @typedef {object} Samlingar
  * @property {string} [anvandare] Förval `users`.
  * @property {string} [medlemskap] Förval `memberships`.
@@ -501,7 +514,7 @@ export function inbjudningstjanst(konfig, namn) {
               byggMedlemskap({
                 userId: uid,
                 groupId: inbjudan.groupId,
-                roll: inbjudan.roll,
+                roll: rollEfterAccept(inbjudan.roll),
                 typ: "person",
                 status: "aktiv",
                 // ⛔ Profilens namn, annars inloggningens, aldrig tomt när ett fanns (0.40.1, #218).
@@ -518,7 +531,7 @@ export function inbjudningstjanst(konfig, namn) {
              * inte är aktiv, lämnas inbjudan tillbaka: annars är den förbrukad och personen är fortfarande
              * ute, samma tysta läge som före rättelsen.
              */
-            const roll = typeof inbjudan.roll === "string" && inbjudan.roll ? inbjudan.roll : tidigare.roll;
+            const roll = typeof inbjudan.roll === "string" && inbjudan.roll ? rollEfterAccept(inbjudan.roll) : tidigare.roll;
             const { updated } = await uppdateraOm(MEDLEMSKAP, id, { status: "avslutad" }, { status: "aktiv", roll });
             if (updated) {
               ny = true;

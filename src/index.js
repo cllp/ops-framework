@@ -307,7 +307,7 @@ export { OpsHubblista } from "./components/OpsHubbar.jsx";
 export { OpsGruppFormular } from "./components/OpsGruppFormular.jsx";
 export { sakerstallAnvandare, sparaInstallningar, andringen } from "./lib/profil.js";
 export { createCatalogSource } from "./data/katalogkalla.js";
-export { BIBLIOTEKTYPER, BIBLIOTEKFLIKAR, BIBLIOTEKFALT, FILFALT, FILMIME, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, MAX_BIBLIOTEKFIL, MAX_BIBLIOTEKFILNAMN, MAX_BIBLIOTEKSOKVAG, MAX_BIBLIOTEKUTSKRIFT, IDE_MAX_SEKUNDER, LJUD_STOLPAR, MAX_LJUD_MS, ADRESSFORM, inmatningsfel, filInmatningsfel, filFel, filSort, arLjudpost, filMimeMonster, normaliseraMime, utskriftFel, ideRubrik, ljudRubrik, ljudDatum, peaksGiltiga, kodaToppar, avkodaToppar, ljudMetaFel, postFel, byggPost, filtreraBibliotek, normaliseraAdress, farAndra, MAX_TAGGAR, MAX_TAGGLANGD, TAGGFORM, normaliseraTagg, normaliseraTaggar, taggarFel, allaTaggar, taggfarg, TAGGFARGER, MITT_PREFIX, MITTFORM, mittBibliotek, arMittBibliotek, mittJag } from "./lib/bibliotek.js";
+export { BIBLIOTEKTYPER, anteckningsrubrikNu, BIBLIOTEKFLIKAR, BIBLIOTEKFALT, FILFALT, FILMIME, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, MAX_BIBLIOTEKFIL, MAX_BIBLIOTEKFILNAMN, MAX_BIBLIOTEKSOKVAG, MAX_BIBLIOTEKUTSKRIFT, IDE_MAX_SEKUNDER, LJUD_STOLPAR, MAX_LJUD_MS, ADRESSFORM, inmatningsfel, filInmatningsfel, filFel, filSort, arLjudpost, filMimeMonster, normaliseraMime, utskriftFel, ideRubrik, ljudRubrik, ljudDatum, peaksGiltiga, kodaToppar, avkodaToppar, ljudMetaFel, postFel, byggPost, filtreraBibliotek, normaliseraAdress, farAndra, MAX_TAGGAR, MAX_TAGGLANGD, TAGGFORM, normaliseraTagg, normaliseraTaggar, taggarFel, allaTaggar, taggfarg, TAGGFARGER, MITT_PREFIX, MITTFORM, mittBibliotek, arMittBibliotek, mittJag } from "./lib/bibliotek.js";
 export { createBibliotekskalla, flyttaBibliotekspost } from "./data/bibliotekkalla.js";
 export { OpsBibliotek } from "./components/OpsBibliotek.jsx";
 export { MINNESKALLOR, MINNESFALT, MINNESKALLAFALT, MAX_MINNESTEXT, MAX_MINNESID, farAndraMinne, minnesradFel, byggMinnesrad } from "./lib/minne.js";
@@ -346,7 +346,7 @@ export { OpsMeddelanden, OpsSamtal, OpsMeddelandeLank, OpsTrad } from "./compone
 export { OpsChattinfo } from "./components/OpsChattinfo.jsx";
 export { STATUS_TONES, statusTone } from "./lib/statusTone.js";
 export { createActivityLog, unreadCount, isUnread, unread, unreadRows, activityId, activityWindow, groupByDay, ACTIVITY_RESULTS, ACTIVITY_SECTIONS } from "./lib/aktivitet.js";
-export { formatCurrency, formatNumber, formatPercent, formatDate, formatDateTime, formatRelativeDate, NUMBER_SPACE, MISSING } from "./lib/format.js";
+export { formatCurrency, formatNumber, formatPercent, formatDate, formatDateTime, formatDagOchKlockslag, formatRelativeDate, NUMBER_SPACE, MISSING } from "./lib/format.js";
 
 /*
  * ⛔ #159: FELGRÄNSEN, LOGGPUNKTEN OCH KONTRAKTET. `rapporteraFel` är

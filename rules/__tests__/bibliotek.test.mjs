@@ -205,6 +205,21 @@ describe("bibliotekets regler: skapa", () => {
     await assertFails(skapa(MEDLEM, { ...ny(), fil: fil.fil }));
   });
 
+  it("⛔ en fil bär klar som sant eller falskt, och författaren markerar den klar efteråt (CP 2026-10-18)", async () => {
+    const { text: _t, ...utanText } = ny();
+    const postId = "cps-klar";
+    const fil = {
+      ...utanText,
+      typ: "fil",
+      rubrik: "NewRecord.Song1.ver5",
+      fil: { sokvag: `grupper/cps-ab/bibliotek/${postId}/NewRecord.Song1.ver5.mp3`, namn: "NewRecord.Song1.ver5.mp3", mime: "audio/mpeg", byte: 6800000, klar: false },
+    };
+    await assertSucceeds(setDoc(doc(db(MEDLEM), `bibliotek/${postId}`), fil));
+    await assertSucceeds(updateDoc(doc(db(MEDLEM), `bibliotek/${postId}`), { fil: { ...fil.fil, klar: true }, andrad: Date.now() }));
+    await assertFails(updateDoc(doc(db(MEDLEM), `bibliotek/${postId}`), { fil: { ...fil.fil, klar: "ja" }, andrad: Date.now() }));
+    await assertFails(skapa(MEDLEM, { ...fil, fil: { ...fil.fil, sokvag: "grupper/cps-ab/bibliotek/{postId}/x.mp3", klar: 1 } }));
+  });
+
   it("en utskrift hör till ett ljud, och en bild eller en för lång text får den inte", async () => {
     const { text: _t, ...utanText } = ny();
     const ljud = {

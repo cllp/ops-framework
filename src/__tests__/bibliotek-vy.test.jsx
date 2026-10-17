@@ -389,6 +389,63 @@ describe("OpsBibliotek", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Behörighet saknas.");
   });
 
+  it("⛔ en fil som ännu inte finns i lagringen hämtas igen och spelas när den kommit (CP 2026-10-18, mätt i lifehub-my)", async () => {
+    const ljud = {
+      ...byggPost({ groupId: "cps-ab", typ: "fil", rubrik: "Sen fil", fil: { sokvag: "grupper/cps-ab/bibliotek/p/sen.mp3", namn: "sen.mp3", mime: "audio/mpeg", byte: 7144788 }, skapadAv: skapare, skapad: tid, andrad: tid }),
+      id: "sen",
+    };
+    let forsok = 0;
+    const hamtaAdress = vi.fn(async (/** @type {string} */ sokvag) => {
+      forsok += 1;
+      if (forsok === 1) {
+        const e = /** @type {any} */ (new Error("Firebase Storage: Object does not exist. (storage/object-not-found)"));
+        e.code = "storage/object-not-found";
+        throw e;
+      }
+      return `https://exempel.se/${sokvag}`;
+    });
+    render(<Harness start={[ljud]} hamtaAdress={hamtaAdress} />);
+    await waitFor(() => expect(document.querySelector("audio")).toHaveAttribute("src", "https://exempel.se/grupper/cps-ab/bibliotek/p/sen.mp3"), { timeout: 4000 });
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("en fil som inte är klar hämtas inte förrän den är klar", async () => {
+    const ljud = {
+      ...byggPost({ groupId: "cps-ab", typ: "fil", rubrik: "Laddas", fil: { sokvag: "grupper/cps-ab/bibliotek/p/l.mp3", namn: "l.mp3", mime: "audio/mpeg", byte: 100, klar: false }, skapadAv: skapare, skapad: tid, andrad: tid }),
+      id: "laddas",
+    };
+    const hamtaAdress = vi.fn(async (/** @type {string} */ sokvag) => `https://exempel.se/${sokvag}`);
+    render(<Harness start={[ljud]} hamtaAdress={hamtaAdress} />);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(hamtaAdress).not.toHaveBeenCalled();
+  });
+
+  it("⛔ en fil som saknas i lagringen visas med en vänlig text, inte lagringens råa fel (CP 2026-10-18)", async () => {
+    const ljud = {
+      ...byggPost({
+        groupId: "cps-ab",
+        typ: "fil",
+        rubrik: "NewRecord.Song1.ver5",
+        fil: { sokvag: "grupper/cps-ab/bibliotek/p/NewRecord.Song1.ver5.mp3", namn: "NewRecord.Song1.ver5.mp3", mime: "audio/mpeg", byte: 6800000 },
+        skapadAv: skapare,
+        skapad: tid,
+        andrad: tid,
+      }),
+      id: "saknas",
+    };
+    const saknas = vi.fn(async () => {
+      const e = /** @type {any} */ (new Error("Firebase Storage: Object 'grupper/cps-ab/bibliotek/p/NewRecord.Song1.ver5.mp3' does not exist. (storage/object-not-found)"));
+      e.code = "storage/object-not-found";
+      throw e;
+    });
+    render(<Harness start={[ljud]} hamtaAdress={saknas} />);
+    // Tre nya försök (1,5 + 3 + 6 s) innan felet visas.
+    const ruta = await screen.findByRole("alert", undefined, { timeout: 13000 });
+    expect(saknas).toHaveBeenCalledTimes(4);
+    expect(ruta).toHaveTextContent("Uppladdningen blev troligen inte klar. Ladda upp filen igen.");
+    expect(ruta.textContent).not.toMatch(/Firebase|storage\/|grupper\//);
+  }, 20000);
+
   it("ett ljud är ett kort som de andra: liten spelknapp där ikonen står, rubrik, typetikett och längd, inga hopp", () => {
     const ljud = {
       ...byggPost({
@@ -740,6 +797,31 @@ describe("OpsBibliotek", () => {
     expect(screen.queryByRole("button", { name: "Ny post" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Ny länk" }));
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Ny länk");
+  });
+
+  it("⛔ en ny anteckning med tom rubrik får datum och tid som rubrik, och texten bara i Text (CP 2026-10-18)", () => {
+    const onSpara = vi.fn();
+    render(<Harness onSparaOverride={onSpara} />);
+    fireEvent.click(screen.getByRole("button", { name: "Ny post" }));
+    fireEvent.click(within(screen.getByRole("menu", { name: "Ny post" })).getByRole("menuitem", { name: "Anteckning" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Text" }), { target: { value: "Köp strängar till gitarren." } });
+    fireEvent.click(screen.getByRole("button", { name: "Spara" }));
+    expect(onSpara).toHaveBeenCalledTimes(1);
+    const sparad = onSpara.mock.calls[0][0];
+    expect(sparad.rubrik).toMatch(/^Anteckning \d{1,2} \p{L}+ \d{2}:\d{2}$/u);
+    expect(sparad.rubrik).not.toContain("Köp strängar");
+    expect(sparad.text).toBe("Köp strängar till gitarren.");
+  });
+
+  it("en rubrik som användaren skrivit eller dikterat vinner över datumet", () => {
+    const onSpara = vi.fn();
+    render(<Harness onSparaOverride={onSpara} />);
+    fireEvent.click(screen.getByRole("button", { name: "Ny post" }));
+    fireEvent.click(within(screen.getByRole("menu", { name: "Ny post" })).getByRole("menuitem", { name: "Anteckning" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Rubrik" }), { target: { value: "Inköp" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "Text" }), { target: { value: "Strängar." } });
+    fireEvent.click(screen.getByRole("button", { name: "Spara" }));
+    expect(onSpara.mock.calls[0][0]).toMatchObject({ rubrik: "Inköp", text: "Strängar." });
   });
 
   it("sök och + Ny står på samma rad, och sidan har vyns rytm (luften mäts i Playwright, här bara klassen)", () => {
