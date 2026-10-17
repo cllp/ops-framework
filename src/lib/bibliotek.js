@@ -22,6 +22,7 @@
 
 import { ID_FORM } from "./katalog.js";
 import { SKAPARFALT, byggSkapare } from "./skapare.js";
+import { formatDagOchKlockslag } from "./format.js";
 
 /** Anteckning, länk och fil. En fil är en post, och MIME avgör hur den visas. */
 export const BIBLIOTEKTYPER = /** @type {const} */ (["anteckning", "lank", "fil"]);
@@ -185,6 +186,20 @@ export function ideRubrik(nu = new Date()) {
   const d = nu instanceof Date && !Number.isNaN(nu.getTime()) ? nu : new Date();
   const pad = (/** @type {number} */ n) => String(n).padStart(2, "0");
   return `Idé ${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/**
+ * Rubriken en ny anteckning får när rubriken lämnas tom: "Anteckning 18 okt 00:47" (CP 2026-10-18).
+ *
+ * ⛔ INTE DEN TRANSKRIBERADE TEXTEN. Förut fick en inpratad anteckning sin text både som rubrik och text. Texten står nu bara i
+ * texten, och rubriken säger när anteckningen gjordes. Ramverkets datumform (`formatDagOchKlockslag`), i den lokala tidszonen.
+ * Rubriken går att ändra, och en rubrik som användaren skrivit eller dikterat vinner alltid.
+ *
+ * @param {Date | number} [nu]
+ * @returns {string}
+ */
+export function anteckningsrubrikNu(nu = new Date()) {
+  return `Anteckning ${formatDagOchKlockslag(nu)}`;
 }
 
 /**

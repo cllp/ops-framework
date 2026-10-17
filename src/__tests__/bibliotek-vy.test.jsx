@@ -766,6 +766,31 @@ describe("OpsBibliotek", () => {
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Ny länk");
   });
 
+  it("⛔ en ny anteckning med tom rubrik får datum och tid som rubrik, och texten bara i Text (CP 2026-10-18)", () => {
+    const onSpara = vi.fn();
+    render(<Harness onSparaOverride={onSpara} />);
+    fireEvent.click(screen.getByRole("button", { name: "Ny post" }));
+    fireEvent.click(within(screen.getByRole("menu", { name: "Ny post" })).getByRole("menuitem", { name: "Anteckning" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Text" }), { target: { value: "Köp strängar till gitarren." } });
+    fireEvent.click(screen.getByRole("button", { name: "Spara" }));
+    expect(onSpara).toHaveBeenCalledTimes(1);
+    const sparad = onSpara.mock.calls[0][0];
+    expect(sparad.rubrik).toMatch(/^Anteckning \d{1,2} \p{L}+ \d{2}:\d{2}$/u);
+    expect(sparad.rubrik).not.toContain("Köp strängar");
+    expect(sparad.text).toBe("Köp strängar till gitarren.");
+  });
+
+  it("en rubrik som användaren skrivit eller dikterat vinner över datumet", () => {
+    const onSpara = vi.fn();
+    render(<Harness onSparaOverride={onSpara} />);
+    fireEvent.click(screen.getByRole("button", { name: "Ny post" }));
+    fireEvent.click(within(screen.getByRole("menu", { name: "Ny post" })).getByRole("menuitem", { name: "Anteckning" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Rubrik" }), { target: { value: "Inköp" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "Text" }), { target: { value: "Strängar." } });
+    fireEvent.click(screen.getByRole("button", { name: "Spara" }));
+    expect(onSpara.mock.calls[0][0]).toMatchObject({ rubrik: "Inköp", text: "Strängar." });
+  });
+
   it("sök och + Ny står på samma rad, och sidan har vyns rytm (luften mäts i Playwright, här bara klassen)", () => {
     render(<Harness />);
     const sok = screen.getByRole("searchbox", { name: "Sök i biblioteket" });

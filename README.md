@@ -634,6 +634,7 @@ typkontrollerades.
 |---|---|
 | `formatCurrency`, `formatNumber`, `formatPercent` | svensk formatering via `Intl` |
 | `formatDate`, `formatDateTime` | rena datum visas som rätt dag, inte dagen innan |
+| `formatDagOchKlockslag` | (0.117.0 exporterad) "18 okt 00:47": dag, kort månad och klockslag i lokal tidszon |
 | `formatRelativeDate` | ålder i ord, räknad i kalenderdagar: 23:50 i går är "i går" klockan 00:10, inte "i dag" |
 | `getTheme`, `setTheme`, `initTheme` | ljust, mörkt, följ systemet |
 | `identityTone`, `initials`, `IDENTITY_TONE_COUNT` | deterministisk ton och initialer som inte klipper tecken |
@@ -2849,6 +2850,7 @@ Gruppens anteckningar, länkar och filer. Analysen står i `docs/beslut/0004-bib
 | `FILMIME`, `FILFALT`, `filMimeMonster`, `normaliseraMime`, `filSort`, `filInmatningsfel`, `filFel` | formaten en fil får ha, fälten i `fil`, och felen när formatet eller storleken är fel. `normaliseraMime` tar bort `;codecs=` innan jämförelsen. `filSort` är bild, ljud eller dokument och lagras inte |
 | `IDE_MAX_SEKUNDER`, `ideRubrik` | inspelning av en idé, 10 minuter. TALK behåller 120 sekunder. Rubriken är "Idé" plus datum och tid, och går att döpa om |
 | `LJUD_STOLPAR`, `MAX_LJUD_MS` | (0.92.4) Vågen har 48 stolpar. Längsta sparade ljudet är tolv timmar, i millisekunder. Samma tal i spelaren och i regeln |
+| `anteckningsrubrikNu` | (0.117.0) "Anteckning 18 okt 00:47". Rubriken på en ny anteckning när rubriken är tom, aldrig textens början. En skriven eller dikterad rubrik vinner |
 | `ljudRubrik`, `ljudDatum` | (0.92.4) Namnet som visas på ett ljud. En sparad rubrik vinner. Saknas den blir det "Röstinspelning" plus `ljudDatum` (svensk kortform av `skapad`). Utan datum bara "Röstinspelning". Listan och detaljen använder samma funktion, så raden aldrig är namnlös |
 | `peaksGiltiga`, `ljudMetaFel` | (0.92.4) `peaks` är en våg som sparas. (0.98.0) Den är en sträng med exakt `LJUD_STOLPAR` tecken ur A-Z, a-z, 0-9, `-` och `_`, inte en lista av tal. `durationMs` är ett heltal från 1 till `MAX_LJUD_MS`. Bara ett ljud får fälten. Saknas de är posten giltig, så gamla inspelningar går att läsa |
 | `kodaToppar`, `avkodaToppar` | (0.98.0, #349) Vågen som sparas är en sträng, ett tecken per stolpe, 64 nivåer (base64url: `A` är 0 och `_` är 1). `kodaToppar(toppar)` tar `LJUD_STOLPAR` tal mellan 0 och 1 och ger strängen, och kastar på fel form. `avkodaToppar(peaks)` ger talen att rita, eller `null` när det inte finns någon sparad våg att rita (saknas, är en lista, har fel längd eller ett tecken utanför alfabetet). Regeln prövar strängen med ett enda `matches()`, så ingen skrivning med våg går över Firestores tak på 1000 uttryck. 48 tal som ett uttryck vardera gjorde det, och varje röstinspelning med våg nekades |

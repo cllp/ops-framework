@@ -11,7 +11,14 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ## Ej utgivet
 
-Målversion 0.117.0. Inte utgiven. ⛔ Regeländring (`fil.klar`): reglerna ska ut före klienten.
+## 0.117.0
+
+cllp/ops-framework#408 (ägarinbjudan ger admin, dov mikrofon, biblioteksfil med klar-markering, rubrik på röstanteckning). Mergad på CP:s ja 2026-10-18 01:04
+("Du kör cloud om du kan. Sedan deploya allt som du kan."), utan separat granskning: undantag från regel 9 på CP:s ord.
+⛔ Regeländring (`fil.klar`): reglerna ska ut före klienten. Inget annat är brytande.
+
+### En ny anteckning med tom rubrik får datum och tid (CP 2026-10-18), Grok 2026-10-18
+- `anteckningsrubrikNu()` ger "Anteckning 18 okt 00:47" med `formatDagOchKlockslag` (nu också exporterad) i lokal tidszon. Bibliotekets formulär använder den när rubriken på en ny anteckning är tom. En skriven eller dikterad rubrik vinner. Appens röstanteckning (TALK, Anteckning) byter i appen.
 
 ### En biblioteksfil vars uppladdning inte blev klar (CP 2026-10-18, ljudposten NewRecord.Song1.ver5 i music-producer-nl3e3o), Grok 2026-10-18
 - `laddaUppFil` skriver posten med `fil.klar: false` och sätter `klar: true` (med ny `andrad`) först när byte finns. Avbryts uppladdningen (sidan stängs, mobilen somnar) säger posten själv att filen inte blev klar. Poster utan fältet räknas som klara.

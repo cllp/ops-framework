@@ -7,7 +7,7 @@ import { OpsDokument } from "./OpsDokument.jsx";
 import { OpsMarkdown } from "./OpsMarkdown.jsx";
 import { OpsModal } from "./OpsModal.jsx";
 import { OpsSvepRad } from "./OpsSvepRad.jsx";
-import { ADRESSFORM, BIBLIOTEKTYPER, MAX_TAGGAR, MAX_TAGGLANGD, allaTaggar, arLjudpost, arMittBibliotek, farAndra, normaliseraTagg, normaliseraTaggar, taggarFel, taggfarg, filInmatningsfel, filadressFel, filSort, filtreraBibliotek, inmatningsfel, ljudDatum, ljudRubrik, normaliseraAdress, trimSomRegeln } from "../lib/bibliotek.js";
+import { ADRESSFORM, BIBLIOTEKTYPER, MAX_TAGGAR, MAX_TAGGLANGD, allaTaggar, arLjudpost, arMittBibliotek, farAndra, normaliseraTagg, normaliseraTaggar, taggarFel, taggfarg, anteckningsrubrikNu, filInmatningsfel, filadressFel, filSort, filtreraBibliotek, inmatningsfel, ljudDatum, ljudRubrik, normaliseraAdress, trimSomRegeln } from "../lib/bibliotek.js";
 import { formateraTid } from "../lib/ljudspelare.js";
 import { useInspelningOppnare } from "./OpsAppShell.jsx";
 import { cx } from "../lib/cx.js";
@@ -1651,8 +1651,10 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, onLaddaUpp, filUrl,
       }
       return;
     }
+    // ⛔ TOM RUBRIK PÅ EN NY ANTECKNING FÅR DATUM OCH TID (CP 2026-10-18), aldrig textens början. En skriven eller dikterad rubrik vinner.
+    const anteckningsrubrik = typ === "anteckning" && skapar && !trimSomRegeln(rubrik) ? anteckningsrubrikNu() : rubrik;
     const inmatning = typ === "anteckning"
-      ? { typ, rubrik, text, ...(post && !skapar ? { id: post.id } : {}) }
+      ? { typ, rubrik: anteckningsrubrik, text, ...(post && !skapar ? { id: post.id } : {}) }
       : typ === "fil"
         ? { typ, rubrik, fil: post?.fil, ...(post && !skapar ? { id: post.id } : {}) }
         : { typ, rubrik, url: normaliseraAdress(url), ...(post && !skapar ? { id: post.id } : {}) };
