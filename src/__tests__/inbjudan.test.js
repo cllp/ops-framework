@@ -293,9 +293,9 @@ describe("accepteraInbjudningar", () => {
 
   it("rollen ur inbjudan följer med till medlemskapet", async () => {
     const { tjanst, kalla } = bygg();
-    await tjanst.bjudIn({ avUid: AGARE, groupId: GRUPP, epost: "ny@x.se", roll: "agare" });
+    await tjanst.bjudIn({ avUid: AGARE, groupId: GRUPP, epost: "ny@x.se", roll: "admin" });
     await tjanst.accepteraInbjudningar({ uid: "uid-ny", epost: "ny@x.se", epostVerifierad: true });
-    expect(await kalla.read("memberships", medlemskapsId("uid-ny", GRUPP))).toMatchObject({ roll: "agare" });
+    expect(await kalla.read("memberships", medlemskapsId("uid-ny", GRUPP))).toMatchObject({ roll: "admin" });
   });
 
   /*
@@ -857,5 +857,31 @@ describe("⛔ en inbjudan med det gamla id:t (före 0.80.1)", () => {
     const { tjanst, kalla } = bygg({ invitations: [gammal()] });
     expect(await tjanst.accepteraInbjudningar({ uid: "uid-ny", epost: "ny@x.se", epostVerifierad: true })).toEqual({ accepterade: [GRUPP], utgangna: [] });
     expect(await kalla.read("invitations", GAMMALT)).toMatchObject({ status: "accepterad" });
+  });
+});
+
+describe("⛔ en gammal väntande inbjudan med rollen agare ger admin (CP 2026-10-17, en ägare per grupp)", () => {
+  const gammal = { id: "i-gammal", epost: "ny@example.com", groupId: GRUPP, roll: "agare", status: "vantar", skapadAv: { uid: AGARE, namn: "A", typ: "manniska", kalla: "prov" } };
+
+  it("en ny medlem blir admin, aldrig agare", async () => {
+    const { kalla, tjanst } = bygg({ invitations: [gammal] });
+    expect(await tjanst.accepteraInbjudningar({ uid: "uid-ny", epost: "ny@example.com", epostVerifierad: true })).toEqual({ accepterade: [GRUPP], utgangna: [] });
+    const m = await kalla.read("memberships", medlemskapsId("uid-ny", GRUPP));
+    expect(m.roll).toBe("admin");
+    const agare = (await kalla.list("memberships", { where: { groupId: GRUPP } })).filter((/** @type {any} */ r) => r.roll === "agare");
+    expect(agare.map((/** @type {any} */ r) => r.userId)).toEqual([AGARE]);
+  });
+
+  it("en avslutad medlem som återaktiveras blir admin, aldrig agare", async () => {
+    const { kalla, tjanst } = bygg({
+      memberships: [
+        { id: medlemskapsId(AGARE, GRUPP), userId: AGARE, groupId: GRUPP, roll: "agare", typ: "person", status: "aktiv" },
+        { id: medlemskapsId("uid-ny", GRUPP), userId: "uid-ny", groupId: GRUPP, roll: "medlem", typ: "person", status: "avslutad" },
+      ],
+      invitations: [gammal],
+    });
+    await tjanst.accepteraInbjudningar({ uid: "uid-ny", epost: "ny@example.com", epostVerifierad: true });
+    const m = await kalla.read("memberships", medlemskapsId("uid-ny", GRUPP));
+    expect(m).toMatchObject({ status: "aktiv", roll: "admin" });
   });
 });

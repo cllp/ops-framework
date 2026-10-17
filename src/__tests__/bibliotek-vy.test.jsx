@@ -389,6 +389,30 @@ describe("OpsBibliotek", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Behörighet saknas.");
   });
 
+  it("⛔ en fil som saknas i lagringen visas med en vänlig text, inte lagringens råa fel (CP 2026-10-18)", async () => {
+    const ljud = {
+      ...byggPost({
+        groupId: "cps-ab",
+        typ: "fil",
+        rubrik: "NewRecord.Song1.ver5",
+        fil: { sokvag: "grupper/cps-ab/bibliotek/p/NewRecord.Song1.ver5.mp3", namn: "NewRecord.Song1.ver5.mp3", mime: "audio/mpeg", byte: 6800000 },
+        skapadAv: skapare,
+        skapad: tid,
+        andrad: tid,
+      }),
+      id: "saknas",
+    };
+    const saknas = vi.fn(async () => {
+      const e = /** @type {any} */ (new Error("Firebase Storage: Object 'grupper/cps-ab/bibliotek/p/NewRecord.Song1.ver5.mp3' does not exist. (storage/object-not-found)"));
+      e.code = "storage/object-not-found";
+      throw e;
+    });
+    render(<Harness start={[ljud]} hamtaAdress={saknas} />);
+    const ruta = await screen.findByRole("alert");
+    expect(ruta).toHaveTextContent("Uppladdningen blev troligen inte klar. Ladda upp filen igen.");
+    expect(ruta.textContent).not.toMatch(/Firebase|storage\/|grupper\//);
+  });
+
   it("ett ljud är ett kort som de andra: liten spelknapp där ikonen står, rubrik, typetikett och längd, inga hopp", () => {
     const ljud = {
       ...byggPost({

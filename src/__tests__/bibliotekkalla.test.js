@@ -205,6 +205,31 @@ describe("createBibliotekskalla", () => {
     expect(efter.poster.map((p) => p.rubrik)).not.toContain("Nekad");
   });
 
+  it("⛔ en post vars uppladdning avbröts säger att filen inte blev klar, och blir klar först när byte finns (CP 2026-10-18)", async () => {
+    // CP: en ljudpost (6,8 MB) i Bibliotek visade "storage/object-not-found". Posten skrivs före byte (storage-regeln kräver den),
+    // och stängs sidan mitt i uppladdningen hinner ingen återtagning köras. Då ska posten själv säga att filen inte blev klar.
+    const source = createMemorySource({ bibliotek: [] });
+    /** @type {(v?: unknown) => void} */
+    let slapp = () => {};
+    const kalla = createBibliotekskalla({
+      source,
+      collection: "bibliotek",
+      groupId: "cps-ab",
+      skapare,
+      lagring: { laddaUpp: () => new Promise((r) => { slapp = r; }), taBort: async () => {} },
+      sokvag: ({ groupId, postId, namn }) => `grupper/${groupId}/bibliotek/${postId}/${namn}`,
+    });
+    const pagar = kalla.laddaUppFil({ rubrik: "NewRecord.Song1.ver5", fil: { name: "NewRecord.Song1.ver5.mp3", type: "audio/mpeg", size: 6800000 }, sekunder: 240 });
+    await vi.waitFor(async () => expect((await kalla.las()).poster).toHaveLength(1));
+    const medanDenPagar = (await kalla.las()).poster[0];
+    expect(medanDenPagar.fil.klar).toBe(false);
+    expect(medanDenPagar.fil.sokvag).toBe(`grupper/cps-ab/bibliotek/${medanDenPagar.id}/NewRecord.Song1.ver5.mp3`);
+    slapp();
+    const sparad = await pagar;
+    expect(sparad.fil.klar).toBe(true);
+    expect((await kalla.hamta(sparad.id)).fil.klar).toBe(true);
+  });
+
   it("⛔ en röstinspelning sparas med vågen som en sträng, inte som 48 tal (#349)", async () => {
     // CP 2026-10-13: en inspelning med våg nekades av reglerna ("Missing or insufficient permissions."). Provet kör vägen
     // som inspelningen går: filen avkodas, topparna räknas, och det som skrivs till källan är en sträng.

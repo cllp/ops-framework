@@ -11,6 +11,21 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ## Ej utgivet
 
+Målversion 0.117.0. Inte utgiven. ⛔ Regeländring (`fil.klar`): reglerna ska ut före klienten.
+
+### En biblioteksfil vars uppladdning inte blev klar (CP 2026-10-18, ljudposten NewRecord.Song1.ver5 i music-producer-nl3e3o), Grok 2026-10-18
+- `laddaUppFil` skriver posten med `fil.klar: false` och sätter `klar: true` (med ny `andrad`) först när byte finns. Avbryts uppladdningen (sidan stängs, mobilen somnar) säger posten själv att filen inte blev klar. Poster utan fältet räknas som klara.
+- `FILFALT` har `klar`, och regeln kräver att den är sant eller falskt om den finns.
+- `filadressFel` gör lagringens fel till en vänlig text. Biblioteket visar "Filen finns inte. Uppladdningen blev troligen inte klar. Ladda upp filen igen." i stället för "Firebase Storage: Object ... does not exist (storage/object-not-found)".
+
+### En gammal inbjudan med rollen agare ger admin (CP 2026-10-17, en ägare per grupp), Grok 2026-10-18
+- `accepteraInbjudningar` ger rollen admin när en väntande inbjudan bär rollen agare, både för en ny medlem och för en avslutad som återaktiveras. Man blir ägare bara genom överlämning. Ny export `rollEfterAccept` i `src/node/inbjudan.js`.
+- Provet "rollen ur inbjudan följer med" använder nu admin, eftersom agare inte längre följer med.
+
+### Mikrofonen i huvudet är dov i vila (CP 2026-10-18, efter cllp/ops-framework#401 (ringen runt mikrofonen))
+- `huvudTalkKlass`: en px ring i `border-line` och ikonen i `ink-muted` i vila. Hover och focus-visible ger `ink`, `bg-raised` och samma övergång som förut. `md:ml-2` ger avstånd till plusset med temats spacing. Geometrin är plussets (`p-2.5`, `xl:p-2`).
+- Prov för det aktiva läget (Claudes BÖR på cllp/ops-framework#401 (ringen runt mikrofonen)).
+
 ## 0.116.0
 
 Kopplingens kontroll i modulens inställningar (cllp/ops-framework#406, för cllp/lifehub.app#337 (bank och Bokio som kopplingar)) och

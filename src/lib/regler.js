@@ -1780,6 +1780,7 @@ ${Array.from({ length: MAX_TAGGAR }, (_, k) => `        && (t.size() < ${k + 1} 
             && !d.keys().hasAny(["text", "fil", "utskrift", "durationMs", "peaks"]))
           || (d.typ == "fil"
             && d.fil.keys().hasOnly([${lista(FILFALT)}])
+            && (!('klar' in d.fil) || d.fil.klar is bool)
             && d.fil.sokvag.size() > 0
             && d.fil.sokvag.size() <= ${MAX_BIBLIOTEKSOKVAG}
             && !d.fil.sokvag.matches('.*\\\\.\\\\..*')

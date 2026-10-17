@@ -141,7 +141,30 @@ export const FILMIME = /** @type {const} */ ([
 ]);
 
 /** Fälten i `fil`. Samma lista i regelns `hasOnly`. */
-export const FILFALT = /** @type {const} */ (["sokvag", "namn", "mime", "byte"]);
+export const FILFALT = /** @type {const} */ (["sokvag", "namn", "mime", "byte", "klar"]);
+
+/**
+ * Ett fel när filens adress hämtas, som en text för människor (lifehub.app, CP 2026-10-18).
+ *
+ * ⛔ ALDRIG LAGRINGENS RÅA FEL I VYN. "Firebase Storage: Object grupper/... does not exist (storage/object-not-found)" säger
+ * ingenting till den som ser posten, och visar en sökväg. Ett fel utan lagringskod (appens egna) går igenom som det är.
+ *
+ * @param {unknown} e
+ * @returns {string}
+ */
+export function filadressFel(e) {
+  const kod = e && typeof e === "object" && typeof (/** @type {any} */ (e).code) === "string" ? /** @type {any} */ (e).code : "";
+  const text = e instanceof Error ? e.message : typeof e === "string" ? e : "";
+  const lagring = kod.startsWith("storage/") || /firebase storage|\(storage\//i.test(text);
+  if (kod === "storage/object-not-found" || (lagring && /object-not-found|does not exist/i.test(text))) {
+    return "Filen finns inte. Uppladdningen blev troligen inte klar. Ladda upp filen igen.";
+  }
+  if (kod === "storage/unauthorized" || kod === "storage/unauthenticated" || (lagring && /unauthorized|unauthenticated/i.test(text))) {
+    return "Du har inte behörighet att öppna filen.";
+  }
+  if (lagring) return "Filen gick inte att hämta just nu. Försök igen om en stund.";
+  return text || "Filen har ingen adress.";
+}
 
 /**
  * `matches()`-uttrycket för MIME, härlett ur `FILMIME`. Regeln och storage-regeln
@@ -308,7 +331,7 @@ const FORVALTARROLLER = /** @type {const} */ (["agare", "admin"]);
  * @property {string} rubrik
  * @property {string} [text] Bara på en anteckning.
  * @property {string} [url] Bara på en länk.
- * @property {{ sokvag: string, namn: string, mime: string, byte: number }} [fil] Bara på en fil.
+ * @property {{ sokvag: string, namn: string, mime: string, byte: number, klar?: boolean }} [fil] Bara på en fil. `klar: false` medan byte laddas upp, `true` när de finns. Utan fältet (äldre poster) räknas filen som klar.
  * @property {string} [utskrift] Bara på ett ljud. Saknas fältet har ingen bett om en utskrift. Tom sträng är en utskrift utan ord.
  * @property {number} [durationMs] Bara på ett ljud. Millisekunder. Saknas fältet är längden inte räknad än.
  * @property {string[]} [taggar] (0.100.0) Högst `MAX_TAGGAR`, var och en i `TAGGFORM`, utan dubbletter. Saknas fältet har posten inga.
@@ -437,6 +460,7 @@ export function filFel(fil) {
   if (okanda.length > 0) return `Filen har fälten ${okanda.join(", ")}, och de hör inte dit.`;
   const yta = filInmatningsfel(/** @type {any} */ (fil));
   if (yta) return yta;
+  if ("klar" in /** @type {object} */ (fil) && typeof (/** @type {any} */ (fil).klar) !== "boolean") return "Filens klar-markering ska vara sant eller falskt.";
   const sokvag = str(/** @type {any} */ (fil).sokvag);
   if (!sokvag) return "Sökvägen saknas.";
   if (sokvag.length > MAX_BIBLIOTEKSOKVAG) return `Sökvägen är ${sokvag.length} tecken. Taket är ${MAX_BIBLIOTEKSOKVAG}.`;
@@ -710,8 +734,9 @@ export function byggPost(d) {
   if (typ === "anteckning") post.text = str(d.text);
   else if (typ === "lank") post.url = str(d.url);
   else {
-    const fil = /** @type {{ sokvag: unknown, namn: unknown, mime: unknown, byte: unknown }} */ (d.fil);
+    const fil = /** @type {{ sokvag: unknown, namn: unknown, mime: unknown, byte: unknown, klar?: unknown }} */ (d.fil);
     post.fil = { sokvag: str(fil.sokvag), namn: str(fil.namn), mime: normaliseraMime(fil.mime), byte: /** @type {number} */ (fil.byte) };
+    if (typeof fil.klar === "boolean") post.fil.klar = fil.klar;
     if ("utskrift" in d && d.utskrift != null) post.utskrift = /** @type {string} */ (d.utskrift);
     if ("durationMs" in d && d.durationMs != null) post.durationMs = /** @type {number} */ (d.durationMs);
     if ("peaks" in d && d.peaks != null) post.peaks = /** @type {string} */ (d.peaks);

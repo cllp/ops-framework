@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { OpsAppShell } from "../components/OpsAppShell.jsx";
 import { LANGTRYCK_MS as GENVAG_MS } from "../lib/apparark.js";
+import { huvudTalkKlass } from "../lib/radKlass.js";
 import { AVBRYT_FRAGA_SEKUNDER, MIKROFON_SPARRAD_AV_SIDAN, SPARAT_MS, kanBeOmMikrofon, mikrofonenTillatenAvSidan, talkFeltext, talkNasta, valjFormat } from "../lib/talk.js";
 
 /*
@@ -389,19 +390,38 @@ describe("mikrofonknappen i huvudet", () => {
     }
     // Ram och bakgrund, så tyngden är plussets. Den platta `huvudknappKlass`-varianten (xl:size-9, ingen platta) används inte.
     expect(talk.className).toMatch(/border/);
-    expect(talk.className).toMatch(/bg-surface/);
+    // CP 2026-10-18: dov i vila, alltså ingen egen platta förrän hover eller fokus.
+    expect(talk.className).toMatch(/hover:bg-raised/);
     expect(talk.className).not.toContain("xl:size-9");
   });
 
-  it("⛔ #327 (ringen runt mikrofonen): ringen är lika framträdande som plusset, inte delarlinjens svaga färg", () => {
+  it("⛔ mikrofonen i huvudet är dov i vila och tydlig vid hover och fokus (CP 2026-10-18, efter #327 (ringen runt mikrofonen))", () => {
     render(Skal({ talk: { onTalk: vi.fn(), inspelare: falskInspelare() }, skapa: { arende: true } }));
-    const talk = /** @type {HTMLElement} */ (huvudknapp());
-    // CP 2026-10-16: "ringen runt Mikrofonen i headern behöver en bättre kontrast så att den blir lika framträdande som +et".
-    // `border-line` är avdelarnas färg och försvann mot huvudet i mörkt tema. Ringen tar textens sekundära färg och två px.
-    expect(talk.className).not.toMatch(/(^|\s)border-line(\s|$)/);
-    expect(talk.className).toMatch(/(^|\s)border-2(\s|$)/);
-    expect(talk.className).toMatch(/(^|\s)border-ink-secondary(\s|$)/);
-    expect(talk.className).toMatch(/(^|\s)text-ink(\s|$)/);
+    const k = /** @type {HTMLElement} */ (huvudknapp()).className;
+    // CP: "för påträngande och sitter för nära plusknappen". Vila: en px ring i border-line och ikonen i ink-muted.
+    expect(k).toMatch(/(^|\s)border(\s|$)/);
+    expect(k).not.toMatch(/(^|\s)border-2(\s|$)/);
+    expect(k).toMatch(/(^|\s)border-line(\s|$)/);
+    expect(k).toMatch(/(^|\s)text-ink-muted(\s|$)/);
+    expect(k).not.toMatch(/(^|\s)border-ink-secondary(\s|$)/);
+    // Hover och focus-visible: full kontrast och temats hoveryta.
+    for (const t of ["hover:text-ink", "hover:border-ink", "hover:bg-raised", "focus-visible:text-ink", "focus-visible:border-ink", "focus-visible:bg-raised"]) {
+      expect(k.split(/\s+/), t).toContain(t);
+    }
+    // Avstånd till plusset med temats spacing, inget hårdkodat mått.
+    expect(k.split(/\s+/)).toContain("md:ml-2");
+    expect(k).not.toMatch(/\[\d|#[0-9a-f]{3}/i);
+  });
+
+  it("⛔ #327 (ringen runt mikrofonen), aktivt läge: ringen bär accentfärgen, inte den vilande ringens färg", () => {
+    // Claudes BÖR på of#401 (ringen runt mikrofonen) och of#406 (kopplingens kontroll): den andra grenen av huvudTalkKlass ska ha ett eget prov.
+    const aktiv = huvudTalkKlass({ aktiv: true });
+    expect(aktiv).toMatch(/(^|\s)border-accent(\s|$)/);
+    expect(aktiv).toMatch(/(^|\s)text-accent(\s|$)/);
+    expect(aktiv).not.toMatch(/(^|\s)text-ink-muted(\s|$)/);
+    // Samma storlek i båda lägena, så ikonen inte hoppar när inspelningen startar.
+    expect(huvudTalkKlass()).toMatch(/(^|\s)size-11(\s|$)/);
+    expect(aktiv).toMatch(/(^|\s)size-11(\s|$)/);
   });
 
   it("startar samma inspelning som raden: samma inspelare, samma fält, och ljudet når appen", async () => {

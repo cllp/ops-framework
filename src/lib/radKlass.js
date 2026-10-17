@@ -216,15 +216,17 @@ export function huvudPlusKlass({ synligMobil = true, aktiv = false } = {}) {
  */
 export function huvudTalkKlass({ aktiv = false } = {}) {
   return cx(
-    // Två px ring (#327): 44 = 2 x (2 + 8) + 24, och 40 = 2 x (2 + 6) + 24, så ikonen står kvar på samma plats som plussets.
-    "relative size-11 shrink-0 cursor-pointer items-center justify-center rounded-full p-2 [&_svg]:size-6 xl:size-10 xl:p-1.5",
-    "hidden md:inline-flex",
+    // Samma ram som ramverkets ikonknappar: size-11, p-2.5 och 24 px ikon, som plusset. Ringen är en px (CP 2026-10-18).
+    "relative size-11 shrink-0 cursor-pointer items-center justify-center rounded-full p-2.5 [&_svg]:size-6 xl:size-10 xl:p-2",
+    // ⛔ AVSTÅND TILL PLUSSET (CP 2026-10-18): "sitter för nära". Temats spacing (`ml-2`, alltså 2 x --spacing), inget eget mått.
+    "hidden md:inline-flex md:ml-2",
     "transition-colors duration-(--duration-fast) ease-standard",
     aktiv
-      ? "border-2 border-accent bg-raised text-accent"
-      : // ⛔ #327 (ringen runt mikrofonen): `border-line` är avdelarnas färg och syntes knappt i mörkt huvud. CP 2026-10-16:
-        // "lika framträdande som +et". Ringen bär textens sekundära färg i två px, ikonen textens egen.
-        "border-2 border-ink-secondary bg-surface text-ink hover:bg-raised hover:border-ink",
+      ? "border border-accent bg-raised text-accent"
+      : // ⛔ DOV I VILA, TYDLIG VID HOVER OCH FOKUS (CP 2026-10-18, efter #327): ringen i 2 px ink-secondary var för påträngande
+        // bredvid plusset. Vila: en px `border-line` och ikonen i `ink-muted`. Hover och focus-visible: full kontrast (`ink`)
+        // och temats hoveryta (`bg-raised`), samma övergång som övriga huvudknappar.
+        "border border-line bg-transparent text-ink-muted hover:bg-raised hover:border-ink hover:text-ink focus-visible:bg-raised focus-visible:border-ink focus-visible:text-ink",
     "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
     "after:absolute after:top-1/2 after:left-1/2 after:size-11 after:-translate-x-1/2 after:-translate-y-1/2 after:content-['']",
   );
