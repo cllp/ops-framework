@@ -11,13 +11,19 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ## Ej utgivet
 
-Kopplingens kontroll är appens (cllp/lifehub.app#337), Grok 2026-10-17. Ingen version, ingen release.
+## 0.116.0
+
+Kopplingens kontroll i modulens inställningar (cllp/ops-framework#406, för cllp/lifehub.app#337 (bank och Bokio som kopplingar)) och
+ringen runt mikrofonen (cllp/ops-framework#401, för cllp/lifehub.app#327 (ringen runt mikrofonen)). Båda granskade och godkända av Claude 2026-10-17.
+Inget är brytande: utan `ram.kopplingar.kontroll` är raden som förut.
+
+### Kopplingens kontroll är appens (cllp/lifehub.app#337), Grok 2026-10-17
 
 - `ram.kopplingar.kontroll`: en nod per kopplings-id som ritas där Anslut och Koppla från stod. CP 2026-10-17 om Bank och Bokio: nyckeln kopplas
   i Mitt konto, och i gruppens modul väljer man bara vilken koppling och vilka konton gruppen använder, som när man väljer repo för GitHub. Ingen
   Anslut-knapp i modulen. Noden ritas för alla som ser inställningarna, och appen avgör vad den som inte får ändra ser. Utan nyckeln är raden som förut.
 
-Paket 3, Grok 2026-10-17 natt. Ingen version, ingen release.
+### Ringen runt mikrofonen (paket 3), Grok 2026-10-17
 
 - `huvudTalkKlass`: ringen runt mikrofonen i huvudet är två px i `border-ink-secondary` och ikonen i `text-ink`, i stället för
   avdelarfärgen `border-line` (cllp/lifehub.app#327 (ringen runt mikrofonen)). Geometrin är oförändrad, 44 px och 40 px från `xl`.
