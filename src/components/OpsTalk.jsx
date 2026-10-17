@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { AVBRYT_FRAGA_SEKUNDER, LANGTRYCK_MS, MAX_SEKUNDER, SPARAT_MS, TALK_SKICKAR_TEXT, TALK_INGET_LJUD, TALK_TEXTFEL, ORD_TALK, igenkanningensSprak, kanBeOmMikrofon, kanSpelaInIgen, kontrolleraSkickarText, talkFeltext, talkKvitto, talkMiljo, talkNasta, talkOrd, talkTextPa, talkUnderlag, webblasarensIgenkanning, arWebKit, webblasarensInspelare } from "../lib/talk.js";
+import { AVBRYT_FRAGA_SEKUNDER, LANGTRYCK_MS, MAX_SEKUNDER, SPARAT_MS, TALK_SKICKAR_TEXT, TALK_INGET_LJUD, TALK_TEXTFEL, ORD_TALK, igenkanningensSprak, kanBeOmMikrofon, kanSpelaInIgen, kontrolleraSkickarText, talkFeltext, talkKvitto, talkMiljo, talkNasta, talkOrd, talkTextPa, talkUnderlag, webblasarensIgenkanning, arWebKit, webblasarensInspelare, skapaIgenkanningsniva, talkAnteckningsLank } from "../lib/talk.js";
 import { useOpsSprak } from "./OpsSprak.jsx";
 import { formateraTid } from "../lib/ljudspelare.js";
 import { rapporteraFel } from "../lib/felrapport.js";
-import { AgentIkon, AnteckningIkon, ArendePlusIkon, BockIkon, HandelsePlusIkon, KryssIkon, KugghjulIkon, MeddelandeIkon, MikrofonIkon, StoppIkon } from "./icons.jsx";
+import { AgentIkon, AnteckningIkon, ArendePlusIkon, BockIkon, HandelsePlusIkon, KopieraIkon, KryssIkon, KugghjulIkon, MeddelandeIkon, MikrofonIkon, StoppIkon } from "./icons.jsx";
+import { useKopiera } from "./useKopiera.js";
 import { OpsSpinner } from "./OpsSpinner.jsx";
 
 /**
@@ -49,9 +50,14 @@ import { OpsSpinner } from "./OpsSpinner.jsx";
  *   texten går till `onAgent`, `onTalk` eller något annat val av sig självt. Avvisas löftet (eller löser det till en tom text) står felet
  *   i fältet och valen kvar, och ett tryck på ett val försöker skriva ut igen. Utan `tillText` står valen ändå, med ett besked om att ingen
  *   text kom fram. Gäller bara med `onAgent` (utan den är beteendet som förut: ljudet går till `onTalk`).
- * @property {(text: string) => void | Promise<void>} [onAnteckning] (0.114.0, cllp/ops-framework#402) Ett femte val bland valen efter talet,
- *   Anteckning, som ritas bara när den ges. Samma mönster som `onAgent`: fältet säger "Sparar…" medan löftet arbetar och stängs när det
- *   löser sig, och avvisas det står felet i fältet och valen kvar, med texten. Valen finns bara med `onAgent`.
+ * @property {(text: string) => void | import("../lib/talk.js").Talkanteckningslank | Promise<void | import("../lib/talk.js").Talkanteckningslank>} [onAnteckning] (0.114.0, cllp/ops-framework#402) Ett femte val bland valen efter talet,
+ *   Anteckning, som ritas bara när den ges. Samma mönster som `onAgent`: fältet säger "Sparar…" medan löftet arbetar, och avvisas det står
+ *   felet i fältet och valen kvar, med texten. Valen finns bara med `onAgent`.
+ *   (0.115.0, cllp/lifehub.app#345) ⛔ NÄR LÖFTET LÖSER SIG STÄNGS FÄLTET INTE LÄNGRE: det visar kvittot "Anteckningen är sparad" som andra
+ *   kvitton (läget `sparat`, Stäng), tills personen stänger det. Löser löftet till `{ href?, etikett? }` får kvittot en länk dit, till exempel
+ *   biblioteket: `etikett` är ordet på länken ("Öppna anteckningen" när den saknas). Ett tryck på länken går via skalets `onNavigate` och stänger
+ *   fältet. Löser det till `undefined` (eller något annat än en länk) visas kvittot utan länk. En felformad länk (`href` som saknas eller inte är
+ *   en text, en adress som börjar med `javascript:`) rapporteras som fel och kvittot visas utan länk, eftersom anteckningen redan är sparad.
  * @property {number} [maxSekunder] Tak i sekunder. Förval `MAX_SEKUNDER` (120), så TALK inte ändras. Bibliotekets idé använder 600.
  * @property {ReadonlyArray<{ id: string, etikett: string }>} [mal] Appens egna mål i fältet. ⛔ (0.99.0) Mikrofonen erbjuder bara dessa. Modulernas
  *   mål (`inspelning.mal`) nås bara genom modulens egen rad (Ny-menyn: Röstinspelning), som öppnar fältet låst till målet utan val.
@@ -165,6 +171,14 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, insp
   const omgangsIgk = useRef(/** @type {import("../lib/talk.js").Igenkanning | null} */ (null));
   /** Omgången kör BARA igenkänningen och ingen inspelare (TALK med valen på WebKit). */
   const barOmgang = useRef(false);
+  /**
+   * ⛔ NIVÅN I EN OMGÅNG UTAN INSPELARE (0.115.0, cllp/lifehub.app#345). Prickarna matas annars av inspelaren, och i en `barOmgang` finns ingen:
+   * de stod stilla. Nivån räknas då ur igenkänningens egna händelser (`skapaIgenkanningsniva`), utan en egen mikrofonström. `sistaLangd` är
+   * längden på texten vid förra resultatet, så att pulsen följer hur mycket NY text som kom.
+   */
+  const vagor = useRef(/** @type {ReturnType<typeof skapaIgenkanningsniva> | null} */ (null));
+  const vagorna = () => (vagor.current ??= skapaIgenkanningsniva());
+  const sistaLangd = useRef(0);
   /** Nästa start ska vara en inspelning utan igenkänning ("Spela in i stället"). */
   const reservNasta = useRef(false);
   /** Nästa start är låst till ett inspelningsmål (Biblioteket, Röstinspelning): bara inspelning, för där behövs ljudet. */
@@ -181,7 +195,7 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, insp
    * ⛔ KVITTOT (0.97.0, lifehub.app#219). Finns bara i läget sparat, och nollas av varje händelse som lämnar det: Stäng, en ny
    * inspelning, ett långtryck. `angraForsok` räknas upp samtidigt, så att en Ångra som svarar efter att kvittot försvunnit
    * inte sätter något. Refen speglar staten, så att ett andra tryck i samma ögonblick ser att Ångra redan pågår.
-   * @typedef {{ text: string, angra: (() => Promise<void>) | null, status: "visas" | "angrar" | "angrat", fel?: string }} Kvittolage
+   * @typedef {{ text: string, angra: (() => Promise<void>) | null, status: "visas" | "angrar" | "angrat", fel?: string, lank?: { href: string, etikett: string } }} Kvittolage
    */
   const [kvitto, setKvittoState] = useState(/** @type {Kvittolage | null} */ (null));
   const kvittoRef = useRef(/** @type {Kvittolage | null} */ (null));
@@ -376,6 +390,9 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, insp
         reservNasta.current = false;
         const bara = !laast && !reservStart && typeof onAgentRef.current === "function" && arWebKit() && igk(true) !== null;
         barOmgang.current = bara;
+        // ⛔ En ny omgång börjar stilla: förra omgångens puls får inte följa med in i den här.
+        sistaLangd.current = 0;
+        vagorna().nolla();
         omgangsIgk.current = bara ? igk(true) : igk();
         setOmgangsText(omgangsIgk.current !== null);
         if (mikrofonenUpptagenAv && mikrofonenUpptagenAv !== inspRef) {
@@ -438,8 +455,23 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, insp
                 omgangsIgk.current?.starta({
                   sprak: igenkanningensSprak(sprakRef.current),
                   onText: (t) => {
-                    if (mitt === forsok.current && monterad.current) setText(t);
+                    if (mitt === forsok.current && monterad.current) {
+                      // Ny text är en puls, så hög som hur mycket som kom. Bara i en omgång utan inspelare: annars är det inspelaren som matar.
+                      if (bara && t !== "" && t.length !== sistaLangd.current) vagorna().text(Math.max(1, Math.abs(t.length - sistaLangd.current)));
+                      sistaLangd.current = t.length;
+                      setText(t);
+                    }
                   },
+                  ...(bara
+                    ? {
+                        onLjud: (/** @type {"ljud" | "tal" | "tystnad"} */ typ) => {
+                          if (mitt !== forsok.current || !monterad.current) return;
+                          if (typ === "ljud") vagorna().ljud();
+                          else if (typ === "tal") vagorna().tal();
+                          else vagorna().tystnad();
+                        },
+                      }
+                    : {}),
                   // ⛔ Ett fel härifrån får aldrig vara tyst (regel 5): fältet säger att texten uteblir, och ljudet spelas in ändå.
                   // (0.114.0) I en omgång utan inspelare spelas inget in: då säger fältet det och erbjuder "Spela in i stället".
                   onFel: () => {
@@ -552,11 +584,24 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, insp
             if (typeof mottagare !== "function") throw new Error(ORD_TALK.felAnteckning.sv);
             return mottagare(post.text ?? "");
           })
-          .then(() => {
+          .then((svar) => {
             if (!monterad.current) return;
             senast.current = null;
             setKanIgen(false);
-            skicka({ typ: "lamnat" });
+            // ⛔ ETT KVITTO I STÄLLET FÖR ATT FÄLTET BARA STÄNGS (0.115.0, cllp/lifehub.app#345). CP: "när jag trycker på anteckningar ... är det
+            // bra om den säger att det blir en bekräftelse på att den sparade". Samma väg som andra kvitton: läget `sparat`, Stäng. ⛔ EN
+            // FELFORMAD LÄNK GÖR INTE ANTECKNINGEN OSPARAD: den är redan sparad, så felet går till felrapporten och kvittot visas utan länk.
+            /** @type {{ href: string, etikett: string } | null} */
+            let lank = null;
+            try {
+              const l = talkAnteckningsLank(svar);
+              if (l) lank = { href: l.href, etikett: l.etikett ?? talkOrd("oppnaAnteckningen", sprakRef.current) };
+            } catch (fel) {
+              rapporteraFel(fel, { yta: "OpsTalk", steg: "anteckning-lank" });
+            }
+            angraForsok.current += 1;
+            setKvitto({ text: talkOrd("anteckningSparad", sprakRef.current), angra: null, status: "visas", ...(lank ? { lank } : {}) });
+            skicka({ typ: "klar" });
           })
           .catch((fel) => {
             if (!monterad.current) return;
@@ -794,6 +839,8 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, insp
   // ⛔ Stabil: fältets animation startar om när `niva` byts.
   const niva = useCallback(() => {
     try {
+      // ⛔ I en omgång utan inspelare är det igenkänningens puls som gäller (0.115.0), aldrig en inspelare från en tidigare omgång.
+      if (barOmgang.current) return vagorna().niva();
       return inspRef.current ? inspRef.current.niva() : 0;
     } catch {
       return 0;
@@ -830,7 +877,7 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, insp
     // ⛔ (0.114.0) Anteckning sparar i appen men är inte agentens arbete: appens `skickarText` ("Agenten arbetar…") hade varit osann där.
     skickarText: malSynligt === "anteckning" ? TALK_SKICKAR_TEXT : (skickarText ?? TALK_SKICKAR_TEXT),
     /** (0.97.0) Kvittot i läget sparat, eller `null`. */
-    kvitto: kvitto ? { text: kvitto.text, kanAngra: Boolean(kvitto.angra), angrar: kvitto.status === "angrar", angrat: kvitto.status === "angrat", ...(kvitto.fel ? { fel: kvitto.fel } : {}) } : null,
+    kvitto: kvitto ? { text: kvitto.text, kanAngra: Boolean(kvitto.angra), angrar: kvitto.status === "angrar", angrat: kvitto.status === "angrat", ...(kvitto.fel ? { fel: kvitto.fel } : {}), ...(kvitto.lank ? { lank: kvitto.lank } : {}) } : null,
     angra,
     /** (0.105.0) Agent i läget hört: lämnar det sagda till `onAgent`. */
     agent: () => skicka({ typ: "agent" }),
@@ -867,12 +914,47 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, insp
 export const TALK_PRICKAR = 10;
 
 /**
+ * Om personen bett om mindre rörelse (`prefers-reduced-motion: reduce`). Läses vid montering och följer ändringen medan sidan är öppen.
+ * `matchMedia` saknas i en del miljöer (och i jsdom): då är svaret "nej", som för alla andra komponenter i ramverket.
+ */
+function useReduceradRorelse() {
+  const fraga = "(prefers-reduced-motion: reduce)";
+  const las = () => typeof window !== "undefined" && typeof window.matchMedia === "function" && Boolean(window.matchMedia(fraga)?.matches);
+  const [reducerad, setReducerad] = useState(las);
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return undefined;
+    const mq = window.matchMedia(fraga);
+    if (!mq) return undefined;
+    const ny = () => setReducerad(Boolean(mq.matches));
+    ny();
+    if (typeof mq.addEventListener === "function") {
+      mq.addEventListener("change", ny);
+      return () => mq.removeEventListener("change", ny);
+    }
+    // Safari före 14.
+    if (typeof mq.addListener === "function") {
+      mq.addListener(ny);
+      return () => mq.removeListener(ny);
+    }
+    return undefined;
+  }, []);
+  return reducerad;
+}
+
+/**
  * TALK:s nivåprickar. Samma tio prickar i fältet och i bibliotekets inspelning, så de två inte kan glida isär.
+ *
+ * ⛔ `niva` KAN KOMMA FRÅN TVÅ HÅLL (0.115.0, cllp/lifehub.app#345): inspelaren, eller igenkänningens egna händelser när bara den kör
+ * (`useTalk`). Prickarna vet inte vilket, och ritar likadant.
+ *
+ * ⛔ PREFERS-REDUCED-MOTION (0.115.0). Med mindre rörelse flyttar sig inga prickar och ingen ändrar höjd: raden står stilla och blir
+ * ljusare när det pratas. Det gäller också när inspelaren matar prickarna, eftersom det är samma komponent.
  *
  * @param {{ niva: () => number, lyssnar: boolean, skickar?: boolean }} props
  */
 export function TalkPrickar({ niva, lyssnar, skickar = false }) {
   const [nivaer, setNivaer] = useState(() => Array.from({ length: TALK_PRICKAR }, () => 0));
+  const reducerad = useReduceradRorelse();
 
   useEffect(() => {
     if (!lyssnar || typeof requestAnimationFrame !== "function") return undefined;
@@ -890,15 +972,21 @@ export function TalkPrickar({ niva, lyssnar, skickar = false }) {
     return () => cancelAnimationFrame(id);
   }, [lyssnar, niva]);
 
+  // Med reducerad rörelse är det den senaste nivån som gäller för hela raden.
+  const nuNiva = nivaer[nivaer.length - 1] ?? 0;
   return (
     <span aria-hidden="true" data-talk-prickar="" className="flex min-w-0 w-full flex-1 items-center justify-between gap-1 overflow-hidden px-1">
-      {nivaer.map((n, i) => (
-        <span
-          key={i}
-          className="block w-1.5 shrink-0 rounded-full bg-accent transition-[height,opacity] duration-75"
-          style={{ height: `${6 + Math.round(14 * n)}px`, opacity: skickar ? 0.35 : 0.35 + 0.65 * n }}
-        />
-      ))}
+      {nivaer.map((n, i) => {
+        const hojd = reducerad ? 0 : n;
+        const ljus = reducerad ? nuNiva : n;
+        return (
+          <span
+            key={i}
+            className="block w-1.5 shrink-0 rounded-full bg-accent transition-[height,opacity] duration-75 motion-reduce:transition-none"
+            style={{ height: `${6 + Math.round(14 * hojd)}px`, opacity: skickar ? 0.35 : 0.35 + 0.65 * ljus }}
+          />
+        );
+      })}
     </span>
   );
 }
@@ -936,8 +1024,11 @@ const STATUSKLASS = {
   skickar: "m-0 flex min-h-12 items-center gap-2 text-etikett text-ink-secondary",
   utskrift: "m-0 flex min-h-12 items-center gap-2 text-etikett text-ink-secondary",
   sparat: "m-0 flex min-h-12 items-center gap-2 text-etikett font-medium text-ink",
+  kopierat: "m-0 flex min-h-12 items-center gap-2 text-etikett font-medium text-ink",
   kvitto: "m-0 flex items-start gap-3 text-brod text-ink [overflow-wrap:anywhere]",
 };
+/** Så många pixlar från slutet räknas som längst ner (0.115.0). Webbläsare avrundar `scrollTop`, och en fingerrullning slutar sällan på pixeln. */
+const RULL_TOLERANS_PX = 8;
 /** Textytan: brödtext, tre rader minst, rullar inuti. */
 const TEXTYTA = "m-0 min-h-18 max-h-36 overflow-y-auto text-brod [overflow-wrap:anywhere]";
 /**
@@ -963,7 +1054,7 @@ const VALEN = /** @type {const} */ ([
  * innehåller det synliga ordet går inte att säga åt en röststyrning, och det gäller på båda språken.
  */
 
-const INSPELNING_PROPS = ["lage", "fel", "niva", "sekunder", "tak", "framsteg", "kanIgen", "text", "textFel", "medText", "skickarText", "kvitto", "onAngra", "onKlar", "onAvbryt", "onIgen", "onStart", "onTillatMikrofon", "onInstallningar", "marke", "mal", "valt", "onValj", "vidare", "onAgent", "onAnteckning", "textVantar", "utskriftFel", "onSkrivUt", "kanSpelaIStallet", "onSpelaIStallet", "klarEtikett"];
+const INSPELNING_PROPS = ["lage", "fel", "niva", "sekunder", "tak", "framsteg", "kanIgen", "text", "textFel", "medText", "skickarText", "kvitto", "onAngra", "onKlar", "onAvbryt", "onIgen", "onStart", "onTillatMikrofon", "onInstallningar", "marke", "mal", "valt", "onValj", "vidare", "onAgent", "onAnteckning", "textVantar", "utskriftFel", "onSkrivUt", "kanSpelaIStallet", "onSpelaIStallet", "onLank", "klarEtikett"];
 
 /**
  * Mottagarna av det sagda (0.103.0, 0.105.0). Var och en får underlaget när personen trycker på sitt val. En nyckel som saknas ritar
@@ -978,6 +1069,7 @@ const INSPELNING_PROPS = ["lage", "fel", "niva", "sekunder", "tak", "framsteg", 
  * @property {boolean} angrar Ångra pågår: knappen snurrar, bär `aria-disabled` och behåller fokus, och ett tryck gör ingenting.
  * @property {boolean} angrat Ångra lyckades: fältet säger Ångrat och döljs.
  * @property {string} [fel] Ångra föll. Står kvar med `role="alert"`.
+ * @property {{ href: string, etikett: string }} [lank] (0.115.0) En länk i kvittot. Anteckning ger en när appen löser `onAnteckning` till en (`talkAnteckningsLank`).
  */
 
 /**
@@ -1037,6 +1129,8 @@ const INSPELNING_PROPS = ["lage", "fel", "niva", "sekunder", "tak", "framsteg", 
  * @param {boolean} [props.kanSpelaIStallet] (0.114.0) Igenkänningen föll i en omgång utan inspelare: läget `fel` ritar "Spela in i stället" (`useTalk().kanSpelaIStallet`).
  * @param {() => void} [props.onSpelaIStallet] (0.114.0) "Spela in i stället" (`useTalk().spelaIStallet`): en inspelning utan igenkänning, som skrivs ut efteråt.
  * @param {() => void} [props.onSkrivUt] (0.114.0) Försöker skriva ut igen (`useTalk().skrivUt`). Ett tryck på ett val utan text anropar den.
+ * @param {(href: string, event: any) => void} [props.onLank] (0.115.0) Ett tryck på länken i kvittot (`kvitto.lank`). Skalet ger sin `onNavigate` här. Fältet stängs efter anropet.
+ *   Utan den följer webbläsaren länken som en vanlig adress. Länken ritas bara när kvittot har en.
  * @param {string} [props.klarEtikett] (0.103.0) Namnet Klar läses upp med. Förval `ORD_TALK.klarNamn` på språket som gäller (0.104.0). Chattens skrivfält
  *   skickar det sagda som ett meddelande, och där hade "spara inspelningen" sagt något annat än det som händer. Ordet på skärmen är
  *   Klar i båda. En tom sträng eller något annat än en sträng kastar.
@@ -1046,7 +1140,7 @@ export function OpsInspelning(props) {
   if (okanda.length > 0) {
     throw new Error(`OpsInspelning: okända props ${okanda.join(", ")}. Tillåtna: ${INSPELNING_PROPS.join(", ")}.`);
   }
-  const { lage, fel, niva, sekunder, tak, framsteg, kanIgen, text = "", textFel = "", medText = false, skickarText = TALK_SKICKAR_TEXT, kvitto = null, onAngra, onKlar, onAvbryt, onIgen, onStart, onTillatMikrofon, onInstallningar, marke, mal = [], valt = null, onValj, vidare, onAgent, onAnteckning, textVantar = false, utskriftFel = "", onSkrivUt, kanSpelaIStallet = false, onSpelaIStallet, klarEtikett: klarEtikettProp } = props;
+  const { lage, fel, niva, sekunder, tak, framsteg, kanIgen, text = "", textFel = "", medText = false, skickarText = TALK_SKICKAR_TEXT, kvitto = null, onAngra, onKlar, onAvbryt, onIgen, onStart, onTillatMikrofon, onInstallningar, marke, mal = [], valt = null, onValj, vidare, onAgent, onAnteckning, textVantar = false, utskriftFel = "", onSkrivUt, kanSpelaIStallet = false, onSpelaIStallet, onLank, klarEtikett: klarEtikettProp } = props;
   if (vidare !== undefined) {
     const nycklar = ["meddelande", "handelse", "arende"];
     const felaktiga = vidare && typeof vidare === "object" ? Object.entries(vidare).filter(([k, v]) => !nycklar.includes(k) || typeof v !== "function").map(([k]) => k) : [typeof vidare];
@@ -1071,7 +1165,16 @@ export function OpsInspelning(props) {
   const fortsatt = useRef(/** @type {HTMLButtonElement | null} */ (null));
   const stang = useRef(/** @type {HTMLButtonElement | null} */ (null));
   const forstaVal = useRef(/** @type {HTMLButtonElement | null} */ (null));
+  /**
+   * ⛔ TEXTYTAN RULLAR MED (0.115.0, cllp/lifehub.app#345). CP: ytan har fast höjd och rullar inte, så den nya texten hamnar under kanten
+   * och det som sägs försvinner. `foljer` är sant så länge personen inte själv rullat upp: ny text rullar då till slutet. Rullar hen upp
+   * stannar ytan där hen är, och den följer med igen när hen är längst ner. Det avgörs bara av scrollhändelser, aldrig av att texten växer:
+   * växande text ändrar inte `scrollTop`, så ett läge "längst ner" blir inte falskt av att det kommer mer.
+   */
+  const textRef = useRef(/** @type {HTMLParagraphElement | null} */ (null));
+  const foljer = useRef(true);
   const sprak = useOpsSprak();
+  const { kopierat, misslyckades: kopieraFel, kopiera, nolla: nollaKopiera } = useKopiera("OpsTalk");
   /** Ytans egna ord på språket som gäller (0.104.0, `ORD_TALK`). @param {keyof typeof ORD_TALK} k */
   const o = (k) => talkOrd(k, sprak);
   const klarEtikett = klarEtikettProp ?? o("klarNamn");
@@ -1103,12 +1206,24 @@ export function OpsInspelning(props) {
   useEffect(() => {
     setVidareFel("");
     setVantarVal(null);
+    // Kopierat och ett urklippsfel hör till det sagda i läget hört, och följer inte med in i nästa omgång.
+    nollaKopiera();
     if (hort) forstaVal.current?.focus();
-  }, [hort]);
+  }, [hort, nollaKopiera]);
+
+  // Ny text rullas fram om personen inte rullat upp. Utan text är ytan tom och nästa omgång börjar med att följa.
+  useEffect(() => {
+    if (!text) {
+      foljer.current = true;
+      return;
+    }
+    const yta = textRef.current;
+    if (yta && foljer.current) yta.scrollTop = yta.scrollHeight;
+  }, [text]);
 
   const underlag = hort ? talkUnderlag(text) : null;
   /** Felet vid valen: ett val vars mottagare kastade, en Agent som inte nådde fram, eller en utskrift som föll. */
-  const valFel = hort ? vidareFel || fel || utskriftFel || "" : "";
+  const valFel = hort ? vidareFel || fel || utskriftFel || (kopieraFel ? ORD_TALK.felKopiera.sv : "") : "";
   /**
    * Valen som ritas: bara de med en mottagare. ⛔ (0.114.0) OCKSÅ UTAN TEXT: ljud utan text ger ändå valen, direkt, och texten fylls i
    * när appens utskrift svarat. Förut krävdes en text, och utan den lämnades ljudet till appen som valde åt personen.
@@ -1218,7 +1333,7 @@ export function OpsInspelning(props) {
   /** Statusraden medan det sparas. TALK:s eget "Sparar…" på språket som gäller, appens text som den är. */
   const skickarVisas = talkTextPa(skickarText, sprak);
   /** Vad statusregionen säger. `null`: tom och dold. */
-  const statusLage = lage === "skickar" ? "skickar" : lage === "sparat" ? (kvitto ? "kvitto" : "sparat") : hort && textVantar && !text ? "utskrift" : null;
+  const statusLage = lage === "skickar" ? "skickar" : lage === "sparat" ? (kvitto ? "kvitto" : "sparat") : hort && kopierat ? "kopierat" : hort && textVantar && !text ? "utskrift" : null;
   const valtId = valt ?? (mal[0] ? mal[0].id : null);
   const visaTextyta = (lyssnar && (medText || Boolean(text))) || ((lage === "skickar" || hort) && Boolean(text));
   /**
@@ -1253,7 +1368,16 @@ export function OpsInspelning(props) {
       ) : null}
       {visaTextyta ? (
         text ? (
-          <p data-talk-text="" aria-live="polite" className={`${TEXTYTA} text-ink`}>
+          <p
+            ref={textRef}
+            data-talk-text=""
+            aria-live="polite"
+            onScroll={() => {
+              const yta = textRef.current;
+              if (yta) foljer.current = yta.scrollHeight - yta.scrollTop - yta.clientHeight <= RULL_TOLERANS_PX;
+            }}
+            className={`${TEXTYTA} text-ink`}
+          >
             {text}
           </p>
         ) : textFel ? null : (
@@ -1290,10 +1414,33 @@ export function OpsInspelning(props) {
             {o("sparat")}
           </>
         ) : null}
+        {statusLage === "kopierat" ? (
+          <>
+            <span aria-hidden="true" className="flex size-7 shrink-0 items-center justify-center rounded-full bg-accent-subtle text-accent"><BockIkon size={14} /></span>
+            {o("kopierat")}
+          </>
+        ) : null}
         {statusLage === "kvitto" && kvitto ? (
           <>
             <span aria-hidden="true" className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-accent-subtle text-accent"><BockIkon size={14} /></span>
-            <span className="min-w-0">{kvitto.angrat ? o("angrat") : kvitto.text}</span>
+            <span className="flex min-w-0 flex-col items-start gap-1">
+              <span>{kvitto.angrat ? o("angrat") : kvitto.text}</span>
+              {/* ⛔ LÄNKEN I KVITTOT (0.115.0, cllp/lifehub.app#345): vart anteckningen finns, om appen sa det. Via skalets `onNavigate` när den
+                  finns, annars en vanlig adress. Fältet stängs vid trycket, så kvittot inte ligger kvar över den nya sidan. */}
+              {kvitto.lank && !kvitto.angrat ? (
+                <a
+                  href={kvitto.lank.href}
+                  data-talk-kvitto-lank=""
+                  onClick={(e) => {
+                    onLank?.(kvitto.lank?.href ?? "", e);
+                    onAvbryt();
+                  }}
+                  className="inline-flex min-h-11 items-center text-etikett font-medium text-accent underline underline-offset-2 hover:text-accent-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                >
+                  {kvitto.lank.etikett}
+                </a>
+              ) : null}
+            </span>
           </>
         ) : null}
       </p>
@@ -1338,7 +1485,16 @@ export function OpsInspelning(props) {
               );
             })}
           </div>
-          <button type="button" data-talk-stang="" onClick={onAvbryt} className={SEKUNDAR_ORD}>{o("stang")}</button>
+          {/* ⛔ KOPIERA (0.115.0, cllp/lifehub.app#347): en liten ikonknapp bland valen när det finns text. Den stänger inte fältet, och faller
+              urklippet står felet i felraden ovanför. Texten är den som står i fältet, inte ljudet. */}
+          <div className="flex items-center gap-2">
+            {underlag ? (
+              <button type="button" data-talk-kopiera="" aria-label={o("kopiera")} title={o("kopiera")} onClick={() => kopiera(underlag.text)} className={SEKUNDAR}>
+                <KopieraIkon size={18} />
+              </button>
+            ) : null}
+            <button type="button" data-talk-stang="" onClick={onAvbryt} className={SEKUNDAR_ORD}>{o("stang")}</button>
+          </div>
         </div>
       ) : null}
       {lage === "sparat" && kvitto ? (
@@ -1482,11 +1638,12 @@ export function OpsInspelning(props) {
  *   onSkrivUt?: () => void,
  *   kanSpelaIStallet?: boolean,
  *   onSpelaIStallet?: () => void,
+ *   onLank?: (href: string, event: any) => void,
  * }} props `medText`, `skickarText`, `kvitto` och `onAngra` (0.97.0) kommer ur `useTalk` med samma namn (`onAngra` är `angra`).
  *   `vidare` och `onAgent` (0.105.0: `useTalk().agent`) går som de är till `OpsInspelning`, liksom `onAnteckning` (`useTalk().anteckning`),
  *   `textVantar`, `utskriftFel` och `onSkrivUt` (0.114.0: `useTalk().textVantar`, `.utskriftFel`, `.skrivUt`).
  */
-export function OpsTalk({ lage, fel, niva, sekunder = 0, tak = MAX_SEKUNDER, framsteg = null, kanIgen = false, text = "", textFel = "", medText = false, skickarText = TALK_SKICKAR_TEXT, kvitto = null, onAngra, onSkicka, onAvbryt, onIgen = () => {}, onTillatMikrofon, onInstallningar, marke, mal = [], valt = null, onValj, vidare, onAgent, onAnteckning, textVantar, utskriftFel, onSkrivUt, kanSpelaIStallet, onSpelaIStallet }) {
+export function OpsTalk({ lage, fel, niva, sekunder = 0, tak = MAX_SEKUNDER, framsteg = null, kanIgen = false, text = "", textFel = "", medText = false, skickarText = TALK_SKICKAR_TEXT, kvitto = null, onAngra, onSkicka, onAvbryt, onIgen = () => {}, onTillatMikrofon, onInstallningar, marke, mal = [], valt = null, onValj, vidare, onAgent, onAnteckning, textVantar, utskriftFel, onSkrivUt, kanSpelaIStallet, onSpelaIStallet, onLank }) {
   if (lage === "vila" || lage === "trycker") return null;
   return (
     <div
@@ -1530,6 +1687,7 @@ export function OpsTalk({ lage, fel, niva, sekunder = 0, tak = MAX_SEKUNDER, fra
           onSkrivUt={onSkrivUt}
           kanSpelaIStallet={kanSpelaIStallet}
           onSpelaIStallet={onSpelaIStallet}
+          onLank={onLank}
         />
       </div>
     </div>
