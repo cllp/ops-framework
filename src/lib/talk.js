@@ -82,6 +82,10 @@ export const ORD_TALK = {
   valArende: { sv: "Ärende", en: "Case" },
   valAgent: { sv: "Agent", en: "Agent" },
   valAnteckning: { sv: "Anteckning", en: "Note" },
+  anteckningSparad: { sv: "Anteckningen är sparad", en: "The note is saved" },
+  oppnaAnteckningen: { sv: "Öppna anteckningen", en: "Open the note" },
+  kopiera: { sv: "Kopiera", en: "Copy" },
+  kopierat: { sv: "Kopierat", en: "Copied" },
   skriverUt: { sv: "Skriver ut…", en: "Writing it out…" },
   forslagen: { sv: "Förslag från agenten", en: "Suggestions from the agent" },
   forslagPagar: { sv: "Utför…", en: "Working…" },
@@ -104,6 +108,7 @@ export const ORD_TALK = {
   felAgent: { sv: "Det du sa nådde inte agenten.", en: "What you said did not reach the agent." },
   felIgenkanning: { sv: "Talet kunde inte skrivas ut medan du pratade. Spela in i stället, så skrivs det ut efteråt.", en: "Your speech could not be written out while you spoke. Record instead, and it is written out afterwards." },
   felAnteckning: { sv: "Anteckningen gick inte att spara.", en: "The note could not be saved." },
+  felKopiera: { sv: "Texten gick inte att kopiera till urklipp.", en: "The text could not be copied to the clipboard." },
   felUtskrift: { sv: "Det du sa gick inte att skriva ut.", en: "What you said could not be written out." },
   felIngenText: { sv: "Ingen text kom fram, så det finns inget att lämna vidare. Stäng och prata in igen.", en: "No text came through, so there is nothing to pass on. Close and speak again." },
   felForslag: { sv: "Förslaget gick inte att utföra.", en: "The suggestion could not be carried out." },
@@ -224,6 +229,46 @@ export function talkKvitto(svar) {
     throw new Error(`TALK: kvittots angra ska vara en funktion, fick ${typeof angra}. Utan den ritas ingen Ångra.`);
   }
   return { text: kvitto.trim(), angra: typeof angra === "function" ? /** @type {() => Promise<void>} */ (angra) : null };
+}
+
+/**
+ * Länken appen kan lösa `onAnteckning` till (0.115.0, cllp/lifehub.app#345): vart personen kan gå för att se anteckningen, till exempel
+ * biblioteket. `etikett` är ordet på länken, och saknas den används ramverkets eget ("Öppna anteckningen").
+ * @typedef {object} Talkanteckningslank
+ * @property {string} [href] Adressen. Krävs om något av fälten ges.
+ * @property {string} [etikett] Ordet på länken.
+ */
+
+/** Adresser som kör kod i stället för att gå någonstans. En länk i ett kvitto är en länk, aldrig ett skript. */
+const KODADRESS = /^(javascript|data|vbscript):/i;
+
+/**
+ * Läser appens svar från `onAnteckning` (0.115.0). `null` när svaret inte är en länk: ingenting, ett id, en sträng eller `{}` är en
+ * anteckning som sparades utan länk, och det är inget fel.
+ *
+ * ⛔ EN LÄNK SOM ÄR FELFORMAD KASTAR, men anropspunkten (`useTalk`) låter det aldrig göra anteckningen osparad. Samma regel som
+ * `talkKvitto`: det appen gjorde är redan gjort. `{ etikett: "Öppna" }` utan `href` och `{ href: 5 }` är ett fel i appen, och en länk som
+ * inte går att trycka hade sett ut som att allt gick bra (arbetsreglernas punkt 5). En adress som börjar med `javascript:`, `data:` eller
+ * `vbscript:` nekas.
+ *
+ * @param {unknown} svar
+ * @returns {{ href: string, etikett: string | null } | null}
+ */
+export function talkAnteckningsLank(svar) {
+  if (!svar || typeof svar !== "object") return null;
+  const { href, etikett } = /** @type {{ href?: unknown, etikett?: unknown }} */ (svar);
+  if (href === undefined && etikett === undefined) return null;
+  if (typeof href !== "string" || !href.trim()) {
+    throw new Error(`TALK: onAnteckning löste till en länk utan href (${JSON.stringify(href) ?? String(href)}). href ska vara en adress som inte är tom.`);
+  }
+  const adress = href.trim();
+  if (KODADRESS.test(adress)) {
+    throw new Error(`TALK: onAnteckning löste till en href som kör kod (${adress.slice(0, 12)}…). En länk i ett kvitto går till en adress.`);
+  }
+  if (etikett !== undefined && (typeof etikett !== "string" || !etikett.trim())) {
+    throw new Error(`TALK: onAnteckning löste till en länk med en etikett som inte är en text (${JSON.stringify(etikett) ?? String(etikett)}). etikett ska vara ordet på länken, eller utelämnas.`);
+  }
+  return { href: adress, etikett: typeof etikett === "string" ? etikett.trim() : null };
 }
 
 /*
@@ -851,10 +896,78 @@ export function talkFeltext(fel, val = {}) {
  * modell, och därför kan appen stänga av den (`useTalk({ igenkanning: false })`).
  */
 
+/*
+ * ══ ⛔ LJUDVÅGOR NÄR BARA IGENKÄNNINGEN KÖR (0.115.0, cllp/lifehub.app#345) ═════════════════════════════════════════════════
+ *
+ * CP på iPhone 2026-10-17: "det är inga ljudvågor när jag pratar ... Om det funkar hade du sett ännu mer proffsigt ut." På WebKit kör TALK
+ * med valen BARA igenkänningen (0.114.0), och prickarna matas av inspelaren, som alltså inte finns: de stod stilla.
+ *
+ * ⛔ INGEN EGEN MIKROFONSTRÖM. Striden om mikrofonen mellan igenkänningen och inspelaren var orsaken till #253, och en ström för att mäta
+ * nivån hade varit en andra som slåss om samma mikrofon. Nivån räknas i stället ur det igenkänningen själv säger: `onsoundstart` och
+ * `onspeechstart` ger en liten puls (det lyssnar), varje resultat med ny text en puls vars höjd följer hur mycket text som kom, och
+ * `onspeechend` eller en tystnad på `IGENKANNING_AVTA_MS` tar ned den. ⛔ DET ÄR EN UPPSKATTNING AV "DET PRATAS NU" OCH INGEN MÄTNING AV
+ * LJUDSTYRKAN: igenkänningen ger text, inte decibel. Ingen text kommer förrän webbläsaren hört ett ord, så pulserna ligger efter talet.
+ */
+
+/** Så lång tid en puls tar på sig att gå ned till noll när ingen ny text kommer. */
+export const IGENKANNING_AVTA_MS = 400;
+/** Så lång tid avtagandet tar efter `onspeechend`: webbläsaren har sagt att talet är slut, så det ska inte stå kvar. */
+const IGENKANNING_TYST_MS = 150;
+/** Pulsen av `onsoundstart` och `onspeechstart`: det lyssnar, och mer än så vet vi inte. */
+const IGENKANNING_LJUDNIVA = 0.25;
+/** Så många tecken ny text ger en full puls. Mindre text ger en lägre. */
+const IGENKANNING_FULL_PULS_TECKEN = 20;
+
+/**
+ * Nivån 0 till 1 ur igenkänningens händelser, för prickarna (`TalkPrickar`). En funktion som ger nivån NU: den faller linjärt mellan
+ * pulserna, så prickarna som läser den var 80:e millisekund ser den avta av sig själv.
+ *
+ * @param {{ nu?: () => number }} [val] `nu` är klockan, bara för prov. ⛔ Förvalet läser `Date.now` vid varje anrop och sparar inte
+ *   funktionen, så att en falsk klocka i ett prov också når hit.
+ */
+export function skapaIgenkanningsniva({ nu = () => Date.now() } = {}) {
+  let topp = 0;
+  let tid = 0;
+  let avtaMs = IGENKANNING_AVTA_MS;
+  const niva = () => {
+    if (topp === 0) return 0;
+    return topp * Math.max(0, 1 - (nu() - tid) / avtaMs);
+  };
+  /** En ny puls tar aldrig ned en som pågår: den högsta av nuvarande och den nya gäller, och avtagandet börjar om. @param {number} h */
+  const pulsa = (h) => {
+    topp = Math.max(niva(), Math.min(1, h));
+    tid = nu();
+    avtaMs = IGENKANNING_AVTA_MS;
+  };
+  return {
+    niva,
+    /** `onsoundstart`: det lyssnar. */
+    ljud: () => pulsa(IGENKANNING_LJUDNIVA),
+    /** `onspeechstart`: det pratas. Samma lilla puls som `ljud`. */
+    tal: () => pulsa(IGENKANNING_LJUDNIVA),
+    /** Ny text kom, så här många tecken. @param {number} tecken */
+    text: (tecken) => pulsa(0.35 + 0.65 * Math.min(1, Math.max(0, tecken) / IGENKANNING_FULL_PULS_TECKEN)),
+    /** `onspeechend`: talet är slut, och nivån tas ned snabbare än tystnaden ensam hade gjort. */
+    tystnad: () => {
+      topp = niva();
+      tid = nu();
+      avtaMs = IGENKANNING_TYST_MS;
+    },
+    /** En ny omgång börjar stilla. */
+    nolla: () => {
+      topp = 0;
+      tid = 0;
+      avtaMs = IGENKANNING_AVTA_MS;
+    },
+  };
+}
+
 /**
  * @typedef {object} Igenkanning
- * @property {(val: { sprak: string, onText: (text: string) => void, onFel?: (kod: string) => void }) => void} starta Börjar lyssna. `onText` får hela texten hittills.
+ * @property {(val: { sprak: string, onText: (text: string) => void, onFel?: (kod: string) => void, onLjud?: (typ: "ljud" | "tal" | "tystnad") => void }) => void} starta Börjar lyssna. `onText` får hela texten hittills.
  *   `onFel` (0.99.0) får en kod när igenkänningen inte går att starta eller faller med ett riktigt fel, så att fältet kan säga det.
+ *   `onLjud` (0.115.0, cllp/lifehub.app#345) får webbläsarens egna ljudhändelser: `ljud` (`onsoundstart`), `tal` (`onspeechstart`) och
+ *   `tystnad` (`onspeechend`). Valfri: en egen igenkänning från appen som inte känner till den får bara `onText`, och prickarna drivs då av texten ensam.
  * @property {() => Promise<string>} stoppa Slutar och ger den slutliga texten, eller tom sträng när den inte går att lita på.
  * @property {() => void} kasta Slutar utan att vänta.
  * @property {() => Igenkanningsdiagnos} [diagnos] (0.114.0, cllp/ops-framework#402) Vad den här omgångens igenkänning gjorde, för felrapporten
@@ -1066,8 +1179,8 @@ export function webblasarensIgenkanning(miljo = {}) {
     }
   };
 
-  /** @param {number} mitt @param {string} sprak @param {(text: string) => void} onText @param {((kod: string) => void) | undefined} onFel */
-  const ny = (mitt, sprak, onText, onFel) => {
+  /** @param {number} mitt @param {string} sprak @param {(text: string) => void} onText @param {((kod: string) => void) | undefined} onFel @param {((typ: "ljud" | "tal" | "tystnad") => void) | undefined} onLjud */
+  const ny = (mitt, sprak, onText, onFel, onLjud) => {
     const rec = new SR();
     rec.lang = sprak;
     rec.continuous = true;
@@ -1100,6 +1213,21 @@ export function webblasarensIgenkanning(miljo = {}) {
     rec.onstart = () => {
       if (galler()) startHandelse = true;
     };
+    // ⛔ LJUDHÄNDELSERNA KOPPLAS BARA OM NÅGON LYSSNAR (0.115.0, cllp/lifehub.app#345). De är det som driver prickarna när bara igenkänningen
+    // kör. Utan `onLjud` sätts ingen hanterare alls, så att en omgång som också har en inspelare är exakt som förut. En hanterare som kastar
+    // får aldrig ta ned igenkänningen: felet går till felrapporten.
+    if (typeof onLjud === "function") {
+      for (const [handelse, typ] of /** @type {const} */ ([["onsoundstart", "ljud"], ["onspeechstart", "tal"], ["onspeechend", "tystnad"]])) {
+        rec[handelse] = () => {
+          if (!galler()) return;
+          try {
+            onLjud(typ);
+          } catch (fel) {
+            rapporteraFel(fel, { yta: "talk", steg: "igenkanning-onLjud" });
+          }
+        };
+      }
+    }
     rec.onerror = (/** @type {any} */ e) => {
       if (!galler()) return;
       if (TYSTA_FEL.includes(e?.error)) {
@@ -1137,7 +1265,7 @@ export function webblasarensIgenkanning(miljo = {}) {
             if (mitt !== forsok || !aktiv || trasig) return;
             try {
               forsokStart = nu();
-              r = ny(mitt, sprak, onText, onFel);
+              r = ny(mitt, sprak, onText, onFel, onLjud);
               r.start();
             } catch (fel) {
               // En igenkännare som aldrig startade säger aldrig `end`, och håller ingenting.
@@ -1164,8 +1292,8 @@ export function webblasarensIgenkanning(miljo = {}) {
   };
 
   return {
-    /** @param {{ sprak: string, onText: (text: string) => void, onFel?: (kod: string) => void }} val */
-    starta({ sprak, onText, onFel }) {
+    /** @param {{ sprak: string, onText: (text: string) => void, onFel?: (kod: string) => void, onLjud?: (typ: "ljud" | "tal" | "tystnad") => void }} val */
+    starta({ sprak, onText, onFel, onLjud }) {
       forsok += 1;
       startadeOmgang = false;
       startHandelse = false;
@@ -1184,7 +1312,7 @@ export function webblasarensIgenkanning(miljo = {}) {
       vantarPaOmstart = false;
       narSlut = null;
       try {
-        r = ny(forsok, sprak, onText, onFel);
+        r = ny(forsok, sprak, onText, onFel, onLjud);
         r.start();
         startadeOmgang = true;
         forsokStart = nu();

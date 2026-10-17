@@ -422,7 +422,7 @@ describe("Anteckning, det femte valet", () => {
     expect(val("Anteckning").className).not.toContain("col-span-2");
   });
 
-  it("⛔ anropar onAnteckning med texten, säger Sparar… medan löftet arbetar, och stänger fältet när det löst sig", async () => {
+  it("⛔ anropar onAnteckning med texten, säger Sparar… medan löftet arbetar, och visar kvittot när det löst sig (0.115.0)", async () => {
     const u = uppskjuten();
     const onAnteckning = vi.fn(() => u.lofte.then(() => {}));
     const onAgent = vi.fn();
@@ -438,7 +438,10 @@ describe("Anteckning, det femte valet", () => {
     expect(within(dialog).getByRole("status").textContent).toBe("Sparar…");
     await act(async () => u.los("klart"));
     await flush();
-    expect(falt()).toBeNull();
+    // ⛔ 0.115.0 (cllp/lifehub.app#345): fältet stängs inte längre, det visar kvittot. Provet hävdade förut `toBeNull()`.
+    const efter = /** @type {HTMLElement} */ (falt());
+    expect(efter.getAttribute("data-lage")).toBe("sparat");
+    expect(within(efter).getByRole("status").textContent).toBe("Anteckningen är sparad");
     expect(onAgent).not.toHaveBeenCalled();
     expect(t.onTalk).not.toHaveBeenCalled();
   });
@@ -471,7 +474,8 @@ describe("Anteckning, det femte valet", () => {
       fireEvent.click(val("Anteckning"));
       await flush();
       expect(onAnteckning).toHaveBeenCalledTimes(2);
-      expect(falt()).toBeNull();
+      // Andra försöket gick: kvittot står (0.115.0), i stället för att fältet stängs.
+      expect(within(/** @type {HTMLElement} */ (falt())).getByRole("status").textContent).toBe("Anteckningen är sparad");
     } finally {
       konsol.mockRestore();
     }
@@ -490,7 +494,7 @@ describe("Anteckning, det femte valet", () => {
       await act(async () => u.los("Ring Kim"));
       await flush();
       expect(onAnteckning).toHaveBeenCalledWith("Ring Kim");
-      expect(falt()).toBeNull();
+      expect(within(/** @type {HTMLElement} */ (falt())).getByRole("status").textContent).toBe("Anteckningen är sparad");
     } finally {
       konsol.mockRestore();
     }

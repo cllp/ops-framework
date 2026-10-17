@@ -886,7 +886,7 @@ function GenvagRam({ nyckel, ikon, tips = true, className, children }) {
  *   Utan `skapa`, eller utan NÅGOT den kan visa (inga `handelse`/`arende` OCH modulerna i `ingenGrupp`/`tomt`-
  *   läge), ritas inget plus alls (tomhet är ett svar, arbetsreglernas punkt 5).
  * @param {string} [props.skapaLabel] Skärmläsarnamn på plusknappen.
- * @param {Omit<import("./OpsTalk.jsx").TalkVal, "onTalk"> & { mal?: ReadonlyArray<{ id: string, etikett: string }>, onMeddelande?: (underlag: import("../lib/talk.js").Talkunderlag) => void, onAgent?: (text: string) => void | Promise<void>, onAnteckning?: (text: string) => void | Promise<void>, tillText?: (blob: Blob, meta: { mimeType: string, sekunder: number }) => Promise<string>, onTalk: (blob: Blob, meta: { mimeType: string, sekunder: number, rapportera: (andel: number) => void, mal?: { id: string }, text?: string }) => Promise<void | import("../lib/talk.js").Talkkvitto> | void | import("../lib/talk.js").Talkkvitto }} [props.talk] TALK (0.57.0, cllp/lifehub.app#2). ⛔ (0.103.0) Bottenradens mittknapp
+ * @param {Omit<import("./OpsTalk.jsx").TalkVal, "onTalk"> & { mal?: ReadonlyArray<{ id: string, etikett: string }>, onMeddelande?: (underlag: import("../lib/talk.js").Talkunderlag) => void, onAgent?: (text: string) => void | Promise<void>, onAnteckning?: (text: string) => void | import("../lib/talk.js").Talkanteckningslank | Promise<void | import("../lib/talk.js").Talkanteckningslank>, tillText?: (blob: Blob, meta: { mimeType: string, sekunder: number }) => Promise<string>, onTalk: (blob: Blob, meta: { mimeType: string, sekunder: number, rapportera: (andel: number) => void, mal?: { id: string }, text?: string }) => Promise<void | import("../lib/talk.js").Talkkvitto> | void | import("../lib/talk.js").Talkkvitto }} [props.talk] TALK (0.57.0, cllp/lifehub.app#2). ⛔ (0.103.0) Bottenradens mittknapp
  *   är då en mikrofon: ett vanligt tryck spelar in, och ett långtryck öppnar skapa-listan (utan TALK-raden) när den har något.
  *   Före 0.103.0 spelade ett långtryck på plusset in och ett tryck öppnade Skapa. Huvudets plus (bred skärm, och den gamla
  *   modellen på telefon) får raden "TALK, prata in" först där ingen mikrofon står bredvid. Ljudet lämnas till `talk.onTalk`. När ett mål är valt
@@ -909,7 +909,10 @@ function GenvagRam({ nyckel, ikon, tips = true, className, children }) {
  *   går inte till `onTalk` (förut valde appen då åt personen). `talk.tillText(blob, { mimeType, sekunder })` skriver ut ljudet: fältet säger
  *   "Skriver ut…", fyller i texten när den svarar, och ett val som tryckts före texten väntar på den. Ett fel i utskriften står i fältet med
  *   valen kvar. Utan `tillText` säger fältet att ingen text kom fram. `talk.onAnteckning(text)` ger ett femte val, Anteckning (ritas bara med den):
- *   fältet säger "Sparar…" och stängs när löftet löser sig, och ett fel står i fältet med valen kvar. Utan `talk.onAgent` är beteendet som förut:
+ *   fältet säger "Sparar…", och ett fel står i fältet med valen kvar. (0.115.0, cllp/lifehub.app#345) När löftet löser sig stängs fältet inte: det visar
+ *   kvittot "Anteckningen är sparad" med Stäng. Löser löftet till `{ href?, etikett? }` får kvittot en länk dit (till exempel biblioteket), som går
+ *   via skalets `onNavigate` och stänger fältet; löser det till `undefined` visas kvittot utan länk. Under texten finns också en ikonknapp Kopiera,
+ *   som skriver texten till urklipp ("Kopierat") utan att stänga fältet. Utan `talk.onAgent` är beteendet som förut:
  *   ljudet går till `onTalk`. Ljud utan text går dessutom till felrapporten (`rapporteraFel`, steg `ingen-text`) med det som skiljer orsakerna åt.
  *   När ett moduls mål är valt (Biblioteket) gäller modulens
  *   `spara` och inga val. ⛔ 0.105.0 tog bort `svaraText`, `onFortsatt` och `fortsattEtikett`, och skalet kastar om de skickas.
@@ -2668,6 +2671,7 @@ function OpsAppShellRitad({
           onSkrivUt={talkStyr.skrivUt}
           kanSpelaIStallet={talkStyr.kanSpelaIStallet}
           onSpelaIStallet={talkStyr.spelaIStallet}
+          onLank={onActivate}
         />
       ) : null}
 

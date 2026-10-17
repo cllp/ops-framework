@@ -9,6 +9,61 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.115.0
+
+Finputs på TALK efter 0.114.0 (cllp/lifehub.app#345 och #347) och utskrift av ljud i biblioteket (cllp/lifehub.app#349). CP 2026-10-17, iPhone:
+"det går snabbt och fint och texten kommer upp i realtid, även menyerna". Det fungerar, och det här är finputs.
+
+### TALK: ljudvågor när bara igenkänningen kör (#345 a)
+
+- På WebKit kör TALK med valen BARA igenkänningen (0.114.0), och nivåprickarna matades av en inspelare som inte finns: de stod stilla. De drivs nu av
+  igenkänningens egna händelser: `onsoundstart` och `onspeechstart` ger en liten puls (det lyssnar), varje resultat med ny text en puls vars
+  höjd följer hur mycket text som kom, och `onspeechend` eller en tystnad på `IGENKANNING_AVTA_MS` (400 ms) tar ned den. Samma komponent
+  (`TalkPrickar`) som när inspelaren matar, så det ser likadant ut.
+- ⛔ **Ingen egen mikrofonström:** striden om mikrofonen var orsaken till #253. Nivån är en uppskattning av "det pratas nu" ur text och händelser, inte en
+  mätning av ljudstyrkan (igenkänningen ger text, inte decibel), och pulserna ligger därför efter talet. Ny `skapaIgenkanningsniva` i `lib/talk.js`.
+- `Igenkanning.starta` tar en valfri `onLjud(typ)` med `ljud`, `tal` och `tystnad`. Den kopplas bara i en omgång utan inspelare; en omgång med inspelare
+  (Chrome, låst mål, "Spela in i stället") är exakt som förut, och en egen igenkänning från appen som inte känner till `onLjud` drivs av texten ensam.
+- ⛔ **`prefers-reduced-motion`:** med mindre rörelse flyttar sig inga prickar och ingen ändrar höjd; raden står stilla och blir ljusare när det pratas.
+  Det gäller `TalkPrickar` överallt, också när inspelaren matar den (förut ritades höjderna oavsett inställningen).
+
+### TALK: texten rullar med (#345 b)
+
+- Textytan rullar till slutet när ny text kommer. Har personen själv rullat upp stannar den där, och den följer med igen när hen är längst ner
+  (8 px tolerans). Det avgörs bara av rullhändelser, aldrig av att texten växer, och varje ny omgång börjar med att följa.
+
+### TALK: Anteckning visar ett kvitto (#345 c)
+
+- ⛔ **Bryter ett beteende, med flit:** när `onAnteckning` löst sig stängdes fältet. Nu visas kvittot "Anteckningen är sparad" som andra kvitton
+  (läget `sparat`, med Stäng), tills personen stänger det. Tre prov i `talk-ingen-text.test.jsx` hävdade att fältet stängs och säger nu det motsatta.
+- `onAnteckning` får lösa till `{ href?, etikett? }`: kvittot får då en länk ("Öppna anteckningen" när `etikett` saknas), så att appen kan peka på
+  biblioteket. Löser det till `undefined`, ett id eller något annat än en länk visas kvittot utan länk. Ny `talkAnteckningsLank` läser svaret.
+- En felformad länk (`href` som saknas eller inte är en text, en `etikett` som inte är en text, en adress som börjar med `javascript:`, `data:` eller
+  `vbscript:`) rapporteras (steget `anteckning-lank`) och kvittot visas utan länk: anteckningen är redan sparad, så den blir inte osparad av ett fel i svaret.
+- Nya `onLank(href, event)` på `OpsInspelning` och `OpsTalk`. Skalet ger sin `onNavigate` dit, så länken navigerar som skalets andra länkar. Fältet stängs efter trycket.
+- `useTalk().kvitto` bär `lank` när kvittot har en.
+
+### TALK: Kopiera (#347)
+
+- En liten ikonknapp Kopiera bredvid Stäng i läget hört, när det finns text. `navigator.clipboard.writeText(text)`, sedan "Kopierat" en kort stund
+  i fältet. Fältet stängs inte, och inget lämnas till appen. Faller urklippet (inget API, nekat eller ett kast) står felet i fältet, och steget
+  `kopiera` går till felrapporten. Ny `useKopiera` i `components/useKopiera.js`, som biblioteket delar. Orden på svenska och engelska i `ORD_TALK`.
+
+### Biblioteket: skriv ut ett ljud (#349)
+
+- Ny `onSkrivUt(post) => Promise<void>` på `OpsBibliotek`: knappen "Skriv ut texten" på en ljudpost som inte har någon utskrift. Medan löftet pågår står
+  "Skriver ut…" på posten. Ett fel (också ett dygnstak) står på posten och knappen finns kvar. ⛔ Texten kommer inte i svaret: servern skriver fältet
+  `utskrift` på posten, och vyn läser det ur listans post (också när `vald` är en äldre kopia) och visar det under spelaren med radbrytningarna bevarade
+  (`white-space: pre-wrap`), så att verser syns.
+- Under texten: Kopiera (samma krok som TALK, med "Kopierat") och "Gör en anteckning av texten", som anropar nya `onAnteckningAvUtskrift(post)` och bara
+  ritas när den ges. Lyckas den står "Anteckningen är sparad" en stund, faller den står felet på posten. Utan propsen ritas ingen knapp.
+- ⛔ **Bryter ett API, med flit:** `onSkrivUt` löste förut till `{ text, forslag }` och vyn höll en egen kopia av texten, med knapparna "Spara som
+  anteckning" och "Skapa ärende" (`onGorForslag`). Texten hör nu till posten (en sanning), och `onGorForslag` kastar ett fel som säger det. Två prov i
+  `bibliotek-vy.test.jsx` om den gamla utskriften är ersatta av `bibliotek-utskrift.test.jsx`.
+- Schemat och valideringen (`utskrift` på ett ljud, tak `MAX_BIBLIOTEKUTSKRIFT`) och `createBibliotekskalla` tillät redan fältet; nytt prov visar att en
+  text som servern skrivit läses, behålls av en omdöpning och att en för lång syns som trasig rad. `bibliotekregelfragment` är orörd: den släpper fortfarande
+  igenom en klientskrivning av fältet (högst 20 000 tecken, bara på ett ljud), och att nekan den är appens val.
+
 ## 0.114.0
 
 Valen står alltid efter talet, Anteckning som val och orsaken mäts (cllp/ops-framework#402), och biblioteket visar en ny post

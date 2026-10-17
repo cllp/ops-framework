@@ -36,7 +36,7 @@ function filposter() {
   ];
 }
 
-function Harness({ start = poster, lasfel = null, jag = FORFATTARE, trasiga = [], onNavigate = undefined, onRadera = undefined, onLaddaUpp = undefined, onSpelaIn = undefined, inspelare = undefined, filUrl = undefined, hamtaAdress = undefined, grupper = [], onDela = undefined, onSkrivUt = undefined, onGorForslag = undefined, onFyllLjud = undefined, onSparaOverride = undefined }) {
+function Harness({ start = poster, lasfel = null, jag = FORFATTARE, trasiga = [], onNavigate = undefined, onRadera = undefined, onLaddaUpp = undefined, onSpelaIn = undefined, inspelare = undefined, filUrl = undefined, hamtaAdress = undefined, grupper = [], onDela = undefined, onSkrivUt = undefined, onFyllLjud = undefined, onSparaOverride = undefined }) {
   const [vald, setVald] = useState(/** @type {(typeof poster)[number] | null} */ (null));
   const [skapar, setSkapar] = useState(/** @type {"anteckning" | "lank" | null} */ (null));
   const [sparat, setSparat] = useState(/** @type {unknown} */ (null));
@@ -62,7 +62,6 @@ function Harness({ start = poster, lasfel = null, jag = FORFATTARE, trasiga = []
         grupper={grupper}
         onDela={onDela}
         onSkrivUt={onSkrivUt}
-        onGorForslag={onGorForslag}
         onFyllLjud={onFyllLjud}
         hubHref="/hub"
         onNavigate={onNavigate}
@@ -351,70 +350,8 @@ describe("OpsBibliotek", () => {
     expect(screen.getByRole("button", { name: "Byt fil" })).toBeInTheDocument();
   });
 
-  it("skriv ut visar texten, och ingenting skapas förrän personen väljer", async () => {
-    const ljud = {
-      ...byggPost({
-        groupId: "cps-ab",
-        typ: "fil",
-        rubrik: "Idé 2026-10-08 21:05",
-        fil: { sokvag: "grupper/my/bibliotek/p/ide.webm", namn: "ide.webm", mime: "audio/webm", byte: 4000 },
-        skapadAv: skapare,
-        skapad: tid,
-        andrad: tid,
-      }),
-      id: "ljud",
-    };
-    const onSkrivUt = vi.fn(async () => ({ text: "Hej", forslag: "arende" }));
-    const onGorForslag = vi.fn();
-    const { unmount } = render(<Harness start={[ljud]} filUrl={() => "https://exempel.se/ide.webm"} onSkrivUt={onSkrivUt} onGorForslag={onGorForslag} />);
-    fireEvent.click(screen.getByRole("button", { name: "Idé 2026-10-08 21:05" }));
-    expect(screen.queryByRole("button", { name: /Skapa ärende/ })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Skriv ut" }));
-    expect(await screen.findByText("Hej")).toBeInTheDocument();
-    expect(onSkrivUt).toHaveBeenCalledTimes(1);
-    expect(onGorForslag).not.toHaveBeenCalled();
-    expect(screen.getByRole("button", { name: "Spara som anteckning" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Skapa ärende, förslag" }));
-    expect(onGorForslag).toHaveBeenCalledTimes(1);
-    expect(onGorForslag).toHaveBeenCalledWith({ id: "ljud", satt: "arende" });
-    unmount();
-
-    const tak = vi.fn(async () => { throw new Error("Dygnstaket är nått."); });
-    render(<Harness start={[ljud]} filUrl={() => "https://exempel.se/ide.webm"} onSkrivUt={tak} />);
-    fireEvent.click(screen.getByRole("button", { name: "Idé 2026-10-08 21:05" }));
-    fireEvent.click(screen.getByRole("button", { name: "Skriv ut" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Dygnstaket är nått.");
-    expect(screen.queryByRole("button", { name: /Skapa ärende/ })).toBeNull();
-  });
-
-  it("en läsare ser utskriften och ingen knapp, och en saknad koppling syns", () => {
-    const ljud = {
-      ...byggPost({
-        groupId: "cps-ab",
-        typ: "fil",
-        rubrik: "Idé 2026-10-08 21:05",
-        fil: { sokvag: "grupper/my/bibliotek/p/ide.webm", namn: "ide.webm", mime: "audio/webm", byte: 4000 },
-        utskrift: "Redan skriven",
-        skapadAv: skapare,
-        skapad: tid,
-        andrad: tid,
-      }),
-      id: "ljud",
-    };
-    const { unmount } = render(<Harness start={[ljud]} jag={{ uid: "uid-annan", roll: "medlem" }} filUrl={() => "https://exempel.se/ide.webm"} />);
-    fireEvent.click(screen.getByRole("button", { name: "Idé 2026-10-08 21:05" }));
-    expect(screen.getByText("Redan skriven")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Skriv ut" })).toBeNull();
-    unmount();
-
-    const tom = { ...ljud, utskrift: "" };
-    const andra = render(<Harness start={[tom]} filUrl={() => "https://exempel.se/ide.webm"} />);
-    fireEvent.click(screen.getByRole("button", { name: "Idé 2026-10-08 21:05" }));
-    expect(screen.getByText("Utskriften är tom.")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Skriv ut" }));
-    expect(screen.getByRole("alert")).toHaveTextContent("Utskriften är inte kopplad. Inget skickades.");
-    andra.unmount();
-  });
+  // ⛔ 0.115.0 (cllp/lifehub.app#349): proven "skriv ut visar texten, och ingenting skapas förrän personen väljer" och "en läsare ser utskriften
+  // och ingen knapp" hävdade den gamla utskriften (onSkrivUt löste till { text, forslag }, onGorForslag). De är ersatta av bibliotek-utskrift.test.jsx.
 
   it("hamtaAdress spelar ljudet i listan och i detaljen, och säger inte att adressen saknas medan den hämtas", async () => {
     const ljud = {

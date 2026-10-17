@@ -18,9 +18,13 @@ import { OpsButton } from "./OpsButton.jsx";
 import { OpsLjudspelare } from "./OpsLjudspelare.jsx";
 import { OpsSpelaKnapp, OpsSpelarKontroller, useSpelare } from "./OpsSpelare.jsx";
 import { OpsEmpty } from "./OpsEmpty.jsx";
+import { OpsSpinner } from "./OpsSpinner.jsx";
 import { OpsField, OpsInput, OpsTextarea } from "./OpsField.jsx";
 import { OpsSelect } from "./OpsSelect.jsx";
 import { useOpsSprak } from "./OpsSprak.jsx";
+import { useKopiera, useKortVisning } from "./useKopiera.js";
+import { ordet } from "../lib/ord.js";
+import { talkOrd } from "../lib/talk.js";
 import { TillbakaKnapp } from "./TillbakaKnapp.jsx";
 import { ModulLageKnapp, OpsModulRam, kravRam } from "./OpsModulRam.jsx";
 import { OpsView } from "./OpsView.jsx";
@@ -151,8 +155,13 @@ function useBibliotekskalla(kalla) {
  * @param {readonly { id: string, namn: string }[]} [props.platser] (0.101.0) Platserna personen växlar mellan, till exempel gruppens bibliotek och Mitt bibliotek. Färre än två: ingen växlare.
  * @param {string} [props.plats] (0.101.0) Platsen som visas nu, ett `id` ur `platser`.
  * @param {(id: string) => void} [props.onPlats] (0.101.0) Personen valde en annan plats.
- * @param {(post: { id: string }) => { text: string, forslag?: "anteckning" | "arende" } | Promise<{ text: string, forslag?: "anteckning" | "arende" }>} [props.onSkrivUt] Ber servern om en utskrift. Felet visas, också ett dygnstak.
- * @param {(inmatning: { id: string, satt: "anteckning" | "arende" }) => void | Promise<void>} [props.onGorForslag] Personen väljer. Inget skapas utan trycket.
+ * @param {(post: import("../lib/bibliotek.js").Bibliotekspost & { id: string }) => Promise<void> | void} [props.onSkrivUt] (0.115.0, cllp/lifehub.app#349) Ber servern skriva ut ett ljud. Knappen "Skriv ut texten" ritas på en
+ *   ljudpost när propen ges och posten inte har någon utskrift än. Medan löftet pågår står "Skriver ut…" på posten, och ett fel (också ett dygnstak)
+ *   visas på posten med knappen kvar. ⛔ TEXTEN KOMMER INTE I SVARET: servern skriver fältet `utskrift` på posten (Admin SDK), och vyn visar den när
+ *   posten läses om. Det löftet löser till ignoreras. Utan propen ritas ingen knapp. Före 0.115.0 löste den till `{ text, forslag }` och vyn höll en egen kopia.
+ * @param {(post: import("../lib/bibliotek.js").Bibliotekspost & { id: string }) => Promise<void> | void} [props.onAnteckningAvUtskrift] (0.115.0, cllp/lifehub.app#349) "Gör en anteckning av texten" under utskriften.
+ *   Ritas bara när propen ges. Ett fel visas på posten, och lyckas den står "Anteckningen är sparad" en stund.
+ * @param {unknown} [props.onGorForslag] Borttagen (0.115.0). Skickas den kastas ett fel: förslagsknapparna "Spara som anteckning" och "Skapa ärende" är ersatta av `onAnteckningAvUtskrift`.
  * @param {string} [props.modulId] (0.88.1) Modulens id i appen, förval "bibliotek". Står den i huvudmenyn har listan ingen tillbaka-rad.
  * @param {string} props.hubHref (0.83.0) Hubbens adress: tillbaka-radens mål, som `OpsModulSida`. Krävs.
  * @param {string} [props.hubEtikett] Förval "Appar".
@@ -161,7 +170,7 @@ function useBibliotekskalla(kalla) {
  * @param {string} [props.activeHref] (0.89.0) Krävs tillsammans med `ram` och `modul`. `?lage=installningar` visar inställningarna.
  * @param {import("../lib/modul.js").Modul | null} [props.modul] (0.89.0) Manifestet inställningarna läser. Krävs med `ram`.
  */
-export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, trasiga: trasigaProp = [], laddar: laddarProp = false, vald = null, skapar = null, jag, onOppna, onStang, onSkapa, onSpara, onRadera, onLaddaUpp, onFyllLjud, onSpelaIn, inspelare, filUrl, hamtaAdress, grupper = [], onDela, platser = [], plats, onPlats, onSkrivUt, onGorForslag, hubHref, hubEtikett, onNavigate, modulId = "bibliotek", ram = null, activeHref, modul = null }) {
+export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, trasiga: trasigaProp = [], laddar: laddarProp = false, vald = null, skapar = null, jag, onOppna, onStang, onSkapa, onSpara, onRadera, onLaddaUpp, onFyllLjud, onSpelaIn, inspelare, filUrl, hamtaAdress, grupper = [], onDela, platser = [], plats, onPlats, onSkrivUt, onAnteckningAvUtskrift, onGorForslag, hubHref, hubEtikett, onNavigate, modulId = "bibliotek", ram = null, activeHref, modul = null }) {
   if (kalla !== undefined && (posterProp !== undefined || felProp !== null || laddarProp !== false || (Array.isArray(trasigaProp) && trasigaProp.length > 0))) {
     throw new Error("OpsBibliotek: kalla och poster/fel/trasiga/laddar kan inte ges tillsammans. Med kalla läser vyn själv, och två sanningar om samma lista hade låtit den ena vinna tyst.");
   }
@@ -177,6 +186,9 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
   kravRam(ram, "OpsBibliotek");
   if (ram && (typeof activeHref !== "string" || activeHref === "" || !modul)) {
     throw new Error("OpsBibliotek: ram kräver activeHref och modul. Inställningsläget behöver adressen och appens manifest.");
+  }
+  if (onGorForslag !== undefined) {
+    throw new Error("OpsBibliotek: onGorForslag är borta (0.115.0). Utskriften skrivs av servern på posten, och under texten finns Kopiera och \"Gör en anteckning av texten\" (onAnteckningAvUtskrift). Att tysta propen hade sett ut som att förslagsknapparna fortfarande fanns.");
   }
   if (onSpelaIn !== undefined || inspelare !== undefined) {
     throw new Error("OpsBibliotek: inspelningen i listan är borta. Röstinspelning i Ny-menyn öppnar skalets inspelare, med målet förvalt till modulens inspelning.mal.");
@@ -563,7 +575,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
     <OpsView tillbaka={detalj ? undefined : listTillbaka}>
       <div data-bibliotek="" className="flex min-w-0 w-full flex-col gap-4">
         {detalj ? (
-          <Detalj key={`${skaparTyp ?? ""}:${vald?.id ?? ""}:${startLage}`} post={vald ? medFyll(vald) : null} skapar={skaparTyp} jag={jag} startLage={startLage} onStang={onStang} onSpara={onSpara} onLaddaUpp={onLaddaUpp} filUrl={filUrl} adressFor={adressFor} onLjus={setLjus} onSkrivUt={onSkrivUt} onGorForslag={onGorForslag} menyFor={menyFor} onMeta={togMeta} />
+          <Detalj key={`${skaparTyp ?? ""}:${vald?.id ?? ""}:${startLage}`} post={vald ? medFyll(poster.find((p) => p.id === vald.id) ?? vald) : null} skapar={skaparTyp} startLage={startLage} onStang={onStang} onSpara={onSpara} onLaddaUpp={onLaddaUpp} filUrl={filUrl} adressFor={adressFor} onLjus={setLjus} onSkrivUt={onSkrivUt} onAnteckningAvUtskrift={onAnteckningAvUtskrift} menyFor={menyFor} onMeta={togMeta} />
         ) : (
           <div data-bibliotek-huvud="" className="flex min-w-0 flex-col gap-3">
             {/* ⛔ SESSIONSTUDIOS HUVUD, SOM I APPEN (0.102.0, CP 2026-10-14 med skärmbilder från SessionStudios app: "Listningen
@@ -1563,7 +1575,6 @@ function Adress({ url }) {
  * @param {object} props
  * @param {(import("../lib/bibliotek.js").Bibliotekspost & { id: string }) | null} props.post
  * @param {"anteckning" | "lank" | "fil" | null} props.skapar
- * @param {{ uid: string, roll: string, groupId?: string } | null} props.jag
  * @param {"las" | "redigera"} props.startLage
  * @param {() => void} props.onStang
  * @param {(inmatning: { id?: string, typ: string, rubrik: string, text?: string, url?: string, fil?: { sokvag: string, namn: string, mime: string, byte: number } }) => void | boolean | Promise<void | boolean>} props.onSpara Kastar den eller avvisas löftet visas felet i formuläret och läget står kvar (0.93.0). `false` betyder att det inte gick.
@@ -1571,12 +1582,12 @@ function Adress({ url }) {
  * @param {(post: { fil?: { sokvag?: string } }) => string} [props.filUrl]
  * @param {(post: { typ?: string, fil?: { sokvag?: string, mime?: string } }) => Adresslage} [props.adressFor]
  * @param {(adress: string) => void} [props.onLjus]
- * @param {(post: { id: string }) => { text: string, forslag?: "anteckning" | "arende" } | Promise<{ text: string, forslag?: "anteckning" | "arende" }>} [props.onSkrivUt]
- * @param {(inmatning: { id: string, satt: "anteckning" | "arende" }) => void | Promise<void>} [props.onGorForslag]
+ * @param {(post: any) => Promise<void> | void} [props.onSkrivUt]
+ * @param {(post: any) => Promise<void> | void} [props.onAnteckningAvUtskrift]
  * @param {(post: import("../lib/bibliotek.js").Bibliotekspost & { id: string }, iDetalj: boolean, sattRedigera?: (lage: "redigera") => void) => import("./OpsAtgardsblad.jsx").Atgard[]} props.menyFor
  * @param {(id: string, meta: { durationMs?: number, peaks?: string }) => void} [props.onMeta]
  */
-function Detalj({ post, skapar, jag, startLage, onStang, onSpara, onLaddaUpp, filUrl, adressFor, onLjus, onSkrivUt, onGorForslag, menyFor, onMeta }) {
+function Detalj({ post, skapar, startLage, onStang, onSpara, onLaddaUpp, filUrl, adressFor, onLjus, onSkrivUt, onAnteckningAvUtskrift, menyFor, onMeta }) {
   const typ = skapar ?? post?.typ ?? "anteckning";
   const [rubrik, setRubrik] = useState(post && !skapar ? post.rubrik : "");
   const [text, setText] = useState(post && !skapar && post.typ === "anteckning" ? post.text ?? "" : "");
@@ -1596,7 +1607,6 @@ function Detalj({ post, skapar, jag, startLage, onStang, onSpara, onLaddaUpp, fi
     // Nyckeln är beroendet: en ny lista med samma post ska inte tömma ett halvskrivet formulär.
   }, [nyckel]);
 
-  const kan = Boolean(!skapar && post && farAndra(post, jag));
   const ljud = Boolean(post && post.typ === "fil" && filSort(post.fil?.mime) === "ljud");
   const rubrikVy = skapar ? (typ === "anteckning" ? "Ny anteckning" : typ === "lank" ? "Ny länk" : "Ny fil") : ljud && post ? ljudRubrik(post) : post?.rubrik ?? "Post";
   const tomLage = /** @type {Adresslage} */ ({ lage: "saknas", adress: "", fel: "" });
@@ -1770,11 +1780,7 @@ function Detalj({ post, skapar, jag, startLage, onStang, onSpara, onLaddaUpp, fi
         }}
       />
       {lage === "las" && post && ljud ? (
-        kan ? (
-          <UtskriftKontroll post={post} onSkrivUt={onSkrivUt} onGorForslag={onGorForslag} />
-        ) : (
-          post.utskrift != null ? <p data-bibliotek-utskrift="">{post.utskrift === "" ? "Utskriften är tom." : post.utskrift}</p> : null
-        )
+        <UtskriftKontroll post={post} onSkrivUt={onSkrivUt} onAnteckningAvUtskrift={onAnteckningAvUtskrift} />
       ) : null}
     </div>
   );
@@ -1815,63 +1821,124 @@ function oppnaRost(oppna, modulId) {
 }
 
 /**
- * @param {{ post: { id: string, utskrift?: string }, onSkrivUt?: (post: { id: string }) => { text: string, forslag?: "anteckning" | "arende" } | Promise<{ text: string, forslag?: "anteckning" | "arende" }>, onGorForslag?: (inmatning: { id: string, satt: "anteckning" | "arende" }) => void | Promise<void> }} props
+ * Orden i utskriften på posten (0.115.0, cllp/lifehub.app#349), på båda språken.
+ *
+ * ⛔ BARA DE ORD SOM INTE REDAN FINNS I TALK. "Skriver ut…", Kopiera, Kopierat, urklippsfelet och "Anteckningen är sparad" står i `ORD_TALK`
+ * och läses därifrån (`talkOrd`): samma ord för samma sak i fältet och på posten, och en text som inte kan stå på två ställen (regel 2).
+ * @type {import("../lib/ord.js").Ordbok}
  */
-function UtskriftKontroll({ post, onSkrivUt, onGorForslag }) {
-  const [text, setText] = useState(/** @type {string | null} */ (post.utskrift ?? null));
-  const [forslag, setForslag] = useState(/** @type {null | "anteckning" | "arende"} */ (null));
+const ORD_BIBLIOTEKUTSKRIFT = {
+  skrivUt: { sv: "Skriv ut texten", en: "Write out the text" },
+  tom: { sv: "Utskriften är tom.", en: "The transcript is empty." },
+  felSkrivUt: { sv: "Ljudet gick inte att skriva ut.", en: "The recording could not be written out." },
+  gorAnteckning: { sv: "Gör en anteckning av texten", en: "Make a note of the text" },
+};
+
+/**
+ * Utskriften av ett ljud, på posten (0.115.0, cllp/lifehub.app#349; CP 2026-10-17: "när jag ska sjunga in en låt, och så får jag automatiskt
+ * texten utskriven", och strax efter: "det kanske kan få vara ett val").
+ *
+ * ⛔ TEXTEN HÖR TILL POSTEN OCH LÄSES UR DEN. Servern skriver fältet `utskrift` (Admin SDK), så ljudet och texten är ett dokument (regel 2). Vyn
+ * håller ingen egen kopia av texten: `onSkrivUt` löser till ingenting, och texten visas när posten läses om. Förut höll vyn en kopia i ett tillstånd
+ * som inte följde med när posten ändrades någon annanstans.
+ *
+ * ⛔ RADBRYTNINGAR BEVARAS (`whitespace-pre-wrap`): en sång skrivs rad för rad, i verser, och ett stycke utan sina brytningar är en text ingen kan sjunga.
+ *
+ * ⛔ INGENTING FALLER TYST. Medan servern skriver ut står "Skriver ut…" på posten. Ett fel, också ett dygnstak, står på posten och knappen
+ * finns kvar, så att det går att försöka igen. Har posten redan en text ritas ingen knapp: ett nytt tryck hade skrivit över den och räknats mot taket.
+ * En tom utskrift är ett svar ("Utskriften är tom."), och där finns knappen kvar.
+ *
+ * @param {{ post: { id: string, utskrift?: string }, onSkrivUt?: (post: any) => Promise<void> | void, onAnteckningAvUtskrift?: (post: any) => Promise<void> | void }} props
+ */
+function UtskriftKontroll({ post, onSkrivUt, onAnteckningAvUtskrift }) {
+  const sprak = useOpsSprak();
+  /** @param {string} k */
+  const o = (k) => ordet(ORD_BIBLIOTEKUTSKRIFT, k, sprak);
+  const [pagar, setPagar] = useState(false);
+  const [gorAnteckning, setGorAnteckning] = useState(false);
   const [fel, setFel] = useState("");
-  const [visarVal, setVisarVal] = useState(false);
+  const levande = useRef(true);
+  useEffect(() => {
+    levande.current = true;
+    return () => {
+      levande.current = false;
+    };
+  }, []);
+  const anteckningKlar = useKortVisning(3000);
+  const { kopierat, misslyckades, kopiera } = useKopiera("OpsBibliotek");
+  const text = typeof post.utskrift === "string" ? post.utskrift : null;
+  const harText = text !== null && text.trim() !== "";
+  const kanSkrivaUt = typeof onSkrivUt === "function" && !harText;
+  if (text === null && !kanSkrivaUt && !pagar) return null;
+
+  /** @param {unknown} e @param {string} reserv */
+  const felText = (e, reserv) => (e instanceof Error && e.message ? e.message : reserv);
+  const skrivUt = () => {
+    if (pagar || typeof onSkrivUt !== "function") return;
+    setFel("");
+    setPagar(true);
+    Promise.resolve()
+      .then(() => onSkrivUt(post))
+      .then(
+        () => {},
+        (e) => {
+          if (levande.current) setFel(felText(e, o("felSkrivUt")));
+        },
+      )
+      .then(() => {
+        if (levande.current) setPagar(false);
+      });
+  };
+  const goraAnteckning = () => {
+    if (gorAnteckning || typeof onAnteckningAvUtskrift !== "function") return;
+    setFel("");
+    setGorAnteckning(true);
+    Promise.resolve()
+      .then(() => onAnteckningAvUtskrift(post))
+      .then(
+        () => anteckningKlar.visa(),
+        (e) => {
+          if (levande.current) setFel(felText(e, talkOrd("felAnteckning", sprak)));
+        },
+      )
+      .then(() => {
+        if (levande.current) setGorAnteckning(false);
+      });
+  };
+
+  const status = pagar ? "skriverUt" : kopierat ? "kopierat" : anteckningKlar.synlig ? "anteckningKlar" : null;
+  const felVisas = fel || (misslyckades ? talkOrd("felKopiera", sprak) : "");
   return (
-    <div data-bibliotek-utskrift-kontroll="" className="flex flex-col gap-2">
-      {text != null ? <p data-bibliotek-utskrift="">{text === "" ? "Utskriften är tom." : text}</p> : null}
-      {fel ? <p role="alert">{fel}</p> : null}
-      <OpsButton
-        variant="secondary"
-        onClick={() => {
-          if (typeof onSkrivUt !== "function") {
-            setFel("Utskriften är inte kopplad. Inget skickades.");
-            return;
-          }
-          setFel("");
-          Promise.resolve()
-            .then(() => onSkrivUt(post))
-            .then((svar) => {
-              if (!svar || typeof svar.text !== "string") {
-                setFel("Servern svarade utan text. Ingenting sparades.");
-                return;
-              }
-              setText(svar.text);
-              setForslag(svar.forslag === "anteckning" || svar.forslag === "arende" ? svar.forslag : null);
-              setVisarVal(true);
-            })
-            .catch((e) => setFel(e instanceof Error ? e.message : String(e)));
-        }}
-      >
-        Skriv ut
-      </OpsButton>
-      {visarVal ? (
-        <div className="flex gap-2">
-          <OpsButton variant="secondary" onClick={() => {
-            if (typeof onGorForslag !== "function") {
-              setFel("Förslaget är inte kopplat. Ingenting skapades.");
-              return;
-            }
-            onGorForslag({ id: post.id, satt: "anteckning" });
-          }}>
-            {forslag === "anteckning" ? "Spara som anteckning, förslag" : "Spara som anteckning"}
-          </OpsButton>
-          <OpsButton variant="secondary" onClick={() => {
-            if (typeof onGorForslag !== "function") {
-              setFel("Förslaget är inte kopplat. Ingenting skapades.");
-              return;
-            }
-            onGorForslag({ id: post.id, satt: "arende" });
-          }}>
-            {forslag === "arende" ? "Skapa ärende, förslag" : "Skapa ärende"}
-          </OpsButton>
+    <div data-bibliotek-utskrift-kontroll="" className="flex min-w-0 flex-col gap-3">
+      {text !== null ? (
+        <p data-bibliotek-utskrift="" className="m-0 min-w-0 whitespace-pre-wrap text-brod text-ink wrap-anywhere">
+          {text === "" ? o("tom") : text}
+        </p>
+      ) : null}
+      {harText ? (
+        <div className="flex flex-wrap gap-2">
+          <OpsButton variant="secondary" size="sm" onClick={() => kopiera(text)}>{talkOrd("kopiera", sprak)}</OpsButton>
+          {typeof onAnteckningAvUtskrift === "function" ? (
+            <OpsButton variant="secondary" size="sm" busy={gorAnteckning} onClick={goraAnteckning}>{o("gorAnteckning")}</OpsButton>
+          ) : null}
         </div>
       ) : null}
+      {status ? (
+        <p role="status" aria-live="polite" data-bibliotek-utskrift-status={status} className="m-0 flex items-center gap-2 text-etikett text-ink-secondary">
+          {status === "skriverUt" ? (
+            <>
+              <OpsSpinner size="sm" decorative />
+              {talkOrd("skriverUt", sprak)}
+            </>
+          ) : status === "kopierat" ? (
+            talkOrd("kopierat", sprak)
+          ) : (
+            talkOrd("anteckningSparad", sprak)
+          )}
+        </p>
+      ) : null}
+      {felVisas ? <p role="alert" data-bibliotek-utskrift-fel="" className="m-0 text-etikett text-danger">{felVisas}</p> : null}
+      {kanSkrivaUt && !pagar ? <OpsButton variant="secondary" size="sm" onClick={skrivUt}>{o("skrivUt")}</OpsButton> : null}
     </div>
   );
 }
