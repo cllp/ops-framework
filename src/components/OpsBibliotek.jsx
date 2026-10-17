@@ -787,6 +787,9 @@ function losAdress(post, filUrl, hamtaAdress, cache) {
   return { lage: "hamtar", adress: "", fel: "" };
 }
 
+/** Väntan i ms före varje nytt försök när filen ännu inte finns i lagringen. */
+const SAKNAS_FORSOK = [1500, 3000, 6000];
+
 /**
  * Hämtar nedladdningsadresser en gång per sökväg. `filUrl` som redan svarar med en adress hoppas över.
  *
@@ -810,6 +813,9 @@ function useFilAdresser(poster, vald, filUrl, hamtaAdress) {
   const nyckel = underlag
     .map((post) => {
       if (postAdress(post, filUrl)) return "";
+      // ⛔ EN FIL SOM INTE ÄR KLAR HÄMTAS INTE (CP 2026-10-18). Posten syns direkt, byte kommer sekunder senare. Nyckeln ändras när
+      // `klar` blir sann, och då hämtas adressen.
+      if (/** @type {any} */ (post)?.fil?.klar === false) return "";
       const s = post?.typ === "fil" && typeof post.fil?.sokvag === "string" ? post.fil.sokvag.trim() : "";
       return s;
     })
@@ -825,8 +831,24 @@ function useFilAdresser(poster, vald, filUrl, hamtaAdress) {
     if (lista.length === 0) return undefined;
     for (const s of lista) pagaende.current.add(s);
     for (const s of lista) {
+      /*
+       * ⛔ "FINNS INTE" FÖRSÖKS IGEN (CP 2026-10-18, NewRecord.Song1.ver5). Mätt i lifehub-my: posten skrevs 00:13:33 och filen
+       * fanns 00:13:35, hel. Listan hämtade adressen under de två sekunderna, fick storage/object-not-found och sparade felet för
+       * sökvägen, så det stod kvar fast filen kom. Äldre poster utan `klar` får därför tre nya försök innan felet visas.
+       */
+      const forsok = async () => {
+        for (let i = 0; ; i++) {
+          try {
+            return await hamta(s);
+          } catch (e) {
+            const kod = e && typeof e === "object" ? /** @type {any} */ (e).code : "";
+            if (kod !== "storage/object-not-found" || i >= SAKNAS_FORSOK.length || !kvar) throw e;
+            await new Promise((r) => setTimeout(r, SAKNAS_FORSOK[i]));
+          }
+        }
+      };
       Promise.resolve()
-        .then(() => hamta(s))
+        .then(forsok)
         .then((url) => {
           if (!kvar) return;
           if (typeof url !== "string" || url === "") {

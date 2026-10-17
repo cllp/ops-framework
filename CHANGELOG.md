@@ -22,6 +22,7 @@ cllp/ops-framework#408 (ägarinbjudan ger admin, dov mikrofon, biblioteksfil med
 
 ### En biblioteksfil vars uppladdning inte blev klar (CP 2026-10-18, ljudposten NewRecord.Song1.ver5 i music-producer-nl3e3o), Grok 2026-10-18
 - `laddaUppFil` skriver posten med `fil.klar: false` och sätter `klar: true` (med ny `andrad`) först när byte finns. Avbryts uppladdningen (sidan stängs, mobilen somnar) säger posten själv att filen inte blev klar. Poster utan fältet räknas som klara.
+- ⛔ Orsaken, mätt i lifehub-my 2026-10-18 (bara läst): posten skrevs 00:13:33 och filen fanns hel 00:13:35 (7 144 788 byte, rätt sökväg). Listan hämtade adressen under de två sekunderna, fick storage/object-not-found och sparade felet för sökvägen, så felet stod kvar fast filen kom. Nu hämtas inte en fil med `klar: false`, och "finns inte" försöks igen tre gånger (1,5, 3 och 6 s) innan den vänliga texten visas.
 - `FILFALT` har `klar`, och regeln kräver att den är sant eller falskt om den finns.
 - `filadressFel` gör lagringens fel till en vänlig text. Biblioteket visar "Filen finns inte. Uppladdningen blev troligen inte klar. Ladda upp filen igen." i stället för "Firebase Storage: Object ... does not exist (storage/object-not-found)".
 
