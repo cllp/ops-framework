@@ -11,6 +11,13 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ## Ej utgivet
 
+## 0.117.1
+
+### En ny inbjudan med rollen agare nekas när den skickas (Claudes granskning av 0.117.0, CP 2026-10-18), Grok 2026-10-18
+- `bjudIn` kastar för rollen `agare`, också från gruppens ägare, med felet "rollen agare går inte att bjuda in till ... Bjud in som admin.", och inget skrivs. En grupp har en ägare, och man blir ägare bara genom överlämning.
+- Accepten av gamla väntande rader med rollen agare ger fortfarande admin (`rollEfterAccept`, 0.117.0).
+- Proven som bjöd in som ägare bjuder nu in som admin. Mergad på CP:s ja 2026-10-18 08:08 ("Allt skall ut"), undantag från regel 9.
+
 ## 0.117.0
 
 cllp/ops-framework#408 (ägarinbjudan ger admin, dov mikrofon, biblioteksfil med klar-markering, rubrik på röstanteckning). Mergad på CP:s ja 2026-10-18 01:04
