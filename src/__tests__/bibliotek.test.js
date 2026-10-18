@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ADRESSFORM, BIBLIOTEKFALT, BIBLIOTEKFLIKAR, BIBLIOTEKTYPER, LJUD_STOLPAR, MAX_BIBLIOTEKUTSKRIFT, MAX_LJUD_MS, TOPPFORM, TOPP_NIVAER, TOPP_TECKEN, arLjudpost, avkodaToppar, byggPost, farAndra, filtreraBibliotek, ideRubrik, inmatningsfel, kodaToppar, ljudDatum, ljudRubrik, normaliseraAdress, peaksGiltiga, postFel, taggfarg, toppListaGiltig, trimSomRegeln } from "../lib/bibliotek.js";
+import { ADRESSFORM, BIBLIOTEKFALT, BIBLIOTEKFLIKAR, BIBLIOTEKTYPER, LJUD_STOLPAR, MAX_BIBLIOTEKUTSKRIFT, MAX_LJUD_MS, TOPPFORM, TOPP_NIVAER, TOPP_TECKEN, arLjudpost, filInmatningsfel, mimeUrFilnamn, normaliseraMime, avkodaToppar, byggPost, farAndra, filtreraBibliotek, ideRubrik, inmatningsfel, kodaToppar, ljudDatum, ljudRubrik, normaliseraAdress, peaksGiltiga, postFel, taggfarg, toppListaGiltig, trimSomRegeln } from "../lib/bibliotek.js";
 import { SKAPARFALT, byggSkapare } from "../lib/skapare.js";
 
 /**
@@ -157,6 +157,18 @@ describe("bibliotekets post", () => {
     expect(postFel({ ...bas, fil: { ...fil, mime: "application/zip" } })).toMatch(/application\/zip/);
     expect(postFel({ ...bas, fil: { ...fil, byte: 25 * 1024 * 1024 + 1 } })).toMatch(/Taket/);
     expect(postFel({ ...anteckning, fil })).toMatch(/ingen fil/);
+  });
+
+  it("⛔ ljud har ett eget tak på 250 MB, bilder och dokument behåller 25 MB (CP 2026-10-18, WAV)", () => {
+    expect(filInmatningsfel({ namn: "lat.wav", mime: "audio/wav", byte: 64264206 })).toBeNull();
+    expect(filInmatningsfel({ namn: "lat.wav", mime: "audio/x-wav", byte: 64264206 })).toBeNull();
+    expect(filInmatningsfel({ namn: "lat.aiff", mime: "audio/x-aiff", byte: 100000000 })).toBeNull();
+    expect(filInmatningsfel({ namn: "lat.flac", mime: "audio/flac", byte: 250 * 1024 * 1024 })).toBeNull();
+    expect(filInmatningsfel({ namn: "lat.wav", mime: "audio/wav", byte: 250 * 1024 * 1024 + 1 })).toMatch(/Taket är 262144000 för ljud/);
+    expect(filInmatningsfel({ namn: "bild.jpg", mime: "image/jpeg", byte: 64264206 })).toMatch(/Taket är 26214400/);
+    expect(normaliseraMime("audio/wave")).toBe("audio/wav");
+    expect(mimeUrFilnamn("Låt.AIF")).toBe("audio/aiff");
+    expect(mimeUrFilnamn("bild.jpg")).toBe("");
   });
 
   it("en utskrift hör bara till ett ljud, och en tom utskrift är ett svar", () => {

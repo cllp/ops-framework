@@ -107,3 +107,11 @@ describe("Lagring: gruppens bibliotek", () => {
     await assertFails(uploadBytes(ref(lagringSom(MEDLEM), `grupper/${CPS}/bibliotek/g1/kvitto.pdf`), BYTE, PDF));
   });
 });
+
+describe("Lagring: ljud har ett eget tak (CP 2026-10-18, WAV)", () => {
+  it("⛔ en WAV över 25 MB går in, en bild av samma storlek gör det inte", async () => {
+    const stor = new Uint8Array(25 * 1024 * 1024 + 1);
+    await assertSucceeds(uploadBytes(ref(lagringSom(AGARE), `grupper/${CPS}/bibliotek/g1/lat.wav`), stor, { contentType: "audio/wav" }));
+    await assertFails(uploadBytes(ref(lagringSom(AGARE), `grupper/${CPS}/bibliotek/g1/bild.jpg`), stor, { contentType: "image/jpeg" }));
+  });
+});

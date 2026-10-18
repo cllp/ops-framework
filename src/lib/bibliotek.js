@@ -43,6 +43,11 @@ export const MAX_BIBLIOTEKTEXT = 8000;
 export const MAX_BIBLIOTEKURL = 2000;
 /** Upp till 25 MB, inklusive gränsen. Samma tal i storage-regeln. */
 export const MAX_BIBLIOTEKFIL = 25 * 1024 * 1024;
+/**
+ * Taket för en ljudfil: 250 MB (CP 2026-10-18). En WAV på fyra minuter är 40 till 70 MB, och CP:s första var 64 264 206 byte.
+ * ⛔ BARA LJUD. Bilder och dokument behåller `MAX_BIBLIOTEKFIL`. Samma tal i regeln för posten och för lagringen.
+ */
+export const MAX_BIBLIOTEKLJUD = 250 * 1024 * 1024;
 /** Inspelning av en idé, i sekunder. TALK behåller sitt eget tak på 120. */
 export const IDE_MAX_SEKUNDER = 10 * 60;
 /**
@@ -137,6 +142,8 @@ export const FILMIME = /** @type {const} */ ([
   "audio/mpeg",
   "audio/ogg",
   "audio/wav",
+  "audio/aiff",
+  "audio/flac",
   "application/pdf",
   "text/plain",
 ]);
@@ -416,7 +423,40 @@ export function normaliseraAdress(v) {
 export function normaliseraMime(v) {
   const raw = str(v).toLowerCase();
   const semikolon = raw.indexOf(";");
-  return semikolon === -1 ? raw : raw.slice(0, semikolon);
+  const bas = semikolon === -1 ? raw : raw.slice(0, semikolon);
+  // ⛔ SAMMA FORMAT, FLERA NAMN (CP 2026-10-18, WAV). Webbläsarna säger audio/x-wav, audio/wave eller audio/vnd.wave om en WAV,
+  // och audio/x-aiff eller audio/x-flac om de andra. Regeln känner ett namn per format.
+  return MIMEALIAS[bas] ?? bas;
+}
+
+/** @type {Record<string, string>} */
+const MIMEALIAS = {
+  "audio/x-wav": "audio/wav",
+  "audio/wave": "audio/wav",
+  "audio/vnd.wave": "audio/wav",
+  "audio/x-aiff": "audio/aiff",
+  "audio/x-flac": "audio/flac",
+};
+
+/**
+ * Taket för en fil med den här MIME:n: `MAX_BIBLIOTEKLJUD` för ljud, annars `MAX_BIBLIOTEKFIL`.
+ * @param {unknown} mime
+ * @returns {number}
+ */
+export function filTak(mime) {
+  return normaliseraMime(mime).startsWith("audio/") ? MAX_BIBLIOTEKLJUD : MAX_BIBLIOTEKFIL;
+}
+
+/**
+ * MIME ur filnamnet när webbläsaren inte säger någon (Safari ger ofta tom typ för AIFF och FLAC). Bara ljudformaten som
+ * annars faller bort. Tom sträng när ändelsen är okänd.
+ * @param {unknown} namn
+ * @returns {string}
+ */
+export function mimeUrFilnamn(namn) {
+  const m = /\.([a-z0-9]+)$/i.exec(str(namn));
+  const andelse = m ? m[1].toLowerCase() : "";
+  return ({ wav: "audio/wav", wave: "audio/wav", aif: "audio/aiff", aiff: "audio/aiff", flac: "audio/flac" })[andelse] ?? "";
 }
 
 /**
@@ -459,7 +499,8 @@ export function filInmatningsfel(fil) {
   }
   const byte = fil?.byte;
   if (!Number.isInteger(byte) || /** @type {number} */ (byte) < 1) return "Filen är tom.";
-  if (/** @type {number} */ (byte) > MAX_BIBLIOTEKFIL) return `Filen är ${byte} byte. Taket är ${MAX_BIBLIOTEKFIL}.`;
+  const tak = filTak(mime);
+  if (/** @type {number} */ (byte) > tak) return `Filen är ${byte} byte. Taket är ${tak}${tak === MAX_BIBLIOTEKLJUD ? " för ljud" : ""}.`;
   return null;
 }
 
