@@ -282,6 +282,14 @@ export function inbjudningstjanst(konfig, namn) {
       }
 
       const roll = b.roll ?? "medlem";
+      /*
+       * ⛔ ROLLEN AGARE NEKAS REDAN HÄR (CP 2026-10-17, en ägare per grupp; Claudes granskning av 0.117.0, 0.117.1). Man blir ägare
+       * bara genom överlämning. Före 0.117.1 sänktes en sådan inbjudan till admin först vid accepten (`rollEfterAccept`), så den som
+       * bjöd in trodde att hen bjöd in en ägare. Nu säger felet det direkt, och inget skrivs. Accepten av gamla rader står kvar.
+       */
+      if (roll === "agare") {
+        throw new Error(`bjudIn: rollen agare går inte att bjuda in till i gruppen "${groupId}". En grupp har en ägare, och man blir ägare bara genom överlämning. Bjud in som admin.`);
+      }
       await kravBehorighet(avUid, groupId, roll);
 
       /*

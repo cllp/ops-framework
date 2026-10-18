@@ -58,7 +58,7 @@ describe("⛔ ägarskapet kontrolleras i funktionen, inte bara i reglerna", () =
   it("⛔ en admin får INTE bjuda in till rollen agare, och inget skrivs", async () => {
     const { tjanst, kalla } = bygg();
     await kalla.create("memberships", { id: medlemskapsId("uid-admin", GRUPP), userId: "uid-admin", groupId: GRUPP, roll: "admin", typ: "person", status: "aktiv" });
-    await expect(tjanst.bjudIn({ avUid: "uid-admin", groupId: GRUPP, epost: "c@x.se", roll: "agare" })).rejects.toThrow(/får inte bjuda in till rollen agare/);
+    await expect(tjanst.bjudIn({ avUid: "uid-admin", groupId: GRUPP, epost: "c@x.se", roll: "agare" })).rejects.toThrow(/rollen agare går inte att bjuda in till/);
     expect(await kalla.list("invitations", {})).toHaveLength(0);
   });
 
@@ -100,14 +100,14 @@ describe("bjudIn", () => {
    */
   it("⛔ en klientskriven users-rad med offrets adress ger inget medlemskap efter bjudIn (#313)", async () => {
     const { tjanst, kalla } = bygg({ users: [{ id: "uid-angripare", epost: "offret@x.se", namn: "Angriparen" }] });
-    const svar = await tjanst.bjudIn({ avUid: AGARE, groupId: GRUPP, epost: "offret@x.se", roll: "agare" });
+    const svar = await tjanst.bjudIn({ avUid: AGARE, groupId: GRUPP, epost: "offret@x.se", roll: "admin" });
     expect(svar.resultat).toBe("inbjudan");
     expect(await kalla.read("memberships", medlemskapsId("uid-angripare", GRUPP))).toBeFalsy();
     expect((await kalla.list("memberships", {})).map((/** @type {any} */ m) => m.userId)).toEqual([AGARE]);
     // Och angriparen kommer inte in genom accepten heller: adressen i hens inloggning är inte verifierad.
     await expect(tjanst.accepteraInbjudningar({ uid: "uid-angripare", epost: "offret@x.se", epostVerifierad: false })).rejects.toThrow(/inte verifierad/);
     expect(await kalla.read("memberships", medlemskapsId("uid-angripare", GRUPP))).toBeFalsy();
-    expect((await kalla.list("invitations", {}))[0]).toMatchObject({ status: "vantar", roll: "agare" });
+    expect((await kalla.list("invitations", {}))[0]).toMatchObject({ status: "vantar", roll: "admin" });
   });
 
   it("ett andra klick skapar ingen andra rad, och säger att man skickar om i stället (0.80.1)", async () => {
@@ -143,8 +143,14 @@ describe("bjudIn", () => {
 
   it("rollen följer med inbjudan", async () => {
     const { tjanst, kalla } = bygg();
-    await tjanst.bjudIn({ avUid: AGARE, groupId: GRUPP, epost: "ny@x.se", roll: "agare" });
-    expect((await kalla.list("invitations", {}))[0].roll).toBe("agare");
+    await tjanst.bjudIn({ avUid: AGARE, groupId: GRUPP, epost: "ny@x.se", roll: "admin" });
+    expect((await kalla.list("invitations", {}))[0].roll).toBe("admin");
+  });
+
+  it("⛔ en ny inbjudan med rollen agare nekas redan när den skickas, också från ägaren, och inget skrivs (0.117.1)", async () => {
+    const { tjanst, kalla } = bygg();
+    await expect(tjanst.bjudIn({ avUid: AGARE, groupId: GRUPP, epost: "ny@x.se", roll: "agare" })).rejects.toThrow(/rollen agare går inte att bjuda in till.*överlämning/);
+    expect(await kalla.list("invitations", {})).toHaveLength(0);
   });
 
   /*
@@ -346,7 +352,7 @@ describe("accepteraInbjudningar", () => {
    */
   it("⛔ en overifierad adress accepterar ingenting, och raden står kvar som väntande (0.82.0, #313)", async () => {
     const { tjanst, kalla } = bygg();
-    await tjanst.bjudIn({ avUid: AGARE, groupId: GRUPP, epost: "ny@x.se", roll: "agare" });
+    await tjanst.bjudIn({ avUid: AGARE, groupId: GRUPP, epost: "ny@x.se", roll: "admin" });
     await expect(tjanst.accepteraInbjudningar({ uid: "uid-ny", epost: "ny@x.se", epostVerifierad: false })).rejects.toThrow(
       /adressen "ny@x.se" är inte verifierad \(epostVerifierad är false\)/,
     );
