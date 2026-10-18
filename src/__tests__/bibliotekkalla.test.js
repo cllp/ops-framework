@@ -397,3 +397,66 @@ describe("createBibliotekskalla", () => {
     expect(svar.fel?.message).toBe("nere");
   });
 });
+
+describe("⛔ en stor WAV (CP 2026-10-18, 64 264 206 byte)", () => {
+  /** En WAV i minnet med 16 bitar mono, som ett Blob med slice. Hela filen läses aldrig: arrayBuffer på helheten kastar. */
+  const storWav = (/** @type {number} */ storlek) => {
+    const takt = 48000;
+    const huvud = new ArrayBuffer(44);
+    const v = new DataView(huvud);
+    const skriv = (/** @type {number} */ o, /** @type {string} */ t) => { for (let i = 0; i < 4; i++) v.setUint8(o + i, t.charCodeAt(i)); };
+    skriv(0, "RIFF"); v.setUint32(4, storlek - 8, true); skriv(8, "WAVE");
+    skriv(12, "fmt "); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, takt, true);
+    v.setUint32(28, takt * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+    skriv(36, "data"); v.setUint32(40, storlek - 44, true);
+    const lastaBitar = { antal: 0, byte: 0 };
+    /** @param {number} a @param {number} b */
+    const bit = (a, b) => {
+      const ut = new Uint8Array(Math.max(0, b - a));
+      for (let i = 0; i < ut.length; i++) {
+        const o = a + i;
+        if (o < 44) ut[i] = new Uint8Array(huvud)[o];
+        // Sampel: amplituden stiger genom filen, så topparna stiger.
+        else if ((o - 44) % 2 === 1) ut[i] = Math.floor(((o - 44) / storlek) * 120);
+      }
+      lastaBitar.antal += 1;
+      lastaBitar.byte += ut.length;
+      return { arrayBuffer: async () => ut.buffer };
+    };
+    return {
+      lastaBitar,
+      blob: { name: "Lat.wav", type: "audio/x-wav", size: storlek, slice: bit, arrayBuffer: async () => { throw new Error("hela filen lästes"); } },
+    };
+  };
+
+  it("går in under ljudets tak, med våg och längd ur bitar och utan att hela filen läses", async () => {
+    const source = createMemorySource({ bibliotek: [] });
+    const uppladdat = [];
+    const kalla = createBibliotekskalla({
+      source,
+      collection: "bibliotek",
+      groupId: "cps-ab",
+      skapare,
+      lagring: { laddaUpp: async (/** @type {any} */ x) => { uppladdat.push(x); }, taBort: async () => {} },
+      sokvag: ({ groupId, postId, namn }) => `grupper/${groupId}/bibliotek/${postId}/${namn}`,
+    });
+    const { blob, lastaBitar } = storWav(64264206);
+    const sparad = await kalla.laddaUppFil({ rubrik: "Låt", fil: blob });
+    expect(sparad.fil).toMatchObject({ mime: "audio/wav", byte: 64264206, klar: true });
+    expect(uppladdat[0].contentType).toBe("audio/wav");
+    // 64 264 162 byte data, 2 byte per ram, 48 000 ramar i sekunden: 669,4 sekunder.
+    expect(sparad.durationMs).toBe(Math.round(((64264206 - 44) / 2 / 48000) * 1000));
+    expect(typeof sparad.peaks).toBe("string");
+    expect(lastaBitar.byte).toBeLessThan(4 * 1024 * 1024);
+  });
+
+  it("över 250 MB nekas med ljudets tak", async () => {
+    const source = createMemorySource({ bibliotek: [] });
+    const kalla = createBibliotekskalla({
+      source, collection: "bibliotek", groupId: "cps-ab", skapare,
+      lagring: { laddaUpp: async () => {}, taBort: async () => {} },
+      sokvag: ({ groupId, postId, namn }) => `grupper/${groupId}/bibliotek/${postId}/${namn}`,
+    });
+    await expect(kalla.laddaUppFil({ rubrik: "För stor", fil: storWav(250 * 1024 * 1024 + 1).blob })).rejects.toThrow(/för ljud/);
+  });
+});

@@ -11,6 +11,15 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ## Ej utgivet
 
+## 0.118.0
+
+### WAV och andra stora ljudfiler i biblioteket (CP 2026-10-18), Grok 2026-10-18
+⛔ Regeländring i både Firestore och Storage: reglerna ska ut före klienten.
+- Ljud (audio/*) har ett eget tak, `MAX_BIBLIOTEKLJUD` = 250 MB (262 144 000 byte), i `filInmatningsfel`, i postens regel och i lagringens regel. Bilder och dokument behåller 25 MB. CP:s fil var 64 264 206 byte.
+- `audio/aiff` och `audio/flac` är nya format. `normaliseraMime` gör audio/x-wav, audio/wave och audio/vnd.wave till audio/wav, och audio/x-aiff och audio/x-flac till sina namn. `mimeUrFilnamn` tar typen ur ändelsen när webbläsaren inte säger någon.
+- Firebase-lagringen laddar alltid upp återupptagbart (`uploadBytesResumable`) när SDK:n har den, också utan framsteg.
+- En ljudfil över 25 MB läses aldrig hel för vågen: en WAV får längd och toppar ur bitar (`wavMetaUrBlob`, högst 48 x 64 KB), och andra format sparas utan våg. Mergad på CP:s ja 2026-10-18 08:08 ("Allt skall ut"), undantag från regel 9.
+
 ## 0.117.1
 
 ### En ny inbjudan med rollen agare nekas när den skickas (Claudes granskning av 0.117.0, CP 2026-10-18), Grok 2026-10-18

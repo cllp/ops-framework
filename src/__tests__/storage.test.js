@@ -202,3 +202,22 @@ describe("createFirebaseStorageSource: kontrollen av konfigurationen", () => {
     await expect(lagring.taBort("a")).rejects.toThrow(/permission denied/);
   });
 });
+
+describe("⛔ återupptagbar uppladdning också utan framsteg (CP 2026-10-18, WAV upp till 250 MB)", () => {
+  it("uploadBytesResumable används när SDK:n har den, fast ingen rapportera skickas", async () => {
+    const referens = { ref: true };
+    const sdk = {
+      ref: vi.fn(() => referens),
+      uploadBytes: vi.fn(async () => {}),
+      uploadBytesResumable: vi.fn(() => ({
+        on: (/** @type {string} */ _h, /** @type {any} */ _f, /** @type {any} */ _e, /** @type {() => void} */ klar) => { klar(); },
+      })),
+      getDownloadURL: vi.fn(async () => "https://exempel.se/f"),
+      deleteObject: vi.fn(async () => {}),
+    };
+    const lagring = createFirebaseStorageSource({ storage: {}, sdk });
+    await lagring.laddaUpp({ sokvag: "grupper/g/bibliotek/p/lat.wav", fil: "byte", contentType: "audio/wav" });
+    expect(sdk.uploadBytesResumable).toHaveBeenCalledWith(referens, "byte", { contentType: "audio/wav" });
+    expect(sdk.uploadBytes).not.toHaveBeenCalled();
+  });
+});

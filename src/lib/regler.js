@@ -38,7 +38,7 @@ import {
 import { ID_FORM, KATALOGAVGRANSARE, KATEGORIFALT } from "./katalog.js";
 import { INSTALLNINGSVARDEFALT, MAX_INSTALLNINGSGRUPP, MAX_INSTALLNINGSID, MAX_INSTALLNINGSTEXT, MAX_MODULINSTALLNINGAR, MODULINSTALLNINGFALT, VISA_I_HUVUDMENYN } from "./modulinstallningar.js";
 import { MAX_TYPAVVIKELSER, MAX_TYPID, MAX_TYPNAMN, MODULTYPID_FORM, TYPAVVIKELSEFALT, TYPYTOR } from "./modultyper.js";
-import { ADRESSFORM, BIBLIOTEKFALT, BIBLIOTEKTYPER, FILFALT, LJUD_STOLPAR, MITT_PREFIX, MAX_BIBLIOTEKFIL, MAX_BIBLIOTEKFILNAMN, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKSOKVAG, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, MAX_BIBLIOTEKUTSKRIFT, MAX_LJUD_MS, MAX_TAGGAR, TAGGFORM, TOPPFORM, filMimeMonster } from "./bibliotek.js";
+import { ADRESSFORM, BIBLIOTEKFALT, BIBLIOTEKTYPER, FILFALT, LJUD_STOLPAR, MITT_PREFIX, MAX_BIBLIOTEKFIL, MAX_BIBLIOTEKLJUD, MAX_BIBLIOTEKFILNAMN, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKSOKVAG, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, MAX_BIBLIOTEKUTSKRIFT, MAX_LJUD_MS, MAX_TAGGAR, TAGGFORM, TOPPFORM, filMimeMonster } from "./bibliotek.js";
 import { MAX_MINNESID, MAX_MINNESTEXT, MINNESFALT, MINNESKALLAFALT, MINNESKALLOR } from "./minne.js";
 import { MAX_SKAPARKALLA, MAX_SKAPARNAMN, SKAPARFALT } from "./skapare.js";
 import { BESKRIVENAPPDATAFALT, BESKRIVNINGSDOKUMENTFALT, BESKRIVNINGSFALT, BESKRIVNINGSFORMAT, BESKRIVNINGSIDFORM, MAX_APPBESKRIVNING, MAX_BESKRIVNINGSNAMN, MAX_FALT, MAX_LISTOR, MIN_LISTOR } from "./beskrivenapp.js";
@@ -526,7 +526,9 @@ export function lagringsregelfragment(konfig = {}) {
     match /${grupp}/{groupId}/${postPrefix}/{postId}/{filnamn} {
       allow read: if opsFilPlatsMedlem(groupId);
       allow create, update: if opsFilFarSkriva(groupId, postId)
-        && request.resource.size <= ${MAX_BIBLIOTEKFIL}
+        // ⛔ LJUD HAR ETT EGET TAK (CP 2026-10-18, WAV): ${MAX_BIBLIOTEKLJUD} byte för audio/*, annars ${MAX_BIBLIOTEKFIL}.
+        && (request.resource.size <= ${MAX_BIBLIOTEKFIL}
+          || (request.resource.contentType.matches('^audio/.*') && request.resource.size <= ${MAX_BIBLIOTEKLJUD}))
         && request.resource.contentType.matches('${filMimeMonster()}');
       allow delete: if false;
     }
@@ -1790,7 +1792,7 @@ ${Array.from({ length: MAX_TAGGAR }, (_, k) => `        && (t.size() < ${k + 1} 
             && d.fil.mime.matches('${filMimeMonster()}')
             && d.fil.byte is int
             && d.fil.byte > 0
-            && d.fil.byte <= ${MAX_BIBLIOTEKFIL}
+            && (d.fil.byte <= ${MAX_BIBLIOTEKFIL} || (d.fil.mime.matches('^audio/.*') && d.fil.byte <= ${MAX_BIBLIOTEKLJUD}))
             && !d.keys().hasAny(["text", "url"])
             && (
               !d.keys().hasAny(["utskrift"])

@@ -201,6 +201,11 @@ describe("bibliotekets regler: skapa", () => {
     await assertFails(skapa(MEDLEM, { ...fil, fil: { ...fil.fil, mime: "application/zip" } }));
     await assertFails(skapa(MEDLEM, { ...fil, fil: { ...fil.fil, mime: "audio/webm;codecs=opus" } }));
     await assertFails(skapa(MEDLEM, { ...fil, fil: { ...fil.fil, byte: 25 * 1024 * 1024 + 1 } }));
+    // ⛔ LJUD HAR ETT EGET TAK (CP 2026-10-18): CP:s WAV på 64 264 206 byte går in, och taket för ljud är 250 MB.
+    const wav = { ...fil, rubrik: "Låt", fil: { ...fil.fil, sokvag: "grupper/cps-ab/bibliotek/{postId}/lat.wav", namn: "lat.wav", mime: "audio/wav", byte: 64264206 } };
+    await assertSucceeds(skapa(MEDLEM, wav));
+    await assertSucceeds(skapa(MEDLEM, { ...wav, fil: { ...wav.fil, mime: "audio/flac", namn: "lat.flac", sokvag: "grupper/cps-ab/bibliotek/{postId}/lat.flac", byte: 250 * 1024 * 1024 } }));
+    await assertFails(skapa(MEDLEM, { ...wav, fil: { ...wav.fil, byte: 250 * 1024 * 1024 + 1 } }));
     await assertFails(skapa(MEDLEM, { ...fil, text: "Inte en fil." }));
     await assertFails(skapa(MEDLEM, { ...ny(), fil: fil.fil }));
   });

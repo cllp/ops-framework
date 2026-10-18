@@ -62,21 +62,23 @@ export function createFirebaseStorageSource(config) {
       const meta = mime ? { contentType: mime } : undefined;
       const rap = typeof rapportera === "function" ? rapportera : null;
 
-      if (typeof uploadBytesResumable === "function" && rap) {
+      // ⛔ RESUMABLE NÄR SDK:N HAR DEN, OCKSÅ UTAN FRAMSTEG (CP 2026-10-18, WAV upp till 250 MB). `uploadBytes` skickar allt i ett
+      // anrop, och ett avbrott på 60 MB börjar om från noll. Den återupptagbara laddar upp i bitar och tar om en bit som föll.
+      if (typeof uploadBytesResumable === "function") {
         await new Promise((/** @type {(v?: undefined) => void} */ los, /** @type {(e: unknown) => void} */ fel) => {
           const uppgift = meta ? uploadBytesResumable(referens, /** @type {any} */ (fil), meta) : uploadBytesResumable(referens, /** @type {any} */ (fil));
           uppgift.on(
             "state_changed",
             (/** @type {{ bytesTransferred: number, totalBytes: number }} */ snap) => {
               const total = snap.totalBytes;
-              if (!Number.isFinite(total) || total <= 0) return;
+              if (!rap || !Number.isFinite(total) || total <= 0) return;
               rap(Math.min(1, Math.max(0, snap.bytesTransferred / total)));
             },
             (/** @type {unknown} */ e) => fel(e),
             () => los(undefined),
           );
         });
-        rap(1);
+        if (rap) rap(1);
       } else if (meta) {
         await uploadBytes(referens, /** @type {any} */ (fil), meta);
         if (rap) rap(1);

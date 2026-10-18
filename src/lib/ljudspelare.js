@@ -380,3 +380,86 @@ export function nollstallSpelare() {
   metaCache.clear();
   styrningar.clear();
 }
+
+/** Hur många byte varje stapel läser ur en stor WAV. 48 staplar gånger 64 KB är 3 MB, oavsett filens storlek. */
+export const WAV_FONSTER = 64 * 1024;
+
+/**
+ * Längd och toppar ur en WAV utan att läsa hela filen (CP 2026-10-18, WAV upp till 250 MB).
+ *
+ * ⛔ BITAR, INTE HELA FILEN. `metaUrBytes` avkodar allt med `decodeAudioData`, och en WAV på 250 MB blir då över en gigabyte
+ * flyttal i minnet, vilket en telefon inte klarar. Här läses huvudet, och för varje stapel ett fönster på `WAV_FONSTER` byte
+ * där stapeln börjar. Längden räknas ur datablockets storlek. Topparna är ett stickprov per stapel, inte varje sampel, och
+ * det räcker för en våg på 48 staplar.
+ *
+ * Klarar PCM med 8, 16, 24 och 32 bitar och flyttal med 32 bitar (format 1, 3 och 0xFFFE). Annat ger `null`, och då sparas
+ * filen utan våg.
+ *
+ * @param {{ size: number, slice: (a: number, b: number) => { arrayBuffer: () => Promise<ArrayBuffer> } }} blob
+ * @param {number} [antal]
+ * @returns {Promise<{ durationMs: number, peaks: number[] } | null>}
+ */
+export async function wavMetaUrBlob(blob, antal = STOLPAR) {
+  if (!blob || typeof blob.slice !== "function" || !Number.isFinite(blob.size) || blob.size < 44) return null;
+  const las = async (/** @type {number} */ a, /** @type {number} */ b) => new DataView(await blob.slice(a, Math.min(b, blob.size)).arrayBuffer());
+  const huvud = await las(0, 12);
+  const tagg = (/** @type {DataView} */ v, /** @type {number} */ o) => String.fromCharCode(v.getUint8(o), v.getUint8(o + 1), v.getUint8(o + 2), v.getUint8(o + 3));
+  if (tagg(huvud, 0) !== "RIFF" || tagg(huvud, 8) !== "WAVE") return null;
+  let pos = 12;
+  /** @type {{ format: number, kanaler: number, takt: number, block: number, bitar: number } | null} */
+  let fmt = null;
+  let dataStart = -1;
+  let dataStorlek = 0;
+  while (pos + 8 <= blob.size) {
+    const c = await las(pos, pos + 8);
+    const id = tagg(c, 0);
+    const storlek = c.getUint32(4, true);
+    if (id === "fmt ") {
+      const f = await las(pos + 8, pos + 8 + Math.min(storlek, 40));
+      let format = f.getUint16(0, true);
+      if (format === 0xfffe && storlek >= 26) format = f.getUint16(24, true);
+      fmt = { format, kanaler: f.getUint16(2, true), takt: f.getUint32(4, true), block: f.getUint16(12, true), bitar: f.getUint16(14, true) };
+    } else if (id === "data") {
+      dataStart = pos + 8;
+      dataStorlek = Math.min(storlek, blob.size - dataStart);
+      break;
+    }
+    pos += 8 + storlek + (storlek % 2);
+  }
+  if (!fmt || dataStart < 0 || fmt.block < 1 || fmt.takt < 1 || fmt.kanaler < 1) return null;
+  const { format, bitar, block } = fmt;
+  const bredd = bitar / 8;
+  const kanlig = (format === 1 && [1, 2, 3, 4].includes(bredd)) || (format === 3 && bredd === 4);
+  if (!kanlig) return null;
+  /** Kanal 0 i ramen som börjar på `o`, som ett tal mellan 0 och 1. */
+  const sampel = (/** @type {DataView} */ v, /** @type {number} */ o) => {
+    if (format === 3) return Math.abs(v.getFloat32(o, true));
+    if (bredd === 1) return Math.abs(v.getUint8(o) - 128) / 128;
+    if (bredd === 2) return Math.abs(v.getInt16(o, true)) / 32768;
+    if (bredd === 3) {
+      const x = v.getUint8(o) | (v.getUint8(o + 1) << 8) | (v.getInt8(o + 2) << 16);
+      return Math.abs(x) / 8388608;
+    }
+    return Math.abs(v.getInt32(o, true)) / 2147483648;
+  };
+  const ramar = Math.floor(dataStorlek / block);
+  const durationMs = Math.round((ramar / fmt.takt) * 1000);
+  const n = Math.max(1, Math.floor(antal));
+  /** @type {number[]} */
+  const ut = [];
+  for (let i = 0; i < n; i++) {
+    const startRam = Math.floor((i * ramar) / n);
+    const slutRam = Math.max(startRam + 1, Math.floor(((i + 1) * ramar) / n));
+    const fonsterRamar = Math.max(1, Math.min(slutRam - startRam, Math.floor(WAV_FONSTER / block)));
+    const a = dataStart + startRam * block;
+    const v = await las(a, a + fonsterRamar * block);
+    let topp = 0;
+    for (let o = 0; o + bredd <= v.byteLength; o += block) {
+      const x = sampel(v, o);
+      if (x > topp) topp = x;
+    }
+    ut.push(topp);
+  }
+  const max = ut.reduce((m, x) => (x > m ? x : m), 0);
+  return { durationMs, peaks: max > 0 ? ut.map((x) => x / max) : ut.map(() => 0) };
+}

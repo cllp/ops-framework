@@ -28,8 +28,8 @@
  * strömma utan att kunna hade varit den tysta nedfallsväg `contract.js` varnar för. Ingen polling.
  */
 
-import { byggPost, farAndra, filInmatningsfel, filSort, kodaToppar, normaliseraMime, peaksGiltiga, postFel, trimSomRegeln, MAX_LJUD_MS } from "../lib/bibliotek.js";
-import { metaUrBytes } from "../lib/ljudspelare.js";
+import { byggPost, farAndra, filInmatningsfel, filSort, kodaToppar, mimeUrFilnamn, normaliseraMime, peaksGiltiga, postFel, trimSomRegeln, MAX_LJUD_MS, MAX_BIBLIOTEKFIL } from "../lib/bibliotek.js";
+import { metaUrBytes, wavMetaUrBlob } from "../lib/ljudspelare.js";
 import { byggSkapare } from "../lib/skapare.js";
 import { FALT_BORT } from "./contract.js";
 
@@ -326,7 +326,7 @@ export function createBibliotekskalla(config) {
       }
       const fil = inmatning?.fil;
       const namn = trimSomRegeln(inmatning?.namn) || (typeof fil?.name === "string" ? fil.name : fil?.namn);
-      const mime = normaliseraMime(fil?.type || fil?.mime || "");
+      const mime = normaliseraMime(fil?.type || fil?.mime || "") || mimeUrFilnamn(namn);
       const byte = Number.isInteger(fil?.size) ? fil.size : fil?.byte;
       const yta = filInmatningsfel({ namn, mime, byte });
       if (yta) throw new Error(yta);
@@ -487,7 +487,26 @@ async function lasLjudmeta(inmatning) {
   let peaks = peaksGiltiga(inmatning?.peaks) ? inmatning.peaks : undefined;
   if (durationMs != null && peaks != null) return { durationMs, peaks };
   const kalla = inmatning?.blob ?? inmatning?.fil;
-  const las = kalla && typeof kalla.arrayBuffer === "function" ? kalla.arrayBuffer.bind(kalla) : null;
+  /*
+   * ⛔ EN STOR FIL LÄSES INTE HEL (CP 2026-10-18, ljud upp till 250 MB). Över `MAX_BIBLIOTEKFIL` räknas vågen för en WAV i bitar
+   * (`wavMetaUrBlob`), och andra format sparas utan våg i stället för att avkodas i minnet.
+   */
+  const kb = /** @type {any} */ (kalla);
+  const stor = Number.isFinite(kb?.size) && kb.size > MAX_BIBLIOTEKFIL;
+  if (stor) {
+    if (typeof kb.slice === "function" && (durationMs == null || peaks == null)) {
+      try {
+        const meta = await wavMetaUrBlob(kb);
+        if (meta) {
+          if (durationMs == null && meta.durationMs > 0 && meta.durationMs <= MAX_LJUD_MS) durationMs = meta.durationMs;
+          if (peaks == null) peaks = kodaToppar(meta.peaks);
+        }
+      } catch {
+        /* vågen är en hjälp, uppladdningen faller inte för den */
+      }
+    }
+  }
+  const las = !stor && kalla && typeof kalla.arrayBuffer === "function" ? kalla.arrayBuffer.bind(kalla) : null;
   if (las && (durationMs == null || peaks == null)) {
     try {
       const data = await las();
