@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { OpsDeladHandelse } from "../components/OpsDeladHandelse.jsx";
@@ -167,8 +167,11 @@ describe("Delade länkar i panelen: Återkalla", () => {
     const onAterkalla = vi.fn(() => new Promise((res) => { klar = res; }));
     render(<Panel delningar={[lank("a1")]} onAterkalla={onAterkalla} />);
     const knapp = screen.getByRole("button", { name: /Återkalla länken/ });
-    fireEvent.click(knapp);
-    fireEvent.click(knapp);
+    // Två tryck i SAMMA tick, innan React hunnit spärra knappen: bara en ref stoppar det andra.
+    act(() => {
+      knapp.click();
+      knapp.click();
+    });
     expect(onAterkalla).toHaveBeenCalledTimes(1);
     klar();
     await waitFor(() => expect(screen.queryByRole("button", { name: /Återkalla länken/ })).toBeNull());
@@ -296,8 +299,11 @@ describe("Delade länkar: rutan Dela", () => {
     const onDela = vi.fn(() => new Promise((res) => { klar = res; }));
     const { dialog } = await oppna({ onDela });
     const knapp = within(dialog).getByRole("button", { name: "Skapa länk" });
-    fireEvent.click(knapp);
-    fireEvent.click(knapp);
+    // Två tryck i SAMMA tick, innan React hunnit spärra knappen: bara en ref stoppar det andra.
+    act(() => {
+      knapp.click();
+      knapp.click();
+    });
     expect(onDela).toHaveBeenCalledTimes(1);
     klar(lank("ny1"));
     await waitFor(() => expect(dialog.querySelector("[data-handelsedelning-skapad]")).not.toBeNull());

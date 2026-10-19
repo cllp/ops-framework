@@ -405,6 +405,15 @@ describe("händelsens sida", () => {
     expect(signeradAdress).toHaveBeenCalledWith(expect.objectContaining({ sokvag: `grupper/${PLATS}/bibliotek/f-b/f-b.pdf`, sekunder: 900, disposition: "inline" }));
   });
 
+  it("⛔ en datakälla som inte filtrerar listan på platsen släpper ändå inte in andra platsers filer", async () => {
+    const { tjanst } = bygg({
+      poster: [fil("ratt", PLATS, MEDLEM, { rubrik: "Rätt" }), fil("grannens", handelseBibliotek(GRUPP, "h2"), MEDLEM, { rubrik: "Grannens" }), fil("gruppens", GRUPP, MEDLEM, { rubrik: "Gruppens" })],
+      omslut: (k) => ({ ...k, list: async (samling, q) => k.list(samling, samling === "bibliotek" ? undefined : q) }),
+    });
+    const svar = await tjanst.hamta((await delaHandelse(tjanst)).adress);
+    expect(svar.delning.filer.map((f) => f.rubrik)).toEqual(["Rätt"]);
+  });
+
   it("en fil som tagits bort följer inte med nästa besök", async () => {
     const { tjanst, kalla } = bygg({ poster: [fil("f1", PLATS, MEDLEM), fil("f2", PLATS, MEDLEM, { skapad: NU })] });
     const h = await delaHandelse(tjanst);
@@ -525,7 +534,8 @@ describe("rättighet och slag", () => {
   it("⛔ adressen och raden måste höra ihop: fel slag eller fel adress i raden öppnas inte", async () => {
     const { tjanst, kalla } = bygg();
     const h = await delaHandelse(tjanst, { kod: "hemligt1" });
-    await kalla.update("delningar", h.id, { slag: "post" });
+    // Raden ser ut som en helt giltig filänk i allt utom att adressen är en händelses: bara slagprövningen stoppar den.
+    await kalla.update("delningar", h.id, { slag: "post", postId: "p-medlem", groupId: GRUPP, giltigTill: NU + DYGN, nedladdning: false });
     expect(await tjanst.hamta(h.adress, { kod: "hemligt1" })).toEqual({ ok: false, orsak: "utgangen" });
     await kalla.update("delningar", h.id, { slag: "handelse", adress: "travel/event/nagot-annat" });
     expect(await tjanst.hamta(h.adress, { kod: "hemligt1" })).toEqual({ ok: false, orsak: "utgangen" });
