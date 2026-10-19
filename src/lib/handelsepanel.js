@@ -71,7 +71,7 @@ export function langtDatum(datum, sprak = "sv") {
 
 /**
  * @typedef {object} Handelsetid
- * @property {string} datum `YYYY-MM-DD`.
+ * @property {string} [datum] `YYYY-MM-DD`. ⛔ Saknas i läget "Datum ej satt" (0.127.0, `lib/handelsemodell.js`).
  * @property {string} [slutDatum] Sista dagen, inklusive. Bara när den är efter `datum`.
  * @property {string} [tid] `HH:MM`.
  * @property {string} [slutTid] `HH:MM`.
@@ -87,10 +87,16 @@ export function langtDatum(datum, sprak = "sv") {
  * slutar, så den står kvar under spannet i stället för att tigas.
  *
  * ⛔ Ett bindestreck och inte tankstreck (arbetsreglernas punkt 6).
+ *
+ * ⛔ `start` ÄR TOM FÖR EN HÄNDELSE UTAN DATUM, och då är också `slut` och `tid` tomma: tiden hör till förslagen, och ett klockslag utan dag är inget
+ * att visa som om det var händelsens.
  * @param {Handelsetid} h @param {string} [sprak]
  * @returns {{ start: string, slut: string, tid: string }}
  */
 export function handelsetid(h, sprak = "sv") {
+  // ⛔ UTAN DATUM ÄR `start` TOM (0.127.0, "Datum ej satt"). Förut gav `langtDatum(undefined)` strängen "undefined" eller en tom ruta utan förklaring;
+  // panelen ritar nu ramverkets ord i stället (`ORD_OPSHANDELSEPANEL.datumEjSattEtikett`) och bryr sig inte om slutet.
+  if (typeof h.datum !== "string" || !h.datum) return { start: "", slut: "", tid: "" };
   const slut = typeof h.slutDatum === "string" && h.slutDatum > h.datum ? langtDatum(h.slutDatum, sprak) : "";
   const tid = h.heldag === true ? (sprak === "en" ? "All day" : "Heldag") : h.tid && h.slutTid ? `${h.tid} - ${h.slutTid}` : h.tid ?? "";
   return { start: langtDatum(h.datum, sprak), slut, tid };

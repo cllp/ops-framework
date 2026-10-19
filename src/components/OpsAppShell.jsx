@@ -508,6 +508,12 @@ function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, s
  * @property {string} [redigera] (0.40.0, #214) Händelsens id när formuläret öppnats för att ÄNDRA den (`HandelseSkapare.redigera`). Formuläret läser
  *   händelsen ur appens källa, fyller i fälten och sparar en ändring i stället för en ny rad. `typ`, `kalender` och `kravSvar` är redan ifyllda ur den.
  * @property {boolean} [blockerar] (0.37.0) "Blockerar tillgänglighet" är på. Alltid `false` i en gruppkalender.
+ * @property {{ datumEjSatt: boolean, fel: string[], efterSkapa: (handelseId: string) => Promise<void> }} [tillagg] (0.127.0, cllp/lifehub.app#383) Det tilläggen på platsen
+ *   `handelse.skapa` vill, räknat av skalet. ⛔ Finns BARA när minst ett tillägg ritas (en ny händelse i en gruppkalender i en grupp där en påslagen modul har ett
+ *   tillägg där): utan det får formuläret exakt de props det fick före 0.127.0. Formuläret känner inget tilläggs namn, bara de tre svaren:
+ *   `datumEjSatt` sant = visa inte datumfälten (slutdatum, från, till, heldag) och skriv händelsen UTAN `datum` (`handelsefel(h, { datumEjSatt: true })` prövar den);
+ *   `fel` = meningar som stoppar sparandet, skrivna ut bredvid formulärets egna; `efterSkapa(id)` anropas EN gång efter att händelsen är skriven, och faller den ligger
+ *   händelsen kvar och formuläret skriver ut felet (ingen bakåtrullning). Utan `datumEjSatt` är formuläret som förut.
  * @property {TalkForifyllt | null} [forifyllt] (0.103.0) Startvärden ur ett samtal med TALK, när formuläret öppnats av fältets ikon
  *   Händelse, annars `null`. Formuläret fyller i rubriken och beskrivningen; personen ändrar och sparar själv. Se `TalkForifyllt`.
  */
@@ -579,6 +585,7 @@ function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, s
  * @property {ReadonlyArray<import("../lib/modul.js").Modul>} [moduler] (0.60.0, #251) Appens moduler, ur `validateModuler`. Deras tillägg på platsen
  *   `handelse.atgard` ritas i plussets händelsedel, direkt efter "Ny händelse", med `{ handelse: null, grupp: aktivGrupp }`: plusset öppnas utan en
  *   händelse. Komponenten ÄR raden (normalt en `OpsPanelRow`), och listan stängs när man trycker i den.
+ *   `handelse.skapa` (0.127.0) ritas i formuläret för en NY händelse, efter "Kräv svar", med `{ grupp: aktivGrupp, varde, onVarde }`, bara i en gruppkalender.
  * @property {{ id: string, moduler: ReadonlyArray<string> } & Record<string, unknown>} [aktivGrupp] (0.60.0, #251) Den aktiva gruppen, med `moduler`.
  *   ⛔ Bara moduler i dess `moduler` bidrar med tillägg. `aktivGrupp.id` måste vara `lage`; annars kastar skalet, eftersom plusset då hade fått två svar
  *   på vilken grupp det gäller. (Inte `grupp`: det namnet är redan formuläret "Ny grupp".)
@@ -724,6 +731,67 @@ function skapaFormFranNyckel(skapa, nyckel, extra = {}) {
   if (nyckel === "redigera-grupp" && typeof skapa.redigeraGrupp === "function" && extra.groupId) return { kind: "redigeragrupp", groupId: extra.groupId };
   const reg = (skapa.registreringar ?? []).find((/** @type {any} */ r) => r.id === nyckel);
   return reg ? { kind: "modul", registrering: reg } : null;
+}
+
+/** Tilläggets nyckel i skalets värden: `modulId:id`, samma form som inspelningsmålens id. @param {{ modulId: string, id: string }} t */
+const tillaggNyckel = (t) => `${t.modulId}:${t.id}`;
+
+/**
+ * Det formuläret för en ny händelse får som `tillagg` (0.127.0, `HandelseFormProps.tillagg`), ur tilläggen på platsen `handelse.skapa`.
+ *
+ * ⛔ FORMULÄRET FÅR TRE SVAR OCH VET INGET NAMN: att något vill att datum inte sätts nu, skälen att inte spara än, och en funktion att anropa
+ * med händelsens id när den är skriven. Hur de tre räknas fram ur tilläggens värden är skalets sak.
+ *
+ * ⛔ EN FUNKTION SOM SVARAR FEL KASTAR, MED TILLÄGGETS NAMN (punkt 5). En `fel` som gav något annat än en lista hade tolkats som "inga fel", och en
+ * `datumEjSatt` som gav `undefined` som "datum ska sättas": båda ser ut som att allt gick bra.
+ *
+ * ⛔ `efterSkapa` ANROPAS FÖR VARJE TILLÄGG OCH SVÄLJER INGET. Faller ett tillägg körs de andra ändå (de är oberoende av varandra), och felet kastas efteråt:
+ * ett fel kastas som det är, flera som ett fel med alla orden. Appen skriver ut det och lämnar händelsen kvar.
+ *
+ * @param {ReadonlyArray<import("../lib/modul.js").Tillagg & { modulId: string }>} lista
+ * @param {Record<string, unknown>} varden Värdena i den här renderingen (för `datumEjSatt` och `fel`, som visas).
+ * @param {{ current: Record<string, unknown> }} senaste Värdena som gäller NU (för `efterSkapa`, som anropas ur appens sparafunktion).
+ * @param {unknown} grupp
+ */
+function skapaTillaggProp(lista, varden, senaste, grupp) {
+  let datumEjSatt = false;
+  /** @type {string[]} */
+  const fel = [];
+  for (const t of lista) {
+    const namn = tillaggNyckel(t);
+    const skapa = t.skapa;
+    if (skapa?.datumEjSatt) {
+      const svar = skapa.datumEjSatt(varden[namn]);
+      if (typeof svar !== "boolean") throw new Error(`OpsAppShell: tillägget "${namn}" (handelse.skapa) gav ${JSON.stringify(svar) ?? "undefined"} från datumEjSatt. Den ska svara true eller false.`);
+      if (svar) datumEjSatt = true;
+    }
+    if (skapa?.fel) {
+      const svar = skapa.fel(varden[namn]);
+      if (!Array.isArray(svar) || svar.some((x) => typeof x !== "string")) {
+        throw new Error(`OpsAppShell: tillägget "${namn}" (handelse.skapa) gav ${JSON.stringify(svar) ?? "undefined"} från fel. Den ska svara en lista med meningar, tom när det inte finns något fel.`);
+      }
+      fel.push(...svar);
+    }
+  }
+  return {
+    datumEjSatt,
+    fel,
+    /** @param {string} handelseId */
+    efterSkapa: async (handelseId) => {
+      /** @type {unknown[]} */
+      const kast = [];
+      for (const t of lista) {
+        if (!t.skapa?.efterSkapa) continue;
+        try {
+          await t.skapa.efterSkapa({ handelseId, varde: senaste.current[tillaggNyckel(t)], grupp });
+        } catch (e) {
+          kast.push(e);
+        }
+      }
+      if (kast.length === 1) throw kast[0];
+      if (kast.length > 1) throw new Error(kast.map((e) => (e instanceof Error ? e.message : String(e))).join(" "));
+    },
+  };
 }
 
 /**
@@ -1159,6 +1227,12 @@ function OpsAppShellRitad({
   // just stängt av den hade varit en brytare som ljuger.
   const [skapaKravSvar, setSkapaKravSvar] = useState(/** @type {boolean | null} */ (null));
   const [skapaBlockerar, setSkapaBlockerar] = useState(false);
+  // ⛔ 0.127.0 (cllp/lifehub.app#383): tilläggens värden på platsen `handelse.skapa`, ett per tillägg (`modulId:id`). Skalet håller dem som det håller
+  // "Kräv svar", och tolkar dem aldrig: `undefined` tills tillägget anropat `onVarde`, nollställda varje gång formuläret öppnas. Refen finns för att
+  // `efterSkapa` anropas ur appens egen sparafunktion, som kan ha fångats i en tidigare rendering: den ska läsa värdet som gällde när man tryckte Spara.
+  const [skapaTillagg, setSkapaTillagg] = useState(/** @type {Record<string, unknown>} */ ({}));
+  const skapaTillaggRef = useRef(skapaTillagg);
+  skapaTillaggRef.current = skapaTillagg;
   // ⛔ 0.40.0: REDIGERINGSLÄGET ÄR KLART först när skalets val är ifyllda ur händelsen (se `HandelseRedigeringsgrind`). Förr det ritas inget formulär
   // och inte raden "Kalender": en rad som visar gruppens förvalda kalender i en halv sekund och sedan byter är en rad som ljuger.
   const [redigeraKlar, setRedigeraKlar] = useState(false);
@@ -1214,6 +1288,7 @@ function OpsAppShellRitad({
     setSkapaVaxlare(false);
     setSkapaKravSvar(null);
     setSkapaBlockerar(false);
+    setSkapaTillagg({});
     setRedigeraKlar(false);
     setSkapaFormRaw(form);
     if (skapaAdress && typeof window !== "undefined") {
@@ -1590,6 +1665,13 @@ function OpsAppShellRitad({
     const kravSvarFor = r.id === "handelse" ? /** @type {any} */ (skapa?.handelse)?.kravSvarFor : undefined;
     const kravSvarPa = skapaKravSvar ?? (typeof kravSvarFor === "function" && vald !== null && kravSvarFor(vald) === true);
     const Form = /** @type {any} */ (r.form);
+    // ⛔ PLATSEN `handelse.skapa` (0.127.0, cllp/lifehub.app#383, beslut 0003): bara vid SKAPANDE, bara i en gruppkalender (som "Kräv svar"), och bara
+    // moduler som är påslagna i gruppen. Formuläret får `tillagg` bara när minst ett tillägg ritas: en app utan tillägg får exakt de props den
+    // fick före 0.127.0.
+    const tillaggLista = r.id === "handelse" && !skapaForm.redigera && skapaKalender?.slag === "grupp" && skapa?.moduler
+      ? tillaggFor({ moduler: skapa.moduler, grupp: skapa.aktivGrupp, plats: "handelse.skapa" })
+      : [];
+    const tillaggProp = tillaggLista.length > 0 ? skapaTillaggProp(tillaggLista, skapaTillagg, skapaTillaggRef, skapa?.aktivGrupp) : undefined;
     skapaHarFormKonsument = true;
     skapaModalTitel = skapaForm.redigera ? redigeraHandelseEtikett : text(r.namn, skapaSprak);
     // ⛔ 0.103.0: EN NY HÄNDELSE HAR ALLTID EN DAG. CP 2026-10-14: "default datum är idag (det skall alltid ställas in om det inte
@@ -1614,7 +1696,7 @@ function OpsAppShellRitad({
             (samma skäl som gamla `OpsSkapa`): i "redo"-läget är de samma
             värde, men beslutet om vad "aktiv grupp" betyder ligger på ETT
             ställe. */}
-        <Form key={skapaForm.oppning ? `talk-${skapaForm.oppning}` : undefined} groupId={skapaEffektivGrupp} typ={vald} mal={skapaEffektivtMal} formId={skapaFormId} {...kalenderProps} onKlar={() => { skapa?.onKlar?.({ registrering: r.id, typ: vald }); stangSkapa(); }} />
+        <Form key={skapaForm.oppning ? `talk-${skapaForm.oppning}` : undefined} groupId={skapaEffektivGrupp} typ={vald} mal={skapaEffektivtMal} formId={skapaFormId} {...kalenderProps} {...(tillaggProp ? { tillagg: tillaggProp } : {})} onKlar={() => { skapa?.onKlar?.({ registrering: r.id, typ: vald }); stangSkapa(); }} />
         {/* ⛔ 0.37.0 (#179 F3): VALEN SOM HÖR TILL KALENDERN, EFTER APPENS FÄLT. "Kräv svar" bara i en gruppkalender, "Blockerar
             tillgänglighet" bara i en av mina: i en egen kalender finns inga svar, och gruppens händelser blockerar inte någons
             tillgänglighet. "Skicka mejl" visas inte, se `HandelseSkapare.kalendrar`. */}
@@ -1623,6 +1705,16 @@ function OpsAppShellRitad({
             <OpsSwitch label={ordet(TEXT_SKAL, "kravSvar", sprak)} hint={ordet(TEXT_SKAL, "kravSvarHint", sprak)} checked={kravSvarPa} onChange={setSkapaKravSvar} />
           </div>
         ) : null}
+        {/* ⛔ PLATSEN `handelse.skapa` (0.127.0): efter "Kräv svar", en ruta per tillägg. Komponenten får `{ grupp, varde, onVarde }`. */}
+        {tillaggLista.map((t) => {
+          const Komponent = /** @type {any} */ (t.komponent);
+          const nyckel = tillaggNyckel(t);
+          return (
+            <div key={nyckel} data-skapa-tillagg={nyckel}>
+              <Komponent grupp={skapa?.aktivGrupp} varde={skapaTillagg[nyckel]} onVarde={(/** @type {unknown} */ v) => setSkapaTillagg((x) => ({ ...x, [nyckel]: v }))} />
+            </div>
+          );
+        })}
         {skapaKalender?.slag === "mina" ? (
           <div data-blockerar="">
             <OpsSwitch label={ordet(TEXT_SKAL, "blockerar", sprak)} hint={ordet(TEXT_SKAL, "blockerarHint", sprak)} checked={skapaBlockerar} onChange={setSkapaBlockerar} />

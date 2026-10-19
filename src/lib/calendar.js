@@ -64,10 +64,37 @@ import { delaModultypId } from "./modultyper.js";
  * @property {string} [handelseId] (0.40.0, #214) Posten ÄR en händelse med en egen panel (`OpsHandelsePanel`): ett tryck på raden i dagpanelen eller snabbtitten
  *   öppnar den. Id:t är appens. En post i en egen kalender (`kalenderposter` ur `postTillRad`) bär sedan 0.120.0 ett `handelseId` med prefixet `post~`
  *   (`postHandelseId`), och appen slår upp den med `postIdUrHandelseId` och ritar den med `postTillHandelse`. En uppgift bär inget. Kräver `handelsepanel` på skalet eller `onOppnaHandelse` på kalendern: annars kastar kalendern.
+ * @property {boolean} [preliminar] (0.127.0, cllp/lifehub.app#383) Posten är en FÖRESLAGEN dag för en händelse vars datum inte är satt (läget "Datum ej satt",
+ *   `lib/handelsemodell.js`). Appen skickar EN post per föreslagen dag, med samma `handelseId` och olika `id`; de öppnar alla samma panel. Ramverket ritar den
+ *   streckad och genomskinlig (pillret och dagpanelens kort), som en ihålig prick på telefon, och säger "Datum ej satt" på kortet och i snabbtitten: appen
+ *   skriver inte ordet själv, så det kan inte stå två gånger. ⛔ ETT FÖRSLAG ÄR EN DAG: `endDate` och `allDay` hör inte hemma på en preliminär post, och
+ *   kalendern kastar om de finns (`preliminarFel`), eftersom ett band hade sagt att händelsen redan hade ett spann. Två tider samma dag är en post, inte två.
  * @property {string} [typ] Typens id ur appens typkatalog (0.36.0). Det verktygsradens typfilter jämför med.
  * @property {import("react").ReactNode} [atgard] (0.78.0) Appens kontroll på raden, till exempel bocken som gör en uppgift klar.
  *   Ramverket ritar den och tolkar den aldrig. En uppgift är ingen händelse och bär inget `handelseId`.
  */
+
+/**
+ * Är posten en föreslagen dag för en händelse utan datum? Bara `true` räknas: ett fält som är "ja" eller `1` är ingen preliminär post, och en tyst tolkning åt det
+ * hållet hade ritat en vanlig händelse streckad.
+ * @param {CalendarEntry | null | undefined} e @returns {boolean}
+ */
+export const arPreliminar = (e) => Boolean(e) && /** @type {CalendarEntry} */ (e).preliminar === true;
+
+/**
+ * Posten som bryter mot "ett förslag är en dag", eller `null`: en preliminär post med `endDate` efter `date`, eller med `allDay`.
+ *
+ * ⛔ KASTAS I KALENDERN OCH INTE TYST RÄTTAD. En preliminär post som ritades som ett band hade sett ut som en händelse som redan har ett spann, det motsatta
+ * av vad läget "Datum ej satt" säger (punkt 5: en tyst nedsläppsväg ser ut som att allt gick bra).
+ * @param {ReadonlyArray<CalendarEntry>} entries @returns {CalendarEntry | null}
+ */
+export function preliminarFel(entries) {
+  for (const e of entries || []) {
+    if (!arPreliminar(e)) continue;
+    if ((typeof e.endDate === "string" && e.endDate > e.date) || e.allDay === true) return e;
+  }
+  return null;
+}
 
 /**
  * Två siffror, alltid. `${m + 1}` ger "9" och inte "09", och då sorterar strängarna fel.

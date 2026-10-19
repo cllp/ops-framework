@@ -65,7 +65,7 @@ const MODULFALT = ["id", "namn", "nav", "routes", "samlingar", "kallor", "skapar
  * ⛔ INGA PROPS. Komponenten får `{ handelse, grupp }` av ytan och inget annat, och ett fält som lät manifestet skicka egna värden
  * hade gjort tillägget till något ytan inte längre kan uttala sig om.
  */
-const TILLAGGSFALT = ["plats", "id", "etikett", "komponent", "spara", "maxSekunder"];
+const TILLAGGSFALT = ["plats", "id", "etikett", "komponent", "spara", "maxSekunder", "skapa"];
 
 /**
  * Fälten modulens kort i hubben får bära (0.37.0, #184).
@@ -145,8 +145,11 @@ export const KALLTYPER = /** @type {const} */ (["handelser", "sok", "hjalp", "no
  * @property {string} plats En av ramverkets platser (`HANDELSE_PLATSER`).
  * @property {string} id Maskinnyckeln. Unik inom modulen.
  * @property {{ sv: string, en: string }} etikett Det användaren ser: sektionens rubrik, åtgärdens namn. Båda språken krävs.
- * @property {unknown} [komponent] Komponenten ytan ritar med `{ handelse, grupp }`. Krävs på händelsens platser. Hör inte hemma på `inspelning.mal`.
+ * @property {unknown} [komponent] Komponenten ytan ritar med `{ handelse, grupp }` (på `handelse.skapa`: `{ grupp, varde, onVarde }`). Krävs på händelsens platser. Hör inte hemma på `inspelning.mal`.
  * @property {Function} [spara] Funktionen som tar emot ljudet på `inspelning.mal`: `({ blob, mimeType, sekunder, rapportera, grupp })`. Krävs där, och ingen annanstans.
+ * @property {{ datumEjSatt?: (varde: unknown) => boolean, fel?: (varde: unknown) => string[], efterSkapa?: (arg: { handelseId: string, varde: unknown, grupp: unknown }) => unknown }} [skapa] (0.127.0) Bara på `handelse.skapa`:
+ *   hur formuläret för en ny händelse frågar tillägget. `datumEjSatt(varde)` är sant när tillägget vill att datum inte sätts nu, `fel(varde)` ger skälen att inte spara
+ *   än, och `efterSkapa({ handelseId, varde, grupp })` anropas en gång efter att händelsen är skriven. Alla valfria, minst en krävs. Se `tillagg.js`.
  * @property {number} [maxSekunder] (0.93.0) Längsta inspelningen målet tar emot, i sekunder, ett positivt heltal. Bara på `inspelning.mal`. Utelämnad gäller TALK:s tak (`MAX_SEKUNDER`, 120). Bibliotekets mål anger `IDE_MAX_SEKUNDER` (10 minuter).
  */
 
@@ -557,6 +560,9 @@ function byggTillagg(varde, var_) {
     }
     const etikett = Object.freeze({ sv, en });
     if (plats === "inspelning.mal") {
+      if (t.skapa !== undefined) {
+        throw var_(`tillagg[${i}].skapa för "${tid}"`, "hör bara hemma på platsen handelse.skapa. Inspelningsmålet tar emot spara.");
+      }
       if (t.komponent !== undefined) {
         throw var_(`tillagg[${i}].komponent för "${tid}"`, "hör inte hemma på inspelning.mal. Platsen tar emot spara, och ramverket ritar valet. En komponent här hade varit en andra yta för samma mål.");
       }
@@ -583,6 +589,10 @@ function byggTillagg(varde, var_) {
     if (t.maxSekunder !== undefined) {
       throw var_(`tillagg[${i}].maxSekunder för "${tid}"`, "hör bara hemma på platsen inspelning.mal. Det är taket för en inspelning, och en händelseplats spelar inte in.");
     }
+    if (plats !== "handelse.skapa" && t.skapa !== undefined) {
+      throw var_(`tillagg[${i}].skapa för "${tid}"`, "hör bara hemma på platsen handelse.skapa. Det är hur formuläret för en ny händelse frågar tillägget, och en annan plats ritas inte i det.");
+    }
+    const skapa = plats === "handelse.skapa" ? byggSkapaFalt(t.skapa, `tillagg[${i}].skapa för "${tid}"`, var_) : undefined;
     if (t.komponent === undefined || t.komponent === null) {
       throw var_(`tillagg[${i}].komponent för "${tid}"`, "krävs. Ramverket äger platsen, modulen äger det som ritas i den, och ett tillägg utan komponent är en tom sektion.");
     }
@@ -593,9 +603,35 @@ function byggTillagg(varde, var_) {
     if (typeof t.komponent !== "function" && (typeof t.komponent !== "object" || Array.isArray(t.komponent))) {
       throw var_(`tillagg[${i}].komponent för "${tid}"`, `måste vara en React-komponent, alltså en funktion eller ett objekt från memo eller forwardRef, och ${typeof t.komponent === "object" ? "en lista" : `en ${typeof t.komponent === "string" ? "sträng" : typeof t.komponent}`} går inte att rita.`);
     }
-    ut.push(Object.freeze({ plats, id: tid, etikett, komponent: t.komponent }));
+    ut.push(Object.freeze({ plats, id: tid, etikett, komponent: t.komponent, ...(skapa ? { skapa } : {}) }));
   });
   return Object.freeze(ut);
+}
+
+/**
+ * Fältet `skapa` på ett tillägg på `handelse.skapa` (0.127.0): tre valfria funktioner, minst en. Okända fält och icke-funktioner avvisas vid uppstart.
+ * ⛔ MINST EN: ett `skapa` utan någon funktion är en ruta som ritas och aldrig frågas, alltså ett löfte om en funktion som inte finns.
+ *
+ * @param {unknown} varde
+ * @param {string} falt
+ * @param {(falt: string, skal: string) => Error} var_
+ * @returns {NonNullable<Tillagg["skapa"]>}
+ */
+function byggSkapaFalt(varde, falt, var_) {
+  const FALT = ["datumEjSatt", "fel", "efterSkapa"];
+  if (!varde || typeof varde !== "object" || Array.isArray(varde)) {
+    throw var_(falt, `krävs på handelse.skapa och måste vara ett objekt { ${FALT.join(", ")} } med funktioner. Platsen frågar tillägget genom det, och ett tillägg utan det går inte att fråga.`);
+  }
+  const v = /** @type {Record<string, unknown>} */ (varde);
+  const okanda = Object.keys(v).filter((k) => !FALT.includes(k));
+  if (okanda.length > 0) throw var_(falt, `bär fälten ${okanda.join(", ")} som inte känns igen. Giltiga: ${FALT.join(", ")}.`);
+  for (const k of FALT) {
+    if (v[k] !== undefined && typeof v[k] !== "function") throw var_(`${falt}.${k}`, `måste vara en funktion, inte ${typeof v[k]}.`);
+  }
+  if (!FALT.some((k) => typeof v[k] === "function")) {
+    throw var_(falt, `måste bära minst en av ${FALT.join(", ")}. Utan någon fråga formuläret aldrig tillägget.`);
+  }
+  return Object.freeze(Object.fromEntries(FALT.filter((k) => typeof v[k] === "function").map((k) => [k, v[k]])));
 }
 
 /**

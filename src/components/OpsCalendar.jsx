@@ -7,7 +7,8 @@ import { FULL_HEIGHT_CLASSES, useFullHeight } from "../lib/fullHeight.js";
 import { radBehallare, radKlass, radRubrikKlass } from "../lib/radKlass.js";
 import { rapporteraFel } from "../lib/felrapport.js";
 import { STANDARD_TIDSZON, idagI, kontrolleraTidszon } from "../lib/kalendrar.js";
-import { KALENDERPRICK, postklasser } from "../lib/kalenderfarg.js";
+import { KALENDERPRICK, postklasser, prickklass } from "../lib/kalenderfarg.js";
+import { DATUM_EJ_SATT } from "../lib/handelsemodell.js";
 import { arLagerplockare, lagerNyckel, lasDoldaLager, synligaLager, vaxlaDoltLager } from "../lib/kalenderlager.js";
 import { useHandelseOppnare } from "../lib/handelsekontext.js";
 import { LANGTRYCK_MS } from "../lib/talk.js";
@@ -26,6 +27,8 @@ import {
   franNyckel,
   bandIVecka,
   arBand,
+  arPreliminar,
+  preliminarFel,
   reserveradeFiler,
   isoVecka,
   datumOmfang,
@@ -44,6 +47,13 @@ import { ChevronNedIkon, KalenderIkon, KryssIkon, LagerIkon, PlusIkon, ReglageIk
 import { OpsStatusDot } from "./OpsStatusDot.jsx";
 import { OpsKalenderlager } from "./OpsKalenderlager.jsx";
 import { ValRad } from "./ValRad.jsx";
+
+/**
+ * "Datum ej satt" på det språk kalendern ritas på (0.127.0). Orden bor i `DATUM_EJ_SATT` (`lib/handelsemodell.js`), och panelen läser dem därifrån också.
+ * Kalenderns `locale` är en BCP-47-sträng ("sv-SE", "en-GB"); allt som börjar på "en" är engelska.
+ * @param {string} locale @returns {string}
+ */
+const datumEjSattOrd = (locale) => (String(locale).toLowerCase().startsWith("en") ? DATUM_EJ_SATT.en : DATUM_EJ_SATT.sv);
 
 /**
  * Kalender: en löpande månadsvy, som SessionStudios, med det som faktiskt ligger på dagen.
@@ -263,7 +273,9 @@ function Postkort({ dayKey, entry, statusWords, order, locale, oppna }) {
    * och utan spannet ser en semester över tre dagar ut som tre semestrar i panelen när tre dagar är valda.
    */
   const spann = entry.endDate && entry.endDate > entry.date ? `${dateText(entry.date, locale)} till ${dateText(entry.endDate, locale)}` : dateText(dayKey, locale);
-  const meta = [spann, entry.allDay ? "Heldag" : "", entry.not || ""].filter(Boolean).join(" · ");
+  // ⛔ EN PRELIMINÄR POST SÄGER DET (0.127.0): dagen i kortet är en FÖRESLAGEN dag, inte händelsens. Ordet är ramverkets (`DATUM_EJ_SATT`), så appen
+  // skriver det inte själv i `not` och det inte kan stå två gånger.
+  const meta = [spann, entry.allDay ? "Heldag" : "", arPreliminar(entry) ? datumEjSattOrd(locale) : "", entry.not || ""].filter(Boolean).join(" · ");
 
   /*
    * ⛔ CHEVRONEN FINNS BARA NÄR DET FINNS NÅGOT ATT FÄLLA UT. En pil som öppnar
@@ -310,7 +322,8 @@ function Postkort({ dayKey, entry, statusWords, order, locale, oppna }) {
     <div
       style={{ animationDelay: `${order * SVEPSTEG}ms` }}
       data-postrad=""
-      className={cx("animate-svep py-2 pr-1 pl-2.5", oppnaId && "relative", kanten && cx("border-l-4", kanten))}
+      {...(arPreliminar(entry) ? { "data-preliminar": "" } : {})}
+      className={cx("animate-svep py-2 pr-1 pl-2.5", oppnaId && "relative", kanten && cx("border-l-4", kanten), arPreliminar(entry) && "border-dashed")}
     >
       {/* ⛔ ORDET FÖRST I KORTET, precis som i `OpsCard`. Den som lyssnar ska
           höra vad kanten betyder innan titeln, inte efter den. */}
@@ -671,7 +684,7 @@ function Snabbtitt({ dayKey, alla, synliga, onClose, locale, oppna }) {
           const dold = !synliga.has(e.id);
           return (
             <li key={e.id} data-titt-rad={dold ? "dold" : "synlig"} className={cx("flex items-start gap-2 rounded-md px-1 py-1", e.handelseId && oppna && "relative", dold && "opacity-50")}>
-              <span aria-hidden="true" className={cx("mt-1 size-2 shrink-0 rounded-full", postklasser(e).prick)} />
+              <span aria-hidden="true" {...(arPreliminar(e) ? { "data-preliminar": "" } : {})} className={cx("mt-1 size-2 shrink-0 rounded-full", prickklass(e))} />
               <span className="min-w-0 flex-1">
                 <span className="flex items-center gap-1 text-meta font-semibold">
                   {e.kindIcon ? (
@@ -691,8 +704,8 @@ function Snabbtitt({ dayKey, alla, synliga, onClose, locale, oppna }) {
                     )}
                   </span>
                 </span>
-                {e.kalender || e.not || e.allDay ? (
-                  <span className="block truncate text-liten text-ink-secondary">{[e.allDay ? "Heldag" : "", e.not || "", e.kalender ? e.kalender.namn : ""].filter(Boolean).join(" · ")}</span>
+                {e.kalender || e.not || e.allDay || arPreliminar(e) ? (
+                  <span className="block truncate text-liten text-ink-secondary">{[e.allDay ? "Heldag" : "", arPreliminar(e) ? datumEjSattOrd(locale) : "", e.not || "", e.kalender ? e.kalender.namn : ""].filter(Boolean).join(" · ")}</span>
                 ) : null}
               </span>
               {e.atgard ? <span className="relative z-10 shrink-0">{e.atgard}</span> : null}
@@ -1266,6 +1279,15 @@ export function OpsCalendar({
   if (!oppnaHandelse && entries.some((e) => e && e.handelseId)) {
     throw new Error(
       "OpsCalendar: poster har handelseId men det finns ingenting som öppnar en händelse. Skicka `handelsepanel` till OpsAppShell, eller `onOppnaHandelse` till kalendern. En post som ser tryckbar ut och inte gör något lär den som tryckt att inget i dagpanelen gör något.",
+    );
+  }
+
+  // ⛔ ETT FÖRSLAG ÄR EN DAG (0.127.0, `CalendarEntry.preliminar`): en preliminär post med `endDate` eller `allDay` hade ritats som ett band, alltså som en händelse
+  // som redan har ett spann. Det kastas hellre än rättas tyst (punkt 5).
+  const brottPreliminar = preliminarFel(entries);
+  if (brottPreliminar) {
+    throw new Error(
+      `OpsCalendar: posten "${brottPreliminar.id}" är preliminär (ett förslag på dag för en händelse utan datum) men har endDate eller allDay. Ett förslag är en dag: skicka en post per föreslagen dag och lämna spannet.`,
     );
   }
 

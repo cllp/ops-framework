@@ -46,7 +46,7 @@ const TILLAGG = (over = {}) => ({
 
 describe("manifestets tillagg valideras vid uppstart", () => {
   it("platserna är ramverkets och exporteras", () => {
-    expect(HANDELSE_PLATSER).toEqual(["handelse.sektion", "handelse.atgard"]);
+    expect(HANDELSE_PLATSER).toEqual(["handelse.sektion", "handelse.atgard", "handelse.skapa"]);
   });
 
   it("godtar ett giltigt tillägg och skriver ut det fryst", () => {

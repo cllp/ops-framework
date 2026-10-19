@@ -4,6 +4,7 @@ import { useOpsSprak } from "./OpsSprak.jsx";
 import { cx } from "../lib/cx.js";
 import { attachmentSize, isImage } from "../lib/file.js";
 import { handelsetid } from "../lib/handelsepanel.js";
+import { DATUM_EJ_SATT } from "../lib/handelsemodell.js";
 import { KALENDERPRICK } from "../lib/kalenderfarg.js";
 import { slagText } from "../lib/slag.js";
 import { text } from "../lib/sprak.js";
@@ -59,7 +60,8 @@ import { Ursprungsrad } from "./Ursprungsrad.jsx";
  * @typedef {object} HandelseVy
  * @property {string} id
  * @property {string} titel
- * @property {string} datum `YYYY-MM-DD`.
+ * @property {string} [datum] `YYYY-MM-DD`. ⛔ Saknas i läget "Datum ej satt" (0.127.0, `lib/handelsemodell.js`): informationsrutan säger då `datumEjSattEtikett`
+ *   i stället för ett datum, och ritar ingen tid.
  * @property {string} [slutDatum] Sista dagen, inklusive.
  * @property {string} [tid] `HH:MM`.
  * @property {string} [slutTid] `HH:MM`.
@@ -120,6 +122,7 @@ import { Ursprungsrad } from "./Ursprungsrad.jsx";
  * @param {string} [props.saknasTitel] Förval "Händelsen finns inte".
  * @param {string} [props.saknasText] Förval "Den kan ha tagits bort, eller så får du inte se den."
  * @param {string} [props.tillEtikett] Skärmläsarens ord mellan två datum. Förval "till".
+ * @param {string} [props.datumEjSattEtikett] (0.127.0) Det som står i stället för datumet när händelsen saknar `datum`. Förval "Datum ej satt" (`DATUM_EJ_SATT`, samma ord som kalenderns preliminära poster).
  * @param {string} [props.bilagaEtikett] (0.45.0, #221) Rubriken över bilagan, och ordet i bildens alt-text. Förval "Bilaga".
  * @param {string} [props.skapadAvEtikett] (0.43.0, #224) Förval "Skapad av".
  * @param {string} [props.iModulEtikett] (0.43.0, #224) Ordet före modulen efter en skapare. Förval "i".
@@ -162,6 +165,7 @@ function OpsHandelsePanelRitad({
   saknasTitel = ORD_OPSHANDELSEPANEL.saknasTitel.sv,
   saknasText = ORD_OPSHANDELSEPANEL.saknasText.sv,
   tillEtikett = ORD_OPSHANDELSEPANEL.tillEtikett.sv,
+  datumEjSattEtikett = ORD_OPSHANDELSEPANEL.datumEjSattEtikett.sv,
   bilagaEtikett = ORD_OPSHANDELSEPANEL.bilagaEtikett.sv,
   skapadAvEtikett = ORD_OPSHANDELSEPANEL.skapadAvEtikett.sv,
   iModulEtikett = ORD_OPSHANDELSEPANEL.iModulEtikett.sv,
@@ -327,8 +331,9 @@ function OpsHandelsePanelRitad({
           <span className="mt-0.5 flex shrink-0 items-center">
             <DatumIkon size={20} />
           </span>
-          <span data-handelsedatum="" className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-sida leading-tight">
-            <span>{tid.start}</span>
+          <span data-handelsedatum={tid.start ? "" : "ej-satt"} className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-sida leading-tight">
+            {/* ⛔ "DATUM EJ SATT" ÄR ETT SVAR OCH INGEN TOM RAD (0.127.0, punkt 5): en händelse som väntar på att gruppen väljer dag. */}
+            <span>{tid.start || datumEjSattEtikett}</span>
             {tid.slut ? (
               <>
                 <span className="flex shrink-0 items-center text-ink-muted">
@@ -494,6 +499,7 @@ export const ORD_OPSHANDELSEPANEL = {
   saknasTitel: { sv: "Händelsen finns inte", en: "The event does not exist" },
   saknasText: { sv: "Den kan ha tagits bort, eller så får du inte se den.", en: "It may have been removed, or you may not have access to it." },
   tillEtikett: { sv: "till", en: "to" },
+  datumEjSattEtikett: DATUM_EJ_SATT,
   bilagaEtikett: { sv: "Bilaga", en: "Attachment" },
   skapadAvEtikett: { sv: "Skapad av", en: "Created by" },
   iModulEtikett: { sv: "i", en: "in" },
