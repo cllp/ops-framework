@@ -107,6 +107,42 @@ describe("filtret (F2 klart när)", () => {
   });
 });
 
+/*
+ * ⛔ 0.120.0 (cllp/lifehub.app#367): FILTRET HÄNFÖR ALDRIG EN GRUPPHÄNDELSE TILL EN PERSONLIG KALENDER. Beteendet, utskrivet:
+ *   - En händelse UTAN `kalender` hör till gruppens förvalda kalender, och följer den i filtret (oförändrat).
+ *   - Saknar gruppen kalender hör den till gruppen själv, som inte har någon knapp i filtret. Då är den INTE filtrerbar och syns
+ *     alltid, vilka kalendrar som än är valda. Före 0.120.0 hänfördes den till MIN förvalda kalender: den syntes bara när den
+ *     kalendern var vald, och försvann när Barnveckor valdes bort. Röda mot 0.119.0.
+ */
+describe("filtret utan gruppkalender (#367)", () => {
+  const kalendrarUtanGrupp = [{ id: "mina:barnveckor", namn: "Barnveckor", farg: /** @type {const} */ (2), forvald: true }];
+  const poster = [
+    { id: "g1", date: "2026-10-12", title: "Styrelsemöte" }, // grupphändelse utan kalender
+    { id: "p1", date: "2026-10-12", title: "Tandläkaren", kalender: { id: "mina:barnveckor", namn: "Barnveckor", farg: /** @type {const} */ (2) } },
+  ];
+
+  it("min förvalda kalender är aldrig postens kalender i filtret", () => {
+    expect(forvaldKalenderId(kalendrarUtanGrupp)).toBe("");
+    expect(forvaldKalenderId([])).toBe("");
+    expect(forvaldKalenderId(undefined)).toBe("");
+  });
+
+  it("grupphändelsen syns när bara en personlig kalender är vald, och när den bortvalda är den enda", () => {
+    const forvaldId = forvaldKalenderId(kalendrarUtanGrupp);
+    expect(filtreraPoster(poster, { valdaKalendrar: ["mina:barnveckor"], forvaldId }).map((p) => p.id)).toEqual(["g1", "p1"]);
+    expect(filtreraPoster(poster, { valdaKalendrar: [], forvaldId }).map((p) => p.id)).toEqual(["g1"]);
+    expect(filtreraPoster(poster, { valdaKalendrar: null, forvaldId }).map((p) => p.id)).toEqual(["g1", "p1"]);
+  });
+
+  it("med en gruppkalender är det som förut: grupphändelsen följer den", () => {
+    const kal = [{ id: "kalender", namn: "Kalender", farg: /** @type {const} */ (1), grupp: true }, ...kalendrarUtanGrupp];
+    const forvaldId = forvaldKalenderId(kal);
+    expect(forvaldId).toBe("kalender");
+    expect(filtreraPoster(poster, { valdaKalendrar: ["mina:barnveckor"], forvaldId }).map((p) => p.id)).toEqual(["p1"]);
+    expect(filtreraPoster(poster, { valdaKalendrar: ["kalender"], forvaldId }).map((p) => p.id)).toEqual(["g1"]);
+  });
+});
+
 describe("händelsemodellen (F3)", () => {
   it("fel utskrivna som meningar, och inga för en giltig händelse", () => {
     expect(handelsefel({ datum: "2026-10-12", tid: "18:00", slutTid: "20:00", kalenderId: "styrelse", kravSvar: true })).toEqual([]);
@@ -556,6 +592,58 @@ describe("skalets Ny händelse: kalender, Kräv svar och dagen (F2, F3, #206)", 
     expect(within(panel).queryByText(/Ingen kalender/)).toBeNull();
     // Händelsen hamnar i gruppen: inget kalendermål skickas till formuläret.
     await waitFor(() => expect(senast()).toMatchObject({ kalender: null }));
+  });
+
+  /*
+   * ⛔ 0.120.0 (cllp/lifehub.app#367): EN NY HÄNDELSE HAMNAR ALDRIG I EN PERSONLIG KALENDER AV SIG SJÄLV. Fram till 0.119.0 föll
+   * förvalet på MIN förvalda kalender, och min förvalda är härledd till den första egna även om jag aldrig valt någon. CP:s grupp
+   * hade ingen kalender och en enda egen, Barnveckor: händelsen blev en post i Barnveckor och gick inte att öppna. Röda mot 0.119.0:
+   * formuläret fick `{ id: "barnveckor", slag: "mina" }` och raden sade "Kalender: Barnveckor".
+   */
+  it("⛔ #367: en enda egen kalender blir aldrig förval, även när gruppen saknar kalender", async () => {
+    mottaget = [];
+    render(<Skal extra={{ kalendrar: { gruppens: [], mina: [mk("barnveckor")] } }} />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Skapa på dagen" }));
+    const panel = await screen.findByRole("region", { name: "Ny händelse" });
+    await act(async () => {});
+    expect(senast()).toMatchObject({ kalender: null, blockerar: false });
+    expect(within(panel).getByText("Kalender:").parentElement?.textContent).toContain("CPS AB");
+    expect(within(panel).getByText("Kalender:").parentElement?.textContent).not.toContain("Barnveckor");
+    // Det är en grupphändelse: ingen "Blockerar tillgänglighet", som bara hör till en post i en egen kalender.
+    expect(within(panel).queryByRole("switch", { name: /Blockerar tillgänglighet/ })).toBeNull();
+  });
+
+  it("⛔ #367: växlaren har en rad för gruppen själv när den saknar kalender, så att man kan välja tillbaka", async () => {
+    mottaget = [];
+    render(<Skal extra={{ kalendrar: { gruppens: [], mina: [mk("barnveckor")] } }} />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Skapa på dagen" }));
+    const panel = await screen.findByRole("region", { name: "Ny händelse" });
+    await user.click(within(panel).getByRole("button", { name: /^Kalender: CPS AB/ }));
+    const valjare = await screen.findByRole("dialog", { name: "Kalender" });
+    const gruppsektion = within(valjare).getByRole("region", { name: "CPS AB: kalendrar" });
+    expect(within(gruppsektion).getAllByRole("button").map((b) => b.textContent)).toEqual(["CPS AB"]);
+    // Ett aktivt val av den egna kalendern ger en post, som förut ...
+    await user.click(within(within(valjare).getByRole("region", { name: "Mina kalendrar" })).getByRole("button", { name: "Barnveckor" }));
+    await waitFor(() => expect(senast()).toMatchObject({ kalender: { id: "barnveckor", slag: "mina" } }));
+    // ... och gruppen går att välja tillbaka, då skickas inget kalendermål.
+    await user.click(within(panel).getByRole("button", { name: /^Kalender: Barnveckor/ }));
+    const valjare2 = await screen.findByRole("dialog", { name: "Kalender" });
+    await user.click(within(within(valjare2).getByRole("region", { name: "CPS AB: kalendrar" })).getByRole("button", { name: "CPS AB" }));
+    await waitFor(() => expect(senast()).toMatchObject({ kalender: null }));
+  });
+
+  it("⛔ #367: med en riktig gruppkalender är förvalet den, och gruppens egen rad behövs inte", async () => {
+    mottaget = [];
+    render(<Skal extra={{ kalendrar: { gruppens: [gk("kalender")], mina: [mk("barnveckor")] } }} />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Skapa på dagen" }));
+    const panel = await screen.findByRole("region", { name: "Ny händelse" });
+    await waitFor(() => expect(senast()).toMatchObject({ kalender: { id: "kalender", slag: "grupp" } }));
+    await user.click(within(panel).getByRole("button", { name: "Kalender: Kalender" }));
+    const valjare = await screen.findByRole("dialog", { name: "Kalender" });
+    expect(within(within(valjare).getByRole("region", { name: "CPS AB: kalendrar" })).getAllByRole("button").map((b) => b.textContent)).toEqual(["Kalender"]);
   });
 
   it("⛔ i en av mina kalendrar: inga svar, ingen typ, och Blockerar tillgänglighet i stället", async () => {

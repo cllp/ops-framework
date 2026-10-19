@@ -45,6 +45,7 @@
  *       node scripts/check-skalyta.mjs --bara-textfalt   bara avsnitt 45, tal i ett vanligt textfält (0.104.0)
  *       node scripts/check-skalyta.mjs --bara-talkval    bara avsnitt 46, valen efter talet och förslagen i chatten (0.105.0)
  *       node scripts/check-skalyta.mjs --bara-0106       bara avsnitt 47, chattepiken 0.106.0 (#386), i scripts/lib/skalyta0106.mjs
+ *       node scripts/check-skalyta.mjs --bara-bandkontrast  bara avsnitt 49, bandets text mot underlaget över en vald ruta (0.120.0), ljust och mörkt
  *       node scripts/check-skalyta.mjs --bara-etiketter  bara avsnitt 48, etiketterna inom sina dagsrutor i månadsvyn (0.106.0); med --tema dark som CP:s skärm
  *       node scripts/check-skalyta.mjs --chattbredder 390,1024   29g i andra bredder än 390 och 1280
  *       node scripts/check-skalyta.mjs --tema dark        alla sidor i mörkt tema (förebilden CP jämför mot är mörk)
@@ -1022,6 +1023,14 @@ async function talkValOchForslag() {
 const verktyg0106 = { oppna, krav, matt, bildmapp };
 if (argv.includes("--bara-0106")) {
   await chattepiken0106(verktyg0106);
+  await browser.close();
+  avsluta();
+  process.exit(0);
+}
+
+// `--bara-bandkontrast`: bara avsnitt 49. Hela körningen kör det också.
+if (argv.includes("--bara-bandkontrast")) {
+  await kalenderBandkontrast();
   await browser.close();
   avsluta();
   process.exit(0);
@@ -6977,12 +6986,117 @@ async function kalenderEtiketter() {
   }
 }
 
+// ══ 49. BANDETS TEXT HAR KONTRAST MOT UNDERLAGET ÖVER EN VALD RUTA, LJUST OCH MÖRKT TEMA (0.120.0, cllp/lifehub.app#367) ═══════════
+// CP 2026-10-19: etiketten på en heldag i vald ruta var "nästan osynlig, ljus text på ljus vald cell" i mörkt tema. Rotorsaken: en
+// vald ruta är INVERTERAD (`ops-contrast-panel`, ljus ruta i mörkt tema och mörk i ljust), men bandet ligger som ett syskon till rutorna
+// och inte som ett barn, så det ärvde sidans textfärg: sidans text på den inverterade ytan. Räknat ur tokens 1,13:1 (mörkt) och 1,18:1
+// (ljust). `check-kontrast` mäter token-par och avsnitt 48 mäter bandets geometri, ingen mätte färgen på ett band över en vald ruta.
+// Mätningen här är det en person ser: för varje bandbit, i varje tema, tas fyra punkter längs titeln, alla lager under punkten läses
+// ur webbläsaren (`elementsFromPoint`, med `pointer-events` tvingat till auto så att även bandets egna lager räknas), den sammansatta
+// bakgrunden räknas ut, och kontrasten mot titelns beräknade textfärg (WCAG 2.x) ska vara minst 4,5:1 (`text-liten` är brödtext).
+// Golv, per tema och bredd: minst 4 bandbitar, minst 12 punkter (3 per bit) och minst en punkt över en VALD ruta.
+async function kalenderBandkontrast() {
+  for (const tema of /** @type {const} */ (["light", "dark"])) {
+    for (const vp of [{ width: 1024, height: 900 }, { width: 1280, height: 900 }]) {
+      const namn = `bandkontrast ${tema} ${vp.width}`;
+      const { page, context } = await oppna("kalender-etiketter", vp, tema);
+      try {
+        await page.waitForSelector('section[aria-label="Kalender"] [data-veckorad] [data-bandbit]', { timeout: 4000 });
+        await page.waitForTimeout(300);
+        // Välj dagen under titelns början i varje band: ett klick går igenom bandet (`pointer-events-none`) till rutan under.
+        const bitar = await page.evaluate(() => [...document.querySelectorAll("[data-bandbit]")].filter((b) => b.getBoundingClientRect().width > 0).map((b, i) => { b.setAttribute("data-bandnr", String(i)); return { id: /** @type {string} */ (b.getAttribute("data-bandbit")), nr: i }; }));
+        krav(bitar.length >= 4, `${namn}: ${bitar.length} bandbitar syns, väntat minst 4 (golv).`);
+        const lag = /** @type {string[]} */ ([]);
+        let punkter = 0;
+        let overValdRuta = 0;
+        let samst = Infinity;
+        const perBit = /** @type {string[]} */ ([]);
+        for (const bit of bitar) {
+          // ⛔ IN I FÖNSTRET FÖRST: `elementsFromPoint` svarar tomt utanför det, och ett klick utanför träffar ingenting.
+          await page.locator(`[data-bandnr="${bit.nr}"]`).scrollIntoViewIfNeeded();
+          const plats = await page.evaluate((nr) => { const r = /** @type {Element} */ (document.querySelector(`[data-bandnr="${nr}"]`)).getBoundingClientRect(); return { x: r.left + 12, y: r.top + r.height / 2 }; }, bit.nr);
+          await page.mouse.click(plats.x, plats.y);
+          await page.waitForTimeout(80);
+          const punktlista = await page.evaluate((id) => {
+            // Bara under mätningen: kvar skulle den låta nästa klick träffa bandet i stället för rutan under.
+            const tillfallig = document.head.appendChild(Object.assign(document.createElement("style"), { textContent: "* { pointer-events: auto !important; }" }));
+            const ctx = /** @type {CanvasRenderingContext2D} */ (document.createElement("canvas").getContext("2d", { willReadFrequently: true }));
+            /** @param {string} css @returns {[number, number, number, number]} */
+            const rgba = (css) => { ctx.clearRect(0, 0, 1, 1); ctx.fillStyle = "rgba(0,0,0,0)"; ctx.fillStyle = css; ctx.fillRect(0, 0, 1, 1); const d = ctx.getImageData(0, 0, 1, 1).data; return [d[0], d[1], d[2], d[3] / 255]; };
+            /** @param {number[]} c */
+            const lum = (c) => { const f = c.map((v) => { const x = v / 255; return x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4); }); return 0.2126 * f[0] + 0.7152 * f[1] + 0.0722 * f[2]; };
+            /** @param {Element} e @returns {number} Elementets egen och förfäders opacity. */
+            const opacitet = (e) => { let o = 1; for (let n = /** @type {Element | null} */ (e); n; n = n.parentElement) o *= parseFloat(getComputedStyle(n).opacity); return o; };
+            const bitEl = document.querySelector(`[data-bandnr="${id}"]`);
+            if (!bitEl) { tillfallig.remove(); return []; }
+            const text = /** @type {HTMLElement} */ (bitEl.querySelector("span:not([data-bandton])"));
+            const tr = text.getBoundingClientRect();
+            const textfarg = rgba(getComputedStyle(text).color);
+            const rad = document.createRange();
+            rad.selectNodeContents(text);
+            const bredd = Math.min(rad.getBoundingClientRect().width, tr.width);
+            const br = bitEl.getBoundingClientRect();
+            const ut = [];
+            // Fyra punkter längs titelns rad, inom bandbiten.
+            for (const f of [0.1, 0.35, 0.6, 0.85]) {
+              const x = Math.min(br.right - 2, tr.left + bredd * f);
+              const y = tr.top + tr.height / 2;
+              const lager = document.elementsFromPoint(x, y);
+              // ⛔ INGA LAGER ÄR ETT FEL OCH INGEN VIT BAKGRUND: punkten ligger utanför fönstret eller texten träffades inte.
+              if (lager.indexOf(text) < 0) { ut.push({ x: Math.round(x), kontrast: 0, overVald: false, bas: "saknas", text: "saknas" }); continue; }
+              const under = lager.slice(lager.indexOf(text) + 1);
+              // Sammansätt uppifrån och ner tills ett lager är ogenomskinligt.
+              const farger = [];
+              for (const e of under) {
+                const c = rgba(getComputedStyle(e).backgroundColor);
+                const o = opacitet(e);
+                if (c[3] * o > 0) farger.push({ c, a: c[3] * o });
+                if (c[3] >= 0.999 && o >= 0.999) break;
+              }
+              let bas = [255, 255, 255];
+              for (let i = farger.length - 1; i >= 0; i--) { const { c, a } = farger[i]; bas = [0, 1, 2].map((k) => c[k] * a + bas[k] * (1 - a)); }
+              const t = [0, 1, 2].map((k) => textfarg[k] * textfarg[3] + bas[k] * (1 - textfarg[3]));
+              const L1 = lum(t);
+              const L2 = lum(bas);
+              ut.push({
+                x: Math.round(x),
+                kontrast: (Math.max(L1, L2) + 0.05) / (Math.min(L1, L2) + 0.05),
+                overVald: under.some((e) => e.closest('[data-cal-day][aria-pressed="true"]') !== null),
+                bas: bas.map(Math.round).join(","),
+                text: t.map(Math.round).join(","),
+              });
+            }
+            tillfallig.remove();
+            return ut;
+          }, bit.nr);
+          perBit.push(`${bit.id} ${punktlista.filter((q) => q.overVald).length}/${punktlista.length}`);
+          for (const pt of punktlista) {
+            punkter += 1;
+            samst = Math.min(samst, pt.kontrast);
+            if (pt.overVald) overValdRuta += 1;
+            if (pt.kontrast < 4.5) lag.push(`bandet ${bit.id} (x ${pt.x}${pt.overVald ? ", över en vald ruta" : ""}): text rgb(${pt.text}) på rgb(${pt.bas}) = ${pt.kontrast.toFixed(2)}:1, väntat minst 4,5:1`);
+          }
+        }
+        matt.push(`${namn}: ${bitar.length} bandbitar, ${punkter} punkter (${overValdRuta} över en vald ruta: ${perBit.join(", ")}), sämsta kontrast ${Number.isFinite(samst) ? samst.toFixed(2) + ":1" : "ingen mättes"}`);
+        krav(punkter >= 12 && punkter >= bitar.length * 3, `${namn}: ${punkter} punkter mättes, väntat minst 3 per bandbit och minst 12 (golv).`);
+        krav(overValdRuta >= 1 && perBit.every((r) => !r.endsWith(" 0/4")), `${namn}: bitar utan en enda punkt över en vald ruta (${perBit.join(", ")}), väntat minst en per bit (golv). Utan den mäts inte felet.`);
+        for (const t of lag.slice(0, 6)) krav(false, `${namn}: ${t}.`);
+        if (bildmapp) await page.locator('[data-kalender-manad="2026-11"]').screenshot({ path: path.join(bildmapp, `kalender-band-vald-${tema}-${vp.width}.png`) });
+      } catch (e) {
+        krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+      }
+      await context.close();
+    }
+  }
+}
+
 await apparArkHylla();
 await apparArkOrdning();
 await textfaltMedTal();
 await talkValOchForslag();
 await chattepiken0106(verktyg0106);
 await kalenderEtiketter();
+await kalenderBandkontrast();
 
 await browser.close();
 avsluta();

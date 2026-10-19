@@ -360,6 +360,34 @@ export function forvaldKalender(lista) {
 export const gruppkalendernyckel = (groupId, id) => katalognyckel(groupId, id);
 
 /**
+ * ══ ⛔ VARJE GRUPP HAR EN STANDARDKALENDER (0.120.0, cllp/lifehub.app#367) ══════════════════════════════════════════════
+ *
+ * CP 2026-10-19: "Skapa ny grupp, kommer inte med en default grupp kalender." Det ersätter beslutet "gruppen ÄR kalendern"
+ * (0.78.2 och 0.84.0, cllp/ops-framework#309). Händelsen: en ny grupp hade inga namngivna kalendrar, så ramverkets förval för en
+ * ny händelse föll på PERSONENS egen kalender (Barnveckor), händelsen blev en post i `users/{uid}/kalenderposter` i stället för en
+ * händelse i gruppen, och den gick inte att öppna. Att ha en grupp utan kalender var ett läge som ramverket tillät och som tre
+ * ställen i koden inte klarade av. Nu uppstår läget bara om en admin arkiverar allt, och då är det ett val.
+ *
+ * ⛔ NAMNET OCH ID:T ÄR KONSTANTER HÄR OCH INGEN ANNANSTANS (en sanning per faktum). Claudes förslag, CP kan byta: byt dem här.
+ * `forvald` sätts inte på raden: förvald är HÄRLEDD (`forvaldKalender`), och `true` på den första raden hade varit två sanningar.
+ */
+export const STANDARDKALENDER_ID = "kalender";
+/** @type {import("./sprak.js").Namn} */
+export const STANDARDKALENDER_NAMN = Object.freeze({ sv: "Kalender", en: "Calendar" });
+
+/**
+ * Standardkalenderns rad för en grupp, byggd med SAMMA `byggGruppkalender` som skrivvägen och med dokumentnyckeln (`groupId|id`)
+ * som `id`, precis som `sparaGruppens` skriver den.
+ *
+ * @param {string} groupId
+ * @returns {Gruppkalender}
+ */
+export function standardGruppkalender(groupId) {
+  const rad = byggGruppkalender({ id: STANDARDKALENDER_ID, namn: { ...STANDARDKALENDER_NAMN }, farg: 1, ikon: "kalender", ordning: 0, arkiverad: false, texter: {}, groupId });
+  return { ...rad, id: gruppkalendernyckel(groupId, STANDARDKALENDER_ID) };
+}
+
+/**
  * Bygger en av mina kalendrar, eller kastar.
  *
  * @param {Record<string, any>} d
@@ -470,6 +498,53 @@ export function giltigtDatum(s) {
   return dt.getUTCFullYear() === a && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d;
 }
 
+/** Prefixet på `handelseId` för en post i mina kalendrar. Ett tecken som inget id i ramverket har (`ID_FORM`), så ett händelse-id kan aldrig likna det. */
+export const KALENDERPOST_HANDELSEPREFIX = "post~";
+
+/** @param {string} postId @returns {string} Det `handelseId` raden för posten bär, och `?handelse=` i adressen. */
+export function postHandelseId(postId) {
+  if (typeof postId !== "string" || postId === "") throw new Error("postHandelseId: postId krävs, en sträng som inte är tom.");
+  return `${KALENDERPOST_HANDELSEPREFIX}${postId}`;
+}
+
+/**
+ * Postens id ur ett `handelseId`, eller `null` när det inte är en posts. Den enda platsen prefixet tolkas.
+ * @param {unknown} handelseId @returns {string | null}
+ */
+export function postIdUrHandelseId(handelseId) {
+  if (typeof handelseId !== "string" || !handelseId.startsWith(KALENDERPOST_HANDELSEPREFIX) || handelseId.length === KALENDERPOST_HANDELSEPREFIX.length) return null;
+  return handelseId.slice(KALENDERPOST_HANDELSEPREFIX.length);
+}
+
+/**
+ * En post som en `HandelseVy` för `OpsHandelsePanel`: titel, datum, tid, kalender, plats och beskrivning. Ingen typ, ingen status och inga
+ * svar, för en post har inga (den ligger i personens egen kalender, `blockerar` är det enda den påverkar).
+ *
+ * @param {Kalenderpost} post
+ * @param {ReadonlyArray<{ id: string, namn: string | import("./sprak.js").Namn, farg: number }>} kalendrar
+ * @param {string} [sprak]
+ * @returns {import("../components/OpsHandelsePanel.jsx").HandelseVy}
+ */
+export function postTillHandelse(post, kalendrar, sprak = "sv") {
+  const k = kalendrar.find((x) => x.id === post.kalenderId);
+  const datum = post.start.slice(0, 10);
+  const slutdatum = post.slut.slice(0, 10);
+  const tid = post.heldag ? "" : post.start.slice(11);
+  const slutTid = post.heldag ? "" : post.slut.slice(11);
+  return {
+    id: postHandelseId(post.id),
+    titel: post.titel,
+    datum,
+    ...(slutdatum > datum ? { slutDatum: slutdatum } : {}),
+    ...(tid ? { tid } : {}),
+    ...(slutTid && post.slut !== post.start ? { slutTid } : {}),
+    ...(post.heldag ? { heldag: true } : {}),
+    ...(k ? { kalender: { namn: text(k.namn, sprak), farg: /** @type {1|2|3|4|5|6} */ (k.farg) } } : {}),
+    ...(post.plats ? { plats: post.plats } : {}),
+    ...(post.beskrivning ? { beskrivning: post.beskrivning } : {}),
+  };
+}
+
 /**
  * En post i mina kalendrar som en rad i `OpsCalendar`: datum, slutdatum, heldag och kalendern.
  *
@@ -488,6 +563,10 @@ export function postTillRad(post, kalendrar, sprak = "sv") {
   const tid = post.heldag ? "" : `${post.start.slice(11)}${post.slut.slice(11) && post.slut !== post.start ? `-${post.slut.slice(11)}` : ""}`;
   return {
     id: post.id,
+    // ⛔ EN POST GÅR ATT ÖPPNA (0.120.0, cllp/lifehub.app#367). Före 0.120.0 bar raden inget `handelseId`, så titeln var vanlig text och
+    // kortet såg ut som en ingång utan att vara en: "Ingen text, ingen detaljvy, navigation". Id:t har prefixet `post~`, som inget
+    // händelse-id har (ett id i ramverket följer `ID_FORM`, och `~` ingår inte), och appen slår upp posten med `postIdUrHandelseId`.
+    handelseId: postHandelseId(post.id),
     date: datum,
     ...(slutdatum > datum ? { endDate: slutdatum } : {}),
     ...(post.heldag ? { allDay: true } : {}),

@@ -214,9 +214,11 @@ function Sektion({ slag, rubrik, hjalp, tomText, lista, kanAndra, lasText, sprak
       <p className="m-0 mb-4 text-etikett text-ink-secondary">{hjalp}</p>
       {!kanAndra ? <p className="m-0 mb-3 text-meta text-ink-muted" data-las-text="">{lasText}</p> : null}
 
-      {/* ⛔ GRUPPEN ÄR KALENDERN (lane 6 steg F). Gruppsektionen har ingen tomrad:
-          en tom lista namngivna kalendrar är inte "gruppen har inga". Egna
-          kalendrar skickar fortfarande tomText, och den ritas. */}
+      {/* ⛔ GRUPPEN ÄR KALENDERN (lane 6 steg F) VAR BESLUTET FRAM TILL 0.119.0, och är ersatt (0.120.0, cllp/lifehub.app#367): varje
+          grupp får en standardkalender vid skapandet (`createGroupService({ standardkalender: true })`), och en befintlig får den med
+          `createStandardkalenderService`. Skälet: utan en namngiven kalender föll förvalet för en ny händelse på personens egen. Gruppsektionen
+          har fortfarande ingen tomrad, för en grupp där en admin arkiverat allt har gjort ett val, och det ska inte se ut som ett fel.
+          Egna kalendrar skickar fortfarande tomText, och den ritas. */}
       {valbara.length === 0 && tomText ? <p className="m-0 mb-3 py-2 text-center text-etikett text-ink-muted">{tomText}</p> : null}
 
       <ul className="m-0 mb-3 flex list-none flex-col gap-2 p-0">
