@@ -156,11 +156,16 @@ export function nastaAdressdel(del, max = MAX_ADRESSDEL) {
 /**
  * Förslaget till en adress ur gruppens namn och målets titel. Personen får ändra båda delarna innan länken skapas.
  *
+ * ⛔ GRUPPDELEN HAR INGEN RESERV (0.127.0). Förut blev den ett fast ord ("grupp") när namnet saknades. En gruppdel tillhör den första plats som tar den för
+ * alltid, så den första gruppen som delade något utan att namnet kom fram fick ordet, och alla andra grupper fick "används av en annan grupp". Utan namn är
+ * gruppdelen därför tom: rutan visar ett tomt fält och Skapa säger att adressen inte kan vara tom, i stället för att föreslå ett ord som är fel för nästa grupp.
+ * Sista delen har kvar sin reserv (`fil`, `handelse`): den är unik bara inom gruppens egen gruppdel, och en krock där löses med `-2`.
+ *
  * @param {{ grupp?: unknown, titel?: unknown, slag: "post" | "handelse" }} d
  * @returns {{ gruppdel: string, sista: string }}
  */
 export function foreslaAdress(d) {
-  return { gruppdel: adressdel(d?.grupp) || "grupp", sista: adressdel(d?.titel) || (d?.slag === "post" ? "fil" : "handelse") };
+  return { gruppdel: adressdel(d?.grupp), sista: adressdel(d?.titel) || (d?.slag === "post" ? "fil" : "handelse") };
 }
 
 /**

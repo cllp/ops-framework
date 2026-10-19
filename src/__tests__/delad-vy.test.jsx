@@ -138,6 +138,8 @@ describe("OpsDelad: adressen gick ut", () => {
 const KIM = "uidKim";
 const ANNAN = "uidAnnan";
 const tid = 1_700_000_000_000;
+/** ⛔ 0.127.0: gruppdelen har ingen reserv, så förslaget "grupp" i proven nedan kommer ur gruppens namn och inte ur ett fast ord. */
+const GRUPPEN = { id: "cps-ab", namn: "Grupp" };
 const skapare = (uid) => ({ uid, namn: "Kim", typ: "manniska", kalla: "bibliotek" });
 const pdf = (id, uid, extra = {}) => ({
   ...byggPost({ groupId: "cps-ab", typ: "fil", rubrik: `Avtal ${id}`, fil: { sokvag: `grupper/cps-ab/bibliotek/${id}/a.pdf`, namn: "a.pdf", mime: "application/pdf", byte: 2048, ...extra }, skapadAv: skapare(uid), skapad: tid, andrad: tid }),
@@ -145,7 +147,7 @@ const pdf = (id, uid, extra = {}) => ({
 });
 const anteckning = { ...byggPost({ groupId: "cps-ab", typ: "anteckning", rubrik: "Protokoll", text: "x", skapadAv: skapare(KIM), skapad: tid, andrad: tid }), id: "a" };
 
-function Vy({ poster, platser, delningGruppdel, jag = { uid: KIM, roll: "medlem" }, delningar = [], onDelaLank, onAndraNedladdning = vi.fn(async () => {}), onAterkalla = vi.fn(async () => {}) }) {
+function Vy({ poster, platser = [GRUPPEN], delningGruppdel, jag = { uid: KIM, roll: "medlem" }, delningar = [], onDelaLank, onAndraNedladdning = vi.fn(async () => {}), onAterkalla = vi.fn(async () => {}) }) {
   const [vald, setVald] = useState(null);
   return (
     <OpsBibliotek

@@ -70,8 +70,10 @@ describe("arAdressdel", () => {
 describe("foreslaAdress och nastaAdressdel", () => {
   it("förslaget är gruppens namn och titeln, med ord som reserv när något saknas", () => {
     expect(foreslaAdress({ grupp: "Travel", titel: "Resa med kusiner", slag: "handelse" })).toEqual({ gruppdel: "travel", sista: "resa-med-kusiner" });
-    expect(foreslaAdress({ grupp: "", titel: "", slag: "handelse" })).toEqual({ gruppdel: "grupp", sista: "handelse" });
-    expect(foreslaAdress({ grupp: undefined, titel: "???", slag: "post" })).toEqual({ gruppdel: "grupp", sista: "fil" });
+    // ⛔ 0.127.0: gruppdelen har ingen reserv. Ett fast ord hade gått till den första gruppen som saknade namn, och alla andra hade fått "används av en annan grupp".
+    expect(foreslaAdress({ grupp: "", titel: "", slag: "handelse" })).toEqual({ gruppdel: "", sista: "handelse" });
+    expect(foreslaAdress({ grupp: undefined, titel: "???", slag: "post" })).toEqual({ gruppdel: "", sista: "fil" });
+    expect(foreslaAdress({ grupp: "???", titel: "Resa", slag: "post" }).gruppdel).toBe("");
     expect(foreslaAdress({ grupp: "Musik", titel: "bubbelglasen.ver2", slag: "post" })).toEqual({ gruppdel: "musik", sista: "bubbelglasen-ver2" });
   });
 

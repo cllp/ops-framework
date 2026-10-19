@@ -46,6 +46,9 @@ import { OpsButton } from "./OpsButton.jsx";
  * @param {(post: any) => Promise<void> | void} [props.onSkrivUt] Se `OpsBibliotek`. Appens server måste slå upp medlemskapet med `gruppForPlats(post.groupId)`.
  * @param {(post: any) => Promise<void> | void} [props.onAnteckningAvUtskrift] Se `OpsBibliotek`.
  * @param {readonly any[]} [props.delningar] Se `OpsBibliotek`. Delningstjänsten slår upp medlemskapet via `gruppForPlats`.
+ * @param {string} [props.delningGruppdel] (0.127.0) Se `OpsBibliotek`. Gruppdelen gruppen redan använt i en länk (`gruppdelar({ uid, groupId }).senaste`), där `groupId` är objektets GRUPP och inte platsen.
+ *   ⛔ Förut vidarebefordrades den inte: en fil som delades från en händelse föreslog då ett fast ord, och eftersom en gruppdel tillhör den första gruppen som tar den för alltid fick en enda grupp ordet och alla andra "används av en annan grupp".
+ * @param {string} [props.gruppnamn] (0.127.0) Se `OpsBibliotek`. Objektets grupps namn, för förslaget till gruppdelen när gruppen inte delat något förut (`handelse.grupp` på panelen). Platsen (`handelse~<grupp>~<händelse>`) bär inget namn.
  * @param {(inmatning: any) => Promise<any>} [props.onDelaLank] Se `OpsBibliotek`.
  * @param {(inmatning: any) => Promise<void> | void} [props.onAndraNedladdning] Se `OpsBibliotek`.
  * @param {(inmatning: any) => Promise<void> | void} [props.onAterkalla] Se `OpsBibliotek`.
@@ -78,7 +81,7 @@ const SLAG = {
 };
 
 /** @param {any} p */
-function PlatsfilerRitad({ slag: kravtSlag, kalla, jag, kanLaggaTill, rubrik, laddaUppEtikett, filUrl, hamtaAdress, onFyllLjud, onSkrivUt, onAnteckningAvUtskrift, delningar, onDelaLank, onAndraNedladdning, onAterkalla }) {
+function PlatsfilerRitad({ slag: kravtSlag, kalla, jag, kanLaggaTill, rubrik, laddaUppEtikett, filUrl, hamtaAdress, onFyllLjud, onSkrivUt, onAnteckningAvUtskrift, delningar, delningGruppdel, gruppnamn, onDelaLank, onAndraNedladdning, onAterkalla }) {
   const rubrikId = useId();
   const [vald, setVald] = useState(/** @type {any} */ (null));
   const [skapar, setSkapar] = useState(/** @type {"fil" | null} */ (null));
@@ -151,6 +154,8 @@ function PlatsfilerRitad({ slag: kravtSlag, kalla, jag, kanLaggaTill, rubrik, la
         {...(onSkrivUt ? { onSkrivUt } : {})}
         {...(onAnteckningAvUtskrift ? { onAnteckningAvUtskrift } : {})}
         {...(delningar ? { delningar } : {})}
+        {...(delningGruppdel ? { delningGruppdel } : {})}
+        {...(gruppnamn ? { gruppnamn } : {})}
         {...(onDelaLank ? { onDelaLank } : {})}
         {...(onAndraNedladdning ? { onAndraNedladdning } : {})}
         {...(onAterkalla ? { onAterkalla } : {})}
