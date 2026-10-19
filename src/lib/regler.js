@@ -2219,3 +2219,33 @@ ${nuRegelfunktion("opsBeskrivningNu")}
     }
 `;
 }
+
+/**
+ * Delningslänkarnas samling: ingen klient läser eller skriver den (0.119.0, lifehub.app#356).
+ *
+ * ⛔ `allow read, write: if false`, MED FLIT OCH UTAN UNDANTAG. Dokumentets id är SHA-256 av tokenet, och en lista över id:n är
+ * en lista över hashar som någon kan försöka vända. En klient som kunde läsa en rad kunde också se vem som delat vad och till
+ * när, och en klient som kunde skriva en rad kunde ge sig själv en länk till en fil i en grupp hen inte är med i. Allt går
+ * genom Admin SDK i `createDelningService`, som själv kontrollerar medlemskapet (en callable kör förbi reglerna).
+ *
+ * ⛔ STORAGE-REGLERNA ÄNDRAS INTE. Den publika sidan öppnar aldrig en öppen sökväg: den får en signerad adress som gäller i 15
+ * minuter, och den adressen skapas av servern. En regel som släppte in en oinloggad läsare i `grupper/...` hade släppt in vem
+ * som helst.
+ *
+ * ⛔ SAMLINGSNAMNET KOMMER FRÅN APPEN. Ramverket känner det inte, samma skäl som för mejlkön.
+ *
+ * @param {string} namn Samlingsnamnet appen valt.
+ * @returns {string}
+ */
+export function delningsregelfragment(namn) {
+  const samling = kontrolleraNamn(namn, "delningar");
+  return `    // ══ Ramverkets delningslänkar. GENERERAD, ändra inte för hand ══
+    //
+    // Källa: ops-framework, delningsregelfragment() i src/lib/regler.js.
+    // Klienten läser inte raderna och skriver dem inte. Bara servern, med Admin SDK.
+    // Id:t är SHA-256 av tokenet, och en lista över dem är en lista över hashar att försöka vända.
+    match /${samling}/{id} {
+      allow read, write: if false;
+    }
+`;
+}

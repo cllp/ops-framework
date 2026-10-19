@@ -190,3 +190,11 @@ export {
   MAX_TEXTVARDE, MAX_LANGTEXTVARDE, MAX_LANKVARDE, BESKRIVNINGSFALT, LISTFALT, FALTFALT, BESKRIVENAPPDATAFALT, BESKRIVNINGSDOKUMENTFALT,
   validateBeskrivning, validateRad, beskrivningsId, byggBeskrivningsdokument,
 } from "../lib/beskrivenapp.js";
+
+/*
+ * ⛔ PUBLIK DELNING AV EN BIBLIOTEKSFIL (0.119.0, lifehub.app#356). Tokenet slumpas och hashas här och bundlas aldrig till en webbläsare, och
+ * raderna nekas klienten av `delningsregelfragment()`. Konstanterna och texterna som vyn också läser ligger i `lib/delning.js` (huvudingången
+ * och här): en sanning om utgångstiderna, orsakerna och orden. Filen är ren utom `node:crypto`.
+ */
+export { createDelningService, byggDelning, delningsId, delningsDisposition, nyttDelningstoken } from "./delning.js";
+export { DELNINGSDAGAR, FORVAL_DELNINGSDAGAR, SIGNERAD_SEKUNDER, TOKENFORM, DELNINGSFALT, DELNINGSORSAKER, DELNINGSFEL, DELNINGSSVARSFALT, delningsTyp, delningsfel } from "../lib/delning.js";

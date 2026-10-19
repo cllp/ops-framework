@@ -18,7 +18,7 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { mejlregelfragment } from "../src/lib/mejl.js";
-import { beskrivenappdataregelfragment, beskrivningsregelfragment, bibliotekregelfragment, lagringsregelfragment, gruppadSamling, handelseregelfragment, kalenderregelfragment, katalogregelfragment, konfigloggregelfragment, minnesregelfragment, modulinstallningsregelfragment, regelfragment, samtalsregelfragment } from "../src/lib/regler.js";
+import { beskrivenappdataregelfragment, beskrivningsregelfragment, bibliotekregelfragment, delningsregelfragment, lagringsregelfragment, gruppadSamling, handelseregelfragment, kalenderregelfragment, katalogregelfragment, konfigloggregelfragment, minnesregelfragment, modulinstallningsregelfragment, regelfragment, samtalsregelfragment } from "../src/lib/regler.js";
 
 const rot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const ut = path.join(rot, "rules", "provregler.rules");
@@ -52,6 +52,9 @@ const ut = path.join(rot, "rules", "provregler.rules");
  * ⛔ MODULINSTÄLLNINGAR (0.88.0): `modulinstallningsregelfragment("modulinstallningar")`. Namnet är påhittat,
  *   samma sak som hos en app. Pinnen till huvudmenyn provas inte här: den ligger kvar på gruppen.
  *
+ * ⛔ DELNINGSLÄNKARNA (0.119.0, lifehub.app#356): `delningsregelfragment("delningar")`. Namnet är påhittat, som hos en app. Catch-all nekar
+ *   också, så `rules/__tests__/delningar.test.mjs` läser att just det här blocket finns i den genererade texten.
+ *
  * ⛔ BESKRIVNA APPAR (0.99.0): `beskrivenappdataregelfragment("appdata")` och `beskrivningsregelfragment("appbeskrivningar")`.
  *   Namnen är påhittade, som hos en app.
  */
@@ -70,6 +73,7 @@ ${kalenderregelfragment()}
 ${handelseregelfragment()}
 ${mejlregelfragment("mejlko")}
 ${bibliotekregelfragment("bibliotek")}
+${delningsregelfragment("delningar")}
 ${minnesregelfragment("gruppmine")}
 ${modulinstallningsregelfragment("modulinstallningar")}
 ${beskrivenappdataregelfragment("appdata")}
