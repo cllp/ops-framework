@@ -7,7 +7,7 @@ import { OpsDokument } from "./OpsDokument.jsx";
 import { OpsMarkdown } from "./OpsMarkdown.jsx";
 import { OpsModal } from "./OpsModal.jsx";
 import { OpsSvepRad } from "./OpsSvepRad.jsx";
-import { ADRESSFORM, BIBLIOTEKTYPER, MAX_TAGGAR, MAX_TAGGLANGD, allaTaggar, arHandelseBibliotek, arLjudpost, arMittBibliotek, farAndra, normaliseraTagg, normaliseraTaggar, taggarFel, taggfarg, anteckningsrubrikNu, filInmatningsfel, mimeUrFilnamn, filadressFel, filSort, filtreraBibliotek, inmatningsfel, ljudDatum, ljudRubrik, normaliseraAdress, trimSomRegeln } from "../lib/bibliotek.js";
+import { ADRESSFORM, BIBLIOTEKTYPER, MAX_TAGGAR, MAX_TAGGLANGD, allaTaggar, arLjudpost, arMittBibliotek, farAndra, normaliseraTagg, normaliseraTaggar, taggarFel, taggfarg, anteckningsrubrikNu, beskrivObjektbibliotek, filInmatningsfel, mimeUrFilnamn, filadressFel, filSort, filtreraBibliotek, inmatningsfel, ljudDatum, ljudRubrik, normaliseraAdress, trimSomRegeln } from "../lib/bibliotek.js";
 import { formateraTid } from "../lib/ljudspelare.js";
 import { useInspelningOppnare } from "./OpsAppShell.jsx";
 import { cx } from "../lib/cx.js";
@@ -176,11 +176,12 @@ function useBibliotekskalla(kalla) {
  * @param {import("./OpsModulRam.jsx").ModulRam | null} [props.ram] (0.89.0) Inställningsläget. Utelämnad: listan som förut, utan kugghjul.
  * @param {string} [props.activeHref] (0.89.0) Krävs tillsammans med `ram` och `modul`. `?lage=installningar` visar inställningarna.
  * @param {import("../lib/modul.js").Modul | null} [props.modul] (0.89.0) Manifestet inställningarna läser. Krävs med `ram`.
- * @param {boolean} [props.inbaddad] (0.121.0, lifehub.app#366) Listan som en sektion i en annan vy, till exempel en händelses Filer (`OpsHandelsefiler`). Ingen vyram och ingen
- *   tillbaka-rad till hubben (`hubHref` krävs inte), ingen sök-, tagg-, flik- eller "+ Ny"-rad, bara listan och detaljen: den som äger sektionen (`OpsHandelsefiler`) ritar rubriken och Ladda upp
- *   och sätter `skapar` (`"fil"`), eftersom en händelses bibliotek har bara filer. Detaljens tillbaka heter "Filer". `ram`, `platser`, `plats`, `onPlats`, `grupper` och `onDela` hör inte hit och kastar: en inbäddad lista har en plats.
+ * @param {boolean} [props.inbaddad] (0.121.0, lifehub.app#366) Listan som en sektion i en annan vy, till exempel en händelses eller ett ärendes Filer (`OpsPlatsfiler`). Ingen vyram och ingen
+ *   tillbaka-rad till hubben (`hubHref` krävs inte), ingen sök-, tagg-, flik- eller "+ Ny"-rad, bara listan och detaljen: den som äger sektionen (`OpsPlatsfiler`) ritar rubriken och Ladda upp
+ *   och sätter `skapar` (`"fil"`), eftersom en händelses och ett ärendes bibliotek har bara filer. Detaljens tillbaka heter "Filer". `ram`, `platser`, `plats`, `onPlats`, `grupper` och `onDela` hör inte hit och kastar: en inbäddad lista har en plats.
+ * @param {string} [props.tomText] (0.122.0) Beskrivningen under "Inga filer än." när den inbäddade listan är tom. Förval "Filer som läggs till här hör bara till händelsen." (en konstant, inte ett parameterförval; `OpsPlatsfiler` skickar rätt mening för ärendet).
  */
-export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, trasiga: trasigaProp = [], laddar: laddarProp = false, vald = null, skapar = null, jag, onOppna, onStang, onSkapa, onSpara, onRadera, onLaddaUpp, onFyllLjud, onSpelaIn, inspelare, filUrl, hamtaAdress, grupper = [], onDela, platser = [], plats, onPlats, onSkrivUt, onAnteckningAvUtskrift, onGorForslag, delningar = [], onDelaLank, onAndraNedladdning, onAterkalla, hubHref, hubEtikett, onNavigate, modulId = "bibliotek", ram = null, activeHref, modul = null, inbaddad = false }) {
+export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, trasiga: trasigaProp = [], laddar: laddarProp = false, vald = null, skapar = null, jag, onOppna, onStang, onSkapa, onSpara, onRadera, onLaddaUpp, onFyllLjud, onSpelaIn, inspelare, filUrl, hamtaAdress, grupper = [], onDela, platser = [], plats, onPlats, onSkrivUt, onAnteckningAvUtskrift, onGorForslag, delningar = [], onDelaLank, onAndraNedladdning, onAterkalla, hubHref, hubEtikett, onNavigate, modulId = "bibliotek", ram = null, activeHref, modul = null, inbaddad = false, tomText }) {
   if (kalla !== undefined && (posterProp !== undefined || felProp !== null || laddarProp !== false || (Array.isArray(trasigaProp) && trasigaProp.length > 0))) {
     throw new Error("OpsBibliotek: kalla och poster/fel/trasiga/laddar kan inte ges tillsammans. Med kalla läser vyn själv, och två sanningar om samma lista hade låtit den ena vinna tyst.");
   }
@@ -190,11 +191,12 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
   if (jag === undefined) {
     throw new Error("OpsBibliotek: jag krävs, den inloggades aktiva medlemskap i gruppen ({ uid, roll }), eller null när personen inte är medlem. Utan propen ser en medlem ut som en som bara får läsa.");
   }
-  // ⛔ EN HÄNDELSES BIBLIOTEK FINNS INTE BLAND PLATSERNA (0.121.0, lifehub.app#366). Platsväljaren och Flytta-menyn bygger på listorna appen ger, och en
-  // plats som hamnat där är en plats man kan flytta en fil in i eller ut ur: ett synlighetsbeslut utan händelsens villkor. Kastar hellre än filtrerar tyst.
-  const handelseplats = [...platser, ...grupper].find((p) => arHandelseBibliotek(p?.id));
-  if (handelseplats) {
-    throw new Error(`OpsBibliotek: platsen "${handelseplats.id}" är en händelses bibliotek och hör inte hemma i platser eller grupper. Filerna hör till händelsen och flyttas inte dit eller därifrån; de visas av OpsHandelsefiler.`);
+  // ⛔ EN HÄNDELSES ELLER ETT ÄRENDES BIBLIOTEK FINNS INTE BLAND PLATSERNA (0.121.0, 0.122.0, lifehub.app#366). Platsväljaren och Flytta-menyn bygger på listorna appen ger, och en
+  // plats som hamnat där är en plats man kan flytta en fil in i eller ut ur: ett synlighetsbeslut utan objektets villkor. Kastar hellre än filtrerar tyst.
+  const objektplats = [...platser, ...grupper].find((p) => beskrivObjektbibliotek(p?.id));
+  if (objektplats) {
+    const objekt = /** @type {{ ord: string, objekt: string }} */ (beskrivObjektbibliotek(objektplats.id));
+    throw new Error(`OpsBibliotek: platsen "${objektplats.id}" är ${objekt.ord} och hör inte hemma i platser eller grupper. Filerna hör till ${objekt.objekt} och flyttas inte dit eller därifrån; de visas av OpsPlatsfiler.`);
   }
   if (inbaddad && (ram || platser.length > 0 || grupper.length > 0 || plats !== undefined || onPlats !== undefined || onDela !== undefined)) {
     throw new Error("OpsBibliotek: inbaddad hör ihop med en enda plats. ram, platser, plats, onPlats, grupper och onDela är för det fristående biblioteket.");
@@ -660,7 +662,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
                 <OpsEmpty
                   icon={inbaddad || sok || valda.length > 0 ? null : <Library size={28} />}
                   title={inbaddad ? "Inga filer än." : sok || valda.length > 0 ? "Inga träffar." : poster.length === 0 ? "Biblioteket är tomt." : "Inget här ännu."}
-                  description={inbaddad ? "Filer som läggs till här hör bara till händelsen." : sok ? `Inget matchar "${sok}"${valda.length > 0 ? ` med ${valda.join(" och ")}` : ""}.` : valda.length > 0 ? `Inget här har ${valda.join(" och ")}.` : "Lägg till en anteckning, en länk, ett ljud eller en fil."}
+                  description={inbaddad ? (tomText ?? TOM_FILER_FORVAL) : sok ? `Inget matchar "${sok}"${valda.length > 0 ? ` med ${valda.join(" och ")}` : ""}.` : valda.length > 0 ? `Inget här har ${valda.join(" och ")}.` : "Lägg till en anteckning, en länk, ett ljud eller en fil."}
                 />
               ) : (
                 <ul aria-label="Biblioteket" data-bibliotek-lista="" className="m-0 flex list-none flex-col gap-3 p-0">
@@ -804,6 +806,9 @@ function InbaddadRot({ children }) {
  * "+ Ny" som i SessionStudios app: en knapp med kant och hörn som fälten, inte ett piller (0.102.0). `knappKlass` ritar alltid ett
  * piller, och på en telefon bröt pillret raden med sök och Taggar till två.
  */
+/** Meningen under "Inga filer än." i den inbäddade listan när appen inte säger något annat (`tomText`). Händelsens, eftersom det var den första. */
+const TOM_FILER_FORVAL = "Filer som läggs till här hör bara till händelsen.";
+
 const NY_KLASS = "inline-flex min-h-11 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border border-line bg-transparent px-4 text-etikett font-medium text-ink hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
 
 const TYPNAMN = /** @type {const} */ ({ anteckning: "Anteckning", lank: "Länk", fil: "Fil" });
