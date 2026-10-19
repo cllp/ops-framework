@@ -116,7 +116,7 @@ export function OpsDeladHandelse({ delning = null, orsak, laddar = false, onKod,
           <OpsEmpty busy title={t.laddar} busyLabel={t.laddar} />
         ) : orsak !== undefined ? (
           KODORSAKER.includes(kandOrsak) && onKod ? (
-            <DeladKod orsak={kandOrsak} onKod={onKod} sprak={aktivt} />
+            <DeladKod orsak={kandOrsak} onKod={onKod} sprak={aktivt} publik />
           ) : (
             <div data-delad="fel" data-delad-orsak={kandOrsak}>
               <OpsEmpty title={t[`orsak_${kandOrsak}`]} />

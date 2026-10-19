@@ -1,3 +1,4 @@
+import { monthNames, weekdayNames } from "./calendar.js";
 import { RESERVSPRAK, SPRAK } from "./sprak.js";
 
 /**
@@ -6,9 +7,9 @@ import { RESERVSPRAK, SPRAK } from "./sprak.js";
  * ══ ⛔ VARFÖR DATUMEN SKRIVS UT HÄR OCH INTE MED `Intl` ═══════════════════════════════════════════════════════════
  *
  * CP 2026-10-19: "Det skall vara tydligt på händelsen, vilka datum det gäller." Sidan visar datumet som `lör 26 dec 2026` på svenska och
- * `Sat 26 Dec 2026` på engelska. `Intl.DateTimeFormat` ger `lör 26 dec. 2026` (med punkt) i ena versionen av ICU och utan i den andra, och ett
- * engelskt datum med komma i vissa versioner. En mottagares webbläsare är inte vår: formen ska vara densamma överallt, och ett prov
- * kan bara mäta det som inte beror på maskinen. Veckodagen räknas ur datumet som en kalenderdag i UTC (samma fälla som `langtDatum`:
+ * `Sat 26 Dec 2026` på engelska. Namnen kommer ur `Intl` (via `weekdayNames` och `monthNames`, som resten av ramverket; `check-datumnamn`), men FORMEN är
+ * ramverkets: `Intl.DateTimeFormat` ger `lör 26 dec. 2026` (med punkt) i ena versionen av ICU och utan i den andra, och ett engelskt datum med komma
+ * i vissa versioner. En mottagares webbläsare är inte vår: ordningen och skiljetecknen ska vara desamma överallt, och ett prov kan bara mäta det som inte beror på maskinen. Veckodagen räknas ur datumet som en kalenderdag i UTC (samma fälla som `langtDatum`:
  * `new Date("2026-12-26")` är midnatt UTC, och i en annan zon hade samma sträng blivit dagen innan).
  *
  * ══ ⛔ SPRÅKET ÄR BESÖKARENS, INTE APPENS ═════════════════════════════════════════════════════════════════════════
@@ -21,16 +22,8 @@ import { RESERVSPRAK, SPRAK } from "./sprak.js";
 /** Nyckeln språkvalet sparas under i webbläsarens minne. */
 export const DELAD_SPRAKNYCKEL = "ops-delad-sprak";
 
-/** @type {Record<"sv" | "en", readonly string[]>} */
-const VECKODAG = {
-  sv: ["sön", "mån", "tis", "ons", "tors", "fre", "lör"],
-  en: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
-};
-/** @type {Record<"sv" | "en", readonly string[]>} */
-const MANAD = {
-  sv: ["jan", "feb", "mar", "apr", "maj", "jun", "jul", "aug", "sep", "okt", "nov", "dec"],
-  en: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
-};
+/** Språket i `Intl`: namnen kommer därifrån (`weekdayNames` och `monthNames`), inte ur en lista här (`check-datumnamn`). */
+const LOKAL = { sv: "sv-SE", en: "en-GB" };
 
 /** @param {string} sprak @returns {"sv" | "en"} */
 const spr = (sprak) => (sprak === "en" ? "en" : "sv");
@@ -109,7 +102,10 @@ export function kortDatum(datum, sprak = RESERVSPRAK) {
   const t = dag(datum);
   if (!t) return datum;
   const s = spr(sprak);
-  return `${VECKODAG[s][t.getUTCDay()]} ${t.getUTCDate()} ${MANAD[s][t.getUTCMonth()]} ${t.getUTCFullYear()}`;
+  // `weekdayNames` börjar på måndag, `getUTCDay` på söndag. Svenskan skrivs med gemener (`lör`), engelskan som `Intl` ger den (`Sat`), månaden kortas till tre tecken.
+  const veckodag = weekdayNames(LOKAL[s])[(t.getUTCDay() + 6) % 7];
+  const manad = monthNames(LOKAL[s])[t.getUTCMonth()].slice(0, 3);
+  return `${s === "sv" ? veckodag.toLowerCase() : veckodag} ${t.getUTCDate()} ${manad} ${t.getUTCFullYear()}`;
 }
 
 /**

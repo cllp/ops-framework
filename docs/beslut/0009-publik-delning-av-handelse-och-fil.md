@@ -97,7 +97,7 @@ Svaret är en lista fält och inget annat (`HANDELSESVARSFALT`): titel, beskrivn
 
 ## Språk och datum på den publika sidan
 
-Sidan har ett eget huvud med appens logga till vänster (`huvud`) och SV/EN till höger. Förvalet är webbläsarens språk (svenska om det börjar på `sv`, annars engelska), valet sparas i `localStorage` (med `try/catch`: privat läge eller blockerad lagring stoppar inte sidan), och allt ramverket skriver följer valet. Händelsens titel och beskrivning översätts inte. Datumen skrivs ut av ramverket (`lör 26 dec 2026`, `Sat 26 Dec 2026`) och inte med `Intl`, vars format skiljer mellan ICU-versioner. En händelse över flera dagar står som "lör 26 dec 2026 till sön 10 jan 2027, 16 dagar", en heldag som "Heldag", ett klockslag med klockslaget. Plats på en egen rad med ikon.
+Sidan har ett eget huvud med appens logga till vänster (`huvud`) och SV/EN till höger. Förvalet är webbläsarens språk (svenska om det börjar på `sv`, annars engelska), valet sparas i `localStorage` (med `try/catch`: privat läge eller blockerad lagring stoppar inte sidan), och allt ramverket skriver följer valet. Händelsens titel och beskrivning översätts inte. Datumen skrivs ut av ramverket (`lör 26 dec 2026`, `Sat 26 Dec 2026`): namnen ur `Intl` (`weekdayNames`, `monthNames`), formen från ramverket, eftersom `Intl.DateTimeFormat` ger olika form (punkt eller inte) i olika ICU-versioner. En händelse över flera dagar står som "lör 26 dec 2026 till sön 10 jan 2027, 16 dagar", en heldag som "Heldag", ett klockslag med klockslaget. Plats på en egen rad med ikon.
 
 ## Gamla länkar lever kvar
 

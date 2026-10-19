@@ -144,16 +144,14 @@ export function DelaLankFalt({ falt, sprak = "sv", disabled = false }) {
 
       <div role="group" aria-labelledby={adressId} className="flex flex-col gap-2">
         <p id={adressId} className="m-0 text-etikett font-medium text-ink-secondary">{t.adressEtikett}</p>
-        <div className="flex flex-wrap items-center gap-x-1.5 gap-y-2 text-brod text-ink-muted">
-          <span aria-hidden="true">/g/</span>
-          <span className="min-w-0 flex-1 basis-28">
-            <OpsInput value={gruppdel} onChange={setGruppdel} ariaLabel={t.gruppdelEtikett} autoComplete="off" tal={false} disabled={disabled} />
-          </span>
-          <span aria-hidden="true">/{segment}/</span>
-          <span className="min-w-0 flex-1 basis-28">
-            <OpsInput value={sista} onChange={setSista} ariaLabel={t[`sistaEtikett_${segment}`]} autoComplete="off" tal={false} disabled={disabled} />
-          </span>
-        </div>
+        {/* ⛔ TVÅ FÄLT UNDER VARANDRA, INTE `/g/ [fält] /event/ [fält]` PÅ EN RAD: på en telefon rymmer raden inte en hel titel, och en del som är avklippt i fältet
+            ser ut att vara kortare än den är. Förhandsvisningen under dem visar hela adressen. */}
+        <OpsField label={t.gruppdelEtikett}>
+          <OpsInput value={gruppdel} onChange={setGruppdel} autoComplete="off" tal={false} disabled={disabled} />
+        </OpsField>
+        <OpsField label={t[`sistaEtikett_${segment}`]}>
+          <OpsInput value={sista} onChange={setSista} autoComplete="off" tal={false} disabled={disabled} />
+        </OpsField>
         <p data-delalank-forhandsvisning="" className="m-0 text-etikett text-ink-secondary break-all">
           {t.forhandsvisning}: <span className="text-ink">{`/g/${rensad.gruppdel}/${segment}/${rensad.sista}`}</span>
           {harKod ? null : <span data-delalank-slumpslut="" className="text-ink-muted">{`-${"x".repeat(SLUMPSLUT_TECKEN)}`}</span>}

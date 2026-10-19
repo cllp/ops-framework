@@ -1,5 +1,7 @@
 import { useRef, useState } from "react";
+import { cx } from "../lib/cx.js";
 import { definierade, forvalda } from "../lib/ord.js";
+import { PUBLIK_KLASS } from "../lib/publikKlass.js";
 import { OpsButton } from "./OpsButton.jsx";
 import { OpsField, OpsInput } from "./OpsField.jsx";
 
@@ -37,8 +39,9 @@ export const ORD_DELADKOD = {
  * @param {string} [props.sprak] `sv` eller `en`.
  * @param {Partial<Record<keyof typeof ORD_DELADKOD, string>>} [props.ord] Egna texter, som vinner över ordboken.
  * @param {boolean} [props.rubrikIHuvud] Rubriken som `h1` (sidan har ingen annan rubrik) och inte som `h2`.
+ * @param {boolean} [props.publik] Rubriken och texten i de publika rollerna (`PUBLIK_KLASS`), för en sida som är en presentation (`OpsDeladHandelse`). Utelämnad: appens roller, som `OpsDelad`.
  */
-export function DeladKod({ orsak, onKod, sprak = "sv", ord, rubrikIHuvud = true }) {
+export function DeladKod({ orsak, onKod, sprak = "sv", ord, rubrikIHuvud = true, publik = false }) {
   if (typeof onKod !== "function") throw new Error("DeladKod: onKod krävs, en funktion som tar emot koden.");
   const t = { ...forvalda(ORD_DELADKOD, sprak), ...definierade(/** @type {Record<string, string>} */ (ord ?? {})) };
   const [kod, setKod] = useState("");
@@ -72,8 +75,8 @@ export function DeladKod({ orsak, onKod, sprak = "sv", ord, rubrikIHuvud = true 
   const fel = lokaltFel || serverFel;
   return (
     <form data-delad-kod={orsak} onSubmit={skicka} noValidate className="flex w-full max-w-md flex-col gap-4">
-      <Rubrik className="m-0 text-sida text-ink">{t.rubrik}</Rubrik>
-      <p className="m-0 text-brod text-ink-secondary">{t.hjalp}</p>
+      <Rubrik className={publik ? PUBLIK_KLASS.sida : "m-0 text-sida text-ink"}>{t.rubrik}</Rubrik>
+      <p className={cx(publik ? PUBLIK_KLASS.brod : "m-0 text-brod text-ink-secondary")}>{t.hjalp}</p>
       <OpsField label={t.etikett} error={fel || undefined}>
         <OpsInput value={kod} onChange={setKod} autoComplete="off" tal={false} />
       </OpsField>
