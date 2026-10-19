@@ -63,6 +63,8 @@ describe("läsarna av datum tål att det saknas", () => {
 
   it("⛔ harPasserat svarar falskt utan datum, och räknar som förut med ett", () => {
     expect(harPasserat(utanDatum, "2030-01-01")).toBe(false);
+    // Ett tomt datum är inte heller en dag som passerat (en tom sträng är mindre än varje datum, och hade räknats som förbi).
+    expect(harPasserat({ datum: "" }, "2030-01-01")).toBe(false);
     expect(harPasserat(medDatum, "2026-10-21")).toBe(true);
     expect(harPasserat(medDatum, "2026-10-20")).toBe(false);
   });
