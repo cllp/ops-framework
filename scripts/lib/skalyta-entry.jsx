@@ -635,6 +635,95 @@ function NyHandelseScen() {
 }
 
 /*
+ * 0.127.0 (cllp/lifehub.app#383): platsen `handelse.skapa` i formuläret för en ny händelse. Appens formulär döljer datumfältet när `tillagg.datumEjSatt`
+ * är sant, och tillägget är en omröstningsbrytare som en app skulle rita den. `window.__tillaggProps` är vad formuläret fick.
+ */
+window.__tillaggProps = null;
+function TillaggsFormular(/** @type {any} */ p) {
+  window.__tillaggProps = { finns: "tillagg" in p, datumEjSatt: p.tillagg ? p.tillagg.datumEjSatt : null };
+  const [rubrik, setRubrik] = useState("");
+  const [datum, setDatum] = useState(p.datum ?? undefined);
+  return (
+    <form id={p.formId} data-app-formular="" className="flex flex-col gap-3" onSubmit={(e) => e.preventDefault()}>
+      <OpsField label="Rubrik">
+        <OpsInput value={rubrik} onChange={setRubrik} placeholder="Till exempel Rep" />
+      </OpsField>
+      {p.tillagg?.datumEjSatt ? (
+        <p data-datum-dolt="">Datumet väljs av gruppen.</p>
+      ) : (
+        <OpsField label="Datum">
+          <OpsDatePicker value={datum} onChange={setDatum} />
+        </OpsField>
+      )}
+    </form>
+  );
+}
+function RostRuta(/** @type {any} */ { varde, onVarde }) {
+  const { OpsSwitch } = Ops;
+  return (
+    <div data-prov-rost="">
+      <OpsSwitch label="Låt gruppen rösta om datum" hint="Gruppen föreslår dagar och väljer tillsammans." checked={varde?.pa === true} onChange={(/** @type {boolean} */ v) => onVarde({ pa: v })} />
+    </div>
+  );
+}
+function NyHandelseTillaggScen() {
+  const kalendrar = {
+    gruppens: [{ id: "styrelse", namn: { sv: "Styrelsen" }, farg: 4, ikon: "kalender", ordning: 0, arkiverad: false, texter: {}, groupId: "g3", forvald: true, iFlodet: false }],
+    mina: [],
+  };
+  const moduler = Ops.validateModuler([
+    {
+      id: "omrostning",
+      namn: { sv: "Datumomröstning", en: "Date poll" },
+      nav: [], routes: [], samlingar: [], kallor: {}, skapar: [], hubb: null,
+      tillagg: [{ plats: "handelse.skapa", id: "rosta", etikett: { sv: "Rösta om datum", en: "Vote on date" }, komponent: RostRuta, skapa: { datumEjSatt: (/** @type {any} */ v) => v?.pa === true } }],
+    },
+  ]);
+  return (
+    <Full
+      skapa={{
+        lage: "g3",
+        sparaEtikett: "Spara",
+        moduler,
+        aktivGrupp: { id: "g3", moduler: ["omrostning"] },
+        handelse: { form: TillaggsFormular, katalog: "handelsetyper", kalendrar },
+        kataloger: [{ id: "handelsetyper", kategorier: [{ id: "mote", namn: { sv: "Möte" }, ordning: 0 }] }],
+      }}
+    >
+      <OppnaNyHandelse />
+    </Full>
+  );
+}
+
+/*
+ * 0.127.0 (cllp/lifehub.app#383): preliminära poster i månadsvyn. Idag är måndag 5 oktober 2026. Två förslag (12 och 14 okt) för en och samma händelse i
+ * slagets färg, en vanlig post av samma slag på samma dagar att jämföra mot, ett förslag i en kalenders färg (20 okt) och ett förslag som delar dag med två
+ * vanliga poster (26 okt) så att rutans etiketter måste rymmas.
+ */
+const PREL_IDAG = new Date(2026, 9, 5, 12);
+const PREL_POSTER = [
+  { id: "rep~1", date: "2026-10-12", title: "Rösta för rep", handelseId: "h-rep", preliminar: true, slag: 1, slagLabel: "Möte" },
+  { id: "rep~2", date: "2026-10-14", title: "Rösta för rep", handelseId: "h-rep", preliminar: true, slag: 1, slagLabel: "Möte" },
+  { id: "vanlig~1", date: "2026-10-12", title: "Styrelsemöte", handelseId: "h-sty", slag: 1, slagLabel: "Möte" },
+  { id: "vanlig~2", date: "2026-10-14", title: "Lönekörning", handelseId: "h-lon", slag: 1, slagLabel: "Möte" },
+  { id: "kal~1", date: "2026-10-20", title: "Resa med kusiner", handelseId: "h-resa", preliminar: true, kalender: { id: "resor", namn: "Resor", farg: 2 } },
+  { id: "kal~vanlig", date: "2026-10-20", title: "Tandläkaren", handelseId: "h-tand", kalender: { id: "resor", namn: "Resor", farg: 2 } },
+  { id: "tre~1", date: "2026-10-26", title: "Flytta kontoret", handelseId: "h-flytt", preliminar: true, slag: 2, slagLabel: "Deadline" },
+  { id: "tre~2", date: "2026-10-26", title: "Betala hyran", handelseId: "h-hyra", slag: 2, slagLabel: "Deadline" },
+  { id: "tre~3", date: "2026-10-26", title: "Skicka faktura", handelseId: "h-fakt", slag: 2, slagLabel: "Deadline" },
+];
+function KalenderPreliminarScen() {
+  const { OpsView, OpsCalendar } = Ops;
+  return (
+    <Full>
+      <OpsView>
+        <OpsCalendar ariaLabel="Kalender" entries={PREL_POSTER} today={PREL_IDAG} monthsBack={0} monthsForward={1} onOppnaHandelse={(id) => { window.__oppnad = id; }} lagring={{ getItem: () => null, setItem: () => {} }} />
+      </OpsView>
+    </Full>
+  );
+}
+
+/*
  * 0.38.0 (#194): "Ny händelse" öppen, och en app som byter vy ur `activeHref` som en riktig router. Appens vy visar vilken sida
  * den står på (`data-vy`), så provet kan mäta att klicket på en flik både stänger panelen och visar den nya vyn.
  */
@@ -1559,6 +1648,40 @@ function BibliotekYta({ oppnaDetalj = false }) {
   );
 }
 
+/**
+ * 0.127.0 (cllp/lifehub.app#358): en video i detaljen. Adressen är en data-URL utan innehåll: webbläsaren kan inte spela den och ritar sina kontroller ändå,
+ * och det som mäts är hur videon och länken under den ligger i kolumnen, inte uppspelningen.
+ */
+function BibliotekVideoYta({ oppnaDetalj = true }) {
+  const Bib = Ops.OpsBibliotek;
+  const bygg = Ops.byggPost;
+  if (!Bib || !bygg) return <p data-saknas="OpsBibliotek">OpsBibliotek saknas</p>;
+  const tid = Date.UTC(2026, 9, 19, 10, 0);
+  const skapare = { uid: "uid-1", namn: "Kim", typ: "manniska", kalla: "bibliotek" };
+  let film;
+  try {
+    film = { ...bygg({ groupId: "cps-ab", typ: "fil", rubrik: "Replokalen", fil: { sokvag: "grupper/cps-ab/bibliotek/film/rep.mp4", namn: "rep.mp4", mime: "video/mp4", byte: 90 * 1024 * 1024 }, skapadAv: skapare, skapad: tid, andrad: tid }), id: "film" };
+  } catch (e) {
+    return <p data-saknas="video">{e instanceof Error ? e.message : "video saknas"}</p>;
+  }
+  const [vald, setVald] = useState(oppnaDetalj ? film : null);
+  return (
+    <Bib
+      poster={[film]}
+      jag={{ uid: "uid-1", roll: "medlem" }}
+      vald={vald}
+      skapar={null}
+      onOppna={(p) => setVald(p)}
+      onStang={() => setVald(null)}
+      onSkapa={() => {}}
+      onSpara={() => {}}
+      filUrl={() => "data:video/mp4;base64,AAAA"}
+      hubHref="/hub"
+      onNavigate={(_href, e) => e.preventDefault()}
+    />
+  );
+}
+
 /** Ljudraden: rubrik, datum och längd, spela, våg, ⋯. En rad utan namn faller tillbaka på Röstinspelning. */
 function BibliotekLjudYta({ oppnaDetalj = false }) {
   const Bib = Ops.OpsBibliotek;
@@ -2242,6 +2365,8 @@ function Scen() {
   if (s === "kalendrar") return <KalendrarScen />;
   if (s === "ny-handelse") return <NyHandelseScen />;
   if (s === "ny-handelse-nav") return <NavNyHandelseScen />;
+  if (s === "ny-handelse-tillagg") return <NyHandelseTillaggScen />;
+  if (s === "kalender-preliminar") return <KalenderPreliminarScen />;
   if (s === "svar") return <SvarScen />;
   if (s === "handelse") return <HandelseScen />;
   if (s === "handelse-redigera") return <HandelseRedigeraScen />;
@@ -2359,6 +2484,7 @@ function Scen() {
   if (s === "bibliotekljud" || s === "bibliotekljuddetalj") {
     return <Full><BibliotekLjudYta oppnaDetalj={s === "bibliotekljuddetalj"} /></Full>;
   }
+  if (s === "bibliotekvideo") return <Full><BibliotekVideoYta /></Full>;
   // 0.87.0 (#321): utfälld aktivitet. Raden visar rubrik och detalj. Utfällningen ska inte rita dem igen.
   if (s === "aktivitet") {
     const rader = [

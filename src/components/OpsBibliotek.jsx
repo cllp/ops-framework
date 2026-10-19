@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import * as Popover from "@radix-ui/react-popover";
 import * as Tabs from "@radix-ui/react-tabs";
-import { Check, File as FilIkon, FileText, Globe, Image as BildIkon, Library, Link2, Mic, Plus, SlidersHorizontal, Tag, X } from "lucide-react";
+import { Check, File as FilIkon, FileText, Globe, Image as BildIkon, Library, Link2, Mic, Plus, SlidersHorizontal, Tag, Video as VideoIkon, X } from "lucide-react";
 import { OpsAtgardsblad } from "./OpsAtgardsblad.jsx";
 import { OpsDokument } from "./OpsDokument.jsx";
 import { OpsMarkdown } from "./OpsMarkdown.jsx";
@@ -168,6 +168,7 @@ function useBibliotekskalla(kalla) {
  * @param {unknown} [props.onGorForslag] Borttagen (0.115.0). Skickas den kastas ett fel: förslagsknapparna "Spara som anteckning" och "Skapa ärende" är ersatta av `onAnteckningAvUtskrift`.
  * @param {readonly { id: string, postId: string, giltigTill: number, nedladdning: boolean, url?: string, harKod?: boolean }[]} [props.delningar] (0.119.0, lifehub.app#356) De delningslänkar som lever, för posterna som visas (`lista()` ur `createDelningService`). En post med en länk här får markeringen "Delad" i listan, och dialogen visar länkens läge. Appen läser dem själv: raderna går inte att läsa i klienten.
  *   (0.125.0) `url` är hela adressen (`delningsUrl(bas, rad.sokvag)`) för en länk skapad med 0.125.0 eller senare: dialogen visar den då som text med Kopiera. En gammal tokenlänk har ingen `sokvag` och därför ingen `url`, och dialogen säger som förut att adressen bara visades när den skapades.
+ * @param {string} [props.gruppnamn] (0.127.0) Gruppens namn, för förslaget till gruppdelen i "Dela länk" när `platser` och `grupper` inte säger det: den inbäddade vyn (`OpsPlatsfiler`) har en enda plats som inte är gruppens egen (`handelse~<grupp>~<händelse>`), så platsen ger inget namn. Utan både namn och `delningGruppdel` är gruppdelen tom och personen skriver den själv (Skapa säger det). Ett fast ord föreslås aldrig, eftersom en gruppdel tillhör den första gruppen som tar den.
  * @param {string} [props.delningGruppdel] (0.125.0, granskningen av PR 417) Gruppdelen platsen redan använt i en länk (`gruppdelar({ uid, groupId }).senaste`), föreslagen i "Dela länk" före ett namn ur gruppens namn. En gruppdel tillhör en plats för alltid: en annan grupps svarar servern `adress-upptagen` med `del: "gruppdel"` och dialogen föreslår en annan.
  * @param {(inmatning: { postId: string, dagar: number, nedladdning: boolean, kod: string | null, gruppdel: string, fildel: string }) => Promise<{ id: string, url: string, giltigTill?: number, harKod?: boolean }>} [props.onDelaLank] (0.119.0) Skapar länken. Ritar "Dela länk" i menyn för en färdig fil som personen får dela (`farAndra`). Löftet ska lösa till länkens id och HELA adressen (appen bygger den: `delningsUrl(bas, svar.sokvag)`).
  *   (0.125.0) Inmatningen har också `kod` (`null` utan kod, annars koden i klartext till servern, som hashar den), `gruppdel` och `fildel`: adressen är `/g/<gruppdel>/lib/<fildel>`, föreslagen ur gruppens namn och filens rubrik, och personen kan ändra båda. Utan kod lägger servern till ett slumpat slut. Kastar anropet med `kod: "adress-upptagen"` föreslår dialogen en annan adress. Kräver `onAndraNedladdning` och `onAterkalla`: en länk som inte går att stänga får inte kunna skapas.
@@ -185,7 +186,7 @@ function useBibliotekskalla(kalla) {
  *   och sätter `skapar` (`"fil"`), eftersom en händelses och ett ärendes bibliotek har bara filer. Detaljens tillbaka heter "Filer". `ram`, `platser`, `plats`, `onPlats`, `grupper` och `onDela` hör inte hit och kastar: en inbäddad lista har en plats.
  * @param {string} [props.tomText] (0.122.0) Beskrivningen under "Inga filer än." när den inbäddade listan är tom. Förval "Filer som läggs till här hör bara till händelsen." (en konstant, inte ett parameterförval; `OpsPlatsfiler` skickar rätt mening för ärendet).
  */
-export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, trasiga: trasigaProp = [], laddar: laddarProp = false, vald = null, skapar = null, jag, onOppna, onStang, onSkapa, onSpara, onRadera, onLaddaUpp, onFyllLjud, onSpelaIn, inspelare, filUrl, hamtaAdress, grupper = [], onDela, platser = [], plats, onPlats, onSkrivUt, onAnteckningAvUtskrift, onGorForslag, delningar = [], delningGruppdel, onDelaLank, onAndraNedladdning, onAterkalla, hubHref, hubEtikett, onNavigate, modulId = "bibliotek", ram = null, activeHref, modul = null, inbaddad = false, tomText }) {
+export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, trasiga: trasigaProp = [], laddar: laddarProp = false, vald = null, skapar = null, jag, onOppna, onStang, onSkapa, onSpara, onRadera, onLaddaUpp, onFyllLjud, onSpelaIn, inspelare, filUrl, hamtaAdress, grupper = [], onDela, platser = [], plats, onPlats, onSkrivUt, onAnteckningAvUtskrift, onGorForslag, delningar = [], delningGruppdel, gruppnamn: gruppnamnProp, onDelaLank, onAndraNedladdning, onAterkalla, hubHref, hubEtikett, onNavigate, modulId = "bibliotek", ram = null, activeHref, modul = null, inbaddad = false, tomText }) {
   if (kalla !== undefined && (posterProp !== undefined || felProp !== null || laddarProp !== false || (Array.isArray(trasigaProp) && trasigaProp.length > 0))) {
     throw new Error("OpsBibliotek: kalla och poster/fel/trasiga/laddar kan inte ges tillsammans. Med kalla läser vyn själv, och två sanningar om samma lista hade låtit den ena vinna tyst.");
   }
@@ -762,7 +763,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
           <DelaLankKontroll
             key={delarLank.id}
             post={delarLank}
-            gruppnamn={[...platser, ...grupper].find((g) => g.id === delarLank.groupId)?.namn}
+            gruppnamn={[...platser, ...grupper].find((g) => g.id === delarLank.groupId)?.namn ?? gruppnamnProp}
             gruppdelForslag={delningGruppdel}
             delningar={delningar}
             onDelaLank={onDelaLank}
@@ -1377,6 +1378,7 @@ function TypIkon({ post }) {
     const sort = filSort(post.fil?.mime);
     if (sort === "ljud") return <Mic size={20} aria-hidden="true" className="text-typ-ljud" />;
     if (sort === "bild") return <BildIkon size={20} aria-hidden="true" className="text-typ-lank" />;
+    if (sort === "video") return <VideoIkon size={20} aria-hidden="true" className="text-ink-secondary" />;
     return <FilIkon size={20} aria-hidden="true" className="text-ink-secondary" />;
   }
   if (post.typ === "lank") return <Globe size={20} aria-hidden="true" className="text-typ-lank" />;
@@ -1409,7 +1411,7 @@ function typEtikett(post) {
   if (post.typ === "anteckning") return "Anteckning";
   if (post.typ === "lank") return "Länk";
   const sort = filSort(post.fil?.mime);
-  const namn = sort === "ljud" ? "Ljud" : sort === "bild" ? "Bild" : "Dokument";
+  const namn = sort === "ljud" ? "Ljud" : sort === "bild" ? "Bild" : sort === "video" ? "Video" : "Dokument";
   const ur = /\.([a-z0-9]{1,6})$/i.exec(post.fil?.namn ?? "")?.[1] ?? /\/([a-z0-9.+-]+)$/i.exec(post.fil?.mime ?? "")?.[1]?.replace(/^x-/, "") ?? "";
   return ur ? `${namn} · ${ur}` : namn;
 }
@@ -1693,6 +1695,20 @@ function FilVisning({ post, lage, kopplad, onLjus, onMeta, onRadera }) {
         styrId={id}
         onMeta={id && onMeta ? (meta) => onMeta(id, meta) : undefined}
       />
+    );
+  }
+  if (sort === "video") {
+    // ⛔ EN VANLIG `<video controls playsinline>` UTAN EGEN SPELARE (CP 2026-10-19, cllp/lifehub.app#358). `playsInline` så att iPhone spelar
+    // i sidan och inte tvingar helskärm. `preload="metadata"` hämtar bara första bilden och längden: en fil på 100 MB laddas inte ner av att
+    // posten öppnas. Länken under är utvägen när webbläsaren inte kan avkoda filen (en iPhone-film i HEVC i en webbläsare utan stöd): då syns
+    // en svart ruta, och utan länken finns ingenstans att gå.
+    return (
+      <div data-bibliotek-fil="" className="flex flex-col gap-2">
+        <video data-bibliotek-video="" src={adress} controls playsInline preload="metadata" aria-label={post.rubrik ?? namn} className="block h-auto max-h-96 w-full rounded-lg bg-sunken" />
+        <a href={adress} target="_blank" rel="noopener noreferrer" className="w-fit text-etikett text-accent underline underline-offset-2">
+          {rad}
+        </a>
+      </div>
     );
   }
   return (

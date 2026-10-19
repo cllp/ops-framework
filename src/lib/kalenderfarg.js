@@ -33,21 +33,51 @@ const KALENDERTON = {
 /** @type {Record<number, string>} */
 const SLAGTON = { 1: "bg-slag-1/20", 2: "bg-slag-2/20", 3: "bg-slag-3/20" };
 
+/** @type {Record<number, string>} Kalenderns färg som hel kant (preliminära poster), utskriven av samma skäl som `KALENDERPRICK`. */
+const KALENDERRING = {
+  1: "border-identity-1",
+  2: "border-identity-2",
+  3: "border-identity-3",
+  4: "border-identity-4",
+  5: "border-identity-5",
+  6: "border-identity-6",
+};
+/** @type {Record<number, string>} */
+const SLAGRING = { 1: "border-slag-1", 2: "border-slag-2", 3: "border-slag-3" };
+
 /**
  * En posts färg som klasser: prick, vänsterkant och ton. Slaget om posten har ett, annars kalendern, annars accenten.
+ *
+ * `ring` (0.127.0) är SAMMA färg som en hel kant, för en preliminär post: en ihålig prick och ett streckat piller har ingen fyllning att bära färgen med,
+ * så färgen sitter i kanten. Den väljs ur samma ordning som `prick`, så en preliminär post aldrig har en annan färg än en vanlig av samma slag.
  *
  * ⛔ SAMMA ORDNING PÅ ALLA YTOR, så att pricken, pillret, bandet och kortets kant aldrig säger olika saker om samma post.
  * ⛔ KLASSER OCH ALDRIG EN INLINE-FÄRG (`check-closed-api` punkt 3): en färg i `style` går förbi tokenkontraktet och
  * mörkt läge.
  *
  * @param {import("./calendar.js").CalendarEntry} e
- * @returns {{ prick: string, kant: string, ton: string }}
+ * @returns {{ prick: string, kant: string, ton: string, ring: string }}
  */
 export function postklasser(e) {
   const slagPrickKlass = slagPrick(e.slag, e.slagLabel, "OpsCalendar");
-  if (slagPrickKlass) return { prick: slagPrickKlass, kant: /** @type {string} */ (slagKant(e.slag, e.slagLabel, "OpsCalendar")), ton: SLAGTON[/** @type {number} */ (e.slag)] };
+  if (slagPrickKlass) return { prick: slagPrickKlass, kant: /** @type {string} */ (slagKant(e.slag, e.slagLabel, "OpsCalendar")), ton: SLAGTON[/** @type {number} */ (e.slag)], ring: SLAGRING[/** @type {number} */ (e.slag)] };
   if (e.kalender && KALENDERPRICK[e.kalender.farg]) {
-    return { prick: KALENDERPRICK[e.kalender.farg], kant: /** @type {string} */ (kantKlass(e.kalender.farg, e.kalender.namn, "OpsCalendar")), ton: /** @type {Record<number, string>} */ (KALENDERTON)[e.kalender.farg] };
+    return { prick: KALENDERPRICK[e.kalender.farg], kant: /** @type {string} */ (kantKlass(e.kalender.farg, e.kalender.namn, "OpsCalendar")), ton: /** @type {Record<number, string>} */ (KALENDERTON)[e.kalender.farg], ring: KALENDERRING[e.kalender.farg] };
   }
-  return { prick: "bg-accent", kant: "border-l-accent", ton: "bg-accent/20" };
+  return { prick: "bg-accent", kant: "border-l-accent", ton: "bg-accent/20", ring: "border-accent" };
+}
+
+/**
+ * Pricken i rutnätet och i snabbtitten: fylld i postens färg, och för en preliminär post IHÅLIG (0.127.0): bara en ring i samma färg. Mätt i en riktig
+ * webbläsare (`check-skalyta`), eftersom en ring på 6 px är för liten för att avgöra i jsdom.
+ *
+ * ⛔ I EN VALD RUTA är fyllningen rutans textfärg (`bg-ink`, ytan är inverterad) och ringen likaså: postens egen färg syns inte mot den mörka ytan.
+ *
+ * @param {import("./calendar.js").CalendarEntry} e
+ * @param {boolean} [vald] Pricken ligger i en vald ruta.
+ * @returns {string}
+ */
+export function prickklass(e, vald = false) {
+  if (e.preliminar === true) return vald ? "border border-ink bg-transparent" : `border bg-transparent ${postklasser(e).ring}`;
+  return vald ? "bg-ink" : postklasser(e).prick;
 }

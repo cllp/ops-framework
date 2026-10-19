@@ -23,6 +23,19 @@
  *
  * ⛔ UPPREPNING INGÅR INTE. CP har inte beslutat om veckovis upprepning som i SS eller ingen alls (#179 avsnitt 6).
  *
+ * ══ ⛔ DATUM ÄR VALFRITT: LÄGET "DATUM EJ SATT" (0.127.0, cllp/lifehub.app#383) ═══════════════════════════════
+ *
+ * CP 2026-10-19: händelsen innan datumet är satt "syns streckad på varje föreslagen dag i kalendern och flyttar till sin dag när ett datum
+ * väljs. Ingen falsk dag." Läget är att `datum` SAKNAS på händelsen. Ingen flagga, inget `datumSatt: false` och inget förstahandsförslag
+ * i `datum`: en flagga kan säga "ej satt" medan ett datum finns, eller tvärtom, och ett falskt datum är precis det CP bad om att slippa
+ * (regel 2: ett faktum, en plats).
+ *
+ * Kontraktets LISTA (`HANDELSEKONTRAKT`) är oförändrad. Det som ändras är tolkningen av `datum`: utan det gäller `slutDatum`, `tid`,
+ * `slutTid` och `heldag` inte heller (de hör till de förslag som ligger på dagarna, inte till händelsen), och varje läsare av `datum` ska
+ * tåla att det saknas: `handelsensDagar`, `harPasserat` och `svarsrader` här, `OpsHandelsePanel` och `OpsCalendar` (en post per föreslagen dag,
+ * `CalendarEntry.preliminar`). Ramverket vet inte VAD som föreslår dagarna: det gör en app via platsen `handelse.skapa` (`lib/tillagg.js`).
+ * `handelsefel(h, { datumEjSatt: true })` är valet att släppa igenom en datumlös händelse; utan det är "Välj ett datum" kvar för alla andra.
+ *
  * ══ ⛔ SVARET: EN RAD PER PERSON OCH HÄNDELSE, OCH NYCKELN ÄR PERSONEN ════════
  *
  * `<händelser>/{händelse}/<svar>/{uid}`. En undersamling till händelsen med personens uid som dokumentets nyckel, samma
@@ -50,6 +63,13 @@ import { byggSkapare } from "./skapare.js";
 /** Fälten ramverket läser på en av appens händelser. Appens egna fält (`rubrik`, `typ`, ...) står inte här. */
 export const HANDELSEKONTRAKT = /** @type {const} */ (["groupId", "kalenderId", "datum", "slutDatum", "tid", "slutTid", "heldag", "kravSvar"]);
 
+/**
+ * Orden för läget "Datum ej satt" (0.127.0), på ETT ställe: panelen (`ORD_OPSHANDELSEPANEL`) och kalendern (en preliminär post) läser båda härifrån,
+ * så att appen aldrig skriver ordet själv och två ytor aldrig säger det olika (regel 2).
+ * @type {Readonly<{ sv: string, en: string }>}
+ */
+export const DATUM_EJ_SATT = Object.freeze({ sv: "Datum ej satt", en: "Date not set" });
+
 /** Svaren. Två och inte tre: "kanske" är inget svar på "kommer du?", och en tredje knapp gör sammanställningen oläslig. */
 export const SVARSVAL = /** @type {const} */ (["kommer", "kommerInte"]);
 
@@ -61,7 +81,7 @@ export const KLOCKFORM = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 /**
  * @typedef {object} Handelsetid
- * @property {string} datum `YYYY-MM-DD`.
+ * @property {string} [datum] `YYYY-MM-DD`. ⛔ Saknas i läget "Datum ej satt" (0.127.0), och då saknas också `slutDatum`, `tid`, `slutTid` och `heldag`.
  * @property {string} [slutDatum] Sista dagen, inklusive. Bara när den är efter `datum`.
  * @property {string} [tid] `HH:MM`.
  * @property {string} [slutTid] `HH:MM`, bara med `tid`.
@@ -79,7 +99,10 @@ export const KLOCKFORM = /^([01]\d|2[0-3]):[0-5]\d$/;
  * efter). Det är skälet till att kontrollen bor här och inte i en ren strängjämförelse.
  *
  * @param {Record<string, unknown>} h
- * @param {{ gruppkalendrar?: ReadonlyArray<{ id: string, arkiverad?: boolean }> }} [config] Med listan prövas `kalenderId`.
+ * @param {{ gruppkalendrar?: ReadonlyArray<{ id: string, arkiverad?: boolean }>, datumEjSatt?: boolean }} [config] Med listan prövas `kalenderId`.
+ *   `datumEjSatt: true` (0.127.0) släpper igenom en händelse VARS `datum` SAKNAS (läget "Datum ej satt"), men kräver då att `slutDatum`, `tid`,
+ *   `slutTid` och `heldag` också saknas. Ett `datum` som är tomt eller `null` är fortfarande "Välj ett datum": läget är att nyckeln saknas.
+ *   Utan valet är "Välj ett datum" kvar, så en app som inte bett om läget får inte en datumlös händelse av misstag.
  * @returns {string[]}
  */
 export function handelsefel(h, config = {}) {
@@ -87,7 +110,12 @@ export function handelsefel(h, config = {}) {
   /** @type {string[]} */
   const fel = [];
   const datum = typeof r.datum === "string" ? r.datum : "";
-  if (!datum) fel.push("Välj ett datum");
+  if (config.datumEjSatt === true && r.datum === undefined) {
+    // ⛔ "DATUM EJ SATT" ÄR ATT `datum` SAKNAS, och då saknas allt som hänger på det (0.127.0). Tiden hör till förslagen, inte till händelsen:
+    // en `tid` utan datum är en tid utan dag, och en `heldag` utan datum en dag som inte finns.
+    const kvar = ["slutDatum", "tid", "slutTid", "heldag"].filter((k) => r[k] !== undefined);
+    if (kvar.length > 0) fel.push(`En händelse utan datum har varken ${kvar.join(", ")}. Tiderna hör till förslagen`);
+  } else if (!datum) fel.push("Välj ett datum");
   else if (!giltigtDatum(datum)) fel.push("Datumet finns inte");
   if (r.slutDatum !== undefined) {
     if (typeof r.slutDatum !== "string" || !giltigtDatum(r.slutDatum)) fel.push("Slutdatumet finns inte");
@@ -137,11 +165,16 @@ export function handelsensKalenderId(h, gruppkalendrar) {
  * ⛔ EN MAPPNING, INTE EN I VARJE APP, av samma skäl som `postTillRad`: samma händelse ritas i kalendern och i appens
  * lista, och två mappningar hade börjat säga olika saker om sista dagen.
  *
+ * ⛔ `null` FÖR EN HÄNDELSE UTAN `datum` (0.127.0, "Datum ej satt"). Den har ingen dag att rita, och en post utan `date` hade tappats tyst av
+ * kalendern (`perDay`). Appen ritar i stället en post per föreslagen dag med `preliminar: true`. Att sprida `null` (`...handelsensDagar(h)`)
+ * är tillåtet; den som plockar ut `date` ur svaret ska ha prövat att det inte är `null` först.
+ *
  * @param {Handelsetid} h
- * @returns {{ date: string, endDate?: string, allDay?: true }}
+ * @returns {{ date: string, endDate?: string, allDay?: true } | null}
  */
 export function handelsensDagar(h) {
   const date = h.datum;
+  if (typeof date !== "string" || !date) return null;
   return {
     date,
     ...(typeof h.slutDatum === "string" && h.slutDatum > date ? { endDate: h.slutDatum } : {}),
@@ -196,9 +229,13 @@ export function sammanstallSvar(svar, medlemmar) {
 
 /**
  * Om en händelse har passerat: sista dagen (`slutDatum` eller `datum`) är före idag.
+ *
+ * ⛔ EN HÄNDELSE UTAN DATUM HAR INTE PASSERAT (0.127.0, "Datum ej satt"). Den har ingen dag som kan ligga före idag, och att svara sant hade
+ * gömt en omröstning som ingen hunnit avgöra. Att svara falskt är inte ett påstående om framtiden utan att frågan saknar svar.
  * @param {Handelsetid} h @param {string} idag `YYYY-MM-DD` @returns {boolean}
  */
 export function harPasserat(h, idag) {
+  if (typeof h.datum !== "string" || !h.datum) return false;
   return (typeof h.slutDatum === "string" && h.slutDatum > h.datum ? h.slutDatum : h.datum) < idag;
 }
 
@@ -218,10 +255,12 @@ export function harPasserat(h, idag) {
 export function svarsrader({ handelser, mina, idag }) {
   if (!DATUMFORM.test(idag)) throw new Error(`svarsrader: idag "${idag}" ska vara YYYY-MM-DD.`);
   const har = mina instanceof Map ? (/** @type {string} */ id) => mina.has(id) : (/** @type {string} */ id) => Object.prototype.hasOwnProperty.call(mina ?? {}, id);
+  // ⛔ EN HÄNDELSE UTAN DATUM FRÅGAR INTE (0.127.0, "Datum ej satt"). "Kommer du?" utan dag är ingen fråga: det är omröstningen om dagen som
+  // gäller, och den är appens. Den ger ingen svarsrad och kastar inte i sorteringen.
   return (handelser ?? [])
-    .filter((h) => h && h.kravSvar === true && !har(h.id) && !harPasserat(h, idag))
+    .filter((h) => h && h.kravSvar === true && typeof h.datum === "string" && h.datum !== "" && !har(h.id) && !harPasserat(h, idag))
     .slice()
-    .sort((a, b) => a.datum.localeCompare(b.datum) || String(a.tid ?? "").localeCompare(String(b.tid ?? "")));
+    .sort((a, b) => String(a.datum).localeCompare(String(b.datum)) || String(a.tid ?? "").localeCompare(String(b.tid ?? "")));
 }
 
 /*

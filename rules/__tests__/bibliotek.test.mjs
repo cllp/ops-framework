@@ -206,6 +206,15 @@ describe("bibliotekets regler: skapa", () => {
     await assertSucceeds(skapa(MEDLEM, wav));
     await assertSucceeds(skapa(MEDLEM, { ...wav, fil: { ...wav.fil, mime: "audio/flac", namn: "lat.flac", sokvag: "grupper/cps-ab/bibliotek/{postId}/lat.flac", byte: 250 * 1024 * 1024 } }));
     await assertFails(skapa(MEDLEM, { ...wav, fil: { ...wav.fil, byte: 250 * 1024 * 1024 + 1 } }));
+    // ⛔ VIDEO HAR ETT EGET TAK PÅ 100 MB (CP 2026-10-19, cllp/lifehub.app#358): mp4 och iPhones quicktime går in, 100 MB + 1 gör det inte, och
+    // ett videoformat som inte står i FILMIME (webm) gör det inte alls. Ljudets 250 MB gäller inte video, och videons 100 MB inte ljud.
+    const film = { ...fil, rubrik: "Rep", fil: { ...fil.fil, sokvag: "grupper/cps-ab/bibliotek/{postId}/rep.mp4", namn: "rep.mp4", mime: "video/mp4", byte: 64264206 } };
+    await assertSucceeds(skapa(MEDLEM, film));
+    await assertSucceeds(skapa(MEDLEM, { ...film, fil: { ...film.fil, byte: 100 * 1024 * 1024 } }));
+    await assertSucceeds(skapa(MEDLEM, { ...film, fil: { ...film.fil, mime: "video/quicktime", namn: "rep.mov", sokvag: "grupper/cps-ab/bibliotek/{postId}/rep.mov" } }));
+    await assertFails(skapa(MEDLEM, { ...film, fil: { ...film.fil, byte: 100 * 1024 * 1024 + 1 } }));
+    await assertFails(skapa(MEDLEM, { ...film, fil: { ...film.fil, mime: "video/webm", namn: "rep.webm", sokvag: "grupper/cps-ab/bibliotek/{postId}/rep.webm" } }));
+    await assertSucceeds(skapa(MEDLEM, { ...wav, fil: { ...wav.fil, byte: 100 * 1024 * 1024 + 1 } }));
     await assertFails(skapa(MEDLEM, { ...fil, text: "Inte en fil." }));
     await assertFails(skapa(MEDLEM, { ...ny(), fil: fil.fil }));
   });

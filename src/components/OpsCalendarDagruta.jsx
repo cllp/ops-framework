@@ -1,6 +1,6 @@
 import { cx } from "../lib/cx.js";
-import { markorlayout } from "../lib/calendar.js";
-import { postklasser } from "../lib/kalenderfarg.js";
+import { arPreliminar, markorlayout } from "../lib/calendar.js";
+import { postklasser, prickklass } from "../lib/kalenderfarg.js";
 import { BortaIkon, LagerIkon } from "./icons.jsx";
 
 /**
@@ -285,8 +285,10 @@ function Indikatorrad({ borta, lager, narvaro, vald }) {
  */
 function Markorrad({ spann, enkla, vald }) {
   const { streck, ovre, nedre, plus } = markorlayout(spann, enkla);
-  const farg = (/** @type {import("../lib/calendar.js").CalendarEntry} */ p) => (vald ? "bg-ink" : postklasser(p).prick);
-  const prick = (/** @type {import("../lib/calendar.js").CalendarEntry} */ p) => <span key={p.id} data-prick={p.id} className={cx("size-1.5 shrink-0 rounded-full", farg(p))} />;
+  const farg = (/** @type {import("../lib/calendar.js").CalendarEntry} */ p) => prickklass(p, vald);
+  // ⛔ EN PRELIMINÄR POST (0.127.0, "Datum ej satt") ÄR EN IHÅLIG PRICK: en ring i postens färg. Ett streck på 6 px rymmer ingen streckad kant, så på telefon bär
+  // ringen det som kanten bär i pillret och kortet. `data-preliminar` finns för mätningen i en riktig webbläsare (`check-skalyta`).
+  const prick = (/** @type {import("../lib/calendar.js").CalendarEntry} */ p) => <span key={p.id} data-prick={p.id} {...(arPreliminar(p) ? { "data-preliminar": "" } : {})} className={cx("size-1.5 shrink-0 rounded-full", farg(p))} />;
   return (
     <span aria-hidden="true" data-kalender-marken="" className="mt-0.75 flex h-4 flex-col items-center gap-0.5 sm:hidden">
       <span className="flex min-h-1.75 items-center justify-center gap-0.75">
@@ -318,7 +320,15 @@ function Pillerrad({ markerade, vald }) {
       {markerade.slice(0, PILLER).map((p) => (
         <span
           key={p.id}
-          className={cx("block min-w-0 truncate rounded-md py-px pr-1 pl-1 text-liten", vald ? "bg-ink/15 text-ink" : cx("border-l-3 bg-ink-secondary/15 text-ink-secondary", postklasser(p).kant))}
+          {...(arPreliminar(p) ? { "data-preliminar": "" } : {})}
+          className={cx(
+            "block min-w-0 truncate rounded-md pr-1 pl-1 text-liten",
+            // ⛔ EN PRELIMINÄR POST (0.127.0) HAR STRECKAD KANT RUNT OM OCH INGEN FYLLNING: samma färg som en vanlig post av samma slag (`ring`), men ihålig.
+            // Kanten är 1 px och luften över och under 0 i stället för 1: pillret är lika högt som ett vanligt, så att veckans rutor inte växer av ett förslag.
+            arPreliminar(p)
+              ? cx("border border-dashed bg-transparent py-0", vald ? "border-ink text-ink" : cx("text-ink-secondary", postklasser(p).ring))
+              : cx("py-px", vald ? "bg-ink/15 text-ink" : cx("border-l-3 bg-ink-secondary/15 text-ink-secondary", postklasser(p).kant)),
+          )}
         >
           {p.title}
         </span>

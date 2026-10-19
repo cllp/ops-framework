@@ -21,10 +21,31 @@ import { medKarna } from "./karna.js";
  *
  * - `handelse.sektion`: en sektion i `OpsHandelsePanel`, efter informationsrutan. Etiketten är sektionens rubrik.
  * - `handelse.atgard`: en rad i plusmenyns händelsedel, direkt efter "Ny händelse".
+ * - `handelse.skapa` (0.127.0, cllp/lifehub.app#383): en ruta i formuläret för en NY händelse, direkt efter "Kräv svar". Se nedan.
  *
- * Komponenten får `{ handelse, grupp }` och inget annat. I plusmenyn finns ingen händelse, och där är `handelse` `null`.
+ * `handelse.sektion` och `handelse.atgard`: komponenten får `{ handelse, grupp }` och inget annat. I plusmenyn finns ingen händelse, och där
+ * är `handelse` `null`.
+ *
+ * ══ ⛔ `handelse.skapa`: EN APP ÄNDRAR INTE FORMULÄRET, DEN FÅR EN RUTA I DET (0.127.0) ══════════════════════════════
+ *
+ * CP 2026-10-19, efter att ha skapat "Rösta för rep" i Music: formuläret Ny händelse kräver ett datum, och omröstningen finns först i händelsens
+ * panel när händelsen redan har ett. "ja det är bättre att röstningen går till så", alltså att omröstningen väljs redan i formuläret. Ramverket
+ * känner inte appen Datumomröstning och ska inte göra det (beslut 0003): det som är ramverkets är PLATSEN, och tillägget fyller den.
+ *
+ * Komponenten får `{ grupp, varde, onVarde }`. `varde` är tilläggets eget värde, som skalet håller per tillägg på samma sätt som "Kräv svar"
+ * (`undefined` tills komponenten anropat `onVarde`, och nollställt varje gång formuläret öppnas). Ramverket tolkar det aldrig.
+ * Tillägget bär dessutom fältet `skapa`, som är hur formuläret frågar tillägget utan att veta vad det är:
+ *
+ *   - `datumEjSatt(varde) => boolean`: "tillägget vill att datum inte sätts nu". Sant döljer appens datumfält och formuläret skriver
+ *     händelsen utan `datum` (läget "Datum ej satt", `lib/handelsemodell.js`).
+ *   - `fel(varde) => string[]`: skäl att inte spara än, som meningar att visa (som `handelsefel`). Tom lista: inget fel.
+ *   - `efterSkapa({ handelseId, varde, grupp }) => Promise<void>`: anropas EN gång efter att händelsen är skriven. Faller den ligger händelsen kvar och
+ *     formuläret skriver ut felet (ingen bakåtrullning: en skrivning efter en skrivning kan inte vara atomär i reglerna).
+ *
+ * Alla tre är valfria men minst en krävs. Ritas bara vid SKAPANDE (inte när en händelse ändras) och bara i en gruppkalender. En avslagen moduls
+ * tillägg ritas inte och dess funktioner anropas inte.
  */
-export const HANDELSE_PLATSER = /** @type {const} */ (["handelse.sektion", "handelse.atgard"]);
+export const HANDELSE_PLATSER = /** @type {const} */ (["handelse.sektion", "handelse.atgard", "handelse.skapa"]);
 
 /**
  * Platsen på inspelningen.
