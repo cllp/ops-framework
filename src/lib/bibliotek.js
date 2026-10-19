@@ -665,6 +665,44 @@ export function filSort(mime) {
 }
 
 /**
+ * Hur länge en uppladdning får pågå innan posten räknas som ett avbrott (cllp/ops-framework, granskningen av PR 408).
+ * En post skrivs med `fil.klar: false` och blir klar när filen är uppladdad. Stängs fliken mitt i blir den aldrig klar, och utan en
+ * gräns stod den och hämtade för alltid, för alla medlemmar. Två minuter räcker för en vanlig uppladdning (taket är 250 MB för ljud)
+ * och är kort nog att ett avbrott inte står och väntar i timmar.
+ */
+export const UPPLADDNING_MAX_MS = 2 * 60 * 1000;
+
+/**
+ * Har uppladdningen avbrutits? Sant för en filpost vars `fil.klar` är `false` och som skapades för mer än `UPPLADDNING_MAX_MS` sedan.
+ * Räknat på postens `skapad`. En post utan ett heltal som skapad-tid går inte att döma och räknas som pågående: en gissning åt
+ * fel håll hade stämplat en uppladdning som pågår som misslyckad.
+ *
+ * @param {{ typ?: unknown, skapad?: unknown, fil?: { klar?: unknown } } | null | undefined} post
+ * @param {number} [nu] Klockan i ms. Förval nu.
+ * @returns {boolean}
+ */
+export function uppladdningAvbruten(post, nu = Date.now()) {
+  if (post?.typ !== "fil" || post.fil?.klar !== false) return false;
+  if (!Number.isInteger(post.skapad)) return false;
+  return nu - /** @type {number} */ (post.skapad) > UPPLADDNING_MAX_MS;
+}
+
+/**
+ * När en pågående uppladdning (`fil.klar === false`, ännu inte avbruten) räknas som avbruten, i ms, eller `null` när posten inte väntar
+ * på någon gräns. Används för att rita om vid rätt tillfälle utan att något i posten ändras.
+ *
+ * @param {{ typ?: unknown, skapad?: unknown, fil?: { klar?: unknown } } | null | undefined} post
+ * @param {number} [nu]
+ * @returns {number | null}
+ */
+export function uppladdningenAvbrytsKl(post, nu = Date.now()) {
+  if (post?.typ !== "fil" || post.fil?.klar !== false) return null;
+  if (!Number.isInteger(post.skapad)) return null;
+  if (uppladdningAvbruten(post, nu)) return null;
+  return /** @type {number} */ (post.skapad) + UPPLADDNING_MAX_MS + 1;
+}
+
+/**
  * Är posten ett ljud? Härlett ur typ och MIME, lagras inte.
  *
  * @param {{ typ?: unknown, fil?: { mime?: unknown } } | null | undefined} post
