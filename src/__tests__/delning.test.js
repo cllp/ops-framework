@@ -72,7 +72,8 @@ function bygg({ poster = [], extraMedlemskap = [], omslut = (/** @type {any} */ 
   return { kalla: grundkalla, tjanst, signeradAdress, tid: (/** @type {number} */ ny) => { nu = ny; } };
 }
 
-const dela = (tjanst, extra = {}) => tjanst.skapa({ uid: MEDLEM, postId: "p-medlem", groupId: GRUPP, dagar: 7, ...extra });
+const GRUPPDEL = "kallan-grupp";
+const dela = (tjanst, extra = {}) => tjanst.skapa({ uid: MEDLEM, postId: "p-medlem", groupId: GRUPP, dagar: 7, gruppdel: GRUPPDEL, fildel: "biljett", ...extra });
 
 describe("byggDelning och token", () => {
   it("id är SHA-256 (hex) av tokenet, och tokenet finns inte i raden", () => {
@@ -94,7 +95,7 @@ describe("byggDelning och token", () => {
     }
   });
 
-  it("utgångstiden är 1, 7 eller 30 dagar, och 'ingen utgång' finns inte", () => {
+  it("utgångstiden för en fil är 1, 7 eller 30 dagar, och 'ingen utgång' finns inte", () => {
     expect([...DELNINGSDAGAR]).toEqual([1, 7, 30]);
     const bas = { token: nyttDelningstoken(), postId: "p", groupId: GRUPP, skapadAv: { uid: "u" }, skapad: NU, nedladdning: false };
     for (const dagar of [0, 2, 365, null, undefined, Infinity, "7"]) {
@@ -116,43 +117,58 @@ describe("byggDelning och token", () => {
 });
 
 describe("skapa: vem får dela", () => {
-  it("en medlem delar sin egen post, och tokenet sparas aldrig i klartext", async () => {
+  it("en medlem delar sin egen post, och id:t är hashen av adressen", async () => {
     const { tjanst, kalla } = bygg();
     const svar = await dela(tjanst);
-    expect(svar.token).toMatch(TOKENFORM);
-    expect(svar.id).toBe(createHash("sha256").update(svar.token).digest("hex"));
+    expect(svar.adress).toMatch(/^kallan-grupp\/lib\/biljett-[a-z0-9]{8}$/);
+    expect(svar.sokvag).toBe(`/g/${svar.adress}`);
+    expect(svar.id).toBe(createHash("sha256").update(svar.adress).digest("hex"));
     expect(svar.giltigTill).toBe(NU + 7 * DYGN);
+    expect(svar).toMatchObject({ harKod: false, rattighet: "las", nedladdning: false });
+    expect(svar).not.toHaveProperty("token");
     const rader = await kalla.list("delningar");
     expect(rader).toHaveLength(1);
-    expect(JSON.stringify(rader)).not.toContain(svar.token);
-    expect(rader[0]).toMatchObject({ id: svar.id, postId: "p-medlem", groupId: GRUPP, skapadAv: { uid: MEDLEM, namn: `Namn ${MEDLEM}` }, aterkallad: null, nedladdning: false });
+    expect(rader[0]).toMatchObject({
+      id: svar.id,
+      slag: "post",
+      rattighet: "las",
+      adress: svar.adress,
+      postId: "p-medlem",
+      groupId: GRUPP,
+      skapadAv: { uid: MEDLEM, namn: `Namn ${MEDLEM}` },
+      aterkallad: null,
+      nedladdning: false,
+      felAntal: 0,
+      felFonster: 0,
+    });
+    expect(rader[0]).not.toHaveProperty("kod");
   });
 
   it("⛔ en medlem delar INTE någon annans post", async () => {
     const { tjanst, kalla } = bygg();
-    await expect(tjanst.skapa({ uid: MEDLEM, postId: "p-annan", groupId: GRUPP, dagar: 7 })).rejects.toThrow(/har inte skrivit posten/);
+    await expect(tjanst.skapa({ uid: MEDLEM, postId: "p-annan", groupId: GRUPP, dagar: 7, gruppdel: GRUPPDEL, fildel: "biljett" })).rejects.toThrow(/har inte skrivit posten/);
     expect(await kalla.list("delningar")).toHaveLength(0);
   });
 
   it("⛔ admin och ägare delar andras poster", async () => {
     const { tjanst } = bygg();
-    expect((await tjanst.skapa({ uid: ADMIN, postId: "p-medlem", groupId: GRUPP, dagar: 1 })).token).toMatch(TOKENFORM);
-    expect((await tjanst.skapa({ uid: AGARE, postId: "p-annan", groupId: GRUPP, dagar: 30 })).token).toMatch(TOKENFORM);
+    expect((await tjanst.skapa({ uid: ADMIN, postId: "p-medlem", groupId: GRUPP, dagar: 1, gruppdel: GRUPPDEL, fildel: "biljett" })).adress).toMatch(/^kallan-grupp\/lib\/biljett-[a-z0-9]{8}$/);
+    expect((await tjanst.skapa({ uid: AGARE, postId: "p-annan", groupId: GRUPP, dagar: 30, gruppdel: GRUPPDEL, fildel: "biljett" })).adress).toMatch(/^kallan-grupp\/lib\/biljett-[a-z0-9]{8}$/);
   });
 
   it("⛔ annan grupps post nekas: en admin i grupp A delar inte en post ur grupp B", async () => {
     const { tjanst, kalla } = bygg();
     // Anroparen anger sin egen grupp men postens id ur en annan (IDOR). Behörigheten prövas mot grupp A, och posten ligger i B.
-    await expect(tjanst.skapa({ uid: AGARE, postId: "p-grannen", groupId: GRUPP, dagar: 7 })).rejects.toThrow(/finns inte i platsen/);
+    await expect(tjanst.skapa({ uid: AGARE, postId: "p-grannen", groupId: GRUPP, dagar: 7, gruppdel: GRUPPDEL, fildel: "biljett" })).rejects.toThrow(/finns inte i platsen/);
     // Och anger hen grupp B är hen inte medlem där.
-    await expect(tjanst.skapa({ uid: AGARE, postId: "p-grannen", groupId: ANNAN_GRUPP, dagar: 7 })).rejects.toThrow(/inte aktiv medlem/);
+    await expect(tjanst.skapa({ uid: AGARE, postId: "p-grannen", groupId: ANNAN_GRUPP, dagar: 7, gruppdel: GRUPPDEL, fildel: "biljett" })).rejects.toThrow(/inte aktiv medlem/);
     expect(await kalla.list("delningar")).toHaveLength(0);
   });
 
   it("en utomstående och en avslutad medlem delar ingenting", async () => {
     const { tjanst } = bygg({ extraMedlemskap: [medlemskap("uid-gammal", GRUPP, "admin", { status: "avslutad" })] });
-    await expect(tjanst.skapa({ uid: UTOMSTAENDE, postId: "p-medlem", groupId: GRUPP, dagar: 7 })).rejects.toThrow(/inte aktiv medlem/);
-    await expect(tjanst.skapa({ uid: "uid-gammal", postId: "p-medlem", groupId: GRUPP, dagar: 7 })).rejects.toThrow(/inte aktiv medlem/);
+    await expect(tjanst.skapa({ uid: UTOMSTAENDE, postId: "p-medlem", groupId: GRUPP, dagar: 7, gruppdel: GRUPPDEL, fildel: "biljett" })).rejects.toThrow(/inte aktiv medlem/);
+    await expect(tjanst.skapa({ uid: "uid-gammal", postId: "p-medlem", groupId: GRUPP, dagar: 7, gruppdel: GRUPPDEL, fildel: "biljett" })).rejects.toThrow(/inte aktiv medlem/);
   });
 
   it("en post som inte finns, en anteckning och en fil som inte blev klar går inte att dela", async () => {
@@ -163,16 +179,16 @@ describe("skapa: vem får dela", () => {
       ],
     });
     for (const postId of ["finns-inte", "anteckning", "halv"]) {
-      await expect(tjanst.skapa({ uid: MEDLEM, postId, groupId: GRUPP, dagar: 7 }), postId).rejects.toThrow(/finns inte i platsen/);
+      await expect(tjanst.skapa({ uid: MEDLEM, postId, groupId: GRUPP, dagar: 7, gruppdel: GRUPPDEL, fildel: "biljett" }), postId).rejects.toThrow(/finns inte i platsen/);
     }
   });
 
   it("Mitt bibliotek: bara ägaren delar, aldrig en admin i någon grupp", async () => {
     const { tjanst } = bygg();
     const mitt = mittBibliotek(MEDLEM);
-    expect((await tjanst.skapa({ uid: MEDLEM, postId: "p-mitt", groupId: mitt, dagar: 7 })).token).toMatch(TOKENFORM);
-    await expect(tjanst.skapa({ uid: AGARE, postId: "p-mitt", groupId: mitt, dagar: 7 })).rejects.toThrow(/äger inte biblioteket/);
-    await expect(tjanst.skapa({ uid: ADMIN, postId: "p-mitt", groupId: mitt, dagar: 7 })).rejects.toThrow(/äger inte biblioteket/);
+    expect((await tjanst.skapa({ uid: MEDLEM, postId: "p-mitt", groupId: mitt, dagar: 7, gruppdel: GRUPPDEL, fildel: "biljett" })).adress).toMatch(/^kallan-grupp\/lib\/biljett-[a-z0-9]{8}$/);
+    await expect(tjanst.skapa({ uid: AGARE, postId: "p-mitt", groupId: mitt, dagar: 7, gruppdel: GRUPPDEL, fildel: "biljett" })).rejects.toThrow(/äger inte biblioteket/);
+    await expect(tjanst.skapa({ uid: ADMIN, postId: "p-mitt", groupId: mitt, dagar: 7, gruppdel: GRUPPDEL, fildel: "biljett" })).rejects.toThrow(/äger inte biblioteket/);
   });
 
   it("nedladdning är AV som förval, och en sträng avvisas", async () => {
@@ -193,8 +209,8 @@ describe("skapa: vem får dela", () => {
 describe("hamta: svaret", () => {
   it("⛔ svaret har BARA de tillåtna fälten och läcker ingenting om posten", async () => {
     const { tjanst } = bygg({ poster: [fil("p-ljud", GRUPP, MEDLEM, { durationMs: 240000, peaks: "A".repeat(48) })] });
-    const { token } = await dela(tjanst, { postId: "p-ljud" });
-    const svar = await tjanst.hamta(token);
+    const { adress: ref } = await dela(tjanst, { postId: "p-ljud" });
+    const svar = await tjanst.hamta(ref);
     expect(svar.ok).toBe(true);
     expect(Object.keys(svar.delning).sort()).toEqual([...DELNINGSSVARSFALT].sort());
     expect(svar.delning).toMatchObject({ rubrik: "Rubrik p-ljud", typ: "ljud", mime: "audio/mpeg", storlek: 4_000_000, langd: 240000, peaks: "A".repeat(48), nedladdning: false });
@@ -208,8 +224,8 @@ describe("hamta: svaret", () => {
 
   it("den signerade adressen gäller 15 minuter", async () => {
     const { tjanst, signeradAdress } = bygg();
-    const { token } = await dela(tjanst);
-    await tjanst.hamta(token);
+    const { adress: ref } = await dela(tjanst);
+    await tjanst.hamta(ref);
     expect(SIGNERAD_SEKUNDER).toBe(900);
     expect(signeradAdress).toHaveBeenCalledWith(expect.objectContaining({ sokvag: `grupper/${GRUPP}/bibliotek/p-medlem/p-medlem.mp3`, sekunder: 900 }));
   });
@@ -217,13 +233,13 @@ describe("hamta: svaret", () => {
   it("⛔ nedladdning AV ger Content-Disposition inline, PÅ ger attachment", async () => {
     const { tjanst, signeradAdress } = bygg();
     const av = await dela(tjanst);
-    const svarAv = await tjanst.hamta(av.token);
+    const svarAv = await tjanst.hamta(av.adress);
     expect(signeradAdress).toHaveBeenLastCalledWith(expect.objectContaining({ disposition: "inline" }));
     expect(decodeURIComponent(svarAv.delning.url.split("&d=")[1])).toBe("inline");
     expect(svarAv.delning.nedladdning).toBe(false);
 
     const pa = await dela(tjanst, { nedladdning: true });
-    const svarPa = await tjanst.hamta(pa.token);
+    const svarPa = await tjanst.hamta(pa.adress);
     const disposition = signeradAdress.mock.lastCall[0].disposition;
     expect(disposition).toMatch(/^attachment; filename="p-medlem\.mp3"; filename\*=UTF-8''p-medlem\.mp3$/);
     expect(svarPa.delning.nedladdning).toBe(true);
@@ -241,38 +257,38 @@ describe("hamta: svaret", () => {
   it("en PDF med nedladdning på får också en inbäddningsbar adress, annars null", async () => {
     const pdf = fil("p-pdf", GRUPP, MEDLEM, { fil: { sokvag: `grupper/${GRUPP}/bibliotek/p-pdf/a.pdf`, namn: "a.pdf", mime: "application/pdf", byte: 10, klar: true } });
     const { tjanst } = bygg({ poster: [pdf] });
-    const pa = await tjanst.hamta((await dela(tjanst, { postId: "p-pdf", nedladdning: true })).token);
+    const pa = await tjanst.hamta((await dela(tjanst, { postId: "p-pdf", nedladdning: true })).adress);
     expect(pa.delning.typ).toBe("pdf");
     expect(decodeURIComponent(pa.delning.url.split("&d=")[1])).toMatch(/^attachment/);
     expect(decodeURIComponent(pa.delning.visaUrl.split("&d=")[1])).toBe("inline");
-    const av = await tjanst.hamta((await dela(tjanst, { postId: "p-pdf" })).token);
+    const av = await tjanst.hamta((await dela(tjanst, { postId: "p-pdf" })).adress);
     expect(av.delning.visaUrl).toBeNull();
   });
 
   it("⛔ en återkallad delning nekas, med orsaken 'stangd'", async () => {
     const { tjanst } = bygg();
-    const { token, id } = await dela(tjanst);
-    expect((await tjanst.hamta(token)).ok).toBe(true);
+    const { adress: ref, id } = await dela(tjanst);
+    expect((await tjanst.hamta(ref)).ok).toBe(true);
     await tjanst.aterkalla({ uid: MEDLEM, id });
-    expect(await tjanst.hamta(token)).toEqual({ ok: false, orsak: "stangd" });
+    expect(await tjanst.hamta(ref)).toEqual({ ok: false, orsak: "stangd" });
   });
 
   it("⛔ en utgången delning nekas, på sekunden", async () => {
     const { tjanst, tid } = bygg();
-    const { token, giltigTill } = await dela(tjanst, { dagar: 1 });
+    const { adress: ref, giltigTill } = await dela(tjanst, { dagar: 1 });
     tid(giltigTill - 1);
-    expect((await tjanst.hamta(token)).ok).toBe(true);
+    expect((await tjanst.hamta(ref)).ok).toBe(true);
     tid(giltigTill);
-    expect(await tjanst.hamta(token)).toEqual({ ok: false, orsak: "utgangen" });
+    expect(await tjanst.hamta(ref)).toEqual({ ok: false, orsak: "utgangen" });
     tid(giltigTill + 30 * DYGN);
-    expect(await tjanst.hamta(token)).toEqual({ ok: false, orsak: "utgangen" });
+    expect(await tjanst.hamta(ref)).toEqual({ ok: false, orsak: "utgangen" });
   });
 
   it("⛔ ett okänt token svarar EXAKT som ett utgånget, och skräp kastar inte", async () => {
     const { tjanst, tid } = bygg();
-    const { token, giltigTill } = await dela(tjanst);
+    const { adress: ref, giltigTill } = await dela(tjanst);
     tid(giltigTill + 1);
-    const utgangen = await tjanst.hamta(token);
+    const utgangen = await tjanst.hamta(ref);
     const okant = await tjanst.hamta(nyttDelningstoken());
     expect(okant).toEqual(utgangen);
     expect(JSON.stringify(okant)).toBe(JSON.stringify(utgangen));
@@ -283,21 +299,21 @@ describe("hamta: svaret", () => {
 
   it("⛔ en post som bytt grupp, en raderad post och en fil som inte är klar nekas med 'saknas'", async () => {
     const { tjanst, kalla } = bygg();
-    const { token } = await dela(tjanst);
+    const { adress: ref } = await dela(tjanst);
     // Flyttad till Mitt bibliotek: delningen gällde gruppen, inte dit.
     await kalla.update("bibliotek", "p-medlem", { groupId: mittBibliotek(MEDLEM) });
-    expect(await tjanst.hamta(token)).toEqual({ ok: false, orsak: "saknas" });
+    expect(await tjanst.hamta(ref)).toEqual({ ok: false, orsak: "saknas" });
     await kalla.update("bibliotek", "p-medlem", { groupId: GRUPP, fil: { sokvag: "x/y/z/w/v", namn: "v.mp3", mime: "audio/mpeg", byte: 1, klar: false } });
-    expect(await tjanst.hamta(token)).toEqual({ ok: false, orsak: "saknas" });
+    expect(await tjanst.hamta(ref)).toEqual({ ok: false, orsak: "saknas" });
     await kalla.remove("bibliotek", "p-medlem");
-    expect(await tjanst.hamta(token)).toEqual({ ok: false, orsak: "saknas" });
+    expect(await tjanst.hamta(ref)).toEqual({ ok: false, orsak: "saknas" });
   });
 
   it("en rad med trasig utgångstid öppnar aldrig länken", async () => {
     const { tjanst, kalla } = bygg();
-    const { token, id } = await dela(tjanst);
+    const { adress: ref, id } = await dela(tjanst);
     await kalla.update("delningar", id, { giltigTill: "aldrig" });
-    expect(await tjanst.hamta(token)).toEqual({ ok: false, orsak: "utgangen" });
+    expect(await tjanst.hamta(ref)).toEqual({ ok: false, orsak: "utgangen" });
   });
 });
 
@@ -305,41 +321,41 @@ describe("stänga och ändra", () => {
   it("den som delade, admin och ägare stänger. En annan medlem och en utomstående gör det inte", async () => {
     for (const vem of [MEDLEM, ADMIN, AGARE]) {
       const { tjanst } = bygg();
-      const { token, id } = await dela(tjanst);
+      const { adress: ref, id } = await dela(tjanst);
       await tjanst.aterkalla({ uid: vem, id });
-      expect((await tjanst.hamta(token)).ok, vem).toBe(false);
+      expect((await tjanst.hamta(ref)).ok, vem).toBe(false);
     }
     const { tjanst } = bygg();
-    const { token, id } = await dela(tjanst);
+    const { adress: ref, id } = await dela(tjanst);
     await expect(tjanst.aterkalla({ uid: ANNAN, id })).rejects.toThrow(/inte den som delade/);
     await expect(tjanst.aterkalla({ uid: UTOMSTAENDE, id })).rejects.toThrow(/inte den som delade/);
-    expect((await tjanst.hamta(token)).ok).toBe(true);
+    expect((await tjanst.hamta(ref)).ok).toBe(true);
   });
 
   it("den som delade stänger även efter att ha lämnat gruppen", async () => {
     const { tjanst, kalla } = bygg();
-    const { token, id } = await dela(tjanst);
+    const { adress: ref, id } = await dela(tjanst);
     await kalla.update("memberships", medlemskapsId(MEDLEM, GRUPP), { status: "avslutad" });
     await tjanst.aterkalla({ uid: MEDLEM, id });
-    expect((await tjanst.hamta(token)).ok).toBe(false);
+    expect((await tjanst.hamta(ref)).ok).toBe(false);
   });
 
   it("⛔ den som delade och sedan lämnat gruppen nekas att ändra nedladdning men får stänga länken", async () => {
     const { tjanst, kalla } = bygg();
-    const { token, id } = await dela(tjanst);
+    const { adress: ref, id } = await dela(tjanst);
     await kalla.update("memberships", medlemskapsId(MEDLEM, GRUPP), { status: "avslutad" });
     await expect(tjanst.andraNedladdning({ uid: MEDLEM, id, nedladdning: true })).rejects.toThrow(/inte aktiv medlem som delade/);
     expect((await kalla.read("delningar", id)).nedladdning).toBe(false);
-    expect((await tjanst.hamta(token)).delning.nedladdning).toBe(false);
+    expect((await tjanst.hamta(ref)).delning.nedladdning).toBe(false);
     // En admin i gruppen kan fortfarande ändra, och den borttagne kan fortfarande stänga.
     await tjanst.andraNedladdning({ uid: ADMIN, id, nedladdning: true });
     await tjanst.aterkalla({ uid: MEDLEM, id });
-    expect((await tjanst.hamta(token)).ok).toBe(false);
+    expect((await tjanst.hamta(ref)).ok).toBe(false);
   });
 
   it("i Mitt bibliotek ändrar ägaren nedladdning, och ingen annan", async () => {
     const { tjanst } = bygg();
-    const { id } = await tjanst.skapa({ uid: MEDLEM, postId: "p-mitt", groupId: mittBibliotek(MEDLEM), dagar: 7 });
+    const { id } = await tjanst.skapa({ uid: MEDLEM, postId: "p-mitt", groupId: mittBibliotek(MEDLEM), dagar: 7, gruppdel: GRUPPDEL, fildel: "biljett" });
     expect((await tjanst.andraNedladdning({ uid: MEDLEM, id, nedladdning: true })).nedladdning).toBe(true);
     await expect(tjanst.andraNedladdning({ uid: AGARE, id, nedladdning: false })).rejects.toThrow(/inte aktiv medlem som delade/);
   });
@@ -354,9 +370,9 @@ describe("stänga och ändra", () => {
 
   it("⛔ ändra nedladdning: den som delade, admin och ägare, inte en annan medlem", async () => {
     const { tjanst, kalla } = bygg();
-    const { token, id } = await dela(tjanst);
+    const { adress: ref, id } = await dela(tjanst);
     expect((await tjanst.andraNedladdning({ uid: MEDLEM, id, nedladdning: true })).nedladdning).toBe(true);
-    expect((await tjanst.hamta(token)).delning.nedladdning).toBe(true);
+    expect((await tjanst.hamta(ref)).delning.nedladdning).toBe(true);
     await tjanst.andraNedladdning({ uid: ADMIN, id, nedladdning: false });
     expect((await kalla.read("delningar", id)).nedladdning).toBe(false);
     await tjanst.andraNedladdning({ uid: AGARE, id, nedladdning: true });
@@ -400,10 +416,10 @@ describe("stänga och ändra", () => {
     const forsta = await dela(tjanst);
     await tjanst.aterkalla({ uid: MEDLEM, id: forsta.id });
     const andra = await dela(tjanst);
-    expect(andra.token).not.toBe(forsta.token);
+    expect(andra.adress).not.toBe(forsta.adress);
     expect(andra.id).not.toBe(forsta.id);
-    expect((await tjanst.hamta(andra.token)).ok).toBe(true);
-    expect(await tjanst.hamta(forsta.token)).toEqual({ ok: false, orsak: "stangd" });
+    expect((await tjanst.hamta(andra.adress)).ok).toBe(true);
+    expect(await tjanst.hamta(forsta.adress)).toEqual({ ok: false, orsak: "stangd" });
   });
 
   it("en delning som inte finns går inte att stänga eller ändra", async () => {
@@ -417,7 +433,7 @@ describe("lista", () => {
   it("en medlem ser sina egna, admin ser alla, och stängda och utgångna syns inte", async () => {
     const { tjanst, tid } = bygg();
     const min = await dela(tjanst);
-    const annans = await tjanst.skapa({ uid: ANNAN, postId: "p-annan", groupId: GRUPP, dagar: 1 });
+    const annans = await tjanst.skapa({ uid: ANNAN, postId: "p-annan", groupId: GRUPP, dagar: 1, gruppdel: GRUPPDEL, fildel: "biljett" });
     const stangd = await dela(tjanst, { dagar: 30 });
     await tjanst.aterkalla({ uid: MEDLEM, id: stangd.id });
     expect((await tjanst.lista({ uid: MEDLEM, groupId: GRUPP })).map((r) => r.id)).toEqual([min.id]);
@@ -426,7 +442,7 @@ describe("lista", () => {
     expect((await tjanst.lista({ uid: ADMIN, groupId: GRUPP })).map((r) => r.id)).toEqual([min.id]);
     await expect(tjanst.lista({ uid: UTOMSTAENDE, groupId: GRUPP })).rejects.toThrow(/inte aktiv medlem/);
     const rad = (await tjanst.lista({ uid: ADMIN, groupId: GRUPP }))[0];
-    expect(Object.keys(rad).sort()).toEqual(["giltigTill", "id", "nedladdning", "postId", "skapadAv"]);
+    expect(Object.keys(rad).sort()).toEqual(["giltigTill", "harKod", "id", "nedladdning", "postId", "rattighet", "skapad", "skapadAv", "slag", "sokvag"]);
   });
 });
 
@@ -457,8 +473,8 @@ describe("typ och texter", () => {
     expect(delningsTyp("text/plain")).toBe("dokument");
     expect(delningsTyp(undefined)).toBe("dokument");
   });
-  it("orden är de tre överenskomna, och en okänd orsak får det utgångnas", () => {
-    expect(DELNINGSFEL).toEqual({ utgangen: "Länken har gått ut", stangd: "Länken är stängd", saknas: "Filen finns inte längre" });
+  it("orden för de tre ursprungliga orsakerna står kvar, och en okänd orsak får det utgångnas", () => {
+    expect(DELNINGSFEL).toMatchObject({ utgangen: "Länken har gått ut", stangd: "Länken är stängd", saknas: "Filen finns inte längre" });
     expect(delningsfel("okänd")).toBe("Länken har gått ut");
     expect(delningsfel(undefined)).toBe("Länken har gått ut");
   });
