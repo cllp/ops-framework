@@ -51,6 +51,8 @@ const P2 = handelseBibliotek(ANDRA, "h2");
 /** Händelse h2 ligger i ANDRA, men platsen säger CPS. Ingen klient kan skapa den, och ingen ska heller kunna läsa den. */
 const PFEL = handelseBibliotek(CPS, "h2");
 const PSAKNAS = handelseBibliotek(CPS, "borta");
+/** Fyra delar i stället för tre. Händelse h1 finns i CPS, så en regel som bara tittade på del 1 och 2 hade släppt in den. Ingen kod bygger en sådan plats. */
+const PFYRA = `${P1}~extra`;
 
 const räknare = { ok: 0, nej: 0 };
 const lyckas = (p) => {
@@ -117,6 +119,7 @@ before(async () => {
     await setDoc(doc(db, "bibliotek/forfalskad"), fil(PFEL, MEDLEM1, "forfalskad"));
     await setDoc(doc(db, "bibliotek/foralder"), fil(PSAKNAS, MEDLEM1, "foralder"));
     await setDoc(doc(db, "bibliotek/trasig"), fil("handelse~cps-ab", MEDLEM1, "trasig"));
+    await setDoc(doc(db, "bibliotek/fyradelar"), fil(PFYRA, MEDLEM1, "fyradelar"));
     await setDoc(doc(db, "bibliotek/h3fil"), fil(handelseBibliotek(CPS, "h3"), MEDLEM1, "h3fil"));
     // Gruppens egen plats ska vara orörd av grenen: samma post som förut, i gruppen.
     await setDoc(doc(db, "bibliotek/gruppens"), fil(CPS, MEDLEM1, "gruppens"));
@@ -158,6 +161,8 @@ describe("Händelsefiler: läsa", () => {
   it("en plats vars händelse inte finns läses inte, och en plats med fel form inte heller", async () => {
     await nekas(getDoc(doc(som(MEDLEM1), "bibliotek/foralder")));
     await nekas(getDoc(doc(som(MEDLEM1), "bibliotek/trasig")));
+    await nekas(getDoc(doc(som(MEDLEM1), "bibliotek/fyradelar")));
+    await nekas(setDoc(doc(som(MEDLEM1), "bibliotek/fyra-ny"), fil(PFYRA, MEDLEM1, "fyra-ny")));
   });
   it("när händelsen tas bort med Admin SDK blir filerna osynliga för klienten direkt", async () => {
     await lyckas(getDoc(doc(som(MEDLEM1), "bibliotek/h3fil")));
@@ -255,6 +260,8 @@ describe("Händelsefiler: lagring", () => {
   });
   it("en plats med fel form öppnar ingenting i lagringen", async () => {
     await nekas(getBytes(ref(lagringSom(MEDLEM1), vag("handelse~cps-ab", "trasig"))));
+    await nekas(getBytes(ref(lagringSom(MEDLEM1), vag(PFYRA, "fyradelar"))));
+    await nekas(uploadBytes(ref(lagringSom(MEDLEM1), vag(PFYRA, "fyradelar")), BYTE, PDF));
     await nekas(uploadBytes(ref(lagringSom(MEDLEM1), vag("handelse~cps-ab", "trasig")), BYTE, PDF));
   });
   it("ingen klient raderar en fil, inte ens författaren", async () => {
