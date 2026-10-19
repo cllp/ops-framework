@@ -170,7 +170,7 @@ function useBibliotekskalla(kalla) {
  * @param {(inmatning: { id: string, nedladdning: boolean }) => Promise<void> | void} [props.onAndraNedladdning] (0.119.0) Slår på eller av nedladdning på en länk som lever. Ett fel visas i dialogen och reglaget står kvar.
  * @param {(inmatning: { id: string }) => Promise<void> | void} [props.onAterkalla] (0.119.0) Stänger länken, för alltid. "Stäng länken" i dialogen. En ny delning ger ett nytt token.
  * @param {string} [props.modulId] (0.88.1) Modulens id i appen, förval "bibliotek". Står den i huvudmenyn har listan ingen tillbaka-rad.
- * @param {string} props.hubHref (0.83.0) Hubbens adress: tillbaka-radens mål, som `OpsModulSida`. Krävs.
+ * @param {string} [props.hubHref] (0.83.0) Hubbens adress: tillbaka-radens mål, som `OpsModulSida`. Krävs, utom med `inbaddad` (0.121.0).
  * @param {string} [props.hubEtikett] Förval "Appar".
  * @param {(href: string, event: any) => void} [props.onNavigate] Tillbaka-länkens klick, som `OpsModulSida`.
  * @param {import("./OpsModulRam.jsx").ModulRam | null} [props.ram] (0.89.0) Inställningsläget. Utelämnad: listan som förut, utan kugghjul.
@@ -564,7 +564,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
   const installningar = Boolean(ram && modul && arInstallningslage(/** @type {string} */ (activeHref)));
   if (installningar && modul) {
     return (
-      <OpsModulRam modul={modul} activeHref={/** @type {string} */ (activeHref)} hubHref={hubHref} hubEtikett={hubEtikett} onNavigate={onNavigate} sprak={sprak} ram={ram}>
+      <OpsModulRam modul={modul} activeHref={/** @type {string} */ (activeHref)} hubHref={/** @type {string} */ (hubHref)} hubEtikett={hubEtikett} onNavigate={onNavigate} sprak={sprak} ram={ram}>
         {null}
       </OpsModulRam>
     );
@@ -595,7 +595,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
   const listTillbaka = inbaddad
     ? undefined
     : {
-        ...modulTillbaka({ namn: "Bibliotek", hubHref, hubEtikett, onNavigate, sprak, modulId, ikon: <Library size={18} /> }),
+        ...modulTillbaka({ namn: "Bibliotek", hubHref: /** @type {string} */ (hubHref), hubEtikett, onNavigate, sprak, modulId, ikon: <Library size={18} /> }),
         ...(atgard ? { atgard } : {}),
       };
 
@@ -1678,8 +1678,9 @@ function Adress({ url }) {
  * @param {(post: any) => Promise<void> | void} [props.onAnteckningAvUtskrift]
  * @param {(post: import("../lib/bibliotek.js").Bibliotekspost & { id: string }, iDetalj: boolean, sattRedigera?: (lage: "redigera") => void) => import("./OpsAtgardsblad.jsx").Atgard[]} props.menyFor
  * @param {(id: string, meta: { durationMs?: number, peaks?: string }) => void} [props.onMeta]
+ * @param {string} props.tillbakaEtikett (0.121.0) "Tillbaka", eller i en händelse "Filer". Inbäddad i en händelse heter den "Filer", så den inte förväxlas med panelens egen.
  */
-function Detalj({ post, skapar, startLage, onStang, onSpara, onLaddaUpp, filUrl, adressFor, onLjus, onSkrivUt, onAnteckningAvUtskrift, menyFor, onMeta, tillbakaEtikett = "Tillbaka" }) {
+function Detalj({ post, skapar, startLage, onStang, onSpara, onLaddaUpp, filUrl, adressFor, onLjus, onSkrivUt, onAnteckningAvUtskrift, menyFor, onMeta, tillbakaEtikett }) {
   const typ = skapar ?? post?.typ ?? "anteckning";
   const [rubrik, setRubrik] = useState(post && !skapar ? post.rubrik : "");
   const [text, setText] = useState(post && !skapar && post.typ === "anteckning" ? post.text ?? "" : "");
@@ -1885,9 +1886,9 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, onLaddaUpp, filUrl,
  * Gemensamt detaljhuvud för alla typer: Tillbaka, ikon och ⋯ på en rad,
  * rubriken på egen rad med rollen `rubrik`, sedan metadata.
  *
- * @param {{ onTillbaka: () => void, tillbakaEtikett?: string, ikon: import("react").ReactNode, rubrik: string, meta?: string, meny?: import("react").ReactNode }} props
+ * @param {{ onTillbaka: () => void, tillbakaEtikett: string, ikon: import("react").ReactNode, rubrik: string, meta?: string, meny?: import("react").ReactNode }} props
  */
-function BibliotekDetaljHuvud({ onTillbaka, tillbakaEtikett = "Tillbaka", ikon, rubrik, meta = "", meny = null }) {
+function BibliotekDetaljHuvud({ onTillbaka, tillbakaEtikett, ikon, rubrik, meta = "", meny = null }) {
   return (
     <header data-bibliotek-detaljhuvud="" className="flex min-w-0 flex-col gap-3">
       <div className="flex min-w-0 items-center gap-2">
