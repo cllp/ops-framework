@@ -11,6 +11,41 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ## Ej utgivet
 
+## 0.126.0
+
+Nattsprint, små UI-ärenden (cllp/ops-framework#391, #403 och cllp/lifehub.app#358, #359, #326, #327). Ett ärende är ändrat i ramverket (#391). Tre är mätta som redan levererade eller som appens (#403, #326, #327), ett är appens (#359) och ett kräver ett beslut innan det byggs (cllp/lifehub.app#358). Inget är brytande.
+
+### Röstinspelning erbjuds bara där det finns en mottagare (cllp/ops-framework#391), Claude 2026-10-19
+
+- **Vad CP sade:** inget nytt. Ärendet kom ur granskningen av cllp/lifehub.app#272: på en apps egen adress, i en grupp som inte har appen (avinstallerad, eller dold i hubben), visade Ny post och sedan Röstinspelning ramverkets text "OpsAppShell: modulen "bibliotek" har inget mål på platsen inspelning.mal i den här gruppen ... Registrera tillägget och slå på modulen." som larm i sidan. Användaren kan inte slå på något, och för en dold app kan inte ens ägaren det.
+- **Rotorsaken** är att listan erbjöd en åtgärd som kräver ett mål gruppen inte har, inte att texten var obegriplig. `OpsAppShell` svarar nu på frågan med `useKanSpelaIn()` (intern, inte exporterad ur paketet) ur SAMMA lista som `useOppnaInspelning` öppnar ur (`modulensInspelningsmal`), så frågan och åtgärden inte kan säga olika (regel 2). `OpsBibliotek` ritar varken raden Röstinspelning i Ny-menyn eller knappen Ny röstinspelning i fliken Ljud när modulen inte har någon mottagare i gruppen. Utanför ett skal (en felkoppling) ritas raden som förut och kastar tydligt vid tryck. Ett direkt anrop av `useOppnaInspelning` för en modul utan mål kastar som förut: det är ett utvecklarfel och ska synas.
+- **Prov** (`bibliotek-plus.test.jsx`, fem nya): ingen rad och inget larm när modulen saknas i gruppen, ingen Ny-knapp i Ljud, raden och knappen kvar när modulen är på (och raden öppnar inspelaren), raden försvinner när gruppen tappar modulen medan listan står uppe, och det direkta anropet kastar fortfarande. Rött utan rättelsen: 3 av 16 (raden fanns kvar i menyn, knappen i Ljud, och efter att modulen tagits bort). Grönt med: 16 av 16. Det gamla provet "Röstinspelning utan modulens mål kastas" kontrollerade att utvecklartexten visades för användaren och är ersatt.
+- **Inte gjort, och en fråga till CP:** ärendets förslag om en hel rad "Biblioteket finns inte i den här gruppen" med en länk till Appar för ägaren. Appens adress ritas av appen (`web/src/app/App.jsx:966`, `<Route path="/bibliotek" ...>` utan koll mot gruppens `moduler`), och vad som ska stå är CP:s beslut. Frågan står i PR-texten.
+
+### Redan levererat, mätt: en ny post i biblioteket syns direkt (cllp/ops-framework#403)
+
+- Levererat i 0.114.0 (`createBibliotekskalla.prenumerera`, `OpsBibliotek` använder `kalla`). Appen använder det: `BibliotekView` ger `kalla` och pinnar 0.124.0, och datakällan har `subscribe` (`src/data/firestore.js`). Mätt nu: provet `bibliotek-prenumeration.test.jsx` är rött utan prenumerationen (3 av 12, när `OpsBibliotek` tvingas läsa med `las()`) och grönt med (12 av 12). Ingen kod ändrad.
+
+### cllp/lifehub.app#358, mp4 i biblioteket: ändrat INTE, beslut behövs
+
+- Orsaken sitter i ramverket: `FILMIME` (`src/lib/bibliotek.js`) har bild, ljud, pdf och text, ingen video, och listan styr både postens regel och Storage-regeln (`filMimeMonster`). En mp4 nekas därför med "Formatet video/mp4 går inte att lägga in". Att lägga till formatet är en rad, men det är inte en liten skiva: taket (`MAX_BIBLIOTEKFIL` är 25 MB, ljud 250 MB), spelaren (`OpsBibliotek` har ingen videovisning, `filSort` ger "dokument"), fliken, den publika delningen och iPhones `video/quicktime` följer med. Frågorna står i PR-texten.
+
+### cllp/lifehub.app#359, Skapa app saknar ikon i Skapa-menyn: appens
+
+- Registreringen har ikonen (`web/src/app/SkapaApp.jsx:115`, `ikon: "layers"`), men appen ger inte skalet någon `ikonRitare` i `skapa` (`web/src/app/App.jsx:742`, registreringen på `:831`), och ramverket ritar då bara ordet (`OpsSkapa`, "Utan `ikonRitare` ritas ingen ikon"). Appen har redan en ritare i `web/src/app/views/SettingsView.jsx:111` (`ritaIkon`), som inte delas. Läst i koden, inte mätt i en körning.
+
+### cllp/lifehub.app#326, Byt ordning även i header-ikonerna: appens
+
+- Ramverkets `huvudmenyPoster` ger redan ikonerna i gruppens ordning (`moduler`). Appen ändrar den: `web/src/app/App.jsx:360` (`huvudIkoner`) lägger Meddelanden först oavsett ordningen, och Inkorg, Sök och Fråga ligger fasta runt dem. Vad "höger till vänster" ska betyda för dem är ett beslut. Ingen ramverkskod ändrad.
+
+### cllp/lifehub.app#327, ikonerna för nära listan och ringen runt mikrofonen: redan levererat
+
+- Mellanrummet under filterraden i Inkorgen är appens och levererat i cllp/lifehub.app PR 339 (`web/src/app/views/InboxView.jsx:1268`, mergad 2026-10-17). Ringen runt mikrofonen är ramverkets och levererad i 0.116.0 och 0.117.0. Ingen kod ändrad här. Bilden i ärendet ligger i Inkorgen och har inte gått att öppna, så att det CP pekade på är just dessa två är en slutsats ur ärendets text.
+
+### Vad appen måste göra efter ompinningen
+
+Inget. `OpsBibliotek` hämtar sin besked ur skalet, så appens kod är oförändrad. (För #359 och #326 är rättelserna i appen och beskrivs ovan.)
+
 ## 0.125.0
 
 cllp/lifehub.app#377, ramverkets del (skiva 1): en publik sida för en HÄNDELSE, delad med en länk, och en läsbar adress för både händelser och filer. Designen, valen och skälen står i `docs/beslut/0009-publik-delning-av-handelse-och-fil.md`. CP 2026-10-19: "Om jag vill att andra skall kunna ta del av resan men inte är med i gruppen? Kan vi ha en publik händelse som jag kan dela med sms eller mail och som ser ut som en bra strukturerad websida. Kan vara skyddad med en kod (optional)." Beslutet i ärendet: "Ja på båda, kör skiva 1", alltså läslänk till en händelse, valfri kod per länk, förvalt ingen gräns men alltid möjlig att återkalla.
