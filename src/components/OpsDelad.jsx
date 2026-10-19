@@ -3,7 +3,9 @@ import { cx } from "../lib/cx.js";
 import { DELNINGSORSAKER, delningsfel } from "../lib/delning.js";
 import { sizeText } from "../lib/file.js";
 import { formateraTid } from "../lib/ljudspelare.js";
+import { DeladKod } from "./DeladKod.jsx";
 import { PausaIkon, SpelaIkon } from "./icons.jsx";
+import { useOpsSprak } from "./OpsSprak.jsx";
 import { OpsButton } from "./OpsButton.jsx";
 import { OpsEmpty } from "./OpsEmpty.jsx";
 import { OpsLjudspelare } from "./OpsLjudspelare.jsx";
@@ -43,8 +45,12 @@ import { OpsLjudspelare } from "./OpsLjudspelare.jsx";
  * @param {string} [props.orsak] Länken går inte att visa: `utgangen`, `stangd` eller `saknas` (`DELNINGSORSAKER`). En okänd orsak får texten för `utgangen`.
  * @param {boolean} [props.laddar] Länken hämtas.
  * @param {() => void | Promise<void>} [props.onNyUrl] Filen kunde inte läsas, troligen för att adressen gått ut. Appen hämtar länken igen och ger ett nytt `delning`.
+ * @param {(kod: string) => void | Promise<void>} [props.onKod] (0.125.0) Koden som personen skrev. Med den ritas kodrutan när orsaken är `kod-kravs`, `fel-kod` eller `for-manga` (en fillänk kan ha en kod
+ *   sedan 0.125.0); appen frågar servern med koden (`hamta(ref, { kod })`) och ger vyn ett nytt svar. Utan den står orsaken som text.
+ * @param {string} [props.sprak] (0.125.0) `sv` eller `en`, för kodrutan. Förval: språket i `OpsSprakProvider`. Resten av vyn är svensk som förut.
  */
-export function OpsDelad({ delning = null, orsak, laddar = false, onNyUrl }) {
+export function OpsDelad({ delning = null, orsak, laddar = false, onNyUrl, onKod, sprak }) {
+  const kontextSprak = useOpsSprak();
   const lagen = [Boolean(delning), orsak !== undefined, laddar].filter(Boolean).length;
   if (lagen !== 1) {
     throw new Error("OpsDelad: ge precis en av delning, orsak och laddar. Ingen av dem är en tom yta, flera är två sanningar om samma länk.");
@@ -52,9 +58,15 @@ export function OpsDelad({ delning = null, orsak, laddar = false, onNyUrl }) {
   if (onNyUrl !== undefined && typeof onNyUrl !== "function") {
     throw new Error("OpsDelad: onNyUrl ska vara en funktion.");
   }
+  if (onKod !== undefined && typeof onKod !== "function") {
+    throw new Error("OpsDelad: onKod ska vara en funktion.");
+  }
   if (laddar) return <OpsEmpty busy title="Hämtar filen" busyLabel="Hämtar filen" />;
   if (orsak !== undefined) {
     const kand = /** @type {readonly string[]} */ (DELNINGSORSAKER).includes(orsak);
+    if (onKod && (orsak === "kod-kravs" || orsak === "fel-kod" || orsak === "for-manga")) {
+      return <DeladKod orsak={orsak} onKod={onKod} sprak={sprak ?? kontextSprak} />;
+    }
     return (
       <div data-delad="fel" data-delad-orsak={kand ? orsak : "utgangen"}>
         <OpsEmpty title={delningsfel(orsak)} />

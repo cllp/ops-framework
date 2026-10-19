@@ -320,7 +320,14 @@ export { createBibliotekskalla, flyttaBibliotekspost } from "./data/bibliotekkal
 export { OpsBibliotek } from "./components/OpsBibliotek.jsx";
 // 0.119.0 (lifehub.app#356): publik delning av en biblioteksfil. Vyn och det den delar med servern. Tokenet och tjänsten ligger i `ops-framework/node`.
 export { OpsDelad } from "./components/OpsDelad.jsx";
-export { DELNINGSDAGAR, FORVAL_DELNINGSDAGAR, SIGNERAD_SEKUNDER, TOKENFORM, DELNINGSFALT, DELNINGSORSAKER, DELNINGSFEL, DELNINGSSVARSFALT, delningsTyp, delningsfel } from "./lib/delning.js";
+// 0.125.0 (lifehub.app#377): samma delning för en händelse, med en läsbar adress (`/g/<grupp>/event/<händelse>` och `/g/<grupp>/lib/<fil>`), en valfri kod och en publik sida med eget huvud och språkval.
+export { OpsDeladHandelse, ORD_OPSDELADHANDELSE } from "./components/OpsDeladHandelse.jsx";
+export { ORD_DELADKOD } from "./components/DeladKod.jsx";
+export { ORD_DELALANK } from "./components/DelaLankFalt.jsx";
+export { ORD_LANKRAD } from "./components/LankRad.jsx";
+export { ORD_HANDELSEDELNING } from "./components/HandelseDelning.jsx";
+export { DELAD_SPRAKNYCKEL, webblasarSprak, valdSprak, lasSparatSprak, sparaSprak, kortDatum, antalDagar, deladTid } from "./lib/deladdatum.js";
+export { DELNINGSDAGAR, FORVAL_DELNINGSDAGAR, HANDELSEDAGAR, FORVAL_HANDELSEDAGAR, SIGNERAD_SEKUNDER, TOKENFORM, DELNINGSSLAG, DELNINGSRATTIGHETER, DELNINGSFALT, ADRESSPREFIX, ADRESSSEGMENT, ADRESSDELFORM, MAX_ADRESSDEL, MAX_ADRESSDEL_TOTALT, SLUMPSLUT_TECKEN, SLUMPSLUTFORM, KODLANGD, FELKOD_MAX, FELKOD_FONSTER_MS, adressdel, arAdressdel, nastaAdressdel, foreslaAdress, byggAdress, tolkaAdress, delningsSokvag, delningsUrl, adressUrUppslag, kodFel, normaliseraKod, DELNINGSORSAKER, DELNINGSFEL, DELNINGSFELKODER, DELNINGSSVARSFALT, HANDELSESVARSFALT, HANDELSEFILFALT, MAX_HANDELSEFILER, delningsTyp, delningsfel } from "./lib/delning.js";
 export { MINNESKALLOR, MINNESFALT, MINNESKALLAFALT, MAX_MINNESTEXT, MAX_MINNESID, farAndraMinne, minnesradFel, byggMinnesrad } from "./lib/minne.js";
 export { createMinneskalla } from "./data/minneskalla.js";
 export { OpsMinne } from "./components/OpsMinne.jsx";

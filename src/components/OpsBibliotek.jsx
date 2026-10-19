@@ -21,9 +21,10 @@ import { OpsEmpty } from "./OpsEmpty.jsx";
 import { OpsSpinner } from "./OpsSpinner.jsx";
 import { OpsField, OpsInput, OpsTextarea } from "./OpsField.jsx";
 import { OpsSelect } from "./OpsSelect.jsx";
-import { OpsSegmented } from "./OpsSegmented.jsx";
 import { OpsSwitch } from "./OpsToggle.jsx";
 import { DELNINGSDAGAR, FORVAL_DELNINGSDAGAR } from "../lib/delning.js";
+import { DelaLankFalt, useDelaLankFalt } from "./DelaLankFalt.jsx";
+import { LankRad } from "./LankRad.jsx";
 import { useOpsSprak } from "./OpsSprak.jsx";
 import { useKopiera, useKortVisning } from "./useKopiera.js";
 import { ordet } from "../lib/ord.js";
@@ -165,8 +166,11 @@ function useBibliotekskalla(kalla) {
  * @param {(post: import("../lib/bibliotek.js").Bibliotekspost & { id: string }) => Promise<void> | void} [props.onAnteckningAvUtskrift] (0.115.0, cllp/lifehub.app#349) "Gör en anteckning av texten" under utskriften.
  *   Ritas bara när propen ges. Ett fel visas på posten, och lyckas den står "Anteckningen är sparad" en stund.
  * @param {unknown} [props.onGorForslag] Borttagen (0.115.0). Skickas den kastas ett fel: förslagsknapparna "Spara som anteckning" och "Skapa ärende" är ersatta av `onAnteckningAvUtskrift`.
- * @param {readonly { id: string, postId: string, giltigTill: number, nedladdning: boolean }[]} [props.delningar] (0.119.0, lifehub.app#356) De delningslänkar som lever, för posterna som visas (`lista()` ur `createDelningService`). En post med en länk här får markeringen "Delad" i listan, och dialogen visar länkens läge. Appen läser dem själv: raderna går inte att läsa i klienten.
- * @param {(inmatning: { postId: string, dagar: number, nedladdning: boolean }) => Promise<{ id: string, url: string, giltigTill?: number }>} [props.onDelaLank] (0.119.0) Skapar länken. Ritar "Dela länk" i menyn för en färdig fil som personen får dela (`farAndra`). Löftet ska lösa till länkens id och HELA adressen (appen bygger den ur tokenet): adressen visas EN gång, direkt efter att den skapats, för tokenet sparas aldrig. Kräver `onAndraNedladdning` och `onAterkalla`: en länk som inte går att stänga får inte kunna skapas.
+ * @param {readonly { id: string, postId: string, giltigTill: number, nedladdning: boolean, url?: string, harKod?: boolean }[]} [props.delningar] (0.119.0, lifehub.app#356) De delningslänkar som lever, för posterna som visas (`lista()` ur `createDelningService`). En post med en länk här får markeringen "Delad" i listan, och dialogen visar länkens läge. Appen läser dem själv: raderna går inte att läsa i klienten.
+ *   (0.125.0) `url` är hela adressen (`delningsUrl(bas, rad.sokvag)`) för en länk skapad med 0.125.0 eller senare: dialogen visar den då som text med Kopiera. En gammal tokenlänk har ingen `sokvag` och därför ingen `url`, och dialogen säger som förut att adressen bara visades när den skapades.
+ * @param {string} [props.delningGruppdel] (0.125.0, granskningen av PR 417) Gruppdelen platsen redan använt i en länk (`gruppdelar({ uid, groupId }).senaste`), föreslagen i "Dela länk" före ett namn ur gruppens namn. En gruppdel tillhör en plats för alltid: en annan grupps svarar servern `adress-upptagen` med `del: "gruppdel"` och dialogen föreslår en annan.
+ * @param {(inmatning: { postId: string, dagar: number, nedladdning: boolean, kod: string | null, gruppdel: string, fildel: string }) => Promise<{ id: string, url: string, giltigTill?: number, harKod?: boolean }>} [props.onDelaLank] (0.119.0) Skapar länken. Ritar "Dela länk" i menyn för en färdig fil som personen får dela (`farAndra`). Löftet ska lösa till länkens id och HELA adressen (appen bygger den: `delningsUrl(bas, svar.sokvag)`).
+ *   (0.125.0) Inmatningen har också `kod` (`null` utan kod, annars koden i klartext till servern, som hashar den), `gruppdel` och `fildel`: adressen är `/g/<gruppdel>/lib/<fildel>`, föreslagen ur gruppens namn och filens rubrik, och personen kan ändra båda. Utan kod lägger servern till ett slumpat slut. Kastar anropet med `kod: "adress-upptagen"` föreslår dialogen en annan adress. Kräver `onAndraNedladdning` och `onAterkalla`: en länk som inte går att stänga får inte kunna skapas.
  * @param {(inmatning: { id: string, nedladdning: boolean }) => Promise<void> | void} [props.onAndraNedladdning] (0.119.0) Slår på eller av nedladdning på en länk som lever. Ett fel visas i dialogen och reglaget står kvar.
  * @param {(inmatning: { id: string }) => Promise<void> | void} [props.onAterkalla] (0.119.0) Stänger länken, för alltid. "Stäng länken" i dialogen. En ny delning ger ett nytt token.
  * @param {string} [props.modulId] (0.88.1) Modulens id i appen, förval "bibliotek". Står den i huvudmenyn har listan ingen tillbaka-rad.
@@ -181,7 +185,7 @@ function useBibliotekskalla(kalla) {
  *   och sätter `skapar` (`"fil"`), eftersom en händelses och ett ärendes bibliotek har bara filer. Detaljens tillbaka heter "Filer". `ram`, `platser`, `plats`, `onPlats`, `grupper` och `onDela` hör inte hit och kastar: en inbäddad lista har en plats.
  * @param {string} [props.tomText] (0.122.0) Beskrivningen under "Inga filer än." när den inbäddade listan är tom. Förval "Filer som läggs till här hör bara till händelsen." (en konstant, inte ett parameterförval; `OpsPlatsfiler` skickar rätt mening för ärendet).
  */
-export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, trasiga: trasigaProp = [], laddar: laddarProp = false, vald = null, skapar = null, jag, onOppna, onStang, onSkapa, onSpara, onRadera, onLaddaUpp, onFyllLjud, onSpelaIn, inspelare, filUrl, hamtaAdress, grupper = [], onDela, platser = [], plats, onPlats, onSkrivUt, onAnteckningAvUtskrift, onGorForslag, delningar = [], onDelaLank, onAndraNedladdning, onAterkalla, hubHref, hubEtikett, onNavigate, modulId = "bibliotek", ram = null, activeHref, modul = null, inbaddad = false, tomText }) {
+export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, trasiga: trasigaProp = [], laddar: laddarProp = false, vald = null, skapar = null, jag, onOppna, onStang, onSkapa, onSpara, onRadera, onLaddaUpp, onFyllLjud, onSpelaIn, inspelare, filUrl, hamtaAdress, grupper = [], onDela, platser = [], plats, onPlats, onSkrivUt, onAnteckningAvUtskrift, onGorForslag, delningar = [], delningGruppdel, onDelaLank, onAndraNedladdning, onAterkalla, hubHref, hubEtikett, onNavigate, modulId = "bibliotek", ram = null, activeHref, modul = null, inbaddad = false, tomText }) {
   if (kalla !== undefined && (posterProp !== undefined || felProp !== null || laddarProp !== false || (Array.isArray(trasigaProp) && trasigaProp.length > 0))) {
     throw new Error("OpsBibliotek: kalla och poster/fel/trasiga/laddar kan inte ges tillsammans. Med kalla läser vyn själv, och två sanningar om samma lista hade låtit den ena vinna tyst.");
   }
@@ -752,6 +756,8 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
           <DelaLankKontroll
             key={delarLank.id}
             post={delarLank}
+            gruppnamn={[...platser, ...grupper].find((g) => g.id === delarLank.groupId)?.namn}
+            gruppdelForslag={delningGruppdel}
             delningar={delningar}
             onDelaLank={onDelaLank}
             onAndraNedladdning={onAndraNedladdning}
@@ -2124,17 +2130,18 @@ function DelaKontroll({ id, grupper, onDela, onKlar, onStart, onSlut, kanFlytta 
  * ⛔ ETT FEL SYNS OCH LÄGET STÅR KVAR. Svarar appen med ett fel står texten i dialogen, reglaget är där det var, och länken är inte
  * stängd. Ett svar utan länk räknas som ett fel: en skapad delning vars adress ingen fick se är en länk som ingen kan dela och ingen vet om.
  *
- * @param {{ post: import("../lib/bibliotek.js").Bibliotekspost & { id: string }, delningar: readonly { id: string, postId: string, giltigTill: number, nedladdning: boolean }[], onDelaLank: NonNullable<Parameters<typeof OpsBibliotek>[0]["onDelaLank"]>, onAndraNedladdning: NonNullable<Parameters<typeof OpsBibliotek>[0]["onAndraNedladdning"]>, onAterkalla: NonNullable<Parameters<typeof OpsBibliotek>[0]["onAterkalla"]>, onKlar: (text: string) => void }} props
+* @param {{ post: import("../lib/bibliotek.js").Bibliotekspost & { id: string }, gruppnamn?: string, gruppdelForslag?: string, delningar: readonly { id: string, postId: string, giltigTill: number, nedladdning: boolean, url?: string, harKod?: boolean }[], onDelaLank: NonNullable<Parameters<typeof OpsBibliotek>[0]["onDelaLank"]>, onAndraNedladdning: NonNullable<Parameters<typeof OpsBibliotek>[0]["onAndraNedladdning"]>, onAterkalla: NonNullable<Parameters<typeof OpsBibliotek>[0]["onAterkalla"]>, onKlar: (text: string) => void }} props
  */
-function DelaLankKontroll({ post, delningar, onDelaLank, onAndraNedladdning, onAterkalla, onKlar }) {
-  const [dagar, setDagar] = useState(/** @type {number} */ (FORVAL_DELNINGSDAGAR));
+function DelaLankKontroll({ post, gruppnamn, gruppdelForslag, delningar, onDelaLank, onAndraNedladdning, onAterkalla, onKlar }) {
+  const sprak = useOpsSprak();
   const [nedladdning, setNedladdning] = useState(false);
-  const [skapad, setSkapad] = useState(/** @type {null | { id: string, url: string, giltigTill?: number }} */ (null));
+  const [skapad, setSkapad] = useState(/** @type {null | { id: string, url: string, giltigTill?: number, harKod?: boolean }} */ (null));
   const [stangda, setStangda] = useState(/** @type {string[]} */ ([]));
   const [andrad, setAndrad] = useState(/** @type {Record<string, boolean>} */ ({}));
   const [pagar, setPagar] = useState(/** @type {null | "skapa" | "stang" | "andra"} */ (null));
   const [fel, setFel] = useState("");
-  const { kopierat, misslyckades, kopiera } = useKopiera("OpsBibliotek");
+  // ⛔ 0.125.0: giltighet, kod och adress är samma fält som för en händelse (`DelaLankFalt`), med en fils giltigheter (1, 7 och 30 dagar) och typsegmentet `lib`.
+  const falt = useDelaLankFalt({ slag: "post", grupp: gruppnamn, titel: post.rubrik || post.fil?.namn, gruppdelForslag, dagval: DELNINGSDAGAR, forvalDagar: FORVAL_DELNINGSDAGAR, sprak });
   const levande = useRef(true);
   useEffect(() => {
     levande.current = true;
@@ -2146,7 +2153,7 @@ function DelaLankKontroll({ post, delningar, onDelaLank, onAndraNedladdning, onA
   // Den nyligen skapade länken först, annars den senast gående som lever för posten och inte stängts här.
   const lever = delningar.filter((d) => d.postId === post.id && !stangda.includes(d.id)).sort((a, b) => b.giltigTill - a.giltigTill);
   const aktiv = skapad
-    ? (delningar.find((d) => d.id === skapad.id) ?? { id: skapad.id, postId: post.id, giltigTill: skapad.giltigTill, nedladdning })
+    ? (delningar.find((d) => d.id === skapad.id) ?? { id: skapad.id, postId: post.id, giltigTill: skapad.giltigTill, nedladdning, url: skapad.url, harKod: skapad.harKod })
     : lever[0];
   const nedNu = aktiv ? (andrad[aktiv.id] ?? aktiv.nedladdning) : nedladdning;
   /** @param {unknown} e */
@@ -2154,16 +2161,26 @@ function DelaLankKontroll({ post, delningar, onDelaLank, onAndraNedladdning, onA
 
   async function skapa() {
     if (pagar) return;
+    const p = falt.pro();
+    if (!p.ok) {
+      setFel(p.fel);
+      return;
+    }
     setFel("");
+    falt.setMeddelande("");
     setPagar("skapa");
     try {
-      const svar = await onDelaLank({ postId: post.id, dagar, nedladdning });
+      const svar = await onDelaLank({ postId: post.id, dagar: /** @type {number} */ (p.varde.dagar), nedladdning, kod: p.varde.kod, gruppdel: p.varde.gruppdel, fildel: p.varde.sista });
       if (!svar || typeof svar.id !== "string" || svar.id === "" || typeof svar.url !== "string" || svar.url === "") {
         throw new Error("Länken skapades men svaret saknade adressen. Stäng den och skapa en ny.");
       }
-      if (levande.current) setSkapad({ id: svar.id, url: svar.url, giltigTill: typeof svar.giltigTill === "number" ? svar.giltigTill : undefined });
+      if (levande.current) setSkapad({ id: svar.id, url: svar.url, giltigTill: typeof svar.giltigTill === "number" ? svar.giltigTill : undefined, harKod: svar.harKod === true });
     } catch (e) {
-      if (levande.current) visaFel(e);
+      if (!levande.current) return;
+      if (e && typeof e === "object" && /** @type {{ kod?: unknown }} */ (e).kod === "adress-upptagen") {
+        if (/** @type {{ del?: unknown }} */ (e).del === "gruppdel") falt.gruppdelUpptagen();
+        else falt.upptagen();
+      } else visaFel(e);
     } finally {
       if (levande.current) setPagar(null);
     }
@@ -2205,15 +2222,7 @@ function DelaLankKontroll({ post, delningar, onDelaLank, onAndraNedladdning, onA
     return (
       <div data-bibliotek-delalank="ny" className="flex flex-col gap-4">
         <p className="m-0 text-brod text-ink-secondary">Den som har länken kan se filen utan att logga in.</p>
-        <div className="flex flex-col gap-2">
-          <p className="m-0 text-etikett text-ink-muted">Länken gäller</p>
-          <OpsSegmented
-            ariaLabel="Länken gäller"
-            value={String(dagar)}
-            onChange={(v) => setDagar(Number(v))}
-            options={DELNINGSDAGAR.map((d) => ({ value: String(d), label: d === 1 ? "1 dag" : `${d} dagar` }))}
-          />
-        </div>
+        <DelaLankFalt falt={falt} sprak={sprak} disabled={pagar !== null} />
         <OpsSwitch label="Tillåt nedladdning" hint="Av som förval. Den som har länken kan se filen oavsett." checked={nedladdning} onChange={setNedladdning} />
         {fel ? <p role="alert" className="m-0 text-etikett text-danger">{fel}</p> : null}
         <div className="flex gap-2">
@@ -2226,20 +2235,17 @@ function DelaLankKontroll({ post, delningar, onDelaLank, onAndraNedladdning, onA
   const till = ljudDatum(aktiv.giltigTill);
   return (
     <div data-bibliotek-delalank={skapad ? "skapad" : "lever"} className="flex flex-col gap-4">
-      {skapad ? (
-        <div className="flex flex-col gap-2">
-          <p data-bibliotek-delalank-url="" className="m-0 text-brod text-ink break-all">{skapad.url}</p>
-          <div className="flex items-center gap-2">
-            <OpsButton variant="secondary" onClick={() => kopiera(skapad.url)}>Kopiera</OpsButton>
-            {kopierat ? <span role="status" className="text-etikett text-ink-secondary">Kopierad</span> : null}
-          </div>
-          {misslyckades ? <p role="alert" className="m-0 text-etikett text-danger">Länken kunde inte kopieras. Markera den ovan och kopiera för hand.</p> : null}
-          <p className="m-0 text-etikett text-ink-muted">Länken visas bara nu. Tappar du den stänger du den och skapar en ny.</p>
-        </div>
+      {aktiv.url ? (
+        // ⛔ 0.125.0: en länk med en adress visar den alltid, som text med Kopiera, så att den går att klippa ur och skicka. Adressen lagras (se `byggAdressdelning`).
+        <ul data-bibliotek-delalank-url="" className="m-0 flex list-none flex-col p-0">
+          <LankRad lank={{ id: aktiv.id, url: aktiv.url, harKod: aktiv.harKod === true, giltigTill: aktiv.giltigTill }} sprak={sprak} />
+        </ul>
       ) : (
-        <p className="m-0 text-brod text-ink-secondary">Det finns en länk till filen. Länken visas bara när den skapas. Behöver du den igen stänger du den och skapar en ny.</p>
+        <>
+          <p className="m-0 text-brod text-ink-secondary">Det finns en länk till filen, skapad med en äldre version. Den visades bara när den skapades. Behöver du adressen igen stänger du länken och skapar en ny.</p>
+          {till ? <p className="m-0 text-etikett text-ink-muted">Gäller till {till}.</p> : null}
+        </>
       )}
-      {till ? <p className="m-0 text-etikett text-ink-muted">Gäller till {till}.</p> : null}
       <OpsSwitch label="Tillåt nedladdning" checked={nedNu} disabled={pagar !== null} onChange={bytNedladdning} />
       {fel ? <p role="alert" className="m-0 text-etikett text-danger">{fel}</p> : null}
       <div className="flex gap-2">

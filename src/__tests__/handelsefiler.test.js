@@ -235,26 +235,26 @@ describe("Delning av en fil på en händelse", () => {
 
   it("författaren delar sin egen fil, och länken öppnas utan inloggning", async () => {
     const { tjanst } = bygg();
-    const svar = await tjanst.skapa({ uid: MEDLEM, postId: "p1", groupId: PLATS, dagar: 7 });
-    const hamtad = await tjanst.hamta(svar.token);
+    const svar = await tjanst.skapa({ uid: MEDLEM, postId: "p1", groupId: PLATS, dagar: 7, gruppdel: "kallan", fildel: "biljett" });
+    const hamtad = await tjanst.hamta(svar.adress);
     expect(hamtad.ok).toBe(true);
     expect(hamtad.delning.url).toContain(`grupper/${PLATS}/bibliotek/p1/`);
   });
 
   it("en utomstående och en annan grupps ägare delar inte, och en annan medlem delar inte någon annans fil", async () => {
     const { tjanst, kalla } = bygg();
-    await expect(tjanst.skapa({ uid: UTOMSTAENDE, postId: "p1", groupId: PLATS, dagar: 7 })).rejects.toThrow(/inte aktiv medlem/);
-    await expect(tjanst.skapa({ uid: "ingen", postId: "p1", groupId: PLATS, dagar: 7 })).rejects.toThrow(/inte aktiv medlem/);
+    await expect(tjanst.skapa({ uid: UTOMSTAENDE, postId: "p1", groupId: PLATS, dagar: 7, gruppdel: "kallan", fildel: "biljett" })).rejects.toThrow(/inte aktiv medlem/);
+    await expect(tjanst.skapa({ uid: "ingen", postId: "p1", groupId: PLATS, dagar: 7, gruppdel: "kallan", fildel: "biljett" })).rejects.toThrow(/inte aktiv medlem/);
     await kalla.create("memberships", { id: medlemskapsId("uidAnnan", GRUPP), userId: "uidAnnan", groupId: GRUPP, roll: "medlem", typ: "person", status: "aktiv" });
-    await expect(tjanst.skapa({ uid: "uidAnnan", postId: "p1", groupId: PLATS, dagar: 7 })).rejects.toThrow(/inte skrivit posten/);
+    await expect(tjanst.skapa({ uid: "uidAnnan", postId: "p1", groupId: PLATS, dagar: 7, gruppdel: "kallan", fildel: "biljett" })).rejects.toThrow(/inte skrivit posten/);
     // Admin delar allas.
-    await expect(tjanst.skapa({ uid: ADMIN, postId: "p1", groupId: PLATS, dagar: 7 })).resolves.toMatchObject({ token: expect.any(String) });
+    await expect(tjanst.skapa({ uid: ADMIN, postId: "p1", groupId: PLATS, dagar: 7, gruppdel: "kallan", fildel: "biljett" })).resolves.toMatchObject({ adress: expect.any(String) });
   });
 
   it("platsens grupp i anropet måste vara postens: en medlem i gruppen delar inte under en annan plats", async () => {
     const { tjanst } = bygg();
-    await expect(tjanst.skapa({ uid: MEDLEM, postId: "p1", groupId: handelseBibliotek(GRUPP, "h2"), dagar: 7 })).rejects.toThrow(/finns inte i platsen/);
-    await expect(tjanst.skapa({ uid: MEDLEM, postId: "p1", groupId: GRUPP, dagar: 7 })).rejects.toThrow(/finns inte i platsen/);
+    await expect(tjanst.skapa({ uid: MEDLEM, postId: "p1", groupId: handelseBibliotek(GRUPP, "h2"), dagar: 7, gruppdel: "kallan", fildel: "biljett" })).rejects.toThrow(/finns inte i platsen/);
+    await expect(tjanst.skapa({ uid: MEDLEM, postId: "p1", groupId: GRUPP, dagar: 7, gruppdel: "kallan", fildel: "biljett" })).rejects.toThrow(/finns inte i platsen/);
   });
 });
 

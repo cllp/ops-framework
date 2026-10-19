@@ -12,6 +12,7 @@ import { AndraIkon, DatumIkon, FilIkon, KlockaIkon, PilHogerIkon, PlatsIkon } fr
 import { OpsEmpty } from "./OpsEmpty.jsx";
 import { OpsStatusDot } from "./OpsStatusDot.jsx";
 import { TillbakaKnapp } from "./TillbakaKnapp.jsx";
+import { HandelseDelning } from "./HandelseDelning.jsx";
 import { HandelseFlytta } from "./HandelseFlytta.jsx";
 import { Ursprungsrad } from "./Ursprungsrad.jsx";
 
@@ -104,6 +105,12 @@ import { Ursprungsrad } from "./Ursprungsrad.jsx";
  * @param {(mal: import("../lib/flytta.js").Flyttmal) => void | Promise<void>} [props.onFlytta] (0.123.0) Anropas med valet. Appen anropar rätt serveranrop efter
  *   `mal.atgard` (`byt`: `flyttaPost` eller `flyttaHandelse`, `konvertera`: `goraPostTillHandelse`) och navigerar efteråt, till exempel till den nya händelsen.
  *   Kräver `flyttmal`-val (kastar annars). Kastar anropet visar panelen orsaken och lämnar rutan öppen. En `konvertera` frågar först: "gruppens medlemmar ser den då".
+ * @param {ReadonlyArray<import("./LankRad.jsx").Lank>} [props.delningar] (0.125.0, cllp/lifehub.app#377) Händelsens aktiva publika länkar, ur `lista({ uid, groupId, handelseId })` med `url` ifylld (`delningsUrl(bas, rad.sokvag)`; en gammal rad utan `sokvag` är ingen händelselänk). Varje länk står i panelen med sin FULLA adress som text,
+ *   sin rättighet, om den har kod och när den går ut, med Kopiera och Återkalla, så att den går att klippa ur och skicka. Utan länkar står en rad som säger det. Krävs med `onDela` (kastar annars): en tom lista är "inga länkar", en utelämnad är "inte läst".
+ * @param {(val: { dagar: number | null, kod: string | null, gruppdel: string, handelsedel: string }) => Promise<import("./LankRad.jsx").Lank>} [props.onDela] (0.125.0) Ritar sektionen "Delade länkar" med knappen Dela. Anropas med valen i rutan (`dagar` är `null` för ingen gräns, som är förvalet; `kod` är `null` utan kod; `gruppdel` och `handelsedel` är
+ *   rensade adressdelar) och ska svara med den nya länken `{ id, url, giltigTill, harKod }`, normalt anropet till `createDelningService().skapa({ handelseId, gruppdel, handelsedel, dagar, kod })` och `delningsUrl(bas, svar.sokvag)`. Kastar anropet visas orsaken och rutan står kvar; är felets `kod` `adress-upptagen` föreslås en annan adress. ⛔ Ritas bara när appen ger den, som `onRedigera`: servern prövar medlemskapet och appens regel.
+ * @param {(arg: { id: string }) => Promise<void>} [props.onAterkalla] (0.125.0) Återkallar en länk (`createDelningService().aterkalla`). Krävs med `onDela`. Raden försvinner först när anropet lyckats; kastar det visas orsaken i raden.
+ * @param {string} [props.delningGruppdel] (0.125.0, granskningen av PR 417) Gruppdelen gruppen redan använt i en länk (`gruppdelar({ uid, groupId }).senaste`), föreslagen i Dela-rutan före ett namn ur gruppens namn. En gruppdel tillhör en grupp för alltid: tar en annan grupp den först svarar servern `adress-upptagen` med `del: "gruppdel"` och rutan föreslår en annan.
  * @param {import("react").ReactNode} [props.atgarder] Appens egna knappar, högst upp till höger bredvid titeln (SS export m.fl.), efter pennan.
  * @param {{ oppet?: string, pagar?: string, vantar?: string, klart?: string, akut?: string }} [props.statusWords] KRÄVS för varje status som förekommer, som i `OpsEventList`.
  * @param {string} [props.sprak] Datumens språk, "sv" eller "en". Förval "sv".
@@ -135,6 +142,10 @@ function OpsHandelsePanelRitad({
   redigeraEtikett = ORD_OPSHANDELSEPANEL.redigeraEtikett.sv,
   flyttmal,
   onFlytta,
+  delningar,
+  onDela,
+  onAterkalla,
+  delningGruppdel,
   flyttaEtikett = ORD_OPSHANDELSEPANEL.flyttaEtikett.sv,
   flyttaMinaRubrik = ORD_OPSHANDELSEPANEL.flyttaMinaRubrik.sv,
   bekraftaTitel = ORD_OPSHANDELSEPANEL.bekraftaTitel.sv,
@@ -181,6 +192,18 @@ function OpsHandelsePanelRitad({
   }
   if (flyttmal && flyttmal.length > 0 && typeof onFlytta !== "function") {
     throw new Error("OpsHandelsePanel: flyttmal har val men onFlytta saknas. Ett val som inte gör något är en död knapp.");
+  }
+  if (onDela !== undefined && typeof onDela !== "function") {
+    throw new Error("OpsHandelsePanel: onDela måste vara en funktion (eller utelämnas).");
+  }
+  if (onDela && typeof onAterkalla !== "function") {
+    throw new Error("OpsHandelsePanel: onDela finns men onAterkalla saknas. En länk man kan skapa men inte stänga är en länk som lever för alltid.");
+  }
+  if (onDela && !Array.isArray(delningar)) {
+    throw new Error("OpsHandelsePanel: onDela finns men delningar saknas. Ge listan med de aktiva länkarna, tom när det inte finns några: utan den går det inte att skilja 'inga länkar' från 'inte läst'.");
+  }
+  if (!onDela && (onAterkalla !== undefined || delningar !== undefined || delningGruppdel !== undefined)) {
+    throw new Error("OpsHandelsePanel: delningar, onAterkalla och delningGruppdel hör till onDela. Utan onDela ritas ingen sektion, och listan hade bara varit en dold yta.");
   }
   for (const m of flyttmal ?? []) {
     if (!m || typeof m.id !== "string" || typeof m.namn !== "string" || (m.atgard !== "byt" && m.atgard !== "konvertera")) {
@@ -347,6 +370,11 @@ function OpsHandelsePanelRitad({
           titel={handelse.titel}
           ord={{ flyttaEtikett, flyttaMinaRubrik, bekraftaTitel, bekraftaText, bekraftaKnapp, avbrytEtikett, stangEtikett, flyttFelEtikett }}
         />
+      ) : null}
+
+      {/* ⛔ DELADE LÄNKAR (0.125.0, cllp/lifehub.app#377): varje aktiv publik länk med sin fulla adress, Kopiera och Återkalla, och Dela för en ny. Se `HandelseDelning`. */}
+      {onDela && onAterkalla && delningar ? (
+        <HandelseDelning handelse={{ titel: handelse.titel, grupp: handelse.grupp }} delningar={delningar} onDela={onDela} onAterkalla={onAterkalla} gruppdel={delningGruppdel} sprak={sprak} />
       ) : null}
 
       {/* ⛔ PLATSEN `handelse.sektion` (0.60.0, #251, beslut 0003): appens tillägg, efter informationsrutan. Ramverket äger platsen och

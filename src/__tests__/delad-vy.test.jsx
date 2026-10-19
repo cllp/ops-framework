@@ -145,11 +145,13 @@ const pdf = (id, uid, extra = {}) => ({
 });
 const anteckning = { ...byggPost({ groupId: "cps-ab", typ: "anteckning", rubrik: "Protokoll", text: "x", skapadAv: skapare(KIM), skapad: tid, andrad: tid }), id: "a" };
 
-function Vy({ poster, jag = { uid: KIM, roll: "medlem" }, delningar = [], onDelaLank, onAndraNedladdning = vi.fn(async () => {}), onAterkalla = vi.fn(async () => {}) }) {
+function Vy({ poster, platser, delningGruppdel, jag = { uid: KIM, roll: "medlem" }, delningar = [], onDelaLank, onAndraNedladdning = vi.fn(async () => {}), onAterkalla = vi.fn(async () => {}) }) {
   const [vald, setVald] = useState(null);
   return (
     <OpsBibliotek
       poster={poster}
+      platser={platser}
+      delningGruppdel={delningGruppdel}
       jag={jag}
       vald={vald}
       onOppna={setVald}
@@ -212,7 +214,7 @@ describe("OpsBibliotek: dialogen", () => {
     expect(within(dialog).getAllByRole("tab").map((t) => t.textContent)).toEqual(["1 dag", "7 dagar", "30 dagar"]);
     expect(within(dialog).getByRole("switch", { name: "Tillåt nedladdning" })).not.toBeChecked();
     fireEvent.click(within(dialog).getByRole("button", { name: "Skapa länk" }));
-    await waitFor(() => expect(onDelaLank).toHaveBeenCalledWith({ postId: "p1", dagar: 7, nedladdning: false }));
+    await waitFor(() => expect(onDelaLank).toHaveBeenCalledWith({ postId: "p1", dagar: 7, nedladdning: false, kod: null, gruppdel: "grupp", fildel: "avtal-p1" }));
     expect(await within(dialog).findByText("https://my.test/d/tok")).toBeInTheDocument();
   });
 
@@ -225,7 +227,7 @@ describe("OpsBibliotek: dialogen", () => {
     fireEvent.click(within(dialog).getByRole("tab", { name: "30 dagar" }));
     fireEvent.click(within(dialog).getByRole("switch", { name: "Tillåt nedladdning" }));
     fireEvent.click(within(dialog).getByRole("button", { name: "Skapa länk" }));
-    await waitFor(() => expect(onDelaLank).toHaveBeenCalledWith({ postId: "p1", dagar: 30, nedladdning: true }));
+    await waitFor(() => expect(onDelaLank).toHaveBeenCalledWith({ postId: "p1", dagar: 30, nedladdning: true, kod: null, gruppdel: "grupp", fildel: "avtal-p1" }));
   });
 
   it("Kopiera lägger hela adressen i urklipp, och Stäng länken återkallar och stänger dialogen med ett besked", async () => {
@@ -238,7 +240,7 @@ describe("OpsBibliotek: dialogen", () => {
     fireEvent.click(screen.getByRole("menuitem", { name: "Dela länk" }));
     const dialog = await screen.findByRole("dialog", { name: "Dela länk" });
     fireEvent.click(within(dialog).getByRole("button", { name: "Skapa länk" }));
-    fireEvent.click(await within(dialog).findByRole("button", { name: "Kopiera" }));
+    fireEvent.click(await within(dialog).findByRole("button", { name: "Kopiera adressen" }));
     await waitFor(() => expect(skriv).toHaveBeenCalledWith("https://my.test/d/tok"));
     fireEvent.click(within(dialog).getByRole("button", { name: "Stäng länken" }));
     await waitFor(() => expect(onAterkalla).toHaveBeenCalledWith({ id: "d1" }));
@@ -254,6 +256,8 @@ describe("OpsBibliotek: dialogen", () => {
     fireEvent.click(screen.getByRole("menuitem", { name: "Dela länk" }));
     const dialog = await screen.findByRole("dialog", { name: "Dela länk" });
     fireEvent.click(within(dialog).getByRole("button", { name: "Skapa länk" }));
+    // Först när länken finns är reglaget det som ändrar den (före det är det valet som skickas med Skapa).
+    await waitFor(() => expect(dialog.querySelector('[data-bibliotek-delalank="skapad"]')).not.toBeNull());
     const reglage = await within(dialog).findByRole("switch", { name: "Tillåt nedladdning" });
     fireEvent.click(reglage);
     await waitFor(() => expect(onAndraNedladdning).toHaveBeenCalledWith({ id: "d1", nedladdning: true }));
@@ -273,7 +277,7 @@ describe("OpsBibliotek: dialogen", () => {
     const dialog = await screen.findByRole("dialog", { name: "Dela länk" });
     fireEvent.click(within(dialog).getByRole("button", { name: "Skapa länk" }));
     expect(await within(dialog).findByRole("alert")).toHaveTextContent("Du får inte dela den här filen.");
-    expect(within(dialog).queryByRole("button", { name: "Kopiera" })).toBeNull();
+    expect(within(dialog).queryByRole("button", { name: "Kopiera adressen" })).toBeNull();
   });
 
   it("⛔ ett svar utan adress räknas som ett fel", async () => {
@@ -285,19 +289,104 @@ describe("OpsBibliotek: dialogen", () => {
     expect(await within(dialog).findByRole("alert")).toHaveTextContent(/saknade adressen/);
   });
 
-  it("en länk som redan lever visar läget utan Kopiera, och kan stängas", async () => {
+  it("en gammal länk (utan adress) som redan lever visar läget utan Kopiera, och kan stängas", async () => {
     const onAterkalla = vi.fn(async () => {});
     const delningar = [{ id: "d9", postId: "p1", giltigTill: tid + 86400000, nedladdning: true }];
     render(<Vy poster={[pdf("p1", KIM)]} delningar={delningar} onDelaLank={vi.fn()} onAterkalla={onAterkalla} />);
     oppnaMeny("Avtal p1");
     fireEvent.click(screen.getByRole("menuitem", { name: "Dela länk" }));
     const dialog = await screen.findByRole("dialog", { name: "Dela länk" });
-    expect(within(dialog).getByText(/visas bara när den skapas/)).toBeInTheDocument();
-    expect(within(dialog).queryByRole("button", { name: "Kopiera" })).toBeNull();
+    expect(within(dialog).getByText(/visades bara när den skapades/)).toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: "Kopiera adressen" })).toBeNull();
     expect(within(dialog).queryByRole("button", { name: "Skapa länk" })).toBeNull();
     expect(within(dialog).getByRole("switch", { name: "Tillåt nedladdning" })).toBeChecked();
     fireEvent.click(within(dialog).getByRole("button", { name: "Stäng länken" }));
     await waitFor(() => expect(onAterkalla).toHaveBeenCalledWith({ id: "d9" }));
+  });
+});
+
+describe("OpsBibliotek: dialogen, kod och adress (0.125.0)", () => {
+  async function oppna(props = {}) {
+    const onDelaLank = vi.fn(async () => ({ id: "d1", url: "https://my.life-hub.app/g/grupp/lib/avtal-p1-k7f3q9x2", harKod: false }));
+    render(<Vy poster={[pdf("p1", KIM)]} onDelaLank={onDelaLank} {...props} />);
+    oppnaMeny("Avtal p1");
+    fireEvent.click(screen.getByRole("menuitem", { name: "Dela länk" }));
+    const dialog = await screen.findByRole("dialog", { name: "Dela länk" });
+    return { dialog, onDelaLank };
+  }
+
+  it("⛔ adressen föreslås ur titeln, med typsegmentet lib, och slutet sägs vara slumpat när det inte finns någon kod", async () => {
+    const { dialog } = await oppna();
+    expect(within(dialog).getByRole("textbox", { name: "Filens del av adressen" })).toHaveValue("avtal-p1");
+    expect(within(dialog).getByRole("textbox", { name: "Gruppens del av adressen" })).toHaveValue("grupp");
+    const forhandsvisning = dialog.querySelector("[data-delalank-forhandsvisning]");
+    expect(forhandsvisning?.textContent).toBe("Adressen blir: /g/grupp/lib/avtal-p1-xxxxxxxx");
+    expect(dialog.querySelector("[data-delalank-slutmening]")?.textContent).toMatch(/slumpat slut som inte går att ta bort/);
+  });
+
+  it("⛔ med en kod blir adressen exakt det som skrivs, och meningen säger det", async () => {
+    const { dialog, onDelaLank } = await oppna();
+    fireEvent.change(within(dialog).getByRole("textbox", { name: "Kod (valfri)" }), { target: { value: "hemligt1" } });
+    const forhandsvisning = dialog.querySelector("[data-delalank-forhandsvisning]");
+    expect(forhandsvisning?.textContent).toBe("Adressen blir: /g/grupp/lib/avtal-p1");
+    expect(dialog.querySelector("[data-delalank-slutmening]")?.textContent).toMatch(/exakt som du skriver den/);
+    fireEvent.change(within(dialog).getByRole("textbox", { name: "Filens del av adressen" }), { target: { value: "Bubbelglasen.ver2" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Skapa länk" }));
+    await waitFor(() => expect(onDelaLank).toHaveBeenCalledWith({ postId: "p1", dagar: 7, nedladdning: false, kod: "hemligt1", gruppdel: "grupp", fildel: "bubbelglasen-ver2" }));
+  });
+
+  it("gruppens namn ur platserna blir gruppdelen", async () => {
+    const { dialog } = await oppna({ platser: [{ id: "cps-ab", namn: "Resa & Kusiner" }, { id: "mitt~x", namn: "Mitt" }] });
+    expect(within(dialog).getByRole("textbox", { name: "Gruppens del av adressen" })).toHaveValue("resa-kusiner");
+  });
+
+  it("⛔ en kod som är för kort skickas aldrig, och felet står i dialogen", async () => {
+    const { dialog, onDelaLank } = await oppna();
+    fireEvent.change(within(dialog).getByRole("textbox", { name: "Kod (valfri)" }), { target: { value: "abc" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Skapa länk" }));
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent("Koden ska vara minst 6 tecken.");
+    expect(onDelaLank).not.toHaveBeenCalled();
+  });
+
+  it("⛔ en tom adress skickas aldrig", async () => {
+    const { dialog, onDelaLank } = await oppna();
+    fireEvent.change(within(dialog).getByRole("textbox", { name: "Filens del av adressen" }), { target: { value: "!!!" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Skapa länk" }));
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(/Adressen kan inte vara tom/);
+    expect(onDelaLank).not.toHaveBeenCalled();
+  });
+
+  it("⛔ en upptagen adress ger ett annat förslag i fältet, och rutan säger det", async () => {
+    const upptagen = Object.assign(new Error("skapa: adressen är upptagen."), { kod: "adress-upptagen" });
+    const onDelaLank = vi.fn().mockRejectedValueOnce(upptagen).mockResolvedValue({ id: "d1", url: "https://my.life-hub.app/g/grupp/lib/avtal-p1-2-aaaaaaaa" });
+    const { dialog } = await oppna({ onDelaLank });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Skapa länk" }));
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(/Adressen är upptagen/);
+    expect(within(dialog).getByRole("textbox", { name: "Filens del av adressen" })).toHaveValue("avtal-p1-2");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Skapa länk" }));
+    await waitFor(() => expect(onDelaLank).toHaveBeenLastCalledWith(expect.objectContaining({ fildel: "avtal-p1-2" })));
+  });
+
+  it("⛔ gruppdelen platsen redan använt föreslås, och en gruppdel som en annan grupp har ger ett annat förslag", async () => {
+    const upptagen = Object.assign(new Error("skapa: gruppdelen används av en annan grupp"), { kod: "adress-upptagen", del: "gruppdel" });
+    const onDelaLank = vi.fn().mockRejectedValueOnce(upptagen).mockResolvedValue({ id: "d1", url: "https://my.life-hub.app/g/musik-2/lib/avtal-p1-aaaaaaaa" });
+    const { dialog } = await oppna({ onDelaLank, delningGruppdel: "musik" });
+    expect(within(dialog).getByRole("textbox", { name: "Gruppens del av adressen" })).toHaveValue("musik");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Skapa länk" }));
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(/Gruppdelen används av en annan grupp/);
+    expect(within(dialog).getByRole("textbox", { name: "Gruppens del av adressen" })).toHaveValue("musik-2");
+    expect(within(dialog).getByRole("textbox", { name: "Filens del av adressen" })).toHaveValue("avtal-p1");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Skapa länk" }));
+    await waitFor(() => expect(onDelaLank).toHaveBeenLastCalledWith(expect.objectContaining({ gruppdel: "musik-2", fildel: "avtal-p1" })));
+  });
+
+  it("en länk som lever och har en adress visar den som text med Kopiera", async () => {
+    const delningar = [{ id: "d9", postId: "p1", giltigTill: tid + 86400000, nedladdning: false, url: "https://my.life-hub.app/g/grupp/lib/avtal-p1-k7f3q9x2", harKod: true }];
+    const { dialog } = await oppna({ delningar });
+    expect(within(dialog).getByText("https://my.life-hub.app/g/grupp/lib/avtal-p1-k7f3q9x2")).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Kopiera adressen" })).toBeInTheDocument();
+    expect(dialog.querySelector("[data-lankrad-kod]")?.textContent).toBe("Med kod");
+    expect(within(dialog).queryByRole("button", { name: "Skapa länk" })).toBeNull();
   });
 });
 
