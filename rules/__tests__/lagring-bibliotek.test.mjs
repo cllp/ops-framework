@@ -115,3 +115,23 @@ describe("Lagring: ljud har ett eget tak (CP 2026-10-18, WAV)", () => {
     await assertFails(uploadBytes(ref(lagringSom(AGARE), `grupper/${CPS}/bibliotek/g1/bild.jpg`), stor, { contentType: "image/jpeg" }));
   });
 });
+
+describe("Lagring: video har ett eget tak på 100 MB (CP 2026-10-19, cllp/lifehub.app#358)", () => {
+  const mp4 = { contentType: "video/mp4" };
+  it("⛔ en mp4 över 25 MB går in, en PDF av samma storlek gör det inte", async () => {
+    const stor = new Uint8Array(26 * 1024 * 1024);
+    await assertSucceeds(uploadBytes(ref(lagringSom(AGARE), `grupper/${CPS}/bibliotek/g1/rep.mp4`), stor, mp4));
+    await assertFails(uploadBytes(ref(lagringSom(AGARE), `grupper/${CPS}/bibliotek/g1/rep.pdf`), stor, PDF));
+  });
+  it("⛔ 100 MB går in och 100 MB + 1 gör det inte, och quicktime (iPhones .mov) gäller som mp4", async () => {
+    await assertSucceeds(uploadBytes(ref(lagringSom(AGARE), `grupper/${CPS}/bibliotek/g1/rep.mp4`), new Uint8Array(100 * 1024 * 1024), mp4));
+    await assertFails(uploadBytes(ref(lagringSom(AGARE), `grupper/${CPS}/bibliotek/g1/rep2.mp4`), new Uint8Array(100 * 1024 * 1024 + 1), mp4));
+    await assertSucceeds(uploadBytes(ref(lagringSom(AGARE), `grupper/${CPS}/bibliotek/g1/rep.mov`), new Uint8Array(30 * 1024 * 1024), { contentType: "video/quicktime" }));
+  });
+  it("⛔ ett videoformat som inte står i FILMIME nekas, hur litet det än är", async () => {
+    await assertFails(uploadBytes(ref(lagringSom(AGARE), `grupper/${CPS}/bibliotek/g1/rep.webm`), new Uint8Array(1024), { contentType: "video/webm" }));
+  });
+  it("ljudets tak är oförändrat: en WAV över 100 MB går in", async () => {
+    await assertSucceeds(uploadBytes(ref(lagringSom(AGARE), `grupper/${CPS}/bibliotek/g1/lat.wav`), new Uint8Array(100 * 1024 * 1024 + 1), { contentType: "audio/wav" }));
+  });
+});

@@ -48,6 +48,12 @@ export const MAX_BIBLIOTEKFIL = 25 * 1024 * 1024;
  * ⛔ BARA LJUD. Bilder och dokument behåller `MAX_BIBLIOTEKFIL`. Samma tal i regeln för posten och för lagringen.
  */
 export const MAX_BIBLIOTEKLJUD = 250 * 1024 * 1024;
+/**
+ * Taket för en videofil: 100 MB (CP 2026-10-19, cllp/lifehub.app#358: "Vi behöver kunna lägga upp upp till 100mb filer. Wav är vanligt
+ * och nödvändigt. Men andra filer kan vi ha mindre storlek på."). Ljud behåller sina 250 MB och övriga filer sina 25 MB.
+ * ⛔ BARA VIDEO. Samma tal i regeln för posten och för lagringen, och båda får det ur `FILTAK` nedan, aldrig ur en egen kopia.
+ */
+export const MAX_BIBLIOTEKVIDEO = 100 * 1024 * 1024;
 /** Inspelning av en idé, i sekunder. TALK behåller sitt eget tak på 120. */
 export const IDE_MAX_SEKUNDER = 10 * 60;
 /**
@@ -336,9 +342,38 @@ export const FILMIME = /** @type {const} */ ([
   "audio/wav",
   "audio/aiff",
   "audio/flac",
+  // ⛔ VIDEO (0.127.0, cllp/lifehub.app#358): mp4 och iPhones quicktime (.mov). Andra videoformat tas inte emot förrän någon ber om dem.
+  "video/mp4",
+  "video/quicktime",
   "application/pdf",
   "text/plain",
 ]);
+
+/**
+ * Taken per MIME-familj, UTÖVER `MAX_BIBLIOTEKFIL` som gäller allt annat. ⛔ ETT HEM FÖR VARJE TAK (regel 2): `filTak` (klienten),
+ * Firestore-regeln för posten och Storage-regeln läser alla ur den här listan. Före 0.127.0 stod ljudets tak som en kopia i
+ * båda reglerna (`'^audio/.*'` i regler.js) och som en `startsWith("audio/")` i `filTak`: en tredje familj hade krävt tre handskrivna
+ * ändringar, och den som glömde en hade fått en klient som släpper in en fil lagringen nekar.
+ *
+ * @type {ReadonlyArray<{ familj: string, monster: string, tak: number, ord: string }>}
+ */
+export const FILTAK = Object.freeze([
+  Object.freeze({ familj: "audio", monster: "^audio/.*", tak: MAX_BIBLIOTEKLJUD, ord: "ljud" }),
+  Object.freeze({ familj: "video", monster: "^video/.*", tak: MAX_BIBLIOTEKVIDEO, ord: "video" }),
+]);
+
+/**
+ * Regeluttrycket för filens storlek, härlett ur `MAX_BIBLIOTEKFIL` och `FILTAK`: under det allmänna taket, eller under familjens tak.
+ *
+ * @param {string} mime Regeluttrycket för filens MIME, till exempel `d.fil.mime`.
+ * @param {string} storlek Regeluttrycket för filens storlek, till exempel `d.fil.byte`.
+ * @param {string} [radbrott] Mellanrummet före varje alternativ. Förval ett blanksteg (en rad); Storage-regeln skickar ett radbrott med indrag.
+ * @returns {string}
+ */
+export function filtakRegel(mime, storlek, radbrott = " ") {
+  const grenar = FILTAK.map((g) => `${radbrott}|| (${mime}.matches('${g.monster}') && ${storlek} <= ${g.tak})`).join("");
+  return `(${storlek} <= ${MAX_BIBLIOTEKFIL}${grenar})`;
+}
 
 /** Fälten i `fil`. Samma lista i regelns `hasOnly`. */
 export const FILFALT = /** @type {const} */ (["sokvag", "namn", "mime", "byte", "klar"]);
@@ -628,39 +663,48 @@ const MIMEALIAS = {
   "audio/vnd.wave": "audio/wav",
   "audio/x-aiff": "audio/aiff",
   "audio/x-flac": "audio/flac",
+  // ⛔ SAMMA FORMAT, FLERA NAMN, VIDEO (0.127.0). En .m4v är en mp4 med ett annat namn, och Safari rapporterar den som video/x-m4v.
+  "video/x-m4v": "video/mp4",
 };
 
 /**
- * Taket för en fil med den här MIME:n: `MAX_BIBLIOTEKLJUD` för ljud, annars `MAX_BIBLIOTEKFIL`.
+ * Taket för en fil med den här MIME:n: familjens tak ur `FILTAK` (ljud 250 MB, video 100 MB), annars `MAX_BIBLIOTEKFIL`.
  * @param {unknown} mime
  * @returns {number}
  */
 export function filTak(mime) {
-  return normaliseraMime(mime).startsWith("audio/") ? MAX_BIBLIOTEKLJUD : MAX_BIBLIOTEKFIL;
+  const m = normaliseraMime(mime);
+  return FILTAK.find((g) => m.startsWith(`${g.familj}/`))?.tak ?? MAX_BIBLIOTEKFIL;
 }
 
 /**
- * MIME ur filnamnet när webbläsaren inte säger någon (Safari ger ofta tom typ för AIFF och FLAC). Bara ljudformaten som
- * annars faller bort. Tom sträng när ändelsen är okänd.
+ * MIME ur filnamnet när webbläsaren inte säger någon (Safari ger ofta tom typ för AIFF och FLAC, och Windows för .mov). Bara
+ * ljudformaten och videoformaten som annars faller bort. `.mp4` och `.m4v` ger `video/mp4`, `.mov` ger `video/quicktime`. Tom sträng
+ * när ändelsen är okänd.
  * @param {unknown} namn
  * @returns {string}
  */
 export function mimeUrFilnamn(namn) {
   const m = /\.([a-z0-9]+)$/i.exec(str(namn));
   const andelse = m ? m[1].toLowerCase() : "";
-  return ({ wav: "audio/wav", wave: "audio/wav", aif: "audio/aiff", aiff: "audio/aiff", flac: "audio/flac" })[andelse] ?? "";
+  return ({ wav: "audio/wav", wave: "audio/wav", aif: "audio/aiff", aiff: "audio/aiff", flac: "audio/flac", mp4: "video/mp4", m4v: "video/mp4", mov: "video/quicktime" })[andelse] ?? "";
 }
 
 /**
  * Hur vyn visar filen. Härlett ur MIME, lagras inte.
  *
+ * ⛔ VIDEO HAR EN EGEN SORT MEN INGEN EGEN FLIK (0.127.0). Sorten styr ikon, etikett och att detaljen spelar filen med en `<video>`.
+ * Fliken Dokument visar den (`BIBLIOTEKFLIKAR` har samma sex som SessionStudio, och en sjunde för en sort ensam är en funktion förebilden inte har,
+ * regel 13): se `filtreraBibliotek`.
+ *
  * @param {unknown} mime
- * @returns {"bild" | "ljud" | "dokument"}
+ * @returns {"bild" | "ljud" | "video" | "dokument"}
  */
 export function filSort(mime) {
   const m = normaliseraMime(mime);
   if (m.startsWith("image/")) return "bild";
   if (m.startsWith("audio/")) return "ljud";
+  if (m.startsWith("video/")) return "video";
   return "dokument";
 }
 
@@ -735,7 +779,10 @@ export function filInmatningsfel(fil) {
   const byte = fil?.byte;
   if (!Number.isInteger(byte) || /** @type {number} */ (byte) < 1) return "Filen är tom.";
   const tak = filTak(mime);
-  if (/** @type {number} */ (byte) > tak) return `Filen är ${byte} byte. Taket är ${tak}${tak === MAX_BIBLIOTEKLJUD ? " för ljud" : ""}.`;
+  if (/** @type {number} */ (byte) > tak) {
+    const familj = FILTAK.find((g) => g.tak === tak && mime.startsWith(`${g.familj}/`));
+    return `Filen är ${byte} byte. Taket är ${tak}${familj ? ` för ${familj.ord}` : ""}.`;
+  }
   return null;
 }
 
@@ -1070,7 +1117,8 @@ export function filtreraBibliotek(poster, val = {}) {
       if (flik === "alla") return true;
       if (flik === "ljud") return arLjudpost(p);
       if (flik === "bild") return p.typ === "fil" && filSort(p.fil?.mime) === "bild";
-      if (flik === "fil") return p.typ === "fil" && filSort(p.fil?.mime) === "dokument";
+      // ⛔ Dokument-fliken är resten av filerna, video inbegripet (0.127.0): se `filSort`.
+      if (flik === "fil") return p.typ === "fil" && ["dokument", "video"].includes(filSort(p.fil?.mime));
       return p.typ === flik;
     })
     .filter((p) => {

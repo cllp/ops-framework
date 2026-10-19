@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import * as Popover from "@radix-ui/react-popover";
 import * as Tabs from "@radix-ui/react-tabs";
-import { Check, File as FilIkon, FileText, Globe, Image as BildIkon, Library, Link2, Mic, Plus, SlidersHorizontal, Tag, X } from "lucide-react";
+import { Check, File as FilIkon, FileText, Globe, Image as BildIkon, Library, Link2, Mic, Plus, SlidersHorizontal, Tag, Video as VideoIkon, X } from "lucide-react";
 import { OpsAtgardsblad } from "./OpsAtgardsblad.jsx";
 import { OpsDokument } from "./OpsDokument.jsx";
 import { OpsMarkdown } from "./OpsMarkdown.jsx";
@@ -1377,6 +1377,7 @@ function TypIkon({ post }) {
     const sort = filSort(post.fil?.mime);
     if (sort === "ljud") return <Mic size={20} aria-hidden="true" className="text-typ-ljud" />;
     if (sort === "bild") return <BildIkon size={20} aria-hidden="true" className="text-typ-lank" />;
+    if (sort === "video") return <VideoIkon size={20} aria-hidden="true" className="text-ink-secondary" />;
     return <FilIkon size={20} aria-hidden="true" className="text-ink-secondary" />;
   }
   if (post.typ === "lank") return <Globe size={20} aria-hidden="true" className="text-typ-lank" />;
@@ -1409,7 +1410,7 @@ function typEtikett(post) {
   if (post.typ === "anteckning") return "Anteckning";
   if (post.typ === "lank") return "Länk";
   const sort = filSort(post.fil?.mime);
-  const namn = sort === "ljud" ? "Ljud" : sort === "bild" ? "Bild" : "Dokument";
+  const namn = sort === "ljud" ? "Ljud" : sort === "bild" ? "Bild" : sort === "video" ? "Video" : "Dokument";
   const ur = /\.([a-z0-9]{1,6})$/i.exec(post.fil?.namn ?? "")?.[1] ?? /\/([a-z0-9.+-]+)$/i.exec(post.fil?.mime ?? "")?.[1]?.replace(/^x-/, "") ?? "";
   return ur ? `${namn} · ${ur}` : namn;
 }
@@ -1693,6 +1694,20 @@ function FilVisning({ post, lage, kopplad, onLjus, onMeta, onRadera }) {
         styrId={id}
         onMeta={id && onMeta ? (meta) => onMeta(id, meta) : undefined}
       />
+    );
+  }
+  if (sort === "video") {
+    // ⛔ EN VANLIG `<video controls playsinline>` UTAN EGEN SPELARE (CP 2026-10-19, cllp/lifehub.app#358). `playsInline` så att iPhone spelar
+    // i sidan och inte tvingar helskärm. `preload="metadata"` hämtar bara första bilden och längden: en fil på 100 MB laddas inte ner av att
+    // posten öppnas. Länken under är utvägen när webbläsaren inte kan avkoda filen (en iPhone-film i HEVC i en webbläsare utan stöd): då syns
+    // en svart ruta, och utan länken finns ingenstans att gå.
+    return (
+      <div data-bibliotek-fil="" className="flex flex-col gap-2">
+        <video data-bibliotek-video="" src={adress} controls playsInline preload="metadata" aria-label={post.rubrik ?? namn} className="block h-auto max-h-96 w-full rounded-lg bg-sunken" />
+        <a href={adress} target="_blank" rel="noopener noreferrer" className="w-fit text-etikett text-accent underline underline-offset-2">
+          {rad}
+        </a>
+      </div>
     );
   }
   return (
