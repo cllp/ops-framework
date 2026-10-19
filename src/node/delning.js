@@ -32,7 +32,7 @@
 
 // @ts-expect-error Noden har crypto. Ramverket har inga Node-typer: lib är DOM, för webben. Samma rad som i inbjudan.js.
 import { createHash, randomBytes } from "node:crypto";
-import { arLjudpost, arMittBibliotek, ljudRubrik, mittBibliotek, peaksGiltiga, trimSomRegeln } from "../lib/bibliotek.js";
+import { arLjudpost, arMittBibliotek, gruppForPlats, ljudRubrik, mittBibliotek, peaksGiltiga, trimSomRegeln } from "../lib/bibliotek.js";
 import { DELNINGSDAGAR, SIGNERAD_SEKUNDER, TOKENFORM, delningsTyp } from "../lib/delning.js";
 import { medlemskapsId } from "../lib/grupp.js";
 
@@ -200,7 +200,9 @@ export function createDelningService(konfig) {
    * @param {string} groupId
    */
   async function aktivtMedlemskap(uid, groupId) {
-    const rad = await kalla.read(MEDLEMSKAP, medlemskapsId(uid, groupId));
+    // ⛔ EN HÄNDELSES FILER DELAR GRUPPENS MEDLEMSKAP (0.121.0, lifehub.app#366). Platsen `handelse~<grupp>~<händelse>` är ingen grupp, och ett
+    // medlemskap med hela strängen som grupp finns inte: utan uppslaget via `gruppForPlats` hade en händelsefil nekats tyst, för alla.
+    const rad = await kalla.read(MEDLEMSKAP, medlemskapsId(uid, gruppForPlats(groupId)));
     return rad && rad.status === "aktiv" && rad.typ !== "agent" ? rad : null;
   }
 

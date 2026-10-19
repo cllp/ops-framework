@@ -55,6 +55,10 @@ const ut = path.join(rot, "rules", "provregler.rules");
  * ⛔ DELNINGSLÄNKARNA (0.119.0, lifehub.app#356): `delningsregelfragment("delningar")`. Namnet är påhittat, som hos en app. Catch-all nekar
  *   också, så `rules/__tests__/delningar.test.mjs` läser att just det här blocket finns i den genererade texten.
  *
+ * ⛔ EN HÄNDELSES FILER (0.121.0, lifehub.app#366): `bibliotekregelfragment("bibliotek", { handelser: "handelser" })` och
+ *   `lagringsregelfragment({ bibliotek: { ..., handelsefiler: true } })`. `handelser` är samma påhittade app-samling som ovan
+ *   (`gruppadSamling("handelser")`), så händelsens grupp slås upp där. Utan flaggorna är båda texterna byte för byte de förra.
+ *
  * ⛔ BESKRIVNA APPAR (0.99.0): `beskrivenappdataregelfragment("appdata")` och `beskrivningsregelfragment("appbeskrivningar")`.
  *   Namnen är påhittade, som hos en app.
  */
@@ -72,7 +76,7 @@ ${samtalsregelfragment({ tradar: "tradar", status: "status", reaktioner: "reakti
 ${kalenderregelfragment()}
 ${handelseregelfragment()}
 ${mejlregelfragment("mejlko")}
-${bibliotekregelfragment("bibliotek")}
+${bibliotekregelfragment("bibliotek", { handelser: "handelser" })}
 ${delningsregelfragment("delningar")}
 ${minnesregelfragment("gruppmine")}
 ${modulinstallningsregelfragment("modulinstallningar")}
@@ -110,7 +114,7 @@ const utLagring = path.join(rot, "rules", "provlagring.rules");
 const lagring = `rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-${lagringsregelfragment({ bibliotek: { gruppPrefix: "grupper", postPrefix: "bibliotek", samling: "bibliotek" } })}
+${lagringsregelfragment({ bibliotek: { gruppPrefix: "grupper", postPrefix: "bibliotek", samling: "bibliotek", handelsefiler: true } })}
     match /{allaFiler=**} {
       allow read, write: if false;
     }

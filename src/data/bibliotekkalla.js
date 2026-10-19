@@ -28,7 +28,7 @@
  * strömma utan att kunna hade varit den tysta nedfallsväg `contract.js` varnar för. Ingen polling.
  */
 
-import { byggPost, farAndra, filInmatningsfel, filSort, kodaToppar, mimeUrFilnamn, normaliseraMime, peaksGiltiga, postFel, trimSomRegeln, MAX_LJUD_MS, MAX_BIBLIOTEKFIL } from "../lib/bibliotek.js";
+import { arHandelseBibliotek, byggPost, farAndra, filInmatningsfel, filSort, kodaToppar, mimeUrFilnamn, normaliseraMime, peaksGiltiga, postFel, trimSomRegeln, MAX_LJUD_MS, MAX_BIBLIOTEKFIL } from "../lib/bibliotek.js";
 import { metaUrBytes, wavMetaUrBlob } from "../lib/ljudspelare.js";
 import { byggSkapare } from "../lib/skapare.js";
 import { FALT_BORT } from "./contract.js";
@@ -426,6 +426,13 @@ export async function flyttaBibliotekspost(inmatning) {
   if (satt !== "flytta" && satt !== "kopiera") throw new Error(`flyttaBibliotekspost: satt är "flytta" eller "kopiera", inte "${satt}".`);
   if (!fran || !till || typeof fran.hamta !== "function" || typeof till.spara !== "function") {
     throw new Error("flyttaBibliotekspost: fran och till krävs, två källor ur createBibliotekskalla.");
+  }
+  // ⛔ EN HÄNDELSES BIBLIOTEK FLYTTAS INTE TILL ELLER FRÅN (0.121.0, lifehub.app#366). En flytt är ett beslut om vem som ser filen, och en
+  // händelsefils synlighet är händelsens. In skulle publicera en privat fil för gruppen eller gömma en fil för dem som söker i gruppens
+  // bibliotek; ut skulle klippa loss biljetten från bion. Och flytten kontrollerar inte händelsens villkor i klienten. Kastar hellre än
+  // tiger: en flytt som tyst gjorde något annat hade sett ut som att den gått bra (regel 5).
+  if (arHandelseBibliotek(fran.groupId) || arHandelseBibliotek(till.groupId)) {
+    throw new Error("flyttaBibliotekspost: en händelses bibliotek flyttas inte till eller från. Filerna hör till händelsen och får sin synlighet av den.");
   }
   if (fran.groupId === till.groupId) throw new Error("Posten ligger redan där.");
   const post = await fran.hamta(id);

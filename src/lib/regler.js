@@ -38,7 +38,7 @@ import {
 import { ID_FORM, KATALOGAVGRANSARE, KATEGORIFALT } from "./katalog.js";
 import { INSTALLNINGSVARDEFALT, MAX_INSTALLNINGSGRUPP, MAX_INSTALLNINGSID, MAX_INSTALLNINGSTEXT, MAX_MODULINSTALLNINGAR, MODULINSTALLNINGFALT, VISA_I_HUVUDMENYN } from "./modulinstallningar.js";
 import { MAX_TYPAVVIKELSER, MAX_TYPID, MAX_TYPNAMN, MODULTYPID_FORM, TYPAVVIKELSEFALT, TYPYTOR } from "./modultyper.js";
-import { ADRESSFORM, BIBLIOTEKFALT, BIBLIOTEKTYPER, FILFALT, LJUD_STOLPAR, MITT_PREFIX, MAX_BIBLIOTEKFIL, MAX_BIBLIOTEKLJUD, MAX_BIBLIOTEKFILNAMN, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKSOKVAG, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, MAX_BIBLIOTEKUTSKRIFT, MAX_LJUD_MS, MAX_TAGGAR, TAGGFORM, TOPPFORM, filMimeMonster } from "./bibliotek.js";
+import { ADRESSFORM, BIBLIOTEKFALT, BIBLIOTEKTYPER, FILFALT, HANDELSEFORM, HANDELSE_PREFIX, LJUD_STOLPAR, MITT_PREFIX, MAX_BIBLIOTEKFIL, MAX_BIBLIOTEKLJUD, MAX_BIBLIOTEKFILNAMN, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKSOKVAG, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, MAX_BIBLIOTEKUTSKRIFT, MAX_LJUD_MS, MAX_TAGGAR, TAGGFORM, TOPPFORM, filMimeMonster } from "./bibliotek.js";
 import { MAX_MINNESID, MAX_MINNESTEXT, MINNESFALT, MINNESKALLAFALT, MINNESKALLOR } from "./minne.js";
 import { MAX_SKAPARKALLA, MAX_SKAPARNAMN, SKAPARFALT } from "./skapare.js";
 import { BESKRIVENAPPDATAFALT, BESKRIVNINGSDOKUMENTFALT, BESKRIVNINGSFALT, BESKRIVNINGSFORMAT, BESKRIVNINGSIDFORM, MAX_APPBESKRIVNING, MAX_BESKRIVNINGSNAMN, MAX_FALT, MAX_LISTOR, MIN_LISTOR } from "./beskrivenapp.js";
@@ -449,7 +449,13 @@ ${
  * limmas den in av appen, den här gången i `storage.rules`, inuti
  * `match /b/{bucket}/o`. Ramverket genererar, appen committar och deployar.
  *
- * @param {{ prefix?: string, bibliotek?: { gruppPrefix: string, postPrefix: string, samling: string, medlemskap?: string } }} [konfig]
+ * ⛔ EN HÄNDELSES FILER (0.121.0, lifehub.app#366): `bibliotek.handelsefiler: true` släpper in platsen `handelse~<grupp>~<händelse>` i
+ * `{groupId}`. Behörigheten är gruppens medlemskap, tolkat ur platsen, och posten måste finnas med samma plats: två dokument, som för en
+ * grupp. Att händelsen finns och ligger i gruppen prövar Firestore-regeln när posten skapas (`bibliotekregelfragment` med `handelser`),
+ * inte den här: ett tredje dokument i Storage-regeln hade varit ett uppslag till vid varje läsning och skrivning av en fil, utan att tillföra
+ * något som posten inte redan bär (den kunde bara skapas under en händelse som fanns). Utan flaggan är texten byte för byte den förra.
+ *
+ * @param {{ prefix?: string, bibliotek?: { gruppPrefix: string, postPrefix: string, samling: string, medlemskap?: string, handelsefiler?: boolean } }} [konfig]
  *   `prefix` förval `"profilbilder"`. `bibliotek` lägger till filerna, med sökväg
  *   `/{gruppPrefix}/{groupId}/{postPrefix}/{postId}/{filnamn}` som appen namnger.
  * @returns {string}
@@ -486,6 +492,25 @@ export function lagringsregelfragment(konfig = {}) {
   const postPrefix = kontrolleraNamn(konfig.bibliotek.postPrefix, "postPrefix");
   const samling = kontrolleraNamn(konfig.bibliotek.samling, "samling");
   const medlemskap = kontrolleraNamn(konfig.bibliotek.medlemskap ?? "memberships", "medlemskap");
+  const handelsefiler = konfig.bibliotek.handelsefiler === true;
+  // Gruppen vars medlemskap gäller. En händelses plats ger sin grupp, allt annat platsen som den är.
+  const medlemsplats = handelsefiler ? "opsFilMedlemsplats(gid)" : "gid";
+  const handelsefunktioner = handelsefiler
+    ? `    // ⛔ EN HÄNDELSES FILER (0.121.0): platsen ${HANDELSE_PREFIX}<grupp>~<händelse>. Gruppens medlemskap gäller, tolkat ur platsen, och bara om platsen har
+    // exakt den formen (tre delar). Grenarna utesluter varandra: en plats som börjar ${HANDELSE_PREFIX} prövas aldrig som en grupp med hela strängen som id.
+    function opsFilArHandelse(gid) {
+      return gid.matches('(?s)${HANDELSE_PREFIX}.*');
+    }
+    function opsFilMedlemsplats(gid) {
+      return opsFilArHandelse(gid) ? gid.split('~')[1] : gid;
+    }
+`
+    : "";
+  const platsmedlem = handelsefiler
+    ? `opsFilArHandelse(gid)
+        ? (gid.matches('${regelRegex(HANDELSEFORM)}') && opsFilArMedlem(opsFilMedlemsplats(gid)))
+        : opsFilArMitt(gid) ? opsFilMitt(gid) : opsFilArMedlem(gid)`
+    : "opsFilArMitt(gid) ? opsFilMitt(gid) : opsFilArMedlem(gid)";
   return profil + `    // ══ Ramverkets biblioteksfiler. GENERERAD, ändra inte för hand ══
     //
     // Medlemskapet är samma uppslag som Firestore: uid, avgränsare, grupp, status aktiv.
@@ -508,8 +533,8 @@ export function lagringsregelfragment(konfig = {}) {
     function opsFilArMitt(gid) {
       return gid.matches('(?s)${MITT_PREFIX}.*');
     }
-    function opsFilPlatsMedlem(gid) {
-      return opsFilArMitt(gid) ? opsFilMitt(gid) : opsFilArMedlem(gid);
+${handelsefunktioner}    function opsFilPlatsMedlem(gid) {
+      return ${platsmedlem};
     }
     function opsFilFarSkriva(gid, postId) {
       return opsFilPlatsMedlem(gid)
@@ -518,8 +543,8 @@ export function lagringsregelfragment(konfig = {}) {
         && (
           firestore.get(/databases/(default)/documents/${samling}/$(postId)).data.skapadAv.uid == request.auth.uid
           || (!opsFilArMitt(gid) && (
-            firestore.get(/databases/(default)/documents/${medlemskap}/$(request.auth.uid + '${MEDLEMSKAPSAVGRANSARE}' + gid)).data.roll == 'agare'
-            || firestore.get(/databases/(default)/documents/${medlemskap}/$(request.auth.uid + '${MEDLEMSKAPSAVGRANSARE}' + gid)).data.roll == 'admin'
+            firestore.get(/databases/(default)/documents/${medlemskap}/$(request.auth.uid + '${MEDLEMSKAPSAVGRANSARE}' + ${medlemsplats})).data.roll == 'agare'
+            || firestore.get(/databases/(default)/documents/${medlemskap}/$(request.auth.uid + '${MEDLEMSKAPSAVGRANSARE}' + ${medlemsplats})).data.roll == 'admin'
           ))
         );
     }
@@ -1680,8 +1705,20 @@ ${bilagaRegelfunktion("opsKommentarbilagaGiltig")}
  * prefix till "cps-ab", och ett `groupId` med regex-tecken hade blivit en del av uttrycket. Segmenten är jämförda med `==`, så
  * inget av det kan hända.
  *
+ * ⛔ EN HÄNDELSES FILER (0.121.0, lifehub.app#366, docs/beslut/0006). Med `handelser` (appens samlingsnamn för händelser) släpps platsen
+ * `handelse~<grupp>~<händelse>` in som en tredje plats bredvid gruppen och Mitt bibliotek. Posten är densamma, bara `groupId` har en tredje form.
+ *   - LÄSA: aktiv medlem i platsens grupp, OCH händelsen finns, OCH händelsens `groupId` är platsens grupp. Det sista är skyddet mot en
+ *     påhittad plats: utan det läser en medlem i A händelsefilerna för en händelse i B genom att skriva `handelse~A~<B:s händelse>`.
+ *   - SKAPA: som i gruppen (aktiv medlem, en person, som sig själv, serverns klocka) OCH händelsen finns i gruppen OCH typen är \`fil\`.
+ *     "Den som får redigera händelsen" är en aktiv medlem i båda appar och i \`gruppadSamling\`; ingen egen ratt, det hade varit en andra
+ *     konfigurationspunkt att hålla lika med händelsesamlingens.
+ *   - ÄNDRA och RADERA: författaren (aktiv medlem), eller ägare och admin i gruppen. Som i gruppen.
+ *   - GRENARNA UTESLUTER VARANDRA: en plats som börjar \`handelse~\` prövas bara som händelseplats, aldrig som en grupp med hela strängen som id.
+ *   - Utan \`handelser\` är texten byte för byte den förra, och en händelseplats nekas (ett medlemskap med hela strängen som grupp finns inte).
+ *
  * @param {string} namn Samlingsnamnet appen valt.
- * @param {{ gruppPrefix?: string, postPrefix?: string }} [sokvag] Samma namn som `lagringsregelfragment({ bibliotek })` får.
+ * @param {{ gruppPrefix?: string, postPrefix?: string, handelser?: string }} [sokvag] Samma namn som `lagringsregelfragment({ bibliotek })` får.
+ *   `handelser` är appens händelsesamling (ramverket känner inget samlingsnamn). Skicka det och \`handelsefiler: true\` till \`lagringsregelfragment\`.
  *   Förval `grupper` och `bibliotek`. Använder appen andra måste den skicka dem hit också, annars nekas dess egna uppladdningar
  *   (ett högt fel, inte ett tyst släpp).
  * @returns {string}
@@ -1690,12 +1727,40 @@ export function bibliotekregelfragment(namn, sokvag = {}) {
   const samling = kontrolleraNamn(namn, "bibliotek");
   const gruppPrefix = kontrolleraNamn(sokvag.gruppPrefix ?? "grupper", "gruppPrefix");
   const postPrefix = kontrolleraNamn(sokvag.postPrefix ?? "bibliotek", "postPrefix");
+  const handelser = sokvag.handelser === undefined ? null : kontrolleraNamn(sokvag.handelser, "handelser");
   const lista = (/** @type {readonly string[]} */ f) => f.map((x) => `"${x}"`).join(", ");
   // Varje typ har en egen gren nedan. En ny typ i modellen utan sin gren hade nekats tyst i produktion.
   if (BIBLIOTEKTYPER.join(",") !== "anteckning,lank,fil") {
     throw new Error(`bibliotekregelfragment: typerna är ${BIBLIOTEKTYPER.join(", ")}. Fragmentet har grenar för anteckning, lank och fil, och en ny typ behöver sin egen.`);
   }
 
+  const handelseFunktioner = handelser
+    ? `    // ⛔ EN HÄNDELSES FILER (0.121.0, lifehub.app#366): platsen ${HANDELSE_PREFIX}<grupp>~<händelse>. Formen först (exakt tre delar), så att split() nedan alltid
+    // har tre element. Händelsen ska finnas och ligga i platsens grupp, annars öppnar en påhittad plats en annan grupps händelsefiler.
+    // exists FÖRE get, som i opsHarMedlemskap: ett get på något som inte finns är ett fel, inte ett nej.
+    function opsBibliotekArHandelse(gid) {
+      return gid is string && gid.matches('(?s)${HANDELSE_PREFIX}.*');
+    }
+    function opsBibliotekHandelsen(gid) {
+      return /databases/$(database)/documents/${handelser}/$(gid.split('~')[2]);
+    }
+    function opsBibliotekHandelseHor(gid) {
+      return gid.matches('${regelRegex(HANDELSEFORM)}')
+        && exists(opsBibliotekHandelsen(gid))
+        && get(opsBibliotekHandelsen(gid)).data.groupId == gid.split('~')[1];
+    }
+    function opsBibliotekHandelseMedlem(gid) {
+      return opsBibliotekHandelseHor(gid) && opsArMedlem(gid.split('~')[1]);
+    }
+    function opsBibliotekHandelseAdmin(gid) {
+      return opsBibliotekHandelseHor(gid) && opsArAdmin(gid.split('~')[1]);
+    }
+    function opsBibliotekHandelsePerson(gid) {
+      return opsBibliotekHandelseMedlem(gid) && opsMedlemskapet(gid.split('~')[1]).data.typ == 'person';
+    }
+
+`
+    : "";
   return `    // ══ Ramverkets bibliotek. GENERERAD, ändra inte för hand ══
     //
     // Källa: ops-framework, bibliotekregelfragment() i src/lib/regler.js. Kräver regelfragment() ovanför.
@@ -1754,11 +1819,11 @@ ${Array.from({ length: MAX_TAGGAR }, (_, k) => `        && (t.size() < ${k + 1} 
     function opsBibliotekArMitt(gid) {
       return gid is string && gid.matches('(?s)${MITT_PREFIX}.*');
     }
-    function opsBibliotekPlatsMedlem(gid) {
-      return opsBibliotekArMitt(gid) ? opsBibliotekMitt(gid) : opsArMedlem(gid);
+${handelseFunktioner}    function opsBibliotekPlatsMedlem(gid) {
+      return ${handelser ? "opsBibliotekArHandelse(gid) ? opsBibliotekHandelseMedlem(gid) : " : ""}opsBibliotekArMitt(gid) ? opsBibliotekMitt(gid) : opsArMedlem(gid);
     }
     function opsBibliotekPlatsAdmin(gid) {
-      return opsBibliotekArMitt(gid) ? false : opsArAdmin(gid);
+      return ${handelser ? "opsBibliotekArHandelse(gid) ? opsBibliotekHandelseAdmin(gid) : " : ""}opsBibliotekArMitt(gid) ? false : opsArAdmin(gid);
     }
 
     function opsBibliotekspostGiltig(d, postId) {
@@ -1771,7 +1836,8 @@ ${Array.from({ length: MAX_TAGGAR }, (_, k) => `        && (t.size() < ${k + 1} 
         && d.skapadAv.typ == "manniska"
         && d.skapadAv.kalla is string
         && d.andrad >= d.skapad
-        && (
+${handelser ? `        && (!opsBibliotekArHandelse(d.groupId) || d.typ == "fil")
+` : ""}        && (
           (d.typ == "anteckning"
             && d.text.trim().size() > 0
             && d.text.size() <= ${MAX_BIBLIOTEKTEXT}
@@ -1812,7 +1878,9 @@ ${Array.from({ length: MAX_TAGGAR }, (_, k) => `        && (t.size() < ${k + 1} 
     match /${samling}/{id} {
       allow read: if opsBibliotekPlatsMedlem(resource.data.groupId);
       allow create: if (
-          opsBibliotekArMitt(request.resource.data.groupId)
+${handelser ? `          opsBibliotekArHandelse(request.resource.data.groupId)
+            ? opsBibliotekHandelsePerson(request.resource.data.groupId)
+            : ` : "          "}opsBibliotekArMitt(request.resource.data.groupId)
             ? opsBibliotekMitt(request.resource.data.groupId)
             : (opsArMedlem(request.resource.data.groupId) && opsMedlemskapet(request.resource.data.groupId).data.typ == 'person')
         )
