@@ -11,6 +11,26 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ## Ej utgivet
 
+## 0.123.0
+
+cllp/lifehub.app#371, ramverkets del: ändra en post i en egen kalender, och flytta en post eller en händelse till en annan kalender. Designen och valen står i `docs/beslut/0008-flytta-mellan-kalendrar.md`, CP:s beslut i https://github.com/cllp/lifehub.app/issues/371#issuecomment-6272062625. Appens delar (pennan för ägaren, redigeringshooken för poster, listan och `onFlytta` i panelen, callable som anropar tjänsten, regeldeploy behövs inte) kommer efter ompinningen.
+Inga ändringar i postens fält, ingen ny samling och ingen ny typ. Kalenderregelfragmentet är byte för byte detsamma som 0.122.0. ⛔ Följder att veta om: en app som inte ger `flyttmal` märker ingenting, och `useOppnaSkapa()("handelse", { id })` med ett id som inte börjar på `post~` gör exakt det den gjorde.
+
+### Ändra en post och flytta mellan kalendrar (CP 2026-10-19, #371), Claude 2026-10-19
+CP, med en skärmbild av GSEMS-händelsen i Barnveckor: "Det går dock inte att ändra en händelse. Vidare borde det gå att flytta en händelse till en annan kalender." Efter 0.120.0 öppnades en post i detaljvyn men bara för läsning, och ingen väg fanns att byta kalender.
+- Pennan för en post är panelens `onRedigera` (den fanns). Det som saknades var skalets redigeringsläge: `useOppnaSkapa()("handelse", { id: postHandelseId(post.id) })` öppnar formuläret för en post i en av mina kalendrar. Väljaren visar bara mina kalendrar, typen ritas inte, och "Blockerar tillgänglighet" fylls i ur nya `HandelseRedigering.blockerar`. Prefixet tolkas med `postIdUrHandelseId` på det ställe som redan ägde det.
+- `flyttmal({ fran, mina, grupper, farRedigera?, sprak? })` (ren funktion): vart något får flyttas. En post: mina andra kalendrar (`byt`) och gruppernas kalendrar (`konvertera`). En händelse: bara sin grupps andra kalendrar (`byt`), bara när `farRedigera` är exakt `true`. Gruppkalender till egen kalender och till en annan grupp erbjuds aldrig. Arkiverade och kalendern det ligger i erbjuds inte. `postensTidsfalt(post)` är postens tid som en händelses fält, den enda omvandlingen.
+- `OpsHandelsePanel` får `flyttmal` och `onFlytta`: "Flytta till kalender" under informationsrutan, bara med minst ett val. Ett byte sker direkt; en post till en gruppkalender bekräftas först med gruppens namn och att medlemmarna ser den. Faller anropet visas orsaken (`role="alert"`) och rutan står kvar; ett dubbeltryck skickar en flytt. Nya orddelar: `flyttaEtikett`, `flyttaMinaRubrik`, `bekraftaTitel`, `bekraftaText`, `bekraftaKnapp`, `avbrytEtikett`, `stangEtikett`, `flyttFelEtikett`, på svenska och engelska.
+- `createFlyttaService({ kalla, samlingar, byggHandelse, farRedigera?, farSkapa?, klocka? })` (`ops-framework/node`): `flyttaPost`, `flyttaHandelse` och `goraPostTillHandelse`. Konverteringen skapar händelsen och tar bort posten i EN batch (en källa utan batch nekas när tjänsten byggs), händelsen får postens id så att unikhet är en nyckel, och tid, grupp och kalender sätts ur posten, inte av appen. Medlemskapet prövas alltid först (aktiv, inte en agent); appens snävare regler kommer efter. Felen bär `kod` (`FLYTTFELKODER`).
+
+### Gjordes inte
+- Allt i appen: pennan för ägaren, `redigera`-hooken för poster, `flyttmal` och `onFlytta` i panelen, callable som anropar tjänsten, och ompinningen.
+- Flytt från en gruppkalender till en egen kalender och mellan grupper (beslutat bort, se beslut 0008). Ingen flytt av flera poster på en gång, ingen ångra efter en konvertering, och ingen aktivitetslogg över flytten.
+- Montage mot SessionStudio (regel 12): ärendet citerar ingen SS-skärmbild, så regeln utlöses inte.
+
+### Prov, rött utan fixen och grönt med
+- Se PR-texten för utfallen. Nya: `src/__tests__/flytta.test.js` (listan och tidsomvandlingen), `flytta-service.test.js` (tjänsten över ett minne), `flytta-vy.test.jsx` (panelen, hela kedjan över den riktiga tjänsten), `postredigering.test.jsx` (skalets läge för en post), `rules/__tests__/postandring.test.mjs` (Firestore i emulatorn, 8 prov).
+
 ## 0.122.0
 
 cllp/lifehub.app#366 punkt 3, ramverkets del (R1): filer på ett ärende. Designen står i `docs/beslut/0007-arendefiler-pa-arende.md`, CP:s beslut i https://github.com/cllp/lifehub.app/issues/366#issuecomment-6271704171. Appens delar (A1 till A4: datum och synlig bilaga, regeldeploy och sektionen Filer, ärendet som en post med länken nycklad på dess id, kalenderlagret) kommer efter ompinningen.
