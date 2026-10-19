@@ -261,9 +261,9 @@ describe("OpsDeladHandelse: lägena", () => {
 
   it("⛔ inga tankstreck någonstans på sidan, på något språk", () => {
     const { container, rerender } = render(<OpsDeladHandelse delning={HANDELSE} sprak="sv" />);
-    expect(container.textContent).not.toMatch(/[—–]/);
+    expect(container.textContent).not.toMatch(/[\u2014\u2013]/);
     rerender(<OpsDeladHandelse delning={HANDELSE} sprak="en" />);
-    expect(container.textContent).not.toMatch(/[—–]/);
+    expect(container.textContent).not.toMatch(/[\u2014\u2013]/);
   });
 });
 

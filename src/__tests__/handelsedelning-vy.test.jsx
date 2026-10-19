@@ -324,8 +324,8 @@ describe("Delade länkar: rutan Dela", () => {
       const { container, unmount } = render(<Panel delningar={[lank("a1", { harKod: true, giltigTill: NU })]} sprak={sprak} onDela={vi.fn()} />);
       fireEvent.click(within(container).getByRole("button", { name: sprak === "sv" ? "Dela" : "Share" }));
       const dialog = await screen.findByRole("dialog");
-      expect(dialog.textContent).not.toMatch(/[—–]/);
-      expect(sektion(container)?.textContent).not.toMatch(/[—–]/);
+      expect(dialog.textContent).not.toMatch(/[\u2014\u2013]/);
+      expect(sektion(container)?.textContent).not.toMatch(/[\u2014\u2013]/);
       unmount();
     }
   });

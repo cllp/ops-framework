@@ -26,7 +26,7 @@ describe("adressdel: text till en del av en adress", () => {
   it("gemener, å/ä/ö till a/a/o, och allt annat till ETT bindestreck", () => {
     expect(adressdel("Resa med kusiner")).toBe("resa-med-kusiner");
     expect(adressdel("Åke på Öland, äntligen!")).toBe("ake-pa-oland-antligen");
-    expect(adressdel("Café Æsir & Ørsted – ß")).toBe("cafe-aesir-orsted-ss");
+    expect(adressdel("Café Æsir & Ørsted \u2013 ß")).toBe("cafe-aesir-orsted-ss");
     expect(adressdel("  --Hej   världen--  ")).toBe("hej-varlden");
     expect(adressdel("a___b///c")).toBe("a-b-c");
   });
@@ -195,7 +195,7 @@ describe("kortDatum, antalDagar och deladTid", () => {
 
   it("⛔ inga tankstreck någonstans i det sidan skriver", () => {
     const alla = [deladTid({ datum: "2026-12-26", slutDatum: "2027-01-10", tid: "09:00", slutTid: "17:00" }, "sv"), deladTid({ datum: "2026-12-26", heldag: true }, "en")];
-    expect(JSON.stringify(alla)).not.toMatch(/[—–]/);
+    expect(JSON.stringify(alla)).not.toMatch(/[\u2014\u2013]/);
   });
 });
 
