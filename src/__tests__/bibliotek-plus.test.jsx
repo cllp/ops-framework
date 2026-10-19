@@ -1,6 +1,7 @@
+import { useState } from "react";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { OpsAppShell } from "../components/OpsAppShell.jsx";
+import { OpsAppShell, useOppnaInspelning } from "../components/OpsAppShell.jsx";
 import { OpsBibliotek } from "../components/OpsBibliotek.jsx";
 import { IDE_MAX_SEKUNDER } from "../lib/bibliotek.js";
 import { validateModuler } from "../lib/modul.js";
@@ -321,23 +322,97 @@ describe("plussets inspelare och modulens mål", () => {
     });
   });
 
-  it("Röstinspelning utan modulens mål kastas", () => {
-    const onTalk = vi.fn();
-    render(
-      <OpsAppShell
-        brand="Ops"
-        nav={nav}
-        activeHref="/"
-        talk={{ onTalk, inspelare, mal: [{ id: "handelse", etikett: "Händelse" }] }}
-        skapa={{ lage: "g", moduler: validateModuler([bibliotekModul(vi.fn())]), aktivGrupp: { id: "g", moduler: [] } }}
-      >
-        <OpsBibliotek poster={[]} jag={{ uid: "u", roll: "medlem" }} onOppna={() => {}} onStang={() => {}} onSkapa={() => {}} onSpara={() => {}} hubHref="/hub" />
-      </OpsAppShell>,
-    );
-    fireEvent.click(screen.getByRole("button", { name: "Ny post" }));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Röstinspelning" }));
-    expect(screen.getByRole("alert")).toHaveTextContent(/inspelning\.mal/);
-    expect(onTalk).not.toHaveBeenCalled();
+  describe("⛔ Röstinspelning erbjuds bara där det finns en mottagare (cllp/ops-framework#391)", () => {
+    // CP-granskningen av lifehub.app PR 272: på Bibliotekets egen adress, i en grupp som inte har appen (avinstallerad, eller dold i
+    // hubben), stod ramverkets utvecklartext som larm i sidan: "OpsAppShell: modulen "bibliotek" har inget mål på platsen
+    // inspelning.mal i den här gruppen. ... Registrera tillägget och slå på modulen." Användaren kan inte slå på något, och för en dold
+    // app kan inte ens ägaren det. Rotorsaken var att listan erbjöd en åtgärd som kräver ett mål gruppen inte har. Provet gäller därför
+    // vad som ERBJUDS (menyn och Ljud-fliken), inte vilken text ett fel får. Före rättelsen stod raden där och gav utvecklartexten.
+
+    /** @param {string[]} moduler @param {ReturnType<typeof vi.fn>} [spara] */
+    function skalMed(moduler, spara = vi.fn()) {
+      return render(
+        <OpsAppShell
+          brand="Ops"
+          nav={nav}
+          activeHref="/"
+          talk={{ onTalk: vi.fn(), inspelare, mal: [{ id: "handelse", etikett: "Händelse" }] }}
+          skapa={{ lage: "g", moduler: validateModuler([bibliotekModul(spara)]), aktivGrupp: { id: "g", moduler } }}
+        >
+          <OpsBibliotek poster={[]} jag={{ uid: "u", roll: "medlem" }} onOppna={() => {}} onStang={() => {}} onSkapa={() => {}} onSpara={() => {}} hubHref="/hub" />
+        </OpsAppShell>,
+      );
+    }
+
+    it("modulen finns inte i gruppen: Ny-menyn har de tre andra raderna, ingen Röstinspelning, och inget larm", () => {
+      skalMed([]);
+      fireEvent.click(screen.getByRole("button", { name: "Ny post" }));
+      const meny = screen.getByRole("menu", { name: "Ny post" });
+      expect(Array.from(meny.querySelectorAll('[role="menuitem"]')).map((r) => r.textContent)).toEqual(["Anteckning", "Länk", "Fil"]);
+      expect(screen.queryByRole("menuitem", { name: "Röstinspelning" })).toBeNull();
+      expect(screen.queryByRole("alert")).toBeNull();
+    });
+
+    it("modulen finns inte i gruppen: fliken Ljud har ingen Ny-knapp som leder till utvecklartexten", () => {
+      skalMed([]);
+      fireEvent.mouseDown(screen.getByRole("tab", { name: /^Ljud/ }), { button: 0 });
+      expect(screen.queryByRole("button", { name: "Ny röstinspelning" })).toBeNull();
+      expect(screen.queryByRole("alert")).toBeNull();
+    });
+
+    it("modulen finns i gruppen: raden och knappen i Ljud finns, och raden öppnar inspelaren", () => {
+      skalMed(["bibliotek"]);
+      fireEvent.click(screen.getByRole("button", { name: "Ny post" }));
+      expect(screen.getByRole("menuitem", { name: "Röstinspelning" })).toBeTruthy();
+      fireEvent.click(screen.getByRole("menuitem", { name: "Röstinspelning" }));
+      expect(screen.getByText("0:00 / 2:00")).toBeInTheDocument();
+      expect(screen.queryByRole("alert")).toBeNull();
+    });
+
+    it("modulen finns i gruppen: knappen Ny röstinspelning står i fliken Ljud", () => {
+      skalMed(["bibliotek"]);
+      fireEvent.mouseDown(screen.getByRole("tab", { name: /^Ljud/ }), { button: 0 });
+      expect(screen.getByRole("button", { name: "Ny röstinspelning" })).toBeTruthy();
+    });
+
+    it("ett direkt anrop av useOppnaInspelning utan mottagare kastar fortfarande tydligt: det är en felkoppling som utvecklaren ska se", () => {
+      // Raden är borta för användaren, men en app som själv anropar hooken för en modul gruppen inte har gör fel, och tystnad hade sett ut som att ljudet sparades.
+      function Knapp() {
+        const oppna = useOppnaInspelning();
+        const [fel, setFel] = useState("");
+        return (
+          <>
+            <button type="button" onClick={() => { try { oppna("bibliotek"); } catch (e) { setFel(e instanceof Error ? e.message : String(e)); } }}>Spela in</button>
+            {fel ? <p role="alert">{fel}</p> : null}
+          </>
+        );
+      }
+      render(
+        <OpsAppShell brand="Ops" nav={nav} activeHref="/" skapa={{ lage: "g", moduler: validateModuler([bibliotekModul(vi.fn())]), aktivGrupp: { id: "g", moduler: [] } }}>
+          <Knapp />
+        </OpsAppShell>,
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Spela in" }));
+      expect(screen.getByRole("alert")).toHaveTextContent(/inspelning\.mal/);
+    });
+
+    it("appen döljs medan listan står uppe: raden försvinner när gruppen inte längre har modulen", () => {
+      const spara = vi.fn();
+      const moduler = validateModuler([bibliotekModul(spara)]);
+      /** @param {string[]} pa */
+      const traed = (pa) => (
+        <OpsAppShell brand="Ops" nav={nav} activeHref="/" skapa={{ lage: "g", moduler, aktivGrupp: { id: "g", moduler: pa } }}>
+          <OpsBibliotek poster={[]} jag={{ uid: "u", roll: "medlem" }} onOppna={() => {}} onStang={() => {}} onSkapa={() => {}} onSpara={() => {}} hubHref="/hub" />
+        </OpsAppShell>
+      );
+      const { rerender } = render(traed(["bibliotek"]));
+      fireEvent.click(screen.getByRole("button", { name: "Ny post" }));
+      expect(screen.getByRole("menuitem", { name: "Röstinspelning" })).toBeTruthy();
+      fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
+      rerender(traed([]));
+      fireEvent.click(screen.getByRole("button", { name: "Ny post" }));
+      expect(screen.queryByRole("menuitem", { name: "Röstinspelning" })).toBeNull();
+    });
   });
 
   it("skapa.spelaIn kastas, så den gamla raden inte försvinner tyst", () => {

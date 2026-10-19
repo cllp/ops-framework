@@ -744,6 +744,12 @@ const OppnaSkapaKontext = createContext(/** @type {((nyckel: string, extra?: { g
 const OppnaInspelningKontext = createContext(/** @type {((modulId: string) => void) | null} */ (null));
 
 /**
+ * Skalets svar på om en modul har en mottagare för en röstinspelning i den aktiva gruppen (cllp/ops-framework#391). `null` utanför skalet.
+ * @type {import("react").Context<((modulId: string) => boolean) | null>}
+ */
+const KanSpelaInKontext = createContext(/** @type {((modulId: string) => boolean) | null} */ (null));
+
+/**
  * ⛔ Öppnar skalets skapa-panel från appen (0.34.1). Ersätter `window.location.assign(pathname + "?skapa=meddelande")`,
  * som laddade om hela sidan och bara fungerade om posten fanns vid monteringen.
  *
@@ -773,6 +779,22 @@ export function useOppnaSkapa() {
  */
 export function useInspelningOppnare() {
   return useContext(OppnaInspelningKontext);
+}
+
+/**
+ * Har modulen en mottagare för en röstinspelning i den aktiva gruppen? (cllp/ops-framework#391)
+ *
+ * ⛔ EN RAD SOM LOVAR EN INSPELNING FÅR BARA RITAS DÄR DEN GÅR ATT GENOMFÖRA. Skalet svarar ur samma lista som `oppnaInspelning`
+ * öppnar ur (`modulensInspelningsmal`), så frågan och åtgärden inte kan säga olika (regel 2): mottagaren finns bara när modulen är
+ * påslagen i gruppen och har registrerat sitt mål på `inspelning.mal`. En grupp där appen är avinstallerad eller dold har ingen
+ * mottagare, och en rad som ändå ritades gav användaren en utvecklartext hen inte kunde följa.
+ *
+ * `null` utanför skalet: där finns ingen inspelare alls, och en komponent som ritas utan skal ska fortsätta kasta tydligt vid
+ * tryck (en felkoppling som utvecklaren ska se, inte en användare).
+ * @returns {((modulId: string) => boolean) | null}
+ */
+export function useKanSpelaIn() {
+  return useContext(KanSpelaInKontext);
 }
 
 /**
@@ -1754,10 +1776,13 @@ function OpsAppShellRitad({
    * hade försvunnit när personen tryckte Klar.
    * @param {string} modulId
    */
+  const modulensInspelningsmal = (/** @type {string} */ id) => inspelningsMal.filter((m) => m.id.startsWith(`${id}:`) && typeof m.spara === "function");
+  /** @param {string} modulId @returns {boolean} */
+  const kanSpelaIn = (modulId) => typeof modulId === "string" && modulId.trim() !== "" && modulensInspelningsmal(modulId.trim()).length > 0;
   const oppnaInspelning = (modulId) => {
     const id = typeof modulId === "string" ? modulId.trim() : "";
     if (!id) throw new Error("useOppnaInspelning: modulId krävs. Målet väljs ur modulens inspelning.mal, och utan id går det inte att veta vilken modul.");
-    const traffar = inspelningsMal.filter((m) => m.id.startsWith(`${id}:`) && typeof m.spara === "function");
+    const traffar = modulensInspelningsmal(id);
     if (traffar.length === 0) {
       throw new Error(`OpsAppShell: modulen "${id}" har inget mål på platsen inspelning.mal i den här gruppen. Röstinspelningen sparas dit. Registrera tillägget och slå på modulen.`);
     }
@@ -2177,6 +2202,7 @@ function OpsAppShellRitad({
     <OppnaSkapaKontext.Provider value={oppnaFranApp}>
     <OppnaHandelseKontext.Provider value={handelsepanel ? oppnaHandelse : null}>
     <OppnaInspelningKontext.Provider value={oppnaInspelning}>
+    <KanSpelaInKontext.Provider value={kanSpelaIn}>
     <OpsSkapaGenvagar mal={genvagMal}>
     <div className="min-h-dvh bg-canvas">
       {/* ⛔ 0.31.2 (CP 2026-09-29 22:33, appen på hemskärmen, iOS standalone med `viewport-fit=cover` och `black-translucent`): HEADERN
@@ -2764,6 +2790,7 @@ function OpsAppShellRitad({
       ) : null}
     </div>
     </OpsSkapaGenvagar>
+    </KanSpelaInKontext.Provider>
     </OppnaInspelningKontext.Provider>
     </OppnaHandelseKontext.Provider>
     </OppnaSkapaKontext.Provider>

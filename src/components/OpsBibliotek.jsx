@@ -9,7 +9,7 @@ import { OpsModal } from "./OpsModal.jsx";
 import { OpsSvepRad } from "./OpsSvepRad.jsx";
 import { ADRESSFORM, BIBLIOTEKTYPER, MAX_TAGGAR, MAX_TAGGLANGD, allaTaggar, arLjudpost, arMittBibliotek, farAndra, normaliseraTagg, normaliseraTaggar, taggarFel, taggfarg, anteckningsrubrikNu, beskrivObjektbibliotek, filInmatningsfel, mimeUrFilnamn, filadressFel, filSort, filtreraBibliotek, inmatningsfel, ljudDatum, ljudRubrik, normaliseraAdress, trimSomRegeln } from "../lib/bibliotek.js";
 import { formateraTid } from "../lib/ljudspelare.js";
-import { useInspelningOppnare } from "./OpsAppShell.jsx";
+import { useInspelningOppnare, useKanSpelaIn } from "./OpsAppShell.jsx";
 import { cx } from "../lib/cx.js";
 import { arInstallningslage } from "../lib/apparark.js";
 import { modulTillbaka } from "../lib/modulram.js";
@@ -223,6 +223,10 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
   }
   const sprak = useOpsSprak();
   const oppnaInspelning = useInspelningOppnare();
+  // ⛔ RÖSTINSPELNING ERBJUDS BARA MED EN MOTTAGARE (cllp/ops-framework#391). Utan skal (`null`) ritas raden som förut och kastar tydligt
+  // vid tryck: en felkoppling som utvecklaren ska se. Inom skalet avgör gruppen: en avinstallerad eller dold app har ingen mottagare.
+  const kanSpelaIn = useKanSpelaIn();
+  const erbjudRost = kanSpelaIn ? kanSpelaIn(modulId) : true;
   // ⛔ Listan kommer ur propsen eller ur kallan, aldrig ur båda (kastat ovan).
   const levande = useBibliotekskalla(kalla);
   const poster = levande ? levande.poster : /** @type {NonNullable<typeof posterProp>} */ (posterProp);
@@ -627,6 +631,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
                 <NyKnapp
                   flik={aktivFlik}
                   onSkapa={onSkapa}
+                  erbjudRost={erbjudRost}
                   onRost={() => {
                     try {
                       setRostFel("");
@@ -1527,9 +1532,12 @@ function PostMark({ post, bildAdress = "" }) {
  *
  * Under Bilder och Dokument skapas en fil (0.102.0): bild eller dokument avgörs av filen, inte av fliken.
  *
- * @param {{ flik: Flik, onSkapa: (typ: "anteckning" | "lank" | "fil") => void, onRost: () => void }} props
+ * ⛔ UTAN MOTTAGARE FINNS INGEN RÖSTINSPELNING ATT ERBJUDA (`erbjudRost`, cllp/ops-framework#391): raden i menyn ritas inte, och i fliken
+ * Ljud, där knappen bara gör det, ritas ingen knapp. Förut stod de kvar och gav skalets utvecklartext när gruppen inte hade appen.
+ *
+ * @param {{ flik: Flik, onSkapa: (typ: "anteckning" | "lank" | "fil") => void, onRost: () => void, erbjudRost: boolean }} props
  */
-function NyKnapp({ flik, onSkapa, onRost }) {
+function NyKnapp({ flik, onSkapa, onRost, erbjudRost }) {
   const [oppen, setOppen] = useState(false);
   const innehall = (
     <>
@@ -1538,6 +1546,7 @@ function NyKnapp({ flik, onSkapa, onRost }) {
     </>
   );
   if (flik === "ljud") {
+    if (!erbjudRost) return null;
     return (
       <button type="button" aria-label={NYTT_NAMN.ljud} onClick={onRost} className={NY_KLASS}>
         {innehall}
@@ -1577,20 +1586,22 @@ function NyKnapp({ flik, onSkapa, onRost }) {
                 <span className="min-w-0 flex-1 truncate">{TYPNAMN[typ]}</span>
               </button>
             ))}
-            <button
-              type="button"
-              role="menuitem"
-              onClick={() => {
-                setOppen(false);
-                onRost();
-              }}
-              className={radKlass({ stor: true })}
-            >
-              <span aria-hidden="true" className="flex shrink-0 items-center text-ink-secondary [&_svg]:size-4">
-                <Mic size={16} />
-              </span>
-              <span className="min-w-0 flex-1 truncate">Röstinspelning</span>
-            </button>
+            {erbjudRost ? (
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setOppen(false);
+                  onRost();
+                }}
+                className={radKlass({ stor: true })}
+              >
+                <span aria-hidden="true" className="flex shrink-0 items-center text-ink-secondary [&_svg]:size-4">
+                  <Mic size={16} />
+                </span>
+                <span className="min-w-0 flex-1 truncate">Röstinspelning</span>
+              </button>
+            ) : null}
           </div>
         </Popover.Content>
       </Popover.Portal>
