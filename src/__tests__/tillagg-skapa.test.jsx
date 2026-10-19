@@ -269,10 +269,13 @@ describe("skalet: tilläggsrutan i formuläret för en ny händelse", () => {
     ]);
     render(<Skal skapa={skapaPaGrupp(m)} />);
     const panel = await oppnaPanelen();
+    await waitFor(() => expect(senast()).toBeDefined());
+    // Appen sparar med `tillagg` från en tidigare rendering (en fångad closure, innan värdet ändrades): värdet som gäller är ändå det senaste.
+    const gammal = senast().tillagg;
+    expect(gammal.datumEjSatt).toBe(false);
     fireEvent.click(within(panel).getAllByRole("button", { name: "Låt gruppen rösta om datum" })[0]);
     await waitFor(() => expect(senast().tillagg.datumEjSatt).toBe(true));
-    // Appen sparar med `tillagg` från en tidigare rendering; värdet som gäller är ändå det senaste.
-    const gammal = senast().tillagg;
+    expect(senast().tillagg).not.toBe(gammal);
     await expect(gammal.efterSkapa("h-ny")).rejects.toThrow("förslagen skrevs inte");
     expect(anrop.map((a) => a[0])).toEqual(["rosta", "andra"]);
     expect(anrop[0][1]).toEqual({ handelseId: "h-ny", varde: { pa: true, forslag: ["2026-10-12", "2026-10-14"] }, grupp: { id: G, moduler: ["omrostning"] } });
