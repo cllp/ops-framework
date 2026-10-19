@@ -11,6 +11,31 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ## Ej utgivet
 
+## 0.120.0
+
+cllp/lifehub.app#367 (P0, kalendern), ramverkets del. Appens del (skicka `standardkalender: true`, engångssteget för befintliga grupper, detaljvyn för poster, ompinning) kommer efter ompinningen.
+Inga nya regler och ingen ändring av datamodellen: `gruppkalendrar` och dess regler finns sedan 0.37.0. ⛔ En följd att veta om: `postTillRad` ger nu varje post ett `handelseId`, och `OpsCalendar` kastar för en rad med `handelseId` om varken `handelsepanel` på skalet eller `onOppnaHandelse` finns. En app som ritar poster ur `postTillRad` utan någon av dem måste lägga till den.
+
+### Varje grupp har en standardkalender, och det ersätter "gruppen är kalendern" (CP 2026-10-19, #367), Claude 2026-10-19
+CP: "Skapa ny grupp, kommer inte med en default grupp kalender." Händelsen: CP:s grupp hade ingen namngiven kalender (0.37.0 seedade ingen, 0.78.2 och 0.84.0 gjorde "gruppen är kalendern" till beslut, #309) och en enda egen kalender, Barnveckor. Förvalet för en ny händelse föll på den, händelsen blev en post i `users/{uid}/kalenderposter` i stället för en händelse i gruppen, och den gick inte att öppna. Beslutet byts, det kringgås inte: ett läge utan kalender var något ramverket tillät och tre ställen i koden inte klarade av. Det uppstår nu bara om en admin arkiverar allt, och då är det ett val.
+- `createGroupService({ standardkalender: true })` skriver standardkalendern (`standardGruppkalender(groupId)`) i SAMMA batch som gruppen och ägaren. Förval `false`, så en app som inte säger något beter sig som förut. Samlingens namn är `samlingar.gruppkalendrar` (förval `gruppkalendrar`, som kalenderkällan). Raden byggs av samma `byggGruppkalender` som skrivvägen, har dokumentnyckeln `groupId|kalender` och bär inte `forvald`: förvald är härledd (`forvaldKalender`), och `true` på raden hade varit två sanningar.
+- Namnet och id:t är konstanter på ett ställe, `STANDARDKALENDER_ID` (`kalender`) och `STANDARDKALENDER_NAMN` (`Kalender` och `Calendar`), färg 1, ikon `kalender`, ordning 0. Claudes förslag: CP kan byta dem här. Inte gruppens namn, för det hade blivit en andra kopia som glider vid omdöpning.
+- `createStandardkalenderService({ kalla, samlingar? })` (`ops-framework/node`) ger en befintlig grupp sin kalender. `sakerstallStandardkalender({ groupId, skarpt })` svarar `finns` (minst en aktiv gruppkalender), `bara_arkiverade` (rörs inte: en admin som arkiverat allt har gjort ett val), `saknas` (torrt) eller `skapad`. `sakerstallAlla({ skarpt })` går igenom grupperna en gång och rapporterar `lasta`, `finns`, `saknas`, `skapade`, `bara_arkiverade` (grupp-id) och `fel`, alla alltid, också som noll. Ett fel på en grupp stoppar inte de andra och tystas inte. Raden skrivs med `createNew` (kontraktets regel 8) och skrivs aldrig över: hinner någon skapa `kalender` först är svaret `finns`. En källa utan `createNew` nekas när tjänsten byggs.
+
+### En ny händelse hamnar aldrig i en personlig kalender av sig själv
+- `OpsAppShell`: målet från början är gruppens förvalda kalender, annars inget (då hamnar händelsen i gruppen och raden säger gruppens namn). Grenen "annars min förvalda" är borta. Min förvalda är härledd till den första egna även om personen aldrig valt någon, och den träffade därför nästan alltid.
+- När gruppen saknar kalender men personen har egna får "Skapa i"-växlaren en rad för gruppen själv (`*gruppen`, som inte har id-formen och därför inte kan krocka med en kalender), så att det går att välja tillbaka efter att ha valt en egen. Med en riktig gruppkalender behövs den inte, och utan egna kalendrar finns inget att välja mellan.
+- `forvaldKalenderId` tittar bara på gruppens kalendrar och svarar `""` när det inte finns någon. Filtret (`filtreraPoster`): en händelse utan `kalender` följer gruppens förvalda kalender (oförändrat). Saknas gruppkalender hör den till gruppen själv, som inte har någon knapp i filtret, och den syns alltid. Före 0.120.0 hänfördes den till MIN förvalda kalender: den syntes bara när den var vald och försvann när den valdes bort.
+
+### En post i en egen kalender går att öppna
+- `postTillRad` ger raden `handelseId: "post~<id>"` (`postHandelseId`). Prefixet har ett tecken (`~`) som inget id i ramverket kan bära (`ID_FORM`), så ett händelse-id kan inte likna det. `postIdUrHandelseId(handelseId)` är den enda platsen prefixet tolkas, och `postTillHandelse(post, kalendrar, sprak)` ger `HandelseVy` för `OpsHandelsePanel` (titel, dag, tid, kalender, plats, beskrivning, ingen typ och ingen status). Appens `handelsepanel.rita` slår upp posten med `postIdUrHandelseId` och ritar den. Konstanten `KALENDERPOST_HANDELSEPREFIX` finns också.
+
+### Heldagsbandet har en egen yta
+- `Band` i `OpsCalendar`: bandbiten är `bg-surface` med tonen (20 procent) i ett eget lager ovanpå (`[data-bandton]`). En vald ruta är inverterad (`ops-contrast-panel`), men bandet ligger som syskon till rutorna och inte som barn, så det ärvde sidans textfärg: sidans text på den inverterade ytan. Nu mäts `text-ink` alltid mot en känd yta.
+
+### Prov, rött utan fixen och grönt med
+- Se PR-texten för utfallen. Nya: `standardkalender.test.js` (batchen, idempotens, kapplöpare, rapportens golv), `kalenderpost-oppna.test.jsx` (post öppnas från dagpanel och snabbtitt), tillägg i `kalenderhantering.test.jsx` (förval, växlarraden, filtret) och `kalendrar.test.jsx` (postens id och detaljvy, standardkalenderns rad). Playwright: `check-skalyta` avsnitt 49 (`--bara-bandkontrast`) mäter bandets text mot det som ligger under i en riktig webbläsare, ljust och mörkt, 1024 och 1280 px, krav 4,5:1, golv 4 bandbitar, 12 punkter och en punkt per bit över en vald ruta.
+
 ## 0.119.0
 
 cllp/lifehub.app#356 (publik delning av en biblioteksfil via en länk), ramverkets del. Appens del (callable, HTTP-funktion, routen `/d/:token`, metataggar) kommer efter ompinningen.
@@ -2308,6 +2333,8 @@ CP 2026-10-08, i cllp/ops-framework#192: privat är personens egen grupp, filer 
 
 ## 0.84.0
 
+⛔ **Beslutet "gruppen är kalendern" (#309) är ersatt i 0.120.0** (cllp/lifehub.app#367): varje grupp har en standardkalender. Texten nedan står kvar som den skrevs.
+
 Nattsprint 2026-10-08: #315, #309, #316 och halva #317. Ingen ändring av datamodellen och inga nya regler.
 
 **Om numret:** 0.83.0 (PR 318) är mergad och utgiven, origin/main `a0d6c8e` och taggen `v0.83.0`, mätt 2026-10-08. Den här skivan är nästa minor efter den, eftersom `byggAnvandare` tar emot något den förut avvisade (#316). Skärmbildernas "före" är tagna mot 0.82.0 (`aada6ab`): 318 rör inte skrivfältet, Ny händelse eller kalendermenyn.
@@ -2696,7 +2723,7 @@ Alla går att köra om med kommandona som står vid dem.
 
 ## 0.78.2
 
-Gruppen är kalendern (lane 6 steg F).
+Gruppen är kalendern (lane 6 steg F). ⛔ Ersatt i 0.120.0 (cllp/lifehub.app#367): varje grupp har en standardkalender. Texten nedan står kvar som den skrevs.
 
 ### Ändrat
 

@@ -62,8 +62,8 @@ import { delaModultypId } from "./modultyper.js";
  *   ⛔ Saknas den hör posten till den förvalda kalendern i `OpsCalendar`s `kalendrar` (en händelse skriven före
  *   0.36.0 har ingen kalender, och ska inte försvinna ur ett filter för det).
  * @property {string} [handelseId] (0.40.0, #214) Posten ÄR en händelse med en egen panel (`OpsHandelsePanel`): ett tryck på raden i dagpanelen eller snabbtitten
- *   öppnar den. Id:t är appens. ⛔ BARA PÅ DE POSTER SOM ÄR HÄNDELSER: en post i en egen kalender (`kalenderposter` ur `postTillRad`) har ingen panel och bär inget
- *   `handelseId`. Kräver `handelsepanel` på skalet eller `onOppnaHandelse` på kalendern: annars kastar kalendern.
+ *   öppnar den. Id:t är appens. En post i en egen kalender (`kalenderposter` ur `postTillRad`) bär sedan 0.120.0 ett `handelseId` med prefixet `post~`
+ *   (`postHandelseId`), och appen slår upp den med `postIdUrHandelseId` och ritar den med `postTillHandelse`. En uppgift bär inget. Kräver `handelsepanel` på skalet eller `onOppnaHandelse` på kalendern: annars kastar kalendern.
  * @property {string} [typ] Typens id ur appens typkatalog (0.36.0). Det verktygsradens typfilter jämför med.
  * @property {import("react").ReactNode} [atgard] (0.78.0) Appens kontroll på raden, till exempel bocken som gör en uppgift klar.
  *   Ramverket ritar den och tolkar den aldrig. En uppgift är ingen händelse och bär inget `handelseId`.
@@ -551,17 +551,20 @@ export function traffar(e, fraga) {
 }
 
 /**
- * Kalendern en post utan `kalender` hör till: gruppens förvalda, annars gruppens första, annars en förvald av mina.
+ * Kalendern en post utan `kalender` hör till: gruppens förvalda, annars gruppens första, annars ingen (`""`).
  *
- * ⛔ GRUPPENS FÖRST. En post utan kalender är en av appens händelser skriven före 0.36.0, och en händelse ligger alltid i
- * gruppen, aldrig i någons egen kalender (`handelsensKalenderId`).
+ * ⛔ BARA GRUPPENS (0.120.0, cllp/lifehub.app#367). En post utan kalender är en av appens händelser skriven före 0.36.0, och en
+ * händelse ligger alltid i gruppen, aldrig i någons egen kalender (`handelsensKalenderId`). Före 0.120.0 stod här en tredje gren,
+ * "annars en förvald av mina", och den träffade nästan alltid: min förvalda är HÄRLEDD till den första även om jag aldrig valt
+ * någon (`forvaldKalender`). En grupp utan egen kalender hänförde då sina händelser till Barnveckor, och filtret dolde dem när
+ * Barnveckor valdes bort. Utan gruppkalender svarar funktionen `""`, och en händelse utan kalender hör då till gruppen och inte
+ * till någon i filtret (`filtreraPoster`).
  *
  * @param {ReadonlyArray<{ id: string, grupp?: boolean, forvald?: boolean }> | undefined} kalendrar @returns {string}
  */
 export function forvaldKalenderId(kalendrar) {
-  const alla = kalendrar || [];
-  const g = alla.filter((k) => k.grupp);
-  return ((g.find((k) => k.forvald) || g[0] || alla.find((k) => k.forvald)) || { id: "" }).id;
+  const g = (kalendrar || []).filter((k) => k.grupp);
+  return (g.find((k) => k.forvald) || g[0] || { id: "" }).id;
 }
 
 /**
@@ -583,7 +586,12 @@ export function filtreraPoster(entries, { valdaKalendrar, forvaldId, typ = "alla
   const dolda = new Set(doldaAppar);
   return entries.filter((e) => {
     if (dolda.size > 0 && dolda.has(appForTyp(e.typ))) return false;
-    if (valdaKalendrar && !valdaKalendrar.includes(e.kalender ? e.kalender.id : forvaldId)) return false;
+    // ⛔ EN POST VARS KALENDER SAKNAR RAD I FILTRET KAN INTE FILTRERAS BORT (0.120.0, cllp/lifehub.app#367). En händelse utan
+    // `kalender` hör till gruppens förvalda (`forvaldId`). Finns ingen gruppkalender är `forvaldId` tomt och händelsen hör till gruppen
+    // själv, som inte har någon knapp i filtret. Före 0.120.0 hänfördes den då till MIN förvalda kalender, och försvann när den
+    // valdes bort. En händelse som ingen knapp styr ska synas, annars finns det ingenstans att ta fram den.
+    const nyckel = e.kalender ? e.kalender.id : forvaldId;
+    if (valdaKalendrar && nyckel && !valdaKalendrar.includes(nyckel)) return false;
     if (typ !== "alla" && e.typ !== typ) return false;
     if (status !== "alla" && e.status !== status) return false;
     return true;

@@ -3,18 +3,26 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { OpsCalendar, VECKONUMMER_NYCKEL } from "../components/OpsCalendar.jsx";
 import {
   KALENDERFALT,
+  KALENDERPOST_HANDELSEPREFIX,
   MAX_GITHUBETIKETT,
+  STANDARDKALENDER_ID,
+  STANDARDKALENDER_NAMN,
   byggGruppkalender,
   byggKalenderpost,
   byggMinKalender,
   forvaldKalender,
   giltigtDatum,
   githubEtikettNyckel,
+  gruppkalendernyckel,
   idagI,
   kalenderForEtikett,
   kontrolleraGithubEtiketter,
   kontrolleraTidszon,
+  postHandelseId,
+  postIdUrHandelseId,
+  postTillHandelse,
   postTillRad,
+  standardGruppkalender,
   validateGruppkalendrar,
   validateMinaKalendrar,
 } from "../lib/kalendrar.js";
@@ -239,8 +247,61 @@ describe("mina kalendrar och deras poster (F0)", () => {
 
   it("gör en post till en rad i kalendern: spann, heldag och kalendern med namn och färg", () => {
     const rad = postTillRad(byggKalenderpost(post({ heldag: true, start: "2026-10-12", slut: "2026-10-14", plats: "Visby" })), [{ id: "privat", namn: "Privat", farg: 2 }]);
-    expect(rad).toEqual({ id: "p1", date: "2026-10-12", endDate: "2026-10-14", allDay: true, title: "Tandläkaren", not: "Visby", kalender: { id: "privat", namn: "Privat", farg: 2 } });
+    expect(rad).toEqual({ id: "p1", handelseId: "post~p1", date: "2026-10-12", endDate: "2026-10-14", allDay: true, title: "Tandläkaren", not: "Visby", kalender: { id: "privat", namn: "Privat", farg: 2 } });
     expect(postTillRad(byggKalenderpost(post()), []).not).toBe("09:00-10:00");
+  });
+
+  /*
+   * ⛔ 0.120.0 (cllp/lifehub.app#367): EN POST HAR ETT ÖPPNINGSBART ID. Före 0.120.0 bar raden inget `handelseId`, titeln var vanlig
+   * text och kortet var ingen ingång ("Ingen text, ingen detaljvy, navigation"). Röda mot 0.119.0: `handelseId` saknades.
+   */
+  it("⛔ #367: en post bär ett handelseId med prefix som appen kan slå upp, och som inget händelse-id kan likna", () => {
+    const rad = postTillRad(byggKalenderpost(post()), []);
+    expect(rad.handelseId).toBe("post~p1");
+    expect(rad.handelseId).toBe(postHandelseId("p1"));
+    expect(postIdUrHandelseId(rad.handelseId)).toBe("p1");
+    // Ett vanligt händelse-id, ett tomt id och prefixet ensamt är inga poster.
+    expect(postIdUrHandelseId("0Zq3AbCdEf")).toBeNull();
+    expect(postIdUrHandelseId(KALENDERPOST_HANDELSEPREFIX)).toBeNull();
+    expect(postIdUrHandelseId(undefined)).toBeNull();
+    expect(() => postHandelseId("")).toThrow(/postId krävs/);
+    // Prefixet har ett tecken (`~`) som inget id i ramverket kan bära, så ett id kan inte råka börja med det.
+    expect(/^[a-z0-9][a-z0-9_-]*$/.test(KALENDERPOST_HANDELSEPREFIX)).toBe(false);
+  });
+
+  it("⛔ #367: postens detaljvy får titel, dag, tid, kalender, plats och beskrivning, och inget av det en post inte har", () => {
+    const kal = [{ id: "privat", namn: "Privat", farg: 2 }];
+    const tidsatt = postTillHandelse(byggKalenderpost(post({ plats: "Visby", beskrivning: "Ta med kortet" })), kal);
+    expect(tidsatt).toEqual({ id: "post~p1", titel: "Tandläkaren", datum: "2026-10-05", tid: "09:00", slutTid: "10:00", kalender: { namn: "Privat", farg: 2 }, plats: "Visby", beskrivning: "Ta med kortet" });
+    const heldag = postTillHandelse(byggKalenderpost(post({ heldag: true, start: "2026-10-12", slut: "2026-10-14" })), kal);
+    expect(heldag).toEqual({ id: "post~p1", titel: "Tandläkaren", datum: "2026-10-12", slutDatum: "2026-10-14", heldag: true, kalender: { namn: "Privat", farg: 2 } });
+    expect(Object.keys(heldag)).not.toContain("typ");
+    expect(Object.keys(heldag)).not.toContain("status");
+  });
+});
+
+/*
+ * ⛔ 0.120.0 (cllp/lifehub.app#367): STANDARDKALENDERN. Raden är en vanlig gruppkalender, byggd av samma `byggGruppkalender` som
+ * skrivvägen, utan `forvald`, med dokumentnyckeln `groupId|kalender` som id. Namnet och id:t är konstanter på ETT ställe.
+ */
+describe("standardkalendern (#367)", () => {
+  it("är en giltig gruppkalender med nyckeln groupId|kalender, och inga fält utöver kalenderns", () => {
+    const rad = standardGruppkalender("cps-ab");
+    expect(rad.id).toBe(gruppkalendernyckel("cps-ab", STANDARDKALENDER_ID));
+    expect(rad.id).toBe("cps-ab|kalender");
+    expect(rad).toMatchObject({ groupId: "cps-ab", namn: { sv: "Kalender", en: "Calendar" }, arkiverad: false, forvald: false, iFlodet: false, ordning: 0 });
+    expect(rad.namn).toEqual(STANDARDKALENDER_NAMN);
+    expect(Object.keys(rad).every((k) => KALENDERFALT.includes(k))).toBe(true);
+    // Reglernas `hasOnly`: ingen `fas` och ingen `githubEtikett` som raden inte bär.
+    expect(Object.keys(rad)).not.toContain("fas");
+    expect(Object.keys(rad)).not.toContain("githubEtikett");
+    // Läsvägen släpper in den, och den blir gruppens förvalda (härledd, inte lagrad).
+    const lasta = validateGruppkalendrar([{ ...rad, id: STANDARDKALENDER_ID }]);
+    expect(forvaldKalender(lasta)?.id).toBe("kalender");
+  });
+
+  it("kastar för ett grupp-id som inte har id-formen, i stället för att skriva en nyckel som inte går att läsa", () => {
+    expect(() => standardGruppkalender("Fel Id")).toThrow();
   });
 });
 

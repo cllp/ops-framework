@@ -45,6 +45,8 @@ import { OpsSkapaGenvagar, useSkapaGenvag } from "./OpsSkapaGenvag.jsx";
  * den är samma objekt i varje rendering och kan inte ändras av den som får den.
  */
 const TALK_FORM = Object.freeze({ kind: "talk" });
+/** Målet "gruppen själv" i `OpsSkapaI` när gruppen saknar kalender. Har inte id-formen (`*`), så det kan aldrig krocka med en kalender. */
+const GRUPPEN_SOM_MAL = "*gruppen";
 
 /**
  * En rad i en rullgardin: en modul (Hubs barn) med egna undersidor som fälls ut och in (0.30.1).
@@ -1475,21 +1477,32 @@ function OpsAppShellRitad({
           return I ? <I size={18} /> : undefined;
         };
         return /** @type {Array<any>} */ ([
-          { id: "gruppkalendrar", rubrik: g ? `${text(g.namn, skapa?.sprak ?? "sv")}: kalendrar` : "Gruppens kalendrar", poster: skapaKalenderval.filter((k) => k.grupp).map((k) => ({ id: k.id, namn: k.namn, ikon: ikon(k.ikon) })) },
+          // ⛔ GRUPPEN SJÄLV SOM RAD NÄR DEN SAKNAR KALENDER OCH PERSONEN HAR EGNA (0.120.0, cllp/lifehub.app#367). Utan den raden gick det
+          // inte att välja tillbaka till gruppen efter att ha valt en egen kalender. Med en riktig gruppkalender behövs den inte, och
+          // utan egna kalendrar finns inget att välja mellan, så raden är text (en växlare utan val är en död knapp).
+          { id: "gruppkalendrar", rubrik: g ? `${text(g.namn, skapa?.sprak ?? "sv")}: kalendrar` : "Gruppens kalendrar", poster: (() => {
+            const riktiga = skapaKalenderval.filter((k) => k.grupp).map((k) => ({ id: k.id, namn: k.namn, ikon: ikon(k.ikon) }));
+            const harEgna = !skapaForm?.redigera && skapaKalenderval.some((k) => !k.grupp);
+            return riktiga.length === 0 && harEgna && g ? [{ id: GRUPPEN_SOM_MAL, namn: text(g.namn, skapa?.sprak ?? "sv"), ikon: undefined }] : riktiga;
+          })() },
           // ⛔ I REDIGERINGSLÄGE FINNS INGA "MINA KALENDRAR" (0.40.0). Att flytta en händelse till en egen kalender gör den till en post utan typ och utan
           // svar, alltså en annan sorts rad i en annan samling: det är att skapa en ny och ta bort den gamla, inte att ändra den. Väljaren erbjuder det inte.
           { id: "minaKalendrar", rubrik: "Mina kalendrar", poster: skapaKalenderval.filter((k) => !k.grupp).map((k) => ({ id: k.id, namn: k.namn, ikon: ikon(k.ikon) })) },
         ]).filter((x) => !(skapaForm?.redigera && x.id === "minaKalendrar"));
       })()
     : (skapa?.skapaISektioner ?? []);
-  // Målet från början: gruppens förvalda, annars min förvalda. Inget mål alls när det inte finns någon kalender: då hamnar händelsen i gruppen, och raden säger gruppens namn (#309).
+  // ⛔ MÅLET FRÅN BÖRJAN ÄR GRUPPENS FÖRVALDA KALENDER, ALDRIG EN AV MINA (0.120.0, cllp/lifehub.app#367). Här stod "annars min
+  // förvalda", och den grenen träffade nästan alltid: min förvalda är HÄRLEDD till den första egna kalendern även om personen aldrig valt
+  // någon (`forvaldKalender`). CP:s händelse hamnade i Barnveckor, blev en post i stället för en händelse, och gick inte att öppna.
+  // En händelse ligger i gruppen och aldrig i någons egen kalender av sig själv: en egen kalender väljs bara med ett aktivt val.
+  // Inget mål alls när gruppen saknar kalender (efter 0.120.0 bara om en admin arkiverat allt): då hamnar händelsen i gruppen, och raden säger gruppens namn.
   const skapaStandardMal = (() => {
     if (!handelseMedKalendrar) return null;
-    const k = skapaKalenderval.find((x) => x.grupp && x.forvald) || skapaKalenderval.find((x) => !x.grupp && x.forvald) || null;
-    return k ? { id: k.id, sektion: k.grupp ? "gruppkalendrar" : "minaKalendrar" } : null;
+    const k = skapaKalenderval.find((x) => x.grupp && x.forvald) || null;
+    return k ? { id: k.id, sektion: "gruppkalendrar" } : null;
   })();
   const skapaEffektivtMal = skapaMal ?? skapaStandardMal;
-  const skapaKalender = handelseMedKalendrar && skapaEffektivtMal ? { id: skapaEffektivtMal.id, slag: /** @type {"grupp" | "mina"} */ (skapaEffektivtMal.sektion === "minaKalendrar" ? "mina" : "grupp") } : null;
+  const skapaKalender = handelseMedKalendrar && skapaEffektivtMal && skapaEffektivtMal.id !== GRUPPEN_SOM_MAL ? { id: skapaEffektivtMal.id, slag: /** @type {"grupp" | "mina"} */ (skapaEffektivtMal.sektion === "minaKalendrar" ? "mina" : "grupp") } : null;
   const skapaHarVaxlare = skapaForm?.kind === "modul" && skapaSektioner.some((x) => x.poster.length > 0);
   const skapaPanelSyns = Boolean(skapaForm);
   // ⛔ 0.40.0 (#214): ett öppet skapa-formulär vinner. Händelsepanelen visas bara när inget formulär är uppe, och saknas `handelsepanel`
@@ -1500,7 +1513,8 @@ function OpsAppShellRitad({
     if (skapaEffektivtMal) {
       return skapaSektioner.find((/** @type {any} */ x) => x.id === skapaEffektivtMal.sektion)?.poster.find((/** @type {any} */ x) => x.id === skapaEffektivtMal.id)?.namn ?? null;
     }
-    // ⛔ GRUPPEN ÄR KALENDERN (0.84.0, #309). Utan kalendermål skickas inget `kalender`, och händelsen hamnar i gruppen, så
+    // ⛔ GRUPPEN ÄR KALENDERN (0.84.0, #309) VAR BESLUTET OCH ÄR ERSATT AV STANDARDKALENDERN (0.120.0, #367): varje grupp har nu en. Läget
+    // nedan, utan kalendermål, uppstår bara när en admin arkiverat allt. Utan kalendermål skickas inget `kalender`, och händelsen hamnar i gruppen, så
     // raden säger gruppens namn. Här stod "Ingen kalender ännu", samma falska sak som 0.78.2 tog bort ur `OpsCalendar` och
     // `OpsKalendrar`. Ett fall utan grupp finns inte: en moduls formulär öppnas bara när `skapalaget` är "redo", och det
     // kräver en grupp. Tomhet är fortfarande ett svar (punkt 5), den beskrivs bara sant.

@@ -79,6 +79,7 @@
 
 import { agentMedlemskap, byggGrupp, byggMedlemskap, byggVitlisterad, medlemskapsId } from "../lib/grupp.js";
 import { byggSkapare } from "../lib/skapare.js";
+import { standardGruppkalender } from "../lib/kalendrar.js";
 import { inbjudningstjanst } from "./inbjudan.js";
 import { seedoperationer } from "../data/katalogkalla.js";
 import { somKatalogStandard } from "./katalog.js";
@@ -125,6 +126,7 @@ function grupp_id(namn) {
  * @property {string} [vitlista] Förval `vitlista`.
  * @property {string} [anvandare] Förval `users`.
  * @property {string} [inbjudningar] Förval `invitations`.
+ * @property {string} [gruppkalendrar] Förval `gruppkalendrar`. Används bara med `standardkalender: true`.
  */
 
 /**
@@ -176,10 +178,11 @@ const EPOSTFORM = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
  * @param {boolean} [konfig.forstaGruppenFri] Den som aldrig ägt en grupp får skapa en utan vitlista och utan e-post (0.51.0). Förval av. Gäller bara när vitlistan krävs.
  * @param {boolean} [konfig.vitlistaKravs] Ska `skapaGrupp` läsa vitlistan (0.59.0). Förval `true`. `false`: ingen vitlista och ingen e-post, för första gruppen och för de följande, tills appen slår på kravet igen.
  * @param {boolean} [konfig.agent] Får en ny grupp sin agent (`agentMedlemskap`) i samma batch som gruppen och ägaren (lifehub.app#47). Förval `false`.
+ * @param {boolean} [konfig.standardkalender] Får en ny grupp sin standardkalender (`standardGruppkalender`) i samma batch som gruppen och ägaren (cllp/lifehub.app#367). Förval `false`: en app som inte säger något beter sig som förut.
  * @returns {{ skapaGrupp: (b: { uid: string, epost: string, grupp: GruppUppgifter, inbjudningar?: ReadonlyArray<Inbjudningsrad>, skapadAv?: any, namn?: string }) => Promise<SkapaGruppSvar> }}
  */
 export function createGroupService(konfig) {
-  const { kalla, samlingar = {}, kataloger, moduler: forvaldaModuler, huvudmeny: forvaldHuvudmeny, forstaGruppenFri = false, vitlistaKravs = true, agent = false } = konfig ?? {};
+  const { kalla, samlingar = {}, kataloger, moduler: forvaldaModuler, huvudmeny: forvaldHuvudmeny, forstaGruppenFri = false, vitlistaKravs = true, agent = false, standardkalender = false } = konfig ?? {};
   if (!kalla || typeof kalla.read !== "function" || typeof kalla.list !== "function" || typeof kalla.create !== "function") {
     throw new Error("createGroupService: en datakälla med read, list och create krävs. Ramverket känner ingen databas.");
   }
@@ -211,6 +214,9 @@ export function createGroupService(konfig) {
   if (typeof agent !== "boolean") {
     throw new Error("createGroupService: agent måste vara true eller false. Ett värde som råkar vara sant ger varje ny grupp en medlem ingen valt.");
   }
+  if (typeof standardkalender !== "boolean") {
+    throw new Error("createGroupService: standardkalender måste vara true eller false. Ett värde som råkar vara sant ger varje ny grupp en kalender ingen valt.");
+  }
   /*
    * ⛔ APPARNA PRÖVAS NÄR TJÄNSTEN BYGGS, med samma `byggGrupp` som skrivvägen, av samma skäl som katalogerna ovan:
    * ett felstavat modul-id i appens repo ska synas när functions startar, inte som en grupp ingen kan skapa.
@@ -236,6 +242,7 @@ export function createGroupService(konfig) {
   const VITLISTA = samlingar.vitlista ?? "vitlista";
   const ANVANDARE = samlingar.anvandare ?? "users";
   const INBJUDNINGAR = samlingar.inbjudningar ?? "invitations";
+  const GRUPPKALENDRAR = samlingar.gruppkalendrar ?? "gruppkalendrar";
 
   /*
    * ⛔ INBJUDNINGARNA GÅR GENOM `bjudIn`, INTE EN EGEN KOPIA AV DEN. "Har personen redan ett konto blir
@@ -371,6 +378,14 @@ export function createGroupService(konfig) {
       }
 
       /*
+       * ⛔ STANDARDKALENDERN I SAMMA BATCH SOM GRUPPEN (0.120.0, cllp/lifehub.app#367). Före 0.120.0 hade en ny grupp inga namngivna
+       * kalendrar ("gruppen är kalendern", #309), och förvalet för en ny händelse föll då på personens egen kalender. En kalender
+       * som skrevs EFTER commit hade lämnat ett fönster där gruppen finns utan den, och en halv grupp ser färdig ut. Raden byggs
+       * av `standardGruppkalender` (samma `byggGruppkalender` som skrivvägen), utan `forvald`: förvald är härledd.
+       */
+      const kalenderOps = standardkalender ? [{ op: /** @type {const} */ ("create"), collection: GRUPPKALENDRAR, data: standardGruppkalender(id) }] : [];
+
+      /*
        * ⛔ EN BATCH, ALLT ELLER INGET, OCH GRUPPEN FÖRE MEDLEMSKAPET I LISTAN. Ordningen spelar ingen
        * roll för atomiciteten men den spelar roll för den som läser en logg: gruppen finns först,
        * ägaren pekar på den. Faller batchen finns ingen av dem.
@@ -382,6 +397,7 @@ export function createGroupService(konfig) {
         // ⛔ AGENTEN I SAMMA BATCH (lifehub.app#47): en grupp som skapades utan sin agent är precis det engångssteget finns för att laga.
         ...(agent ? [{ op: "create", collection: MEDLEMSKAP, data: agentMedlemskap(id) }] : []),
         ...katalogOps,
+        ...kalenderOps,
       ]);
 
       /** @type {string[]} */

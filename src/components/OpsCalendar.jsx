@@ -957,9 +957,9 @@ function Verktygsrad({ kalendrar, valdaKalendrar, onValdaKalendrar, onHanteraKal
               <ValRad chosen={!valdaKalendrar} onClick={() => onValdaKalendrar(null)} ikon={<KalenderIkon size={16} />}>
                 Alla kalendrar
               </ValRad>
-              {/* ⛔ GRUPPEN ÄR KALENDERN (lane 6 steg F). En tom lista namngivna gruppkalendrar
-                  är inte "gruppen har inga kalendrar". Den meningen ritades här och var falsk:
-                  händelser utan kalenderId hör till gruppen. Egna kalendrar finns inte av sig
+              {/* ⛔ GRUPPEN ÄR KALENDERN (lane 6 steg F) VAR BESLUTET FRAM TILL 0.119.0 och är ersatt (0.120.0, cllp/lifehub.app#367): varje grupp
+                  har en standardkalender, så en tom lista är nu bara en grupp där en admin arkiverat allt. Meningen "Gruppen har inga kalendrar"
+                  ritas ändå inte: händelser utan kalenderId hör till gruppen, och ingen knapp i filtret styr dem (`filtreraPoster`). Egna kalendrar finns inte av sig
                   själva, så deras tomrad står kvar.
                   ⛔ OCH RUBRIKEN RITAS BARA MED NÅGOT UNDER (0.84.0, #309). 0.78.2 lät den stå ensam,
                   och en rubrik utan innehåll ser trasig ut (mätt i cllp/lifehub.app#134). Gruppen själv
@@ -1142,13 +1142,18 @@ function Band({ bitar, veckonummer }) {
             data-bandbit={b.entry.id}
             style={{ gridColumn: `${b.startCol + 1} / span ${b.colSpan}`, gridRow: b.fil + 1, marginLeft: b.borjar ? BANDKANT_AVSLUT : BANDKANT_FORTSATTER, marginRight: b.slutar ? BANDKANT_AVSLUT : BANDKANT_FORTSATTER }}
             className={cx(
-              "flex min-w-0 items-center truncate px-1.5 text-liten text-ink",
-              postklasser(b.entry).ton,
+              "relative isolate flex min-w-0 items-center truncate bg-surface px-1.5 text-liten text-ink",
               b.borjar ? cx("rounded-l-md border-l-3", postklasser(b.entry).kant) : "",
               b.slutar ? "rounded-r-md" : "",
             )}
           >
-            <span className="truncate">{b.entry.title}</span>
+            {/* ⛔ BANDET HAR EN EGEN, OGENOMSKINLIG YTA (0.120.0, cllp/lifehub.app#367). Tonen (20 procent) låg direkt över rutan under, och
+                en vald ruta är INVERTERAD (`ops-contrast-panel`): ljus text på mörk ruta i ljust tema, mörk text på ljus ruta i mörkt. Bandet
+                ligger utanför rutan i trädet och ärvde sidans textfärg, alltså sidans text på den inverterade ytan: 1,13:1 i mörkt tema och
+                1,18:1 i ljust (räknat ur tokens, mätt i en webbläsare i `check-skalyta` avsnitt 49). Nu är underlaget alltid sidans yta
+                (`bg-surface`) med tonen ovanpå, och `text-ink` mäts mot en känd färg oavsett vad som ligger under. */}
+            <span aria-hidden="true" data-bandton="" className={cx("pointer-events-none absolute inset-0 rounded-[inherit]", postklasser(b.entry).ton)} />
+            <span className="relative truncate">{b.entry.title}</span>
           </span>
         ))}
       </div>
