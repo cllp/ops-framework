@@ -293,6 +293,15 @@ describe("goraPostTillHandelse: en post blir en gruppens händelse, i en batch",
     expect(await minne.list("handelser")).toHaveLength(1);
   });
 
+  it("⛔ SAMTIDIGT: tio anrop för samma post ger EN händelse och ingen post kvar (nyckeln är postens id, inte en kontroll)", async () => {
+    const { minne, tjanst } = bygg();
+    const a = { uid: ANNA, postId: "tandlakare", groupId: G, tillKalenderId: "barnveckor" };
+    const svar = await Promise.allSettled(Array.from({ length: 10 }, () => tjanst.goraPostTillHandelse(a)));
+    expect(svar.filter((r) => r.status === "fulfilled").length).toBeGreaterThanOrEqual(1);
+    expect(await minne.list("handelser")).toHaveLength(1);
+    expect(await lasPost(minne)).toBeNull();
+  });
+
   it("⛔ skriver aldrig över en annan händelse som har samma id", async () => {
     const { minne, tjanst } = bygg({ handelser: [{ id: "tandlakare", groupId: H, rubrik: "Någon annans", datum: "2026-01-01", typ: "annat", arkiverad: false }] });
     expect(await kod(tjanst.goraPostTillHandelse({ uid: ANNA, postId: "tandlakare", groupId: G, tillKalenderId: "barnveckor" }))).toBe("ogiltigt-mal");
@@ -358,5 +367,6 @@ describe("tjänsten bygger inte med fel indata", () => {
     const huvud = await import("../index.js");
     expect("createFlyttaService" in huvud).toBe(false);
     expect(typeof huvud.flyttmal).toBe("function");
-  });
+    // Huvudingången är stor och tar flera sekunder att läsa in under last (regel 14): taket är rymligt med flit.
+  }, 60_000);
 });

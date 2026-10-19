@@ -17,7 +17,7 @@ const gk = (/** @type {string} */ groupId, /** @type {string} */ id, extra = {})
 
 const mina = [mk("privat", { forvald: true }), mk("jobb", { ordning: 10 }), mk("gammal", { ordning: 20, arkiverad: true })];
 const bolaget = { id: "bolaget", namn: "Bolaget", kalendrar: [gk("bolaget", "kalender", { forvald: true }), gk("bolaget", "barnveckor", { ordning: 10 }), gk("bolaget", "arkiv", { ordning: 20, arkiverad: true })] };
-const grannar = { id: "grannar", namn: { sv: "Grannarna", en: "Neighbours" }, kalendrar: [gk("grannar", "kalender", { forvald: true })] };
+const grannar = { id: "grannar", namn: { sv: "Grannarna", en: "Neighbours" }, kalendrar: [gk("grannar", "grannkal", { forvald: true })] };
 
 /** @param {any[]} mal */
 const ider = (mal) => mal.map((m) => `${m.atgard}:${m.groupId ?? "mina"}/${m.id}`);
@@ -25,12 +25,12 @@ const ider = (mal) => mal.map((m) => `${m.atgard}:${m.groupId ?? "mina"}/${m.id}
 describe("en post i en egen kalender", () => {
   it("kan flyttas till mina andra kalendrar (byt) och till varje grupps kalendrar (konvertera), i den ordningen", () => {
     const mal = flyttmal({ fran: { slag: "post", kalenderId: "privat" }, mina, grupper: [bolaget, grannar] });
-    expect(ider(mal)).toEqual(["byt:mina/jobb", "konvertera:bolaget/kalender", "konvertera:bolaget/barnveckor", "konvertera:grannar/kalender"]);
+    expect(ider(mal)).toEqual(["byt:mina/jobb", "konvertera:bolaget/kalender", "konvertera:bolaget/barnveckor", "konvertera:grannar/grannkal"]);
   });
 
   it("bär gruppens namn, så att bekräftelsen kan säga vilken grupp", () => {
     const mal = flyttmal({ fran: { slag: "post", kalenderId: "privat" }, mina, grupper: [grannar], sprak: "en" });
-    expect(mal.filter((m) => m.groupId)).toEqual([{ id: "kalender", namn: "kalender-en", farg: 2, ikon: "kalender", atgard: "konvertera", groupId: "grannar", gruppnamn: "Neighbours" }]);
+    expect(mal.filter((m) => m.groupId)).toEqual([{ id: "grannkal", namn: "grannkal-en", farg: 2, ikon: "kalender", atgard: "konvertera", groupId: "grannar", gruppnamn: "Neighbours" }]);
   });
 
   it("⛔ erbjuder inte kalendern den redan ligger i, och inte en arkiverad", () => {
