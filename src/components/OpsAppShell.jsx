@@ -1770,15 +1770,16 @@ function OpsAppShellRitad({
     foregaendeLage.current = talkStyr.lage;
     if (talkStyr.lage === "vila" && forut !== "vila") setValtInspelning(null);
   }, [talkStyr.lage]);
+  // ⛔ EN LISTA FÖR FRÅGAN OCH ÅTGÄRDEN (cllp/ops-framework#391): `kanSpelaIn` och `oppnaInspelning` läser båda modulens mål härifrån.
+  const modulensInspelningsmal = (/** @type {string} */ id) => inspelningsMal.filter((m) => m.id.startsWith(`${id}:`) && typeof m.spara === "function");
+  /** @param {string} modulId @returns {boolean} */
+  const kanSpelaIn = (modulId) => typeof modulId === "string" && modulId.trim() !== "" && modulensInspelningsmal(modulId.trim()).length > 0;
   /**
    * Röstinspelning ur en moduls Ny-meny (0.90.8). Samma `useTalk` som plusset. Målet är modulens första
    * `inspelning.mal` i gruppen, förvalt innan fältet öppnas. Utan det målet kastas: en inspelning utan mottagare
    * hade försvunnit när personen tryckte Klar.
    * @param {string} modulId
    */
-  const modulensInspelningsmal = (/** @type {string} */ id) => inspelningsMal.filter((m) => m.id.startsWith(`${id}:`) && typeof m.spara === "function");
-  /** @param {string} modulId @returns {boolean} */
-  const kanSpelaIn = (modulId) => typeof modulId === "string" && modulId.trim() !== "" && modulensInspelningsmal(modulId.trim()).length > 0;
   const oppnaInspelning = (modulId) => {
     const id = typeof modulId === "string" ? modulId.trim() : "";
     if (!id) throw new Error("useOppnaInspelning: modulId krävs. Målet väljs ur modulens inspelning.mal, och utan id går det inte att veta vilken modul.");
