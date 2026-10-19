@@ -78,6 +78,6 @@ export function postklasser(e) {
  * @returns {string}
  */
 export function prickklass(e, vald = false) {
-  if (e.preliminar === true) return vald ? "border-[1.5px] border-ink bg-transparent" : `border-[1.5px] bg-transparent ${postklasser(e).ring}`;
+  if (e.preliminar === true) return vald ? "border border-ink bg-transparent" : `border bg-transparent ${postklasser(e).ring}`;
   return vald ? "bg-ink" : postklasser(e).prick;
 }

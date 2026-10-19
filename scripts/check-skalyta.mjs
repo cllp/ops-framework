@@ -46,6 +46,7 @@
  *       node scripts/check-skalyta.mjs --bara-talkval    bara avsnitt 46, valen efter talet och förslagen i chatten (0.105.0)
  *       node scripts/check-skalyta.mjs --bara-0106       bara avsnitt 47, chattepiken 0.106.0 (#386), i scripts/lib/skalyta0106.mjs
  *       node scripts/check-skalyta.mjs --bara-bandkontrast  bara avsnitt 49, bandets text mot underlaget över en vald ruta (0.120.0), ljust och mörkt
+ *       node scripts/check-skalyta.mjs --bara-0127       bara avsnitt 50 och 51, preliminära poster och tilläggsrutan i Ny händelse (0.127.0)
  *       node scripts/check-skalyta.mjs --bara-etiketter  bara avsnitt 48, etiketterna inom sina dagsrutor i månadsvyn (0.106.0); med --tema dark som CP:s skärm
  *       node scripts/check-skalyta.mjs --chattbredder 390,1024   29g i andra bredder än 390 och 1280
  *       node scripts/check-skalyta.mjs --tema dark        alla sidor i mörkt tema (förebilden CP jämför mot är mörk)
@@ -1031,6 +1032,15 @@ if (argv.includes("--bara-0106")) {
 // `--bara-bandkontrast`: bara avsnitt 49. Hela körningen kör det också.
 if (argv.includes("--bara-bandkontrast")) {
   await kalenderBandkontrast();
+  await browser.close();
+  avsluta();
+  process.exit(0);
+}
+
+// `--bara-0127`: bara avsnitt 50 och 51, preliminära poster och tilläggsrutan i Ny händelse (0.127.0). Hela körningen kör dem också.
+if (argv.includes("--bara-0127")) {
+  await kalenderPreliminar();
+  await nyHandelseTillagg();
   await browser.close();
   avsluta();
   process.exit(0);
@@ -7090,6 +7100,137 @@ async function kalenderBandkontrast() {
   }
 }
 
+// ══ 50. PRELIMINÄRA POSTER: RING PÅ TELEFON, STRECKAT PILLER OCH KORT FRÅN 640 PX (0.127.0, cllp/lifehub.app#383) ═══════════════
+// CP 2026-10-19: en händelse vars datum inte är satt "syns streckad på varje föreslagen dag i kalendern och flyttar till sin dag när ett datum väljs".
+// jsdom kör ingen CSS, så att en ring på 6 px är en ring, att ett piller har streckad kant och att ett kort har det går bara att se här. Scenen
+// `kalender-preliminar` (skalyta-entry.jsx) har två förslag för en och samma händelse i slagets färg med en vanlig post av samma slag på samma dagar att
+// jämföra mot, ett förslag i en kalenders färg, och ett förslag som delar dag med två vanliga poster. Krav, varje del för sig:
+//   TELEFON (390): (a) ringen är ihålig, alltså ingen fyllning, (b) en heldragen kant på 1 px i SAMMA färg som den fyllda pricken för samma slag, (c) lika stor som den fyllda, och (d) helt inom sin ruta.
+//   FRÅN 640 PX: (e) pillret har streckad kant på alla fyra sidor och ingen fyllning, (f) i samma färg som ett vanligt pillers vänsterkant, (g) lika högt som ett
+//     vanligt piller (luften över och under är nollad när kanten är 1 px, så veckans rutor inte växer av ett förslag), (h) helt inom sin ruta.
+//   DAGPANELEN: (i) kortet har streckad vänsterkant i slagets färg, och säger Datum ej satt.
+// Golv per bredd: minst 4 preliminära märken och minst 3 vanliga att jämföra mot (telefon), minst 3 preliminära piller och 3 vanliga (från 640), minst 2 kort.
+async function kalenderPreliminar() {
+  /** @type {Record<string, string>} */
+  const prickPar = { "rep~1": "vanlig~1", "rep~2": "vanlig~2", "kal~1": "kal~vanlig", "tre~1": "tre~2" };
+  /** @type {Record<string, string>} */
+  const titelPar = { "Rösta för rep": "Styrelsemöte", "Resa med kusiner": "Tandläkaren", "Flytta kontoret": "Betala hyran" };
+  for (const tema of /** @type {const} */ (["light", "dark"])) {
+    for (const vp of [{ width: 390, height: 844 }, { width: 640, height: 900 }, { width: 1280, height: 900 }]) {
+      const namn = `preliminära poster ${tema} ${vp.width}`;
+      const { page, context } = await oppna("kalender-preliminar", vp, tema);
+      try {
+        await page.waitForSelector('section[aria-label="Kalender"] [data-veckorad]', { timeout: 4000 });
+        await page.waitForTimeout(300);
+        const telefon = vp.width < 640;
+        const m = await page.evaluate((tel) => {
+          const rut = (/** @type {Element} */ e) => { const r = e.getBoundingClientRect(); return { l: r.left, t: r.top, r: r.right, b: r.bottom, w: r.width, h: r.height }; };
+          const syns = (/** @type {Element} */ e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(e).visibility !== "hidden"; };
+          const alfa = (/** @type {string} */ c) => { const x = /rgba?\(([^)]+)\)/.exec(c); if (!x) return c === "transparent" ? 0 : 1; const d = x[1].split(/[ ,/]+/).filter(Boolean); return d.length > 3 ? Number(d[3]) : 1; };
+          const inom = (/** @type {Element} */ e, /** @type {Element} */ cell) => { const a = rut(e); const b = rut(cell); const k = parseFloat(getComputedStyle(cell).borderLeftWidth); return a.l >= b.l + k - 0.5 && a.r <= b.r - k + 0.5 && a.t >= b.t - 0.5 && a.b <= b.b + 0.5; };
+          /** @type {{ prel: any[], norm: any[] }} */
+          const ut = { prel: [], norm: [] };
+          const post = tel ? "[data-prick]" : "[data-kalender-piller] > span";
+          for (const el of document.querySelectorAll(post)) {
+            if (!syns(el)) continue;
+            const text = (el.textContent || "").trim();
+            if (!tel && /^\+\d+$/.test(text)) continue;
+            const cell = /** @type {Element} */ (el.closest("[data-cal-day]"));
+            const cs = getComputedStyle(el);
+            const rad = { id: el.getAttribute("data-prick") || text, dag: cell.getAttribute("data-cal-day"), preliminar: el.hasAttribute("data-preliminar"), bg: alfa(cs.backgroundColor), vb: parseFloat(cs.borderLeftWidth), tb: parseFloat(cs.borderTopWidth), stilar: [cs.borderTopStyle, cs.borderRightStyle, cs.borderBottomStyle, cs.borderLeftStyle], farg: cs.borderTopColor, vfarg: cs.borderLeftColor, fyll: cs.backgroundColor, w: rut(el).w, h: rut(el).h, inom: inom(el, cell) };
+            (rad.preliminar ? ut.prel : ut.norm).push(rad);
+          }
+          return ut;
+        }, telefon);
+        matt.push(`${namn}: ${m.prel.length} preliminära och ${m.norm.length} vanliga ${telefon ? "märken" : "piller"}`);
+        krav(telefon ? m.prel.length >= 4 && m.norm.length >= 3 : m.prel.length >= 3 && m.norm.length >= 3, `${namn}: ${m.prel.length} preliminära och ${m.norm.length} vanliga ${telefon ? "märken" : "piller"} mättes, väntat minst ${telefon ? 4 : 3} och 3 (golv).`);
+        for (const p of m.prel) {
+          const ref = m.norm.find((n) => n.id === (telefon ? prickPar : titelPar)[/** @type {string} */ (p.id)]);
+          if (!ref) { krav(false, `${namn}: ingen vanlig post att jämföra "${p.id}" mot.`); continue; }
+          if (telefon) {
+            krav(p.bg === 0, `${namn} (a): ringen för ${p.id} den ${p.dag} har fyllning (alfa ${p.bg}), väntat ingen.`);
+            // ⛔ 1 px, inte 1,5: Chromium ritar och räknar `border-[1.5px]` som 1 px också vid skala 3 (mätt, `check-skalyta --bara-0127` före rättelsen), så en bredd
+            // på 1,5 vore en siffra som inte ger något. 1 px är tre enhetspixlar på en iPhone.
+            krav(p.vb >= 0.9 && p.tb >= 0.9 && p.stilar.every((/** @type {string} */ x) => x === "solid"), `${namn} (b): ${p.id} har kant ${p.tb}/${p.vb} px (${p.stilar.join(",")}), väntat minst 0,9 px solid.`);
+            krav(p.farg === ref.fyll, `${namn} (b): ${p.id} har kantfärg ${p.farg}, väntat samma som den fyllda pricken ${ref.fyll}.`);
+            krav(Math.abs(p.w - ref.w) < 0.5 && Math.abs(p.h - ref.h) < 0.5, `${namn} (c): ${p.id} är ${p.w.toFixed(1)}x${p.h.toFixed(1)} px, den fyllda ${ref.w.toFixed(1)}x${ref.h.toFixed(1)}.`);
+            krav(p.inom, `${namn} (d): ${p.id} den ${p.dag} ligger utanför sin ruta.`);
+          } else {
+            krav(p.stilar.every((/** @type {string} */ x) => x === "dashed") && p.tb >= 0.9 && p.vb >= 0.9, `${namn} (e): pillret "${p.id}" har kantstilarna ${p.stilar.join(",")} och bredden ${p.tb}/${p.vb}, väntat dashed runt om.`);
+            krav(p.bg === 0, `${namn} (e): pillret "${p.id}" har fyllning (alfa ${p.bg}), väntat ingen.`);
+            krav(p.farg === ref.vfarg, `${namn} (f): pillret "${p.id}" har kantfärg ${p.farg}, väntat samma som ett vanligt pillers vänsterkant ${ref.vfarg}.`);
+            krav(Math.abs(p.h - ref.h) < 0.5, `${namn} (g): pillret "${p.id}" är ${p.h.toFixed(1)} px högt, ett vanligt ${ref.h.toFixed(1)}.`);
+            krav(p.inom, `${namn} (h): pillret "${p.id}" den ${p.dag} ligger utanför sin ruta.`);
+          }
+        }
+        // (i) Dagpanelen: trycket på den 12:e öppnar kortet, streckat och med ordet.
+        await page.locator('[data-cal-day="2026-10-12"]').click();
+        await page.waitForSelector("[data-dagpanel] [data-postrad][data-preliminar]", { timeout: 3000 });
+        const k = await page.evaluate(() => {
+          const kort = /** @type {HTMLElement} */ (document.querySelector("[data-dagpanel] [data-postrad][data-preliminar]"));
+          const vanligt = [...document.querySelectorAll("[data-dagpanel] [data-postrad]:not([data-preliminar])")].find((x) => (x.textContent || "").includes("Styrelsemöte"));
+          const cs = getComputedStyle(kort);
+          const vs = vanligt ? getComputedStyle(vanligt) : null;
+          return { stil: cs.borderLeftStyle, bredd: parseFloat(cs.borderLeftWidth), farg: cs.borderLeftColor, ord: (kort.textContent || "").includes("Datum ej satt"), vanligStil: vs ? vs.borderLeftStyle : null, vanligFarg: vs ? vs.borderLeftColor : null, antal: document.querySelectorAll("[data-dagpanel] [data-postrad]").length };
+        });
+        matt.push(`${namn}: kortet ${JSON.stringify(k)}`);
+        krav(k.antal >= 2, `${namn}: ${k.antal} kort i dagpanelen, väntat minst 2 (golv: ett förslag och en vanlig post).`);
+        krav(k.stil === "dashed" && k.bredd >= 3.5 && k.vanligStil === "solid", `${namn} (i): kortet har vänsterkant ${k.stil} ${k.bredd} px, det vanliga ${k.vanligStil}, väntat dashed 4 px mot solid.`);
+        krav(k.farg === k.vanligFarg, `${namn} (i): kortets kantfärg är ${k.farg}, det vanliga kortets ${k.vanligFarg}, väntat samma slagfärg.`);
+        krav(k.ord, `${namn} (i): kortet säger inte Datum ej satt.`);
+        if (bildmapp) await page.locator('[data-kalender-manad="2026-10"]').screenshot({ path: path.join(bildmapp, `kalender-preliminar-${tema}-${vp.width}.png`) });
+      } catch (e) {
+        krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+      }
+      await context.close();
+    }
+  }
+}
+
+// ══ 51. TILLÄGGSRUTAN I NY HÄNDELSE: EFTER KRÄV SVAR, INOM PANELEN, OCH DATUMFÄLTET FÖRSVINNER (0.127.0, cllp/lifehub.app#383) ═════════
+// Platsen `handelse.skapa` (beslut 0003): ett tillägg ritar sin ruta direkt efter Kräv svar, och formuläret får `tillagg.datumEjSatt` sant när tillägget säger det.
+// Krav, vid 390 och 1280: (a) rutan står efter Kräv svar och inte ovanför det, (b) helt inom panelens bredd, ingen horisontell överflödning, (c) formuläret fick
+// `tillagg` med `datumEjSatt: false` och visar Datum, (d) efter ett tryck på brytaren är `datumEjSatt` sant, datumfältet är borta och raden säger att gruppen väljer.
+async function nyHandelseTillagg() {
+  for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
+    const namn = `tillägg i Ny händelse ${vp.width}`;
+    const { page, context } = await oppna("ny-handelse-tillagg", vp, standardtema, 1, "g3");
+    try {
+      await page.waitForSelector("section[data-skapa-panel] [data-skapa-tillagg]", { timeout: 4000 });
+      await page.waitForTimeout(300);
+      const mat = () => page.evaluate(() => {
+        const panel = /** @type {HTMLElement} */ (document.querySelector("section[data-skapa-panel]"));
+        const ruta = /** @type {HTMLElement} */ (panel.querySelector("[data-skapa-tillagg]"));
+        const krav = /** @type {HTMLElement | null} */ (panel.querySelector("[data-krav-svar]"));
+        const form = /** @type {any} */ (window).__tillaggProps;
+        const etiketter = [...panel.querySelectorAll("label")].map((l) => (l.textContent || "").trim());
+        return {
+          rutaT: ruta.getBoundingClientRect().top, rutaB: ruta.getBoundingClientRect().bottom, rutaR: ruta.getBoundingClientRect().right,
+          kravB: krav ? krav.getBoundingClientRect().bottom : null, panelR: panel.getBoundingClientRect().right,
+          efter: !!(krav && krav.compareDocumentPosition(ruta) & Node.DOCUMENT_POSITION_FOLLOWING),
+          form, harDatum: etiketter.includes("Datum"), dolt: !!panel.querySelector("[data-datum-dolt]"),
+          over: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        };
+      });
+      const f = await mat();
+      matt.push(`${namn}: rutan ${f.rutaT.toFixed(0)}-${f.rutaB.toFixed(0)}, Kräv svar slutar ${f.kravB === null ? "saknas" : f.kravB.toFixed(0)}, formuläret ${JSON.stringify(f.form)}`);
+      krav(f.kravB !== null && f.efter && f.rutaT >= f.kravB - 0.5, `${namn} (a): tilläggsrutan börjar ${f.rutaT.toFixed(0)} och Kräv svar slutar ${f.kravB === null ? "saknas" : f.kravB.toFixed(0)}, väntat rutan efter Kräv svar.`);
+      krav(f.rutaR <= f.panelR + 0.5 && f.over <= 0, `${namn} (b): rutan slutar ${f.rutaR.toFixed(0)} i en panel som slutar ${f.panelR.toFixed(0)}, sidan flödar över ${f.over} px.`);
+      krav(!!f.form && f.form.finns === true && f.form.datumEjSatt === false && f.harDatum, `${namn} (c): formuläret fick ${JSON.stringify(f.form)} och Datum-fältet ${f.harDatum ? "syns" : "saknas"}, väntat tillagg med datumEjSatt false och ett Datum-fält.`);
+      if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `ny-handelse-tillagg-av-${vp.width}.png`), fullPage: true });
+      // Brytarens riktiga fält är dolt (`role="switch"` på en checkbox): trycket går på raden, som en person trycker.
+      await page.locator("[data-prov-rost] label").click();
+      await page.waitForSelector("[data-datum-dolt]", { timeout: 3000 });
+      const e = await mat();
+      krav(e.form.datumEjSatt === true && !e.harDatum && e.dolt, `${namn} (d): efter trycket är datumEjSatt ${e.form.datumEjSatt}, Datum-fältet ${e.harDatum ? "finns kvar" : "är borta"} och raden ${e.dolt ? "står" : "saknas"}, väntat sant, borta och står.`);
+      if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `ny-handelse-tillagg-pa-${vp.width}.png`), fullPage: true });
+    } catch (e) {
+      krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+    }
+    await context.close();
+  }
+}
+
 await apparArkHylla();
 await apparArkOrdning();
 await textfaltMedTal();
@@ -7097,6 +7238,8 @@ await talkValOchForslag();
 await chattepiken0106(verktyg0106);
 await kalenderEtiketter();
 await kalenderBandkontrast();
+await kalenderPreliminar();
+await nyHandelseTillagg();
 
 await browser.close();
 avsluta();

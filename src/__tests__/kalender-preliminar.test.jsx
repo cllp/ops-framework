@@ -40,7 +40,7 @@ describe("en preliminär post ritas på varje föreslagen dag", () => {
       const k = klasser(p);
       // Ihålig: ingen fyllning, och slagets färg som kant.
       expect(k).toContain("bg-transparent");
-      expect(k).toContain("border-[1.5px]");
+      expect(k).toContain("border");
       expect(k).toContain("border-slag-1");
       expect(k).not.toContain("bg-slag-1");
     }
@@ -158,7 +158,7 @@ describe("⛔ ett förslag är en dag", () => {
     expect(postklasser(kal).ring).toBe("border-identity-3");
     expect(postklasser({ id: "c", date: "2026-10-12", title: "C", preliminar: true }).ring).toBe("border-accent");
     // I en vald ruta är fyllningen rutans textfärg: pricken blir en ring i samma färg, inte i postens.
-    expect(prickklass(slag, true)).toBe("border-[1.5px] border-ink bg-transparent");
+    expect(prickklass(slag, true)).toBe("border border-ink bg-transparent");
     expect(prickklass({ ...slag, preliminar: undefined }, true)).toBe("bg-ink");
   });
 });
