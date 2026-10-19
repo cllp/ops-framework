@@ -1648,6 +1648,40 @@ function BibliotekYta({ oppnaDetalj = false }) {
   );
 }
 
+/**
+ * 0.127.0 (cllp/lifehub.app#358): en video i detaljen. Adressen är en data-URL utan innehåll: webbläsaren kan inte spela den och ritar sina kontroller ändå,
+ * och det som mäts är hur videon och länken under den ligger i kolumnen, inte uppspelningen.
+ */
+function BibliotekVideoYta({ oppnaDetalj = true }) {
+  const Bib = Ops.OpsBibliotek;
+  const bygg = Ops.byggPost;
+  if (!Bib || !bygg) return <p data-saknas="OpsBibliotek">OpsBibliotek saknas</p>;
+  const tid = Date.UTC(2026, 9, 19, 10, 0);
+  const skapare = { uid: "uid-1", namn: "Kim", typ: "manniska", kalla: "bibliotek" };
+  let film;
+  try {
+    film = { ...bygg({ groupId: "cps-ab", typ: "fil", rubrik: "Replokalen", fil: { sokvag: "grupper/cps-ab/bibliotek/film/rep.mp4", namn: "rep.mp4", mime: "video/mp4", byte: 90 * 1024 * 1024 }, skapadAv: skapare, skapad: tid, andrad: tid }), id: "film" };
+  } catch (e) {
+    return <p data-saknas="video">{e instanceof Error ? e.message : "video saknas"}</p>;
+  }
+  const [vald, setVald] = useState(oppnaDetalj ? film : null);
+  return (
+    <Bib
+      poster={[film]}
+      jag={{ uid: "uid-1", roll: "medlem" }}
+      vald={vald}
+      skapar={null}
+      onOppna={(p) => setVald(p)}
+      onStang={() => setVald(null)}
+      onSkapa={() => {}}
+      onSpara={() => {}}
+      filUrl={() => "data:video/mp4;base64,AAAA"}
+      hubHref="/hub"
+      onNavigate={(_href, e) => e.preventDefault()}
+    />
+  );
+}
+
 /** Ljudraden: rubrik, datum och längd, spela, våg, ⋯. En rad utan namn faller tillbaka på Röstinspelning. */
 function BibliotekLjudYta({ oppnaDetalj = false }) {
   const Bib = Ops.OpsBibliotek;
@@ -2450,6 +2484,7 @@ function Scen() {
   if (s === "bibliotekljud" || s === "bibliotekljuddetalj") {
     return <Full><BibliotekLjudYta oppnaDetalj={s === "bibliotekljuddetalj"} /></Full>;
   }
+  if (s === "bibliotekvideo") return <Full><BibliotekVideoYta /></Full>;
   // 0.87.0 (#321): utfälld aktivitet. Raden visar rubrik och detalj. Utfällningen ska inte rita dem igen.
   if (s === "aktivitet") {
     const rader = [

@@ -46,7 +46,7 @@
  *       node scripts/check-skalyta.mjs --bara-talkval    bara avsnitt 46, valen efter talet och förslagen i chatten (0.105.0)
  *       node scripts/check-skalyta.mjs --bara-0106       bara avsnitt 47, chattepiken 0.106.0 (#386), i scripts/lib/skalyta0106.mjs
  *       node scripts/check-skalyta.mjs --bara-bandkontrast  bara avsnitt 49, bandets text mot underlaget över en vald ruta (0.120.0), ljust och mörkt
- *       node scripts/check-skalyta.mjs --bara-0127       bara avsnitt 50 och 51, preliminära poster och tilläggsrutan i Ny händelse (0.127.0)
+ *       node scripts/check-skalyta.mjs --bara-0127       bara avsnitt 50 till 52, preliminära poster, tilläggsrutan i Ny händelse och video i Biblioteket (0.127.0)
  *       node scripts/check-skalyta.mjs --bara-etiketter  bara avsnitt 48, etiketterna inom sina dagsrutor i månadsvyn (0.106.0); med --tema dark som CP:s skärm
  *       node scripts/check-skalyta.mjs --chattbredder 390,1024   29g i andra bredder än 390 och 1280
  *       node scripts/check-skalyta.mjs --tema dark        alla sidor i mörkt tema (förebilden CP jämför mot är mörk)
@@ -1037,10 +1037,11 @@ if (argv.includes("--bara-bandkontrast")) {
   process.exit(0);
 }
 
-// `--bara-0127`: bara avsnitt 50 och 51, preliminära poster och tilläggsrutan i Ny händelse (0.127.0). Hela körningen kör dem också.
+// `--bara-0127`: bara avsnitt 50 till 52, preliminära poster, tilläggsrutan i Ny händelse och video i Biblioteket (0.127.0). Hela körningen kör dem också.
 if (argv.includes("--bara-0127")) {
   await kalenderPreliminar();
   await nyHandelseTillagg();
+  await bibliotekVideo();
   await browser.close();
   avsluta();
   process.exit(0);
@@ -7231,6 +7232,48 @@ async function nyHandelseTillagg() {
   }
 }
 
+// ══ 52. VIDEO I BIBLIOTEKETS DETALJ: FYLLER KOLUMNEN, HAR KONTROLLER OCH EN LÄNK UNDER (0.127.0, cllp/lifehub.app#358) ═══════════════
+// CP 2026-10-19: video i Biblioteket, spelad "med en vanlig <video controls playsinline>, utan egen spelare". jsdom ritar ingen video och ingen CSS, så vad som går att
+// mäta är hur elementet ligger i detaljen. Scenen `bibliotekvideo` (skalyta-entry.jsx) öppnar en film på 90 MB med en tom data-URL: webbläsaren kan inte spela den
+// men ritar sina kontroller ändå. Krav, vid 390 och 1280 px: (a) videon har kontroller, `playsinline` och `preload` metadata, (b) den fyller sin behållare i bredd
+// och sticker inte ut, (c) den är varken hopskrumpen (minst 100 px hög) eller högre än 384 px, (d) länken till filen står UNDER den och inom fönstret, och (e) sidan
+// flödar inte över i sidled. Golv: ett videoelement och en länk mättes.
+async function bibliotekVideo() {
+  for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
+    const namn = `video i biblioteket ${vp.width}`;
+    const { page, context } = await oppna("bibliotekvideo", vp);
+    try {
+      await page.waitForSelector("[data-bibliotek-video]", { timeout: 4000 });
+      await page.waitForTimeout(300);
+      const m = await page.evaluate(() => {
+        const v = /** @type {HTMLVideoElement} */ (document.querySelector("[data-bibliotek-video]"));
+        // Kolumnen är videons egen behållare (`data-bibliotek-fil`): detaljens innehåll har en läsbredd, och videon ska fylla den och inte mer.
+        const kol = /** @type {HTMLElement} */ (v.parentElement);
+        const vr = v.getBoundingClientRect();
+        const kr = kol.getBoundingClientRect();
+        const lank = v.parentElement ? v.parentElement.querySelector("a") : null;
+        const lr = lank ? lank.getBoundingClientRect() : null;
+        return {
+          videor: document.querySelectorAll("video").length, kontroller: v.controls, inline: v.hasAttribute("playsinline"), preload: v.preload,
+          w: vr.width, h: vr.height, vl: vr.left, vr: vr.right, vb: vr.bottom, kw: kr.width, kl: kr.left, kr: kr.right,
+          lank: lr ? { t: lr.top, b: lr.bottom, r: lr.right } : null, over: document.documentElement.scrollWidth - document.documentElement.clientWidth, fonsterB: window.innerHeight,
+        };
+      });
+      matt.push(`${namn}: video ${m.w.toFixed(0)}x${m.h.toFixed(0)} i en kolumn på ${m.kw.toFixed(0)}, länken ${JSON.stringify(m.lank)}`);
+      krav(m.videor === 1 && m.lank !== null, `${namn}: ${m.videor} videoelement och ${m.lank ? "en" : "ingen"} länk mättes, väntat 1 och en (golv).`);
+      krav(m.kontroller && m.inline && m.preload === "metadata", `${namn} (a): controls ${m.kontroller}, playsinline ${m.inline}, preload "${m.preload}", väntat true, true och "metadata".`);
+      krav(Math.abs(m.w - m.kw) <= 1 && m.vl >= m.kl - 0.5 && m.vr <= m.kr + 0.5, `${namn} (b): videon är ${m.w.toFixed(0)} px bred i en kolumn på ${m.kw.toFixed(0)} (${m.vl.toFixed(0)}-${m.vr.toFixed(0)} mot ${m.kl.toFixed(0)}-${m.kr.toFixed(0)}), väntat full bredd inom kolumnen.`);
+      krav(m.h >= 100 && m.h <= 384.5, `${namn} (c): videon är ${m.h.toFixed(0)} px hög, väntat 100 till 384.`);
+      krav(!!m.lank && m.lank.t >= m.vb - 0.5 && m.lank.r <= vp.width && m.lank.b <= m.fonsterB * 3, `${namn} (d): länken ${m.lank ? `ligger ${m.lank.t.toFixed(0)}-${m.lank.b.toFixed(0)} och slutar ${m.lank.r.toFixed(0)}` : "saknas"}, videon slutar ${m.vb.toFixed(0)}, väntat länken under videon och inom bredden.`);
+      krav(m.over <= 0, `${namn} (e): sidan flödar över ${m.over} px.`);
+      if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `bibliotek-video-${vp.width}.png`) });
+    } catch (e) {
+      krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+    }
+    await context.close();
+  }
+}
+
 await apparArkHylla();
 await apparArkOrdning();
 await textfaltMedTal();
@@ -7240,6 +7283,7 @@ await kalenderEtiketter();
 await kalenderBandkontrast();
 await kalenderPreliminar();
 await nyHandelseTillagg();
+await bibliotekVideo();
 
 await browser.close();
 avsluta();
