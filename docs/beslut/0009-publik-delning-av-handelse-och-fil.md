@@ -54,7 +54,8 @@ Den första versionen av beslutet var att bara hashen sparas, så att en läsnin
 
 - **Vad som förloras:** den som kan läsa databasen (administratör, export, säkerhetskopia, en logg som skriver hela raden) ser adresserna, och för en länk utan kod är adressen hela skyddet. För en händelse ser den personen redan händelsens innehåll i samma databas, så det som läcker är inte mer än det som redan låg där. För en fil gäller samma resonemang om filens post, men inte filen: den ligger i Storage och nås bara via en signerad adress.
 - **Vad som är kvar:** hashen som nyckel, `createNew` som unikhet, och att adresser aldrig skrivs i en logg av ramverket.
-- **Alternativet:** visa adressen en gång, som för tokenet i 0.119.0, och spara bara hashen. Det ger ingen lista med adresser på händelsen. Det valdes bort för att CP uttryckligen bad om det motsatta. Vill CP vända det är ändringen liten: ta bort `adress` ur raden och `sokvag` ur `lista`, och panelens rader visar då en text i stället för adressen.
+- **Beslutet:** raderna är `if false` för klienten (bara Admin SDK når dem) och CP vill se adresserna på händelsen. Godkänt i granskningen av PR 417.
+- **Alternativet:** visa adressen en gång, som för tokenet i 0.119.0, och spara bara hashen. Det ger ingen lista med adresser på händelsen. Det valdes bort för att CP uttryckligen bad om det motsatta. Skulle beslutet vändas är ändringen liten: ta bort `adress` ur raden och `sokvag` ur `lista`, och panelens rader visar då en text i stället för adressen.
 - **Gammal tokenlänk:** har bara hashen. `lista` svarar `sokvag: null` för den, och dialogen säger att adressen bara visades när länken skapades.
 
 ## Koden
@@ -72,6 +73,18 @@ Appens räknare (lifehub.app `functions/delning.js`, `GRANS_PER_TOKEN` 60 och `G
 - **Fel kod:** en egen räknare per länk i tjänsten, på raden (`felAntal`, `felFonster`). Högst fem felaktiga koder per 15 minuter och länk, sedan svarar länken `for-manga` även på rätt kod. Det är medvetet: annars kan gissningen fortsätta. Priset är att någon som vet adressen kan låsa en länk genom att gissa fel (en tjänstenekande attack mot en länk). Mildrat av att fönstret går ut, och att ägaren kan skapa en ny länk.
 - **Försöket reserveras innan koden prövas** (`updateIf`, ett villkorat steg), och ges tillbaka när koden stämde. Räknades det efter prövningen kunde hundra parallella gissningar alla passera spärren medan räknaren stod på noll, och rätt kod bland dem hade släppts in. Provet `parallella gissningar` bevisar det (rött med en ovillkorad skrivning).
 - **Tillbakagivandet:** en besökare som öppnar sidan igen och igen med rätt kod får inte låsa länken, så ett lyckat försök ges tillbaka.
+
+### En gruppdel tillhör en plats, för alltid (granskningen av PR 417)
+
+Gruppdelen är det som får en länk att se ut att komma från en viss grupp. Första versionen lät vilken medlem som helst skriva vilken gruppdel som helst, så en medlem i grupp A kunde skapa `/g/music/event/...` fast `music` var grupp B:s, och länken såg ut att komma från B. Adresserna lever länge när de väl är ute, så spärren ska finnas från första länken.
+
+- **En rad per gruppdel i en egen samling** (`samlingar.gruppdelar`, förval `delningsgruppdelar`): dokumentets id ÄR gruppdelen, raden är `{ plats, skapad }` och skrivs med `createNew`. Unikheten är en nyckel och inte en läsning följd av en skrivning: två samtidiga första användningar från två platser ger exakt en vinnare, och den som förlorar får vinnarens rad tillbaka och prövas mot den (provet `två samtidiga första användningar`).
+- **Platsen** är gruppens id, eller `mitt~<uid>` för Mitt bibliotek. För en händelse är det gruppen, och för en fil på en händelse eller ett ärende är det gruppen och inte objektets plats (`gruppForPlats`). Mitt bibliotek är en egen plats: ingen grupp kan ta en gruppdel som en person använder i sitt bibliotek, och tvärtom.
+- **Vid `skapa`**, efter att medlemskapet och appens regel prövats och före delningen skrivs: finns gruppdelen och hör till en annan plats svarar servern `adress-upptagen` med `del: "gruppdel"` och en text som säger att namnet används av en annan grupp. Finns den inte skapas den för platsen. Hör den redan till samma plats går det bra. En som inte får dela tar aldrig en gruppdel (provet `ett nekat anrop lämnar ingen rad`). Felet bär `del` (`gruppdel` eller `sista`), så att rutan ändrar rätt fält.
+- **En plats får använda flera gruppdelar** (enklare, och ägaren kan byta namn), men **en gruppdel byter aldrig plats**, och en rad tas aldrig bort: inte heller när alla länkar under den är stängda (en stängd adress blir aldrig ledig, av samma skäl).
+- **Förslaget till rutan:** `gruppdelar({ uid, groupId })` ger platsens gruppdelar, de senast tagna först, och `senaste`. Panelen (`delningGruppdel`) och Bibliotekets dialog föreslår den före ett namn ur gruppens namn, så att en grupps länkar ser ut att komma från samma ställe. Valet av en metod i stället för ett fält i `lista`: `lista` är en lista över länkar och gruppdelarna är platsens, inte en länks. "Senast använd" är här "senast tagen": en gruppdel har ingen skrivning per användning, och en plats har normalt en.
+- **Reglerna:** samlingen är `allow read, write: if false` för klienten, som delningarna. `delningsregelfragment("delningar", { gruppdelar: true })` lägger ett andra block efter det första; utan valet är texten byte för byte den förra. Provat i emulatorn (`rules/__tests__/delningar.test.mjs`).
+- **Det som är kvar:** en grupp kan ta ett namn som liknar något utanför appen, först till kvarn, som för en URL-förkortare. Och en medlem kan ta många gruppdelar för sin plats. Ramverket har ingen lista över skyddade namn och ingen gräns per plats; det är ett beslut att fatta om det blir ett problem.
 
 ## Giltighet
 
@@ -107,7 +120,7 @@ Delningar från 0.119.0 till 0.124.0 har ett token (`/d/<token>`) och är oför�
 
 ## Det som inte är löst
 
-1. **Vem som helst i en grupp kan välja vilken gruppdel som helst.** `/g/<vad som helst>/event/...` är ledigt åt den som tar det först, så `/g/banken/event/logga-in` kan skapas av en medlem i en grupp som inte heter banken. Sidan visar bara en händelses text och filer och har inga formulär, men en länk som ser ut att komma från någon annan är en bluff. Ett försvar kunde vara att gruppdelen måste vara ledig åt en enda grupp (en egen samling) och inte bara en del av nyckeln; det är en andra sanning och byggs inte utan ett beslut.
+1. **Namn som liknar något utanför appen.** Gruppdelen är först till kvarn: en grupp kan ta `banken` om ingen annan gjort det, och länken ser då ut att komma från något som inte är en grupp. Spärren mot att en grupp tar en annan grupps gruppdel finns (se ovan); den kvarvarande risken är densamma som för en URL-förkortare, och sidan har inga formulär.
 2. **En länk med kod avslöjar att den finns** när den svarar `kod-kravs`. Samma sak gäller en tjänstenekande attack mot en länk (se ovan).
 3. **En händelsefil kan vara stor.** Sidan visar inte filens storlek före öppning mer än som text, och 50 filer är taket.
 4. **Åtta tecken** i slutet är ett golv (CP: minst åtta). Vill CP ha tolv blir adressen längre i ett sms.

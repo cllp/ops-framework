@@ -487,6 +487,25 @@ describe("regelfragmentet", () => {
     expect(f).toContain("allow read, write: if false;");
     expect(f).not.toMatch(/allow (read|write|get|list|create|update|delete)[^;]*:\s*if\s+(?!false)/);
   });
+  it("⛔ utan valet är texten byte för byte den förra, och gruppdelarna är ett eget block efter den", () => {
+    const forr = `    // ══ Ramverkets delningslänkar. GENERERAD, ändra inte för hand ══
+    //
+    // Källa: ops-framework, delningsregelfragment() i src/lib/regler.js.
+    // Klienten läser inte raderna och skriver dem inte. Bara servern, med Admin SDK.
+    // Id:t är SHA-256 av tokenet, och en lista över dem är en lista över hashar att försöka vända.
+    match /delningar/{id} {
+      allow read, write: if false;
+    }
+`;
+    expect(delningsregelfragment("delningar")).toBe(forr);
+    expect(delningsregelfragment("delningar", {})).toBe(forr);
+    const med = delningsregelfragment("delningar", { gruppdelar: true });
+    expect(med.startsWith(forr)).toBe(true);
+    expect(med).toContain("match /delningsgruppdelar/{gruppdel} {\n      allow read, write: if false;");
+    expect(delningsregelfragment("delningar", { gruppdelar: "namn" })).toContain("match /namn/{gruppdel}");
+    expect(med).not.toMatch(/allow (read|write|get|list|create|update|delete)[^;]*:\s*if\s+(?!false)/);
+    expect(() => delningsregelfragment("delningar", { gruppdelar: "a/b" })).toThrow(/samlingsnamn/);
+  });
   it("ett namn med snedstreck är en sökväg och avvisas", () => {
     expect(() => delningsregelfragment("a/b")).toThrow(/samlingsnamn/);
     expect(() => delningsregelfragment("")).toThrow();

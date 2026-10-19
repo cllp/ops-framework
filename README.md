@@ -2902,7 +2902,7 @@ import { createDelningService, delningsUrl, delningsNyckel } from "ops-framework
 const delning = createDelningService({
   kalla,                                   // minst read, list, createNew och updateIf (datakontraktets regel 7 och 8)
   lagring: { signeradAdress: ({ sokvag, sekunder, disposition, mime }) => /* bucket.file(sokvag).getSignedUrl({ version: "v4", action: "read", expires: Date.now() + sekunder * 1000, responseDisposition: disposition, responseType: mime }) */ },
-  samlingar: { delningar: "delningar", bibliotek: "bibliotek", handelser: "handelser" },   // appens namn, inga förval. `handelser` krävs för en händelse. `medlemskap` förval "memberships"
+  samlingar: { delningar: "delningar", bibliotek: "bibliotek", handelser: "handelser" },   // appens namn, inga förval. `handelser` krävs för en händelse. `medlemskap` förval "memberships", `gruppdelar` förval "delningsgruppdelar"
   handelseSida: (h) => ({ titel: h.rubrik, beskrivning: h.text, plats: h.plats }),         // krävs med `handelser`: vilka av appens fält som är vad. Ramverket känner dem inte
   farDelaHandelse: ({ uid, groupId, medlemskap, handelse }) => true,                       // valfri, appens snävare regel. Prövas EFTER medlemskapet, och måste svara exakt true
 });
@@ -2918,11 +2918,14 @@ await delning.andraNedladdning({ uid, id, nedladdning: true });                 
 await delning.aterkalla({ uid, id });
 await delning.lista({ uid, groupId });                                                    // filänkarna i platsen, till `OpsBibliotek delningar`
 await delning.lista({ uid, groupId, handelseId });                                        // en händelses länkar, till `OpsHandelsePanel delningar`
+await delning.gruppdelar({ uid, groupId });                                               // { plats, gruppdelar, senaste }: platsens gruppdelar, till `delningGruppdel`
 await delning.hamta("travel/event/resa-med-kusiner", { kod });                            // utan inloggning. Ett token (en gammal filänk) eller en adress utan /g/
 delningsNyckel(ref);                                                                       // id:t för ett uppslag, för appens räknare. null för skräp
 ```
 
 ⛔ **Adressen är nyckeln.** `/g/<gruppdel>/event/<händelsedel>` och `/g/<gruppdel>/lib/<fildel>`: prefixet `/g/` så att en grupps namn aldrig krockar med appens egna sökvägar, och ett typsegment ur en fast lista (`ADRESSSEGMENT`: `lib`, `event`) så att det syns vilket område adressen hör till och ett framtida mål blir ett nytt ord. Delarna är gemener, siffror och bindestreck, högst 40 tecken (`adressdel`, `foreslaAdress` ger förslaget ur gruppens namn och titeln: å/ä/ö till a/a/o, punkten och allt annat till ett bindestreck). Dokumentets id är SHA-256 (hex) av `<gruppdel>/<typsegment>/<sista del>` (`adressId`), och **`createNew` på id:t är unikheten**: en upptagen adress är ett eget fel (`kod: "adress-upptagen"`, rutan föreslår `-2`). En stängd eller utgången adress blir aldrig ledig igen.
+
+⛔ **En gruppdel tillhör en plats, för alltid.** Varje gruppdel har en rad i `samlingar.gruppdelar` (förval `delningsgruppdelar`): id är gruppdelen, raden är `{ plats, skapad }` och skrivs med `createNew`. Platsen är gruppens id eller `mitt~<uid>` (för en händelse eller ett ärende gruppen). `skapa` med en gruppdel som en annan plats har svarar `kod: "adress-upptagen"` med `del: "gruppdel"`; en egen går bra, en ny skapas. En plats kan ha flera, en gruppdel byter aldrig plats. `delningsregelfragment("delningar", { gruppdelar: true })` lägger blocket som nekar klienten samlingen. `delningGruppdel` på `OpsHandelsePanel` och `OpsBibliotek` föreslår platsens senaste.
 
 ⛔ **UTAN kod får sista delen ett slumpat slut** (`-` och `SLUMPSLUT_TECKEN` = 8 tecken ur a-z0-9, kryptografiskt slumpade, kan inte tas bort), eftersom en läsbar adress annars kan gissas. **MED kod** är adressen exakt det personen skrev, eftersom koden då är skyddet.
 

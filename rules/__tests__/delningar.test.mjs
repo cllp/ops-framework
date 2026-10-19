@@ -43,11 +43,14 @@ before(async () => {
   }
   const text = fs.readFileSync(regler, "utf8");
   assert.ok(text.length > 500, "provreglerna lästes tomma. Ett tomt underlag gör nekandet grönt av fel skäl.");
-  const fragment = delningsregelfragment("delningar");
+  const fragment = delningsregelfragment("delningar", { gruppdelar: true });
   assert.ok(
     text.includes(fragment),
-    "provreglerna innehåller inte delningsregelfragment(\"delningar\"). Catch-all nekar också, så ett saknat fragment hade sett grönt ut.",
+    "provreglerna innehåller inte delningsregelfragment(\"delningar\", { gruppdelar: true }). Catch-all nekar också, så ett saknat fragment hade sett grönt ut.",
   );
+  // Utan valet är fragmentet byte för byte det förra, och gruppdelsblocket är ett eget block efter det.
+  assert.ok(fragment.startsWith(delningsregelfragment("delningar")), "gruppdelsblocket ska komma efter det oförändrade delningsblocket.");
+  assert.ok(fragment.includes("match /delningsgruppdelar/{gruppdel}"), "fragmentet saknar blocket för gruppdelarna.");
 
   miljo = await initializeTestEnvironment({
     projectId: "regelprov",
@@ -67,6 +70,7 @@ before(async () => {
       aterkallad: null,
       nedladdning: false,
     });
+    await setDoc(doc(db, "delningsgruppdelar/travel"), { plats: "kallan", skapad: 1_800_000_000_000 });
     await setDoc(doc(db, `delningar/${"b".repeat(64)}`), {
       postId: "p2",
       groupId: "kallan",
@@ -143,5 +147,22 @@ describe("delningarna: ingen klient skriver", () => {
   it("utan inloggning skrivs ingenting", async () => {
     await assertFails(setDoc(doc(utan(), `delningar/${"d".repeat(64)}`), { postId: "p1" }));
     await assertFails(updateDoc(doc(utan(), `delningar/${ID}`), { aterkallad: 1 }));
+  });
+});
+
+describe("gruppdelarna: ingen klient läser eller skriver (0.125.0)", () => {
+  it("en medlem i gruppen läser inte sin gruppdel, och ingen listar dem", async () => {
+    await assertFails(getDoc(doc(som("uid-medlem"), "delningsgruppdelar/travel")));
+    await assertFails(getDocs(collection(som("uid-medlem"), "delningsgruppdelar")));
+    await assertFails(getDocs(query(collection(som("uid-agare"), "delningsgruppdelar"), where("plats", "==", "kallan"))));
+    await assertFails(getDoc(doc(utan(), "delningsgruppdelar/travel")));
+  });
+
+  it("⛔ en inloggad tar inte en gruppdel, inte ens åt sin egen grupp, och tar inte över en annans", async () => {
+    await assertFails(setDoc(doc(som("uid-agare"), "delningsgruppdelar/music"), { plats: "kallan", skapad: 1 }));
+    await assertFails(setDoc(doc(som("uid-agare"), "delningsgruppdelar/travel"), { plats: "grannen", skapad: 1 }));
+    await assertFails(updateDoc(doc(som("uid-agare"), "delningsgruppdelar/travel"), { plats: "grannen" }));
+    await assertFails(deleteDoc(doc(som("uid-agare"), "delningsgruppdelar/travel")));
+    await assertFails(setDoc(doc(utan(), "delningsgruppdelar/music"), { plats: "kallan", skapad: 1 }));
   });
 });

@@ -21,17 +21,18 @@ import { OpsModal } from "./OpsModal.jsx";
  * Komponenten vet inte vem som får dela eller stänga: den ritas bara när appen ger `onDela`, och servern (`createDelningService`) prövar medlemskapet och
  * appens regel (`farDelaHandelse`) på nytt vid varje anrop. `onDela` får värdena från rutan och svarar med den nya länken, `{ id, url, giltigTill, harKod }`, där `url` är
  * appens basadress plus `sokvag` ur svaret (`delningsUrl`): domänen är instansens och ramverket känner den inte. Ett fel visas i rutan, rutan står kvar och fälten är orörda. Är adressen upptagen
- * (felets `kod` är `adress-upptagen`) står ett annat förslag i fältet och rutan säger det.
+ * (felets `kod` är `adress-upptagen`) står ett annat förslag i fältet och rutan säger det; felets `del` (`gruppdel` eller `sista`) säger vilket fält.
  *
  * @param {object} props
  * @param {{ titel: string, grupp?: string }} props.handelse Titeln och gruppens namn, för förslaget till adressen.
  * @param {ReadonlyArray<import("./LankRad.jsx").Lank>} props.delningar Aktiva länkar till händelsen, ur appens `lista` (med `url`).
  * @param {(val: { dagar: number | null, kod: string | null, gruppdel: string, handelsedel: string }) => Promise<import("./LankRad.jsx").Lank>} props.onDela
  * @param {(arg: { id: string }) => Promise<void>} props.onAterkalla
+ * @param {string} [props.gruppdel] Gruppdelen gruppen redan använt (tjänstens `gruppdelar().senaste`), föreslagen i rutan före ett namn ur gruppens namn. En gruppdel tillhör en grupp för alltid, så den gruppen redan har är den som går att använda.
  * @param {string} [props.sprak]
  * @param {Partial<Record<string, string>>} [props.ord] Egna texter (se `ORD_HANDELSEDELNING`, `ORD_DELALANK` och `ORD_LANKRAD`).
  */
-export function HandelseDelning({ handelse, delningar, onDela, onAterkalla, sprak = "sv", ord }) {
+export function HandelseDelning({ handelse, delningar, onDela, onAterkalla, gruppdel, sprak = "sv", ord }) {
   if (typeof onDela !== "function") throw new Error("HandelseDelning: onDela krävs, en funktion som skapar länken och svarar med den.");
   if (typeof onAterkalla !== "function") throw new Error("HandelseDelning: onAterkalla krävs. En länk man kan skapa men inte stänga är en länk som lever för alltid.");
   if (!Array.isArray(delningar)) {
@@ -50,7 +51,7 @@ export function HandelseDelning({ handelse, delningar, onDela, onAterkalla, spra
   const [skapad, setSkapad] = useState(/** @type {import("./LankRad.jsx").Lank | null} */ (null));
   const [upptagen, setUpptagen] = useState(false);
   const [fel, setFel] = useState("");
-  const falt = useDelaLankFalt({ slag: "handelse", grupp: handelse.grupp, titel: handelse.titel, dagval: HANDELSEDAGAR, forvalDagar: FORVAL_HANDELSEDAGAR, sprak });
+  const falt = useDelaLankFalt({ slag: "handelse", grupp: handelse.grupp, titel: handelse.titel, gruppdelForslag: gruppdel, dagval: HANDELSEDAGAR, forvalDagar: FORVAL_HANDELSEDAGAR, sprak });
   // ⛔ EN REF OCH INTE BARA `upptagen`: två tryck i samma tick ser samma state, och då skapas två länkar.
   const pagar = useRef(false);
   const levande = useRef(true);
@@ -93,8 +94,11 @@ export function HandelseDelning({ handelse, delningar, onDela, onAterkalla, spra
       setSkapad(lank);
     } catch (e) {
       if (!levande.current) return;
-      if (e && typeof e === "object" && /** @type {{ kod?: unknown }} */ (e).kod === "adress-upptagen") falt.upptagen();
-      else setFel(e instanceof Error && e.message ? e.message : String(e));
+      if (e && typeof e === "object" && /** @type {{ kod?: unknown }} */ (e).kod === "adress-upptagen") {
+        // `del` säger vilken del som var upptagen: gruppdelen (en annan grupps) eller sista delen. Utan `del` är det sista delen, som förut.
+        if (/** @type {{ del?: unknown }} */ (e).del === "gruppdel") falt.gruppdelUpptagen();
+        else falt.upptagen();
+      } else setFel(e instanceof Error && e.message ? e.message : String(e));
     } finally {
       pagar.current = false;
       if (levande.current) setUpptagen(false);

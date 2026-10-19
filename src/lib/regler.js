@@ -2379,11 +2379,24 @@ ${nuRegelfunktion("opsBeskrivningNu")}
  *
  * ⛔ SAMLINGSNAMNET KOMMER FRÅN APPEN. Ramverket känner det inte, samma skäl som för mejlkön.
  *
+ * ⛔ GRUPPDELARNA (0.125.0, lifehub.app#377, granskningen av PR 417): `{ gruppdelar: true }` (samlingen `delningsgruppdelar`, tjänstens förval) eller
+ * `{ gruppdelar: "<namn>" }` lägger till ett andra block för samlingen som säger vilken plats en gruppdel tillhör. Samma `if false`: en klient som kunde skriva en rad
+ * kunde ta en annan grupps gruppdel, och en som kunde läsa dem listade vilka grupper som delar. Utan valet är texten byte för byte den förra.
+ *
  * @param {string} namn Samlingsnamnet appen valt.
+ * @param {{ gruppdelar?: string | true }} [val]
  * @returns {string}
  */
-export function delningsregelfragment(namn) {
+export function delningsregelfragment(namn, val = {}) {
   const samling = kontrolleraNamn(namn, "delningar");
+  const gruppdelar = val.gruppdelar === undefined ? null : kontrolleraNamn(val.gruppdelar === true ? "delningsgruppdelar" : val.gruppdelar, "gruppdelar");
+  const gruppdelsblock = gruppdelar
+    ? `    // Gruppdelarna: en rad per gruppdel som säger vilken plats den tillhör. Bara servern skriver dem.
+    match /${gruppdelar}/{gruppdel} {
+      allow read, write: if false;
+    }
+`
+    : "";
   return `    // ══ Ramverkets delningslänkar. GENERERAD, ändra inte för hand ══
     //
     // Källa: ops-framework, delningsregelfragment() i src/lib/regler.js.
@@ -2392,5 +2405,5 @@ export function delningsregelfragment(namn) {
     match /${samling}/{id} {
       allow read, write: if false;
     }
-`;
+${gruppdelsblock}`;
 }

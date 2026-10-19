@@ -52,7 +52,7 @@ const ut = path.join(rot, "rules", "provregler.rules");
  * ⛔ MODULINSTÄLLNINGAR (0.88.0): `modulinstallningsregelfragment("modulinstallningar")`. Namnet är påhittat,
  *   samma sak som hos en app. Pinnen till huvudmenyn provas inte här: den ligger kvar på gruppen.
  *
- * ⛔ DELNINGSLÄNKARNA (0.119.0, lifehub.app#356): `delningsregelfragment("delningar")`. Namnet är påhittat, som hos en app. Catch-all nekar
+ * ⛔ DELNINGSLÄNKARNA (0.119.0, lifehub.app#356): `delningsregelfragment("delningar", { gruppdelar: true })` (gruppdelarna 0.125.0, lifehub.app#377). Namnet är påhittat, som hos en app. Catch-all nekar
  *   också, så `rules/__tests__/delningar.test.mjs` läser att just det här blocket finns i den genererade texten.
  *
  * ⛔ EN HÄNDELSES FILER (0.121.0, lifehub.app#366): `bibliotekregelfragment("bibliotek", { handelser: "handelser" })` och
@@ -82,7 +82,7 @@ ${kalenderregelfragment()}
 ${handelseregelfragment()}
 ${mejlregelfragment("mejlko")}
 ${bibliotekregelfragment("bibliotek", { handelser: "handelser", arenden: "inkorg" })}
-${delningsregelfragment("delningar")}
+${delningsregelfragment("delningar", { gruppdelar: true })}
 ${minnesregelfragment("gruppmine")}
 ${modulinstallningsregelfragment("modulinstallningar")}
 ${beskrivenappdataregelfragment("appdata")}

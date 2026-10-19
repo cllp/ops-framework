@@ -52,6 +52,7 @@ describe("Delade länkar i panelen: när den ritas", () => {
     expect(() => render(<OpsHandelsePanel handelse={HANDELSE} onTillbaka={() => {}} onDela={vi.fn()} onAterkalla={vi.fn()} />)).toThrow(/delningar saknas/);
     expect(() => render(<OpsHandelsePanel handelse={HANDELSE} onTillbaka={() => {}} delningar={[]} />)).toThrow(/hör till onDela/);
     expect(() => render(<OpsHandelsePanel handelse={HANDELSE} onTillbaka={() => {}} onAterkalla={vi.fn()} />)).toThrow(/hör till onDela/);
+    expect(() => render(<OpsHandelsePanel handelse={HANDELSE} onTillbaka={() => {}} delningGruppdel="travel" />)).toThrow(/hör till onDela/);
     expect(() => render(<OpsHandelsePanel handelse={HANDELSE} onTillbaka={() => {}} onDela="x" delningar={[]} onAterkalla={vi.fn()} />)).toThrow(/onDela måste vara en funktion/);
   });
 
@@ -294,6 +295,39 @@ describe("Delade länkar: rutan Dela", () => {
     await waitFor(() => expect(onDela).toHaveBeenLastCalledWith(expect.objectContaining({ handelsedel: "resa-med-kusiner-2", kod: "hemligt1" })));
   });
 
+  it("⛔ gruppdelen gruppen redan använt föreslås före ett namn ur gruppens namn, och skickas", async () => {
+    const { dialog, onDela } = await oppna({ delningGruppdel: "travel-sverige" });
+    expect(within(dialog).getByRole("textbox", { name: "Gruppens del av adressen" })).toHaveValue("travel-sverige");
+    expect(text(dialog.querySelector("[data-delalank-forhandsvisning]"))).toBe("Adressen blir: /g/travel-sverige/event/resa-med-kusiner-xxxxxxxx");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Skapa länk" }));
+    await waitFor(() => expect(onDela).toHaveBeenCalledWith(expect.objectContaining({ gruppdel: "travel-sverige" })));
+  });
+
+  it("en gruppdel som kommer först när rutan är öppen tas i bruk, men aldrig över det personen skrivit", async () => {
+    const onDela = vi.fn(async () => lank("ny1"));
+    const { rerender } = render(<Panel delningar={[]} onDela={onDela} />);
+    fireEvent.click(screen.getByRole("button", { name: "Dela" }));
+    const dialog = await screen.findByRole("dialog", { name: "Dela händelsen" });
+    expect(within(dialog).getByRole("textbox", { name: "Gruppens del av adressen" })).toHaveValue("travel");
+    rerender(<Panel delningar={[]} onDela={onDela} delningGruppdel="platsens-namn" />);
+    expect(within(dialog).getByRole("textbox", { name: "Gruppens del av adressen" })).toHaveValue("platsens-namn");
+    fireEvent.change(within(dialog).getByRole("textbox", { name: "Gruppens del av adressen" }), { target: { value: "mitt-eget" } });
+    rerender(<Panel delningar={[]} onDela={onDela} delningGruppdel="annat-namn" />);
+    expect(within(dialog).getByRole("textbox", { name: "Gruppens del av adressen" })).toHaveValue("mitt-eget");
+  });
+
+  it("⛔ en gruppdel som en annan grupp har ger ett annat förslag i gruppdelsfältet, och rutan säger det", async () => {
+    const upptagen = Object.assign(new Error("skapa: gruppdelen används av en annan grupp"), { kod: "adress-upptagen", del: "gruppdel" });
+    const onDela = vi.fn().mockRejectedValueOnce(upptagen).mockResolvedValue(lank("ny2"));
+    const { dialog } = await oppna({ onDela });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Skapa länk" }));
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent("Gruppdelen används av en annan grupp. Ett annat förslag står nu i fältet");
+    expect(within(dialog).getByRole("textbox", { name: "Gruppens del av adressen" })).toHaveValue("travel-2");
+    expect(within(dialog).getByRole("textbox", { name: "Händelsens del av adressen" })).toHaveValue("resa-med-kusiner");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Skapa länk" }));
+    await waitFor(() => expect(onDela).toHaveBeenLastCalledWith(expect.objectContaining({ gruppdel: "travel-2", handelsedel: "resa-med-kusiner" })));
+  });
+
   it("⛔ ett dubbeltryck på Skapa skapar en länk", async () => {
     let klar;
     const onDela = vi.fn(() => new Promise((res) => { klar = res; }));
@@ -415,6 +449,24 @@ describe("hela kedjan: panelen, tjänsten och den publika sidan", () => {
     fireEvent.click(within(dialog3).getByRole("button", { name: "Skapa länk" }));
     expect(await within(dialog3).findByRole("alert")).toHaveTextContent(/Adressen är upptagen/);
     expect(within(dialog3).getByRole("textbox", { name: "Händelsens del av adressen" })).toHaveValue("kusinresan-2");
+  });
+
+  it("⛔ en gruppdel som en annan grupp redan har nekas av servern, rutan föreslår en annan, och länken skapas med den", async () => {
+    const { kalla, tjanst, onDela, onAterkalla } = bygg();
+    await kalla.create("delningsgruppdelar", { id: "travel", plats: "grannen", skapad: NU - 1 });
+    const { container } = render(<Kedja onDela={onDela} onAterkalla={onAterkalla} />);
+    fireEvent.click(screen.getByRole("button", { name: "Dela" }));
+    const dialog = await screen.findByRole("dialog", { name: "Dela händelsen" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Skapa länk" }));
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(/Gruppdelen används av en annan grupp/);
+    expect(within(dialog).getByRole("textbox", { name: "Gruppens del av adressen" })).toHaveValue("travel-2");
+    expect(dialog.querySelector("[data-handelsedelning-skapad]")).toBeNull();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Skapa länk" }));
+    await waitFor(() => expect(dialog.querySelector("[data-handelsedelning-skapad]")).not.toBeNull());
+    expect(text(dialog.querySelector("[data-lankrad-url]"))).toMatch(/^https:\/\/my\.life-hub\.app\/g\/travel-2\/event\/resa-med-kusiner-[a-z0-9]{8}$/);
+    expect((await tjanst.gruppdelar({ uid: MEDLEM, groupId: GRUPP })).senaste).toBe("travel-2");
+    expect((await kalla.read("delningsgruppdelar", "travel")).plats).toBe("grannen");
+    void container;
   });
 
   it("⛔ Återkalla i listan stänger länken på servern, och sidan svarar att den är stängd", async () => {

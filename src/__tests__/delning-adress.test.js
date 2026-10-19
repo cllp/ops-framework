@@ -758,3 +758,155 @@ describe("tjänsten byggs inte av halva beståndsdelar (händelser)", () => {
     expect(() => createDelningService({ kalla, lagring, samlingar, handelseSida: () => ({ titel: "x" }), farDelaHandelse: "ja" })).toThrow(/farDelaHandelse måste vara en funktion/);
   });
 });
+
+
+describe("gruppdelen tillhör en plats, för alltid (granskningen av PR 417)", () => {
+  const BPOST = "pb";
+  const bygga = (extra = {}) =>
+    bygg({ handelser: [handelse(), handelse({ id: "h3", groupId: ANNAN_GRUPP, rubrik: "Grannens resa" })], poster: [fil(BPOST, ANNAN_GRUPP, UTOMSTAENDE)], ...extra });
+  const delaB = (tjanst, extra = {}) => tjanst.skapa({ uid: UTOMSTAENDE, handelseId: "h3", gruppdel: "music", handelsedel: "resa", ...extra });
+
+  it("⛔ grupp B kan inte använda grupp A:s gruppdel, för en händelse eller en fil, och inget skrivs", async () => {
+    const { tjanst, kalla } = bygga();
+    const a = await delaHandelse(tjanst, { gruppdel: "music", kod: "hemligt1" });
+    expect(a.adress).toBe("music/event/resa-med-kusiner");
+    const fore = await kalla.list("delningar");
+    await expect(delaB(tjanst)).rejects.toMatchObject({ kod: "adress-upptagen", del: "gruppdel" });
+    await expect(tjanst.skapa({ uid: UTOMSTAENDE, postId: BPOST, groupId: ANNAN_GRUPP, dagar: 7, gruppdel: "music", fildel: "biljett" })).rejects.toMatchObject({ kod: "adress-upptagen", del: "gruppdel" });
+    expect(await kalla.list("delningar")).toEqual(fore);
+    expect(await kalla.read("delningsgruppdelar", "music")).toMatchObject({ id: "music", plats: GRUPP });
+  });
+
+  it("felet säger att namnet används av en annan grupp, och skiljer sig från en upptagen sista del", async () => {
+    const { tjanst } = bygga();
+    await delaHandelse(tjanst, { gruppdel: "music" });
+    await expect(delaB(tjanst)).rejects.toThrow(/gruppdelen "music" används av en annan grupp/);
+    await delaHandelse(tjanst, { gruppdel: "music", handelsedel: "fast", kod: "hemligt1" });
+    await expect(delaHandelse(tjanst, { gruppdel: "music", handelsedel: "fast", kod: "annan-kod" })).rejects.toMatchObject({ kod: "adress-upptagen", del: "sista" });
+  });
+
+  it("⛔ samma plats kan använda sin gruppdel igen, för händelser och filer, och en plats kan ha flera", async () => {
+    const { tjanst, kalla } = bygga();
+    await delaHandelse(tjanst, { gruppdel: "music" });
+    await delaHandelse(tjanst, { gruppdel: "music", handelsedel: "andra" });
+    await delaFil(tjanst, { gruppdel: "music" });
+    await delaHandelse(tjanst, { gruppdel: "musik-sverige", handelsedel: "tredje" });
+    const rader = await kalla.list("delningsgruppdelar");
+    expect(rader.map((r) => r.id).sort()).toEqual(["music", "musik-sverige"]);
+    expect(rader.every((r) => r.plats === GRUPP)).toBe(true);
+    expect(await kalla.list("delningar")).toHaveLength(4);
+  });
+
+  it("⛔ en gruppdel byter aldrig plats: inte när alla länkar är stängda heller", async () => {
+    const { tjanst, kalla } = bygga();
+    const a = await delaHandelse(tjanst, { gruppdel: "music" });
+    await tjanst.aterkalla({ uid: MEDLEM, id: a.id });
+    await expect(delaB(tjanst)).rejects.toMatchObject({ kod: "adress-upptagen", del: "gruppdel" });
+    expect((await kalla.read("delningsgruppdelar", "music")).plats).toBe(GRUPP);
+  });
+
+  it("⛔ två samtidiga första användningar från två platser ger exakt en vinnare", async () => {
+    const { tjanst, kalla } = bygga();
+    const svar = await Promise.allSettled([delaHandelse(tjanst, { gruppdel: "music" }), delaB(tjanst), delaHandelse(tjanst, { gruppdel: "music", uid: ADMIN, handelsedel: "x" }), delaB(tjanst, { handelsedel: "y" })]);
+    const lyckade = svar.filter((s) => s.status === "fulfilled");
+    const nekade = svar.filter((s) => s.status === "rejected");
+    const rad = await kalla.read("delningsgruppdelar", "music");
+    expect(["kallan", "grannen"]).toContain(rad.plats);
+    // Alla som lyckades kom från vinnarplatsen, och alla från den andra platsen nekades.
+    expect(lyckade.length).toBe(2);
+    expect(nekade.length).toBe(2);
+    expect(nekade.every((s) => s.reason.kod === "adress-upptagen" && s.reason.del === "gruppdel")).toBe(true);
+    const delningar = await kalla.list("delningar");
+    expect(delningar.every((d) => d.groupId === rad.plats)).toBe(true);
+    expect(await kalla.list("delningsgruppdelar")).toHaveLength(1);
+  });
+
+  it("en kapplöpning som förlorats prövas mot raden den andra skrev: samma plats går bra, en annan nekas", async () => {
+    // createNew svarar `created: false` med en rad som någon annan hann skriva, trots att läsningen innan inte såg den.
+    for (const [vinnare, ok] of [[GRUPP, true], [ANNAN_GRUPP, false]]) {
+      const { tjanst } = bygg({
+        omslut: (k) => ({
+          ...k,
+          createNew: async (samling, data) => (samling === "delningsgruppdelar" ? { created: false, row: { id: data.id, plats: vinnare, skapad: NU - 5 } } : k.createNew(samling, data)),
+        }),
+      });
+      const utfall = delaHandelse(tjanst, { gruppdel: "music" });
+      if (ok) await expect(utfall).resolves.toMatchObject({ adress: expect.stringMatching(/^music\/event\//) });
+      else await expect(utfall).rejects.toMatchObject({ kod: "adress-upptagen", del: "gruppdel" });
+    }
+  });
+
+  it("raden är { id, plats, skapad }, och en händelsefil har gruppen och inte händelsens plats", async () => {
+    const { tjanst, kalla } = bygga({ poster: [fil("hf", PLATS, MEDLEM), fil(BPOST, ANNAN_GRUPP, UTOMSTAENDE)] });
+    await tjanst.skapa({ uid: MEDLEM, postId: "hf", groupId: PLATS, dagar: 7, gruppdel: "resa", fildel: "biljett" });
+    expect(await kalla.read("delningsgruppdelar", "resa")).toEqual({ id: "resa", plats: GRUPP, skapad: NU });
+    // Gruppens egen händelselänk med samma gruppdel går bra: samma plats.
+    await delaHandelse(tjanst, { gruppdel: "resa" });
+    // Grannens händelsefil kan inte ta den.
+    await expect(tjanst.skapa({ uid: UTOMSTAENDE, postId: BPOST, groupId: ANNAN_GRUPP, dagar: 7, gruppdel: "resa", fildel: "x" })).rejects.toMatchObject({ del: "gruppdel" });
+  });
+
+  it("⛔ Mitt bibliotek är en egen plats: bara ägaren använder sin gruppdel, och ingen grupp tar den", async () => {
+    const { tjanst, kalla } = bygga();
+    const mitt = mittBibliotek(MEDLEM);
+    await tjanst.skapa({ uid: MEDLEM, postId: "p-mitt", groupId: mitt, dagar: 7, gruppdel: "min-sida", fildel: "mitt" });
+    expect(await kalla.read("delningsgruppdelar", "min-sida")).toMatchObject({ plats: mitt });
+    await expect(delaHandelse(tjanst, { gruppdel: "min-sida" })).rejects.toMatchObject({ del: "gruppdel" });
+    // Och tvärtom: gruppens gruppdel tas inte av Mitt bibliotek.
+    await delaHandelse(tjanst, { gruppdel: "gruppens" });
+    await expect(tjanst.skapa({ uid: MEDLEM, postId: "p-mitt", groupId: mitt, dagar: 7, gruppdel: "gruppens", fildel: "mitt2" })).rejects.toMatchObject({ del: "gruppdel" });
+  });
+
+  it("⛔ en gruppdel tas inte av den som inte får dela: ett nekat anrop lämnar ingen rad", async () => {
+    const { tjanst, kalla } = bygga();
+    await expect(delaHandelse(tjanst, { uid: UTOMSTAENDE, gruppdel: "stulen" })).rejects.toMatchObject({ kod: "ej-behorig" });
+    await expect(delaHandelse(tjanst, { gruppdel: "Stulen" })).rejects.toMatchObject({ kod: "ogiltig-adress" });
+    await expect(delaHandelse(tjanst, { handelseId: "finns-inte", gruppdel: "stulen" })).rejects.toMatchObject({ kod: "finns-inte" });
+    expect(await kalla.list("delningsgruppdelar")).toHaveLength(0);
+  });
+
+  it("samlingen heter delningsgruppdelar som förval, och appen kan ge ett eget namn", async () => {
+    const kalla = createMemorySource({ memberships: [medlemskap(MEDLEM, GRUPP, "medlem")], bibliotek: [], handelser: [handelse()], delningar: [] });
+    const tjanst = createDelningService({
+      kalla,
+      lagring: { signeradAdress: async () => "x" },
+      samlingar: { delningar: "delningar", bibliotek: "bibliotek", handelser: "handelser", gruppdelar: "gruppnamn" },
+      handelseSida: (h) => ({ titel: h.rubrik }),
+    });
+    await delaHandelse(tjanst, { gruppdel: "eget" });
+    expect(await kalla.read("gruppnamn", "eget")).toMatchObject({ plats: GRUPP });
+    expect(await kalla.list("delningsgruppdelar")).toHaveLength(0);
+    expect(() => createDelningService({ kalla, lagring: { signeradAdress: async () => "x" }, samlingar: { delningar: "d", bibliotek: "b", gruppdelar: "a/b" } })).toThrow(/samlingar\.gruppdelar/);
+  });
+
+  it("gruppdelar(): platsens egna, de senast tagna först, och den senaste", async () => {
+    const { tjanst, tid } = bygga();
+    expect(await tjanst.gruppdelar({ uid: MEDLEM, groupId: GRUPP })).toEqual({ plats: GRUPP, gruppdelar: [], senaste: null });
+    await delaHandelse(tjanst, { gruppdel: "forsta" });
+    tid(NU + 1000);
+    await delaHandelse(tjanst, { gruppdel: "andra", handelsedel: "b" });
+    await delaB(tjanst);
+    const svar = await tjanst.gruppdelar({ uid: MEDLEM, groupId: GRUPP });
+    expect(svar).toEqual({ plats: GRUPP, gruppdelar: ["andra", "forsta"], senaste: "andra" });
+    expect(JSON.stringify(svar)).not.toContain("music");
+    // En händelsefils plats ger gruppens gruppdelar, och Mitt bibliotek har sina egna.
+    expect((await tjanst.gruppdelar({ uid: MEDLEM, groupId: PLATS })).gruppdelar).toEqual(["andra", "forsta"]);
+    expect((await tjanst.gruppdelar({ uid: MEDLEM, groupId: mittBibliotek(MEDLEM) })).gruppdelar).toEqual([]);
+  });
+
+  it("⛔ gruppdelar() släpper aldrig in en annan plats rad, hur adaptern än filtrerar", async () => {
+    const { tjanst, kalla } = bygga({ omslut: (k) => ({ ...k, list: (samling, val) => k.list(samling, { ...val, where: undefined }) }) });
+    await kalla.create("delningsgruppdelar", { id: "min", plats: GRUPP, skapad: NU });
+    await kalla.create("delningsgruppdelar", { id: "deras", plats: ANNAN_GRUPP, skapad: NU + 5 });
+    expect((await tjanst.gruppdelar({ uid: MEDLEM, groupId: GRUPP })).gruppdelar).toEqual(["min"]);
+  });
+
+  it("⛔ gruppdelar() svarar bara en aktiv medlem, och i Mitt bibliotek bara ägaren", async () => {
+    const { tjanst } = bygga();
+    await delaHandelse(tjanst, { gruppdel: "forsta" });
+    await expect(tjanst.gruppdelar({ uid: UTOMSTAENDE, groupId: GRUPP })).rejects.toThrow(/inte aktiv medlem/);
+    await expect(tjanst.gruppdelar({ uid: "ingen", groupId: GRUPP })).rejects.toThrow(/inte aktiv medlem/);
+    await expect(tjanst.gruppdelar({ uid: ADMIN, groupId: mittBibliotek(MEDLEM) })).rejects.toThrow(/äger inte biblioteket/);
+    await expect(tjanst.gruppdelar({ uid: MEDLEM })).rejects.toThrow(/groupId krävs/);
+  });
+});

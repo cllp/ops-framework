@@ -1,4 +1,4 @@
-import { useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import {
   ADRESSSEGMENT,
   KODLANGD,
@@ -54,6 +54,10 @@ export const ORD_DELALANK = {
   },
   slutMedKod: { sv: "Med kod blir adressen exakt som du skriver den. Koden är skyddet.", en: "With a code the address is exactly what you write. The code is what protects it." },
   tomAdress: { sv: "Adressen kan inte vara tom. Skriv bokstäver eller siffror i båda delarna.", en: "The address cannot be empty. Write letters or digits in both parts." },
+  gruppdelUpptagen: {
+    sv: "Gruppdelen används av en annan grupp. Ett annat förslag står nu i fältet, kontrollera det och försök igen.",
+    en: "The group part is used by another group. Another suggestion is now in the field, check it and try again.",
+  },
   upptagen: {
     sv: "Adressen är upptagen. Ett annat förslag står nu i fältet, kontrollera det och försök igen.",
     en: "That address is taken. Another suggestion is now in the field, check it and try again.",
@@ -70,15 +74,27 @@ const fyll = (s, v) => Object.entries(v).reduce((t, [k, x]) => t.replaceAll(`{${
  * @param {"post" | "handelse"} d.slag
  * @param {unknown} [d.grupp] Gruppens namn, för förslaget till gruppdelen.
  * @param {unknown} [d.titel] Händelsens titel eller filens rubrik, för förslaget till sista delen.
+ * @param {string} [d.gruppdelForslag] Gruppdelen platsen redan använt (`gruppdelar().senaste`). Vinner över förslaget ur gruppens namn, så att en grupps länkar ser ut att komma från samma ställe.
+ *   Kommer den efter att rutan öppnats (appen läser den) tas den i bruk så länge personen inte skrivit i fältet.
  * @param {ReadonlyArray<number | null>} d.dagval Giltigheterna som erbjuds.
  * @param {number | null} d.forvalDagar Det som är valt från början.
  * @param {string} [d.sprak]
  */
-export function useDelaLankFalt({ slag, grupp, titel, dagval, forvalDagar, sprak = "sv" }) {
+export function useDelaLankFalt({ slag, grupp, titel, gruppdelForslag, dagval, forvalDagar, sprak = "sv" }) {
   const forslag = useMemo(() => foreslaAdress({ grupp, titel, slag }), [grupp, titel, slag]);
   const [dagar, setDagar] = useState(/** @type {number | null} */ (forvalDagar));
   const [kod, setKod] = useState("");
-  const [gruppdel, setGruppdel] = useState(forslag.gruppdel);
+  const [gruppdel, setGruppdelRaw] = useState(gruppdelForslag || forslag.gruppdel);
+  // Personens egen text i fältet vinner över ett förslag som kommer senare.
+  const redigerad = useRef(false);
+  /** @param {string} v */
+  const setGruppdel = (v) => {
+    redigerad.current = true;
+    setGruppdelRaw(v);
+  };
+  useEffect(() => {
+    if (gruppdelForslag && !redigerad.current) setGruppdelRaw(gruppdelForslag);
+  }, [gruppdelForslag]);
   const [sista, setSista] = useState(forslag.sista);
   const [meddelande, setMeddelande] = useState("");
   const t = forvalda(ORD_DELALANK, sprak);
@@ -104,7 +120,13 @@ export function useDelaLankFalt({ slag, grupp, titel, dagval, forvalDagar, sprak
     setMeddelande(t.upptagen);
   }
 
-  return { slag, dagval, dagar, setDagar, kod, setKod, gruppdel, setGruppdel, sista, setSista, rensad, pro, upptagen, meddelande, setMeddelande };
+  /** Servern sa att gruppdelen används av en annan grupp: gruppdelen blir nästa förslag (`travel` till `travel-2`) och meningen säger det. */
+  function gruppdelUpptagen() {
+    setGruppdel(nastaAdressdel(rensad.gruppdel, MAX_ADRESSDEL));
+    setMeddelande(t.gruppdelUpptagen);
+  }
+
+  return { slag, dagval, dagar, setDagar, kod, setKod, gruppdel, setGruppdel, sista, setSista, rensad, pro, upptagen, gruppdelUpptagen, meddelande, setMeddelande };
 }
 
 /**

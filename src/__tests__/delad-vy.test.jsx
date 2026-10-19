@@ -145,12 +145,13 @@ const pdf = (id, uid, extra = {}) => ({
 });
 const anteckning = { ...byggPost({ groupId: "cps-ab", typ: "anteckning", rubrik: "Protokoll", text: "x", skapadAv: skapare(KIM), skapad: tid, andrad: tid }), id: "a" };
 
-function Vy({ poster, platser, jag = { uid: KIM, roll: "medlem" }, delningar = [], onDelaLank, onAndraNedladdning = vi.fn(async () => {}), onAterkalla = vi.fn(async () => {}) }) {
+function Vy({ poster, platser, delningGruppdel, jag = { uid: KIM, roll: "medlem" }, delningar = [], onDelaLank, onAndraNedladdning = vi.fn(async () => {}), onAterkalla = vi.fn(async () => {}) }) {
   const [vald, setVald] = useState(null);
   return (
     <OpsBibliotek
       poster={poster}
       platser={platser}
+      delningGruppdel={delningGruppdel}
       jag={jag}
       vald={vald}
       onOppna={setVald}
@@ -364,6 +365,19 @@ describe("OpsBibliotek: dialogen, kod och adress (0.125.0)", () => {
     expect(within(dialog).getByRole("textbox", { name: "Filens del av adressen" })).toHaveValue("avtal-p1-2");
     fireEvent.click(within(dialog).getByRole("button", { name: "Skapa länk" }));
     await waitFor(() => expect(onDelaLank).toHaveBeenLastCalledWith(expect.objectContaining({ fildel: "avtal-p1-2" })));
+  });
+
+  it("⛔ gruppdelen platsen redan använt föreslås, och en gruppdel som en annan grupp har ger ett annat förslag", async () => {
+    const upptagen = Object.assign(new Error("skapa: gruppdelen används av en annan grupp"), { kod: "adress-upptagen", del: "gruppdel" });
+    const onDelaLank = vi.fn().mockRejectedValueOnce(upptagen).mockResolvedValue({ id: "d1", url: "https://my.life-hub.app/g/musik-2/lib/avtal-p1-aaaaaaaa" });
+    const { dialog } = await oppna({ onDelaLank, delningGruppdel: "musik" });
+    expect(within(dialog).getByRole("textbox", { name: "Gruppens del av adressen" })).toHaveValue("musik");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Skapa länk" }));
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(/Gruppdelen används av en annan grupp/);
+    expect(within(dialog).getByRole("textbox", { name: "Gruppens del av adressen" })).toHaveValue("musik-2");
+    expect(within(dialog).getByRole("textbox", { name: "Filens del av adressen" })).toHaveValue("avtal-p1");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Skapa länk" }));
+    await waitFor(() => expect(onDelaLank).toHaveBeenLastCalledWith(expect.objectContaining({ gruppdel: "musik-2", fildel: "avtal-p1" })));
   });
 
   it("en länk som lever och har en adress visar den som text med Kopiera", async () => {

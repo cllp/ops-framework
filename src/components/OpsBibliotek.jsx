@@ -168,6 +168,7 @@ function useBibliotekskalla(kalla) {
  * @param {unknown} [props.onGorForslag] Borttagen (0.115.0). Skickas den kastas ett fel: förslagsknapparna "Spara som anteckning" och "Skapa ärende" är ersatta av `onAnteckningAvUtskrift`.
  * @param {readonly { id: string, postId: string, giltigTill: number, nedladdning: boolean, url?: string, harKod?: boolean }[]} [props.delningar] (0.119.0, lifehub.app#356) De delningslänkar som lever, för posterna som visas (`lista()` ur `createDelningService`). En post med en länk här får markeringen "Delad" i listan, och dialogen visar länkens läge. Appen läser dem själv: raderna går inte att läsa i klienten.
  *   (0.125.0) `url` är hela adressen (`delningsUrl(bas, rad.sokvag)`) för en länk skapad med 0.125.0 eller senare: dialogen visar den då som text med Kopiera. En gammal tokenlänk har ingen `sokvag` och därför ingen `url`, och dialogen säger som förut att adressen bara visades när den skapades.
+ * @param {string} [props.delningGruppdel] (0.125.0, granskningen av PR 417) Gruppdelen platsen redan använt i en länk (`gruppdelar({ uid, groupId }).senaste`), föreslagen i "Dela länk" före ett namn ur gruppens namn. En gruppdel tillhör en plats för alltid: en annan grupps svarar servern `adress-upptagen` med `del: "gruppdel"` och dialogen föreslår en annan.
  * @param {(inmatning: { postId: string, dagar: number, nedladdning: boolean, kod: string | null, gruppdel: string, fildel: string }) => Promise<{ id: string, url: string, giltigTill?: number, harKod?: boolean }>} [props.onDelaLank] (0.119.0) Skapar länken. Ritar "Dela länk" i menyn för en färdig fil som personen får dela (`farAndra`). Löftet ska lösa till länkens id och HELA adressen (appen bygger den: `delningsUrl(bas, svar.sokvag)`).
  *   (0.125.0) Inmatningen har också `kod` (`null` utan kod, annars koden i klartext till servern, som hashar den), `gruppdel` och `fildel`: adressen är `/g/<gruppdel>/lib/<fildel>`, föreslagen ur gruppens namn och filens rubrik, och personen kan ändra båda. Utan kod lägger servern till ett slumpat slut. Kastar anropet med `kod: "adress-upptagen"` föreslår dialogen en annan adress. Kräver `onAndraNedladdning` och `onAterkalla`: en länk som inte går att stänga får inte kunna skapas.
  * @param {(inmatning: { id: string, nedladdning: boolean }) => Promise<void> | void} [props.onAndraNedladdning] (0.119.0) Slår på eller av nedladdning på en länk som lever. Ett fel visas i dialogen och reglaget står kvar.
@@ -184,7 +185,7 @@ function useBibliotekskalla(kalla) {
  *   och sätter `skapar` (`"fil"`), eftersom en händelses och ett ärendes bibliotek har bara filer. Detaljens tillbaka heter "Filer". `ram`, `platser`, `plats`, `onPlats`, `grupper` och `onDela` hör inte hit och kastar: en inbäddad lista har en plats.
  * @param {string} [props.tomText] (0.122.0) Beskrivningen under "Inga filer än." när den inbäddade listan är tom. Förval "Filer som läggs till här hör bara till händelsen." (en konstant, inte ett parameterförval; `OpsPlatsfiler` skickar rätt mening för ärendet).
  */
-export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, trasiga: trasigaProp = [], laddar: laddarProp = false, vald = null, skapar = null, jag, onOppna, onStang, onSkapa, onSpara, onRadera, onLaddaUpp, onFyllLjud, onSpelaIn, inspelare, filUrl, hamtaAdress, grupper = [], onDela, platser = [], plats, onPlats, onSkrivUt, onAnteckningAvUtskrift, onGorForslag, delningar = [], onDelaLank, onAndraNedladdning, onAterkalla, hubHref, hubEtikett, onNavigate, modulId = "bibliotek", ram = null, activeHref, modul = null, inbaddad = false, tomText }) {
+export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, trasiga: trasigaProp = [], laddar: laddarProp = false, vald = null, skapar = null, jag, onOppna, onStang, onSkapa, onSpara, onRadera, onLaddaUpp, onFyllLjud, onSpelaIn, inspelare, filUrl, hamtaAdress, grupper = [], onDela, platser = [], plats, onPlats, onSkrivUt, onAnteckningAvUtskrift, onGorForslag, delningar = [], delningGruppdel, onDelaLank, onAndraNedladdning, onAterkalla, hubHref, hubEtikett, onNavigate, modulId = "bibliotek", ram = null, activeHref, modul = null, inbaddad = false, tomText }) {
   if (kalla !== undefined && (posterProp !== undefined || felProp !== null || laddarProp !== false || (Array.isArray(trasigaProp) && trasigaProp.length > 0))) {
     throw new Error("OpsBibliotek: kalla och poster/fel/trasiga/laddar kan inte ges tillsammans. Med kalla läser vyn själv, och två sanningar om samma lista hade låtit den ena vinna tyst.");
   }
@@ -756,6 +757,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
             key={delarLank.id}
             post={delarLank}
             gruppnamn={[...platser, ...grupper].find((g) => g.id === delarLank.groupId)?.namn}
+            gruppdelForslag={delningGruppdel}
             delningar={delningar}
             onDelaLank={onDelaLank}
             onAndraNedladdning={onAndraNedladdning}
@@ -2128,9 +2130,9 @@ function DelaKontroll({ id, grupper, onDela, onKlar, onStart, onSlut, kanFlytta 
  * ⛔ ETT FEL SYNS OCH LÄGET STÅR KVAR. Svarar appen med ett fel står texten i dialogen, reglaget är där det var, och länken är inte
  * stängd. Ett svar utan länk räknas som ett fel: en skapad delning vars adress ingen fick se är en länk som ingen kan dela och ingen vet om.
  *
-* @param {{ post: import("../lib/bibliotek.js").Bibliotekspost & { id: string }, gruppnamn?: string, delningar: readonly { id: string, postId: string, giltigTill: number, nedladdning: boolean, url?: string, harKod?: boolean }[], onDelaLank: NonNullable<Parameters<typeof OpsBibliotek>[0]["onDelaLank"]>, onAndraNedladdning: NonNullable<Parameters<typeof OpsBibliotek>[0]["onAndraNedladdning"]>, onAterkalla: NonNullable<Parameters<typeof OpsBibliotek>[0]["onAterkalla"]>, onKlar: (text: string) => void }} props
+* @param {{ post: import("../lib/bibliotek.js").Bibliotekspost & { id: string }, gruppnamn?: string, gruppdelForslag?: string, delningar: readonly { id: string, postId: string, giltigTill: number, nedladdning: boolean, url?: string, harKod?: boolean }[], onDelaLank: NonNullable<Parameters<typeof OpsBibliotek>[0]["onDelaLank"]>, onAndraNedladdning: NonNullable<Parameters<typeof OpsBibliotek>[0]["onAndraNedladdning"]>, onAterkalla: NonNullable<Parameters<typeof OpsBibliotek>[0]["onAterkalla"]>, onKlar: (text: string) => void }} props
  */
-function DelaLankKontroll({ post, gruppnamn, delningar, onDelaLank, onAndraNedladdning, onAterkalla, onKlar }) {
+function DelaLankKontroll({ post, gruppnamn, gruppdelForslag, delningar, onDelaLank, onAndraNedladdning, onAterkalla, onKlar }) {
   const sprak = useOpsSprak();
   const [nedladdning, setNedladdning] = useState(false);
   const [skapad, setSkapad] = useState(/** @type {null | { id: string, url: string, giltigTill?: number, harKod?: boolean }} */ (null));
@@ -2139,7 +2141,7 @@ function DelaLankKontroll({ post, gruppnamn, delningar, onDelaLank, onAndraNedla
   const [pagar, setPagar] = useState(/** @type {null | "skapa" | "stang" | "andra"} */ (null));
   const [fel, setFel] = useState("");
   // ⛔ 0.125.0: giltighet, kod och adress är samma fält som för en händelse (`DelaLankFalt`), med en fils giltigheter (1, 7 och 30 dagar) och typsegmentet `lib`.
-  const falt = useDelaLankFalt({ slag: "post", grupp: gruppnamn, titel: post.rubrik || post.fil?.namn, dagval: DELNINGSDAGAR, forvalDagar: FORVAL_DELNINGSDAGAR, sprak });
+  const falt = useDelaLankFalt({ slag: "post", grupp: gruppnamn, titel: post.rubrik || post.fil?.namn, gruppdelForslag, dagval: DELNINGSDAGAR, forvalDagar: FORVAL_DELNINGSDAGAR, sprak });
   const levande = useRef(true);
   useEffect(() => {
     levande.current = true;
@@ -2175,8 +2177,10 @@ function DelaLankKontroll({ post, gruppnamn, delningar, onDelaLank, onAndraNedla
       if (levande.current) setSkapad({ id: svar.id, url: svar.url, giltigTill: typeof svar.giltigTill === "number" ? svar.giltigTill : undefined, harKod: svar.harKod === true });
     } catch (e) {
       if (!levande.current) return;
-      if (e && typeof e === "object" && /** @type {{ kod?: unknown }} */ (e).kod === "adress-upptagen") falt.upptagen();
-      else visaFel(e);
+      if (e && typeof e === "object" && /** @type {{ kod?: unknown }} */ (e).kod === "adress-upptagen") {
+        if (/** @type {{ del?: unknown }} */ (e).del === "gruppdel") falt.gruppdelUpptagen();
+        else falt.upptagen();
+      } else visaFel(e);
     } finally {
       if (levande.current) setPagar(null);
     }

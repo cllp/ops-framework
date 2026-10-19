@@ -17,7 +17,7 @@ cllp/lifehub.app#377, ramverkets del (skiva 1): en publik sida för en HÄNDELSE
 Skrivlänken (skiva 2) är inte byggd, men raden bär `rattighet` (`las`) och `hamta` öppnar inget annat, så den kan läggas till utan att ändra modellen.
 
 ⛔ **Brytande:** `createDelningService().skapa` ger inget `token` längre och kräver en adress. En fil delas med `{ uid, postId, groupId, gruppdel, fildel, dagar, nedladdning?, kod? }` och svarar med `{ id, adress, sokvag, giltigTill, harKod, rattighet, nedladdning }`. Appens callable och `OpsBibliotek onDelaLank` byter anrop i samma ompinning (se "Vad appen måste göra"). **Gamla länkar lever kvar:** en delning från 0.119.0 till 0.124.0 har ett token, `/d/<token>` och `hamta(token)` fungerar oförändrat, och `lista`, `andraNedladdning` och `aterkalla` gör det också. De går ut senast 30 dagar efter att appen går över (giltigheten var högst 30 dagar).
-Inga ändringar i Firestore-reglerna (delningssamlingen är `if false` för klienten som förut), inga i Storage-reglerna och inga i postens fält.
+Reglerna: delningssamlingen är `if false` för klienten som förut, och `delningsregelfragment(namn, { gruppdelar })` har ett valfritt andra block för gruppdelarna (utan valet byte för byte den förra texten). Inga ändringar i Storage-reglerna och inga i postens fält.
 
 ### Länken till en händelse (CP 2026-10-19, #377), Claude 2026-10-19
 - **En modell för två mål (regel 2).** Delningsraden får `slag` (`post` eller `handelse`; en rad utan fältet är en filänk och läses som `post`, så inget i produktion skrivs om), `rattighet` (`las`; `hamta` öppnar bara `las` eller en rad utan fältet), `adress`, `handelseId`, `kod` och `felAntal`/`felFonster`. `giltigTill` är `null` för ingen gräns, och bara för en händelse. Exporter: `byggAdressdelning`, `adressId`, `delningsNyckel`, `nyttSlumpslut`, `hashaKod`, `kodStammer`, `DELNINGSSLAG`, `DELNINGSRATTIGHETER`, `HANDELSEDAGAR`, `FORVAL_HANDELSEDAGAR`, `DELNINGSFELKODER`.
@@ -32,6 +32,12 @@ Inga ändringar i Firestore-reglerna (delningssamlingen är `if false` för klie
 - **Nyckeln är SHA-256 av sökvägen**, och `createNew` på id:t avgör unikheten (ingen läs-sedan-skriv-kontroll). En upptagen adress är ett eget fel (`kod: "adress-upptagen"`) och rutan föreslår nästa (`resa`, `resa-2`). En stängd eller utgången adress blir aldrig ledig.
 - ⛔ **Adressen lagras ändå i klartext på raden** (`adress`), för CP:s krav att varje aktiv länk ska stå på händelsen med sin fulla adress så att den går att klippa ur och skicka. Den som läser databasen ser alltså adresserna. Beslut 0009 har avvägningen och alternativet (visa adressen en gång).
 - `delningsSokvag(adress)` och `delningsUrl(bas, sokvag)`: ramverket bygger bara sökvägen, domänen är appens (för LifeHub `https://my.life-hub.app`). `delningsNyckel(ref)` ger id:t för ett token eller en adress (och `null` för skräp), för appens uppslagsräknare.
+
+### En gruppdel tillhör en plats, för alltid (granskningen av PR 417), Claude 2026-10-19
+- Utan en spärr kunde en medlem i grupp A skapa `/g/music/event/...` fast `music` är grupp B:s gruppdel, och länken såg ut att komma från B. Nu har varje gruppdel en rad i en egen samling (`samlingar.gruppdelar`, förval `delningsgruppdelar`): id är gruppdelen, raden är `{ plats, skapad }` och skrivs med `createNew` (en riktig constraint, ingen läs-sedan-skriv). Två samtidiga första användningar från två platser ger exakt en vinnare.
+- Platsen är gruppens id (eller `mitt~<uid>` för Mitt bibliotek; för en händelse eller ett ärende gruppen). Vid `skapa`, efter medlemskapet och appens regel: en gruppdel som en annan plats har ger `kod: "adress-upptagen"` med `del: "gruppdel"` och texten att namnet används av en annan grupp; en ny skapas för platsen; en egen går bra. En plats kan ha flera gruppdelar, en gruppdel byter aldrig plats och tas aldrig bort. Felet bär `del` (`gruppdel` eller `sista`): en callable som översätter felet måste föra med `del`.
+- `gruppdelar({ uid, groupId })` ger `{ plats, gruppdelar, senaste }`. `OpsHandelsePanel delningGruppdel` och `OpsBibliotek delningGruppdel` föreslår `senaste` före ett namn ur gruppens namn, och en annan grupps gruppdel ger ett annat förslag i gruppdelsfältet.
+- `delningsregelfragment("delningar", { gruppdelar: true })` (eller ett eget namn) lägger ett andra block `allow read, write: if false`. Provat i emulatorn.
 
 ### Valfri kod, och en egen räknare för felaktiga koder (CP 2026-10-19), Claude 2026-10-19
 - Gäller både fil och händelse. `scrypt` med eget salt per länk, `timingSafeEqual`, 6 till 64 tecken (`KODLANGD`, `kodFel`). Koden sparas aldrig i klartext. En kod som är för kort är ett fel (`ogiltig-kod`) och blir aldrig en öppen länk.
@@ -54,14 +60,15 @@ Inga ändringar i Firestore-reglerna (delningssamlingen är `if false` för klie
 3. **Listan till panelen:** `lista({ uid, groupId, handelseId })` mappad till `{ id, url, rattighet, harKod, giltigTill }` (hoppa över rader utan `sokvag`).
 4. **HTTP-funktion för den publika sidan:** `/g/<gruppdel>/event/<händelsedel>` och `/g/<gruppdel>/lib/<fildel>` slår upp `hamta("<gruppdel>/<typsegment>/<sista del>", { kod })` (POST med adressen och koden i kroppen, som för `/d/`). `/d/<token>` är oförändrad. Släpp igenom `HANDELSESVARSFALT` (och `HANDELSEFILFALT` per fil) som andra lås, som `urvalSvar` gör för `DELNINGSSVARSFALT`.
 5. **Räknaren:** räkna uppslag på `delningsNyckel(ref)` i stället för på `TOKENFORM`-prövningen, så att den täcker både token och adress, och så att en gissning på en adress som inte finns räknas. Tjänsten räknar felaktiga koder själv.
-6. **Konfiguration:** `createDelningService` får `samlingar.handelser`, `handelseSida` (till exempel `(h) => ({ titel: h.rubrik, beskrivning: h.text, plats: h.plats })`) och helst `farDelaHandelse` (samma regel som pennan på händelsen). ⛔ `kallaMedSokvagsprov` omsluter bara `read`: tjänsten läser därför om varje fil med `read` innan den signeras, men håll `list` i takt om sökvägsprovet ska gälla även där.
+6. **Konfiguration:** `createDelningService` får `samlingar.handelser` (och valfritt `samlingar.gruppdelar`, förval `delningsgruppdelar`), `handelseSida` (till exempel `(h) => ({ titel: h.rubrik, beskrivning: h.text, plats: h.plats })`) och helst `farDelaHandelse` (samma regel som pennan på händelsen). ⛔ `kallaMedSokvagsprov` omsluter bara `read`: tjänsten läser därför om varje fil med `read` innan den signeras, men håll `list` i takt om sökvägsprovet ska gälla även där.
 7. **Routern och sidan:** `/g/:grupp/event/:handelse` ritar `OpsDeladHandelse` (med `huvud` och `onKod`), `/g/:grupp/lib/:fil` ritar `OpsDelad` med `onKod`. Basadressen är `https://my.life-hub.app`. Hosting-omskrivningen för metataggarna (`og:`) gäller även `/g/**`.
-8. **Panelen:** skicka `delningar`, `onDela` och `onAterkalla` till `OpsHandelsePanel` för den som får ändra händelsen (samma avgörande som pennan). Regeldeploy behövs inte.
+8. **Panelen:** skicka `delningar`, `onDela` och `onAterkalla` till `OpsHandelsePanel` för den som får ändra händelsen (samma avgörande som pennan), och `delningGruppdel` (ur `gruppdelar({ uid, groupId }).senaste`, en callable) till panelen och `OpsBibliotek`. Översätt `fel.kod` och `fel.del` till svar som bär båda.
+9. **Reglerna:** generera om med `delningsregelfragment("delningar", { gruppdelar: true })`. Admin SDK kringgår reglerna, så ingen deploy krävs för att tjänsten ska fungera, men blocket gör nekandet explicit och prövat.
 
 ### Gjordes inte
 - Skrivlänken (skiva 2). Rättigheten `skriv` öppnas aldrig av `hamta`.
 - Metataggarna (`og:`), Hosting-omskrivningen, appens callables, routern och uppslagsräknaren på adresser: appen.
-- Att en grupps namn bara får höra till en grupp (`/g/<vad som helst>/...` är ledigt åt den som tar det först). Beslut 0009 beskriver risken.
+- Skydd mot namn som liknar något utanför appen: en gruppdel är först till kvarn, som för en URL-förkortare. Beslut 0009 beskriver risken.
 - Montage mot SessionStudio (regel 12): ärendet citerar ingen SS-skärmbild, så regeln utlöses inte, och ingen förebild följs (regel 13).
 
 ### Prov, rött utan fixen och grönt med

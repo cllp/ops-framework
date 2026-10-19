@@ -25,6 +25,17 @@
  * export, säkerhetskopia) ser adresserna. För en händelse är det den som redan ser händelsens innehåll i samma databas. Hashen är kvar som
  * nyckel och unikhet. Se beslut 0009 för alternativet (visa adressen bara en gång) och varför det inte valdes.
  *
+ * ══ ⛔ EN GRUPPDEL TILLHÖR EN PLATS, FÖR ALLTID (0.125.0, granskningen av PR 417) ═══════════════════════════════════════════
+ *
+ * Gruppdelen (`/g/<gruppdel>/...`) är det som får en länk att se ut att komma från en viss grupp. Utan en spärr kunde en medlem i grupp A skapa
+ * `/g/music/event/...` fast `music` är grupp B:s, och länken såg ut att komma från B. Därför har varje gruppdel en rad i en egen samling
+ * (`samlingar.gruppdelar`, förval `delningsgruppdelar`): dokumentets id ÄR gruppdelen och raden bär `{ plats, skapad }`, skriven med `createNew`.
+ * Unikheten är då en nyckel och inte en läsning följd av en skrivning: två samtidiga första användningar från två platser ger exakt en vinnare. Platsen
+ * är gruppens id (eller `mitt~<uid>` för Mitt bibliotek); för en händelse eller ett ärende är det gruppen och inte objektets plats. En plats får
+ * använda flera gruppdelar, men en gruppdel byter aldrig plats, och en rad tas aldrig bort. En gruppdel som en annan plats redan har är `adress-upptagen`
+ * (med `del: "gruppdel"`, så att rutan ändrar rätt fält). Den kvarvarande risken är att en grupp tar ett namn som liknar något utanför appen,
+ * först till kvarn, som för en URL-förkortare.
+ *
  * ══ ⛔ KODEN SPARAS ALDRIG I KLARTEXT, OCH FELAKTIGA KODER RÄKNAS PER LÄNK ═════════════════════════════════════════════════
  *
  * `scrypt` med eget salt per länk, jämförelse med `timingSafeEqual`. Den publika sidan svarar `kod-kravs` när koden saknas och `fel-kod` när
@@ -99,10 +110,11 @@ const text = (v) => (typeof v === "string" ? v.trim() : "");
  * Ett fel som bär en `kod` för appens callable att översätta (samma mönster som `FLYTTFELKODER`). Meddelandet är för loggen.
  * @param {(typeof import("../lib/delning.js").DELNINGSFELKODER)[number]} kod
  * @param {string} meddelande
- * @returns {Error & { kod: string }}
+ * @param {Record<string, unknown>} [extra] Fler fält på felet. `del` säger vilken del av adressen som var upptagen (`gruppdel` eller `sista`).
+ * @returns {Error & { kod: string, del?: string }}
  */
-function felMedKod(kod, meddelande) {
-  return Object.assign(new Error(meddelande), { kod });
+function felMedKod(kod, meddelande, extra = {}) {
+  return Object.assign(new Error(meddelande), { kod }, extra);
 }
 
 /**
@@ -368,6 +380,7 @@ export function delningsDisposition(namn, bifoga) {
  * @typedef {object} Delningssamlingar
  * @property {string} delningar Samlingen delningarna ligger i. Inget förval: det är appens namn.
  * @property {string} bibliotek Samlingen biblioteksposterna ligger i. Inget förval.
+ * @property {string} [gruppdelar] (0.125.0) Samlingen gruppdelarna ligger i, en rad per gruppdel med `{ plats, skapad }`. Förval `delningsgruppdelar`. Appens regelfragment ska nekas klienten (`delningsregelfragment("delningar", { gruppdelar: true })`).
  * @property {string} [handelser] (0.125.0) Appens händelsesamling. Utan den går ingen händelse att dela: `skapa` med `handelseId` kastar och en händelselänk öppnas inte.
  * @property {string} [medlemskap] Förval `memberships`.
  */
@@ -453,6 +466,14 @@ export function createDelningService(konfig) {
   const BIBLIOTEK = samlingar.bibliotek;
   const HANDELSER = samlingar.handelser;
   const MEDLEMSKAP = samlingar.medlemskap ?? "memberships";
+  const GRUPPDELAR = samlingar.gruppdelar ?? "delningsgruppdelar";
+  if (!SAMLINGSFORM.test(GRUPPDELAR)) throw new Error(`${namn}: samlingar.gruppdelar är ett samlingsnamn, eller utelämnas (förval delningsgruppdelar).`);
+
+  /**
+   * Platsen en gruppdel tillhör: gruppens id, eller `mitt~<uid>` för Mitt bibliotek. En händelses eller ett ärendes plats ger gruppen.
+   * @param {string} groupId
+   */
+  const platsForGruppdel = (groupId) => (arMittBibliotek(groupId) ? groupId : gruppForPlats(groupId));
 
   /**
    * @param {string} uid
@@ -597,13 +618,40 @@ export function createDelningService(konfig) {
   }
 
   /**
-   * Skriver raden under en ledig adress. UTAN kod läggs ett slumpat slut på sista delen och en krock försöks om med ett nytt; MED kod är adressen exakt
-   * det personen skrev och en krock är `adress-upptagen`. `createNew` är det som avgör: id:t är hashen av adressen.
+   * Gruppdelen tillhör platsen, eller `adress-upptagen`. Finns den och hör till en annan plats nekas den; hör den till samma plats går det bra; finns den inte
+   * skapas den för platsen med `createNew`. Hinner en annan plats före (`created: false`) prövas den raden i stället.
    *
-   * @param {{ slag: "post" | "handelse", gruppdel: string, sista: string, harKod: boolean, bygg: (adress: string) => Record<string, any>, vad: string }} d
+   * ⛔ INGEN LÄS-SEDAN-SKRIV-KONTROLL SOM AVGÖR: läsningen först är bara ett snabbt nej. Det som avgör vem som äger namnet är `createNew`, och den som förlorar
+   * en kapplöpning får raden den andra skrev tillbaka och prövas mot den.
+   *
+   * @param {string} gruppdel
+   * @param {string} plats
+   * @param {string} vad
+   */
+  async function sakraGruppdel(gruppdel, plats, vad) {
+    for (let i = 0; i < 3; i++) {
+      let rad = await kalla.read(GRUPPDELAR, gruppdel);
+      if (!rad) {
+        const { created, row } = await skapaNy(GRUPPDELAR, { id: gruppdel, plats, skapad: klocka() });
+        if (created) return;
+        rad = row;
+      }
+      if (!rad) continue;
+      if (rad.plats === plats) return;
+      throw felMedKod("adress-upptagen", `${vad}: gruppdelen "${gruppdel}" används av en annan grupp. Välj en annan gruppdel.`, { del: "gruppdel" });
+    }
+    throw felMedKod("adress-upptagen", `${vad}: gruppdelen "${gruppdel}" kunde inte tas just nu. Försök igen.`, { del: "gruppdel" });
+  }
+
+  /**
+   * Skriver raden under en ledig adress. UTAN kod läggs ett slumpat slut på sista delen och en krock försöks om med ett nytt; MED kod är adressen exakt
+   * det personen skrev och en krock är `adress-upptagen`. `createNew` är det som avgör: id:t är hashen av adressen. Gruppdelen tas först för platsen (`sakraGruppdel`).
+   *
+   * @param {{ slag: "post" | "handelse", gruppdel: string, sista: string, harKod: boolean, plats: string, bygg: (adress: string) => Record<string, any>, vad: string }} d
    * @returns {Promise<Record<string, any>>}
    */
   async function skrivUnderAdress(d) {
+    await sakraGruppdel(d.gruppdel, d.plats, d.vad);
     const forsok = d.harKod ? 1 : 5;
     for (let i = 0; i < forsok; i++) {
       const sista = d.harKod ? d.sista : `${d.sista}-${nyttSlumpslut()}`;
@@ -612,7 +660,7 @@ export function createDelningService(konfig) {
       const { created } = await skapaNy(DELNINGAR, rad);
       if (created) return rad;
     }
-    throw felMedKod("adress-upptagen", `${d.vad}: adressen är upptagen. Välj en annan${d.harKod ? "" : " (ett nytt slumpat slut gav också en krock, försök igen)"}.`);
+    throw felMedKod("adress-upptagen", `${d.vad}: adressen är upptagen. Välj en annan${d.harKod ? "" : " (ett nytt slumpat slut gav också en krock, försök igen)"}.`, { del: "sista" });
   }
 
   /**
@@ -685,6 +733,7 @@ export function createDelningService(konfig) {
       gruppdel: delar.gruppdel,
       sista: delar.sista,
       harKod: kod !== null,
+      plats: platsForGruppdel(groupId),
       vad: "skapa",
       bygg: (adress) =>
         byggAdressdelning({ slag: "post", adress, postId, groupId, skapadAv: { uid, namn: text(b.namn) || text(medlem?.namn) }, skapad, dagar: b.dagar, nedladdning, kod }),
@@ -725,6 +774,7 @@ export function createDelningService(konfig) {
       gruppdel: delar.gruppdel,
       sista: delar.sista,
       harKod: kod !== null,
+      plats: platsForGruppdel(groupId),
       vad: "skapa",
       bygg: (adress) =>
         byggAdressdelning({ slag: "handelse", adress, handelseId, groupId, skapadAv: { uid, namn: text(b.namn) || text(medlem.namn) }, skapad, dagar, kod }),
@@ -1015,6 +1065,31 @@ export function createDelningService(konfig) {
           skapad: typeof r.skapad === "number" ? r.skapad : null,
           skapadAv: { uid: r.skapadAv?.uid ?? "", namn: r.skapadAv?.namn ?? "" },
         }));
+    },
+
+    /**
+     * Gruppdelarna en plats redan har, de senast tagna först, och den senaste. Rutan föreslår den i stället för ett namn ur gruppens namn, så att en grupps länkar
+     * ser ut att komma från samma ställe. `groupId` är platsen personen delar ur: gruppen, `mitt~<uid>`, eller en händelses eller ett ärendes plats (som ger gruppens).
+     * Den som inte är aktiv medlem (eller i Mitt bibliotek inte ägaren) får ett fel och ingenting om vilka namn som finns.
+     *
+     * @param {{ uid: string, groupId: string }} b
+     * @returns {Promise<{ plats: string, gruppdelar: string[], senaste: string | null }>}
+     */
+    async gruppdelar(b) {
+      const uid = kravText(b?.uid, "uid", "gruppdelar");
+      const groupId = kravText(b?.groupId, "groupId", "gruppdelar");
+      if (arMittBibliotek(groupId)) {
+        if (groupId !== mittBibliotek(uid)) throw new Error(`gruppdelar: ${uid} äger inte biblioteket "${groupId}".`);
+      } else if (!(await aktivtMedlemskap(uid, groupId))) {
+        throw new Error(`gruppdelar: ${uid} är inte aktiv medlem i gruppen "${groupId}".`);
+      }
+      const plats = platsForGruppdel(groupId);
+      const rader = await kalla.list(GRUPPDELAR, { where: { plats } });
+      const sorterade = rader
+        .filter((r) => typeof r.id === "string" && r.plats === plats)
+        .sort((a, c) => (c.skapad ?? 0) - (a.skapad ?? 0) || String(a.id).localeCompare(String(c.id)));
+      const gruppdelar = sorterade.map((r) => r.id);
+      return { plats, gruppdelar, senaste: gruppdelar[0] ?? null };
     },
 
     /**
