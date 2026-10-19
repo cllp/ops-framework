@@ -11,6 +11,21 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ## Ej utgivet
 
+## 0.119.0
+
+cllp/lifehub.app#356 (publik delning av en biblioteksfil via en länk), ramverkets del. Appens del (callable, HTTP-funktion, routen `/d/:token`, metataggar) kommer efter ompinningen.
+⛔ Regeländring: den nya samlingen nekas klienten (`delningsregelfragment`). Reglerna ska ut före appens funktion som skriver i den. Storage-reglerna ändras inte. Inget annat är brytande.
+
+### Delningslänk till en biblioteksfil (CP 2026-10-19, Grok-förslaget på lifehub.app#356), Claude 2026-10-19
+- `createDelningService` (`ops-framework/node`): `skapa`, `andraNedladdning`, `aterkalla`, `lista` och `hamta(token)`. Datakällan, lagringen (`signeradAdress`) och samlingsnamnen (`delningar`, `bibliotek`, inga förval) skickas in. `byggDelning` ger delningspostens form: id är SHA-256 (hex) av tokenet, tokenet är 32 slumpbyte i base64url och sparas aldrig. Fält: `postId`, `groupId`, `skapadAv` (`{ uid, namn }`), `skapad`, `giltigTill`, `aterkallad` (`null` eller tiden) och `nedladdning`.
+- Vem får: en aktiv medlem delar sina egna poster, admin och ägare alla i gruppen, i `mitt~<uid>` bara ägaren. Postens egen `groupId` måste vara den angivna (IDOR). Den som delade, admin och ägare ändrar nedladdning och stänger. Stängd är slutgiltigt, och en ny delning ger ett nytt token.
+- `hamta` svarar med `rubrik`, `typ`, `mime`, `storlek`, `langd`, `peaks`, `nedladdning`, `url` och `visaUrl`, och inget mer (ingen sökväg, inget grupp-id, inga taggar, ingen utskrift, ingen e-post). `url` är signerad i 15 minuter, `inline` när nedladdning är av och `attachment` när den är på. `visaUrl` (en inline-adress) finns bara för en PDF med nedladdning på, annars `null`. Ett okänt token svarar byte för byte som ett utgånget.
+- Utgångstid 1, 7 eller 30 dagar, förval 7. "Ingen utgång" finns inte. Nedladdning är AV som förval.
+- `delningsregelfragment("delningar")`: `allow read, write: if false`. Prövas i emulatorn (`rules/__tests__/delningar.test.mjs`) och ingår i provreglerna.
+- `OpsDelad`: den publika vyn. Ljud (`OpsLjudspelare`, nu med `utanNedladdning`), bild i full bredd, PDF inbäddad, video med ramverkets egna kontroller, "Ladda ner" bara när nedladdning är på, och feltexterna "Länken har gått ut", "Länken är stängd" och "Filen finns inte längre".
+- `OpsBibliotek`: "Dela länk" i postens meny (för en färdig fil som personen får ändra), en dialog med utgångstid, nedladdning, Kopiera och "Stäng länken", och markeringen "Delad" på en post med en länk som lever. Nya props `onDelaLank`, `onAndraNedladdning`, `onAterkalla` och `delningar`. `onDelaLank` kräver de två andra.
+- Konstanterna och orden (`DELNINGSDAGAR`, `DELNINGSFEL`, `delningsTyp` med flera) finns i båda ingångarna.
+
 ## 0.118.0
 
 ### WAV och andra stora ljudfiler i biblioteket (CP 2026-10-18), Grok 2026-10-18
