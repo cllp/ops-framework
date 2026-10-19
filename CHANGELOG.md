@@ -11,6 +11,21 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ## Ej utgivet
 
+## 0.124.0
+
+CP 2026-10-19, "Datumomröstning finns inte". En modul som bara är ett tillägg (`hubb: null`, `nav: []`, ett tillägg på `handelse.sektion`) gick inte att installera i en grupp. Hubbens nivå sade "Grupper kan lägga till den" och under Grupper stod den som tillgänglig, men gruppens Appar erbjöd den aldrig. Appen får inga ändringar för att den ska dyka upp: efter ompinningen finns den bland apparna som kan läggas till.
+Inga ändringar i manifestet, i datan eller i reglerna. ⛔ Följder att veta om: en modul utan kort OCH utan tillägg erbjuds fortfarande inte (den har ingen yta att visa), och hubbens `saknade` är oförändrad.
+
+### Tilläggsmoduler kan installeras och syns när de är på (CP 2026-10-19), Claude 2026-10-19
+- Orsaken: `OpsGruppHubb` filtrerade erbjudandet med `m.hubb && !arKarna(m) && !installerade.includes(m.id)`. `m.hubb` är `null` för en modul som bara är ett tillägg, så den kunde aldrig komma med. `hubbForGrupp` hade redan sedan 0.60.0 slutat kalla en sådan modul `inget-kort`, så en installerad tilläggsmodul var dessutom osynlig på sidan.
+- Erbjudandet: `(m.hubb || arBaraTillagg(m))`. Raden saknar ikon och säger var appen syns, med tilläggets etikett och ytans namn ur samma källa som gruppens inställningar (`synsPaText` över `PLATSYTOR`): "Rösta på datum · Syns på: Händelser" / "Vote on dates · Visible in: Events". Knappen Installera och `onInstallera(id)` är de samma som för övriga appar.
+- Sektionen "Tillägg i gruppen" ("Add-ons in the group") under korten: en rad per installerad tilläggsmodul med namn och var den syns, så att ägaren ser att den är på. Ingen länk och ingen ny navigation, eftersom modulen inte har någon egen sida. En grupp vars enda app är ett tillägg säger inte längre "Gruppen har inga appar ännu".
+- `arBaraTillagg(m)` och `tillaggsmodulerIGrupp({ grupp, moduler })` i `hubb.js`: ett ställe för "vad är en tilläggsmodul" (regel 2). `hubbForGrupp` använder samma funktion.
+- Samma fel söktes på fler ställen (`m.hubb &&`, `.hubb)`, `Boolean(m?.hubb)` i `src`). Inga fler erbjudanden: gruppens inställningar (`valbaraModuler`) visar redan alla registrerade moduler, och appark, huvudmeny och `OpsModulSida` filtrerar på `hubb` med rätta, eftersom de leder till en sida och en tilläggsmodul har ingen.
+
+### Prov, rött utan fixen och grönt med
+- Se PR-texten för utfallen. Nya prov i `src/__tests__/hubb.test.jsx` ("OpsGruppHubb: en modul som bara är ett tillägg"): erbjuds med Installera och anropar `onInstallera`, erbjuds i en tom grupp och på engelska, syns under "Tillägg i gruppen" när den är installerad, en grupp vars enda app är ett tillägg, och en modul utan kort och utan tillägg erbjuds fortfarande inte.
+
 ## 0.123.0
 
 cllp/lifehub.app#371, ramverkets del: ändra en post i en egen kalender, och flytta en post eller en händelse till en annan kalender. Designen och valen står i `docs/beslut/0008-flytta-mellan-kalendrar.md`, CP:s beslut i https://github.com/cllp/lifehub.app/issues/371#issuecomment-6272062625. Appens delar (pennan för ägaren, redigeringshooken för poster, listan och `onFlytta` i panelen, callable som anropar tjänsten, regeldeploy behövs inte) kommer efter ompinningen.
