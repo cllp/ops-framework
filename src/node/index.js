@@ -49,6 +49,14 @@ export { createStandardkalenderService } from "./standardkalender.js";
 export { STANDARDKALENDER_ID, STANDARDKALENDER_NAMN, standardGruppkalender } from "../lib/kalendrar.js";
 
 /*
+ * ⛔ STÄDNINGEN AV EN HÄNDELSES FILER (0.121.0, cllp/lifehub.app#366). Hård radering av en händelse med Admin SDK lämnar posterna på dess plats
+ * kvar. Tjänsten tar bort dem (torrt som förval) och rör aldrig bucketen. Platsen och dess uppslag hör till de rena filerna och exporteras
+ * även här, så att en nodfunktion inte behöver dra in React för dem.
+ */
+export { createHandelsefilerService } from "./handelsefiler.js";
+export { handelseBibliotek, handelsedelar, arHandelseBibliotek, gruppForPlats } from "../lib/bibliotek.js";
+
+/*
  * ⛔ AGENTENS ID OCH MEDDELANDETS FORM ÄVEN HÄR (lifehub.app#47). Servern som svarar som agenten skriver ett vanligt
  * meddelande med `av` = agentens id. En kopia av `byggMeddelande` eller av id-formen i appens functions hade varit en
  * andra sanning om vad ett meddelande är, och huvudingången drar in React. Filerna är rena.

@@ -85,6 +85,8 @@ import { Ursprungsrad } from "./Ursprungsrad.jsx";
  * @param {import("react").ReactNode} [props.svar] Svaren. Ritas bara när `handelse.kravSvar` är sant.
  * @param {import("react").ReactNode} [props.kommentarer] (0.48.0, #232) Tråden, normalt appens `<OpsKommentarer>` med sin källa. Ritas sist,
  *   under svaren, för varje händelse som får den. Ramverket vet inte var kommentarerna ligger.
+ * @param {import("react").ReactNode} [props.filer] (0.121.0, cllp/lifehub.app#366) Händelsens filer, normalt appens `<OpsHandelsefiler>` med sin källa. Ritas efter bilagan och före svaren, för varje
+ *   händelse som får den. Sektionen har sin egen rubrik ("Filer"), så panelen lägger ingen. Ramverket vet inte var filerna ligger. Den singulära `bilaga` ovan är kvar tills appen migrerat den (beslut 0002, steg 3).
  * @param {() => void} [props.onRedigera] (0.40.0) Pennan: SS redigera. Ritas BARA när appen ger den, så att en person som inte får ändra händelsen inte ser en knapp som nekas. Normalt `() => oppna("handelse", { id })` ur `useOppnaSkapa()`, som öppnar skalets skapa-panel i redigeringsläge. Ramverket känner varken regeln eller datan: appen avgör vem som får, och formuläret och sparandet är appens.
  * @param {string} [props.redigeraEtikett] Pennans namn för skärmläsaren. Förval "Redigera".
  * @param {import("react").ReactNode} [props.atgarder] Appens egna knappar, högst upp till höger bredvid titeln (SS export m.fl.), efter pennan.
@@ -112,6 +114,7 @@ function OpsHandelsePanelRitad({
   onTillbaka,
   svar,
   kommentarer,
+  filer,
   atgarder,
   onRedigera,
   redigeraEtikett = ORD_OPSHANDELSEPANEL.redigeraEtikett.sv,
@@ -312,6 +315,12 @@ function OpsHandelsePanelRitad({
           renderas olika i varje webbläsare och en ruta som ibland är tom ser ut som att filen inte kom fram; namnet och storleken svarar på
           de två frågor man har. `download` med filnamnet, annars heter den nedladdade filen något i stil med "ab12cd" (källan är en data-URL). */}
       {handelse.bilaga ? <HandelseBilaga bilaga={handelse.bilaga} titel={handelse.titel} etikett={bilagaEtikett} /> : null}
+
+      {filer ? (
+        <div data-handelsefiler-slot="" className="mt-6">
+          {filer}
+        </div>
+      ) : null}
 
       {handelse.kravSvar === true ? (
         <div data-handelsesvar="" className="mt-6">

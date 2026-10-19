@@ -7,7 +7,7 @@ import { OpsDokument } from "./OpsDokument.jsx";
 import { OpsMarkdown } from "./OpsMarkdown.jsx";
 import { OpsModal } from "./OpsModal.jsx";
 import { OpsSvepRad } from "./OpsSvepRad.jsx";
-import { ADRESSFORM, BIBLIOTEKTYPER, MAX_TAGGAR, MAX_TAGGLANGD, allaTaggar, arLjudpost, arMittBibliotek, farAndra, normaliseraTagg, normaliseraTaggar, taggarFel, taggfarg, anteckningsrubrikNu, filInmatningsfel, mimeUrFilnamn, filadressFel, filSort, filtreraBibliotek, inmatningsfel, ljudDatum, ljudRubrik, normaliseraAdress, trimSomRegeln } from "../lib/bibliotek.js";
+import { ADRESSFORM, BIBLIOTEKTYPER, MAX_TAGGAR, MAX_TAGGLANGD, allaTaggar, arHandelseBibliotek, arLjudpost, arMittBibliotek, farAndra, normaliseraTagg, normaliseraTaggar, taggarFel, taggfarg, anteckningsrubrikNu, filInmatningsfel, mimeUrFilnamn, filadressFel, filSort, filtreraBibliotek, inmatningsfel, ljudDatum, ljudRubrik, normaliseraAdress, trimSomRegeln } from "../lib/bibliotek.js";
 import { formateraTid } from "../lib/ljudspelare.js";
 import { useInspelningOppnare } from "./OpsAppShell.jsx";
 import { cx } from "../lib/cx.js";
@@ -170,14 +170,17 @@ function useBibliotekskalla(kalla) {
  * @param {(inmatning: { id: string, nedladdning: boolean }) => Promise<void> | void} [props.onAndraNedladdning] (0.119.0) Slår på eller av nedladdning på en länk som lever. Ett fel visas i dialogen och reglaget står kvar.
  * @param {(inmatning: { id: string }) => Promise<void> | void} [props.onAterkalla] (0.119.0) Stänger länken, för alltid. "Stäng länken" i dialogen. En ny delning ger ett nytt token.
  * @param {string} [props.modulId] (0.88.1) Modulens id i appen, förval "bibliotek". Står den i huvudmenyn har listan ingen tillbaka-rad.
- * @param {string} props.hubHref (0.83.0) Hubbens adress: tillbaka-radens mål, som `OpsModulSida`. Krävs.
+ * @param {string} [props.hubHref] (0.83.0) Hubbens adress: tillbaka-radens mål, som `OpsModulSida`. Krävs, utom med `inbaddad` (0.121.0).
  * @param {string} [props.hubEtikett] Förval "Appar".
  * @param {(href: string, event: any) => void} [props.onNavigate] Tillbaka-länkens klick, som `OpsModulSida`.
  * @param {import("./OpsModulRam.jsx").ModulRam | null} [props.ram] (0.89.0) Inställningsläget. Utelämnad: listan som förut, utan kugghjul.
  * @param {string} [props.activeHref] (0.89.0) Krävs tillsammans med `ram` och `modul`. `?lage=installningar` visar inställningarna.
  * @param {import("../lib/modul.js").Modul | null} [props.modul] (0.89.0) Manifestet inställningarna läser. Krävs med `ram`.
+ * @param {boolean} [props.inbaddad] (0.121.0, lifehub.app#366) Listan som en sektion i en annan vy, till exempel en händelses Filer (`OpsHandelsefiler`). Ingen vyram och ingen
+ *   tillbaka-rad till hubben (`hubHref` krävs inte), ingen sök-, tagg-, flik- eller "+ Ny"-rad, bara listan och detaljen: den som äger sektionen (`OpsHandelsefiler`) ritar rubriken och Ladda upp
+ *   och sätter `skapar` (`"fil"`), eftersom en händelses bibliotek har bara filer. Detaljens tillbaka heter "Filer". `ram`, `platser`, `plats`, `onPlats`, `grupper` och `onDela` hör inte hit och kastar: en inbäddad lista har en plats.
  */
-export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, trasiga: trasigaProp = [], laddar: laddarProp = false, vald = null, skapar = null, jag, onOppna, onStang, onSkapa, onSpara, onRadera, onLaddaUpp, onFyllLjud, onSpelaIn, inspelare, filUrl, hamtaAdress, grupper = [], onDela, platser = [], plats, onPlats, onSkrivUt, onAnteckningAvUtskrift, onGorForslag, delningar = [], onDelaLank, onAndraNedladdning, onAterkalla, hubHref, hubEtikett, onNavigate, modulId = "bibliotek", ram = null, activeHref, modul = null }) {
+export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, trasiga: trasigaProp = [], laddar: laddarProp = false, vald = null, skapar = null, jag, onOppna, onStang, onSkapa, onSpara, onRadera, onLaddaUpp, onFyllLjud, onSpelaIn, inspelare, filUrl, hamtaAdress, grupper = [], onDela, platser = [], plats, onPlats, onSkrivUt, onAnteckningAvUtskrift, onGorForslag, delningar = [], onDelaLank, onAndraNedladdning, onAterkalla, hubHref, hubEtikett, onNavigate, modulId = "bibliotek", ram = null, activeHref, modul = null, inbaddad = false }) {
   if (kalla !== undefined && (posterProp !== undefined || felProp !== null || laddarProp !== false || (Array.isArray(trasigaProp) && trasigaProp.length > 0))) {
     throw new Error("OpsBibliotek: kalla och poster/fel/trasiga/laddar kan inte ges tillsammans. Med kalla läser vyn själv, och två sanningar om samma lista hade låtit den ena vinna tyst.");
   }
@@ -187,7 +190,16 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
   if (jag === undefined) {
     throw new Error("OpsBibliotek: jag krävs, den inloggades aktiva medlemskap i gruppen ({ uid, roll }), eller null när personen inte är medlem. Utan propen ser en medlem ut som en som bara får läsa.");
   }
-  if (typeof hubHref !== "string" || hubHref === "") {
+  // ⛔ EN HÄNDELSES BIBLIOTEK FINNS INTE BLAND PLATSERNA (0.121.0, lifehub.app#366). Platsväljaren och Flytta-menyn bygger på listorna appen ger, och en
+  // plats som hamnat där är en plats man kan flytta en fil in i eller ut ur: ett synlighetsbeslut utan händelsens villkor. Kastar hellre än filtrerar tyst.
+  const handelseplats = [...platser, ...grupper].find((p) => arHandelseBibliotek(p?.id));
+  if (handelseplats) {
+    throw new Error(`OpsBibliotek: platsen "${handelseplats.id}" är en händelses bibliotek och hör inte hemma i platser eller grupper. Filerna hör till händelsen och flyttas inte dit eller därifrån; de visas av OpsHandelsefiler.`);
+  }
+  if (inbaddad && (ram || platser.length > 0 || grupper.length > 0 || plats !== undefined || onPlats !== undefined || onDela !== undefined)) {
+    throw new Error("OpsBibliotek: inbaddad hör ihop med en enda plats. ram, platser, plats, onPlats, grupper och onDela är för det fristående biblioteket.");
+  }
+  if (!inbaddad && (typeof hubHref !== "string" || hubHref === "")) {
     throw new Error("OpsBibliotek: hubHref krävs (0.83.0), hubbens adress. Sidan har Ekonomis tillbaka-rad, och en rad som inte vet vart den leder är en knapp som inte gör något.");
   }
   kravRam(ram, "OpsBibliotek");
@@ -552,7 +564,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
   const installningar = Boolean(ram && modul && arInstallningslage(/** @type {string} */ (activeHref)));
   if (installningar && modul) {
     return (
-      <OpsModulRam modul={modul} activeHref={/** @type {string} */ (activeHref)} hubHref={hubHref} hubEtikett={hubEtikett} onNavigate={onNavigate} sprak={sprak} ram={ram}>
+      <OpsModulRam modul={modul} activeHref={/** @type {string} */ (activeHref)} hubHref={/** @type {string} */ (hubHref)} hubEtikett={hubEtikett} onNavigate={onNavigate} sprak={sprak} ram={ram}>
         {null}
       </OpsModulRam>
     );
@@ -580,25 +592,28 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
         {visaKnapp ? <ModulLageKnapp ram={ram} activeHref={/** @type {string} */ (activeHref)} onNavigate={onNavigate} sprak={sprak} installningar={false} /> : null}
       </>
     ) : null;
-  const listTillbaka = {
-    ...modulTillbaka({ namn: "Bibliotek", hubHref, hubEtikett, onNavigate, sprak, modulId, ikon: <Library size={18} /> }),
-    ...(atgard ? { atgard } : {}),
-  };
+  const listTillbaka = inbaddad
+    ? undefined
+    : {
+        ...modulTillbaka({ namn: "Bibliotek", hubHref: /** @type {string} */ (hubHref), hubEtikett, onNavigate, sprak, modulId, ikon: <Library size={18} /> }),
+        ...(atgard ? { atgard } : {}),
+      };
 
   // ⛔ DETALJEN HAR SIN EGEN TILLBAKA, TILL LISTAN. Två "Tillbaka" på samma sida, en till hubben och en till listan, hade
   // lämnat läsaren att gissa vilken som är vilken. Knappen är `TillbakaKnapp`, inte en egen spökknapp.
   // Inställningsläget vinner över detaljen: länken från arket öppnar inställningarna, inte posten.
+  const Rot = inbaddad ? InbaddadRot : OpsView;
   return (
-    <OpsView tillbaka={detalj ? undefined : listTillbaka}>
+    <Rot tillbaka={detalj ? undefined : listTillbaka}>
       <div data-bibliotek="" className="flex min-w-0 w-full flex-col gap-4">
         {detalj ? (
-          <Detalj key={`${skaparTyp ?? ""}:${vald?.id ?? ""}:${startLage}`} post={vald ? medFyll(poster.find((p) => p.id === vald.id) ?? vald) : null} skapar={skaparTyp} startLage={startLage} onStang={onStang} onSpara={onSpara} onLaddaUpp={onLaddaUpp} filUrl={filUrl} adressFor={adressFor} onLjus={setLjus} onSkrivUt={onSkrivUt} onAnteckningAvUtskrift={onAnteckningAvUtskrift} menyFor={menyFor} onMeta={togMeta} />
+          <Detalj key={`${skaparTyp ?? ""}:${vald?.id ?? ""}:${startLage}`} post={vald ? medFyll(poster.find((p) => p.id === vald.id) ?? vald) : null} skapar={skaparTyp} startLage={startLage} onStang={onStang} onSpara={onSpara} onLaddaUpp={onLaddaUpp} filUrl={filUrl} adressFor={adressFor} onLjus={setLjus} onSkrivUt={onSkrivUt} onAnteckningAvUtskrift={onAnteckningAvUtskrift} menyFor={menyFor} onMeta={togMeta} tillbakaEtikett={inbaddad ? "Filer" : "Tillbaka"} />
         ) : (
           <div data-bibliotek-huvud="" className="flex min-w-0 flex-col gap-3">
             {/* ⛔ SESSIONSTUDIOS HUVUD, SOM I APPEN (0.102.0, CP 2026-10-14 med skärmbilder från SessionStudios app: "Listningen
                 och taggar i föregående bild."): sök, "+ Ny" och Taggar på en rad, och flikarna som en rad man rullar i sidled.
                 Platsen som piller står i vyns huvud, bredvid kugghjulet. */}
-            <div className="flex min-w-0 items-center gap-2">
+            {inbaddad ? null : <div className="flex min-w-0 items-center gap-2">
               <div className="min-w-0 flex-1">
                 <OpsInput value={sok} onChange={setSok} type="search" ariaLabel="Sök i biblioteket" placeholder="Sök..." />
               </div>
@@ -617,9 +632,9 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
                 />
               ) : null}
               <TaggFilter taggar={gruppensTaggar} valda={valda} onValda={setValdaTaggar} />
-            </div>
+            </div>}
             <Tabs.Root value={aktivFlik} onValueChange={(v) => setFlik(/** @type {Flik} */ (v))} className="flex min-w-0 flex-col gap-3">
-            <Flikar flikar={synligaFlikar} antal={antal} />
+            {inbaddad ? null : <Flikar flikar={synligaFlikar} antal={antal} />}
             {rostFel ? <p role="alert">{rostFel}</p> : null}
             {trasiga.length > 0 ? (
               <div role="status" data-bibliotek-trasiga={trasiga.length} className="text-meta text-ink-muted">
@@ -640,12 +655,12 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
               {fel ? (
                 <p role="alert" data-bibliotek-fel="">{fel}</p>
               ) : laddar ? (
-                <OpsEmpty busy title="Hämtar biblioteket" />
+                <OpsEmpty busy title={inbaddad ? "Hämtar filerna" : "Hämtar biblioteket"} />
               ) : synliga.length === 0 ? (
                 <OpsEmpty
-                  icon={sok || valda.length > 0 ? null : <Library size={28} />}
-                  title={sok || valda.length > 0 ? "Inga träffar." : poster.length === 0 ? "Biblioteket är tomt." : "Inget här ännu."}
-                  description={sok ? `Inget matchar "${sok}"${valda.length > 0 ? ` med ${valda.join(" och ")}` : ""}.` : valda.length > 0 ? `Inget här har ${valda.join(" och ")}.` : "Lägg till en anteckning, en länk, ett ljud eller en fil."}
+                  icon={inbaddad || sok || valda.length > 0 ? null : <Library size={28} />}
+                  title={inbaddad ? "Inga filer än." : sok || valda.length > 0 ? "Inga träffar." : poster.length === 0 ? "Biblioteket är tomt." : "Inget här ännu."}
+                  description={inbaddad ? "Filer som läggs till här hör bara till händelsen." : sok ? `Inget matchar "${sok}"${valda.length > 0 ? ` med ${valda.join(" och ")}` : ""}.` : valda.length > 0 ? `Inget här har ${valda.join(" och ")}.` : "Lägg till en anteckning, en länk, ett ljud eller en fil."}
                 />
               ) : (
                 <ul aria-label="Biblioteket" data-bibliotek-lista="" className="m-0 flex list-none flex-col gap-3 p-0">
@@ -768,7 +783,20 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
           />
         ) : <p>Ingen post vald.</p>}
       </OpsModal>
-    </OpsView>
+    </Rot>
+  );
+}
+
+/**
+ * Roten när biblioteket ligger inbäddat i en annan vy (0.121.0): ingen `OpsView`-ram med sina marginaler och sin tillbaka-rad, bara en kolumn
+ * som tar den bredd värden ger.
+ * @param {{ children: import("react").ReactNode }} props
+ */
+function InbaddadRot({ children }) {
+  return (
+    <div data-bibliotek-inbaddad="" className="flex min-w-0 w-full flex-col gap-4">
+      {children}
+    </div>
   );
 }
 
@@ -1650,8 +1678,9 @@ function Adress({ url }) {
  * @param {(post: any) => Promise<void> | void} [props.onAnteckningAvUtskrift]
  * @param {(post: import("../lib/bibliotek.js").Bibliotekspost & { id: string }, iDetalj: boolean, sattRedigera?: (lage: "redigera") => void) => import("./OpsAtgardsblad.jsx").Atgard[]} props.menyFor
  * @param {(id: string, meta: { durationMs?: number, peaks?: string }) => void} [props.onMeta]
+ * @param {string} props.tillbakaEtikett (0.121.0) "Tillbaka", eller i en händelse "Filer". Inbäddad i en händelse heter den "Filer", så den inte förväxlas med panelens egen.
  */
-function Detalj({ post, skapar, startLage, onStang, onSpara, onLaddaUpp, filUrl, adressFor, onLjus, onSkrivUt, onAnteckningAvUtskrift, menyFor, onMeta }) {
+function Detalj({ post, skapar, startLage, onStang, onSpara, onLaddaUpp, filUrl, adressFor, onLjus, onSkrivUt, onAnteckningAvUtskrift, menyFor, onMeta, tillbakaEtikett }) {
   const typ = skapar ?? post?.typ ?? "anteckning";
   const [rubrik, setRubrik] = useState(post && !skapar ? post.rubrik : "");
   const [text, setText] = useState(post && !skapar && post.typ === "anteckning" ? post.text ?? "" : "");
@@ -1824,6 +1853,7 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, onLaddaUpp, filUrl,
     <div data-bibliotek-detalj={typ} data-bibliotek-lasning={lage === "las" ? "" : undefined} className="flex flex-col gap-4">
       <BibliotekDetaljHuvud
         onTillbaka={onStang}
+        tillbakaEtikett={tillbakaEtikett}
         ikon={mark}
         rubrik={rubrikVy}
         meta={metaText}
@@ -1856,13 +1886,13 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, onLaddaUpp, filUrl,
  * Gemensamt detaljhuvud för alla typer: Tillbaka, ikon och ⋯ på en rad,
  * rubriken på egen rad med rollen `rubrik`, sedan metadata.
  *
- * @param {{ onTillbaka: () => void, ikon: import("react").ReactNode, rubrik: string, meta?: string, meny?: import("react").ReactNode }} props
+ * @param {{ onTillbaka: () => void, tillbakaEtikett: string, ikon: import("react").ReactNode, rubrik: string, meta?: string, meny?: import("react").ReactNode }} props
  */
-function BibliotekDetaljHuvud({ onTillbaka, ikon, rubrik, meta = "", meny = null }) {
+function BibliotekDetaljHuvud({ onTillbaka, tillbakaEtikett, ikon, rubrik, meta = "", meny = null }) {
   return (
     <header data-bibliotek-detaljhuvud="" className="flex min-w-0 flex-col gap-3">
       <div className="flex min-w-0 items-center gap-2">
-        <TillbakaKnapp onClick={onTillbaka} etikett="Tillbaka" className="self-start" />
+        <TillbakaKnapp onClick={onTillbaka} etikett={tillbakaEtikett} className="self-start" />
         <span className="shrink-0">{ikon}</span>
         <span className="min-w-0 flex-1" aria-hidden="true" />
         {meny}

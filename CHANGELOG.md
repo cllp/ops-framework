@@ -11,6 +11,28 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ## Ej utgivet
 
+## 0.121.0
+
+cllp/lifehub.app#366 punkt 2, ramverkets del: filer på en händelse. Designen och valet mot alternativet står i `docs/beslut/0006-handelsefiler-pa-handelse.md`. Appens del (kalla, inkoppling i händelsepanelen, regeldeploy, ompinning) kommer efter ompinningen.
+Inga ändringar i postens fält, ingen ny samling och ingen ny typ. ⛔ En följd att veta om: `OpsBibliotek` kastar nu om `platser` eller `grupper` innehåller en händelseplats, och `flyttaBibliotekspost` kastar för en. En app som inte använder händelsefiler märker ingenting.
+
+### En händelses filer är en plats, som Mitt bibliotek (CP 2026-10-19, #366), Claude 2026-10-19
+CP: "Jag vill ta detta mail och skapa en händelse och lägga till PDF:erna, och eventuellt bilder på biljetter mm ... Detta är jätteviktigt att som i sessionstudio ha ett händelsebibliotek som bara gäller den händelsen." Händelsen hade en enda bilaga som data-URL i sitt eget dokument (0.45.0, tak 700 000 tecken), och beslut 0002 pekade ut Biblioteket som vägen för flera.
+- `groupId` får en tredje form: `handelse~<grupp>~<händelse>` (`handelseBibliotek(groupId, handelseId)`, `handelsedelar`, `arHandelseBibliotek`, `gruppForPlats`, `HANDELSE_PREFIX`, `HANDELSEFORM`, `HANDELSEIDFORM`). Valet stod mellan platsen och ett fält `handelseId` på en post i gruppens plats. Platsen vann: posten är densamma, frågan är ett fält utan index, gruppens bibliotek ser aldrig händelsefilerna, och storage-sökvägen bär platsen så behörigheten är två dokument som för en grupp. Fältet hade krävt ett sammansatt index, en backfill (ett fält som saknas matchar inte `== null`) och ett tredje uppslag i storage-regeln.
+- Behörigheten är gruppens medlemskap, tolkat ur platsen. `bibliotekregelfragment(namn, { handelser })` (appens händelsesamling, inget förval) lägger till grenen: läsa kräver aktiv medlem OCH att händelsen finns OCH att dess `groupId` är platsens grupp (annars läser en medlem i A händelsefilerna i B genom att skriva en påhittad plats). Skapa kräver dessutom en person och `typ == "fil"`. Ändra och radera som i gruppen: författaren, ägare och admin. `lagringsregelfragment({ bibliotek: { ..., handelsefiler: true } })` släpper in platsen i Storage. Utan `handelser` och `handelsefiler` är båda texterna byte för byte de förra (mätt).
+- `farAndra` låter gruppens roller gälla på platsen, `postFel` godtar platsen men bara för en fil, och delningstjänsten slår upp medlemskapet via `gruppForPlats` så Dela länk fungerar på en händelsefil. Appens server (utskrift) ska göra samma uppslag.
+- `OpsHandelsefiler` är sektionen "Filer": `OpsBibliotek` inbäddad (`inbaddad`) med rubrik, Ladda upp och valt läge, kopplad mot en `createBibliotekskalla` för platsen. `OpsHandelsePanel` får slotten `filer`, ritad efter bilagan och före svaren. Tom lista skrivs ut ("Inga filer än."). Ladda upp ritas bara när appen säger `kanLaggaTill`, samma avgörande som pennan.
+- Platsen syns inte i platsväljaren och inget flyttas dit eller därifrån: `OpsBibliotek` kastar om den ges som `platser` eller `grupper`, och `flyttaBibliotekspost` kastar åt båda hållen. En flytt är ett beslut om vem som ser filen, och en händelsefils synlighet är händelsens.
+- `createHandelsefilerService({ kalla, samlingar: { bibliotek } })` (`ops-framework/node`): `stada({ groupId, handelseId, skarpt })` för hård radering av en händelse med Admin SDK. Torrt som förval, rapport med alla fält också som noll. En händelse som arkiveras (det vanliga) behöver ingen städning; en borttagen händelse gör posterna osynliga för klienten direkt, och objekten tar appens `bibliotekstadning` bort.
+
+### Gjordes inte
+- Migreringen av den singulära `bilaga` till en fil (beslut 0002, steg 3): en uttalad migrering i appen. Tills dess ritar panelen båda.
+- Anteckningar och länkar på en händelse (händelsens beskrivning en gång till), flytt eller kopiering mellan platser, taggar/sök/flikar i händelsens lista, röstinspelning direkt i händelsen, en `skrivvillkor`-ratt (en andra konfigurationspunkt vid sidan av händelsesamlingens egen).
+- Mejl till händelse och slutdatum samma dag (andra punkter i #366).
+
+### Prov, rött utan fixen och grönt med
+- Se PR-texten för utfallen. Nya: `rules/__tests__/handelsefiler.test.mjs` (Firestore och Storage i emulatorn, 26 prov med golv på utfallen), `handelsefiler.test.js` (platsen, posten, källan, flytten, regelfragmenten, delningen, städningen), `handelsefiler-vy.test.jsx` (sektionen, platsväljaren, panelens slot).
+
 ## 0.120.0
 
 cllp/lifehub.app#367 (P0, kalendern), ramverkets del. Appens del (skicka `standardkalender: true`, engångssteget för befintliga grupper, detaljvyn för poster, ompinning) kommer efter ompinningen.

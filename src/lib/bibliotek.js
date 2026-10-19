@@ -129,6 +129,85 @@ export function mittJag(uid) {
 }
 
 /**
+ * ⛔ EN HÄNDELSES BIBLIOTEK ÄR OCKSÅ EN PLATS (0.121.0, lifehub.app#366). CP 2026-10-19: "ett händelsebibliotek som bara gäller den
+ * händelsen", som i SessionStudio. Ett biljettmejl ska bli en händelse med PDF:erna på, och PDF:erna hör till bion och inte till gruppens
+ * bibliotek.
+ *
+ * Valet stod mellan en egen plats och ett fält `handelseId` på en post i gruppens plats. Platsen vann (docs/beslut/0006): ingen ny modell,
+ * för posten är densamma; frågan `where groupId == plats` är ett fält och behöver inget index, medan "gruppens poster utan händelse" inte går
+ * att fråga efter i Firestore (ett fält som saknas matchar inte `== null`) och hade krävt en backfill eller ett klientfilter; och
+ * storage-sökvägen bär platsen, så behörigheten är två dokument (medlemskapet och posten) och inte tre. Det är samma mönster som Mitt bibliotek
+ * (0.101.0), med två skarvar i strängen i stället för en: `handelse~<grupp>~<händelse>`.
+ *
+ * ⛔ PREFIXET KAN INTE KROCKA. Ett grupp-id följer `ID_FORM` och ett händelse-id `HANDELSEIDFORM`, och ingen av dem har `~`. Platsen kan alltså inte
+ * likna en grupp, `mitt~<uid>` eller kalenderpostens `post~<id>` (0.120.0).
+ *
+ * ⛔ GRUPPEN I PLATSEN ÄR GRUPPENS MEDLEMSKAP. Behörigheten har ingen egen modell: den som är aktiv medlem i `handelsedelar(plats).groupId` läser,
+ * och reglerna kräver att händelsen finns och ligger i just den gruppen (annars öppnar en påhittad plats en annan grupps händelsefiler).
+ * Server och delning slår upp medlemskapet via `gruppForPlats`, aldrig med hela strängen.
+ */
+export const HANDELSE_PREFIX = "handelse~";
+
+/** Ett händelse-id: Firestores automatiska id:n (a-z, A-Z, 0-9) och det en app själv sätter. Inget `~`, inget `/`. */
+export const HANDELSEIDFORM = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/;
+
+/**
+ * Hela platsen. Gruppdelen är `ID_FORM` ur katalogen (inte en kopia av den), så de två inte kan glida isär. Samma uttryck skrivs in i
+ * regeln via `regelRegex`.
+ */
+export const HANDELSEFORM = new RegExp(`^${HANDELSE_PREFIX}${ID_FORM.source.replace(/^\^|\$$/g, "")}~${HANDELSEIDFORM.source.replace(/^\^|\$$/g, "")}$`);
+
+/**
+ * Platsen för en händelses filer.
+ * @param {unknown} groupId
+ * @param {unknown} handelseId
+ * @returns {string}
+ */
+export function handelseBibliotek(groupId, handelseId) {
+  const g = typeof groupId === "string" ? groupId.trim() : "";
+  const h = typeof handelseId === "string" ? handelseId.trim() : "";
+  const plats = `${HANDELSE_PREFIX}${g}~${h}`;
+  if (!HANDELSEFORM.test(plats)) {
+    throw new Error(`handelseBibliotek: grupp "${g}" och händelse "${h}" går inte att använda som plats. Ett grupp-id (a-z, 0-9, - och _) och ett händelse-id (a-z, A-Z, 0-9, - och _, utan ~ och /) krävs.`);
+  }
+  return plats;
+}
+
+/**
+ * Är platsen en händelses bibliotek?
+ * @param {unknown} plats
+ * @returns {boolean}
+ */
+export function arHandelseBibliotek(plats) {
+  return typeof plats === "string" && HANDELSEFORM.test(plats);
+}
+
+/**
+ * Gruppen och händelsen ur en händelseplats, eller `null` för allt annat. Den enda platsen platsen tolkas på i klienten.
+ * @param {unknown} plats
+ * @returns {{ groupId: string, handelseId: string } | null}
+ */
+export function handelsedelar(plats) {
+  if (!arHandelseBibliotek(plats)) return null;
+  const [, groupId, handelseId] = /** @type {string} */ (plats).split("~");
+  return { groupId, handelseId };
+}
+
+/**
+ * Gruppen vars medlemskap gäller på platsen: en händelseplats ger sin grupp, allt annat ges tillbaka som det är.
+ *
+ * ⛔ EN SANNING FÖR VEM SOM FÅR (regel 2). Delningstjänsten och appens server (utskrift, städning) slår upp medlemskapet med den här
+ * i stället för att tolka strängen var för sig. Glömmer en server den nekas händelsefiler, den släpper aldrig in fel person: ett
+ * medlemskap med hela platsen som grupp finns inte.
+ *
+ * @param {string} plats
+ * @returns {string}
+ */
+export function gruppForPlats(plats) {
+  return handelsedelar(plats)?.groupId ?? plats;
+}
+
+/**
  * Format en fil får ha. Bild, ljud och dokument. En sort per fält hade varit
  * en andra typ, och CP valde en typ.
  */
@@ -670,7 +749,8 @@ export function farAndra(post, jag) {
   // den inloggades uid och inget annat, och en admin i någon grupp hade annars sett knappar regeln nekar.
   if (arMittBibliotek(post.groupId)) return post.groupId === `${MITT_PREFIX}${jag.uid}` && post.skapadAv?.uid === jag.uid;
   if (jag.status !== undefined && jag.status !== "aktiv") return false;
-  if (jag.groupId !== undefined && jag.groupId !== post.groupId) return false;
+  // ⛔ PÅ EN HÄNDELSES PLATS GÄLLER GRUPPENS ROLLER (0.121.0). `jag` är medlemskapet i gruppen, och platsen är gruppens plus en händelse.
+  if (jag.groupId !== undefined && jag.groupId !== gruppForPlats(String(post.groupId))) return false;
   if (post.skapadAv?.uid === jag.uid) return true;
   return /** @type {readonly string[]} */ (FORVALTARROLLER).includes(String(jag.roll ?? ""));
 }
@@ -745,7 +825,9 @@ export function postFel(d) {
   if (yta) return yta;
 
   const groupId = str(d.groupId);
-  if (!ID_FORM.test(groupId) && !MITTFORM.test(groupId)) return `Gruppen "${groupId}" är inte ett grupp-id.`;
+  if (!ID_FORM.test(groupId) && !MITTFORM.test(groupId) && !HANDELSEFORM.test(groupId)) return `Gruppen "${groupId}" är inte ett grupp-id.`;
+  // ⛔ EN HÄNDELSES BIBLIOTEK HAR BARA FILER (0.121.0). En anteckning eller en länk på en händelse är händelsens beskrivning en gång till (regel 2).
+  if (HANDELSEFORM.test(groupId) && str(d.typ) !== "fil") return "En händelses bibliotek har filer, och inga anteckningar eller länkar.";
 
   const skapadAv = byggSkapare(/** @type {any} */ (d.skapadAv && typeof d.skapadAv === "object" ? d.skapadAv : {}));
   if (!skapadAv.uid) return "Posten saknar vem som skrev den.";
