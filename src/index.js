@@ -257,6 +257,11 @@ export { mejlregelfragment } from "./lib/mejl.js";
  */
 export { KALENDERFARGER, KALENDERIKONER, KALENDERFALT, MINKALENDERFALT, KALENDERPOSTFALT, MAX_KALENDERNAMN, MAX_GITHUBETIKETT, MAX_POSTTITEL, MAX_POSTBESKRIVNING, MAX_POSTPLATS, STANDARD_TIDSZON, byggGruppkalender, STANDARDKALENDER_ID, STANDARDKALENDER_NAMN, standardGruppkalender, githubEtikettNyckel, kalenderForEtikett, kontrolleraGithubEtiketter, validateGruppkalendrar, forvaldKalender, gruppkalendernyckel, byggMinKalender, validateMinaKalendrar, byggKalenderpost, postTillRad, KALENDERPOST_HANDELSEPREFIX, postHandelseId, postIdUrHandelseId, postTillHandelse, kontrolleraTidszon, idagI, ORDNINGSSTEG, kalenderIdUrNamn, nastaOrdning, flyttaKalender, valjForvald, arkiveraKalender, kalenderval } from "./lib/kalendrar.js";
 /*
+ * ⛔ FLYTTA EN POST ELLER EN HÄNDELSE TILL EN ANNAN KALENDER (0.123.0, cllp/lifehub.app#371). `flyttmal` svarar på vart något får flyttas och
+ * `postensTidsfalt` är postens tid som en händelses fält. Själva flytten är serverns (`createFlyttaService` i `ops-framework/node`).
+ */
+export { flyttmal, postensTidsfalt } from "./lib/flytta.js";
+/*
  * ⛔ KALENDERLAGER (0.90.7). Synligheten är personens, i webbläsarens minne. Färgen är identitetspaletten.
  * Ingen samling och ingen gruppton.
  */
