@@ -155,7 +155,45 @@ export const HANDELSEIDFORM = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/;
  * Hela platsen. Gruppdelen är `ID_FORM` ur katalogen (inte en kopia av den), så de två inte kan glida isär. Samma uttryck skrivs in i
  * regeln via `regelRegex`.
  */
-export const HANDELSEFORM = new RegExp(`^${HANDELSE_PREFIX}${ID_FORM.source.replace(/^\^|\$$/g, "")}~${HANDELSEIDFORM.source.replace(/^\^|\$$/g, "")}$`);
+export const HANDELSEFORM = platsform(HANDELSE_PREFIX, HANDELSEIDFORM);
+
+/**
+ * Formen för en plats som hör till ett objekt i gruppen: `<prefix><grupp>~<objekt-id>`. Gruppdelen är `ID_FORM` ur katalogen, id-delen får
+ * objektets egen form. En enda konstruktion för händelsens och ärendets plats (regel 2), så att de inte kan glida isär.
+ * @param {string} prefix
+ * @param {RegExp} idForm
+ * @returns {RegExp}
+ */
+function platsform(prefix, idForm) {
+  return new RegExp(`^${prefix}${ID_FORM.source.replace(/^\^|\$$/g, "")}~${idForm.source.replace(/^\^|\$$/g, "")}$`);
+}
+
+/**
+ * Platsen för ett objekt i en grupp, eller `null` när grupp-id:t eller objekt-id:t inte ger en plats med rätt form.
+ * @param {string} prefix
+ * @param {RegExp} form
+ * @param {unknown} groupId
+ * @param {unknown} objektId
+ * @returns {{ plats: string | null, g: string, o: string }}
+ */
+function byggObjektplats(prefix, form, groupId, objektId) {
+  const g = typeof groupId === "string" ? groupId.trim() : "";
+  const o = typeof objektId === "string" ? objektId.trim() : "";
+  const plats = `${prefix}${g}~${o}`;
+  return { plats: form.test(plats) ? plats : null, g, o };
+}
+
+/**
+ * Grupp-id och objekt-id ur en objektplats, eller `null` för allt annat.
+ * @param {RegExp} form
+ * @param {unknown} plats
+ * @returns {{ groupId: string, id: string } | null}
+ */
+function objektdelar(form, plats) {
+  if (typeof plats !== "string" || !form.test(plats)) return null;
+  const [, groupId, id] = plats.split("~");
+  return { groupId, id };
+}
 
 /**
  * Platsen för en händelses filer.
@@ -164,11 +202,9 @@ export const HANDELSEFORM = new RegExp(`^${HANDELSE_PREFIX}${ID_FORM.source.repl
  * @returns {string}
  */
 export function handelseBibliotek(groupId, handelseId) {
-  const g = typeof groupId === "string" ? groupId.trim() : "";
-  const h = typeof handelseId === "string" ? handelseId.trim() : "";
-  const plats = `${HANDELSE_PREFIX}${g}~${h}`;
-  if (!HANDELSEFORM.test(plats)) {
-    throw new Error(`handelseBibliotek: grupp "${g}" och händelse "${h}" går inte att använda som plats. Ett grupp-id (a-z, 0-9, - och _) och ett händelse-id (a-z, A-Z, 0-9, - och _, utan ~ och /) krävs.`);
+  const { plats, g, o } = byggObjektplats(HANDELSE_PREFIX, HANDELSEFORM, groupId, handelseId);
+  if (!plats) {
+    throw new Error(`handelseBibliotek: grupp "${g}" och händelse "${o}" går inte att använda som plats. Ett grupp-id (a-z, 0-9, - och _) och ett händelse-id (a-z, A-Z, 0-9, - och _, utan ~ och /) krävs.`);
   }
   return plats;
 }
@@ -188,23 +224,100 @@ export function arHandelseBibliotek(plats) {
  * @returns {{ groupId: string, handelseId: string } | null}
  */
 export function handelsedelar(plats) {
-  if (!arHandelseBibliotek(plats)) return null;
-  const [, groupId, handelseId] = /** @type {string} */ (plats).split("~");
-  return { groupId, handelseId };
+  const d = objektdelar(HANDELSEFORM, plats);
+  return d ? { groupId: d.groupId, handelseId: d.id } : null;
 }
 
 /**
- * Gruppen vars medlemskap gäller på platsen: en händelseplats ger sin grupp, allt annat ges tillbaka som det är.
+ * ⛔ ETT ÄRENDES FILER ÄR OCKSÅ EN PLATS (0.122.0, lifehub.app#366 punkt 3, docs/beslut/0007). Samma mönster som en händelses (0.121.0):
+ * `arende~<grupp>~<id>` i `groupId`, där id:t är INKORGSPOSTENS id. Ärendet bor i appen (inkorgsposten är hemmet, GitHub en spegel), så ärendets
+ * filer hör till posten och aldrig till spegelraden. Posten är densamma som alla andra bibliotekposter, så uppladdning, ljudspelare, utskrift och
+ * delning fungerar utan ny kod.
+ *
+ * ⛔ PREFIXET KAN INTE KROCKA med en grupp, `mitt~<uid>`, `handelse~…` eller kalenderpostens `post~<id>`: ingen av dem har samma prefix, och ett grupp-id
+ * (`ID_FORM`) har aldrig ett `~`.
+ *
+ * ⛔ GRUPPEN I PLATSEN ÄR GRUPPENS MEDLEMSKAP, som för en händelse. Slå alltid upp medlemskapet med `gruppForPlats`.
+ */
+export const ARENDE_PREFIX = "arende~";
+
+/**
+ * Ett ärende-id, alltså id:t på appens inkorgspost: Firestores automatiska id:n och det en app själv sätter. Samma form som en händelses
+ * (`HANDELSEIDFORM`), inget `~` och inget `/`. En källa, så att de två inte glider isär.
+ */
+export const ARENDEIDFORM = HANDELSEIDFORM;
+
+/** Hela platsen, med samma konstruktion som `HANDELSEFORM`. Samma uttryck skrivs in i regeln via `regelRegex`. */
+export const ARENDEFORM = platsform(ARENDE_PREFIX, ARENDEIDFORM);
+
+/**
+ * Platsen för ett ärendes filer.
+ * @param {unknown} groupId
+ * @param {unknown} arendeId Inkorgspostens id.
+ * @returns {string}
+ */
+export function arendeBibliotek(groupId, arendeId) {
+  const { plats, g, o } = byggObjektplats(ARENDE_PREFIX, ARENDEFORM, groupId, arendeId);
+  if (!plats) {
+    throw new Error(`arendeBibliotek: grupp "${g}" och ärende "${o}" går inte att använda som plats. Ett grupp-id (a-z, 0-9, - och _) och ett ärende-id (a-z, A-Z, 0-9, - och _, utan ~ och /) krävs.`);
+  }
+  return plats;
+}
+
+/**
+ * Är platsen ett ärendes bibliotek?
+ * @param {unknown} plats
+ * @returns {boolean}
+ */
+export function arArendeBibliotek(plats) {
+  return typeof plats === "string" && ARENDEFORM.test(plats);
+}
+
+/**
+ * Gruppen och ärendet ur en ärendeplats, eller `null` för allt annat.
+ * @param {unknown} plats
+ * @returns {{ groupId: string, arendeId: string } | null}
+ */
+export function arendedelar(plats) {
+  const d = objektdelar(ARENDEFORM, plats);
+  return d ? { groupId: d.groupId, arendeId: d.id } : null;
+}
+
+/**
+ * Är platsen ett objekts bibliotek, alltså en händelses eller ett ärendes? Det gäller allt som är gemensamt för de två: bara filer, ingen flytt dit
+ * eller därifrån, och inte bland platserna i en väljare.
+ * @param {unknown} plats
+ * @returns {boolean}
+ */
+export function arObjektbibliotek(plats) {
+  return arHandelseBibliotek(plats) || arArendeBibliotek(plats);
+}
+
+/**
+ * Vilket slags objektbibliotek en plats är, med orden för det i ett felmeddelande: `slag` ("handelse" eller "arende"), `ord` ("en händelses bibliotek",
+ * "ett ärendes bibliotek") och `objekt` ("händelsen", "ärendet"), eller `null` för en plats som inte är ett. Det enda stället orden skrivs, så att felen
+ * om de två inte glider isär.
+ * @param {unknown} plats
+ * @returns {{ slag: "handelse" | "arende", ord: string, objekt: string } | null}
+ */
+export function beskrivObjektbibliotek(plats) {
+  if (arHandelseBibliotek(plats)) return { slag: "handelse", ord: "en händelses bibliotek", objekt: "händelsen" };
+  if (arArendeBibliotek(plats)) return { slag: "arende", ord: "ett ärendes bibliotek", objekt: "ärendet" };
+  return null;
+}
+
+/**
+ * Gruppen vars medlemskap gäller på platsen: en händelses eller ett ärendes plats ger sin grupp, allt annat ges tillbaka som det är.
  *
  * ⛔ EN SANNING FÖR VEM SOM FÅR (regel 2). Delningstjänsten och appens server (utskrift, städning) slår upp medlemskapet med den här
- * i stället för att tolka strängen var för sig. Glömmer en server den nekas händelsefiler, den släpper aldrig in fel person: ett
+ * i stället för att tolka strängen var för sig. Glömmer en server den nekas objektets filer, den släpper aldrig in fel person: ett
  * medlemskap med hela platsen som grupp finns inte.
  *
  * @param {string} plats
  * @returns {string}
  */
 export function gruppForPlats(plats) {
-  return handelsedelar(plats)?.groupId ?? plats;
+  return handelsedelar(plats)?.groupId ?? arendedelar(plats)?.groupId ?? plats;
 }
 
 /**
@@ -749,7 +862,7 @@ export function farAndra(post, jag) {
   // den inloggades uid och inget annat, och en admin i någon grupp hade annars sett knappar regeln nekar.
   if (arMittBibliotek(post.groupId)) return post.groupId === `${MITT_PREFIX}${jag.uid}` && post.skapadAv?.uid === jag.uid;
   if (jag.status !== undefined && jag.status !== "aktiv") return false;
-  // ⛔ PÅ EN HÄNDELSES PLATS GÄLLER GRUPPENS ROLLER (0.121.0). `jag` är medlemskapet i gruppen, och platsen är gruppens plus en händelse.
+  // ⛔ PÅ EN HÄNDELSES ELLER ETT ÄRENDES PLATS GÄLLER GRUPPENS ROLLER (0.121.0, 0.122.0). `jag` är medlemskapet i gruppen, och platsen är gruppens plus ett objekt.
   if (jag.groupId !== undefined && jag.groupId !== gruppForPlats(String(post.groupId))) return false;
   if (post.skapadAv?.uid === jag.uid) return true;
   return /** @type {readonly string[]} */ (FORVALTARROLLER).includes(String(jag.roll ?? ""));
@@ -825,9 +938,11 @@ export function postFel(d) {
   if (yta) return yta;
 
   const groupId = str(d.groupId);
-  if (!ID_FORM.test(groupId) && !MITTFORM.test(groupId) && !HANDELSEFORM.test(groupId)) return `Gruppen "${groupId}" är inte ett grupp-id.`;
-  // ⛔ EN HÄNDELSES BIBLIOTEK HAR BARA FILER (0.121.0). En anteckning eller en länk på en händelse är händelsens beskrivning en gång till (regel 2).
-  if (HANDELSEFORM.test(groupId) && str(d.typ) !== "fil") return "En händelses bibliotek har filer, och inga anteckningar eller länkar.";
+  if (!ID_FORM.test(groupId) && !MITTFORM.test(groupId) && !arObjektbibliotek(groupId)) return `Gruppen "${groupId}" är inte ett grupp-id.`;
+  // ⛔ EN HÄNDELSES OCH ETT ÄRENDES BIBLIOTEK HAR BARA FILER (0.121.0, 0.122.0). En anteckning eller en länk på en händelse är händelsens beskrivning en gång till
+  // (regel 2), och på ett ärende är den ärendets text och kommentarerna.
+  const objektord = beskrivObjektbibliotek(groupId)?.ord;
+  if (objektord && str(d.typ) !== "fil") return `${objektord[0].toUpperCase()}${objektord.slice(1)} har filer, och inga anteckningar eller länkar.`;
 
   const skapadAv = byggSkapare(/** @type {any} */ (d.skapadAv && typeof d.skapadAv === "object" ? d.skapadAv : {}));
   if (!skapadAv.uid) return "Posten saknar vem som skrev den.";

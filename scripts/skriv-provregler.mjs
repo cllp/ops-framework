@@ -59,6 +59,11 @@ const ut = path.join(rot, "rules", "provregler.rules");
  *   `lagringsregelfragment({ bibliotek: { ..., handelsefiler: true } })`. `handelser` är samma påhittade app-samling som ovan
  *   (`gruppadSamling("handelser")`), så händelsens grupp slås upp där. Utan flaggorna är båda texterna byte för byte de förra.
  *
+ * ⛔ ETT ÄRENDES FILER (0.122.0, lifehub.app#366 punkt 3): `bibliotekregelfragment("bibliotek", { handelser: "handelser", arenden: "inkorg" })` och
+ *   `lagringsregelfragment({ bibliotek: { ..., handelsefiler: true, arendefiler: true } })`. `inkorg` är appens ärendesamling (där ett ärende bor: inkorgsposten),
+ *   här en påhittad samling utan block av eget: regelfragmentet slår bara upp posten, så klienten når den inte i provet, och den läggs in med reglerna avstängda.
+ *   Händelsens och ärendets grenar ligger i samma fil, så att proven för en händelse också visar att den inte rubbats av ärendets.
+ *
  * ⛔ BESKRIVNA APPAR (0.99.0): `beskrivenappdataregelfragment("appdata")` och `beskrivningsregelfragment("appbeskrivningar")`.
  *   Namnen är påhittade, som hos en app.
  */
@@ -76,7 +81,7 @@ ${samtalsregelfragment({ tradar: "tradar", status: "status", reaktioner: "reakti
 ${kalenderregelfragment()}
 ${handelseregelfragment()}
 ${mejlregelfragment("mejlko")}
-${bibliotekregelfragment("bibliotek", { handelser: "handelser" })}
+${bibliotekregelfragment("bibliotek", { handelser: "handelser", arenden: "inkorg" })}
 ${delningsregelfragment("delningar")}
 ${minnesregelfragment("gruppmine")}
 ${modulinstallningsregelfragment("modulinstallningar")}
@@ -114,7 +119,7 @@ const utLagring = path.join(rot, "rules", "provlagring.rules");
 const lagring = `rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-${lagringsregelfragment({ bibliotek: { gruppPrefix: "grupper", postPrefix: "bibliotek", samling: "bibliotek", handelsefiler: true } })}
+${lagringsregelfragment({ bibliotek: { gruppPrefix: "grupper", postPrefix: "bibliotek", samling: "bibliotek", handelsefiler: true, arendefiler: true } })}
     match /{allaFiler=**} {
       allow read, write: if false;
     }

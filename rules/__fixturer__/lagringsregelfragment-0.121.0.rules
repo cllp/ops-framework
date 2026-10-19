@@ -1,0 +1,70 @@
+    // ══ Ramverkets profilbilder. GENERERAD, ändra inte för hand ══
+    //
+    // Källa: ops-framework, lagringsregelfragment() i src/lib/regler.js.
+    // En ändring hör hemma där och kommer hit när fragmentet genereras om.
+    //
+    // ⛔ BARA SIN EGEN SÖKVÄG. `uid` i sökvägen måste vara den inloggades eget,
+    // annars kan vem som helst skriva över eller ta bort en annans bild.
+    // ⛔ BARA BILDER. En profilbild-yta som tar emot vad som helst blir en
+    // gratis fillagring för den som hittar uppladdningsvägen.
+    // ⛔ EN STORLEKSGRÄNS. Utan den kostar en enda uppladdning lika mycket
+    // som tusen små, och en telefonbild på 12 MB tar lika lång tid att ladda
+    // upp på ett dåligt nät som appen sedan tar att kännas trasig.
+    //
+    // ⛔ create/update SKILT FRÅN delete, SAMMA SKÄL SOM users-BLOCKET OVAN.
+    // `write` täcker även radering, och en radering har inget `request.resource`
+    // att läsa storlek eller innehållstyp ur. Ett gemensamt `allow write` med
+    // de villkoren hade fått en RADERING att utvärdera ett fält som inte finns.
+    match /profilbilder/{uid}/{fil} {
+      allow read: if request.auth != null;
+      allow create, update: if request.auth != null && request.auth.uid == uid
+        && request.resource.size < 2 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+      allow delete: if request.auth != null && request.auth.uid == uid;
+    }
+    // ══ Ramverkets biblioteksfiler. GENERERAD, ändra inte för hand ══
+    //
+    // Medlemskapet är samma uppslag som Firestore: uid, avgränsare, grupp, status aktiv.
+    // Posten måste finnas och höra till samma grupp. Objektet raderas av servern när
+    // posten försvinner, så en klient inte kan ta bort filen och lämna posten kvar.
+    function opsFilHarMedlemskap(gid) {
+      return request.auth != null
+        && firestore.exists(/databases/(default)/documents/memberships/$(request.auth.uid + '|' + gid));
+    }
+    function opsFilArMedlem(gid) {
+      return opsFilHarMedlemskap(gid)
+        && firestore.get(/databases/(default)/documents/memberships/$(request.auth.uid + '|' + gid)).data.status == 'aktiv';
+    }
+    // ⛔ MITT BIBLIOTEK (0.101.0): platsen mitt~<uid> är den inloggades egen. Där läser och skriver bara hen, och bara
+    // filer till en post hen själv skrivit. Ingen roll ur memberships gäller där.
+    // Grenarna utesluter varandra, samma skäl som i bibliotekets regel för posterna: en plats som ser ut som mitt~… prövas aldrig mot memberships.
+    function opsFilMitt(gid) {
+      return request.auth != null && gid == 'mitt~' + request.auth.uid;
+    }
+    function opsFilArMitt(gid) {
+      return gid.matches('(?s)mitt~.*');
+    }
+    function opsFilPlatsMedlem(gid) {
+      return opsFilArMitt(gid) ? opsFilMitt(gid) : opsFilArMedlem(gid);
+    }
+    function opsFilFarSkriva(gid, postId) {
+      return opsFilPlatsMedlem(gid)
+        && firestore.exists(/databases/(default)/documents/bibliotek/$(postId))
+        && firestore.get(/databases/(default)/documents/bibliotek/$(postId)).data.groupId == gid
+        && (
+          firestore.get(/databases/(default)/documents/bibliotek/$(postId)).data.skapadAv.uid == request.auth.uid
+          || (!opsFilArMitt(gid) && (
+            firestore.get(/databases/(default)/documents/memberships/$(request.auth.uid + '|' + gid)).data.roll == 'agare'
+            || firestore.get(/databases/(default)/documents/memberships/$(request.auth.uid + '|' + gid)).data.roll == 'admin'
+          ))
+        );
+    }
+    match /grupper/{groupId}/bibliotek/{postId}/{filnamn} {
+      allow read: if opsFilPlatsMedlem(groupId);
+      allow create, update: if opsFilFarSkriva(groupId, postId)
+        // ⛔ LJUD HAR ETT EGET TAK (CP 2026-10-18, WAV): 262144000 byte för audio/*, annars 26214400.
+        && (request.resource.size <= 26214400
+          || (request.resource.contentType.matches('^audio/.*') && request.resource.size <= 262144000))
+        && request.resource.contentType.matches('^(image/jpeg|image/png|image/webp|image/gif|audio/webm|audio/mp4|audio/mpeg|audio/ogg|audio/wav|audio/aiff|audio/flac|application/pdf|text/plain)$');
+      allow delete: if false;
+    }
