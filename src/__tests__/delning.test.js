@@ -324,6 +324,26 @@ describe("stänga och ändra", () => {
     expect((await tjanst.hamta(token)).ok).toBe(false);
   });
 
+  it("⛔ den som delade och sedan lämnat gruppen nekas att ändra nedladdning men får stänga länken", async () => {
+    const { tjanst, kalla } = bygg();
+    const { token, id } = await dela(tjanst);
+    await kalla.update("memberships", medlemskapsId(MEDLEM, GRUPP), { status: "avslutad" });
+    await expect(tjanst.andraNedladdning({ uid: MEDLEM, id, nedladdning: true })).rejects.toThrow(/inte aktiv medlem som delade/);
+    expect((await kalla.read("delningar", id)).nedladdning).toBe(false);
+    expect((await tjanst.hamta(token)).delning.nedladdning).toBe(false);
+    // En admin i gruppen kan fortfarande ändra, och den borttagne kan fortfarande stänga.
+    await tjanst.andraNedladdning({ uid: ADMIN, id, nedladdning: true });
+    await tjanst.aterkalla({ uid: MEDLEM, id });
+    expect((await tjanst.hamta(token)).ok).toBe(false);
+  });
+
+  it("i Mitt bibliotek ändrar ägaren nedladdning, och ingen annan", async () => {
+    const { tjanst } = bygg();
+    const { id } = await tjanst.skapa({ uid: MEDLEM, postId: "p-mitt", groupId: mittBibliotek(MEDLEM), dagar: 7 });
+    expect((await tjanst.andraNedladdning({ uid: MEDLEM, id, nedladdning: true })).nedladdning).toBe(true);
+    await expect(tjanst.andraNedladdning({ uid: AGARE, id, nedladdning: false })).rejects.toThrow(/inte aktiv medlem som delade/);
+  });
+
   it("att stänga en stängd länk är inget fel och ändrar inte tiden", async () => {
     const { tjanst, tid } = bygg();
     const { id } = await dela(tjanst);
@@ -340,7 +360,7 @@ describe("stänga och ändra", () => {
     await tjanst.andraNedladdning({ uid: ADMIN, id, nedladdning: false });
     expect((await kalla.read("delningar", id)).nedladdning).toBe(false);
     await tjanst.andraNedladdning({ uid: AGARE, id, nedladdning: true });
-    await expect(tjanst.andraNedladdning({ uid: ANNAN, id, nedladdning: false })).rejects.toThrow(/inte den som delade/);
+    await expect(tjanst.andraNedladdning({ uid: ANNAN, id, nedladdning: false })).rejects.toThrow(/inte aktiv medlem som delade/);
     await expect(tjanst.andraNedladdning({ uid: MEDLEM, id, nedladdning: "nej" })).rejects.toThrow(/sant eller falskt/);
   });
 

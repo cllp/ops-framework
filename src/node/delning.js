@@ -231,6 +231,36 @@ export function createDelningService(konfig) {
   }
 
   /**
+   * Att SLÅ PÅ nedladdning kräver mer än att stänga: den som delade ska fortfarande höra till platsen, annars krävs admin eller ägare.
+   *
+   * ⛔ EN BORTTAGEN MEDLEM FÅR STÄNGA MEN INTE ÖPPNA. Att stänga minskar vad en länk ger, så det är rätt även efter att personen lämnat
+   * gruppen. Att slå på nedladdning ökar det, och en person som tagits bort ur gruppen hade annars kunnat göra en fil i gruppen
+   * nedladdningsbar för vem som helst med länken. Samma krav gäller att slå av, för ett enda villkor är lättare att resonera om.
+   *
+   * @param {string} vem
+   * @param {Record<string, any>} rad
+   * @param {string} vad
+   */
+  async function kravAndraNedladdning(vem, rad, vad) {
+    if (rad.skapadAv?.uid === vem && typeof rad.groupId === "string") {
+      if (arMittBibliotek(rad.groupId)) {
+        // I ett eget bibliotek är platsen personens egen så länge uid:t är ägarens.
+        let egen = "";
+        try {
+          egen = mittBibliotek(vem);
+        } catch {
+          egen = "";
+        }
+        if (rad.groupId === egen) return;
+      } else if (await aktivtMedlemskap(vem, rad.groupId)) {
+        return;
+      }
+    }
+    if (typeof rad.groupId === "string" && (await forvaltar(vem, rad.groupId))) return;
+    throw new Error(`${vad}: ${vem} är inte aktiv medlem som delade, och inte admin eller ägare i platsen. Länken ändras inte.`);
+  }
+
+  /**
    * @param {unknown} v
    * @param {string} falt
    * @param {string} vad
@@ -325,7 +355,7 @@ export function createDelningService(konfig) {
       if (typeof b.nedladdning !== "boolean") throw new Error("andraNedladdning: nedladdning ska vara sant eller falskt.");
       const rad = await kalla.read(DELNINGAR, id);
       if (!rad) throw new Error("andraNedladdning: delningen finns inte.");
-      await kravForvalta(uid, rad, "andraNedladdning");
+      await kravAndraNedladdning(uid, rad, "andraNedladdning");
       if (rad.aterkallad !== null && rad.aterkallad !== undefined) throw new Error("andraNedladdning: länken är stängd. En stängd länk öppnas inte igen, skapa en ny.");
       const { updated, row } = await uppdateraOm(DELNINGAR, id, { aterkallad: null }, { nedladdning: b.nedladdning });
       if (!updated) throw new Error("andraNedladdning: länken stängdes medan ändringen gjordes. Skapa en ny länk.");
