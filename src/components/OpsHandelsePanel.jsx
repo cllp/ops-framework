@@ -12,6 +12,7 @@ import { AndraIkon, DatumIkon, FilIkon, KlockaIkon, PilHogerIkon, PlatsIkon } fr
 import { OpsEmpty } from "./OpsEmpty.jsx";
 import { OpsStatusDot } from "./OpsStatusDot.jsx";
 import { TillbakaKnapp } from "./TillbakaKnapp.jsx";
+import { HandelseFlytta } from "./HandelseFlytta.jsx";
 import { Ursprungsrad } from "./Ursprungsrad.jsx";
 
 /**
@@ -89,6 +90,20 @@ import { Ursprungsrad } from "./Ursprungsrad.jsx";
  *   händelse som får den. Sektionen har sin egen rubrik ("Filer"), så panelen lägger ingen. Ramverket vet inte var filerna ligger. Den singulära `bilaga` ovan är kvar tills appen migrerat den (beslut 0002, steg 3).
  * @param {() => void} [props.onRedigera] (0.40.0) Pennan: SS redigera. Ritas BARA när appen ger den, så att en person som inte får ändra händelsen inte ser en knapp som nekas. Normalt `() => oppna("handelse", { id })` ur `useOppnaSkapa()`, som öppnar skalets skapa-panel i redigeringsläge. Ramverket känner varken regeln eller datan: appen avgör vem som får, och formuläret och sparandet är appens.
  * @param {string} [props.redigeraEtikett] Pennans namn för skärmläsaren. Förval "Redigera".
+ * @param {string} [props.flyttaEtikett] (0.123.0) Knappen och rutans rubrik. Förval "Flytta till kalender".
+ * @param {string} [props.flyttaMinaRubrik] (0.123.0) Rubriken över mina egna kalendrar i rutan. Förval "Mina kalendrar".
+ * @param {string} [props.bekraftaTitel] (0.123.0) Bekräftelsens rubrik när en post blir en gruppens händelse. Förval "Flytta till gruppens kalender?".
+ * @param {string} [props.bekraftaText] (0.123.0) Bekräftelsens text, med `{titel}`, `{grupp}` och `{kalender}`. Förval säger att gruppens medlemmar ser den och att den tas bort ur den egna kalendern.
+ * @param {string} [props.bekraftaKnapp] (0.123.0) Förval "Flytta".
+ * @param {string} [props.avbrytEtikett] (0.123.0) Förval "Avbryt".
+ * @param {string} [props.stangEtikett] (0.123.0) Skärmläsarnamn på rutans stängknapp. Förval "Stäng".
+ * @param {string} [props.flyttFelEtikett] (0.123.0) Orden före orsaken när en flytt faller. Förval "Det gick inte att flytta".
+ * @param {ReadonlyArray<import("../lib/flytta.js").Flyttmal>} [props.flyttmal] (0.123.0, cllp/lifehub.app#371) Vart den här posten eller händelsen får flyttas, ur
+ *   `flyttmal()`. Med minst ett val ritar panelen "Flytta till kalender" under informationsrutan; tom eller utelämnad ritar ingenting (en knapp
+ *   utan val är en död knapp). ⛔ Listan är ett ERBJUDANDE och ingen behörighet: servern (`createFlyttaService`) prövar allt på nytt.
+ * @param {(mal: import("../lib/flytta.js").Flyttmal) => void | Promise<void>} [props.onFlytta] (0.123.0) Anropas med valet. Appen anropar rätt serveranrop efter
+ *   `mal.atgard` (`byt`: `flyttaPost` eller `flyttaHandelse`, `konvertera`: `goraPostTillHandelse`) och navigerar efteråt, till exempel till den nya händelsen.
+ *   Kräver `flyttmal`-val (kastar annars). Kastar anropet visar panelen orsaken och lämnar rutan öppen. En `konvertera` frågar först: "gruppens medlemmar ser den då".
  * @param {import("react").ReactNode} [props.atgarder] Appens egna knappar, högst upp till höger bredvid titeln (SS export m.fl.), efter pennan.
  * @param {{ oppet?: string, pagar?: string, vantar?: string, klart?: string, akut?: string }} [props.statusWords] KRÄVS för varje status som förekommer, som i `OpsEventList`.
  * @param {string} [props.sprak] Datumens språk, "sv" eller "en". Förval "sv".
@@ -118,6 +133,16 @@ function OpsHandelsePanelRitad({
   atgarder,
   onRedigera,
   redigeraEtikett = ORD_OPSHANDELSEPANEL.redigeraEtikett.sv,
+  flyttmal,
+  onFlytta,
+  flyttaEtikett = ORD_OPSHANDELSEPANEL.flyttaEtikett.sv,
+  flyttaMinaRubrik = ORD_OPSHANDELSEPANEL.flyttaMinaRubrik.sv,
+  bekraftaTitel = ORD_OPSHANDELSEPANEL.bekraftaTitel.sv,
+  bekraftaText = ORD_OPSHANDELSEPANEL.bekraftaText.sv,
+  bekraftaKnapp = ORD_OPSHANDELSEPANEL.bekraftaKnapp.sv,
+  avbrytEtikett = ORD_OPSHANDELSEPANEL.avbrytEtikett.sv,
+  stangEtikett = ORD_OPSHANDELSEPANEL.stangEtikett.sv,
+  flyttFelEtikett = ORD_OPSHANDELSEPANEL.flyttFelEtikett.sv,
   statusWords = {},
   sprak = "sv",
   tillbakaEtikett = ORD_OPSHANDELSEPANEL.tillbakaEtikett.sv,
@@ -147,6 +172,23 @@ function OpsHandelsePanelRitad({
   }
   if (onRedigera !== undefined && typeof onRedigera !== "function") {
     throw new Error("OpsHandelsePanel: onRedigera måste vara en funktion (eller utelämnas). En penna utan åtgärd är en död knapp.");
+  }
+  if (flyttmal !== undefined && !Array.isArray(flyttmal)) {
+    throw new Error("OpsHandelsePanel: flyttmal måste vara en lista (ur flyttmal()), eller utelämnas.");
+  }
+  if (onFlytta !== undefined && typeof onFlytta !== "function") {
+    throw new Error("OpsHandelsePanel: onFlytta måste vara en funktion (eller utelämnas).");
+  }
+  if (flyttmal && flyttmal.length > 0 && typeof onFlytta !== "function") {
+    throw new Error("OpsHandelsePanel: flyttmal har val men onFlytta saknas. Ett val som inte gör något är en död knapp.");
+  }
+  for (const m of flyttmal ?? []) {
+    if (!m || typeof m.id !== "string" || typeof m.namn !== "string" || (m.atgard !== "byt" && m.atgard !== "konvertera")) {
+      throw new Error("OpsHandelsePanel: ett flyttmal har formen { id, namn, farg, ikon, atgard: \"byt\" | \"konvertera\", groupId?, gruppnamn? } (flyttmal()).");
+    }
+    if ((m.atgard === "konvertera" || m.groupId) && typeof m.gruppnamn !== "string") {
+      throw new Error(`OpsHandelsePanel: flyttmålet "${m.namn}" hör till en grupp men saknar gruppnamn. Bekräftelsen och listan måste säga vilken grupp.`);
+    }
   }
   if (handelse && handelse.status && !statusWords[handelse.status]) {
     throw new Error(`OpsHandelsePanel: händelsen har status ${handelse.status} men statusWords saknar ordet. En färgad prick utan ord bär betydelsen ensam, och då är statusen osynlig för skärmläsaren.`);
@@ -297,6 +339,16 @@ function OpsHandelsePanelRitad({
         ) : null}
       </div>
 
+      {/* ⛔ FLYTTA TILL KALENDER (0.123.0, cllp/lifehub.app#371): under informationsrutan, bara när det finns något att flytta till. Se `HandelseFlytta`. */}
+      {flyttmal && flyttmal.length > 0 && onFlytta ? (
+        <HandelseFlytta
+          mal={flyttmal}
+          onFlytta={onFlytta}
+          titel={handelse.titel}
+          ord={{ flyttaEtikett, flyttaMinaRubrik, bekraftaTitel, bekraftaText, bekraftaKnapp, avbrytEtikett, stangEtikett, flyttFelEtikett }}
+        />
+      ) : null}
+
       {/* ⛔ PLATSEN `handelse.sektion` (0.60.0, #251, beslut 0003): appens tillägg, efter informationsrutan. Ramverket äger platsen och
           rubriken, modulen äger innehållet. Komponenten får `{ handelse, grupp }` och inget annat. */}
       {tillaggFor({ moduler, grupp, plats: "handelse.sektion" }).map((t) => (
@@ -397,6 +449,17 @@ function HandelseBilaga({ bilaga, titel, etikett }) {
  */
 export const ORD_OPSHANDELSEPANEL = {
   redigeraEtikett: { sv: "Redigera", en: "Edit" },
+  flyttaEtikett: { sv: "Flytta till kalender", en: "Move to calendar" },
+  flyttaMinaRubrik: { sv: "Mina kalendrar", en: "My calendars" },
+  bekraftaTitel: { sv: "Flytta till gruppens kalender?", en: "Move to the group's calendar?" },
+  bekraftaText: {
+    sv: "{titel} blir en händelse i {grupp}, i kalendern {kalender}. Gruppens medlemmar ser den då. Den tas bort från din egen kalender.",
+    en: "{titel} becomes an event in {grupp}, in the calendar {kalender}. The group's members will then see it. It is removed from your own calendar.",
+  },
+  bekraftaKnapp: { sv: "Flytta", en: "Move" },
+  avbrytEtikett: { sv: "Avbryt", en: "Cancel" },
+  stangEtikett: { sv: "Stäng", en: "Close" },
+  flyttFelEtikett: { sv: "Det gick inte att flytta", en: "Could not move" },
   tillbakaEtikett: { sv: "Tillbaka", en: "Back" },
   gruppEtikett: { sv: "Grupp", en: "Group" },
   laddarEtikett: { sv: "Hämtar händelsen", en: "Loading the event" },

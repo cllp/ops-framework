@@ -29,7 +29,7 @@ import { OpsEmpty } from "./OpsEmpty.jsx";
 import { OpsField } from "./OpsField.jsx";
 import { OpsSelect } from "./OpsSelect.jsx";
 import { OpsSwitch } from "./OpsToggle.jsx";
-import { giltigtDatum, idagI, kalenderval } from "../lib/kalendrar.js";
+import { giltigtDatum, idagI, kalenderval, postIdUrHandelseId } from "../lib/kalendrar.js";
 import { OppnaHandelseKontext } from "../lib/handelsekontext.js";
 import { HANDELSEPARAM, handelseIdUrAdress, medHandelse } from "../lib/handelsepanel.js";
 import { KALENDERIKON_KOMPONENT } from "../lib/kalenderikoner.js";
@@ -467,6 +467,9 @@ function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, s
  *   ⛔ För händelsen ersätter kalendrarna `skapaISektioner`: två listor i samma väljare hade varit två svar på "var hamnar den".
  * @property {(id: string) => HandelseRedigering} [redigera] (0.40.0, #214) En HOOK som läser händelsen som ska ändras, ur appens egen
  *   källa. Med den går panelen att öppna i REDIGERINGSLÄGE: `useOppnaSkapa()("handelse", { id })`, adressen `?skapa=handelse&redigera=<id>`.
+ *   ⛔ (0.123.0, cllp/lifehub.app#371) `id` KAN VARA EN POSTS: `post~<id>` (`postHandelseId`, samma id som raden bär och panelens adress). Skalet tolkar prefixet med
+ *   `postIdUrHandelseId` och öppnar då formuläret för en post i en av MINA kalendrar: väljaren visar bara mina kalendrar (att byta till en grupp är "Flytta
+ *   till kalender" i panelen, med bekräftelse), `kalenderId` är en av mina, typen ritas inte och "Blockerar tillgänglighet" fylls i ur `blockerar`.
  *   Skalet anropar den i en egen komponent (så appens hooks får en stabil plats), väntar tills händelsen är läst, fyller i sina egna val
  *   (typ, kalender, "Kräv svar") ur svaret och först DÄRETTER ritar formuläret, som får `redigera: <id>` och själv läser resten ur samma källa.
  *   Rubriken är `redigeraHandelseEtikett`. Utan den kastar `oppna("handelse", { id })`, och ett `?skapa=handelse&redigera=` i adressen ignoreras.
@@ -487,6 +490,7 @@ function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, s
  * @property {string | null} [typ] Händelsens typ, i skalets typval.
  * @property {string | null} [kalenderId] Kalendern händelsen ligger i, i raden "Kalender". Det EFFEKTIVA värdet: en händelse utan `kalenderId` ligger i gruppens förvalda, och appen svarar med dess id.
  * @property {boolean} [kravSvar] "Kräv svar" är på.
+ * @property {boolean} [blockerar] (0.123.0, cllp/lifehub.app#371) "Blockerar tillgänglighet" är på. Bara för en post i en egen kalender (id `post~<id>`).
  */
 
 /**
@@ -1395,7 +1399,7 @@ function OpsAppShellRitad({
     if (redigeraId !== undefined && redigeraId !== null) {
       // ⛔ KASTAR HELLRE ÄN ÖPPNAR ETT TOMT "NY" (0.40.0). Ett id som inte är en text, eller till något annat än händelsen, är ett fel i appen.
       if (nyckel !== "handelse") throw new Error(`useOppnaSkapa: id gäller bara "handelse", inte "${nyckel}".`);
-      if (typeof redigeraId !== "string" || redigeraId === "") throw new Error("useOppnaSkapa: id måste vara händelsens id, en text som inte är tom.");
+      if (typeof redigeraId !== "string" || redigeraId === "") throw new Error("useOppnaSkapa: id måste vara händelsens id (eller postens, `post~<id>`), en text som inte är tom.");
       if (extra?.datum !== undefined) throw new Error("useOppnaSkapa: id och datum hör inte ihop. Datumet gäller en ny händelse, och en ändring bär sitt eget.");
     }
     const datum = extra?.datum;
@@ -1466,6 +1470,9 @@ function OpsAppShellRitad({
   // sektioner den aktiva gruppens kalendrar och "Mina kalendrar", ur `kalenderval` (samma lista som kalenderns filter), och målet
   // från början är gruppens förvalda. Raden överst i formuläret heter då "Kalender".
   const handelseMedKalendrar = skapaForm?.kind === "modul" && skapaForm.registrering?.id === "handelse" && handelseSkapareFinns(skapa) && Boolean(/** @type {any} */ (skapa)?.handelse?.kalendrar);
+  // ⛔ (0.123.0) EN POST I REDIGERINGSLÄGE: id:t är `post~<id>`. Prefixet tolkas på ETT ställe (`postIdUrHandelseId`), inte med en egen jämförelse här.
+  const redigeraId = skapaForm?.kind === "modul" ? skapaForm.redigera : undefined;
+  const redigerarPost = redigeraId !== undefined && postIdUrHandelseId(redigeraId) !== null;
   const skapaKalenderval = handelseMedKalendrar
     ? kalenderval({ gruppens: /** @type {any} */ (skapa)?.handelse?.kalendrar?.gruppens ?? [], mina: /** @type {any} */ (skapa)?.handelse?.kalendrar?.mina ?? [], sprak: skapa?.sprak ?? "sv" })
     : [];
@@ -1485,10 +1492,12 @@ function OpsAppShellRitad({
             const harEgna = !skapaForm?.redigera && skapaKalenderval.some((k) => !k.grupp);
             return riktiga.length === 0 && harEgna && g ? [{ id: GRUPPEN_SOM_MAL, namn: text(g.namn, skapa?.sprak ?? "sv"), ikon: undefined }] : riktiga;
           })() },
-          // ⛔ I REDIGERINGSLÄGE FINNS INGA "MINA KALENDRAR" (0.40.0). Att flytta en händelse till en egen kalender gör den till en post utan typ och utan
+          // ⛔ (0.123.0, cllp/lifehub.app#371) MOTSATSEN FÖR EN POST: den som ändrar en post i en egen kalender ser bara mina kalendrar. Att byta till en
+          // gruppens kalender gör posten till en händelse som gruppen ser, och det är "Flytta till kalender" i panelen, med en bekräftelse. Väljaren erbjuder det inte.
+          // ⛔ I REDIGERINGSLÄGE FINNS INGA "MINA KALENDRAR" FÖR EN HÄNDELSE (0.40.0). Att flytta en händelse till en egen kalender gör den till en post utan typ och utan
           // svar, alltså en annan sorts rad i en annan samling: det är att skapa en ny och ta bort den gamla, inte att ändra den. Väljaren erbjuder det inte.
           { id: "minaKalendrar", rubrik: "Mina kalendrar", poster: skapaKalenderval.filter((k) => !k.grupp).map((k) => ({ id: k.id, namn: k.namn, ikon: ikon(k.ikon) })) },
-        ]).filter((x) => !(skapaForm?.redigera && x.id === "minaKalendrar"));
+        ]).filter((x) => !(skapaForm?.redigera && x.id === (redigerarPost ? "gruppkalendrar" : "minaKalendrar")));
       })()
     : (skapa?.skapaISektioner ?? []);
   // ⛔ MÅLET FRÅN BÖRJAN ÄR GRUPPENS FÖRVALDA KALENDER, ALDRIG EN AV MINA (0.120.0, cllp/lifehub.app#367). Här stod "annars min
@@ -1611,8 +1620,9 @@ function OpsAppShellRitad({
           klar={redigeraKlar}
           onForifyllt={(f) => {
             if (f.typ) setSkapaTyp((x) => ({ ...x, handelse: /** @type {string} */ (f.typ) }));
-            setSkapaMal(f.kalenderId ? { id: f.kalenderId, sektion: "gruppkalendrar" } : null);
+            setSkapaMal(f.kalenderId ? { id: f.kalenderId, sektion: redigerarPost ? "minaKalendrar" : "gruppkalendrar" } : null);
             setSkapaKravSvar(f.kravSvar === true);
+            setSkapaBlockerar(f.blockerar === true);
             setRedigeraKlar(true);
           }}
         >

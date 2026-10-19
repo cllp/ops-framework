@@ -214,3 +214,11 @@ export {
  */
 export { createDelningService, byggDelning, delningsId, delningsDisposition, nyttDelningstoken } from "./delning.js";
 export { DELNINGSDAGAR, FORVAL_DELNINGSDAGAR, SIGNERAD_SEKUNDER, TOKENFORM, DELNINGSFALT, DELNINGSORSAKER, DELNINGSFEL, DELNINGSSVARSFALT, delningsTyp, delningsfel } from "../lib/delning.js";
+
+/*
+ * ⛔ FLYTTA EN POST ELLER EN HÄNDELSE TILL EN ANNAN KALENDER (0.123.0, cllp/lifehub.app#371). Att göra en post till en gruppens händelse är en
+ * skrivning och en radering i en batch med Admin SDK, och prövningen av medlemskapet hör till servern. Vart något får flyttas (`flyttmal`) och
+ * postens tid som en händelses fält (`postensTidsfalt`) är rena funktioner och exporteras även här, så att en nodfunktion inte behöver dra in React.
+ */
+export { createFlyttaService, FLYTTFELKODER } from "./flytta.js";
+export { flyttmal, postensTidsfalt } from "../lib/flytta.js";
