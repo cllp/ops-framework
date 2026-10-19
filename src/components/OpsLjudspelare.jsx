@@ -63,14 +63,16 @@ import { OpsSpinner } from "./OpsSpinner.jsx";
  * @param {() => void} [props.onOppna] Rubriken i kompakt läge öppnar detaljen.
  * @param {(meta: { durationMs?: number, peaks?: string }) => void} [props.onMeta] När längd eller toppar räknats fram. `peaks` är vågen som den sparas (`kodaToppar`), samma form som `props.peaks`.
  * @param {string} [props.styrId] Kopplar ⋯-menyn till den här spelaren.
+ * @param {boolean} [props.utanNedladdning] (0.119.0, lifehub.app#356) Ritar inte "Ladda ned". Den publika delningen med
+ *   nedladdning av. ⛔ Det döljer knappen, det hindrar inte den som verkligen vill spara filen: adressen går att läsa ur sidan, och det står i beslutet.
  */
 export function OpsLjudspelare(props) {
-  const tillatna = ["src", "sokvag", "hamtaAdress", "namn", "visaNamn", "kompakt", "liten", "meta", "durationMs", "peaks", "onOppna", "onMeta", "onFel", "styrId"];
+  const tillatna = ["src", "sokvag", "hamtaAdress", "namn", "visaNamn", "kompakt", "liten", "meta", "durationMs", "peaks", "onOppna", "onMeta", "onFel", "styrId", "utanNedladdning"];
   const okanda = Object.keys(props).filter((k) => !tillatna.includes(k));
   if (okanda.length > 0) {
     throw new Error(`OpsLjudspelare: okända props ${okanda.join(", ")}. Tillåtna: ${tillatna.join(", ")}.`);
   }
-  const { src = "", sokvag = "", hamtaAdress, namn = "", visaNamn = true, kompakt = false, liten = false, meta = "", durationMs, peaks, onOppna, onMeta, onFel, styrId = "" } = props;
+  const { src = "", sokvag = "", hamtaAdress, namn = "", visaNamn = true, kompakt = false, liten = false, meta = "", durationMs, peaks, onOppna, onMeta, onFel, styrId = "", utanNedladdning = false } = props;
   if (hamtaAdress !== undefined && typeof hamtaAdress !== "function") {
     throw new Error("OpsLjudspelare: hamtaAdress ska vara en funktion (sokvag) => adress. Det är lagringens adress, alltså getDownloadURL.");
   }
@@ -188,6 +190,7 @@ export function OpsLjudspelare(props) {
       onMeta={typeof onMeta === "function" ? onMeta : null}
       onFel={typeof onFel === "function" ? onFel : null}
       styrId={typeof styrId === "string" ? styrId : ""}
+      utanNedladdning={utanNedladdning === true}
     />
   );
 }
@@ -205,9 +208,9 @@ function mediaFel(el) {
 
 
 /**
- * @param {{ adress: string, namn: string, visaNamn: boolean, kompakt: boolean, liten: boolean, meta: string, durationMs: number, peaks: number[] | null, onOppna: (() => void) | null, onMeta: ((meta: { durationMs?: number, peaks?: string }) => void) | null, onFel: ((fel: string) => void) | null, styrId: string }} props
+ * @param {{ adress: string, namn: string, visaNamn: boolean, kompakt: boolean, liten: boolean, meta: string, durationMs: number, peaks: number[] | null, onOppna: (() => void) | null, onMeta: ((meta: { durationMs?: number, peaks?: string }) => void) | null, onFel: ((fel: string) => void) | null, styrId: string, utanNedladdning: boolean }} props
  */
-function Spelare({ adress, namn, visaNamn, kompakt, liten, meta, durationMs, peaks, onOppna, onMeta, onFel, styrId }) {
+function Spelare({ adress, namn, visaNamn, kompakt, liten, meta, durationMs, peaks, onOppna, onMeta, onFel, styrId, utanNedladdning }) {
   const ljud = useRef(/** @type {HTMLAudioElement | null} */ (null));
   const begart = useRef(false);
   const drar = useRef(false);
@@ -636,7 +639,7 @@ function Spelare({ adress, namn, visaNamn, kompakt, liten, meta, durationMs, pea
        * ⛔ playsInline: iOS Safari startar annars i fullskärm eller nekar play.
        * preload=metadata räcker för längd; hela filen hämtas vid play.
        */}
-      <audio ref={ljud} src={adress} preload="metadata" playsInline className="sr-only" />
+      <audio ref={ljud} src={adress} preload="metadata" playsInline controlsList={utanNedladdning ? "nodownload" : undefined} className="sr-only" />
       {kompakt ? (
         <>
           <div className="flex min-w-0 items-center gap-3">
@@ -697,14 +700,16 @@ function Spelare({ adress, namn, visaNamn, kompakt, liten, meta, durationMs, pea
               {hastighetText(hastighet)}
             </button>
             </>) : null}
-            <a
-              href={adress}
-              download={etikett || "ljud"}
-              aria-label={nedNamn}
-              className="inline-flex min-h-11 shrink-0 items-center rounded-md px-2 text-meta text-ink-secondary underline underline-offset-2 hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-            >
-              Ladda ned
-            </a>
+            {utanNedladdning ? null : (
+              <a
+                href={adress}
+                download={etikett || "ljud"}
+                aria-label={nedNamn}
+                className="inline-flex min-h-11 shrink-0 items-center rounded-md px-2 text-meta text-ink-secondary underline underline-offset-2 hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+              >
+                Ladda ned
+              </a>
+            )}
           </div>
         </>
       )}
