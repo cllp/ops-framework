@@ -42,6 +42,23 @@ import { FALT_BORT } from "./contract.js";
  */
 
 /**
+ * Det en ersättning skrev över, som en uppdatering som sätter tillbaka det (granskningen av PR 408). Filen går tillbaka som ett helt
+ * objekt (sökväg, namn, typ, storlek och `klar` som förut), så posten aldrig pekar på en fil som inte laddades upp. Rubriken, längden, vågen,
+ * taggarna och utskriften följer med när posten hade dem; `andrad` är nu, eftersom regeln kräver att en ändring bär sin egen tid.
+ *
+ * @param {Record<string, unknown>} tidigare Posten som den lästes före ersättningen.
+ * @returns {Record<string, unknown>}
+ */
+function aterstallning(tidigare) {
+  /** @type {Record<string, unknown>} */
+  const ut = { fil: tidigare.fil, andrad: Date.now() };
+  for (const falt of ["rubrik", "durationMs", "peaks", "taggar", "utskrift"]) {
+    if (falt in tidigare) ut[falt] = tidigare[falt];
+  }
+  return ut;
+}
+
+/**
  * @param {object} config
  * @param {any} config.source
  * @param {string} config.collection
@@ -369,6 +386,10 @@ export function createBibliotekskalla(config) {
       const post = byggPost(underlag);
       if (tidigare) await source.update(collection, nyckel, post);
       else await source.create(collection, { ...post, id: nyckel });
+      // ⛔ UPPLADDNINGEN OCH DET AVSLUTANDE STEGET HÖR TILL SAMMA FELHANTERING (granskningen av PR 408). `klar: true` sätts efter uppladdningen,
+      // och ett fel där lämnade förut posten som `klar: false` fast filen fanns. En ny post tas tillbaka. En ERSÄTTNING (`tidigare`) fick
+      // ingen hantering alls: den gamla posten stod kvar med den nya filens uppgifter och `klar: false`, alltså en fungerande fil som
+      // ett avbrott. Den återställs nu till vad den var, `klar` inbegripet.
       try {
         await lagring.laddaUpp({
           sokvag: vag,
@@ -376,22 +397,25 @@ export function createBibliotekskalla(config) {
           contentType: mime,
           ...(typeof inmatning.rapportera === "function" ? { rapportera: inmatning.rapportera } : {}),
         });
+        // ⛔ `andrad` FÖLJER MED: regeln kräver att en ändring av filen bär sin egen tid (opsBiblioteketNu).
+        const klar = { ...post, fil: { .../** @type {Record<string, unknown>} */ (post.fil), klar: true }, andrad: Date.now() };
+        await source.update(collection, nyckel, { fil: klar.fil, andrad: klar.andrad });
+        return /** @type {typeof post & { id: string }} */ ({ ...klar, id: nyckel });
       } catch (e) {
-        if (!tidigare) {
-          try {
-            await source.remove(collection, nyckel);
-          } catch (e2) {
-            const a = e instanceof Error ? e.message : String(e);
-            const b = e2 instanceof Error ? e2.message : String(e2);
-            throw new Error(`Filen laddades inte upp (${a}). Posten kunde inte tas tillbaka (${b}).`);
-          }
+        try {
+          if (!tidigare) await source.remove(collection, nyckel);
+          else await source.update(collection, nyckel, aterstallning(tidigare));
+        } catch (e2) {
+          const a = e instanceof Error ? e.message : String(e);
+          const b = e2 instanceof Error ? e2.message : String(e2);
+          throw new Error(
+            tidigare
+              ? `Filen laddades inte upp (${a}). Posten kunde inte återställas (${b}).`
+              : `Filen laddades inte upp (${a}). Posten kunde inte tas tillbaka (${b}).`,
+          );
         }
         throw e;
       }
-      // ⛔ `andrad` FÖLJER MED: regeln kräver att en ändring av filen bär sin egen tid (opsBiblioteketNu).
-      const klar = { ...post, fil: { .../** @type {Record<string, unknown>} */ (post.fil), klar: true }, andrad: Date.now() };
-      await source.update(collection, nyckel, { fil: klar.fil, andrad: klar.andrad });
-      return /** @type {typeof post & { id: string }} */ ({ ...klar, id: nyckel });
     },
   };
 }

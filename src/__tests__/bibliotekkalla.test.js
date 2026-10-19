@@ -230,6 +230,89 @@ describe("createBibliotekskalla", () => {
     expect((await kalla.hamta(sparad.id)).fil.klar).toBe(true);
   });
 
+  describe("⛔ det avslutande steget står under samma felhantering som uppladdningen (granskningen av PR 408)", () => {
+    // Före rättelsen låg `source.update` som sätter `klar: true` utanför `try`. Ett fel där lämnade posten som `klar: false` fast filen
+    // fanns, och vid en ERSÄTTNING (en befintlig post, `id` given) tog `catch` inte hand om något fall alls: en uppladdning som föll
+    // lämnade den gamla posten med den nya filens namn och `klar: false`, så en fungerande fil blev ett avbrott.
+    const vag = (/** @type {{ groupId: string, postId: string, namn: string }} */ { groupId, postId, namn }) => `grupper/${groupId}/bibliotek/${postId}/${namn}`;
+
+    /**
+     * En källa som kan nekas på ett visst skrivande: `nek` får skrivningen (collection, id, data) och kastar eller inte.
+     * @param {(skriv: { id: string, data: any }) => void} nek
+     */
+    function nekandeKalla(nek) {
+      const bas = createMemorySource({ bibliotek: [] });
+      const source = {
+        ...bas,
+        update: async (/** @type {string} */ c, /** @type {string} */ id, /** @type {any} */ data) => {
+          nek({ id, data });
+          return bas.update(c, id, data);
+        },
+      };
+      return source;
+    }
+
+    /** @param {any} source @param {{ laddaUpp?: (i: any) => Promise<any> }} [val] */
+    function kallaMed(source, val = {}) {
+      return createBibliotekskalla({
+        source,
+        collection: "bibliotek",
+        groupId: "cps-ab",
+        skapare,
+        lagring: { laddaUpp: val.laddaUpp ?? (async () => ({})), taBort: async () => {} },
+        sokvag: vag,
+      });
+    }
+
+    it("en NY post tas tillbaka när det avslutande steget faller, i stället för att stå kvar som klar:false med en fil som finns", async () => {
+      const source = nekandeKalla(({ data }) => {
+        if (data?.fil?.klar === true) throw new Error("avslutet nekades");
+      });
+      const kalla = kallaMed(source);
+      await expect(kalla.laddaUppFil({ rubrik: "Ny", fil: { name: "ny.mp3", type: "audio/mpeg", size: 100 } })).rejects.toThrow(/avslutet nekades/);
+      expect((await kalla.las()).poster).toHaveLength(0);
+    });
+
+    it("en ERSÄTTNING vars uppladdning faller återställer den gamla posten: fil, klar och rubrik som förut", async () => {
+      const bas = nekandeKalla(() => {});
+      const ok = kallaMed(bas);
+      const gammal = await ok.laddaUppFil({ rubrik: "Gammal", fil: { name: "gammal.mp3", type: "audio/mpeg", size: 100 } });
+      expect(gammal.fil.klar).toBe(true);
+      const faller = kallaMed(bas, { laddaUpp: async () => { throw new Error("uppladdningen föll"); } });
+      await expect(faller.laddaUppFil({ id: gammal.id, rubrik: "Ny rubrik", fil: { name: "ny.pdf", type: "application/pdf", size: 50 } })).rejects.toThrow(/uppladdningen föll/);
+      const efter = await ok.hamta(gammal.id);
+      expect(efter.fil).toEqual(gammal.fil);
+      expect(efter.fil.klar).toBe(true);
+      expect(efter.rubrik).toBe("Gammal");
+    });
+
+    it("en ERSÄTTNING vars avslutande steg faller återställer också den gamla posten", async () => {
+      let nekaKlar = false;
+      const bas = nekandeKalla(({ data }) => {
+        if (nekaKlar && data?.fil?.klar === true && data.fil.namn === "ny.pdf") throw new Error("avslutet nekades");
+      });
+      const kalla = kallaMed(bas);
+      const gammal = await kalla.laddaUppFil({ rubrik: "Gammal", fil: { name: "gammal.mp3", type: "audio/mpeg", size: 100 } });
+      nekaKlar = true;
+      await expect(kalla.laddaUppFil({ id: gammal.id, rubrik: "Ny rubrik", fil: { name: "ny.pdf", type: "application/pdf", size: 50 } })).rejects.toThrow(/avslutet nekades/);
+      const efter = await kalla.hamta(gammal.id);
+      expect(efter.fil).toEqual(gammal.fil);
+      expect(efter.rubrik).toBe("Gammal");
+    });
+
+    it("kan posten inte återställas kastas båda felen, inget sväljs", async () => {
+      let faller = false;
+      const bas = nekandeKalla(({ data }) => {
+        if (faller && data?.fil?.namn === "gammal.mp3") throw new Error("återställningen nekades");
+      });
+      const ok = kallaMed(bas);
+      const gammal = await ok.laddaUppFil({ rubrik: "Gammal", fil: { name: "gammal.mp3", type: "audio/mpeg", size: 100 } });
+      faller = true;
+      const kalla = kallaMed(bas, { laddaUpp: async () => { throw new Error("uppladdningen föll"); } });
+      await expect(kalla.laddaUppFil({ id: gammal.id, rubrik: "Ny", fil: { name: "ny.pdf", type: "application/pdf", size: 50 } })).rejects.toThrow(/uppladdningen föll.*återställningen nekades/s);
+    });
+  });
+
   it("⛔ en röstinspelning sparas med vågen som en sträng, inte som 48 tal (#349)", async () => {
     // CP 2026-10-13: en inspelning med våg nekades av reglerna ("Missing or insufficient permissions."). Provet kör vägen
     // som inspelningen går: filen avkodas, topparna räknas, och det som skrivs till källan är en sträng.

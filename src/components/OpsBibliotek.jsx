@@ -7,9 +7,9 @@ import { OpsDokument } from "./OpsDokument.jsx";
 import { OpsMarkdown } from "./OpsMarkdown.jsx";
 import { OpsModal } from "./OpsModal.jsx";
 import { OpsSvepRad } from "./OpsSvepRad.jsx";
-import { ADRESSFORM, BIBLIOTEKTYPER, MAX_TAGGAR, MAX_TAGGLANGD, allaTaggar, arLjudpost, arMittBibliotek, farAndra, normaliseraTagg, normaliseraTaggar, taggarFel, taggfarg, anteckningsrubrikNu, beskrivObjektbibliotek, filInmatningsfel, mimeUrFilnamn, filadressFel, filSort, filtreraBibliotek, inmatningsfel, ljudDatum, ljudRubrik, normaliseraAdress, trimSomRegeln } from "../lib/bibliotek.js";
+import { ADRESSFORM, BIBLIOTEKTYPER, uppladdningAvbruten, uppladdningenAvbrytsKl, MAX_TAGGAR, MAX_TAGGLANGD, allaTaggar, arLjudpost, arMittBibliotek, farAndra, normaliseraTagg, normaliseraTaggar, taggarFel, taggfarg, anteckningsrubrikNu, beskrivObjektbibliotek, filInmatningsfel, mimeUrFilnamn, filadressFel, filSort, filtreraBibliotek, inmatningsfel, ljudDatum, ljudRubrik, normaliseraAdress, trimSomRegeln } from "../lib/bibliotek.js";
 import { formateraTid } from "../lib/ljudspelare.js";
-import { useInspelningOppnare } from "./OpsAppShell.jsx";
+import { useInspelningOppnare, useKanSpelaIn } from "./OpsAppShell.jsx";
 import { cx } from "../lib/cx.js";
 import { arInstallningslage } from "../lib/apparark.js";
 import { modulTillbaka } from "../lib/modulram.js";
@@ -223,6 +223,10 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
   }
   const sprak = useOpsSprak();
   const oppnaInspelning = useInspelningOppnare();
+  // ⛔ RÖSTINSPELNING ERBJUDS BARA MED EN MOTTAGARE (cllp/ops-framework#391). Utan skal (`null`) ritas raden som förut och kastar tydligt
+  // vid tryck: en felkoppling som utvecklaren ska se. Inom skalet avgör gruppen: en avinstallerad eller dold app har ingen mottagare.
+  const kanSpelaIn = useKanSpelaIn();
+  const erbjudRost = kanSpelaIn ? kanSpelaIn(modulId) : true;
   // ⛔ Listan kommer ur propsen eller ur kallan, aldrig ur båda (kastat ovan).
   const levande = useBibliotekskalla(kalla);
   const poster = levande ? levande.poster : /** @type {NonNullable<typeof posterProp>} */ (posterProp);
@@ -250,7 +254,8 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
   const [flyttar, setFlyttar] = useState(/** @type {string[]} */ ([]));
   const [status, setStatus] = useState("");
   const adresser = useFilAdresser(poster, vald, filUrl, hamtaAdress);
-  const adressFor = (/** @type {{ typ?: string, fil?: { sokvag?: string, mime?: string } }} */ post) => losAdress(post, filUrl, hamtaAdress, adresser);
+  useUppladdningsklocka(poster, vald);
+  const adressFor = (/** @type {{ typ?: string, skapad?: number, fil?: { sokvag?: string, mime?: string, klar?: boolean } }} */ post) => losAdress(post, filUrl, hamtaAdress, adresser);
   const [fylld, setFylld] = useState(/** @type {Record<string, { durationMs?: number, peaks?: string }>} */ ({}));
   const sparatMeta = useRef(/** @type {Set<string>} */ (new Set()));
   const onFyllRef = useRef(onFyllLjud);
@@ -627,6 +632,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
                 <NyKnapp
                   flik={aktivFlik}
                   onSkapa={onSkapa}
+                  erbjudRost={erbjudRost}
                   onRost={() => {
                     try {
                       setRostFel("");
@@ -843,7 +849,7 @@ function postAdress(post, filUrl) {
 }
 
 /**
- * @typedef {{ lage: "klar" | "hamtar" | "fel" | "saknas", adress: string, fel: string }} Adresslage
+ * @typedef {{ lage: "klar" | "hamtar" | "fel" | "saknas" | "avbruten", adress: string, fel: string }} Adresslage
  */
 
 /**
@@ -856,6 +862,9 @@ function postAdress(post, filUrl) {
  * @returns {Adresslage}
  */
 function losAdress(post, filUrl, hamtaAdress, cache) {
+  // ⛔ EN UPPLADDNING SOM ALDRIG BLEV KLAR HÄMTAR INTE FÖR ALLTID (granskningen av PR 408). `klar: false` hoppar över hämtningen, och
+  // utan en gräns stod "Hämtar filen." kvar för alla medlemmar när fliken stängts mitt i. Efter `UPPLADDNING_MAX_MS` säger posten det.
+  if (uppladdningAvbruten(/** @type {any} */ (post))) return { lage: "avbruten", adress: "", fel: TEXT_AVBRUTEN };
   const synk = postAdress(post, filUrl);
   if (synk) return { lage: "klar", adress: synk, fel: "" };
   const sokvag = typeof post?.fil?.sokvag === "string" ? post.fil.sokvag.trim() : "";
@@ -865,8 +874,31 @@ function losAdress(post, filUrl, hamtaAdress, cache) {
   return { lage: "hamtar", adress: "", fel: "" };
 }
 
+/** Texten på en post vars uppladdning avbröts. Står i listan och i detaljen, och aldrig som "Hämtar". */
+const TEXT_AVBRUTEN = "Uppladdningen blev inte klar";
+
 /** Väntan i ms före varje nytt försök när filen ännu inte finns i lagringen. */
 const SAKNAS_FORSOK = [1500, 3000, 6000];
+
+/**
+ * Ritar om vid den tidpunkt en pågående uppladdning räknas som avbruten (granskningen av PR 408). Ingenting i posten ändras då, så utan
+ * en egen väckning hade "Hämtar" stått kvar tills något annat ritade om. Ger ingenting tillbaka: `losAdress` läser klockan själv.
+ *
+ * @param {readonly { typ?: string, skapad?: unknown, fil?: { klar?: unknown } }[]} poster
+ * @param {{ typ?: string, skapad?: unknown, fil?: { klar?: unknown } } | null} vald
+ */
+function useUppladdningsklocka(poster, vald) {
+  const [, setTick] = useState(0);
+  const underlag = vald ? [...poster, vald] : poster;
+  const tider = underlag.map((p) => uppladdningenAvbrytsKl(/** @type {any} */ (p))).filter((t) => t !== null);
+  const narmast = tider.length > 0 ? Math.min(.../** @type {number[]} */ (tider)) : null;
+  useEffect(() => {
+    if (narmast === null) return undefined;
+    const vantan = Math.max(0, narmast - Date.now());
+    const t = setTimeout(() => setTick((n) => n + 1), vantan);
+    return () => clearTimeout(t);
+  }, [narmast]);
+}
 
 /**
  * Hämtar nedladdningsadresser en gång per sökväg. `filUrl` som redan svarar med en adress hoppas över.
@@ -1527,9 +1559,12 @@ function PostMark({ post, bildAdress = "" }) {
  *
  * Under Bilder och Dokument skapas en fil (0.102.0): bild eller dokument avgörs av filen, inte av fliken.
  *
- * @param {{ flik: Flik, onSkapa: (typ: "anteckning" | "lank" | "fil") => void, onRost: () => void }} props
+ * ⛔ UTAN MOTTAGARE FINNS INGEN RÖSTINSPELNING ATT ERBJUDA (`erbjudRost`, cllp/ops-framework#391): raden i menyn ritas inte, och i fliken
+ * Ljud, där knappen bara gör det, ritas ingen knapp. Förut stod de kvar och gav skalets utvecklartext när gruppen inte hade appen.
+ *
+ * @param {{ flik: Flik, onSkapa: (typ: "anteckning" | "lank" | "fil") => void, onRost: () => void, erbjudRost: boolean }} props
  */
-function NyKnapp({ flik, onSkapa, onRost }) {
+function NyKnapp({ flik, onSkapa, onRost, erbjudRost }) {
   const [oppen, setOppen] = useState(false);
   const innehall = (
     <>
@@ -1538,6 +1573,7 @@ function NyKnapp({ flik, onSkapa, onRost }) {
     </>
   );
   if (flik === "ljud") {
+    if (!erbjudRost) return null;
     return (
       <button type="button" aria-label={NYTT_NAMN.ljud} onClick={onRost} className={NY_KLASS}>
         {innehall}
@@ -1577,20 +1613,22 @@ function NyKnapp({ flik, onSkapa, onRost }) {
                 <span className="min-w-0 flex-1 truncate">{TYPNAMN[typ]}</span>
               </button>
             ))}
-            <button
-              type="button"
-              role="menuitem"
-              onClick={() => {
-                setOppen(false);
-                onRost();
-              }}
-              className={radKlass({ stor: true })}
-            >
-              <span aria-hidden="true" className="flex shrink-0 items-center text-ink-secondary [&_svg]:size-4">
-                <Mic size={16} />
-              </span>
-              <span className="min-w-0 flex-1 truncate">Röstinspelning</span>
-            </button>
+            {erbjudRost ? (
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setOppen(false);
+                  onRost();
+                }}
+                className={radKlass({ stor: true })}
+              >
+                <span aria-hidden="true" className="flex shrink-0 items-center text-ink-secondary [&_svg]:size-4">
+                  <Mic size={16} />
+                </span>
+                <span className="min-w-0 flex-1 truncate">Röstinspelning</span>
+              </button>
+            ) : null}
           </div>
         </Popover.Content>
       </Popover.Portal>
@@ -1601,13 +1639,23 @@ function NyKnapp({ flik, onSkapa, onRost }) {
 /**
  * Bild öppnas i förhandsvisning. PDF och övrigt i ny flik. Utan adress sägs det.
  *
- * @param {{ post: { id?: string, typ?: string, rubrik?: string, skapad?: number, durationMs?: number, peaks?: string, fil?: { namn?: string, mime?: string, byte?: number, sokvag?: string } }, lage: Adresslage, kopplad: boolean, onLjus?: (adress: string) => void, onMeta?: (id: string, meta: { durationMs?: number, peaks?: string }) => void }} props
+ * @param {{ post: { id?: string, typ?: string, rubrik?: string, skapad?: number, durationMs?: number, peaks?: string, fil?: { namn?: string, mime?: string, byte?: number, sokvag?: string } }, lage: Adresslage, kopplad: boolean, onLjus?: (adress: string) => void, onMeta?: (id: string, meta: { durationMs?: number, peaks?: string }) => void, onRadera?: () => void }} props
  */
-function FilVisning({ post, lage, kopplad, onLjus, onMeta }) {
+function FilVisning({ post, lage, kopplad, onLjus, onMeta, onRadera }) {
   const spelare = useSpelare();
   const sort = filSort(post.fil?.mime);
   const namn = post.fil?.namn ?? "Fil";
   const rad = `${namn}${filStorlek(post.fil?.byte) ? ` · ${filStorlek(post.fil?.byte)}` : ""}`;
+  // ⛔ EN AVBRUTEN UPPLADDNING SÄGER DET OCH ERBJUDER RADERA (granskningen av PR 408), för den som får radera posten. Den raderar via
+  // postens egen meny-rad (`menyFor`), så behörigheten är densamma som där.
+  if (lage.lage === "avbruten") {
+    return (
+      <div data-bibliotek-fil="" data-bibliotek-avbruten="" className="flex flex-col items-start gap-2">
+        <p role="status">{lage.fel}</p>
+        {onRadera ? <OpsButton variant="secondary" size="sm" onClick={onRadera}>Radera</OpsButton> : null}
+      </div>
+    );
+  }
   if (lage.lage === "hamtar") {
     return <p role="status" data-bibliotek-fil="">Hämtar filen.</p>;
   }
@@ -1683,7 +1731,7 @@ function Adress({ url }) {
  * @param {(inmatning: { id?: string, typ: string, rubrik: string, text?: string, url?: string, fil?: { sokvag: string, namn: string, mime: string, byte: number } }) => void | boolean | Promise<void | boolean>} props.onSpara Kastar den eller avvisas löftet visas felet i formuläret och läget står kvar (0.93.0). `false` betyder att det inte gick.
  * @param {(inmatning: { id?: string, rubrik: string, fil: File }) => void | Promise<void>} [props.onLaddaUpp]
  * @param {(post: { fil?: { sokvag?: string } }) => string} [props.filUrl]
- * @param {(post: { typ?: string, fil?: { sokvag?: string, mime?: string } }) => Adresslage} [props.adressFor]
+ * @param {(post: { typ?: string, skapad?: number, fil?: { sokvag?: string, mime?: string, klar?: boolean } }) => Adresslage} [props.adressFor]
  * @param {(adress: string) => void} [props.onLjus]
  * @param {(post: any) => Promise<void> | void} [props.onSkrivUt]
  * @param {(post: any) => Promise<void> | void} [props.onAnteckningAvUtskrift]
@@ -1714,7 +1762,7 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, onLaddaUpp, filUrl,
   const ljud = Boolean(post && post.typ === "fil" && filSort(post.fil?.mime) === "ljud");
   const rubrikVy = skapar ? (typ === "anteckning" ? "Ny anteckning" : typ === "lank" ? "Ny länk" : "Ny fil") : ljud && post ? ljudRubrik(post) : post?.rubrik ?? "Post";
   const tomLage = /** @type {Adresslage} */ ({ lage: "saknas", adress: "", fel: "" });
-  const filLage = post && typeof adressFor === "function" ? adressFor({ typ: post.typ, fil: post.fil }) : tomLage;
+  const filLage = post && typeof adressFor === "function" ? adressFor({ typ: post.typ, fil: post.fil, skapad: post.skapad }) : tomLage;
   const kopplad = typeof filUrl === "function" || filLage.lage !== "saknas";
   const mark = <PostMark post={{ typ, fil: post?.fil }} bildAdress={filLage.lage === "klar" ? filLage.adress : ""} />;
 
@@ -1799,10 +1847,11 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, onLaddaUpp, filUrl,
     return undefined;
   }
 
+  const radera = post && !skapar ? menyFor(post, true, setLage).find((m) => m.id === "radera") : undefined;
   const lasning = typ === "anteckning" ? (
     post?.text ? <OpsMarkdown text={post.text} dokument /> : <p className="text-brod text-ink">Anteckningen har ingen text.</p>
   ) : typ === "fil" && post ? (
-    <FilVisning post={post} lage={filLage} kopplad={kopplad} onLjus={onLjus} onMeta={onMeta} />
+    <FilVisning post={post} lage={filLage} kopplad={kopplad} onLjus={onLjus} onMeta={onMeta} onRadera={radera ? radera.onValj : undefined} />
   ) : (
     <Adress url={post?.url ?? url} />
   );

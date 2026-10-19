@@ -665,6 +665,49 @@ export function filSort(mime) {
 }
 
 /**
+ * Hur länge en uppladdning får pågå innan posten räknas som ett avbrott (cllp/ops-framework, granskningen av PR 408).
+ * En post skrivs med `fil.klar: false` och blir klar när filen är uppladdad. Stängs fliken mitt i blir den aldrig klar, och utan en
+ * gräns stod den och hämtade för alltid, för alla medlemmar.
+ *
+ * ⛔ GRÄNSEN MÅSTE VARA LÄNGRE ÄN DEN LÅNGSAMMASTE UPPLADDNING SOM ÄR VERKLIG, INTE KORT NOG ATT KÄNNAS SNABB. Ett ljud får vara 250 MB
+ * (`MAX_BIBLIOTEKLJUD`). 250 MB är 2000 Mbit, och på en telefons uppkoppling om 5 Mbit/s tar det 400 s, drygt 6 minuter. Vid 1 Mbit/s är det
+ * drygt 33 minuter. Två minuter (första förslaget) hade stämplat en uppladdning som pågår som avbruten för alla andra medlemmar och
+ * erbjudit Radera mitt i den. 60 minuter rymmer även ett så långsamt nät som 0,6 Mbit/s och löser ändå "Hämtar för alltid": ett avbrott
+ * visar sig inom en timme i stället för aldrig.
+ */
+export const UPPLADDNING_MAX_MS = 60 * 60 * 1000;
+
+/**
+ * Har uppladdningen avbrutits? Sant för en filpost vars `fil.klar` är `false` och som skapades för mer än `UPPLADDNING_MAX_MS` sedan.
+ * Räknat på postens `skapad`. En post utan ett heltal som skapad-tid går inte att döma och räknas som pågående: en gissning åt
+ * fel håll hade stämplat en uppladdning som pågår som misslyckad.
+ *
+ * @param {{ typ?: unknown, skapad?: unknown, fil?: { klar?: unknown } } | null | undefined} post
+ * @param {number} [nu] Klockan i ms. Förval nu.
+ * @returns {boolean}
+ */
+export function uppladdningAvbruten(post, nu = Date.now()) {
+  if (post?.typ !== "fil" || post.fil?.klar !== false) return false;
+  if (!Number.isInteger(post.skapad)) return false;
+  return nu - /** @type {number} */ (post.skapad) > UPPLADDNING_MAX_MS;
+}
+
+/**
+ * När en pågående uppladdning (`fil.klar === false`, ännu inte avbruten) räknas som avbruten, i ms, eller `null` när posten inte väntar
+ * på någon gräns. Används för att rita om vid rätt tillfälle utan att något i posten ändras.
+ *
+ * @param {{ typ?: unknown, skapad?: unknown, fil?: { klar?: unknown } } | null | undefined} post
+ * @param {number} [nu]
+ * @returns {number | null}
+ */
+export function uppladdningenAvbrytsKl(post, nu = Date.now()) {
+  if (post?.typ !== "fil" || post.fil?.klar !== false) return null;
+  if (!Number.isInteger(post.skapad)) return null;
+  if (uppladdningAvbruten(post, nu)) return null;
+  return /** @type {number} */ (post.skapad) + UPPLADDNING_MAX_MS + 1;
+}
+
+/**
  * Är posten ett ljud? Härlett ur typ och MIME, lagras inte.
  *
  * @param {{ typ?: unknown, fil?: { mime?: unknown } } | null | undefined} post

@@ -420,6 +420,69 @@ describe("OpsBibliotek", () => {
     expect(hamtaAdress).not.toHaveBeenCalled();
   });
 
+  describe("⛔ en uppladdning som aldrig blev klar hämtar inte för alltid (granskningen av PR 408)", () => {
+    // En post skrivs med `fil.klar: false` och blir klar när filen är uppladdad. Stängs fliken mitt i blir den aldrig klar, och listan
+    // stod då och sa "Hämtar ljudet." och detaljen "Hämtar filen." för alla medlemmar, för alltid. Efter en timme (UPPLADDNING_MAX_MS: 250 MB på 1 Mbit/s tar drygt 33 minuter), räknat på postens
+    // skapad-tid, säger posten i stället "Uppladdningen blev inte klar", och den som får radera posten kan göra det.
+    const MIN = 60 * 1000;
+    // Ett 250 MB-ljud på en telefons 5 Mbit/s tar drygt 6 minuter: en uppladdning på 10 minuter pågår och får inte stämplas som avbruten.
+    /** @param {string} id @param {number} skapad @param {string} mime @param {string} namn */
+    const halv = (id, skapad, mime, namn) => ({
+      ...byggPost({ groupId: "cps-ab", typ: "fil", rubrik: "Halv", fil: { sokvag: `grupper/cps-ab/bibliotek/${id}/${namn}`, namn, mime, byte: 100, klar: false }, skapadAv: skapare, skapad, andrad: skapad }),
+      id,
+    });
+    const hamta = () => vi.fn(async (/** @type {string} */ sokvag) => `https://exempel.se/${sokvag}`);
+
+    it("ett ljud som är äldre än en timme säger det i listan, inte Hämtar, och hämtas inte", async () => {
+      const hamtaAdress = hamta();
+      render(<Harness start={[halv("l", Date.now() - 90 * MIN, "audio/mpeg", "l.mp3")]} hamtaAdress={hamtaAdress} />);
+      expect(screen.getByText("Uppladdningen blev inte klar")).toBeInTheDocument();
+      expect(screen.queryByText("Hämtar ljudet.")).toBeNull();
+      await new Promise((r) => setTimeout(r, 20));
+      expect(hamtaAdress).not.toHaveBeenCalled();
+    });
+
+    it("en uppladdning som pågår står kvar som Hämtar: en på 10 minuter, som en 250 MB-fil på 5 Mbit/s kan ta, är inte avbruten", () => {
+      render(<Harness start={[halv("l", Date.now() - 10 * MIN, "audio/mpeg", "l.mp3")]} hamtaAdress={hamta()} />);
+      expect(screen.getByText("Hämtar ljudet.")).toBeInTheDocument();
+      expect(screen.queryByText("Uppladdningen blev inte klar")).toBeNull();
+    });
+
+    it("en fil (inte ljud) som är avbruten säger det i detaljen med Radera, som frågar innan den raderar", () => {
+      const onRadera = vi.fn();
+      render(<Harness start={[halv("p", Date.now() - 90 * MIN, "application/pdf", "p.pdf")]} hamtaAdress={hamta()} onRadera={onRadera} />);
+      fireEvent.click(screen.getByRole("button", { name: "Halv" }));
+      expect(screen.getByText("Uppladdningen blev inte klar")).toBeInTheDocument();
+      expect(screen.queryByText("Hämtar filen.")).toBeNull();
+      fireEvent.click(screen.getByRole("button", { name: "Radera" }));
+      expect(onRadera).not.toHaveBeenCalled();
+      fireEvent.click(screen.getByRole("button", { name: "Radera posten" }));
+      expect(onRadera).toHaveBeenCalledWith("p");
+    });
+
+    it("Radera erbjuds bara den som får radera posten", () => {
+      render(<Harness jag={{ uid: "uid-annan", roll: "medlem" }} start={[halv("p", Date.now() - 90 * MIN, "application/pdf", "p.pdf")]} hamtaAdress={hamta()} onRadera={vi.fn()} />);
+      fireEvent.click(screen.getByRole("button", { name: "Halv" }));
+      expect(screen.getByText("Uppladdningen blev inte klar")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Radera" })).toBeNull();
+    });
+
+    it("listan ritar om av sig själv när en timme gått, utan att något i posten ändras", async () => {
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+      try {
+        render(<Harness start={[halv("l", Date.now(), "audio/mpeg", "l.mp3")]} hamtaAdress={hamta()} />);
+        expect(screen.getByText("Hämtar ljudet.")).toBeInTheDocument();
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(60 * MIN + 10);
+        });
+        expect(screen.getByText("Uppladdningen blev inte klar")).toBeInTheDocument();
+        expect(screen.queryByText("Hämtar ljudet.")).toBeNull();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+  });
+
   it("⛔ en fil som saknas i lagringen visas med en vänlig text, inte lagringens råa fel (CP 2026-10-18)", async () => {
     const ljud = {
       ...byggPost({
