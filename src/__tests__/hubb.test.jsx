@@ -405,6 +405,75 @@ describe("OpsGruppHubb: ritad", () => {
 });
 
 /*
+ * ⛔ 0.124.0: CP 2026-10-19, "Datumomröstning finns inte". Hubbens nivå sade att grupper kan lägga till modulen, och gruppens
+ * Appar erbjöd den aldrig, eftersom erbjudandet filtrerade på `m.hubb` och en modul som bara är ett tillägg har `hubb: null`.
+ * Röda mot 0.123.0: där fanns varken knappen Installera eller sektionen "Tillägg i gruppen".
+ */
+describe("OpsGruppHubb: en modul som bara är ett tillägg (0.124.0)", () => {
+  const G = (/** @type {string[]} */ ids) => ({ id: "travel", namn: { sv: "Travel" }, moduler: ids });
+  const OMROSTNING = () => ({
+    id: "datumomrostning",
+    namn: { sv: "Datumomröstning", en: "Date poll" },
+    nav: [],
+    routes: [],
+    samlingar: [],
+    kallor: {},
+    skapar: [],
+    hubb: null,
+    tillagg: [{ plats: "handelse.sektion", id: "rosta", etikett: { sv: "Rösta på datum", en: "Vote on dates" }, komponent: () => null }],
+  });
+  const alla = () => validateModuler([EKONOMI(), INKORG(), OMROSTNING()]);
+
+  it("⛔ erbjuds under Appar med Installera, och knappen installerar just den", () => {
+    const klick = vi.fn();
+    render(<OpsGruppHubb grupp={G(["ekonomi"])} moduler={alla()} installera={{ onInstallera: klick }} />);
+    const lista = screen.getByRole("list", { name: "Appar som kan läggas till" });
+    expect(within(lista).getByText("Datumomröstning")).toBeTruthy();
+    // Raden säger var den syns, med tilläggets etikett och ytans namn ur samma källa som gruppens inställningar.
+    expect(within(lista).getByText("Rösta på datum · Syns på: Händelser")).toBeTruthy();
+    // En modul utan kort och utan tillägg erbjuds fortfarande inte.
+    expect(within(lista).queryByText("Inkorg")).toBeNull();
+    fireEvent.click(within(lista).getByRole("button", { name: "Installera Datumomröstning" }));
+    expect(klick).toHaveBeenCalledTimes(1);
+    expect(klick).toHaveBeenCalledWith("datumomrostning");
+  });
+
+  it("⛔ erbjuds också i en tom grupp, och på engelska med engelska ord", () => {
+    render(<OpsGruppHubb grupp={G([])} moduler={alla()} installera={{ onInstallera: () => {} }} sprak="en" />);
+    const lista = screen.getByRole("list", { name: "Apps that can be added" });
+    expect(within(lista).getByText("Date poll")).toBeTruthy();
+    expect(within(lista).getByText("Vote on dates · Visible in: Events")).toBeTruthy();
+  });
+
+  it("⛔ installerad: syns under 'Tillägg i gruppen' med var den syns, och erbjuds inte igen", () => {
+    const { container } = render(<OpsGruppHubb grupp={G(["ekonomi", "datumomrostning"])} moduler={alla()} installera={{ onInstallera: () => {} }} />);
+    const sektion = screen.getByRole("region", { name: "Tillägg i gruppen" });
+    expect(within(sektion).getByText("Datumomröstning")).toBeTruthy();
+    expect(within(sektion).getByText("Rösta på datum · Syns på: Händelser")).toBeTruthy();
+    // Ingen knapp och ingen länk: den har ingen egen sida, och den är redan på.
+    expect(within(sektion).queryByRole("button")).toBeNull();
+    expect(within(sektion).queryByRole("link")).toBeNull();
+    expect(screen.queryByRole("button", { name: /Installera Datumomröstning/ })).toBeNull();
+    // Inget utvecklarord i det användaren ser, och ingen rad om att appen "inte visas".
+    expect(container.textContent).not.toMatch(/hubb|null|tillagg/);
+    expect(container.querySelector('[data-hubb-saknade]')).toBeNull();
+  });
+
+  it("⛔ en grupp vars enda app är ett tillägg är inte 'utan appar'", () => {
+    render(<OpsGruppHubb grupp={G(["datumomrostning"])} moduler={alla()} />);
+    expect(screen.queryByText("Gruppen har inga appar ännu")).toBeNull();
+    expect(screen.queryByText("Ingen av gruppens appar kan visas")).toBeNull();
+    expect(screen.getByRole("region", { name: "Tillägg i gruppen" })).toBeTruthy();
+  });
+
+  it("⛔ en installerad modul utan kort och utan tillägg får ingen tilläggsrad, bara raden om att den inte visas", () => {
+    const { container } = render(<OpsGruppHubb grupp={G(["ekonomi", "inkorg"])} moduler={alla()} />);
+    expect(screen.queryByRole("region", { name: "Tillägg i gruppen" })).toBeNull();
+    expect(container.querySelector('[data-saknad="inget-kort"]')).not.toBeNull();
+  });
+});
+
+/*
  * ⛔ 0.83.0: CP 2026-10-08 17:54, "Varje app/modul borde kunna expanderas med chevron". Röda mot 0.82.0: där hade
  * OpsGruppHubbs kort inga barn och ingen knapp.
  */

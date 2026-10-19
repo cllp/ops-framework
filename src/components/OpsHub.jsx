@@ -12,8 +12,9 @@ import { OpsHubTillbaka } from "./OpsTillbaka.jsx";
 
 export { OpsHubTillbaka };
 import { text } from "../lib/sprak.js";
-import { hubbForGrupp, hubbPoster } from "../lib/hubb.js";
+import { arBaraTillagg, hubbForGrupp, hubbPoster, tillaggsmodulerIGrupp } from "../lib/hubb.js";
 import { arKarna, medKarna } from "../lib/karna.js";
+import { synsPa, synsPaText } from "../lib/tillagg.js";
 
 /**
  * Hub: appens moduler som ett rutnät av kort (0.30.0, #173).
@@ -105,7 +106,7 @@ export function OpsHub({
   return ram ? <OpsView>{innehall}</OpsView> : innehall;
 }
 
-/** @type {Record<"sv"|"en", { rubrik: string, tomRubrik: string, tomText: (namn: string, medVag: boolean) => string, valbara: string, ingaValbara: string, installera: string, agarenInstallerar: string, ingaRitbara: string, ingaRitbaraText: string, saknadRubrik: string, interegistrerad: (id: string) => string, ingetKort: (id: string) => string, moduler: (namn: string) => string }>} */
+/** @type {Record<"sv"|"en", { rubrik: string, tomRubrik: string, tomText: (namn: string, medVag: boolean) => string, valbara: string, ingaValbara: string, installera: string, agarenInstallerar: string, tillaggRubrik: string, synsPa: string, synsPaEgenYta: string, synsPaIngenting: string, ingaRitbara: string, ingaRitbaraText: string, saknadRubrik: string, interegistrerad: (id: string) => string, ingetKort: (id: string) => string, moduler: (namn: string) => string }>} */
 const GRUPPHUBB_TEXT = {
   sv: {
     tomRubrik: "Gruppen har inga appar ännu",
@@ -117,6 +118,10 @@ const GRUPPHUBB_TEXT = {
     ingaValbara: "Det finns inga appar att lägga till.",
     installera: "Installera",
     agarenInstallerar: "Ägaren installerar dem i gruppens inställningar.",
+    tillaggRubrik: "Tillägg i gruppen",
+    synsPa: "Syns på",
+    synsPaEgenYta: "Egen yta",
+    synsPaIngenting: "ingen egen yta och inga tillägg",
     ingaRitbara: "Ingen av gruppens appar kan visas",
     ingaRitbaraText: "Gruppen har appar installerade som inte kan visas. Skälet står under.",
     saknadRubrik: "Visas inte",
@@ -134,6 +139,10 @@ const GRUPPHUBB_TEXT = {
     ingaValbara: "There are no apps to add.",
     installera: "Install",
     agarenInstallerar: "The owner installs them in the group's settings.",
+    tillaggRubrik: "Add-ons in the group",
+    synsPa: "Visible in",
+    synsPaEgenYta: "Own page",
+    synsPaIngenting: "no own page and no add-ons",
     ingaRitbara: "None of the group's apps can be shown",
     ingaRitbaraText: "The group has apps installed that cannot be shown. The reason is below.",
     saknadRubrik: "Not shown",
@@ -144,14 +153,32 @@ const GRUPPHUBB_TEXT = {
 };
 
 /**
- * Appar med ett kort som gruppen inte har, med en knapp per app när ägaren får installera.
+ * Var en tilläggsmodul syns, i ord: tilläggens etiketter och ytorna de sitter på ("Omrösta datum · Syns på: Händelser").
+ *
+ * ⛔ HÄRLETT UR MANIFESTET (regel 2), med samma källa för ytans namn som gruppens inställningar (`synsPaText` över `PLATSYTOR`).
+ * Etiketterna är det användaren ser på ytan, aldrig modulens id eller platsens nyckel.
+ *
+ * @param {import("../lib/modul.js").Modul} m
+ * @param {(typeof GRUPPHUBB_TEXT)["sv"]} t
+ * @param {string} sprak
+ * @returns {string}
+ */
+function tillaggText(m, t, sprak) {
+  const etiketter = [...new Set((m.tillagg ?? []).map((x) => text(x.etikett, sprak)))].join(", ");
+  const platser = synsPaText(synsPa(m), { egenYta: t.synsPaEgenYta, ingenting: t.synsPaIngenting }, sprak);
+  return `${etiketter} · ${t.synsPa}: ${platser}`;
+}
+
+/**
+ * Appar som gruppen inte har, med en knapp per app när ägaren får installera.
  *
  * Tom grupp och en grupp som redan har appar använder samma rader, så erbjudandet
  * inte försvinner så fort Meddelanden är på och Bibliotek saknas (CP 2026-10-10).
- * En modul utan kort (`hubb: null`) kommer inte med: den syns inte under Appar.
+ * En modul utan kort och utan tillägg (`hubb: null`) kommer inte med: den har ingen yta att visa. En modul som bara är ett
+ * tillägg kommer med (0.124.0, CP 2026-10-19: "Datumomröstning finns inte"), utan ikon och med en rad om var den syns.
  *
  * @param {object} props
- * @param {ReadonlyArray<{ id: string, namn: { sv: string, en?: string }, hubb: { ikon?: unknown } | null }>} props.moduler
+ * @param {ReadonlyArray<import("../lib/modul.js").Modul>} props.moduler
  * @param {string} props.sprak
  * @param {(typeof GRUPPHUBB_TEXT)["sv"]} props.t
  * @param {{ href?: string, onClick?: (id?: string) => void, onInstallera?: (id: string) => void, etikett?: string } | undefined} props.installera
@@ -172,6 +199,7 @@ function ValbaraAppar({ moduler, sprak, t, installera, onNavigate, visaAgarRad =
           const etikett = `${knappText} ${namn}`;
           const href = installera?.href ?? "";
           const lankar = href !== "" && !direkt && !viaKlick;
+          const syns = arBaraTillagg(m) ? tillaggText(m, t, sprak) : "";
           return (
             <li key={m.id} data-hubb-valbar={m.id} className="flex min-h-11 items-center gap-3 rounded-base border border-line bg-surface px-3 py-2">
               {m.hubb?.ikon ? (
@@ -179,7 +207,14 @@ function ValbaraAppar({ moduler, sprak, t, installera, onNavigate, visaAgarRad =
                   {/** @type {import("react").ReactNode} */ (m.hubb.ikon)}
                 </span>
               ) : null}
-              <span className="min-w-0 flex-1 truncate text-etikett text-ink">{namn}</span>
+              {syns ? (
+                <span className="flex min-w-0 flex-1 flex-col">
+                  <span className="truncate text-etikett text-ink">{namn}</span>
+                  <span data-hubb-syns="" className="truncate text-meta text-ink-secondary">{syns}</span>
+                </span>
+              ) : (
+                <span className="min-w-0 flex-1 truncate text-etikett text-ink">{namn}</span>
+              )}
               {medKnapp && installera ? (
                 lankar ? (
                   <OpsButton href={href} variant="secondary" size="md" ariaLabel={etikett} onClick={(e) => onNavigate?.(href, e)}>
@@ -253,10 +288,14 @@ export function OpsGruppHubb({ grupp, moduler, activeHref = "", onNavigate, spra
   // Appar med ett kort som gruppen inte har. En modul utan kort (hubb: null) blir ingen rad här: den syns inte i hubben.
   // ⛔ En kärnmodul står aldrig här (0.106.0, #386): den är alltid installerad, och `medKarna` räknar den så.
   const installerade = medKarna(grupp.moduler, moduler);
-  const tillaggningsbara = moduler.filter((m) => m.hubb && !arKarna(m) && !installerade.includes(m.id));
+  // ⛔ 0.124.0: en modul som bara är ett tillägg (`hubb: null`, minst ett tillägg) kan också installeras. Den har inget kort att visa,
+  // men den syns på sina ytor, och utan den här raden fanns ingen väg att slå på den (CP 2026-10-19: "Datumomröstning finns inte").
+  const tillaggningsbara = moduler.filter((m) => (m.hubb || arBaraTillagg(m)) && !arKarna(m) && !installerade.includes(m.id));
+  const tillaggsmoduler = tillaggsmodulerIGrupp({ grupp, moduler });
   const medVag = Boolean(installera && (installera.href || installera.onClick || installera.onInstallera));
   // Appar gruppen inte har ska synas också när andra redan är installerade. Tom grupp listar dem i tomläget nedan, så de inte står två gånger.
-  const valbarSektion = tillaggningsbara.length > 0 && (poster.length > 0 || saknade.length > 0) ? (
+  const harInnehall = poster.length > 0 || saknade.length > 0 || tillaggsmoduler.length > 0;
+  const valbarSektion = tillaggningsbara.length > 0 && harInnehall ? (
     <ValbaraAppar moduler={tillaggningsbara} sprak={sprak} t={t} installera={installera} onNavigate={onNavigate} visaAgarRad />
   ) : null;
   const innehall = (
@@ -266,7 +305,7 @@ export function OpsGruppHubb({ grupp, moduler, activeHref = "", onNavigate, spra
       <OpsViewHeader title={t.rubrik} ikon={<HubIkon size={18} />} actions={atgard ?? undefined} />
       {poster.length > 0 ? (
         <KortRutnat poster={poster} activeHref={activeHref} onNavigate={onNavigate} ariaLabel={t.moduler(gruppnamn)} badgeText={badgeText ?? (sprak === "en" ? "new" : "nya")} sprak={sprak} />
-      ) : saknade.length > 0 ? (
+      ) : tillaggsmoduler.length > 0 ? null : saknade.length > 0 ? (
         <OpsEmpty title={t.ingaRitbara} description={t.ingaRitbaraText} />
       ) : (
         <OpsEmpty
@@ -281,6 +320,19 @@ export function OpsGruppHubb({ grupp, moduler, activeHref = "", onNavigate, spra
           }
         />
       )}
+      {tillaggsmoduler.length > 0 ? (
+        <section aria-label={t.tillaggRubrik} data-hubb-tillagg="" className="flex w-full flex-col gap-2 text-left">
+          <h2 className="m-0 text-etikett font-medium text-ink">{t.tillaggRubrik}</h2>
+          <ul aria-label={t.tillaggRubrik} className="m-0 flex list-none flex-col gap-2 p-0">
+            {tillaggsmoduler.map((m) => (
+              <li key={m.id} data-hubb-tillagg-modul={m.id} className="flex min-h-11 min-w-0 flex-col justify-center rounded-base border border-line bg-surface px-3 py-2">
+                <span className="truncate text-etikett text-ink">{text(m.namn, sprak)}</span>
+                <span className="truncate text-meta text-ink-secondary">{tillaggText(m, t, sprak)}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
       {valbarSektion}
       {saknade.length > 0 ? (
         <section aria-label={t.saknadRubrik} data-hubb-saknade="" className="flex flex-col gap-1">

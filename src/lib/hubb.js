@@ -82,9 +82,42 @@ export function hubbForGrupp({ grupp, moduler }) {
     else if (m.hubb) kort.push(/** @type {Hubbmodul} */ (m));
     // ⛔ 0.60.0 (#251): en modul utan kort men med tillägg saknas inte. Den syns på sina ytor, och en rad om att den "inte ritas"
     // hade varit fel besked om en app som gör precis det den ska.
-    else if ((m.tillagg ?? []).length === 0) saknade.push(Object.freeze({ id, skal: /** @type {const} */ ("inget-kort") }));
+    else if (!arBaraTillagg(m)) saknade.push(Object.freeze({ id, skal: /** @type {const} */ ("inget-kort") }));
   }
   return Object.freeze({ kort: Object.freeze(kort), saknade: Object.freeze(saknade) });
+}
+
+/**
+ * Sant när modulen bara är ett tillägg: inget kort i hubben, men minst ett tillägg på en ramverksyta (0.124.0).
+ *
+ * ⛔ EN SANNING FÖR "VAD ÄR EN TILLÄGGSMODUL" (regel 2). `hubbForGrupp` slutade för länge sedan kalla en sådan modul `inget-kort`
+ * (den syns på sina ytor), men erbjudandet under Appar läste fortfarande `m.hubb` och släppte aldrig in den. CP 2026-10-19:
+ * "Datumomröstning finns inte". Hubbens nivå sade att grupper kan lägga till den, och gruppens Appar erbjöd den aldrig.
+ *
+ * @param {{ hubb?: unknown, tillagg?: ReadonlyArray<unknown> } | null | undefined} m
+ * @returns {boolean}
+ */
+export function arBaraTillagg(m) {
+  return Boolean(m) && !m?.hubb && (m?.tillagg ?? []).length > 0;
+}
+
+/**
+ * Tilläggsmodulerna gruppen har installerade, i gruppens ordning (0.124.0).
+ *
+ * Det här är raden som annars saknas: en installerad modul utan kort ritas inte som kort och står inte i `saknade`, så utan den
+ * här listan finns ingen plats där ägaren ser att appen är på. Kärnmoduler räknas som installerade, som överallt (`medKarna`).
+ *
+ * @param {object} arg
+ * @param {{ moduler?: ReadonlyArray<string> | null } | null | undefined} arg.grupp
+ * @param {ReadonlyArray<import("./modul.js").Modul> | null | undefined} arg.moduler
+ * @returns {import("./modul.js").Modul[]}
+ */
+export function tillaggsmodulerIGrupp({ grupp, moduler }) {
+  const registrerade = new Map((moduler ?? []).map((m) => [m.id, m]));
+  return medKarna(grupp?.moduler, moduler)
+    .map((id) => registrerade.get(id))
+    .filter((m) => arBaraTillagg(m))
+    .map((m) => /** @type {import("./modul.js").Modul} */ (m));
 }
 
 /**

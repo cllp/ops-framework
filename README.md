@@ -2558,6 +2558,10 @@ Kalendern och inkorgen är ramverkets grund och har alla grupper, utan att en mo
   per modul-id). ⛔ En modul som appen inte registrerat, eller en med `hubb: null`, ritas inte, och en rad under korten
   säger vilken och varför. En grupp utan moduler säger det med gruppens namn. En modul med kort som gruppen inte har
   listas under korten, också när gruppen redan har appar, med **Installera** när appen skickar `installera` (ägaren).
+  Från 0.124.0 gäller det också en modul som bara är ett tillägg (`hubb: null` men minst ett `tillagg`): raden saknar ikon och
+  säger var appen syns ("Rösta på datum · Syns på: Händelser"). När en sådan modul är installerad står den under rubriken
+  **Tillägg i gruppen**, en rad per modul, utan länk, eftersom den inte har någon egen sida. `arBaraTillagg(m)` och
+  `tillaggsmodulerIGrupp` i `hubb.js` är beslutet.
   Beslutet bor i **`hubbForGrupp`**, så det går
   att pröva utan att rita. Sedan 0.83.0 har varje kort för en modul med fler än en del en chevron (`aria-expanded`,
   "Visa delarna i Ekonomi") som fäller ut delarna som länkar med ikon. Kortet självt leder som förut till startsidan. En
