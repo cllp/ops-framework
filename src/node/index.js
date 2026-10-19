@@ -208,12 +208,12 @@ export {
 } from "../lib/beskrivenapp.js";
 
 /*
- * ⛔ PUBLIK DELNING AV EN BIBLIOTEKSFIL (0.119.0, lifehub.app#356). Tokenet slumpas och hashas här och bundlas aldrig till en webbläsare, och
+ * ⛔ PUBLIK DELNING AV EN BIBLIOTEKSFIL (0.119.0, lifehub.app#356) OCH EN HÄNDELSE (0.125.0, lifehub.app#377). Hashen av adressen (och av ett gammalt token), slumpslutet och koden görs här och bundlas aldrig till en webbläsare, och
  * raderna nekas klienten av `delningsregelfragment()`. Konstanterna och texterna som vyn också läser ligger i `lib/delning.js` (huvudingången
  * och här): en sanning om utgångstiderna, orsakerna och orden. Filen är ren utom `node:crypto`.
  */
-export { createDelningService, byggDelning, delningsId, delningsDisposition, nyttDelningstoken } from "./delning.js";
-export { DELNINGSDAGAR, FORVAL_DELNINGSDAGAR, SIGNERAD_SEKUNDER, TOKENFORM, DELNINGSFALT, DELNINGSORSAKER, DELNINGSFEL, DELNINGSSVARSFALT, delningsTyp, delningsfel } from "../lib/delning.js";
+export { createDelningService, byggDelning, byggAdressdelning, delningsId, adressId, delningsNyckel, delningsDisposition, nyttDelningstoken, nyttSlumpslut, hashaKod, kodStammer } from "./delning.js";
+export { DELNINGSDAGAR, FORVAL_DELNINGSDAGAR, HANDELSEDAGAR, FORVAL_HANDELSEDAGAR, SIGNERAD_SEKUNDER, TOKENFORM, DELNINGSSLAG, DELNINGSRATTIGHETER, DELNINGSFALT, ADRESSPREFIX, ADRESSSEGMENT, ADRESSDELFORM, MAX_ADRESSDEL, MAX_ADRESSDEL_TOTALT, SLUMPSLUT_TECKEN, SLUMPSLUTFORM, KODLANGD, FELKOD_MAX, FELKOD_FONSTER_MS, adressdel, arAdressdel, nastaAdressdel, foreslaAdress, byggAdress, tolkaAdress, delningsSokvag, delningsUrl, adressUrUppslag, kodFel, normaliseraKod, DELNINGSORSAKER, DELNINGSFEL, DELNINGSFELKODER, DELNINGSSVARSFALT, HANDELSESVARSFALT, HANDELSEFILFALT, MAX_HANDELSEFILER, delningsTyp, delningsfel } from "../lib/delning.js";
 
 /*
  * ⛔ FLYTTA EN POST ELLER EN HÄNDELSE TILL EN ANNAN KALENDER (0.123.0, cllp/lifehub.app#371). Att göra en post till en gruppens händelse är en

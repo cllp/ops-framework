@@ -121,9 +121,11 @@ export function adressdel(text, max = MAX_ADRESSDEL) {
   let t = gemener.replace(/[̀-ͯ]/g, "").replace(/[øæœßðþłđ]/g, (c) => BOKSTAVER[c] ?? "");
   t = t.replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
   if (t.length <= max) return t;
+  // Kapa vid ett ord om kapningen hamnar mitt i ett: slutar de första `max` tecknen på en hel del (nästa tecken är ett bindestreck) behålls den.
+  const motOrd = t[max] !== "-";
   t = t.slice(0, max);
   const sista = t.lastIndexOf("-");
-  if (sista > max / 2) t = t.slice(0, sista);
+  if (motOrd && sista > max / 2) t = t.slice(0, sista);
   return t.replace(/-+$/g, "");
 }
 
