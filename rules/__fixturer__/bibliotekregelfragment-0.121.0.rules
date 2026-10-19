@@ -1,0 +1,150 @@
+    // ══ Ramverkets bibliotek. GENERERAD, ändra inte för hand ══
+    //
+    // Källa: ops-framework, bibliotekregelfragment() i src/lib/regler.js. Kräver regelfragment() ovanför.
+
+    // En tid i millisekunder nära serverns klocka (samma uttryck som samtalens opsNu).
+    function opsBiblioteketNu(t) {
+      return t is int && t > request.time.toMillis() - 300000 && t < request.time.toMillis() + 300000;
+    }
+
+    // ⛔ VÅGEN ÄR EN STRÄNG, ETT TECKEN PER STOLPE, och prövas med ETT uttryck (https://github.com/cllp/ops-framework/issues/349).
+    // CP 2026-10-13: en röstinspelning med våg nekades med "Missing or insufficient permissions.", eftersom 48 tal som
+    // vart och ett prövades för sig gick över Firestores tak på 1000 uttryck per skrivning. Längd och teckenmängd är samma
+    // matches(): mönstret kommer ur TOPPFORM i bibliotek.js, så det inte kan glida isär från modellens peaksGiltiga.
+    // Ingen separat "is string" eller size(): mönstret kräver exakt 48 tecken, och matches() på något som
+    // inte är en sträng är ett fel, och ett fel är ett nej (regel 4: ett villkor som inte kan ändra utfallet är ingen spärr).
+    function opsBibliotekToppar(p) {
+      return p.matches('[A-Za-z0-9_-]{48}');
+    }
+
+    // Filens sökväg är EXAKT {gruppPrefix}/{groupId}/{postPrefix}/{postId}/{filnamn}: fem segment, postens egen grupp och
+    // postens eget id. Segment mot segment med ==, inte regex. Inget segment är tomt, '.' eller '..', och inget styrtecken
+    // (radbrytning, tabb, NUL) får finnas: RE2:s punkt matchar inte radbrytning, så ett '..'-prov med regex släpper igenom
+    // 'p\n/../..'.
+    function opsBibliotekSokvagIGruppen(d, postId) {
+      let s = d.fil.sokvag.split('/');
+      // Formen först: fem icke-tomma segment utan snedstreck i sig. split() släpper ett avslutande tomt segment (Javas regel),
+      // så 'a/b/c/d/e/' blev fem segment och passerade, mätt i emulatorn 2026-10-12. Mönstret fångar det, ett tomt segment i
+      // mitten och ett inledande snedstreck.
+      return d.fil.sokvag.matches('[^/]+/[^/]+/[^/]+/[^/]+/[^/]+')
+        && s.size() == 5
+        && s[0] == "grupper"
+        && s[1] == d.groupId
+        && s[2] == "bibliotek"
+        && s[3] == postId
+        && s.hasAny(['', '.', '..']) == false
+        && !d.fil.sokvag.matches('(?s).*[\x00-\x1f].*');
+    }
+
+    // ⛔ TAGGARNA (0.100.0, lifehub.app#214): en lista, högst 8, inga dubbletter, och varje tagg i TAGGFORM ur bibliotek.js.
+    // Regler har ingen loop, så varje plats prövas för sig, rullad ut till taket. Mönstret är samma uttryck som modellens
+    // taggarFel (regelRegex), så de två kan inte glida isär. En plats bortom listans längd prövas inte: size() < k+1.
+    function opsBibliotekTaggar(t) {
+      return t is list
+        && t.size() <= 8
+        && t.toSet().size() == t.size()
+        && (t.size() < 1 || t[0].matches('[a-z0-9åäöæøüéèêàâçîïôûëÿ]([a-z0-9åäöæøüéèêàâçîïôûëÿ -]{0,22}[a-z0-9åäöæøüéèêàâçîïôûëÿ])?'))
+        && (t.size() < 2 || t[1].matches('[a-z0-9åäöæøüéèêàâçîïôûëÿ]([a-z0-9åäöæøüéèêàâçîïôûëÿ -]{0,22}[a-z0-9åäöæøüéèêàâçîïôûëÿ])?'))
+        && (t.size() < 3 || t[2].matches('[a-z0-9åäöæøüéèêàâçîïôûëÿ]([a-z0-9åäöæøüéèêàâçîïôûëÿ -]{0,22}[a-z0-9åäöæøüéèêàâçîïôûëÿ])?'))
+        && (t.size() < 4 || t[3].matches('[a-z0-9åäöæøüéèêàâçîïôûëÿ]([a-z0-9åäöæøüéèêàâçîïôûëÿ -]{0,22}[a-z0-9åäöæøüéèêàâçîïôûëÿ])?'))
+        && (t.size() < 5 || t[4].matches('[a-z0-9åäöæøüéèêàâçîïôûëÿ]([a-z0-9åäöæøüéèêàâçîïôûëÿ -]{0,22}[a-z0-9åäöæøüéèêàâçîïôûëÿ])?'))
+        && (t.size() < 6 || t[5].matches('[a-z0-9åäöæøüéèêàâçîïôûëÿ]([a-z0-9åäöæøüéèêàâçîïôûëÿ -]{0,22}[a-z0-9åäöæøüéèêàâçîïôûëÿ])?'))
+        && (t.size() < 7 || t[6].matches('[a-z0-9åäöæøüéèêàâçîïôûëÿ]([a-z0-9åäöæøüéèêàâçîïôûëÿ -]{0,22}[a-z0-9åäöæøüéèêàâçîïôûëÿ])?'))
+        && (t.size() < 8 || t[7].matches('[a-z0-9åäöæøüéèêàâçîïôûëÿ]([a-z0-9åäöæøüéèêàâçîïôûëÿ -]{0,22}[a-z0-9åäöæøüéèêàâçîïôûëÿ])?'));
+    }
+
+    // ⛔ MITT BIBLIOTEK (0.101.0, lifehub.app#226): platsen mitt~<uid> är den inloggades egen, och bara hens. En jämförelse med
+    // request.auth.uid, inget uppslag: ingen roll i någon grupp ger något här. Ett grupp-id kan inte se ut så, eftersom ett grupp-id aldrig har ett ~.
+    function opsBibliotekMitt(gid) {
+      return request.auth != null && gid == 'mitt~' + request.auth.uid;
+    }
+
+    // ⛔ GRENARNA UTESLUTER VARANDRA (granskningen av PR 365). En plats som ser ut som mitt~… prövas BARA mot uid:t, aldrig mot
+    // memberships. Med "eller" hade ett medlemskap vars groupId råkade vara mitt~<uid> öppnat någons eget bibliotek för läsning,
+    // ändring och radering, sett i emulatorn. Inget skapar ett sådant medlemskap i dag, men ett skydd som vilar på det är inget skydd.
+    function opsBibliotekArMitt(gid) {
+      return gid is string && gid.matches('(?s)mitt~.*');
+    }
+    function opsBibliotekPlatsMedlem(gid) {
+      return opsBibliotekArMitt(gid) ? opsBibliotekMitt(gid) : opsArMedlem(gid);
+    }
+    function opsBibliotekPlatsAdmin(gid) {
+      return opsBibliotekArMitt(gid) ? false : opsArAdmin(gid);
+    }
+
+    function opsBibliotekspostGiltig(d, postId) {
+      return d.keys().hasOnly(["groupId", "typ", "rubrik", "text", "url", "fil", "utskrift", "durationMs", "peaks", "taggar", "skapadAv", "skapad", "andrad"])
+        && (!d.keys().hasAny(["taggar"]) || opsBibliotekTaggar(d.taggar))
+        && d.rubrik.trim().size() > 0
+        && d.rubrik.size() <= 200
+        && d.skapadAv.keys().hasOnly(["uid", "namn", "typ", "kalla"])
+        && d.skapadAv.namn is string
+        && d.skapadAv.typ == "manniska"
+        && d.skapadAv.kalla is string
+        && d.andrad >= d.skapad
+        && (
+          (d.typ == "anteckning"
+            && d.text.trim().size() > 0
+            && d.text.size() <= 8000
+            && !d.keys().hasAny(["url", "fil", "utskrift", "durationMs", "peaks"]))
+          || (d.typ == "lank"
+            && d.url.size() <= 2000
+            && d.url.matches('https?://[!-~]+')
+            && !d.keys().hasAny(["text", "fil", "utskrift", "durationMs", "peaks"]))
+          || (d.typ == "fil"
+            && d.fil.keys().hasOnly(["sokvag", "namn", "mime", "byte", "klar"])
+            && (!('klar' in d.fil) || d.fil.klar is bool)
+            && d.fil.sokvag.size() > 0
+            && d.fil.sokvag.size() <= 1024
+            && !d.fil.sokvag.matches('.*\\.\\..*')
+            && opsBibliotekSokvagIGruppen(d, postId)
+            && d.fil.namn.size() > 0
+            && d.fil.namn.size() <= 200
+            && d.fil.mime.matches('^(image/jpeg|image/png|image/webp|image/gif|audio/webm|audio/mp4|audio/mpeg|audio/ogg|audio/wav|audio/aiff|audio/flac|application/pdf|text/plain)$')
+            && d.fil.byte is int
+            && d.fil.byte > 0
+            && (d.fil.byte <= 26214400 || (d.fil.mime.matches('^audio/.*') && d.fil.byte <= 262144000))
+            && !d.keys().hasAny(["text", "url"])
+            && (
+              !d.keys().hasAny(["utskrift"])
+              || (d.utskrift.size() <= 20000 && d.fil.mime.matches('^audio/.*'))
+            )
+            && (
+              !d.keys().hasAny(["durationMs"])
+              || (d.durationMs is int && d.durationMs > 0 && d.durationMs <= 43200000 && d.fil.mime.matches('^audio/.*'))
+            )
+            && (
+              !d.keys().hasAny(["peaks"])
+              || (opsBibliotekToppar(d.peaks) && d.fil.mime.matches('^audio/.*'))
+            ))
+        );
+    }
+
+    match /bibliotek/{id} {
+      allow read: if opsBibliotekPlatsMedlem(resource.data.groupId);
+      allow create: if (
+          opsBibliotekArMitt(request.resource.data.groupId)
+            ? opsBibliotekMitt(request.resource.data.groupId)
+            : (opsArMedlem(request.resource.data.groupId) && opsMedlemskapet(request.resource.data.groupId).data.typ == 'person')
+        )
+        && request.resource.data.skapadAv.uid == request.auth.uid
+        && opsBiblioteketNu(request.resource.data.skapad)
+        && opsBiblioteketNu(request.resource.data.andrad)
+        && opsBibliotekspostGiltig(request.resource.data, id);
+      allow update: if request.resource.data.groupId == resource.data.groupId
+        && request.resource.data.typ == resource.data.typ
+        && request.resource.data.skapad == resource.data.skapad
+        && request.resource.data.skapadAv == resource.data.skapadAv
+        && (
+          opsBiblioteketNu(request.resource.data.andrad)
+          || (request.resource.data.andrad == resource.data.andrad
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["durationMs", "peaks"]))
+        )
+        && opsBibliotekspostGiltig(request.resource.data, id)
+        && (
+          (opsBibliotekPlatsMedlem(resource.data.groupId) && resource.data.skapadAv.uid == request.auth.uid)
+          || opsBibliotekPlatsAdmin(resource.data.groupId)
+        );
+      allow delete: if (opsBibliotekPlatsMedlem(resource.data.groupId) && resource.data.skapadAv.uid == request.auth.uid)
+        || opsBibliotekPlatsAdmin(resource.data.groupId);
+    }

@@ -11,6 +11,28 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ## Ej utgivet
 
+## 0.122.0
+
+cllp/lifehub.app#366 punkt 3, ramverkets del (R1): filer på ett ärende. Designen står i `docs/beslut/0007-arendefiler-pa-arende.md`, CP:s beslut i https://github.com/cllp/lifehub.app/issues/366#issuecomment-6271704171. Appens delar (A1 till A4: datum och synlig bilaga, regeldeploy och sektionen Filer, ärendet som en post med länken nycklad på dess id, kalenderlagret) kommer efter ompinningen.
+Inga ändringar i postens fält, ingen ny samling och ingen ny typ. ⛔ Följder att veta om: `OpsBibliotek` kastar nu också om en ärendeplats ges som `platser` eller `grupper`, och `flyttaBibliotekspost` kastar för en, också mellan ett ärende och en händelse. En app som inte använder ärendefiler märker ingenting, och texten för regelfragmenten är byte för byte den som 0.121.0 skrev så länge de nya valen (`arenden`, `arendefiler`) inte skickas.
+
+### Ett ärendes filer är en plats, som en händelses (CP 2026-10-19, #366), Claude 2026-10-19
+CP: biljetterna till bion ska ligga på ärendet "köpa biljetter före fredag". Ärendet i appen är inkorgsposten (GitHub-kopian är en spegel), och dess enda bilaga är en data-URL med tak 700 000 tecken, som en vanlig biljett-PDF inte ryms i. Beslutet i ramverket: ärendet bor i appen, GitHub är en spegel, och filerna får en egen plats. GitHub får aldrig filer.
+- `groupId` får en fjärde form: `arende~<grupp>~<inkorgspostens id>` (`arendeBibliotek(groupId, arendeId)`, `arendedelar`, `arArendeBibliotek`, `arObjektbibliotek`, `ARENDE_PREFIX`, `ARENDEFORM`, `ARENDEIDFORM`). Id-formen är händelsens (ett Firestore-id), och formen byggs av samma funktion som händelsens, så de två inte kan glida isär. `gruppForPlats` känner nu båda, så delningen och appens servrar slår upp gruppens medlemskap för ett ärende precis som för en händelse. `postFel` godtar platsen bara för en fil (felet nämner ärendet), och `farAndra` låter gruppens roller gälla.
+- Behörigheten är gruppens medlemskap, tolkat ur platsen. `bibliotekregelfragment(namn, { arenden })` (appens ärendesamling, normalt `inkorg`, inget förval) lägger till grenen: läsa kräver aktiv medlem OCH att posten finns i ärendesamlingen OCH att dess `groupId` är platsens grupp (annars läser en medlem i A ärendets filer i B genom en påhittad plats). Skapa kräver dessutom en person och `typ == "fil"`. Ändra och radera som i gruppen: författaren, ägare och admin. Ett ärende-id slås upp i ärendesamlingen och ett händelse-id i händelsesamlingen, aldrig tvärtom. `lagringsregelfragment({ bibliotek: { ..., arendefiler: true } })` släpper in platsen i Storage. De två fragmenten byggs av en konstruktion per objekt (händelse, ärende) i stället för en kopia per objekt.
+- `OpsPlatsfiler` är sektionen "Filer" för ETT OBJEKT, en händelse eller ett ärende, och ersätter att kopiera `OpsHandelsefiler`. Slaget läses ur källans plats, så det finns ingen andra uppgift att hålla lika med den; `slag` är en valfri spärr som kastar när källan är av det andra slaget. `OpsHandelsefiler` är kvar som ett namn (`OpsPlatsfiler` med slaget låst till händelse, samma propar, samma `data-handelsefiler`, samma texter), och `ORD_OPSHANDELSEFILER` är kvar som alias. Ett ärende får `data-arendefiler`. `OpsBibliotek` får `tomText`, eftersom meningen under "Inga filer än." stod hårdskriven till händelsen.
+- Platsen syns inte i platsväljaren och inget flyttas dit eller därifrån: en flytt är ett beslut om vem som ser filen, och ett ärendes fils synlighet är ärendets. Samma skäl som för händelsen (beslut 0006).
+- `createPlatsfilerService({ kalla, samlingar: { bibliotek } })` (`ops-framework/node`): `stada({ plats, skarpt })` för hård radering av en händelse eller ett ärende med Admin SDK. Torrt som förval, rapport med alla fält också som noll. Den kastar för allt som inte är en objektplats, före något läses, eftersom en städning av gruppens egen plats hade tagit bort alla gruppens filer. `createHandelsefilerService` är kvar med samma anrop och bygger på samma tjänst. Ärendet raderas aldrig av en klient (inkorgens `update, delete: if false`), så det vanliga fallet behöver ingen städning.
+
+### Gjordes inte
+- Allt i appen (A1 till A4), regeldeployen och ompinningen.
+- Spegelrader (`github_{nr}`) får inga filer: de är serverns och saknar post. Anteckningar och länkar på ett ärende (ärendets text och kommentarerna finns redan), flytt eller kopiering mellan platser, filer till GitHub.
+- Storage prövar inte att ärendet finns, bara gruppens medlemskap och att posten finns med samma plats (samma val som för händelsen, beslut 0006): posten kan bara skapas under ett ärende som fanns och som hör till gruppen.
+- Montage mot SessionStudio (regel 12): ärendet citerar ingen SS-skärmbild, så regeln utlöses inte, och ingen skärmbild bredvid förebilden har tagits.
+
+### Prov, rött utan fixen och grönt med
+- Se PR-texten för utfallen. Nya: `rules/__tests__/arendefiler.test.mjs` (Firestore och Storage i emulatorn, 30 prov med golv på utfallen), `arendefiler.test.js` (platsen, posten, källan, flytten, regelfragmenten byte för byte mot `rules/__fixturer__/*-0.121.0*.rules`, delningen, städningen), `arendefiler-vy.test.jsx` (sektionen, spärren mellan slagen, platsväljaren).
+
 ## 0.121.0
 
 cllp/lifehub.app#366 punkt 2, ramverkets del: filer på en händelse. Designen och valet mot alternativet står i `docs/beslut/0006-handelsefiler-pa-handelse.md`. Appens del (kalla, inkoppling i händelsepanelen, regeldeploy, ompinning) kommer efter ompinningen.
