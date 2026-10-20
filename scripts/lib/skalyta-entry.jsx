@@ -18,6 +18,8 @@ const { OpsModulTyper } = Ops;
 // 0.131.0: gästernas två vyer. Saknas de i dist (äldre bygge) ritas en markör, och provet blir rött på rätt sak i stället för att sidan kastar.
 const OpsGastLista = Ops.OpsGastLista ?? (() => <span data-saknas="OpsGastLista">OpsGastLista saknas</span>);
 const OpsGastSida = Ops.OpsGastSida ?? (() => <span data-saknas="OpsGastSida">OpsGastSida saknas</span>);
+// 0.132.0: det bantade gränssnittet för en gruppgäst (avsnitt 56). Saknas det i dist ritas en markör.
+const OpsGastGrupp = Ops.OpsGastGrupp ?? (() => <span data-saknas="OpsGastGrupp">OpsGastGrupp saknas</span>);
 const { OpsEventList, OpsAttributes, OpsFact, OpsAppShell, OpsButton, OpsDatePicker, OpsField, OpsHub, OpsHubModul, OpsIconLink, OpsIdentity, OpsInloggning, OpsKatalogInstallning, OpsInput, OpsModal, OpsRadioGroup, OpsSelect, OpsThemeToggle, OpsCard, OpsPill, OpsPanelRow, OpsSegmented, OpsCheckbox, OpsSwitch, OpsTag, OpsChip, OpsFilterPanel, OpsFilterChip, OpsActivityListActions, OpsGruppvaljare } = Ops;
 // `OpsTimePicker` finns inte i 0.30.1. Saknas den ritas en markör, och provet blir rött på rätt sak i stället för att sidan kastar.
 const OpsTimePicker = Ops.OpsTimePicker ?? (() => <span data-saknas="OpsTimePicker">OpsTimePicker saknas</span>);
@@ -198,6 +200,93 @@ function GastListaScen({ full }) {
         />
       </div>
     </Skal>
+  );
+}
+
+/*
+ * 0.132.0 (lifehub.app#389, skiva 2): hela gruppen. `gastgrupp-lista` är medlemmens lista över personer med bekräftelsen "Bjud in gäst till hela gruppen" (öppnas av vakten);
+ * `gastgrupp-sida` är gästens bantade gränssnitt, ritat av `OpsGastSida` med `OpsGastGrupp` och ett api som svarar som tjänsten gör (`window.__gastgruppanrop` samlar anropen).
+ * Chatten har en lång rad, en bilaga och ett citat; kalendern en vanlig händelse och en med Datum ej satt; ärendena ett långt; biblioteket en PDF, ett ljud och en anteckning.
+ */
+const GASTPERSONER = [
+  { gastId: "g_" + "1".repeat(40), epost: "anna@foretag.se", namn: "", status: "inloggad", inbjudningar: [
+    { id: "i1", omfang: { slag: "grupp" }, titel: null, status: "inloggad" },
+    { id: "i2", omfang: { slag: "sak", funktion: "rosta", handelseId: "h1" }, titel: "Repetition på Östergatan med ett riktigt långt namn som måste få brytas", status: "vantar" },
+  ] },
+  { gastId: "g_" + "2".repeat(40), epost: "bo.bengtssonkarlssonandersson@domanutanbindestreckforettforetagmedlangtnamnochmer.example.se", namn: "Bo Bengtsson-Karlsson-Andersson-Lindqvist", status: "aterkallad", inbjudningar: [
+    { id: "i3", omfang: { slag: "grupp" }, titel: null, status: "aterkallad" },
+  ] },
+  { gastId: "g_" + "3".repeat(40), epost: "cia@foretag.se", namn: "Cia", status: "vantar", inbjudningar: [
+    { id: "i4", omfang: { slag: "grupp" }, titel: null, status: "vantar" },
+  ] },
+];
+/** @type {any} */ (window).__gastgruppanrop = [];
+function GastGruppListaScen() {
+  return (
+    <Skal>
+      <div className="px-4 py-4">
+        <OpsGastLista
+          personer={GASTPERSONER}
+          platser={{ anvanda: 3, totalt: 5 }}
+          nu={GAST_NU}
+          onBjudGrupp={(v) => { /** @type {any} */ (window).__gastgruppanrop.push(["bjudGrupp", v]); }}
+          onSkickaOm={(v) => { /** @type {any} */ (window).__gastgruppanrop.push(["skickaOm", v]); }}
+          onAterkalla={(v) => { /** @type {any} */ (window).__gastgruppanrop.push(["aterkalla", v]); }}
+          onAterkallaAlla={(v) => { /** @type {any} */ (window).__gastgruppanrop.push(["aterkallaAlla", v]); }}
+          onRadera={(v) => { /** @type {any} */ (window).__gastgruppanrop.push(["radera", v]); }}
+        />
+      </div>
+    </Skal>
+  );
+}
+const GASTGRUPP = { namn: "Källan", funktioner: ["chatt", "kalender", "arenden", "bibliotek"] };
+const GASTGRUPP_SVAR = {
+  chatt: () => ({ ok: true, fler: true, meddelanden: [
+    { id: "m1", av: { namn: "Agda Ägare" }, text: "Välkommen till gruppen. Här samlar vi allt inför höstens spelningar, och det här är en lång rad som måste få brytas utan att sidan flödar över i sidled.", tid: Date.UTC(2026, 9, 19, 9, 0) },
+    { id: "m2", av: { namn: "Maja Medlem" }, text: "Tack Agda", tid: Date.UTC(2026, 9, 19, 9, 5), svarPa: { id: "m1", namn: "Agda Ägare", text: "Välkommen till gruppen" } },
+    { id: "m3", av: { namn: "Tidigare medlem" }, text: "Se bilden", tid: Date.UTC(2026, 9, 19, 9, 10), bilaga: { namn: "scen.png", typ: "image/png" } },
+  ] }),
+  kalender: () => ({ ok: true, avkortad: false, ejVisade: 0, kalendrar: [], handelser: [
+    { id: "h-mote", titel: "Möte", beskrivning: "Vi ses i salen", plats: "Salen", datum: "2026-10-27", slutDatum: null, tid: "18:00", slutTid: "20:00", heldag: false, kalenderId: null, kravSvar: true, ejSatt: false },
+    { id: "h-ejsatt", titel: "Fika", beskrivning: null, plats: null, datum: null, slutDatum: null, tid: null, slutTid: null, heldag: false, kalenderId: null, kravSvar: true, ejSatt: true },
+  ] }),
+  handelse: ({ handelseId }) => ({ ok: true, handelse: { id: handelseId, titel: handelseId === "h-mote" ? "Möte" : "Fika", beskrivning: "Vi ses i salen", plats: "Salen", datum: handelseId === "h-mote" ? "2026-10-27" : null, slutDatum: null, tid: "18:00", slutTid: "20:00", heldag: false, kalenderId: null, kravSvar: true, ejSatt: handelseId !== "h-mote" }, svar: { kommer: 3, kommerInte: 1, ejSvarat: 2, text: "3 kommer, 1 kommer inte, 2 har inte svarat", mitt: null } }),
+  svara: () => ({ ok: true }),
+  rosta: () => ({ ok: true }),
+  arenden: () => ({ ok: true, avkortad: false, poster: [
+    { id: "a-1", rubrik: "Fixa scenen före lördagens spelning och köp ett riktigt långt sammansatt ord som måste få brytas", state: "ny", etiketter: ["scen", "akut"], tilldelade: ["Maja Medlem"], forfallodag: "2026-11-01", brodtext: "Skruvar **saknas**" },
+    { id: "a-2", rubrik: "Städa replokalen", state: "hanterad" },
+  ] }),
+  bibliotek: () => ({ ok: true, avkortad: false, poster: [
+    { id: "p-pdf", typ: "fil", rubrik: "Låtlista", fil: { sokvag: "p-pdf", namn: "lat.pdf", mime: "application/pdf", byte: 1200, klar: true }, skapad: Date.UTC(2026, 9, 15, 12), andrad: Date.UTC(2026, 9, 15, 12), skapadAvNamn: "Maja" },
+    { id: "p-ljud", typ: "fil", rubrik: "Demo", fil: { sokvag: "p-ljud", namn: "demo.mp3", mime: "audio/mpeg", byte: 3000, klar: true }, durationMs: 61000, skapad: Date.UTC(2026, 9, 12, 12), andrad: Date.UTC(2026, 9, 12, 12), skapadAvNamn: "Agda" },
+    { id: "p-not", typ: "anteckning", rubrik: "Kom ihåg tejp", text: "Tejp och skruvar", skapad: Date.UTC(2026, 9, 8, 12), andrad: Date.UTC(2026, 9, 8, 12), skapadAvNamn: "Agda" },
+  ] }),
+  fil: ({ postId }) => ({ ok: true, url: "data:application/pdf;base64,JVBERi0xLjQK", namn: "lat.pdf", mime: "application/pdf", postId }),
+};
+function GastGruppSidaScen() {
+  const w = /** @type {any} */ (window);
+  const lagring = (() => {
+    const d = { [`ops-gast:${GAST_ID}`]: GAST_SESSION };
+    return { getItem: (k) => d[k] ?? null, setItem: (k, v) => { d[k] = v; }, removeItem: (k) => { delete d[k]; } };
+  })();
+  const anrop = async (arg) => {
+    w.__gastgruppanrop.push([arg.atgard, Object.fromEntries(Object.entries(arg).filter(([k]) => k !== "sessionsnyckel" && k !== "atgard"))]);
+    return GASTGRUPP_SVAR[arg.atgard](arg);
+  };
+  return (
+    <OpsGastSida
+      lank={{ id: GAST_ID, nyckel: GAST_NYCKEL }}
+      lagring={lagring}
+      intervallMs={0}
+      huvud={<span className="text-publik-ingress font-semibold text-publik-ljus-text">LifeHub</span>}
+      onLos={async () => ({ ok: true, sessionsnyckel: GAST_SESSION })}
+      onHamta={async () => ({ ok: true, namn: "", funktion: "grupp", grupp: GASTGRUPP })}
+      onNyLank={async () => ({ ok: true })}
+      onNamn={async () => {}}
+      onRaderaMig={async (v) => { w.__gastgruppanrop.push(["raderaMig", v]); return { ok: true }; }}
+      renderGrupp={({ sessionsnyckel }) => <OpsGastGrupp grupp={GASTGRUPP} api={Ops.gastGruppApi(anrop, sessionsnyckel)} intervallMs={0} idag={new Date(2026, 9, 20)} />}
+    />
   );
 }
 /** Sakens kort: en omröstning i miniatyr, med riktiga knappar. */
@@ -2602,6 +2691,8 @@ function Scen() {
   if (s === "kommentar-bild") return <KommentarBildScen />;
   if (s === "gastlista") return <GastListaScen full={false} />;
   if (s === "gastlista-full") return <GastListaScen full />;
+  if (s === "gastgrupp-lista") return <GastGruppListaScen />;
+  if (s === "gastgrupp-sida") return <GastGruppSidaScen />;
   if (s.startsWith("gastsida-")) return <GastSidaScen lage={s.slice("gastsida-".length)} />;
   if (s === "kategoriformular") return <KategoriFormularScen typ="sort" />;
   if (s === "kategoriformular-status") return <KategoriFormularScen typ="status" />;

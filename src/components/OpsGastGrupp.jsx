@@ -393,6 +393,8 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
     return (
       <div data-gast-kalender="" className="flex min-w-0 flex-col gap-4">
         {kalender.handelser.length === 0 ? <OpsEmpty title={t.kalenderTom} /> : null}
+        {/* ⛔ `pb-6` tar tillbaka det kalendern drar av med `-mb-6` (`FULL_HEIGHT_CLASSES`): den är byggd för att vara sist i sin vy. Utan luften låg rubriken Datum ej satt över månadens sista rad (mätt i skalytans bild). */}
+        <div className="pb-6">
         <OpsCalendar
           ariaLabel={t.kalenderEtikett}
           entries={poster_kalender}
@@ -402,6 +404,7 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
           locale={sprak === "en" ? "en-GB" : "sv-SE"}
           {...(idag ? { today: idag } : {})}
         />
+        </div>
         {ejSatta.length > 0 ? (
           <section aria-label={t.ejSattRubrik} data-gast-ejsatta="" className="flex min-w-0 flex-col gap-2">
             <h2 className="m-0 text-sektion uppercase text-ink-muted">{DATUM_EJ_SATT[sprak === "en" ? "en" : "sv"]}</h2>
@@ -449,7 +452,7 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
   const arenden = /** @type {any} */ (data.arenden);
 
   return (
-    <div data-gast-grupp="" className="flex min-w-0 flex-col gap-4 rounded-xl border border-line bg-canvas p-3 text-ink sm:p-5">
+    <div data-gast-grupp="" className="flex min-w-0 flex-col gap-4 text-ink sm:rounded-xl sm:border sm:border-line sm:bg-canvas sm:p-5">
       <header className="flex min-w-0 flex-col gap-1">
         <h1 data-gast-grupp-namn="" className="m-0 text-titel text-ink wrap-anywhere">{grupp.namn}</h1>
         <p data-gast-grupp-ingress="" className="m-0 text-etikett text-ink-secondary">{t.gastIngress.replace("{grupp}", grupp.namn)}</p>
