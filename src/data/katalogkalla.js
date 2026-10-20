@@ -126,8 +126,17 @@ export function createCatalogSource(config) {
    */
   const reserv = validateKatalog(standard, { ikoner, textnycklar, faser, farger, katalog: `${namn} (standardvärden)`, grupp: false });
 
-  /** Varje rad som faktiskt är en grupps: förvalet, alltså groupId obligatoriskt. */
-  const gruppadKonfig = { ikoner, textnycklar, faser, farger, katalog: namn };
+  /**
+   * Varje rad som faktiskt är en grupps: förvalet, alltså groupId obligatoriskt.
+   *
+   * ⛔ UTAN `textnycklar` (0.130.0). Kravet på de deklarerade texterna gäller appens STANDARDVÄRDEN ovan och i `seedoperationer`:
+   * de skrivs av en utvecklare, och en mall som saknar en text är ett programfel. En kategori som någon lägger till i
+   * inställningsvyn skrivs av en människa som bara skrev ett namn (CP 2026-10-20, "Ett formulär värre än att gå till
+   * passpolisen"), och krävde källan texterna här vägrade `spara` den, och en rad som ändå fanns i databasen föll i `las`
+   * och tog hela katalogen till reserven. Texterna är då valfria; `texten()` svarar tom sträng för en som saknas, och
+   * appens vy väljer vad som visas i stället.
+   */
+  const gruppadKonfig = { ikoner, faser, farger, katalog: namn };
   /*
    * ⛔ FRÅGAN: gruppens rader, ELLER (övergången) hela samlingen. En rad utan
    * groupId går inte att fråga efter i Firestore (ett fält som saknas matchar

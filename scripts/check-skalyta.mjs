@@ -48,6 +48,7 @@
  *       node scripts/check-skalyta.mjs --bara-bandkontrast  bara avsnitt 49, bandets text mot underlaget över en vald ruta (0.120.0), ljust och mörkt
  *       node scripts/check-skalyta.mjs --bara-0127       bara avsnitt 50 till 52, preliminära poster, tilläggsrutan i Ny händelse och video i Biblioteket (0.127.0)
  *       node scripts/check-skalyta.mjs --bara-grupp-vantar  bara avsnitt 53, Spara och statusraden medan en grupp skapas (0.129.0)
+ *       node scripts/check-skalyta.mjs --bara-kategori  bara avsnitt 54, formuläret "Lägg till kategori": ett namn räcker (0.130.0)
  *       node scripts/check-skalyta.mjs --bara-etiketter  bara avsnitt 48, etiketterna inom sina dagsrutor i månadsvyn (0.106.0); med --tema dark som CP:s skärm
  *       node scripts/check-skalyta.mjs --chattbredder 390,1024   29g i andra bredder än 390 och 1280
  *       node scripts/check-skalyta.mjs --tema dark        alla sidor i mörkt tema (förebilden CP jämför mot är mörk)
@@ -1043,6 +1044,14 @@ if (argv.includes("--bara-0127")) {
   await kalenderPreliminar();
   await nyHandelseTillagg();
   await bibliotekVideo();
+  await browser.close();
+  avsluta();
+  process.exit(0);
+}
+
+// `--bara-kategori`: bara avsnitt 54. Hela körningen kör det också.
+if (argv.includes("--bara-kategori")) {
+  await kategoriFormular();
   await browser.close();
   avsluta();
   process.exit(0);
@@ -7344,6 +7353,170 @@ async function gruppVantar() {
   }
 }
 
+// ══ 54. LÄGG TILL KATEGORI: ETT NAMN RÄCKER (0.130.0, lifehub.app, CP 2026-10-20) ════════════════════════════════════════════
+// CP: "Jag skulle lägga till en ny ärendetyp. Det var det värsta jag gjort på länge och det funkade inte. Ett formulär värre än att
+// gå till passpolisen." Före 0.130.0 var nyckeln, svenska namnet och varje deklarerad text obligatoriska (inkorgens åtta texter gav
+// tio krav), och formuläret visade alla fält på en gång. Mätt här i en riktig webbläsare, eftersom jsdom inte kör CSS och därför
+// inte vet vad som SYNS: en stängd `<details>` är "där" i jsdom och borta i Chromium.
+//   (golv) formuläret hade minst 19 fält i DOM:en (namn, engelskt namn, 8 texter på två språk, ikonsökning), annars mättes inget.
+//   (a) vid ny kategori syns högst 2 fält (namnet och ikonsökningen) och exakt 1 är obligatoriskt.
+//   (b) "Fler texter (valfritt)" är stängd som förval och har ingen siffra, och raden är minst 44 px hög.
+//   (c) med bara ett namn sparas kategorin: ett anrop till onSpara, id härlett ur namnet, inga texter, ingen felbanderoll.
+//   (d) en befintlig kategori med texter visar antalet på den stängda raden (Ärende: 9, Idé: 2), och dess id ändras inte av ett nytt namn.
+//   (e) en text med bara engelska vägras med textens namn, och raden öppnas så att den syns.
+//   (f) onSpara som ger ett löfte: Spara är upptagen och spärrad, formuläret står kvar; släpps löftet stängs det; avslås det
+//       står skälet i banderollen och formuläret står kvar.
+//   (g) en statuskatalog (färg och fas) sparar också med bara ett namn, med färgens och fasens förval.
+//   (h) ingen sidled-överflödning med raden öppen, vid 390 och 1280 px.
+// En funktion och inte ett block i flödet, så att `--bara-kategori` kan köra den ensam. Hela körningen kör den också.
+async function kategoriFormular() {
+  /** @param {import("playwright").Page} page */
+  const matFormular = (page) =>
+    page.evaluate(() => {
+      const sv = document.querySelector('input[name="sv"]');
+      const sek = sv ? sv.closest("section") : null;
+      if (!sek) return null;
+      const kontroller = /** @type {(HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement)[]} */ ([...sek.querySelectorAll("input, select, textarea")]).filter((e) => e.type !== "hidden");
+      const synliga = kontroller.filter((e) => e.checkVisibility());
+      const krav_ = kontroller.filter((e) => e.required || e.getAttribute("aria-required") === "true");
+      const flerEl = /** @type {HTMLElement | null} */ (sek.querySelector("[data-fler-texter]"));
+      const details = flerEl ? /** @type {HTMLDetailsElement | null} */ (flerEl.closest("details")) : null;
+      const sammanfattning = details ? details.querySelector("summary") : null;
+      const sr = sammanfattning ? sammanfattning.getBoundingClientRect() : null;
+      const spara = [...sek.querySelectorAll("button")].find((b) => (b.textContent || "").trim() === "Spara");
+      const spR = spara ? spara.getBoundingClientRect() : null;
+      return {
+        alla: kontroller.length,
+        synliga: synliga.length,
+        synligaNamn: synliga.map((e) => e.getAttribute("name") || e.getAttribute("aria-label") || e.type),
+        obligatoriska: krav_.length,
+        raden: flerEl ? (flerEl.textContent || "").trim() : null,
+        oppen: details ? details.open : null,
+        radHojd: sr ? sr.height : null,
+        sparaSynlig: spara ? spara.checkVisibility() && spR !== null && spR.bottom <= innerHeight + 4000 && spR.right <= innerWidth : false,
+        overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+      };
+    });
+  /** @param {import("playwright").Page} page */
+  const banderoll = (page) => page.evaluate(() => [...document.querySelectorAll("[role=alert]")].map((e) => (e.textContent || "").trim()).join(" | "));
+
+  for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
+    const namn = `lägg till kategori ${vp.width}`;
+    const { page, context } = await oppna("kategoriformular", vp);
+    try {
+      await page.getByRole("button", { name: "Lägg till kategori" }).click();
+      await page.waitForSelector('input[name="sv"]');
+      const m = await matFormular(page);
+      matt.push(`${namn}: ${m ? `${m.alla} fält i DOM:en, ${m.synliga} synliga (${m.synligaNamn.join(", ")}), ${m.obligatoriska} obligatoriska, raden ${JSON.stringify(m.raden)} öppen ${m.oppen}` : "formuläret hittades inte"}`);
+      krav(!!m && m.alla >= 19, `${namn} (golv): ${m ? m.alla : 0} fält i formuläret, väntat minst 19 (namn, engelskt namn, åtta texter på två språk, ikonsökning). Då mättes inte inkorgens formulär.`);
+      if (m) {
+        krav(m.synliga <= 2 && m.obligatoriska === 1, `${namn} (a): ${m.synliga} synliga fält (${m.synligaNamn.join(", ")}) och ${m.obligatoriska} obligatoriska, väntat högst 2 synliga (namnet och ikonsökningen) och exakt 1 obligatoriskt.`);
+        krav(m.oppen === false && m.raden === "Fler texter (valfritt)", `${namn} (b): raden ${JSON.stringify(m.raden)} är ${m.oppen === null ? "borta" : m.oppen ? "öppen" : "stängd"}, väntat "Fler texter (valfritt)" stängd och utan siffra.`);
+        krav(m.radHojd !== null && m.radHojd >= 44, `${namn} (b): raden är ${m.radHojd === null ? "borta" : m.radHojd.toFixed(0) + " px"} hög, väntat minst 44 px träffyta.`);
+        krav(!m.overflow, `${namn} (h): sidan flödar över i sidled med formuläret öppet.`);
+      }
+      if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `kategori-formular-ny-${vp.width}.png`), fullPage: true });
+
+      // (c) bara ett namn.
+      await page.evaluate(() => { /** @type {any} */ (window).__sparat.length = 0; });
+      await page.locator('input[name="sv"]').fill("Reklamation");
+      await page.getByRole("button", { name: "Spara", exact: true }).click();
+      await page.waitForTimeout(150);
+      const c = await page.evaluate(() => ({ sparat: /** @type {any} */ (window).__sparat.slice(), kvar: !!document.querySelector('input[name="sv"]') }));
+      const ban = await banderoll(page);
+      matt.push(`${namn}: sparat ${JSON.stringify(c.sparat.map((k) => ({ id: k.id, namn: k.namn, ikon: k.ikon, texter: k.texter })))}, banderoll ${JSON.stringify(ban)}, formuläret kvar ${c.kvar}`);
+      krav(c.sparat.length === 1 && c.sparat[0].id === "reklamation" && Object.keys(c.sparat[0].texter || {}).length === 0 && c.sparat[0].ikon === "inbox" && !ban && !c.kvar,
+        `${namn} (c): med bara ett namn sparades ${c.sparat.length} kategorier (id ${JSON.stringify(c.sparat[0] && c.sparat[0].id)}, ikon ${JSON.stringify(c.sparat[0] && c.sparat[0].ikon)}), banderoll ${JSON.stringify(ban)}, formuläret kvar ${c.kvar}. Väntat en kategori med id "reklamation", förvalsikonen "inbox", inga texter, ingen banderoll och formuläret stängt.`);
+
+      // (d) en befintlig kategori: siffran, och id:t ändras inte av ett nytt namn.
+      for (const [rubrik, forvantat] of [["Ärende", "9 ifyllda"], ["Idé", "2 ifyllda"]]) {
+        await page.evaluate(() => { /** @type {any} */ (window).__sparat.length = 0; });
+        await page.locator("li", { hasText: rubrik }).first().getByRole("button", { name: /Ändra/ }).click();
+        const d = await matFormular(page);
+        krav(!!d && d.oppen === false && !!d.raden && d.raden.includes(forvantat), `${namn} (d): ${rubrik}: raden säger ${JSON.stringify(d && d.raden)} och är ${d && d.oppen === false ? "stängd" : "öppen eller borta"}, väntat "Fler texter (valfritt)" med "${forvantat}", stängd.`);
+        if (rubrik === "Ärende") {
+          await page.locator('input[name="sv"]').fill("Ett helt annat namn");
+          await page.getByRole("button", { name: "Spara", exact: true }).click();
+          await page.waitForTimeout(150);
+          const sp = await page.evaluate(() => /** @type {any} */ (window).__sparat.slice());
+          krav(sp.length === 1 && sp[0].id === "arende" && sp[0].namn.sv === "Ett helt annat namn" && Object.keys(sp[0].texter).length === 8, `${namn} (d): ett nytt namn på Ärende gav id ${JSON.stringify(sp[0] && sp[0].id)} och ${sp[0] ? Object.keys(sp[0].texter).length : 0} texter, väntat id "arende" (oförändrat) och alla åtta texter kvar.`);
+        } else {
+          await page.getByRole("button", { name: "Avbryt" }).click();
+        }
+      }
+
+      // (e) en text med bara engelska.
+      await page.getByRole("button", { name: "Lägg till kategori" }).click();
+      await page.locator('input[name="sv"]').fill("Förfrågan");
+      await page.evaluate(() => { /** @type {any} */ (window).__sparat.length = 0; });
+      await page.locator("summary", { hasText: "Fler texter" }).click();
+      await page.locator('input[name="texter.titleHint.en"]').fill("Only English");
+      await page.getByRole("button", { name: "Spara", exact: true }).click();
+      await page.waitForTimeout(150);
+      const e = await matFormular(page);
+      const eBan = await banderoll(page);
+      const eSparat = await page.evaluate(() => /** @type {any} */ (window).__sparat.length);
+      krav(eSparat === 0 && /Rubrikens hjälp/.test(eBan) && !!e && e.oppen === true, `${namn} (e): en text med bara engelska gav ${eSparat} sparade, banderoll ${JSON.stringify(eBan)}, raden ${e && e.oppen ? "öppen" : "stängd"}. Väntat 0 sparade, banderollen med textens namn "Rubrikens hjälp" och raden öppen.`);
+      if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `kategori-formular-fler-oppen-${vp.width}.png`), fullPage: true });
+      krav(!!e && !e.overflow, `${namn} (h): sidan flödar över i sidled med raden öppen.`);
+      await page.getByRole("button", { name: "Avbryt" }).click();
+
+      // (f) ett löfte som väntar, släpps, och avslås.
+      for (const avslag of [false, true]) {
+        await page.evaluate((a) => { const w = /** @type {any} */ (window); w.__sparaHall = true; w.__sparaAvslag = a; w.__sparat.length = 0; }, avslag);
+        await page.getByRole("button", { name: "Lägg till kategori" }).click();
+        await page.locator('input[name="sv"]').fill(avslag ? "Avslaget" : "Väntar");
+        await page.getByRole("button", { name: "Spara", exact: true }).click();
+        await page.waitForSelector('button[aria-busy="true"]', { timeout: 3000 });
+        const v = await page.evaluate(() => {
+          const b = [...document.querySelectorAll("button")].find((x) => x.getAttribute("aria-busy") === "true");
+          return { busy: !!b, spard: !!(b && /** @type {HTMLButtonElement} */ (b).disabled), snurra: !!(b && b.querySelector("svg")), etikett: b ? (b.textContent || "").trim() : null, kvar: !!document.querySelector('input[name="sv"]') };
+        });
+        krav(v.busy && v.spard && v.snurra && v.kvar, `${namn} (f): medan löftet väntar: Spara upptagen ${v.busy}, spärrad ${v.spard}, med snurra ${v.snurra}, formuläret kvar ${v.kvar}. Väntat allt fyra.`);
+        await page.evaluate(() => /** @type {any} */ (window).__sparaSlapp());
+        await page.waitForTimeout(200);
+        const efter = await page.evaluate(() => ({ kvar: !!document.querySelector('input[name="sv"]'), busy: !!document.querySelector('button[aria-busy="true"]') }));
+        const efterBan = await banderoll(page);
+        if (avslag) {
+          krav(efter.kvar && !efter.busy && /Databasen svarade inte/.test(efterBan), `${namn} (f): efter ett avslag: formuläret kvar ${efter.kvar}, Spara upptagen ${efter.busy}, banderoll ${JSON.stringify(efterBan)}. Väntat formuläret kvar, Spara ledig och skälet "Databasen svarade inte" i banderollen.`);
+          await page.getByRole("button", { name: "Avbryt" }).click();
+        } else {
+          krav(!efter.kvar && !efter.busy, `${namn} (f): efter att löftet släppts: formuläret kvar ${efter.kvar}, Spara upptagen ${efter.busy}. Väntat formuläret stängt.`);
+        }
+      }
+      await page.evaluate(() => { const w = /** @type {any} */ (window); w.__sparaHall = false; w.__sparaAvslag = false; });
+    } catch (err) {
+      krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (err).message).split("\n")[0]}).`);
+    }
+    await context.close();
+
+    // (g) en statuskatalog med färg och fas.
+    const statusNamn = `lägg till status ${vp.width}`;
+    const sida2 = await oppna("kategoriformular-status", vp);
+    try {
+      await sida2.page.getByRole("button", { name: "Lägg till kategori" }).click();
+      await sida2.page.waitForSelector('input[name="sv"]');
+      const g0 = await matFormular(sida2.page);
+      matt.push(`${statusNamn}: ${g0 ? `${g0.alla} fält, ${g0.synliga} synliga (${g0.synligaNamn.join(", ")}), ${g0.obligatoriska} obligatoriska, raden ${JSON.stringify(g0.raden)}` : "formuläret hittades inte"}`);
+      await sida2.page.evaluate(() => { /** @type {any} */ (window).__sparat.length = 0; });
+      await sida2.page.locator('input[name="sv"]').fill("På väg");
+      await sida2.page.getByRole("button", { name: "Spara", exact: true }).click();
+      await sida2.page.waitForTimeout(150);
+      const g = await sida2.page.evaluate(() => /** @type {any} */ (window).__sparat.slice());
+      const gBan = await banderoll(sida2.page);
+      krav(g.length === 1 && g[0].id === "pa-vag" && g[0].fas === "aktiv" && typeof g[0].farg === "number" && !gBan, `${statusNamn} (g): med bara ett namn sparades ${g.length} (id ${JSON.stringify(g[0] && g[0].id)}, fas ${JSON.stringify(g[0] && g[0].fas)}, färg ${JSON.stringify(g[0] && g[0].farg)}), banderoll ${JSON.stringify(gBan)}. Väntat id "pa-vag", fas "aktiv" och en färgplats.`);
+      if (bildmapp) {
+        await sida2.page.getByRole("button", { name: "Lägg till kategori" }).click();
+        await sida2.page.waitForSelector('input[name="sv"]');
+        await sida2.page.screenshot({ path: path.join(bildmapp, `kategori-formular-status-${vp.width}.png`), fullPage: true });
+      }
+    } catch (err) {
+      krav(false, `${statusNamn}: provet avbröts (${String(/** @type {Error} */ (err).message).split("\n")[0]}).`);
+    }
+    await sida2.context.close();
+  }
+}
+
 await apparArkHylla();
 await apparArkOrdning();
 await textfaltMedTal();
@@ -7355,6 +7528,7 @@ await kalenderPreliminar();
 await nyHandelseTillagg();
 await bibliotekVideo();
 await gruppVantar();
+await kategoriFormular();
 
 await browser.close();
 avsluta();
