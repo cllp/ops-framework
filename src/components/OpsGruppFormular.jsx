@@ -3,6 +3,7 @@ import { useOpsSprak } from "./OpsSprak.jsx";
 import { cx } from "../lib/cx.js";
 import { MAX_GRUPPBESKRIVNING, MAX_GRUPPORT } from "../lib/grupp.js";
 import { gruppmarkeProps } from "../lib/gruppikoner.js";
+import { EPOSTFORM } from "../lib/mejl.js";
 import { kulorTillFarg } from "../lib/gruppfarg.js";
 import { OpsGruppmarkeValjare } from "./OpsGruppmarkeValjare.jsx";
 import { OpsBanner } from "./OpsBanner.jsx";
@@ -284,9 +285,6 @@ const STANDARD = {
   },
 };
 
-/** Samma tumregel som servern (`EPOSTFORM` i `src/node/grupp.js`): en rad som inte är skräp, inte en kontroll av brevlådan. */
-const EPOSTFORM = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
 /**
  * @typedef {object} GruppFormularSvar Vad `onSkapa` svarar med (`skapaGrupp` på nodsidan).
  * @property {string} groupId
@@ -306,9 +304,9 @@ const EPOSTFORM = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
  * @param {GruppFormularEtiketter} [props.etiketter] Enskilda texter att byta ut.
  * @param {{ id: string, namn: Namn, farg?: string, ikon?: string, bild?: string, beskrivning?: string, ort?: string, epostsprak?: "sv"|"en", moduler?: ReadonlyArray<string>, huvudmeny?: ReadonlyArray<string> }} [props.grupp] REDIGERINGSLÄGE (0.32.0, G2): den befintliga gruppen. Utan den skapas en ny.
  * @param {(b: { grupp: { namn: string | Namn, farg: string, ikon: string, bild: string, beskrivning: string, ort: string, epostsprak: "sv"|"en", moduler?: string[], huvudmeny?: string[] } }) => Promise<void>} [props.onSpara] Appens sparande i redigeringsläge. Ett kast visas i formuläret.
- *   ⛔ `moduler` och `huvudmeny` (0.83.0) finns med BARA när modulvalet visades (ägaren, se `moduler`). En admin skickar aldrig fältet, eftersom reglerna avvisar hela uppdateringen om det ändras.
- * @param {{ valbara: ReadonlyArray<import("../lib/modul.js").Modul>, agare: boolean, installningarHref?: (modul: import("../lib/modul.js").Modul) => string, onNavigate?: (href: string, event: any) => void }} [props.moduler] (0.37.0, #184) Modulvalet i redigeringsläge: `valbara` ur
- *   `valbaraModuler(registrerade)`, `agare` sant bara när den inloggade är gruppens ägare. Utan det, eller för en admin, ritas inget modulval.
+ *   ⛔ `moduler` och `huvudmeny` (0.83.0) finns med BARA när modulvalet visades (`moduler.farAndra`). Sedan 0.128.0 (cllp/lifehub.app#252) är det ägaren och en admin; en medlem skickar aldrig fältet, eftersom reglerna avvisar hela uppdateringen om det ändras.
+ * @param {{ valbara: ReadonlyArray<import("../lib/modul.js").Modul>, farAndra: boolean, installningarHref?: (modul: import("../lib/modul.js").Modul) => string, onNavigate?: (href: string, event: any) => void }} [props.moduler] (0.37.0, #184) Modulvalet i redigeringsläge: `valbara` ur
+ *   `valbaraModuler(registrerade)`, `farAndra` sant när den inloggade är gruppens ägare ELLER en admin (0.128.0: det hette `agare` och var sant bara för ägaren; propen `agare` kastar nu, så att en app som inte läst changeloggen inte tyst tappar modulvalet för admin). Utan det, eller för en medlem, ritas inget modulval.
  *   0.89.0: `installningarHref` ger länken Inställningar under en installerad app med kort. Den öppnar appens eget läge. Saknas den ritas ingen länk: inställningarna finns ändå i appen, och en länk utan adress är en knapp som inte leder någonstans.
  * @param {string} [props.bildUrl] Gruppens nuvarande bild att visa (URL). Bara redigeringsläge.
  * @param {(fil: File) => Promise<{ sokvag: string, url: string }>} [props.onLaddaUppBild] Appens uppladdning. Utan den finns ingen bildväljare.
@@ -347,13 +345,16 @@ export function OpsGruppFormular({ formId, onSkapa, onSkapad, onKlar, sprak: spr
   const [felmeddelande, setFelmeddelande] = useState("");
   const [resultat, setResultat] = useState(/** @type {GruppFormularSvar | null} */ (null));
   /*
-   * ⛔ MODULVALET VISAS BARA FÖR ÄGAREN, I REDIGERINGSLÄGE (0.37.0, #184). `moduler` är ägarens fält
-   * (`AGARGRUPPFALT`), och en admin som skickade med det fick hela sparningen avvisad av reglerna, inte bara modulerna.
+   * ⛔ MODULVALET VISAS BARA FÖR ÄGAREN OCH ADMIN, I REDIGERINGSLÄGE (0.37.0, #184; admin 0.128.0, #252). `moduler` och `huvudmeny` står i `ADMINGRUPPFALT`, och en medlem som skickade med
+   * dem fick hela sparningen avvisad av reglerna, inte bara modulerna. Före 0.128.0 var de ägarens fält (`AGARGRUPPFALT`) och valet visades bara för ägaren.
    * ⛔ ORDNINGEN ÄR VALORDNINGEN: en modul som väljs hamnar sist, och hubben ritar korten i den ordningen.
    * ⛔ ETT ID SOM INTE ÄR VALBART LIGGER KVAR, och en rad säger det. Att tyst tappa det vid nästa sparning vore
    * en ändring ägaren aldrig gjorde (arbetsreglernas punkt 5).
    */
-  const visaModulval = redigerar && modulval?.agare === true && Array.isArray(modulval.valbara);
+  if (modulval && "agare" in modulval) {
+    throw new Error("OpsGruppFormular: moduler.agare är borta (0.128.0, cllp/lifehub.app#252). Skicka farAndra: true för gruppens ägare ELLER en admin. Båda får nu välja appar, och en prop som tyst ignorerades hade låtit admin sakna valet.");
+  }
+  const visaModulval = redigerar && modulval?.farAndra === true && Array.isArray(modulval.valbara);
   /*
    * ⛔ KÄRNMODULERNA (0.106.0, #386): de står med i listan som sparas, också när den sparade saknar dem, och de ritas inte bland valen.
    * En ägare kan varken installera eller ta bort en app som alltid finns (`karna.js`).
@@ -607,7 +608,7 @@ export function OpsGruppFormular({ formId, onSkapa, onSkapad, onKlar, sprak: spr
         <OpsInput value={ort} onChange={setOrt} placeholder={t.ortPlatshallare} disabled={upptagen} maxLength={MAX_GRUPPORT} />
       </OpsField>
 
-      {/* ── 2b. Moduler: bara ägaren, bara redigeringsläge (0.37.0, #184) ─────────────────────────────── */}
+      {/* ── 2b. Moduler: ägaren och admin, bara redigeringsläge (0.37.0, #184; admin 0.128.0, #252) ─────────────── */}
       {visaModulval && modulval ? (
         <section aria-label={t.modulerRubrik} data-gruppmoduler="" className="flex flex-col gap-2">
           <h3 className="m-0 text-etikett font-medium text-ink-secondary">{t.modulerRubrik}</h3>

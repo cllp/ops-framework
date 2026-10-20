@@ -82,7 +82,7 @@ describe("två kärnmoduler (CP: Inkorgen är också inbyggd)", () => {
   });
   it("⛔ Redigera grupp ritar ingen av dem och sparar båda", async () => {
     const onSpara = vi.fn(async () => {});
-    render(<OpsGruppFormular formId="f" grupp={UTAN_BADA} onSpara={onSpara} moduler={{ valbara: valbaraModuler(TVA), agare: true }} />);
+    render(<OpsGruppFormular formId="f" grupp={UTAN_BADA} onSpara={onSpara} moduler={{ valbara: valbaraModuler(TVA), farAndra: true }} />);
     const val = /** @type {HTMLElement} */ (document.querySelector("[data-gruppmoduler]"));
     expect([...val.querySelectorAll("[data-modul]")].map((el) => el.getAttribute("data-modul"))).toEqual(["ekonomi", "resor"]);
     fireEvent.submit(/** @type {HTMLFormElement} */ (document.querySelector("form#f")));
@@ -114,7 +114,7 @@ describe("ingen väg att installera eller ta bort den", () => {
   });
   it("⛔ Redigera grupp ritar den inte bland valen, och sparningen skriver tillbaka den", async () => {
     const onSpara = vi.fn(async () => {});
-    render(<OpsGruppFormular formId="f" grupp={UTAN} onSpara={onSpara} moduler={{ valbara: valbaraModuler(ALLA), agare: true }} />);
+    render(<OpsGruppFormular formId="f" grupp={UTAN} onSpara={onSpara} moduler={{ valbara: valbaraModuler(ALLA), farAndra: true }} />);
     const val = /** @type {HTMLElement} */ (document.querySelector("[data-gruppmoduler]"));
     expect(within(val).queryByRole("button", { name: "Meddelanden" })).toBeNull();
     expect(within(val).getByRole("button", { name: "Ekonomi" })).toBeTruthy();

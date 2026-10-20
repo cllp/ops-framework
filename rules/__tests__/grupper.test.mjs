@@ -41,7 +41,10 @@
  *   hubben: avslutad, utomstående, utan      nej
  *   hubben: fråga alla grupper med en modul  nej
  *   huvudmenyn: ägaren ändrar                ja       (0.83.0)
- *   huvudmenyn: admin ändrar                 nej      (0.83.0)
+ *   huvudmenyn: admin ändrar                 ja       (0.128.0, #252: var nej sedan 0.83.0)
+ *   appar (moduler): admin slår av/på, ordnar ja       (0.128.0, #252: var nej sedan 0.32.0)
+ *   appar: medlem, admin i annan grupp       nej      (0.128.0)
+ *   admin: arkivera, externa datakällor      nej      (oförändrat, ägarens)
  *
  * Kör: npm run test:rules
  */
@@ -63,6 +66,8 @@ const MEDLEM = "uid-medlem";
 const AVSLUTAD = "uid-avslutad";
 const UTANFOR = "uid-utanfor";
 const ADMIN = "uid-admin";
+/** Admin i en ANNAN grupp (0.128.0): hen ändrar inte den här gruppens appval. */
+const ANNAN_ADMIN = "uid-annan-admin";
 
 const VAR = "grupp-var";
 const ANNAN = "grupp-annan";
@@ -111,6 +116,7 @@ before(async () => {
     await setDoc(doc(db, `memberships/${medlemskapsId(AVSLUTAD, VAR)}`), { userId: AVSLUTAD, groupId: VAR, roll: "medlem", typ: "person", status: "avslutad" });
     await setDoc(doc(db, `memberships/${medlemskapsId(UTANFOR, ANNAN)}`), { userId: UTANFOR, groupId: ANNAN, roll: "agare", typ: "person", status: "aktiv" });
     await setDoc(doc(db, `memberships/${medlemskapsId(ADMIN, VAR)}`), { userId: ADMIN, groupId: VAR, roll: "admin", typ: "person", status: "aktiv" });
+    await setDoc(doc(db, `memberships/${medlemskapsId(ANNAN_ADMIN, ANNAN)}`), { userId: ANNAN_ADMIN, groupId: ANNAN, roll: "admin", typ: "person", status: "aktiv" });
 
     // Gruppen som create-proven (#216) skapar: ägaren har medlemskap men raden saknas tills provet skriver den.
     for (const nid of NYA) {
@@ -348,24 +354,49 @@ describe("⛔ gruppen: admin ändrar utseende och uppgifter men inte mer (0.32.0
     await assertFails(deleteDoc(doc(som(ADMIN), `groups/${VAR}`)));
   });
 
-  it("⛔ en admin ändrar inte modulerna, det är ägarens", async () => {
-    await assertFails(updateDoc(doc(som(ADMIN), `groups/${VAR}`), { moduler: ["allt"] }));
+  /*
+   * ⛔ 0.128.0 (cllp/lifehub.app#252, CP 2026-10-20): "admin får slå av och på gruppens appar, så som admin gör i SessionStudio. Ägaren behåller det som inte går att
+   * ångra, bland annat att ta bort gruppen." `moduler` och `huvudmeny` flyttade från AGARGRUPPFALT till ADMINGRUPPFALT. Röda mot 0.127.0 (admin nekades) och gröna nu; de som
+   * ska vara nej (medlem, admin i en annan grupp, arkivering, externa datakällor) är gröna i båda.
+   */
+  it("⛔ en admin slår av och på appar och byter ordning (0.128.0, #252)", async () => {
+    await assertSucceeds(updateDoc(doc(som(ADMIN), `groups/${VAR}`), { moduler: ["ekonomi", "inkorg", "bibliotek"] }));
+    await assertSucceeds(updateDoc(doc(som(ADMIN), `groups/${VAR}`), { moduler: ["bibliotek", "ekonomi"] }));
+    await assertSucceeds(updateDoc(doc(som(ADMIN), `groups/${VAR}`), { moduler: [] }));
+    await assertSucceeds(updateDoc(doc(som(ADMIN), `groups/${VAR}`), { moduler: ["ekonomi"] }));
+  });
+
+  it("⛔ en admin tar en app ur huvudmenyn i samma skrivning som appen slås av (0.128.0, #252)", async () => {
+    await assertSucceeds(updateDoc(doc(som(ADMIN), `groups/${VAR}`), { moduler: ["ekonomi", "resor"], huvudmeny: ["ekonomi", "resor"] }));
+    await assertSucceeds(updateDoc(doc(som(ADMIN), `groups/${VAR}`), { moduler: ["ekonomi"], huvudmeny: ["ekonomi"] }));
+  });
+
+  it("⛔ en medlem och en admin i en ANNAN grupp ändrar inte appvalet", async () => {
+    await assertFails(updateDoc(doc(som(MEDLEM), `groups/${VAR}`), { moduler: ["medlemmens-forsok"] }));
+    await assertFails(updateDoc(doc(som(MEDLEM), `groups/${VAR}`), { huvudmeny: ["medlemmens-forsok"] }));
+    await assertFails(updateDoc(doc(som(ANNAN_ADMIN), `groups/${VAR}`), { moduler: ["annan-admins-forsok"] }));
+    await assertFails(updateDoc(doc(som(ANNAN_ADMIN), `groups/${VAR}`), { huvudmeny: ["annan-admins-forsok"] }));
+  });
+
+  it("⛔ appvalet följer inte med arkivering: en admin som skickar moduler OCH arkiverad i samma skrivning nekas helt", async () => {
+    await assertFails(updateDoc(doc(som(ADMIN), `groups/${VAR}`), { moduler: ["ekonomi", "tillsammans-med-arkivering"], arkiverad: true }));
   });
 
   /*
-   * ⛔ 0.83.0: `huvudmeny` (vilka moduler som har sin ikon i huvudet) är ägarens, som `moduler`. Röda mot 0.82.0 i den
-   * riktning som släpper in: utan fältet i AGARGRUPPFALT nekas också ägaren (affectedKeys().hasOnly). Står det i
-   * ADMINGRUPPFALT i stället blir admin-provet rött.
+   * ⛔ 0.83.0: `huvudmeny` (vilka moduler som har sin ikon i huvudet) hör till appvalet, som `moduler`. Röda mot 0.82.0 i den
+   * riktning som släpper in: utan fältet i AGARGRUPPFALT nekas också ägaren (affectedKeys().hasOnly). 0.128.0 (#252): fältet står
+   * nu i ADMINGRUPPFALT och admin-provet är positivt.
    */
   it("⛔ ägaren väljer vilka moduler som står i huvudmenyn", async () => {
     await assertSucceeds(updateDoc(doc(som(AGARE), `groups/${VAR}`), { huvudmeny: ["ekonomi"] }));
   });
 
-  it("⛔ en admin ändrar inte huvudmenyn, det är ägarens", async () => {
+  it("⛔ en admin ändrar huvudmenyn (0.128.0, #252: nekades före)", async () => {
     // ⛔ ETT VÄRDE SOM INTE REDAN STÅR DÄR. Raden delas mellan proven, och ägarens prov ovan har skrivit ["ekonomi"]: samma
-    // värde en gång till är ingen ändring (`affectedKeys()` tom), och då släpps vem som helst med skrivrätt igenom. Provet
-    // var grönt av fel skäl i första körningen, och det är därför raden står här.
-    await assertFails(updateDoc(doc(som(ADMIN), `groups/${VAR}`), { huvudmeny: ["ekonomi", "admins-forsok"] }));
+    // värde en gång till är ingen ändring (`affectedKeys()` tom), och då släpps vem som helst med skrivrätt igenom. Ett
+    // prov som ska vara NEJ var grönt av fel skäl i första körningen, och det är därför värdet är ett annat här.
+    await assertSucceeds(updateDoc(doc(som(ADMIN), `groups/${VAR}`), { huvudmeny: ["ekonomi", "inkorg"] }));
+    await assertSucceeds(updateDoc(doc(som(ADMIN), `groups/${VAR}`), { huvudmeny: [] }));
   });
 
   it("⛔ en admin arkiverar inte gruppen, det är ägarens", async () => {
@@ -418,7 +449,7 @@ describe("⛔ gruppen: externaDatakallor skriver bara ägaren, och bara giltiga 
     await assertFails(sattExterna(MEDLEM, [giltig()]));
   });
 
-  it("⛔ en admin ändrar fortfarande utseendet, och ägaren fortfarande moduler: oförändrat beteende", async () => {
+  it("⛔ en admin ändrar utseendet, och ägaren ändrar fortfarande moduler: oförändrat beteende", async () => {
     await assertSucceeds(updateDoc(doc(som(ADMIN), `groups/${VAR}`), { ort: "Visby" }));
     await assertSucceeds(updateDoc(doc(som(AGARE), `groups/${VAR}`), { moduler: ["ekonomi"] }));
   });

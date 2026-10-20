@@ -283,20 +283,24 @@ describe("frågetecknet i modulramen och vyn", () => {
     const roller = GENERELL_OMRADEN.flatMap((o) => o.avsnitt).find((v) => v.id === "roller");
     expect(roller).toBeTruthy();
     const svar = roller?.svar ?? "";
-    // Grunden för "ägaren installerar appar, väljer huvudmenyn och arkiverar": fälten är ägarfält och inga adminfält. Det är
+    // Grunden för "ägaren arkiverar och godkänner externa datakällor, en admin inte": fälten är ägarfält och inga adminfält. Det är
     // listorna reglerna byggs ur (`diff().affectedKeys().hasOnly(...)`).
-    for (const falt of ["moduler", "huvudmeny", "arkiverad"]) {
+    for (const falt of ["arkiverad", "externaDatakallor", "typavvikelser"]) {
       expect(AGARGRUPPFALT).toContain(falt);
       expect(ADMINGRUPPFALT).not.toContain(falt);
     }
-    expect(svar).toMatch(/bara ägaren installerar och tar bort appar/);
-    expect(svar).toMatch(/huvudmenyn/);
-    expect(svar).toMatch(/arkiverar gruppen/);
-    // Adminfälten är utseende och uppgifter.
+    // Grunden för "en admin slår av och på appar, byter ordning och väljer huvudmenyn" (0.128.0, #252): fälten är adminfält.
+    for (const falt of ["moduler", "huvudmeny"]) {
+      expect(ADMINGRUPPFALT).toContain(falt);
+      expect(AGARGRUPPFALT).toContain(falt);
+    }
+    expect(svar).toMatch(/Ägare[^.]*gör allt en admin gör, och dessutom arkiverar gruppen/);
+    expect(svar).toMatch(/godkänner externa datakällor/);
+    // Adminfälten är utseende, uppgifter och appval.
     for (const falt of ["namn", "farg", "ikon", "beskrivning"]) expect(ADMINGRUPPFALT).toContain(falt);
-    expect(svar).toMatch(/Admin[^.]*ändrar gruppens utseende och uppgifter/);
-    expect(svar).toMatch(/Admin[^.]*men inte installerar appar/);
-    expect(svar).not.toMatch(/Admin[^.]*kan installera appar/);
+    expect(svar).toMatch(/Admin[^.]*ändrar gruppens utseende och uppgifter, slår av och på gruppens appar, byter deras ordning, väljer vad som visas i huvudmenyn/);
+    expect(svar).not.toMatch(/bara ägaren installerar/);
+    expect(svar).not.toMatch(/men inte installerar appar/);
     // "Bjuder in någon som ägare" är servern: `bjudIn` kastar för en admin (src/__tests__/inbjudan.test.js, "en admin får INTE bjuda in
     // till rollen agare"). Medlemskap skrivs aldrig av en klient, så texten påstår varken att roller "ändras" eller att ägarskap
     // "överlåts": ingen funktion i ramverket gör det, och en hjälptext får inte lova mer än koden gör.

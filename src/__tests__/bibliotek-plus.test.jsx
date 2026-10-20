@@ -344,11 +344,11 @@ describe("plussets inspelare och modulens mål", () => {
       );
     }
 
-    it("modulen finns inte i gruppen: Ny-menyn har de tre andra raderna, ingen Röstinspelning, och inget larm", () => {
+    it("modulen finns inte i gruppen: Ny-menyn har de fyra andra raderna (Anteckning, Länk, Fil och Lista), ingen Röstinspelning, och inget larm", () => {
       skalMed([]);
       fireEvent.click(screen.getByRole("button", { name: "Ny post" }));
       const meny = screen.getByRole("menu", { name: "Ny post" });
-      expect(Array.from(meny.querySelectorAll('[role="menuitem"]')).map((r) => r.textContent)).toEqual(["Anteckning", "Länk", "Fil"]);
+      expect(Array.from(meny.querySelectorAll('[role="menuitem"]')).map((r) => r.textContent)).toEqual(["Anteckning", "Länk", "Fil", "Lista"]);
       expect(screen.queryByRole("menuitem", { name: "Röstinspelning" })).toBeNull();
       expect(screen.queryByRole("alert")).toBeNull();
     });

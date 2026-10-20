@@ -47,7 +47,8 @@ import { PROFILIKONER, PROFILFARGER, GRUPPIKONER, GRUPPINITIALER_FORM, KATALOGNA
  * grupp finns inte ännu. Skapa grupp i web skall ha samma funktion som i SessionStudio").
  * Före 0.32.0 var de två, `agare` och `medlem`, med skälet att en roll finns för att STOPPA
  * något. `admin` stoppar något nytt: en admin får ändra gruppens utseende och uppgifter och
- * bjuda in, men aldrig arkivera gruppen, ändra dess moduler eller göra någon till ägare.
+ * bjuda in, men aldrig arkivera gruppen eller göra någon till ägare. (Sedan 0.128.0 slår en admin också av och på gruppens appar och byter deras ordning, `moduler` och
+ * `huvudmeny`, cllp/lifehub.app#252: CP 2026-10-20, "admin får slå av och på gruppens appar, så som admin gör i SessionStudio".)
  * Det är SS `isGroupAdmin` (ägare eller admin) mot ägarens egna rättigheter, och gränsen
  * står i `regelfragment()` (`opsArAdmin` mot `opsArAgare`) och i `bjudIn`, inte här.
  *
@@ -190,7 +191,7 @@ export const MAX_PRESENTATION = 500;
  * `externaDatakallor` är en lista på GRUPPEN: vilka externa tjänster gruppens ytor får hämta ur.
  * I v1 bara GitHub (`type: "github"`, `repo: "ägare/namn"`). Ramverket läser inget här: fältet är
  * konfigurationen en vy senare läser. Ägaren skriver den, en admin gör det inte (en datakälla är
- * strukturell, som `moduler`: den avgör vad gruppens ytor kommer åt), alltså står den i
+ * strukturell: den avgör vad gruppens ytor kommer åt), alltså står den i
  * `AGARGRUPPFALT` och inte i `ADMINGRUPPFALT`.
  *
  * ⛔ NAMNET ÄR ASCII, MÄTT OCH BESLUTAT AV CP 2026-10-01 ("Kör externaDatakallor, ASCII är bra").
@@ -262,15 +263,22 @@ export const ANVANDARFALT = ["id", "namn", "epost", "bild", "sprak", "tema", "te
  * ⛔ TVÅ LISTOR FÖR VAD EN KLIENT FÅR ÄNDRA PÅ EN GRUPP, OCH `GRUPPFALT` HÄRLEDS UR DEM (0.32.0, #180).
  * Reglerna (`regelfragment()`) läser samma två, så modellen och `hasOnly` inte kan glida isär, samma
  * beslut som `ANVANDARFALT` (#156). `ADMINGRUPPFALT` är det en admin får ändra: utseende och
- * uppgifter. `AGARGRUPPFALT` är det ägaren får ändra: det ovan plus `moduler`, `arkiverad` och
- * `externaDatakallor` (0.41.0, #216) och `typavvikelser` (0.42.0, #217: vilka modulbidrag gruppen dolt eller döpt om;
- * vilka moduler som är påslagna är ägarens beslut, så vad de bidrar med är det också) och `huvudmeny` (0.83.0: vilka av
- * modulerna som har sin ikon i huvudet. Samma beslut som `moduler`, och därför samma ägare).
+ * uppgifter, och sedan 0.128.0 appvalet (`moduler`, vilka appar gruppen har och i vilken ordning, och `huvudmeny`, vilka av dem som har sin ikon i huvudet).
+ * `AGARGRUPPFALT` är det ägaren får ändra: det ovan plus `arkiverad`, `externaDatakallor` (0.41.0, #216) och `typavvikelser` (0.42.0, #217: vilka modulbidrag gruppen dolt eller döpt om).
  * `id` och `skapadAv` står i ingen av dem: vem som skapade gruppen och vad den heter i databasen
  * ändras aldrig.
+ *
+ * ⛔ ADMIN SLÅR AV OCH PÅ APPAR, ÄGAREN BEHÅLLER DET SOM INTE GÅR ATT ÅNGRA (0.128.0, cllp/lifehub.app#252, CP 2026-10-20: "admin får slå av och på gruppens appar, så som admin
+ * gör i SessionStudio. Ägaren behåller det som inte går att ångra, bland annat att ta bort gruppen"). Före 0.128.0 stod `moduler` och `huvudmeny` bland ägarens fält, med skälet att
+ * appvalet är strukturellt. Händelsen var en öppen fråga på #252 efter att hubbens Appar byggts med en strömbrytare per app: reglerna lät bara gruppens ägare skriva, och en admin som
+ * tryckte nekades av reglerna. Appvalet går att ångra (slå på appen igen), och `moduler` är en lista som inte tar bort någon data: en app som slås av
+ * låter sina rader ligga kvar i gruppen. Därför flyttades de två fälten, och bara de.
+ *
+ * ⛔ `arkiverad` (gruppen tas ur bruk), `externaDatakallor` (vad gruppens ytor får hämta utifrån: ägarens godkännande) och `typavvikelser` är kvar hos ägaren, liksom att göra någon till ägare
+ * (`bjudIn`, serversidan). Appens egna inställningsvärden (`modulinstallningar`) är också kvar hos ägaren tills någon beslutat annat: de är en annan samling med en annan regel.
  */
-export const ADMINGRUPPFALT = ["namn", "farg", "ikon", "bild", "beskrivning", "ort", "epostsprak"];
-export const AGARGRUPPFALT = [...ADMINGRUPPFALT, "moduler", "huvudmeny", "arkiverad", "externaDatakallor", "typavvikelser"];
+export const ADMINGRUPPFALT = ["namn", "farg", "ikon", "bild", "beskrivning", "ort", "epostsprak", "moduler", "huvudmeny"];
+export const AGARGRUPPFALT = [...ADMINGRUPPFALT, "arkiverad", "externaDatakallor", "typavvikelser"];
 export const GRUPPFALT = ["id", ...AGARGRUPPFALT, "skapadAv"];
 /*
  * ⛔ `namn` OCH `bild` LIGGER HÄR DENORMALISERAT, OCH DET ÄR ETT BESLUT MED ETT

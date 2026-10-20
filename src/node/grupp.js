@@ -79,6 +79,7 @@
 
 import { agentMedlemskap, byggGrupp, byggMedlemskap, byggVitlisterad, medlemskapsId } from "../lib/grupp.js";
 import { byggSkapare } from "../lib/skapare.js";
+import { EPOSTFORM } from "../lib/mejl.js";
 import { standardGruppkalender } from "../lib/kalendrar.js";
 import { inbjudningstjanst } from "./inbjudan.js";
 import { seedoperationer } from "../data/katalogkalla.js";
@@ -155,9 +156,6 @@ function grupp_id(namn) {
  * @property {string[]} inbjudna E-postadresser som fick en väntande inbjudan.
  * @property {ReadonlyArray<{ epost: string, fel: string }>} fel Inbjudningar som inte blev av, med skälet. Tom lista är svaret "alla gick", aldrig en utelämnad rad.
  */
-
-/** En adress ska se ut som en adress innan något skrivs. Inte en giltighetskontroll av brevlådan, bara att raden inte är skräp. */
-const EPOSTFORM = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /**
  * Bygger `skapaGrupp`. En fabrik och inte en lös funktion, samma skäl som

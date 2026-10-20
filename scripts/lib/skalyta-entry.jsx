@@ -910,7 +910,7 @@ function TillaggInstallningScen() {
   return (
     <Full>
       <OpsView>
-        <OpsGruppFormular grupp={{ id: "g1", namn: { sv: "Claes Philip Staiger Konsulting och Förvaltning AB" }, moduler: ["ekonomi", "omrostning"] }} onSpara={async () => {}} moduler={{ valbara: Ops.valbaraModuler(moduler), agare: true }} />
+        <OpsGruppFormular grupp={{ id: "g1", namn: { sv: "Claes Philip Staiger Konsulting och Förvaltning AB" }, moduler: ["ekonomi", "omrostning"] }} onSpara={async () => {}} moduler={{ valbara: Ops.valbaraModuler(moduler), farAndra: true }} />
       </OpsView>
     </Full>
   );

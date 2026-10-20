@@ -35,6 +35,7 @@
  * i takt för hand: talet kan inte läsas ur en CSS-variabel inuti en JSX-prop.
  */
 
+import { KALLMARKEN } from "../lib/kallmarken.js";
 import { Archive, ArchiveRestore, AudioLines, Copy, BellOff, Camera, Flame, Folder, Image as BildLucide, Laugh, Link, Mail, PartyPopper, Pause, Pin, Play, Reply, SkipBack, SkipForward, Square, StickyNote, ThumbsUp, ArrowDownUp, ArrowRight, Bell, BookOpen, Briefcase, Building2, Calendar, CalendarDays, CalendarPlus, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, Crown, ExternalLink, FileText, Globe, Hash, Heart, Home, Inbox, Info, Layers, LayoutGrid, Lock, LogOut, MessageSquare, MessagesSquare, Mic, Search as SokLucide, SendHorizontal, Bot, MapPin, Maximize2, Menu, Minimize2, Monitor, Moon, MoreHorizontal, PanelRightOpen, Paperclip, Pencil, Plus, Settings, SlidersHorizontal, Smile, Star, Sun, User, UserX, Users, UsersRound, X, Zap } from "lucide-react";
 
 /** Reaktionen "tumme" (0.75.0). @param {{ size?: number }} props */
@@ -543,4 +544,21 @@ export function KameraIkon({ size = 18 }) {
 /** Välj fil (chattens nattskiva). @param {{ size?: number }} props */
 export function MappIkon({ size = 18 }) {
   return <Folder size={size} aria-hidden="true" strokeWidth={1.5} />;
+}
+
+/**
+ * Märket för en musikkälla (0.128.0, cllp/lifehub.app#378): Spotify, YouTube, Apple Music eller SoundCloud, ritat ur `KALLMARKEN` (CC0, se den filen). En okänd källa
+ * (`annat`) ritas som en jordglob, samma som en länk utan källa har haft hela tiden. Märket är dekor: namnet står i texten bredvid eller i `aria-label` på det som bär det.
+ * Fyllt med `currentColor`, så temat och läget bär färgen och ikonen inte behöver en egen.
+ *
+ * @param {{ kalla?: string, size?: number }} props
+ */
+export function KallIkon({ kalla, size = 20 }) {
+  const d = kalla && Object.prototype.hasOwnProperty.call(KALLMARKEN, kalla) ? KALLMARKEN[/** @type {keyof typeof KALLMARKEN} */ (kalla)] : null;
+  if (!d) return <Globe size={size} aria-hidden="true" strokeWidth={1.5} />;
+  return (
+    <svg data-kall-ikon={kalla} viewBox="0 0 24 24" width={size} height={size} fill="currentColor" aria-hidden="true" focusable="false">
+      <path d={d} />
+    </svg>
+  );
 }

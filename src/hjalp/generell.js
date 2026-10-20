@@ -127,7 +127,7 @@ Har du tidigare varit med och sedan avslutat medlemskapet kan en ny inbjudan ta 
       a(
         "roller",
         "Roller i gruppen",
-        `**Ägare** styr gruppen: bara ägaren installerar och tar bort appar, väljer vad som visas i huvudmenyn, arkiverar gruppen och bjuder in någon som ägare. **Admin** är en delegerad förvaltare som ändrar gruppens utseende och uppgifter och ser inbjudningarna, men inte installerar appar. **Medlem** använder det som finns.
+        `**Ägare** styr gruppen: ägaren gör allt en admin gör, och dessutom arkiverar gruppen, godkänner externa datakällor och bjuder in någon som ägare. **Admin** är en delegerad förvaltare som ändrar gruppens utseende och uppgifter, slår av och på gruppens appar, byter deras ordning, väljer vad som visas i huvudmenyn och ser inbjudningarna. **Medlem** använder det som finns.
 
 Vem som får läsa och skriva appens egen data bestämmer appen. Ramverket skyddar medlemskap, konfiguration och sina egna samlingar.`,
         ["behörighet", "ägare", "admin", "medlem"],

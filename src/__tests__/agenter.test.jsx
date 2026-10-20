@@ -474,7 +474,7 @@ describe("gruppvyn länkar, och formuläret har inga agentfält", () => {
         onSpara={vi.fn(async () => {})}
         moduler={{
           valbara: modulerIAppar([modul()]),
-          agare: true,
+          farAndra: true,
           installningarHref: (m) => `/${m.id}?lage=installningar`,
         }}
       />,

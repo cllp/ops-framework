@@ -23,7 +23,8 @@
  */
 
 import { medlemskapsId } from "../../src/lib/grupp.js";
-import { LJUD_STOLPAR, MAX_TAGGAR, MAX_TAGGLANGD, taggarFel, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, MAX_BIBLIOTEKUTSKRIFT, TOPP_TECKEN, byggPost, inmatningsfel, kodaToppar, postFel } from "../../src/lib/bibliotek.js";
+import { LANKKALLOR, lankKalla } from "../../src/lib/lankkalla.js";
+import { LJUD_STOLPAR, MAX_LISTPOSTER, MAX_TAGGAR, MAX_TAGGLANGD, listaFel, taggarFel, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, MAX_BIBLIOTEKUTSKRIFT, TOPP_TECKEN, byggPost, inmatningsfel, kodaToppar, postFel } from "../../src/lib/bibliotek.js";
 import assert from "node:assert/strict";
 import { after, before, describe, it } from "node:test";
 import { assertFails, assertSucceeds, initializeTestEnvironment } from "@firebase/rules-unit-testing";
@@ -658,5 +659,218 @@ describe("bibliotekets regler: taggar (0.100.0, lifehub.app#214)", () => {
     }
     // Golv: båda utfallen förekommer, annars mäter slingan ingenting.
     assert.ok(kandidater.some((t) => taggarFel([t]) === null) && kandidater.some((t) => taggarFel([t]) !== null));
+  });
+});
+
+describe("bibliotekets regler: listor (0.128.0, lifehub.app#378)", () => {
+  /** En ny lista med serverns klocka nu. */
+  const nyLista = (extra = {}) => {
+    const { text: _text, ...utanText } = ny();
+    return { ...utanText, typ: "lista", rubrik: "Spellista", poster: ["a", "b", "c"], ...extra };
+  };
+  const id = (n, langd = 20) => `p${n}`.padEnd(langd, "x");
+
+  it("en medlem skapar en lista med poster, och en tom lista (`poster: []`)", async () => {
+    await assertSucceeds(skapa(MEDLEM, nyLista()));
+    await assertSucceeds(skapa(MEDLEM, nyLista({ poster: [] })));
+    await assertSucceeds(skapa(MEDLEM, nyLista({ poster: ["550e8400-e29b-41d4-a716-446655440000", "b_1700000000_abc12345", "0aZ"] })));
+  });
+
+  it("⛔ taket: exakt MAX_LISTPOSTER poster med id på maxlängd går in, en till gör det inte (och ETT uttryck räcker för alla id)", async () => {
+    assert.equal(MAX_LISTPOSTER, 200);
+    const full = Array.from({ length: MAX_LISTPOSTER }, (_, i) => id(i, 128));
+    assert.equal(listaFel(full), null);
+    await assertSucceeds(skapa(MEDLEM, nyLista({ poster: full })));
+    await assertFails(skapa(MEDLEM, nyLista({ poster: [...full, id(999)] })));
+    // Ett id över 128 tecken är ett nej, också som enda element.
+    await assertFails(skapa(MEDLEM, nyLista({ poster: [id(1, 129)] })));
+  });
+
+  it("⛔ dubbletter, id med fel form och fel typ är ett nej, var i listan felet än står", async () => {
+    await assertFails(skapa(MEDLEM, nyLista({ poster: ["a", "b", "a"] })));
+    for (const dalig of ["", "a/b", "a b", "-a", "_a", "å", "a~b", "a.b", "a\nb", "a?"]) {
+      await assertFails(skapa(MEDLEM, nyLista({ poster: ["a", dalig, "c"] })));
+      await assertFails(skapa(MEDLEM, nyLista({ poster: [dalig] })));
+      await assertFails(skapa(MEDLEM, nyLista({ poster: ["a", "b", dalig] })));
+    }
+    // ⛔ join() gör heltal, null och sant/falskt till text (mätt i emulatorn): "a,5", "a,null" och "a,true" ser ut som id. Listan måste vara lika med sin egen uppdelning.
+    for (const typfel of [5, 0, null, true, false, 1.5, { a: 1 }, new Date()]) await assertFails(skapa(MEDLEM, nyLista({ poster: ["a", typfel] })));
+    for (const typfel of [5, null, true]) await assertFails(skapa(MEDLEM, nyLista({ poster: [typfel] })));
+    await assertFails(skapa(MEDLEM, nyLista({ poster: "a,b,c" })));
+    await assertFails(skapa(MEDLEM, nyLista({ poster: 5 })));
+    await assertFails(skapa(MEDLEM, nyLista({ poster: { 0: "a" } })));
+  });
+
+  it("⛔ ett element med KOMMA i sig är ett nej: listan sammanfogas med komma, så [\"a,b\"] hade annars passerat som två id", async () => {
+    assert.match(listaFel(["a,b"]) ?? "", /inte ett postid/);
+    await assertFails(skapa(MEDLEM, nyLista({ poster: ["a,b"] })));
+    await assertFails(skapa(MEDLEM, nyLista({ poster: ["a", "b,c"] })));
+    await assertFails(skapa(MEDLEM, nyLista({ poster: ["a,b", "c"] })));
+    await assertFails(skapa(MEDLEM, nyLista({ poster: ["a,"] })));
+    await assertFails(skapa(MEDLEM, nyLista({ poster: [",a"] })));
+  });
+
+  it("en lista har fältet `poster`, och inga andra innehållsfält", async () => {
+    const { poster: _p, ...utanPoster } = nyLista();
+    await assertFails(skapa(MEDLEM, utanPoster));
+    for (const extra of [{ text: "x" }, { url: "https://bolagsverket.se/" }, { kalla: "annat" }, { bild: "https://i.scdn.co/a.jpg" }, { utskrift: "x" }, { durationMs: 5 }, { peaks: "A".repeat(48) }, { fil: { sokvag: "grupper/cps-ab/bibliotek/{postId}/a.pdf", namn: "a.pdf", mime: "application/pdf", byte: 5 } }]) {
+      await assertFails(skapa(MEDLEM, nyLista(extra)));
+    }
+  });
+
+  it("poster hör bara till en lista: en anteckning, en länk och en fil med fältet nekas", async () => {
+    await assertFails(skapa(MEDLEM, ny({ poster: ["a"] })));
+    await assertFails(skapa(MEDLEM, nyLank({ poster: ["a"] })));
+    await assertFails(skapa(MEDLEM, nyttLjud({ poster: ["a"] })));
+  });
+
+  it("samma villkor som varje post: rubrik, grupp, vem som skriver och klockan", async () => {
+    await assertFails(skapa(MEDLEM, nyLista({ rubrik: "   " })));
+    await assertFails(skapa(MEDLEM, nyLista({ groupId: MIRANDA })));
+    await assertFails(skapa(MEDLEM, nyLista({ skapadAv: skapare(ANNAN) })));
+    await assertFails(skapa(AGENT, nyLista({ skapadAv: skapare(AGENT) })));
+    await assertFails(skapa(AVSLUTAD, nyLista({ skapadAv: skapare(AVSLUTAD) })));
+    await assertFails(skapa(MEDLEM, nyLista({ skapad: T0 - 3_600_000, andrad: T0 - 3_600_000 })));
+    await assertSucceeds(skapa(MEDLEM, nyLista({ taggar: ["musik"] })));
+  });
+
+  it("⛔ författaren och admin ändrar listans poster och ordning, en annan medlem och en admin i en annan grupp gör det inte", async () => {
+    const lista = doc(db(MEDLEM), "bibliotek/cps-lista");
+    await assertSucceeds(setDoc(lista, nyLista()));
+    await assertSucceeds(updateDoc(lista, { poster: ["c", "a", "b"], andrad: Date.now() }));
+    await assertSucceeds(updateDoc(lista, { poster: ["c", "a"], andrad: Date.now() }));
+    await assertSucceeds(updateDoc(lista, { poster: [], andrad: Date.now() }));
+    await assertSucceeds(updateDoc(lista, { poster: ["x1", "x2"], rubrik: "Nytt namn", andrad: Date.now() }));
+    await assertFails(updateDoc(doc(db(ANNAN), "bibliotek/cps-lista"), { poster: ["a"], andrad: Date.now() }));
+    await assertFails(updateDoc(doc(db(MIRANDA_ADMIN), "bibliotek/cps-lista"), { poster: ["a"], andrad: Date.now() }));
+    await assertSucceeds(updateDoc(doc(db(ADMIN), "bibliotek/cps-lista"), { poster: ["y1"], andrad: Date.now() }));
+    // En ändring till något ogiltigt nekas, också av författaren.
+    await assertFails(updateDoc(lista, { poster: ["a", "a"], andrad: Date.now() }));
+    await assertFails(updateDoc(lista, { poster: ["a,b"], andrad: Date.now() }));
+    await assertFails(updateDoc(lista, { poster: deleteField(), andrad: Date.now() }));
+    // Typen står stilla: en lista blir ingen anteckning.
+    await assertFails(updateDoc(lista, { typ: "anteckning", poster: deleteField(), text: "x", andrad: Date.now() }));
+  });
+
+  it("författaren och admin raderar en lista, ingen annan", async () => {
+    await assertSucceeds(setDoc(doc(db(MEDLEM), "bibliotek/cps-lista-radera"), nyLista()));
+    await assertFails(deleteDoc(doc(db(ANNAN), "bibliotek/cps-lista-radera")));
+    await assertSucceeds(deleteDoc(doc(db(ADMIN), "bibliotek/cps-lista-radera")));
+  });
+
+  it("⛔ regeln och modellen säger samma sak om varje lista (regel 2: en sanning, två uttryck), med golv för båda utfallen", async () => {
+    const kandidater = [
+      [],
+      ["a"],
+      ["a", "b"],
+      ["a", "a"],
+      [""],
+      ["a/b"],
+      ["a,b"],
+      ["-a"],
+      ["a-"],
+      ["a b"],
+      ["å"],
+      [id(1, 128)],
+      [id(1, 129)],
+      "a,b",
+      [5],
+      Array.from({ length: 200 }, (_, i) => `q${i}`),
+      Array.from({ length: 201 }, (_, i) => `q${i}`),
+    ];
+    let n = 0;
+    let ok = 0;
+    let nej = 0;
+    for (const poster of kandidater) {
+      n += 1;
+      const modellen = listaFel(poster) === null;
+      const skrivning = setDoc(doc(db(MEDLEM), `bibliotek/cps-lista-lika-${n}`), nyLista({ poster }));
+      if (modellen) {
+        ok += 1;
+        await assertSucceeds(skrivning);
+      } else {
+        nej += 1;
+        await assertFails(skrivning);
+      }
+    }
+    assert.ok(ok >= 5 && nej >= 8, `golv: ${ok} godkända och ${nej} nekade`);
+  });
+});
+
+describe("bibliotekets regler: länkens källa och omslag (0.128.0, lifehub.app#378)", () => {
+  const SPOTIFY = "https://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT";
+
+  it("en länk utan `kalla` går in som förut (en länk från före 0.128.0), och en med rätt `kalla` för varje källa", async () => {
+    await assertSucceeds(skapa(MEDLEM, nyLank({ url: SPOTIFY })));
+    for (const k of LANKKALLOR) {
+      await assertSucceeds(skapa(MEDLEM, nyLank({ url: `https://${k.vardar[0]}/x/y?z=1`, kalla: k.kalla })));
+    }
+    await assertSucceeds(skapa(MEDLEM, nyLank({ url: "https://bolagsverket.se/", kalla: "annat" })));
+  });
+
+  it("⛔ en `kalla` som inte är den adressen ger är ett nej: fel källa, `annat` på en känd adress och en känd källa på en okänd", async () => {
+    await assertFails(skapa(MEDLEM, nyLank({ url: SPOTIFY, kalla: "youtube" })));
+    await assertFails(skapa(MEDLEM, nyLank({ url: SPOTIFY, kalla: "annat" })));
+    await assertFails(skapa(MEDLEM, nyLank({ url: "https://bolagsverket.se/", kalla: "spotify" })));
+    await assertFails(skapa(MEDLEM, nyLank({ url: "https://open.spotify.com.evil.se/track/x", kalla: "spotify" })));
+    await assertFails(skapa(MEDLEM, nyLank({ url: "https://open.spotify.com@evil.se/", kalla: "spotify" })));
+    await assertFails(skapa(MEDLEM, nyLank({ url: "http://open.spotify.com/track/x", kalla: "spotify" })));
+    await assertSucceeds(skapa(MEDLEM, nyLank({ url: "http://open.spotify.com/track/x", kalla: "annat" })));
+    await assertFails(skapa(MEDLEM, nyLank({ url: SPOTIFY, kalla: "Spotify" })));
+    await assertFails(skapa(MEDLEM, nyLank({ url: SPOTIFY, kalla: "" })));
+    await assertFails(skapa(MEDLEM, nyLank({ url: SPOTIFY, kalla: 5 })));
+  });
+
+  it("⛔ regeln och modellen härleder samma källa ur varje adress (regel 2), med golv för alla fem utfall", async () => {
+    const adresser = [
+      SPOTIFY,
+      "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+      "https://youtu.be/dQw4w9WgXcQ",
+      "https://music.youtube.com/watch?v=x",
+      "https://music.apple.com/se/album/x/1",
+      "https://soundcloud.com/forss/flickermood",
+      "https://m.soundcloud.com/forss/flickermood",
+      "https://bolagsverket.se/",
+      "https://open.spotify.com.evil.se/x",
+      "https://spotify.com/",
+      "http://youtu.be/x",
+      "https://open.spotify.com:8443/x",
+    ];
+    const sedda = new Set();
+    let n = 0;
+    for (const url of adresser) {
+      const modellen = lankKalla(url);
+      sedda.add(modellen);
+      for (const kalla of ["spotify", "youtube", "applemusic", "soundcloud", "annat"]) {
+        n += 1;
+        const skrivning = setDoc(doc(db(MEDLEM), `bibliotek/cps-kalla-lika-${n}`), nyLank({ url, kalla }));
+        if (kalla === modellen) await assertSucceeds(skrivning);
+        else await assertFails(skrivning);
+      }
+    }
+    assert.deepEqual([...sedda].sort(), ["annat", "applemusic", "soundcloud", "spotify", "youtube"]);
+  });
+
+  it("omslaget: en https-adress går in, allt annat är ett nej, och bara på en länk", async () => {
+    await assertSucceeds(skapa(MEDLEM, nyLank({ url: SPOTIFY, kalla: "spotify", bild: "https://i.scdn.co/image/ab67616d0000b273" })));
+    await assertSucceeds(skapa(MEDLEM, nyLank({ bild: "https://i.scdn.co/image/ab67616d0000b273" })));
+    for (const dalig of ["http://i.scdn.co/a.jpg", "javascript:alert(1)", "https://i.scdn.co/a b.jpg", "//i.scdn.co/a.jpg", "https://", "", 5, null, `https://i.scdn.co/${"a".repeat(MAX_BIBLIOTEKURL)}`]) {
+      await assertFails(skapa(MEDLEM, nyLank({ bild: dalig })));
+    }
+    await assertFails(skapa(MEDLEM, ny({ bild: "https://i.scdn.co/a.jpg" })));
+    await assertFails(skapa(MEDLEM, ny({ kalla: "annat" })));
+    await assertFails(skapa(MEDLEM, nyttLjud({ bild: "https://i.scdn.co/a.jpg" })));
+    await assertFails(skapa(MEDLEM, nyttLjud({ kalla: "annat" })));
+  });
+
+  it("författaren byter en länks adress, källa och omslag i samma skrivning, och tar bort omslaget", async () => {
+    const lank = doc(db(MEDLEM), "bibliotek/cps-lank-kalla");
+    await assertSucceeds(setDoc(lank, nyLank({ url: SPOTIFY, kalla: "spotify", bild: "https://i.scdn.co/a.jpg" })));
+    await assertSucceeds(updateDoc(lank, { url: "https://youtu.be/abc", kalla: "youtube", bild: deleteField(), andrad: Date.now() }));
+    await assertFails(updateDoc(lank, { url: "https://soundcloud.com/a/b", andrad: Date.now() }));
+    await assertSucceeds(updateDoc(lank, { url: "https://soundcloud.com/a/b", kalla: "soundcloud", andrad: Date.now() }));
+    // En äldre länk utan `kalla` går att ändra utan att få en.
+    await assertSucceeds(setDoc(doc(db(MEDLEM), "bibliotek/cps-lank-gammal"), nyLank({ url: SPOTIFY })));
+    await assertSucceeds(updateDoc(doc(db(MEDLEM), "bibliotek/cps-lank-gammal"), { rubrik: "Nytt namn", andrad: Date.now() }));
   });
 });

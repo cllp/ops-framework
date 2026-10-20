@@ -52,6 +52,7 @@ import { OpsButton } from "./OpsButton.jsx";
  * @param {(inmatning: any) => Promise<any>} [props.onDelaLank] Se `OpsBibliotek`.
  * @param {(inmatning: any) => Promise<void> | void} [props.onAndraNedladdning] Se `OpsBibliotek`.
  * @param {(inmatning: any) => Promise<void> | void} [props.onAterkalla] Se `OpsBibliotek`.
+ * @param {(inmatning: { id: string, url: string, till: string }) => Promise<void | boolean> | void | boolean} [props.onMejlaLank] (0.128.0, cllp/lifehub.app#356) Se `OpsBibliotek`. Fältet "Skicka till mejl" i dialogen Dela länk.
  * @param {string} [props.sprak] "sv" eller "en". Förval ur `OpsSprakProvider`.
  * @param {string} [props.rubrik] Förval "Filer".
  * @param {string} [props.laddaUppEtikett] Förval "Ladda upp".
@@ -81,7 +82,7 @@ const SLAG = {
 };
 
 /** @param {any} p */
-function PlatsfilerRitad({ slag: kravtSlag, kalla, jag, kanLaggaTill, rubrik, laddaUppEtikett, filUrl, hamtaAdress, onFyllLjud, onSkrivUt, onAnteckningAvUtskrift, delningar, delningGruppdel, gruppnamn, onDelaLank, onAndraNedladdning, onAterkalla }) {
+function PlatsfilerRitad({ slag: kravtSlag, kalla, jag, kanLaggaTill, rubrik, laddaUppEtikett, filUrl, hamtaAdress, onFyllLjud, onSkrivUt, onAnteckningAvUtskrift, delningar, delningGruppdel, gruppnamn, onDelaLank, onAndraNedladdning, onAterkalla, onMejlaLank }) {
   const rubrikId = useId();
   const [vald, setVald] = useState(/** @type {any} */ (null));
   const [skapar, setSkapar] = useState(/** @type {"fil" | null} */ (null));
@@ -159,6 +160,7 @@ function PlatsfilerRitad({ slag: kravtSlag, kalla, jag, kanLaggaTill, rubrik, la
         {...(onDelaLank ? { onDelaLank } : {})}
         {...(onAndraNedladdning ? { onAndraNedladdning } : {})}
         {...(onAterkalla ? { onAterkalla } : {})}
+        {...(onMejlaLank ? { onMejlaLank } : {})}
       />
     </section>
   );
