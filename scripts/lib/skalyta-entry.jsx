@@ -2112,7 +2112,12 @@ function Scen() {
           <GruppForm
             formId={formId}
             onKlar={onKlar}
-            onSkapa={async () => ({ groupId: "ny-grupp", tillagda: [], inbjudna: [], fel: [] })}
+            // 0.129.0 (avsnitt 53): med `window.__skapaHall` väntar anropet tills mätningen släpper det (`window.__skapaSlapp()`), så att väntan går att mäta.
+            // Utan det svarar anropet direkt, som förut, och avsnitt 22 ser ingen skillnad.
+            onSkapa={async () => {
+              if (window.__skapaHall) await new Promise((slapp) => { window.__skapaSlapp = slapp; });
+              return { groupId: "ny-grupp", tillagda: [], inbjudna: [], fel: [] };
+            }}
             onSkapad={() => { window.__skapad = (window.__skapad ?? 0) + 1; }}
           />
         )

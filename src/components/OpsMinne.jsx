@@ -47,16 +47,22 @@ export function OpsMinne({ rader, fel = null, trasiga = [], laddar = false, uid,
   const [redigerar, setRedigerar] = useState(/** @type {string | null} */ (null));
   const [utkast, setUtkast] = useState("");
   const [handlingsfel, setHandlingsfel] = useState(/** @type {string | null} */ (null));
+  // ⛔ Sparar en ändring just nu (0.129.0, cllp/lifehub.app#217). En `type="submit"` har ingen `onClick` att läsa ett löfte ur, så knappen får veta det här.
+  const [sparar, setSparar] = useState(false);
   const jag = { uid, roll: arAgare ? "agare" : "medlem" };
 
   /** @param {string} id @param {string} text */
   const spara = async (id, text) => {
+    if (sparar) return;
     setHandlingsfel(null);
+    setSparar(true);
     try {
       await onAndra(id, text);
       setRedigerar(null);
     } catch (e) {
       setHandlingsfel(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSparar(false);
     }
   };
   /** @param {string} id */
@@ -118,7 +124,7 @@ export function OpsMinne({ rader, fel = null, trasiga = [], laddar = false, uid,
                           />
                         </label>
                         <span className="flex flex-wrap gap-2">
-                          <OpsButton type="submit">Spara</OpsButton>
+                          <OpsButton type="submit" busy={sparar}>Spara</OpsButton>
                           <OpsButton type="button" variant="ghost" onClick={() => setRedigerar(null)}>Avbryt</OpsButton>
                         </span>
                       </form>

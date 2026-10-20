@@ -18,6 +18,7 @@ import { arKarna, medKarna } from "../lib/karna.js";
 import { OpsSelect } from "./OpsSelect.jsx";
 import { BockIkon, ChevronNedIkon, KryssIkon, PlusIkon } from "./icons.jsx";
 import { OpsSpinner } from "./OpsSpinner.jsx";
+import { useSkapaPanelStatus } from "./skapaPanelStatus.js";
 /**
  * Formuläret "Ny grupp": SessionStudios `ManageGroupModal` i sin `inline`-form, som en PANEL (0.32.0, #180).
  *
@@ -123,7 +124,10 @@ import { OpsSpinner } from "./OpsSpinner.jsx";
  * @property {string} [epostsprak] "E-postspråk".
  * @property {string} [epostsprakHint]
  * @property {Record<"sv"|"en", string>} [spraknamn]
- * @property {string} [sparar]
+ * @property {string} [sparar] Vad som står medan ändringarna sparas (redigeringsläge).
+ * @property {string} [skapar] (0.129.0) Vad som står medan en NY grupp skapas och inga inbjudningar följer med.
+ * @property {string} [skaparEnInbjudan] (0.129.0) Samma med en inbjudan som skickas i samma anrop.
+ * @property {string} [skaparFlera] (0.129.0) Samma med flera inbjudningar. `{n}` byts mot antalet.
  * @property {string} [skapadTitel] Rubriken på resultatvyn när någon inbjudan föll.
  * @property {string} [skapadText]
  * @property {string} [oppnaGruppen]
@@ -195,6 +199,9 @@ const STANDARD = {
     epostsprakHint: "Språket gruppens utskick skrivs på, till exempel inbjudningar.",
     spraknamn: { sv: "Svenska", en: "English" },
     sparar: "Sparar",
+    skapar: "Skapar gruppen",
+    skaparEnInbjudan: "Skapar gruppen och skickar en inbjudan",
+    skaparFlera: "Skapar gruppen och skickar {n} inbjudningar",
     skapadTitel: "Gruppen är skapad, men alla inbjudningar gick inte iväg",
     skapadText: "Du kan bjuda in dem igen från gruppens sida.",
     oppnaGruppen: "Öppna gruppen",
@@ -263,6 +270,9 @@ const STANDARD = {
     epostsprakHint: "The language the group's messages are written in, for example invitations.",
     spraknamn: { sv: "Svenska", en: "English" },
     sparar: "Saving",
+    skapar: "Creating the group",
+    skaparEnInbjudan: "Creating the group and sending one invitation",
+    skaparFlera: "Creating the group and sending {n} invitations",
     skapadTitel: "The group was created, but not every invitation went out",
     skapadText: "You can invite them again from the group's page.",
     oppnaGruppen: "Open the group",
@@ -403,6 +413,30 @@ export function OpsGruppFormular({ formId, onSkapa, onSkapad, onKlar, sprak: spr
     setEpostFel("");
   };
 
+  /**
+   * Inbjudningarna som skickas med när gruppen skapas: de tillagda, plus en adress som står kvar i fältet.
+   *
+   * ⛔ EN ADRESS SOM STÅR KVAR I FÄLTET NÄR MAN TRYCKER SPARA ÄR EN ADRESS MAN MENADE. Utan det här skulle
+   * någon som skrev en adress och gick direkt till Spara skapa gruppen utan den personen, och inget säger det.
+   * ⛔ EN FUNKTION OCH INTE TVÅ UTRÄKNINGAR (0.129.0): `skicka` skickar listan och väntetexten räknar den, och den får inte kunna räkna olika.
+   */
+  const samlaInbjudningar = () => {
+    const ut = [...inbjudna];
+    const kvar = nyEpost.trim().toLowerCase();
+    if (kvar && EPOSTFORM.test(kvar) && !ut.some((r) => r.epost === kvar)) ut.push({ epost: kvar, roll: nyRoll });
+    return { ut, ogiltigKvar: Boolean(kvar) && !EPOSTFORM.test(kvar) };
+  };
+
+  /*
+   * ⛔ VÄNTETEXTEN SÄGER BARA DET RAMVERKET VET (0.129.0, cllp/lifehub.app#365). `onSkapa` är ETT anrop: ramverket ser att det gick iväg och att det
+   * svarade, inte stegen i servern emellan (läs gruppen, skriva gruppen och ägaren i en batch, sedan en inbjudan i taget). Texten nämner därför
+   * det som skickas med, vilket är det som gör att väntan växer med antalet adresser, och påstår inga steg den inte ser. Ingen procent.
+   */
+  const antalInbjudningar = redigerar ? 0 : samlaInbjudningar().ut.length;
+  const vantetext = redigerar ? t.sparar : antalInbjudningar === 0 ? t.skapar : antalInbjudningar === 1 ? t.skaparEnInbjudan : t.skaparFlera.replace("{n}", String(antalInbjudningar));
+  // ⛔ Är formuläret i en `OpsSkapaPanel` skriver panelen texten bredvid sin Spara (som är det blicken ligger på), och formuläret skriver den inte en gång till.
+  const panelSkriver = useSkapaPanelStatus(upptagen, vantetext);
+
   /** @param {import("react").FormEvent} e */
   const skicka = async (e) => {
     e.preventDefault();
@@ -436,14 +470,8 @@ export function OpsGruppFormular({ formId, onSkapa, onSkapad, onKlar, sprak: spr
       return;
     }
     try {
-      /*
-       * ⛔ EN ADRESS SOM STÅR KVAR I FÄLTET NÄR MAN TRYCKER SPARA ÄR EN ADRESS MAN MENADE. Utan det här skulle
-       * någon som skrev en adress och gick direkt till Spara skapa gruppen utan den personen, och inget säger det.
-       */
-      const ut = [...inbjudna];
-      const kvar = nyEpost.trim().toLowerCase();
-      if (kvar && EPOSTFORM.test(kvar) && !ut.some((r) => r.epost === kvar)) ut.push({ epost: kvar, roll: nyRoll });
-      if (kvar && !EPOSTFORM.test(kvar)) {
+      const { ut, ogiltigKvar } = samlaInbjudningar();
+      if (ogiltigKvar) {
         setEpostFel(t.epostFel);
         setUpptagen(false);
         return;
@@ -771,9 +799,9 @@ export function OpsGruppFormular({ formId, onSkapa, onSkapad, onKlar, sprak: spr
         </div>
       </div>
 
-      {upptagen ? (
+      {upptagen && !panelSkriver ? (
         <p role="status" className="m-0 text-etikett text-ink-secondary">
-          {t.sparar}
+          {vantetext}
         </p>
       ) : null}
     </form>

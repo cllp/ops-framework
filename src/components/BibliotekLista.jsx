@@ -394,7 +394,8 @@ export function LaggILista({ post, listor, onSpara, onKlar }) {
       onKlar(`${postNamn(post)} ligger redan i listan ${lista.rubrik}.`);
       return;
     }
-    void kor({ id: lista.id, typ: "lista", rubrik: lista.rubrik, poster: svar.poster }, `${postNamn(post)} är lagd i listan ${lista.rubrik}.`);
+    // ⛔ Löftet lämnas tillbaka (0.129.0, cllp/lifehub.app#217), så att knappen "Lägg i <lista>" som tryckts visar snurra medan listan sparas.
+    return kor({ id: lista.id, typ: "lista", rubrik: lista.rubrik, poster: svar.poster }, `${postNamn(post)} är lagd i listan ${lista.rubrik}.`);
   }
 
   function skapaNy() {

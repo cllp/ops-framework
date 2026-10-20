@@ -633,27 +633,29 @@ function AgentFalt(props) {
     if (typeof fn !== "function") {
       setSparat("");
       setLokaltFel(t("sparandeSaknas"));
-      return;
+      return undefined;
     }
     setLokaltFel("");
     setSparat("");
     try {
       const svar = arbete();
       if (svar && typeof svar.then === "function") {
-        svar.then(
+        // ⛔ LÖFTET LÄMNAS TILLBAKA (0.129.0, cllp/lifehub.app#217): "Ta bort" på en skill och ett minne är `OpsButton` utan `busy`, och de visar
+        // snurra och spärrar ett andra tryck så länge sparandet pågår. Kedjan fångar felet själv, så den som får tillbaka löftet ser aldrig ett avslag.
+        return svar.then(
           () => setSparat(t("sparat")),
           (e) => {
             setSparat("");
             setLokaltFel(e instanceof Error ? e.message : String(e));
           },
         );
-        return;
       }
       setSparat(t("sparat"));
     } catch (e) {
       setSparat("");
       setLokaltFel(e instanceof Error ? e.message : String(e));
     }
+    return undefined;
   };
 
   const avsnitt = lasAvsnitt(activeHref);
@@ -666,10 +668,10 @@ function AgentFalt(props) {
   const okandModell = Boolean(props.modell && (props.modell.id || props.modell.namn) && !modellIdFranProp);
   const sparaModell = (/** @type {string} */ id) => {
     // ⛔ Avstängt val sparar ingenting och säger inte "Sparat." (0.93.0). `kor` är det som skriver den texten.
-    if (!modellvalAktivt) return;
+    if (!modellvalAktivt) return undefined;
     const m = modellUrId(id);
-    if (!m || !modellKanValjas(m, kopplade)) return;
-    kor(() => onSparaModell?.({ id: m.id, leverantor: m.leverantor }), onSparaModell);
+    if (!m || !modellKanValjas(m, kopplade)) return undefined;
+    return kor(() => onSparaModell?.({ id: m.id, leverantor: m.leverantor }), onSparaModell);
   };
 
   /** @param {Partial<{ id: string, namn: string, beskrivning: string, text: string, aktiv: boolean, alltidMed: boolean, publik: boolean, kalla: string }>} del */
@@ -765,7 +767,7 @@ function AgentFalt(props) {
                 <OpsInput value={beskrivning} onChange={setBeskrivning} maxLength={granser.beskrivning} />
               </OpsField>
               <div>
-                <OpsButton variant="primary" busy={sparar} disabled={sparar || !namn.trim()} onClick={() => kor(() => onSparaIdentitet?.({ namn, beskrivning, roll }), onSparaIdentitet)}>
+                <OpsButton variant="primary" busy={sparar || undefined} disabled={sparar || !namn.trim()} onClick={() => kor(() => onSparaIdentitet?.({ namn, beskrivning, roll }), onSparaIdentitet)}>
                   {t("spara")}
                 </OpsButton>
               </div>
@@ -799,7 +801,7 @@ function AgentFalt(props) {
           })}
           {farAndra && props.verktyg.length > 0 ? (
             <div>
-              <OpsButton variant="primary" busy={sparar} disabled={sparar} onClick={() => kor(() => onSparaVerktyg?.(verktygsval), onSparaVerktyg)}>
+              <OpsButton variant="primary" busy={sparar || undefined} disabled={sparar} onClick={() => kor(() => onSparaVerktyg?.(verktygsval), onSparaVerktyg)}>
                 {t("spara")}
               </OpsButton>
             </div>
@@ -814,7 +816,7 @@ function AgentFalt(props) {
               <OpsTextarea value={instruktioner} onChange={setInstruktioner} maxLength={granser.instruktioner} rows={6} />
             </OpsField>
             <div>
-              <OpsButton variant="secondary" busy={sparar} disabled={sparar} onClick={() => kor(() => onSparaInstruktioner?.(instruktioner), onSparaInstruktioner)}>
+              <OpsButton variant="secondary" busy={sparar || undefined} disabled={sparar} onClick={() => kor(() => onSparaInstruktioner?.(instruktioner), onSparaInstruktioner)}>
                 {t("sparaInstruktioner")}
               </OpsButton>
             </div>
@@ -855,7 +857,7 @@ function AgentFalt(props) {
               <div className="flex flex-wrap gap-2">
                 <OpsButton
                   variant="primary"
-                  busy={sparar}
+                  busy={sparar || undefined}
                   disabled={sparar || !(redigerar?.namn ?? "").trim()}
                   onClick={() => kor(() => onSparaSkill?.({
                     namn: redigerar?.namn ?? "",
@@ -927,7 +929,7 @@ function AgentFalt(props) {
               <OpsTextarea value={minneText} onChange={setMinneText} maxLength={granser.minne} rows={3} />
             </OpsField>
             <div>
-              <OpsButton variant="primary" busy={sparar} disabled={sparar || !minneText.trim()} onClick={() => { const text = minneText; kor(async () => { await onSparaMinne?.(text); setMinneText(""); }, onSparaMinne); }}>
+              <OpsButton variant="primary" busy={sparar || undefined} disabled={sparar || !minneText.trim()} onClick={() => { const text = minneText; kor(async () => { await onSparaMinne?.(text); setMinneText(""); }, onSparaMinne); }}>
                 {t("sparaMinne")}
               </OpsButton>
             </div>
@@ -958,7 +960,7 @@ function AgentFalt(props) {
           {props.modell?.hint && props.modell.hint !== props.modell.namn && props.modell.hint !== props.modell.id ? <p className="m-0 text-hjalp text-ink-muted">{props.modell.hint}</p> : null}
           {farAndra && modellvalAktivt ? (
             <div>
-              <OpsButton variant="primary" busy={sparar} disabled={sparar || !modellUrId(valdModellId) || !modellKanValjas(modellUrId(valdModellId), kopplade)} onClick={() => sparaModell(valdModellId)}>
+              <OpsButton variant="primary" busy={sparar || undefined} disabled={sparar || !modellUrId(valdModellId) || !modellKanValjas(modellUrId(valdModellId), kopplade)} onClick={() => sparaModell(valdModellId)}>
                 {t("spara")}
               </OpsButton>
             </div>

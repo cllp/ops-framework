@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { OpsCalendar, VECKONUMMER_NYCKEL } from "../components/OpsCalendar.jsx";
 import {
+  AVVECKLADE_KALENDERFALT,
   KALENDERFALT,
   KALENDERPOST_HANDELSEPREFIX,
-  MAX_GITHUBETIKETT,
   STANDARDKALENDER_ID,
   STANDARDKALENDER_NAMN,
   byggGruppkalender,
@@ -12,11 +12,8 @@ import {
   byggMinKalender,
   forvaldKalender,
   giltigtDatum,
-  githubEtikettNyckel,
   gruppkalendernyckel,
   idagI,
-  kalenderForEtikett,
-  kontrolleraGithubEtiketter,
   kontrolleraTidszon,
   postHandelseId,
   postIdUrHandelseId,
@@ -45,8 +42,8 @@ describe("gruppens kalendrar: en katalog på typernas motor (F0)", () => {
     expect("fas" in k).toBe(false);
   });
 
-  it("härleder fälten ur katalogens och lägger till tre, så att en ändring i katalogen följer med", () => {
-    expect(KALENDERFALT).toEqual([...KATEGORIFALT.filter((f) => f !== "fas"), "forvald", "iFlodet", "githubEtikett"]);
+  it("härleder fälten ur katalogens och lägger till två, så att en ändring i katalogen följer med", () => {
+    expect(KALENDERFALT).toEqual([...KATEGORIFALT.filter((f) => f !== "fas"), "forvald", "iFlodet"]);
     // ⛔ Och varje fält bygget skriver finns i listan regeln läser.
     expect(Object.keys(byggGruppkalender(gk())).every((f) => KALENDERFALT.includes(f))).toBe(true);
   });
@@ -74,145 +71,49 @@ describe("gruppens kalendrar: en katalog på typernas motor (F0)", () => {
   });
 });
 
-describe("gruppkalenderns githubEtikett (0.108.0, cllp/lifehub.app#259)", () => {
-  it("fältet är valfritt: en kalender utan etikett har ingen nyckel alls, inte null och inte tom sträng", () => {
-    const k = byggGruppkalender(gk());
-    expect("githubEtikett" in k).toBe(false);
+describe("gruppkalenderns githubEtikett är borttagen (0.129.0, cllp/lifehub.app#303 och #307)", () => {
+  it("fältet är inte längre ett av kalenderns fält, och bygget skriver det aldrig", () => {
+    expect(KALENDERFALT).not.toContain("githubEtikett");
+    expect("githubEtikett" in byggGruppkalender(gk())).toBe(false);
     expect("githubEtikett" in byggGruppkalender(gk({ githubEtikett: undefined }))).toBe(false);
   });
 
-  it("en etikett lagras trimmad, och bygget skriver bara fält som regeln läser", () => {
-    const k = byggGruppkalender(gk({ githubEtikett: "  Styrelsen " }));
-    expect(k.githubEtikett).toBe("Styrelsen");
-    expect(Object.keys(k).every((f) => KALENDERFALT.includes(f))).toBe(true);
+  it("⛔ SKRIVVÄGEN VÄGRAR: den som skickar fältet får en mening om varför, och det tas inte bort tyst", () => {
+    expect(() => byggGruppkalender(gk({ githubEtikett: "styrelsen" }))).toThrow(/githubEtikett.*finns inte längre.*0\.129\.0.*ärendet/);
+    // Också en tom sträng och null: den som skickar något har inte förstått att fältet är borta.
+    for (const v of ["", "   ", null]) expect(() => byggGruppkalender(gk({ githubEtikett: v }))).toThrow(/finns inte längre/);
   });
 
-  it("⛔ en tom etikett, eller bara blanksteg, betyder att fältet tas bort och lagras inte", () => {
-    expect("githubEtikett" in byggGruppkalender(gk({ githubEtikett: "" }))).toBe(false);
-    expect("githubEtikett" in byggGruppkalender(gk({ githubEtikett: "   " }))).toBe(false);
+  it("⛔ LÄSVÄGEN TÅLER EN GAMMAL RAD: en kalender sparad under 0.108.0 till 0.128.0 går att läsa, och fältet följer inte med", () => {
+    // Utan det här kastar gruppens HELA kalenderlista vid varje uppstart för den gruppen ("fälten githubEtikett känns inte igen").
+    const lista = validateGruppkalendrar([gk({ id: "a", githubEtikett: "styrelsen" }), gk({ id: "b" }), gk({ id: "c", githubEtikett: "X", forvald: true })]);
+    expect(lista.map((k) => k.id)).toEqual(["a", "b", "c"]);
+    for (const k of lista) expect("githubEtikett" in k).toBe(false);
+    // Raderna är i övrigt oförändrade: förvald, ordning och namn överlever att fältet släpps.
+    expect(lista[2]).toMatchObject({ id: "c", forvald: true, namn: { sv: "Styrelsen" }, ordning: 0 });
   });
 
-  it("⛔ högst 50 tecken: 50 går, 51 kastar, och mätt som regeln mäter (UTF-16-enheter)", () => {
-    expect(MAX_GITHUBETIKETT).toBe(50);
-    expect(byggGruppkalender(gk({ githubEtikett: "a".repeat(50) })).githubEtikett).toHaveLength(50);
-    expect(() => byggGruppkalender(gk({ githubEtikett: "a".repeat(51) }))).toThrow(/githubEtikett.*51 tecken, taket är 50/);
-    // Längden räknas efter trim: blanksteg runt en etikett på 50 tecken är inte ett fel.
-    expect(byggGruppkalender(gk({ githubEtikett: ` ${"a".repeat(50)} ` })).githubEtikett).toHaveLength(50);
-    // En emoji är två UTF-16-enheter och regelns size() räknar likadant (rules/__tests__/kalendrar.test.mjs): 26 av dem är 52.
-    expect(byggGruppkalender(gk({ githubEtikett: "\u{1F4C5}".repeat(25) })).githubEtikett).toHaveLength(50);
-    expect(() => byggGruppkalender(gk({ githubEtikett: "\u{1F4C5}".repeat(26) }))).toThrow(/52 tecken/);
+  it("⛔ två gamla rader med samma etikett är inget fel längre: etiketten betyder ingenting", () => {
+    expect(validateGruppkalendrar([gk({ id: "a", githubEtikett: "x" }), gk({ id: "b", githubEtikett: "X" })])).toHaveLength(2);
   });
 
-  it("⛔ allt som inte är en sträng kastar, också null: regeln hade nekat det", () => {
-    for (const v of [null, 5, true, ["a"], {}]) expect(() => byggGruppkalender(gk({ githubEtikett: v }))).toThrow(/githubEtikett.*sträng/);
+  it("de avvecklade fälten har ETT hem, och det är det regeln och läsvägen båda läser", () => {
+    expect(AVVECKLADE_KALENDERFALT).toEqual(["githubEtikett"]);
+    // Inget avvecklat fält får också vara ett giltigt fält: då vore borttagningen ett påstående.
+    expect(AVVECKLADE_KALENDERFALT.filter((f) => KALENDERFALT.includes(f))).toEqual([]);
   });
 
   it("⛔ mina kalendrar har inget sådant fält", () => {
     expect(() => byggMinKalender({ id: "privat", namn: "Privat", farg: 2, ikon: "hjarta", githubEtikett: "privat" })).toThrow(/githubEtikett/);
   });
 
-  it("jämförelsenyckeln: trimmad och i gemener, och tom för allt som inte är en etikett", () => {
-    expect(githubEtikettNyckel("  Styrelsen ")).toBe("styrelsen");
-    expect(githubEtikettNyckel("ÅTGÄRD")).toBe("åtgärd");
-    expect(githubEtikettNyckel("STYRELSEN")).toBe(githubEtikettNyckel("styrelsen"));
-    for (const v of [undefined, null, "", "   ", 5, {}]) expect(githubEtikettNyckel(v)).toBe("");
-  });
-
-  it("⛔ validateGruppkalendrar kastar INTE på två lika etiketter: en dubblett som slank igenom ska synas, inte stänga kalendern", () => {
-    const lista = validateGruppkalendrar([gk({ id: "a", githubEtikett: "x" }), gk({ id: "b", githubEtikett: "X" })]);
-    expect(lista).toHaveLength(2);
-  });
-
-  describe("kontrolleraGithubEtiketter: unikheten inom gruppen, utan skiftläge", () => {
-    const lista = () => validateGruppkalendrar([gk({ id: "styrelse", namn: { sv: "Styrelsen", en: "Board" }, githubEtikett: "Styrelsen" }), gk({ id: "resor", namn: { sv: "Resor" } })]);
-
-    it("⛔ en ny kalender med samma etikett i annat skiftläge kastar, på svenska som förval och på engelska på begäran", () => {
-      const ny = byggGruppkalender(gk({ id: "moten", namn: { sv: "Möten", en: "Meetings" }, githubEtikett: " STYRELSEN " }));
-      expect(() => kontrolleraGithubEtiketter(lista(), { rader: [ny] })).toThrow('GitHub-etiketten "STYRELSEN" används av både "Styrelsen" och "Möten". Varje kalender behöver en egen etikett');
-      expect(() => kontrolleraGithubEtiketter(lista(), { rader: [ny], sprak: "en" })).toThrow('The GitHub label "STYRELSEN" is used by both "Board" and "Meetings". Each calendar needs its own label');
-    });
-
-    it("felet bär vilka kalendrar det gäller, så att en app kan peka ut dem", () => {
-      const ny = byggGruppkalender(gk({ id: "moten", githubEtikett: "styrelsen" }));
-      try {
-        kontrolleraGithubEtiketter(lista(), { rader: [ny] });
-        expect.unreachable();
-      } catch (e) {
-        expect(e).toMatchObject({ kod: "githubEtikettKrock", etikett: "styrelsen", kalendrar: ["styrelse", "moten"] });
-      }
-    });
-
-    it("⛔ en kalender får behålla sin egen etikett: den ändrade raden ersätter sin gamla och krockar inte med sig själv", () => {
-      const andrad = byggGruppkalender(gk({ id: "styrelse", namn: { sv: "Styrelsen" }, githubEtikett: "STYRELSEN", ordning: 5 }));
-      expect(kontrolleraGithubEtiketter(lista(), { rader: [andrad] })).toHaveLength(2);
-    });
-
-    it("en arkiverad kalender håller inte kvar sin etikett, men en som tas fram går genom kontrollen", () => {
-      const arkiverad = lista().map((k) => (k.id === "styrelse" ? { ...k, arkiverad: true } : k));
-      const ny = byggGruppkalender(gk({ id: "moten", githubEtikett: "styrelsen" }));
-      expect(kontrolleraGithubEtiketter(arkiverad, { rader: [ny] })).toHaveLength(3);
-      const framtagen = { ...arkiverad[0], arkiverad: false };
-      expect(() => kontrolleraGithubEtiketter([...arkiverad.slice(1), ny], { rader: [framtagen] })).toThrow(/används av både/);
-    });
-
-    it("⛔ en dubblett som redan finns hindrar inte en ändring av en tredje kalender, men fångas när någon av de två rörs", () => {
-      const med = [gk({ id: "a", githubEtikett: "x" }), gk({ id: "b", githubEtikett: "X" }), gk({ id: "c" })].map((r) => byggGruppkalender(r));
-      expect(kontrolleraGithubEtiketter(med, { rader: [{ ...med[2], ordning: 9 }] })).toHaveLength(3);
-      expect(() => kontrolleraGithubEtiketter(med, { rader: [{ ...med[0], ordning: 9 }] })).toThrow(/används av både/);
-      // Utan rader kontrolleras hela listan.
-      expect(() => kontrolleraGithubEtiketter(med)).toThrow(/används av både/);
-    });
-
-    it("kalendrar utan etikett krockar aldrig med varandra, och ett $ i ett namn skrivs som det står", () => {
-      expect(kontrolleraGithubEtiketter([gk({ id: "a" }), gk({ id: "b" })].map((r) => byggGruppkalender(r)))).toHaveLength(2);
-      const lista2 = [byggGruppkalender(gk({ id: "a", namn: { sv: "A $& B" }, githubEtikett: "x" }))];
-      expect(() => kontrolleraGithubEtiketter(lista2, { rader: [byggGruppkalender(gk({ id: "b", githubEtikett: "x" }))] })).toThrow('"A $& B"');
-    });
-  });
-});
-
-describe("kalenderForEtikett: vem som äger en etikett, och första i ordningen vinner (0.108.0, granskningen av PR 395)", () => {
-  const k = (id, extra = {}) => byggGruppkalender(gk({ id, ...extra }));
-
-  it("träff: kalendern vars etikett matchar", () => {
-    const lista = [k("styrelse", { githubEtikett: "styrelsen" }), k("resor", { githubEtikett: "resor" })];
-    expect(kalenderForEtikett(lista, "resor")?.id).toBe("resor");
-  });
-
-  it("⛔ skiftläge och blanksteg spelar ingen roll, i etiketten som söks och i den som lagrats", () => {
-    const lista = [k("styrelse", { githubEtikett: "Styrelsen" })];
-    expect(kalenderForEtikett(lista, "  STYRELSEN ")?.id).toBe("styrelse");
-    expect(kalenderForEtikett([k("a", { githubEtikett: "ÅTGÄRD" })], "åtgärd")?.id).toBe("a");
-  });
-
-  it("⛔ en dubblett: den första i ordningen vinner (ordning, sedan id), oavsett listans egen ordning", () => {
-    const a = k("alfa", { githubEtikett: "x", ordning: 20 });
-    const b = k("beta", { githubEtikett: "X", ordning: 10 });
-    const c = k("cesar", { githubEtikett: "x", ordning: 10 });
-    expect(kalenderForEtikett([a, c, b], "x")?.id).toBe("beta"); // lägst ordning, och beta före cesar på id
-    expect(kalenderForEtikett([c, b, a], "x")?.id).toBe("beta");
-    expect(kalenderForEtikett([a, c], "x")?.id).toBe("cesar");
-  });
-
-  it("⛔ listan ändras inte", () => {
-    const lista = [k("b", { githubEtikett: "x", ordning: 2 }), k("a", { githubEtikett: "y", ordning: 1 })];
-    const fore = lista.map((x) => x.id);
-    kalenderForEtikett(lista, "x");
-    expect(lista.map((x) => x.id)).toEqual(fore);
-  });
-
-  it("⛔ en arkiverad kalender räknas inte, så nästa i ordningen vinner", () => {
-    const lista = [k("forsta", { githubEtikett: "x", ordning: 0, arkiverad: true }), k("andra", { githubEtikett: "x", ordning: 10 })];
-    expect(kalenderForEtikett(lista, "x")?.id).toBe("andra");
-    expect(kalenderForEtikett([lista[0]], "x")).toBeNull();
-  });
-
-  it("⛔ ingen träff ger null, och en tom etikett ger null trots att kalendrar utan etikett finns", () => {
-    const lista = [k("styrelse", { githubEtikett: "styrelsen" }), k("resor")];
-    expect(kalenderForEtikett(lista, "okand")).toBeNull();
-    expect(kalenderForEtikett([], "x")).toBeNull();
-    for (const tom of ["", "   ", undefined, null, 5]) expect(kalenderForEtikett(lista, tom)).toBeNull();
-  });
+  it("funktionerna som valde en kalender ur en etikett finns inte längre i den publika ytan", async () => {
+    const ramverket = await import("../index.js");
+    for (const namn of ["githubEtikettNyckel", "kalenderForEtikett", "kontrolleraGithubEtiketter", "MAX_GITHUBETIKETT", "ORD_OPSKALENDRAR", "ORD_ETIKETTKROCK"]) {
+      expect(ramverket[namn], namn).toBeUndefined();
+    }
+    // Huvudingången är stor och tar flera sekunder att läsa in under last (regel 14): taket är rymligt med flit.
+  }, 60_000);
 });
 
 describe("mina kalendrar och deras poster (F0)", () => {

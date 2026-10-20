@@ -15,17 +15,16 @@
  *     nyckel som inte börjar på radens grupp                nej
  *     radering                                              nej
  *
- *   GRUPPKALENDERNS githubEtikett (0.108.0, cllp/lifehub.app#259), valfri: saknas, eller en sträng på 1 till 50 tecken
- *     admin skapar en kalender med en giltig etikett        ja       <- röd mot 0.107.1: fältet fanns inte i hasOnly
- *     samma, byggd av ramverkets egen byggare               ja
- *     utan etikett (som förut)                              ja
- *     50 tecken                                             ja
- *     51 tecken                                             nej      <- röd utan längdvillkoret
- *     tom sträng                                            nej      <- röd utan längdvillkoret
- *     inte en sträng (tal, null, lista, bool)               nej      <- röd utan `is string`
- *     lägga till, byta och ta bort etiketten på en rad      ja
- *     ändra till en för lång etikett på en befintlig rad    nej
- *     medlem sätter en etikett                              nej
+ *   GRUPPKALENDERNS githubEtikett, AVVECKLAD (0.129.0, cllp/lifehub.app#303 och #307): en ny rad får den inte, en gammal får behålla den
+ *     admin skapar en kalender utan etikett                 ja
+ *     admin skapar en kalender MED etikett                  nej     <- röd mot 0.128.0: fältet var tillåtet
+ *     admin lägger till en etikett på en rad som saknar den nej     <- röd mot 0.128.0
+ *     en GAMMAL rad uppdateras i ett annat fält (fältet följer med)   ja   <- röd mot en regel som bara strök fältet ur hasOnly
+ *     en gammal rad skrivs om med samma etikett (en äldre klient)     ja   <- röd mot samma regel
+ *     en gammal rad skrivs om UTAN etikett, eller etiketten tas bort  ja   (fältet försvinner)
+ *     en gammal rad byter etikett, till vad som helst       nej     <- röd mot 0.128.0
+ *     en medlem uppdaterar en gammal rad                    nej     (rollen gäller som förut)
+ *     läsning, sparning och omläsning genom ramverkets källa   ja   (en gammal rad går att öppna och ändra)
  *
  *   MINA KALENDRAR (under användaren)
  *     ägaren skapar och läser                               ja
@@ -53,10 +52,13 @@
 
 import { medlemskapsId } from "../../src/lib/grupp.js";
 import { byggGruppkalender, byggKalenderpost, byggMinKalender, gruppkalendernyckel } from "../../src/lib/kalendrar.js";
+import { createFirestoreSource } from "../../src/data/firestore.js";
+import { createKalenderkalla } from "../../src/data/kalenderkalla.js";
 import { after, before, describe, it } from "node:test";
 import { assertFails, assertSucceeds, initializeTestEnvironment } from "@firebase/rules-unit-testing";
-import { collection, deleteDoc, deleteField, doc, getDoc, getDocs, setDoc, updateDoc } from "firebase/firestore";
+import * as sdk from "firebase/firestore";
 import assert from "node:assert/strict";
+const { collection, deleteDoc, deleteField, doc, getDoc, getDocs, setDoc, updateDoc } = sdk;
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -69,6 +71,8 @@ const MEDLEM = "uid-kal-medlem";
 const ANNAN = "uid-kal-annan";
 const G = "kal-ab";
 const H = "kal-hb";
+/** En grupp vars kalendrar bär `githubEtikett` sedan före 0.129.0, för provet genom ramverkets källa. */
+const L = "kal-lg";
 
 // ⛔ Raderna byggs med ramverkets egna byggare, så att provet mäter det en app faktiskt skriver och inte en handskriven form.
 const gruppkal = (extra = {}) => byggGruppkalender({ id: "styrelse", namn: { sv: "Styrelsen" }, farg: 4, ikon: "kalender", ordning: 0, groupId: G, forvald: true, ...extra });
@@ -95,6 +99,14 @@ before(async () => {
     await setDoc(doc(db, `memberships/${medlemskapsId(MEDLEM, G)}`), { userId: MEDLEM, groupId: G, roll: "medlem", typ: "person", status: "aktiv" });
     await setDoc(doc(db, `memberships/${medlemskapsId(ANNAN, H)}`), { userId: ANNAN, groupId: H, roll: "agare", typ: "person", status: "aktiv" });
     await setDoc(doc(db, `gruppkalendrar/${gruppkalendernyckel(G, "styrelse")}`), gruppkal());
+    // ⛔ GAMLA RADER: sparade under 0.108.0 till 0.128.0, med `githubEtikett`. Skrivs rakt i emulatorn (reglerna av), förbi byggaren som vägrar fältet nu.
+    for (const id of ["leg-andra-falt", "leg-samma", "leg-utan", "leg-byt", "leg-ta-bort", "leg-medlem"]) {
+      await setDoc(doc(db, `gruppkalendrar/${gruppkalendernyckel(G, id)}`), { ...utanId(gruppkal({ id, namn: { sv: id }, forvald: false })), githubEtikett: "styrelsen" });
+    }
+    await setDoc(doc(db, `memberships/${medlemskapsId(ADMIN, L)}`), { userId: ADMIN, groupId: L, roll: "admin", typ: "person", status: "aktiv" });
+    await setDoc(doc(db, `memberships/${medlemskapsId(MEDLEM, L)}`), { userId: MEDLEM, groupId: L, roll: "medlem", typ: "person", status: "aktiv" });
+    await setDoc(doc(db, `gruppkalendrar/${gruppkalendernyckel(L, "styrelse")}`), { ...utanId(gruppkal({ id: "styrelse", groupId: L, forvald: true })), githubEtikett: "styrelsen" });
+    await setDoc(doc(db, `gruppkalendrar/${gruppkalendernyckel(L, "resor")}`), { ...utanId(gruppkal({ id: "resor", groupId: L, namn: { sv: "Resor" }, ordning: 10, forvald: false })), githubEtikett: "pengar" });
     await setDoc(doc(db, `users/${AGARE}/minaKalendrar/privat`), minKal());
     await setDoc(doc(db, `users/${AGARE}/minaKalendrar/gammal`), minKal({ id: "gammal", namn: "Gammal", arkiverad: true }));
     await setDoc(doc(db, `users/${ANNAN}/minaKalendrar/annans`), minKal({ id: "annans", namn: "Den andras" }));
@@ -134,58 +146,70 @@ describe("gruppens kalendrar: katalogens regel med kalenderns fält", () => {
   });
 });
 
-describe("⛔ gruppkalenderns githubEtikett (0.108.0): valfri, en sträng på 1 till 50 tecken", () => {
+describe("⛔ gruppkalenderns githubEtikett är avvecklad (0.129.0): en ny rad får den inte, en gammal får behålla den", () => {
   const nyckel = (/** @type {string} */ id) => `gruppkalendrar/${gruppkalendernyckel(G, id)}`;
-  // ⛔ Raden byggs UTAN etiketten och får den spridd efteråt: provet mäter REGELN, så den får inte bero på att byggaren släpper in eller stoppar värdet.
+  // ⛔ Raden byggs UTAN etiketten och får den spridd efteråt: provet mäter REGELN, och byggaren vägrar fältet nu.
   const rad = (/** @type {string} */ id, /** @type {Record<string, any>} */ extra = {}) => ({ ...gruppkal({ id, namn: { sv: id }, forvald: false }), ...extra });
 
-  it("admin skapar en kalender med en giltig etikett", async () => {
-    await assertSucceeds(setDoc(doc(som(ADMIN), nyckel("et-giltig")), rad("et-giltig", { githubEtikett: "styrelsen" })));
-    assert.equal((await getDoc(doc(som(MEDLEM), nyckel("et-giltig")))).data()?.githubEtikett, "styrelsen");
-  });
-  it("en rad byggd av ramverkets egen byggare med etikett släpps in (det en app faktiskt skriver)", async () => {
-    await assertSucceeds(setDoc(doc(som(ADMIN), nyckel("et-byggd")), gruppkal({ id: "et-byggd", forvald: false, githubEtikett: "  Resor " })));
-    assert.equal((await getDoc(doc(som(MEDLEM), nyckel("et-byggd")))).data()?.githubEtikett, "Resor");
-  });
-  it("en kalender utan etikett skapas som förut", async () => {
+  it("admin skapar en kalender utan etikett, som förut", async () => {
     await assertSucceeds(setDoc(doc(som(ADMIN), nyckel("et-utan")), rad("et-utan")));
   });
-  it("⛔ gränserna: 50 tecken släpps in, 51 nekas, och en tom sträng nekas", async () => {
-    await assertSucceeds(setDoc(doc(som(ADMIN), nyckel("et-femtio")), rad("et-femtio", { githubEtikett: "a".repeat(50) })));
-    await assertFails(setDoc(doc(som(ADMIN), nyckel("et-femtioett")), rad("et-femtioett", { githubEtikett: "a".repeat(51) })));
-    await assertFails(setDoc(doc(som(ADMIN), nyckel("et-tom")), rad("et-tom", { githubEtikett: "" })));
-  });
-  it("⛔ en etikett som inte är en sträng nekas: tal, null, lista och bool", async () => {
-    for (const [namn, varde] of [["tal", 5], ["null", null], ["lista", ["a"]], ["bool", true]]) {
-      await assertFails(setDoc(doc(som(ADMIN), nyckel(`et-${namn}`)), rad(`et-${namn}`, { githubEtikett: varde })));
+  it("⛔ admin skapar INTE en kalender med etikett: giltig, 50 tecken eller vad som helst", async () => {
+    for (const [namn, varde] of [["giltig", "styrelsen"], ["femtio", "a".repeat(50)], ["tom", ""], ["tal", 5], ["null", null]]) {
+      await assertFails(setDoc(doc(som(ADMIN), nyckel(`et-ny-${namn}`)), rad(`et-ny-${namn}`, { githubEtikett: varde })));
     }
   });
-  it("⛔ en medlem sätter ingen etikett, den är gruppens konfiguration", async () => {
-    await assertFails(setDoc(doc(som(MEDLEM), nyckel("et-medlem")), rad("et-medlem", { githubEtikett: "medlemmens" })));
-    await assertFails(updateDoc(doc(som(MEDLEM), nyckel("et-giltig")), { githubEtikett: "kapad" }));
+  it("⛔ en etikett läggs inte till på en rad som saknar den, vare sig med update eller med set", async () => {
+    await assertFails(updateDoc(doc(som(ADMIN), nyckel("et-utan")), { githubEtikett: "forsta" }));
+    await assertFails(setDoc(doc(som(ADMIN), nyckel("et-utan")), rad("et-utan", { githubEtikett: "forsta" })));
+    assert.equal("githubEtikett" in (await getDoc(doc(som(MEDLEM), nyckel("et-utan")))).data(), false);
   });
-  it("admin lägger till, byter och tar bort etiketten på en befintlig rad", async () => {
-    const ref = doc(som(ADMIN), nyckel("et-utan"));
-    await assertSucceeds(updateDoc(ref, { githubEtikett: "forsta" }));
-    await assertSucceeds(updateDoc(ref, { githubEtikett: "andra" }));
-    assert.equal((await getDoc(ref)).data()?.githubEtikett, "andra");
+
+  it("⛔ en GAMMAL rad uppdateras i ett annat fält: fältet följer med i det som skrivs, och det nekas inte", async () => {
+    const ref = doc(som(ADMIN), nyckel("leg-andra-falt"));
+    await assertSucceeds(updateDoc(ref, { ordning: 7 }));
+    const efter = (await getDoc(ref)).data();
+    assert.equal(efter?.ordning, 7);
+    assert.equal(efter?.githubEtikett, "styrelsen");
+  });
+  it("⛔ en gammal rad skrivs om med SAMMA etikett (en äldre klient som skickar tillbaka raden som den läste den)", async () => {
+    await assertSucceeds(setDoc(doc(som(ADMIN), nyckel("leg-samma")), rad("leg-samma", { githubEtikett: "styrelsen", ordning: 3 })));
+  });
+  it("en gammal rad skrivs om utan etikett, och då försvinner fältet (det en ny klient gör)", async () => {
+    const ref = doc(som(ADMIN), nyckel("leg-utan"));
+    await assertSucceeds(setDoc(ref, rad("leg-utan", { ordning: 4 })));
+    assert.equal("githubEtikett" in (await getDoc(ref)).data(), false);
+  });
+  it("etiketten på en gammal rad tas bort med deleteField", async () => {
+    const ref = doc(som(ADMIN), nyckel("leg-ta-bort"));
     await assertSucceeds(updateDoc(ref, { githubEtikett: deleteField() }));
     assert.equal("githubEtikett" in (await getDoc(ref)).data(), false);
   });
-  it("⛔ en ändring till en för lång eller tom etikett på en befintlig rad nekas", async () => {
-    const ref = doc(som(ADMIN), nyckel("et-giltig"));
-    await assertFails(updateDoc(ref, { githubEtikett: "a".repeat(51) }));
-    await assertFails(updateDoc(ref, { githubEtikett: "" }));
-    await assertFails(updateDoc(ref, { githubEtikett: 7 }));
+  it("⛔ en gammal rad byter inte etikett: till en annan giltig, en tom eller något som inte är en sträng", async () => {
+    const ref = doc(som(ADMIN), nyckel("leg-byt"));
+    for (const varde of ["annan", "", "a".repeat(51), 7, null]) await assertFails(updateDoc(ref, { githubEtikett: varde }));
     assert.equal((await getDoc(ref)).data()?.githubEtikett, "styrelsen");
   });
-  it("å är en enhet, inte två byte: 50 släpps in, 51 nekas", async () => {
-    await assertSucceeds(setDoc(doc(som(ADMIN), nyckel("et-a-ring")), rad("et-a-ring", { githubEtikett: "å".repeat(50) })));
-    await assertFails(setDoc(doc(som(ADMIN), nyckel("et-a-ring-ett")), rad("et-a-ring-ett", { githubEtikett: "å".repeat(51) })));
+  it("⛔ rollen gäller som förut: en medlem uppdaterar inte en gammal rad, med eller utan fältet", async () => {
+    const ref = doc(som(MEDLEM), nyckel("leg-medlem"));
+    await assertFails(updateDoc(ref, { ordning: 9 }));
+    await assertFails(setDoc(ref, rad("leg-medlem", { githubEtikett: "styrelsen" })));
+    await assertFails(updateDoc(ref, { githubEtikett: deleteField() }));
   });
-  it("⛔ en emoji är två UTF-16-enheter och regelns size() räknar enheter: 25 släpps in, 26 nekas (klienten räknar likadant, `.length`)", async () => {
-    await assertSucceeds(setDoc(doc(som(ADMIN), nyckel("et-emoji")), rad("et-emoji", { githubEtikett: "\u{1F4C5}".repeat(25) })));
-    await assertFails(setDoc(doc(som(ADMIN), nyckel("et-emoji-ett")), rad("et-emoji-ett", { githubEtikett: "\u{1F4C5}".repeat(26) })));
+
+  it("⛔ GENOM RAMVERKETS KÄLLA: en grupp vars kalendrar bär fältet går att läsa, och att spara en ändrad rad tar bort fältet", async () => {
+    const kalla = createKalenderkalla({ kalla: createFirestoreSource({ db: som(ADMIN), sdk }) });
+    const lista = await assertSucceeds(kalla.gruppens(L));
+    assert.deepEqual(lista.map((k) => k.id), ["styrelse", "resor"]);
+    assert.ok(lista.every((k) => !("githubEtikett" in k)));
+    await assertSucceeds(kalla.sparaGruppens(L, [{ ...lista[1], ordning: 5 }]));
+    const dok = (await getDoc(doc(som(MEDLEM), `gruppkalendrar/${gruppkalendernyckel(L, "resor")}`))).data();
+    assert.equal(dok?.ordning, 5);
+    assert.equal("githubEtikett" in dok, false);
+    // Den andra raden rördes inte och bär sitt fält kvar tills någon sparar den.
+    assert.equal((await getDoc(doc(som(MEDLEM), `gruppkalendrar/${gruppkalendernyckel(L, "styrelse")}`))).data()?.githubEtikett, "styrelsen");
+    // En medlem läser den också.
+    assert.equal((await createKalenderkalla({ kalla: createFirestoreSource({ db: som(MEDLEM), sdk }) }).gruppens(L)).length, 2);
   });
 });
 

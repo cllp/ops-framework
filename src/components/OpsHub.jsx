@@ -181,7 +181,7 @@ function tillaggText(m, t, sprak) {
  * @param {ReadonlyArray<import("../lib/modul.js").Modul>} props.moduler
  * @param {string} props.sprak
  * @param {(typeof GRUPPHUBB_TEXT)["sv"]} props.t
- * @param {{ href?: string, onClick?: (id?: string) => void, onInstallera?: (id: string) => void, etikett?: string } | undefined} props.installera
+ * @param {{ href?: string, onClick?: (id?: string) => void | Promise<unknown>, onInstallera?: (id: string) => void | Promise<unknown>, etikett?: string } | undefined} props.installera
  * @param {(href: string, event: any) => void} [props.onNavigate]
  * @param {boolean} [props.visaAgarRad] Sant när listan står bredvid redan installerade kort och den som tittar inte får installera.
  */
@@ -225,10 +225,9 @@ function ValbaraAppar({ moduler, sprak, t, installera, onNavigate, visaAgarRad =
                     variant="secondary"
                     size="md"
                     ariaLabel={etikett}
-                    onClick={() => {
-                      if (direkt) installera.onInstallera?.(m.id);
-                      else installera.onClick?.(m.id);
-                    }}
+                    // ⛔ Svaret lämnas tillbaka (0.129.0, cllp/lifehub.app#217): en app som installerar med ett löfte (en skrivning till gruppen) får knappen
+                    // att visa snurra och spärra ett andra tryck medan den pågår. En app som svarar direkt ser ingen skillnad.
+                    onClick={() => (direkt ? installera.onInstallera?.(m.id) : installera.onClick?.(m.id))}
                   >
                     {knappText}
                   </OpsButton>
@@ -273,7 +272,7 @@ function ValbaraAppar({ moduler, sprak, t, installera, onNavigate, visaAgarRad =
  * @param {Readonly<Record<string, number>>} [props.badge] Räknaren per modul-id.
  * @param {string} [props.badgeText]
  * @param {boolean} [props.ram] Ritas i `OpsView`. Förval sant.
- * @param {{ href?: string, onClick?: (id?: string) => void, onInstallera?: (id: string) => void, etikett?: string }} [props.installera] Vägen till modulvalet. Appen skickar den bara för den som får välja appar: ägaren, och sedan 0.128.0 en admin (0.87.0, lifehub.app#129). `onInstallera` installerar just den appen. Utan den anropas `onClick` med appens id, eller så öppnas `href`.
+ * @param {{ href?: string, onClick?: (id?: string) => void | Promise<unknown>, onInstallera?: (id: string) => void | Promise<unknown>, etikett?: string }} [props.installera] Vägen till modulvalet. Appen skickar den bara för den som får välja appar: ägaren, och sedan 0.128.0 en admin (0.87.0, lifehub.app#129). `onInstallera` installerar just den appen. Utan den anropas `onClick` med appens id, eller så öppnas `href`.
  * @param {import("react").ReactNode} [props.atgard] (0.103.0) Åtgärden i sidans huvud, till exempel `<OpsVyAtgard>Skapa app</OpsVyAtgard>`.
  */
 export function OpsGruppHubb({ grupp, moduler, activeHref = "", onNavigate, sprak: sprakProp, info, badge, badgeText, ram = true, installera, atgard }) {
