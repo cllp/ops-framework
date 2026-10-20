@@ -1475,7 +1475,7 @@ export function createGastService(konfig) {
 
   /**
    * Gästens ärenden: bara de som delegerats till hen, med rubrik, text, status, förfallodag och kommentarer (`GASTARENDEFALT`). Gruppens övriga ärenden, ärendets GitHub-adress och allt annat appen har på raden lämnar
-   * aldrig servern. Tom lista är ett svar (`poster: []`): gästen har inga, och vyn visar då ingen ärendeflik.
+   * aldrig servern. Tom lista är ett svar (`poster: []`): gästen har inga, och vyn visar då ingen ärendeflik. Öppna ärenden först, nyast först; högst `GASTARENDE_MAX`, och `avkortad` säger när fler fanns.
    *
    * ⛔ GRUPPSESSIONEN LÄSER INBJUDAN PÅ NYTT, så en återkallad gäst nekas här som i varje annan åtgärd och ärendena försvinner ur hens vy. Delegeringen på ärendet rörs inte: medlemmarna ser den kvar.
    *
@@ -1486,13 +1486,16 @@ export function createGastService(konfig) {
     if (!s.ok || !GS?.arenden) return s.ok ? nej() : s;
     const a = GS.arenden;
     const groupId = s.inbjudan.groupId;
-    const rader = await kalla.list(a.samling, { where: { groupId }, limit: GASTARENDE_SKANNA_MAX + 1 });
-    const avkortad = rader.length > GASTARENDE_SKANNA_MAX;
-    const egna = rader
+    // ⛔ FRÅGAN ÄR PÅ GÄSTEN, INTE PÅ GRUPPEN: `groupId` OCH `mottagare.gastId` (två likhetsvillkor, inget sammansatt index; Firestore indexerar kartfältet av sig själv). En grupp med tusen ärenden kostar en gäst
+    // med tre ärenden tre läsningar, inte tusen. ⛔ SVARET PRÖVAS ÄNDÅ RAD FÖR RAD (`gastDelegerad` och gruppen): en källa som tolkar frågan fel, eller ett index som släpar, ska aldrig kunna ge en gäst en annans ärende.
+    const rader = await kalla.list(a.samling, { where: { groupId, "mottagare.gastId": s.gastId }, limit: GASTARENDE_SKANNA_MAX + 1 });
+    const alla = rader
       .slice(0, GASTARENDE_SKANNA_MAX)
       .filter((r) => r.groupId === groupId && gastDelegerad(r.mottagare, s.gastId))
-      .sort((x, y) => Number(y.status === "ny") - Number(x.status === "ny") || String(y.skapad ?? "").localeCompare(String(x.skapad ?? "")) || String(x.id).localeCompare(String(y.id)))
-      .slice(0, GASTARENDE_MAX);
+      .sort((x, y) => Number(y.status === "ny") - Number(x.status === "ny") || String(y.skapad ?? "").localeCompare(String(x.skapad ?? "")) || String(x.id).localeCompare(String(y.id)));
+    const egna = alla.slice(0, GASTARENDE_MAX);
+    // `avkortad`: gästen har fler ärenden än listan visar (sorterat: öppna först, nyast först), eller fler än servern läser. En kapad lista säger det och ser aldrig ut som hela.
+    const avkortad = rader.length > GASTARENDE_SKANNA_MAX || alla.length > egna.length;
     /** @type {Record<string, any>[]} */
     const poster = [];
     for (const rad of egna) {

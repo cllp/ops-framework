@@ -160,7 +160,7 @@ describe("OpsGastArenden", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("Ärendena kunde inte hämtas just nu.");
     expect(screen.queryByText("Inga ärenden ligger hos dig just nu.")).toBeNull();
     rerender(<OpsGastArenden poster={POSTER} avkortad onKommentera={() => {}} onKlar={() => {}} />);
-    expect(document.querySelector("[data-gast-arenden-avkortad]").textContent).toMatch(/Det kan finnas ärenden hos dig som inte visas/);
+    expect(document.querySelector("[data-gast-arenden-avkortad]").textContent).toMatch(/Det kan finnas ärenden hos dig som inte syns här/);
     rerender(<OpsGastArenden poster={POSTER} onKommentera={() => {}} onKlar={() => {}} />);
     expect(document.querySelector("[data-gast-arenden-avkortad]")).toBeNull();
   });

@@ -171,7 +171,7 @@ const SAMLINGAR_ATT_SOKA = [`samtal/${GRUPP}|grupp/meddelanden`, "gastinbjudning
  * @param {boolean} [val.utanArenden] Appen har ingen ärendedelegering till gäster (skiva 3 av).
  * @param {Record<string, any[]>} [val.extra]
  */
-function bygg({ omslut = (k) => k, utanGrupp = false, utanArenden = false, extra = {}, signeringsfel = null, kommenteraFel = null } = {}) {
+function bygg({ omslut = (k) => k, utanGrupp = false, utanArenden = false, arendeFalt = null, extra = {}, signeringsfel = null, kommenteraFel = null } = {}) {
   const grund = createMemorySource({ ...seed(), ...extra });
   const kalla = omslut(grund);
   let nu = NU;
@@ -236,7 +236,7 @@ function bygg({ omslut = (k) => k, utanGrupp = false, utanArenden = false, extra
             samlingar: { grupper: "groups", samtal: "samtal", meddelanden: "meddelanden", bibliotek: "bibliotek", svar: "svar" },
             lagring: { signeradAdress: signera },
             handelseSida: (h) => ({ titel: h.rubrik, beskrivning: h.text, plats: h.plats }),
-            ...(utanArenden ? {} : { arenden }),
+            ...(utanArenden ? {} : { arenden: arendeFalt ? { ...arenden, falt: arendeFalt } : arenden }),
             omrostning: {
               falt: ["forslag", "mina"],
               bygg: async ({ handelse, gastId: g }) => (handelse.id === "h-ejsatt" ? { forslag: [{ id: "f1", datum: "2026-12-01" }], mina: (await grund.list("datumroster")).filter((r) => r.gastId === g).map((r) => r.val), hemlig: "HEMLIGT-APPFALT" } : null),
@@ -738,14 +738,76 @@ describe("skiva 3: ärenden som delegerats till en gäst", () => {
     await expect(h.tjanst.levandeGaster({ uid: "", groupId: GRUPP })).rejects.toThrow();
   });
 
-  it("gruppens ärenden är fler än servern läser: gästens ärenden bland de första visas, och listan säger att den kapats (avkortad)", async () => {
-    const h = bygg();
+  it("⛔ frågan är på gästen och inte på gruppen: tvåtusen andra ärenden i gruppen läses inte, två likhetsvillkor går till källan, och gästens tre ärenden kommer ändå", async () => {
+    const frågor = /** @type {any[]} */ ([]);
+    const radersLasta = { n: 0 };
+    const omslut = (k) =>
+      new Proxy(k, {
+        get(mal, prop) {
+          if (prop === "list") return async (samling, q) => { const r = await mal.list(samling, q); if (samling === "arenden") { frågor.push(q); radersLasta.n += r.length; } return r; };
+          return typeof mal[prop] === "function" ? mal[prop].bind(mal) : mal[prop];
+        },
+      });
+    const h = bygg({ omslut });
     const g = await gruppGast(h);
-    for (let n = 0; n < GASTARENDE_SKANNA_MAX; n++) await h.grund.create("arenden", { id: `fyll-${n}`, groupId: GRUPP, rubrik: `Fyllnad ${n}`, status: "ny", mottagare: { slag: "grupp" } });
+    for (let n = 0; n < GASTARENDE_SKANNA_MAX + 100; n++) await h.grund.create("arenden", { id: `fyll-${n}`, groupId: GRUPP, rubrik: `Fyllnad ${n}`, status: "ny", mottagare: { slag: "grupp" } });
+    radersLasta.n = 0;
+    frågor.length = 0;
     const svar = await h.tjanst.arenden({ sessionsnyckel: g.sessionsnyckel });
-    expect(svar.avkortad).toBe(true);
-    expect(svar.poster.length).toBeGreaterThan(0);
-    expect(svar.poster.length).toBeLessThanOrEqual(GASTARENDE_MAX);
+    expect(svar.poster.map((p) => p.id)).toEqual(["a-anna", "a-anna2", "a-anna-klar"]);
+    expect(svar.avkortad).toBe(false);
+    expect(frågor).toHaveLength(1);
+    expect(frågor[0].where).toEqual({ groupId: GRUPP, "mottagare.gastId": ANNA });
+    // Golv: källan hade över två tusen ärenden, och bara gästens egna lästes.
+    expect((await h.grund.list("arenden")).length).toBeGreaterThan(GASTARENDE_SKANNA_MAX);
+    expect(radersLasta.n).toBe(3);
+  });
+
+  it("⛔ svaret prövas rad för rad även när källan ger för mycket: en källa som struntar i frågan ger ändå aldrig en gäst en annans, en annan grupps eller ingens ärende", async () => {
+    const omslut = (k) =>
+      new Proxy(k, {
+        get(mal, prop) {
+          // En källa som tolkar frågan fel: den ger HELA samlingen, hur frågan än ser ut.
+          if (prop === "list") return async (samling, q) => mal.list(samling, q && samling === "arenden" ? { limit: q.limit } : q);
+          return typeof mal[prop] === "function" ? mal[prop].bind(mal) : mal[prop];
+        },
+      });
+    const h = bygg({ omslut });
+    await h.grund.create("arenden", { id: "a-grannen", groupId: GRANNEN, rubrik: "GRANNENS-ARENDE", status: "ny", skapad: "2026-10-06", mottagare: { slag: "gast", gastId: ANNA, namn: "Anna" } });
+    const g = await gruppGast(h);
+    // Golv: källan har åtta ärenden i två grupper och ger alla åtta oavsett fråga.
+    expect((await h.grund.list("arenden")).length).toBe(8);
+    const svar = await h.tjanst.arenden({ sessionsnyckel: g.sessionsnyckel });
+    expect(svar.poster.map((p) => p.id)).toEqual(["a-anna", "a-anna2", "a-anna-klar"]);
+    expect(JSON.stringify(svar)).not.toContain("GRANNENS-ARENDE");
+  });
+
+  it("⛔ appens falt är hela listan: en app som bara listar rubriken släpper inte ut text, status eller förfallodag, hur mycket bygg än ger", async () => {
+    const h = bygg({ arendeFalt: ["rubrik"] });
+    const g = await gruppGast(h);
+    const svar = await h.tjanst.arenden({ sessionsnyckel: g.sessionsnyckel });
+    expect(svar.poster).toHaveLength(3);
+    for (const p of svar.poster) expect(Object.keys(p).sort()).toEqual(["id", "kommentarer", "rubrik"]);
+    expect(JSON.stringify(svar)).not.toContain("Skruvar saknas");
+  });
+
+  it("⛔ ett id som försöker bli en sökväg når inte ett dokument någon annanstans: med en källa som läser 'samling/id' som en sökväg (som Firestore) nekas det, och ett vanligt id går", async () => {
+    // Firestore läser `doc("arenden", "a-bo/andra/x")` som sökvägen arenden/a-bo/andra/x. Minneskällan gör det inte, så provet gör som Firestore.
+    const somFirestore = (k) =>
+      new Proxy(k, {
+        get(mal, prop) {
+          if (prop === "read") return async (samling, id) => { const delar = `${samling}/${id}`.split("/"); const sista = delar.pop(); return mal.read(delar.join("/"), sista); };
+          return typeof mal[prop] === "function" ? mal[prop].bind(mal) : mal[prop];
+        },
+      });
+    const h = bygg({ omslut: somFirestore });
+    // Ett dokument i en undersamling som SER UT som Annas ärende: rätt grupp och rätt mottagare, men inte i ärendesamlingen.
+    await h.grund.create("arenden/a-bo/andra", { id: "x", groupId: GRUPP, rubrik: "NEDGRAVT-ARENDE", status: "ny", mottagare: { slag: "gast", gastId: ANNA, namn: "Anna" } });
+    const g = await gruppGast(h);
+    expect(await h.tjanst.kommenteraArende({ sessionsnyckel: g.sessionsnyckel, arendeId: "a-bo/andra/x", text: "hej" })).toEqual({ ok: false, orsak: "nej" });
+    expect(await h.tjanst.markeraArendeKlart({ sessionsnyckel: g.sessionsnyckel, arendeId: "a-bo/andra/x" })).toEqual({ ok: false, orsak: "nej" });
+    expect(h.arendelogg).toEqual([]);
+    expect((await h.tjanst.kommenteraArende({ sessionsnyckel: g.sessionsnyckel, arendeId: "a-anna", text: "hej" })).ok).toBe(true);
   });
 
   it("gästen får högst GASTARENDE_MAX ärenden och högst GASTARENDEKOMMENTARER_MAX kommentarer per ärende, de senaste, och ärendet säger att fler finns", async () => {
@@ -755,6 +817,8 @@ describe("skiva 3: ärenden som delegerats till en gäst", () => {
     const g = await gruppGast(h);
     const svar = await h.tjanst.arenden({ sessionsnyckel: g.sessionsnyckel });
     expect(svar.poster).toHaveLength(GASTARENDE_MAX);
+    // Gästen har 123 ärenden och 100 visas: svaret säger det.
+    expect(svar.avkortad).toBe(true);
     const anna = svar.poster.find((p) => p.id === "a-anna");
     // a-anna är nyast av de öppna (2026-10-12 mot 2026-01-01...): den är med.
     expect(anna.kommentarer).toHaveLength(GASTARENDEKOMMENTARER_MAX);
@@ -835,7 +899,7 @@ describe("skiva 3: ärenden som delegerats till en gäst", () => {
       expect(() => byggGastMottagare(m), JSON.stringify(m)).toThrow();
     }
     expect(gastDelegerad({ slag: "gast", gastId: ANNA, namn: "x" }, ANNA)).toBe(true);
-    for (const [m, id] of [[{ slag: "gast", gastId: ANNA }, BO], [{ slag: "person", uid: ANNA }, ANNA], [{ slag: "grupp" }, ANNA], [null, ANNA], [undefined, ANNA], ["gast", ANNA], [{ slag: "gast", gastId: ANNA }, "uid-123"], [{ slag: "gast", gastId: ANNA }, undefined], [{ slag: "gast", gastId: "g_x" }, "g_x"]]) {
+    for (const [m, id] of [[{ slag: "gast", gastId: ANNA }, BO], [{ slag: "person", gastId: ANNA }, ANNA], [{ slag: "grupp", gastId: ANNA }, ANNA], [{ gastId: ANNA }, ANNA], [{ slag: "person", uid: ANNA }, ANNA], [{ slag: "grupp" }, ANNA], [null, ANNA], [undefined, ANNA], ["gast", ANNA], [{ slag: "gast", gastId: ANNA }, "uid-123"], [{ slag: "gast", gastId: ANNA }, undefined], [{ slag: "gast", gastId: "g_x" }, "g_x"]]) {
       expect(gastDelegerad(m, id), JSON.stringify([m, id])).toBe(false);
     }
     const m = { slag: "gast", gastId: ANNA, namn: "Gammalt namn" };

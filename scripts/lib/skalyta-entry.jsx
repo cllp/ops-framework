@@ -20,6 +20,9 @@ const OpsGastLista = Ops.OpsGastLista ?? (() => <span data-saknas="OpsGastLista"
 const OpsGastSida = Ops.OpsGastSida ?? (() => <span data-saknas="OpsGastSida">OpsGastSida saknas</span>);
 // 0.132.0: det bantade gränssnittet för en gruppgäst (avsnitt 56). Saknas det i dist ritas en markör.
 const OpsMedlemmar = Ops.OpsMedlemmar ?? (() => <span data-saknas="OpsMedlemmar">OpsMedlemmar saknas</span>);
+// 0.132.0 (skiva 3): ärenden till en gäst. Saknas de i dist ritas en markör.
+const OpsGastMottagare = Ops.OpsGastMottagare ?? (() => <span data-saknas="OpsGastMottagare">OpsGastMottagare saknas</span>);
+const OpsMottagareSkal = Ops.OpsMottagare ?? (() => <span data-saknas="OpsMottagare">OpsMottagare saknas</span>);
 const OpsGastGrupp = Ops.OpsGastGrupp ?? (() => <span data-saknas="OpsGastGrupp">OpsGastGrupp saknas</span>);
 const { OpsEventList, OpsAttributes, OpsFact, OpsAppShell, OpsButton, OpsDatePicker, OpsField, OpsHub, OpsHubModul, OpsIconLink, OpsIdentity, OpsInloggning, OpsKatalogInstallning, OpsInput, OpsModal, OpsRadioGroup, OpsSelect, OpsThemeToggle, OpsCard, OpsPill, OpsPanelRow, OpsSegmented, OpsCheckbox, OpsSwitch, OpsTag, OpsChip, OpsFilterPanel, OpsFilterChip, OpsActivityListActions, OpsGruppvaljare } = Ops;
 // `OpsTimePicker` finns inte i 0.30.1. Saknas den ritas en markör, och provet blir rött på rätt sak i stället för att sidan kastar.
@@ -314,6 +317,97 @@ function GastGruppSidaScen() {
       onRaderaMig={async (v) => { w.__gastgruppanrop.push(["raderaMig", v]); return { ok: true }; }}
       renderGrupp={({ sessionsnyckel }) => <OpsGastGrupp grupp={GASTGRUPP} api={Ops.gastGruppApi(anrop, sessionsnyckel)} intervallMs={0} idag={new Date(2026, 9, 20)} />}
     />
+  );
+}
+/*
+ * 0.132.0 (skiva 3): ärenden till en gäst. `gastgrupp-arenden` är gästens sida med fliken Ärenden (två öppna ärenden och ett klart, med kommentarer från en medlem, en annan gäst och gästen själv),
+ * ritad av `OpsGastSida` med `OpsGastGrupp` och ett api med minne: en kommentar läggs till och Markera klar flyttar ärendet. `gastgrupp-mottagare` är medlemmens sida: väljaren för ansvarig
+ * med gäster och märket på tre ärenden (gäst med levande inbjudan, gäst vars inbjudan är återkallad, och okänt).
+ */
+const GASTARENDEN_GRUPP = { namn: "Källan", funktioner: ["chatt", "kalender", "bibliotek", "arenden"] };
+const ANNA_ID = "g_" + "1".repeat(40);
+const BO_ID = "g_" + "2".repeat(40);
+function GastArendenSidaScen() {
+  const w = /** @type {any} */ (window);
+  /** @type {any[]} */
+  const poster = [
+    { id: "a-1", rubrik: "Bygg scenen inför lördagens spelning på Östergatan, med ett riktigt långt namn som måste få brytas", text: "Skruvar saknas.\nKöp tejp och två kablar.", status: "ny", forfallodag: "2026-11-20", kommentarer: [
+      { id: "c1", text: "Jag tar den, hör av dig om något saknas.", tid: Date.UTC(2026, 9, 19, 9, 0), av: { namn: "Agda Ägare" }, gast: false, egen: false },
+      { id: "c2", text: "Fixat i morgon.", tid: Date.UTC(2026, 9, 19, 9, 30), av: { namn: "Anna" }, gast: true, egen: true },
+      { id: "c3", text: "Tack Anna, jag har tejpen.", tid: Date.UTC(2026, 9, 19, 9, 40), av: { namn: "Bo Gäst" }, gast: true, egen: false },
+    ] },
+    { id: "a-2", rubrik: "Städa efter lördagen", text: "Kvasta och sopor.", status: "ny", kommentarer: [] },
+    { id: "a-3", rubrik: "Gammalt jobb", text: "Redan gjort.", status: "hanterad", kommentarer: [], fler: true },
+  ];
+  const lagring = (() => {
+    const d = { [`ops-gast:${GAST_ID}`]: GAST_SESSION };
+    return { getItem: (k) => d[k] ?? null, setItem: (k, v) => { d[k] = v; }, removeItem: (k) => { delete d[k]; } };
+  })();
+  const svar = {
+    ...GASTGRUPP_SVAR,
+    arenden: () => ({ ok: true, avkortad: false, poster: JSON.parse(JSON.stringify(poster)) }),
+    kommenteraArende: (arg) => {
+      const k = { id: "ny-" + String(arg.text).length, text: arg.text, tid: Date.UTC(2026, 9, 20, 8, 0), av: { namn: "Anna" }, gast: true, egen: true };
+      poster.find((p) => p.id === arg.arendeId).kommentarer.push(k);
+      return { ok: true, kommentar: k };
+    },
+    markeraArendeKlart: (arg) => {
+      poster.find((p) => p.id === arg.arendeId).status = "hanterad";
+      return { ok: true };
+    },
+  };
+  const anrop = async (arg) => {
+    w.__gastgruppanrop.push([arg.atgard, Object.fromEntries(Object.entries(arg).filter(([k]) => k !== "sessionsnyckel" && k !== "atgard"))]);
+    return svar[arg.atgard](arg);
+  };
+  return (
+    <OpsGastSida
+      lank={{ id: GAST_ID, nyckel: GAST_NYCKEL }}
+      lagring={lagring}
+      intervallMs={0}
+      huvud={<span className="text-publik-ingress font-semibold text-publik-ljus-text">LifeHub</span>}
+      onLos={async () => ({ ok: true, sessionsnyckel: GAST_SESSION })}
+      onHamta={async () => ({ ok: true, namn: "", funktion: "grupp", grupp: GASTARENDEN_GRUPP })}
+      onNyLank={async () => ({ ok: true })}
+      onNamn={async () => {}}
+      onRaderaMig={async () => ({ ok: true })}
+      renderGrupp={({ sessionsnyckel }) => <OpsGastGrupp grupp={GASTARENDEN_GRUPP} api={Ops.gastGruppApi(anrop, sessionsnyckel)} intervallMs={0} idag={new Date(2026, 9, 20)} />}
+    />
+  );
+}
+function GastMottagareScen() {
+  const [v, setV] = useState(/** @type {any} */ (null));
+  const medlemmar = [
+    { userId: "u1", namn: "Agda Ägare", typ: "person", status: "aktiv" },
+    { userId: "u2", namn: "Maja Medlem", typ: "person", status: "aktiv" },
+  ];
+  const levande = [{ gastId: ANNA_ID, namn: "Anna" }];
+  const rader = [
+    { id: "r1", rubrik: "Bygg scenen", mottagare: { slag: "gast", gastId: ANNA_ID, namn: "Anna" }, levande },
+    { id: "r2", rubrik: "Städa efter lördagen med ett riktigt långt namn som måste få brytas", mottagare: { slag: "gast", gastId: BO_ID, namn: "Bo Bengtsson-Karlsson-Andersson-Lindqvist" }, levande },
+    { id: "r3", rubrik: "Boka lokalen", mottagare: { slag: "gast", gastId: ANNA_ID, namn: "Anna" }, levande: undefined },
+  ];
+  return (
+    <Skal>
+      <div className="flex flex-col gap-6 px-4 py-4">
+        <section data-mottagare-valjare="" className="flex min-w-0 flex-col gap-2">
+          <h2 className="m-0 text-sektion uppercase text-ink-muted">Ansvarig</h2>
+          <OpsMottagareSkal medlemmar={medlemmar} uid="u1" value={v} onChange={setV} ariaLabel="Ansvarig" gaster={[{ gastId: ANNA_ID, namn: "Anna" }, { gastId: BO_ID, namn: "Bo Bengtsson-Karlsson-Andersson-Lindqvist" }]} />
+          <p data-mottagare-vald="" className="m-0 text-meta text-ink-muted">{v ? JSON.stringify(v) : "Inget valt"}</p>
+        </section>
+        <section data-mottagare-rader="" className="flex min-w-0 flex-col gap-2">
+          <h2 className="m-0 text-sektion uppercase text-ink-muted">Ärenden</h2>
+          <ul className="m-0 flex list-none flex-col gap-2 p-0">
+            {rader.map((r) => (
+              <li key={r.id} data-mottagare-rad={r.id} className="flex min-w-0 flex-col gap-1 rounded-base border border-line p-3">
+                <span className="text-brod text-ink wrap-anywhere">{r.rubrik}</span>
+                <OpsGastMottagare mottagare={r.mottagare} levande={r.levande} />
+              </li>
+            ))}
+          </ul>
+        </section>
+      </div>
+    </Skal>
   );
 }
 /** Sakens kort: en omröstning i miniatyr, med riktiga knappar. */
@@ -2721,6 +2815,8 @@ function Scen() {
   if (s === "gastgrupp-lista") return <GastGruppListaScen />;
   if (s === "gastgrupp-medlemmar") return <GastMedlemmarScen />;
   if (s === "gastgrupp-sida") return <GastGruppSidaScen />;
+  if (s === "gastgrupp-arenden") return <GastArendenSidaScen />;
+  if (s === "gastgrupp-mottagare") return <GastMottagareScen />;
   if (s.startsWith("gastsida-")) return <GastSidaScen lage={s.slice("gastsida-".length)} />;
   if (s === "kategoriformular") return <KategoriFormularScen typ="sort" />;
   if (s === "kategoriformular-status") return <KategoriFormularScen typ="status" />;

@@ -142,7 +142,9 @@
 
 /**
  * @typedef {object} Query
- * @property {Record<string, unknown>} [where] Likhetsvillkor. `{ status: "oppen" }`.
+ * @property {Record<string, unknown>} [where] Likhetsvillkor. `{ status: "oppen" }`. (0.132.0) Ett PUNKTAT fältnamn går in i en karta, som Firestores egna fältsökvägar:
+ *   `{ "mottagare.gastId": id }` träffar rader där `mottagare` är en karta med det `gastId`. Firestore indexerar kartfält av sig själv, så frågan behöver inget index; minneskällan och JSON-källan
+ *   följer med. ⛔ En källa som inte kan uttrycka det KASTAR (Postgres kräver ett vanligt kolumnnamn och avvisar punkten), den ignorerar det aldrig.
  * @property {Record<string, unknown>} [innehaller] (0.34.0) Listfält som ska INNEHÅLLA värdet. `{ deltagare: uid }`.
  *   Högst ETT fält per fråga (Firestores `array-contains` tillåter ett). ⛔ En adapter som inte kan uttrycka villkoret
  *   KASTAR, den ignorerar det aldrig: ett villkor som tyst faller bort ger fler rader än frågan bad om, och för
@@ -250,6 +252,24 @@ export function foreVillkor(fore) {
 }
 
 /**
+ * Värdet på ett fält. Ett namn utan punkt är fältet självt (som förut); ett punktat namn går in i kartor, och en karta som saknas ger `undefined` och aldrig ett fel
+ * (en rad utan `mottagare` stämmer inte med `mottagare.gastId`, den kastar inte).
+ * @param {unknown} rad
+ * @param {string} falt
+ * @returns {unknown}
+ */
+function faltVarde(rad, falt) {
+  const rakt = /** @type {any} */ (rad)[falt];
+  if (rakt !== undefined || !falt.includes(".")) return rakt;
+  let nu = /** @type {any} */ (rad);
+  for (const del of falt.split(".")) {
+    if (nu === null || typeof nu !== "object" || Array.isArray(nu)) return undefined;
+    nu = nu[del];
+  }
+  return nu;
+}
+
+/**
  * Filtrerar och sorterar en lista enligt en fråga.
  *
  * Delas av de adaptrar som håller allt i minnet (minne, JSON). En riktig databas
@@ -264,7 +284,7 @@ export function applyQuery(rows, query) {
 
   if (query.where) {
     const conditions = Object.entries(query.where);
-    out = out.filter((r) => conditions.every(([f, v]) => /** @type {any} */ (r)[f] === v));
+    out = out.filter((r) => conditions.every(([f, v]) => faltVarde(r, f) === v));
   }
 
   if (query.innehaller) {

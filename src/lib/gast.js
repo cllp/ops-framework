@@ -48,9 +48,9 @@ export const GASTGRUPPFUNKTIONER = /** @type {const} */ (["chatt", "kalender", "
 export const GASTCHATT_SIDA = 50;
 /** Flest händelser i gästens kalender. Samma tak som kalenderflödet (5 000). */
 export const GASTKALENDER_MAX = 5000;
-/** Flest ärenden i gästens lista (skiva 3): de som delegerats till gästen, inte gruppens. */
+/** Flest ärenden i gästens lista (skiva 3): de som delegerats till gästen, inte gruppens. Öppna först, nyast först; finns fler säger svaret `avkortad`. */
 export const GASTARENDE_MAX = 100;
-/** Flest av gruppens ärenden servern läser för att hitta gästens. Nås det tas gästens ärenden bland de första med (`avkortad`), och en lista som kapats säger det: den ser aldrig ut som hela. */
+/** Flest av gästens EGNA ärenden servern läser (frågan är på gästens `gastId`, inte på hela gruppen), innan de sorteras och `GASTARENDE_MAX` visas. Nås det säger svaret `avkortad`: en kapad lista ser aldrig ut som hela. */
 export const GASTARENDE_SKANNA_MAX = 2000;
 /** Flest kommentarer per ärende hos gästen (de senaste). Finns fler bär ärendet `fler`. */
 export const GASTARENDEKOMMENTARER_MAX = 100;
@@ -253,7 +253,7 @@ export const GASTGRUPPSVARSFALT = /** @type {const} */ ({
   handelse: ["ok", "handelse", "svar", "omrostning"],
   /** Svaret på `bibliotek`. */
   bibliotek: ["ok", "poster", "avkortad"],
-  /** (Skiva 3) Svaret på `arenden`: bara ärenden delegerade till gästen. `avkortad`: gruppens ärenden var fler än servern läser. */
+  /** (Skiva 3) Svaret på `arenden`: bara ärenden delegerade till gästen. `avkortad`: gästen har fler än listan visar. */
   arenden: ["ok", "poster", "avkortad"],
   /** (Skiva 3) Svaret på `kommenteraArende`: kommentaren som den nu står, i samma form som en rad i ett ärendes `kommentarer`. */
   kommenteraArende: ["ok", "kommentar"],

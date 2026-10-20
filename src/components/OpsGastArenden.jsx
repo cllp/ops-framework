@@ -21,7 +21,7 @@ export const ORD_OPSGASTARENDEN = {
   tom: { sv: "Inga ärenden ligger hos dig just nu.", en: "No cases are with you right now." },
   laddar: { sv: "Hämtar ärendena", en: "Loading the cases" },
   fel: { sv: "Ärendena kunde inte hämtas just nu.", en: "The cases could not be loaded right now." },
-  avkortad: { sv: "Gruppen har fler ärenden än vi kan söka igenom. Det kan finnas ärenden hos dig som inte visas.", en: "The group has more cases than we can search. There may be cases with you that are not shown." },
+  avkortad: { sv: "Du har fler ärenden än vi visar. Det kan finnas ärenden hos dig som inte syns här.", en: "You have more cases than we show. There may be cases with you that are not shown here." },
   status_ny: { sv: "Öppet", en: "Open" },
   status_hanterad: { sv: "Klart", en: "Done" },
   status_avskriven: { sv: "Avskrivet", en: "Dismissed" },
@@ -183,7 +183,7 @@ function Arendekort({ post, onKommentera, onKlar, sprak, t }) {
  *
  * @param {object} props
  * @param {ReadonlyArray<Gastarende>} props.poster Tjänstens `arenden().poster`.
- * @param {boolean} [props.avkortad] Tjänstens `arenden().avkortad`: gruppen hade fler ärenden än servern läser, så listan kan sakna något. Det sägs.
+ * @param {boolean} [props.avkortad] Tjänstens `arenden().avkortad`: gästen har fler ärenden än listan visar, så den kan sakna något. Det sägs.
  * @param {(id: string, text: string) => Promise<unknown>} props.onKommentera Tjänstens `kommenteraArende`. Avvisar med ett Error vars text visas under fältet.
  * @param {(id: string) => Promise<unknown>} props.onKlar Tjänstens `markeraArendeKlart`. Avvisar med ett Error vars text visas.
  * @param {boolean} [props.laddar] Första hämtningen pågår.
