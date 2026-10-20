@@ -1,6 +1,5 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { OpsGastArenden } from "../components/OpsGastArenden.jsx";
 import { OpsGastChatt } from "../components/OpsGastChatt.jsx";
 import { OpsGastGrupp } from "../components/OpsGastGrupp.jsx";
 import { OpsGastSida } from "../components/OpsGastSida.jsx";
@@ -42,7 +41,7 @@ const valjFlik = async (el) => {
   });
 };
 
-const GRUPP = { namn: "Källan", funktioner: ["chatt", "kalender", "arenden", "bibliotek"] };
+const GRUPP = { namn: "Källan", funktioner: ["chatt", "kalender", "bibliotek"] };
 
 const MEDDELANDEN = [
   { id: "m1", av: { namn: "Agda Ägare" }, text: "Välkommen till gruppen", tid: Date.UTC(2026, 9, 19, 9, 0) },
@@ -85,47 +84,54 @@ describe("OpsGastChatt", () => {
     expect(() => render(<OpsGastChatt meddelanden={[{ id: "x", text: "a", tid: 1, av: "Agda" }]} />)).toThrow(/av: \{ namn \}/);
   });
 
+  it("med onSkriv finns chattens skrivfält, utan bilagor, mikrofon och agent, och texten skickas och töms; ett fel står kvar med texten", async () => {
+    const onSkriv = vi.fn().mockResolvedValue(undefined);
+    render(<OpsGastChatt meddelanden={MEDDELANDEN} onSkriv={onSkriv} />);
+    const falt = screen.getByRole("textbox", { name: /Skriv/ });
+    // Inget som bifogar, spelar in eller frågar agenten.
+    expect(screen.queryByRole("button", { name: /Bifoga|bild|foto|fil/i })).toBeNull();
+    expect(document.querySelector("[data-mikrofon]")).toBeNull();
+    expect(document.querySelector("input[type=file]")).toBeNull();
+    expect(screen.getByText(/Du skriver som gäst: dina meddelanden märks Gäst/)).toBeInTheDocument();
+    fireEvent.change(falt, { target: { value: "  Hej gruppen  " } });
+    await klicka(screen.getByRole("button", { name: "Skicka" }));
+    expect(onSkriv).toHaveBeenCalledWith("Hej gruppen");
+    await waitFor(() => expect(falt).toHaveValue(""));
+    onSkriv.mockRejectedValueOnce(new Error("För många anrop."));
+    fireEvent.change(falt, { target: { value: "Igen" } });
+    await klicka(screen.getByRole("button", { name: "Skicka" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("För många anrop.");
+    expect(falt).toHaveValue("Igen");
+  });
+
+  it("⛔ ett tomt fält skickar inget, och över taket (1000 tecken) är Skicka spärrad med en räknare", async () => {
+    const onSkriv = vi.fn().mockResolvedValue(undefined);
+    render(<OpsGastChatt meddelanden={[]} onSkriv={onSkriv} />);
+    expect(screen.getByRole("button", { name: "Skicka" })).toBeDisabled();
+    fireEvent.change(screen.getByRole("textbox", { name: /Skriv/ }), { target: { value: "x".repeat(1001) } });
+    expect(screen.getByRole("button", { name: "Skicka" })).toBeDisabled();
+    expect(document.querySelector("[data-langdraknare='over']")).not.toBeNull();
+    expect(onSkriv).not.toHaveBeenCalled();
+  });
+
+  it("⛔ en gästs meddelanden bär märket Gäst, och det egna står som eget; ett utan gast-flagga har inget märke", () => {
+    const rader = [
+      { id: "a", av: { namn: "Maja Medlem" }, text: "Hej", tid: Date.UTC(2026, 9, 19, 9, 0) },
+      { id: "b", av: { namn: "Bo Gäst" }, text: "Hej från Bo", tid: Date.UTC(2026, 9, 19, 9, 10), gast: true, egen: false },
+      { id: "c", av: { namn: "Anna Gäst" }, text: "Mitt eget", tid: Date.UTC(2026, 9, 19, 9, 20), gast: true, egen: true },
+    ];
+    render(<OpsGastChatt meddelanden={rader} onSkriv={async () => {}} />);
+    const markningar = [...document.querySelectorAll("[data-gast-markning]")];
+    expect(markningar.map((m) => m.textContent)).toEqual(["Gäst"]);
+    expect(within(markningar[0].parentElement).getByText("Bo Gäst")).toBeInTheDocument();
+    expect(document.querySelectorAll('[data-meddelande="eget"]')).toHaveLength(1);
+    expect(within(document.querySelector('[data-meddelande="eget"]')).getByText("Mitt eget")).toBeInTheDocument();
+  });
+
   it("engelska", () => {
     render(<OpsGastChatt meddelanden={[]} sprak="en" />);
     expect(screen.getByText("No messages yet.")).toBeInTheDocument();
     expect(screen.getByText(/You can read the chat but not write in it/)).toBeInTheDocument();
-  });
-});
-
-describe("OpsGastArenden", () => {
-  const POSTER = [
-    { id: "a-1", rubrik: "Fixa scenen", state: "ny", stateReason: "Väntar på skruvar", etiketter: ["scen", { namn: "akut" }], tilldelade: ["Maja Medlem"], forfallodag: "2026-11-01", brodtext: "Skruvar **saknas**" },
-    { id: "a-2", rubrik: "Städa", state: "hanterad" },
-    { id: "a-3", rubrik: "Gammalt", state: "ett-nytt-tillstand" },
-  ];
-
-  it("ritar rubrik, tillstånd, etiketter, tilldelade, förfallodag och beskrivningen bakom en knapp, och tillstånd vyn inte känner med sitt eget ord", () => {
-    render(<OpsGastArenden poster={POSTER} />);
-    const rad = document.querySelector('[data-gast-arende="a-1"]');
-    expect(within(rad).getByText("Fixa scenen")).toBeInTheDocument();
-    expect(within(rad).getByText("Ny")).toBeInTheDocument();
-    expect(within(rad).getByText("Väntar på skruvar")).toBeInTheDocument();
-    expect(within(rad).getByText("scen")).toBeInTheDocument();
-    expect(within(rad).getByText("akut")).toBeInTheDocument();
-    expect(within(rad).getByText("Tilldelad Maja Medlem")).toBeInTheDocument();
-    expect(within(rad).getByText("Förfaller 2026-11-01")).toBeInTheDocument();
-    expect(within(rad).getByText("Visa beskrivningen")).toBeInTheDocument();
-    expect(within(document.querySelector('[data-gast-arende="a-2"]')).getByText("Hanterad")).toBeInTheDocument();
-    expect(within(document.querySelector('[data-gast-arende="a-3"]')).getByText("ett-nytt-tillstand")).toBeInTheDocument();
-    // Ingen knapp som ändrar något, och ingen länk ut.
-    expect(document.querySelectorAll("a[href]")).toHaveLength(0);
-    expect(screen.getByText("Du kan läsa ärendena men inte ändra dem.")).toBeInTheDocument();
-  });
-
-  it("⛔ tomt, kapat och fel är olika svar", () => {
-    const { rerender } = render(<OpsGastArenden poster={[]} />);
-    expect(screen.getByText("Inga ärenden.")).toBeInTheDocument();
-    rerender(<OpsGastArenden poster={POSTER} avkortad />);
-    expect(screen.getByRole("status")).toHaveTextContent("Visar de 3 första ärendena. Det finns fler.");
-    rerender(<OpsGastArenden poster={[]} fel="x" />);
-    expect(screen.getByRole("alert")).toHaveTextContent("Ärendena kunde inte hämtas just nu.");
-    expect(screen.queryByText("Inga ärenden.")).toBeNull();
-    expect(() => render(<OpsGastArenden poster={undefined} />)).toThrow(/måste vara en lista/);
   });
 });
 
@@ -225,7 +231,7 @@ describe("OpsGastGrupp: det bantade gränssnittet", () => {
       }),
       svara: async () => ({ ok: true }),
       rosta: async () => ({ ok: true }),
-      arenden: async () => ({ ok: true, poster: [{ id: "a-1", rubrik: "Fixa scenen", state: "ny" }], avkortad: false }),
+      skrivChatt: async ({ text }) => ({ ok: true, meddelande: { id: "ny1", av: { namn: "Anna Gäst" }, text, tid: Date.UTC(2026, 9, 19, 10, 0), gast: true, egen: true } }),
       bibliotek: async () => ({ ok: true, poster: POSTER, avkortad: false }),
       fil: async ({ postId }) => ({ ok: true, url: `https://lagring.example/${postId}`, namn: "x", mime: "application/pdf" }),
       ...extra,
@@ -240,14 +246,15 @@ describe("OpsGastGrupp: det bantade gränssnittet", () => {
     return { ...utf, api, logg };
   };
 
-  it("har exakt fyra flikar och ingen länk eller knapp som leder ut ur sidan", async () => {
+  it("har exakt tre flikar och ingen länk eller knapp som leder ut ur sidan", async () => {
     rita();
     const flikar = screen.getAllByRole("tab");
-    expect(flikar.map((f) => f.textContent)).toEqual(["Chatt", "Kalender", "Ärenden", "Bibliotek"]);
+    expect(flikar.map((f) => f.textContent)).toEqual(["Chatt", "Kalender", "Bibliotek"]);
+    expect(screen.queryByRole("tab", { name: "Ärenden" })).toBeNull();
     expect(await screen.findByText("Välkommen till gruppen", { selector: "[data-bubbla] *" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Källan");
     expect(screen.getByText(/Du är gäst i Källan/)).toBeInTheDocument();
-    for (const f of ["Kalender", "Ärenden", "Bibliotek"]) {
+    for (const f of ["Kalender", "Bibliotek"]) {
       await klicka(screen.getByRole("tab", { name: f }));
       await waitFor(() => expect(document.querySelector("[data-gast-grupp]")).not.toBeNull());
       for (const a of document.querySelectorAll("a[href]")) expect(a.getAttribute("href"), `${f}: länk ut`).toMatch(/^(https?:|#|blob:|data:)/);
@@ -255,9 +262,13 @@ describe("OpsGastGrupp: det bantade gränssnittet", () => {
     }
   });
 
-  it("flikarna följer vilka funktioner gruppen har: utan ärenden finns ingen ärendeflik", () => {
-    rita({ grupp: { namn: "Källan", funktioner: ["chatt", "kalender", "bibliotek"] } });
-    expect(screen.getAllByRole("tab").map((f) => f.textContent)).toEqual(["Chatt", "Kalender", "Bibliotek"]);
+  it("flikarna följer vilka funktioner gruppen har, och ärenden finns inte som flik hur appen än skriver funktionerna", () => {
+    const { unmount } = rita({ grupp: { namn: "Källan", funktioner: ["chatt", "bibliotek"] } });
+    expect(screen.getAllByRole("tab").map((f) => f.textContent)).toEqual(["Chatt", "Bibliotek"]);
+    unmount();
+    // ⛔ En app (eller en äldre tjänst) som ändå listar arenden får ingen ärendeflik: gästen ser inga ärenden (CP 2026-10-20).
+    rita({ grupp: { namn: "Källan", funktioner: ["chatt", "arenden"] } });
+    expect(screen.getAllByRole("tab").map((f) => f.textContent)).toEqual(["Chatt"]);
     expect(() => render(<OpsGastGrupp grupp={{ namn: "K", funktioner: [] }} api={apiMed().api} />)).toThrow(/inga funktioner/);
     expect(() => render(<OpsGastGrupp grupp={null} api={apiMed().api} />)).toThrow(/grupp är/);
     expect(() => render(<OpsGastGrupp grupp={GRUPP} api={{}} />)).toThrow(/api krävs/);
@@ -267,7 +278,7 @@ describe("OpsGastGrupp: det bantade gränssnittet", () => {
     const { api } = rita();
     await screen.findByText("Välkommen till gruppen", { selector: "[data-bubbla] *" });
     expect(api.chatt).toHaveBeenCalledTimes(1);
-    for (const a of ["kalender", "arenden", "bibliotek", "handelse", "fil"]) expect(api[a], a).not.toHaveBeenCalled();
+    for (const a of ["kalender", "bibliotek", "handelse", "fil", "skrivChatt"]) expect(api[a], a).not.toHaveBeenCalled();
     await valjFlik(screen.getByRole("tab", { name: "Kalender" }));
     await waitFor(() => expect(api.kalender).toHaveBeenCalledTimes(1));
     await valjFlik(screen.getByRole("tab", { name: "Chatt" }));
@@ -373,6 +384,21 @@ describe("OpsGastGrupp: det bantade gränssnittet", () => {
     expect(m.api.fil).toHaveBeenCalledTimes(1);
   });
 
+  it("gästen skriver i chatten: skrivChatt anropas med texten och meddelandet står i chatten som gästens eget, märkt Gäst; ett nej från servern visar texten", async () => {
+    const { api } = rita();
+    await screen.findByText("Välkommen till gruppen", { selector: "[data-bubbla] *" });
+    fireEvent.change(screen.getByRole("textbox", { name: /Skriv/ }), { target: { value: "Hej från mig" } });
+    await klicka(screen.getByRole("button", { name: "Skicka" }));
+    await waitFor(() => expect(api.skrivChatt).toHaveBeenCalledWith({ text: "Hej från mig" }));
+    expect(await screen.findByText("Hej från mig", { selector: "[data-bubbla] *" })).toBeInTheDocument();
+    expect(within(document.querySelector('[data-meddelande="eget"]')).getByText("Hej från mig")).toBeInTheDocument();
+    api.skrivChatt.mockResolvedValueOnce({ ok: false, orsak: "for-manga" });
+    fireEvent.change(screen.getByRole("textbox", { name: /Skriv/ }), { target: { value: "För mycket" } });
+    await klicka(screen.getByRole("button", { name: "Skicka" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("För många anrop. Vänta en stund och försök igen.");
+    expect(screen.getByRole("textbox", { name: /Skriv/ })).toHaveValue("För mycket");
+  });
+
   it("⛔ nekas ett anrop med aterkallad anropas onNekad, och en annan orsak än nej och aterkallad gör det inte", async () => {
     const onNekad = vi.fn();
     const m = apiMed({ kalender: async () => ({ ok: false, orsak: "aterkallad" }) });
@@ -383,10 +409,10 @@ describe("OpsGastGrupp: det bantade gränssnittet", () => {
     forsta.unmount();
     // En annan orsak (för många anrop) visar sitt fel i fliken men säger inte till sidan att åtkomsten är borta.
     const onNekad2 = vi.fn();
-    const m2 = apiMed({ arenden: async () => ({ ok: false, orsak: "for-manga" }) });
+    const m2 = apiMed({ bibliotek: async () => ({ ok: false, orsak: "for-manga" }) });
     rita({ api: m2.api, logg: m2.logg, onNekad: onNekad2 });
-    await valjFlik(screen.getByRole("tab", { name: "Ärenden" }));
-    expect(await screen.findByText("Ärendena kunde inte hämtas just nu.")).toBeInTheDocument();
+    await valjFlik(screen.getByRole("tab", { name: "Bibliotek" }));
+    expect(await screen.findByText("För många anrop. Vänta en stund och försök igen.")).toBeInTheDocument();
     expect(onNekad2).not.toHaveBeenCalled();
   });
 

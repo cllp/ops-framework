@@ -5,7 +5,6 @@ import { definierade, forvalda } from "../lib/ord.js";
 import { OpsBibliotek } from "./OpsBibliotek.jsx";
 import { OpsCalendar } from "./OpsCalendar.jsx";
 import { OpsEmpty } from "./OpsEmpty.jsx";
-import { OpsGastArenden } from "./OpsGastArenden.jsx";
 import { OpsGastChatt } from "./OpsGastChatt.jsx";
 import { OpsHandelsePanel } from "./OpsHandelsePanel.jsx";
 import { OpsList, OpsListRow } from "./OpsList.jsx";
@@ -20,11 +19,10 @@ export const ORD_OPSGASTGRUPP = {
   flikarEtikett: { sv: "Gruppens delar", en: "Parts of the group" },
   flik_chatt: { sv: "Chatt", en: "Chat" },
   flik_kalender: { sv: "Kalender", en: "Calendar" },
-  flik_arenden: { sv: "Ärenden", en: "Cases" },
   flik_bibliotek: { sv: "Bibliotek", en: "Library" },
   gastIngress: {
-    sv: "Du är gäst i {grupp}. Du ser gruppens chatt, kalender, ärenden och bibliotek, och du kan svara och rösta i kalendern. Inget mer.",
-    en: "You are a guest in {grupp}. You can see the group's chat, calendar, cases and library, and you can answer and vote in the calendar. Nothing more.",
+    sv: "Du är gäst i {grupp}. Du kan läsa och skriva i gruppens chatt, svara och rösta i kalendern och läsa, spela och ladda ned i biblioteket. Du ser inte gruppens ärenden.",
+    en: "You are a guest in {grupp}. You can read and write in the group's chat, answer and vote in the calendar, and read, play and download in the library. You do not see the group's cases.",
   },
   kalenderEtikett: { sv: "Kalender", en: "Calendar" },
   kalenderTom: { sv: "Inga händelser i kalendern än.", en: "No events in the calendar yet." },
@@ -40,6 +38,7 @@ export const ORD_OPSGASTGRUPP = {
   rubrikSvar: { sv: "Svar", en: "Answer" },
   omrostningEjStodd: { sv: "Det finns en omröstning här som inte går att visa i den här versionen av appen.", en: "There is a vote here that cannot be shown in this version of the app." },
   fel_kundeInte: { sv: "Det gick inte just nu. Försök igen.", en: "That did not work right now. Try again." },
+  "fel_ogiltig-text": { sv: "Meddelandet är tomt eller för långt.", en: "The message is empty or too long." },
   "fel_for-manga": { sv: "För många anrop. Vänta en stund och försök igen.", en: "Too many requests. Wait a while and try again." },
   fel_saknas: { sv: "Det du bad om finns inte längre.", en: "What you asked for no longer exists." },
   fel_nej: { sv: "Det gick inte.", en: "That did not work." },
@@ -71,18 +70,18 @@ function sammanfoga(a, b) {
 const tidText = (h, till) => (h.tid ? (h.slutTid ? `${h.tid} ${till} ${h.slutTid}` : h.tid) : undefined);
 
 /**
- * Hela gruppen för en gäst: det bantade gränssnittet (0.132.0, cllp/lifehub.app#389, skiva 2). Fyra flikar och ingenting annat: chatt, kalender, ärenden och bibliotek.
+ * Hela gruppen för en gäst: det bantade gränssnittet (0.132.0, cllp/lifehub.app#389, skiva 2). Tre flikar och ingenting annat: chatt, kalender och bibliotek. Ärenden ser en gäst inte (CP 2026-10-20): ärendelistan kan bära sådant som inte rör gästen.
  *
  * ══ ⛔ BANTAT BETYDER ATT DET INTE FINNS, INTE ATT DET ÄR GÖMT ═══════════════════════════════════════════════════════════
  *
- * Inget skal (`OpsAppShell`), inga andra grupper, ingen hubb, inga Appar, ingen Inställningar, ingen Ekonomi, ingen agent och ingen länk ut ur sidan. Vyn har bara de fyra flikarna och de komponenter de
+ * Inget skal (`OpsAppShell`), inga andra grupper, ingen hubb, inga Appar, ingen Inställningar, ingen Ekonomi, ingen agent och ingen länk ut ur sidan. Vyn har bara de tre flikarna och de komponenter de
  * ritar, och varken en rutt eller ett anrop till något annat: det den ser är det `api` ger (`gastGruppApi`), och `api` går bara mot gästens egen tjänst. En gäst hade ingen väg dit även om knappen fanns.
  *
  * ══ ⛔ VYERNA ÄR MEDLEMMENS, MED `jag: null` ══════════════════════════════════════════════════════════════════════════════
  *
  * Kalendern är `OpsCalendar` och händelsen `OpsHandelsePanel` utan penna eller flytt, svaren `OpsSvarSummor` (summor och mitt eget svar, inga namn), biblioteket `OpsBibliotek` med `jag: null` (ingen Ny, ingen
- * redigering, ingen radering, ingen delning) och `adresserPaBegaran` (en signering per öppnad fil, aldrig en per post i listan). Chatten är medlemmens bubblor utan skrivfält (`OpsGastChatt`) och ärendena en lista
- * av primitiver (`OpsGastArenden`).
+ * redigering, ingen radering, ingen delning) och `adresserPaBegaran` (en signering per öppnad fil, aldrig en per post i listan). Chatten är medlemmens bubblor med chattens skrivfält utan bilagor, mikrofon och agent (`OpsGastChatt`): gästen får skriva (CP 2026-10-20), och
+ * servern märker meddelandet Gäst.
  *
  * ══ ⛔ LISTORNA HÄMTAS PÅ BEGÄRAN, INTE PÅ EN TIDTAGARE ═══════════════════════════════════════════════════════════════════
  *
@@ -225,6 +224,25 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
     return () => clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [flik, intervallMs]);
+
+  /**
+   * Gästen skriver i chatten. Meddelandet läggs in i listan så som servern sparade det, och scrollen följer med. Ett fel kastas som ett Error med texten som ska stå under skrivfältet.
+   * @param {string} text
+   */
+  const skrivChatt = async (text) => {
+    /** @type {any} */
+    let r;
+    try {
+      r = await kor("skrivChatt", { text });
+    } catch (e) {
+      throw new Error(felText(e));
+    }
+    if (!levande.current) return;
+    setData((d) => {
+      const fore = /** @type {{ meddelanden: any[], fler: boolean } | undefined} */ (d.chatt);
+      return { ...d, chatt: { meddelanden: sammanfoga(fore?.meddelanden ?? [], [r.meddelande]), fler: fore?.fler ?? false } };
+    });
+  };
 
   // ── Kalendern och händelsen ───────────────────────────────────────────────────────────────────────────────────────────
   const [handelseId, setHandelseId] = useState(/** @type {string | null} */ (null));
@@ -449,7 +467,6 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
 
   const flikar = funktioner.map((f) => ({ id: f, label: t[`flik_${f}`] }));
   const chatt = /** @type {{ meddelanden: any[], fler: boolean } | undefined} */ (data.chatt);
-  const arenden = /** @type {any} */ (data.arenden);
 
   return (
     <div data-gast-grupp="" className="flex min-w-0 flex-col gap-4 text-ink sm:rounded-xl sm:border sm:border-line sm:bg-canvas sm:p-5">
@@ -473,6 +490,7 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
               meddelanden={chatt?.meddelanden ?? []}
               fler={Boolean(chatt?.fler)}
               onAldre={aldreLaddar ? undefined : () => ladda("chatt", { aldre: true })}
+              onSkriv={skrivChatt}
               laddar={!chatt && !fel.chatt}
               fel={fel.chatt}
               sprak={sprak}
@@ -480,11 +498,6 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
           </OpsTabPanel>
         ) : null}
         {funktioner.includes("kalender") ? <OpsTabPanel id="kalender">{kalenderInnehall()}</OpsTabPanel> : null}
-        {funktioner.includes("arenden") ? (
-          <OpsTabPanel id="arenden">
-            <OpsGastArenden poster={arenden?.poster ?? []} avkortad={Boolean(arenden?.avkortad)} laddar={!arenden && !fel.arenden} fel={fel.arenden} sprak={sprak} />
-          </OpsTabPanel>
-        ) : null}
         {funktioner.includes("bibliotek") ? <OpsTabPanel id="bibliotek">{bibliotekInnehall()}</OpsTabPanel> : null}
       </OpsTabs>
     </div>

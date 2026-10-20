@@ -206,7 +206,7 @@ function GastListaScen({ full }) {
 /*
  * 0.132.0 (lifehub.app#389, skiva 2): hela gruppen. `gastgrupp-lista` är medlemmens lista över personer med bekräftelsen "Bjud in gäst till hela gruppen" (öppnas av vakten);
  * `gastgrupp-sida` är gästens bantade gränssnitt, ritat av `OpsGastSida` med `OpsGastGrupp` och ett api som svarar som tjänsten gör (`window.__gastgruppanrop` samlar anropen).
- * Chatten har en lång rad, en bilaga och ett citat; kalendern en vanlig händelse och en med Datum ej satt; ärendena ett långt; biblioteket en PDF, ett ljud och en anteckning.
+ * Chatten har en lång rad, en bilaga, ett citat och en annan gästs meddelande (märkt Gäst); kalendern en vanlig händelse och en med Datum ej satt; biblioteket en PDF, ett ljud och en anteckning. Ärenden finns inte för en gäst.
  */
 const GASTPERSONER = [
   { gastId: "g_" + "1".repeat(40), epost: "anna@foretag.se", namn: "", status: "inloggad", inbjudningar: [
@@ -239,12 +239,13 @@ function GastGruppListaScen() {
     </Skal>
   );
 }
-const GASTGRUPP = { namn: "Källan", funktioner: ["chatt", "kalender", "arenden", "bibliotek"] };
+const GASTGRUPP = { namn: "Källan", funktioner: ["chatt", "kalender", "bibliotek"] };
 const GASTGRUPP_SVAR = {
   chatt: () => ({ ok: true, fler: true, meddelanden: [
     { id: "m1", av: { namn: "Agda Ägare" }, text: "Välkommen till gruppen. Här samlar vi allt inför höstens spelningar, och det här är en lång rad som måste få brytas utan att sidan flödar över i sidled.", tid: Date.UTC(2026, 9, 19, 9, 0) },
     { id: "m2", av: { namn: "Maja Medlem" }, text: "Tack Agda", tid: Date.UTC(2026, 9, 19, 9, 5), svarPa: { id: "m1", namn: "Agda Ägare", text: "Välkommen till gruppen" } },
     { id: "m3", av: { namn: "Tidigare medlem" }, text: "Se bilden", tid: Date.UTC(2026, 9, 19, 9, 10), bilaga: { namn: "scen.png", typ: "image/png" } },
+    { id: "m4", av: { namn: "Bo Gäst" }, text: "Hej, jag är gäst här", tid: Date.UTC(2026, 9, 19, 9, 15), gast: true, egen: false },
   ] }),
   kalender: () => ({ ok: true, avkortad: false, ejVisade: 0, kalendrar: [], handelser: [
     { id: "h-mote", titel: "Möte", beskrivning: "Vi ses i salen", plats: "Salen", datum: "2026-10-27", slutDatum: null, tid: "18:00", slutTid: "20:00", heldag: false, kalenderId: null, kravSvar: true, ejSatt: false },
@@ -253,10 +254,7 @@ const GASTGRUPP_SVAR = {
   handelse: ({ handelseId }) => ({ ok: true, handelse: { id: handelseId, titel: handelseId === "h-mote" ? "Möte" : "Fika", beskrivning: "Vi ses i salen", plats: "Salen", datum: handelseId === "h-mote" ? "2026-10-27" : null, slutDatum: null, tid: "18:00", slutTid: "20:00", heldag: false, kalenderId: null, kravSvar: true, ejSatt: handelseId !== "h-mote" }, svar: { kommer: 3, kommerInte: 1, ejSvarat: 2, text: "3 kommer, 1 kommer inte, 2 har inte svarat", mitt: null } }),
   svara: () => ({ ok: true }),
   rosta: () => ({ ok: true }),
-  arenden: () => ({ ok: true, avkortad: false, poster: [
-    { id: "a-1", rubrik: "Fixa scenen före lördagens spelning och köp ett riktigt långt sammansatt ord som måste få brytas", state: "ny", etiketter: ["scen", "akut"], tilldelade: ["Maja Medlem"], forfallodag: "2026-11-01", brodtext: "Skruvar **saknas**" },
-    { id: "a-2", rubrik: "Städa replokalen", state: "hanterad" },
-  ] }),
+  skrivChatt: (arg) => ({ ok: true, meddelande: { id: "ny-" + String(arg.text).length, av: { namn: "Anna Gäst" }, text: arg.text, tid: Date.UTC(2026, 9, 19, 10, 0), gast: true, egen: true } }),
   bibliotek: () => ({ ok: true, avkortad: false, poster: [
     { id: "p-pdf", typ: "fil", rubrik: "Låtlista", fil: { sokvag: "p-pdf", namn: "lat.pdf", mime: "application/pdf", byte: 1200, klar: true }, skapad: Date.UTC(2026, 9, 15, 12), andrad: Date.UTC(2026, 9, 15, 12), skapadAvNamn: "Maja" },
     { id: "p-ljud", typ: "fil", rubrik: "Demo", fil: { sokvag: "p-ljud", namn: "demo.mp3", mime: "audio/mpeg", byte: 3000, klar: true }, durationMs: 61000, skapad: Date.UTC(2026, 9, 12, 12), andrad: Date.UTC(2026, 9, 12, 12), skapadAvNamn: "Agda" },

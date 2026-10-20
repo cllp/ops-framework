@@ -39,14 +39,13 @@ export const GASTFUNKTIONER = /** @type {const} */ (["rosta"]);
  * Vad en gäst med omfånget `grupp` får göra: se chatten, kalendern (och svara och rösta där), ärendena och biblioteket. En gruppinbjudan ger alla fyra. Att välja en delmängd per
  * gäst byggs inte (CP 2026-10-20, designen: en andra konstant, grenar i `session()` och en omfångsnyckel som då måste bära valet).
  */
-export const GASTGRUPPFUNKTIONER = /** @type {const} */ (["chatt", "kalender", "arenden", "bibliotek"]);
+export const GASTGRUPPFUNKTIONER = /** @type {const} */ (["chatt", "kalender", "bibliotek"]);
 
 /** Tak per svar (hela listan eller en sida), så att en lista som kapats aldrig ser ut som hela listan (`avkortad`). */
 export const GASTCHATT_SIDA = 50;
 /** Flest händelser i gästens kalender. Samma tak som kalenderflödet (5 000). */
 export const GASTKALENDER_MAX = 5000;
 /** Flest ärenden i gästens lista. */
-export const GASTARENDEN_MAX = 500;
 /** Flest biblioteksposter i gästens lista. */
 export const GASTBIBLIOTEK_MAX = 1000;
 /** Högsta antalet anrop per inbjudan och minut (gruppens funktioner). Därefter `for-manga`, som appen svarar 429 på. */
@@ -95,6 +94,24 @@ export const GASTINBJUDNINGSIDFORM = /^[0-9a-f]{64}$/;
 
 /** Gästens identitet: `g_` och 40 hextecken. */
 export const GASTIDFORM = /^g_[0-9a-f]{40}$/;
+
+/**
+ * Är det här en gästs identitet (`av` på ett chattmeddelande)? Det ENDA sättet att se att ett meddelande skrevs av en gäst: ingen andra fält bär det, så ingen kan glida isär från `av`.
+ * Ett Firebase-uid kan inte ha den formen (28 tecken, utan understreck).
+ * @param {unknown} av
+ * @returns {boolean}
+ */
+export function arGastId(av) {
+  return typeof av === "string" && GASTIDFORM.test(av);
+}
+
+/** Namnet på en gäst som skrivit utan att ha något namn. Märket Gäst står vid varje gästs meddelande ändå. */
+export const GASTNAMNLOS = "Gäst";
+
+/** Högsta antal tecken i ett meddelande en gäst skriver i chatten (0.132.0, CP 2026-10-20: "Gästen får skriva"). Lägre än en medlems tak (`MAX_MEDDELANDE`): en gäst skriver inget långt. */
+export const GASTSKRIV_MAX_TECKEN = 1000;
+/** Högsta antal meddelanden en gäst skriver per inbjudan och minut. Räknas i `gastraknare`, som övriga gästräknare, och är strängare än läsningen (`GASTANROP_PER_MINUT`). */
+export const GASTSKRIV_PER_MINUT = 10;
 
 /** Sökvägen gästsidan ritas på. Appen lägger sidan där före sin inloggningsgrind. */
 export const GASTSOKVAG = "/gast";
@@ -155,26 +172,26 @@ export const GASTGRUPPSVARSFALT = /** @type {const} */ ({
   hamta: ["namn", "funktioner"],
   /** Svaret på `chatt`. `fler`: det finns äldre meddelanden. `ingetNytt`: en ping där inget är nyare än `nyast`. */
   chatt: ["ok", "meddelanden", "fler", "ingetNytt"],
+  /** Svaret på `skrivChatt`: meddelandet som det nu står i chatten, i samma form som en rad i `chatt`. */
+  skrivChatt: ["ok", "meddelande"],
   /** Svaret på `kalender`. */
   kalender: ["ok", "handelser", "kalendrar", "avkortad", "ejVisade"],
   /** Svaret på `handelse`. */
   handelse: ["ok", "handelse", "svar", "omrostning"],
-  /** Svaret på `arenden` (posternas fält är appens, `grupp.arenden.falt`). */
-  arenden: ["ok", "poster", "avkortad"],
   /** Svaret på `bibliotek`. */
   bibliotek: ["ok", "poster", "avkortad"],
   /** Svaret på `fil`. */
   fil: ["ok", "url", "namn", "mime"],
 });
 
-/** Fälten på ett chattmeddelande hos en gäst. `av` är `{ namn }`; `svarPa` är ett citat `{ id, namn, text }` med kapad text; `namner` är namn och aldrig uid. */
-export const GASTCHATTFALT = /** @type {const} */ (["id", "av", "text", "tid", "svarPa", "namner", "bilaga"]);
+/** Fälten på ett chattmeddelande hos en gäst. `av` är `{ namn }`; `gast` är sant när en gäst skrev det (märket Gäst) och `egen` när det är gästens eget (0.132.0); `svarPa` är ett citat `{ id, namn, text }` med kapad text; `namner` är namn och aldrig uid. */
+export const GASTCHATTFALT = /** @type {const} */ (["id", "av", "text", "tid", "svarPa", "namner", "bilaga", "gast", "egen"]);
 
 /**
  * Åtgärderna en gruppgäst anropar på servern (`POST /api/gast`), förutom `los`, `hamta`, `namn`, `nylank` och `raderaMig` som varje gäst har. Namnen står här och ingen annanstans (regel 2):
  * tjänstens metoder, appens vitlista för vad en handler släpper in, och vyns anrop läser samma lista.
  */
-export const GASTGRUPPATGARDER = /** @type {const} */ (["chatt", "kalender", "handelse", "svara", "rosta", "arenden", "bibliotek", "fil"]);
+export const GASTGRUPPATGARDER = /** @type {const} */ (["chatt", "skrivChatt", "kalender", "handelse", "svara", "rosta", "bibliotek", "fil"]);
 
 /**
  * Bygger gruppvyns `api` av appens ENDA anrop mot `/api/gast`. `anrop` får `{ atgard, sessionsnyckel, ...argument }` och ska svara med serverns JSON (`{ ok, ... }`); appens handler skickar
@@ -243,6 +260,7 @@ export const GASTFELKODER = /** @type {const} */ ([
   "aterkallad",
   "brev-misslyckades",
   "ogiltigt-omfang",
+  "ogiltig-text",
 ]);
 
 /**

@@ -64,8 +64,11 @@ describe("OpsGastLista, gruppläget", () => {
     fireEvent.change(screen.getByLabelText("E-postadress"), { target: { value: "nils@foretag.se" } });
     await klicka(screen.getByRole("button", { name: "Bjud in gäst till hela gruppen" }));
     const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByText(/hela historiken från början/)).toBeInTheDocument();
-    expect(within(dialog).getByText(/allt i kalendern, ärendena och biblioteket/)).toBeInTheDocument();
+    // ⛔ Dialogen säger vad gästen ser och kan: chattens hela historik och att gästen kan skriva i den, kalendern (svara och rösta), biblioteket (läsa, spela, ladda ned), och att ärenden inte syns.
+    expect(within(dialog).getByText(/hela historiken från början, och kan skriva i den/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/kalendern och händelserna och kan svara och rösta/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/läsa, spela och ladda ned i biblioteket/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/Gästen ser inte gruppens ärenden/)).toBeInTheDocument();
     expect(within(dialog).getByText(/medlemmarnas e-postadresser/)).toBeInTheDocument();
     expect(within(dialog).getByText(/går inte att ta tillbaka/)).toBeInTheDocument();
     expect(within(dialog).getByText(/högst 15 minuter/)).toBeInTheDocument();

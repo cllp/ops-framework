@@ -42,8 +42,8 @@ export const ORD_OPSGASTLISTA = {
   felReserv: { sv: "Det gick inte. Försök igen.", en: "That did not work. Try again." },
   // ── Hela gruppen (0.132.0) ──
   ingressGrupp: {
-    sv: "En gäst får ett mejl med en länk och kan följa gruppen utan konto: chatten, kalendern, ärendena och biblioteket. Gästen kan svara och rösta i kalendern, inget mer.",
-    en: "A guest gets an email with a link and can follow the group without an account: the chat, the calendar, the cases and the library. The guest can answer and vote in the calendar, nothing more.",
+    sv: "En gäst får ett mejl med en länk och kan följa gruppen utan konto: läsa och skriva i chatten, svara och rösta i kalendern och läsa, spela och ladda ned i biblioteket. Gästen ser inte gruppens ärenden.",
+    en: "A guest gets an email with a link and can follow the group without an account: read and write in the chat, answer and vote in the calendar, and read, play and download in the library. The guest does not see the group's cases.",
   },
   ingaGrupp: { sv: "Inga gäster har bjudits in till gruppen.", en: "No guests have been invited to the group." },
   bjudGrupp: { sv: "Bjud in gäst till hela gruppen", en: "Invite a guest to the whole group" },
@@ -56,10 +56,10 @@ export const ORD_OPSGASTLISTA = {
   raderaNamn: { sv: "Radera uppgifterna om {vem}", en: "Delete the data about {vem}" },
   bekraftaGruppTitel: { sv: "Bjud in {vem} till hela gruppen?", en: "Invite {vem} to the whole group?" },
   bekraftaGruppSer: {
-    sv: "Gästen ser gruppens chatt, med hela historiken från början, och allt i kalendern, ärendena och biblioteket. Gästen kan svara och rösta i kalendern men inte skriva eller ändra något.",
-    en: "The guest sees the group's chat, with the whole history from the beginning, and everything in the calendar, the cases and the library. The guest can answer and vote in the calendar but cannot write or change anything.",
+    sv: "Gästen ser gruppens chatt, med hela historiken från början, och kan skriva i den. Gästen ser kalendern och händelserna och kan svara och rösta, och kan läsa, spela och ladda ned i biblioteket. Gästen ser inte gruppens ärenden.",
+    en: "The guest sees the group's chat, with the whole history from the beginning, and can write in it. The guest sees the calendar and the events and can answer and vote, and can read, play and download in the library. The guest does not see the group's cases.",
   },
-  bekraftaGruppInte: { sv: "Gästen ser inte medlemmarnas e-postadresser och kommer inte åt något annat i appen.", en: "The guest does not see the members' email addresses and cannot reach anything else in the app." },
+  bekraftaGruppInte: { sv: "Gästen ser inte medlemmarnas e-postadresser, kan inte ladda upp eller bifoga något och kommer inte åt något annat i appen. Det gästen skriver märks Gäst.", en: "The guest does not see the members' email addresses, cannot upload or attach anything and cannot reach anything else in the app. What the guest writes is marked Guest." },
   bekraftaGruppTillbaka: {
     sv: "Det gästen hunnit läsa eller ladda ned går inte att ta tillbaka. Dras inbjudan tillbaka stängs åtkomsten vid gästens nästa anrop, och en fil som redan öppnats går att nå i högst {minuter} minuter till.",
     en: "What the guest has already read or downloaded cannot be taken back. If the invitation is withdrawn, access is closed at the guest's next request, and a file that has already been opened can be reached for at most {minuter} more minutes.",
@@ -67,8 +67,8 @@ export const ORD_OPSGASTLISTA = {
   bekraftaGruppKnapp: { sv: "Bjud in", en: "Invite" },
   bekraftaRaderaTitel: { sv: "Radera uppgifterna om {vem}?", en: "Delete the data about {vem}?" },
   bekraftaRaderaText: {
-    sv: "Inbjudningarna, inloggningarna, räknarna, svaren och rösterna tas bort och platsen blir ledig. Det går inte att ångra. Personen kan bjudas in igen, som en ny gäst.",
-    en: "The invitations, the sign-ins, the counters, the answers and the votes are removed and the place becomes free. It cannot be undone. The person can be invited again, as a new guest.",
+    sv: "Inbjudningarna, inloggningarna, räknarna, svaren, rösterna och meddelandena i chatten tas bort och platsen blir ledig. Det går inte att ångra. Personen kan bjudas in igen, som en ny gäst.",
+    en: "The invitations, the sign-ins, the counters, the answers, the votes and the messages in the chat are removed and the place becomes free. It cannot be undone. The person can be invited again, as a new guest.",
   },
   bekraftaRaderaKnapp: { sv: "Radera", en: "Delete" },
   avbryt: { sv: "Avbryt", en: "Cancel" },

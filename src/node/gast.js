@@ -33,12 +33,12 @@
  *
  * ══ ⛔ HELA GRUPPEN (0.132.0): SERVERN LÄSER OCH SVARAR MED VITLISTADE FÄLT, PER ÅTGÄRD ═════════════════════════════════════
  *
- * En inbjudan med omfånget `{ slag: "grupp" }` ger gästen fyra funktioner (`GASTGRUPPFUNKTIONER`): chatt, kalender, ärenden och bibliotek. Varje åtgärd (`chatt`, `kalender`,
- * `handelse`, `svara`, `rosta`, `arenden`, `bibliotek`, `fil`) börjar med `session` och kravet `{ slag: "grupp", funktion }`, som läser sessionen OCH inbjudan på nytt: en återkallad
+ * En inbjudan med omfånget `{ slag: "grupp" }` ger gästen fyra funktioner (`GASTGRUPPFUNKTIONER`): chatt, kalender och bibliotek (ärenden är medvetet inte med: ärendelistan kan bära sådant som inte rör gästen, och ett ärende delegerat till en gäst är skiva 3). Varje åtgärd (`chatt`, `kalender`,
+ * `skrivChatt`, `handelse`, `svara`, `rosta`, `bibliotek`, `fil`) börjar med `session` och kravet `{ slag: "grupp", funktion }`, som läser sessionen OCH inbjudan på nytt: en återkallad
  * gäst nekas vid nästa anrop, i varje åtgärd. Gruppen kommer ur inbjudan och aldrig ur anropet. Svaret byggs fält för fält ur listorna i `GASTGRUPPSVARSFALT`: ett helt dokument
  * sprids aldrig ut, och en medlems adress, uid eller namn (utom som avsändarnamn i chatten) har ingen plats i något svar. Gästen når fortfarande bara servern och aldrig Firestore.
  *
- * ⛔ DET SOM ÄR APPENS HÄR: appens fält på en händelse (`grupp.handelseSida`), ärendenas form (`grupp.arenden`: `falt` är hela listan, `bygg` väljer), och omröstningens
+ * ⛔ DET SOM ÄR APPENS HÄR: appens fält på en händelse (`grupp.handelseSida`), och omröstningens
  * modell (`grupp.omrostning`: förslagen, rösterna). Ramverket läser dem aldrig själv, och allt som appens `bygg` ger utöver `falt` tas bort innan svaret lämnar tjänsten.
  *
  * ══ ⛔ RAMVERKET KÄNNER INGEN DATABAS, INGA SAMLINGSNAMN OCH INGA FÄLT HOS APPENS HÄNDELSE ═════════════════════════════════
@@ -53,7 +53,6 @@ import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { Buffer } from "node:buffer";
 import {
   GASTANROP_PER_MINUT,
-  GASTARENDEN_MAX,
   GASTBIBLIOTEK_MAX,
   GASTBIBLIOTEKFALT,
   GASTCHATT_SIDA,
@@ -62,6 +61,10 @@ import {
   GASTFEL_MAX,
   GASTFELKODER,
   GASTFIL_PER_DYGN,
+  GASTSKRIV_MAX_TECKEN,
+  GASTSKRIV_PER_MINUT,
+  arGastId,
+  GASTNAMNLOS,
   GASTGRUPPFUNKTIONER,
   GASTGRUPPSVARSFALT,
   GASTHANDELSEFALT,
@@ -245,8 +248,6 @@ function felMedKod(kod, meddelande) {
  *   Som delningens lagring. `gruppPrefix` och `postPrefix` är samma namn som `lagringsregelfragment({ bibliotek })` fick (förval `grupper` och `bibliotek`): en fils sökväg är exakt
  *   `<gruppPrefix>/<groupId>/<postPrefix>/<postId>/<filnamn>` med postens egen grupp och id, annars signeras den aldrig.
  * @property {(handelse: Record<string, any>) => { titel: string, beskrivning?: string, plats?: string }} handelseSida Vilka av appens fält som är titel, beskrivning och plats (som delningens).
- * @property {{ sokvag: (groupId: string) => string, falt: readonly string[], bygg: (arg: { rad: Record<string, any>, groupId: string }) => Record<string, any> | null | Promise<Record<string, any> | null> }} [arenden]
- *   Gruppens ärenden: samlingens sökväg för en grupp, hela listan över fält en gäst får se (`falt`), och `bygg` som väljer dem ur raden (`null` hoppar över raden). Utelämnad: ingen ärendeflik.
  * @property {{ falt: readonly string[], bygg: (arg: { handelse: Record<string, any>, gastId: string, groupId: string }) => Record<string, any> | null | Promise<Record<string, any> | null>,
  *   rosta: (arg: { handelse: Record<string, any>, gastId: string, groupId: string, forslagId: string, val: string }) => { ok: boolean } | Promise<{ ok: boolean }> }} [omrostning]
  *   Omröstningen på ett datum är appens modell. `bygg` ger det en gäst ser (förslag, summor, egna röster) och `falt` är hela listan; `rosta` skriver rösten (appens prövning, samma som en
@@ -330,7 +331,7 @@ export function createGastService(konfig) {
     }
     if (typeof sak.bygg !== "function") throw new Error(`${namn}: sak.bygg krävs när sak finns, en funktion som ger saken som en gäst ser den.`);
   }
-  /** @type {null | { samlingar: Record<string, string>, lagring: Gastgrupp["lagring"], gruppPrefix: string, postPrefix: string, handelseSida: Gastgrupp["handelseSida"], arenden?: Gastgrupp["arenden"], omrostning?: Gastgrupp["omrostning"], funktioner: readonly string[] }} */
+  /** @type {null | { samlingar: Record<string, string>, lagring: Gastgrupp["lagring"], gruppPrefix: string, postPrefix: string, handelseSida: Gastgrupp["handelseSida"], omrostning?: Gastgrupp["omrostning"], funktioner: readonly string[] }} */
   let GS = null;
   if (radering !== undefined) {
     if (!radering || typeof radering !== "object") throw new Error(`${namn}: radering är ett objekt (Gastradering), eller utelämnas.`);
@@ -360,12 +361,6 @@ export function createGastService(konfig) {
     };
     const gruppPrefix = prefix(grupp.lagring.gruppPrefix, "grupper", "gruppPrefix");
     const postPrefix = prefix(grupp.lagring.postPrefix, "bibliotek", "postPrefix");
-    if (grupp.arenden !== undefined) {
-      const a = grupp.arenden;
-      if (!a || typeof a.sokvag !== "function" || typeof a.bygg !== "function" || !Array.isArray(a.falt) || a.falt.length === 0 || a.falt.some((/** @type {unknown} */ f) => typeof f !== "string" || f === "")) {
-        throw new Error(`${namn}: grupp.arenden är { sokvag, falt, bygg }. falt är en icke-tom lista: hela listan över vad en gäst får se av ett ärende.`);
-      }
-    }
     if (grupp.omrostning !== undefined) {
       const o = grupp.omrostning;
       if (!o || typeof o.bygg !== "function" || typeof o.rosta !== "function" || !Array.isArray(o.falt) || o.falt.length === 0 || o.falt.some((/** @type {unknown} */ f) => typeof f !== "string" || f === "")) {
@@ -378,10 +373,9 @@ export function createGastService(konfig) {
       gruppPrefix,
       postPrefix,
       handelseSida: grupp.handelseSida,
-      arenden: grupp.arenden,
       omrostning: grupp.omrostning,
-      // ⛔ FUNKTIONERNA SOM FINNS ÄR DE SOM ÄR KONFIGURERADE. En gruppinbjudan ger fyra, men en ärendeflik utan ärenden bakom sig hade varit en död flik.
-      funktioner: GASTGRUPPFUNKTIONER.filter((f) => f !== "arenden" || grupp.arenden !== undefined),
+      // ⛔ FUNKTIONERNA ÄR `GASTGRUPPFUNKTIONER` OCH INGET ANNAT. Ärenden är inte med (CP 2026-10-20: gästen ser inga ärenden i skiva 2).
+      funktioner: [...GASTGRUPPFUNKTIONER],
     };
   }
   /*
@@ -1147,7 +1141,6 @@ export function createGastService(konfig) {
    */
   async function gruppSession(b, funktion) {
     if (!GS) return nej();
-    if (funktion === "arenden" && !GS.arenden) return nej();
     const s = await session({ sessionsnyckel: b?.sessionsnyckel, krav: { slag: "grupp", funktion } });
     if (!s.ok) return s;
     if (!(await reserveraAnrop(s.inbjudan.id))) return orsak("for-manga");
@@ -1199,9 +1192,11 @@ export function createGastService(konfig) {
     const sida = rader.slice(0, GASTCHATT_SIDA).reverse();
     const medlemmar = await kalla.list(MEDLEMSKAP, { where: { groupId } });
     const namnFor = new Map(medlemmar.filter((m) => typeof m.userId === "string").map((m) => [m.userId, text(m.namn)]));
+    // En gäst som skrivit bär sitt namn på meddelandet (`avNamn`, satt av `skrivChatt`) eller "Gäst". Märket Gäst härleds ur `av` (`arGastId`) och ingenting annat.
+    const gastnamn = new Map(sida.filter((m) => arGastId(m.av)).map((m) => [m.av, text(m.avNamn) || GASTNAMNLOS]));
     const agenter = new Set([agentId(groupId), ...medlemmar.filter((m) => m.typ === "agent" && typeof m.userId === "string").map((m) => m.userId)]);
     /** @param {unknown} uid */
-    const namnPa = (uid) => (typeof uid === "string" && namnFor.get(uid)) || GASTTIDIGAREMEDLEM;
+    const namnPa = (uid) => (typeof uid === "string" && (namnFor.get(uid) || gastnamn.get(uid))) || GASTTIDIGAREMEDLEM;
     const meddelanden = sida
       .filter((m) => !agenter.has(m.av))
       .map((m) => {
@@ -1210,6 +1205,8 @@ export function createGastService(konfig) {
           av: { namn: namnPa(m.av) },
           text: typeof m.text === "string" ? m.text : "",
           tid: m.tid,
+          gast: arGastId(m.av),
+          egen: m.av === s.gastId,
         };
         /** @type {Record<string, any>} */
         const extra = {};
@@ -1220,6 +1217,52 @@ export function createGastService(konfig) {
         return vitlista({ ...ut, ...extra }, GASTCHATTFALT);
       });
     return vitlista({ ok: true, meddelanden, fler }, GASTGRUPPSVARSFALT.chatt);
+  }
+
+  /**
+   * Gästen skriver ett meddelande i gruppens chatt (0.132.0, CP 2026-10-20: "Gästen får skriva").
+   *
+   * ⛔ SERVERN SKRIVER, ALDRIG KLIENTEN, OCH ALDRIG SOM EN MEDLEM. Meddelandet får `av` = gästens `g_`-id (inget uid), gästens namn som `avNamn` och inget annat fält: ingen bilaga, inga trådar,
+   * inga omnämnanden, inget citat. Märket Gäst härleds ur `av` (`arGastId`) i medlemmarnas chatt, så det kan inte saknas på ett meddelande en gäst skrivit och inte läggas på ett en medlem skrev.
+   * En klient kan inte skriva raden: reglernas `av == request.auth.uid` och `hasOnly` nekar ett `g_`-id och ett `avNamn`.
+   *
+   * ⛔ SAMMA KRAV SOM ATT LÄSA (`chatt`): `gruppSession(b, "chatt")` läser sessionen OCH inbjudan på nytt, så en återkallad eller utgången gäst nekas vid nästa försök, och en omröstningsgäst
+   * (som inte har `chatt`) nekas alltid. Texten prövas FÖRE takten, så ett avvisat försök inte kostar ett av de tio meddelandena i minuten.
+   *
+   * Taket på texten är `GASTSKRIV_MAX_TECKEN` och takten `GASTSKRIV_PER_MINUT` per inbjudan, i `gastraknare` som de andra räknarna (id = hash av `gastskriv|<inbjudan>`). En bilaga kastas
+   * tillbaka: #389 stryker uppladdning för gäster.
+   *
+   * @param {Record<string, any>} b `{ sessionsnyckel, text }`.
+   */
+  async function skrivChatt(b) {
+    const s = await gruppSession(b, "chatt");
+    if (!s.ok || !GS) return s.ok ? nej() : s;
+    for (const f of ["bilaga", "svarPa", "namner", "av", "tid"]) {
+      if (b?.[f] !== undefined) throw felMedKod("ogiltig-text", `skrivChatt: "${f}" kan en gäst inte skicka. En gäst skriver bara text.`);
+    }
+    const t = typeof b?.text === "string" ? b.text.trim() : "";
+    if (t === "") throw felMedKod("ogiltig-text", "skrivChatt: texten är tom.");
+    if (t.length > GASTSKRIV_MAX_TECKEN) throw felMedKod("ogiltig-text", `skrivChatt: texten är ${t.length} tecken, taket är ${GASTSKRIV_MAX_TECKEN}.`);
+    const takt = await reserveraRaknare(hash(`gastskriv|${s.inbjudan.id}`), { max: GASTSKRIV_PER_MINUT, fonsterMs: MINUT_MS });
+    if (!takt) return orsak("for-manga");
+    const groupId = s.inbjudan.groupId;
+    const vag = `${GS.samlingar.samtal}/${samtalsnyckel({ groupId, slag: "grupp" })}/${GS.samlingar.meddelanden}`;
+    const tid = klocka();
+    const namn = text(s.inbjudan.namn);
+    /** @type {Record<string, any>} */
+    const rad = { text: t, av: s.gastId, tid };
+    if (namn) rad.avNamn = namn;
+    let sparad;
+    try {
+      sparad = await kalla.create(vag, rad);
+    } catch (fel) {
+      await aterlamna(RAKNARE, takt.id, RAKNEFALT, takt.fonster);
+      throw fel;
+    }
+    return vitlista(
+      { ok: true, meddelande: vitlista({ id: sparad.id, av: { namn: namn || GASTNAMNLOS }, text: t, tid, gast: true, egen: true }, GASTCHATTFALT) },
+      GASTGRUPPSVARSFALT.skrivChatt,
+    );
   }
 
   /**
@@ -1373,29 +1416,6 @@ export function createGastService(konfig) {
     if (!h) return orsak("saknas");
     const r = await GS.omrostning.rosta({ handelse: { ...h }, gastId: s.gastId, groupId: s.inbjudan.groupId, forslagId: b.forslagId, val: b.val });
     return r && r.ok === true ? { ok: true } : nej();
-  }
-
-  /**
-   * Gruppens ärenden, bara de fält appen listat (`grupp.arenden.falt`), högst `GASTARENDEN_MAX`. Appens `bygg` väljer fälten och hoppar över det en gäst inte ska se (en sort
-   * som hör till Ekonomi, ärendets GitHub-adress); allt utöver `falt` tas bort här. Utan `grupp.arenden` finns ingen ärendeflik och svaret är `nej`.
-   *
-   * @param {Record<string, any>} b `{ sessionsnyckel }`.
-   */
-  async function arenden(b) {
-    const s = await gruppSession(b, "arenden");
-    if (!s.ok || !GS?.arenden) return s.ok ? nej() : s;
-    const groupId = s.inbjudan.groupId;
-    const vag = GS.arenden.sokvag(groupId);
-    if (typeof vag !== "string" || vag === "") throw new Error("grupp.arenden.sokvag ska svara med samlingens sökväg för gruppen.");
-    const rader = await kalla.list(vag, { limit: GASTARENDEN_MAX + 1 });
-    const avkortad = rader.length > GASTARENDEN_MAX;
-    /** @type {Record<string, any>[]} */
-    const poster = [];
-    for (const rad of rader.slice(0, GASTARENDEN_MAX)) {
-      const ut = await GS.arenden.bygg({ rad: { ...rad }, groupId });
-      if (ut && typeof ut === "object") poster.push(vitlista(ut, GS.arenden.falt));
-    }
-    return vitlista({ ok: true, poster, avkortad }, GASTGRUPPSVARSFALT.arenden);
   }
 
   /** @param {unknown} v @returns {string[]} */
@@ -1552,6 +1572,24 @@ export function createGastService(konfig) {
   }
 
   /**
+   * Tar bort gästens egna chattmeddelanden i gruppen (`av` = gästens `g_`-id), med namnet de bär. ⛔ En gäst som raderas ska inte lämna sitt namn kvar i gruppens historik: meddelandet är gästens
+   * uppgift lika mycket som adressen. Ett citat som pekar på ett borttaget meddelande visas utan citatet.
+   * @param {string} groupId
+   * @param {string} gId
+   * @returns {Promise<number>}
+   */
+  async function raderaMeddelanden(groupId, gId) {
+    if (!GS) return 0;
+    const vag = `${GS.samlingar.samtal}/${samtalsnyckel({ groupId, slag: "grupp" })}/${GS.samlingar.meddelanden}`;
+    let n = 0;
+    for (const m of await kalla.list(vag, { where: { av: gId } })) {
+      await taBort(vag, m.id);
+      n++;
+    }
+    return n;
+  }
+
+  /**
    * Tar bort gästens svar på gruppens händelser (`<handelser>/<id>/<svar>/<g_-id>`). ⛔ KASTAR när gruppen har fler händelser än taket: en radering som inte kan lova att ha sett allt
    * ska inte säga att den är klar.
    * @param {string} groupId
@@ -1593,8 +1631,10 @@ export function createGastService(konfig) {
     const rader = d.grupper ? alla.filter((r) => /** @type {readonly string[]} */ (d.grupper).includes(r.groupId)) : alla;
     const berorda = [...new Set(rader.map((r) => String(r.groupId)))];
     let roster = 0;
+    let meddelanden = 0;
     for (const g of berorda) {
       roster += await raderaSvar(g, gId);
+      meddelanden += await raderaMeddelanden(g, gId);
       if (radering.roster) await radering.roster({ gastId: gId, groupId: g });
     }
     let sessioner = 0;
@@ -1603,7 +1643,7 @@ export function createGastService(konfig) {
         await taBort(SESS, sr.id);
         sessioner++;
       }
-      for (const slag of ["gastanrop", "gastfil"]) {
+      for (const slag of ["gastanrop", "gastfil", "gastskriv"]) {
         const rid = hash(`${slag}|${r.id}`);
         if (await kalla.read(RAKNARE, rid)) await taBort(RAKNARE, rid);
       }
@@ -1617,7 +1657,7 @@ export function createGastService(konfig) {
     for (const r of rader) await taBort(INB, r.id);
     let platserSlappta = 0;
     for (const g of berorda) if (await slappPlatsOmTom(g, d.epost)) platserSlappta++;
-    return { inbjudningar: rader.length, sessioner, roster, platserSlappta, grupper: berorda };
+    return { inbjudningar: rader.length, sessioner, roster, meddelanden, platserSlappta, grupper: berorda };
   }
 
   /**
@@ -1625,7 +1665,7 @@ export function createGastService(konfig) {
    * omröstning. ⛔ ALLA personens rader i gruppen prövas FÖRE något raderas: saknas rätt på en, raderas ingen.
    *
    * @param {Record<string, any>} b `{ uid, groupId, gastId }`.
-   * @returns {Promise<{ inbjudningar: number, sessioner: number, roster: number, platserSlappta: number, grupper: string[] }>}
+   * @returns {Promise<{ inbjudningar: number, sessioner: number, roster: number, meddelanden: number, platserSlappta: number, grupper: string[] }>}
    */
   async function radera(b) {
     const uid = kravText(b?.uid, "uid", "radera");
@@ -1657,5 +1697,5 @@ export function createGastService(konfig) {
     return { ok: true };
   }
 
-  return { bjud, aterkalla, skickaOm, lista, platser, los, session, hamta, sattNamn, nyLank, stadaSessioner, chatt, kalender, handelse, svara, rosta, arenden, bibliotek, fil, aterkallaAlla, ersattAvMedlem, radera, raderaMig };
+  return { bjud, aterkalla, skickaOm, lista, platser, los, session, hamta, sattNamn, nyLank, stadaSessioner, chatt, skrivChatt, kalender, handelse, svara, rosta, bibliotek, fil, aterkallaAlla, ersattAvMedlem, radera, raderaMig };
 }
