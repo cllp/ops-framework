@@ -7836,7 +7836,16 @@ async function gastGrupp() {
           await page.waitForTimeout(150);
           const f = await page.evaluate(() => ({ overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth, anrop: JSON.stringify(/** @type {any} */ (window).__gastgruppanrop.map((a) => a[0])) }));
           krav(!f.overflow, `${namn} sida (e): fliken ${flik} flödar över i sidled.`);
-          if (flik === "Kalender") krav(await page.locator("[data-gast-ejsatt]").count() === 1, `${namn} sida (e): Datum ej satt-listan har inte en händelse.`);
+          if (flik === "Kalender") {
+            krav(await page.locator("[data-gast-ejsatt]").count() === 1, `${namn} sida (e): Datum ej satt-listan har inte en händelse.`);
+            // Kalendern drar av 1,5 rem med `-mb-6` (den är byggd för att vara sist i sin vy): rubriken under den får inte ligga över rutnätets nederkant.
+            const luft = await page.evaluate(() => {
+              const rulle = document.querySelector("[data-kalender-rulle]");
+              const ejsatta = document.querySelector("[data-gast-ejsatta]");
+              return rulle && ejsatta ? ejsatta.getBoundingClientRect().top - rulle.getBoundingClientRect().bottom : null;
+            });
+            krav(luft !== null && luft >= 0, `${namn} sida (e): Datum ej satt ligger ${luft === null ? "ingenstans" : luft.toFixed(0) + " px"} från kalenderns nederkant, väntat minst 0 (inte ovanpå rutnätet).`);
+          }
           if (flik === "Ärenden") krav(await page.locator("[data-gast-arende]").count() === 2, `${namn} sida (e): ärendefliken ritade inte två ärenden.`);
           if (flik === "Bibliotek") krav(await page.getByText("Låtlista").count() >= 1, `${namn} sida (e): biblioteksfliken ritade inte posten "Låtlista".`);
           if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `gaster-grupp-sida-${bildnamn}-${w}.png`), fullPage: true });
