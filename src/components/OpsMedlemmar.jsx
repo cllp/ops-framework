@@ -1,12 +1,16 @@
 import { useState } from "react";
+import { normaliseraGastepost } from "../lib/gast.js";
 import { ROLLER } from "../lib/grupp.js";
+import { forvalda } from "../lib/ord.js";
 import { OpsButton } from "./OpsButton.jsx";
 import { OpsEmpty } from "./OpsEmpty.jsx";
 import { OpsField, OpsInput } from "./OpsField.jsx";
+import { GastBekraftelse, gastFelText, OpsGastLista, ORD_OPSGASTLISTA } from "./OpsGastLista.jsx";
 import { OpsIdentity } from "./OpsIdentity.jsx";
 import { OpsList, OpsListRow } from "./OpsList.jsx";
 import { OpsPill } from "./OpsPill.jsx";
 import { OpsSelect } from "./OpsSelect.jsx";
+import { useOpsSprak } from "./OpsSprak.jsx";
 import { usePersonnamn } from "./usePersonnamn.js";
 
 /**
@@ -57,6 +61,20 @@ import { usePersonnamn } from "./usePersonnamn.js";
  * @param {string} [props.ingaText]
  * @param {string} [props.mejlNot]
  * @param {Record<string, string>} [props.rollNamn]
+ * @param {object} [props.gaster] (0.132.0, lifehub.app#389) **Gäster i hela gruppen, bjudna in härifrån.** Med den finns "Gäst (utan konto)" som ett val i Roll. Med Gäst valt visar rutan "X av 5 gratis platser"
+ *   och ingressen om vad en gäst får se, knappen heter "Bjud in utan konto" och ett tryck öppnar bekräftelsen (gästen ser chattens hela historik, och det går inte att ta tillbaka) innan `onBjud` anropas.
+ *   Väntande gäster står under de väntande inbjudningarna, med Skicka igen och Dra tillbaka (`OpsGastLista` utan rubrik). Raden under E-post säger att en adress utan Google-konto kan bjudas in som gäst
+ *   (`mejlNotMedGast` eller ordboken; ersätter `mejlNot`). Ägare och admin bjuder in: `kanAndra` styr, och tjänsten prövar rollen igen.
+ * @param {ReadonlyArray<import("./OpsGastLista.jsx").Person>} props.gaster.personer Tjänstens `lista({ groupId }).personer`.
+ * @param {{ anvanda: number, totalt: number }} props.gaster.platser Tjänstens `lista({ groupId }).platser`.
+ * @param {(inmatning: { epost: string, namn: string }) => void | Promise<unknown>} props.gaster.onBjud Efter bekräftelsen. Tjänstens `bjud({ slag: "grupp", groupId, epost })`.
+ * @param {(arg: { id: string }) => void | Promise<unknown>} [props.gaster.onSkickaOm]
+ * @param {(arg: { id: string }) => void | Promise<unknown>} [props.gaster.onAterkalla]
+ * @param {(arg: { gastId: string }) => void | Promise<unknown>} [props.gaster.onAterkallaAlla]
+ * @param {(arg: { gastId: string, epost: string }) => void | Promise<unknown>} [props.gaster.onRadera]
+ * @param {number} [props.gaster.nu] Bara för prov.
+ * @param {string} [props.mejlNotMedGast] Raden under E-post när `gaster` finns. Förval ur ordboken (`ORD_OPSGASTLISTA.medlemsNotMedGast`).
+ * @param {string} [props.sprak] Språket för gästdelens ord. Utelämnat: ur `OpsSprakProvider`.
  */
 export function OpsMedlemmar({
   medlemmar,
@@ -79,6 +97,9 @@ export function OpsMedlemmar({
   ingaText = "Gruppen har inga medlemmar än.",
   mejlNot = "Inget mejl skickas. Be personen logga in, så blir inbjudan ett medlemskap.",
   rollNamn = { agare: "Ägare", admin: "Admin", medlem: "Medlem" },
+  gaster,
+  mejlNotMedGast,
+  sprak: sprakProp,
 }) {
   if (typeof migUid !== "string" || !migUid) {
     throw new Error("OpsMedlemmar: migUid krävs. Utan den vet vyn inte vilken rad som är ens egen, och skyddet mot att ta bort sig själv blir en gissning.");
@@ -87,6 +108,12 @@ export function OpsMedlemmar({
   const personnamn = usePersonnamn();
   const [epost, setEpost] = useState("");
   const [roll, setRoll] = useState("medlem");
+  const sprakKontext = useOpsSprak();
+  const t = /** @type {Record<string, string>} */ (forvalda(ORD_OPSGASTLISTA, sprakProp ?? sprakKontext));
+  const [gastFel, setGastFel] = useState("");
+  const [bekrafta, setBekrafta] = useState(/** @type {{ slag: "grupp", epost: string, namn: string } | null} */ (null));
+  const gastLage = Boolean(gaster) && roll === "gast";
+  const gastFulla = Boolean(gaster) && gaster !== undefined && gaster.platser.anvanda >= gaster.platser.totalt;
 
   /*
    * ⛔ INGEN EGEN `trim`, OCH DET ÄR ETT MUTATIONSFYND SOM GJORDE PROVET
@@ -104,11 +131,35 @@ export function OpsMedlemmar({
    */
   const bjudIn = async () => {
     if (!epost || !onBjudIn) return;
+    if (gastLage) {
+      // ⛔ En gäst bjuds inte in med ett tryck: bekräftelsen säger vad gästen ser (chattens hela historik) och att det inte går att ta tillbaka.
+      setGastFel("");
+      if (normaliseraGastepost(epost) === null) {
+        setGastFel(t.felEpost);
+        return;
+      }
+      setBekrafta({ slag: "grupp", epost: epost.trim(), namn: "" });
+      return;
+    }
     await onBjudIn({ epost, roll });
     setEpost("");
   };
 
+  async function bjudGast() {
+    const b = bekrafta;
+    setBekrafta(null);
+    if (!b || !gaster) return;
+    try {
+      await gaster.onBjud({ epost: b.epost, namn: b.namn });
+      setEpost("");
+    } catch (e) {
+      setGastFel(gastFelText(e, t, gaster.platser.totalt));
+    }
+  }
+
   const rollval = ROLLER.map((r) => ({ value: r, label: rollNamn[r] || r }));
+  // Gäst är ett val bara i inbjudningsrutan, aldrig i en befintlig medlems rad: en gäst är ingen medlem och har ingen roll att byta till.
+  const inbjudanRollval = gaster ? [...rollval, { value: "gast", label: t.rollGast }] : rollval;
 
   return (
     <>
@@ -192,19 +243,45 @@ export function OpsMedlemmar({
         </OpsList>
       ) : null}
 
+      {/* Väntande gäster bland de väntande inbjudningarna (0.132.0), med samma Skicka igen och Dra tillbaka som i `OpsGastLista`. Listan har ingen egen rubrik: raden står under Väntar. */}
+      {gaster && gaster.personer.length > 0 ? (
+        <OpsGastLista
+          utanRubrik
+          personer={gaster.personer}
+          platser={gaster.platser}
+          {...(kanAndra && gaster.onSkickaOm ? { onSkickaOm: gaster.onSkickaOm } : {})}
+          {...(kanAndra && gaster.onAterkalla ? { onAterkalla: gaster.onAterkalla } : {})}
+          {...(kanAndra && gaster.onAterkallaAlla ? { onAterkallaAlla: gaster.onAterkallaAlla } : {})}
+          {...(kanAndra && gaster.onRadera ? { onRadera: gaster.onRadera } : {})}
+          {...(gaster.nu !== undefined ? { nu: gaster.nu } : {})}
+          sprak={sprakProp ?? sprakKontext}
+        />
+      ) : null}
+
       {kanAndra && onBjudIn ? (
         <>
-          <OpsField label={epostEtikett} hint={mejlNot}>
+          <OpsField label={epostEtikett} hint={gaster ? mejlNotMedGast ?? t.medlemsNotMedGast : mejlNot}>
             <OpsInput value={epost} onChange={setEpost} type="email" placeholder="namn@example.com" />
           </OpsField>
           <OpsField label={rollEtikett}>
-            <OpsSelect options={rollval} value={roll} onChange={setRoll} />
+            <OpsSelect options={inbjudanRollval} value={gaster ? roll : roll === "gast" ? "medlem" : roll} onChange={setRoll} />
           </OpsField>
+          {gastLage && gaster ? (
+            <div data-medlemmar-gast="" className="flex min-w-0 flex-col gap-2">
+              <p className="m-0 text-etikett text-ink-secondary">{t.ingressGrupp}</p>
+              <p data-gastlista-platser="" className="m-0 text-etikett text-ink-secondary">
+                {t.platser.replace("{anvanda}", String(gaster.platser.anvanda)).replace("{totalt}", String(gaster.platser.totalt))}
+              </p>
+              {gastFulla ? <p data-gastlista-fulla="" role="status" className="m-0 text-etikett text-ink">{t.platserFulla.replace("{totalt}", String(gaster.platser.totalt))}</p> : null}
+              {gastFel ? <p role="alert" data-gastlista-bjudfel="" className="m-0 text-etikett text-danger wrap-anywhere">{gastFel}</p> : null}
+            </div>
+          ) : null}
           <div>
-            <OpsButton variant="primary" onClick={bjudIn} disabled={!epost}>
-              {bjudInEtikett}
+            <OpsButton variant="primary" onClick={bjudIn} disabled={!epost || (gastLage && gastFulla)}>
+              {gastLage ? t.bjud : bjudInEtikett}
             </OpsButton>
           </div>
+          {bekrafta ? <GastBekraftelse bekrafta={bekrafta} t={t} onBekrafta={bjudGast} onAvbryt={() => setBekrafta(null)} /> : null}
         </>
       ) : null}
     </>

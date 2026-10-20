@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { SIGNERAD_SEKUNDER } from "../lib/delning.js";
 import { GAST_PLATSER_GRATIS, MAX_GASTNAMN, gastId, gastStatus, normaliseraGastepost } from "../lib/gast.js";
+import { cx } from "../lib/cx.js";
 import { definierade, forvalda } from "../lib/ord.js";
 import { OpsButton } from "./OpsButton.jsx";
 import { OpsField, OpsInput } from "./OpsField.jsx";
@@ -72,6 +73,12 @@ export const ORD_OPSGASTLISTA = {
   bekraftaRaderaKnapp: { sv: "Radera", en: "Delete" },
   avbryt: { sv: "Avbryt", en: "Cancel" },
   stang: { sv: "Stäng", en: "Close" },
+  // ── I gruppens medlemsvy (`OpsMedlemmar`, 0.132.0): gästen är ett val i Roll ──
+  rollGast: { sv: "Gäst (utan konto)", en: "Guest (no account)" },
+  medlemsNotMedGast: {
+    sv: "Inloggningen är Google. En adress utan Google-konto kan bjudas in som gäst.",
+    en: "Sign-in is Google. An address without a Google account can be invited as a guest.",
+  },
 };
 
 /** Felkoderna ur tjänsten (`GASTFELKODER`) som vyn har en egen text för. Övriga får felets eget meddelande, eller reservtexten. */
@@ -85,6 +92,67 @@ const FELKOD_TILL_ORD = /** @type {Record<string, string>} */ ({
 
 /** Tonen på statusmärket. Den som kräver att någon gör något (utgången) är varningen, det som är klart är grönt. */
 const STATUSTON = /** @type {const} */ ({ vantar: "neutral", utgangen: "warning", inloggad: "info", "har-rostat": "success", aterkallad: "neutral" });
+
+/**
+ * Texten för ett fel ur tjänsten: ett med `kod` (`GASTFELKODER`) får en egen text, ett utan får sitt meddelande, och ett utan meddelande reservtexten. Delad med `OpsMedlemmar`, så att ett fel från
+ * en gästinbjudan säger samma sak var den än görs.
+ *
+ * ⛔ EXPORTERAD FRÅN FILEN FÖR `OpsMedlemmar`, INTE UR RAMVERKET (`src/index.js`).
+ *
+ * @param {unknown} e
+ * @param {Record<string, string>} t Orden (`forvalda(ORD_OPSGASTLISTA, sprak)`).
+ * @param {number} totalt Taket, för texten "Gruppen har {totalt} gäster".
+ * @returns {string}
+ */
+export function gastFelText(e, t, totalt) {
+  const kod = e && typeof e === "object" ? /** @type {{ kod?: unknown }} */ (e).kod : undefined;
+  const ordNyckel = typeof kod === "string" ? FELKOD_TILL_ORD[kod] : undefined;
+  if (ordNyckel) return t[ordNyckel].replace("{totalt}", String(totalt)).replace("{max}", String(MAX_GASTNAMN));
+  return e instanceof Error && e.message ? e.message : t.felReserv;
+}
+
+/**
+ * Bekräftelsen innan en gäst bjuds in till hela gruppen, eller innan en gästs uppgifter raderas. Den säger vad medlemmen annars inte ser: gästen läser chattens hela historik, och det går inte att ta tillbaka.
+ * Delad med `OpsMedlemmar` (en inbjudan där är samma sak som här).
+ *
+ * ⛔ EXPORTERAD FRÅN FILEN FÖR `OpsMedlemmar`, INTE UR RAMVERKET (`src/index.js`).
+ *
+ * @param {{ bekrafta: { slag: "grupp", epost: string, namn: string } | { slag: "radera", gastId: string, epost: string, namn: string }, t: Record<string, string>, onBekrafta: () => void, onAvbryt: () => void }} props
+ */
+export function GastBekraftelse({ bekrafta, t, onBekrafta, onAvbryt }) {
+  const vem = bekrafta.namn ? bekrafta.namn : bekrafta.epost;
+  return (
+    <OpsModal
+      open
+      onOpenChange={(o) => {
+        if (!o) onAvbryt();
+      }}
+      size="sm"
+      title={(bekrafta.slag === "grupp" ? t.bekraftaGruppTitel : t.bekraftaRaderaTitel).replace("{vem}", vem)}
+      closeLabel={t.stang}
+      footer={
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <OpsButton variant="secondary" onClick={onAvbryt}>
+            {t.avbryt}
+          </OpsButton>
+          <OpsButton variant={bekrafta.slag === "grupp" ? "primary" : "danger"} onClick={onBekrafta}>
+            {bekrafta.slag === "grupp" ? t.bekraftaGruppKnapp : t.bekraftaRaderaKnapp}
+          </OpsButton>
+        </div>
+      }
+    >
+      {bekrafta.slag === "grupp" ? (
+        <div data-gastlista-bekrafta="grupp" className="flex min-w-0 flex-col gap-3 text-brod text-ink-secondary">
+          <p className="m-0 font-medium text-ink">{t.bekraftaGruppSer}</p>
+          <p className="m-0">{t.bekraftaGruppInte}</p>
+          <p className="m-0">{t.bekraftaGruppTillbaka.replace("{minuter}", String(Math.round(SIGNERAD_SEKUNDER / 60)))}</p>
+        </div>
+      ) : (
+        <p data-gastlista-bekrafta="radera" className="m-0 text-brod text-ink-secondary">{t.bekraftaRaderaText}</p>
+      )}
+    </OpsModal>
+  );
+}
 
 /**
  * @typedef {object} Gast
@@ -140,11 +208,12 @@ const STATUSTON = /** @type {const} */ ({ vantar: "neutral", utgangen: "warning"
  * @param {(arg: { id: string }) => void | Promise<unknown>} [props.onAterkalla]
  * @param {(arg: { gastId: string }) => void | Promise<unknown>} [props.onAterkallaAlla] (0.132.0) Drar tillbaka alla personens inbjudningar i gruppen. Bara i gruppläget.
  * @param {(arg: { gastId: string, epost: string }) => void | Promise<unknown>} [props.onRadera] (0.132.0) Raderar personens uppgifter, efter att medlemmen bekräftat i dialogen. Utelämnad: ingen knapp.
+ * @param {boolean} [props.utanRubrik] (0.132.0) Utan rubriken "Gäster" och platsraden: listan står under en annan rubrik (`OpsMedlemmar`, bland de väntande inbjudningarna). En tom lista ritar då ingenting alls i stället för "Inga gäster": den som äger rubriken avgör om det ska stå.
  * @param {number} [props.nu] Millisekunder, för "länken har gått ut". Förval `Date.now()`. Provens enda sätt att låta en länk gå ut.
  * @param {string} [props.sprak]
  * @param {Partial<Record<keyof typeof ORD_OPSGASTLISTA, string>>} [props.ord] Egna texter, som vinner över ordboken.
  */
-export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud, onBjudGrupp, onSkickaOm, onAterkalla, onAterkallaAlla, onRadera, nu, sprak = "sv", ord }) {
+export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud, onBjudGrupp, onSkickaOm, onAterkalla, onAterkallaAlla, onRadera, utanRubrik = false, nu, sprak = "sv", ord }) {
   if (personer !== undefined && gaster !== undefined) {
     throw new Error("OpsGastLista: ange antingen gaster (en omröstning) eller personer (hela gruppen), inte båda. Två listor över samma gäster hade kunnat säga olika saker.");
   }
@@ -191,12 +260,7 @@ export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud
   const klocka = nu ?? Date.now();
 
   /** @param {unknown} e @returns {string} */
-  function felText(e) {
-    const kod = e && typeof e === "object" ? /** @type {{ kod?: unknown }} */ (e).kod : undefined;
-    const ordNyckel = typeof kod === "string" ? FELKOD_TILL_ORD[kod] : undefined;
-    if (ordNyckel) return t[ordNyckel].replace("{totalt}", String(platser.totalt)).replace("{max}", String(MAX_GASTNAMN));
-    return e instanceof Error && e.message ? e.message : t.felReserv;
-  }
+  const felText = (e) => gastFelText(e, t, platser.totalt);
 
   async function bjud() {
     if (!onBjud) return;
@@ -275,19 +339,19 @@ export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud
     return titel ? t.omfang_sak_titel.replace("{titel}", titel) : t.omfang_sak;
   }
 
-  const bekraftaVem = bekrafta ? (bekrafta.namn ? bekrafta.namn : bekrafta.epost) : "";
-
   return (
-    <section data-gastlista="" data-gastlista-lage={gruppLage ? "grupp" : "sak"} aria-labelledby={rubrikId} className="mt-4 flex min-w-0 flex-col gap-3">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-        <h2 id={rubrikId} className="m-0 text-sektion uppercase text-ink-muted">{t.rubrik}</h2>
-        <p data-gastlista-platser="" className="m-0 text-etikett text-ink-secondary">
-          {t.platser.replace("{anvanda}", String(platser.anvanda)).replace("{totalt}", String(platser.totalt))}
-        </p>
-      </div>
+    <section data-gastlista="" data-gastlista-lage={gruppLage ? "grupp" : "sak"} {...(utanRubrik ? { "aria-label": t.rubrik } : { "aria-labelledby": rubrikId })} className={cx(utanRubrik ? "" : "mt-4", "flex min-w-0 flex-col gap-3")}>
+      {utanRubrik ? null : (
+        <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+          <h2 id={rubrikId} className="m-0 text-sektion uppercase text-ink-muted">{t.rubrik}</h2>
+          <p data-gastlista-platser="" className="m-0 text-etikett text-ink-secondary">
+            {t.platser.replace("{anvanda}", String(platser.anvanda)).replace("{totalt}", String(platser.totalt))}
+          </p>
+        </div>
+      )}
 
       {rader.length === 0 ? (
-        <p data-gastlista-tom="" className="m-0 text-etikett text-ink-muted">{gruppLage ? t.ingaGrupp : t.inga}</p>
+        utanRubrik ? null : <p data-gastlista-tom="" className="m-0 text-etikett text-ink-muted">{gruppLage ? t.ingaGrupp : t.inga}</p>
       ) : gruppLage ? (
         <ul data-gastlista-lista="" className="m-0 flex list-none flex-col gap-2 p-0">
           {/** @type {ReadonlyArray<Person>} */ (rader).map((p) => {
@@ -441,37 +505,7 @@ export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud
         </form>
       ) : null}
 
-      {bekrafta ? (
-        <OpsModal
-          open
-          onOpenChange={(o) => {
-            if (!o) setBekrafta(null);
-          }}
-          size="sm"
-          title={(bekrafta.slag === "grupp" ? t.bekraftaGruppTitel : t.bekraftaRaderaTitel).replace("{vem}", bekraftaVem)}
-          closeLabel={t.stang}
-          footer={
-            <div className="flex flex-wrap items-center justify-end gap-2">
-              <OpsButton variant="secondary" onClick={() => setBekrafta(null)}>
-                {t.avbryt}
-              </OpsButton>
-              <OpsButton variant={bekrafta.slag === "grupp" ? "primary" : "danger"} onClick={genomforBekraftelse}>
-                {bekrafta.slag === "grupp" ? t.bekraftaGruppKnapp : t.bekraftaRaderaKnapp}
-              </OpsButton>
-            </div>
-          }
-        >
-          {bekrafta.slag === "grupp" ? (
-            <div data-gastlista-bekrafta="grupp" className="flex min-w-0 flex-col gap-3 text-brod text-ink-secondary">
-              <p className="m-0 font-medium text-ink">{t.bekraftaGruppSer}</p>
-              <p className="m-0">{t.bekraftaGruppInte}</p>
-              <p className="m-0">{t.bekraftaGruppTillbaka.replace("{minuter}", String(Math.round(SIGNERAD_SEKUNDER / 60)))}</p>
-            </div>
-          ) : (
-            <p data-gastlista-bekrafta="radera" className="m-0 text-brod text-ink-secondary">{t.bekraftaRaderaText}</p>
-          )}
-        </OpsModal>
-      ) : null}
+      {bekrafta ? <GastBekraftelse bekrafta={bekrafta} t={t} onBekrafta={genomforBekraftelse} onAvbryt={() => setBekrafta(null)} /> : null}
     </section>
   );
 }
