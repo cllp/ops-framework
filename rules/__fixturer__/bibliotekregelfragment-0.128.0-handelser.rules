@@ -110,15 +110,23 @@
         : false;
     }
 
-    // ⛔ POSTERNA I EN LISTA (0.128.0, lifehub.app#378): en lista (inte en sträng), högst 200, inga dubbletter och varje id på POSTIDFORM. Regler har ingen loop, och 200 `matches()`
+    // ⛔ POSTERNA I EN LISTA (0.128.0, lifehub.app#378): en lista (inte en sträng), högst 200, inga dubbletter och varje id en sträng på POSTIDFORM. Regler har ingen loop, och 200 `matches()`
     // hade gått över Firestores tak på 1000 uttryck per skrivning (samma lärdom som vågen, #349). Därför prövas ALLA id med ETT uttryck: listan sammanfogas med komma och matchas
-    // mot ett mönster som är id, följt av noll eller fler (komma, id). Komma kan inte ingå i ett id, så uppdelningen är entydig. Antalet bärs av size() och inte av en begränsad
-    // upprepning (RE2 vägrar upprepningar i upprepningar över 1000). En tom lista har inget att sammanfoga och prövas för sig.
+    // mot ett mönster som är id, följt av noll eller fler (komma, id). Antalet bärs av size() och inte av en begränsad upprepning (RE2 vägrar upprepningar i upprepningar över 1000).
+    // En tom lista har inget att sammanfoga och prövas för sig.
+    //
+    // ⛔ SAMMANFOGNINGEN SÄGER INGET OM TYPERNA, OCH DEN SÄGER INTE HELLER HUR MÅNGA ELEMENT DET VAR. Mätt i emulatorn: join() gör heltal, null och sant/falskt till text, så ["a", 5], ["a", null] och
+    // ["a", true] sammanfogades till "a,5", "a,null" och "a,true", som mönstret släpper igenom som id. Och ["a,b"] blir "a,b", två id ur ett element. Därför ska listan delas på komma igen och vara
+    // LIKA med den man började med: en lista är lika med en annan bara om varje element har samma typ och värde. Ett tal, ett null, en bool eller ett element med komma i sig ger en annan lista
+    // och nekas, med ETT uttryck till.
     function opsBibliotekPoster(p) {
       return p is list
         && p.size() <= 200
         && p.toSet().size() == p.size()
-        && (p.size() == 0 || p.join(',').matches('[A-Za-z0-9][A-Za-z0-9_-]{0,127}(,[A-Za-z0-9][A-Za-z0-9_-]{0,127})*'));
+        && (p.size() == 0 || (
+          p.join(',').matches('[A-Za-z0-9][A-Za-z0-9_-]{0,127}(,[A-Za-z0-9][A-Za-z0-9_-]{0,127})*')
+          && p.join(',').split(',') == p
+        ));
     }
 
     function opsBibliotekspostGiltig(d, postId) {
