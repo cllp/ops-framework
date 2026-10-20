@@ -81,6 +81,8 @@ Grönt med allt: vitest 4260 prov i 223 filer, `npm run test:rules` 658 av 658 (
 
 Mätningen hittade två prov som inte vaktade det de påstod. Det första var det andra värdprovet i `lankInfoUrOembed` (ingen ändring kunde göra något prov rött, så det togs bort, se A). Det andra var provet för dubbeltryck på Skicka: det var grönt även utan skyddet, eftersom varje `fireEvent` ritar om och stänger knappen innan nästa tryck. Båda trycken ligger nu i ett `act`, och provet är rött utan skyddet.
 
+`check-skalyta` var röd en gång under arbetet, och det var en riktig träff: skalyteprovets egen sida skickade fortfarande `moduler.agare` till `OpsGruppFormular`, som nu kastar, så två mätningar avbröts (2 brott av 3083). Sidan följer `farAndra`, och mätningen är grön igen (3091 kontroller, inga brott). Det är provet för att ett gammalt namn verkligen kastas och inte tyst ignoreras.
+
 ### Vad appen måste göra efter ompinningen
 
 1. **Regenerera och deploya Firestore-reglerna FÖRE klienten** (`bibliotekregelfragment` får `lista`, `kalla`, `bild` och `poster`; gruppens regel släpper in admin på `moduler` och `huvudmeny`). En klient som skriver en lista mot gamla regler nekas. Fixturerna för "byte för byte" bytte namn till 0.128.0.
