@@ -7,10 +7,10 @@ import { OpsDokument } from "./OpsDokument.jsx";
 import { OpsMarkdown } from "./OpsMarkdown.jsx";
 import { OpsModal } from "./OpsModal.jsx";
 import { OpsSvepRad } from "./OpsSvepRad.jsx";
-import { ADRESSFORM, BIBLIOTEKTYPER, BILDFORM, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKURL, uppladdningAvbruten, uppladdningenAvbrytsKl, MAX_TAGGAR, MAX_TAGGLANGD, allaTaggar, arLjudpost, arMittBibliotek, farAndra, normaliseraTagg, normaliseraTaggar, taggarFel, taggfarg, anteckningsrubrikNu, beskrivObjektbibliotek, filInmatningsfel, mimeUrFilnamn, filadressFel, filSort, filtreraBibliotek, inmatningsfel, ljudDatum, ljudRubrik, normaliseraAdress, trimSomRegeln } from "../lib/bibliotek.js";
+import { ADRESSFORM, BIBLIOTEKTYPER, BILDFORM, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKURL, uppladdningAvbruten, uppladdningenAvbrytsKl, MAX_TAGGAR, MAX_TAGGLANGD, allaTaggar, arDelbar, arLjudpost, arMittBibliotek, farAndra, normaliseraTagg, normaliseraTaggar, taggarFel, taggfarg, anteckningsrubrikNu, beskrivObjektbibliotek, filInmatningsfel, mimeUrFilnamn, filadressFel, filSort, filtreraBibliotek, inmatningsfel, ljudDatum, ljudRubrik, normaliseraAdress, trimSomRegeln } from "../lib/bibliotek.js";
 import { formateraTid } from "../lib/ljudspelare.js";
 import { lankKalla, lankKallnamn, lankRubrik } from "../lib/lankkalla.js";
-import { listorAttLaggaI } from "../lib/biblioteklista.js";
+import { LISTA_FLYTT_TEXT, LISTA_I_LISTA_TEXT, listorAttLaggaI } from "../lib/biblioteklista.js";
 import { LankMark, TypIkon, oppnasDirekt, plattKlass, postensKalla, typEtikett } from "./BibliotekPostvisning.jsx";
 import { LaggILista, ListaVisning } from "./BibliotekLista.jsx";
 import { MejlaLank } from "./MejlaLank.jsx";
@@ -494,17 +494,21 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
     const ut = [];
     if (far && iDetalj && sattRedigera) ut.push({ id: "redigera", etikett: "Redigera", onValj: () => sattRedigera("redigera") });
     if (far) ut.push({ id: "namn", etikett: "Byt namn", onValj: () => borjaNamn(post) });
-    // ⛔ DELA LÄNK (0.119.0, lifehub.app#356): bara en färdig fil, och bara den som får ändra posten (`farAndra`: författaren, en admin eller
-    // en ägare, och i Mitt bibliotek bara ägaren). Samma villkor som servern kontrollerar, så knappen lovar inget som funktionen sedan nekar.
-    if (far && typeof onDelaLank === "function" && post.typ === "fil" && post.fil?.klar !== false) {
+    // ⛔ DELA LÄNK FINNS PÅ ALLA FYRA TYPER (0.133.0, lifehub.app#356, CP 2026-10-18: "Vi skall ju ha en publik länk till varje artefakt"). Förut bara på en färdig fil (0.119.0).
+    // Villkoret är oförändrat i övrigt: bara den som får ändra posten (`farAndra`: författaren, en admin eller en ägare, och i Mitt bibliotek bara ägaren), samma som servern kontrollerar,
+    // så knappen lovar inget som funktionen sedan nekar. Det som skiljer är vad som går att dela (`arDelbar`): en fil som ännu laddas upp har ingenting att visa.
+    if (far && typeof onDelaLank === "function" && arDelbar(post)) {
       ut.push({ id: "dela-lank", etikett: "Dela länk", onValj: () => setDelarLank(post) });
     }
     // ⛔ EN MUSIKLÄNK ÖPPNAS DIREKT VID ETT TRYCK (0.128.0), så detaljen nås härifrån. Utan raden gick det inte att komma åt Byt namn-formuläret, taggarna och Redigera för en sådan länk.
     if (!iDetalj && oppnasDirekt(post)) ut.push({ id: "detaljer", etikett: "Visa detaljer", onValj: () => oppnaMed(post, "las") });
-    // ⛔ LÄGG I LISTA (0.128.0, lifehub.app#378): långtrycksmenyn på varje post utom en lista. Bara en medlem som är aktiv och bara där en lista kan finnas: en händelses och ett ärendes bibliotek har
+    // ⛔ LÄGG I LISTA (0.128.0, lifehub.app#378): långtrycksmenyn på varje post. Bara en medlem som är aktiv och bara där en lista kan finnas: en händelses och ett ärendes bibliotek har
     // bara filer (reglerna), och utan `onSpara` hade valet inte gått att spara.
-    if (post.typ !== "lista" && Boolean(jag) && (jag?.status === undefined || jag?.status === "aktiv") && typeof onSpara === "function" && !beskrivObjektbibliotek(post.groupId)) {
-      ut.push({ id: "lagg-i-lista", etikett: "Lägg i lista", onValj: () => setLaggPost(post) });
+    // ⛔ EN LISTA HAR RADEN OCKSÅ, AVSTÄNGD OCH MED SKÄL (0.133.0, CP 2026-10-20: tre typer med tre olika menyer ska bli en). Förut saknades raden på en lista, och en meny där en rad
+    // ibland saknas utan förklaring ser olika ut utan att någon vet varför. Nu har alla fyra samma rader i samma ordning, och de två som inte gäller en lista syns som avstängda.
+    if (Boolean(jag) && (jag?.status === undefined || jag?.status === "aktiv") && typeof onSpara === "function" && !beskrivObjektbibliotek(post.groupId)) {
+      if (post.typ === "lista") ut.push({ id: "lagg-i-lista", etikett: "Lägg i lista", avstangd: true, forklaring: LISTA_I_LISTA_TEXT, onValj: () => {} });
+      else ut.push({ id: "lagg-i-lista", etikett: "Lägg i lista", onValj: () => setLaggPost(post) });
     }
     const lank = lankAttKopiera(post);
     if (lank) ut.push({ id: "kopiera", etikett: "Kopiera länk", onValj: () => kopieraLank(lank) });
@@ -521,6 +525,10 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
     const aktiv = Boolean(jag) && (jag?.status === undefined || jag?.status === "aktiv");
     const egen = aktiv && post.skapadAv?.uid === jag?.uid;
     // ⛔ EN LISTA FLYTTAS ELLER KOPIERAS INTE TILL EN ANNAN PLATS (0.128.0): den pekar på poster på den här platsen. `flyttaBibliotekspost` kastar för den.
+    // 0.133.0: raden syns avstängd, med skälet, när det finns en annan plats att flytta till. Utan en annan plats har ingen post något flyttval, och då är det inget att förklara.
+    if (aktiv && post.typ === "lista" && (mitt || andra.length > 0)) {
+      ut.push({ id: "dela", etikett: "Flytta eller kopiera", avstangd: true, forklaring: LISTA_FLYTT_TEXT, onValj: () => {} });
+    }
     if (aktiv && post.typ !== "lista" && !flyttar.includes(post.id)) {
       // ⛔ `egen || far` STÅR KVAR SOM FÖRSVAR I DJUPET (granskningen av PR 366, KAN 10). I dag läser bara ägaren Mitt bibliotek, men
       // menyn ska inte lita på att reglerna alltid säger det.
@@ -2322,6 +2330,17 @@ function DelaKontroll({ id, grupper, onDela, onKlar, onStart, onSlut, kanFlytta 
 }
 
 
+/** Det som står överst i dialogen Dela länk, per typ (0.133.0). */
+const DELA_INGRESS = /** @type {Record<string, string>} */ ({
+  fil: "Den som har länken kan se filen utan att logga in.",
+  anteckning: "Den som har länken kan läsa anteckningen utan att logga in.",
+  lank: "Den som har länken ser rubriken och en knapp till adressen, utan att logga in.",
+  lista: "Den som har länken ser hela listan, i listans ordning, utan att logga in. Ändrar du listan efteråt ändras den för alla som har länken.",
+});
+
+/** Vad en gammal länk gällde, till meningen "Det finns en länk till …" (0.133.0). */
+const DELA_OBJEKT = /** @type {Record<string, string>} */ ({ fil: "filen", anteckning: "anteckningen", lank: "länken", lista: "listan" });
+
 /**
  * Dialogen för en publik länk till en fil (0.119.0, lifehub.app#356).
  *
@@ -2343,6 +2362,8 @@ function DelaKontroll({ id, grupper, onDela, onKlar, onStart, onSlut, kanFlytta 
 function DelaLankKontroll({ post, gruppnamn, gruppdelForslag, delningar, onDelaLank, onAndraNedladdning, onAterkalla, onMejlaLank, onKlar }) {
   const sprak = useOpsSprak();
   const [nedladdning, setNedladdning] = useState(false);
+  // ⛔ NEDLADDNING FINNS FÖR EN FIL OCH EN LISTA (0.133.0). En anteckning och en länk har ingenting att ladda ner, och ett reglage som inte gör något är en löfte som inte hålls. Skickas alltid som falskt för dem.
+  const harNedladdning = post.typ === "fil" || post.typ === "lista";
   const [skapad, setSkapad] = useState(/** @type {null | { id: string, url: string, giltigTill?: number, harKod?: boolean }} */ (null));
   const [stangda, setStangda] = useState(/** @type {string[]} */ ([]));
   const [andrad, setAndrad] = useState(/** @type {Record<string, boolean>} */ ({}));
@@ -2378,7 +2399,7 @@ function DelaLankKontroll({ post, gruppnamn, gruppdelForslag, delningar, onDelaL
     falt.setMeddelande("");
     setPagar("skapa");
     try {
-      const svar = await onDelaLank({ postId: post.id, dagar: /** @type {number} */ (p.varde.dagar), nedladdning, kod: p.varde.kod, gruppdel: p.varde.gruppdel, fildel: p.varde.sista });
+      const svar = await onDelaLank({ postId: post.id, dagar: /** @type {number} */ (p.varde.dagar), nedladdning: harNedladdning && nedladdning, kod: p.varde.kod, gruppdel: p.varde.gruppdel, fildel: p.varde.sista });
       if (!svar || typeof svar.id !== "string" || svar.id === "" || typeof svar.url !== "string" || svar.url === "") {
         throw new Error("Länken skapades men svaret saknade adressen. Stäng den och skapa en ny.");
       }
@@ -2429,9 +2450,9 @@ function DelaLankKontroll({ post, gruppnamn, gruppdelForslag, delningar, onDelaL
   if (!aktiv) {
     return (
       <div data-bibliotek-delalank="ny" className="flex flex-col gap-4">
-        <p className="m-0 text-brod text-ink-secondary">Den som har länken kan se filen utan att logga in.</p>
+        <p className="m-0 text-brod text-ink-secondary">{DELA_INGRESS[post.typ] ?? DELA_INGRESS.fil}</p>
         <DelaLankFalt falt={falt} sprak={sprak} disabled={pagar !== null} />
-        <OpsSwitch label="Tillåt nedladdning" hint="Av som förval. Den som har länken kan se filen oavsett." checked={nedladdning} onChange={setNedladdning} />
+        {harNedladdning ? <OpsSwitch label="Tillåt nedladdning" hint={post.typ === "lista" ? "Av som förval. Gäller alla filer i listan. Den som har länken kan se dem oavsett." : "Av som förval. Den som har länken kan se filen oavsett."} checked={nedladdning} onChange={setNedladdning} /> : null}
         {fel ? <p role="alert" className="m-0 text-etikett text-danger">{fel}</p> : null}
         <div className="flex gap-2">
           <OpsButton variant="primary" busy={pagar === "skapa"} onClick={skapa}>Skapa länk</OpsButton>
@@ -2450,13 +2471,13 @@ function DelaLankKontroll({ post, gruppnamn, gruppdelForslag, delningar, onDelaL
         </ul>
       ) : (
         <>
-          <p className="m-0 text-brod text-ink-secondary">Det finns en länk till filen, skapad med en äldre version. Den visades bara när den skapades. Behöver du adressen igen stänger du länken och skapar en ny.</p>
+          <p className="m-0 text-brod text-ink-secondary">Det finns en länk till {DELA_OBJEKT[post.typ] ?? "filen"}, skapad med en äldre version. Den visades bara när den skapades. Behöver du adressen igen stänger du länken och skapar en ny.</p>
           {till ? <p className="m-0 text-etikett text-ink-muted">Gäller till {till}.</p> : null}
         </>
       )}
       {/* ⛔ 0.128.0 (lifehub.app#356): fältet "Skicka till mejl" sitter under adressen, och bara när det finns en adress att skicka (en länk skapad med en äldre version har ingen) och appen kopplat mejlvägen. */}
       {aktiv.url && onMejlaLank ? <MejlaLank lank={{ id: aktiv.id, url: aktiv.url }} onMejlaLank={onMejlaLank} sprak={sprak} /> : null}
-      <OpsSwitch label="Tillåt nedladdning" checked={nedNu} disabled={pagar !== null} onChange={bytNedladdning} />
+      {harNedladdning ? <OpsSwitch label="Tillåt nedladdning" hint={post.typ === "lista" ? "Gäller alla filer i listan." : undefined} checked={nedNu} disabled={pagar !== null} onChange={bytNedladdning} /> : null}
       {fel ? <p role="alert" className="m-0 text-etikett text-danger">{fel}</p> : null}
       <div className="flex gap-2">
         <OpsButton variant="danger" busy={pagar === "stang"} onClick={stang}>Stäng länken</OpsButton>

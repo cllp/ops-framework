@@ -790,6 +790,34 @@ export function arLjudpost(post) {
 }
 
 /**
+ * Går posten att dela med en publik länk? (0.133.0, lifehub.app#356, CP 2026-10-18: "en publik länk till varje artefakt".) EN funktion för menyn och servern (regel 2): knappen ska inte lova
+ * något som `createDelningService` sedan nekar.
+ *
+ * - **fil:** en färdig fil med sökväg (`klar: false` medan byte laddas upp, och utan fältet räknas filen som klar, som före 0.117.0).
+ * - **anteckning:** har text. **länk:** har en adress som är http eller https (`ADRESSFORM`). **lista:** har fältet `poster` (en tom lista går att dela och visas som tom).
+ *
+ * Rättigheten att dela prövas på annat håll (`farAndra`); den här säger bara om det finns något att visa.
+ *
+ * @param {{ typ?: unknown, text?: unknown, url?: unknown, poster?: unknown, fil?: { sokvag?: unknown, klar?: unknown } | null } | null | undefined} post
+ * @returns {boolean}
+ */
+export function arDelbar(post) {
+  if (!post || typeof post !== "object") return false;
+  switch (post.typ) {
+    case "fil":
+      return Boolean(post.fil) && typeof post.fil?.sokvag === "string" && post.fil.sokvag !== "" && post.fil.klar !== false;
+    case "anteckning":
+      return typeof post.text === "string" && trimSomRegeln(post.text) !== "";
+    case "lank":
+      return typeof post.url === "string" && ADRESSFORM.test(post.url);
+    case "lista":
+      return Array.isArray(post.poster);
+    default:
+      return false;
+  }
+}
+
+/**
  * Det filväljaren kan ha fel på, innan sökvägen finns.
  *
  * @param {{ namn?: unknown, mime?: unknown, byte?: unknown }} fil

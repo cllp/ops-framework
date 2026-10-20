@@ -22,6 +22,21 @@
 import { MAX_LISTPOSTER, POSTIDFORM } from "./bibliotek.js";
 
 /**
+ * Orden på en lista som inte går att visa som en post. EN definition för medlemmens listvy, mottagarens publika lista och menyn (regel 2): CP 2026-10-20 sade att en delad lista ska
+ * ritas som medlemmen ser den, så texterna får inte finnas i två kopior som glider isär.
+ */
+export const LISTRADTEXT = /** @type {const} */ ({
+  saknas: "Finns inte längre",
+  lista: "Listor kan inte ligga i en lista.",
+});
+
+/** Förklaringen på den avstängda raden "Lägg i lista" i menyn för en lista (0.133.0). */
+export const LISTA_I_LISTA_TEXT = "En lista kan inte ligga i en lista.";
+
+/** Förklaringen på den avstängda raden "Flytta eller kopiera" i menyn för en lista (0.133.0). */
+export const LISTA_FLYTT_TEXT = "En lista pekar på poster i den här gruppen och flyttas inte.";
+
+/**
  * @typedef {object} Listrad
  * @property {string} id Postens id, som det står i listan.
  * @property {(import("./bibliotek.js").Bibliotekspost & { id: string }) | null} post Posten, eller `null` när den inte går att visa.
