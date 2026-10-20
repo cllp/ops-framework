@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -103,8 +103,12 @@ describe("MejlaLank", () => {
     render(<MejlaLank lank={LANK} onMejlaLank={onMejlaLank} />);
     fireEvent.change(screen.getByRole("textbox", { name: "Skicka till mejl" }), { target: { value: "kim@exempel.se" } });
     const knapp = screen.getByRole("button", { name: "Skicka" });
-    fireEvent.click(knapp);
-    fireEvent.click(knapp);
+    // ⛔ Båda trycken i ETT act: ingen ritning hinner göra knappen avstängd mellan dem. Två fireEvent efter varandra var grönt även utan skyddet, eftersom varje fireEvent
+    // ritar om (och stänger knappen) innan nästa; provet mätte då knappen och inte skyddet (regel 4, mätt med skyddet borttaget).
+    act(() => {
+      knapp.click();
+      knapp.click();
+    });
     expect(onMejlaLank).toHaveBeenCalledTimes(1);
     klar();
     await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Skickat till"));

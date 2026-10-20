@@ -2902,7 +2902,7 @@ CP 2026-10-19 och 2026-10-20 (lifehub.app#378): "Inget avancerat men smart länk
 
 **Regeln.** `bibliotekregelfragment` tillåter `lista` med `poster` (list, högst 200, unika, id-form) och `lank` med `kalla` och `bild`. `kalla` måste stämma med adressen, `bild` är https. Typ- och fältlistan är `BIBLIOTEKFALT`. Deploya reglerna FÖRE klienten.
 
-**Admin och apparna (#252).** `ADMINGRUPPFALT` har sedan 0.128.0 `moduler` och `huvudmeny`: en admin slår av och på gruppens appar och byter ordning, i regeln och i `OpsGruppFormular` (`moduler.farAndra`). Ägaren behåller det som inte går att ångra: arkivera, ta bort, externa datakällor och typavvikelser (`AGARGRUPPFALT`). `modulinstallningar` (appens egna inställningar) är kvar ägare-bara.
+**Admin och apparna (#252).** `ADMINGRUPPFALT` har sedan 0.128.0 `moduler` och `huvudmeny`: en admin slår av och på gruppens appar och byter ordning, i regeln och i `OpsGruppFormular` (`moduler.farAndra`). Ägaren behåller det som inte går att ångra eller som rör datakällor: arkivera, externa datakällor och typavvikelser (`AGARGRUPPFALT`; en grupp raderas aldrig av en klient). `modulinstallningar` (appens egna inställningar) är kvar ägare-bara.
 
 **Mejla en länk (#356).** Dialogen Dela länk (`OpsBibliotek` och `OpsHandelsePanel`) får fältet "Skicka till mejl" och en knapp när appen ger `onMejlaLank({ id, url, till })`. Adressen prövas med `epostFel` (`EPOSTFORM`, en sanning med `createGroupService` och `OpsGruppFormular`) före anropet; orden ligger i `ORD_MEJLALANK`. Utan prop syns inget fält.
 

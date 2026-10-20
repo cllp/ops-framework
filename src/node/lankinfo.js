@@ -12,8 +12,9 @@
  * En funktion som hämtar en adress en användare skrivit är en funktion som kan nå appens interna nät (metadataservern, en annan tjänst bakom brandväggen). Därför:
  *
  *   - Adressen ska vara https och ha en värd i `LANKKALLOR` (samma lista som modellen och Firestore-regeln läser, regel 2). Annars kastas ett fel INNAN något anropas.
- *   - Varje adress som faktiskt hämtas (oEmbed-ändpunkten och sidan) prövas mot samma lista direkt före anropet. Ändpunkterna är fasta per källa och byggs inte av indata,
- *     men prövningen står kvar: en framtida ändring som lade till en värd hamnar då i listan eller faller.
+ *   - Ändpunkterna (oEmbed) är fasta per källa och byggs inte av indata, och sidan som hämtas är adressen som just prövats. Det finns alltså inget andra led att pröva vid anropet:
+ *     en andra prövning som aldrig kan slå till är en vakt som aldrig setts falla (regel 4). Det som vaktar ändpunkterna är provet som kör varje källa och kräver att varje anrop går
+ *     till en värd i listan (`nod-lankinfo.test.js`): ändras en ändpunkt till en värd som inte finns i `LANKKALLOR` blir det rött.
  *   - Anropet får `redirect: "error"`. En omdirigering till en annan värd är exakt hur en vitlista kringgås, så den följs inte.
  *     ⛔ KRAV PÅ `hamta`: den ska respektera `redirect` och `signal` som `fetch` gör. En `hamta` som följer omdirigeringar öppnar vitlistan igen, och det kan den här filen inte bevisa.
  *   - Inga uppgifter i adressen (`https://x@y`), ingen port (`lankKalla` kräver att värden följs av `/`, `?`, `#` eller slut).
@@ -205,12 +206,11 @@ export async function lankInfoUrOembed(hamta, url, val = {}) {
   tidsgrans.catch(() => {});
 
   /**
-   * Hämtar en adress som text, eller kastar. Prövar vitlistan först.
+   * Hämtar en adress som text, eller kastar.
    * @param {string} mal
    * @param {string} accept
    */
   async function hamtaText(mal, accept) {
-    if (!arTillaten(mal)) throw new Error(`Adressen ${mal} ligger utanför de tillåtna värdarna och hämtas inte.`);
     // Tiden är ute: inget nytt anrop startas.
     if (styr.signal.aborted) throw tidsFel;
     const jobb = (async () => {

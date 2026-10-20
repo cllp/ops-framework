@@ -11,6 +11,95 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ## Ej utgivet
 
+## 0.128.0
+
+Fem delar i ett pass, alla ur CP:s beslut 2026-10-19 och 2026-10-20: smart länk och listor i Biblioteket (cllp/lifehub.app#378), att admin får slå av och på gruppens appar (cllp/lifehub.app#252), att mejla en delad länk (cllp/lifehub.app#356), och en notering om videospelaren. CP 2026-10-20: "Inget avancerat men smart länk. Kör!" Där det fanns ett val är den minsta formen vald, och valet står under "Gjordes inte".
+
+### A. Smart länk i Biblioteket (cllp/lifehub.app#378), Claude 2026-10-20
+
+- **`OpsBibliotek` tar `onLankInfo(url) => Promise<{ titel?, artist?, kalla?, bild? }>`.** Klistras en länk från Spotify, YouTube, Apple Music eller SoundCloud in i Ny länk fylls rubriken i som "Titel, Artist" (`lankRubrik`) och går att ändra. En rubrik som personen redan skrivit skrivs aldrig över, och ett svar som kommer efter att adressen bytts kastas. Faller anropet står rubrikfältet tomt och felet sägs i en rad under adressen (`role="alert"`), aldrig tyst (regel 5). Utan `onLankInfo` fylls inget i.
+- **`kalla` härleds, den väljs aldrig (regel 2).** `lankKalla(url)` ger `spotify`, `youtube`, `applemusic`, `soundcloud` eller `annat` ur adressens värd, och värdlistan `LANKKALLOR` har ETT hem som modellen, Firestore-regeln (`lankkallaForm`, som blir regelns `matches()`) och nodsidans vitlista alla läser. En `kalla` som inte är den adressen ger avvisas av `inmatningsfel`, `postFel` och regeln. `kalla` i svaret från `onLankInfo` ignoreras av samma skäl. Länkar från före 0.128.0 har ingen `kalla` och härleds vid läsning, ingen migrering.
+- **Posten sparar `kalla` och `bild`** (omslaget, https, högst `MAX_BIBLIOTEKURL`). Byts adressen släpps omslaget, och `bild: null` tar bort det.
+- **Listan och detaljen visar källans märke och omslaget** (`LankMark`: omslaget som cirkel med märket i hörnet, och bara märket om bilden inte laddas). Märkena är fyra SVG-sökvägar ur simple-icons (CC0, licensraden står i `src/lib/kallmarken.js`), inget nytt beroende, och ritas av `KallIkon` i `icons.jsx`. Ett tryck på en musiklänk öppnar adressen direkt (`target="_blank"`, `aria-label` "Öppna X i Spotify"); detaljen når man via menyn "Visa detaljer".
+- **Nodsidan: `lankInfoUrOembed(hamta, url, { tidsgransMs, maxByte })` i `ops-framework/node`.** Spotify: oEmbed plus `og:description` för artisten. YouTube: oEmbed med `author_name` (ändelsen " - Topic" bort). SoundCloud: oEmbed, med Open Graph som reserv. Apple Music: Open Graph. Bara https och bara värdarna i `LANKKALLOR`, prövat INNAN något anropas (inget SSRF); anropet får `redirect: "error"` och en `signal`; hela uppslaget har en tidsgräns (5 s, vinner också över en `hamta` som aldrig läser `signal`); varje svar läses högst 256 KiB. Varken titel eller artist hittas: det kastas med tjänstens namn. Ramverket hämtar inget på egen hand, `hamta` är appens `fetch`.
+- **Rättelse under arbetet:** ett andra värdprov direkt före varje hämtning togs bort. Det kunde aldrig slå till (ändpunkterna är fasta och sidan är adressen som just prövats) och var alltså en vakt som aldrig setts falla (regel 4, se tabellen nedan). Ändpunkterna vaktas i stället av provet som kör alla fyra källor och kräver en tillåten värd för varje anrop.
+
+### B. Listor i Biblioteket (cllp/lifehub.app#378), Claude 2026-10-20
+
+- **Ny bibliotekstyp `lista`** (`BIBLIOTEKTYPER`, `BIBLIOTEKFLIKAR`: en flik Listor, som visas när det finns en lista) med `poster: [id, ...]` i ordning. En lista är en post i Biblioteket som pekar på andra poster: ingen ny app, ingen ny låttyp. Högst `MAX_LISTPOSTER` (200), varje id på `POSTIDFORM`, inga dubbletter (`listaFel`). En lista rymmer anteckningar, länkar och filer, men inte en annan lista.
+- **Långtrycksmenyn får "Lägg i lista"** (välj en lista eller "Ny lista"; `LaggILista`). Bara listor man får ändra och som inte är fulla erbjuds (`listorAttLaggaI`, `laggTillPost`).
+- **Listans detalj visar posterna i ordning** (`ListaVisning`). Ordningen ändras genom att dra i greppet (pekardrag) och med tangentbordet (upp- och nedpil på greppet), poster tas bort, och man lägger till inifrån listan (`kandidaterForLista`, `taBortPost`). Allt ritas direkt, skrivningarna går i tur och ordning, och faller en skrivning rullas listan tillbaka och felet står kvar.
+- **Bara från samma plats gäller genom hur listan läses, inte genom regeln.** `losLista(lista, platsensPoster)` slår upp varje id bland platsens egna poster, och regeln kan inte pröva det (högst tio uppslag per skrivning, en lista har upp till 200 id). Regeln låser formen. **En borttagen post syns**: `losLista` ger alltid lika många rader som listan har id, och vyn skriver "Finns inte längre". Den filtreras aldrig bort tyst (regel 5).
+- **Firestore-regeln (`bibliotekregelfragment`) fick typen och fältet.** Ett uttryck prövar alla id, eftersom en regel inte har någon loop och 200 `matches()` går över taket på 1000 uttryck per skrivning (mätt): listan sammanfogas med komma och matchas mot "id, följt av noll eller fler (komma, id)", antalet bärs av `size()`, och `join(',').split(',') == p` stänger de hål som sammanfogningen lämnar. MÄTT i emulatorn: `join()` gör heltal, null och sant/falskt till text (`["a", 5]`, `["a", null]`, `["a", true]` passerade mönstret), och `["a,b"]` blev två id. Utan raden med `split` blir fyra prov röda (tabellen nedan).
+- En lista flyttas eller kopieras inte till en annan plats (`flyttaBibliotekspost` kastar). Regeln kan inte avgöra att id:na finns eller ligger på samma plats; det gör läsningen.
+
+### C. Admin får slå av och på gruppens appar (cllp/lifehub.app#252), Claude 2026-10-20
+
+- **Mätt var ramverket avgör det:** på två ställen, och de var samma beslut. `AGARGRUPPFALT` (fälten bara ägaren får ändra) hade `moduler` och `huvudmeny`, och `OpsGruppFormular` ritade modulvalet bara när `moduler.agare` var sant. En admin nekades alltså i regeln och såg inte valet, så ingen kunde ge den knappen utan att båda ändrades.
+- **`moduler` och `huvudmeny` flyttade från `AGARGRUPPFALT` till `ADMINGRUPPFALT`.** Gruppens regel följer listorna (de är härledda, ingen handskriven kopia), så en admin slår av och på appar och byter ordning, och en medlem gör det inte. Ägaren behåller det som inte går att ångra eller som rör datakällor: arkivera, externa datakällor och typavvikelser. (En grupp raderas aldrig av en klient, den arkiveras.) `modulinstallningar` (appens egna inställningar) är kvar bara för ägaren.
+- **`OpsGruppFormular`: `moduler.agare` heter nu `moduler.farAndra`** (ägare ELLER admin). Den gamla `agare` kastas med en text som säger vad som gäller, eftersom en prop som tyst ignorerades hade låtit admin sakna valet. Rollhjälpen i `generell.js` följer.
+
+### D. Mejla en delad länk (cllp/lifehub.app#356), Claude 2026-10-20
+
+- **Dialogen Dela länk (`OpsBibliotek` och `OpsHandelsePanel`) får fältet "Skicka till mejl" och knappen Skicka** när appen ger `onMejlaLank({ id, url, till })`. Fältet sitter under länkens adress, för en nyss skapad länk och för en som lever och har en adress. Utan prop syns inget fält, och `onMejlaLank` utan `onDelaLank` kastas.
+- **Ramverket skickar inget.** Det prövar adressen med `epostFel` (form och spärrade domäner) INNAN appen anropas, visar "Skickat till x." och tömmer fältet, och ett kast eller `false` står kvar som fel med adressen kvar i fältet. Ett andra tryck i samma ögonblick skickar inte ett andra mejl.
+- **Regel 2:** adressformen fanns i tre kopior (`createGroupService`, `OpsGruppFormular` och nu den här). `EPOSTFORM` och `epostFel` ligger i `lib/mejl.js` och alla tre läser dem.
+
+### E. Video: telefonens egen spelare är ett medvetet undantag
+
+CP 2026-10-20: på iPhone öppnas helskärm med rätt kontroller, så `<video controls playsinline>` i Biblioteket behåller webbläsarens egna kontroller. Det står nu som en kommentar vid elementet i `OpsBibliotek` och i README. Vakten `check-webblasarkontroller` har ingen regel mot `<video controls>` (den läser 270 filer, 0 brott), så inget undantag behövdes i listan; det som skrevs är dokumentationen i vaktens huvud, så ingen "rättar" videon senare.
+
+### Prov: rött utan, grönt med (regel 4)
+
+Grönt med allt: vitest 4260 prov i 223 filer, `npm run test:rules` 658 av 658 (21 nya i `bibliotek.test.mjs` och `grupper.test.mjs`).
+
+**Hela delarna borttagna** (källfilerna från 0.127.0 tillbaka, de nya proven kvar): i de tolv provfilerna som går att ladda (tio ändrade och två nya) 68 av 458 prov röda, och de fyra nya provfilerna för `lankkalla.js`, `lankinfo.js`, `biblioteklista.js` och `MejlaLank.jsx` (94 prov) går inte att ladda alls. Det visar att proven hör till delarna, men inte vad varje prov fångar. Därför också **en rad i taget ändrad** (källan från HEAD, ett villkor borttaget, bara de berörda proven körda):
+
+| Ändring | Röda prov |
+|---|---|
+| Hämtar utan `redirect: "error"` | 1 av 36 |
+| En oEmbed-ändpunkt pekar på en värd utanför listan | 3 av 36 |
+| Ingen prövning av adressen i början (värd) | 1 av 36 |
+| Tillåter http | 1 av 36 |
+| Inget tak på svarsstorlek | 2 av 36 |
+| `kalla` får avvika från adressen | 1 av 16 |
+| Uppslagsfel visas inte | 2 av 21 |
+| Borttagen post filtreras tyst bort | 5 av 54 |
+| Dubblett läggs till igen | 2 av 54 |
+| Full lista tar emot fler | 1 av 54 |
+| Ingen återställning när skrivningen faller | 1 av 29 |
+| Uppil flyttar inte | 1 av 29 |
+| Admin får inte appfälten (`ADMINGRUPPFALT` som i 0.127.0) | 2 av 257 |
+| Ingen adresskontroll före mejlet | 1 av 17 |
+| Två tryck i samma ögonblick skickar två mejl | 1 av 17 |
+| Fältet syns utan `onMejlaLank` | 1 av 92 |
+| Regeln: `split == p` borta | 4 av 52 |
+| Regeln: inget tak på antal poster | 2 av 52 |
+| Regeln: dubbletter tillåtna | 3 av 52 |
+| Regeln: en Spotify-länk får kallas `annat` | 2 av 52 |
+| Regeln: admin utan appfälten (som 0.127.0) | 3 av 176 |
+
+Mätningen hittade två prov som inte vaktade det de påstod. Det första var det andra värdprovet i `lankInfoUrOembed` (ingen ändring kunde göra något prov rött, så det togs bort, se A). Det andra var provet för dubbeltryck på Skicka: det var grönt även utan skyddet, eftersom varje `fireEvent` ritar om och stänger knappen innan nästa tryck. Båda trycken ligger nu i ett `act`, och provet är rött utan skyddet.
+
+### Vad appen måste göra efter ompinningen
+
+1. **Regenerera och deploya Firestore-reglerna FÖRE klienten** (`bibliotekregelfragment` får `lista`, `kalla`, `bild` och `poster`; gruppens regel släpper in admin på `moduler` och `huvudmeny`). En klient som skriver en lista mot gamla regler nekas. Fixturerna för "byte för byte" bytte namn till 0.128.0.
+2. **`OpsGruppFormular`: `moduler={{ valbara, farAndra }}`** (ägare ELLER admin) i stället för `agare`. Ligger hubbens `kanAndra` för appar på ägaren ensam ska den följa samma regel.
+3. **Smart länk:** en callable som anropar `lankInfoUrOembed(hamta, url)` ur `ops-framework/node` med appens egen `fetch` (den ska respektera `redirect` och `signal`; en `hamta` som följer omdirigeringar öppnar vitlistan igen) och skickas till `OpsBibliotek` som `onLankInfo`. Svaret är `{ titel, artist, bild }`.
+4. **CSP:** `img-src` för omslagen. Värdarna är tjänsternas egna bildtjänster (till exempel `i.scdn.co`, `i.ytimg.com`, `is1-ssl.mzstatic.com` och `i1.sndcdn.com`) och är OMÄTTA här, se osäkerheter: läs dem ur ett riktigt svar innan listan skrivs.
+5. **Mejla länk:** `onMejlaLank({ id, url, till })` via appens befintliga mejlväg, till `OpsBibliotek` och `OpsHandelsePanel` (som kräver `onDela` för den).
+6. Använder appen `createBibliotekskalla` behövs ingen ändring för `poster` och `bild`: källan bär dem.
+
+### Gjordes inte
+
+- Ingen inbäddad spelare och ingen förhandsvisning utöver ikon och omslag, inga fler källor än de fyra (CP 2026-10-20).
+- Ingen zip, inga avsnitt, inga anteckningar per rad, inga mallar i listor. Ingen lista i en lista.
+- Regeln kontrollerar inte att id:na i en lista finns eller ligger på samma plats: det går inte inom taket på uppslag per skrivning, och läsningen är spärren. En post som tas bort lämnar sitt id kvar i listan (ingen kaskad), och visas som "Finns inte längre". En post som flyttas till en annan plats får ett nytt id, så listan pekar på "Finns inte längre" och inte på kopian.
+- `modulinstallningar` är kvar för ägaren ensam. `OpsModulInstallningar` säger "ägare och admin" i sin text, så texten och regeln går redan nu isär; det är en äldre diskrepans som inte rörs här och som bör bli ett eget ärende.
+- **Inte mätt, och den största osäkerheten:** nätet var stängt mot Spotify, YouTube, Apple Music och SoundCloud när det här skrevs. oEmbed- och Open Graph-formerna är skrivna efter tjänsternas dokumentation och provade mot fixturer, inte mot riktiga svar. Särskilt Apple Musics Open Graph-form och artisten ur Spotifys `og:description` är antaganden. Första riktiga körningen i appen avgör, och faller en källa visas det som raden under adressen, inte som en tom rubrik utan förklaring.
+- Dragandet med pekare är provat i jsdom (pekarhändelser) men inte i en riktig webbläsare eller telefon. Tangentbordsvägen är den som alltid fungerar.
+- Montage mot SessionStudio (regel 12) har inte tagits: ärendena citerar ingen SS-skärmbild i de delar som är byggda här. Skärmbilder av nya ytor tas ändå av `check-skalyta --bilder` om de läggs till där.
+
 ## 0.127.0
 
 Två delar i ett pass (och en rättelse, C, som kom under arbetet), de två från ärenden CP ställde 2026-10-19: omröstning om datum redan i formuläret Ny händelse, ramverkets del av cllp/lifehub.app#383 (skiva 1), och video i Biblioteket, cllp/lifehub.app#358. Designen för del A står i `docs/beslut/0010-datum-ej-satt-och-tillagg-i-skapaformularet.md`. Inget är brytande: en app som inte använder något av det ritar och skriver som förut, utom att Storage-regeln och bibliotekets Firestore-regel ändras av videon (se "Vad appen måste göra"). `handelsensDagar` kan nu svara `null`, och det är det enda returvärde som ändrats i en befintlig funktion.

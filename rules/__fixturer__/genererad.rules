@@ -32,8 +32,9 @@ service cloud.firestore {
     }
 
     // ⛔ ADMIN ÄR ÄGARE ELLER ADMIN (0.32.0, #180), SS `isGroupAdmin`. Det är den som får ändra
-    // gruppens utseende och uppgifter och se inbjudningarna. Det som kräver ÄGARE (moduler, arkivering,
-    // roller) står kvar på opsArAgare: en admin är en delegerad förvaltare, inte en andra ägare.
+    // gruppens utseende och uppgifter, välja gruppens appar (moduler och huvudmeny, sedan 0.128.0, #252) och se inbjudningarna.
+    // Det som kräver ÄGARE (arkivering, externa datakällor, typavvikelser, roller) står kvar på opsArAgare: en admin är en
+    // delegerad förvaltare, inte en andra ägare.
     function opsArAdmin(gid) {
       return opsArMedlem(gid)
         && (opsMedlemskapet(gid).data.roll == 'agare' || opsMedlemskapet(gid).data.roll == 'admin');
@@ -196,7 +197,8 @@ service cloud.firestore {
         && request.resource.data.epost == request.auth.token.get('email', '').lower();
     }
 
-    // Gruppen. Medlem läser. Admin ändrar utseende och uppgifter, ägare även moduler, huvudmenyn och arkivering.
+    // Gruppen. Medlem läser. Admin ändrar utseende, uppgifter och appval (moduler och huvudmeny, 0.128.0), ägare även arkivering,
+    // externa datakällor och typavvikelser.
     // Aldrig radering: arkivering finns för att svaret på "varför försvann den" alltid efterfrågas i
     // efterhand.
     //
@@ -217,7 +219,7 @@ service cloud.firestore {
           && (!opsAndrad(request.resource.data, resource.data, 'typavvikelser') || opsTypavvikelserGiltiga(request.resource.data))
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["namn", "farg", "ikon", "bild", "beskrivning", "ort", "epostsprak", "moduler", "huvudmeny", "arkiverad", "externaDatakallor", "typavvikelser"]))
         || (opsArAdmin(gid)
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["namn", "farg", "ikon", "bild", "beskrivning", "ort", "epostsprak"]));
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["namn", "farg", "ikon", "bild", "beskrivning", "ort", "epostsprak", "moduler", "huvudmeny"]));
       allow delete: if false;
     }
 
