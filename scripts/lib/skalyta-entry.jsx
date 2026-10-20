@@ -15,6 +15,9 @@ import * as Ops from "OPS_DIST";
 import { Bell, Calendar, CalendarDays, CheckSquare, FileText, Inbox, LayoutGrid, Search, Settings, Sparkles, Wallet } from "lucide-react";
 
 const { OpsModulTyper } = Ops;
+// 0.131.0: gästernas två vyer. Saknas de i dist (äldre bygge) ritas en markör, och provet blir rött på rätt sak i stället för att sidan kastar.
+const OpsGastLista = Ops.OpsGastLista ?? (() => <span data-saknas="OpsGastLista">OpsGastLista saknas</span>);
+const OpsGastSida = Ops.OpsGastSida ?? (() => <span data-saknas="OpsGastSida">OpsGastSida saknas</span>);
 const { OpsEventList, OpsAttributes, OpsFact, OpsAppShell, OpsButton, OpsDatePicker, OpsField, OpsHub, OpsHubModul, OpsIconLink, OpsIdentity, OpsInloggning, OpsKatalogInstallning, OpsInput, OpsModal, OpsRadioGroup, OpsSelect, OpsThemeToggle, OpsCard, OpsPill, OpsPanelRow, OpsSegmented, OpsCheckbox, OpsSwitch, OpsTag, OpsChip, OpsFilterPanel, OpsFilterChip, OpsActivityListActions, OpsGruppvaljare } = Ops;
 // `OpsTimePicker` finns inte i 0.30.1. Saknas den ritas en markör, och provet blir rött på rätt sak i stället för att sidan kastar.
 const OpsTimePicker = Ops.OpsTimePicker ?? (() => <span data-saknas="OpsTimePicker">OpsTimePicker saknas</span>);
@@ -160,6 +163,90 @@ function KategoriFormularScen({ typ }) {
         />
       </div>
     </Skal>
+  );
+}
+
+
+/*
+ * 0.131.0 (lifehub.app#389): gästernas två vyer i en riktig webbläsare.
+ * `gastlista`: medlemmens lista med fyra gäster (ett långt namn och en lång adress måste få brytas) och 4 av 5 platser; `gastlista-full` har 5 av 5.
+ * `gastsida-*`: gästens egen sida, ritad utan appens skal. `window.__gastanrop` samlar vad sidan anropade, och `window.__gastsvar` styr vad
+ * servern "svarar". Sakens kort är en riktig omröstning i miniatyr (tre knappar per förslag), ritad av `renderSak` som appen gör det.
+ */
+const GAST_ID = "a".repeat(64);
+const GAST_NYCKEL = "K".repeat(43);
+const GAST_SESSION = "S".repeat(43);
+const GAST_NU = 1_800_000_000_000;
+const GASTER = [
+  { id: "g1", epost: "anna@foretag.se", namn: "", aterkallad: null, forstInloggad: null, lankGiltigTill: GAST_NU + 1000 },
+  { id: "g2", epost: "bo.bengtssonkarlssonandersson@domanutanbindestreckforettforetagmedlangtnamnochmer.example.se", namn: "Bo Bengtsson-Karlsson-Andersson-Lindqvist", aterkallad: null, forstInloggad: GAST_NU - 5, lankGiltigTill: GAST_NU + 1000 },
+  { id: "g3", epost: "cia@foretag.se", namn: "Cia", aterkallad: GAST_NU - 9, forstInloggad: GAST_NU - 20, lankGiltigTill: GAST_NU + 1000 },
+  { id: "g4", epost: "dan@foretag.se", namn: "Dan", aterkallad: null, forstInloggad: GAST_NU - 5, status: "har-rostat", lankGiltigTill: GAST_NU + 1000 },
+];
+/** @type {any} */ (window).__gastanrop = [];
+function GastListaScen({ full }) {
+  return (
+    <Skal>
+      <div className="px-4 py-4">
+        <OpsGastLista
+          gaster={GASTER}
+          platser={{ anvanda: full ? 5 : 4, totalt: 5 }}
+          nu={GAST_NU}
+          onBjud={(v) => { /** @type {any} */ (window).__gastanrop.push(["bjud", v]); }}
+          onSkickaOm={(v) => { /** @type {any} */ (window).__gastanrop.push(["skickaOm", v]); }}
+          onAterkalla={(v) => { /** @type {any} */ (window).__gastanrop.push(["aterkalla", v]); }}
+        />
+      </div>
+    </Skal>
+  );
+}
+/** Sakens kort: en omröstning i miniatyr, med riktiga knappar. */
+function GastSak({ sak, uppdatera }) {
+  return (
+    <section data-gast-sak="" className="flex flex-col gap-4">
+      <h2 className="m-0 font-display-publik text-publik-block text-publik-ljus-text">{sak.titel}</h2>
+      <p className="m-0 text-publik-brod text-publik-ljus-dampad">Vilket datum passar?</p>
+      {sak.forslag.map((f) => (
+        <div key={f.id} className="flex min-w-0 flex-col gap-2 rounded-base border border-publik-ljus-text/15 p-3">
+          <p className="m-0 text-publik-brod text-publik-ljus-text">{f.datum}</p>
+          <p className="m-0 text-meta text-publik-ljus-dampad">{f.ja} Ja, {f.kanske} Kanske, {f.nej} Nej</p>
+          <div className="flex flex-wrap gap-2">
+            {["Ja", "Kanske", "Nej"].map((v) => (
+              <OpsButton key={v} variant={v === "Ja" ? "primary" : "secondary"} onClick={() => { /** @type {any} */ (window).__gastanrop.push(["rosta", f.id, v]); return uppdatera(); }}>
+                {v}
+              </OpsButton>
+            ))}
+          </div>
+        </div>
+      ))}
+    </section>
+  );
+}
+function GastSidaScen({ lage }) {
+  const w = /** @type {any} */ (window);
+  w.__gastsvar ??= {
+    los: { ok: true, sessionsnyckel: GAST_SESSION },
+    hamta:
+      lage === "aterkallad"
+        ? { ok: false, orsak: "aterkallad" }
+        : { ok: true, namn: "", funktion: "rosta", sak: { titel: "Rep på Östergatan", forslag: [{ id: "f1", datum: "lör 26 dec 2026", ja: 2, kanske: 1, nej: 0 }, { id: "f2", datum: "sön 27 dec 2026", ja: 0, kanske: 2, nej: 1 }] } },
+  };
+  const lagring = (() => {
+    const d = lage === "klar" || lage === "aterkallad" ? { [`ops-gast:${GAST_ID}`]: GAST_SESSION } : {};
+    return { getItem: (k) => d[k] ?? null, setItem: (k, v) => { d[k] = v; }, removeItem: (k) => { delete d[k]; } };
+  })();
+  return (
+    <OpsGastSida
+      lank={lage === "nylank" ? null : { id: GAST_ID, nyckel: GAST_NYCKEL }}
+      lagring={lagring}
+      intervallMs={0}
+      huvud={<span className="text-publik-ingress font-semibold text-publik-ljus-text">LifeHub</span>}
+      onLos={async (v) => { w.__gastanrop.push(["los", v]); return w.__gastsvar.los; }}
+      onHamta={async (v) => { w.__gastanrop.push(["hamta", v]); return w.__gastsvar.hamta; }}
+      onNyLank={async (v) => { w.__gastanrop.push(["nyLank", v]); return { ok: true }; }}
+      onNamn={async (v) => { w.__gastanrop.push(["namn", v]); }}
+      renderSak={(p) => <GastSak {...p} />}
+    />
   );
 }
 
@@ -2513,6 +2600,9 @@ function Scen() {
   if (s === "chatt0106-inkorg") return <InkorgScen />;
   if (s === "tal-alla-falt") return <TalAllaScen />;
   if (s === "kommentar-bild") return <KommentarBildScen />;
+  if (s === "gastlista") return <GastListaScen full={false} />;
+  if (s === "gastlista-full") return <GastListaScen full />;
+  if (s.startsWith("gastsida-")) return <GastSidaScen lage={s.slice("gastsida-".length)} />;
   if (s === "kategoriformular") return <KategoriFormularScen typ="sort" />;
   if (s === "kategoriformular-status") return <KategoriFormularScen typ="status" />;
   if (s === "installning") {

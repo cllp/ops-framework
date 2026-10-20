@@ -5,7 +5,7 @@
  *
  * CP 2026-10-20: "Kör på alla 3, men sätt max 5 gäster." Beslutet var väg B i designförslaget (lifehub.app#389): appen får en egen gästväg vid sidan
  * av Identity. En gäst har ingen Auth-användare, ingen katalogpost, ingen Firebase-token och ingen rad i `memberships`. Det sista är det viktiga:
- * mätt i lifehub.app 7ffc669 provas ett aktivt medlemskap på 55 ställen i appens regler och 25 i ramverkets fragment, och 32 + 15 `status`-prov
+ * mätt i designförslaget (lifehub.app 7ffc669) provas ett aktivt medlemskap på 55 ställen i appens regler och 25 i ramverkets fragment, och 32 + 15 `status`-prov
  * på `aktiv` finns i functions och src. Hade en gäst varit en aktiv rad med `typ: "gast"` hade varje sådant prov släppt in hen, och varje
  * missat ställe hade varit ett hål (beslut 7 i epiken, skydd per funktion, hade blivit fail-open). Se `docs/beslut/0011`.
  *

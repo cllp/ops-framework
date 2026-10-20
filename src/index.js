@@ -341,7 +341,8 @@ export {
   GASTNYLANK_BREV_PER_DYGN, GASTNYLANK_MAX_LANKAR, MAX_GASTNAMN, MAX_GASTEPOST, GASTNYCKELFORM, GASTINBJUDNINGSIDFORM, GASTIDFORM, GASTSOKVAG, GASTFALT, GASTLISTFALT, GASTSVARSFALT,
   GASTORSAKER, GASTFEL, GASTFELKODER, GASTNYLANK_SVAR, GASTSTATUSAR, GASTPLATSNUMMER, normaliseraGastepost, gastId, gastomfangsnyckel, gastplatsId, gastLank, tolkaGastLank, gastStatus,
 } from "./lib/gast.js";
-// (vyerna OpsGastLista och OpsGastSida läggs till i nästa steg)
+export { OpsGastLista, ORD_OPSGASTLISTA } from "./components/OpsGastLista.jsx";
+export { OpsGastSida, ORD_OPSGASTSIDA } from "./components/OpsGastSida.jsx";
 export { MINNESKALLOR, MINNESFALT, MINNESKALLAFALT, MAX_MINNESTEXT, MAX_MINNESID, farAndraMinne, minnesradFel, byggMinnesrad } from "./lib/minne.js";
 export { createMinneskalla } from "./data/minneskalla.js";
 export { OpsMinne } from "./components/OpsMinne.jsx";

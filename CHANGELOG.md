@@ -11,6 +11,36 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ## Ej utgivet
 
+## 0.131.0
+
+Gäster, skiva 1 ("en sak", omröstningen först), cllp/lifehub.app#389, och ett litet tillägg i formuläret "Lägg till kategori". CP 2026-10-20: "Kör på alla 3, men sätt max 5 gäster." Inte brytande: allt är nytt eller en ny valfri prop, och appen behöver inte ändra något för att ompinna. Design och skäl: `docs/beslut/0011-gaster-en-inbjudan-och-aldrig-ett-konto.md`.
+
+### Händelsen
+
+Externa ska kunna rösta på ett datum utan konto (lifehub.app#383 skiva 2), och senare vara med i en hel grupp (#389). Designförslaget mätte att Identity är fel ställe: ett konto där ger gästen en katalogpost och en egen grupp att skapa, brevet blir två och målet tappas (Identity läser inte `returnTo`). CP:s beslut: **en gäst är en inbjudan, inte ett konto och inte ett medlemskap**, med en egen gästväg i appen. Skälet till "inte ett medlemskap" är mätt i förslaget: ett aktivt medlemskap provas på 55 ställen i appens regler och 25 i ramverkets fragment, så en gäst som en aktiv rad hade släppts in överallt där `aktiv` är hela provet.
+
+### Vad som är nytt
+
+- **`createGastService`** (`ops-framework/node`, `src/node/gast.js`): `bjud`, `aterkalla`, `skickaOm`, `lista`, `platser`, `los`, `session`, `hamta`, `sattNamn`, `nyLank`, `stadaSessioner`. Gästen når bara servern och aldrig Firestore, så ingen av appens regler eller callables släpper in en gäst.
+- **Taket är 5 gratis gäster per grupp och är fem dokument** (`<grupp>|1` till `<grupp>|5`, `GAST_PLATSER_GRATIS`). Att ta en plats är `createNew`: sju samtidiga inbjudningar till sju adresser ger exakt fem platser. Samma adress till flera saker tar en plats.
+- **Unikhet är id:t**: SHA-256 av (grupp, adress, omfång). `gastId` (`g_` och 40 hextecken) är härledd ur adressen och bär gästens röst.
+- **Länken bär nyckeln i fragmentet** (`/gast#i=<id>&k=<nyckel>`, `gastLank`, `tolkaGastLank`): den hamnar inte i Hostings logg, inte i `Referer`, och ett mejlprograms förhandshämtning förbrukar ingenting. Nyckeln och sessionen lagras bara som hash, och nyckeln lämnar tjänsten bara genom appens `skicka`.
+- **Fel adress räknas per inbjudan och per IP** (reserverade före prövningen, återlämnade vid lyckat försök). Alla nej är byte för byte lika; `aterkallad` och `utgangen` ges först när nyckeln och adressen stämde. `ip` är krävd.
+- **`gastregelfragment("gastinbjudningar")`**: en aktiv medlem (en person) i gruppen läser, frågan måste begränsa `groupId`, ingen skriver. Sessioner, platser och räknare har ingen match: appens catch-all nekar dem.
+- **`OpsGastLista`** (medlemmens lista med "X av 5 gratis platser", Bjud in utan konto, Skicka igen, Dra tillbaka, Bjud in igen) och **`OpsGastSida`** (gästens egen sida: adressfråga första gången, session på enheten, sakens kort via `renderSak`, ny länk, återkallelse synlig inom en minut). `PublikSprakval` är språkväljaren som `OpsDeladHandelse` hade privat, nu delad.
+- **Litet tillägg, samma version:** `OpsKatalogInstallning` får den valfria `upptagnaId` (id:n appen reserverat). Ett namn som "Kvitto" ger `kvitto-2` i stället för ett id som appen pekar på. Utan propen är beteendet detsamma som förut.
+
+### Proven, båda riktningarna
+
+- **Vitest:** `gast.test.js` (15), `gast-tjanst.test.js` (54), `gast-vy.test.jsx` (34) och två nya prov i `katalogInstallning.test.jsx`.
+- **Regelprov i emulatorn:** `rules/__tests__/gaster.test.mjs` (11).
+- **Skalytan:** avsnitt 55 i `check-skalyta` mäter listan och gästens sida i en riktig webbläsare vid 390 och 1280 px (64 kontroller).
+- **Rött utan:** 49 mutationer av tjänsten, lib och vyerna (alla röda, en överlevde först och fick ett eget prov), 4 av regelfragmentet och 2 av skalytan. Utfallen står i PR-texten.
+
+### Vad appen måste göra
+
+Se README, avsnittet "Gäster", och PR-texten. I korthet: regelfragmentet och indexen deployas FÖRE klienten, `POST /api/gast` bakom `createGastService`, ett brev via `skicka` och `gastLank`, sakens kort och röstprövningen som gäst, routen `/gast` ritad före grinden (med `noindex`), och `sammanstall` som räknar aktiva gästers röster.
+
 ## 0.130.0
 
 "Lägg till kategori" kräver ett namn och inget mer. Ur CP:s ord 2026-10-20, med en skärmbild från lifehub.app (Inställningar, Inkorgstyper): "Jag skulle lägga till en ny ärendetyp. Det var det värsta jag gjort på länge och det funkade inte. Ett formulär värre än att gå till passpolisen. Det måste vi fixa, så kan vi inte ha det." Att det inte funkade rättas i appen (en ny sort får ett standardbeteende där); det här är formuläret och regeln bakom det. Inte brytande: ingen ny prop, och appen behöver inte ändra något. Skärmbilder före och efter, 390 och 1280 px, ligger i PR:en.

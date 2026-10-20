@@ -517,6 +517,31 @@ describe("⛔ ett namn räcker (0.130.0, lifehub.app, CP 2026-10-20)", () => {
     expect(onSpara.mock.calls[0][0].id).toBe("gammal-2");
   });
 
+  it("⛔ ett id som appen reserverat (upptagnaId) räknas som upptaget: Kvitto ger kvitto-2", () => {
+    // Appens kod pekar på `kvitto` utan att kategorin finns i katalogen. Utan propen hade det nya namnet tagit id:t.
+    const onSpara = vi.fn();
+    rita({ onSpara, upptagnaId: ["kvitto"] });
+    laggTill("Kvitto");
+    expect(onSpara.mock.calls[0][0].id).toBe("kvitto-2");
+  });
+
+  it("två reserverade id ger nästa lediga, och ett reserverat id som inte krockar rör ingenting", () => {
+    const onSpara = vi.fn();
+    rita({ onSpara, upptagnaId: ["idee", "idee-2"] });
+    laggTill("Idee");
+    expect(onSpara.mock.calls[0][0].id).toBe("idee-3");
+    onSpara.mockClear();
+    laggTill("Faktura");
+    expect(onSpara.mock.calls[0][0].id).toBe("faktura");
+  });
+
+  it("utan upptagnaId räknas bara katalogens egna id, som förut", () => {
+    const onSpara = vi.fn();
+    rita({ onSpara });
+    laggTill("Kvitto");
+    expect(onSpara.mock.calls[0][0].id).toBe("kvitto");
+  });
+
   it("⛔ ett befintligt id ändras aldrig av ett nytt namn", () => {
     // Varje rad i databasen pekar på id:t. Röd om vyn härledde det på nytt vid varje spara: namnet blev då "helt-nytt-namn".
     const onSpara = vi.fn();

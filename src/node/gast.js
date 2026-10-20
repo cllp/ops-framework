@@ -39,6 +39,8 @@
 
 // @ts-expect-error Noden har crypto. Ramverket har inga Node-typer: lib är DOM, för webben. Samma rad som i delning.js.
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+// @ts-expect-error Samma skäl: ramverket har inga Node-typer.
+import { Buffer } from "node:buffer";
 import {
   GASTFEL_FONSTER_MS,
   GASTFEL_MAX,
@@ -197,6 +199,8 @@ function felMedKod(kod, meddelande) {
  * @property {string} [medlemskap] Förval `memberships`.
  */
 
+/** @typedef {"nej" | "aterkallad" | "utgangen" | "for-manga" | "saknas"} Gastorsak */
+
 /**
  * @typedef {object} Gastbrev
  * @property {"inbjudan" | "igen" | "ny-lank"} typ
@@ -270,6 +274,19 @@ export function createGastService(konfig) {
   const skapaNy = (samling, data) => /** @type {any} */ (kalla).createNew(samling, data);
   /** @type {(samling: string, id: string, villkor: Record<string, unknown>, data: any) => Promise<{ updated: boolean, row: any }>} */
   const uppdateraOm = (samling, id, villkor, data) => /** @type {any} */ (kalla).updateIf(samling, id, villkor, data);
+  /**
+   * Tar bort en rad så att den är borta efteråt. ⛔ ETT FEL SÄGER INTE ATT RADEN FINNS KVAR: en annan körning kan ha hunnit före (två återkallelser som släpper samma plats), och
+   * Firestore tar bort en rad som redan är borta utan att klaga medan minneskällan kastar. Slutläget är det som räknas, så felet sväljs bara om en läsning visar att raden är borta.
+   * @param {string} samling
+   * @param {string} id
+   */
+  async function taBort(samling, id) {
+    try {
+      await kalla.remove(samling, id);
+    } catch (fel) {
+      if (await kalla.read(samling, id)) throw fel;
+    }
+  }
   const INB = samlingar.inbjudningar;
   const SESS = samlingar.sessioner;
   const PLATSER = samlingar.platser;
@@ -362,7 +379,9 @@ export function createGastService(konfig) {
    */
   async function reservera(samling, id, rad, falt, gräns) {
     let aktuell = rad;
-    for (let i = 0; i < 4; i++) {
+    // ⛔ HÖGST 50 VARV, OCH INTE FYRA: varje misslyckat varv betyder att en annan hann före och höjde räknaren, så loopen tar slut när räknaren nått taket. Fyra varv gav ett falskt
+    // `for-manga` åt de sista av tjugo samtidiga anrop som tagit slut på varv innan de hunnit se att det fanns försök kvar (mätt i gast-tjanst.test.js).
+    for (let i = 0; i < 50; i++) {
       if (typeof aktuell[falt.antal] !== "number" || typeof aktuell[falt.fonster] !== "number") return null;
       const nu = klocka();
       const galler = aktuell[falt.fonster] > 0 && nu < aktuell[falt.fonster] + gräns.fonsterMs;
@@ -385,7 +404,7 @@ export function createGastService(konfig) {
    * @param {number} fonster
    */
   async function aterlamna(samling, id, falt, fonster) {
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < 50; i++) {
       const rad = await kalla.read(samling, id);
       if (!rad || rad[falt.fonster] !== fonster || typeof rad[falt.antal] !== "number" || rad[falt.antal] <= 0) return;
       const { updated } = await uppdateraOm(samling, id, { [falt.antal]: rad[falt.antal], [falt.fonster]: rad[falt.fonster] }, { [falt.antal]: rad[falt.antal] - 1 });
@@ -464,7 +483,7 @@ export function createGastService(konfig) {
     let n = 0;
     for (const p of gamla) {
       if (levande.has(/** @type {Record<string, any>} */ (p.r).gastId)) continue;
-      await kalla.remove(PLATSER, gastplatsId(groupId, p.nummer));
+      await taBort(PLATSER, gastplatsId(groupId, p.nummer));
       n++;
     }
     return n;
@@ -502,7 +521,7 @@ export function createGastService(konfig) {
     const rader = await lasPlatser(groupId);
     for (const [i, r] of rader.entries()) {
       if (r?.gastId !== gId) continue;
-      await kalla.remove(PLATSER, gastplatsId(groupId, GASTPLATSNUMMER[i]));
+      await taBort(PLATSER, gastplatsId(groupId, GASTPLATSNUMMER[i]));
       slappt = true;
     }
     return slappt;
@@ -637,7 +656,7 @@ export function createGastService(konfig) {
   }
 
   /**
-   * Drar tillbaka en inbjudan: gästens nästa anrop nekas, hens sessioner raderas, och platsen släpps om det var gästens sista aktiva inbjudan i gruppen. Idempotent.
+   * Drar tillbaka en inbjudan: gästens nästa anrop nekas (med `aterkallad`, så att sidan kan säga det), och platsen släpps om det var gästens sista aktiva inbjudan i gruppen. Idempotent.
    * Rösten står kvar i appens data men räknas inte (appens `sammanstall` räknar bara aktiva gäster), som för en medlem som lämnat gruppen.
    *
    * @param {Record<string, any>} b `{ uid, id }`.
@@ -651,8 +670,9 @@ export function createGastService(konfig) {
     if (!rad) throw felMedKod("finns-inte", `aterkalla: inbjudan "${id}" finns inte.`);
     await kravForvalta(uid, rad, "aterkalla");
     await uppdateraOm(INB, id, { aterkallad: null }, { aterkallad: klocka() });
-    // Hygien: sessionerna hade nekats vid nästa anrop ändå, eftersom varje anrop läser inbjudan på nytt.
-    for (const s of await kalla.list(SESS, { where: { inbjudningId: id } })) await kalla.remove(SESS, s.id);
+    // ⛔ SESSIONERNA RADERAS INTE HÄR. Varje anrop läser inbjudan på nytt och nekas redan, och en öppen sida ska kunna säga "Inbjudan är återkallad" inom en minut i stället för
+    // ett nej som läses som ett fel på länken. Sessionen får ligga: den ger `aterkallad` så länge inbjudan är återkallad, förnyas inte av det, och tas av `stadaSessioner` när den
+    // blivit 90 dagar gammal. En inbjudan som väcks igen (`bjud`) öppnar samma session på nytt, vilket är avsikten.
     const platsSlappt = await slappPlatsOmTom(rad.groupId, rad.epost);
     return { id, platsSlappt };
   }
@@ -728,7 +748,7 @@ export function createGastService(konfig) {
    * Löser in en länk: nyckeln och adressen stämmer, inbjudan är aktiv och länken har inte gått ut. Svaret är en sessionsnyckel som gästen sparar på enheten.
    *
    * @param {Record<string, any>} b `{ id, nyckel, epost, ip }`.
-   * @returns {Promise<{ ok: true, sessionsnyckel: string } | { ok: false, orsak: "nej" | "aterkallad" | "utgangen" | "for-manga" }>}
+   * @returns {Promise<{ ok: true, sessionsnyckel: string } | { ok: false, orsak: Gastorsak }>}
    */
   async function los(b) {
     const ipHash = ipId(b?.ip, "los", "los");
@@ -776,7 +796,7 @@ export function createGastService(konfig) {
    * Prövar en session: den finns, har inte stått oanvänd i `GASTSESSIONSDAGAR` dagar, och dess inbjudan finns och är aktiv. Läser inbjudan på nytt varje gång.
    *
    * @param {Record<string, any>} b `{ sessionsnyckel, krav?: { funktion } }`. `krav` är vad anropet gäller: en inbjudan som inte ger funktionen nekas som en okänd session.
-   * @returns {Promise<{ ok: true, gastId: string, inbjudan: { id: string, groupId: string, handelseId: string, funktion: string, namn: string } } | { ok: false, orsak: "nej" | "aterkallad" }>}
+   * @returns {Promise<{ ok: true, gastId: string, inbjudan: { id: string, groupId: string, handelseId: string, funktion: string, namn: string } } | { ok: false, orsak: Gastorsak }>}
    */
   async function session(b) {
     const nyckel = b?.sessionsnyckel;
@@ -786,7 +806,7 @@ export function createGastService(konfig) {
     if (!s) return nej();
     const nu = klocka();
     if (typeof s.senast !== "number" || nu - s.senast > GASTSESSIONSDAGAR * DYGN_MS) {
-      await kalla.remove(SESS, sid);
+      await taBort(SESS, sid);
       return nej();
     }
     const rad = await kalla.read(INB, s.inbjudningId);
@@ -881,7 +901,7 @@ export function createGastService(konfig) {
   async function stadaSessioner(b) {
     const grans = Number.isInteger(b?.gräns) && /** @type {number} */ (b?.gräns) > 0 ? /** @type {number} */ (b?.gräns) : 500;
     const gamla = await kalla.list(SESS, { fore: { falt: "senast", varde: klocka() - GASTSESSIONSDAGAR * DYGN_MS }, limit: grans });
-    for (const s of gamla) await kalla.remove(SESS, s.id);
+    for (const s of gamla) await taBort(SESS, s.id);
     return { raderade: gamla.length };
   }
 
