@@ -12,6 +12,10 @@
  *   3. INGEN KLIENT SKRIVER EN GÄSTS SVAR: `handelser/<h>/svar/g_<hash>` skrivs bara av servern. En medlem som försöker skriva det (eller radera det) nekas, eftersom id:t inte är medlemmens uid, men medlemmar
  *      LÄSER det, som alla andra svar (summorna räknar gäster, och gruppen ska kunna se det).
  *
+ *   4. INGEN KLIENT SKRIVER SOM EN GÄST I CHATTEN (0.132.0, "Gästen får skriva"): servern skriver gästens meddelande (`av` = `g_`-id, `avNamn`) med Admin SDK. Reglerna nekar en klient både ett `g_`-id som `av` och fältet
+ *      `avNamn` (`hasOnly` och `av == request.auth.uid`), så ingen medlem kan skriva ett meddelande som ser ut som en gästs, och ingen kan lägga märket Gäst på ett eget. Medlemmen skriver sitt eget som förut (golv),
+ *      och medlemmar LÄSER gästens meddelande som alla andra.
+ *
  * Kör: npm run test:rules
  */
 
@@ -74,6 +78,8 @@ before(async () => {
     await setDoc(doc(db, "handelser/f-arkiv"), { groupId: "kallan", kravSvar: true, arkiverad: true, titel: "Arkiv" });
     await setDoc(doc(db, "handelser/f-annan"), { groupId: "grannen", kravSvar: true, titel: "Annan" });
     await setDoc(doc(db, `handelser/f-ja/svar/${GAST}`), { svar: "kommer" });
+    await setDoc(doc(db, "samtal/kallan|grupp"), { groupId: "kallan", slag: "grupp", skapad: Date.now(), skapadAv: "uid-medlem" });
+    await setDoc(doc(db, "samtal/kallan|grupp/meddelanden/gast1"), { text: "Hej från gästen", av: GAST, avNamn: "Anna Gäst", tid: Date.now() });
   });
 });
 
@@ -134,5 +140,27 @@ describe("en gästs svar: bara servern skriver det, medlemmar läser det", () =>
     await assertFails(getDoc(doc(som("uid-granne"), `handelser/f-ja/svar/${GAST}`)));
     const lista = await assertSucceeds(getDocs(collection(som("uid-medlem"), "handelser/f-ja/svar")));
     assert.ok(lista.docs.some((d) => d.id === GAST), "gästens svar syns inte i listan över svaren (golv)");
+  });
+});
+
+describe("gästens meddelande i gruppchatten: bara servern skriver det, medlemmar läser det", () => {
+  const meddelande = (extra = {}) => ({ text: "Hej", av: "uid-medlem", tid: Date.now(), ...extra });
+
+  it("golv: en medlem skriver sitt eget meddelande i gruppchatten", async () => {
+    await assertSucceeds(setDoc(doc(som("uid-medlem"), "samtal/kallan|grupp/meddelanden/eget1"), meddelande()));
+  });
+
+  it("⛔ en medlem skriver inte ett meddelande som en gäst: varken med gästens id som avsändare eller med ett avNamn", async () => {
+    await assertFails(setDoc(doc(som("uid-medlem"), "samtal/kallan|grupp/meddelanden/falsk1"), meddelande({ av: GAST })));
+    await assertFails(setDoc(doc(som("uid-medlem"), "samtal/kallan|grupp/meddelanden/falsk2"), meddelande({ avNamn: "Falsk Gäst" })));
+    await assertFails(setDoc(doc(som("uid-medlem"), "samtal/kallan|grupp/meddelanden/falsk3"), meddelande({ av: GAST, avNamn: "Falsk Gäst" })));
+  });
+
+  it("ingen klient ändrar eller raderar gästens meddelande, och en medlem i en annan grupp läser det inte", async () => {
+    await assertFails(updateDoc(doc(som("uid-medlem"), "samtal/kallan|grupp/meddelanden/gast1"), { text: "Ändrat" }));
+    await assertFails(deleteDoc(doc(som("uid-medlem"), "samtal/kallan|grupp/meddelanden/gast1")));
+    await assertFails(getDoc(doc(som("uid-granne"), "samtal/kallan|grupp/meddelanden/gast1")));
+    const snap = await assertSucceeds(getDoc(doc(som("uid-medlem"), "samtal/kallan|grupp/meddelanden/gast1")));
+    assert.equal(snap.data().avNamn, "Anna Gäst");
   });
 });
