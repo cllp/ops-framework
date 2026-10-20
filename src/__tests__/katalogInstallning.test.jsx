@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent, within } from "@testing-library/react";
+import { render, screen, fireEvent, within, waitFor, act } from "@testing-library/react";
 import { OpsKatalogInstallning } from "../components/OpsKatalogInstallning.jsx";
 import { validateKatalog } from "../lib/katalog.js";
 
@@ -29,6 +29,12 @@ const KATEGORIER = validateKatalog(
   ],
   { ikoner: IKONER, textnycklar: ["lofte"], grupp: false },
 );
+
+/** Raden "Fler texter (valfritt)": `<details>`-elementet och dess sammanfattning. */
+const flerRaden = () => {
+  const sammanfattning = /** @type {HTMLElement} */ (screen.getByText(/Fler texter \(valfritt\)/).closest("summary"));
+  return { open: /** @type {HTMLDetailsElement} */ (sammanfattning.closest("details")).open, text: (sammanfattning.textContent || "").trim() };
+};
 
 const rita = (props = {}) =>
   render(
@@ -106,7 +112,6 @@ describe("inställningsvyn", () => {
     rita({ onSpara });
     fireEvent.click(screen.getByRole("button", { name: "Lägg till kategori" }));
 
-    fireEvent.change(screen.getByLabelText(/Nyckel/), { target: { value: "resa" } });
     fireEvent.change(screen.getByLabelText(/Namn på svenska/), { target: { value: "Resor" } });
     fireEvent.change(screen.getByLabelText(/Namn på engelska/), { target: { value: "Travel" } });
     fireEvent.click(screen.getByRole("button", { name: "Spara" }));
@@ -114,42 +119,43 @@ describe("inställningsvyn", () => {
     expect(onSpara).toHaveBeenCalledTimes(1);
     // ⛔ Ikonen är den första tillåtna utan att någon rört väljaren: en ny
     // kategori börjar giltig, i stället för att vägras när allt annat fyllts i.
+    // Id:t är härlett ur namnet (0.130.0), ingen har skrivit det.
     expect(onSpara.mock.calls[0][0]).toEqual(
-      expect.objectContaining({ id: "resa", namn: { sv: "Resor", en: "Travel" }, ikon: IKONER[0], fas: "aktiv" }),
+      expect.objectContaining({ id: "resor", namn: { sv: "Resor", en: "Travel" }, ikon: IKONER[0], fas: "aktiv" }),
     );
   });
 
-  it("⛔ ett ogiltigt värde sparas inte, och skälet från valideringen visas som det är", () => {
+  it("⛔ ett fel sparas inte, och skälet visas som det är med formuläret kvar", () => {
     /*
-     * Samma validering som vid uppstart, inte en egen i formuläret. En andra
-     * uppsättning regler glider isär från den som faktiskt gäller, och då går
-     * det att spara något som sedan vägrar läsas in.
+     * Samma validering som vid uppstart, inte en egen i formuläret. En andra uppsättning regler glider isär från den som faktiskt
+     * gäller. Det enda vyn kontrollerar själv är att en NY kategori har ett namn att härleda id:t ur, och att källan som tar emot
+     * den kan säga nej (onSpara kastar).
      */
-    const onSpara = vi.fn();
+    const onSpara = vi.fn(() => { throw new Error("Källan sade nej: samlingen är låst."); });
     rita({ onSpara });
     fireEvent.click(screen.getByRole("button", { name: "Lägg till kategori" }));
-    fireEvent.change(screen.getByLabelText(/Nyckel/), { target: { value: "Min.Kategori" } });
-    fireEvent.change(screen.getByLabelText(/Namn på svenska/), { target: { value: "Fel nyckel" } });
+
+    // Inget namn: vägras innan något skickas, med skälet.
     fireEvent.click(screen.getByRole("button", { name: "Spara" }));
-
     expect(onSpara).not.toHaveBeenCalled();
-    expect(screen.getByText(/små bokstäver/)).toBeInTheDocument();
+    expect(screen.getByText(/Skriv ett namn på svenska/)).toBeInTheDocument();
+
+    // Ett namn, men källan vägrar: skälet står kvar i formuläret och formuläret stängs inte.
+    fireEvent.change(screen.getByLabelText(/Namn på svenska/), { target: { value: "Resor" } });
+    fireEvent.click(screen.getByRole("button", { name: "Spara" }));
+    expect(onSpara).toHaveBeenCalledTimes(1);
+    expect(screen.getByText(/Källan sade nej/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Namn på svenska/)).toHaveValue("Resor");
   });
 
-  it("⛔ nyckeln går inte att ändra på en befintlig kategori", () => {
-    // Varje rad i databasen pekar på den. Gick den att ändra skulle kopplingen
-    // till allt som redan skrivits försvinna, tyst.
+  it("⛔ nyckeln frågas aldrig efter, varken vid ny kategori eller vid ändring", () => {
+    // 0.130.0: id härleds ur namnet. Ett fält man inte kan svara på rätt är ett beslut ramverket ska ta.
     rita();
+    fireEvent.click(screen.getByRole("button", { name: "Lägg till kategori" }));
+    expect(screen.queryByLabelText(/Nyckel/)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Avbryt" }));
     fireEvent.click(screen.getAllByRole("button", { name: "Ändra" })[0]);
-    expect(screen.getByLabelText(/Nyckel/)).toBeDisabled();
-  });
-
-  it("säger i formuläret att en omdöpning behåller kopplingen", () => {
-    // Utan den meningen vågar ingen döpa om något, och då är hela vyn en
-    // knapp folk är rädda för.
-    rita();
-    fireEvent.click(screen.getAllByRole("button", { name: "Ändra" })[0]);
-    expect(screen.getByText(/behåller kopplingen/)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/Nyckel/)).toBeNull();
   });
 
   it("⛔ färgen väljs som PLATS och inte som färgkod", () => {
@@ -177,7 +183,6 @@ describe("inställningsvyn", () => {
     expect(knapp).toHaveAttribute("aria-pressed", "true");
     fireEvent.change(within(rutnat).getByRole("searchbox", { name: "Sök ikon" }), { target: { value: "finnsinte" } });
     expect(within(rutnat).getByText("Ingen ikon matchar.")).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText(/Nyckel/), { target: { value: "resa" } });
     fireEvent.change(screen.getByLabelText(/Namn på svenska/), { target: { value: "Resor" } });
     fireEvent.change(screen.getByLabelText(/Namn på engelska/), { target: { value: "Travel" } });
     fireEvent.click(screen.getByRole("button", { name: "Spara" }));
@@ -270,34 +275,48 @@ describe("texterna i inställningsvyn", () => {
     expect(screen.getByLabelText(/^lofte, svenska/)).toHaveValue("Försvinner när den är gjord.");
   });
 
-  it("⛔ en ny kategori går inte att spara utan de texter katalogen kräver", () => {
+  it("⛔ en ny kategori sparas med bara ett namn, också när katalogen deklarerar texter (0.130.0)", () => {
     /*
-     * Det är hela skälet till att kravet finns. Utan det föds en kategori som
-     * lagts till här utan hjälptexter, och resultatet är ett formulär med tomma
-     * fält och inga exempel, alltså sämre än listan det ersatte.
+     * CP 2026-10-20: "Ett formulär värre än att gå till passpolisen." Före 0.130.0 vägrade vyn en ny kategori utan alla deklarerade
+     * texter, och inkorgens åtta gav tio obligatoriska fält. Texterna är valfria nu; kravet gäller appens standardvärden
+     * (`createCatalogSource`), inte det en människa skriver in här.
      */
     const onSpara = vi.fn();
     medTexter({ onSpara });
     fireEvent.click(screen.getByRole("button", { name: "Lägg till kategori" }));
-    fireEvent.change(screen.getByLabelText(/Nyckel/), { target: { value: "resa" } });
     fireEvent.change(screen.getByLabelText(/Namn på svenska/), { target: { value: "Resor" } });
     fireEvent.click(screen.getByRole("button", { name: "Spara" }));
 
-    expect(onSpara).not.toHaveBeenCalled();
-    expect(screen.getByText(/lofte/)).toBeInTheDocument();
+    expect(onSpara).toHaveBeenCalledTimes(1);
+    expect(onSpara.mock.calls[0][0]).toEqual(expect.objectContaining({ id: "resor", namn: { sv: "Resor" }, texter: {} }));
+    // Ingen felbanderoll.
+    expect(screen.queryByText("Det gick inte att spara")).toBeNull();
   });
 
   it("med texten ifylld sparas den nya kategorin", () => {
     const onSpara = vi.fn();
     medTexter({ onSpara });
     fireEvent.click(screen.getByRole("button", { name: "Lägg till kategori" }));
-    fireEvent.change(screen.getByLabelText(/Nyckel/), { target: { value: "resa" } });
     fireEvent.change(screen.getByLabelText(/Namn på svenska/), { target: { value: "Resor" } });
     fireEvent.change(screen.getByLabelText(/^Löfte, svenska/), { target: { value: "Försvinner när resan är redovisad." } });
     fireEvent.click(screen.getByRole("button", { name: "Spara" }));
 
     expect(onSpara).toHaveBeenCalledTimes(1);
     expect(onSpara.mock.calls[0][0].texter).toEqual({ lofte: { sv: "Försvinner när resan är redovisad." } });
+  });
+
+  it("⛔ en text med bara engelska tappas inte tyst: den vägras med textens namn, och raden öppnas", () => {
+    // Texterna är valfria, så en text utan svenska utelämnas. Men en med engelska hade då försvunnit utan ett ord.
+    const onSpara = vi.fn();
+    medTexter({ onSpara });
+    fireEvent.click(screen.getByRole("button", { name: "Lägg till kategori" }));
+    fireEvent.change(screen.getByLabelText(/Namn på svenska/), { target: { value: "Resor" } });
+    fireEvent.change(screen.getByLabelText(/^Löfte, engelska/), { target: { value: "Gone when booked." } });
+    fireEvent.click(screen.getByRole("button", { name: "Spara" }));
+
+    expect(onSpara).not.toHaveBeenCalled();
+    expect(screen.getByText(/Texten "Löfte" har en engelsk version men ingen svensk/)).toBeInTheDocument();
+    expect(flerRaden().open).toBe(true);
   });
 
   it("utan deklarerade texter och utan burna ritas ingen tom rubrik", () => {
@@ -332,7 +351,6 @@ describe("sortkatalogen i inställningsvyn", () => {
     const onSpara = vi.fn();
     sortvy({ onSpara });
     fireEvent.click(screen.getByRole("button", { name: "Lägg till kategori" }));
-    fireEvent.change(screen.getByLabelText(/Nyckel/), { target: { value: "resa" } });
     fireEvent.change(screen.getByLabelText(/Namn på svenska/), { target: { value: "Resor" } });
     fireEvent.click(screen.getByRole("button", { name: "Spara" }));
 
@@ -378,7 +396,6 @@ describe("en katalog utan färger i inställningsvyn", () => {
     const onSpara = vi.fn();
     vy({ onSpara });
     fireEvent.click(screen.getByRole("button", { name: "Lägg till kategori" }));
-    fireEvent.change(screen.getByLabelText(/Nyckel/), { target: { value: "resa" } });
     fireEvent.change(screen.getByLabelText(/Namn på svenska/), { target: { value: "Resor" } });
     fireEvent.click(screen.getByRole("button", { name: "Spara" }));
 
@@ -405,7 +422,6 @@ describe("⛔ groupId (#162, krävs sedan 0.33.0): vyn skriver i den aktiva grup
     const onSpara = vi.fn();
     rita({ onSpara, groupId: "cps-ab" });
     fireEvent.click(screen.getByRole("button", { name: "Lägg till kategori" }));
-    fireEvent.change(screen.getByLabelText(/Nyckel/), { target: { value: "resa" } });
     fireEvent.change(screen.getByLabelText(/Namn på svenska/), { target: { value: "Resor" } });
     fireEvent.click(screen.getByRole("button", { name: "Spara" }));
 
@@ -461,5 +477,124 @@ describe("⛔ rubriken syns (0.44.0, bolag-ops#507)", () => {
       </>,
     );
     expect(screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent)).toEqual(["Händelsetyper", "Inkorgens sorter"]);
+  });
+});
+
+describe("⛔ ett namn räcker (0.130.0, lifehub.app, CP 2026-10-20)", () => {
+  const medTexter = (props = {}) => rita({ textnycklar: TEXTNYCKLAR, ...props });
+  const laggTill = (/** @type {string} */ namn) => {
+    fireEvent.click(screen.getByRole("button", { name: "Lägg till kategori" }));
+    fireEvent.change(screen.getByLabelText(/Namn på svenska/), { target: { value: namn } });
+    fireEvent.click(screen.getByRole("button", { name: "Spara" }));
+  };
+
+  it("exakt ett fält är obligatoriskt i en ny kategori, också med deklarerade texter", () => {
+    // Före 0.130.0: nyckeln, svenska namnet och varje deklarerad text, alltså tre med en text och tio med inkorgens åtta.
+    medTexter();
+    fireEvent.click(screen.getByRole("button", { name: "Lägg till kategori" }));
+    const krav = [...document.querySelectorAll("input[required]")];
+    expect(krav.map((e) => e.getAttribute("name"))).toEqual(["sv"]);
+    // Golv: texterna och det engelska namnet finns i formuläret, annars mäter provet ett tomt formulär.
+    expect(document.querySelectorAll('input[name^="texter."]').length).toBe(2);
+    expect(document.querySelector('input[name="en"]')).not.toBeNull();
+  });
+
+  it("⛔ id härleds ur namnet: gemener, å ä ö, bindestreck", () => {
+    const onSpara = vi.fn();
+    medTexter({ onSpara });
+    laggTill("Ärende på Östergatan, åter!");
+    expect(onSpara.mock.calls[0][0].id).toBe("arende-pa-ostergatan-ater");
+  });
+
+  it("⛔ ett id som krockar får ett suffix, och en arkiverad kategori räknas", () => {
+    // `uppgift` finns, och `gammal` är arkiverad men är fortfarande nyckeln raderna pekar på.
+    const onSpara = vi.fn();
+    rita({ onSpara });
+    laggTill("Uppgift");
+    expect(onSpara.mock.calls[0][0].id).toBe("uppgift-2");
+    onSpara.mockClear();
+    laggTill("Gammal");
+    expect(onSpara.mock.calls[0][0].id).toBe("gammal-2");
+  });
+
+  it("⛔ ett befintligt id ändras aldrig av ett nytt namn", () => {
+    // Varje rad i databasen pekar på id:t. Röd om vyn härledde det på nytt vid varje spara: namnet blev då "helt-nytt-namn".
+    const onSpara = vi.fn();
+    medTexter({ onSpara });
+    fireEvent.click(screen.getAllByRole("button", { name: "Ändra" })[0]);
+    fireEvent.change(screen.getByLabelText(/Namn på svenska/), { target: { value: "Helt nytt namn" } });
+    fireEvent.click(screen.getByRole("button", { name: "Spara" }));
+    expect(onSpara.mock.calls[0][0].id).toBe("uppgift");
+    expect(onSpara.mock.calls[0][0].namn.sv).toBe("Helt nytt namn");
+  });
+
+  it("raden Fler texter är stängd för en ny kategori, utan siffra", () => {
+    medTexter();
+    fireEvent.click(screen.getByRole("button", { name: "Lägg till kategori" }));
+    expect(flerRaden()).toEqual({ open: false, text: "Fler texter (valfritt)" });
+  });
+
+  it("⛔ vid ändring står antalet ifyllda på den stängda raden, så inget göms utan att synas", () => {
+    medTexter();
+    // Uppgifter: det engelska namnet och en text.
+    fireEvent.click(screen.getAllByRole("button", { name: "Ändra" })[0]);
+    expect(flerRaden()).toEqual({ open: false, text: "Fler texter (valfritt)2 ifyllda" });
+    fireEvent.click(screen.getByRole("button", { name: "Avbryt" }));
+    // Gammal sort: bara en text, inget engelskt namn.
+    fireEvent.click(screen.getAllByRole("button", { name: "Ändra" })[1]);
+    expect(flerRaden()).toEqual({ open: false, text: "Fler texter (valfritt)1 ifylld" });
+  });
+
+  it("en kategori utan något ifyllt har ingen siffra", () => {
+    rita({ textnycklar: TEXTNYCKLAR, kategorier: validateKatalog([{ id: "x", namn: { sv: "X" }, farg: 1, ikon: "check", fas: "ny" }], { ikoner: IKONER, grupp: false }) });
+    fireEvent.click(screen.getAllByRole("button", { name: "Ändra" })[0]);
+    expect(flerRaden().text).toBe("Fler texter (valfritt)");
+  });
+
+  it("⛔ en katalog utan texter och utan fas och färg går inte sönder: namnet räcker där också", () => {
+    const onSpara = vi.fn();
+    rita({ onSpara, faser: false, farger: false });
+    laggTill("Idé");
+    expect(onSpara).toHaveBeenCalledTimes(1);
+    expect(onSpara.mock.calls[0][0]).toEqual(expect.objectContaining({ id: "ide", fas: null, farg: null, texter: {} }));
+  });
+
+  it("⛔ ett namn utan ett enda användbart tecken ger id:t kategori, inte ett tomt id", () => {
+    const onSpara = vi.fn();
+    rita({ onSpara });
+    laggTill("!!!");
+    expect(onSpara.mock.calls[0][0].id).toBe("kategori");
+  });
+
+  describe("onSpara som ger ett löfte", () => {
+    it("Spara väntar, formuläret står kvar tills löftet är klart och stängs sedan", async () => {
+      /** @type {() => void} */
+      let slapp = () => {};
+      const onSpara = vi.fn(() => new Promise((klar) => { slapp = () => klar(undefined); }));
+      rita({ onSpara });
+      fireEvent.click(screen.getByRole("button", { name: "Lägg till kategori" }));
+      fireEvent.change(screen.getByLabelText(/Namn på svenska/), { target: { value: "Resor" } });
+      fireEvent.click(screen.getByRole("button", { name: "Spara" }));
+
+      const spara = await screen.findByRole("button", { name: /Spara/ });
+      await waitFor(() => expect(spara).toHaveAttribute("aria-busy", "true"));
+      expect(spara).toBeDisabled();
+      expect(screen.getByLabelText(/Namn på svenska/)).toHaveValue("Resor");
+
+      await act(async () => { slapp(); });
+      await waitFor(() => expect(screen.queryByLabelText(/Namn på svenska/)).toBeNull());
+    });
+
+    it("⛔ ett avslag står i banderollen och formuläret står kvar, i stället för att stängas över en post som aldrig sparades", async () => {
+      const onSpara = vi.fn(() => Promise.reject(new Error("Databasen svarade inte.")));
+      rita({ onSpara });
+      fireEvent.click(screen.getByRole("button", { name: "Lägg till kategori" }));
+      fireEvent.change(screen.getByLabelText(/Namn på svenska/), { target: { value: "Resor" } });
+      fireEvent.click(screen.getByRole("button", { name: "Spara" }));
+
+      expect(await screen.findByText(/Databasen svarade inte/)).toBeInTheDocument();
+      expect(screen.getByLabelText(/Namn på svenska/)).toHaveValue("Resor");
+      await waitFor(() => expect(screen.getByRole("button", { name: "Spara" })).not.toHaveAttribute("aria-busy", "true"));
+    });
   });
 });

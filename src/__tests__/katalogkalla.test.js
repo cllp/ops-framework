@@ -341,3 +341,36 @@ describe("⛔ spara: den enda skrivvägen, i den aktiva gruppens katalog (0.33.0
     expect(await source.list("kataloger")).toEqual([]);
   });
 });
+
+describe("⛔ texterna är valfria för det en människa lägger till, och krävs av appens standardvärden (0.130.0)", () => {
+  const TEXTNYCKLAR = ["lofte"];
+  const MED_TEXT = [{ id: "uppgift", namn: { sv: "Uppgifter" }, farg: 1, ikon: "check", fas: "aktiv", ordning: 0, texter: { lofte: { sv: "Försvinner när den är gjord." } } }];
+
+  it("spara tar emot en kategori utan texter, fast katalogen deklarerar en", async () => {
+    // Röd före 0.130.0: källan byggde raden med kravet och vägrade, så inställningsvyns "bara ett namn" sparades aldrig.
+    const source = createMemorySource({ kataloger: [] });
+    const katalog = createCatalogSource({ source, collection: "kataloger", groupId: CPS_AB, standard: MED_TEXT, ikoner: IKONER, textnycklar: TEXTNYCKLAR });
+    const byggd = await katalog.spara({ id: "resa", namn: { sv: "Resor" }, farg: 1, ikon: "bell", fas: "aktiv", ordning: 1, texter: {} });
+    expect(byggd.id).toBe("resa");
+    expect(byggd.texter).toEqual({});
+    const svar = await katalog.las();
+    expect(svar.kalla).toBe("databas");
+    expect(svar.kategorier.map((k) => k.id)).toEqual(["resa"]);
+  });
+
+  it("⛔ en rad utan texter i databasen tar inte hela katalogen till reserven", async () => {
+    // Röd före 0.130.0: `las` validerade raderna med kravet, en rad utan texten föll, och katalogen svarade med reserven och ett fel.
+    const source = createMemorySource({ kataloger: [{ ...MED_TEXT[0], groupId: CPS_AB }, { id: `${CPS_AB}|resa`, namn: { sv: "Resor" }, farg: 2, ikon: "bell", fas: "aktiv", ordning: 1, texter: {}, groupId: CPS_AB }] });
+    const katalog = createCatalogSource({ source, collection: "kataloger", groupId: CPS_AB, standard: MED_TEXT, ikoner: IKONER, textnycklar: TEXTNYCKLAR });
+    const svar = await katalog.las();
+    expect(svar.fel).toBeNull();
+    expect(svar.kalla).toBe("databas");
+    expect(svar.kategorier).toHaveLength(2);
+  });
+
+  it("⛔ appens egna standardvärden måste fortfarande bära texterna, vid uppstart och vid seedning", () => {
+    // Skyddet som INTE släpptes: en mall utan text är ett programfel hos utvecklaren, inte data från en människa.
+    const utanText = [{ id: "uppgift", namn: { sv: "Uppgifter" }, farg: 1, ikon: "check", fas: "aktiv", ordning: 0, texter: {} }];
+    expect(() => createCatalogSource({ source: createMemorySource({ kataloger: [] }), collection: "kataloger", groupId: CPS_AB, standard: utanText, ikoner: IKONER, textnycklar: TEXTNYCKLAR })).toThrow(/lofte/);
+  });
+});

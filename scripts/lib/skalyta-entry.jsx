@@ -97,6 +97,72 @@ function InstallningTvaGrupper() {
   );
 }
 
+/*
+ * 0.130.0 (lifehub.app, CP 2026-10-20): formuläret "Lägg till kategori" med inkorgens åtta texter, och i andra kataloger.
+ * `sort`: inkorgens sorter, utan färger och faser, åtta texter (de åtta nycklarna ur lifehub.app `TEXTNYCKLAR_SORTER`).
+ * `status`: en statuskatalog (färg och fas, inga texter), alltså händelsetyper, prioriteter och aktivitetstyper.
+ * `window.__sparat` samlar vad vyn skickade till onSpara. `window.__sparaHall = true` gör att onSpara ger ett löfte som
+ * väntar tills `window.__sparaSlapp()` körs, och `window.__sparaAvslag = true` att det avslås, så att Spara-väntan går att mäta.
+ */
+const SORTTEXTER = [
+  ["kort", "Kort namn"],
+  ["titleLabel", "Rubrikens etikett"],
+  ["titleHint", "Rubrikens hjälp"],
+  ["titleExample", "Rubrikens exempel"],
+  ["textHint", "Textens hjälp"],
+  ["textExempel", "Textens exempel"],
+  ["hint", "Hjälp"],
+  ["gora", "Att göra"],
+];
+const FORMULAR_IKONER = ["inbox", "wallet", "star", "bell", "calendar", "home", "tag", "heart", "cart", "book", "camera", "car", "clock", "gift", "key", "mail", "map", "phone", "pin", "sun"];
+const formularIkon = (/** @type {string} */ n) => (
+  <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
+    <circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" strokeWidth="1.5" />
+    <text x="10" y="14" fontSize="10" textAnchor="middle" fill="currentColor">{n.charAt(0)}</text>
+  </svg>
+);
+const SORTKATEGORIER = [
+  {
+    id: "arende", namn: { sv: "Ärende", en: "Case" }, ikon: "inbox", ordning: 0, groupId: "cps-ab",
+    texter: Object.fromEntries(SORTTEXTER.map(([n]) => [n, { sv: `Text ${n}`, en: `Text ${n} en` }])),
+  },
+  { id: "ide", namn: { sv: "Idé" }, ikon: "star", ordning: 1, groupId: "cps-ab", texter: { kort: { sv: "Idé" }, hint: { sv: "Beskriv idén" } } },
+];
+const STATUSKATEGORIER = [
+  { id: "planerad", namn: { sv: "Planerad" }, farg: 1, ikon: "calendar", fas: "ny", ordning: 0, texter: {}, groupId: "cps-ab" },
+  { id: "pagar", namn: { sv: "Pågår" }, farg: 2, ikon: "clock", fas: "aktiv", ordning: 1, texter: {}, groupId: "cps-ab" },
+];
+/** @type {any} */ (window).__sparaSlapp = () => {};
+function KategoriFormularScen({ typ }) {
+  const sort = typ === "sort";
+  return (
+    <Skal>
+      <div className="px-4 py-4">
+        <OpsKatalogInstallning
+          kategorier={sort ? SORTKATEGORIER : STATUSKATEGORIER}
+          ikoner={FORMULAR_IKONER}
+          ikonRitare={formularIkon}
+          kanAndra
+          faser={!sort}
+          farger={!sort}
+          textnycklar={sort ? SORTTEXTER.map(([nyckel, etikett]) => ({ nyckel, etikett: { sv: etikett } })) : []}
+          onSpara={(k) => {
+            const w = /** @type {any} */ (window);
+            w.__sparat.push(k);
+            if (!w.__sparaHall) return undefined;
+            return new Promise((klar, avslag) => {
+              w.__sparaSlapp = () => (w.__sparaAvslag ? avslag(new Error("Databasen svarade inte")) : klar(undefined));
+            });
+          }}
+          onArkivera={() => {}}
+          rubrik={sort ? "Inkorgstyper" : "Händelsetyper"}
+          groupId="cps-ab"
+        />
+      </div>
+    </Skal>
+  );
+}
+
 /**
  * 0.42.0 (#217): modulernas typbidrag i en riktig webbläsare. Gruppen har två egna inkorgstyper och Ekonomi PÅ, som bidrar med två
  * typer ("Ekonomisk uppdatering" och ett långt namn som måste få brytas). Överst valen som ett skapa-formulär ritar dem
@@ -2447,6 +2513,8 @@ function Scen() {
   if (s === "chatt0106-inkorg") return <InkorgScen />;
   if (s === "tal-alla-falt") return <TalAllaScen />;
   if (s === "kommentar-bild") return <KommentarBildScen />;
+  if (s === "kategoriformular") return <KategoriFormularScen typ="sort" />;
+  if (s === "kategoriformular-status") return <KategoriFormularScen typ="status" />;
   if (s === "installning") {
     return (
       <Skal>

@@ -165,6 +165,59 @@ const rensa = (v) => (typeof v === "string" ? v.trim() : "");
 export const ID_FORM = /^[a-z0-9][a-z0-9_-]*$/;
 
 /**
+ * Ett id ur ett namn, för inställningsvyn där ingen ska behöva hitta på en nyckel (0.130.0).
+ *
+ * ══ ⛔ ID:T ÄR NYCKELN, OCH DET ÄR DÄRFÖR DET HÄRLEDS OCH INTE FRÅGAS EFTER ═══════════════
+ *
+ * CP 2026-10-20, om formuläret "Lägg till kategori": "Ett formulär värre än att gå till passpolisen." Första fältet var
+ * en Nyckel, med en text om att den aldrig ändras. Den som lägger till en kategori vet inte vad en nyckel är, och den
+ * enda rätta nyckeln går att räkna ut ur namnet. Ett fält man inte kan svara på rätt är ett fält som borde vara
+ * ett beslut ramverket tar.
+ *
+ * Gemener, å och ä till a, ö till o (och övriga bokstäver med accent till sin grundbokstav), allt som inte är
+ * bokstav eller siffra till ett bindestreck, ett enda bindestreck mellan orden, inget i början eller slutet. Ger
+ * namnet inga tecken alls som går att använda (bara symboler eller ett annat skriftsystem) blir id:t `kategori`.
+ *
+ * ⛔ UNIKT INOM KATALOGEN genom ett suffix: `arende`, `arende-2`, `arende-3`. De som redan finns räknas också när de är
+ * arkiverade, eftersom en arkiverad kategori fortfarande är nyckeln raderna pekar på. Ett id som redan finns delas
+ * aldrig ut en gång till.
+ *
+ * ⛔ ÄNDRAS ALDRIG EFTER ATT KATEGORIN FINNS. Funktionen anropas bara när en NY kategori byggs. En omdöpning rör namnet och
+ * låter id:t vara, för varje rad i databasen pekar på det.
+ *
+ * Utdata uppfyller alltid `ID_FORM`; det mäts i provet och är inte ett löfte på ord.
+ *
+ * @param {unknown} namn
+ * @param {Iterable<string>} [upptagna] Id:n som redan finns i katalogen, arkiverade med.
+ * @returns {string}
+ */
+export function harledKategoriId(namn, upptagna = []) {
+  const bas =
+    rensa(namn)
+      .toLowerCase()
+      // Några bokstäver har ingen grundbokstav i Unicode (de är egna tecken, inte bokstav plus accent).
+      .replace(/æ/g, "ae")
+      .replace(/œ/g, "oe")
+      .replace(/ø/g, "o")
+      .replace(/ß/g, "ss")
+      .replace(/đ/g, "d")
+      .replace(/ł/g, "l")
+      // Bokstav plus accent till bokstaven: å, ä, ö, é, ü och resten.
+      .normalize("NFD")
+      .replace(/\p{M}+/gu, "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 48)
+      .replace(/-+$/g, "") || "kategori";
+  const finns = new Set(upptagna);
+  if (!finns.has(bas)) return bas;
+  for (let n = 2; ; n += 1) {
+    const kandidat = `${bas}-${n}`;
+    if (!finns.has(kandidat)) return kandidat;
+  }
+}
+
+/**
  * Bygger en kategori, eller kastar med skälet.
  *
  * ⛔ KASTAR I STÄLLET FÖR ATT LAGA. En kategori med okänd fas kunde fås att

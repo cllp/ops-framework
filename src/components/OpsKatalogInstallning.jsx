@@ -1,13 +1,14 @@
-import { useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useOpsSprak } from "./OpsSprak.jsx";
 import { cx } from "../lib/cx.js";
-import { byggKategori, FASER, valjbara } from "../lib/katalog.js";
+import { byggKategori, FASER, harledKategoriId, valjbara } from "../lib/katalog.js";
 import { beskrivKonfigandring } from "../lib/konfiglogg.js";
 import { SLAGPLATSER, slagPrick } from "../lib/slag.js";
 import { text } from "../lib/sprak.js";
 import { OpsBanner } from "./OpsBanner.jsx";
 import { Delrubrik, delrubrik, useInstallningspanel } from "./OpsInstallningar.jsx";
 import { OpsButton } from "./OpsButton.jsx";
+import { OpsDisclosure } from "./OpsDisclosure.jsx";
 import { AndraIkon, ArkiveraIkon, TaFramIkon } from "./icons.jsx";
 import { OpsField, OpsInput } from "./OpsField.jsx";
 import { OpsList, OpsListRow } from "./OpsList.jsx";
@@ -62,6 +63,24 @@ import { OpsSelect } from "./OpsSelect.jsx";
  * att synas är ett läge där vyn ljuger med utelämnande: den som tittar tror
  * att kategorin har de fält som står där. Union av det deklarerade och det
  * kategorin faktiskt bär, alltså ingenting dolt och ingenting tappat.
+ *
+ * ══ ⛔ EN NY KATEGORI KRÄVER ETT NAMN OCH INGET MER (0.130.0) ═══════════════════════
+ *
+ * CP 2026-10-20, med en skärmbild från lifehub.app (Inställningar, Inkorgstyper, "Lägg till kategori"): "Jag skulle lägga till
+ * en ny ärendetyp. Det var det värsta jag gjort på länge och det funkade inte. Ett formulär värre än att gå till passpolisen."
+ * Mätt före ändringen i en riktig webbläsare (`check-skalyta` avsnitt 54), med inkorgens åtta texter: 20 textfält synliga, 10 av
+ * dem obligatoriska (nyckeln, svenska namnet och åtta hjälptexter), och med bara ett namn ifyllt vägrade Spara ("id krävs").
+ *
+ * Nu: namnet. Ikonen har ett förval (`ikoner[0]`) och kan bytas. Id:t härleds ur namnet (`harledKategoriId`) när kategorin
+ * SPARAS och visas aldrig, och ett id som finns ändras aldrig av en omdöpning. Det engelska namnet och alla texter är
+ * valfria och ligger bakom raden "Fler texter (valfritt)", stängd som förval. ⛔ Har kategorin texter ifyllda säger
+ * raden hur många, också stängd: det som göms ska synas som en siffra.
+ *
+ * ⛔ EN ENGELSK TEXT UTAN SVENSK ÄR ETT FEL OCH TAPPAS INTE. Förut sade kravet på de deklarerade texterna ifrån. Nu är de valfria,
+ * och en text som bara har engelska hade utelämnats tyst. Vyn vägrar och säger vilken text det gäller.
+ *
+ * ⛔ `onSpara` KAN GE ETT LÖFTE (0.130.0). Då väntar Spara (`OpsButton`), formuläret stängs först när löftet är klart, och ett
+ * avslag står i banderollen i stället för att formuläret stängts över en post som aldrig sparades.
  */
 
 /** @param {unknown} v @returns {string} */
@@ -85,18 +104,28 @@ function textraderna(deklarerade, bar) {
 }
 
 /**
+ * Hur många uppgifter bakom "Fler texter" som har något ifyllt: det engelska namnet och varje text med svenska eller engelska.
+ *
+ * @param {{ en?: string, texter?: Record<string, {sv?: string, en?: string}> }} utkast
+ */
+function antalIfyllda(utkast) {
+  const texter = Object.values(utkast.texter || {}).filter((v) => rensa(v && v.sv) || rensa(v && v.en)).length;
+  return texter + (rensa(utkast.en) ? 1 : 0);
+}
+
+/**
  * @param {object} props
  * @param {import("../lib/katalog.js").Kategori[]} props.kategorier
  * @param {readonly string[]} props.ikoner Tillåtelselistan. Appen äger den, eftersom den beror på ikonuppsättningen.
  * @param {(namn: string) => import("react").ReactNode} [props.ikonRitare] Namn till ikon. Utan den ritas ingen ikon. ⛔ Namnet visas
  *   aldrig som text: `wallet` är en nyckel i appens ikonuppsättning, inte ett ord för den som läser (granskningen av PR 278).
  * @param {boolean} [props.kanAndra] Ur rollerna. Falskt ger en läsvy med skälet utskrivet.
- * @param {(kategori: import("../lib/katalog.js").Kategori) => void} props.onSpara
+ * @param {(kategori: import("../lib/katalog.js").Kategori) => void | Promise<unknown>} props.onSpara Ger den ett löfte väntar Spara och formuläret stänger först när det är klart (0.130.0).
  * @param {(kategori: import("../lib/katalog.js").Kategori, arkiverad: boolean) => void | Promise<unknown>} props.onArkivera Ger den ett löfte är knappen upptagen tills det är klart (0.129.0, `OpsButton`).
  * @param {string} [props.sprak]
  * @param {string} [props.rubrik]
  * @param {any[]} [props.logg] Ändringsloggens rader, nyast först. Se `createConfigLog`.
- * @param {readonly {nyckel: string, etikett?: unknown, hjalp?: string}[]} [props.textnycklar] Texterna katalogen kräver. Appen äger listan, eftersom den beror på vad appens vyer ritar.
+ * @param {readonly {nyckel: string, etikett?: unknown, hjalp?: string}[]} [props.textnycklar] Texterna katalogen har. Appen äger listan, eftersom den beror på vad appens vyer ritar. Sedan 0.130.0 är de VALFRIA när någon lägger till en kategori här (raden "Fler texter"); appens standardvärden kräver dem fortfarande, se `createCatalogSource`.
  * @param {boolean} [props.faser] Falskt för en sortkatalog. Då ritas ingen fasväljare, eftersom fältet inte finns på kategorin.
  * @param {boolean} [props.farger] Falskt när kategorierna skiljs åt med ikon. Då ritas ingen färgväljare och ingen prick.
  * @param {string} props.groupId Den aktiva gruppens id (#162, KRÄVS sedan 0.33.0). En ny eller ändrad kategori
@@ -146,6 +175,13 @@ export function OpsKatalogInstallning({
   const [redigerar, setRedigerar] = useState(/** @type {string | null} */ (null));
   const [utkast, setUtkast] = useState(TOMT);
   const [fel, setFel] = useState(/** @type {string | null} */ (null));
+  // "Fler texter (valfritt)" är stängd som förval, och öppnas av vyn bara när ett fel pekar in i den.
+  const [fler, setFler] = useState(false);
+  // Vilken grupp som är aktiv NU, för ett löfte som svarar efter ett gruppbyte (se `spara`).
+  const gruppNu = useRef(groupId);
+  useEffect(() => {
+    gruppNu.current = groupId;
+  }, [groupId]);
 
   /*
    * ⛔ ETT UTKAST HÖR TILL GRUPPEN DET ÖPPNADES I (0.33.0). Före 0.33.0 låg `redigerar` och `utkast`
@@ -161,6 +197,7 @@ export function OpsKatalogInstallning({
     setRedigerar(null);
     setUtkast(TOMT);
     setFel(null);
+    setFler(false);
   }
 
   const alla = useMemo(() => (Array.isArray(kategorier) ? kategorier : []), [kategorier]);
@@ -169,6 +206,7 @@ export function OpsKatalogInstallning({
 
   const oppna = (/** @type {import("../lib/katalog.js").Kategori | null} */ kategori) => {
     setFel(null);
+    setFler(false);
     if (!kategori) {
       /*
        * ⛔ EN NY KATEGORI BÖRJAR MED EN GILTIG IKON, inte med ingen. Ett tomt
@@ -218,30 +256,51 @@ export function OpsKatalogInstallning({
        * ⛔ SAMMA VALIDERING SOM VID UPPSTART, inte en egen i vyn. En andra
        * uppsättning regler i ett formulär glider isär från den som faktiskt
        * gäller, och då går det att spara något som sedan vägrar läsas in.
+       *
+       * Det enda vyn kontrollerar själv är det som validering inte kan veta: att en NY kategori har ett namn att härleda
+       * id:t ur, och att en text inte bara har engelska.
        */
+      if (!redigerar && !rensa(utkast.sv)) {
+        throw new Error("Skriv ett namn på svenska. Det är det enda som krävs för att lägga till en kategori.");
+      }
+
       /*
-       * ⛔ EN TEXT UTAN SVENSKA SKICKAS INTE MED SOM TOM, den utelämnas. Ett
-       * `{ sv: "" }` hade kastat i `byggNamn` med ett meddelande om formen, och
-       * frågan är inte formen: den är att texten saknas. Utelämnad får den
-       * kravet nedan att säga just det, med nyckelns namn.
+       * ⛔ EN TEXT UTAN SVENSKA SKICKAS INTE MED SOM TOM, den utelämnas: texten är valfri, och ett tomt fält betyder att den inte
+       * finns. ⛔ MEN EN TEXT MED BARA ENGELSKA TAPPAS INTE TYST (0.130.0). Före 0.130.0 sade kravet på de deklarerade texterna
+       * ifrån, nu är de valfria och samma indata hade försvunnit utan ett ord. Svenskan är reserven för alla språk, så
+       * utan den finns ingen text att falla tillbaka på.
        */
       /** @type {Record<string, {sv: string, en?: string}>} */
       const texter = {};
       for (const [nyckel, v] of Object.entries(utkast.texter || {})) {
         const sv = rensa(v && v.sv);
-        if (!sv) continue;
         const en = rensa(v && v.en);
+        if (!sv && en) {
+          const t = textraderna(textnycklar, utkast.texter).find((r) => r.nyckel === nyckel);
+          setFler(true);
+          throw new Error(`Texten "${text(t && t.etikett, sprak) || nyckel}" har en engelsk version men ingen svensk. Svenskan är reserven för alla språk: fyll i den, eller töm den engelska.`);
+        }
+        if (!sv) continue;
         texter[nyckel] = en ? { sv, en } : { sv };
       }
+
+      /*
+       * ⛔ ID:T HÄRLEDS HÄR OCH FRÅGAS INTE EFTER (0.130.0), och bara för en NY kategori: en befintlig behåller sitt, för varje
+       * rad i databasen pekar på det. Unikheten mäts mot alla kategorier i katalogen, arkiverade med.
+       */
+      const id = redigerar ? utkast.id : harledKategoriId(utkast.sv, alla.map((k) => k && k.id));
 
       /*
        * ⛔ #162: kategorin byggs i den aktiva gruppen, med förvalet i `byggKategori` som kräver
        * `groupId` (0.33.0). Katalogkällans `spara` bygger den en gång till och skriver med
        * `katalognyckel`, så appen skickar vidare det här objektet till `spara` och inget annat.
+       *
+       * ⛔ INGEN `textnycklar` HÄR (0.130.0): kravet på de deklarerade texterna gäller appens standardvärden, inte en kategori
+       * någon lägger till i inställningsvyn. Se `createCatalogSource`.
        */
       const kategori = byggKategori(
         {
-          id: utkast.id,
+          id,
           namn: { sv: utkast.sv, en: utkast.en },
           ...(farger ? { farg: utkast.farg } : {}),
           ikon: utkast.ikon,
@@ -250,9 +309,29 @@ export function OpsKatalogInstallning({
           texter,
           groupId,
         },
-        { ikoner, katalog: rubrik, textnycklar: textnycklar.map((t) => t.nyckel), faser, farger },
+        { ikoner, katalog: rubrik, faser, farger },
       );
-      onSpara(kategori);
+      const svar = onSpara(kategori);
+      if (svar && typeof (/** @type {any} */ (svar).then) === "function") {
+        /*
+         * ⛔ ETT LÖFTE: formuläret står kvar tills det är klart, och Spara visar att den väntar (`OpsButton` ser löftet).
+         * Ett avslag står i banderollen. Före 0.130.0 stängdes formuläret direkt och ett avslag blev ett obehandlat fel
+         * långt efteråt, alltså en post som såg sparad ut och inte var det. ⛔ Och svarar löftet efter ett gruppbyte rör det
+         * inte den nya gruppens formulär.
+         */
+        const grupp = groupId;
+        return Promise.resolve(svar).then(
+          () => {
+            if (gruppNu.current !== grupp) return;
+            setRedigerar(null);
+            setFel(null);
+          },
+          (e) => {
+            if (gruppNu.current !== grupp) return;
+            setFel(e instanceof Error ? e.message : String(e));
+          },
+        );
+      }
       setRedigerar(null);
       setFel(null);
     } catch (e) {
@@ -261,6 +340,7 @@ export function OpsKatalogInstallning({
       // samma fel.
       setFel(e instanceof Error ? e.message : String(e));
     }
+    return undefined;
   };
 
   const rad = (/** @type {import("../lib/katalog.js").Kategori} */ kategori) => (
@@ -305,6 +385,10 @@ export function OpsKatalogInstallning({
       </div>
     </OpsListRow>
   );
+
+  // Texterna att rita i utkastet, och hur många av dem (plus det engelska namnet) som har något ifyllt: siffran står på raden när den är stängd.
+  const textrader = textraderna(textnycklar, utkast.texter);
+  const ifyllda = antalIfyllda(utkast);
 
   return (
     <section aria-labelledby={delen.etikettId} className="flex flex-col gap-3">
@@ -359,16 +443,11 @@ export function OpsKatalogInstallning({
         <div className="flex flex-col gap-3 rounded-base border border-line p-5">
           {fel ? <OpsBanner tone="danger" title="Det gick inte att spara">{fel}</OpsBanner> : null}
 
-          <OpsField label="Nyckel" hint="Ändras aldrig. Varje rad i databasen pekar på den, så en omdöpning senare byter bara namnet och behåller kopplingen." required>
-            <OpsInput value={utkast.id} onChange={(v) => setUtkast({ ...utkast, id: v })} disabled={Boolean(redigerar)} name="id" tal={false} />
-          </OpsField>
-
+          {/* ⛔ BARA NAMNET (0.130.0). Nyckeln härleds ur det när kategorin sparas (`harledKategoriId`) och visas aldrig, och det
+              engelska namnet och texterna ligger bakom "Fler texter (valfritt)" längre ned. Det här fältet är det enda som måste
+              fyllas i. Etiketten är oförändrad ("Namn på svenska"): appar frågar efter den. */}
           <OpsField label="Namn på svenska" required>
             <OpsInput value={utkast.sv} onChange={(v) => setUtkast({ ...utkast, sv: v })} name="sv" />
-          </OpsField>
-
-          <OpsField label="Namn på engelska" hint="Saknas det används det svenska, och vakten räknar upp raden.">
-            <OpsInput value={utkast.en} onChange={(v) => setUtkast({ ...utkast, en: v })} name="en" />
           </OpsField>
 
           {/* ⛔ INGEN FÄRGVÄLJARE NÄR KATEGORIERNA SKILJS ÅT MED IKON. Paletten
@@ -403,15 +482,32 @@ export function OpsKatalogInstallning({
             </OpsField>
           ) : null}
 
-          {textraderna(textnycklar, utkast.texter).length > 0 ? (
+          {/* ⛔ ALLT VALFRITT PÅ EN RAD, STÄNGD SOM FÖRVAL (0.130.0). Det engelska namnet och varje text: ingen behöver fyllas i för att
+              spara. ⛔ Men inget göms utan att synas: har kategorin något ifyllt står antalet på raden också när den är stängd. */}
+          <OpsDisclosure
+            open={fler}
+            onOpenChange={setFler}
+            summary={
+              <span data-fler-texter="">
+                Fler texter (valfritt)
+                {ifyllda > 0 ? <span className="ms-2 text-ink-muted">{ifyllda === 1 ? "1 ifylld" : `${ifyllda} ifyllda`}</span> : null}
+              </span>
+            }
+          >
             <div className="flex flex-col gap-3">
-              {/* ⛔ Rubriken säger vad de ÄR och inte bara att de finns. Utan
-                  den meningen ser arton fält ut som administration, och då
-                  fylls de i med ett ord var. */}
-              <Delrubrik niva={delen.underniva}>Texter, alltså det som gör formuläret begripligt</Delrubrik>
-              {textraderna(textnycklar, utkast.texter).map((t) => (
+              <OpsField label="Namn på engelska" hint="Saknas det används det svenska.">
+                <OpsInput value={utkast.en} onChange={(v) => setUtkast({ ...utkast, en: v })} name="en" />
+              </OpsField>
+              {textrader.length > 0 ? (
+                <div className="flex flex-col gap-1">
+                  {/* ⛔ Rubriken säger vad de ÄR och inte bara att de finns (0.130.0: nu inne i raden, och sagt som valfria). */}
+                  <Delrubrik niva={delen.underniva}>Texter, alltså det som gör formuläret begripligt</Delrubrik>
+                  <p className="m-0 text-hjalp text-ink-muted">Hjälptexter som visas när någon lägger till en post av den här sorten. Lämna dem tomma om du inte behöver dem.</p>
+                </div>
+              ) : null}
+              {textrader.map((t) => (
                 <div key={t.nyckel} className="flex flex-col gap-2">
-                  <OpsField label={`${text(t.etikett, sprak) || t.nyckel}, svenska`} hint={t.hjalp} required>
+                  <OpsField label={`${text(t.etikett, sprak) || t.nyckel}, svenska`} hint={t.hjalp}>
                     <OpsInput
                       value={(utkast.texter[t.nyckel] || {}).sv || ""}
                       onChange={(v) => setUtkast({ ...utkast, texter: { ...utkast.texter, [t.nyckel]: { ...(utkast.texter[t.nyckel] || { en: "" }), sv: v } } })}
@@ -428,7 +524,7 @@ export function OpsKatalogInstallning({
                 </div>
               ))}
             </div>
-          ) : null}
+          </OpsDisclosure>
 
           <div className="flex flex-col gap-2">
             <Delrubrik niva={delen.underniva}>Så här kommer den att se ut</Delrubrik>

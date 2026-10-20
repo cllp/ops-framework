@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { AVSLUTADE_FASER, FASER, KATEGORIFALT, arAvslutad, byggKategori, gruppensRader, katalognyckel, kategorin, valjbara, validateKatalog } from "../lib/katalog.js";
+import { AVSLUTADE_FASER, FASER, ID_FORM, KATEGORIFALT, arAvslutad, byggKategori, gruppensRader, harledKategoriId, katalognyckel, kategorin, valjbara, validateKatalog } from "../lib/katalog.js";
 import { RESERVSPRAK, SPRAK, arGammalNamn, byggNamn, saknadeSprak, text } from "../lib/sprak.js";
 import { SLAGPLATSER } from "../lib/slag.js";
 
@@ -351,5 +351,53 @@ describe("katalognyckel och gruppensRader (0.33.0)", () => {
 
   it("⛔ utan groupId vägrar den, i stället för att läsa allas rader", () => {
     expect(() => gruppensRader(RADER, /** @type {any} */ ({}))).toThrow(/groupId krävs/);
+  });
+});
+
+describe("harledKategoriId: ett id ur ett namn (0.130.0)", () => {
+  it.each([
+    ["Ärende", "arende"],
+    ["Östra Åkern", "ostra-akern"],
+    ["Kvitto, utlägg och annat", "kvitto-utlagg-och-annat"],
+    ["  Resor  ", "resor"],
+    ["Café & Bar", "cafe-bar"],
+    ["Min.Kategori_2", "min-kategori-2"],
+    ["Straße Æsir", "strasse-aesir"],
+    ["---Bindestreck---", "bindestreck"],
+  ])("%s ger %s", (namn, id) => {
+    expect(harledKategoriId(namn)).toBe(id);
+  });
+
+  it("⛔ allt som ges är ett giltigt id, hur skräpigt namnet än är (golv: minst tio underlag mättes)", () => {
+    const underlag = ["", "   ", "!!!", "日本語", "😀", "A", "9", "-", "_x_", "Å".repeat(80), "a b ".repeat(40), "Ärende #1 (nytt)", ".", "ÄÖÅ", "Hej då!"];
+    expect(underlag.length).toBeGreaterThanOrEqual(10);
+    for (const namn of underlag) {
+      const id = harledKategoriId(namn);
+      expect(ID_FORM.test(id), JSON.stringify(namn)).toBe(true);
+      expect(id.length, JSON.stringify(namn)).toBeLessThanOrEqual(48);
+      // Och det går genom samma bygge som allt annat.
+      expect(() => byggKategori({ id, namn: { sv: "X" }, farg: 1, ikon: "check", fas: "ny", groupId: "g" }, { ikoner: ["check"] }), JSON.stringify(namn)).not.toThrow();
+    }
+  });
+
+  it("ett namn utan användbara tecken blir kategori, och ett tomt också", () => {
+    expect(harledKategoriId("!!!")).toBe("kategori");
+    expect(harledKategoriId("")).toBe("kategori");
+    expect(harledKategoriId(undefined)).toBe("kategori");
+    expect(harledKategoriId(null)).toBe("kategori");
+  });
+
+  it("⛔ ett upptaget id får suffix, ett suffix som också är upptaget hoppas över, och ett fritt id rörs inte", () => {
+    expect(harledKategoriId("Ärende", ["arende"])).toBe("arende-2");
+    expect(harledKategoriId("Ärende", ["arende", "arende-2", "arende-3"])).toBe("arende-4");
+    expect(harledKategoriId("Ärende", ["annat"])).toBe("arende");
+    // Ett Set och en lista fungerar lika, eftersom anroparen bara har en lista.
+    expect(harledKategoriId("Ärende", new Set(["arende"]))).toBe("arende-2");
+  });
+
+  it("ett långt namn kapas utan att sluta på ett bindestreck", () => {
+    const id = harledKategoriId(`${"a".repeat(47)} bbb`);
+    expect(id).toBe("a".repeat(47));
+    expect(id.endsWith("-")).toBe(false);
   });
 });

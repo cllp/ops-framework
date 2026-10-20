@@ -11,6 +11,26 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ## Ej utgivet
 
+## 0.130.0
+
+"Lägg till kategori" kräver ett namn och inget mer. Ur CP:s ord 2026-10-20, med en skärmbild från lifehub.app (Inställningar, Inkorgstyper): "Jag skulle lägga till en ny ärendetyp. Det var det värsta jag gjort på länge och det funkade inte. Ett formulär värre än att gå till passpolisen. Det måste vi fixa, så kan vi inte ha det." Att det inte funkade rättas i appen (en ny sort får ett standardbeteende där); det här är formuläret och regeln bakom det. Inte brytande: ingen ny prop, och appen behöver inte ändra något. Skärmbilder före och efter, 390 och 1280 px, ligger i PR:en.
+
+### Mätt före (check-skalyta avsnitt 54, mot origin/main, riktig webbläsare)
+
+Inkorgens kategoriformulär, åtta texter: **20 textfält synliga, 10 obligatoriska** (nyckel, svenska namnet och åtta hjälptexter på svenska), lika vid 390 och 1280 px. Med bara ett namn ifyllt vägrade Spara med "id krävs. Det är nyckeln varje rad i databasen pekar på." En statuskatalog (färg och fas, inga texter): 4 textfält synliga, 2 obligatoriska. Efter ändringen: **2 textfält synliga (namnet och ikonsökningen), 1 obligatoriskt**, och ett namn räcker.
+
+- **Id härleds ur namnet** (`harledKategoriId`, internt i `src/lib/katalog.js`, inte en ny publik export). Gemener, å och ä till a, ö till o (övriga accentbokstäver till sin grundbokstav), allt annat till ett bindestreck, `-2`, `-3` om id:t krockar, och arkiverade kategorier räknas eftersom de fortfarande är nyckeln raderna pekar på. Ett namn utan ett enda användbart tecken blir `kategori`. Utdata uppfyller alltid `ID_FORM`, mätt mot femton skräpiga underlag. Fältet Nyckel är borta.
+- **⛔ Ett befintligt id ändras aldrig.** Id:t härleds bara när en NY kategori sparas. En omdöpning rör namnet och lämnar id:t, och provet är rött om vyn härledde det på nytt.
+- **Det engelska namnet och alla texter är valfria och ligger bakom raden "Fler texter (valfritt)"**, stängd som förval (`OpsDisclosure`). ⛔ Har kategorin något ifyllt står antalet på raden också när den är stängd ("2 ifyllda"), så inget göms utan att synas. ⛔ En text med bara engelska vägras med textens namn och raden öppnas: texterna är valfria nu, och samma indata hade annars utelämnats tyst.
+- **⛔ REGELÄNDRING, och den står här eftersom den kunde ha missats: kravet på de deklarerade texterna (`textnycklar`) gäller appens STANDARDVÄRDEN och inte längre raderna.** Mätt: `byggKategori` och `validateKatalog` krävde `textnycklar` överallt, i vyn, i `createCatalogSource.spara` och i `las`. Att bara göra formuläret valfritt hade därför inte räckt: källan hade vägrat raden vid spara, och en rad utan texter hade fallit i `las` och tagit hela katalogen till reserven. Nu kräver källan dem av `standard` (uppstart och seedning: en mall utan text är ett programfel hos utvecklaren) men inte av det en människa lägger till. `byggKategori` och `validateKatalog` är oförändrade och kräver fortfarande det de får `textnycklar` för; det är anropsstället som släppte kravet. En kategori utan hjälptexter ger `texten()` = tom sträng, så appens vy väljer vad som visas.
+- **`onSpara` får ge ett löfte.** Spara väntar (`OpsButton` ser löftet, 0.129.0), formuläret stängs när det är klart, och ett avslag står i banderollen med formuläret kvar. Förut stängdes formuläret direkt och ett avslag blev ett obehandlat fel efteråt: en post som såg sparad ut och inte var det. Svarar löftet efter ett gruppbyte rörs inte den nya gruppens formulär.
+- **Andra kataloger (händelsetyper, prioriteter, aktivitetstyper) får samma förenkling**, mätt i en statuskatalog med färg och fas, och i en sortkatalog utan båda.
+- **Proven:** 34 prov röda mot origin/main och gröna med ändringen (vyn, `harledKategoriId`, katalogkällan), plus `check-skalyta` avsnitt 54 (röd mot origin/main med 18 brott, grön med ändringen). Ett prov som fanns men låste det gamla beteendet ("en ny kategori går inte att spara utan de texter katalogen kräver") är omskrivet till det motsatta. Skyddet som INTE släpptes har ett eget prov: en mall utan text vägras fortfarande vid uppstart.
+
+### Vad appen måste göra
+
+Ingenting i koden. Ompinna och bygg. ⛔ Har appen ett eget prov som fyller i fältet "Nyckel" i inställningsvyn finns inte fältet längre; ta bort raden. Appens egna vyer som ritar en kategoris texter ska tåla en tom text (`texten()` ger tom sträng), eftersom en kategori som läggs till i vyn nu kan sakna dem.
+
 ## 0.129.0
 
 Tre delar i ett pass, ur CP:s beslut 2026-10-15 (kalendern väljs på ärendet), 2026-10-13 (knappar som väntar) och 2026-10-19 (skapa grupp): GitHub-etiketten ur kalendrarna (cllp/lifehub.app#303 och #307), knappar som väntar visar det (cllp/lifehub.app#217), och väntan när en grupp skapas (cllp/lifehub.app#365). ⛔ **Brytande** för del A: fyra funktioner och en konstant lämnar den publika ytan, och appen måste ta bort sina anrop av dem i samma ompinning (se "Vad appen måste göra"). Del B och C ändrar hur befintliga knappar beter sig men tar inget bort.
