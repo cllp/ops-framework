@@ -897,7 +897,17 @@ describe("radering: inga spår av gästens adress, och platsen frigörs", () => 
     const h = bygg();
     await bjudAnnan(h);
     const { g, saksession } = await fullAvtryck(h);
+    const annasInbjudningar = (await h.grund.list("gastinbjudningar")).filter((r) => r.epost === "anna@foretag.se").map((r) => r.id);
+    expect(annasInbjudningar).toHaveLength(2);
+    // Golv: räknarna som hör till hennes inbjudningar FANNS före raderingen, annars är "borta efteråt" grönt av att ingenting fanns.
+    const harRaknare = async () => {
+      const ids = [sha(`nylank-epost|${gastId("anna@foretag.se")}`), ...annasInbjudningar.flatMap((id) => [sha(`gastanrop|${id}`), sha(`gastfil|${id}`)])];
+      return (await Promise.all(ids.map((id) => h.grund.read("gastraknare", id)))).filter(Boolean).length;
+    };
+    expect(await harRaknare()).toBeGreaterThanOrEqual(3);
     const ut = await h.tjanst.radera({ uid: AGARE, groupId: GRUPP, gastId: gastId("anna@foretag.se") });
+    expect(await harRaknare()).toBe(0);
+    expect(await h.grund.list("gastsessioner")).toEqual([]);
     expect(ut).toMatchObject({ inbjudningar: 2, sessioner: 2, platserSlappta: 1, grupper: [GRUPP] });
     const text = await allt(h);
     expect(text).not.toContain("anna@foretag.se");
