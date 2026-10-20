@@ -277,7 +277,7 @@ export { tillganglighetForDag, bortaAntal } from "./lib/tillganglighet.js";
  * härledda ur händelserna och svaren.
  */
 export { OpsKalendrar } from "./components/OpsKalendrar.jsx";
-export { OpsSvar, OpsSvarsknappar, OpsSvarsrad } from "./components/OpsSvar.jsx";
+export { OpsSvar, OpsSvarSummor, OpsSvarsknappar, OpsSvarsrad } from "./components/OpsSvar.jsx";
 export { OpsKommentarer, OpsKommentarsrad, ORD_OPSKOMMENTARER, ORD_OPSKOMMENTARSRAD } from "./components/OpsKommentarer.jsx";
 /*
  * ⛔ HÄNDELSEPANELEN (0.40.0, #214): en händelse på en egen sida med Tillbaka, öppnad av en rad i Idag (`OpsEventList`) eller en post i kalenderns
@@ -340,9 +340,17 @@ export {
   GAST_PLATSER_GRATIS, GASTSLAG, GASTFUNKTIONER, GASTLANKDAGAR, GASTSESSIONSDAGAR, GASTFEL_MAX, GASTFEL_FONSTER_MS, GASTIP_MAX, GASTIP_FONSTER_MS, GASTNYLANKIP_MAX, GASTNYLANKIP_FONSTER_MS,
   GASTNYLANK_BREV_PER_DYGN, GASTNYLANK_MAX_LANKAR, MAX_GASTNAMN, MAX_GASTEPOST, GASTNYCKELFORM, GASTINBJUDNINGSIDFORM, GASTIDFORM, GASTSOKVAG, GASTFALT, GASTLISTFALT, GASTSVARSFALT,
   GASTORSAKER, GASTFEL, GASTFELKODER, GASTNYLANK_SVAR, GASTSTATUSAR, GASTPLATSNUMMER, normaliseraGastepost, gastId, gastomfangsnyckel, gastplatsId, gastLank, tolkaGastLank, gastStatus,
+  GASTGRUPPFUNKTIONER, GASTCHATT_SIDA, GASTKALENDER_MAX, GASTARENDEN_MAX, GASTBIBLIOTEK_MAX, GASTANROP_PER_MINUT, GASTFIL_PER_DYGN, GASTGRUPPSVARSFALT, GASTCHATTFALT, GASTHANDELSEFALT, GASTKALENDERFALT, GASTFILFALT, GASTBIBLIOTEKFALT, GASTPERSONFALT, GASTPERSONINBJUDANFALT, GASTTIDIGAREMEDLEM, GASTGRUPPATGARDER, gastOmfangGer, gastGruppApi,
 } from "./lib/gast.js";
 export { OpsGastLista, ORD_OPSGASTLISTA } from "./components/OpsGastLista.jsx";
 export { OpsGastSida, ORD_OPSGASTSIDA } from "./components/OpsGastSida.jsx";
+/*
+ * 0.132.0 (cllp/lifehub.app#389, skiva 2): hela gruppen. Gästens bantade gränssnitt (`OpsGastGrupp`: chatt, kalender, ärenden, bibliotek) och dess delar. `OpsSvarSummor` är svaren som summor, för den som
+ * inte får se vem som svarat.
+ */
+export { OpsGastGrupp, ORD_OPSGASTGRUPP } from "./components/OpsGastGrupp.jsx";
+export { OpsGastChatt, ORD_OPSGASTCHATT } from "./components/OpsGastChatt.jsx";
+export { OpsGastArenden, ORD_OPSGASTARENDEN } from "./components/OpsGastArenden.jsx";
 export { MINNESKALLOR, MINNESFALT, MINNESKALLAFALT, MAX_MINNESTEXT, MAX_MINNESID, farAndraMinne, minnesradFel, byggMinnesrad } from "./lib/minne.js";
 export { createMinneskalla } from "./data/minneskalla.js";
 export { OpsMinne } from "./components/OpsMinne.jsx";

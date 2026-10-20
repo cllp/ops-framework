@@ -193,8 +193,10 @@ function useBibliotekskalla(kalla) {
  *   tillbaka-rad till hubben (`hubHref` krävs inte), ingen sök-, tagg-, flik- eller "+ Ny"-rad, bara listan och detaljen: den som äger sektionen (`OpsPlatsfiler`) ritar rubriken och Ladda upp
  *   och sätter `skapar` (`"fil"`), eftersom en händelses och ett ärendes bibliotek har bara filer. Detaljens tillbaka heter "Filer". `ram`, `platser`, `plats`, `onPlats`, `grupper` och `onDela` hör inte hit och kastar: en inbäddad lista har en plats.
  * @param {string} [props.tomText] (0.122.0) Beskrivningen under "Inga filer än." när den inbäddade listan är tom. Förval "Filer som läggs till här hör bara till händelsen." (en konstant, inte ett parameterförval; `OpsPlatsfiler` skickar rätt mening för ärendet).
+ * @param {boolean} [props.utanHubb] (0.132.0, lifehub.app#389) Ingen tillbaka-rad till hubben och ingen `hubHref`: gästens bibliotek, där ingen hubb finns att gå till. Allt annat som i det fristående biblioteket (sök, flikar, taggar). Utan den krävs `hubHref` som förut.
+ * @param {boolean} [props.adresserPaBegaran] (0.132.0, lifehub.app#389) Filernas adresser hämtas bara för posten som är öppen, aldrig för hela listan. Förvalet hämtar en adress per fil när listan ritas, vilket är billigt för en medlem (`getDownloadURL`) och dyrt för en gäst: varje adress är en signering som räknas mot ett tak per dygn. Mätt i designen av skiva 2 som felantagande: listan hämtade alla. En fil som öppnats förut visas med sin adress också i listan.
  */
-export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, trasiga: trasigaProp = [], laddar: laddarProp = false, vald = null, skapar = null, jag, onOppna, onStang, onSkapa, onSpara, onRadera, onLaddaUpp, onFyllLjud, onSpelaIn, inspelare, filUrl, hamtaAdress, grupper = [], onDela, platser = [], plats, onPlats, onSkrivUt, onAnteckningAvUtskrift, onGorForslag, delningar = [], delningGruppdel, gruppnamn: gruppnamnProp, onDelaLank, onAndraNedladdning, onAterkalla, onMejlaLank, onLankInfo, hubHref, hubEtikett, onNavigate, modulId = "bibliotek", ram = null, activeHref, modul = null, inbaddad = false, tomText }) {
+export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, trasiga: trasigaProp = [], laddar: laddarProp = false, vald = null, skapar = null, jag, onOppna, onStang, onSkapa, onSpara, onRadera, onLaddaUpp, onFyllLjud, onSpelaIn, inspelare, filUrl, hamtaAdress, grupper = [], onDela, platser = [], plats, onPlats, onSkrivUt, onAnteckningAvUtskrift, onGorForslag, delningar = [], delningGruppdel, gruppnamn: gruppnamnProp, onDelaLank, onAndraNedladdning, onAterkalla, onMejlaLank, onLankInfo, hubHref, hubEtikett, onNavigate, modulId = "bibliotek", ram = null, activeHref, modul = null, inbaddad = false, tomText, utanHubb = false, adresserPaBegaran = false }) {
   if (kalla !== undefined && (posterProp !== undefined || felProp !== null || laddarProp !== false || (Array.isArray(trasigaProp) && trasigaProp.length > 0))) {
     throw new Error("OpsBibliotek: kalla och poster/fel/trasiga/laddar kan inte ges tillsammans. Med kalla läser vyn själv, och två sanningar om samma lista hade låtit den ena vinna tyst.");
   }
@@ -214,7 +216,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
   if (inbaddad && (ram || platser.length > 0 || grupper.length > 0 || plats !== undefined || onPlats !== undefined || onDela !== undefined)) {
     throw new Error("OpsBibliotek: inbaddad hör ihop med en enda plats. ram, platser, plats, onPlats, grupper och onDela är för det fristående biblioteket.");
   }
-  if (!inbaddad && (typeof hubHref !== "string" || hubHref === "")) {
+  if (!inbaddad && !utanHubb && (typeof hubHref !== "string" || hubHref === "")) {
     throw new Error("OpsBibliotek: hubHref krävs (0.83.0), hubbens adress. Sidan har Ekonomis tillbaka-rad, och en rad som inte vet vart den leder är en knapp som inte gör något.");
   }
   kravRam(ram, "OpsBibliotek");
@@ -273,9 +275,10 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
   // Poster som flyttas eller kopieras just nu, ur menyn. Deras flyttval visas inte förrän svaret kommit.
   const [flyttar, setFlyttar] = useState(/** @type {string[]} */ ([]));
   const [status, setStatus] = useState("");
-  const adresser = useFilAdresser(poster, vald, filUrl, hamtaAdress);
+  const adresser = useFilAdresser(poster, vald, filUrl, hamtaAdress, adresserPaBegaran);
   useUppladdningsklocka(poster, vald);
-  const adressFor = (/** @type {{ typ?: string, skapad?: number, fil?: { sokvag?: string, mime?: string, klar?: boolean } }} */ post) => losAdress(post, filUrl, hamtaAdress, adresser);
+  const adressFor = (/** @type {{ typ?: string, skapad?: number, fil?: { sokvag?: string, mime?: string, klar?: boolean } }} */ post) =>
+    losAdress(post, filUrl, hamtaAdress, adresser, adresserPaBegaran && !(vald?.fil?.sokvag && post?.fil?.sokvag === vald.fil.sokvag));
   const [fylld, setFylld] = useState(/** @type {Record<string, { durationMs?: number, peaks?: string }>} */ ({}));
   const sparatMeta = useRef(/** @type {Set<string>} */ (new Set()));
   const onFyllRef = useRef(onFyllLjud);
@@ -636,7 +639,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
         {visaKnapp ? <ModulLageKnapp ram={ram} activeHref={/** @type {string} */ (activeHref)} onNavigate={onNavigate} sprak={sprak} installningar={false} /> : null}
       </>
     ) : null;
-  const listTillbaka = inbaddad
+  const listTillbaka = inbaddad || utanHubb
     ? undefined
     : {
         ...modulTillbaka({ namn: "Bibliotek", hubHref: /** @type {string} */ (hubHref), hubEtikett, onNavigate, sprak, modulId, ikon: <Library size={18} /> }),
@@ -902,7 +905,7 @@ function postAdress(post, filUrl) {
 }
 
 /**
- * @typedef {{ lage: "klar" | "hamtar" | "fel" | "saknas" | "avbruten", adress: string, fel: string }} Adresslage
+ * @typedef {{ lage: "klar" | "hamtar" | "fel" | "saknas" | "avbruten" | "pa-begaran", adress: string, fel: string }} Adresslage
  */
 
 /**
@@ -912,9 +915,10 @@ function postAdress(post, filUrl) {
  * @param {((post: { fil?: { sokvag?: string } }) => string) | undefined} filUrl
  * @param {((sokvag: string) => Promise<string>) | undefined} hamtaAdress
  * @param {{ klar: Record<string, string>, fel: Record<string, string> }} cache
+ * @param {boolean} [paBegaran] (0.132.0) Adresserna hämtas bara för den öppna posten: en post som inte är öppen och inte redan hämtad har läget `pa-begaran`, och ingen text om att något saknas.
  * @returns {Adresslage}
  */
-function losAdress(post, filUrl, hamtaAdress, cache) {
+function losAdress(post, filUrl, hamtaAdress, cache, paBegaran = false) {
   // ⛔ EN UPPLADDNING SOM ALDRIG BLEV KLAR HÄMTAR INTE FÖR ALLTID (granskningen av PR 408). `klar: false` hoppar över hämtningen, och
   // utan en gräns stod "Hämtar filen." kvar för alla medlemmar när fliken stängts mitt i. Efter `UPPLADDNING_MAX_MS` säger posten det.
   if (uppladdningAvbruten(/** @type {any} */ (post))) return { lage: "avbruten", adress: "", fel: TEXT_AVBRUTEN };
@@ -924,6 +928,7 @@ function losAdress(post, filUrl, hamtaAdress, cache) {
   if (!sokvag || typeof hamtaAdress !== "function") return { lage: "saknas", adress: "", fel: "" };
   if (cache.klar[sokvag]) return { lage: "klar", adress: cache.klar[sokvag], fel: "" };
   if (cache.fel[sokvag]) return { lage: "fel", adress: "", fel: cache.fel[sokvag] };
+  if (paBegaran) return { lage: "pa-begaran", adress: "", fel: "" };
   return { lage: "hamtar", adress: "", fel: "" };
 }
 
@@ -960,8 +965,9 @@ function useUppladdningsklocka(poster, vald) {
  * @param {{ id?: string, typ?: string, fil?: { sokvag?: string } } | null} vald
  * @param {((post: { fil?: { sokvag?: string } }) => string) | undefined} filUrl
  * @param {((sokvag: string) => Promise<string>) | undefined} hamtaAdress
+ * @param {boolean} [paBegaran] (0.132.0) Bara den öppna posten hämtas, aldrig hela listan.
  */
-function useFilAdresser(poster, vald, filUrl, hamtaAdress) {
+function useFilAdresser(poster, vald, filUrl, hamtaAdress, paBegaran = false) {
   const [klar, setKlar] = useState(/** @type {Record<string, string>} */ ({}));
   const [fel, setFel] = useState(/** @type {Record<string, string>} */ ({}));
   const klarRef = useRef(klar);
@@ -972,7 +978,7 @@ function useFilAdresser(poster, vald, filUrl, hamtaAdress) {
   felRef.current = fel;
   hamtaRef.current = hamtaAdress;
   const harHamta = typeof hamtaAdress === "function";
-  const underlag = vald && !poster.some((p) => p === vald || (p.id && p.id === vald.id)) ? [...poster, vald] : poster;
+  const underlag = paBegaran ? (vald ? [vald] : []) : vald && !poster.some((p) => p === vald || (p.id && p.id === vald.id)) ? [...poster, vald] : poster;
   const nyckel = underlag
     .map((post) => {
       if (postAdress(post, filUrl)) return "";
@@ -1481,7 +1487,7 @@ function BibliotekKort({ post, lage, meny, svep, onOppna, onMeta, taggrad, delad
   const meta = kortMeta(post);
   // Ljudet bär sin status i metaraden när adressen inte är klar: "Hämtar ljudet." eller felet. Aldrig tyst (regel 5).
   const [spelFel, setSpelFel] = useState("");
-  const ljudStatus = ljud && lage.lage !== "klar" ? (lage.lage === "hamtar" ? "Hämtar ljudet." : lage.fel || "Filen har ingen adress.") : spelFel;
+  const ljudStatus = ljud && lage.lage !== "klar" && lage.lage !== "pa-begaran" ? (lage.lage === "hamtar" ? "Hämtar ljudet." : lage.fel || "Filen har ingen adress.") : spelFel;
   // I skalet spelar ljudet i skalets spelare, med knappen till höger. Utanför skalet finns ingen spelrad, och kortet har då en egen
   // liten spelare där ikonen står.
   const iSkalet = Boolean(spelare);
