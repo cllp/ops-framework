@@ -157,13 +157,23 @@ describe("OpsSvar med gäster och OpsSvarSummor", () => {
 
   it("OpsSvarSummor visar summan, mitt eget svar som två knappar och inga namn", async () => {
     const onSvara = vi.fn(async () => {});
-    render(<OpsSvarSummor summa={{ kommer: 2, kommerInte: 0, ejSvarat: 1, text: "2 kommer, 0 kommer inte, 1 har inte svarat", mitt: "kommer" }} onSvara={onSvara} />);
+    render(<OpsSvarSummor summa={{ kommer: 2, kommerInte: 0, ejSvarat: 1, text: "2 kommer, 0 kommer inte, 1 har inte svarat", mitt: "kommer" }} onSvara={onSvara} rubrik="Svar" />);
     expect(document.querySelector("[data-sammanstallning]").textContent).toBe("2 kommer, 0 kommer inte, 1 har inte svarat");
     expect(screen.getByRole("button", { name: "Kommer" })).toHaveAttribute("aria-pressed", "true");
     await klicka(screen.getByRole("button", { name: "Kommer inte" }));
     expect(onSvara).toHaveBeenCalledWith("kommerInte");
     expect(document.querySelectorAll("[data-svarsrad]")).toHaveLength(0);
-    expect(() => render(<OpsSvarSummor summa={{ kommer: 1, text: "x" }} onSvara={() => {}} />)).toThrow(/summa.kommerInte/);
+    expect(() => render(<OpsSvarSummor summa={{ kommer: 1, text: "x" }} onSvara={() => {}} rubrik="Svar" />)).toThrow(/summa.kommerInte/);
+    // Rubriken krävs: ramverket gissar inte gästens språk.
+    expect(() => render(<OpsSvarSummor summa={{ kommer: 1, kommerInte: 0, ejSvarat: 0, text: "x", mitt: null }} onSvara={() => {}} />)).toThrow(/rubrik krävs/);
+  });
+
+  it("gästens namnlösa etikett följer språket: Gäst på svenska, Guest på engelska, och en egen etikett vinner", () => {
+    const svar = [];
+    const { rerender } = render(<OpsSvar svar={svar} medlemmar={medlemmar} uid="u2" onSvara={() => {}} gaster={[{ uid: gastId("bo@foretag.se") }]} sprak="en" />);
+    expect(within(document.querySelector("[data-gast]")).getByText("Guest")).toBeInTheDocument();
+    rerender(<OpsSvar svar={svar} medlemmar={medlemmar} uid="u2" onSvara={() => {}} gaster={[{ uid: gastId("bo@foretag.se") }]} gastEtikett="Besökare" />);
+    expect(within(document.querySelector("[data-gast]")).getByText("Besökare")).toBeInTheDocument();
   });
 });
 

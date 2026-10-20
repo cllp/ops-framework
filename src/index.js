@@ -277,7 +277,7 @@ export { tillganglighetForDag, bortaAntal } from "./lib/tillganglighet.js";
  * härledda ur händelserna och svaren.
  */
 export { OpsKalendrar } from "./components/OpsKalendrar.jsx";
-export { OpsSvar, OpsSvarSummor, OpsSvarsknappar, OpsSvarsrad } from "./components/OpsSvar.jsx";
+export { OpsSvar, OpsSvarSummor, OpsSvarsknappar, OpsSvarsrad, ORD_OPSSVAR } from "./components/OpsSvar.jsx";
 export { OpsKommentarer, OpsKommentarsrad, ORD_OPSKOMMENTARER, ORD_OPSKOMMENTARSRAD } from "./components/OpsKommentarer.jsx";
 /*
  * ⛔ HÄNDELSEPANELEN (0.40.0, #214): en händelse på en egen sida med Tillbaka, öppnad av en rad i Idag (`OpsEventList`) eller en post i kalenderns

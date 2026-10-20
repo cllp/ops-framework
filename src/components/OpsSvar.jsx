@@ -1,9 +1,19 @@
 import { useState } from "react";
 import { cx } from "../lib/cx.js";
 import { sammanstallSvar } from "../lib/handelsemodell.js";
+import { forvalda } from "../lib/ord.js";
 import { BockIkon, KryssIkon } from "./icons.jsx";
 import { OpsIdentity } from "./OpsIdentity.jsx";
+import { useOpsSprak } from "./OpsSprak.jsx";
 import { usePersonnamn } from "./usePersonnamn.js";
+
+/**
+ * Orden i svarsammanställningen som inte kommer från appen (0.132.0): namnet på en gäst som saknar namn.
+ * @type {import("../lib/ord.js").Ordbok}
+ */
+export const ORD_OPSSVAR = {
+  gast: { sv: "Gäst", en: "Guest" },
+};
 
 /**
  * Svaren på en händelse: hur det står, mitt eget svar och vem som svarat vad (0.37.0, #179 F3).
@@ -32,9 +42,12 @@ import { usePersonnamn } from "./usePersonnamn.js";
  * @param {ReadonlyArray<{ uid: string, namn?: string }>} [props.gaster] (0.132.0, lifehub.app#389) Gruppens aktiva gäster, `uid` är gästens `gastId` (`g_...`, samma id som svarsraden har). De räknas i summan och i antalet, och
  *   får en rad var med ordet `gastEtikett`, utan knappar: en gäst svarar på sin egen sida. ⛔ En gäst som inte finns i listan räknas inte, så en återkallad gästs svar står kvar i databasen men syns inte här,
  *   som för en medlem som lämnat gruppen. Namnlös gäst heter "Gäst".
- * @param {string} [props.gastEtikett] Förval "Gäst".
+ * @param {string} [props.gastEtikett] Förval ur ordboken (`ORD_OPSSVAR.gast`, "Gäst" eller "Guest" efter språket).
+ * @param {string} [props.sprak] `sv` eller `en`. Utelämnat: språket ur `OpsSprakProvider`.
  */
-export function OpsSvar({ svar, medlemmar, uid, onSvara, rubrik = "Svar", gaster = [], gastEtikett = "Gäst" }) {
+export function OpsSvar({ svar, medlemmar, uid, onSvara, rubrik = "Svar", gaster = [], gastEtikett: gastEtikettProp, sprak: sprakProp }) {
+  const sprakKontext = useOpsSprak();
+  const gastEtikett = gastEtikettProp ?? forvalda(ORD_OPSSVAR, sprakProp ?? sprakKontext).gast;
   // ⛔ ALDRIG TOMT ELLER ETT ID SOM NAMN (#218): en medlem utan namn ritades som en tom rad.
   const personnamn = usePersonnamn();
   const summa = sammanstallSvar(svar, [...medlemmar.map((m) => m.uid), ...gaster.map((g) => g.uid)]);
@@ -93,9 +106,10 @@ export function OpsSvar({ svar, medlemmar, uid, onSvara, rubrik = "Svar", gaster
  * @param {object} props
  * @param {{ kommer: number, kommerInte: number, ejSvarat: number, text: string, mitt: "kommer" | "kommerInte" | null }} props.summa Tjänstens `handelse().svar`.
  * @param {(val: "kommer" | "kommerInte") => Promise<unknown> | void} props.onSvara
- * @param {string} [props.rubrik] Förval "Svar".
+ * @param {string} props.rubrik Rubriken, på gästens språk (gästens sida har egna ord). Krävs: ramverket gissar inte språket.
  */
-export function OpsSvarSummor({ summa, onSvara, rubrik = "Svar" }) {
+export function OpsSvarSummor({ summa, onSvara, rubrik }) {
+  if (typeof rubrik !== "string" || rubrik === "") throw new Error("OpsSvarSummor: rubrik krävs, på gästens språk.");
   for (const f of /** @type {const} */ (["kommer", "kommerInte", "ejSvarat"])) {
     if (!Number.isInteger(summa?.[f]) || summa[f] < 0) throw new Error(`OpsSvarSummor: summa.${f} är ett heltal (tjänstens handelse().svar). Utan siffran går "noll" inte att skilja från "ostält".`);
   }
