@@ -11,6 +11,37 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ## Ej utgivet
 
+## 0.133.0
+
+En meny för alla poster, publik länk till varje typ, en delad lista som spellista, och utskriften som kan tas bort, köras om och gå i bakgrunden. lifehub.app#356 och #349, CP 2026-10-18 till 2026-10-20. Inte brytande för kod: allt nytt är valfria props och nya exporter. **En text ändras (se nedan).** Versionen sätts om vid merge om den krockar med PR 424 (gäster, skiva 2), som tog 0.132.0 först. Design och skäl: `docs/beslut/0012-dela-alla-typer-och-en-levande-lista.md`.
+
+### Händelsen
+
+CP 2026-10-18: "Vi skall ju ha en publik länk till varje artefakt med option på att den som ser kan ladda ner." Och 2026-10-20: "EN lista måste kunna delas ... det ser ut som en lista, men alla sakerna i listan delas. Som att jag vill dela en playlist för ett gig." Mätt före: "Dela länk" fanns bara på en färdig fil, en lista fick bara Byt namn och Radera, och en anteckning och en fil hade olika menyer. Samma dag: "Ändras listan kan den ju bara ändras för alla som den delas med. Om en låt tas bort kan den bara tas bort precis som för den som skapade den." Och om utskriften: "Kan man göra så att man kan ta bort transkribering på en ljudupptagning och köra om den?", som ska gå i bakgrunden och fortsätta även om man går därifrån.
+
+### Vad som är nytt
+
+- **En meny för fil, anteckning, länk och lista**, samma rader i samma ordning (Redigera, Byt namn, Dela länk, Visa detaljer, Lägg i lista, Kopiera länk, Flytta eller kopiera, Radera). "Lägg i lista" och "Flytta eller kopiera" finns på en lista som **avstängda rader med förklaring** (`OpsAtgardsblad`: `avstangd` och `forklaring`, `aria-disabled`, förklaringen läses med raden). `arDelbar(post)` säger vad som går att dela och delas av menyn och servern.
+- **Publik länk till alla fyra typer** (`createDelningService`). Svaret bär vitlistade fält per typ (`ANTECKNINGSSVARSFALT`, `LANKSVARSFALT`, `LISTSVARSFALT`; filen oförändrad). **En lista delas hel och som en levande spegel**: servern läser listan vid varje hämtning (`losLista`), en post som tagits ur listan syns inte, en raderad post blir "Finns inte längre", ordningen följer listan, och inget av listan lagras i delningen. Tak: `MAX_DELADE_LISTPOSTER` (100) med `ejVisade`. Nedladdningsvalet gäller varje fil.
+- **Den publika vyn** (`OpsDelad`) ritar anteckning, länk (en tydlig knapp, bara http och https) och lista som en spellista med EN `OpsLjudspelare` (nästa låt startar när en tar slut, och en låt som försvunnit ur listan hoppas över). `OpsLjudspelare` får `onSlut`, `onSpelstatus`, `autoSpela` och `startnummer`.
+- **Utskriften kan tas bort och köras om**: `onSkrivUtIgen({ id, groupId })` och `onTaBortUtskrift({ id, groupId })` i `OpsBibliotek`, båda med fråga först, bara med utskrift och `farAndra`.
+- **Utskriften går i bakgrunden, med läget på posten**: `utskriftJobb` (`{ status, startad, av, fel? }`) och `utskriftLage(post, nu)` (`ingen`, `pagar`, `fel`, `klar`; en `pagar` över 15 minuter är ett fel). Kortet och detaljen ritar läget ur posten och överlever att man går därifrån. `UTSKRIFT_FALT` är listan fält servern rensar. Uppskattningen av tiden är märkt som en bedömning. Ingen procentstapel.
+- **Reglerna** nekar klienten att skriva `utskriftJobb` (skapa, ändra, ta bort), men en ändring av annat på en post med jobb går igenom.
+
+### ⛔ Vad som ändras för den som redan använder det
+
+- `DELNINGSFEL.saknas` är "Finns inte längre" och inte "Filen finns inte längre". Raden bär ingen typ, och en raderad post säger inte vilken av de fyra den var.
+- `createDelningService.skapa` nekar `nedladdning: true` för en anteckning och en länk (förut kunde de inte delas alls).
+- Rättat på vägen: en delad ljudfil bad om en ny adress (`onNyUrl`) vid första ritningen, innan något gått fel.
+
+### Proven, båda riktningarna
+
+Utfallen, mutationerna och emulatorkörningarna står i PR-texten.
+
+### Vad appen måste göra
+
+Se README, avsnitten "Alla fyra typer delas" och "Utskriften går i bakgrunden och kan köras om", och PR-texten under "Kvar för appen".
+
 ## 0.131.0
 
 Gäster, skiva 1 ("en sak", omröstningen först), cllp/lifehub.app#389, och ett litet tillägg i formuläret "Lägg till kategori". CP 2026-10-20: "Kör på alla 3, men sätt max 5 gäster." Inte brytande: allt är nytt eller en ny valfri prop, och appen behöver inte ändra något för att ompinna. Design och skäl: `docs/beslut/0011-gaster-en-inbjudan-och-aldrig-ett-konto.md`.

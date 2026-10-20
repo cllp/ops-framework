@@ -213,7 +213,7 @@ describe("Regelfragmenten", () => {
   const sok = { gruppPrefix: "grupper", postPrefix: "bibliotek" };
   const lagring = { gruppPrefix: "grupper", postPrefix: "bibliotek", samling: "bibliotek" };
 
-  it("utan arenden är Firestore-texten byte för byte den som 0.128.0 skrev (0.127.0 plus listor och smarta länkar, fixturerna bytte namn då), med och utan handelser", () => {
+  it("utan arenden är Firestore-texten byte för byte fixturen (0.128.0 plus utskriftsjobbet i 0.133.0: klienten får inte skriva utskriftJobb, se rules/__tests__/bibliotek.test.mjs; filnamnen är oförändrade), med och utan handelser", () => {
     expect(bibliotekregelfragment("bibliotek")).toBe(fixtur("bibliotekregelfragment-0.128.0.rules"));
     expect(bibliotekregelfragment("bibliotek", sok)).toBe(fixtur("bibliotekregelfragment-0.128.0.rules"));
     expect(bibliotekregelfragment("bibliotek", { ...sok, handelser: "handelser" })).toBe(fixtur("bibliotekregelfragment-0.128.0-handelser.rules"));

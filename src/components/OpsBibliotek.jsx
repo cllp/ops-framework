@@ -2384,7 +2384,7 @@ function UtskriftKontroll({ post, jag, onSkrivUt, onSkrivUtIgen, onTaBortUtskrif
         footer={(
           <>
             <OpsButton variant="secondary" onClick={() => setFraga(null)}>{o("avbryt")}</OpsButton>
-            <OpsButton variant={fraga === "taBort" ? "danger" : "primary"} onClick={() => fraga && korOp(fraga)}>{fraga === "taBort" ? o("taBort") : o("skrivUtIgen")}</OpsButton>
+            <OpsButton variant={fraga === "taBort" ? "danger" : "primary"} onClick={() => { if (fraga) korOp(fraga); }}>{fraga === "taBort" ? o("taBort") : o("skrivUtIgen")}</OpsButton>
           </>
         )}
       >

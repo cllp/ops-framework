@@ -18,7 +18,7 @@
  *     gamla taket utan att någon ser den (omgranskningen av PR 268, A4).
  * Mönstren byggs av delar i den här filen och i `test-guards`, så att ingen av dem är ett undantag.
  *
- * ⛔ GOLV: minst 928 lästa filer i repot (977 mätt 2026-10-14 på 0.106.0, där 814 låg mer än 20 procent under: 929 filer
+ * ⛔ GOLV: minst 1065 lästa filer i repot (1122 mätt 2026-10-20 på 0.133.0, där 928 låg mer än 20 procent under: 0.131.0 lade till gästerna och 0.133.0 delningen och utskriften). Tidigare 928 (977 mätt 2026-10-14 på 0.106.0, där 814 låg mer än 20 procent under: 929 filer
  * i main plus 48 från chattens skivor, bilderna och proven). Tidigare 713 (751 mätt 2026-10-08, när 0.84.0 mergades in i
  * 0.85.0 och 618 låg mer än 20 procent under: 731 filer på grenen plus 20 från 0.84.0). En vakt som läste noll filer hade varit grön (regel 4).
  * Golvet FÖLJER MED (omgranskningen av PR 268, A4): läser vakten mer än 20 procent över golvet är den röd och säger vilket
@@ -39,7 +39,7 @@ const flagga = (/** @type {string} */ n) => {
   return i >= 0 ? argv[i + 1] : undefined;
 };
 const rot = path.resolve(flagga("--rot") ?? path.join(path.dirname(fileURLToPath(import.meta.url)), ".."));
-const GOLV = 928;
+const GOLV = 1065;
 const golv = Number(flagga("--golv") ?? GOLV);
 const GOLV_MARGINAL = 1.2;
 
