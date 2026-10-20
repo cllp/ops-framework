@@ -11,6 +11,10 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ## Ej utgivet
 
+## 0.132.0
+
+Gäster, skiva 2 ("hela gruppen", det bantade gränssnittet), cllp/lifehub.app#389. PÅGÅR: avsnittet skrivs färdigt innan PR:en tas ur utkast.
+
 ## 0.131.0
 
 Gäster, skiva 1 ("en sak", omröstningen först), cllp/lifehub.app#389, och ett litet tillägg i formuläret "Lägg till kategori". CP 2026-10-20: "Kör på alla 3, men sätt max 5 gäster." Inte brytande: allt är nytt eller en ny valfri prop, och appen behöver inte ändra något för att ompinna. Design och skäl: `docs/beslut/0011-gaster-en-inbjudan-och-aldrig-ett-konto.md`.
