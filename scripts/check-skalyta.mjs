@@ -7806,6 +7806,50 @@ async function gastGrupp() {
       await context.close();
     }
 
+    // ── Gruppens medlemsvy: Gäst (utan konto) är ett val i Roll under Bjud in ──
+    {
+      const { page, context } = await oppna("gastgrupp-medlemmar", vp);
+      try {
+        await page.getByRole("combobox").waitFor();
+        const fore = await page.evaluate(() => ({ gastfalt: !!document.querySelector("[data-medlemmar-gast]"), vantande: (document.body.innerText.match(/vantande@foretag\.se/g) || []).length, gaster: document.querySelectorAll("[data-gast-person]").length, overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth }));
+        krav(!fore.gastfalt && fore.vantande === 1 && fore.gaster === 3 && !fore.overflow, `${namn} medlemmar (g): före valet står gästrutan ${fore.gastfalt}, väntande medlemmar ${fore.vantande} (väntat 1), väntande gäster ${fore.gaster} (väntat 3), sidled ${fore.overflow}.`);
+        await page.getByRole("combobox").click();
+        const val = await page.getByRole("option").allTextContents();
+        krav(JSON.stringify(val) === JSON.stringify(["Ägare", "Admin", "Medlem", "Gäst (utan konto)"]), `${namn} medlemmar (g): valen i Roll är ${JSON.stringify(val)}, väntat Ägare, Admin, Medlem, Gäst (utan konto).`);
+        await page.getByRole("option", { name: "Gäst (utan konto)" }).click();
+        await page.locator('input[type="email"]').fill("ny@foretag.se");
+        const efter = await page.evaluate(() => {
+          const gast = /** @type {HTMLElement | null} */ (document.querySelector("[data-medlemmar-gast]"));
+          const knapp = [...document.querySelectorAll("button")].find((b) => (b.textContent || "").trim() === "Bjud in utan konto");
+          const rot = document.querySelector("[data-ops-medlemmar], body");
+          return {
+            text: gast ? (gast.textContent || "").replace(/\s+/g, " ") : "",
+            knapp: knapp ? knapp.getBoundingClientRect().height : null,
+            knappOppen: knapp ? !/** @type {HTMLButtonElement} */ (knapp).disabled : null,
+            not: document.body.innerText.includes("En adress utan Google-konto kan bjudas in som gäst"),
+            overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+            gastKnappFinnsEj: !![...document.querySelectorAll("button")].find((b) => (b.textContent || "").trim() === "Bjud in"),
+          };
+        });
+        krav(/3 av 5 gratis platser/.test(efter.text) && /läsa och skriva i chatten/.test(efter.text) && /Gästen ser inte gruppens ärenden/.test(efter.text), `${namn} medlemmar (g): med Gäst valt säger rutan ${JSON.stringify(efter.text)}, väntat räknaren och ingressen.`);
+        krav(efter.knapp !== null && efter.knapp >= 44 && efter.knappOppen === true && !efter.gastKnappFinnsEj, `${namn} medlemmar (g): knappen Bjud in utan konto är ${efter.knapp} px hög och ${efter.knappOppen ? "öppen" : "spärrad"}, och knappen Bjud in ${efter.gastKnappFinnsEj ? "finns kvar" : "är borta"}.`);
+        krav(efter.not && !efter.overflow, `${namn} medlemmar (g): raden om Google-konto och gäst ${efter.not ? "står" : "saknas"}, sidled ${efter.overflow}.`);
+        if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `gaster-grupp-medlemmar-${w}.png`), fullPage: true });
+        await page.getByRole("button", { name: "Bjud in utan konto" }).click();
+        await page.waitForSelector('[role="dialog"]');
+        const d = await page.evaluate(() => ({ text: (document.querySelector('[role="dialog"]')?.textContent || "").replace(/\s+/g, " "), anrop: JSON.stringify(/** @type {any} */ (window).__gastgruppanrop) }));
+        krav(/hela historiken från början, och kan skriva i den/.test(d.text) && /inte gruppens ärenden/.test(d.text) && d.anrop === "[]", `${namn} medlemmar (g): bekräftelsen säger ${JSON.stringify(d.text.slice(0, 200))} och anrop före bekräftelsen ${d.anrop}.`);
+        if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `gaster-grupp-medlemmar-bekrafta-${w}.png`), fullPage: false });
+        await page.locator('[role="dialog"]').getByRole("button", { name: "Bjud in", exact: true }).click();
+        await page.waitForTimeout(100);
+        const klar = await page.evaluate(() => JSON.stringify(/** @type {any} */ (window).__gastgruppanrop));
+        krav(klar === JSON.stringify([["bjudGrupp", { epost: "ny@foretag.se", namn: "" }]]), `${namn} medlemmar (g): efter bekräftelsen blev anropen ${klar}, väntat bjudGrupp med adressen.`);
+      } catch (err) {
+        krav(false, `${namn} medlemmar: provet avbröts (${String(/** @type {Error} */ (err).message).split("\n")[0]}).`);
+      }
+      await context.close();
+    }
+
     // ── Gästens bantade gränssnitt ──
     {
       const { page, context } = await oppna("gastgrupp-sida", vp, standardtema, 1, null, 0, SV_WEBBLASARE);

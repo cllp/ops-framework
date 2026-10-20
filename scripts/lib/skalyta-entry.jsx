@@ -19,6 +19,7 @@ const { OpsModulTyper } = Ops;
 const OpsGastLista = Ops.OpsGastLista ?? (() => <span data-saknas="OpsGastLista">OpsGastLista saknas</span>);
 const OpsGastSida = Ops.OpsGastSida ?? (() => <span data-saknas="OpsGastSida">OpsGastSida saknas</span>);
 // 0.132.0: det bantade gränssnittet för en gruppgäst (avsnitt 56). Saknas det i dist ritas en markör.
+const OpsMedlemmar = Ops.OpsMedlemmar ?? (() => <span data-saknas="OpsMedlemmar">OpsMedlemmar saknas</span>);
 const OpsGastGrupp = Ops.OpsGastGrupp ?? (() => <span data-saknas="OpsGastGrupp">OpsGastGrupp saknas</span>);
 const { OpsEventList, OpsAttributes, OpsFact, OpsAppShell, OpsButton, OpsDatePicker, OpsField, OpsHub, OpsHubModul, OpsIconLink, OpsIdentity, OpsInloggning, OpsKatalogInstallning, OpsInput, OpsModal, OpsRadioGroup, OpsSelect, OpsThemeToggle, OpsCard, OpsPill, OpsPanelRow, OpsSegmented, OpsCheckbox, OpsSwitch, OpsTag, OpsChip, OpsFilterPanel, OpsFilterChip, OpsActivityListActions, OpsGruppvaljare } = Ops;
 // `OpsTimePicker` finns inte i 0.30.1. Saknas den ritas en markör, och provet blir rött på rätt sak i stället för att sidan kastar.
@@ -234,6 +235,34 @@ function GastGruppListaScen() {
           onAterkalla={(v) => { /** @type {any} */ (window).__gastgruppanrop.push(["aterkalla", v]); }}
           onAterkallaAlla={(v) => { /** @type {any} */ (window).__gastgruppanrop.push(["aterkallaAlla", v]); }}
           onRadera={(v) => { /** @type {any} */ (window).__gastgruppanrop.push(["radera", v]); }}
+        />
+      </div>
+    </Skal>
+  );
+}
+
+/** 0.132.0: gruppens medlemsvy med gäster. "Gäst (utan konto)" är ett val i Roll under Bjud in; väntande gäster står bland de väntande inbjudningarna. */
+function GastMedlemmarScen() {
+  return (
+    <Skal>
+      <div className="px-4 py-4">
+        <OpsMedlemmar
+          medlemmar={[
+            { medlemskap: { id: "mig_g", userId: "mig", groupId: "g", roll: "agare", typ: "person", status: "aktiv", namn: "Agda Ägare" } },
+            { medlemskap: { id: "maja_g", userId: "maja", groupId: "g", roll: "medlem", typ: "person", status: "aktiv", namn: "Maja Medlem" } },
+          ]}
+          inbjudningar={[{ id: "m1", epost: "vantande@foretag.se", roll: "medlem" }]}
+          migUid="mig"
+          kanAndra
+          onBjudIn={() => {}}
+          gaster={{
+            personer: GASTPERSONER,
+            platser: { anvanda: 3, totalt: 5 },
+            nu: GAST_NU,
+            onBjud: (v) => { /** @type {any} */ (window).__gastgruppanrop.push(["bjudGrupp", v]); },
+            onSkickaOm: (v) => { /** @type {any} */ (window).__gastgruppanrop.push(["skickaOm", v]); },
+            onAterkalla: (v) => { /** @type {any} */ (window).__gastgruppanrop.push(["aterkalla", v]); },
+          }}
         />
       </div>
     </Skal>
@@ -2690,6 +2719,7 @@ function Scen() {
   if (s === "gastlista") return <GastListaScen full={false} />;
   if (s === "gastlista-full") return <GastListaScen full />;
   if (s === "gastgrupp-lista") return <GastGruppListaScen />;
+  if (s === "gastgrupp-medlemmar") return <GastMedlemmarScen />;
   if (s === "gastgrupp-sida") return <GastGruppSidaScen />;
   if (s.startsWith("gastsida-")) return <GastSidaScen lage={s.slice("gastsida-".length)} />;
   if (s === "kategoriformular") return <KategoriFormularScen typ="sort" />;

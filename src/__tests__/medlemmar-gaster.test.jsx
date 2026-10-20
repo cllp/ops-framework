@@ -69,7 +69,8 @@ describe("OpsMedlemmar med gäster", () => {
     expect(screen.getByRole("button", { name: "Bjud in" })).toBeInTheDocument();
     await valjGast(user);
     expect(screen.getByText("1 av 5 gratis platser")).toBeInTheDocument();
-    expect(screen.getByText(/chatten, kalendern, ärendena och biblioteket/)).toBeInTheDocument();
+    expect(screen.getByText(/läsa och skriva i chatten, svara och rösta i kalendern och läsa, spela och ladda ned i biblioteket/)).toBeInTheDocument();
+    expect(screen.getByText(/Gästen ser inte gruppens ärenden/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Bjud in utan konto" })).toBeDisabled();
     expect(screen.queryByRole("button", { name: "Bjud in" })).toBeNull();
   });
@@ -83,6 +84,8 @@ describe("OpsMedlemmar med gäster", () => {
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByText(/hela historiken från början/)).toBeInTheDocument();
     expect(within(dialog).getByText(/går inte att ta tillbaka/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/kan skriva i den/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/Gästen ser inte gruppens ärenden/)).toBeInTheDocument();
     expect(props.gaster.onBjud).not.toHaveBeenCalled();
     await user.click(within(dialog).getByRole("button", { name: "Bjud in", exact: true }));
     await waitFor(() => expect(props.gaster.onBjud).toHaveBeenCalledWith({ epost: "nils@foretag.se", namn: "" }));

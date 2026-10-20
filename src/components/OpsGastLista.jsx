@@ -340,7 +340,7 @@ export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud
   }
 
   return (
-    <section data-gastlista="" data-gastlista-lage={gruppLage ? "grupp" : "sak"} {...(utanRubrik ? { "aria-label": t.rubrik } : { "aria-labelledby": rubrikId })} className={cx(utanRubrik ? "" : "mt-4", "flex min-w-0 flex-col gap-3")}>
+    <section data-gastlista="" data-gastlista-lage={gruppLage ? "grupp" : "sak"} {...(utanRubrik ? { "aria-label": t.rubrik } : { "aria-labelledby": rubrikId })} className={cx(utanRubrik ? "mt-2" : "mt-4", "flex min-w-0 flex-col gap-3")}>
       {utanRubrik ? null : (
         <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
           <h2 id={rubrikId} className="m-0 text-sektion uppercase text-ink-muted">{t.rubrik}</h2>
