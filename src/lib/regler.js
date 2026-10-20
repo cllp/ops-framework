@@ -2458,3 +2458,38 @@ export function delningsregelfragment(namn, val = {}) {
     }
 ${gruppdelsblock}`;
 }
+
+/**
+ * Gästinbjudningarnas samling: en aktiv medlem i gruppen läser, ingen skriver (0.131.0, cllp/lifehub.app#389).
+ *
+ * ⛔ LÄSREGELN ÄR HELA SKYDDET FÖR LISTAN, OCH DEN ÄR AVSIKTLIGT SMAL. Medlemmar ser vilka som bjudits in (namn och adress, CP 2026-10-20: "Gäster visas med namn och
+ * mejladress"), så en aktiv medlem i gruppen läser en rad, och frågan måste begränsa `groupId` (`where('groupId', '==', ...)`): en regel som läser `resource.data.groupId`
+ * kan inte släppa in en fråga som inte säger vilken grupp den gäller. Det är en PERSON som läser (`typ == 'person'`): en agent läser sin data genom servern.
+ * Raden bär `nyckelHash`, som medlemmarna alltså kan läsa. Det går inte att göra något med: nyckeln är 32 slumpbyte (256 bitar) och hashen går inte att vända.
+ *
+ * ⛔ INGEN SKRIVER, MED FLIT. Bara servern skriver en inbjudan (`createGastService`, Admin SDK), som själv prövar medlemskapet och appens regel. En klient som kunde
+ * skriva en rad kunde ge sig själv en gäst i en annan grupp och ta en plats, eller skriva en nyckel den känner.
+ *
+ * ⛔ SESSIONERNA, PLATSERNA OCH RÄKNARNA HAR INGEN MATCH HÄR OCH SKA INTE FÅ EN. Appens catch-all nekar dem (`allow read, write: if false` för allt utan eget block),
+ * och det är hela meningen: en session är en hemlighet (hashen av sessionsnyckeln är id:t), platserna är serverns bokföring och räknarna bär hashar av IP-adresser. Ett
+ * block som släppte in en klient hade varit en dörr bredvid servern. `rules/__tests__/gaster.test.mjs` bevisar att en medlem nekas dem, och att provreglerna har en catch-all.
+ *
+ * ⛔ SAMLINGSNAMNET KOMMER FRÅN APPEN. Ramverket känner det inte, samma skäl som för mejlkön och delningarna.
+ *
+ * @param {string} namn Samlingsnamnet appen valt för inbjudningarna.
+ * @returns {string}
+ */
+export function gastregelfragment(namn) {
+  const samling = kontrolleraNamn(namn, "gastinbjudningar");
+  return `    // ══ Ramverkets gästinbjudningar. GENERERAD, ändra inte för hand ══
+    //
+    // Källa: ops-framework, gastregelfragment() i src/lib/regler.js.
+    // En aktiv medlem (en person) i gruppen läser, och frågan måste begränsa groupId. Ingen klient skriver.
+    // Sessionerna, platserna och räknarna har ingen match här: appens catch-all nekar dem.
+    match /${samling}/{id} {
+      allow read: if opsArMedlem(resource.data.groupId)
+        && opsMedlemskapet(resource.data.groupId).data.typ == 'person';
+      allow write: if false;
+    }
+`;
+}

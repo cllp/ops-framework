@@ -244,7 +244,7 @@ export { sokGruppikoner, forslagUrGruppnamn, VANLIGA_GRUPPIKONER } from "./lib/g
 export { medlemsinfo } from "./lib/gruppmedlemmar.js";
 export { personnamn, NAMN_SAKNAS } from "./lib/personnamn.js";
 export { OpsGruppSida } from "./components/OpsGruppSida.jsx";
-export { regelfragment, gruppadSamling, generateRules, lagringsregelfragment, katalogregelfragment, konfigloggregelfragment, samtalsregelfragment, kalenderregelfragment, handelseregelfragment, bibliotekregelfragment, minnesregelfragment, modulinstallningsregelfragment, beskrivenappdataregelfragment, beskrivningsregelfragment, delningsregelfragment } from "./lib/regler.js";
+export { regelfragment, gruppadSamling, generateRules, lagringsregelfragment, katalogregelfragment, konfigloggregelfragment, samtalsregelfragment, kalenderregelfragment, handelseregelfragment, bibliotekregelfragment, minnesregelfragment, modulinstallningsregelfragment, beskrivenappdataregelfragment, beskrivningsregelfragment, delningsregelfragment, gastregelfragment } from "./lib/regler.js";
 /*
  * ⛔ MEJLKÖNS REGLER (0.76.0, #101). Text in och text ut, ingen React, och inget
  * beroende till transporten. Fragmentet står för sig: klienten läser inte kön
@@ -332,6 +332,16 @@ export { ORD_HANDELSEDELNING } from "./components/HandelseDelning.jsx";
 export { ORD_MEJLALANK } from "./components/MejlaLank.jsx";
 export { DELAD_SPRAKNYCKEL, webblasarSprak, valdSprak, lasSparatSprak, sparaSprak, kortDatum, antalDagar, deladTid } from "./lib/deladdatum.js";
 export { DELNINGSDAGAR, FORVAL_DELNINGSDAGAR, HANDELSEDAGAR, FORVAL_HANDELSEDAGAR, SIGNERAD_SEKUNDER, TOKENFORM, DELNINGSSLAG, DELNINGSRATTIGHETER, DELNINGSFALT, ADRESSPREFIX, ADRESSSEGMENT, ADRESSDELFORM, MAX_ADRESSDEL, MAX_ADRESSDEL_TOTALT, SLUMPSLUT_TECKEN, SLUMPSLUTFORM, KODLANGD, FELKOD_MAX, FELKOD_FONSTER_MS, adressdel, arAdressdel, nastaAdressdel, foreslaAdress, byggAdress, tolkaAdress, delningsSokvag, delningsUrl, adressUrUppslag, kodFel, normaliseraKod, DELNINGSORSAKER, DELNINGSFEL, DELNINGSFELKODER, DELNINGSSVARSFALT, HANDELSESVARSFALT, HANDELSEFILFALT, MAX_HANDELSEFILER, delningsTyp, delningsfel } from "./lib/delning.js";
+/*
+ * 0.131.0 (cllp/lifehub.app#389): gäster. En gäst är en inbjudan och aldrig ett konto eller ett medlemskap. Konstanterna, formerna, texterna och `gastId` ligger här (vyn och reglerna läser dem),
+ * nyckeln, sessionen och tjänsten i `ops-framework/node`. Vyerna: medlemmens lista och gästens egen sida.
+ */
+export {
+  GAST_PLATSER_GRATIS, GASTSLAG, GASTFUNKTIONER, GASTLANKDAGAR, GASTSESSIONSDAGAR, GASTFEL_MAX, GASTFEL_FONSTER_MS, GASTIP_MAX, GASTIP_FONSTER_MS, GASTNYLANKIP_MAX, GASTNYLANKIP_FONSTER_MS,
+  GASTNYLANK_BREV_PER_DYGN, GASTNYLANK_MAX_LANKAR, MAX_GASTNAMN, MAX_GASTEPOST, GASTNYCKELFORM, GASTINBJUDNINGSIDFORM, GASTIDFORM, GASTSOKVAG, GASTFALT, GASTLISTFALT, GASTSVARSFALT,
+  GASTORSAKER, GASTFEL, GASTFELKODER, GASTNYLANK_SVAR, GASTSTATUSAR, GASTPLATSNUMMER, normaliseraGastepost, gastId, gastomfangsnyckel, gastplatsId, gastLank, tolkaGastLank, gastStatus,
+} from "./lib/gast.js";
+// (vyerna OpsGastLista och OpsGastSida läggs till i nästa steg)
 export { MINNESKALLOR, MINNESFALT, MINNESKALLAFALT, MAX_MINNESTEXT, MAX_MINNESID, farAndraMinne, minnesradFel, byggMinnesrad } from "./lib/minne.js";
 export { createMinneskalla } from "./data/minneskalla.js";
 export { OpsMinne } from "./components/OpsMinne.jsx";
