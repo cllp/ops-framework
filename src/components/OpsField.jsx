@@ -374,19 +374,21 @@ export function skrivInTal(varde, markor, ut, max) {
  *   inget. Se `Textfaltstal` och `TalFalt`. ⛔ Kräver `onChange`: det sagda skrivs in genom den, som allt annat i fältet.
  *   ⛔ PÅ SOM FÖRVAL SEDAN 0.106.0 (#386 skiva 8), när fältet har `onChange` och webbläsaren har taligenkänning (`talForval`).
  *   `tal={false}` stänger av.
+ * @param {(plats: HTMLElement | null) => void} [props.bifogaPlats] (0.132.0) En plats i fältets nedre kant, bredvid mikrofonen, för en knapp som bifogar en fil. Ramverket ger platsen (en ref-callback: `useState`s
+ *   setter duger) och `OpsFilePicker` med `knappPlats` ritar gemknappen i den. Fältet lämnar plats för knappen (`pe-14`, och `pe-28` med mikrofonen). Utan propen är fältet som förut.
  */
-export function OpsTextarea({ value, onChange, placeholder, name, rows = 4, disabled = false, maxLength, ariaLabel, onSend, tal }) {
+export function OpsTextarea({ value, onChange, placeholder, name, rows = 4, disabled = false, maxLength, ariaLabel, onSend, tal, bifogaPlats }) {
   const f = useFieldBinding();
   const utskrift = useContext(TranskriberingKontext);
   const t = talForval(tal, onChange, false, "OpsTextarea", utskrift);
   if (t) {
-    return <TalFalt slag="textarea" f={f} value={value ?? ""} onChange={/** @type {(v: string) => void} */ (onChange)} placeholder={placeholder} name={name} rows={rows} disabled={disabled} maxLength={maxLength} ariaLabel={ariaLabel} onSend={onSend} tal={t} />;
+    return <TalFalt slag="textarea" f={f} value={value ?? ""} onChange={/** @type {(v: string) => void} */ (onChange)} placeholder={placeholder} name={name} rows={rows} disabled={disabled} maxLength={maxLength} ariaLabel={ariaLabel} onSend={onSend} tal={t} bifogaPlats={bifogaPlats} />;
   }
-  return (
+  const falt = (
     <textarea
       onKeyDown={sendGenvag(onSend)}
       id={f.id}
-      className={cx(faltKlass({ invalid: f.invalid }), "resize-y")}
+      className={cx(faltKlass({ invalid: f.invalid }), "resize-y", bifogaPlats && "block pe-14")}
       value={value}
       onChange={onChange ? (e) => onChange(e.target.value) : undefined}
       placeholder={placeholder}
@@ -399,6 +401,13 @@ export function OpsTextarea({ value, onChange, placeholder, name, rows = 4, disa
       aria-invalid={f.invalid || undefined}
       aria-describedby={f.describedBy}
     />
+  );
+  if (!bifogaPlats) return falt;
+  return (
+    <div className="relative min-w-0">
+      {falt}
+      {disabled ? null : <div ref={bifogaPlats} data-bifoga-plats="" className="absolute end-3 bottom-0.5" />}
+    </div>
   );
 }
 
@@ -434,9 +443,9 @@ function sendGenvag(onSend) {
  * ⛔ ETT FÄLT PÅ EN RAD (0.106.0, #386 skiva 8): ljudvågen står vid fältets slut, mitt i höjden, och fältet har plats för den (`pe-12`).
  * Det sagda skrivs in på en rad: radbrytningar i det taltjänsten gav blir mellanslag, eftersom ett `input` inte bär dem.
  *
- * @param {{ slag: "textarea" | "input", f: { id?: string, etikettId?: string, describedBy?: string, invalid: boolean, required: boolean }, value: string, onChange: (v: string) => void, placeholder?: string, name?: string, rows?: number, disabled: boolean, readOnly?: boolean, maxLength?: number, ariaLabel?: string, onSend?: () => void, typ?: string, autoComplete?: string, tal: Textfaltstal }} props
+ * @param {{ slag: "textarea" | "input", f: { id?: string, etikettId?: string, describedBy?: string, invalid: boolean, required: boolean }, value: string, onChange: (v: string) => void, placeholder?: string, name?: string, rows?: number, disabled: boolean, readOnly?: boolean, maxLength?: number, ariaLabel?: string, onSend?: () => void, typ?: string, autoComplete?: string, tal: Textfaltstal, bifogaPlats?: (plats: HTMLElement | null) => void }} props
  */
-function TalFalt({ slag, f, value, onChange, placeholder, name, rows, disabled, readOnly = false, maxLength, ariaLabel, onSend, typ, autoComplete, tal }) {
+function TalFalt({ slag, f, value, onChange, placeholder, name, rows, disabled, readOnly = false, maxLength, ariaLabel, onSend, typ, autoComplete, tal, bifogaPlats }) {
   const sprak = useOpsSprak();
   const o = /** @type {Record<keyof typeof ORD_OPSTEXTAREA_TAL, string>} */ (forvalda(ORD_OPSTEXTAREA_TAL, sprak));
   const ruta = useRef(/** @type {HTMLTextAreaElement & HTMLInputElement | null} */ (null));
@@ -537,7 +546,7 @@ function TalFalt({ slag, f, value, onChange, placeholder, name, rows, disabled, 
             return slag === "input" ? (
               <input {...egenskaper} type={typ ?? "text"} autoComplete={autoComplete} className={cx(faltKlass({ invalid: f.invalid }), "block", kanGeText && "pe-12")} />
             ) : (
-              <textarea {...egenskaper} onKeyDown={sendGenvag(onSend)} rows={rows} className={cx(faltKlass({ invalid: f.invalid }), "block resize-y", kanGeText && "pe-14")} />
+              <textarea {...egenskaper} onKeyDown={sendGenvag(onSend)} rows={rows} className={cx(faltKlass({ invalid: f.invalid }), "block resize-y", kanGeText && bifogaPlats ? "pe-28" : (kanGeText || bifogaPlats) && "pe-14")} />
             );
           })()}
           {kanGeText && !disabled ? (
@@ -552,6 +561,8 @@ function TalFalt({ slag, f, value, onChange, placeholder, name, rows, disabled, 
               }}
             />
           ) : null}
+          {/* Bifogaplatsen (0.132.0): gemknappen bredvid mikrofonen, eller längst ut när fältet saknar mikrofon. Fältet är skrivbart, annars finns ingen att bifoga till. */}
+          {bifogaPlats && !disabled && !readOnly ? <div ref={bifogaPlats} data-bifoga-plats="" className={cx("absolute bottom-0.5", kanGeText ? "end-15" : "end-3")} /> : null}
         </div>
       )}
       {/* ⛔ STATUSRADEN FINNS HELA TIDEN OCH BYTER TEXT (samma skäl som TALK:s, 0.97.0): en region som föds med innehåll läses inte

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { OpsField, OpsTextarea } from "../components/OpsField.jsx";
 import { OpsKommentarer, OpsKommentarsrad } from "../components/OpsKommentarer.jsx";
 import { OpsHandelsePanel } from "../components/OpsHandelsePanel.jsx";
 import { OpsSprakProvider } from "../components/OpsSprak.jsx";
@@ -254,8 +255,40 @@ describe("kommentarens bilaga: modellen", () => {
 describe("OpsKommentarer med bilagor", () => {
   it("⛔ utan bilagor finns ingen filväljare, och en befintlig bilaga visas ändå", () => {
     render(<OpsKommentarer kommentarer={[{ ...k("a1", bo, "2026-10-06T09:00:00.000Z", ""), bilaga: bild() }]} uid="anna" onSkriv={() => {}} />);
-    expect(screen.queryByLabelText("Bifoga bild eller fil")).toBeNull();
+    expect(screen.queryByLabelText("Bifoga")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Bifoga" })).toBeNull();
     expect(screen.getByRole("img", { name: "Bilaga från Bo Lind: skarm.png" })).toBeInTheDocument();
+  });
+
+  it("⛔ filknappen är en gem i skrivrutan som heter Bifoga, bredvid rutan och inte under den, och det finns ingen knapp Välj fil", () => {
+    render(<OpsKommentarer bilagor kommentarer={[]} uid="anna" onSkriv={() => {}} />);
+    const knapp = screen.getByRole("button", { name: "Bifoga" });
+    const falt = screen.getByLabelText("Skriv en kommentar");
+    // Knappen ligger inne i skrivrutans ruta (samma relativa behållare som textfältet), inte i en egen rad under den.
+    expect(falt.parentElement).toContainElement(knapp);
+    expect(knapp.querySelector("svg")).not.toBeNull();
+    expect(knapp.textContent).toBe("");
+    expect(screen.queryByRole("button", { name: /Välj fil/ })).toBeNull();
+    expect(screen.queryByText("Välj fil")).toBeNull();
+  });
+
+  it("⛔ en fil vald med gemknappen ger samma förhandsvisning som förut, och skickas först med Skicka", async () => {
+    /** @type {any[]} */
+    const skrivna = [];
+    render(<OpsKommentarer bilagor kommentarer={[]} uid="anna" onSkriv={(t, x) => { skrivna.push([t, x]); }} />);
+    const input = /** @type {HTMLInputElement} */ (document.querySelector('input[type="file"]'));
+    const klick = vi.spyOn(input, "click");
+    fireEvent.click(screen.getByRole("button", { name: "Bifoga" }));
+    expect(klick).toHaveBeenCalledTimes(1);
+    fireEvent.change(input, { target: { files: [new File([new Uint8Array([137, 80, 78, 71])], "val.png", { type: "image/png" })] } });
+    expect(await screen.findByRole("img", { name: "Vald bilaga: val.png" })).toBeInTheDocument();
+    // Ingenting har skickats ännu: filen följer med först när Skicka trycks.
+    expect(skrivna).toHaveLength(0);
+    fireEvent.click(screen.getByRole("button", { name: "Skicka" }));
+    await waitFor(() => expect(skrivna).toHaveLength(1));
+    expect(skrivna[0][1].bilaga).toMatchObject({ namn: "val.png", typ: "image/png" });
+    // Ta bort finns när något är valt.
+    expect(screen.queryByRole("button", { name: "Ta bort" })).toBeNull();
   });
 
   it("en fil som inte är en bild visas med sitt namn och laddas ned", () => {
@@ -317,5 +350,27 @@ describe("OpsKommentarer med bilagor", () => {
     klistraIn([stor]);
     expect(await screen.findByRole("alert")).toHaveTextContent(/för stor/);
     expect(screen.getByRole("button", { name: "Skicka" })).toBeDisabled();
+  });
+});
+
+describe("OpsTextarea bifogaPlats", () => {
+  it("platsen står i fältets ruta, bredvid mikrofonen när den finns, och saknas för ett inaktivt eller ett skrivskyddat fält", () => {
+    const { unmount } = render(
+      <OpsField label="Skriv">
+        <OpsTextarea value="" onChange={() => {}} bifogaPlats={() => {}} tal={{ onTranscribe: async () => "x" }} />
+      </OpsField>,
+    );
+    const plats = document.querySelector("[data-bifoga-plats]");
+    expect(plats).not.toBeNull();
+    expect(plats?.className).toContain("end-15");
+    expect(plats?.parentElement?.querySelector("[data-mikrofon]")).not.toBeNull();
+    expect(plats?.parentElement?.querySelector("textarea")?.className).toContain("pe-28");
+    unmount();
+    render(
+      <OpsField label="Skriv">
+        <OpsTextarea value="" onChange={() => {}} bifogaPlats={() => {}} tal={false} disabled />
+      </OpsField>,
+    );
+    expect(document.querySelector("[data-bifoga-plats]")).toBeNull();
   });
 });
