@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import { cx } from "../lib/cx.js";
 import { OpsSpinner } from "./OpsSpinner.jsx";
 
@@ -125,7 +126,9 @@ export function knappKlass({ variant = "secondary", size = "md", iconOnly = fals
  * @param {"sm"|"md"} [props.size]
  * @param {"button"|"submit"|"reset"} [props.type]
  * @param {boolean} [props.disabled]
- * @param {boolean} [props.busy] Visar och annonserar pågående arbete, och spärrar knappen.
+ * @param {boolean} [props.busy] Visar och annonserar pågående arbete, och spärrar knappen. ⛔ UTELÄMNAD (0.129.0) sköter knappen det själv: ger
+ *   `onClick` ett löfte är knappen upptagen tills löftet är klart, och ett andra tryck under tiden gör ingenting. SÄTTS den (också till `false`)
+ *   är det appens: knappen rör då varken snurra eller spärr, eftersom två som styr samma tillstånd glider isär.
  * @param {boolean} [props.fullWidth]
  * @param {boolean} [props.iconOnly] Kvadratisk träffyta. Kräver `ariaLabel`.
  * @param {boolean} [props.round] Cirkel (`rounded-full`). Kräver `iconOnly`. Samma accentform som bottenradens huvudåtgärd, men `size-8` (inte 44 px fylld skiva) så + i header-klustret matchar syskonikonernas skala.
@@ -135,7 +138,7 @@ export function knappKlass({ variant = "secondary", size = "md", iconOnly = fals
  * @param {string} [props.title]
  * @param {string} [props.id]
  * @param {string} [props.form] Id på det `<form>` en `type="submit"` hör till, när knappen står UTANFÖR formuläret (0.31.0: skapa-panelens fasta knapprad).
- * @param {(event: any) => void} [props.onClick]
+ * @param {(event: any) => void | Promise<unknown>} [props.onClick] Ett returnerat löfte gör knappen upptagen tills det är klart (se `busy`).
  * @param {import("react").ReactNode} props.children
  */
 export function OpsButton({
@@ -143,7 +146,7 @@ export function OpsButton({
   size = "md",
   type = "button",
   disabled = false,
-  busy = false,
+  busy,
   fullWidth = false,
   iconOnly = false,
   round = false,
@@ -156,6 +159,57 @@ export function OpsButton({
   onClick,
   children,
 }) {
+  /*
+   * ══ ⛔ EN KNAPP SOM VÄNTAR VISAR DET (0.129.0, cllp/lifehub.app#217) ═════════════════════════════════════════════
+   *
+   * CP 2026-10-13: "Vi behöver ha en progress bar på saker och ting som dröjer, till exempel avfärda, spara, överallt, så att man vet vad som
+   * händer i appen." Före 0.129.0 visade bara de knappar som själva skrev `busy={...}` att något pågick, och det var en sak per anropsställe att
+   * komma ihåg: mätt över ramverket hade drygt hälften av knapparna vars `onClick` ger ett löfte (Radera, Ta bort, Arkivera, Spara i
+   * katalogen, Skapa grupp) ingen `busy`. Tryckte man på en av dem hände ingenting synligt, och man tryckte igen.
+   *
+   * ⛔ KNAPPEN SKÖTER DET SJÄLV NÄR `onClick` GER ETT LÖFTE OCH `busy` INTE ÄR SATT, så att ingen kan glömma det. Upptagen betyder snurra,
+   * `aria-busy` och spärr, som med `busy`. Spärren sitter också i en `ref`, inte bara i tillståndet: två tryck i samma tick (en dubbelklick)
+   * ser båda ett tillstånd som ännu inte ritats om.
+   *
+   * ⛔ ETT LÖFTE SOM FALLER SVÄLJS INTE. Knappen blir ledig igen, och avslagningen når den som hör efter (ett `unhandledrejection` precis som
+   * förut, eftersom knappen aldrig var den som skulle fånga felet). Knappen visar inget fel: den vet inte vad felet betyder för just den ytan.
+   *
+   * ⛔ ÄR `busy` SATT, OCKSÅ TILL `false`, RÖR KNAPPEN INGET. Appen styr då, och en spärr som knappen la ovanpå hade kunnat stå kvar utan att
+   * något syntes (en grå knapp utan snurra är precis felet det här ska ta bort).
+   *
+   * ⛔ ETT RETURVÄRDE SOM INTE ÄR ETT LÖFTE LÄMNAS ORÖRT: de allra flesta knappar öppnar, stänger eller byter något direkt.
+   */
+  const [egenBusy, setEgenBusy] = useState(false);
+  const pagar = useRef(false);
+  const monterad = useRef(true);
+  useEffect(() => {
+    monterad.current = true;
+    return () => {
+      monterad.current = false;
+    };
+  }, []);
+  /** @param {any} event */
+  const klick = (event) => {
+    if (!onClick) return undefined;
+    if (busy !== undefined) return onClick(event);
+    if (pagar.current) {
+      // Ett andra tryck medan det första väntar: ingenting, och inte heller formulärets submit för en `type="submit"` med egen onClick.
+      event?.preventDefault?.();
+      return undefined;
+    }
+    const svar = onClick(event);
+    if (svar && typeof svar.then === "function") {
+      pagar.current = true;
+      setEgenBusy(true);
+      const klart = () => {
+        pagar.current = false;
+        if (monterad.current) setEgenBusy(false);
+      };
+      Promise.resolve(svar).finally(klart);
+    }
+    return svar;
+  };
+
   const variantKlass = VARIANTER[variant];
   if (!variantKlass) {
     throw new Error(
@@ -187,7 +241,8 @@ export function OpsButton({
   }
 
   const klass = knappKlass({ variant, size, iconOnly, round, fullWidth });
-  const blocked = disabled || busy;
+  const upptagen = busy === undefined ? egenBusy : busy;
+  const blocked = disabled || upptagen;
 
   /**
    * ⛔ `busy` satte tidigare BARA `aria-busy` och spärrade knappen. Det betydde
@@ -204,7 +259,7 @@ export function OpsButton({
    * Snurran är `decorative`: knappen bär redan `aria-busy`, och två besked om
    * samma väntan är värre än ett.
    */
-  const innehall = busy ? (
+  const innehall = upptagen ? (
     <>
       <OpsSpinner size="sm" tone="current" decorative />
       {iconOnly ? null : children}
@@ -225,9 +280,9 @@ export function OpsButton({
         rel={newTab ? "noreferrer noopener" : undefined}
         aria-label={ariaLabel}
         aria-disabled={blocked || undefined}
-        aria-busy={busy || undefined}
+        aria-busy={upptagen || undefined}
         title={title}
-        onClick={blocked ? undefined : onClick}
+        onClick={blocked ? undefined : klick}
       >
         {innehall}
       </a>
@@ -242,9 +297,9 @@ export function OpsButton({
       type={type}
       disabled={blocked}
       aria-label={ariaLabel}
-      aria-busy={busy || undefined}
+      aria-busy={upptagen || undefined}
       title={title}
-      onClick={onClick}
+      onClick={klick}
     >
       {innehall}
     </button>

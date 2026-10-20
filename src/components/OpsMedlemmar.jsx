@@ -43,8 +43,8 @@ import { usePersonnamn } from "./usePersonnamn.js";
  * @param {boolean} [props.kanAndra]
  * @param {(b: { epost: string, roll: string }) => void | Promise<void>} [props.onBjudIn]
  * @param {(b: { userId: string, roll: string }) => void} [props.onAndraRoll]
- * @param {(b: { userId: string }) => void} [props.onTaBort]
- * @param {(b: { id: string }) => void} [props.onAterkalla]
+ * @param {(b: { userId: string }) => void | Promise<unknown>} [props.onTaBort] Ger den ett löfte är knappen upptagen tills det är klart (0.129.0, `OpsButton`).
+ * @param {(b: { id: string }) => void | Promise<unknown>} [props.onAterkalla] Samma: ett löfte gör knappen upptagen.
  * @param {string} [props.rubrik]
  * @param {string} [props.epostEtikett]
  * @param {string} [props.rollEtikett]

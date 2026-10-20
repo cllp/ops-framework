@@ -3,6 +3,7 @@ import { cx } from "../lib/cx.js";
 import { ChevronNedIkon } from "./icons.jsx";
 import { OpsButton } from "./OpsButton.jsx";
 import { OpsSkapaRubrik } from "./OpsSkapaRubrik.jsx";
+import { SkapaPanelStatusKontext } from "./skapaPanelStatus.js";
 import { TillbakaKnapp } from "./TillbakaKnapp.jsx";
 
 /**
@@ -32,6 +33,13 @@ import { TillbakaKnapp } from "./TillbakaKnapp.jsx";
  * `<form>` `id={formId}` (skalet skickar `formId` till formuläret). Ritas ingen `Spara` (`sparaEtikett` utelämnad) är det
  * för att formuläret har en egen knapp, och då är bara `Avbryt` skalets.
  *
+ * ══ ⛔ PANELEN VISAR FORMULÄRETS VÄNTAN (0.129.0, cllp/lifehub.app#365) ═══════════════════════════════════════════
+ *
+ * Formuläret rapporterar att det väntar och med vilken text (`useSkapaPanelStatus`), och panelen gör två saker med det: `Spara` blir upptagen
+ * (snurra, `aria-busy`, spärr) och texten skrivs bredvid knapparna i en `role="status"`-yta som finns hela tiden, så att den som lyssnar
+ * redan har den när texten kommer. Knappraden är fast längst ned och syns alltså också när formuläret är långt. `Avbryt` är orört: att
+ * lämna panelen medan något skapas är ett val, och panelen avgör inte åt någon att det inte går.
+ *
  * @param {object} props
  * ══ ⛔ KOLUMNBREDDEN ÄR SS, PER FORMULÄR (0.32.0, #180) ═══════════════════════════════════════════════════════════
  *
@@ -53,6 +61,7 @@ import { TillbakaKnapp } from "./TillbakaKnapp.jsx";
  */
 export function OpsSkapaPanel({ kolumn = "bred", titel, onTillbaka, tillbakaEtikett = "Tillbaka", skapasIEtikett = "Skapas i", skapasI = null, onByt, avbrytEtikett = "Avbryt", sparaEtikett, formId, children }) {
   const ref = useRef(/** @type {HTMLElement | null} */ (null));
+  const [status, setStatus] = useState(/** @type {import("./skapaPanelStatus.js").SkapaStatus} */ (null));
   const [hojd, setHojd] = useState(/** @type {number | null} */ (null));
 
   // ⛔ Höjden ur `visualViewport`: `dvh` följer inte iOS-tangentbordet, `visualViewport.height` gör det.
@@ -71,66 +80,72 @@ export function OpsSkapaPanel({ kolumn = "bred", titel, onTillbaka, tillbakaEtik
 
   const rubrikId = useId();
   return (
-    <section
-      ref={ref}
-      aria-labelledby={rubrikId}
-      data-skapa-panel=""
-      style={hojd ? /** @type {any} */ ({ "--skapa-hojd": `${hojd}px` }) : undefined}
-      className={cx(
-        // Under md: helskärm. Från md: en sida i kolumnen som är minst lika hög som fönstret, så knappraden vilar nere.
-        "flex flex-col bg-canvas max-md:fixed max-md:inset-x-0 max-md:top-0 max-md:z-(--z-modal) max-md:h-(--skapa-hojd,100dvh)",
-        "md:min-h-[calc(100dvh-var(--safe-top)-var(--topbar-height))]",
-      )}
-    >
-      <div className={cx("mx-auto flex w-full min-h-0 flex-1 flex-col px-4 max-md:pt-(--safe-top) md:pt-4", kolumn === "smal" ? "max-w-2xl" : "max-w-4xl")}>
-        <div className="flex shrink-0 flex-col max-md:min-h-14 max-md:flex-row max-md:items-center max-md:gap-1 max-md:border-b max-md:border-line">
-          <TillbakaKnapp onClick={onTillbaka} etikett={tillbakaEtikett} className="self-start" />
-          {/* ⛔ EN rubrik: i raden bredvid Tillbaka under md (helskärm), under Tillbaka från md (som SS `GroupEditRouteView`).
-              `OpsSkapaRubrik`: ingen plusikon. Plusset hör till ingången, inte till vyn. */}
-          <OpsSkapaRubrik id={rubrikId}>{titel}</OpsSkapaRubrik>
-        </div>
-        {/* ⛔ `pt-4`: LUFT MELLAN HUVUDET OCH FÖRSTA RADEN (0.32.1). CP 2026-09-30 08:12, med en skärmbild av "Nytt ärende"
-            vid 390 px: "Vidare är det skönt om det är lite luft mellan första raden och headern." Formulärets första rad låg
-            direkt under huvudets linje. SS har 16 px där i båda sina inline-formulär: `ManageGroupModal` (`py-4` på kroppen,
-            `ManageGroupModal.jsx:479`) och `EventModal` (`formPad: "py-4 ..."`, `eventModal/sizeClasses.js:7`). Luften bor här
-            i panelens innehållsbehållare och inte i varje formulär, så att inget formulär kan glömma den. */}
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pt-4 pb-4 md:overflow-visible">
-          {skapasI ? (
-            <div className="mb-4 flex min-w-0 items-center gap-2 text-etikett text-ink-secondary">
-              <span className="shrink-0 whitespace-nowrap">{skapasIEtikett}:</span>
-              {onByt ? (
-                <button
-                  type="button"
-                  onClick={onByt}
-                  aria-label={`${skapasIEtikett}: ${skapasI}`}
-                  className="inline-flex min-h-11 min-w-0 cursor-pointer items-center gap-1 rounded-base px-2 font-semibold text-ink transition-colors duration-(--duration-fast) ease-standard hover:bg-accent-faint focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
-                >
-                  <span className="truncate">{skapasI}</span>
-                  <ChevronNedIkon size={14} />
-                </button>
-              ) : (
-                <span className="min-w-0 truncate font-semibold text-ink">{skapasI}</span>
-              )}
-            </div>
-          ) : null}
-          {children}
-        </div>
-      </div>
-      <div
-        data-skapa-knappar=""
-        className="sticky bottom-0 shrink-0 border-t border-line bg-canvas pb-(--safe-bottom)"
+    <SkapaPanelStatusKontext.Provider value={setStatus}>
+      <section
+        ref={ref}
+        aria-labelledby={rubrikId}
+        data-skapa-panel=""
+        style={hojd ? /** @type {any} */ ({ "--skapa-hojd": `${hojd}px` }) : undefined}
+        className={cx(
+          // Under md: helskärm. Från md: en sida i kolumnen som är minst lika hög som fönstret, så knappraden vilar nere.
+          "flex flex-col bg-canvas max-md:fixed max-md:inset-x-0 max-md:top-0 max-md:z-(--z-modal) max-md:h-(--skapa-hojd,100dvh)",
+          "md:min-h-[calc(100dvh-var(--safe-top)-var(--topbar-height))]",
+        )}
       >
-        <div className={cx("mx-auto flex w-full items-center justify-end gap-2 px-4 py-3", kolumn === "smal" ? "max-w-2xl" : "max-w-4xl")}>
-          <OpsButton variant="ghost" onClick={onTillbaka}>
-            {avbrytEtikett}
-          </OpsButton>
-          {sparaEtikett ? (
-            <OpsButton variant="primary" type="submit" form={formId}>
-              {sparaEtikett}
-            </OpsButton>
-          ) : null}
+        <div className={cx("mx-auto flex w-full min-h-0 flex-1 flex-col px-4 max-md:pt-(--safe-top) md:pt-4", kolumn === "smal" ? "max-w-2xl" : "max-w-4xl")}>
+          <div className="flex shrink-0 flex-col max-md:min-h-14 max-md:flex-row max-md:items-center max-md:gap-1 max-md:border-b max-md:border-line">
+            <TillbakaKnapp onClick={onTillbaka} etikett={tillbakaEtikett} className="self-start" />
+            {/* ⛔ EN rubrik: i raden bredvid Tillbaka under md (helskärm), under Tillbaka från md (som SS `GroupEditRouteView`).
+                `OpsSkapaRubrik`: ingen plusikon. Plusset hör till ingången, inte till vyn. */}
+            <OpsSkapaRubrik id={rubrikId}>{titel}</OpsSkapaRubrik>
+          </div>
+          {/* ⛔ `pt-4`: LUFT MELLAN HUVUDET OCH FÖRSTA RADEN (0.32.1). CP 2026-09-30 08:12, med en skärmbild av "Nytt ärende"
+              vid 390 px: "Vidare är det skönt om det är lite luft mellan första raden och headern." Formulärets första rad låg
+              direkt under huvudets linje. SS har 16 px där i båda sina inline-formulär: `ManageGroupModal` (`py-4` på kroppen,
+              `ManageGroupModal.jsx:479`) och `EventModal` (`formPad: "py-4 ..."`, `eventModal/sizeClasses.js:7`). Luften bor här
+              i panelens innehållsbehållare och inte i varje formulär, så att inget formulär kan glömma den. */}
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pt-4 pb-4 md:overflow-visible">
+            {skapasI ? (
+              <div className="mb-4 flex min-w-0 items-center gap-2 text-etikett text-ink-secondary">
+                <span className="shrink-0 whitespace-nowrap">{skapasIEtikett}:</span>
+                {onByt ? (
+                  <button
+                    type="button"
+                    onClick={onByt}
+                    aria-label={`${skapasIEtikett}: ${skapasI}`}
+                    className="inline-flex min-h-11 min-w-0 cursor-pointer items-center gap-1 rounded-base px-2 font-semibold text-ink transition-colors duration-(--duration-fast) ease-standard hover:bg-accent-faint focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
+                  >
+                    <span className="truncate">{skapasI}</span>
+                    <ChevronNedIkon size={14} />
+                  </button>
+                ) : (
+                  <span className="min-w-0 truncate font-semibold text-ink">{skapasI}</span>
+                )}
+              </div>
+            ) : null}
+            {children}
+          </div>
         </div>
-      </div>
-    </section>
+        <div
+          data-skapa-knappar=""
+          className="sticky bottom-0 shrink-0 border-t border-line bg-canvas pb-(--safe-bottom)"
+        >
+          <div className={cx("mx-auto flex w-full items-center justify-end gap-2 px-4 py-3", kolumn === "smal" ? "max-w-2xl" : "max-w-4xl")}>
+            {/* ⛔ YTAN FINNS HELA TIDEN, TOM NÄR INGET VÄNTAR: en `role="status"` som skapas samtidigt som texten läses inte alltid upp. */}
+            <span role="status" data-skapa-status="" className="me-auto min-w-0 text-etikett text-ink-secondary">
+              {status?.text ?? ""}
+            </span>
+            <OpsButton variant="ghost" onClick={onTillbaka}>
+              {avbrytEtikett}
+            </OpsButton>
+            {sparaEtikett ? (
+              <OpsButton variant="primary" type="submit" form={formId} busy={status ? true : undefined}>
+                {sparaEtikett}
+              </OpsButton>
+            ) : null}
+          </div>
+        </div>
+      </section>
+    </SkapaPanelStatusKontext.Provider>
   );
 }

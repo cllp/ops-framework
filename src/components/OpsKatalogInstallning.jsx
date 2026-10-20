@@ -92,7 +92,7 @@ function textraderna(deklarerade, bar) {
  *   aldrig som text: `wallet` är en nyckel i appens ikonuppsättning, inte ett ord för den som läser (granskningen av PR 278).
  * @param {boolean} [props.kanAndra] Ur rollerna. Falskt ger en läsvy med skälet utskrivet.
  * @param {(kategori: import("../lib/katalog.js").Kategori) => void} props.onSpara
- * @param {(kategori: import("../lib/katalog.js").Kategori, arkiverad: boolean) => void} props.onArkivera
+ * @param {(kategori: import("../lib/katalog.js").Kategori, arkiverad: boolean) => void | Promise<unknown>} props.onArkivera Ger den ett löfte är knappen upptagen tills det är klart (0.129.0, `OpsButton`).
  * @param {string} [props.sprak]
  * @param {string} [props.rubrik]
  * @param {any[]} [props.logg] Ändringsloggens rader, nyast först. Se `createConfigLog`.

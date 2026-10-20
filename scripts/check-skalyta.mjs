@@ -47,6 +47,7 @@
  *       node scripts/check-skalyta.mjs --bara-0106       bara avsnitt 47, chattepiken 0.106.0 (#386), i scripts/lib/skalyta0106.mjs
  *       node scripts/check-skalyta.mjs --bara-bandkontrast  bara avsnitt 49, bandets text mot underlaget över en vald ruta (0.120.0), ljust och mörkt
  *       node scripts/check-skalyta.mjs --bara-0127       bara avsnitt 50 till 52, preliminära poster, tilläggsrutan i Ny händelse och video i Biblioteket (0.127.0)
+ *       node scripts/check-skalyta.mjs --bara-grupp-vantar  bara avsnitt 53, Spara och statusraden medan en grupp skapas (0.129.0)
  *       node scripts/check-skalyta.mjs --bara-etiketter  bara avsnitt 48, etiketterna inom sina dagsrutor i månadsvyn (0.106.0); med --tema dark som CP:s skärm
  *       node scripts/check-skalyta.mjs --chattbredder 390,1024   29g i andra bredder än 390 och 1280
  *       node scripts/check-skalyta.mjs --tema dark        alla sidor i mörkt tema (förebilden CP jämför mot är mörk)
@@ -1042,6 +1043,14 @@ if (argv.includes("--bara-0127")) {
   await kalenderPreliminar();
   await nyHandelseTillagg();
   await bibliotekVideo();
+  await browser.close();
+  avsluta();
+  process.exit(0);
+}
+
+// `--bara-grupp-vantar`: bara avsnitt 53, Spara och statusraden medan en grupp skapas (0.129.0). Hela körningen kör det också.
+if (argv.includes("--bara-grupp-vantar")) {
+  await gruppVantar();
   await browser.close();
   avsluta();
   process.exit(0);
@@ -7274,6 +7283,67 @@ async function bibliotekVideo() {
   }
 }
 
+// ══ 53. NY GRUPP MEDAN DEN SKAPAS: SPARA ÄR UPPTAGEN OCH STATUSRADEN SYNS BREDVID KNAPPARNA (0.129.0, cllp/lifehub.app#365) ═══════════
+// CP 2026-10-19: "Det tar tid att skapa grupp och ingen progress." Före 0.129.0 låstes fälten och en rad skrevs längst ned i formuläret, men panelens Spara stod orörd. jsdom
+// kör ingen CSS, så vad som går att mäta är hur väntan LIGGER: scenen `nygrupp` hålls av `window.__skapaHall` tills mätningen släpper den. Krav, vid 390 och 1280 px, medan anropet
+// väntar: (a) Spara har `aria-busy`, är spärrad och bär en snurra, (b) statusraden (`data-skapa-status`) har text, ligger inom knapprad och fönster och är inte klippt, (c) Spara slutar
+// fortfarande längst till höger och knappraden vilar längst ned, (d) sidan flödar inte över i sidled, (e) formulärets egen rad är tyst (texten står på ETT ställe), och (f) när anropet
+// släpps är Spara ledig igen, raden tom och gruppen skapad. Golv: en Spara och en statusrad med text mättes.
+async function gruppVantar() {
+  for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 800 }]) {
+    const namn = `ny grupp, väntan ${vp.width}`;
+    const { page, context } = await oppna("nygrupp", vp);
+    try {
+      await page.evaluate(() => { /** @type {any} */ (window).__skapaHall = true; });
+      await page.getByRole("button", { name: "Skapa", exact: true }).last().click();
+      await page.getByRole("button", { name: "Ny grupp" }).click({ timeout: 3000 });
+      await page.waitForSelector("[data-gruppformular]", { timeout: 3000 });
+      await page.getByLabel(/Gruppnamn/).fill("Travel");
+      await page.getByRole("button", { name: "Spara", exact: true }).click();
+      await page.waitForSelector('[data-skapa-knappar] button[aria-busy="true"]', { timeout: 3000 });
+      const m = await page.evaluate(() => {
+        const rad = /** @type {HTMLElement} */ (document.querySelector("[data-skapa-knappar]"));
+        const radR = rad.getBoundingClientRect();
+        const inre = /** @type {HTMLElement} */ (rad.firstElementChild).getBoundingClientRect();
+        const spara = /** @type {HTMLButtonElement | undefined} */ ([...rad.querySelectorAll("button")].find((b) => b.getAttribute("type") === "submit"));
+        const sr = spara ? spara.getBoundingClientRect() : null;
+        const status = /** @type {HTMLElement | null} */ (rad.querySelector("[data-skapa-status]"));
+        const st = status ? status.getBoundingClientRect() : null;
+        const stSynlig = status ? getComputedStyle(status).visibility !== "hidden" && st !== null && st.width > 0 && st.height > 0 : false;
+        const formStatus = [...document.querySelectorAll("[data-gruppformular] [role=status]")].filter((e) => (e.textContent || "").trim() !== "").length;
+        return {
+          busy: spara?.getAttribute("aria-busy") === "true", spard: !!spara?.disabled, snurra: !!spara?.querySelector("svg"),
+          etikett: spara ? (spara.textContent || "").trim() : null,
+          text: status ? (status.textContent || "").trim() : null, stSynlig, st: st ? { l: st.left, r: st.right, t: st.top, b: st.bottom, w: st.width } : null,
+          klippt: status ? status.scrollWidth > status.clientWidth + 1 : null,
+          saraR: sr ? sr.right : null, inreR: inre.right, inreL: inre.left, radT: radR.top, radB: radR.bottom, vh: innerHeight, vb: innerWidth,
+          overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth, formStatus,
+        };
+      });
+      matt.push(`${namn}: Spara upptagen ${m.busy}, spärrad ${m.spard}, snurra ${m.snurra}, text ${JSON.stringify(m.text)}, rad ${JSON.stringify(m.st)}, Spara slutar ${m.saraR}, knappradens innerkant ${m.inreR - 16}`);
+      krav(m.etikett === "Spara" && m.text !== null && m.text.length > 0, `${namn} (golv): Spara "${m.etikett}" och statusraden ${JSON.stringify(m.text)} mättes, väntat en Spara och en text.`);
+      krav(m.busy && m.spard && m.snurra, `${namn} (a): Spara är upptagen ${m.busy}, spärrad ${m.spard}, med snurra ${m.snurra}. Väntat allt tre medan gruppen skapas.`);
+      krav(m.text === "Skapar gruppen", `${namn} (b): statusraden säger ${JSON.stringify(m.text)}, väntat "Skapar gruppen".`);
+      krav(m.stSynlig && !!m.st && m.st.l >= m.inreL - 0.5 && m.st.r <= m.inreR + 0.5 && m.st.t >= m.radT - 0.5 && m.st.b <= m.radB + 0.5 && m.st.r <= m.vb && m.klippt === false, `${namn} (b): statusraden ligger inte synlig inom knappraden och fönstret (${JSON.stringify(m.st)} mot rad ${m.inreL}-${m.inreR}, ${m.radT.toFixed(0)}-${m.radB.toFixed(0)}, klippt ${m.klippt}).`);
+      krav(m.saraR !== null && Math.abs(m.saraR - (m.inreR - 16)) <= 1.5 && m.radB >= m.vh - 1 && m.radB <= m.vh + 0.5, `${namn} (c): Spara slutar ${m.saraR} mot knappradens innerkant ${m.inreR - 16}, och raden slutar ${m.radB.toFixed(0)} av ${m.vh}. Väntat längst till höger och längst ned.`);
+      krav(!m.overflow, `${namn} (d): sidan flödar över i sidled medan gruppen skapas.`);
+      krav(m.formStatus === 0, `${namn} (e): formulärets egen statusrad är inte tyst (${m.formStatus} rader med text), väntat 0: texten står på ett ställe, i panelen.`);
+      if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `ny-grupp-vantar-${vp.width}.png`) });
+      await page.evaluate(() => /** @type {any} */ (window).__skapaSlapp());
+      await page.waitForFunction("(window.__skapad ?? 0) >= 1", null, { timeout: 3000 });
+      const efter = await page.evaluate(() => {
+        const rad = /** @type {HTMLElement} */ (document.querySelector("[data-skapa-knappar]"));
+        const spara = rad ? [...rad.querySelectorAll("button")].find((b) => b.getAttribute("type") === "submit") : null;
+        return { busy: spara ? spara.getAttribute("aria-busy") === "true" : false, text: rad ? ((rad.querySelector("[data-skapa-status]") || {}).textContent || "").trim() : null, panel: !!document.querySelector("[data-skapa-panel]"), skapad: /** @type {any} */ (window).__skapad };
+      });
+      krav(efter.skapad === 1 && !efter.busy && (efter.text === "" || efter.text === null), `${namn} (f): efter släppet är gruppen skapad ${efter.skapad} gånger (väntat 1), Spara upptagen ${efter.busy} och statusraden ${JSON.stringify(efter.text)}.`);
+    } catch (e) {
+      krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+    }
+    await context.close();
+  }
+}
+
 await apparArkHylla();
 await apparArkOrdning();
 await textfaltMedTal();
@@ -7284,6 +7354,7 @@ await kalenderBandkontrast();
 await kalenderPreliminar();
 await nyHandelseTillagg();
 await bibliotekVideo();
+await gruppVantar();
 
 await browser.close();
 avsluta();

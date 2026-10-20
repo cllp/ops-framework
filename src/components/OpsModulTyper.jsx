@@ -40,7 +40,7 @@ const rensa = (/** @type {unknown} */ v) => (typeof v === "string" ? v.trim() : 
  * @param {object} props
  * @param {ReadonlyArray<import("../lib/modultyper.js").Typval>} props.bidrag Ur `bidragForGrupp(yta, ...)`: bidragen från påslagna moduler, dolda med.
  * @param {import("../lib/modultyper.js").Typyta} props.yta Ytan bidragen gäller (`inkorg`, `kalender`, `handelser`, `aktivitet`). Skickas tillbaka i `onAndra`.
- * @param {(avvikelse: { yta: import("../lib/modultyper.js").Typyta, id: string, dold: boolean, namn?: { sv: string, en?: string } | null }) => void} [props.onAndra]
+ * @param {(avvikelse: { yta: import("../lib/modultyper.js").Typyta, id: string, dold: boolean, namn?: { sv: string, en?: string } | null }) => void | Promise<unknown>} [props.onAndra] Ger den ett löfte är Dölj/Visa upptagen tills det är klart (0.129.0, `OpsButton`). Byt namn stänger redigeringen direkt.
  * @param {boolean} [props.kanAndra] Sant för gruppens ägare.
  * @param {"sv" | "en"} [props.sprak]
  * @param {string} [props.rubrik]

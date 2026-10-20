@@ -399,13 +399,15 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
     try {
       const svar = onRadera(raderar);
       if (svar && typeof svar.then === "function") {
-        svar.then(() => setRaderar(null)).catch((e) => setRaderaFel(e instanceof Error ? e.message : String(e)));
-        return;
+        // ⛔ LÖFTET LÄMNAS TILLBAKA (0.129.0, cllp/lifehub.app#217): Radera-knappen är en `OpsButton` utan `busy`, och den visar snurra och
+        // spärrar ett andra tryck så länge löftet pågår. Det hade den inte kunnat se om funktionen svalde löftet och inte gav det vidare.
+        return svar.then(() => setRaderar(null)).catch((e) => setRaderaFel(e instanceof Error ? e.message : String(e)));
       }
       setRaderar(null);
     } catch (e) {
       setRaderaFel(e instanceof Error ? e.message : String(e));
     }
+    return undefined;
   }
 
   /**
