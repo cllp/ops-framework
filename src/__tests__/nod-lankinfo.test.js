@@ -124,7 +124,7 @@ describe("lankInfoUrOembed: YouTube, SoundCloud och Apple Music", () => {
 
   it("HTML-entiteter i meta-taggar avkodas, och attributen får stå i vilken ordning och med vilka citattecken som helst", () => {
     const m = metaTaggar(`<meta content="Rock &amp; Roll &#8211; live &quot;x&quot;" property='og:title'><meta name="og:image" content='https://x.se/a.jpg'><meta property="og:title" content="Andra">`);
-    expect(m.get("og:title")).toBe('Rock & Roll – live "x"');
+    expect(m.get("og:title")).toBe(`Rock & Roll ${String.fromCharCode(0x2013)} live "x"`);
     expect(m.get("og:image")).toBe("https://x.se/a.jpg");
   });
 });
