@@ -255,7 +255,7 @@ export { mejlregelfragment, EPOSTFORM, epostFel } from "./lib/mejl.js";
  * ⛔ KALENDRARNA (0.36.0, #179 F0): gruppens kalendrar (en katalog på typernas motor), mina kalendrar och posterna i
  * dem. Formerna och tidszonen är rena funktioner, och samlingsnamnen skickar appen in till `kalenderregelfragment`.
  */
-export { KALENDERFARGER, KALENDERIKONER, KALENDERFALT, MINKALENDERFALT, KALENDERPOSTFALT, MAX_KALENDERNAMN, MAX_GITHUBETIKETT, MAX_POSTTITEL, MAX_POSTBESKRIVNING, MAX_POSTPLATS, STANDARD_TIDSZON, byggGruppkalender, STANDARDKALENDER_ID, STANDARDKALENDER_NAMN, standardGruppkalender, githubEtikettNyckel, kalenderForEtikett, kontrolleraGithubEtiketter, validateGruppkalendrar, forvaldKalender, gruppkalendernyckel, byggMinKalender, validateMinaKalendrar, byggKalenderpost, postTillRad, KALENDERPOST_HANDELSEPREFIX, postHandelseId, postIdUrHandelseId, postTillHandelse, kontrolleraTidszon, idagI, ORDNINGSSTEG, kalenderIdUrNamn, nastaOrdning, flyttaKalender, valjForvald, arkiveraKalender, kalenderval } from "./lib/kalendrar.js";
+export { KALENDERFARGER, KALENDERIKONER, KALENDERFALT, MINKALENDERFALT, KALENDERPOSTFALT, MAX_KALENDERNAMN, MAX_POSTTITEL, MAX_POSTBESKRIVNING, MAX_POSTPLATS, STANDARD_TIDSZON, byggGruppkalender, STANDARDKALENDER_ID, STANDARDKALENDER_NAMN, standardGruppkalender, validateGruppkalendrar, forvaldKalender, gruppkalendernyckel, byggMinKalender, validateMinaKalendrar, byggKalenderpost, postTillRad, KALENDERPOST_HANDELSEPREFIX, postHandelseId, postIdUrHandelseId, postTillHandelse, kontrolleraTidszon, idagI, ORDNINGSSTEG, kalenderIdUrNamn, nastaOrdning, flyttaKalender, valjForvald, arkiveraKalender, kalenderval } from "./lib/kalendrar.js";
 /*
  * ⛔ FLYTTA EN POST ELLER EN HÄNDELSE TILL EN ANNAN KALENDER (0.123.0, cllp/lifehub.app#371). `flyttmal` svarar på vart något får flyttas och
  * `postensTidsfalt` är postens tid som en händelses fält. Själva flytten är serverns (`createFlyttaService` i `ops-framework/node`).
@@ -276,7 +276,7 @@ export { tillganglighetForDag, bortaAntal } from "./lib/tillganglighet.js";
  * skriver kalendrarna, kontraktet för en händelse i en kalender, och svaren Kommer / Kommer inte med inkorgens rader
  * härledda ur händelserna och svaren.
  */
-export { OpsKalendrar, ORD_OPSKALENDRAR } from "./components/OpsKalendrar.jsx";
+export { OpsKalendrar } from "./components/OpsKalendrar.jsx";
 export { OpsSvar, OpsSvarsknappar, OpsSvarsrad } from "./components/OpsSvar.jsx";
 export { OpsKommentarer, OpsKommentarsrad, ORD_OPSKOMMENTARER, ORD_OPSKOMMENTARSRAD } from "./components/OpsKommentarer.jsx";
 /*

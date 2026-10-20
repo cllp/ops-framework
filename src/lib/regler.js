@@ -44,7 +44,7 @@ import { MAX_MINNESID, MAX_MINNESTEXT, MINNESFALT, MINNESKALLAFALT, MINNESKALLOR
 import { MAX_SKAPARKALLA, MAX_SKAPARNAMN, SKAPARFALT } from "./skapare.js";
 import { BESKRIVENAPPDATAFALT, BESKRIVNINGSDOKUMENTFALT, BESKRIVNINGSFALT, BESKRIVNINGSFORMAT, BESKRIVNINGSIDFORM, MAX_APPBESKRIVNING, MAX_BESKRIVNINGSNAMN, MAX_FALT, MAX_LISTOR, MIN_LISTOR } from "./beskrivenapp.js";
 import { KONFIGHANDELSER, KONFIGLOGGFALT } from "./konfiglogg.js";
-import { DATUMFORM, KALENDERFALT, KALENDERFARGER, KALENDERPOSTFALT, MAX_GITHUBETIKETT, MAX_KALENDERNAMN, MAX_POSTBESKRIVNING, MAX_POSTPLATS, MAX_POSTTITEL, MINKALENDERFALT, TIDPUNKTSFORM } from "./kalendrar.js";
+import { AVVECKLADE_KALENDERFALT, DATUMFORM, KALENDERFALT, KALENDERFARGER, KALENDERPOSTFALT, MAX_KALENDERNAMN, MAX_POSTBESKRIVNING, MAX_POSTPLATS, MAX_POSTTITEL, MINKALENDERFALT, TIDPUNKTSFORM } from "./kalendrar.js";
 import { KOMMENTARBILAGAFALT, KOMMENTARBILAGA_TYPER, KOMMENTARFALT, LASMARKESFALT, MAX_BILAGENAMN, MAX_HANDELSEKOMMENTAR, MAX_KOMMENTARBILAGA, SVARSFALT, SVARSVAL } from "./handelsemodell.js";
 import { AMNESFALT, AMNES_REGEL, BILAGA_TRADSKILJE, BILAGEMARKEFALT, FASTFALT, MAX_AMNESRUBRIK, GRUPPSAMTAL, LASTFALT, MAX_MEDDELANDE, MAX_NAMNER, MAX_TRADNAMN, MAX_UIDLANGD, MEDDELANDEFALT, NAMNERFALT, NAMNER_ALLA, REAKTIONSFALT, SVARPAFALT, REAKTIONSKODER, SAMTALSAVGRANSARE, SAMTALSFALT, TRADFALT, undersamlingskrock } from "./samtal.js";
 
@@ -668,8 +668,8 @@ function gruppadSamlingBlock(samling, config) {
   const faltrad = falt ? `\n        && request.resource.data.keys().hasOnly([${falt.map((f) => `"${f}"`).join(", ")}])` : "";
   /*
    * ⛔ VILLKOREN EFTER FÄLTLISTAN, I SAMMA RAD-GRUPP, så att en diff mot förra versionen visar exakt vilket villkor som tillkom
-   * (0.108.0, `githubEtikett`). De gäller både `create` och `update`, eftersom en ändring av ett fält på en befintlig rad är lika
-   * mycket ett skrivande som en ny rad.
+   * (0.108.0). De gäller både `create` och `update`, eftersom en ändring av ett fält på en befintlig rad är lika
+   * mycket ett skrivande som en ny rad. Sedan 0.129.0 bär gruppkalendrarnas dem för de avvecklade fälten.
    */
   const villkorsrad = (config.villkor ?? []).map((v) => `\n        && ${v}`).join("");
   const formrad = faltrad + villkorsrad;
@@ -1463,9 +1463,14 @@ const regeluttryck = (r) => r.source.replace(/^\^/, "").replace(/\$$/, "").repla
  *
  *   - GRUPPENS KALENDRAR: exakt katalogens block (medlem läser, ägare och admin skriver, nyckeln `groupId|id`, aldrig
  *     radering), med kalenderns fält (`KALENDERFALT`). Samma motor som typerna, alltså samma regel.
- *     ⛔ (0.108.0, cllp/lifehub.app#259) `githubEtikett` är ett valfritt fält: det saknas, eller är en sträng på 1 till
- *     `MAX_GITHUBETIKETT` (50) tecken. Fältet står i `hasOnly`, så en klient som skriver det mot äldre regler nekas.
- *     ⛔ APPEN DEPLOYAR REGLERNA FÖRE KLIENTEN som skriver fältet: en regel i main är inte en regel i produktion.
+ *     ⛔ (0.129.0, cllp/lifehub.app#303 och #307) `githubEtikett` är BORTTAGET ur modellen: kalendern väljs på ärendet, inte via en
+ *     etikett. Regeln tillåter det inte och kräver det inte. Men en rad som sparades under 0.108.0 till 0.128.0 kan bära fältet, och
+ *     en regel som nekade varje skrivning av den raden hade gjort kalendern till en rad ingen kan ändra: en rad som REDAN har fältet får
+ *     därför skrivas om med det OFÖRÄNDRAT (`AVVECKLADE_KALENDERFALT`). Det går inte att sätta det på en rad som saknar det, och inte
+ *     att ändra värdet. En skrivning utan fältet tar bort det.
+ *     ⛔ ORDNINGEN MELLAN REGELDEPLOYEN OCH KLIENTEN SPELAR INGEN ROLL DEN HÄR GÅNGEN (mätt i emulatorn, `kalendrar.test.mjs`): en ny klient
+ *     skriver aldrig fältet och de gamla reglerna släpper in en rad utan det, och en äldre klient som skriver en NY etikett mot de nya
+ *     reglerna nekas, vilket är avsikten.
  *   - MINA KALENDRAR: bara ägaren läser och skriver, nyckeln är radens `id`, namnet är en sträng med tak och färgen en
  *     av de sex. Aldrig radering: en kalender arkiveras, och posterna i den finns kvar och går att flytta.
  *   - POSTERNA I MINA KALENDRAR: bara ägaren. Kalendern måste finnas bland ÄGARENS kalendrar och inte vara arkiverad,
@@ -1500,22 +1505,23 @@ export function kalenderregelfragment(namn = {}) {
    */
   const utanId = (/** @type {readonly string[]} */ f) => f.filter((x) => x !== "id");
   /*
-   * ⛔ `githubEtikett` ÄR VALFRI (0.108.0, cllp/lifehub.app#259): fältet saknas, eller är en sträng på 1 till `MAX_GITHUBETIKETT`
-   * tecken. Samma tal som `byggGruppkalender` kastar på, hämtat ur samma konstant. Regeln kräver INTE att strängen är trimmad
-   * eller unik: det första är byggarens sak, det andra kan ingen regel pröva eftersom den inte ser en annan rad (se
-   * `kontrolleraGithubEtiketter` om fönstret det lämnar).
+   * ⛔ DE AVVECKLADE FÄLTEN (0.129.0, `AVVECKLADE_KALENDERFALT`) STÅR I `hasOnly`, MEN BARA SOM EN RAD SOM REDAN BÄR DEM FÅR BEHÅLLA DEM
+   * OFÖRÄNDRADE. Hade de utelämnats ur listan nekades varje skrivning av en gammal rad som bär `githubEtikett` (en uppdatering som
+   * rör ett annat fält skickar ju fältet med), och hade de tillåtits fritt vore borttagningen ett påstående och inget mer.
+   * ⛔ `resource != null` FÖRST: vid `create` finns ingen befintlig rad, och uttrycket ska vara falskt där och inte ett fel.
+   * Fältet är då bara tillåtet om det saknas i det som skrivs, alltså kan ingen ny rad skapas med det.
    */
-  const etikett = "request.resource.data.githubEtikett";
-  const githubEtikettVillkor = `(!('githubEtikett' in request.resource.data)
-          || (${etikett} is string
-            && ${etikett}.size() >= 1
-            && ${etikett}.size() <= ${MAX_GITHUBETIKETT}))`;
+  const avvecklade = AVVECKLADE_KALENDERFALT.map(
+    (f) => `(!('${f}' in request.resource.data)
+          || (resource != null && '${f}' in resource.data
+            && request.resource.data.${f} == resource.data.${f}))`,
+  );
 
   return `    // ══ Ramverkets kalendrar (0.37.0). GENERERAD, ändra inte för hand ══
     //
     // Källa: ops-framework, kalenderregelfragment() i src/lib/regler.js. Kräver regelfragment() ovanför.
 
-${gruppadSamlingBlock(gruppkalendrar, { skrivvillkor: "opsArAdmin", falt: [...KALENDERFALT], nyckelMedGrupp: true, villkor: [githubEtikettVillkor] })}
+${gruppadSamlingBlock(gruppkalendrar, { skrivvillkor: "opsArAdmin", falt: [...KALENDERFALT, ...AVVECKLADE_KALENDERFALT], nyckelMedGrupp: true, villkor: avvecklade })}
     function opsMinKalender(uid, kid) {
       return /databases/$(database)/documents/${anvandare}/$(uid)/${minaKalendrar}/$(kid);
     }

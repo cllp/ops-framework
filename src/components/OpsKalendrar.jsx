@@ -5,7 +5,6 @@ import { text } from "../lib/sprak.js";
 import {
   KALENDERFARGER,
   KALENDERIKONER,
-  MAX_GITHUBETIKETT,
   MAX_KALENDERNAMN,
   arkiveraKalender,
   byggGruppkalender,
@@ -13,32 +12,17 @@ import {
   flyttaKalender,
   forvaldKalender,
   kalenderIdUrNamn,
-  kontrolleraGithubEtiketter,
   nastaOrdning,
+  utanAvvecklade,
   valjForvald,
 } from "../lib/kalendrar.js";
 import { valjbara } from "../lib/katalog.js";
-import { ordet } from "../lib/ord.js";
 import { KALENDERIKON_KOMPONENT, KALENDERIKON_NAMN } from "../lib/kalenderikoner.js";
 import { AndraIkon, ArkiveraIkon, ChevronNedIkon, PlusIkon, TaFramIkon } from "./icons.jsx";
 import { OpsButton } from "./OpsButton.jsx";
 import { OpsField, OpsInput } from "./OpsField.jsx";
 import { OpsIdentity } from "./OpsIdentity.jsx";
 import { OpsCheckbox } from "./OpsToggle.jsx";
-
-/**
- * Texterna som är nya sedan språkhanteringen (0.108.0, cllp/lifehub.app#259), på båda språken. Resten av vyn är svensk sedan 0.37.0 och
- * flyttas till den här ordboken en rad i taget när den rörs: en halv flytt i en PR hade gjort granskningen till en omskrivning av vyn.
- * @type {import("../lib/ord.js").Ordbok}
- */
-export const ORD_OPSKALENDRAR = {
-  githubEtikett: { sv: "GitHub-etikett", en: "GitHub label" },
-  githubEtikettHjalp: {
-    sv: "Ärenden med den här etiketten och ett datum (due:ÅÅÅÅ-MM-DD) visas i kalendern.",
-    en: "Issues with this label and a date (due:YYYY-MM-DD) are shown in the calendar.",
-  },
-  githubEtikettExempel: { sv: "Till exempel styrelsen", en: "For example board" },
-};
 
 /**
  * Hantera kalendrar: gruppens kalendrar och mina kalendrar (0.37.0, #179 F2).
@@ -62,10 +46,9 @@ export const ORD_OPSKALENDRAR = {
  * sparar något ingenting läser är ett val som inte gör något (arbetsreglernas punkt 5). Fältet `iFlodet` bevaras orört
  * när en kalender sparas.
  *
- * ⛔ GITHUB-ETIKETTEN (0.108.0, cllp/lifehub.app#259) FINNS BARA PÅ GRUPPENS KALENDRAR. Ärenden med etiketten och ett datum ritas av appen i
- * kalendern, och en privat kalender har ingen grupp vars ärenden det kunde vara. Rutan ritas bara i gruppens sektion, och
- * `byggMinKalender` avvisar fältet ändå. Unikheten inom gruppen (utan hänsyn till skiftläge) kontrolleras vid sparandet, med en mening
- * på vyns språk, ur samma funktion som kalenderkällan använder (`kontrolleraGithubEtiketter`).
+ * ⛔ INGEN GITHUB-ETIKETT (borttagen 0.129.0, cllp/lifehub.app#303 och #307). Rutan fanns under 0.108.0 till 0.128.0 och kopplade ärenden till en
+ * kalender via en etikett på GitHub. Beslutet 2026-10-15 var att kalendern väljs på ärendet: "Vi kan inte binda oss till GitHub så." En
+ * kalender som sparades med en etikett bär fältet kvar i databasen, men vyn visar det inte, och nästa sparning tar bort det.
  *
  * ⛔ BARA ÄGARE OCH ADMIN ÄNDRAR GRUPPENS KALENDRAR, OCH DET STÅR UTSKRIVET. Utan rätten ritas gruppens lista utan knappar
  * och med en rad som säger varför, i stället för knappar som regeln sedan nekar. Mina kalendrar ändrar bara ägaren, och
@@ -98,7 +81,8 @@ export function OpsKalendrar({ gruppens, mina, groupId, kanAndraGruppens, onSpar
         kanAndra={kanAndraGruppens}
         lasText="Bara gruppens ägare och admin ändrar gruppens kalendrar."
         sprak={sprak}
-        bygg={(r) => byggGruppkalender({ ...r, groupId })}
+        // ⛔ En rad som bär ett avvecklat fält (en kalender sparad före 0.129.0, skickad hit ovaliderad) ska gå att spara: fältet släpps här, inte först av skrivvägen som vägrar det.
+        bygg={(r) => byggGruppkalender({ ...utanAvvecklade(r), groupId })}
         onSpara={onSparaGruppens}
       />
       <Sektion
@@ -118,7 +102,7 @@ export function OpsKalendrar({ gruppens, mina, groupId, kanAndraGruppens, onSpar
 }
 
 /**
- * @typedef {{ id: string, namn: any, farg: number, ikon: string, ordning: number, forvald: boolean, arkiverad: boolean, iFlodet: boolean, githubEtikett?: string }} Kal
+ * @typedef {{ id: string, namn: any, farg: number, ikon: string, ordning: number, forvald: boolean, arkiverad: boolean, iFlodet: boolean }} Kal
  */
 
 /**
@@ -127,7 +111,7 @@ export function OpsKalendrar({ gruppens, mina, groupId, kanAndraGruppens, onSpar
  */
 function Sektion({ slag, rubrik, hjalp, tomText, lista, kanAndra, lasText, sprak, bygg, onSpara }) {
   const rubrikId = useId();
-  const [utkast, setUtkast] = useState(/** @type {null | { id: string | null, namn: string, farg: number, ikon: string, forvald: boolean, forvaldFran: boolean, githubEtikett: string }} */ (null));
+  const [utkast, setUtkast] = useState(/** @type {null | { id: string | null, namn: string, farg: number, ikon: string, forvald: boolean, forvaldFran: boolean }} */ (null));
   const [upptagen, setUpptagen] = useState(false);
   const [fel, setFel] = useState(/** @type {string | null} */ (null));
   const valbara = /** @type {Kal[]} */ (/** @type {unknown} */ (valjbara(/** @type {any} */ (lista), sprak)));
@@ -141,14 +125,7 @@ function Sektion({ slag, rubrik, hjalp, tomText, lista, kanAndra, lasText, sprak
     setUpptagen(true);
     try {
       const byggda = rader.map(bygg);
-      /*
-       * ⛔ ETIKETTEN FÅR INTE VARA UPPTAGEN AV EN ANNAN KALENDER I GRUPPEN (0.108.0). Kontrollen ser läget EFTER sparandet (de nya
-       * raderna över listan), också när en arkiverad kalender tas fram. Felet är en hel mening på vyns språk och visas i redigeraren
-       * eller ovanför listan, som alla andra fel här. Mina kalendrar har ingen etikett och kontrolleras inte.
-       */
-      if (slag === "grupp") kontrolleraGithubEtiketter(lista, { rader: byggda, sprak });
-      // ⛔ Vyns språk följer med som andra argument, så att en app som sparar genom källan (`sparaGruppens(groupId, rader, { sprak })`) skriver
-      // ett eventuellt etikettfel på samma språk som vyn, och inte på svenska.
+      // Vyns språk följer med som andra argument, som förut. Sedan 0.129.0 beror ingen mening på det, men signaturen är oförändrad så att appens `(rader, sprak) => ...` inte behöver ändras.
       await onSpara(byggda, sprak);
       return true;
     } catch (e) {
@@ -162,13 +139,13 @@ function Sektion({ slag, rubrik, hjalp, tomText, lista, kanAndra, lasText, sprak
 
   const oppnaNy = () => {
     setFel(null);
-    setUtkast({ id: null, namn: "", farg: KALENDERFARGER[(lista.length) % KALENDERFARGER.length], ikon: KALENDERIKONER[0], forvald: false, forvaldFran: false, githubEtikett: "" });
+    setUtkast({ id: null, namn: "", farg: KALENDERFARGER[(lista.length) % KALENDERFARGER.length], ikon: KALENDERIKONER[0], forvald: false, forvaldFran: false });
   };
   /** @param {Kal} k */
   const oppnaRedigera = (k) => {
     setFel(null);
     const ar = !!forvald && forvald.id === k.id;
-    setUtkast({ id: k.id, namn: text(k.namn, sprak), farg: k.farg, ikon: k.ikon, forvald: ar, forvaldFran: ar, githubEtikett: k.githubEtikett ?? "" });
+    setUtkast({ id: k.id, namn: text(k.namn, sprak), farg: k.farg, ikon: k.ikon, forvald: ar, forvaldFran: ar });
   };
 
   const sparaUtkast = async () => {
@@ -182,18 +159,8 @@ function Sektion({ slag, rubrik, hjalp, tomText, lista, kanAndra, lasText, sprak
     const namnFalt = slag === "grupp" ? { ...(gammal && typeof gammal.namn === "object" ? gammal.namn : {}), [sprak]: namn } : namn;
     /** @type {Record<string, any>} */
     const rad = gammal
-      ? { ...gammal, namn: namnFalt, farg: utkast.farg, ikon: utkast.ikon }
+      ? { ...utanAvvecklade(gammal), namn: namnFalt, farg: utkast.farg, ikon: utkast.ikon }
       : { id: kalenderIdUrNamn(namn, lista), namn: namnFalt, farg: utkast.farg, ikon: utkast.ikon, ordning: nastaOrdning(lista), forvald: false, iFlodet: false, arkiverad: false };
-    /*
-     * ⛔ ETIKETTEN ÄR ETT FÄLT SOM TAS BORT NÄR RUTAN ÄR TOM, DEN SKRIVS INTE SOM "". Raden bygger på `gammal`, så en rensad ruta måste
-     * ta bort nyckeln uttryckligen, annars följer den gamla etiketten med in i `byggGruppkalender`. Källan ersätter dokumentet
-     * (`setDoc`), så en rad utan fältet tar bort det i databasen. Mina kalendrar har ingen etikett och skickar aldrig fältet.
-     */
-    if (slag === "grupp") {
-      const etikett = utkast.githubEtikett.trim();
-      if (etikett) rad.githubEtikett = etikett;
-      else delete rad.githubEtikett;
-    }
     const med = gammal ? lista.map((k) => (k.id === rad.id ? rad : k)) : [...lista, rad];
     /*
      * ⛔ FÖRVALET RÖRS BARA OM RUTAN ÄNDRATS. En kalender som är förvald för att den står först (härledd, inte lagrad)
@@ -306,8 +273,6 @@ function Sektion({ slag, rubrik, hjalp, tomText, lista, kanAndra, lasText, sprak
           upptagen={upptagen}
           fel={fel}
           ny={!utkast.id}
-          medEtikett={slag === "grupp"}
-          sprak={sprak}
           onAvbryt={() => {
             setUtkast(null);
             setFel(null);
@@ -339,10 +304,10 @@ function IkonKnapp({ etikett, disabled, onClick, children }) {
 const FARGRUTA = { 1: "bg-identity-1", 2: "bg-identity-2", 3: "bg-identity-3", 4: "bg-identity-4", 5: "bg-identity-5", 6: "bg-identity-6" };
 
 /**
- * Redigeraren: namn, färg, ikon, förvald, och för en gruppkalender GitHub-etiketten. SS `PersonalCalendarsInlineSection.jsx:181-288`.
- * @param {{ utkast: { id: string | null, namn: string, farg: number, ikon: string, forvald: boolean, forvaldFran: boolean, githubEtikett: string }, setUtkast: (f: (u: any) => any) => void, upptagen: boolean, fel: string | null, ny: boolean, medEtikett: boolean, sprak: string, onAvbryt: () => void, onSpara: () => void }} props
+ * Redigeraren: namn, färg, ikon och förvald. SS `PersonalCalendarsInlineSection.jsx:181-288`.
+ * @param {{ utkast: { id: string | null, namn: string, farg: number, ikon: string, forvald: boolean, forvaldFran: boolean }, setUtkast: (f: (u: any) => any) => void, upptagen: boolean, fel: string | null, ny: boolean, onAvbryt: () => void, onSpara: () => void }} props
  */
-function Redigerare({ utkast, setUtkast, upptagen, fel, ny, medEtikett, sprak, onAvbryt, onSpara }) {
+function Redigerare({ utkast, setUtkast, upptagen, fel, ny, onAvbryt, onSpara }) {
   const Ikon = KALENDERIKON_KOMPONENT[/** @type {keyof typeof KALENDERIKON_KOMPONENT} */ (utkast.ikon)];
   return (
     <div data-kalenderredigerare="" className="flex flex-col gap-3 border-t border-line pt-4">
@@ -394,20 +359,6 @@ function Redigerare({ utkast, setUtkast, upptagen, fel, ny, medEtikett, sprak, o
           );
         })}
       </div>
-      {medEtikett ? (
-        <OpsField label={ordet(ORD_OPSKALENDRAR, "githubEtikett", sprak)} hint={ordet(ORD_OPSKALENDRAR, "githubEtikettHjalp", sprak)}>
-          {/* ⛔ `tal={false}`: en etikett är ett namn på GitHub, inte en mening att diktera, och mikrofonen på ett kort fält är brus. */}
-          <OpsInput
-            value={utkast.githubEtikett}
-            onChange={(v) => setUtkast((u) => ({ ...u, githubEtikett: v }))}
-            maxLength={MAX_GITHUBETIKETT}
-            placeholder={ordet(ORD_OPSKALENDRAR, "githubEtikettExempel", sprak)}
-            disabled={upptagen}
-            autoComplete="off"
-            tal={false}
-          />
-        </OpsField>
-      ) : null}
       <OpsCheckbox label="Förvald" hint="Nya poster hamnar här när inget annat väljs." checked={utkast.forvald} disabled={upptagen} onChange={(v) => setUtkast((u) => ({ ...u, forvald: v }))} />
       <div className="flex gap-2 pt-1">
         <div className="flex-1">
