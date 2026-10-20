@@ -575,7 +575,7 @@ export function peaksGiltiga(peaks) {
  * `text` hör till en anteckning och `url` till en länk. Regeln kräver att den
  * andra saknas, så en anteckning inte kan bära en adress vid sidan av texten.
  */
-export const BIBLIOTEKFALT = /** @type {const} */ (["groupId", "typ", "rubrik", "text", "url", "kalla", "bild", "poster", "fil", "utskrift", "durationMs", "peaks", "taggar", "skapadAv", "skapad", "andrad"]);
+export const BIBLIOTEKFALT = /** @type {const} */ (["groupId", "typ", "rubrik", "text", "url", "kalla", "bild", "poster", "fil", "utskrift", "utskriftJobb", "durationMs", "peaks", "taggar", "skapadAv", "skapad", "andrad"]);
 
 /**
  * En länks adress: http eller https, och sedan bara synliga ASCII-tecken.
@@ -610,6 +610,7 @@ const FORVALTARROLLER = /** @type {const} */ (["agare", "admin"]);
  * @property {string[]} [poster] (0.128.0) Bara på en lista: id:n på poster i SAMMA plats, i ordning, högst `MAX_LISTPOSTER` och utan dubbletter. En tom lista är `[]`, och fältet finns alltid på en lista.
  * @property {{ sokvag: string, namn: string, mime: string, byte: number, klar?: boolean }} [fil] Bara på en fil. `klar: false` medan byte laddas upp, `true` när de finns. Utan fältet (äldre poster) räknas filen som klar.
  * @property {string} [utskrift] Bara på ett ljud. Saknas fältet har ingen bett om en utskrift. Tom sträng är en utskrift utan ord.
+ * @property {Record<string, unknown>} [utskriftJobb] (0.133.0) Bara på ett ljud, och bara servern skriver det: läget för en utskrift som pågår eller gick fel (`{ status: "pagar" | "fel", startad, av: { uid, namn }, fel? }`, se `utskriftLage`). Tas bort när utskriften är klar, för då finns `utskrift`. Klienten skriver det aldrig (reglerna).
  * @property {number} [durationMs] Bara på ett ljud. Millisekunder. Saknas fältet är längden inte räknad än.
  * @property {string[]} [taggar] (0.100.0) Högst `MAX_TAGGAR`, var och en i `TAGGFORM`, utan dubbletter. Saknas fältet har posten inga.
  * @property {string} [peaks] Bara på ett ljud. Vågen som en sträng: `LJUD_STOLPAR` tecken ur `TOPP_TECKEN`, ett per stolpe (`kodaToppar`, `avkodaToppar`). Saknas fältet är vågen inte räknad än.
@@ -903,6 +904,23 @@ export function ljudMetaFel(d) {
 }
 
 /**
+ * Utskriftsjobbet på en post, eller skälet till att det inte får ligga där (0.133.0). Det hör bara till ett ljud, och det ska vara ett objekt.
+ *
+ * ⛔ FORMEN PRÖVAS INTE HÄR (`utskriftLage` gör det, och tolkar en trasig rad som ett fel som syns). Skälet är att en post vars jobbstatus servern skrev fel inte ska bli en
+ * post som inte går att läsa alls: `postFel` fäller hela posten, och då hade ljudet, taggarna och menyn försvunnit tillsammans med ett statusfält. Servern skriver fältet, och
+ * klienten får aldrig skriva det (reglerna), så formen är serverns att hålla.
+ *
+ * @param {Record<string, unknown>} d
+ * @returns {string | null}
+ */
+export function utskriftJobbFel(d) {
+  if (!("utskriftJobb" in d) || d.utskriftJobb == null) return null;
+  if (d.typ !== "fil" || filSort(/** @type {{ mime?: unknown }} */ (d.fil)?.mime) !== "ljud") return "Bara ett ljud har ett utskriftsjobb.";
+  if (typeof d.utskriftJobb !== "object" || Array.isArray(d.utskriftJobb)) return "utskriftJobb ska vara ett objekt.";
+  return null;
+}
+
+/**
  * En tagg som den sparas: gemener, ändarnas mellanslag borta, mellanslag i rad till ett, och `#` i början borta (den som skriver
  * "#kvitto" menar taggen kvitto). Det som då inte är i `TAGGFORM` lämnas som det är, så att `taggarFel` säger vad som är fel.
  *
@@ -1036,7 +1054,7 @@ export function inmatningsfel(d) {
   }
 
   if (typ === "lista") {
-    const f = fremmandeFalt(d, ["text", "url", "kalla", "bild", "fil", "utskrift", "durationMs", "peaks"]);
+    const f = fremmandeFalt(d, ["text", "url", "kalla", "bild", "fil", "utskrift", "utskriftJobb", "durationMs", "peaks"]);
     if (f) return `En lista har rubrik och poster, och fältet ${f} hör inte dit.`;
     return listaFel(d.poster);
   }
@@ -1047,6 +1065,7 @@ export function inmatningsfel(d) {
     if ("url" in d && d.url != null && str(d.url) !== "") return "En anteckning har text, och ingen adress.";
     if ("fil" in d && d.fil != null) return "En anteckning har text, och ingen fil.";
     if ("utskrift" in d && d.utskrift != null) return "En anteckning har text, och ingen utskrift.";
+    if ("utskriftJobb" in d && d.utskriftJobb != null) return "En anteckning har text, och inget utskriftsjobb.";
     if (("durationMs" in d && d.durationMs != null) || ("peaks" in d && d.peaks != null)) return "En anteckning har text, och ingen längd.";
     const text = str(d.text);
     if (!text) return "Anteckningen saknar text.";
@@ -1063,6 +1082,8 @@ export function inmatningsfel(d) {
     if (filfel) return filfel;
     const metaf = ljudMetaFel(d);
     if (metaf) return metaf;
+    const jobbf = utskriftJobbFel(d);
+    if (jobbf) return jobbf;
     if (!("utskrift" in d) || d.utskrift == null) return null;
     return utskriftFel(d.utskrift, /** @type {any} */ (d.fil));
   }
@@ -1071,6 +1092,7 @@ export function inmatningsfel(d) {
   if ("text" in d && d.text != null && str(d.text) !== "") return "En länk har en adress, och ingen brödtext.";
   if ("fil" in d && d.fil != null) return "En länk har en adress, och ingen fil.";
   if ("utskrift" in d && d.utskrift != null) return "En länk har en adress, och ingen utskrift.";
+  if ("utskriftJobb" in d && d.utskriftJobb != null) return "En länk har en adress, och inget utskriftsjobb.";
   if (("durationMs" in d && d.durationMs != null) || ("peaks" in d && d.peaks != null)) return "En länk har en adress, och ingen längd.";
   const url = str(d.url);
   if (!url) return "Länken saknar adress.";
@@ -1198,6 +1220,7 @@ export function byggPost(d) {
     post.fil = { sokvag: str(fil.sokvag), namn: str(fil.namn), mime: normaliseraMime(fil.mime), byte: /** @type {number} */ (fil.byte) };
     if (typeof fil.klar === "boolean") post.fil.klar = fil.klar;
     if ("utskrift" in d && d.utskrift != null) post.utskrift = /** @type {string} */ (d.utskrift);
+    if ("utskriftJobb" in d && d.utskriftJobb != null) post.utskriftJobb = { .../** @type {Record<string, unknown>} */ (d.utskriftJobb) };
     if ("durationMs" in d && d.durationMs != null) post.durationMs = /** @type {number} */ (d.durationMs);
     if ("peaks" in d && d.peaks != null) post.peaks = /** @type {string} */ (d.peaks);
   }

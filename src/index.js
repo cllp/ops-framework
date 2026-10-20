@@ -331,7 +331,7 @@ export { ORD_LANKRAD } from "./components/LankRad.jsx";
 export { ORD_HANDELSEDELNING } from "./components/HandelseDelning.jsx";
 export { ORD_MEJLALANK } from "./components/MejlaLank.jsx";
 export { DELAD_SPRAKNYCKEL, webblasarSprak, valdSprak, lasSparatSprak, sparaSprak, kortDatum, antalDagar, deladTid } from "./lib/deladdatum.js";
-export { DELNINGSDAGAR, FORVAL_DELNINGSDAGAR, HANDELSEDAGAR, FORVAL_HANDELSEDAGAR, SIGNERAD_SEKUNDER, TOKENFORM, DELNINGSSLAG, DELNINGSRATTIGHETER, DELNINGSFALT, ADRESSPREFIX, ADRESSSEGMENT, ADRESSDELFORM, MAX_ADRESSDEL, MAX_ADRESSDEL_TOTALT, SLUMPSLUT_TECKEN, SLUMPSLUTFORM, KODLANGD, FELKOD_MAX, FELKOD_FONSTER_MS, adressdel, arAdressdel, nastaAdressdel, foreslaAdress, byggAdress, tolkaAdress, delningsSokvag, delningsUrl, adressUrUppslag, kodFel, normaliseraKod, DELNINGSORSAKER, DELNINGSFEL, DELNINGSFELKODER, DELNINGSSVARSFALT, HANDELSESVARSFALT, HANDELSEFILFALT, MAX_HANDELSEFILER, delningsTyp, delningsfel } from "./lib/delning.js";
+export { DELNINGSDAGAR, FORVAL_DELNINGSDAGAR, HANDELSEDAGAR, FORVAL_HANDELSEDAGAR, SIGNERAD_SEKUNDER, TOKENFORM, DELNINGSSLAG, DELNINGSRATTIGHETER, DELNINGSFALT, ADRESSPREFIX, ADRESSSEGMENT, ADRESSDELFORM, MAX_ADRESSDEL, MAX_ADRESSDEL_TOTALT, SLUMPSLUT_TECKEN, SLUMPSLUTFORM, KODLANGD, FELKOD_MAX, FELKOD_FONSTER_MS, adressdel, arAdressdel, nastaAdressdel, foreslaAdress, byggAdress, tolkaAdress, delningsSokvag, delningsUrl, adressUrUppslag, kodFel, normaliseraKod, DELNINGSORSAKER, DELNINGSFEL, DELNINGSFELKODER, DELNINGSSVARSFALT, HANDELSESVARSFALT, HANDELSEFILFALT, MAX_HANDELSEFILER, ANTECKNINGSSVARSFALT, LANKSVARSFALT, LISTSVARSFALT, LISTRADSNYCKEL, LISTRADSKAL, MAX_DELADE_LISTPOSTER, delningsTyp, delningsfel } from "./lib/delning.js";
 /*
  * 0.131.0 (cllp/lifehub.app#389): gäster. En gäst är en inbjudan och aldrig ett konto eller ett medlemskap. Konstanterna, formerna, texterna och `gastId` ligger här (vyn och reglerna läser dem),
  * nyckeln, sessionen och tjänsten i `ops-framework/node`. Vyerna: medlemmens lista och gästens egen sida.
@@ -395,3 +395,6 @@ export { formatCurrency, formatNumber, formatPercent, formatDate, formatDateTime
  * använder någon av dem.
  */
 export { rapporteraFel, registreraFelmottagare } from "./lib/felrapport.js";
+
+// ⛔ UTSKRIFTENS LÄGE PÅ POSTEN (0.133.0, lifehub.app#349). Rena filen delas med servern (`ops-framework/node`), så att fälten som rensas och tiden ett jobb får leva har ETT hem.
+export { UTSKRIFT_FALT, UTSKRIFT_TAK_MS, UTSKRIFT_TIMEOUT_TEXT, UTSKRIFTJOBB_STATUS, UTSKRIFT_VANTETID_MS, UTSKRIFT_UPPSKATTNING, utskriftLage, uppskattadUtskriftstid, utskriftPagatText, utanUtskrift } from "./lib/utskrift.js";

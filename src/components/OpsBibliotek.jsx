@@ -11,6 +11,7 @@ import { ADRESSFORM, BIBLIOTEKTYPER, BILDFORM, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTE
 import { formateraTid } from "../lib/ljudspelare.js";
 import { lankKalla, lankKallnamn, lankRubrik } from "../lib/lankkalla.js";
 import { LISTA_FLYTT_TEXT, LISTA_I_LISTA_TEXT, listorAttLaggaI } from "../lib/biblioteklista.js";
+import { UTSKRIFT_VANTETID_MS, uppskattadUtskriftstid, utskriftLage, utskriftPagatText } from "../lib/utskrift.js";
 import { LankMark, TypIkon, oppnasDirekt, plattKlass, postensKalla, typEtikett } from "./BibliotekPostvisning.jsx";
 import { LaggILista, ListaVisning } from "./BibliotekLista.jsx";
 import { MejlaLank } from "./MejlaLank.jsx";
@@ -169,6 +170,11 @@ function useBibliotekskalla(kalla) {
  *   ljudpost när propen ges och posten inte har någon utskrift än. Medan löftet pågår står "Skriver ut…" på posten, och ett fel (också ett dygnstak)
  *   visas på posten med knappen kvar. ⛔ TEXTEN KOMMER INTE I SVARET: servern skriver fältet `utskrift` på posten (Admin SDK), och vyn visar den när
  *   posten läses om. Det löftet löser till ignoreras. Utan propen ritas ingen knapp. Före 0.115.0 löste den till `{ text, forslag }` och vyn höll en egen kopia.
+ * @param {(post: { id: string, groupId: string }) => Promise<void> | void} [props.onSkrivUtIgen] (0.133.0, CP 2026-10-20: "Kan man göra så att man kan ta bort transkribering på en ljudupptagning och köra om den?") Kör om en utskrift som redan finns. Valet
+ *   "Skriv ut igen" ritas vid utskriften i detaljen när propen ges, för den som får ändra posten (`farAndra`). Det frågar först ("Den nuvarande utskriften ersätts.") och anropar sedan propen med `{ id, groupId }`.
+ *   Propen får lösa direkt när servern TAGIT EMOT jobbet: vyn väntar sedan på att posten ändras (`utskriftJobb`, se `utskriftLage`). Ett fel visas som Skriv ut-felet. Saknas propen syns inte valet.
+ * @param {(post: { id: string, groupId: string }) => Promise<void> | void} [props.onTaBortUtskrift] (0.133.0) Tar bort utskriften. Valet "Ta bort utskriften" ritas på samma villkor som "Skriv ut igen", frågar först och anropar sedan propen
+ *   med `{ id, groupId }`. Efteråt, när posten saknar `utskrift`, visas "Skriv ut texten" igen. Servern tar bort `UTSKRIFT_FALT` (ur `src/lib/utskrift.js`). Saknas propen syns inte valet.
  * @param {(post: import("../lib/bibliotek.js").Bibliotekspost & { id: string }) => Promise<void> | void} [props.onAnteckningAvUtskrift] (0.115.0, cllp/lifehub.app#349) "Gör en anteckning av texten" under utskriften.
  *   Ritas bara när propen ges. Ett fel visas på posten, och lyckas den står "Anteckningen är sparad" en stund.
  * @param {unknown} [props.onGorForslag] Borttagen (0.115.0). Skickas den kastas ett fel: förslagsknapparna "Spara som anteckning" och "Skapa ärende" är ersatta av `onAnteckningAvUtskrift`.
@@ -194,7 +200,7 @@ function useBibliotekskalla(kalla) {
  *   och sätter `skapar` (`"fil"`), eftersom en händelses och ett ärendes bibliotek har bara filer. Detaljens tillbaka heter "Filer". `ram`, `platser`, `plats`, `onPlats`, `grupper` och `onDela` hör inte hit och kastar: en inbäddad lista har en plats.
  * @param {string} [props.tomText] (0.122.0) Beskrivningen under "Inga filer än." när den inbäddade listan är tom. Förval "Filer som läggs till här hör bara till händelsen." (en konstant, inte ett parameterförval; `OpsPlatsfiler` skickar rätt mening för ärendet).
  */
-export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, trasiga: trasigaProp = [], laddar: laddarProp = false, vald = null, skapar = null, jag, onOppna, onStang, onSkapa, onSpara, onRadera, onLaddaUpp, onFyllLjud, onSpelaIn, inspelare, filUrl, hamtaAdress, grupper = [], onDela, platser = [], plats, onPlats, onSkrivUt, onAnteckningAvUtskrift, onGorForslag, delningar = [], delningGruppdel, gruppnamn: gruppnamnProp, onDelaLank, onAndraNedladdning, onAterkalla, onMejlaLank, onLankInfo, hubHref, hubEtikett, onNavigate, modulId = "bibliotek", ram = null, activeHref, modul = null, inbaddad = false, tomText }) {
+export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, trasiga: trasigaProp = [], laddar: laddarProp = false, vald = null, skapar = null, jag, onOppna, onStang, onSkapa, onSpara, onRadera, onLaddaUpp, onFyllLjud, onSpelaIn, inspelare, filUrl, hamtaAdress, grupper = [], onDela, platser = [], plats, onPlats, onSkrivUt, onSkrivUtIgen, onTaBortUtskrift, onAnteckningAvUtskrift, onGorForslag, delningar = [], delningGruppdel, gruppnamn: gruppnamnProp, onDelaLank, onAndraNedladdning, onAterkalla, onMejlaLank, onLankInfo, hubHref, hubEtikett, onNavigate, modulId = "bibliotek", ram = null, activeHref, modul = null, inbaddad = false, tomText }) {
   if (kalla !== undefined && (posterProp !== undefined || felProp !== null || laddarProp !== false || (Array.isArray(trasigaProp) && trasigaProp.length > 0))) {
     throw new Error("OpsBibliotek: kalla och poster/fel/trasiga/laddar kan inte ges tillsammans. Med kalla läser vyn själv, och två sanningar om samma lista hade låtit den ena vinna tyst.");
   }
@@ -659,7 +665,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
     <Rot tillbaka={detalj ? undefined : listTillbaka}>
       <div data-bibliotek="" className="flex min-w-0 w-full flex-col gap-4">
         {detalj ? (
-          <Detalj key={`${skaparTyp ?? ""}:${vald?.id ?? ""}:${startLage}`} post={vald ? medFyll(poster.find((p) => p.id === vald.id) ?? vald) : null} skapar={skaparTyp} startLage={startLage} onStang={onStang} onSpara={onSpara} onLaddaUpp={onLaddaUpp} filUrl={filUrl} adressFor={adressFor} onLjus={setLjus} onSkrivUt={onSkrivUt} onAnteckningAvUtskrift={onAnteckningAvUtskrift} menyFor={menyFor} onMeta={togMeta} tillbakaEtikett={inbaddad ? "Filer" : "Tillbaka"} poster={poster} jag={jag} onLankInfo={onLankInfo} onOppnaPost={(p) => oppnaMed(p, "las")} />
+          <Detalj key={`${skaparTyp ?? ""}:${vald?.id ?? ""}:${startLage}`} post={vald ? medFyll(poster.find((p) => p.id === vald.id) ?? vald) : null} skapar={skaparTyp} startLage={startLage} onStang={onStang} onSpara={onSpara} onLaddaUpp={onLaddaUpp} filUrl={filUrl} adressFor={adressFor} onLjus={setLjus} onSkrivUt={onSkrivUt} onSkrivUtIgen={onSkrivUtIgen} onTaBortUtskrift={onTaBortUtskrift} onAnteckningAvUtskrift={onAnteckningAvUtskrift} menyFor={menyFor} onMeta={togMeta} tillbakaEtikett={inbaddad ? "Filer" : "Tillbaka"} poster={poster} jag={jag} onLankInfo={onLankInfo} onOppnaPost={(p) => oppnaMed(p, "las")} />
         ) : (
           <div data-bibliotek-huvud="" className="flex min-w-0 flex-col gap-3">
             {/* ⛔ SESSIONSTUDIOS HUVUD, SOM I APPEN (0.102.0, CP 2026-10-14 med skärmbilder från SessionStudios app: "Listningen
@@ -1487,6 +1493,8 @@ function BibliotekKort({ post, lage, meny, svep, onOppna, onMeta, taggrad, delad
   const namn = ljud ? ljudRubrik(post) : trimSomRegeln(post.rubrik) || "Post";
   const forhands = forhandsText(post);
   const meta = kortMeta(post);
+  const sprak = useOpsSprak();
+  const skriverUt = ljud && utskriftLage(post, Date.now()).lage === "pagar";
   // Ljudet bär sin status i metaraden när adressen inte är klar: "Hämtar ljudet." eller felet. Aldrig tyst (regel 5).
   const [spelFel, setSpelFel] = useState("");
   const ljudStatus = ljud && lage.lage !== "klar" ? (lage.lage === "hamtar" ? "Hämtar ljudet." : lage.fel || "Filen har ingen adress.") : spelFel;
@@ -1543,10 +1551,12 @@ function BibliotekKort({ post, lage, meny, svep, onOppna, onMeta, taggrad, delad
             <span data-bibliotek-typ="" className="text-meta tracking-wide text-ink-muted uppercase">{typEtikett(post)}</span>
             {taggrad}
             {forhands ? <span data-bibliotek-forhands-text="" className="line-clamp-2 text-meta text-ink-secondary wrap-anywhere">{forhands}</span> : null}
-            {meta.length > 0 || delad ? (
+            {meta.length > 0 || delad || skriverUt ? (
               <span data-bibliotek-metarad="" className="flex flex-wrap gap-3 text-meta text-ink-muted">
                 {meta.map((m) => <span key={m} data-ljud-langd={m.includes(":") ? "" : undefined}>{m}</span>)}
                 {delad ? <span data-bibliotek-delad="" className="inline-flex items-center gap-1"><Link2 size={12} aria-hidden="true" />Delad</span> : null}
+                {/* ⛔ UTSKRIFTEN PÅGÅR (0.133.0): läget läses ur posten (`utskriftLage`), så markeringen står kvar också när man gått från detaljen och kommer tillbaka. */}
+                {skriverUt ? <span data-bibliotek-skriver-ut="" className="inline-flex items-center gap-1"><OpsSpinner size="sm" decorative />{talkOrd("skriverUt", sprak)}</span> : null}
               </span>
             ) : null}
             {ljudStatus ? <span role={lage.lage === "hamtar" ? "status" : "alert"} className={cx("text-meta", lage.lage === "hamtar" ? "text-ink-secondary" : "text-danger")}>{ljudStatus}</span> : null}
@@ -1794,6 +1804,8 @@ function Adress({ url }) {
  * @param {(post: { typ?: string, skapad?: number, fil?: { sokvag?: string, mime?: string, klar?: boolean } }) => Adresslage} [props.adressFor]
  * @param {(adress: string) => void} [props.onLjus]
  * @param {(post: any) => Promise<void> | void} [props.onSkrivUt]
+ * @param {(post: any) => Promise<void> | void} [props.onSkrivUtIgen]
+ * @param {(post: any) => Promise<void> | void} [props.onTaBortUtskrift]
  * @param {(post: any) => Promise<void> | void} [props.onAnteckningAvUtskrift]
  * @param {(post: import("../lib/bibliotek.js").Bibliotekspost & { id: string }, iDetalj: boolean, sattRedigera?: (lage: "redigera") => void) => import("./OpsAtgardsblad.jsx").Atgard[]} props.menyFor
  * @param {(id: string, meta: { durationMs?: number, peaks?: string }) => void} [props.onMeta]
@@ -1803,7 +1815,7 @@ function Adress({ url }) {
  * @param {(url: string) => Promise<{ titel?: string, artist?: string, kalla?: string, bild?: string }>} [props.onLankInfo] (0.128.0) Se `OpsBibliotek`.
  * @param {(post: import("../lib/bibliotek.js").Bibliotekspost & { id: string }) => void} props.onOppnaPost (0.128.0) Öppnar en post ur en lista.
  */
-function Detalj({ post, skapar, startLage, onStang, onSpara, onLaddaUpp, filUrl, adressFor, onLjus, onSkrivUt, onAnteckningAvUtskrift, menyFor, onMeta, tillbakaEtikett, poster, jag, onLankInfo, onOppnaPost }) {
+function Detalj({ post, skapar, startLage, onStang, onSpara, onLaddaUpp, filUrl, adressFor, onLjus, onSkrivUt, onSkrivUtIgen, onTaBortUtskrift, onAnteckningAvUtskrift, menyFor, onMeta, tillbakaEtikett, poster, jag, onLankInfo, onOppnaPost }) {
   const typ = skapar ?? post?.typ ?? "anteckning";
   const [rubrik, setRubrik] = useState(post && !skapar ? post.rubrik : "");
   const [text, setText] = useState(post && !skapar && post.typ === "anteckning" ? post.text ?? "" : "");
@@ -2103,7 +2115,7 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, onLaddaUpp, filUrl,
         }}
       />
       {lage === "las" && post && ljud ? (
-        <UtskriftKontroll post={post} onSkrivUt={onSkrivUt} onAnteckningAvUtskrift={onAnteckningAvUtskrift} />
+        <UtskriftKontroll post={post} jag={jag} onSkrivUt={onSkrivUt} onSkrivUtIgen={onSkrivUtIgen} onTaBortUtskrift={onTaBortUtskrift} onAnteckningAvUtskrift={onAnteckningAvUtskrift} />
       ) : null}
     </div>
   );
@@ -2155,6 +2167,21 @@ const ORD_BIBLIOTEKUTSKRIFT = {
   tom: { sv: "Utskriften är tom.", en: "The transcript is empty." },
   felSkrivUt: { sv: "Ljudet gick inte att skriva ut.", en: "The recording could not be written out." },
   gorAnteckning: { sv: "Gör en anteckning av texten", en: "Make a note of the text" },
+  // (0.133.0) Köra om och ta bort, och utskriften som går i bakgrunden.
+  skrivUtIgen: { sv: "Skriv ut igen", en: "Write out again" },
+  taBort: { sv: "Ta bort utskriften", en: "Remove the transcript" },
+  forsokIgen: { sv: "Försök igen", en: "Try again" },
+  avbryt: { sv: "Avbryt", en: "Cancel" },
+  fragaIgen: { sv: "Den nuvarande utskriften ersätts.", en: "The current transcript is replaced." },
+  fragaTaBort: { sv: "Utskriften tas bort. Ljudet finns kvar.", en: "The transcript is removed. The recording stays." },
+  tarBort: { sv: "Tar bort utskriften…", en: "Removing the transcript…" },
+  bakgrund: { sv: "Skriver ut i bakgrunden. Du kan gå härifrån, utskriften blir klar ändå.", en: "Writing it out in the background. You can leave, it will finish anyway." },
+  pagatI: { sv: "Har pågått i {tid}.", en: "Running for {tid}." },
+  startadAv: { sv: "Startad av {namn}.", en: "Started by {namn}." },
+  brukarTa: { sv: "Brukar ta cirka {min} min (uppskattning).", en: "Usually takes about {min} min (estimate)." },
+  ingenUppskattning: { sv: "Hur lång tid det brukar ta går inte att uppskatta: ljudets längd är inte räknad än.", en: "The usual time can't be estimated: the length of the recording is not counted yet." },
+  notis: { sv: "Du får en notis när den är klar.", en: "You will get a notification when it is done." },
+  skriverUtKort: { sv: "Skriver ut…", en: "Writing out…" },
 };
 
 /**
@@ -2167,19 +2194,36 @@ const ORD_BIBLIOTEKUTSKRIFT = {
  *
  * ⛔ RADBRYTNINGAR BEVARAS (`whitespace-pre-wrap`): en sång skrivs rad för rad, i verser, och ett stycke utan sina brytningar är en text ingen kan sjunga.
  *
- * ⛔ INGENTING FALLER TYST. Medan servern skriver ut står "Skriver ut…" på posten. Ett fel, också ett dygnstak, står på posten och knappen
- * finns kvar, så att det går att försöka igen. Har posten redan en text ritas ingen knapp: ett nytt tryck hade skrivit över den och räknats mot taket.
- * En tom utskrift är ett svar ("Utskriften är tom."), och där finns knappen kvar.
+ * ⛔ INGENTING FALLER TYST. Ett fel, också ett dygnstak, står på posten och knappen finns kvar, så att det går att försöka igen. Har posten redan en text ritas ingen
+ * "Skriv ut texten": ett nytt tryck hade skrivit över den och räknats mot taket. En tom utskrift är ett svar ("Utskriften är tom."), och där finns knappen kvar.
  *
- * @param {{ post: { id: string, utskrift?: string }, onSkrivUt?: (post: any) => Promise<void> | void, onAnteckningAvUtskrift?: (post: any) => Promise<void> | void }} props
+ * ══ ⛔ LÄGET LÄSES UR POSTEN, INTE UR KOMPONENTEN (0.133.0, CP 2026-10-20) ═══════════════════════════════════════════════════════
+ *
+ * CP: utskriften ska gå i bakgrunden och fortsätta även om man går därifrån, det ska stå tydligt att den gör det, och man ska få veta när den är klar. "Skriver ut…" var ett lokalt
+ * tillstånd: gick man från sidan såg man ingenting när man kom tillbaka. Nu bär posten `utskriftJobb` (servern sätter det), och `utskriftLage` tolkar det: `pagar`, `fel`, `klar` eller `ingen`.
+ * Pågår den står det att den går i bakgrunden, hur länge den pågått och hur länge den BRUKAR ta (märkt som en uppskattning: ingen körning är mätt). Ingen procentstapel: modellen ger
+ * inget löpande förlopp, och en påhittad procent ser ut som en mätning. Knapparna är avstängda medan den pågår.
+ *
+ * ⛔ DET GAMLA BETEENDET STÅR KVAR FÖR EN APP SOM INTE UPPGRADERATS. Får posten aldrig `utskriftJobb` gäller det lokala "Skriver ut…" tills löftet löser, som förut. `onSkrivUt`, `onSkrivUtIgen` och
+ * `onTaBortUtskrift` får lösa direkt när servern tagit emot jobbet. De två nya väntar efteråt, högst `UTSKRIFT_VANTETID_MS`, på att posten ändras, så att det inte finns ett ögonblick där
+ * den gamla texten står kvar med påslagna knappar. `onSkrivUt` gör inte det: dess löfte betyder fortfarande "klart" i en app som inte uppgraderats.
+ *
+ * ⛔ SKRIV UT IGEN OCH TA BORT FRÅGAR FÖRST, och ritas bara för den som får ändra posten (`farAndra`). Båda tar bort eller ersätter text som någon kan ha lagt arbete på.
+ *
+ * @param {{ post: { id: string, groupId?: string, utskrift?: string, utskriftJobb?: unknown, durationMs?: number }, jag?: any, onSkrivUt?: (post: any) => Promise<void> | void, onSkrivUtIgen?: (post: any) => Promise<void> | void, onTaBortUtskrift?: (post: any) => Promise<void> | void, onAnteckningAvUtskrift?: (post: any) => Promise<void> | void }} props
  */
-function UtskriftKontroll({ post, onSkrivUt, onAnteckningAvUtskrift }) {
+function UtskriftKontroll({ post, jag, onSkrivUt, onSkrivUtIgen, onTaBortUtskrift, onAnteckningAvUtskrift }) {
   const sprak = useOpsSprak();
-  /** @param {string} k */
-  const o = (k) => ordet(ORD_BIBLIOTEKUTSKRIFT, k, sprak);
+  /** @param {string} k @param {Record<string, string | number>} [vard] */
+  const o = (k, vard = {}) => Object.entries(vard).reduce((t, [n, v]) => t.replace(`{${n}}`, String(v)), ordet(ORD_BIBLIOTEKUTSKRIFT, k, sprak));
   const [pagar, setPagar] = useState(false);
   const [gorAnteckning, setGorAnteckning] = useState(false);
   const [fel, setFel] = useState("");
+  // Ett löfte som väntar (`taBort` eller `igen`), frågan som ställs, och väntan på att posten ska ändras efter att servern tagit emot jobbet.
+  const [kor, setKor] = useState(/** @type {null | "igen" | "taBort"} */ (null));
+  const [fraga, setFraga] = useState(/** @type {null | "igen" | "taBort"} */ (null));
+  const [vantar, setVantar] = useState(/** @type {null | { nyckel: string, op: "igen" | "taBort" }} */ (null));
+  const [, tick] = useState(0);
   const levande = useRef(true);
   useEffect(() => {
     levande.current = true;
@@ -2189,15 +2233,41 @@ function UtskriftKontroll({ post, onSkrivUt, onAnteckningAvUtskrift }) {
   }, []);
   const anteckningKlar = useKortVisning(3000);
   const { kopierat, misslyckades, kopiera } = useKopiera("OpsBibliotek");
+
+  const nu = Date.now();
+  const utl = utskriftLage(post, nu);
   const text = typeof post.utskrift === "string" ? post.utskrift : null;
   const harText = text !== null && text.trim() !== "";
+  // Vad som ändras när posten ändras på något sätt som rör utskriften. Väntan efter en körning slutar när nyckeln är en annan.
+  const nyckel = `${utl.lage}|${utl.startad ?? ""}|${text ?? ""}`;
+  const vantarNu = vantar !== null && vantar.nyckel === nyckel;
+  const bakgrund = utl.lage === "pagar";
+  const upptagen = bakgrund || pagar || kor !== null || vantarNu;
+  const far = farAndra(/** @type {any} */ (post), jag);
+  const kanIgen = harText && far && typeof onSkrivUtIgen === "function";
+  const kanTaBort = harText && far && typeof onTaBortUtskrift === "function";
   const kanSkrivaUt = typeof onSkrivUt === "function" && !harText;
-  if (text === null && !kanSkrivaUt && !pagar) return null;
+
+  // Klockan: medan ett jobb pågår ritas tiden om (och en `pagar` som blivit för gammal blir ett fel), och väntan efter en körning går ut av sig själv.
+  useEffect(() => {
+    if (!bakgrund) return undefined;
+    const t = setInterval(() => tick((n) => n + 1), 15_000);
+    return () => clearInterval(t);
+  }, [bakgrund]);
+  useEffect(() => {
+    if (!vantar) return undefined;
+    const t = setTimeout(() => {
+      if (levande.current) setVantar(null);
+    }, UTSKRIFT_VANTETID_MS);
+    return () => clearTimeout(t);
+  }, [vantar]);
+
+  if (text === null && !kanSkrivaUt && !pagar && utl.lage === "ingen" && !upptagen) return null;
 
   /** @param {unknown} e @param {string} reserv */
   const felText = (e, reserv) => (e instanceof Error && e.message ? e.message : reserv);
   const skrivUt = () => {
-    if (pagar || typeof onSkrivUt !== "function") return;
+    if (upptagen || typeof onSkrivUt !== "function") return;
     setFel("");
     setPagar(true);
     Promise.resolve()
@@ -2210,6 +2280,28 @@ function UtskriftKontroll({ post, onSkrivUt, onAnteckningAvUtskrift }) {
       )
       .then(() => {
         if (levande.current) setPagar(false);
+      });
+  };
+  /** @param {"igen" | "taBort"} op */
+  const korOp = (op) => {
+    const anrop = op === "igen" ? onSkrivUtIgen : onTaBortUtskrift;
+    if (upptagen || typeof anrop !== "function") return;
+    const nyckelVidTryck = nyckel;
+    setFel("");
+    setFraga(null);
+    setKor(op);
+    Promise.resolve()
+      .then(() => anrop({ id: post.id, groupId: post.groupId }))
+      .then(
+        () => {
+          if (levande.current) setVantar({ nyckel: nyckelVidTryck, op });
+        },
+        (e) => {
+          if (levande.current) setFel(felText(e, o("felSkrivUt")));
+        },
+      )
+      .then(() => {
+        if (levande.current) setKor(null);
       });
   };
   const goraAnteckning = () => {
@@ -2229,10 +2321,14 @@ function UtskriftKontroll({ post, onSkrivUt, onAnteckningAvUtskrift }) {
       });
   };
 
-  const status = pagar ? "skriverUt" : kopierat ? "kopierat" : anteckningKlar.synlig ? "anteckningKlar" : null;
-  const felVisas = fel || (misslyckades ? talkOrd("felKopiera", sprak) : "");
+  const lokalOp = kor ?? (vantarNu ? vantar?.op : null);
+  const status = bakgrund ? "bakgrund" : lokalOp === "taBort" ? "tarBort" : pagar || lokalOp === "igen" ? "skriverUt" : kopierat ? "kopierat" : anteckningKlar.synlig ? "anteckningKlar" : null;
+  const felVisas = fel || (utl.lage === "fel" ? utl.fel : "") || (misslyckades ? talkOrd("felKopiera", sprak) : "");
+  const minuter = uppskattadUtskriftstid(post.durationMs);
+  // "Försök igen" ersätter "Skriv ut texten" när det senaste jobbet misslyckades, och kör om när det finns en text.
+  const forsok = utl.lage === "fel" ? (harText ? (kanIgen ? () => setFraga("igen") : null) : kanSkrivaUt ? skrivUt : null) : null;
   return (
-    <div data-bibliotek-utskrift-kontroll="" className="flex min-w-0 flex-col gap-3">
+    <div data-bibliotek-utskrift-kontroll="" data-bibliotek-utskrift-lage={utl.lage} className="flex min-w-0 flex-col gap-3">
       {text !== null ? (
         <p data-bibliotek-utskrift="" className="m-0 min-w-0 whitespace-pre-wrap text-brod text-ink wrap-anywhere">
           {text === "" ? o("tom") : text}
@@ -2244,24 +2340,56 @@ function UtskriftKontroll({ post, onSkrivUt, onAnteckningAvUtskrift }) {
           {typeof onAnteckningAvUtskrift === "function" ? (
             <OpsButton variant="secondary" size="sm" busy={gorAnteckning} onClick={goraAnteckning}>{o("gorAnteckning")}</OpsButton>
           ) : null}
+          {kanIgen ? <OpsButton variant="secondary" size="sm" disabled={upptagen} onClick={() => setFraga("igen")}>{o("skrivUtIgen")}</OpsButton> : null}
+          {kanTaBort ? <OpsButton variant="secondary" size="sm" disabled={upptagen} onClick={() => setFraga("taBort")}>{o("taBort")}</OpsButton> : null}
         </div>
       ) : null}
       {status ? (
-        <p role="status" aria-live="polite" data-bibliotek-utskrift-status={status} className="m-0 flex items-center gap-2 text-etikett text-ink-secondary">
-          {status === "skriverUt" ? (
+        <div role="status" aria-live="polite" data-bibliotek-utskrift-status={status} className="m-0 flex flex-col gap-1 text-etikett text-ink-secondary">
+          {status === "bakgrund" ? (
             <>
+              <p className="m-0 flex items-center gap-2 text-ink">
+                <OpsSpinner size="sm" decorative />
+                {o("bakgrund")}
+              </p>
+              <p data-bibliotek-utskrift-tid="" className="m-0">{[o("pagatI", { tid: utskriftPagatText(utl.startad, nu) }), utl.av && utl.av.uid !== jag?.uid && utl.av.namn ? o("startadAv", { namn: utl.av.namn }) : ""].filter(Boolean).join(" ")}</p>
+              <p data-bibliotek-utskrift-uppskattning="" className="m-0">{minuter === null ? o("ingenUppskattning") : o("brukarTa", { min: minuter })}</p>
+              {utl.av && utl.av.uid === jag?.uid ? <p className="m-0">{o("notis")}</p> : null}
+            </>
+          ) : status === "tarBort" ? (
+            <p className="m-0 flex items-center gap-2"><OpsSpinner size="sm" decorative />{o("tarBort")}</p>
+          ) : status === "skriverUt" ? (
+            <p className="m-0 flex items-center gap-2">
               <OpsSpinner size="sm" decorative />
               {talkOrd("skriverUt", sprak)}
-            </>
+            </p>
           ) : status === "kopierat" ? (
             talkOrd("kopierat", sprak)
           ) : (
             talkOrd("anteckningSparad", sprak)
           )}
-        </p>
+        </div>
       ) : null}
       {felVisas ? <p role="alert" data-bibliotek-utskrift-fel="" className="m-0 text-etikett text-danger">{felVisas}</p> : null}
-      {kanSkrivaUt && !pagar ? <OpsButton variant="secondary" size="sm" onClick={skrivUt}>{o("skrivUt")}</OpsButton> : null}
+      {forsok && !upptagen ? <OpsButton variant="secondary" size="sm" onClick={forsok}>{o("forsokIgen")}</OpsButton> : null}
+      {kanSkrivaUt && !pagar && !forsok && !(bakgrund || kor !== null || vantarNu) ? <OpsButton variant="secondary" size="sm" onClick={skrivUt}>{o("skrivUt")}</OpsButton> : null}
+      {kanSkrivaUt && bakgrund ? <OpsButton variant="secondary" size="sm" disabled>{o("skrivUt")}</OpsButton> : null}
+      <OpsModal
+        open={fraga !== null}
+        onOpenChange={(oppen) => {
+          if (!oppen) setFraga(null);
+        }}
+        title={fraga === "taBort" ? o("taBort") : o("skrivUtIgen")}
+        size="sm"
+        footer={(
+          <>
+            <OpsButton variant="secondary" onClick={() => setFraga(null)}>{o("avbryt")}</OpsButton>
+            <OpsButton variant={fraga === "taBort" ? "danger" : "primary"} onClick={() => fraga && korOp(fraga)}>{fraga === "taBort" ? o("taBort") : o("skrivUtIgen")}</OpsButton>
+          </>
+        )}
+      >
+        <p>{fraga === "taBort" ? o("fragaTaBort") : o("fragaIgen")}</p>
+      </OpsModal>
     </div>
   );
 }
