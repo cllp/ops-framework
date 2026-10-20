@@ -233,10 +233,10 @@ export function OpsGastLista({ gaster, platser, harRostat = [], onBjud, onSkicka
           <p className="m-0 text-etikett text-ink-secondary">{t.ingress}</p>
           {fulla ? <p data-gastlista-fulla="" role="status" className="m-0 text-etikett text-ink">{t.platserFulla.replace("{totalt}", String(platser.totalt))}</p> : null}
           <OpsField label={t.epostEtikett}>
-            <OpsInput value={epost} onChange={setEpost} type="email" autoComplete="off" disabled={fulla} />
+            <OpsInput value={epost} onChange={setEpost} type="email" autoComplete="off" disabled={fulla} tal={false} />
           </OpsField>
           <OpsField label={t.namnEtikett}>
-            <OpsInput value={namn} onChange={setNamn} autoComplete="off" maxLength={MAX_GASTNAMN} disabled={fulla} />
+            <OpsInput value={namn} onChange={setNamn} autoComplete="off" maxLength={MAX_GASTNAMN} disabled={fulla} tal={false} />
           </OpsField>
           {fel ? <p role="alert" data-gastlista-bjudfel="" className="m-0 text-etikett text-danger wrap-anywhere">{fel}</p> : null}
           <div>
