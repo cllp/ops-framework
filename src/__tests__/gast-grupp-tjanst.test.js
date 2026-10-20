@@ -1085,6 +1085,26 @@ describe("bibliotek", () => {
     expect(b.poster[0].id).toBe("p-pdf");
   });
 
+  it("⛔ biblioteket prövas rad för rad även när källan ger för mycket: en källa som struntar i frågan ger ändå aldrig en annan grupps, händelsens eller Mitt biblioteks poster", async () => {
+    const omslut = (k) =>
+      new Proxy(k, {
+        get(mal, prop) {
+          if (prop === "list") return async (samling, q) => mal.list(samling, q && samling === "bibliotek" ? { limit: q.limit } : q);
+          return typeof mal[prop] === "function" ? mal[prop].bind(mal) : mal[prop];
+        },
+      });
+    const vanlig = bygg();
+    const felkalla = bygg({ omslut });
+    const g1 = await gruppGast(vanlig);
+    const g2 = await gruppGast(felkalla);
+    // Golv: källan ger alla poster, också de som inte är gruppens.
+    expect((await felkalla.grund.list("bibliotek")).some((p) => p.groupId !== GRUPP)).toBe(true);
+    const rätt = (await vanlig.tjanst.bibliotek({ sessionsnyckel: g1.sessionsnyckel })).poster.map((p) => p.id);
+    const fel = (await felkalla.tjanst.bibliotek({ sessionsnyckel: g2.sessionsnyckel })).poster.map((p) => p.id);
+    expect(fel).toEqual(rätt);
+    for (const annan of ["p-hand", "p-mitt", "p-grannen"]) expect(fel, annan).not.toContain(annan);
+  });
+
   it("biblioteket kapas vid taket och säger det", async () => {
     const manga = Array.from({ length: GASTBIBLIOTEK_MAX + 5 }, (_, i) => ({ id: `q${i}`, groupId: GRUPP, typ: "anteckning", rubrik: `Post ${i}`, text: "x", skapadAv: { uid: AGARE, namn: "A" }, skapad: i, andrad: i }));
     const h = bygg({ extra: { bibliotek: manga } });
@@ -1122,6 +1142,11 @@ describe("nedladdning: en signerad adress, rätt fil, tak per dygn, och ingen ad
     for (const postId of ["p-hand", "p-mitt", "p-grannen", "p-pek", "p-dot", "p-ejklar", "p-andraid", "p-not", "p-lank", "finns-inte", "", undefined, 5]) {
       expect(await h.tjanst.fil({ sessionsnyckel: g.sessionsnyckel, postId }), String(postId)).toEqual({ ok: false, orsak: "saknas" });
     }
+    expect(h.signera).not.toHaveBeenCalled();
+    // Gruppen prövas på BÅDA ställena, var för sig: en post i grannen med en sökväg in i Källans plats, och en post i Källan med en sökväg in i grannens plats (där postens id ändå stämmer).
+    await h.grund.create("bibliotek", { id: "p-korsad-a", groupId: GRANNEN, typ: "fil", rubrik: "KORSAD-A", fil: { sokvag: "grupper/kallan/bibliotek/p-korsad-a/z.pdf", namn: "z.pdf", mime: "application/pdf", byte: 1, klar: true }, skapadAv: { uid: UTANFOR, namn: "Ulla" }, skapad: 1, andrad: 1 });
+    await h.grund.create("bibliotek", { id: "p-korsad-b", groupId: GRUPP, typ: "fil", rubrik: "KORSAD-B", fil: { sokvag: "grupper/grannen/bibliotek/p-korsad-b/z.pdf", namn: "z.pdf", mime: "application/pdf", byte: 1, klar: true }, skapadAv: { uid: MEDLEM, namn: "Maja" }, skapad: 1, andrad: 1 });
+    for (const postId of ["p-korsad-a", "p-korsad-b"]) expect(await h.tjanst.fil({ sessionsnyckel: g.sessionsnyckel, postId }), postId).toEqual({ ok: false, orsak: "saknas" });
     expect(h.signera).not.toHaveBeenCalled();
     // Nekade försök kostar inget av dygnstaket. (En ny minut: tretton anrop plus femtio är fler än minutens 60.)
     h.tid(NU + 2 * MINUT);
