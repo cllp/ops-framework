@@ -598,7 +598,7 @@ describe("OpsGastSida: integritet och radering", () => {
     for (const ord of ["e-postadress", "namnet", "bjudits in", "loggat in", "nyckeln", "svar och röster", "räknar", "platser", "utgående post"]) expect(lagrat, ord).toContain(ord);
     const radera = document.querySelector("[data-gast-integritet-radera]").textContent;
     for (const ord of ["knappen", "direkt", "alla grupper", "Inbjudningarna", "inloggningarna", "räknarna", "svar och röster", "plats", "inte att ångra", "dras tillbaka raderar ingenting"]) expect(radera, ord).toContain(ord);
-    expect(document.body.textContent).not.toMatch(/—|–/);
+    expect(document.body.textContent).not.toMatch(/[\u2014\u2013]/);
   });
 
   it("utan onRaderaMig ritas ingen knapp och texten hänvisar till den som bjöd in, i stället för att lova en knapp", async () => {

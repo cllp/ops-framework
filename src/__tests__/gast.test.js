@@ -186,7 +186,7 @@ describe("gastregelfragment", () => {
     expect(f).toContain("allow write: if false;");
     // Sessionerna, platserna och räknarna har INGEN match: catch-allen nekar dem.
     expect((f.match(/match \//g) ?? []).length).toBe(1);
-    expect(f).not.toMatch(/—|–/);
+    expect(f).not.toMatch(/[\u2014\u2013]/);
   });
 
   it("ett samlingsnamn med snedstreck är ingen samling", () => {
