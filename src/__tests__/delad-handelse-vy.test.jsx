@@ -231,7 +231,7 @@ describe("OpsDeladHandelse: lägena", () => {
 
   it("⛔ varje orsak har en text på båda språken, och en okänd orsak får det utgångnas", () => {
     for (const [sprak, forvantat] of [
-      ["sv", { utgangen: "Länken har gått ut", stangd: "Länken är stängd", saknas: "Filen finns inte längre", "handelse-saknas": "Händelsen finns inte längre", "kod-kravs": "Länken kräver en kod", "fel-kod": "Koden stämde inte", "for-manga": "För många försök. Vänta en stund och försök igen" }],
+      ["sv", { utgangen: "Länken har gått ut", stangd: "Länken är stängd", saknas: "Finns inte längre", "handelse-saknas": "Händelsen finns inte längre", "kod-kravs": "Länken kräver en kod", "fel-kod": "Koden stämde inte", "for-manga": "För många försök. Vänta en stund och försök igen" }],
       ["en", { utgangen: "The link has expired", stangd: "The link is closed", saknas: "The file no longer exists", "handelse-saknas": "The event no longer exists", "kod-kravs": "This link needs a code", "fel-kod": "The code was not right", "for-manga": "Too many attempts. Wait a while and try again" }],
     ]) {
       expect(Object.keys(forvantat).sort()).toEqual([...DELNINGSORSAKER].sort());

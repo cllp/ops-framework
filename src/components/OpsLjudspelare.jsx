@@ -65,14 +65,20 @@ import { OpsSpinner } from "./OpsSpinner.jsx";
  * @param {string} [props.styrId] Kopplar ⋯-menyn till den här spelaren.
  * @param {boolean} [props.utanNedladdning] (0.119.0, lifehub.app#356) Ritar inte "Ladda ned". Den publika delningen med
  *   nedladdning av. ⛔ Det döljer knappen, det hindrar inte den som verkligen vill spara filen: adressen går att läsa ur sidan, och det står i beslutet.
+ * @param {() => void} [props.onSlut] (0.133.0) Anropas när ljudet spelat klart (`ended`). Den delade listan (`OpsDelad`) startar nästa låt här.
+ * @param {(spelar: boolean) => void} [props.onSpelstatus] (0.133.0) Anropas med `true` när uppspelningen startar och `false` när den pausas. Inte vid ett slut: då anropas `onSlut`.
+ * @param {number} [props.startnummer] (0.133.0) Ett tal som appen räknar upp för att säga "starta nu" på den adress som redan är vald: ett tryck på raden i en spellista som redan står på den låten. Höjs det startar uppspelningen; det första värdet startar ingenting.
+ * @param {boolean} [props.autoSpela] (0.133.0) Startar uppspelningen av sig själv varje gång adressen BYTS (inte vid första ritningen), för en spellista som går vidare till nästa låt.
+ *   ⛔ Samma `<audio>`-element får en ny `src` och behålls, eftersom iOS tillåter ett skript att starta ett element som en människa redan startat men inte ett nytt. En app som
+ *   ritar en ny spelare per låt får en spellista som stannar efter första låten på en telefon.
  */
 export function OpsLjudspelare(props) {
-  const tillatna = ["src", "sokvag", "hamtaAdress", "namn", "visaNamn", "kompakt", "liten", "meta", "durationMs", "peaks", "onOppna", "onMeta", "onFel", "styrId", "utanNedladdning"];
+  const tillatna = ["src", "sokvag", "hamtaAdress", "namn", "visaNamn", "kompakt", "liten", "meta", "durationMs", "peaks", "onOppna", "onMeta", "onFel", "styrId", "utanNedladdning", "onSlut", "onSpelstatus", "autoSpela", "startnummer"];
   const okanda = Object.keys(props).filter((k) => !tillatna.includes(k));
   if (okanda.length > 0) {
     throw new Error(`OpsLjudspelare: okända props ${okanda.join(", ")}. Tillåtna: ${tillatna.join(", ")}.`);
   }
-  const { src = "", sokvag = "", hamtaAdress, namn = "", visaNamn = true, kompakt = false, liten = false, meta = "", durationMs, peaks, onOppna, onMeta, onFel, styrId = "", utanNedladdning = false } = props;
+  const { src = "", sokvag = "", hamtaAdress, namn = "", visaNamn = true, kompakt = false, liten = false, meta = "", durationMs, peaks, onOppna, onMeta, onFel, styrId = "", utanNedladdning = false, onSlut, onSpelstatus, autoSpela = false, startnummer = 0 } = props;
   if (hamtaAdress !== undefined && typeof hamtaAdress !== "function") {
     throw new Error("OpsLjudspelare: hamtaAdress ska vara en funktion (sokvag) => adress. Det är lagringens adress, alltså getDownloadURL.");
   }
@@ -87,6 +93,12 @@ export function OpsLjudspelare(props) {
   }
   if (onMeta !== undefined && typeof onMeta !== "function") {
     throw new Error("OpsLjudspelare: onMeta ska vara en funktion.");
+  }
+  if (onSlut !== undefined && typeof onSlut !== "function") {
+    throw new Error("OpsLjudspelare: onSlut ska vara en funktion.");
+  }
+  if (onSpelstatus !== undefined && typeof onSpelstatus !== "function") {
+    throw new Error("OpsLjudspelare: onSpelstatus ska vara en funktion.");
   }
   if (styrId !== undefined && typeof styrId !== "string") {
     throw new Error("OpsLjudspelare: styrId ska vara en sträng.");
@@ -191,6 +203,10 @@ export function OpsLjudspelare(props) {
       onFel={typeof onFel === "function" ? onFel : null}
       styrId={typeof styrId === "string" ? styrId : ""}
       utanNedladdning={utanNedladdning === true}
+      onSlut={typeof onSlut === "function" ? onSlut : null}
+      onSpelstatus={typeof onSpelstatus === "function" ? onSpelstatus : null}
+      autoSpela={autoSpela === true}
+      startnummer={Number.isFinite(startnummer) ? startnummer : 0}
     />
   );
 }
@@ -208,9 +224,9 @@ function mediaFel(el) {
 
 
 /**
- * @param {{ adress: string, namn: string, visaNamn: boolean, kompakt: boolean, liten: boolean, meta: string, durationMs: number, peaks: number[] | null, onOppna: (() => void) | null, onMeta: ((meta: { durationMs?: number, peaks?: string }) => void) | null, onFel: ((fel: string) => void) | null, styrId: string, utanNedladdning: boolean }} props
+ * @param {{ adress: string, namn: string, visaNamn: boolean, kompakt: boolean, liten: boolean, meta: string, durationMs: number, peaks: number[] | null, onOppna: (() => void) | null, onMeta: ((meta: { durationMs?: number, peaks?: string }) => void) | null, onFel: ((fel: string) => void) | null, styrId: string, utanNedladdning: boolean, onSlut: (() => void) | null, onSpelstatus: ((spelar: boolean) => void) | null, autoSpela: boolean, startnummer: number }} props
  */
-function Spelare({ adress, namn, visaNamn, kompakt, liten, meta, durationMs, peaks, onOppna, onMeta, onFel, styrId, utanNedladdning }) {
+function Spelare({ adress, namn, visaNamn, kompakt, liten, meta, durationMs, peaks, onOppna, onMeta, onFel, styrId, utanNedladdning, onSlut, onSpelstatus, autoSpela, startnummer }) {
   const ljud = useRef(/** @type {HTMLAudioElement | null} */ (null));
   const begart = useRef(false);
   const drar = useRef(false);
@@ -225,6 +241,16 @@ function Spelare({ adress, namn, visaNamn, kompakt, liten, meta, durationMs, pea
   const [fel, setFel] = useState("");
   const felMottagare = useRef(onFel);
   felMottagare.current = onFel;
+  // Spellistan (0.133.0): lyssnarna lever i en effekt som bara körs när adressen byts, så de läser sin mottagare genom en ref och inte ur ett stängt värde.
+  const slutRef = useRef(onSlut);
+  slutRef.current = onSlut;
+  const statusRef = useRef(onSpelstatus);
+  statusRef.current = onSpelstatus;
+  const autoRef = useRef(autoSpela);
+  autoRef.current = autoSpela;
+  const startaRef = useRef(() => {});
+  const ritadFore = useRef(false);
+  const sistaStartnummer = useRef(startnummer);
   useEffect(() => {
     felMottagare.current?.(fel);
   }, [fel]);
@@ -344,10 +370,13 @@ function Spelare({ adress, namn, visaNamn, kompakt, liten, meta, durationMs, pea
       setSpelar(true);
       setLaddar(false);
       setFel("");
+      statusRef.current?.(true);
     };
     const vidPaus = () => {
       setSpelar(false);
       setLaddar(false);
+      // Ett ljud som tar slut pausas också (Chromium skickar `pause` före `ended`), och det är inget val av lyssnaren: slutet har sitt eget anrop.
+      if (!el.ended) statusRef.current?.(false);
     };
     const vidSlut = () => {
       setSpelar(false);
@@ -358,6 +387,7 @@ function Spelare({ adress, namn, visaNamn, kompakt, liten, meta, durationMs, pea
       } catch {
         /* en del webbläsare nekar tiden när elementet redan städat */
       }
+      slutRef.current?.();
     };
     const vidVantar = () => {
       if (begart.current) setLaddar(true);
@@ -377,6 +407,9 @@ function Spelare({ adress, namn, visaNamn, kompakt, liten, meta, durationMs, pea
     el.addEventListener("waiting", vidVantar);
     el.addEventListener("error", vidFel);
     if (el.readyState >= 1) lasOm();
+    // ⛔ SPELLISTAN (0.133.0): en NY adress efter den första ritningen startar av sig själv när `autoSpela` är sann. Den första ritningen gör det aldrig: en sida får inte börja spela när den öppnas.
+    if (ritadFore.current && autoRef.current) startaRef.current();
+    ritadFore.current = true;
     return () => {
       avbruten = true;
       try {
@@ -470,6 +503,13 @@ function Spelare({ adress, namn, visaNamn, kompakt, liten, meta, durationMs, pea
       el.pause();
       return;
     }
+    starta();
+  };
+
+  /** Startar uppspelningen. Den som trycker på spela, och spellistan när den går vidare. */
+  const starta = () => {
+    const el = ljud.current;
+    if (!el) return;
     baraEnSpelar(handtag.current);
     begart.current = true;
     setFel("");
@@ -485,6 +525,14 @@ function Spelare({ adress, namn, visaNamn, kompakt, liten, meta, durationMs, pea
       });
     }
   };
+
+  startaRef.current = starta;
+  // Ett högre startnummer är ett "starta nu" på den adress som redan är vald. Det första värdet och ett lägre startar ingenting.
+  useEffect(() => {
+    if (startnummer > sistaStartnummer.current && !spelar) startaRef.current();
+    sistaStartnummer.current = startnummer;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- bara ett nytt nummer startar
+  }, [startnummer]);
 
   const sok = (/** @type {number} */ kvotVarde) => {
     const el = ljud.current;

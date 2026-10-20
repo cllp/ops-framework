@@ -39,7 +39,12 @@ export const SIGNERAD_SEKUNDER = 15 * 60;
 /** Ett token är 32 slumpbyte i base64url utan utfyllnad: 43 tecken. Så ser en gammal filänk ut (`/d/<token>`). */
 export const TOKENFORM = /^[A-Za-z0-9_-]{43}$/;
 
-/** Vad en delning gäller: en fil i biblioteket (`post`, också raderna från före 0.125.0 som saknar fältet) eller en händelse. */
+/**
+ * Vad en delning gäller: en post i biblioteket (`post`, också raderna från före 0.125.0 som saknar fältet) eller en händelse.
+ *
+ * ⛔ `post` ÄR NUMERA ALLA FYRA TYPERNA (0.133.0, lifehub.app#356, CP 2026-10-18: "Vi skall ju ha en publik länk till varje artefakt"): en fil, en anteckning, en länk eller en lista.
+ * Raden har inget nytt fält för vilken: typen är postens egen (`typ`) och läses ur posten, en sanning (regel 2). Adressen är fortfarande `<gruppdel>/lib/<del>`.
+ */
 export const DELNINGSSLAG = /** @type {const} */ (["post", "handelse"]);
 
 /**
@@ -278,7 +283,9 @@ export const DELNINGSORSAKER = /** @type {const} */ (["utgangen", "stangd", "sak
 export const DELNINGSFEL = {
   utgangen: "Länken har gått ut",
   stangd: "Länken är stängd",
-  saknas: "Filen finns inte längre",
+  // ⛔ 0.133.0: "Finns inte längre" och inte "Filen finns inte längre". En länk gäller nu en fil, en anteckning, en länk eller en lista, och när posten är raderad finns inget kvar
+  // att läsa vilken av dem det var (raden bär ingen typ, den bor i posten). Texten får därför inte påstå en typ.
+  saknas: "Finns inte längre",
   "handelse-saknas": "Händelsen finns inte längre",
   "kod-kravs": "Länken kräver en kod",
   "fel-kod": "Koden stämde inte",
@@ -300,6 +307,41 @@ export const DELNINGSSVARSFALT = /** @type {const} */ (["rubrik", "typ", "mime",
  * (tak: `MAX_HANDELSEFILER`), så att en lista som kapats aldrig ser ut som hela listan.
  */
 export const HANDELSESVARSFALT = /** @type {const} */ (["slag", "titel", "beskrivning", "plats", "datum", "slutDatum", "tid", "slutTid", "heldag", "filer", "ejVisade"]);
+
+/**
+ * Fälten i svaret för en ANTECKNING (0.133.0): typen, rubriken och texten. Inget annat lämnar servern: inte taggar, inte vem som skrev den, inte gruppen.
+ * `typ` skiljer svaret från en fils (vars `typ` är `ljud`, `bild`, `video`, `pdf` eller `dokument`).
+ */
+export const ANTECKNINGSSVARSFALT = /** @type {const} */ (["typ", "rubrik", "text"]);
+
+/** Fälten i svaret för en LÄNK (0.133.0): typen, rubriken och adressen (bara http eller https). Inte källan, inte omslaget, inte vem som la till den. */
+export const LANKSVARSFALT = /** @type {const} */ (["typ", "rubrik", "url"]);
+
+/**
+ * Fälten i svaret för en LISTA (0.133.0): typen, rubriken, om nedladdning är på (gäller varje fil i listan), posterna i listans ordning och hur många som inte fick plats.
+ *
+ * ⛔ LISTAN ÄR EN LEVANDE SPEGEL AV LISTAN, INGEN KOPIA (CP 2026-10-20: "Ändras listan kan den ju bara ändras för alla som den delas med. Om en låt tas bort kan den bara tas bort
+ * precis som för den som skapade den."). Servern läser listan vid varje hämtning och svaret är det medlemmen ser just nu. Ingenting av listan lagras i delningsraden.
+ */
+export const LISTSVARSFALT = /** @type {const} */ (["typ", "rubrik", "nedladdning", "poster", "ejVisade"]);
+
+/**
+ * En rad i en delad lista är en post med SAMMA fält som om den delats ensam (en fils `DELNINGSSVARSFALT`, `ANTECKNINGSSVARSFALT` eller `LANKSVARSFALT`) plus `id`, en ogenomskinlig
+ * nyckel (hash av delningen och postens id) som är densamma vid varje hämtning. Spelaren behöver den för att veta vilken låt som spelas när listan hämtas om. Postens eget id lämnar aldrig servern.
+ */
+export const LISTRADSNYCKEL = "id";
+
+/**
+ * Raderna i en delad lista som inte är en post, med `typ` och inget annat fält (CP 2026-10-20: en raderad post visas som medlemmens egen listvy visar den):
+ * `saknas` (posten är borttagen, ligger på en annan plats eller är en fil som inte blev klar) och `lista-i-lista` (en lista kan inte ligga i en lista).
+ */
+export const LISTRADSKAL = /** @type {const} */ (["saknas", "lista-i-lista"]);
+
+/**
+ * Högsta antalet poster en delad lista visar (0.133.0). Varje fil får en signerad adress (en PDF med nedladdning två), och en lista får vara 200 poster (`MAX_LISTPOSTER`). Poster efter
+ * taket kommer inte med, och `ejVisade` säger hur många, så att en kapad lista aldrig ser ut som hela listan (regel 5). Samma mönster som `MAX_HANDELSEFILER`.
+ */
+export const MAX_DELADE_LISTPOSTER = 100;
 
 /** Fälten på en fil i en händelses svar. Bara det sidan visar, plus en adress som går ut. */
 export const HANDELSEFILFALT = /** @type {const} */ (["rubrik", "typ", "mime", "storlek", "url"]);
