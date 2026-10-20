@@ -650,7 +650,7 @@ describe("OpsGruppFormular: ägaren väljer moduler", () => {
 
   it("⛔ ägaren ser valet, och det sparas i valordningen med ett okänt id kvar", async () => {
     const onSpara = vi.fn(async () => {});
-    const { container } = render(<OpsGruppFormular formId="f" grupp={GRUPP} onSpara={onSpara} moduler={{ valbara: valbaraModuler(moduler()), agare: true }} />);
+    const { container } = render(<OpsGruppFormular formId="f" grupp={GRUPP} onSpara={onSpara} moduler={{ valbara: valbaraModuler(moduler()), farAndra: true }} />);
     const sektion = screen.getByRole("region", { name: "Appar" });
     const knappar = within(sektion).getAllByRole("button");
     // ⛔ 0.60.0 (#251): namnet ur `aria-label`, eftersom raden "Syns på" nu står i knappen. Inkorg (utan kort) står med.
@@ -667,7 +667,7 @@ describe("OpsGruppFormular: ägaren väljer moduler", () => {
 
   it("⛔ ett andra tryck väljer bort modulen", async () => {
     const onSpara = vi.fn(async () => {});
-    const { container } = render(<OpsGruppFormular grupp={{ ...GRUPP, moduler: ["ekonomi"] }} onSpara={onSpara} moduler={{ valbara: valbaraModuler(moduler()), agare: true }} />);
+    const { container } = render(<OpsGruppFormular grupp={{ ...GRUPP, moduler: ["ekonomi"] }} onSpara={onSpara} moduler={{ valbara: valbaraModuler(moduler()), farAndra: true }} />);
     fireEvent.click(screen.getByRole("button", { name: "Ekonomi" }));
     fireEvent.submit(/** @type {HTMLFormElement} */ (container.querySelector("form")));
     await vi.waitFor(() => expect(onSpara).toHaveBeenCalled());
@@ -676,7 +676,7 @@ describe("OpsGruppFormular: ägaren väljer moduler", () => {
 
   it("⛔ en admin ser inget modulval och skickar aldrig fältet", async () => {
     const onSpara = vi.fn(async () => {});
-    const { container } = render(<OpsGruppFormular grupp={GRUPP} onSpara={onSpara} moduler={{ valbara: valbaraModuler(moduler()), agare: false }} />);
+    const { container } = render(<OpsGruppFormular grupp={GRUPP} onSpara={onSpara} moduler={{ valbara: valbaraModuler(moduler()), farAndra: false }} />);
     expect(screen.queryByRole("region", { name: "Appar" })).toBeNull();
     fireEvent.submit(/** @type {HTMLFormElement} */ (container.querySelector("form")));
     await vi.waitFor(() => expect(onSpara).toHaveBeenCalled());
@@ -684,7 +684,7 @@ describe("OpsGruppFormular: ägaren väljer moduler", () => {
   });
 
   it("⛔ när en ny grupp skapas finns inget modulval", () => {
-    render(<OpsGruppFormular onSkapa={async () => ({ groupId: "x" })} moduler={{ valbara: valbaraModuler(moduler()), agare: true }} />);
+    render(<OpsGruppFormular onSkapa={async () => ({ groupId: "x" })} moduler={{ valbara: valbaraModuler(moduler()), farAndra: true }} />);
     expect(screen.queryByRole("region", { name: "Appar" })).toBeNull();
   });
 
@@ -701,7 +701,7 @@ describe("OpsGruppFormular: ägaren väljer moduler", () => {
         onSpara={onSpara}
         moduler={{
           valbara: valbaraModuler(moduler()),
-          agare: true,
+          farAndra: true,
           installningarHref: (m) => (m.hubb ? `${m.hubb.rutt}?lage=installningar` : ""),
           onNavigate,
         }}
@@ -724,7 +724,7 @@ describe("OpsGruppFormular: ägaren väljer moduler", () => {
 
   it("⛔ en app som väljs bort tas ur huvudmenyn i samma sparning", async () => {
     const onSpara = vi.fn(async () => {});
-    const { container } = render(<OpsGruppFormular grupp={{ ...GRUPP, moduler: ["ekonomi", "resor"], huvudmeny: ["ekonomi", "resor"] }} onSpara={onSpara} moduler={{ valbara: valbaraModuler(moduler()), agare: true }} />);
+    const { container } = render(<OpsGruppFormular grupp={{ ...GRUPP, moduler: ["ekonomi", "resor"], huvudmeny: ["ekonomi", "resor"] }} onSpara={onSpara} moduler={{ valbara: valbaraModuler(moduler()), farAndra: true }} />);
     expect(screen.queryByRole("switch", { name: "Visa i huvudmenyn" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Ekonomi" }));
     fireEvent.submit(/** @type {HTMLFormElement} */ (container.querySelector("form")));
@@ -734,7 +734,7 @@ describe("OpsGruppFormular: ägaren väljer moduler", () => {
 
   it("⛔ en admin skickar aldrig huvudmenyn", async () => {
     const onSpara = vi.fn(async () => {});
-    const { container } = render(<OpsGruppFormular grupp={{ ...GRUPP, huvudmeny: ["ekonomi"] }} onSpara={onSpara} moduler={{ valbara: valbaraModuler(moduler()), agare: false }} />);
+    const { container } = render(<OpsGruppFormular grupp={{ ...GRUPP, huvudmeny: ["ekonomi"] }} onSpara={onSpara} moduler={{ valbara: valbaraModuler(moduler()), farAndra: false }} />);
     expect(screen.queryByRole("switch", { name: "Visa i huvudmenyn" })).toBeNull();
     fireEvent.submit(/** @type {HTMLFormElement} */ (container.querySelector("form")));
     await vi.waitFor(() => expect(onSpara).toHaveBeenCalled());
@@ -742,7 +742,7 @@ describe("OpsGruppFormular: ägaren väljer moduler", () => {
   });
 
   it("⛔ utan registrerade moduler säger valet det", () => {
-    const { container } = render(<OpsGruppFormular grupp={{ ...GRUPP, moduler: [] }} onSpara={async () => {}} moduler={{ valbara: [], agare: true }} />);
+    const { container } = render(<OpsGruppFormular grupp={{ ...GRUPP, moduler: [] }} onSpara={async () => {}} moduler={{ valbara: [], farAndra: true }} />);
     expect(container.querySelector("[data-moduler-tomt]")?.textContent).toBe("Det finns inga appar att installera.");
   });
 });

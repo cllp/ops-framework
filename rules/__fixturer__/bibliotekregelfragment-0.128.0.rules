@@ -72,8 +72,33 @@
       return opsBibliotekArMitt(gid) ? false : opsArAdmin(gid);
     }
 
+    // ⛔ KÄLLAN PÅ EN LÄNK ÄR HÄRLEDD UR ADRESSEN (0.128.0, lifehub.app#378): värdlistan är LANKKALLOR i lankkalla.js, samma som modellen (lankKalla) och nodsidan läser.
+    // En `kalla` som inte stämmer med `url` nekas, så att ingen sätter Spotifys märke på en annan adress.
+    function opsBibliotekKalla(d) {
+      return d.kalla == 'spotify' ? d.url.matches('https://(open[.]spotify[.]com)([/?#][!-~]*)?')
+        : d.kalla == 'youtube' ? d.url.matches('https://(www[.]youtube[.]com|youtube[.]com|m[.]youtube[.]com|music[.]youtube[.]com|youtu[.]be)([/?#][!-~]*)?')
+        : d.kalla == 'applemusic' ? d.url.matches('https://(music[.]apple[.]com)([/?#][!-~]*)?')
+        : d.kalla == 'soundcloud' ? d.url.matches('https://(soundcloud[.]com|www[.]soundcloud[.]com|m[.]soundcloud[.]com)([/?#][!-~]*)?')
+        : d.kalla == 'annat' ? !(d.url.matches('https://(open[.]spotify[.]com)([/?#][!-~]*)?')
+          || d.url.matches('https://(www[.]youtube[.]com|youtube[.]com|m[.]youtube[.]com|music[.]youtube[.]com|youtu[.]be)([/?#][!-~]*)?')
+          || d.url.matches('https://(music[.]apple[.]com)([/?#][!-~]*)?')
+          || d.url.matches('https://(soundcloud[.]com|www[.]soundcloud[.]com|m[.]soundcloud[.]com)([/?#][!-~]*)?'))
+        : false;
+    }
+
+    // ⛔ POSTERNA I EN LISTA (0.128.0, lifehub.app#378): en lista (inte en sträng), högst 200, inga dubbletter och varje id på POSTIDFORM. Regler har ingen loop, och 200 `matches()`
+    // hade gått över Firestores tak på 1000 uttryck per skrivning (samma lärdom som vågen, #349). Därför prövas ALLA id med ETT uttryck: listan sammanfogas med komma och matchas
+    // mot ett mönster som är id, följt av noll eller fler (komma, id). Komma kan inte ingå i ett id, så uppdelningen är entydig. Antalet bärs av size() och inte av en begränsad
+    // upprepning (RE2 vägrar upprepningar i upprepningar över 1000). En tom lista har inget att sammanfoga och prövas för sig.
+    function opsBibliotekPoster(p) {
+      return p is list
+        && p.size() <= 200
+        && p.toSet().size() == p.size()
+        && (p.size() == 0 || p.join(',').matches('[A-Za-z0-9][A-Za-z0-9_-]{0,127}(,[A-Za-z0-9][A-Za-z0-9_-]{0,127})*'));
+    }
+
     function opsBibliotekspostGiltig(d, postId) {
-      return d.keys().hasOnly(["groupId", "typ", "rubrik", "text", "url", "fil", "utskrift", "durationMs", "peaks", "taggar", "skapadAv", "skapad", "andrad"])
+      return d.keys().hasOnly(["groupId", "typ", "rubrik", "text", "url", "kalla", "bild", "poster", "fil", "utskrift", "durationMs", "peaks", "taggar", "skapadAv", "skapad", "andrad"])
         && (!d.keys().hasAny(["taggar"]) || opsBibliotekTaggar(d.taggar))
         && d.rubrik.trim().size() > 0
         && d.rubrik.size() <= 200
@@ -86,11 +111,17 @@
           (d.typ == "anteckning"
             && d.text.trim().size() > 0
             && d.text.size() <= 8000
-            && !d.keys().hasAny(["url", "fil", "utskrift", "durationMs", "peaks"]))
+            && !d.keys().hasAny(["url", "kalla", "bild", "poster", "fil", "utskrift", "durationMs", "peaks"]))
           || (d.typ == "lank"
             && d.url.size() <= 2000
             && d.url.matches('https?://[!-~]+')
-            && !d.keys().hasAny(["text", "fil", "utskrift", "durationMs", "peaks"]))
+            && (!d.keys().hasAny(["kalla"]) || opsBibliotekKalla(d))
+            && (!d.keys().hasAny(["bild"]) || (d.bild.size() <= 2000 && d.bild.matches('https://[!-~]+')))
+            && !d.keys().hasAny(["text", "poster", "fil", "utskrift", "durationMs", "peaks"]))
+          || (d.typ == "lista"
+            && d.keys().hasAll(["poster"])
+            && opsBibliotekPoster(d.poster)
+            && !d.keys().hasAny(["text", "url", "kalla", "bild", "fil", "utskrift", "durationMs", "peaks"]))
           || (d.typ == "fil"
             && d.fil.keys().hasOnly(["sokvag", "namn", "mime", "byte", "klar"])
             && (!('klar' in d.fil) || d.fil.klar is bool)
@@ -104,7 +135,7 @@
             && d.fil.byte is int
             && d.fil.byte > 0
             && (d.fil.byte <= 26214400 || (d.fil.mime.matches('^audio/.*') && d.fil.byte <= 262144000) || (d.fil.mime.matches('^video/.*') && d.fil.byte <= 104857600))
-            && !d.keys().hasAny(["text", "url"])
+            && !d.keys().hasAny(["text", "url", "kalla", "bild", "poster"])
             && (
               !d.keys().hasAny(["utskrift"])
               || (d.utskrift.size() <= 20000 && d.fil.mime.matches('^audio/.*'))

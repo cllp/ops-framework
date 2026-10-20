@@ -298,9 +298,10 @@ describe("gruppens utseende och uppgifter (0.32.0, #180)", () => {
 
   it("⛔ GRUPPFALT är härledd ur de två redigerbara listorna, id och skapadAv står i ingen", () => {
     expect([...GRUPPFALT].sort()).toEqual(["id", ...AGARGRUPPFALT, "skapadAv"].sort());
-    expect(ADMINGRUPPFALT).not.toContain("moduler");
+    // 0.128.0 (#252): appvalet är adminens också. Det som inte går att ångra, arkiveringen, är kvar hos ägaren.
+    expect(ADMINGRUPPFALT).toContain("moduler");
     expect(ADMINGRUPPFALT).not.toContain("arkiverad");
-    expect(AGARGRUPPFALT).toEqual(expect.arrayContaining([...ADMINGRUPPFALT, "moduler", "arkiverad"]));
+    expect(AGARGRUPPFALT).toEqual(expect.arrayContaining([...ADMINGRUPPFALT, "arkiverad"]));
     for (const f of ["id", "skapadAv"]) {
       expect(ADMINGRUPPFALT).not.toContain(f);
       expect(AGARGRUPPFALT).not.toContain(f);
@@ -336,9 +337,9 @@ describe("⛔ huvudmeny på en grupp (0.83.0)", () => {
     expect(byggGrupp({ ...GRUPP(), moduler: ["ekonomi"], huvudmeny: ["bibliotek"] }).huvudmeny).toEqual(["bibliotek"]);
   });
 
-  it("⛔ fältet är ägarens: det står i AGARGRUPPFALT och inte i ADMINGRUPPFALT", () => {
+  it("⛔ fältet är adminens och ägarens (0.128.0, #252): det står i båda listorna, eftersom en admin som tar bort en app också måste kunna ta den ur huvudmenyn", () => {
     expect(AGARGRUPPFALT).toContain("huvudmeny");
-    expect(ADMINGRUPPFALT).not.toContain("huvudmeny");
+    expect(ADMINGRUPPFALT).toContain("huvudmeny");
     expect(GRUPPFALT).toContain("huvudmeny");
   });
 });
@@ -703,7 +704,7 @@ describe("regelfragmentet: formen, inte beteendet", () => {
     expect(gruppadSamling("handelser")).not.toContain("opsArAgare(request.resource.data.groupId)");
   });
 
-  it("⛔ admin ändrar utseende, ägare även moduler: hasOnly härleds ur samma listor som modellen (0.32.0, #180)", () => {
+  it("⛔ admin ändrar utseende och appval, ägare även arkivering: hasOnly härleds ur samma listor som modellen (0.32.0, #180; appval 0.128.0, #252)", () => {
     const text = regelfragment();
     expect(text).toContain("function opsArAdmin(gid)");
     expect(text).toContain(`hasOnly([${AGARGRUPPFALT.map((f) => `"${f}"`).join(", ")}])`);

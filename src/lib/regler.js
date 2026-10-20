@@ -38,7 +38,8 @@ import {
 import { ID_FORM, KATALOGAVGRANSARE, KATEGORIFALT } from "./katalog.js";
 import { INSTALLNINGSVARDEFALT, MAX_INSTALLNINGSGRUPP, MAX_INSTALLNINGSID, MAX_INSTALLNINGSTEXT, MAX_MODULINSTALLNINGAR, MODULINSTALLNINGFALT, VISA_I_HUVUDMENYN } from "./modulinstallningar.js";
 import { MAX_TYPAVVIKELSER, MAX_TYPID, MAX_TYPNAMN, MODULTYPID_FORM, TYPAVVIKELSEFALT, TYPYTOR } from "./modultyper.js";
-import { ADRESSFORM, ARENDEFORM, ARENDE_PREFIX, BIBLIOTEKFALT, BIBLIOTEKTYPER, FILFALT, HANDELSEFORM, HANDELSE_PREFIX, LJUD_STOLPAR, MITT_PREFIX, MAX_BIBLIOTEKFILNAMN, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKSOKVAG, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, MAX_BIBLIOTEKUTSKRIFT, MAX_LJUD_MS, MAX_TAGGAR, TAGGFORM, TOPPFORM, filMimeMonster, filtakRegel } from "./bibliotek.js";
+import { ADRESSFORM, ARENDEFORM, ARENDE_PREFIX, BIBLIOTEKFALT, BIBLIOTEKTYPER, BILDFORM, FILFALT, HANDELSEFORM, HANDELSE_PREFIX, LJUD_STOLPAR, MITT_PREFIX, MAX_BIBLIOTEKFILNAMN, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKSOKVAG, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, MAX_BIBLIOTEKUTSKRIFT, MAX_LISTPOSTER, MAX_LJUD_MS, MAX_TAGGAR, POSTIDFORM, TAGGFORM, TOPPFORM, filMimeMonster, filtakRegel } from "./bibliotek.js";
+import { LANKKALLOR, lankkallaForm } from "./lankkalla.js";
 import { MAX_MINNESID, MAX_MINNESTEXT, MINNESFALT, MINNESKALLAFALT, MINNESKALLOR } from "./minne.js";
 import { MAX_SKAPARKALLA, MAX_SKAPARNAMN, SKAPARFALT } from "./skapare.js";
 import { BESKRIVENAPPDATAFALT, BESKRIVNINGSDOKUMENTFALT, BESKRIVNINGSFALT, BESKRIVNINGSFORMAT, BESKRIVNINGSIDFORM, MAX_APPBESKRIVNING, MAX_BESKRIVNINGSNAMN, MAX_FALT, MAX_LISTOR, MIN_LISTOR } from "./beskrivenapp.js";
@@ -267,8 +268,9 @@ export function regelfragment(namn = {}, val = {}) {
     }
 
     // ⛔ ADMIN ÄR ÄGARE ELLER ADMIN (0.32.0, #180), SS \`isGroupAdmin\`. Det är den som får ändra
-    // gruppens utseende och uppgifter och se inbjudningarna. Det som kräver ÄGARE (moduler, arkivering,
-    // roller) står kvar på opsArAgare: en admin är en delegerad förvaltare, inte en andra ägare.
+    // gruppens utseende och uppgifter, välja gruppens appar (moduler och huvudmeny, sedan 0.128.0, #252) och se inbjudningarna.
+    // Det som kräver ÄGARE (arkivering, externa datakällor, typavvikelser, roller) står kvar på opsArAgare: en admin är en
+    // delegerad förvaltare, inte en andra ägare.
     function opsArAdmin(gid) {
       return opsArMedlem(gid)
         && (opsMedlemskapet(gid).data.roll == 'agare' || opsMedlemskapet(gid).data.roll == 'admin');
@@ -348,7 +350,8 @@ ${
         && request.resource.data.epost == request.auth.token.get('email', '').lower();
     }
 
-    // Gruppen. Medlem läser. Admin ändrar utseende och uppgifter, ägare även moduler, huvudmenyn och arkivering.
+    // Gruppen. Medlem läser. Admin ändrar utseende, uppgifter och appval (moduler och huvudmeny, 0.128.0), ägare även arkivering,
+    // externa datakällor och typavvikelser.
     // Aldrig radering: arkivering finns för att svaret på "varför försvann den" alltid efterfrågas i
     // efterhand.
     //
@@ -1738,6 +1741,11 @@ ${bilagaRegelfunktion("opsKommentarbilagaGiltig")}
  * prefix till "cps-ab", och ett `groupId` med regex-tecken hade blivit en del av uttrycket. Segmenten är jämförda med `==`, så
  * inget av det kan hända.
  *
+ * ⛔ LISTOR OCH SMARTA LÄNKAR (0.128.0, lifehub.app#378). Typen `lista` är en post med `poster`, en ordnad lista av postid (högst `MAX_LISTPOSTER`, inga dubbletter, varje id på `POSTIDFORM`), och inga
+ * andra innehållsfält. En länk får `kalla` (härledd ur adressen, se `opsBibliotekKalla`) och `bild` (en https-adress). Reglerna kan inte pröva att posterna FINNS eller ligger på samma plats: ett uppslag per id
+ * vore upp till 200 `get()` i en skrivning, där taket är tio. "Bara från samma plats" gäller i stället genom hur listan läses (`losLista`): ett id slås bara upp bland platsens egna poster, och ett som inte finns där
+ * visas som "Finns inte längre". Att lägga in ett främmande id i en lista ger alltså en rad som säger det, och aldrig innehåll från en annan plats. Vem som får ändra listan är vem som får ändra en post: författaren, ägare och admin.
+ *
  * ⛔ EN HÄNDELSES FILER (0.121.0, lifehub.app#366, docs/beslut/0006). Med `handelser` (appens samlingsnamn för händelser) släpps platsen
  * `handelse~<grupp>~<händelse>` in som en tredje plats bredvid gruppen och Mitt bibliotek. Posten är densamma, bara `groupId` har en tredje form.
  *   - LÄSA: aktiv medlem i platsens grupp, OCH händelsen finns, OCH händelsens `groupId` är platsens grupp. Det sista är skyddet mot en
@@ -1774,9 +1782,13 @@ export function bibliotekregelfragment(namn, sokvag = {}) {
   const arenden = sokvag.arenden === undefined ? null : kontrolleraNamn(sokvag.arenden, "arenden");
   const lista = (/** @type {readonly string[]} */ f) => f.map((x) => `"${x}"`).join(", ");
   // Varje typ har en egen gren nedan. En ny typ i modellen utan sin gren hade nekats tyst i produktion.
-  if (BIBLIOTEKTYPER.join(",") !== "anteckning,lank,fil") {
-    throw new Error(`bibliotekregelfragment: typerna är ${BIBLIOTEKTYPER.join(", ")}. Fragmentet har grenar för anteckning, lank och fil, och en ny typ behöver sin egen.`);
+  if (BIBLIOTEKTYPER.join(",") !== "anteckning,lank,fil,lista") {
+    throw new Error(`bibliotekregelfragment: typerna är ${BIBLIOTEKTYPER.join(", ")}. Fragmentet har grenar för anteckning, lank, fil och lista, och en ny typ behöver sin egen.`);
   }
+  // ⛔ KÄLLAN PÅ EN LÄNK (0.128.0): `kalla` måste vara den adressen ger (`lankKalla`). Ett uttryck per källa ur samma värdlista som modellen och nodsidan läser, och `annat` är
+  // "ingen av dem". Regeln kan inte anropa `lankKalla`, så den skriver samma uttryck.
+  const kallgrenar = LANKKALLOR.map((k) => `d.kalla == '${k.kalla}' ? d.url.matches('${regelRegex(lankkallaForm(k.kalla))}')`).join("\n        : ");
+  const ingenKalla = LANKKALLOR.map((k) => `d.url.matches('${regelRegex(lankkallaForm(k.kalla))}')`).join("\n          || ");
 
   // ⛔ OBJEKTENS PLATSER (0.121.0 för en händelse, 0.122.0 för ett ärende). Varje objekt har en gren i samma form: platsens form först (exakt tre delar, så att
   // split() alltid har tre element), objektet ska finnas och ligga i platsens grupp, och behörigheten är gruppens. En konstruktion för båda, så att de inte glider isär
@@ -1906,6 +1918,33 @@ ${handelseFunktioner}    function opsBibliotekPlatsMedlem(gid) {
       return ${grenAdmin}opsBibliotekArMitt(gid) ? false : opsArAdmin(gid);
     }
 
+    // ⛔ KÄLLAN PÅ EN LÄNK ÄR HÄRLEDD UR ADRESSEN (0.128.0, lifehub.app#378): värdlistan är LANKKALLOR i lankkalla.js, samma som modellen (lankKalla) och nodsidan läser.
+    // En \`kalla\` som inte stämmer med \`url\` nekas, så att ingen sätter Spotifys märke på en annan adress.
+    function opsBibliotekKalla(d) {
+      return ${kallgrenar}
+        : d.kalla == 'annat' ? !(${ingenKalla})
+        : false;
+    }
+
+    // ⛔ POSTERNA I EN LISTA (0.128.0, lifehub.app#378): en lista (inte en sträng), högst ${MAX_LISTPOSTER}, inga dubbletter och varje id en sträng på POSTIDFORM. Regler har ingen loop, och 200 \`matches()\`
+    // hade gått över Firestores tak på 1000 uttryck per skrivning (samma lärdom som vågen, #349). Därför prövas ALLA id med ETT uttryck: listan sammanfogas med komma och matchas
+    // mot ett mönster som är id, följt av noll eller fler (komma, id). Antalet bärs av size() och inte av en begränsad upprepning (RE2 vägrar upprepningar i upprepningar över 1000).
+    // En tom lista har inget att sammanfoga och prövas för sig.
+    //
+    // ⛔ SAMMANFOGNINGEN SÄGER INGET OM TYPERNA, OCH DEN SÄGER INTE HELLER HUR MÅNGA ELEMENT DET VAR. Mätt i emulatorn: join() gör heltal, null och sant/falskt till text, så ["a", 5], ["a", null] och
+    // ["a", true] sammanfogades till "a,5", "a,null" och "a,true", som mönstret släpper igenom som id. Och ["a,b"] blir "a,b", två id ur ett element. Därför ska listan delas på komma igen och vara
+    // LIKA med den man började med: en lista är lika med en annan bara om varje element har samma typ och värde. Ett tal, ett null, en bool eller ett element med komma i sig ger en annan lista
+    // och nekas, med ETT uttryck till.
+    function opsBibliotekPoster(p) {
+      return p is list
+        && p.size() <= ${MAX_LISTPOSTER}
+        && p.toSet().size() == p.size()
+        && (p.size() == 0 || (
+          p.join(',').matches('${regelRegex(POSTIDFORM)}(,${regelRegex(POSTIDFORM)})*')
+          && p.join(',').split(',') == p
+        ));
+    }
+
     function opsBibliotekspostGiltig(d, postId) {
       return d.keys().hasOnly([${lista(BIBLIOTEKFALT)}])
         && (!d.keys().hasAny(["taggar"]) || opsBibliotekTaggar(d.taggar))
@@ -1920,11 +1959,17 @@ ${grenTyp}        && (
           (d.typ == "anteckning"
             && d.text.trim().size() > 0
             && d.text.size() <= ${MAX_BIBLIOTEKTEXT}
-            && !d.keys().hasAny(["url", "fil", "utskrift", "durationMs", "peaks"]))
+            && !d.keys().hasAny(["url", "kalla", "bild", "poster", "fil", "utskrift", "durationMs", "peaks"]))
           || (d.typ == "lank"
             && d.url.size() <= ${MAX_BIBLIOTEKURL}
             && d.url.matches('${regelRegex(ADRESSFORM)}')
-            && !d.keys().hasAny(["text", "fil", "utskrift", "durationMs", "peaks"]))
+            && (!d.keys().hasAny(["kalla"]) || opsBibliotekKalla(d))
+            && (!d.keys().hasAny(["bild"]) || (d.bild.size() <= ${MAX_BIBLIOTEKURL} && d.bild.matches('${regelRegex(BILDFORM)}')))
+            && !d.keys().hasAny(["text", "poster", "fil", "utskrift", "durationMs", "peaks"]))
+          || (d.typ == "lista"
+            && d.keys().hasAll(["poster"])
+            && opsBibliotekPoster(d.poster)
+            && !d.keys().hasAny(["text", "url", "kalla", "bild", "fil", "utskrift", "durationMs", "peaks"]))
           || (d.typ == "fil"
             && d.fil.keys().hasOnly([${lista(FILFALT)}])
             && (!('klar' in d.fil) || d.fil.klar is bool)
@@ -1938,7 +1983,7 @@ ${grenTyp}        && (
             && d.fil.byte is int
             && d.fil.byte > 0
             && ${filtakRegel("d.fil.mime", "d.fil.byte")}
-            && !d.keys().hasAny(["text", "url"])
+            && !d.keys().hasAny(["text", "url", "kalla", "bild", "poster"])
             && (
               !d.keys().hasAny(["utskrift"])
               || (d.utskrift.size() <= ${MAX_BIBLIOTEKUTSKRIFT} && d.fil.mime.matches('^audio/.*'))

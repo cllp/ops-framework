@@ -225,7 +225,8 @@ export function createBibliotekskalla(config) {
      * eller adress. En vy som fick skriva `skapadAv` hade kunnat lägga raden
      * i någon annans namn, och regeln hade sagt nej först i produktion.
      *
-     * @param {{ id?: string, typ?: string, rubrik?: string, text?: string, url?: string, taggar?: string[], durationMs?: number, peaks?: string, utskrift?: string, fil?: unknown }} inmatning
+     * @param {{ id?: string, typ?: string, rubrik?: string, text?: string, url?: string, bild?: string | null, poster?: string[], taggar?: string[], durationMs?: number, peaks?: string, utskrift?: string, fil?: unknown }} inmatning
+     *   `bild` (0.128.0) är omslaget på en länk, en https-adress, och `null` tar bort det. `poster` (0.128.0) är en listas postid i ordning. `kalla` ges aldrig: den härleds ur adressen.
      */
     async spara(inmatning) {
       const id = typeof inmatning?.id === "string" ? inmatning.id.trim() : "";
@@ -272,13 +273,25 @@ export function createBibliotekskalla(config) {
       // ⛔ TAGGARNA (0.100.0). Ges de i inmatningen gäller de, annars står postens kvar. En tom lista betyder "inga taggar".
       if (inmatning && "taggar" in inmatning && inmatning.taggar !== undefined) underlag.taggar = inmatning.taggar;
       else if (id && tidigare && "taggar" in tidigare) underlag.taggar = tidigare.taggar;
+      // ⛔ POSTERNA I EN LISTA (0.128.0): ges de gäller de, annars står listans kvar. En ändring av bara rubriken (Byt namn) rör alltså inte posterna.
+      if (inmatning && "poster" in inmatning && inmatning.poster !== undefined) underlag.poster = inmatning.poster;
+      else if (id && tidigare && "poster" in tidigare) underlag.poster = tidigare.poster;
+      // ⛔ OMSLAGET HÖR TILL ADRESSEN (0.128.0). Ges `bild` gäller den (`null` tar bort omslaget). Ges den inte står postens kvar, UTOM när adressen byts i samma anrop: då hade omslaget
+      // varit en annan låts, och en länk utan omslag är sann medan en länk med fel omslag inte är det. `kalla` ges aldrig: `byggPost` härleder den ur adressen.
+      if (inmatning && "bild" in inmatning) {
+        if (inmatning.bild) underlag.bild = inmatning.bild;
+      } else if (id && tidigare && "bild" in tidigare && tidigare.url === underlag.url) underlag.bild = tidigare.bild;
       const post = byggPost(underlag);
       if (id) {
         // ⛔ EN UPPDATERING SLÅR IHOP, DEN ERSÄTTER INTE. Tog personen bort sista taggen saknas fältet i `post`, och utan `FALT_BORT`
         // hade de gamla taggarna stått kvar i dokumentet medan vyn sade att de var borta.
         // Bara när dokumentet bär taggar: en tom lista från en annan klient tas inte bort av en ifyllnad av längd och våg, som regeln
         // då hade nekat (taggar räknas som ändrat fält).
-        const bort = tidigare && Array.isArray(tidigare.taggar) && tidigare.taggar.length > 0 && !("taggar" in post) ? { taggar: FALT_BORT } : {};
+        const bort = {
+          ...(tidigare && Array.isArray(tidigare.taggar) && tidigare.taggar.length > 0 && !("taggar" in post) ? { taggar: FALT_BORT } : {}),
+          // Samma sak för omslaget: en länk vars omslag togs bort eller hörde till den gamla adressen ska inte behålla det i dokumentet.
+          ...(tidigare && "bild" in tidigare && !("bild" in post) ? { bild: FALT_BORT } : {}),
+        };
         await source.update(collection, id, { ...post, ...bort });
         return { ...post, id };
       }
@@ -462,6 +475,11 @@ export async function flyttaBibliotekspost(inmatning) {
   if (fran.groupId === till.groupId) throw new Error("Posten ligger redan där.");
   const post = await fran.hamta(id);
   if (!post) throw new Error("Posten finns inte längre.");
+  // ⛔ EN LISTA FLYTTAS INTE (0.128.0, lifehub.app#378). Den pekar på id:n i den plats den ligger i, och en kopia på en annan plats hade pekat på poster som inte finns där: varje rad hade sagt
+  // "Finns inte längre". Att kopiera listan MED sina poster är en annan funktion (en post flyttas med ett nytt id, och listan måste skrivas om efter dem), och den är inte byggd. Kastar hellre än tiger (regel 5).
+  if (post.typ === "lista") {
+    throw new Error("En lista flyttas eller kopieras inte till en annan plats: den pekar på poster på den här platsen. Flytta posterna var för sig och gör en ny lista där.");
+  }
   /** @type {import("../lib/bibliotek.js").Bibliotekspost & { id: string }} */
   let ny;
   if (post.typ === "fil" && post.fil) {
@@ -487,7 +505,7 @@ export async function flyttaBibliotekspost(inmatning) {
     ny = await till.spara({
       typ: post.typ,
       rubrik: post.rubrik,
-      ...(post.typ === "anteckning" ? { text: post.text } : { url: post.url }),
+      ...(post.typ === "anteckning" ? { text: post.text } : { url: post.url, ...(post.bild ? { bild: post.bild } : {}) }),
       ...(post.taggar ? { taggar: post.taggar } : {}),
     });
   }

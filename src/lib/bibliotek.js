@@ -23,9 +23,15 @@
 import { ID_FORM } from "./katalog.js";
 import { SKAPARFALT, byggSkapare } from "./skapare.js";
 import { formatDagOchKlockslag } from "./format.js";
+import { lankKalla } from "./lankkalla.js";
 
-/** Anteckning, länk och fil. En fil är en post, och MIME avgör hur den visas. */
-export const BIBLIOTEKTYPER = /** @type {const} */ (["anteckning", "lank", "fil"]);
+/**
+ * Anteckning, länk, fil och lista. En fil är en post, och MIME avgör hur den visas.
+ *
+ * ⛔ EN LISTA ÄR EN POST I BIBLIOTEKET (0.128.0, cllp/lifehub.app#378, CP 2026-10-20: "ingen ny app och ingen ny låttyp"). Den pekar på andra poster från SAMMA plats, i en bestämd
+ * ordning (`poster: [id, ...]`), och kopierar dem inte. Se `MAX_LISTPOSTER` och `listFel`.
+ */
+export const BIBLIOTEKTYPER = /** @type {const} */ (["anteckning", "lank", "fil", "lista"]);
 
 /**
  * Flikar i vyn. `ljud` är härlett ur fil+MIME (0.92.0, lifehub.app#163), inte en
@@ -34,13 +40,32 @@ export const BIBLIOTEKTYPER = /** @type {const} */ (["anteckning", "lank", "fil"
  * ⛔ BILDER OCH DOKUMENT ÄR TVÅ FLIKAR (0.102.0, CP 2026-10-14: "Det måste se ut exakt som SessionStudio"). SessionStudios
  * bibliotek har Allt, Inspelningar, Anteckningar, Bilder, Dokument och Länkar. `bild` är en fil med bild-MIME, och `fil` är
  * resten av filerna, alltså dokumenten. Båda härledda ur MIME som ljudet, ingen ny typ i dokumentet. Ordningen är SessionStudios.
+ *
+ * ⛔ EN SJUNDE FLIK, `lista` (0.128.0, cllp/lifehub.app#378), är den enda som SessionStudio inte har, och det är avsiktligt (regel 13: förebilden är ett golv).
+ * SessionStudio har ingen lista; en lista som bara syns under Allt hade legat bland hundra poster. Fliken ritas bara när det finns en lista
+ * (`OpsBibliotek`, som för Bilder och Anteckningar), så ett bibliotek utan listor ser ut som förut.
  */
-export const BIBLIOTEKFLIKAR = /** @type {const} */ (["alla", "ljud", "anteckning", "bild", "fil", "lank"]);
+export const BIBLIOTEKFLIKAR = /** @type {const} */ (["alla", "ljud", "anteckning", "bild", "fil", "lank", "lista"]);
 
 /** Tak. Samma tal skrivs in i regelfragmentet, ur de här konstanterna. */
 export const MAX_BIBLIOTEKRUBRIK = 200;
 export const MAX_BIBLIOTEKTEXT = 8000;
 export const MAX_BIBLIOTEKURL = 2000;
+/**
+ * Högst så här många poster i en lista (0.128.0). Taket finns i regeln också, ur den här konstanten. 200 rymmer en spellista och en mapp med kvitton, och håller
+ * dokumentet långt under en megabyte (ett id är högst 128 tecken).
+ */
+export const MAX_LISTPOSTER = 200;
+/**
+ * Ett postid som en lista får peka på: Firestores automatiska id:n (a-z, A-Z, 0-9), `crypto.randomUUID()` och det en app själv sätter, utan `/` och `~`.
+ * Samma form som en händelses id (`HANDELSEIDFORM`), en konstruktion för båda (regel 2). Skrivs in i regeln via `regelRegex`.
+ */
+export const POSTIDFORM = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/;
+/**
+ * Omslaget på en länk: https och sedan synliga tecken. ⛔ BARA https, och inte `ADRESSFORM`s http: bilden hämtas av webbläsaren från en tredje part, och en klartextadress
+ * i en sida som annars är https blir ett blandat innehåll som webbläsaren blockerar. Skrivs in i regeln via `regelRegex`.
+ */
+export const BILDFORM = /^https:\/\/[!-~]+$/;
 /** Upp till 25 MB, inklusive gränsen. Samma tal i storage-regeln. */
 export const MAX_BIBLIOTEKFIL = 25 * 1024 * 1024;
 /**
@@ -155,7 +180,7 @@ export function mittJag(uid) {
 export const HANDELSE_PREFIX = "handelse~";
 
 /** Ett händelse-id: Firestores automatiska id:n (a-z, A-Z, 0-9) och det en app själv sätter. Inget `~`, inget `/`. */
-export const HANDELSEIDFORM = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/;
+export const HANDELSEIDFORM = POSTIDFORM;
 
 /**
  * Hela platsen. Gruppdelen är `ID_FORM` ur katalogen (inte en kopia av den), så de två inte kan glida isär. Samma uttryck skrivs in i
@@ -550,7 +575,7 @@ export function peaksGiltiga(peaks) {
  * `text` hör till en anteckning och `url` till en länk. Regeln kräver att den
  * andra saknas, så en anteckning inte kan bära en adress vid sidan av texten.
  */
-export const BIBLIOTEKFALT = /** @type {const} */ (["groupId", "typ", "rubrik", "text", "url", "fil", "utskrift", "durationMs", "peaks", "taggar", "skapadAv", "skapad", "andrad"]);
+export const BIBLIOTEKFALT = /** @type {const} */ (["groupId", "typ", "rubrik", "text", "url", "kalla", "bild", "poster", "fil", "utskrift", "durationMs", "peaks", "taggar", "skapadAv", "skapad", "andrad"]);
 
 /**
  * En länks adress: http eller https, och sedan bara synliga ASCII-tecken.
@@ -576,10 +601,13 @@ const FORVALTARROLLER = /** @type {const} */ (["agare", "admin"]);
 /**
  * @typedef {object} Bibliotekspost
  * @property {string} groupId
- * @property {"anteckning"|"lank"|"fil"} typ
+ * @property {"anteckning"|"lank"|"fil"|"lista"} typ
  * @property {string} rubrik
  * @property {string} [text] Bara på en anteckning.
  * @property {string} [url] Bara på en länk.
+ * @property {"spotify"|"youtube"|"applemusic"|"soundcloud"|"annat"} [kalla] (0.128.0) Bara på en länk: källan, ALLTID härledd ur `url` (`lankKalla`) och aldrig vald. Saknas på en länk från före 0.128.0, och vyn härleder den då ur adressen.
+ * @property {string} [bild] (0.128.0) Bara på en länk: omslaget, en https-adress (`BILDFORM`). Saknas när källan inte gav något.
+ * @property {string[]} [poster] (0.128.0) Bara på en lista: id:n på poster i SAMMA plats, i ordning, högst `MAX_LISTPOSTER` och utan dubbletter. En tom lista är `[]`, och fältet finns alltid på en lista.
  * @property {{ sokvag: string, namn: string, mime: string, byte: number, klar?: boolean }} [fil] Bara på en fil. `klar: false` medan byte laddas upp, `true` när de finns. Utan fältet (äldre poster) räknas filen som klar.
  * @property {string} [utskrift] Bara på ett ljud. Saknas fältet har ingen bett om en utskrift. Tom sträng är en utskrift utan ord.
  * @property {number} [durationMs] Bara på ett ljud. Millisekunder. Saknas fältet är längden inte räknad än.
@@ -979,7 +1007,15 @@ export function inmatningsfel(d) {
     if (tf) return tf;
   }
 
+  if (typ === "lista") {
+    const f = fremmandeFalt(d, ["text", "url", "kalla", "bild", "fil", "utskrift", "durationMs", "peaks"]);
+    if (f) return `En lista har rubrik och poster, och fältet ${f} hör inte dit.`;
+    return listaFel(d.poster);
+  }
+
   if (typ === "anteckning") {
+    const fa = fremmandeFalt(d, ["kalla", "bild", "poster"]);
+    if (fa) return `En anteckning har text, och fältet ${fa} hör inte dit.`;
     if ("url" in d && d.url != null && str(d.url) !== "") return "En anteckning har text, och ingen adress.";
     if ("fil" in d && d.fil != null) return "En anteckning har text, och ingen fil.";
     if ("utskrift" in d && d.utskrift != null) return "En anteckning har text, och ingen utskrift.";
@@ -991,6 +1027,8 @@ export function inmatningsfel(d) {
   }
 
   if (typ === "fil") {
+    const ff = fremmandeFalt(d, ["kalla", "bild", "poster"]);
+    if (ff) return `En fil har en fil, och fältet ${ff} hör inte dit.`;
     if ("text" in d && d.text != null && str(d.text) !== "") return "En fil har en fil, och ingen brödtext.";
     if ("url" in d && d.url != null && str(d.url) !== "") return "En fil har en fil, och ingen adress.";
     const filfel = filFel(d.fil);
@@ -1001,6 +1039,7 @@ export function inmatningsfel(d) {
     return utskriftFel(d.utskrift, /** @type {any} */ (d.fil));
   }
 
+  if ("poster" in d && d.poster != null) return "En länk har en adress, och inga poster.";
   if ("text" in d && d.text != null && str(d.text) !== "") return "En länk har en adress, och ingen brödtext.";
   if ("fil" in d && d.fil != null) return "En länk har en adress, och ingen fil.";
   if ("utskrift" in d && d.utskrift != null) return "En länk har en adress, och ingen utskrift.";
@@ -1010,6 +1049,49 @@ export function inmatningsfel(d) {
   if (!/^https?:/.test(url)) return "Adressen ska börja med http eller https.";
   if (!ADRESSFORM.test(url)) return "Adressen går inte att läsa. Den ska börja med http:// eller https:// och sakna mellanslag.";
   if (url.length > MAX_BIBLIOTEKURL) return `Adressen är ${url.length} tecken. Taket är ${MAX_BIBLIOTEKURL}.`;
+  // ⛔ KÄLLAN HÄRLEDS, DEN VÄLJS INTE (0.128.0, regel 2). En `kalla` som inte är den adressen ger är ett fel, så att en klient inte kan sätta Spotifys märke på en annan adress.
+  if ("kalla" in d && d.kalla != null && d.kalla !== lankKalla(url)) {
+    return `Källan "${String(d.kalla)}" stämmer inte med adressen, som är "${lankKalla(url)}". Källan härleds ur adressen och väljs inte.`;
+  }
+  if ("bild" in d && d.bild != null) {
+    const bild = typeof d.bild === "string" ? d.bild : "";
+    if (!BILDFORM.test(bild)) return "Omslaget ska vara en https-adress utan mellanslag.";
+    if (bild.length > MAX_BIBLIOTEKURL) return `Omslagets adress är ${bild.length} tecken. Taket är ${MAX_BIBLIOTEKURL}.`;
+  }
+  return null;
+}
+
+/**
+ * Det första av fälten som finns (inte `null`, inte `undefined`) i `d`, eller `null`. För fält som bara hör till en sort av post.
+ *
+ * @param {Record<string, unknown>} d
+ * @param {readonly string[]} falt
+ * @returns {string | null}
+ */
+function fremmandeFalt(d, falt) {
+  return falt.find((f) => f in d && d[f] != null) ?? null;
+}
+
+/**
+ * Skälet till att listan inte får sparas, eller `null`: en lista (inte en sträng), högst `MAX_LISTPOSTER`, varje id på `POSTIDFORM` och inga dubbletter.
+ * En tom lista är giltig (`[]`), men ett fält som saknas är det inte: en lista utan `poster` har ingen form, och vyn ska inte gissa vad som menas.
+ *
+ * ⛔ DET HÄR SÄGER INGET OM ATT POSTERNA FINNS ELLER LIGGER PÅ SAMMA PLATS. Det går inte att pröva i en regel (högst tio uppslag per skrivning, och listan har 200 id:n)
+ * och inte här (modellen ser en post i taget). "Bara från samma plats" gäller genom hur listan LÄSES: `losLista` slår bara upp id:n bland platsens egna poster, så ett
+ * id från en annan plats blir en rad som säger "Finns inte längre" och aldrig innehåll från en annan plats.
+ *
+ * @param {unknown} poster
+ * @returns {string | null}
+ */
+export function listaFel(poster) {
+  if (!Array.isArray(poster)) return "Listan saknar poster. En tom lista har poster: [].";
+  if (poster.length > MAX_LISTPOSTER) return `Listan har ${poster.length} poster. Taket är ${MAX_LISTPOSTER}.`;
+  for (const id of poster) {
+    if (typeof id !== "string" || !POSTIDFORM.test(id)) {
+      return `"${typeof id === "string" ? id : String(id)}" är inte ett postid. Ett id har bokstäver, siffror, - och _, högst 128 tecken, utan snedstreck.`;
+    }
+  }
+  if (new Set(poster).size !== poster.length) return "Samma post står två gånger i listan.";
   return null;
 }
 
@@ -1032,7 +1114,7 @@ export function postFel(d) {
   // ⛔ EN HÄNDELSES OCH ETT ÄRENDES BIBLIOTEK HAR BARA FILER (0.121.0, 0.122.0). En anteckning eller en länk på en händelse är händelsens beskrivning en gång till
   // (regel 2), och på ett ärende är den ärendets text och kommentarerna.
   const objektord = beskrivObjektbibliotek(groupId)?.ord;
-  if (objektord && str(d.typ) !== "fil") return `${objektord[0].toUpperCase()}${objektord.slice(1)} har filer, och inga anteckningar eller länkar.`;
+  if (objektord && str(d.typ) !== "fil") return `${objektord[0].toUpperCase()}${objektord.slice(1)} har filer, och inga anteckningar, länkar eller listor.`;
 
   const skapadAv = byggSkapare(/** @type {any} */ (d.skapadAv && typeof d.skapadAv === "object" ? d.skapadAv : {}));
   if (!skapadAv.uid) return "Posten saknar vem som skrev den.";
@@ -1075,8 +1157,15 @@ export function byggPost(d) {
   // ⛔ EN TOM LISTA SPARAS INTE: en post utan taggar saknar fältet, så "inga taggar" har en form och inte två.
   if (Array.isArray(d.taggar) && d.taggar.length > 0) post.taggar = /** @type {string[]} */ ([...d.taggar]);
   if (typ === "anteckning") post.text = str(d.text);
-  else if (typ === "lank") post.url = str(d.url);
-  else {
+  else if (typ === "lista") {
+    // ⛔ MOTSATSEN TILL TAGGARNA: en tom lista SPARAS som `poster: []`. En lista har alltid fältet, så "tom lista" och "lista utan form" inte är samma sak (regel 5).
+    post.poster = [.../** @type {string[]} */ (d.poster)];
+  } else if (typ === "lank") {
+    post.url = str(d.url);
+    // ⛔ KÄLLAN SKRIVS ALLTID, OCH ALLTID UR ADRESSEN. En länk från före 0.128.0 får den när den läses och sparas om.
+    post.kalla = lankKalla(post.url);
+    if ("bild" in d && d.bild != null) post.bild = str(d.bild);
+  } else {
     const fil = /** @type {{ sokvag: unknown, namn: unknown, mime: unknown, byte: unknown, klar?: unknown }} */ (d.fil);
     post.fil = { sokvag: str(fil.sokvag), namn: str(fil.namn), mime: normaliseraMime(fil.mime), byte: /** @type {number} */ (fil.byte) };
     if (typeof fil.klar === "boolean") post.fil.klar = fil.klar;

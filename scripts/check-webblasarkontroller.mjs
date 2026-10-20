@@ -94,6 +94,12 @@ for (const r of rotter) {
 }
 
 /*
+ * ⛔ `<video controls>` ÄR INTE VAKTAT, MEDVETET (0.128.0, CP 2026-10-20, cllp/lifehub.app#358). Telefonens egen spelare är ett undantag från regeln här: på en iPhone
+ * öppnar `<video controls playsinline>` en helskärmsspelare med rätt kontroller (spola, volym, AirPlay, bild-i-bild, undertexter), som en egen spelare inte kan ge.
+ * Vakten fäller bara de sex typerna av fält och filfälten och reglagen nedan, så `OpsBibliotek` (detaljens video) behöver inget undantag i listan under. Undantaget är dokumenterat
+ * vid `<video>` i `OpsBibliotek.jsx`. Får vakten någon gång en regel för `controls`, ska `data-bibliotek-video` stå som undantag här, med det här skälet. Den publika sidan
+ * (`OpsDelad`) har en egen spelare och är ett annat val.
+ *
  * ⛔ UNDANTAGSLISTAN, MED SKÄL. Den är TOM, och det är ett svar och inte en
  * glömska (arbetsreglerna, punkt 5). Ramverkets egna ersättare kapslar inte in
  * någon av kontrollerna i punkt 1 och 2:

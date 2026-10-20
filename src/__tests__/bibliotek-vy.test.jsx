@@ -131,7 +131,10 @@ describe("OpsBibliotek", () => {
     expect(screen.queryByRole("textbox")).toBeNull();
     expect(screen.queryByRole("button", { name: "Spara" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Redigera" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Åtgärder för Protokoll" })).toBeNull();
+    // Menyn finns för varje aktiv medlem sedan 0.128.0 ("Lägg i lista"), men den som inte skrev posten får varken Byt namn, Redigera eller Radera i den.
+    fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Protokoll" }));
+    expect(within(screen.getByRole("menu", { name: "Protokoll" })).getAllByRole("menuitem").map((r) => r.textContent)).toEqual(["Lägg i lista"]);
+    fireEvent.keyDown(screen.getByRole("menu", { name: "Protokoll" }), { key: "Escape" });
     expect(screen.getByRole("button", { name: "Tillbaka" }).querySelector("svg")).not.toBeNull();
     unmount();
 
@@ -206,7 +209,9 @@ describe("OpsBibliotek", () => {
 
     const annan = render(<Harness jag={{ uid: "uid-annan", roll: "medlem" }} onRadera={onRadera} />);
     fireEvent.click(screen.getByRole("button", { name: "Protokoll" }));
-    expect(screen.queryByRole("button", { name: "Åtgärder för Protokoll" })).toBeNull();
+    // Sedan 0.128.0 har en medlem som inte skrev posten en meny med bara "Lägg i lista": aldrig Radera, Byt namn eller Redigera.
+    fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Protokoll" }));
+    expect(within(screen.getByRole("menu", { name: "Protokoll" })).getAllByRole("menuitem").map((r) => r.textContent)).toEqual(["Lägg i lista"]);
     expect(screen.queryByRole("menuitem", { name: "Radera" })).toBeNull();
     expect(screen.queryByRole("menuitem", { name: "Redigera" })).toBeNull();
     annan.unmount();
@@ -541,7 +546,7 @@ describe("OpsBibliotek", () => {
     expect(document.querySelector("[data-bibliotek-ljudrad]")).toBeNull();
   });
 
-  it("⛔ menyn för ett ljud är kort: Byt namn, Kopiera länk och Radera, och ingen spelarstyrning, Taggar eller Öppna (0.102.0)", () => {
+  it("⛔ menyn för ett ljud är kort: Byt namn, Lägg i lista, Kopiera länk och Radera, och ingen spelarstyrning, Taggar eller Öppna (0.102.0)", () => {
     // CP 2026-10-14, med en skärmbild av en meny med tio rader: "Vad är detta med hastighet mm och spolning när en låt/ljud inte
     // ens har startat?"
     const ljud = {
@@ -560,7 +565,7 @@ describe("OpsBibliotek", () => {
     render(<Harness start={[ljud]} filUrl={() => "https://exempel.se/ide.webm"} />);
     fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Idé 2026-10-08 21:05" }));
     const meny = screen.getByRole("menu", { name: "Idé 2026-10-08 21:05" });
-    expect(within(meny).getAllByRole("menuitem").map((r) => r.textContent)).toEqual(["Byt namn", "Kopiera länk", "Radera"]);
+    expect(within(meny).getAllByRole("menuitem").map((r) => r.textContent)).toEqual(["Byt namn", "Lägg i lista", "Kopiera länk", "Radera"]);
     for (const borta of ["Hastighet", "10 sekunder bakåt", "10 sekunder framåt", "Taggar", "Öppna", "Ladda ned", "Redigera"]) {
       expect(within(meny).queryByRole("menuitem", { name: borta }), borta).toBeNull();
     }
@@ -852,7 +857,7 @@ describe("OpsBibliotek", () => {
     render(<Harness />);
     fireEvent.click(screen.getByRole("button", { name: "Ny post" }));
     const meny = screen.getByRole("menu", { name: "Ny post" });
-    expect(within(meny).getAllByRole("menuitem").map((r) => r.textContent)).toEqual(["Anteckning", "Länk", "Fil", "Röstinspelning"]);
+    expect(within(meny).getAllByRole("menuitem").map((r) => r.textContent)).toEqual(["Anteckning", "Länk", "Fil", "Lista", "Röstinspelning"]);
     fireEvent.click(within(meny).getByRole("menuitem", { name: "Anteckning" }));
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Ny anteckning");
     fireEvent.click(screen.getByRole("button", { name: "Tillbaka" }));
@@ -990,19 +995,19 @@ describe("OpsBibliotek", () => {
     fireEvent.contextMenu(/** @type {HTMLElement} */ (yta));
     const meny = screen.getByRole("menu", { name: "Protokoll" });
     // Högerklick ger samma korta meny som ⋮ och långtrycket. Redigera finns i detaljen, inte i listan.
-    expect(within(meny).getAllByRole("menuitem").map((r) => r.textContent)).toEqual(["Byt namn", "Radera"]);
+    expect(within(meny).getAllByRole("menuitem").map((r) => r.textContent)).toEqual(["Byt namn", "Lägg i lista", "Radera"]);
     unmount();
 
     render(<Harness />);
     fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Protokoll" }));
-    expect(within(screen.getByRole("menu", { name: "Protokoll" })).getAllByRole("menuitem").map((r) => r.textContent)).toEqual(["Byt namn", "Radera"]);
+    expect(within(screen.getByRole("menu", { name: "Protokoll" })).getAllByRole("menuitem").map((r) => r.textContent)).toEqual(["Byt namn", "Lägg i lista", "Radera"]);
     fireEvent.keyDown(screen.getByRole("menu", { name: "Protokoll" }), { key: "Escape" });
     fireEvent.click(screen.getByRole("button", { name: "Protokoll" }));
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Protokoll");
     expect(screen.queryByRole("textbox")).toBeNull();
     // I detaljen står Redigera först i menyn.
     fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Protokoll" }));
-    expect(screen.getAllByRole("menuitem").map((r) => r.textContent)).toEqual(["Redigera", "Byt namn", "Radera"]);
+    expect(screen.getAllByRole("menuitem").map((r) => r.textContent)).toEqual(["Redigera", "Byt namn", "Lägg i lista", "Radera"]);
   });
 
   it("⛔ ett sparande som avvisas syns i formuläret och står kvar i redigering, och två tryck sparar en gång", async () => {

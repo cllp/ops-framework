@@ -31,7 +31,7 @@ describe("bibliotekets post", () => {
     const l = byggPost({ ...anteckning, typ: "lank", text: undefined, url: "https://bolagsverket.se" });
     expect(l.url).toBe("https://bolagsverket.se/");
     expect(Object.hasOwn(l, "text")).toBe(false);
-    expect(BIBLIOTEKTYPER).toEqual(["anteckning", "lank", "fil"]);
+    expect(BIBLIOTEKTYPER).toEqual(["anteckning", "lank", "fil", "lista"]);
     expect(BIBLIOTEKFALT).toContain("groupId");
   });
 
@@ -204,8 +204,8 @@ describe("bibliotekets post", () => {
     expect(filtreraBibliotek(poster, { sok: "finns inte" })).toEqual([]);
   });
 
-  it("⛔ flikarna är SessionStudios, och Ljud, Bilder och Dokument är härledda ur MIME utan att en post syns under två (0.102.0)", () => {
-    expect(BIBLIOTEKFLIKAR).toEqual(["alla", "ljud", "anteckning", "bild", "fil", "lank"]);
+  it("⛔ flikarna är SessionStudios sex plus Listor (0.128.0), och Ljud, Bilder och Dokument är härledda ur MIME utan att en post syns under två (0.102.0)", () => {
+    expect(BIBLIOTEKFLIKAR).toEqual(["alla", "ljud", "anteckning", "bild", "fil", "lank", "lista"]);
     const bas = { ...anteckning, typ: "fil", text: undefined };
     const ljud = {
       ...byggPost({

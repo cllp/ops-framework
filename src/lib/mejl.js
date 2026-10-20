@@ -23,6 +23,29 @@ import { RESERVSPRAK, SPRAK } from "./sprak.js";
  */
 export const SPARRADA_MEJLDOMANER = Object.freeze(["test.se", "example.com", "test.com", "example.se"]);
 
+/**
+ * En adress ska se ut som en adress innan något skrivs eller skickas: något, ett snabel-a, något, en punkt och något. Inte en giltighetskontroll av brevlådan, bara att raden
+ * inte är skräp. ⛔ EN SANNING (regel 2, 0.128.0): servern (`createGroupService`), formuläret (`OpsGruppFormular`) och Mejla länk (`MejlaLank`) hade var sin kopia av uttrycket.
+ */
+export const EPOSTFORM = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/**
+ * Skälet till att en adress inte går att skicka till, eller `null`: tom, fel form, eller en spärrad domän (`sparradMejldoman`, så att ett provmejl till example.com
+ * aldrig lämnar huset). Adressen prövas trimmad.
+ *
+ * @param {unknown} till
+ * @param {readonly string[]} [extraSparrade] Appens egna spärrade domäner, utöver `SPARRADA_MEJLDOMANER`.
+ * @returns {string | null}
+ */
+export function epostFel(till, extraSparrade = []) {
+  const a = typeof till === "string" ? till.trim() : "";
+  if (!a) return "Skriv en e-postadress.";
+  if (!EPOSTFORM.test(a)) return `"${a}" är inte en e-postadress.`;
+  const sparr = sparradMejldoman(a, extraSparrade);
+  if (sparr.sparrad) return `Mejl till ${sparr.doman} skickas inte.`;
+  return null;
+}
+
 /** Ett samlingsnamn, inte en sökväg. Samma form som i `regler.js`. */
 const SAMLINGSFORM = /^[A-Za-z][A-Za-z0-9_-]*$/;
 

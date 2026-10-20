@@ -112,6 +112,7 @@ import { Ursprungsrad } from "./Ursprungsrad.jsx";
  * @param {(val: { dagar: number | null, kod: string | null, gruppdel: string, handelsedel: string }) => Promise<import("./LankRad.jsx").Lank>} [props.onDela] (0.125.0) Ritar sektionen "Delade länkar" med knappen Dela. Anropas med valen i rutan (`dagar` är `null` för ingen gräns, som är förvalet; `kod` är `null` utan kod; `gruppdel` och `handelsedel` är
  *   rensade adressdelar) och ska svara med den nya länken `{ id, url, giltigTill, harKod }`, normalt anropet till `createDelningService().skapa({ handelseId, gruppdel, handelsedel, dagar, kod })` och `delningsUrl(bas, svar.sokvag)`. Kastar anropet visas orsaken och rutan står kvar; är felets `kod` `adress-upptagen` föreslås en annan adress. ⛔ Ritas bara när appen ger den, som `onRedigera`: servern prövar medlemskapet och appens regel.
  * @param {(arg: { id: string }) => Promise<void>} [props.onAterkalla] (0.125.0) Återkallar en länk (`createDelningService().aterkalla`). Krävs med `onDela`. Raden försvinner först när anropet lyckats; kastar det visas orsaken i raden.
+ * @param {(inmatning: { id: string, url: string, till: string }) => Promise<void | boolean> | void | boolean} [props.onMejlaLank] (0.128.0, cllp/lifehub.app#356) Skickar den nyss skapade länken med mejl (appens mejlväg). Med den visar dialogen Dela efter skapandet fältet "Skicka till mejl" och knappen Skicka; ramverket prövar adressen (`epostFel`) innan anropet och visar svaret, lyckat eller inte. Hör till `onDela`. Utan den syns inget fält.
  * @param {string} [props.delningGruppdel] (0.125.0, granskningen av PR 417) Gruppdelen gruppen redan använt i en länk (`gruppdelar({ uid, groupId }).senaste`), föreslagen i Dela-rutan före ett namn ur gruppens namn. En gruppdel tillhör en grupp för alltid: tar en annan grupp den först svarar servern `adress-upptagen` med `del: "gruppdel"` och rutan föreslår en annan.
  * @param {import("react").ReactNode} [props.atgarder] Appens egna knappar, högst upp till höger bredvid titeln (SS export m.fl.), efter pennan.
  * @param {{ oppet?: string, pagar?: string, vantar?: string, klart?: string, akut?: string }} [props.statusWords] KRÄVS för varje status som förekommer, som i `OpsEventList`.
@@ -148,6 +149,7 @@ function OpsHandelsePanelRitad({
   delningar,
   onDela,
   onAterkalla,
+  onMejlaLank,
   delningGruppdel,
   flyttaEtikett = ORD_OPSHANDELSEPANEL.flyttaEtikett.sv,
   flyttaMinaRubrik = ORD_OPSHANDELSEPANEL.flyttaMinaRubrik.sv,
@@ -206,8 +208,8 @@ function OpsHandelsePanelRitad({
   if (onDela && !Array.isArray(delningar)) {
     throw new Error("OpsHandelsePanel: onDela finns men delningar saknas. Ge listan med de aktiva länkarna, tom när det inte finns några: utan den går det inte att skilja 'inga länkar' från 'inte läst'.");
   }
-  if (!onDela && (onAterkalla !== undefined || delningar !== undefined || delningGruppdel !== undefined)) {
-    throw new Error("OpsHandelsePanel: delningar, onAterkalla och delningGruppdel hör till onDela. Utan onDela ritas ingen sektion, och listan hade bara varit en dold yta.");
+  if (!onDela && (onAterkalla !== undefined || delningar !== undefined || delningGruppdel !== undefined || onMejlaLank !== undefined)) {
+    throw new Error("OpsHandelsePanel: delningar, onAterkalla, onMejlaLank och delningGruppdel hör till onDela. Utan onDela ritas ingen sektion, och listan hade bara varit en dold yta.");
   }
   for (const m of flyttmal ?? []) {
     if (!m || typeof m.id !== "string" || typeof m.namn !== "string" || (m.atgard !== "byt" && m.atgard !== "konvertera")) {
@@ -379,7 +381,7 @@ function OpsHandelsePanelRitad({
 
       {/* ⛔ DELADE LÄNKAR (0.125.0, cllp/lifehub.app#377): varje aktiv publik länk med sin fulla adress, Kopiera och Återkalla, och Dela för en ny. Se `HandelseDelning`. */}
       {onDela && onAterkalla && delningar ? (
-        <HandelseDelning handelse={{ titel: handelse.titel, grupp: handelse.grupp }} delningar={delningar} onDela={onDela} onAterkalla={onAterkalla} gruppdel={delningGruppdel} sprak={sprak} />
+        <HandelseDelning handelse={{ titel: handelse.titel, grupp: handelse.grupp }} delningar={delningar} onDela={onDela} onAterkalla={onAterkalla} onMejlaLank={onMejlaLank} gruppdel={delningGruppdel} sprak={sprak} />
       ) : null}
 
       {/* ⛔ PLATSEN `handelse.sektion` (0.60.0, #251, beslut 0003): appens tillägg, efter informationsrutan. Ramverket äger platsen och

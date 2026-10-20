@@ -251,7 +251,7 @@ describe("inställningar, Appar: alla appar med Syns på", () => {
 
   it("visar en app utan yta med Syns på: Händelser och en med nav som Egen yta", () => {
     const moduler = validateModuler([EKONOMI(), MODUL("omrostning", [TILLAGG()]), BADA()]);
-    const { container } = render(<OpsGruppFormular grupp={GRUPP} onSpara={async () => {}} moduler={{ valbara: valbaraModuler(moduler), agare: true }} />);
+    const { container } = render(<OpsGruppFormular grupp={GRUPP} onSpara={async () => {}} moduler={{ valbara: valbaraModuler(moduler), farAndra: true }} />);
     const rader = container.querySelectorAll("[data-modul]");
     // ⛔ Golv (regel 4): ett prov på en lista som läste noll eller en rad kan inte skilja "alla appar" från "bara de med kort".
     expect(rader.length).toBeGreaterThanOrEqual(2);
@@ -264,7 +264,7 @@ describe("inställningar, Appar: alla appar med Syns på", () => {
 
   it("på engelska", () => {
     const moduler = validateModuler([EKONOMI(), MODUL("omrostning", [TILLAGG()])]);
-    const { container } = render(<OpsGruppFormular sprak="en" grupp={GRUPP} onSpara={async () => {}} moduler={{ valbara: valbaraModuler(moduler), agare: true }} />);
+    const { container } = render(<OpsGruppFormular sprak="en" grupp={GRUPP} onSpara={async () => {}} moduler={{ valbara: valbaraModuler(moduler), farAndra: true }} />);
     expect(within(/** @type {HTMLElement} */ (container.querySelector('[data-modul="omrostning"]'))).getByText("Visible in: Events")).toBeTruthy();
     expect(within(/** @type {HTMLElement} */ (container.querySelector('[data-modul="ekonomi"]'))).getByText("Visible in: Own page")).toBeTruthy();
   });
@@ -272,7 +272,7 @@ describe("inställningar, Appar: alla appar med Syns på", () => {
   it("på och av per grupp fungerar för en app utan yta", () => {
     const onSpara = vi.fn(async () => {});
     const moduler = validateModuler([EKONOMI(), MODUL("omrostning", [TILLAGG()])]);
-    const { container } = render(<OpsGruppFormular formId="f" grupp={GRUPP} onSpara={onSpara} moduler={{ valbara: valbaraModuler(moduler), agare: true }} />);
+    const { container } = render(<OpsGruppFormular formId="f" grupp={GRUPP} onSpara={onSpara} moduler={{ valbara: valbaraModuler(moduler), farAndra: true }} />);
     const knapp = /** @type {HTMLElement} */ (container.querySelector('[data-modul="omrostning"]'));
     expect(knapp.getAttribute("aria-pressed")).toBe("false");
     fireEvent.click(knapp);

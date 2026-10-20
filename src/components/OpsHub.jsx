@@ -273,7 +273,7 @@ function ValbaraAppar({ moduler, sprak, t, installera, onNavigate, visaAgarRad =
  * @param {Readonly<Record<string, number>>} [props.badge] Räknaren per modul-id.
  * @param {string} [props.badgeText]
  * @param {boolean} [props.ram] Ritas i `OpsView`. Förval sant.
- * @param {{ href?: string, onClick?: (id?: string) => void, onInstallera?: (id: string) => void, etikett?: string }} [props.installera] Vägen till modulvalet. Appen skickar den bara för ägaren (0.87.0, lifehub.app#129). `onInstallera` installerar just den appen. Utan den anropas `onClick` med appens id, eller så öppnas `href`.
+ * @param {{ href?: string, onClick?: (id?: string) => void, onInstallera?: (id: string) => void, etikett?: string }} [props.installera] Vägen till modulvalet. Appen skickar den bara för den som får välja appar: ägaren, och sedan 0.128.0 en admin (0.87.0, lifehub.app#129). `onInstallera` installerar just den appen. Utan den anropas `onClick` med appens id, eller så öppnas `href`.
  * @param {import("react").ReactNode} [props.atgard] (0.103.0) Åtgärden i sidans huvud, till exempel `<OpsVyAtgard>Skapa app</OpsVyAtgard>`.
  */
 export function OpsGruppHubb({ grupp, moduler, activeHref = "", onNavigate, sprak: sprakProp, info, badge, badgeText, ram = true, installera, atgard }) {

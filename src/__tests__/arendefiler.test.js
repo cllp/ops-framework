@@ -213,10 +213,10 @@ describe("Regelfragmenten", () => {
   const sok = { gruppPrefix: "grupper", postPrefix: "bibliotek" };
   const lagring = { gruppPrefix: "grupper", postPrefix: "bibliotek", samling: "bibliotek" };
 
-  it("utan arenden är Firestore-texten byte för byte den som 0.127.0 skrev (0.121.0 plus video, fixturerna bytte namn då), med och utan handelser", () => {
-    expect(bibliotekregelfragment("bibliotek")).toBe(fixtur("bibliotekregelfragment-0.127.0.rules"));
-    expect(bibliotekregelfragment("bibliotek", sok)).toBe(fixtur("bibliotekregelfragment-0.127.0.rules"));
-    expect(bibliotekregelfragment("bibliotek", { ...sok, handelser: "handelser" })).toBe(fixtur("bibliotekregelfragment-0.127.0-handelser.rules"));
+  it("utan arenden är Firestore-texten byte för byte den som 0.128.0 skrev (0.127.0 plus listor och smarta länkar, fixturerna bytte namn då), med och utan handelser", () => {
+    expect(bibliotekregelfragment("bibliotek")).toBe(fixtur("bibliotekregelfragment-0.128.0.rules"));
+    expect(bibliotekregelfragment("bibliotek", sok)).toBe(fixtur("bibliotekregelfragment-0.128.0.rules"));
+    expect(bibliotekregelfragment("bibliotek", { ...sok, handelser: "handelser" })).toBe(fixtur("bibliotekregelfragment-0.128.0-handelser.rules"));
   });
 
   it("utan arendefiler är Storage-texten byte för byte den som 0.127.0 skrev (0.121.0 plus video), med och utan handelsefiler", () => {
@@ -227,10 +227,10 @@ describe("Regelfragmenten", () => {
   });
 
   it("fixturerna är inte tomma (golv), och en ändring som skulle ge andra tecken bryter jämförelsen", () => {
-    for (const f of ["bibliotekregelfragment-0.127.0.rules", "bibliotekregelfragment-0.127.0-handelser.rules", "lagringsregelfragment-0.127.0.rules", "lagringsregelfragment-0.127.0-handelsefiler.rules"]) {
+    for (const f of ["bibliotekregelfragment-0.128.0.rules", "bibliotekregelfragment-0.128.0-handelser.rules", "lagringsregelfragment-0.127.0.rules", "lagringsregelfragment-0.127.0-handelsefiler.rules"]) {
       expect(fixtur(f).length, f).toBeGreaterThan(4000);
     }
-    expect(bibliotekregelfragment("bibliotek", { ...sok, handelser: "handelser", arenden: "inkorg" })).not.toBe(fixtur("bibliotekregelfragment-0.127.0-handelser.rules"));
+    expect(bibliotekregelfragment("bibliotek", { ...sok, handelser: "handelser", arenden: "inkorg" })).not.toBe(fixtur("bibliotekregelfragment-0.128.0-handelser.rules"));
     expect(lagringsregelfragment({ bibliotek: { ...lagring, handelsefiler: true, arendefiler: true } })).not.toBe(fixtur("lagringsregelfragment-0.127.0-handelsefiler.rules"));
   });
 

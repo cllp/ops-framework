@@ -250,7 +250,7 @@ export { regelfragment, gruppadSamling, generateRules, lagringsregelfragment, ka
  * beroende till transporten. Fragmentet står för sig: klienten läser inte kön
  * och skriver den inte. Själva kön och utskicket ligger på nodsidan.
  */
-export { mejlregelfragment } from "./lib/mejl.js";
+export { mejlregelfragment, EPOSTFORM, epostFel } from "./lib/mejl.js";
 /*
  * ⛔ KALENDRARNA (0.36.0, #179 F0): gruppens kalendrar (en katalog på typernas motor), mina kalendrar och posterna i
  * dem. Formerna och tidszonen är rena funktioner, och samlingsnamnen skickar appen in till `kalenderregelfragment`.
@@ -315,7 +315,10 @@ export { OpsHubblista } from "./components/OpsHubbar.jsx";
 export { OpsGruppFormular } from "./components/OpsGruppFormular.jsx";
 export { sakerstallAnvandare, sparaInstallningar, andringen } from "./lib/profil.js";
 export { createCatalogSource } from "./data/katalogkalla.js";
-export { BIBLIOTEKTYPER, anteckningsrubrikNu, BIBLIOTEKFLIKAR, BIBLIOTEKFALT, FILFALT, FILMIME, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, MAX_BIBLIOTEKFIL, MAX_BIBLIOTEKLJUD, filTak, mimeUrFilnamn, MAX_BIBLIOTEKFILNAMN, MAX_BIBLIOTEKSOKVAG, MAX_BIBLIOTEKUTSKRIFT, IDE_MAX_SEKUNDER, LJUD_STOLPAR, MAX_LJUD_MS, ADRESSFORM, inmatningsfel, filInmatningsfel, filFel, filSort, arLjudpost, filMimeMonster, normaliseraMime, utskriftFel, ideRubrik, ljudRubrik, ljudDatum, peaksGiltiga, kodaToppar, avkodaToppar, ljudMetaFel, postFel, byggPost, filtreraBibliotek, normaliseraAdress, farAndra, MAX_TAGGAR, MAX_TAGGLANGD, TAGGFORM, normaliseraTagg, normaliseraTaggar, taggarFel, allaTaggar, taggfarg, TAGGFARGER, MITT_PREFIX, MITTFORM, mittBibliotek, arMittBibliotek, mittJag, HANDELSE_PREFIX, HANDELSEIDFORM, HANDELSEFORM, handelseBibliotek, arHandelseBibliotek, handelsedelar, ARENDE_PREFIX, ARENDEIDFORM, ARENDEFORM, arendeBibliotek, arArendeBibliotek, arendedelar, arObjektbibliotek, gruppForPlats } from "./lib/bibliotek.js";
+export { BIBLIOTEKTYPER, anteckningsrubrikNu, BIBLIOTEKFLIKAR, BIBLIOTEKFALT, FILFALT, FILMIME, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, MAX_BIBLIOTEKFIL, MAX_BIBLIOTEKLJUD, filTak, mimeUrFilnamn, MAX_BIBLIOTEKFILNAMN, MAX_BIBLIOTEKSOKVAG, MAX_BIBLIOTEKUTSKRIFT, IDE_MAX_SEKUNDER, LJUD_STOLPAR, MAX_LJUD_MS, ADRESSFORM, inmatningsfel, filInmatningsfel, filFel, filSort, arLjudpost, filMimeMonster, normaliseraMime, utskriftFel, ideRubrik, ljudRubrik, ljudDatum, peaksGiltiga, kodaToppar, avkodaToppar, ljudMetaFel, postFel, byggPost, filtreraBibliotek, normaliseraAdress, farAndra, MAX_TAGGAR, MAX_TAGGLANGD, TAGGFORM, normaliseraTagg, normaliseraTaggar, taggarFel, allaTaggar, taggfarg, TAGGFARGER, MITT_PREFIX, MITTFORM, mittBibliotek, arMittBibliotek, mittJag, HANDELSE_PREFIX, HANDELSEIDFORM, HANDELSEFORM, handelseBibliotek, arHandelseBibliotek, handelsedelar, ARENDE_PREFIX, ARENDEIDFORM, ARENDEFORM, arendeBibliotek, arArendeBibliotek, arendedelar, arObjektbibliotek, gruppForPlats, MAX_LISTPOSTER, POSTIDFORM, BILDFORM, listaFel } from "./lib/bibliotek.js";
+/* (0.128.0, cllp/lifehub.app#378) Smart länk och listor i Biblioteket: källan ur adressen, rubriken ur titel och artist, och en listas rader mot platsens poster. */
+export { LANKKALLOR, KALLOR, lankKalla, lankKallnamn, lankRubrik, lankkallaForm } from "./lib/lankkalla.js";
+export { losLista, listorAttLaggaI, kandidaterForLista, laggTillPost, taBortPost } from "./lib/biblioteklista.js";
 export { createBibliotekskalla, flyttaBibliotekspost } from "./data/bibliotekkalla.js";
 export { OpsBibliotek } from "./components/OpsBibliotek.jsx";
 // 0.119.0 (lifehub.app#356): publik delning av en biblioteksfil. Vyn och det den delar med servern. Tokenet och tjänsten ligger i `ops-framework/node`.
@@ -326,6 +329,7 @@ export { ORD_DELADKOD } from "./components/DeladKod.jsx";
 export { ORD_DELALANK } from "./components/DelaLankFalt.jsx";
 export { ORD_LANKRAD } from "./components/LankRad.jsx";
 export { ORD_HANDELSEDELNING } from "./components/HandelseDelning.jsx";
+export { ORD_MEJLALANK } from "./components/MejlaLank.jsx";
 export { DELAD_SPRAKNYCKEL, webblasarSprak, valdSprak, lasSparatSprak, sparaSprak, kortDatum, antalDagar, deladTid } from "./lib/deladdatum.js";
 export { DELNINGSDAGAR, FORVAL_DELNINGSDAGAR, HANDELSEDAGAR, FORVAL_HANDELSEDAGAR, SIGNERAD_SEKUNDER, TOKENFORM, DELNINGSSLAG, DELNINGSRATTIGHETER, DELNINGSFALT, ADRESSPREFIX, ADRESSSEGMENT, ADRESSDELFORM, MAX_ADRESSDEL, MAX_ADRESSDEL_TOTALT, SLUMPSLUT_TECKEN, SLUMPSLUTFORM, KODLANGD, FELKOD_MAX, FELKOD_FONSTER_MS, adressdel, arAdressdel, nastaAdressdel, foreslaAdress, byggAdress, tolkaAdress, delningsSokvag, delningsUrl, adressUrUppslag, kodFel, normaliseraKod, DELNINGSORSAKER, DELNINGSFEL, DELNINGSFELKODER, DELNINGSSVARSFALT, HANDELSESVARSFALT, HANDELSEFILFALT, MAX_HANDELSEFILER, delningsTyp, delningsfel } from "./lib/delning.js";
 export { MINNESKALLOR, MINNESFALT, MINNESKALLAFALT, MAX_MINNESTEXT, MAX_MINNESID, farAndraMinne, minnesradFel, byggMinnesrad } from "./lib/minne.js";

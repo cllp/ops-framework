@@ -4,6 +4,7 @@ import { definierade, forvalda } from "../lib/ord.js";
 import { DelaLankFalt, useDelaLankFalt } from "./DelaLankFalt.jsx";
 import { LankIkon } from "./icons.jsx";
 import { LankRad } from "./LankRad.jsx";
+import { MejlaLank } from "./MejlaLank.jsx";
 import { OpsButton } from "./OpsButton.jsx";
 import { OpsModal } from "./OpsModal.jsx";
 
@@ -29,12 +30,14 @@ import { OpsModal } from "./OpsModal.jsx";
  * @param {(val: { dagar: number | null, kod: string | null, gruppdel: string, handelsedel: string }) => Promise<import("./LankRad.jsx").Lank>} props.onDela
  * @param {(arg: { id: string }) => Promise<void>} props.onAterkalla
  * @param {string} [props.gruppdel] Gruppdelen gruppen redan använt (tjänstens `gruppdelar().senaste`), föreslagen i rutan före ett namn ur gruppens namn. En gruppdel tillhör en grupp för alltid, så den gruppen redan har är den som går att använda.
+ * @param {(inmatning: { id: string, url: string, till: string }) => Promise<void | boolean> | void | boolean} [props.onMejlaLank] (0.128.0, cllp/lifehub.app#356) Skickar den nyss skapade länken med mejl, via appens mejlväg. Med den visar rutan, när länken är skapad, fältet "Skicka till mejl" och knappen Skicka (`MejlaLank`). Ramverket prövar adressen (`epostFel`) innan anropet. Utan den syns inget fält.
  * @param {string} [props.sprak]
- * @param {Partial<Record<string, string>>} [props.ord] Egna texter (se `ORD_HANDELSEDELNING`, `ORD_DELALANK` och `ORD_LANKRAD`).
+ * @param {Partial<Record<string, string>>} [props.ord] Egna texter (se `ORD_HANDELSEDELNING`, `ORD_DELALANK`, `ORD_LANKRAD` och `ORD_MEJLALANK`).
  */
-export function HandelseDelning({ handelse, delningar, onDela, onAterkalla, gruppdel, sprak = "sv", ord }) {
+export function HandelseDelning({ handelse, delningar, onDela, onAterkalla, onMejlaLank, gruppdel, sprak = "sv", ord }) {
   if (typeof onDela !== "function") throw new Error("HandelseDelning: onDela krävs, en funktion som skapar länken och svarar med den.");
   if (typeof onAterkalla !== "function") throw new Error("HandelseDelning: onAterkalla krävs. En länk man kan skapa men inte stänga är en länk som lever för alltid.");
+  if (onMejlaLank !== undefined && typeof onMejlaLank !== "function") throw new Error("HandelseDelning: onMejlaLank måste vara en funktion (eller utelämnas). Utan den ritas inget mejlfält.");
   if (!Array.isArray(delningar)) {
     throw new Error("HandelseDelning: delningar måste vara en lista med de aktiva länkarna, tom när det inte finns några. Utan den går det inte att skilja 'inga länkar' från 'inte läst'.");
   }
@@ -157,6 +160,7 @@ export function HandelseDelning({ handelse, delningar, onDela, onAterkalla, grup
             <ul className="m-0 flex list-none flex-col p-0">
               <LankRad lank={skapad} sprak={sprak} ord={ord} />
             </ul>
+            {onMejlaLank ? <MejlaLank lank={skapad} onMejlaLank={onMejlaLank} sprak={sprak} ord={ord} /> : null}
           </div>
         ) : (
           <div className="flex flex-col gap-4">

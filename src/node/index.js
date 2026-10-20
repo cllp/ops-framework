@@ -222,3 +222,11 @@ export { DELNINGSDAGAR, FORVAL_DELNINGSDAGAR, HANDELSEDAGAR, FORVAL_HANDELSEDAGA
  */
 export { createFlyttaService, FLYTTFELKODER } from "./flytta.js";
 export { flyttmal, postensTidsfalt } from "../lib/flytta.js";
+
+/*
+ * ⛔ TITEL, ARTIST OCH OMSLAG FÖR EN MUSIKLÄNK (0.128.0, cllp/lifehub.app#378). Serverns halva av den smarta länken i Biblioteket: appen anropar den i en callable och
+ * skickar in sin egen `fetch`. Bara https och bara de fyra källornas värdar (inget SSRF), med tidsgräns och tak på svarets storlek. Källan, värdlistan och rubriken hör till de rena
+ * filerna och exporteras även här, så att en nodfunktion inte behöver dra in React för dem.
+ */
+export { lankInfoUrOembed } from "./lankinfo.js";
+export { LANKKALLOR, lankKalla, lankRubrik } from "../lib/lankkalla.js";
