@@ -1547,7 +1547,7 @@ function NyttSamtal({ kalla, uid, groupId, medlemmar, texter: t, sprak, gruppMar
         <span id={tillId} className="text-meta font-medium text-ink-secondary">
           {t.till}
         </span>
-        <OpsMottagare lage="person" helaGruppen={t.helaGruppen} gruppMarke={gruppMarke} medlemmar={medlemmar} uid={uid} value={mottagare} onChange={oppna} ariaLabel={t.till} tomText={t.ingenAnnan} />
+        <OpsMottagare lage="person" helaGruppen={t.helaGruppen} gruppMarke={gruppMarke} medlemmar={medlemmar} uid={uid} value={mottagare} onChange={/** @type {(m: import("../lib/samtal.js").Arendemottagare) => void} */ (/** @type {unknown} */ (oppna))} ariaLabel={t.till} tomText={t.ingenAnnan} />
         {/*
           ⛔ RADEN FÖLJER VALET, OCH FINNS INTE INNAN NÅGOT ÄR VALT (0.68.0, omgranskningen av PR 268, A6). Förut stod "Bara ni två
           ser det här" redan innan valet, med "Hela gruppen" först under Till var det fel om det som låg närmast till hands.

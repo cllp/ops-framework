@@ -234,6 +234,9 @@ describe("OpsGastGrupp: det bantade gränssnittet", () => {
       skrivChatt: async ({ text }) => ({ ok: true, meddelande: { id: "ny1", av: { namn: "Anna Gäst" }, text, tid: Date.UTC(2026, 9, 19, 10, 0), gast: true, egen: true } }),
       bibliotek: async () => ({ ok: true, poster: POSTER, avkortad: false }),
       fil: async ({ postId }) => ({ ok: true, url: `https://lagring.example/${postId}`, namn: "x", mime: "application/pdf" }),
+      arenden: async () => ({ ok: true, poster: [], avkortad: false }),
+      kommenteraArende: async () => ({ ok: false, orsak: "nej" }),
+      markeraArendeKlart: async () => ({ ok: false, orsak: "nej" }),
       ...extra,
     };
     const api = Object.fromEntries(GASTGRUPPATGARDER.map((a) => [a, vi.fn(async (args) => { logg.push([a, args]); return svar[a](args ?? {}); })]));
@@ -262,12 +265,13 @@ describe("OpsGastGrupp: det bantade gränssnittet", () => {
     }
   });
 
-  it("flikarna följer vilka funktioner gruppen har, och ärenden finns inte som flik hur appen än skriver funktionerna", () => {
+  it("flikarna följer vilka funktioner gruppen har, och ärendefliken finns bara när funktionen finns OCH gästen har ett ärende (se skiva 3 nedan)", async () => {
     const { unmount } = rita({ grupp: { namn: "Källan", funktioner: ["chatt", "bibliotek"] } });
     expect(screen.getAllByRole("tab").map((f) => f.textContent)).toEqual(["Chatt", "Bibliotek"]);
     unmount();
-    // ⛔ En app (eller en äldre tjänst) som ändå listar arenden får ingen ärendeflik: gästen ser inga ärenden (CP 2026-10-20).
-    rita({ grupp: { namn: "Källan", funktioner: ["chatt", "arenden"] } });
+    // Funktionen finns men gästen har inga ärenden: ingen flik.
+    const m = rita({ grupp: { namn: "Källan", funktioner: ["chatt", "arenden"] } });
+    await waitFor(() => expect(m.api.arenden).toHaveBeenCalledTimes(1));
     expect(screen.getAllByRole("tab").map((f) => f.textContent)).toEqual(["Chatt"]);
     expect(() => render(<OpsGastGrupp grupp={{ namn: "K", funktioner: [] }} api={apiMed().api} />)).toThrow(/inga funktioner/);
     expect(() => render(<OpsGastGrupp grupp={null} api={apiMed().api} />)).toThrow(/grupp är/);

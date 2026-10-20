@@ -340,7 +340,7 @@ export {
   GAST_PLATSER_GRATIS, GASTSLAG, GASTFUNKTIONER, GASTLANKDAGAR, GASTSESSIONSDAGAR, GASTFEL_MAX, GASTFEL_FONSTER_MS, GASTIP_MAX, GASTIP_FONSTER_MS, GASTNYLANKIP_MAX, GASTNYLANKIP_FONSTER_MS,
   GASTNYLANK_BREV_PER_DYGN, GASTNYLANK_MAX_LANKAR, MAX_GASTNAMN, MAX_GASTEPOST, GASTNYCKELFORM, GASTINBJUDNINGSIDFORM, GASTIDFORM, GASTSOKVAG, GASTFALT, GASTLISTFALT, GASTSVARSFALT,
   GASTORSAKER, GASTFEL, GASTFELKODER, GASTNYLANK_SVAR, GASTSTATUSAR, GASTPLATSNUMMER, normaliseraGastepost, gastId, gastomfangsnyckel, gastplatsId, gastLank, tolkaGastLank, gastStatus,
-  GASTGRUPPFUNKTIONER, GASTCHATT_SIDA, GASTKALENDER_MAX, GASTBIBLIOTEK_MAX, GASTANROP_PER_MINUT, GASTFIL_PER_DYGN, GASTGRUPPSVARSFALT, GASTCHATTFALT, GASTHANDELSEFALT, GASTKALENDERFALT, GASTFILFALT, GASTBIBLIOTEKFALT, GASTPERSONFALT, GASTPERSONINBJUDANFALT, GASTTIDIGAREMEDLEM, arGastId, GASTNAMNLOS, GASTSKRIV_MAX_TECKEN, GASTSKRIV_PER_MINUT, GASTGRUPPATGARDER, gastOmfangGer, gastGruppApi,
+  GASTGRUPPFUNKTIONER, GASTARENDE_MAX, GASTARENDE_SKANNA_MAX, GASTARENDEKOMMENTARER_MAX, GASTARENDEFALT, GASTARENDEKOMMENTARFALT, byggGastMottagare, gastDelegerad, tolkaGastMottagare, GASTCHATT_SIDA, GASTKALENDER_MAX, GASTBIBLIOTEK_MAX, GASTANROP_PER_MINUT, GASTFIL_PER_DYGN, GASTGRUPPSVARSFALT, GASTCHATTFALT, GASTHANDELSEFALT, GASTKALENDERFALT, GASTFILFALT, GASTBIBLIOTEKFALT, GASTPERSONFALT, GASTPERSONINBJUDANFALT, GASTTIDIGAREMEDLEM, arGastId, GASTNAMNLOS, GASTSKRIV_MAX_TECKEN, GASTSKRIV_PER_MINUT, GASTGRUPPATGARDER, gastOmfangGer, gastGruppApi,
 } from "./lib/gast.js";
 export { OpsGastLista, ORD_OPSGASTLISTA } from "./components/OpsGastLista.jsx";
 export { OpsGastSida, ORD_OPSGASTSIDA } from "./components/OpsGastSida.jsx";
@@ -350,6 +350,8 @@ export { OpsGastSida, ORD_OPSGASTSIDA } from "./components/OpsGastSida.jsx";
  */
 export { OpsGastGrupp, ORD_OPSGASTGRUPP } from "./components/OpsGastGrupp.jsx";
 export { OpsGastChatt, ORD_OPSGASTCHATT } from "./components/OpsGastChatt.jsx";
+export { OpsGastArenden, ORD_OPSGASTARENDEN } from "./components/OpsGastArenden.jsx";
+export { OpsGastMottagare, ORD_OPSGASTMOTTAGARE } from "./components/OpsGastMottagare.jsx";
 export { MINNESKALLOR, MINNESFALT, MINNESKALLAFALT, MAX_MINNESTEXT, MAX_MINNESID, farAndraMinne, minnesradFel, byggMinnesrad } from "./lib/minne.js";
 export { createMinneskalla } from "./data/minneskalla.js";
 export { OpsMinne } from "./components/OpsMinne.jsx";
@@ -378,7 +380,7 @@ export { OpsBeskrivenApp, ORD_OPSBESKRIVENAPP } from "./components/OpsBeskrivenA
  * ⛔ SAMTALEN (0.34.0, #182, #185): gruppchatt, privata meddelanden och Assistent-tråden som EN modell. Formerna och
  * nyckeln är rena funktioner, källan går genom en datakälla, och Firebase importeras aldrig här.
  */
-export { SAMTALSSLAG, SAMTALSFALT, MEDDELANDEFALT, LASTFALT, MAX_MEDDELANDE, MOTTAGARSLAG, samtalsnyckel, byggSamtal, byggMeddelande, byggMottagare, olastaI, motpart, utdrag, TRADFALT, MAX_TRADNAMN, AUTONAMN_LANGD, AUTONAMN_MINST, NAMNLOS_TRAD, rensaForNamn, autonamn, tradensNamn, byggTrad, kravTradnamn, undersamlingskrock, AGENTSTATUS_ID, AGENTLAGEN, AGENTSTATUSFALT, AGENTSTATUS_MAX_ALDER, byggAgentstatus, agentstatus, REAKTIONSKODER, REAKTIONSFALT, REAKTIONSTAK, reaktionsnyckel, byggReaktion, summeraReaktioner, NAMNERFALT, NAMNER_ALLA, MAX_NAMNER, MAX_UIDLANGD, kravNamner, namnda, arNamnd, agentenNamnd, SVARPAFALT, FASTFALT, FASTA_TAK, byggFastning, AMNESFALT, AMNES_FORM, MAX_AMNESRUBRIK, NAMNLOST_AMNE, kravAmne, nyttAmnesId, amnesId, parnyckel, kravAmnesrubrik, amnesrubrik } from "./lib/samtal.js";
+export { SAMTALSSLAG, SAMTALSFALT, MEDDELANDEFALT, LASTFALT, MAX_MEDDELANDE, MOTTAGARSLAG, ARENDEMOTTAGARSLAG, samtalsnyckel, byggSamtal, byggMeddelande, byggMottagare, byggArendemottagare, olastaI, motpart, utdrag, TRADFALT, MAX_TRADNAMN, AUTONAMN_LANGD, AUTONAMN_MINST, NAMNLOS_TRAD, rensaForNamn, autonamn, tradensNamn, byggTrad, kravTradnamn, undersamlingskrock, AGENTSTATUS_ID, AGENTLAGEN, AGENTSTATUSFALT, AGENTSTATUS_MAX_ALDER, byggAgentstatus, agentstatus, REAKTIONSKODER, REAKTIONSFALT, REAKTIONSTAK, reaktionsnyckel, byggReaktion, summeraReaktioner, NAMNERFALT, NAMNER_ALLA, MAX_NAMNER, MAX_UIDLANGD, kravNamner, namnda, arNamnd, agentenNamnd, SVARPAFALT, FASTFALT, FASTA_TAK, byggFastning, AMNESFALT, AMNES_FORM, MAX_AMNESRUBRIK, NAMNLOST_AMNE, kravAmne, nyttAmnesId, amnesId, parnyckel, kravAmnesrubrik, amnesrubrik } from "./lib/samtal.js";
 export { createSamtalskalla, samtalsnotiser, harTradar, harStatus, harReaktioner, harOmnamnanden, harCitat, harFasta, harBilagor, harTyst, harAmnen, harLevandeInkorg } from "./data/samtalskalla.js";
 export { useSamtal } from "./data/useSamtal.jsx";
 export { OpsMottagare } from "./components/OpsMottagare.jsx";

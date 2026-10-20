@@ -5,6 +5,7 @@ import { definierade, forvalda } from "../lib/ord.js";
 import { OpsBibliotek } from "./OpsBibliotek.jsx";
 import { OpsCalendar } from "./OpsCalendar.jsx";
 import { OpsEmpty } from "./OpsEmpty.jsx";
+import { OpsGastArenden } from "./OpsGastArenden.jsx";
 import { OpsGastChatt } from "./OpsGastChatt.jsx";
 import { OpsHandelsePanel } from "./OpsHandelsePanel.jsx";
 import { OpsList, OpsListRow } from "./OpsList.jsx";
@@ -20,9 +21,10 @@ export const ORD_OPSGASTGRUPP = {
   flik_chatt: { sv: "Chatt", en: "Chat" },
   flik_kalender: { sv: "Kalender", en: "Calendar" },
   flik_bibliotek: { sv: "Bibliotek", en: "Library" },
+  flik_arenden: { sv: "Ärenden", en: "Cases" },
   gastIngress: {
-    sv: "Du är gäst i {grupp}. Du kan läsa och skriva i gruppens chatt, svara och rösta i kalendern och läsa, spela och ladda ned i biblioteket. Du ser inte gruppens ärenden.",
-    en: "You are a guest in {grupp}. You can read and write in the group's chat, answer and vote in the calendar, and read, play and download in the library. You do not see the group's cases.",
+    sv: "Du är gäst i {grupp}. Du kan läsa och skriva i gruppens chatt, svara och rösta i kalendern och läsa, spela och ladda ned i biblioteket. Du ser inte gruppens ärenden, bara de som gruppen har gett dig.",
+    en: "You are a guest in {grupp}. You can read and write in the group's chat, answer and vote in the calendar, and read, play and download in the library. You do not see the group's cases, only those the group has given you.",
   },
   kalenderEtikett: { sv: "Kalender", en: "Calendar" },
   kalenderTom: { sv: "Inga händelser i kalendern än.", en: "No events in the calendar yet." },
@@ -42,6 +44,7 @@ export const ORD_OPSGASTGRUPP = {
   "fel_for-manga": { sv: "För många anrop. Vänta en stund och försök igen.", en: "Too many requests. Wait a while and try again." },
   fel_saknas: { sv: "Det du bad om finns inte längre.", en: "What you asked for no longer exists." },
   fel_nej: { sv: "Det gick inte.", en: "That did not work." },
+  fel_arende: { sv: "Ärendet ligger inte längre hos dig, eller är redan klart.", en: "The case is no longer with you, or is already done." },
   bibliotekTom: { sv: "Gruppens bibliotek är tomt.", en: "The group's library is empty." },
   bibliotekAvkortad: { sv: "Biblioteket visar de första {n} posterna. Det finns fler.", en: "The library shows the first {n} items. There are more." },
   bibliotekFilFel: { sv: "Filen kunde inte hämtas.", en: "The file could not be fetched." },
@@ -70,7 +73,12 @@ function sammanfoga(a, b) {
 const tidText = (h, till) => (h.tid ? (h.slutTid ? `${h.tid} ${till} ${h.slutTid}` : h.tid) : undefined);
 
 /**
- * Hela gruppen för en gäst: det bantade gränssnittet (0.132.0, cllp/lifehub.app#389, skiva 2). Tre flikar och ingenting annat: chatt, kalender och bibliotek. Ärenden ser en gäst inte (CP 2026-10-20): ärendelistan kan bära sådant som inte rör gästen.
+ * Hela gruppen för en gäst: det bantade gränssnittet (0.132.0, cllp/lifehub.app#389, skiva 2). Tre flikar och ingenting annat: chatt, kalender och bibliotek, och en fjärde, Ärenden, bara när gästen har minst ett ärende delegerat till sig (skiva 3, CP 2026-10-20). Gästen ser aldrig gruppens ärendelista (den kan bära sådant som inte rör gästen), bara de ärenden servern valt ut på gästens `gastId`.
+ *
+ * ══ ⛔ ÄRENDEFLIKEN HÄMTAS VID START OCH VISAS BARA MED INNEHÅLL ═════════════════════════════════════════════════════════════
+ *
+ * Svaret på `arenden` avgör om fliken finns, så den hämtas direkt (en läsning av gruppens ärenden, på servern) och inte först när fliken öppnas. Ett tomt svar ger ingen flik; ett fel ger fliken med felet, så att ett trasigt
+ * anrop aldrig ser ut som att gästen saknar ärenden. Försvinner det sista ärendet (återkallat ansvar, eller ärendet flyttat) hoppar vyn till första fliken.
  *
  * ══ ⛔ BANTAT BETYDER ATT DET INTE FINNS, INTE ATT DET ÄR GÖMT ═══════════════════════════════════════════════════════════
  *
@@ -129,7 +137,7 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
   }, []);
 
   /** Ett anrop mot servern. Ett svar som inte är `ok` kastar ett `GastFel` med orsaken; `aterkallad` och `nej` säger dessutom till sidan (`onNekad`) att åtkomsten är borta. */
-  const kor = useCallback(async (/** @type {keyof typeof api} */ atgard, /** @type {Record<string, any>} */ args = {}) => {
+  const kor = useCallback(async (/** @type {keyof typeof api} */ atgard, /** @type {Record<string, any>} */ args = {}, /** @type {{ utanNekad?: boolean }} */ val = {}) => {
     /** @type {any} */
     let r;
     try {
@@ -139,7 +147,8 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
     }
     if (r && r.ok === true) return r;
     const orsak = r && typeof r.orsak === "string" ? r.orsak : "nej";
-    if (orsak === "aterkallad" || orsak === "nej") nekadRef.current?.(orsak);
+    // ⛔ `utanNekad`: för ett ärende är "nej" tvetydigt (sessionen är borta, eller ärendet ligger inte längre hos gästen: servern svarar medvetet likadant). Anroparen hämtar då om listan, och DEN avgör om åtkomsten är borta.
+    if (!val.utanNekad && (orsak === "aterkallad" || orsak === "nej")) nekadRef.current?.(orsak);
     throw new GastFel(orsak);
   }, []);
 
@@ -242,6 +251,60 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
       const fore = /** @type {{ meddelanden: any[], fler: boolean } | undefined} */ (d.chatt);
       return { ...d, chatt: { meddelanden: sammanfoga(fore?.meddelanden ?? [], [r.meddelande]), fler: fore?.fler ?? false } };
     });
+  };
+
+  // ── Ärenden delegerade till gästen (skiva 3) ──────────────────────────────────────────────────────────────────────────
+  // Hämtas direkt vid start, inte först när fliken öppnas: fliken visas bara om det finns ett ärende, så svaret avgör om den finns.
+  useEffect(() => {
+    if (funktioner.includes("arenden")) void ladda("arenden");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /**
+   * Ett nej på ett ärende är tvetydigt (se `kor`): hämta om listan. Är åtkomsten borta svarar den `nej` eller `aterkallad` och sidan byter till texten; annars har ärendet bara flyttat, och gästen får veta det.
+   * @param {unknown} e
+   * @returns {Promise<Error>}
+   */
+  const arendeNej = async (e) => {
+    if (e instanceof GastFel && (e.orsak === "nej" || e.orsak === "aterkallad")) {
+      await ladda("arenden");
+      return new Error(t.fel_arende);
+    }
+    return new Error(felText(e));
+  };
+
+  /**
+   * Gästen kommenterar ett ärende. Kommentaren läggs in så som servern sparade den. Ett fel kastas som ett Error med texten som ska stå under fältet.
+   * @param {string} arendeId
+   * @param {string} text
+   */
+  const kommenteraArende = async (arendeId, text) => {
+    /** @type {any} */
+    let r;
+    try {
+      r = await kor("kommenteraArende", { arendeId, text }, { utanNekad: true });
+    } catch (e) {
+      throw await arendeNej(e);
+    }
+    if (!levande.current) return;
+    setData((d) => {
+      const fore = /** @type {{ poster: any[] } | undefined} */ (d.arenden);
+      if (!fore) return d;
+      return { ...d, arenden: { ...fore, poster: fore.poster.map((p) => (p.id === arendeId ? { ...p, kommentarer: [...(p.kommentarer ?? []), r.kommentar] } : p)) } };
+    });
+  };
+
+  /**
+   * Gästen markerar ett ärende klart, och listan hämtas om så att statusen är servern.
+   * @param {string} arendeId
+   */
+  const markeraArendeKlart = async (arendeId) => {
+    try {
+      await kor("markeraArendeKlart", { arendeId }, { utanNekad: true });
+    } catch (e) {
+      throw await arendeNej(e);
+    }
+    await ladda("arenden", { tyst: true });
   };
 
   // ── Kalendern och händelsen ───────────────────────────────────────────────────────────────────────────────────────────
@@ -465,7 +528,12 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
     );
   };
 
-  const flikar = funktioner.map((f) => ({ id: f, label: t[`flik_${f}`] }));
+  // ⛔ ÄRENDEFLIKEN FINNS BARA MED MINST ETT DELEGERAT ÄRENDE (skiva 3), eller när hämtningen föll: ett fel som tystades vore en flik som saknas utan att någon fick veta varför.
+  const arendeData = /** @type {{ poster: any[], avkortad?: boolean } | undefined} */ (data.arenden);
+  const visaArenden = funktioner.includes("arenden") && ((arendeData?.poster.length ?? 0) > 0 || Boolean(fel.arenden));
+  const synliga = funktioner.filter((f) => f !== "arenden" || visaArenden);
+  const aktivFlik = synliga.includes(/** @type {any} */ (flik)) ? flik : synliga[0];
+  const flikar = synliga.map((f) => ({ id: f, label: t[`flik_${f}`] }));
   const chatt = /** @type {{ meddelanden: any[], fler: boolean } | undefined} */ (data.chatt);
 
   return (
@@ -476,7 +544,7 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
       </header>
       <OpsTabs
         tabs={flikar}
-        value={flik}
+        value={aktivFlik}
         onChange={(v) => {
           setFlik(v);
           // Tillbaka i kalenderfliken visas listan, inte en händelse man lämnade.
@@ -499,6 +567,11 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
         ) : null}
         {funktioner.includes("kalender") ? <OpsTabPanel id="kalender">{kalenderInnehall()}</OpsTabPanel> : null}
         {funktioner.includes("bibliotek") ? <OpsTabPanel id="bibliotek">{bibliotekInnehall()}</OpsTabPanel> : null}
+        {visaArenden ? (
+          <OpsTabPanel id="arenden">
+            <OpsGastArenden poster={arendeData?.poster ?? []} avkortad={Boolean(arendeData?.avkortad)} onKommentera={kommenteraArende} onKlar={markeraArendeKlart} laddar={!arendeData && !fel.arenden} fel={fel.arenden} sprak={sprak} />
+          </OpsTabPanel>
+        ) : null}
       </OpsTabs>
     </div>
   );
