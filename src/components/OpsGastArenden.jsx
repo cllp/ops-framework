@@ -15,8 +15,8 @@ import { OpsPill } from "./OpsPill.jsx";
 export const ORD_OPSGASTARENDEN = {
   rubrik: { sv: "Ärenden till dig", en: "Cases for you" },
   ingress: {
-    sv: "Här ligger ärendena som gruppen har gett dig. Du ser inte gruppens andra ärenden. Du kan kommentera och markera dem klara, men inte öppna dem igen.",
-    en: "These are the cases the group has given you. You do not see the group's other cases. You can comment on them and mark them done, but not reopen them.",
+    sv: "Här ligger ärendena som gruppen har gett dig. Du kan kommentera och markera dem klara, men inte öppna dem igen.",
+    en: "These are the cases the group has given you. You can comment on them and mark them done, but not reopen them.",
   },
   tom: { sv: "Inga ärenden ligger hos dig just nu.", en: "No cases are with you right now." },
   laddar: { sv: "Hämtar ärendena", en: "Loading the cases" },
@@ -97,7 +97,7 @@ function Arendekort({ post, onKommentera, onKlar, sprak, t }) {
   return (
     <article data-gast-arende={post.id} data-status={post.status ?? ""} aria-label={post.rubrik} className="flex min-w-0 flex-col gap-3 rounded-lg border border-line bg-surface p-4">
       <header className="flex min-w-0 flex-wrap items-start justify-between gap-2">
-        <h3 data-gast-arende-rubrik="" className="m-0 min-w-0 flex-1 text-sektion text-ink wrap-anywhere">{post.rubrik}</h3>
+        <h3 data-gast-arende-rubrik="" className="m-0 min-w-0 flex-1 text-brod font-semibold text-ink wrap-anywhere">{post.rubrik}</h3>
         {statusText ? (
           <span data-gast-arende-status="">
             <OpsPill tone={statusTone(post.status)}>{statusText}</OpsPill>

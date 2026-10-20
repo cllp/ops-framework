@@ -83,7 +83,7 @@ describe("OpsGastArenden", () => {
     expect(kort[2].querySelector("[data-gast-arende-fler]").textContent).toBe("Äldre kommentarer visas inte.");
     expect(kort[0].querySelector("[data-gast-arende-fler]")).toBeNull();
     expect(kort[1].textContent).toContain("Inga kommentarer än.");
-    expect(screen.getByText(/Du ser inte gruppens andra ärenden/)).toBeInTheDocument();
+    expect(screen.getByText(/Här ligger ärendena som gruppen har gett dig\. Du kan kommentera och markera dem klara, men inte öppna dem igen\./)).toBeInTheDocument();
   });
 
   it("⛔ vyn gör inget urval och visar ingen länk: GitHub-adressen finns inte i vyn, och inga länkar leder ut", () => {

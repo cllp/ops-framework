@@ -1,8 +1,11 @@
 import { useId } from "react";
 import { cx } from "../lib/cx.js";
 import { GASTNAMNLOS, arGastId } from "../lib/gast.js";
+import { forvalda } from "../lib/ord.js";
 import { AgentIkon, BockIkon, GruppIkon } from "./icons.jsx";
+import { ORD_OPSGASTMOTTAGARE } from "./OpsGastMottagare.jsx";
 import { OpsIdentity } from "./OpsIdentity.jsx";
+import { useOpsSprak } from "./OpsSprak.jsx";
 import { usePersonnamn } from "./usePersonnamn.js";
 
 /**
@@ -41,7 +44,7 @@ import { usePersonnamn } from "./usePersonnamn.js";
  * @param {import("../lib/samtal.js").Arendemottagare | null} props.value
  * @param {(m: import("../lib/samtal.js").Arendemottagare) => void} props.onChange
  * @param {ReadonlyArray<{ gastId: string, namn?: string }>} [props.gaster] (0.132.0) Gäster med levande gruppinbjudan att välja bland, i `lage="arende"`. Se ovan.
- * @param {string} [props.gastEtikett] Märket på en gästrad. Förval "Gäst".
+ * @param {string} [props.gastEtikett] Märket på en gästrad. Förval ur ordboken (`ORD_OPSGASTMOTTAGARE`): Gäst på svenska, Guest på engelska.
  * @param {string} [props.gruppNamn] Namnet på raden Gruppen. Förval "Gruppen".
  * @param {string} [props.agentNamn] Förval "Agenten".
  * @param {string} [props.duEtikett] Förval "du".
@@ -67,10 +70,13 @@ export function OpsMottagare({
   helaGruppen,
   gruppMarke,
   gaster,
-  gastEtikett = "Gäst",
+  gastEtikett,
 }) {
   const namnId = useId();
   const personnamn = usePersonnamn();
+  // Märket Gäst kommer ur ordboken (`ORD_OPSGASTMOTTAGARE`), på appens språk, och ett eget ord vinner (`gastEtikett`).
+  const sprak = useOpsSprak();
+  const gastText = gastEtikett ?? forvalda(ORD_OPSGASTMOTTAGARE, sprak).gast;
   const aktiva = (medlemmar ?? []).filter((m) => m && m.userId && (m.status ?? "aktiv") === "aktiv");
   const personer = aktiva
     .filter((m) => (m.typ ?? "person") === "person" && (lage === "arende" || m.userId !== uid))
@@ -145,7 +151,7 @@ export function OpsMottagare({
             <span className="min-w-0 flex-1 truncate" data-namn-saknas={r.saknas ? "" : undefined}>
               {r.namn}
             </span>
-            {r.gast ? <span data-gast-markning="" className="shrink-0 rounded-full bg-sunken px-1.5 py-px text-mikro font-semibold text-ink-secondary">{gastEtikett}</span> : null}
+            {r.gast ? <span data-gast-markning="" className="shrink-0 rounded-full bg-sunken px-1.5 py-px text-mikro font-semibold text-ink-secondary">{gastText}</span> : null}
             {ar ? (
               <span className="shrink-0 text-accent">
                 <BockIkon size={16} />

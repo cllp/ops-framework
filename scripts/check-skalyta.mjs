@@ -50,7 +50,7 @@
  *       node scripts/check-skalyta.mjs --bara-grupp-vantar  bara avsnitt 53, Spara och statusraden medan en grupp skapas (0.129.0)
  *       node scripts/check-skalyta.mjs --bara-kategori  bara avsnitt 54, formuläret "Lägg till kategori": ett namn räcker (0.130.0)
  *       node scripts/check-skalyta.mjs --bara-gaster    bara avsnitt 55, gästernas lista och gästens egen sida, 390 och 1280 px (0.131.0)
- *       node scripts/check-skalyta.mjs --bara-gastgrupp  bara avsnitt 56, gästens bantade gränssnitt för hela gruppen och inbjudningsdialogen, 390 och 1280 px (0.132.0)
+ *       node scripts/check-skalyta.mjs --bara-gastgrupp  bara avsnitt 56, gästens bantade gränssnitt för hela gruppen och inbjudningsdialogen, 390 och 1280 px (0.132.0), och avsnitt 57, ärenden till en gäst (fliken, kommentar, Markera klar, väljaren och märket)
  *       node scripts/check-skalyta.mjs --bara-etiketter  bara avsnitt 48, etiketterna inom sina dagsrutor i månadsvyn (0.106.0); med --tema dark som CP:s skärm
  *       node scripts/check-skalyta.mjs --chattbredder 390,1024   29g i andra bredder än 390 och 1280
  *       node scripts/check-skalyta.mjs --tema dark        alla sidor i mörkt tema (förebilden CP jämför mot är mörk)
@@ -7988,7 +7988,7 @@ async function gastArenden() {
           return {
             kort: kort.map((k) => ({ id: k.getAttribute("data-gast-arende"), status: k.getAttribute("data-status"), utanfor: [...k.querySelectorAll("h3,[data-gast-arende-text],[data-gast-arende-kommentar]")].filter(ut).length, klar: !!k.querySelector("[data-gast-arende-klar] button"), textareor: k.querySelectorAll("textarea").length, ruta: k.getBoundingClientRect().right <= innerWidth + 0.5 })),
             markningar: [...document.querySelectorAll("[data-gast-arende-kommentar] [data-gast-markning]")].map((e) => (e.textContent || "").trim()),
-            du: [...document.querySelectorAll("[data-gast-arende-kommentar]")].filter((k) => /\bDu\b/.test(k.textContent || "")).length,
+            du: [...document.querySelectorAll("[data-gast-arende-kommentar]")].filter((k) => (k.querySelector("span > span")?.textContent || "").trim() === "Du").length,
             statusar: [...document.querySelectorAll("[data-gast-arende-status]")].map((e) => (e.textContent || "").trim()),
             forfaller: (document.querySelector("[data-gast-arende-forfaller]")?.textContent || "").trim(),
             knappar: [...document.querySelectorAll("[data-gast-arende-klar] button")].map((k) => k.getBoundingClientRect().height),
