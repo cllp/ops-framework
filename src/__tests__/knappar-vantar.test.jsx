@@ -295,6 +295,24 @@ describe("knapparna i ramverket som väntar (inventeringen)", () => {
     await provaVantar(() => screen.getByRole("button", { name: "Installera Resor" }), onInstallera, d.los);
   });
 
+  it("OpsGruppFormular: Ta bort bilden", async () => {
+    const d = uppskjuten();
+    const onTaBortBild = vi.fn(() => d.lofte);
+    render(
+      <OpsGruppFormular
+        formId="f"
+        sprak="sv"
+        grupp={{ id: "g1", namn: { sv: "Alfa AB" }, bild: "grupper/g1/logga.png" }}
+        bildUrl="https://x/a.png"
+        onSpara={async () => {}}
+        onLaddaUppBild={async () => ({ sokvag: "", url: "" })}
+        onTaBortBild={onTaBortBild}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Färg och ikon/ }));
+    await provaVantar(() => screen.getByRole("button", { name: "Ta bort bilden" }), onTaBortBild, d.los);
+  });
+
   const poster = [{ ...byggPost({ groupId: "cps-ab", typ: "anteckning", rubrik: "Protokoll", text: "Vi beslutade om bokslutet.", skapadAv: { uid: "uid-1", namn: "Kim", typ: "manniska", kalla: "bibliotek" }, skapad: 1_700_000_000_000, andrad: 1_700_000_000_000 }), id: "a" }];
 
   it("OpsBibliotek: Radera posten (lokal rättelse: löftet svaldes i korRadera)", async () => {
