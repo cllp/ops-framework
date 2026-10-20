@@ -9,6 +9,7 @@ import { SPRAK } from "../lib/sprak.js";
 import { DeladKod } from "./DeladKod.jsx";
 import { DatumIkon, FilIkon, KlockaIkon, PlatsIkon } from "./icons.jsx";
 import { OpsEmpty } from "./OpsEmpty.jsx";
+import { PublikSprakval } from "./PublikSprakval.jsx";
 
 /**
  * Orden på den publika händelsesidan, på svenska och engelska (0.125.0, cllp/lifehub.app#377). Svenskan i feltexterna är `DELNINGSFEL` och ingen kopia av den (regel 2).
@@ -108,7 +109,7 @@ export function OpsDeladHandelse({ delning = null, orsak, laddar = false, onKod,
       <header className="sticky top-0 z-10 border-b border-publik-ljus-text/10 bg-publik-ljus">
         <div className="mx-auto flex h-14 w-full max-w-3xl items-center justify-between gap-3 px-4">
           <div data-dh-huvud="" className="flex min-w-0 items-center">{huvud}</div>
-          <Sprakval aktivt={aktivt} etikett={t.sprakEtikett} onVal={valj} />
+          <PublikSprakval aktivt={aktivt} etikett={t.sprakEtikett} onVal={valj} />
         </div>
       </header>
       <main className="mx-auto w-full max-w-3xl flex-1 px-4 pt-8 pb-16 sm:pt-12">
@@ -126,33 +127,6 @@ export function OpsDeladHandelse({ delning = null, orsak, laddar = false, onKod,
           <Handelse delning={/** @type {NonNullable<typeof delning>} */ (delning)} t={t} sprak={aktivt} />
         )}
       </main>
-    </div>
-  );
-}
-
-/**
- * Språkväljaren i huvudet: SV och EN, en knapp var, den valda markerad (`aria-pressed`).
- * @param {{ aktivt: string, etikett: string, onVal: (s: string) => void }} props
- */
-function Sprakval({ aktivt, etikett, onVal }) {
-  return (
-    <div role="group" aria-label={etikett} data-dh-sprak="" className="flex shrink-0 items-center gap-1 text-meta font-medium">
-      {SPRAK.map((s) => (
-        <button
-          key={s}
-          type="button"
-          lang={s}
-          aria-pressed={s === aktivt}
-          onClick={() => onVal(s)}
-          className={cx(
-            "min-h-9 min-w-10 cursor-pointer rounded-full px-3 py-1 transition-colors duration-(--duration-fast) ease-standard",
-            "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-            s === aktivt ? "bg-publik-ljus-text/10 text-publik-ljus-text" : "text-publik-ljus-text/65 hover:text-publik-ljus-text",
-          )}
-        >
-          {s.toUpperCase()}
-        </button>
-      ))}
     </div>
   );
 }

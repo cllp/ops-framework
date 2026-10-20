@@ -49,6 +49,7 @@
  *       node scripts/check-skalyta.mjs --bara-0127       bara avsnitt 50 till 52, preliminära poster, tilläggsrutan i Ny händelse och video i Biblioteket (0.127.0)
  *       node scripts/check-skalyta.mjs --bara-grupp-vantar  bara avsnitt 53, Spara och statusraden medan en grupp skapas (0.129.0)
  *       node scripts/check-skalyta.mjs --bara-kategori  bara avsnitt 54, formuläret "Lägg till kategori": ett namn räcker (0.130.0)
+ *       node scripts/check-skalyta.mjs --bara-gaster    bara avsnitt 55, gästernas lista och gästens egen sida, 390 och 1280 px (0.131.0)
  *       node scripts/check-skalyta.mjs --bara-etiketter  bara avsnitt 48, etiketterna inom sina dagsrutor i månadsvyn (0.106.0); med --tema dark som CP:s skärm
  *       node scripts/check-skalyta.mjs --chattbredder 390,1024   29g i andra bredder än 390 och 1280
  *       node scripts/check-skalyta.mjs --tema dark        alla sidor i mörkt tema (förebilden CP jämför mot är mörk)
@@ -1052,6 +1053,14 @@ if (argv.includes("--bara-0127")) {
 // `--bara-kategori`: bara avsnitt 54. Hela körningen kör det också.
 if (argv.includes("--bara-kategori")) {
   await kategoriFormular();
+  await browser.close();
+  avsluta();
+  process.exit(0);
+}
+
+// `--bara-gaster`: bara avsnitt 55. Hela körningen kör det också.
+if (argv.includes("--bara-gaster")) {
+  await gastVyer();
   await browser.close();
   avsluta();
   process.exit(0);
@@ -7517,6 +7526,179 @@ async function kategoriFormular() {
   }
 }
 
+// ══ 55. GÄSTER: LISTAN OCH GÄSTENS EGEN SIDA (0.131.0, lifehub.app#389) ══════════════════════════════════════════════════════════
+// Skiva 1 av gäster: en person utan konto bjuds in till en omröstning. Ärendet citerar ingen SessionStudio-skärmbild (regel 12 utlöses inte),
+// men jsdom kör ingen CSS och mäter därför aldrig hur det SER UT: att en lång adress bryts, att fältet och knappen syns utan rullning på
+// en telefon, att inget flödar över i sidled. Mätt här i en riktig webbläsare, vid 390 och 1280 px.
+//   (golv) medlemmens lista har fyra gäster och gästens sida ritas med sin rubrik, annars mättes inget.
+//   (a) ingen sidled-överflödning i något av lägena: listan (4 av 5 och 5 av 5), adressfrågan, saken efter inloggning, återkallad, ny länk.
+//   (b) listan: en lång adress och ett långt namn bryts i sin rad (ingen rad är bredare än sin behållare), varje knapp i en rad är minst 32 px
+//       hög (`size="sm"`, som länkraderna) och "Bjud in utan konto" minst 44 px.
+//   (c) vid 5 av 5 är formuläret spärrat och texten säger varför; vid 4 av 5 är det öppet.
+//   (d) gästens sida: adressfältet och Fortsätt syns utan rullning vid 390 x 844, båda minst 44 px höga, och sidan har exakt en h1.
+//   (e) flödet: adress -> anrop med id, nyckel och adress -> sakens kort syns med sina knappar; nyckeln finns inte i sidans text efteråt.
+//   (f) en röst går ut genom sakens knapp och sidan hämtar om (`uppdatera`).
+//   (g) språkvalet: EN byter rubrik och knapp, SV tillbaka.
+//   (h) återkallad: texten står, sakens kort är borta. Ny länk: formuläret frågar efter adressen och svaret blir det vanliga.
+async function gastVyer() {
+  // Besökarens webbläsare är svensk i proven (sidans förval följer `navigator.language`). Språkvalet (g) mäter bytet till engelska.
+  const SV_WEBBLASARE = { kontext: { locale: "sv-SE" } };
+  const vyer = [{ width: 390, height: 844 }, { width: 1280, height: 900 }];
+  for (const vp of vyer) {
+    const w = vp.width;
+    const namn = `gäster ${w}`;
+    // ── Medlemmens lista ──
+    for (const full of [false, true]) {
+      const { page, context } = await oppna(full ? "gastlista-full" : "gastlista", vp);
+      try {
+        await page.waitForSelector("[data-gastlista]");
+        const m = await page.evaluate(() => {
+          const rot = /** @type {HTMLElement} */ (document.querySelector("[data-gastlista]"));
+          const rader = [...rot.querySelectorAll("[data-gast]")].map((r) => {
+            const rr = r.getBoundingClientRect();
+            // Texten som ligger utanför sin ruta syns inte i rutans mått (`getBoundingClientRect`) men väl i `scrollWidth`: mät den.
+            const utanfor = [...r.querySelectorAll("[data-gast-namn],[data-gast-epost]")].filter((e) => e.scrollWidth > e.clientWidth + 1 || e.getBoundingClientRect().right > rr.right + 0.5).length;
+            return { id: r.getAttribute("data-gast"), bredd: rr.width, hogerkant: rr.right, utanfor, knappar: [...r.querySelectorAll("button")].map((b) => b.getBoundingClientRect().height) };
+          });
+          const bjud = [...rot.querySelectorAll("button")].find((b) => (b.textContent || "").trim() === "Bjud in utan konto");
+          const falt = /** @type {HTMLInputElement | null} */ (rot.querySelector('input[type="email"]'));
+          return {
+            rader,
+            platser: (rot.querySelector("[data-gastlista-platser]")?.textContent || "").trim(),
+            fulltext: !!rot.querySelector("[data-gastlista-fulla]"),
+            bjudHojd: bjud ? bjud.getBoundingClientRect().height : null,
+            bjudSparrad: bjud ? /** @type {HTMLButtonElement} */ (bjud).disabled : null,
+            faltSparrat: falt ? falt.disabled : null,
+            overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+            rotRight: rot.getBoundingClientRect().right,
+          };
+        });
+        const lage = full ? "5 av 5" : "4 av 5";
+        matt.push(`${namn} lista ${lage}: ${m.rader.length} gäster, "${m.platser}", knappar ${m.rader.flatMap((r) => r.knappar).map((h) => h.toFixed(0)).join("/")} px, Bjud in ${m.bjudHojd === null ? "saknas" : m.bjudHojd.toFixed(0) + " px"}, spärrat ${m.bjudSparrad}`);
+        krav(m.rader.length === 4, `${namn} lista ${lage} (golv): ${m.rader.length} gäster ritades, väntat 4. Då mättes inte listan.`);
+        krav(!m.overflow, `${namn} lista ${lage} (a): sidan flödar över i sidled.`);
+        krav(m.rader.every((r) => r.utanfor === 0), `${namn} lista ${lage} (b): ett namn eller en adress sticker ut ur sin rad (${m.rader.filter((r) => r.utanfor > 0).map((r) => r.id).join(", ")}). En lång adress ska brytas.`);
+        const lagsta = Math.min(...m.rader.flatMap((r) => r.knappar));
+        krav(Number.isFinite(lagsta) && lagsta >= 32, `${namn} lista ${lage} (b): lägsta knappen i en rad är ${lagsta.toFixed(0)} px hög, väntat minst 32 px.`);
+        krav(m.bjudHojd !== null && m.bjudHojd >= 44, `${namn} lista ${lage} (b): "Bjud in utan konto" är ${m.bjudHojd === null ? "borta" : m.bjudHojd.toFixed(0) + " px"} hög, väntat minst 44 px.`);
+        krav(m.platser === `${full ? 5 : 4} av 5 gratis platser`, `${namn} lista ${lage}: platsraden säger ${JSON.stringify(m.platser)}.`);
+        krav(m.fulltext === full && m.faltSparrat === full, `${namn} lista ${lage} (c): vid taket ska formuläret vara spärrat med en text som säger varför (text ${m.fulltext}, fält spärrat ${m.faltSparrat}), under taket öppet.`);
+        krav(m.bjudSparrad === true, `${namn} lista ${lage} (c): Bjud in utan konto ska vara spärrad medan ingen adress är skriven, och alltid vid taket (${m.bjudSparrad}).`);
+        if (!full) {
+          // Under taket: en skriven adress öppnar knappen. Vid taket går det inte ens att skriva.
+          await page.locator('[data-gastlista] input[type="email"]').fill("ny@foretag.se");
+          const oppen = await page.evaluate(() => { const b = [...document.querySelectorAll("[data-gastlista] button")].find((x) => (x.textContent || "").trim() === "Bjud in utan konto"); return b ? !/** @type {HTMLButtonElement} */ (b).disabled : null; });
+          krav(oppen === true, `${namn} lista ${lage} (c): med en skriven adress under taket är Bjud in utan konto ${oppen === null ? "borta" : oppen ? "öppen" : "spärrad"}, väntat öppen.`);
+        }
+        if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `gaster-lista${full ? "-full" : ""}-${w}.png`), fullPage: true });
+        if (!full) {
+          // Knapparna går till rätt anrop.
+          await page.getByRole("button", { name: "Skicka länken igen till anna@foretag.se" }).click();
+          await page.getByRole("button", { name: "Dra tillbaka inbjudan till Dan" }).click();
+          const anrop = await page.evaluate(() => JSON.stringify(/** @type {any} */ (window).__gastanrop));
+          krav(anrop === JSON.stringify([["skickaOm", { id: "g1" }], ["aterkalla", { id: "g4" }]]), `${namn} lista (b): knapparna gav anropen ${anrop}, väntat skickaOm g1 och aterkalla g4.`);
+        }
+      } catch (err) {
+        krav(false, `${namn} lista: provet avbröts (${String(/** @type {Error} */ (err).message).split("\n")[0]}).`);
+      }
+      await context.close();
+    }
+
+    // ── Gästens egen sida ──
+    // Adressfrågan: över vecket, stora träffytor, en h1.
+    {
+      const { page, context } = await oppna("gastsida-adress", vp, standardtema, 1, null, 0, SV_WEBBLASARE);
+      try {
+        await page.waitForSelector("[data-gast-form]");
+        const m = await page.evaluate(() => {
+          const falt = /** @type {HTMLElement} */ (document.querySelector("[data-gast-form] input"));
+          const knapp = [...document.querySelectorAll("[data-gast-form] button")].find((b) => (b.textContent || "").trim() === "Fortsätt");
+          const fr = falt.getBoundingClientRect();
+          const kr = knapp ? knapp.getBoundingClientRect() : null;
+          return { h1: document.querySelectorAll("h1").length, faltBotten: fr.bottom, faltHojd: fr.height, knappBotten: kr ? kr.bottom : null, knappHojd: kr ? kr.height : null, innerH: innerHeight, overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth, rubrik: (document.querySelector("h1")?.textContent || "").trim() };
+        });
+        matt.push(`${namn} gästsida adress: rubrik ${JSON.stringify(m.rubrik)}, fält ${m.faltHojd.toFixed(0)} px (botten ${m.faltBotten.toFixed(0)}), Fortsätt ${m.knappHojd === null ? "saknas" : m.knappHojd.toFixed(0) + " px"} (botten ${m.knappBotten === null ? "?" : m.knappBotten.toFixed(0)}), fönster ${m.innerH}`);
+        krav(m.rubrik === "Du är inbjuden att rösta", `${namn} gästsida (golv): rubriken är ${JSON.stringify(m.rubrik)}.`);
+        krav(!m.overflow, `${namn} gästsida adress (a): sidan flödar över i sidled.`);
+        krav(m.h1 === 1, `${namn} gästsida adress (d): ${m.h1} h1, väntat exakt 1.`);
+        krav(m.knappBotten !== null && m.knappBotten <= m.innerH && m.faltBotten <= m.innerH, `${namn} gästsida adress (d): fältet (botten ${m.faltBotten.toFixed(0)}) och Fortsätt (botten ${m.knappBotten}) ska synas utan rullning i ett fönster ${m.innerH} px högt.`);
+        krav(m.faltHojd >= 44 && m.knappHojd !== null && m.knappHojd >= 44, `${namn} gästsida adress (d): fältet är ${m.faltHojd.toFixed(0)} px och Fortsätt ${m.knappHojd} px, väntat minst 44 px.`);
+        if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `gaster-sida-adress-${w}.png`), fullPage: true });
+
+        // (g) språkvalet.
+        await page.getByRole("button", { name: "EN", exact: true }).click();
+        const en = await page.evaluate(() => ({ h1: (document.querySelector("h1")?.textContent || "").trim(), knapp: [...document.querySelectorAll("[data-gast-form] button")].map((b) => (b.textContent || "").trim()).join("|") }));
+        krav(en.h1 === "You are invited to vote" && /Continue/.test(en.knapp), `${namn} gästsida (g): efter EN är rubriken ${JSON.stringify(en.h1)} och knapparna ${JSON.stringify(en.knapp)}, väntat "You are invited to vote" och "Continue".`);
+        if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `gaster-sida-adress-en-${w}.png`), fullPage: true });
+        await page.getByRole("button", { name: "SV", exact: true }).click();
+
+        // (e) flödet.
+        await page.locator("[data-gast-form] input").fill("anna@foretag.se");
+        await page.getByRole("button", { name: "Fortsätt" }).click();
+        await page.waitForSelector("[data-gast-sak]");
+        const e = await page.evaluate(() => ({
+          anrop: JSON.stringify(/** @type {any} */ (window).__gastanrop),
+          knappar: [...document.querySelectorAll("[data-gast-sak] button")].map((b) => (b.textContent || "").trim()).join("|"),
+          harNyckel: document.documentElement.outerHTML.includes("K".repeat(43)),
+          formKvar: !!document.querySelector("[data-gast-form]"),
+          not: (document.querySelector("[data-gast-not]")?.textContent || "").trim(),
+          overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+          knappHojder: [...document.querySelectorAll("[data-gast-sak] button")].map((b) => b.getBoundingClientRect().height),
+        }));
+        const forvantat = JSON.stringify([["los", { id: "a".repeat(64), nyckel: "K".repeat(43), epost: "anna@foretag.se" }], ["hamta", { sessionsnyckel: "S".repeat(43) }]]);
+        krav(e.anrop === forvantat, `${namn} gästsida (e): anropen blev ${e.anrop}, väntat ${forvantat}.`);
+        krav(e.knappar === "Ja|Kanske|Nej|Ja|Kanske|Nej" && !e.formKvar, `${namn} gästsida (e): sakens knappar ${JSON.stringify(e.knappar)}, adressformuläret kvar ${e.formKvar}. Väntat sex knappar och formuläret borta.`);
+        krav(!e.harNyckel, `${namn} gästsida (e): nyckeln från länken står kvar i sidans HTML.`);
+        krav(e.not.length > 0, `${namn} gästsida (e): noten "Du är gäst" saknas.`);
+        krav(!e.overflow && Math.min(...e.knappHojder) >= 44, `${namn} gästsida klar (a): sidled-överflödning ${e.overflow}, lägsta sakknapp ${Math.min(...e.knappHojder).toFixed(0)} px (väntat minst 44).`);
+        if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `gaster-sida-klar-${w}.png`), fullPage: true });
+
+        // (f) en röst.
+        await page.evaluate(() => { /** @type {any} */ (window).__gastanrop.length = 0; });
+        await page.locator("[data-gast-sak] button", { hasText: "Kanske" }).first().click();
+        await page.waitForTimeout(100);
+        const f = await page.evaluate(() => JSON.stringify(/** @type {any} */ (window).__gastanrop));
+        krav(f === JSON.stringify([["rosta", "f1", "Kanske"], ["hamta", { sessionsnyckel: "S".repeat(43) }]]), `${namn} gästsida (f): en röst gav anropen ${f}, väntat rosta f1 Kanske och därefter en ny hämtning.`);
+      } catch (err) {
+        krav(false, `${namn} gästsida adress och flöde: provet avbröts (${String(/** @type {Error} */ (err).message).split("\n")[0]}).`);
+      }
+      await context.close();
+    }
+
+    // Återkallad: en session som servern säger är återkallad.
+    {
+      const { page, context } = await oppna("gastsida-aterkallad", vp, standardtema, 1, null, 0, SV_WEBBLASARE);
+      try {
+        await page.waitForSelector("[data-gast-fel]");
+        const m = await page.evaluate(() => ({ text: (document.querySelector("[data-gast-fel]")?.textContent || "").trim(), sak: !!document.querySelector("[data-gast-sak]"), form: !!document.querySelector("[data-gast-form]"), overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth }));
+        krav(m.text === "Inbjudan är återkallad" && !m.sak && !m.form && !m.overflow, `${namn} gästsida återkallad (h): text ${JSON.stringify(m.text)}, sakens kort ${m.sak}, adressformulär ${m.form}, överflödning ${m.overflow}. Väntat texten "Inbjudan är återkallad" och inget annat.`);
+        if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `gaster-sida-aterkallad-${w}.png`), fullPage: true });
+      } catch (err) {
+        krav(false, `${namn} gästsida återkallad: provet avbröts (${String(/** @type {Error} */ (err).message).split("\n")[0]}).`);
+      }
+      await context.close();
+    }
+
+    // Ny länk: ingen länk och ingen session.
+    {
+      const { page, context } = await oppna("gastsida-nylank", vp, standardtema, 1, null, 0, SV_WEBBLASARE);
+      try {
+        await page.waitForSelector("[data-gast-form]");
+        const rubrik = await page.evaluate(() => (document.querySelector("h1")?.textContent || "").trim());
+        await page.locator("[data-gast-form] input").fill("okand@foretag.se");
+        await page.getByRole("button", { name: "Skicka en ny länk" }).click();
+        await page.waitForSelector("[data-gast-nylank-skickad]");
+        const m = await page.evaluate(() => ({ text: (document.querySelector("[data-gast-nylank-skickad]")?.textContent || "").trim(), anrop: JSON.stringify(/** @type {any} */ (window).__gastanrop), overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth }));
+        krav(rubrik === "Be om en ny länk" && m.text === "Om adressen har en inbjudan har vi skickat en länk." && m.anrop === JSON.stringify([["nyLank", { epost: "okand@foretag.se" }]]) && !m.overflow, `${namn} gästsida ny länk (h): rubrik ${JSON.stringify(rubrik)}, svar ${JSON.stringify(m.text)}, anrop ${m.anrop}, överflödning ${m.overflow}.`);
+        if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `gaster-sida-nylank-${w}.png`), fullPage: true });
+      } catch (err) {
+        krav(false, `${namn} gästsida ny länk: provet avbröts (${String(/** @type {Error} */ (err).message).split("\n")[0]}).`);
+      }
+      await context.close();
+    }
+  }
+}
+
 await apparArkHylla();
 await apparArkOrdning();
 await textfaltMedTal();
@@ -7529,6 +7711,7 @@ await nyHandelseTillagg();
 await bibliotekVideo();
 await gruppVantar();
 await kategoriFormular();
+await gastVyer();
 
 await browser.close();
 avsluta();

@@ -18,7 +18,7 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { mejlregelfragment } from "../src/lib/mejl.js";
-import { beskrivenappdataregelfragment, beskrivningsregelfragment, bibliotekregelfragment, delningsregelfragment, lagringsregelfragment, gruppadSamling, handelseregelfragment, kalenderregelfragment, katalogregelfragment, konfigloggregelfragment, minnesregelfragment, modulinstallningsregelfragment, regelfragment, samtalsregelfragment } from "../src/lib/regler.js";
+import { beskrivenappdataregelfragment, beskrivningsregelfragment, bibliotekregelfragment, delningsregelfragment, gastregelfragment, lagringsregelfragment, gruppadSamling, handelseregelfragment, kalenderregelfragment, katalogregelfragment, konfigloggregelfragment, minnesregelfragment, modulinstallningsregelfragment, regelfragment, samtalsregelfragment } from "../src/lib/regler.js";
 
 const rot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const ut = path.join(rot, "rules", "provregler.rules");
@@ -55,6 +55,9 @@ const ut = path.join(rot, "rules", "provregler.rules");
  * ⛔ DELNINGSLÄNKARNA (0.119.0, lifehub.app#356): `delningsregelfragment("delningar", { gruppdelar: true })` (gruppdelarna 0.125.0, lifehub.app#377). Namnet är påhittat, som hos en app. Catch-all nekar
  *   också, så `rules/__tests__/delningar.test.mjs` läser att just det här blocket finns i den genererade texten.
  *
+ * ⛔ GÄSTINBJUDNINGARNA (0.131.0, lifehub.app#389): `gastregelfragment("gastinbjudningar")`. Namnet är påhittat, som hos en app. Sessionerna, platserna och räknarna (`gastsessioner`, `gastplatser`,
+ *   `gastraknare` i `rules/__tests__/gaster.test.mjs`) har MEDVETET ingen match: catch-allen nekar dem, och provet läser att det är så.
+ *
  * ⛔ EN HÄNDELSES FILER (0.121.0, lifehub.app#366): `bibliotekregelfragment("bibliotek", { handelser: "handelser" })` och
  *   `lagringsregelfragment({ bibliotek: { ..., handelsefiler: true } })`. `handelser` är samma påhittade app-samling som ovan
  *   (`gruppadSamling("handelser")`), så händelsens grupp slås upp där. Utan flaggorna är båda texterna byte för byte de förra.
@@ -83,6 +86,7 @@ ${handelseregelfragment()}
 ${mejlregelfragment("mejlko")}
 ${bibliotekregelfragment("bibliotek", { handelser: "handelser", arenden: "inkorg" })}
 ${delningsregelfragment("delningar", { gruppdelar: true })}
+${gastregelfragment("gastinbjudningar")}
 ${minnesregelfragment("gruppmine")}
 ${modulinstallningsregelfragment("modulinstallningar")}
 ${beskrivenappdataregelfragment("appdata")}

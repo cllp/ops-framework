@@ -127,6 +127,7 @@ function antalIfyllda(utkast) {
  * @param {any[]} [props.logg] Ändringsloggens rader, nyast först. Se `createConfigLog`.
  * @param {readonly {nyckel: string, etikett?: unknown, hjalp?: string}[]} [props.textnycklar] Texterna katalogen har. Appen äger listan, eftersom den beror på vad appens vyer ritar. Sedan 0.130.0 är de VALFRIA när någon lägger till en kategori här (raden "Fler texter"); appens standardvärden kräver dem fortfarande, se `createCatalogSource`.
  * @param {boolean} [props.faser] Falskt för en sortkatalog. Då ritas ingen fasväljare, eftersom fältet inte finns på kategorin.
+ * @param {readonly string[]} [props.upptagnaId] (0.131.0) Id:n appen har reserverat för egna ändamål, utöver kategorierna som visas. Ett nytt namn som skulle ge ett av dem får nästa lediga i stället (`Kvitto` ger `kvitto-2` om appen reserverat `kvitto`). Utan den räknas bara katalogens egna kategorier, som förut. Appen äger listan: ramverket vet inte vilka id:n appens kod pekar på.
  * @param {boolean} [props.farger] Falskt när kategorierna skiljs åt med ikon. Då ritas ingen färgväljare och ingen prick.
  * @param {string} props.groupId Den aktiva gruppens id (#162, KRÄVS sedan 0.33.0). En ny eller ändrad kategori
  *   byggs med det här `groupId`:t, alltså i den aktiva gruppens katalog och ingen annans. Byts det stängs ett
@@ -146,6 +147,7 @@ export function OpsKatalogInstallning({
   faser = true,
   farger = true,
   groupId,
+  upptagnaId = [],
 }) {
   // ⛔ Språket ur appens `OpsSprakProvider` när appen inte gav ett (0.46.0, cllp/bolag-ops#528).
   const sprakKontext = useOpsSprak();
@@ -286,9 +288,9 @@ export function OpsKatalogInstallning({
 
       /*
        * ⛔ ID:T HÄRLEDS HÄR OCH FRÅGAS INTE EFTER (0.130.0), och bara för en NY kategori: en befintlig behåller sitt, för varje
-       * rad i databasen pekar på det. Unikheten mäts mot alla kategorier i katalogen, arkiverade med.
+       * rad i databasen pekar på det. Unikheten mäts mot alla kategorier i katalogen, arkiverade med, och mot de id:n appen reserverat (`upptagnaId`, 0.131.0).
        */
-      const id = redigerar ? utkast.id : harledKategoriId(utkast.sv, alla.map((k) => k && k.id));
+      const id = redigerar ? utkast.id : harledKategoriId(utkast.sv, [...alla.map((k) => k && k.id), ...upptagnaId]);
 
       /*
        * ⛔ #162: kategorin byggs i den aktiva gruppen, med förvalet i `byggKategori` som kräver
