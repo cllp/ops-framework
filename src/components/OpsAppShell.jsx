@@ -1817,7 +1817,12 @@ function OpsAppShellRitad({
   // ⛔ Kroken körs alltid (krokarnas regel), men utan `talk` når ingen den: plusset får ingen `talk` och raden ritas inte.
   const [valtInspelning, setValtInspelning] = useState(/** @type {string | null} */ (null));
   // Ett valt id gäller appens mål (valet i fältet) eller ett modulmål (modulens rad). Utan val är det appens första mål, aldrig en modul.
-  const valtMal = inspelningsMal.find((m) => m.id === valtInspelning) ?? appInspelningsMal[0] ?? null;
+  // ⛔ MÅLET FÅNGAS NÄR INSPELNINGEN STARTAR OCH LÄSES INTE OM UR LISTAN (0.133.0). Låset var härlett ur `inspelningsMal`, som räknas om vid VARJE rendering ur gruppens påslagna
+  // moduler, och `onAgent` och `onTalk` ovanför valdes ur det vid Klar. Försvann modulen ur listan en stund under inspelningen (appen läser om gruppen, ett nät som hakar upp sig, en
+  // ny gruppdokument-leverans) föll fältet tillbaka till appens första mål: vid Klar ritades valen "Vad ska hända med det du sa?" och ljudet gick till appen eller ingenstans,
+  // aldrig till Biblioteket. Härledningen kom med 0.105.0 (e100252), när `onAgent` blev beroende av den. Nu bär `laastMal` målet som det var vid starten, tills inspelningen är över.
+  const [laastMal, setLaastMal] = useState(/** @type {ReturnType<typeof malForInspelning>[number] | null} */ (null));
+  const valtMal = laastMal ?? inspelningsMal.find((m) => m.id === valtInspelning) ?? appInspelningsMal[0] ?? null;
   /** Fältet är låst till en moduls mål: inget val ritas, och ingen annan mottagare finns. */
   const laastTillModul = typeof valtMal?.spara === "function";
   const talkStyr = useTalk({
@@ -1860,7 +1865,10 @@ function OpsAppShellRitad({
   useEffect(() => {
     const forut = foregaendeLage.current;
     foregaendeLage.current = talkStyr.lage;
-    if (talkStyr.lage === "vila" && forut !== "vila") setValtInspelning(null);
+    if (talkStyr.lage === "vila" && forut !== "vila") {
+      setValtInspelning(null);
+      setLaastMal(null);
+    }
   }, [talkStyr.lage]);
   // ⛔ EN LISTA FÖR FRÅGAN OCH ÅTGÄRDEN (cllp/ops-framework#391): `kanSpelaIn` och `oppnaInspelning` läser båda modulens mål härifrån.
   const modulensInspelningsmal = (/** @type {string} */ id) => inspelningsMal.filter((m) => m.id.startsWith(`${id}:`) && typeof m.spara === "function");
@@ -1880,6 +1888,7 @@ function OpsAppShellRitad({
       throw new Error(`OpsAppShell: modulen "${id}" har inget mål på platsen inspelning.mal i den här gruppen. Röstinspelningen sparas dit. Registrera tillägget och slå på modulen.`);
     }
     setValtInspelning(traffar[0].id);
+    setLaastMal(traffar[0]);
     // ⛔ (0.114.0) Låst till modulens mål: bara inspelning, för där behövs ljudet. `onAgent` är inte uppdaterad än (samma händelse), så det sägs rakt ut.
     talkStyr.direkt({ laast: true });
   };
@@ -1935,7 +1944,7 @@ function OpsAppShellRitad({
           {/* ⛔ UTAN `talk` FINNS INGET APPMÅL, och mikrofonen har då bara modulens mål att gå till. Raden öppnar fältet låst till
               det första, som modulens egen rad gör (0.99.0). Förut valde `valtMal` det av sig självt, vilket är det som inte längre gäller. */}
           {!talk && inspelningsMal.length > 0 ? (
-            <OpsPanelRow icon={<MikrofonIkon size={18} />} label="Spela in" onClick={() => { stang(); const forsta = inspelningsMal.find((m) => typeof m.spara === "function"); if (forsta) setValtInspelning(forsta.id); talkStyr.direkt(); }} />
+            <OpsPanelRow icon={<MikrofonIkon size={18} />} label="Spela in" onClick={() => { stang(); const forsta = inspelningsMal.find((m) => typeof m.spara === "function"); if (forsta) { setValtInspelning(forsta.id); setLaastMal(forsta); } talkStyr.direkt(); }} />
           ) : null}
           {skapa?.handelse ? (
             <OpsPanelRow

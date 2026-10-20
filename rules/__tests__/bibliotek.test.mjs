@@ -206,6 +206,8 @@ describe("bibliotekets regler: skapa", () => {
     const wav = { ...fil, rubrik: "Låt", fil: { ...fil.fil, sokvag: "grupper/cps-ab/bibliotek/{postId}/lat.wav", namn: "lat.wav", mime: "audio/wav", byte: 64264206 } };
     await assertSucceeds(skapa(MEDLEM, wav));
     await assertSucceeds(skapa(MEDLEM, { ...wav, fil: { ...wav.fil, mime: "audio/flac", namn: "lat.flac", sokvag: "grupper/cps-ab/bibliotek/{postId}/lat.flac", byte: 250 * 1024 * 1024 } }));
+    // ⛔ .aac OCH .m4a FRÅN EN TELEFON (0.133.0, "Ladda upp ljudfil"): audio/aac går in. Förut nekades den av reglerna fast klienten inte hade någon väg att välja den.
+    await assertSucceeds(skapa(MEDLEM, { ...wav, fil: { ...wav.fil, mime: "audio/aac", namn: "lat.aac", sokvag: "grupper/cps-ab/bibliotek/{postId}/lat.aac" } }));
     await assertFails(skapa(MEDLEM, { ...wav, fil: { ...wav.fil, byte: 250 * 1024 * 1024 + 1 } }));
     // ⛔ VIDEO HAR ETT EGET TAK PÅ 100 MB (CP 2026-10-19, cllp/lifehub.app#358): mp4 och iPhones quicktime går in, 100 MB + 1 gör det inte, och
     // ett videoformat som inte står i FILMIME (webm) gör det inte alls. Ljudets 250 MB gäller inte video, och videons 100 MB inte ljud.

@@ -27,12 +27,15 @@ CP 2026-10-18: "Vi skall ju ha en publik länk till varje artefakt med option p�
 - **Utskriften kan tas bort och köras om**: `onSkrivUtIgen({ id, groupId })` och `onTaBortUtskrift({ id, groupId })` i `OpsBibliotek`, båda med fråga först, bara med utskrift och `farAndra`.
 - **Utskriften går i bakgrunden, med läget på posten**: `utskriftJobb` (`{ status, startad, av, fel? }`) och `utskriftLage(post, nu)` (`ingen`, `pagar`, `fel`, `klar`; en `pagar` över 15 minuter är ett fel). Kortet och detaljen ritar läget ur posten och överlever att man går därifrån. `UTSKRIFT_FALT` är listan fält servern rensar. Uppskattningen av tiden är märkt som en bedömning. Ingen procentstapel.
 - **Reglerna** nekar klienten att skriva `utskriftJobb` (skapa, ändra, ta bort), men en ändring av annat på en post med jobb går igenom.
+- **Ljud: ladda upp och spela in.** "+ Ny" under fliken Ljud är en meny med "Ladda upp ljudfil" (dold filväljare, `accept` är `LJUDFIL_ACCEPT`, prövas av `ljudfilFel`, sparas av appens `onLaddaUpp`) och sedan "Spela in". Utan mottagare för inspelningar är uppladdningen en knapp direkt, utan meny. Under Alla heter raden "Spela in ljud" (förut "Röstinspelning"). `audio/aac` är ett tillåtet filformat (regler och lagringsregler följer `FILMIME`), och `audio/x-m4a`, `audio/m4a`, `audio/mp3` och `audio/x-aac` normaliseras till de vanliga namnen.
+- **Rättat: en inspelning från Biblioteket sparades inte i Biblioteket.** Skalet härledde låset till modulens mål ur gruppens påslagna moduler vid varje rendering (sedan 0.105.0). Försvann modulen ur listan en stund under inspelningen föll fältet tillbaka till appens första mål, och vid Klar ritades "Vad ska hända med det du sa?" och ljudet gick aldrig till modulens `spara`. Målet fångas nu när inspelningen startar och släpps när den är över.
 
 ### ⛔ Vad som ändras för den som redan använder det
 
 - `DELNINGSFEL.saknas` är "Finns inte längre" och inte "Filen finns inte längre". Raden bär ingen typ, och en raderad post säger inte vilken av de fyra den var.
 - `createDelningService.skapa` nekar `nedladdning: true` för en anteckning och en länk (förut kunde de inte delas alls).
 - Rättat på vägen: en delad ljudfil bad om en ny adress (`onNyUrl`) vid första ritningen, innan något gått fel.
+- ⛔ `audio/aac` i `FILMIME` ändrar de genererade reglerna och lagringsreglerna. **Deploya reglerna före klienten**, annars nekas en .aac-fil som klienten nu godtar.
 
 ### Proven, båda riktningarna
 

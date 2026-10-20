@@ -292,7 +292,7 @@ describe("OpsBibliotek", () => {
     expect(screen.queryByRole("button", { name: "Spela in" })).toBeNull();
     expect(document.querySelector("[data-bibliotek-inspelning]")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Ny post" }));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Röstinspelning" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Spela in ljud" }));
     expect(screen.getByRole("alert")).toHaveTextContent(/OpsAppShell/);
     unmount();
     expect(() => render(<Harness onSpelaIn={() => {}} />)).toThrow(/inspelning\.mal/);
@@ -857,7 +857,7 @@ describe("OpsBibliotek", () => {
     render(<Harness />);
     fireEvent.click(screen.getByRole("button", { name: "Ny post" }));
     const meny = screen.getByRole("menu", { name: "Ny post" });
-    expect(within(meny).getAllByRole("menuitem").map((r) => r.textContent)).toEqual(["Anteckning", "Länk", "Fil", "Lista", "Röstinspelning"]);
+    expect(within(meny).getAllByRole("menuitem").map((r) => r.textContent)).toEqual(["Anteckning", "Länk", "Fil", "Lista", "Spela in ljud"]);
     fireEvent.click(within(meny).getByRole("menuitem", { name: "Anteckning" }));
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Ny anteckning");
     fireEvent.click(screen.getByRole("button", { name: "Tillbaka" }));

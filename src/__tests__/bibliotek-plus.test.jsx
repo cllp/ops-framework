@@ -140,7 +140,7 @@ describe("plussets inspelare och modulens mål", () => {
     );
     expect(document.querySelector("[data-bibliotek-inspelning]")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Ny post" }));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Röstinspelning" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Spela in ljud" }));
     // Låst: inga val alls, varken Biblioteket eller appens mål. Mottagaren är den modulens rad pekade på.
     expect(screen.queryByRole("radio")).toBeNull();
     expect(screen.queryByText("Skickas till")).toBeNull();
@@ -170,7 +170,7 @@ describe("plussets inspelare och modulens mål", () => {
 
     const rostinspelning = () => {
       fireEvent.click(screen.getByRole("button", { name: "Ny post" }));
-      fireEvent.click(screen.getByRole("menuitem", { name: "Röstinspelning" }));
+      fireEvent.click(screen.getByRole("menuitem", { name: "Spela in ljud" }));
     };
 
     /** Huvudets mikrofon, samma väg som raden i Skapa (`oppnaSkapa(TALK_FORM)`). */
@@ -282,7 +282,7 @@ describe("plussets inspelare och modulens mål", () => {
       const stopp120 = vi.fn(async () => ({ blob: new Blob(["a"]), mimeType: "audio/webm", sekunder: 1 }));
       const utanTak = skal(stopp120);
       fireEvent.click(screen.getByRole("button", { name: "Ny post" }));
-      fireEvent.click(screen.getByRole("menuitem", { name: "Röstinspelning" }));
+      fireEvent.click(screen.getByRole("menuitem", { name: "Spela in ljud" }));
       await gaFram(0);
       expect(screen.getByText(/\/ 2:00$/)).toBeInTheDocument();
       await gaFram(121);
@@ -292,7 +292,7 @@ describe("plussets inspelare och modulens mål", () => {
       const stoppa = vi.fn(async () => ({ blob: new Blob(["a"]), mimeType: "audio/webm", sekunder: 1 }));
       skal(stoppa, IDE_MAX_SEKUNDER);
       fireEvent.click(screen.getByRole("button", { name: "Ny post" }));
-      fireEvent.click(screen.getByRole("menuitem", { name: "Röstinspelning" }));
+      fireEvent.click(screen.getByRole("menuitem", { name: "Spela in ljud" }));
       await gaFram(0);
       expect(screen.getByText(/\/ 10:00$/)).toBeInTheDocument();
       await gaFram(121);
@@ -344,35 +344,37 @@ describe("plussets inspelare och modulens mål", () => {
       );
     }
 
-    it("modulen finns inte i gruppen: Ny-menyn har de fyra andra raderna (Anteckning, Länk, Fil och Lista), ingen Röstinspelning, och inget larm", () => {
+    it("modulen finns inte i gruppen: Ny-menyn har de fyra andra raderna (Anteckning, Länk, Fil och Lista), ingen Spela in ljud, och inget larm", () => {
       skalMed([]);
       fireEvent.click(screen.getByRole("button", { name: "Ny post" }));
       const meny = screen.getByRole("menu", { name: "Ny post" });
       expect(Array.from(meny.querySelectorAll('[role="menuitem"]')).map((r) => r.textContent)).toEqual(["Anteckning", "Länk", "Fil", "Lista"]);
-      expect(screen.queryByRole("menuitem", { name: "Röstinspelning" })).toBeNull();
+      expect(screen.queryByRole("menuitem", { name: "Spela in ljud" })).toBeNull();
       expect(screen.queryByRole("alert")).toBeNull();
     });
 
-    it("modulen finns inte i gruppen: fliken Ljud har ingen Ny-knapp som leder till utvecklartexten", () => {
+    it("modulen finns inte i gruppen: fliken Ljud har bara uppladdningen, direkt, och ingen inspelning som leder till utvecklartexten", () => {
       skalMed([]);
       fireEvent.mouseDown(screen.getByRole("tab", { name: /^Ljud/ }), { button: 0 });
-      expect(screen.queryByRole("button", { name: "Ny röstinspelning" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "Nytt ljud" })).toBeNull();
+      expect(screen.queryByRole("menuitem", { name: "Spela in" })).toBeNull();
+      expect(screen.getByRole("button", { name: "Ladda upp ljudfil" })).toBeTruthy();
       expect(screen.queryByRole("alert")).toBeNull();
     });
 
     it("modulen finns i gruppen: raden och knappen i Ljud finns, och raden öppnar inspelaren", () => {
       skalMed(["bibliotek"]);
       fireEvent.click(screen.getByRole("button", { name: "Ny post" }));
-      expect(screen.getByRole("menuitem", { name: "Röstinspelning" })).toBeTruthy();
-      fireEvent.click(screen.getByRole("menuitem", { name: "Röstinspelning" }));
+      expect(screen.getByRole("menuitem", { name: "Spela in ljud" })).toBeTruthy();
+      fireEvent.click(screen.getByRole("menuitem", { name: "Spela in ljud" }));
       expect(screen.getByText("0:00 / 2:00")).toBeInTheDocument();
       expect(screen.queryByRole("alert")).toBeNull();
     });
 
-    it("modulen finns i gruppen: knappen Ny röstinspelning står i fliken Ljud", () => {
+    it("modulen finns i gruppen: Ny-menyn i fliken Ljud står där", () => {
       skalMed(["bibliotek"]);
       fireEvent.mouseDown(screen.getByRole("tab", { name: /^Ljud/ }), { button: 0 });
-      expect(screen.getByRole("button", { name: "Ny röstinspelning" })).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Nytt ljud" })).toBeTruthy();
     });
 
     it("ett direkt anrop av useOppnaInspelning utan mottagare kastar fortfarande tydligt: det är en felkoppling som utvecklaren ska se", () => {
@@ -407,11 +409,11 @@ describe("plussets inspelare och modulens mål", () => {
       );
       const { rerender } = render(traed(["bibliotek"]));
       fireEvent.click(screen.getByRole("button", { name: "Ny post" }));
-      expect(screen.getByRole("menuitem", { name: "Röstinspelning" })).toBeTruthy();
+      expect(screen.getByRole("menuitem", { name: "Spela in ljud" })).toBeTruthy();
       fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
       rerender(traed([]));
       fireEvent.click(screen.getByRole("button", { name: "Ny post" }));
-      expect(screen.queryByRole("menuitem", { name: "Röstinspelning" })).toBeNull();
+      expect(screen.queryByRole("menuitem", { name: "Spela in ljud" })).toBeNull();
     });
   });
 

@@ -1,13 +1,13 @@
 import { useEffect, useId, useRef, useState } from "react";
 import * as Popover from "@radix-ui/react-popover";
 import * as Tabs from "@radix-ui/react-tabs";
-import { Check, File as FilIkon, FileText, Globe, Image as BildIkon, Library, Link2, List as ListIkon, Mic, Plus, SlidersHorizontal, Tag, X } from "lucide-react";
+import { Check, File as FilIkon, FileText, Globe, Image as BildIkon, Library, Link2, List as ListIkon, Mic, Plus, SlidersHorizontal, Tag, Upload, X } from "lucide-react";
 import { OpsAtgardsblad } from "./OpsAtgardsblad.jsx";
 import { OpsDokument } from "./OpsDokument.jsx";
 import { OpsMarkdown } from "./OpsMarkdown.jsx";
 import { OpsModal } from "./OpsModal.jsx";
 import { OpsSvepRad } from "./OpsSvepRad.jsx";
-import { ADRESSFORM, BIBLIOTEKTYPER, BILDFORM, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKURL, uppladdningAvbruten, uppladdningenAvbrytsKl, MAX_TAGGAR, MAX_TAGGLANGD, allaTaggar, arDelbar, arLjudpost, arMittBibliotek, farAndra, normaliseraTagg, normaliseraTaggar, taggarFel, taggfarg, anteckningsrubrikNu, beskrivObjektbibliotek, filInmatningsfel, mimeUrFilnamn, filadressFel, filSort, filtreraBibliotek, inmatningsfel, ljudDatum, ljudRubrik, normaliseraAdress, trimSomRegeln } from "../lib/bibliotek.js";
+import { ADRESSFORM, BIBLIOTEKTYPER, BILDFORM, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKURL, uppladdningAvbruten, uppladdningenAvbrytsKl, MAX_TAGGAR, MAX_TAGGLANGD, allaTaggar, arDelbar, arLjudpost, arMittBibliotek, farAndra, normaliseraTagg, normaliseraTaggar, taggarFel, taggfarg, anteckningsrubrikNu, beskrivObjektbibliotek, filInmatningsfel, LJUDFIL_ACCEPT, ljudfilFel, mimeUrFilnamn, filadressFel, filSort, filtreraBibliotek, inmatningsfel, ljudDatum, ljudRubrik, normaliseraAdress, trimSomRegeln } from "../lib/bibliotek.js";
 import { formateraTid } from "../lib/ljudspelare.js";
 import { lankKalla, lankKallnamn, lankRubrik } from "../lib/lankkalla.js";
 import { LISTA_FLYTT_TEXT, LISTA_I_LISTA_TEXT, listorAttLaggaI } from "../lib/biblioteklista.js";
@@ -259,6 +259,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
   const laddar = levande ? levande.laddar : laddarProp;
   const [flik, setFlik] = useState(/** @type {Flik} */ ("alla"));
   const [rostFel, setRostFel] = useState("");
+  const [laddarLjud, setLaddarLjud] = useState(false);
   const [ljus, setLjus] = useState("");
   const [sok, setSok] = useState("");
   const [valdaTaggar, setValdaTaggar] = useState(/** @type {string[]} */ ([]));
@@ -385,6 +386,39 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
       Promise.resolve(skriv.call(navigator.clipboard, url)).then(() => setStatus("Länken är kopierad.")).catch(() => miss());
     } catch {
       miss();
+    }
+  }
+
+  /**
+   * Ladda upp en ljudfil från "+ Ny" under Ljud. Prövas som formuläret Ny fil (`ljudfilFel`) och sparas av appens `onLaddaUpp`, samma väg som en fil
+   * som valts i formuläret. Rubriken är filnamnet utan ändelse; den går att ändra i detaljen efteråt.
+   *
+   * @param {File} fil
+   */
+  function laddaUppLjud(fil) {
+    setRostFel("");
+    const prov = ljudfilFel(fil);
+    if (prov) {
+      setRostFel(prov);
+      return;
+    }
+    if (typeof onLaddaUpp !== "function") {
+      setRostFel("Uppladdningen är inte kopplad. Filen är kvar på enheten.");
+      return;
+    }
+    const rubrik = (fil.name.replace(/\.[^.]+$/, "") || fil.name).trim().slice(0, MAX_BIBLIOTEKRUBRIK) || "Ljud";
+    /** @param {unknown} e */
+    const visa = (e) => {
+      setLaddarLjud(false);
+      setRostFel(e instanceof Error && e.message ? e.message : String(e));
+    };
+    setLaddarLjud(true);
+    try {
+      const svar = onLaddaUpp({ rubrik, fil });
+      if (svar && typeof svar.then === "function") svar.then(() => setLaddarLjud(false), visa);
+      else setLaddarLjud(false);
+    } catch (e) {
+      visa(e);
     }
   }
 
@@ -680,6 +714,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
                   flik={aktivFlik}
                   onSkapa={onSkapa}
                   erbjudRost={erbjudRost}
+                  onLaddaUppLjud={laddaUppLjud}
                   onRost={() => {
                     try {
                       setRostFel("");
@@ -695,6 +730,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
             <Tabs.Root value={aktivFlik} onValueChange={(v) => setFlik(/** @type {Flik} */ (v))} className="flex min-w-0 flex-col gap-3">
             {inbaddad ? null : <Flikar flikar={synligaFlikar} antal={antal} />}
             {rostFel ? <p role="alert">{rostFel}</p> : null}
+            {laddarLjud ? <p role="status" data-bibliotek-laddar-ljud="">Laddar upp ljudfilen.</p> : null}
             {trasiga.length > 0 ? (
               <div role="status" data-bibliotek-trasiga={trasiga.length} className="text-meta text-ink-muted">
                 <p>{trasiga.length === 1 ? "1 post kunde inte läsas och visas inte." : `${trasiga.length} poster kunde inte läsas och visas inte.`}</p>
@@ -891,7 +927,7 @@ const TOM_FILER_FORVAL = "Filer som läggs till här hör bara till händelsen."
 const NY_KLASS = "inline-flex min-h-11 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border border-line bg-transparent px-4 text-etikett font-medium text-ink hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
 
 const TYPNAMN = /** @type {const} */ ({ anteckning: "Anteckning", lank: "Länk", fil: "Fil", lista: "Lista" });
-const NYTT_NAMN = /** @type {const} */ ({ anteckning: "Ny anteckning", lank: "Ny länk", fil: "Ny fil", lista: "Ny lista", ljud: "Ny röstinspelning" });
+const NYTT_NAMN = /** @type {const} */ ({ anteckning: "Ny anteckning", lank: "Ny länk", fil: "Ny fil", lista: "Ny lista" });
 
 /**
  * @param {number | undefined} byte
@@ -1604,17 +1640,23 @@ function PostMark({ post, bildAdress = "" }) {
  * ⛔ AVTRYCKAREN ÄR INTE EN `OpsButton` (`NY_KLASS`): Radix `Popover.Trigger` ritar sitt eget
  * `<button>`, och `OpsButton` har ingen `forwardRef`. Samma skäl som plusset i `OpsAppShell`.
  *
- * Röstinspelning ligger i menyn under Alla (0.90.8). Den öppnar skalets inspelare, inte en rad i listan.
+ * Under Alla heter inspelningsraden "Spela in ljud" (0.133.0; hette "Röstinspelning"). Den öppnar modulens inspelare, inte en rad i listan.
  *
  * Under Bilder och Dokument skapas en fil (0.102.0): bild eller dokument avgörs av filen, inte av fliken.
  *
- * ⛔ UTAN MOTTAGARE FINNS INGEN RÖSTINSPELNING ATT ERBJUDA (`erbjudRost`, cllp/ops-framework#391): raden i menyn ritas inte, och i fliken
- * Ljud, där knappen bara gör det, ritas ingen knapp. Förut stod de kvar och gav skalets utvecklartext när gruppen inte hade appen.
+ * ⛔ UNDER LJUD ÄR "+ NY" EN UPPLADDNING FÖRST (0.133.0, CP 2026-10-20: "Jag kan inte ladda upp en inspelning ... Ny-menyn skall leda till att man
+ * laddar upp en inspelning, inte att man skall spela in."). Menyn har två rader i den ordningen: "Ladda upp ljudfil" och "Spela in". Utan mottagare för
+ * inspelningar (`erbjudRost` falsk) finns bara uppladdningen, och då är den knappen direkt, utan meny. Filfältet ligger UTANFÖR menyn: menyn stängs
+ * när raden trycks och tar sitt innehåll med sig, och ett filfält som lämnat DOM:en får aldrig sin `change`.
  *
- * @param {{ flik: Flik, onSkapa: (typ: "anteckning" | "lank" | "fil" | "lista") => void, onRost: () => void, erbjudRost: boolean }} props
+ * ⛔ UTAN MOTTAGARE FINNS INGEN RÖSTINSPELNING ATT ERBJUDA (`erbjudRost`, cllp/ops-framework#391): raden i menyn ritas inte. Förut ritades ingen knapp
+ * alls under Ljud, och det är därför uppladdning saknades.
+ *
+ * @param {{ flik: Flik, onSkapa: (typ: "anteckning" | "lank" | "fil" | "lista") => void, onRost: () => void, erbjudRost: boolean, onLaddaUppLjud: (fil: File) => void }} props
  */
-function NyKnapp({ flik, onSkapa, onRost, erbjudRost }) {
+function NyKnapp({ flik, onSkapa, onRost, erbjudRost, onLaddaUppLjud }) {
   const [oppen, setOppen] = useState(false);
+  const ljudFalt = useRef(/** @type {HTMLInputElement | null} */ (null));
   const innehall = (
     <>
       <Plus size={16} aria-hidden="true" />
@@ -1622,11 +1664,75 @@ function NyKnapp({ flik, onSkapa, onRost, erbjudRost }) {
     </>
   );
   if (flik === "ljud") {
-    if (!erbjudRost) return null;
+    const falt = (
+      <input
+        ref={ljudFalt}
+        type="file"
+        accept={LJUDFIL_ACCEPT}
+        aria-label="Ladda upp ljudfil"
+        className="hidden"
+        onChange={(e) => {
+          const vald = e.target.files?.[0] ?? null;
+          // Värdet nollas så att samma fil går att välja igen efter ett fel.
+          e.target.value = "";
+          if (vald) onLaddaUppLjud(vald);
+        }}
+      />
+    );
+    if (!erbjudRost) {
+      return (
+        <>
+          <button type="button" aria-label="Ladda upp ljudfil" onClick={() => ljudFalt.current?.click()} className={NY_KLASS}>
+            <Upload size={16} aria-hidden="true" />
+            <span>Ladda upp</span>
+          </button>
+          {falt}
+        </>
+      );
+    }
     return (
-      <button type="button" aria-label={NYTT_NAMN.ljud} onClick={onRost} className={NY_KLASS}>
-        {innehall}
-      </button>
+      <>
+        <Popover.Root open={oppen} onOpenChange={setOppen}>
+          <Popover.Trigger aria-label="Nytt ljud" aria-haspopup="menu" className={NY_KLASS}>
+            {innehall}
+          </Popover.Trigger>
+          <Popover.Portal>
+            <Popover.Content align="end" sideOffset={4} className={cx("z-(--z-dropdown) min-w-44 p-1", radBehallare())}>
+              <div role="menu" aria-label="Nytt ljud">
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setOppen(false);
+                    ljudFalt.current?.click();
+                  }}
+                  className={radKlass({ stor: true })}
+                >
+                  <span aria-hidden="true" className="flex shrink-0 items-center text-ink-secondary [&_svg]:size-4">
+                    <Upload size={16} />
+                  </span>
+                  <span className="min-w-0 flex-1 truncate">Ladda upp ljudfil</span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setOppen(false);
+                    onRost();
+                  }}
+                  className={radKlass({ stor: true })}
+                >
+                  <span aria-hidden="true" className="flex shrink-0 items-center text-ink-secondary [&_svg]:size-4">
+                    <Mic size={16} />
+                  </span>
+                  <span className="min-w-0 flex-1 truncate">Spela in</span>
+                </button>
+              </div>
+            </Popover.Content>
+          </Popover.Portal>
+        </Popover.Root>
+        {falt}
+      </>
     );
   }
   if (flik !== "alla") {
@@ -1675,7 +1781,7 @@ function NyKnapp({ flik, onSkapa, onRost, erbjudRost }) {
                 <span aria-hidden="true" className="flex shrink-0 items-center text-ink-secondary [&_svg]:size-4">
                   <Mic size={16} />
                 </span>
-                <span className="min-w-0 flex-1 truncate">Röstinspelning</span>
+                <span className="min-w-0 flex-1 truncate">Spela in ljud</span>
               </button>
             ) : null}
           </div>

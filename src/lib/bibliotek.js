@@ -367,6 +367,8 @@ export const FILMIME = /** @type {const} */ ([
   "audio/wav",
   "audio/aiff",
   "audio/flac",
+  // ⛔ AAC (0.133.0, CP 2026-10-20: "Ladda upp ljudfil" med .aac för iOS). Listan är regelns och Storage-regelns (`filMimeMonster`), så formatet nås först när reglerna är deployade.
+  "audio/aac",
   // ⛔ VIDEO (0.127.0, cllp/lifehub.app#358): mp4 och iPhones quicktime (.mov). Andra videoformat tas inte emot förrän någon ber om dem.
   "video/mp4",
   "video/quicktime",
@@ -692,6 +694,11 @@ const MIMEALIAS = {
   "audio/vnd.wave": "audio/wav",
   "audio/x-aiff": "audio/aiff",
   "audio/x-flac": "audio/flac",
+  // ⛔ (0.133.0) Ljudfiler som personen väljer: iOS och Android säger audio/x-m4a eller audio/m4a för en .m4a, audio/mp3 för en .mp3 och audio/x-aac för en .aac.
+  "audio/x-m4a": "audio/mp4",
+  "audio/m4a": "audio/mp4",
+  "audio/mp3": "audio/mpeg",
+  "audio/x-aac": "audio/aac",
   // ⛔ SAMMA FORMAT, FLERA NAMN, VIDEO (0.127.0). En .m4v är en mp4 med ett annat namn, och Safari rapporterar den som video/x-m4v.
   "video/x-m4v": "video/mp4",
 };
@@ -716,7 +723,27 @@ export function filTak(mime) {
 export function mimeUrFilnamn(namn) {
   const m = /\.([a-z0-9]+)$/i.exec(str(namn));
   const andelse = m ? m[1].toLowerCase() : "";
-  return ({ wav: "audio/wav", wave: "audio/wav", aif: "audio/aiff", aiff: "audio/aiff", flac: "audio/flac", mp4: "video/mp4", m4v: "video/mp4", mov: "video/quicktime" })[andelse] ?? "";
+  // (0.133.0) m4a, mp3, aac och ogg: Safari och Android ger ofta tom typ för dem, och utan namnet blev en vald ljudfil "Formatet (tom) går inte att lägga in".
+  return ({ wav: "audio/wav", wave: "audio/wav", aif: "audio/aiff", aiff: "audio/aiff", flac: "audio/flac", m4a: "audio/mp4", mp3: "audio/mpeg", aac: "audio/aac", ogg: "audio/ogg", oga: "audio/ogg", mp4: "video/mp4", m4v: "video/mp4", mov: "video/quicktime" })[andelse] ?? "";
+}
+
+/**
+ * Filväljarens `accept` för "Ladda upp ljudfil" (0.133.0): all ljud-MIME, plus ändelserna som iOS och Android annars gömmer filer för. Ett hem (regel 2): menyn och proven läser den här.
+ */
+export const LJUDFIL_ACCEPT = "audio/*,.m4a,.mp3,.wav,.aac,.ogg,.flac";
+
+/**
+ * Det som är fel med en vald ljudfil, eller `null`. Samma prövning som formuläret Ny fil (`filInmatningsfel`, med MIME ur namnet när webbläsaren inte säger någon), plus att filen ska vara
+ * ett LJUD: en bild eller en PDF som valts i väljaren (ändelsen går att kringgå) laddas inte upp som en inspelning.
+ *
+ * @param {{ name?: unknown, type?: unknown, size?: unknown }} fil
+ * @returns {string | null}
+ */
+export function ljudfilFel(fil) {
+  const namn = str(fil?.name);
+  const mime = str(fil?.type) || mimeUrFilnamn(namn);
+  if (filSort(mime) !== "ljud") return "Det där är inte en ljudfil. Välj en ljudfil: m4a, mp3, wav, aac, ogg eller flac.";
+  return filInmatningsfel({ namn, mime, byte: /** @type {number} */ (fil?.size) });
 }
 
 /**

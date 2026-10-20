@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ADRESSFORM, BIBLIOTEKFALT, BIBLIOTEKFLIKAR, BIBLIOTEKTYPER, LJUD_STOLPAR, MAX_BIBLIOTEKUTSKRIFT, MAX_LJUD_MS, TOPPFORM, TOPP_NIVAER, TOPP_TECKEN, arLjudpost, filInmatningsfel, mimeUrFilnamn, normaliseraMime, avkodaToppar, byggPost, farAndra, filtreraBibliotek, ideRubrik, inmatningsfel, kodaToppar, ljudDatum, ljudRubrik, normaliseraAdress, peaksGiltiga, postFel, taggfarg, toppListaGiltig, trimSomRegeln } from "../lib/bibliotek.js";
+import { ADRESSFORM, BIBLIOTEKFALT, BIBLIOTEKFLIKAR, BIBLIOTEKTYPER, LJUD_STOLPAR, MAX_BIBLIOTEKUTSKRIFT, MAX_LJUD_MS, TOPPFORM, TOPP_NIVAER, TOPP_TECKEN, arLjudpost, filInmatningsfel, LJUDFIL_ACCEPT, mimeUrFilnamn, normaliseraMime, avkodaToppar, byggPost, farAndra, filtreraBibliotek, ideRubrik, inmatningsfel, kodaToppar, ljudDatum, ljudRubrik, normaliseraAdress, peaksGiltiga, postFel, taggfarg, toppListaGiltig, trimSomRegeln } from "../lib/bibliotek.js";
 import { SKAPARFALT, byggSkapare } from "../lib/skapare.js";
 
 /**
@@ -169,6 +169,20 @@ describe("bibliotekets post", () => {
     expect(normaliseraMime("audio/wave")).toBe("audio/wav");
     expect(mimeUrFilnamn("Låt.AIF")).toBe("audio/aiff");
     expect(mimeUrFilnamn("bild.jpg")).toBe("");
+  });
+
+  it("⛔ ljud som en telefon eller en dator ger: m4a, mp3, aac och ogg godtas, med och utan MIME (0.133.0, Ladda upp ljudfil)", () => {
+    expect(filInmatningsfel({ namn: "a.aac", mime: "audio/aac", byte: 1000 })).toBeNull();
+    expect(filInmatningsfel({ namn: "a.m4a", mime: normaliseraMime("audio/x-m4a"), byte: 1000 })).toBeNull();
+    expect(normaliseraMime("audio/x-m4a")).toBe("audio/mp4");
+    expect(normaliseraMime("audio/m4a")).toBe("audio/mp4");
+    expect(normaliseraMime("audio/mp3")).toBe("audio/mpeg");
+    expect(normaliseraMime("audio/x-aac")).toBe("audio/aac");
+    expect(mimeUrFilnamn("Minne.m4a")).toBe("audio/mp4");
+    expect(mimeUrFilnamn("a.mp3")).toBe("audio/mpeg");
+    expect(mimeUrFilnamn("a.aac")).toBe("audio/aac");
+    expect(mimeUrFilnamn("a.ogg")).toBe("audio/ogg");
+    expect(LJUDFIL_ACCEPT).toMatch(/^audio\/\*,/);
   });
 
   it("en utskrift hör bara till ett ljud, och en tom utskrift är ett svar", () => {
