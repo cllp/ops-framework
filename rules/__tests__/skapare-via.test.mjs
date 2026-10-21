@@ -256,3 +256,17 @@ describe("via på appens händelser", () => {
     await assertSucceeds(updateDoc(doc(db(MEDLEM), utan), { rubrik: "Ändrad" }));
   });
 });
+
+// ── Receptet för en apps egen samling (gruppadSamling med villkor) ─────────────────────────────
+describe("via i en apps egen samling, med gruppadSamling({ skaparfalt })", () => {
+  it("⛔ gruppadSamling med skaparfalt: skapa med via nej, utan via ja, ändra med oförändrat märke ja, ta bort eller byta märket nej", async () => {
+    await assertFails(setDoc(doc(db(MEDLEM), id("stampelrader")), { groupId: CPS, rubrik: "Ärende", skapadAv: medVia(MEDLEM) }));
+    await assertSucceeds(setDoc(doc(db(MEDLEM), id("stampelrader")), { groupId: CPS, rubrik: "Ärende", skapadAv: person(MEDLEM) }));
+    const vag = await server("stampelrader", { groupId: CPS, rubrik: "Från nyckeln", skapadAv: medVia(MEDLEM) });
+    await assertSucceeds(updateDoc(doc(db(ANNAN), vag), { rubrik: "Ändrad" }));
+    await assertFails(updateDoc(doc(db(MEDLEM), vag), { skapadAv: person(MEDLEM) }));
+    await assertFails(updateDoc(doc(db(MEDLEM), vag), { skapadAv: person(MEDLEM, { via: ANNAN_VIA }) }));
+    const utan = await server("stampelrader", { groupId: CPS, rubrik: "För hand", skapadAv: person(MEDLEM) });
+    await assertFails(updateDoc(doc(db(MEDLEM), utan), { skapadAv: medVia(MEDLEM) }));
+  });
+});

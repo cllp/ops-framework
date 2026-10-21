@@ -988,6 +988,14 @@ ${gruppadSamling("konfig", { agareKravsForSkrivning: true })}
 blocken för de fyra samlingarna. `gruppadSamling(namn)` ger ett block för en av
 **appens** samlingar.
 
+⛔ **`gruppadSamling(namn, { skaparfalt: "skapadAv" })` (0.135.0, lifehub.app#409)** för en
+samling vars rader har en skapare. Blocket prövar annars inte vad som står INUTI ett fält, så
+en klient hade kunnat skriva `skapadAv.via` och påstå att en personlig API-nyckel skrev raden.
+Med valet nekar blocket (create och update) att en klient lägger till, tar bort eller byter
+`via` på stämpeln, och släpper igenom en stämpel som är oförändrad. Utan valet är texten byte
+för byte den förra. En app med egna handskrivna regler anropar `opsStampelUtanNyttVia(d, falt, fore)`
+ur `regelfragment()` själv (`fore` är `{}` vid create och `resource.data` vid update).
+
 ⛔ **Funktionsnamnen är prefixade med `ops`**, eftersom appen har egna
 hjälpfunktioner och en krock syns först när reglerna deployas, alltså i
 produktion.

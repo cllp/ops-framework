@@ -652,15 +652,24 @@ ${handelsefunktioner}    function opsFilPlatsMedlem(gid) {
  * Samma beslut som den borttagna `Array.isArray` i `defineModule` (#135): den
  * togs bort i stället för att få ett prov som inte mäter något.
  *
+ * ⛔ `skaparfalt` (0.135.0, lifehub.app#409): namnet på radens skaparstämpel, t.ex. `"skapadAv"`. Med det lägger blocket `opsStampelUtanNyttVia` på både create och update, så att en
+ * klient aldrig skriver, tar bort eller byter `via` på stämpeln (en rad som en personlig API-nyckel skrev åt personen bär märket, skrivet av servern). Utan valet är texten byte för byte
+ * den förra: `gruppadSamling` prövar inte vad som står INUTI ett fält, så en app som har skapare på sina rader och API-nycklar MÅSTE ange det.
+ *
  * @param {string} samling Appens samlingsnamn.
- * @param {{ agareKravsForSkrivning?: boolean, falt?: ReadonlyArray<string> | null }} [config]
+ * @param {{ agareKravsForSkrivning?: boolean, falt?: ReadonlyArray<string> | null, skaparfalt?: string }} [config]
  * @returns {string}
  */
 export function gruppadSamling(samling, config = {}) {
+  const skaparfalt = config.skaparfalt;
+  if (skaparfalt !== undefined && !(typeof skaparfalt === "string" && /^[A-Za-z][A-Za-z0-9]*$/.test(skaparfalt))) {
+    throw new Error(`gruppadSamling: skaparfalt ska vara ett fältnamn (bokstäver och siffror), fick ${JSON.stringify(skaparfalt)}. Namnet skrivs in i en regel, och ett annat tecken hade gjort regeln till något annat.`);
+  }
   return gruppadSamlingBlock(samling, {
     skrivvillkor: config.agareKravsForSkrivning ? "opsArAgare" : "opsArMedlem",
     falt: config.falt,
     nyckelMedGrupp: false,
+    ...(skaparfalt ? { villkor: [`opsStampelUtanNyttVia(request.resource.data, '${skaparfalt}', resource == null ? {} : resource.data)`] } : {}),
   });
 }
 

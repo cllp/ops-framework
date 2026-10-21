@@ -29,6 +29,9 @@ const ut = path.join(rot, "rules", "provregler.rules");
  * samling ramverket aldrig hört talas om. `konfig` kräver ägare, så skillnaden
  * mellan de två skrivvillkoren också blir mätt.
  *
+ * ⛔ `stampelrader` (0.135.0, lifehub.app#409) ÄR EN APPS EGEN SAMLING med `skaparfalt: "skapadAv"`: `gruppadSamling` prövar inte skaparen inuti, så en app som vill
+ *   att en klient aldrig ska kunna skriva eller ta bort `via` på sina rader anger fältet. Provet i `rules/__tests__/skapare-via.test.mjs` mäter att valet faktiskt gör det.
+ *
  * ⛔ `kataloger` ÄR RAMVERKETS EGET FRAGMENT (#162), INTE `gruppadSamling`
  * direkt: `katalogregelfragment` är den funktion en app faktiskt limmar in,
  * och provet ska mäta DEN, inte mönstret den råkar bygga på.
@@ -78,6 +81,7 @@ service cloud.firestore {
 ${regelfragment()}
 ${gruppadSamling("handelser")}
 ${gruppadSamling("konfig", { agareKravsForSkrivning: true })}
+${gruppadSamling("stampelrader", { skaparfalt: "skapadAv" })}
 ${katalogregelfragment("kataloger")}
 ${konfigloggregelfragment("konfiglogg")}
 ${samtalsregelfragment({ tradar: "tradar", status: "status", reaktioner: "reaktioner", omnamnanden: true, citat: true, fasta: "fasta", bilagor: true, bilagaSamling: "bilagor", tyst: "tyst", amnen: true })}

@@ -3,6 +3,7 @@ import { MAX_NYCKELID, MAX_SKAPARNAMN, ORD_SKAPARE, SKAPARFALT, SKAPARFALT_SERVE
 import { byggMeddelande, MEDDELANDEFALT } from "../lib/samtal.js";
 import { byggPost, postFel } from "../lib/bibliotek.js";
 import { SPRAK } from "../lib/sprak.js";
+import { gruppadSamling } from "../lib/regler.js";
 import { createMemorySource } from "../data/adapters.js";
 import { createSamtalskalla } from "../data/samtalskalla.js";
 
@@ -184,5 +185,20 @@ describe("samtalskällan släpper igenom via vid läsning och skriver det aldrig
     const rader = await samtal.meddelanden(s.id);
     expect(rader.find((m) => m.text === "Från nyckeln")?.via).toEqual(via);
     expect(Object.hasOwn(rader.find((m) => m.text === "För hand") ?? {}, "via")).toBe(false);
+  });
+});
+
+describe("gruppadSamling({ skaparfalt })", () => {
+  it("utan valet är blocket exakt det förra, och med valet tillkommer villkoret på både create och update", () => {
+    const utan = gruppadSamling("rader");
+    const med = gruppadSamling("rader", { skaparfalt: "skapadAv" });
+    expect(utan).not.toContain("opsStampelUtanNyttVia");
+    expect(med.match(/opsStampelUtanNyttVia\(request\.resource\.data, 'skapadAv', resource == null \? \{\} : resource\.data\)/g)).toHaveLength(2);
+    // Resten av blocket är oförändrat: tar man bort villkoret ur det med valet är det byte för byte det utan.
+    expect(med.replaceAll("\n        && opsStampelUtanNyttVia(request.resource.data, 'skapadAv', resource == null ? {} : resource.data)", "")).toBe(utan);
+  });
+
+  it("⛔ ett fältnamn som inte är ett fältnamn kastar i stället för att skrivas in i en regel", () => {
+    for (const fel of ["", "skapad Av", "skapadAv'", "a.b", "1abc", 7, null]) expect(() => gruppadSamling("rader", { skaparfalt: /** @type {any} */ (fel) }), String(fel)).toThrow("skaparfalt");
   });
 });
