@@ -34,6 +34,7 @@ import { LankRad } from "./LankRad.jsx";
 import { useOpsSprak } from "./OpsSprak.jsx";
 import { useKopiera, useKortVisning } from "./useKopiera.js";
 import { ordet } from "../lib/ord.js";
+import { skaparensNamn } from "../lib/skapare.js";
 import { talkOrd } from "../lib/talk.js";
 import { TillbakaKnapp } from "./TillbakaKnapp.jsx";
 import { ModulLageKnapp, OpsModulRam, kravRam } from "./OpsModulRam.jsx";
@@ -1928,6 +1929,7 @@ function Adress({ url }) {
  * @param {(post: import("../lib/bibliotek.js").Bibliotekspost & { id: string }) => void} props.onOppnaPost (0.128.0) Öppnar en post ur en lista.
  */
 function Detalj({ post, skapar, startLage, onStang, onSpara, onLaddaUpp, filUrl, adressFor, onLjus, onSkrivUt, onSkrivUtIgen, onTaBortUtskrift, onAnteckningAvUtskrift, menyFor, onMeta, tillbakaEtikett, poster, jag, onLankInfo, onOppnaPost }) {
+  const sprak = useOpsSprak();
   const typ = skapar ?? post?.typ ?? "anteckning";
   const [rubrik, setRubrik] = useState(post && !skapar ? post.rubrik : "");
   const [text, setText] = useState(post && !skapar && post.typ === "anteckning" ? post.text ?? "" : "");
@@ -2196,8 +2198,10 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, onLaddaUpp, filUrl,
   );
 
   const menyNamn = ljud && post ? ljudRubrik(post) : (post ? (trimSomRegeln(post.rubrik) || "Post") : rubrikVy);
+  // ⛔ Via `skaparensNamn` (0.135.0, lifehub.app#409): en post som en personlig API-nyckel skrev heter "Skriven av Miranda via Byggagent."
+  const skaparNamn = post ? skaparensNamn(post.skapadAv, sprak) : "";
   const metaText = lage === "las" && post
-    ? (post.skapadAv?.namn ? `Skriven av ${post.skapadAv.namn}.` : "Författaren saknar namn.")
+    ? (skaparNamn ? `Skriven av ${skaparNamn}.` : "Författaren saknar namn.")
     : "";
 
   return (

@@ -3,6 +3,7 @@ import { KOMMENTARBILAGA_TYPER, MAX_HANDELSEKOMMENTAR, MAX_KOMMENTARBILAGA, komm
 import { isImage } from "../lib/file.js";
 import { formatDagOchKlockslag } from "../lib/format.js";
 import { OppnaHandelseKontext } from "../lib/handelsekontext.js";
+import { namnMedVia } from "../lib/skapare.js";
 import { handelseIdUrAdress } from "../lib/handelsepanel.js";
 import { definierade, forvalda } from "../lib/ord.js";
 import { OpsButton } from "./OpsButton.jsx";
@@ -141,7 +142,9 @@ function OpsKommentarerRitad({
   };
 
   // #369: trådens bilder räknas en gång (KAN 1), med kommentarens id så att platsen följer med (BÖR 2).
-  const galleri = tradensBilder(kommentarer ?? [], (/** @type {any} */ x) => `${bilagaText} ${personnamn(x.skapadAv?.namn ?? "", x.skapadAv?.uid ?? "").text}: ${x.bilaga.namn}`);
+  // ⛔ Namnet på den som skrev går genom `namnMedVia` (0.135.0, lifehub.app#409): en kommentar som en personlig API-nyckel skrev heter "Miranda via Byggagent".
+  const skrivarnamn = (/** @type {any} */ stampel) => namnMedVia(personnamn(stampel?.namn ?? "", stampel?.uid ?? "").text, stampel?.via, sprak);
+  const galleri = tradensBilder(kommentarer ?? [], (/** @type {any} */ x) => `${bilagaText} ${skrivarnamn(x.skapadAv)}: ${x.bilaga.namn}`);
   return (
     <section
       data-ops-kommentarer=""
@@ -172,7 +175,7 @@ function OpsKommentarerRitad({
           {kommentarer.map((/** @type {any} */ k) => {
             const avUid = k.skapadAv?.uid ?? null;
             const min = avUid !== null && avUid === uid;
-            const { text: namn } = personnamn(k.skapadAv?.namn ?? "", avUid ?? "");
+            const namn = skrivarnamn(k.skapadAv);
             return (
               <li key={k.id} data-kommentar={k.id} className="flex min-w-0 gap-3 rounded-base bg-raised p-3">
                 <OpsIdentity name={namn} seed={avUid ?? k.id} size="avatar" />
@@ -265,6 +268,7 @@ function Kommentarbilaga({ bilaga, namn, bilagaText, sprak, galleri, galleriPlat
  * @param {string} props.titel Händelsens rubrik.
  * @param {number} props.olasta
  * @param {string} props.namn Den som skrev den senaste.
+ * @param {{ nyckelId?: string, namn: string }} [props.via] (0.135.0, lifehub.app#409) `senaste.via` ur `kommentarsrader`: raden heter då "Miranda via Byggagent".
  * @param {string} props.text Den senaste kommentaren.
  * @param {string} [props.href] Leder till händelsen, normalt `handelseHref(id)`, som `OpsSvarsrad`. Skalet öppnar panelen.
  * @param {() => void} [props.onOppna] Utan `href`: öppnar händelsen, t.ex. `useOppnaHandelse()(id)`. MED `href`: anropas vid klicket,
@@ -277,7 +281,7 @@ export function OpsKommentarsrad(props) {
   const kontext = useOpsSprak();
   const sprak = props.sprak ?? kontext;
   const ord = forvalda(ORD_OPSKOMMENTARSRAD, sprak);
-  const { titel, olasta, namn, text, href, onOppna } = props;
+  const { titel, olasta, namn, via, text, href, onOppna } = props;
   // ⛔ INNE I SKALET ÖPPNAS PANELEN UTAN OMLADDNING. En länk till `?handelse=<id>` laddar annars om hela appen, och då ligger inte
   // Inkorgen kvar under panelen när man går tillbaka. Kontexten är `null` utanför skalet (och i ett skal utan panel), och då är raden
   // en vanlig länk: den går att rita i ett prov utan skal, vilket `useOppnaHandelse` inte gör (den kastar).
@@ -289,7 +293,7 @@ export function OpsKommentarsrad(props) {
   const innehall = (
     <>
       <span className="block w-full truncate text-etikett font-medium text-ink">{titel}</span>
-      <span className="block w-full truncate text-meta text-ink-muted">{`${antal} · ${namn || ord.namnSaknas}: ${text}`}</span>
+      <span className="block w-full truncate text-meta text-ink-muted">{`${antal} · ${namnMedVia(namn || ord.namnSaknas, via, sprak)}: ${text}`}</span>
     </>
   );
   return href ? (

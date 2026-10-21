@@ -4,6 +4,7 @@ import { cx } from "../lib/cx.js";
 import { byggKategori, FASER, harledKategoriId, valjbara } from "../lib/katalog.js";
 import { beskrivKonfigandring } from "../lib/konfiglogg.js";
 import { SLAGPLATSER, slagPrick } from "../lib/slag.js";
+import { skaparensNamn } from "../lib/skapare.js";
 import { text } from "../lib/sprak.js";
 import { OpsBanner } from "./OpsBanner.jsx";
 import { Delrubrik, delrubrik, useInstallningspanel } from "./OpsInstallningar.jsx";
@@ -426,7 +427,8 @@ export function OpsKatalogInstallning({
                 <span className="text-ink">{beskrivKonfigandring(rad, sprak)}</span>
                 {/* ⛔ Vem, när det finns. Utan namnet är loggen en lista över
                     att något hände, vilket är den halva ingen frågar efter. */}
-                {rad.av && rad.av.namn ? <span>{rad.av.namn}</span> : null}
+                {/* ⛔ Via `skaparensNamn` (0.135.0, lifehub.app#409): en ändring som en personlig API-nyckel gjorde heter "Miranda via Byggagent". */}
+                {rad.av && typeof rad.av === "object" && skaparensNamn(rad.av, sprak) ? <span>{skaparensNamn(rad.av, sprak)}</span> : null}
               </li>
             ))}
           </ul>

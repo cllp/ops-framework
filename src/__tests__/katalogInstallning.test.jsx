@@ -224,6 +224,17 @@ describe("inställningsvyn", () => {
     expect(screen.getByText("Claes-Philip")).toBeInTheDocument();
   });
 
+  it("⛔ en ändring som en personlig API-nyckel gjorde heter 'Claes-Philip via Byggagent' i loggen (0.135.0, lifehub.app#409), och en gammal rad utan av ritar inget namn", () => {
+    rita({
+      logg: [
+        { handelse: "andrad", id: "uppgift", fore: { id: "uppgift", namn: { sv: "Uppgifter" } }, efter: { id: "uppgift", namn: { sv: "Ärenden" } }, nar: "2026-09-26T08:00:00.000Z", av: { uid: "u1", namn: "Claes-Philip", via: { nyckelId: "0123456789abcdef", namn: "Byggagent" } } },
+        { handelse: "andrad", id: "gammal", fore: { id: "gammal", namn: { sv: "Gammal" } }, efter: { id: "gammal", namn: { sv: "Äldre" } }, nar: "2026-09-25T08:00:00.000Z", av: null },
+      ],
+    });
+    expect(screen.getByText("Claes-Philip via Byggagent")).toBeInTheDocument();
+    expect(screen.getByText("Gammal döptes om till Äldre")).toBeInTheDocument();
+  });
+
   it("utan logg ritas ingen tom rubrik", () => {
     // Tomhet är ett svar, men en rubrik utan innehåll är inte det svaret: den
     // ser ut som något som inte laddat klart.
