@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { cx } from "../lib/cx.js";
 import { arPreliminar, markorlayout } from "../lib/calendar.js";
 import { postklasser, prickklass } from "../lib/kalenderfarg.js";
@@ -53,7 +54,7 @@ import { BortaIkon, LagerIkon } from "./icons.jsx";
  *
  * @param {{ day: number, dayKey: string, entries: import("../lib/calendar.js").CalendarEntry[], markerade: import("../lib/calendar.js").CalendarEntry[], spann: import("../lib/calendar.js").CalendarEntry[], enkla: import("../lib/calendar.js").CalendarEntry[], isToday: boolean, forbi: boolean, chosen: boolean, forhand: boolean, sok: "" | "traff" | "miss", bandhojd: number, pekare: Record<string, any>, dekor?: Dagdekor }} props
  */
-export function Dagruta({ day, dayKey, entries, markerade, spann, enkla, isToday, forbi, chosen, forhand, sok, bandhojd, pekare, dekor }) {
+function DagrutaRitad({ day, dayKey, entries, markerade, spann, enkla, isToday, forbi, chosen, forhand, sok, bandhojd, pekare, dekor }) {
   const count = entries.length;
   const borta = antalI(dekor?.borta, "borta");
   const lager = antalI(dekor?.lager, "lager");
@@ -153,6 +154,70 @@ export function Dagruta({ day, dayKey, entries, markerade, spann, enkla, isToday
     </button>
   );
 }
+
+/**
+ * ══ ⛔ EN RUTA RITAS OM BARA NÄR DEN SJÄLV ÄNDRATS (0.134.0, cllp/lifehub.app#402) ═══════════════════════════════════════════════════
+ *
+ * Ett tryck på en kalenderväxel ska ändra kalendern direkt (CP 2026-10-21: "Utan fördröjning", tak 100 ms). Kalendern ritar 25 månader, ungefär 875 rutor, och utan det här ritades
+ * ALLA om för ett tryck som ändrar tre av dem. Mätt i jsdom med 86 märken i rutnätet: 91 ms för ett tryck, strax under taket och inte med marginal. Rutan är nu `memo` med en jämförelse som
+ * tittar på det rutan ritar.
+ *
+ * ⛔ `pekare` JÄMFÖRS INTE, och det är avsiktligt. Den är ett nytt objekt för varje ritning, men dess funktioner läser bara `dayKey` (som jämförs) och referenser och uppdaterare som aldrig byter
+ * identitet (`svaljKlick`, `langRef`, `svepRef`, `setValda`, `rensaLang`). En ruta som behåller sin gamla `pekare` beter sig därför exakt som en med den nya. Läser en pekare någon dag något som
+ * kan ändras ska den fältet hit, annars blir den inaktuell utan att något syns.
+ *
+ * @param {Parameters<typeof DagrutaRitad>[0]} a
+ * @param {Parameters<typeof DagrutaRitad>[0]} b
+ */
+function samma(a, b) {
+  return (
+    a.day === b.day &&
+    a.dayKey === b.dayKey &&
+    a.isToday === b.isToday &&
+    a.forbi === b.forbi &&
+    a.chosen === b.chosen &&
+    a.forhand === b.forhand &&
+    a.sok === b.sok &&
+    a.bandhojd === b.bandhojd &&
+    listorLika(a.entries, b.entries) &&
+    listorLika(a.markerade, b.markerade) &&
+    listorLika(a.spann, b.spann) &&
+    listorLika(a.enkla, b.enkla) &&
+    dekorLika(a.dekor, b.dekor)
+  );
+}
+
+/** @param {readonly unknown[]} a @param {readonly unknown[]} b */
+function listorLika(a, b) {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
+
+/**
+ * Samma dekor? Appen skickar ett nytt objekt för varje dag och ritning, så objektet jämförs på innehåll: en nivå ner, för `borta`, `lager` och `narvaro`.
+ * @param {Dagdekor | undefined} a @param {Dagdekor | undefined} b
+ */
+function dekorLika(a, b) {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  const nycklar = new Set([...Object.keys(a), ...Object.keys(b)]);
+  for (const n of nycklar) {
+    const x = /** @type {any} */ (a)[n];
+    const y = /** @type {any} */ (b)[n];
+    if (x === y) continue;
+    if (x && y && typeof x === "object" && typeof y === "object") {
+      const inre = new Set([...Object.keys(x), ...Object.keys(y)]);
+      for (const i of inre) if (x[i] !== y[i]) return false;
+      continue;
+    }
+    return false;
+  }
+  return true;
+}
+
+export const Dagruta = memo(DagrutaRitad, samma);
 
 /**
  * @typedef {object} Dagdekor

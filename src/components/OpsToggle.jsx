@@ -80,12 +80,13 @@ export function OpsCheckbox({ label, checked, onChange, disabled = false, hint }
  * @param {(v: boolean) => void} props.onChange
  * @param {boolean} [props.disabled]
  * @param {string} [props.hint]
+ * @param {import("react").ReactNode} [props.ikon] (0.134.0) Något som står före etiketten i en `rad`, till exempel kalenderns färgprick. Dekor: `aria-hidden`, och etiketten bär namnet. Ignoreras i `spar`.
  * @param {"spar" | "rad"} [props.placering] `spar` är formulärets rad: spåret till vänster, höjdgolvet släpps från `md`
  *   så att tio rader inte blir en halv skärm. `rad` är en inställningsrad: hela raden är träffytan, minst 44 px på varje
  *   bredd, etikett och hjälptext till vänster, spåret till höger. CP 2026-10-09, surfplatta: golvet som släpps från `md`
  *   lämnade reglaget på textens höjd, och ett tryck mitt på raden missade.
  */
-export function OpsSwitch({ label, checked, onChange, disabled = false, hint, placering = "spar" }) {
+export function OpsSwitch({ label, checked, onChange, disabled = false, hint, ikon, placering = "spar" }) {
   if (placering !== "spar" && placering !== "rad") {
     throw new Error(`OpsSwitch: okänd placering "${placering}". Giltiga: spar, rad.`);
   }
@@ -104,6 +105,11 @@ export function OpsSwitch({ label, checked, onChange, disabled = false, hint, pl
           disabled && "cursor-not-allowed opacity-55",
         )}
       >
+        {rad && ikon ? (
+          <span aria-hidden="true" data-switch-ikon="" className="flex shrink-0 items-center">
+            {ikon}
+          </span>
+        ) : null}
         {rad ? (
           <span className="min-w-0 flex-1">
             <span id={namnId} className="block text-brod text-ink">{label}</span>

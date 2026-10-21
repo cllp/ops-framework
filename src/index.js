@@ -267,6 +267,12 @@ export { flyttmal, postensTidsfalt } from "./lib/flytta.js";
  */
 export { lagerNyckel, lasDoldaLager, synligaLager, lagerFarg } from "./lib/kalenderlager.js";
 /*
+ * ⛔ KALENDRARNA SOM EN LISTA, ETT MINNE (0.134.0, cllp/lifehub.app#402). Vilka kalendrar som syns och hur de visas (Händelser, Ram eller Båda) är personens val per grupp, i ETT minne.
+ * `OpsCalendar kalenderMinne` använder det själv; en vy som ska följa samma val (Idag) kallar `useKalenderSynlighet` med samma `minne` och samma `kalendrar`. Lagret ovan är föråldrat.
+ */
+export { KALENDERVISNINGAR, FORVALD_KALENDERVISNING, kalenderSynlighetNyckel, lasKalenderSynlighet, skrivKalenderSynlighet, arKalenderSynlig, kalenderVisning, vaxlaKalenderSynlighet, sattKalenderVisning, aterstallKalenderSynlighet, synligaKalenderRader, arForvaldSynlighet } from "./lib/kalendersynlighet.js";
+export { useKalenderSynlighet } from "./lib/useKalenderSynlighet.js";
+/*
  * ⛔ TILLGÄNGLIGHETEN (0.61.0, #259 skiva 1): vem i gruppen som är borta eller upptagen en dag, härledd ur posterna och aldrig
  * lagrad. En post med läget `dold` räknas inte alls. Hörnbrickan i `OpsCalendar` får `bortaAntal` via `dagdekor`.
  */

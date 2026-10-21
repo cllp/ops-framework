@@ -677,6 +677,10 @@ function KalenderTillganglighetScen({ variant }) {
   const [lager, setLager] = useState(true);
   return (
     <Full>
+      {/* ⛔ Kalenderlagren är borta ur OpsCalendar (0.134.0), men dagdekorens `lager` och `ram` är kvar och mäts. Knappen är SCENENS EGEN, utanför kalendern: den slår av lagerdekoren så att (f) kan jämföra rutornas höjd med och utan dekor. */}
+      <button type="button" aria-label="Scenens lagerdekor" aria-pressed={lager} onClick={() => setLager((x) => !x)}>
+        lagerdekor
+      </button>
       <OpsView>
         <OpsCalendar
           ariaLabel="Kalender"
@@ -687,7 +691,6 @@ function KalenderTillganglighetScen({ variant }) {
           // Sidan laddas med `setContent` och har ingen `localStorage`: enhetens minne är `window.__lagring`, som i `KalenderScen`.
           lagring={{ getItem: (n) => window.__lagring[n] ?? null, setItem: (n, v) => { window.__lagring[n] = v; } }}
           tillganglighet={{ pa: tg, onByt: setTg }}
-          lager={{ pa: lager, onByt: setLager }}
           dagdekor={(d) => {
             const borta = tg && tillganglighetForDag ? bortaAntal(tillganglighetForDag({ medlemmar: TG_MEDLEMMAR, poster: v.poster, dag: d })) : 0;
             const ram = v.ramdagar.includes(d);
