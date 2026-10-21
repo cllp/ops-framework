@@ -5203,11 +5203,14 @@ for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
       const hanteraKnapp = await page.evaluate(() => [...document.querySelectorAll("[data-radix-popper-content-wrapper] button")].some((b) => (b.textContent || "").trim() === "Hantera kalendrar"));
       krav(/Alla kalendrar/.test(meny) && /Gruppens kalendrar/.test(meny) && /Styrelsen/.test(meny) && /Mina kalendrar/.test(meny) && /Privat/.test(meny) && hanteraKnapp && !/kommer i nästa steg/.test(meny), `${namn}: kalendermenyn säger "${meny.slice(0, 160)}" (knappen Hantera kalendrar ${hanteraKnapp ? "finns" : "saknas"}), väntat Alla kalendrar, gruppens (Styrelsen), mina (Privat) och knappen Hantera kalendrar, utan "kommer i nästa steg".`);
       if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `kalender-kalendrar-${vp.width}.png`) });
-      await page.locator("[data-radix-popper-content-wrapper] button", { hasText: "Styrelsen" }).click();
+      // ⛔ 0.134.0 (cllp/lifehub.app#402): ett tryck på en rad slår AV kalendern (en växel), och betydde förut "visa bara denna". "Bara Styrelsen" är nu Resor och Privat avslagna.
+      // Raden är en etikett runt en dold ruta (`OpsSwitch`): ett riktigt tryck träffar etiketten, inte rutan.
+      await page.locator("[data-radix-popper-content-wrapper] label", { hasText: "Resor" }).click();
+      await page.locator("[data-radix-popper-content-wrapper] label", { hasText: "Privat" }).click();
       await page.keyboard.press("Escape");
       await page.waitForTimeout(150);
       const tolv = await page.evaluate(() => (document.querySelector('[data-cal-day="2026-10-12"]') || { getAttribute: () => "" }).getAttribute("aria-label"));
-      krav(tolv === "12, 2 poster", `${namn}: med bara Styrelsen vald heter den 12 oktober "${tolv}", väntat "12, 2 poster" (tåget i Resor och semestern i Privat dolda).`);
+      krav(tolv === "12, 2 poster", `${namn}: med Resor och Privat avslagna heter den 12 oktober "${tolv}", väntat "12, 2 poster" (tåget i Resor och semestern i Privat dolda).`);
       const cell12 = await b('[data-cal-day="2026-10-12"]');
       if (cell12) {
         if (telefon) {
@@ -6558,13 +6561,13 @@ for (const [vp, vecka] of /** @type {[{ width: number, height: number }, boolean
     // (j) dolda poster och knapparna
     const nio = m["2026-10-09"];
     krav(!!nio && nio.brickor.length === 0 && nio.rad.length === 0, `${namn} (j): den 9 oktober, med bara dolda poster, har ${nio ? nio.brickor.length + nio.rad.length : "?"} markeringar, väntat ingen.`);
-    const knappar = await page.evaluate(() => ["Tillgänglighet", "Kalenderlager"].map((n) => { const b = document.querySelector(`[aria-label="${n}"]`); return b ? { n, tryckt: b.getAttribute("aria-pressed"), bg: getComputedStyle(b).backgroundColor, ikon: getComputedStyle(b).color, x: b.getBoundingClientRect().left } : null; }));
+    const knappar = await page.evaluate(() => ["Tillgänglighet"].map((n) => { const b = document.querySelector(`[aria-label="${n}"]`); return b ? { n, tryckt: b.getAttribute("aria-pressed"), bg: getComputedStyle(b).backgroundColor, ikon: getComputedStyle(b).color, x: b.getBoundingClientRect().left } : null; }));
     matt.push(`${namn}: knapparna ${JSON.stringify(knappar)}`);
-    krav(knappar.every((k) => k && k.tryckt === "true" && !/rgba\([^)]*,\s*0\)/.test(k.bg)), `${namn} (j): knapparna ${JSON.stringify(knappar)}, väntat båda aktiva med en synlig yta (SS: rosa för tillgänglighet, grå för lager).`);
+    krav(knappar.every((k) => k && k.tryckt === "true" && !/rgba\([^)]*,\s*0\)/.test(k.bg)), `${namn} (j): knapparna ${JSON.stringify(knappar)}, väntat aktiv med en synlig yta (SS: rosa för tillgänglighet). Kalenderlager-knappen är borta sedan 0.134.0.`);
     if (telefon) {
       const ordning = await page.evaluate(() => [...document.querySelectorAll('[data-kalender-verktyg] button, [data-kalender-verktyg] [aria-haspopup]')].map((b) => ({ n: b.getAttribute("aria-label") || "", x: b.getBoundingClientRect().left })).filter((b) => b.x >= 0).sort((a, c) => a.x - c.x).map((b) => b.n.split(":")[0]));
       matt.push(`${namn}: verktygsradens ordning ${JSON.stringify(ordning)}`);
-      krav(ordning[0] === "Tillgänglighet" && ordning.indexOf("Sök i kalendern") === 1 && ordning.indexOf("Kalenderlager") === ordning.indexOf("Veckonummer") + 1, `${namn} (j): verktygsraden är ${JSON.stringify(ordning)}, väntat Tillgänglighet först, sedan sök, och lager direkt efter veckonummer (SS-appen calendar.js:1015-1057).`);
+      krav(ordning[0] === "Tillgänglighet" && ordning.indexOf("Sök i kalendern") === 1 && !ordning.includes("Kalenderlager"), `${namn} (j): verktygsraden är ${JSON.stringify(ordning)}, väntat Tillgänglighet först, sedan sök, och ingen knapp Kalenderlager (borta sedan 0.134.0).`);
     }
     if (bildmapp) {
       await page.evaluate(() => { const r = document.querySelector("[data-kalender-rulle]"); const h = [...(r ? r.querySelectorAll("h3") : [])].find((x) => /oktober 2026/i.test(x.textContent || "")); if (r && h) r.scrollTop = /** @type {HTMLElement} */ (h.parentElement).offsetTop - /** @type {HTMLElement} */ (r.firstElementChild).offsetHeight; });
@@ -6609,7 +6612,7 @@ for (const [vp, vecka] of /** @type {[{ width: number, height: number }, boolean
 
     // (f) samma höjd: samma dagar med tillgänglighet och lager avslagna, alltså helt utan dekor, är jämförelsen. (En granne i samma
     // rad räcker inte från 640 px, där nästan varje dag bär `N/N` i raden och alltså växer lika mycket som dagen den jämförs med.)
-    await page.getByRole("button", { name: "Kalenderlager" }).click();
+    await page.getByRole("button", { name: "Scenens lagerdekor" }).click();
     await page.waitForTimeout(150);
     const utan = await page.evaluate((ds) => ds.map((d) => { const c = document.querySelector(`[data-cal-day="${d}"]`); return c ? c.getBoundingClientRect().height : -1; }), dagar);
     const dekorFri = await page.evaluate(() => document.querySelectorAll("[data-hornmarke], [data-indikator], [data-narvaro], [data-dagram]").length);

@@ -130,6 +130,36 @@ describe("listan Kalendrar: en rad per kalender, en växel per rad", () => {
   });
 });
 
+describe("⛔ lagren är borta: varje kalender finns EN gång, och Ärenden är en rad som de andra", () => {
+  it("ingen knapp heter Kalenderlager, och Apple står en gång, under Från Mitt konto", async () => {
+    rita();
+    expect(screen.queryByRole("button", { name: "Kalenderlager" })).toBeNull();
+    const lista = await oppnaListan();
+    expect(document.querySelector("[data-lager-plockare]")).toBeNull();
+    expect(within(lista).getAllByText("Apple Calendar")).toHaveLength(1);
+    expect(document.querySelectorAll("[data-kalenderrad]")).toHaveLength(4);
+    expect(within(lista.querySelector('[data-kalendersektion="Från Mitt konto"]') ?? document.body).getByText("Apple Calendar")).toBeTruthy();
+    // Inga sektioner som hette "Från appen" eller "Externa kalendrar" i plockaren.
+    expect(within(lista).queryByText("Externa kalendrar")).toBeNull();
+    expect(within(lista).queryByText("Från appen")).toBeNull();
+  });
+
+  it("Ärenden har egen sektion, växel och visning, och samma färg i listan, i ramen och i kalendern", async () => {
+    rita();
+    const lista = await oppnaListan();
+    // Av från start: ärendet på den 13:e syns inte.
+    expect(dagnamn("2026-10-13")).toBe("13");
+    fireEvent.click(within(lista).getByRole("switch", { name: "Ärenden" }));
+    expect(dagnamn("2026-10-13")).toBe("13, 1 post");
+    const rad = /** @type {HTMLElement} */ (lista.querySelector('[data-kalenderrad="arenden"]'));
+    expect(rad.querySelector('[data-kalenderprick="6"]')).toBeTruthy();
+    fireEvent.click(within(rad).getByRole("button", { name: /Visas som/ }));
+    fireEvent.click(within(rad).getByRole("tab", { name: "Ram" }));
+    expect(dag("2026-10-13").querySelector("[data-dagram]")?.getAttribute("data-dagram")).toBe("6");
+    expect([...document.querySelectorAll("[data-prick]")].map((p) => p.getAttribute("data-prick"))).not.toContain("arende");
+  });
+});
+
 describe("valet: ändras direkt och sparas efteråt, per person och grupp", () => {
   it("ett tryck på en växel tar bort kalenderns händelser ur rutnätet och sparar valet under appens nyckel", async () => {
     const lagring = minne();

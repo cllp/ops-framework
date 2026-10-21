@@ -915,28 +915,34 @@ describe("OpsKalender", () => {
     }
   });
 
-  it("verktygsraden: tillgänglighet och lager finns bara med sina props, och trycket byter läget", () => {
+  it("verktygsraden: tillgänglighet finns bara med sin prop, trycket byter läget, och ingen knapp heter Kalenderlager", () => {
     const forsta = rendera();
     expect(screen.queryByRole("button", { name: "Tillgänglighet" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Kalenderlager" })).toBeNull();
     forsta.unmount();
     /** @type {boolean[]} */
     const t = [];
-    /** @type {boolean[]} */
-    const l = [];
-    rendera({ tillganglighet: { pa: false, onByt: (/** @type {boolean} */ v) => t.push(v) }, lager: { pa: true, onByt: (/** @type {boolean} */ v) => l.push(v) } });
+    rendera({ tillganglighet: { pa: false, onByt: (/** @type {boolean} */ v) => t.push(v) } });
     const tk = screen.getByRole("button", { name: "Tillgänglighet" });
-    const lk = screen.getByRole("button", { name: "Kalenderlager" });
     expect(tk.getAttribute("aria-pressed")).toBe("false");
-    expect(lk.getAttribute("aria-pressed")).toBe("true");
     fireEvent.click(tk);
-    fireEvent.click(lk);
     expect(t).toEqual([true]);
-    expect(l).toEqual([false]);
-    // Ordningen i källan: kalenderväljaren (om den finns), tillgänglighet, veckonummer, lager. Under 768 px flyttar CSS tillgänglighet först.
+    // Ordningen i källan: kalenderväljaren (om den finns), tillgänglighet, veckonummer. Under 768 px flyttar CSS tillgänglighet först.
     const knappar = [...screen.getByRole("toolbar", { name: "Kalenderverktyg" }).querySelectorAll("button")].map((b) => b.getAttribute("aria-label"));
     expect(knappar.indexOf("Tillgänglighet")).toBeLessThan(knappar.indexOf("Veckonummer"));
-    expect(knappar.indexOf("Veckonummer")).toBe(knappar.indexOf("Kalenderlager") - 1);
+    expect(knappar).not.toContain("Kalenderlager");
+  });
+
+  /*
+   * ⛔ 0.134.0 (cllp/lifehub.app#402, CP 2026-10-21): lagren är borta ur kalendern, och `lager` KASTAR i stället för att ignoreras tyst. Det gäller båda formerna propen hade
+   * (brytaren och plockaren). Ett tyst ignorerande hade visat en kalender utan lager som om inget saknades.
+   */
+  it("⛔ lager-propen kastar med ett fel som pekar på den nya propen, i båda sina gamla former", () => {
+    const f = vi.spyOn(console, "error").mockImplementation(() => {});
+    for (const gammal of [{ pa: true, onByt: () => {} }, { lista: [{ id: "ical:jobb", namn: "Jobb" }], minne: "p" }]) {
+      expect(() => rendera({ lager: gammal })).toThrow(/propen `lager` är borttagen i 0\.134\.0.*`kalendrar`.*`kalenderMinne`/);
+    }
+    f.mockRestore();
   });
 
   it("daglager: lagrens egen bubbla ritas bara när den har innehåll, och får de valda dagarna (plats för F6)", () => {

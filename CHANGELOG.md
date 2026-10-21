@@ -11,6 +11,38 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ## Ej utgivet
 
+## 0.134.0
+
+Kalendrarna som EN lista med ett minne, en visning per kalender (Händelser, Ram eller Båda), en läspanel för en extern händelse och "Kopiera till…" för alla händelser. cllp/lifehub.app#402, CP 2026-10-20 och 2026-10-21. Inte brytande för kod: allt nytt är valfria props och nya exporter. **Ett beteende ändras (se nedan).** PR 2 av 3 (Identity och appen görs i egna PR:er).
+
+### Händelsen
+
+CP 2026-10-20, med en skärmbild: "Men varför kommer dom upp som både kalendrar och kalenderlager? Kaka på kaka. Det är allvarliga saker som skall fixas." Apple och Google matades in två gånger, som kalendrar och som lager, och valet bodde på fyra ställen: en kalender kunde vara på i ett och av i ett annat, och väljarens eget val sparades inte alls. Beslut 2026-10-21: en lista som heter Kalendrar, en `OpsSwitch` per rad, ett minne per person och grupp, en visning per kalender, "utan fördröjning" (ett tryck ändrar kalendern direkt ur det som redan är laddat, tak 100 ms) och "varje händelse går att öppna".
+
+### Vad som är nytt
+
+- **Listan Kalendrar** i `OpsCalendar`: en rad per kalender med färgprick, namn, märke och en `OpsSwitch`. Appen skickar `sektion` och `marke` per kalender (`avFranStart` för en som är av tills personen slår på den) och valfritt `kalendersektioner` (ordning och tomtext). Ingen rå kryssruta.
+- **Ett minne:** `kalenderMinne` (appens nyckel, `person:grupp`) sparar vilka kalendrar som syns och hur de visas under `ops-kalender-synlighet:<minne>`. Valet ändras i samma tryck och sparas efteråt; ingenting väntar på sparandet och ingenting hämtas om. `onSynligaKalendrar(ids)` och `useKalenderSynlighet` ger en annan vy (Idag) samma val.
+- **Visning per kalender:** Händelser, Ram eller Båda (`OpsSegmented`, en utfällning under raden). Ram ritar dagens ram i kalenderns färg. Sparas i samma minne.
+- **Läspanel för en extern händelse** (`CalendarEntry.extern`, utan `handelseId`): samma `OpsHandelsePanel` i en dialog över kalendern, bara för läsning, med källraden ("Från Apple, ändras i Apple", appens ord).
+- **"Kopiera till…"** i `OpsHandelsePanel` för alla händelser (`kopieraTill`, `onKopiera({ handelse, malKalenderId })`, `kopierad`). Ramverket öppnar inget formulär. En kopia till en kalender som redan har en varnar först.
+- `HandelseVy.kalla`, `OpsSwitch.ikon` och `filtreraPoster({ doldaKalendrar })`.
+- **Snabbare:** `Dagruta` ritas om bara när den själv ändrats. Mätt i jsdom med 86 märken i 25 månader: 91 till 97 ms för ett tryck före, 35 till 64 ms efter.
+
+### ⛔ Vad som ändras för den som redan använder det
+
+- **Ett tryck på en kalender i väljaren betyder inte längre "visa bara denna".** Det slår AV kalendern (och på igen), och den som vill se en enda kalender slår av de andra. Provet "ett tomt kalenderurval är Alla, inte Inga" gällde det gamla valet och är ersatt: alla avslagna är en tom månad som säger det (knappen heter "Inga kalendrar"), och raden Alla kalendrar tar fram allt igen. bolag-ops får detta utan att skicka något.
+- **Kalenderlagren är borta ur `OpsCalendar`** (CP 2026-10-21: "kör så"). Knappen Kalenderlager och plockarens ruta (sektionerna "Från appen" och "Externa kalendrar") finns inte längre, och **`lager`-propen KASTAR** med ett fel som pekar på `kalendrar` och `kalenderMinne`, i båda sina gamla former. Ett tyst ignorerande hade dolt en app som inte migrerat. Ärenden är en vanlig rad i listan Kalendrar (egen sektion, växel, visning och färg), och Apple och Google står bara under Från Mitt konto. `lagerNyckel` och `lasDoldaLager` finns kvar bara för appens migrering. `dagdekor` och `daglager` är oförändrade. `OpsKalenderlager` (intern) är borttagen.
+- Kalenderlistan är bredare (288 px) och har en rad per kalender i stället för en knapp. `lager` i skalytans mätning är flyttad till en scenknapp utanför kalendern.
+
+### Proven, båda riktningarna
+
+Utfallen och mutationerna står i PR-texten.
+
+### Kvar för appen
+
+`lager`-propen ersätts med `kalenderMinne` och Ärenden en rad i `kalendrar` (annars kastar kalendern). Migrering av sparade val, exakt: läs `ops-kalender-lager:<person>` (`lasDoldaLager`) och märket `lifehub-arendelager-forval:<person>`; om `ops-kalender-synlighet:<person>:<grupp>` saknas, skriv den (`skrivKalenderSynlighet`) med `syns[id] = false` för varje dolt id som är en rad i gruppen och `syns[<arendenid>] = true` bara när `lager:arenden` inte är dolt och märket finns; rör inga gamla nycklar och inte `ops-kalender-dolda-appar:<grupp>` (stegen står i README, "Kalendrarna som en lista"). Idag som följer listan (`onSynligaKalendrar` eller `useKalenderSynlighet`), kopieringen (vad `onKopiera` gör, och `kopierad` ur kopians ursprung), och id:t `ical:<kalenderId>:<uid>:<start>` för en extern händelse. Dagpanelens rubriker (Grupp och Mina) räknar en kalender utan `grupp` som "Mina" också när den har en `sektion`; det ändras inte här.
+
 ## 0.133.0
 
 En meny för alla poster, publik länk till varje typ, en delad lista som spellista, och utskriften som kan tas bort, köras om och gå i bakgrunden. lifehub.app#356 och #349, CP 2026-10-18 till 2026-10-20. Inte brytande för kod: allt nytt är valfria props och nya exporter. **En text ändras (se nedan).** Kommer efter 0.132.0 (gäster, skiva 2 och 3). Design och skäl: `docs/beslut/0013-dela-alla-typer-och-en-levande-lista.md`.
