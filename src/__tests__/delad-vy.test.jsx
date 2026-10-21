@@ -182,9 +182,9 @@ describe("OpsBibliotek: 'Dela länk' i menyn", () => {
     expect(screen.queryByRole("menuitem", { name: "Dela länk" })).toBeNull();
   });
 
-  it("⛔ syns inte för en anteckning, en fil som inte blev klar eller någon annans fil", () => {
-    render(<Vy poster={[anteckning, pdf("halv", KIM, { klar: false }), pdf("annans", ANNAN)]} onDelaLank={vi.fn()} />);
-    for (const rubrik of ["Protokoll", "Avtal halv", "Avtal annans"]) {
+  it("⛔ syns inte för en fil som inte blev klar eller någon annans fil (men väl för en anteckning, 0.133.0)", () => {
+    render(<Vy poster={[pdf("halv", KIM, { klar: false }), pdf("annans", ANNAN)]} onDelaLank={vi.fn()} />);
+    for (const rubrik of ["Avtal halv", "Avtal annans"]) {
       // En post utan en enda åtgärd har ingen ⋯ alls. Finns knappen ska "Dela länk" i alla fall inte stå i menyn.
       const knapp = screen.queryByRole("button", { name: `Åtgärder för ${rubrik}` });
       if (knapp) fireEvent.click(knapp);

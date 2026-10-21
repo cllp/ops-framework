@@ -54,6 +54,7 @@ export { STANDARDKALENDER_ID, STANDARDKALENDER_NAMN, standardGruppkalender } fro
  * även här, så att en nodfunktion inte behöver dra in React för dem.
  */
 export { createHandelsefilerService, createPlatsfilerService } from "./handelsefiler.js";
+export { arDelbar } from "../lib/bibliotek.js";
 export { handelseBibliotek, handelsedelar, arHandelseBibliotek, arendeBibliotek, arendedelar, arArendeBibliotek, arObjektbibliotek, gruppForPlats } from "../lib/bibliotek.js";
 
 /*
@@ -213,7 +214,7 @@ export {
  * och här): en sanning om utgångstiderna, orsakerna och orden. Filen är ren utom `node:crypto`.
  */
 export { createDelningService, byggDelning, byggAdressdelning, delningsId, adressId, delningsNyckel, delningsDisposition, nyttDelningstoken, nyttSlumpslut, hashaKod, kodStammer } from "./delning.js";
-export { DELNINGSDAGAR, FORVAL_DELNINGSDAGAR, HANDELSEDAGAR, FORVAL_HANDELSEDAGAR, SIGNERAD_SEKUNDER, TOKENFORM, DELNINGSSLAG, DELNINGSRATTIGHETER, DELNINGSFALT, ADRESSPREFIX, ADRESSSEGMENT, ADRESSDELFORM, MAX_ADRESSDEL, MAX_ADRESSDEL_TOTALT, SLUMPSLUT_TECKEN, SLUMPSLUTFORM, KODLANGD, FELKOD_MAX, FELKOD_FONSTER_MS, adressdel, arAdressdel, nastaAdressdel, foreslaAdress, byggAdress, tolkaAdress, delningsSokvag, delningsUrl, adressUrUppslag, kodFel, normaliseraKod, DELNINGSORSAKER, DELNINGSFEL, DELNINGSFELKODER, DELNINGSSVARSFALT, HANDELSESVARSFALT, HANDELSEFILFALT, MAX_HANDELSEFILER, delningsTyp, delningsfel } from "../lib/delning.js";
+export { DELNINGSDAGAR, FORVAL_DELNINGSDAGAR, HANDELSEDAGAR, FORVAL_HANDELSEDAGAR, SIGNERAD_SEKUNDER, TOKENFORM, DELNINGSSLAG, DELNINGSRATTIGHETER, DELNINGSFALT, ADRESSPREFIX, ADRESSSEGMENT, ADRESSDELFORM, MAX_ADRESSDEL, MAX_ADRESSDEL_TOTALT, SLUMPSLUT_TECKEN, SLUMPSLUTFORM, KODLANGD, FELKOD_MAX, FELKOD_FONSTER_MS, adressdel, arAdressdel, nastaAdressdel, foreslaAdress, byggAdress, tolkaAdress, delningsSokvag, delningsUrl, adressUrUppslag, kodFel, normaliseraKod, DELNINGSORSAKER, DELNINGSFEL, DELNINGSFELKODER, DELNINGSSVARSFALT, HANDELSESVARSFALT, HANDELSEFILFALT, MAX_HANDELSEFILER, ANTECKNINGSSVARSFALT, LANKSVARSFALT, LISTSVARSFALT, LISTRADSNYCKEL, LISTRADSKAL, MAX_DELADE_LISTPOSTER, delningsTyp, delningsfel } from "../lib/delning.js";
 
 /*
  * ⛔ FLYTTA EN POST ELLER EN HÄNDELSE TILL EN ANNAN KALENDER (0.123.0, cllp/lifehub.app#371). Att göra en post till en gruppens händelse är en
@@ -243,3 +244,9 @@ export {
   GASTORSAKER, GASTFEL, GASTFELKODER, GASTNYLANK_SVAR, GASTSTATUSAR, GASTPLATSNUMMER, normaliseraGastepost, gastId, gastomfangsnyckel, gastplatsId, gastLank, tolkaGastLank, gastStatus,
   GASTGRUPPFUNKTIONER, GASTARENDE_MAX, GASTARENDE_SKANNA_MAX, GASTARENDEKOMMENTARER_MAX, GASTARENDEFALT, GASTARENDEKOMMENTARFALT, byggGastMottagare, gastDelegerad, tolkaGastMottagare, GASTCHATT_SIDA, GASTKALENDER_MAX, GASTBIBLIOTEK_MAX, GASTANROP_PER_MINUT, GASTFIL_PER_DYGN, GASTGRUPPSVARSFALT, GASTCHATTFALT, GASTHANDELSEFALT, GASTKALENDERFALT, GASTFILFALT, GASTBIBLIOTEKFALT, GASTPERSONFALT, GASTPERSONINBJUDANFALT, GASTTIDIGAREMEDLEM, arGastId, GASTNAMNLOS, GASTSKRIV_MAX_TECKEN, GASTSKRIV_PER_MINUT, GASTGRUPPATGARDER, gastOmfangGer, gastGruppApi,
 } from "../lib/gast.js";
+
+/*
+ * ⛔ UTSKRIFTENS LÄGE PÅ POSTEN (0.133.0, lifehub.app#349). Appens server sätter och tar bort `utskriftJobb`, och fälten som rensas (`UTSKRIFT_FALT`), tiden ett jobb får leva (`UTSKRIFT_TAK_MS`) och
+ * tolkningen av läget (`utskriftLage`) ligger i en ren fil som vyn också läser. En egen lista i appens functions hade glidit isär den dag ett statusfält tillkommer (regel 2).
+ */
+export { UTSKRIFT_FALT, UTSKRIFT_TAK_MS, UTSKRIFT_TIMEOUT_TEXT, UTSKRIFTJOBB_STATUS, UTSKRIFT_UPPSKATTNING, utskriftLage, uppskattadUtskriftstid, utanUtskrift } from "../lib/utskrift.js";

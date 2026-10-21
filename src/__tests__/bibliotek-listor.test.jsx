@@ -121,11 +121,18 @@ describe("fliken Listor och listans kort", () => {
     expect(kort("Spellista")?.querySelector("[data-bibliotek-typ]")?.textContent).toBe("Lista");
   });
 
-  it("menyn för en lista har Byt namn och Radera men varken Lägg i lista eller Flytta/Kopiera (en lista flyttas inte)", async () => {
+  it("⛔ menyn för en lista har SAMMA rader som en annan post, men Lägg i lista och Flytta eller kopiera är avstängda med skäl (en lista flyttas inte, och ligger inte i en lista)", async () => {
     const user = userEvent.setup();
     render(<Host start={[A, lista("l1", "Spellista", ["a"])]} grupper={[{ id: "mitt~uid-1", namn: "Mitt bibliotek" }, { id: "miranda-ab", namn: "Miranda" }]} />);
     await user.click(screen.getByRole("button", { name: "Åtgärder för Spellista" }));
-    expect(within(screen.getByRole("menu", { name: "Spellista" })).getAllByRole("menuitem").map((r) => r.textContent)).toEqual(["Byt namn", "Radera"]);
+    const listrader = within(screen.getByRole("menu", { name: "Spellista" })).getAllByRole("menuitem");
+    expect(listrader.map((r) => r.textContent)).toEqual([
+      "Byt namn",
+      "Lägg i listaEn lista kan inte ligga i en lista.",
+      "Flytta eller kopieraEn lista pekar på poster i den här gruppen och flyttas inte.",
+      "Radera",
+    ]);
+    expect(listrader.map((r) => r.getAttribute("aria-disabled"))).toEqual([null, "true", "true", null]);
     await user.keyboard("{Escape}");
     // En vanlig post på samma plats får däremot flyttvalen.
     await user.click(screen.getByRole("button", { name: "Åtgärder för Alfa" }));

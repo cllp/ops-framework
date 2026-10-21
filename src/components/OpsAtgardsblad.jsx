@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import * as Popover from "@radix-ui/react-popover";
 import { MoreVertical } from "lucide-react";
 import { cx } from "../lib/cx.js";
@@ -38,6 +38,8 @@ export const ORD_OPSATGARDSBLAD = {
  * @property {() => void} onValj
  * @property {boolean} [fara]
  * @property {import("react").ReactNode} [ikon]
+ * @property {boolean} [avstangd] (0.133.0) Raden är avstängd: den syns, går att nå med tangentbordet och läses upp som avstängd (`aria-disabled`), men gör ingenting vid ett tryck och stänger inte menyn. Kräver `forklaring`.
+ * @property {string} [forklaring] (0.133.0) Varför raden är avstängd, en kort mening som står under etiketten och som skärmläsaren läser med raden (`aria-describedby`). Krävs när `avstangd` är sant och är ett fel utan det.
  */
 
 /**
@@ -68,6 +70,7 @@ export function OpsAtgardsblad({ namn, poster, children = null, baraKnapp = fals
     hoppaOver: (mal) => mal instanceof Element && Boolean(mal.closest("[data-ops-atgard-knapp]")),
   });
   const menyRef = useRef(/** @type {HTMLDivElement | null} */ (null));
+  const forklaringsId = useId();
 
   if (typeof namn !== "string" || namn === "") {
     throw new Error("OpsAtgardsblad: namn krävs. Knappen och menyn annonserar vilken post det gäller, och utan namn är ⋮ en ikon utan ord.");
@@ -79,6 +82,15 @@ export function OpsAtgardsblad({ namn, poster, children = null, baraKnapp = fals
   for (const p of poster) {
     if (!p || typeof p.etikett !== "string" || p.etikett === "" || typeof p.onValj !== "function") {
       throw new Error("OpsAtgardsblad: varje post behöver etikett och onValj. En tom rad i menyn går att fokusera och gör ingenting.");
+    }
+    // ⛔ EN AVSTÄNGD RAD SÄGER VARFÖR (0.133.0, CP 2026-10-20: "tre typer med tre olika menyer" ska bli en). Två undantag i menyn ska synas och inte saknas, och en
+    // grå rad utan förklaring är precis den rad som får någon att tro att menyn är trasig. Omvänt är en förklaring på en rad som går att välja en förklaring
+    // som aldrig syns som avstängning: båda är fel i anropet och kastas.
+    if (p.avstangd === true && (typeof p.forklaring !== "string" || p.forklaring.trim() === "")) {
+      throw new Error(`OpsAtgardsblad: raden "${p.etikett}" är avstängd utan forklaring. En avstängd rad säger varför, annars ser menyn trasig ut.`);
+    }
+    if (p.avstangd !== true && p.forklaring !== undefined) {
+      throw new Error(`OpsAtgardsblad: raden "${p.etikett}" har en forklaring men är inte avstängd. Forklaringen hör till avstangd: true.`);
     }
   }
 
@@ -118,23 +130,46 @@ export function OpsAtgardsblad({ namn, poster, children = null, baraKnapp = fals
 
   const rader = (
     <div ref={menyRef} role="menu" aria-label={namn} className="flex flex-col p-1">
-      {poster.map((p) => (
-        <button
-          key={p.id}
-          type="button"
-          role="menuitem"
-          tabIndex={-1}
-          className={radKlass({ stor: true })}
-          onClick={() => {
-            if (iSlappet()) return;
-            setOppen(false);
-            p.onValj();
-          }}
-        >
-          {p.ikon ? <span aria-hidden="true" className="flex shrink-0 items-center text-ink-secondary [&_svg]:size-4">{p.ikon}</span> : null}
-          <span className={cx("min-w-0 flex-1 truncate", p.fara && "text-danger")}>{p.etikett}</span>
-        </button>
-      ))}
+      {poster.map((p) =>
+        p.avstangd === true ? (
+          // ⛔ `aria-disabled` OCH INTE `disabled` (0.133.0): en avstängd knapp går inte att fokusera, och då hade piltangenterna hoppat över raden och förklaringen
+          // aldrig lästs av en tangentbordsanvändare. Raden nås, läses som avstängd tillsammans med sin förklaring, och ett tryck gör ingenting och lämnar menyn öppen.
+          <button
+            key={p.id}
+            type="button"
+            role="menuitem"
+            tabIndex={-1}
+            aria-disabled="true"
+            aria-labelledby={`${forklaringsId}-${p.id}-etikett`}
+            aria-describedby={`${forklaringsId}-${p.id}`}
+            data-ops-atgard-avstangd=""
+            className={cx(radKlass({ stor: true, klickbar: false }), "cursor-not-allowed")}
+            onClick={(e) => e.preventDefault()}
+          >
+            {p.ikon ? <span aria-hidden="true" className="flex shrink-0 items-center text-ink-muted [&_svg]:size-4">{p.ikon}</span> : null}
+            <span className="flex min-w-0 flex-1 flex-col">
+              <span id={`${forklaringsId}-${p.id}-etikett`} className="truncate text-ink-muted">{p.etikett}</span>
+              <span id={`${forklaringsId}-${p.id}`} data-ops-atgard-forklaring="" className="text-meta text-ink-muted">{p.forklaring}</span>
+            </span>
+          </button>
+        ) : (
+          <button
+            key={p.id}
+            type="button"
+            role="menuitem"
+            tabIndex={-1}
+            className={radKlass({ stor: true })}
+            onClick={() => {
+              if (iSlappet()) return;
+              setOppen(false);
+              p.onValj();
+            }}
+          >
+            {p.ikon ? <span aria-hidden="true" className="flex shrink-0 items-center text-ink-secondary [&_svg]:size-4">{p.ikon}</span> : null}
+            <span className={cx("min-w-0 flex-1 truncate", p.fara && "text-danger")}>{p.etikett}</span>
+          </button>
+        ),
+      )}
     </div>
   );
 

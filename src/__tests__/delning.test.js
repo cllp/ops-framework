@@ -171,14 +171,13 @@ describe("skapa: vem får dela", () => {
     await expect(tjanst.skapa({ uid: "uid-gammal", postId: "p-medlem", groupId: GRUPP, dagar: 7, gruppdel: GRUPPDEL, fildel: "biljett" })).rejects.toThrow(/inte aktiv medlem/);
   });
 
-  it("en post som inte finns, en anteckning och en fil som inte blev klar går inte att dela", async () => {
+  it("en post som inte finns och en fil som inte blev klar går inte att dela (en anteckning gör det sedan 0.133.0, se delning-alla-typer.test.js)", async () => {
     const { tjanst } = bygg({
       poster: [
-        { id: "anteckning", groupId: GRUPP, typ: "anteckning", rubrik: "A", text: "t", skapadAv: { uid: MEDLEM }, skapad: NU, andrad: NU },
         fil("halv", GRUPP, MEDLEM, { fil: { sokvag: `grupper/${GRUPP}/bibliotek/halv/h.mp3`, namn: "h.mp3", mime: "audio/mpeg", byte: 1, klar: false } }),
       ],
     });
-    for (const postId of ["finns-inte", "anteckning", "halv"]) {
+    for (const postId of ["finns-inte", "halv"]) {
       await expect(tjanst.skapa({ uid: MEDLEM, postId, groupId: GRUPP, dagar: 7, gruppdel: GRUPPDEL, fildel: "biljett" }), postId).rejects.toThrow(/finns inte i platsen/);
     }
   });
@@ -473,8 +472,8 @@ describe("typ och texter", () => {
     expect(delningsTyp("text/plain")).toBe("dokument");
     expect(delningsTyp(undefined)).toBe("dokument");
   });
-  it("orden för de tre ursprungliga orsakerna står kvar, och en okänd orsak får det utgångnas", () => {
-    expect(DELNINGSFEL).toMatchObject({ utgangen: "Länken har gått ut", stangd: "Länken är stängd", saknas: "Filen finns inte längre" });
+  it("orden för de tre ursprungliga orsakerna står kvar (utom att saknas inte längre påstår att det var en fil, 0.133.0), och en okänd orsak får det utgångnas", () => {
+    expect(DELNINGSFEL).toMatchObject({ utgangen: "Länken har gått ut", stangd: "Länken är stängd", saknas: "Finns inte längre" });
     expect(delningsfel("okänd")).toBe("Länken har gått ut");
     expect(delningsfel(undefined)).toBe("Länken har gått ut");
   });

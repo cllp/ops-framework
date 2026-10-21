@@ -11,6 +11,39 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ## Ej utgivet
 
+## 0.133.0
+
+En meny för alla poster, publik länk till varje typ, en delad lista som spellista, och utskriften som kan tas bort, köras om och gå i bakgrunden. lifehub.app#356 och #349, CP 2026-10-18 till 2026-10-20. Inte brytande för kod: allt nytt är valfria props och nya exporter. **En text ändras (se nedan).** Kommer efter 0.132.0 (gäster, skiva 2 och 3). Design och skäl: `docs/beslut/0013-dela-alla-typer-och-en-levande-lista.md`.
+
+### Händelsen
+
+CP 2026-10-18: "Vi skall ju ha en publik länk till varje artefakt med option på att den som ser kan ladda ner." Och 2026-10-20: "EN lista måste kunna delas ... det ser ut som en lista, men alla sakerna i listan delas. Som att jag vill dela en playlist för ett gig." Mätt före: "Dela länk" fanns bara på en färdig fil, en lista fick bara Byt namn och Radera, och en anteckning och en fil hade olika menyer. Samma dag: "Ändras listan kan den ju bara ändras för alla som den delas med. Om en låt tas bort kan den bara tas bort precis som för den som skapade den." Och om utskriften: "Kan man göra så att man kan ta bort transkribering på en ljudupptagning och köra om den?", som ska gå i bakgrunden och fortsätta även om man går därifrån.
+
+### Vad som är nytt
+
+- **En meny för fil, anteckning, länk och lista**, samma rader i samma ordning (Redigera, Byt namn, Dela länk, Visa detaljer, Lägg i lista, Kopiera länk, Flytta eller kopiera, Radera). "Lägg i lista" och "Flytta eller kopiera" finns på en lista som **avstängda rader med förklaring** (`OpsAtgardsblad`: `avstangd` och `forklaring`, `aria-disabled`, förklaringen läses med raden). `arDelbar(post)` säger vad som går att dela och delas av menyn och servern.
+- **Publik länk till alla fyra typer** (`createDelningService`). Svaret bär vitlistade fält per typ (`ANTECKNINGSSVARSFALT`, `LANKSVARSFALT`, `LISTSVARSFALT`; filen oförändrad). **En lista delas hel och som en levande spegel**: servern läser listan vid varje hämtning (`losLista`), en post som tagits ur listan syns inte, en raderad post blir "Finns inte längre", ordningen följer listan, och inget av listan lagras i delningen. Tak: `MAX_DELADE_LISTPOSTER` (100) med `ejVisade`. Nedladdningsvalet gäller varje fil.
+- **Den publika vyn** (`OpsDelad`) ritar anteckning, länk (en tydlig knapp, bara http och https) och lista som en spellista med EN `OpsLjudspelare` (nästa låt startar när en tar slut, och en låt som försvunnit ur listan hoppas över). `OpsLjudspelare` får `onSlut`, `onSpelstatus`, `autoSpela` och `startnummer`.
+- **Utskriften kan tas bort och köras om**: `onSkrivUtIgen({ id, groupId })` och `onTaBortUtskrift({ id, groupId })` i `OpsBibliotek`, båda med fråga först, bara med utskrift och `farAndra`.
+- **Utskriften går i bakgrunden, med läget på posten**: `utskriftJobb` (`{ status, startad, av, fel? }`) och `utskriftLage(post, nu)` (`ingen`, `pagar`, `fel`, `klar`; en `pagar` över 15 minuter är ett fel). Kortet och detaljen ritar läget ur posten och överlever att man går därifrån. `UTSKRIFT_FALT` är listan fält servern rensar. Uppskattningen av tiden är märkt som en bedömning. Ingen procentstapel.
+- **Reglerna** nekar klienten att skriva `utskriftJobb` (skapa, ändra, ta bort), men en ändring av annat på en post med jobb går igenom.
+- **Ljud: ladda upp och spela in.** "+ Ny" under fliken Ljud är en meny med "Ladda upp ljudfil" (dold filväljare, `accept` är `LJUDFIL_ACCEPT`, prövas av `ljudfilFel`, sparas av appens `onLaddaUpp`) och sedan "Spela in". Utan mottagare för inspelningar är uppladdningen en knapp direkt, utan meny. Under Alla heter raden "Spela in ljud" (förut "Röstinspelning"). `audio/aac` är ett tillåtet filformat (regler och lagringsregler följer `FILMIME`), och `audio/x-m4a`, `audio/m4a`, `audio/mp3` och `audio/x-aac` normaliseras till de vanliga namnen.
+- **Rättat: en inspelning från Biblioteket sparades inte i Biblioteket.** Skalet härledde låset till modulens mål ur gruppens påslagna moduler vid varje rendering (sedan 0.105.0). Försvann modulen ur listan en stund under inspelningen föll fältet tillbaka till appens första mål, och vid Klar ritades "Vad ska hända med det du sa?" och ljudet gick aldrig till modulens `spara`. Målet fångas nu när inspelningen startar och släpps när den är över. ⛔ Mekanismen är bekräftad i en byggd app (lifehub.app PR 399: när målet tvingas bort under inspelningen visas valen och `spara` anropas aldrig), men vad som tar bort målet i produktion är INTE återskapat. Hypotesen är att `useGruppensTillganglighet` läser om och döljer appar som kan döljas medan den laddar. Rättningen gör att utlösaren, vad den än är, inte längre kan flytta ljudet.
+
+### ⛔ Vad som ändras för den som redan använder det
+
+- `DELNINGSFEL.saknas` är "Finns inte längre" och inte "Filen finns inte längre". Raden bär ingen typ, och en raderad post säger inte vilken av de fyra den var.
+- `createDelningService.skapa` nekar `nedladdning: true` för en anteckning och en länk (förut kunde de inte delas alls).
+- Rättat på vägen: en delad ljudfil bad om en ny adress (`onNyUrl`) vid första ritningen, innan något gått fel.
+- ⛔ `audio/aac` i `FILMIME` ändrar de genererade reglerna och lagringsreglerna. **Deploya reglerna före klienten**, annars nekas en .aac-fil som klienten nu godtar.
+
+### Proven, båda riktningarna
+
+Utfallen, mutationerna och emulatorkörningarna står i PR-texten.
+
+### Vad appen måste göra
+
+Se README, avsnitten "Alla fyra typer delas" och "Utskriften går i bakgrunden och kan köras om", och PR-texten under "Kvar för appen".
 ## 0.132.0
 
 Gäster, skiva 2 ("hela gruppen", det bantade gränssnittet) och skiva 3 (ärenden till en gäst), cllp/lifehub.app#389, och en filknapp i kommentarerna. Inte brytande: allt är nytt eller en ny valfri prop, och appen behöver inte ändra något för att ompinna (ett undantag: `OpsSvarSummor` kräver `rubrik`, men den är ny i den här versionen). Design och skäl: `docs/beslut/0012-gaster-hela-gruppen.md`.

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { GripVertical, Plus, X } from "lucide-react";
 import { MAX_BIBLIOTEKRUBRIK, MAX_LISTPOSTER, filtreraBibliotek, inmatningsfel, ljudRubrik, arLjudpost, trimSomRegeln } from "../lib/bibliotek.js";
-import { kandidaterForLista, laggTillPost, losLista, taBortPost } from "../lib/biblioteklista.js";
+import { LISTRADTEXT, kandidaterForLista, laggTillPost, losLista, taBortPost } from "../lib/biblioteklista.js";
 import { flyttaFore, flyttaId } from "../lib/apparark.js";
 import { cx } from "../lib/cx.js";
 import { LankMark, TypIkon, oppnasDirekt, plattKlass, typEtikett } from "./BibliotekPostvisning.jsx";
@@ -208,7 +208,7 @@ export function ListaVisning({ lista, poster, kanAndra, onSpara, onOppnaPost }) 
           onPointerCancel={slutaDra}
         >
           {rader.map((r, i) => {
-            const namn = r.post ? postNamn(r.post) : r.skal === "lista" ? "En lista" : "Finns inte längre";
+            const namn = r.post ? postNamn(r.post) : r.skal === "lista" ? "En lista" : LISTRADTEXT.saknas;
             return (
               <li
                 key={r.id}
@@ -240,7 +240,7 @@ export function ListaVisning({ lista, poster, kanAndra, onSpara, onOppnaPost }) 
                 ) : null}
                 {r.post ? <Raden post={r.post} namn={namn} onOppnaPost={onOppnaPost} /> : (
                   <span data-lista-saknas-text="" className="min-w-0 flex-1 text-brod text-ink-muted wrap-anywhere">
-                    {r.skal === "lista" ? "Listor kan inte ligga i en lista." : "Finns inte längre"}
+                    {r.skal === "lista" ? LISTRADTEXT.lista : LISTRADTEXT.saknas}
                   </span>
                 )}
                 {kanAndra ? (

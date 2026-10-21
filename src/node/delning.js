@@ -1,5 +1,24 @@
 /**
- * Publik delning av en biblioteksfil eller en händelse: en länk utan inloggning (0.119.0, lifehub.app#356, och 0.125.0, lifehub.app#377).
+ * Publik delning av en biblioteksfil, anteckning, länk eller lista, eller en händelse: en länk utan inloggning (0.119.0, lifehub.app#356, 0.125.0, lifehub.app#377 och 0.133.0).
+ *
+ * ══ ⛔ ALLA FYRA TYPER GÅR ATT DELA, OCH EN DELAD LISTA ÄR EN LEVANDE SPEGEL (0.133.0, lifehub.app#356) ═══════════════════════════════
+ *
+ * CP 2026-10-18: "Vi skall ju ha en publik länk till varje artefakt med option på att den som ser kan ladda ner." Förut gick bara en färdig fil att dela. Nu går en fil, en anteckning, en länk
+ * och en lista (`arDelbar`). Delningsraden är oförändrad: den pekar på posten (`postId`) och typen läses ur posten, så ingen rad skrivs om och inget nytt fält finns.
+ *
+ * Svaret bär bara vitlistade fält per typ (`DELNINGSSVARSFALT` för en fil, `ANTECKNINGSSVARSFALT`, `LANKSVARSFALT`, `LISTSVARSFALT`), och `typ` skiljer dem åt.
+ *
+ * ⛔ HELA LISTAN DELAS MED LÄNKEN. CP 2026-10-20: "EN lista måste kunna delas ... det ser ut som en lista, men alla sakerna i listan delas. Som att jag vill dela en playlist för ett gig."
+ * Den som får dela listan (`farAndra`, prövas på listan som i dag) delar därmed också posterna i den, också de hen inte själv skrivit. Det är beslutet, och det är därför
+ * dialogen säger det.
+ *
+ * ⛔ LISTAN LAGRAS INTE I DELNINGEN. CP 2026-10-20: "Ändras listan kan den ju bara ändras för alla som den delas med. Om en låt tas bort kan den bara tas bort precis som för den som skapade den."
+ * Servern läser listan vid VARJE hämtning och ritar den som medlemmen ser den nu: samma poster i samma ordning (`losLista`, den funktion medlemmens egen listvy använder). En post som tagits
+ * ur listan finns inte i nästa svar. En post som raderats blir raden "Finns inte längre", som i medlemmens vy (`LISTRADTEXT`), och mottagaren kan inte ändra något. Ingen ögonblicksbild finns att
+ * glida isär från listan (regel 2), och en spelare som hämtar om efter att en adress gått ut (15 minuter) får den nya listan.
+ *
+ * Taket är `MAX_DELADE_LISTPOSTER`: varje fil får en egen signerad adress. Poster efter taket kommer inte med och `ejVisade` säger hur många. En lista i en lista finns inte (reglerna
+ * låter den inte skrivas, och `losLista` visar en sådan rad som en rad som inte går att visa), så ingen rekursion finns. Posterna läses bara på listans egen plats.
  *
  * ══ ⛔ VARFÖR SERVERSIDAN, OCH VARFÖR REGLERNA NEKAR ALLT ═══════════════════════════════════════════════════════════════
  *
@@ -72,7 +91,8 @@
 import { createHash, randomBytes, scrypt, timingSafeEqual } from "node:crypto";
 // @ts-expect-error Samma skäl: ramverket har inga Node-typer.
 import { Buffer } from "node:buffer";
-import { arLjudpost, arMittBibliotek, gruppForPlats, handelseBibliotek, ljudRubrik, mittBibliotek, peaksGiltiga, trimSomRegeln } from "../lib/bibliotek.js";
+import { arDelbar, arLjudpost, arMittBibliotek, gruppForPlats, handelseBibliotek, ljudRubrik, mittBibliotek, peaksGiltiga, POSTIDFORM, trimSomRegeln } from "../lib/bibliotek.js";
+import { losLista } from "../lib/biblioteklista.js";
 import {
   ADRESSSEGMENT,
   DELNINGSDAGAR,
@@ -82,6 +102,7 @@ import {
   HANDELSEDAGAR,
   KODLANGD,
   MAX_ADRESSDEL,
+  MAX_DELADE_LISTPOSTER,
   MAX_HANDELSEFILER,
   SIGNERAD_SEKUNDER,
   SLUMPSLUT_TECKEN,
@@ -584,10 +605,10 @@ export function createDelningService(konfig) {
   }
 
   /**
-   * En fil som är färdig uppladdad. En post utan `klar` räknas som klar (poster före 0.117.0), `klar: false` gör den inte.
+   * En fil som är färdig uppladdad. En post utan `klar` räknas som klar (poster före 0.117.0), `klar: false` gör den inte. Samma fråga som `arDelbar` ställer för en fil (en sanning).
    * @param {Record<string, any> | null | undefined} post
    */
-  const arKlarFil = (post) => Boolean(post) && post?.typ === "fil" && Boolean(post.fil) && typeof post.fil.sokvag === "string" && post.fil.sokvag !== "" && post.fil.klar !== false;
+  const arKlarFil = (post) => post?.typ === "fil" && arDelbar(post);
 
   /**
    * Adressdelarna ur anropet, eller `ogiltig-adress`. Delen en person skriver är högst `MAX_ADRESSDEL` tecken: slumpslutet läggs på efteråt.
@@ -680,7 +701,7 @@ export function createDelningService(konfig) {
   }
 
   /**
-   * Delar en fil.
+   * Delar en post: en fil, en anteckning, en länk eller en lista (0.133.0; förut bara en fil).
    *
    * ⛔ POSTENS EGEN GRUPP ÄR DEN SOM GÄLLER (IDOR). `groupId` i anropet är det anroparen tror, och det är posten som avgör. En
    * medlem i grupp A som skickar groupId "A" med en post-id ur grupp B får samma nej som för en post som inte finns:
@@ -688,7 +709,7 @@ export function createDelningService(konfig) {
    *
    * @param {Record<string, any>} b
    */
-  async function skapaFil(b) {
+  async function skapaPost(b) {
     const uid = kravText(b?.uid, "uid", "skapa");
     const postId = kravText(b?.postId, "postId", "skapa");
     const groupId = kravText(b?.groupId, "groupId", "skapa");
@@ -701,8 +722,13 @@ export function createDelningService(konfig) {
     const kod = await kodForSkapa(b.kod, "skapa");
 
     const post = await kalla.read(BIBLIOTEK, postId);
-    if (!arKlarFil(post) || post.groupId !== groupId) {
-      throw new Error(`skapa: posten finns inte i platsen "${groupId}", eller är inte en färdig fil. Inget har delats.`);
+    // ⛔ `arDelbar` ÄR MENYNS FRÅGA OCKSÅ (regel 2): en fil som är färdig, en anteckning med text, en länk med en http- eller https-adress, en lista. Allt annat är "finns inte", med samma
+    // svar som för en post i en annan grupp, så att den som inte hör dit inte kan skilja dem åt.
+    if (!arDelbar(post) || post.groupId !== groupId) {
+      throw new Error(`skapa: posten finns inte i platsen "${groupId}", eller går inte att dela (en fil som inte blev klar har inget att visa). Inget har delats.`);
+    }
+    if (nedladdning && post.typ !== "fil" && post.typ !== "lista") {
+      throw new Error(`skapa: en ${post.typ === "anteckning" ? "anteckning" : "länk"} har ingenting att ladda ner. Nedladdning gäller en fil och en lista (alla filer i den). Inget har delats.`);
     }
 
     let medlem = null;
@@ -848,17 +874,13 @@ export function createDelningService(konfig) {
   }
 
   /**
-   * Det en besökare får se av en FIL.
-   * @param {Record<string, any>} rad
+   * Det en besökare får se av en FIL: de vitlistade fälten (`DELNINGSSVARSFALT`) och en signerad adress. Används för en fil som delas ensam och för varje fil i en delad lista, så att
+   * en fil i en lista bär samma fält som om den delats ensam.
+   *
+   * @param {Record<string, any>} post En färdig fil (`arKlarFil`).
+   * @param {boolean} nedladdning
    */
-  async function filSvar(rad) {
-    if (typeof rad.postId !== "string" || typeof rad.groupId !== "string") return nej("saknas");
-
-    const post = await kalla.read(BIBLIOTEK, rad.postId);
-    // ⛔ POSTENS GRUPP MÅSTE VARA DELNINGENS. En post som flyttats till en annan grupp eller till Mitt bibliotek delades inte dit.
-    if (!arKlarFil(post) || post.groupId !== rad.groupId) return nej("saknas");
-
-    const nedladdning = rad.nedladdning === true;
+  async function filInnehall(post, nedladdning) {
     const filnamn = text(post.fil.namn);
     const typ = delningsTyp(post.fil.mime);
     const sign = (/** @type {boolean} */ bifoga) =>
@@ -868,19 +890,103 @@ export function createDelningService(konfig) {
     const visaUrl = nedladdning && typ === "pdf" ? await sign(false) : null;
     const rubrik = arLjudpost(post) ? ljudRubrik(post) : trimSomRegeln(post.rubrik) || filnamn;
     return {
+      rubrik,
+      typ,
+      mime: post.fil.mime,
+      storlek: Number.isInteger(post.fil.byte) ? post.fil.byte : null,
+      langd: Number.isInteger(post.durationMs) ? post.durationMs : null,
+      peaks: peaksGiltiga(post.peaks) ? post.peaks : null,
+      nedladdning,
+      url,
+      visaUrl,
+    };
+  }
+
+  /**
+   * Det en besökare får se av en ANTECKNING (`ANTECKNINGSSVARSFALT`).
+   * @param {Record<string, any>} post
+   */
+  function anteckningInnehall(post) {
+    return { typ: /** @type {const} */ ("anteckning"), rubrik: trimSomRegeln(post.rubrik), text: String(post.text) };
+  }
+
+  /**
+   * Det en besökare får se av en LÄNK (`LANKSVARSFALT`): rubriken och adressen, som `arDelbar` redan prövat är http eller https.
+   * @param {Record<string, any>} post
+   */
+  function lankInnehall(post) {
+    return { typ: /** @type {const} */ ("lank"), rubrik: trimSomRegeln(post.rubrik) || String(post.url), url: String(post.url) };
+  }
+
+  /**
+   * En ogenomskinlig nyckel för en rad i en delad lista: samma vid varje hämtning av samma delning, men ingenting som går att slå upp. Postens eget id lämnar inte servern.
+   * @param {string} delningsRadId
+   * @param {string} postId
+   */
+  const radnyckel = (delningsRadId, postId) => createHash("sha256").update(`${delningsRadId}:${postId}`).digest("hex").slice(0, 16);
+
+  /**
+   * Det en besökare får se av en LISTA: listan som den ser ut JUST NU (`losLista`, samma funktion som medlemmens vy), vare sig en post tagits ur den, lagts till eller bytt plats sedan
+   * länken skapades. Se filhuvudet för CP:s beslut.
+   *
+   * ⛔ BARA POSTER PÅ LISTANS EGEN PLATS LÄSES IN (`groupId` lika med listans), som i medlemmens vy: ett id från en annan plats blir raden "Finns inte längre" och aldrig innehåll därifrån.
+   * ⛔ EN RAD BLIR "FINNS INTE LÄNGRE" OCH BÄR INGET ANNAT FÄLT när posten är borttagen, ligger på en annan plats eller är en fil som inte blev klar (`arDelbar`): det som inte går att visa
+   * läcker aldrig sin rubrik. En lista i listan blir `lista-i-lista`, utan fält.
+   *
+   * @param {Record<string, any>} rad Delningsraden.
+   * @param {Record<string, any>} lista Listposten.
+   */
+  async function listaSvar(rad, lista) {
+    const nedladdning = rad.nedladdning === true;
+    const alla = Array.isArray(lista.poster) ? /** @type {unknown[]} */ (lista.poster).filter((x) => typeof x === "string") : [];
+    const valda = /** @type {string[]} */ (alla.slice(0, MAX_DELADE_LISTPOSTER));
+    // Varje id läses för sig (och går därmed genom appens egen läsning). Ett id som inte har postidform slås aldrig upp: det finns inget sådant dokument att fråga efter.
+    const lasta = await Promise.all(valda.map(async (id) => (POSTIDFORM.test(id) ? await kalla.read(BIBLIOTEK, id) : null)));
+    const platsens = lasta.flatMap((p, i) => (p && typeof p === "object" && p.groupId === lista.groupId ? [{ ...p, id: valda[i] }] : []));
+    const poster = await Promise.all(
+      losLista({ poster: valda }, /** @type {any} */ (platsens)).map(async (r) => {
+        if (!r.post) return { typ: r.skal === "lista" ? /** @type {const} */ ("lista-i-lista") : /** @type {const} */ ("saknas") };
+        const post = /** @type {Record<string, any>} */ (r.post);
+        if (!arDelbar(post)) return { typ: /** @type {const} */ ("saknas") };
+        const id = radnyckel(rad.id, r.id);
+        if (post.typ === "fil") return { id, ...(await filInnehall(post, nedladdning)) };
+        if (post.typ === "anteckning") return { id, ...anteckningInnehall(post) };
+        return { id, ...lankInnehall(post) };
+      }),
+    );
+    return {
       ok: /** @type {const} */ (true),
       delning: {
-        rubrik,
-        typ,
-        mime: post.fil.mime,
-        storlek: Number.isInteger(post.fil.byte) ? post.fil.byte : null,
-        langd: Number.isInteger(post.durationMs) ? post.durationMs : null,
-        peaks: peaksGiltiga(post.peaks) ? post.peaks : null,
+        typ: /** @type {const} */ ("lista"),
+        rubrik: trimSomRegeln(lista.rubrik),
         nedladdning,
-        url,
-        visaUrl,
+        poster,
+        ejVisade: alla.length - valda.length,
       },
     };
+  }
+
+  /**
+   * Det en besökare får se av en POST: en fil, en anteckning, en länk eller en lista. Typen läses ur posten.
+   * @param {Record<string, any>} rad
+   */
+  async function postSvar(rad) {
+    if (typeof rad.postId !== "string" || typeof rad.groupId !== "string") return nej("saknas");
+
+    const post = await kalla.read(BIBLIOTEK, rad.postId);
+    // ⛔ POSTENS GRUPP MÅSTE VARA DELNINGENS. En post som flyttats till en annan grupp eller till Mitt bibliotek delades inte dit.
+    if (!arDelbar(post) || post.groupId !== rad.groupId) return nej("saknas");
+
+    switch (post.typ) {
+      case "fil":
+        return { ok: /** @type {const} */ (true), delning: await filInnehall(post, rad.nedladdning === true) };
+      case "anteckning":
+        return { ok: /** @type {const} */ (true), delning: anteckningInnehall(post) };
+      case "lank":
+        return { ok: /** @type {const} */ (true), delning: lankInnehall(post) };
+      default:
+        return listaSvar(rad, post);
+    }
   }
 
   /**
@@ -958,10 +1064,10 @@ export function createDelningService(konfig) {
 
   return {
     /**
-     * Delar en fil eller en händelse. Svarar med adressen (`sokvag`, utan domän) och det som gäller. Anger anropet `handelseId` delas en händelse,
-     * annars `postId` (en fil). Precis en av dem.
+     * Delar en post (en fil, en anteckning, en länk eller en lista, 0.133.0) eller en händelse. Svarar med adressen (`sokvag`, utan domän) och det som gäller. Anger anropet `handelseId` delas en händelse,
+     * annars `postId`. Precis en av dem.
      *
-     * Fil: `{ uid, postId, groupId, gruppdel, fildel, dagar, nedladdning?, kod?, namn? }`. Händelse: `{ uid, handelseId, gruppdel, handelsedel, dagar?, kod?, namn? }`
+     * Post: `{ uid, postId, groupId, gruppdel, fildel, dagar, nedladdning?, kod?, namn? }`. `nedladdning` gäller en fil och en lista (alla filer i den); `true` för en anteckning eller en länk nekas. Händelse: `{ uid, handelseId, gruppdel, handelsedel, dagar?, kod?, namn? }`
      * där `dagar` utelämnad eller `null` är ingen gräns. Utan kod läggs ett slumpat slut på sista delen.
      *
      * @param {Record<string, any>} b
@@ -971,7 +1077,7 @@ export function createDelningService(konfig) {
       const handelse = b?.handelseId !== undefined;
       const fil = b?.postId !== undefined;
       if (handelse === fil) throw new Error("skapa: ange precis en av postId (en fil) och handelseId (en händelse).");
-      return handelse ? skapaHandelse(b) : skapaFil(b);
+      return handelse ? skapaHandelse(b) : skapaPost(b);
     },
 
     /**
@@ -991,6 +1097,11 @@ export function createDelningService(konfig) {
       if (!rad) throw new Error("andraNedladdning: delningen finns inte.");
       await kravAndraNedladdning(uid, rad, "andraNedladdning");
       if (rad.slag === "handelse") throw new Error("andraNedladdning: en händelselänk har ingen nedladdning att ändra.");
+      // ⛔ EN ANTECKNING OCH EN LÄNK HAR INGET ATT LADDA NER (0.133.0). Typen bor i posten och inte i raden (en sanning), så posten läses. Är den borta finns inget att neka: länken öppnas ändå inte.
+      if (typeof rad.postId === "string") {
+        const mal = await kalla.read(BIBLIOTEK, rad.postId);
+        if (mal && (mal.typ === "anteckning" || mal.typ === "lank")) throw new Error(`andraNedladdning: en ${mal.typ === "anteckning" ? "anteckning" : "länk"} har ingenting att ladda ner.`);
+      }
       if (rad.aterkallad !== null && rad.aterkallad !== undefined) throw new Error("andraNedladdning: länken är stängd. En stängd länk öppnas inte igen, skapa en ny.");
       const { updated, row } = await uppdateraOm(DELNINGAR, id, { aterkallad: null }, { nedladdning: b.nedladdning });
       if (!updated) throw new Error("andraNedladdning: länken stängdes medan ändringen gjordes. Skapa en ny länk.");
@@ -1101,6 +1212,14 @@ export function createDelningService(konfig) {
      * @returns {Promise<
      *   | { ok: false, orsak: (typeof import("../lib/delning.js").DELNINGSORSAKER)[number] }
      *   | { ok: true, delning: { rubrik: string, typ: string, mime: string, storlek: number | null, langd: number | null, peaks: string | null, nedladdning: boolean, url: string, visaUrl: string | null } }
+     *   | { ok: true, delning: { typ: "anteckning", rubrik: string, text: string } }
+     *   | { ok: true, delning: { typ: "lank", rubrik: string, url: string } }
+     *   | { ok: true, delning: { typ: "lista", rubrik: string, nedladdning: boolean, ejVisade: number, poster: Array<
+     *       | { id: string, rubrik: string, typ: string, mime: string, storlek: number | null, langd: number | null, peaks: string | null, nedladdning: boolean, url: string, visaUrl: string | null }
+     *       | { id: string, typ: "anteckning", rubrik: string, text: string }
+     *       | { id: string, typ: "lank", rubrik: string, url: string }
+     *       | { typ: "saknas" | "lista-i-lista" }
+     *     > } }
      *   | { ok: true, delning: { slag: "handelse", titel: string, beskrivning: string | null, plats: string | null, datum: string, slutDatum: string | null, tid: string | null, slutTid: string | null, heldag: boolean, filer: Array<{ rubrik: string, typ: string, mime: string, storlek: number | null, url: string }>, ejVisade: number } }
      * >}
      */
@@ -1136,7 +1255,7 @@ export function createDelningService(konfig) {
         if (stopp) return nej(stopp);
       }
 
-      return slag === "handelse" ? handelseSvar(rad) : filSvar(rad);
+      return slag === "handelse" ? handelseSvar(rad) : postSvar(rad);
     },
   };
 }

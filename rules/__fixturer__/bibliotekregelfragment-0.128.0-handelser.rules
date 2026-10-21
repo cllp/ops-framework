@@ -130,7 +130,7 @@
     }
 
     function opsBibliotekspostGiltig(d, postId) {
-      return d.keys().hasOnly(["groupId", "typ", "rubrik", "text", "url", "kalla", "bild", "poster", "fil", "utskrift", "durationMs", "peaks", "taggar", "skapadAv", "skapad", "andrad"])
+      return d.keys().hasOnly(["groupId", "typ", "rubrik", "text", "url", "kalla", "bild", "poster", "fil", "utskrift", "utskriftJobb", "durationMs", "peaks", "taggar", "skapadAv", "skapad", "andrad"])
         && (!d.keys().hasAny(["taggar"]) || opsBibliotekTaggar(d.taggar))
         && d.rubrik.trim().size() > 0
         && d.rubrik.size() <= 200
@@ -144,17 +144,17 @@
           (d.typ == "anteckning"
             && d.text.trim().size() > 0
             && d.text.size() <= 8000
-            && !d.keys().hasAny(["url", "kalla", "bild", "poster", "fil", "utskrift", "durationMs", "peaks"]))
+            && !d.keys().hasAny(["url", "kalla", "bild", "poster", "fil", "utskrift", "utskriftJobb", "durationMs", "peaks"]))
           || (d.typ == "lank"
             && d.url.size() <= 2000
             && d.url.matches('https?://[!-~]+')
             && (!d.keys().hasAny(["kalla"]) || opsBibliotekKalla(d))
             && (!d.keys().hasAny(["bild"]) || (d.bild.size() <= 2000 && d.bild.matches('https://[!-~]+')))
-            && !d.keys().hasAny(["text", "poster", "fil", "utskrift", "durationMs", "peaks"]))
+            && !d.keys().hasAny(["text", "poster", "fil", "utskrift", "utskriftJobb", "durationMs", "peaks"]))
           || (d.typ == "lista"
             && d.keys().hasAll(["poster"])
             && opsBibliotekPoster(d.poster)
-            && !d.keys().hasAny(["text", "url", "kalla", "bild", "fil", "utskrift", "durationMs", "peaks"]))
+            && !d.keys().hasAny(["text", "url", "kalla", "bild", "fil", "utskrift", "utskriftJobb", "durationMs", "peaks"]))
           || (d.typ == "fil"
             && d.fil.keys().hasOnly(["sokvag", "namn", "mime", "byte", "klar"])
             && (!('klar' in d.fil) || d.fil.klar is bool)
@@ -164,7 +164,7 @@
             && opsBibliotekSokvagIGruppen(d, postId)
             && d.fil.namn.size() > 0
             && d.fil.namn.size() <= 200
-            && d.fil.mime.matches('^(image/jpeg|image/png|image/webp|image/gif|audio/webm|audio/mp4|audio/mpeg|audio/ogg|audio/wav|audio/aiff|audio/flac|video/mp4|video/quicktime|application/pdf|text/plain)$')
+            && d.fil.mime.matches('^(image/jpeg|image/png|image/webp|image/gif|audio/webm|audio/mp4|audio/mpeg|audio/ogg|audio/wav|audio/aiff|audio/flac|audio/aac|video/mp4|video/quicktime|application/pdf|text/plain)$')
             && d.fil.byte is int
             && d.fil.byte > 0
             && (d.fil.byte <= 26214400 || (d.fil.mime.matches('^audio/.*') && d.fil.byte <= 262144000) || (d.fil.mime.matches('^video/.*') && d.fil.byte <= 104857600))
@@ -172,6 +172,10 @@
             && (
               !d.keys().hasAny(["utskrift"])
               || (d.utskrift.size() <= 20000 && d.fil.mime.matches('^audio/.*'))
+            )
+            && (
+              !d.keys().hasAny(["utskriftJobb"])
+              || (d.utskriftJobb is map && d.fil.mime.matches('^audio/.*'))
             )
             && (
               !d.keys().hasAny(["durationMs"])
@@ -196,11 +200,16 @@
         && request.resource.data.skapadAv.uid == request.auth.uid
         && opsBiblioteketNu(request.resource.data.skapad)
         && opsBiblioteketNu(request.resource.data.andrad)
+        // ⛔ UTSKRIFTSJOBBET SKRIVS BARA AV SERVERN (0.133.0). En klient kan inte skapa en post som påstår att en utskrift pågår.
+        && !request.resource.data.keys().hasAny(["utskriftJobb"])
         && opsBibliotekspostGiltig(request.resource.data, id);
       allow update: if request.resource.data.groupId == resource.data.groupId
         && request.resource.data.typ == resource.data.typ
         && request.resource.data.skapad == resource.data.skapad
         && request.resource.data.skapadAv == resource.data.skapadAv
+        // ⛔ UTSKRIFTSJOBBET STÅR STILLA VID EN KLIENTS ÄNDRING (0.133.0): det sätts och tas bort av servern (Admin SDK, som går förbi reglerna). En klient som satte, ändrade eller tog bort
+        // det kunde stänga av en pågående utskrift eller låtsas att en pågick, och en rad som säger "pågår" fast inget pågår är en rad ingen tar sig ur.
+        && request.resource.data.get('utskriftJobb', null) == resource.data.get('utskriftJobb', null)
         && (
           opsBiblioteketNu(request.resource.data.andrad)
           || (request.resource.data.andrad == resource.data.andrad

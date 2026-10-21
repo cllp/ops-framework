@@ -206,6 +206,8 @@ describe("bibliotekets regler: skapa", () => {
     const wav = { ...fil, rubrik: "Låt", fil: { ...fil.fil, sokvag: "grupper/cps-ab/bibliotek/{postId}/lat.wav", namn: "lat.wav", mime: "audio/wav", byte: 64264206 } };
     await assertSucceeds(skapa(MEDLEM, wav));
     await assertSucceeds(skapa(MEDLEM, { ...wav, fil: { ...wav.fil, mime: "audio/flac", namn: "lat.flac", sokvag: "grupper/cps-ab/bibliotek/{postId}/lat.flac", byte: 250 * 1024 * 1024 } }));
+    // ⛔ .aac OCH .m4a FRÅN EN TELEFON (0.133.0, "Ladda upp ljudfil"): audio/aac går in. Förut nekades den av reglerna fast klienten inte hade någon väg att välja den.
+    await assertSucceeds(skapa(MEDLEM, { ...wav, fil: { ...wav.fil, mime: "audio/aac", namn: "lat.aac", sokvag: "grupper/cps-ab/bibliotek/{postId}/lat.aac" } }));
     await assertFails(skapa(MEDLEM, { ...wav, fil: { ...wav.fil, byte: 250 * 1024 * 1024 + 1 } }));
     // ⛔ VIDEO HAR ETT EGET TAK PÅ 100 MB (CP 2026-10-19, cllp/lifehub.app#358): mp4 och iPhones quicktime går in, 100 MB + 1 gör det inte, och
     // ett videoformat som inte står i FILMIME (webm) gör det inte alls. Ljudets 250 MB gäller inte video, och videons 100 MB inte ljud.
@@ -872,5 +874,70 @@ describe("bibliotekets regler: länkens källa och omslag (0.128.0, lifehub.app#
     // En äldre länk utan `kalla` går att ändra utan att få en.
     await assertSucceeds(setDoc(doc(db(MEDLEM), "bibliotek/cps-lank-gammal"), nyLank({ url: SPOTIFY })));
     await assertSucceeds(updateDoc(doc(db(MEDLEM), "bibliotek/cps-lank-gammal"), { rubrik: "Nytt namn", andrad: Date.now() }));
+  });
+});
+
+
+/**
+ * UTSKRIFTSJOBBET (0.133.0, lifehub.app#349, CP 2026-10-20): servern (Admin SDK, som går förbi reglerna) sätter `utskriftJobb` på ett ljud medan en utskrift pågår och tar bort det när
+ * den är klar. En klient får aldrig skriva det: varken skapa en post som påstår att en utskrift pågår, ändra eller ta bort det jobb som finns, eller sätta det på en post som saknar ett.
+ * En ändring av annat på en post som HAR ett jobb (till exempel ett nytt namn) ska däremot gå igenom: jobbet är då ett fält bland andra och står stilla.
+ */
+describe("bibliotekets regler: utskriftsjobbet", () => {
+  const JOBB = { status: "pagar", startad: T0, av: { uid: MEDLEM, namn: "Kim" } };
+
+  /** Servern lägger jobbet på ett ljud: reglerna är avstängda, som för Admin SDK. */
+  async function serverSatterJobb(id, jobb = JOBB) {
+    await miljo.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `bibliotek/${id}`), { ...gammaltLjud(MEDLEM, id), utskriftJobb: jobb });
+    });
+  }
+
+  it("⛔ en klient kan inte SKAPA en post med ett utskriftsjobb, varken ett giltigt eller något annat", async () => {
+    await assertFails(skapa(MEDLEM, nyttLjud({ utskriftJobb: JOBB })));
+    await assertFails(skapa(MEDLEM, nyttLjud({ utskriftJobb: {} })));
+    await assertFails(skapa(MEDLEM, nyttLjud({ utskriftJobb: null })));
+    // Utan jobb går samma ljud in.
+    await assertSucceeds(skapa(MEDLEM, nyttLjud()));
+  });
+
+  it("⛔ en klient kan inte sätta ett jobb på en post som saknar ett", async () => {
+    await assertFails(updateDoc(doc(db(MEDLEM), "bibliotek/cps-ljud-eget"), { utskriftJobb: JOBB, andrad: Date.now() }));
+  });
+
+  it("⛔ en klient kan inte ändra eller ta bort ett jobb som servern lagt dit (den som skrev posten, en admin, ingen)", async () => {
+    await serverSatterJobb("cps-jobb-andra");
+    const andra = { utskriftJobb: { ...JOBB, status: "fel" }, andrad: Date.now() };
+    await assertFails(updateDoc(doc(db(MEDLEM), "bibliotek/cps-jobb-andra"), andra));
+    await assertFails(updateDoc(doc(db(ADMIN), "bibliotek/cps-jobb-andra"), andra));
+    await assertFails(updateDoc(doc(db(MEDLEM), "bibliotek/cps-jobb-andra"), { utskriftJobb: deleteField(), andrad: Date.now() }));
+    await assertFails(updateDoc(doc(db(MEDLEM), "bibliotek/cps-jobb-andra"), { utskriftJobb: null, andrad: Date.now() }));
+  });
+
+  it("⛔ en ändring av något annat på en post MED jobb går igenom: jobbet står stilla och posten är fortfarande giltig", async () => {
+    await serverSatterJobb("cps-jobb-namn");
+    await assertSucceeds(updateDoc(doc(db(MEDLEM), "bibliotek/cps-jobb-namn"), { rubrik: "Nytt namn", andrad: Date.now() }));
+    await assertSucceeds(updateDoc(doc(db(ADMIN), "bibliotek/cps-jobb-namn"), { taggar: ["ny"], andrad: Date.now() }));
+    const efter = (await getDoc(doc(db(MEDLEM), "bibliotek/cps-jobb-namn"))).data();
+    assert.deepEqual(efter?.utskriftJobb, JOBB);
+  });
+
+  it("jobbet hör bara till ett ljud: en annan sort av post med ett jobb är inte giltig (servern sätter det aldrig där)", async () => {
+    await miljo.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), "bibliotek/cps-jobb-anteckning"), anteckning({ utskriftJobb: JOBB }));
+    });
+    // Posten är redan ogiltig i databasen (serverns fel), och en klients ändring av den nekas: reglerna prövar hela dokumentet.
+    await assertFails(updateDoc(doc(db(MEDLEM), "bibliotek/cps-jobb-anteckning"), { rubrik: "X", andrad: Date.now() }));
+    // Samma för en fil som inte är ett ljud, och för ett jobb som inte är ett objekt.
+    await miljo.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), "bibliotek/cps-jobb-bild"), {
+        ...gammaltLjud(MEDLEM, "cps-jobb-bild"),
+        fil: { sokvag: "grupper/cps-ab/bibliotek/cps-jobb-bild/k.jpg", namn: "k.jpg", mime: "image/jpeg", byte: 1200 },
+        utskriftJobb: JOBB,
+      });
+      await setDoc(doc(ctx.firestore(), "bibliotek/cps-jobb-strang"), { ...gammaltLjud(MEDLEM, "cps-jobb-strang"), utskriftJobb: "pagar" });
+    });
+    await assertFails(updateDoc(doc(db(MEDLEM), "bibliotek/cps-jobb-bild"), { rubrik: "X", andrad: Date.now() }));
+    await assertFails(updateDoc(doc(db(MEDLEM), "bibliotek/cps-jobb-strang"), { rubrik: "X", andrad: Date.now() }));
   });
 });

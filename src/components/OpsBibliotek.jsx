@@ -1,16 +1,17 @@
 import { useEffect, useId, useRef, useState } from "react";
 import * as Popover from "@radix-ui/react-popover";
 import * as Tabs from "@radix-ui/react-tabs";
-import { Check, File as FilIkon, FileText, Globe, Image as BildIkon, Library, Link2, List as ListIkon, Mic, Plus, SlidersHorizontal, Tag, X } from "lucide-react";
+import { Check, File as FilIkon, FileText, Globe, Image as BildIkon, Library, Link2, List as ListIkon, Mic, Plus, SlidersHorizontal, Tag, Upload, X } from "lucide-react";
 import { OpsAtgardsblad } from "./OpsAtgardsblad.jsx";
 import { OpsDokument } from "./OpsDokument.jsx";
 import { OpsMarkdown } from "./OpsMarkdown.jsx";
 import { OpsModal } from "./OpsModal.jsx";
 import { OpsSvepRad } from "./OpsSvepRad.jsx";
-import { ADRESSFORM, BIBLIOTEKTYPER, BILDFORM, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKURL, uppladdningAvbruten, uppladdningenAvbrytsKl, MAX_TAGGAR, MAX_TAGGLANGD, allaTaggar, arLjudpost, arMittBibliotek, farAndra, normaliseraTagg, normaliseraTaggar, taggarFel, taggfarg, anteckningsrubrikNu, beskrivObjektbibliotek, filInmatningsfel, mimeUrFilnamn, filadressFel, filSort, filtreraBibliotek, inmatningsfel, ljudDatum, ljudRubrik, normaliseraAdress, trimSomRegeln } from "../lib/bibliotek.js";
+import { ADRESSFORM, BIBLIOTEKTYPER, BILDFORM, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKURL, uppladdningAvbruten, uppladdningenAvbrytsKl, MAX_TAGGAR, MAX_TAGGLANGD, allaTaggar, arDelbar, arLjudpost, arMittBibliotek, farAndra, normaliseraTagg, normaliseraTaggar, taggarFel, taggfarg, anteckningsrubrikNu, beskrivObjektbibliotek, filInmatningsfel, LJUDFIL_ACCEPT, ljudfilFel, mimeUrFilnamn, filadressFel, filSort, filtreraBibliotek, inmatningsfel, ljudDatum, ljudRubrik, normaliseraAdress, trimSomRegeln } from "../lib/bibliotek.js";
 import { formateraTid } from "../lib/ljudspelare.js";
 import { lankKalla, lankKallnamn, lankRubrik } from "../lib/lankkalla.js";
-import { listorAttLaggaI } from "../lib/biblioteklista.js";
+import { LISTA_FLYTT_TEXT, LISTA_I_LISTA_TEXT, listorAttLaggaI } from "../lib/biblioteklista.js";
+import { UTSKRIFT_VANTETID_MS, uppskattadUtskriftstid, utskriftLage, utskriftPagatText } from "../lib/utskrift.js";
 import { LankMark, TypIkon, oppnasDirekt, plattKlass, postensKalla, typEtikett } from "./BibliotekPostvisning.jsx";
 import { LaggILista, ListaVisning } from "./BibliotekLista.jsx";
 import { MejlaLank } from "./MejlaLank.jsx";
@@ -169,6 +170,11 @@ function useBibliotekskalla(kalla) {
  *   ljudpost när propen ges och posten inte har någon utskrift än. Medan löftet pågår står "Skriver ut…" på posten, och ett fel (också ett dygnstak)
  *   visas på posten med knappen kvar. ⛔ TEXTEN KOMMER INTE I SVARET: servern skriver fältet `utskrift` på posten (Admin SDK), och vyn visar den när
  *   posten läses om. Det löftet löser till ignoreras. Utan propen ritas ingen knapp. Före 0.115.0 löste den till `{ text, forslag }` och vyn höll en egen kopia.
+ * @param {(post: { id: string, groupId: string }) => Promise<void> | void} [props.onSkrivUtIgen] (0.133.0, CP 2026-10-20: "Kan man göra så att man kan ta bort transkribering på en ljudupptagning och köra om den?") Kör om en utskrift som redan finns. Valet
+ *   "Skriv ut igen" ritas vid utskriften i detaljen när propen ges, för den som får ändra posten (`farAndra`). Det frågar först ("Den nuvarande utskriften ersätts.") och anropar sedan propen med `{ id, groupId }`.
+ *   Propen får lösa direkt när servern TAGIT EMOT jobbet: vyn väntar sedan på att posten ändras (`utskriftJobb`, se `utskriftLage`). Ett fel visas som Skriv ut-felet. Saknas propen syns inte valet.
+ * @param {(post: { id: string, groupId: string }) => Promise<void> | void} [props.onTaBortUtskrift] (0.133.0) Tar bort utskriften. Valet "Ta bort utskriften" ritas på samma villkor som "Skriv ut igen", frågar först och anropar sedan propen
+ *   med `{ id, groupId }`. Efteråt, när posten saknar `utskrift`, visas "Skriv ut texten" igen. Servern tar bort `UTSKRIFT_FALT` (ur `src/lib/utskrift.js`). Saknas propen syns inte valet.
  * @param {(post: import("../lib/bibliotek.js").Bibliotekspost & { id: string }) => Promise<void> | void} [props.onAnteckningAvUtskrift] (0.115.0, cllp/lifehub.app#349) "Gör en anteckning av texten" under utskriften.
  *   Ritas bara när propen ges. Ett fel visas på posten, och lyckas den står "Anteckningen är sparad" en stund.
  * @param {unknown} [props.onGorForslag] Borttagen (0.115.0). Skickas den kastas ett fel: förslagsknapparna "Spara som anteckning" och "Skapa ärende" är ersatta av `onAnteckningAvUtskrift`.
@@ -176,7 +182,7 @@ function useBibliotekskalla(kalla) {
  *   (0.125.0) `url` är hela adressen (`delningsUrl(bas, rad.sokvag)`) för en länk skapad med 0.125.0 eller senare: dialogen visar den då som text med Kopiera. En gammal tokenlänk har ingen `sokvag` och därför ingen `url`, och dialogen säger som förut att adressen bara visades när den skapades.
  * @param {string} [props.gruppnamn] (0.127.0) Gruppens namn, för förslaget till gruppdelen i "Dela länk" när `platser` och `grupper` inte säger det: den inbäddade vyn (`OpsPlatsfiler`) har en enda plats som inte är gruppens egen (`handelse~<grupp>~<händelse>`), så platsen ger inget namn. Utan både namn och `delningGruppdel` är gruppdelen tom och personen skriver den själv (Skapa säger det). Ett fast ord föreslås aldrig, eftersom en gruppdel tillhör den första gruppen som tar den.
  * @param {string} [props.delningGruppdel] (0.125.0, granskningen av PR 417) Gruppdelen platsen redan använt i en länk (`gruppdelar({ uid, groupId }).senaste`), föreslagen i "Dela länk" före ett namn ur gruppens namn. En gruppdel tillhör en plats för alltid: en annan grupps svarar servern `adress-upptagen` med `del: "gruppdel"` och dialogen föreslår en annan.
- * @param {(inmatning: { postId: string, dagar: number, nedladdning: boolean, kod: string | null, gruppdel: string, fildel: string }) => Promise<{ id: string, url: string, giltigTill?: number, harKod?: boolean }>} [props.onDelaLank] (0.119.0) Skapar länken. Ritar "Dela länk" i menyn för en färdig fil som personen får dela (`farAndra`). Löftet ska lösa till länkens id och HELA adressen (appen bygger den: `delningsUrl(bas, svar.sokvag)`).
+ * @param {(inmatning: { postId: string, dagar: number, nedladdning: boolean, kod: string | null, gruppdel: string, fildel: string }) => Promise<{ id: string, url: string, giltigTill?: number, harKod?: boolean }>} [props.onDelaLank] (0.119.0) Skapar länken. Ritar "Dela länk" i menyn för varje post som går att dela (`arDelbar`: en färdig fil, en anteckning, en länk eller en lista, 0.133.0) och som personen får dela (`farAndra`). Löftet ska lösa till länkens id och HELA adressen (appen bygger den: `delningsUrl(bas, svar.sokvag)`).
  *   (0.125.0) Inmatningen har också `kod` (`null` utan kod, annars koden i klartext till servern, som hashar den), `gruppdel` och `fildel`: adressen är `/g/<gruppdel>/lib/<fildel>`, föreslagen ur gruppens namn och filens rubrik, och personen kan ändra båda. Utan kod lägger servern till ett slumpat slut. Kastar anropet med `kod: "adress-upptagen"` föreslår dialogen en annan adress. Kräver `onAndraNedladdning` och `onAterkalla`: en länk som inte går att stänga får inte kunna skapas.
  * @param {(inmatning: { id: string, nedladdning: boolean }) => Promise<void> | void} [props.onAndraNedladdning] (0.119.0) Slår på eller av nedladdning på en länk som lever. Ett fel visas i dialogen och reglaget står kvar.
  * @param {(inmatning: { id: string }) => Promise<void> | void} [props.onAterkalla] (0.119.0) Stänger länken, för alltid. "Stäng länken" i dialogen. En ny delning ger ett nytt token.
@@ -196,7 +202,7 @@ function useBibliotekskalla(kalla) {
  * @param {boolean} [props.utanHubb] (0.132.0, lifehub.app#389) Ingen tillbaka-rad till hubben och ingen `hubHref`: gästens bibliotek, där ingen hubb finns att gå till. Allt annat som i det fristående biblioteket (sök, flikar, taggar). Utan den krävs `hubHref` som förut.
  * @param {boolean} [props.adresserPaBegaran] (0.132.0, lifehub.app#389) Filernas adresser hämtas bara för posten som är öppen, aldrig för hela listan. Förvalet hämtar en adress per fil när listan ritas, vilket är billigt för en medlem (`getDownloadURL`) och dyrt för en gäst: varje adress är en signering som räknas mot ett tak per dygn. Mätt i designen av skiva 2 som felantagande: listan hämtade alla. En fil som öppnats förut visas med sin adress också i listan.
  */
-export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, trasiga: trasigaProp = [], laddar: laddarProp = false, vald = null, skapar = null, jag, onOppna, onStang, onSkapa, onSpara, onRadera, onLaddaUpp, onFyllLjud, onSpelaIn, inspelare, filUrl, hamtaAdress, grupper = [], onDela, platser = [], plats, onPlats, onSkrivUt, onAnteckningAvUtskrift, onGorForslag, delningar = [], delningGruppdel, gruppnamn: gruppnamnProp, onDelaLank, onAndraNedladdning, onAterkalla, onMejlaLank, onLankInfo, hubHref, hubEtikett, onNavigate, modulId = "bibliotek", ram = null, activeHref, modul = null, inbaddad = false, tomText, utanHubb = false, adresserPaBegaran = false }) {
+export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, trasiga: trasigaProp = [], laddar: laddarProp = false, vald = null, skapar = null, jag, onOppna, onStang, onSkapa, onSpara, onRadera, onLaddaUpp, onFyllLjud, onSpelaIn, inspelare, filUrl, hamtaAdress, grupper = [], onDela, platser = [], plats, onPlats, onSkrivUt, onSkrivUtIgen, onTaBortUtskrift, onAnteckningAvUtskrift, onGorForslag, delningar = [], delningGruppdel, gruppnamn: gruppnamnProp, onDelaLank, onAndraNedladdning, onAterkalla, onMejlaLank, onLankInfo, hubHref, hubEtikett, onNavigate, modulId = "bibliotek", ram = null, activeHref, modul = null, inbaddad = false, tomText, utanHubb = false, adresserPaBegaran = false }) {
   if (kalla !== undefined && (posterProp !== undefined || felProp !== null || laddarProp !== false || (Array.isArray(trasigaProp) && trasigaProp.length > 0))) {
     throw new Error("OpsBibliotek: kalla och poster/fel/trasiga/laddar kan inte ges tillsammans. Med kalla läser vyn själv, och två sanningar om samma lista hade låtit den ena vinna tyst.");
   }
@@ -255,6 +261,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
   const laddar = levande ? levande.laddar : laddarProp;
   const [flik, setFlik] = useState(/** @type {Flik} */ ("alla"));
   const [rostFel, setRostFel] = useState("");
+  const [laddarLjud, setLaddarLjud] = useState(false);
   const [ljus, setLjus] = useState("");
   const [sok, setSok] = useState("");
   const [valdaTaggar, setValdaTaggar] = useState(/** @type {string[]} */ ([]));
@@ -386,6 +393,39 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
   }
 
   /**
+   * Ladda upp en ljudfil från "+ Ny" under Ljud. Prövas som formuläret Ny fil (`ljudfilFel`) och sparas av appens `onLaddaUpp`, samma väg som en fil
+   * som valts i formuläret. Rubriken är filnamnet utan ändelse; den går att ändra i detaljen efteråt.
+   *
+   * @param {File} fil
+   */
+  function laddaUppLjud(fil) {
+    setRostFel("");
+    const prov = ljudfilFel(fil);
+    if (prov) {
+      setRostFel(prov);
+      return;
+    }
+    if (typeof onLaddaUpp !== "function") {
+      setRostFel("Uppladdningen är inte kopplad. Filen är kvar på enheten.");
+      return;
+    }
+    const rubrik = (fil.name.replace(/\.[^.]+$/, "") || fil.name).trim().slice(0, MAX_BIBLIOTEKRUBRIK) || "Ljud";
+    /** @param {unknown} e */
+    const visa = (e) => {
+      setLaddarLjud(false);
+      setRostFel(e instanceof Error && e.message ? e.message : String(e));
+    };
+    setLaddarLjud(true);
+    try {
+      const svar = onLaddaUpp({ rubrik, fil });
+      if (svar && typeof svar.then === "function") svar.then(() => setLaddarLjud(false), visa);
+      else setLaddarLjud(false);
+    } catch (e) {
+      visa(e);
+    }
+  }
+
+  /**
    * @param {string} id
    */
   function fragaRadera(id) {
@@ -497,17 +537,21 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
     const ut = [];
     if (far && iDetalj && sattRedigera) ut.push({ id: "redigera", etikett: "Redigera", onValj: () => sattRedigera("redigera") });
     if (far) ut.push({ id: "namn", etikett: "Byt namn", onValj: () => borjaNamn(post) });
-    // ⛔ DELA LÄNK (0.119.0, lifehub.app#356): bara en färdig fil, och bara den som får ändra posten (`farAndra`: författaren, en admin eller
-    // en ägare, och i Mitt bibliotek bara ägaren). Samma villkor som servern kontrollerar, så knappen lovar inget som funktionen sedan nekar.
-    if (far && typeof onDelaLank === "function" && post.typ === "fil" && post.fil?.klar !== false) {
+    // ⛔ DELA LÄNK FINNS PÅ ALLA FYRA TYPER (0.133.0, lifehub.app#356, CP 2026-10-18: "Vi skall ju ha en publik länk till varje artefakt"). Förut bara på en färdig fil (0.119.0).
+    // Villkoret är oförändrat i övrigt: bara den som får ändra posten (`farAndra`: författaren, en admin eller en ägare, och i Mitt bibliotek bara ägaren), samma som servern kontrollerar,
+    // så knappen lovar inget som funktionen sedan nekar. Det som skiljer är vad som går att dela (`arDelbar`): en fil som ännu laddas upp har ingenting att visa.
+    if (far && typeof onDelaLank === "function" && arDelbar(post)) {
       ut.push({ id: "dela-lank", etikett: "Dela länk", onValj: () => setDelarLank(post) });
     }
     // ⛔ EN MUSIKLÄNK ÖPPNAS DIREKT VID ETT TRYCK (0.128.0), så detaljen nås härifrån. Utan raden gick det inte att komma åt Byt namn-formuläret, taggarna och Redigera för en sådan länk.
     if (!iDetalj && oppnasDirekt(post)) ut.push({ id: "detaljer", etikett: "Visa detaljer", onValj: () => oppnaMed(post, "las") });
-    // ⛔ LÄGG I LISTA (0.128.0, lifehub.app#378): långtrycksmenyn på varje post utom en lista. Bara en medlem som är aktiv och bara där en lista kan finnas: en händelses och ett ärendes bibliotek har
+    // ⛔ LÄGG I LISTA (0.128.0, lifehub.app#378): långtrycksmenyn på varje post. Bara en medlem som är aktiv och bara där en lista kan finnas: en händelses och ett ärendes bibliotek har
     // bara filer (reglerna), och utan `onSpara` hade valet inte gått att spara.
-    if (post.typ !== "lista" && Boolean(jag) && (jag?.status === undefined || jag?.status === "aktiv") && typeof onSpara === "function" && !beskrivObjektbibliotek(post.groupId)) {
-      ut.push({ id: "lagg-i-lista", etikett: "Lägg i lista", onValj: () => setLaggPost(post) });
+    // ⛔ EN LISTA HAR RADEN OCKSÅ, AVSTÄNGD OCH MED SKÄL (0.133.0, CP 2026-10-20: tre typer med tre olika menyer ska bli en). Förut saknades raden på en lista, och en meny där en rad
+    // ibland saknas utan förklaring ser olika ut utan att någon vet varför. Nu har alla fyra samma rader i samma ordning, och de två som inte gäller en lista syns som avstängda.
+    if (Boolean(jag) && (jag?.status === undefined || jag?.status === "aktiv") && typeof onSpara === "function" && !beskrivObjektbibliotek(post.groupId)) {
+      if (post.typ === "lista") ut.push({ id: "lagg-i-lista", etikett: "Lägg i lista", avstangd: true, forklaring: LISTA_I_LISTA_TEXT, onValj: () => {} });
+      else ut.push({ id: "lagg-i-lista", etikett: "Lägg i lista", onValj: () => setLaggPost(post) });
     }
     const lank = lankAttKopiera(post);
     if (lank) ut.push({ id: "kopiera", etikett: "Kopiera länk", onValj: () => kopieraLank(lank) });
@@ -524,6 +568,10 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
     const aktiv = Boolean(jag) && (jag?.status === undefined || jag?.status === "aktiv");
     const egen = aktiv && post.skapadAv?.uid === jag?.uid;
     // ⛔ EN LISTA FLYTTAS ELLER KOPIERAS INTE TILL EN ANNAN PLATS (0.128.0): den pekar på poster på den här platsen. `flyttaBibliotekspost` kastar för den.
+    // 0.133.0: raden syns avstängd, med skälet, när det finns en annan plats att flytta till. Utan en annan plats har ingen post något flyttval, och då är det inget att förklara.
+    if (aktiv && post.typ === "lista" && (mitt || andra.length > 0)) {
+      ut.push({ id: "dela", etikett: "Flytta eller kopiera", avstangd: true, forklaring: LISTA_FLYTT_TEXT, onValj: () => {} });
+    }
     if (aktiv && post.typ !== "lista" && !flyttar.includes(post.id)) {
       // ⛔ `egen || far` STÅR KVAR SOM FÖRSVAR I DJUPET (granskningen av PR 366, KAN 10). I dag läser bara ägaren Mitt bibliotek, men
       // menyn ska inte lita på att reglerna alltid säger det.
@@ -654,7 +702,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
     <Rot tillbaka={detalj ? undefined : listTillbaka}>
       <div data-bibliotek="" className="flex min-w-0 w-full flex-col gap-4">
         {detalj ? (
-          <Detalj key={`${skaparTyp ?? ""}:${vald?.id ?? ""}:${startLage}`} post={vald ? medFyll(poster.find((p) => p.id === vald.id) ?? vald) : null} skapar={skaparTyp} startLage={startLage} onStang={onStang} onSpara={onSpara} onLaddaUpp={onLaddaUpp} filUrl={filUrl} adressFor={adressFor} onLjus={setLjus} onSkrivUt={onSkrivUt} onAnteckningAvUtskrift={onAnteckningAvUtskrift} menyFor={menyFor} onMeta={togMeta} tillbakaEtikett={inbaddad ? "Filer" : "Tillbaka"} poster={poster} jag={jag} onLankInfo={onLankInfo} onOppnaPost={(p) => oppnaMed(p, "las")} />
+          <Detalj key={`${skaparTyp ?? ""}:${vald?.id ?? ""}:${startLage}`} post={vald ? medFyll(poster.find((p) => p.id === vald.id) ?? vald) : null} skapar={skaparTyp} startLage={startLage} onStang={onStang} onSpara={onSpara} onLaddaUpp={onLaddaUpp} filUrl={filUrl} adressFor={adressFor} onLjus={setLjus} onSkrivUt={onSkrivUt} onSkrivUtIgen={onSkrivUtIgen} onTaBortUtskrift={onTaBortUtskrift} onAnteckningAvUtskrift={onAnteckningAvUtskrift} menyFor={menyFor} onMeta={togMeta} tillbakaEtikett={inbaddad ? "Filer" : "Tillbaka"} poster={poster} jag={jag} onLankInfo={onLankInfo} onOppnaPost={(p) => oppnaMed(p, "las")} />
         ) : (
           <div data-bibliotek-huvud="" className="flex min-w-0 flex-col gap-3">
             {/* ⛔ SESSIONSTUDIOS HUVUD, SOM I APPEN (0.102.0, CP 2026-10-14 med skärmbilder från SessionStudios app: "Listningen
@@ -669,6 +717,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
                   flik={aktivFlik}
                   onSkapa={onSkapa}
                   erbjudRost={erbjudRost}
+                  onLaddaUppLjud={laddaUppLjud}
                   onRost={() => {
                     try {
                       setRostFel("");
@@ -684,6 +733,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
             <Tabs.Root value={aktivFlik} onValueChange={(v) => setFlik(/** @type {Flik} */ (v))} className="flex min-w-0 flex-col gap-3">
             {inbaddad ? null : <Flikar flikar={synligaFlikar} antal={antal} />}
             {rostFel ? <p role="alert">{rostFel}</p> : null}
+            {laddarLjud ? <p role="status" data-bibliotek-laddar-ljud="">Laddar upp ljudfilen.</p> : null}
             {trasiga.length > 0 ? (
               <div role="status" data-bibliotek-trasiga={trasiga.length} className="text-meta text-ink-muted">
                 <p>{trasiga.length === 1 ? "1 post kunde inte läsas och visas inte." : `${trasiga.length} poster kunde inte läsas och visas inte.`}</p>
@@ -880,7 +930,7 @@ const TOM_FILER_FORVAL = "Filer som läggs till här hör bara till händelsen."
 const NY_KLASS = "inline-flex min-h-11 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border border-line bg-transparent px-4 text-etikett font-medium text-ink hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
 
 const TYPNAMN = /** @type {const} */ ({ anteckning: "Anteckning", lank: "Länk", fil: "Fil", lista: "Lista" });
-const NYTT_NAMN = /** @type {const} */ ({ anteckning: "Ny anteckning", lank: "Ny länk", fil: "Ny fil", lista: "Ny lista", ljud: "Ny röstinspelning" });
+const NYTT_NAMN = /** @type {const} */ ({ anteckning: "Ny anteckning", lank: "Ny länk", fil: "Ny fil", lista: "Ny lista" });
 
 /**
  * @param {number | undefined} byte
@@ -1485,6 +1535,8 @@ function BibliotekKort({ post, lage, meny, svep, onOppna, onMeta, taggrad, delad
   const namn = ljud ? ljudRubrik(post) : trimSomRegeln(post.rubrik) || "Post";
   const forhands = forhandsText(post);
   const meta = kortMeta(post);
+  const sprak = useOpsSprak();
+  const skriverUt = ljud && utskriftLage(post, Date.now()).lage === "pagar";
   // Ljudet bär sin status i metaraden när adressen inte är klar: "Hämtar ljudet." eller felet. Aldrig tyst (regel 5).
   const [spelFel, setSpelFel] = useState("");
   const ljudStatus = ljud && lage.lage !== "klar" && lage.lage !== "pa-begaran" ? (lage.lage === "hamtar" ? "Hämtar ljudet." : lage.fel || "Filen har ingen adress.") : spelFel;
@@ -1541,10 +1593,12 @@ function BibliotekKort({ post, lage, meny, svep, onOppna, onMeta, taggrad, delad
             <span data-bibliotek-typ="" className="text-meta tracking-wide text-ink-muted uppercase">{typEtikett(post)}</span>
             {taggrad}
             {forhands ? <span data-bibliotek-forhands-text="" className="line-clamp-2 text-meta text-ink-secondary wrap-anywhere">{forhands}</span> : null}
-            {meta.length > 0 || delad ? (
+            {meta.length > 0 || delad || skriverUt ? (
               <span data-bibliotek-metarad="" className="flex flex-wrap gap-3 text-meta text-ink-muted">
                 {meta.map((m) => <span key={m} data-ljud-langd={m.includes(":") ? "" : undefined}>{m}</span>)}
                 {delad ? <span data-bibliotek-delad="" className="inline-flex items-center gap-1"><Link2 size={12} aria-hidden="true" />Delad</span> : null}
+                {/* ⛔ UTSKRIFTEN PÅGÅR (0.133.0): läget läses ur posten (`utskriftLage`), så markeringen står kvar också när man gått från detaljen och kommer tillbaka. */}
+                {skriverUt ? <span data-bibliotek-skriver-ut="" className="inline-flex items-center gap-1"><OpsSpinner size="sm" decorative />{talkOrd("skriverUt", sprak)}</span> : null}
               </span>
             ) : null}
             {ljudStatus ? <span role={lage.lage === "hamtar" ? "status" : "alert"} className={cx("text-meta", lage.lage === "hamtar" ? "text-ink-secondary" : "text-danger")}>{ljudStatus}</span> : null}
@@ -1592,17 +1646,23 @@ function PostMark({ post, bildAdress = "" }) {
  * ⛔ AVTRYCKAREN ÄR INTE EN `OpsButton` (`NY_KLASS`): Radix `Popover.Trigger` ritar sitt eget
  * `<button>`, och `OpsButton` har ingen `forwardRef`. Samma skäl som plusset i `OpsAppShell`.
  *
- * Röstinspelning ligger i menyn under Alla (0.90.8). Den öppnar skalets inspelare, inte en rad i listan.
+ * Under Alla heter inspelningsraden "Spela in ljud" (0.133.0; hette "Röstinspelning"). Den öppnar modulens inspelare, inte en rad i listan.
  *
  * Under Bilder och Dokument skapas en fil (0.102.0): bild eller dokument avgörs av filen, inte av fliken.
  *
- * ⛔ UTAN MOTTAGARE FINNS INGEN RÖSTINSPELNING ATT ERBJUDA (`erbjudRost`, cllp/ops-framework#391): raden i menyn ritas inte, och i fliken
- * Ljud, där knappen bara gör det, ritas ingen knapp. Förut stod de kvar och gav skalets utvecklartext när gruppen inte hade appen.
+ * ⛔ UNDER LJUD ÄR "+ NY" EN UPPLADDNING FÖRST (0.133.0, CP 2026-10-20: "Jag kan inte ladda upp en inspelning ... Ny-menyn skall leda till att man
+ * laddar upp en inspelning, inte att man skall spela in."). Menyn har två rader i den ordningen: "Ladda upp ljudfil" och "Spela in". Utan mottagare för
+ * inspelningar (`erbjudRost` falsk) finns bara uppladdningen, och då är den knappen direkt, utan meny. Filfältet ligger UTANFÖR menyn: menyn stängs
+ * när raden trycks och tar sitt innehåll med sig, och ett filfält som lämnat DOM:en får aldrig sin `change`.
  *
- * @param {{ flik: Flik, onSkapa: (typ: "anteckning" | "lank" | "fil" | "lista") => void, onRost: () => void, erbjudRost: boolean }} props
+ * ⛔ UTAN MOTTAGARE FINNS INGEN RÖSTINSPELNING ATT ERBJUDA (`erbjudRost`, cllp/ops-framework#391): raden i menyn ritas inte. Förut ritades ingen knapp
+ * alls under Ljud, och det är därför uppladdning saknades.
+ *
+ * @param {{ flik: Flik, onSkapa: (typ: "anteckning" | "lank" | "fil" | "lista") => void, onRost: () => void, erbjudRost: boolean, onLaddaUppLjud: (fil: File) => void }} props
  */
-function NyKnapp({ flik, onSkapa, onRost, erbjudRost }) {
+function NyKnapp({ flik, onSkapa, onRost, erbjudRost, onLaddaUppLjud }) {
   const [oppen, setOppen] = useState(false);
+  const ljudFalt = useRef(/** @type {HTMLInputElement | null} */ (null));
   const innehall = (
     <>
       <Plus size={16} aria-hidden="true" />
@@ -1610,11 +1670,75 @@ function NyKnapp({ flik, onSkapa, onRost, erbjudRost }) {
     </>
   );
   if (flik === "ljud") {
-    if (!erbjudRost) return null;
+    const falt = (
+      <input
+        ref={ljudFalt}
+        type="file"
+        accept={LJUDFIL_ACCEPT}
+        aria-label="Ladda upp ljudfil"
+        className="hidden"
+        onChange={(e) => {
+          const vald = e.target.files?.[0] ?? null;
+          // Värdet nollas så att samma fil går att välja igen efter ett fel.
+          e.target.value = "";
+          if (vald) onLaddaUppLjud(vald);
+        }}
+      />
+    );
+    if (!erbjudRost) {
+      return (
+        <>
+          <button type="button" aria-label="Ladda upp ljudfil" onClick={() => ljudFalt.current?.click()} className={NY_KLASS}>
+            <Upload size={16} aria-hidden="true" />
+            <span>Ladda upp</span>
+          </button>
+          {falt}
+        </>
+      );
+    }
     return (
-      <button type="button" aria-label={NYTT_NAMN.ljud} onClick={onRost} className={NY_KLASS}>
-        {innehall}
-      </button>
+      <>
+        <Popover.Root open={oppen} onOpenChange={setOppen}>
+          <Popover.Trigger aria-label="Nytt ljud" aria-haspopup="menu" className={NY_KLASS}>
+            {innehall}
+          </Popover.Trigger>
+          <Popover.Portal>
+            <Popover.Content align="end" sideOffset={4} className={cx("z-(--z-dropdown) min-w-44 p-1", radBehallare())}>
+              <div role="menu" aria-label="Nytt ljud">
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setOppen(false);
+                    ljudFalt.current?.click();
+                  }}
+                  className={radKlass({ stor: true })}
+                >
+                  <span aria-hidden="true" className="flex shrink-0 items-center text-ink-secondary [&_svg]:size-4">
+                    <Upload size={16} />
+                  </span>
+                  <span className="min-w-0 flex-1 truncate">Ladda upp ljudfil</span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setOppen(false);
+                    onRost();
+                  }}
+                  className={radKlass({ stor: true })}
+                >
+                  <span aria-hidden="true" className="flex shrink-0 items-center text-ink-secondary [&_svg]:size-4">
+                    <Mic size={16} />
+                  </span>
+                  <span className="min-w-0 flex-1 truncate">Spela in</span>
+                </button>
+              </div>
+            </Popover.Content>
+          </Popover.Portal>
+        </Popover.Root>
+        {falt}
+      </>
     );
   }
   if (flik !== "alla") {
@@ -1663,7 +1787,7 @@ function NyKnapp({ flik, onSkapa, onRost, erbjudRost }) {
                 <span aria-hidden="true" className="flex shrink-0 items-center text-ink-secondary [&_svg]:size-4">
                   <Mic size={16} />
                 </span>
-                <span className="min-w-0 flex-1 truncate">Röstinspelning</span>
+                <span className="min-w-0 flex-1 truncate">Spela in ljud</span>
               </button>
             ) : null}
           </div>
@@ -1792,6 +1916,8 @@ function Adress({ url }) {
  * @param {(post: { typ?: string, skapad?: number, fil?: { sokvag?: string, mime?: string, klar?: boolean } }) => Adresslage} [props.adressFor]
  * @param {(adress: string) => void} [props.onLjus]
  * @param {(post: any) => Promise<void> | void} [props.onSkrivUt]
+ * @param {(post: any) => Promise<void> | void} [props.onSkrivUtIgen]
+ * @param {(post: any) => Promise<void> | void} [props.onTaBortUtskrift]
  * @param {(post: any) => Promise<void> | void} [props.onAnteckningAvUtskrift]
  * @param {(post: import("../lib/bibliotek.js").Bibliotekspost & { id: string }, iDetalj: boolean, sattRedigera?: (lage: "redigera") => void) => import("./OpsAtgardsblad.jsx").Atgard[]} props.menyFor
  * @param {(id: string, meta: { durationMs?: number, peaks?: string }) => void} [props.onMeta]
@@ -1801,7 +1927,7 @@ function Adress({ url }) {
  * @param {(url: string) => Promise<{ titel?: string, artist?: string, kalla?: string, bild?: string }>} [props.onLankInfo] (0.128.0) Se `OpsBibliotek`.
  * @param {(post: import("../lib/bibliotek.js").Bibliotekspost & { id: string }) => void} props.onOppnaPost (0.128.0) Öppnar en post ur en lista.
  */
-function Detalj({ post, skapar, startLage, onStang, onSpara, onLaddaUpp, filUrl, adressFor, onLjus, onSkrivUt, onAnteckningAvUtskrift, menyFor, onMeta, tillbakaEtikett, poster, jag, onLankInfo, onOppnaPost }) {
+function Detalj({ post, skapar, startLage, onStang, onSpara, onLaddaUpp, filUrl, adressFor, onLjus, onSkrivUt, onSkrivUtIgen, onTaBortUtskrift, onAnteckningAvUtskrift, menyFor, onMeta, tillbakaEtikett, poster, jag, onLankInfo, onOppnaPost }) {
   const typ = skapar ?? post?.typ ?? "anteckning";
   const [rubrik, setRubrik] = useState(post && !skapar ? post.rubrik : "");
   const [text, setText] = useState(post && !skapar && post.typ === "anteckning" ? post.text ?? "" : "");
@@ -2101,7 +2227,7 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, onLaddaUpp, filUrl,
         }}
       />
       {lage === "las" && post && ljud ? (
-        <UtskriftKontroll post={post} onSkrivUt={onSkrivUt} onAnteckningAvUtskrift={onAnteckningAvUtskrift} />
+        <UtskriftKontroll post={post} jag={jag} onSkrivUt={onSkrivUt} onSkrivUtIgen={onSkrivUtIgen} onTaBortUtskrift={onTaBortUtskrift} onAnteckningAvUtskrift={onAnteckningAvUtskrift} />
       ) : null}
     </div>
   );
@@ -2153,6 +2279,21 @@ const ORD_BIBLIOTEKUTSKRIFT = {
   tom: { sv: "Utskriften är tom.", en: "The transcript is empty." },
   felSkrivUt: { sv: "Ljudet gick inte att skriva ut.", en: "The recording could not be written out." },
   gorAnteckning: { sv: "Gör en anteckning av texten", en: "Make a note of the text" },
+  // (0.133.0) Köra om och ta bort, och utskriften som går i bakgrunden.
+  skrivUtIgen: { sv: "Skriv ut igen", en: "Write out again" },
+  taBort: { sv: "Ta bort utskriften", en: "Remove the transcript" },
+  forsokIgen: { sv: "Försök igen", en: "Try again" },
+  avbryt: { sv: "Avbryt", en: "Cancel" },
+  fragaIgen: { sv: "Den nuvarande utskriften ersätts.", en: "The current transcript is replaced." },
+  fragaTaBort: { sv: "Utskriften tas bort. Ljudet finns kvar.", en: "The transcript is removed. The recording stays." },
+  tarBort: { sv: "Tar bort utskriften…", en: "Removing the transcript…" },
+  bakgrund: { sv: "Skriver ut i bakgrunden. Du kan gå härifrån, utskriften blir klar ändå.", en: "Writing it out in the background. You can leave, it will finish anyway." },
+  pagatI: { sv: "Har pågått i {tid}.", en: "Running for {tid}." },
+  startadAv: { sv: "Startad av {namn}.", en: "Started by {namn}." },
+  brukarTa: { sv: "Brukar ta cirka {min} min (uppskattning).", en: "Usually takes about {min} min (estimate)." },
+  ingenUppskattning: { sv: "Hur lång tid det brukar ta går inte att uppskatta: ljudets längd är inte räknad än.", en: "The usual time can't be estimated: the length of the recording is not counted yet." },
+  notis: { sv: "Du får en notis när den är klar.", en: "You will get a notification when it is done." },
+  skriverUtKort: { sv: "Skriver ut…", en: "Writing out…" },
 };
 
 /**
@@ -2165,19 +2306,36 @@ const ORD_BIBLIOTEKUTSKRIFT = {
  *
  * ⛔ RADBRYTNINGAR BEVARAS (`whitespace-pre-wrap`): en sång skrivs rad för rad, i verser, och ett stycke utan sina brytningar är en text ingen kan sjunga.
  *
- * ⛔ INGENTING FALLER TYST. Medan servern skriver ut står "Skriver ut…" på posten. Ett fel, också ett dygnstak, står på posten och knappen
- * finns kvar, så att det går att försöka igen. Har posten redan en text ritas ingen knapp: ett nytt tryck hade skrivit över den och räknats mot taket.
- * En tom utskrift är ett svar ("Utskriften är tom."), och där finns knappen kvar.
+ * ⛔ INGENTING FALLER TYST. Ett fel, också ett dygnstak, står på posten och knappen finns kvar, så att det går att försöka igen. Har posten redan en text ritas ingen
+ * "Skriv ut texten": ett nytt tryck hade skrivit över den och räknats mot taket. En tom utskrift är ett svar ("Utskriften är tom."), och där finns knappen kvar.
  *
- * @param {{ post: { id: string, utskrift?: string }, onSkrivUt?: (post: any) => Promise<void> | void, onAnteckningAvUtskrift?: (post: any) => Promise<void> | void }} props
+ * ══ ⛔ LÄGET LÄSES UR POSTEN, INTE UR KOMPONENTEN (0.133.0, CP 2026-10-20) ═══════════════════════════════════════════════════════
+ *
+ * CP: utskriften ska gå i bakgrunden och fortsätta även om man går därifrån, det ska stå tydligt att den gör det, och man ska få veta när den är klar. "Skriver ut…" var ett lokalt
+ * tillstånd: gick man från sidan såg man ingenting när man kom tillbaka. Nu bär posten `utskriftJobb` (servern sätter det), och `utskriftLage` tolkar det: `pagar`, `fel`, `klar` eller `ingen`.
+ * Pågår den står det att den går i bakgrunden, hur länge den pågått och hur länge den BRUKAR ta (märkt som en uppskattning: ingen körning är mätt). Ingen procentstapel: modellen ger
+ * inget löpande förlopp, och en påhittad procent ser ut som en mätning. Knapparna är avstängda medan den pågår.
+ *
+ * ⛔ DET GAMLA BETEENDET STÅR KVAR FÖR EN APP SOM INTE UPPGRADERATS. Får posten aldrig `utskriftJobb` gäller det lokala "Skriver ut…" tills löftet löser, som förut. `onSkrivUt`, `onSkrivUtIgen` och
+ * `onTaBortUtskrift` får lösa direkt när servern tagit emot jobbet. De två nya väntar efteråt, högst `UTSKRIFT_VANTETID_MS`, på att posten ändras, så att det inte finns ett ögonblick där
+ * den gamla texten står kvar med påslagna knappar. `onSkrivUt` gör inte det: dess löfte betyder fortfarande "klart" i en app som inte uppgraderats.
+ *
+ * ⛔ SKRIV UT IGEN OCH TA BORT FRÅGAR FÖRST, och ritas bara för den som får ändra posten (`farAndra`). Båda tar bort eller ersätter text som någon kan ha lagt arbete på.
+ *
+ * @param {{ post: { id: string, groupId?: string, utskrift?: string, utskriftJobb?: unknown, durationMs?: number }, jag?: any, onSkrivUt?: (post: any) => Promise<void> | void, onSkrivUtIgen?: (post: any) => Promise<void> | void, onTaBortUtskrift?: (post: any) => Promise<void> | void, onAnteckningAvUtskrift?: (post: any) => Promise<void> | void }} props
  */
-function UtskriftKontroll({ post, onSkrivUt, onAnteckningAvUtskrift }) {
+function UtskriftKontroll({ post, jag, onSkrivUt, onSkrivUtIgen, onTaBortUtskrift, onAnteckningAvUtskrift }) {
   const sprak = useOpsSprak();
-  /** @param {string} k */
-  const o = (k) => ordet(ORD_BIBLIOTEKUTSKRIFT, k, sprak);
+  /** @param {string} k @param {Record<string, string | number>} [vard] */
+  const o = (k, vard = {}) => Object.entries(vard).reduce((t, [n, v]) => t.replace(`{${n}}`, String(v)), ordet(ORD_BIBLIOTEKUTSKRIFT, k, sprak));
   const [pagar, setPagar] = useState(false);
   const [gorAnteckning, setGorAnteckning] = useState(false);
   const [fel, setFel] = useState("");
+  // Ett löfte som väntar (`taBort` eller `igen`), frågan som ställs, och väntan på att posten ska ändras efter att servern tagit emot jobbet.
+  const [kor, setKor] = useState(/** @type {null | "igen" | "taBort"} */ (null));
+  const [fraga, setFraga] = useState(/** @type {null | "igen" | "taBort"} */ (null));
+  const [vantar, setVantar] = useState(/** @type {null | { nyckel: string, op: "igen" | "taBort" }} */ (null));
+  const [, tick] = useState(0);
   const levande = useRef(true);
   useEffect(() => {
     levande.current = true;
@@ -2187,15 +2345,41 @@ function UtskriftKontroll({ post, onSkrivUt, onAnteckningAvUtskrift }) {
   }, []);
   const anteckningKlar = useKortVisning(3000);
   const { kopierat, misslyckades, kopiera } = useKopiera("OpsBibliotek");
+
+  const nu = Date.now();
+  const utl = utskriftLage(post, nu);
   const text = typeof post.utskrift === "string" ? post.utskrift : null;
   const harText = text !== null && text.trim() !== "";
+  // Vad som ändras när posten ändras på något sätt som rör utskriften. Väntan efter en körning slutar när nyckeln är en annan.
+  const nyckel = `${utl.lage}|${utl.startad ?? ""}|${text ?? ""}`;
+  const vantarNu = vantar !== null && vantar.nyckel === nyckel;
+  const bakgrund = utl.lage === "pagar";
+  const upptagen = bakgrund || pagar || kor !== null || vantarNu;
+  const far = farAndra(/** @type {any} */ (post), jag);
+  const kanIgen = harText && far && typeof onSkrivUtIgen === "function";
+  const kanTaBort = harText && far && typeof onTaBortUtskrift === "function";
   const kanSkrivaUt = typeof onSkrivUt === "function" && !harText;
-  if (text === null && !kanSkrivaUt && !pagar) return null;
+
+  // Klockan: medan ett jobb pågår ritas tiden om (och en `pagar` som blivit för gammal blir ett fel), och väntan efter en körning går ut av sig själv.
+  useEffect(() => {
+    if (!bakgrund) return undefined;
+    const t = setInterval(() => tick((n) => n + 1), 15_000);
+    return () => clearInterval(t);
+  }, [bakgrund]);
+  useEffect(() => {
+    if (!vantar) return undefined;
+    const t = setTimeout(() => {
+      if (levande.current) setVantar(null);
+    }, UTSKRIFT_VANTETID_MS);
+    return () => clearTimeout(t);
+  }, [vantar]);
+
+  if (text === null && !kanSkrivaUt && !pagar && utl.lage === "ingen" && !upptagen) return null;
 
   /** @param {unknown} e @param {string} reserv */
   const felText = (e, reserv) => (e instanceof Error && e.message ? e.message : reserv);
   const skrivUt = () => {
-    if (pagar || typeof onSkrivUt !== "function") return;
+    if (upptagen || typeof onSkrivUt !== "function") return;
     setFel("");
     setPagar(true);
     Promise.resolve()
@@ -2208,6 +2392,28 @@ function UtskriftKontroll({ post, onSkrivUt, onAnteckningAvUtskrift }) {
       )
       .then(() => {
         if (levande.current) setPagar(false);
+      });
+  };
+  /** @param {"igen" | "taBort"} op */
+  const korOp = (op) => {
+    const anrop = op === "igen" ? onSkrivUtIgen : onTaBortUtskrift;
+    if (upptagen || typeof anrop !== "function") return;
+    const nyckelVidTryck = nyckel;
+    setFel("");
+    setFraga(null);
+    setKor(op);
+    Promise.resolve()
+      .then(() => anrop({ id: post.id, groupId: post.groupId }))
+      .then(
+        () => {
+          if (levande.current) setVantar({ nyckel: nyckelVidTryck, op });
+        },
+        (e) => {
+          if (levande.current) setFel(felText(e, o("felSkrivUt")));
+        },
+      )
+      .then(() => {
+        if (levande.current) setKor(null);
       });
   };
   const goraAnteckning = () => {
@@ -2227,10 +2433,14 @@ function UtskriftKontroll({ post, onSkrivUt, onAnteckningAvUtskrift }) {
       });
   };
 
-  const status = pagar ? "skriverUt" : kopierat ? "kopierat" : anteckningKlar.synlig ? "anteckningKlar" : null;
-  const felVisas = fel || (misslyckades ? talkOrd("felKopiera", sprak) : "");
+  const lokalOp = kor ?? (vantarNu ? vantar?.op : null);
+  const status = bakgrund ? "bakgrund" : lokalOp === "taBort" ? "tarBort" : pagar || lokalOp === "igen" ? "skriverUt" : kopierat ? "kopierat" : anteckningKlar.synlig ? "anteckningKlar" : null;
+  const felVisas = fel || (utl.lage === "fel" ? utl.fel : "") || (misslyckades ? talkOrd("felKopiera", sprak) : "");
+  const minuter = uppskattadUtskriftstid(post.durationMs);
+  // "Försök igen" ersätter "Skriv ut texten" när det senaste jobbet misslyckades, och kör om när det finns en text.
+  const forsok = utl.lage === "fel" ? (harText ? (kanIgen ? () => setFraga("igen") : null) : kanSkrivaUt ? skrivUt : null) : null;
   return (
-    <div data-bibliotek-utskrift-kontroll="" className="flex min-w-0 flex-col gap-3">
+    <div data-bibliotek-utskrift-kontroll="" data-bibliotek-utskrift-lage={utl.lage} className="flex min-w-0 flex-col gap-3">
       {text !== null ? (
         <p data-bibliotek-utskrift="" className="m-0 min-w-0 whitespace-pre-wrap text-brod text-ink wrap-anywhere">
           {text === "" ? o("tom") : text}
@@ -2242,24 +2452,56 @@ function UtskriftKontroll({ post, onSkrivUt, onAnteckningAvUtskrift }) {
           {typeof onAnteckningAvUtskrift === "function" ? (
             <OpsButton variant="secondary" size="sm" busy={gorAnteckning} onClick={goraAnteckning}>{o("gorAnteckning")}</OpsButton>
           ) : null}
+          {kanIgen ? <OpsButton variant="secondary" size="sm" disabled={upptagen} onClick={() => setFraga("igen")}>{o("skrivUtIgen")}</OpsButton> : null}
+          {kanTaBort ? <OpsButton variant="secondary" size="sm" disabled={upptagen} onClick={() => setFraga("taBort")}>{o("taBort")}</OpsButton> : null}
         </div>
       ) : null}
       {status ? (
-        <p role="status" aria-live="polite" data-bibliotek-utskrift-status={status} className="m-0 flex items-center gap-2 text-etikett text-ink-secondary">
-          {status === "skriverUt" ? (
+        <div role="status" aria-live="polite" data-bibliotek-utskrift-status={status} className="m-0 flex flex-col gap-1 text-etikett text-ink-secondary">
+          {status === "bakgrund" ? (
             <>
+              <p className="m-0 flex items-center gap-2 text-ink">
+                <OpsSpinner size="sm" decorative />
+                {o("bakgrund")}
+              </p>
+              <p data-bibliotek-utskrift-tid="" className="m-0">{[o("pagatI", { tid: utskriftPagatText(utl.startad, nu) }), utl.av && utl.av.uid !== jag?.uid && utl.av.namn ? o("startadAv", { namn: utl.av.namn }) : ""].filter(Boolean).join(" ")}</p>
+              <p data-bibliotek-utskrift-uppskattning="" className="m-0">{minuter === null ? o("ingenUppskattning") : o("brukarTa", { min: minuter })}</p>
+              {utl.av && utl.av.uid === jag?.uid ? <p className="m-0">{o("notis")}</p> : null}
+            </>
+          ) : status === "tarBort" ? (
+            <p className="m-0 flex items-center gap-2"><OpsSpinner size="sm" decorative />{o("tarBort")}</p>
+          ) : status === "skriverUt" ? (
+            <p className="m-0 flex items-center gap-2">
               <OpsSpinner size="sm" decorative />
               {talkOrd("skriverUt", sprak)}
-            </>
+            </p>
           ) : status === "kopierat" ? (
             talkOrd("kopierat", sprak)
           ) : (
             talkOrd("anteckningSparad", sprak)
           )}
-        </p>
+        </div>
       ) : null}
       {felVisas ? <p role="alert" data-bibliotek-utskrift-fel="" className="m-0 text-etikett text-danger">{felVisas}</p> : null}
-      {kanSkrivaUt && !pagar ? <OpsButton variant="secondary" size="sm" onClick={skrivUt}>{o("skrivUt")}</OpsButton> : null}
+      {forsok && !upptagen ? <OpsButton variant="secondary" size="sm" onClick={forsok}>{o("forsokIgen")}</OpsButton> : null}
+      {kanSkrivaUt && !pagar && !forsok && !(bakgrund || kor !== null || vantarNu) ? <OpsButton variant="secondary" size="sm" onClick={skrivUt}>{o("skrivUt")}</OpsButton> : null}
+      {kanSkrivaUt && bakgrund ? <OpsButton variant="secondary" size="sm" disabled>{o("skrivUt")}</OpsButton> : null}
+      <OpsModal
+        open={fraga !== null}
+        onOpenChange={(oppen) => {
+          if (!oppen) setFraga(null);
+        }}
+        title={fraga === "taBort" ? o("taBort") : o("skrivUtIgen")}
+        size="sm"
+        footer={(
+          <>
+            <OpsButton variant="secondary" onClick={() => setFraga(null)}>{o("avbryt")}</OpsButton>
+            <OpsButton variant={fraga === "taBort" ? "danger" : "primary"} onClick={() => { if (fraga) korOp(fraga); }}>{fraga === "taBort" ? o("taBort") : o("skrivUtIgen")}</OpsButton>
+          </>
+        )}
+      >
+        <p>{fraga === "taBort" ? o("fragaTaBort") : o("fragaIgen")}</p>
+      </OpsModal>
     </div>
   );
 }
@@ -2328,8 +2570,19 @@ function DelaKontroll({ id, grupper, onDela, onKlar, onStart, onSlut, kanFlytta 
 }
 
 
+/** Det som står överst i dialogen Dela länk, per typ (0.133.0). */
+const DELA_INGRESS = /** @type {Record<string, string>} */ ({
+  fil: "Den som har länken kan se filen utan att logga in.",
+  anteckning: "Den som har länken kan läsa anteckningen utan att logga in.",
+  lank: "Den som har länken ser rubriken och en knapp till adressen, utan att logga in.",
+  lista: "Den som har länken ser hela listan, i listans ordning, utan att logga in. Ändrar du listan efteråt ändras den för alla som har länken.",
+});
+
+/** Vad en gammal länk gällde, till meningen "Det finns en länk till …" (0.133.0). */
+const DELA_OBJEKT = /** @type {Record<string, string>} */ ({ fil: "filen", anteckning: "anteckningen", lank: "länken", lista: "listan" });
+
 /**
- * Dialogen för en publik länk till en fil (0.119.0, lifehub.app#356).
+ * Dialogen för en publik länk till en post: en fil (0.119.0, lifehub.app#356), och sedan 0.133.0 en anteckning, en länk eller en lista. Reglaget för nedladdning finns för en fil och en lista (alla filer i den).
  *
  * ══ ⛔ TRE LÄGEN, OCH ADRESSEN FINNS BARA I ETT ═══════════════════════════════════════════════════════════════════════
  *
@@ -2349,6 +2602,8 @@ function DelaKontroll({ id, grupper, onDela, onKlar, onStart, onSlut, kanFlytta 
 function DelaLankKontroll({ post, gruppnamn, gruppdelForslag, delningar, onDelaLank, onAndraNedladdning, onAterkalla, onMejlaLank, onKlar }) {
   const sprak = useOpsSprak();
   const [nedladdning, setNedladdning] = useState(false);
+  // ⛔ NEDLADDNING FINNS FÖR EN FIL OCH EN LISTA (0.133.0). En anteckning och en länk har ingenting att ladda ner, och ett reglage som inte gör något är en löfte som inte hålls. Skickas alltid som falskt för dem.
+  const harNedladdning = post.typ === "fil" || post.typ === "lista";
   const [skapad, setSkapad] = useState(/** @type {null | { id: string, url: string, giltigTill?: number, harKod?: boolean }} */ (null));
   const [stangda, setStangda] = useState(/** @type {string[]} */ ([]));
   const [andrad, setAndrad] = useState(/** @type {Record<string, boolean>} */ ({}));
@@ -2384,7 +2639,7 @@ function DelaLankKontroll({ post, gruppnamn, gruppdelForslag, delningar, onDelaL
     falt.setMeddelande("");
     setPagar("skapa");
     try {
-      const svar = await onDelaLank({ postId: post.id, dagar: /** @type {number} */ (p.varde.dagar), nedladdning, kod: p.varde.kod, gruppdel: p.varde.gruppdel, fildel: p.varde.sista });
+      const svar = await onDelaLank({ postId: post.id, dagar: /** @type {number} */ (p.varde.dagar), nedladdning: harNedladdning && nedladdning, kod: p.varde.kod, gruppdel: p.varde.gruppdel, fildel: p.varde.sista });
       if (!svar || typeof svar.id !== "string" || svar.id === "" || typeof svar.url !== "string" || svar.url === "") {
         throw new Error("Länken skapades men svaret saknade adressen. Stäng den och skapa en ny.");
       }
@@ -2435,9 +2690,9 @@ function DelaLankKontroll({ post, gruppnamn, gruppdelForslag, delningar, onDelaL
   if (!aktiv) {
     return (
       <div data-bibliotek-delalank="ny" className="flex flex-col gap-4">
-        <p className="m-0 text-brod text-ink-secondary">Den som har länken kan se filen utan att logga in.</p>
+        <p className="m-0 text-brod text-ink-secondary">{DELA_INGRESS[post.typ] ?? DELA_INGRESS.fil}</p>
         <DelaLankFalt falt={falt} sprak={sprak} disabled={pagar !== null} />
-        <OpsSwitch label="Tillåt nedladdning" hint="Av som förval. Den som har länken kan se filen oavsett." checked={nedladdning} onChange={setNedladdning} />
+        {harNedladdning ? <OpsSwitch label="Tillåt nedladdning" hint={post.typ === "lista" ? "Av som förval. Gäller alla filer i listan. Den som har länken kan se dem oavsett." : "Av som förval. Den som har länken kan se filen oavsett."} checked={nedladdning} onChange={setNedladdning} /> : null}
         {fel ? <p role="alert" className="m-0 text-etikett text-danger">{fel}</p> : null}
         <div className="flex gap-2">
           <OpsButton variant="primary" busy={pagar === "skapa"} onClick={skapa}>Skapa länk</OpsButton>
@@ -2456,13 +2711,13 @@ function DelaLankKontroll({ post, gruppnamn, gruppdelForslag, delningar, onDelaL
         </ul>
       ) : (
         <>
-          <p className="m-0 text-brod text-ink-secondary">Det finns en länk till filen, skapad med en äldre version. Den visades bara när den skapades. Behöver du adressen igen stänger du länken och skapar en ny.</p>
+          <p className="m-0 text-brod text-ink-secondary">Det finns en länk till {DELA_OBJEKT[post.typ] ?? "filen"}, skapad med en äldre version. Den visades bara när den skapades. Behöver du adressen igen stänger du länken och skapar en ny.</p>
           {till ? <p className="m-0 text-etikett text-ink-muted">Gäller till {till}.</p> : null}
         </>
       )}
       {/* ⛔ 0.128.0 (lifehub.app#356): fältet "Skicka till mejl" sitter under adressen, och bara när det finns en adress att skicka (en länk skapad med en äldre version har ingen) och appen kopplat mejlvägen. */}
       {aktiv.url && onMejlaLank ? <MejlaLank lank={{ id: aktiv.id, url: aktiv.url }} onMejlaLank={onMejlaLank} sprak={sprak} /> : null}
-      <OpsSwitch label="Tillåt nedladdning" checked={nedNu} disabled={pagar !== null} onChange={bytNedladdning} />
+      {harNedladdning ? <OpsSwitch label="Tillåt nedladdning" hint={post.typ === "lista" ? "Gäller alla filer i listan." : undefined} checked={nedNu} disabled={pagar !== null} onChange={bytNedladdning} /> : null}
       {fel ? <p role="alert" className="m-0 text-etikett text-danger">{fel}</p> : null}
       <div className="flex gap-2">
         <OpsButton variant="danger" busy={pagar === "stang"} onClick={stang}>Stäng länken</OpsButton>

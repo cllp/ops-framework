@@ -1,17 +1,23 @@
-import { useEffect, useRef, useState } from "react";
-import { cx } from "../lib/cx.js";
 import { DELNINGSORSAKER, delningsfel } from "../lib/delning.js";
-import { sizeText } from "../lib/file.js";
-import { formateraTid } from "../lib/ljudspelare.js";
+import { DeladFil } from "./DeladFil.jsx";
 import { DeladKod } from "./DeladKod.jsx";
-import { PausaIkon, SpelaIkon } from "./icons.jsx";
+import { DeladLista } from "./DeladLista.jsx";
 import { useOpsSprak } from "./OpsSprak.jsx";
 import { OpsButton } from "./OpsButton.jsx";
 import { OpsEmpty } from "./OpsEmpty.jsx";
-import { OpsLjudspelare } from "./OpsLjudspelare.jsx";
+import { OpsMarkdown } from "./OpsMarkdown.jsx";
 
 /**
- * Den publika vyn av en delad fil: det en mottagare ser på `/d/<token>`, utan inloggning (0.119.0, lifehub.app#356).
+ * Den publika vyn av en delad post: det en mottagare ser på `/g/<adress>` (eller `/d/<token>` för en gammal länk), utan inloggning (0.119.0, lifehub.app#356).
+ *
+ * ══ ⛔ FYRA TYPER, EN VY (0.133.0) ═══════════════════════════════════════════════════════════════════════════════════════════
+ *
+ * CP 2026-10-18: "Vi skall ju ha en publik länk till varje artefakt." `delning.typ` avgör vad som ritas: `anteckning` (rubriken och texten, i den typografi biblioteket läser den i),
+ * `lank` (rubriken och en tydlig knapp till adressen, som öppnas i en ny flik), `lista` (en spellista, se `DeladLista`) och allt annat är en fil (`ljud`, `bild`, `video`, `pdf`,
+ * `dokument`) och ritas som förut (`DeladFil`). Vyn läser bara fälten servern svarar med och har ingen egen regel för vad som får visas.
+ *
+ * ⛔ EN LÄNKS KNAPP FINNS BARA FÖR EN HTTP- ELLER HTTPS-ADRESS. Servern släpper bara igenom sådana, men vyn tror inte på det: en adress som blivit något annat får ingen knapp,
+ * och adressen står som text så att den går att läsa av den som vill skriva av den.
  *
  * ══ ⛔ VYN RITAR VAD SERVERN SVARAR OCH INGET MER ═══════════════════════════════════════════════════════════════════════
  *
@@ -41,10 +47,10 @@ import { OpsLjudspelare } from "./OpsLjudspelare.jsx";
  * appens: vyn är innehållet.
  *
  * @param {object} props
- * @param {{ rubrik: string, typ: string, mime?: string, storlek?: number | null, langd?: number | null, peaks?: string | null, nedladdning?: boolean, url: string, visaUrl?: string | null } | null} [props.delning] Länken går att visa.
+ * @param {import("./DeladFil.jsx").DeladFilSvar | { typ: "anteckning", rubrik: string, text: string } | { typ: "lank", rubrik: string, url: string } | { typ: "lista", rubrik: string, nedladdning?: boolean, ejVisade?: number, poster: ReadonlyArray<any> } | null} [props.delning] Länken går att visa. `typ` säger vad: `anteckning`, `lank`, `lista` eller en fils (`ljud`, `bild`, `video`, `pdf`, `dokument`).
  * @param {string} [props.orsak] Länken går inte att visa: `utgangen`, `stangd` eller `saknas` (`DELNINGSORSAKER`). En okänd orsak får texten för `utgangen`.
  * @param {boolean} [props.laddar] Länken hämtas.
- * @param {() => void | Promise<void>} [props.onNyUrl] Filen kunde inte läsas, troligen för att adressen gått ut. Appen hämtar länken igen och ger ett nytt `delning`.
+ * @param {() => void | Promise<void>} [props.onNyUrl] Filen kunde inte läsas, troligen för att adressen gått ut. Appen hämtar länken igen och ger ett nytt `delning`. För en lista är det den NYA listan: servern läser om den vid varje hämtning.
  * @param {(kod: string) => void | Promise<void>} [props.onKod] (0.125.0) Koden som personen skrev. Med den ritas kodrutan när orsaken är `kod-kravs`, `fel-kod` eller `for-manga` (en fillänk kan ha en kod
  *   sedan 0.125.0); appen frågar servern med koden (`hamta(ref, { kod })`) och ger vyn ett nytt svar. Utan den står orsaken som text.
  * @param {string} [props.sprak] (0.125.0) `sv` eller `en`, för kodrutan. Förval: språket i `OpsSprakProvider`. Resten av vyn är svensk som förut.
@@ -73,141 +79,50 @@ export function OpsDelad({ delning = null, orsak, laddar = false, onNyUrl, onKod
       </div>
     );
   }
-  return <DelatInnehall delning={/** @type {NonNullable<typeof delning>} */ (delning)} onNyUrl={onNyUrl} />;
+  const d = /** @type {NonNullable<typeof delning>} */ (delning);
+  if (d.typ === "anteckning") return <DeladAnteckning delning={/** @type {{ rubrik: string, text: string }} */ (d)} />;
+  if (d.typ === "lank") return <DeladLank delning={/** @type {{ rubrik: string, url: string }} */ (d)} />;
+  if (d.typ === "lista") return <DeladLista delning={/** @type {any} */ (d)} onNyUrl={onNyUrl} />;
+  return <DeladFil delning={/** @type {import("./DeladFil.jsx").DeladFilSvar} */ (d)} onNyUrl={onNyUrl} />;
 }
 
-/** Texten när filen inte går att visa och en ny adress inte hjälpte. */
-const FIL_FEL = "Filen gick inte att visa just nu.";
-
-/** @type {Record<string, string>} */
-const TYPNAMN = { ljud: "Ljud", bild: "Bild", video: "Video", pdf: "PDF", dokument: "Dokument" };
+/**
+ * En delad anteckning: rubriken och texten, som biblioteket läser den (`OpsMarkdown`, ingen HTML tolkas).
+ * @param {{ delning: { rubrik: string, text: string } }} props
+ */
+function DeladAnteckning({ delning }) {
+  return (
+    <article data-delad="anteckning" className="flex min-w-0 w-full flex-col gap-4">
+      <header className="flex min-w-0 flex-col gap-1">
+        <h1 data-delad-rubrik="" className="m-0 text-sida text-ink wrap-anywhere">{delning.rubrik}</h1>
+        <p data-delad-meta="" className="m-0 text-meta text-ink-muted">Anteckning</p>
+      </header>
+      <div data-delad-text="" className="max-w-las">
+        {delning.text ? <OpsMarkdown text={delning.text} dokument /> : <p className="m-0 text-brod text-ink-secondary">Anteckningen har ingen text.</p>}
+      </div>
+    </article>
+  );
+}
 
 /**
- * @param {{ delning: NonNullable<Parameters<typeof OpsDelad>[0]["delning"]>, onNyUrl?: () => void | Promise<void> }} props
+ * En delad länk: rubriken och en tydlig knapp till adressen. Adressen står också som text.
+ * @param {{ delning: { rubrik: string, url: string } }} props
  */
-function DelatInnehall({ delning, onNyUrl }) {
-  const { rubrik, typ, storlek, langd, peaks, url } = delning;
-  const kanLadda = delning.nedladdning === true;
-  // ⛔ En adress som gått ut ger fel, och ber om en ny EN gång. Den nya adressen får sin egen chans, men inte en loop.
-  const bedd = useRef(/** @type {string | null} */ (null));
-  const [fel, setFel] = useState("");
-  useEffect(() => setFel(""), [url]);
-  const filFel = (/** @type {string} */ text) => {
-    if (typeof onNyUrl === "function" && bedd.current !== url) {
-      bedd.current = url;
-      Promise.resolve(onNyUrl()).catch(() => setFel(text));
-      return;
-    }
-    setFel(text);
-  };
-
-  const meta = [TYPNAMN[typ] ?? TYPNAMN.dokument, storlek ? sizeText(storlek) : "", typ === "ljud" && langd ? formateraTid(langd / 1000) : ""].filter(Boolean);
-  // En inbäddad PDF kan inte komma från en adress med `attachment`: servern ger då en egen adress för att visa den.
-  const visa = delning.visaUrl || url;
-
+function DeladLank({ delning }) {
+  const oppnas = typeof delning.url === "string" && /^https?:\/\/[!-~]+$/.test(delning.url);
   return (
-    <article data-delad={typ} className="flex min-w-0 w-full flex-col gap-4">
+    <article data-delad="lank" className="flex min-w-0 w-full flex-col gap-4">
       <header className="flex min-w-0 flex-col gap-1">
-        <h1 data-delad-rubrik="" className="m-0 text-sida text-ink wrap-anywhere">{rubrik}</h1>
-        <p data-delad-meta="" className="m-0 text-meta text-ink-muted">{meta.join(" · ")}</p>
+        <h1 data-delad-rubrik="" className="m-0 text-sida text-ink wrap-anywhere">{delning.rubrik}</h1>
+        <p data-delad-meta="" className="m-0 text-meta text-ink-muted">Länk</p>
       </header>
-
-      {typ === "ljud" ? (
-        <OpsLjudspelare src={url} namn={rubrik} visaNamn={false} durationMs={langd ?? undefined} peaks={peaks ?? undefined} utanNedladdning={!kanLadda} onFel={(f) => filFel(f || FIL_FEL)} />
-      ) : typ === "bild" ? (
-        <img src={url} alt={rubrik} onError={() => filFel(FIL_FEL)} className="block h-auto w-full rounded-lg" />
-      ) : typ === "video" ? (
-        <Video src={url} namn={rubrik} onFel={() => filFel(FIL_FEL)} />
-      ) : typ === "pdf" ? (
-        <div className="flex min-w-0 flex-col gap-2">
-          <object data={visa} type="application/pdf" aria-label={rubrik} className="h-[70dvh] w-full rounded-lg border border-line">
-            <p className="m-0 p-4 text-brod text-ink-secondary">Den här webbläsaren visar inte PDF-filer här. Öppna den i en ny flik.</p>
-          </object>
-          <a href={visa} target="_blank" rel="noopener noreferrer" data-delad-oppna="" className="text-brod text-accent underline underline-offset-2">Öppna PDF</a>
-        </div>
-      ) : (
-        <p className="m-0 text-brod text-ink-secondary">Filen går inte att visa här.{kanLadda ? " Ladda ner den för att öppna den." : ""}</p>
-      )}
-
-      {fel ? <p role="alert" data-delad-fel="" className="m-0 text-etikett text-danger">{fel}</p> : null}
-
-      {kanLadda ? (
+      <p data-delad-adress="" className="m-0 text-brod text-ink-secondary wrap-anywhere">{delning.url}</p>
+      {oppnas ? (
         <div>
-          <OpsButton variant="secondary" href={url} ariaLabel={`Ladda ner ${rubrik}`}>Ladda ner</OpsButton>
+          <OpsButton variant="primary" href={delning.url} newTab ariaLabel={`Öppna länken ${delning.rubrik}`}>Öppna länken</OpsButton>
         </div>
       ) : null}
     </article>
   );
 }
 
-/**
- * Video med ramverkets egna kontroller: spela och pausa, tid och spolning. Ingen `controls`-attribut.
- *
- * @param {{ src: string, namn: string, onFel: () => void }} props
- */
-function Video({ src, namn, onFel }) {
-  const video = useRef(/** @type {HTMLVideoElement | null} */ (null));
-  const [spelar, setSpelar] = useState(false);
-  const [tid, setTid] = useState(0);
-  const [langd, setLangd] = useState(0);
-  const spelaEllerPausa = () => {
-    const v = video.current;
-    if (!v) return;
-    if (v.paused) {
-      // `play()` ger ett löfte som avvisas när webbläsaren nekar uppspelningen. Det är ett fel att visa, inte ett som får försvinna.
-      Promise.resolve(v.play()).catch(() => onFel());
-    } else {
-      v.pause();
-    }
-  };
-  const spola = (/** @type {number} */ till) => {
-    const v = video.current;
-    if (!v) return;
-    v.currentTime = till;
-    setTid(till);
-  };
-  return (
-    <div data-delad-video="" className="flex min-w-0 flex-col gap-2">
-      <video
-        ref={video}
-        src={src}
-        aria-label={namn}
-        preload="metadata"
-        playsInline
-        onClick={spelaEllerPausa}
-        onPlay={() => setSpelar(true)}
-        onPause={() => setSpelar(false)}
-        onEnded={() => setSpelar(false)}
-        onTimeUpdate={(e) => setTid(e.currentTarget.currentTime)}
-        onLoadedMetadata={(e) => setLangd(Number.isFinite(e.currentTarget.duration) ? e.currentTarget.duration : 0)}
-        onError={onFel}
-        className="block h-auto w-full rounded-lg bg-sunken"
-      />
-      <div className="flex min-w-0 items-center gap-2">
-        <button
-          type="button"
-          aria-label={spelar ? `Pausa ${namn}` : `Spela ${namn}`}
-          onClick={spelaEllerPausa}
-          className="inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full bg-accent-subtle text-accent hover:bg-accent-faint focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-        >
-          {spelar ? <PausaIkon size={16} /> : <SpelaIkon size={16} />}
-        </button>
-        <input
-          type="range"
-          aria-label="Spola"
-          aria-valuetext={`${formateraTid(tid)} av ${formateraTid(langd)}`}
-          className={cx("ops-reglage relative h-11 min-w-0 flex-1 cursor-pointer bg-transparent")}
-          min={0}
-          max={langd > 0 ? langd : 1}
-          step={0.1}
-          value={Math.min(tid, langd > 0 ? langd : 1)}
-          disabled={langd <= 0}
-          onChange={(e) => spola(Number(e.target.value))}
-        />
-        <span data-delad-tid="" className="shrink-0 text-meta text-ink-secondary tabular-nums">
-          {formateraTid(tid)} / {formateraTid(langd)}
-        </span>
-      </div>
-    </div>
-  );
-}
