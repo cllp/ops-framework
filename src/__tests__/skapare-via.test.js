@@ -3,6 +3,8 @@ import { MAX_NYCKELID, MAX_SKAPARNAMN, ORD_SKAPARE, SKAPARFALT, SKAPARFALT_SERVE
 import { byggMeddelande, MEDDELANDEFALT } from "../lib/samtal.js";
 import { byggPost, postFel } from "../lib/bibliotek.js";
 import { SPRAK } from "../lib/sprak.js";
+import { createMemorySource } from "../data/adapters.js";
+import { createSamtalskalla } from "../data/samtalskalla.js";
 
 /**
  * `via` på skaparen (0.135.0, cllp/lifehub.app#409, CP 2026-10-21 "Ja på alla").
@@ -167,5 +169,20 @@ describe("chattmeddelandet bär via", () => {
 
   it("⛔ MEDDELANDEFALT har inte via: reglernas hasOnly är härledd ur den, och en klient får inte skriva fältet", () => {
     expect(MEDDELANDEFALT).not.toContain("via");
+  });
+});
+
+describe("samtalskällan släpper igenom via vid läsning och skriver det aldrig själv", () => {
+  it("⛔ ett meddelande servern skrev med via läses med via, och källans skicka skriver aldrig fältet", async () => {
+    const kalla = createMemorySource({});
+    const samtal = createSamtalskalla({ kalla, klocka: () => 1000 });
+    const s = await samtal.oppnaGrupp({ groupId: "g", uid: "u-miranda" });
+    // Servern skriver förbi källan (Admin SDK).
+    await kalla.create(`samtal/${s.id}/meddelanden`, { text: "Från nyckeln", av: "u-miranda", tid: 900, via });
+    // Och klientens egen väg: `skicka` tar inget via, så det kan inte hamna på ett meddelande klienten skriver.
+    await samtal.skicka(s.id, { text: "För hand", av: "u-miranda", ...({ via }) });
+    const rader = await samtal.meddelanden(s.id);
+    expect(rader.find((m) => m.text === "Från nyckeln")?.via).toEqual(via);
+    expect(Object.hasOwn(rader.find((m) => m.text === "För hand") ?? {}, "via")).toBe(false);
   });
 });
