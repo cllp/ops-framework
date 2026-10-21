@@ -93,7 +93,7 @@ function Kalenderrad({ k, syn, oppen, onOppna }) {
             className="inline-flex min-h-8 cursor-pointer items-center gap-1 self-start rounded-base px-2 py-1 text-etikett text-ink-muted transition-colors duration-(--duration-fast) ease-standard hover:bg-hover hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent md:min-h-0"
           >
             <span>
-              Visas som <span className="font-semibold text-ink-secondary">{VISNINGSORD[visning]}</span>
+              Visas som <span className="font-medium text-ink-secondary">{VISNINGSORD[visning]}</span>
             </span>
             <span aria-hidden="true" className={cx("flex shrink-0 transition-transform duration-(--duration-fast) ease-standard", oppen && "rotate-180")}>
               <ChevronNedIkon size={12} />

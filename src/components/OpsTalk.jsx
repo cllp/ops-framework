@@ -1025,12 +1025,12 @@ const STATUSKLASS = {
   utskrift: "m-0 flex min-h-12 items-center gap-2 text-etikett text-ink-secondary",
   sparat: "m-0 flex min-h-12 items-center gap-2 text-etikett font-medium text-ink",
   kopierat: "m-0 flex min-h-12 items-center gap-2 text-etikett font-medium text-ink",
-  kvitto: "m-0 flex items-start gap-3 text-brod text-ink [overflow-wrap:anywhere]",
+  kvitto: "m-0 flex items-start gap-3 text-etikett text-ink [overflow-wrap:anywhere]",
 };
 /** Så många pixlar från slutet räknas som längst ner (0.115.0). Webbläsare avrundar `scrollTop`, och en fingerrullning slutar sällan på pixeln. */
 const RULL_TOLERANS_PX = 8;
 /** Textytan: brödtext, tre rader minst, rullar inuti. */
-const TEXTYTA = "m-0 min-h-18 max-h-36 overflow-y-auto text-brod [overflow-wrap:anywhere]";
+const TEXTYTA = "m-0 min-h-18 max-h-36 overflow-y-auto text-brod md:text-etikett [overflow-wrap:anywhere]";
 /**
  * ⛔ VALEN EFTER TALET (0.105.0). CP 2026-10-14, med en skärmbild av TALK-panelen: "talk gör att man pratar in så att man ser texten
  * direkt i realtid. Sen så finns de tre knapparna där direkt. Meddelande, ärende, kalender. Och sen så adderar vi en agentknapp." Fyra
@@ -1320,7 +1320,7 @@ export function OpsInspelning(props) {
   if (fragar && lyssnar) {
     return (
       <div data-ops-inspelning="" data-inspelning="fraga" className="flex w-full min-w-0 flex-col gap-4">
-        <p className="m-0 text-brod text-ink">{o("kastaFraga")}</p>
+        <p className="m-0 text-etikett text-ink">{o("kastaFraga")}</p>
         <div className="flex items-center gap-3">
           <button type="button" onClick={() => { setFragar(false); onAvbryt(); }} className={`${SEKUNDAR_ORD} text-danger`}>{o("kasta")}</button>
           <button ref={fortsatt} type="button" onClick={() => setFragar(false)} className={PRIMAR}>{o("fortsatt")}</button>

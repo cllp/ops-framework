@@ -55,8 +55,8 @@ export function OpsSvar({ svar, medlemmar, uid, onSvara, rubrik = "Svar", gaster
   return (
     <section aria-label={rubrik} data-ops-svar="" className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-brod font-semibold text-ink">{rubrik}</span>
-        <span className="rounded-full bg-raised px-2 py-0.5 text-meta font-semibold text-ink-secondary">{medlemmar.length + gaster.length}</span>
+        <span className="text-rubrik text-ink">{rubrik}</span>
+        <span className="rounded-full bg-raised px-2 py-0.5 text-meta font-medium text-ink-secondary">{medlemmar.length + gaster.length}</span>
         <span data-sammanstallning="" className="text-etikett font-medium text-ink-muted">
           {summa.text}
         </span>
@@ -88,7 +88,7 @@ export function OpsSvar({ svar, medlemmar, uid, onSvara, rubrik = "Svar", gaster
               <OpsIdentity name={g.namn || gastEtikett} seed={g.uid} size="avatar" />
               <span className="min-w-0 flex-1 truncate text-etikett font-medium text-ink">
                 {g.namn || gastEtikett}
-                {g.namn ? <span data-gast-markning="" className="ml-2 rounded-full bg-sunken px-2 py-0.5 text-meta font-semibold text-ink-secondary">{gastEtikett}</span> : null}
+                {g.namn ? <span data-gast-markning="" className="ml-2 rounded-full bg-sunken px-2 py-0.5 text-meta font-medium text-ink-secondary">{gastEtikett}</span> : null}
               </span>
               <span className="shrink-0 text-meta text-ink-secondary">{s === "kommer" ? "Kommer" : s === "kommerInte" ? "Kommer inte" : "Har inte svarat"}</span>
             </li>
@@ -117,7 +117,7 @@ export function OpsSvarSummor({ summa, onSvara, rubrik }) {
   return (
     <section aria-label={rubrik} data-ops-svar="" data-ops-svar-summor="" className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-brod font-semibold text-ink">{rubrik}</span>
+        <span className="text-rubrik text-ink">{rubrik}</span>
         <span data-sammanstallning="" className="text-etikett font-medium text-ink-muted">
           {summa.text}
         </span>
@@ -159,7 +159,7 @@ export function OpsSvarsknappar({ vald, onSvara, namn, variant = "inline" }) {
       disabled={skriver !== null}
       onClick={() => tryck(v)}
       className={cx(
-        "inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-base border px-3 text-meta font-semibold transition-colors duration-(--duration-fast) ease-standard focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-60 md:min-h-8",
+        "inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-base border px-3 text-meta font-medium transition-colors duration-(--duration-fast) ease-standard focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-60 md:min-h-8",
         vald === v ? "border-accent bg-accent text-accent-contrast" : "border-line bg-surface text-ink-secondary hover:bg-accent-faint hover:text-ink",
       )}
     >

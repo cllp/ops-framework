@@ -142,13 +142,13 @@ export function GastBekraftelse({ bekrafta, t, onBekrafta, onAvbryt }) {
       }
     >
       {bekrafta.slag === "grupp" ? (
-        <div data-gastlista-bekrafta="grupp" className="flex min-w-0 flex-col gap-3 text-brod text-ink-secondary">
+        <div data-gastlista-bekrafta="grupp" className="flex min-w-0 flex-col gap-3 text-etikett text-ink-secondary">
           <p className="m-0 font-medium text-ink">{t.bekraftaGruppSer}</p>
           <p className="m-0">{t.bekraftaGruppInte}</p>
           <p className="m-0">{t.bekraftaGruppTillbaka.replace("{minuter}", String(Math.round(SIGNERAD_SEKUNDER / 60)))}</p>
         </div>
       ) : (
-        <p data-gastlista-bekrafta="radera" className="m-0 text-brod text-ink-secondary">{t.bekraftaRaderaText}</p>
+        <p data-gastlista-bekrafta="radera" className="m-0 text-etikett text-ink-secondary">{t.bekraftaRaderaText}</p>
       )}
     </OpsModal>
   );
@@ -362,7 +362,7 @@ export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud
               <li key={p.gastId} data-gast-person={p.gastId} data-gast-status={status} className="flex min-w-0 flex-col gap-2 rounded-base border border-line bg-raised p-3">
                 <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-1">
                   <div className="flex min-w-0 flex-col">
-                    <span data-gast-namn="" className="min-w-0 text-brod text-ink wrap-anywhere">{vem}</span>
+                    <span data-gast-namn="" className="min-w-0 text-etikett text-ink wrap-anywhere">{vem}</span>
                     {p.namn ? <span data-gast-epost="" className="min-w-0 text-meta text-ink-muted wrap-anywhere">{p.epost}</span> : null}
                   </div>
                   <OpsPill tone={STATUSTON[status]}>{t[`status_${status}`]}</OpsPill>
@@ -432,7 +432,7 @@ export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud
               <li key={g.id} data-gast={g.id} data-gast-status={status} className="flex min-w-0 flex-col gap-2 rounded-base border border-line bg-raised p-3">
                 <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-1">
                   <div className="flex min-w-0 flex-col">
-                    <span data-gast-namn="" className="min-w-0 text-brod text-ink wrap-anywhere">{vem}</span>
+                    <span data-gast-namn="" className="min-w-0 text-etikett text-ink wrap-anywhere">{vem}</span>
                     {g.namn ? <span data-gast-epost="" className="min-w-0 text-meta text-ink-muted wrap-anywhere">{g.epost}</span> : null}
                   </div>
                   <OpsPill tone={STATUSTON[status]}>{t[`status_${status}`]}</OpsPill>

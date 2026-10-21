@@ -33,7 +33,7 @@ export function OpsProvenance({ kind, label }) {
     throw new Error(`OpsProvenance: okänt kind "${kind}". Giltiga: ${Object.keys(SLAG).join(", ")}.`);
   }
   return (
-    <span className={cx("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-meta font-semibold leading-tight", s.klass)}>
+    <span className={cx("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-meta font-medium leading-tight", s.klass)}>
       {/* ⛔ AGENTEN BÄR SIN ROBOT (0.43.0, #224, CP 2026-10-01). Före 0.43.0 skiljde sig en agents rad "Skapad av ops-agent" från en
           människas BARA i färgen, eftersom `label` ersatte ordet "Agent": precis felet filhuvudet förbjuder. Ikonen syns utan
           att man lärt sig färgerna, och ordet läses upp för skärmläsaren även när `label` ersätter det synliga ordet. */}

@@ -81,7 +81,7 @@ export function OpsGruppmarkeValjare({ namn, seed, farg, ikon, onFarg, onIkon, s
               aria-label={t.initialer}
               aria-pressed={initialerAktiva}
               className={cx(
-                "flex size-11 cursor-pointer items-center justify-center rounded-base text-etikett font-semibold text-ink-secondary transition-colors hover:bg-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
+                "flex size-11 cursor-pointer items-center justify-center rounded-base text-etikett font-medium text-ink-secondary transition-colors hover:bg-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
                 initialerAktiva && "bg-accent-subtle text-ink ring-2 ring-accent",
               )}
             >
@@ -118,7 +118,7 @@ export function OpsGruppmarkeValjare({ namn, seed, farg, ikon, onFarg, onIkon, s
   return (
     <>
       <div data-kulorvaljare="">
-        <p className="m-0 mb-2 text-meta font-semibold text-ink-secondary" id={`${idPrefix}-kulor`}>
+        <p className="m-0 mb-2 text-meta font-medium text-ink-secondary" id={`${idPrefix}-kulor`}>
           {t.farg}
         </p>
         <div className="flex flex-wrap gap-1" role="group" aria-labelledby={`${idPrefix}-kulor`}>
@@ -161,7 +161,7 @@ export function OpsGruppmarkeValjare({ namn, seed, farg, ikon, onFarg, onIkon, s
       </div>
 
       <div data-ikonvaljare="">
-        <label htmlFor={sokId} className="m-0 mb-2 block text-meta font-semibold text-ink-secondary">
+        <label htmlFor={sokId} className="m-0 mb-2 block text-meta font-medium text-ink-secondary">
           {t.ikonEllerLogotyp}
         </label>
         <input
@@ -172,7 +172,7 @@ export function OpsGruppmarkeValjare({ namn, seed, farg, ikon, onFarg, onIkon, s
           placeholder={t.sokIkonPlatshallare}
           aria-label={t.sokIkon}
           autoComplete="off"
-          className="mb-2 min-h-11 w-full rounded-base border-[1.5px] border-line bg-surface px-3 py-2 text-brod text-ink placeholder:text-ink-muted hover:border-line-strong focus-visible:border-accent focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
+          className="mb-2 min-h-11 w-full rounded-base border-[1.5px] border-line bg-surface px-3 py-2 text-brod md:text-etikett text-ink placeholder:text-ink-muted hover:border-line-strong focus-visible:border-accent focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
         />
         {/*
           ⛔ DEN LEVANDE REGIONEN ÄR EN KORT RAD, INTE RUTNÄTET (granskningen av PR 266). Med aria-live på rutnätet läste en
@@ -210,7 +210,7 @@ export function OpsGruppmarkeValjare({ namn, seed, farg, ikon, onFarg, onIkon, s
                 const v = e.target.value.replace(/[^a-zA-ZÅÄÖåäö0-9]/g, "").toUpperCase().slice(0, 3);
                 onIkon(v ? `initialer:${v}` : "");
               }}
-              className="min-h-11 w-24 rounded-base border-[1.5px] border-line bg-surface px-3 py-2 text-brod uppercase text-ink placeholder:normal-case placeholder:text-ink-muted hover:border-line-strong focus-visible:border-accent focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
+              className="min-h-11 w-24 rounded-base border-[1.5px] border-line bg-surface px-3 py-2 text-brod md:text-etikett uppercase text-ink placeholder:normal-case placeholder:text-ink-muted hover:border-line-strong focus-visible:border-accent focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
             />
             {egnaInitialer ? (
               <button

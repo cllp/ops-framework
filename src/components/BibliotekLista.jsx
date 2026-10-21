@@ -167,7 +167,7 @@ export function ListaVisning({ lista, poster, kanAndra, onSpara, onOppnaPost }) 
       ) : null}
       {fel ? <p role="alert" data-bibliotek-lista-fel="" className="m-0 text-etikett text-danger wrap-anywhere">{fel}</p> : null}
       {rader.length === 0 ? (
-        <p data-bibliotek-lista-tom="" className="m-0 text-brod text-ink-secondary">
+        <p data-bibliotek-lista-tom="" className="m-0 text-etikett text-ink-secondary">
           Listan är tom.{kanAndra ? " Lägg till poster med knappen ovan, eller ur menyn på en post." : ""}
         </p>
       ) : (
@@ -239,7 +239,7 @@ export function ListaVisning({ lista, poster, kanAndra, onSpara, onOppnaPost }) 
                   </button>
                 ) : null}
                 {r.post ? <Raden post={r.post} namn={namn} onOppnaPost={onOppnaPost} /> : (
-                  <span data-lista-saknas-text="" className="min-w-0 flex-1 text-brod text-ink-muted wrap-anywhere">
+                  <span data-lista-saknas-text="" className="min-w-0 flex-1 text-etikett text-ink-muted wrap-anywhere">
                     {r.skal === "lista" ? LISTRADTEXT.lista : LISTRADTEXT.saknas}
                   </span>
                 )}
@@ -270,16 +270,16 @@ export function ListaVisning({ lista, poster, kanAndra, onSpara, onOppnaPost }) 
         <div data-bibliotek-lista-lagg="" className="flex min-w-0 flex-col gap-3">
           <OpsInput value={sok} onChange={setSok} type="search" ariaLabel="Sök bland posterna" placeholder="Sök..." />
           {kandidater.length === 0 ? (
-            <p data-bibliotek-lista-inget="" className="m-0 text-brod text-ink-secondary">Det finns inget mer att lägga till. Alla poster på den här platsen ligger redan i listan.</p>
+            <p data-bibliotek-lista-inget="" className="m-0 text-etikett text-ink-secondary">Det finns inget mer att lägga till. Alla poster på den här platsen ligger redan i listan.</p>
           ) : sokta.length === 0 ? (
-            <p className="m-0 text-brod text-ink-secondary">Inget matchar &quot;{sok}&quot;.</p>
+            <p className="m-0 text-etikett text-ink-secondary">Inget matchar &quot;{sok}&quot;.</p>
           ) : (
             <ul className="m-0 flex list-none flex-col gap-2 p-0">
               {sokta.map((p) => (
                 <li key={p.id} className="flex min-w-0 items-center gap-2" data-lista-kandidat={p.id}>
                   <RadMark post={p} />
                   <span className="flex min-w-0 flex-1 flex-col">
-                    <span className="truncate text-brod text-ink">{postNamn(p)}</span>
+                    <span className="truncate text-etikett text-ink">{postNamn(p)}</span>
                     <span className="text-meta tracking-wide text-ink-muted uppercase">{typEtikett(p)}</span>
                   </span>
                   <OpsButton
@@ -317,7 +317,7 @@ function Raden({ post, namn, onOppnaPost }) {
     <>
       <RadMark post={post} />
       <span className="flex min-w-0 flex-1 flex-col text-left">
-        <span className="truncate text-brod font-medium text-ink">{namn}</span>
+        <span className="truncate text-etikett font-medium text-ink">{namn}</span>
         <span data-bibliotek-typ="" className="text-meta tracking-wide text-ink-muted uppercase">{typEtikett(post)}</span>
       </span>
     </>
@@ -411,7 +411,7 @@ export function LaggILista({ post, listor, onSpara, onKlar }) {
 
   return (
     <div data-bibliotek-laggilista="" className="flex min-w-0 flex-col gap-4">
-      <p className="m-0 text-brod text-ink-secondary">Välj en lista för {postNamn(post)}, eller gör en ny.</p>
+      <p className="m-0 text-etikett text-ink-secondary">Välj en lista för {postNamn(post)}, eller gör en ny.</p>
       {listor.length === 0 ? (
         <p data-bibliotek-laggilista-inga="" className="m-0 text-etikett text-ink-muted">Det finns inga listor du kan lägga till i än.</p>
       ) : (

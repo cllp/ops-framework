@@ -63,7 +63,7 @@ export function OpsTable({ columns, rows, caption, hideCaption = false, stickyHe
 
   return (
     <div className="w-full overflow-x-auto">
-      <table className="w-full border-collapse text-brod">
+      <table className="w-full border-collapse text-etikett">
         <caption className={cx("text-left text-etikett text-ink-muted", hideCaption ? "sr-only" : "pb-2")}>{caption}</caption>
         <thead>
           <tr className="border-b border-line">

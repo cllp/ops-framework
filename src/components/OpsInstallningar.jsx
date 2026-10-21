@@ -298,17 +298,17 @@ function OpsInstallningarRitad({
                       {s.ikon ?? <KugghjulIkon size={20} />}
                     </span>
                     <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                      <span data-radrubrik="" className="text-brod font-semibold text-ink">
+                      <span data-radrubrik="" className="text-etikett font-medium text-ink">
                         {s.rubrik}
                       </span>
                       {s.beskrivning ? (
-                        <span data-radbeskrivning="" className="text-etikett text-ink-muted">
+                        <span data-radbeskrivning="" className="text-meta text-ink-muted">
                           {s.beskrivning}
                         </span>
                       ) : null}
                     </span>
                     {s.antal !== undefined && s.antal !== null ? (
-                      <span data-antal="" className="shrink-0 text-etikett tabular-nums text-ink-muted">
+                      <span data-antal="" className="shrink-0 text-meta tabular-nums text-ink-muted">
                         {s.antal}
                       </span>
                     ) : null}

@@ -309,7 +309,7 @@ function OpsHandelsePanelRitad({
           {handelse.titel}
         </h1>
         {handelse.status ? (
-          <span data-handelsestatus="" className="flex shrink-0 items-center gap-1.5 pt-0.5 text-meta font-semibold text-ink-secondary">
+          <span data-handelsestatus="" className="flex shrink-0 items-center gap-1.5 pt-0.5 text-meta font-medium text-ink-secondary">
             <OpsStatusDot status={handelse.status} label={statusord} />
             {/* ⛔ ORDET SYNS HÄR, och inte bara för skärmläsaren som i en listrad: på en egen sida finns plats, och en färgad prick ensam säger ingenting
                 för den som inte lärt sig färgerna. `akut` skriver `OpsStatusDot` ut själv, så ordet ritas inte två gånger. */}
@@ -420,7 +420,7 @@ function OpsHandelsePanelRitad({
             <span className="flex shrink-0 items-center">
               <PlatsIkon size={20} />
             </span>
-            <span data-handelseplats="" className="min-w-0 text-etikett wrap-anywhere md:text-brod">
+            <span data-handelseplats="" className="min-w-0 text-etikett wrap-anywhere">
               {handelse.plats}
             </span>
           </div>
@@ -462,7 +462,7 @@ function OpsHandelsePanelRitad({
       {/* ⛔ SS `CollapsibleDescription.jsx`: `text-base` (16) med tre rader och "Visa hela beskrivningen". Texten här är HELA beskrivningen utan tak: panelen
           är sidan där man läser den, och ett "visa mer" för tre rader på en egen sida är ett tryck för ingenting. Storleken är SS. */}
       {handelse.beskrivning ? (
-        <div data-handelsebeskrivning="" className="mt-4 rounded-base border border-line bg-sunken p-4 text-brod leading-relaxed text-ink-secondary whitespace-pre-line wrap-anywhere">
+        <div data-handelsebeskrivning="" className="mt-4 rounded-base border border-line bg-sunken p-4 text-etikett leading-relaxed text-ink-secondary whitespace-pre-line wrap-anywhere">
           {handelse.beskrivning}
         </div>
       ) : null}

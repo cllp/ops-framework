@@ -76,7 +76,7 @@ export function DeladKod({ orsak, onKod, sprak = "sv", ord, rubrikIHuvud = true,
   return (
     <form data-delad-kod={orsak} onSubmit={skicka} noValidate className="flex w-full max-w-md flex-col gap-4">
       <Rubrik className={publik ? PUBLIK_KLASS.sida : "m-0 text-sida text-ink"}>{t.rubrik}</Rubrik>
-      <p className={cx(publik ? PUBLIK_KLASS.brod : "m-0 text-brod text-ink-secondary")}>{t.hjalp}</p>
+      <p className={cx(publik ? PUBLIK_KLASS.brod : "m-0 text-etikett text-ink-secondary")}>{t.hjalp}</p>
       <OpsField label={t.etikett} error={fel || undefined}>
         <OpsInput value={kod} onChange={setKod} autoComplete="off" tal={false} />
       </OpsField>

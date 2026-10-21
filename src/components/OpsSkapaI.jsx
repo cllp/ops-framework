@@ -61,7 +61,7 @@ export function OpsSkapaI({
           )}
         >
           <div className="border-b border-line px-4 py-3">
-            <Dialog.Title className="m-0 text-brod font-semibold text-ink">{rubrik}</Dialog.Title>
+            <Dialog.Title className="m-0 text-rubrik text-ink">{rubrik}</Dialog.Title>
           </div>
           <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-2 py-2">
             {sektioner.map((s) => (

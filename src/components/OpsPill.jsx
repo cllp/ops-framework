@@ -31,7 +31,7 @@ const TONER = {
  * är typbadgar.
  */
 const STORLEKAR = {
-  standard: "px-3 py-1 text-meta font-semibold",
+  standard: "px-3 py-1 text-meta font-medium",
   liten: "px-1.5 py-0.5 text-liten",
 };
 

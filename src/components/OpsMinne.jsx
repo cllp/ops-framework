@@ -129,7 +129,7 @@ export function OpsMinne({ rader, fel = null, trasiga = [], laddar = false, uid,
                         </span>
                       </form>
                     ) : (
-                      <span className="block whitespace-pre-wrap text-brod text-ink">{rad.text}</span>
+                      <span className="block whitespace-pre-wrap text-etikett text-ink">{rad.text}</span>
                     )}
                     <span className="mt-1 block text-meta text-ink-muted">
                       {kallanamn(rad.kalla.slag)} · {rad.lyftAv.namn || "Namn saknas"} · {nar(rad.lyft, sprak)}

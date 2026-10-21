@@ -100,7 +100,7 @@ export function HandelseKopiera({ mal, kopierad, onKopiera, handelse, ord }) {
         }
       >
         {varnar ? (
-          <p data-kopiera-varning="" role="alert" className="m-0 text-brod leading-relaxed text-ink-secondary wrap-anywhere">
+          <p data-kopiera-varning="" role="alert" className="m-0 text-etikett leading-relaxed text-ink-secondary wrap-anywhere">
             {ord.kopieraVarningText.replace("{titel}", handelse.titel).replace("{kalender}", varnar.namn)}
           </p>
         ) : (

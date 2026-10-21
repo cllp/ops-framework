@@ -333,7 +333,7 @@ export function MenyRubrikRad({ rubrik, onBack, backLabel = "Tillbaka till menyn
   return (
     <div className={cx("flex items-center gap-1", className)}>
       <MenyTillbakaKnapp onBack={onBack} backLabel={backLabel} />
-      <h2 className="m-0 min-w-0 flex-1 truncate text-brod font-semibold text-ink">{rubrik}</h2>
+      <h2 className="m-0 min-w-0 flex-1 truncate text-rubrik text-ink">{rubrik}</h2>
       {action ? <div className="flex shrink-0 items-center gap-0.5">{action}</div> : null}
     </div>
   );

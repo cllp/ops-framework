@@ -42,7 +42,7 @@ describe("OpsPill size", () => {
     );
     expect(screen.getByText("Ärende").className).toMatch(/\btext-liten\b/);
     expect(screen.getByText("Ärende").className).toMatch(/\bpx-1\.5\b/);
-    expect(screen.getByText("Ny").className).toMatch(/\bpx-3 py-1 text-meta font-semibold\b/);
+    expect(screen.getByText("Ny").className).toMatch(/\bpx-3 py-1 text-meta font-medium\b/);
   });
 
   it("kastar på en okänd storlek", () => {

@@ -221,7 +221,7 @@ export function OpsSvepRad({ children, atgarder = [], kort = false }) {
       >
         {angra ? (
           <div role="status" className="flex items-center justify-between gap-3 px-4 py-3">
-            <span className="min-w-0 flex-1 text-brod text-ink">{angra.meddelande}</span>
+            <span className="min-w-0 flex-1 text-etikett text-ink">{angra.meddelande}</span>
             <button
               type="button"
               className="inline-flex min-h-11 shrink-0 cursor-pointer items-center rounded-full px-3 text-etikett font-medium text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
@@ -237,7 +237,7 @@ export function OpsSvepRad({ children, atgarder = [], kort = false }) {
         ) : (
           children
         )}
-        {fel ? <p role="alert" className="px-4 pb-3 text-brod text-danger">{fel}</p> : null}
+        {fel ? <p role="alert" className="px-4 pb-3 text-etikett text-danger">{fel}</p> : null}
       </div>
     </li>
   );

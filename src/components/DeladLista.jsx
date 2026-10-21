@@ -152,7 +152,7 @@ export function DeladLista({ delning, onNyUrl }) {
       {fel ? <p role="alert" data-delad-fel="" className="m-0 text-etikett text-danger">{fel}</p> : null}
 
       {rader.length === 0 ? (
-        <p data-delad-tom="" className="m-0 text-brod text-ink-secondary">Listan är tom.</p>
+        <p data-delad-tom="" className="m-0 text-etikett text-ink-secondary">Listan är tom.</p>
       ) : (
         <ol aria-label={`Posterna i ${delning.rubrik}`} data-delad-poster="" className="m-0 flex list-none flex-col gap-2 p-0">
           {rader.map((p, i) => (
@@ -186,7 +186,7 @@ function Rad({ p, spelas, onValj, onNyUrl }) {
   if (p.typ === "saknas" || p.typ === "lista-i-lista") {
     return (
       <li data-delad-rad={p.typ} className={cx(RAD, "p-3")}>
-        <span data-delad-saknas="" className="text-brod text-ink-muted wrap-anywhere">{p.typ === "lista-i-lista" ? LISTRADTEXT.lista : LISTRADTEXT.saknas}</span>
+        <span data-delad-saknas="" className="text-etikett text-ink-muted wrap-anywhere">{p.typ === "lista-i-lista" ? LISTRADTEXT.lista : LISTRADTEXT.saknas}</span>
       </li>
     );
   }
@@ -199,7 +199,7 @@ function Rad({ p, spelas, onValj, onNyUrl }) {
   );
   const rubrik = (
     <span className="flex min-w-0 flex-1 flex-col text-left">
-      <span data-delad-radrubrik="" className="text-brod text-ink wrap-anywhere">{post.rubrik}</span>
+      <span data-delad-radrubrik="" className="text-etikett text-ink wrap-anywhere">{post.rubrik}</span>
       <span data-delad-radmeta="" className="text-meta text-ink-muted">{spelas ? `Spelas nu · ${meta}` : meta}</span>
     </span>
   );

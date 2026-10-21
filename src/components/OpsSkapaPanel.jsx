@@ -113,13 +113,13 @@ export function OpsSkapaPanel({ kolumn = "bred", titel, onTillbaka, tillbakaEtik
                     type="button"
                     onClick={onByt}
                     aria-label={`${skapasIEtikett}: ${skapasI}`}
-                    className="inline-flex min-h-11 min-w-0 cursor-pointer items-center gap-1 rounded-base px-2 font-semibold text-ink transition-colors duration-(--duration-fast) ease-standard hover:bg-accent-faint focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
+                    className="inline-flex min-h-11 min-w-0 cursor-pointer items-center gap-1 rounded-base px-2 font-medium text-ink transition-colors duration-(--duration-fast) ease-standard hover:bg-accent-faint focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
                   >
                     <span className="truncate">{skapasI}</span>
                     <ChevronNedIkon size={14} />
                   </button>
                 ) : (
-                  <span className="min-w-0 truncate font-semibold text-ink">{skapasI}</span>
+                  <span className="min-w-0 truncate font-medium text-ink">{skapasI}</span>
                 )}
               </div>
             ) : null}

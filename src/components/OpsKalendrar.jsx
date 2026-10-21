@@ -175,7 +175,7 @@ function Sektion({ slag, rubrik, hjalp, tomText, lista, kanAndra, lasText, sprak
 
   return (
     <section aria-labelledby={rubrikId} data-kalendersektion={slag} className="rounded-base border border-line bg-surface p-5">
-      <h3 id={rubrikId} className="m-0 mb-2 text-brod font-semibold text-ink">
+      <h3 id={rubrikId} className="m-0 mb-2 text-rubrik text-ink">
         {rubrik}
       </h3>
       <p className="m-0 mb-4 text-etikett text-ink-secondary">{hjalp}</p>
@@ -259,7 +259,7 @@ function Sektion({ slag, rubrik, hjalp, tomText, lista, kanAndra, lasText, sprak
           type="button"
           onClick={oppnaNy}
           disabled={upptagen}
-          className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-base border border-line px-3 text-meta font-semibold text-ink-secondary hover:bg-raised focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-50 md:min-h-9"
+          className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-base border border-line px-3 text-meta font-medium text-ink-secondary hover:bg-raised focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-50 md:min-h-9"
         >
           <PlusIkon size={14} />
           Ny kalender

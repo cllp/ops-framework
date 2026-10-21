@@ -69,7 +69,7 @@ export function OpsModal({ open, onOpenChange, title, description, size = "md", 
             <div className="min-w-0">
               <Dialog.Title className="m-0 text-titel leading-tight text-ink">{title}</Dialog.Title>
               {description ? (
-                <Dialog.Description className="mt-1 text-brod text-ink-secondary">{description}</Dialog.Description>
+                <Dialog.Description className="mt-1 text-etikett text-ink-secondary">{description}</Dialog.Description>
               ) : null}
             </div>
             <Dialog.Close

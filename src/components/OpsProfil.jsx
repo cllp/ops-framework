@@ -380,7 +380,7 @@ function OpsProfilRitad({
       />
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
-          <p className="truncate font-semibold text-ink">{anvandare.namn || anvandare.epost}</p>
+          <p className="truncate font-medium text-ink">{anvandare.namn || anvandare.epost}</p>
           {/* ⛔ #164, korrigering C: "rollen som en liten pill" bredvid namnet. Ritas bara
               när appen skickar en, eftersom rollens ORD är appens (t.ex. "Studio Admin"). */}
           {roll ? <OpsPill tone="neutral">{roll}</OpsPill> : null}

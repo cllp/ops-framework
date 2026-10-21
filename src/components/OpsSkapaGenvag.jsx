@@ -114,7 +114,7 @@ export function OpsSkapaGenvagar({ mal, children }) {
           role="status"
           data-skapa-genvag-tips=""
           className={cx(
-            "fixed inset-x-4 z-(--z-chrome) mx-auto flex max-w-md items-center gap-2 rounded-base border border-line bg-elevated py-1 pr-1 pl-3 text-brod text-ink shadow-md md:hidden",
+            "fixed inset-x-4 z-(--z-chrome) mx-auto flex max-w-md items-center gap-2 rounded-base border border-line bg-elevated py-1 pr-1 pl-3 text-etikett text-ink shadow-md md:hidden",
             "bottom-[calc(var(--bottom-nav-h)+var(--safe-bottom)+var(--bottom-nav-overhang)+0.5rem)]",
           )}
         >

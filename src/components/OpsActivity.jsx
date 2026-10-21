@@ -153,8 +153,8 @@ function Rad({ handelse, slagord, marke, slagIkon, ny, onOpen }) {
         ) : null}
         {/* ⛔ ORDET OCH INTE BARA EN FÄRG. Ett misslyckande som bara syns som en
             röd ton går inte att läsa upp och är osynligt för var tjugonde man. */}
-        {trasig ? <span className="text-meta font-semibold text-danger">Gick fel</span> : null}
-        <span className="text-etikett font-semibold text-ink">{handelse.rubrik}</span>
+        {trasig ? <span className="text-meta font-medium text-danger">Gick fel</span> : null}
+        <span className="text-etikett font-medium text-ink">{handelse.rubrik}</span>
       </span>
 
       {handelse.detalj ? <span className="text-etikett text-ink-secondary">{handelse.detalj}</span> : null}
@@ -277,7 +277,7 @@ export function OpsActivityDetail({ handelse, slagord, marke, nu }) {
       {/* ⛔ RUBRIK OCH DETALJ RITAS INTE HÄR (0.87.0, #321). CP 2026-10-07, lifehub.app#119: "När man expanderar en post
           i aktivitet så står rubrik och text dubbelt." Raden ovanför visar redan båda. Utfällningen är det raden inte
           har: exakt tid, källa, utfall, felrutan och länken. */}
-      {trasig ? <span className="text-etikett font-semibold text-danger">Gick fel</span> : null}
+      {trasig ? <span className="text-etikett font-medium text-danger">Gick fel</span> : null}
 
       {trasig && h.fel ? (
         /* ⛔ FELTEXTEN I SIN HELHET OCH I EN KODRUTA. Den kommer ordagrant från

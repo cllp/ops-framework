@@ -433,7 +433,7 @@ function AgentLista({ t, agenter, activeHref, onNavigate, onSkrivTill, listfel =
             <div className="flex items-center gap-3">
               <OpsIdentity name={namn} seed={a.id} imageUrl={a.bild || undefined} icon={AgentIkon} size="medlem" rund />
               <div className="min-w-0 flex-1">
-                <p className="m-0 truncate text-brod text-ink">{namn}</p>
+                <p className="m-0 truncate text-etikett text-ink">{namn}</p>
                 <p className="m-0 text-meta text-ink-muted">{aktiv ? t("aktiv") : t("avstangd")}</p>
               </div>
             </div>
@@ -501,7 +501,7 @@ function AgentKropp({
   if (!vald) {
     return (
       <div data-modul-lage="installningar" className="flex flex-col gap-3">
-        <p className="m-0 text-brod text-ink">{agenter.length === 0 ? t("tom") : agentIHref(activeHref) ? t("horInte") : t("valjText")}</p>
+        <p className="m-0 text-etikett text-ink">{agenter.length === 0 ? t("tom") : agentIHref(activeHref) ? t("horInte") : t("valjText")}</p>
         {agenter.length > 0 && !agentIHref(activeHref) ? (
           <ul aria-label={t("valj")} className="m-0 flex list-none flex-col gap-2 p-0">
             {agenter.map((a) => {
@@ -705,7 +705,7 @@ function AgentFalt(props) {
             {/* Märket är medlemskapets bild. Det sparas inte en gång till. */}
             <OpsIdentity name={visningsnamn} seed={vald.id} imageUrl={vald.bild || undefined} icon={AgentIkon} size="md" rund />
             <div className="min-w-0 flex-1">
-              <p className="m-0 truncate text-brod font-semibold text-ink">{visningsnamn}</p>
+              <p className="m-0 truncate text-etikett font-medium text-ink">{visningsnamn}</p>
               <p className="m-0 truncate text-etikett text-ink-muted">{rollText}</p>
             </div>
           </div>
@@ -908,7 +908,7 @@ function AgentFalt(props) {
             </div>
           </OpsCard>
         ) : null}
-        <p className="m-0 text-brod font-semibold text-ink">{t("minne")}</p>
+        <p className="m-0 text-rubrik text-ink">{t("minne")}</p>
         {farAndra ? (
           <OpsSwitch label={t("anvandMinne")} checked={installning ? installning.minnePa !== false : true} onChange={(pa) => kor(() => onSparaMinnePa?.(pa), onSparaMinnePa)} />
         ) : (
@@ -966,7 +966,7 @@ function AgentFalt(props) {
             </div>
           ) : null}
           <div id="agent-nycklar">
-            <p className="m-0 text-brod font-semibold text-ink">{t("nycklar")}</p>
+            <p className="m-0 text-rubrik text-ink">{t("nycklar")}</p>
             <p className="m-0 text-hjalp text-ink-muted">{t("nycklarText")}</p>
             {valvHref.trim() ? (
               <a
@@ -1001,7 +1001,7 @@ function AvsnittsRad({ href, titel, hint, onNavigate }) {
         className="flex min-h-14 w-full items-center gap-3 rounded-card px-3 py-3 text-left no-underline hover:bg-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
       >
         <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <span className="text-brod font-semibold text-ink">{titel}</span>
+          <span className="text-rubrik text-ink">{titel}</span>
           <span className="text-etikett text-ink-muted">{hint}</span>
         </span>
         <span aria-hidden="true" className="inline-flex shrink-0 text-ink-muted">
@@ -1022,7 +1022,7 @@ function AvsnittsYta({ titel, hjalp, children }) {
   return (
     <section className="flex flex-col gap-4 rounded-xl bg-surface p-4">
       <header className="flex flex-col gap-1">
-        <h2 className="m-0 text-brod font-semibold text-ink">{titel}</h2>
+        <h2 className="m-0 text-rubrik text-ink">{titel}</h2>
         <p className="m-0 text-etikett text-ink-muted">{hjalp}</p>
       </header>
       {children}
@@ -1103,7 +1103,7 @@ function ModellValjare({ t, sprak, valdId, kopplade, farAndra, activeHref, valvH
                   onChange={() => onValj(m.id)}
                 />
                 <span className="min-w-0 flex-1">
-                  <span className="block text-brod text-ink">{namn}</span>
+                  <span className="block text-etikett text-ink">{namn}</span>
                   <span className="block text-etikett text-ink-muted">{text(m.beskrivning, sprak)}</span>
                 </span>
               </label>

@@ -97,7 +97,7 @@ function Arendekort({ post, onKommentera, onKlar, sprak, t }) {
   return (
     <article data-gast-arende={post.id} data-status={post.status ?? ""} aria-label={post.rubrik} className="flex min-w-0 flex-col gap-3 rounded-lg border border-line bg-surface p-4">
       <header className="flex min-w-0 flex-wrap items-start justify-between gap-2">
-        <h3 data-gast-arende-rubrik="" className="m-0 min-w-0 flex-1 text-brod font-semibold text-ink wrap-anywhere">{post.rubrik}</h3>
+        <h3 data-gast-arende-rubrik="" className="m-0 min-w-0 flex-1 text-etikett font-medium text-ink wrap-anywhere">{post.rubrik}</h3>
         {statusText ? (
           <span data-gast-arende-status="">
             <OpsPill tone={statusTone(post.status)}>{statusText}</OpsPill>
@@ -107,7 +107,7 @@ function Arendekort({ post, onKommentera, onKlar, sprak, t }) {
       {post.forfallodag ? (
         <p data-gast-arende-forfaller="" className="m-0 text-meta text-ink-secondary">{t.forfaller.replace("{datum}", formatDate(post.forfallodag, { locale }))}</p>
       ) : null}
-      {post.text ? <p data-gast-arende-text="" className="m-0 whitespace-pre-wrap text-brod text-ink wrap-anywhere">{post.text}</p> : null}
+      {post.text ? <p data-gast-arende-text="" className="m-0 whitespace-pre-wrap text-etikett text-ink wrap-anywhere">{post.text}</p> : null}
 
       <section aria-label={t.kommentarer} data-gast-arende-kommentarer="" className="flex min-w-0 flex-col gap-2">
         <h4 className="m-0 text-sektion uppercase text-ink-muted">{t.kommentarer}</h4>
@@ -119,10 +119,10 @@ function Arendekort({ post, onKommentera, onKlar, sprak, t }) {
               <li key={k.id} data-gast-arende-kommentar={k.id} className="flex min-w-0 flex-col gap-0.5 rounded-base bg-sunken px-3 py-2">
                 <span className="flex min-w-0 flex-wrap items-center gap-1.5 text-liten text-ink-muted">
                   <span>{k.egen ? t.du : k.av.namn}</span>
-                  {k.gast ? <span data-gast-markning="" className="rounded-full bg-surface px-1.5 py-px text-mikro font-semibold text-ink-secondary">{t.gast}</span> : null}
+                  {k.gast ? <span data-gast-markning="" className="rounded-full bg-surface px-1.5 py-px text-mikro font-medium text-ink-secondary">{t.gast}</span> : null}
                   <span>{formatDagOchKlockslag(k.tid, { locale })}</span>
                 </span>
-                <span className="whitespace-pre-wrap text-brod text-ink wrap-anywhere">{k.text}</span>
+                <span className="whitespace-pre-wrap text-etikett text-ink wrap-anywhere">{k.text}</span>
               </li>
             ))}
           </ul>
@@ -140,7 +140,7 @@ function Arendekort({ post, onKommentera, onKlar, sprak, t }) {
         <div data-gast-arende-klar="" className="flex min-w-0 flex-col gap-2">
           {fraga ? (
             <div role="group" aria-label={t.klar} className="flex min-w-0 flex-col gap-2 rounded-base border border-line bg-canvas p-3">
-              <p className="m-0 text-brod text-ink">{t.klarFraga}</p>
+              <p className="m-0 text-etikett text-ink">{t.klarFraga}</p>
               <div className="flex flex-wrap gap-2">
                 <OpsButton variant="primary" onClick={markeraKlar}>
                   {t.klarJa}

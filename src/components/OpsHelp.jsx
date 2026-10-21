@@ -145,7 +145,7 @@ export function OpsHelp({ title, children, label = "Visa förklaring", href, onN
         {ring(true)}
         <span className="sr-only">{label}</span>
       </summary>
-      <div className="mt-1 text-brod text-ink-secondary">{children}</div>
+      <div className="mt-1 text-etikett text-ink-secondary">{children}</div>
     </details>
   );
 }

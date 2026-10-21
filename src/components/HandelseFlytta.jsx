@@ -108,7 +108,7 @@ export function HandelseFlytta({ mal, onFlytta, titel, ord }) {
         }
       >
         {bekrafta ? (
-          <p data-flytta-bekrafta="" className="m-0 text-brod leading-relaxed text-ink-secondary wrap-anywhere">
+          <p data-flytta-bekrafta="" className="m-0 text-etikett leading-relaxed text-ink-secondary wrap-anywhere">
             {bekraftaText}
           </p>
         ) : (

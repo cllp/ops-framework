@@ -2843,7 +2843,7 @@ export function Meddelanderader({ meddelanden, uid, namnFor: namnForProp, medlem
                 {!egen && !fortsattning && (visaNamn || m.via) ? (
                   <span data-avsandare="" className="mb-0.5 ml-1 flex items-center gap-1.5 text-liten text-ink-muted" data-namn-saknas={person === NAMN_SAKNAS ? "" : undefined}>
                     {avNamnFor(namnFor, m, uid, texter.du, sprak)}
-                    {arGast(m) ? <span data-gast-markning="" className="rounded-full bg-sunken px-1.5 py-px text-mikro font-semibold text-ink-secondary">{texter.gast}</span> : null}
+                    {arGast(m) ? <span data-gast-markning="" className="rounded-full bg-sunken px-1.5 py-px text-mikro font-medium text-ink-secondary">{texter.gast}</span> : null}
                   </span>
                 ) : null}
                 {m.svarPa && citat ? <Citat mid={m.svarPa} uppslag={citat.uppslag} egen={egen} uid={uid} namnFor={namnFor} texter={texter} /> : null}
