@@ -346,33 +346,44 @@ describe("OpsCalendar som SS (F1)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Kalendrar: Alla kalendrar" }));
     const meny = await screen.findByRole("dialog", { name: "Kalendrar" });
     expect(within(meny).getByText("Mina kalendrar")).toBeInTheDocument();
-    expect(within(meny).getByRole("button", { name: "Privat" })).toBeInTheDocument();
+    expect(within(meny).getByRole("switch", { name: "Privat" })).toBeInTheDocument();
     expect(within(meny).queryByText("Gruppens kalendrar")).toBeNull();
     unmount();
     kal();
     fireEvent.click(screen.getByRole("button", { name: "Kalendrar: Alla kalendrar" }));
     const meny2 = await screen.findByRole("dialog", { name: "Kalendrar" });
     expect(within(meny2).getByText("Gruppens kalendrar")).toBeInTheDocument();
-    expect(within(meny2).getByRole("button", { name: "Styrelsen" })).toBeInTheDocument();
+    expect(within(meny2).getByRole("switch", { name: "Styrelsen" })).toBeInTheDocument();
   });
 
-  it("filtrerar på kalender: en bortvald kalender syns inte, och syns igen när den väljs", async () => {
+  /*
+   * ⛔ 0.134.0 (cllp/lifehub.app#402): provet kallades "en bortvald kalender syns inte, och syns igen när den väljs" och KLICKADE på Styrelsen för att SKRIVA ut Resor,
+   * eftersom ett tryck då betydde "visa bara denna". Nu är en rad en växel: ett tryck slår AV kalendern, och mötet (som hör till den förvalda, Styrelsen) försvinner.
+   */
+  it("filtrerar på kalender: en kalender som slagits av syns inte, och syns igen när den slås på", async () => {
     kal();
     expect(screen.getByRole("button", { name: "12, 2 poster" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Kalendrar: Alla kalendrar" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Styrelsen" }));
-    // ⛔ En post utan `kalender` hör till den förvalda, alltså syns mötet och inte resan.
+    fireEvent.click(await screen.findByRole("switch", { name: "Styrelsen" }));
+    // ⛔ En post utan `kalender` hör till den förvalda, alltså försvinner mötet och resan står kvar.
     expect(screen.getByRole("button", { name: "12, 1 post" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Resor" }));
+    expect(screen.getByRole("button", { name: "Kalendrar: 2 kalendrar" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("switch", { name: "Styrelsen" }));
     expect(screen.getByRole("button", { name: "12, 2 poster" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Kalendrar: Alla kalendrar" })).toBeInTheDocument();
   });
 
-  it("⛔ ett tomt kalenderurval är Alla, inte Inga", async () => {
-    // Bortvald sista kalender hade annars ritat en tom månad som ser ut som att posterna saknas.
+  /*
+   * ⛔ 0.134.0: provet "ett tomt kalenderurval är Alla, inte Inga" gällde "visa bara", där ett tomt urval betydde att inget var valt. I en lista med växlar är "inga kalendrar
+   * på" ett val personen gjort, och en tom månad som SÄGER det ("Inga kalendrar") ser inte ut som att posterna saknas. Raden Alla kalendrar tar fram allt igen.
+   */
+  it("⛔ alla kalendrar avslagna är en tom månad som säger det, och Alla kalendrar tar fram allt", async () => {
     kal();
     fireEvent.click(screen.getByRole("button", { name: "Kalendrar: Alla kalendrar" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Styrelsen" }));
-    fireEvent.click(screen.getByRole("button", { name: "Styrelsen" }));
+    for (const namn of ["Styrelsen", "Resor", "Privat"]) fireEvent.click(await screen.findByRole("switch", { name: namn }));
+    expect(screen.getByRole("button", { name: "Kalendrar: Inga kalendrar" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "12" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Alla kalendrar" }));
     expect(screen.getByRole("button", { name: "Kalendrar: Alla kalendrar" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "12, 2 poster" })).toBeInTheDocument();
   });
@@ -399,7 +410,7 @@ describe("OpsCalendar som SS (F1)", () => {
     unmount();
     kal();
     fireEvent.click(screen.getByRole("button", { name: "Kalendrar: Alla kalendrar" }));
-    await screen.findByRole("button", { name: "Styrelsen" });
+    await screen.findByRole("switch", { name: "Styrelsen" });
     expect(screen.queryByText(/Hantera kalendrar/)).toBeNull();
   });
 
@@ -415,7 +426,7 @@ describe("OpsCalendar som SS (F1)", () => {
   it("visar filtrets dolda poster i snabbtitten, märkta Dold", async () => {
     kal();
     fireEvent.click(screen.getByRole("button", { name: "Kalendrar: Alla kalendrar" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Styrelsen" }));
+    fireEvent.click(await screen.findByRole("switch", { name: "Resor" }));
     fireEvent.keyDown(document.body, { key: "Escape" });
     fireEvent.contextMenu(screen.getByRole("button", { name: "12, 1 post" }));
     const titt = document.querySelector("[data-snabbtitt]");

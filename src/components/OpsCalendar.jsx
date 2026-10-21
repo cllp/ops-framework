@@ -9,7 +9,8 @@ import { rapporteraFel } from "../lib/felrapport.js";
 import { STANDARD_TIDSZON, idagI, kontrolleraTidszon } from "../lib/kalendrar.js";
 import { KALENDERPRICK, postklasser, prickklass } from "../lib/kalenderfarg.js";
 import { DATUM_EJ_SATT } from "../lib/handelsemodell.js";
-import { arLagerplockare, lagerNyckel, lasDoldaLager, synligaLager, vaxlaDoltLager } from "../lib/kalenderlager.js";
+import { arLagerplockare, lagerFarg, lagerNyckel, lasDoldaLager, synligaLager, vaxlaDoltLager } from "../lib/kalenderlager.js";
+import { useKalenderSynlighet } from "../lib/useKalenderSynlighet.js";
 import { useHandelseOppnare } from "../lib/handelsekontext.js";
 import { LANGTRYCK_MS } from "../lib/talk.js";
 import { BRICKA_GRANS, BRICKA_MINSTA_OVERHANG, Dagruta } from "./OpsCalendarDagruta.jsx";
@@ -46,6 +47,8 @@ import {
 import { ChevronNedIkon, KalenderIkon, KryssIkon, LagerIkon, PlusIkon, ReglageIkon, SokIkon, TillganglighetIkon, VeckonummerIkon } from "./icons.jsx";
 import { OpsStatusDot } from "./OpsStatusDot.jsx";
 import { OpsKalenderlager } from "./OpsKalenderlager.jsx";
+import { OpsKalenderLista } from "./OpsKalenderLista.jsx";
+import { OpsExternPanel } from "./OpsExternPanel.jsx";
 import { ValRad } from "./ValRad.jsx";
 
 /**
@@ -260,10 +263,12 @@ function Datumpiller({ dayKey, onTaBort, order, locale }) {
  * länken (`HandelseLank`) och hela raden är dess yta, som SS-appens rad: ingen pil eller annat märke (en pil bredvid utfällningen tog 24 px av en titel i en bubbla som är 239 px bred vid 390, och "Löneutbetalning" gick in under den; en pil efter titeln hamnade ensam på en egen rad). Utfällningen
  * (status, länk, detaljer) ligger kvar ovanpå med `z-10` och tar sina egna tryck.
  *
- * @param {{ dayKey: string, entry: import("../lib/calendar.js").CalendarEntry, statusWords: Record<string, string>, order: number, locale: string, oppna: ((id: string) => void) | null }} props
+ * @param {{ dayKey: string, entry: import("../lib/calendar.js").CalendarEntry, statusWords: Record<string, string>, order: number, locale: string, oppna: ((id: string) => void) | null, oppnaExtern: (e: import("../lib/calendar.js").CalendarEntry) => void }} props
  */
-function Postkort({ dayKey, entry, statusWords, order, locale, oppna }) {
+function Postkort({ dayKey, entry, statusWords, order, locale, oppna, oppnaExtern }) {
   const oppnaId = entry.handelseId && oppna ? entry.handelseId : null;
+  // ⛔ EN EXTERN POST ÖPPNAS I LÄSPANELEN (0.134.0). Har posten ett `handelseId` vinner det: då finns en riktig händelse att öppna.
+  const oppnaLas = !oppnaId && !entry.handelseId && entry.extern ? () => oppnaExtern(entry) : null;
   const [oppen, setOppen] = useState(false);
   const idBas = useId();
   const panelId = `${idBas}-detaljer`;
@@ -323,7 +328,7 @@ function Postkort({ dayKey, entry, statusWords, order, locale, oppna }) {
       style={{ animationDelay: `${order * SVEPSTEG}ms` }}
       data-postrad=""
       {...(arPreliminar(entry) ? { "data-preliminar": "" } : {})}
-      className={cx("animate-svep py-2 pr-1 pl-2.5", oppnaId && "relative", kanten && cx("border-l-4", kanten), arPreliminar(entry) && "border-dashed")}
+      className={cx("animate-svep py-2 pr-1 pl-2.5", (oppnaId || oppnaLas) && "relative", kanten && cx("border-l-4", kanten), arPreliminar(entry) && "border-dashed")}
     >
       {/* ⛔ ORDET FÖRST I KORTET, precis som i `OpsCard`. Den som lyssnar ska
           höra vad kanten betyder innan titeln, inte efter den. */}
@@ -365,6 +370,8 @@ function Postkort({ dayKey, entry, statusWords, order, locale, oppna }) {
                 <HandelseLank id={oppnaId} oppna={oppna} tacker="after:inset-0">
                   {entry.title}
                 </HandelseLank>
+              ) : oppnaLas ? (
+                <ExternLank onOppna={oppnaLas}>{entry.title}</ExternLank>
               ) : (
                 entry.title
               )}
@@ -407,7 +414,7 @@ function Postkort({ dayKey, entry, statusWords, order, locale, oppna }) {
       </div>
 
       {harDetaljer ? (
-        <div id={panelId} hidden={!oppen} className={cx("mt-2 flex flex-col gap-1 border-t border-line pt-2 text-etikett", oppnaId && "relative z-10")}>
+        <div id={panelId} hidden={!oppen} className={cx("mt-2 flex flex-col gap-1 border-t border-line pt-2 text-etikett", (oppnaId || oppnaLas) && "relative z-10")}>
           {/* ⛔ STATUS SOM ORD, inte som färg. Pricken ovanför är samma faktum
               för den som ser den; här står det så det går att läsa upp. */}
           {statusord ? (
@@ -494,9 +501,9 @@ const DAGPANEL_TAK = 0.75;
  *
  * ⛔ TOMT ÄR ETT SVAR (punkt 5). En vald dag utan poster säger "Inga poster", och antalet står som noll.
  *
- * @param {{ days: { dayKey: string, entries: import("../lib/calendar.js").CalendarEntry[] }[], statusWords: Record<string, string>, onClose: () => void, onTaBort: (dayKey: string) => void, onSkapa?: () => void, locale: string, arMin: (e: import("../lib/calendar.js").CalendarEntry) => boolean, lager?: import("react").ReactNode, oppna: ((id: string) => void) | null }} props
+ * @param {{ days: { dayKey: string, entries: import("../lib/calendar.js").CalendarEntry[] }[], statusWords: Record<string, string>, onClose: () => void, onTaBort: (dayKey: string) => void, onSkapa?: () => void, locale: string, arMin: (e: import("../lib/calendar.js").CalendarEntry) => boolean, lager?: import("react").ReactNode, oppna: ((id: string) => void) | null, oppnaExtern: (e: import("../lib/calendar.js").CalendarEntry) => void }} props
  */
-function DayPanel({ days, statusWords, onClose, onTaBort, onSkapa, locale, arMin, lager, oppna }) {
+function DayPanel({ days, statusWords, onClose, onTaBort, onSkapa, locale, arMin, lager, oppna, oppnaExtern }) {
   const flera = days.length > 1;
   const title = flera ? `${days.length} dagar` : dateText(days[0].dayKey, locale);
   const name = flera ? `Poster för ${days.length} valda dagar` : `Poster den ${title}`;
@@ -580,6 +587,7 @@ function DayPanel({ days, statusWords, onClose, onTaBort, onSkapa, locale, arMin
                         entry={r.p}
                         statusWords={statusWords}
                         oppna={oppna}
+                        oppnaExtern={oppnaExtern}
                         order={days.length + avsnitt.slice(0, ai).reduce((n, x) => n + x.rader.length, 0) + i}
                         locale={locale}
                       />
@@ -620,6 +628,26 @@ function DayPanel({ days, statusWords, onClose, onTaBort, onSkapa, locale, arMin
 }
 
 /**
+ * Titeln på en extern post som öppnar läspanelen (0.134.0): en knapp som ser ut som `HandelseLank` och täcker hela raden på samma sätt (`::after`), men utan adress.
+ *
+ * ⛔ EN KNAPP OCH INTE EN LÄNK. En extern händelse har ingen adress att öppna i en ny flik: dess id räknas fram och sparas ingenstans. En `<a>` utan `href` är ingen länk för en
+ * skärmläsare, och en `href` som inte leder någonstans ljuger. Raden måste vara `relative`, som för `HandelseLank`.
+ * @param {{ onOppna: () => void, children: import("react").ReactNode }} props
+ */
+function ExternLank({ onOppna, children }) {
+  return (
+    <button
+      type="button"
+      data-externlank=""
+      onClick={onOppna}
+      className="cursor-pointer rounded-sm border-0 bg-transparent p-0 text-left font-semibold text-ink hover:underline focus-visible:outline-none after:absolute after:inset-0 after:cursor-pointer focus-visible:after:outline-2 focus-visible:after:-outline-offset-2 focus-visible:after:outline-accent"
+    >
+      {children}
+    </button>
+  );
+}
+
+/**
  * Snabbtitten: en dag i en liten inverterad ruta, utan att urvalet ändras (SS `CalendarDayPeekPopover.jsx`).
  *
  * ⛔ DEN VISAR DAGENS ALLA POSTER, OCKSÅ DE FILTRET DÖLJER, MÄRKTA "DOLD" (SS #94). Filtret avgör vad rutnätet ritar,
@@ -639,9 +667,9 @@ function DayPanel({ days, statusWords, onClose, onTaBort, onSkapa, locale, arMin
  * innehållet, "Dold" och vägarna ut. Det som stryks: positionsuträkningen (`ankare.x`, `ankare.y`, kläm mot fönstret),
  * som bara fanns för att bubblan flöt. Dagpanelen vid ett vanligt tryck är orörd.
  *
- * @param {{ dayKey: string, alla: import("../lib/calendar.js").CalendarEntry[], synliga: Set<string>, onClose: () => void, locale: string, oppna: ((id: string) => void) | null }} props
+ * @param {{ dayKey: string, alla: import("../lib/calendar.js").CalendarEntry[], synliga: Set<string>, onClose: () => void, locale: string, oppna: ((id: string) => void) | null, oppnaExtern: (e: import("../lib/calendar.js").CalendarEntry) => void }} props
  */
-function Snabbtitt({ dayKey, alla, synliga, onClose, locale, oppna }) {
+function Snabbtitt({ dayKey, alla, synliga, onClose, locale, oppna, oppnaExtern }) {
   const ref = useRef(/** @type {HTMLDivElement | null} */ (null));
   const rubrikId = useId();
   useEffect(() => {
@@ -683,7 +711,7 @@ function Snabbtitt({ dayKey, alla, synliga, onClose, locale, oppna }) {
         {alla.map((e) => {
           const dold = !synliga.has(e.id);
           return (
-            <li key={e.id} data-titt-rad={dold ? "dold" : "synlig"} className={cx("flex items-start gap-2 rounded-md px-1 py-1", e.handelseId && oppna && "relative", dold && "opacity-50")}>
+            <li key={e.id} data-titt-rad={dold ? "dold" : "synlig"} className={cx("flex items-start gap-2 rounded-md px-1 py-1", ((e.handelseId && oppna) || (!e.handelseId && e.extern)) && "relative", dold && "opacity-50")}>
               <span aria-hidden="true" {...(arPreliminar(e) ? { "data-preliminar": "" } : {})} className={cx("mt-1 size-2 shrink-0 rounded-full", prickklass(e))} />
               <span className="min-w-0 flex-1">
                 <span className="flex items-center gap-1 text-meta font-semibold">
@@ -699,6 +727,8 @@ function Snabbtitt({ dayKey, alla, synliga, onClose, locale, oppna }) {
                       <HandelseLank id={e.handelseId} oppna={oppna} tacker="after:inset-0">
                         {e.title}
                       </HandelseLank>
+                    ) : !e.handelseId && e.extern ? (
+                      <ExternLank onOppna={() => oppnaExtern(e)}>{e.title}</ExternLank>
                     ) : (
                       e.title
                     )}
@@ -887,6 +917,10 @@ function Apprad({ appar, dolda, onVaxla, onVisaAlla }) {
  * @property {1|2|3|4|5|6} farg
  * @property {boolean} [grupp] Gruppens kalender (annars en av mina).
  * @property {boolean} [forvald] Den som en post utan `kalender` hör till.
+ * @property {string} [sektion] (0.134.0) Rubriken kalendern står under i listan Kalendrar, till exempel "Från Mitt konto" eller "Ärenden". Saknas den står en gruppkalender under "Gruppens kalendrar" och
+ *   en annan under "Mina kalendrar". Ramverket känner inga sektioner: appen skickar namnet.
+ * @property {string} [marke] (0.134.0) En rad text under namnet i listan, appens ord, till exempel "Apple, skrivskyddad". Dekor för den som ser, men läses upp med raden.
+ * @property {boolean} [avFranStart] (0.134.0) Kalendern är AV tills personen slår på den (Ärenden). Personens eget val vinner alltid, och ett val som en gång gjorts ligger kvar.
  */
 
 /**
@@ -900,8 +934,8 @@ function Apprad({ appar, dolda, onVaxla, onVisaAlla }) {
  *
  * @param {object} props
  * @param {KalenderVal[] | undefined} props.kalendrar
- * @param {string[] | null} props.valdaKalendrar `null` är alla.
- * @param {(v: string[] | null) => void} props.onValdaKalendrar
+ * @param {ReturnType<typeof useKalenderSynlighet>} props.syn Vilka kalendrar som syns och hur (0.134.0). Ersätter `valdaKalendrar` ("visa bara").
+ * @param {ReadonlyArray<{ namn: string, tomText?: string }> | undefined} props.kalendersektioner
  * @param {(() => void) | undefined} props.onHanteraKalendrar
  * @param {boolean} props.veckonummer
  * @param {() => void} props.onVeckonummer
@@ -922,27 +956,13 @@ function Apprad({ appar, dolda, onVaxla, onVisaAlla }) {
  * @param {string | undefined} [props.lagerTomText]
  * @param {{ pa: boolean, onByt: (pa: boolean) => void } | undefined} props.lager Brytaren från 0.61.0, när ingen lista skickats.
  */
-function Verktygsrad({ kalendrar, valdaKalendrar, onValdaKalendrar, onHanteraKalendrar, veckonummer, onVeckonummer, typer, statusWords, typ, onTyp, status, onStatus, sokOppen, onSok, onSkapa, tillganglighet, lager, lagerLista, doldaLager = [], onVaxlaLager, onHanteraLager, lagerTomText }) {
+function Verktygsrad({ kalendrar, syn, kalendersektioner, onHanteraKalendrar, veckonummer, onVeckonummer, typer, statusWords, typ, onTyp, status, onStatus, sokOppen, onSok, onSkapa, tillganglighet, lager, lagerLista, doldaLager = [], onVaxlaLager, onHanteraLager, lagerTomText }) {
   const statusar = Object.entries(statusWords);
   const harFilter = typer.length > 0 || statusar.length > 0;
-  const gruppens = (kalendrar || []).filter((k) => k.grupp);
-  const mina = (kalendrar || []).filter((k) => !k.grupp);
-  /** @param {string} id */
-  const vaxla = (id) => {
-    const bas = valdaKalendrar || [];
-    const nasta = bas.includes(id) ? bas.filter((x) => x !== id) : [...bas, id];
-    // ⛔ ETT TOMT URVAL ÄR "ALLA" OCH INTE "INGA". En kalender utan något valt hade ritat en tom månad som ser ut som
-    // att posterna saknas, och den som vill se ingenting har ingen anledning att öppna kalendern.
-    onValdaKalendrar(nasta.length === 0 ? null : nasta);
-  };
-  const valdaNamn = (kalendrar || []).filter((k) => valdaKalendrar && valdaKalendrar.includes(k.id));
-  const etikett = !valdaKalendrar ? "Alla kalendrar" : valdaNamn.length === 1 ? valdaNamn[0].namn : `${valdaNamn.length} kalendrar`;
-  /** @param {KalenderVal} k */
-  const rad = (k) => (
-    <ValRad key={k.id} chosen={!!valdaKalendrar && valdaKalendrar.includes(k.id)} onClick={() => vaxla(k.id)} ikon={<span className={cx("block size-2.5 rounded-full", KALENDERPRICK[k.farg] || "bg-accent")} />}>
-      {k.namn}
-    </ValRad>
-  );
+  const synliga = (kalendrar || []).filter((k) => syn.arSynlig(k.id));
+  // ⛔ "ALLA KALENDRAR" BETYDER ATT ALLT ÄR SOM DET VAR FRÅN START. En kalender personen slagit av, eller en som är av från start och slagits på, gör
+  // att knappen säger vad som syns i stället: namnet om en, annars antalet. Ingen synlig alls heter "Inga kalendrar" och inte "Alla".
+  const etikett = syn.arForval ? "Alla kalendrar" : synliga.length === 0 ? "Inga kalendrar" : synliga.length === 1 ? synliga[0].namn : `${synliga.length} kalendrar`;
 
   return (
     <div role="toolbar" aria-label="Kalenderverktyg" data-kalender-verktyg="" className="flex shrink-0 items-center gap-1.5 pb-2 max-md:gap-0 md:justify-end">
@@ -956,7 +976,7 @@ function Verktygsrad({ kalendrar, valdaKalendrar, onValdaKalendrar, onHanteraKal
               "inline-flex min-h-11 min-w-0 cursor-pointer items-center gap-1.5 border px-2 text-meta font-medium text-ink md:min-h-8 md:rounded-base",
               "max-md:order-last max-md:ml-auto max-md:rounded-full max-md:px-3.5 max-md:text-etikett",
               "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-              valdaKalendrar ? "border-accent/40 bg-accent-subtle" : "border-line-strong bg-raised hover:border-ink-muted md:border-line md:bg-surface md:hover:border-line-strong",
+              !syn.arForval ? "border-accent/40 bg-accent-subtle" : "border-line-strong bg-raised hover:border-ink-muted md:border-line md:bg-surface md:hover:border-line-strong",
             )}
           >
             <span aria-hidden="true" className="flex text-ink-muted">
@@ -966,41 +986,28 @@ function Verktygsrad({ kalendrar, valdaKalendrar, onValdaKalendrar, onHanteraKal
             <ChevronNedIkon size={14} />
           </Popover.Trigger>
           <Popover.Portal>
-            <Popover.Content align="end" sideOffset={6} aria-label="Kalendrar" className={cx("z-(--z-dropdown) max-h-[70vh] w-64 overflow-y-auto p-1", radBehallare())}>
-              <ValRad chosen={!valdaKalendrar} onClick={() => onValdaKalendrar(null)} ikon={<KalenderIkon size={16} />}>
-                Alla kalendrar
-              </ValRad>
-              {/* ⛔ GRUPPEN ÄR KALENDERN (lane 6 steg F) VAR BESLUTET FRAM TILL 0.119.0 och är ersatt (0.120.0, cllp/lifehub.app#367): varje grupp
-                  har en standardkalender, så en tom lista är nu bara en grupp där en admin arkiverat allt. Meningen "Gruppen har inga kalendrar"
-                  ritas ändå inte: händelser utan kalenderId hör till gruppen, och ingen knapp i filtret styr dem (`filtreraPoster`). Egna kalendrar finns inte av sig
-                  själva, så deras tomrad står kvar.
-                  ⛔ OCH RUBRIKEN RITAS BARA MED NÅGOT UNDER (0.84.0, #309). 0.78.2 lät den stå ensam,
-                  och en rubrik utan innehåll ser trasig ut (mätt i cllp/lifehub.app#134). Gruppen själv
-                  som rad, som SS `CalendarSourceFilter.jsx` gör, hade krävt ett filter-id för "poster
-                  utan kalender" som modellen inte har: `filtreraPoster` lägger dem på `forvaldId`. Det
-                  är ett eget beslut, inte en rättelse av en rubrik. */}
-              {gruppens.length > 0 ? (
-                <div className="mt-2 flex flex-col">
-                  <p className={radRubrikKlass}>Gruppens kalendrar</p>
-                  {gruppens.map(rad)}
-                </div>
-              ) : null}
-              <div className="mt-2 flex flex-col">
-                <p className={radRubrikKlass}>Mina kalendrar</p>
-                {mina.length > 0 ? mina.map(rad) : <p className="m-0 px-3 py-1.5 text-meta text-ink-muted">Du har inga egna kalendrar ännu.</p>}
-              </div>
-              {/* ⛔ 0.37.0 (#179 F2): "Hantera kalendrar" ÖPPNAR `OpsKalendrar`, och raden som sade att den kom i nästa steg
-                  är borta. Utan `onHanteraKalendrar` ritas ingen rad alls: en kontroll finns bara när den gör något, och
-                  en app som inte låter någon hantera kalendrar här har inget löfte att ge. */}
-              {onHanteraKalendrar ? (
-                <div className="mt-2 border-t border-line pt-1">
-                  <Popover.Close asChild>
-                    <button type="button" data-hantera-kalendrar="" onClick={onHanteraKalendrar} className={radKlass({ accentFarg: true })}>
-                      Hantera kalendrar
-                    </button>
-                  </Popover.Close>
-                </div>
-              ) : null}
+            <Popover.Content align="end" sideOffset={6} aria-label="Kalendrar" className={cx("z-(--z-dropdown) max-h-[70vh] w-72 max-w-[calc(100vw-1.5rem)] overflow-y-auto p-1", radBehallare())}>
+              {/* ⛔ LISTAN ÄR EN KOMPONENT (0.134.0, cllp/lifehub.app#402): en rad per kalender med en växel, sektioner som appen namnger, och visningen under raden.
+                  Till 0.133.0 stod här "visa bara"-rader, och 0.84.0:s regel om att en rubrik bara ritas med något under bor nu i `OpsKalenderLista`.
+                  ⛔ GRUPPEN ÄR KALENDERN (0.120.0, cllp/lifehub.app#367): händelser utan kalenderId hör till gruppen och ingen rad styr dem (`filtreraPoster`). */}
+              <OpsKalenderLista
+                kalendrar={kalendrar}
+                syn={syn}
+                sektioner={kalendersektioner}
+                efter={
+                  /* ⛔ 0.37.0 (#179 F2): "Hantera kalendrar" ÖPPNAR `OpsKalendrar`. Utan `onHanteraKalendrar` ritas ingen rad alls: en kontroll finns bara när den
+                     gör något, och en app som inte låter någon hantera kalendrar här har inget löfte att ge. */
+                  onHanteraKalendrar ? (
+                    <div className="mt-2 border-t border-line pt-1">
+                      <Popover.Close asChild>
+                        <button type="button" data-hantera-kalendrar="" onClick={onHanteraKalendrar} className={radKlass({ accentFarg: true })}>
+                          Hantera kalendrar
+                        </button>
+                      </Popover.Close>
+                    </div>
+                  ) : null
+                }
+              />
             </Popover.Content>
           </Popover.Portal>
         </Popover.Root>
@@ -1215,7 +1222,20 @@ export const VECKONUMMER_NYCKEL = "ops-kalender-veckonummer";
  * @param {string} [props.tidszon] IANA-zon, förval `STANDARD_TIDSZON` (Europe/Stockholm). Avgör vilken dag som är idag.
  *   ⛔ En inställning och inte en konstant (#179): en kund i en annan zon ska inte kräva en ny version.
  * @param {KalenderVal[]} [props.kalendrar] Den aktiva gruppens kalendrar (`grupp: true`) och mina. Finns listan finns
- *   kalenderväljaren. En post utan `kalender` hör till den förvalda.
+ *   listan Kalendrar (0.134.0, cllp/lifehub.app#402): en rad per kalender med färgprick, namn, en `OpsSwitch` för om den syns och en utfällning för
+ *   visningen Händelser, Ram eller Båda. En post utan `kalender` hör till den förvalda. ⛔ Till 0.133.0 betydde ett tryck "visa bara denna" och valet sparades
+ *   inte; nu slår ett tryck AV kalendern (och på igen), och den som ville se en enda kalender slår av de andra.
+ * @param {string} [props.kalenderMinne] (0.134.0) Vem och vilken grupp valet gäller, appens val (`${person}:${grupp}`). Valet (vilka kalendrar som syns och hur) sparas under
+ *   `kalenderSynlighetNyckel(kalenderMinne)` i `lagring`, ändras i samma tryck och sparas efteråt: ingenting väntar på att det sparas, och ingenting hämtas om.
+ *   ⛔ Ramverket känner inga id:n. Utan `kalenderMinne` gäller valet bara den här visningen.
+ * @param {ReadonlyArray<{ namn: string, tomText?: string }>} [props.kalendersektioner] (0.134.0) Sektionernas ordning och vad som står i en sektion utan kalendrar ("Du har inga kalendrar från Mitt konto
+ *   ännu."). Utan den: "Gruppens kalendrar" (bara med rader) och "Mina kalendrar", sedan övriga i den ordning raderna kommer. En sektion utan rader och utan `tomText` ritas inte.
+ * @param {(ids: string[]) => void} [props.onSynligaKalendrar] (0.134.0) Id:n på kalendrarna som syns, i listans ordning, en gång vid start och varje gång mängden ändras. För en vy
+ *   som ska följa samma val (Idag) utan en egen lagring. En vy som inte är monterad samtidigt läser i stället samma minne med `useKalenderSynlighet({ minne, kalendrar })`.
+ * @param {ReadonlyArray<{ id: string, namn: string, farg?: 1|2|3|4|5|6 }>} [props.kopieraTill] (0.134.0) Kalendrarna personen får skapa i, för "Kopiera till…" i läspanelen för en
+ *   extern händelse (`CalendarEntry.extern`). Appen skickar samma lista till `OpsHandelsePanel kopieraTill` för sina egna händelser.
+ * @param {(arg: { handelse: import("./OpsHandelsePanel.jsx").HandelseVy, malKalenderId: string }) => void | Promise<void>} [props.onKopiera] (0.134.0) Anropas när personen valt en
+ *   kalender. ⛔ Ramverket öppnar inget formulär: appen öppnar Ny händelse ifylld eller skapar kopian.
  * @param {{ id: string, namn: string, modulNamn?: string }[]} [props.typer] Typerna i typfiltret. Jämförs med postens `typ`.
  *   `modulNamn` (0.54.0) är modulens namn för ett bidrag (`modul:id`), och blir appens namn i appraden. Utan den står
  *   modulens id.
@@ -1229,6 +1249,10 @@ export const VECKONUMMER_NYCKEL = "ops-kalender-veckonummer";
  * @param {{ pa: boolean, onByt: (pa: boolean) => void }} [props.tillganglighet] (0.61.0, #259) Knappen för tillgänglighetsläget i
  *   verktygsraden (SS `UsersRound`). Ritas bara när propen finns.
  * @param {{ pa: boolean, onByt: (pa: boolean) => void } | { lista: import("../lib/kalenderlager.js").Kalenderlager[], minne?: string, onSynliga?: (ids: string[]) => void, onHantera?: () => void, tomText?: string }} [props.lager]
+ *   ⛔ FÖRÅLDRAD SEDAN 0.134.0 (cllp/lifehub.app#402). Skicka kalendrarna i `kalendrar` med `kalenderMinne` i stället: en kalender är en rad i listan Kalendrar, och dess ram är en visning (Ram eller
+ *   Båda), inte ett andra lager. Propen finns kvar och fungerar som förut så att appen hinner flytta sina sparade val (`lasDoldaLager`, `lagerNyckel`), och tas bort i en senare version när ingen app
+ *   använder den. Skickas både `lager.lista` och `kalendrar` döljs en kalender som är ett dolt lager också ur listan, så som det var: det är just den kopplingen (samma kalender styrd av två kontroller)
+ *   som listan avskaffar.
  *   (0.61.0, #259) Knappen för kalenderlagren (SS `Layers`). Ritas bara när propen finns. `{ pa, onByt }` är brytaren.
  *   `lista` (0.90.7) är plockaren: ett ark under 768 px och en panel från 768. Dolda id sparas under `lagerNyckel(minne)` i
  *   `lagring`. Saknas `minne` gäller valet bara den här visningen. `onSynliga` får id:n som syns, i listans ordning, när
@@ -1259,6 +1283,11 @@ export function OpsCalendar({
   locale = DEFAULT_LOCALE,
   tidszon = STANDARD_TIDSZON,
   kalendrar,
+  kalenderMinne,
+  kalendersektioner,
+  onSynligaKalendrar,
+  kopieraTill,
+  onKopiera,
   typer = [],
   onSkapa,
   onHanteraKalendrar,
@@ -1280,6 +1309,13 @@ export function OpsCalendar({
     throw new Error(
       "OpsCalendar: poster har handelseId men det finns ingenting som öppnar en händelse. Skicka `handelsepanel` till OpsAppShell, eller `onOppnaHandelse` till kalendern. En post som ser tryckbar ut och inte gör något lär den som tryckt att inget i dagpanelen gör något.",
     );
+  }
+
+  // ⛔ EN EXTERN POST UTAN KÄLLRAD KASTAS (0.134.0). Läspanelen säger var händelsen hör hemma och att den inte ändras här, med appens ord. Utan `kalla` hade den visat en
+  // händelse som ser ut att kunna ändras, och den som försöker lär sig att inget fungerar (punkt 5: en tyst nedsläppsväg ser ut som att allt gick bra).
+  const utanKalla = entries.find((e) => e && e.extern && !(typeof e.extern.kalla === "string" && e.extern.kalla.trim()));
+  if (utanKalla) {
+    throw new Error(`OpsCalendar: posten "${utanKalla.id}" har extern men ingen extern.kalla. Källraden ("Från Apple, ändras i Apple") är appens ord och krävs: läspanelen ska säga var händelsen hör hemma.`);
   }
 
   // ⛔ ETT FÖRSLAG ÄR EN DAG (0.127.0, `CalendarEntry.preliminar`): en preliminär post med `endDate` eller `allDay` hade ritats som ett band, alltså som en händelse
@@ -1305,12 +1341,18 @@ export function OpsCalendar({
    * Det felet ser ut som att knappen inte fungerar.
    */
   const [chosen, setValda] = useState(/** @type {string[]} */ ([]));
-  const [valdaKalendrar, setValdaKalendrar] = useState(/** @type {string[] | null} */ (null));
   const [typ, setTyp] = useState("alla");
   const [status, setStatus] = useState("alla");
   const [sokOppen, setSokOppen] = useState(false);
   const [fraga, setFraga] = useState("");
   const [titt, setTitt] = useState(/** @type {string | null} */ (null));
+  // Läspanelens post, som id: öppen post slås upp i `entries` varje gång, så att en `kopierad` appen skickar efter en kopia syns utan att panelen stängs. Försvinner posten stängs panelen.
+  const [externId, setExternId] = useState(/** @type {string | null} */ (null));
+  const externPost = useMemo(() => (externId ? entries.find((e) => e && e.id === externId && e.extern) ?? null : null), [externId, entries]);
+  const oppnaExtern = useCallback((/** @type {import("../lib/calendar.js").CalendarEntry} */ e) => {
+    setTitt(null);
+    setExternId(e.id);
+  }, []);
 
   const lager = lagring || (typeof window !== "undefined" ? window.localStorage : undefined);
   const lagerLista = arLagerplockare(lagerlage) ? lagerlage.lista : null;
@@ -1338,7 +1380,6 @@ export function OpsCalendar({
   }, [lagerNyckelVarde, lager]);
   const vaxlaLager = useCallback(
     (/** @type {string} */ id) => {
-      const doljer = !doldaLager.includes(id);
       const nasta = vaxlaDoltLager(doldaLager, id);
       setDoldaLager(nasta);
       if (lagerNyckelVarde) {
@@ -1347,14 +1388,6 @@ export function OpsCalendar({
         } catch (fel) {
           rapporteraFel(fel, { yta: "OpsCalendar", steg: "spara dolda lager" });
         }
-      }
-      // Bara när lagret döljs. Ett dolt lager som är enda valet hade ritat en tom månad.
-      if (doljer) {
-        setValdaKalendrar((valda) => {
-          if (!valda || !valda.includes(id)) return valda;
-          const kvar = valda.filter((x) => x !== id);
-          return kvar.length === 0 ? null : kvar;
-        });
       }
     },
     [doldaLager, lager, lagerNyckelVarde],
@@ -1380,6 +1413,19 @@ export function OpsCalendar({
   }, [lagerLista, doldaLager]);
   const ritadePoster = useMemo(() => (doldaLagerSet.size === 0 ? entries : entries.filter((e) => !e?.kalender || !doldaLagerSet.has(e.kalender.id))), [entries, doldaLagerSet]);
   const kalendrarIValjaren = useMemo(() => (kalendrar && doldaLagerSet.size > 0 ? kalendrar.filter((k) => !doldaLagerSet.has(k.id)) : kalendrar), [kalendrar, doldaLagerSet]);
+
+  /*
+   * ══ ⛔ KALENDRARNA SOM EN LISTA, ETT MINNE (0.134.0, cllp/lifehub.app#402) ═══════════════════════════════════════════════
+   *
+   * `syn` är vilka kalendrar som syns och hur de visas, och det är det ENDA som avgör det. Ett tryck ändrar tillståndet i samma tryck och filtret
+   * nedan läser det som redan är laddat (`entries`): ingenting hämtas om, och ingenting väntar på att valet sparas (se `useKalenderSynlighet`).
+   * `onSynligaKalendrar` får id:n som syns, så att en annan vy (Idag) kan följa samma val utan en egen lagring.
+   */
+  const syn = useKalenderSynlighet({ minne: kalenderMinne, kalendrar: kalendrarIValjaren, lagring: lager, onSynliga: onSynligaKalendrar });
+  const doldaKalendrar = useMemo(() => {
+    const syns = new Set(syn.synliga);
+    return (kalendrarIValjaren || []).filter((k) => !syns.has(k.id)).map((k) => k.id);
+  }, [kalendrarIValjaren, syn.synliga]);
   const minnesnyckel = filterMinne ? appfilterNyckel(filterMinne) : "";
   const [doldaAppar, setDoldaAppar] = useState(() => {
     if (!minnesnyckel || !lager) return /** @type {string[]} */ ([]);
@@ -1463,9 +1509,53 @@ export function OpsCalendar({
   const forvaldId = useMemo(() => forvaldKalenderId(kalendrar), [kalendrar]);
   const minaId = useMemo(() => new Set((kalendrar || []).filter((k) => !k.grupp).map((k) => k.id)), [kalendrar]);
   const arMin = useCallback((/** @type {import("../lib/calendar.js").CalendarEntry} */ e) => !!e.kalender && minaId.has(e.kalender.id), [minaId]);
-  const synligaPoster = useMemo(() => filtreraPoster(ritadePoster, { valdaKalendrar, forvaldId, typ, status, doldaAppar }), [ritadePoster, valdaKalendrar, forvaldId, typ, status, doldaAppar]);
+  const synligaPoster = useMemo(() => filtreraPoster(ritadePoster, { doldaKalendrar, forvaldId, typ, status, doldaAppar }), [ritadePoster, doldaKalendrar, forvaldId, typ, status, doldaAppar]);
   const synligaId = useMemo(() => new Set(synligaPoster.map((e) => e.id)), [synligaPoster]);
   const byKey = useMemo(() => perDay(synligaPoster), [synligaPoster]);
+
+  /*
+   * ══ ⛔ VISNING PER KALENDER: HÄNDELSER, RAM ELLER BÅDA (0.134.0) ══════════════════════════════════════════════════════
+   *
+   * Ram ritar dagens ram i kalenderns färg (`Dagdekor.ram`, samma ram som lagren hade) och inga märken. Båda ritar både och. Det ersätter lagret som
+   * en SORTS KALENDER: ramen är ett val per kalender och inte en andra lista. ⛔ DAGPANELEN OCH SNABBTITTEN VISAR POSTERNA ÄVEN FÖR EN KALENDER SOM BARA
+   * HAR RAM: ramen säger att något ligger på dagen, och ett tryck på dagen ska svara vad. Bara RUTNÄTET (märken, streck, band) hoppar över dem.
+   * Posten räknas fortfarande i dagrutans namn ("12, 2 poster"), eftersom den finns.
+   */
+  const visningAv = useCallback(
+    (/** @type {import("../lib/calendar.js").CalendarEntry} */ e) => {
+      const id = e.kalender ? e.kalender.id : forvaldId;
+      return (id && syn.visningar[id]) || "handelser";
+    },
+    [forvaldId, syn.visningar],
+  );
+  const rutPoster = useMemo(() => (Object.keys(syn.visningar).length === 0 ? synligaPoster : synligaPoster.filter((e) => visningAv(e) !== "ram")), [synligaPoster, syn.visningar, visningAv]);
+  const rutaPerDag = useMemo(() => (rutPoster === synligaPoster ? byKey : perDay(rutPoster)), [rutPoster, synligaPoster, byKey]);
+  /** @type {Map<string, 1|2|3|4|5|6>} Dagens ram: tonen på den första kalendern i listan som har en post med Ram eller Båda den dagen. */
+  const ramDagar = useMemo(() => {
+    /** @type {Map<string, 1|2|3|4|5|6>} */
+    const dagar = new Map();
+    if (Object.keys(syn.visningar).length === 0) return dagar;
+    const rader = new Map((kalendrarIValjaren || []).map((k, i) => [k.id, { k, plats: i }]));
+    /** @type {Map<string, number>} */
+    const basta = new Map();
+    for (const e of synligaPoster) {
+      const v = visningAv(e);
+      if (v !== "ram" && v !== "bada") continue;
+      const id = e.kalender ? e.kalender.id : forvaldId;
+      const rad = rader.get(id);
+      const kalla = rad ? rad.k : e.kalender;
+      if (!kalla) continue;
+      const plats = rad ? rad.plats : Number.MAX_SAFE_INTEGER;
+      for (const dag of perDay([e]).keys()) {
+        const tidigare = basta.get(dag);
+        if (tidigare === undefined || plats < tidigare) {
+          basta.set(dag, plats);
+          dagar.set(dag, lagerFarg(kalla));
+        }
+      }
+    }
+    return dagar;
+  }, [synligaPoster, visningAv, kalendrarIValjaren, forvaldId, syn.visningar]);
   const allaPerDag = useMemo(() => perDay(ritadePoster), [ritadePoster]);
   const list = useMemo(() => months(franNyckel(todayDayKey), monthsBack, monthsForward), [todayDayKey, monthsBack, monthsForward]);
   const sokning = fraga.trim();
@@ -1758,8 +1848,8 @@ export function OpsCalendar({
       <div className="relative flex min-w-0 flex-1 flex-col">
         <Verktygsrad
           kalendrar={kalendrarIValjaren}
-          valdaKalendrar={valdaKalendrar}
-          onValdaKalendrar={setValdaKalendrar}
+          syn={syn}
+          kalendersektioner={kalendersektioner}
           onHanteraKalendrar={onHanteraKalendrar}
           veckonummer={veckonummer}
           onVeckonummer={vaxlaVeckonummer}
@@ -1858,7 +1948,7 @@ export function OpsCalendar({
                   <div className="flex flex-col gap-1 sm:gap-1.5">
                     {rows.map((row, i) => {
                       const nycklar = row.map((day) => (day === null ? null : dateKey(ar, month, day)));
-                      const bitar = bandIVecka(nycklar, synligaPoster);
+                      const bitar = bandIVecka(nycklar, rutPoster);
                       // ⛔ PLATS PER DAG, inte per vecka (0.106.0): bara en dag som ett band täcker reserverar plats under siffran.
                       const filerPerDag = reserveradeFiler(bitar);
                       const forsta = row.find((d) => d !== null);
@@ -1894,15 +1984,18 @@ export function OpsCalendar({
                             if (day === null) return <div key={`tom-${i}-${j}`} aria-hidden="true" className="aspect-[1/1.1]" />;
                             const dayKey = dateKey(ar, month, day);
                             const pa = byKey.get(dayKey) || [];
+                            const paRuta = rutaPerDag.get(dayKey) || [];
+                            const ram = ramDagar.get(dayKey);
+                            const appDekor = dagdekor ? dagdekor(dayKey) : undefined;
                             return (
                               <Dagruta
                                 key={dayKey}
                                 day={day}
                                 dayKey={dayKey}
                                 entries={pa}
-                                markerade={pa.filter((e) => !arBand(e))}
-                                spann={pa.filter((e) => typeof e.endDate === "string" && e.endDate > e.date)}
-                                enkla={pa.filter((e) => !(typeof e.endDate === "string" && e.endDate > e.date))}
+                                markerade={paRuta.filter((e) => !arBand(e))}
+                                spann={paRuta.filter((e) => typeof e.endDate === "string" && e.endDate > e.date)}
+                                enkla={paRuta.filter((e) => !(typeof e.endDate === "string" && e.endDate > e.date))}
                                 isToday={dayKey === todayDayKey}
                                 forbi={dayKey < todayDayKey}
                                 chosen={chosen.includes(dayKey)}
@@ -1910,7 +2003,7 @@ export function OpsCalendar({
                                 sok={traffDagar ? (traffDagar.has(dayKey) ? "traff" : "miss") : ""}
                                 bandhojd={bandplats(filerPerDag[j])}
                                 pekare={pekareFor(dayKey)}
-                                dekor={dagdekor ? dagdekor(dayKey) : undefined}
+                                dekor={ram && !(appDekor && appDekor.ram) ? { ...appDekor, ram } : appDekor}
                               />
                             );
                           })}
@@ -1970,6 +2063,7 @@ export function OpsCalendar({
             onClose={() => setTitt(null)}
             locale={locale}
             oppna={oppnaHandelse ? (id) => { setTitt(null); oppnaHandelse(id); } : null}
+            oppnaExtern={oppnaExtern}
           />
         ) : null}
         {panelOppen ? (
@@ -1982,6 +2076,7 @@ export function OpsCalendar({
             locale={locale}
             arMin={arMin}
             oppna={oppnaHandelse}
+            oppnaExtern={oppnaExtern}
             lager={daglager ? daglager(days.map((d) => d.dayKey)) : null}
           />
         ) : titt ? null : (
@@ -1992,6 +2087,14 @@ export function OpsCalendar({
           </p>
         )}
       </div>
+      {/* ⛔ LÄSPANELEN FÖR EN EXTERN HÄNDELSE (0.134.0). En dialog över kalendern, så att urval, månad och filter står kvar under den. Se `OpsExternPanel`. */}
+      <OpsExternPanel
+        post={externPost}
+        onStang={() => setExternId(null)}
+        sprak={String(locale).toLowerCase().startsWith("en") ? "en" : "sv"}
+        kopieraTill={kopieraTill}
+        onKopiera={onKopiera}
+      />
     </section>
   );
 }

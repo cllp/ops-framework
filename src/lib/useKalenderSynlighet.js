@@ -125,6 +125,8 @@ export function useKalenderSynlighet({ minne = "", kalendrar, lagring, onSynliga
   return {
     /** Id:n som syns, i radernas ordning. */
     synliga,
+    /** Personens egna visningsval, `{ [id]: "ram" | "bada" }`. En rad som inte står här visas som händelser. Samma objekt tills något ändras. */
+    visningar: val.visning,
     /** @param {string} id */
     arSynlig: (id) => {
       const r = radPerId.get(id);

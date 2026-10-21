@@ -91,10 +91,15 @@ describe("kalenderlager i vyn", () => {
     expect(hantera).toHaveBeenCalledOnce();
     expect(document.querySelector("[data-lager-plockare]")).toBeNull();
 
+    // ⛔ Plockaren ger fokus tillbaka till sin knapp en tick efter att den stängts. Öppnas listan före det stänger fokusflytten den igen, och provet läser då en lista som redan
+    // är stängd och bortkopplad (mätt: `isConnected` var falskt, och provet var grönt för att en bortkopplad lista saknar raden). Därför väntar provet en tick och kräver en uppkopplad lista.
+    await new Promise((klar) => setTimeout(klar, 0));
     fireEvent.click(screen.getByRole("button", { name: "Kalendrar: Alla kalendrar" }));
     const meny = await screen.findByRole("dialog", { name: "Kalendrar" });
-    expect(within(meny).queryByRole("button", { name: "Jobb" })).toBeNull();
-    expect(within(meny).getByRole("button", { name: "Styrelsen" })).toBeTruthy();
+    expect(meny.isConnected).toBe(true);
+    // ⛔ Det FÖRÅLDRADE lagret döljer fortfarande kalendern ur listan (kopplingen som 0.134.0 avskaffar för den som använder `kalenderMinne`). Raden är en växel sedan 0.134.0.
+    expect(within(meny).queryByRole("switch", { name: "Jobb" })).toBeNull();
+    expect(within(meny).getByRole("switch", { name: "Styrelsen" })).toBeTruthy();
   });
 
   it("en annan person ser lagret, och samma person ser det dolt efter en ny visning", () => {

@@ -70,6 +70,10 @@ import { delaModultypId } from "./modultyper.js";
  *   skriver inte ordet själv, så det kan inte stå två gånger. ⛔ ETT FÖRSLAG ÄR EN DAG: `endDate` och `allDay` hör inte hemma på en preliminär post, och
  *   kalendern kastar om de finns (`preliminarFel`), eftersom ett band hade sagt att händelsen redan hade ett spann. Två tider samma dag är en post, inte två.
  * @property {string} [typ] Typens id ur appens typkatalog (0.36.0). Det verktygsradens typfilter jämför med.
+ * @property {{ kalla: string, tid?: string, slutTid?: string, plats?: string, beskrivning?: string, kopierad?: ReadonlyArray<{ kalenderId: string, namn: string }> }} [extern] (0.134.0, cllp/lifehub.app#402) Posten är en EXTERN händelse (Apple,
+ *   Google): den har inget `handelseId`, eftersom ingen händelse finns i appen att öppna, och öppnas i stället i en läspanel (`OpsExternPanel`) med det här. Titel, dag, spann och kalender
+ *   kommer ur posten själv. `kalla` är källraden i appens ord ("Från Apple, ändras i Apple") och KRÄVS: en läspanel som inte säger var händelsen hör hemma låter en läsare tro att den
+ *   går att ändra här, och kalendern kastar utan den. `tid` och `slutTid` är `HH:MM` i visningszonen. `kopierad` är var appen redan kopierat händelsen. Har posten ett `handelseId` vinner det.
  * @property {import("react").ReactNode} [atgard] (0.78.0) Appens kontroll på raden, till exempel bocken som gör en uppgift klar.
  *   Ramverket ritar den och tolkar den aldrig. En uppgift är ingen händelse och bär inget `handelseId`.
  */
@@ -606,11 +610,16 @@ export function forvaldKalenderId(kalendrar) {
  * ⛔ `doldaAppar` (0.54.0, cllp/ops-framework#244) är de appar PERSONEN dolt, inte de som visas. Därför syns en app som
  * tillkommer efter att valet sparades, i stället för att vara dold av att den inte fanns när valet gjordes.
  *
- * @param {{ valdaKalendrar: ReadonlyArray<string> | null, forvaldId: string, typ?: string, status?: string, doldaAppar?: ReadonlyArray<string> }} filter
+ * ⛔ `doldaKalendrar` (0.134.0, cllp/lifehub.app#402) är kalendrarna personen slagit AV i listan Kalendrar. Det ersätter "visa bara" (`valdaKalendrar`) i
+ * `OpsCalendar`, som inte längre skickar den. Skälet är samma som för `doldaAppar`: ett id som inte finns i listan (en kalender som kommer senare) är inte dold.
+ * `valdaKalendrar` finns kvar för den som anropar funktionen direkt.
+ *
+ * @param {{ valdaKalendrar?: ReadonlyArray<string> | null, doldaKalendrar?: ReadonlyArray<string>, forvaldId: string, typ?: string, status?: string, doldaAppar?: ReadonlyArray<string> }} filter
  * @returns {CalendarEntry[]}
  */
-export function filtreraPoster(entries, { valdaKalendrar, forvaldId, typ = "alla", status = "alla", doldaAppar = [] }) {
+export function filtreraPoster(entries, { valdaKalendrar = null, doldaKalendrar = [], forvaldId, typ = "alla", status = "alla", doldaAppar = [] }) {
   const dolda = new Set(doldaAppar);
+  const avslagna = new Set(doldaKalendrar);
   return entries.filter((e) => {
     if (dolda.size > 0 && dolda.has(appForTyp(e.typ))) return false;
     // ⛔ EN POST VARS KALENDER SAKNAR RAD I FILTRET KAN INTE FILTRERAS BORT (0.120.0, cllp/lifehub.app#367). En händelse utan
@@ -619,6 +628,7 @@ export function filtreraPoster(entries, { valdaKalendrar, forvaldId, typ = "alla
     // valdes bort. En händelse som ingen knapp styr ska synas, annars finns det ingenstans att ta fram den.
     const nyckel = e.kalender ? e.kalender.id : forvaldId;
     if (valdaKalendrar && nyckel && !valdaKalendrar.includes(nyckel)) return false;
+    if (avslagna.size > 0 && nyckel && avslagna.has(nyckel)) return false;
     if (typ !== "alla" && e.typ !== typ) return false;
     if (status !== "alla" && e.status !== status) return false;
     return true;

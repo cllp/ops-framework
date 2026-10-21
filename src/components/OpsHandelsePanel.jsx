@@ -15,6 +15,7 @@ import { OpsStatusDot } from "./OpsStatusDot.jsx";
 import { TillbakaKnapp } from "./TillbakaKnapp.jsx";
 import { HandelseDelning } from "./HandelseDelning.jsx";
 import { HandelseFlytta } from "./HandelseFlytta.jsx";
+import { HandelseKopiera } from "./HandelseKopiera.jsx";
 import { Ursprungsrad } from "./Ursprungsrad.jsx";
 
 /**
@@ -71,6 +72,8 @@ import { Ursprungsrad } from "./Ursprungsrad.jsx";
  * @property {{ namn: string, farg: 1 | 2 | 3 | 4 | 5 | 6 }} [kalender] Kalendern händelsen ligger i. Färgen står aldrig ensam: namnet står bredvid.
  * @property {string} [grupp] Gruppens namn.
  * @property {string} [plats]
+ * @property {string} [kalla] (0.134.0) Var händelsen hör hemma när den INTE ändras här, appens ord, till exempel "Från Apple, ändras i Apple". Står under typ, grupp och kalender som ett eget faktum.
+ *   Ramverket skriver inte orden själv: bara appen vet att källan är Apple och inte Google.
  * @property {{ namn: string, typ?: "manniska" | "agent" | "okand" } | string} [skapadAv] (0.43.0, #224) Vem som skapade händelsen, i `laesSkapare`s form.
  * @property {string} [skapad] (0.43.0, #224) När, ISO-8601. Raden "Skapad av Namn, 29 sep 09:12" ritas bara när båda finns, som i listan.
  * @property {import("./Ursprungsrad.jsx").Ursprung} [ursprung] (0.43.0, #224) Var händelsen hör hemma: modulen, och valfritt en länk tillbaka.
@@ -114,6 +117,19 @@ import { Ursprungsrad } from "./Ursprungsrad.jsx";
  * @param {(arg: { id: string }) => Promise<void>} [props.onAterkalla] (0.125.0) Återkallar en länk (`createDelningService().aterkalla`). Krävs med `onDela`. Raden försvinner först när anropet lyckats; kastar det visas orsaken i raden.
  * @param {(inmatning: { id: string, url: string, till: string }) => Promise<void | boolean> | void | boolean} [props.onMejlaLank] (0.128.0, cllp/lifehub.app#356) Skickar den nyss skapade länken med mejl (appens mejlväg). Med den visar dialogen Dela efter skapandet fältet "Skicka till mejl" och knappen Skicka; ramverket prövar adressen (`epostFel`) innan anropet och visar svaret, lyckat eller inte. Hör till `onDela`. Utan den syns inget fält.
  * @param {string} [props.delningGruppdel] (0.125.0, granskningen av PR 417) Gruppdelen gruppen redan använt i en länk (`gruppdelar({ uid, groupId }).senaste`), föreslagen i Dela-rutan före ett namn ur gruppens namn. En gruppdel tillhör en grupp för alltid: tar en annan grupp den först svarar servern `adress-upptagen` med `del: "gruppdel"` och rutan föreslår en annan.
+ * @param {ReadonlyArray<{ id: string, namn: string, farg?: 1|2|3|4|5|6 }>} [props.kopieraTill] (0.134.0, cllp/lifehub.app#402) Kalendrarna personen får skapa i, ur appens regler. Med minst ett val ritar panelen "Kopiera till…" under
+ *   informationsrutan, för ALLA händelser, egna som externa. Tom eller utelämnad ritar ingen knapp. ⛔ Listan är ett ERBJUDANDE och ingen behörighet: appen prövar på nytt när kopian skapas.
+ * @param {(arg: { handelse: HandelseVy, malKalenderId: string }) => void | Promise<void>} [props.onKopiera] (0.134.0) Anropas med händelsen och vald kalender. ⛔ Ramverket öppnar inget formulär själv: appen öppnar Ny händelse ifylld, eller skapar kopian direkt.
+ *   Kastar anropet visas orsaken och rutan står kvar. Kräver `kopieraTill` med val (kastar annars).
+ * @param {ReadonlyArray<{ kalenderId: string, namn: string }>} [props.kopierad] (0.134.0) Var händelsen redan är kopierad. Med minst en rad står "Redan kopierad till X" i panelen, och väljs en sådan kalender frågar rutan innan en ny kopia görs.
+ * @param {string} [props.kopieraEtikett] (0.134.0) Knappen. Förval "Kopiera till…".
+ * @param {string} [props.kopieraRubrik] (0.134.0) Rutans rubrik. Förval "Kopiera till kalender".
+ * @param {string} [props.kopieradEtikett] (0.134.0) Raden när en kopia finns, med `{kalendrar}`. Förval "Redan kopierad till {kalendrar}".
+ * @param {string} [props.kopieraRedanOrd] (0.134.0) Under en kalender i listan som redan har en kopia. Förval "Redan kopierad".
+ * @param {string} [props.kopieraVarningTitel] (0.134.0) Förval "Kopiera igen?".
+ * @param {string} [props.kopieraVarningText] (0.134.0) Varningen, med `{titel}` och `{kalender}`.
+ * @param {string} [props.kopieraIgenKnapp] (0.134.0) Förval "Kopiera ändå".
+ * @param {string} [props.kopieraFelEtikett] (0.134.0) Orden före orsaken när en kopia faller. Förval "Det gick inte att kopiera".
  * @param {import("react").ReactNode} [props.atgarder] Appens egna knappar, högst upp till höger bredvid titeln (SS export m.fl.), efter pennan.
  * @param {{ oppet?: string, pagar?: string, vantar?: string, klart?: string, akut?: string }} [props.statusWords] KRÄVS för varje status som förekommer, som i `OpsEventList`.
  * @param {string} [props.sprak] Datumens språk, "sv" eller "en". Förval "sv".
@@ -146,6 +162,17 @@ function OpsHandelsePanelRitad({
   redigeraEtikett = ORD_OPSHANDELSEPANEL.redigeraEtikett.sv,
   flyttmal,
   onFlytta,
+  kopieraTill,
+  onKopiera,
+  kopierad,
+  kopieraEtikett = ORD_OPSHANDELSEPANEL.kopieraEtikett.sv,
+  kopieraRubrik = ORD_OPSHANDELSEPANEL.kopieraRubrik.sv,
+  kopieradEtikett = ORD_OPSHANDELSEPANEL.kopieradEtikett.sv,
+  kopieraRedanOrd = ORD_OPSHANDELSEPANEL.kopieraRedanOrd.sv,
+  kopieraVarningTitel = ORD_OPSHANDELSEPANEL.kopieraVarningTitel.sv,
+  kopieraVarningText = ORD_OPSHANDELSEPANEL.kopieraVarningText.sv,
+  kopieraIgenKnapp = ORD_OPSHANDELSEPANEL.kopieraIgenKnapp.sv,
+  kopieraFelEtikett = ORD_OPSHANDELSEPANEL.kopieraFelEtikett.sv,
   delningar,
   onDela,
   onAterkalla,
@@ -199,6 +226,28 @@ function OpsHandelsePanelRitad({
   if (flyttmal && flyttmal.length > 0 && typeof onFlytta !== "function") {
     throw new Error("OpsHandelsePanel: flyttmal har val men onFlytta saknas. Ett val som inte gör något är en död knapp.");
   }
+  if (kopieraTill !== undefined && !Array.isArray(kopieraTill)) {
+    throw new Error("OpsHandelsePanel: kopieraTill måste vara en lista med kalendrar { id, namn, farg? }, eller utelämnas.");
+  }
+  if (onKopiera !== undefined && typeof onKopiera !== "function") {
+    throw new Error("OpsHandelsePanel: onKopiera måste vara en funktion (eller utelämnas).");
+  }
+  if (kopieraTill && kopieraTill.length > 0 && typeof onKopiera !== "function") {
+    throw new Error("OpsHandelsePanel: kopieraTill har val men onKopiera saknas. Ett val som inte gör något är en död knapp.");
+  }
+  for (const m of kopieraTill ?? []) {
+    if (!m || typeof m.id !== "string" || !m.id || typeof m.namn !== "string") {
+      throw new Error("OpsHandelsePanel: ett kopieraTill-val har formen { id, namn, farg? }.");
+    }
+  }
+  if (kopierad !== undefined && !Array.isArray(kopierad)) {
+    throw new Error("OpsHandelsePanel: kopierad måste vara en lista { kalenderId, namn }, eller utelämnas.");
+  }
+  for (const k of kopierad ?? []) {
+    if (!k || typeof k.kalenderId !== "string" || typeof k.namn !== "string" || !k.namn) {
+      throw new Error("OpsHandelsePanel: en rad i kopierad har formen { kalenderId, namn }. Utan namnet kan raden inte säga vart händelsen kopierats.");
+    }
+  }
   if (onDela !== undefined && typeof onDela !== "function") {
     throw new Error("OpsHandelsePanel: onDela måste vara en funktion (eller utelämnas).");
   }
@@ -246,6 +295,8 @@ function OpsHandelsePanelRitad({
   const slagfarg = handelse.typ ? slagText(handelse.typ.slag, handelse.typ.namn, "OpsHandelsePanel") : null;
   const statusord = handelse.status ? (statusWords[handelse.status] ?? "") : "";
   const harMetarad = Boolean(handelse.typ || handelse.grupp || handelse.kalender);
+  const kopieraVal = kopieraTill ?? [];
+  const kopieradPa = kopierad ?? [];
   return (
     <section ref={ref} tabIndex={-1} aria-labelledby={rubrikId} data-handelsepanel="" className={cx(kolumn, "outline-none")}>
       {/* ⛔ SS `mb-2 sm:mb-4` under raden: luften bor i raden och inte i rubriken, så den följer med om raden byts. */}
@@ -312,6 +363,13 @@ function OpsHandelsePanelRitad({
         </div>
       ) : null}
 
+      {/* ⛔ KÄLLRADEN (0.134.0): en händelse som hör hemma i en annan tjänst säger det och säger att den inte ändras här. Bara det appen skickar, aldrig en gissning. */}
+      {handelse.kalla ? (
+        <p data-handelsekalla="" className="m-0 mt-1 text-meta text-ink-muted wrap-anywhere">
+          {handelse.kalla}
+        </p>
+      ) : null}
+
       {/* ⛔ VEM OCH VAR (0.43.0, #224, CP 2026-10-01: "Vem skapade händelsen och var hör den hemma"). Samma rad som i listan, ur samma
           komponent, under typen och gruppen: det är ett faktum om händelsen och inte en del av när den är. */}
       <Ursprungsrad
@@ -376,6 +434,17 @@ function OpsHandelsePanelRitad({
           onFlytta={onFlytta}
           titel={handelse.titel}
           ord={{ flyttaEtikett, flyttaMinaRubrik, bekraftaTitel, bekraftaText, bekraftaKnapp, avbrytEtikett, stangEtikett, flyttFelEtikett }}
+        />
+      ) : null}
+
+      {/* ⛔ KOPIERA TILL… (0.134.0, cllp/lifehub.app#402): för alla händelser, också de som inte går att ändra här. Se `HandelseKopiera`. */}
+      {onKopiera && (kopieraVal.length > 0 || kopieradPa.length > 0) ? (
+        <HandelseKopiera
+          mal={kopieraVal}
+          kopierad={kopieradPa}
+          onKopiera={onKopiera}
+          handelse={handelse}
+          ord={{ kopieraEtikett, kopieraRubrik, kopieradEtikett, kopieraRedanOrd, kopieraVarningTitel, kopieraVarningText, kopieraIgenKnapp, kopieraFelEtikett, stangEtikett, avbrytEtikett }}
         />
       ) : null}
 
@@ -495,6 +564,17 @@ export const ORD_OPSHANDELSEPANEL = {
   avbrytEtikett: { sv: "Avbryt", en: "Cancel" },
   stangEtikett: { sv: "Stäng", en: "Close" },
   flyttFelEtikett: { sv: "Det gick inte att flytta", en: "Could not move" },
+  kopieraEtikett: { sv: "Kopiera till…", en: "Copy to…" },
+  kopieraRubrik: { sv: "Kopiera till kalender", en: "Copy to calendar" },
+  kopieradEtikett: { sv: "Redan kopierad till {kalendrar}", en: "Already copied to {kalendrar}" },
+  kopieraRedanOrd: { sv: "Redan kopierad", en: "Already copied" },
+  kopieraVarningTitel: { sv: "Kopiera igen?", en: "Copy again?" },
+  kopieraVarningText: {
+    sv: "{titel} är redan kopierad till {kalender}. En ny kopia blir en dubblett.",
+    en: "{titel} is already copied to {kalender}. Another copy will be a duplicate.",
+  },
+  kopieraIgenKnapp: { sv: "Kopiera ändå", en: "Copy anyway" },
+  kopieraFelEtikett: { sv: "Det gick inte att kopiera", en: "Could not copy" },
   tillbakaEtikett: { sv: "Tillbaka", en: "Back" },
   gruppEtikett: { sv: "Grupp", en: "Group" },
   laddarEtikett: { sv: "Hämtar händelsen", en: "Loading the event" },
