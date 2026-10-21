@@ -5,6 +5,7 @@ import { cx } from "../lib/cx.js";
 import { formatDate, formatTime, formatRelativeDate } from "../lib/format.js";
 import { KOMMENTARBILAGA_TYPER, MAX_KOMMENTARBILAGA, bilagaUrDokument, kommentarbilagaFel } from "../lib/handelsemodell.js";
 import { readAttachment } from "../lib/file.js";
+import { arGastId } from "../lib/gast.js";
 import { AGENTSTATUS_MAX_ALDER, MAX_MEDDELANDE, MAX_TRADNAMN, REAKTIONSKODER, agentstatus, amnesrubrik, bilagenyckel, delaSamtalsnyckel, samtalsdeltagare, samtalsnyckel, summeraReaktioner, synligText, tradensNamn } from "../lib/samtal.js";
 import { useSamtal } from "../data/useSamtal.jsx";
 import { harAmnen, harBilagor, harCitat, harFasta, harOmnamnanden, harReaktioner, harStatus, harTradar, harTyst } from "../data/samtalskalla.js";
@@ -176,6 +177,7 @@ import { AgentIkon, AndraIkon, KopieraIkon, ArkiveraIkon, TaFramIkon, BildIkon, 
  * @property {string} [bifogaBild] Förval "Bifoga bild".
  * @property {string} [taFoto] Förval "Ta foto".
  * @property {string} [valjFil] Förval "Välj fil".
+ * @property {string} [gast] (0.132.0) Märket vid en gästs meddelande, och namnet på en gäst som saknar namn. Förval "Gäst".
  * @property {string} [bilagaText] (0.77.0, #292) Förled i bildens alt-text. Förval "Bilaga från".
  * @property {string} [taBortBilaga] Förval "Ta bort bilagan".
  * @property {string} [enBilaga] När flera filer valdes. Förval "Ett meddelande bär en bilaga. Välj en fil.".
@@ -349,6 +351,7 @@ const ORD_MEDDELANDEN = {
   bifogaBild: { sv: "Bifoga bild", en: "Attach image" },
   taFoto: { sv: "Ta foto", en: "Take photo" },
   valjFil: { sv: "Välj fil", en: "Choose file" },
+  gast: { sv: "Gäst", en: "Guest" },
   bilagaText: { sv: "Bilaga från", en: "Attachment from" },
   taBortBilaga: { sv: "Ta bort bilagan", en: "Remove the attachment" },
   enBilaga: { sv: "Ett meddelande bär en bilaga. Välj en fil.", en: "A message carries one attachment. Choose one file." },
@@ -779,7 +782,8 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
   }, [medlemmar]);
   // ⛔ ALDRIG ETT ID SOM NAMN (#218): medlemskapets namn, den inloggades eget namn, annars "Namn saknas".
   const personnamn = usePersonnamn();
-  const namnFor = (/** @type {string} */ id) => personnamn(namn.get(id)?.namn, id).text;
+  // En gäst (`av` är ett `g_`-id) är ingen medlem och saknar namn i medlemslistan: i översikten står "Gäst", och i själva chatten gästens eget namn (`Meddelanderader`, ur meddelandet).
+  const namnFor = (/** @type {string} */ id) => (arGastId(id) ? t.gast : personnamn(namn.get(id)?.namn, id).text);
 
   /*
    * ⛔ GRUPPCHATTEN FINNS ALLTID I LISTAN, ÖVERST (0.68.0). CP 2026-10-06, i en grupp med en medlem: "Hur skriver jag ett
@@ -1543,7 +1547,7 @@ function NyttSamtal({ kalla, uid, groupId, medlemmar, texter: t, sprak, gruppMar
         <span id={tillId} className="text-meta font-medium text-ink-secondary">
           {t.till}
         </span>
-        <OpsMottagare lage="person" helaGruppen={t.helaGruppen} gruppMarke={gruppMarke} medlemmar={medlemmar} uid={uid} value={mottagare} onChange={oppna} ariaLabel={t.till} tomText={t.ingenAnnan} />
+        <OpsMottagare lage="person" helaGruppen={t.helaGruppen} gruppMarke={gruppMarke} medlemmar={medlemmar} uid={uid} value={mottagare} onChange={/** @type {(m: import("../lib/samtal.js").Arendemottagare) => void} */ (/** @type {unknown} */ (oppna))} ariaLabel={t.till} tomText={t.ingenAnnan} />
         {/*
           ⛔ RADEN FÖLJER VALET, OCH FINNS INTE INNAN NÅGOT ÄR VALT (0.68.0, omgranskningen av PR 268, A6). Förut stod "Bara ni två
           ser det här" redan innan valet, med "Hela gruppen" först under Till var det fel om det som låg närmast till hands.
@@ -1624,9 +1628,11 @@ export const RAKNARE_FRAN = 500;
  * `onSkicka` får `{ text }` när det är det sagda som skickas. Den ska då lösa när meddelandet är skickat och avvisa när det inte gick,
  * så att ytan kan säga det; utan `text` skickar den fältets text som förut.
  *
- * @param {{ text: string, setText: (t: string) => void, skickar: boolean, onSkicka: (extra?: { namner?: string[], text?: string }) => void | Promise<void>, texter: Required<Meddelandetexter>, sprak: string, fokus?: boolean, omnamnande?: Omnamnande | null, fokusNyckel?: string, onEscape?: () => void, platstext?: string, onTranscribe?: (blob: Blob) => Promise<string>, inspelare?: import("../lib/talk.js").Inspelare, igenkanning?: import("../lib/talk.js").Igenkanning | boolean, onBifoga?: (filer: File[], slag: "bild" | "foto" | "fil") => void, harBilaga?: boolean, kamera?: "okand" | "ja" | "nej", agentArbetar?: boolean, onStoppaAgent?: () => void }} props
+ * @param {{ text: string, setText: (t: string) => void, skickar: boolean, onSkicka: (extra?: { namner?: string[], text?: string }) => void | Promise<void>, texter: Required<Meddelandetexter>, sprak: string, fokus?: boolean, omnamnande?: Omnamnande | null, fokusNyckel?: string, onEscape?: () => void, platstext?: string, onTranscribe?: (blob: Blob) => Promise<string>, inspelare?: import("../lib/talk.js").Inspelare, igenkanning?: import("../lib/talk.js").Igenkanning | boolean, onBifoga?: (filer: File[], slag: "bild" | "foto" | "fil") => void, harBilaga?: boolean, kamera?: "okand" | "ja" | "nej", agentArbetar?: boolean, onStoppaAgent?: () => void, maxTecken?: number }} props
+ *   `maxTecken` (0.132.0): taket i tecken. Förval `MAX_MEDDELANDE`; en gäst har ett lägre (`GASTSKRIV_MAX_TECKEN`). Räknaren och spärren på Skicka följer det.
+ *   ⛔ EXPORTERAD FRÅN FILEN FÖR `OpsGastChatt`, INTE UR RAMVERKET (`src/index.js`): gästens skrivfält är chattens utan bilagor, mikrofon, omnämnanden och agent.
  */
-function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, sprak, fokus = false, omnamnande = null, fokusNyckel, onEscape, platstext, onTranscribe, inspelare, igenkanning, onBifoga, harBilaga = false, kamera = "nej", agentArbetar = false, onStoppaAgent }) {
+export function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, sprak, fokus = false, omnamnande = null, fokusNyckel, onEscape, platstext, onTranscribe, inspelare, igenkanning, onBifoga, harBilaga = false, kamera = "nej", agentArbetar = false, onStoppaAgent, maxTecken = MAX_MEDDELANDE }) {
   const ruta = useRef(/** @type {HTMLTextAreaElement | null} */ (null));
   const listId = useId();
   const raknarId = useId();
@@ -1727,8 +1733,8 @@ function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, sprak, fokus =
    * och Skicka är avstängd. Samma tak som modellen (`MAX_MEDDELANDE`), som regeln också har.
    */
   const langd = text.trim().length;
-  const forLang = langd > MAX_MEDDELANDE;
-  const visaRaknare = text.length >= MAX_MEDDELANDE - RAKNARE_FRAN;
+  const forLang = langd > maxTecken;
+  const visaRaknare = text.length >= maxTecken - RAKNARE_FRAN;
   const visaStopp = agentArbetar && Boolean(onStoppaAgent);
   /*
    * ⛔ EN VALD BILAGA ÄR INNEHÅLL (0.84.0, #315). Ljudvågen står bara där Skicka annars står när fältet verkligen är tomt:
@@ -1873,7 +1879,7 @@ function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, sprak, fokus =
         role={forLang ? "alert" : "status"}
         className={cx("m-0 shrink-0 px-4 pb-1.5 text-right text-liten tabular-nums", forLang ? "text-danger" : "text-ink-muted")}
       >
-        {forLang ? t.forLang.replace("{over}", String(langd - MAX_MEDDELANDE)) : t.langd.replace("{n}", String(text.length)).replace("{max}", String(MAX_MEDDELANDE))}
+        {forLang ? t.forLang.replace("{over}", String(langd - maxTecken)) : t.langd.replace("{n}", String(text.length)).replace("{max}", String(maxTecken))}
       </p>
     ) : null}
     </>
@@ -2735,8 +2741,13 @@ function useTradmarken({ kalla, sid, meddelanden, minne }) {
  * @param {(f: { sid: string, mid: string, id: string }) => Promise<import("../lib/forslag.js").Forslagssvar>} [props.onForslag] (0.105.0) Förslagen under agentens svar.
  * @param {string | null} [props.nyttFran] (0.106.0) Meddelandet som avdelaren "Nytt sedan sist" står före.
  */
-function Meddelanderader({ meddelanden, uid, namnFor, medlemmar, locale, visaNamn, efter, merFor, forraTid, reakt, texter = TEXTER, citat, traffar, fasta, postkort, kalla, sid, trad, onVisaAgent, onForslag, nyttFran = null }) {
+export function Meddelanderader({ meddelanden, uid, namnFor: namnForProp, medlemmar, locale, visaNamn, efter, merFor, forraTid, reakt, texter = TEXTER, citat, traffar, fasta, postkort, kalla, sid, trad, onVisaAgent, onForslag, nyttFran = null }) {
   const bredd = useBredd();
+  // ⛔ EN GÄSTS NAMN STÅR PÅ MEDDELANDET (`avNamn`, satt av servern när gästen skriver), för gästen är ingen medlem och har ingen rad i medlemslistan. Märket "Gäst" härleds ur `av` (`arGastId`),
+  // eller ur `gast: true` i gästens egen vy (där `av` är ett namn): inget annat fält, så märket kan inte saknas på ett meddelande en gäst skrev och inte sitta på en medlems.
+  const gastnamn = new Map(meddelanden.filter((m) => arGastId(m.av)).map((m) => [m.av, String(/** @type {any} */ (m).avNamn ?? "").trim() || texter.gast]));
+  const arGast = (/** @type {any} */ m) => arGastId(m.av) || m.gast === true;
+  const namnFor = (/** @type {string} */ id) => gastnamn.get(id) ?? namnForProp(id);
   const medlemsbild = (/** @type {string} */ id) => (medlemmar ?? []).find((m) => m.userId === id)?.bild || undefined;
   const medlemstyp = (/** @type {string} */ id) => (medlemmar ?? []).find((m) => m.userId === id)?.typ;
   return (
@@ -2789,7 +2800,12 @@ function Meddelanderader({ meddelanden, uid, namnFor, medlemmar, locale, visaNam
                 </span>
               ) : null}
               <div className={cx("flex min-w-0 max-w-[70%] flex-col", egen ? "items-end" : "items-start")}>
-                {!egen && !fortsattning && visaNamn ? <span className="mb-0.5 ml-1 text-liten text-ink-muted" data-namn-saknas={namnFor(m.av) === NAMN_SAKNAS ? "" : undefined}>{namnFor(m.av)}</span> : null}
+                {!egen && !fortsattning && visaNamn ? (
+                  <span className="mb-0.5 ml-1 flex items-center gap-1.5 text-liten text-ink-muted" data-namn-saknas={namnFor(m.av) === NAMN_SAKNAS ? "" : undefined}>
+                    {namnFor(m.av)}
+                    {arGast(m) ? <span data-gast-markning="" className="rounded-full bg-sunken px-1.5 py-px text-mikro font-semibold text-ink-secondary">{texter.gast}</span> : null}
+                  </span>
+                ) : null}
                 {m.svarPa && citat ? <Citat mid={m.svarPa} uppslag={citat.uppslag} egen={egen} uid={uid} namnFor={namnFor} texter={texter} /> : null}
                 {m.text ? (
                   <div

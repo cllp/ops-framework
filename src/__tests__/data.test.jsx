@@ -29,6 +29,26 @@ describe("frågor", () => {
     expect(applyQuery(rows, { limit: 2 })).toHaveLength(2);
   });
 
+  // 0.132.0 (gäster, skiva 3): ett punktat fältnamn går in i en karta, som Firestores fältsökvägar. En rad utan kartan stämmer inte men kastar inte, och ett fält som heter som sökvägen rakt av går före.
+  it("där med ett punktat fältnamn träffar rader vars karta har värdet, och saknad karta är ingen träff och inget fel", () => {
+    const poster = [
+      { id: "1", groupId: "g", mottagare: { slag: "gast", gastId: "g_a" } },
+      { id: "2", groupId: "g", mottagare: { slag: "gast", gastId: "g_b" } },
+      { id: "3", groupId: "g", mottagare: { slag: "person", uid: "u" } },
+      { id: "4", groupId: "g" },
+      { id: "5", groupId: "g", mottagare: null },
+      { id: "6", groupId: "g", mottagare: ["g_a"] },
+      { id: "7", groupId: "andra", mottagare: { slag: "gast", gastId: "g_a" } },
+      { id: "8", groupId: "g", "mottagare.gastId": "g_a" },
+    ];
+    expect(applyQuery(poster, { where: { groupId: "g", "mottagare.gastId": "g_a" } }).map((r) => r.id)).toEqual(["1", "8"]);
+    expect(applyQuery(poster, { where: { "mottagare.slag": "person" } }).map((r) => r.id)).toEqual(["3"]);
+    expect(applyQuery(poster, { where: { "mottagare.gastId": "g_zzz" } })).toEqual([]);
+    expect(applyQuery(poster, { where: { "mottagare.gastId.mer": "g_a" } })).toEqual([]);
+    // Utan punkt är det som förut.
+    expect(applyQuery(poster, { where: { groupId: "andra" } }).map((r) => r.id)).toEqual(["7"]);
+  });
+
   // ⛔ Array.sort muterar. En adapter som sorterade om sin egen lagring hade
   // tyst ändrat ordningen för nästa läsare.
   it("muterar inte listan den fick", () => {

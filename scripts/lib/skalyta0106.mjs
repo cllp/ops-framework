@@ -533,7 +533,7 @@ const LITEN_PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAF
 
 /**
  * (9) BILD I KOMMENTARER (skiva 9). En tråd med Bos skärmbild och skrivrutan med bilagor. Vid 390 och 1280 px:
- *   (a) knappen för att bifoga (filväljarens "Välj fil") är minst 44 px hög;
+ *   (a) knappen för att bifoga (0.132.0: en gem i skrivrutan som heter Bifoga, bredvid mikrofonen, inte en stor knapp "Välj fil" under rutan) är minst 44 px hög och ligger inne i skrivrutan;
  *   (b) miniatyren är en knapp, och ett tryck visar bilden i en dialog, större än miniatyren och inom fönstret, med Ladda ned;
  *       stängd är dialogen borta;
  *   (c) en vald bild visas före sändning, och ingenting skickas förrän Skicka; efter Skicka står bilden i den nya kommentaren.
@@ -545,9 +545,12 @@ export async function bildIKommentarer(v) {
     await del(v, namn, "kommentar-bild", vp, null, async (page) => {
       await page.locator("[data-ops-kommentarer] [data-bilaga-forstora]").first().waitFor({ timeout: 4000 });
       // (a)
-      const valj = page.locator("[data-kommentar-bilaga] button", { hasText: "Välj fil" });
+      const valj = page.getByRole("button", { name: "Bifoga", exact: true });
       const vb = await valj.boundingBox();
-      v.krav(Boolean(vb && vb.height >= 43.5), `${namn}: (a) knappen för att bifoga är ${vb?.height} px hög, väntat minst 44.`);
+      v.krav(Boolean(vb && vb.height >= 43.5 && vb.width >= 43.5), `${namn}: (a) knappen Bifoga är ${vb?.width} x ${vb?.height} px, väntat minst 44 x 44.`);
+      const fb = await page.locator("[data-ops-kommentarer] textarea").boundingBox();
+      v.krav(Boolean(vb && fb && vb.x >= fb.x && vb.x + vb.width <= fb.x + fb.width + 0.5 && vb.y >= fb.y && vb.y + vb.height <= fb.y + fb.height + 0.5), `${namn}: (a) knappen Bifoga ligger inte inne i skrivrutan (knapp ${JSON.stringify(vb)}, ruta ${JSON.stringify(fb)}).`);
+      v.krav((await page.getByRole("button", { name: "Välj fil" }).count()) === 0, `${namn}: (a) det finns en knapp "Välj fil" i kommentarerna, väntat ingen.`);
       // (b)
       const mini = page.locator("[data-ops-kommentarer] [data-bilaga-forstora]").first();
       const mb = await mini.boundingBox();

@@ -63,7 +63,7 @@ export { handelseBibliotek, handelsedelar, arHandelseBibliotek, arendeBibliotek,
  * andra sanning om vad ett meddelande är, och huvudingången drar in React. Filerna är rena.
  */
 export { AGENT_NAMN, agentId, agentMedlemskap } from "../lib/grupp.js";
-export { byggMeddelande, samtalsnyckel, MAX_MEDDELANDE, autonamn, tradensNamn, rensaForNamn, NAMNLOS_TRAD, AGENTSTATUS_ID, AGENTLAGEN, AGENTSTATUS_MAX_ALDER, byggAgentstatus, agentenNamnd, namnda, arNamnd, NAMNER_ALLA, MAX_NAMNER, amnesId, parnyckel, kravAmnesrubrik, amnesrubrik, MAX_AMNESRUBRIK } from "../lib/samtal.js";
+export { byggMeddelande, samtalsnyckel, MAX_MEDDELANDE, autonamn, tradensNamn, rensaForNamn, NAMNLOS_TRAD, AGENTSTATUS_ID, AGENTLAGEN, AGENTSTATUS_MAX_ALDER, byggAgentstatus, agentenNamnd, namnda, arNamnd, NAMNER_ALLA, MAX_NAMNER, amnesId, parnyckel, kravAmnesrubrik, amnesrubrik, MAX_AMNESRUBRIK, byggArendemottagare, ARENDEMOTTAGARSLAG } from "../lib/samtal.js";
 
 /*
  * ⛔ SAMMA SKÄL SOM INBJUDAN OVAN (#161). Vitlistan nekar en klient allt
@@ -233,7 +233,7 @@ export { lankInfoUrOembed } from "./lankinfo.js";
 export { LANKKALLOR, lankKalla, lankRubrik } from "../lib/lankkalla.js";
 
 /*
- * ⛔ GÄSTER (0.131.0, cllp/lifehub.app#389, skiva 1). En gäst är en inbjudan och aldrig ett medlemskap eller ett konto, och nyckeln och sessionen hashas med `node:crypto`, som aldrig ska bundlas till en
+ * ⛔ GÄSTER (0.131.0, cllp/lifehub.app#389, skiva 1; 0.132.0, skiva 2: hela gruppen, se `docs/beslut/0012`). En gäst är en inbjudan och aldrig ett medlemskap eller ett konto, och nyckeln och sessionen hashas med `node:crypto`, som aldrig ska bundlas till en
  * webbläsare. Tjänsten bär inbjudan, återkallelsen, platserna (fem fasta dokument per grupp, `createNew`), räknarna per inbjudan och per IP och sessionen. Konstanterna, formerna och `gastId` är rena
  * och exporteras även här, så att en nodfunktion inte behöver dra in React för dem. Raderna nekas klienten av `gastregelfragment()` (utom att en medlem läser inbjudningarna).
  */
@@ -242,6 +242,7 @@ export {
   GAST_PLATSER_GRATIS, GASTSLAG, GASTFUNKTIONER, GASTLANKDAGAR, GASTSESSIONSDAGAR, GASTFEL_MAX, GASTFEL_FONSTER_MS, GASTIP_MAX, GASTIP_FONSTER_MS, GASTNYLANKIP_MAX, GASTNYLANKIP_FONSTER_MS,
   GASTNYLANK_BREV_PER_DYGN, GASTNYLANK_MAX_LANKAR, MAX_GASTNAMN, MAX_GASTEPOST, GASTNYCKELFORM, GASTINBJUDNINGSIDFORM, GASTIDFORM, GASTSOKVAG, GASTFALT, GASTLISTFALT, GASTSVARSFALT,
   GASTORSAKER, GASTFEL, GASTFELKODER, GASTNYLANK_SVAR, GASTSTATUSAR, GASTPLATSNUMMER, normaliseraGastepost, gastId, gastomfangsnyckel, gastplatsId, gastLank, tolkaGastLank, gastStatus,
+  GASTGRUPPFUNKTIONER, GASTARENDE_MAX, GASTARENDE_SKANNA_MAX, GASTARENDEKOMMENTARER_MAX, GASTARENDEFALT, GASTARENDEKOMMENTARFALT, byggGastMottagare, gastDelegerad, tolkaGastMottagare, GASTCHATT_SIDA, GASTKALENDER_MAX, GASTBIBLIOTEK_MAX, GASTANROP_PER_MINUT, GASTFIL_PER_DYGN, GASTGRUPPSVARSFALT, GASTCHATTFALT, GASTHANDELSEFALT, GASTKALENDERFALT, GASTFILFALT, GASTBIBLIOTEKFALT, GASTPERSONFALT, GASTPERSONINBJUDANFALT, GASTTIDIGAREMEDLEM, arGastId, GASTNAMNLOS, GASTSKRIV_MAX_TECKEN, GASTSKRIV_PER_MINUT, GASTGRUPPATGARDER, gastOmfangGer, gastGruppApi,
 } from "../lib/gast.js";
 
 /*
