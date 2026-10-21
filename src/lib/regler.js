@@ -41,7 +41,7 @@ import { MAX_TYPAVVIKELSER, MAX_TYPID, MAX_TYPNAMN, MODULTYPID_FORM, TYPAVVIKELS
 import { ADRESSFORM, ARENDEFORM, ARENDE_PREFIX, BIBLIOTEKFALT, BIBLIOTEKTYPER, BILDFORM, FILFALT, HANDELSEFORM, HANDELSE_PREFIX, LJUD_STOLPAR, MITT_PREFIX, MAX_BIBLIOTEKFILNAMN, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKSOKVAG, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, MAX_BIBLIOTEKUTSKRIFT, MAX_LISTPOSTER, MAX_LJUD_MS, MAX_TAGGAR, POSTIDFORM, TAGGFORM, TOPPFORM, filMimeMonster, filtakRegel } from "./bibliotek.js";
 import { LANKKALLOR, lankkallaForm } from "./lankkalla.js";
 import { MAX_MINNESID, MAX_MINNESTEXT, MINNESFALT, MINNESKALLAFALT, MINNESKALLOR } from "./minne.js";
-import { MAX_SKAPARKALLA, MAX_SKAPARNAMN, SKAPARFALT } from "./skapare.js";
+import { MAX_SKAPARKALLA, MAX_SKAPARNAMN, SKAPARFALT, VIA_FALTNAMN } from "./skapare.js";
 import { BESKRIVENAPPDATAFALT, BESKRIVNINGSDOKUMENTFALT, BESKRIVNINGSFALT, BESKRIVNINGSFORMAT, BESKRIVNINGSIDFORM, MAX_APPBESKRIVNING, MAX_BESKRIVNINGSNAMN, MAX_FALT, MAX_LISTOR, MIN_LISTOR } from "./beskrivenapp.js";
 import { KONFIGHANDELSER, KONFIGLOGGFALT } from "./konfiglogg.js";
 import { AVVECKLADE_KALENDERFALT, DATUMFORM, KALENDERFALT, KALENDERFARGER, KALENDERPOSTFALT, MAX_KALENDERNAMN, MAX_POSTBESKRIVNING, MAX_POSTPLATS, MAX_POSTTITEL, MINKALENDERFALT, TIDPUNKTSFORM } from "./kalendrar.js";
@@ -244,6 +244,32 @@ export function regelfragment(namn = {}, val = {}) {
 
     function opsInloggad() {
       return request.auth != null;
+    }
+
+    // ⛔ EN KLIENT SKRIVER ALDRIG \`via\` PÅ EN SKAPARSTÄMPEL (0.135.0, lifehub.app#409). Märket "skrivet av en personlig API-nyckel åt personen" sätts av servern (Admin SDK, som går
+    // förbi reglerna). En klient som fick sätta det kunde påstå att en nyckel skrev en rad, och en som fick ta bort det kunde göra en rad från en nyckel till personens egen.
+    //   d     dokumentet som skrivs (request.resource.data)
+    //   falt  namnet på stämpelfältet, t.ex. 'skapadAv' eller 'av'
+    //   fore  dokumentet som redan finns (resource.data), eller {} vid create
+    // Släpper igenom: en stämpel utan via på en rad som inte hade något, och en stämpel som är IDENTISK med den som redan står på raden (så att personen kan ändra en post hens nyckel
+    // skrev). Två villkor: det nya får inte ha ett via som inte redan stod där, och det gamla via:et får inte försvinna eller bytas. Appens egna regler för sina samlingar
+    // (inkorgens ärenden) anropar den i sitt create och update på samma sätt.
+    function opsStampelUtanNyttVia(d, falt, fore) {
+      return (!(falt in d)
+          || !(d[falt] is map)
+          || !d[falt].keys().hasAny(["${VIA_FALTNAMN}"])
+          || (falt in fore && d[falt] == fore[falt]))
+        && (!(falt in fore)
+          || !(fore[falt] is map)
+          || !fore[falt].keys().hasAny(["${VIA_FALTNAMN}"])
+          || (falt in d && d[falt] == fore[falt]));
+    }
+
+    // Klientens skaparstämpel: de fyra fälten, eller exakt den stämpel som redan står på raden. Raden kan bära \`via\` om servern skrev den, och \`hasOnly\` ensamt hade då nekat
+    // personen att ändra sin egen post. \`fore\` är stämpeln på raden som finns, eller null vid create.
+    function opsSkaparstampel(s, fore) {
+      return s.keys().hasOnly([${SKAPARFALT.map((f) => `"${f}"`).join(", ")}])
+        || (fore != null && s == fore);
     }
 
     function opsMedlemskapet(gid) {
@@ -889,6 +915,9 @@ export function katalogregelfragment(namn) {
  * ⛔ RAMVERKET KÄNNER INTE SAMLINGSNAMNET. Appen skickar in det (`konfiglogg` i bolag-ops). Fragmentet använder
  * `opsArMedlem` och `opsArAdmin` ur `regelfragment()`, alltså ska det limmas in efter det.
  *
+ * ⛔ `av` BÄR ALDRIG `via` (0.135.0, lifehub.app#409): en ändring som en personlig API-nyckel gjorde åt personen loggas av servern (Admin SDK) med `av.via = { nyckelId, namn }`. En klient
+ *   som skrev fältet kunde påstå att en nyckel gjorde en ändring, så `opsStampelUtanNyttVia` nekar det (och loggen ändras aldrig efteråt). Vyn ritar "Claes-Philip via Byggagent".
+ *
  * @param {string} namn Samlingsnamnet för ändringsloggen.
  * @returns {string}
  */
@@ -901,6 +930,7 @@ export function konfigloggregelfragment(namn) {
       allow create: if opsArAdmin(request.resource.data.groupId)
         && request.resource.data.av is map
         && request.resource.data.av.uid == request.auth.uid
+        && opsStampelUtanNyttVia(request.resource.data, 'av', {})
         && request.resource.data.keys().hasOnly([${lista(KONFIGLOGGFALT)}])
         && request.resource.data.handelse in [${lista(KONFIGHANDELSER)}];
       allow update, delete: if false;
@@ -1587,6 +1617,10 @@ ${gruppadSamlingBlock(gruppkalendrar, { skrivvillkor: "opsArAdmin", falt: [...KA
  *     `resource.data`). `kalenderId` ska vara en av GRUPPENS kalendrar, i samma grupp som händelsen, och inte arkiverad.
  *     ⛔ KALENDERN PRÖVAS BARA NÄR `kalenderId` ÄNDRAS. Annars hade en kalender som arkiveras efteråt gjort varje gammal
  *     händelse i den omöjlig att arkivera eller rätta, samma fälla som #481 beskrev för appens egna fält.
+ *   - ⛔ `via` PÅ `skapadAv` (0.135.0, lifehub.app#409): `opsHandelsefaltGiltiga` nekar en klient som skriver ett `via` på händelsens skapare, och en som tar bort eller byter ett som
+ *     redan står där (`opsStampelUtanNyttVia`). En händelse som en personlig API-nyckel skapade åt personen bär märket, skrivet av servern. Ändrar en person en annan sak på händelsen
+ *     (rubriken, datumet) är stämpeln oförändrad och släpps igenom.
+ *   - ⛔ KOMMENTARER: `skapadAv` bär aldrig `via` från en klient (`create`), och en kommentar ändras aldrig. En kommentar en nyckel skrev åt personen bär märket, skrivet av servern.
  *
  * ⛔ RAMVERKET KÄNNER INTE SAMLINGSNAMNEN. `handelser` är APPENS samling, `svar` är undersamlingens namn, och
  * `gruppkalendrar` måste vara samma namn som till `kalenderregelfragment()`. Fragmentet använder `opsInloggad` och
@@ -1639,7 +1673,8 @@ export function handelseregelfragment(namn = {}) {
                 && get(opsGruppkalendern(d.groupId, d.kalenderId)).data.get('arkiverad', false) != true))))
         && (!('kravSvar' in d) || d.kravSvar is bool)
         && (!('slutDatum' in d)
-          || (d.slutDatum is string && d.slutDatum.matches('${datum}') && d.datum is string && d.slutDatum > d.datum));
+          || (d.slutDatum is string && d.slutDatum.matches('${datum}') && d.datum is string && d.slutDatum > d.datum))
+        && opsStampelUtanNyttVia(d, 'skapadAv', fore);
     }
 
     function opsHandelsen(hid) {
@@ -1676,7 +1711,8 @@ ${bilagaRegelfunktion("opsKommentarbilagaGiltig")}
         && request.resource.data.skapad is string
         && request.resource.data.skapad.matches('${isotid}')
         && request.resource.data.skapadAv is map
-        && request.resource.data.skapadAv.get('uid', null) == request.auth.uid;
+        && request.resource.data.skapadAv.get('uid', null) == request.auth.uid
+        && opsStampelUtanNyttVia(request.resource.data, 'skapadAv', {});
       allow update: if false;
       allow delete: if opsInloggad() && resource.data.skapadAv.get('uid', null) == request.auth.uid;
     }
@@ -1771,6 +1807,11 @@ ${bilagaRegelfunktion("opsKommentarbilagaGiltig")}
  *   - ÄNDRA och RADERA: författaren (aktiv medlem), eller ägare och admin i gruppen.
  *   - Grenarna utesluter varandra, och en plats som börjar \`arende~\` prövas bara som ärendeplats.
  *   - \`arenden\` och \`handelser\` är oberoende av varandra, och utan \`arenden\` är texten byte för byte den som 0.121.0 skrev.
+ *
+ * ⛔ `via` PÅ SKAPAREN (0.135.0, lifehub.app#409). En post som en personlig API-nyckel skrev åt personen bär `skapadAv.via = { nyckelId, namn }`, skrivet av servern (Admin SDK). En KLIENT skriver
+ *   aldrig fältet: ett `create` med `via` nekas, och `skapadAv` står stilla vid en ändring (som förut). Men personen och admin måste kunna ÄNDRA en post hens nyckel skrev, och `hasOnly` över
+ *   de fyra klientfälten hade nekat varje ändring av en rad som bär `via`. `opsSkaparstampel` släpper därför in de fyra fälten ELLER exakt den stämpel som redan står på raden.
+ *   `SKAPARFALT` har inte `via` (listan är härledd in i `hasOnly`, och ett fält som läggs dit öppnar regeln), och regelprovet (`rules/__tests__/skapare-via.test.mjs`) visar båda hållen.
  *
  * @param {string} namn Samlingsnamnet appen valt.
  * @param {{ gruppPrefix?: string, postPrefix?: string, handelser?: string, arenden?: string }} [sokvag] Samma namn som `lagringsregelfragment({ bibliotek })` får.
@@ -1956,7 +1997,7 @@ ${handelseFunktioner}    function opsBibliotekPlatsMedlem(gid) {
         && (!d.keys().hasAny(["taggar"]) || opsBibliotekTaggar(d.taggar))
         && d.rubrik.trim().size() > 0
         && d.rubrik.size() <= ${MAX_BIBLIOTEKRUBRIK}
-        && d.skapadAv.keys().hasOnly([${lista(SKAPARFALT)}])
+        && opsSkaparstampel(d.skapadAv, resource == null ? null : resource.data.get('skapadAv', null))
         && d.skapadAv.namn is string
         && d.skapadAv.typ == "manniska"
         && d.skapadAv.kalla is string
@@ -2276,6 +2317,9 @@ ${nuRegelfunktion("opsModulinstallningNu")}
  * `regelfragment()`, och ska limmas in efter det. Reglerna ska vara deployade INNAN klienten börjar läsa samlingen: en regel i
  * `main` är inte en regel i produktion.
  *
+ * ⛔ `via` PÅ SKAPAREN (0.135.0, lifehub.app#409): som i biblioteket. En rad som en personlig API-nyckel skrev bär `skapadAv.via`, skrivet av servern. En klient skriver det aldrig,
+ *   men får ändra en rad med ett oförändrat märke (`opsSkaparstampel`).
+ *
  * @param {string} namn Samlingsnamnet appen valt.
  * @returns {string}
  */
@@ -2297,7 +2341,7 @@ ${nuRegelfunktion("opsBeskrivenappNu")}
         && d.lista.matches('${idMonster}')
         && d.varden is map
         && d.varden.size() <= ${MAX_FALT}
-        && d.skapadAv.keys().hasOnly([${lista(SKAPARFALT)}])
+        && opsSkaparstampel(d.skapadAv, resource == null ? null : resource.data.get('skapadAv', null))
         && d.skapadAv.namn is string
         && d.skapadAv.namn.size() <= ${MAX_SKAPARNAMN}
         && d.skapadAv.typ == "manniska"
@@ -2358,6 +2402,8 @@ ${nuRegelfunktion("opsBeskrivenappNu")}
  * ⛔ RAMVERKET KÄNNER INTE SAMLINGSNAMNET. Fragmentet använder `opsArMedlem`, `opsArAdmin` och `opsMedlemskapet` ur
  * `regelfragment()`, och ska limmas in efter det.
  *
+ * ⛔ `via` PÅ SKAPAREN (0.135.0, lifehub.app#409): som i raderna. En admin skriver aldrig `via`, men får ändra en beskrivning med ett oförändrat märke.
+ *
  * @param {string} namn Samlingsnamnet appen valt.
  * @returns {string}
  */
@@ -2392,7 +2438,7 @@ ${nuRegelfunktion("opsBeskrivningNu")}
         && d.beskrivning.listor is list
         && d.beskrivning.listor.size() >= ${MIN_LISTOR}
         && d.beskrivning.listor.size() <= ${MAX_LISTOR}
-        && d.skapadAv.keys().hasOnly([${lista(SKAPARFALT)}])
+        && opsSkaparstampel(d.skapadAv, resource == null ? null : resource.data.get('skapadAv', null))
         && d.skapadAv.namn is string
         && d.skapadAv.namn.size() <= ${MAX_SKAPARNAMN}
         && d.skapadAv.typ == "manniska"

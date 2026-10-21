@@ -98,6 +98,9 @@ export const VIAFALT = /** @type {const} */ (["nyckelId", "namn"]);
  */
 export const SKAPARFALT_SERVER = /** @type {const} */ ([...SKAPARFALT, "via"]);
 
+/** Fältets namn, för reglerna: "klienten skriver inte det här" prövas mot ett namn som står på ETT ställe. */
+export const VIA_FALTNAMN = "via";
+
 /**
  * Taket för nyckelns id. Appens nycklar har 16 tecken (8 slumpade byte som hex), taket lämnar luft utan att släppa in en
  * text som kan ritas som en hel mening. Teckenmängden är appens: gemena hexsiffror.

@@ -10,6 +10,32 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    // ⛔ EN KLIENT SKRIVER ALDRIG `via` PÅ EN SKAPARSTÄMPEL (0.135.0, lifehub.app#409). Märket "skrivet av en personlig API-nyckel åt personen" sätts av servern (Admin SDK, som går
+    // förbi reglerna). En klient som fick sätta det kunde påstå att en nyckel skrev en rad, och en som fick ta bort det kunde göra en rad från en nyckel till personens egen.
+    //   d     dokumentet som skrivs (request.resource.data)
+    //   falt  namnet på stämpelfältet, t.ex. 'skapadAv' eller 'av'
+    //   fore  dokumentet som redan finns (resource.data), eller {} vid create
+    // Släpper igenom: en stämpel utan via på en rad som inte hade något, och en stämpel som är IDENTISK med den som redan står på raden (så att personen kan ändra en post hens nyckel
+    // skrev). Två villkor: det nya får inte ha ett via som inte redan stod där, och det gamla via:et får inte försvinna eller bytas. Appens egna regler för sina samlingar
+    // (inkorgens ärenden) anropar den i sitt create och update på samma sätt.
+    function opsStampelUtanNyttVia(d, falt, fore) {
+      return (!(falt in d)
+          || !(d[falt] is map)
+          || !d[falt].keys().hasAny(["via"])
+          || (falt in fore && d[falt] == fore[falt]))
+        && (!(falt in fore)
+          || !(fore[falt] is map)
+          || !fore[falt].keys().hasAny(["via"])
+          || (falt in d && d[falt] == fore[falt]));
+    }
+
+    // Klientens skaparstämpel: de fyra fälten, eller exakt den stämpel som redan står på raden. Raden kan bära `via` om servern skrev den, och `hasOnly` ensamt hade då nekat
+    // personen att ändra sin egen post. `fore` är stämpeln på raden som finns, eller null vid create.
+    function opsSkaparstampel(s, fore) {
+      return s.keys().hasOnly(["uid", "namn", "typ", "kalla"])
+        || (fore != null && s == fore);
+    }
+
     function opsMedlemskapet(gid) {
       return get(/databases/$(database)/documents/memberships/$(request.auth.uid + '|' + gid));
     }
