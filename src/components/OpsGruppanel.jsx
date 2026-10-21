@@ -280,7 +280,7 @@ function GruppanelRader({ grupper, aktiv, onValj, sprak, listEtikett, tomText, r
             </div>
 
             {/* Rad 2: namn. GroupCard.jsx rad 111-113. */}
-            <p className="mb-1 truncate text-meta leading-tight font-medium text-ink">{namn}</p>
+            <p className="mb-1 truncate text-meta leading-tight font-semibold text-ink">{namn}</p>
 
             {g.roll ? (
               <p className="mb-1">

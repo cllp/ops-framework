@@ -1997,6 +1997,79 @@ const gruppmapp = fs.mkdtempSync(path.join(rot, ".ops-vaktprov-"));
   kravRott("typografi golv: fel sökväg", [typvakt, path.join(typmapp, "finns-inte")], "finns inte");
 }
 
+// ── Skills till konsumenterna (0.136.0, CP 2026-10-21) ────────────────────────────────────────────────
+// ⛔ En skill i node_modules når ingen agent. Kopian är GENERERAD och vaktad (regel 2), och vakten ska ses falla åt alla håll:
+// saknad kopia, kopia som ligger efter, kvarglömd fil, föräldralös kopia, en handskriven skill med samma namn, tomt underlag.
+{
+  const kvakt = "scripts/kanon-skills.mjs";
+  const kmapp = path.join(arbetsmapp, "kanonskills");
+  const kalla = path.join(kmapp, "kalla");
+  fs.mkdirSync(path.join(kalla, "enskill"), { recursive: true });
+  fs.mkdirSync(path.join(kalla, "intern"), { recursive: true });
+  fs.writeFileSync(path.join(kalla, "enskill", "SKILL.md"), "---\nname: enskill\ndescription: x\nkonsument: true\n---\n\n# En skill\n");
+  fs.writeFileSync(path.join(kalla, "enskill", "EXTRA.md"), "# Extra\n");
+  fs.writeFileSync(path.join(kalla, "intern", "SKILL.md"), "---\nname: intern\ndescription: ramverkets egen\n---\n\n# Intern\n");
+  /** @param {string} namn @returns {string} */
+  const konsument = (namn) => {
+    const r = path.join(kmapp, namn);
+    fs.mkdirSync(r, { recursive: true });
+    return r;
+  };
+  const flaggor = (/** @type {string} */ r, /** @type {string[]} */ ...mer) => [kvakt, `--rot=${r}`, `--kalla=${kalla}`, ...mer];
+
+  const ny = konsument("ny");
+  const skills = path.join(ny, ".claude", "skills");
+  kravRott("skills: kopian saknas helt hos konsumenten", flaggor(ny), "saknas");
+  kravGront("skills: --skriv skriver kopian", flaggor(ny, "--skriv"));
+  kravGront("skills: kopian i takt är grön", flaggor(ny));
+  resultat.push({
+    namn: "skills: en skill utan konsument: true skrivs inte ut",
+    vantat: "gront",
+    utfall: fs.existsSync(path.join(skills, "intern")) ? "ramverkets interna skill skrevs ut hos konsumenten" : "ok",
+  });
+  fs.writeFileSync(path.join(skills, "enskill", "SKILL.md"), `${fs.readFileSync(path.join(skills, "enskill", "SKILL.md"), "utf8")}\nhandredigerad rad\n`);
+  kravRott("skills: en handredigerad kopia ligger efter originalet", flaggor(ny), "ligger efter originalet");
+  kravGront("skills: --skriv rättar den", flaggor(ny, "--skriv"));
+  kravGront("skills: efter rättningen är kopian grön", flaggor(ny));
+  fs.writeFileSync(path.join(skills, "enskill", "KVAR.md"), "glömd\n");
+  kravRott("skills: en fil som ramverket inte längre har", flaggor(ny), "finns inte längre");
+  kravGront("skills: --skriv tar bort den", flaggor(ny, "--skriv"));
+  fs.mkdirSync(path.join(skills, "gammal"), { recursive: true });
+  fs.writeFileSync(path.join(skills, "gammal", "SKILL.md"), "<!-- GENERERAD ur ops-framework skills/gammal/SKILL.md. -->\n# Gammal\n");
+  kravRott("skills: en genererad kopia av en skill ramverket slutat distribuera (föräldralös)", flaggor(ny), "inte längre distribuerar");
+  kravGront("skills: --skriv tar bort den föräldralösa kopian", flaggor(ny, "--skriv"));
+  // Konsumentens egna skills (utan markören) rörs aldrig, varken av kontrollen eller av --skriv.
+  fs.mkdirSync(path.join(skills, "egen"), { recursive: true });
+  fs.writeFileSync(path.join(skills, "egen", "SKILL.md"), "# Min egen\n");
+  kravGront("skills: en egen skill bredvid är inget brott", flaggor(ny));
+  kravGront("skills: --skriv med en egen skill bredvid", flaggor(ny, "--skriv"));
+  resultat.push({
+    namn: "skills: --skriv rör inte en egen skill",
+    vantat: "gront",
+    utfall: fs.readFileSync(path.join(skills, "egen", "SKILL.md"), "utf8") === "# Min egen\n" ? "ok" : "den egna skillen skrevs över",
+  });
+  // En handskriven skill med ramverkets namn skrivs ALDRIG över: vakten säger ifrån och lämnar den.
+  const krock = konsument("krock");
+  fs.mkdirSync(path.join(krock, ".claude", "skills", "enskill"), { recursive: true });
+  fs.writeFileSync(path.join(krock, ".claude", "skills", "enskill", "SKILL.md"), "# Handskriven\n");
+  kravRott("skills: en handskriven skill med samma namn", flaggor(krock, "--skriv"), "handskriven skill");
+  resultat.push({
+    namn: "skills: den handskrivna skillen med samma namn skrevs inte över",
+    vantat: "gront",
+    utfall: fs.readFileSync(path.join(krock, ".claude", "skills", "enskill", "SKILL.md"), "utf8") === "# Handskriven\n" ? "ok" : "den handskrivna skillen skrevs över",
+  });
+  // Golv: ingen skill med konsument: true är ett tomt underlag, inte ett grönt.
+  const tom = path.join(kmapp, "tomkalla");
+  fs.mkdirSync(path.join(tom, "bara-intern"), { recursive: true });
+  fs.writeFileSync(path.join(tom, "bara-intern", "SKILL.md"), "---\nname: x\ndescription: x\n---\n");
+  kravRott("skills golv: inga distribuerade skills", [kvakt, `--rot=${konsument("tomrot")}`, `--kalla=${tom}`], "ingen skill");
+  kravRott("skills golv: fel sökväg till skills", [kvakt, `--rot=${ny}`, `--kalla=${path.join(kmapp, "finns-inte")}`], "finns inte");
+  // Ramverkets egna skills: den riktiga uppsättningen går att skriva och är sedan grön.
+  const verklig = konsument("verklig");
+  kravGront("skills: ramverkets riktiga skills skrivs", [kvakt, `--rot=${verklig}`, "--skriv"]);
+  kravGront("skills: ramverkets riktiga skills är i takt", [kvakt, `--rot=${verklig}`]);
+}
+
 // ── Utvecklarord i användartext (0.69.0, #274) ─────────────────────────────
 //
 // ⛔ Det planterade fallet är CP:s skärmbild, ordagrant: en banderoll som säger att slagen inte är seedade och att samlingen är tom.

@@ -103,6 +103,7 @@
         "OpsDatePicker.jsx": { "antal": 1, "skal": "Månadsrubriken i datumväljaren (en rubrik utan h-tagg: react-day-picker ritar den)." },
         "OpsMarkdown.jsx": { "antal": 8, "skal": "Dokumentets fetstil, tabellhuvud och rubriknivåer: innehåll, inte UI-text." },
         "OpsIdentity.jsx": { "antal": 2, "skal": "Avatarens och gruppmärkets bokstäver." },
+        "OpsGruppanel.jsx": { "antal": 1, "skal": "Gruppkortets namn (text-meta, 600): mätt mot SS text-xs font-semibold av check-skalyta (`gruppkort: namnet`)." },
         "OpsHelp.jsx": { "antal": 1, "skal": "Frågetecknet i cirkeln: en glyf." },
         "OpsModulRam.jsx": { "antal": 1, "skal": "Frågetecknet i modulramens cirkel: en glyf." },
         "OpsBottomNav.jsx": { "antal": 1, "skal": "Raden med undernivåer i sidomenyn (`hasChildren`): föräldern är en rubrik för sina barn." },
@@ -113,7 +114,7 @@
       }
     },
     "element": {
-      "_kalla": "0.136.0 (CP 2026-10-21): vad SessionStudio faktiskt ritar för samma element, MÄTT med Playwright i Chromium på SS egen Tailwind 3-CSS (apps/web/tailwind.config.js + src/index.css, profilen green) och SS egna klasssträngar. Se PR cllp/ops-framework#428. `scripts/check-typografimatning.mjs` ritar ramverkets komponenter i en riktig webbläsare och kräver samma storlek och vikt. Fältets värde mäts bara på dator: på telefon är fältet 16 px mot iOS zoom (SS har samma skäl i SS_FIELD_CLASS). Sidrubriken (OpsViewHeader, 14/600) är med flit tunnare än SS 20/600 (CP 2026-10-13: Inkorgen börjar nästan i halva panelen) och mäts inte.",
+      "_kalla": "0.136.0 (CP 2026-10-21): vad SessionStudio faktiskt ritar för samma element, MÄTT med Playwright i Chromium på SS egen Tailwind 3-CSS (apps/web/tailwind.config.js + src/index.css, profilen green) och SS egna klasssträngar. Se PR cllp/ops-framework#428. `scripts/check-typografimatning.mjs` ritar ramverkets komponenter i en riktig webbläsare och kräver samma storlek och vikt. Fältets värde mäts bara på dator: på telefon är fältet 16 px mot iOS zoom (SS har samma skäl i SS_FIELD_CLASS). Raden i Inställningarnas lista (OpsInstallningar) mäts INTE: titeln är 16/600 och beskrivningen 14 mot SS bibliotekrad 14/500 och 12, med flit, eftersom `check-skalyta` kräver beskrivningen minst 13 px och titeln större än beskrivningen (CP 2026-10-06, texterna känns ihoptryckta) och ramverket saknar en 13-pixelsroll. CP 2026-10-21 säger motsatsen om samma yta: det beslutet är hans, se PR-texten. Sidrubriken (OpsViewHeader, 14/600) är med flit tunnare än SS 20/600 (CP 2026-10-13: Inkorgen börjar nästan i halva panelen) och mäts inte.",
       "lista": [
         { "namn": "sektionsrubrik", "text": "Påminnelser", "storlek": 12, "vikt": 600, "versaler": true, "ss": "views/SettingsView.jsx:174" },
         { "namn": "radetikett (reglage)", "text": "Slå på påminnelser", "storlek": 14, "vikt": 400, "ss": "views/SettingsView.jsx:228" },
@@ -125,8 +126,6 @@
         { "namn": "knapp", "text": "Skapa nyckel", "storlek": 14, "vikt": 500, "ss": "components/ui/PrimaryButton.jsx:44" },
         { "namn": "knapp liten", "text": "Liten", "storlek": 12, "vikt": 500, "ss": "components/ui/PrimaryButton.jsx:43" },
         { "namn": "flik", "text": "Låtar", "storlek": 12, "vikt": 500, "ss": "components/myLibraryPanel/MyLibraryPanelStickyHeader.jsx:161" },
-        { "namn": "listrad, titel", "text": "Händelsetyper", "storlek": 14, "vikt": 500, "ss": "components/library/LibraryRow.jsx:379" },
-        { "namn": "listrad, beskrivning", "text": "Orden och färgerna för händelserna i kalendern.", "storlek": 12, "vikt": 400, "ss": "components/library/LibraryRow.jsx:387" },
         { "namn": "banner, titel", "text": "Nyckeln visas en gång", "storlek": 14, "vikt": 500, "ss": "components/ErrorBanner.jsx:37" },
         { "namn": "banner, text", "text": "Kopiera den nu, den går inte att läsa igen.", "storlek": 12, "vikt": 400, "ss": "components/ErrorBanner.jsx:39" },
         { "namn": "tomt läge, titel", "text": "Inga nycklar ännu", "storlek": 14, "vikt": 500, "ss": "components/myLibraryPanel/MyLibraryPanelEmptyState.jsx:59" },

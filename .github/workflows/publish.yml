@@ -142,6 +142,8 @@ jobs:
       - run: npm run check:skalyta
       # 0.94.0: brandfilen och lagren, samma skäl och samma installation som skalytevakten ovan.
       - run: npm run check:brand
+      # 0.136.0: typografin ritad mot SessionStudio, samma skäl och samma installation som ovan.
+      - run: npm run check:typografimatning
 
       - name: Packa
         id: packa

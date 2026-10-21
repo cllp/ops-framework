@@ -109,6 +109,7 @@ Nästa steg:
 
   cd ${path.relative(process.cwd(), mal) || "."}
   npm install
+  npm run kanon:skills   skriver ramverkets skills till .claude/skills/ (committa dem)
   npm run check     kör vakterna, samma som CI och pre-push
   npm run dev
 
