@@ -43,7 +43,7 @@
  * utelämna fältet och låta en rad från nyckeln se ut som personens egen. Ett märke som vem som helst kan sätta eller
  * ta bort är inget märke. Därför är det INTE med i `SKAPARFALT`, som är de fyra fält en KLIENT får skriva och som
  * regelfragmentens `hasOnly` är härledda ur: ett nytt fält som läggs i den listan öppnar varje regel på en gång, och
- * det var just den fällan (granskningen av 0.135.0). `SKAPARFALT_SERVER` är samma lista plus `via`, och bara kod som
+ * det är den fällan, och regelprovet visar den (`rules/__tests__/skapare-via.test.mjs`). `SKAPARFALT_SERVER` är samma lista plus `via`, och bara kod som
  * körs med Admin SDK (och därför går förbi reglerna) ska skriva den formen. Reglerna släpper in ett `via` som redan
  * står på raden OFÖRÄNDRAT (en person som ändrar en post hens nyckel skrev), men aldrig ett nytt.
  *
