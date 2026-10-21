@@ -90,6 +90,49 @@
       "raknare": { "storlek": "0.5625rem", "vikt": "700", "radhojd": "1", "_kalla": "0.61.0 (#259): apps/web/src/components/calView/MonthGrid.jsx:477 och :503 'text-[8px] sm:text-[9px] font-bold leading-none tabular-nums', räknaren efter UserX och Layers i dagsrutans rad från 640 px, och :531 'text-[9px] font-semibold' för N/N. 8 px är `mikro`; 9 px fanns inte." }
     },
     "word_spacing_normal": { "varde": "0.06em", "_kalla": "index.css:418 --word-spacing-normal, kompenserar Plus Jakarta Sans smala mellanslag (#2501)" },
+    "tak": {
+      "_kalla": "0.136.0 (CP 2026-10-21): tak som bara får sjunka för `scripts/check-typografi.mjs` (ramverksläget). `brod` räknar `text-brod` utan responsiv 14 px (läsytor), `semibold` räknar `font-semibold` på något som inte är en rubrik (roll, h1 till h6, versal eller spärrad etikett, accentlänk). Fler träffar än taket fälls, och färre fälls också: den som lagar ett undantag sänker taket. Mätt 2026-10-21 efter genomgången av alla 133 komponenter.",
+      "brod": {
+        "OpsIdentity.jsx": { "antal": 3, "skal": "Avatarens bokstäver (size-9, size-8.5, size-12): glyfen, inte löptext." },
+        "OpsMarkdown.jsx": { "antal": 3, "skal": "Dokumentläget och dokumentets rubriknivå 1 och 2: läsning, inte UI. Samma 16 px som SS publika sidor." },
+        "OpsBibliotek.jsx": { "antal": 1, "skal": "Utskriftens text (`data-bibliotek-utskrift`): innehållet användaren läser, inte etikett." }
+      },
+      "semibold": {
+        "OpsCalendar.jsx": { "antal": 8, "skal": "Kalenderns dagsiffror, veckonummer, svepknapparna och datumet i panelen: dagrutornas siffror följer SS kalender (CalView). Ingår inte i CP:s skärmbilder och rörs inte i det här passet. Ändra med ett eget montage mot SS, och sänk då taket." },
+        "OpsCalendarDagruta.jsx": { "antal": 4, "skal": "Dagrutans siffra, närvaromärket och plusräknaren: samma som kalendern." },
+        "OpsDatePicker.jsx": { "antal": 1, "skal": "Månadsrubriken i datumväljaren (en rubrik utan h-tagg: react-day-picker ritar den)." },
+        "OpsMarkdown.jsx": { "antal": 8, "skal": "Dokumentets fetstil, tabellhuvud och rubriknivåer: innehåll, inte UI-text." },
+        "OpsIdentity.jsx": { "antal": 2, "skal": "Avatarens och gruppmärkets bokstäver." },
+        "OpsHelp.jsx": { "antal": 1, "skal": "Frågetecknet i cirkeln: en glyf." },
+        "OpsModulRam.jsx": { "antal": 1, "skal": "Frågetecknet i modulramens cirkel: en glyf." },
+        "OpsBottomNav.jsx": { "antal": 1, "skal": "Raden med undernivåer i sidomenyn (`hasChildren`): föräldern är en rubrik för sina barn." },
+        "OpsFilterPanel.jsx": { "antal": 1, "skal": "Gruppraden i filterpanelen, en rubrikrad i en lista." },
+        "OpsSkapaRubrik.jsx": { "antal": 1, "skal": "Chattens rubrik (`h3` i variantens tabell, taggen står i en annan sträng än klassen)." },
+        "OpsTillbaka.jsx": { "antal": 1, "skal": "Vyns rubrik (`VYRUBRIK_KLASS`, bärs av en h1 i OpsViewHeader)." },
+        "publikKlass.js": { "antal": 1, "skal": "Publika sidors pillknapp: SS landningssidor har 14/600 på sina knappar, en annan yta än appens." }
+      }
+    },
+    "element": {
+      "_kalla": "0.136.0 (CP 2026-10-21): vad SessionStudio faktiskt ritar för samma element, MÄTT med Playwright i Chromium på SS egen Tailwind 3-CSS (apps/web/tailwind.config.js + src/index.css, profilen green) och SS egna klasssträngar. Se PR cllp/ops-framework#428. `scripts/check-typografimatning.mjs` ritar ramverkets komponenter i en riktig webbläsare och kräver samma storlek och vikt. Fältets värde mäts bara på dator: på telefon är fältet 16 px mot iOS zoom (SS har samma skäl i SS_FIELD_CLASS). Sidrubriken (OpsViewHeader, 14/600) är med flit tunnare än SS 20/600 (CP 2026-10-13: Inkorgen börjar nästan i halva panelen) och mäts inte.",
+      "lista": [
+        { "namn": "sektionsrubrik", "text": "Påminnelser", "storlek": 12, "vikt": 600, "versaler": true, "ss": "views/SettingsView.jsx:174" },
+        { "namn": "radetikett (reglage)", "text": "Slå på påminnelser", "storlek": 14, "vikt": 400, "ss": "views/SettingsView.jsx:228" },
+        { "namn": "radhjälp", "text": "Beskrivning under raden.", "storlek": 11, "vikt": 400, "ss": "views/SettingsView.jsx:276" },
+        { "namn": "fältetikett", "text": "Namn", "storlek": 14, "vikt": 500, "ss": "components/ManageGroupModal.jsx:560" },
+        { "namn": "fälthjälp", "text": "Varje anrop skickas som POST med nyckeln i rubriken Authorization.", "storlek": 11, "vikt": 400, "ss": "views/SettingsView.jsx:276" },
+        { "namn": "fält (värde)", "input": "Mitt skript", "storlek": 14, "vikt": 400, "bara_dator": true, "ss": "components/myLibraryPanel/MyLibraryPanelStickyHeader.jsx:184" },
+        { "namn": "kryssruta, etikett", "text": "Läsa kommande händelser", "storlek": 14, "vikt": 400, "ss": "components/forms/Checkbox.jsx:53" },
+        { "namn": "knapp", "text": "Skapa nyckel", "storlek": 14, "vikt": 500, "ss": "components/ui/PrimaryButton.jsx:44" },
+        { "namn": "knapp liten", "text": "Liten", "storlek": 12, "vikt": 500, "ss": "components/ui/PrimaryButton.jsx:43" },
+        { "namn": "flik", "text": "Låtar", "storlek": 12, "vikt": 500, "ss": "components/myLibraryPanel/MyLibraryPanelStickyHeader.jsx:161" },
+        { "namn": "listrad, titel", "text": "Händelsetyper", "storlek": 14, "vikt": 500, "ss": "components/library/LibraryRow.jsx:379" },
+        { "namn": "listrad, beskrivning", "text": "Orden och färgerna för händelserna i kalendern.", "storlek": 12, "vikt": 400, "ss": "components/library/LibraryRow.jsx:387" },
+        { "namn": "banner, titel", "text": "Nyckeln visas en gång", "storlek": 14, "vikt": 500, "ss": "components/ErrorBanner.jsx:37" },
+        { "namn": "banner, text", "text": "Kopiera den nu, den går inte att läsa igen.", "storlek": 12, "vikt": 400, "ss": "components/ErrorBanner.jsx:39" },
+        { "namn": "tomt läge, titel", "text": "Inga nycklar ännu", "storlek": 14, "vikt": 500, "ss": "components/myLibraryPanel/MyLibraryPanelEmptyState.jsx:59" },
+        { "namn": "tomt läge, text", "text": "Skapa den första nyckeln ovan.", "storlek": 12, "vikt": 400, "ss": "components/myLibraryPanel/MyLibraryPanelEmptyState.jsx:60" }
+      ]
+    },
     "line_height_normal": { "varde": "1.5", "_kalla": "index.css:424 --line-height-normal" },
     "antialiasing": { "webkit": "antialiased", "moz": "grayscale", "_kalla": "index.css:1015-1016, satt på body" },
     "vikter": {

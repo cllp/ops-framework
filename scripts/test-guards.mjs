@@ -1960,6 +1960,36 @@ const gruppmapp = fs.mkdtempSync(path.join(rot, ".ops-vaktprov-"));
   );
   kravGront("typografi vikt: två element på en rad (rubrik och etikett+semibold) är inget brott", smutsig);
 
+  // 0.136.0 (CP 2026-10-21, "tjockt och stort"): VAR storleken och vikten används. Bara i ramverksläget, med tak som bara får sjunka.
+  const ramv = [typvakt, path.join(typmapp, "smutsig"), "--golv=60", "--ramverksregler"];
+  provVikt("text-brod text-ink");
+  kravRott("typografi plats: text-brod på en etikett i ramverksläge", ramv, "text-brod utanför läsytor");
+  provVikt("text-brod md:text-etikett text-ink");
+  kravGront("typografi plats: fältformen text-brod md:text-etikett (16 på telefon, 14 från md) är tillåten", ramv);
+  provVikt("text-brod md:pointer-fine:text-etikett text-ink");
+  kravGront("typografi plats: fältformen med flera varianter (md:pointer-fine:text-etikett) är tillåten", ramv);
+  provVikt("text-brod text-ink");
+  kravGront("typografi plats: samma text-brod är inget brott i en app (utan --ramverksregler)", smutsig);
+  provVikt("text-etikett font-semibold text-ink");
+  kravRott("typografi plats: font-semibold på en etikett (radnamn, pill, flik) i ramverksläge", ramv, "font-semibold på löptext");
+  provVikt("text-etikett font-medium text-ink");
+  kravGront("typografi plats: samma etikett med font-medium är grön", ramv);
+  fs.writeFileSync(
+    path.join(typmapp, "smutsig", "OpsProvstorlek.jsx"),
+    'export function OpsProvstorlek() {\n  return <><h3 className="text-etikett font-semibold text-ink">a</h3><p className="text-meta font-semibold uppercase text-ink">b</p><a className="text-etikett font-semibold text-accent" href="/">c</a></>;\n}\n',
+  );
+  kravGront("typografi plats: font-semibold på h3, på en versal etikett och på en accentlänk är rubrikens vikt och tillåten", ramv);
+  // Taket: en träff mer än taket fälls, och en träff mindre fälls också (taket ska sjunka med lagningen).
+  fs.writeFileSync(path.join(typmapp, "smutsig", "OpsProvstorlek.jsx"), "export const x = 1;\n");
+  const identitet = path.join(typmapp, "smutsig", "OpsIdentity.jsx");
+  const identitetOriginal = fs.readFileSync(identitet, "utf8");
+  fs.writeFileSync(identitet, `${identitetOriginal}\nexport const EXTRA = "size-9 text-brod";\n`);
+  kravRott("typografi tak: en text-brod mer än taket i en fil som har undantag", ramv, "taket är 3");
+  fs.writeFileSync(identitet, identitetOriginal.replace(/(\n\s*)md: "size-9 text-brod",/, '$1md: "size-9",'));
+  kravRott("typografi tak: en text-brod mindre än taket (någon har lagat ett undantag och taket står kvar)", ramv, "tak som bara får sjunka");
+  fs.writeFileSync(identitet, identitetOriginal);
+  kravGront("typografi tak: orörd kopia med taken som de står är grön", ramv);
+
   const tunn = path.join(typmapp, "tunn");
   fs.mkdirSync(tunn, { recursive: true });
   fs.writeFileSync(path.join(tunn, "Ensam.jsx"), "export function Ensam() { return null; }\n");

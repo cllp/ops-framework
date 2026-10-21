@@ -64,7 +64,7 @@ export function rullaInAktiv(rad) {
  */
 export function flikKlass({ oppen }) {
   return cx(
-    "flex min-h-11 items-center gap-2 whitespace-nowrap rounded-t-md border-b-2 px-4 py-2 text-etikett font-semibold",
+    "flex min-h-11 items-center gap-2 whitespace-nowrap rounded-t-md border-b-2 px-4 py-2 text-etikett font-medium",
     "transition-colors duration-(--duration-fast) ease-standard",
     "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
     oppen ? "border-accent text-ink" : "border-transparent text-ink-secondary hover:bg-accent-faint hover:text-ink",

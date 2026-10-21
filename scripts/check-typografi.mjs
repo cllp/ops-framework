@@ -41,6 +41,27 @@
  *   - En LÄGRE vikt än rollens fälls inte (`text-mikro font-semibold`): det är en avsiktlig sänkning, som SS gör på
  *     N/N-räknaren. En HÖGRE vikt på en 400- eller 500-roll (`text-etikett font-medium`) är emfas och tillåten.
  *
+ * ══ ⛔ VAR STORLEKEN OCH VIKTEN ANVÄNDS (0.136.0, CP 2026-10-21) ═════════════════════════════════
+ *
+ * CP, med två skärmbilder (LifeHub Inställningar mot SessionStudio Mitt bibliotek): "Känns tjockt och stort och inte snyggt och
+ * enkelt ... Fattar inte varför vi faller tillbaka på den stora feta texten överallt." Typsnittet var rätt (Plus Jakarta Sans,
+ * mätt med CDP `getPlatformFontsForNode`) och rollernas storlekar var SessionStudios. Det som skilde var VAR rollerna användes:
+ * mätt i en webbläsare mot SessionStudios CSS var kryssrutans och reglagets etikett 16 px mot SS 14, flikarna 16/600 mot 12/500,
+ * listradens titel 16/600 mot 14/500 och hjälptexten under en rad 14 mot 11. Skalan hade varit riktig hela tiden; den som skrev
+ * `text-brod` på en etikett fick 16 px, och ingen vakt såg att etiketten inte var brödtext.
+ *
+ * Två regler, bara i ramverksläget (en app har egna skäl):
+ *
+ *   - `text-brod` (16 px) utan variant fälls. Brödtext i UI är `text-etikett` (14). 16 px är för läsning (dokument) och för
+ *     fält på telefon, och fältet skrivs `text-brod md:text-etikett` (16 px under md så att iOS inte zoomar, 14 från md).
+ *   - `font-semibold` på något som inte är en rubrik fälls. 600 är rubrikens vikt (roller, `h1` till `h6`, versala etiketter och
+ *     accentlänkar). Ett radnamn, en pill eller en flik är 500, som i SS.
+ *
+ * ⛔ TAK SOM BARA FÅR SJUNKA, INTE NOLL (arbetsreglernas punkt 4). Undantagen (dokumentets rubriker, avatarens bokstäver,
+ * kalenderns dagsiffror) står i `tokens/sessionstudio-profil.json` under `typografi.tak`, med antal och skäl per fil. Fler
+ * träffar än taket fälls. FÄRRE träffar än taket fälls också: någon har lagat ett undantag och taket ska sjunka med det, annars
+ * står en tom plats kvar för nästa som har bråttom.
+ *
  * ══ ⛔ GOLV ═══════════════════════════════════════════════════════════════
  *
  * Utan argument läses ramverkets `src/components` och kräver minst 60 filer
@@ -176,6 +197,50 @@ export function dubbelVikt(kalla) {
   return ut;
 }
 
+
+/**
+ * Textstorlek och vikt på rätt plats, per klasssträng (strängen är enheten, som i `dubbelVikt`).
+ *   brod:     en sträng med `text-brod` utan variant och utan en responsiv 14 px (`md:text-etikett`): inmatningsformen är tillåten.
+ *   semibold: en sträng med `font-semibold` utan variant som inte är en rubrik: ingen roll som redan bär 600 (`dubbelVikt` tar
+ *             den), inte versal eller spärrad, inte en accentlänk och inte sittande på en `h1` till `h6` / `Dialog.Title`.
+ * @param {string} kalla @returns {{ brod: { rad: number, text: string }[], semibold: { rad: number, text: string }[] }}
+ */
+export function smatextBrott(kalla) {
+  /** @type {{ brod: { rad: number, text: string }[], semibold: { rad: number, text: string }[] }} */
+  const ut = { brod: [], semibold: [] };
+  for (const m of kalla.matchAll(/"([^"\n]*)"|'([^'\n]*)'|`([^`]*)`/g)) {
+    const strang = m[1] ?? m[2] ?? m[3] ?? "";
+    const klasser = strang.split(/\s+/).filter(Boolean);
+    const rad = kalla.slice(0, m.index).split("\n").length;
+    if (klasser.includes("text-brod") && !klasser.some((k) => /^(?:[a-z-]+:)+text-(?:etikett|meta)$/.test(k))) ut.brod.push({ rad, text: strang.trim() });
+    if (klasser.includes("font-semibold")) {
+      const rubrikroll = klasser.some((k) => /^text-(?:rubrik|sektion|titel|sida|publik-[a-z]+)$/.test(k));
+      const versal = klasser.includes("uppercase") || klasser.some((k) => k.startsWith("tracking-"));
+      const lank = klasser.some((k) => /^(?:hover:)?text-accent(?:-hover)?$/.test(k));
+      const fore = kalla.slice(Math.max(0, /** @type {number} */ (m.index) - 300), m.index);
+      const rubriktagg = /<(?:h[1-6]|Dialog\.Title|Toast\.Title)\b[^<]*$/.test(fore);
+      if (!rubrikroll && !versal && !lank && !rubriktagg) ut.semibold.push({ rad, text: strang.trim() });
+    }
+  }
+  return ut;
+}
+
+/** @type {{ brod: Record<string, { antal: number, skal: string }>, semibold: Record<string, { antal: number, skal: string }> }} */
+const TAK = (() => {
+  const profil = path.join(rot, "tokens", "sessionstudio-profil.json");
+  if (!fs.existsSync(profil)) {
+    console.error(`check-typografi: ${profil} finns inte, så taken kan inte läsas. Fel sökväg i vakten, inte ett godkänt utfall.`);
+    process.exit(1);
+  }
+  const tak = JSON.parse(fs.readFileSync(profil, "utf8")).typografi?.tak;
+  // Golv: en tom takabell är en regel som släpper igenom allt, och då är den grön av att inte mäta.
+  if (!tak || Object.keys(tak.brod ?? {}).length < 3 || Object.keys(tak.semibold ?? {}).length < 5) {
+    console.error("check-typografi: typografi.tak i tokens/sessionstudio-profil.json saknas eller är för tunn (väntat minst 3 filer för brod och 5 för semibold).");
+    process.exit(1);
+  }
+  return tak;
+})();
+
 /** @type {{ fil: string, rad: number, regel: string, skal: string, text: string }[]} */
 const fynd = [];
 let lasta = 0;
@@ -191,6 +256,21 @@ for (const rotdir of rotter) {
     const rader = kalla.split("\n");
     for (const d of dubbelVikt(kalla)) {
       fynd.push({ fil: path.relative(process.cwd(), full), rad: d.rad, regel: "dubbel vikt", skal: `${d.roll} bär redan ${d.vikt}. Ta bort ${d.vikt}: vikten är rollens (tokens/sessionstudio-profil.json), och en vikt ovanpå den får den som läser att tro att rollen saknar en. Emfas på en 400-roll: font-medium.`, text: d.text });
+    }
+    if (ramverksRegler) {
+      const namn = path.basename(full);
+      const sma = smatextBrott(kalla);
+      for (const [nyckel, lista, regel, skal] of /** @type {const} */ ([
+        ["brod", sma.brod, "text-brod utanför läsytor", "Brödtext i UI är text-etikett (14 px). text-brod (16 px) är för läsning och för fält: skriv fältet `text-brod md:text-etikett`. Undantag med skäl: tokens/sessionstudio-profil.json, typografi.tak.brod."],
+        ["semibold", sma.semibold, "font-semibold på löptext", "600 är rubrikens vikt (roll, h1 till h6, versal etikett, accentlänk). Radnamn, pill, flik och knapp är font-medium (500), som SessionStudio. Undantag med skäl: tokens/sessionstudio-profil.json, typografi.tak.semibold."],
+      ])) {
+        const tak = TAK[nyckel][namn]?.antal ?? 0;
+        if (lista.length > tak) {
+          for (const d of lista) fynd.push({ fil: path.relative(process.cwd(), full), rad: d.rad, regel, skal: `${skal} (${namn} har ${lista.length}, taket är ${tak})`, text: d.text });
+        } else if (lista.length < tak) {
+          fynd.push({ fil: path.relative(process.cwd(), full), rad: 1, regel: "tak som bara får sjunka", skal: `${namn} har ${lista.length} träffar för ${nyckel} men taket är ${tak}. Någon har lagat ett undantag: sänk taket i tokens/sessionstudio-profil.json (typografi.tak.${nyckel}) till ${lista.length}, så står ingen tom plats kvar.`, text: "" });
+        }
+      }
     }
     rader.forEach((rad, i) => {
       for (const r of REGLER) {
