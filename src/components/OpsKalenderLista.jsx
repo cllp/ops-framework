@@ -2,7 +2,7 @@ import { useId, useState } from "react";
 import { cx } from "../lib/cx.js";
 import { KALENDERPRICK } from "../lib/kalenderfarg.js";
 import { lagerFarg } from "../lib/kalenderlager.js";
-import { radKlass, radRubrikKlass } from "../lib/radKlass.js";
+import { radRubrikKlass } from "../lib/radKlass.js";
 import { ChevronNedIkon, KalenderIkon } from "./icons.jsx";
 import { OpsSegmented } from "./OpsSegmented.jsx";
 import { OpsSwitch } from "./OpsToggle.jsx";
@@ -83,14 +83,14 @@ function Kalenderrad({ k, syn, oppen, onOppna }) {
       {/* ⛔ VISNINGEN FINNS BARA FÖR EN KALENDER SOM SYNS. Hur en dold kalender skulle visas är ingen fråga någon ställer, och en rad per kalender
           med ett val under hade gjort listan dubbelt så hög på en telefon. Ordet står kvar på knappen, så att valet syns utan att fällas ut. */}
       {syns ? (
-        <div className="flex flex-col gap-1.5 pr-3 pb-1.5 pl-9">
+        <div className="-mt-1.5 flex flex-col gap-1 pr-3 pb-1 pl-9">
           <button
             type="button"
             data-kalendervisning-knapp=""
             aria-expanded={oppen}
             aria-controls={`${id}-visning`}
             onClick={onOppna}
-            className={cx(radKlass({ klickbar: true }), "min-h-8 w-auto self-start px-2 py-1 text-etikett text-ink-muted md:min-h-0")}
+            className="inline-flex min-h-8 cursor-pointer items-center gap-1 self-start rounded-base px-2 py-1 text-etikett text-ink-muted transition-colors duration-(--duration-fast) ease-standard hover:bg-hover hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent md:min-h-0"
           >
             <span>
               Visas som <span className="font-semibold text-ink-secondary">{VISNINGSORD[visning]}</span>

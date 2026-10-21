@@ -33,7 +33,7 @@ export function OpsExternPanel({ post, onStang, sprak, kopieraTill, onKopiera })
           data-externpanel=""
           aria-describedby={undefined}
           onOpenAutoFocus={(e) => e.preventDefault()}
-          className="fixed inset-0 z-(--z-modal) overflow-y-auto bg-canvas outline-none md:inset-y-6 md:left-1/2 md:w-[min(48rem,calc(100vw-3rem))] md:-translate-x-1/2 md:rounded-base md:border md:border-line"
+          className="fixed inset-0 z-(--z-modal) overflow-y-auto bg-canvas outline-none md:inset-auto md:top-6 md:left-1/2 md:max-h-[calc(100dvh-3rem)] md:w-[min(48rem,calc(100vw-3rem))] md:-translate-x-1/2 md:rounded-base md:border md:border-line"
         >
           <Dialog.Title className="sr-only">{handelse ? handelse.titel : ""}</Dialog.Title>
           {handelse && post ? (
