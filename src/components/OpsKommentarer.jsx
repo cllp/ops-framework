@@ -155,7 +155,7 @@ function OpsKommentarerRitad({
         if (!e.currentTarget.contains(/** @type {Node | null} */ (e.relatedTarget))) setFokusInne(false);
       }}
     >
-      <span id={rubrikId} className="text-brod font-semibold text-ink">
+      <span id={rubrikId} className="text-rubrik text-ink">
         {rubrik}
       </span>
       {fel ? (
@@ -187,7 +187,7 @@ function OpsKommentarerRitad({
                     </span>
                     <span className="text-meta text-ink-muted">{formatDagOchKlockslag(k.skapad, { locale })}</span>
                   </div>
-                  {k.text ? <p className="m-0 whitespace-pre-wrap break-words text-brod text-ink">{k.text}</p> : null}
+                  {k.text ? <p className="m-0 whitespace-pre-wrap break-words text-etikett text-ink">{k.text}</p> : null}
                   {k.bilaga?.dataUrl ? <Kommentarbilaga bilaga={k.bilaga} namn={namn} bilagaText={bilagaText} sprak={sprak} galleri={galleri} galleriPlats={galleri.findIndex((g) => g.id === k.id)} /> : null}
                 </div>
                 {min && onTaBort ? (

@@ -407,7 +407,7 @@ function EnkelGruppanelRader({ grupper, aktiv, onValj, onValjOchStang, sprak, li
             >
               <OpsIdentity name={namn} seed={g.id} imageUrl={g.bild || undefined} {...gruppmarkeProps(g)} size="sm" />
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-etikett font-semibold text-ink">{namn}</span>
+                <span className="block truncate text-etikett font-medium text-ink">{namn}</span>
                 {typeof g.medlemsantal === "number" ? (
                   <span className="block truncate text-meta text-ink-secondary">
                     {g.medlemsantal} {g.medlemsantal === 1 ? "medlem" : "medlemmar"}
@@ -720,7 +720,7 @@ export function OpsGruppvaxlare({
         <button
           type="button"
           aria-label={`${etikett}, ${nuEtikett}: ${aktivtNamn}`}
-          className="flex size-11 shrink-0 items-center justify-center rounded-md text-etikett font-semibold text-ink md:size-auto md:min-h-11 md:max-w-40 md:justify-start md:gap-2 md:px-2 md:hover:bg-sunken"
+          className="flex size-11 shrink-0 items-center justify-center rounded-md text-etikett font-medium text-ink md:size-auto md:min-h-11 md:max-w-40 md:justify-start md:gap-2 md:px-2 md:hover:bg-sunken"
         >
           {/* ⛔ 0.31.1: UNDER `md` ÄR KNAPPEN GRUPPMÄRKET OCH INGET ANNAT, på loggans plats längst till vänster (CP 2026-09-29 18:40:
               "VI behöver en bra Grupp-väljare-ikon i mobil istället för logga"). Samma ruta som remsan (`gruppRutaKlass`, 40 px) med
@@ -805,7 +805,7 @@ function OversiktRad({ namn, vald, onValj }) {
       )}
     >
       <span className={gruppRutaKlass({ vald, interaktiv: false })}><HusIkon size={16} /></span>
-      <span className="min-w-0 flex-1 truncate text-etikett font-semibold text-ink">{namn}</span>
+      <span className="min-w-0 flex-1 truncate text-etikett font-medium text-ink">{namn}</span>
     </button>
   );
 }

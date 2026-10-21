@@ -1441,12 +1441,31 @@
     scrollbar-gutter: stable;
   }
 
+  /*
+   * ⛔ BODY BÄR SAMMA TVÅ INSTÄLLNINGAR SOM SESSIONSTUDIOS (0.136.0, CP 2026-10-21): ordavstånd och kantutjämning.
+   * CP: "Det känns som att någon skrivit över vilka typsnitt vi skall använda i appen. Ser inte ut som SessionStudio.
+   * Känns tjockt och stort och inte snyggt och enkelt."
+   *
+   * Mätt i en riktig webbläsare mot SessionStudios CSS (`[data-profile="green"] body`, apps/web/src/index.css:427 till
+   * 431 och :1015): SS har `word-spacing: 0.06em` och `-webkit-font-smoothing: antialiased`, ramverket hade 0 och
+   * `auto`. Värdet `--word-spacing-normal` fanns redan i tokens (genererat ur `sessionstudio-profil.json`) men
+   * ingenting läste det, så Plus Jakarta Sans smala mellanslag (SS #2501: "Rep demo" läste som "Repdemo") ritades
+   * utan den kompensation SS lägger på varje sida. `antialiasing` stod i profilfilen men skrevs aldrig ut heller.
+   *
+   * ⛔ RUBRIKERNAS SPÄRRNING (SS `h1, h2, h3 { letter-spacing: -0.01em }`) SÄTTS HÄR INTE. Den bor i rollerna (`publik-rubrik`,
+   * `publik-sida`, `publik-block` bär -0.01em) och `check-brand --bevisa` bevisar det: en bas-regel på `h1` till `h3` gjorde
+   * beviset "utan spärrningen på rollerna är rubrikerna bredare än SS" grönt, alltså fanns spärrningen på två ställen och
+   * ingen vakt kunde längre se när rollens försvann. En sanning per faktum (regel 2).
+   */
   body {
     margin: 0;
     background: var(--color-canvas);
     color: var(--color-ink);
     font-family: var(--font-sans);
     line-height: 1.5;
+    word-spacing: var(--word-spacing-normal);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
   /* Ramverket ritar sina egna fokusringar. Den här raden gör att den som

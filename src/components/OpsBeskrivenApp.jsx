@@ -406,7 +406,7 @@ function Appvy({ b, kalla, jag, medlemmar, sprak, tillbaka }) {
               return (
                 <OpsListRow key={rad.id} interactive ariaLabel={rubrikFor(lista, rad)} onClick={() => setLage({ lista: lista.id, rad })}>
                   <span className="min-w-0 flex-1" data-beskriven-rad={rad.id}>
-                    <span className="block truncate text-brod font-medium text-ink">{rubrikFor(lista, rad)}</span>
+                    <span className="block truncate text-etikett font-medium text-ink">{rubrikFor(lista, rad)}</span>
                     {meta ? <span className="block truncate text-meta text-ink-muted">{meta}</span> : null}
                   </span>
                 </OpsListRow>
@@ -455,7 +455,7 @@ function Appvy({ b, kalla, jag, medlemmar, sprak, tillbaka }) {
           />
         ) : (
           <>
-            {b.beskrivning ? <p data-beskriven-app-beskrivning="" className="m-0 text-brod text-ink-secondary">{b.beskrivning}</p> : null}
+            {b.beskrivning ? <p data-beskriven-app-beskrivning="" className="m-0 text-etikett text-ink-secondary">{b.beskrivning}</p> : null}
             {b.listor.length === 1 ? (
               listinnehall(b.listor[0])
             ) : (
@@ -652,7 +652,7 @@ function Radformular({ b, lista, rad, kan, medlemmar, sprak, rubrik, onStang, on
           );
         })}
         {formfel ? (
-          <p role="alert" data-beskriven-app-formfel="" className="m-0 text-brod text-danger">{formfel}</p>
+          <p role="alert" data-beskriven-app-formfel="" className="m-0 text-etikett text-danger">{formfel}</p>
         ) : null}
         <div className="flex flex-wrap items-center gap-2">
           {kan ? <OpsButton type="submit" variant="primary" busy={busy}>{t("spara")}</OpsButton> : null}

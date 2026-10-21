@@ -156,7 +156,7 @@ export function HandelseDelning({ handelse, delningar, onDela, onAterkalla, onMe
       >
         {skapad ? (
           <div data-handelsedelning-skapad="" className="flex flex-col gap-3">
-            <p className="m-0 text-brod text-ink-secondary">{t.skapadText}</p>
+            <p className="m-0 text-etikett text-ink-secondary">{t.skapadText}</p>
             <ul className="m-0 flex list-none flex-col p-0">
               <LankRad lank={skapad} sprak={sprak} ord={ord} />
             </ul>

@@ -59,7 +59,7 @@ export function aktivHubbNamn(hubbar) {
 }
 
 const RAD = cx(
-  "inline-flex min-h-11 items-center gap-2 rounded-base border px-3 py-2 text-etikett font-semibold",
+  "inline-flex min-h-11 items-center gap-2 rounded-base border px-3 py-2 text-etikett font-medium",
   "transition-colors duration-(--duration-fast) ease-standard",
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
 );

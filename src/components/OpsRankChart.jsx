@@ -78,7 +78,7 @@ export function OpsRankChart({ rows, ariaLabel, max, empty = null }) {
             <div className="flex items-baseline justify-between gap-3">
               <span className="min-w-0 truncate text-etikett text-ink">{r.label}</span>
               {r.text === undefined || r.text === null ? null : (
-                <span className="shrink-0 text-etikett font-semibold tabular-nums text-ink">{r.text}</span>
+                <span className="shrink-0 text-etikett font-medium tabular-nums text-ink">{r.text}</span>
               )}
             </div>
 

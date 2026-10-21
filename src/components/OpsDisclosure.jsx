@@ -95,7 +95,7 @@ export function OpsDisclosure({ summary, children, defaultOpen = false, open, on
             utan egen klass bodyns 16 px, alltså större än SS rader (`text-sm`, 14). Appens egna klasser vinner som förut. */}
         <div className="min-w-0 flex-1 text-etikett">{summary}</div>
         {badge && badge > 0 ? (
-          <span className="shrink-0 rounded-full bg-accent-subtle px-2 py-0.5 text-meta font-semibold tabular-nums text-ink">{badge}</span>
+          <span className="shrink-0 rounded-full bg-accent-subtle px-2 py-0.5 text-meta font-medium tabular-nums text-ink">{badge}</span>
         ) : null}
         <span
           aria-hidden="true"

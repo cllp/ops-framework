@@ -383,7 +383,7 @@ export function InstallningsInnehall({ modul, ram, sprak }) {
             >
               <span aria-hidden="true" className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-raised text-ink [&_svg]:size-4">{ikon}</span>
               <span className="min-w-0 flex-1">
-                <span className="block text-brod text-ink">{t("ikon")}</span>
+                <span className="block text-etikett text-ink">{t("ikon")}</span>
                 <span className="mt-0.5 block text-etikett text-ink-muted">{t("ikonText")}</span>
               </span>
               <span aria-hidden="true" className={cx("inline-flex shrink-0 text-ink-muted", ikonOpp && "rotate-90")}>
@@ -399,7 +399,7 @@ export function InstallningsInnehall({ modul, ram, sprak }) {
           <Rad>
             <div data-allmant="ordning" className="flex min-h-11 items-center gap-3 px-4 py-2">
               <span className="min-w-0 flex-1">
-                <span className="block text-brod text-ink">{t("ordning")}</span>
+                <span className="block text-etikett text-ink">{t("ordning")}</span>
                 {!pa ? <span className="mt-0.5 block text-etikett text-ink-muted">{t("dold")}</span> : null}
               </span>
               <span className="flex shrink-0 items-center">
@@ -456,20 +456,20 @@ export function InstallningsInnehall({ modul, ram, sprak }) {
                   <div data-koppling={k.id} className="flex flex-col gap-2 px-4 py-3">
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <p className="m-0 text-brod font-semibold text-ink">{text(k.namn, sprak)}</p>
+                        <p className="m-0 text-etikett font-medium text-ink">{text(k.namn, sprak)}</p>
                         {k.hint ? <p className="m-0 text-etikett text-ink-muted">{text(k.hint, sprak)}</p> : null}
                       </div>
-                      <p className="m-0 text-etikett font-semibold text-ink" data-koppling-status={lage.status}>{statusText}</p>
+                      <p className="m-0 text-etikett font-medium text-ink" data-koppling-status={lage.status}>{statusText}</p>
                     </div>
                     <div>
                       <p className="m-0 text-etikett text-ink-muted">{t("behorigheter")}</p>
-                      {k.behorigheter.length === 0 ? <p className="m-0 text-brod text-ink">{t("ingaBehorigheter")}</p> : (
+                      {k.behorigheter.length === 0 ? <p className="m-0 text-etikett text-ink">{t("ingaBehorigheter")}</p> : (
                         <ul className="m-0 list-disc pl-5">
                           {k.behorigheter.map((b) => <li key={b.sv}>{text(b, sprak)}</li>)}
                         </ul>
                       )}
                     </div>
-                    <p className="m-0 text-brod text-ink">
+                    <p className="m-0 text-etikett text-ink">
                       {t("senasteSynk")}: {lage.senasteSynk == null ? t("ingenSynk") : formatDateTime(lage.senasteSynk, { locale: sprak === "en" ? "en" : "sv" })}
                     </p>
                     {lage.fel ? <OpsBanner tone="danger" title={lage.fel} /> : null}

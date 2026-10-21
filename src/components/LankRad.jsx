@@ -111,7 +111,7 @@ export function LankRad({ lank, onAterkalla, sprak = "sv", ord, nyligen = false 
         <span aria-hidden="true">·</span>
         <span data-lankrad-giltighet="">{till}</span>
       </p>
-      <p ref={text} data-lankrad-url="" className="m-0 select-all break-all text-brod text-ink">{lank.url}</p>
+      <p ref={text} data-lankrad-url="" className="m-0 select-all break-all text-etikett text-ink">{lank.url}</p>
       <div className="flex flex-wrap items-center gap-2">
         <OpsButton size="sm" variant="secondary" ariaLabel={t.kopieraNamn} onClick={() => kopiera(lank.url)}>
           <KopieraIkon size={16} />

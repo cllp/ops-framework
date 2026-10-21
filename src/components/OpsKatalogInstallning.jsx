@@ -571,7 +571,7 @@ function IkonRutnat({ ikoner, ikonRitare, vald, onVal }) {
   const traffar = q ? ikoner.filter((n) => n.toLowerCase().includes(q)) : ikoner;
   return (
     <div data-katalog-ikoner="" role="group" aria-label="Ikon" className="flex flex-col gap-2">
-      <span className="text-meta font-semibold text-ink-secondary">Ikon</span>
+      <span className="text-meta font-medium text-ink-secondary">Ikon</span>
       <input
         type="search"
         value={fraga}
@@ -579,7 +579,7 @@ function IkonRutnat({ ikoner, ikonRitare, vald, onVal }) {
         placeholder="Sök ikon"
         aria-label="Sök ikon"
         autoComplete="off"
-        className="min-h-11 w-full rounded-base border-[1.5px] border-line bg-surface px-3 py-2 text-brod text-ink placeholder:text-ink-muted focus-visible:border-accent focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
+        className="min-h-11 w-full rounded-base border-[1.5px] border-line bg-surface px-3 py-2 text-brod md:text-etikett text-ink placeholder:text-ink-muted focus-visible:border-accent focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
       />
       {traffar.length === 0 ? (
         <p className="m-0 text-meta text-ink-muted">Ingen ikon matchar.</p>

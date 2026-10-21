@@ -699,12 +699,12 @@ function Spelare({ adress, namn, visaNamn, kompakt, liten, meta, durationMs, pea
                 aria-label={etikett || "Öppna"}
                 className="flex min-h-11 min-w-0 flex-1 cursor-pointer flex-col justify-center bg-transparent text-left focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
               >
-                <span className="block truncate text-brod font-medium text-ink">{etikett}</span>
+                <span className="block truncate text-etikett font-medium text-ink">{etikett}</span>
                 {metaMedLangd ? <span data-ljud-langd="" className="block truncate text-meta text-ink-muted">{metaMedLangd}</span> : null}
               </button>
             ) : (
               <span className="min-w-0 flex-1">
-                {etikett ? <span className="block truncate text-brod font-medium text-ink">{etikett}</span> : null}
+                {etikett ? <span className="block truncate text-etikett font-medium text-ink">{etikett}</span> : null}
                 {metaMedLangd ? <span data-ljud-langd="" className="block truncate text-meta text-ink-muted">{metaMedLangd}</span> : null}
               </span>
             )}

@@ -314,7 +314,7 @@ export function OpsGruppHubb({ grupp, moduler, activeHref = "", onNavigate, spra
             tillaggningsbara.length > 0 ? (
               <ValbaraAppar moduler={tillaggningsbara} sprak={sprak} t={t} installera={installera} onNavigate={onNavigate} />
             ) : (
-              <p className="m-0 text-brod text-ink-secondary">{t.ingaValbara}</p>
+              <p className="m-0 text-etikett text-ink-secondary">{t.ingaValbara}</p>
             )
           }
         />

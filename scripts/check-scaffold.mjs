@@ -123,6 +123,7 @@ if (appPaket.includes("__APP_NAME__") || appPaket.includes("__FRAMEWORK_SPEC__")
 }
 
 kor("installerar (som ett riktigt paket, inte symlänk)", ["npm", "install", "--install-links", "--no-audit", "--no-fund"], appmapp);
+kor("skriver ramverkets skills till appen (som create-ops-app säger i nästa steg)", ["npm", "run", "kanon:skills"], appmapp);
 kor("kör appens grind", ["npm", "run", "check"], appmapp);
 
 // ── Beviset för @source-raden ───────────────────────────────────────────────

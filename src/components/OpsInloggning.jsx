@@ -224,7 +224,7 @@ export function OpsInloggning({ auth, namn: markeNamn, ordmarke, ordmarkeHojd = 
 
         <OpsCard rounding="bubbla" elevated>
           <div className="mb-4 flex items-center justify-between gap-3">
-            <h2 className="m-0 text-brod font-semibold text-ink">{skapaKonto ? t.createAccountHeading : t.logInHeading}</h2>
+            <h2 className="m-0 text-rubrik text-ink">{skapaKonto ? t.createAccountHeading : t.logInHeading}</h2>
             {onSprak ? (
               <div role="group" aria-label={sprak === "sv" ? "Språk" : "Language"} className="flex shrink-0 rounded-full border border-line-strong bg-sunken p-0.5">
                 <button

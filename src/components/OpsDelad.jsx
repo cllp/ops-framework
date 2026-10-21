@@ -98,7 +98,7 @@ function DeladAnteckning({ delning }) {
         <p data-delad-meta="" className="m-0 text-meta text-ink-muted">Anteckning</p>
       </header>
       <div data-delad-text="" className="max-w-las">
-        {delning.text ? <OpsMarkdown text={delning.text} dokument /> : <p className="m-0 text-brod text-ink-secondary">Anteckningen har ingen text.</p>}
+        {delning.text ? <OpsMarkdown text={delning.text} dokument /> : <p className="m-0 text-etikett text-ink-secondary">Anteckningen har ingen text.</p>}
       </div>
     </article>
   );
@@ -116,7 +116,7 @@ function DeladLank({ delning }) {
         <h1 data-delad-rubrik="" className="m-0 text-sida text-ink wrap-anywhere">{delning.rubrik}</h1>
         <p data-delad-meta="" className="m-0 text-meta text-ink-muted">Länk</p>
       </header>
-      <p data-delad-adress="" className="m-0 text-brod text-ink-secondary wrap-anywhere">{delning.url}</p>
+      <p data-delad-adress="" className="m-0 text-etikett text-ink-secondary wrap-anywhere">{delning.url}</p>
       {oppnas ? (
         <div>
           <OpsButton variant="primary" href={delning.url} newTab ariaLabel={`Öppna länken ${delning.rubrik}`}>Öppna länken</OpsButton>

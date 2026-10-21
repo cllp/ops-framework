@@ -1590,7 +1590,7 @@ function BibliotekKort({ post, lage, meny, svep, onOppna, onMeta, taggrad, delad
           </span>
           )}
           <div className="pointer-events-none relative flex min-w-0 flex-1 flex-col gap-1.5">
-            <span className="block truncate text-brod font-medium text-ink">{namn}</span>
+            <span className="block truncate text-etikett font-medium text-ink">{namn}</span>
             <span data-bibliotek-typ="" className="text-meta tracking-wide text-ink-muted uppercase">{typEtikett(post)}</span>
             {taggrad}
             {forhands ? <span data-bibliotek-forhands-text="" className="line-clamp-2 text-meta text-ink-secondary wrap-anywhere">{forhands}</span> : null}
@@ -1879,7 +1879,7 @@ function FilVisning({ post, lage, kopplad, onLjus, onMeta, onRadera }) {
     );
   }
   return (
-    <a href={adress} target="_blank" rel="noopener noreferrer" data-bibliotek-fil="" className="text-brod text-accent underline underline-offset-2">
+    <a href={adress} target="_blank" rel="noopener noreferrer" data-bibliotek-fil="" className="text-etikett text-accent underline underline-offset-2">
       {rad}
     </a>
   );
@@ -1891,14 +1891,14 @@ function FilVisning({ post, lage, kopplad, onLjus, onMeta, onRadera }) {
  * @param {{ url: string }} props
  */
 function Adress({ url }) {
-  if (!ADRESSFORM.test(url)) return <p className="text-brod text-ink break-all">{url}</p>;
+  if (!ADRESSFORM.test(url)) return <p className="text-etikett text-ink break-all">{url}</p>;
   return (
     <a
       href={url}
       target="_blank"
       rel="noopener noreferrer"
       data-bibliotek-lank=""
-      className="block break-all rounded-sm text-brod text-accent underline underline-offset-2 hover:no-underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+      className="block break-all rounded-sm text-etikett text-accent underline underline-offset-2 hover:no-underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
     >
       {url}
     </a>
@@ -2125,7 +2125,7 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, onLaddaUpp, filUrl,
 
   const radera = post && !skapar ? menyFor(post, true, setLage).find((m) => m.id === "radera") : undefined;
   const lasning = typ === "anteckning" ? (
-    post?.text ? <OpsMarkdown text={post.text} dokument /> : <p className="text-brod text-ink">Anteckningen har ingen text.</p>
+    post?.text ? <OpsMarkdown text={post.text} dokument /> : <p className="text-etikett text-ink">Anteckningen har ingen text.</p>
   ) : typ === "fil" && post ? (
     <FilVisning post={post} lage={filLage} kopplad={kopplad} onLjus={onLjus} onMeta={onMeta} onRadera={radera ? radera.onValj : undefined} />
   ) : typ === "lista" && post ? (
@@ -2694,7 +2694,7 @@ function DelaLankKontroll({ post, gruppnamn, gruppdelForslag, delningar, onDelaL
   if (!aktiv) {
     return (
       <div data-bibliotek-delalank="ny" className="flex flex-col gap-4">
-        <p className="m-0 text-brod text-ink-secondary">{DELA_INGRESS[post.typ] ?? DELA_INGRESS.fil}</p>
+        <p className="m-0 text-etikett text-ink-secondary">{DELA_INGRESS[post.typ] ?? DELA_INGRESS.fil}</p>
         <DelaLankFalt falt={falt} sprak={sprak} disabled={pagar !== null} />
         {harNedladdning ? <OpsSwitch label="Tillåt nedladdning" hint={post.typ === "lista" ? "Av som förval. Gäller alla filer i listan. Den som har länken kan se dem oavsett." : "Av som förval. Den som har länken kan se filen oavsett."} checked={nedladdning} onChange={setNedladdning} /> : null}
         {fel ? <p role="alert" className="m-0 text-etikett text-danger">{fel}</p> : null}
@@ -2715,7 +2715,7 @@ function DelaLankKontroll({ post, gruppnamn, gruppdelForslag, delningar, onDelaL
         </ul>
       ) : (
         <>
-          <p className="m-0 text-brod text-ink-secondary">Det finns en länk till {DELA_OBJEKT[post.typ] ?? "filen"}, skapad med en äldre version. Den visades bara när den skapades. Behöver du adressen igen stänger du länken och skapar en ny.</p>
+          <p className="m-0 text-etikett text-ink-secondary">Det finns en länk till {DELA_OBJEKT[post.typ] ?? "filen"}, skapad med en äldre version. Den visades bara när den skapades. Behöver du adressen igen stänger du länken och skapar en ny.</p>
           {till ? <p className="m-0 text-etikett text-ink-muted">Gäller till {till}.</p> : null}
         </>
       )}

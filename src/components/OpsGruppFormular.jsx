@@ -543,7 +543,7 @@ export function OpsGruppFormular({ formId, onSkapa, onSkapad, onKlar, sprak: spr
             <OpsIdentity name={namn.trim()} seed={befintlig?.id ?? "ny-grupp"} imageUrl={bild.url || undefined} size="lg" rund {...marke} />
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block text-etikett font-semibold text-ink">{t.fargOchIkon}</span>
+            <span className="block text-etikett font-medium text-ink">{t.fargOchIkon}</span>
             <span className="block truncate text-meta text-ink-muted">{t.visuellIdentitetHint}</span>
           </span>
           <span aria-hidden="true" className={cx("shrink-0 text-ink-muted transition-transform duration-(--duration-fast)", identitetOppen && "rotate-180")}>

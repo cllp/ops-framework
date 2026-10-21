@@ -298,7 +298,7 @@ function OpsInstallningarRitad({
                       {s.ikon ?? <KugghjulIkon size={20} />}
                     </span>
                     <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                      <span data-radrubrik="" className="text-brod font-semibold text-ink">
+                      <span data-radrubrik="" className="text-rubrik text-ink">
                         {s.rubrik}
                       </span>
                       {s.beskrivning ? (

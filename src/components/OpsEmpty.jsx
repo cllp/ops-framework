@@ -46,8 +46,8 @@ export function OpsEmpty({ title, description, action, icon = null, busy = false
           {icon}
         </span>
       ) : null}
-      <p className="m-0 text-brod font-semibold text-ink">{busy ? busyLabel : title}</p>
-      {!busy && description ? <p className="m-0 max-w-prose text-brod text-ink-secondary">{description}</p> : null}
+      <p className="m-0 text-etikett font-medium text-ink">{busy ? busyLabel : title}</p>
+      {!busy && description ? <p className="m-0 max-w-prose text-meta text-ink-secondary">{description}</p> : null}
       {!busy && action ? <div className="mt-2">{action}</div> : null}
     </div>
   );

@@ -137,6 +137,9 @@ jobs:
       # ⛔ Brandfilen och egen CSS (0.94.0): en instans ska kunna branda ramverket i en fil och lägga på CSS som vinner utan
       # `!important`. Det är påståenden om beräknad stil, så jsdom ser dem inte. Kör sina egna röda bevis (`--bevisa`).
       - run: npm run check:brand
+      # ⛔ Typografin RITAD (0.136.0, CP 2026-10-21: "tjockt och stort"): ramverkets komponenter mäts i Chromium mot det SessionStudio
+      # ritar för samma element. Kräver en byggd `dist` (steget ovan) och kör sina egna röda bevis (`--bevisa`).
+      - run: npm run check:typografimatning
 
   # ⛔ PACKNINGEN MÅSTE PROVAS PÅ VARJE PR, INTE FÖRST VID TAGGEN.
   #

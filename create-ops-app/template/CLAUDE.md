@@ -11,9 +11,22 @@ node_modules/ops-framework/CLAUDE.md
 node_modules/ops-framework/skills/
 ```
 
-**Kopiera dem aldrig hit.** En kopia börjar glida isär från originalet samma
-vecka den skapas, och sedan finns två regeluppsättningar där ingen vet vilken
-som gäller. En sanning per faktum.
+**Skriv dem aldrig för hand här.** En handskriven kopia börjar glida isär från
+originalet samma vecka den skapas, och sedan finns två regeluppsättningar där
+ingen vet vilken som gäller. En sanning per faktum.
+
+⛔ **Skills är undantaget, och det är en GENERERAD kopia med vakt.** En agent som
+startar här läser `.claude/skills/`, aldrig `node_modules`, så en skill som bara
+ligger i paketet når ingen (CP 2026-10-21, när skillen för interaktionsdesign
+skulle nå appens agenter). Därför:
+
+```
+npm run kanon:skills          skriver paketets skills till .claude/skills/ (committa dem)
+npm run check:kanon-skills    ingår i `npm run check`, blir röd när kopian ligger efter
+```
+
+Kör `npm run kanon:skills` efter varje ompinning av ramverket. Rätta aldrig en
+kopia för hand: ändringen hör hemma i ramverket. Egna skills bredvid rörs aldrig.
 
 Den här filen innehåller bara det som är **sant för just den här appen**.
 

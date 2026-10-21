@@ -141,7 +141,7 @@ export function OpsMottagare({
             onClick={() => onChange(r.varde)}
             className={cx(
               "flex min-h-11 w-full cursor-pointer items-center gap-2.5 rounded-base px-2 py-1.5 text-left text-etikett transition-colors duration-(--duration-fast) ease-standard focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
-              ar ? "bg-accent-faint font-semibold text-ink" : "text-ink hover:bg-raised",
+              ar ? "bg-accent-faint font-medium text-ink" : "text-ink hover:bg-raised",
             )}
           >
             {/* ⛔ Märket är dekor här: namnet står bredvid, och ett märke med eget namn hade läst upp det två gånger. */}
@@ -151,7 +151,7 @@ export function OpsMottagare({
             <span className="min-w-0 flex-1 truncate" data-namn-saknas={r.saknas ? "" : undefined}>
               {r.namn}
             </span>
-            {r.gast ? <span data-gast-markning="" className="shrink-0 rounded-full bg-sunken px-1.5 py-px text-mikro font-semibold text-ink-secondary">{gastText}</span> : null}
+            {r.gast ? <span data-gast-markning="" className="shrink-0 rounded-full bg-sunken px-1.5 py-px text-mikro font-medium text-ink-secondary">{gastText}</span> : null}
             {ar ? (
               <span className="shrink-0 text-accent">
                 <BockIkon size={16} />

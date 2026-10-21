@@ -69,12 +69,12 @@ export function DeladFil({ delning, onNyUrl, iLista = false }) {
       ) : typ === "pdf" ? (
         <div className="flex min-w-0 flex-col gap-2">
           <object data={visa} type="application/pdf" aria-label={rubrik} className="h-[70dvh] w-full rounded-lg border border-line">
-            <p className="m-0 p-4 text-brod text-ink-secondary">Den här webbläsaren visar inte PDF-filer här. Öppna den i en ny flik.</p>
+            <p className="m-0 p-4 text-etikett text-ink-secondary">Den här webbläsaren visar inte PDF-filer här. Öppna den i en ny flik.</p>
           </object>
-          <a href={visa} target="_blank" rel="noopener noreferrer" data-delad-oppna="" className="text-brod text-accent underline underline-offset-2">Öppna PDF</a>
+          <a href={visa} target="_blank" rel="noopener noreferrer" data-delad-oppna="" className="text-etikett text-accent underline underline-offset-2">Öppna PDF</a>
         </div>
       ) : (
-        <p className="m-0 text-brod text-ink-secondary">Filen går inte att visa här.{kanLadda ? " Ladda ner den för att öppna den." : ""}</p>
+        <p className="m-0 text-etikett text-ink-secondary">Filen går inte att visa här.{kanLadda ? " Ladda ner den för att öppna den." : ""}</p>
       )}
 
       {fel ? <p role="alert" data-delad-fel="" className="m-0 text-etikett text-danger">{fel}</p> : null}

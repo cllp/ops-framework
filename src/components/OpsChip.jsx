@@ -44,7 +44,7 @@ export function OpsChip({ icon, children, selected = false, onClick, disabled = 
         "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
         "disabled:pointer-events-none disabled:opacity-50",
         selected
-          ? "border-accent-subtle bg-accent-subtle font-semibold text-accent"
+          ? "border-accent-subtle bg-accent-subtle font-medium text-accent"
           : "border-line bg-surface text-ink-secondary hover:text-ink",
       )}
     >

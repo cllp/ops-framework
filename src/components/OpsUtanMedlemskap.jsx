@@ -99,7 +99,7 @@ export function OpsUtanMedlemskap({
       {onSkapaGrupp ? (
         <div className="flex max-w-sm flex-col gap-3">
           <div>
-            <p className="m-0 font-semibold text-ink">{skapaRubrik}</p>
+            <p className="m-0 font-medium text-ink">{skapaRubrik}</p>
             <p className="m-0 text-etikett text-ink-secondary">{skapaText}</p>
           </div>
           <OpsField label={namnEtikett}>

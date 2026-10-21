@@ -493,7 +493,7 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
             <OpsList ariaLabel={t.ejSattRubrik}>
               {ejSatta.map((/** @type {any} */ h) => (
                 <OpsListRow key={h.id} interactive onClick={() => oppnaHandelse(h.id)} ariaLabel={h.titel}>
-                  <span data-gast-ejsatt={h.id} className="min-w-0 flex-1 text-brod text-ink wrap-anywhere">{h.titel}</span>
+                  <span data-gast-ejsatt={h.id} className="min-w-0 flex-1 text-etikett text-ink wrap-anywhere">{h.titel}</span>
                 </OpsListRow>
               ))}
             </OpsList>

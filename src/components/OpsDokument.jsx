@@ -151,7 +151,7 @@ export function OpsDokument({ ny = false, kanRedigera = false, lage, onLage, sta
       <article data-ops-dokument="redigera" className="flex min-w-0 flex-col gap-4">
         {visaRubrik ? <h1 className={RUBRIK_KLASS}>{rubrik}</h1> : null}
         {redigering}
-        {fel || sparFel ? <p role="alert" className="text-brod text-danger">{fel || sparFel}</p> : null}
+        {fel || sparFel ? <p role="alert" className="text-etikett text-danger">{fel || sparFel}</p> : null}
         <div className="flex flex-wrap gap-2">
           <OpsButton variant="secondary" onClick={avbryt}>{t("avbryt")}</OpsButton>
           <OpsButton variant="primary" onClick={spara} busy={sparar}>{t("spara")}</OpsButton>

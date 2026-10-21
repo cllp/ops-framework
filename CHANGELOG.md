@@ -11,6 +11,60 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ## Ej utgivet
 
+## 0.136.0
+
+Typografin ritar som SessionStudio: kryssrutor, reglage, flikar, banners, tomma lägen och toasts får SS storlekar och vikter, och `body` får SS ordavstånd och kantutjämning. CP 2026-10-21 ("Känns tjockt och stort och inte snyggt och enkelt"). **Inte brytande för API:t** (inga props, inga exporter ändras). **Brytande för utseendet:** text blir mindre och lättare på de ställen som listas nedan, och en app som mätt pixlar mot 0.135 får nya mått. Dessutom en skill, `interaktionsdesign`, som följer med paketet och skrivs ut i appens `.claude/skills/`.
+
+### Händelsen
+
+CP 2026-10-21, med LifeHubs Inställningar (panelen API-nycklar) bredvid SessionStudios Mitt bibliotek: "Det känns som att någon skrivit över vilka typsnitt vi skall använda i appen ... Fattar inte varför vi faller tillbaka på den stora feta texten överallt."
+
+**Mätt, inte antaget** (Playwright i Chromium, SessionStudios egen Tailwind 3-CSS och egna klasssträngar mot ramverkets riktiga komponenter, bredd 1280 och 390):
+
+- **Typsnittet var rätt.** Plus Jakarta Sans laddas i LifeHub (Chromium `CSS.getPlatformFontsForNode` svarar `Plus Jakarta Sans`), `--font-sans` är samma som SS och skalan (`text-etikett` 14, `text-meta` 12, `text-hjalp` 11) är SS.
+- **Det som skilde var vilken roll komponenterna valde.** Före och efter, ramverkets komponent mot SS:
+
+| Element | SS | Före (0.135) | Efter (0.136) |
+|---|---|---|---|
+| Kryssrutans etikett (`OpsCheckbox`) | 14/400 | 16/400 | 14/400 |
+| Reglagets etikett (`OpsSwitch`) | 14/400 | 16/400 | 14/400 |
+| Hjälptext under en rad | 11/400 | 14/400 | 11/400 |
+| Flik (`OpsTabs`) | 12/500 | 16/600 | 12/500 |
+| Bannerns titel och text | 14/500 och 12/400 | 16/600 och 16/400 | 14/500 och 12/400 |
+| Tomt läge, titel och text | 14/500 och 12/400 | 16/600 och 16/400 | 14/500 och 12/400 |
+| `body`, ordavstånd och kantutjämning | 0.06em, antialiased | 0, auto | 0.06em, antialiased |
+
+### Vad som ändras
+
+- **`text-brod` (16 px) är borta ur UI-text.** Etiketter, rader, meddelanden och beskrivningar är `text-etikett` (14). 16 px finns kvar i dokumentläget (`OpsMarkdown`), utskriften i biblioteket, avatarens bokstäver och i fält på telefon, som nu skrivs `text-brod md:text-etikett` (16 px under md så att iOS inte zoomar, 14 från md).
+- **`font-semibold` är rubrikens vikt.** Radnamn, pillar, taggar, märken, flikar, knappar och fältetiketter är `font-medium` (500). Rubriker (roller, `h1` till `h6`, versala etiketter, accentlänkar) behåller 600. Rubriker som förut var `text-brod font-semibold` är rollen `text-rubrik`.
+- **Banner, tomt läge och toast** följer SS `ErrorBanner` och tomma läge: titeln `text-etikett font-medium`, texten under `text-meta`.
+- **`OpsToggle`:** etiketten 14 px, hjälptexten under 11 px (`text-hjalp`).
+- **`body`:** `word-spacing: var(--word-spacing-normal)` (0.06em, SS #2501), `-webkit-font-smoothing: antialiased`. Värdet fanns i tokens men ingenting läste det. Rubrikernas spärrning (SS `h1, h2, h3 { letter-spacing: -0.01em }`) sätts medvetet inte i `body`: den bor i de publika rollerna, och `check-brand --bevisa` blev grön trots ett inplanterat brott när en bas-regel fanns bredvid.
+- **Medvetet oförändrat:** Inställningarnas lista (`OpsInstallningar`) behåller titeln 16/600 och beskrivningen 14. `check-skalyta` kräver där att beskrivningen är minst 13 px och att titeln är större (CP 2026-10-06, "texterna känns ihoptryckta"), och ramverket har ingen 13-pixelsroll. De två kraven går inte att förena med SS bibliotekrad (14/500 och 12). Att ändra den raden är CP:s beslut och en ändring av `check-skalyta`. Gruppkortets namn behåller 600 (`check-skalyta`). Kalenderns dagsiffror, och sidrubriken i `OpsViewHeader` (14/600 mot SS 20/600, CP 2026-10-13) rörs inte.
+
+### Vakter
+
+- **`check-typografi` (ramverksläget):** `text-brod` utan responsiv 14 px och `font-semibold` på något som inte är en rubrik fälls. Undantagen har tak med skäl per fil (`typografi.tak` i `tokens/sessionstudio-profil.json`), och taket får bara sjunka: färre träffar än taket är också rött. Mot 0.135:s komponenter: 141 brott. Mot 0.136: noll.
+- **`check-typografimatning` (ny, `npm run check:typografimatning`):** ritar komponenterna i Chromium och kräver samma storlek och vikt som SS för 14 element (`typografi.element.lista`, 27 mätningar på 1280 och 390 px), plus `body`. Golv: minst 12 element. `--bevisa` kör vakten med ett inplanterat brott per påstående. Mot 0.135:s komponenter: 24 avvikelser. Mot 0.136: grön. Ligger i `check:all`, i `check.yml` och i `publish.yml`.
+- **`kanon-skills`** (ny, `scripts/kanon-skills.mjs`): skriver paketets skills som har `konsument: true` till konsumentens `.claude/skills/` och vaktar att kopian är i takt. Se nedan.
+
+### Skill: `interaktionsdesign`
+
+`skills/interaktionsdesign/SKILL.md`, skriven för agenter som bygger vyer: en sidrubrik och få sektioner, det befintliga före det som skapas, en mening under en rubrik (resten bakom `OpsHelp`), skapa-formulär bakom en knapp i en dialog, grupperade och kompakta val, SS täthet och en checklista före varje PR med UI, med kravet på montage bredvid SS (regel 12). Skälet (CP:s ord) och API-nycklarna som motexempel står i filen.
+
+### Så når skillen konsumenterna
+
+Ramverket äger skillen. Konsumentens `.claude/skills/interaktionsdesign/` är en GENERERAD kopia med en rad överst som säger det, och `kanon-skills` blir röd när den ligger efter, saknas, har en kvarglömd fil eller är föräldralös. Konsumentens egna skills rörs aldrig, och en handskriven skill med samma namn skrivs aldrig över (vakten säger ifrån). Flaggan `konsument: true` står i skillen själv, så ramverkets interna skills följer inte med. `create-ops-app` lägger in `npm run kanon:skills` och `check:kanon-skills` i nya appar.
+
+**Vid ompinning till 0.136.0, varje konsument (lifehub.app, lifehub.identity, bolag-ops, tam):**
+
+1. `node node_modules/ops-framework/scripts/kanon-skills.mjs --skriv` och committa `.claude/skills/`.
+2. Lägg `"check:kanon-skills": "node node_modules/ops-framework/scripts/kanon-skills.mjs"` i `package.json` och i kedjan `check` (och i CI).
+3. **lifehub.app:** 11 `text-brod` i sju filer och 46 `font-semibold` i 19 filer ligger kvar på löptext och radnamn. De är appens, och ändras med skillens checklista. `check:typografi src` är oförändrad (app-läget).
+4. **lifehub.identity:** `web/src/identity.css` har ett eget `word-spacing: 0.06em` (`--word-spacing-ui`) på `body` och formkontroller, som nu är en andra sanning bredvid ramverkets `body`. Ta bort `--word-spacing-ui` från `body` och behåll raden på `button, input, select, textarea` bara om en mätning visar att kontrollerna inte ärver. Tio egna `font-size` (0.75, 0.8, 0.85, 0.9 och 1 rem) står utanför rollskalan. Identity ligger på 0.95.1.
+5. **bolag-ops:** ligger på 0.76.1, 60 versioner efter. Repinning är ett eget arbete (41 `font-semibold`).
+
 ## 0.135.0
 
 Skaparen får ett valfritt `via`, så att det en personlig API-nyckel skriver syns som skrivet via nyckeln: "Miranda via Byggagent". cllp/lifehub.app#409, CP 2026-10-21 ("Ja på alla"). **Inte brytande för kod:** fältet är valfritt, och utan det är allt som förut. **Ändrad regeltext:** `regelfragment()` och fem andra fragment får nya villkor, så appen genererar om `firestore.rules` och deployar dem (se nedan). Appen behöver göra några saker efter ompinningen.

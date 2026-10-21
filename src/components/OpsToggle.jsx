@@ -40,7 +40,7 @@ export function OpsCheckbox({ label, checked, onChange, disabled = false, hint }
     <div className="flex flex-col gap-1">
       <label
         htmlFor={id}
-        className={cx("flex min-h-11 cursor-pointer items-center gap-2 text-brod text-ink md:min-h-0", disabled && "cursor-not-allowed opacity-55")}
+        className={cx("flex min-h-11 cursor-pointer items-center gap-2 text-etikett text-ink md:min-h-0", disabled && "cursor-not-allowed opacity-55")}
       >
         <input
           id={id}
@@ -65,7 +65,7 @@ export function OpsCheckbox({ label, checked, onChange, disabled = false, hint }
         {label}
       </label>
       {hint ? (
-        <p id={hintId} className="pl-7 text-etikett text-ink-muted">
+        <p id={hintId} className="pl-7 text-hjalp text-ink-muted">
           {hint}
         </p>
       ) : null}
@@ -101,7 +101,7 @@ export function OpsSwitch({ label, checked, onChange, disabled = false, hint, ik
         className={cx(
           rad
             ? "flex min-h-11 w-full cursor-pointer items-center gap-3 px-4 py-2 text-left"
-            : "flex min-h-11 cursor-pointer items-center gap-3 text-brod text-ink md:min-h-0",
+            : "flex min-h-11 cursor-pointer items-center gap-3 text-etikett text-ink md:min-h-0",
           disabled && "cursor-not-allowed opacity-55",
         )}
       >
@@ -112,8 +112,8 @@ export function OpsSwitch({ label, checked, onChange, disabled = false, hint, ik
         ) : null}
         {rad ? (
           <span className="min-w-0 flex-1">
-            <span id={namnId} className="block text-brod text-ink">{label}</span>
-            {hint ? <span id={hintId} className="mt-0.5 block text-etikett text-ink-muted">{hint}</span> : null}
+            <span id={namnId} className="block text-etikett text-ink">{label}</span>
+            {hint ? <span id={hintId} className="mt-0.5 block text-hjalp text-ink-muted">{hint}</span> : null}
           </span>
         ) : null}
         <input
@@ -182,7 +182,7 @@ export function OpsSwitch({ label, checked, onChange, disabled = false, hint, ik
         {rad ? null : label}
       </label>
       {!rad && hint ? (
-        <p id={hintId} className="pl-13 text-etikett text-ink-muted">
+        <p id={hintId} className="pl-13 text-hjalp text-ink-muted">
           {hint}
         </p>
       ) : null}

@@ -71,7 +71,7 @@ export function OpsFilterChip({ options, value, onChange, ariaLabel, allLabel = 
               )
             : cx(
                 "min-h-9 gap-1.5 whitespace-nowrap rounded-full px-4 py-2 text-etikett font-medium",
-                filters ? "bg-accent-subtle font-semibold text-accent" : "bg-surface text-ink-secondary hover:text-ink",
+                filters ? "bg-accent-subtle font-medium text-accent" : "bg-surface text-ink-secondary hover:text-ink",
               ),
         )}
       >
