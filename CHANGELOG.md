@@ -46,7 +46,7 @@ CP 2026-10-21, med LifeHubs Inställningar (panelen API-nycklar) bredvid Session
 ### Vakter
 
 - **`check-typografi` (ramverksläget):** `text-brod` utan responsiv 14 px och `font-semibold` på något som inte är en rubrik fälls. Undantagen har tak med skäl per fil (`typografi.tak` i `tokens/sessionstudio-profil.json`), och taket får bara sjunka: färre träffar än taket är också rött. Mot 0.135:s komponenter: 141 brott. Mot 0.136: noll.
-- **`check-typografimatning` (ny, `npm run check:typografimatning`):** ritar komponenterna i Chromium och kräver samma storlek och vikt som SS för 14 element (`typografi.element.lista`, 31 mätningar på 1280 och 390 px), plus `body`. Golv: minst 12 element. `--bevisa` kör vakten med ett inplanterat brott per påstående. Mot 0.135:s komponenter: 24 avvikelser. Mot 0.136: grön. Ligger i `check:all`, i `check.yml` och i `publish.yml`.
+- **`check-typografimatning` (ny, `npm run check:typografimatning`):** ritar komponenterna i Chromium och kräver samma storlek och vikt som SS för 14 element (`typografi.element.lista`, 27 mätningar på 1280 och 390 px), plus `body`. Golv: minst 12 element. `--bevisa` kör vakten med ett inplanterat brott per påstående. Mot 0.135:s komponenter: 24 avvikelser. Mot 0.136: grön. Ligger i `check:all`, i `check.yml` och i `publish.yml`.
 - **`kanon-skills`** (ny, `scripts/kanon-skills.mjs`): skriver paketets skills som har `konsument: true` till konsumentens `.claude/skills/` och vaktar att kopian är i takt. Se nedan.
 
 ### Skill: `interaktionsdesign`
