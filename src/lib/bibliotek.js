@@ -21,7 +21,7 @@
  */
 
 import { ID_FORM } from "./katalog.js";
-import { SKAPARFALT, byggSkapare } from "./skapare.js";
+import { SKAPARFALT_SERVER, byggSkapare, viaFel } from "./skapare.js";
 import { formatDagOchKlockslag } from "./format.js";
 import { lankKalla } from "./lankkalla.js";
 
@@ -1193,11 +1193,19 @@ export function postFel(d) {
   const objektord = beskrivObjektbibliotek(groupId)?.ord;
   if (objektord && str(d.typ) !== "fil") return `${objektord[0].toUpperCase()}${objektord.slice(1)} har filer, och inga anteckningar, länkar eller listor.`;
 
-  const skapadAv = byggSkapare(/** @type {any} */ (d.skapadAv && typeof d.skapadAv === "object" ? d.skapadAv : {}));
+  const stampel = /** @type {Record<string, unknown>} */ (d.skapadAv && typeof d.skapadAv === "object" ? d.skapadAv : {});
+  // ⛔ `via` (0.135.0, lifehub.app#409): en post som en personlig API-nyckel skrev åt personen bär `via`. Servern skriver den (Admin SDK), så felet ska
+  // kunna återges som text. `byggSkapare` kastar på ett via som inte håller, och `postFel` svarar med en sträng i stället för att kasta.
+  if (stampel.via !== undefined && stampel.via !== null) {
+    const viaProblem = viaFel(stampel.via);
+    if (viaProblem) return `Skaparens ${viaProblem}`;
+    if (!str(stampel.uid)) return "Posten saknar vem som skrev den.";
+  }
+  const skapadAv = byggSkapare(/** @type {any} */ (stampel));
   if (!skapadAv.uid) return "Posten saknar vem som skrev den.";
   if (skapadAv.typ !== "manniska") return "En bibliotekspost skrivs av en medlem, och typen på skaparen är manniska.";
-  const skaparnycklar = d.skapadAv && typeof d.skapadAv === "object" ? Object.keys(/** @type {object} */ (d.skapadAv)) : [];
-  const extraSkapare = skaparnycklar.filter((k) => !(/** @type {readonly string[]} */ (SKAPARFALT).includes(k)));
+  const skaparnycklar = Object.keys(stampel);
+  const extraSkapare = skaparnycklar.filter((k) => !(/** @type {readonly string[]} */ (SKAPARFALT_SERVER).includes(k)));
   if (extraSkapare.length > 0) return `Skaparen har fälten ${extraSkapare.join(", ")}, och de hör inte dit.`;
 
   if (!Number.isInteger(d.skapad)) return "skapad ska vara ett heltal, millisekunder.";
