@@ -1,7 +1,9 @@
 import { useEffect, useId, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { isImage as arBildtyp, attachmentSize, readAttachment } from "../lib/file.js";
 import { OpsButton } from "./OpsButton.jsx";
 import { FilIkon, GemIkon } from "./icons.jsx";
+import { Faltknapp } from "./OpsRostinmatning.jsx";
 
 /**
  * Välj en fil att bifoga: bild, PDF, kalkylark, kontoutdrag.
@@ -49,6 +51,9 @@ import { FilIkon, GemIkon } from "./icons.jsx";
  * @param {boolean} [props.paste] Ta emot inklistrade filer. Av när två väljare delar yta.
  * @param {string} [props.ariaLabel] Vad som ska bifogas, för den som inte ser knappen.
  * @param {{ select?: string, byt?: string, remove?: string, klistra?: string }} [props.labels]
+ * @param {HTMLElement | null} [props.knappPlats] (0.132.0) Gemknappen i stället för "Välj fil": en rund knapp med gemmen (`GemIkon`) och `ariaLabel` som namn, ritad i den plats ett fält gett (`bifogaPlats` på
+ *   `OpsTextarea`), bredvid mikrofonen, som chattens skrivfält. Förhandsvisningen, Ta bort, felet och inklistringen är desamma som förut och ritas där väljaren står, under fältet. `null` är platsen som
+ *   inte monterats än (ingen knapp ritas); utelämnad är väljaren som förut, med sin egen knapp "Välj fil". ⛔ Ett val av en fil är fortfarande bara ett val: filen skickas först när appen skickar.
  */
 export function OpsFilePicker({
   value,
@@ -59,6 +64,7 @@ export function OpsFilePicker({
   paste = true,
   ariaLabel = "Bifoga fil",
   labels = {},
+  knappPlats,
 }) {
   const filRef = useRef(/** @type {HTMLInputElement | null} */ (null));
   const [error, setError] = useState("");
@@ -102,6 +108,50 @@ export function OpsFilePicker({
   }, [paste, maxChars, typer]);
 
   const isImage = Boolean(value && arBildtyp(value.typ));
+  const ikonlage = knappPlats !== undefined;
+
+  if (ikonlage) {
+    return (
+      <>
+        {/* Det råa fältet är dolt och namnlöst för skärmläsare: knappen i fältet är den enda ingången, och två saker som heter Bifoga vore ett fel. */}
+        <input
+          ref={filRef}
+          type="file"
+          accept={accept}
+          tabIndex={-1}
+          aria-hidden="true"
+          onChange={(e) => {
+            const file = e.target.files && e.target.files[0];
+            e.target.value = "";
+            ta(file);
+          }}
+          className="sr-only"
+        />
+        {knappPlats
+          ? createPortal(<Faltknapp ikon={<GemIkon size={18} />} etikett={ariaLabel} onClick={() => filRef.current?.click()} placering="plats" disabled={reading} data={{ "data-bifoga": "" }} />, knappPlats)
+          : null}
+        {error || value ? (
+          <div className="flex flex-col gap-2">
+            {error ? (
+              <p role="alert" className="m-0 text-etikett text-danger">
+                {error}
+              </p>
+            ) : null}
+            {value ? (
+              <div className="flex flex-col gap-2">
+                <Forhandsvisning value={value} isImage={isImage} />
+                <div>
+                  <OpsButton variant="ghost" size="sm" onClick={() => onChange(null)}>
+                    {labels.remove ?? "Ta bort"}
+                  </OpsButton>
+                </div>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-2">
@@ -158,28 +208,36 @@ export function OpsFilePicker({
         </p>
       ) : null}
 
-      {value ? (
-        <figure className="m-0">
-          {isImage ? (
-            // Förhandsvisningen är liten med flit: den ska bekräfta att rätt fil
-            // valts, inte visa den i full storlek i ett formulär.
-            <img src={value.dataUrl} alt={`Vald bilaga: ${value.namn}`} className="max-h-40 rounded-md border border-line" />
-          ) : (
-            // ⛔ Ingen förhandsvisning av en PDF i en `<iframe>`. Den renderas
-            // olika i varje webbläsare, kan vara flera sidor, och en ruta som
-            // ibland är tom ser ut som att filen inte kom fram. Namnet och
-            // storleken svarar på den enda fråga man har: blev det rätt fil?
-            <div className="flex items-center gap-2 rounded-md border border-line bg-sunken px-3 py-2 text-ink">
-              <FilIkon />
-              <span className="min-w-0 truncate">{value.namn}</span>
-            </div>
-          )}
-          <figcaption className="mt-1 text-etikett text-ink-muted">
-            {isImage && value.bredd ? `${value.bredd} × ${value.hojd} px · ` : ""}
-            {attachmentSize(value.tecken)}
-          </figcaption>
-        </figure>
-      ) : null}
+      {value ? <Forhandsvisning value={value} isImage={isImage} /> : null}
     </div>
+  );
+}
+
+/**
+ * Förhandsvisningen av den valda filen: en liten bild, eller namnet och storleken. Samma i väljarens båda lägen.
+ * @param {{ value: import("../lib/file.js").Bilaga, isImage: boolean }} props
+ */
+function Forhandsvisning({ value, isImage }) {
+  return (
+    <figure className="m-0">
+      {isImage ? (
+        // Förhandsvisningen är liten med flit: den ska bekräfta att rätt fil
+        // valts, inte visa den i full storlek i ett formulär.
+        <img src={value.dataUrl} alt={`Vald bilaga: ${value.namn}`} className="max-h-40 rounded-md border border-line" />
+      ) : (
+        // ⛔ Ingen förhandsvisning av en PDF i en `<iframe>`. Den renderas
+        // olika i varje webbläsare, kan vara flera sidor, och en ruta som
+        // ibland är tom ser ut som att filen inte kom fram. Namnet och
+        // storleken svarar på den enda fråga man har: blev det rätt fil?
+        <div className="flex items-center gap-2 rounded-md border border-line bg-sunken px-3 py-2 text-ink">
+          <FilIkon />
+          <span className="min-w-0 truncate">{value.namn}</span>
+        </div>
+      )}
+      <figcaption className="mt-1 text-etikett text-ink-muted">
+        {isImage && value.bredd ? `${value.bredd} × ${value.hojd} px · ` : ""}
+        {attachmentSize(value.tecken)}
+      </figcaption>
+    </figure>
   );
 }

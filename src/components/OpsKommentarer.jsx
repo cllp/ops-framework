@@ -34,7 +34,7 @@ import { usePersonnamn } from "./usePersonnamn.js";
  * ══ ⛔ BILD OCH FIL (0.73.0, cllp/bolag-ops#570) ═══════════════════════════════════════════════════════════════════════════
  *
  * CP 2026-10-06: "Vill kunna klistra in bild i kommentar. Kommentarer behöver ha bilder elelr filer också." Med `bilagor` står
- * `OpsFilePicker` under skrivrutan: Välj fil, inklistring (Cmd+V) var som helst på sidan, och en förhandsvisning före sändning,
+ * `OpsFilePicker` med gemknappen i skrivrutan (som chattens Bifoga, 0.132.0): knappen, inklistring (Cmd+V) var som helst på sidan, och en förhandsvisning före sändning,
  * en miniatyr för en bild och namnet för allt annat. Taket och typerna är modellens (`MAX_KOMMENTARBILAGA`,
  * `KOMMENTARBILAGA_TYPER`), samma konstanter som regeln är byggd av. `onSkriv` får `(text, { bilaga })`, och med en bilaga får
  * texten vara tom.
@@ -103,6 +103,8 @@ function OpsKommentarerRitad({
   const [utkast, setUtkast] = useState("");
   const [bilaga, setBilaga] = useState(/** @type {import("../lib/file.js").Bilaga | null} */ (null));
   const [fokusInne, setFokusInne] = useState(false);
+  // Gemknappens plats i skrivrutan (0.132.0): `OpsTextarea` ger den, `OpsFilePicker` ritar knappen i den. `null` tills fältet monterats.
+  const [bifogaPlats, setBifogaPlats] = useState(/** @type {HTMLElement | null} */ (null));
   const [skriver, setSkriver] = useState(false);
   const [skrivfel, setSkrivfel] = useState(/** @type {string | null} */ (null));
   const [tarBort, setTarBort] = useState(/** @type {string | null} */ (null));
@@ -201,10 +203,11 @@ function OpsKommentarerRitad({
         </p>
       ) : null}
       <OpsField label={skrivEtikett} error={skrivfel ?? undefined}>
-        <OpsTextarea value={utkast} onChange={setUtkast} rows={3} maxLength={MAX_HANDELSEKOMMENTAR} disabled={skriver} onSend={skicka} />
+        <OpsTextarea value={utkast} onChange={setUtkast} rows={3} maxLength={MAX_HANDELSEKOMMENTAR} disabled={skriver} onSend={skicka} {...(bilagor ? { bifogaPlats: setBifogaPlats } : {})} />
       </OpsField>
       {bilagor ? (
-        <div data-kommentar-bilaga="">
+        // Gemknappen sitter i skrivrutan (som chattens Bifoga); här står bara förhandsvisningen och felet, när det finns något att visa.
+        <div data-kommentar-bilaga="" className="empty:hidden">
           <OpsFilePicker
             value={bilaga}
             onChange={setBilaga}
@@ -213,6 +216,7 @@ function OpsKommentarerRitad({
             accept={KOMMENTARBILAGA_TYPER.join(",")}
             paste={fokusInne}
             ariaLabel={bifogaEtikett}
+            knappPlats={bifogaPlats}
           />
         </div>
       ) : null}
@@ -237,7 +241,7 @@ export const ORD_OPSKOMMENTARER = {
   skrivfelText: { sv: "Kommentaren sparades inte", en: "The comment was not saved" },
   taBortFelText: { sv: "Kommentaren togs inte bort", en: "The comment was not deleted" },
   duText: { sv: "du", en: "you" },
-  bifogaEtikett: { sv: "Bifoga bild eller fil", en: "Attach image or file" },
+  bifogaEtikett: { sv: "Bifoga", en: "Attach" },
   bilagaText: { sv: "Bilaga från", en: "Attachment from" },
 };
 

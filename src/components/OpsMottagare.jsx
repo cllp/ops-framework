@@ -1,7 +1,11 @@
 import { useId } from "react";
 import { cx } from "../lib/cx.js";
+import { GASTNAMNLOS, arGastId } from "../lib/gast.js";
+import { forvalda } from "../lib/ord.js";
 import { AgentIkon, BockIkon, GruppIkon } from "./icons.jsx";
+import { ORD_OPSGASTMOTTAGARE } from "./OpsGastMottagare.jsx";
 import { OpsIdentity } from "./OpsIdentity.jsx";
+import { useOpsSprak } from "./OpsSprak.jsx";
 import { usePersonnamn } from "./usePersonnamn.js";
 
 /**
@@ -27,12 +31,20 @@ import { usePersonnamn } from "./usePersonnamn.js";
  *
  * Värdet har formen `byggMottagare` prövar: `{ slag: "grupp" } | { slag: "person", uid } | { slag: "agent", uid? }`.
  *
+ * ══ ⛔ GÄSTER SOM ANSVARIGA (0.132.0, cllp/lifehub.app#389, skiva 3) ═══════════════════════════════════════════════════
+ *
+ * Med `gaster` (tjänstens `levandeGaster().gaster`) står gruppens gäster med levande inbjudan sist i listan, med märket Gäst, och värdet blir `{ slag: "gast", gastId, namn }` (`byggArendemottagare`).
+ * ⛔ APPEN SKICKAR `gaster` BARA TILL DEN SOM FÅR DELA UT ETT ÄRENDE I DAG. Komponenten gissar inte vem det är: utan `gaster` finns inga gästrader, och en medlem som inte får dela ut ser därför inga. Bara i `lage="arende"`: en
+ * gäst kan inte ta emot ett privat meddelande (hen når bara servern, inte en samtalsrad), så personläget ritar aldrig gäster även om de skickas.
+ *
  * @param {object} props
  * @param {"arende" | "person"} [props.lage] Förval `"arende"`.
  * @param {ReadonlyArray<{ userId: string, namn?: string, bild?: string, typ?: string, status?: string }>} props.medlemmar Gruppens medlemskap.
  * @param {string} [props.uid] Den inloggade. I personläget visas hen inte, i ärendeläget märks hen med `duEtikett`.
- * @param {import("../lib/samtal.js").Mottagare | null} props.value
- * @param {(m: import("../lib/samtal.js").Mottagare) => void} props.onChange
+ * @param {import("../lib/samtal.js").Arendemottagare | null} props.value
+ * @param {(m: import("../lib/samtal.js").Arendemottagare) => void} props.onChange
+ * @param {ReadonlyArray<{ gastId: string, namn?: string }>} [props.gaster] (0.132.0) Gäster med levande gruppinbjudan att välja bland, i `lage="arende"`. Se ovan.
+ * @param {string} [props.gastEtikett] Märket på en gästrad. Förval ur ordboken (`ORD_OPSGASTMOTTAGARE`): Gäst på svenska, Guest på engelska.
  * @param {string} [props.gruppNamn] Namnet på raden Gruppen. Förval "Gruppen".
  * @param {string} [props.agentNamn] Förval "Agenten".
  * @param {string} [props.duEtikett] Förval "du".
@@ -57,16 +69,21 @@ export function OpsMottagare({
   tomText = "Det finns ingen annan i gruppen att skriva till.",
   helaGruppen,
   gruppMarke,
+  gaster,
+  gastEtikett,
 }) {
   const namnId = useId();
   const personnamn = usePersonnamn();
+  // Märket Gäst kommer ur ordboken (`ORD_OPSGASTMOTTAGARE`), på appens språk, och ett eget ord vinner (`gastEtikett`).
+  const sprak = useOpsSprak();
+  const gastText = gastEtikett ?? forvalda(ORD_OPSGASTMOTTAGARE, sprak).gast;
   const aktiva = (medlemmar ?? []).filter((m) => m && m.userId && (m.status ?? "aktiv") === "aktiv");
   const personer = aktiva
     .filter((m) => (m.typ ?? "person") === "person" && (lage === "arende" || m.userId !== uid))
     .sort((a, b) => personnamn(a.namn, a.userId).text.localeCompare(personnamn(b.namn, b.userId).text, "sv"));
   const agent = aktiva.find((m) => m.typ === "agent");
 
-  /** @type {Array<{ nyckel: string, varde: import("../lib/samtal.js").Mottagare, namn: string, saknas?: boolean, ikon: import("react").ReactNode }>} */
+  /** @type {Array<{ nyckel: string, varde: import("../lib/samtal.js").Arendemottagare, namn: string, saknas?: boolean, gast?: boolean, ikon: import("react").ReactNode }>} */
   const rader = [];
   if (lage === "person" && helaGruppen) {
     rader.push({ nyckel: "grupp", varde: { slag: "grupp" }, namn: helaGruppen, ikon: gruppMarke ?? <OpsIdentity name={helaGruppen} seed="grupp" size="sm" icon={GruppIkon} /> });
@@ -92,7 +109,20 @@ export function OpsMottagare({
     rader.push({ nyckel: "agent", varde: { slag: "agent", uid: agent.userId }, namn: agent.namn || agentNamn, ikon: <OpsIdentity name={agentNamn} seed={agent.userId} size="sm" icon={AgentIkon} rund /> });
   }
 
-  const vald = value ? (value.slag === "person" ? `person:${value.uid}` : value.slag) : null;
+  if (lage === "arende") {
+    for (const g of (gaster ?? []).filter((x) => x && arGastId(x.gastId))) {
+      const gNamn = (typeof g.namn === "string" && g.namn.trim()) || GASTNAMNLOS;
+      rader.push({
+        nyckel: `gast:${g.gastId}`,
+        varde: { slag: "gast", gastId: g.gastId, namn: gNamn },
+        namn: gNamn,
+        gast: true,
+        ikon: <OpsIdentity name={gNamn} seed={g.gastId} size="sm" rund />,
+      });
+    }
+  }
+
+  const vald = value ? (value.slag === "person" ? `person:${value.uid}` : value.slag === "gast" ? `gast:${value.gastId}` : value.slag) : null;
 
   if (rader.length === 0) {
     return <p className="m-0 text-etikett text-ink-secondary">{tomText}</p>;
@@ -121,6 +151,7 @@ export function OpsMottagare({
             <span className="min-w-0 flex-1 truncate" data-namn-saknas={r.saknas ? "" : undefined}>
               {r.namn}
             </span>
+            {r.gast ? <span data-gast-markning="" className="shrink-0 rounded-full bg-sunken px-1.5 py-px text-mikro font-semibold text-ink-secondary">{gastText}</span> : null}
             {ar ? (
               <span className="shrink-0 text-accent">
                 <BockIkon size={16} />

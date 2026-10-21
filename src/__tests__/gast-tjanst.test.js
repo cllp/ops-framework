@@ -495,7 +495,7 @@ describe("session och hamta", () => {
     expect(await tjanst.session({ sessionsnyckel })).toEqual({
       ok: true,
       gastId: gastId("anna@foretag.se"),
-      inbjudan: { id: expect.any(String), groupId: GRUPP, handelseId: "h1", funktion: "rosta", namn: "" },
+      inbjudan: { id: expect.any(String), groupId: GRUPP, slag: "sak", handelseId: "h1", funktion: "rosta", namn: "" },
     });
     expect(await tjanst.session({ sessionsnyckel, krav: { funktion: "rosta" } })).toMatchObject({ ok: true });
     expect(await tjanst.session({ sessionsnyckel, krav: { funktion: "chatta" } })).toEqual({ ok: false, orsak: "nej" });

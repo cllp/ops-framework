@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import {
+  GASTGRUPPFUNKTIONER,
   GASTIDFORM,
   GASTINBJUDNINGSIDFORM,
   GASTNYCKELFORM,
@@ -8,6 +9,7 @@ import {
   GAST_PLATSER_GRATIS,
   gastId,
   gastLank,
+  gastOmfangGer,
   gastStatus,
   gastomfangsnyckel,
   gastplatsId,
@@ -16,6 +18,7 @@ import {
   tolkaGastLank,
 } from "../lib/gast.js";
 import { gastregelfragment } from "../lib/regler.js";
+import { gastInbjudningsId } from "../node/gast.js";
 
 /**
  * Gästernas rena del (0.131.0, cllp/lifehub.app#389): hashen, identiteten, länken, platsformerna och statusen.
@@ -81,6 +84,47 @@ describe("omfång och platser", () => {
     }
   });
 
+  it("hela gruppen (0.132.0): omfångsnyckeln är grupp, och ett gruppomfång med något annat fält kastar", () => {
+    expect(gastomfangsnyckel({ slag: "grupp" })).toBe("grupp");
+    for (const o of [{ slag: "grupp", handelseId: "h1" }, { slag: "grupp", funktion: "rosta" }, { slag: "grupp", groupId: "kallan" }]) {
+      expect(() => gastomfangsnyckel(o), JSON.stringify(o)).toThrow(/inga andra fält/);
+    }
+  });
+
+  it("BEFINTLIGA ID ÄNDRAS ALDRIG: fem id från skiva 1 är fasta hashar, och gruppens id skiljer sig från saken och mellan grupper", () => {
+    const sak = (groupId, epost, handelseId) => gastInbjudningsId({ groupId, epost, omfang: { slag: "sak", funktion: "rosta", handelseId } });
+    // Hashar av JSON.stringify([grupp, adress, omfångsnyckel]) som skiva 1 (0.131.0) skrev dem. Ändras de har en inbjudan i databasen ett id ingen längre hittar.
+    expect(sak("kallan", "anna@foretag.se", "h1")).toBe("7a634d83b3cac8eaf7e97a574769f642258cc45fc7006a92661e16104176510e");
+    expect(sak("kallan", "anna@foretag.se", "h2")).toBe("8f58e807502a8bb4f5c879970183cf071911d34b316417e03a38b58d41470ca7");
+    expect(sak("kallan", "bo@foretag.se", "h1")).toBe("03f6a912b5c6d33bcec0d2812e4d4080c20d72b0c7d64f003719066559916e48");
+    expect(sak("grannen", "anna@foretag.se", "h1")).toBe("4b6b8ddf02d9e8549904e8bc21df8eb77b1ef8cb6fc5b0f0e2bb3816f1d60adf");
+    expect(sak("kallan", "anna@foretag.se", "handelse-åäö")).toBe("817b026b25a00d8f31a97c00eaf321f9d5435d24402c6a307ab26d463cc19aae");
+    const grupp = (groupId, epost) => gastInbjudningsId({ groupId, epost, omfang: { slag: "grupp" } });
+    expect(grupp("kallan", "anna@foretag.se")).toBe("09dfc2a94a6b557c2a7b53b25fdb29dd9432d525b8ae9c8c841170070d6a5e22");
+    expect(grupp("grannen", "anna@foretag.se")).toBe("a445dfe7134d94899eb6b73d55e7027043d76778fb46709372dd599466f825e2");
+    expect(grupp("kallan", "anna@foretag.se")).not.toBe(sak("kallan", "anna@foretag.se", "h1"));
+    // Ett händelse-id som heter "grupp" är fortfarande en sak: nyckeln har tre delar, gruppens har en.
+    expect(sak("kallan", "anna@foretag.se", "grupp")).not.toBe(grupp("kallan", "anna@foretag.se"));
+  });
+
+  it("gastOmfangGer: bara en gruppinbjudan ger gruppens funktioner, bara en sak ger sin egen, och slaget i kravet måste stämma", () => {
+    const grupp = { slag: "grupp" };
+    const sak = { slag: "sak", funktion: "rosta", handelseId: "h1" };
+    for (const f of GASTGRUPPFUNKTIONER) {
+      expect(gastOmfangGer(grupp, { slag: "grupp", funktion: f }), `grupp/${f}`).toBe(true);
+      expect(gastOmfangGer(grupp, { funktion: f }), `grupp utan slag/${f}`).toBe(true);
+      expect(gastOmfangGer(sak, { slag: "grupp", funktion: f }), `sak/${f}`).toBe(false);
+      expect(gastOmfangGer(sak, { funktion: f }), `sak utan slag/${f}`).toBe(false);
+    }
+    expect(gastOmfangGer(sak, { funktion: "rosta" })).toBe(true);
+    expect(gastOmfangGer(sak, { slag: "sak", funktion: "rosta" })).toBe(true);
+    expect(gastOmfangGer(grupp, { funktion: "rosta" })).toBe(false);
+    expect(gastOmfangGer(grupp, { slag: "sak", funktion: "rosta" })).toBe(false);
+    expect(gastOmfangGer(grupp, { slag: "grupp", funktion: "ekonomi" })).toBe(false);
+    for (const o of [null, undefined, {}, { slag: "nytt" }, "grupp"]) expect(gastOmfangGer(o, { funktion: "chatt" })).toBe(false);
+    for (const k of [null, undefined, {}, { slag: "grupp" }]) expect(gastOmfangGer(grupp, k)).toBe(false);
+  });
+
   it("taket är 5, och platsnumren härleds ur det: 1 till 5, inte en egen lista", () => {
     expect(GAST_PLATSER_GRATIS).toBe(5);
     expect([...GASTPLATSNUMMER]).toEqual([1, 2, 3, 4, 5]);
@@ -142,7 +186,7 @@ describe("gastregelfragment", () => {
     expect(f).toContain("allow write: if false;");
     // Sessionerna, platserna och räknarna har INGEN match: catch-allen nekar dem.
     expect((f.match(/match \//g) ?? []).length).toBe(1);
-    expect(f).not.toMatch(/—|–/);
+    expect(f).not.toMatch(/[\u2014\u2013]/);
   });
 
   it("ett samlingsnamn med snedstreck är ingen samling", () => {

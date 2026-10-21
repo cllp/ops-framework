@@ -50,6 +50,7 @@
  *       node scripts/check-skalyta.mjs --bara-grupp-vantar  bara avsnitt 53, Spara och statusraden medan en grupp skapas (0.129.0)
  *       node scripts/check-skalyta.mjs --bara-kategori  bara avsnitt 54, formuläret "Lägg till kategori": ett namn räcker (0.130.0)
  *       node scripts/check-skalyta.mjs --bara-gaster    bara avsnitt 55, gästernas lista och gästens egen sida, 390 och 1280 px (0.131.0)
+ *       node scripts/check-skalyta.mjs --bara-gastgrupp  bara avsnitt 56, gästens bantade gränssnitt för hela gruppen och inbjudningsdialogen, 390 och 1280 px (0.132.0), och avsnitt 57, ärenden till en gäst (fliken, kommentar, Markera klar, väljaren och märket)
  *       node scripts/check-skalyta.mjs --bara-etiketter  bara avsnitt 48, etiketterna inom sina dagsrutor i månadsvyn (0.106.0); med --tema dark som CP:s skärm
  *       node scripts/check-skalyta.mjs --chattbredder 390,1024   29g i andra bredder än 390 och 1280
  *       node scripts/check-skalyta.mjs --tema dark        alla sidor i mörkt tema (förebilden CP jämför mot är mörk)
@@ -1061,6 +1062,15 @@ if (argv.includes("--bara-kategori")) {
 // `--bara-gaster`: bara avsnitt 55. Hela körningen kör det också.
 if (argv.includes("--bara-gaster")) {
   await gastVyer();
+  await browser.close();
+  avsluta();
+  process.exit(0);
+}
+
+// `--bara-gastgrupp`: bara avsnitt 56. Hela körningen kör det också.
+if (argv.includes("--bara-gastgrupp")) {
+  await gastGrupp();
+  await gastArenden();
   await browser.close();
   avsluta();
   process.exit(0);
@@ -7699,6 +7709,364 @@ async function gastVyer() {
   }
 }
 
+// ══ Avsnitt 56: hela gruppen, bantat gränssnitt och inbjudningsdialog (0.132.0, cllp/lifehub.app#389, skiva 2) ══
+//
+// Medlemmens lista över personer (a) ritas utan sidled, tre personer och fyra inbjudningar (golv), varje knapp minst 32 px och "Bjud in gäst till hela gruppen" minst 44 px.
+// (b) Bekräftelsen: en skriven adress och ett tryck öppnar en dialog som SÄGER att gästen ser chattens hela historik och allt i kalendern, ärendena och biblioteket, ligger helt inom skärmen,
+//     har knappar på minst 44 px, och inget anrop har gått före bekräftelsen. Avbryt anropar inget. Bjud in anropar med adress och namn.
+// (c) Raderingen bekräftas på samma sätt, och anropet bär personens gastId.
+// Gästens sida: (d) exakt fyra flikar och en h1, ingen sidled, ingen länk ut ur sidan, flikarna minst 44 px; (e) varje flik ritas och hämtas först när den öppnas, utan sidled, och chatten har ingen skrivruta;
+// (f) integritetstexten finns, knappen frågar en gång och raderar sedan med sessionsnyckeln.
+async function gastGrupp() {
+  const SV_WEBBLASARE = { kontext: { locale: "sv-SE" } };
+  const vyer = [{ width: 390, height: 844 }, { width: 1280, height: 900 }];
+  for (const vp of vyer) {
+    const w = vp.width;
+    const namn = `gäster hela gruppen ${w}`;
+    // ── Medlemmens lista ──
+    {
+      const { page, context } = await oppna("gastgrupp-lista", vp);
+      try {
+        await page.waitForSelector("[data-gastlista]");
+        const m = await page.evaluate(() => {
+          const rot = /** @type {HTMLElement} */ (document.querySelector("[data-gastlista]"));
+          const personer = [...rot.querySelectorAll("[data-gast-person]")].map((r) => {
+            const rr = r.getBoundingClientRect();
+            const utanfor = [...r.querySelectorAll("[data-gast-namn],[data-gast-epost],[data-gast-omfangstext]")].filter((e) => e.scrollWidth > e.clientWidth + 1 || e.getBoundingClientRect().right > rr.right + 0.5).length;
+            return { id: r.getAttribute("data-gast-person"), utanfor, knappar: [...r.querySelectorAll("button")].map((b) => b.getBoundingClientRect().height) };
+          });
+          const bjud = [...rot.querySelectorAll("button")].find((b) => (b.textContent || "").trim() === "Bjud in gäst till hela gruppen");
+          return {
+            personer,
+            inbjudningar: rot.querySelectorAll("[data-gast-inbjudan]").length,
+            omfang: [...rot.querySelectorAll("[data-gast-omfangstext]")].map((e) => (e.textContent || "").trim()),
+            bjudHojd: bjud ? bjud.getBoundingClientRect().height : null,
+            overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+          };
+        });
+        matt.push(`${namn} lista: ${m.personer.length} personer, ${m.inbjudningar} inbjudningar, knappar ${m.personer.flatMap((p) => p.knappar).map((h) => h.toFixed(0)).join("/")} px, Bjud in ${m.bjudHojd === null ? "saknas" : m.bjudHojd.toFixed(0) + " px"}`);
+        krav(m.personer.length === 3 && m.inbjudningar === 4, `${namn} lista (golv): ${m.personer.length} personer och ${m.inbjudningar} inbjudningar ritades, väntat 3 och 4. Då mättes inte listan.`);
+        krav(!m.overflow, `${namn} lista (a): sidan flödar över i sidled.`);
+        krav(m.personer.every((p) => p.utanfor === 0), `${namn} lista (a): ett namn, en adress eller en omfångstext sticker ut ur sin ruta (${m.personer.filter((p) => p.utanfor > 0).map((p) => p.id).join(", ")}).`);
+        krav(m.omfang.filter((o) => o === "Hela gruppen").length === 3 && m.omfang.some((o) => o.startsWith("Omröstning: Repetition")), `${namn} lista (a): omfångstexterna är ${JSON.stringify(m.omfang)}, väntat tre "Hela gruppen" och en "Omröstning: ...".`);
+        const lagsta = Math.min(...m.personer.flatMap((p) => p.knappar));
+        krav(Number.isFinite(lagsta) && lagsta >= 32, `${namn} lista (a): lägsta knappen i en rad är ${lagsta.toFixed(0)} px hög, väntat minst 32 px.`);
+        krav(m.bjudHojd !== null && m.bjudHojd >= 44, `${namn} lista (a): "Bjud in gäst till hela gruppen" är ${m.bjudHojd === null ? "borta" : m.bjudHojd.toFixed(0) + " px"} hög, väntat minst 44 px.`);
+        if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `gaster-grupp-lista-${w}.png`), fullPage: true });
+
+        // (b) bekräftelsen
+        await page.locator('[data-gastlista] input[type="email"]').fill("ny@foretag.se");
+        await page.getByRole("button", { name: "Bjud in gäst till hela gruppen" }).click();
+        await page.waitForSelector('[role="dialog"]');
+        const d = await page.evaluate(() => {
+          const dia = /** @type {HTMLElement} */ (document.querySelector('[role="dialog"]'));
+          const r = dia.getBoundingClientRect();
+          return {
+            titel: (dia.querySelector("h2")?.textContent || "").trim(),
+            text: (dia.textContent || "").replace(/\s+/g, " "),
+            inom: r.left >= -0.5 && r.right <= innerWidth + 0.5 && r.top >= -0.5 && r.bottom <= innerHeight + 0.5,
+            knappar: [...dia.querySelectorAll("button")].filter((b) => /^(Bjud in|Avbryt)$/.test((b.textContent || "").trim())).map((b) => ({ text: (b.textContent || "").trim(), h: b.getBoundingClientRect().height })),
+            overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+            anrop: JSON.stringify(/** @type {any} */ (window).__gastgruppanrop),
+          };
+        });
+        krav(d.titel === "Bjud in ny@foretag.se till hela gruppen?", `${namn} bekräftelse (b): rubriken är ${JSON.stringify(d.titel)}.`);
+        krav(/hela historiken från början, och kan skriva i den/.test(d.text) && /kalendern och händelserna och kan svara och rösta/.test(d.text) && /läsa, spela och ladda ned i biblioteket/.test(d.text) && /inte gruppens ärenden/.test(d.text) && /inte medlemmarnas e-postadresser/.test(d.text) && /går inte att ta tillbaka/.test(d.text) && /högst 15 minuter/.test(d.text), `${namn} bekräftelse (b): dialogen säger inte allt den ska (chattens hela historik, kalender/ärenden/bibliotek, inga medlemsadresser, inte att ta tillbaka, 15 minuter): ${JSON.stringify(d.text)}.`);
+        krav(d.inom && !d.overflow, `${namn} bekräftelse (b): dialogen ligger inte helt inom skärmen (inom ${d.inom}, sidled ${d.overflow}).`);
+        krav(d.knappar.length === 2 && d.knappar.every((k) => k.h >= 44), `${namn} bekräftelse (b): knapparna ${JSON.stringify(d.knappar)}, väntat Avbryt och Bjud in på minst 44 px.`);
+        krav(d.anrop === "[]", `${namn} bekräftelse (b): ett anrop gick före bekräftelsen (${d.anrop}).`);
+        if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `gaster-grupp-bekrafta-${w}.png`), fullPage: false });
+        await page.getByRole("button", { name: "Avbryt" }).click();
+        const efterAvbryt = await page.evaluate(() => ({ dialog: !!document.querySelector('[role="dialog"]'), anrop: JSON.stringify(/** @type {any} */ (window).__gastgruppanrop) }));
+        krav(!efterAvbryt.dialog && efterAvbryt.anrop === "[]", `${namn} bekräftelse (b): efter Avbryt står dialogen kvar (${efterAvbryt.dialog}) eller ett anrop gick (${efterAvbryt.anrop}).`);
+        await page.getByRole("button", { name: "Bjud in gäst till hela gruppen" }).click();
+        await page.waitForSelector('[role="dialog"]');
+        await page.locator('[role="dialog"]').getByRole("button", { name: "Bjud in", exact: true }).click();
+        await page.waitForTimeout(100);
+        const efterBjud = await page.evaluate(() => JSON.stringify(/** @type {any} */ (window).__gastgruppanrop));
+        krav(efterBjud === JSON.stringify([["bjudGrupp", { epost: "ny@foretag.se", namn: "" }]]), `${namn} bekräftelse (b): efter Bjud in blev anropen ${efterBjud}, väntat bjudGrupp med adressen.`);
+
+        // (c) raderingen
+        await page.evaluate(() => { /** @type {any} */ (window).__gastgruppanrop.length = 0; });
+        await page.getByRole("button", { name: "Radera uppgifterna om anna@foretag.se" }).click();
+        await page.waitForSelector('[role="dialog"]');
+        const r = await page.evaluate(() => {
+          const dia = /** @type {HTMLElement} */ (document.querySelector('[role="dialog"]'));
+          const rr = dia.getBoundingClientRect();
+          return { text: (dia.textContent || "").replace(/\s+/g, " "), inom: rr.left >= -0.5 && rr.right <= innerWidth + 0.5 && rr.bottom <= innerHeight + 0.5, anrop: JSON.stringify(/** @type {any} */ (window).__gastgruppanrop) };
+        });
+        krav(/Det går inte att ångra/.test(r.text) && r.inom && r.anrop === "[]", `${namn} radering (c): dialogens text ${JSON.stringify(r.text)}, inom skärmen ${r.inom}, anrop före bekräftelsen ${r.anrop}.`);
+        if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `gaster-grupp-radera-${w}.png`), fullPage: false });
+        await page.locator('[role="dialog"]').getByRole("button", { name: "Radera", exact: true }).click();
+        await page.waitForTimeout(100);
+        const efterRadera = await page.evaluate(() => JSON.stringify(/** @type {any} */ (window).__gastgruppanrop));
+        krav(efterRadera === JSON.stringify([["radera", { gastId: "g_" + "1".repeat(40), epost: "anna@foretag.se" }]]), `${namn} radering (c): efter Radera blev anropen ${efterRadera}, väntat radera med personens gastId.`);
+      } catch (err) {
+        krav(false, `${namn} lista: provet avbröts (${String(/** @type {Error} */ (err).message).split("\n")[0]}).`);
+      }
+      await context.close();
+    }
+
+    // ── Gruppens medlemsvy: Gäst (utan konto) är ett val i Roll under Bjud in ──
+    {
+      const { page, context } = await oppna("gastgrupp-medlemmar", vp);
+      try {
+        await page.getByRole("combobox").waitFor();
+        const fore = await page.evaluate(() => ({ gastfalt: !!document.querySelector("[data-medlemmar-gast]"), vantande: (document.body.innerText.match(/vantande@foretag\.se/g) || []).length, gaster: document.querySelectorAll("[data-gast-person]").length, overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth }));
+        krav(!fore.gastfalt && fore.vantande === 1 && fore.gaster === 3 && !fore.overflow, `${namn} medlemmar (g): före valet står gästrutan ${fore.gastfalt}, väntande medlemmar ${fore.vantande} (väntat 1), väntande gäster ${fore.gaster} (väntat 3), sidled ${fore.overflow}.`);
+        await page.getByRole("combobox").click();
+        const val = await page.getByRole("option").allTextContents();
+        krav(JSON.stringify(val) === JSON.stringify(["Ägare", "Admin", "Medlem", "Gäst (utan konto)"]), `${namn} medlemmar (g): valen i Roll är ${JSON.stringify(val)}, väntat Ägare, Admin, Medlem, Gäst (utan konto).`);
+        await page.getByRole("option", { name: "Gäst (utan konto)" }).click();
+        await page.locator('input[type="email"]').fill("ny@foretag.se");
+        const efter = await page.evaluate(() => {
+          const gast = /** @type {HTMLElement | null} */ (document.querySelector("[data-medlemmar-gast]"));
+          const knapp = [...document.querySelectorAll("button")].find((b) => (b.textContent || "").trim() === "Bjud in utan konto");
+          const rot = document.querySelector("[data-ops-medlemmar], body");
+          return {
+            text: gast ? (gast.textContent || "").replace(/\s+/g, " ") : "",
+            knapp: knapp ? knapp.getBoundingClientRect().height : null,
+            knappOppen: knapp ? !/** @type {HTMLButtonElement} */ (knapp).disabled : null,
+            not: document.body.innerText.includes("En adress utan Google-konto kan bjudas in som gäst"),
+            overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+            gastKnappFinnsEj: !![...document.querySelectorAll("button")].find((b) => (b.textContent || "").trim() === "Bjud in"),
+          };
+        });
+        krav(/3 av 5 gratis platser/.test(efter.text) && /läsa och skriva i chatten/.test(efter.text) && /Gästen ser inte gruppens ärenden/.test(efter.text), `${namn} medlemmar (g): med Gäst valt säger rutan ${JSON.stringify(efter.text)}, väntat räknaren och ingressen.`);
+        krav(efter.knapp !== null && efter.knapp >= 44 && efter.knappOppen === true && !efter.gastKnappFinnsEj, `${namn} medlemmar (g): knappen Bjud in utan konto är ${efter.knapp} px hög och ${efter.knappOppen ? "öppen" : "spärrad"}, och knappen Bjud in ${efter.gastKnappFinnsEj ? "finns kvar" : "är borta"}.`);
+        krav(efter.not && !efter.overflow, `${namn} medlemmar (g): raden om Google-konto och gäst ${efter.not ? "står" : "saknas"}, sidled ${efter.overflow}.`);
+        if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `gaster-grupp-medlemmar-${w}.png`), fullPage: true });
+        await page.getByRole("button", { name: "Bjud in utan konto" }).click();
+        await page.waitForSelector('[role="dialog"]');
+        const d = await page.evaluate(() => ({ text: (document.querySelector('[role="dialog"]')?.textContent || "").replace(/\s+/g, " "), anrop: JSON.stringify(/** @type {any} */ (window).__gastgruppanrop) }));
+        krav(/hela historiken från början, och kan skriva i den/.test(d.text) && /inte gruppens ärenden/.test(d.text) && d.anrop === "[]", `${namn} medlemmar (g): bekräftelsen säger ${JSON.stringify(d.text.slice(0, 200))} och anrop före bekräftelsen ${d.anrop}.`);
+        if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `gaster-grupp-medlemmar-bekrafta-${w}.png`), fullPage: false });
+        await page.locator('[role="dialog"]').getByRole("button", { name: "Bjud in", exact: true }).click();
+        await page.waitForTimeout(100);
+        const klar = await page.evaluate(() => JSON.stringify(/** @type {any} */ (window).__gastgruppanrop));
+        krav(klar === JSON.stringify([["bjudGrupp", { epost: "ny@foretag.se", namn: "" }]]), `${namn} medlemmar (g): efter bekräftelsen blev anropen ${klar}, väntat bjudGrupp med adressen.`);
+      } catch (err) {
+        krav(false, `${namn} medlemmar: provet avbröts (${String(/** @type {Error} */ (err).message).split("\n")[0]}).`);
+      }
+      await context.close();
+    }
+
+    // ── Gästens bantade gränssnitt ──
+    {
+      const { page, context } = await oppna("gastgrupp-sida", vp, standardtema, 1, null, 0, SV_WEBBLASARE);
+      try {
+        await page.waitForSelector("[data-gast-grupp]");
+        await page.waitForSelector("[data-gast-chatt-logg]");
+        const m = await page.evaluate(() => ({
+          flikar: [...document.querySelectorAll('[role="tab"]')].map((f) => ({ text: (f.textContent || "").trim(), h: f.getBoundingClientRect().height })),
+          h1: document.querySelectorAll("h1").length,
+          overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+          lankar: [...document.querySelectorAll("a[href]")].map((a) => a.getAttribute("href")).filter((h) => h && !/^(https?:|#|blob:|data:)/.test(h)),
+          sidtext: document.body.innerText || "",
+          skrivfalt: document.querySelectorAll("[data-gast-grupp] textarea, [data-gast-grupp] [contenteditable]").length,
+          bubblor: document.querySelectorAll("[data-bubbla]").length,
+          chattOverflow: (() => { const l = document.querySelector("[data-gast-chatt-logg]"); return l ? l.scrollWidth > l.clientWidth + 1 : null; })(),
+        }));
+        matt.push(`${namn} sida: flikar ${m.flikar.map((f) => `${f.text} ${f.h.toFixed(0)}`).join(", ")} px, ${m.bubblor} bubblor`);
+        krav(JSON.stringify(m.flikar.map((f) => f.text)) === JSON.stringify(["Chatt", "Kalender", "Bibliotek"]), `${namn} sida (d, golv): flikarna är ${JSON.stringify(m.flikar.map((f) => f.text))}, väntat Chatt, Kalender, Bibliotek (ärenden finns inte för en gäst).`);
+        krav(m.flikar.every((f) => f.h >= 44), `${namn} sida (d): en flik är under 44 px hög (${m.flikar.map((f) => f.h.toFixed(0)).join("/")}).`);
+        krav(m.h1 === 1 && !m.overflow, `${namn} sida (d): ${m.h1} h1 (väntat 1), sidled ${m.overflow}.`);
+        krav(m.lankar.length === 0 && !/Inställningar|Ekonomi|Appar|Hubb|Agent/.test(m.sidtext), `${namn} sida (d): sidan har en väg ut eller ett ord ur appens skal (${JSON.stringify(m.lankar)}).`);
+        krav(m.bubblor >= 4 && m.skrivfalt === 1 && m.chattOverflow === false, `${namn} sida (e): chatten har ${m.bubblor} bubblor (väntat minst 4), ${m.skrivfalt} skrivfält (väntat 1), sidled ${m.chattOverflow}.`);
+        // Skrivfältet är chattens, utan bilagor, mikrofon och agent, och Skicka går att träffa; en annan gästs meddelande bär märket Gäst.
+        const sk = await page.evaluate(() => {
+          const rot = /** @type {HTMLElement} */ (document.querySelector("[data-gast-chatt-skriv]"));
+          const skicka = rot ? [...rot.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Skicka") : null;
+          const fr = rot ? rot.getBoundingClientRect() : null;
+          return {
+            finns: !!rot,
+            filer: rot ? rot.querySelectorAll("input[type=file]").length : -1,
+            plus: rot ? rot.querySelectorAll("[data-plus]").length : -1,
+            mik: rot ? rot.querySelectorAll("[data-mikrofon]").length : -1,
+            skickaHojd: skicka ? skicka.getBoundingClientRect().height : null,
+            inom: fr ? fr.left >= -0.5 && fr.right <= innerWidth + 0.5 : false,
+            markningar: [...document.querySelectorAll("[data-gast-markning]")].map((e) => (e.textContent || "").trim()),
+            not: (document.querySelector("[data-gast-chatt-skrivskyddad]")?.textContent || "").trim(),
+          };
+        });
+        krav(sk.finns && sk.filer === 0 && sk.plus === 0 && sk.mik === 0, `${namn} sida (e): skrivfältet ${sk.finns ? "finns" : "saknas"} med ${sk.filer} filfält, ${sk.plus} plusknappar och ${sk.mik} mikrofoner, väntat inga alls (gästen kan inte bifoga eller tala in).`);
+        krav(sk.skickaHojd !== null && sk.skickaHojd >= 44 && sk.inom, `${namn} sida (e): Skicka är ${sk.skickaHojd} px hög (väntat minst 44) och fältet ligger ${sk.inom ? "inom" : "utanför"} skärmen.`);
+        krav(JSON.stringify(sk.markningar) === JSON.stringify(["Gäst"]) && /Du skriver som gäst/.test(sk.not), `${namn} sida (e): märkena är ${JSON.stringify(sk.markningar)} (väntat ["Gäst"]) och noten ${JSON.stringify(sk.not)}.`);
+        if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `gaster-grupp-sida-chatt-${w}.png`), fullPage: true });
+        // Gästen skriver: texten går till skrivChatt, bubblan står som gästens eget och fältet töms.
+        await page.evaluate(() => { /** @type {any} */ (window).__gastgruppanrop.length = 0; });
+        await page.locator("[data-gast-chatt-skriv] textarea").fill("Hej, här skriver gästen");
+        await page.locator("[data-gast-chatt-skriv]").getByRole("button", { name: "Skicka" }).click();
+        await page.waitForSelector('[data-meddelande="eget"]');
+        const skrev = await page.evaluate(() => ({
+          anrop: JSON.stringify(/** @type {any} */ (window).__gastgruppanrop),
+          eget: (document.querySelector('[data-meddelande="eget"]')?.textContent || "").includes("Hej, här skriver gästen"),
+          tomt: /** @type {HTMLTextAreaElement} */ (document.querySelector("[data-gast-chatt-skriv] textarea")).value === "",
+          overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+        }));
+        krav(skrev.anrop === JSON.stringify([["skrivChatt", { text: "Hej, här skriver gästen" }]]) && skrev.eget && skrev.tomt && !skrev.overflow, `${namn} sida (e): efter Skicka blev anropen ${skrev.anrop}, bubblan som eget ${skrev.eget}, fältet tomt ${skrev.tomt}, sidled ${skrev.overflow}.`);
+        if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `gaster-grupp-sida-chatt-skrev-${w}.png`), fullPage: true });
+
+        for (const [flik, vantat, bildnamn] of /** @type {const} */ ([["Kalender", "[data-gast-kalender]", "kalender"], ["Bibliotek", "[data-gast-bibliotek]", "bibliotek"]])) {
+          await page.getByRole("tab", { name: flik }).click();
+          await page.waitForSelector(vantat);
+          await page.waitForTimeout(150);
+          const f = await page.evaluate(() => ({ overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth, anrop: JSON.stringify(/** @type {any} */ (window).__gastgruppanrop.map((a) => a[0])) }));
+          krav(!f.overflow, `${namn} sida (e): fliken ${flik} flödar över i sidled.`);
+          if (flik === "Kalender") {
+            krav(await page.locator("[data-gast-ejsatt]").count() === 1, `${namn} sida (e): Datum ej satt-listan har inte en händelse.`);
+            // Kalendern drar av 1,5 rem med `-mb-6` (den är byggd för att vara sist i sin vy): rubriken under den får inte ligga över rutnätets nederkant.
+            const luft = await page.evaluate(() => {
+              const rulle = document.querySelector("[data-kalender-rulle]");
+              const ejsatta = document.querySelector("[data-gast-ejsatta]");
+              return rulle && ejsatta ? ejsatta.getBoundingClientRect().top - rulle.getBoundingClientRect().bottom : null;
+            });
+            krav(luft !== null && luft >= 0, `${namn} sida (e): Datum ej satt ligger ${luft === null ? "ingenstans" : luft.toFixed(0) + " px"} från kalenderns nederkant, väntat minst 0 (inte ovanpå rutnätet).`);
+          }
+          if (flik === "Bibliotek") krav(await page.getByText("Låtlista").count() >= 1, `${namn} sida (e): biblioteksfliken ritade inte posten "Låtlista".`);
+          if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `gaster-grupp-sida-${bildnamn}-${w}.png`), fullPage: true });
+        }
+        const hamtat = await page.evaluate(() => JSON.stringify(/** @type {any} */ (window).__gastgruppanrop.map((a) => a[0])));
+        krav(hamtat.startsWith('["skrivChatt"') && ["kalender", "bibliotek"].every((a) => hamtat.includes(`"${a}"`)) && !hamtat.includes("arenden"), `${namn} sida (e): anropen blev ${hamtat}, väntat chatt (och skrivChatt) först och därefter kalender och bibliotek när flikarna öppnades, och aldrig arenden.`);
+
+        // (f) integriteten
+        await page.getByText("Integritet och dina uppgifter").click();
+        const i = await page.evaluate(() => ({ lagrat: !!document.querySelector("[data-gast-integritet-lagrat]"), radera: (document.querySelector("[data-gast-integritet-radera]")?.textContent || "").trim().slice(0, 40) }));
+        krav(i.lagrat && /Så raderas det: tryck på knappen/.test(i.radera), `${namn} sida (f): integritetstexten saknas eller hänvisar inte till knappen (${JSON.stringify(i)}).`);
+        if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `gaster-grupp-sida-integritet-${w}.png`), fullPage: true });
+        await page.evaluate(() => { /** @type {any} */ (window).__gastgruppanrop.length = 0; });
+        await page.getByRole("button", { name: "Radera mina uppgifter" }).click();
+        const fraga = await page.evaluate(() => ({ fraga: !!document.querySelector("[data-gast-radera-fraga]"), anrop: JSON.stringify(/** @type {any} */ (window).__gastgruppanrop) }));
+        krav(fraga.fraga && fraga.anrop === "[]", `${namn} sida (f): knappen ska fråga en gång innan något raderas (frågan ${fraga.fraga}, anrop ${fraga.anrop}).`);
+        await page.getByRole("button", { name: "Ja, radera allt" }).click();
+        await page.waitForSelector("[data-gast-raderad]");
+        const efter = await page.evaluate(() => ({ anrop: JSON.stringify(/** @type {any} */ (window).__gastgruppanrop), flikar: document.querySelectorAll('[role="tab"]').length, text: (document.querySelector("[data-gast-raderad]")?.textContent || "").trim() }));
+        krav(efter.anrop === JSON.stringify([["raderaMig", { sessionsnyckel: "S".repeat(43) }]]) && efter.flikar === 0 && /raderade/.test(efter.text), `${namn} sida (f): efter bekräftelsen blev anropen ${efter.anrop}, flikar kvar ${efter.flikar}, text ${JSON.stringify(efter.text)}. Väntat raderaMig med sessionsnyckeln, inga flikar och texten att uppgifterna är raderade.`);
+        if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `gaster-grupp-sida-raderad-${w}.png`), fullPage: true });
+      } catch (err) {
+        krav(false, `${namn} sida: provet avbröts (${String(/** @type {Error} */ (err).message).split("\n")[0]}).`);
+      }
+      await context.close();
+    }
+  }
+}
+
+/**
+ * Avsnitt 57 (0.132.0, lifehub.app#389, skiva 3): ärenden till en gäst. Gästens flik Ärenden (fyra flikar, tre kort, kommentar, Markera klar som frågar först) och medlemmens sida (väljaren för ansvarig med gäster
+ * och märket Gäst / Gäst (inbjudan återkallad)), 390 och 1280 px, i riktig CSS.
+ */
+async function gastArenden() {
+  const SV_WEBBLASARE = { kontext: { locale: "sv-SE" } };
+  const vyer = [{ width: 390, height: 844 }, { width: 1280, height: 900 }];
+  for (const vp of vyer) {
+    const w = vp.width;
+    const namn = `gäster ärenden ${w}`;
+    // ── Gästens flik Ärenden ──
+    {
+      const { page, context } = await oppna("gastgrupp-arenden", vp, standardtema, 1, null, 0, SV_WEBBLASARE);
+      try {
+        await page.waitForSelector("[data-gast-grupp]");
+        await page.waitForSelector('[role="tab"]');
+        // Fliken finns först när svaret på arenden kommit (hämtas vid start).
+        await page.getByRole("tab", { name: "Ärenden" }).waitFor();
+        const a = await page.evaluate(() => ({
+          flikar: [...document.querySelectorAll('[role="tab"]')].map((f) => ({ text: (f.textContent || "").trim(), h: f.getBoundingClientRect().height })),
+          overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+          anrop: JSON.stringify(/** @type {any} */ (window).__gastgruppanrop.map((x) => x[0])),
+          ingress: (document.querySelector("[data-gast-grupp-ingress]")?.textContent || "").trim(),
+        }));
+        matt.push(`${namn}: flikar ${a.flikar.map((f) => `${f.text} ${f.h.toFixed(0)}`).join(", ")} px`);
+        krav(JSON.stringify(a.flikar.map((f) => f.text)) === JSON.stringify(["Chatt", "Kalender", "Bibliotek", "Ärenden"]), `${namn} (a, golv): flikarna är ${JSON.stringify(a.flikar.map((f) => f.text))}, väntat Chatt, Kalender, Bibliotek, Ärenden (gästen har ärenden).`);
+        krav(a.flikar.every((f) => f.h >= 44) && !a.overflow, `${namn} (a): en flik är under 44 px (${a.flikar.map((f) => f.h.toFixed(0)).join("/")}) eller sidan flödar över i sidled (${a.overflow}).`);
+        krav(a.anrop.includes('"arenden"') && /bara de som gruppen har gett dig/.test(a.ingress), `${namn} (a): anropen ${a.anrop}, ingressen ${JSON.stringify(a.ingress)}. Väntat att arenden hämtats vid start och att ingressen säger att gästen bara ser sina egna.`);
+
+        await page.getByRole("tab", { name: "Ärenden" }).click();
+        await page.waitForSelector("[data-gast-arenden]");
+        const b = await page.evaluate(() => {
+          const kort = [...document.querySelectorAll("[data-gast-arende]")];
+          const ut = (/** @type {Element} */ e) => e.scrollWidth > e.clientWidth + 1;
+          return {
+            kort: kort.map((k) => ({ id: k.getAttribute("data-gast-arende"), status: k.getAttribute("data-status"), utanfor: [...k.querySelectorAll("h3,[data-gast-arende-text],[data-gast-arende-kommentar]")].filter(ut).length, klar: !!k.querySelector("[data-gast-arende-klar] button"), textareor: k.querySelectorAll("textarea").length, ruta: k.getBoundingClientRect().right <= innerWidth + 0.5 })),
+            markningar: [...document.querySelectorAll("[data-gast-arende-kommentar] [data-gast-markning]")].map((e) => (e.textContent || "").trim()),
+            du: [...document.querySelectorAll("[data-gast-arende-kommentar]")].filter((k) => (k.querySelector("span > span")?.textContent || "").trim() === "Du").length,
+            statusar: [...document.querySelectorAll("[data-gast-arende-status]")].map((e) => (e.textContent || "").trim()),
+            forfaller: (document.querySelector("[data-gast-arende-forfaller]")?.textContent || "").trim(),
+            knappar: [...document.querySelectorAll("[data-gast-arende-klar] button")].map((k) => k.getBoundingClientRect().height),
+            lankar: document.querySelectorAll("[data-gast-arenden] a[href]").length,
+            filfalt: document.querySelectorAll("[data-gast-arenden] input[type=file]").length,
+            overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+            sidtext: document.body.innerText || "",
+          };
+        });
+        krav(b.kort.length === 3 && b.kort.every((k) => k.ruta && k.utanfor === 0 && k.textareor === 1), `${namn} (b, golv): ${b.kort.length} kort (väntat 3), varje kort inom skärmen utan text som sticker ut och med ett skrivfält: ${JSON.stringify(b.kort)}.`);
+        krav(JSON.stringify(b.statusar) === JSON.stringify(["Öppet", "Öppet", "Klart"]) && b.forfaller === "Förfaller 2026-11-20", `${namn} (b): statusarna ${JSON.stringify(b.statusar)} och förfallodagen ${JSON.stringify(b.forfaller)}, väntat Öppet, Öppet, Klart och Förfaller 2026-11-20.`);
+        krav(JSON.stringify(b.markningar) === JSON.stringify(["Gäst", "Gäst"]) && b.du === 1, `${namn} (b): märkena på kommentarerna är ${JSON.stringify(b.markningar)} och "Du" står på ${b.du} (väntat två Gäst och en Du).`);
+        krav(b.kort.filter((k) => k.klar).map((k) => k.id).join() === "a-1,a-2" && b.knappar.every((h) => h >= 44), `${namn} (b): Markera klar finns på ${b.kort.filter((k) => k.klar).map((k) => k.id).join()} (väntat bara de öppna a-1,a-2) och knapparna är ${b.knappar.map((h) => h.toFixed(0)).join("/")} px.`);
+        krav(b.lankar === 0 && b.filfalt === 0 && !b.overflow && !/github|Inställningar|Ekonomi/i.test(b.sidtext), `${namn} (b): ${b.lankar} länkar, ${b.filfalt} filfält, sidled ${b.overflow}, eller ett ord ur appens skal.`);
+        if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `gaster-arenden-fliken-${w}.png`), fullPage: true });
+
+        // (c) kommentaren
+        await page.evaluate(() => { /** @type {any} */ (window).__gastgruppanrop.length = 0; });
+        const forsta = page.locator('[data-gast-arende="a-1"]');
+        await forsta.locator("textarea").fill("Jag köper tejpen i morgon");
+        await forsta.getByRole("button", { name: "Skicka" }).click();
+        await forsta.locator("[data-gast-arende-kommentar]").nth(3).waitFor();
+        const c = await page.evaluate(() => ({
+          anrop: JSON.stringify(/** @type {any} */ (window).__gastgruppanrop),
+          sista: (document.querySelectorAll('[data-gast-arende="a-1"] [data-gast-arende-kommentar]')[3]?.textContent || ""),
+          tomt: /** @type {HTMLTextAreaElement} */ (document.querySelector('[data-gast-arende="a-1"] textarea')).value === "",
+          overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+        }));
+        krav(c.anrop === JSON.stringify([["kommenteraArende", { arendeId: "a-1", text: "Jag köper tejpen i morgon" }]]) && /Jag köper tejpen i morgon/.test(c.sista) && /Du/.test(c.sista) && c.tomt && !c.overflow, `${namn} (c): efter Skicka blev anropen ${c.anrop}, den nya kommentaren ${JSON.stringify(c.sista)}, fältet tomt ${c.tomt}, sidled ${c.overflow}.`);
+        if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `gaster-arenden-kommentar-${w}.png`), fullPage: true });
+
+        // (d) Markera klar frågar först, och först efter Ja går anropet
+        await page.evaluate(() => { /** @type {any} */ (window).__gastgruppanrop.length = 0; });
+        const andra = page.locator('[data-gast-arende="a-2"]');
+        await andra.getByRole("button", { name: "Markera klar" }).click();
+        const fraga = await page.evaluate(() => ({ text: (document.querySelector('[data-gast-arende="a-2"] [role="group"]')?.textContent || "").replace(/\s+/g, " "), anrop: JSON.stringify(/** @type {any} */ (window).__gastgruppanrop), knappar: [...document.querySelectorAll('[data-gast-arende="a-2"] [role="group"] button')].map((k) => ({ t: (k.textContent || "").trim(), h: k.getBoundingClientRect().height })), overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth }));
+        krav(/Du kan inte öppna det igen/.test(fraga.text) && fraga.anrop === "[]" && fraga.knappar.length === 2 && fraga.knappar.every((k) => k.h >= 44) && !fraga.overflow, `${namn} (d): frågan ${JSON.stringify(fraga.text)}, anrop före Ja ${fraga.anrop}, knappar ${JSON.stringify(fraga.knappar)}, sidled ${fraga.overflow}.`);
+        if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `gaster-arenden-klar-fraga-${w}.png`), fullPage: true });
+        await andra.getByRole("button", { name: "Ja, markera klart" }).click();
+        await page.waitForSelector('[data-gast-arende="a-2"][data-status="hanterad"]');
+        const klar = await page.evaluate(() => ({ anrop: JSON.stringify(/** @type {any} */ (window).__gastgruppanrop.map((x) => x[0])), knappKvar: !!document.querySelector('[data-gast-arende="a-2"] [data-gast-arende-klar]'), status: (document.querySelector('[data-gast-arende="a-2"] [data-gast-arende-status]')?.textContent || "").trim() }));
+        krav(klar.anrop === JSON.stringify(["markeraArendeKlart", "arenden"]) && !klar.knappKvar && klar.status === "Klart", `${namn} (d): efter Ja blev anropen ${klar.anrop} (väntat markeraArendeKlart och därefter en ny hämtning), knappen kvar ${klar.knappKvar}, status ${JSON.stringify(klar.status)}.`);
+        if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `gaster-arenden-klar-${w}.png`), fullPage: true });
+      } catch (err) {
+        krav(false, `${namn} fliken: provet avbröts (${String(/** @type {Error} */ (err).message).split("\n")[0]}).`);
+      }
+      await context.close();
+    }
+
+    // ── Medlemmens sida: väljaren för ansvarig och märket ──
+    {
+      const { page, context } = await oppna("gastgrupp-mottagare", vp);
+      try {
+        await page.waitForSelector("[data-mottagare-valjare]");
+        const m = await page.evaluate(() => {
+          const rader = [...document.querySelectorAll('[data-mottagare-valjare] [role="radio"]')];
+          return {
+            rader: rader.map((r) => ({ namn: (r.querySelector(".truncate")?.textContent || "").trim(), markning: (r.querySelector("[data-gast-markning]")?.textContent || "").trim(), h: r.getBoundingClientRect().height, inom: r.getBoundingClientRect().right <= innerWidth + 0.5, avkortad: (r.querySelector(".truncate")?.scrollWidth ?? 0) > (r.querySelector(".truncate")?.clientWidth ?? 0) + 1 })),
+            overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+            markeringar: [...document.querySelectorAll("[data-mottagare-rad]")].map((r) => ({ id: r.getAttribute("data-mottagare-rad"), text: (r.querySelector("[data-gast-mottagare]")?.textContent || "").replace(/\s+/g, " ").trim(), aterkallad: r.querySelector("[data-gast-mottagare]")?.getAttribute("data-aterkallad"), inom: r.getBoundingClientRect().right <= innerWidth + 0.5 })),
+          };
+        });
+        matt.push(`${namn} medlemssidan: ${m.rader.length} val, ${m.markeringar.length} märken`);
+        krav(m.rader.length === 5 && m.rader.slice(3).every((r) => r.markning === "Gäst") && m.rader.slice(0, 3).every((r) => r.markning === ""), `${namn} medlemssidan (e, golv): valen ${JSON.stringify(m.rader.map((r) => `${r.namn}${r.markning ? ` [${r.markning}]` : ""}`))}, väntat Gruppen, två medlemmar och två gäster med märket Gäst.`);
+        krav(m.rader.every((r) => r.h >= 44 && r.inom) && !m.overflow, `${namn} medlemssidan (e): ett val är under 44 px (${m.rader.map((r) => r.h.toFixed(0)).join("/")}), ligger utanför skärmen, eller sidan flödar över i sidled (${m.overflow}).`);
+        krav(JSON.stringify(m.markeringar.map((r) => [r.id, r.text, r.aterkallad])) === JSON.stringify([["r1", "AnnaGäst", "false"], ["r2", "Bo Bengtsson-Karlsson-Andersson-LindqvistGäst (inbjudan återkallad)", "true"], ["r3", "AnnaGäst", "okand"]]) && m.markeringar.every((r) => r.inom), `${namn} medlemssidan (f): märkena är ${JSON.stringify(m.markeringar)}, väntat levande Gäst, återkallad "Gäst (inbjudan återkallad)" och okänd bara Gäst.`);
+        if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `gaster-arenden-mottagare-${w}.png`), fullPage: true });
+        await page.getByRole("radio", { name: /^Anna/ }).click();
+        const vald = await page.evaluate(() => ({ vald: (document.querySelector("[data-mottagare-vald]")?.textContent || ""), checked: [...document.querySelectorAll('[data-mottagare-valjare] [role="radio"][aria-checked="true"]')].length }));
+        krav(vald.vald === JSON.stringify({ slag: "gast", gastId: "g_" + "1".repeat(40), namn: "Anna" }) && vald.checked === 1, `${namn} medlemssidan (e): valet gav ${vald.vald} med ${vald.checked} markerade val, väntat { slag: "gast", gastId, namn: "Anna" } och ett val.`);
+      } catch (err) {
+        krav(false, `${namn} medlemssidan: provet avbröts (${String(/** @type {Error} */ (err).message).split("\n")[0]}).`);
+      }
+      await context.close();
+    }
+  }
+}
+
 await apparArkHylla();
 await apparArkOrdning();
 await textfaltMedTal();
@@ -7712,6 +8080,8 @@ await bibliotekVideo();
 await gruppVantar();
 await kategoriFormular();
 await gastVyer();
+await gastGrupp();
+await gastArenden();
 
 await browser.close();
 avsluta();

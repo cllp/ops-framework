@@ -1,5 +1,5 @@
 /**
- * Gäster: det som vyn, reglerna och servern delar om en person som bjudits in utan konto (0.131.0, cllp/lifehub.app#389, skiva 1).
+ * Gäster: det som vyn, reglerna och servern delar om en person som bjudits in utan konto (0.131.0, cllp/lifehub.app#389, skiva 1; 0.132.0, skiva 2: hela gruppen).
  *
  * ══ ⛔ EN GÄST ÄR EN INBJUDAN, INTE ETT KONTO OCH INTE ETT MEDLEMSKAP (CP 2026-10-20) ═══════════════════════════════════════
  *
@@ -26,11 +26,40 @@ import { epostFel } from "./mejl.js";
 /** Så många gäster en grupp får gratis (CP 2026-10-20: "max 5 gäster"). Ett tal på ETT ställe: platsdokumenten, texten "X av 5" och taket härleds ur det. */
 export const GAST_PLATSER_GRATIS = 5;
 
-/** Vad en inbjudan gäller. Skiva 1 har bara `sak` (en omröstning). Skiva 2 lägger till `grupp` här och ingen annanstans. */
-export const GASTSLAG = /** @type {const} */ (["sak"]);
+/**
+ * Vad en inbjudan gäller: `sak` (en omröstning, skiva 1) eller `grupp` (hela gruppen, 0.132.0). Slaget ingår i inbjudans id via `gastomfangsnyckel`, så att samma adress till
+ * en sak och till hela gruppen är två rader men en person (och en plats).
+ */
+export const GASTSLAG = /** @type {const} */ (["sak", "grupp"]);
 
-/** Vad en gäst får göra med en sak. Skiva 1: rösta. Skyddet gäller per funktion, inte per post (epikens beslut 7). */
+/** Vad en gäst får göra med en SAK. Skiva 1: rösta. Skyddet gäller per funktion, inte per post (epikens beslut 7). */
 export const GASTFUNKTIONER = /** @type {const} */ (["rosta"]);
+
+/**
+ * Vad en gäst med omfånget `grupp` får göra: se och skriva i chatten, kalendern (och svara och rösta där), biblioteket och de ärenden som delegerats till hen. En gruppinbjudan ger alla fyra. Att välja en delmängd per
+ * gäst byggs inte (CP 2026-10-20, designen: en andra konstant, grenar i `session()` och en omfångsnyckel som då måste bära valet).
+ *
+ * ⛔ `arenden` GER INTE GRUPPENS ÄRENDEN (skiva 3, CP 2026-10-20). Funktionen ger de ärenden där gästen är ansvarig (`gastDelegerad`) och inga andra: ärendelistan kan bära sådant som inte rör gästen (buggar, ekonomi),
+ * så urvalet görs av servern på gästens `gastId` och aldrig av vyn. Den finns bara när appen gett `grupp.arenden`.
+ */
+export const GASTGRUPPFUNKTIONER = /** @type {const} */ (["chatt", "kalender", "bibliotek", "arenden"]);
+
+/** Tak per svar (hela listan eller en sida), så att en lista som kapats aldrig ser ut som hela listan (`avkortad`). */
+export const GASTCHATT_SIDA = 50;
+/** Flest händelser i gästens kalender. Samma tak som kalenderflödet (5 000). */
+export const GASTKALENDER_MAX = 5000;
+/** Flest ärenden i gästens lista (skiva 3): de som delegerats till gästen, inte gruppens. Öppna först, nyast först; finns fler säger svaret `avkortad`. */
+export const GASTARENDE_MAX = 100;
+/** Flest av gästens EGNA ärenden servern läser (frågan är på gästens `gastId`, inte på hela gruppen), innan de sorteras och `GASTARENDE_MAX` visas. Nås det säger svaret `avkortad`: en kapad lista ser aldrig ut som hela. */
+export const GASTARENDE_SKANNA_MAX = 2000;
+/** Flest kommentarer per ärende hos gästen (de senaste). Finns fler bär ärendet `fler`. */
+export const GASTARENDEKOMMENTARER_MAX = 100;
+/** Flest biblioteksposter i gästens lista. */
+export const GASTBIBLIOTEK_MAX = 1000;
+/** Högsta antalet anrop per inbjudan och minut (gruppens funktioner). Därefter `for-manga`, som appen svarar 429 på. */
+export const GASTANROP_PER_MINUT = 60;
+/** Högsta antalet filer (signerade adresser) per inbjudan och dygn. Trafiken ut ur lagringen är den enda kostnad en gäst kan driva upp själv. */
+export const GASTFIL_PER_DYGN = 50;
 
 /** Hur länge länken i ett brev går att lösa in, i dagar räknat från senaste utskicket. Gäller bara länken, inte åtkomsten: en gäst som redan loggat in har en session. */
 export const GASTLANKDAGAR = 30;
@@ -73,6 +102,89 @@ export const GASTINBJUDNINGSIDFORM = /^[0-9a-f]{64}$/;
 
 /** Gästens identitet: `g_` och 40 hextecken. */
 export const GASTIDFORM = /^g_[0-9a-f]{40}$/;
+
+/**
+ * Är det här en gästs identitet (`av` på ett chattmeddelande)? Det ENDA sättet att se att ett meddelande skrevs av en gäst: ingen andra fält bär det, så ingen kan glida isär från `av`.
+ * Ett Firebase-uid kan inte ha den formen (28 tecken, utan understreck).
+ * @param {unknown} av
+ * @returns {boolean}
+ */
+export function arGastId(av) {
+  return typeof av === "string" && GASTIDFORM.test(av);
+}
+
+/** Namnet på en gäst som skrivit utan att ha något namn. Märket Gäst står vid varje gästs meddelande ändå. */
+export const GASTNAMNLOS = "Gäst";
+
+/**
+ * ══ (SKIVA 3) ETT ÄRENDE KAN HA EN GÄST SOM ANSVARIG ══════════════════════════════════════════════════════════════════════
+ *
+ * Appens ärende bär sin mottagare i fältet `mottagare` (`{ slag: "person", uid }`, se `byggMottagare`). En gäst är ett slag till: `{ slag: "gast", gastId, namn }`. `gastId` är gästens identitet
+ * (`gastId(epost)`), den ENDA nyckeln servern urskiljer gästens ärenden på; `namn` är ett visningsnamn som medlemmarna ritar, för att en medlem inte kan läsa gästens inbjudan.
+ *
+ * ⛔ FORMEN HAR ETT HEM (regel 2). Appens utdelning (`byggArendemottagare` i `samtal.js`), serverns urval av gästens ärenden (`gastDelegerad`) och medlemmarnas rad (`tolkaGastMottagare`) läser samma tre
+ * funktioner. Servern litar aldrig på en separat lista över "gästens ärenden": urvalet är radens egen `mottagare` mot sessionens `gastId`, varje gång.
+ *
+ * ⛔ "ÅTERKALLAD" LAGRAS INTE PÅ ÄRENDET. Det härleds ur inbjudan varje gång (`tolkaGastMottagare` med listan ur tjänstens `levandeGaster`): ett märke på raden hade glidit isär från inbjudan, och en ny inbjudan
+ * till samma adress hade lämnat märket kvar. Delegeringen står kvar när inbjudan dras tillbaka, och medlemmarna ser då "Gäst (inbjudan återkallad)".
+ */
+
+/**
+ * Bygger en gäst som ansvarig för ett ärende, eller kastar med skälet. Med `levande` (tjänstens `levandeGaster().gaster`) prövas också att gästen har en levande gruppinbjudan: det är appens utdelning som
+ * ska ge det beskedet innan raden skrivs.
+ *
+ * @param {unknown} m
+ * @param {ReadonlyArray<{ gastId: string }>} [levande]
+ * @returns {Readonly<{ slag: "gast", gastId: string, namn: string }>}
+ */
+export function byggGastMottagare(m, levande) {
+  const rad = /** @type {Record<string, unknown>} */ (m && typeof m === "object" ? m : {});
+  if (rad.slag !== "gast") throw new Error(`byggGastMottagare: slaget är "gast", fick ${JSON.stringify(rad.slag)}.`);
+  const okanda = Object.keys(rad).filter((k) => k !== "slag" && k !== "gastId" && k !== "namn");
+  if (okanda.length) throw new Error(`byggGastMottagare: okända fält ${okanda.join(", ")}. Formen är { slag: "gast", gastId, namn }. En adress eller ett uid har ingen plats på ärendet.`);
+  if (!arGastId(rad.gastId)) throw new Error("byggGastMottagare: gastId krävs, gästens identitet (g_ och 40 tecken) ur tjänstens levandeGaster.");
+  const namn = typeof rad.namn === "string" ? rad.namn.trim() : "";
+  if (namn.length > MAX_GASTNAMN) throw new Error(`byggGastMottagare: namnet får vara högst ${MAX_GASTNAMN} tecken.`);
+  if (levande && !levande.some((g) => g && g.gastId === rad.gastId)) throw new Error(`byggGastMottagare: "${rad.gastId}" har ingen levande gruppinbjudan. Ett ärende delegeras bara till en gäst som är inbjuden.`);
+  return Object.freeze({ slag: "gast", gastId: /** @type {string} */ (rad.gastId), namn: namn || GASTNAMNLOS });
+}
+
+/**
+ * Är ärendets mottagare den här gästen? Den ENDA definitionen av vilka ärenden en gäst ser och får röra (regel 2): servern prövar den på varje rad, i `arenden` såväl som i `kommenteraArende` och
+ * `markeraArendeKlart`. En rad utan mottagare, med en person, gruppen eller en annan gäst som mottagare är `false`.
+ *
+ * @param {unknown} mottagare Radens `mottagare`.
+ * @param {string} gId Sessionens `gastId`.
+ * @returns {boolean}
+ */
+export function gastDelegerad(mottagare, gId) {
+  const m = /** @type {Record<string, unknown> | null} */ (mottagare);
+  return arGastId(gId) && m !== null && typeof m === "object" && m.slag === "gast" && m.gastId === gId;
+}
+
+/**
+ * Medlemmarnas läsning av en gäst som ansvarig: namnet, och om inbjudan lever. `null` när mottagaren inte är en gäst.
+ *
+ * `levande` är tjänstens `levandeGaster().gaster`. ⛔ TRE UTFALL OCH INTE TVÅ: `aterkallad: false` (gästen finns i listan), `true` (listan finns och gästen saknas i den), och `null` när `levande` inte gavs. "Vet inte"
+ * är inte "inte återkallad", och vyn visar då bara Gäst. Namnet är inbjudans när gästen lever (det kan ha ändrats), annars det som stod på ärendet, annars "Gäst".
+ *
+ * @param {unknown} mottagare
+ * @param {ReadonlyArray<{ gastId: string, namn?: string }>} [levande]
+ * @returns {{ gastId: string, namn: string, aterkallad: boolean | null } | null}
+ */
+export function tolkaGastMottagare(mottagare, levande) {
+  const m = /** @type {Record<string, unknown> | null} */ (mottagare);
+  if (!m || typeof m !== "object" || m.slag !== "gast" || !arGastId(m.gastId)) return null;
+  const traff = levande ? levande.find((g) => g && g.gastId === m.gastId) : undefined;
+  const lagrat = typeof m.namn === "string" ? m.namn.trim() : "";
+  const levandeNamn = typeof traff?.namn === "string" ? traff.namn.trim() : "";
+  return { gastId: /** @type {string} */ (m.gastId), namn: levandeNamn || lagrat || GASTNAMNLOS, aterkallad: levande ? !traff : null };
+}
+
+/** Högsta antal tecken i ett meddelande en gäst skriver i chatten (0.132.0, CP 2026-10-20: "Gästen får skriva"). Lägre än en medlems tak (`MAX_MEDDELANDE`): en gäst skriver inget långt. */
+export const GASTSKRIV_MAX_TECKEN = 1000;
+/** Högsta antal meddelanden en gäst skriver per inbjudan och minut. Räknas i `gastraknare`, som övriga gästräknare, och är strängare än läsningen (`GASTANROP_PER_MINUT`). */
+export const GASTSKRIV_PER_MINUT = 10;
 
 /** Sökvägen gästsidan ritas på. Appen lägger sidan där före sin inloggningsgrind. */
 export const GASTSOKVAG = "/gast";
@@ -120,8 +232,88 @@ export const GASTLISTFALT = /** @type {const} */ ([
 /**
  * Fälten i det svar en gäst får, och inget annat lämnar servern (`hamta`): inte gruppen, medlemmarna, andra gäster, adresser, chatten eller något av
  * appens fält som appen inte uttryckligen listat i `sak.falt`. En öppen lista, som `HANDELSESVARSFALT`: allt som skickas ut är något som kan läcka.
+ * `grupp` (0.132.0) är gruppens namn och vilka funktioner gästen har, för en gruppinbjudan.
  */
-export const GASTSVARSFALT = /** @type {const} */ (["ok", "namn", "funktion", "sak"]);
+export const GASTSVARSFALT = /** @type {const} */ (["ok", "namn", "funktion", "sak", "grupp"]);
+
+/**
+ * (0.132.0) Fälten i gruppens svar, per åtgärd. ⛔ ÖPPNA LISTOR, EN PER ÅTGÄRD: allt som skickas ut till en gäst bygges fält för fält ur de här, aldrig genom att ett helt
+ * dokument sprids ut. En medlems adress, uid eller namn har ingen plats i någon av dem utom där det står: chattens avsändarnamn är ett namn och aldrig en adress eller ett uid.
+ */
+export const GASTGRUPPSVARSFALT = /** @type {const} */ ({
+  /** `hamta` för en gruppinbjudan: gruppens namn och funktionerna. */
+  hamta: ["namn", "funktioner"],
+  /** Svaret på `chatt`. `fler`: det finns äldre meddelanden. `ingetNytt`: en ping där inget är nyare än `nyast`. */
+  chatt: ["ok", "meddelanden", "fler", "ingetNytt"],
+  /** Svaret på `skrivChatt`: meddelandet som det nu står i chatten, i samma form som en rad i `chatt`. */
+  skrivChatt: ["ok", "meddelande"],
+  /** Svaret på `kalender`. */
+  kalender: ["ok", "handelser", "kalendrar", "avkortad", "ejVisade"],
+  /** Svaret på `handelse`. */
+  handelse: ["ok", "handelse", "svar", "omrostning"],
+  /** Svaret på `bibliotek`. */
+  bibliotek: ["ok", "poster", "avkortad"],
+  /** (Skiva 3) Svaret på `arenden`: bara ärenden delegerade till gästen. `avkortad`: gästen har fler än listan visar. */
+  arenden: ["ok", "poster", "avkortad"],
+  /** (Skiva 3) Svaret på `kommenteraArende`: kommentaren som den nu står, i samma form som en rad i ett ärendes `kommentarer`. */
+  kommenteraArende: ["ok", "kommentar"],
+  /** (Skiva 3) Svaret på `markeraArendeKlart`. Vyn hämtar om ärendena, så svaret bär bara att det gick. */
+  markeraArendeKlart: ["ok"],
+  /** Svaret på `fil`. */
+  fil: ["ok", "url", "namn", "mime"],
+});
+
+/**
+ * (Skiva 3) Fälten på ett ärende hos en gäst: rubrik, text, status, förfallodag och kommentarer. ⛔ ALDRIG ärendets GitHub-adress eller repots namn, och aldrig ett uid, en adress eller ett annat fält appen har på raden.
+ * `id` är ärendets id (det vyn skickar tillbaka). `fler`: det finns äldre kommentarer än de som visas.
+ */
+export const GASTARENDEFALT = /** @type {const} */ (["id", "rubrik", "text", "status", "forfallodag", "kommentarer", "fler"]);
+/** (Skiva 3) Fälten på en kommentar hos en gäst. `av` är `{ namn }` och aldrig ett uid; `gast` är sant när en gäst skrev den (märket Gäst) och `egen` när det är gästens egen. */
+export const GASTARENDEKOMMENTARFALT = /** @type {const} */ (["id", "text", "tid", "av", "gast", "egen"]);
+
+/** Fälten på ett chattmeddelande hos en gäst. `av` är `{ namn }`; `gast` är sant när en gäst skrev det (märket Gäst) och `egen` när det är gästens eget (0.132.0); `svarPa` är ett citat `{ id, namn, text }` med kapad text; `namner` är namn och aldrig uid. */
+export const GASTCHATTFALT = /** @type {const} */ (["id", "av", "text", "tid", "svarPa", "namner", "bilaga", "gast", "egen"]);
+
+/**
+ * Åtgärderna en gruppgäst anropar på servern (`POST /api/gast`), förutom `los`, `hamta`, `namn`, `nylank` och `raderaMig` som varje gäst har. Namnen står här och ingen annanstans (regel 2):
+ * tjänstens metoder, appens vitlista för vad en handler släpper in, och vyns anrop läser samma lista.
+ */
+export const GASTGRUPPATGARDER = /** @type {const} */ (["chatt", "skrivChatt", "kalender", "handelse", "svara", "rosta", "bibliotek", "fil", "arenden", "kommenteraArende", "markeraArendeKlart"]);
+
+/**
+ * Bygger gruppvyns `api` av appens ENDA anrop mot `/api/gast`. `anrop` får `{ atgard, sessionsnyckel, ...argument }` och ska svara med serverns JSON (`{ ok, ... }`); appens handler skickar
+ * `atgard` vidare till tjänstens metod med samma namn. Sessionsnyckeln läggs på här, så att vyn aldrig hanterar den.
+ *
+ * @param {(kropp: Record<string, any>) => Promise<any>} anrop
+ * @param {string} sessionsnyckel
+ * @returns {Record<(typeof GASTGRUPPATGARDER)[number], (argument?: Record<string, any>) => Promise<any>>}
+ */
+export function gastGruppApi(anrop, sessionsnyckel) {
+  if (typeof anrop !== "function") throw new Error("gastGruppApi: anrop krävs, appens funktion som postar till /api/gast.");
+  if (typeof sessionsnyckel !== "string" || !GASTNYCKELFORM.test(sessionsnyckel)) throw new Error("gastGruppApi: sessionsnyckel krävs, 43 tecken (ur sidan).");
+  return /** @type {any} */ (Object.fromEntries(GASTGRUPPATGARDER.map((atgard) => [atgard, (/** @type {Record<string, any>} */ argument = {}) => anrop({ ...argument, atgard, sessionsnyckel })])));
+}
+
+/** Det en gäst ser i stället för namnet på en avsändare som inte längre finns bland gruppens medlemskap. Utskrivet, aldrig tomt (regel 5). */
+export const GASTTIDIGAREMEDLEM = "Tidigare medlem";
+
+/** Fälten på en händelse i gästens kalender. Ur appens händelse listas bara titel, beskrivning och plats (`grupp.handelseSida`), resten är ramverkets `HANDELSEKONTRAKT`. */
+export const GASTHANDELSEFALT = /** @type {const} */ (["id", "titel", "beskrivning", "plats", "datum", "slutDatum", "tid", "slutTid", "heldag", "kalenderId", "kravSvar", "ejSatt"]);
+
+/** Fälten på en gruppkalender i gästens svar. */
+export const GASTKALENDERFALT = /** @type {const} */ (["id", "namn", "farg"]);
+
+/** Fälten på en biblioteksfil i gästens svar. `sokvag` är postens id och ingen lagringssökväg: den riktiga sökvägen lämnar aldrig servern. */
+export const GASTFILFALT = /** @type {const} */ (["sokvag", "namn", "mime", "byte", "klar"]);
+
+/** Fälten på en biblioteksspost i gästens svar. */
+export const GASTBIBLIOTEKFALT = /** @type {const} */ (["id", "typ", "rubrik", "text", "url", "kalla", "bild", "poster", "taggar", "fil", "utskrift", "durationMs", "peaks", "skapad", "andrad", "skapadAvNamn"]);
+
+/** Fälten på en person i medlemmens lista (0.132.0, `lista` för en grupp): en rad per person och inte per inbjudan. Adressen ser medlemmarna ändå (CP 2026-10-20). */
+export const GASTPERSONFALT = /** @type {const} */ (["gastId", "epost", "namn", "status", "inbjudningar"]);
+
+/** Fälten på en av personens inbjudningar i medlemmens lista. `titel` är omröstningens rubrik när appen gett `grupp.handelseSida`. */
+export const GASTPERSONINBJUDANFALT = /** @type {const} */ (["id", "omfang", "titel", "status", "skapad", "skickad", "antalSkickade", "forstInloggad", "aterkallad"]);
 
 /**
  * Orsakerna till att en gäst inte släpps in, och inget annat.
@@ -154,6 +346,8 @@ export const GASTFELKODER = /** @type {const} */ ([
   "platser-slut",
   "aterkallad",
   "brev-misslyckades",
+  "ogiltigt-omfang",
+  "ogiltig-text",
 ]);
 
 /**
@@ -276,28 +470,54 @@ export function gastId(epost) {
 // ── Omfånget, platserna och länken ────────────────────────────────────────────────────────────────────────────────────
 
 /**
- * @typedef {object} Gastomfang
- * @property {"sak"} slag
- * @property {"rosta"} funktion
- * @property {string} handelseId Händelsen som omröstningen hör till.
+ * @typedef {{ slag: "sak", funktion: "rosta", handelseId: string } | { slag: "grupp" }} Gastomfang
+ *   `sak`: en omröstning på en händelse (skiva 1). `grupp` (0.132.0): hela gruppen, och gruppen står i inbjudans `groupId` och aldrig i omfånget (en sanning, regel 2).
  */
 
 /**
- * Omfånget som text: `sak:rosta:<handelseId>`. Det ingår i inbjudans id, så att samma adress till samma sak är en och samma rad. Kastar för ett omfång som
- * skiva 1 inte känner.
+ * Omfånget som text: `sak:rosta:<handelseId>` eller `grupp`. Det ingår i inbjudans id, så att samma adress till samma sak är en och samma rad.
+ *
+ * ⛔ DE BEFINTLIGA ID:N ÄNDRAS ALDRIG. `sak:rosta:<handelseId>` är exakt det skiva 1 skrev (ett prov låser fem id som fasta hashar), och `grupp` är en ny nyckel som inget
+ * `sak`-id kan krocka med: ett handelseId står efter två kolon och nyckeln `grupp` har inga. Kastar för ett omfång som ingen version känner.
  *
  * @param {unknown} omfang
  * @returns {string}
  */
 export function gastomfangsnyckel(omfang) {
   const o = /** @type {Record<string, unknown> | null} */ (omfang);
-  if (!o || typeof o !== "object") throw new Error("gastomfangsnyckel: ett omfång krävs, { slag: 'sak', funktion: 'rosta', handelseId }.");
+  if (!o || typeof o !== "object") throw new Error("gastomfangsnyckel: ett omfång krävs, { slag: 'sak', funktion: 'rosta', handelseId } eller { slag: 'grupp' }.");
   if (!(/** @type {readonly unknown[]} */ (GASTSLAG).includes(o.slag))) throw new Error(`gastomfangsnyckel: slaget ${JSON.stringify(o.slag)} finns inte. Giltiga: ${GASTSLAG.join(", ")}.`);
+  if (o.slag === "grupp") {
+    // ⛔ INGET ANNAT FÄLT PÅ ETT GRUPPOMFÅNG: ett handelseId eller en funktion hade gjort två rader av samma sak, eller en gruppinbjudan som ser ut som en omröstning.
+    const extra = Object.keys(o).filter((k) => k !== "slag");
+    if (extra.length > 0) throw new Error(`gastomfangsnyckel: omfånget grupp har inga andra fält (fick ${extra.join(", ")}). Gruppen står i inbjudans groupId.`);
+    return "grupp";
+  }
   if (!(/** @type {readonly unknown[]} */ (GASTFUNKTIONER).includes(o.funktion))) {
     throw new Error(`gastomfangsnyckel: funktionen ${JSON.stringify(o.funktion)} finns inte. Giltiga: ${GASTFUNKTIONER.join(", ")}.`);
   }
   if (typeof o.handelseId !== "string" || o.handelseId.trim() === "") throw new Error("gastomfangsnyckel: handelseId krävs för en sak.");
   return `${o.slag}:${o.funktion}:${o.handelseId}`;
+}
+
+/**
+ * Ger omfånget gästen den här funktionen? Den enda definitionen (regel 2): tjänstens `session` prövar den, och vyn och proven läser samma.
+ *
+ *   - krav `{ slag: "grupp", funktion: "chatt" }`: bara en gruppinbjudan, och bara för en av `GASTGRUPPFUNKTIONER`.
+ *   - krav `{ slag: "sak", funktion: "rosta" }` eller `{ funktion: "rosta" }` (skiva 1): bara en sakinbjudan vars funktion är den.
+ *   - ett krav på en funktion som inget omfång ger, eller ett slag som inte är omfångets: nej.
+ *
+ * @param {unknown} omfang
+ * @param {{ slag?: unknown, funktion?: unknown }} krav
+ * @returns {boolean}
+ */
+export function gastOmfangGer(omfang, krav) {
+  const o = /** @type {Record<string, unknown> | null} */ (omfang);
+  if (!o || typeof o !== "object" || !krav || typeof krav !== "object") return false;
+  if (krav.slag !== undefined && krav.slag !== o.slag) return false;
+  if (o.slag === "grupp") return typeof krav.funktion === "string" && /** @type {readonly string[]} */ (GASTGRUPPFUNKTIONER).includes(krav.funktion);
+  if (o.slag === "sak") return typeof krav.funktion === "string" && krav.funktion === o.funktion;
+  return false;
 }
 
 /** Platsnumren: 1 till `GAST_PLATSER_GRATIS`. Härledda ur taket, aldrig en egen lista. */

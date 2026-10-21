@@ -45,6 +45,7 @@
  * Växer volymen så att det blir dyrt är rätt plats en server som skriver fältet (Admin SDK), inte klienten.
  */
 
+import { byggGastMottagare } from "./gast.js";
 import { kommentarbilagaFel } from "./handelsemodell.js";
 import { markdownSomText } from "./markdown.js";
 
@@ -529,6 +530,29 @@ export function byggMottagare(m, medlemmar) {
     if (!finns) throw new Error(`byggMottagare: "${uid}" är inte en aktiv medlem av typen ${typ} i gruppen.`);
   }
   return Object.freeze(slag === "person" ? { slag: "person", uid } : uid ? { slag: "agent", uid } : { slag: "agent" });
+}
+
+/**
+ * @typedef {Mottagare | { slag: "gast", gastId: string, namn: string }} Arendemottagare
+ */
+
+/** Mottagarens slag på ett ÄRENDE: de på ett meddelande plus `gast` (skiva 3, cllp/lifehub.app#389). */
+export const ARENDEMOTTAGARSLAG = /** @type {const} */ ([...MOTTAGARSLAG, "gast"]);
+
+/**
+ * Bygger mottagaren på ett ärende, eller kastar med skälet (skiva 3). Samma som `byggMottagare` plus slaget `gast`: `{ slag: "gast", gastId, namn }`.
+ *
+ * ⛔ ETT MEDDELANDE FÅR INGEN GÄST. `byggMottagare` är meddelandets och kastar fortfarande på slaget `gast`: ett privat samtal med en gäst finns inte (gästen når bara servern, aldrig en samtalsrad). Det
+ * är bara ett ärende som kan ha en gäst som ansvarig, och bara med den här funktionen. Med `gaster` (tjänstens `levandeGaster().gaster`) prövas att gästen har en levande gruppinbjudan.
+ *
+ * @param {unknown} m
+ * @param {{ medlemmar?: ReadonlyArray<{ userId: string, typ?: string, status?: string }>, gaster?: ReadonlyArray<{ gastId: string }> }} [kalla]
+ * @returns {Arendemottagare}
+ */
+export function byggArendemottagare(m, kalla = {}) {
+  const rad = /** @type {Record<string, unknown>} */ (m && typeof m === "object" ? m : {});
+  if (rad.slag === "gast") return byggGastMottagare(rad, kalla.gaster);
+  return byggMottagare(m, kalla.medlemmar);
 }
 
 /*

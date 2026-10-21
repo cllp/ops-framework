@@ -11,6 +11,46 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ## Ej utgivet
 
+## 0.132.0
+
+Gäster, skiva 2 ("hela gruppen", det bantade gränssnittet) och skiva 3 (ärenden till en gäst), cllp/lifehub.app#389, och en filknapp i kommentarerna. Inte brytande: allt är nytt eller en ny valfri prop, och appen behöver inte ändra något för att ompinna (ett undantag: `OpsSvarSummor` kräver `rubrik`, men den är ny i den här versionen). Design och skäl: `docs/beslut/0012-gaster-hela-gruppen.md`.
+
+### Händelsen
+
+CP 2026-10-20: externa ska kunna vara med i hela projektet. Beslut på designen: (1) ägare och admin bjuder in till hela gruppen, (2) gästen ser chattens hela historik och dialogen säger det, (3) radering av en gästs uppgifter och en text om integritet är klara före första gruppgästen. Under bygget kom tre beslut till, samma dag: **gästen får skriva i gruppchatten** (designen sade "utan skrivfält"), **gästen ser inte gruppens ärenden** ("ärendelistan kan bära sådant som inte rör gästen"; skiva 3, nedan, ger hen bara de som delegerats till hen, i samma PR), och **gästen bjuds in från gruppens medlemsvy** (ett val i Roll under Bjud in), inte på en egen plats. Dessutom, ett separat beslut: kommentarens filknapp ska se ut som chattens bilaga.
+
+### Vad som är nytt
+
+- **Omfånget `{ slag: "grupp" }`** bredvid `{ slag: "sak", ... }`. Befintliga id ändras inte (fem fasta hashar är provade mot skiva 1). Taket är oförändrat och delas: **en person tar en plats oavsett antal omfång**.
+- **Gästens API i samma tjänst** (`createGastService` med `grupp` och `radering`): `chatt` (hela historiken, 50 per sida), **`skrivChatt`**, `kalender`, `handelse`, `svara`, `rosta`, `bibliotek`, `fil` (signerad adress, 15 minuter, högst 50 per inbjudan och dygn), `raderaMig`. Allt med vitlistade fält per åtgärd, inga medlemsadresser, och en återkallad gäst nekas vid nästa anrop i varje åtgärd. **Gruppens ärendelista finns inte för en gäst**; bara de ärenden som delegerats till hen (skiva 3, nedan).
+- **Gästen skriver som gäst, aldrig som medlem** (`skrivChatt`): servern skriver `{ text, av: <g_-id>, avNamn, tid }` och inget annat. Högst 1000 tecken (`GASTSKRIV_MAX_TECKEN`), 10 per inbjudan och minut (`GASTSKRIV_PER_MINUT`, i `gastraknare`), bara text, och samma krav som att läsa (återkallad, utgången och omröstningsgäst nekas). Märket **Gäst** härleds ur `av` (`arGastId`) och syns i medlemmarnas chatt (`Meddelanderader`) och i gästens. Gästens meddelanden raderas med gästen.
+- **Medlemmens sida:** `lista({ groupId })` ger en rad per person, `aterkallaAlla`, `ersattAvMedlem`, `radera` (inbjudningar, sessioner, räknare, röster, svar, **meddelanden**, plats). Bara ägare eller admin bjuder in till hela gruppen, i ramverket och inte i en callback.
+- **`OpsMedlemmar` med `gaster`:** "Gäst (utan konto)" är ett val i Roll under Bjud in. Med Gäst valt: "X av 5 gratis platser", ingressen, knappen "Bjud in utan konto" och en bekräftelse som säger vad gästen ser och kan (chattens hela historik och att skriva i den, kalendern och händelserna, biblioteket; inte gruppens ärenden, bara de som delegeras till hen; det går inte att ta tillbaka). Väntande gäster står bland de väntande inbjudningarna med Skicka igen och Dra tillbaka. Raden under E-post säger att en adress utan Google-konto kan bjudas in som gäst.
+- **`OpsGastLista`** får `personer` (en rad per person med inbjudningarna under), `onBjudGrupp` (efter bekräftelse), `onAterkallaAlla`, `onRadera` (bekräftad) och `utanRubrik`. **`OpsGastGrupp`** (flikarna Chatt, Kalender, Bibliotek och, med minst ett delegerat ärende, Ärenden; ingen väg ut), **`OpsGastChatt`** (chattens bubblor och skrivfält utan bilagor, mikrofon och agent) ritar gästens sida; **`OpsGastSida`** får `renderGrupp`, `onRaderaMig` och en integritetstext, och **prövar alla sparade sessioner** på enheten (hålet från skiva 1: en återkallad grupp dolde en levande omröstning).
+- **Återanvänt, inte nytt:** kalendern är `OpsCalendar`, händelsen `OpsHandelsePanel`, biblioteket `OpsBibliotek` med `jag: null`, `utanHubb` och **`adresserPaBegaran`** (bara den öppna filen signeras; designen antog felaktigt att listan inte hämtade adresser). `OpsSvarSummor` är gästens svarsrad (summor, inga namn). `OpsSvar` får `gaster`. `OpsTabs`: flikarna är minst 44 px och får plats i en telefon.
+- **Kommentarens filknapp** (`OpsKommentarer`, `OpsFilePicker` `knappPlats`, `OpsTextarea` `bifogaPlats`): en gem i skrivrutan som heter **Bifoga**, bredvid mikrofonen, i stället för den stora knappen "Välj fil" under rutan. Förhandsvisning före sändning, Cmd+V och att filen skickas först med Skicka är oförändrat; sektionen Filer är orörd. Mikrofonens knapp och gemmen delar nu stil (`Faltknapp`).
+- **Regler:** oförändrade. `rules/__tests__/gaster-grupp.test.mjs` bevisar att en klient inte kan skriva en gästs svar eller en gästs chattmeddelande, och att servern aldrig är löslare än medlemsregeln för ett svar (`svarfall.mjs`, 14 fall).
+
+### Skiva 3: ärenden till en gäst
+
+CP 2026-10-20 ("Lägg den i samma PR"): ett ärende kan få en gäst som ansvarig, på samma sätt som en aktiv medlem. Gästen ser bara sina egna ärenden, kan kommentera dem och markera dem klara; när inbjudan dras tillbaka försvinner ärendena ur hens vy, men delegeringen står kvar för medlemmarna. Inte brytande: allt är nytt eller valfritt (`grupp.arenden`).
+
+- **Formen:** ärendets `mottagare` får slaget `gast`: `{ slag: "gast", gastId, namn }`. Ett hem (regel 2): `byggArendemottagare` / `byggGastMottagare` (utdelningen, prövar mot `levandeGaster`), `gastDelegerad` (serverns urval), `tolkaGastMottagare` (medlemmarnas rad). `byggMottagare` är fortfarande meddelandets och nekar `gast`: en gäst kan inte få ett privat meddelande.
+- **Gästens API:** `arenden` (frågan är på gästen, `where groupId + mottagare.gastId`, och varje svarad rad prövas på nytt med `gastDelegerad` och gruppen; `GASTARENDEFALT`: rubrik, text, status, förfallodag, kommentarer; aldrig GitHub-adress), `kommenteraArende` (chattens längdtak och SAMMA takt) och `markeraArendeKlart`. Samma `nej` för allt gästen inte äger (någon annans, en person, gruppen, ingen, en annan grupp, okänt id, ett id som försöker bli en sökväg). Funktionen `arenden` finns i `GASTGRUPPFUNKTIONER` men bara när appen gett `grupp.arenden`.
+- **Medlemmens sida:** `levandeGaster({ uid, groupId })` (`{ gastId, namn }`, ingen adress) och **`OpsGastMottagare`** (Gäst, eller **Gäst (inbjudan återkallad)**, härlett och aldrig lagrat). `OpsMottagare` får `gaster` (gäster med märket Gäst sist i ärendeläget; appen skickar den bara till den som får dela ut).
+- **Gästens vy:** **`OpsGastArenden`** byggd av primitiver (kort per ärende, statuspiller, kommentarer, chattens skrivfält, Markera klar som frågar först). Fliken Ärenden finns bara med minst ett delegerat ärende; ett fel ger fliken med felet.
+- **Radering:** `grupp.arenden.radera` krävs; `radera` svarar `arenden`. Högst `GASTARENDE_MAX` (100) ärenden visas (öppna först) och `avkortad` säger när fler fanns.
+- **Datakontraktet:** `where` med ett punktat fältnamn (`{ "mottagare.gastId": id }`) går in i en karta, som Firestores fältsökvägar. Minneskällan och JSON-källan följer med; Postgres kastar. Ingen befintlig fråga ändras (ett namn utan punkt är som förut).
+- **Regler:** oförändrade, och appens `mottagareGiltig` ska INTE ändras: en klient ska aldrig kunna skriva en delegering till en gäst.
+
+### Proven, båda riktningarna
+
+Siffrorna och mutationerna står i PR-texten. Kärnan: läckageprov med seedade medlemmar, återkallelse nekas i varje åtgärd, omröstningsgäst når inte gruppen, taket delas, signerad nedladdning (rätt fil, tak per dygn, ingen adress efter återkallelse), skrivandet (giltig session, nekad utan session, nekad efter återkallelse, takt, längdtak, bara text), och radering lämnar ingen adress, inget namn och inget meddelande. Skiva 3: gästen ser bara sina ärenden (inget av gruppens övriga, ingen GitHub-adress, inget uid), ett nej på allt gästen inte äger, återkallelse nekas i alla tre åtgärder med delegeringen orörd, takten delas med chatten, och radering tar bort kommentarer och gästens id ur ärendena.
+
+### Vad appen måste göra
+
+Se README, avsnittet "Gäster", och beslut 0012 ("Ompinningen i appen"). I korthet: `grupp` och `radering` i `createGastService` (och `grupp.arenden` för skiva 3, se beslut 0012, "Kvar för appen"); `/api/gast` skickar `GASTGRUPPATGARDER` (med `skrivChatt`) och `raderaMig` vidare, 429 på `for-manga`, 400 på `ogiltig-text`; `gastBjud` med `slag: "grupp"`, `gastLista` med `groupId`, nya `gastAterkallaAlla` och `gastRadera`; en brevvariant för omfånget `grupp`; `ersattAvMedlem` i växlingen; `OpsMedlemmar` med `gaster` och `/gast` med `renderGrupp` och `onRaderaMig`. Inga regler, index eller `firebase.json` ändras; deploy är bara functions.
+
 ## 0.131.0
 
 Gäster, skiva 1 ("en sak", omröstningen först), cllp/lifehub.app#389, och ett litet tillägg i formuläret "Lägg till kategori". CP 2026-10-20: "Kör på alla 3, men sätt max 5 gäster." Inte brytande: allt är nytt eller en ny valfri prop, och appen behöver inte ändra något för att ompinna. Design och skäl: `docs/beslut/0011-gaster-en-inbjudan-och-aldrig-ett-konto.md`.
