@@ -110,6 +110,7 @@
         "OpsFilterPanel.jsx": { "antal": 1, "skal": "Gruppraden i filterpanelen, en rubrikrad i en lista." },
         "OpsSkapaRubrik.jsx": { "antal": 1, "skal": "Chattens rubrik (`h3` i variantens tabell, taggen står i en annan sträng än klassen)." },
         "OpsTillbaka.jsx": { "antal": 1, "skal": "Vyns rubrik (`VYRUBRIK_KLASS`, bärs av en h1 i OpsViewHeader)." },
+        "modulram.js": { "antal": 1, "skal": "Modulradens och OpsModulSidas flikar (`flikKlass`, 14/600, en gemensam klass): navigeringen mellan modulens delar, inte en rad i en lista. Ingår inte i CP:s skärmbilder." },
         "publikKlass.js": { "antal": 1, "skal": "Publika sidors pillknapp: SS landningssidor har 14/600 på sina knappar, en annan yta än appens." }
       }
     },
