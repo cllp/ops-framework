@@ -11,6 +11,48 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ## Ej utgivet
 
+## 0.135.0
+
+Skaparen får ett valfritt `via`, så att det en personlig API-nyckel skriver syns som skrivet via nyckeln: "Miranda via Byggagent". cllp/lifehub.app#409, CP 2026-10-21 ("Ja på alla"). **Inte brytande för kod:** fältet är valfritt, och utan det är allt som förut. **Ändrad regeltext:** `regelfragment()` och fem andra fragment får nya villkor, så appen genererar om `firestore.rules` och deployar dem (se nedan). Appen behöver göra några saker efter ompinningen.
+
+### Händelsen
+
+CP 2026-10-21: en person ska kunna skapa en personlig API-nyckel för sin egen användare i en grupp, och det nyckeln skriver ska komma FRÅN personen ("ett chattmeddelande från Mirandas nyckel kommer från Miranda") men alltid synas som skrivet via nyckeln. Utan ett märke på raden går en rad från en agent som arbetar åt Miranda inte att skilja från något Miranda skrev för hand, och det är precis den skillnad ett ärende, en kommentar eller ett meddelande ska bära.
+
+### Vad som är nytt
+
+- **`via: { nyckelId, namn }` på skaparstämpeln** (`byggSkapare`). Valfritt. `nyckelId` är gemena hexsiffror, högst `MAX_NYCKELID` (64) tecken, `namn` högst `MAX_SKAPARNAMN` (100). `byggSkapare` kastar på fel form och på ett `via` utan `uid` (ett märke om att en nyckel skrev åt ingen pekar inte ut någon). `byggVia` och `viaFel` är samma prövning som egna funktioner.
+- **`skaparensNamn(skapare, sprak)`** ger "Miranda via Byggagent", och **`namnMedVia(namn, via, sprak)`** sätter ihop ett namn vyn redan löst själv (`personnamn`, medlemslistan). Ordet "via" ligger i textlagret (`ORD_SKAPARE`, sv och en). `laesSkapare` tar med `via` och tål ett skadat (tappar det i stället för att kasta).
+- **Vyerna ritar märket:** `Ursprungsrad` (händelser och ärenden, listan och panelen), `OpsBibliotek` (Skriven av), `OpsBeskrivenApp` (Skapad av), `OpsKommentarer` (tråden) och `OpsKommentarsrad` (nytt valfritt `via`, från `kommentarsrader` som bär `senaste.via`), ändringsloggen i `OpsKatalogInstallning` och chatten i `OpsMeddelanden`.
+- **Chatten:** ett meddelande bär `via` (`byggMeddelande({ ..., via })`). Namnraden heter "Miranda via Byggagent" och ritas också i ett privat samtal. Mirandas eget meddelande via hennes nyckel heter "Du via Byggagent". Ett meddelande från en nyckel fortsätter aldrig personens eget inom fem minuter (annars hade märket gömts under ett namn utan märke).
+- **`npm run check:skaparnamn`** blir röd när en vy läser `skapadAv.namn` rakt av, när en vy som ritar en skapare slutar gå genom funktionen, eller när chatten ritar fler direkta namn än taket.
+
+### ⛔ Reglerna: en klient skriver aldrig `via`
+
+- **`SKAPARFALT` är oförändrad** (de fyra fält en klient får skriva), och `via` står medvetet inte där. Regelfragmentens `hasOnly` är härledda ur den listan, så ett fält som hade lagts dit hade öppnat varje regel på en gång. `SKAPARFALT_SERVER` är samma lista plus `via`, för kod som skriver med Admin SDK.
+- **Ny regelfunktion i `regelfragment()`:** `opsStampelUtanNyttVia(d, falt, fore)`. En klient får inte skriva en stämpel med `via`, och får inte heller ta bort eller byta den på en rad som redan har den. En stämpel som är OFÖRÄNDRAD släpps igenom, så att personen kan ändra en post hens nyckel skrev.
+- **Bibliotek, beskrivna apparnas rader och beskrivningar** släpper in en oförändrad stämpel med `via` (`opsSkaparstampel`) och nekar allt annat. **Ändringsloggen (`av`) och kommentarerna** nekar `via` helt. **`opsHandelsefaltGiltiga`** (appens händelser) nekar ett nytt eller ändrat `via` på `skapadAv`. Chattmeddelanden, minnet (`lyftAv`) och modulinställningarna (`uppdateradAv`) nekade redan fältet (`hasOnly`), och det är nu bevisat med prov.
+- **`gruppadSamling(namn, { skaparfalt: "skapadAv" })`** för appens egna samlingar med en skapare: blocket nekar då att en klient lägger till, tar bort eller byter `via` (create och update). Utan valet är texten byte för byte den förra. `gruppadSamling` prövar annars inte vad som står inuti ett fält.
+- **Ändrad regeltext:** `regelfragment()` får två nya funktioner (`opsStampelUtanNyttVia`, `opsSkaparstampel`), och biblioteket, de beskrivna apparna, loggen, kommentarerna och händelsefälten ändrade villkor. Regelfixturerna följer. Biblioteket prövar ett via som inte håller i `postFel` (text) och `byggPost` (kastar).
+
+### ⛔ Vad som medvetet inte är med
+
+- **Gästvyerna** (`OpsGastChatt`, `OpsGastArenden`, `OpsGastGrupp`) ritar DTO:er ur `node/gast.js` som saknar `via`: en gäst ser personens namn. Att släppa ut nyckelns namn till en gäst är ett eget beslut.
+- **`lyftAv` (minnet) och `uppdateradAv` (modulinställningar)** har inget `via`: de skrivs av en person i appen och aldrig av en nyckel.
+- **Delningslänkarnas och gästinbjudningarnas `skapadAv`** (`node/delning.js`, `node/gast.js`) skrivs av servern som förut och får inget `via`: ingen nyckel skapar en delningslänk eller en gästinbjudan.
+
+### ⛔ Vad appen behöver göra efter ompinningen (lifehub.app)
+
+1. **Regeldeploy före första nyckelskrivningen.** Servern (Admin SDK) går förbi reglerna, men en person som ändrar en post eller rad hennes nyckel skrev nekas av de gamla reglerna (`hasOnly` känner inte `via`). Generera om `firestore.rules` ur de nya fragmenten och deploya dem INNAN `via` börjar skrivas.
+2. **Appens egna regler** för inkorgens ärenden (och för andra egna samlingar med en skapare): ange `skaparfalt: "skapadAv"` till `gruppadSamling`, eller anropa `opsStampelUtanNyttVia(request.resource.data, 'skapadAv', fore)` i egna regler, i `create` (med `{}` som `fore`) och i `update` (med `resource.data`). Ramverket prövar inte appens egna samlingar.
+3. **Servern skriver stämpeln med `byggSkapare({ uid, namn, typ: "manniska", kalla, via: { nyckelId, namn } })`**, chattmeddelandet med `byggMeddelande({ text, av, via })` och bibliotekets post med `byggPost` (som godtar `via`). Gruppnyckeln (en medlem av typen agent) skriver som sig själv, utan `via`.
+4. **Appens egna vyer** som ritar en skapare (inkorgen, ärenden) ska gå genom `skaparensNamn(skapadAv, sprak)`. `kommentarsrader(...)`.senaste.via skickas vidare till `OpsKommentarsrad via={...}`.
+5. **Gästernas vyer** visar fortfarande personens namn utan märke, som förut.
+
+### Proven, båda riktningarna
+
+Regelproven (`rules/__tests__/skapare-via.test.mjs`, 18 prov) är röda på de gamla reglerna och gröna på de nya, vyproven (`skapare-via-vyer.test.jsx`) är röda utan vyändringarna, och vakten har sin egen mutationstabell i `test-guards`. Utfallen står i PR-texten.
+
 ## 0.134.0
 
 Kalendrarna som EN lista med ett minne, en visning per kalender (Händelser, Ram eller Båda), en läspanel för en extern händelse och "Kopiera till…" för alla händelser. cllp/lifehub.app#402, CP 2026-10-20 och 2026-10-21. Inte brytande för kod: allt nytt är valfria props och nya exporter. **Ett beteende ändras (se nedan).** PR 2 av 3 (Identity och appen görs i egna PR:er).

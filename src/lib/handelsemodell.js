@@ -58,7 +58,7 @@
  */
 
 import { DATUMFORM, forvaldKalender, giltigtDatum } from "./kalendrar.js";
-import { byggSkapare } from "./skapare.js";
+import { byggSkapare, laesSkapare } from "./skapare.js";
 
 /** Fälten ramverket läser på en av appens händelser. Appens egna fält (`rubrik`, `typ`, ...) står inte här. */
 export const HANDELSEKONTRAKT = /** @type {const} */ (["groupId", "kalenderId", "datum", "slutDatum", "tid", "slutTid", "heldag", "kravSvar"]);
@@ -432,12 +432,12 @@ export function byggKommentar(text, { skapare, nu = () => new Date().toISOString
  *   lastTill: ReadonlyMap<string, string>,
  *   uid: string,
  * }} arg
- * @returns {Array<{ handelse: H, olasta: number, senaste: { id: string, text: string, skapad: string, namn: string, uid: string | null } }>}
+ * @returns {Array<{ handelse: H, olasta: number, senaste: { id: string, text: string, skapad: string, namn: string, uid: string | null, via?: import("./skapare.js").Via } }>}
  */
 export function kommentarsrader({ handelser, kommentarer, lastTill, uid }) {
   if (typeof uid !== "string" || !uid) throw new Error("kommentarsrader: uid krävs. Raderna är en persons, inte gruppens.");
   if (!(kommentarer instanceof Map) || !(lastTill instanceof Map)) throw new Error("kommentarsrader: kommentarer och lastTill är kartor per händelse-id.");
-  /** @type {Array<{ handelse: H, olasta: number, senaste: { id: string, text: string, skapad: string, namn: string, uid: string | null } }>} */
+  /** @type {Array<{ handelse: H, olasta: number, senaste: { id: string, text: string, skapad: string, namn: string, uid: string | null, via?: import("./skapare.js").Via } }>} */
   const ut = [];
   for (const h of handelser ?? []) {
     const mark = lastTill.get(h.id) ?? "";
@@ -446,7 +446,10 @@ export function kommentarsrader({ handelser, kommentarer, lastTill, uid }) {
     const nya = trad.filter((k) => (k.skapadAv?.uid ?? null) !== uid && k.skapad > mark);
     if (nya.length === 0) continue;
     const s = nya.reduce((a, b) => (b.skapad > a.skapad ? b : a));
-    ut.push({ handelse: h, olasta: nya.length, senaste: { id: s.id, text: s.text, skapad: s.skapad, namn: s.skapadAv?.namn ?? "", uid: s.skapadAv?.uid ?? null } });
+    // ⛔ `via` FÖLJER MED (0.135.0, lifehub.app#409): en kommentar som en personlig API-nyckel skrev åt personen ska heta "Miranda via Byggagent" också i inkorgens rad.
+    // Appen ritar namnet med `namnMedVia(senaste.namn, senaste.via, sprak)`. Utan märke har raden inget fält, som förut.
+    const via = laesSkapare(s.skapadAv).via;
+    ut.push({ handelse: h, olasta: nya.length, senaste: { id: s.id, text: s.text, skapad: s.skapad, namn: s.skapadAv?.namn ?? "", uid: s.skapadAv?.uid ?? null, ...(via ? { via } : {}) } });
   }
   return ut.sort((a, b) => b.senaste.skapad.localeCompare(a.senaste.skapad));
 }

@@ -17,6 +17,7 @@ import { splitInline } from "../lib/markdown.js";
 import { OpsBanner } from "./OpsBanner.jsx";
 import { OpsIdentity } from "./OpsIdentity.jsx";
 import { NAMN_SAKNAS } from "../lib/personnamn.js";
+import { namnMedVia } from "../lib/skapare.js";
 import { usePersonnamn } from "./usePersonnamn.js";
 import { OpsIconLink } from "./OpsIconLink.jsx";
 import { arInstallningslage } from "../lib/apparark.js";
@@ -1086,7 +1087,7 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
                         </span>
                         {s ? (
                           <span className={cx("mt-0.5 block truncate text-meta", r.olasta > 0 ? "text-ink-secondary" : "text-ink-muted")}>
-                            <span className="text-ink-muted" data-namn-saknas={s.av !== uid && namnFor(s.av) === NAMN_SAKNAS ? "" : undefined}>{s.av === uid ? t.du : namnFor(s.av)}: </span>
+                            <span className="text-ink-muted" data-namn-saknas={s.av !== uid && namnFor(s.av) === NAMN_SAKNAS ? "" : undefined}>{avNamnFor(namnFor, s, uid, t.du, sprak)}: </span>
                             {synligText(s)}
                           </span>
                         ) : null}
@@ -2520,7 +2521,7 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik: rubrikProp, marke, lastT
                   return (
                     <>
                       <span id={beskrivning} className="sr-only">
-                        {`${t.svarPa} ${m.av === uid ? t.du : namnFor(m.av)}: ${synligText(m, 60)}`}
+                        {`${t.svarPa} ${avNamnFor(namnFor, m, uid, t.du, sprak)}: ${synligText(m, 60)}`}
                       </span>
                       <button
                         type="button"
@@ -2572,7 +2573,7 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik: rubrikProp, marke, lastT
         <div data-svarar-pa={svarPa.id} className="flex shrink-0 items-center gap-2 border-t border-line px-3 pt-2 text-meta text-ink-secondary">
           <CiteraIkon size={14} />
           <span className="min-w-0 flex-1 truncate">
-            {t.svararPa} <span className="font-medium text-ink">{svarPa.av === uid ? t.du : namnFor(svarPa.av)}</span>: {synligText(svarPa, 60)}
+            {t.svararPa} <span className="font-medium text-ink">{avNamnFor(namnFor, svarPa, uid, t.du, sprak)}</span>: {synligText(svarPa, 60)}
           </span>
           <button
             type="button"
@@ -2711,6 +2712,34 @@ function useTradmarken({ kalla, sid, meddelanden, minne }) {
 }
 
 /**
+ * Namnet på den som skrev ett meddelande, och nyckeln om en personlig API-nyckel skrev det: "Miranda via Byggagent" (0.135.0, lifehub.app#409).
+ *
+ * ⛔ DEN ENDA VÄGEN FÖR EN AVSÄNDARE SOM LÄSES SOM TEXT. `via` ligger på meddelandet (servern skriver det, reglerna nekar en klient), och en rad som ritar
+ * `namnFor(m.av)` rakt av visar nyckelns meddelande som personens eget. `check:skaparnamn` håller ett tak på de ställen som ritar utan märke (avatarer).
+ * Det egna meddelandet heter "Du via Byggagent": märket är till för att det inte ska gå att ta för något man skrev för hand, också för den som äger nyckeln.
+ *
+ * @param {(uid: string) => string} namnFor
+ * @param {{ av: string, via?: unknown }} meddelande
+ * @param {string} uid Den inloggade.
+ * @param {string} du Ordet för den inloggade ("Du").
+ * @param {string} sprak
+ * @returns {string}
+ */
+function avNamnFor(namnFor, { av, via }, uid, du, sprak) {
+  return namnMedVia(av === uid ? du : namnFor(av), via, sprak);
+}
+
+/**
+ * Är två meddelanden skrivna på samma sätt: båda för hand, eller båda av samma nyckel? Avgör om det andra får stå utan namnrad under det första.
+ *
+ * @param {{ via?: any }} a
+ * @param {{ via?: any }} b
+ */
+function sammaVia(a, b) {
+  return (a.via?.nyckelId ?? "") === (b.via?.nyckelId ?? "") && (a.via?.namn ?? "") === (b.via?.namn ?? "");
+}
+
+/**
  * Meddelandena i en logg: dagens avdelare, bubblorna och tiden. Samma i ett samtal och i en tråd (0.68.0), så att en tråd ser ut
  * som det samtal den hör till.
  *
@@ -2748,6 +2777,9 @@ export function Meddelanderader({ meddelanden, uid, namnFor: namnForProp, medlem
   const gastnamn = new Map(meddelanden.filter((m) => arGastId(m.av)).map((m) => [m.av, String(/** @type {any} */ (m).avNamn ?? "").trim() || texter.gast]));
   const arGast = (/** @type {any} */ m) => arGastId(m.av) || m.gast === true;
   const namnFor = (/** @type {string} */ id) => gastnamn.get(id) ?? namnForProp(id);
+  // ⛔ ORDET "via" FÖLJER SPRÅKET (0.135.0, lifehub.app#409): `locale` är "sv-SE" eller "en-GB", och textlagret vill ha "sv" eller "en".
+  const kontextsprak = useOpsSprak();
+  const sprak = typeof locale === "string" && locale ? (locale.startsWith("en") ? "en" : "sv") : kontextsprak;
   const medlemsbild = (/** @type {string} */ id) => (medlemmar ?? []).find((m) => m.userId === id)?.bild || undefined;
   const medlemstyp = (/** @type {string} */ id) => (medlemmar ?? []).find((m) => m.userId === id)?.typ;
   return (
@@ -2757,7 +2789,11 @@ export function Meddelanderader({ meddelanden, uid, namnFor: namnForProp, medlem
         const forra = alla[i - 1];
         const fore = forra ? forra.tid : forraTid;
         const nyDag = fore === undefined || new Date(fore).toDateString() !== new Date(m.tid).toDateString();
-        const fortsattning = !nyDag && forra && forra.av === m.av && m.tid - forra.tid < 5 * 60000;
+        // ⛔ EN NYCKELS MEDDELANDE FORTSÄTTER ALDRIG PERSONENS EGET (0.135.0, lifehub.app#409): samma avsändare inom fem minuter slås ihop under ett namn, och
+        // då hade "Miranda via Byggagent" fått stå namnlöst under Mirandas eget meddelande, alltså utan märket. Märket följer meddelandet.
+        const fortsattning = !nyDag && forra && forra.av === m.av && sammaVia(forra, m) && m.tid - forra.tid < 5 * 60000;
+        // Personen utan märket: avataren och initialerna. Texten som läses går genom `avNamnFor`.
+        const person = namnFor(m.av);
         const extra = efter?.(m);
         return (
           <div key={m.id}>
@@ -2784,25 +2820,29 @@ export function Meddelanderader({ meddelanden, uid, namnFor: namnForProp, medlem
                         <button
                           type="button"
                           data-visa-agent={m.av}
-                          aria-label={`${namnFor(m.av)}, ${texter.oppnaInstallningar}`}
-                          onClick={() => onVisaAgent({ id: m.av, namn: namnFor(m.av) })}
+                          aria-label={`${person}, ${texter.oppnaInstallningar}`}
+                          onClick={() => onVisaAgent({ id: m.av, namn: person })}
                           className="inline-flex min-h-11 min-w-11 cursor-pointer items-center justify-center rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                         >
-                          <OpsIdentity name={namnFor(m.av)} seed={m.av} size="sm" icon={AgentIkon} rund />
+                          <OpsIdentity name={person} seed={m.av} size="sm" icon={AgentIkon} rund />
                         </button>
                       ) : (
-                        <OpsIdentity name={namnFor(m.av)} seed={m.av} size="sm" icon={AgentIkon} rund />
+                        <OpsIdentity name={person} seed={m.av} size="sm" icon={AgentIkon} rund />
                       )
                     ) : (
-                      <OpsIdentity name={namnFor(m.av)} seed={m.av} imageUrl={medlemsbild(m.av)} size="sm" rund />
+                      <OpsIdentity name={person} seed={m.av} imageUrl={medlemsbild(m.av)} size="sm" rund />
                     )
                   ) : null}
                 </span>
               ) : null}
               <div className={cx("flex min-w-0 max-w-[70%] flex-col", egen ? "items-end" : "items-start")}>
-                {!egen && !fortsattning && visaNamn ? (
-                  <span className="mb-0.5 ml-1 flex items-center gap-1.5 text-liten text-ink-muted" data-namn-saknas={namnFor(m.av) === NAMN_SAKNAS ? "" : undefined}>
-                    {namnFor(m.av)}
+                {/* ⛔ ETT MEDDELANDE FRÅN EN NYCKEL BÄR ALLTID SITT MÄRKE (0.135.0): namnraden ritas även i ett privat samtal, och på ens eget meddelande. */}
+                {egen && !fortsattning && m.via ? (
+                  <span data-via-eget="" className="mr-1 mb-0.5 text-liten text-ink-muted">{avNamnFor(namnFor, m, uid, texter.du, sprak)}</span>
+                ) : null}
+                {!egen && !fortsattning && (visaNamn || m.via) ? (
+                  <span data-avsandare="" className="mb-0.5 ml-1 flex items-center gap-1.5 text-liten text-ink-muted" data-namn-saknas={person === NAMN_SAKNAS ? "" : undefined}>
+                    {avNamnFor(namnFor, m, uid, texter.du, sprak)}
                     {arGast(m) ? <span data-gast-markning="" className="rounded-full bg-sunken px-1.5 py-px text-mikro font-semibold text-ink-secondary">{texter.gast}</span> : null}
                   </span>
                 ) : null}
@@ -2830,7 +2870,7 @@ export function Meddelanderader({ meddelanden, uid, namnFor: namnForProp, medlem
                     kalla={kalla}
                     sid={sid ?? ""}
                     trad={trad}
-                    alt={`${texter.bilagaText} ${egen ? texter.du : namnFor(m.av)}: ${m.bilaga.namn}`}
+                    alt={`${texter.bilagaText} ${avNamnFor(namnFor, m, uid, texter.du, sprak)}: ${m.bilaga.namn}`}
                     texter={texter}
                   />
                 ) : null}
@@ -2841,7 +2881,7 @@ export function Meddelanderader({ meddelanden, uid, namnFor: namnForProp, medlem
                   <AgentensForslag varde={/** @type {any} */ (m).forslag} sid={sid} mid={m.id} onForslag={onForslag} />
                 ) : null}
                 {reakt?.pa ? <Reaktionschips m={m} egen={egen} reakt={reakt} texter={texter} /> : null}
-                <Meddelandemeta m={m} egen={egen} locale={locale} bredd={bredd} extra={extra} mer={merFor?.(m) ?? []} namn={egen ? texter.dittMeddelande : `${texter.svarPa} ${namnFor(m.av)}`} reakt={reakt} fasta={fasta} citat={citat} texter={texter} />
+                <Meddelandemeta m={m} egen={egen} locale={locale} bredd={bredd} extra={extra} mer={merFor?.(m) ?? []} namn={egen ? texter.dittMeddelande : `${texter.svarPa} ${avNamnFor(namnFor, m, uid, texter.du, sprak)}`} reakt={reakt} fasta={fasta} citat={citat} texter={texter} />
               </div>
             </div>
           </div>
@@ -3944,6 +3984,7 @@ function ReageraKnapp({ m, egen, reakt, texter: t }) {
  * @param {{ mid: string, uppslag: Map<string, (import("../lib/samtal.js").Meddelande & { id: string }) | null>, egen: boolean, uid: string, namnFor: (uid: string) => string, texter: Required<Meddelandetexter> }} props
  */
 function Citat({ mid, uppslag, egen, uid, namnFor, texter: t }) {
+  const sprak = useOpsSprak();
   const m = uppslag.get(mid);
   return (
     <div data-citat={mid} className={cx("mb-0.5 max-w-full rounded-lg border-l-2 border-line-strong bg-canvas px-2.5 py-1 text-meta text-ink-secondary", egen ? "self-end" : "self-start")}>
@@ -3953,7 +3994,7 @@ function Citat({ mid, uppslag, egen, uid, namnFor, texter: t }) {
         <span data-citat-saknas="">{t.citatSaknas}</span>
       ) : (
         <>
-          <span className="font-medium text-ink">{m.av === uid ? t.du : namnFor(m.av)}</span>
+          <span className="font-medium text-ink">{avNamnFor(namnFor, m, uid, t.du, sprak)}</span>
           <span>: {synligText(m, 80)}</span>
         </>
       )}
@@ -4157,6 +4198,7 @@ function useFasta(kalla, sid, uid) {
  * @param {{ fasta: ReturnType<typeof useFasta>, kalla: ReturnType<typeof import("../data/samtalskalla.js").createSamtalskalla>, sid: string, laddade: ReadonlyArray<import("../lib/samtal.js").Meddelande & { id: string }>, uid: string, namnFor: (uid: string) => string, texter: Required<Meddelandetexter> }} props
  */
 function Fastarad({ fasta, kalla, sid, laddade, uid, namnFor, texter: t }) {
+  const sprak = useOpsSprak();
   const [oppen, setOppen] = useState(false);
   const listId = useId();
   const uppslag = useMeddelandeuppslag(fasta.pa ? kalla : null, sid, laddade, fasta.rader.map((r) => r.id));
@@ -4190,7 +4232,7 @@ function Fastarad({ fasta, kalla, sid, laddade, uid, namnFor, texter: t }) {
                 <span className="min-w-0 flex-1 truncate py-2 text-meta text-ink-secondary">
                   {m === undefined ? "…" : m === null ? t.citatSaknas : (
                     <>
-                      <span className="font-medium text-ink">{m.av === uid ? t.du : namnFor(m.av)}</span>: {synligText(m, 80)}
+                      <span className="font-medium text-ink">{avNamnFor(namnFor, m, uid, t.du, sprak)}</span>: {synligText(m, 80)}
                     </>
                   )}
                 </span>

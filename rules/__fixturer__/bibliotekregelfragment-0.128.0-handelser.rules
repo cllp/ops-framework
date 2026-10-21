@@ -134,7 +134,7 @@
         && (!d.keys().hasAny(["taggar"]) || opsBibliotekTaggar(d.taggar))
         && d.rubrik.trim().size() > 0
         && d.rubrik.size() <= 200
-        && d.skapadAv.keys().hasOnly(["uid", "namn", "typ", "kalla"])
+        && opsSkaparstampel(d.skapadAv, resource == null ? null : resource.data.get('skapadAv', null))
         && d.skapadAv.namn is string
         && d.skapadAv.typ == "manniska"
         && d.skapadAv.kalla is string

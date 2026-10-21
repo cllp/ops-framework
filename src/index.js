@@ -157,7 +157,7 @@ export { splitMarkdown, splitInline } from "./lib/markdown.js";
 export { createPromptSource } from "./lib/prompt.js";
 export { createCaseModel } from "./lib/caseModel.js";
 export { uppgiftFel, byggUppgift, visaUppgifter } from "./lib/uppgift.js";
-export { byggSkapare, laesSkapare, skaparensNamn, arGammalForm, SKAPARTYPER } from "./lib/skapare.js";
+export { byggSkapare, laesSkapare, skaparensNamn, arGammalForm, SKAPARTYPER, namnMedVia, byggVia, viaFel, VIAFALT, MAX_NYCKELID, ORD_SKAPARE } from "./lib/skapare.js";
 
 /*
  * ⛔ KATALOGEN OCH SPRÅKEN LIGGER I BÅDA INGÅNGARNA, av samma skäl som

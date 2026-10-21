@@ -48,6 +48,7 @@
 import { byggGastMottagare } from "./gast.js";
 import { kommentarbilagaFel } from "./handelsemodell.js";
 import { markdownSomText } from "./markdown.js";
+import { byggVia } from "./skapare.js";
 
 /** Samtalens slag. */
 export const SAMTALSSLAG = /** @type {const} */ (["grupp", "personer", "agent"]);
@@ -360,6 +361,7 @@ export function byggSamtal(d) {
  * @property {string} text
  * @property {string} av Avsändarens uid.
  * @property {number} tid Millisekunder sedan 1970.
+ * @property {import("./skapare.js").Via} [via] (0.135.0, lifehub.app#409) Skrivet av en personlig API-nyckel åt `av`. Bara servern skriver det (Admin SDK): `MEDDELANDEFALT` har det inte, så meddelanderegelns `hasOnly` nekar en klient. Vyn ritar "Miranda via Byggagent".
  * @property {ReadonlyArray<string>} [namner] (chattens nattskiva) Vilka som nämns: uid:n, eller `["alla"]`.
  * @property {string} [svarPa] (chattens nattskiva) Meddelandet som besvaras med citat, i samma samtal.
  * @property {import("./file.js").Bilaga | { namn: string, typ: string }} [bilaga] `byggMeddelande` bär hela filen, så att källan kan dela den.
@@ -379,7 +381,11 @@ export function byggSamtal(d) {
  * Med en bilaga får texten vara tom: en skärmbild är ett meddelande. Utan bilaga kastar en tom text som förut, och ett
  * meddelande utan bilaga bär inte fältet.
  *
- * @param {{ text: string, av: string, tid?: number, namner?: ReadonlyArray<string> | null, svarPa?: string | null, bilaga?: import("./file.js").Bilaga | null }} d
+ * `via` (0.135.0, lifehub.app#409): `{ nyckelId, namn }` när en personlig API-nyckel skriver åt `av`. ⛔ BARA FÖR SERVERN. Fältet står inte i
+ * `MEDDELANDEFALT` och klientkällan (`samtalskalla`) skickar det aldrig vidare, så en klient som försöker nekas av reglerna. Formen prövas
+ * med `byggVia` (kastar). Utelämnat är resultatet exakt det förra.
+ *
+ * @param {{ text: string, av: string, tid?: number, namner?: ReadonlyArray<string> | null, svarPa?: string | null, bilaga?: import("./file.js").Bilaga | null, via?: { nyckelId: string, namn: string } | null }} d
  * @returns {Meddelande}
  */
 export function byggMeddelande(d) {
@@ -396,7 +402,8 @@ export function byggMeddelande(d) {
   if (!Number.isInteger(tid)) throw new Error("byggMeddelande: tid är millisekunder, ett heltal.");
   const namner = kravNamner(d.namner, "byggMeddelande");
   const svarPa = d.svarPa === undefined || d.svarPa === null ? null : kravMid(d.svarPa, "byggMeddelande");
-  return Object.freeze({ text, av, tid, ...(namner ? { namner } : {}), ...(svarPa ? { svarPa } : {}), ...(bilaga ? { bilaga: { ...bilaga } } : {}) });
+  const via = d.via === undefined || d.via === null ? null : byggVia(d.via);
+  return Object.freeze({ text, av, tid, ...(via ? { via } : {}), ...(namner ? { namner } : {}), ...(svarPa ? { svarPa } : {}), ...(bilaga ? { bilaga: { ...bilaga } } : {}) });
 }
 
 /**

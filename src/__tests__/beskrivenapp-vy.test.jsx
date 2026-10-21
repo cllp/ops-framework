@@ -263,6 +263,13 @@ describe("OpsBeskrivenApp: öppna, ändra och ta bort", () => {
     expect(await screen.findByRole("button", { name: "Hammare" })).toBeInTheDocument();
   });
 
+  it("⛔ en rad som en personlig API-nyckel skrev heter 'Skapad av Alex via Byggagent.' (0.135.0, lifehub.app#409), och en rad för hand 'Skapad av Alex.'", async () => {
+    const viaNyckel = { id: "r2", ...rad({ varden: { namn: "Hammare" }, skapadAv: { uid: "uid-2", namn: "Alex", typ: "manniska", kalla: "api", via: { nyckelId: "0123456789abcdef", namn: "Byggagent" } } }) };
+    const { user } = montera({ seed: [viaNyckel] });
+    await user.click(await screen.findByRole("button", { name: "Hammare" }));
+    expect(screen.getByText(/Skapad av Alex via Byggagent\./)).toBeInTheDocument();
+  });
+
   it("en admin och ägare ändrar och tar bort någon annans rad, samma villkor som regeln", async () => {
     const annans = { id: "r2", ...rad({ varden: { namn: "Hammare" }, skapadAv: { uid: "uid-2", namn: "Alex", typ: "manniska", kalla: "appar" } }) };
     for (const roll of ["admin", "agare"]) {

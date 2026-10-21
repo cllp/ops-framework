@@ -23,7 +23,7 @@ import { formatDate } from "../lib/format.js";
 import { modulTillbaka } from "../lib/modulram.js";
 import { ordet } from "../lib/ord.js";
 import { personnamn } from "../lib/personnamn.js";
-import { MAX_SKAPARNAMN } from "../lib/skapare.js";
+import { MAX_SKAPARNAMN, laesSkapare, namnMedVia } from "../lib/skapare.js";
 
 /**
  * En beskriven app: flikar per lista, sök, Ny, och raderna som lista eller tabell (beslut 0005, lifehub.app#213).
@@ -612,7 +612,11 @@ function Radformular({ b, lista, rad, kan, medlemmar, sprak, rubrik, onStang, on
     }
   }
 
-  const skapare = rad?.skapadAv?.namn ? fyll(t("skapadAv"), { namn: kapa(rad.skapadAv.namn, MAX_SKAPARNAMN) }) : rad ? t("skaparSaknas") : "";
+  // ⛔ Via `namnMedVia` (0.135.0, lifehub.app#409): en rad som en personlig API-nyckel skrev heter "Miranda via Byggagent". Taket gäller personens namn,
+  // så att ett för långt namn aldrig kortar bort märket; nyckelns namn kortas redan av `laesSkapare`.
+  const stampel = rad ? laesSkapare(rad.skapadAv) : null;
+  const skaparNamn = stampel ? namnMedVia(kapa(stampel.namn, MAX_SKAPARNAMN), stampel.via, sprak) : "";
+  const skapare = skaparNamn ? fyll(t("skapadAv"), { namn: skaparNamn }) : rad ? t("skaparSaknas") : "";
 
   return (
     <div data-beskriven-app-rad={rad?.id ?? "ny"} className="flex min-w-0 flex-col gap-4">

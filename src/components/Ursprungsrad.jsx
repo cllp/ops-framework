@@ -1,6 +1,6 @@
 import { cx } from "../lib/cx.js";
 import { formatDagOchKlockslag } from "../lib/format.js";
-import { laesSkapare } from "../lib/skapare.js";
+import { laesSkapare, skaparensNamn } from "../lib/skapare.js";
 import { OpsProvenance } from "./OpsProvenance.jsx";
 
 /**
@@ -67,8 +67,10 @@ export function kontrolleraUrsprung(u, komponent) {
  */
 export function Ursprungsrad({ skapadAv, skapad, ursprung, skapadAvEtikett, iModulEtikett, franModulEtikett, sprak, onNavigate, komponent }) {
   const u = ursprung === undefined ? null : kontrolleraUrsprung(ursprung, komponent);
+  // ⛔ NAMNET GÅR GENOM `skaparensNamn` (0.135.0, lifehub.app#409): en rad som en personlig API-nyckel skrev ritas "Miranda via Byggagent".
   const skapare = skapadAv && skapad ? laesSkapare(skapadAv) : null;
-  const vem = skapare && skapare.namn ? `${skapadAvEtikett} ${skapare.namn}, ${formatDagOchKlockslag(/** @type {string} */ (skapad), { locale: sprak })}` : null;
+  const skapareNamn = skapare ? skaparensNamn(skapadAv, sprak) : "";
+  const vem = skapareNamn ? `${skapadAvEtikett} ${skapareNamn}, ${formatDagOchKlockslag(/** @type {string} */ (skapad), { locale: sprak })}` : null;
   if (!vem && !u) return null;
 
   const modul = u ? (

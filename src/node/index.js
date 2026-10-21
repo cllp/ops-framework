@@ -129,7 +129,7 @@ export { createActivityLog } from "../lib/aktivitet.js";
  * `skapadAv`, och två former av samma fält är precis det den här modulen finns
  * för att förhindra. Filen är ren, `check-node-side` kräver det.
  */
-export { byggSkapare, laesSkapare, skaparensNamn, arGammalForm, SKAPARTYPER } from "../lib/skapare.js";
+export { byggSkapare, laesSkapare, skaparensNamn, arGammalForm, SKAPARTYPER, namnMedVia, byggVia, viaFel, VIAFALT, MAX_NYCKELID, ORD_SKAPARE } from "../lib/skapare.js";
 
 /*
  * ⛔ KATALOGEN OCH SPRÅKEN LIGGER I BÅDA INGÅNGARNA, av samma skäl som

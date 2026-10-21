@@ -2154,6 +2154,71 @@ const gruppmapp = fs.mkdtempSync(path.join(rot, ".ops-vaktprov-"));
   );
 }
 
+// ── Skaparens namn: märket "via Nyckeln" följer med i varje vy (0.135.0, lifehub.app#409) ───────────────
+//
+// ⛔ VAKTEN LÄSER TEXT, och en textvakt är ett närvarogrep (arbetsreglernas punkt 4). Därför bevisas den åt BÅDA hållen här, och det
+// beteende som faktiskt räknas mäts i jsdom (`skapare-via-vyer.test.jsx`). Vakten är den som larmar när någon lägger tillbaka en rå
+// `.namn` i en vy som proven inte täcker.
+{
+  const namnvakt = path.join(rot, "scripts", "check-skaparnamn.mjs");
+
+  /** @param {string} namn @param {string} [fil] @param {(text: string) => string} [mutera] @returns {string} */
+  const komponentkopia = (namn, fil, mutera) => {
+    const mapp = path.join(arbetsmapp, namn);
+    fs.cpSync(path.join(rot, "src", "components"), mapp, { recursive: true });
+    if (fil && mutera) {
+      const mal = path.join(mapp, fil);
+      const fore = fs.readFileSync(mal, "utf8");
+      const efter = mutera(fore);
+      if (efter === fore) throw new Error(`test-guards: mutationen "${namn}" ändrade ingenting i ${fil}. Då provar den inget, den bara ser ut att göra det.`);
+      fs.writeFileSync(mal, efter);
+    }
+    return mapp;
+  };
+
+  kravGront("skaparnamn: det riktiga komponenträdet ritar varje skapare genom skaparensNamn", [namnvakt]);
+
+  kravRott(
+    "skaparnamn: en vy läser skapadAv.namn rakt av",
+    [namnvakt, komponentkopia("sn1", "OpsEventList.jsx", (t) => `${t}\nexport const rakt = (h) => h.skapadAv?.namn;\n`)],
+    "ritar skapadAv.namn rakt av",
+  );
+
+  kravRott(
+    "skaparnamn: samma läsning med hakparentes",
+    [namnvakt, komponentkopia("sn2", "OpsEventList.jsx", (t) => `${t}\nexport const rakt = (h) => h.skapadAv["namn"];\n`)],
+    "ritar skapadAv.namn rakt av",
+  );
+
+  kravRott(
+    "skaparnamn: en vy i listan slutar anropa funktionen",
+    [namnvakt, komponentkopia("sn3", "Ursprungsrad.jsx", (t) => t.replaceAll("skaparensNamn(", "annatNamn("))],
+    "Ursprungsrad.jsx anropar varken",
+  );
+
+  kravRott(
+    "skaparnamn: en vy i listan har försvunnit (flyttad utan att listan följde med)",
+    [namnvakt, (() => { const m = komponentkopia("sn4"); fs.rmSync(path.join(m, "OpsKommentarer.jsx")); return m; })()],
+    "OpsKommentarer.jsx finns inte",
+  );
+
+  kravRott(
+    "skaparnamn: chatten ritar ett namn rakt av en gång för mycket (taket får bara sjunka)",
+    [namnvakt, komponentkopia("sn5", "OpsMeddelanden.jsx", (t) => `${t}\nexport const rakt = (m, namnFor) => namnFor(m.av);\n`)],
+    "taket är",
+  );
+
+  // ⛔ En kommentar som nämner mönstret är ingen läsning: annars blir vakten röd av just de rader som förklarar varför den finns.
+  kravGront(
+    "skaparnamn: ett omnämnande i en kommentar är inte en läsning",
+    [namnvakt, komponentkopia("sn6", "OpsEventList.jsx", (t) => `${t}\n// skapadAv.namn och skapadAv?.namn ritas inte rakt av\n/* skapadAv.namn */\n`)],
+  );
+
+  // ⛔ GOLVET: en mapp med nästan inga filer är inte ett komponenträd, och vakten ska inte bli grön av den.
+  kravRott("skaparnamn golv: nästan inga komponentfiler", [namnvakt, (() => { const m = path.join(arbetsmapp, "sn7"); fs.mkdirSync(m, { recursive: true }); fs.writeFileSync(path.join(m, "En.jsx"), "export {};\n"); return m; })()], "Bara 1 komponentfiler");
+  kravRott("skaparnamn golv: fel sökväg", [namnvakt, path.join(arbetsmapp, "finns-inte")], "hittar inte");
+}
+
 fs.rmSync(arbetsmapp, { recursive: true, force: true });
 
 const fel = resultat.filter((r) => r.utfall !== "ok");
