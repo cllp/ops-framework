@@ -4160,52 +4160,128 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
 
 // ⛔ SPELRADEN (0.102.0, granskningen av PR 366 varv 2, MÅSTE 1). Med skalets spelrad öppen ska Idag och Kalender sluta vid
 // spelradens överkant och inte under den, och dokumentet ska inte rulla ovanpå ytans egen rullning (`main` har spelradens höjd i
-// sin utfyllnad). Spelraden ritas här som den ritas i skalet: en fast rad med `data-ops-spelrad` ovanför bottenraden, och dess
-// höjd i `--spelrad-h` på dokumentet. Golv: båda vyerna mätta, och raden fanns.
+// sin utfyllnad). Golv: båda vyerna mätta, och raden fanns.
+//
+// ⛔ 0.137.0 (cllp/lifehub.app#417), CP: "Spelaren av ljud lägger sig över mikrofon ikonen i bottenmenyn." Mikrofonknappen sticker
+// upp `--bottom-nav-overhang` över bottenradens överkant, och spelraden stod på radens överkant och täckte knappens övre del.
+// Före 0.137.0 ritade den här mätningen en EGEN fast ruta som spelrad (`position:fixed`, `top: navTop - 64`) och satte
+// `--spelrad-h` själv, så den kunde aldrig se att komponenten låg fel: rutan stod där mätningen sa åt den att stå. Nu ritas
+// skalets riktiga spelare (spelknappen i ytan startar den, `window.__spelknapp`), bottenraden har TALK så att mittknappen är
+// mikrofonen, och det som mäts är:
+//   - spelradens underkant ligger över mikrofonknappens överkant (0 px eller mer luft), och ett tryck i mitten av knappen och
+//     strax under dess överkant träffar knappen och inte spelraden (`elementFromPoint`),
+//   - bottenradens överkant minus spelradens underkant är överhänget (16 px) och inget annat,
+//   - `--spelrad-h` är avståndet från spelradens överkant till bottenradens överkant, så att allt som räknar med talet slutar vid
+//     spelraden,
+//   - ytans underkant ligger vid spelradens överkant (+-1) och dokumentet rullar inte.
+// Och från 768 px, där bottenmenyn inte finns: spelraden ligger längst ned (utan överhäng) och `--spelrad-h` är dess egen höjd.
+// Golv: båda vyerna mätta i båda säkra zonerna, plus datorläget.
 {
+  const safeCss = ":root{--safe-bottom:34px!important}";
   /** @type {Set<string>} */
   const matta = new Set();
+  /** @type {Array<{ vy: "idag" | "kalender", lage: string, viewport: { width: number, height: number }, safe: boolean }>} */
+  const korningar = [];
   for (const vy of /** @type {const} */ (["idag", "kalender"])) {
-    const context = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+    korningar.push({ vy, lage: "telefon", viewport: { width: 390, height: 844 }, safe: false });
+    korningar.push({ vy, lage: "telefon med säker zon 34 px", viewport: { width: 390, height: 844 }, safe: true });
+  }
+  korningar.push({ vy: "idag", lage: "dator", viewport: { width: 1024, height: 768 }, safe: false });
+  for (const { vy, lage, viewport, safe } of korningar) {
+    const mobil = viewport.width < 768;
+    const namn = `spelrad ${vy} ${lage}`;
+    const context = await browser.newContext({ viewport, isMobile: mobil, hasTouch: mobil });
     const page = await context.newPage();
     page.setDefaultTimeout(4000);
+    const fel = /** @type {string[]} */ ([]);
+    page.on("pageerror", (e) => fel.push(e.message));
     await page.emulateMedia({ colorScheme: standardtema === "dark" ? "dark" : "light" });
+    await page.addInitScript(({ regel, med }) => {
+      /** @type {any} */ (window).__spelknapp = true;
+      if (!med) return;
+      const sh = new CSSStyleSheet();
+      sh.replaceSync(regel);
+      document.adoptedStyleSheets = [...document.adoptedStyleSheets, sh];
+    }, { regel: safeCss, med: safe });
     await page.route("http://skalyta.test/**", (r) => r.fulfill({ contentType: "text/html; charset=utf-8", body: sida(`fullyta-${vy}`) }));
     await page.goto("http://skalyta.test/");
     await page.waitForFunction("window.__redo === true", null, { timeout: 5000 }).catch(() => {});
     await page.waitForTimeout(300);
-    await page.evaluate(() => {
-      const nav = document.querySelector('nav[aria-label="Snabbnavigering"]');
-      const navTop = nav ? nav.getBoundingClientRect().top : window.innerHeight;
-      const rad = document.createElement("div");
-      rad.setAttribute("data-ops-spelrad", "");
-      rad.style.cssText = `position:fixed;left:0;right:0;height:64px;top:${navTop - 64}px;background:#333;z-index:30`;
-      document.body.append(rad);
-      document.documentElement.style.setProperty("--spelrad-h", "64px");
-    });
+    try {
+      await page.getByRole("button", { name: "Spela Idé om bolaget" }).click();
+      await page.waitForSelector("[data-ops-spelrad]");
+    } catch (err) {
+      krav(false, `${namn}: spelraden öppnades inte (${String(/** @type {Error} */ (err).message).split("\n")[0]}). Spelknappen eller spelraden saknas i den byggda versionen.`);
+      await context.close();
+      continue;
+    }
     await page.waitForTimeout(400);
     const m = await page.evaluate(() => {
-      const rad = document.querySelector("[data-ops-spelrad]");
-      const yta = /** @type {HTMLElement | null} */ (document.querySelector('main [style*="--fullhojd"]'));
+      const rect = (/** @type {Element | null} */ e) => (e ? e.getBoundingClientRect() : null);
+      const rad = rect(document.querySelector("[data-ops-spelrad]"));
+      const yta = rect(document.querySelector('main [style*="--fullhojd"]'));
+      const nav = document.querySelector('nav[aria-label="Snabbnavigering"]');
+      const navR = nav && getComputedStyle(nav).display !== "none" ? nav.getBoundingClientRect() : null;
+      const mik = document.querySelector("[data-talk-knapp]");
+      const mikR = navR ? rect(mik) : null;
+      const prov = document.createElement("div");
+      prov.style.cssText = "position:absolute;visibility:hidden;width:1px;height:var(--bottom-nav-overhang)";
+      document.body.append(prov);
+      const overhang = prov.getBoundingClientRect().height;
+      prov.remove();
+      const traff = (/** @type {number} */ x, /** @type {number} */ y) => {
+        const e = document.elementFromPoint(x, y);
+        return e ? Boolean(e.closest("[data-talk-knapp]")) : false;
+      };
       return {
-        radTop: rad ? rad.getBoundingClientRect().top : null,
-        ytaBottom: yta ? yta.getBoundingClientRect().bottom : null,
+        radTop: rad?.top ?? null,
+        radBottom: rad?.bottom ?? null,
+        radH: rad?.height ?? null,
+        ytaBottom: yta?.bottom ?? null,
+        navTop: navR?.top ?? null,
+        mikTop: mikR?.top ?? null,
+        mikMitt: mikR ? traff(mikR.left + mikR.width / 2, mikR.top + mikR.height / 2) : null,
+        mikOverkant: mikR ? traff(mikR.left + mikR.width / 2, mikR.top + 2) : null,
+        spelradH: parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--spelrad-h")),
+        overhang,
         dok: document.documentElement.scrollHeight,
         fonster: window.innerHeight,
       };
     });
-    if (m.radTop === null || m.ytaBottom === null) {
-      krav(false, `spelrad ${vy}: ${m.radTop === null ? "spelraden" : "ytan"} hittades inte, inget att mäta.`);
-    } else {
-      matta.add(vy);
-      const gap = m.radTop - m.ytaBottom;
-      matt.push(`spelrad ${vy}: ytans underkant ${m.ytaBottom}, spelradens överkant ${m.radTop}, gap ${gap.toFixed(1)} px, dokument ${m.dok} mot fönster ${m.fonster}`);
-      krav(Math.abs(gap) <= 1, `spelrad ${vy}: ${gap.toFixed(1)} px mellan ytans underkant och spelradens överkant, väntat 0 +- 1. ${gap < -1 ? "Spelraden ligger över ytans nedersta rader." : "Ytan slutar för tidigt."}`);
-      krav(m.dok <= m.fonster + 1, `spelrad ${vy}: dokumentet är ${m.dok} px högt i ett fönster på ${m.fonster}, och rullar ovanpå ytans egen rullning.`);
+    if (fel.length) krav(false, `${namn}: sidan kastade ${fel[0]}`);
+    if (m.radTop === null || m.radBottom === null || m.ytaBottom === null) {
+      krav(false, `${namn}: ${m.radTop === null ? "spelraden" : "ytan"} hittades inte, inget att mäta.`);
+      await context.close();
+      continue;
     }
+    matta.add(`${vy} ${lage}`);
+    const gap = m.radTop - m.ytaBottom;
+    matt.push(`${namn}: ytans underkant ${m.ytaBottom}, spelradens överkant ${m.radTop}, gap ${gap.toFixed(1)} px, dokument ${m.dok} mot fönster ${m.fonster}, --spelrad-h ${m.spelradH}`);
+    krav(Math.abs(gap) <= 1, `${namn}: ${gap.toFixed(1)} px mellan ytans underkant och spelradens överkant, väntat 0 +- 1. ${gap < -1 ? "Spelraden ligger över ytans nedersta rader." : "Ytan slutar för tidigt."}`);
+    krav(m.dok <= m.fonster + 1, `${namn}: dokumentet är ${m.dok} px högt i ett fönster på ${m.fonster}, och rullar ovanpå ytans egen rullning.`);
+    if (mobil) {
+      if (m.navTop === null || m.mikTop === null || m.mikMitt === null || m.mikOverkant === null) {
+        krav(false, `${namn}: bottenraden eller mikrofonknappen hittades inte, inget att mäta (golv).`);
+      } else {
+        const luft = m.mikTop - m.radBottom;
+        const hang = m.navTop - m.radBottom;
+        const hojd = m.navTop - m.radTop;
+        matt.push(`${namn}: mikrofonknappens överkant ${m.mikTop.toFixed(1)}, spelradens underkant ${m.radBottom.toFixed(1)}, luft ${luft.toFixed(1)} px, bottenradens överkant ${m.navTop.toFixed(1)}, överhänget ${m.overhang} px`);
+        krav(luft >= -0.5, `${namn}: spelradens underkant ligger ${(-luft).toFixed(1)} px under mikrofonknappens överkant. Spelaren täcker knappen (cllp/lifehub.app#417): den ska stå ovanför överhänget (--bottom-nav-overhang ${m.overhang} px), inte på bottenradens överkant.`);
+        krav(m.mikMitt === true && m.mikOverkant === true, `${namn}: ett tryck på mikrofonknappen träffar inte knappen (mitt ${m.mikMitt}, strax under överkanten ${m.mikOverkant}). Spelaren ligger över den.`);
+        krav(Math.abs(hang - m.overhang) <= 1, `${namn}: spelradens underkant står ${hang.toFixed(1)} px ovanför bottenradens överkant, väntat överhänget ${m.overhang} px (+-1).`);
+        krav(Math.abs(m.spelradH - hojd) <= 1, `${namn}: --spelrad-h är ${m.spelradH} px men avståndet från spelradens överkant till bottenradens överkant är ${hojd.toFixed(1)} px. Det som räknar med --spelrad-h (ytan, toasten, ark) slutar då på fel ställe.`);
+      }
+    } else {
+      // Datorläget: ingen bottenmeny, inget överhäng. Raden ligger längst ned och talet är radens egen höjd.
+      krav(m.navTop === null, `${namn}: bottenraden syns på en dator, och mätningen av läget utan den är ogiltig.`);
+      krav(Math.abs(m.fonster - m.radBottom) <= 1, `${namn}: spelradens underkant är ${m.radBottom.toFixed(1)} px, väntat fönstrets underkant ${m.fonster} (+-1). Överhänget ska inte räknas in när bottenmenyn saknas.`);
+      krav(m.radH !== null && Math.abs(m.spelradH - m.radH) <= 1, `${namn}: --spelrad-h är ${m.spelradH} px men spelraden är ${m.radH?.toFixed(1)} px hög. Utan bottenmeny ska talet vara radens egen höjd.`);
+    }
+    if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `spelrad-${vy}-${lage.replace(/\s+/g, "-")}.png`) });
     await context.close();
   }
-  krav(matta.size >= 2, `spelrad: bara ${matta.size} vyer mätta, väntat 2 (golv).`);
+  krav(matta.size >= 5, `spelrad: bara ${matta.size} lägen mätta (${[...matta].join(", ")}), väntat 5 (golv).`);
 }
 
 // ══ 25. HÄNDELSEKORTET OCH INKORGSRADEN MOT SS VID 390 PX (0.32.1) ══════════════════════════════════════════════════════
