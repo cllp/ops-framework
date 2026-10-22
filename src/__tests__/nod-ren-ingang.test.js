@@ -15,7 +15,7 @@ import * as nod from "../node/index.js";
  *
  *  1. Modulgrafen. En ren Node-process laddar `src/node/index.js` med en modulhook som skriver upp varje import. Röd om React, Radix, en komponent, huvudingången eller
  *     `dist/` kommer med. Hooken bevisas mot ett träd med en planterad import (se "planterat fel" nedan).
- *  2. Namnen. Varje namn appens funktioner hämtar finns som export, och är SAMMA värde som huvudingångens (ingen kopia, regel 2).
+ *  2. Namnen (43, varav elva tillkom i 0.139.1). Varje namn appens funktioner hämtar finns som export, och är SAMMA värde som huvudingångens (ingen kopia, regel 2).
  */
 
 const rot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -27,6 +27,9 @@ const APPENS_NAMN = [
   "arGastId", "arLjudpost", "arMittBibliotek", "arObjektbibliotek", "arendedelar", "byggGrupp", "byggMeddelande", "byggMedlemskap", "byggPost", "byggSamtal", "byggTrad",
   "epostFel", "foreVillkor", "forvaldKalender", "gruppForPlats", "handelseBibliotek", "handelsedelar", "laesSkapare", "lankKalla", "ljudRubrik", "medlemskapsId", "samtalsnyckel",
   "utskriftFel", "utskriftLage",
+  // 0.139.1 (#434): elva namn som den första listan missade, bland dem de flerradiga importerna i appens functions.
+  "arkiveraKalender", "byggGruppkalender", "kalenderIdUrNamn", "nastaOrdning", "valjForvald", "validateGruppkalendrar",
+  "postFel", "olastaI", "STANDARD_TIDSZON", "byggMinKalender", "INBJUDNING_GILTIGHET_DAGAR",
 ];
 
 /**
@@ -118,7 +121,7 @@ describe("nodingången är ren", () => {
 
 describe("nodingången har allt appens funktioner hämtar", () => {
   it("listan har golv", () => {
-    expect(APPENS_NAMN.length).toBeGreaterThanOrEqual(32);
+    expect(APPENS_NAMN.length).toBeGreaterThanOrEqual(43);
   });
 
   it.each(APPENS_NAMN)("%s finns, och är samma värde som huvudingångens", (namn) => {
