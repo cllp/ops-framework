@@ -11,6 +11,14 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ## Ej utgivet
 
+### Datumväljaren kan visa en prick på dagar med händelser
+
+CP vill se vilka dagar som har händelser när han väljer datum, men bara om det inte gör väljaren långsammare. **Inte brytande:** tre nya valfria props på `OpsDatePicker`, och utan dem ritar och beter sig väljaren som förut.
+
+- **`markeradeDagar`** (`ReadonlySet<string>` eller lista av ISO-dagar, "ÅÅÅÅ-MM-DD"): de dagarna får en prick under siffran, i accentens färg (kontrastfärgen i den valda dagen). En dag som inte är en ISO-dag kastar, eftersom en felformaterad dag annars bara hade uteblivit och sett ut som en månad utan händelser.
+- **`onManadVisas(forstaDag)`**: anropas med månadens första dag ("ÅÅÅÅ-MM-01") när kalendern öppnas och varje gång användaren bläddrar till en annan månad. Väljaren hämtar ingenting själv: appen räknar fram dagarna för månaden och skickar tillbaka dem som `markeradeDagar`.
+- **`markeradEtikett`** (standard "har händelser"): läggs efter dagens namn för en markerad dag, så att en skärmläsare hör det pricken visar.
+
 ## 0.136.0
 
 Typografin ritar som SessionStudio: kryssrutor, reglage, flikar, banners, tomma lägen och toasts får SS storlekar och vikter, och `body` får SS ordavstånd och kantutjämning. CP 2026-10-21 ("Känns tjockt och stort och inte snyggt och enkelt"). **Inte brytande för API:t** (inga props, inga exporter ändras). **Brytande för utseendet:** text blir mindre och lättare på de ställen som listas nedan, och en app som mätt pixlar mot 0.135 får nya mått. Dessutom en skill, `interaktionsdesign`, som följer med paketet och skrivs ut i appens `.claude/skills/`.

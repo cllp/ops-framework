@@ -1,12 +1,14 @@
 import { useMemo, useState } from "react";
 import * as Popover from "@radix-ui/react-popover";
-import { DayPicker } from "react-day-picker";
+import { DayButton, DayPicker, labelDayButton } from "react-day-picker";
 import { faltTriggerKlass, faltYtaKlass, radKlass } from "../lib/radKlass.js";
 import { cx } from "../lib/cx.js";
 import { DEFAULT_LOCALE } from "../lib/calendar.js";
 import { formatDate } from "../lib/format.js";
+import { forvalda } from "../lib/ord.js";
 import { useFieldBinding } from "./OpsField.jsx";
 import { ChevronNedIkon } from "./icons.jsx";
+import { useOpsSprak } from "./OpsSprak.jsx";
 
 /**
  * Datumväljare.
@@ -38,6 +40,26 @@ import { ChevronNedIkon } from "./icons.jsx";
  * Månadsrubrik och veckodagsrubrik ritas därför av `Intl` genom `formatters`,
  * och `locale` är samma sorts sträng som resten av ramverket redan använder
  * (cllp/ops-framework#95).
+ *
+ * ══ ⛔ PRICKARNA RÄKNAS FRAM AV APPEN OCH HÄMTAS ALDRIG AV VÄLJAREN ══════════
+ *
+ * CP vill se vilka dagar som har händelser, men bara om det inte gör väljaren
+ * långsammare. Väljaren som själv frågar efter händelser hade lagt en hämtning
+ * i varje öppning, och hade dessutom tvingat in en datakälla i en komponent som
+ * i dag inte känner någon. Därför vänds det: `onManadVisas` talar om vilken
+ * månad som visas, appen räknar fram dagarna ur sin egen data (som den ändå har
+ * eller kan fråga efter på sitt eget sätt) och skickar tillbaka dem som
+ * `markeradeDagar`. Väljaren gör bara tre saker: slår upp varje synlig dag i en
+ * mängd, ritar en prick, och lägger en mening i dagens tillgängliga namn.
+ *
+ * ⛔ UTAN PROPS ÄR VÄLJAREN OFÖRÄNDRAD, inte "nästan". `modifiers`, `components`
+ * och `labels` skickas inte till kalendern alls när `markeradeDagar` saknas, så
+ * det finns ingen ny väg att köra och inget som kan bli långsammare.
+ *
+ * ⛔ PRICKEN ÄR ETT RIKTIGT ELEMENT OCH INGET `::after`. Ett pseudoelement går
+ * inte att fråga efter i jsdom, och ett prov som bara ser klassnamnet mäter inte
+ * att pricken ritas (arbetsregler 4: närvarogrep). Elementet bär `data-prick`
+ * som kalenderns dagruta (`OpsCalendarDagruta`).
  */
 
 /** @param {Date} d @returns {string} */
@@ -61,6 +83,71 @@ function franIso(iso) {
 }
 
 /**
+ * Månadens första dag som ISO-sträng, ur ett datum i användarens tidszon.
+ * @param {Date} d @returns {string}
+ */
+function forstaDagIManad(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
+}
+
+/**
+ * ⛔ ETIKETTEN BOR I EN ORDBOK OCH INTE SOM SVENSKT FÖRVAL I PARAMETERLISTAN: `check-sprak` håller ett tak som bara får sjunka, och en app
+ * på engelska ska höra "has events", inte ett svenskt ord. Appens egen `markeradEtikett` vinner alltid.
+ * @type {import("../lib/ord.js").Ordbok}
+ */
+const ORD_DATUMVALJARE = {
+  markerad: { sv: "har händelser", en: "has events" },
+};
+
+const ISO_DAG = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Mängden av markerade dagar, med varje dag prövad.
+ *
+ * ⛔ EN FELFORMATERAD DAG KASTAR OCH TYSTAS INTE. En `"2026-10-14T10:00"` eller ett `"14/10"` matchar aldrig en
+ * ISO-dag i rutnätet, så pricken hade bara uteblivit: ett fel som ser ut som att månaden saknar händelser
+ * (arbetsregler 5: en tyst nedsläppsväg ser ut som att allt gick bra).
+ *
+ * En `Set` används som den är (ingen kopia), en lista blir en `Set` en gång per ny lista.
+ *
+ * @param {ReadonlySet<string> | readonly string[] | undefined} dagar
+ * @returns {ReadonlySet<string> | undefined}
+ */
+function markeradMangd(dagar) {
+  if (dagar === undefined) return undefined;
+  const mangd = dagar instanceof Set ? dagar : new Set(dagar);
+  for (const dag of mangd) {
+    if (typeof dag !== "string" || !ISO_DAG.test(dag)) {
+      throw new Error(`OpsDatePicker: markeradeDagar innehåller "${String(dag)}", som inte är en ISO-dag ("ÅÅÅÅ-MM-DD"). Skicka dagen utan klockslag.`);
+    }
+  }
+  return mangd;
+}
+
+/**
+ * Dagknappen när väljaren har markerade dagar: samma knapp som kalenderns egen, plus en prick under siffran.
+ *
+ * ⛔ Kalenderns egen `DayButton` ritas inuti (inte en kopia av den), eftersom den sköter fokus på tangentbordets dag.
+ * ⛔ Pricken är `aria-hidden`: den som inte ser den får samma besked som mening i knappens namn (`markeradEtikett`).
+ * ⛔ Färgen är accenten, och i den valda dagen (som själv är accent) accentens kontrastfärg, annars försvinner pricken.
+ *
+ * @param {import("react-day-picker").DayButtonProps} props
+ */
+function MarkeradDagknapp({ day, modifiers, className, children, ...rest }) {
+  return (
+    <DayButton day={day} modifiers={modifiers} className={cx(className, modifiers.markerad && "relative")} {...rest}>
+      {children}
+      {modifiers.markerad ? (
+        <span aria-hidden="true" data-prick="" className={cx("absolute bottom-1 md:bottom-0.5 left-1/2 size-1.5 -translate-x-1/2 rounded-full", modifiers.selected ? "bg-accent-contrast" : "bg-accent")} />
+      ) : null}
+    </DayButton>
+  );
+}
+
+/** Stabil identitet, så att kalendern inte räknar om sina komponenter vid varje ritning. */
+const MARKERADE_KOMPONENTER = { DayButton: MarkeradDagknapp };
+
+/**
  * @param {object} props
  * @param {string} [props.value] ISO-datum, "ÅÅÅÅ-MM-DD".
  * @param {(iso: string | undefined) => void} props.onChange
@@ -69,8 +156,25 @@ function franIso(iso) {
  * @param {string} [props.ariaLabel] Bara när väljaren står utanför en OpsField.
  * @param {string} [props.clearLabel]
  * @param {string} [props.locale] BCP-47, standard `sv-SE`.
+ * @param {ReadonlySet<string> | readonly string[]} [props.markeradeDagar] ISO-dagar ("ÅÅÅÅ-MM-DD") som får en prick under siffran. Appen räknar fram dem
+ *   för månaden som visas (se `onManadVisas`); väljaren hämtar ingenting. En dag som inte är en ISO-dag kastar.
+ * @param {(forstaDag: string) => void} [props.onManadVisas] Anropas med månadens första dag ("ÅÅÅÅ-MM-01") när kalendern öppnas och varje gång
+ *   användaren bläddrar till en annan månad, så att appen kan räkna fram `markeradeDagar` för just den månaden.
+ * @param {string} [props.markeradEtikett] Läggs efter dagens namn för en markerad dag, så att en skärmläsare hör det pricken visar. Standard "har händelser"
+ *   (på engelska "has events", efter appens språk i `OpsSprakProvider`).
  */
-export function OpsDatePicker({ value, onChange, placeholder = "Välj datum", disabled = false, ariaLabel, clearLabel = "Rensa datum", locale = DEFAULT_LOCALE }) {
+export function OpsDatePicker({
+  value,
+  onChange,
+  placeholder = "Välj datum",
+  disabled = false,
+  ariaLabel,
+  clearLabel = "Rensa datum",
+  locale = DEFAULT_LOCALE,
+  markeradeDagar,
+  onManadVisas,
+  markeradEtikett,
+}) {
   const [oppen, setOppen] = useState(false);
   const f = useFieldBinding();
   const chosen = franIso(value);
@@ -90,8 +194,40 @@ export function OpsDatePicker({ value, onChange, placeholder = "Välj datum", di
     [locale],
   );
 
+  const markerade = useMemo(() => markeradMangd(markeradeDagar), [markeradeDagar]);
+  const sprak = useOpsSprak();
+  const etikett = markeradEtikett ?? forvalda(ORD_DATUMVALJARE, sprak).markerad;
+
+  /*
+   * ⛔ BARA NÄR DAGAR SKICKATS IN skickas något extra till kalendern. Annars är anropet exakt det som fanns före.
+   * `modifiers` ger dagknappen `modifiers.markerad`; `labels` lägger meningen efter det standardnamn kalendern redan ger.
+   */
+  const markering = useMemo(
+    () =>
+      markerade
+        ? {
+            modifiers: { markerad: (/** @type {Date} */ d) => markerade.has(tillIso(d)) },
+            labels: {
+              labelDayButton: (/** @type {Date} */ datum, /** @type {any} */ m, /** @type {any} */ val, /** @type {any} */ lib) =>
+                `${labelDayButton(datum, m, val, lib)}${m.markerad ? `, ${etikett}` : ""}`,
+            },
+          }
+        : undefined,
+    [markerade, etikett],
+  );
+
+  /**
+   * ⛔ ÖPPNINGEN ÄR EN HÄNDELSE OCH INGEN EFFEKT. Popovern monteras om vid varje öppning och startar på det valda datumet
+   * (eller idag), så månaden som visas är känd redan här. En effekt hade gett ett anrop per ritning i stället för ett per öppning.
+   * @param {boolean} nasta
+   */
+  function andraOppen(nasta) {
+    setOppen(nasta);
+    if (nasta) onManadVisas?.(forstaDagIManad(chosen ?? new Date()));
+  }
+
   return (
-    <Popover.Root open={oppen} onOpenChange={setOppen}>
+    <Popover.Root open={oppen} onOpenChange={andraOppen}>
       <Popover.Trigger
         id={f.id}
         type="button"
@@ -126,6 +262,9 @@ export function OpsDatePicker({ value, onChange, placeholder = "Välj datum", di
             // `onMonthChange` går inte att bläddra i: pilarna gör ingenting så fort ett datum är valt (CP 2026-09-29:
             // "datum går inte att välja"). Popovern monteras om vid varje öppning, så `defaultMonth` startar på det valda.
             defaultMonth={chosen}
+            // Ostyrd månad: kalendern bläddrar själv och säger bara vilken månad den hamnade i.
+            onMonthChange={onManadVisas ? (m) => onManadVisas(forstaDagIManad(m)) : undefined}
+            {...(markering ? { modifiers: markering.modifiers, labels: markering.labels, components: MARKERADE_KOMPONENTER } : {})}
             onSelect={(d) => {
               onChange(d ? tillIso(d) : undefined);
               setOppen(false);
