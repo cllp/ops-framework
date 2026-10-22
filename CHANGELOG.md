@@ -11,6 +11,10 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ## Ej utgivet
 
+Inget ännu.
+
+## 0.138.0
+
 ### Hemikonen i huvudet i varje grupp
 
 CP 2026-10-22: "det är lite svårt att navigera sig tillbaka till hemgrupp / översikt." **Inte brytande:** ingen ny prop, och utan `grupper.oversikt` ritas skalet exakt som förut.
