@@ -11,6 +11,10 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ## Ej utgivet
 
+Inget ännu.
+
+## 0.137.0
+
 ### Datumväljaren kan visa en prick på dagar med händelser
 
 CP vill se vilka dagar som har händelser när han väljer datum, men bara om det inte gör väljaren långsammare. **Inte brytande:** tre nya valfria props på `OpsDatePicker`, och utan dem ritar och beter sig väljaren som förut.
