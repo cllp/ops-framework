@@ -734,7 +734,11 @@ export function OpsGruppvaxlare({
           <span data-gruppmarke="" className={cx(gruppRutaKlass({ vald: Boolean(aktivRad), interaktiv: false }), "md:hidden")}>
             {!aktivRad ? <Tomikon size={16} /> : <OpsIdentity name={aktivtNamn} seed={aktiv} imageUrl={aktivRad?.bild || undefined} {...gruppmarkeProps(aktivRad)} size="rail" />}
           </span>
-          <span className="hidden items-center gap-2 md:flex">
+          {/* ⛔ 0.138.0: `min-w-0` PÅ DEN HÄR RADEN, annars kortas inte namnet av. `md:max-w-40` på knappen satte en gräns som radens
+              innehåll inte följde: ett flexbarn har `min-width: auto`, alltså aldrig smalare än sin text, så `truncate` på namnet
+              längst in gjorde ingenting och ett långt namn rann ut över flikarna (mätt 2026-10-22 vid 768 px, "Claes Philip Staiger
+              Konsulting Aktiebolag" låg ovanpå "Idag"; fanns före hemikonen, som flyttade namnet 52 px åt höger och gjorde det värre). */}
+          <span className="hidden min-w-0 items-center gap-2 md:flex">
             {!aktivRad ? <Tomikon size={18} /> : <OpsIdentity name={aktivtNamn} seed={aktiv} imageUrl={aktivRad?.bild || undefined} {...gruppmarkeProps(aktivRad)} size="sm" />}
             <span className="min-w-0 truncate">{aktivtNamn}</span>
           </span>
