@@ -8,10 +8,10 @@ import { OpsSpelareProvider } from "./OpsSpelare.jsx";
 import { OpsBrand } from "./OpsBrand.jsx";
 import { OpsBottomNav, ORD_OPSBOTTOMNAV } from "./OpsBottomNav.jsx";
 import { OpsApparArk } from "./OpsApparArk.jsx";
-import { OpsGruppanel, OpsGruppvaxlare } from "./OpsGruppanel.jsx";
+import { OpsGruppanel, OpsGruppvaxlare, ORD_OPSOVERSIKT } from "./OpsGruppanel.jsx";
 import { entryActive, validateNav } from "../lib/nav.js";
 import { Counter } from "./counter.jsx";
-import { ArendePlusIkon, ChevronNedIkon, HandelsePlusIkon, KryssIkon, MeddelandeIkon, MenuIcon, MikrofonIkon, PlusIkon, GruppIkon } from "./icons.jsx";
+import { ArendePlusIkon, ChevronNedIkon, HandelsePlusIkon, HusIkon, KryssIkon, MeddelandeIkon, MenuIcon, MikrofonIkon, PlusIkon, GruppIkon } from "./icons.jsx";
 import { OpsTalk, useTalk } from "./OpsTalk.jsx";
 import { OpsTooltip } from "./OpsTooltip.jsx";
 import { kontrolleraSkickarText, talkForifyllt, talkKnappNamn } from "../lib/talk.js";
@@ -141,6 +141,34 @@ function HubModulRad({ b, activeHref, onActivate, stang, submenuLabel }) {
  * i appen, så en app som lägger en åttonde ikon inte kan ge ett överlappande huvud.
  */
 const ATGARDER_SMAL = 3;
+
+/**
+ * Hur många ikonåtgärder huvudet bär under `md` när hemikonen står i det (0.138.0).
+ *
+ * ══ ⛔ MÄTT, INTE GISSAT (2026-10-22, byggd dist, `scripts/hemikon-montage.mjs`) ════════════════════════════════════════
+ * CP: "headermenyn i telefonen kan bli ganska full av ikoner." Hemikonen tar en plats till vänster, före gruppväxlaren (44 px och
+ * ett mellanrum om 8). Scenen är det fullaste huvudet som går att bygga: hemikon, gruppväxlare med ett långt namn, SEX åtgärder
+ * och avatar. Luften är det som blir över mellan gruppväxlaren och högerklungan efter mellanrummet om 12 px (negativ = klungan
+ * tränger in i radens högerpadding). Raden är 10 px smalare än fönstret i Chromium (`scrollbar-gutter: stable`), en telefon utan
+ * klassisk rullist har de pixlarna kvar, så siffrorna är den hårdare mätningen:
+ *
+ *   bredd   tre åtgärder, utan hemikon   tre åtgärder, MED hemikon   två åtgärder, MED hemikon
+ *   320     +40 px                       -12 px (ryms inte)          +34 px
+ *   360     +80 px                       +28 px                      +74 px
+ *   390     +110 px                      +58 px                      +104 px
+ *   768     inga överlapp, raden rullar inte, för varje läge i mätningen (budgeten för surfplatta är `ATGARDER_SURF`)
+ *
+ * Med hemikon och TRE åtgärder tränger klungan 12 px in i högerpaddingen vid 320 px: avataren hamnar 4 px från skärmkanten och
+ * innehållet är bredare än raden. Det är "ryms inte". Åtgärden är den uppdraget pekade på: en åtgärd färre när hemikonen visas, så
+ * att överskottet flyttar till bottenradens Meny som i dag (`flyttbara`). Ingen åtgärd försvinner: den är en rad i Menyn, och
+ * provet kräver det. Utan hemikon (ingen `grupper.oversikt`, eller i översikten, där huvudet inte har några åtgärder) gäller
+ * `ATGARDER_SMAL` som förut.
+ *
+ * Budgeten är en siffra för alla telefonbredder, eftersom den bor i klasser (`hidden lg:contents`) och inte i en mätning vid
+ * körning. Den kostar alltså den tredje åtgärden även vid 360 och 390 px, där den hade rymts. Det är priset för att inte ha två
+ * vägar till samma åtgärd, och för ett huvud som aldrig är fullare än CP:s skärmbild från 2026-09-29.
+ */
+const ATGARDER_SMAL_HEM = 2;
 
 /**
  * Hur många ikonåtgärder som ryms i huvudet mellan `md` och `lg` (0.87.0, #262).
@@ -639,6 +667,34 @@ function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, s
  *   ⛔ (0.113.0) `hemgrupp`: id på en grupp i `lista`. Given: översikten har gruppens bottenrad, och ett tryck i den väljer
  *   hemgruppen (`onValj(hemgrupp)`) innan `onNavigate`. Ett id som inte finns i listan räknas som utelämnat.
  */
+
+/**
+ * Hemikonen i huvudet i en grupp (0.138.0): ett tryck gör exakt det raden Översikt i gruppväxlaren gör (`oversikt.onValj`).
+ *
+ * ⛔ HÄNDELSEN: CP 2026-10-22, "det är lite svårt att navigera sig tillbaka till hemgrupp / översikt." Hemikonen ritades bara i
+ * översiktsläget (där växlarens knapp ÄR hemikonen). Inne i en grupp nådde man Översikten bara genom att öppna växlaren och leta
+ * upp raden, och på dator (från `lg`) har växlaren ingen knapp alls, eftersom gruppanelen tar över: där fanns ingen väg.
+ *
+ * Ingen ny prop: knappen läser `grupper.oversikt`, och namnet kommer ur `oversikt.etikett` eller `ORD_OPSOVERSIKT`, samma ord som
+ * raden i växlaren. Utan `grupper.oversikt` ritas den inte, och skalet är exakt som förut. I översiktsläget ritas den inte heller:
+ * där är växlarens knapp hemikonen, markerad som aktuell (`aria-current="page"`), och en andra hemikon intill den hade varit två
+ * knappar för samma plats. 44 px träffyta på alla bredder.
+ *
+ * @param {{ etikett: string, onValj: () => void }} props
+ */
+function HemKnapp({ etikett, onValj }) {
+  return (
+    <button
+      type="button"
+      data-hemikon=""
+      aria-label={etikett}
+      onClick={onValj}
+      className="flex size-11 shrink-0 items-center justify-center rounded-md text-ink-secondary hover:bg-sunken focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+    >
+      <HusIkon size={20} />
+    </button>
+  );
+}
 
 /**
  * Ritar `skapa.arende` när det är en funktion (0.31.1). Som en EGEN komponent och inte ett direktanrop i skalets render: en app
@@ -1775,7 +1831,10 @@ function OpsAppShellRitad({
   // `kvarIHuvudet` på ikonen säger att den hör hemma i huvudet ändå, och då ritas den inte också i menyn.
   const stannarIHuvudet = (/** @type {import("react").ReactElement} */ a) =>
     a.type === OpsIconLink && /** @type {any} */ (a.props).kvarIHuvudet === true;
-  const flyttbara = atgardsLista.filter((a, i) => i >= ATGARDER_SMAL && a.type === OpsIconLink && !stannarIHuvudet(a));
+  // ⛔ 0.138.0: MED HEMIKON I HUVUDET TAR TELEFONEN EN ÅTGÄRD MINDRE, se `ATGARDER_SMAL_HEM`.
+  const harHemikon = Boolean(grupper?.oversikt) && !grupper?.oversikt?.aktiv;
+  const atgSmal = harHemikon ? ATGARDER_SMAL_HEM : ATGARDER_SMAL;
+  const flyttbara = atgardsLista.filter((a, i) => i >= atgSmal && a.type === OpsIconLink && !stannarIHuvudet(a));
   /** @type {import("../lib/nav.js").NavPost[]} */
   const flyttadeRader = flyttbara.map((a) => {
     const p = /** @type {any} */ (a.props);
@@ -1786,17 +1845,17 @@ function OpsAppShellRitad({
   // De som redan flyttats ur telefonhuvudet (`flyttadeRader`) bor i `meny.app` när `meny` finns, och i
   // bottenradens ark annars. Arkets är `md:hidden`, så utan `meny` följer de med hit, bara på surfplatta.
   /** @type {import("../lib/nav.js").NavPost[]} */
-  const surfMellan = atgardsLista.filter((a, i) => i >= ATGARDER_SURF && i < ATGARDER_SMAL && a.type === OpsIconLink && !stannarIHuvudet(a)).map((a) => {
+  const surfMellan = atgardsLista.filter((a, i) => i >= ATGARDER_SURF && i < atgSmal && a.type === OpsIconLink && !stannarIHuvudet(a)).map((a) => {
     const p = /** @type {any} */ (a.props);
     return { href: p.href, label: p.label, icon: p.icon, ...(typeof p.badge === "number" ? { badge: p.badge } : {}) };
   });
   const surfRader = [...surfMellan, ...(meny ? [] : flyttadeRader)];
   const atgarderIHuvud = atgardsLista.map((a, i) => {
-    // Bara `OpsIconLink` kan flyttas. `flyttbara` är en delmängd (index >= ATGARDER_SMAL) och
+    // Bara `OpsIconLink` kan flyttas. `flyttbara` är en delmängd (index >= `atgSmal`) och
     // får inte avgöra surfplattsomsaget: index ATGARDER_SURF ligger inte i den listan.
     if (a.type !== OpsIconLink || stannarIHuvudet(a)) return a;
     // ⛔ `contents`, inte `inline-flex`: omslaget får inte bli en egen ruta i klungan.
-    if (i >= ATGARDER_SMAL) {
+    if (i >= atgSmal) {
       return (
         <span key={a.key ?? i} className="hidden lg:contents">
           {a}
@@ -2091,6 +2150,8 @@ function OpsAppShellRitad({
    * bottenrad, gruppanel) ritas inte. Kvar är hemikonen till vänster och profilen till höger, och på dator hamburgaren.
    */
   const iOversikt = Boolean(grupper?.oversikt?.aktiv);
+  // Samma ord som raden i växlaren (`OpsGruppvaxlare` slår upp med `grupper.sprak ?? ""`), så att knappen och raden aldrig heter olika.
+  const oversiktEtikett = grupper?.oversikt ? grupper.oversikt.etikett || forvalda(ORD_OPSOVERSIKT, grupper.sprak ?? "").etikett : "";
   /*
    * ⛔ 0.113.0: ÖVERSIKTEN HAR GRUPPENS BOTTENRAD, OCH DEN ÄR HEMGRUPPENS (CP 2026-10-16, cllp/lifehub.app#319). Appen anger
    * `oversikt.hemgrupp` (i LifeHub Mitt projekt, första gruppen i växlaren). Då ritas bottenraden som i en grupp, och ett tryck
@@ -2359,6 +2420,9 @@ function OpsAppShellRitad({
             >
               {varumarke}
             </a>
+            {/* ⛔ 0.138.0: HEMIKONEN I GRUPPLÄGET, se `HemKnapp`. Under `lg` är märket borta och hemikonen står först, före gruppväxlaren. Från
+                `lg` står den EFTER märket och inte före: märkesrutans vänsterkant ska ligga på panelens (`check-skalyta` 12, SS `AppHeader.jsx:174`). */}
+            {grupper?.oversikt && !iOversikt ? <HemKnapp etikett={oversiktEtikett} onValj={grupper.oversikt.onValj} /> : null}
             {/* ⛔ 0.52.0: HUBBMENYN VID MÄRKET, SAMMA BRYTPUNKT SOM GRUPPANELEN (`lg`). Under `lg` ligger hubbarna i gruppväxlarens ark
                 i stället, på samma knapp (CP 2026-10-04: mobilen har bara en plats). Två vägar på samma skärmbredd hade varit två
                 sanningar om var man byter. Utan `grupper` finns inget ark, och då står menyn kvar på alla bredder. */}

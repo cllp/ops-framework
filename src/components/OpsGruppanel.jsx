@@ -720,6 +720,11 @@ export function OpsGruppvaxlare({
         <button
           type="button"
           aria-label={`${etikett}, ${nuEtikett}: ${aktivtNamn}`}
+          // ⛔ 0.138.0: I ÖVERSIKTEN ÄR DEN HÄR KNAPPEN SJÄLV HEMIKONEN, och den är markerad som aktuell. I en grupp ritar skalet en egen
+          // hemknapp före den (`HemKnapp` i OpsAppShell); där finns ingen andra hemikon i översikten, för två knappar på samma plats vore
+          // en för mycket. `data-hemikon` är handtaget som båda bär, så att ett prov (och en app) hittar hemikonen i båda lägena.
+          aria-current={iOversikt ? "page" : undefined}
+          data-hemikon={iOversikt ? "" : undefined}
           className="flex size-11 shrink-0 items-center justify-center rounded-md text-etikett font-medium text-ink md:size-auto md:min-h-11 md:max-w-40 md:justify-start md:gap-2 md:px-2 md:hover:bg-sunken"
         >
           {/* ⛔ 0.31.1: UNDER `md` ÄR KNAPPEN GRUPPMÄRKET OCH INGET ANNAT, på loggans plats längst till vänster (CP 2026-09-29 18:40:
