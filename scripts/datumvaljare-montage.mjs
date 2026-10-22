@@ -80,7 +80,7 @@ const { browser, varifran } = await startaWebblasare();
 console.log(`webbläsare: ${varifran}`);
 
 const oppna = async (page) => {
-  await page.getByRole("button", { name: /12 oktober 2026|2026/ }).first().click();
+  await page.getByLabel("Datum").click();
   await page.locator('[role="grid"]').waitFor();
 };
 
