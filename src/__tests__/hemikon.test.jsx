@@ -73,15 +73,34 @@ describe("Hemikonen i en grupp (0.138.0)", () => {
     expect(onValj).not.toHaveBeenCalled();
   });
 
-  it("gör samma sak som raden Översikt i växlaren", () => {
+  it("⛔ växlarens ark har INGEN rad Översikt när hemikonen finns (0.139.0): en väg till Översikten, inte två", () => {
+    render(<Skal />);
+    expect(hemknappar()).toHaveLength(1);
+    fireEvent.click(within(huvud()).getByRole("button", { name: /^Byt grupp, nu:/ }));
+    const ark = screen.getByRole("dialog");
+    // Grupperna är kvar, hemgruppens egen rad också, men ingen rad Översikt ovanför dem.
+    expect(within(ark).getByRole("button", { name: /Bolaget/ })).toBeTruthy();
+    expect(within(ark).queryByRole("button", { name: "Översikt" })).toBeNull();
+    expect(ark.querySelector("[data-oversikt]")).toBeNull();
+  });
+
+  it("⛔ hemikonen gör det raden Översikt gjorde, och den finns kvar i huvudet medan arket är öppet", () => {
     const onOversikt = vi.fn();
     render(<Skal oversikt={{ aktiv: false, onValj: onOversikt }} />);
     fireEvent.click(within(huvud()).getByRole("button", { name: /^Byt grupp, nu:/ }));
-    const ark = screen.getByRole("dialog");
-    fireEvent.click(within(ark).getByRole("button", { name: "Översikt" }));
-    expect(onOversikt).toHaveBeenCalledTimes(1);
     fireEvent.click(within(huvud()).getByRole("button", { name: "Översikt" }));
-    expect(onOversikt).toHaveBeenCalledTimes(2);
+    expect(onOversikt).toHaveBeenCalledTimes(1);
+  });
+
+  it("⛔ i översikten är raden Översikt kvar i arket som förut, vald, och att välja den anropar oversikt.onValj", () => {
+    const onOversikt = vi.fn();
+    render(<Skal oversikt={{ aktiv: true, onValj: onOversikt }} />);
+    fireEvent.click(within(huvud()).getByRole("button", { name: /^Byt grupp, nu: Översikt$/ }));
+    const ark = screen.getByRole("dialog");
+    const rad = within(ark).getByRole("button", { name: "Översikt" });
+    expect(rad.getAttribute("aria-current")).toBe("true");
+    fireEvent.click(rad);
+    expect(onOversikt).toHaveBeenCalledTimes(1);
   });
 
   it("namnet är oversikt.etikett när appen anger den, annars skalets ord (på engelska Overview)", () => {

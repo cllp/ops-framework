@@ -661,8 +661,8 @@ function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, s
  * @property {string} [etikett] Skärmläsarnamn på `OpsGruppvaxlare`s ark (smal skärm).
  * @property {string} [nuEtikett] (0.31.1) Ordet före det aktiva namnet i växlarknappens skärmläsarnamn ("Byt grupp, nu: Alfa AB"). Förval "nu".
  * @property {{ aktiv: boolean, onValj: () => void, etikett?: string, hemgrupp?: string }} [oversikt] (0.112.0, cllp/lifehub.app#319) Översikten, läget
- *   `ingenGrupp` som ett VALT läge. Given: växlaren har raden Översikt (hemikon) överst, och att välja den anropar `onValj` (appen går ur
- *   gruppen). Med `aktiv` står skalet i översiktsläget: hemikonen till vänster på alla bredder, profilen (`anvandare`) till höger, och
+ *   `ingenGrupp` som ett VALT läge. Given: hemikonen i huvudet är vägen dit, och att välja den anropar `onValj` (appen går ur
+ *   gruppen). I översiktsläget har växlaren dessutom raden Översikt överst; i en grupp ritas den raden inte (0.139.0, hemikonen är den enda vägen). Med `aktiv` står skalet i översiktsläget: hemikonen till vänster på alla bredder, profilen (`anvandare`) till höger, och
  *   ingen bottenrad, inga flikar, inget plus, ingen mikrofon, inga `actions` och ingen gruppanel. `etikett` förval ur `ORD_OPSOVERSIKT`.
  *   ⛔ (0.113.0) `hemgrupp`: id på en grupp i `lista`. Given: översikten har gruppens bottenrad, och ett tryck i den väljer
  *   hemgruppen (`onValj(hemgrupp)`) innan `onNavigate`. Ett id som inte finns i listan räknas som utelämnat.
@@ -2458,8 +2458,11 @@ function OpsAppShellRitad({
             */}
             {grupper ? (
               <GenvagRam nyckel="grupp" ikon={grupper.etikett ?? "Byt grupp"} tips={false} className={iOversikt ? "min-w-0" : "min-w-0 lg:hidden"}>
+                {/* ⛔ 0.139.0: RADEN ÖVERSIKT RITAS BARA NÄR HEMIKONEN INTE GÖR DET. I en grupp (`grupper.oversikt` given och inte `aktiv`) är hemikonen i
+                    huvudet vägen till Översikten (0.138.0), och en rad i växlaren ovanför hemgruppens egen var en andra väg till samma plats. I översikten är
+                    växlarens knapp hemikonen och `oversikt` behövs för dess namn, så där skickas den in som förut. */}
                 <OpsGruppvaxlare
-                  oversikt={grupper.oversikt}
+                  oversikt={iOversikt ? grupper.oversikt : undefined}
                   grupper={grupper.lista}
                   aktiv={grupper.aktiv}
                   onValj={grupper.onValj}
