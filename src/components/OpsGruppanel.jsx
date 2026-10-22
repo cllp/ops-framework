@@ -720,6 +720,11 @@ export function OpsGruppvaxlare({
         <button
           type="button"
           aria-label={`${etikett}, ${nuEtikett}: ${aktivtNamn}`}
+          // ⛔ 0.138.0: I ÖVERSIKTEN ÄR DEN HÄR KNAPPEN SJÄLV HEMIKONEN, och den är markerad som aktuell. I en grupp ritar skalet en egen
+          // hemknapp före den (`HemKnapp` i OpsAppShell); där finns ingen andra hemikon i översikten, för två knappar på samma plats vore
+          // en för mycket. `data-hemikon` är handtaget som båda bär, så att ett prov (och en app) hittar hemikonen i båda lägena.
+          aria-current={iOversikt ? "page" : undefined}
+          data-hemikon={iOversikt ? "" : undefined}
           className="flex size-11 shrink-0 items-center justify-center rounded-md text-etikett font-medium text-ink md:size-auto md:min-h-11 md:max-w-40 md:justify-start md:gap-2 md:px-2 md:hover:bg-sunken"
         >
           {/* ⛔ 0.31.1: UNDER `md` ÄR KNAPPEN GRUPPMÄRKET OCH INGET ANNAT, på loggans plats längst till vänster (CP 2026-09-29 18:40:
@@ -729,7 +734,11 @@ export function OpsGruppvaxlare({
           <span data-gruppmarke="" className={cx(gruppRutaKlass({ vald: Boolean(aktivRad), interaktiv: false }), "md:hidden")}>
             {!aktivRad ? <Tomikon size={16} /> : <OpsIdentity name={aktivtNamn} seed={aktiv} imageUrl={aktivRad?.bild || undefined} {...gruppmarkeProps(aktivRad)} size="rail" />}
           </span>
-          <span className="hidden items-center gap-2 md:flex">
+          {/* ⛔ 0.138.0: `min-w-0` PÅ DEN HÄR RADEN, annars kortas inte namnet av. `md:max-w-40` på knappen satte en gräns som radens
+              innehåll inte följde: ett flexbarn har `min-width: auto`, alltså aldrig smalare än sin text, så `truncate` på namnet
+              längst in gjorde ingenting och ett långt namn rann ut över flikarna (mätt 2026-10-22 vid 768 px, "Claes Philip Staiger
+              Konsulting Aktiebolag" låg ovanpå "Idag"; fanns före hemikonen, som flyttade namnet 52 px åt höger och gjorde det värre). */}
+          <span className="hidden min-w-0 items-center gap-2 md:flex">
             {!aktivRad ? <Tomikon size={18} /> : <OpsIdentity name={aktivtNamn} seed={aktiv} imageUrl={aktivRad?.bild || undefined} {...gruppmarkeProps(aktivRad)} size="sm" />}
             <span className="min-w-0 truncate">{aktivtNamn}</span>
           </span>

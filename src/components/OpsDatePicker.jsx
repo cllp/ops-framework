@@ -6,6 +6,7 @@ import { cx } from "../lib/cx.js";
 import { DEFAULT_LOCALE } from "../lib/calendar.js";
 import { formatDate } from "../lib/format.js";
 import { forvalda } from "../lib/ord.js";
+import { useSidsvep } from "./useSidsvep.js";
 import { useFieldBinding } from "./OpsField.jsx";
 import { ChevronNedIkon } from "./icons.jsx";
 import { useOpsSprak } from "./OpsSprak.jsx";
@@ -156,6 +157,74 @@ function MarkeradDagknapp({ day, modifiers, className, children, ...rest }) {
 const MARKERADE_KOMPONENTER = { DayButton: MarkeradDagknapp };
 
 /**
+ * Kalendern i popovern, med månaden som EGET tillstånd så att pilarna och ett svep går samma väg.
+ *
+ * ⛔ 0.138.0: MÅNADEN ÄR STYRD HÄR, med `onMonthChange`. 0.31.0 tog bort en styrd `month` (pilarna gjorde ingenting så fort ett datum
+ * var valt, CP 2026-09-29), och felet var en styrd månad UTAN `onMonthChange`. Ett svep måste kunna byta månad utan att användaren
+ * trycker på en pil, och det går bara om någon äger månaden. Här äger komponenten den, och pilarna, svepet och tangentbordet
+ * (PageUp/PageDown) kommer alla till `byt`. Komponenten monteras om vid varje öppning och startar på det valda datumet (eller idag).
+ *
+ * @param {object} props
+ * @param {Date | undefined} props.chosen
+ * @param {{ manad: Intl.DateTimeFormat, veckodag: Intl.DateTimeFormat }} props.rubriker
+ * @param {{ modifiers: any, labels: any } | undefined} props.markering
+ * @param {((forstaDag: string) => void) | undefined} props.onManadVisas
+ * @param {(d: Date | undefined) => void} props.onSelect
+ */
+function DatumKalender({ chosen, rubriker, markering, onManadVisas, onSelect }) {
+  const [manad, setManad] = useState(() => {
+    const d = chosen ?? new Date();
+    return new Date(d.getFullYear(), d.getMonth(), 1);
+  });
+  /** @param {Date} m */
+  const byt = (m) => {
+    const forsta = new Date(m.getFullYear(), m.getMonth(), 1);
+    setManad(forsta);
+    onManadVisas?.(forstaDagIManad(forsta));
+  };
+  /** @param {number} steg */
+  const bladdra = (steg) => byt(new Date(manad.getFullYear(), manad.getMonth() + steg, 1));
+  const svep = useSidsvep({ onForra: () => bladdra(-1), onNasta: () => bladdra(1) });
+  return (
+    <div data-sidsvep="" {...svep}>
+      <DayPicker
+        mode="single"
+        weekStartsOn={1}
+        formatters={{
+          formatCaption: (m) => rubriker.manad.format(m),
+          formatWeekdayName: (d) => {
+            const ord = rubriker.veckodag.format(d);
+            return ord.charAt(0).toUpperCase() + ord.slice(1);
+          },
+        }}
+        showOutsideDays
+        selected={chosen}
+        month={manad}
+        onMonthChange={byt}
+        {...(markering ? { modifiers: markering.modifiers, labels: markering.labels, components: MARKERADE_KOMPONENTER } : {})}
+        onSelect={onSelect}
+        classNames={{
+          months: "text-meta text-ink",
+          month_caption: "flex items-center justify-center py-1 text-meta font-semibold text-ink",
+          nav: "flex items-center justify-between",
+          // 44px träffyta på telefon (size-11), tätare på desktop (md:size-9).
+          button_previous: "inline-flex size-11 md:size-9 items-center justify-center rounded-md text-ink-secondary hover:bg-accent-faint",
+          button_next: "inline-flex size-11 md:size-9 items-center justify-center rounded-md text-ink-secondary hover:bg-accent-faint",
+          weekday: "text-liten text-ink-muted",
+          day: "p-0",
+          day_button:
+            "inline-flex size-11 md:size-9 items-center justify-center rounded-base text-meta text-ink hover:bg-raised focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
+          selected: "[&_button]:bg-accent [&_button]:text-accent-contrast",
+          today: "[&_button]:font-semibold [&_button]:text-accent",
+          outside: "[&_button]:text-ink-muted",
+          disabled: "[&_button]:opacity-40",
+        }}
+      />
+    </div>
+  );
+}
+
+/**
  * @param {object} props
  * @param {string} [props.value] ISO-datum, "ÅÅÅÅ-MM-DD".
  * @param {(iso: string | undefined) => void} props.onChange
@@ -254,44 +323,14 @@ export function OpsDatePicker({
           sideOffset={4}
           className={cx(faltYtaKlass, "max-w-[calc(100vw---spacing(6))] p-3")}
         >
-          <DayPicker
-            mode="single"
-            weekStartsOn={1}
-            formatters={{
-              formatCaption: (m) => rubriker.manad.format(m),
-              formatWeekdayName: (d) => {
-                const ord = rubriker.veckodag.format(d);
-                return ord.charAt(0).toUpperCase() + ord.slice(1);
-              },
-            }}
-            showOutsideDays
-            selected={chosen}
-            // ⛔ 0.31.0: `defaultMonth`, inte `month`. `month` gör månaden STYRD, och en styrd månad utan
-            // `onMonthChange` går inte att bläddra i: pilarna gör ingenting så fort ett datum är valt (CP 2026-09-29:
-            // "datum går inte att välja"). Popovern monteras om vid varje öppning, så `defaultMonth` startar på det valda.
-            defaultMonth={chosen}
-            // Ostyrd månad: kalendern bläddrar själv och säger bara vilken månad den hamnade i.
-            onMonthChange={onManadVisas ? (m) => onManadVisas(forstaDagIManad(m)) : undefined}
-            {...(markering ? { modifiers: markering.modifiers, labels: markering.labels, components: MARKERADE_KOMPONENTER } : {})}
+          <DatumKalender
+            chosen={chosen}
+            rubriker={rubriker}
+            markering={markering}
+            onManadVisas={onManadVisas}
             onSelect={(d) => {
               onChange(d ? tillIso(d) : undefined);
               setOppen(false);
-            }}
-            classNames={{
-              months: "text-meta text-ink",
-              month_caption: "flex items-center justify-center py-1 text-meta font-semibold text-ink",
-              nav: "flex items-center justify-between",
-              // 44px träffyta på telefon (size-11), tätare på desktop (md:size-9).
-              button_previous: "inline-flex size-11 md:size-9 items-center justify-center rounded-md text-ink-secondary hover:bg-accent-faint",
-              button_next: "inline-flex size-11 md:size-9 items-center justify-center rounded-md text-ink-secondary hover:bg-accent-faint",
-              weekday: "text-liten text-ink-muted",
-              day: "p-0",
-              day_button:
-                "inline-flex size-11 md:size-9 items-center justify-center rounded-base text-meta text-ink hover:bg-raised focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
-              selected: "[&_button]:bg-accent [&_button]:text-accent-contrast",
-              today: "[&_button]:font-semibold [&_button]:text-accent",
-              outside: "[&_button]:text-ink-muted",
-              disabled: "[&_button]:opacity-40",
             }}
           />
           {value ? (

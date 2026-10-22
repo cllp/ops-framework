@@ -13,6 +13,27 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 Inget ännu.
 
+## 0.138.0
+
+### Hemikonen i huvudet i varje grupp
+
+CP 2026-10-22: "det är lite svårt att navigera sig tillbaka till hemgrupp / översikt." **Inte brytande:** ingen ny prop, och utan `grupper.oversikt` ritas skalet exakt som förut.
+
+- **Hemikon i gruppläget.** Är `grupper.oversikt` given ritar `OpsAppShell` en hemknapp (hus, 44 px) längst till vänster i huvudet, före gruppväxlaren, på alla bredder. Ett tryck gör det raden Översikt i växlaren gör: `oversikt.onValj`. Namnet är `oversikt.etikett` eller skalets ord (`ORD_OPSOVERSIKT`). Från `lg` står den efter märket och inte före det, eftersom märkesrutans vänsterkant ska ligga på gruppanelens (`check-skalyta`). På dator var Översikten annars omöjlig att nå från en grupp, eftersom gruppväxlaren inte ritas där.
+- **I översikten** är växlarens knapp hemikonen, som förut, och bär nu `aria-current="page"`. Ingen andra hemikon ritas bredvid den.
+- **Gruppnamnet kortas nu av (fel som fanns före).** Mellan 768 och 1023 px rann ett långt gruppnamn ut ur växlarens knapp och låg ovanpå flikarna ("Claes Philip Staiger Konsulting Aktiebolag" över "Idag"), eftersom `truncate` på namnet saknade en `min-w-0` på raden runt om. Hemikonen flyttade namnet 52 px åt höger och gjorde det värre. Rättat i `OpsGruppvaxlare`, och mätt.
+- **Ny vakt `check:hemikon`** (`scripts/hemikon-montage.mjs`, med i `check:all`): ritar skalet med hemikon, ett långt gruppnamn, sex åtgärder och avatar vid 320, 360, 390, 768, 834, 1023, 1024 och 1280 px och är röd när huvudet rullar i sidled, klungan tränger in i högerpaddingen, kontroller överlappar, hemknappen är under 44 px eller namnet rinner ut. Golv: 32 mätpunkter. Bevisad åt båda hållen (se PR:en).
+- **Headerbudgeten (mätt):** med hemikon bär huvudet under `md` högst TVÅ ikonåtgärder (`ATGARDER_SMAL_HEM`), inte tre. Mätt mot byggd dist med ett långt gruppnamn, sex åtgärder och avatar: med tre åtgärder och hemikon tränger klungan 12 px in i högerpaddingen vid 320 px. Åtgärderna som inte ryms är rader i bottenradens Meny som förut, ingen försvinner. Utan hemikon är budgeten tre. Siffran och tabellen står i kommentaren vid konstanten.
+
+### Svep i datumväljaren, och `useSidsvep`
+
+CP 2026-10-22: "Ja, kör båda." **Inte brytande:** en ny exporterad krok, och datumväljaren får ett beteende till.
+
+- **`useSidsvep({ onForra, onNasta, minX?, inaktiv? })`** ger props att sprida på en yta. Fingret åt höger anropar `onForra`, åt vänster `onNasta`. Ett svep räknas bara när rörelsen är minst `minX` px (48) i sidled och mer än dubbelt så stor som i höjdled, så lodrät rullning aldrig utlöser något. Bara finger och penna; ett andra finger avbryter. Ett svep som börjar på `input`, `textarea`, `select`, `[contenteditable]`, `[role="slider"]`, en `OpsSvepRad` med åtgärder, ett element som rullar i sidled eller `data-ingen-sidsvep` räknas inte. Ett svep blir aldrig ett klick på raden under fingret. Propsen bär `touch-action: pan-y pinch-zoom`.
+- **`OpsDatePicker`:** med kalendern öppen bläddrar ett svep åt vänster en månad framåt och åt höger en månad bakåt, samma väg som pilarna, så `onManadVisas` och prickarna följer med. Månaden är nu styrd av kalendern själv (med `onMonthChange`), vilket 0.31.0 tog bort i sin ostyrda form; pilarna och tangentbordet fungerar som förut, med och utan valt datum.
+- Appen (lifehub.app) kan använda kroken i Dagen för att byta dag. Det ingår inte här.
+
+
 ## 0.137.0
 
 ### Datumväljaren kan visa en prick på dagar med händelser
