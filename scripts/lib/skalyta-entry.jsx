@@ -505,8 +505,8 @@ const FULLYTA_POSTER = Array.from({ length: 10 }, (_, i) => ({ id: `k${i}`, date
  * @param {{ vy: "idag" | "kalender" }} props
  */
 /*
- * 0.137.0 (cllp/lifehub.app#417): spelraden mot mikrofonknappen. Med `window.__spelknapp` ritas skalets RIKTIGA spelare (en spelknapp i
- * ytan, som i en app) och bottenraden får TALK, så att mittknappen är mikrofonen som CP såg täckas. Före 0.137.0 ritade avsnitt 24
+ * Ej utgivet (cllp/lifehub.app#417): spelraden mot mikrofonknappen. Med `window.__spelknapp` ritas skalets RIKTIGA spelare (en spelknapp i
+ * ytan, som i en app) och bottenraden får TALK, så att mittknappen är mikrofonen som CP såg täckas. Förut ritade avsnitt 24
  * en egen fast ruta som spelrad, och en ruta som vakten själv ritar kan inte visa att komponenten ligger fel.
  */
 let stumUrl = null;

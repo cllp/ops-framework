@@ -41,6 +41,7 @@
  *       node scripts/check-skalyta.mjs --utan-fasta     bara för att bevisa vakten mot en äldre dist (0.29)
  *       node scripts/check-skalyta.mjs --bilder <mapp>   skriver skärmbilderna dit (för montaget, regel 12)
  *       node scripts/check-skalyta.mjs --bara-chatt      bara avsnitt 29g, chattens nattskiva (#273), för en snabb körning
+ *       node scripts/check-skalyta.mjs --bara-spelrad    bara avsnitt 24, spelraden mot mikrofonknappen och ytan (ej utgivet, cllp/lifehub.app#417)
  *       node scripts/check-skalyta.mjs --bara-appar      bara Appar-hyllan mot plusknappen (0.90.6)
  *       node scripts/check-skalyta.mjs --bara-textfalt   bara avsnitt 45, tal i ett vanligt textfält (0.104.0)
  *       node scripts/check-skalyta.mjs --bara-talkval    bara avsnitt 46, valen efter talet och förslagen i chatten (0.105.0)
@@ -1103,6 +1104,13 @@ if (argv.includes("--bara-talkval")) {
 // `--bara-textfalt`: bara avsnitt 45, tal i ett vanligt textfält. Hela körningen kör det också.
 if (argv.includes("--bara-textfalt")) {
   await textfaltMedTal();
+  await browser.close();
+  avsluta();
+  process.exit(0);
+}
+
+if (argv.includes("--bara-spelrad")) {
+  await spelradMotMikrofon();
   await browser.close();
   avsluta();
   process.exit(0);
@@ -4162,9 +4170,9 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
 // spelradens överkant och inte under den, och dokumentet ska inte rulla ovanpå ytans egen rullning (`main` har spelradens höjd i
 // sin utfyllnad). Golv: båda vyerna mätta, och raden fanns.
 //
-// ⛔ 0.137.0 (cllp/lifehub.app#417), CP: "Spelaren av ljud lägger sig över mikrofon ikonen i bottenmenyn." Mikrofonknappen sticker
+// ⛔ Ej utgivet (cllp/lifehub.app#417), CP: "Spelaren av ljud lägger sig över mikrofon ikonen i bottenmenyn." Mikrofonknappen sticker
 // upp `--bottom-nav-overhang` över bottenradens överkant, och spelraden stod på radens överkant och täckte knappens övre del.
-// Före 0.137.0 ritade den här mätningen en EGEN fast ruta som spelrad (`position:fixed`, `top: navTop - 64`) och satte
+// Förut ritade den här mätningen en EGEN fast ruta som spelrad (`position:fixed`, `top: navTop - 64`) och satte
 // `--spelrad-h` själv, så den kunde aldrig se att komponenten låg fel: rutan stod där mätningen sa åt den att stå. Nu ritas
 // skalets riktiga spelare (spelknappen i ytan startar den, `window.__spelknapp`), bottenraden har TALK så att mittknappen är
 // mikrofonen, och det som mäts är:
@@ -4176,7 +4184,7 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
 //   - ytans underkant ligger vid spelradens överkant (+-1) och dokumentet rullar inte.
 // Och från 768 px, där bottenmenyn inte finns: spelraden ligger längst ned (utan överhäng) och `--spelrad-h` är dess egen höjd.
 // Golv: båda vyerna mätta i båda säkra zonerna, plus datorläget.
-{
+async function spelradMotMikrofon() {
   const safeCss = ":root{--safe-bottom:34px!important}";
   /** @type {Set<string>} */
   const matta = new Set();
@@ -4283,6 +4291,7 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
   }
   krav(matta.size >= 5, `spelrad: bara ${matta.size} lägen mätta (${[...matta].join(", ")}), väntat 5 (golv).`);
 }
+await spelradMotMikrofon();
 
 // ══ 25. HÄNDELSEKORTET OCH INKORGSRADEN MOT SS VID 390 PX (0.32.1) ══════════════════════════════════════════════════════
 // CP 2026-09-30 08:04: "Kolla storleken och fint på texten i händelserna. Matchar inte det vi har i SessionStudio. Dubbelkolla
