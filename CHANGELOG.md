@@ -13,6 +13,17 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 Inget ännu.
 
+## 0.139.0
+
+### Prestanda skiva 1: appens funktioner läser ramverket utan React, och växlarens dubbla Översikt är borta
+
+CP 2026-10-22: "Att logga in tar minst en halv minut ... Vi kan inte ha det så." och "Ja på allt" (prestandaplanen, cllp/lifehub.app `docs/prestanda-strategi.md`, avsnitt 3, 4 och 7 rad 1). **Inte brytande:** nya exporter på nodsidan, och en rad mindre i växlarens ark i gruppläget.
+
+- **`ops-framework/node` har allt appens funktioner hämtar.** Mätt mot lifehub.app main: 21 filer i `functions/` importerade huvudingången `"ops-framework"` (React-bunten `dist/index.js`) för 32 namn, och det kostade 2,4 till 2,7 s och cirka 200 MB vid varje kallstart. Nodingången läses på 60 ms. 20 av namnen saknades där och är nu exporterade ur SAMMA källmodul som huvudingången (ingen kopia, regel 2): `AGENTMODELLER`, `FORVALD_AGENTMODELL`, `GRUPPIKONKATALOG`, `KALENDERFARGER`, `KALENDERIKONER`, `forvaldKalender`, `MAX_BIBLIOTEKURL`, `MAX_BIBLIOTEKUTSKRIFT`, `arLjudpost`, `arMittBibliotek`, `byggPost`, `ljudRubrik`, `utskriftFel`, `byggGrupp`, `byggMedlemskap`, `medlemskapsId`, `byggSamtal`, `byggTrad`, `epostFel` och `foreVillkor`. Varje källmodul var redan ren, så ingen fil behövde delas.
+- **Mätt inläsningstid (Node 22, 3 körningar vardera, byggd dist):** `src/node/index.js` före **60, 61, 62 ms**, efter **55 till 73 ms** (7 körningar, den första kalla 90 ms), alltså oförändrat; `dist/index.js` (huvudingången) **2515 till 2559 ms**. Tidigare mätning i `src/node/index.js` (0.46 och 2026-09-25): 8 ms för en smalare nodingång, 1946 ms för huvudingången.
+- **Ny vakt: `src/__tests__/nod-ren-ingang.test.js`.** Laddar nodingången i en ren Node-process med en modulhook (`scripts/nod-graf-register.mjs`, `scripts/nod-graf-krok.mjs`) som skriver upp varje import Node löser upp, och är röd om `react`, `react-dom`, `@radix-ui`, en fil under `src/components/`, `src/index.js` eller `dist/index.js` kommer med. Det är en mätning av den körande processens graf och inte en läsning av källtexten, så en sammansatt dynamisk import syns också. Golv: minst 20 moduler i `src/lib` och 40 uppslag. Samma prov kräver att var och en av de 32 namnen finns i `ops-framework/node` och är samma värde som huvudingångens. Bevisat åt båda håll: 20 rött utan exporterna; en planterad `import "react"`, en `await import("rea" + "ct-dom")`, en komponentimport och en import av huvudingången i en ren modul är alla röda, och den orörda kopian grön (se PR:en).
+- **Växlarens dubbla Översikt.** Sedan 0.138.0 visar huvudet hemikonen i gruppläget, och växlaren hade då också raden "Översikt" ovanför hemgruppens egen rad: två vägar till samma plats. När skalet ritar hemikonen (`grupper.oversikt` given och inte `aktiv`) ritar växlaren inte raden. I översiktsläget är det som förut: växlarens knapp är hemikonen och raden Översikt står överst i arket, vald. `OpsGruppvaxlare` direkt, med `oversikt` given, ritar raden som förut; ändringen gäller skalet. Prov åt båda håll i `hemikon.test.jsx`.
+
 ## 0.138.0
 
 ### Hemikonen i huvudet i varje grupp

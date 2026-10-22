@@ -250,3 +250,19 @@ export {
  * tolkningen av läget (`utskriftLage`) ligger i en ren fil som vyn också läser. En egen lista i appens functions hade glidit isär den dag ett statusfält tillkommer (regel 2).
  */
 export { UTSKRIFT_FALT, UTSKRIFT_TAK_MS, UTSKRIFT_TIMEOUT_TEXT, UTSKRIFTJOBB_STATUS, UTSKRIFT_UPPSKATTNING, utskriftLage, uppskattadUtskriftstid, utanUtskrift } from "../lib/utskrift.js";
+
+/*
+ * ⛔ ALLT SOM APPENS FUNKTIONER LÄSER UR RAMVERKET, UTAN REACT (0.139.0, cllp/lifehub.app `docs/prestanda-strategi.md`). Mätt mot lifehub.app main: 21 filer i
+ * `functions/` importerade huvudingången `ops-framework` för de här namnen, och det kostade 2,4 till 2,7 s och cirka 200 MB vid varje kallstart, mot 60 ms för den här
+ * ingången. Namnen exporteras ur SAMMA källmodul som huvudingången (ingen kopia, regel 2), och varje källmodul är ren: `scripts/check-node-side.mjs` följer importgrafen
+ * statiskt, och `src/__tests__/nod-ren-ingang.test.js` laddar ingången i en ren Node-process och kräver att varken React, Radix, en komponent eller `dist/` kommer med.
+ * Listan som appen behöver står i provet, och är röd om ett namn saknas här.
+ */
+export { AGENTMODELLER, FORVALD_AGENTMODELL } from "../lib/agentmodeller.js";
+export { GRUPPIKONKATALOG } from "../lib/gruppikonkatalog.generated.js";
+export { KALENDERFARGER, KALENDERIKONER, forvaldKalender } from "../lib/kalendrar.js";
+export { MAX_BIBLIOTEKURL, MAX_BIBLIOTEKUTSKRIFT, arLjudpost, arMittBibliotek, byggPost, ljudRubrik, utskriftFel } from "../lib/bibliotek.js";
+export { byggGrupp, byggMedlemskap, medlemskapsId } from "../lib/grupp.js";
+export { byggSamtal, byggTrad } from "../lib/samtal.js";
+export { epostFel } from "../lib/mejl.js";
+export { foreVillkor } from "../data/contract.js";
