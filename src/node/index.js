@@ -260,7 +260,7 @@ export { UTSKRIFT_FALT, UTSKRIFT_TAK_MS, UTSKRIFT_TIMEOUT_TEXT, UTSKRIFTJOBB_STA
  */
 export { AGENTMODELLER, FORVALD_AGENTMODELL } from "../lib/agentmodeller.js";
 export { GRUPPIKONKATALOG } from "../lib/gruppikonkatalog.generated.js";
-export { KALENDERFARGER, KALENDERIKONER } from "../lib/kalendrar.js";
+export { KALENDERFARGER, KALENDERIKONER, forvaldKalender } from "../lib/kalendrar.js";
 export { MAX_BIBLIOTEKURL, MAX_BIBLIOTEKUTSKRIFT, arLjudpost, arMittBibliotek, byggPost, ljudRubrik, utskriftFel } from "../lib/bibliotek.js";
 export { byggGrupp, byggMedlemskap, medlemskapsId } from "../lib/grupp.js";
 export { byggSamtal, byggTrad } from "../lib/samtal.js";

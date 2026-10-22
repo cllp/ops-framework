@@ -25,7 +25,7 @@ const register = path.join(rot, "scripts", "nod-graf-register.mjs");
 const APPENS_NAMN = [
   "AGENTMODELLER", "FORVALD_AGENTMODELL", "GRUPPIKONKATALOG", "KALENDERFARGER", "KALENDERIKONER", "MAX_BIBLIOTEKURL", "MAX_BIBLIOTEKUTSKRIFT", "UTSKRIFT_FALT",
   "arGastId", "arLjudpost", "arMittBibliotek", "arObjektbibliotek", "arendedelar", "byggGrupp", "byggMeddelande", "byggMedlemskap", "byggPost", "byggSamtal", "byggTrad",
-  "epostFel", "foreVillkor", "gruppForPlats", "handelseBibliotek", "handelsedelar", "laesSkapare", "lankKalla", "ljudRubrik", "medlemskapsId", "samtalsnyckel",
+  "epostFel", "foreVillkor", "forvaldKalender", "gruppForPlats", "handelseBibliotek", "handelsedelar", "laesSkapare", "lankKalla", "ljudRubrik", "medlemskapsId", "samtalsnyckel",
   "utskriftFel", "utskriftLage",
 ];
 
@@ -118,7 +118,7 @@ describe("nodingången är ren", () => {
 
 describe("nodingången har allt appens funktioner hämtar", () => {
   it("listan har golv", () => {
-    expect(APPENS_NAMN.length).toBeGreaterThanOrEqual(30);
+    expect(APPENS_NAMN.length).toBeGreaterThanOrEqual(32);
   });
 
   it.each(APPENS_NAMN)("%s finns, och är samma värde som huvudingångens", (namn) => {
