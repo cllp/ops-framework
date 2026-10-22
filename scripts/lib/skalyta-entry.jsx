@@ -504,15 +504,40 @@ const FULLYTA_POSTER = Array.from({ length: 10 }, (_, i) => ({ id: `k${i}`, date
  * `window.__banner` är satt, och `window.__tabortBanner()` tar bort den EFTER mount: en banner som försvinner ovanför ytan.
  * @param {{ vy: "idag" | "kalender" }} props
  */
+/*
+ * Ej utgivet (cllp/lifehub.app#417): spelraden mot mikrofonknappen. Med `window.__spelknapp` ritas skalets RIKTIGA spelare (en spelknapp i
+ * ytan, som i en app) och bottenraden får TALK, så att mittknappen är mikrofonen som CP såg täckas. Förut ritade avsnitt 24
+ * en egen fast ruta som spelrad, och en ruta som vakten själv ritar kan inte visa att komponenten ligger fel.
+ */
+let stumUrl = null;
+const stumWav = () => (stumUrl ??= skapaStumWav());
+function skapaStumWav() {
+  const antal = 800;
+  const buf = new ArrayBuffer(44 + antal * 2);
+  const v = new DataView(buf);
+  const text = (/** @type {number} */ o, /** @type {string} */ t) => [...t].forEach((c, i) => v.setUint8(o + i, c.charCodeAt(0)));
+  text(0, "RIFF"); v.setUint32(4, 36 + antal * 2, true); text(8, "WAVE"); text(12, "fmt ");
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, 8000, true); v.setUint32(28, 16000, true);
+  v.setUint16(32, 2, true); v.setUint16(34, 16, true); text(36, "data"); v.setUint32(40, antal * 2, true);
+  return URL.createObjectURL(new Blob([buf], { type: "audio/wav" }));
+}
+const SPELTALK = {
+  onTalk: () => {},
+  onInstallningar: () => {},
+  inspelare: { starta: async () => {}, stoppa: async () => ({ blob: new Blob(["ljud"], { type: "audio/webm" }), mimeType: "audio/webm", sekunder: 3 }), kasta: () => {}, niva: () => 0.4 },
+};
+
 function FullYta({ vy }) {
   const [banner, setBanner] = useState(!!window.__banner);
   window.__tabortBanner = () => setBanner(false);
   const { OpsView, OpsScrollArea, OpsCalendar } = Ops;
+  const SpelKnapp = Ops.OpsSpelaKnapp ?? (() => <span data-saknas="OpsSpelaKnapp">OpsSpelaKnapp saknas</span>);
   const handelser = Array.from({ length: 14 }, (_, i) => ({ id: `f${i}`, title: `Händelse nummer ${i + 1}`, daysLeft: i - 3, role: "Du", kind: "Uppgift", when: `Om ${i} dagar`, slag: 2, slagLabel: "Uppgift" }));
   return (
-    <Full>
+    <Full talk={window.__spelknapp ? SPELTALK : undefined}>
       <OpsView>
         {banner ? <div data-banner="" style={{ height: 170 }} className="bg-raised">Banner</div> : null}
+        {window.__spelknapp ? <SpelKnapp spar={{ id: "mik", namn: "Idé om bolaget", src: stumWav(), durationMs: 800 }} /> : null}
         <p data-filter="">Filter</p>
         {vy === "idag" ? (
           <OpsScrollArea>

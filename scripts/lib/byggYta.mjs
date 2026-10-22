@@ -14,11 +14,11 @@ import postcss from "postcss";
 import tailwind from "@tailwindcss/postcss";
 
 /**
- * @param {{ rot: string, yta: string, namn: string }} val `yta` relativt `rot`, `namn` är arbetsmappens prefix.
+ * @param {{ rot: string, yta: string, namn: string, dist?: string }} val `yta` relativt `rot`, `namn` är arbetsmappens prefix. `dist` är en annan byggd version att fotografera (före-bilden mot origin/main).
  * @returns {Promise<{ sida: string, stada: () => void }>}
  */
-export async function byggYta({ rot, yta, namn }) {
-  const dist = path.join(rot, "dist", "index.js");
+export async function byggYta({ rot, yta, namn, dist: annanDist }) {
+  const dist = annanDist ?? path.join(rot, "dist", "index.js");
   if (!fs.existsSync(dist)) throw new Error(`${namn}: dist/index.js saknas. Kör npm run build först.`);
   const tokensFil = path.join(rot, "tokens", "tokens.css");
   const arbetsmapp = fs.mkdtempSync(path.join(rot, `.ops-${namn}-`));

@@ -355,7 +355,7 @@ export function OpsSpelareProvider({ children }) {
 
 /**
  * Spelraden längst ned (SessionStudios `WebMiniPlayer`): en tunn linje med var i ljudet man är, namnet, spela eller pausa, och
- * stäng. Ett tryck på namnet öppnar arket. Under 768 px ligger den ovanpå bottenraden, och från 768 px uppe i ett hörn.
+ * stäng. Ett tryck på namnet öppnar arket. Under 768 px ligger den ovanför bottenraden och mikrofonknappens överhäng, och från 768 px längst ned i full bredd.
  *
  * @param {{ lage: Spelarlage }} props
  */
@@ -385,39 +385,55 @@ function Spelrad({ lage }) {
   }, [Boolean(spar)]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!spar) return null;
   const pos = langd > 0 ? Math.min(1, tid / langd) : 0;
+  /*
+   * ⛔ SPELRADEN LIGGER OVANFÖR KNAPPENS ÖVERHÄNG, INTE BARA OVANFÖR RADEN (cllp/lifehub.app#417). CP: "Spelaren av ljud lägger
+   * sig över mikrofon ikonen i bottenmenyn." Mikrofonknappen i mitten av bottenmenyn sticker upp `--bottom-nav-overhang`
+   * (16 px) över radens överkant, och spelraden stod på `--bottom-nav-h` plus `--safe-bottom`, alltså på radens överkant. Den
+   * täckte knappens övre del, och knappen går inte att trycka där.
+   *
+   * Yttre rutan är den som mäts och som står i `--spelrad-h`. Den har `pb-(--bottom-nav-overhang)` under 768 px, så att höjden
+   * som alla ytor räknar med (`main`, `OpsMeddelanden`, toasten, `arkOvanforRad`) redan innehåller överhänget och ingen av dem
+   * behöver känna till det. Utfyllnaden är genomskinlig och tar inga tryck (`pointer-events-none`), så knappen under den går att
+   * trycka. Själva raden är den inre rutan. Från 768 px finns ingen bottenmeny och inget överhäng, och utfyllnaden är 0.
+   */
   return (
     <div
       ref={rad}
-      role="region"
-      aria-label={`Spelar ${spar.namn}`}
-      data-ops-spelrad=""
+      data-ops-spelrad-ruta=""
       className={cx(
-        "fixed inset-x-0 bottom-[calc(var(--bottom-nav-h)+var(--safe-bottom))] z-(--z-chrome) border-t border-line bg-raised",
-        "md:bottom-(--safe-bottom)",
+        "pointer-events-none fixed inset-x-0 bottom-[calc(var(--bottom-nav-h)+var(--safe-bottom))] z-(--z-chrome) pb-(--bottom-nav-overhang)",
+        "md:bottom-(--safe-bottom) md:pb-0",
       )}
     >
-      <div aria-hidden="true" className="h-0.5 bg-line">
-        <div className="h-full bg-accent" style={{ width: `${pos * 100}%` }} />
-      </div>
-      <div className="flex items-center gap-2 py-2 pr-2 pl-4">
-        <button
-          type="button"
-          onClick={lage.oppnaArk}
-          aria-label={`Öppna spelaren för ${spar.namn}`}
-          className="flex min-h-11 min-w-0 flex-1 cursor-pointer flex-col justify-center bg-transparent text-left focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
-        >
-          <span className="block truncate text-etikett font-medium text-ink">{spar.namn}</span>
-          <span className={cx("block truncate text-meta", fel ? "text-danger" : "text-ink-muted")}>{fel || spar.undertitel || ORD_OPSSPELARE.spola.sv}</span>
-        </button>
-        <SpelaKnapp spelar={spelar} laddar={laddar} namn={spar.namn} storlek="mellan" onClick={() => lage.vaxla(spar)} />
-        <button
-          type="button"
-          onClick={lage.stang}
-          aria-label="Stäng spelaren"
-          className="inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full text-ink-secondary hover:bg-hover hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-        >
-          <X size={20} aria-hidden="true" />
-        </button>
+      <div
+        role="region"
+        aria-label={`Spelar ${spar.namn}`}
+        data-ops-spelrad=""
+        className="pointer-events-auto border-t border-line bg-raised"
+      >
+        <div aria-hidden="true" className="h-0.5 bg-line">
+          <div className="h-full bg-accent" style={{ width: `${pos * 100}%` }} />
+        </div>
+        <div className="flex items-center gap-2 py-2 pr-2 pl-4">
+          <button
+            type="button"
+            onClick={lage.oppnaArk}
+            aria-label={`Öppna spelaren för ${spar.namn}`}
+            className="flex min-h-11 min-w-0 flex-1 cursor-pointer flex-col justify-center bg-transparent text-left focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
+          >
+            <span className="block truncate text-etikett font-medium text-ink">{spar.namn}</span>
+            <span className={cx("block truncate text-meta", fel ? "text-danger" : "text-ink-muted")}>{fel || spar.undertitel || ORD_OPSSPELARE.spola.sv}</span>
+          </button>
+          <SpelaKnapp spelar={spelar} laddar={laddar} namn={spar.namn} storlek="mellan" onClick={() => lage.vaxla(spar)} />
+          <button
+            type="button"
+            onClick={lage.stang}
+            aria-label="Stäng spelaren"
+            className="inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full text-ink-secondary hover:bg-hover hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          >
+            <X size={20} aria-hidden="true" />
+          </button>
+        </div>
       </div>
     </div>
   );
