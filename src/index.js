@@ -75,6 +75,8 @@ export { isImage, isAudio, sizeText, attachmentSize } from "./lib/file.js";
 // ── Data ───────────────────────────────────────────────────────────────────
 export { OpsList, OpsListRow } from "./components/OpsList.jsx";
 export { OpsSvepRad, ANGRA_MS } from "./components/OpsSvepRad.jsx";
+// 0.138.0: vågrätt svep på en yta (datumväljaren bläddrar månad, Dagen i appen byter dag), se README "useSidsvep".
+export { useSidsvep } from "./components/useSidsvep.js";
 export { OpsAtgardsblad } from "./components/OpsAtgardsblad.jsx";
 export { OpsDokument } from "./components/OpsDokument.jsx";
 export { OpsEventList } from "./components/OpsEventList.jsx";
