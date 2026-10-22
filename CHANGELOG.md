@@ -11,20 +11,30 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ## Ej utgivet
 
+### Datumväljaren kan visa en prick på dagar med händelser
+
+CP vill se vilka dagar som har händelser när han väljer datum, men bara om det inte gör väljaren långsammare. **Inte brytande:** tre nya valfria props på `OpsDatePicker`, och utan dem ritar och beter sig väljaren som förut.
+
+- **`markeradeDagar`** (`ReadonlySet<string>` eller lista av ISO-dagar, "ÅÅÅÅ-MM-DD"): de dagarna får en prick under siffran, i accentens färg (kontrastfärgen i den valda dagen). En dag som inte är en ISO-dag, eller som inte finns i kalendern (som "2026-02-30"), kastar, eftersom en felformaterad dag annars bara hade uteblivit och sett ut som en månad utan händelser.
+- **`onManadVisas(forstaDag)`**: anropas med månadens första dag ("ÅÅÅÅ-MM-01") när kalendern öppnas och varje gång användaren bläddrar till en annan månad. Väljaren hämtar ingenting själv: appen räknar fram dagarna för månaden och skickar tillbaka dem som `markeradeDagar`.
+- **`markeradEtikett`** (standard "har händelser"): läggs efter dagens namn för en markerad dag, så att en skärmläsare hör det pricken visar.
+
+### Spelraden täcker inte längre mikrofonknappen
+
 Spelraden ligger ovanför mikrofonknappens överhäng och täcker inte längre knappen (cllp/lifehub.app#417). **Inte brytande för API:t** (inga props, inga exporter ändras). **Utseende:** under 768 px står spelraden 16 px högre, med en genomskinlig remsa mellan raden och bottenmenyn där mikrofonknappen sticker upp. Från 768 px är allt som förut.
 
-### Händelsen
+#### Händelsen
 
 CP, cllp/lifehub.app#417: "Spelaren av ljud lägger sig över mikrofon ikonen i bottenmenyn."
 
 **Mätt, inte antaget:** mikrofonknappen i mitten av bottenmenyn står i radens överkant och lyfts `--bottom-nav-overhang` (16 px) minus ringen, alltså sticker den upp över bottenradens överkant. Spelraden (`OpsSpelare`, 0.102.0) låg på `--bottom-nav-h` plus `--safe-bottom`, det vill säga på radens överkant, och täckte knappens övre del. Eftersom spelraden ligger senare i dokumentet än bottenmenyn (båda `--z-chrome`) hamnade den ovanpå, och ett tryck på knappens övre del träffade spelraden.
 
-### Ändrat
+#### Ändrat
 
 - `OpsSpelare`: spelraden är nu två rutor. Den yttre (`data-ops-spelrad-ruta`) är fast, har `pb-(--bottom-nav-overhang)` under 768 px och `pointer-events-none`, och är den som mäts till `--spelrad-h`. Den inre (`data-ops-spelrad`) är själva raden, som förut. `--spelrad-h` innehåller därmed överhänget, så `main`, `OpsMeddelanden`, `OpsToast`, `OpsTalk`, `arkOvanforRad` och `fullHeight` slutar vid spelradens överkant utan att någon av dem behövt lära sig talet. Från 768 px är utfyllnaden 0.
 - `OpsFloatingSummary`: bubblan räknade förut överhänget och `--spelrad-h` var för sig. Med överhänget i `--spelrad-h` hade det blivit dubbelt, så den räknar nu med det större av dem (`max(--bottom-nav-overhang, --spelrad-h)`). Utan spelare är den oförändrad.
 
-### Vakt
+#### Vakt
 
 `check-skalyta` avsnitt 24 ritade förut en EGEN fast ruta som spelrad och satte `--spelrad-h` själv, så den kunde inte se att komponenten låg fel. Den ritar nu skalets riktiga spelare (med TALK i bottenraden) och mäter att spelradens underkant ligger över mikrofonknappens överkant, att ett tryck i knappens mitt och strax under dess överkant träffar knappen, att avståndet till bottenraden är överhänget, att `--spelrad-h` är avståndet mellan spelradens och bottenradens överkant, och att ytan slutar vid spelradens överkant. På en dator (1024 px) mäts att raden ligger längst ned och att `--spelrad-h` är radens egen höjd. Golv: fem lägen. Körs ensamt med `node scripts/check-skalyta.mjs --bara-spelrad`. Röd mot 0.136.0 och grön med ändringen, se PR:en.
 
