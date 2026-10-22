@@ -97,6 +97,13 @@ describe("OpsDatePicker: prickar på dagar med händelser", () => {
     expect(() => render(<OpsDatePicker value="2026-10-12" onChange={() => {}} markeradeDagar={["2026-10-14T10:00"]} />)).toThrow(/2026-10-14T10:00/);
     tyst.mockRestore();
   });
+
+  it("kastar också för en dag med rätt form men utan plats i kalendern", () => {
+    const tyst = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(() => render(<OpsDatePicker value="2026-10-12" onChange={() => {}} markeradeDagar={["2026-13-45"]} />)).toThrow(/2026-13-45/);
+    expect(() => render(<OpsDatePicker value="2026-10-12" onChange={() => {}} markeradeDagar={["2026-02-30"]} />)).toThrow(/2026-02-30/);
+    tyst.mockRestore();
+  });
 });
 
 describe("OpsDatePicker: utan props är väljaren som förut", () => {

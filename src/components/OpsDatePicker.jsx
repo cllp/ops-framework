@@ -99,7 +99,15 @@ const ORD_DATUMVALJARE = {
   markerad: { sv: "har händelser", en: "has events" },
 };
 
-const ISO_DAG = /^\d{4}-\d{2}-\d{2}$/;
+/**
+ * ⛔ En dag räknas bara om den överlever en tur genom kalendern och tillbaka: "2026-13-45" har rätt form men blir 2027-02-14, och hade
+ * annars bara uteblivit som en dag utan händelser.
+ * @param {unknown} dag @returns {boolean}
+ */
+function arGiltigIso(dag) {
+  const d = typeof dag === "string" ? franIso(dag) : undefined;
+  return d !== undefined && tillIso(d) === dag;
+}
 
 /**
  * Mängden av markerade dagar, med varje dag prövad.
@@ -117,7 +125,7 @@ function markeradMangd(dagar) {
   if (dagar === undefined) return undefined;
   const mangd = dagar instanceof Set ? dagar : new Set(dagar);
   for (const dag of mangd) {
-    if (typeof dag !== "string" || !ISO_DAG.test(dag)) {
+    if (!arGiltigIso(dag)) {
       throw new Error(`OpsDatePicker: markeradeDagar innehåller "${String(dag)}", som inte är en ISO-dag ("ÅÅÅÅ-MM-DD"). Skicka dagen utan klockslag.`);
     }
   }

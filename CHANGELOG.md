@@ -15,7 +15,7 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 CP vill se vilka dagar som har händelser när han väljer datum, men bara om det inte gör väljaren långsammare. **Inte brytande:** tre nya valfria props på `OpsDatePicker`, och utan dem ritar och beter sig väljaren som förut.
 
-- **`markeradeDagar`** (`ReadonlySet<string>` eller lista av ISO-dagar, "ÅÅÅÅ-MM-DD"): de dagarna får en prick under siffran, i accentens färg (kontrastfärgen i den valda dagen). En dag som inte är en ISO-dag kastar, eftersom en felformaterad dag annars bara hade uteblivit och sett ut som en månad utan händelser.
+- **`markeradeDagar`** (`ReadonlySet<string>` eller lista av ISO-dagar, "ÅÅÅÅ-MM-DD"): de dagarna får en prick under siffran, i accentens färg (kontrastfärgen i den valda dagen). En dag som inte är en ISO-dag, eller som inte finns i kalendern (som "2026-02-30"), kastar, eftersom en felformaterad dag annars bara hade uteblivit och sett ut som en månad utan händelser.
 - **`onManadVisas(forstaDag)`**: anropas med månadens första dag ("ÅÅÅÅ-MM-01") när kalendern öppnas och varje gång användaren bläddrar till en annan månad. Väljaren hämtar ingenting själv: appen räknar fram dagarna för månaden och skickar tillbaka dem som `markeradeDagar`.
 - **`markeradEtikett`** (standard "har händelser"): läggs efter dagens namn för en markerad dag, så att en skärmläsare hör det pricken visar.
 
