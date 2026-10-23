@@ -65,7 +65,9 @@ export const ORD_OPSMODULRAM = {
   ejAnsluten: { sv: "Ej ansluten", en: "Not connected" },
   fel: { sv: "Fel", en: "Error" },
   anslut: { sv: "Anslut", en: "Connect" },
+  ansluter: { sv: "Ansluter…", en: "Connecting…" },
   kopplaFran: { sv: "Koppla från", en: "Disconnect" },
+  kopplarFran: { sv: "Kopplar från…", en: "Disconnecting…" },
   behorigheter: { sv: "Behörigheter", en: "Permissions" },
   ingaBehorigheter: { sv: "Inga behörigheter angivna.", en: "No permissions listed." },
   senasteSynk: { sv: "Senaste synk", en: "Last sync" },
@@ -78,6 +80,7 @@ export const ORD_OPSMODULRAM = {
   sparandeSaknas: { sv: "Inställningarna är inte kopplade. Ingenting sparades.", en: "The settings are not connected. Nothing was saved." },
   anslutningSaknas: { sv: "Kopplingen är inte ansluten i appen. Ingenting hände.", en: "The connection is not wired in the app. Nothing happened." },
   spara: { sv: "Spara", en: "Save" },
+  sparar: { sv: "Sparar…", en: "Saving…" },
 };
 
 /**
@@ -240,8 +243,13 @@ export function InstallningsInnehall({ modul, ram, sprak }) {
    * den väntan. Utkastet ritas i samma varv som trycket. Sparningen går i
    * bakgrunden, och ett avslag ställer tillbaka utkastet.
    *
+   * ⛔ 0.141.0 (CP 2026-10-23: "Medans man kopplar måste man få en progress"): funktionen ger ett löfte som är klart när anropet är klart
+   * och som ALDRIG avslås (felet är redan tillvarataget: utkastet ställs tillbaka och felraden skrivs). Knappens `onClick` ger det vidare,
+   * så `OpsButton` visar en snurra medan Anslut, Koppla från och Spara väntar. Utkastet ritas fortfarande i samma varv som trycket.
+   *
    * @param {() => void | Promise<void>} arbete
    * @param {() => void} aterstall
+   * @returns {Promise<void>}
    */
   const bakgrund = (arbete, aterstall) => {
     const nr = ++sparNr.current;
@@ -252,9 +260,9 @@ export function InstallningsInnehall({ modul, ram, sprak }) {
     } catch (e) {
       aterstall();
       setLitetFel(e instanceof Error ? e.message : String(e));
-      return;
+      return Promise.resolve();
     }
-    Promise.resolve(svar).then(
+    return Promise.resolve(svar).then(
       () => {},
       (e) => {
         if (sparNr.current !== nr) return;
@@ -480,12 +488,13 @@ export function InstallningsInnehall({ modul, ram, sprak }) {
                         {lage.status === "ansluten" || lage.status === "fel" ? (
                           <OpsButton
                             variant="secondary"
+                            busyLabel={t("kopplarFran")}
                             onClick={() => {
                               if (typeof ram.kopplingar?.onKopplaFran !== "function") {
                                 setLitetFel(t("anslutningSaknas"));
                                 return;
                               }
-                              bakgrund(() => ram.kopplingar?.onKopplaFran?.(k.id), () => {});
+                              return bakgrund(() => ram.kopplingar?.onKopplaFran?.(k.id), () => {});
                             }}
                           >
                             {t("kopplaFran")}
@@ -493,12 +502,13 @@ export function InstallningsInnehall({ modul, ram, sprak }) {
                         ) : (
                           <OpsButton
                             variant="primary"
+                            busyLabel={t("ansluter")}
                             onClick={() => {
                               if (typeof ram.kopplingar?.onAnslut !== "function") {
                                 setLitetFel(t("anslutningSaknas"));
                                 return;
                               }
-                              bakgrund(() => ram.kopplingar?.onAnslut?.(k.id), () => {});
+                              return bakgrund(() => ram.kopplingar?.onAnslut?.(k.id), () => {});
                             }}
                           >
                             {t("anslut")}
@@ -567,12 +577,13 @@ export function InstallningsInnehall({ modul, ram, sprak }) {
             <div>
               <OpsButton
                 variant="secondary"
+                busyLabel={t("sparar")}
                 onClick={() => {
                   if (typeof ram.onSpara !== "function") {
                     setLitetFel(t("sparandeSaknas"));
                     return;
                   }
-                  bakgrund(() => ram.onSpara?.({ modulId: modul.id, varden: karta(egnaFalt, varden, texter, boolUtkast) }), () => {});
+                  return bakgrund(() => ram.onSpara?.({ modulId: modul.id, varden: karta(egnaFalt, varden, texter, boolUtkast) }), () => {});
                 }}
               >
                 {t("spara")}

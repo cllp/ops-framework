@@ -338,6 +338,7 @@ export function OpsApparArk({ oppen, onOppen, moduler, grupp, farAndra, onOrdnin
               <span aria-hidden="true" className="h-1 w-9 rounded-full bg-line-strong" />
             </button>
             {farAndra ? (
+              /* vantar-ej: ordningen ritas direkt (hallen) och ställs tillbaka med ett fel om onOrdning avslås, se spara() */
               <button
                 type="button"
                 onClick={() => (ordnar ? stangOrdning() : oppnaOrdning())}

@@ -176,7 +176,7 @@ export function OpsFilePicker({
       />
 
       <div className="flex flex-wrap items-center gap-2">
-        <OpsButton variant="secondary" onClick={() => filRef.current?.click()} disabled={reading}>
+        <OpsButton variant="secondary" onClick={() => filRef.current?.click()} busy={reading}>
           {reading ? "Läser" : value ? labels.byt ?? "Byt fil" : labels.select ?? "Välj fil"}
         </OpsButton>
         {value ? (

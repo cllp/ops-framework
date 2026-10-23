@@ -244,6 +244,7 @@ export function ListaVisning({ lista, poster, kanAndra, onSpara, onOppnaPost }) 
                   </span>
                 )}
                 {kanAndra ? (
+                  /* vantar-ej: listan ritas om direkt (setLokal) och rullas tillbaka med ett fel om skrivningen faller, se spara() */
                   <button
                     type="button"
                     data-lista-bort={r.id}
@@ -282,6 +283,7 @@ export function ListaVisning({ lista, poster, kanAndra, onSpara, onOppnaPost }) 
                     <span className="truncate text-etikett text-ink">{postNamn(p)}</span>
                     <span className="text-meta tracking-wide text-ink-muted uppercase">{typEtikett(p)}</span>
                   </span>
+                  {/* vantar-ej: posten läggs i listan direkt (setLokal) och rullas tillbaka med ett fel om skrivningen faller, se spara() */}
                   <OpsButton
                     variant="secondary"
                     size="sm"

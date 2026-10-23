@@ -4,6 +4,7 @@ import { sammanstallSvar } from "../lib/handelsemodell.js";
 import { forvalda } from "../lib/ord.js";
 import { BockIkon, KryssIkon } from "./icons.jsx";
 import { OpsIdentity } from "./OpsIdentity.jsx";
+import { OpsSpinner } from "./OpsSpinner.jsx";
 import { useOpsSprak } from "./OpsSprak.jsx";
 import { usePersonnamn } from "./usePersonnamn.js";
 
@@ -157,13 +158,15 @@ export function OpsSvarsknappar({ vald, onSvara, namn, variant = "inline" }) {
       aria-pressed={vald === v}
       aria-label={namn ? `${ord}, ${namn}` : ord}
       disabled={skriver !== null}
+      aria-busy={skriver === v || undefined}
       onClick={() => tryck(v)}
       className={cx(
         "inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-base border px-3 text-meta font-medium transition-colors duration-(--duration-fast) ease-standard focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-60 md:min-h-8",
         vald === v ? "border-accent bg-accent text-accent-contrast" : "border-line bg-surface text-ink-secondary hover:bg-accent-faint hover:text-ink",
       )}
     >
-      {v === "kommer" ? <BockIkon size={14} /> : <KryssIkon size={14} />}
+      {/* ⛔ Tryckt knapp visar en snurra i ikonens plats (0.141.0): svaret skrivs, och den andra knappen är spärrad. Utan den blev båda bara bleka. */}
+      {skriver === v ? <OpsSpinner size="sm" tone="current" decorative /> : v === "kommer" ? <BockIkon size={14} /> : <KryssIkon size={14} />}
       {ord}
     </button>
   );

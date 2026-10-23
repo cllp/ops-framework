@@ -20,6 +20,7 @@ import { NAMN_SAKNAS } from "../lib/personnamn.js";
 import { namnMedVia } from "../lib/skapare.js";
 import { usePersonnamn } from "./usePersonnamn.js";
 import { OpsIconLink } from "./OpsIconLink.jsx";
+import { OpsSpinner } from "./OpsSpinner.jsx";
 import { arInstallningslage } from "../lib/apparark.js";
 import { ModulLageKnapp, OpsModulRam, kravRam } from "./OpsModulRam.jsx";
 import { OpsHubTillbaka, OpsVyAtgard, VYHUVUD_KLASS, VYIKON_KLASS, VYRUBRIK_KLASS } from "./OpsTillbaka.jsx";
@@ -1357,6 +1358,8 @@ function NyttAmne({ kalla, uid, groupId, agent, utkast, marke, samtalsprops, onT
 function AgentensSamtal({ kalla, uid, groupId, agent, agentnamn, marke, rader, texter: t, locale, onValj, onNytt, onAndrat }) {
   const [arkiv, setArkiv] = useState(/** @type {{ oppen: boolean, rader: any[] | null, fel: string | null }} */ ({ oppen: false, rader: null, fel: null }));
   const nu = Date.now();
+  // ⛔ 0.141.0: "Ta fram" väntar på servern innan raden flyttar sig. Knappen visar det (snurra, aria-busy) och låser alla "Ta fram" så ett andra tryck inte startar ett till.
+  const [framtar, setFramtar] = useState(/** @type {string | null} */ (null));
   const lasArkiv = () => {
     setArkiv({ oppen: true, rader: null, fel: null });
     kalla.oversikt({ groupId, uid, arkiverade: true }).then(
@@ -1365,12 +1368,16 @@ function AgentensSamtal({ kalla, uid, groupId, agent, agentnamn, marke, rader, t
     );
   };
   const taFram = async (/** @type {string} */ sid) => {
+    if (framtar !== null) return;
+    setFramtar(sid);
     try {
       await kalla.arkivera(sid, false);
       onAndrat?.();
       lasArkiv();
     } catch (e) {
       setArkiv((a) => ({ ...a, fel: `${t.arkivFel} ${e instanceof Error ? e.message : String(e)}` }));
+    } finally {
+      setFramtar(null);
     }
   };
   /** @param {any} r @param {boolean} arkiverad */
@@ -1403,10 +1410,12 @@ function AgentensSamtal({ kalla, uid, groupId, agent, agentnamn, marke, rader, t
           <button
             type="button"
             data-ta-fram={r.samtal.id}
+            disabled={framtar !== null}
+            aria-busy={framtar === r.samtal.id || undefined}
             onClick={() => taFram(r.samtal.id)}
             className="inline-flex min-h-11 shrink-0 cursor-pointer items-center gap-1 rounded-base px-2 text-meta text-accent hover:bg-accent-faint focus-visible:outline-2 focus-visible:outline-accent"
           >
-            <TaFramIkon size={14} />
+            {framtar === r.samtal.id ? <OpsSpinner size="sm" tone="current" decorative /> : <TaFramIkon size={14} />}
             {t.taFram}
           </button>
         ) : null}
@@ -1445,6 +1454,7 @@ function AgentensSamtal({ kalla, uid, groupId, agent, agentnamn, marke, rader, t
           </ul>
         )}
         <div className="mt-2 border-t border-line pt-1">
+          {/* vantar-ej: raden öppnas direkt och visar en snurra under knappen medan arkivet hämtas (OpsSpinner med status) */}
           <button
             type="button"
             data-visa-arkiverade=""
@@ -1461,8 +1471,8 @@ function AgentensSamtal({ kalla, uid, groupId, agent, agentnamn, marke, rader, t
                 {arkiv.fel}
               </p>
             ) : arkiv.rader === null ? (
-              <p role="status" className="m-0 px-3 py-2 text-meta text-ink-muted">
-                …
+              <p className="m-0 px-3 py-2 text-meta text-ink-muted">
+                <OpsSpinner size="sm" tone="muted" label="Hämtar" />
               </p>
             ) : arkiv.rader.length === 0 ? (
               <p data-arkiv-tomt="" className="m-0 px-3 py-2 text-meta text-ink-muted">
@@ -1863,11 +1873,12 @@ export function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, sprak, 
         <button
           type="submit"
           aria-label={t.skicka}
+          aria-busy={skickar || undefined}
           disabled={skickar || tomt || forLang}
           className="group/knapp inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full focus-visible:outline-none disabled:cursor-default disabled:opacity-40"
         >
           <span className="inline-flex size-9 items-center justify-center rounded-full bg-accent text-accent-contrast transition-colors duration-(--duration-fast) ease-standard group-hover/knapp:bg-accent-hover group-focus-visible/knapp:outline-2 group-focus-visible/knapp:outline-offset-1 group-focus-visible/knapp:outline-accent">
-            <SkickaIkon size={16} />
+            {skickar ? <OpsSpinner size="sm" tone="current" decorative /> : <SkickaIkon size={16} />}
           </span>
         </button>
       )}
@@ -2944,10 +2955,14 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
   const [svar, setSvar] = useState(/** @type {Array<import("../lib/samtal.js").Meddelande & { id: string }> | null} */ (null));
   const [fel, setFel] = useState(/** @type {Error | null} */ (null));
   const [lyftFel, setLyftFel] = useState(/** @type {Error | null} */ (null));
+  // ⛔ 0.141.0: "Lyft till minnet" väntar på appen. Id:t på meddelandet som lyfts, så knappen på just det meddelandet visar det.
+  const [lyfter, setLyfter] = useState(/** @type {string | null} */ (null));
   const [text, setText] = useState("");
   const [skickar, setSkickar] = useState(false);
   const [redigerar, setRedigerar] = useState(false);
   const [utkastNamn, setUtkastNamn] = useState("");
+  // ⛔ 0.141.0: Spara och "Automatiskt namn" väntar på servern. Knappen visar det, och ett andra tryck startar inget.
+  const [sparar, setSparar] = useState(/** @type {null | "namn" | "auto"} */ (null));
   const lyssnar = useRef(false);
   const tradlogg = useRef(/** @type {HTMLDivElement | null} */ (null));
   const historik = useHistorik({ kalla, sid: samtal.id, trad: tid, live: svar, logg: tradlogg });
@@ -3004,8 +3019,9 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
   const namn = tradensNamn(trad, [...(rot ? [rot] : []), ...historik.alla]);
   /** @param {import("../lib/samtal.js").Meddelande & { id: string }} m */
   const lyft = async (m) => {
-    if (!onLyftTillMinnet) return;
+    if (!onLyftTillMinnet || lyfter !== null) return;
     setLyftFel(null);
+    setLyfter(m.id);
     try {
       await onLyftTillMinnet({
         samtal: samtal.id,
@@ -3016,6 +3032,8 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
       });
     } catch (e) {
       setLyftFel(somFel(e));
+    } finally {
+      setLyfter(null);
     }
   };
   const lyftEfter = onLyftTillMinnet
@@ -3026,9 +3044,12 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
           <button
             type="button"
             data-lyft-minne={m.id}
+            disabled={lyfter !== null}
+            aria-busy={lyfter === m.id || undefined}
             onClick={() => lyft(m)}
             className="-my-2 hidden min-h-11 max-w-full cursor-pointer items-center rounded-full px-2 text-liten text-accent transition-colors duration-(--duration-fast) ease-standard hover:bg-accent-faint focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent md:inline-flex"
           >
+            {lyfter === m.id ? <OpsSpinner size="sm" tone="current" decorative /> : null}
             {t.lyftTillMinnet}
           </button>
         );
@@ -3077,6 +3098,8 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
 
   /** @param {string | null} nytt */
   const spara = async (nytt) => {
+    if (sparar !== null) return;
+    setSparar(nytt === null ? "auto" : "namn");
     try {
       await kalla.dopOm(samtal.id, tid, nytt);
       onDopt?.(nytt && nytt.trim() ? nytt.trim() : null);
@@ -3084,6 +3107,8 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
       stangDop();
     } catch (e) {
       setFel(somFel(e));
+    } finally {
+      setSparar(null);
     }
   };
 
@@ -3130,14 +3155,27 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
               autoFocus
               className="min-h-9 min-w-0 flex-1 rounded-base border border-line bg-canvas px-2.5 text-etikett text-ink outline-none focus-visible:border-accent"
             />
-            <button type="submit" className="inline-flex min-h-9 cursor-pointer items-center rounded-base bg-accent px-3 text-meta font-medium text-accent-contrast hover:bg-accent-hover">
+            <button
+              type="submit"
+              disabled={sparar !== null}
+              aria-busy={sparar === "namn" || undefined}
+              className="inline-flex min-h-9 cursor-pointer items-center gap-1.5 rounded-base bg-accent px-3 text-meta font-medium text-accent-contrast hover:bg-accent-hover disabled:cursor-default disabled:opacity-70"
+            >
+              {sparar === "namn" ? <OpsSpinner size="sm" tone="current" decorative /> : null}
               {t.spara}
             </button>
             <button type="button" onClick={stangDop} className="inline-flex min-h-9 cursor-pointer items-center rounded-base px-2 text-meta text-ink-secondary hover:bg-hover">
               {t.avbryt}
             </button>
             {trad?.namn ? (
-              <button type="button" onClick={() => spara(null)} className="inline-flex min-h-9 cursor-pointer items-center rounded-base px-2 text-meta text-accent hover:bg-accent-faint">
+              <button
+                type="button"
+                disabled={sparar !== null}
+                aria-busy={sparar === "auto" || undefined}
+                onClick={() => spara(null)}
+                className="inline-flex min-h-9 cursor-pointer items-center gap-1.5 rounded-base px-2 text-meta text-accent hover:bg-accent-faint disabled:cursor-default disabled:opacity-70"
+              >
+                {sparar === "auto" ? <OpsSpinner size="sm" tone="current" decorative /> : null}
                 {t.automatisktNamn}
               </button>
             ) : null}
