@@ -13,6 +13,15 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 Inget ännu.
 
+## 0.139.1
+
+### `ops-framework/node`: elva namn till
+
+cllp/ops-framework#434. **Inte brytande:** nya exporter på nodsidan. 0.139.0 byggde sin lista med 32 namn på importer som stod på en rad, och den flerradiga importen i lifehub.apps `functions/apikonfig.js` kom inte med. Appen har därför en tillfällig bro (`functions/ramverkskalendrar.js`, `import("ops-framework")`) som ska bort.
+
+- **Elva namn exporteras ur `ops-framework/node`,** ur SAMMA källmoduler som huvudingången (ingen kopia, regel 2): `arkiveraKalender`, `byggGruppkalender`, `kalenderIdUrNamn`, `nastaOrdning`, `valjForvald` och `validateGruppkalendrar` (appens functions, alla ur `src/lib/kalendrar.js`) samt `postFel`, `olastaI`, `STANDARD_TIDSZON`, `byggMinKalender` och `INBJUDNING_GILTIGHET_DAGAR` (bara appens prov). Alla källmoduler var redan rena, och modulgrafsprovet är grönt.
+- **`APPENS_NAMN` i `src/__tests__/nod-ren-ingang.test.js` har nu 43 namn,** och golvet är höjt från 32 till 43. Provet är rött för de elva utan exporten och grönt med (se PR:en).
+
 ## 0.139.0
 
 ### Prestanda skiva 1: appens funktioner läser ramverket utan React, och växlarens dubbla Översikt är borta

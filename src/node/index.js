@@ -257,12 +257,16 @@ export { UTSKRIFT_FALT, UTSKRIFT_TAK_MS, UTSKRIFT_TIMEOUT_TEXT, UTSKRIFTJOBB_STA
  * ingången. Namnen exporteras ur SAMMA källmodul som huvudingången (ingen kopia, regel 2), och varje källmodul är ren: `scripts/check-node-side.mjs` följer importgrafen
  * statiskt, och `src/__tests__/nod-ren-ingang.test.js` laddar ingången i en ren Node-process och kräver att varken React, Radix, en komponent eller `dist/` kommer med.
  * Listan som appen behöver står i provet, och är röd om ett namn saknas här.
+ *
+ * ⛔ 0.139.1: ELVA NAMN TILL (cllp/ops-framework#434). Listan med 32 namn byggdes på importer som stod på en rad, och den flerradiga importen i appens
+ * `functions/apikonfig.js` kom inte med. Tillagda, ur samma källmoduler som huvudingången: `arkiveraKalender`, `byggGruppkalender`, `kalenderIdUrNamn`, `nastaOrdning`, `valjForvald`,
+ * `validateGruppkalendrar` (appens functions, via bron `functions/ramverkskalendrar.js`) och `postFel`, `olastaI`, `STANDARD_TIDSZON`, `byggMinKalender`, `INBJUDNING_GILTIGHET_DAGAR` (appens prov).
  */
 export { AGENTMODELLER, FORVALD_AGENTMODELL } from "../lib/agentmodeller.js";
 export { GRUPPIKONKATALOG } from "../lib/gruppikonkatalog.generated.js";
-export { KALENDERFARGER, KALENDERIKONER, forvaldKalender } from "../lib/kalendrar.js";
-export { MAX_BIBLIOTEKURL, MAX_BIBLIOTEKUTSKRIFT, arLjudpost, arMittBibliotek, byggPost, ljudRubrik, utskriftFel } from "../lib/bibliotek.js";
-export { byggGrupp, byggMedlemskap, medlemskapsId } from "../lib/grupp.js";
-export { byggSamtal, byggTrad } from "../lib/samtal.js";
+export { KALENDERFARGER, KALENDERIKONER, forvaldKalender, arkiveraKalender, byggGruppkalender, byggMinKalender, kalenderIdUrNamn, nastaOrdning, STANDARD_TIDSZON, valjForvald, validateGruppkalendrar } from "../lib/kalendrar.js";
+export { MAX_BIBLIOTEKURL, MAX_BIBLIOTEKUTSKRIFT, arLjudpost, arMittBibliotek, byggPost, ljudRubrik, postFel, utskriftFel } from "../lib/bibliotek.js";
+export { INBJUDNING_GILTIGHET_DAGAR, byggGrupp, byggMedlemskap, medlemskapsId } from "../lib/grupp.js";
+export { byggSamtal, byggTrad, olastaI } from "../lib/samtal.js";
 export { epostFel } from "../lib/mejl.js";
 export { foreVillkor } from "../data/contract.js";
