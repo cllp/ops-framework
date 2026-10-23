@@ -133,7 +133,8 @@ export function granskaFil(fil, kalla) {
   /** Ger funktionen löftet vidare till den som anropade den? */
   const gerVidare = (/** @type {any} */ fn) => {
     if (fn.async) return true;
-    if (fn.body.type !== "BlockStatement") return true;
+    // `() => void spara()` kastar bort löftet lika säkert som en blockkropp utan return: uttrycket är `undefined`.
+    if (fn.body.type !== "BlockStatement") return !(fn.body.type === "UnaryExpression" && fn.body.operator === "void");
     let ret = false;
     ga(fn.body.body, (n) => {
       if (n !== fn && /Function/.test(n.type)) return false;

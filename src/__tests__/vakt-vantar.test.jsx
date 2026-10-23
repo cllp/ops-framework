@@ -138,6 +138,13 @@ export function A({ onSpara }) {
 export function A({ onSpara }) {
   return <button onClick={() => onSpara()}>Spara</button>;
 }`;
+    // `void` kastar bort löftet också i en pilfunktion med uttryckskropp (hubbens vanligaste fel, mätt 2026-10-23).
+    const voidKropp = `
+/** @param {{ onSpara: () => Promise<void> }} props */
+export function A({ onSpara }) {
+  return <OpsButton onClick={() => void onSpara()}>Spara</OpsButton>;
+}`;
+    expect(granskaFil("a.jsx", voidKropp).brott.map((b) => b.regel)).toEqual(["loftet-svaljs"]);
     expect(granskaFil("a.jsx", gron).brott).toEqual([]);
     expect(granskaFil("a.jsx", rod).brott.map((b) => b.regel)).toEqual(["loftet-svaljs"]);
     expect(granskaFil("a.jsx", synlig).brott).toEqual([]);
