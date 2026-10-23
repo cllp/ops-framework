@@ -84,7 +84,7 @@ describe("manifestets plats valideras vid uppstart", () => {
   });
 
   it("⛔ en sektion utan komponent avvisas: en tom sektion är en rad som öppnar ingenting", () => {
-    expect(() => validateModuler([MODUL("bokning", [SEKTION({ komponent: undefined })])])).toThrow(/komponent för "installningar": krävs/);
+    expect(() => validateModuler([MODUL("bokning", [SEKTION({ komponent: undefined })])])).toThrow(/komponent för "installningar" krävs/);
   });
 
   it("⛔ spara, maxSekunder och skapa hör inte hemma på platsen", () => {
@@ -102,16 +102,11 @@ describe("manifestets plats valideras vid uppstart", () => {
 });
 
 describe("OpsGruppHubb: Bokning erbjuds under Appar som kan läggas till", () => {
-  const alla = () =>
-    validateModuler([
-      MODUL("ekonomi", [], { hubb: { ikon: <svg />, rutt: "/ekonomi", startsida: "oversikt", delar: [{ id: "oversikt", namn: { sv: "Översikt", en: "Overview" }, rutt: "/ekonomi" }] } }),
-      MODUL("bokning", [SEKTION()]),
-      MODUL("stum", []),
-    ]);
+  const alla = () => validateModuler([MODUL("bokning", [SEKTION()]), MODUL("stum", [])]);
 
   it("⛔ erbjuds med Installera och 'Syns på: Inställningar', och knappen installerar just den", () => {
     const klick = vi.fn();
-    render(<OpsGruppHubb grupp={G(["ekonomi"])} moduler={alla()} installera={{ onInstallera: klick }} />);
+    render(<OpsGruppHubb grupp={G([])} moduler={alla()} installera={{ onInstallera: klick }} />);
     const lista = screen.getByRole("list", { name: "Appar som kan läggas till" });
     expect(within(lista).getByText("Bokning")).toBeTruthy();
     expect(within(lista).getByText("Bokning · Syns på: Inställningar")).toBeTruthy();
@@ -128,7 +123,7 @@ describe("OpsGruppHubb: Bokning erbjuds under Appar som kan läggas till", () =>
   });
 
   it("installerad: står under Tillägg i gruppen och erbjuds inte igen", () => {
-    render(<OpsGruppHubb grupp={G(["ekonomi", "bokning"])} moduler={alla()} installera={{ onInstallera: () => {} }} />);
+    render(<OpsGruppHubb grupp={G(["bokning"])} moduler={alla()} installera={{ onInstallera: () => {} }} />);
     const sektion = screen.getByRole("region", { name: "Tillägg i gruppen" });
     expect(within(sektion).getByText("Bokning · Syns på: Inställningar")).toBeTruthy();
     expect(screen.queryByRole("button", { name: /Installera Bokning/ })).toBeNull();
