@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import { ordet } from "../lib/ord.js";
+import { useOpsSprak } from "./OpsSprak.jsx";
 import { OpsPanelRow } from "./OpsPanel.jsx";
 import { ChevronVansterIkon, LoggaUtIkon } from "./icons.jsx";
 import { OpsCountBadge } from "./counter.jsx";
@@ -79,7 +81,7 @@ import { OPS_FRAMEWORK_VERSION } from "../lib/frameworkVersion.generated.js";
  * @property {string} [appVersion]
  * @property {string} [rubrik]
  * @property {string} [loggaUtEtikett]
- * @property {string} [loggarUtEtikett] (0.141.0) Raden medan utloggningen väntar. Förval "Loggar ut…".
+ * @property {string} [loggarUtEtikett] (0.141.0) Raden medan utloggningen väntar. Förval "Loggar ut…" / "Signing out…" på appens språk.
  */
 
 /**
@@ -369,6 +371,11 @@ export function MenyTillbakaKnapp({ onBack, backLabel = "Tillbaka till menyn" })
   );
 }
 
+/** Förvalet för raden medan utloggningen väntar, på appens språk (`meny.loggarUtEtikett` går före). */
+export const ORD_LOGGAUT = {
+  loggarUt: { sv: "Loggar ut…", en: "Signing out…" },
+};
+
 /**
  * Logga ut-raden (0.141.0). CP 2026-10-22: "Att logga ut tar minst en halv minut ... Vi kan inte ha det så." Utloggningen är flera steg efter varandra (enheten
  * släpps, cachen töms, sessionen avslutas) innan sidan byts, och raden stängde menyn och körde allt efteråt: ingenting syntes under hela tiden.
@@ -380,10 +387,11 @@ export function MenyTillbakaKnapp({ onBack, backLabel = "Tillbaka till menyn" })
  * @param {object} props
  * @param {() => void | Promise<unknown>} props.onLoggaUt
  * @param {string} props.etikett
- * @param {string} props.vantarEtikett
+ * @param {string} [props.vantarEtikett]
  * @param {(fn?: () => void) => () => void} props.kor
  */
 function LoggaUtRad({ onLoggaUt, etikett, vantarEtikett, kor }) {
+  const sprak = useOpsSprak();
   const [pagar, setPagar] = useState(false);
   const spar = useRef(false);
   const monterad = useRef(true);
@@ -413,7 +421,7 @@ function LoggaUtRad({ onLoggaUt, etikett, vantarEtikett, kor }) {
       throw fel;
     });
   };
-  return <OpsPanelRow icon={<LoggaUtIkon />} label={pagar ? vantarEtikett : etikett} busy={pagar} onClick={klick} />;
+  return <OpsPanelRow icon={<LoggaUtIkon />} label={pagar ? (vantarEtikett ?? ordet(ORD_LOGGAUT, "loggarUt", sprak)) : etikett} busy={pagar} onClick={klick} />;
 }
 
 /**
@@ -431,7 +439,7 @@ function LoggaUtRad({ onLoggaUt, etikett, vantarEtikett, kor }) {
  * @param {(fn?: () => void) => () => void} props.kor
  * @returns {MenyAvdelning[]}
  */
-export function menyFot({ onLoggaUt, loggaUtEtikett = "Logga ut", loggarUtEtikett = "Loggar ut…", appVersion, kor }) {
+export function menyFot({ onLoggaUt, loggaUtEtikett = "Logga ut", loggarUtEtikett, appVersion, kor }) {
   return [
     { key: "loggaut", innehall: <LoggaUtRad onLoggaUt={onLoggaUt} etikett={loggaUtEtikett} vantarEtikett={loggarUtEtikett} kor={kor} /> },
     {
