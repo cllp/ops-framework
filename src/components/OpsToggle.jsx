@@ -1,6 +1,8 @@
 import { useId } from "react";
 import { cx } from "../lib/cx.js";
+import { useLofteVantan } from "../lib/useLofteVantan.js";
 import { BockIkon } from "./icons.jsx";
+import { OpsSpinner } from "./OpsSpinner.jsx";
 
 /**
  * Kryssruta och reglage.
@@ -32,9 +34,14 @@ import { BockIkon } from "./icons.jsx";
  * tryckning missar, och användaren tror att appen hänger sig.
  */
 
-/** @param {{ label: string, checked: boolean, onChange: (v: boolean) => void, disabled?: boolean, hint?: string }} props */
+/**
+ * 0.142.0 (#440): ger `onChange` ett löfte väntar rutan: snurra bredvid etiketten, `aria-busy`, och ett andra val släpps inte fram förrän
+ * löftet är klart. Rutan blir INTE blek (det är `disabled`), för en blek ruta utan rörelse var just det CP inte ville se.
+ * @param {{ label: string, checked: boolean, onChange: (v: boolean) => void | Promise<unknown>, disabled?: boolean, hint?: string }} props
+ */
 export function OpsCheckbox({ label, checked, onChange, disabled = false, hint }) {
   const id = useId();
+  const { upptagen, anropa } = useLofteVantan(onChange);
   const hintId = hint ? `${id}-hint` : undefined;
   return (
     <div className="flex flex-col gap-1">
@@ -49,7 +56,8 @@ export function OpsCheckbox({ label, checked, onChange, disabled = false, hint }
           checked={checked}
           disabled={disabled}
           aria-describedby={hintId}
-          onChange={(e) => onChange(e.target.checked)}
+          aria-busy={upptagen || undefined}
+          onChange={(e) => anropa(e.target.checked)}
         />
         <span
           aria-hidden="true"
@@ -63,6 +71,7 @@ export function OpsCheckbox({ label, checked, onChange, disabled = false, hint }
           {checked ? <BockIkon size={14} /> : null}
         </span>
         {label}
+        {upptagen ? <OpsSpinner size="sm" tone="current" decorative /> : null}
       </label>
       {hint ? (
         <p id={hintId} className="pl-7 text-hjalp text-ink-muted">
@@ -77,7 +86,7 @@ export function OpsCheckbox({ label, checked, onChange, disabled = false, hint }
  * @param {object} props
  * @param {string} props.label
  * @param {boolean} props.checked
- * @param {(v: boolean) => void} props.onChange
+ * @param {(v: boolean) => void | Promise<unknown>} props.onChange (0.142.0, #440) Ett löfte gör reglaget upptaget: snurra, `aria-busy`, spärr mot ett andra val.
  * @param {boolean} [props.disabled]
  * @param {string} [props.hint]
  * @param {import("react").ReactNode} [props.ikon] (0.134.0) Något som står före etiketten i en `rad`, till exempel kalenderns färgprick. Dekor: `aria-hidden`, och etiketten bär namnet. Ignoreras i `spar`.
@@ -91,6 +100,7 @@ export function OpsSwitch({ label, checked, onChange, disabled = false, hint, ik
     throw new Error(`OpsSwitch: okänd placering "${placering}". Giltiga: spar, rad.`);
   }
   const id = useId();
+  const { upptagen, anropa } = useLofteVantan(onChange);
   const namnId = `${id}-namn`;
   const hintId = hint ? `${id}-hint` : undefined;
   const rad = placering === "rad";
@@ -125,7 +135,8 @@ export function OpsSwitch({ label, checked, onChange, disabled = false, hint, ik
           disabled={disabled}
           aria-labelledby={rad ? namnId : undefined}
           aria-describedby={hintId}
-          onChange={(e) => onChange(e.target.checked)}
+          aria-busy={upptagen || undefined}
+          onChange={(e) => anropa(e.target.checked)}
         />
         <span
           aria-hidden="true"
@@ -180,6 +191,7 @@ export function OpsSwitch({ label, checked, onChange, disabled = false, hint, ik
           />
         </span>
         {rad ? null : label}
+        {upptagen ? <OpsSpinner size="sm" tone="current" decorative /> : null}
       </label>
       {!rad && hint ? (
         <p id={hintId} className="pl-13 text-hjalp text-ink-muted">

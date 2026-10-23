@@ -30,8 +30,8 @@ const { brott, golv, stat } = granska(filer);
 
 console.log(
   `check-vantar: ${stat.filer} komponentfiler, ${stat.knappar} knappar, ${stat.anropande} handlare som startar ett anrop, ` +
-    `${stat.undantag} undantag av högst ${UNDANTAGSTAK} (vantar-ej), ${stat.loftesprops} löftesprops i JSDoc ` +
-    `(golv: ${GOLV.filer} filer, ${GOLV.knappar} knappar, ${GOLV.anropande} anropande, ${GOLV.loftesprops} props).`,
+    `${stat.undantag} undantag av högst ${UNDANTAGSTAK} (vantar-ej), ${stat.loftesprops} löftesprops i JSDoc, ${stat.val} val (OpsSwitch, OpsCheckbox, OpsSelect) ` +
+    `(golv: ${GOLV.filer} filer, ${GOLV.knappar} knappar, ${GOLV.anropande} anropande, ${GOLV.loftesprops} props, ${GOLV.val} val).`,
 );
 
 if (brott.length === 0 && golv.length === 0) {

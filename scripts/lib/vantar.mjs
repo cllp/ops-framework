@@ -1,5 +1,7 @@
 /**
  * Granskaren bakom vakten `check-vantar` (0.141.0): varje knapp som startar ett anrop visar att den väntar.
+ * 0.142.0 (#440): utvidgad till OpsSwitch, OpsCheckbox och OpsSelect. Regeln `valet-svaljs` gäller ett val vars onChange startar ett anrop
+ * utan att ge löftet vidare, och `val-utan-vantan` gäller komponenten själv. Golvet `val` får bara sjunka i den meningen att det inte sänks.
  *
  * ══ ⛔ VARFÖR (CP 2026-10-23) ══════════════════════════════════════════════════════════════════════════
  *
@@ -44,7 +46,11 @@ export const GOLV = {
   knappar: 250,
   anropande: 60,
   loftesprops: 30,
+  val: 29,
 };
+
+/** (0.142.0, #440) Valen som väntar själva när `onChange` ger ett löfte. Varje komponent måste anropa `useLofteVantan(onChange)`. */
+export const VAL_KOMPONENTER = ["OpsSwitch", "OpsCheckbox", "OpsSelect"];
 
 /** Minsta längd på skälet efter `vantar-ej:`. */
 const MIN_SKAL = 20;
@@ -53,7 +59,7 @@ const MIN_SKAL = 20;
 const EGNA_PROPS = new Set(["onClick"]);
 
 /**
- * @typedef {{ fil: string, rad: number, regel: "loftet-svaljs" | "ra-knapp" | "submit-utan-vantan" | "dod-undantag" | "undantag-utan-skal", text: string }} Brott
+ * @typedef {{ fil: string, rad: number, regel: "loftet-svaljs" | "valet-svaljs" | "val-utan-vantan" | "ra-knapp" | "submit-utan-vantan" | "dod-undantag" | "undantag-utan-skal", text: string }} Brott
  */
 
 /** @param {any} n @param {(n: any) => boolean | void} besok Ger `false` för att inte gå ned i barnen. */
@@ -169,7 +175,7 @@ export function granskaFil(fil, kalla) {
 
   /** @type {Brott[]} */
   const brott = [];
-  const stat = { knappar: 0, anropande: 0, undantag: 0, formul: 0 };
+  const stat = { knappar: 0, anropande: 0, undantag: 0, formul: 0, val: 0 };
   /** @param {any} el */
   const attr = (el) => {
     /** @type {Record<string, any>} */
@@ -209,6 +215,17 @@ export function granskaFil(fil, kalla) {
         }
       }
     }
+    if (VAL_KOMPONENTER.includes(tagg)) {
+      stat.val += 1;
+      const onChange = a.onChange && a.onChange.type === "JSXExpressionContainer" ? a.onChange.expression : null;
+      const fns = onChange ? handlare(onChange) : [];
+      if (fns.some((f) => anropar(f))) {
+        stat.anropande += 1;
+        if (!fns.some((f) => anropar(f) && gerVidare(f))) {
+          fall("valet-svaljs", rad, `${tagg}: onChange startar ett anrop men ger inte löftet vidare. Valet ser aldrig att det väntar (0.142.0). Ge löftet vidare (\`onChange={(v) => spara(v)}\`).`);
+        }
+      }
+    }
     if (tagg === "form" && a.onSubmit && a.onSubmit.type === "JSXExpressionContainer") {
       stat.formul += 1;
       const fns = handlare(a.onSubmit.expression);
@@ -230,6 +247,17 @@ export function granskaFil(fil, kalla) {
     return undefined;
   });
 
+  // (0.142.0) Komponenten själv: varje val i VAL_KOMPONENTER som definieras här måste lägga sin onChange genom useLofteVantan.
+  ga(ast.program, (n) => {
+    if (n.type !== "FunctionDeclaration" || !n.id || !VAL_KOMPONENTER.includes(n.id.name)) return;
+    let har = false;
+    ga(n.body, (m) => {
+      if ((m.type === "CallExpression") && m.callee.type === "Identifier" && m.callee.name === "useLofteVantan") har = true;
+    });
+    if (!har) brott.push({ fil, rad: n.loc?.start.line ?? 0, regel: "val-utan-vantan", text: `${n.id.name} lägger inte onChange genom useLofteVantan. Ett löfte ur onChange ger då ingen snurra, ingen aria-busy och ingen spärr (#440).` });
+    return false;
+  });
+
   for (const u of undantag) {
     if (!anvanda.has(u)) brott.push({ fil, rad: u.rad, regel: "dod-undantag", text: `vantar-ej täcker inget brott: "${u.text}". Ta bort raden (en död rad ser ut som en försäkring).` });
   }
@@ -243,13 +271,14 @@ export function granskaFil(fil, kalla) {
 export function granska(filer) {
   /** @type {Brott[]} */
   const brott = [];
-  const stat = { filer: 0, knappar: 0, anropande: 0, undantag: 0, loftesprops: 0 };
+  const stat = { filer: 0, knappar: 0, anropande: 0, undantag: 0, loftesprops: 0, val: 0 };
   for (const [fil, kalla] of Object.entries(filer)) {
     const r = granskaFil(fil, kalla);
     stat.filer += 1;
     stat.knappar += r.stat.knappar;
     stat.anropande += r.stat.anropande;
     stat.undantag += r.stat.undantag;
+    stat.val += r.stat.val;
     stat.loftesprops += r.loftesprops;
     brott.push(...r.brott);
   }
