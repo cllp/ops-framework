@@ -115,6 +115,39 @@ Storlekarna kommer ur rollerna, aldrig ur en egen siffra. SessionStudios (mätta
 - **Samma ord för samma sak**, på båda språken. Ett ord som byter i en annan vy är en ny sak
   för användaren.
 
+## 7. Väntan: varje tryck som väntar på svar visar det
+
+CP 2026-10-23, om en knapp som blev blek utan att något syntes medan servern svarade: "Medans man kopplar måste man få en progress. Detta
+glömmer vi ofta. Se till att alla ställen där användaren väntar på svar får en progress." Knappen hade `disabled` men ingen snurra och inget
+verb, så den som tryckte såg en grå knapp och visste inte om trycket gick fram. Ramverket hade sedan 0.129.0 ett gemensamt väntläge i
+`OpsButton`, men ingenting såg till att varje knapp som startar ett anrop FAKTISKT nådde det. Mätt 2026-10-23: 19 ställen i ramverkets egna
+komponenter gjorde det inte (11 råa knappar, 6 svalda löften, 2 submit-knappar), bland dem Anslut och Koppla från i modulramen, Ja/Nej på
+en inbjudan, Spara av ett trädnamn och skicka i chatten.
+
+- **Använd `OpsButton`.** Ger `onClick` ett löfte är knappen upptagen tills det är klart: snurra, `aria-busy`, spärrad mot dubbeltryck. Du
+  behöver inte göra något mer, men löftet MÅSTE nå knappen: `onClick={() => spara(x)}`, inte `onClick={() => { void spara(x); }}` och inte
+  en funktion som startar anropet och ger tillbaka inget. Det andra är det vanligaste sättet att missa.
+- **Säg vad som pågår: `busyLabel`.** `<OpsButton busyLabel="Kopplar…">Koppla</OpsButton>` byter etiketten mot verbet i pågående form
+  medan knappen väntar ("Sparar…", "Kopplar…", "Skickar dig till banken…", "Tar bort…"). Etiketten ligger kvar osynlig i samma ruta, så
+  knappen inte ändrar bredd. En snurra utan verb säger att något pågår men inte vad.
+- **`type="submit"` har ingen `onClick` att läsa ett löfte ur.** Ett formulär vars `onSubmit` startar ett anrop ger sin submit-knapp
+  `busy={sparar}` (en egen flagga som sätts före anropet och släpps i `finally`). Knappen utanför formuläret (`form={id}`) likadant.
+- **En rå `<button>` som startar ett anrop är fel.** Behövs en egen form (en rund färgprick, en ikon i ett fält): sätt `aria-busy`, rita
+  `OpsSpinner size="sm" decorative` i knappen och spärra de syskon som inte ska tryckas under tiden.
+- **Felet står vid knappen och knappen blir tryckbar igen.** Ingen knapp går tillbaka till vila utan att något hänt: klart, fel eller en
+  omdirigering. Ett löfte som avslås svälj aldrig tyst (arbetsreglernas punkt 5). En omdirigering till en annan sida (banken, inloggningen)
+  är också ett svar: knappen väntar på sidbytet, och verbet säger vart ("Skickar dig till banken…").
+- **Bara `disabled` är inte väntan.** En knapp som blir blek är det CP såg. `disabled` för att något annat pågår är rätt (Avbryt medan Spara
+  väntar), men knappen som STARTADE anropet visar snurran.
+- **Undantaget är optimistiskt, och det är ett undantag.** Ritas resultatet i samma varv som trycket och ställs tillbaka med ett fel om
+  anropet faller (ordningen på appar, en tagg, en lista) behövs ingen snurra, för trycket gav ett synligt svar. Kommentera då raden
+  `vantar-ej: <skäl>` (minst 20 tecken). Vakten `check-vantar` har ett tak på antalet och räknar en död rad som fel: undantaget är för
+  det optimistiska och det som har en egen statusrad, aldrig för "den går snabbt". Det som går snabbt idag är långsamt i en kallstart.
+
+*Vad vakten ser och inte ser:* `npm run check:vantar` läser komponenterna som syntax (inte som text) och fäller en knapp vars handlare
+startar ett anrop (`await`, `.then`, eller en `on...`-prop som JSDoc deklarerar med `Promise`) utan att knappen väntar. Den ser inte om
+snurran SYNS eller om verbet är rätt. Det mäts i en webbläsare (`check-skalyta`) och av dig.
+
 ## Checklista före varje PR med UI
 
 Gå igenom den, och skriv i PR-texten vad som är avbockat och vad som medvetet inte är det.
@@ -134,10 +167,12 @@ Gå igenom den, och skriv i PR-texten vad som är avbockat och vad som medvetet 
    skärmbild på 390 och 1280 px, så att den som granskar ser ytan och inte bara diffen.
 8. Förebilden är ett golv, inte ett tak (regel 13): är SessionStudio plottrigare än du kan
    göra den, gör den enklare och skriv det i PR-texten.
+9. ⛔ **Varje tryck som väntar på svar visar väntan** (avsnitt 7): snurra, verb i pågående form (`busyLabel`), låst mot dubbeltryck och
+   `aria-busy`. Gå igenom varje knapp du rört och fråga "vad ser jag medan servern svarar?". `npm run check:vantar` är grön.
 
 ## Vad vakterna ser och vad de inte ser
 
-`check:typografi` ser storlek och vikt per klasssträng. `check:typografimatning` ritar
+`check:typografi` ser storlek och vikt per klasssträng. `check:vantar` ser att en knapp som startar ett anrop väntar (avsnitt 7). `check:typografimatning` ritar
 komponenterna i en webbläsare och mäter. Ingen vakt ser att en vy har tre stycken för mycket
 eller ett formulär som borde legat bakom en knapp. Det är därför den här checklistan finns:
 den som bygger vyn är vakten för det som ingen maskin mäter.

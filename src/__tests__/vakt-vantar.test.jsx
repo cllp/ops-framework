@@ -7,6 +7,9 @@ import { OpsButton } from "../components/OpsButton.jsx";
 import { OpsModulSida } from "../components/OpsModulSida.jsx";
 import { OpsSvarsknappar } from "../components/OpsSvar.jsx";
 import { OpsSvepRad } from "../components/OpsSvepRad.jsx";
+import { createMemorySource } from "../data/adapters.js";
+import { createSamtalskalla } from "../data/samtalskalla.js";
+import { OpsTrad } from "../components/OpsMeddelanden.jsx";
 import { defineModule } from "../lib/modul.js";
 
 /**
@@ -289,5 +292,55 @@ describe("knapparna som vakten fick rättade väntar på riktigt", () => {
     expect(knapp).not.toBeDisabled();
     expect(screen.getByRole("button", { name: "Anslut" })).toBe(knapp);
     expect(screen.getByText("Banken svarade inte")).toBeTruthy();
+  });
+});
+
+describe("tråden: Lyft till minnet och Döp om väntar synligt", () => {
+  const MEDLEMMAR = [
+    { userId: "anna", namn: "Anna Ek", typ: "person", status: "aktiv" },
+    { userId: "bo", namn: "Bo Lind", typ: "person", status: "aktiv" },
+  ];
+  const namnFor = (/** @type {string} */ uid) => MEDLEMMAR.find((m) => m.userId === uid)?.namn ?? uid;
+  async function trad() {
+    let t = 1_700_000_000_000;
+    const s = createSamtalskalla({ kalla: createMemorySource({}), tradar: "tradar", klocka: () => (t += 1000) });
+    const g = await s.oppnaGrupp({ groupId: "cps-ab", uid: "anna" });
+    const rot = await s.skicka(g.id, { text: "Budgeten är klar", av: "bo" });
+    await s.skickaITrad(g.id, rot.id, { text: "Vi tar den på fredag", av: "anna" });
+    return { s, g, rot };
+  }
+
+  it("Lyft till minnet: knappen på det lyfta meddelandet är aria-busy med en snurra, de andra är spärrade, och alla är lediga efteråt", async () => {
+    const { s, g, rot } = await trad();
+    const d = uppskjuten();
+    const lyft = vi.fn(() => /** @type {Promise<void>} */ (d.lofte));
+    render(<OpsTrad kalla={s} uid="anna" samtal={g} tid={rot.id} gruppNamn="Gruppen" namnFor={namnFor} medlemmar={MEDLEMMAR} onStang={() => {}} onLyftTillMinnet={lyft} minneHref="/minne" />);
+    const knappar = await screen.findAllByRole("button", { name: "Lyft till minnet" });
+    fireEvent.click(knappar[0]);
+    await waitFor(() => expect(knappar[0]).toHaveAttribute("aria-busy", "true"));
+    expect(knappar[0].querySelector("svg")).not.toBeNull();
+    expect(knappar[1]).toBeDisabled();
+    fireEvent.click(knappar[1]);
+    expect(lyft).toHaveBeenCalledTimes(1);
+    await act(async () => d.los());
+    await waitFor(() => expect(knappar[0]).not.toHaveAttribute("aria-busy"));
+    expect(knappar[1]).not.toBeDisabled();
+  });
+
+  it("Döp om: Spara är aria-busy med en snurra medan servern svarar, ett andra tryck gör ingenting, och formuläret stängs när det är klart", async () => {
+    const { s, g, rot } = await trad();
+    const d = uppskjuten();
+    const dopOm = vi.fn(() => d.lofte);
+    render(<OpsTrad kalla={{ ...s, dopOm }} uid="anna" samtal={g} tid={rot.id} gruppNamn="Gruppen" namnFor={namnFor} medlemmar={MEDLEMMAR} onStang={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Döp om" }));
+    const spara = await screen.findByRole("button", { name: "Spara" });
+    fireEvent.click(spara);
+    await waitFor(() => expect(spara).toHaveAttribute("aria-busy", "true"));
+    expect(spara).toBeDisabled();
+    expect(spara.querySelector("svg")).not.toBeNull();
+    fireEvent.click(spara);
+    expect(dopOm).toHaveBeenCalledTimes(1);
+    await act(async () => d.los());
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Spara" })).toBeNull());
   });
 });
