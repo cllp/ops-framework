@@ -191,7 +191,7 @@ export { hubbForGrupp, valbaraModuler, hubbPoster, huvudmenyPoster, modulLage, b
  * Tilläggen (0.60.0, #251, beslut 0003): en app pluggar in i en plats ramverkets yta erbjuder, och ändrar aldrig ytan.
  * `tillagg` i `defineModule`, platserna, filtret på påslagna moduler och raden "Syns på".
  */
-export { HANDELSE_PLATSER, INSPELNING_PLATSER, PLATSER, PLATSYTOR, tillaggFor, malForInspelning, synsPa, synsPaText } from "./lib/tillagg.js";
+export { HANDELSE_PLATSER, INSPELNING_PLATSER, INSTALLNINGAR_PLATSER, PLATSER, PLATSYTOR, tillaggFor, malForInspelning, synsPa, synsPaText } from "./lib/tillagg.js";
 
 /*
  * ⛔ KÄLLKONTRAKTET (#129). Registret och granskarna är data in och data ut,
@@ -366,6 +366,7 @@ export { OpsMinne } from "./components/OpsMinne.jsx";
 export { OpsKatalogInstallning } from "./components/OpsKatalogInstallning.jsx";
 export { OpsModulTyper } from "./components/OpsModulTyper.jsx";
 export { OpsInstallningar, ORD_OPSINSTALLNINGAR, useInstallningspanel } from "./components/OpsInstallningar.jsx";
+export { installningsSektioner } from "./components/installningsSektioner.jsx";
 /*
  * ⛔ MODULENS INSTÄLLNINGAR (0.88.0, en plats 0.89.0). Pinnen "Visa i huvudmenyn" skrivs på gruppen.
  * Modulens egna fält skrivs i en samling appen namnger. Reglagen ritas i modulramen, inte i gruppvyn.

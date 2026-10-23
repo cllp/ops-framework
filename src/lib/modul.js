@@ -142,10 +142,10 @@ export const KALLTYPER = /** @type {const} */ (["handelser", "sok", "hjalp", "no
 
 /**
  * @typedef {object} Tillagg
- * @property {string} plats En av ramverkets platser (`HANDELSE_PLATSER`).
+ * @property {string} plats En av ramverkets platser (`PLATSER`: `HANDELSE_PLATSER`, `INSPELNING_PLATSER`, `INSTALLNINGAR_PLATSER`).
  * @property {string} id Maskinnyckeln. Unik inom modulen.
  * @property {{ sv: string, en: string }} etikett Det användaren ser: sektionens rubrik, åtgärdens namn. Båda språken krävs.
- * @property {unknown} [komponent] Komponenten ytan ritar med `{ handelse, grupp }` (på `handelse.skapa`: `{ grupp, varde, onVarde }`). Krävs på händelsens platser. Hör inte hemma på `inspelning.mal`.
+ * @property {unknown} [komponent] Komponenten ytan ritar med `{ handelse, grupp }` (på `handelse.skapa`: `{ grupp, varde, onVarde }`, på `installningar.sektion` (0.140.0): `{ grupp }`). Krävs på händelsens platser. Hör inte hemma på `inspelning.mal`.
  * @property {Function} [spara] Funktionen som tar emot ljudet på `inspelning.mal`: `({ blob, mimeType, sekunder, rapportera, grupp })`. Krävs där, och ingen annanstans.
  * @property {{ datumEjSatt?: (varde: unknown) => boolean, fel?: (varde: unknown) => string[], efterSkapa?: (arg: { handelseId: string, varde: unknown, grupp: unknown }) => unknown }} [skapa] (0.127.0) Bara på `handelse.skapa`:
  *   hur formuläret för en ny händelse frågar tillägget. `datumEjSatt(varde)` är sant när tillägget vill att datum inte sätts nu, `fel(varde)` ger skälen att inte spara
@@ -535,7 +535,7 @@ function byggTillagg(varde, var_) {
     }
     const okanda = Object.keys(t).filter((n) => !TILLAGGSFALT.includes(n));
     if (okanda.length > 0) {
-      throw var_(`tillagg[${i}]`, `bär fälten ${okanda.join(", ")} som inte känns igen. Ett tillägg bär ${TILLAGGSFALT.join(", ")}, och komponenten får { handelse, grupp } av ytan.`);
+      throw var_(`tillagg[${i}]`, `bär fälten ${okanda.join(", ")} som inte känns igen. Ett tillägg bär ${TILLAGGSFALT.join(", ")}, och komponenten får det ytan ger den: { handelse, grupp } på händelsens platser, { grupp } på installningar.sektion.`);
     }
     const plats = rensa(t.plats);
     if (!PLATSER.includes(plats)) {

@@ -13,6 +13,23 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 Inget ännu.
 
+## 0.140.0
+
+### Platsen `installningar.sektion`: en app vars enda yta är en inställningssektion går att installera
+
+CP 2026-10-23, med en skärmbild av gruppens Appar: "Jag har slått på bokning överallt, men kan inte se den under appar att kunna installera." Under "Appar som kan läggas till" stod Ekonomi och Datumomröstning, inte Bokning. **Inte brytande:** en ny plats, en ny exporterad funktion, och inget som redan fungerar ändras. **Appen måste göra något för att få effekt, se sist.**
+
+- **Rotorsaken (mätt i koden).** Erbjudandet under Appar läser `(m.hubb || arBaraTillagg(m)) && !arKarna(m) && !installerade.includes(m.id)` (`OpsHub.jsx`), och `arBaraTillagg` kräver minst ett tillägg. Datumomröstning har två. Bokningens manifest i lifehub.app har `hubb: null` och inga tillägg: dess enda yta är en sektion i gruppens Inställningar som appen ritar själv. Ramverket visste alltså inte att modulen hade en yta, och den kunde aldrig erbjudas.
+- **Ny plats `installningar.sektion`** (`INSTALLNINGAR_PLATSER`, med i `PLATSER`). Ytan heter "Inställningar" / "Settings" i `PLATSYTOR`. En modul med bara den platsen är därmed `arBaraTillagg`, erbjuds under "Appar som kan läggas till" och står med "Syns på: Inställningar" (samma rad som Datumomröstnings "Syns på: Händelser"). `defineModule` avvisar platsen på en modul som saknar `komponent`, och en annan plats avvisas som förut.
+- **Ny hjälpare `installningsSektioner({ moduler, grupp, sprak, extra })`** (`ops-framework`). Ger sektioner i `OpsInstallningar`:s form (`{ id, rubrik, innehall }`), ett per påslagen moduls tillägg på platsen, via `tillaggFor` (en avslagen modul bidrar inte, en kärnmodul är alltid på). `id` är `<modulId>.<tilläggsId>`. Komponenten får `{ ...extra, grupp }` och kan vara `lazy` (den ritas i en `Suspense`, och `OpsInstallningar` monterar bara den valda sektionen). Ikon, beskrivning och antal är appens.
+- **Prov** (`src/__tests__/installningar-plats.test.jsx`), bevisade åt båda hållen, se PR:en.
+
+**Vad appen måste göra** (platsen ritas av appen, inte av ramverket; utan steg 2 syns ingenting):
+
+1. Pinna om till 0.140.0 och sätt `tillagg: [{ plats: "installningar.sektion", id: "installningar", etikett: { sv: "Bokning", en: "Booking" }, komponent: <den lata BokningInstallningar-omslaget> }]` på `BOKNING_MANIFEST`. `hubb` förblir `null`.
+2. I `SettingsView`: ta bort den hårdkodade Bokning-sektionen (`visaBokning`, `bokningInnehall`) och lägg i stället `...installningsSektioner({ moduler, grupp: gruppRad, sprak, extra: { kanAndra } })` i sektionslistan, med `ikon` och `beskrivning` pålagda på sektionen med id `bokning.installningar`. Komponenten får `{ grupp, kanAndra }` och hämtar `groupId` ur `grupp.id`.
+3. Adressen till sektionen blir `bokning.installningar` i stället för `bokning`. Länkar till den gamla adressen ska läsas som okänd sektion (listan ritas, `OpsInstallningar` gör det redan).
+
 ## 0.139.1
 
 ### `ops-framework/node`: elva namn till
