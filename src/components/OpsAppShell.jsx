@@ -2348,7 +2348,7 @@ function OpsAppShellRitad({
     });
   }
   if (menuExtras) rotAvdelningar.push({ key: "extras", innehall: <div className="flex items-center gap-0.5 px-1 py-0.5">{menuExtras}</div> });
-  if (meny) rotAvdelningar.push(...menyFot({ onLoggaUt: meny.onLoggaUt, loggaUtEtikett: meny.loggaUtEtikett, appVersion: meny.appVersion, kor }));
+  if (meny) rotAvdelningar.push(...menyFot({ onLoggaUt: meny.onLoggaUt, loggaUtEtikett: meny.loggaUtEtikett, loggarUtEtikett: meny.loggarUtEtikett, appVersion: meny.appVersion, kor }));
 
   // ⛔ BOTTENRADENS TRE FASTA POSTER, med Hubs barn PLATTA. `OpsBottomNav` validerar
   // `nav` med EN nivå barn, och Hub bär moduler som själva har barn. Raden ritar

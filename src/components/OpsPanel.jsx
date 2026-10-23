@@ -4,6 +4,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { cx } from "../lib/cx.js";
 import { ChevronHogerIkon, ChevronVansterIkon, ExternLankIkon, KryssIkon } from "./icons.jsx";
 import { OpsCountBadge } from "./counter.jsx";
+import { OpsSpinner } from "./OpsSpinner.jsx";
 import { radBehallare, radKlass } from "../lib/radKlass.js";
 
 /**
@@ -100,6 +101,7 @@ import { radBehallare, radKlass } from "../lib/radKlass.js";
  * @param {string} [props.badgeText] Vad antalet betyder, för skärmläsare.
  * @param {boolean} [props.chevron] Raden öppnar en undervy.
  * @param {() => void} [props.onClick]
+ * @param {boolean} [props.busy] (0.141.0) Raden väntar på ett svar: en snurra i ikonens plats, `aria-busy` och spärrad mot ett andra tryck. Etiketten står kvar.
  * @param {string} [props.href] Länk i stället för knapp. Ritar en extern-länk-ikon
  *   i stället för en chevron (#157, #158): en `href` lämnar den här panelen för
  *   en annan adress, en chevron öppnar nästa vy i SAMMA panel. Aldrig båda.
@@ -113,7 +115,7 @@ import { radBehallare, radKlass } from "../lib/radKlass.js";
  *   SAMMA fil: den vanliga "Meny"-dropdownen är `text-xs` och NEUTRAL, plusset är `text-sm`
  *   och ACCENT. Två olika rader i samma källa, inte samma rad två gånger.
  */
-export function OpsPanelRow({ icon, label, badge, badgeText = "", chevron, onClick, href, active, accent }) {
+export function OpsPanelRow({ icon, label, badge, badgeText = "", chevron, onClick, busy = false, href, active, accent }) {
   if (href && chevron) {
     throw new Error(
       "OpsPanelRow: \"href\" och \"chevron\" ihop. En rad med href lämnar appen och ritar en extern-länk-ikon; en rad med chevron öppnar en undervy i SAMMA panel. De är olika löften och kan inte båda hållas av en rad.",
@@ -149,7 +151,11 @@ export function OpsPanelRow({ icon, label, badge, badgeText = "", chevron, onCli
 
   const inre = (
     <>
-      {icon ? (
+      {busy ? (
+        <span aria-hidden="true" className="flex shrink-0 items-center">
+          <OpsSpinner size="sm" tone="current" decorative />
+        </span>
+      ) : icon ? (
         <span aria-hidden="true" className={cx("flex shrink-0 items-center", accent ? "[&_svg]:size-4.5" : "[&_svg]:size-4")}>
           {icon}
         </span>
@@ -183,7 +189,7 @@ export function OpsPanelRow({ icon, label, badge, badgeText = "", chevron, onCli
     );
   }
   return (
-    <button type="button" onClick={onClick} className={klass}>
+    <button type="button" onClick={onClick} disabled={busy || undefined} aria-busy={busy || undefined} className={klass}>
       {inre}
     </button>
   );

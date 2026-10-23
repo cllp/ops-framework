@@ -129,6 +129,9 @@ export function knappKlass({ variant = "secondary", size = "md", iconOnly = fals
  * @param {boolean} [props.busy] Visar och annonserar pågående arbete, och spärrar knappen. ⛔ UTELÄMNAD (0.129.0) sköter knappen det själv: ger
  *   `onClick` ett löfte är knappen upptagen tills löftet är klart, och ett andra tryck under tiden gör ingenting. SÄTTS den (också till `false`)
  *   är det appens: knappen rör då varken snurra eller spärr, eftersom två som styr samma tillstånd glider isär.
+ * @param {string} [props.busyLabel] (0.141.0) Verbet i pågående form medan knappen väntar: "Sparar…", "Kopplar…", "Tar bort…". Står bredvid snurran i stället för
+ *   etiketten, och knappen behåller etikettens bredd (den osynliga etiketten ligger kvar under verbet, så ingenting intill hoppar när knappen spärras).
+ *   Ignoreras av en ikonknapp (ingen etikett) och när knappen inte väntar. Utelämnad står etiketten kvar, som förut.
  * @param {boolean} [props.fullWidth]
  * @param {boolean} [props.iconOnly] Kvadratisk träffyta. Kräver `ariaLabel`.
  * @param {boolean} [props.round] Cirkel (`rounded-full`). Kräver `iconOnly`. Samma accentform som bottenradens huvudåtgärd, men `size-8` (inte 44 px fylld skiva) så + i header-klustret matchar syskonikonernas skala.
@@ -147,6 +150,7 @@ export function OpsButton({
   type = "button",
   disabled = false,
   busy,
+  busyLabel,
   fullWidth = false,
   iconOnly = false,
   round = false,
@@ -259,10 +263,29 @@ export function OpsButton({
    * Snurran är `decorative`: knappen bär redan `aria-busy`, och två besked om
    * samma väntan är värre än ett.
    */
+  /*
+   * ══ ⛔ VERBET I PÅGÅENDE FORM (0.141.0, CP 2026-10-23) ═══════════════════════════════════════════════════════════
+   *
+   * CP, om en knapp som blev blek utan att något syntes medan servern svarade: "Medans man kopplar måste man få en progress." En snurra säger
+   * att något pågår, men inte vad. `busyLabel` ("Kopplar…") säger det. Etiketten ligger kvar OSYNLIG i samma ruta (ett rutnät med en cell), så
+   * knappen är exakt lika bred som verbet eller etiketten, den bredaste av dem, och ingenting bredvid hoppar. Den osynliga kopian är
+   * `aria-hidden`: skärmläsaren hör verbet, inte båda.
+   */
+  const etikett =
+    busyLabel && !iconOnly ? (
+      <span className="inline-grid">
+        <span aria-hidden="true" className="invisible col-start-1 row-start-1 inline-flex items-center justify-center gap-1.5">
+          {children}
+        </span>
+        <span className="col-start-1 row-start-1 text-center">{busyLabel}</span>
+      </span>
+    ) : (
+      children
+    );
   const innehall = upptagen ? (
     <>
       <OpsSpinner size="sm" tone="current" decorative />
-      {iconOnly ? null : children}
+      {iconOnly ? null : etikett}
     </>
   ) : (
     children

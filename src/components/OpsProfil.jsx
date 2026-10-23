@@ -16,6 +16,7 @@ import { OpsList, OpsListRow } from "./OpsList.jsx";
 import { OpsPill } from "./OpsPill.jsx";
 import { OpsSectionLabel } from "./OpsSectionLabel.jsx";
 import { OpsSelect } from "./OpsSelect.jsx";
+import { OpsSpinner } from "./OpsSpinner.jsx";
 import { OpsView, OpsViewHeader } from "./OpsView.jsx";
 import { KryssIkon } from "./icons.jsx";
 
@@ -196,6 +197,8 @@ function OpsProfilRitad({
   const [lankar, setLankar] = useState(anvandare.lankar);
   const [sparar, setSparar] = useState(false);
   const [bildLaddar, setBildLaddar] = useState(false);
+  // ⛔ 0.141.0: färgen som sparas just nu. Pricken visar en snurra och är `aria-busy`, i stället för att alla prickar bara blir bleka.
+  const [spararFarg, setSpararFarg] = useState(/** @type {string | null} */ (null));
   const [bildFel, setBildFel] = useState("");
   const filValjare = useRef(/** @type {HTMLInputElement | null} */ (null));
 
@@ -306,12 +309,14 @@ function OpsProfilRitad({
   async function valjFarg(id) {
     setBildFel("");
     setBildLaddar(true);
+    setSpararFarg(id);
     try {
       await onSpara({ farg: id });
     } catch (e) {
       setBildFel(e instanceof Error ? e.message : String(e));
     } finally {
       setBildLaddar(false);
+      setSpararFarg(null);
     }
   }
 
@@ -468,19 +473,22 @@ function OpsProfilRitad({
                       aria-label={`${fargEtikett} ${id}`}
                       aria-pressed={vald}
                       disabled={bildLaddar}
+                      aria-busy={spararFarg === id || undefined}
                       onClick={() => valjFarg(id)}
                       className={cx(
                         // ⛔ KLASSNAMNEN STÅR UTSKRIVNA, INTE `bg-identity-${id}`. Samma skäl
                         // som `TONKLASSER` i `OpsIdentity.jsx`: en interpolerad sträng genererar
                         // ingen CSS i Tailwinds build, bara i utvecklingsläget.
-                        "size-6 shrink-0 rounded-full",
+                        "inline-flex size-6 shrink-0 items-center justify-center rounded-full text-ink-inverse",
                         FARGKLASSER[id],
                         "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
                         // ⛔ RINGEN, INTE EN IFYLLD PLATTA: samma "du är här"-mönster som
                         // `OpsIconLink`s aktiva länk, en ring runt den valda pricken.
                         vald ? "ring-2 ring-offset-2 ring-accent ring-offset-surface" : "cursor-pointer",
                       )}
-                    />
+                    >
+                      {spararFarg === id ? <OpsSpinner size="sm" tone="current" decorative /> : null}
+                    </button>
                   );
                 })}
               </div>

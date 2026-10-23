@@ -3,6 +3,7 @@ import { Trash2 } from "lucide-react";
 import { cx } from "../lib/cx.js";
 import { ordet } from "../lib/ord.js";
 import { useOpsSprak } from "./OpsSprak.jsx";
+import { OpsSpinner } from "./OpsSpinner.jsx";
 
 /**
  * En listrad som går att svepa åt vänster så att åtgärder syns.
@@ -37,6 +38,7 @@ const TROSKEL = 40;
 export const ORD_OPSSVEPRAD = {
   angra: { sv: "Ångra", en: "Undo" },
   saknas: { sv: "Åtgärden är inte kopplad. Ingenting ändrades.", en: "The action is not connected. Nothing changed." },
+  arbetar: { sv: "{atgard}…", en: "{atgard}…" },
 };
 
 /**
@@ -62,6 +64,8 @@ export function OpsSvepRad({ children, atgarder = [], kort = false }) {
   const [drar, setDrar] = useState(false);
   const [angra, setAngra] = useState(/** @type {{ meddelande: string } | null} */ (null));
   const [fel, setFel] = useState("");
+  // ⛔ 0.141.0: åtgärden väntar på appen. Raden är stängd och Ångra-fönstret förbi, och förut syntes ingenting alls tills svaret kom.
+  const [arbetar, setArbetar] = useState(/** @type {string | null} */ (null));
   const oppnaRef = useRef(0);
   const svept = useRef(false);
   const timer = useRef(/** @type {ReturnType<typeof setTimeout> | null} */ (null));
@@ -84,7 +88,7 @@ export function OpsSvepRad({ children, atgarder = [], kort = false }) {
     else node.setAttribute("inert", "");
   });
 
-  if (atgarder.length === 0 && !angra && !fel) {
+  if (atgarder.length === 0 && !angra && !fel && arbetar === null) {
     return <li>{children}</li>;
   }
 
@@ -100,10 +104,14 @@ export function OpsSvepRad({ children, atgarder = [], kort = false }) {
     try {
       const svar = a.onValj();
       if (svar && typeof svar.then === "function") {
-        svar.then(() => setAngra(null)).catch((e) => {
-          setAngra(null);
-          setFel(e instanceof Error ? e.message : String(e));
-        });
+        setAngra(null);
+        setArbetar(a.etikett);
+        svar
+          .then(() => setArbetar(null))
+          .catch((e) => {
+            setArbetar(null);
+            setFel(e instanceof Error ? e.message : String(e));
+          });
         return;
       }
       setAngra(null);
@@ -203,6 +211,7 @@ export function OpsSvepRad({ children, atgarder = [], kort = false }) {
           <button
             key={a.id}
             type="button"
+            aria-busy={arbetar === a.etikett || undefined}
             className={cx(
               "inline-flex w-24 cursor-pointer flex-col items-center justify-center gap-1 px-2 text-meta font-medium",
               "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
@@ -219,7 +228,12 @@ export function OpsSvepRad({ children, atgarder = [], kort = false }) {
         className={cx("relative touch-pan-y", kort ? "bg-surface transition-colors hover:bg-hover" : "bg-canvas", drar ? "select-none" : "transition-transform duration-(--duration-fast) ease-standard motion-reduce:transition-none")}
         style={{ transform: oppna > 0 ? `translateX(-${oppna}px)` : undefined }}
       >
-        {angra ? (
+        {arbetar !== null ? (
+          <div role="status" data-ops-svep-arbetar="" className="flex items-center gap-3 px-4 py-3">
+            <OpsSpinner size="sm" tone="muted" decorative />
+            <span className="min-w-0 flex-1 text-etikett text-ink-secondary">{t("arbetar").replace("{atgard}", arbetar)}</span>
+          </div>
+        ) : angra ? (
           <div role="status" className="flex items-center justify-between gap-3 px-4 py-3">
             <span className="min-w-0 flex-1 text-etikett text-ink">{angra.meddelande}</span>
             <button

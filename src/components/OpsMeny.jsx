@@ -1,3 +1,6 @@
+import { useEffect, useRef, useState } from "react";
+import { ordet } from "../lib/ord.js";
+import { useOpsSprak } from "./OpsSprak.jsx";
 import { OpsPanelRow } from "./OpsPanel.jsx";
 import { ChevronVansterIkon, LoggaUtIkon } from "./icons.jsx";
 import { OpsCountBadge } from "./counter.jsx";
@@ -74,10 +77,11 @@ import { OPS_FRAMEWORK_VERSION } from "../lib/frameworkVersion.generated.js";
  *   ramverket, Hub är det som gäller arbetet. Se README "Navigationen".
  * @property {string | { sv: string, en?: string }} [appRubrik] Rubriken över `app`. Förval `{ sv: "Appen", en: "App" }`.
  * @property {string} [sprak] Språket för `appRubrik` ("sv" eller "en"). Förval "sv".
- * @property {() => void} onLoggaUt
+ * @property {() => void | Promise<unknown>} onLoggaUt ⛔ 0.141.0: får ge ett löfte. Raden visar då "Loggar ut…" med en snurra och menyn står öppen tills löftet är klart (utloggningen kan ta flera steg innan sidan byts), i stället för att stängas och lämna ingenting synligt.
  * @property {string} [appVersion]
  * @property {string} [rubrik]
  * @property {string} [loggaUtEtikett]
+ * @property {string} [loggarUtEtikett] (0.141.0) Raden medan utloggningen väntar. Förval "Loggar ut…" / "Signing out…" på appens språk.
  */
 
 /**
@@ -367,23 +371,77 @@ export function MenyTillbakaKnapp({ onBack, backLabel = "Tillbaka till menyn" })
   );
 }
 
+/** Förvalet för raden medan utloggningen väntar, på appens språk (`meny.loggarUtEtikett` går före). */
+export const ORD_LOGGAUT = {
+  loggarUt: { sv: "Loggar ut…", en: "Signing out…" },
+};
+
+/**
+ * Logga ut-raden (0.141.0). CP 2026-10-22: "Att logga ut tar minst en halv minut ... Vi kan inte ha det så." Utloggningen är flera steg efter varandra (enheten
+ * släpps, cachen töms, sessionen avslutas) innan sidan byts, och raden stängde menyn och körde allt efteråt: ingenting syntes under hela tiden.
+ *
+ * Ger `onLoggaUt` ett löfte står menyn öppen och raden säger "Loggar ut…" med en snurra, spärrad mot ett andra tryck, tills löftet är klart
+ * (då stängs menyn, för den som blir kvar på sidan). Ger den inget löfte är det som förut: menyn stängs och funktionen körs. Ett löfte som
+ * avslås sväljs inte: raden blir ledig, menyn stängs, och avslagningen når den som lyssnar på `unhandledrejection`.
+ *
+ * @param {object} props
+ * @param {() => void | Promise<unknown>} props.onLoggaUt
+ * @param {string} props.etikett
+ * @param {string} [props.vantarEtikett]
+ * @param {(fn?: () => void) => () => void} props.kor
+ */
+function LoggaUtRad({ onLoggaUt, etikett, vantarEtikett, kor }) {
+  const sprak = useOpsSprak();
+  const [pagar, setPagar] = useState(false);
+  const spar = useRef(false);
+  const monterad = useRef(true);
+  useEffect(() => {
+    monterad.current = true;
+    return () => {
+      monterad.current = false;
+    };
+  }, []);
+  if (typeof onLoggaUt !== "function") return null;
+  const klick = () => {
+    if (spar.current) return;
+    const svar = onLoggaUt();
+    if (!svar || typeof svar.then !== "function") {
+      kor()();
+      return;
+    }
+    spar.current = true;
+    setPagar(true);
+    const klart = () => {
+      spar.current = false;
+      if (monterad.current) setPagar(false);
+      kor()();
+    };
+    Promise.resolve(svar).then(klart, (fel) => {
+      klart();
+      throw fel;
+    });
+  };
+  return <OpsPanelRow icon={<LoggaUtIkon />} label={pagar ? (vantarEtikett ?? ordet(ORD_LOGGAUT, "loggarUt", sprak)) : etikett} busy={pagar} onClick={klick} />;
+}
+
 /**
  * Menyns SISTA två avdelningar, alltid i den ordningen: Logga ut, sedan
  * versionsraderna. Delad mellan header-popovern och botten-arket. Returneras
  * som avdelningar (se `MenyAvdelningar`), så avgränsaren mellan dem och allt
  * ovanför ägs av EN funktion.
  * @param {object} props
- * @param {() => void} props.onLoggaUt
+ * @param {() => void | Promise<unknown>} props.onLoggaUt
  * @param {string} [props.loggaUtEtikett]
+ * @param {string} [props.loggarUtEtikett]
  * @param {string} [props.appVersion] Appens egen versionstext, t.ex. "bolag-ops v1.4.2".
  *   ⛔ SAKNAS DEN skrivs raden ändå, med ramverkets ensam: tomhet är ett svar,
  *   inte en utelämnad rad (arbetsreglernas punkt 5).
  * @param {(fn?: () => void) => () => void} props.kor
  * @returns {MenyAvdelning[]}
  */
-export function menyFot({ onLoggaUt, loggaUtEtikett = "Logga ut", appVersion, kor }) {
+export function menyFot({ onLoggaUt, loggaUtEtikett = "Logga ut", loggarUtEtikett, appVersion, kor }) {
   return [
-    { key: "loggaut", innehall: <OpsPanelRow icon={<LoggaUtIkon />} label={loggaUtEtikett} onClick={kor(onLoggaUt)} /> },
+    { key: "loggaut", innehall: <LoggaUtRad onLoggaUt={onLoggaUt} etikett={loggaUtEtikett} vantarEtikett={loggarUtEtikett} kor={kor} /> },
     {
       // ⛔ TVÅ RADER, INTE EN. Ramverkets rad kommer ur en konstant som
       // skrivs vid bygget ur package.json, ALDRIG en handskriven kopia här:

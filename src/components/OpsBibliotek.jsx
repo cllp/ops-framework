@@ -1381,6 +1381,7 @@ function TaggRad({ post, kanAndra, forslag, valda = [], onFilter, onSpara }) {
               <span className={cx("min-w-0 truncate pl-2.5", kanAndra ? "pr-0.5" : "pr-2.5")}>{t}</span>
             )}
             {kanAndra ? (
+              /* vantar-ej: taggen försvinner direkt (setVisas) och kommer tillbaka med ett fel om sparandet faller, se spara() */
               <button
                 type="button"
                 aria-label={`Ta bort taggen ${t}`}
@@ -1438,6 +1439,7 @@ function TaggRad({ post, kanAndra, forslag, valda = [], onFilter, onSpara }) {
               {forslagen.length > 0 ? (
                 <span id={listId} role="listbox" aria-label="Förslag" className={cx("absolute top-9 left-0 z-(--z-dropdown) flex min-w-32 flex-col p-1", radBehallare())}>
                   {forslagen.map((t, i) => (
+                    /* vantar-ej: taggen läggs till direkt (setVisas) och tas tillbaka med ett fel om sparandet faller, se spara() */
                     <button
                       key={t}
                       id={`${listId}-${i}`}
@@ -2488,6 +2490,7 @@ function UtskriftKontroll({ post, jag, onSkrivUt, onSkrivUtIgen, onTaBortUtskrif
       ) : null}
       {felVisas ? <p role="alert" data-bibliotek-utskrift-fel="" className="m-0 text-etikett text-danger">{felVisas}</p> : null}
       {forsok && !upptagen ? <OpsButton variant="secondary" size="sm" onClick={forsok}>{o("forsokIgen")}</OpsButton> : null}
+      {/* vantar-ej: knappen byts mot en rad med role=status ("Skriver ut ...") i samma varv som trycket, se status ovan */}
       {kanSkrivaUt && !pagar && !forsok && !(bakgrund || kor !== null || vantarNu) ? <OpsButton variant="secondary" size="sm" onClick={skrivUt}>{o("skrivUt")}</OpsButton> : null}
       {kanSkrivaUt && bakgrund ? <OpsButton variant="secondary" size="sm" disabled>{o("skrivUt")}</OpsButton> : null}
       <OpsModal
@@ -2500,6 +2503,7 @@ function UtskriftKontroll({ post, jag, onSkrivUt, onSkrivUtIgen, onTaBortUtskrif
         footer={(
           <>
             <OpsButton variant="secondary" onClick={() => setFraga(null)}>{o("avbryt")}</OpsButton>
+            {/* vantar-ej: rutan stängs i samma varv och raden role=status ("Tar bort ...", "Skriver ut ...") visar vad som pågår, se korOp() */}
             <OpsButton variant={fraga === "taBort" ? "danger" : "primary"} onClick={() => { if (fraga) korOp(fraga); }}>{fraga === "taBort" ? o("taBort") : o("skrivUtIgen")}</OpsButton>
           </>
         )}
