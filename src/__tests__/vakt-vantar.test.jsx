@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { GOLV, UNDANTAGSTAK, granska, granskaFil } from "../../scripts/lib/vantar.mjs";
+import { OpsAppShell } from "../components/OpsAppShell.jsx";
 import { OpsButton } from "../components/OpsButton.jsx";
 import { OpsModulSida } from "../components/OpsModulSida.jsx";
 import { OpsSvarsknappar } from "../components/OpsSvar.jsx";
@@ -342,5 +343,41 @@ describe("tråden: Lyft till minnet och Döp om väntar synligt", () => {
     expect(dopOm).toHaveBeenCalledTimes(1);
     await act(async () => d.los());
     await waitFor(() => expect(screen.queryByRole("button", { name: "Spara" })).toBeNull());
+  });
+});
+
+describe("Logga ut i menyn väntar synligt (0.141.0)", () => {
+  const nav = [{ href: "/", label: "Idag", icon: <svg /> }];
+  const skal = (/** @type {() => unknown} */ onLoggaUt) => (
+    <OpsAppShell brand="Ops" nav={nav} activeHref="/" meny={{ onLoggaUt }}>
+      <p>innehåll</p>
+    </OpsAppShell>
+  );
+
+  it("ger onLoggaUt ett löfte står menyn öppen med 'Loggar ut…', en snurra och aria-busy, ett andra tryck gör ingenting, och menyn stängs när löftet är klart", async () => {
+    const d = uppskjuten();
+    const onLoggaUt = vi.fn(() => d.lofte);
+    render(skal(onLoggaUt));
+    fireEvent.click(screen.getByRole("button", { name: "Meny, fler åtgärder" }));
+    const rad = screen.getByRole("button", { name: "Logga ut" });
+    fireEvent.click(rad);
+    await waitFor(() => expect(rad).toHaveAttribute("aria-busy", "true"));
+    expect(rad).toHaveTextContent("Loggar ut…");
+    expect(rad.querySelector("svg")).not.toBeNull();
+    expect(rad).toBeDisabled();
+    fireEvent.click(rad);
+    expect(onLoggaUt).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("heading", { name: "Meny" })).toBeTruthy();
+    await act(async () => d.los());
+    await waitFor(() => expect(screen.queryByRole("heading", { name: "Meny" })).toBeNull());
+  });
+
+  it("ger onLoggaUt inget löfte är det som förut: menyn stängs och funktionen körs, utan väntan", async () => {
+    const onLoggaUt = vi.fn();
+    render(skal(onLoggaUt));
+    fireEvent.click(screen.getByRole("button", { name: "Meny, fler åtgärder" }));
+    fireEvent.click(screen.getByRole("button", { name: "Logga ut" }));
+    await waitFor(() => expect(screen.queryByRole("heading", { name: "Meny" })).toBeNull());
+    expect(onLoggaUt).toHaveBeenCalledTimes(1);
   });
 });

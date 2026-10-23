@@ -158,7 +158,7 @@ function OpsBottomNavRitad({
     });
   }
   if (menuExtras) avdelningar.push({ key: "extras", innehall: <div className="flex items-center gap-0.5 px-1 py-0.5">{menuExtras}</div> });
-  if (meny) avdelningar.push(...menyFot({ onLoggaUt: meny.onLoggaUt, loggaUtEtikett: meny.loggaUtEtikett, appVersion: meny.appVersion, kor }));
+  if (meny) avdelningar.push(...menyFot({ onLoggaUt: meny.onLoggaUt, loggaUtEtikett: meny.loggaUtEtikett, loggarUtEtikett: meny.loggarUtEtikett, appVersion: meny.appVersion, kor }));
 
   return (
     // `pb-(--safe-bottom)`: utan säker yta hamnar knapparna under hemindikatorn
