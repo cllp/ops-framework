@@ -56,14 +56,36 @@ export const HANDELSE_PLATSER = /** @type {const} */ (["handelse.sektion", "hand
  */
 export const INSPELNING_PLATSER = /** @type {const} */ (["inspelning.mal"]);
 
-/** @typedef {typeof HANDELSE_PLATSER[number] | typeof INSPELNING_PLATSER[number]} Plats */
+/**
+ * Platsen på appens inställningar (0.140.0, cllp/lifehub.app, "Bokning går att installera").
+ *
+ * - `installningar.sektion`: en sektion i appens inställningar, ritad som en rad i listan och en egen panel (`OpsInstallningar`).
+ *   Etiketten är sektionens rubrik. Komponenten får `{ grupp }` och inget annat, utom det appen själv lägger till i
+ *   `installningsSektioner` (`extra`, till exempel `kanAndra`).
+ *
+ * ══ ⛔ HÄNDELSEN: EN APP SOM BARA HAR EN SEKTION I INSTÄLLNINGARNA KUNDE ALDRIG INSTALLERAS ══════════════════════════
+ *
+ * CP 2026-10-23, med en skärmbild av gruppens Appar: "Jag har slått på bokning överallt, men kan inte se den under appar att kunna
+ * installera." Under "Appar som kan läggas till" stod Ekonomi och Datumomröstning, inte Bokning. Mätt: erbjudandet läser
+ * `(m.hubb || arBaraTillagg(m))`, och Bokningens manifest hade `hubb: null` och inga tillägg. Dess enda yta var en sektion i
+ * Inställningar som appen ritade själv, så ramverket visste inte att modulen hade en yta och kunde aldrig erbjuda den.
+ *
+ * Platsen löser det utan att ramverket ritar appens inställningar: `OpsInstallningar` är redan ramverkets, och sektionerna i den är
+ * appens. Det som saknades var att modulen kunde SÄGA att den bidrar med en sektion. Nu gör den det i manifestet, och
+ * `installningsSektioner` ger appens inställningsvy raderna. ⛔ Appen ritar platsen: ramverket äger vyn bara som skal
+ * (`OpsInstallningar`), och en plats som ingen yta ritar är ett tillägg som försvinner tyst (regel 5). Därför finns hjälparen, och
+ * därför står i README och CHANGELOG vad appen måste göra.
+ */
+export const INSTALLNINGAR_PLATSER = /** @type {const} */ (["installningar.sektion"]);
+
+/** @typedef {typeof HANDELSE_PLATSER[number] | typeof INSPELNING_PLATSER[number] | typeof INSTALLNINGAR_PLATSER[number]} Plats */
 
 /**
  * Alla platser, för valideringen. ⛔ Härledd ur ytornas listor och aldrig skriven för sig: en andra lista hade kunnat sakna en plats
  * som en yta ritar.
  * @type {ReadonlyArray<string>}
  */
-export const PLATSER = Object.freeze([...HANDELSE_PLATSER, ...INSPELNING_PLATSER]);
+export const PLATSER = Object.freeze([...HANDELSE_PLATSER, ...INSPELNING_PLATSER, ...INSTALLNINGAR_PLATSER]);
 
 /**
  * Ytornas namn som användaren ser dem, nyckel är platsens första led (`handelse` i `handelse.sektion`).
@@ -75,6 +97,7 @@ export const PLATSER = Object.freeze([...HANDELSE_PLATSER, ...INSPELNING_PLATSER
 export const PLATSYTOR = Object.freeze({
   handelse: Object.freeze({ sv: "Händelser", en: "Events" }),
   inspelning: Object.freeze({ sv: "Inspelning", en: "Recording" }),
+  installningar: Object.freeze({ sv: "Inställningar", en: "Settings" }),
 });
 
 /** @param {string} plats @returns {string} */
