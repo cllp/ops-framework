@@ -160,6 +160,11 @@ export const PAR = [
    */
   { vad: "primärknappens text", text: "accent-contrast", yta: "accent", niva: BROD },
   { vad: "primärknappens text, hover", text: "accent-contrast", yta: "accent-hover", niva: BROD },
+  /* Tipsraden ("håll in Kalender", CP 2026-10-23: "man ser knappt den rutan"). Accentytan med primärknappens text, och ytan ska gå att se mot sidan. */
+  { vad: "tipsradens text", text: "accent-contrast", yta: "accent", niva: BROD },
+  { vad: "tipsradens stängkryss, hover", text: "accent-contrast", yta: "accent-hover", niva: GRAFIK },
+  { vad: "tipsradens yta mot sidan", text: "accent", yta: "canvas", niva: GRAFIK },
+  { vad: "tipsradens yta mot headern", text: "accent", yta: "surface", niva: GRAFIK },
   /*
    * ⛔ MÄRKETS ORANGE (0.31.0). "HUB" i toppraden och i inloggningen är stor text
    * (13 respektive 32 px, spärrad) och ska nå 3:1, det som WCAG kräver av

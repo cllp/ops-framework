@@ -114,7 +114,7 @@ export function OpsSkapaGenvagar({ mal, children }) {
           role="status"
           data-skapa-genvag-tips=""
           className={cx(
-            "fixed inset-x-4 z-(--z-chrome) mx-auto flex max-w-md items-center gap-2 rounded-base border border-line bg-elevated py-1 pr-1 pl-3 text-etikett text-ink shadow-md md:hidden",
+            "fixed inset-x-4 z-(--z-chrome) mx-auto flex max-w-md items-center gap-2 rounded-base bg-accent py-1 pr-1 pl-3 text-etikett font-medium text-accent-contrast shadow-lg ring-2 ring-surface md:hidden",
             "bottom-[calc(var(--bottom-nav-h)+var(--safe-bottom)+var(--bottom-nav-overhang)+0.5rem)]",
           )}
         >
@@ -123,7 +123,7 @@ export function OpsSkapaGenvagar({ mal, children }) {
             type="button"
             aria-label={ordet(ORD_SKAPAGENVAG, "stang", sprak)}
             onClick={stang}
-            className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-md text-ink-muted hover:bg-raised hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-md text-accent-contrast hover:bg-accent-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-contrast"
           >
             <KryssIkon size={18} />
           </button>
