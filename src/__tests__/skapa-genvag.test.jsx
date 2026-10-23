@@ -318,4 +318,17 @@ describe("tipsraden", () => {
     await flush();
     expect(document.querySelector("[data-skapa-genvag-tips]")).toBeNull();
   });
+
+  it("⛔ står på accentytan med primärknappens text, och en ring skiljer den från sidan (CP 2026-10-23: man ser knappt rutan)", async () => {
+    const onNavigate = vi.fn((/** @type {string} */ _h, /** @type {any} */ e) => e.preventDefault());
+    render(Skal({ onNavigate, skapa: { lage: "g1", handelse: { form: Handelseform, katalog: null } } }));
+    fireEvent.click(kalender());
+    await flush();
+    const tips = /** @type {HTMLElement} */ (document.querySelector("[data-skapa-genvag-tips]"));
+    const klasser = tips.className.split(/\s+/);
+    expect(klasser).toEqual(expect.arrayContaining(["bg-accent", "text-accent-contrast", "ring-2", "ring-surface", "shadow-lg"]));
+    expect(klasser).not.toContain("bg-elevated");
+    const kryss = /** @type {HTMLElement} */ (tips.querySelector("button"));
+    expect(kryss.className.split(/\s+/)).toContain("text-accent-contrast");
+  });
 });
