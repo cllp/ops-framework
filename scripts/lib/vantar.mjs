@@ -77,6 +77,10 @@ export function loftesProps(kalla) {
   for (const m of kalla.matchAll(/@(?:param|property)\s+\{([^\n]*?Promise[^\n]*)\}\s+\[?(?:props\.)?(on[A-Z][A-Za-z]*)\]?/g)) {
     if (!EGNA_PROPS.has(m[2])) ut.add(m[2]);
   }
+  // Objekttypen: `@param {{ onSpara: (x) => Promise<void>, ... }} props`. Namnet, kolon, parametrar, pil och sedan Promise innan nästa fält.
+  for (const m of kalla.matchAll(/\b(on[A-Z][A-Za-z]*)\??\s*:\s*(?:\([^)\n]*\)|[A-Za-z]+)\s*=>\s*[^,}\n]*Promise/g)) {
+    if (!EGNA_PROPS.has(m[1])) ut.add(m[1]);
+  }
   return ut;
 }
 
