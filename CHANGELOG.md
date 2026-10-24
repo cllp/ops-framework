@@ -13,6 +13,16 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 Inget ännu.
 
+## 0.143.0
+
+### Taggkomponenter utlyfta ur Biblioteket och dubbelriktade grupptaggar
+
+**Inte brytande:** tre nya exporterade komponenter (`OpsTaggPiller`, `OpsTaggRad`, `OpsTaggFilter`), en valfri prop `extra` på `OpsTaggFilter` och en valfri prop `gruppTaggar` på `OpsBibliotek`. Inget tas bort.
+
+- **`OpsTaggPiller`, `OpsTaggRad` och `OpsTaggFilter` exporterade ur huvudingången** (cllp/lifehub.app#398 (tagga ärenden och meddelanden), cllp/lifehub.app#467 (taggar i inkorgen och ärenden)): Bibliotekets taggpiller, taggrad med `+ Tagg` och förslag samt popover-filtret `Taggar` ligger nu i `src/components/OpsTaggar.jsx` och återanvänds av `OpsBibliotek` och av appens egna vyer i stället för dubbla implementationer.
+- **`OpsTaggFilter extra`** (samma ärende): valfri andra sektion i samma popover (`{ rubrik, ikon?, lista, valda, onValda }`, med egen `role="menu"` och piltangenter via `menyPilar`), så att en vy som har både grupptaggar och externa etiketter (till exempel GitHub-labels) kan filtrera båda i en och samma `Taggar`-knapp. Knappen räknar summan av valda och `Rensa alla` nollar båda.
+- **`OpsBibliotek gruppTaggar`** (samma ärende): valfri `string[]` med gruppens taggar från andra samlingar (Inkorgen och Ärenden). Slås ihop med `allaTaggar(poster)` utan dubbletter så att taggar som skapats i Inkorgen eller Ärenden också syns i Bibliotekets `OpsTaggFilter` (med `antal: 0` när ingen bibliotekspost bär taggen än) och i `OpsTaggRad`-förslagen.
+
 ## 0.142.0
 
 ### Val som väntar, datumväljaren öppnar där det behövs, och tipsraden syns
