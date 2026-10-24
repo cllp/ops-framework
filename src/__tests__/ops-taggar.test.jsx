@@ -65,6 +65,26 @@ describe("OpsTaggRad fristående (0.143.0, lifehub.app#398)", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(/kunde inte sparas/i);
     expect(container.querySelector("[data-bibliotek-tagg=\"vvs\"]")).toBeNull();
   });
+
+  it("när onAndra avvisar vid borttagning kommer taggen tillbaka och felet syns", async () => {
+    const user = userEvent.setup();
+    const onAndra = vi.fn(() => Promise.reject(new Error("Nekad av servern")));
+
+    const { container } = render(
+      <OpsTaggRad
+        taggar={["viktigt", "el"]}
+        kanAndra
+        forslag={["viktigt", "el"]}
+        onAndra={onAndra}
+      />,
+    );
+
+    expect(container.querySelector("[data-bibliotek-tagg=\"viktigt\"]")).not.toBeNull();
+    await user.click(screen.getByRole("button", { name: "Ta bort taggen viktigt" }));
+    expect(onAndra).toHaveBeenCalledWith(["el"]);
+    expect(await screen.findByRole("alert")).toHaveTextContent(/nekad av servern/i);
+    expect(container.querySelector("[data-bibliotek-tagg=\"viktigt\"]")).not.toBeNull();
+  });
 });
 
 describe("OpsTaggFilter med extra sektion (0.143.0, lifehub.app#398)", () => {
