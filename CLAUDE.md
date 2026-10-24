@@ -26,6 +26,46 @@ värda att ta reda på innan du bryter mot den.
 
 ---
 
+## Visionen: varför vi bygger det här
+
+CP 2026-10-24: "Jag vill få dom många att arbeta bättre tillsammans, och genom enkla
+verktyg organisera sig bättre, oavsett arbetsområde så att var och en kan får möjlighet
+att koncentrera sig på det viktiga och kreativa och mindre tid framför en skärm."
+
+> Vi hjälper människor att arbeta bättre tillsammans. Med enkla verktyg organiserar sig
+> varje grupp, oavsett vad den gör, så att var och en får mer tid för det viktiga och
+> kreativa, och mindre tid framför en skärm.
+
+### Hur: två vägar in, och agenten är den första
+
+1. **Agenten gör jobbet och hittar åt dig.** Det är huvudvägen. Du säger något i TALK
+   och det blir ett ärende, en händelse eller ett meddelande. Agenten svarar på "när kan
+   vi ses?" och "visa allt om bokningen i juli" i stället för att du letar. Agenten
+   arbetar vidare i gruppen medan du gör annat.
+2. **Visuella hjälpmedel är den andra vägen in.** Taggar, filter, sök och vyer som Idag
+   och Dagen finns för den som vill se själv. De ska vara enkla, och de får inte bli
+   det man måste gå igenom för att få något gjort.
+3. **Ibland måste man lägga till något för att det ska gå att hitta.** En tagg gör en
+   post möjlig att hitta oavsett vem som letar, också för agenten. Det är okej att be
+   om det, men då måste det gå på ett tryck, eller göras åt en av agenten.
+4. **Samma grund, oavsett arbetsområde.** Hubbar och grupper bär ett bolag, en familj,
+   en förening, ett studieförbund och en bokningsverksamhet med samma ramverk. Det som
+   bara en sorts verksamhet behöver hör till en hubb eller en app, inte till grunden.
+
+### Frågan till varje ärende
+
+**Gör det här att någon tittar mindre på skärmen, eller mer?**
+
+- Det som minskar skärmtiden får förtur: agenten som gör jobbet, påminnelser som
+  kommer av sig själva, sammanfattningar i stället för listor.
+- Det som ökar skärmtiden (ett val till, en vy till, ett filter till) får motivera sig i
+  ärendet: varför det inte kan lösas av agenten, och varför det är värt en sak till att
+  titta på.
+- Skriv svaret i ärendet eller PR-texten. Ett ärende som inte kan svara är inte klart
+  att bygga.
+
+---
+
 ## ⛔ Samarbetet: hur agenter och produktägaren arbetar ihop
 
 CP 2026-10-12, med en skärmbild av SessionStudios flikar Arbetssätt och

@@ -11,7 +11,10 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ## Ej utgivet
 
-Inget ännu.
+- **Visionen i kanon** (`CLAUDE.md`, CP 2026-10-24): varför vi bygger, hur (agenten som
+  första väg in, visuella hjälpmedel som den andra) och frågan till varje ärende: gör det
+  här att någon tittar mindre på skärmen, eller mer? Följer med till konsumenternas
+  kanonkopia vid nästa utgivning och ompinning.
 
 ## 0.142.0
 
