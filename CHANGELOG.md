@@ -13,6 +13,19 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 Inget ännu.
 
+## 0.142.0
+
+### Val som väntar, datumväljaren öppnar där det behövs, och tipsraden syns
+
+**Inte brytande:** två nya valfria props på `OpsDatePicker`, väntläge i tre val när `onChange` ger ett löfte, och vakten `check:vantar` utvidgad. Inget tas bort. Utan löfte och utan de nya propsen är allt som förut.
+
+- **`OpsDatePicker oppnaPa`** (cllp/lifehub.app#450 (slutdatum och väljarens månad)). ISO-dag som anger vilken månad en TOM väljare öppnar på, också i `onManadVisas`. Med ett `value` gäller värdet. CP fick bläddra nio månader fram för att sätta ett slutdatum i juli 2027. Ett värde som inte är en ISO-dag kastar.
+- **`OpsDatePicker tidigast`** (samma ärende). Dagar före den går inte att välja, så ett slutdatum före start syns redan i kalendern.
+- **`OpsSwitch`, `OpsCheckbox` och `OpsSelect` väntar när `onChange` ger ett löfte** (cllp/ops-framework#440 (väntläge i reglage och väljare)). Snurra bredvid (i väljaren i pilens plats), `aria-busy`, och ett andra val når inte appen förrän löftet är klart, också två val i samma tick. Valet blir inte blekt: det var just den bleka kontrollen utan rörelse CP inte ville se. Ett avvisat löfte släpper spärren och felet går vidare till appen. Ny intern krok `useLofteVantan`.
+- **Vakten `check:vantar` utvidgad** till de tre valen: regeln `valet-svaljs` (ett val vars `onChange` startar ett anrop men inte ger löftet vidare) och `val-utan-vantan` (komponenten själv lägger inte `onChange` genom kroken). Nytt golv: minst 29 val. Taket för undantag är oförändrat 8.
+- **Mätt före rättelsen: tre brott i `OpsModulRam`** (På, Visa i huvudmenyn och modulens egna reglage). De ritar resultatet direkt och ställer tillbaka vid fel, men gav inte löftet vidare. Nu gör de det (`sparaListor` ger `bakgrund`s löfte, som aldrig avslås), så reglaget visar en snurra medan servern svarar.
+- **Tipsraden syns** (cllp/ops-framework#439 (accentyta, ring och skugga), mergad före utgivningen): accentyta, ring och skugga i stället för en rad som knappt syntes (#438 (tipsraden syns knappt)).
+
 ## 0.141.0
 
 ### Väntläget överallt där en knapp startar ett anrop: `busyLabel`, vakten `check-vantar` och tjugo ställen där användaren väntade utan att se det

@@ -1,7 +1,9 @@
 import * as Select from "@radix-ui/react-select";
 import { cx } from "../lib/cx.js";
 import { faltListaBreddKlass, faltTriggerKlass, faltYtaKlass, valjAlternativKlass } from "../lib/radKlass.js";
+import { useLofteVantan } from "../lib/useLofteVantan.js";
 import { useFieldBinding } from "./OpsField.jsx";
+import { OpsSpinner } from "./OpsSpinner.jsx";
 import { BockIkon, ChevronNedIkon } from "./icons.jsx";
 
 /**
@@ -21,7 +23,8 @@ import { BockIkon, ChevronNedIkon } from "./icons.jsx";
  * @param {object} props
  * @param {{ value: string, label: string, disabled?: boolean }[]} props.options
  * @param {string} [props.value]
- * @param {(value: string) => void} props.onChange
+ * @param {(value: string) => void | Promise<unknown>} props.onChange (0.142.0, #440) Ett löfte gör väljaren upptagen: snurra i stället för pilen,
+ *   `aria-busy`, och ett andra val släpps inte fram förrän löftet är klart.
  * @param {string} [props.placeholder]
  * @param {boolean} [props.disabled]
  * @param {string} [props.ariaLabel] Bara när väljaren står utanför en OpsField.
@@ -31,19 +34,21 @@ export function OpsSelect({ options, value, onChange, placeholder = "Välj", dis
     throw new Error("OpsSelect: options måste vara en lista av { value, label }.");
   }
   const f = useFieldBinding();
+  const { upptagen, anropa } = useLofteVantan(onChange);
 
   return (
-    <Select.Root value={value} onValueChange={onChange} disabled={disabled} required={f.required || undefined}>
+    <Select.Root value={value} onValueChange={anropa} disabled={disabled} required={f.required || undefined}>
       <Select.Trigger
         id={f.id}
         className={cx(faltTriggerKlass({ invalid: f.invalid }), "data-[placeholder]:text-ink-muted")}
         aria-label={ariaLabel}
         aria-invalid={f.invalid || undefined}
         aria-describedby={f.describedBy}
+        aria-busy={upptagen || undefined}
       >
         <Select.Value placeholder={placeholder} />
         <Select.Icon className="text-ink-muted">
-          <ChevronNedIkon />
+          {upptagen ? <OpsSpinner size="sm" tone="current" decorative /> : <ChevronNedIkon />}
         </Select.Icon>
       </Select.Trigger>
 

@@ -110,6 +110,21 @@ describe("vakten check-vantar: varje knapp som startar ett anrop väntar synligt
     expect(r.golv.some((g) => g.includes("taket är"))).toBe(true);
   });
 
+  it("⛔ röd (0.142.0): Visa i huvudmenyn slutar ge löftet vidare (ett val vars onChange startar ett anrop)", () => {
+    const r = granska(mutera(filer, "OpsModulRam.jsx", "return sparaListor({ moduler, huvudmeny: nastaHuvud }", "sparaListor({ moduler, huvudmeny: nastaHuvud }"));
+    expect(harBrott(r, "OpsModulRam.jsx", "valet-svaljs")).toBe(true);
+  });
+
+  it("⛔ röd (0.142.0): OpsSwitch lägger inte onChange genom useLofteVantan", () => {
+    const fore = granska(filer);
+    expect(fore.stat.val).toBeGreaterThanOrEqual(GOLV.val);
+    const kalla = filer["OpsToggle.jsx"];
+    const sista = kalla.lastIndexOf("useLofteVantan(onChange)");
+    const muterad = { ...filer, "OpsToggle.jsx": kalla.slice(0, sista) + "{ upptagen: false, anropa: onChange }" + kalla.slice(sista + "useLofteVantan(onChange)".length) };
+    const r = granska(muterad);
+    expect(r.brott.some((b) => b.fil === "OpsToggle.jsx" && b.regel === "val-utan-vantan" && /OpsSwitch/.test(b.text))).toBe(true);
+  });
+
   it("⛔ röd under golvet: en vakt som läser tre filer mäter ingenting", () => {
     const tre = Object.fromEntries(Object.entries(filer).slice(0, 3));
     const r = granska(tre);

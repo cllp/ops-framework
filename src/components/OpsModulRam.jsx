@@ -319,7 +319,7 @@ export function InstallningsInnehall({ modul, ram, sprak }) {
   const sparaListor = (nasta, arbete) => {
     const fore = listor;
     setListor(nasta);
-    bakgrund(arbete, () => setListor(fore));
+    return bakgrund(arbete, () => setListor(fore));
   };
 
   const ikon = modul.hubb ? /** @type {import("react").ReactNode} */ (modul.hubb.ikon) : null;
@@ -346,7 +346,7 @@ export function InstallningsInnehall({ modul, ram, sprak }) {
                 }
                 const nastaModuler = sattModul(moduler, modul.id, nasta);
                 const nastaHuvud = huvudmenyInom(sattHuvudmeny(huvudmeny, modul.id, nasta ? fast : false), nastaModuler);
-                sparaListor({ moduler: nastaModuler, huvudmeny: nastaHuvud }, () => {
+                return sparaListor({ moduler: nastaModuler, huvudmeny: nastaHuvud }, () => {
                   const jobb = [];
                   const a = ram.onOrdning?.(nastaModuler);
                   if (a) jobb.push(Promise.resolve(a));
@@ -374,7 +374,7 @@ export function InstallningsInnehall({ modul, ram, sprak }) {
                   return;
                 }
                 const nastaHuvud = sattHuvudmeny(huvudmeny, modul.id, nasta);
-                sparaListor({ moduler, huvudmeny: nastaHuvud }, () => {
+                return sparaListor({ moduler, huvudmeny: nastaHuvud }, () => {
                   const b = ram.onSparaHuvudmeny?.(nastaHuvud);
                   return b ? Promise.resolve(b).then(() => {}) : undefined;
                 });
@@ -547,7 +547,7 @@ export function InstallningsInnehall({ modul, ram, sprak }) {
                         }
                         const fore = boolUtkast[f.id];
                         setBoolUtkast((nu) => ({ ...nu, [f.id]: nasta }));
-                        bakgrund(
+                        return bakgrund(
                           () => ram.onSpara?.({ modulId: modul.id, varden: karta(egnaFalt, varden, texter, boolUtkast, { over: { [f.id]: nasta } }) }),
                           () => setBoolUtkast((nu) => {
                             const nastaKarta = { ...nu };

@@ -170,10 +170,12 @@ const MARKERADE_KOMPONENTER = { DayButton: MarkeradDagknapp };
  * @param {{ modifiers: any, labels: any } | undefined} props.markering
  * @param {((forstaDag: string) => void) | undefined} props.onManadVisas
  * @param {(d: Date | undefined) => void} props.onSelect
+ * @param {Date | undefined} [props.start] Månaden när inget är valt (0.142.0, `oppnaPa`).
+ * @param {Date | undefined} [props.forst] Dagar före den går inte att välja (0.142.0, `tidigast`).
  */
-function DatumKalender({ chosen, rubriker, markering, onManadVisas, onSelect }) {
+function DatumKalender({ chosen, rubriker, markering, onManadVisas, onSelect, start, forst }) {
   const [manad, setManad] = useState(() => {
-    const d = chosen ?? new Date();
+    const d = chosen ?? start ?? new Date();
     return new Date(d.getFullYear(), d.getMonth(), 1);
   });
   /** @param {Date} m */
@@ -203,6 +205,7 @@ function DatumKalender({ chosen, rubriker, markering, onManadVisas, onSelect }) 
         onMonthChange={byt}
         {...(markering ? { modifiers: markering.modifiers, labels: markering.labels, components: MARKERADE_KOMPONENTER } : {})}
         onSelect={onSelect}
+        {...(forst ? { disabled: { before: forst } } : {})}
         classNames={{
           months: "text-meta text-ink",
           month_caption: "flex items-center justify-center py-1 text-meta font-semibold text-ink",
@@ -225,6 +228,17 @@ function DatumKalender({ chosen, rubriker, markering, onManadVisas, onSelect }) 
 }
 
 /**
+ * @param {string} namn
+ * @param {string | undefined} v
+ * @returns {Date | undefined}
+ */
+function isoProp(namn, v) {
+  if (v === undefined || v === null || v === "") return undefined;
+  if (typeof v !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(v)) throw new Error(`OpsDatePicker: ${namn} måste vara en ISO-dag "ÅÅÅÅ-MM-DD", fick ${JSON.stringify(v)}.`);
+  return franIso(v);
+}
+
+/**
  * @param {object} props
  * @param {string} [props.value] ISO-datum, "ÅÅÅÅ-MM-DD".
  * @param {(iso: string | undefined) => void} props.onChange
@@ -239,6 +253,9 @@ function DatumKalender({ chosen, rubriker, markering, onManadVisas, onSelect }) 
  *   användaren bläddrar till en annan månad, så att appen kan räkna fram `markeradeDagar` för just den månaden.
  * @param {string} [props.markeradEtikett] Läggs efter dagens namn för en markerad dag, så att en skärmläsare hör det pricken visar. Standard "har händelser"
  *   (på engelska "has events", efter appens språk i `OpsSprakProvider`).
+ * @param {string} [props.oppnaPa] (0.142.0) ISO-dag ("ÅÅÅÅ-MM-DD"). Månaden en TOM väljare öppnar på, till exempel startdatumet för ett slutdatum
+ *   (lifehub.app#450, CP fick bläddra nio månader). Med ett `value` gäller värdet som förut. Ett värde som inte är en ISO-dag kastar.
+ * @param {string} [props.tidigast] (0.142.0) ISO-dag. Dagar före den går inte att välja, så ett slutdatum före start syns redan i kalendern.
  */
 export function OpsDatePicker({
   value,
@@ -251,10 +268,14 @@ export function OpsDatePicker({
   markeradeDagar,
   onManadVisas,
   markeradEtikett,
+  oppnaPa,
+  tidigast,
 }) {
   const [oppen, setOppen] = useState(false);
   const f = useFieldBinding();
   const chosen = franIso(value);
+  const start = isoProp("oppnaPa", oppnaPa);
+  const forst = isoProp("tidigast", tidigast);
 
   /*
    * ⛔ MELLANLAGRADE, för att `Intl.DateTimeFormat` är dyr att konstruera och
@@ -300,7 +321,7 @@ export function OpsDatePicker({
    */
   function andraOppen(nasta) {
     setOppen(nasta);
-    if (nasta) onManadVisas?.(forstaDagIManad(chosen ?? new Date()));
+    if (nasta) onManadVisas?.(forstaDagIManad(chosen ?? start ?? new Date()));
   }
 
   return (
@@ -328,6 +349,8 @@ export function OpsDatePicker({
             rubriker={rubriker}
             markering={markering}
             onManadVisas={onManadVisas}
+            start={start}
+            forst={forst}
             onSelect={(d) => {
               onChange(d ? tillIso(d) : undefined);
               setOppen(false);
