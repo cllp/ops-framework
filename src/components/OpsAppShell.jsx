@@ -161,8 +161,8 @@ const ATGARDER_SMAL = 3;
  * Med hemikon och TRE åtgärder tränger klungan 12 px in i högerpaddingen vid 320 px: avataren hamnar 4 px från skärmkanten och
  * innehållet är bredare än raden. Det är "ryms inte". Åtgärden är den uppdraget pekade på: en åtgärd färre när hemikonen visas, så
  * att överskottet flyttar till bottenradens Meny som i dag (`flyttbara`). Ingen åtgärd försvinner: den är en rad i Menyn, och
- * provet kräver det. Utan hemikon (ingen `grupper.oversikt`, eller i översikten, där huvudet inte har några åtgärder) gäller
- * `ATGARDER_SMAL` som förut.
+ * provet kräver det. Utan hemikon (ingen `grupper.oversikt`) gäller `ATGARDER_SMAL` som förut. I översikten (0.144.0 ritar hemikonen
+ * också där) har huvudet inga åtgärder alls, så budgeten rör inte det läget.
  *
  * Budgeten är en siffra för alla telefonbredder, eftersom den bor i klasser (`hidden lg:contents`) och inte i en mätning vid
  * körning. Den kostar alltså den tredje åtgärden även vid 360 och 390 px, där den hade rymts. Det är priset för att inte ha två
@@ -669,27 +669,40 @@ function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, s
  */
 
 /**
- * Hemikonen i huvudet i en grupp (0.138.0): ett tryck gör exakt det raden Översikt i gruppväxlaren gör (`oversikt.onValj`).
+ * Hemikonen i huvudet (0.138.0, markerad i översikten 0.144.0): ett tryck gör exakt det raden Översikt i gruppväxlaren gör (`oversikt.onValj`).
  *
- * ⛔ HÄNDELSEN: CP 2026-10-22, "det är lite svårt att navigera sig tillbaka till hemgrupp / översikt." Hemikonen ritades bara i
+ * ⛔ HÄNDELSEN 0.138.0: CP 2026-10-22, "det är lite svårt att navigera sig tillbaka till hemgrupp / översikt." Hemikonen ritades bara i
  * översiktsläget (där växlarens knapp ÄR hemikonen). Inne i en grupp nådde man Översikten bara genom att öppna växlaren och leta
  * upp raden, och på dator (från `lg`) har växlaren ingen knapp alls, eftersom gruppanelen tar över: där fanns ingen väg.
  *
- * Ingen ny prop: knappen läser `grupper.oversikt`, och namnet kommer ur `oversikt.etikett` eller `ORD_OPSOVERSIKT`, samma ord som
- * raden i växlaren. Utan `grupper.oversikt` ritas den inte, och skalet är exakt som förut. I översiktsläget ritas den inte heller:
- * där är växlarens knapp hemikonen, markerad som aktuell (`aria-current="page"`), och en andra hemikon intill den hade varit två
- * knappar för samma plats. 44 px träffyta på alla bredder.
+ * ⛔ HÄNDELSEN 0.144.0: CP 2026-10-25, "huset ska stå kvar och lysa när man är hemma." Före det var hemknappen en grupp-sak och
+ * växlarens knapp bar huset i översikten, utan att synas som aktuell (bara `aria-current`, ingen färg). En knapp som byter plats eller
+ * försvinner när man kommer fram får en att undra vart den tog vägen; en som lyser visar var man är. Nu ritas hemknappen i BÅDA
+ * lägena, på samma plats, och `markerad` (översiktsläget) gör den till den aktuella platsen: `aria-current="page"` och accentfärg på
+ * en sänkt yta (`text-accent`, `bg-sunken`, ramverkets egna tokens). Växlaren bär inte längre huset (se `OpsGruppvaxlare`), så det
+ * finns ett hus i huvudet och aldrig två.
  *
- * @param {{ etikett: string, onValj: () => void }} props
+ * Ett tryck i markerat läge anropar `onValj` som i en grupp, och ingenting annat: det är minst kod, och det är rätt för en hem-knapp
+ * (ett tryck på hem när man redan är hemma tar en appvy som ligger under Översikten tillbaka till dess början; i vanliga fall är det
+ * en no-op, eftersom `oversikt.onValj` är idempotent: appen går ur gruppen, och där är den redan).
+ *
+ * Ingen ny prop: knappen läser `grupper.oversikt`, och namnet kommer ur `oversikt.etikett` eller `ORD_OPSOVERSIKT`, samma ord som
+ * raden i växlaren. Utan `grupper.oversikt` ritas den inte, och skalet är exakt som förut. 44 px träffyta på alla bredder.
+ *
+ * @param {{ etikett: string, onValj: () => void, markerad?: boolean }} props
  */
-function HemKnapp({ etikett, onValj }) {
+function HemKnapp({ etikett, onValj, markerad = false }) {
   return (
     <button
       type="button"
       data-hemikon=""
       aria-label={etikett}
+      aria-current={markerad ? "page" : undefined}
       onClick={onValj}
-      className="flex size-11 shrink-0 items-center justify-center rounded-md text-ink-secondary hover:bg-sunken focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+      className={cx(
+        "flex size-11 shrink-0 items-center justify-center rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+        markerad ? "bg-sunken text-accent" : "text-ink-secondary hover:bg-sunken",
+      )}
     >
       <HusIkon size={20} />
     </button>
@@ -1832,6 +1845,8 @@ function OpsAppShellRitad({
   const stannarIHuvudet = (/** @type {import("react").ReactElement} */ a) =>
     a.type === OpsIconLink && /** @type {any} */ (a.props).kvarIHuvudet === true;
   // ⛔ 0.138.0: MED HEMIKON I HUVUDET TAR TELEFONEN EN ÅTGÄRD MINDRE, se `ATGARDER_SMAL_HEM`.
+  // 0.144.0: hemikonen ritas nu också i översikten, men budgeten gäller åtgärderna och de ritas inte där (`iOversikt ? null : atgarderIHuvud`),
+  // så villkoret är oförändrat med flit: översiktsläget får samma fördelning mellan huvud och Meny som förut.
   const harHemikon = Boolean(grupper?.oversikt) && !grupper?.oversikt?.aktiv;
   const atgSmal = harHemikon ? ATGARDER_SMAL_HEM : ATGARDER_SMAL;
   const flyttbara = atgardsLista.filter((a, i) => i >= atgSmal && a.type === OpsIconLink && !stannarIHuvudet(a));
@@ -2420,9 +2435,10 @@ function OpsAppShellRitad({
             >
               {varumarke}
             </a>
-            {/* ⛔ 0.138.0: HEMIKONEN I GRUPPLÄGET, se `HemKnapp`. Under `lg` är märket borta och hemikonen står först, före gruppväxlaren. Från
-                `lg` står den EFTER märket och inte före: märkesrutans vänsterkant ska ligga på panelens (`check-skalyta` 12, SS `AppHeader.jsx:174`). */}
-            {grupper?.oversikt && !iOversikt ? <HemKnapp etikett={oversiktEtikett} onValj={grupper.oversikt.onValj} /> : null}
+            {/* ⛔ 0.138.0: HEMIKONEN, se `HemKnapp`. Under `lg` är märket borta och hemikonen står först, före gruppväxlaren. Från
+                `lg` står den EFTER märket och inte före: märkesrutans vänsterkant ska ligga på panelens (`check-skalyta` 12, SS `AppHeader.jsx:174`).
+                ⛔ 0.144.0: RITAS OCKSÅ I ÖVERSIKTEN, markerad (CP 2026-10-25: huset ska stå kvar och lysa när man är hemma). */}
+            {grupper?.oversikt ? <HemKnapp etikett={oversiktEtikett} onValj={grupper.oversikt.onValj} markerad={iOversikt} /> : null}
             {/* ⛔ 0.52.0: HUBBMENYN VID MÄRKET, SAMMA BRYTPUNKT SOM GRUPPANELEN (`lg`). Under `lg` ligger hubbarna i gruppväxlarens ark
                 i stället, på samma knapp (CP 2026-10-04: mobilen har bara en plats). Två vägar på samma skärmbredd hade varit två
                 sanningar om var man byter. Utan `grupper` finns inget ark, och då står menyn kvar på alla bredder. */}

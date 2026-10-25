@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { OpsAppShell } from "../components/OpsAppShell.jsx";
 import { OpsIconLink } from "../components/OpsIconLink.jsx";
+import { OpsGruppvaxlare } from "../components/OpsGruppanel.jsx";
 
 /**
  * 0.138.0, CP 2026-10-22: "det är lite svårt att navigera sig tillbaka till hemgrupp / översikt." Hemikonen i huvudet i varje grupp.
@@ -10,6 +11,10 @@ import { OpsIconLink } from "../components/OpsIconLink.jsx";
  *
  * ⛔ BÅDA RIKTNINGARNA i varje prov: med `oversikt` finns hemikonen, utan den gör den inte det; i en grupp är den inte markerad,
  * i översikten är den det; med hemikon är budgeten en åtgärd mindre, utan den som förut.
+ *
+ * 0.144.0, CP 2026-10-25: huset står kvar och lyser i översikten (en knapp som försvinner får en att undra vart den tog vägen, en
+ * som lyser visar var man är). Före det var växlarens knapp hemikonen i översikten; nu är hemknappen det i alla lägen, och växlaren
+ * visar sitt vanliga utseende, så att det aldrig finns två hus bredvid varandra.
  */
 
 const fasta = { idag: { href: "/idag" }, kalender: { href: "/kalender" }, hub: { href: "/hub" } };
@@ -48,6 +53,8 @@ function Skal({ oversikt = { aktiv: false, onValj: () => {} }, onValj = () => {}
 
 const hemknappar = () => document.querySelectorAll("[data-hemikon]");
 const huvud = () => screen.getByRole("banner");
+/** Husikonerna (lucide `Home`/`House`) som ritas i huvudet, vilken knapp de än sitter i. */
+const husIHuvud = () => huvud().querySelectorAll('svg[class*="lucide-house"], svg[class*="lucide-home"]');
 
 describe("Hemikonen i en grupp (0.138.0)", () => {
   it("⛔ med oversikt finns en hemknapp i huvudet i gruppläget, före gruppväxlaren, utan den finns ingen", () => {
@@ -116,16 +123,78 @@ describe("Hemikonen i en grupp (0.138.0)", () => {
     expect(within(huvud()).getByRole("button", { name: "Overview" })).toBeTruthy();
   });
 
-  it("⛔ hemikonen är inte markerad i en grupp, och i översikten är den enda hemikonen markerad som aktuell", () => {
+  it("⛔ hemikonen är inte markerad i en grupp, och i översikten står den kvar, markerad som aktuell (0.144.0)", () => {
     const { unmount } = render(<Skal />);
+    expect(hemknappar()).toHaveLength(1);
     expect(within(huvud()).getByRole("button", { name: "Översikt" }).getAttribute("aria-current")).toBeNull();
     unmount();
     render(<Skal oversikt={{ aktiv: true, onValj: () => {} }} />);
-    // Exakt EN hemikon: växlarens knapp, som är hemikonen i översikten. Ingen andra bredvid.
+    // Huset STÅR KVAR i översikten (CP 2026-10-25): exakt en hemknapp, namngiven och markerad som aktuell.
     expect(hemknappar()).toHaveLength(1);
     const hem = /** @type {HTMLElement} */ (hemknappar()[0]);
+    expect(hem).toBe(within(huvud()).getByRole("button", { name: "Översikt" }));
     expect(hem.getAttribute("aria-current")).toBe("page");
-    expect(hem.getAttribute("aria-label")).toBe("Byt grupp, nu: Översikt");
+  });
+
+  it("⛔ markerad hemikon lyser med ramverkets tokens (text-accent, bg-sunken), och en omarkerad gör det inte", () => {
+    const { unmount } = render(<Skal />);
+    const omarkerad = within(huvud()).getByRole("button", { name: "Översikt" }).className;
+    expect(omarkerad).not.toContain("text-accent");
+    expect(omarkerad).toContain("text-ink-secondary");
+    unmount();
+    render(<Skal oversikt={{ aktiv: true, onValj: () => {} }} />);
+    const markerad = within(huvud()).getByRole("button", { name: "Översikt" }).className;
+    expect(markerad).toContain("text-accent");
+    expect(markerad).toContain("bg-sunken");
+    expect(markerad).not.toContain("text-ink-secondary");
+  });
+
+  it("⛔ aldrig två husikoner i huvudet: i översikten är växlarens knapp inget hus, och ingen personikon heller", () => {
+    const { unmount } = render(<Skal />);
+    expect(husIHuvud()).toHaveLength(1);
+    unmount();
+    render(<Skal oversikt={{ aktiv: true, onValj: () => {} }} />);
+    // Ett hus, och det sitter i hemknappen. Växlaren bär inget hus, inget `data-hemikon` och ingen `aria-current`.
+    expect(husIHuvud()).toHaveLength(1);
+    expect(hemknappar()[0].querySelector("svg")).toBe(husIHuvud()[0]);
+    const vaxlare = within(huvud()).getByRole("button", { name: /^Byt grupp, nu:/ });
+    expect(vaxlare.hasAttribute("data-hemikon")).toBe(false);
+    expect(vaxlare.hasAttribute("aria-current")).toBe(false);
+    expect(vaxlare.querySelector('svg[class*="lucide-house"], svg[class*="lucide-home"]')).toBeNull();
+    // Inte heller en personikon: under md står avataren bredvid, och två personer i huvudet vore fel.
+    expect(vaxlare.querySelector('svg[class*="lucide-user"]:not([class*="lucide-users"])')).toBeNull();
+  });
+
+  it("⛔ i översikten visar växlaren vad den gör (GruppIkon, Byt grupp) och inte \"Ingen grupp\" eller bakgrundsgruppen, men skärmläsaren hör \"nu: Översikt\"", () => {
+    const { unmount } = render(<Skal oversikt={{ aktiv: true, onValj: () => {} }} aktiv="g2" />);
+    // `aktiv` är den gruppen appen håller i bakgrunden: i översikten ska den inte stå som vald.
+    const iOversikt = within(huvud()).getByRole("button", { name: /^Byt grupp, nu:/ });
+    expect(iOversikt.getAttribute("aria-label")).toBe("Byt grupp, nu: Översikt");
+    expect(iOversikt.textContent).toContain("Byt grupp");
+    expect(iOversikt.textContent).not.toContain("Ingen grupp");
+    expect(iOversikt.textContent).not.toContain("Claes Philip");
+    expect(iOversikt.querySelector('svg[class*="lucide-users"]')).not.toBeNull();
+    expect(husIHuvud()).toHaveLength(1);
+    unmount();
+    render(<Skal aktiv="g2" />);
+    expect(within(huvud()).getByRole("button", { name: /^Byt grupp, nu: Claes Philip/ })).toBeTruthy();
+  });
+
+  it("personen utan grupp (0.35.0) ser fortfarande \"Ingen grupp\" med personikon, oförändrat", () => {
+    render(<OpsGruppvaxlare grupper={[]} aktiv="" onValj={() => {}} />);
+    const knapp = screen.getByRole("button", { name: "Byt grupp, nu: Ingen grupp" });
+    expect(knapp.textContent).toContain("Ingen grupp");
+    expect(knapp.querySelector('svg[class*="lucide-user"]:not([class*="lucide-users"])')).not.toBeNull();
+    expect(knapp.querySelector('svg[class*="lucide-users"]')).toBeNull();
+  });
+
+  it("⛔ ett tryck på den markerade hemikonen anropar oversikt.onValj som i en grupp, och väljer ingen grupp", () => {
+    const onOversikt = vi.fn();
+    const onValj = vi.fn();
+    render(<Skal oversikt={{ aktiv: true, onValj: onOversikt }} onValj={onValj} />);
+    fireEvent.click(within(huvud()).getByRole("button", { name: "Översikt" }));
+    expect(onOversikt).toHaveBeenCalledTimes(1);
+    expect(onValj).not.toHaveBeenCalled();
   });
 
   it("hemikonen är 44 px stor (size-11) så att den träffas med en tumme", () => {

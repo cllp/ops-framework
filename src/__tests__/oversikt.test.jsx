@@ -48,6 +48,8 @@ describe("Översiktsläget i skalet (0.112.0)", () => {
     // Gruppanelens lista (dator) ritas inte: den enda grupplistan är växlarens, och den är stängd.
     expect(screen.queryByRole("list", { name: "Mina grupper" })).toBeNull();
     expect(screen.getByRole("link", { name: "Min profil" })).toBeTruthy();
+    // 0.144.0: huset står kvar och lyser (hemknappen, markerad), och växlaren visar vad den gör (Byt grupp), med skärmläsarnamnet "nu: Översikt".
+    expect(screen.getByRole("button", { name: "Översikt" }).getAttribute("aria-current")).toBe("page");
     expect(screen.getByRole("button", { name: "Byt grupp, nu: Översikt" })).toBeTruthy();
     expect(screen.getByText("innehåll")).toBeTruthy();
   });
@@ -83,7 +85,8 @@ describe("Raden Översikt i gruppväxlaren (0.112.0)", () => {
   it("ordtabellen: engelska ger Overview, och utan oversikt finns ingen rad", async () => {
     expect(ORD_OPSOVERSIKT.etikett).toEqual({ sv: "Översikt", en: "Overview" });
     const { unmount } = render(<OpsGruppvaxlare grupper={lista} aktiv="g1" onValj={() => {}} sprak="en" oversikt={{ aktiv: true, onValj: () => {} }} />);
-    expect(screen.getByRole("button", { name: /Overview$/ })).toBeTruthy();
+    await userEvent.setup().click(screen.getByRole("button", { name: /^Byt grupp/ }));
+    expect(screen.getByRole("button", { name: "Overview" })).toBeTruthy();
     unmount();
     render(<OpsGruppvaxlare grupper={lista} aktiv="g1" onValj={() => {}} />);
     await userEvent.setup().click(screen.getByRole("button", { name: "Byt grupp, nu: Bolaget" }));
