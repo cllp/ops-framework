@@ -50,7 +50,7 @@ import { OpsKalenderLista } from "./OpsKalenderLista.jsx";
 import { OpsExternPanel } from "./OpsExternPanel.jsx";
 import { OpsRadPanel } from "./OpsRadPanel.jsx";
 import { useRadkallor } from "../lib/radkallorkontext.js";
-import { kallaForRad } from "../lib/radkallor.js";
+import { kallaForRad, losKnapprad } from "../lib/radkallor.js";
 import { ValRad } from "./ValRad.jsx";
 
 /**
@@ -1329,6 +1329,11 @@ export function OpsCalendar({
   const [radId, setRadId] = useState(/** @type {string | null} */ (null));
   const radPost = useMemo(() => (radId ? entries.find((e) => e && e.id === radId && !e.handelseId && !e.extern && kallaForRad(radkallorK, e.id)) ?? null : null), [radId, entries, radkallorK]);
   const lasbara = useMemo(() => new Set(entries.filter((e) => e && !e.handelseId && (e.extern || kallaForRad(radkallorK, e.id))).map((e) => e.id)), [entries, radkallorK]);
+  // ⛔ OCH EN EXTERN POST MED EN KÄLLA I MANIFESTET får knappraden i sin läspanel (Dela på alla rader, "Öppna i Apple"): läspanelen är oförändrad i övrigt, och en extern post utan källa har ingen rad.
+  const externKnapprad = useMemo(() => {
+    const k = externPost ? kallaForRad(radkallorK, externPost.id) : null;
+    return externPost && k ? losKnapprad(k.manifest, externPost, "OpsCalendar") : undefined;
+  }, [externPost, radkallorK]);
   const oppnaExtern = useCallback((/** @type {import("../lib/calendar.js").CalendarEntry} */ e) => {
     setTitt(null);
     if (e.extern) setExternId(e.id);
@@ -2013,6 +2018,7 @@ export function OpsCalendar({
         sprak={String(locale).toLowerCase().startsWith("en") ? "en" : "sv"}
         kopieraTill={kopieraTill}
         onKopiera={onKopiera}
+        knapprad={externKnapprad}
       />
       {/* ⛔ PANELEN FÖR EN RAD MED EN KÄLLA (0.145.0, #446): samma sorts dialog över kalendern, med källans knappar och Dela längst ned. Se `OpsRadPanel`. */}
       <OpsRadPanel

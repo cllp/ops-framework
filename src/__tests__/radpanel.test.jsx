@@ -139,6 +139,29 @@ describe("⛔ #446: kalenderns dagruta, en rad med en källa öppnas i panelen",
     expect(radpanel()).toBeNull();
     expect(document.querySelector("[data-externpanel]")).not.toBeNull();
   });
+
+  it("en post från Apple med en källa i manifestet får knappraden i läspanelen: Dela finns också där, och Kopiera till… står kvar", async () => {
+    const user = userEvent.setup();
+    const apple = [
+      { id: "ical:a1", date: "2026-10-28", title: "Tandläkare", extern: { kalla: "Från Apple, ändras i Apple", tid: "09:30" } },
+      { id: "enannan:a2", date: "2026-10-28", title: "Utan källa", extern: { kalla: "Från Google, ändras i Google" } },
+    ];
+    const ical = { ical: { etikett: "Apple", atgarder: () => [{ id: "k", etikett: "Öppna i Apple", href: "#apple" }], dela: () => ({ skal: "En post från Apple delas inte härifrån.", istallet: "Dela den i Apple." }) } };
+    render(<Kalender entries={apple} radkallor={ical} kopieraTill={[{ id: "gruppen", namn: "Styrelsen" }]} onKopiera={() => {}} />);
+    oppnaDag();
+    await user.click(within(dagpanel()).getByRole("button", { name: "Tandläkare" }));
+    const panel = /** @type {HTMLElement} */ (document.querySelector("[data-externpanel]"));
+    expect(within(panel).getByRole("link", { name: "Öppna i Apple" }).getAttribute("href")).toBe("#apple");
+    expect(panel.querySelector("[data-knapprad-skal]")?.textContent).toBe("Går inte att dela: En post från Apple delas inte härifrån. Gör så här i stället: Dela den i Apple.");
+    expect(within(panel).getByRole("button", { name: "Kopiera till…" })).toBeInTheDocument();
+    expect(panel.querySelector("[data-handelsekalla]")?.textContent).toBe("Från Apple, ändras i Apple");
+    expect(radpanel()).toBeNull();
+    await user.click(within(panel).getByRole("button", { name: "Tillbaka" }));
+    await waitFor(() => expect(document.querySelector("[data-externpanel]")).toBeNull());
+    // Motsatsen: samma sorts post utan källa i manifestet har ingen knapprad, som förut.
+    await user.click(within(dagpanel()).getByRole("button", { name: "Utan källa" }));
+    expect(document.querySelector("[data-externpanel] [data-knapprad]")).toBeNull();
+  });
 });
 
 describe("⛔ #446: Idag, en rad med en källa öppnas i samma panel", () => {

@@ -22,8 +22,11 @@ import { OpsHandelsePanel } from "./OpsHandelsePanel.jsx";
  * @param {string} props.sprak "sv" eller "en".
  * @param {ReadonlyArray<{ id: string, namn: string, farg?: 1|2|3|4|5|6 }>} [props.kopieraTill]
  * @param {(arg: { handelse: import("./OpsHandelsePanel.jsx").HandelseVy, malKalenderId: string }) => void | Promise<void>} [props.onKopiera]
+ * @param {{ atgarder: ReadonlyArray<import("../lib/radkallor.js").Atgard>, dela: import("../lib/radkallor.js").Delning | null }} [props.knapprad] (0.145.0, cllp/ops-framework#446) Knappraden längst ned, när postens id har en källa i
+ *   `radkallor` (ur `losKnapprad`): källans knappar ("Öppna i Apple") och Dela, på samma ställe som på varannan rad. Utelämnad ritas ingen rad och panelen är som förut. ⛔ Ändrar inte vad en läspanel KAN:
+ *   Kopiera till… står kvar under informationsrutan, och Dela är ofta ett skäl (en post från Apple delas inte härifrån).
  */
-export function OpsExternPanel({ post, onStang, sprak, kopieraTill, onKopiera }) {
+export function OpsExternPanel({ post, onStang, sprak, kopieraTill, onKopiera, knapprad }) {
   const handelse = post ? externTillHandelse(post) : null;
   return (
     <Dialog.Root open={post !== null} onOpenChange={(o) => (o ? undefined : onStang())}>
@@ -45,6 +48,7 @@ export function OpsExternPanel({ post, onStang, sprak, kopieraTill, onKopiera })
               kopieraTill={kopieraTill}
               onKopiera={onKopiera}
               kopierad={post.extern ? post.extern.kopierad : undefined}
+              knapprad={knapprad}
             />
           ) : null}
         </Dialog.Content>
