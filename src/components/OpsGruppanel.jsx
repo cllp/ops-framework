@@ -5,7 +5,7 @@ import { OpsIdentity } from "./OpsIdentity.jsx";
 import { OpsCountBadge } from "./counter.jsx";
 import { OpsPanel } from "./OpsPanel.jsx";
 import { OpsPill } from "./OpsPill.jsx";
-import { AndraIkon, ChevronVansterIkon, ChevronHogerIkon, HusIkon, InfoIkon, PersonIkon, PlusIkon } from "./icons.jsx";
+import { AndraIkon, ChevronVansterIkon, ChevronHogerIkon, GruppIkon, HusIkon, InfoIkon, PersonIkon, PlusIkon } from "./icons.jsx";
 import { text } from "../lib/sprak.js";
 import { forvalda } from "../lib/ord.js";
 import { gruppmarkeProps } from "../lib/gruppikoner.js";
@@ -698,12 +698,15 @@ export function OpsGruppvaxlare({
   const oversiktNamn = oversikt ? oversikt.etikett || forvalda(ORD_OPSOVERSIKT, sprak ?? "").etikett : "";
   const aktivRad = iOversikt ? undefined : mina.find((g) => g.id === aktiv);
   // ⛔ UTAN AKTIV RAD HAR PERSONEN INGEN GRUPP (0.35.0): det enda tillståndet utan aktiv grupp, och det får ett eget namn, inte ett läge.
-  // ⛔ 0.144.0: I ÖVERSIKTEN VISAR KNAPPEN SAMMA SOM NÄR PERSONEN INGEN GRUPP HAR (0.35.0), INTE ETT HUS. Huset är hemknappen i skalet
-  // (`HemKnapp`), markerad i översikten, och en andra husikon bredvid den hade varit två hus för samma plats (CP 2026-10-25: huset ska stå
-  // kvar och lysa). Inte bakgrundsgruppen heller: `aktiv` är den grupp appen minns, och att visa den som vald skulle säga att man är i
-  // den, när man är i översikten (0.112.0). Namnet i arket är samma ord som förut, raden Översikt nedan, vald.
-  const aktivtNamn = aktivRad ? text(aktivRad.namn, sprak) : ingenGruppEtikett;
-  const Tomikon = PersonIkon;
+  // ⛔ 0.144.0: I ÖVERSIKTEN VISAR KNAPPEN VAD DEN GÖR (`GruppIkon` och `etikett`, "Byt grupp"), VARKEN ETT HUS ELLER "INGEN GRUPP".
+  // Huset är hemknappen i skalet (`HemKnapp`), markerad i översikten (CP 2026-10-25: huset ska stå kvar och lysa), och en andra husikon
+  // bredvid den hade varit två hus för samma plats. "Ingen grupp" (0.35.0) är ett EGET tillstånd, personen som inte är med i någon, och
+  // lånas inte hit: den som HAR grupper och står hemma skulle läsa det som att grupperna är borta. Och inte `PersonIkon`: under `md` är
+  // det knappen bredvid avataren, alltså två personer i huvudet. Inte bakgrundsgruppen heller: `aktiv` är den grupp appen minns, och att
+  // visa den som vald skulle säga att man är i den (0.112.0). Skärmläsaren hör ändå var man är: "nu: Översikt" (`oversiktNamn`).
+  const aktivtNamn = iOversikt ? oversiktNamn : aktivRad ? text(aktivRad.namn, sprak) : ingenGruppEtikett;
+  const synligtNamn = iOversikt ? etikett : aktivtNamn;
+  const Tomikon = iOversikt ? GruppIkon : PersonIkon;
   const [oppet, setOppet] = useState(false);
 
   return (
@@ -741,7 +744,7 @@ export function OpsGruppvaxlare({
               Konsulting Aktiebolag" låg ovanpå "Idag"; fanns före hemikonen, som flyttade namnet 52 px åt höger och gjorde det värre). */}
           <span className="hidden min-w-0 items-center gap-2 md:flex">
             {!aktivRad ? <Tomikon size={18} /> : <OpsIdentity name={aktivtNamn} seed={aktiv} imageUrl={aktivRad?.bild || undefined} {...gruppmarkeProps(aktivRad)} size="sm" />}
-            <span className="min-w-0 truncate">{aktivtNamn}</span>
+            <span className="min-w-0 truncate">{synligtNamn}</span>
           </span>
         </button>
       }

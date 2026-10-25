@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { OpsAppShell } from "../components/OpsAppShell.jsx";
 import { OpsIconLink } from "../components/OpsIconLink.jsx";
+import { OpsGruppvaxlare } from "../components/OpsGruppanel.jsx";
 
 /**
  * 0.138.0, CP 2026-10-22: "det är lite svårt att navigera sig tillbaka till hemgrupp / översikt." Hemikonen i huvudet i varje grupp.
@@ -101,7 +102,7 @@ describe("Hemikonen i en grupp (0.138.0)", () => {
   it("⛔ i översikten är raden Översikt kvar i arket som förut, vald, och att välja den anropar oversikt.onValj", () => {
     const onOversikt = vi.fn();
     render(<Skal oversikt={{ aktiv: true, onValj: onOversikt }} />);
-    fireEvent.click(within(huvud()).getByRole("button", { name: /^Byt grupp, nu: Ingen grupp$/ }));
+    fireEvent.click(within(huvud()).getByRole("button", { name: /^Byt grupp, nu: Översikt$/ }));
     const ark = screen.getByRole("dialog");
     const rad = within(ark).getByRole("button", { name: "Översikt" });
     expect(rad.getAttribute("aria-current")).toBe("true");
@@ -148,7 +149,7 @@ describe("Hemikonen i en grupp (0.138.0)", () => {
     expect(markerad).not.toContain("text-ink-secondary");
   });
 
-  it("⛔ aldrig två husikoner i huvudet: i översikten är växlarens knapp den vanliga (ingen grupp), inte ett andra hus", () => {
+  it("⛔ aldrig två husikoner i huvudet: i översikten är växlarens knapp inget hus, och ingen personikon heller", () => {
     const { unmount } = render(<Skal />);
     expect(husIHuvud()).toHaveLength(1);
     unmount();
@@ -160,18 +161,31 @@ describe("Hemikonen i en grupp (0.138.0)", () => {
     expect(vaxlare.hasAttribute("data-hemikon")).toBe(false);
     expect(vaxlare.hasAttribute("aria-current")).toBe(false);
     expect(vaxlare.querySelector('svg[class*="lucide-house"], svg[class*="lucide-home"]')).toBeNull();
+    // Inte heller en personikon: under md står avataren bredvid, och två personer i huvudet vore fel.
+    expect(vaxlare.querySelector('svg[class*="lucide-user"]:not([class*="lucide-users"])')).toBeNull();
   });
 
-  it("⛔ i översikten visar växlaren samma sak som när ingen grupp är vald (inte bakgrundsgruppen), och i en grupp gruppen", () => {
+  it("⛔ i översikten visar växlaren vad den gör (GruppIkon, Byt grupp) och inte \"Ingen grupp\" eller bakgrundsgruppen, men skärmläsaren hör \"nu: Översikt\"", () => {
     const { unmount } = render(<Skal oversikt={{ aktiv: true, onValj: () => {} }} aktiv="g2" />);
-    // `aktiv` är den gruppen appen håller i bakgrunden: i översikten är ingen grupp aktiv, så den ska inte stå som vald.
+    // `aktiv` är den gruppen appen håller i bakgrunden: i översikten ska den inte stå som vald.
     const iOversikt = within(huvud()).getByRole("button", { name: /^Byt grupp, nu:/ });
-    expect(iOversikt.getAttribute("aria-label")).toBe("Byt grupp, nu: Ingen grupp");
-    expect(iOversikt.textContent).toContain("Ingen grupp");
+    expect(iOversikt.getAttribute("aria-label")).toBe("Byt grupp, nu: Översikt");
+    expect(iOversikt.textContent).toContain("Byt grupp");
+    expect(iOversikt.textContent).not.toContain("Ingen grupp");
     expect(iOversikt.textContent).not.toContain("Claes Philip");
+    expect(iOversikt.querySelector('svg[class*="lucide-users"]')).not.toBeNull();
+    expect(husIHuvud()).toHaveLength(1);
     unmount();
     render(<Skal aktiv="g2" />);
     expect(within(huvud()).getByRole("button", { name: /^Byt grupp, nu: Claes Philip/ })).toBeTruthy();
+  });
+
+  it("personen utan grupp (0.35.0) ser fortfarande \"Ingen grupp\" med personikon, oförändrat", () => {
+    render(<OpsGruppvaxlare grupper={[]} aktiv="" onValj={() => {}} />);
+    const knapp = screen.getByRole("button", { name: "Byt grupp, nu: Ingen grupp" });
+    expect(knapp.textContent).toContain("Ingen grupp");
+    expect(knapp.querySelector('svg[class*="lucide-user"]:not([class*="lucide-users"])')).not.toBeNull();
+    expect(knapp.querySelector('svg[class*="lucide-users"]')).toBeNull();
   });
 
   it("⛔ ett tryck på den markerade hemikonen anropar oversikt.onValj som i en grupp, och väljer ingen grupp", () => {
