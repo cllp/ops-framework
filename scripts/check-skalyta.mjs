@@ -141,12 +141,28 @@ const cssRatt = (
 // skriver byggverktyget om sökvägen och kopierar ut filen (det mäter `check-scaffold`). Här bäddas SAMMA fil in som
 // data-URL, så att `document.fonts.check` mäter det verkliga typsnittet och inte reservtypsnittet.
 const fontData = fs.readFileSync(path.join(rot, "fonts", "glacial-indifference", "glacial-indifference-400.woff2")).toString("base64");
-const css = cssRatt.replace(/url\(["']?[^)"']*glacial-indifference-400\.woff2["']?\)/g, `url(data:font/woff2;base64,${fontData})`);
-if (css === cssRatt && tokI < 0) throw new Error("check-skalyta: @font-face för Glacial Indifference hittades inte i den byggda CSS:en. Märket hade mätts i reservtypsnittet.");
+// ⛔ BRÖDTEXTENS TYPSNITT LADDAS OCKSÅ, INTE BARA MÄRKETS (#448). Tokenets `--font-sans` är 'Plus Jakarta Sans', -apple-system,
+// BlinkMacSystemFont, sans-serif, och en app hämtar Plus Jakarta Sans med en `<link>` till Google Fonts (check-fonts). Den här sidan har
+// ingen `<link>` och inget nät, så allt utom märket ritades i SYSTEMETS sans, och vilken det är bestämmer maskinen: Inter i en
+// sandlåda, något helt annat på CI-löparen. Mätt 2026-10-25 på `9+` i kalenderns räknare (bold 9 px): 9,75 px bred här och 8,54 px
+// i körning 181 på CI, och 66 av de 574 "mätt:"-raderna skilde sig mellan de två (bibliotekets flikrad 478 mot 498 px, namnrutan
+// 254 mot 275 px). Kontrollen var grön på CI och röd här av samma kod. En mätning av en yta som ritas i ett typsnitt som inte är
+// det som ritas i produktion är en mätning av maskinen. Därför bäddas samma typsnitt in som data-URL (den latinska delen av den
+// variabla filen, OFL, licensen bredvid), och `oppna` stannar om det inte blev laddat.
+const jakartaData = fs.readFileSync(path.join(rot, "scripts", "lib", "typsnitt", "plus-jakarta-sans", "plus-jakarta-sans-latin-wght.woff2")).toString("base64");
+const jakartaFace = `@font-face{font-family:'Plus Jakarta Sans';font-style:normal;font-weight:200 800;font-display:block;src:url(data:font/woff2;base64,${jakartaData}) format('woff2');}`;
+const cssMedMarke = cssRatt.replace(/url\(["']?[^)"']*glacial-indifference-400\.woff2["']?\)/g, `url(data:font/woff2;base64,${fontData})`);
+const css = cssMedMarke + "\n" + jakartaFace;
+if (cssMedMarke === cssRatt && tokI < 0) throw new Error("check-skalyta: @font-face för Glacial Indifference hittades inte i den byggda CSS:en. Märket hade mätts i reservtypsnittet.");
 
+// ⛔ APPEN STARTAR FÖRST NÄR TYPSNITTEN ÄR LADDADE (#448). Både data-URL-filerna ovan laddas asynkront, och en komponent som MÄTER sin
+// text vid första ritningen (`Apprad` räknar hur många appknappar som ryms i `useLayoutEffect`) mätte då reservtypsnittet och
+// räknade om aldrig, eftersom ingenting den observerar ändras när typsnittet kommer. Mätt: med systemets sans satt till DejaVu Sans
+// visade apparaden 390 px en knapp och "Fler (5)", med Inter fyra knappar och "Fler (4)". Därför monteras appen i en funktion som körs
+// efter `document.fonts.load`, och resultatet av mätningen beror inte längre på maskinens typsnitt.
 /** @param {string} scen @param {string | null} [aktiv] Vilken grupp som är vald i `full`. @param {number} [manga] Så många extra grupper (och samtalsmeddelanden), så att en yta måste rulla (0.39.1). @returns {string} */
 const sida = (scen, aktiv = null, manga = 0) =>
-  `<!doctype html><html lang="sv"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><style>${css}</style></head><body class="bg-canvas text-ink font-sans"><div id="root"></div><script>window.__skal=${JSON.stringify(scen)};window.__aktiv=${JSON.stringify(aktiv)};window.__manga=${manga};</script><script>${skript.replace(/<\/script>/g, "<\\/script>")}</script></body></html>`;
+  `<!doctype html><html lang="sv"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><style>${css}</style></head><body class="bg-canvas text-ink font-sans"><div id="root"></div><script>window.__skal=${JSON.stringify(scen)};window.__aktiv=${JSON.stringify(aktiv)};window.__manga=${manga};</script><script>window.__start=function(){${skript.replace(/<\/script>/g, "<\\/script>")}};Promise.all([document.fonts.load('400 16px "Plus Jakarta Sans"'),document.fonts.load('400 16px "Glacial Indifference"')]).then(function(){window.__start()},function(){window.__start()});</script></body></html>`;
 
 const { browser, varifran } = await startaWebblasare();
 
@@ -192,6 +208,14 @@ async function oppna(scen, viewport, tema = standardtema, skala = 1, aktiv = nul
   }
   await page.waitForFunction("window.__redo === true", null, { timeout: 5000 }).catch(() => {});
   if (fel.length) throw new Error(`sidan "${scen}" kastade: ${fel[0]}`);
+  // ⛔ Typsnittet ska vara LADDAT innan något mäts, annars mäts reservtypsnittet (tomt underlag): `font-display: block` och en
+  // `load` som väntar in filen. Fail-closed (#448): saknas ytan i sidan, eller laddades filen inte, är det ett fel och inte en mätning.
+  const jakarta = await page.evaluate(async () => {
+    await document.fonts.load('400 16px "Plus Jakarta Sans"');
+    await document.fonts.ready;
+    return [...document.fonts].filter((f) => f.family.replace(/["']/g, "") === "Plus Jakarta Sans").map((f) => f.status);
+  });
+  if (jakarta.length !== 1 || jakarta[0] !== "loaded") throw new Error(`sidan "${scen}": Plus Jakarta Sans är inte laddat (${JSON.stringify(jakarta)}). Brödtexten hade mätts i maskinens reservtypsnitt.`);
   return { page, context };
 }
 
@@ -2892,6 +2916,12 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
   try {
     await oppnaSkapaPanel(page, mobil);
     await page.waitForSelector("[data-skapa-panel]", { timeout: 3000 });
+    // ⛔ MUSEN OCH ÖVERGÅNGARNA ÄR EN DEL AV MÄTNINGEN (#448). Pekaren står kvar där "Ny händelse" trycktes, och vid 390 px hamnar den då
+    // över Avbryt: knappen är `:hover` och läses mitt i sin övergång på 0,15 s (`rgba(142, 122, 78, 0.008)`). Vad som ligger under
+    // pekaren beror på typsnittets mått, så samma kontroll var grön i en miljö och röd i en annan. Pekaren flyttas till hörnet, och
+    // alla övergångar får löpa färdigt (högst 1 s, så att en oändlig animation inte hänger mätningen) innan färgerna läses.
+    await page.mouse.move(0, 0);
+    await page.evaluate(() => Promise.race([Promise.all(document.getAnimations().map((a) => a.finished.catch(() => null))), new Promise((r) => setTimeout(r, 1000))]));
     const m = await page.evaluate(() => {
       const panel = /** @type {HTMLElement} */ (document.querySelector("[data-skapa-panel]"));
       const r = panel.getBoundingClientRect();
