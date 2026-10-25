@@ -297,6 +297,13 @@ export { OpsHandelsePanel } from "./components/OpsHandelsePanel.jsx";
 export { OpsHandelsefiler, ORD_OPSHANDELSEFILER } from "./components/OpsHandelsefiler.jsx";
 export { OpsPlatsfiler, ORD_OPSPLATSFILER } from "./components/OpsPlatsfiler.jsx";
 export { HANDELSEPARAM, handelseHref } from "./lib/handelsepanel.js";
+/*
+ * ⛔ EN RAD, EN PANEL (0.145.0, cllp/ops-framework#446): varje rad i kalendern och Idag öppnas i samma panel, med en knapprad som alltid står på samma ställe och Dela på alla rader.
+ * Radens id har formen `<källa>:<id>` (`byggRadId`, `lasRadId`). Appen anger källorna som ett manifest (`radkallor` på `OpsAppShell`, eller på `OpsCalendar` och `OpsEventList`), ramverket äger id-formen,
+ * panelen (`OpsRadPanel`) och knappradens plats, och vet aldrig vad Ekonomi eller GitHub är. Se `lib/radkallor.js`.
+ */
+export { byggRadId, lasRadId } from "./lib/radkallor.js";
+export { OpsRadPanel } from "./components/OpsRadPanel.jsx";
 export { createKalenderkalla, createSvarskalla, createKommentarkalla } from "./data/kalenderkalla.js";
 export { HANDELSEKONTRAKT, DATUM_EJ_SATT, SVARSVAL, SVARSFALT, handelsefel, handelsensKalenderId, handelsensDagar, byggSvar, sammanstallSvar, harPasserat, svarsrader, KOMMENTARFALT, MAX_HANDELSEKOMMENTAR, KOMMENTARBILAGA_TYPER, MAX_KOMMENTARBILAGA, MAX_BILAGENAMN, KOMMENTARBILAGAFALT, kommentarbilagaFel, LASMARKESFALT, byggKommentar, kommentarsrader } from "./lib/handelsemodell.js";
 

@@ -48,6 +48,9 @@ import { ChevronNedIkon, KalenderIkon, KryssIkon, PlusIkon, ReglageIkon, SokIkon
 import { OpsStatusDot } from "./OpsStatusDot.jsx";
 import { OpsKalenderLista } from "./OpsKalenderLista.jsx";
 import { OpsExternPanel } from "./OpsExternPanel.jsx";
+import { OpsRadPanel } from "./OpsRadPanel.jsx";
+import { useRadkallor } from "../lib/radkallorkontext.js";
+import { kallaForRad } from "../lib/radkallor.js";
 import { ValRad } from "./ValRad.jsx";
 
 /**
@@ -261,12 +264,13 @@ function Datumpiller({ dayKey, onTaBort, order, locale }) {
  * länken (`HandelseLank`) och hela raden är dess yta, som SS-appens rad: ingen pil eller annat märke (en pil bredvid utfällningen tog 24 px av en titel i en bubbla som är 239 px bred vid 390, och "Löneutbetalning" gick in under den; en pil efter titeln hamnade ensam på en egen rad). Utfällningen
  * (status, länk, detaljer) ligger kvar ovanpå med `z-10` och tar sina egna tryck.
  *
- * @param {{ dayKey: string, entry: import("../lib/calendar.js").CalendarEntry, statusWords: Record<string, string>, order: number, locale: string, oppna: ((id: string) => void) | null, oppnaExtern: (e: import("../lib/calendar.js").CalendarEntry) => void }} props
+ * @param {{ dayKey: string, entry: import("../lib/calendar.js").CalendarEntry, statusWords: Record<string, string>, order: number, locale: string, oppna: ((id: string) => void) | null, oppnaExtern: (e: import("../lib/calendar.js").CalendarEntry) => void, lasbara: ReadonlySet<string> }} props
  */
-function Postkort({ dayKey, entry, statusWords, order, locale, oppna, oppnaExtern }) {
+function Postkort({ dayKey, entry, statusWords, order, locale, oppna, oppnaExtern, lasbara }) {
   const oppnaId = entry.handelseId && oppna ? entry.handelseId : null;
   // ⛔ EN EXTERN POST ÖPPNAS I LÄSPANELEN (0.134.0). Har posten ett `handelseId` vinner det: då finns en riktig händelse att öppna.
-  const oppnaLas = !oppnaId && !entry.handelseId && entry.extern ? () => oppnaExtern(entry) : null;
+  // ⛔ 0.145.0 (#446): OCH EN RAD MED EN KÄLLA I MANIFESTET (`radkallor`) ÖPPNAS I SAMMA SLAGS PANEL. `lasbara` är de id:n som har en läspanel att öppna, av någon av de två sorterna; en rad med `handelseId` är aldrig med.
+  const oppnaLas = !oppnaId && !entry.handelseId && lasbara.has(entry.id) ? () => oppnaExtern(entry) : null;
   const [oppen, setOppen] = useState(false);
   const idBas = useId();
   const panelId = `${idBas}-detaljer`;
@@ -499,9 +503,9 @@ const DAGPANEL_TAK = 0.75;
  *
  * ⛔ TOMT ÄR ETT SVAR (punkt 5). En vald dag utan poster säger "Inga poster", och antalet står som noll.
  *
- * @param {{ days: { dayKey: string, entries: import("../lib/calendar.js").CalendarEntry[] }[], statusWords: Record<string, string>, onClose: () => void, onTaBort: (dayKey: string) => void, onSkapa?: () => void, locale: string, arMin: (e: import("../lib/calendar.js").CalendarEntry) => boolean, lager?: import("react").ReactNode, oppna: ((id: string) => void) | null, oppnaExtern: (e: import("../lib/calendar.js").CalendarEntry) => void }} props
+ * @param {{ days: { dayKey: string, entries: import("../lib/calendar.js").CalendarEntry[] }[], statusWords: Record<string, string>, onClose: () => void, onTaBort: (dayKey: string) => void, onSkapa?: () => void, locale: string, arMin: (e: import("../lib/calendar.js").CalendarEntry) => boolean, lager?: import("react").ReactNode, oppna: ((id: string) => void) | null, oppnaExtern: (e: import("../lib/calendar.js").CalendarEntry) => void, lasbara: ReadonlySet<string> }} props
  */
-function DayPanel({ days, statusWords, onClose, onTaBort, onSkapa, locale, arMin, lager, oppna, oppnaExtern }) {
+function DayPanel({ days, statusWords, onClose, onTaBort, onSkapa, locale, arMin, lager, oppna, oppnaExtern, lasbara }) {
   const flera = days.length > 1;
   const title = flera ? `${days.length} dagar` : dateText(days[0].dayKey, locale);
   const name = flera ? `Poster för ${days.length} valda dagar` : `Poster den ${title}`;
@@ -586,6 +590,7 @@ function DayPanel({ days, statusWords, onClose, onTaBort, onSkapa, locale, arMin
                         statusWords={statusWords}
                         oppna={oppna}
                         oppnaExtern={oppnaExtern}
+                        lasbara={lasbara}
                         order={days.length + avsnitt.slice(0, ai).reduce((n, x) => n + x.rader.length, 0) + i}
                         locale={locale}
                       />
@@ -665,9 +670,9 @@ function ExternLank({ onOppna, children }) {
  * innehållet, "Dold" och vägarna ut. Det som stryks: positionsuträkningen (`ankare.x`, `ankare.y`, kläm mot fönstret),
  * som bara fanns för att bubblan flöt. Dagpanelen vid ett vanligt tryck är orörd.
  *
- * @param {{ dayKey: string, alla: import("../lib/calendar.js").CalendarEntry[], synliga: Set<string>, onClose: () => void, locale: string, oppna: ((id: string) => void) | null, oppnaExtern: (e: import("../lib/calendar.js").CalendarEntry) => void }} props
+ * @param {{ dayKey: string, alla: import("../lib/calendar.js").CalendarEntry[], synliga: Set<string>, onClose: () => void, locale: string, oppna: ((id: string) => void) | null, oppnaExtern: (e: import("../lib/calendar.js").CalendarEntry) => void, lasbara: ReadonlySet<string> }} props
  */
-function Snabbtitt({ dayKey, alla, synliga, onClose, locale, oppna, oppnaExtern }) {
+function Snabbtitt({ dayKey, alla, synliga, onClose, locale, oppna, oppnaExtern, lasbara }) {
   const ref = useRef(/** @type {HTMLDivElement | null} */ (null));
   const rubrikId = useId();
   useEffect(() => {
@@ -709,7 +714,7 @@ function Snabbtitt({ dayKey, alla, synliga, onClose, locale, oppna, oppnaExtern 
         {alla.map((e) => {
           const dold = !synliga.has(e.id);
           return (
-            <li key={e.id} data-titt-rad={dold ? "dold" : "synlig"} className={cx("flex items-start gap-2 rounded-md px-1 py-1", ((e.handelseId && oppna) || (!e.handelseId && e.extern)) && "relative", dold && "opacity-50")}>
+            <li key={e.id} data-titt-rad={dold ? "dold" : "synlig"} className={cx("flex items-start gap-2 rounded-md px-1 py-1", ((e.handelseId && oppna) || (!e.handelseId && lasbara.has(e.id))) && "relative", dold && "opacity-50")}>
               <span aria-hidden="true" {...(arPreliminar(e) ? { "data-preliminar": "" } : {})} className={cx("mt-1 size-2 shrink-0 rounded-full", prickklass(e))} />
               <span className="min-w-0 flex-1">
                 <span className="flex items-center gap-1 text-meta font-semibold">
@@ -725,7 +730,7 @@ function Snabbtitt({ dayKey, alla, synliga, onClose, locale, oppna, oppnaExtern 
                       <HandelseLank id={e.handelseId} oppna={oppna} tacker="after:inset-0">
                         {e.title}
                       </HandelseLank>
-                    ) : !e.handelseId && e.extern ? (
+                    ) : !e.handelseId && lasbara.has(e.id) ? (
                       <ExternLank onOppna={() => oppnaExtern(e)}>{e.title}</ExternLank>
                     ) : (
                       e.title
@@ -1203,6 +1208,9 @@ export const VECKONUMMER_NYCKEL = "ops-kalender-veckonummer";
  *   extern händelse (`CalendarEntry.extern`). Appen skickar samma lista till `OpsHandelsePanel kopieraTill` för sina egna händelser.
  * @param {(arg: { handelse: import("./OpsHandelsePanel.jsx").HandelseVy, malKalenderId: string }) => void | Promise<void>} [props.onKopiera] (0.134.0) Anropas när personen valt en
  *   kalender. ⛔ Ramverket öppnar inget formulär: appen öppnar Ny händelse ifylld eller skapar kopian.
+ * @param {import("../lib/radkallor.js").Radkallor} [props.radkallor] (0.145.0, cllp/ops-framework#446) Appens källor, en karta `{ [källa]: { etikett, atgarder?, dela? } }` (se `lib/radkallor.js`). En post vars `id` har formen
+ *   `<källa>:<id>` med en källa i kartan blir tryckbar i dagpanelen och snabbtitten och öppnar `OpsRadPanel`: rubrik, dag och "Från <etikett>" överst, källans knappar och Dela längst ned. Utelämnad: skalets `radkallor`,
+ *   och finns inte heller de beter sig varje post som förut. ⛔ En post med `handelseId` eller `extern` går aldrig hit: händelsen har sin panel och en extern post sin läspanel.
  * @param {{ id: string, namn: string, modulNamn?: string }[]} [props.typer] Typerna i typfiltret. Jämförs med postens `typ`.
  *   `modulNamn` (0.54.0) är modulens namn för ett bidrag (`modul:id`), och blir appens namn i appraden. Utan den står
  *   modulens id.
@@ -1247,6 +1255,7 @@ export function OpsCalendar({
   onSynligaKalendrar,
   kopieraTill,
   onKopiera,
+  radkallor,
   typer = [],
   onSkapa,
   onHanteraKalendrar,
@@ -1315,9 +1324,15 @@ export function OpsCalendar({
   // Läspanelens post, som id: öppen post slås upp i `entries` varje gång, så att en `kopierad` appen skickar efter en kopia syns utan att panelen stängs. Försvinner posten stängs panelen.
   const [externId, setExternId] = useState(/** @type {string | null} */ (null));
   const externPost = useMemo(() => (externId ? entries.find((e) => e && e.id === externId && e.extern) ?? null : null), [externId, entries]);
+  // ⛔ 0.145.0 (#446): EN RAD MED EN KÄLLA I MANIFESTET har ingen riktig händelse bakom sig heller, och öppnas på samma sätt: som id, uppslagen i `entries` varje gång, så att panelen stängs om posten försvinner.
+  const radkallorK = useRadkallor(radkallor, "OpsCalendar");
+  const [radId, setRadId] = useState(/** @type {string | null} */ (null));
+  const radPost = useMemo(() => (radId ? entries.find((e) => e && e.id === radId && !e.handelseId && !e.extern && kallaForRad(radkallorK, e.id)) ?? null : null), [radId, entries, radkallorK]);
+  const lasbara = useMemo(() => new Set(entries.filter((e) => e && !e.handelseId && (e.extern || kallaForRad(radkallorK, e.id))).map((e) => e.id)), [entries, radkallorK]);
   const oppnaExtern = useCallback((/** @type {import("../lib/calendar.js").CalendarEntry} */ e) => {
     setTitt(null);
-    setExternId(e.id);
+    if (e.extern) setExternId(e.id);
+    else setRadId(e.id);
   }, []);
 
   const lagringen = lagring || (typeof window !== "undefined" ? window.localStorage : undefined);
@@ -1966,6 +1981,7 @@ export function OpsCalendar({
             locale={locale}
             oppna={oppnaHandelse ? (id) => { setTitt(null); oppnaHandelse(id); } : null}
             oppnaExtern={oppnaExtern}
+            lasbara={lasbara}
           />
         ) : null}
         {panelOppen ? (
@@ -1979,6 +1995,7 @@ export function OpsCalendar({
             arMin={arMin}
             oppna={oppnaHandelse}
             oppnaExtern={oppnaExtern}
+            lasbara={lasbara}
             lager={daglager ? daglager(days.map((d) => d.dayKey)) : null}
           />
         ) : titt ? null : (
@@ -1996,6 +2013,15 @@ export function OpsCalendar({
         sprak={String(locale).toLowerCase().startsWith("en") ? "en" : "sv"}
         kopieraTill={kopieraTill}
         onKopiera={onKopiera}
+      />
+      {/* ⛔ PANELEN FÖR EN RAD MED EN KÄLLA (0.145.0, #446): samma sorts dialog över kalendern, med källans knappar och Dela längst ned. Se `OpsRadPanel`. */}
+      <OpsRadPanel
+        rad={radPost}
+        form="kalender"
+        radkallor={radkallorK}
+        onStang={() => setRadId(null)}
+        statusWords={statusWords}
+        sprak={String(locale).toLowerCase().startsWith("en") ? "en" : "sv"}
       />
     </section>
   );

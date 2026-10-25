@@ -1,4 +1,4 @@
-import { Children, cloneElement, Component, createContext, Fragment, isValidElement, useContext, useEffect, useId, useRef, useState } from "react";
+import { Children, cloneElement, Component, createContext, Fragment, isValidElement, useContext, useEffect, useId, useMemo, useRef, useState } from "react";
 import { definierade, forvalda, ordet } from "../lib/ord.js";
 import { useOpsSprak } from "./OpsSprak.jsx";
 import * as Popover from "@radix-ui/react-popover";
@@ -31,6 +31,8 @@ import { OpsSelect } from "./OpsSelect.jsx";
 import { OpsSwitch } from "./OpsToggle.jsx";
 import { giltigtDatum, idagI, kalenderval, postIdUrHandelseId } from "../lib/kalendrar.js";
 import { OppnaHandelseKontext } from "../lib/handelsekontext.js";
+import { RadkallorKontext } from "../lib/radkallorkontext.js";
+import { validateRadkallor } from "../lib/radkallor.js";
 import { HANDELSEPARAM, handelseIdUrAdress, medHandelse } from "../lib/handelsepanel.js";
 import { KALENDERIKON_KOMPONENT } from "../lib/kalenderikoner.js";
 import { text } from "../lib/sprak.js";
@@ -1039,6 +1041,9 @@ function GenvagRam({ nyckel, ikon, tips = true, className, children }) {
  * @param {string} [props.felBeskrivning]
  * @param {string} [props.laddaOmEtikett]
  * @param {HandelsepanelKonfiguration} [props.handelsepanel] (0.40.0, #214) Händelsen på en egen sida med Tillbaka, öppnad av en rad i Idag eller en post i kalendern (`handelseId`) eller av `useOppnaHandelse()`. Se `HandelsepanelKonfiguration`.
+ * @param {import("../lib/radkallor.js").Radkallor} [props.radkallor] (0.145.0, cllp/ops-framework#446) Appens källor för rader som inte är händelser, en karta `{ [källa]: { etikett, atgarder?, dela? } }` (se `lib/radkallor.js`).
+ *   Rader i Idag (`OpsEventList`) och kalendern (`OpsCalendar`) vars `id` har formen `<källa>:<id>` med en källa i kartan blir tryckbara och öppnar samma panel (`OpsRadPanel`): rubrik, när och "Från <etikett>" överst, källans knappar och
+ *   Dela längst ned. Skickas EN gång hit i stället för till varje yta; en yta kan ändå ta egen `radkallor`, som går före. Utelämnad beter sig varje rad som förut. Kontrolleras när skalet ritas: en källa utan etikett kastar.
  * @param {SkapaKonfiguration} [props.skapa] (#168) Plusset i toppraden. Från 0.60.0 först i högerklustret, före `actions`, `anvandare` och hamburgaren, och en fylld accentcirkel från `md`.
  *   Tryck öppnar en POPOVER med en platt lista (`ss-skapa-meny.png`), aldrig en yta i sidan: `handelse`
  *   och `arende` är ramverkets EGNA rader (Idag/kalendern och Inkorgen är ramverkets vyer, inte moduler),
@@ -1128,6 +1133,7 @@ function OpsAppShellRitad({
   meny,
   skapa,
   handelsepanel,
+  radkallor,
   skapaLabel = ORD_OPSAPPSHELL.skapaLabel.sv,
   nyHandelseEtikett = ORD_OPSAPPSHELL.nyHandelseEtikett.sv,
   nyttArendeEtikett = ORD_OPSAPPSHELL.nyttArendeEtikett.sv,
@@ -1422,6 +1428,8 @@ function OpsAppShellRitad({
   //      tillbaka. Rullningen är fönstrets, och den sparas vid öppning och återställs vid Tillbaka (som skapa).
   //   3. WEBBLÄSARENS BAKÅT OCH FRAMÅT STYR PANELEN åt båda hållen (`popstate`): att gå bakåt stänger den, att gå framåt öppnar den igen.
   //      Skapa-panelen lyssnar bara på stängningen, eftersom den inte går att öppna utan ett val; här räcker adressen.
+  // ⛔ 0.145.0 (#446): RADKÄLLORNA, kontrollerade en gång och delade med ytorna under skalet (`RadkallorKontext`). Samma plats som händelsepanelen: raderna frågar skalet.
+  const radkallorKontrollerade = useMemo(() => validateRadkallor(radkallor, "OpsAppShell"), [radkallor]);
   const handelseAdress = handelsepanel?.adress !== false;
   const [handelseId, setHandelseId] = useState(() => /** @type {string | null} */ (handelseAdress && typeof window !== "undefined" ? handelseIdUrAdress(window.location.href) : null));
   const handelsePushad = useRef(false);
@@ -2379,6 +2387,7 @@ function OpsAppShellRitad({
     <OpsSpelareProvider>
     <OppnaSkapaKontext.Provider value={oppnaFranApp}>
     <OppnaHandelseKontext.Provider value={handelsepanel ? oppnaHandelse : null}>
+    <RadkallorKontext.Provider value={radkallorKontrollerade}>
     <OppnaInspelningKontext.Provider value={oppnaInspelning}>
     <KanSpelaInKontext.Provider value={kanSpelaIn}>
     <OpsSkapaGenvagar mal={genvagMal}>
@@ -2977,6 +2986,7 @@ function OpsAppShellRitad({
     </OpsSkapaGenvagar>
     </KanSpelaInKontext.Provider>
     </OppnaInspelningKontext.Provider>
+    </RadkallorKontext.Provider>
     </OppnaHandelseKontext.Provider>
     </OppnaSkapaKontext.Provider>
     </OpsSpelareProvider>
