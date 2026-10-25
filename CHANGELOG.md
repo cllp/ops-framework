@@ -16,6 +16,18 @@ anteckningar är en version ingen kan välja att hoppa över.
   här att någon tittar mindre på skärmen, eller mer? Följer med till konsumenternas
   kanonkopia vid nästa utgivning och ompinning.
 
+## 0.144.0
+
+### Huset står kvar och lyser när man är hemma
+
+CP 2026-10-25: "huset ska stå kvar och lysa när man är hemma, i stället för att försvinna." En knapp som byter plats eller försvinner när man kommer fram får en att undra vart den tog vägen; en som lyser visar var man är. **Inte brytande i API:** inga nya props. **Synlig ändring** för den som ritar `OpsGruppvaxlare` direkt med `oversikt.aktiv` (se nedan).
+
+- **Hemknappen ritas också i översikten, markerad.** Före 0.144.0 ritade skalet hemknappen bara i en grupp, och i översikten var det växlarens knapp som bar huset, med `aria-current="page"` men utan att synas som aktuell. Nu är hemknappen skalets `HemKnapp` i båda lägena, på samma plats (före växlaren under `lg`, efter märket från `lg`). I översikten bär den `aria-current="page"` och lyser med ramverkets egna tokens (`text-accent` på `bg-sunken`); i en grupp är den som förut (`text-ink-secondary`, ingen markering). Ett tryck anropar `oversikt.onValj` i båda lägena: i översikten är det i vanliga fall en no-op (appen går ur gruppen, och där är den redan) och annars en väg hem för en appvy som ligger under Översikten. Det var minst kod och ingen särgren.
+- **Växlaren bär inte längre huset i översikten, så det finns aldrig två.** Mätt i koden: växlarens knapp använde `HusIkon` och `data-hemikon` i översikten, så en hemknapp bredvid den hade gett två hus bredvid varandra. Växlaren visar nu det den visar när ingen grupp är vald (`PersonIkon` och `ingenGruppEtikett`, "Ingen grupp"), inte bakgrundsgruppen: `aktiv` är den grupp appen minns, och att visa den som vald hade sagt att man är i den. Knappens `aria-label` är "Byt grupp, nu: Ingen grupp". Raden Översikt i arket är kvar, vald, som förut.
+- **Synlig ändring för `OpsGruppvaxlare` direkt:** med `oversikt={{ aktiv: true, ... }}` utan skalet ritades förut ett hus i knappen och namnet "Översikt"; nu ritas den neutrala personikonen och "Ingen grupp".
+- **Breddbudgeten rörs inte.** I översikten har huvudet inga åtgärder, bara hemknapp, växlare och profil, så `ATGARDER_SMAL_HEM` gäller som förut för gruppläget (mätt av `check:hemikon`, som nu också kräver exakt en markerad hemknapp i översikten och ingen markerad i en grupp).
+- **Prov åt båda håll** i `hemikon.test.jsx` och `oversikt.test.jsx`: i översikten exakt en `[data-hemikon]` med `aria-current="page"` och accentfärg, i en grupp en utan markering, och aldrig två husikoner i huvudet. Rött utan ändringen (8 prov, och `check:hemikon` med "2 husikoner i huvudet, väntat 1"), grönt med (se PR:en).
+
 ## 0.143.0
 
 ### Taggkomponenter utlyfta ur Biblioteket och dubbelriktade grupptaggar

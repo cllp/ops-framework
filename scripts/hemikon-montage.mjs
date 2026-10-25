@@ -86,6 +86,9 @@ for (const lage of LAGEN) {
         par,
         // Bara hemikonen och gruppväxlaren under `md` kräver 44x44 här; skalets övriga kontroller har sina egna vakter (check-skalyta 6b).
         under44: poster.filter((p) => (p.namn.startsWith("Översikt") || p.namn.startsWith("Byt grupp")) && p.w < 768 && (p.h < 43.5 || (innerWidth < 768 && p.w < 43.5))).map((p) => `${p.namn} ${p.w.toFixed(0)}x${p.h.toFixed(0)}`),
+        // 0.144.0: hemikonen står kvar i översikten, markerad, och det finns aldrig två hus i huvudet.
+        hemAntal: document.querySelectorAll("[data-hemikon]").length,
+        hus: document.querySelectorAll('header svg[class*="lucide-house"], header svg[class*="lucide-home"]').length,
         hem: hem ? { x: hem.getBoundingClientRect().x, w: hem.getBoundingClientRect().width, current: hem.getAttribute("aria-current") } : null,
         forsta: poster.length ? poster.slice().sort((a, b) => a.x - b.x)[0].namn : null,
         namnUt,
@@ -105,6 +108,11 @@ for (const lage of LAGEN) {
     if (m.par.length) fil.push(`överlapp: ${m.par.join("; ")}`);
     if (m.namnUt > 0.5) fil.push(`gruppnamnet rinner ${m.namnUt.toFixed(1)} px ut ur växlarens knapp`);
     if (m.namnTackerFlik.length) fil.push(`gruppnamnet ligger ovanpå fliken ${m.namnTackerFlik.join(", ")}`);
+    // ⛔ 0.144.0 (CP 2026-10-25): med `oversikt` finns exakt en hemknapp, markerad bara i översikten; utan `oversikt` finns ingen. Aldrig två hus.
+    const vantatHem = lage === "utanhem" ? 0 : 1;
+    if (m.hemAntal !== vantatHem) fil.push(`${m.hemAntal} hemknappar i huvudet, väntat ${vantatHem}`);
+    if (m.hus !== vantatHem) fil.push(`${m.hus} husikoner i huvudet, väntat ${vantatHem}`);
+    if (vantatHem && m.hem && m.hem.current !== (lage === "oversikt" ? "page" : null)) fil.push(`hemknappens aria-current är ${m.hem.current}, väntat ${lage === "oversikt" ? "page" : "ingen"}`);
     if (m.under44.length) fil.push(`under 44x44: ${m.under44.join(", ")}`);
     console.log(`${lage.padEnd(8)} ${String(bredd).padStart(4)} px: ${m.antal} kontroller, längst ut ${m.langstUt.toFixed(0)} av ${m.inneKant === null ? "?" : m.inneKant.toFixed(0)}, rad ${m.rad}, hem ${m.hem ? `x ${m.hem.x.toFixed(0)} ${m.hem.w.toFixed(0)} px current=${m.hem.current}` : "saknas"}, namn kortat ${m.namnKortat}${fil.length ? `  ROTT: ${fil.join(" | ")}` : ""}`);
     if (process.argv.includes("--lista")) console.log(`   ${m.kontroller.join(" / ")}`);
