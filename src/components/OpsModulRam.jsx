@@ -42,6 +42,9 @@ import { arKarna, medKarna } from "../lib/karna.js";
  *    deklaration ritas inte avsnittet.
  * 3. Modulens egna inställningar. Manifestets fält från 0.88.0, och därefter
  *    appens slot. Saknas båda ritas inte avsnittet.
+ *    ⛔ 0.147.0: avsnitt 3 står före avsnitt 2 när appen skickar `ram.egnaForst`
+ *    (en app vars egna inställning styr vilka kopplingar som visas). Utan det är
+ *    ordningen som ovan.
  */
 
 /** @type {import("../lib/ord.js").Ordbok} */
@@ -224,6 +227,10 @@ export function OpsModulRam({ modul, activeHref, hubHref, hubEtikett, onNavigate
  *   ritas den noden där knappen stod, för alla som ser inställningarna: appen avgör själv vad den som inte får ändra ser. Utan nyckeln är raden som förut.
  * @property {ReadonlyArray<import("../lib/kopplingar.js").Kopplingsdeklaration>} [deklarationer] När manifestet inte bär kopplingarna än (appen pinnad på en äldre ramverksversion).
  * @property {import("react").ReactNode} [egna] Modulens egen slot. Tomt läge när den saknas och manifestet inte har fält.
+ * @property {boolean} [egnaForst] (0.147.0) Ritar "Egna inställningar" FÖRE Kopplingar i stället för efter. Utelämnad, eller `false`, är ordningen som förut: Allmänt, Kopplingar, Egna inställningar.
+ *   ⛔ FÖR EN APP VARS EGNA INSTÄLLNING STYR VILKA KOPPLINGAR SOM FINNS. Ekonomi väljer område (Sverige, Norge) och området avgör vilka banker som kan kopplas: raden som avgör ska stå
+ *   före raderna den avgör, annars väljer man bank och först därefter område. Hela avsnittet flyttas (manifestets fält, appens `egna` och Spara), ingen del för sig, så att det
+ *   fortfarande bara finns ETT avsnitt med den rubriken. Ett avsnitt som inte ritas (inga fält, ingen slot) lämnar ingen tom plats efter sig, vilken ordning som än gäller.
  * @property {import("react").ReactNode} [kropp] (0.90.0) Ersätter de tre standardavsnitten. Agenter använder den: inställningarna gäller en agent, inte appens på och av. Utan den ritas standardavsnitten.
  */
 
@@ -323,6 +330,148 @@ export function InstallningsInnehall({ modul, ram, sprak }) {
   };
 
   const ikon = modul.hubb ? /** @type {import("react").ReactNode} */ (modul.hubb.ikon) : null;
+
+  // ⛔ 0.147.0: avsnitten är värden och inte uppställda i ritningen, så att ordningen är ETT val (`ram.egnaForst`) och inte två kopior av avsnitten.
+  const kopplingarSektion = deklarationer.length === 0 ? null : (
+    <section aria-labelledby={kopplingarId} className="flex flex-col gap-2">
+      <Avsnittsrubrik id={kopplingarId}>{t("kopplingar")}</Avsnittsrubrik>
+      <Grupp>
+        {deklarationer.map((k) => {
+          const lage = lasKopplingslage(ram.kopplingar?.lage?.[k.id]);
+          const statusText = lage.status === "ansluten" ? t("ansluten") : lage.status === "fel" ? t("fel") : t("ejAnsluten");
+          return (
+            <Rad key={k.id}>
+              <div data-koppling={k.id} className="flex flex-col gap-2 px-4 py-3">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="m-0 text-etikett font-medium text-ink">{text(k.namn, sprak)}</p>
+                    {k.hint ? <p className="m-0 text-etikett text-ink-muted">{text(k.hint, sprak)}</p> : null}
+                  </div>
+                  <p className="m-0 text-etikett font-medium text-ink" data-koppling-status={lage.status}>{statusText}</p>
+                </div>
+                <div>
+                  <p className="m-0 text-etikett text-ink-muted">{t("behorigheter")}</p>
+                  {k.behorigheter.length === 0 ? <p className="m-0 text-etikett text-ink">{t("ingaBehorigheter")}</p> : (
+                    <ul className="m-0 list-disc pl-5">
+                      {k.behorigheter.map((b) => <li key={b.sv}>{text(b, sprak)}</li>)}
+                    </ul>
+                  )}
+                </div>
+                <p className="m-0 text-etikett text-ink">
+                  {t("senasteSynk")}: {lage.senasteSynk == null ? t("ingenSynk") : formatDateTime(lage.senasteSynk, { locale: sprak === "en" ? "en" : "sv" })}
+                </p>
+                {lage.fel ? <OpsBanner tone="danger" title={lage.fel} /> : null}
+                {ram.kopplingar?.kontroll && Object.prototype.hasOwnProperty.call(ram.kopplingar.kontroll, k.id) ? (
+                  <div data-koppling-kontroll={k.id}>{ram.kopplingar.kontroll[k.id]}</div>
+                ) : ram.farAndra ? (
+                  <div>
+                    {lage.status === "ansluten" || lage.status === "fel" ? (
+                      <OpsButton
+                        variant="secondary"
+                        busyLabel={t("kopplarFran")}
+                        onClick={() => {
+                          if (typeof ram.kopplingar?.onKopplaFran !== "function") {
+                            setLitetFel(t("anslutningSaknas"));
+                            return;
+                          }
+                          return bakgrund(() => ram.kopplingar?.onKopplaFran?.(k.id), () => {});
+                        }}
+                      >
+                        {t("kopplaFran")}
+                      </OpsButton>
+                    ) : (
+                      <OpsButton
+                        variant="primary"
+                        busyLabel={t("ansluter")}
+                        onClick={() => {
+                          if (typeof ram.kopplingar?.onAnslut !== "function") {
+                            setLitetFel(t("anslutningSaknas"));
+                            return;
+                          }
+                          return bakgrund(() => ram.kopplingar?.onAnslut?.(k.id), () => {});
+                        }}
+                      >
+                        {t("anslut")}
+                      </OpsButton>
+                    )}
+                  </div>
+                ) : null}
+              </div>
+            </Rad>
+          );
+        })}
+      </Grupp>
+    </section>
+  );
+
+  const egnaSektion = egnaFalt.length === 0 && !ram.egna ? null : (
+    <section aria-labelledby={egnaId} className="flex flex-col gap-2">
+      <Avsnittsrubrik id={egnaId}>{t("egna")}</Avsnittsrubrik>
+      <Grupp>
+        {egnaFalt.map((f) => {
+          const etikett = text(f.namn, sprak);
+          const hint = f.hint ? text(f.hint, sprak) : undefined;
+          if (f.typ === "boolean") {
+            return (
+              <Rad key={f.id}>
+                <OpsSwitch
+                  placering="rad"
+                  label={etikett}
+                  hint={hint}
+                  checked={visatBool(f.id, varden[f.id] === true)}
+                  disabled={!ram.farAndra}
+                  onChange={(nasta) => {
+                    if (typeof ram.onSpara !== "function") {
+                      setLitetFel(t("sparandeSaknas"));
+                      return;
+                    }
+                    const fore = boolUtkast[f.id];
+                    setBoolUtkast((nu) => ({ ...nu, [f.id]: nasta }));
+                    return bakgrund(
+                      () => ram.onSpara?.({ modulId: modul.id, varden: karta(egnaFalt, varden, texter, boolUtkast, { over: { [f.id]: nasta } }) }),
+                      () => setBoolUtkast((nu) => {
+                        const nastaKarta = { ...nu };
+                        if (fore === undefined) delete nastaKarta[f.id];
+                        else nastaKarta[f.id] = fore;
+                        return nastaKarta;
+                      }),
+                    );
+                  }}
+                />
+              </Rad>
+            );
+          }
+          return (
+            <Rad key={f.id}>
+              <div className="px-4 py-3">
+                <OpsField label={etikett} hint={hint}>
+                  <OpsInput value={texter[f.id] ?? ""} onChange={(v) => setTexter((nu) => ({ ...nu, [f.id]: v }))} disabled={!ram.farAndra} />
+                </OpsField>
+              </div>
+            </Rad>
+          );
+        })}
+        {ram.egna ? <Rad><div className="px-4 py-3">{ram.egna}</div></Rad> : null}
+      </Grupp>
+      {ram.farAndra && egnaFalt.some((f) => f.typ === "text") ? (
+        <div>
+          <OpsButton
+            variant="secondary"
+            busyLabel={t("sparar")}
+            onClick={() => {
+              if (typeof ram.onSpara !== "function") {
+                setLitetFel(t("sparandeSaknas"));
+                return;
+              }
+              return bakgrund(() => ram.onSpara?.({ modulId: modul.id, varden: karta(egnaFalt, varden, texter, boolUtkast) }), () => {});
+            }}
+          >
+            {t("spara")}
+          </OpsButton>
+        </div>
+      ) : null}
+    </section>
+  );
 
   return (
     <div data-modul-lage="installningar" className="flex flex-col gap-6">
@@ -452,146 +601,9 @@ export function InstallningsInnehall({ modul, ram, sprak }) {
         </Grupp>
       </section>
 
-      {deklarationer.length === 0 ? null : (
-        <section aria-labelledby={kopplingarId} className="flex flex-col gap-2">
-          <Avsnittsrubrik id={kopplingarId}>{t("kopplingar")}</Avsnittsrubrik>
-          <Grupp>
-            {deklarationer.map((k) => {
-              const lage = lasKopplingslage(ram.kopplingar?.lage?.[k.id]);
-              const statusText = lage.status === "ansluten" ? t("ansluten") : lage.status === "fel" ? t("fel") : t("ejAnsluten");
-              return (
-                <Rad key={k.id}>
-                  <div data-koppling={k.id} className="flex flex-col gap-2 px-4 py-3">
-                    <div className="flex flex-wrap items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="m-0 text-etikett font-medium text-ink">{text(k.namn, sprak)}</p>
-                        {k.hint ? <p className="m-0 text-etikett text-ink-muted">{text(k.hint, sprak)}</p> : null}
-                      </div>
-                      <p className="m-0 text-etikett font-medium text-ink" data-koppling-status={lage.status}>{statusText}</p>
-                    </div>
-                    <div>
-                      <p className="m-0 text-etikett text-ink-muted">{t("behorigheter")}</p>
-                      {k.behorigheter.length === 0 ? <p className="m-0 text-etikett text-ink">{t("ingaBehorigheter")}</p> : (
-                        <ul className="m-0 list-disc pl-5">
-                          {k.behorigheter.map((b) => <li key={b.sv}>{text(b, sprak)}</li>)}
-                        </ul>
-                      )}
-                    </div>
-                    <p className="m-0 text-etikett text-ink">
-                      {t("senasteSynk")}: {lage.senasteSynk == null ? t("ingenSynk") : formatDateTime(lage.senasteSynk, { locale: sprak === "en" ? "en" : "sv" })}
-                    </p>
-                    {lage.fel ? <OpsBanner tone="danger" title={lage.fel} /> : null}
-                    {ram.kopplingar?.kontroll && Object.prototype.hasOwnProperty.call(ram.kopplingar.kontroll, k.id) ? (
-                      <div data-koppling-kontroll={k.id}>{ram.kopplingar.kontroll[k.id]}</div>
-                    ) : ram.farAndra ? (
-                      <div>
-                        {lage.status === "ansluten" || lage.status === "fel" ? (
-                          <OpsButton
-                            variant="secondary"
-                            busyLabel={t("kopplarFran")}
-                            onClick={() => {
-                              if (typeof ram.kopplingar?.onKopplaFran !== "function") {
-                                setLitetFel(t("anslutningSaknas"));
-                                return;
-                              }
-                              return bakgrund(() => ram.kopplingar?.onKopplaFran?.(k.id), () => {});
-                            }}
-                          >
-                            {t("kopplaFran")}
-                          </OpsButton>
-                        ) : (
-                          <OpsButton
-                            variant="primary"
-                            busyLabel={t("ansluter")}
-                            onClick={() => {
-                              if (typeof ram.kopplingar?.onAnslut !== "function") {
-                                setLitetFel(t("anslutningSaknas"));
-                                return;
-                              }
-                              return bakgrund(() => ram.kopplingar?.onAnslut?.(k.id), () => {});
-                            }}
-                          >
-                            {t("anslut")}
-                          </OpsButton>
-                        )}
-                      </div>
-                    ) : null}
-                  </div>
-                </Rad>
-              );
-            })}
-          </Grupp>
-        </section>
-      )}
-
-      {egnaFalt.length === 0 && !ram.egna ? null : (
-        <section aria-labelledby={egnaId} className="flex flex-col gap-2">
-          <Avsnittsrubrik id={egnaId}>{t("egna")}</Avsnittsrubrik>
-          <Grupp>
-            {egnaFalt.map((f) => {
-              const etikett = text(f.namn, sprak);
-              const hint = f.hint ? text(f.hint, sprak) : undefined;
-              if (f.typ === "boolean") {
-                return (
-                  <Rad key={f.id}>
-                    <OpsSwitch
-                      placering="rad"
-                      label={etikett}
-                      hint={hint}
-                      checked={visatBool(f.id, varden[f.id] === true)}
-                      disabled={!ram.farAndra}
-                      onChange={(nasta) => {
-                        if (typeof ram.onSpara !== "function") {
-                          setLitetFel(t("sparandeSaknas"));
-                          return;
-                        }
-                        const fore = boolUtkast[f.id];
-                        setBoolUtkast((nu) => ({ ...nu, [f.id]: nasta }));
-                        return bakgrund(
-                          () => ram.onSpara?.({ modulId: modul.id, varden: karta(egnaFalt, varden, texter, boolUtkast, { over: { [f.id]: nasta } }) }),
-                          () => setBoolUtkast((nu) => {
-                            const nastaKarta = { ...nu };
-                            if (fore === undefined) delete nastaKarta[f.id];
-                            else nastaKarta[f.id] = fore;
-                            return nastaKarta;
-                          }),
-                        );
-                      }}
-                    />
-                  </Rad>
-                );
-              }
-              return (
-                <Rad key={f.id}>
-                  <div className="px-4 py-3">
-                    <OpsField label={etikett} hint={hint}>
-                      <OpsInput value={texter[f.id] ?? ""} onChange={(v) => setTexter((nu) => ({ ...nu, [f.id]: v }))} disabled={!ram.farAndra} />
-                    </OpsField>
-                  </div>
-                </Rad>
-              );
-            })}
-            {ram.egna ? <Rad><div className="px-4 py-3">{ram.egna}</div></Rad> : null}
-          </Grupp>
-          {ram.farAndra && egnaFalt.some((f) => f.typ === "text") ? (
-            <div>
-              <OpsButton
-                variant="secondary"
-                busyLabel={t("sparar")}
-                onClick={() => {
-                  if (typeof ram.onSpara !== "function") {
-                    setLitetFel(t("sparandeSaknas"));
-                    return;
-                  }
-                  return bakgrund(() => ram.onSpara?.({ modulId: modul.id, varden: karta(egnaFalt, varden, texter, boolUtkast) }), () => {});
-                }}
-              >
-                {t("spara")}
-              </OpsButton>
-            </div>
-          ) : null}
-        </section>
-      )}
+      {ram.egnaForst === true ? egnaSektion : null}
+      {kopplingarSektion}
+      {ram.egnaForst === true ? null : egnaSektion}
       {grupp && !ram.farAndra ? <p className="m-0 text-meta text-ink-muted">{t("baraLas")}</p> : null}
     </div>
   );

@@ -142,6 +142,7 @@ import { Knapprad } from "./Knapprad.jsx";
  * @param {string} [props.delaSkalForord] (0.145.0) Ordet före skälet när raden inte går att dela. Förval "Går inte att dela:".
  * @param {string} [props.delaIstalletForord] (0.145.0) Ordet före vad man gör i stället. Förval "Gör så här i stället:".
  * @param {string} [props.delaStandardSkal] (0.145.0) Skälet när källan inte har svarat på `dela`. Förval "Den här raden går inte att dela härifrån ännu."
+ * @param {string} [props.atgardFelEtikett] (0.147.0, cllp/ops-framework#451) Felraden i knappraden när en åtgärd avslås utan text. Med text står texten. Förval "Det gick inte."
  * @param {import("react").ReactNode} [props.atgarder] Appens egna knappar, högst upp till höger bredvid titeln (SS export m.fl.), efter pennan.
  * @param {{ oppet?: string, pagar?: string, vantar?: string, klart?: string, akut?: string }} [props.statusWords] KRÄVS för varje status som förekommer, som i `OpsEventList`.
  * @param {string} [props.sprak] Datumens språk, "sv" eller "en". Förval "sv".
@@ -176,6 +177,7 @@ function OpsHandelsePanelRitad({
   delaSkalForord = ORD_OPSHANDELSEPANEL.delaSkalForord.sv,
   delaIstalletForord = ORD_OPSHANDELSEPANEL.delaIstalletForord.sv,
   delaStandardSkal = ORD_OPSHANDELSEPANEL.delaStandardSkal.sv,
+  atgardFelEtikett = ORD_OPSHANDELSEPANEL.atgardFelEtikett.sv,
   onRedigera,
   redigeraEtikett = ORD_OPSHANDELSEPANEL.redigeraEtikett.sv,
   flyttmal,
@@ -517,7 +519,8 @@ function OpsHandelsePanelRitad({
           <Knapprad
             atgarder={knapprad.atgarder}
             dela={knapprad.dela ?? { skal: delaStandardSkal }}
-            ord={{ etikett: knappradEtikett, delaEtikett, delaSkalForord, delaIstalletForord }}
+            ord={{ etikett: knappradEtikett, delaEtikett, delaSkalForord, delaIstalletForord, atgardFelEtikett }}
+            onKlar={onTillbaka}
           />
         </div>
       ) : null}
@@ -612,6 +615,7 @@ export const ORD_OPSHANDELSEPANEL = {
   delaSkalForord: { sv: "Går inte att dela:", en: "Can't be shared:" },
   delaIstalletForord: { sv: "Gör så här i stället:", en: "Do this instead:" },
   delaStandardSkal: { sv: "Den här raden går inte att dela härifrån ännu.", en: "This row can't be shared from here yet." },
+  atgardFelEtikett: { sv: "Det gick inte.", en: "That did not work." },
   tillbakaEtikett: { sv: "Tillbaka", en: "Back" },
   gruppEtikett: { sv: "Grupp", en: "Group" },
   laddarEtikett: { sv: "Hämtar händelsen", en: "Loading the event" },

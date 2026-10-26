@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { definierade, forvalda } from "../lib/ord.js";
 import { useOpsSprak } from "./OpsSprak.jsx";
 import { cx } from "../lib/cx.js";
@@ -154,13 +154,18 @@ function OpsEventListRitad({
   // så att en rad som kvitterats bort medan panelen är öppen stänger den i stället för att visa en rad som inte finns längre.
   const radkallorK = useRadkallor(radkallor, "OpsEventList");
   const [radId, setRadId] = useState(/** @type {string | null} */ (null));
+  const radRad = radId && events ? (events.find((e) => e && e.id === radId && !e.handelseId && kallaForRad(radkallorK, e.id)) ?? null) : null;
+  // ⛔ 0.147.0 (#451): EN PANEL ÖPPNAS AV ETT TRYCK OCH AV INGET ANNAT. Ett id som försvinner ur listan stänger panelen OCH GLÖMS: annars låg det kvar i `radId`, och
+  // när raden kom tillbaka (en avbockad rad under Avklarat) öppnades panelen av sig själv, med Ångra, utan att någon rört raden.
+  useEffect(() => {
+    if (radId !== null && radRad === null) setRadId(null);
+  }, [radId, radRad]);
 
   // ⛔ FÖRE `events`-vakten, för hookar får inte hoppas över. Låg `useState`
   // efter den tidiga returen skulle React se olika många hookar beroende på om
   // listan är tom, och kasta första gången en lista fylls på.
   if (!events || events.length === 0) return empty;
 
-  const radRad = radId ? (events.find((e) => e && e.id === radId && !e.handelseId && kallaForRad(radkallorK, e.id)) ?? null) : null;
   // Frågar raderna själva i stället för att ta en prop.
   const nagonHarAtgard = events.some((e) => Boolean(e && e.atgard));
 

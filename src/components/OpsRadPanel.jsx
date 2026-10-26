@@ -34,6 +34,7 @@ import { useOpsSprak } from "./OpsSprak.jsx";
  * @param {string} [props.delaSkalForord] Ordet före skälet när raden inte går att dela. Förval "Går inte att dela:".
  * @param {string} [props.delaIstalletForord] Ordet före vad man gör i stället. Förval "Gör så här i stället:".
  * @param {string} [props.delaStandardSkal] Skälet när källan inte svarat på `dela`. Förval "Den här raden går inte att dela härifrån ännu."
+ * @param {string} [props.atgardFelEtikett] (0.147.0, #451) Felraden i knappraden när en åtgärd avslås utan text. Förval "Det gick inte."
  */
 function OpsRadPanelRitad({
   rad,
@@ -48,6 +49,7 @@ function OpsRadPanelRitad({
   delaSkalForord = ORD_OPSHANDELSEPANEL.delaSkalForord.sv,
   delaIstalletForord = ORD_OPSHANDELSEPANEL.delaIstalletForord.sv,
   delaStandardSkal = ORD_OPSHANDELSEPANEL.delaStandardSkal.sv,
+  atgardFelEtikett = ORD_OPSHANDELSEPANEL.atgardFelEtikett.sv,
 }) {
   const kalla = rad ? kallaForRad(radkallor, rad.id) : null;
   const ritad = rad && kalla ? { rad, kalla } : null;
@@ -79,6 +81,7 @@ function OpsRadPanelRitad({
               delaSkalForord={delaSkalForord}
               delaIstalletForord={delaIstalletForord}
               delaStandardSkal={delaStandardSkal}
+              atgardFelEtikett={atgardFelEtikett}
             />
           ) : null}
         </Dialog.Content>
@@ -108,6 +111,7 @@ const ORD_ARVDA = {
   delaSkalForord: ORD_OPSHANDELSEPANEL.delaSkalForord,
   delaIstalletForord: ORD_OPSHANDELSEPANEL.delaIstalletForord,
   delaStandardSkal: ORD_OPSHANDELSEPANEL.delaStandardSkal,
+  atgardFelEtikett: ORD_OPSHANDELSEPANEL.atgardFelEtikett,
 };
 
 /**
