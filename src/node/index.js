@@ -185,6 +185,9 @@ export { personnamn, NAMN_SAKNAS } from "../lib/personnamn.js";
  * in auth. Regelfragmentet nekar klienten både läsning och skrivning.
  */
 export {
+  MEJL_BILAGA_MAX_BYTES,
+  MEJL_BILAGETYPER,
+  MEJL_BILAGOR_MAX,
   SPARRADA_MEJLDOMANER,
   byggMejl,
   byggMejlhandelse,
@@ -192,6 +195,7 @@ export {
   createMailSender,
   createMockMailTransport,
   createNodemailerTransport,
+  kontrolleraMejlbilagor,
   losMejlsprak,
   mejlregelfragment,
   normaliseraMejlsprak,

@@ -2345,6 +2345,7 @@ En andra ingång, för det som behöver en token. Buntas **inte** för webbläsa
 | `seedaKataloger({ kalla, groupId, standardvarden })` | #161, #162. Seedar en befintlig grupps kataloger, en `createCatalogSource(...).seeda()` per katalog. ⛔ `skapaGrupp` anropar den inte längre (0.33.0): den skriver katalogerna i sin egen batch. `standardvarden` är ett objekt, en nyckel per katalog (samlingens namn): värdet är antingen en lista rader (genväg för `{ standard: rader }`) eller katalogens fulla `createCatalogSource`-konfiguration (`standard`, `ikoner`, `textnycklar`, `faser`, `farger`). Bygger EN `createCatalogSource` per katalog, med `groupId` inbakat, och kör dess `.seeda()`. Svarar `{ [namn]: { seedade, antal, orsak? } }`, en rad per katalog, aldrig en sammanslagen bool. Katalogerna seedas i turordning, inte parallellt |
 | `validateBeskrivning`, `validateRad`, `byggBeskrivningsdokument`, `beskrivningsId`, `BESKRIVNINGSFORMAT`, `FALTTYPER`, `VISNINGAR`, `BESKRIVNINGSIDFORM`, `MAX_BESKRIVNINGSNAMN`, `MAX_APPBESKRIVNING`, `MIN_LISTOR`, `MAX_LISTOR`, `MIN_FALT`, `MAX_FALT`, `MIN_VAL`, `MAX_VAL`, `MAX_VALTEXT`, `MAX_TEXTVARDE`, `MAX_LANGTEXTVARDE`, `MAX_LANKVARDE`, `BESKRIVNINGSFALT`, `LISTFALT`, `FALTFALT`, `BESKRIVENAPPDATAFALT`, `BESKRIVNINGSDOKUMENTFALT` | 0.99.0, lifehub.app#213. **Samma funktioner och samma tak som i huvudingången.** Agentens `skapaApp` bygger en beskrivning på servern och prövar den med exakt den funktion klienten läser med, så "giltig" inte kan betyda två saker. `byggBeskrivningsdokument` ger dokumentet och dess id för Admin SDK. Se [Beskrivna appar](#beskrivna-appar-byggsätt-a-0990-lifehubapp213) |
 | `createMailQueue`, `createMailSender`, `createNodemailerTransport`, `createMockMailTransport`, `byggMejl`, `byggMejlhandelse`, `losMejlsprak`, `normaliseraMejlsprak`, `SPARRADA_MEJLDOMANER`, `mejlregelfragment` | 0.76.0, #101. Mejlkö, utskick och regler. Se [Mejl](#mejl-0760-101) |
+| `kontrolleraMejlbilagor`, `MEJL_BILAGOR_MAX`, `MEJL_BILAGA_MAX_BYTES`, `MEJL_BILAGETYPER` | 0.148.0, cllp/ops-framework#453. Bilagor i mejlkön: `bilagor: [{ filnamn, innehall, typ }]` genom `byggMejl`, kön, utskicket och nodemailer-adaptern. Se [Bilagor](#bilagor-i-mejlkön-01480-453) |
 | `createDelningService`, `byggDelning`, `byggAdressdelning`, `delningsId`, `adressId`, `delningsNyckel`, `delningsDisposition`, `nyttDelningstoken`, `nyttSlumpslut`, `hashaKod`, `kodStammer`, `DELNINGSDAGAR`, `FORVAL_DELNINGSDAGAR`, `HANDELSEDAGAR`, `FORVAL_HANDELSEDAGAR`, `DELNINGSSLAG`, `DELNINGSRATTIGHETER`, `ADRESSPREFIX`, `ADRESSSEGMENT`, `ADRESSDELFORM`, `MAX_ADRESSDEL`, `MAX_ADRESSDEL_TOTALT`, `SLUMPSLUT_TECKEN`, `SLUMPSLUTFORM`, `KODLANGD`, `FELKOD_MAX`, `FELKOD_FONSTER_MS`, `adressdel`, `arAdressdel`, `nastaAdressdel`, `foreslaAdress`, `byggAdress`, `tolkaAdress`, `delningsSokvag`, `delningsUrl`, `adressUrUppslag`, `kodFel`, `normaliseraKod`, `DELNINGSFELKODER`, `HANDELSESVARSFALT`, `HANDELSEFILFALT`, `MAX_HANDELSEFILER`, `SIGNERAD_SEKUNDER`, `TOKENFORM`, `DELNINGSFALT`, `DELNINGSORSAKER`, `DELNINGSFEL`, `DELNINGSSVARSFALT`, `delningsTyp`, `delningsfel` | 0.119.0, lifehub.app#356, och 0.125.0, lifehub.app#377. Publik delning av en biblioteksfil eller en händelse via en länk utan inloggning, med en läsbar adress under `/g/`, en valfri kod och en egen räknare för felaktiga koder. Se [Delning](#delning-av-en-händelse-eller-en-biblioteksfil-01190-och-01250). Konstanterna och orden ligger också i huvudingången, för vyn |
 | `UTSKRIFT_FALT`, `UTSKRIFT_TAK_MS`, `UTSKRIFT_TIMEOUT_TEXT`, `UTSKRIFTJOBB_STATUS`, `UTSKRIFT_UPPSKATTNING`, `utskriftLage`, `uppskattadUtskriftstid`, `utanUtskrift`, `arDelbar`, `ANTECKNINGSSVARSFALT`, `LANKSVARSFALT`, `LISTSVARSFALT`, `LISTRADSKAL`, `MAX_DELADE_LISTPOSTER` | 0.133.0, lifehub.app#349 och #356. Rena filer som servern delar med vyn: fälten som rensas när en utskrift tas bort eller körs om (`UTSKRIFT_FALT`: `utskrift` och `utskriftJobb`), tolkningen av läget på posten (`utskriftLage`), vad som går att dela (`arDelbar`) och svarsfälten per typ. Se [Alla fyra typer delas](#alla-fyra-typer-delas-01330) och [Utskriften går i bakgrunden](#utskriften-går-i-bakgrunden-och-kan-köras-om-01330) |
 | `createGastService`, `byggGastinbjudan`, `gastInbjudningsId`, `gastnyckelHash`, `nyGastnyckel`, `PLATSFRIST_MS`, `SESSIONSUPPDATERING_MS`, `GAST_PLATSER_GRATIS`, `GASTSLAG`, `GASTFUNKTIONER`, `GASTLANKDAGAR`, `GASTSESSIONSDAGAR`, `GASTFEL_MAX`, `GASTFEL_FONSTER_MS`, `GASTIP_MAX`, `GASTIP_FONSTER_MS`, `GASTNYLANKIP_MAX`, `GASTNYLANKIP_FONSTER_MS`, `GASTNYLANK_BREV_PER_DYGN`, `GASTNYLANK_MAX_LANKAR`, `MAX_GASTNAMN`, `MAX_GASTEPOST`, `GASTNYCKELFORM`, `GASTINBJUDNINGSIDFORM`, `GASTIDFORM`, `GASTSOKVAG`, `GASTFALT`, `GASTLISTFALT`, `GASTSVARSFALT`, `GASTORSAKER`, `GASTFEL`, `GASTFELKODER`, `GASTNYLANK_SVAR`, `GASTSTATUSAR`, `GASTPLATSNUMMER`, `normaliseraGastepost`, `gastId`, `gastomfangsnyckel`, `gastOmfangGer`, `gastGruppApi`, `GASTGRUPPATGARDER`, `GASTGRUPPFUNKTIONER`, `GASTCHATT_SIDA`, `GASTKALENDER_MAX`, `GASTBIBLIOTEK_MAX`, `GASTANROP_PER_MINUT`, `GASTFIL_PER_DYGN`, `GASTGRUPPSVARSFALT`, `GASTCHATTFALT`, `GASTHANDELSEFALT`, `GASTKALENDERFALT`, `GASTFILFALT`, `GASTBIBLIOTEKFALT`, `GASTPERSONFALT`, `GASTPERSONINBJUDANFALT`, `GASTTIDIGAREMEDLEM`, `GASTNAMNLOS`, `arGastId`, `GASTSKRIV_MAX_TECKEN`, `GASTSKRIV_PER_MINUT`, `gastplatsId`, `gastLank`, `tolkaGastLank`, `gastStatus` | 0.131.0, lifehub.app#389 (hela gruppen 0.132.0). Gäster: en person som bjudits in utan konto. Se [Gäster](#gäster-en-inbjudan-och-aldrig-ett-konto-01310). Konstanterna och formerna ligger också i huvudingången, för vyn |
@@ -2474,6 +2475,47 @@ dem. En annan app skickar in sina.
 skickar. Över taket avvisar servern, och det blir `fel` på köns dokument med
 serverns svar. Det försvinner inte tyst. Proven och CI använder
 `createMockMailTransport`, aldrig en riktig SMTP.
+
+### Bilagor i mejlkön (0.148.0, #453)
+
+Ett brev kan bära `bilagor: [{ filnamn, innehall, typ }]`. Det första behovet är kalenderposten: appen bygger en `.ics` med `byggIcs` och bifogar den som
+`ICS_MIME` (`text/calendar; charset=utf-8`). Formen är ramverkets egen och svenska som resten av köns fält (`filnamn`, `innehall`, `typ`), inte nodemailers
+(`filename`, `content`, `contentType`): adaptern översätter, så ingen app behöver kunna nodemailers form.
+
+```js
+await ko.koa({
+  till: "vanja@example.org",
+  amne: "Du är inbjuden",
+  text: "Hej",
+  sprak: "sv",
+  kategori: "inbjudan",
+  bilagor: [{ filnamn: "inbjudan.ics", innehall: byggIcs({ /* ... */ }), typ: ICS_MIME }],
+});
+```
+
+| Tak | Värde | Konstant |
+|---|---|---|
+| Antal bilagor i ett brev | högst 5 | `MEJL_BILAGOR_MAX` |
+| Storlek per bilaga | högst 32 KiB, räknat i UTF-8-byte (inte tecken) | `MEJL_BILAGA_MAX_BYTES` |
+| Mediatyper | `text/calendar`, med eller utan parametrar (`; charset=utf-8`, `; method=REQUEST`). Typen före första `;` prövas, i gemener | `MEJL_BILAGETYPER` |
+| Filnamn | 1 till 120 tecken, utan sökväg (`/`, `\`), citattecken eller styrtecken | |
+| Innehåll | en icke-tom sträng | |
+
+⛔ **En bilaga utanför taket ger ett fel och skickas aldrig tyst utan (regel 5).** Ett brev som lovar en kalenderpost och kommer utan den är sämre än ett brev som inte går.
+`kontrolleraMejlbilagor(bilagor, namn?)` är det enda stället taken står, och den prövar på tre ställen: `byggMejl` (kön, `koa` kastar och skriver ingenting), `skicka`
+(prövar mot RADEN i källan, som kan vara skriven av en annan version eller för hand; en ogiltig bilaga blir `fel` på raden och transporten anropas aldrig) och transporterna
+(`send` kastar före `sendMail`, i adaptern och i mocken, så mocken aldrig släpper igenom det adaptern nekar). Ett fält utöver de tre kastar också, så att appens tidigare
+form (`namn`) eller nodemailers (`filename`, `content`) inte tappar sitt innehåll tyst.
+
+**Raden töms på bilagorna när brevet gått.** En `.ics` bär händelsens rubrik och tid, och köns rad är ingen arkivplats. Utskicket skriver `bilagor: []` i SAMMA skrivning som
+kvittot när statusen blir `skickad`. Ett brev som inte kom fram (`fel`, `hoppad`) behåller dem, så att den som skickar om och den som felsöker ser vad som skulle ha gått.
+`text` och `html` töms inte av ramverket (det är appens val, se hur appen gör efter `skicka`).
+
+**Ett brev utan bilagor är byte för byte som förut.** `byggMejl` skriver ingen `bilagor`-nyckel (inte heller en tom lista), transporten får exakt `{ till, amne, text, html }`,
+nodemailer får inget `attachments`, och raden får exakt kvittots fält. `createMockMailTransport` antecknar `bilagor` i `skickade()` bara när brevet hade några.
+
+⛔ **Appens del:** appen tar bort sin temporära väg (lifehub.app `functions/mejlkonfig.js`, "Bilagor är appens, tills ramverket kan dem") och skickar `bilagor` direkt
+till `ko.koa`. Då försvinner också appens egen `transportUrMiljo`-omväg för `attachments` och dess tömning av bilagorna efter utskicket.
 
 ### Sidchrome och sidnavigering (0.31.0)
 
