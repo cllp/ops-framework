@@ -2,9 +2,11 @@ import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { cx } from "../lib/cx.js";
 import { isImage as arBildtyp, attachmentSize, filensNamn, readAttachment } from "../lib/file.js";
+import { forvalda, ordet } from "../lib/ord.js";
 import { OpsButton } from "./OpsButton.jsx";
 import { FilIkon, GemIkon } from "./icons.jsx";
 import { Faltknapp } from "./OpsRostinmatning.jsx";
+import { useOpsSprak } from "./OpsSprak.jsx";
 
 /**
  * Välj en fil att bifoga: bild, PDF, kalkylark, kontoutdrag.
@@ -84,9 +86,31 @@ import { Faltknapp } from "./OpsRostinmatning.jsx";
  */
 
 /**
- * @typedef {FilvaljareGrund & { flera: true, value?: readonly import("../lib/file.js").Bilaga[] | null, onChange: (attachments: import("../lib/file.js").Bilaga[]) => void }} FilvaljareFlera
- *   Med `flera` (0.149.0): `value` är listan (`null` eller utelämnad är en tom lista) och `onChange` får hela den nya listan.
+ * @typedef {FilvaljareGrund & { flera: true, value?: readonly import("../lib/file.js").Bilaga[] | null, onChange: (attachments: import("../lib/file.js").Bilaga[]) => void, sprak?: "sv" | "en" }} FilvaljareFlera
+ *   Med `flera` (0.149.0): `value` är listan (`null` eller utelämnad är en tom lista) och `onChange` får hela den nya listan. `sprak`: språket för knapparna, annars `OpsSprakProvider`, annars svenska (`ORD_OPSFILEPICKER`).
  */
+
+/**
+ * Orden i väljaren med `flera`, svenska och engelska (0.149.0).
+ *
+ * ⛔ DET NYA LÄGET FICK SINA ORD I EN ORDBOK FRÅN FÖRSTA RADEN, och `check-sprak` var det som sade till: ett svenskt förval i parameterlistan
+ * (`ariaLabel = "Bifoga filer"`) tog antalet över taket 112, och taket får bara sjunka. Läget utan `flera` är oförändrat och har kvar sina svenska
+ * förval (de räknas redan i taket); att flytta dem hit ändrar vad en engelsk app ser och hör till ett eget beslut. `valdBilaga` är den enda
+ * texten båda lägena delar, och läget utan `flera` läser den på svenska härifrån så att ordet bara står på ett ställe.
+ *
+ * Felen ur `lib/file.js` ("Filen är för stor ...") är svenska ännu och visas som de är. Appens egna `labels` och `ariaLabel` vinner alltid.
+ */
+export const ORD_OPSFILEPICKER = {
+  bifogaFiler: { sv: "Bifoga filer", en: "Attach files" },
+  valjFiler: { sv: "Välj filer", en: "Choose files" },
+  laggTillFler: { sv: "Lägg till fler", en: "Add more" },
+  taBort: { sv: "Ta bort", en: "Remove" },
+  laser: { sv: "Läser", en: "Reading" },
+  draEllerKlistra: { sv: "eller dra hit filer eller klistra in en skärmbild", en: "or drag files here or paste a screenshot" },
+  draHit: { sv: "eller dra hit filer", en: "or drag files here" },
+  kundeInteLasas: { sv: "Filen kunde inte läsas.", en: "The file could not be read." },
+  valdBilaga: { sv: "Vald bilaga", en: "Selected attachment" },
+};
 
 /**
  * Välj en eller flera filer att bifoga. Se filhuvudet ovan.
@@ -191,7 +215,7 @@ function EnFil({
             ) : null}
             {value ? (
               <div className="flex flex-col gap-2">
-                <Forhandsvisning value={value} isImage={isImage} />
+                <Forhandsvisning value={value} isImage={isImage} valdBilaga={ordet(ORD_OPSFILEPICKER, "valdBilaga", "sv")} />
                 <div>
                   <OpsButton variant="ghost" size="sm" onClick={() => onChange(null)}>
                     {labels.remove ?? "Ta bort"}
@@ -260,7 +284,7 @@ function EnFil({
         </p>
       ) : null}
 
-      {value ? <Forhandsvisning value={value} isImage={isImage} /> : null}
+      {value ? <Forhandsvisning value={value} isImage={isImage} valdBilaga={ordet(ORD_OPSFILEPICKER, "valdBilaga", "sv")} /> : null}
     </div>
   );
 }
@@ -273,7 +297,10 @@ const TOM = /** @type {readonly import("../lib/file.js").Bilaga[]} */ ([]);
  *
  * @param {FilvaljareFlera} props
  */
-function FleraFiler({ value, onChange, maxChars, accept, typer, paste = true, ariaLabel = "Bifoga filer", labels = {}, knappPlats }) {
+function FleraFiler({ value, onChange, maxChars, accept, typer, paste = true, ariaLabel, labels = {}, knappPlats, sprak }) {
+  const kontext = useOpsSprak();
+  const o = /** @type {Record<keyof typeof ORD_OPSFILEPICKER, string>} */ (forvalda(ORD_OPSFILEPICKER, sprak ?? kontext));
+  const etikett = ariaLabel ?? o.bifogaFiler;
   const filRef = useRef(/** @type {HTMLInputElement | null} */ (null));
   const [fel, setFel] = useState(/** @type {string[]} */ ([]));
   const [laser, setLaser] = useState(false);
@@ -317,7 +344,7 @@ function FleraFiler({ value, onChange, maxChars, accept, typer, paste = true, ar
         try {
           nya.push(await readAttachment(f, { maxChars, typer }));
         } catch (err) {
-          nej.push(`${filensNamn(f)}: ${err instanceof Error ? err.message : "Filen kunde inte läsas."}`);
+          nej.push(`${filensNamn(f)}: ${err instanceof Error ? err.message : o.kundeInteLasas}`);
         }
       }
       // ⛔ INGEN LYCKAD FIL BETYDER INGEN ÄNDRING. Ett onChange med den gamla listan hade fått appen att spara om något som inte ändrats.
@@ -390,7 +417,7 @@ function FleraFiler({ value, onChange, maxChars, accept, typer, paste = true, ar
   const innehall = (
     <>
       {fel.length > 0 ? <Felrad fel={fel} id={errorId} /> : null}
-      {tillagg ? <Filista lista={lista} labels={labels} onTaBort={taBort} /> : null}
+      {tillagg ? <Filista lista={lista} taBortText={labels.remove ?? o.taBort} valdBilaga={o.valdBilaga} onTaBort={taBort} /> : null}
     </>
   );
 
@@ -400,7 +427,7 @@ function FleraFiler({ value, onChange, maxChars, accept, typer, paste = true, ar
         {/* Det råa fältet är dolt och namnlöst för skärmläsare: knappen i fältet är den enda ingången, och två saker som heter Bifoga vore ett fel. */}
         <input ref={filRef} type="file" multiple accept={accept} tabIndex={-1} aria-hidden="true" onChange={valde} className="sr-only" />
         {knappPlats
-          ? createPortal(<Faltknapp ikon={<GemIkon size={18} />} etikett={ariaLabel} onClick={() => filRef.current?.click()} placering="plats" disabled={laser} data={{ "data-bifoga": "" }} />, knappPlats)
+          ? createPortal(<Faltknapp ikon={<GemIkon size={18} />} etikett={etikett} onClick={() => filRef.current?.click()} placering="plats" disabled={laser} data={{ "data-bifoga": "" }} />, knappPlats)
           : null}
         {fel.length > 0 || tillagg ? <div className="flex flex-col gap-2">{innehall}</div> : null}
       </>
@@ -424,19 +451,19 @@ function FleraFiler({ value, onChange, maxChars, accept, typer, paste = true, ar
         type="file"
         multiple
         accept={accept}
-        aria-label={ariaLabel}
+        aria-label={etikett}
         aria-describedby={fel.length > 0 ? errorId : undefined}
         onChange={valde}
         className="sr-only"
       />
       <div className="flex flex-wrap items-center gap-2">
         <OpsButton variant="secondary" onClick={() => filRef.current?.click()} busy={laser}>
-          {laser ? "Läser" : tillagg ? (labels.byt ?? "Lägg till fler") : (labels.select ?? "Välj filer")}
+          {laser ? o.laser : tillagg ? (labels.byt ?? o.laggTillFler) : (labels.select ?? o.valjFiler)}
         </OpsButton>
         {/* Som i EnFil gömd på telefon men inte avstängd: lyssnaren och släppet finns kvar på alla bredder. */}
         <span className="hidden items-center gap-1 text-etikett text-ink-muted sm:inline-flex">
           <GemIkon />
-          {labels.klistra ?? (paste ? "eller dra hit filer eller klistra in en skärmbild" : "eller dra hit filer")}
+          {labels.klistra ?? (paste ? o.draEllerKlistra : o.draHit)}
         </span>
       </div>
       {innehall}
@@ -465,16 +492,15 @@ function Felrad({ fel, id }) {
  * De valda filerna, en rad var med förhandsvisning och en egen Ta bort. Knappens synliga text är "Ta bort" och dess namn för skärmläsaren
  * börjar med samma ord och slutar med filens namn, så att tre knappar inte heter likadant.
  *
- * @param {{ lista: readonly import("../lib/file.js").Bilaga[], labels: { remove?: string }, onTaBort: (bilaga: import("../lib/file.js").Bilaga) => void }} props
+ * @param {{ lista: readonly import("../lib/file.js").Bilaga[], taBortText: string, valdBilaga: string, onTaBort: (bilaga: import("../lib/file.js").Bilaga) => void }} props
  */
-function Filista({ lista, labels, onTaBort }) {
-  const taBort = labels.remove ?? "Ta bort";
+function Filista({ lista, taBortText: taBort, valdBilaga, onTaBort }) {
   return (
     // `role="list"` är kvar med flit: Safari tappar listsemantiken på en lista utan punkter.
     <ul role="list" className="m-0 flex list-none flex-col gap-3 p-0">
       {lista.map((b, i) => (
         <li key={`${i}-${b.namn}`} className="flex flex-col gap-1">
-          <Forhandsvisning value={b} isImage={arBildtyp(b.typ)} />
+          <Forhandsvisning value={b} isImage={arBildtyp(b.typ)} valdBilaga={valdBilaga} />
           <div>
             <OpsButton variant="ghost" size="sm" ariaLabel={`${taBort} ${b.namn}`} onClick={() => onTaBort(b)}>
               {taBort}
@@ -488,15 +514,15 @@ function Filista({ lista, labels, onTaBort }) {
 
 /**
  * Förhandsvisningen av den valda filen: en liten bild, eller namnet och storleken. Samma i väljarens båda lägen.
- * @param {{ value: import("../lib/file.js").Bilaga, isImage: boolean }} props
+ * @param {{ value: import("../lib/file.js").Bilaga, isImage: boolean, valdBilaga: string }} props `valdBilaga`: början av bildens alternativtext ("Vald bilaga"), ur `ORD_OPSFILEPICKER`.
  */
-function Forhandsvisning({ value, isImage }) {
+function Forhandsvisning({ value, isImage, valdBilaga }) {
   return (
     <figure className="m-0">
       {isImage ? (
         // Förhandsvisningen är liten med flit: den ska bekräfta att rätt fil
         // valts, inte visa den i full storlek i ett formulär.
-        <img src={value.dataUrl} alt={`Vald bilaga: ${value.namn}`} className="max-h-40 rounded-md border border-line" />
+        <img src={value.dataUrl} alt={`${valdBilaga}: ${value.namn}`} className="max-h-40 rounded-md border border-line" />
       ) : (
         // ⛔ Ingen förhandsvisning av en PDF i en `<iframe>`. Den renderas
         // olika i varje webbläsare, kan vara flera sidor, och en ruta som

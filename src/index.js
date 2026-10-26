@@ -63,7 +63,7 @@ export { OpsKnob } from "./components/OpsKnob.jsx";
 export { OpsSimulatePopover } from "./components/OpsSimulatePopover.jsx";
 export { OpsFloatingSummary } from "./components/OpsFloatingSummary.jsx";
 export { OpsScrollArea } from "./components/OpsScrollArea.jsx";
-export { OpsFilePicker } from "./components/OpsFilePicker.jsx";
+export { OpsFilePicker, ORD_OPSFILEPICKER } from "./components/OpsFilePicker.jsx";
 export { OpsLjudspelare } from "./components/OpsLjudspelare.jsx";
 export { OpsSpelareProvider, OpsSpelaKnapp, OpsSpelarKontroller, useSpelare, ORD_OPSSPELARE } from "./components/OpsSpelare.jsx";
 // ⛔ `readAttachment` och `MAX_SIDE` exporteras MED FLIT inte. En app som läser filer

@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { OpsFilePicker } from "../components/OpsFilePicker.jsx";
+import { OpsFilePicker, ORD_OPSFILEPICKER } from "../components/OpsFilePicker.jsx";
+import { OpsSprakProvider } from "../components/OpsSprak.jsx";
 
 /**
  * OpsFilePicker tar flera filer (0.149.0).
@@ -296,5 +297,64 @@ describe("OpsFilePicker med flera", () => {
     fireEvent.click(screen.getByRole("button", { name: "Ta bort redan.pdf" }));
     expect(sista.lista.map((x) => x.namn)).toEqual(["ny1.pdf", "ny2.pdf"]);
     plats.remove();
+  });
+});
+
+describe("OpsFilePicker med flera följer språket", () => {
+  const bild = { dataUrl: "data:image/jpeg;base64,x", namn: "kvitto.jpg", typ: "image/jpeg", tecken: 1400, bredd: 800, hojd: 600 };
+  const SVENSKT = /Bifoga|Välj|Lägg till|Ta bort|Läser|Vald bilaga|dra hit|klistra in/;
+
+  it("ordboken har svenska och engelska för varje ord, och engelskan är ingen kopia", () => {
+    const nycklar = Object.keys(ORD_OPSFILEPICKER);
+    expect(nycklar.length).toBeGreaterThanOrEqual(9);
+    for (const nyckel of nycklar) {
+      const ord = /** @type {{ sv: string, en: string }} */ (/** @type {any} */ (ORD_OPSFILEPICKER)[nyckel]);
+      expect(ord.en, `${nyckel}.en`).toBeTruthy();
+      expect(ord.en, `${nyckel}: engelskan är samma text som svenskan`).not.toBe(ord.sv);
+    }
+  });
+
+  it("knapparna, fältets namn, tipset och bildens alternativtext är engelska med providern på engelska", () => {
+    const { container } = render(
+      <OpsSprakProvider sprak="en">
+        <OpsFilePicker flera value={[]} onChange={() => {}} maxChars={100000} />
+      </OpsSprakProvider>,
+    );
+    expect(screen.getByRole("button", { name: "Choose files" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Attach files")).toHaveAttribute("multiple");
+    expect(screen.getByText("or drag files here or paste a screenshot")).toBeInTheDocument();
+    expect(container.innerHTML).not.toMatch(SVENSKT);
+  });
+
+  it("med filer i listan heter knapparna Add more och Remove <fil>, och bilden Selected attachment", () => {
+    const { container } = render(
+      <OpsSprakProvider sprak="en">
+        <OpsFilePicker flera value={[bild]} onChange={() => {}} maxChars={100000} />
+      </OpsSprakProvider>,
+    );
+    expect(screen.getByRole("button", { name: "Add more" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Remove kvitto.jpg" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Selected attachment: kvitto.jpg" })).toBeInTheDocument();
+    expect(container.innerHTML).not.toMatch(SVENSKT);
+  });
+
+  it("ett sprak som appen ger vinner över providern, och appens labels vinner över båda", () => {
+    render(
+      <OpsSprakProvider sprak="sv">
+        <OpsFilePicker flera sprak="en" value={[]} onChange={() => {}} maxChars={100000} labels={{ select: "Pick receipts" }} />
+      </OpsSprakProvider>,
+    );
+    expect(screen.getByRole("button", { name: "Pick receipts" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Attach files")).toBeInTheDocument();
+  });
+
+  it("läget utan flera är oförändrat och förblir svenskt även med providern på engelska", () => {
+    render(
+      <OpsSprakProvider sprak="en">
+        <OpsFilePicker value={bild} onChange={() => {}} maxChars={100000} />
+      </OpsSprakProvider>,
+    );
+    expect(screen.getByRole("button", { name: "Byt fil" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Vald bilaga: kvitto.jpg" })).toBeInTheDocument();
   });
 });
