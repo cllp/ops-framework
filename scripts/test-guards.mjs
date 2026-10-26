@@ -2322,6 +2322,143 @@ const gruppmapp = fs.mkdtempSync(path.join(rot, ".ops-vaktprov-"));
   kravRott("skaparnamn golv: fel sökväg", [namnvakt, path.join(arbetsmapp, "finns-inte")], "hittar inte");
 }
 
+// ── Inget som tillhör en person eller ett bolag ligger i ramverket (cllp/ops-framework#7) ──────────────
+//
+// ⛔ VAKTEN LETAR EFTER FORM, och en form går att pröva åt BÅDA hållen med uppgifter som byggs HÄR vid körning. Inga personnummer, IBAN eller
+// nycklar står som litteraler i den här filen: vakten läser den också, och en provfil som larmade på sig själv hade krävt ett undantag för just
+// den filen, alltså en lista över filer vakten inte ser. Kontrollsiffrorna räknas ut med vaktens egen `luhn`; att en FELAKTIG siffra släpps igenom
+// bevisas separat (grönt underlag nedan), så att en kontroll som alltid svarar ja inte kan vara grön här.
+{
+  const vakt = path.join(rot, "scripts", "check-no-app-content.mjs");
+  const { GOLV_FILER, luhn } = await import(pathToFileURL(vakt).href);
+
+  /** Siffran som gör nio siffror till ett giltigt tiosiffrigt nummer. @param {string} nio */
+  const kontrollsiffra = (nio) => {
+    for (let d = 0; d < 10; d += 1) if (luhn(nio + d)) return String(d);
+    throw new Error("test-guards: ingen kontrollsiffra hittades, luhn svarar nej på allt");
+  };
+  /** @param {string} nio */
+  const personnummer = (nio) => `${nio.slice(0, 6)}-${nio.slice(6)}${kontrollsiffra(nio)}`;
+  /** IBAN med riktiga kontrollsiffror. @param {string} land @param {string} bban */
+  const iban = (land, bban) => {
+    const omflyttad = `${bban}${land}00`.replace(/[A-Z]/g, (t) => String(t.charCodeAt(0) - 55));
+    const kontroll = String(98n - (BigInt(omflyttad) % 97n)).padStart(2, "0");
+    return `${land}${kontroll}${bban}`;
+  };
+  /** Gör sista tecknet fel utan att ändra formen. @param {string} t */
+  const felaktig = (t) => `${t.slice(0, -1)}${(Number(t.slice(-1)) + 1) % 10}`;
+  /** Samma sak som en riktig uppgift men med mellanslag var fjärde tecken. @param {string} t */
+  const ihop = (t) => t.replace(/(.{4})/g, "$1 ").trim();
+
+  /**
+   * En mapp med tillräckligt många fyllnadsfiler för golvet, plus de angivna filerna.
+   *
+   * @param {string} namn @param {Record<string, string | Buffer>} filer
+   * @param {{ fyllnad?: number }} [val]
+   */
+  const underlag = (namn, filer, { fyllnad = GOLV_FILER + 5 } = {}) => {
+    const mapp = path.join(arbetsmapp, namn);
+    fs.mkdirSync(mapp, { recursive: true });
+    for (let i = 0; i < fyllnad; i += 1) fs.writeFileSync(path.join(mapp, `fyllnad-${i}.txt`), "Ingenting att se här.\n");
+    for (const [fil, innehall] of Object.entries(filer)) {
+      fs.mkdirSync(path.dirname(path.join(mapp, fil)), { recursive: true });
+      fs.writeFileSync(path.join(mapp, fil), innehall);
+    }
+    return mapp;
+  };
+
+  const pnr10 = personnummer("850709981");
+  const pnr12 = `19${personnummer("850709981")}`;
+  const samordning = personnummer("850769981");
+  // Samma form som ett personnummer (sex siffror, bindestreck, fyra), men tredje siffran är 5: det är ett organisationsnummer.
+  const orgnr = personnummer("556677889");
+  const seIban = iban("SE", "50000000058398257466");
+  const deIban = iban("DE", "370400440532013000");
+
+  // Grönt åt ena hållet: dagens träd, och ett underlag som bara har sådant som LIKNAR men inte är uppgifter.
+  kravGront("ingen-appdata: det riktiga trädet har inga personnummer, IBAN eller nycklar", [vakt]);
+  kravGront(
+    "ingen-appdata: sådant som liknar men inte är en uppgift är grönt (felaktig kontrollsiffra, datum, tidsstämpel, version, för kort nyckel, ord om uppgifterna)",
+    [
+      vakt,
+      underlag("ia-gront", {
+        "liknar.md": [
+          `Personnummer med fel kontrollsiffra: ${felaktig(pnr10)}`,
+          `Organisationsnummer med fel kontrollsiffra: ${felaktig(orgnr)}`,
+          `IBAN med fel kontrollsumma: ${felaktig(seIban)} och ${ihop(felaktig(deIban))}`,
+          `Tolv siffror utan avgränsare är en tidsstämpel: ${pnr12.replace("-", "")}`,
+          `Månad 13 är inget datum: ${personnummer("851301981")}`,
+          "Datum 2026-10-26, telefon 08-123 456 78, version 0.149.0, integritet sha512-AbCdEfGhIjKlMnOpQrStUvWxYz0123456789+/AbCdEfGhIjKlMnOpQrStUvWxYz0123456789+/AbCd==.",
+          `En för kort token ${"gh" + "p_"}abc och ${"AI" + "za"}kort och ${"sk-" + "ant-"}kort.`,
+          "Skriv aldrig ett personnummer, ett organisationsnummer, en IBAN eller en privat nyckel här.",
+        ].join("\n"),
+      }),
+    ],
+  );
+
+  // Rött åt andra hållet: varje form, med rätt anledning och rätt fil.
+  /** @type {Array<[string, string, string]>} namn, innehåll, text som måste stå i utskriften */
+  const planterade = [
+    ["personnummer med tio siffror", `Kontakt: ${pnr10}`, "personnummer eller samordningsnummer"],
+    ["personnummer med tolv siffror", `Kontakt: ${pnr12}`, "personnummer eller samordningsnummer"],
+    ["samordningsnummer (dagen plus 60)", `Kontakt: ${samordning}`, "personnummer eller samordningsnummer"],
+    ["personnummer med plus (över hundra år)", `Kontakt: ${pnr10.replace("-", "+")}`, "personnummer eller samordningsnummer"],
+    ["organisationsnummer", `Bolag: ${orgnr}`, "organisationsnummer"],
+    ["svenskt IBAN utan mellanslag", `Konto: ${seIban}`, "IBAN"],
+    ["tyskt IBAN med mellanslag", `Konto: ${ihop(deIban)}`, "IBAN"],
+    ["privat nyckel", `${"-----BEGIN "}${"RSA PRIVATE"} ${"KEY-----"}\nMIIE\n`, "privat nyckel (PEM)"],
+    ["GitHub-token", `token=${"gh" + "p_"}${"A1b2".repeat(9)}`, "GitHub-token"],
+    ["Google-API-nyckel", `key=${"AI" + "za"}${"x".repeat(35)}`, "Google-API-nyckel"],
+    ["Google OAuth-hemlighet", `${"GOC" + "SPX-"}${"a".repeat(28)}`, "Google OAuth-hemlighet"],
+    ["AWS-åtkomstnyckel", `${"AK" + "IA"}ABCDEFGH12345678`, "AWS-åtkomstnyckel"],
+    ["Slack-token", `${"xo" + "xb-"}1234567890-abcdefghij`, "Slack-token"],
+    ["Stripe-nyckel", `${"sk_" + "live_"}${"a".repeat(24)}`, "Stripe-nyckel"],
+    ["Anthropic-nyckel", `${"sk-" + "ant-"}${"a".repeat(30)}`, "Anthropic-nyckel"],
+    ["npm-token", `${"np" + "m_"}${"a".repeat(36)}`, "npm-token"],
+  ];
+  planterade.forEach(([namn, innehall, forvantat], i) => {
+    kravRott(`ingen-appdata: ${namn}`, [vakt, underlag(`ia-${i}`, { "docs/anteckning.md": `Rad ett\n${innehall}\n` })], forvantat);
+  });
+
+  // ⛔ Vilken fil och vilken rad, men aldrig värdet: en vaktutskrift hamnar i en CI-logg.
+  kravRott("ingen-appdata: utskriften pekar ut fil och rad", [vakt, underlag("ia-rad", { "docs/anteckning.md": `Rad ett\nRad två\nKontakt: ${pnr10}\n` })], "docs/anteckning.md:3 innehåller personnummer");
+  {
+    const k = spawnSync(process.execPath, [vakt, underlag("ia-vardet", { "a.md": `Kontakt: ${pnr10}\n` })], { cwd: rot, encoding: "utf8" });
+    const utdata = `${k.stdout ?? ""}${k.stderr ?? ""}`;
+    resultat.push(
+      k.status !== 0 && !utdata.includes(pnr10) && !utdata.includes(pnr10.replace("-", ""))
+        ? { namn: "ingen-appdata: utskriften visar aldrig själva uppgiften", vantat: "rott", utfall: "ok" }
+        : { namn: "ingen-appdata: utskriften visar aldrig själva uppgiften", vantat: "rott", utfall: `vakten ${k.status === 0 ? "var grön" : "skrev ut uppgiften"}` },
+    );
+  }
+
+  // ⛔ Innehållet avgör och inte filnamnet: en text som heter .png är en text. En binär fil hoppas över av sin NUL-byte, och antalet skrivs ut.
+  kravRott("ingen-appdata: en textfil med bildändelse läses ändå", [vakt, underlag("ia-png", { "bild.png": `Kontakt: ${pnr10}\n` })], "personnummer");
+  kravGront("ingen-appdata: en binär fil (NUL-byte) läses inte", [vakt, underlag("ia-bin", { "data.bin": Buffer.concat([Buffer.from([0, 1, 2]), Buffer.from(`Kontakt: ${pnr10}\n`)]) })]);
+
+  // ⛔ Utanför paketet: installerade paket och bygget är inte ramverkets egna.
+  kravGront("ingen-appdata: node_modules och dist läses inte", [vakt, underlag("ia-utanfor", { "node_modules/x/index.js": `// ${pnr10}\n`, "dist/y.js": `// ${pnr10}\n` })]);
+
+  // ⛔ TYSTNAD (arbetsreglernas punkt 4): det som inte kunde läsas är inte rent.
+  kravRott("ingen-appdata golv: nästan inga textfiler", [vakt, underlag("ia-golv", {}, { fyllnad: 3 })], "Bara 3 textfiler");
+  kravRott("ingen-appdata golv: bara binära filer ger inget underlag", [vakt, underlag("ia-golv-bin", Object.fromEntries(Array.from({ length: GOLV_FILER + 5 }, (_, i) => [`b${i}.bin`, Buffer.from([0, i % 256])])), { fyllnad: 0 })], "Bara 0 textfiler");
+  kravRott("ingen-appdata golv: fel sökväg", [vakt, path.join(arbetsmapp, "finns-inte-ia")], "Hittar inte");
+  {
+    const mapp = underlag("ia-lank", {});
+    fs.symlinkSync(path.join(mapp, "fyllnad-0.txt"), path.join(mapp, "lank.txt"));
+    kravRott("ingen-appdata: en symbolisk länk lästes inte och är därför inte rent", [vakt, mapp], "symbolisk länk");
+  }
+  {
+    // En fil som inte går att läsa. Som root läses en vanlig fil alltid, så ett uttag (socket) är det som felar på riktigt: ENXIO vid läsning.
+    const { createServer } = await import("node:net");
+    const mapp = underlag("ia-last", {});
+    const uttag = createServer();
+    await new Promise((klar) => uttag.listen(path.join(mapp, "uttag.sock"), klar));
+    kravRott("ingen-appdata: en fil som inte gick att läsa är inte rent", [vakt, mapp], "uttag.sock kunde inte läsas");
+    uttag.close();
+  }
+}
+
 fs.rmSync(arbetsmapp, { recursive: true, force: true });
 
 const fel = resultat.filter((r) => r.utfall !== "ok");
