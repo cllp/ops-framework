@@ -60,7 +60,8 @@ describe("OpsGastSida: en händelse att svara på (delta)", () => {
   });
 
   it("⛔ inget annat än händelsen: ingen beskrivning, ingen grupp, ingen omröstning, och inga knappar utöver tre", async () => {
-    const onHamta = vi.fn(async () => ({ ...delta(), beskrivning: "HEMLIG-BESKRIVNING", grupp: { namn: "HEMLIG-GRUPP" }, sak: { titel: "HEMLIGT-FORSLAG" } }));
+    // Servern skickar inte det här. Sidan ritar det inte heller om det ändå kom med: den ritar rubrik, tid och plats, och inget annat.
+    const onHamta = vi.fn(async () => ({ ...delta(null, { ...HANDELSE, beskrivning: "HEMLIG-BESKRIVNING" }), beskrivning: "HEMLIG-BESKRIVNING", grupp: { namn: "HEMLIG-GRUPP" }, sak: { titel: "HEMLIGT-FORSLAG" } }));
     rita({ onHamta });
     await screen.findByRole("heading", { level: 1, name: "Möte" });
     const kropp = document.body.textContent;
