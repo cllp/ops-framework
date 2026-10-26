@@ -21,19 +21,47 @@
  * medlemmarna ändå.
  */
 
+import { SVARSVAL } from "./handelsemodell.js";
 import { epostFel } from "./mejl.js";
 
 /** Så många gäster en grupp får gratis (CP 2026-10-20: "max 5 gäster"). Ett tal på ETT ställe: platsdokumenten, texten "X av 5" och taket härleds ur det. */
 export const GAST_PLATSER_GRATIS = 5;
 
 /**
- * Vad en inbjudan gäller: `sak` (en omröstning, skiva 1) eller `grupp` (hela gruppen, 0.132.0). Slaget ingår i inbjudans id via `gastomfangsnyckel`, så att samma adress till
+ * Vad en inbjudan gäller: `sak` (en sak, och vad gästen får göra med den är `funktion`) eller `grupp` (hela gruppen, 0.132.0). Slaget ingår i inbjudans id via `gastomfangsnyckel`, så att samma adress till
  * en sak och till hela gruppen är två rader men en person (och en plats).
  */
 export const GASTSLAG = /** @type {const} */ (["sak", "grupp"]);
 
-/** Vad en gäst får göra med en SAK. Skiva 1: rösta. Skyddet gäller per funktion, inte per post (epikens beslut 7). */
-export const GASTFUNKTIONER = /** @type {const} */ (["rosta"]);
+/**
+ * Vad en gäst får göra med en SAK. `rosta` (skiva 1): rösta på ett datum. `delta` (0.146.0, cllp/ops-framework#445, skiva 1): svara på om hen kommer till en händelse som har ett datum,
+ * och se händelsens rubrik, tid och plats, inget annat. Skyddet gäller per funktion, inte per post (epikens beslut 7): ett omfång ger EN funktion, och en `delta`-gäst ger aldrig `rosta` eller något i gruppen.
+ *
+ * ⛔ EN NY FUNKTION ÄR EN RAD HÄR OCH EN SVARSMETOD I TJÄNSTEN, INTE EN NY SAMLING (regel 13, epiken: "i stället för nya samlingar per yta"). Inbjudans id innehåller funktionen (`gastomfangsnyckel`),
+ * så samma adress till samma händelse med `rosta` och med `delta` är två rader men en person och en plats.
+ */
+export const GASTFUNKTIONER = /** @type {const} */ (["rosta", "delta"]);
+
+/**
+ * Svaren en gäst ger på `delta`: de två som medlemmen har (`SVARSVAL`, härledda och inte skrivna igen, regel 2) och `kanske`.
+ *
+ * ⛔ `kanske` FINNS BARA HOS GÄSTEN, och medlemmens svar förblir två (`SVARSVAL`, `handelsemodell.js`: "kanske är inget svar på kommer du?"). Skälet till att gästen får tre är hens egen kalender: ett
+ * kalenderprogram har Ja, Kanske och Nej, och en extern som inte vet än ska inte tvingas säga det ena eller det andra. Följden, utskriven: `kanske` räknas inte i någon sammanställning (`sammanstallSvar` räknar
+ * `kommer` och `kommerInte`), och den som listar gästerna ser ordet på gästens rad (`OpsGastLista`). Svaret lagras på inbjudan (`deltasvar`) och aldrig bland medlemmarnas svarsrader.
+ */
+export const GASTDELTASVAR = /** @type {const} */ ([...SVARSVAL, "kanske"]);
+
+/**
+ * Fälten en `delta`-gäst ser av händelsen, och inget annat (`hamta`): rubriken, tiden och platsen. Ingen beskrivning, inga filer, inga kommentarer, ingen grupp, inga andra gäster eller svar.
+ * `titel` och `plats` ger appen (`delta.handelseSida`), tiden är ramverkets egen (`HANDELSEKONTRAKT`).
+ */
+export const GASTDELTAHANDELSEFALT = /** @type {const} */ (["titel", "plats", "datum", "slutDatum", "tid", "slutTid", "heldag"]);
+
+/**
+ * Åtgärderna en `delta`-gäst anropar på servern (`POST /api/gast`), förutom `los`, `hamta`, `namn`, `nylank` och `raderaMig` som varje gäst har. Samma tanke som `GASTGRUPPATGARDER`: namnet står här och
+ * ingen annanstans, och appens vitlista läser samma lista. En `delta`-gäst har bara den här, och en gruppåtgärd från en `delta`-session är ett nej.
+ */
+export const GASTDELTAATGARDER = /** @type {const} */ (["deltaSvara"]);
 
 /**
  * Vad en gäst med omfånget `grupp` får göra: se och skriva i chatten, kalendern (och svara och rösta där), biblioteket och de ärenden som delegerats till hen. En gruppinbjudan ger alla fyra. Att välja en delmängd per
@@ -211,6 +239,20 @@ export const GASTFALT = /** @type {const} */ ([
 ]);
 
 /**
+ * (0.146.0) Fälten som BARA en `delta`-inbjudan har, utöver `GASTFALT`. De skrivs av servern och aldrig av en klient (`gastregelfragment`: ingen skriver).
+ *   - `deltasvar`: gästens svar (`GASTDELTASVAR`) eller `null` så länge hen inte svarat. Ett fält på inbjudan och ingen rad i händelsens svarssamling: det är dit en `delta`-gäst hör, och raderingen av gästen tar svaret med sig.
+ *   - `sekvens`: ICS-egenskapen SEQUENCE för det senast skickade brevet, 0 vid första utskicket. Stiger med ett när händelsens tid eller plats ändrats sedan dess (`nastaSekvens`).
+ *   - `andringsnyckel`: tiden och platsen som de var när brevet senast skickades (`andringsnyckel`), det som `sekvens` jämförs mot. Härledd ur händelsen, lagrad bara för att jämföra.
+ */
+export const GASTDELTARADFALT = /** @type {const} */ (["deltasvar", "sekvens", "andringsnyckel"]);
+
+/**
+ * (0.146.0) Det en `delta`-inbjudan har i medlemmens lista (`lista`) utöver `GASTLISTFALT` (en gäst på händelsen) respektive `GASTPERSONINBJUDANFALT` (en inbjudan under en person): gästens svar. Bara på en
+ * `delta`-rad, så att en omröstnings- eller gruppinbjudan har exakt de fält den hade före 0.146.0. `sekvens` och `andringsnyckel` är serverns bokföring och visas inte.
+ */
+export const GASTDELTALISTFALT = /** @type {const} */ (["deltasvar"]);
+
+/**
  * Fälten på en gäst i medlemmens lista (`lista`). Inte `nyckelHash` och inte felräknarna: en lista som bär dem är ett svar som kan läcka mer än den visar.
  * `id` är med (för Skicka igen och Dra tillbaka), liksom `status`, som härleds (`gastStatus`) och inte lagras.
  */
@@ -232,9 +274,9 @@ export const GASTLISTFALT = /** @type {const} */ ([
 /**
  * Fälten i det svar en gäst får, och inget annat lämnar servern (`hamta`): inte gruppen, medlemmarna, andra gäster, adresser, chatten eller något av
  * appens fält som appen inte uttryckligen listat i `sak.falt`. En öppen lista, som `HANDELSESVARSFALT`: allt som skickas ut är något som kan läcka.
- * `grupp` (0.132.0) är gruppens namn och vilka funktioner gästen har, för en gruppinbjudan.
+ * `grupp` (0.132.0) är gruppens namn och vilka funktioner gästen har, för en gruppinbjudan. `delta` (0.146.0) är händelsen (`GASTDELTAHANDELSEFALT`) och gästens eget svar (`mitt`), för en `delta`-inbjudan.
  */
-export const GASTSVARSFALT = /** @type {const} */ (["ok", "namn", "funktion", "sak", "grupp"]);
+export const GASTSVARSFALT = /** @type {const} */ (["ok", "namn", "funktion", "sak", "grupp", "delta"]);
 
 /**
  * (0.132.0) Fälten i gruppens svar, per åtgärd. ⛔ ÖPPNA LISTOR, EN PER ÅTGÄRD: allt som skickas ut till en gäst bygges fält för fält ur de här, aldrig genom att ett helt
@@ -470,12 +512,12 @@ export function gastId(epost) {
 // ── Omfånget, platserna och länken ────────────────────────────────────────────────────────────────────────────────────
 
 /**
- * @typedef {{ slag: "sak", funktion: "rosta", handelseId: string } | { slag: "grupp" }} Gastomfang
- *   `sak`: en omröstning på en händelse (skiva 1). `grupp` (0.132.0): hela gruppen, och gruppen står i inbjudans `groupId` och aldrig i omfånget (en sanning, regel 2).
+ * @typedef {{ slag: "sak", funktion: "rosta" | "delta", handelseId: string } | { slag: "grupp" }} Gastomfang
+ *   `sak`: en omröstning på en händelse (skiva 1, `rosta`), eller ett deltagarsvar på den (0.146.0, `delta`). `grupp` (0.132.0): hela gruppen, och gruppen står i inbjudans `groupId` och aldrig i omfånget (en sanning, regel 2).
  */
 
 /**
- * Omfånget som text: `sak:rosta:<handelseId>` eller `grupp`. Det ingår i inbjudans id, så att samma adress till samma sak är en och samma rad.
+ * Omfånget som text: `sak:<funktion>:<handelseId>` (`sak:rosta:...`, `sak:delta:...`) eller `grupp`. Det ingår i inbjudans id, så att samma adress till samma sak är en och samma rad.
  *
  * ⛔ DE BEFINTLIGA ID:N ÄNDRAS ALDRIG. `sak:rosta:<handelseId>` är exakt det skiva 1 skrev (ett prov låser fem id som fasta hashar), och `grupp` är en ny nyckel som inget
  * `sak`-id kan krocka med: ett handelseId står efter två kolon och nyckeln `grupp` har inga. Kastar för ett omfång som ingen version känner.

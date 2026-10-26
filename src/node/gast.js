@@ -41,6 +41,16 @@
  * ⛔ DET SOM ÄR APPENS HÄR: appens fält på en händelse (`grupp.handelseSida`), och omröstningens
  * modell (`grupp.omrostning`: förslagen, rösterna). Ramverket läser dem aldrig själv, och allt som appens `bygg` ger utöver `falt` tas bort innan svaret lämnar tjänsten.
  *
+ * ══ ⛔ DELTA (0.146.0, cllp/ops-framework#445, skiva 1): EN GÄST FÖR EN SAK SVARAR OCH SER HÄNDELSEN, INGET ANNAT ═══════════════════
+ *
+ * En inbjudan med omfånget `{ slag: "sak", funktion: "delta", handelseId }` ger gästen två saker: att se händelsens rubrik, tid och plats (`GASTDELTAHANDELSEFALT`) och att svara Kommer, Kommer inte eller Kanske
+ * (`GASTDELTASVAR`) på just den. Svaret är ett fält på inbjudan (`deltasvar`), skrivet av `deltaSvara` med ett villkor på `aterkallad: null`: en återkallelse och ett svar kan inte korsa varandra, och raderingen av
+ * gästen tar svaret med sig utan att något nytt ställe behöver minnas att rensa. Ingen ny samling, inga nya regler (regel 13): inbjudningarna nekas redan alla klientskrivningar (`gastregelfragment`).
+ * `delta` är en egen konfiguration (`createGastService({ delta })`), och en tjänst utan den svarar `ogiltigt-omfang` på `bjud` och `nej` på allt annat.
+ *
+ * Ett omfång ger EN funktion: en `delta`-session är ett nej för varje gruppåtgärd och för appens `rosta`-väg, och en `rosta`- eller gruppsession är ett nej för `deltaSvara`. `hamta` för en `delta`-gäst bygger aldrig
+ * saken ur appens `sak.bygg` (det är omröstningens kort, med förslag och röster).
+ *
  * ══ ⛔ RAMVERKET KÄNNER INGEN DATABAS, INGA SAMLINGSNAMN OCH INGA FÄLT HOS APPENS HÄNDELSE ═════════════════════════════════
  *
  * Datakällan skickas in, samlingsnamnen likaså. Appens händelse läses bara för `groupId` och `arkiverad`. Vad gästen får se av saken är appens (`sak.bygg`), men bara
@@ -62,10 +72,14 @@ import {
   GASTBIBLIOTEKFALT,
   GASTCHATT_SIDA,
   GASTCHATTFALT,
+  GASTDELTAHANDELSEFALT,
+  GASTDELTALISTFALT,
+  GASTDELTASVAR,
   GASTFEL_FONSTER_MS,
   GASTFEL_MAX,
   GASTFELKODER,
   GASTFIL_PER_DYGN,
+  GASTFUNKTIONER,
   GASTSKRIV_MAX_TECKEN,
   GASTSKRIV_PER_MINUT,
   arGastId,
@@ -113,6 +127,7 @@ import { NAMNER_ALLA, samtalsnyckel } from "../lib/samtal.js";
 import { SIGNERAD_SEKUNDER, delningsTyp } from "../lib/delning.js";
 import { delningsDisposition } from "./delning.js";
 import { epostFel } from "../lib/mejl.js";
+import { andringsnyckel, nastaSekvens } from "./ics.js";
 
 const DYGN_MS = 24 * 60 * 60 * 1000;
 
@@ -192,6 +207,7 @@ export function gastInbjudningsId(d) {
  * @param {{ uid: string, namn?: string }} d.skapadAv
  * @param {number} d.skapad Millisekunder.
  * @param {string} d.nyckel Nyckeln i brevet. Lagras aldrig, bara hashen.
+ * @param {string} [d.andringsnyckel] KRÄVS för en `delta`-inbjudan: `andringsnyckel()` för händelsen som den är när brevet skickas. Övriga omfång bär inget sådant fält.
  * @returns {Record<string, any>}
  */
 export function byggGastinbjudan(d) {
@@ -208,6 +224,10 @@ export function byggGastinbjudan(d) {
   // gastomfangsnyckel kastar för ett omfång som inte hör hemma (ett grupp med extra fält, en sak utan händelse) INNAN raden byggs.
   gastomfangsnyckel(d.omfang);
   const omfang = d.omfang.slag === "grupp" ? { slag: /** @type {const} */ ("grupp") } : { slag: d.omfang.slag, funktion: d.omfang.funktion, handelseId: d.omfang.handelseId };
+  const delta = omfang.slag === "sak" && omfang.funktion === "delta";
+  if (delta && (typeof d.andringsnyckel !== "string" || d.andringsnyckel === "")) {
+    throw new Error("byggGastinbjudan: en delta-inbjudan bär andringsnyckel (ur andringsnyckel()), det som SEQUENCE jämförs mot vid nästa utskick.");
+  }
   return {
     id: gastInbjudningsId({ groupId, epost, omfang }),
     groupId,
@@ -224,6 +244,8 @@ export function byggGastinbjudan(d) {
     aterkallad: null,
     felAntal: 0,
     felFonster: 0,
+    // (0.146.0) Bara en delta-rad: svaret, SEQUENCE för det första brevet och vad brevet sade om tid och plats. `GASTDELTARADFALT`.
+    ...(delta ? { deltasvar: null, sekvens: 0, andringsnyckel: d.andringsnyckel } : {}),
   };
 }
 
@@ -290,10 +312,12 @@ function felMedKod(kod, meddelande) {
 
 /**
  * @typedef {object} Gastbrev
- * @property {"inbjudan" | "igen" | "ny-lank"} typ
+ * @property {"inbjudan" | "igen" | "ny-lank" | "andrad-tid"} typ `andrad-tid` (0.146.0): händelsens tid eller plats har ändrats sedan förra brevet till en `delta`-gäst (`tidAndrad`). Brevet bär den nya posten (`handelse`, `sekvens`) och en ny länk.
  * @property {string} till Adressen, normaliserad.
  * @property {string} namn Namnet som den som bjöd gav, eller en tom sträng.
- * @property {ReadonlyArray<{ id: string, nyckel: string, groupId: string, omfang: import("../lib/gast.js").Gastomfang }>} lankar En per inbjudan. Bygg adressen med `gastLank`.
+ * @property {ReadonlyArray<{ id: string, nyckel: string, groupId: string, omfang: import("../lib/gast.js").Gastomfang, sekvens?: number, handelse?: { id: string, titel: string, plats: string | null, datum: string | null, slutDatum: string | null, tid: string | null, slutTid: string | null, heldag: boolean } }>} lankar
+ *   En per inbjudan. Bygg adressen med `gastLank`. ⛔ För en `delta`-inbjudan bär länken också `handelse` (händelsen som gästen ser den, med `id`) och `sekvens`: `byggIcs({ handelse, sekvens, domän, tidszon, stampel })` ger kalenderposten
+ *   som ska bifogas, och rubriken, tiden och platsen i brevet och på sidan kommer ur samma ställe (regel 2).
  * @property {{ uid: string, namn: string } | null} skickadAv Den som bjöd eller skickade om. `null` för "ny länk", som gästen själv bad om.
  */
 
@@ -303,13 +327,15 @@ function felMedKod(kod, meddelande) {
  * @param {object} konfig
  * @param {import("../data/contract.js").DataSource<any>} konfig.kalla Kräver `read`, `list`, `remove`, `createNew` och `updateIf`.
  * @param {Gastsamlingar} konfig.samlingar
- * @param {(arg: { uid: string, groupId: string, medlemskap: Record<string, any>, handelse: Record<string, any> }) => boolean | Promise<boolean>} konfig.farBjuda
+ * @param {(arg: { uid: string, groupId: string, medlemskap: Record<string, any>, handelse: Record<string, any>, funktion: "rosta" | "delta" }) => boolean | Promise<boolean>} konfig.farBjuda
  *   Appens regel för vem som får bjuda in gäster till en händelse och dra tillbaka dem: för omröstningen skaparen, en admin eller en ägare, och bara medan datumet
- *   inte är valt. KRÄVS, utan förval: att bjuda in en utomstående är att skicka ett brev i gruppens namn, och en tyst bred regel vore en dörr bredvid reglerna. Prövas
+ *   inte är valt. ⛔ `funktion` (0.146.0) säger vad inbjudan gäller: omröstningens regel ("bara medan datumet inte är valt") är fel för `delta`, som kräver ett datum. Appen svarar per funktion. KRÄVS, utan förval: att bjuda in en utomstående är att skicka ett brev i gruppens namn, och en tyst bred regel vore en dörr bredvid reglerna. Prövas
  *   EFTER medlemskapet (aktiv, och en person), aldrig i stället för det.
  * @param {(brev: Gastbrev) => void | Promise<void>} konfig.skicka Appens mejlväg. Får nyckeln, och är den enda väg en nyckel lämnar tjänsten på.
  * @param {{ falt: readonly string[], bygg: (arg: { inbjudan: Record<string, any>, gastId: string, handelse: Record<string, any> }) => Record<string, any> | Promise<Record<string, any>> }} [konfig.sak]
  *   Det gästen ser av saken. `falt` är hela listan: allt som `bygg` ger utöver den tas bort innan svaret lämnar tjänsten. Utan den ger `hamta` inget `sak`.
+ * @param {{ handelseSida: (handelse: Record<string, any>) => { titel: string, plats?: string | null } }} [konfig.delta] (0.146.0) Slår på funktionen `delta` för en sak: gästen svarar Kommer, Kommer inte eller Kanske på en händelse och
+ *   ser dess rubrik, tid och plats. `handelseSida` säger vilka av appens fält som är rubrik och plats; tiden är ramverkets (`HANDELSEKONTRAKT`). KRÄVER `radering`: tjänsten sparar gästens adress och svar. Utan `delta` svarar `bjud` med funktionen `delta` `ogiltigt-omfang`.
  * @param {Gastgrupp} [konfig.grupp] (0.132.0) Slår på omfånget "grupp": gästens chatt, kalender, ärenden och bibliotek. Utan den finns bara "en sak".
  * @param {Gastradering} [konfig.radering] (0.132.0) Raderingen av en gästs uppgifter. KRÄVS med `grupp`; utan den kastar `radera` och `raderaMig`.
  * @param {readonly string[]} [konfig.extraSparrade] Appens egna spärrade mejldomäner (`epostFel`).
@@ -321,7 +347,7 @@ export function createGastService(konfig) {
    * ⛔ DESTRUKTURERINGEN LIGGER I KROPPEN, av samma skäl som i `createDelningService`: `({ kalla })` i signaturen kastar Nodes "Cannot destructure" innan
    * valideringen hinner köra, och det felet nämner inte fabriken.
    */
-  const { kalla, samlingar, farBjuda, skicka, sak, grupp, radering, extraSparrade = [], rapportera = (/** @type {unknown} */ fel) => console.error("createGastService:", fel), klocka = Date.now } = konfig ?? {};
+  const { kalla, samlingar, farBjuda, skicka, sak, delta, grupp, radering, extraSparrade = [], rapportera = (/** @type {unknown} */ fel) => console.error("createGastService:", fel), klocka = Date.now } = konfig ?? {};
   const namn = "createGastService";
   if (!kalla || typeof kalla.read !== "function" || typeof kalla.list !== "function" || typeof kalla.remove !== "function") {
     throw new Error(`${namn}: en datakälla med read, list och remove krävs. Ramverket känner ingen databas.`);
@@ -355,6 +381,15 @@ export function createGastService(konfig) {
     }
     if (typeof sak.bygg !== "function") throw new Error(`${namn}: sak.bygg krävs när sak finns, en funktion som ger saken som en gäst ser den.`);
   }
+  if (delta !== undefined) {
+    if (!delta || typeof delta.handelseSida !== "function") {
+      throw new Error(`${namn}: delta.handelseSida krävs, en funktion som säger vilka av appens fält som är rubrik och plats. Ramverket känner inte appens händelsefält och gissar inget.`);
+    }
+    if (radering === undefined) {
+      throw new Error(`${namn}: radering krävs med delta. Tjänsten sparar gästens adress och svar, och en gäst som går att bjuda in måste också gå att radera (samma krav som för grupp).`);
+    }
+  }
+  const DELTA = delta ?? null;
   /** @type {null | { samlingar: Record<string, string>, lagring: Gastgrupp["lagring"], gruppPrefix: string, postPrefix: string, handelseSida: Gastgrupp["handelseSida"], arenden?: Gastarenden, omrostning?: Gastgrupp["omrostning"], funktioner: readonly string[] }} */
   let GS = null;
   if (radering !== undefined) {
@@ -513,7 +548,7 @@ export function createGastService(konfig) {
     const h = await kalla.read(HANDELSER, rad.omfang?.handelseId);
     if (h && h.groupId === rad.groupId) {
       const m = await aktivtMedlemskap(uid, rad.groupId);
-      if (m && (await farBjuda({ uid, groupId: rad.groupId, medlemskap: m, handelse: h })) === true) return;
+      if (m && (await farBjuda({ uid, groupId: rad.groupId, medlemskap: m, handelse: h, funktion: rad.omfang?.funktion ?? "rosta" })) === true) return;
     }
     throw felMedKod("ej-behorig", `${vad}: ${uid} är inte den som bjöd in, och inte admin eller ägare i gruppen. Inbjudan ändras inte.`);
   }
@@ -691,6 +726,75 @@ export function createGastService(konfig) {
     return { anvanda, totalt: GAST_PLATSER_GRATIS, lediga: GAST_PLATSER_GRATIS - anvanda };
   }
 
+  // ── Delta: händelsen som gästen ser den, och SEQUENCE ─────────────────────────────────────────────────────────────
+
+  /**
+   * Händelsen som en `delta`-gäst ser den: rubrik och plats ur appen (`delta.handelseSida`), tiden ur ramverkets egna fält. Fältens form är fast (`null` när något saknas, aldrig utelämnat), så att sidan och
+   * brevet aldrig behöver gissa skillnaden mellan "tomt" och "inte hämtat". ⛔ Beskrivningen, filerna och allt annat appen har på händelsen är inte med.
+   *
+   * @param {Record<string, any>} h
+   * @returns {{ titel: string, plats: string | null, datum: string | null, slutDatum: string | null, tid: string | null, slutTid: string | null, heldag: boolean }}
+   */
+  function deltaHandelseUt(h) {
+    const sida = /** @type {NonNullable<typeof DELTA>} */ (DELTA).handelseSida(h);
+    const plats = text(sida?.plats);
+    /** @param {unknown} v */
+    const eller = (v) => (typeof v === "string" && v !== "" ? v : null);
+    return { titel: text(sida?.titel), plats: plats === "" ? null : plats, datum: eller(h.datum), slutDatum: eller(h.slutDatum), tid: eller(h.tid), slutTid: eller(h.slutTid), heldag: h.heldag === true };
+  }
+
+  /**
+   * Nästa SEQUENCE för en `delta`-rad, utan att skriva något: det som lagrades vid förra utskicket mot händelsen som den är nu (`nastaSekvens`).
+   * @param {Record<string, any>} rad
+   * @param {ReturnType<typeof deltaHandelseUt>} ut
+   */
+  function planeraSekvens(rad, ut) {
+    const forra = Number.isInteger(rad.sekvens) && typeof rad.andringsnyckel === "string" ? { sekvens: rad.sekvens, andringsnyckel: rad.andringsnyckel } : null;
+    return nastaSekvens(forra, andringsnyckel(ut));
+  }
+
+  /**
+   * Sparar en planerad SEQUENCE. Villkoret är det som lästes: har en annan hunnit före (ett samtidigt utskick) skrivs ingenting över, och anroparen får `false`.
+   * @param {Record<string, any>} rad
+   * @param {{ sekvens: number, andringsnyckel: string }} nasta
+   */
+  async function sparaSekvens(rad, nasta) {
+    if (rad.sekvens === nasta.sekvens && rad.andringsnyckel === nasta.andringsnyckel) return true;
+    const { updated } = await uppdateraOm(INB, rad.id, { sekvens: rad.sekvens, andringsnyckel: rad.andringsnyckel }, { sekvens: nasta.sekvens, andringsnyckel: nasta.andringsnyckel });
+    return updated;
+  }
+
+  /**
+   * SEQUENCE för ett utskick som en människa begärt (Bjud in igen, Skicka igen, en ny länk): planeras och sparas FÖRE brevet skickas, och försöker om när ett samtidigt utskick hann före. Går brevet inte iväg
+   * räcker Skicka igen: samma SEQUENCE är redan sparad, och brevet bär den.
+   *
+   * @param {Record<string, any>} rad Raden som den lästes.
+   * @param {ReturnType<typeof deltaHandelseUt>} ut
+   * @returns {Promise<number>}
+   */
+  async function sekvensForUtskick(rad, ut) {
+    let aktuell = rad;
+    for (let i = 0; i < 4; i++) {
+      const nasta = planeraSekvens(aktuell, ut);
+      if (await sparaSekvens(aktuell, nasta)) return nasta.sekvens;
+      const ny = await kalla.read(INB, rad.id);
+      if (!ny) break;
+      aktuell = ny;
+    }
+    throw new Error("delta: inbjudan ändrades hela tiden av någon annan. Försök igen.");
+  }
+
+  /**
+   * Länken i ett brev. För en `delta`-inbjudan bär den också händelsen och SEQUENCE (se `Gastbrev`).
+   *
+   * @param {Record<string, any>} rad
+   * @param {string} nyckel
+   * @param {{ ut: ReturnType<typeof deltaHandelseUt>, sekvens: number } | null} [delta]
+   */
+  function brevlank(rad, nyckel, delta = null) {
+    return { id: rad.id, nyckel, groupId: rad.groupId, omfang: rad.omfang, ...(delta ? { sekvens: delta.sekvens, handelse: { id: rad.omfang.handelseId, ...delta.ut } } : {}) };
+  }
+
   // ── Utskicken ─────────────────────────────────────────────────────────────────────────────────────────────────────
 
   /**
@@ -738,7 +842,7 @@ export function createGastService(konfig) {
    * ⛔ HELA GRUPPEN KRÄVER ÄGARE ELLER ADMIN, och regeln är ramverkets och inte en callback (CP 2026-10-20: "Ägare och admin bjuder in till hela gruppen"). En app kan inte släppa in fler:
    * gästen läser gruppens hela chatthistorik, och det är mer än en omröstning. Vill man släppa in fler ändras ramverket, med en ny händelse här.
    *
-   * @param {Record<string, any>} b `{ uid, handelseId, epost, namn? }` för en sak, `{ uid, slag: "grupp", groupId, epost, namn? }` för hela gruppen.
+   * @param {Record<string, any>} b `{ uid, handelseId, epost, namn?, funktion? }` för en sak (`funktion` är `rosta`, förval, eller `delta`, 0.146.0), `{ uid, slag: "grupp", groupId, epost, namn? }` för hela gruppen.
    * @returns {Promise<{ id: string, gastId: string, ny: boolean, vackt: boolean }>}
    */
   async function bjud(b) {
@@ -746,6 +850,10 @@ export function createGastService(konfig) {
     const grupplage = b?.slag === "grupp";
     if (b?.slag !== undefined && b.slag !== "grupp" && b.slag !== "sak") throw felMedKod("ogiltigt-omfang", `bjud: slaget ${JSON.stringify(b.slag)} finns inte. Giltiga: sak, grupp.`);
     if (grupplage && b?.handelseId !== undefined) throw felMedKod("ogiltigt-omfang", "bjud: en inbjudan till hela gruppen har ingen händelse. Ange antingen handelseId eller slag: \"grupp\".");
+    if (grupplage && b?.funktion !== undefined) throw felMedKod("ogiltigt-omfang", "bjud: en inbjudan till hela gruppen har ingen funktion. Funktionen hör till en sak.");
+    const funktion = b?.funktion === undefined ? /** @type {const} */ ("rosta") : b.funktion;
+    if (!(/** @type {readonly unknown[]} */ (GASTFUNKTIONER).includes(funktion))) throw felMedKod("ogiltigt-omfang", `bjud: funktionen ${JSON.stringify(funktion)} finns inte. Giltiga: ${GASTFUNKTIONER.join(", ")}.`);
+    if (funktion === "delta" && !DELTA) throw felMedKod("ogiltigt-omfang", "bjud: delta är inte påslaget (createGastService fick ingen delta).");
     const epost = normaliseraGastepost(b?.epost, extraSparrade);
     // Ordningen i skiva 1: händelsen läses före adressen prövas bara när det är en sak. Ett fel ska vara samma fel som förut.
     const handelseId = grupplage ? "" : kravText(b?.handelseId, "handelseId", "bjud");
@@ -759,6 +867,8 @@ export function createGastService(konfig) {
     let medlem;
     /** @type {import("../lib/gast.js").Gastomfang} */
     let omfang;
+    /** @type {ReturnType<typeof deltaHandelseUt> | null} */
+    let deltaUt = null;
     if (grupplage) {
       if (!GS) throw felMedKod("ogiltigt-omfang", "bjud: gruppgäster är inte påslagna (createGastService fick ingen grupp).");
       groupId = kravText(b?.groupId, "groupId", "bjud");
@@ -773,11 +883,16 @@ export function createGastService(konfig) {
       // ⛔ MEDLEMSKAPET FÖRST, appens regel efter: en callback som släppte in en icke-medlem hade varit en dörr bredvid reglerna.
       const m = await aktivtMedlemskap(uid, groupId);
       if (!m) throw felMedKod("ej-behorig", `bjud: ${uid} är inte aktiv medlem i gruppen "${groupId}" och får inte bjuda in gäster.`);
-      if ((await farBjuda({ uid, groupId, medlemskap: m, handelse: h })) !== true) {
+      if ((await farBjuda({ uid, groupId, medlemskap: m, handelse: h, funktion })) !== true) {
         throw felMedKod("ej-behorig", `bjud: ${uid} får inte bjuda in gäster till händelsen "${handelseId}".`);
       }
+      // ⛔ DELTA KRÄVER ETT DATUM: en händelse utan dag har ingen kalenderpost att skicka och ingenting att komma till. Omröstningen om dagen är `rosta`.
+      if (funktion === "delta") {
+        deltaUt = deltaHandelseUt(h);
+        if (deltaUt.datum === null) throw felMedKod("ogiltigt-omfang", `bjud: händelsen "${handelseId}" har inget datum, och det går inte att svara på om man kommer. Bjud in till omröstningen om dagen (funktion rosta) i stället.`);
+      }
       medlem = m;
-      omfang = { slag: "sak", funktion: "rosta", handelseId };
+      omfang = { slag: "sak", funktion, handelseId };
     }
 
     const gId = gastId(epost);
@@ -787,7 +902,7 @@ export function createGastService(konfig) {
     const nyckel = nyGastnyckel();
     const skapad = klocka();
     const skapadAv = { uid, namn: text(medlem.namn) };
-    const ny = byggGastinbjudan({ groupId, epost, namn: gastnamn, omfang, skapadAv, skapad, nyckel });
+    const ny = byggGastinbjudan({ groupId, epost, namn: gastnamn, omfang, skapadAv, skapad, nyckel, ...(deltaUt ? { andringsnyckel: andringsnyckel(deltaUt) } : {}) });
     const { created, row } = await skapaNy(INB, ny);
     let brevNyckel = nyckel;
     let vackt = false;
@@ -825,11 +940,13 @@ export function createGastService(konfig) {
       throw fel;
     }
 
+    // En ny rad börjar på SEQUENCE 0. En befintlig rad (Bjud in igen) jämförs mot det som skickades förra gången: ändrades tid eller plats däremellan stiger SEQUENCE.
+    const sekvens = deltaUt ? (created ? 0 : await sekvensForUtskick(/** @type {Record<string, any>} */ (row), deltaUt)) : 0;
     await levereraBrev({
       typ: created ? "inbjudan" : "igen",
       till: epost,
       namn: gastnamn || text(row?.namn),
-      lankar: [{ id: ny.id, nyckel: brevNyckel, groupId, omfang }],
+      lankar: [brevlank(ny, brevNyckel, deltaUt ? { ut: deltaUt, sekvens } : null)],
       skickadAv: skapadAv,
     });
     return { id: ny.id, gastId: gId, ny: created, vackt };
@@ -877,14 +994,17 @@ export function createGastService(konfig) {
       throw felMedKod("ej-behorig", `skickaOm: ${uid} är inte ägare eller admin i gruppen. Bara de skickar en gruppinbjudan.`);
     }
     if (rad.aterkallad !== null) throw felMedKod("aterkallad", `skickaOm: inbjudan "${id}" är återkallad. Bjud in på nytt.`);
+    // ⛔ EN DELTA-INBJUDAN PÅ EN HÄNDELSE SOM FÖRSVUNNIT SKICKAS INTE OM: länken i brevet leder till en sida som säger att det inte finns. Rosta-inbjudan är som förut.
+    const delta = rad.omfang?.funktion === "delta" && DELTA ? deltaHandelseUt(await lasHandelse(rad.omfang.handelseId, "skickaOm")) : null;
     await tagPlats(rad.groupId, gastId(rad.epost));
     const { rad: ny, nyckel } = await roteraNyckel(rad);
+    const sekvens = delta ? await sekvensForUtskick(ny, delta) : 0;
     const medlem = await aktivtMedlemskap(uid, rad.groupId);
     await levereraBrev({
       typ: "igen",
       till: ny.epost,
       namn: text(ny.namn),
-      lankar: [{ id, nyckel, groupId: ny.groupId, omfang: ny.omfang }],
+      lankar: [brevlank(ny, nyckel, delta ? { ut: delta, sekvens } : null)],
       skickadAv: { uid, namn: text(medlem?.namn) || text(rad.skapadAv?.namn) },
     });
     return { id };
@@ -899,11 +1019,15 @@ export function createGastService(konfig) {
    * ⛔ GRUPPLISTAN HAR EN RAD PER PERSON, INTE PER INBJUDAN (0.132.0): en person med en omröstning och hela gruppen är en person, en plats och två inbjudningar under sig. Raden bär `titel`
    * på omröstningarna när appen gett `grupp.handelseSida`.
    *
-   * @param {Record<string, any>} b `{ uid, handelseId, harRostat? }` eller `{ uid, groupId, harRostat? }`. `harRostat` är en lista med `gastId` som appen vet har röstat.
+   * @param {Record<string, any>} b `{ uid, handelseId, funktion?, harRostat? }` eller `{ uid, groupId, harRostat? }`. `harRostat` är en lista med `gastId` som appen vet har röstat. `funktion` (0.146.0) säger vilka av händelsens
+   *   gäster som listas: `rosta` (förval, som förut) eller `delta`. En delta-rad bär gästens svar (`deltasvar`: `kommer`, `kommerInte`, `kanske`, eller `null` så länge hen inte svarat).
    */
   async function lista(b) {
     const uid = kravText(b?.uid, "uid", "lista");
     if (b?.groupId !== undefined && b?.handelseId !== undefined) throw new Error("lista: ange antingen handelseId (en omröstning) eller groupId (hela gruppen), inte båda.");
+    if (b?.groupId !== undefined && b?.funktion !== undefined) throw new Error("lista: funktion hör till en händelse (handelseId). Listan över hela gruppen har alla funktioner.");
+    const funktion = b?.funktion === undefined ? "rosta" : b.funktion;
+    if (!(/** @type {readonly unknown[]} */ (GASTFUNKTIONER)).includes(funktion)) throw new Error(`lista: funktionen ${JSON.stringify(funktion)} finns inte. Giltiga: ${GASTFUNKTIONER.join(", ")}.`);
     const rostat = new Set(Array.isArray(b?.harRostat) ? b.harRostat : []);
     const nu = klocka();
     if (b?.groupId !== undefined) {
@@ -912,12 +1036,14 @@ export function createGastService(konfig) {
       const alla = (await kalla.list(INB, { where: { groupId } })).sort((x, y) => x.skapad - y.skapad);
       /** @type {Map<string, string>} */
       const titlar = new Map();
-      if (GS) {
+      // Rubriken ur appens egen funktion: gruppens om den finns, annars deltas (samma form: `{ titel, ... }`).
+      const rubrikur = GS?.handelseSida ?? DELTA?.handelseSida;
+      if (rubrikur) {
         for (const hid of new Set(alla.map((r) => r.omfang?.handelseId).filter((x) => typeof x === "string"))) {
           const h = await kalla.read(HANDELSER, hid);
           if (h && h.groupId === groupId) {
             try {
-              titlar.set(hid, text(GS.handelseSida(h).titel));
+              titlar.set(hid, text(rubrikur(h).titel));
             } catch {
               /* Appens funktion kastade för en trasig händelse: raden står då utan rubrik, och listan faller inte. */
             }
@@ -933,8 +1059,11 @@ export function createGastService(konfig) {
       }
       const personer = [...perPerson.entries()].map(([id, rader]) => {
         const inbjudningar = rader.map((r) => {
-          const visad = { ...r, titel: titlar.get(r.omfang?.handelseId) ?? null, status: gastStatus(r, { nu, harRostat: rostat.has(id) }), omfang: r.omfang?.slag === "grupp" ? { slag: "grupp" } : { slag: r.omfang?.slag, funktion: r.omfang?.funktion, handelseId: r.omfang?.handelseId } };
-          return Object.fromEntries(GASTPERSONINBJUDANFALT.map((f) => [f, /** @type {Record<string, any>} */ (visad)[f]]));
+          // `harRostat` är appens kunskap om omröstningen: den säger ingenting om en delta-inbjudan.
+          const visad = { ...r, titel: titlar.get(r.omfang?.handelseId) ?? null, status: gastStatus(r, { nu, harRostat: rostat.has(id) && r.omfang?.funktion !== "delta" }), omfang: r.omfang?.slag === "grupp" ? { slag: "grupp" } : { slag: r.omfang?.slag, funktion: r.omfang?.funktion, handelseId: r.omfang?.handelseId } };
+          // Svaret hör bara till en delta-rad: en omröstnings- och en gruppinbjudan har exakt fälten de hade före 0.146.0.
+          const falt = r.omfang?.funktion === "delta" ? [...GASTPERSONINBJUDANFALT, ...GASTDELTALISTFALT] : GASTPERSONINBJUDANFALT;
+          return Object.fromEntries(falt.map((f) => [f, /** @type {Record<string, any>} */ (visad)[f]]));
         });
         const status = inbjudningar.map((i) => i.status).sort((x, y) => ordning.indexOf(x) - ordning.indexOf(y))[0];
         const senaste = rader[rader.length - 1];
@@ -947,13 +1076,13 @@ export function createGastService(konfig) {
     const h = await lasHandelse(handelseId, "lista");
     const groupId = text(h.groupId);
     if (!(await aktivtMedlemskap(uid, groupId))) throw felMedKod("ej-behorig", `lista: ${uid} är inte aktiv medlem i gruppen "${groupId}".`);
-    const rader = (await kalla.list(INB, { where: { groupId } })).filter((r) => r.omfang?.handelseId === handelseId).sort((x, y) => x.skapad - y.skapad);
+    const rader = (await kalla.list(INB, { where: { groupId } })).filter((r) => r.omfang?.handelseId === handelseId && r.omfang?.funktion === funktion).sort((x, y) => x.skapad - y.skapad);
     const gaster = rader.map((r) => {
       const id = gastId(r.epost);
       /** @type {Record<string, any>} */
       const ut = {};
-      const visad = { ...r, gastId: id, status: gastStatus(r, { nu, harRostat: rostat.has(id) }) };
-      for (const f of GASTLISTFALT) ut[f] = /** @type {Record<string, any>} */ (visad)[f];
+      const visad = { ...r, gastId: id, status: gastStatus(r, { nu, harRostat: rostat.has(id) && funktion !== "delta" }) };
+      for (const f of funktion === "delta" ? [...GASTLISTFALT, ...GASTDELTALISTFALT] : GASTLISTFALT) ut[f] = /** @type {Record<string, any>} */ (visad)[f];
       return ut;
     });
     return { gaster, platser: await platsLage(groupId) };
@@ -1065,6 +1194,8 @@ export function createGastService(konfig) {
     const s = await session({ sessionsnyckel: b?.sessionsnyckel });
     if (!s.ok) return s;
     if (s.inbjudan.slag === "grupp") return hamtaGrupp(s);
+    // ⛔ EN DELTA-GÄST FÅR ALDRIG APPENS `sak.bygg`: det är omröstningens kort, med förslag och röster. Hens svar byggs fält för fält ur `GASTDELTAHANDELSEFALT`.
+    if (s.inbjudan.funktion === "delta") return hamtaDelta(s);
     const h = await kalla.read(HANDELSER, /** @type {string} */ (s.inbjudan.handelseId));
     if (!h || h.arkiverad === true || h.groupId !== s.inbjudan.groupId) return orsak("saknas");
     /** @type {Record<string, any>} */
@@ -1122,9 +1253,17 @@ export function createGastService(konfig) {
     try {
       const lankar = [];
       for (const r of aktiva) {
+        // En delta-inbjudan på en händelse som försvunnit får ingen ny länk: den leder ingenstans. (Svaret är ändå detsamma för den som bad, så ingen kan se skillnaden.)
+        let delta = null;
+        if (r.omfang?.funktion === "delta") {
+          const h = DELTA ? await kalla.read(HANDELSER, r.omfang.handelseId) : null;
+          if (!h || h.arkiverad === true || h.groupId !== r.groupId) continue;
+          delta = deltaHandelseUt(h);
+        }
         const { rad, nyckel } = await roteraNyckel(r);
-        lankar.push({ id: r.id, nyckel, groupId: rad.groupId, omfang: rad.omfang });
+        lankar.push(brevlank(rad, nyckel, delta ? { ut: delta, sekvens: await sekvensForUtskick(rad, delta) } : null));
       }
+      if (lankar.length === 0) return svar;
       await skicka({ typ: "ny-lank", till: epost, namn: text(aktiva[0].namn), lankar, skickadAv: null });
     } catch (fel) {
       rapportera(fel);
@@ -1410,7 +1549,8 @@ export function createGastService(konfig) {
       const rader = await kalla.list(svarVag(h.id));
       const medlemmar = await kalla.list(MEDLEMSKAP, { where: { groupId } });
       const personer = medlemmar.filter((m) => m.status === "aktiv" && m.typ !== "agent" && typeof m.userId === "string").map((m) => m.userId);
-      const gaster = (await kalla.list(INB, { where: { groupId } })).filter((r) => r.aterkallad === null).map((r) => gastId(r.epost));
+      // ⛔ BARA GÄSTER I GRUPPEN, samma mängd som `levandeGaster` och medlemmens `OpsSvar` räknar. En gäst för en sak (omröstning, delta) har ingen svarsrad här och hade annars alltid räknats som "har inte svarat".
+      const gaster = (await kalla.list(INB, { where: { groupId } })).filter((r) => r.aterkallad === null && r.omfang?.slag === "grupp").map((r) => gastId(r.epost));
       const summa = sammanstallSvar(rader, [...personer, ...new Set(gaster)]);
       const mitt = rader.find((r) => r.id === s.gastId)?.svar;
       svar.svar = { kommer: summa.kommer, kommerInte: summa.kommerInte, ejSvarat: summa.ejSvarat, text: summa.text, mitt: mitt === "kommer" || mitt === "kommerInte" ? mitt : null };
@@ -1455,6 +1595,91 @@ export function createGastService(konfig) {
     if (!h) return orsak("saknas");
     const r = await GS.omrostning.rosta({ handelse: { ...h }, gastId: s.gastId, groupId: s.inbjudan.groupId, forslagId: b.forslagId, val: b.val });
     return r && r.ok === true ? { ok: true } : nej();
+  }
+
+  // ── Delta: svara på en händelse (0.146.0, cllp/ops-framework#445, skiva 1) ──────────────────────────────────────────
+
+  /**
+   * Det en `delta`-gäst ser: händelsens rubrik, tid och plats, och sitt eget svar. Inget om gruppen, medlemmarna, andra gäster eller andras svar, och ingen beskrivning.
+   * Inbjudan läses på nytt: en återkallad gäst får `aterkallad` här, inte händelsen.
+   *
+   * @param {{ gastId: string, inbjudan: { id: string, groupId: string, handelseId: string | null, namn: string } }} s Sessionen (ur `session`).
+   */
+  async function hamtaDelta(s) {
+    if (!DELTA) return nej();
+    const h = await kalla.read(HANDELSER, /** @type {string} */ (s.inbjudan.handelseId));
+    if (!h || h.arkiverad === true || h.groupId !== s.inbjudan.groupId) return orsak("saknas");
+    const rad = await kalla.read(INB, s.inbjudan.id);
+    if (!rad || rad.aterkallad !== null) return orsak("aterkallad");
+    const mitt = /** @type {readonly unknown[]} */ (GASTDELTASVAR).includes(rad.deltasvar) ? rad.deltasvar : null;
+    const svar = { ok: true, namn: s.inbjudan.namn, funktion: "delta", delta: { handelse: vitlista(deltaHandelseUt(h), GASTDELTAHANDELSEFALT), mitt } };
+    // ⛔ SISTA SPÄRREN, som i `hamta`: bara fälten i GASTSVARSFALT lämnar tjänsten.
+    return Object.fromEntries(Object.entries(svar).filter(([k]) => /** @type {readonly string[]} */ (GASTSVARSFALT).includes(k)));
+  }
+
+  /**
+   * Gästen svarar Kommer, Kommer inte eller Kanske på sin händelse. Svaret är ETT fält på gästens egen inbjudan (`deltasvar`), skrivet med villkoret att inbjudan inte är återkallad: en återkallelse och ett
+   * svar kan inte korsa varandra så att ett svar landar på en dragen inbjudan. Ett nytt svar ersätter det förra.
+   *
+   * ⛔ INGET ID, INGEN ADRESS OCH INGEN GRUPP KOMMER FRÅN ANROPET. Raden är den sessionen hör till (kravet `{ slag: "sak", funktion: "delta" }`), och bara sessionsnyckeln och svaret skickas: en gäst kan inte rikta
+   * ett svar mot någon annans inbjudan, och en `rosta`-session eller en gruppsession är ett nej.
+   *
+   * @param {Record<string, any>} b `{ sessionsnyckel, val }`, `val` ur `GASTDELTASVAR`.
+   * @returns {Promise<{ ok: true, mitt: string } | { ok: false, orsak: Gastorsak }>}
+   */
+  async function deltaSvara(b) {
+    if (!DELTA) return nej();
+    const s = await session({ sessionsnyckel: b?.sessionsnyckel, krav: { slag: "sak", funktion: "delta" } });
+    if (!s.ok) return s;
+    if (!(/** @type {readonly unknown[]} */ (GASTDELTASVAR)).includes(b?.val)) throw new Error(`deltaSvara: val är ${GASTDELTASVAR.join(", ")}.`);
+    if (!(await reserveraAnrop(s.inbjudan.id))) return orsak("for-manga");
+    const h = await kalla.read(HANDELSER, /** @type {string} */ (s.inbjudan.handelseId));
+    if (!h || h.arkiverad === true || h.groupId !== s.inbjudan.groupId) return orsak("saknas");
+    const { updated } = await uppdateraOm(INB, s.inbjudan.id, { aterkallad: null }, { deltasvar: b.val });
+    return updated ? { ok: true, mitt: b.val } : orsak("aterkallad");
+  }
+
+  /**
+   * Händelsens tid eller plats har ändrats: varje `delta`-gäst med en aktiv inbjudan på den, vars senaste brev sade något annat, får ett nytt brev (typ `andrad-tid`) med den nya posten, en högre SEQUENCE och en ny
+   * länk. Gäster vars brev redan sade det som gäller får inget: anropet är idempotent, och appen kan anropa det efter varje ändring av händelsen utan att veta om just tid eller plats rörts.
+   *
+   * ⛔ ANROPAS BARA AV APPENS SERVERKOD EFTER EN ÄNDRING, aldrig av en klient: ingen uid prövas, som `ersattAvMedlem`. Mottagarna är de som redan bjudits in av någon som fick det.
+   *
+   * ⛔ ETT BREV SOM INTE GICK ÄR ETT FEL MED KOD, OCH ÄNDRINGEN GLÖMS INTE. SEQUENCE sparas först när brevet gått iväg, så ett misslyckat utskick finns kvar som en ändring att skicka nästa gång `tidAndrad` körs.
+   * De brev som gick är sparade och skickas inte igen. Felet bär `skickade` och `misslyckade`.
+   *
+   * @param {Record<string, any>} b `{ handelseId }`.
+   * @returns {Promise<{ skickade: number, aktiva: number, saknas: boolean }>} `aktiva`: delta-inbjudningar utan återkallelse på händelsen. `saknas`: händelsen finns inte längre eller är arkiverad (då skickas inget).
+   */
+  async function tidAndrad(b) {
+    if (!DELTA) throw felMedKod("ogiltigt-omfang", "tidAndrad: delta är inte påslaget (createGastService fick ingen delta).");
+    const handelseId = kravText(b?.handelseId, "handelseId", "tidAndrad");
+    const h = await kalla.read(HANDELSER, handelseId);
+    if (!h || h.arkiverad === true || !text(h.groupId)) return { skickade: 0, aktiva: 0, saknas: true };
+    const groupId = text(h.groupId);
+    const rader = (await kalla.list(INB, { where: { groupId } }))
+      .filter((r) => r.omfang?.slag === "sak" && r.omfang.funktion === "delta" && r.omfang.handelseId === handelseId && r.aterkallad === null)
+      .sort((x, y) => x.skapad - y.skapad);
+    const ut = deltaHandelseUt(h);
+    let skickade = 0;
+    /** @type {unknown[]} */
+    const fel = [];
+    for (const r of rader) {
+      const nasta = planeraSekvens(r, ut);
+      if (!nasta.andrad) continue;
+      try {
+        const { rad, nyckel } = await roteraNyckel(r);
+        await levereraBrev({ typ: "andrad-tid", till: rad.epost, namn: text(rad.namn), lankar: [brevlank(rad, nyckel, { ut, sekvens: nasta.sekvens })], skickadAv: null });
+        await sparaSekvens(r, nasta);
+        skickade++;
+      } catch (e) {
+        fel.push(e);
+      }
+    }
+    if (fel.length > 0) {
+      throw Object.assign(felMedKod("brev-misslyckades", `tidAndrad: ${fel.length} av ${skickade + fel.length} brev gick inte att skicka. De som gick är sparade och skickas inte igen; kör tidAndrad igen för resten.`), { skickade, misslyckade: fel.length, orsaker: fel });
+    }
+    return { skickade, aktiva: rader.length, saknas: false };
   }
 
   // ── Ärenden delegerade till gästen (skiva 3) ──────────────────────────────────────────────────────────────────────
@@ -1880,5 +2105,5 @@ export function createGastService(konfig) {
     return { ok: true };
   }
 
-  return { bjud, aterkalla, skickaOm, lista, platser, los, session, hamta, sattNamn, nyLank, stadaSessioner, chatt, skrivChatt, kalender, handelse, svara, rosta, bibliotek, fil, arenden, kommenteraArende, markeraArendeKlart, levandeGaster, aterkallaAlla, ersattAvMedlem, radera, raderaMig };
+  return { bjud, aterkalla, skickaOm, lista, platser, los, session, hamta, sattNamn, nyLank, stadaSessioner, deltaSvara, tidAndrad, chatt, skrivChatt, kalender, handelse, svara, rosta, bibliotek, fil, arenden, kommenteraArende, markeraArendeKlart, levandeGaster, aterkallaAlla, ersattAvMedlem, radera, raderaMig };
 }
