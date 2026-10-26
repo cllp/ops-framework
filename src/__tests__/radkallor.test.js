@@ -118,6 +118,14 @@ describe("⛔ knappraden som källan levererar", () => {
     expect(med([])).not.toThrow();
   });
 
+  it("pagarEtikett är verbet medan knappen väntar: en text, eller utelämnad, aldrig tom (0.147.0)", () => {
+    const med = (/** @type {any} */ a) => () => losKnapprad({ etikett: "E", atgarder: () => a }, rad, "T");
+    expect(med([{ id: "a", etikett: "Klar", onClick: () => {}, pagarEtikett: "Bockar av…" }])).not.toThrow();
+    expect(med([{ id: "a", etikett: "Klar", onClick: () => {} }])).not.toThrow();
+    expect(med([{ id: "a", etikett: "Klar", onClick: () => {}, pagarEtikett: "" }])).toThrow(/pagarEtikett som är tom/);
+    expect(med([{ id: "a", etikett: "Klar", onClick: () => {}, pagarEtikett: 3 }])).toThrow(/pagarEtikett som är tom/);
+  });
+
   it("dela svarar alltid: en knapp eller ett skäl, och inget annat", () => {
     const med = (/** @type {any} */ d) => () => losKnapprad({ etikett: "E", dela: () => d }, rad, "T");
     expect(losKnapprad({ etikett: "E", dela: () => ({ skal: "Delas inte", istallet: "Dela i Ekonomi" }) }, rad, "T").dela).toEqual({ skal: "Delas inte", istallet: "Dela i Ekonomi" });

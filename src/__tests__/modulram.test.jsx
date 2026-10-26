@@ -306,3 +306,65 @@ describe("modulramen", () => {
     })).toThrow(/token/);
   });
 });
+
+/**
+ * 0.147.0: platsen för appens egna inställningar. Ekonomi väljer område under bankvalet, och området styr vilka kopplingar som visas: raden som avgör ska stå FÖRE
+ * raderna den avgör. `ram.egnaForst` flyttar hela avsnittet "Egna inställningar" före Kopplingar; utan det är allt som förut.
+ */
+describe("⛔ egna inställningar före kopplingarna (egnaForst)", () => {
+  const sida = (/** @type {any} */ modul, /** @type {any} */ over = {}) =>
+    render(
+      <OpsModulSida modul={modul} activeHref="/ekonomi?lage=installningar" hubHref="/hub" ram={ram({ egna: <p>Område: Sverige</p>, ...over })}>
+        <p />
+      </OpsModulSida>,
+    );
+  const rubriker = () => screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
+  const ordning = (/** @type {string} */ a, /** @type {string} */ b) => {
+    const [x, y] = [screen.getByText(a), screen.getByText(b)];
+    return Boolean(x.compareDocumentPosition(y) & Node.DOCUMENT_POSITION_FOLLOWING);
+  };
+
+  it("utan valet, och med false, är ordningen som förut: Allmänt, Kopplingar, Egna inställningar", () => {
+    const { unmount } = sida(EKONOMI);
+    expect(rubriker()).toEqual(["Allmänt", "Kopplingar", "Egna inställningar"]);
+    expect(ordning("Bank", "Område: Sverige")).toBe(true);
+    unmount();
+    sida(EKONOMI, { egnaForst: false });
+    expect(rubriker()).toEqual(["Allmänt", "Kopplingar", "Egna inställningar"]);
+  });
+
+  it("med egnaForst står hela avsnittet före Kopplingar: fältet, appens ruta och Spara följer med", () => {
+    const med = defineModule({
+      ...BAS(),
+      installningar: [{ id: "namn", namn: { sv: "Bolagsnamn", en: "Company name" }, typ: "text", forval: "" }],
+      kopplingar: EKONOMI.kopplingar,
+    });
+    sida(med, { egnaForst: true });
+    expect(rubriker()).toEqual(["Allmänt", "Egna inställningar", "Kopplingar"]);
+    expect(ordning("Område: Sverige", "Bank")).toBe(true);
+    // Spara hör till avsnittet och står före Kopplingar, inte kvar efter dem.
+    const spara = screen.getByRole("button", { name: "Spara" });
+    const kopplingar = screen.getByRole("heading", { name: "Kopplingar" });
+    expect(Boolean(spara.compareDocumentPosition(kopplingar) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+    // Avsnittet finns EN gång: ordningen kopierar det inte.
+    expect(screen.getAllByRole("heading", { name: "Egna inställningar" })).toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: "Spara" })).toHaveLength(1);
+  });
+
+  it("det som sparas är detsamma i båda ordningarna", () => {
+    const r = ram();
+    sida(EKONOMI, { ...r, egnaForst: true });
+    fireEvent.click(screen.getByRole("switch", { name: /Visa dolda/ }));
+    expect(r.onSpara).toHaveBeenCalledWith({ modulId: "ekonomi", varden: { visadolda: true } });
+  });
+
+  it("ett avsnitt som inte ritas lämnar ingen tom plats, vilken ordning som än gäller", () => {
+    const utanKopplingar = defineModule({ ...BAS(), installningar: EKONOMI.installningar });
+    const { unmount } = sida(utanKopplingar, { egnaForst: true });
+    expect(rubriker()).toEqual(["Allmänt", "Egna inställningar"]);
+    unmount();
+    const utanEgna = defineModule({ ...BAS(), kopplingar: EKONOMI.kopplingar });
+    sida(utanEgna, { egna: undefined, egnaForst: true });
+    expect(rubriker()).toEqual(["Allmänt", "Kopplingar"]);
+  });
+});

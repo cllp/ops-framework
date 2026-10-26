@@ -1324,10 +1324,18 @@ export function OpsCalendar({
   // Läspanelens post, som id: öppen post slås upp i `entries` varje gång, så att en `kopierad` appen skickar efter en kopia syns utan att panelen stängs. Försvinner posten stängs panelen.
   const [externId, setExternId] = useState(/** @type {string | null} */ (null));
   const externPost = useMemo(() => (externId ? entries.find((e) => e && e.id === externId && e.extern) ?? null : null), [externId, entries]);
+  // ⛔ 0.147.0 (#451): EN PANEL ÖPPNAS AV ETT TRYCK OCH AV INGET ANNAT. Försvinner posten stängs panelen OCH id:t glöms, annars öppnas panelen av sig själv när posten
+  // kommer tillbaka (en avbockad post som dyker upp igen under Avklarat). Samma form för läspanelen här och för radpanelen nedan.
+  useEffect(() => {
+    if (externId !== null && externPost === null) setExternId(null);
+  }, [externId, externPost]);
   // ⛔ 0.145.0 (#446): EN RAD MED EN KÄLLA I MANIFESTET har ingen riktig händelse bakom sig heller, och öppnas på samma sätt: som id, uppslagen i `entries` varje gång, så att panelen stängs om posten försvinner.
   const radkallorK = useRadkallor(radkallor, "OpsCalendar");
   const [radId, setRadId] = useState(/** @type {string | null} */ (null));
   const radPost = useMemo(() => (radId ? entries.find((e) => e && e.id === radId && !e.handelseId && !e.extern && kallaForRad(radkallorK, e.id)) ?? null : null), [radId, entries, radkallorK]);
+  useEffect(() => {
+    if (radId !== null && radPost === null) setRadId(null);
+  }, [radId, radPost]);
   const lasbara = useMemo(() => new Set(entries.filter((e) => e && !e.handelseId && (e.extern || kallaForRad(radkallorK, e.id))).map((e) => e.id)), [entries, radkallorK]);
   // ⛔ OCH EN EXTERN POST MED EN KÄLLA I MANIFESTET får knappraden i sin läspanel (Dela på alla rader, "Öppna i Apple"): läspanelen är oförändrad i övrigt, och en extern post utan källa har ingen rad.
   const externKnapprad = useMemo(() => {

@@ -86,9 +86,10 @@ export function lasRadId(radId) {
  * @property {string} id Unik i radens lista. Provas mot och blir `key`.
  * @property {string} etikett Orden på knappen, appens.
  * @property {import("react").ReactNode} [ikon] Före etiketten. Etiketten står alltid kvar: en ikon ensam är en gåta.
- * @property {(event: any) => void | Promise<unknown>} [onClick] Ger det ett löfte väntar knappen synligt. Exakt en av `onClick` och `href`.
+ * @property {(event: any) => void | Promise<unknown>} [onClick] Ger det ett löfte väntar knappen synligt (0.129.0). ⛔ 0.147.0: lyckas löftet stänger panelen, och avslås det står texten ur avslaget i knappraden (`role="alert"`) med panelen kvar. Ger det inget löfte görs åtgärden direkt och panelen står kvar. Exakt en av `onClick` och `href`.
  * @property {string} [href] En adress. Exakt en av `onClick` och `href`.
  * @property {boolean} [nyFlik] Bara med `href`: öppnas i en ny flik.
+ * @property {string} [pagarEtikett] (0.147.0, cllp/ops-framework#451) Verbet i pågående form medan ett löfte från `onClick` väntar: "Bockar av…", "Sparar…". Utelämnad står etiketten kvar bredvid snurran.
  */
 
 /**
@@ -202,6 +203,9 @@ export function losKnapprad(manifest, rad, komponent) {
     const harHref = typeof a.href === "string" && a.href !== "";
     if (harKlick === harHref) {
       throw new Error(`${komponent}: åtgärden "${a.id}" måste ha exakt en av onClick och href. En knapp utan åtgärd är en död knapp, och en med båda vet inte vad den ska göra.`);
+    }
+    if (a.pagarEtikett !== undefined && (typeof a.pagarEtikett !== "string" || a.pagarEtikett.trim() === "")) {
+      throw new Error(`${komponent}: åtgärden "${a.id}" har en pagarEtikett som är tom. Den är verbet medan knappen väntar ("Bockar av…"), eller utelämnas så står etiketten kvar.`);
     }
     if (harHref && farligAdress(a.href)) throw new Error(`${komponent}: åtgärden "${a.id}" har en adress som kör kod (${a.href.slice(0, 12)}…). Bara adresser som öppnar en sida.`);
   }

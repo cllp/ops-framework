@@ -2222,6 +2222,20 @@ CP 2026-10-25, med en skärmbild av kalenderns dagruta: "Varför kan man inte de
 
 ⛔ **Länkbarhet (`?rad=<id>` som en omladdning öppnar) ingår inte i 0.145.0.** Id:t är formen som gör det möjligt, men en omladdning har bara id:t och ramverket har inte raden: det kräver att appen kan slå upp en rad på id (`hamta`), och det är ett eget beslut.
 
+### En panel öppnas av ett tryck, och knappraden säger vad som gick fel (0.147.0, cllp/ops-framework#451)
+
+Två fel som lifehub.app fann när Klar kopplades till panelen för en påminnelse, och som gjorde att Klar fick tas bort ur appens panel tills de var lagade.
+
+| Namn | Vad |
+|---|---|
+| En panel öppnas bara av ett tryck | `OpsEventList` och `OpsCalendar` slår upp den öppna raden i listan vid varje ritning. Försvinner raden (avbockad) stängs panelen **och id:t glöms**, så en rad som kommer tillbaka (under Avklarat) inte öppnar någon panel av sig själv. Samma sak för läspanelen av en post från Apple eller Google |
+| Åtgärder som ger ett löfte | En `onClick` i knappraden (`Atgard`) som ger ett löfte: knappen **väntar** synligt (`OpsButton`, med `pagarEtikett` som verb, "Bockar av…"); **panelen stängs** när löftet lyckas; när det **avslås** står texten ur avslaget i en `role="alert"` ovanför knapparna, på samma ställe som skälet till att Dela saknas, och panelen står kvar med knappen tryckbar igen. Ett avslag utan text ger `atgardFelEtikett` ("Det gick inte."). En åtgärd som inte ger ett löfte gör något direkt och stänger ingenting; en `href` är en länk. Dela får samma fel och väntläge men stänger inte |
+| `pagarEtikett` på `Atgard` | Valfri. Verbet i pågående form medan löftet väntar. En tom text kastar där manifestet tas emot |
+
+⛔ **Appen behöver inte längre sätta ett eget fel för en åtgärd i panelen.** Ger `onClick` ett löfte som avslås med en text visar knappraden den. Appens egen banderoll i vyn ligger bakom panelens dialog och syns inte där.
+
+⛔ **Avslås löftet efter att panelen redan stängts** (appen tog bort raden medan det väntade) finns ingen ruta att skriva felet i, och då släpps avslaget vidare som förut (`unhandledrejection`) i stället för att sväljas.
+
 ### ⛔ Vad som går att ändra utan en release, och vad som inte gör det
 
 Det här är **produktlöftet**, och det står skrivet för att det annars blir ett
@@ -2682,6 +2696,7 @@ CP 2026-10-09, med en bild av Outlook på telefonen. Ett tryck på Appar öppnar
 - **`OpsModulRam`**, orden i **`ORD_OPSMODULRAM`**. `OpsModulSida`, `OpsBibliotek` och `OpsMeddelanden` tar `ram`. Bibliotek och Meddelanden kräver också `activeHref` och `modul` när `ram` är satt. Meddelanden kräver `tillbaka.hubHref`. Kugghjulet och Klar sitter i huvudets bakre kant när `farAndra` är sant: på Tillbaka-raden när den finns, annars på rubrikraden. I Meddelandens lista är kugghjulet sista kontrollen. En fäst modul har ingen Tillbaka, varken i visning eller i inställningar.
 - **`LAGE_PARAM`** är `lage`. **`INSTALLNINGSLAGE`** är `installningar`. **`arInstallningslage`**, **`medInstallningslage`** och **`utanInstallningslage`** läser och skriver adressen. Övriga parametrar och ankaret står kvar.
 - **Kopplingar.** Manifestets `kopplingar` är id, namn, hint och behörigheter. Läget (ansluten, ej ansluten, fel, senaste synk, feltext) skickar appen in på `ram.kopplingar`. En hemlighet kastas i manifestet och kopieras inte ur läget. Ramverket lagrar den inte. Appen använder identitetens valv.
+- **`ram.egnaForst` (0.147.0).** Ordningen är Allmänt, Kopplingar, Egna inställningar. En app vars egna inställning styr vilka kopplingar som visas (Ekonomi väljer område, och området avgör vilka banker som går att koppla) skickar `egnaForst: true`, och hela avsnittet "Egna inställningar" (manifestets fält, appens `egna` och Spara) står då före Kopplingar. Utelämnad, eller `false`, är ordningen som förut. Det finns fortfarande bara ett avsnitt med den rubriken, och ett avsnitt som inte ritas lämnar ingen tom plats. `ram.kropp` ersätter standardavsnitten som förut.
 - **Det som inte finns.** Ingen egen ikon per grupp, ingen behörighetslista per modul, ingen ny samling och inget nytt gruppfält. Ikonen är manifestets. Synligheten följer av På och Visa i huvudmenyn. Ett avsnitt utan kopplingar utelämnas, och ett utan egna fält och utan slot utelämnas. Admin ser ytan när appen sätter `farAndra`, och reglerna släpper fortfarande bara in ägaren på `moduler` och `huvudmeny`.
 - **Inställningsraderna (0.90.3).** `OpsSwitch` tar `placering`: `spar` i formulär, `rad` i modulens inställningar. `rad` gör hela raden till träffyta, minst 44 px på varje bredd, med hjälptexten under etiketten. På, pinne, ordning och egna boolean-fält ritas om i samma varv som trycket. Sparningen går i bakgrunden, och ett avslag ställer tillbaka utkastet och skriver en liten felrad. Ordningen är pil upp, `3/4`, pil ned. Ikonraden öppnar manifestets ikon.
 - **`modulinstallningsregelfragment(namn)`** limmas in efter `regelfragment()`. Aktiv medlem läser. Ägaren som är en
