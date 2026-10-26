@@ -171,7 +171,7 @@ mörkt deklareras **en gång**; blocken som aktiverar den får bara peka.
 
 ### Komponenter
 
-**159 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
+**160 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
 eller `...rest`. Ett okänt värde kastar med läsbar text i stället för att rendera
 något godtyckligt.
 
@@ -2204,6 +2204,23 @@ CP 2026-10-01: "Vi behöver en händelsepanel. Så man navigerar dit från kalen
 | `useOppnaHandelse()`, `handelseHref(id)`, `HANDELSEPARAM` | För en egen yta (en länk i inkorgen, ett sökresultat): `oppna(id)` gör samma sak som en rad, `handelseHref` ger adressen |
 
 ⛔ **Appen skickar `handelseId` på händelserna och ritar `OpsSvar` som `svar`**, se "Att göra i appen" i CHANGELOG 0.40.0. Idag-radens utfällning (chevronen) finns kvar för en rad som fortfarande skickar `details`, men SS har ingen utfällning: skicka inte `details` för en händelse som har en panel.
+
+### En rad, en panel (0.145.0, cllp/ops-framework#446)
+
+CP 2026-10-25, med en skärmbild av kalenderns dagruta: "Varför kan man inte dela alla händelser? Och alla kalenderhändelser eller idag-listor kan man inte trycka på. Har inget id. Är det inte bättre att det är likadant för allt?" Varje rad i Kalender och Idag med en **källa** i appens manifest går att trycka på och öppnas i SAMMA panel: rubrik, när och "Från <källa>" överst, källans knappar och Dela längst ned, på samma ställe på varje rad. Ramverket äger id-formen, panelen och knappradens plats; appen äger källorna och deras knappar och vet vad Ekonomi eller GitHub är.
+
+| Namn | Vad |
+|---|---|
+| `byggRadId(kalla, id)`, `lasRadId(radId)` | Radens id har formen `<källa>:<id>`. `byggRadId("ekonomi", "kundfaktura:114")` ger `"ekonomi:kundfaktura:114"`; `lasRadId` ger `{ kalla, id }` (källan är allt före FÖRSTA kolonet, så appens eget id får ha kolon) eller `null` för ett id utan formen, som då är en rad utan källa. `byggRadId` kastar på en källa med kolon eller blanksteg och på ett tomt id. Källans namn är bokstäver, siffror, bindestreck och understreck |
+| `radkallor` på `OpsAppShell` (och på `OpsCalendar`, `OpsEventList`) | **Manifestet**: `{ [källa]: { etikett, atgarder?: (rad) => [{ id, etikett, ikon?, onClick \| href, nyFlik? }], dela?: (rad) => { onClick \| href } \| { skal, istallet? } } }`. Nyckeln är samma ord som står före kolonet i radens id. `etikett` är källans namn i appens ord och står i "Från <etikett>"; en text, eller en funktion av raden (`(rad) => rad.kalenderNamn`) när Apple och Google ligger under samma källa. **Funktioner av raden** (samma objekt appen skickade: en `CalendarEntry` eller en `OpsEvent`), eftersom knapparna beror på raden, och **data och inga noder**, så att ramverket ritar knappen och knappradens plats inte kan glida isär mellan källor. Exakt en av `onClick` och `href` per knapp; ger `onClick` ett löfte väntar knappen synligt. Skickas EN gång på skalet; en yta kan ta egen `radkallor`, som går före. Ett trasigt manifest (en källa utan etikett, en knapp utan åtgärd, en dubblerad knapp-id, en adress som kör kod) kastar där det tas emot. Utelämnat beter sig varje rad som förut |
+| `Dela` på varje rad | `dela(rad)` svarar alltid: en knapp (`{ onClick \| href }`) eller ett skäl (`{ skal, istallet? }`). Med ett skäl ritas **ingen död knapp**: skälet står i klartext ovanför knapparna, "Går inte att dela: <skal>. Gör så här i stället: <istallet>". Saknas `dela` i källan står ramverkets förvalda skäl ("Den här raden går inte att dela härifrån ännu."): Dela är aldrig en tyst frånvaro. Dela står alltid SIST i knappraden |
+| `OpsRadPanel` | `{ rad, form: "kalender" \| "idag", radkallor, onStang, statusWords?, sprak? }`. Panelen ÄR `OpsHandelsePanel` i en dialog över kalendern eller listan (som `OpsExternPanel`, så att urval, månad, filter och rullning står kvar och Tillbaka lämnar dem som de var), med raden som en `HandelseVy`: titel, dag och spann ur en kalenderpost (`date`, `endDate`, `allDay`), `not` som typ, kalendern, statusen när den har ett ord och utfällningens innehåll (`details`) som panelens text; för en rad i Idag står `when` och `deadline` som "När" (`HandelseVy.nar`). Appen ritar den normalt inte själv: kalendern och listan gör det |
+| `knapprad` på `OpsHandelsePanel` | `{ atgarder, dela }` ur `losKnapprad`. Raden är panelens SISTA element och sticker fast i botten av ytan som rullar, så en kort och en lång panel har knapparna på samma ställe. Utelämnad ritas ingen rad: händelsepanelen är som förut. `OpsExternPanel` (läspanelen för en post från Apple eller Google) får samma rad ur manifestet när postens id har en källa, med Kopiera till… kvar. Orden: `knappradEtikett`, `delaEtikett`, `delaSkalForord`, `delaIstalletForord`, `delaStandardSkal` |
+| `nar` på `HandelseVy` | När, i appens ord, för en rad som inte har ett riktigt datum. Står i informationsrutan i stället för "Datum ej satt" när `datum` saknas |
+
+⛔ **Vilka rader som får panelen.** En rad med `handelseId` har sin händelsepanel (`?handelse=<id>`) och en post med `extern` sin läspanel (`OpsExternPanel`); ett id som råkar börja med en källa i manifestet ändrar inte det. En rad vars id inte har formen, eller vars källa manifestet inte känner, är text som förut. En rad i Idag behåller sin utfällning (chevronen): panelen visar samma innehåll men tar inte bort något sätt att läsa raden.
+
+⛔ **Länkbarhet (`?rad=<id>` som en omladdning öppnar) ingår inte i 0.145.0.** Id:t är formen som gör det möjligt, men en omladdning har bara id:t och ramverket har inte raden: det kräver att appen kan slå upp en rad på id (`hamta`), och det är ett eget beslut.
 
 ### ⛔ Vad som går att ändra utan en release, och vad som inte gör det
 

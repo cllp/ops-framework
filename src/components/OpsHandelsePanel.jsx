@@ -17,6 +17,7 @@ import { HandelseDelning } from "./HandelseDelning.jsx";
 import { HandelseFlytta } from "./HandelseFlytta.jsx";
 import { HandelseKopiera } from "./HandelseKopiera.jsx";
 import { Ursprungsrad } from "./Ursprungsrad.jsx";
+import { Knapprad } from "./Knapprad.jsx";
 
 /**
  * Händelsepanelen: en händelse på en egen sida, med Tillbaka överst (0.40.0, #214).
@@ -63,6 +64,8 @@ import { Ursprungsrad } from "./Ursprungsrad.jsx";
  * @property {string} titel
  * @property {string} [datum] `YYYY-MM-DD`. ⛔ Saknas i läget "Datum ej satt" (0.127.0, `lib/handelsemodell.js`): informationsrutan säger då `datumEjSattEtikett`
  *   i stället för ett datum, och ritar ingen tid.
+ * @property {string} [nar] (0.145.0, cllp/ops-framework#446) När, i appens egna ord ("Om 3 dagar, senast 28 okt"), för en rad som inte har ett riktigt datum
+ *   (en rad i Idag har bara en text). Står i informationsrutan i stället för "Datum ej satt" när `datum` saknas. Har raden ett `datum` gäller datumet.
  * @property {string} [slutDatum] Sista dagen, inklusive.
  * @property {string} [tid] `HH:MM`.
  * @property {string} [slutTid] `HH:MM`.
@@ -130,6 +133,15 @@ import { Ursprungsrad } from "./Ursprungsrad.jsx";
  * @param {string} [props.kopieraVarningText] (0.134.0) Varningen, med `{titel}` och `{kalender}`.
  * @param {string} [props.kopieraIgenKnapp] (0.134.0) Förval "Kopiera ändå".
  * @param {string} [props.kopieraFelEtikett] (0.134.0) Orden före orsaken när en kopia faller. Förval "Det gick inte att kopiera".
+ * @param {{ atgarder: ReadonlyArray<import("../lib/radkallor.js").Atgard>, dela: import("../lib/radkallor.js").Delning | null }} [props.knapprad] (0.145.0, cllp/ops-framework#446) Knappraden längst ned, för en rad som inte är en
+ *   händelse (en påminnelse, en faktura, ett ärende), ur `losKnapprad` på radens källa i `kallor`. Raden står alltid sist och fast i botten, med källans knappar och Dela sist; går raden inte att
+ *   dela står skälet i klartext och ingen död knapp ritas (`dela.skal`). `dela: null` betyder att källan inte svarat, och då gäller ramverkets förvalda skäl. Utelämnad ritas ingen rad: en händelse är som förut.
+ *   Appen skickar sällan den själv: `OpsRadPanel` bygger den ur manifestet.
+ * @param {string} [props.knappradEtikett] (0.145.0) Skärmläsarens namn på knappraden. Förval "Åtgärder".
+ * @param {string} [props.delaEtikett] (0.145.0) Dela-knappen. Förval "Dela".
+ * @param {string} [props.delaSkalForord] (0.145.0) Ordet före skälet när raden inte går att dela. Förval "Går inte att dela:".
+ * @param {string} [props.delaIstalletForord] (0.145.0) Ordet före vad man gör i stället. Förval "Gör så här i stället:".
+ * @param {string} [props.delaStandardSkal] (0.145.0) Skälet när källan inte har svarat på `dela`. Förval "Den här raden går inte att dela härifrån ännu."
  * @param {import("react").ReactNode} [props.atgarder] Appens egna knappar, högst upp till höger bredvid titeln (SS export m.fl.), efter pennan.
  * @param {{ oppet?: string, pagar?: string, vantar?: string, klart?: string, akut?: string }} [props.statusWords] KRÄVS för varje status som förekommer, som i `OpsEventList`.
  * @param {string} [props.sprak] Datumens språk, "sv" eller "en". Förval "sv".
@@ -158,6 +170,12 @@ function OpsHandelsePanelRitad({
   kommentarer,
   filer,
   atgarder,
+  knapprad,
+  knappradEtikett = ORD_OPSHANDELSEPANEL.knappradEtikett.sv,
+  delaEtikett = ORD_OPSHANDELSEPANEL.delaEtikett.sv,
+  delaSkalForord = ORD_OPSHANDELSEPANEL.delaSkalForord.sv,
+  delaIstalletForord = ORD_OPSHANDELSEPANEL.delaIstalletForord.sv,
+  delaStandardSkal = ORD_OPSHANDELSEPANEL.delaStandardSkal.sv,
   onRedigera,
   redigeraEtikett = ORD_OPSHANDELSEPANEL.redigeraEtikett.sv,
   flyttmal,
@@ -213,6 +231,9 @@ function OpsHandelsePanelRitad({
   }, []);
   if (typeof onTillbaka !== "function") {
     throw new Error("OpsHandelsePanel: onTillbaka krävs. En panel utan väg tillbaka är en sida man inte kommer ut ur.");
+  }
+  if (knapprad !== undefined && (!knapprad || !Array.isArray(knapprad.atgarder))) {
+    throw new Error("OpsHandelsePanel: knapprad har formen { atgarder: lista, dela: Delning | null } (ur losKnapprad), eller utelämnas.");
   }
   if (onRedigera !== undefined && typeof onRedigera !== "function") {
     throw new Error("OpsHandelsePanel: onRedigera måste vara en funktion (eller utelämnas). En penna utan åtgärd är en död knapp.");
@@ -298,7 +319,7 @@ function OpsHandelsePanelRitad({
   const kopieraVal = kopieraTill ?? [];
   const kopieradPa = kopierad ?? [];
   return (
-    <section ref={ref} tabIndex={-1} aria-labelledby={rubrikId} data-handelsepanel="" className={cx(kolumn, "outline-none")}>
+    <section ref={ref} tabIndex={-1} aria-labelledby={rubrikId} data-handelsepanel="" className={cx(kolumn, "outline-none", knapprad && "min-h-full")}>
       {/* ⛔ SS `mb-2 sm:mb-4` under raden: luften bor i raden och inte i rubriken, så den följer med om raden byts. */}
       <TillbakaKnapp onClick={onTillbaka} etikett={tillbakaEtikett} className="self-start md:mb-2" />
 
@@ -393,7 +414,7 @@ function OpsHandelsePanelRitad({
           </span>
           <span data-handelsedatum={tid.start ? "" : "ej-satt"} className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-sida leading-tight">
             {/* ⛔ "DATUM EJ SATT" ÄR ETT SVAR OCH INGEN TOM RAD (0.127.0, punkt 5): en händelse som väntar på att gruppen väljer dag. */}
-            <span>{tid.start || datumEjSattEtikett}</span>
+            <span>{tid.start || handelse.nar || datumEjSattEtikett}</span>
             {tid.slut ? (
               <>
                 <span className="flex shrink-0 items-center text-ink-muted">
@@ -489,6 +510,17 @@ function OpsHandelsePanelRitad({
           {kommentarer}
         </div>
       ) : null}
+
+      {/* ⛔ KNAPPRADEN (0.145.0, cllp/ops-framework#446): panelens sista element, fast i botten, med källans knappar och Dela sist. Se `Knapprad`. */}
+      {knapprad ? (
+        <div className="mt-6 flex flex-1 flex-col justify-end">
+          <Knapprad
+            atgarder={knapprad.atgarder}
+            dela={knapprad.dela ?? { skal: delaStandardSkal }}
+            ord={{ etikett: knappradEtikett, delaEtikett, delaSkalForord, delaIstalletForord }}
+          />
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -575,6 +607,11 @@ export const ORD_OPSHANDELSEPANEL = {
   },
   kopieraIgenKnapp: { sv: "Kopiera ändå", en: "Copy anyway" },
   kopieraFelEtikett: { sv: "Det gick inte att kopiera", en: "Could not copy" },
+  knappradEtikett: { sv: "Åtgärder", en: "Actions" },
+  delaEtikett: { sv: "Dela", en: "Share" },
+  delaSkalForord: { sv: "Går inte att dela:", en: "Can't be shared:" },
+  delaIstalletForord: { sv: "Gör så här i stället:", en: "Do this instead:" },
+  delaStandardSkal: { sv: "Den här raden går inte att dela härifrån ännu.", en: "This row can't be shared from here yet." },
   tillbakaEtikett: { sv: "Tillbaka", en: "Back" },
   gruppEtikett: { sv: "Grupp", en: "Group" },
   laddarEtikett: { sv: "Hämtar händelsen", en: "Loading the event" },

@@ -281,11 +281,15 @@ const DAGRAM = { 1: "border-identity-1", 2: "border-identity-2", 3: "border-iden
  *
  * Från 640 px uppe till vänster som SS webb, och idag ett mörkt piller. Det har inte ändrats. Raden bär från 640 px också
  * indikatorerna till höger (`children`, se `Indikatorrad`), som SS webbs `data-cal-day-press-band`.
+ *
+ * ⛔ 2 PX MELLAN SIFFRAN OCH INDIKATORERNA, INTE 4 (#448). Dagen med 12 borta och 12 lager (`12|12`) är raden bredast, och i Plus Jakarta
+ * Sans (som appen ritar i) slutade lagerikonen 1,7 px utanför rutan vid 1280 px (mätt), medan det smalare systemtypsnitt som `check-skalyta` råkade
+ * mäta på CI rymde den. Rutan är 82 px bred där, så raden får inte ett enda onödigt pixelsteg.
  * @param {{ day: number, isToday: boolean, vald: boolean, children?: import("react").ReactNode }} props
  */
 function Dagnummer({ day, isToday, vald, children }) {
   return (
-    <span className="relative z-2 flex min-h-7 items-start justify-start gap-1 sm:min-h-6">
+    <span className="relative z-2 flex min-h-7 items-start justify-start gap-0.5 sm:min-h-6">
       <span
         data-dagnummer=""
         className={cx(
@@ -482,6 +486,12 @@ function Hornbrickor({ borta, lager }) {
  * `Indikatorrad`). Räknaren till höger om ikonen inne i cirkeln: 8 px, vikt 700, radhöjd 9, spärrning -0,3 (SS `pillBadgeText`),
  * `gap 1` och `padding-inline 1` (SS `pillBadge`).
  *
+ * ⛔ INGET MELLANRUM MELLAN IKON OCH SIFFRA (#448, `gap-0` och inte SS `gap 1`). Ikonen 10 + siffran får rymmas i cirkelns 20 px, och
+ * `9+` är 8,5 px bred i SS-appens systemtypsnitt men 9,5 px i Plus Jakarta Sans (bold 8 px, spärrning -0,3, mätt): med gapet blev
+ * innehållet 20,5 px och räknaren stack 0,25 px ut på var sida om cirkeln. Kontrollen `check-skalyta` mätte på CI ett smalare
+ * systemtypsnitt (8,54 px) och var grön; när den mäter typsnittet appen faktiskt ritar i är det här måttet det som håller. Ikonens egen marginal i
+ * 24-rutan (cirka 1 px vid 10 px) bär det mellanrum ögat ser.
+ *
  * ⛔ IKONEN KRYMPER INTE (`shrink-0`). En flexrad krymper annars ikonen för att få plats med siffran (mätt: 6,5 px i stället för
  * 10), och då är det ikonen som ändrar storlek mellan dagar i stället för att cirkeln gör det.
  * @param {{ id: string, antal: number, farg: string, children: import("react").ReactNode }} props
@@ -491,7 +501,7 @@ function Bricka({ id, antal, farg, children }) {
   return (
     <span
       data-hornmarke={id}
-      className={cx("flex size-5 shrink-0 items-center justify-center gap-px rounded-full border bg-surface px-px [&>svg]:shrink-0", farg)}
+      className={cx("flex size-5 shrink-0 items-center justify-center gap-0 rounded-full border bg-surface px-px [&>svg]:shrink-0", farg)}
     >
       {children}
       {text ? <span data-raknare="" className="text-mikro leading-[9px] tracking-[-0.3px] tabular-nums">{text}</span> : null}

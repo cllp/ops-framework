@@ -11,6 +11,10 @@ import { OpsCard } from "./OpsCard.jsx";
 import { ROLLMARKE_MATT } from "./OpsRollmarke.jsx";
 import { OpsStatusDot } from "./OpsStatusDot.jsx";
 import { Ursprungsrad } from "./Ursprungsrad.jsx";
+import { OpsRadPanel } from "./OpsRadPanel.jsx";
+import { RadLank } from "./RadLank.jsx";
+import { useRadkallor } from "../lib/radkallorkontext.js";
+import { kallaForRad } from "../lib/radkallor.js";
 
 /**
  * Lista över händelser: vem, vad, och hur bråttom.
@@ -101,6 +105,9 @@ const TONER = {
  * @param {(id: string) => void} [props.onOppnaHandelse] (0.40.0, #214) Vad ett tryck på en rad med `handelseId` gör. Utelämnad: skalets
  *   händelsepanel (`OpsAppShell` `handelsepanel`) öppnas. ⛔ Finns varken propen eller ett skal med panel kastar listan för en rad med `handelseId`:
  *   en rad som ser tryckbar ut och inte gör något är värre än ett fel.
+ * @param {import("../lib/radkallor.js").Radkallor} [props.radkallor] (0.145.0, cllp/ops-framework#446) Appens källor, en karta `{ [källa]: { etikett, atgarder?, dela? } }` (se `lib/radkallor.js`). En rad vars `id` har formen
+ *   `<källa>:<id>` med en källa i kartan blir tryckbar och öppnar `OpsRadPanel`: rubrik, när och "Från <etikett>" överst, källans knappar och Dela längst ned. Utelämnad: skalets `radkallor`, och finns inte heller de beter sig
+ *   varje rad som förut. ⛔ En rad med `handelseId` går aldrig hit (händelsen har sin panel), och en rad med `details` behåller sin utfällning: panelen visar samma innehåll, men ingen rad tappar sitt sätt att läsas.
  * @param {{ oppet?: string, pagar?: string, vantar?: string, klart?: string, akut?: string }} [props.statusWords]
  *   Orden för de fem statuslägena. ⛔ KRÄVS för varje status som faktiskt förekommer: en prick
  *   utan ord är en färg som bär betydelsen ensam, och det är osynligt för skärmläsaren och för
@@ -121,6 +128,7 @@ function OpsEventListRitad({
   sprak = "sv",
   statusWords = {},
   onOppnaHandelse,
+  radkallor,
 }) {
   // ⛔ BARA FÖRSENAT FÅR ETT ORD SOM STANDARD, och det följer direkt av
   // TONER ovan: försenat är det enda läget som lånar larmfärgen, alltså det
@@ -142,12 +150,17 @@ function OpsEventListRitad({
   const [open, setOpen] = useState(/** @type {string[]} */ ([]));
   const idBas = useId();
   const oppnaHandelse = useHandelseOppnare(onOppnaHandelse);
+  // ⛔ 0.145.0 (#446): EN RAD MED EN KÄLLA I MANIFESTET ÖPPNAS I `OpsRadPanel`. Id:t, inte raden, hålls i tillståndet och raden slås upp i `events` varje gång,
+  // så att en rad som kvitterats bort medan panelen är öppen stänger den i stället för att visa en rad som inte finns längre.
+  const radkallorK = useRadkallor(radkallor, "OpsEventList");
+  const [radId, setRadId] = useState(/** @type {string | null} */ (null));
 
   // ⛔ FÖRE `events`-vakten, för hookar får inte hoppas över. Låg `useState`
   // efter den tidiga returen skulle React se olika många hookar beroende på om
   // listan är tom, och kasta första gången en lista fylls på.
   if (!events || events.length === 0) return empty;
 
+  const radRad = radId ? (events.find((e) => e && e.id === radId && !e.handelseId && kallaForRad(radkallorK, e.id)) ?? null) : null;
   // Frågar raderna själva i stället för att ta en prop.
   const nagonHarAtgard = events.some((e) => Boolean(e && e.atgard));
 
@@ -219,6 +232,7 @@ function OpsEventListRitad({
         // 0.32.1: chevronen tar ingen kolumn längre, så en rad utan detaljer behöver ingen tom plats.
         const harChevron = harDetaljer;
         const harPillrad = Boolean(h.status || h.role || marke || h.kind);
+        const arRadlank = !h.handelseId && Boolean(kallaForRad(radkallorK, h.id));
         const harDatumrad = Boolean(h.when || h.deadline || h.updatedAt || url);
         // ⛔ Samma ton som kortets kant och kalenderns prick, ur en källa.
         const slagfarg = slagText(h.slag, h.slagLabel, "OpsEventList");
@@ -382,6 +396,10 @@ function OpsEventListRitad({
                   <HandelseLank id={h.handelseId} oppna={oppnaHandelse} tacker="after:-inset-(--card-padding) after:rounded-[var(--radius-card)]">
                     {h.title}
                   </HandelseLank>
+                ) : arRadlank ? (
+                  <RadLank onOppna={() => setRadId(h.id)} tacker="after:-inset-(--card-padding) after:rounded-[var(--radius-card)]">
+                    {h.title}
+                  </RadLank>
                 ) : (
                   h.title
                 )}
@@ -454,7 +472,10 @@ function OpsEventListRitad({
     </ul>
   );
 
-  if (!actionHint) return list;
+  // ⛔ PANELEN LIGGER I EN PORTAL när den är öppen och ritar ingenting när den är stängd: utan `radkallor` är utdata exakt som förut.
+  const radpanel = radkallorK ? <OpsRadPanel rad={radRad} form="idag" radkallor={radkallorK} onStang={() => setRadId(null)} statusWords={statusWords} sprak={sprak} /> : null;
+
+  if (!actionHint) return radpanel ? <>{list}{radpanel}</> : list;
 
   /*
    * ⛔ ÖVER LISTAN OCH INTE UNDER DEN. Förklaringen är något man behöver INNAN
@@ -465,6 +486,7 @@ function OpsEventListRitad({
     <div className="flex flex-col gap-2">
       <p className="m-0 text-etikett text-ink-muted">{actionHint}</p>
       {list}
+      {radpanel}
     </div>
   );
 }
