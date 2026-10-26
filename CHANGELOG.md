@@ -16,6 +16,20 @@ anteckningar är en version ingen kan välja att hoppa över.
   här att någon tittar mindre på skärmen, eller mer? Följer med till konsumenternas
   kanonkopia vid nästa utgivning och ompinning.
 
+## 0.148.0
+
+### Mejlkön kan bifoga: `bilagor: [{ filnamn, innehall, typ }]` genom byggMejl, kön, utskicket och nodemailer-adaptern
+
+Appen behöver skicka en `.ics` (`text/calendar`) med en inbjudan till en händelse (cllp/ops-framework#453, skiva 1 av #445). Mejlkön bar bara `till`, `amne`, `text` och `html`, och `byggMejl` tappade allt annat, så lifehub.app (PR 477) bar bilagan själv som en temporär åtgärd. **Inte brytande:** ett brev utan bilagor är byte för byte det det var. Det här är bara ramverkets del; appens del står i PR-texten.
+
+- **Formen:** `bilagor: [{ filnamn, innehall, typ }]`, ramverkets egen form (inte nodemailers `filename`, `content`, `contentType`; adaptern översätter). `byggMejl` och `createMailQueue.koa` tar den och skriver den på raden, `createMailSender` ger den till transporten, och `createNodemailerTransport` ger den vidare som `attachments`. `createMockMailTransport` antecknar den i `skickade()`.
+- **Taken** (`kontrolleraMejlbilagor`, en sanning för alla led): högst 5 bilagor (`MEJL_BILAGOR_MAX`), högst 32 KiB per bilaga räknat i UTF-8-byte (`MEJL_BILAGA_MAX_BYTES`), bara `text/calendar` med eller utan parametrar (`MEJL_BILAGETYPER`), ett filnamn på 1 till 120 tecken utan sökväg, citattecken eller styrtecken, och ett icke-tomt innehåll. Ett okänt fält på en bilaga kastar, så att appens gamla `namn` eller nodemailers `content` inte tappas tyst.
+- **En bilaga utanför taket ger ett fel och skickas aldrig tyst utan** (regel 5): `koa` kastar och skriver ingenting, `skicka` prövar mot raden i källan och skriver `fel` utan att anropa transporten, och transporterna (adaptern och mocken) kastar före `sendMail`.
+- **Raden töms på bilagorna när brevet gått**, i samma skrivning som kvittot (`skickad`). Ett brev som inte kom fram behåller dem. `text` och `html` töms inte av ramverket.
+- **Ett mejl utan bilagor är byte för byte som förut:** ingen `bilagor`-nyckel på raden (inte heller en tom lista), transporten får exakt de fyra fälten, nodemailer får inget `attachments`, och kvittot har samma fält.
+- **Nya exporter i `ops-framework/node`:** `kontrolleraMejlbilagor`, `MEJL_BILAGOR_MAX`, `MEJL_BILAGA_MAX_BYTES`, `MEJL_BILAGETYPER`.
+- **Prov åt båda håll:** `mejl-bilagor.test.js` (18 prov). Mot koden utan ändringen är **15 av 18 röda**; de 3 gröna är provet av att ett mejl utan bilagor är oförändrat och är gröna åt båda håll med avsikt. Med ändringen är alla 18 gröna, liksom de 28 äldre i `mejl.test.js`. Åtta mutationer fälldes av minst ett prov: tömningen borttagen, utskickets prövning borttagen, tecken i stället för byte, `attachments` borttagen, bilagenyckeln alltid på raden, bilagor alltid till transporten, okända fält tillåtna och typen oprövad.
+
 ## 0.147.0
 
 ### Panelen för en rad öppnas bara av ett tryck, knappraden får en plats för ett fel, och appens egna inställningar kan stå före kopplingarna

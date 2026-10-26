@@ -34,6 +34,11 @@
  * tyst: `status: "skickas"` med en gammal `paborjad` är ett fastnat utskick som en
  * app kan lista och visa. Att skicka om är ett beslut, inte en automat.
  *
+ * ⛔ BILAGOR (0.148.0, cllp/ops-framework#453). Ett brev kan bära `bilagor: [{ filnamn, innehall, typ }]`, högst fem, högst 32 KiB var, och bara de typer
+ * `MEJL_BILAGETYPER` listar (i dag `text/calendar`). Kön skriver dem på raden, utskicket ger dem till transporten, och raden töms på dem när brevet gått. En
+ * bilaga utanför taket kastar i kön (`koa`), blir `fel` på raden i utskicket och kastar i transporten: ett brev som lovar en kalenderpost går aldrig tyst utan den
+ * (regel 5). Ett brev utan bilagor är byte för byte det det var.
+ *
  * ⛔ NODEMAILER LADDAS FÖRST VID UTSKICK. Det är ett valfritt peer-beroende och
  * importeras dynamiskt i `createNodemailerTransport().send`. En statisk import här
  * hade laddat SMTP-klienten i varje app som importerar `ops-framework/node`, också
@@ -44,18 +49,29 @@
 import { createHash } from "node:crypto";
 import {
   byggMejl,
+  kontrolleraMejlbilagor,
   kontrolleraMejlsamling,
   normaliseraMejlsprak,
   sparradMejldoman,
 } from "../lib/mejl.js";
 
 export {
+  MEJL_BILAGA_MAX_BYTES,
+  MEJL_BILAGETYPER,
+  MEJL_BILAGOR_MAX,
   SPARRADA_MEJLDOMANER,
   byggMejl,
+  kontrolleraMejlbilagor,
   losMejlsprak,
   mejlregelfragment,
   normaliseraMejlsprak,
 } from "../lib/mejl.js";
+
+/**
+ * Brevet transporten får. `bilagor` finns bara när brevet har några (0.148.0), så en transport som aldrig hört talas om dem ser exakt det den såg förut.
+ *
+ * @typedef {{ till: string, amne: string, text: string, html: string, bilagor?: import("../lib/mejl.js").Mejlbilaga[] }} Utgaende
+ */
 
 /** Serverns svarsrad kan bli lång. Ett dokument ska inte växa fritt. Samma tak som SessionStudio. */
 const MAX_SVAR = 200;
@@ -215,6 +231,7 @@ export function createMailQueue(konfig) {
      * @param {"sv" | "en"} falt.sprak
      * @param {string} falt.kategori
      * @param {string} [falt.groupId]
+     * @param {import("../lib/mejl.js").Mejlbilaga[]} [falt.bilagor] Högst `MEJL_BILAGOR_MAX`, se `kontrolleraMejlbilagor`. En bilaga utanför taket kastar.
      */
     async koa(falt) {
       return kalla.create(SAMLING, byggMejl(falt, "koa"));
@@ -232,7 +249,7 @@ export function createMailQueue(konfig) {
  * @param {object} [konfig]
  * @param {import("../data/contract.js").DataSource<any>} konfig.kalla
  * @param {string} konfig.samling
- * @param {{ send: (brev: { till: string, amne: string, text: string, html: string }) => Promise<any> }} konfig.transport
+ * @param {{ send: (brev: Utgaende) => Promise<any> }} konfig.transport
  * @param {(handelse: ReturnType<typeof byggMejlhandelse>) => void} [konfig.logg]
  * @param {readonly string[]} [konfig.sparradeDomaner] Lägg till domäner. De fyra inbyggda gäller alltid.
  */
@@ -282,7 +299,7 @@ export function createMailSender(konfig) {
         throw new Error(`skicka: "${SAMLING}/${id}" finns inte. Ett mejl som inte finns kan inte skickas, och det ska inte se ut som att det gick.`);
       }
       if (!ansprak.updated) return ansprak.row;
-      const dokument = /** @type {{ till?: unknown, amne?: unknown, text?: unknown, html?: unknown, sprak?: unknown, kategori?: unknown, groupId?: string | null }} */ (ansprak.row);
+      const dokument = /** @type {{ till?: unknown, amne?: unknown, text?: unknown, html?: unknown, sprak?: unknown, kategori?: unknown, groupId?: string | null, bilagor?: unknown }} */ (ansprak.row);
 
       const till = typeof dokument.till === "string" ? dokument.till.trim().toLowerCase() : "";
       const amne = typeof dokument.amne === "string" ? dokument.amne.trim() : "";
@@ -291,7 +308,7 @@ export function createMailSender(konfig) {
       const kategori = typeof dokument.kategori === "string" ? dokument.kategori.trim() : "";
 
       /**
-       * @param {ReturnType<typeof kvitto>} rad
+       * @param {ReturnType<typeof kvitto> & { bilagor?: never[] }} rad
        */
       async function skriv(rad) {
         try {
@@ -328,7 +345,7 @@ export function createMailSender(konfig) {
       }
 
       /**
-       * @param {ReturnType<typeof kvitto>} rad
+       * @param {ReturnType<typeof kvitto> & { bilagor?: never[] }} rad
        */
       async function avsluta(rad) {
         const sparad = await skriv(rad);
@@ -340,6 +357,16 @@ export function createMailSender(konfig) {
       if (!text.trim() && !html.trim()) return avsluta(kvitto("fel", { fel: "text eller html krävs." }));
       if (!normaliseraMejlsprak(dokument.sprak)) return avsluta(kvitto("fel", { fel: "sprak måste vara sv eller en." }));
 
+      // ⛔ BILAGORNA PRÖVAS MOT RADEN I KÄLLAN, INTE MOT VAD KÖN SKREV (0.148.0, #453). Raden kan vara skriven av en annan version eller
+      // för hand. Ett brev vars bilaga inte går att skicka skickas inte alls, med skälet på raden: det lovar en kalenderpost.
+      /** @type {import("../lib/mejl.js").Mejlbilaga[]} */
+      let bilagor;
+      try {
+        bilagor = kontrolleraMejlbilagor(dokument.bilagor, "skicka");
+      } catch (e) {
+        return avsluta(kvitto("fel", { fel: e instanceof Error ? e.message : String(e) }));
+      }
+
       const block = sparradMejldoman(till, extra);
       if (block.sparrad) {
         return avsluta(kvitto("hoppad", { skal: `Spärrad domän: ${block.doman}` }));
@@ -347,14 +374,19 @@ export function createMailSender(konfig) {
 
       // Bara transporten. Kvittots skrivning och loggen ligger utanför, så ett fel
       // där inte skrivs över kvittot och inte försvinner i den här fångsten.
+      /** @type {Utgaende} */
+      const utgaende = bilagor.length > 0 ? { till, amne, text, html, bilagor } : { till, amne, text, html };
       let info;
       try {
-        info = await transport.send({ till, amne, text, html });
+        info = await transport.send(utgaende);
       } catch (e) {
         const fel = e instanceof Error ? e.message : String(e);
         return avsluta(kvitto("fel", { fel }));
       }
-      return avsluta(kvittoUrSvar(info));
+      const rad = kvittoUrSvar(info);
+      // ⛔ BILAGAN TÖMS NÄR BREVET GÅTT, I SAMMA SKRIVNING SOM KVITTOT. Den bär händelsens rubrik och tid, och köns rad är ingen arkivplats. Ett brev som inte
+      // kom fram (`fel`, `hoppad`) behåller sin bilaga, så att den som skickar om och den som felsöker ser vad som skulle ha gått.
+      return avsluta(rad.status === "skickad" && bilagor.length > 0 ? { ...rad, bilagor: [] } : rad);
     },
   };
 }
@@ -421,9 +453,11 @@ export function createNodemailerTransport(konfig) {
   const avsandare = from.trim();
   return {
     /**
-     * @param {{ till: string, amne: string, text: string, html: string }} brev
+     * @param {Utgaende} brev
      */
     async send(brev) {
+      // Bilagorna prövas före allt annat, också här: transporten är en egen yta och tar emot anrop som aldrig gått genom kön.
+      const bilagor = kontrolleraMejlbilagor(brev.bilagor, "createNodemailerTransport");
       // Ett misslyckat försök sparas inte: installerar appen paketet ska nästa utskick lyckas.
       laddad ??= Promise.resolve((skapa ?? standard)(opts)).catch((e) => {
         laddad = null;
@@ -440,6 +474,9 @@ export function createNodemailerTransport(konfig) {
         subject: brev.amne,
         text: brev.text ?? "",
         html: brev.html ?? "",
+        ...(bilagor.length > 0
+          ? { attachments: bilagor.map((b) => ({ filename: b.filnamn, content: b.innehall, contentType: b.typ })) }
+          : {}),
       });
       return {
         accepted: Array.isArray(info?.accepted) ? info.accepted : [],
@@ -456,24 +493,26 @@ export function createNodemailerTransport(konfig) {
  * Utan argument accepteras varje mottagare och inget lämnar processen.
  *
  * @param {object} [konfig]
- * @param {(brev: { till: string, amne: string, text: string, html: string }) => any | Promise<any>} [konfig.utfall]
+ * @param {(brev: Utgaende) => any | Promise<any>} [konfig.utfall]
  *   Ersätter serverns svar. Kastas felet blir det `fel` på dokumentet.
  */
 export function createMockMailTransport(konfig) {
   const { utfall } = konfig ?? {};
-  /** @type {{ till: string, amne: string, text: string, html: string }[]} */
+  /** @type {Utgaende[]} */
   const skickade = [];
   return {
     skickade() {
-      return skickade.map((b) => ({ ...b }));
+      return skickade.map((b) => ({ ...b, ...(b.bilagor ? { bilagor: b.bilagor.map((x) => ({ ...x })) } : {}) }));
     },
     rensa() {
       skickade.length = 0;
     },
     /**
-     * @param {{ till: string, amne: string, text: string, html: string }} brev
+     * @param {Utgaende} brev
      */
     async send(brev) {
+      // Mocken prövar bilagorna som den riktiga: en mock som släpper igenom det adaptern kastar på döljer felet i varje prov.
+      const bilagor = kontrolleraMejlbilagor(brev.bilagor, "createMockMailTransport");
       const extra = typeof utfall === "function" ? await utfall(brev) : {};
       const info = {
         accepted: Array.isArray(extra?.accepted) ? extra.accepted : [brev.till],
@@ -481,7 +520,7 @@ export function createMockMailTransport(konfig) {
         response: typeof extra?.response === "string" ? extra.response : "250 2.0.0 OK mock",
         messageId: typeof extra?.messageId === "string" ? extra.messageId : `<mock-${skickade.length + 1}@test>`,
       };
-      skickade.push({ till: brev.till, amne: brev.amne, text: brev.text, html: brev.html });
+      skickade.push({ till: brev.till, amne: brev.amne, text: brev.text, html: brev.html, ...(bilagor.length > 0 ? { bilagor } : {}) });
       return info;
     },
   };
