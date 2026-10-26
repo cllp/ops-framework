@@ -1,13 +1,14 @@
 import { useId, useState } from "react";
 import { cx } from "../lib/cx.js";
 import { DELNINGSFEL, DELNINGSORSAKER } from "../lib/delning.js";
-import { deladTid, lasSparatSprak, sparaSprak, valdSprak } from "../lib/deladdatum.js";
+import { lasSparatSprak, sparaSprak, valdSprak } from "../lib/deladdatum.js";
 import { sizeText } from "../lib/file.js";
 import { definierade, forvalda } from "../lib/ord.js";
 import { PUBLIK_KLASS, PUBLIK_KNAPP, PUBLIK_TONER } from "../lib/publikKlass.js";
 import { SPRAK } from "../lib/sprak.js";
 import { DeladKod } from "./DeladKod.jsx";
-import { DatumIkon, FilIkon, KlockaIkon, PlatsIkon } from "./icons.jsx";
+import { DeladRubrik } from "./DeladRubrik.jsx";
+import { FilIkon } from "./icons.jsx";
 import { OpsEmpty } from "./OpsEmpty.jsx";
 import { PublikSprakval } from "./PublikSprakval.jsx";
 
@@ -135,45 +136,12 @@ export function OpsDeladHandelse({ delning = null, orsak, laddar = false, onKod,
  * @param {{ delning: NonNullable<Parameters<typeof OpsDeladHandelse>[0]["delning"]>, t: Record<string, string>, sprak: string }} props
  */
 function Handelse({ delning, t, sprak }) {
-  const tid = deladTid(delning, sprak);
   const filer = delning.filer ?? [];
   const filerId = useId();
   const ejVisade = Number.isInteger(delning.ejVisade) ? /** @type {number} */ (delning.ejVisade) : 0;
   return (
     <article data-dh-handelse="" className="flex min-w-0 flex-col gap-8">
-      <header className="flex min-w-0 flex-col gap-5">
-        <h1 data-dh-titel="" className={cx(PUBLIK_KLASS.sida, "wrap-anywhere")}>{delning.titel}</h1>
-        <section aria-label={t.tidEtikett} data-dh-tid="" className="flex min-w-0 flex-col gap-3">
-          <p data-dh-datum="" className="m-0 flex items-start gap-3 font-display-publik text-publik-block text-publik-ljus-text">
-            <span aria-hidden="true" className="mt-1 flex shrink-0 items-center"><DatumIkon size={28} /></span>
-            <span className="min-w-0">
-              {tid.start}
-              {tid.slut ? (
-                <>
-                  {" "}
-                  <span className="text-publik-ljus-dampad">{t.till}</span>
-                  {" "}
-                  {tid.slut}
-                </>
-              ) : null}
-              {tid.dagar ? <span className="text-publik-ljus-dampad">{`, ${tid.dagar}`}</span> : null}
-            </span>
-          </p>
-          {tid.tid ? (
-            <p data-dh-klockslag="" className="m-0 flex items-center gap-3 text-publik-ingress text-publik-ljus-text">
-              <span aria-hidden="true" className="flex shrink-0 items-center"><KlockaIkon size={24} /></span>
-              <span className="min-w-0">{tid.tid}</span>
-            </p>
-          ) : null}
-          {delning.plats ? (
-            <p data-dh-plats="" className="m-0 flex items-start gap-3 text-publik-ingress text-publik-ljus-text">
-              <span aria-hidden="true" className="mt-1 flex shrink-0 items-center"><PlatsIkon size={24} /></span>
-              <span className="sr-only">{t.platsEtikett}: </span>
-              <span className="min-w-0 wrap-anywhere">{delning.plats}</span>
-            </p>
-          ) : null}
-        </section>
-      </header>
+      <DeladRubrik delning={delning} t={t} sprak={sprak} />
 
       {delning.beskrivning ? (
         <p data-dh-beskrivning="" className={cx(PUBLIK_KLASS.brod, "max-w-las whitespace-pre-line wrap-anywhere")}>{delning.beskrivning}</p>

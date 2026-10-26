@@ -50,6 +50,13 @@ export const ORD_OPSGASTLISTA = {
   omfang_grupp: { sv: "Hela gruppen", en: "The whole group" },
   omfang_sak: { sv: "Omröstning", en: "Vote" },
   omfang_sak_titel: { sv: "Omröstning: {titel}", en: "Vote: {titel}" },
+  // (0.146.0) En inbjudan att svara på en händelse (`delta`) och vad gästen svarat. Svaret hör bara till en delta-rad (`deltasvar`); en omröstning eller hela gruppen har inget.
+  omfang_delta: { sv: "Svar på händelse", en: "Reply to event" },
+  omfang_delta_titel: { sv: "Svar på händelse: {titel}", en: "Reply to event: {titel}" },
+  svar_kommer: { sv: "Kommer", en: "Coming" },
+  svar_kommerInte: { sv: "Kommer inte", en: "Not coming" },
+  svar_kanske: { sv: "Kanske", en: "Maybe" },
+  svar_osvarat: { sv: "Har inte svarat", en: "Has not answered" },
   draTillbakaAlla: { sv: "Dra tillbaka alla", en: "Withdraw all" },
   draTillbakaAllaNamn: { sv: "Dra tillbaka alla inbjudningar till {vem}", en: "Withdraw all invitations to {vem}" },
   radera: { sv: "Radera uppgifter", en: "Delete data" },
@@ -89,6 +96,9 @@ const FELKOD_TILL_ORD = /** @type {Record<string, string>} */ ({
   "brev-misslyckades": "felBrev",
   "ej-behorig": "felEjBehorig",
 });
+
+/** (0.146.0) Tonen på ett deltasvar. `null` (inte svarat än) är ingen varning: det är ett läge. */
+const SVARSTON = /** @type {const} */ ({ kommer: "success", kommerInte: "neutral", kanske: "info", osvarat: "neutral" });
 
 /** Tonen på statusmärket. Den som kräver att någon gör något (utgången) är varningen, det som är klart är grönt. */
 const STATUSTON = /** @type {const} */ ({ vantar: "neutral", utgangen: "warning", inloggad: "info", "har-rostat": "success", aterkallad: "neutral" });
@@ -163,13 +173,16 @@ export function GastBekraftelse({ bekrafta, t, onBekrafta, onAvbryt }) {
  * @property {number | null} [aterkallad]
  * @property {number | null} [forstInloggad]
  * @property {number | null} [lankGiltigTill]
+ * @property {{ slag: string, funktion?: string }} [omfang] Ur `lista`. En delta-rad har `funktion: "delta"`.
+ * @property {"kommer" | "kommerInte" | "kanske" | null} [deltasvar] (0.146.0) Gästens svar på en händelse (`GASTDELTASVAR`), eller `null` så länge hen inte svarat. Saknas fältet hör raden inte till en delta-inbjudan.
  */
 
 /**
  * @typedef {object} PersonInbjudan
  * @property {string} id
- * @property {{ slag: string }} omfang
- * @property {string | null} [titel] Händelsens rubrik, för en inbjudan till en omröstning.
+ * @property {{ slag: string, funktion?: string }} omfang
+ * @property {string | null} [titel] Händelsens rubrik, för en inbjudan till en omröstning eller att svara på en händelse.
+ * @property {"kommer" | "kommerInte" | "kanske" | null} [deltasvar] (0.146.0) Se `Gast`.
  * @property {"aterkallad" | "utgangen" | "har-rostat" | "inloggad" | "vantar"} [status]
  */
 
@@ -333,10 +346,26 @@ export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud
     if (onRadera) await pa(b.gastId, onRadera, { gastId: b.gastId, epost: b.epost });
   }
 
-  /** @param {string} omfangSlag @param {string | null | undefined} titel */
-  function omfangText(omfangSlag, titel) {
-    if (omfangSlag === "grupp") return t.omfang_grupp;
+  /** @param {{ slag: string, funktion?: string }} omfang @param {string | null | undefined} titel */
+  function omfangText(omfang, titel) {
+    if (omfang.slag === "grupp") return t.omfang_grupp;
+    if (omfang.funktion === "delta") return titel ? t.omfang_delta_titel.replace("{titel}", titel) : t.omfang_delta;
     return titel ? t.omfang_sak_titel.replace("{titel}", titel) : t.omfang_sak;
+  }
+
+  /**
+   * Gästens svar som ett märke, bara för en delta-rad. `undefined` ritar ingenting (en omröstning och hela gruppen har inget svar); `null` ritar "Har inte svarat" (regel 5: tomt är ett svar).
+   * @param {string | null | undefined} deltasvar
+   */
+  function svarMarke(deltasvar) {
+    if (deltasvar === undefined) return null;
+    const nyckel = deltasvar === null ? "osvarat" : deltasvar;
+    if (!(nyckel in SVARSTON)) return null;
+    return (
+      <span data-gast-svar={nyckel}>
+        <OpsPill tone={SVARSTON[/** @type {keyof typeof SVARSTON} */ (nyckel)]}>{t[`svar_${nyckel}`]}</OpsPill>
+      </span>
+    );
   }
 
   return (
@@ -374,8 +403,11 @@ export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud
                     return (
                       <li key={i.id} data-gast-inbjudan={i.id} data-gast-omfang={i.omfang.slag} data-gast-status={istatus} className="flex min-w-0 flex-col gap-2 border-t border-line pt-2">
                         <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-1">
-                          <span data-gast-omfangstext="" className="min-w-0 text-etikett text-ink-secondary wrap-anywhere">{omfangText(i.omfang.slag, i.titel)}</span>
-                          <OpsPill tone={STATUSTON[istatus]}>{t[`status_${istatus}`]}</OpsPill>
+                          <span data-gast-omfangstext="" className="min-w-0 text-etikett text-ink-secondary wrap-anywhere">{omfangText(i.omfang, i.titel)}</span>
+                          <span className="flex flex-wrap items-center gap-1">
+                            {svarMarke(i.deltasvar)}
+                            <OpsPill tone={STATUSTON[istatus]}>{t[`status_${istatus}`]}</OpsPill>
+                          </span>
                         </div>
                         <div className="flex flex-wrap items-center gap-2">
                           {aterkallad ? (
@@ -387,12 +419,12 @@ export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud
                           ) : (
                             <>
                               {onSkickaOm ? (
-                                <OpsButton size="sm" variant="secondary" ariaLabel={`${t.skickaIgenNamn.replace("{vem}", vem)} (${omfangText(i.omfang.slag, i.titel)})`} onClick={() => pa(p.gastId, onSkickaOm, { id: i.id })}>
+                                <OpsButton size="sm" variant="secondary" ariaLabel={`${t.skickaIgenNamn.replace("{vem}", vem)} (${omfangText(i.omfang, i.titel)})`} onClick={() => pa(p.gastId, onSkickaOm, { id: i.id })}>
                                   {t.skickaIgen}
                                 </OpsButton>
                               ) : null}
                               {onAterkalla ? (
-                                <OpsButton size="sm" variant="ghost" ariaLabel={`${t.draTillbakaNamn.replace("{vem}", vem)} (${omfangText(i.omfang.slag, i.titel)})`} onClick={() => pa(p.gastId, onAterkalla, { id: i.id })}>
+                                <OpsButton size="sm" variant="ghost" ariaLabel={`${t.draTillbakaNamn.replace("{vem}", vem)} (${omfangText(i.omfang, i.titel)})`} onClick={() => pa(p.gastId, onAterkalla, { id: i.id })}>
                                   {t.draTillbaka}
                                 </OpsButton>
                               ) : null}
@@ -435,7 +467,10 @@ export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud
                     <span data-gast-namn="" className="min-w-0 text-etikett text-ink wrap-anywhere">{vem}</span>
                     {g.namn ? <span data-gast-epost="" className="min-w-0 text-meta text-ink-muted wrap-anywhere">{g.epost}</span> : null}
                   </div>
-                  <OpsPill tone={STATUSTON[status]}>{t[`status_${status}`]}</OpsPill>
+                  <span className="flex flex-wrap items-center gap-1">
+                    {svarMarke(g.deltasvar)}
+                    <OpsPill tone={STATUSTON[status]}>{t[`status_${status}`]}</OpsPill>
+                  </span>
                 </div>
                 {onBjud || onSkickaOm || onAterkalla || onRadera ? (
                   <div className="flex flex-wrap items-center gap-2">

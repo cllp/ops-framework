@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { cx } from "../lib/cx.js";
 import { lasSparatSprak, sparaSprak, valdSprak } from "../lib/deladdatum.js";
-import { GASTFEL, GASTINBJUDNINGSIDFORM, GASTNYLANK_SVAR, GASTNYCKELFORM, MAX_GASTNAMN, normaliseraGastepost } from "../lib/gast.js";
+import { GASTDELTASVAR, GASTFEL, GASTINBJUDNINGSIDFORM, GASTNYLANK_SVAR, GASTNYCKELFORM, MAX_GASTNAMN, normaliseraGastepost } from "../lib/gast.js";
 import { definierade, forvalda } from "../lib/ord.js";
 import { PUBLIK_KLASS, PUBLIK_TONER } from "../lib/publikKlass.js";
 import { SPRAK } from "../lib/sprak.js";
+import { GastDelta } from "./GastDelta.jsx";
 import { OpsButton } from "./OpsButton.jsx";
+import { ORD_OPSDELADHANDELSE } from "./OpsDeladHandelse.jsx";
 import { OpsDisclosure } from "./OpsDisclosure.jsx";
 import { OpsEmpty } from "./OpsEmpty.jsx";
 import { OpsField, OpsInput } from "./OpsField.jsx";
@@ -18,8 +20,10 @@ import { PublikSprakval } from "./PublikSprakval.jsx";
 export const ORD_OPSGASTSIDA = {
   sprakEtikett: { sv: "Språk", en: "Language" },
   laddar: { sv: "Hämtar", en: "Loading" },
-  rubrikRosta: { sv: "Du är inbjuden att rösta", en: "You are invited to vote" },
-  ingress: { sv: "Skriv adressen inbjudan skickades till, så öppnas omröstningen. Du behöver inget konto.", en: "Enter the address the invitation was sent to and the vote opens. You do not need an account." },
+  // ⛔ RUBRIKEN NÄR ADRESSEN FRÅGAS ÄR NEUTRAL (0.146.0). Före inloggningen vet sidan inte vad inbjudan gäller (en omröstning, en händelse att svara på, hela gruppen), och "rösta" var fel åt den som bjudits in till
+  // en händelse. Nyckelnamnet står kvar, så att en app som ger egna ord (`ord.rubrikRosta`) fortfarande träffar rätt text.
+  rubrikRosta: { sv: "Du är inbjuden", en: "You are invited" },
+  ingress: { sv: "Skriv adressen inbjudan skickades till, så öppnas den. Du behöver inget konto.", en: "Enter the address the invitation was sent to and it opens. You do not need an account." },
   adressEtikett: { sv: "Skriv adressen inbjudan skickades till", en: "Enter the address the invitation was sent to" },
   fortsatt: { sv: "Fortsätt", en: "Continue" },
   felAdress: { sv: "Det där ser inte ut som en e-postadress.", en: "That does not look like an email address." },
@@ -37,7 +41,19 @@ export const ORD_OPSGASTSIDA = {
   namnSpara: { sv: "Spara", en: "Save" },
   namnSparat: { sv: "Sparat", en: "Saved" },
   gastNot: { sv: "Du är gäst. Du ser bara det du bjudits in till.", en: "You are a guest. You only see what you were invited to." },
+  // Gäller varje inbjudan som appen inte gett en väg att visa: hela gruppen (`renderGrupp`) och en händelse att svara på (`onSvara`).
   gruppEjStodd: { sv: "Den här inbjudan går inte att visa i den här versionen av appen.", en: "This invitation cannot be shown in this version of the app." },
+  // ── En händelse att svara på (`delta`, 0.146.0). Tre svar: medlemmen har två, men en extern har en egen kalender med Ja, Kanske och Nej (`GASTDELTASVAR`). ──
+  deltaFraga: { sv: "Kommer du?", en: "Are you coming?" },
+  deltaKommer: { sv: "Jag kommer", en: "I'm coming" },
+  deltaKommerInte: { sv: "Kan inte", en: "Can't make it" },
+  deltaKanske: { sv: "Kanske", en: "Maybe" },
+  deltaSparar: { sv: "Sparar…", en: "Saving…" },
+  deltaValt: { sv: "valt", en: "selected" },
+  deltaOsvarad: { sv: "Du har inte svarat än.", en: "You have not answered yet." },
+  deltaSvarade_kommer: { sv: "Du har svarat: Jag kommer.", en: "You answered: I'm coming." },
+  deltaSvarade_kommerInte: { sv: "Du har svarat: Kan inte.", en: "You answered: Can't make it." },
+  deltaSvarade_kanske: { sv: "Du har svarat: Kanske.", en: "You answered: Maybe." },
   integritetRubrik: { sv: "Integritet och dina uppgifter", en: "Privacy and your data" },
   integritetLagrat: {
     sv: "Det här sparas om dig: din e-postadress och namnet du eller den som bjöd in dig angav, vad du bjudits in till, när, och av vem. Vi sparar också att du loggat in och när, och en kodad kopia av nyckeln som håller dig inloggad på den här enheten (själva nyckeln finns bara hos dig). Dina svar och röster sparas under ett id som räknas fram ur din adress, och de meddelanden du skriver i gruppens chatt sparas med ditt namn och märket Gäst, där alla i gruppen ser dem. Vi räknar hur många anrop du gör och hur många filer du hämtar, för att stoppa missbruk, och en av de fem gratis platserna i gruppen är reserverad åt dig. Appen kan dessutom spara adressen i sin utgående post. Inget av det används till annat än att du ska kunna vara med.",
@@ -168,6 +184,8 @@ function minne(lagring) {
  * @param {(arg: { sessionsnyckel: string }) => Promise<{ ok: boolean, namn?: string, funktion?: string, sak?: Record<string, any>, grupp?: { namn: string, funktioner: readonly string[] }, orsak?: string }>} props.onHamta
  * @param {(arg: { epost: string }) => Promise<unknown>} props.onNyLank Ger alltid samma svar; sidan skriver ut `nyLankSvar` oavsett vad som kommer tillbaka.
  * @param {(arg: { sessionsnyckel: string, namn: string }) => Promise<unknown>} [props.onNamn] Utelämnad: ingen namnruta.
+ * @param {(arg: { sessionsnyckel: string, val: string }) => Promise<{ ok: boolean, mitt?: string, orsak?: string }>} [props.onSvara] (0.146.0) Gästen svarar på en händelse (`delta`): appens anrop mot `/api/gast` med åtgärden `deltaSvara`, `val` ur
+ *   `GASTDELTASVAR`. Sidan ritar händelsen och de tre knapparna själv. Nekas svaret (`aterkallad`, `saknas`, `nej`) hämtas sidan om, så att texten byts direkt. Utelämnad: en `delta`-inbjudan visas inte (`gruppEjStodd`), i stället för knappar som inte gör något.
  * @param {(arg: { sessionsnyckel: string }) => Promise<unknown>} [props.onRaderaMig] (0.132.0) Raderar gästens uppgifter (`raderaMig`). Utelämnad: ingen knapp, och texten hänvisar till den som bjöd in.
  * @param {(arg: { sak: Record<string, any>, funktion: string, sessionsnyckel: string, uppdatera: () => Promise<void> }) => import("react").ReactNode} [props.renderSak] Sakens kort. `uppdatera` hämtar saken på nytt (efter en röst).
  * @param {(arg: { grupp: { namn: string, funktioner: readonly string[] }, namn: string, sessionsnyckel: string, uppdatera: () => Promise<void> }) => import("react").ReactNode} [props.renderGrupp] (0.132.0) Hela gruppen. `uppdatera` hämtar om sidan:
@@ -179,11 +197,11 @@ function minne(lagring) {
  * @param {{ getItem: (k: string) => string | null, setItem: (k: string, v: string) => void, removeItem: (k: string) => void, key?: (i: number) => string | null, length?: number } | null} [props.lagring] Minnet för sessionen. Förval `localStorage`; `null` ger bara minne för den här sidvisningen.
  * @param {Partial<Record<keyof typeof ORD_OPSGASTSIDA, string>>} [props.ord] Egna texter, som vinner över ordboken.
  */
-export function OpsGastSida({ lank = null, onLos, onHamta, onNyLank, onNamn, onRaderaMig, renderSak, renderGrupp, huvud, sprak, onSprak, intervallMs = 60_000, lagring, ord }) {
+export function OpsGastSida({ lank = null, onLos, onHamta, onNyLank, onNamn, onRaderaMig, onSvara, renderSak, renderGrupp, huvud, sprak, onSprak, intervallMs = 60_000, lagring, ord }) {
   for (const [namn, f] of /** @type {const} */ ([["onLos", onLos], ["onHamta", onHamta], ["onNyLank", onNyLank]])) {
     if (typeof f !== "function") throw new Error(`OpsGastSida: ${namn} krävs, en funktion som anropar appens /api/gast.`);
   }
-  for (const [namn, f] of /** @type {const} */ ([["onNamn", onNamn], ["onRaderaMig", onRaderaMig], ["renderGrupp", renderGrupp]])) {
+  for (const [namn, f] of /** @type {const} */ ([["onNamn", onNamn], ["onRaderaMig", onRaderaMig], ["onSvara", onSvara], ["renderGrupp", renderGrupp]])) {
     if (f !== undefined && typeof f !== "function") throw new Error(`OpsGastSida: ${namn} måste vara en funktion (eller utelämnas).`);
   }
   if (lank !== null && (!lank || typeof lank.id !== "string" || !GASTNYCKELFORM.test(lank.nyckel))) {
@@ -196,6 +214,9 @@ export function OpsGastSida({ lank = null, onLos, onHamta, onNyLank, onNamn, onR
   const aktivt = sprak ?? valt;
   const t = { ...forvalda(ORD_OPSGASTSIDA, aktivt), ...definierade(/** @type {Record<string, string>} */ (ord ?? {})) };
   const mem = useRef(minne(lagring));
+  // Rubrikens tre ord (När och var, till, Plats) är den delade händelsesidans: en inbjuden ser samma rubrik som den som fått en delad länk (`DeladRubrik`).
+  const { tidEtikett, till, platsEtikett } = forvalda(ORD_OPSDELADHANDELSE, aktivt);
+  const rubrikOrd = { tidEtikett, till, platsEtikett };
 
   /** @type {[{ fas: "startar" | "adress" | "ny-lank" | "klar" | "fel" | "nylank-skickad" | "raderad" }, Function]} */
   const [lage, setLage] = useState({ fas: "startar" });
@@ -449,6 +470,35 @@ export function OpsGastSida({ lank = null, onLos, onHamta, onNyLank, onNamn, onR
     }
   }
 
+  /**
+   * Gästen svarar på händelsen (`delta`). Sant om det sparades, eller om sidan byttes mot ett besked i stället (en återkallad inbjudan): `false` är bara "det gick inte just nu", och kortet skriver ut det vid knapparna.
+   * @param {string} val
+   * @returns {Promise<boolean>}
+   */
+  async function svaraDelta(val) {
+    if (!onSvara || !sessionsnyckel) return false;
+    let r;
+    try {
+      r = await onSvara({ sessionsnyckel, val });
+    } catch {
+      return false;
+    }
+    if (!levande.current) return true;
+    if (r && r.ok === true) {
+      // Det servern svarade gäller; saknas det står det gästen tryckte på. Nästa hämtning (fokus, tidtagningen) rättar om något ändå skiljer sig.
+      const mitt = typeof r.mitt === "string" && /** @type {readonly string[]} */ (GASTDELTASVAR).includes(r.mitt) ? r.mitt : val;
+      setSvar((fore) => (fore && fore.delta ? { ...fore, delta: { ...fore.delta, mitt } } : fore));
+      return true;
+    }
+    const o = r && typeof r.orsak === "string" ? r.orsak : "";
+    // Nekat av ett skäl som gäller inbjudan: hämta om, så byts sidan mot texten direkt i stället för vid nästa minut.
+    if (o === "aterkallad" || o === "saknas" || o === "nej") {
+      await hamta(sessionsnyckel);
+      return true;
+    }
+    return false;
+  }
+
   async function raderaMig() {
     if (!onRaderaMig || !sessionsnyckel) return;
     setRaderaFel("");
@@ -539,6 +589,12 @@ export function OpsGastSida({ lank = null, onLos, onHamta, onNyLank, onNamn, onR
                 renderGrupp({ grupp: svar.grupp, namn: typeof svar.namn === "string" ? svar.namn : "", sessionsnyckel: /** @type {string} */ (sessionsnyckel), uppdatera: async () => void (await hamta(/** @type {string} */ (sessionsnyckel), { tyst: true })) })
               ) : (
                 <div data-gast-grupp-ejstodd=""><OpsEmpty title={t.gruppEjStodd} /></div>
+              )
+            ) : svar && svar.funktion === "delta" ? (
+              onSvara && svar.delta?.handelse ? (
+                <GastDelta delta={svar.delta} onSvara={svaraDelta} t={{ ...t, ...rubrikOrd }} sprak={aktivt} />
+              ) : (
+                <div data-gast-delta-ejstodd=""><OpsEmpty title={t.gruppEjStodd} /></div>
               )
             ) : svar && renderSak && svar.sak ? (
               renderSak({ sak: svar.sak, funktion: String(svar.funktion ?? ""), sessionsnyckel: /** @type {string} */ (sessionsnyckel), uppdatera: async () => void (await hamta(/** @type {string} */ (sessionsnyckel), { tyst: true })) })
