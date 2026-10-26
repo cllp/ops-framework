@@ -3170,6 +3170,48 @@ CP 2026-10-20 (lifehub.app#389): ett ärende kan få en gäst som ansvarig, på 
 
 **Gjordes inte i ramverket (appens, eller senare):** serverns delegering (`delaUtArende` och dess regler), spegeln till GitHub (en gäst kan inte vara assignee), mejl till gästen vid delegering, att en gäst skapar eller öppnar igen ett ärende (ingen av dem), att en gäst som blir medlem får sina delegeringar flyttade (`ersattAvMedlem` återkallar inbjudan; delegeringen pekar då på ett `gastId` utan levande inbjudan), att en gäst bifogar (uppladdning stryks för gäster), sms (46elks), trådsvar och bilagornas innehåll i gästens chatt, brevets text (appens, med en variant för omfånget `grupp`), omröstningens modell, ärendets form och samlingsnamnen (appens), och att växla en gäst till medlem (appens växling anropar `ersattAvMedlem`).
 
+### Händelse: svara och få en kalenderpost (`delta`, 0.146.0, cllp/ops-framework#445)
+
+CP 2026-10-25: "Hur är det att skapa en händelse med en extern. Måste de vara med i gruppen då? ... Vill inte att det skall kännas inlåst." Måttstocken i epiken: den som är extern ska kunna vara med **från sin egen mejl och sin egen kalender**, utan konto och utan vår app. En gäst för en sak (`{ slag: "sak", funktion: "delta", handelseId }`) får en länk i ett mejl, ser händelsens rubrik, tid och plats, svarar **Jag kommer**, **Kan inte** eller **Kanske**, och har kalenderposten (`.ics`) i mejlet. Inget annat: ingen grupp, ingen beskrivning, inga andra gäster, och ingen annan händelse. Det här är ramverkets del; appens del (raden "Bjud in med e-post" i deltagarlistan, brevet och när det skickas) står i PR-texten. Beslut och skäl: `docs/beslut/0014-gaster-delta.md`.
+
+```js
+import { createGastService, byggIcs, nastaSekvens, ICS_MIME } from "ops-framework/node";
+
+const gaster = createGastService({
+  /* ... som ovan ... */
+  farBjuda: ({ uid, groupId, medlemskap, handelse, funktion }) => /* funktion är "rosta" eller "delta": omröstningens regel ("bara medan datumet inte är valt") är fel för delta */,
+  delta: { handelseSida: (h) => ({ titel: h.rubrik, plats: h.plats }) },   // slår på delta; KRÄVER radering. Tiden är ramverkets (HANDELSEKONTRAKT), titeln och platsen appens
+});
+
+await gaster.bjud({ uid, handelseId, funktion: "delta", epost, namn });    // som förut, men omfånget är sak:delta:<händelse>. Händelsen MÅSTE ha ett datum
+// skicka() får typ "inbjudan" | "igen" | "ny-lank" | "andrad-tid". För en delta-länk bär lankar[i] också { sekvens, handelse }:
+const ics = byggIcs({ handelse: lank.handelse, sekvens: lank.sekvens, domän: "my.life-hub.app", tidszon: "Europe/Stockholm", stampel: Date.now() });   // bifoga som ICS_MIME
+// Utan inloggning, bakom POST /api/gast (åtgärden heter deltaSvara, GASTDELTAATGARDER):
+await gaster.hamta({ sessionsnyckel });                                    // { ok, namn, funktion: "delta", delta: { handelse: { titel, plats, datum, slutDatum, tid, slutTid, heldag }, mitt } }
+await gaster.deltaSvara({ sessionsnyckel, val: "kommer" });                // { ok: true, mitt } | { ok: false, orsak }. val ur GASTDELTASVAR: kommer, kommerInte, kanske
+// Från appens serverkod när en händelses tid eller plats ändrats (ingen uid, aldrig en klient):
+await gaster.tidAndrad({ handelseId });                                    // { skickade, aktiva, saknas }. Brev (typ "andrad-tid") bara till dem vars senaste brev sade något annat
+await gaster.lista({ uid, handelseId, funktion: "delta" });                // { gaster, platser }. Varje rad bär deltasvar (kommer, kommerInte, kanske eller null; GASTDELTALISTFALT, en omröstnings- och en gruppinbjudan har exakt sina gamla fält)
+```
+
+⛔ **Ett omfång ger EN funktion.** `gastOmfangGer` (som `session` prövar) ger en `delta`-gäst `delta` och inget annat: varje gruppåtgärd är ett nej, appens `rosta`-väg är ett nej, och en `rosta`- eller gruppsession är ett nej för `deltaSvara`. `hamta` bygger aldrig appens `sak.bygg` åt en `delta`-gäst (det är omröstningens kort, med förslag och röster). Svaret byggs fält för fält ur `GASTDELTAHANDELSEFALT`; anropet bär bara sessionsnyckeln och svaret, så en gäst kan inte rikta ett svar mot en annan inbjudan.
+
+⛔ **Svaret är ett fält på inbjudan** (`deltasvar`, `GASTDELTARADFALT`), skrivet med villkoret `aterkallad: null`: en återkallelse och ett svar kan inte korsa varandra. Ingen ny samling och inga nya regler (regel 13): `gastregelfragment` nekar redan varje klientskrivning, och raderingen av gästen tar svaret med sig. Svaret ligger inte bland medlemmarnas svarsrader.
+
+⛔ **Tre svar för gästen, två för medlemmen.** `GASTDELTASVAR` är `SVARSVAL` (kommer, kommerInte) och `kanske`; medlemmens svar förblir två. `kanske` räknas inte i någon sammanställning (`sammanstallSvar`), och den som listar gästerna ser ordet vid gästens rad (`OpsGastLista`, märket `data-gast-svar`).
+
+⛔ **SEQUENCE stiger när tid eller plats ändrats, och bara då.** `andringsnyckel(h)` är en hash av dag, slutdag, klockslag, sluttid, heldag och plats (inte rubriken); `nastaSekvens(forra, nyckel)` ger nästa SEQUENCE (0 första gången). Inbjudan sparar `{ sekvens, andringsnyckel }` (`GASTDELTARADFALT`) och jämför vid varje utskick (Bjud in igen, Skicka igen, en ny länk, `tidAndrad`), så kalenderprogrammet ersätter posten i stället för att lägga en till bredvid. `tidAndrad` sparar först när brevet gått iväg: ett brev som inte gick är ett fel med kod (`brev-misslyckades`, med `skickade` och `misslyckade`) och ändringen glöms inte.
+
+⛔ **En ändrad tid eller plats nollställer gästens svar** (CP 2026-09-24 i SS, bekräftat för delta): `deltasvar` sätts till `null` i samma skrivning som höjer SEQUENCE, vid varje utskick som höjer den (`tidAndrad`, Skicka igen, Bjud in igen, en ny länk). "Jag kommer" till 18:00 är inget svar på 19:00. Gästen ser "Du har inte svarat än" med knapparna på sidan, och listan säger `deltasvar: null`. En ändrad rubrik rör varken SEQUENCE eller svaret. Brevet (typ `andrad-tid`) är appens: det ska säga att tiden ändrats och be om ett nytt svar.
+
+⛔ **`byggIcs` är en ren funktion** (`ops-framework/node`): den skickar ingenting, läser ingen databas och ingen klocka (`stampel` är en indata). UID är `<händelse>@<domän>`; tiderna skrivs som UTC efter appens `tidszon` (ett IANA-namn; en tid utan zon hamnar på samma klockslag hos mottagaren, vilken zon hen än sitter i); en heldag skrivs som datum där slutdagen är dagen EFTER sista dagen. Rubrik och plats escape-tecknas och långa rader viks vid 75 oktetter. `PRODID` är `ICS_PRODID` om appen inte ger egen (`prodid`). Posten bär rubrik, tid och plats och ingen beskrivning, på samma sätt som sidan. Den kastar för det som inte går att skriva (en händelse utan datum, en zon som inte finns, ett slut före början) i stället för att tysta det.
+
+⛔ **Sidan.** `OpsGastSida` får `onSvara({ sessionsnyckel, val })` (appens anrop med åtgärden `deltaSvara`) och ritar själv rubrik, dag, klockslag och plats (samma rubrik som den delade händelsesidan, `DeladRubrik`), frågan "Kommer du?", tre knappar som väntar synligt (`busyLabel`) och en rad som säger vad som svarats (eller att gästen inte svarat än). Nekas svaret av ett skäl som gäller inbjudan (`aterkallad`, `saknas`, `nej`) hämtas sidan om och byts mot beskedet. Utan `onSvara` visas inbjudan inte (`gruppEjStodd`). Adressfrågan före inloggningen är nu neutral ("Du är inbjuden"): sidan vet inte vad inbjudan gäller förrän gästen loggat in.
+
+⛔ **En gruppgästs svarssammanställning räknar bara gruppens gäster** (samma mängd som `levandeGaster`). Före 0.146.0 räknades också en gäst för en sak som "har inte svarat" på varje händelse, vilket hon aldrig kunde ändra.
+
+**Gjordes inte i ramverket (appens, eller senare):** raden "Bjud in med e-post" i deltagarlistan, brevets text och bilagan, att anropa `tidAndrad` när en händelse ändras, att visa gästens svar i `OpsSvar`, `METHOD:REQUEST` med ORGANIZER och ATTENDEE (så att mejlklienten visar Ja och Nej och svaret kommer som mejl), ett brev när en händelse tas bort eller en inbjudan dras tillbaka (`STATUS:CANCELLED`), och att dölja gästernas adresser för vanliga medlemmar (läsregeln släpper fortfarande in alla aktiva medlemmar, CP 2026-10-20).
+
 ## Minnet (0.86.0, lifehub.app#66)
 
 Gruppens slutsatser. En person lyfter en rad ur ett meddelande i en tråd. Agenten skriver aldrig. Samlingsnamnet skickar appen in.

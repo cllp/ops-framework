@@ -27,6 +27,9 @@ import { fileURLToPath } from "node:url";
 const rot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const ID = "a".repeat(64);
 const ID_GRANNEN = "b".repeat(64);
+// (0.146.0) Delta: en gäst som svarar på en händelse. Raderna ligger i en egen grupp, Festen, så att provet för omröstningens rader ovan är orört.
+const ID_DELTA = "d".repeat(64);
+const ID_DELTA_ATERKALLAD = "e".repeat(64);
 
 /** @type {import("@firebase/rules-unit-testing").RulesTestEnvironment} */
 let miljo;
@@ -48,6 +51,16 @@ const rad = (groupId, epost) => ({
   aterkallad: null,
   felAntal: 0,
   felFonster: 0,
+});
+
+/** En delta-inbjudan: en omröstningsrad plus svaret, SEQUENCE och vad brevet sade om tid och plats. */
+const deltarad = (groupId, epost, extra = {}) => ({
+  ...rad(groupId, epost),
+  omfang: { slag: "sak", funktion: "delta", handelseId: "h-fest" },
+  deltasvar: "kanske",
+  sekvens: 1,
+  andringsnyckel: "0123456789abcdef",
+  ...extra,
 });
 
 before(async () => {
@@ -80,6 +93,10 @@ before(async () => {
     await setDoc(doc(db, "memberships/uid-granne|grannen"), { userId: "uid-granne", groupId: "grannen", roll: "agare", typ: "person", status: "aktiv" });
     await setDoc(doc(db, `gastinbjudningar/${ID}`), rad("kallan", "anna@foretag.se"));
     await setDoc(doc(db, `gastinbjudningar/${ID_GRANNEN}`), rad("grannen", "bo@foretag.se"));
+    await setDoc(doc(db, "memberships/uid-fest-agare|festen"), { userId: "uid-fest-agare", groupId: "festen", roll: "agare", typ: "person", status: "aktiv" });
+    await setDoc(doc(db, "memberships/uid-fest-medlem|festen"), { userId: "uid-fest-medlem", groupId: "festen", roll: "medlem", typ: "person", status: "aktiv" });
+    await setDoc(doc(db, `gastinbjudningar/${ID_DELTA}`), deltarad("festen", "cia@foretag.se"));
+    await setDoc(doc(db, `gastinbjudningar/${ID_DELTA_ATERKALLAD}`), deltarad("festen", "dan@foretag.se", { aterkallad: 1_800_000_100_000, deltasvar: null }));
     await setDoc(doc(db, "gastsessioner/s1"), { inbjudningId: ID, skapad: 1, senast: 1 });
     await setDoc(doc(db, "gastplatser/kallan|1"), { gastId: "g_x", skapad: 1 });
     await setDoc(doc(db, "gastraknare/r1"), { antal: 1, fonster: 1 });
@@ -159,4 +176,60 @@ describe("sessionerna, platserna och räknarna: ingen match, catch-allen nekar",
       await assertFails(getDoc(doc(utan(), `${samling}/${id}`)));
     });
   }
+});
+
+describe("delta (0.146.0): en gäst som svarar på en händelse, och vad en klient får göra med raden", () => {
+  it("en aktiv medlem i gruppen läser en delta-inbjudan med gästens svar, och en fråga som begränsar groupId ger båda raderna (golv: två)", async () => {
+    const snap = await assertSucceeds(getDoc(doc(som("uid-fest-medlem"), `gastinbjudningar/${ID_DELTA}`)));
+    assert.equal(snap.data().omfang.funktion, "delta");
+    assert.equal(snap.data().deltasvar, "kanske");
+    const lista = await assertSucceeds(getDocs(query(collection(som("uid-fest-agare"), "gastinbjudningar"), where("groupId", "==", "festen"))));
+    assert.equal(lista.size, 2);
+    assert.deepEqual(lista.docs.map((d) => d.id).sort(), [ID_DELTA, ID_DELTA_ATERKALLAD].sort());
+  });
+
+  it("⛔ en medlem i en annan grupp, en avslutad medlem, en agent och ingen alls läser den inte", async () => {
+    for (const uid of ["uid-medlem", "uid-agare", "uid-slutad", "uid-agent", "uid-okand"]) {
+      await assertFails(getDoc(doc(som(uid), `gastinbjudningar/${ID_DELTA}`)));
+      await assertFails(getDocs(query(collection(som(uid), "gastinbjudningar"), where("groupId", "==", "festen"))));
+    }
+    await assertFails(getDoc(doc(utan(), `gastinbjudningar/${ID_DELTA}`)));
+  });
+
+  it("⛔ ingen klient skriver svaret: inte gästen (utan inloggning), inte en medlem och inte en ägare", async () => {
+    await assertFails(updateDoc(doc(utan(), `gastinbjudningar/${ID_DELTA}`), { deltasvar: "kommer" }));
+    for (const uid of ["uid-fest-medlem", "uid-fest-agare"]) {
+      await assertFails(updateDoc(doc(som(uid), `gastinbjudningar/${ID_DELTA}`), { deltasvar: "kommer" }));
+      await assertFails(updateDoc(doc(som(uid), `gastinbjudningar/${ID_DELTA}`), { deltasvar: null }));
+      await assertFails(updateDoc(doc(som(uid), `gastinbjudningar/${ID_DELTA}`), { sekvens: 9 }));
+    }
+    // Och raden är orörd: inga av nekandena ovan hann ändra något (golv: fälten finns, så "orörd" inte är grönt av en tom rad).
+    /** @type {Record<string, any> | undefined} */
+    let kvar;
+    await miljo.withSecurityRulesDisabled(async (ctx) => {
+      kvar = (await getDoc(doc(ctx.firestore(), `gastinbjudningar/${ID_DELTA}`))).data();
+    });
+    assert.ok(kvar, "raden finns kvar");
+    assert.equal(kvar.deltasvar, "kanske");
+    assert.equal(kvar.sekvens, 1);
+  });
+
+  it("⛔ ingen klient skriver RÄTTIGHETEN: inte att göra en omröstningsrad till delta, en delta till hela gruppen, eller en ny inbjudan åt sig själv", async () => {
+    for (const uid of ["uid-fest-medlem", "uid-fest-agare"]) {
+      await assertFails(updateDoc(doc(som(uid), `gastinbjudningar/${ID_DELTA}`), { omfang: { slag: "grupp" } }));
+      await assertFails(updateDoc(doc(som(uid), `gastinbjudningar/${ID_DELTA}`), { "omfang.funktion": "rosta" }));
+      await assertFails(updateDoc(doc(som(uid), `gastinbjudningar/${ID_DELTA}`), { "omfang.handelseId": "h-annan" }));
+      await assertFails(setDoc(doc(som(uid), `gastinbjudningar/${"f".repeat(64)}`), deltarad("festen", "egen@foretag.se", { deltasvar: null })));
+      await assertFails(setDoc(doc(som(uid), `gastinbjudningar/${"f".repeat(64)}`), { ...deltarad("festen", "egen@foretag.se"), omfang: { slag: "grupp" } }));
+    }
+  });
+
+  it("⛔ en återkallad inbjudan går inte att väcka från en klient, och ingen klient raderar en", async () => {
+    for (const uid of ["uid-fest-medlem", "uid-fest-agare"]) {
+      await assertFails(updateDoc(doc(som(uid), `gastinbjudningar/${ID_DELTA_ATERKALLAD}`), { aterkallad: null }));
+      await assertFails(updateDoc(doc(som(uid), `gastinbjudningar/${ID_DELTA_ATERKALLAD}`), { aterkallad: null, deltasvar: "kommer" }));
+      await assertFails(deleteDoc(doc(som(uid), `gastinbjudningar/${ID_DELTA}`)));
+      await assertFails(deleteDoc(doc(som(uid), `gastinbjudningar/${ID_DELTA_ATERKALLAD}`)));
+    }
+  });
 });

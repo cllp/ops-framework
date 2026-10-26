@@ -211,7 +211,7 @@ describe("OpsGastSida", () => {
 
   it("första öppningen med en länk frågar efter adressen, postar id, nyckel och adress, sparar sessionen och visar saken", async () => {
     const { onLos, onHamta, lagring } = rita();
-    expect(await screen.findByRole("heading", { name: "Du är inbjuden att rösta" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Du är inbjuden" })).toBeInTheDocument();
     expect(onLos).not.toHaveBeenCalled();
     skrivAdress("  Anna@Foretag.se ");
     fireEvent.click(screen.getByRole("button", { name: "Fortsätt" }));
@@ -228,7 +228,7 @@ describe("OpsGastSida", () => {
   it("⛔ fragmentet tas bort ur adressraden när inloggningen lyckats, så att nyckeln inte ligger kvar i historiken", async () => {
     window.history.replaceState(null, "", `/gast#i=${ID}&k=${NYCKEL}`);
     rita();
-    await screen.findByRole("heading", { name: "Du är inbjuden att rösta" });
+    await screen.findByRole("heading", { name: "Du är inbjuden" });
     skrivAdress("anna@foretag.se");
     fireEvent.click(screen.getByRole("button", { name: "Fortsätt" }));
     await screen.findByText("Rep");
@@ -269,7 +269,7 @@ describe("OpsGastSida", () => {
 
   it("⛔ ett nej är ett nej: fel adress, fel nyckel och okänd inbjudan visar samma text, och formuläret står kvar", async () => {
     const { onLos } = rita({ onLos: vi.fn(async () => ({ ok: false, orsak: "nej" })) });
-    await screen.findByRole("heading", { name: "Du är inbjuden att rösta" });
+    await screen.findByRole("heading", { name: "Du är inbjuden" });
     skrivAdress("fel@foretag.se");
     fireEvent.click(screen.getByRole("button", { name: "Fortsätt" }));
     expect(await screen.findByText(GASTFEL.nej)).toBeInTheDocument();
@@ -280,7 +280,7 @@ describe("OpsGastSida", () => {
 
   it("en adress som inte är en adress anropar inte servern: den räknar felaktiga försök", async () => {
     const { onLos } = rita();
-    await screen.findByRole("heading", { name: "Du är inbjuden att rösta" });
+    await screen.findByRole("heading", { name: "Du är inbjuden" });
     skrivAdress("inte en adress");
     fireEvent.click(screen.getByRole("button", { name: "Fortsätt" }));
     expect(await screen.findByText("Det där ser inte ut som en e-postadress.")).toBeInTheDocument();
@@ -290,7 +290,7 @@ describe("OpsGastSida", () => {
   it("for-manga och en länk som gått ut har egna texter, och den utgångna erbjuder en ny länk med den adress som stämde", async () => {
     const onNyLank = vi.fn(async () => ({ ok: true }));
     const { rerender, onLos } = rita({ onLos: vi.fn(async () => ({ ok: false, orsak: "for-manga" })), onNyLank });
-    await screen.findByRole("heading", { name: "Du är inbjuden att rösta" });
+    await screen.findByRole("heading", { name: "Du är inbjuden" });
     skrivAdress("anna@foretag.se");
     fireEvent.click(screen.getByRole("button", { name: "Fortsätt" }));
     expect(await screen.findByText(GASTFEL["for-manga"])).toBeInTheDocument();
@@ -370,7 +370,7 @@ describe("OpsGastSida", () => {
   it("ett minne som kastar (privat läge) stoppar inte sidan: sessionen gäller tills sidan lämnas", async () => {
     const kastar = { getItem: () => { throw new Error("blockerad"); }, setItem: () => { throw new Error("blockerad"); }, removeItem: () => { throw new Error("blockerad"); } };
     const { onHamta } = rita({ lagring: kastar });
-    await screen.findByRole("heading", { name: "Du är inbjuden att rösta" });
+    await screen.findByRole("heading", { name: "Du är inbjuden" });
     skrivAdress("anna@foretag.se");
     fireEvent.click(screen.getByRole("button", { name: "Fortsätt" }));
     expect(await screen.findByText("Rep")).toBeInTheDocument();

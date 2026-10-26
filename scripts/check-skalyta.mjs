@@ -7746,7 +7746,7 @@ async function gastVyer() {
           return { h1: document.querySelectorAll("h1").length, faltBotten: fr.bottom, faltHojd: fr.height, knappBotten: kr ? kr.bottom : null, knappHojd: kr ? kr.height : null, innerH: innerHeight, overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth, rubrik: (document.querySelector("h1")?.textContent || "").trim() };
         });
         matt.push(`${namn} gästsida adress: rubrik ${JSON.stringify(m.rubrik)}, fält ${m.faltHojd.toFixed(0)} px (botten ${m.faltBotten.toFixed(0)}), Fortsätt ${m.knappHojd === null ? "saknas" : m.knappHojd.toFixed(0) + " px"} (botten ${m.knappBotten === null ? "?" : m.knappBotten.toFixed(0)}), fönster ${m.innerH}`);
-        krav(m.rubrik === "Du är inbjuden att rösta", `${namn} gästsida (golv): rubriken är ${JSON.stringify(m.rubrik)}.`);
+        krav(m.rubrik === "Du är inbjuden", `${namn} gästsida (golv): rubriken är ${JSON.stringify(m.rubrik)}.`);
         krav(!m.overflow, `${namn} gästsida adress (a): sidan flödar över i sidled.`);
         krav(m.h1 === 1, `${namn} gästsida adress (d): ${m.h1} h1, väntat exakt 1.`);
         krav(m.knappBotten !== null && m.knappBotten <= m.innerH && m.faltBotten <= m.innerH, `${namn} gästsida adress (d): fältet (botten ${m.faltBotten.toFixed(0)}) och Fortsätt (botten ${m.knappBotten}) ska synas utan rullning i ett fönster ${m.innerH} px högt.`);
@@ -7756,7 +7756,7 @@ async function gastVyer() {
         // (g) språkvalet.
         await page.getByRole("button", { name: "EN", exact: true }).click();
         const en = await page.evaluate(() => ({ h1: (document.querySelector("h1")?.textContent || "").trim(), knapp: [...document.querySelectorAll("[data-gast-form] button")].map((b) => (b.textContent || "").trim()).join("|") }));
-        krav(en.h1 === "You are invited to vote" && /Continue/.test(en.knapp), `${namn} gästsida (g): efter EN är rubriken ${JSON.stringify(en.h1)} och knapparna ${JSON.stringify(en.knapp)}, väntat "You are invited to vote" och "Continue".`);
+        krav(en.h1 === "You are invited" && /Continue/.test(en.knapp), `${namn} gästsida (g): efter EN är rubriken ${JSON.stringify(en.h1)} och knapparna ${JSON.stringify(en.knapp)}, väntat "You are invited" och "Continue".`);
         if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `gaster-sida-adress-en-${w}.png`), fullPage: true });
         await page.getByRole("button", { name: "SV", exact: true }).click();
 
