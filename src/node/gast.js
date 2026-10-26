@@ -755,12 +755,17 @@ export function createGastService(konfig) {
 
   /**
    * Sparar en planerad SEQUENCE. Villkoret är det som lästes: har en annan hunnit före (ett samtidigt utskick) skrivs ingenting över, och anroparen får `false`.
+   *
+   * ⛔ EN ÄNDRING NOLLSTÄLLER SVARET, I SAMMA SKRIVNING SOM HÖJER SEQUENCE (CP 2026-09-24 i SS, och samordnarens granskning av skiva 1): "Jag kommer" till 18:00 är inget svar på 19:00. Gästen ser då
+   * "Du har inte svarat än" med knapparna på sidan, och medlemmens lista säger Har inte svarat. Gäller varje utskick som höjer SEQUENCE (`tidAndrad`, Skicka igen, Bjud in igen, en ny länk), eftersom brevet
+   * då bär en ny post. En oförändrad händelse rör inte svaret.
+   *
    * @param {Record<string, any>} rad
-   * @param {{ sekvens: number, andringsnyckel: string }} nasta
+   * @param {{ sekvens: number, andringsnyckel: string, andrad?: boolean }} nasta
    */
   async function sparaSekvens(rad, nasta) {
     if (rad.sekvens === nasta.sekvens && rad.andringsnyckel === nasta.andringsnyckel) return true;
-    const { updated } = await uppdateraOm(INB, rad.id, { sekvens: rad.sekvens, andringsnyckel: rad.andringsnyckel }, { sekvens: nasta.sekvens, andringsnyckel: nasta.andringsnyckel });
+    const { updated } = await uppdateraOm(INB, rad.id, { sekvens: rad.sekvens, andringsnyckel: rad.andringsnyckel }, { sekvens: nasta.sekvens, andringsnyckel: nasta.andringsnyckel, ...(nasta.andrad ? { deltasvar: null } : {}) });
     return updated;
   }
 
@@ -1645,7 +1650,7 @@ export function createGastService(konfig) {
    *
    * ⛔ ANROPAS BARA AV APPENS SERVERKOD EFTER EN ÄNDRING, aldrig av en klient: ingen uid prövas, som `ersattAvMedlem`. Mottagarna är de som redan bjudits in av någon som fick det.
    *
-   * ⛔ ETT BREV SOM INTE GICK ÄR ETT FEL MED KOD, OCH ÄNDRINGEN GLÖMS INTE. SEQUENCE sparas först när brevet gått iväg, så ett misslyckat utskick finns kvar som en ändring att skicka nästa gång `tidAndrad` körs.
+   * ⛔ ETT BREV SOM INTE GICK ÄR ETT FEL MED KOD, OCH ÄNDRINGEN GLÖMS INTE. SEQUENCE sparas först när brevet gått iväg, så ett misslyckat utskick finns kvar som en ändring att skicka nästa gång `tidAndrad` körs. Gästens svar nollställs i samma sparning (se `sparaSekvens`), så ett brev som inte gick lämnar svaret orört.
    * De brev som gick är sparade och skickas inte igen. Felet bär `skickade` och `misslyckade`.
    *
    * @param {Record<string, any>} b `{ handelseId }`.

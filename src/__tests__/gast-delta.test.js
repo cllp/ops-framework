@@ -746,6 +746,79 @@ describe("tidAndrad: ett nytt brev till den som har ett gammalt, en gång", () =
   });
 });
 
+describe("⛔ ett svar på en annan tid är inget svar: ändrad tid eller plats nollställer svaret", () => {
+  const svaret = async (h, id) => (await rad(h, id)).deltasvar;
+
+  it("tidAndrad sätter deltasvar till null i samma skrivning som höjer SEQUENCE, och hamta och listan säger att gästen inte svarat", async () => {
+    const h = bygg();
+    const g = await deltaGast(h);
+    await h.tjanst.deltaSvara({ sessionsnyckel: g.sessionsnyckel, val: "kommer" });
+    expect(await svaret(h, g.id)).toBe("kommer");
+    await h.grund.update("handelser", "h-mote", { tid: "19:00", slutTid: "21:00" });
+    expect(await h.tjanst.tidAndrad({ handelseId: "h-mote" })).toMatchObject({ skickade: 1 });
+    const r = await rad(h, g.id);
+    expect(r).toMatchObject({ deltasvar: null, sekvens: 1 });
+    expect((await h.tjanst.hamta({ sessionsnyckel: g.sessionsnyckel })).delta).toMatchObject({ mitt: null, handelse: { tid: "19:00" } });
+    expect((await h.tjanst.lista({ uid: SKAPARE, handelseId: "h-mote", funktion: "delta" })).gaster[0].deltasvar).toBeNull();
+    // Gästen kan svara på den nya tiden, och ett svar efteråt står kvar: nästa tidAndrad utan ny ändring rör det inte.
+    await h.tjanst.deltaSvara({ sessionsnyckel: g.sessionsnyckel, val: "kanske" });
+    expect(await h.tjanst.tidAndrad({ handelseId: "h-mote" })).toMatchObject({ skickade: 0 });
+    expect(await svaret(h, g.id)).toBe("kanske");
+  });
+
+  it("en ändrad plats nollställer också, och en ändrad rubrik gör det inte (svaret står kvar och inget brev skickas)", async () => {
+    const h = bygg();
+    const g = await deltaGast(h);
+    await h.tjanst.deltaSvara({ sessionsnyckel: g.sessionsnyckel, val: "kommerInte" });
+    await h.grund.update("handelser", "h-mote", { rubrik: "Årsmöte" });
+    expect(await h.tjanst.tidAndrad({ handelseId: "h-mote" })).toMatchObject({ skickade: 0 });
+    expect(await svaret(h, g.id)).toBe("kommerInte");
+    await h.grund.update("handelser", "h-mote", { plats: "Hamnen" });
+    expect(await h.tjanst.tidAndrad({ handelseId: "h-mote" })).toMatchObject({ skickade: 1 });
+    expect(await svaret(h, g.id)).toBeNull();
+  });
+
+  it("⛔ bara de vars brev gick nollställs: ett brev som inte gick lämnar svaret och SEQUENCE orörda, och nästa körning nollställer", async () => {
+    const h = bygg();
+    const anna = await deltaGast(h, { epost: ANNA });
+    const bo = await deltaGast(h, { epost: BO });
+    for (const g of [anna, bo]) await h.tjanst.deltaSvara({ sessionsnyckel: g.sessionsnyckel, val: "kommer" });
+    await h.grund.update("handelser", "h-mote", { tid: "17:00" });
+    h.skickaFel.fel = (b) => b.till === BO;
+    await expect(h.tjanst.tidAndrad({ handelseId: "h-mote" })).rejects.toMatchObject({ kod: "brev-misslyckades" });
+    expect([await svaret(h, anna.id), await svaret(h, bo.id)]).toEqual([null, "kommer"]);
+    expect((await rad(h, bo.id)).sekvens).toBe(0);
+    h.skickaFel.fel = null;
+    await h.tjanst.tidAndrad({ handelseId: "h-mote" });
+    expect(await svaret(h, bo.id)).toBeNull();
+  });
+
+  it("samma regel när en människa skickar om: Skicka igen och Bjud in igen efter en ändrad tid nollställer, utan ändring rörs svaret inte", async () => {
+    const h = bygg();
+    const g = await deltaGast(h);
+    await h.tjanst.deltaSvara({ sessionsnyckel: g.sessionsnyckel, val: "kommer" });
+    await h.tjanst.skickaOm({ uid: SKAPARE, id: g.id });
+    expect(await svaret(h, g.id)).toBe("kommer");
+    await h.grund.update("handelser", "h-mote", { datum: "2026-12-09" });
+    await h.tjanst.skickaOm({ uid: SKAPARE, id: g.id });
+    expect(await svaret(h, g.id)).toBeNull();
+    await h.tjanst.deltaSvara({ sessionsnyckel: g.sessionsnyckel, val: "kommer" });
+    await h.tjanst.aterkalla({ uid: SKAPARE, id: g.id });
+    await h.grund.update("handelser", "h-mote", { tid: "10:00" });
+    await h.tjanst.bjud({ uid: SKAPARE, handelseId: "h-mote", funktion: "delta", epost: ANNA });
+    expect(await svaret(h, g.id)).toBeNull();
+  });
+
+  it("en omröstningsgäst och en gruppgäst berörs inte: deras rader har inget deltasvar att nollställa", async () => {
+    const h = bygg();
+    const r = await rostaGast(h);
+    await deltaGast(h);
+    await h.grund.update("handelser", "h-mote", { tid: "16:00" });
+    await h.tjanst.tidAndrad({ handelseId: "h-mote" });
+    expect((await rad(h, r.id)).deltasvar).toBeUndefined();
+  });
+});
+
 describe("lista: delta och rosta på samma händelse hålls isär", () => {
   it("lista utan funktion är som förut (bara omröstningens gäster, utan delta-fält), och med funktion delta bara delta-gästerna med sitt svar", async () => {
     const h = bygg();
