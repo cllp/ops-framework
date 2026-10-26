@@ -259,7 +259,7 @@ som skulle avgöra saken. Kan ingen mäta just nu: skriv mätuppdraget som eget
 Varje vakt och varje prov ska bevisas i **båda** riktningarna: grönt med sin fix,
 rött utan den. Skriv ut båda utfallen när du levererar.
 
-Tre former av falsk grönhet vi har haft, alla tre lätta att missa:
+Fyra former av falsk grönhet vi har haft, alla fyra lätta att missa:
 
 - **Närvarogrep.** Ett prov som söker efter ett funktionsnamn i källan mäter inte
   beteende. Det stod grönt genom hela felet det skulle fånga.
@@ -267,6 +267,14 @@ Tre former av falsk grönhet vi har haft, alla tre lätta att missa:
   kan inte faila. Den är grön för att den inte mäter.
 - **Tomt underlag.** Ett prov som blir grönt av att ingenting lästes. Ge varje
   vakt ett **golv**: minst N filer lästa, minst N poster i listan.
+- **Tystnad.** En vakt som räknar felrader är grön genom ett fel som tystnar.
+  SessionStudios deployvakt sa "ingen funktion rapporterades misslyckad" när en
+  körning slagit i jobbets tidsgräns i sista batchen: elva funktioner hade
+  börjat uppdateras, ingen bekräftades och ingen felrad skrevs
+  (cllp/sessions-platform#3437, rad D2 i cllp/ops-framework#104). Mät att något
+  **slutfördes**: räkna både påbörjat och bekräftat och rapportera skillnaden.
+  Samma när formatet vakten läser slutar matcha: säg att det inte känns igen,
+  gå inte grön.
 
 Vaktar du en skuld: sätt ett **tak som bara får sjunka**, inte noll. Noll gör
 befintliga fall röda utan att någon lagar dem, och då stängs vakten av.

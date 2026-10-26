@@ -4,7 +4,7 @@
  *
  * ══ ⛔ VARFÖR VAKTEN KÖR tsc OCH INTE SÖKER I TEXTEN (#139) ════════════
  *
- * Arbetsreglernas punkt 4 räknar upp tre former av falsk grönhet, och den
+ * Arbetsreglernas punkt 4 räknar upp fyra former av falsk grönhet, och den
  * första är närvarogreppet: ett prov som letar efter ett namn i källan mäter
  * inte beteende. En vakt som läste `@property {string} groupId` hade varit
  * exakt det, och den hade stått grön genom hela felet den skulle fånga,
