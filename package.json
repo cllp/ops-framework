@@ -1,6 +1,6 @@
 {
   "name": "ops-framework",
-  "version": "0.149.0",
+  "version": "0.150.0",
   "type": "module",
   "description": "Tokens, primitiver, arbetsregler och vakter. Delas av alla ops-plattformar.",
   "license": "UNLICENSED",
