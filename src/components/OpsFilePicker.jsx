@@ -74,7 +74,7 @@ import { useOpsSprak } from "./OpsSprak.jsx";
  *   hur den än kom in (vald, indragen eller inklistrad). Saknas listan tas alla typer, som förut.
  * @property {boolean} [paste] Ta emot inklistrade filer. Av när två väljare delar yta.
  * @property {string} [ariaLabel] Vad som ska bifogas, för den som inte ser knappen.
- * @property {{ select?: string, byt?: string, remove?: string, klistra?: string }} [labels] Med `flera` är förvalen "Välj filer", "Lägg till fler", "Ta bort" (och filens namn efter, för skärmläsaren) och en rad om att dra hit eller klistra in.
+ * @property {{ select?: string, byt?: string, laggTill?: string, remove?: string, klistra?: string }} [labels] Utan `flera`: `select` ("Välj fil"), `byt` ("Byt fil"), `remove` och `klistra`. Med `flera`: `select` ("Välj filer"), `laggTill` ("Lägg till fler"), `remove` ("Ta bort", och filens namn efter för skärmläsaren) och `klistra` (en rad om att dra hit eller klistra in). ⛔ `byt` används inte med `flera`: det finns inget att byta, och att ge den betydelsen "lägg till" hade lurat en app som satt den för enfilsläget.
  * @property {HTMLElement | null} [knappPlats] (0.132.0) Gemknappen i stället för "Välj fil": en rund knapp med gemmen (`GemIkon`) och `ariaLabel` som namn, ritad i den plats ett fält gett (`bifogaPlats` på
  *   `OpsTextarea`), bredvid mikrofonen, som chattens skrivfält. Förhandsvisningen, Ta bort, felet och inklistringen är desamma som förut och ritas där väljaren står, under fältet. `null` är platsen som
  *   inte monterats än (ingen knapp ritas); utelämnad är väljaren som förut, med sin egen knapp "Välj fil". ⛔ Ett val av en fil är fortfarande bara ett val: filen skickas först när appen skickar.
@@ -315,25 +315,22 @@ function FleraFiler({ value, onChange, maxChars, accept, typer, paste = true, ar
   }
   const lista = value ?? TOM;
 
-  // ⛔ SENASTE LISTAN OCH SENASTE onChange LIGGER I REFS. Inläsningen är asynkron och inklistringens lyssnare sitter på dokumentet och läser
-  // sin omgivning en gång: utan refs lägger ett andra tillägg till på en lista som är äldre än det första, och det första tappas tyst.
-  // Efter ett tillägg gäller den nya listan direkt, innan appen hunnit rita om. Ritar appen om med något annat är det appens lista som gäller.
-  const senast = useRef(lista);
+  // ⛔ INGEN EGEN KOPIA AV LISTAN. Varje tillägg och varje borttagning utgår från det appen senast gav i `value`. Förut hade väljaren en egen
+  // "senaste lista" som sattes direkt vid ett tillägg: vägrade appen tillägget (behöll samma `value`) låg de vägrade filerna kvar där och
+  // kom med i nästa `onChange`. `nu` är en ref bara för att den asynkrona inläsningen ska läsa värdet när den är KLAR och inte det som gällde när
+  // den startade; den sätts om vid varje ritning. Samma sak med `onChange`, som inklistringens lyssnare annars skulle hålla en gammal av.
+  const nu = useRef(lista);
+  nu.current = lista;
   const paChange = useRef(onChange);
   paChange.current = onChange;
-  useEffect(() => {
-    senast.current = lista;
-  }, [lista]);
-  // Hur många inläsningar som pågår, för "Läser". Två val i följd kan överlappa.
+  // ⛔ INLÄSNINGARNA GÅR I KÖ, en omgång i taget. Två omgångar i följd (två inklistringar) bygger på varandra bara om den andra läser appens lista
+  // EFTER att appen visat den första: därför väntar nästa omgång tills den förra är klar och appen fått rita om.
+  const kedja = useRef(/** @type {Promise<void>} */ (Promise.resolve()));
+  // Hur många inläsningar som pågår, för "Läser".
   const pagar = useRef(0);
 
   /** @param {File[]} filer */
-  const taFiler = async (filer) => {
-    if (filer.length === 0) return;
-    // Ett nytt val tar bort de gamla beskedena; beskeden från det som läses nu läggs till när det är klart.
-    setFel([]);
-    pagar.current += 1;
-    setLaser(true);
+  const lasOmgang = async (filer) => {
     /** @type {import("../lib/file.js").Bilaga[]} */
     const nya = [];
     /** @type {string[]} */
@@ -349,9 +346,9 @@ function FleraFiler({ value, onChange, maxChars, accept, typer, paste = true, ar
       }
       // ⛔ INGEN LYCKAD FIL BETYDER INGEN ÄNDRING. Ett onChange med den gamla listan hade fått appen att spara om något som inte ändrats.
       if (nya.length > 0) {
-        const ny = [...senast.current, ...nya];
-        senast.current = ny;
-        paChange.current(ny);
+        paChange.current([...nu.current, ...nya]);
+        // Ett andetag, så att appens omritning med den nya listan hinner före nästa omgång.
+        await new Promise((klar) => setTimeout(klar, 0));
       }
       if (nej.length > 0) setFel((f) => [...f, ...nej]);
     } finally {
@@ -360,18 +357,31 @@ function FleraFiler({ value, onChange, maxChars, accept, typer, paste = true, ar
     }
   };
 
+  /** @param {File[]} filer */
+  const taFiler = (filer) => {
+    if (filer.length === 0) return;
+    // Ett nytt val tar bort de gamla beskedena; beskeden från det som läses nu läggs till när det är klart.
+    setFel([]);
+    pagar.current += 1;
+    setLaser(true);
+    kedja.current = kedja.current.then(() => lasOmgang(filer));
+  };
+  const taRef = useRef(taFiler);
+  taRef.current = taFiler;
+
   /**
-   * ⛔ BORT PÅ IDENTITET OCH INTE PÅ PLATS. Den som trycker ser listan appen ritat om, och senaste listan kan innehålla fler (ett tillägg som appen
-   * ännu inte hunnit visa). Ett index hade tagit bort fel rad ur den längre listan.
+   * ⛔ BORT PÅ IDENTITET OCH INTE PÅ PLATS, ur den lista appen gav. Den som trycker ser listan appen ritat, och ett index hade tagit bort fel rad
+   * om listan hunnit ändras.
    *
    * @param {import("../lib/file.js").Bilaga} bilaga
    */
   const taBort = (bilaga) => {
-    const ny = senast.current.filter((b) => b !== bilaga);
-    senast.current = ny;
-    onChange(ny);
+    onChange(nu.current.filter((b) => b !== bilaga));
   };
 
+  // ⛔ LYSSNAREN ANROPAR ALLTID SENASTE taFiler genom en ref och registreras bara om när `paste` ändras. Förut höll den ett taFiler från den
+  // ritning som registrerade den, och beroendena (`paste`, `maxChars`, `typer`) saknade språket: efter ett språkbyte fick felets reservtext
+  // det gamla språket. Nu finns inget kvar att glömma i listan.
   useEffect(() => {
     if (!paste) return undefined;
     /** @param {ClipboardEvent} e */
@@ -380,12 +390,11 @@ function FleraFiler({ value, onChange, maxChars, accept, typer, paste = true, ar
       if (!filer.length) return;
       // ⛔ Först när vi VET att det finns en fil, av samma skäl som i EnFil: ett preventDefault på varje inklistring dödar textinklistring.
       e.preventDefault();
-      taFiler(filer);
+      taRef.current(filer);
     };
     document.addEventListener("paste", vid);
     return () => document.removeEventListener("paste", vid);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [paste, maxChars, typer]);
+  }, [paste]);
 
   /** @param {import("react").ChangeEvent<HTMLInputElement>} e */
   const valde = (e) => {
@@ -458,7 +467,7 @@ function FleraFiler({ value, onChange, maxChars, accept, typer, paste = true, ar
       />
       <div className="flex flex-wrap items-center gap-2">
         <OpsButton variant="secondary" onClick={() => filRef.current?.click()} busy={laser}>
-          {laser ? o.laser : tillagg ? (labels.byt ?? o.laggTillFler) : (labels.select ?? o.valjFiler)}
+          {laser ? o.laser : tillagg ? (labels.laggTill ?? o.laggTillFler) : (labels.select ?? o.valjFiler)}
         </OpsButton>
         {/* Som i EnFil gömd på telefon men inte avstängd: lyssnaren och släppet finns kvar på alla bredder. */}
         <span className="hidden items-center gap-1 text-etikett text-ink-muted sm:inline-flex">

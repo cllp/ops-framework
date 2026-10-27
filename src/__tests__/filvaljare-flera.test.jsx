@@ -259,6 +259,36 @@ describe("OpsFilePicker med flera", () => {
     await waitFor(() => expect(sista.lista.map((b) => b.namn).sort()).toEqual(["andra.pdf", "forsta.pdf"]));
   });
 
+  it("en app som vägrar ett tillägg: nästa tillägg och nästa borttagning utgår från det appen gav, inte från de vägrade filerna", async () => {
+    // ⛔ Väljaren har ingen egen kopia av listan. Appen behåller `value` oförändrad och väljaren ritar därför fortfarande bara `redan`.
+    const onChange = vi.fn();
+    const redan = { dataUrl: "data:application/pdf;base64,eA==", namn: "redan.pdf", typ: "application/pdf", tecken: 30 };
+    render(<OpsFilePicker flera value={[redan]} onChange={onChange} maxChars={100000} />);
+    const falt = screen.getByLabelText("Bifoga filer");
+
+    fireEvent.change(falt, { target: { files: [fil("1", "vagrad.pdf")] } });
+    await waitFor(() => expect(onChange).toHaveBeenCalledTimes(1));
+    expect(onChange.mock.calls[0][0].map((/** @type {any} */ b) => b.namn)).toEqual(["redan.pdf", "vagrad.pdf"]);
+
+    fireEvent.change(falt, { target: { files: [fil("2", "ny.pdf")] } });
+    await waitFor(() => expect(onChange).toHaveBeenCalledTimes(2));
+    expect(onChange.mock.calls[1][0].map((/** @type {any} */ b) => b.namn)).toEqual(["redan.pdf", "ny.pdf"]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Ta bort redan.pdf" }));
+    expect(onChange).toHaveBeenCalledTimes(3);
+    expect(onChange.mock.calls[2][0]).toEqual([]);
+  });
+
+  it("i flera-läget heter tilläggsknappen labels.laggTill, och labels.byt rör den inte", () => {
+    const redan = { dataUrl: "data:application/pdf;base64,eA==", namn: "redan.pdf", typ: "application/pdf", tecken: 30 };
+    const { rerender } = render(<OpsFilePicker flera value={[redan]} onChange={() => {}} maxChars={100000} labels={{ byt: "Byt kvitto" }} />);
+    expect(screen.getByRole("button", { name: "Lägg till fler" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Byt kvitto" })).toBeNull();
+
+    rerender(<OpsFilePicker flera value={[redan]} onChange={() => {}} maxChars={100000} labels={{ laggTill: "Fler kvitton" }} />);
+    expect(screen.getByRole("button", { name: "Fler kvitton" })).toBeInTheDocument();
+  });
+
   it("value måste vara en lista eller null, och en enstaka Bilaga vägras med besked", () => {
     const enBilaga = { dataUrl: "data:application/pdf;base64,x", namn: "a.pdf", typ: "application/pdf", tecken: 30 };
     const fel = vi.spyOn(console, "error").mockImplementation(() => {});
