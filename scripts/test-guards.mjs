@@ -2420,6 +2420,81 @@ const gruppmapp = fs.mkdtempSync(path.join(rot, ".ops-vaktprov-"));
     kravRott(`ingen-appdata: ${namn}`, [vakt, underlag(`ia-${i}`, { "docs/anteckning.md": `Rad ett\n${innehall}\n` })], forvantat);
   });
 
+  // ⛔ UPPGIFTER VARS KONTROLLSIFFRA ÄR KÄND UTIFRÅN (regel 4, tautologisk lista). Uppgifterna ovan får sin siffra av vaktens egen `luhn`, så en luhn med
+  // fel paritet hade räknat ut samma fel åt båda hållen och ändå varit grön här. De här är publicerade exempel: Skatteverkets och Wikipedias
+  // testpersonnummer (Luhn-summan 20), Skatteverkets exempel på samordningsnummer (summan 30), ett börsbolags organisationsnummer ur Bolagsverkets
+  // register (summan 30) och IBAN-exemplen ur registret. Siffrorna är räknade för hand. De skrivs inte ut här och byggs av delar nedan, så att den
+  // här filen inte själv larmar.
+  /** @param {...string} delar */
+  const d = (...delar) => delar.join("");
+  const kandPnr = d("1212", "12-12", "12");
+  const kandPnr12 = d("19", "1212", "12-12", "12");
+  const kandSamordning = d("7010", "63-23", "91");
+  const kandOrgnr = d("5560", "16-06", "80");
+  const kandSe = d("SE45", " 5000", " 0000", " 0583", " 9825", " 7466");
+  const kandNo = d("NO93", " 8601", " 1117", " 947");
+  const kandDe = d("DE89", "3704", "0044", "0532", "0130", "00");
+  const kandGb = d("GB82", " WEST", " 1234", " 5698", " 7654", " 32");
+
+  /** @type {Array<[string, string, string]>} */
+  const kanda = [
+    ["känt personnummer (tio siffror)", `Kontakt: ${kandPnr}`, "personnummer eller samordningsnummer"],
+    ["känt personnummer (tolv siffror)", `Kontakt: ${kandPnr12}`, "personnummer eller samordningsnummer"],
+    ["känt samordningsnummer", `Kontakt: ${kandSamordning}`, "personnummer eller samordningsnummer"],
+    ["känt organisationsnummer", `Bolag: ${kandOrgnr}`, "organisationsnummer"],
+    ["känt svenskt IBAN", `Konto: ${kandSe}`, "IBAN"],
+    ["känt norskt IBAN (15 tecken, det kortaste)", `Konto: ${kandNo}`, "IBAN"],
+    ["känt tyskt IBAN", `Konto: ${kandDe}`, "IBAN"],
+    ["känt brittiskt IBAN med bokstäver i kontot", `Konto: ${kandGb}`, "IBAN"],
+    // ⛔ ORD ELLER SIFFROR EFTER PÅ SAMMA RAD. Mönstret var girigt och svalde ordet efter kontot, och en IBAN som såg ut att vara för lång föll på
+    // kontrollsumman utan att den kortare, riktiga, någonsin prövades.
+    ["IBAN följt av valuta", `Konto: ${kandSe} SEK`, "IBAN"],
+    ["IBAN följt av BIC", `Konto: ${kandSe} BIC ESSESESS`, "IBAN"],
+    ["IBAN följt av år", `Betala till ${kandSe} 2026`, "IBAN"],
+    ["norskt IBAN följt av valuta", `${kandNo} NOK`, "IBAN"],
+    ["IBAN utan mellanslag följt av ord", `${kandDe.replace(/ /g, "")} betalat`, "IBAN"],
+    // ⛔ PERSONNUMRET HAR ETT FÖRLED. Bindestreck och understreck räknas inte som avgränsare mot siffror och bokstäver.
+    ["personnummer efter bindestreck", `kund-${kandPnr}`, "personnummer eller samordningsnummer"],
+    ["personnummer efter understreck", `id_${kandPnr}`, "personnummer eller samordningsnummer"],
+    ["personnummer före understreck", `${kandPnr}_ref`, "personnummer eller samordningsnummer"],
+    ["organisationsnummer efter understreck", `bolag_${kandOrgnr}`, "organisationsnummer"],
+  ];
+  kanda.forEach(([namn, innehall, forvantat], i) => {
+    kravRott(`ingen-appdata (känd siffra): ${namn}`, [vakt, underlag(`ia-k${i}`, { "docs/kand.md": `Rad ett\n${innehall}\n` })], forvantat);
+  });
+  kravGront("ingen-appdata (känd siffra): samma uppgifter med EN siffra fel är grönt", [
+    vakt,
+    underlag("ia-kfel", {
+      "docs/kand.md": [
+        `Personnummer: ${kandPnr.slice(0, -1)}3`,
+        `Organisationsnummer: ${kandOrgnr.slice(0, -1)}1`,
+        `IBAN: ${kandSe.slice(0, -1)}5 och ${kandNo.slice(0, -1)}8`,
+        `Utan bokstäver bredvid är en tidsstämpel inget personnummer: 202610261212 eller ${kandPnr.replace("-", "")}`,
+      ].join("\n"),
+    }),
+  ]);
+
+  // ⛔ TEXT SOM INTE ÄR UTF-8. En UTF-16-fil med BOM (Windows) läses; en utan BOM med textfilsändelse går inte att läsa som text och är ett brott, inte en
+  // tyst överhoppad fil. Binärt med en ändelse som inte används av någon textfil i trädet (en `.bin`) hoppas över, och ändelsen skrivs ut.
+  /** @param {string} text @param {"le" | "be"} ordning @param {boolean} bom */
+  const utf16 = (text, ordning, bom) => {
+    const le = Buffer.from(text, "utf16le");
+    const kropp = ordning === "le" ? le : Buffer.from(le).swap16();
+    return bom ? Buffer.concat([Buffer.from(ordning === "le" ? [0xff, 0xfe] : [0xfe, 0xff]), kropp]) : kropp;
+  };
+  kravRott("ingen-appdata (utf-16): LE med BOM läses", [vakt, underlag("ia-u1", { "docs/u.md": utf16(`Kontakt: ${kandPnr}\n`, "le", true) })], "personnummer");
+  kravRott("ingen-appdata (utf-16): BE med BOM läses", [vakt, underlag("ia-u2", { "docs/u.md": utf16(`Kontakt: ${kandPnr}\n`, "be", true) })], "personnummer");
+  kravRott("ingen-appdata (utf-16): utan BOM i en textfil är ett brott och inte en tyst överhoppad fil", [vakt, underlag("ia-u3", { "docs/u.txt": utf16(`Kontakt: ${kandPnr}\n`, "le", false) })], "docs/u.txt har en NUL-byte men en ändelse som textfiler i trädet har");
+  {
+    const k = spawnSync(process.execPath, [vakt, underlag("ia-u4", { "data/a.bin": Buffer.from([0, 1, 2]), "data/b.bin": Buffer.from([0, 3]) })], { cwd: rot, encoding: "utf8" });
+    const utdata = `${k.stdout ?? ""}${k.stderr ?? ""}`;
+    resultat.push(
+      k.status === 0 && /binära hoppade över[^)]*: bin 2/.test(utdata)
+        ? { namn: "ingen-appdata (utf-16): hoppade binära filer räknas upp per ändelse i rapporten", vantat: "gront", utfall: "ok" }
+        : { namn: "ingen-appdata (utf-16): hoppade binära filer räknas upp per ändelse i rapporten", vantat: "gront", utfall: `status ${k.status}: ${utdata.trim().split("\n")[0]}` },
+    );
+  }
+
   // ⛔ Vilken fil och vilken rad, men aldrig värdet: en vaktutskrift hamnar i en CI-logg.
   kravRott("ingen-appdata: utskriften pekar ut fil och rad", [vakt, underlag("ia-rad", { "docs/anteckning.md": `Rad ett\nRad två\nKontakt: ${pnr10}\n` })], "docs/anteckning.md:3 innehåller personnummer");
   {

@@ -35,8 +35,10 @@
  * Det som inte kunde läsas räknas inte som rent:
  *
  *   - en fil som inte går att läsa, och en symbolisk länk (vars mål vakten inte följer), är ett brott och inte ett undantag,
- *   - binära filer (en NUL-byte i filen) hoppas över av INNEHÅLLET och inte av ett filnamnsslut, så att ingen lista över filformat behöver hållas,
- *     men antalet skrivs ut,
+ *   - binära filer (en NUL-byte i filen) hoppas över av INNEHÅLLET och inte av ett filnamnsslut, så att ingen lista över filformat behöver hållas.
+ *     Antalet skrivs ut PER ÄNDELSE. UTF-16 med BOM (Windows) avkodas och läses. En binär fil vars ändelse också finns bland trädets textfiler
+ *     (en `.md` med NUL-byte: UTF-16 utan BOM, eller en trasig fil) är ett brott och inte en tyst överhoppad fil; ändelserna härleds ur trädet,
+ *     så ingen lista behöver hållas. Det enklaste som inte blir falsk grönhet: en PDF eller en bild hoppas över, en textfil som inte gick att läsa gör det inte.
  *   - GOLV: minst `GOLV_FILER` textfiler lästa. En vakt som blir grön av att inget lästes mäter ingenting.
  *
  * ══ ⛔ INGET TAK, FÖR DET FINNS INGET ATT TÅLA ═════════════════════════════════════════════════════════
@@ -82,6 +84,33 @@ export function luhn(siffror) {
 }
 
 /**
+ * IBAN-längd per land (ISO 13616-registret). ⛔ LÄNGDEN AVGÖR VAD SOM ÄR EN IBAN, och inte hur långt ett mönster råkar nå: ett girigt mönster som
+ * svalde "SEK" efter kontot prövade bara den långa, felaktiga strängen och släppte igenom den riktiga. Ett land som inte står här prövas inte alls
+ * (en IBAN därifrån missas); ett nytt land läggs till här.
+ *
+ * @type {Readonly<Record<string, number>>}
+ */
+export const IBAN_LANGD = {
+  AD: 24, AE: 23, AL: 28, AT: 20, AZ: 28, BA: 20, BE: 16, BG: 22, BH: 22, BR: 29, BY: 28, CH: 21, CR: 22, CY: 28, CZ: 24, DE: 22, DK: 18, DO: 28,
+  EE: 20, EG: 29, ES: 24, FI: 18, FO: 18, FR: 27, GB: 22, GE: 22, GI: 23, GL: 18, GR: 27, GT: 28, HR: 21, HU: 28, IE: 22, IL: 23, IQ: 23, IS: 26,
+  IT: 27, JO: 30, KW: 30, KZ: 20, LB: 28, LC: 32, LI: 21, LT: 20, LU: 20, LV: 21, MC: 27, MD: 24, ME: 22, MK: 19, MR: 27, MT: 31, MU: 30, NL: 18,
+  NO: 15, PK: 24, PL: 28, PS: 29, PT: 25, QA: 29, RO: 24, RS: 22, SA: 24, SC: 31, SE: 24, SI: 19, SK: 24, SM: 27, ST: 25, SV: 28, TL: 23, TN: 24,
+  TR: 26, UA: 29, VA: 22, VG: 24, XK: 20,
+};
+
+/**
+ * Finns det en giltig IBAN i början av kandidaten? Kandidaten är en träff av IBAN-mönstret och kan sluta med ord eller siffror som inte hör till
+ * kontot ("... 7466 SEK"). Landets längd väljer hur många tecken som tas, mellanslag räknas inte, och de tecknen ska klara kontrollsumman.
+ *
+ * @param {string} kandidat
+ */
+export function ibanIBorjan(kandidat) {
+  const tecken = kandidat.replace(/ /g, "");
+  const langd = IBAN_LANGD[tecken.slice(0, 2)];
+  return langd !== undefined && tecken.length >= langd && ibanGiltig(tecken.slice(0, langd));
+}
+
+/**
  * IBAN-kontrollen: flytta de fyra första tecknen sist, byt bokstäver mot tal (A=10), och resten vid division med 97 ska vara 1.
  *
  * @param {string} iban utan mellanslag
@@ -105,21 +134,23 @@ export function ibanGiltig(iban) {
 export const FORMER = [
   {
     namn: "personnummer eller samordningsnummer",
+    // Avgränsad mot siffror och bokstäver, inte mot bindestreck och understreck: `kund-850709-...` och `id_850709-...` är lika mycket ett personnummer.
     // Datum: månad 01 till 12, dag 01 till 31 (samordningsnummer lägger 60 på dagen). Bindestreck eller plus är KRAV: tolv siffror utan avgränsare är
     // lika ofta en tidsstämpel (ÅÅÅÅMMDDttmm).
-    monster: /(?<![\w-])((?:19|20)?\d{2})(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01]|[6-8]\d|9[01])[-+](\d{4})(?![\w-])/g,
+    monster: /(?<![0-9A-Za-z])((?:19|20)?\d{2})(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01]|[6-8]\d|9[01])[-+](\d{4})(?![0-9A-Za-z])/g,
     giltig: (t) => luhn(t.replace(/\D/g, "").slice(-10)),
   },
   {
     namn: "organisationsnummer",
     // Tredje siffran 2 eller högre skiljer det från ett personnummer, vars tredje siffra är månadens första (0 eller 1).
-    monster: /(?<![\w-])\d{2}[2-9]\d{3}-\d{4}(?![\w-])/g,
+    monster: /(?<![0-9A-Za-z])\d{2}[2-9]\d{3}-\d{4}(?![0-9A-Za-z])/g,
     giltig: (t) => luhn(t.replace(/\D/g, "")),
   },
   {
     namn: "IBAN",
-    monster: /\b[A-Z]{2}\d{2}(?: ?[A-Z0-9]{4}){3,7}(?: ?[A-Z0-9]{1,3})?\b/g,
-    giltig: (t) => ibanGiltig(t.replace(/ /g, "")),
+    // Kandidaten får vara längre än en IBAN (högst 34 tecken, med mellanslag emellan); `ibanIBorjan` tar landets längd ur den.
+    monster: /(?<![0-9A-Za-z])[A-Z]{2}\d{2}(?: ?[A-Z0-9]){11,30}/g,
+    giltig: ibanIBorjan,
   },
   { namn: "privat nyckel (PEM)", monster: /-----BEGIN (?:[A-Z0-9]+ )*PRIVATE KEY-----/g },
   { namn: "GitHub-token", monster: /\b(?:gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{40,})/g },
@@ -176,6 +207,25 @@ export function hitta(text) {
   return ut;
 }
 
+/**
+ * Filens text, eller `null` när den är binär. UTF-16 med BOM avkodas; en NUL-byte i övrigt gör filen binär.
+ *
+ * @param {Buffer} data
+ * @returns {string | null}
+ */
+export function avkoda(data) {
+  if (data.length >= 2 && data[0] === 0xff && data[1] === 0xfe) return data.subarray(2, 2 + ((data.length - 2) & ~1)).toString("utf16le");
+  if (data.length >= 2 && data[0] === 0xfe && data[1] === 0xff) return Buffer.from(data.subarray(2, 2 + ((data.length - 2) & ~1))).swap16().toString("utf16le");
+  return data.includes(0) ? null : data.toString("utf8");
+}
+
+/** @param {string} rel */
+function andelseAv(rel) {
+  const namn = rel.slice(rel.lastIndexOf("/") + 1);
+  const punkt = namn.lastIndexOf(".");
+  return punkt > 0 ? namn.slice(punkt + 1).toLowerCase() : "";
+}
+
 function main() {
   if (!fs.existsSync(rot) || !fs.statSync(rot).isDirectory()) {
     console.error(`check-no-app-content: RÖTT. Hittar inte mappen ${rot}. En vakt som letar på fel plats är grön av fel skäl.`);
@@ -191,6 +241,12 @@ function main() {
 
   let lasta = 0;
   let binara = 0;
+  /** @type {Map<string, number>} */
+  const binaraPerAndelse = new Map();
+  /** @type {{ rel: string, andelse: string }[]} */
+  const binaraFiler = [];
+  /** @type {Set<string>} ändelser som finns bland de filer som lästes som text */
+  const textandelser = new Set();
   /** @type {{ fil: string, rad: number, namn: string }[]} */
   const traffar = [];
   for (const rel of filer) {
@@ -203,12 +259,28 @@ function main() {
       continue;
     }
     // Binärt avgörs av innehållet och inte av filnamnet: en lista över filformat vore en lista att hålla i takt.
-    if (data.includes(0)) {
+    // UTF-16 med BOM (en textfil sparad i Windows) är text och läses; allt annat med en NUL-byte är binärt.
+    const text = avkoda(data);
+    if (text === null) {
       binara += 1;
+      const andelse = andelseAv(rel);
+      binaraPerAndelse.set(andelse, (binaraPerAndelse.get(andelse) ?? 0) + 1);
+      binaraFiler.push({ rel, andelse });
       continue;
     }
     lasta += 1;
-    for (const t of hitta(data.toString("utf8"))) traffar.push({ fil: rel, ...t });
+    const egen = andelseAv(rel);
+    textandelser.add(egen);
+    for (const t of hitta(text)) traffar.push({ fil: rel, ...t });
+  }
+
+  // ⛔ EN FIL SOM SER UT SOM TEXT MEN INTE LÄSTES SOM TEXT ÄR ETT BROTT. Ändelsen avgör inte vad som är binärt, men den avgör vad som är MISSTÄNKT:
+  // finns samma ändelse bland trädets textfiler (en `.md` eller `.txt` med NUL-byte, alltså UTF-16 utan BOM eller en trasig fil) vet vakten inte
+  // vad som står i den. Ändelserna härleds ur trädet och ingen lista behöver hållas.
+  for (const { rel, andelse } of binaraFiler) {
+    if (andelse !== "" && textandelser.has(andelse)) {
+      brott.push(`${rel} har en NUL-byte men en ändelse som textfiler i trädet har, och lästes därför inte. Spara om den som UTF-8 (eller UTF-16 med BOM). Det som inte lästes är inte rent.`);
+    }
   }
 
   if (lasta < GOLV_FILER) {
@@ -231,8 +303,9 @@ function main() {
     process.exit(1);
   }
 
+  const per = binara > 0 ? `: ${[...binaraPerAndelse].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([e, n]) => `${e || "utan ändelse"} ${n}`).join(", ")}` : "";
   console.log(
-    `check-no-app-content: ${lasta} textfiler lästa (${binara} binära hoppade över på innehållet, ${lankar.length} länkar), inga träffar. Letar efter personnummer, organisationsnummer, IBAN och nyckelformat.`,
+    `check-no-app-content: ${lasta} textfiler lästa (${binara} binära hoppade över på innehållet${per}, ${lankar.length} länkar), inga träffar. Letar efter personnummer, organisationsnummer, IBAN och nyckelformat.`,
   );
 }
 

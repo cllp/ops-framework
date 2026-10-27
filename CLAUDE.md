@@ -273,8 +273,9 @@ Fyra former av falsk grönhet vi har haft, alla fyra lätta att missa:
   börjat uppdateras, ingen bekräftades och ingen felrad skrevs
   (cllp/sessions-platform#3437, rad D2 i cllp/ops-framework#104). Mät att något
   **slutfördes**: räkna både påbörjat och bekräftat och rapportera skillnaden.
-  Samma när formatet vakten läser slutar matcha: säg att det inte känns igen,
-  gå inte grön.
+  Samma när formatet vakten läser slutar matcha, till exempel efter en
+  CLI-uppgradering: säg att det inte känns igen, gå inte grön
+  (cllp/sessions-platform#3253, rad D3 i #104).
 
 Vaktar du en skuld: sätt ett **tak som bara får sjunka**, inte noll. Noll gör
 befintliga fall röda utan att någon lagar dem, och då stängs vakten av.
