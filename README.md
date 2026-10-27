@@ -2974,7 +2974,7 @@ CP 2026-10-12: "Kompositionen med loggan i mitten är inget snyggt. Kolla på se
 | Export | Vad |
 |---|---|
 | `OpsPublikSkal` | ramen: toppraden, `<main id="main-content">`, sidfoten |
-| `OpsPublikHuvud` | toppraden: liten logga till vänster, länkarna efter den, språkval, Logga in och accentknappen till höger, en meny under `md`. En rad på en plats: loggan ligger på samma pixel på varje sida. `ton` `mork` eller `ljus`, `transparent` över en hjälte, `texter` obligatoriska |
+| `OpsPublikHuvud` | toppraden: liten logga till vänster, länkarna efter den, språkval, Logga in och accentknappen till höger, en meny under `md`. En rad på en plats: loggan ligger på samma pixel på varje sida. `ton` `mork` eller `ljus`, `transparent` över en hjälte, `texter` obligatoriska. `konto` (0.150.0): avataren och dess meny, ritad av appen; ersätter Logga in och accentknappen (i raden och i mobilmenyn) och står under `md` bredvid hamburgaren. `radKlass` och `faltKlass` är exporterade för kontomenyns rader och fält |
 | `OpsPublikHjalte` | hjälten; med `bild` fotot i full bredd under en mörk toning, överrad, serifrubrik, ingress, målgrupp och två knappar |
 | `OpsPublikBlock` | innehållsblock med `ton` (`ljus`, `accent`, `mork`), överrad, serifrubrik, text, en handling och en bild (`bild`) eller figur (`figur`, en SVG) bredvid, som byter sida (`bildSida`) |
 | `OpsPublikUppmaning` | bandet i accentfärgen med rubrik, text och två knappar |

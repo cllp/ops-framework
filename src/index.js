@@ -42,6 +42,8 @@ export { OpsPublikHjalte, OpsPublikAvsnitt, OpsPublikText } from "./components/O
 export { OpsPublikSkal, OpsPublikHuvud, OpsPublikFot } from "./components/OpsPublikSkal.jsx";
 export { OpsPublikBlock, OpsPublikUppmaning } from "./components/OpsPublikBlock.jsx";
 export { PUBLIK_KLASS, PUBLIK_KNAPP, PUBLIK_TONER } from "./lib/publikKlass.js";
+// 0.150.0 (#352): raden i en meny och ett fält, så att en app som ritar sin egen kontomeny i `OpsPublikHuvud` (`konto`) inte skriver av klasserna för hand (regel 2).
+export { radKlass, faltKlass } from "./lib/radKlass.js";
 export { OpsVyValjare } from "./components/OpsVyValjare.jsx";
 export { OpsHuvudmenyProvider, useIHuvudmenyn } from "./components/OpsHuvudmeny.jsx";
 export { OpsModal } from "./components/OpsModal.jsx";

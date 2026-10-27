@@ -79,11 +79,12 @@ const HUVUDTON = {
  * @param {PubliktSprak} [props.sprak] Språkval, kompakt (SV / EN). Utelämnat: inget språkval.
  * @param {{ href: string, label: string }} [props.loggaIn] "Logga in", en textlänk till höger.
  * @param {{ href: string, label: string }} [props.kom] Accentknappen, "Kom igång".
+ * @param {import("react").ReactNode} [props.konto] (0.150.0, #352) Kontot: avataren och dess meny, ritad av appen. Står där Logga in och accentknappen annars står, och ERSÄTTER dem: den som är inloggad ska inte erbjudas att logga in eller komma igång. Under `md` står den bredvid hamburgaren och inte i menyn, och mobilmenyn har då inte heller Logga in eller accentknappen. Ritas EN gång (en hel meny finns inte i två exemplar, varav ett dolt). Ramverket vet inget om vad kontot är: raderna i menyn byggs med `radKlass` och fälten med `faltKlass`, som är exporterade.
  * @param {boolean} [props.transparent] Genomskinlig med oskärpa över en hjälte (SessionStudios startsida); annars helt i tonens färg.
  * @param {"mork"|"ljus"} [props.ton] Toppradens ton: `mork` (förval, som SessionStudio) eller `ljus`. Loggan kommer från instansen och ska fungera på båda; en genomskinlig logga utan ram gör det.
  * @param {PubliktHuvudTexter} props.texter Orden som inte är innehåll: navigeringens namn och menyknapparnas. Ramverket har inga förval, eftersom en sida har ett språk och ramverket inte vet vilket.
  */
-export function OpsPublikHuvud({ logga, lankar, mobilLankar, sprak, loggaIn, kom, transparent = false, ton = "mork", texter }) {
+export function OpsPublikHuvud({ logga, lankar, mobilLankar, sprak, loggaIn, kom, konto, transparent = false, ton = "mork", texter }) {
   const [oppen, setOppen] = useState(false);
   if (!logga || !logga.alt || !(logga.src || logga.paMork || logga.paLjus)) {
     throw new Error("OpsPublikHuvud: logga kräver alt och en bild (src, eller paMork och paLjus). Loggan är märket, och en bild utan alt-text är ett märke ingen skärmläsare kan nämna.");
@@ -95,6 +96,75 @@ export function OpsPublikHuvud({ logga, lankar, mobilLankar, sprak, loggaIn, kom
   if (!T) throw new Error(`OpsPublikHuvud: okänd ton "${ton}". Giltiga: ${Object.keys(HUVUDTON).join(", ")}.`);
   const loggaSrc = (ton === "mork" ? logga.paMork : logga.paLjus) ?? logga.src ?? logga.paMork ?? logga.paLjus;
   const mobil = mobilLankar ?? lankar;
+  const hogerDesktop = (
+    <div className="hidden items-center gap-3 md:flex">
+      {sprak ? <Sprakval sprak={sprak} ton={T} /> : null}
+      {loggaIn ? (
+        <a href={loggaIn.href} className={T.lank}>
+          {loggaIn.label}
+        </a>
+      ) : null}
+      {kom ? (
+        <a href={kom.href} className={cx(PUBLIK_KNAPP.bas, PUBLIK_KNAPP.primarLiten)}>
+          {kom.label}
+        </a>
+      ) : null}
+    </div>
+  );
+  const menyn = (
+    <Dialog.Root open={oppen} onOpenChange={setOppen}>
+      <Dialog.Trigger asChild>
+        <button
+          type="button"
+          aria-label={texter.oppnaMeny}
+          className={cx("inline-flex size-11 items-center justify-center rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent md:hidden", T.ikon)}
+        >
+          <MenuIcon size={24} />
+        </button>
+      </Dialog.Trigger>
+      <Dialog.Portal>
+        <Dialog.Content
+          data-ops-publik="mobilmeny"
+          aria-describedby={undefined}
+          className={cx("fixed inset-0 z-(--z-modal) flex flex-col items-center justify-center px-6 md:hidden", T.meny)}
+        >
+          <Dialog.Title className="sr-only">{texter.mobilmeny}</Dialog.Title>
+          <Dialog.Close
+            aria-label={texter.stangMeny}
+            className={cx("absolute top-3 right-4 inline-flex size-11 items-center justify-center rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent", T.ikon)}
+          >
+            <KryssIkon size={24} />
+          </Dialog.Close>
+          <ul className="m-0 flex list-none flex-col items-center gap-5 p-0 text-publik-ingress font-medium">
+            {mobil.map((l) => (
+              <li key={l.href}>
+                <a href={l.href} aria-current={l.aktiv ? "page" : undefined} className={T.hover} onClick={() => setOppen(false)}>
+                  {l.label}
+                </a>
+              </li>
+            ))}
+            {loggaIn && !konto ? (
+              <li>
+                <a href={loggaIn.href} className={T.hover} onClick={() => setOppen(false)}>
+                  {loggaIn.label}
+                </a>
+              </li>
+            ) : null}
+          </ul>
+          {kom && !konto ? (
+            <a href={kom.href} className={cx(PUBLIK_KNAPP.bas, PUBLIK_KNAPP.primar, "mt-8")} onClick={() => setOppen(false)}>
+              {kom.label}
+            </a>
+          ) : null}
+          {sprak ? (
+            <div className="mt-8">
+              <Sprakval sprak={sprak} ton={T} stor />
+            </div>
+          ) : null}
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  );
   return (
     <nav
       data-ops-publik="huvud"
@@ -116,72 +186,26 @@ export function OpsPublikHuvud({ logga, lankar, mobilLankar, sprak, loggaIn, kom
           ))}
         </ul>
 
-        <div className="hidden items-center gap-3 md:flex">
-          {sprak ? <Sprakval sprak={sprak} ton={T} /> : null}
-          {loggaIn ? (
-            <a href={loggaIn.href} className={T.lank}>
-              {loggaIn.label}
-            </a>
-          ) : null}
-          {kom ? (
-            <a href={kom.href} className={cx(PUBLIK_KNAPP.bas, PUBLIK_KNAPP.primarLiten)}>
-              {kom.label}
-            </a>
-          ) : null}
-        </div>
-
-        <Dialog.Root open={oppen} onOpenChange={setOppen}>
-          <Dialog.Trigger asChild>
-            <button
-              type="button"
-              aria-label={texter.oppnaMeny}
-              className={cx("inline-flex size-11 items-center justify-center rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent md:hidden", T.ikon)}
-            >
-              <MenuIcon size={24} />
-            </button>
-          </Dialog.Trigger>
-          <Dialog.Portal>
-            <Dialog.Content
-              data-ops-publik="mobilmeny"
-              aria-describedby={undefined}
-              className={cx("fixed inset-0 z-(--z-modal) flex flex-col items-center justify-center px-6 md:hidden", T.meny)}
-            >
-              <Dialog.Title className="sr-only">{texter.mobilmeny}</Dialog.Title>
-              <Dialog.Close
-                aria-label={texter.stangMeny}
-                className={cx("absolute top-3 right-4 inline-flex size-11 items-center justify-center rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent", T.ikon)}
-              >
-                <KryssIkon size={24} />
-              </Dialog.Close>
-              <ul className="m-0 flex list-none flex-col items-center gap-5 p-0 text-publik-ingress font-medium">
-                {mobil.map((l) => (
-                  <li key={l.href}>
-                    <a href={l.href} aria-current={l.aktiv ? "page" : undefined} className={T.hover} onClick={() => setOppen(false)}>
-                      {l.label}
-                    </a>
-                  </li>
-                ))}
-                {loggaIn ? (
-                  <li>
-                    <a href={loggaIn.href} className={T.hover} onClick={() => setOppen(false)}>
-                      {loggaIn.label}
-                    </a>
-                  </li>
-                ) : null}
-              </ul>
-              {kom ? (
-                <a href={kom.href} className={cx(PUBLIK_KNAPP.bas, PUBLIK_KNAPP.primar, "mt-8")} onClick={() => setOppen(false)}>
-                  {kom.label}
-                </a>
-              ) : null}
-              {sprak ? (
-                <div className="mt-8">
-                  <Sprakval sprak={sprak} ton={T} stor />
-                </div>
-              ) : null}
-            </Dialog.Content>
-          </Dialog.Portal>
-        </Dialog.Root>
+        {konto ? (
+          // Med ett konto: språkvalet (om det finns) från `md`, kontot på alla bredder och hamburgern under `md`, i ETT kluster till höger.
+          // Utan konto är raden som förut (inget extra element), så att loggan och länkarna ligger där de låg.
+          <div className="flex shrink-0 items-center gap-3">
+            {sprak ? (
+              <div className="hidden items-center gap-3 md:flex">
+                <Sprakval sprak={sprak} ton={T} />
+              </div>
+            ) : null}
+            <div data-publik-konto="" className="flex items-center">
+              {konto}
+            </div>
+            {menyn}
+          </div>
+        ) : (
+          <>
+            {hogerDesktop}
+            {menyn}
+          </>
+        )}
       </div>
     </nav>
   );

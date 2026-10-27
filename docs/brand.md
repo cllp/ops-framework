@@ -100,7 +100,7 @@ Ramverket har ett helt skal för publika sidor, byggt efter SessionStudios landn
 | Komponent | Vad | Props |
 |---|---|---|
 | `OpsPublikSkal` | ramen: toppraden, `<main id="main-content">`, sidfoten | `huvud`, `fot`, `children` |
-| `OpsPublikHuvud` | toppraden: liten logga till vänster, länkarna efter den, språkval, Logga in och accentknappen till höger; under `md` en meny | `logga {alt, src` eller `paMork` och `paLjus, href?}`, `lankar`, `mobilLankar?`, `sprak?`, `loggaIn?`, `kom?`, `transparent?`, `ton?` (`mork` eller `ljus`), `texter` |
+| `OpsPublikHuvud` | toppraden: liten logga till vänster, länkarna efter den, språkval, Logga in och accentknappen till höger; under `md` en meny | `logga {alt, src` eller `paMork` och `paLjus, href?}`, `lankar`, `mobilLankar?`, `sprak?`, `loggaIn?`, `kom?`, `konto?` (ersätter `loggaIn` och `kom`), `transparent?`, `ton?` (`mork` eller `ljus`), `texter` |
 | `OpsPublikHjalte` | hjälten; med `bild` fotot i full bredd under en mörk toning | `title`, `eyebrow?`, `ingress?`, `malgrupp?`, `bild?`, `primar?`, `sekundar?`, `centrerad?` |
 | `OpsPublikBlock` | ett innehållsblock med en ton och en bild bredvid | `ton` (`ljus`, `accent`, `mork`), `title`, `eyebrow?`, `children`, `handling?`, `bild?`, `figur?`, `bildSida?` |
 | `OpsPublikUppmaning` | bandet i accentfärgen med rubrik, text och två knappar | `title`, `children?`, `primar`, `sekundar?` |
