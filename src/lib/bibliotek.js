@@ -24,6 +24,7 @@ import { ID_FORM } from "./katalog.js";
 import { SKAPARFALT_SERVER, byggSkapare, viaFel } from "./skapare.js";
 import { formatDagOchKlockslag } from "./format.js";
 import { lankKalla } from "./lankkalla.js";
+import { ordet } from "./ord.js";
 
 /**
  * Anteckning, länk, fil och lista. En fil är en post, och MIME avgör hur den visas.
@@ -978,21 +979,39 @@ export function normaliseraTaggar(v) {
 }
 
 /**
+ * Skälen till att taggarna inte får sparas, svenska och engelska (0.149.0). Det är texten en person läser under taggraden, så den följer språket
+ * som resten av taggkomponenterna (`ORD_TAGGAR`). `{n}`, `{max}`, `{tagg}` och `{langd}` fylls i av `taggarFel`.
+ */
+export const ORD_TAGGFEL = {
+  ejLista: { sv: "Taggarna ska vara en lista.", en: "Tags must be a list." },
+  forManga: { sv: "Posten har {n} taggar. Taket är {max}.", en: "The post has {n} tags. The limit is {max}." },
+  ogiltig: {
+    sv: 'Taggen "{tagg}" går inte att spara. En tagg är högst {langd} tecken, med bokstäver, siffror, mellanslag och bindestreck.',
+    en: 'The tag "{tagg}" cannot be saved. A tag is at most {langd} characters, with letters, digits, spaces and hyphens.',
+  },
+  dubblett: { sv: "Samma tagg står två gånger.", en: "The same tag appears twice." },
+};
+
+/**
  * Skälet till att taggarna inte får sparas, eller `null`. Samma villkor som regeln: en lista, högst `MAX_TAGGAR`, var och en i
  * `TAGGFORM`, inga dubbletter.
  *
+ * ⛔ `sprak` (0.149.0) väljer språket på texten, förval svenska. Ett okänt språk ger svenska, som överallt. Villkoren är desamma på båda.
+ *
  * @param {unknown} v
+ * @param {string} [sprak]
  * @returns {string | null}
  */
-export function taggarFel(v) {
-  if (!Array.isArray(v)) return "Taggarna ska vara en lista.";
-  if (v.length > MAX_TAGGAR) return `Posten har ${v.length} taggar. Taket är ${MAX_TAGGAR}.`;
+export function taggarFel(v, sprak = "sv") {
+  const ord = (/** @type {keyof typeof ORD_TAGGFEL} */ nyckel) => ordet(ORD_TAGGFEL, nyckel, sprak);
+  if (!Array.isArray(v)) return ord("ejLista");
+  if (v.length > MAX_TAGGAR) return ord("forManga").replace("{n}", String(v.length)).replace("{max}", String(MAX_TAGGAR));
   for (const t of v) {
     if (typeof t !== "string" || !TAGGFORM.test(t)) {
-      return `Taggen "${typeof t === "string" ? t : String(t)}" går inte att spara. En tagg är högst ${MAX_TAGGLANGD} tecken, med bokstäver, siffror, mellanslag och bindestreck.`;
+      return ord("ogiltig").replace("{tagg}", typeof t === "string" ? t : String(t)).replace("{langd}", String(MAX_TAGGLANGD));
     }
   }
-  if (new Set(v).size !== v.length) return "Samma tagg står två gånger.";
+  if (new Set(v).size !== v.length) return ord("dubblett");
   return null;
 }
 

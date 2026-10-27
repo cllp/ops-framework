@@ -38,14 +38,15 @@ export const ORD_TAGGAR = {
 };
 
 /**
- * Orden på ett språk, med appens `sprak` före providerns.
+ * Orden och språket de är på, med appens `sprak` före providerns.
  *
  * @param {"sv" | "en" | undefined} sprak
- * @returns {Record<keyof typeof ORD_TAGGAR, string>}
+ * @returns {{ o: Record<keyof typeof ORD_TAGGAR, string>, sp: string }}
  */
 function useTaggord(sprak) {
   const kontext = useOpsSprak();
-  return /** @type {Record<keyof typeof ORD_TAGGAR, string>} */ (forvalda(ORD_TAGGAR, sprak ?? kontext));
+  const sp = sprak ?? kontext;
+  return { o: /** @type {Record<keyof typeof ORD_TAGGAR, string>} */ (forvalda(ORD_TAGGAR, sp)), sp };
 }
 
 /**
@@ -88,7 +89,7 @@ export function menyPilar(e) {
  * @param {{ tagg: string, onFilter?: (tagg: string) => void, vald?: boolean, onTaBort?: (tagg: string) => void | Promise<unknown>, sprak?: "sv" | "en" }} props `sprak` (0.149.0): språket för knapparnas namn, annars `OpsSprakProvider`, annars svenska.
  */
 export function OpsTaggPiller({ tagg, onFilter, vald = false, onTaBort, sprak }) {
-  const o = useTaggord(sprak);
+  const { o } = useTaggord(sprak);
   const harTaBort = typeof onTaBort === "function";
   return (
     <span data-bibliotek-tagg={tagg} className={cx("pointer-events-auto inline-flex h-7 max-w-full items-center rounded-full text-meta font-medium text-tagg-text", taggKlass(tagg))}>
@@ -132,7 +133,7 @@ export function OpsTaggPiller({ tagg, onFilter, vald = false, onTaBort, sprak })
  * @param {{ taggar?: readonly string[], kanAndra?: boolean, forslag?: readonly string[], valda?: readonly string[], onFilter?: (tagg: string) => void, onAndra?: (nastaTaggar: string[]) => void | boolean | Promise<void | boolean>, sprak?: "sv" | "en" }} props `sprak` (0.149.0): språket för knappar, fält och egna felmeddelanden, annars `OpsSprakProvider`, annars svenska. Ett fel som `onAndra` själv kastar visas som det är.
  */
 export function OpsTaggRad({ taggar, kanAndra = false, forslag = [], valda = [], onFilter, onAndra, sprak }) {
-  const o = useTaggord(sprak);
+  const { o, sp } = useTaggord(sprak);
   const sparade = Array.isArray(taggar) ? taggar : [];
   const [visas, setVisas] = useState(/** @type {string[] | null} */ (null));
   const [skriver, setSkriver] = useState(false);
@@ -145,7 +146,7 @@ export function OpsTaggRad({ taggar, kanAndra = false, forslag = [], valda = [],
 
   /** @param {string[]} ny */
   const spara = (ny) => {
-    const problem = taggarFel(ny);
+    const problem = taggarFel(ny, sp);
     if (problem) {
       setFel(problem);
       return;
@@ -301,7 +302,7 @@ export function OpsTaggRad({ taggar, kanAndra = false, forslag = [], valda = [],
  * @param {{ taggar: ReadonlyArray<{ tagg: string, antal: number }>, valda: readonly string[], onValda: (valda: string[]) => void, extra?: { rubrik: string, ikon?: import("react").ReactNode, lista: ReadonlyArray<{ namn: string, antal: number }>, valda: readonly string[], onValda: (valda: string[]) => void }, sprak?: "sv" | "en" }} props `sprak` (0.149.0): språket för knappen och panelen, annars `OpsSprakProvider`, annars svenska. `extra.rubrik` är appens egen text.
  */
 export function OpsTaggFilter({ taggar, valda, onValda, extra, sprak }) {
-  const o = useTaggord(sprak);
+  const { o } = useTaggord(sprak);
   const [oppen, setOppen] = useState(false);
   const extraLista = extra && Array.isArray(extra.lista) ? extra.lista : [];
   const extraValda = extra && Array.isArray(extra.valda) ? extra.valda : [];

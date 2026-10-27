@@ -1,7 +1,8 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { OpsSprakProvider, OpsTaggFilter, OpsTaggPiller, OpsTaggRad, ORD_TAGGAR } from "../index.js";
+import { MAX_TAGGAR, taggarFel } from "../lib/bibliotek.js";
 
 /**
  * Taggkomponenterna följer språket (0.149.0, cllp/ops-framework#444).
@@ -15,7 +16,7 @@ import { OpsSprakProvider, OpsTaggFilter, OpsTaggPiller, OpsTaggRad, ORD_TAGGAR 
  */
 
 /** Svenska ord som aldrig får synas i det som ritas på engelska. Skrivna som hela ord eller fraser, så att en tagg som heter "el" inte träffar. */
-const SVENSKT = /Taggar|Alla taggar|Rensa alla|Visa bara|Ta bort|Lägg till|Ny tagg|Förslag|Inga taggar|Sparandet|kunde inte|valda/;
+const SVENSKT = /Taggar|Alla taggar|Rensa alla|Visa bara|Ta bort|Lägg till|Ny tagg|Förslag|Inga taggar|Sparandet|kunde inte|valda|går inte att spara|Posten har|Taket är|Samma tagg|ska vara en lista/;
 
 describe("ORD_TAGGAR", () => {
   it("har svenska och engelska för varje ord, och engelskan är ingen kopia av svenskan", () => {
@@ -100,6 +101,54 @@ describe("OpsTaggRad på engelska", () => {
     await user.click(screen.getByRole("button", { name: "Tag" }));
     await user.type(screen.getByLabelText("New tag"), "vvs{Enter}");
     expect(await screen.findByRole("alert")).toHaveTextContent("Saving is not connected. The tags were not changed.");
+  });
+});
+
+describe("valideringsfelen följer språket (taggarFel)", () => {
+  it("taggarFel(lista, sprak) ger engelska på en, svenska som förval och för ett okänt språk", () => {
+    const niNio = Array.from({ length: MAX_TAGGAR + 1 }, (_, i) => `t${i}`);
+    expect(taggarFel(niNio)).toBe("Posten har 9 taggar. Taket är 8.");
+    expect(taggarFel(niNio, "sv")).toBe("Posten har 9 taggar. Taket är 8.");
+    expect(taggarFel(niNio, "en")).toBe("The post has 9 tags. The limit is 8.");
+    expect(taggarFel(niNio, "de")).toBe("Posten har 9 taggar. Taket är 8.");
+    expect(taggarFel(["BAD_TAG"], "en")).toMatch(/^The tag "BAD_TAG" cannot be saved\. A tag is at most 24 characters/);
+    expect(taggarFel(["BAD_TAG"])).toMatch(/^Taggen "BAD_TAG" går inte att spara\./);
+    expect(taggarFel(["a", "a"], "en")).toBe("The same tag appears twice.");
+    expect(taggarFel(["a", "a"])).toBe("Samma tagg står två gånger.");
+    expect(taggarFel("kvitto", "en")).toBe("Tags must be a list.");
+    expect(taggarFel("kvitto")).toBe("Taggarna ska vara en lista.");
+    expect(taggarFel(["ok"], "en")).toBeNull();
+  });
+
+  it("raden visar felet på engelska när en ogiltig tagg kom med från appen", async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <OpsSprakProvider sprak="en">
+        <OpsTaggRad taggar={["BAD_TAG", "el"]} kanAndra onAndra={() => {}} />
+      </OpsSprakProvider>,
+    );
+    await user.click(screen.getByRole("button", { name: "Remove the tag el" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(/^The tag "BAD_TAG" cannot be saved\./);
+    expect(container.innerHTML).not.toMatch(SVENSKT);
+  });
+
+  it("raden visar taket på engelska, och på svenska som förut", async () => {
+    const user = userEvent.setup();
+    const sju = Array.from({ length: MAX_TAGGAR - 1 }, (_, i) => `t${i}`);
+    const { unmount } = render(<OpsTaggRad taggar={sju} kanAndra sprak="en" onAndra={() => {}} />);
+    await user.click(screen.getByRole("button", { name: "Tag" }));
+    // Två taggar i ett svep (ett kommatecken som skrivs för sig lägger till taggen direkt och stänger fältet innan den andra hunnit in).
+    fireEvent.change(screen.getByLabelText("New tag"), { target: { value: "x,y" } });
+    await user.keyboard("{Enter}");
+    expect(await screen.findByRole("alert")).toHaveTextContent("The post has 9 tags. The limit is 8.");
+    unmount();
+
+    render(<OpsTaggRad taggar={sju} kanAndra onAndra={() => {}} />);
+    await user.click(screen.getByRole("button", { name: "Tagg" }));
+    // Två taggar i ett svep (ett kommatecken som skrivs för sig lägger till taggen direkt och stänger fältet innan den andra hunnit in).
+    fireEvent.change(screen.getByLabelText("Ny tagg"), { target: { value: "x,y" } });
+    await user.keyboard("{Enter}");
+    expect(await screen.findByRole("alert")).toHaveTextContent("Posten har 9 taggar. Taket är 8.");
   });
 });
 
