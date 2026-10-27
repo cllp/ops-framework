@@ -63,7 +63,7 @@ export { OpsKnob } from "./components/OpsKnob.jsx";
 export { OpsSimulatePopover } from "./components/OpsSimulatePopover.jsx";
 export { OpsFloatingSummary } from "./components/OpsFloatingSummary.jsx";
 export { OpsScrollArea } from "./components/OpsScrollArea.jsx";
-export { OpsFilePicker } from "./components/OpsFilePicker.jsx";
+export { OpsFilePicker, ORD_OPSFILEPICKER } from "./components/OpsFilePicker.jsx";
 export { OpsLjudspelare } from "./components/OpsLjudspelare.jsx";
 export { OpsSpelareProvider, OpsSpelaKnapp, OpsSpelarKontroller, useSpelare, ORD_OPSSPELARE } from "./components/OpsSpelare.jsx";
 // ⛔ `readAttachment` och `MAX_SIDE` exporteras MED FLIT inte. En app som läser filer
@@ -336,7 +336,7 @@ export { LANKKALLOR, KALLOR, lankKalla, lankKallnamn, lankRubrik, lankkallaForm 
 export { LISTRADTEXT, LISTA_I_LISTA_TEXT, LISTA_FLYTT_TEXT, losLista, listorAttLaggaI, kandidaterForLista, laggTillPost, taBortPost } from "./lib/biblioteklista.js";
 export { createBibliotekskalla, flyttaBibliotekspost } from "./data/bibliotekkalla.js";
 export { OpsBibliotek } from "./components/OpsBibliotek.jsx";
-export { OpsTaggPiller, OpsTaggRad, OpsTaggFilter } from "./components/OpsTaggar.jsx";
+export { OpsTaggPiller, OpsTaggRad, OpsTaggFilter, ORD_TAGGAR } from "./components/OpsTaggar.jsx";
 // 0.119.0 (lifehub.app#356): publik delning av en biblioteksfil. Vyn och det den delar med servern. Tokenet och tjänsten ligger i `ops-framework/node`.
 export { OpsDelad } from "./components/OpsDelad.jsx";
 // 0.125.0 (lifehub.app#377): samma delning för en händelse, med en läsbar adress (`/g/<grupp>/event/<händelse>` och `/g/<grupp>/lib/<fil>`), en valfri kod och en publik sida med eget huvud och språkval.

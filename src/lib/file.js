@@ -154,7 +154,7 @@ async function shrinkImage(file, maxChars) {
     if (dataUrl.length <= maxChars) {
       return {
         dataUrl,
-        namn: nameFor(file),
+        namn: filensNamn(file),
         // ⛔ `image/jpeg` och inte filens ursprungliga typ. Duken har skrivit om
         // den, och en HEIC som sparas märkt `image/heic` men innehåller JPEG är
         // en lögn nästa läsare tror på.
@@ -168,8 +168,15 @@ async function shrinkImage(file, maxChars) {
   return null;
 }
 
-/** @param {File | Blob} file */
-function nameFor(file) {
+/**
+ * Namnet på en fil som användaren ser det. Urklippsbilder är en Blob utan namn och heter "Urklipp", annat utan namn heter "Fil".
+ *
+ * ⛔ Exporterad för att väljaren ska kunna nämna filen i ett besked utan att härleda namnet en andra gång: samma fråga ställd på två ställen
+ * hade svarat olika första gången en tredje sorts namnlös fil dök upp.
+ *
+ * @param {File | Blob} file
+ */
+export function filensNamn(file) {
   const name = /** @type {any} */ (file).name;
   if (typeof name === "string" && name) return name;
   // Urklippsbilder är Blob utan namn. Ett tomt namn i en lista ser ut som en
@@ -220,5 +227,5 @@ export async function readAttachment(file, { maxChars, typer }) {
   if (dataUrl.length > maxChars) {
     throw new Error(`Filen är för stor (${sizeText(size)}). Skicka ett utdrag eller en skärmbild i stället.`);
   }
-  return { dataUrl, namn: nameFor(file), typ: file.type || "", tecken: dataUrl.length };
+  return { dataUrl, namn: filensNamn(file), typ: file.type || "", tecken: dataUrl.length };
 }

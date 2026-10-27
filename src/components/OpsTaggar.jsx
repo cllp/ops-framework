@@ -3,7 +3,51 @@ import * as Popover from "@radix-ui/react-popover";
 import { Tag, X } from "lucide-react";
 import { MAX_TAGGAR, MAX_TAGGLANGD, normaliseraTagg, normaliseraTaggar, taggarFel, taggfarg } from "../lib/bibliotek.js";
 import { cx } from "../lib/cx.js";
+import { forvalda } from "../lib/ord.js";
 import { radBehallare, radKlass } from "../lib/radKlass.js";
+import { useOpsSprak } from "./OpsSprak.jsx";
+
+/**
+ * Orden i taggkomponenterna, svenska och engelska (0.149.0, cllp/ops-framework#444).
+ *
+ * ══ ⛔ HÄNDELSEN ═════════════════════════════════════════════════════════
+ *
+ * Taggpillret, taggraden och taggfiltret flyttades ur Biblioteket till en gemensam plats (0.143.0) och började användas i Inkorgen och
+ * Ärenden. Etiketterna följde med som svenska litteraler i JSX, medan appens egen version av samma knappar haft både svenska och engelska.
+ * Den som bytte språk i profilen fick svenska taggetiketter i tre vyer. `check-sprak` fångade det inte: den räknar förval i
+ * parameterlistan och läser inte litteraler i JSX.
+ *
+ * ⛔ EN ORDBOK BREDVID KOMPONENTEN, och den är den enda källan till texten (arbetsreglernas punkt 2). `{tagg}` och `{n}` fylls i av
+ * komponenten. Språket är `sprak` om appen gav ett, annars `OpsSprakProvider`, annars svenska.
+ */
+export const ORD_TAGGAR = {
+  taggar: { sv: "Taggar", en: "Tags" },
+  allaTaggar: { sv: "Alla taggar", en: "All tags" },
+  rensaAlla: { sv: "Rensa alla", en: "Clear all" },
+  taggarValda: { sv: "Taggar, {n} valda", en: "Tags, {n} selected" },
+  visaBara: { sv: "Visa bara {tagg}", en: "Show only {tagg}" },
+  taBortTaggen: { sv: "Ta bort taggen {tagg}", en: "Remove the tag {tagg}" },
+  laggTillTagg: { sv: "Lägg till tagg", en: "Add tag" },
+  tagg: { sv: "Tagg", en: "Tag" },
+  nyTagg: { sv: "Ny tagg", en: "New tag" },
+  taggPlatshallare: { sv: "tagg", en: "tag" },
+  forslag: { sv: "Förslag", en: "Suggestions" },
+  ingaTaggar: { sv: "Inga taggar ännu. Lägg till en på en post.", en: "No tags yet. Add one to a post." },
+  sparandeEjKopplat: { sv: "Sparandet är inte kopplat. Taggarna ändrades inte.", en: "Saving is not connected. The tags were not changed." },
+  kundeInteSparas: { sv: "Taggarna kunde inte sparas.", en: "The tags could not be saved." },
+};
+
+/**
+ * Orden och språket de är på, med appens `sprak` före providerns.
+ *
+ * @param {"sv" | "en" | undefined} sprak
+ * @returns {{ o: Record<keyof typeof ORD_TAGGAR, string>, sp: string }}
+ */
+function useTaggord(sprak) {
+  const kontext = useOpsSprak();
+  const sp = sprak ?? kontext;
+  return { o: /** @type {Record<keyof typeof ORD_TAGGAR, string>} */ (forvalda(ORD_TAGGAR, sp)), sp };
+}
 
 /**
  * Taggfärgerna som verktygsklasser. Skrivna ut ord för ord: Tailwind läser källan och bygger bara de klasser som står i den.
@@ -42,9 +86,10 @@ export function menyPilar(e) {
  * - Utan `onFilter`: texten är en `<span>` (läsläge eller formulär).
  * - Med `onTaBort`: en separat ×-knapp bredvid texten (`aria-label="Ta bort taggen <tagg>"`), aldrig en knapp inuti en knapp.
  *
- * @param {{ tagg: string, onFilter?: (tagg: string) => void, vald?: boolean, onTaBort?: (tagg: string) => void | Promise<unknown> }} props
+ * @param {{ tagg: string, onFilter?: (tagg: string) => void, vald?: boolean, onTaBort?: (tagg: string) => void | Promise<unknown>, sprak?: "sv" | "en" }} props `sprak` (0.149.0): språket för knapparnas namn, annars `OpsSprakProvider`, annars svenska.
  */
-export function OpsTaggPiller({ tagg, onFilter, vald = false, onTaBort }) {
+export function OpsTaggPiller({ tagg, onFilter, vald = false, onTaBort, sprak }) {
+  const { o } = useTaggord(sprak);
   const harTaBort = typeof onTaBort === "function";
   return (
     <span data-bibliotek-tagg={tagg} className={cx("pointer-events-auto inline-flex h-7 max-w-full items-center rounded-full text-meta font-medium text-tagg-text", taggKlass(tagg))}>
@@ -53,7 +98,7 @@ export function OpsTaggPiller({ tagg, onFilter, vald = false, onTaBort }) {
           type="button"
           onClick={() => onFilter(tagg)}
           aria-pressed={Boolean(vald)}
-          aria-label={`Visa bara ${tagg}`}
+          aria-label={o.visaBara.replace("{tagg}", tagg)}
           className={cx("h-full min-w-0 cursor-pointer truncate rounded-full bg-transparent pl-2.5 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent", harTaBort ? "pr-0.5" : "pr-2.5")}
         >
           {tagg}
@@ -65,7 +110,7 @@ export function OpsTaggPiller({ tagg, onFilter, vald = false, onTaBort }) {
         /* vantar-ej: taggen försvinner direkt (setVisas) och kommer tillbaka med ett fel om sparandet faller, se spara() */
         <button
           type="button"
-          aria-label={`Ta bort taggen ${tagg}`}
+          aria-label={o.taBortTaggen.replace("{tagg}", tagg)}
           onClick={() => onTaBort(tagg)}
           className="mr-1 inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-full bg-transparent hover:bg-black/10 focus-visible:outline-2 focus-visible:outline-accent"
         >
@@ -85,9 +130,10 @@ export function OpsTaggPiller({ tagg, onFilter, vald = false, onTaBort }) {
  *
  * ⛔ SAMMA RÄTT SOM BYT NAMN: `kanAndra` är `farAndra`, författaren och admin. Andra ser taggarna och kan filtrera på dem.
  *
- * @param {{ taggar?: readonly string[], kanAndra?: boolean, forslag?: readonly string[], valda?: readonly string[], onFilter?: (tagg: string) => void, onAndra?: (nastaTaggar: string[]) => void | boolean | Promise<void | boolean> }} props
+ * @param {{ taggar?: readonly string[], kanAndra?: boolean, forslag?: readonly string[], valda?: readonly string[], onFilter?: (tagg: string) => void, onAndra?: (nastaTaggar: string[]) => void | boolean | Promise<void | boolean>, sprak?: "sv" | "en" }} props `sprak` (0.149.0): språket för knappar, fält och egna felmeddelanden, annars `OpsSprakProvider`, annars svenska. Ett fel som `onAndra` själv kastar visas som det är.
  */
-export function OpsTaggRad({ taggar, kanAndra = false, forslag = [], valda = [], onFilter, onAndra }) {
+export function OpsTaggRad({ taggar, kanAndra = false, forslag = [], valda = [], onFilter, onAndra, sprak }) {
+  const { o, sp } = useTaggord(sprak);
   const sparade = Array.isArray(taggar) ? taggar : [];
   const [visas, setVisas] = useState(/** @type {string[] | null} */ (null));
   const [skriver, setSkriver] = useState(false);
@@ -100,13 +146,13 @@ export function OpsTaggRad({ taggar, kanAndra = false, forslag = [], valda = [],
 
   /** @param {string[]} ny */
   const spara = (ny) => {
-    const problem = taggarFel(ny);
+    const problem = taggarFel(ny, sp);
     if (problem) {
       setFel(problem);
       return;
     }
     if (typeof onAndra !== "function") {
-      setFel("Sparandet är inte kopplat. Taggarna ändrades inte.");
+      setFel(o.sparandeEjKopplat);
       return;
     }
     setFel("");
@@ -115,7 +161,7 @@ export function OpsTaggRad({ taggar, kanAndra = false, forslag = [], valda = [],
       .then(() => onAndra(ny))
       .then(
         (svar) => {
-          if (svar === false) throw new Error("Taggarna kunde inte sparas.");
+          if (svar === false) throw new Error(o.kundeInteSparas);
           setVisas(null);
         },
         (e) => {
@@ -153,6 +199,7 @@ export function OpsTaggRad({ taggar, kanAndra = false, forslag = [], valda = [],
             vald={valda.includes(t)}
             onFilter={onFilter}
             onTaBort={kanAndra ? () => spara(lista.filter((x) => x !== t)) : undefined}
+            sprak={sprak}
           />
         ))}
         {kanAndra && lista.length < MAX_TAGGAR ? (
@@ -163,8 +210,8 @@ export function OpsTaggRad({ taggar, kanAndra = false, forslag = [], valda = [],
                 autoFocus
                 value={utkast}
                 maxLength={MAX_TAGGLANGD}
-                aria-label="Ny tagg"
-                placeholder="tagg"
+                aria-label={o.nyTagg}
+                placeholder={o.taggPlatshallare}
                 aria-autocomplete="list"
                 aria-controls={forslagen.length > 0 ? listId : undefined}
                 aria-activedescendant={markerat >= 0 ? `${listId}-${markerat}` : undefined}
@@ -199,7 +246,7 @@ export function OpsTaggRad({ taggar, kanAndra = false, forslag = [], valda = [],
                 className="h-8 w-36 rounded-full border border-line bg-transparent px-3 text-meta text-ink outline-none focus:border-accent"
               />
               {forslagen.length > 0 ? (
-                <span id={listId} role="listbox" aria-label="Förslag" className={cx("absolute top-9 left-0 z-(--z-dropdown) flex min-w-32 flex-col p-1", radBehallare())}>
+                <span id={listId} role="listbox" aria-label={o.forslag} className={cx("absolute top-9 left-0 z-(--z-dropdown) flex min-w-32 flex-col p-1", radBehallare())}>
                   {forslagen.map((t, i) => (
                     /* vantar-ej: taggen läggs till direkt (setVisas) och tas tillbaka med ett fel om sparandet faller, se spara() */
                     <button
@@ -232,7 +279,7 @@ export function OpsTaggRad({ taggar, kanAndra = false, forslag = [], valda = [],
               className="pointer-events-auto inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-full border border-dashed border-ink-muted/50 bg-transparent px-3 text-meta font-medium text-ink-secondary hover:border-accent hover:text-accent focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
             >
               <Tag size={14} aria-hidden="true" />
-              {lista.length === 0 ? "Lägg till tagg" : "Tagg"}
+              {lista.length === 0 ? o.laggTillTagg : o.tagg}
             </button>
           )
         ) : null}
@@ -252,9 +299,10 @@ export function OpsTaggRad({ taggar, kanAndra = false, forslag = [], valda = [],
  *
  * ⛔ TOMT ÄR ETT SVAR (regel 5): utan taggar säger panelen det. SessionStudio skrev "Alla taggar" två gånger där.
  *
- * @param {{ taggar: ReadonlyArray<{ tagg: string, antal: number }>, valda: readonly string[], onValda: (valda: string[]) => void, extra?: { rubrik: string, ikon?: import("react").ReactNode, lista: ReadonlyArray<{ namn: string, antal: number }>, valda: readonly string[], onValda: (valda: string[]) => void } }} props
+ * @param {{ taggar: ReadonlyArray<{ tagg: string, antal: number }>, valda: readonly string[], onValda: (valda: string[]) => void, extra?: { rubrik: string, ikon?: import("react").ReactNode, lista: ReadonlyArray<{ namn: string, antal: number }>, valda: readonly string[], onValda: (valda: string[]) => void }, sprak?: "sv" | "en" }} props `sprak` (0.149.0): språket för knappen och panelen, annars `OpsSprakProvider`, annars svenska. `extra.rubrik` är appens egen text.
  */
-export function OpsTaggFilter({ taggar, valda, onValda, extra }) {
+export function OpsTaggFilter({ taggar, valda, onValda, extra, sprak }) {
+  const { o } = useTaggord(sprak);
   const [oppen, setOppen] = useState(false);
   const extraLista = extra && Array.isArray(extra.lista) ? extra.lista : [];
   const extraValda = extra && Array.isArray(extra.valda) ? extra.valda : [];
@@ -264,19 +312,19 @@ export function OpsTaggFilter({ taggar, valda, onValda, extra }) {
     <Popover.Root open={oppen} onOpenChange={setOppen}>
       <Popover.Trigger
         data-bibliotek-taggfilter=""
-        aria-label={aktiv ? `Taggar, ${antalValda} valda` : "Taggar"}
+        aria-label={aktiv ? o.taggarValda.replace("{n}", String(antalValda)) : o.taggar}
         className={cx(
           "inline-flex min-h-11 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border px-4 text-etikett font-medium",
           "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
           aktiv ? "border-transparent bg-accent text-accent-contrast" : "border-line bg-raised text-ink hover:bg-hover",
         )}
       >
-        <span>{aktiv ? `Taggar (${antalValda})` : "Taggar"}</span>
+        <span>{aktiv ? `${o.taggar} (${antalValda})` : o.taggar}</span>
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Content align="end" sideOffset={4} collisionPadding={8} className={cx("z-(--z-dropdown) w-64 max-w-[calc(100vw-1rem)] p-2", radBehallare())}>
           <div className="flex items-center justify-between gap-2 border-b border-line px-1 pb-2">
-            <span className="text-meta font-medium text-ink-secondary">Alla taggar</span>
+            <span className="text-meta font-medium text-ink-secondary">{o.allaTaggar}</span>
             {aktiv ? (
               <button
                 type="button"
@@ -286,14 +334,14 @@ export function OpsTaggFilter({ taggar, valda, onValda, extra }) {
                 }}
                 className="cursor-pointer rounded-sm bg-transparent text-meta font-medium text-accent focus-visible:outline-2 focus-visible:outline-accent"
               >
-                Rensa alla
+                {o.rensaAlla}
               </button>
             ) : null}
           </div>
           {taggar.length === 0 ? (
-            <p className="m-0 px-1 pt-2 text-meta text-ink-muted">Inga taggar ännu. Lägg till en på en post.</p>
+            <p className="m-0 px-1 pt-2 text-meta text-ink-muted">{o.ingaTaggar}</p>
           ) : (
-            <div role="menu" aria-label="Taggar" onKeyDown={menyPilar} className="flex max-h-64 flex-col overflow-y-auto pt-1">
+            <div role="menu" aria-label={o.taggar} onKeyDown={menyPilar} className="flex max-h-64 flex-col overflow-y-auto pt-1">
               {taggar.map(({ tagg, antal: n }) => {
                 const pa = valda.includes(tagg);
                 return (
