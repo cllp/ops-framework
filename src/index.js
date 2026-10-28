@@ -282,7 +282,7 @@ export { useKalenderSynlighet } from "./lib/useKalenderSynlighet.js";
  * `källa.konto(uid, gruppId)`. Appens Dagen frågar `useKalenderSynlighet().dela(poster)` vad som är dolt och ritar de dolda blekta (`DOLD_RAD_KLASS`) och märkta (`OpsDoldMarke`), på samma sätt som månadsvyns snabbtitt.
  */
 export { createKalendervalskalla } from "./data/kalendervalskalla.js";
-export { kalenderRamar, MAX_KALENDERRAMAR } from "./lib/kalenderramar.js";
+export { kalenderRamar, kalenderRamarAlla, ramarEfterText, ORD_KALENDERRAMAR, MAX_KALENDERRAMAR } from "./lib/kalenderramar.js";
 export { OpsDoldMarke, DOLD_RAD_KLASS, ORD_OPSDOLDMARKE } from "./components/OpsDoldMarke.jsx";
 export { ORD_OPSKALENDERLISTA } from "./components/OpsKalenderLista.jsx";
 /*

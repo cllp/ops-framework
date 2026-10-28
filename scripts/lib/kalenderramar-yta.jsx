@@ -3,7 +3,7 @@ import { useState } from "react";
 import * as Ops from "OPS_DIST";
 
 /**
- * Ytan för mätningen av dagens ramar (0.151.0): `OpsCalendar` med tre kalendrar och dagar med noll, en, två och tre ramar, med och utan hörnbrickor. Allt är syntetiskt.
+ * Ytan för mätningen av dagens ramar (0.151.0): `OpsCalendar` med fyra kalendrar och dagar med noll till fyra ramar (tre och fyra ger lagerbrickan "+1" och "+2"), med och utan tillgänglighetsbrickan. Allt är syntetiskt.
  * Läget kommer från `window.__prov.lage`: "tva" (Ram och Båda på alla tre kalendrar), "en" (bara Styrelsen har ram) och "gammal" (EN ram per dag, den första kalenderns:
  * så som 0.150.0 ritade, via appens egen `dagdekor.ram`), som `--bevisa` mäter mot och förväntar sig rött för.
  */
@@ -12,6 +12,7 @@ const KALENDRAR = [
   { id: "gruppen", namn: "Styrelsen", farg: 4, grupp: true, forvald: true },
   { id: "resor", namn: "Resor", farg: 1, grupp: true },
   { id: "mina", namn: "Privat", farg: 5 },
+  { id: "familj", namn: "Familj", farg: 2 },
 ];
 const kal = (id) => {
   const k = KALENDRAR.find((x) => x.id === id);
@@ -32,18 +33,25 @@ const POSTER = [
   // Ingen ram (Privat har bara Händelser i läget "en"), ingen kalender med ram i läget "tva" har post den 15:e.
   // Hörnbrickor tillsammans med ramar.
   p("a16", "Möte", "2026-10-16", "gruppen"),
+  // Fyra kalendrar med ram och tre borta: lagerbrickan "+2" bredvid tillgänglighetsbrickan.
   p("a17", "Workshop", "2026-10-17", "gruppen"),
   p("b17", "Middag", "2026-10-17", "resor"),
+  p("c17", "Kvällskurs", "2026-10-17", "mina"),
+  p("d17", "Släkten", "2026-10-17", "familj"),
+  // Tre kalendrar med ram och två borta: "+1" bredvid tillgänglighetsbrickan, på en söndag i rutnätets högerkant.
+  p("a18", "Brunch", "2026-10-18", "gruppen"),
+  p("b18", "Hotell", "2026-10-18", "resor"),
+  p("c18", "Promenad", "2026-10-18", "mina"),
 ];
 
 const VISNINGAR = {
-  tva: { gruppen: "bada", resor: "ram", mina: "ram" },
+  tva: { gruppen: "bada", resor: "ram", mina: "ram", familj: "ram" },
   en: { gruppen: "ram" },
   // 0.150.0: kalendrarna visar händelser, och ramen kommer från appens dagdekor (en ram, den första kalenderns).
   gammal: {},
 };
-const FORSTA_RAM = { "2026-10-12": 4, "2026-10-13": 4, "2026-10-14": 1, "2026-10-16": 4, "2026-10-17": 4 };
-const BRICKOR = { "2026-10-16": { borta: { antal: 2 }, lager: { antal: 1 } }, "2026-10-17": { borta: { antal: 3 } } };
+const FORSTA_RAM = { "2026-10-12": 4, "2026-10-13": 4, "2026-10-14": 1, "2026-10-16": 4, "2026-10-17": 4, "2026-10-18": 4 };
+const BRICKOR = { "2026-10-16": { borta: { antal: 2 }, lager: { antal: 1 } }, "2026-10-17": { borta: { antal: 3 } }, "2026-10-18": { borta: { antal: 2 } } };
 
 function Yta() {
   const prov = window.__prov || { lage: "tva" };

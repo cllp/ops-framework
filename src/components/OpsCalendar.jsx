@@ -9,7 +9,8 @@ import { rapporteraFel } from "../lib/felrapport.js";
 import { STANDARD_TIDSZON, idagI, kontrolleraTidszon } from "../lib/kalendrar.js";
 import { KALENDERPRICK, postklasser, prickklass } from "../lib/kalenderfarg.js";
 import { DATUM_EJ_SATT } from "../lib/handelsemodell.js";
-import { kalenderRamar } from "../lib/kalenderramar.js";
+import { MAX_KALENDERRAMAR, ORD_KALENDERRAMAR, kalenderRamarAlla, ramarEfterText } from "../lib/kalenderramar.js";
+import { forvalda } from "../lib/ord.js";
 import { useKalenderSynlighet } from "../lib/useKalenderSynlighet.js";
 import { useHandelseOppnare } from "../lib/handelsekontext.js";
 import { LANGTRYCK_MS } from "../lib/talk.js";
@@ -504,9 +505,9 @@ const DAGPANEL_TAK = 0.75;
  *
  * ⛔ TOMT ÄR ETT SVAR (punkt 5). En vald dag utan poster säger "Inga poster", och antalet står som noll.
  *
- * @param {{ days: { dayKey: string, entries: import("../lib/calendar.js").CalendarEntry[] }[], statusWords: Record<string, string>, onClose: () => void, onTaBort: (dayKey: string) => void, onSkapa?: () => void, locale: string, arMin: (e: import("../lib/calendar.js").CalendarEntry) => boolean, lager?: import("react").ReactNode, oppna: ((id: string) => void) | null, oppnaExtern: (e: import("../lib/calendar.js").CalendarEntry) => void, lasbara: ReadonlySet<string> }} props
+ * @param {{ days: { dayKey: string, entries: import("../lib/calendar.js").CalendarEntry[] }[], statusWords: Record<string, string>, onClose: () => void, onTaBort: (dayKey: string) => void, onSkapa?: () => void, locale: string, arMin: (e: import("../lib/calendar.js").CalendarEntry) => boolean, lager?: import("react").ReactNode, oppna: ((id: string) => void) | null, oppnaExtern: (e: import("../lib/calendar.js").CalendarEntry) => void, lasbara: ReadonlySet<string>, ramarForDag: (dayKey: string) => ReadonlyArray<{ id: string, namn: string, ton: 1|2|3|4|5|6 }> | undefined }} props
  */
-function DayPanel({ days, statusWords, onClose, onTaBort, onSkapa, locale, arMin, lager, oppna, oppnaExtern, lasbara }) {
+function DayPanel({ days, statusWords, onClose, onTaBort, onSkapa, locale, arMin, lager, oppna, oppnaExtern, lasbara, ramarForDag }) {
   const flera = days.length > 1;
   const title = flera ? `${days.length} dagar` : dateText(days[0].dayKey, locale);
   const name = flera ? `Poster för ${days.length} valda dagar` : `Poster den ${title}`;
@@ -570,6 +571,15 @@ function DayPanel({ days, statusWords, onClose, onTaBort, onSkapa, locale, arMin
         </button>
       </div>
 
+      {/* ⛔ KALENDRARNA MED RAM, när några inte får plats på dagen (0.151.0): lagerbrickan säger "+N", och här står vilka. En rad per dag, med datum när flera dagar är valda. */}
+      {days.some((d) => ramarForDag(d.dayKey)) ? (
+        <div data-ramar-rader="" className="ops-contrast-panel flex flex-col gap-1 rounded-xl bg-contrast-panel px-3 py-2 text-ink shadow-md">
+          {days.map((d) => {
+            const r = ramarForDag(d.dayKey);
+            return r ? <RamarRad key={d.dayKey} lista={r} sprak={String(locale).toLowerCase().startsWith("en") ? "en" : "sv"} dag={flera ? dateText(d.dayKey, locale) : undefined} /> : null;
+          })}
+        </div>
+      ) : null}
       {/* ⛔ SS-appens rad: bubblan med posterna till vänster (flex 3) och antalet och Skapa till höger (flex 1). */}
       <div className="flex gap-2">
         <div data-postbubbla="" className="ops-contrast-panel flex min-h-30 min-w-0 flex-3 flex-col justify-center rounded-xl bg-contrast-panel p-3 text-ink shadow-md">
@@ -652,6 +662,27 @@ function ExternLank({ onOppna, children }) {
 }
 
 /**
+ * Raden "Kalendrar med ram" (0.151.0, CP 2026-10-28): vilka kalendrar som har ram en dag när några av dem inte får plats (dagrutan ritar högst två, och lagerbrickan säger "+N"). Ett tryck på
+ * dagen öppnar dagpanelen eller snabbtitten, och där ska det gå att se VILKA. Ordningen är listans, den första ytterst på dagen. Bara på en dag med ramar som inte får plats: en rad som alltid stod
+ * där hade varit brus. ⛔ Dagpanelen och snabbtitten visar redan posterna med kalenderns namn; den här raden är det som säger vilka som är ram och inte bara en post.
+ * @param {{ lista: ReadonlyArray<{ id: string, namn: string, ton: 1|2|3|4|5|6 }>, sprak: string, dag?: string }} props
+ */
+function RamarRad({ lista, sprak, dag }) {
+  const o = forvalda(ORD_KALENDERRAMAR, sprak);
+  return (
+    <p data-ramar-rad={dag || ""} className="m-0 flex flex-wrap items-center gap-x-2 gap-y-1 text-liten text-ink-secondary">
+      <span className="font-semibold">{dag ? `${dag}: ${o.rad}` : o.rad}:</span>
+      {lista.map((k) => (
+        <span key={k.id} className="inline-flex items-center gap-1">
+          <span aria-hidden="true" data-ramar-prick={k.ton} className={cx("size-2 shrink-0 rounded-full", KALENDERPRICK[k.ton])} />
+          {k.namn}
+        </span>
+      ))}
+    </p>
+  );
+}
+
+/**
  * Snabbtitten: en dag i en liten inverterad ruta, utan att urvalet ändras (SS `CalendarDayPeekPopover.jsx`).
  *
  * ⛔ DEN VISAR DAGENS ALLA POSTER, OCKSÅ DE FILTRET DÖLJER, MÄRKTA "DOLD" (SS #94). Filtret avgör vad rutnätet ritar,
@@ -671,9 +702,9 @@ function ExternLank({ onOppna, children }) {
  * innehållet, "Dold" och vägarna ut. Det som stryks: positionsuträkningen (`ankare.x`, `ankare.y`, kläm mot fönstret),
  * som bara fanns för att bubblan flöt. Dagpanelen vid ett vanligt tryck är orörd.
  *
- * @param {{ dayKey: string, alla: import("../lib/calendar.js").CalendarEntry[], synliga: Set<string>, onClose: () => void, locale: string, oppna: ((id: string) => void) | null, oppnaExtern: (e: import("../lib/calendar.js").CalendarEntry) => void, lasbara: ReadonlySet<string> }} props
+ * @param {{ dayKey: string, alla: import("../lib/calendar.js").CalendarEntry[], synliga: Set<string>, onClose: () => void, locale: string, oppna: ((id: string) => void) | null, oppnaExtern: (e: import("../lib/calendar.js").CalendarEntry) => void, lasbara: ReadonlySet<string>, ramar?: ReadonlyArray<{ id: string, namn: string, ton: 1|2|3|4|5|6 }> }} props
  */
-function Snabbtitt({ dayKey, alla, synliga, onClose, locale, oppna, oppnaExtern, lasbara }) {
+function Snabbtitt({ dayKey, alla, synliga, onClose, locale, oppna, oppnaExtern, lasbara, ramar }) {
   const ref = useRef(/** @type {HTMLDivElement | null} */ (null));
   const rubrikId = useId();
   useEffect(() => {
@@ -710,6 +741,11 @@ function Snabbtitt({ dayKey, alla, synliga, onClose, locale, oppna, oppnaExtern,
           <KryssIkon size={14} />
         </button>
       </div>
+      {ramar ? (
+        <div className="mb-1.5 px-0.5">
+          <RamarRad lista={ramar} sprak={String(locale).toLowerCase().startsWith("en") ? "en" : "sv"} />
+        </div>
+      ) : null}
       {alla.length === 0 ? <p className="m-0 px-0.5 py-1 text-hjalp text-ink-secondary">Inga poster den här dagen.</p> : null}
       <ul className="m-0 flex list-none flex-col gap-1 p-0">
         {alla.map((e) => {
@@ -1474,13 +1510,25 @@ export function OpsCalendar({
   const rutPoster = useMemo(() => (Object.keys(syn.visningar).length === 0 ? synligaPoster : synligaPoster.filter((e) => visningAv(e) !== "ram")), [synligaPoster, syn.visningar, visningAv]);
   const rutaPerDag = useMemo(() => (rutPoster === synligaPoster ? byKey : perDay(rutPoster)), [rutPoster, synligaPoster, byKey]);
   /**
-   * Dagens ramar (0.151.0): kalendrarna som har en post med Ram eller Båda den dagen, högst två, i listans ordning med den första ytterst. Till 0.150.0 var det EN ram, den första kalenderns.
-   * @type {Map<string, Array<1|2|3|4|5|6>>}
+   * Dagens ramar (0.151.0): kalendrarna som har en post med Ram eller Båda den dagen. De två första i listans ordning ritas, den första ytterst (till 0.150.0 var det EN ram, den första kalenderns).
+   * Resten (0.151.0, CP 2026-10-28) räknas ur SAMMA uppräkning: lagerbrickan visar "+N", knappnamnet säger det, och dagpanelen och snabbtitten listar kalendrarna med ram.
+   * @type {Map<string, { dekor: { ramar: Array<1|2|3|4|5|6>, ramarEfter: number, ramarEfterOrd: string }, alla: Array<{ id: string, namn: string, ton: 1|2|3|4|5|6 }> }>}
    */
   const ramDagar = useMemo(() => {
-    if (Object.keys(syn.visningar).length === 0) return new Map();
-    return kalenderRamar(synligaPoster, { kalendrar, forvaldId, visningAv });
-  }, [synligaPoster, visningAv, kalendrar, forvaldId, syn.visningar]);
+    const ut = new Map();
+    if (Object.keys(syn.visningar).length === 0) return ut;
+    const sp = String(locale).toLowerCase().startsWith("en") ? "en" : "sv";
+    for (const [dag, alla] of kalenderRamarAlla(synligaPoster, { kalendrar, forvaldId, visningAv })) {
+      const efter = Math.max(0, alla.length - MAX_KALENDERRAMAR);
+      ut.set(dag, { dekor: { ramar: alla.slice(0, MAX_KALENDERRAMAR).map((k) => k.ton), ramarEfter: efter, ramarEfterOrd: efter > 0 ? ramarEfterText(efter, sp) : "" }, alla });
+    }
+    return ut;
+  }, [synligaPoster, visningAv, kalendrar, forvaldId, syn.visningar, locale]);
+  /** Kalendrarna med ram en dag, bara när några inte får plats: raden i dagpanelen och snabbtitten. @param {string} dag */
+  const ramarForDag = useCallback((/** @type {string} */ dag) => {
+    const r = ramDagar.get(dag);
+    return r && r.dekor.ramarEfter > 0 ? r.alla : undefined;
+  }, [ramDagar]);
   const allaPerDag = useMemo(() => perDay(entries), [entries]);
   const list = useMemo(() => months(franNyckel(todayDayKey), monthsBack, monthsForward), [todayDayKey, monthsBack, monthsForward]);
   const sokning = fraga.trim();
@@ -1923,7 +1971,7 @@ export function OpsCalendar({
                                 sok={traffDagar ? (traffDagar.has(dayKey) ? "traff" : "miss") : ""}
                                 bandhojd={bandplats(filerPerDag[j])}
                                 pekare={pekareFor(dayKey)}
-                                dekor={ram && !(appDekor && appDekor.ram) ? { ...appDekor, ramar: ram } : appDekor}
+                                dekor={ram && !(appDekor && appDekor.ram) ? { ...appDekor, ...ram.dekor } : appDekor}
                               />
                             );
                           })}
@@ -1985,6 +2033,7 @@ export function OpsCalendar({
             oppna={oppnaHandelse ? (id) => { setTitt(null); oppnaHandelse(id); } : null}
             oppnaExtern={oppnaExtern}
             lasbara={lasbara}
+            ramar={ramarForDag(titt)}
           />
         ) : null}
         {panelOppen ? (
@@ -1999,6 +2048,7 @@ export function OpsCalendar({
             oppna={oppnaHandelse}
             oppnaExtern={oppnaExtern}
             lasbara={lasbara}
+            ramarForDag={ramarForDag}
             lager={daglager ? daglager(days.map((d) => d.dayKey)) : null}
           />
         ) : titt ? null : (

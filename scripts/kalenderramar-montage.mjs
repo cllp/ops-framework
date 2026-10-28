@@ -7,7 +7,7 @@
  *
  * ⛔ Ärendet citerar ingen SessionStudio-bild, så regel 12 kräver inget montage mot en förebild. Bilderna visar vad som ritas och bevisar inte att det är rätt: det beviset är
  * `scripts/kalenderramar-matt.mjs`. Veckan 12 till 18 oktober beskärs ut ur kalendern: måndagen har tre kalendrar med ram (två ritas), tisdagen två, onsdagen en,
- * torsdagen ingen, fredagen en ram med hörnbrickor och lördagen två ramar med en bricka.
+ * torsdagen ingen, fredagen en ram med hörnbrickor, lördagen fyra kalendrar med ram (två ritas, brickan säger "+2") och söndagen tre ("+1").
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -36,6 +36,9 @@ const BILDER = [
   ["3-en-ram-1280", 1280, "en", 2],
   ["4-tva-ramar-1280", 1280, "tva", 2],
   ["5-tva-ramar-320", 320, "tva", 3],
+  // Tre kalendrar med ram (måndagen, "+1") och fyra (lördagen, "+2" bredvid tillgänglighetsbrickan), 0.151.0.
+  ["6-tre-och-fyra-ramar-390", 390, "tva", 3],
+  ["7-tre-och-fyra-ramar-1280", 1280, "tva", 2],
 ];
 for (const [namn, bredd, lage, skala] of BILDER) {
   const context = await browser.newContext({ viewport: { width: bredd, height: 900 }, deviceScaleFactor: skala });

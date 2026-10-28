@@ -17,6 +17,8 @@
  *   5. Siffran, prickarna, pillren och hörnbrickorna täcks inte av en ram: rutan fotograferas med ramarna synliga och dolda, och inga pixlar innanför deras rutor skiljer sig (ett mått på det
  *      som SYNS, inte på var rutornas kanter ligger: en teckenruta är högre än siffrans bläck, och ett mått på den hade larmat för något ingen ser). Ramarna måste dessutom märkas: raden av
  *      rutan utanför innehållet ska skilja sig, annars har jämförelsen inget att jämföra.
+ *   7. ⛔ LAGERBRICKAN FÖR RAMAR SOM INTE FÅR PLATS (0.151.0): "+1" för tre kalendrar med ram och "+2" för fyra, ingenting med två eller färre, dagens namn säger det, och brickan krockar inte med siffran,
+ *      ramarna (z-index och pixlar) eller tillgänglighetsbrickan (16 px mellan överkanterna med lagerbrickan ovanpå, som sedan 0.61.0; från 640 px ligger indikatorerna efter siffran).
  *   6. ⛔ EN RAM ÄR EXAKT SOM FÖRUT: den yttre ramens läge i rutan är det 0.150.0 hade (0 px från kantlådan under 640 px, 3 px från 640 px), också på en dag med en enda ram.
  *
  * ⛔ GOLV: minst 4 vyportar och 150 mätningar, och minst en dag med två ramar i varje läge. ⛔ FAIL-CLOSED när webbläsaren saknas.
@@ -46,8 +48,16 @@ const TOL = 0.6;
 
 /** Antal ramar per dag och läge. Dag 15 har ingen post: ingen ram. */
 const FORVANTAT = {
-  tva: { "2026-10-12": 2, "2026-10-13": 2, "2026-10-14": 1, "2026-10-15": 0, "2026-10-16": 1, "2026-10-17": 2 },
-  en: { "2026-10-12": 1, "2026-10-13": 1, "2026-10-14": 0, "2026-10-15": 0, "2026-10-16": 1, "2026-10-17": 1 },
+  tva: { "2026-10-12": 2, "2026-10-13": 2, "2026-10-14": 1, "2026-10-15": 0, "2026-10-16": 1, "2026-10-17": 2, "2026-10-18": 2 },
+  en: { "2026-10-12": 1, "2026-10-13": 1, "2026-10-14": 0, "2026-10-15": 0, "2026-10-16": 1, "2026-10-17": 1, "2026-10-18": 1 },
+};
+/**
+ * Lagerbrickan för ramar som inte får plats (0.151.0): 12 har tre kalendrar med ram ("+1"), 17 fyra ("+2") och 18 tre ("+1"), de två sista bredvid tillgänglighetsbrickan. Dag 16 har appens egen
+ * `lager` (1) och ingen ram som blir över: den ritas som förut, utan "+". Läget "en" har bara en kalender med ram, så ingenting blir över.
+ */
+const BRICKTEXT = {
+  tva: { "2026-10-12": "+1", "2026-10-17": "+2", "2026-10-18": "+1" },
+  en: {},
 };
 
 if (!fs.existsSync(annanDist ?? path.join(rot, "dist", "index.js"))) {
@@ -188,9 +198,19 @@ async function mat(bredd, lage) {
             dag,
             cell: rekt(c),
             nummer: rekt(nr),
+            // Siffrans glyfer (teckenrutan), inte dess ruta på 28 px: rutan når i SS också in under brickan, och det som får krocka är siffran (check-skalyta avsnitt 41, SS #266).
+            glyf: (() => { const iv = document.createRange(); iv.selectNodeContents(nr); return rekt(iv); })(),
             yttre: c.querySelector("[data-dagram]") ? ram(/** @type {Element} */ (c.querySelector("[data-dagram]"))) : null,
             inre: c.querySelector("[data-dagram-inre]") ? ram(/** @type {Element} */ (c.querySelector("[data-dagram-inre]"))) : null,
             antalRamar: c.querySelectorAll("[data-dagram], [data-dagram-inre]").length,
+            // Lagerbrickans text: under 640 px i hörnet, från 640 px i raden bredvid siffran. Den synliga av de två.
+            lagerText: [...c.querySelectorAll('[data-hornmarke="lager"], [data-indikator="lager"]')].filter(syns).map((e) => e.textContent),
+            lagerBricka: (() => { const e = [...c.querySelectorAll('[data-hornmarke="lager"], [data-indikator="lager"]')].find(syns); return e ? rekt(e) : null; })(),
+            // Innehållet i lagerbrickan (ikon och text) mot brickans innerkant: "+N" är bredare än en räknare och fick inte gå ut över cirkelns kant.
+            lagerInnehall: (() => { const e = c.querySelector('[data-hornmarke="lager"]'); if (!e || !syns(e)) return null; const b = e.getBoundingClientRect(); const kids = [...e.children].map((k) => k.getBoundingClientRect()); return { kant: parseFloat(getComputedStyle(e).borderTopWidth), left: Math.min(...kids.map((k) => k.left)) - b.left, right: b.right - Math.max(...kids.map((k) => k.right)) }; })(),
+            bortaBricka: (() => { const e = [...c.querySelectorAll('[data-hornmarke="borta"], [data-indikator="borta"]')].find(syns); return e ? rekt(e) : null; })(),
+            indikatorer: [...c.querySelectorAll("[data-indikator]")].filter(syns).map(rekt),
+            aria: c.getAttribute("aria-label"),
             innehall: [...c.querySelectorAll("[data-prick], [data-kalender-piller] > span, [data-markor-streck]")].filter(syns).map(rekt),
             // z-index sitter på hornbrickornas behållare (`data-hornmarken`, z-3), inte på varje bricka: första förälder inom rutan med ett z-index.
             brickor: [...c.querySelectorAll("[data-hornmarke]")].filter(syns).map((b) => {
@@ -219,6 +239,7 @@ async function mat(bredd, lage) {
 const rader = /** @type {string[]} */ ([]);
 let tvaRamsDagar = 0;
 let pixelDagar = 0;
+let overskottsDagar = 0;
 for (const bredd of VYPORTAR) {
   for (const lage of LAGEN) {
     const m = await mat(bredd, lage);
@@ -234,6 +255,28 @@ for (const bredd of VYPORTAR) {
       }
       const dag = /** @type {any} */ (d);
       krav(dag.antalRamar === forvantat[/** @type {keyof typeof forvantat} */ (dag.dag)], `${dn}: ${dag.antalRamar} ramar, väntade ${forvantat[/** @type {keyof typeof forvantat} */ (dag.dag)]}`);
+      // ⛔ LAGERBRICKAN FÖR RAMAR SOM INTE FÅR PLATS: rätt text, och en rimlig plats bredvid siffran och tillgänglighetsbrickan.
+      const vantadText = /** @type {Record<string, string>} */ (/** @type {any} */ (BRICKTEXT)[lage === "gammal" ? "tva" : lage])[dag.dag];
+      if (lage !== "gammal") {
+        if (vantadText) {
+          krav(dag.lagerText.length === 1 && dag.lagerText[0] === vantadText, `${dn}: lagerbrickan säger ${JSON.stringify(dag.lagerText)}, väntade ${JSON.stringify(vantadText)}`);
+          krav(typeof dag.aria === "string" && /kalend(?:er|rar) till med ram/.test(dag.aria), `${dn}: dagens namn säger inte att kalendrar saknas bland ramarna (${dag.aria})`);
+          overskottsDagar += 1;
+          const I = dag.lagerInnehall;
+          if (I) krav(I.left >= I.kant - 0.05 && I.right >= I.kant - 0.05, `${dn}: lagerbrickans innehåll går ut över cirkelns kant (${I.left.toFixed(2)} px till vänster och ${I.right.toFixed(2)} till höger innanför kanten på ${I.kant} px)`);
+          const L = dag.lagerBricka;
+          if (L) {
+            krav(L.left >= dag.glyf.right - TOL || L.right <= dag.glyf.left + TOL || L.top >= dag.glyf.bottom - TOL || L.bottom <= dag.glyf.top + TOL, `${dn}: lagerbrickan (${L.left.toFixed(1)}-${L.right.toFixed(1)}) krockar med siffran (${dag.glyf.left.toFixed(1)}-${dag.glyf.right.toFixed(1)})`);
+            const B = dag.bortaBricka;
+            if (B && telefon) krav(Math.abs(L.top - B.top - 16) <= TOL, `${dn}: lagerbrickan ligger ${(L.top - B.top).toFixed(2)} px under tillgänglighetsbrickans överkant, väntade 16 (lagerbrickan ovanpå, som 0.61.0)`);
+            if (B && !telefon) krav(L.left >= B.right - TOL || L.right <= B.left + TOL, `${dn}: lagerbrickan krockar med tillgänglighetsraden`);
+            if (!telefon) for (const [i, r] of /** @type {any[]} */ (dag.indikatorer).entries()) krav(r.left >= dag.glyf.right - TOL, `${dn}: indikator ${i} går in över siffran`);
+          }
+        } else if (dag.dag !== "2026-10-16") {
+          krav(dag.lagerText.length === 0, `${dn}: lagerbricka ${JSON.stringify(dag.lagerText)} utan ramar som blir över`);
+          krav(!/till med ram/.test(String(dag.aria)), `${dn}: dagens namn nämner ramar som blir över fast inga gör det`);
+        }
+      }
       const { yttre, inre, cell } = dag;
       const innersta = inre ?? yttre;
       if (yttre) {
@@ -296,7 +339,8 @@ console.log(rader.join("\n"));
 const lagen = LAGEN.length;
 krav(VYPORTAR.length >= 4 && rader.length === VYPORTAR.length * lagen, `golvet: ${rader.length} av ${VYPORTAR.length * lagen} mätningar av lägen och vyportar gjordes helt`);
 if (!bevisa) krav(pixelDagar >= VYPORTAR.length * 4 * lagen, `golvet: bara ${pixelDagar} rutor jämfördes pixel för pixel, minst ${VYPORTAR.length * 4 * lagen} krävs.`);
-if (!bevisa && LAGEN.includes("tva")) krav(tvaRamsDagar >= VYPORTAR.length * 3, `golvet: bara ${tvaRamsDagar} dagar med två ramar mättes, minst ${VYPORTAR.length * 3} krävs. Ett prov som inte ser två ramar är grönt av en tom anledning.`);
+if (!bevisa && LAGEN.includes("tva") && !annanDist) krav(overskottsDagar >= VYPORTAR.length * 3, `golvet: bara ${overskottsDagar} dagar med lagerbricka för ramar som blir över mättes, minst ${VYPORTAR.length * 3} krävs.`);
+if (!bevisa && LAGEN.includes("tva")) krav(tvaRamsDagar >= VYPORTAR.length * 4, `golvet: bara ${tvaRamsDagar} dagar med två ramar mättes, minst ${VYPORTAR.length * 4} krävs. Ett prov som inte ser två ramar är grönt av en tom anledning.`);
 if (matningar < 75 * lagen && !bevisa) brott.push(`golvet: ${matningar} mätningar, minst ${75 * lagen} krävs.`);
 
 if (bevisa) {
