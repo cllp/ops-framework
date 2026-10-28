@@ -671,7 +671,7 @@ function RamarRad({ lista, sprak, dag }) {
   const o = forvalda(ORD_KALENDERRAMAR, sprak);
   return (
     <p data-ramar-rad={dag || ""} className="m-0 flex flex-wrap items-center gap-x-2 gap-y-1 text-liten text-ink-secondary">
-      <span className="font-semibold">{dag ? `${dag}: ${o.rad}` : o.rad}:</span>
+      <span className="font-medium">{dag ? `${dag}: ${o.rad}` : o.rad}:</span>
       {lista.map((k) => (
         <span key={k.id} className="inline-flex items-center gap-1">
           <span aria-hidden="true" data-ramar-prick={k.ton} className={cx("size-2 shrink-0 rounded-full", KALENDERPRICK[k.ton])} />
