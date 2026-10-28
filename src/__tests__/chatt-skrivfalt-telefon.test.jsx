@@ -107,6 +107,12 @@ describe("skrivfältet på telefon", () => {
         vv.dispatchEvent(new Event("scroll"));
       });
       expect(yta.getAttribute("data-tangentbord")).toBe("200");
+      // Den synliga ytan flyttad ned till botten: inget av layoutfönstret ligger under den, och chatten dras inte ned.
+      await act(async () => {
+        vv.offsetTop = 300;
+        vv.dispatchEvent(new Event("scroll"));
+      });
+      expect(yta.getAttribute("data-tangentbord")).toBeNull();
     } finally {
       delete (/** @type {any} */ (document.documentElement)).clientHeight;
       if (innerOrig) Object.defineProperty(window, "innerHeight", innerOrig);

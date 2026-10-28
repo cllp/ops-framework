@@ -62,33 +62,49 @@ export function arTextfalt(el) {
 }
 
 /**
- * Hur mycket av layoutfönstret som tangentbordet täcker, i pixlar. 0 utan `visualViewport`, och 0 för en zoomad sida.
+ * Tangentbordet mätt som två tal, ur EN läsning av `visualViewport` (0.152.0, granskningarna av PR 462). `{ krympt: 0, tackt: 0 }` utan `visualViewport` och för en zoomad sida.
  *
- * ⛔ EN MÄTNING FÖR ALLA (0.152.0, granskningen av PR 462). Chatten (`OpsMeddelanden`) hade en egen, som drog bort `visualViewport.offsetTop`, och raden en annan som inte gjorde det: två
- * sanningar om samma faktum. Nu räknar båda med den här. Den mäts mot LAYOUTFÖNSTRET (`document.documentElement.clientHeight`) och inte mot `window.innerHeight`: en webbläsare där
- * `innerHeight` krymper med tangentbordet (Android Chrome) hade gett skillnaden 0 och aldrig gömt raden, medan layoutfönstret står kvar. `clientHeight` är 0 där det inte finns någon
- * layout (jsdom), och då gäller `innerHeight`. `offsetTop` räknas med: det som täcks är det som ligger under den synliga delen, inte bara hur mycket den synliga delen krympt.
+ *   - `krympt = layoutfönstret - visualViewport.height`: HUR MYCKET SYNLIGT FÖNSTER SOM FÖRSVUNNIT. Det är vad som avgör OM TANGENTBORDET ÄR UPPE, och alltså om bottenraden göms
+ *     (`TANGENTBORD_MINST_PX`). `offsetTop` ingår inte: den säger var den synliga ytan ligger i layoutfönstret, inte hur hög den är.
+ *   - `tackt = max(0, krympt - visualViewport.offsetTop)`: HUR MYCKET AV LAYOUTFÖNSTRETS NEDRE DEL SOM LIGGER UNDER DEN SYNLIGA YTAN. Det är vad chattens höjd ska dras ned med
+ *     (`OpsMeddelanden`), eftersom det som ligger över den synliga ytan inte är under tangentbordet.
+ *
+ * ⛔ TVÅ TAL, INTE ETT (kontrollgranskningen av b759c79, en blockerare som rättelsen själv förde in). Beslutet om raden räknades ur `tackt`. Flyttar iOS den synliga ytan ned till botten
+ * (`offsetTop` 300 vid ett tangentbord på 300) blir `tackt` 0 fast tangentbordet är uppe, och raden göms inte: troligen just det läge CP:s skärmbild visar. Det mäter hur mycket som ligger UNDER
+ * tangentbordet, inte om det är uppe. I 7642d2b, som mätte bara höjden, gömdes raden där. Två tal ur samma läsning håller kvar EN mätning och ger var och en vad den frågar efter.
+ *
+ * ⛔ Mäts mot LAYOUTFÖNSTRET (`document.documentElement.clientHeight`) och inte mot `window.innerHeight` (granskningen av PR 462): en webbläsare där `innerHeight` krymper med tangentbordet
+ * (Android Chrome) hade gett 0 och aldrig gömt raden. `clientHeight` är 0 där det inte finns någon layout (jsdom), och då gäller `innerHeight`.
  *
  * ⛔ (hypotes, inte mätt på en riktig enhet) På iOS står layoutfönstret kvar och `visualViewport` krymper. En webbläsare som krymper layoutfönstret självt (`resizes-content`) ger 0 här,
  * och där följer layouten tangentbordet av sig själv.
- * @returns {number}
+ * @returns {{ krympt: number, tackt: number }}
  */
-export function tangentbordTackt() {
-  if (typeof window === "undefined" || typeof document === "undefined") return 0;
+export function tangentbordMatt() {
+  if (typeof window === "undefined" || typeof document === "undefined") return { krympt: 0, tackt: 0 };
   const vv = window.visualViewport;
-  if (!vv) return 0;
+  if (!vv) return { krympt: 0, tackt: 0 };
   // Zoomat (scale > 1) krymper visualViewport utan att något tangentbord finns.
-  if (typeof vv.scale === "number" && vv.scale > 1.01) return 0;
+  if (typeof vv.scale === "number" && vv.scale > 1.01) return { krympt: 0, tackt: 0 };
   const layout = document.documentElement.clientHeight || window.innerHeight;
-  return Math.max(0, Math.round(layout - vv.height - (vv.offsetTop || 0)));
+  const krympt = Math.max(0, Math.round(layout - vv.height));
+  return { krympt, tackt: Math.max(0, krympt - Math.round(vv.offsetTop || 0)) };
 }
 
 /**
- * Har `visualViewport` krympt tydligt mot layoutfönstret, utan att det är en zoom? (`tangentbordTackt` minst `TANGENTBORD_MINST_PX`.)
+ * Hur mycket av layoutfönstrets nedre del som ligger under den synliga ytan, i pixlar: chattens höjd räknas ned med det. Se `tangentbordMatt`.
+ * @returns {number}
+ */
+export function tangentbordTackt() {
+  return tangentbordMatt().tackt;
+}
+
+/**
+ * Har den synliga ytan krympt tydligt mot layoutfönstret, utan att det är en zoom? (`krympt` minst `TANGENTBORD_MINST_PX`, oberoende av `offsetTop`.)
  * @returns {boolean}
  */
 export function viewportKrympt() {
-  return tangentbordTackt() >= TANGENTBORD_MINST_PX;
+  return tangentbordMatt().krympt >= TANGENTBORD_MINST_PX;
 }
 
 /**

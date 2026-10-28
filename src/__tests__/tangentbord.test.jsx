@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, render, screen } from "@testing-library/react";
 import { OpsBottomNav } from "../components/OpsBottomNav.jsx";
-import { TANGENTBORD_MINST_PX, arTextfalt, tangentbordTackt, tangentbordUppe, viewportKrympt } from "../lib/tangentbord.js";
+import { TANGENTBORD_MINST_PX, arTextfalt, tangentbordMatt, tangentbordTackt, tangentbordUppe, viewportKrympt } from "../lib/tangentbord.js";
 
 /**
  * Bottenraden göms medan tangentbordet är uppe (0.152.0, cllp/ops-framework#461, punkt 1).
@@ -266,24 +266,44 @@ describe("⛔ EN mätning, mot layoutfönstret och med offsetTop (granskningen a
     expect(gomd(rad())).toBe(false);
   });
 
-  it("offsetTop räknas med: det som täcks är det som ligger under den synliga delen", async () => {
+  it("⛔ offsetTop avgör inte OM tangentbordet är uppe: den synliga ytan flyttad ned till botten (offsetTop 300 vid ett tangentbord på 300) gömmer raden ändå", async () => {
+    // Kontrollgranskningen av b759c79: beslutet räknades ur layout - vv.height - offsetTop, alltså hur mycket som ligger UNDER tangentbordet. Det blev 0 här, och raden göms inte.
     const a = android();
     const { rad, falt } = rita();
     await fokusera(falt);
-    await a.tangentbord(300, 100);
-    expect(tangentbordTackt()).toBe(200);
-    expect(gomd(rad())).toBe(true);
-    await a.tangentbord(300, 160);
-    expect(tangentbordTackt()).toBe(140);
+    for (const [offsetTop, krympt, tackt] of [[0, 300, 300], [100, 300, 200], [300, 300, 0]]) {
+      await a.tangentbord(300, offsetTop);
+      expect(tangentbordMatt(), `offsetTop ${offsetTop}`).toEqual({ krympt, tackt });
+      expect(gomd(rad()), `offsetTop ${offsetTop}`).toBe(true);
+    }
+    // Tangentbordet fälls med fönstret kvar nedtill: raden är tillbaka.
+    await a.tangentbord(0, 300);
     expect(gomd(rad())).toBe(false);
+  });
+
+  it("offsetTop ändrar bara täckningen (chattens höjd), aldrig tröskeln: 149 px krympt gömmer inte, hur stor offsetTop än är", async () => {
+    const a = android();
+    const { rad, falt } = rita();
+    await fokusera(falt);
+    await a.tangentbord(TANGENTBORD_MINST_PX - 1, 0);
+    expect(gomd(rad())).toBe(false);
+    await a.tangentbord(TANGENTBORD_MINST_PX - 1, 80);
+    expect(gomd(rad())).toBe(false);
+    await a.tangentbord(TANGENTBORD_MINST_PX, 80);
+    expect(tangentbordMatt()).toEqual({ krympt: 150, tackt: 70 });
+    expect(gomd(rad())).toBe(true);
+    // En offsetTop större än krympningen ger aldrig en negativ täckning.
+    await a.tangentbord(200, 500);
+    expect(tangentbordMatt()).toEqual({ krympt: 200, tackt: 0 });
   });
 
   it("zoom ger 0, och utan visualViewport ger den 0", async () => {
     const a = android();
     a.vv.scale = 2;
     await a.tangentbord(300);
-    expect(tangentbordTackt()).toBe(0);
+    expect(tangentbordMatt()).toEqual({ krympt: 0, tackt: 0 });
     delete (/** @type {any} */ (window)).visualViewport;
+    expect(tangentbordMatt()).toEqual({ krympt: 0, tackt: 0 });
     expect(tangentbordTackt()).toBe(0);
   });
 });
