@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { OpsKommentarer } from "../components/OpsKommentarer.jsx";
+import { identityTone } from "../lib/identity.js";
 
 /**
  * En kommentarkomponent för händelser och ärenden (0.150.0, #381, beslut CP 2026-10-26: "Ja alla"). Datan ligger kvar där den är;
@@ -112,6 +113,24 @@ describe("den gamla formen på skapadAv (en sträng)", () => {
     expect(within(rad).getByText("Claes Philip")).toBeTruthy();
     expect(rad.textContent).not.toMatch(/object Object|Namn saknas/);
     expect(within(rad).queryByRole("button", { name: /Ta bort/ })).toBeNull();
+  });
+});
+
+describe("avatarens färg på gamla kommentarer", () => {
+  const tonen = (/** @type {HTMLElement} */ rad) => rad.innerHTML.match(/bg-identity-(\d)/)?.[1];
+  it("samma namn ger samma färg när uid saknas, oavsett kommentarens id (inte ett nytt slumpval per rad)", () => {
+    // c1, c2, c3 ger tre OLIKA toner som frö, så ett frö ur kommentarens id syns som tre färger.
+    expect(new Set(["c1", "c2", "c3"].map(identityTone)).size).toBe(3);
+    render(<OpsKommentarer kommentarer={[k("c1", "Claes Philip"), k("c2", "Claes Philip"), k("c3", "Claes Philip")]} uid="anna" onSkriv={() => {}} />);
+    const toner = screen.getAllByRole("listitem").map(tonen);
+    expect(new Set(toner).size).toBe(1);
+    expect(toner[0]).toBe(String(identityTone("Claes Philip")));
+  });
+  it("med uid är frötet fortfarande uid:t, och utan både uid och namn kommentarens id", () => {
+    render(<OpsKommentarer kommentarer={[k("c1", anna), k("c2", { uid: "", namn: "" })]} uid="x" onSkriv={() => {}} />);
+    const rader = screen.getAllByRole("listitem");
+    expect(tonen(rader[0])).toBe(String(identityTone("anna")));
+    expect(tonen(rader[1])).toBe(String(identityTone("c2")));
   });
 });
 

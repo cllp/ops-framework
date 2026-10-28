@@ -3,7 +3,7 @@ import { KOMMENTARBILAGA_TYPER, MAX_HANDELSEKOMMENTAR, MAX_KOMMENTARBILAGA, komm
 import { isImage } from "../lib/file.js";
 import { formatDagOchKlockslag } from "../lib/format.js";
 import { OppnaHandelseKontext } from "../lib/handelsekontext.js";
-import { namnMedVia } from "../lib/skapare.js";
+import { laesSkapare, namnMedVia } from "../lib/skapare.js";
 import { handelseIdUrAdress } from "../lib/handelsepanel.js";
 import { definierade, forvalda } from "../lib/ord.js";
 import { OpsButton } from "./OpsButton.jsx";
@@ -171,10 +171,11 @@ function OpsKommentarerRitad({
 
   // #369: trådens bilder räknas en gång (KAN 1), med kommentarens id så att platsen följer med (BÖR 2).
   // ⛔ Namnet på den som skrev går genom `namnMedVia` (0.135.0, lifehub.app#409): en kommentar som en personlig API-nyckel skrev heter "Miranda via Byggagent".
-  // 0.150.0 (#381): den gamla formen, en sträng, ger namnet och inget uid (appens ärenden bär den tills bakfyllnaden körts).
-  const skrivarnamn = (/** @type {any} */ stampel0) => {
-    const stampel = typeof stampel0 === "string" ? { namn: stampel0 } : stampel0;
-    return namnMedVia(personnamn(stampel?.namn ?? "", stampel?.uid ?? "").text, stampel?.via, sprak);
+  // 0.150.0 (#381): `laesSkapare` är den enda läsaren av fältet (regel 2) och tar båda formerna, objektet och den gamla strängen
+  // (appens ärenden bär den tills bakfyllnaden körts). Strängen ger ett namn och inget uid.
+  const skrivarnamn = (/** @type {any} */ stampel) => {
+    const s = laesSkapare(stampel);
+    return namnMedVia(personnamn(s.namn, s.uid ?? "").text, s.via, sprak);
   };
   const galleri = tradensBilder(kommentarer ?? [], (/** @type {any} */ x) => `${bilagaText} ${skrivarnamn(x.skapadAv)}: ${x.bilaga.namn}`);
   return (
@@ -205,14 +206,15 @@ function OpsKommentarerRitad({
       ) : (
         <ul className="m-0 flex list-none flex-col gap-2 p-0">
           {kommentarer.map((/** @type {any} */ k) => {
-            const avUid = (typeof k.skapadAv === "string" ? null : k.skapadAv?.uid) ?? null;
+            const skapare = laesSkapare(k.skapadAv);
+            const avUid = skapare.uid;
             const min = avUid !== null && avUid === uid;
             const kanTaBortDen = min && onTaBort && (kanTaBort ? kanTaBort(k) === true : true);
             const radens = radFot ? radFot(k) : null;
             const namn = skrivarnamn(k.skapadAv);
             return (
               <li key={k.id} data-kommentar={k.id} className="flex min-w-0 gap-3 rounded-base bg-raised p-3">
-                <OpsIdentity name={namn} seed={avUid ?? k.id} size="avatar" />
+                <OpsIdentity name={namn} seed={avUid ?? (skapare.namn || k.id)} size="avatar" />
                 <div className="flex min-w-0 flex-1 flex-col gap-1">
                   <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
                     <span className="truncate text-etikett font-medium text-ink">
