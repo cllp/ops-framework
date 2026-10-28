@@ -60,12 +60,19 @@ export function kalenderSynlighetNyckel(minne) {
 /** @param {unknown} v @returns {v is Kalendervisning} */
 const arVisning = (v) => v === "handelser" || v === "ram" || v === "bada";
 
+/**
+ * ⛔ EN NYCKEL SOM INTE ÄR ETT KALENDER-ID SLÄPPS (0.152.0, granskningen av PR 462). Reglerna nekar varje skrivning av ett dokument med en sådan nyckel (`KALENDERVALNYCKEL_FORM`). Behöll
+ * läsaren den skulle varje senare skrivning ta med den, nekas, och "Försök igen" aldrig lyckas. Som en trasig post släpps den, så att dokumentet läker vid nästa skrivning.
+ * @param {string} id @returns {boolean}
+ */
+const arNyckel = (id) => KALENDERVALNYCKEL_FORM.test(id);
+
 /** @param {unknown} x @returns {x is Record<string, unknown>} */
 const arObjekt = (x) => typeof x === "object" && x !== null && !Array.isArray(x);
 
 /**
  * Rensar ett värde som redan är tolkat (ett dokument från kontot, eller JSON som tolkats) till ett minne, eller `null` när det inte är ett.
- * Fel version, ingen objektform eller saknat ger `null`; enskilda trasiga poster släpps och resten behålls.
+ * Fel version, ingen objektform eller saknat ger `null`; enskilda trasiga poster släpps och resten behålls. En post vars nyckel inte är ett kalender-id (`KALENDERVALNYCKEL_FORM`) är en trasig post.
  *
  * @param {unknown} data
  * @returns {KalenderSynlighet | null}
@@ -74,14 +81,14 @@ export function rensaKalenderSynlighet(data) {
   if (!arObjekt(data) || data.v !== 1) return null;
   /** @type {Record<string, boolean>} */
   const syns = {};
-  if (arObjekt(data.syns)) for (const [id, v] of Object.entries(data.syns)) if (typeof v === "boolean") syns[id] = v;
+  if (arObjekt(data.syns)) for (const [id, v] of Object.entries(data.syns)) if (arNyckel(id) && typeof v === "boolean") syns[id] = v;
   /** @type {Record<string, Kalendervisning>} */
   const visning = {};
-  if (arObjekt(data.visning)) for (const [id, v] of Object.entries(data.visning)) if (arVisning(v)) visning[id] = v;
+  if (arObjekt(data.visning)) for (const [id, v] of Object.entries(data.visning)) if (arNyckel(id) && arVisning(v)) visning[id] = v;
   if (!arObjekt(data.fore)) return { v: 1, syns, visning };
   /** @type {Record<string, boolean>} */
   const fore = {};
-  for (const [id, v] of Object.entries(data.fore)) if (typeof v === "boolean") fore[id] = v;
+  for (const [id, v] of Object.entries(data.fore)) if (arNyckel(id) && typeof v === "boolean") fore[id] = v;
   return { v: 1, syns, visning, fore };
 }
 

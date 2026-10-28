@@ -32,6 +32,7 @@ import { REAKTIONSVY, reaktionsnamnPa } from "./reaktionsvy.js";
 import { OpsForslag } from "./OpsForslag.jsx";
 import { forslagUrData } from "../lib/forslag.js";
 import { rapporteraFel } from "../lib/felrapport.js";
+import { tangentbordTackt } from "../lib/tangentbord.js";
 import { OpsAtgardsblad } from "./OpsAtgardsblad.jsx";
 import { AgentIkon, AndraIkon, KopieraIkon, ArkiveraIkon, TaFramIkon, BildIkon, FastIkon, FilIkon, KameraIkon, MappIkon, MejlIkon, NotisIkon, PanelIkon, StoppIkon, TystIkon, ChevronHogerIkon, ChevronNedIkon, CiteraIkon, ChevronVansterIkon, GruppIkon, KryssIkon, LasIkon, LeendeIkon, MeddelandeIkon, PlusIkon, SkickaIkon, SokIkon, TradIkon } from "./icons.jsx";
 
@@ -1274,7 +1275,8 @@ function useTangentbord() {
   useEffect(() => {
     const vv = typeof window !== "undefined" ? window.visualViewport : null;
     if (!vv) return undefined;
-    const mat = () => setTackt(Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop)));
+    // ⛔ SAMMA MÄTNING SOM BOTTENRADEN (`src/lib/tangentbord.js`, granskningen av PR 462): två sanningar om samma tangentbord hade glidit isär.
+    const mat = () => setTackt(tangentbordTackt());
     mat();
     vv.addEventListener("resize", mat);
     vv.addEventListener("scroll", mat);

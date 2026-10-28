@@ -62,16 +62,33 @@ export function arTextfalt(el) {
 }
 
 /**
- * Har `visualViewport` krympt tydligt mot fönstret, utan att det är en zoom?
+ * Hur mycket av layoutfönstret som tangentbordet täcker, i pixlar. 0 utan `visualViewport`, och 0 för en zoomad sida.
+ *
+ * ⛔ EN MÄTNING FÖR ALLA (0.152.0, granskningen av PR 462). Chatten (`OpsMeddelanden`) hade en egen, som drog bort `visualViewport.offsetTop`, och raden en annan som inte gjorde det: två
+ * sanningar om samma faktum. Nu räknar båda med den här. Den mäts mot LAYOUTFÖNSTRET (`document.documentElement.clientHeight`) och inte mot `window.innerHeight`: en webbläsare där
+ * `innerHeight` krymper med tangentbordet (Android Chrome) hade gett skillnaden 0 och aldrig gömt raden, medan layoutfönstret står kvar. `clientHeight` är 0 där det inte finns någon
+ * layout (jsdom), och då gäller `innerHeight`. `offsetTop` räknas med: det som täcks är det som ligger under den synliga delen, inte bara hur mycket den synliga delen krympt.
+ *
+ * ⛔ (hypotes, inte mätt på en riktig enhet) På iOS står layoutfönstret kvar och `visualViewport` krymper. En webbläsare som krymper layoutfönstret självt (`resizes-content`) ger 0 här,
+ * och där följer layouten tangentbordet av sig själv.
+ * @returns {number}
+ */
+export function tangentbordTackt() {
+  if (typeof window === "undefined" || typeof document === "undefined") return 0;
+  const vv = window.visualViewport;
+  if (!vv) return 0;
+  // Zoomat (scale > 1) krymper visualViewport utan att något tangentbord finns.
+  if (typeof vv.scale === "number" && vv.scale > 1.01) return 0;
+  const layout = document.documentElement.clientHeight || window.innerHeight;
+  return Math.max(0, Math.round(layout - vv.height - (vv.offsetTop || 0)));
+}
+
+/**
+ * Har `visualViewport` krympt tydligt mot layoutfönstret, utan att det är en zoom? (`tangentbordTackt` minst `TANGENTBORD_MINST_PX`.)
  * @returns {boolean}
  */
 export function viewportKrympt() {
-  if (typeof window === "undefined") return false;
-  const vv = window.visualViewport;
-  if (!vv) return false;
-  // Zoomat (scale > 1) krymper visualViewport utan att något tangentbord finns.
-  if (typeof vv.scale === "number" && vv.scale > 1.01) return false;
-  return window.innerHeight - vv.height >= TANGENTBORD_MINST_PX;
+  return tangentbordTackt() >= TANGENTBORD_MINST_PX;
 }
 
 /**
@@ -114,6 +131,10 @@ function starta() {
   document.addEventListener("focusout", efterFokus);
   window.addEventListener("resize", matOm);
   window.addEventListener("orientationchange", matOm);
+  // ⛔ TILLBAKA FRÅN BAKGRUNDEN (granskningen av PR 462): en sida som återställs ur bfcache, eller en flik som blir synlig igen, kan ha missat både fokus- och viewporthändelserna medan den
+  // låg stilla. Utan en omätning kunde raden stå gömd tills nästa fokus.
+  window.addEventListener("pageshow", matOm);
+  document.addEventListener("visibilitychange", matOm);
   vv?.addEventListener("resize", matOm);
   vv?.addEventListener("scroll", matOm);
   avlyssna = () => {
@@ -122,6 +143,8 @@ function starta() {
     document.removeEventListener("focusout", efterFokus);
     window.removeEventListener("resize", matOm);
     window.removeEventListener("orientationchange", matOm);
+    window.removeEventListener("pageshow", matOm);
+    document.removeEventListener("visibilitychange", matOm);
     vv?.removeEventListener("resize", matOm);
     vv?.removeEventListener("scroll", matOm);
   };

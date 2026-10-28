@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, render, screen } from "@testing-library/react";
 import { OpsBottomNav } from "../components/OpsBottomNav.jsx";
-import { TANGENTBORD_MINST_PX, arTextfalt, tangentbordUppe, viewportKrympt } from "../lib/tangentbord.js";
+import { TANGENTBORD_MINST_PX, arTextfalt, tangentbordTackt, tangentbordUppe, viewportKrympt } from "../lib/tangentbord.js";
 
 /**
  * Bottenraden göms medan tangentbordet är uppe (0.152.0, cllp/ops-framework#461, punkt 1).
@@ -19,7 +19,10 @@ const NAV = [
 ];
 
 const ursprung = Object.getOwnPropertyDescriptor(window, "visualViewport");
+const ursprungInner = Object.getOwnPropertyDescriptor(window, "innerHeight");
 afterEach(() => {
+  delete (/** @type {any} */ (document.documentElement)).clientHeight;
+  if (ursprungInner) Object.defineProperty(window, "innerHeight", ursprungInner);
   if (ursprung) Object.defineProperty(window, "visualViewport", ursprung);
   else delete (/** @type {any} */ (window)).visualViewport;
   document.body.innerHTML = "";
@@ -223,5 +226,115 @@ describe("bottenraden och tangentbordet", () => {
     expect(document.documentElement.hasAttribute("data-ops-tangentbord")).toBe(true);
     unmount();
     expect(document.documentElement.hasAttribute("data-ops-tangentbord")).toBe(false);
+  });
+});
+
+/**
+ * Android Chrome (granskningen av PR 462): `window.innerHeight` krymper med tangentbordet, layoutfönstret (`clientHeight`) står kvar. Mäts raden mot `innerHeight` blir skillnaden mot
+ * `visualViewport` 0 och raden göms aldrig.
+ * @param {{ layout?: number }} [val]
+ */
+function android({ layout = 800 } = {}) {
+  let inner = layout;
+  Object.defineProperty(document.documentElement, "clientHeight", { configurable: true, get: () => layout });
+  Object.defineProperty(window, "innerHeight", { configurable: true, get: () => inner });
+  const vv = falskVv({ height: layout });
+  return {
+    vv,
+    /** Tangentbord på `px`: både visualViewport och innerHeight krymper, layoutfönstret inte. */
+    tangentbord: async (/** @type {number} */ px, offsetTop = 0) => {
+      await act(async () => {
+        inner = layout - px;
+        vv.height = layout - px;
+        vv.offsetTop = offsetTop;
+        vv.dispatchEvent(new Event("resize"));
+      });
+    },
+  };
+}
+
+describe("⛔ EN mätning, mot layoutfönstret och med offsetTop (granskningen av PR 462)", () => {
+  it("Android: innerHeight krymper med tangentbordet, och raden göms ändå", async () => {
+    const a = android();
+    const { rad, falt } = rita();
+    await fokusera(falt);
+    await a.tangentbord(300);
+    expect(window.innerHeight).toBe(500);
+    expect(tangentbordTackt()).toBe(300);
+    expect(gomd(rad())).toBe(true);
+    await a.tangentbord(0);
+    expect(gomd(rad())).toBe(false);
+  });
+
+  it("offsetTop räknas med: det som täcks är det som ligger under den synliga delen", async () => {
+    const a = android();
+    const { rad, falt } = rita();
+    await fokusera(falt);
+    await a.tangentbord(300, 100);
+    expect(tangentbordTackt()).toBe(200);
+    expect(gomd(rad())).toBe(true);
+    await a.tangentbord(300, 160);
+    expect(tangentbordTackt()).toBe(140);
+    expect(gomd(rad())).toBe(false);
+  });
+
+  it("zoom ger 0, och utan visualViewport ger den 0", async () => {
+    const a = android();
+    a.vv.scale = 2;
+    await a.tangentbord(300);
+    expect(tangentbordTackt()).toBe(0);
+    delete (/** @type {any} */ (window)).visualViewport;
+    expect(tangentbordTackt()).toBe(0);
+  });
+});
+
+describe("⛔ tillbaka från bakgrunden mäter om (granskningen av PR 462)", () => {
+  it("en sida som återställs ur bfcache med tangentbordet nere visar raden: pageshow mäter om", async () => {
+    const vv = falskVv();
+    const { rad, falt } = rita();
+    await fokusera(falt);
+    await tangentbord(vv, 300);
+    expect(gomd(rad())).toBe(true);
+    // Sidan ligger stilla i bfcache: tangentbordet fälls och fokus lämnas utan att några händelser når den.
+    vv.height = window.innerHeight;
+    falt.blur();
+    expect(gomd(rad())).toBe(true);
+    await act(async () => window.dispatchEvent(new Event("pageshow")));
+    expect(gomd(rad())).toBe(false);
+    expect(document.documentElement.hasAttribute("data-ops-tangentbord")).toBe(false);
+  });
+
+  it("en flik som blir synlig igen mäter om: visibilitychange", async () => {
+    const vv = falskVv();
+    const { rad, falt } = rita();
+    await fokusera(falt);
+    await tangentbord(vv, 300);
+    expect(gomd(rad())).toBe(true);
+    vv.height = window.innerHeight;
+    await act(async () => document.dispatchEvent(new Event("visibilitychange")));
+    expect(gomd(rad())).toBe(false);
+  });
+
+  it("och åt andra hållet: ett tangentbord som kom medan sidan låg stilla gömmer raden vid pageshow", async () => {
+    const vv = falskVv();
+    const { rad, falt } = rita();
+    falt.focus();
+    vv.height = window.innerHeight - 300;
+    await act(async () => window.dispatchEvent(new Event("pageshow")));
+    expect(gomd(rad())).toBe(true);
+  });
+
+  it("lyssnarna tas bort när den sista raden gått", async () => {
+    falskVv();
+    const lagg = vi.spyOn(window, "addEventListener");
+    const ta = vi.spyOn(window, "removeEventListener");
+    const dl = vi.spyOn(document, "addEventListener");
+    const dt = vi.spyOn(document, "removeEventListener");
+    const { unmount } = rita();
+    expect(lagg.mock.calls.some(([h]) => h === "pageshow")).toBe(true);
+    expect(dl.mock.calls.some(([h]) => h === "visibilitychange")).toBe(true);
+    unmount();
+    expect(ta.mock.calls.some(([h]) => h === "pageshow")).toBe(true);
+    expect(dt.mock.calls.some(([h]) => h === "visibilitychange")).toBe(true);
   });
 });

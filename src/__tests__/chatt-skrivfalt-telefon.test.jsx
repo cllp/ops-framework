@@ -85,6 +85,34 @@ describe("skrivfältet på telefon", () => {
     expect(yta.className).toContain("var(--tangentbord,0px)");
   });
 
+  it("⛔ samma mätning som bottenraden: layoutfönstret, offsetTop medräknat, också när innerHeight krymper (Android)", async () => {
+    // Layoutfönstret står kvar på 800 medan innerHeight krymper med tangentbordet, som i Android Chrome. Mot innerHeight hade chatten fått 0.
+    const innerOrig = Object.getOwnPropertyDescriptor(window, "innerHeight");
+    let inner = 800;
+    Object.defineProperty(document.documentElement, "clientHeight", { configurable: true, get: () => 800 });
+    Object.defineProperty(window, "innerHeight", { configurable: true, get: () => inner });
+    const vv = Object.assign(new EventTarget(), { height: 800, offsetTop: 0, scale: 1 });
+    Object.defineProperty(window, "visualViewport", { configurable: true, value: vv });
+    try {
+      await rita();
+      const yta = /** @type {HTMLElement} */ (document.querySelector("[data-ops-meddelanden]"));
+      await act(async () => {
+        inner = 500;
+        vv.height = 500;
+        vv.dispatchEvent(new Event("resize"));
+      });
+      expect(yta.getAttribute("data-tangentbord")).toBe("300");
+      await act(async () => {
+        vv.offsetTop = 100;
+        vv.dispatchEvent(new Event("scroll"));
+      });
+      expect(yta.getAttribute("data-tangentbord")).toBe("200");
+    } finally {
+      delete (/** @type {any} */ (document.documentElement)).clientHeight;
+      if (innerOrig) Object.defineProperty(window, "innerHeight", innerOrig);
+    }
+  });
+
   it("⛔ ett scroll-event som kommer efter att tangentbordet krympt loggen läses inte som att personen rullat bort från slutet", async () => {
     // Mätt i check-skalyta 47 (5): eventet köades när skrivfältet krympte och kördes först när tangentbordet redan tagit 232 px.
     await rita();

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createKalendervalskalla } from "../data/kalendervalskalla.js";
 import { createMemorySource } from "../data/adapters.js";
-import { KALENDERVALNYCKEL_FORM, MAX_KALENDERVAL, MAX_KALENDERVALNYCKEL, TOM_SYNLIGHET, kalenderValDokument, kalenderValOgiltigNyckel } from "../lib/kalendersynlighet.js";
+import { KALENDERVALNYCKEL_FORM, MAX_KALENDERVAL, MAX_KALENDERVALNYCKEL, TOM_SYNLIGHET, kalenderValDokument, kalenderValOgiltigNyckel, lasKalenderSynlighet, rensaKalenderSynlighet } from "../lib/kalendersynlighet.js";
 import { kalendervalsregelfragment } from "../lib/regler.js";
 
 /**
@@ -132,5 +132,25 @@ describe("kalenderValDokument: nycklarna är kalenderrader (#459)", () => {
   it("kalenderValOgiltigNyckel säger vilken karta och vilken nyckel, eller null när allt är ett id", () => {
     expect(kalenderValOgiltigNyckel({ v: 1, syns: { a: true }, visning: { "x y": "ram" } })).toEqual({ namn: "visning", nyckel: "x y" });
     expect(kalenderValOgiltigNyckel({ v: 1, syns: { a: true }, visning: {} })).toBeNull();
+  });
+});
+
+describe("läsaren släpper nycklar som reglerna skulle neka (granskningen av PR 462)", () => {
+  const dok = { v: 1, syns: { apple: false, "dålig nyckel": true, ["k".repeat(81)]: true, "a,b": false }, visning: { arenden: "ram", "x/y": "bada" }, fore: { apple: true, "": true } };
+
+  it("rensaKalenderSynlighet behåller de giltiga nycklarna i alla tre kartorna och släpper resten", () => {
+    expect(rensaKalenderSynlighet(dok)).toEqual({ v: 1, syns: { apple: false }, visning: { arenden: "ram" }, fore: { apple: true } });
+    // Det som blir kvar går att skriva: kalenderValDokument kastar inte.
+    expect(() => kalenderValDokument(/** @type {any} */ (rensaKalenderSynlighet(dok)))).not.toThrow();
+    expect(kalenderValOgiltigNyckel(/** @type {any} */ (rensaKalenderSynlighet(dok)))).toBeNull();
+  });
+
+  it("samma för webbläsarens minne: en text med en ogiltig nyckel läses utan den", () => {
+    expect(lasKalenderSynlighet(JSON.stringify(dok))).toEqual({ v: 1, syns: { apple: false }, visning: { arenden: "ram" }, fore: { apple: true } });
+  });
+
+  it("appens riktiga id:n släpps inte: ical:, mina:, app: och 80 tecken", () => {
+    const syns = { "ical:abc": false, "mina:privat": true, "app:arenden": false, ["k".repeat(80)]: true };
+    expect(rensaKalenderSynlighet({ v: 1, syns, visning: {} })?.syns).toEqual(syns);
   });
 });
