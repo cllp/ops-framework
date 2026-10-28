@@ -939,6 +939,7 @@ function Apprad({ appar, dolda, onVaxla, onVisaAlla }) {
  * @param {object} props
  * @param {KalenderVal[] | undefined} props.kalendrar
  * @param {ReturnType<typeof useKalenderSynlighet>} props.syn Vilka kalendrar som syns och hur (0.134.0). Ersätter `valdaKalendrar` ("visa bara").
+ * @param {"en" | undefined} props.sprak (0.151.0) Engelska när kalenderns `locale` är engelsk; annars språket ur `OpsSprakProvider`. Listan Kalendrar följer det.
  * @param {ReadonlyArray<{ namn: string, tomText?: string }> | undefined} props.kalendersektioner
  * @param {(() => void) | undefined} props.onHanteraKalendrar
  * @param {boolean} props.veckonummer
@@ -954,7 +955,7 @@ function Apprad({ appar, dolda, onVaxla, onVisaAlla }) {
  * @param {(() => void) | undefined} props.onSkapa
  * @param {{ pa: boolean, onByt: (pa: boolean) => void } | undefined} props.tillganglighet
  */
-function Verktygsrad({ kalendrar, syn, kalendersektioner, onHanteraKalendrar, veckonummer, onVeckonummer, typer, statusWords, typ, onTyp, status, onStatus, sokOppen, onSok, onSkapa, tillganglighet }) {
+function Verktygsrad({ kalendrar, syn, sprak, kalendersektioner, onHanteraKalendrar, veckonummer, onVeckonummer, typer, statusWords, typ, onTyp, status, onStatus, sokOppen, onSok, onSkapa, tillganglighet }) {
   const statusar = Object.entries(statusWords);
   const harFilter = typer.length > 0 || statusar.length > 0;
   const synliga = (kalendrar || []).filter((k) => syn.arSynlig(k.id));
@@ -991,6 +992,7 @@ function Verktygsrad({ kalendrar, syn, kalendersektioner, onHanteraKalendrar, ve
               <OpsKalenderLista
                 kalendrar={kalendrar}
                 syn={syn}
+                sprak={sprak}
                 sektioner={kalendersektioner}
                 efter={
                   /* ⛔ 0.37.0 (#179 F2): "Hantera kalendrar" ÖPPNAR `OpsKalendrar`. Utan `onHanteraKalendrar` ritas ingen rad alls: en kontroll finns bara när den
@@ -1772,6 +1774,7 @@ export function OpsCalendar({
         <Verktygsrad
           kalendrar={kalendrar}
           syn={syn}
+          sprak={String(locale).toLowerCase().startsWith("en") ? "en" : undefined}
           kalendersektioner={kalendersektioner}
           onHanteraKalendrar={onHanteraKalendrar}
           veckonummer={veckonummer}

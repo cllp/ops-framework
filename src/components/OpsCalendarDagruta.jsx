@@ -143,9 +143,10 @@ function DagrutaRitad({ day, dayKey, entries, markerade, spann, enkla, isToday, 
           som varit tonas ramen med rutan (förebild 7: ramen den 23 september är blekare än den 7 oktober). Ingen ram på den valda rutan, som SS (`!picked && layerBorderColor`). Från 640 px som SS webb (`MonthGrid.jsx:421`):
           2 px innanför kanten (`inset-0.5`), rundning 8 och 70 procents täckning. */}
       {ramar.length > 0 && !vald ? <span aria-hidden="true" data-dagram={ramar[0]} className={cx("pointer-events-none absolute -inset-px z-1 rounded-base border-2 sm:inset-0.5 sm:rounded-sm sm:opacity-70", DAGRAM[ramar[0]])} /> : null}
-      {/* ⛔ DEN ANDRA RAMEN LIGGER INUTI DEN FÖRSTA (0.151.0, CP 2026-10-28): samma 2 px, en pixel luft emellan (`inset` 3 px längre in än den yttre), så att båda syns som två linjer och inte som en tjock.
-          Inre rundning = yttre minus avståndet. Utan ramar i rutan, eller med bara en, ritas den inte, och rutan ser ut exakt som förut. */}
-      {ramar.length > 1 && !vald ? <span aria-hidden="true" data-dagram-inre={ramar[1]} className={cx("pointer-events-none absolute inset-0.5 z-1 rounded-[calc(var(--radius-base)-3px)] border-2 sm:inset-[5px] sm:rounded-[calc(var(--radius-sm)-3px)] sm:opacity-70", DAGRAM[ramar[1]])} /> : null}
+      {/* ⛔ DEN ANDRA RAMEN LIGGER INUTI DEN FÖRSTA (0.151.0, CP 2026-10-28), en pixel luft emellan så att båda syns som egna linjer: `inset` 3 px längre in än den yttre. Under 640 px är dess linje 1 px och
+          från 640 px 2 px som den yttre. Mätt (`scripts/kalenderramar-matt.mjs`, pixel för pixel mot en bild utan ramar): med 2 px och 1 px luft under 640 px gick den inre ramens rundade hörn över "1" i "12" vid 320 px
+          (3 pixlar bläck), eftersom rutan är 41 px bred där och siffran börjar där paddingen slutar. Inre rundning = yttre minus avståndet. Utan ramar i rutan, eller med bara en, ritas den inte, och rutan ser ut exakt som förut. */}
+      {ramar.length > 1 && !vald ? <span aria-hidden="true" data-dagram-inre={ramar[1]} className={cx("pointer-events-none absolute inset-0.5 z-1 rounded-[calc(var(--radius-base)-3px)] border sm:inset-[5px] sm:border-2 sm:rounded-[calc(var(--radius-sm)-3px)] sm:opacity-70", DAGRAM[ramar[1]])} /> : null}
       <Dagnummer day={day} isToday={isToday} vald={vald}>
         {borta > 0 || lager > 0 || narvaro ? <Indikatorrad borta={borta} lager={lager} narvaro={narvaro} vald={vald} /> : null}
       </Dagnummer>

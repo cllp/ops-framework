@@ -16,6 +16,17 @@ anteckningar är en version ingen kan välja att hoppa över.
   här att någon tittar mindre på skärmen, eller mer? Följer med till konsumenternas
   kanonkopia vid nästa utgivning och ompinning.
 
+## 0.151.0
+
+### Kalendervalen följer kontot, långtryck visar bara en kalender, två ramar inuti varandra, och Dagen kan frågas om vad som är dolt
+
+Fyra delar ur CP:s "kör" 2026-10-28. Inget är brytande: utan `kalenderKonto` är allt som i 0.150.0, och en ruta med en ram ser ut exakt som förut. Inga fler visningsval per kalender.
+
+- **A. Valen följer kontot.** "Väljer jag ram i mobilen syns det inte på datorn": valen (synlighet och Händelser/Ram/Båda) låg i `localStorage` per enhet. Nu sparas samma dokument på kontot, ett per person och grupp, i en samling som appen namnger (`createKalendervalskalla({ kalla, kalenderval })`, `kalendervalsregelfragment(namn)`; ramverket känner varken samlingsnamnet eller projektet). `OpsCalendar kalenderKonto` och `useKalenderSynlighet({ konto })` tar `källa.konto(uid, gruppId)`. Webbläsarens minne är kvar som förhandscache: kalendern ritas direkt med det senast kända och byter till kontots värde när det kommer. Första gången kontot saknar dokument lyfts de lokala valen upp en gång (ett tomt lokalt minne skriver ingenting); ett dokument som finns vinner alltid. Ett tryck medan kontot hämtas spelas upp ovanpå kontots värde. Ett tryck skrivs direkt, högst en skrivning är pågående och snabba tryck samlas så att den sista vinner. Felet syns i listan (`kontoFel`, "Försök igen") och valet rullas aldrig tillbaka; en läsning som misslyckats skriver ingenting. Reglerna: bara personen själv läser och skriver, formen exakt, tak 200, aldrig radering. Regelprov i emulatorn, röda utan fragmentet och med två mutationer.
+- **B. Långtryck i kalenderlistan visar bara den kalendern.** Med ramverkets långtryck (`useLangtryck`): raden blir ensam synlig, och ett nytt långtryck på samma rad tar tillbaka valen som gällde före. "Före" (`fore`) står i samma dokument som valen och följer alltså kontot. Shift+F10, menytangenten och högerklick gör samma sak, och knappen "Visa bara den här" / "Visa som förut" finns i radens utfällning (en egen rad under en dold rad). Listan följer språket (`ORD_OPSKALENDERLISTA`).
+- **C. Ramar inuti varandra, högst två.** Har två kalendrar Ram eller Båda samma dag ritas båda, den första i listan ytterst; fler än två: de två första. Mätt i Chromium i 320, 390, 768 och 1280 px (`check:kalenderramar`, röd mot en ram per dag).
+- **D. Möjliggör appens Dagen.** `useKalenderSynlighet().dela(poster)` ger `{ synliga, dolda }` ur samma avgörande som filtret och snabbtitten (`arPostIDoldKalender`), och märket "Dold" / "Hidden" är en komponent (`OpsDoldMarke`, `DOLD_RAD_KLASS`) som snabbtitten också använder. Appen skriver inte av logiken.
+
 ## 0.150.0
 
 ### Kontot i den publika toppraden, en kommentarkomponent för händelser och ärenden, och ett prov som mättes och lämnades

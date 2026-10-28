@@ -86,6 +86,8 @@ function lasFran(lager, nyckel) {
  *     Listan skriver ut det med en knapp, `sparaIgen`. Ett nytt val försöker igen av sig själv. Valet rullas aldrig tillbaka: det som ritades är det personen bad om.
  *   - ⛔ EN LÄSNING SOM MISSLYCKADES SKRIVER INGET: kontots värde är okänt, och att skriva den här enhetens val över det hade kunnat ta bort det en annan enhet valt. Nästa val
  *     försöker läsa igen först.
+ *   - ⛔ EN FLIK SOM BLIR SYNLIG LÄSER OM KONTOT (`visibilitychange`) och tar det om det ändrats på en annan enhet och fliken inte har något osparat. Annars skriver en flik som stått öppen
+ *     sedan i går sitt gamla läge över det som valts i mobilen sedan dess. Ingen lyssnare medan fliken är öppen: en ändring på en annan enhet syns när man kommer tillbaka, inte medan man tittar.
  *   - UTAN `konto` (en app utan Firebase) är allt som förut, bara det lokala minnet. Kärnan ska gå att använda utan Firebase.
  *
  * ⛔ `konto` BYTS INTE UT UNDER LIVET: den gäller för det `minne` den skickades med, och en app som byter grupp byter både `minne` och `konto`. Ändras bara `konto`
@@ -148,6 +150,20 @@ export function useKalenderSynlighet({ minne = "", kalendrar, lagring, konto, on
       c.avslutad = true;
       if (styr.current === c) styr.current = null;
     };
+  }, [nyckel, harKonto]);
+
+  // ⛔ EN FLIK SOM BLIR SYNLIG LÄSER OM KONTOT. Utan det skriver en flik som stått öppen sedan i går sitt GAMLA läge över det personen valt i mobilen sedan dess (ett dokument per grupp, den sista
+  // skrivningen vinner): hela poängen med att valen följer kontot hade blivit en källa till förlorade val. Det kostar en läsning när fliken blir synlig, inte en lyssnare medan den är öppen.
+  // Kontots nya värde tas bara när fliken inte har något osparat: ett val som inte nått kontot (ett skrivfel) skrivs aldrig över av en omläsning.
+  useEffect(() => {
+    if (!harKonto || typeof document === "undefined") return;
+    const vidSynlig = () => {
+      if (document.visibilityState !== "visible") return;
+      const c = styr.current;
+      if (c && c.nyckel === nyckel && c.status === "klar" && !c.iflygning) lasaOm(c, setState, valRef);
+    };
+    document.addEventListener("visibilitychange", vidSynlig);
+    return () => document.removeEventListener("visibilitychange", vidSynlig);
   }, [nyckel, harKonto]);
 
   // Sparandet, efter ritningen. `sparat` är det som redan ligger i lagringen eller just lästes därifrån, så att ett byte av minne inte skriver.
@@ -321,6 +337,37 @@ function ladda(c, setState, setKontoFel, valRef) {
       rapporteraFel(fel, { yta: "useKalenderSynlighet", steg: "läsa synlighet från kontot" });
       setKontoFel("las");
     },
+  );
+}
+
+/**
+ * Läser kontot igen och tar dess värde om det ändrats på en annan enhet och den här fliken inte har något osparat. Ett fel rapporteras men syns inte i listan: det är en bakgrundsläsning
+ * personen inte bad om, och det hon ser är fortfarande det hon har.
+ * @param {Kontostyrning} c
+ * @param {import("react").Dispatch<import("react").SetStateAction<{ nyckel: string, val: import("./kalendersynlighet.js").KalenderSynlighet }>>} setState
+ * @param {import("react").MutableRefObject<import("./kalendersynlighet.js").KalenderSynlighet>} valRef
+ */
+function lasaOm(c, setState, valRef) {
+  /** @type {Promise<unknown>} */
+  let lopp;
+  try {
+    lopp = Promise.resolve(c.konto.las());
+  } catch (fel) {
+    lopp = Promise.reject(fel);
+  }
+  lopp.then(
+    (data) => {
+      // Medan läsningen väntade kan personen ha tryckt, en skrivning ha startat eller vyn ha försvunnit: då gäller det som är nyare än läsningen.
+      if (c.avslutad || c.status !== "klar" || c.iflygning) return;
+      if (skrivKalenderSynlighet(valRef.current) !== c.kontoText) return;
+      const kontots = data === null || data === undefined ? null : rensaKalenderSynlighet(data);
+      if (!kontots) return;
+      const text = skrivKalenderSynlighet(kontots);
+      if (text === c.kontoText) return;
+      c.kontoText = text;
+      setState((s) => (s.nyckel === c.nyckel ? { nyckel: c.nyckel, val: kontots } : s));
+    },
+    (fel) => rapporteraFel(fel, { yta: "useKalenderSynlighet", steg: "läsa om synlighet från kontot" }),
   );
 }
 
