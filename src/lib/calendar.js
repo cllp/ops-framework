@@ -599,6 +599,47 @@ export function forvaldKalenderId(kalendrar) {
 }
 
 /**
+ * Kalendern en post hör till: dess egen, annars gruppens förvalda (`forvaldId`, tomt när gruppen inte har någon). Den enda platsen den räknas ut på (0.151.0): filtret
+ * (`filtreraPoster`), snabbtitten och appens Dagen frågar alla den här.
+ * @param {{ kalender?: { id: string } | null }} post @param {string} forvaldId @returns {string}
+ */
+export function kalenderNyckelForPost(post, forvaldId) {
+  return post.kalender ? post.kalender.id : forvaldId;
+}
+
+/**
+ * Är posten dold för att dess kalender är avslagen? En post vars kalender saknas (tom nyckel) är aldrig dold: en post som ingen knapp styr ska synas.
+ * @param {{ kalender?: { id: string } | null }} post @param {ReadonlySet<string>} dolda Id:n på avslagna kalendrar. @param {string} forvaldId @returns {boolean}
+ */
+export function arPostIDoldKalender(post, dolda, forvaldId) {
+  const nyckel = kalenderNyckelForPost(post, forvaldId);
+  return Boolean(nyckel) && dolda.has(nyckel);
+}
+
+/**
+ * ══ ⛔ DELA EN DAGS POSTER I SYNLIGA OCH DOLDA (0.151.0, CP 2026-10-28: "Dagen i appen") ═════════════════════════════
+ *
+ * Appens Dagen ska kunna visa en dags dolda kalendrar på ett tryck, blekta och märkta "Dold", utan att ändra valen. Månadsvyns snabbtitt gör redan det (`OpsCalendar`):
+ * den visar dagens alla poster och märker de som filtret döljer. Det som avgör vad som är dolt bor här och inte i någon vy, så att Dagen och snabbtitten aldrig kan säga olika
+ * om samma post. Märket och dess ord är `OpsDoldMarke`; blekningen är `DOLD_RAD_KLASS`.
+ *
+ * Ordningen inom varje del är postens egen. ⛔ BARA KALENDERVALET RÄKNAS som dolt här (det personen slagit av i listan Kalendrar): typ, status och appfilter hör till kalenderns
+ * verktygsrad, och Dagen har inte dem. Vill en vy också ha dem är det `filtreraPoster`, som använder samma `arPostIDoldKalender`.
+ *
+ * @template {{ kalender?: { id: string } | null }} T
+ * @param {readonly T[]} poster
+ * @param {{ dolda: ReadonlyArray<string> | ReadonlySet<string>, forvaldId: string }} val `dolda` är id:n på avslagna kalendrar (`useKalenderSynlighet().dolda`).
+ * @returns {{ synliga: T[], dolda: T[] }}
+ */
+export function delaPosterPaSynlighet(poster, { dolda, forvaldId }) {
+  const avslagna = dolda instanceof Set ? dolda : new Set(dolda);
+  /** @type {T[]} */ const synliga = [];
+  /** @type {T[]} */ const doldaPoster = [];
+  for (const p of poster) (arPostIDoldKalender(p, avslagna, forvaldId) ? doldaPoster : synliga).push(p);
+  return { synliga, dolda: doldaPoster };
+}
+
+/**
  * Posterna som syns med ett filter: valda kalendrar, typ och status (0.37.0, utbruten ur `OpsCalendar`, #179 F2).
  *
  * ⛔ REN FUNKTION, SÅ ATT KLARKRITERIET GÅR ATT PROVA DIREKT: "en post i en bortvald kalender syns inte, och syns igen när
@@ -626,9 +667,9 @@ export function filtreraPoster(entries, { valdaKalendrar = null, doldaKalendrar 
     // `kalender` hör till gruppens förvalda (`forvaldId`). Finns ingen gruppkalender är `forvaldId` tomt och händelsen hör till gruppen
     // själv, som inte har någon knapp i filtret. Före 0.120.0 hänfördes den då till MIN förvalda kalender, och försvann när den
     // valdes bort. En händelse som ingen knapp styr ska synas, annars finns det ingenstans att ta fram den.
-    const nyckel = e.kalender ? e.kalender.id : forvaldId;
+    const nyckel = kalenderNyckelForPost(e, forvaldId);
     if (valdaKalendrar && nyckel && !valdaKalendrar.includes(nyckel)) return false;
-    if (avslagna.size > 0 && nyckel && avslagna.has(nyckel)) return false;
+    if (avslagna.size > 0 && arPostIDoldKalender(e, avslagna, forvaldId)) return false;
     if (typ !== "alla" && e.typ !== typ) return false;
     if (status !== "alla" && e.status !== status) return false;
     return true;

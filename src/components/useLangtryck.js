@@ -70,9 +70,12 @@ export function vibrera() {
  *   Utan: kontextmenyn stoppas bara medan ett tryck pågår, så att högerklick med mus på en länk fungerar som förut (ny flik).
  * @param {(mal: EventTarget | null) => boolean} [val.hoppaOver] Ett tryck som börjar på det här målet räknas inte (⋮ i raden).
  * @param {boolean} [val.haptik] Vibrera när långtrycket nås. Förval falskt.
+ * @param {boolean} [val.utanMus] (0.151.0, granskningen av PR 458, fynd 5) Ett tryck med musen startar ingen timer. Ett långsamt musklick (över hålltiden) är annars ett långtryck, och den som
+ *   bara tvekade ett ögonblick fick genvägen i stället för raden. Förval falskt: bottenradens ikoner och skapa-genvägen har ingen annan musväg än Shift+F10, så där är musens långtryck kvar.
+ *   Sätt den bara där musen har en egen väg (`hogerklick`, en knapp). Pekare av typen touch och pen räknas som fingrar.
  * @returns {{ aktiv: boolean, handelser: Record<string, (e: any) => void>, kortkommando: string | undefined, iSlappet: () => boolean, stoppaSlappet: (e: any) => void }}
  */
-export function useLangtryck({ onLangtryck, hogerklick = false, hoppaOver, haptik = false }) {
+export function useLangtryck({ onLangtryck, hogerklick = false, hoppaOver, haptik = false, utanMus = false }) {
   const langt = useRef(false);
   /**
    * ⛔ SLÄPPSKYDDET ÄR ETT TIDSFÖNSTER OCH INGET TILLSTÅND (granskningen av PR 364). Klick inom `SLAPP_SKYDD_MS` efter att fingret
@@ -129,6 +132,7 @@ export function useLangtryck({ onLangtryck, hogerklick = false, hoppaOver, hapti
   const ner = (e) => {
     // jsdom saknar PointerEvent, och där kan `button` saknas. Ett tryck utan knapp är ett finger.
     if (e.button !== undefined && e.button !== 0) return;
+    if (utanMus && e.pointerType === "mouse") return;
     if (hoppaOver && hoppaOver(e.target)) return;
     langt.current = false;
     pagar.current = true;
@@ -181,17 +185,21 @@ export function useLangtryck({ onLangtryck, hogerklick = false, hoppaOver, hapti
           e.preventDefault();
           return;
         }
-        if (hogerklick) {
+        // ⛔ ETT TRYCK SOM PÅGÅR HAR REDAN SIN EGEN GENVÄG (granskningen av PR 458, fynd 2). Android skickar `contextmenu` mitt i ett fingertryck, och med `hogerklick` anropades genvägen
+        // då en gång av kontextmenyn och en gång av timern: en genväg som växlar (visa bara) tog ut sig själv. Under ett pågående tryck gäller därför alltid det här, `hogerklick` eller inte:
+        // kontextmenyn stoppas, och väntar timern fortfarande öppnas genvägen nu, en gång (`utlos` stoppar timern). Har den redan gått är det bara kontextmenyn som stoppas.
+        if (pagar.current) {
           e.preventDefault();
-          senaste.current?.();
+          if (timer.current) utlos();
           return;
         }
-        // ⛔ BARA MEDAN ETT TRYCK PÅGÅR. Android öppnar kontextmenyn för en länk vid ett långtryck: den stoppas, och väntar timern
-        // fortfarande öppnas genvägen nu, så att den inte hänger på att webbläsaren skickar ett släpp efter sin egen meny.
+        if (hogerklick) {
+          e.preventDefault();
+          // Kontextmenyn kan komma EFTER att fingret lyfts (släppskyddet gäller då fortfarande): genvägen har redan öppnats av långtrycket, och ett andra anrop vore samma dubbelgång.
+          if (!iSlappet()) senaste.current?.();
+          return;
+        }
         // Ett högerklick med mus startar inget tryck (`ner` släpper bara vänster knapp förbi) och får sin vanliga meny.
-        if (!pagar.current) return;
-        e.preventDefault();
-        if (timer.current) utlos();
       },
       /** @param {any} e */
       onClickCapture: (e) => {

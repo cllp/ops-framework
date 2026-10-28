@@ -1,8 +1,24 @@
 import { memo } from "react";
+import { forvalda } from "../lib/ord.js";
+import { useOpsSprak } from "./OpsSprak.jsx";
 import { cx } from "../lib/cx.js";
 import { arPreliminar, markorlayout } from "../lib/calendar.js";
 import { postklasser, prickklass } from "../lib/kalenderfarg.js";
+import { MAX_KALENDERRAMAR, ramarEfterText } from "../lib/kalenderramar.js";
 import { BortaIkon, LagerIkon } from "./icons.jsx";
+
+/**
+ * Orden i dagens knappnamn (kontrollgranskningen av PR 458, fynd 5): "12, 3 poster, 1 borta, 4 av 6 tillgängliga, 2 lager". Förut var allt utom ramarna svenska litteraler, och på engelska blev namnet
+ * blandat ("3 poster ... 1 more calendar with a frame"). Nu är HELA namnet ur ordboken. `{n}`, `{a}` och `{b}` byts mot talen. Ramarna som inte får plats har sina ord i `ORD_KALENDERRAMAR`.
+ */
+export const ORD_OPSCALENDARDAGRUTA = {
+  post: { sv: "post", en: "entry" },
+  poster: { sv: "poster", en: "entries" },
+  borta: { sv: "{n} borta", en: "{n} away" },
+  tillgangliga: { sv: "{a} av {b} tillgängliga", en: "{a} of {b} available" },
+  lagerEtt: { sv: "1 lager", en: "1 layer" },
+  lager: { sv: "{n} lager", en: "{n} layers" },
+};
 
 /**
  * Dagsrutan i `OpsCalendar`, och dess tre delar: siffran, märkesraden (telefon), pillerraden (från 640 px) och hörnmärkena
@@ -52,12 +68,29 @@ import { BortaIkon, LagerIkon } from "./icons.jsx";
  * opak yta, kant i ikonens färg, räknaren inne i cirkeln), och en plats där varje app ritade sitt eget innehåll hade låtit
  * varje app göra om de fem varven SS behövde (#564-#570).
  *
- * @param {{ day: number, dayKey: string, entries: import("../lib/calendar.js").CalendarEntry[], markerade: import("../lib/calendar.js").CalendarEntry[], spann: import("../lib/calendar.js").CalendarEntry[], enkla: import("../lib/calendar.js").CalendarEntry[], isToday: boolean, forbi: boolean, chosen: boolean, forhand: boolean, sok: "" | "traff" | "miss", bandhojd: number, pekare: Record<string, any>, dekor?: Dagdekor }} props
+ * @param {{ day: number, dayKey: string, entries: import("../lib/calendar.js").CalendarEntry[], markerade: import("../lib/calendar.js").CalendarEntry[], spann: import("../lib/calendar.js").CalendarEntry[], enkla: import("../lib/calendar.js").CalendarEntry[], isToday: boolean, forbi: boolean, chosen: boolean, forhand: boolean, sok: "" | "traff" | "miss", bandhojd: number, pekare: Record<string, any>, dekor?: Dagdekor, sprak?: string }} props
  */
-function DagrutaRitad({ day, dayKey, entries, markerade, spann, enkla, isToday, forbi, chosen, forhand, sok, bandhojd, pekare, dekor }) {
+function DagrutaRitad({ day, dayKey, entries, markerade, spann, enkla, isToday, forbi, chosen, forhand, sok, bandhojd, pekare, dekor, sprak }) {
+  const sprakCtx = useOpsSprak();
+  const o = /** @type {Record<keyof typeof ORD_OPSCALENDARDAGRUTA, string>} */ (forvalda(ORD_OPSCALENDARDAGRUTA, sprak || sprakCtx));
+  const vald = chosen || forhand;
   const count = entries.length;
   const borta = antalI(dekor?.borta, "borta");
-  const lager = antalI(dekor?.lager, "lager");
+  const appLager = antalI(dekor?.lager, "lager");
+  /*
+   * ⛔ RAMAR SOM INTE FÅR PLATS (0.151.0, CP 2026-10-28): OpsCalendar räknar dem ur samma underlag som ramarna (`dekor.ramarEfter`), och lagerbrickan visar "+N" i stället för ett antal lager.
+   * Bara när kalendrarnas ramar ritas: appens egen `ram` är en och har inget som blir över. ⛔ Skickar appen OCH räknar ramverket `lager` samma dag är det ramverkets räkning som gäller, och
+   * appens `lager` ritas inte den dagen (en utvecklingsvarning, en gång): två betydelser på samma bricka ("3 lager" eller "+1 ram") går inte att läsa. Appen skickar inget `lager` idag.
+   * ⛔ PÅ EN VALD DAG RITAS INGA RAMAR (`!vald`, se nedan), och då säger varken brickan eller namnet "+N": en bricka som räknar ramar som inte syns är ett påstående om något som inte finns.
+   * Dagpanelen som öppnas av valet har raden "Kalendrar med ram". Appens egna `lager` gäller på den dagen som förut (kontrollgranskningen av PR 458, fynd 2).
+   */
+  const ramarEfter = !vald && !dekor?.ram && Number.isInteger(dekor?.ramarEfter) && /** @type {number} */ (dekor?.ramarEfter) > 0 ? /** @type {number} */ (dekor?.ramarEfter) : 0;
+  if (ramarEfter > 0 && appLager > 0 && !lagerKrockVarnad) {
+    lagerKrockVarnad = true;
+    utvecklingsvarning("OpsCalendar dagdekor: `lager` skickades en dag då ramverket själv visar `+N` på lagerbrickan för kalendrar med ram som inte får plats. Ramverkets räkning gäller och appens `lager` ritas inte den dagen. Skicka inte `lager` om kalendrarna har ramar.");
+  }
+  const lager = ramarEfter > 0 ? ramarEfter : appLager;
+  const lagerText = ramarEfter > 0 ? (ramarEfter > 9 ? "9+" : `+${ramarEfter}`) : undefined;
   // ⛔ `hornmarken` togs bort i 0.61.0. En app som inte bytt hade fått en tom ruta utan förklaring. EN gång per sidladdning, inte
   // en gång per ruta: 750 likadana rader i konsolen döljer felet de ska visa.
   if (dekor && "hornmarken" in dekor && !hornmarkenVarnad) {
@@ -67,12 +100,12 @@ function DagrutaRitad({ day, dayKey, entries, markerade, spann, enkla, isToday, 
   // ⛔ N/N BARA NÄR INGEN ÄR BORTA (SS `MonthGrid.jsx:529`, `blockedMembers.length === 0`): brickan och talet säger samma sak åt två håll.
   const narvaro = borta === 0 && dekor?.narvaro && dekor.narvaro.totalt > 0 ? dekor.narvaro : null;
   const label = [
-    count === 0 ? `${day}` : `${day}, ${count} ${count === 1 ? "post" : "poster"}`,
-    ...(borta > 0 ? [`${borta} borta`] : []),
-    ...(narvaro ? [`${narvaro.tillgangliga} av ${narvaro.totalt} tillgängliga`] : []),
-    ...(lager > 0 ? [`${lager} lager`] : []),
+    count === 0 ? `${day}` : `${day}, ${count} ${count === 1 ? o.post : o.poster}`,
+    ...(borta > 0 ? [o.borta.replace("{n}", String(borta))] : []),
+    ...(narvaro ? [o.tillgangliga.replace("{a}", String(narvaro.tillgangliga)).replace("{b}", String(narvaro.totalt))] : []),
+    ...(ramarEfter > 0 ? [ramarEfterText(ramarEfter, sprak || sprakCtx)] : lager > 0 ? [lager === 1 ? o.lagerEtt : o.lager.replace("{n}", String(lager))] : []),
   ].join(", ");
-  const vald = chosen || forhand;
+  const ramar = ramarAv(dekor);
   const nedtonad = vald ? "" : sok === "miss" ? "sok" : sok === "" && forbi ? "forbi" : "";
 
   return (
@@ -140,9 +173,13 @@ function DagrutaRitad({ day, dayKey, entries, markerade, spann, enkla, isToday, 
           plats är desamma med och utan lager: en `border-2` på rutan hade flyttat siffran och prickarna en pixel. På en dag
           som varit tonas ramen med rutan (förebild 7: ramen den 23 september är blekare än den 7 oktober). Ingen ram på den valda rutan, som SS (`!picked && layerBorderColor`). Från 640 px som SS webb (`MonthGrid.jsx:421`):
           2 px innanför kanten (`inset-0.5`), rundning 8 och 70 procents täckning. */}
-      {dekor?.ram && !vald ? <span aria-hidden="true" data-dagram={dekor.ram} className={cx("pointer-events-none absolute -inset-px z-1 rounded-base border-2 sm:inset-0.5 sm:rounded-sm sm:opacity-70", DAGRAM[dekor.ram])} /> : null}
+      {ramar.length > 0 && !vald ? <span aria-hidden="true" data-dagram={ramar[0]} className={cx("pointer-events-none absolute -inset-px z-1 rounded-base border-2 sm:inset-0.5 sm:rounded-sm sm:opacity-70", DAGRAM[ramar[0]])} /> : null}
+      {/* ⛔ DEN ANDRA RAMEN LIGGER INUTI DEN FÖRSTA (0.151.0, CP 2026-10-28), en pixel luft emellan så att båda syns som egna linjer: `inset` 3 px längre in än den yttre. Under 640 px är dess linje 1 px och
+          från 640 px 2 px som den yttre. Mätt (`scripts/kalenderramar-matt.mjs`, pixel för pixel mot en bild utan ramar): med 2 px och 1 px luft under 640 px gick den inre ramens rundade hörn över "1" i "12" vid 320 px
+          (3 pixlar bläck), eftersom rutan är 41 px bred där och siffran börjar där paddingen slutar. Inre rundning = yttre minus avståndet. Utan ramar i rutan, eller med bara en, ritas den inte, och rutan ser ut exakt som förut. */}
+      {ramar.length > 1 && !vald ? <span aria-hidden="true" data-dagram-inre={ramar[1]} className={cx("pointer-events-none absolute inset-0.5 z-1 rounded-[calc(var(--radius-base)-3px)] border sm:inset-[5px] sm:border-2 sm:rounded-[calc(var(--radius-sm)-3px)] sm:opacity-70", DAGRAM[ramar[1]])} /> : null}
       <Dagnummer day={day} isToday={isToday} vald={vald}>
-        {borta > 0 || lager > 0 || narvaro ? <Indikatorrad borta={borta} lager={lager} narvaro={narvaro} vald={vald} /> : null}
+        {borta > 0 || lager > 0 || narvaro ? <Indikatorrad borta={borta} lager={lager} lagerText={lagerText} narvaro={narvaro} vald={vald} /> : null}
       </Dagnummer>
       {/* ⛔ PLATS FÖR BANDEN under siffran från 640 px, en rad per fil (SS `:547`). På telefon finns inga band: där är en
           flerdagspost ett streck i varje ruta den täcker, som i SS-appen. */}
@@ -150,7 +187,7 @@ function DagrutaRitad({ day, dayKey, entries, markerade, spann, enkla, isToday, 
       <Markorrad spann={spann} enkla={enkla} vald={vald} />
       <Pillerrad markerade={markerade} vald={vald} />
       {/* Under 640 px hörnbrickorna (SS-appen), från 640 px raden bredvid siffran (SS webb), se `Indikatorrad`. */}
-      {borta > 0 || lager > 0 ? <Hornbrickor borta={borta} lager={lager} /> : null}
+      {borta > 0 || lager > 0 ? <Hornbrickor borta={borta} lager={lager} lagerText={lagerText} /> : null}
     </button>
   );
 }
@@ -179,6 +216,7 @@ function samma(a, b) {
     a.forhand === b.forhand &&
     a.sok === b.sok &&
     a.bandhojd === b.bandhojd &&
+    a.sprak === b.sprak &&
     listorLika(a.entries, b.entries) &&
     listorLika(a.markerade, b.markerade) &&
     listorLika(a.spann, b.spann) &&
@@ -222,11 +260,14 @@ export const Dagruta = memo(DagrutaRitad, samma);
 /**
  * @typedef {object} Dagdekor
  * @property {1|2|3|4|5|6} [ton] En ton ur identitetspaletten som bakgrund på rutan (SS lagrets `tint`).
- * @property {1|2|3|4|5|6} [ram] (0.61.0) En ram på 2 px i identitetspalettens färg runt rutan (SS lagrets `borderColor`).
+ * @property {1|2|3|4|5|6} [ram] (0.61.0) En ram på 2 px i identitetspalettens färg runt rutan (SS lagrets `borderColor`). Appens egen: den vinner över `ramar`.
+ * @property {ReadonlyArray<1|2|3|4|5|6>} [ramar] (0.151.0) Kalendrarnas ramar, ytterst först, högst två (`MAX_KALENDERRAMAR`): den andra ritas inuti den första. `OpsCalendar` sätter dem ur kalendrarnas visning (Ram eller Båda).
+ * @property {number} [ramarEfter] (0.151.0) Så många kalendrar med ram som inte får plats (de ritas högst två): lagerbrickan visar "+N". Sätts av `OpsCalendar`, ur samma underlag som `ramar`; appen skickar den inte.
  * @property {{ antal: number }} [borta] (0.61.0) Så många är borta eller upptagna den dagen (`bortaAntal`). Brickan med
  *   `UserX` i hörnet, räknaren från 2, och "N borta" i knappens namn. 0 eller utelämnad ritar ingenting.
  * @property {{ antal: number }} [lager] (0.61.0) Så många lager gäller den dagen. Brickan med `Layers` under, räknaren
- *   från 2, och "N lager" i knappens namn.
+ *   från 2, och "N lager" i knappens namn. ⛔ (0.151.0) På en dag där `ramarEfter` är över noll vinner ramverkets räkning ("+N", ramar som inte får plats) över appens `lager`, och appens ritas inte
+ *   den dagen (en utvecklingsvarning, en gång): två betydelser på samma bricka går inte att läsa. Andra dagar, och en vald dag (där inga ramar ritas), är appens `lager` som förut.
  * @property {{ tillgangliga: number, totalt: number }} [narvaro] (0.61.0) Hur många i den valda gruppen som är tillgängliga.
  *   Ritas som `N/N` i raden bredvid siffran från 640 px, och bara när ingen är borta (SS webb). Appen skickar den bara när en
  *   grupp är vald.
@@ -249,13 +290,29 @@ function antalI(x, falt) {
   return x.antal;
 }
 
+/** Varningen för `lager` mot ramar som inte får plats skrivs en gång per sidladdning. */
+let lagerKrockVarnad = false;
+
 /** Varningen för `hornmarken` skrivs en gång per sidladdning. */
 let hornmarkenVarnad = false;
 
 /** Bara för prov: nollställer "en gång per sidladdning", så att provet inte beror på vilka prov som körts före. */
 export function aterstallHornmarkenVarning() {
   hornmarkenVarnad = false;
+  lagerKrockVarnad = false;
 }
+
+/**
+ * Ramarna en ruta ritar: appens egen `ram` (en, som förut), annars kalendrarnas `ramar`, högst två.
+ * @param {Dagdekor | undefined} dekor @returns {ReadonlyArray<1|2|3|4|5|6>}
+ */
+function ramarAv(dekor) {
+  if (!dekor) return TOMMA_RAMAR;
+  if (dekor.ram) return [dekor.ram];
+  return dekor.ramar && dekor.ramar.length > 0 ? dekor.ramar.slice(0, MAX_KALENDERRAMAR) : TOMMA_RAMAR;
+}
+/** @type {ReadonlyArray<1|2|3|4|5|6>} */
+const TOMMA_RAMAR = Object.freeze([]);
 
 /** @param {string} text */
 function utvecklingsvarning(text) {
@@ -318,9 +375,9 @@ function Dagnummer({ day, isToday, vald, children }) {
  *
  * ⛔ I DEN VALDA RUTAN I RUTANS TEXTFÄRG, som SS (`isPicked ? --color-picked-text`): den valda ytan är mörk, och en röd ikon på
  * den syns inte.
- * @param {{ borta: number, lager: number, narvaro: { tillgangliga: number, totalt: number } | null, vald: boolean }} props
+ * @param {{ borta: number, lager: number, lagerText?: string, narvaro: { tillgangliga: number, totalt: number } | null, vald: boolean }} props
  */
-function Indikatorrad({ borta, lager, narvaro, vald }) {
+function Indikatorrad({ borta, lager, lagerText, narvaro, vald }) {
   // Siffran som den är, som SS webb (`{blockedMembers.length}`): i raden finns plats, och `9+` gäller cirkeln under 640 px.
   const text = (/** @type {number} */ n) => (n >= 2 ? <span data-raknare="" className="text-raknare tabular-nums">{n}</span> : null);
   return (
@@ -334,7 +391,7 @@ function Indikatorrad({ borta, lager, narvaro, vald }) {
       {lager > 0 ? (
         <span data-indikator="lager" className={cx("flex shrink-0 items-center gap-px", vald ? "text-ink" : "text-ink-muted")}>
           <LagerIkon size={14} />
-          {text(lager)}
+          {lagerText ? <span data-raknare="" className="text-raknare tabular-nums">{lagerText}</span> : text(lager)}
         </span>
       ) : null}
       {narvaro ? (
@@ -462,9 +519,9 @@ export function raknartext(antal) {
  * ⛔ EN FAST CIRKEL PÅ 20 PX, OPAK YTA OCH KANTEN I IKONENS FÄRG, INGEN SKUGGA. SS-historiken (#564-#570, fem varv 2026-05-18):
  * en tonad yta var "kladdig", räknaren sköt ut ur en växande pill, lagrets ram ritades över en genomskinlig bricka, och i den
  * valda rutan blev brickan vit-på-vit. Samma bricka i alla lägen, ovanför ton, ram och nedtoning (`z-3`).
- * @param {{ borta: number, lager: number }} props
+ * @param {{ borta: number, lager: number, lagerText?: string }} props
  */
-function Hornbrickor({ borta, lager }) {
+function Hornbrickor({ borta, lager, lagerText }) {
   return (
     <span aria-hidden="true" data-hornmarken="" style={{ right: BRICKA_HOGER }} className="pointer-events-none absolute top-[-5px] z-3 flex flex-col items-end sm:hidden">
       {borta > 0 ? (
@@ -473,8 +530,9 @@ function Hornbrickor({ borta, lager }) {
         </Bricka>
       ) : null}
       {lager > 0 ? (
-        <Bricka id="lager" antal={lager} farg="-mt-1 border-ink-muted text-ink-muted">
-          <LagerIkon size={10} />
+        <Bricka id="lager" antal={lager} text={lagerText} farg="-mt-1 border-ink-muted text-ink-muted">
+          {/* ⛔ "+N" ÄR BREDARE ÄN EN RÄKNARE (0.151.0): plustecknet och siffran är 10 px, med en ikon på 10 px går innehållet 0,9 px över cirkelns kant (mätt). Ikonen är 9 px och spärrningen tätare. */}
+          <LagerIkon size={lagerText ? 9 : 10} />
         </Bricka>
       ) : null}
     </span>
@@ -494,17 +552,17 @@ function Hornbrickor({ borta, lager }) {
  *
  * ⛔ IKONEN KRYMPER INTE (`shrink-0`). En flexrad krymper annars ikonen för att få plats med siffran (mätt: 6,5 px i stället för
  * 10), och då är det ikonen som ändrar storlek mellan dagar i stället för att cirkeln gör det.
- * @param {{ id: string, antal: number, farg: string, children: import("react").ReactNode }} props
+ * @param {{ id: string, antal: number, text?: string, farg: string, children: import("react").ReactNode }} props
  */
-function Bricka({ id, antal, farg, children }) {
-  const text = raknartext(antal);
+function Bricka({ id, antal, text: textIn, farg, children }) {
+  const text = textIn ?? raknartext(antal);
   return (
     <span
       data-hornmarke={id}
       className={cx("flex size-5 shrink-0 items-center justify-center gap-0 rounded-full border bg-surface px-px [&>svg]:shrink-0", farg)}
     >
       {children}
-      {text ? <span data-raknare="" className="text-mikro leading-[9px] tracking-[-0.3px] tabular-nums">{text}</span> : null}
+      {text ? <span data-raknare="" className={cx("text-mikro leading-[9px] tabular-nums", textIn ? "tracking-[-0.8px]" : "tracking-[-0.3px]")}>{text}</span> : null}
     </span>
   );
 }

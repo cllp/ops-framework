@@ -44,6 +44,7 @@ import { MAX_MINNESID, MAX_MINNESTEXT, MINNESFALT, MINNESKALLAFALT, MINNESKALLOR
 import { MAX_SKAPARKALLA, MAX_SKAPARNAMN, SKAPARFALT, VIA_FALTNAMN } from "./skapare.js";
 import { BESKRIVENAPPDATAFALT, BESKRIVNINGSDOKUMENTFALT, BESKRIVNINGSFALT, BESKRIVNINGSFORMAT, BESKRIVNINGSIDFORM, MAX_APPBESKRIVNING, MAX_BESKRIVNINGSNAMN, MAX_FALT, MAX_LISTOR, MIN_LISTOR } from "./beskrivenapp.js";
 import { KONFIGHANDELSER, KONFIGLOGGFALT } from "./konfiglogg.js";
+import { KALENDERVALFALT, KALENDERVISNINGAR, MAX_KALENDERVAL, MAX_KALENDERVALGRUPP } from "./kalendersynlighet.js";
 import { AVVECKLADE_KALENDERFALT, DATUMFORM, KALENDERFALT, KALENDERFARGER, KALENDERPOSTFALT, MAX_KALENDERNAMN, MAX_POSTBESKRIVNING, MAX_POSTPLATS, MAX_POSTTITEL, MINKALENDERFALT, TIDPUNKTSFORM } from "./kalendrar.js";
 import { KOMMENTARBILAGAFALT, KOMMENTARBILAGA_TYPER, KOMMENTARFALT, LASMARKESFALT, MAX_BILAGENAMN, MAX_HANDELSEKOMMENTAR, MAX_KOMMENTARBILAGA, SVARSFALT, SVARSVAL } from "./handelsemodell.js";
 import { AMNESFALT, AMNES_REGEL, BILAGA_TRADSKILJE, BILAGEMARKEFALT, FASTFALT, MAX_AMNESRUBRIK, GRUPPSAMTAL, LASTFALT, MAX_MEDDELANDE, MAX_NAMNER, MAX_TRADNAMN, MAX_UIDLANGD, MEDDELANDEFALT, NAMNERFALT, NAMNER_ALLA, REAKTIONSFALT, SVARPAFALT, REAKTIONSKODER, SAMTALSAVGRANSARE, SAMTALSFALT, TRADFALT, undersamlingskrock } from "./samtal.js";
@@ -2171,6 +2172,64 @@ ${nuRegelfunktion("opsMinnetNu")}
         && opsMinnetNu(request.resource.data.andrad)
         && opsMinnesradGiltig(request.resource.data);
       allow delete: if opsFarAndraMinnet();
+    }
+`;
+}
+
+/**
+ * Regelfragmentet för personens kalenderval: vilka kalendrar som syns och hur, per grupp (0.151.0, CP 2026-10-28).
+ *
+ * ══ ⛔ VAD SOM GÄLLER, OCH VARFÖR ═══════════════════════════════════════
+ *
+ * Före 0.151.0 låg valen i webbläsarens `localStorage` och följde enheten: "Väljer jag ram i mobilen syns det inte på datorn." Nu bor de på kontot, ett dokument per person och grupp
+ * under `<användare>/{uid}/<samling>/{gruppId}`, och reglerna är de strängaste ramverket har:
+ *
+ *   - LÄSA OCH SKRIVA: BARA PERSONEN SJÄLV (`{uid}` i sökvägen är den inloggade). Inte en gruppmedlem, inte en admin, inte ägaren: det här är hur NÅGON ser sin egen kalender, och
+ *     en annans val är ingen annans sak. Samma form som `minaKalendrar`.
+ *   - RADERA: aldrig. "Alla kalendrar" skriver ett tomt dokument, och ett tomt dokument är ett val (en annan enhet ska få det).
+ *   - FORMEN: exakt fälten `v`, `syns`, `visning` och (bara efter "Visa bara den här") `fore`; `v == 1`; de tre kartorna är kartor med högst `MAX_KALENDERVAL` poster; `syns` och `fore`
+ *     har bara sanningsvärden, `visning` bara `handelser`, `ram` och `bada` (`KALENDERVISNINGAR`). Allt härlett ur `src/lib/kalendersynlighet.js`, samma som klientens läsare prövar med.
+ *   - DOKUMENTETS ID ÄR GRUPPENS, i `ID_FORM`. Ramverket tolkar inte appens minnesnyckel (`person:grupp`): `createKalendervalskalla` binder ihop person och grupp.
+ *
+ * ⛔ NYCKLARNA I KARTORNA PRÖVAS INTE. En regel har ingen loop, och en nyckel är ett kalender-id som appen valt. Det som ändå skyddar: bara personen själv skriver sitt eget dokument,
+ * antalet poster har ett tak, och klientens läsare (`rensaKalenderSynlighet`) släpper allt som inte är en känd form. Ett fel värde kan bara göra att personens EGEN kalender ser fel ut.
+ *
+ * ⛔ RAMVERKET KÄNNER INTE SAMLINGSNAMNET. Appen skickar det, och samma namn till `createKalendervalskalla`. Reglerna ska vara deployade INNAN klienten börjar skriva: en regel i
+ * `main` är inte en regel i produktion. Fragmentet använder `opsInloggad` ur `regelfragment()`, och ska limmas in efter det.
+ *
+ * @param {string} namn Samlingsnamnet appen valt.
+ * @param {{ anvandare?: string }} [sokvag] Användarsamlingen. Förval `users`, samma som `kalenderregelfragment`.
+ * @returns {string}
+ */
+export function kalendervalsregelfragment(namn, sokvag = {}) {
+  const samling = kontrolleraNamn(namn, "kalenderval");
+  const anvandare = kontrolleraNamn(sokvag.anvandare ?? "users", "anvandare");
+  const lista = (/** @type {readonly (string|boolean)[]} */ f) => f.map((x) => (typeof x === "boolean" ? String(x) : `"${x}"`)).join(", ");
+  const idMonster = regelRegex(ID_FORM);
+  const karta = (/** @type {string} */ falt, /** @type {readonly (string|boolean)[]} */ tillatna) =>
+    `${falt} is map && ${falt}.size() <= ${MAX_KALENDERVAL} && ${falt}.values().hasOnly([${lista(tillatna)}])`;
+
+  return `    // ══ Ramverkets kalenderval. GENERERAD, ändra inte för hand ══
+    //
+    // Källa: ops-framework, kalendervalsregelfragment() i src/lib/regler.js. Kräver regelfragment() ovanför.
+    // Bara personen själv läser och skriver sitt dokument. Dokumentets id är gruppens.
+
+    function opsKalendervalGiltigt(d) {
+      return d.keys().hasOnly([${lista(KALENDERVALFALT)}])
+        && d.keys().hasAll(["v", "syns", "visning"])
+        && d.v == 1
+        && ${karta("d.syns", [true, false])}
+        && ${karta("d.visning", KALENDERVISNINGAR)}
+        && (!('fore' in d) || (${karta("d.fore", [true, false])}));
+    }
+
+    match /${anvandare}/{uid}/${samling}/{gid} {
+      allow read: if opsInloggad() && request.auth.uid == uid;
+      allow create, update: if opsInloggad() && request.auth.uid == uid
+        && gid.matches('${idMonster}')
+        && gid.size() <= ${MAX_KALENDERVALGRUPP}
+        && opsKalendervalGiltigt(request.resource.data);
+      allow delete: if false;
     }
 `;
 }

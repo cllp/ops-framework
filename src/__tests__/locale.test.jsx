@@ -102,7 +102,8 @@ describe("OpsCalendar talar appens språk", () => {
         locale="en-GB"
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: "12, 1 post" }));
+    // Dagens namn är engelskt i en engelsk kalender (kontrollgranskningen av PR 458, fynd 5): "1 entry", inte "1 post".
+    fireEvent.click(screen.getByRole("button", { name: "12, 1 entry" }));
     expect(screen.getAllByText("12 October").length).toBeGreaterThan(0);
   });
 });
