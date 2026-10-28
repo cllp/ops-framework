@@ -1,9 +1,24 @@
 import { memo } from "react";
+import { forvalda } from "../lib/ord.js";
+import { useOpsSprak } from "./OpsSprak.jsx";
 import { cx } from "../lib/cx.js";
 import { arPreliminar, markorlayout } from "../lib/calendar.js";
 import { postklasser, prickklass } from "../lib/kalenderfarg.js";
 import { MAX_KALENDERRAMAR, ramarEfterText } from "../lib/kalenderramar.js";
 import { BortaIkon, LagerIkon } from "./icons.jsx";
+
+/**
+ * Orden i dagens knappnamn (kontrollgranskningen av PR 458, fynd 5): "12, 3 poster, 1 borta, 4 av 6 tillgängliga, 2 lager". Förut var allt utom ramarna svenska litteraler, och på engelska blev namnet
+ * blandat ("3 poster ... 1 more calendar with a frame"). Nu är HELA namnet ur ordboken. `{n}`, `{a}` och `{b}` byts mot talen. Ramarna som inte får plats har sina ord i `ORD_KALENDERRAMAR`.
+ */
+export const ORD_OPSCALENDARDAGRUTA = {
+  post: { sv: "post", en: "entry" },
+  poster: { sv: "poster", en: "entries" },
+  borta: { sv: "{n} borta", en: "{n} away" },
+  tillgangliga: { sv: "{a} av {b} tillgängliga", en: "{a} of {b} available" },
+  lagerEtt: { sv: "1 lager", en: "1 layer" },
+  lager: { sv: "{n} lager", en: "{n} layers" },
+};
 
 /**
  * Dagsrutan i `OpsCalendar`, och dess tre delar: siffran, märkesraden (telefon), pillerraden (från 640 px) och hörnmärkena
@@ -53,9 +68,12 @@ import { BortaIkon, LagerIkon } from "./icons.jsx";
  * opak yta, kant i ikonens färg, räknaren inne i cirkeln), och en plats där varje app ritade sitt eget innehåll hade låtit
  * varje app göra om de fem varven SS behövde (#564-#570).
  *
- * @param {{ day: number, dayKey: string, entries: import("../lib/calendar.js").CalendarEntry[], markerade: import("../lib/calendar.js").CalendarEntry[], spann: import("../lib/calendar.js").CalendarEntry[], enkla: import("../lib/calendar.js").CalendarEntry[], isToday: boolean, forbi: boolean, chosen: boolean, forhand: boolean, sok: "" | "traff" | "miss", bandhojd: number, pekare: Record<string, any>, dekor?: Dagdekor }} props
+ * @param {{ day: number, dayKey: string, entries: import("../lib/calendar.js").CalendarEntry[], markerade: import("../lib/calendar.js").CalendarEntry[], spann: import("../lib/calendar.js").CalendarEntry[], enkla: import("../lib/calendar.js").CalendarEntry[], isToday: boolean, forbi: boolean, chosen: boolean, forhand: boolean, sok: "" | "traff" | "miss", bandhojd: number, pekare: Record<string, any>, dekor?: Dagdekor, sprak?: string }} props
  */
-function DagrutaRitad({ day, dayKey, entries, markerade, spann, enkla, isToday, forbi, chosen, forhand, sok, bandhojd, pekare, dekor }) {
+function DagrutaRitad({ day, dayKey, entries, markerade, spann, enkla, isToday, forbi, chosen, forhand, sok, bandhojd, pekare, dekor, sprak }) {
+  const sprakCtx = useOpsSprak();
+  const o = /** @type {Record<keyof typeof ORD_OPSCALENDARDAGRUTA, string>} */ (forvalda(ORD_OPSCALENDARDAGRUTA, sprak || sprakCtx));
+  const vald = chosen || forhand;
   const count = entries.length;
   const borta = antalI(dekor?.borta, "borta");
   const appLager = antalI(dekor?.lager, "lager");
@@ -63,8 +81,10 @@ function DagrutaRitad({ day, dayKey, entries, markerade, spann, enkla, isToday, 
    * ⛔ RAMAR SOM INTE FÅR PLATS (0.151.0, CP 2026-10-28): OpsCalendar räknar dem ur samma underlag som ramarna (`dekor.ramarEfter`), och lagerbrickan visar "+N" i stället för ett antal lager.
    * Bara när kalendrarnas ramar ritas: appens egen `ram` är en och har inget som blir över. ⛔ Skickar appen OCH räknar ramverket `lager` samma dag är det ramverkets räkning som gäller, och
    * appens `lager` ritas inte den dagen (en utvecklingsvarning, en gång): två betydelser på samma bricka ("3 lager" eller "+1 ram") går inte att läsa. Appen skickar inget `lager` idag.
+   * ⛔ PÅ EN VALD DAG RITAS INGA RAMAR (`!vald`, se nedan), och då säger varken brickan eller namnet "+N": en bricka som räknar ramar som inte syns är ett påstående om något som inte finns.
+   * Dagpanelen som öppnas av valet har raden "Kalendrar med ram". Appens egna `lager` gäller på den dagen som förut (kontrollgranskningen av PR 458, fynd 2).
    */
-  const ramarEfter = !dekor?.ram && Number.isInteger(dekor?.ramarEfter) && /** @type {number} */ (dekor?.ramarEfter) > 0 ? /** @type {number} */ (dekor?.ramarEfter) : 0;
+  const ramarEfter = !vald && !dekor?.ram && Number.isInteger(dekor?.ramarEfter) && /** @type {number} */ (dekor?.ramarEfter) > 0 ? /** @type {number} */ (dekor?.ramarEfter) : 0;
   if (ramarEfter > 0 && appLager > 0 && !lagerKrockVarnad) {
     lagerKrockVarnad = true;
     utvecklingsvarning("OpsCalendar dagdekor: `lager` skickades en dag då ramverket själv visar `+N` på lagerbrickan för kalendrar med ram som inte får plats. Ramverkets räkning gäller och appens `lager` ritas inte den dagen. Skicka inte `lager` om kalendrarna har ramar.");
@@ -80,12 +100,11 @@ function DagrutaRitad({ day, dayKey, entries, markerade, spann, enkla, isToday, 
   // ⛔ N/N BARA NÄR INGEN ÄR BORTA (SS `MonthGrid.jsx:529`, `blockedMembers.length === 0`): brickan och talet säger samma sak åt två håll.
   const narvaro = borta === 0 && dekor?.narvaro && dekor.narvaro.totalt > 0 ? dekor.narvaro : null;
   const label = [
-    count === 0 ? `${day}` : `${day}, ${count} ${count === 1 ? "post" : "poster"}`,
-    ...(borta > 0 ? [`${borta} borta`] : []),
-    ...(narvaro ? [`${narvaro.tillgangliga} av ${narvaro.totalt} tillgängliga`] : []),
-    ...(ramarEfter > 0 ? [dekor?.ramarEfterOrd || ramarEfterText(ramarEfter, "sv")] : lager > 0 ? [`${lager} lager`] : []),
+    count === 0 ? `${day}` : `${day}, ${count} ${count === 1 ? o.post : o.poster}`,
+    ...(borta > 0 ? [o.borta.replace("{n}", String(borta))] : []),
+    ...(narvaro ? [o.tillgangliga.replace("{a}", String(narvaro.tillgangliga)).replace("{b}", String(narvaro.totalt))] : []),
+    ...(ramarEfter > 0 ? [ramarEfterText(ramarEfter, sprak || sprakCtx)] : lager > 0 ? [lager === 1 ? o.lagerEtt : o.lager.replace("{n}", String(lager))] : []),
   ].join(", ");
-  const vald = chosen || forhand;
   const ramar = ramarAv(dekor);
   const nedtonad = vald ? "" : sok === "miss" ? "sok" : sok === "" && forbi ? "forbi" : "";
 
@@ -197,6 +216,7 @@ function samma(a, b) {
     a.forhand === b.forhand &&
     a.sok === b.sok &&
     a.bandhojd === b.bandhojd &&
+    a.sprak === b.sprak &&
     listorLika(a.entries, b.entries) &&
     listorLika(a.markerade, b.markerade) &&
     listorLika(a.spann, b.spann) &&
@@ -243,11 +263,11 @@ export const Dagruta = memo(DagrutaRitad, samma);
  * @property {1|2|3|4|5|6} [ram] (0.61.0) En ram på 2 px i identitetspalettens färg runt rutan (SS lagrets `borderColor`). Appens egen: den vinner över `ramar`.
  * @property {ReadonlyArray<1|2|3|4|5|6>} [ramar] (0.151.0) Kalendrarnas ramar, ytterst först, högst två (`MAX_KALENDERRAMAR`): den andra ritas inuti den första. `OpsCalendar` sätter dem ur kalendrarnas visning (Ram eller Båda).
  * @property {number} [ramarEfter] (0.151.0) Så många kalendrar med ram som inte får plats (de ritas högst två): lagerbrickan visar "+N". Sätts av `OpsCalendar`, ur samma underlag som `ramar`; appen skickar den inte.
- * @property {string} [ramarEfterOrd] (0.151.0) Knappnamnet för dem, på kalenderns språk ("1 kalender till med ram"). Sätts av `OpsCalendar`.
  * @property {{ antal: number }} [borta] (0.61.0) Så många är borta eller upptagna den dagen (`bortaAntal`). Brickan med
  *   `UserX` i hörnet, räknaren från 2, och "N borta" i knappens namn. 0 eller utelämnad ritar ingenting.
  * @property {{ antal: number }} [lager] (0.61.0) Så många lager gäller den dagen. Brickan med `Layers` under, räknaren
- *   från 2, och "N lager" i knappens namn.
+ *   från 2, och "N lager" i knappens namn. ⛔ (0.151.0) På en dag där `ramarEfter` är över noll vinner ramverkets räkning ("+N", ramar som inte får plats) över appens `lager`, och appens ritas inte
+ *   den dagen (en utvecklingsvarning, en gång): två betydelser på samma bricka går inte att läsa. Andra dagar, och en vald dag (där inga ramar ritas), är appens `lager` som förut.
  * @property {{ tillgangliga: number, totalt: number }} [narvaro] (0.61.0) Hur många i den valda gruppen som är tillgängliga.
  *   Ritas som `N/N` i raden bredvid siffran från 640 px, och bara när ingen är borta (SS webb). Appen skickar den bara när en
  *   grupp är vald.

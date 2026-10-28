@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { OpsKalenderLista } from "../components/OpsKalenderLista.jsx";
 import { OpsCalendar } from "../components/OpsCalendar.jsx";
+import { kalenderSynlighetNyckel } from "../lib/kalendersynlighet.js";
 import { useKalenderSynlighet } from "../lib/useKalenderSynlighet.js";
 import { LANGTRYCK_MS } from "../lib/apparark.js";
 import { registreraFelmottagare } from "../lib/felrapport.js";
@@ -30,8 +31,8 @@ const KAL = [
   { id: "arenden", namn: "Ärenden", farg: 6, sektion: "Ärenden", avFranStart: true },
 ];
 
-function minne() {
-  const varden = new Map();
+function minne(/** @type {any} */ start) {
+  const varden = new Map(start ? [[kalenderSynlighetNyckel("p:g"), JSON.stringify(start)]] : []);
   return { varden, getItem: (/** @type {string} */ n) => (varden.has(n) ? varden.get(n) : null), setItem: (/** @type {string} */ n, /** @type {string} */ v) => void varden.set(n, v) };
 }
 
@@ -251,6 +252,29 @@ describe("⛔ felet mot kontot syns i listan, med en knapp", () => {
     await act(async () => {});
     expect(screen.queryByRole("alert")).toBeNull();
   });
+  it("⛔ för många val sparade: eget besked på listans språk, ingen Försök igen-knapp, inget skrivförsök och en rapport", async () => {
+    vi.useRealTimers();
+    const fanget = /** @type {string[]} */ ([]);
+    const av = registreraFelmottagare({ fanga: (fel) => void fanget.push(String(/** @type {Error} */ (fel).message)), satt: () => {} });
+    const skriv = vi.fn(() => Promise.resolve());
+    const konto = { las: () => Promise.resolve(null), skriv };
+    const manga = Object.fromEntries(Array.from({ length: 201 }, (_, i) => [`k${i}`, true]));
+    render(<Lista lagring={minne({ v: 1, syns: manga, visning: {} })} konto={konto} />);
+    await act(async () => {});
+    const larm = await screen.findByRole("alert");
+    expect(larm.getAttribute("data-kalender-kontofel")).toBe("formanga");
+    expect(larm.textContent).toContain("För många val sparade");
+    expect(within(larm).queryByRole("button")).toBeNull();
+    // Tryck vid tryck: inga skrivförsök, ingen ny rapport.
+    fireEvent.click(screen.getByRole("switch", { name: "Apple Calendar" }));
+    await act(async () => {});
+    fireEvent.click(screen.getByRole("switch", { name: "Apple Calendar" }));
+    await act(async () => {});
+    expect(skriv).not.toHaveBeenCalled();
+    expect(fanget).toHaveLength(1);
+    av();
+  });
+
 });
 
 describe("genom OpsCalendar: kalendern ändras i samma stund", () => {

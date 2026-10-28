@@ -4,6 +4,7 @@ import { OpsCalendar } from "../components/OpsCalendar.jsx";
 import { aterstallHornmarkenVarning } from "../components/OpsCalendarDagruta.jsx";
 import { kalenderRamarAlla, ramarEfterText } from "../lib/kalenderramar.js";
 import { LANGTRYCK_MS } from "../lib/talk.js";
+import { OpsSprakProvider } from "../components/OpsSprak.jsx";
 
 /**
  * Lagerbrickan visar kalendrarna med ram som inte får plats (0.151.0, CP 2026-10-28): "+1" för tre kalendrar, "+2" för fyra, ingenting för två eller färre.
@@ -78,10 +79,31 @@ describe("lagerbrickan för ramar som inte får plats", () => {
     expect(dag("2026-10-14").getAttribute("aria-label")).toBe("14, 2 poster");
     document.body.innerHTML = "";
     rita({ locale: "en-GB" });
-    expect(dag("2026-10-13").getAttribute("aria-label")).toContain("1 more calendar with a frame");
-    expect(dag("2026-10-12").getAttribute("aria-label")).toContain("2 more calendars with a frame");
+    // ⛔ HELA namnet är engelskt (kontrollgranskningen av PR 458, fynd 5): inte "3 poster ... 1 more calendar with a frame".
+    expect(dag("2026-10-13").getAttribute("aria-label")).toBe("13, 3 entries, 1 more calendar with a frame");
+    expect(dag("2026-10-12").getAttribute("aria-label")).toBe("12, 4 entries, 2 more calendars with a frame");
+    expect(dag("2026-10-14").getAttribute("aria-label")).toBe("14, 2 entries");
+    expect(dag("2026-10-15").getAttribute("aria-label")).toBe("15, 1 entry");
     expect(ramarEfterText(1, "sv")).toBe("1 kalender till med ram");
     expect(ramarEfterText(3, "en")).toBe("3 more calendars with a frame");
+  });
+
+  it("⛔ hela dagens namn följer språket: poster, borta, tillgängliga och lager, också när språket kommer ur OpsSprakProvider", () => {
+    const dekor = (/** @type {string} */ d) => (d === "2026-10-14" ? { narvaro: { tillgangliga: 3, totalt: 5 }, lager: { antal: 3 } } : d === "2026-10-15" ? { borta: { antal: 2 }, lager: { antal: 1 } } : undefined);
+    rita({ dagdekor: dekor });
+    expect(dag("2026-10-14").getAttribute("aria-label")).toBe("14, 2 poster, 3 av 5 tillgängliga, 3 lager");
+    expect(dag("2026-10-15").getAttribute("aria-label")).toBe("15, 1 post, 2 borta, 1 lager");
+    document.body.innerHTML = "";
+    rita({ dagdekor: dekor, locale: "en-GB" });
+    expect(dag("2026-10-14").getAttribute("aria-label")).toBe("14, 2 entries, 3 of 5 available, 3 layers");
+    expect(dag("2026-10-15").getAttribute("aria-label")).toBe("15, 1 entry, 2 away, 1 layer");
+    document.body.innerHTML = "";
+    render(
+      <OpsSprakProvider sprak="en">
+        <OpsCalendar ariaLabel="Kalender" today={IDAG} monthsBack={0} monthsForward={0} entries={POSTER} dagdekor={dekor} />
+      </OpsSprakProvider>,
+    );
+    expect(dag("2026-10-14").getAttribute("aria-label")).toBe("14, 2 entries, 3 of 5 available, 3 layers");
   });
 
   it("en kalender som slås av har ingen ram och räknas inte: fyra blir tre och +2 blir +1", () => {
@@ -105,6 +127,32 @@ describe("lagerbrickan för ramar som inte får plats", () => {
     const ids = [...dag("2026-10-13").querySelectorAll("[data-hornmarke]")].map((b) => b.getAttribute("data-hornmarke"));
     expect(ids).toEqual(["borta", "lager"]);
     expect(dag("2026-10-13").getAttribute("aria-label")).toBe("13, 3 poster, 2 borta, 1 kalender till med ram");
+  });
+});
+
+describe("en vald dag ritar inga ramar, och då visar den ingen +N", () => {
+  it("⛔ dagen som väljs tappar brickan och +N i namnet (inga ramar att räkna efter), de andra dagarna behåller dem, och panelen säger vilka som har ram", () => {
+    rita();
+    expect(bricka("2026-10-13")).toEqual(["+1"]);
+    fireEvent.click(dag("2026-10-13"));
+    expect(dag("2026-10-13").querySelectorAll("[data-dagram], [data-dagram-inre]")).toHaveLength(0);
+    expect(bricka("2026-10-13")).toEqual([]);
+    expect(rad("2026-10-13")).toEqual([]);
+    expect(dag("2026-10-13").getAttribute("aria-label")).toBe("13, 3 poster");
+    // Andra dagar som förut, och raden i dagpanelen finns kvar.
+    expect(bricka("2026-10-12")).toEqual(["+2"]);
+    expect(document.querySelector("[data-ramar-rad]")).toBeTruthy();
+    // Släpps valet kommer brickan tillbaka.
+    fireEvent.click(dag("2026-10-13"));
+    expect(bricka("2026-10-13")).toEqual(["+1"]);
+  });
+
+  it("appens egna lager gäller på den valda dagen som förut", () => {
+    rita({ dagdekor: (/** @type {string} */ d) => (d === "2026-10-13" ? { lager: { antal: 4 } } : undefined) });
+    expect(bricka("2026-10-13")).toEqual(["+1"]);
+    fireEvent.click(dag("2026-10-13"));
+    expect(bricka("2026-10-13")).toEqual(["4"]);
+    expect(dag("2026-10-13").getAttribute("aria-label")).toBe("13, 3 poster, 4 lager");
   });
 });
 
@@ -152,6 +200,28 @@ describe("dagpanelen och snabbtitten säger vilka kalendrar som har ram", () => 
     expect(rader.map((r) => r.getAttribute("data-ramar-rad")).length).toBe(2);
     expect(rader[0].textContent).toContain("Familj");
     expect(rader[1].textContent).not.toContain("Familj");
+  });
+
+  it("⛔ skickar appen en egen ram den dagen ritas inga av kalendrarnas ramar, och då listar varken dagpanelen eller snabbtitten ramar som inte finns", () => {
+    const dekor = (/** @type {string} */ d) => (d === "2026-10-13" ? { ram: 3 } : undefined);
+    rita({ dagdekor: dekor });
+    fireEvent.click(dag("2026-10-13"));
+    expect(document.querySelector("[data-dagpanel]")).toBeTruthy();
+    expect(document.querySelector("[data-ramar-rad]")).toBeNull();
+    // En dag utan appens ram har raden som förut.
+    fireEvent.click(dag("2026-10-13"));
+    fireEvent.click(dag("2026-10-12"));
+    expect(document.querySelector("[data-ramar-rad]")).toBeTruthy();
+    // Snabbtitten.
+    vi.useFakeTimers();
+    document.body.innerHTML = "";
+    rita({ dagdekor: dekor });
+    fireEvent.pointerDown(dag("2026-10-13"), { pointerId: 1, clientX: 10, clientY: 10, button: 0 });
+    act(() => vi.advanceTimersByTime(LANGTRYCK_MS));
+    fireEvent.pointerUp(dag("2026-10-13"), { pointerId: 1 });
+    fireEvent.click(dag("2026-10-13"));
+    expect(document.querySelector("[data-snabbtitt]")).toBeTruthy();
+    expect(document.querySelector("[data-ramar-rad]")).toBeNull();
   });
 
   it("snabbtitten har samma rad, på kalenderns språk", () => {

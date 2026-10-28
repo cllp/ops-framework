@@ -79,3 +79,36 @@ describe("appens deklaration på svenska och engelska", () => {
     expect(s).toEqual([{ rubrik: "Ärenden", rader: ["x"], tom: null }]);
   });
 });
+
+describe("⛔ en egen sektion kan heta vad som helst, också något som ser ut som en intern nyckel (kontrollgranskningen av PR 458, fynd 4)", () => {
+  const KAL2 = [
+    { id: "g", namn: "Styrelsen", farg: 4, grupp: true, forvald: true },
+    { id: "m", namn: "Privat", farg: 5 },
+    { id: "e1", namn: "Ett", farg: 1, sektion: "mina" },
+    { id: "e2", namn: "Två", farg: 2, sektion: "grupp" },
+    { id: "e3", namn: "Tre", farg: 3, sektion: "standard:grupp" },
+    { id: "e4", namn: "Fyra", farg: 6, sektion: "standard:mina" },
+  ];
+  it.each(["sv", "en"])("%s: varje egen sektion är sin egen, och standardsektionerna behåller sina rader", (sprak) => {
+    const s = sektioner({ sprak, kalendrar: KAL2 });
+    const standard = sprak === "sv" ? ["Gruppens kalendrar", "Mina kalendrar"] : ["Group calendars", "My calendars"];
+    expect(s).toEqual([
+      { rubrik: standard[0], rader: ["g"], tom: null },
+      { rubrik: standard[1], rader: ["m"], tom: null },
+      { rubrik: "mina", rader: ["e1"], tom: null },
+      { rubrik: "grupp", rader: ["e2"], tom: null },
+      { rubrik: "standard:grupp", rader: ["e3"], tom: null },
+      { rubrik: "standard:mina", rader: ["e4"], tom: null },
+    ]);
+  });
+
+  it("en deklarerad egen sektion som heter 'mina' är inte Mina kalendrar", () => {
+    const s = sektioner({ sprak: "sv", kalendrar: KAL2.slice(0, 3), sektioner: [{ namn: "Gruppens kalendrar" }, { namn: "Mina kalendrar", tomText: "Tomt." }, { namn: "mina", tomText: "Egen tom." }] });
+    expect(s.map((x) => [x.rubrik, x.rader])).toEqual([
+      ["Gruppens kalendrar", ["g"]],
+      ["Mina kalendrar", ["m"]],
+      ["mina", ["e1"]],
+    ]);
+  });
+});
+

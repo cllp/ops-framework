@@ -458,19 +458,80 @@ describe("⛔ en flik som blir synlig läser om kontot", () => {
     expect(result.current.arSynlig("gruppen")).toBe(true);
   });
 
-  it("⛔ ett sent svar på omläsningen skriver aldrig över ett nyare tryck, också när trycket hunnit sparas klart", async () => {
+  it("⛔ CP:s fall: telefonen döljer Styrelsen, datorns flik blir synlig och personen trycker INNAN svaret kommit: telefonens val ligger kvar på kontot, med trycket ovanpå", async () => {
     const k = styrbart({ las: { v: 1, syns: {}, visning: {} } });
     const { result } = rita({ lagring: lokalt(), konto: k.konto });
     await tomrunda();
     const hall = k.holdLas();
     byt("visible"); // omläsningen startar och väntar
-    act(() => result.current.vaxla("apple")); // trycket, och skrivningen går igenom innan svaret kommer
+    act(() => result.current.vaxla("apple")); // trycket på datorn, innan svaret
+    await tomrunda();
+    // Ingenting skrivs medan läsningen väntar: en skrivning av det gamla läget hade tagit bort det som valts på telefonen.
+    expect(k.stat.skriv).toEqual([]);
+    expect(result.current.arSynlig("apple")).toBe(false);
+    await act(async () => hall.ok({ v: 1, syns: { gruppen: false }, visning: {} }));
+    await tomrunda();
+    // Båda gäller, på skärmen och på kontot.
+    expect(result.current.arSynlig("gruppen")).toBe(false);
+    expect(result.current.arSynlig("apple")).toBe(false);
+    expect(k.stat.skriv).toEqual([{ v: 1, syns: { gruppen: false, apple: false }, visning: {} }]);
+  });
+
+  it("flera tryck under omläsningen spelas upp i ordning ovanpå svaret, och skrivs en gång", async () => {
+    const k = styrbart({ las: { v: 1, syns: {}, visning: {} } });
+    const { result } = rita({ lagring: lokalt(), konto: k.konto });
+    await tomrunda();
+    const hall = k.holdLas();
+    byt("visible");
+    act(() => result.current.vaxla("apple"));
+    act(() => result.current.valjVisning("arenden", "ram"));
+    act(() => result.current.vaxla("apple")); // på igen
+    await tomrunda();
+    expect(k.stat.skriv).toEqual([]);
+    await act(async () => hall.ok({ v: 1, syns: { gruppen: false }, visning: { apple: "bada" } }));
+    await tomrunda();
+    expect(k.stat.skriv).toEqual([{ v: 1, syns: { gruppen: false, apple: true }, visning: { apple: "bada", arenden: "ram" } }]);
+  });
+
+  it("ett tryck under en omläsning som svarar att kontot inte har något dokument skrivs som det är", async () => {
+    const k = styrbart({ las: { v: 1, syns: {}, visning: {} } });
+    const { result } = rita({ lagring: lokalt(), konto: k.konto });
+    await tomrunda();
+    const hall = k.holdLas();
+    byt("visible");
+    act(() => result.current.vaxla("apple"));
+    await tomrunda();
+    await act(async () => hall.ok(null));
     await tomrunda();
     expect(k.stat.skriv).toEqual([{ v: 1, syns: { apple: false }, visning: {} }]);
-    // Nu inget osparat alls: det som skyddade förut ("skiljer sig från kontot") är borta. Svaret är ändå äldre än trycket.
+  });
+
+  it("ett tryck under en omläsning som misslyckas skrivs ändå (det lokala gäller), och felet från läsningen syns inte i listan", async () => {
+    const k = styrbart({ las: { v: 1, syns: {}, visning: {} } });
+    const { result } = rita({ lagring: lokalt(), konto: k.konto });
+    await tomrunda();
+    const hall = k.holdLas();
+    byt("visible");
+    act(() => result.current.vaxla("apple"));
+    await tomrunda();
+    expect(k.stat.skriv).toEqual([]);
+    await act(async () => hall.fel(new Error("offline")));
+    await tomrunda();
+    expect(result.current.kontoFel).toBeNull();
+    expect(k.stat.skriv).toEqual([{ v: 1, syns: { apple: false }, visning: {} }]);
+  });
+
+  it("efter omläsningen skrivs trycken som vanligt igen (köandet upphör)", async () => {
+    const k = styrbart({ las: { v: 1, syns: {}, visning: {} } });
+    const { result } = rita({ lagring: lokalt(), konto: k.konto });
+    await tomrunda();
+    const hall = k.holdLas();
+    byt("visible");
     await act(async () => hall.ok({ v: 1, syns: { gruppen: false }, visning: {} }));
-    expect(result.current.arSynlig("apple")).toBe(false);
-    expect(result.current.arSynlig("gruppen")).toBe(true);
+    await tomrunda();
+    act(() => result.current.vaxla("apple"));
+    await tomrunda();
+    expect(k.stat.skriv).toEqual([{ v: 1, syns: { gruppen: false, apple: false }, visning: {} }]);
   });
 
   it("⛔ en ny person: val på enhet B, sedan omläsning på enhet A, som varken har val eller något på kontot: A visar B:s val och skriver inte över det", async () => {
@@ -520,18 +581,36 @@ describe("⛔ taket på poster kraschar aldrig kalendern", () => {
     expect(Object.keys(JSON.parse(/** @type {string} */ (lag.varden.get(NYCKEL))).syns)).toHaveLength(202);
   });
 
-  it("med konto: kastar bara vid skrivning mot kontot, som kontoFel 'skriv', och valet gäller ändå", async () => {
+  it("med konto: 'för många val sparade' är ett eget besked, ingen skrivning försöks, felet rapporteras EN gång (inte vid varje tryck) och valet gäller ändå", async () => {
     const kalla = createKalendervalskalla({ kalla: createMemorySource(), kalenderval: "kalenderval" });
     const lag = lokalt({ [NYCKEL]: { v: 1, syns: manga, visning: {} } });
     const { result } = rita({ lagring: lag, konto: kalla.konto("u", "g") });
     await tomrunda();
-    // Redan lyftet av de lokala valen (kontot har inget dokument) misslyckas, synligt, och ritningen kraschar inte.
-    expect(result.current.kontoFel).toBe("skriv");
-    expect(fanget[0]).toContain("högst 200");
-    act(() => result.current.vaxla("apple"));
-    await tomrunda();
-    expect(result.current.kontoFel).toBe("skriv");
+    // Redan lyftet av de lokala valen (kontot har inget dokument) är för stort: eget besked, och ritningen kraschar inte.
+    expect(result.current.kontoFel).toBe("formanga");
+    expect(fanget).toHaveLength(1);
+    expect(fanget[0]).toContain("för många val");
+    for (const id of ["apple", "gruppen", "arenden"]) {
+      act(() => result.current.vaxla(id));
+      await tomrunda();
+    }
+    expect(result.current.kontoFel).toBe("formanga");
     expect(result.current.arSynlig("apple")).toBe(false);
+    // Tre tryck till gav inga nya rapporter, och inget skrevs.
+    expect(fanget).toHaveLength(1);
+    expect(await kalla.las("u", "g")).toBeNull();
+  });
+
+  it("när valen åter ryms skrivs de och felet försvinner (Alla kalendrar börjar om)", async () => {
+    const kalla = createKalendervalskalla({ kalla: createMemorySource(), kalenderval: "kalenderval" });
+    const lag = lokalt({ [NYCKEL]: { v: 1, syns: manga, visning: {} } });
+    const { result } = rita({ lagring: lag, konto: kalla.konto("u", "g") });
+    await tomrunda();
+    expect(result.current.kontoFel).toBe("formanga");
+    act(() => result.current.aterstall());
+    await tomrunda();
+    expect(result.current.kontoFel).toBeNull();
+    // Ett tomt val är samma sak som inget dokument: inget skrivs, och det är rätt.
     expect(await kalla.las("u", "g")).toBeNull();
   });
 });

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   MAX_KALENDERVAL,
+  kalenderValForManga,
   TOM_SYNLIGHET,
   aterstallKalenderSynlighet,
   arEnsamSynlig,
@@ -156,6 +157,13 @@ describe("dokumentet på kontot", () => {
     // ⛔ Webbläsarens text kastar aldrig: taket är kontots.
     expect(() => skrivKalenderSynlighet({ v: 1, syns, visning: {} })).not.toThrow();
     expect(() => kalenderValDokument({ v: 1, syns: Object.fromEntries(Object.entries(syns).slice(0, MAX_KALENDERVAL)), visning: {} })).not.toThrow();
+  });
+
+  it("kalenderValForManga är den enda prövningen av taket: den pekar ut kartan och antalet, och kalenderValDokument kastar ur den", () => {
+    const syns = Object.fromEntries(Array.from({ length: MAX_KALENDERVAL + 1 }, (_, i) => [`k${i}`, true]));
+    expect(kalenderValForManga({ v: 1, syns, visning: {} })).toEqual({ namn: "syns", antal: MAX_KALENDERVAL + 1 });
+    expect(kalenderValForManga({ v: 1, syns: {}, visning: {}, fore: syns })).toEqual({ namn: "fore", antal: MAX_KALENDERVAL + 1 });
+    expect(kalenderValForManga({ v: 1, syns: Object.fromEntries(Object.entries(syns).slice(0, MAX_KALENDERVAL)), visning: {} })).toBeNull();
   });
 
   it("harKalenderVal: tomt är inget val, allt annat är ett", () => {

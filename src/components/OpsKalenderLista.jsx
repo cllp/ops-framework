@@ -29,6 +29,7 @@ export const ORD_OPSKALENDERLISTA = {
   visaSomForut: { sv: "Visa som förut", en: "Show as before" },
   kontoFelLas: { sv: "Valen gick inte att hämta från kontot. Det som visas är från den här enheten.", en: "Your choices could not be fetched from your account. What you see is from this device." },
   kontoFelSkriv: { sv: "Valet sparades inte på kontot. Det gäller på den här enheten tills det lyckas.", en: "Your choice was not saved to your account. It applies on this device until it succeeds." },
+  kontoFelForManga: { sv: "För många val sparade. De får inte plats på kontot och gäller bara på den här enheten. Välj Alla kalendrar för att börja om.", en: "Too many choices saved. They do not fit on your account and apply only on this device. Choose All calendars to start over." },
   forsokIgen: { sv: "Försök igen", en: "Try again" },
 };
 
@@ -78,15 +79,18 @@ export function OpsKalenderLista({ kalendrar, syn, sektioner, efter, sprak: spra
       {/* ⛔ FELET SYNS (punkt 5): ett val som inte sparades på kontot ser annars ut som ett som gjorde det, och personen ser det först på en annan enhet. */}
       {syn.kontoFel ? (
         <div role="alert" data-kalender-kontofel={syn.kontoFel} className="mx-3 my-1 flex flex-col items-start gap-1 rounded-base border border-danger/40 px-3 py-2 text-etikett text-ink">
-          <p className="m-0">{syn.kontoFel === "las" ? o.kontoFelLas : o.kontoFelSkriv}</p>
-          <button
-            type="button"
-            data-kontofel-igen=""
-            onClick={syn.sparaIgen}
-            className="inline-flex min-h-11 cursor-pointer items-center rounded-base px-2 text-etikett font-medium text-accent underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent md:min-h-8"
-          >
-            {o.forsokIgen}
-          </button>
+          <p className="m-0">{syn.kontoFel === "las" ? o.kontoFelLas : syn.kontoFel === "formanga" ? o.kontoFelForManga : o.kontoFelSkriv}</p>
+          {/* Försök igen hjälper inte när valen inte ryms: det som hjälper är färre val. */}
+          {syn.kontoFel === "formanga" ? null : (
+            <button
+              type="button"
+              data-kontofel-igen=""
+              onClick={syn.sparaIgen}
+              className="inline-flex min-h-11 cursor-pointer items-center rounded-base px-2 text-etikett font-medium text-accent underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent md:min-h-8"
+            >
+              {o.forsokIgen}
+            </button>
+          )}
         </div>
       ) : null}
       {grupper.map((g) => (
@@ -199,7 +203,7 @@ function Kalenderrad({ k, syn, o, oppen, onOppna }) {
  *
  * Appen deklarerar `{ namn: "Gruppens kalendrar" }` och `{ namn: "Mina kalendrar", tomText }` (lifehub.app `kalenderlista.js`). Rader utan `sektion` hör till "grupp" eller "mina", och före
  * 0.151.0 var nyckeln bokstaven i namnet. När listans förval blev tvåspråkiga hamnade raderna på `sprak="en"` i nya sektioner ("Group calendars", "My calendars") medan appens deklarerade
- * (svenska) stod tomma. Nu är nyckeln `"grupp"` respektive `"mina"`, och ett deklarerat eller radens eget `sektion` som är något av de två standardnamnen på NÅGOT språk (`SEKTIONSNYCKEL`)
+ * (svenska) stod tomma. Nu är nyckeln `STANDARD_GRUPP` respektive `STANDARD_MINA` (interna, de kan inte krocka med ett namn), och ett deklarerat eller radens eget `sektion` som är något av de två standardnamnen på NÅGOT språk (`SEKTIONSNYCKEL`)
  * binds till den nyckeln. Rubriken som ritas är då standardnamnet på listans språk. Alla andra namn är appens och ritas som de är, med sin egen nyckel. ⛔ Det gamla sättet att deklarera
  * fungerar oförändrat: appen behöver inte ändras. En deklarerad `tomText` är appens ord och översätts inte; saknas den får "mina" sin standardtext på listans språk.
  *
@@ -209,12 +213,12 @@ function Kalenderrad({ k, syn, o, oppen, onOppna }) {
  * @returns {{ namn: string, tomText?: string, rader: import("./OpsCalendar.jsx").KalenderVal[] }[]}
  */
 function sektionerFor(kalendrar, deklarerade, o) {
-  /** Nyckeln för ett namn: "grupp" eller "mina" om det är ett standardnamn på något språk, annars namnet självt. @param {string} namn */
-  const nyckelFor = (namn) => SEKTIONSNYCKEL.get(namn) ?? namn;
+  /** Nyckeln för ett namn: standardnyckeln om det är ett standardnamn på något språk, annars namnet med prefixet `EGEN_SEKTION`. @param {string} namn */
+  const nyckelFor = (namn) => SEKTIONSNYCKEL.get(namn) ?? `${EGEN_SEKTION}${namn}`;
   /** Rubriken som ritas för en nyckel. @param {string} nyckel @param {string} namn */
-  const rubrikFor = (nyckel, namn) => (nyckel === "grupp" ? o.gruppens : nyckel === "mina" ? o.mina : namn);
+  const rubrikFor = (nyckel, namn) => (nyckel === STANDARD_GRUPP ? o.gruppens : nyckel === STANDARD_MINA ? o.mina : namn);
   /** @param {import("./OpsCalendar.jsx").KalenderVal} k */
-  const nyckelPa = (k) => (typeof k.sektion === "string" && k.sektion.trim() ? nyckelFor(k.sektion.trim()) : k.grupp ? "grupp" : "mina");
+  const nyckelPa = (k) => (typeof k.sektion === "string" && k.sektion.trim() ? nyckelFor(k.sektion.trim()) : k.grupp ? STANDARD_GRUPP : STANDARD_MINA);
   /** @type {Map<string, { namn: string, tomText?: string, rader: import("./OpsCalendar.jsx").KalenderVal[] }>} */
   const karta = new Map();
   // Utan deklarerade sektioner är det de två gamla som gäller: gruppens (bara med rader) och mina (alltid, med sin tomrad).
@@ -226,15 +230,23 @@ function sektionerFor(kalendrar, deklarerade, o) {
   }
   for (const k of kalendrar) {
     const nyckel = nyckelPa(k);
-    if (!karta.has(nyckel)) karta.set(nyckel, { namn: rubrikFor(nyckel, typeof k.sektion === "string" ? k.sektion.trim() : nyckel), rader: [] });
+    if (!karta.has(nyckel)) karta.set(nyckel, { namn: rubrikFor(nyckel, typeof k.sektion === "string" ? k.sektion.trim() : ""), rader: [] });
     karta.get(nyckel)?.rader.push(k);
   }
   return [...karta.values()].filter((s) => s.rader.length > 0 || Boolean(s.tomText));
 }
 
+/**
+ * ⛔ Sektionernas INTERNA nycklar (kontrollgranskningen av PR 458, fynd 4): standardsektionerna har egna nycklar och en sektion appen döpt själv har sitt namn efter `EGEN_SEKTION`.
+ * Förut var nyckeln för en egen sektion bara namnet, så en sektion som hette "mina" eller "grupp" slogs ihop med standardsektionen. Med prefixen kan ett namn aldrig bli en standardnyckel.
+ */
+const STANDARD_GRUPP = "standard:grupp";
+const STANDARD_MINA = "standard:mina";
+const EGEN_SEKTION = "eget:";
+
 /** Standardnamnen på varje språk till sin nyckel. Hämtade ur ordboken, så att ett nytt språk där följer med. */
 const SEKTIONSNYCKEL = new Map(
   /** @type {Array<[string, string]>} */ (
-    Object.entries({ grupp: ORD_OPSKALENDERLISTA.gruppens, mina: ORD_OPSKALENDERLISTA.mina }).flatMap(([nyckel, ord]) => Object.values(ord).map((text) => /** @type {[string, string]} */ ([text, nyckel])))
+    Object.entries({ [STANDARD_GRUPP]: ORD_OPSKALENDERLISTA.gruppens, [STANDARD_MINA]: ORD_OPSKALENDERLISTA.mina }).flatMap(([nyckel, ord]) => Object.values(ord).map((text) => /** @type {[string, string]} */ ([text, nyckel])))
   ),
 );

@@ -129,16 +129,29 @@ function kalenderValForm(val) {
  * "Missing or insufficient permissions" och säger ingenting om att personen har för många val).
  *
  * ⛔ KASTAR BARA HÄR, ALDRIG VID LÄSNING ELLER RITNING (granskningen av PR 458, fynd 6). Taket är kontots och reglernas; webbläsarens text (`skrivKalenderSynlighet`) kontrollerar
- * ingenting, så att en person med fler val kan använda kalendern, också i en app utan Firebase. Källan (`createKalendervalskalla`) anropar den här, och hooken fångar felet som `kontoFel` "skriv".
+ * ingenting, så att en person med fler val kan använda kalendern, också i en app utan Firebase. Källan (`createKalendervalskalla`) anropar den här. Hooken skriver aldrig över taket: den frågar `kalenderValForManga` först och ger `kontoFel` "formanga" (kontrollgranskningen, fynd 6).
  *
  * @param {KalenderSynlighet} val
  * @returns {{ v: 1, syns: Record<string, boolean>, visning: Record<string, Kalendervisning>, fore?: Record<string, boolean> }}
  */
 export function kalenderValDokument(val) {
-  for (const [namn, karta] of /** @type {const} */ ([["syns", val.syns], ["visning", val.visning], ["fore", val.fore ?? {}]])) {
-    if (Object.keys(karta).length > MAX_KALENDERVAL) throw new Error(`kalenderValDokument: ${namn} har ${Object.keys(karta).length} poster, högst ${MAX_KALENDERVAL} sparas på kontot.`);
-  }
+  const brott = kalenderValForManga(val);
+  if (brott) throw new Error(`kalenderValDokument: ${brott.namn} har ${brott.antal} poster, högst ${MAX_KALENDERVAL} sparas på kontot.`);
   return kalenderValForm(val);
+}
+
+/**
+ * Har valet fler poster än kontot får bära (`MAX_KALENDERVAL`)? Den enda platsen taket prövas: `kalenderValDokument` kastar ur den, och `useKalenderSynlighet` frågar den INNAN den försöker skriva,
+ * så att "för många val sparade" är ett känt läge och inte ett skrivfel som kommer tillbaka vid varje tryck (kontrollgranskningen av PR 458, fynd 6).
+ * @param {KalenderSynlighet} val
+ * @returns {{ namn: string, antal: number } | null} Första kartan över taket, eller `null`.
+ */
+export function kalenderValForManga(val) {
+  for (const [namn, karta] of /** @type {const} */ ([["syns", val.syns], ["visning", val.visning], ["fore", val.fore ?? {}]])) {
+    const antal = Object.keys(karta).length;
+    if (antal > MAX_KALENDERVAL) return { namn, antal };
+  }
+  return null;
 }
 
 /**

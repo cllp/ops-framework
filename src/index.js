@@ -274,7 +274,7 @@ export { lagerNyckel, lasDoldaLager, synligaLager, lagerFarg } from "./lib/kalen
  * ⛔ KALENDRARNA SOM EN LISTA, ETT MINNE (0.134.0, cllp/lifehub.app#402). Vilka kalendrar som syns och hur de visas (Händelser, Ram eller Båda) är personens val per grupp, i ETT minne.
  * `OpsCalendar kalenderMinne` använder det själv; en vy som ska följa samma val (Idag) kallar `useKalenderSynlighet` med samma `minne` och samma `kalendrar`. Lagret ovan är föråldrat.
  */
-export { KALENDERVISNINGAR, FORVALD_KALENDERVISNING, kalenderSynlighetNyckel, lasKalenderSynlighet, skrivKalenderSynlighet, arKalenderSynlig, kalenderVisning, vaxlaKalenderSynlighet, sattKalenderVisning, aterstallKalenderSynlighet, synligaKalenderRader, arForvaldSynlighet, rensaKalenderSynlighet, kalenderValDokument, harKalenderVal, visaBaraKalender, arEnsamSynlig, doldaKalenderIds, KALENDERVALFALT, MAX_KALENDERVAL, MAX_KALENDERVALGRUPP } from "./lib/kalendersynlighet.js";
+export { KALENDERVISNINGAR, FORVALD_KALENDERVISNING, kalenderSynlighetNyckel, lasKalenderSynlighet, skrivKalenderSynlighet, arKalenderSynlig, kalenderVisning, vaxlaKalenderSynlighet, sattKalenderVisning, aterstallKalenderSynlighet, synligaKalenderRader, arForvaldSynlighet, rensaKalenderSynlighet, kalenderValDokument, kalenderValForManga, harKalenderVal, visaBaraKalender, arEnsamSynlig, doldaKalenderIds, KALENDERVALFALT, MAX_KALENDERVAL, MAX_KALENDERVALGRUPP } from "./lib/kalendersynlighet.js";
 export { useKalenderSynlighet } from "./lib/useKalenderSynlighet.js";
 /*
  * ⛔ KALENDERVALEN FÖLJER KONTOT, LÅNGTRYCK VISAR BARA EN, TVÅ RAMAR OCH DAGEN (0.151.0, CP 2026-10-28).

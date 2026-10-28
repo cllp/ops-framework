@@ -9,7 +9,7 @@ import { rapporteraFel } from "../lib/felrapport.js";
 import { STANDARD_TIDSZON, idagI, kontrolleraTidszon } from "../lib/kalendrar.js";
 import { KALENDERPRICK, postklasser, prickklass } from "../lib/kalenderfarg.js";
 import { DATUM_EJ_SATT } from "../lib/handelsemodell.js";
-import { MAX_KALENDERRAMAR, ORD_KALENDERRAMAR, kalenderRamarAlla, ramarEfterText } from "../lib/kalenderramar.js";
+import { MAX_KALENDERRAMAR, ORD_KALENDERRAMAR, kalenderRamarAlla } from "../lib/kalenderramar.js";
 import { forvalda } from "../lib/ord.js";
 import { useKalenderSynlighet } from "../lib/useKalenderSynlighet.js";
 import { useHandelseOppnare } from "../lib/handelsekontext.js";
@@ -1512,23 +1512,28 @@ export function OpsCalendar({
   /**
    * Dagens ramar (0.151.0): kalendrarna som har en post med Ram eller Båda den dagen. De två första i listans ordning ritas, den första ytterst (till 0.150.0 var det EN ram, den första kalenderns).
    * Resten (0.151.0, CP 2026-10-28) räknas ur SAMMA uppräkning: lagerbrickan visar "+N", knappnamnet säger det, och dagpanelen och snabbtitten listar kalendrarna med ram.
-   * @type {Map<string, { dekor: { ramar: Array<1|2|3|4|5|6>, ramarEfter: number, ramarEfterOrd: string }, alla: Array<{ id: string, namn: string, ton: 1|2|3|4|5|6 }> }>}
+   * @type {Map<string, { dekor: { ramar: Array<1|2|3|4|5|6>, ramarEfter: number }, alla: Array<{ id: string, namn: string, ton: 1|2|3|4|5|6 }> }>}
    */
   const ramDagar = useMemo(() => {
     const ut = new Map();
     if (Object.keys(syn.visningar).length === 0) return ut;
-    const sp = String(locale).toLowerCase().startsWith("en") ? "en" : "sv";
     for (const [dag, alla] of kalenderRamarAlla(synligaPoster, { kalendrar, forvaldId, visningAv })) {
       const efter = Math.max(0, alla.length - MAX_KALENDERRAMAR);
-      ut.set(dag, { dekor: { ramar: alla.slice(0, MAX_KALENDERRAMAR).map((k) => k.ton), ramarEfter: efter, ramarEfterOrd: efter > 0 ? ramarEfterText(efter, sp) : "" }, alla });
+      ut.set(dag, { dekor: { ramar: alla.slice(0, MAX_KALENDERRAMAR).map((k) => k.ton), ramarEfter: efter }, alla });
     }
     return ut;
-  }, [synligaPoster, visningAv, kalendrar, forvaldId, syn.visningar, locale]);
-  /** Kalendrarna med ram en dag, bara när några inte får plats: raden i dagpanelen och snabbtitten. @param {string} dag */
+  }, [synligaPoster, visningAv, kalendrar, forvaldId, syn.visningar]);
+  /**
+   * Kalendrarna med ram en dag, bara när några inte får plats: raden i dagpanelen och snabbtitten. ⛔ Inte när appen skickar en egen `dekor.ram` den dagen (kontrollgranskningen av PR 458, fynd 3):
+   * då ritas inga av kalendrarnas ramar (appens vinner), och en rad som listar ramar som inte finns säger fel.
+   * @param {string} dag
+   */
   const ramarForDag = useCallback((/** @type {string} */ dag) => {
     const r = ramDagar.get(dag);
-    return r && r.dekor.ramarEfter > 0 ? r.alla : undefined;
-  }, [ramDagar]);
+    if (!r || r.dekor.ramarEfter <= 0) return undefined;
+    const app = dagdekor ? dagdekor(dag) : undefined;
+    return app && app.ram ? undefined : r.alla;
+  }, [ramDagar, dagdekor]);
   const allaPerDag = useMemo(() => perDay(entries), [entries]);
   const list = useMemo(() => months(franNyckel(todayDayKey), monthsBack, monthsForward), [todayDayKey, monthsBack, monthsForward]);
   const sokning = fraga.trim();
@@ -1972,6 +1977,7 @@ export function OpsCalendar({
                                 bandhojd={bandplats(filerPerDag[j])}
                                 pekare={pekareFor(dayKey)}
                                 dekor={ram && !(appDekor && appDekor.ram) ? { ...appDekor, ...ram.dekor } : appDekor}
+                                sprak={String(locale).toLowerCase().startsWith("en") ? "en" : undefined}
                               />
                             );
                           })}
