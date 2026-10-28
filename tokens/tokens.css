@@ -1182,6 +1182,19 @@
   color-scheme: light;
 }
 
+/* ─── Medan tangentbordet är uppe finns ingen bottenrad (0.152.0, cllp/ops-framework#461). ──────────
+ * CP 2026-10-28, en skärmbild från iPhone: bottenraden (Idag, Kalender, mikrofonen, Appar, Meny) stod kvar mellan
+ * skrivfältet och tangentbordet, ungefär 110 px av en skärm där meddelandena fick en sjättedel. `OpsBottomNav` gömmer
+ * raden (`src/lib/tangentbord.js`: ett textfält har fokus OCH `visualViewport` har krympt tydligt) och sätter då
+ * `data-ops-tangentbord` på <html>. Den här regeln är den ANDRA HALVAN: allt som reserverar plats för raden eller ligger
+ * ovanför den (`main`:s padding, toasten, spelraden, chattens höjd, sifferbubblan) räknar med de två talen nedan, och med
+ * raden borta ska de vara noll. Annars blir det ett tomt glapp där raden satt. EN plats och inte en klass per komponent:
+ * en ny sak som läggs ovanför raden följer med utan att någon kommer ihåg det. */
+:root[data-ops-tangentbord] {
+  --bottom-nav-h: 0px;
+  --bottom-nav-overhang: 0px;
+}
+
 /**
  * Mörkt läge har tre tillstånd, och ordningen spelar roll.
  *

@@ -614,3 +614,23 @@ describe("⛔ taket på poster kraschar aldrig kalendern", () => {
     expect(await kalla.las("u", "g")).toBeNull();
   });
 });
+
+describe("⛔ en ogiltig nyckel på kontot läker vid nästa skrivning (granskningen av PR 462)", () => {
+  it("ett dokument med en nyckel som reglerna nekar ger ändå en lyckad skrivning, och nyckeln är borta efteråt", async () => {
+    // Reglerna (`KALENDERVALNYCKEL_FORM`) nekar varje skrivning av ett dokument med en sådan nyckel. Behöll läsaren den skulle varje skrivning ta med den, och "Försök igen" aldrig lyckas.
+    const kalla = createMemorySource();
+    await kalla.create("users/u/kalenderval", { id: "g", v: 1, syns: { apple: false, "dålig nyckel": true, [`k${"x".repeat(100)}`]: false }, visning: { "a,b": "ram", arenden: "bada" }, fore: { "åäö": true, apple: true } });
+    const val = createKalendervalskalla({ kalla, kalenderval: "kalenderval" });
+    const { result } = rita({ lagring: lokalt(), konto: val.konto("u", "g") });
+    await waitFor(() => expect(result.current.arSynlig("apple")).toBe(false));
+    // Läsaren behåller det som är giltigt och släpper resten.
+    expect(result.current.visning("arenden")).toBe("bada");
+    act(() => result.current.vaxla("gruppen"));
+    await waitFor(async () => expect((await val.las("u", "g"))?.syns).toEqual({ apple: false, gruppen: false }));
+    expect(result.current.kontoFel).toBeNull();
+    const dokument = await val.las("u", "g");
+    expect(Object.keys(dokument?.visning ?? {})).toEqual(["arenden"]);
+    // Ett tryck på en växel tar bort "före" (så som det alltid gjort), och det är ingen följd av den ogiltiga nyckeln.
+    expect(dokument?.fore).toBeUndefined();
+  });
+});
