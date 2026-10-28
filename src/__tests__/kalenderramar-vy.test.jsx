@@ -113,6 +113,17 @@ describe("två ramar på en dag", () => {
     expect(yttre("2026-10-13")?.getAttribute("data-dagram")).toBe("1");
   });
 
+  it("⛔ en app som själv ger ramar (dagdekor.ramar) får två, och ger den också ram vinner ram", () => {
+    rita({}, { dagdekor: (/** @type {string} */ d) => (d === "2026-10-12" ? { ramar: [2, 3] } : d === "2026-10-13" ? { ram: 5, ramar: [2, 3] } : d === "2026-10-14" ? { ramar: [1, 2, 3] } : undefined) });
+    expect(yttre("2026-10-12")?.getAttribute("data-dagram")).toBe("2");
+    expect(inre("2026-10-12")?.getAttribute("data-dagram-inre")).toBe("3");
+    // `ram` är appens äldre, enda ram och går före `ramar`.
+    expect(yttre("2026-10-13")?.getAttribute("data-dagram")).toBe("5");
+    expect(inre("2026-10-13")).toBeNull();
+    // Högst två, också när appen ger fler.
+    expect(dag("2026-10-14").querySelectorAll("[data-dagram], [data-dagram-inre]")).toHaveLength(2);
+  });
+
   it("utan något visningsval finns ingen ram alls", () => {
     rita({});
     expect(document.querySelectorAll("[data-dagram], [data-dagram-inre]")).toHaveLength(0);

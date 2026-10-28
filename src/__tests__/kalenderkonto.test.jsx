@@ -239,17 +239,20 @@ describe("skriva: direkt, optimistiskt, och aldrig tävlande", () => {
   });
 
   it("⛔ ändras valet tillbaka medan en skrivning väntar skrivs det gamla igen: kontot slutar med det som visas", async () => {
-    const k = styrbart({ las: { v: 1, syns: {}, visning: {} }, skrivHallen: true });
+    // Kontot har redan "apple på" uttryckligen, så att att trycka av och på igen ger EXAKT samma dokument som kontot hade.
+    const k = styrbart({ las: { v: 1, syns: { apple: true }, visning: {} }, skrivHallen: true });
     const { result } = rita({ lagring: lokalt(), konto: k.konto });
     await tomrunda();
     const forsta = k.holdSkriv();
     k.holdSkriv();
     act(() => result.current.vaxla("apple")); // av: skrivs
     await tomrunda();
+    expect(k.stat.skriv).toEqual([{ v: 1, syns: { apple: false }, visning: {} }]);
     act(() => result.current.vaxla("apple")); // på igen: lika med det som stod på kontot innan
     await tomrunda();
     await act(async () => forsta.ok());
     // Utan tillbaka-hanteringen hade kontot slutat med "apple av" medan skärmen visar "apple på".
+    expect(k.stat.skriv).toHaveLength(2);
     expect(k.stat.skriv.at(-1)).toEqual({ v: 1, syns: { apple: true }, visning: {} });
     expect(result.current.arSynlig("apple")).toBe(true);
   });
@@ -345,20 +348,29 @@ describe("fel syns, aldrig tyst, och rullar aldrig tillbaka valet", () => {
 });
 
 describe("byta grupp och utan konto", () => {
-  it("⛔ ett svar som kommer efter ett byte av grupp skrivs aldrig in i den nya gruppen", async () => {
+  it("⛔ ett svar som kommer efter ett byte av grupp skrivs aldrig in i den nya gruppen, och lyfter aldrig den nya gruppens val genom den gamla kontot", async () => {
     const k1 = styrbart({ lasHallen: true });
     const sen = k1.holdLas();
     const k2 = styrbart({ las: { v: 1, syns: { gruppen: false }, visning: {} } });
     const { result, rerender } = rita({ minne: "p:g1", lagring: lokalt(), konto: k1.konto });
-    rerender({ minne: "p:g2", lagring: lokalt(), konto: k2.konto });
+    // Den nya gruppen har egna lokala val och ett konto som redan svarat.
+    rerender({ minne: "p:g2", lagring: lokalt({ [kalenderSynlighetNyckel("p:g2")]: { v: 1, syns: { gruppen: false }, visning: {} } }), konto: k2.konto });
     await tomrunda();
     expect(result.current.arSynlig("gruppen")).toBe(false);
-    // Det sena svaret från den förra gruppen kommer nu.
-    await act(async () => sen.ok({ v: 1, syns: { apple: false }, visning: {} }));
-    expect(result.current.arSynlig("apple")).toBe(true);
+    // Det sena svaret från den förra gruppen kommer nu, och det säger att kontot inget har: det vore dags att lyfta "det lokala", som nu är den NYA gruppens.
+    await act(async () => sen.ok(null));
+    await tomrunda();
     expect(result.current.arSynlig("gruppen")).toBe(false);
     expect(k1.stat.skriv).toEqual([]);
     expect(k2.stat.skriv).toEqual([]);
+    // Och ett sent svar med ett dokument ändrar inte den nya gruppens val heller.
+    const k3 = styrbart({ lasHallen: true });
+    const sen3 = k3.holdLas();
+    const ut = rita({ minne: "p:g3", lagring: lokalt(), konto: k3.konto });
+    ut.rerender({ minne: "p:g4", lagring: lokalt(), konto: styrbart({ las: null }).konto });
+    await tomrunda();
+    await act(async () => sen3.ok({ v: 1, syns: { apple: false }, visning: {} }));
+    expect(ut.result.current.arSynlig("apple")).toBe(true);
   });
 
   it("⛔ utan konto är allt som förut: bara det lokala minnet, och inga fel", async () => {
