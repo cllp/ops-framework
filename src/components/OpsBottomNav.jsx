@@ -11,6 +11,7 @@ import { radBehallare, radKlass } from "../lib/radKlass.js";
 import { kordarePafunktion, MenyAvdelningar, menyAppAvdelning, menyFot, menySektioner, MenyTillbakaKnapp, validateMeny } from "./OpsMeny.jsx";
 import { useSkapaGenvag } from "./OpsSkapaGenvag.jsx";
 import { LANGTRYCK_KLASS, useLangtryck } from "./useLangtryck.js";
+import { useTangentbordUppe } from "../lib/tangentbord.js";
 
 /**
  * Bottennavigering för smal skärm (under `md`). Renderas av `OpsAppShell` men
@@ -40,6 +41,15 @@ import { LANGTRYCK_KLASS, useLangtryck } from "./useLangtryck.js";
  * 56 px ger 6 platser, alltså 56 px var med noll luft, och etiketterna blir
  * avhuggna. Med tre flikar plus Meny blir det 4 textplatser runt knappen, vilket
  * är exakt vad mönstret på telefoner ser ut som.
+ *
+ * ── ⛔ RADEN GÖMS MEDAN TANGENTBORDET ÄR UPPE (0.152.0, cllp/ops-framework#461) ───
+ *
+ * CP 2026-10-28, en skärmbild från iPhone: raden stod kvar mellan skrivfältet och tangentbordet och tog ungefär 110 px av en skärm där
+ * meddelandena fick en sjättedel. Medan ett textfält har fokus OCH `visualViewport` har krympt tydligt (`useTangentbordUppe`) göms hela
+ * raden, mikrofonknappen med. Den kommer tillbaka när fokus lämnar fältet eller viewporten växer igen. En extern tangentbordsenhet ger fokus
+ * utan någon krympning, och där syns raden som vanligt. Platsen raden reserverar (`main`:s padding, toasten, chattens höjd) försvinner med den:
+ * `tokens.css` nollar `--bottom-nav-h` och `--bottom-nav-overhang` medan `data-ops-tangentbord` står på <html>. Safaris egen formulärrad
+ * (upp, ned, klar) är webbläsarens och går inte att ta bort från en webbsida.
  *
  * ⛔ Knappen är INTE en länk och hamnar inte i menyn. Den öppnar något i appen,
  * och en åtgärd som ligger i en destinationslista läses som en sida man kan
@@ -94,6 +104,7 @@ function OpsBottomNavRitad({
 }) {
   validateNav(nav, "OpsBottomNav");
   if (meny) validateMeny(meny, "OpsBottomNav");
+  const tangentbordUppe = useTangentbordUppe();
   const [oppen, setOppen] = useState(false);
   // ⛔ #166: SAMMA UNDERVY-VÄXLING SOM `OpsAppShell`s header-popover, se dess
   // filhuvud. Sheeten är den SMALA skärmens yta för samma meny, och den ska
@@ -167,7 +178,8 @@ function OpsBottomNavRitad({
     <nav
       aria-label={navLabel}
       data-ops-bottenrad=""
-      className="fixed inset-x-0 bottom-0 z-(--z-chrome) border-t border-line bg-surface pb-(--safe-bottom) md:hidden"
+      data-tangentbord={tangentbordUppe ? "uppe" : undefined}
+      className={cx("fixed inset-x-0 bottom-0 z-(--z-chrome) border-t border-line bg-surface pb-(--safe-bottom) md:hidden", tangentbordUppe && "hidden")}
     >
       <div className="mx-auto flex h-(--bottom-nav-h) max-w-md items-stretch">
         {inRow.slice(0, brytpunkt).map((entry) => (

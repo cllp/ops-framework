@@ -277,12 +277,50 @@ const FALSKT_VV = `(() => {
 })();`;
 
 /**
+ * Bottenradens läge (0.152.0, #461): syns den, hur hög är den, hur stor är mikrofonknappen, träffas den där den satt, hur mycket reserverar `main` för den.
+ * @param {import("playwright").Page} page
+ */
+function bottenrad(page) {
+  return page.evaluate(() => {
+    const nav = /** @type {HTMLElement} */ (document.querySelector("nav[data-ops-bottenrad]"));
+    const stil = getComputedStyle(nav);
+    const r = nav.getBoundingClientRect();
+    const mik = nav.querySelector("button.size-14");
+    const m = mik ? mik.getBoundingClientRect() : { width: 0, height: 0, left: 0, top: 0 };
+    // Där mikrofonens mitt satt med raden uppe: 390 px bred skärm, mitt i raden, 40 px över underkanten.
+    const traffas = nav.contains(document.elementFromPoint(window.innerWidth / 2, window.innerHeight - 40)) ? "ja" : "";
+    const main = /** @type {HTMLElement} */ (document.querySelector("main"));
+    const probe = document.createElement("div");
+    probe.style.cssText = "position:fixed;visibility:hidden;pointer-events:none;width:1px;height:var(--bottom-nav-h)";
+    document.body.appendChild(probe);
+    const navH = probe.getBoundingClientRect().height;
+    probe.remove();
+    return {
+      syns: stil.display !== "none" && r.height > 0,
+      display: stil.display,
+      hojd: r.height,
+      mikrofon: stil.display === "none" ? 0 : Math.min(m.width, m.height),
+      traffas,
+      mainPadding: parseFloat(getComputedStyle(main).paddingBottom) || 0,
+      navH,
+      fokusIFalt: document.activeElement?.tagName === "TEXTAREA",
+      aktivt: document.activeElement ? document.activeElement.tagName : "ingen",
+    };
+  });
+}
+
+/**
  * (5) SKRIVFÄLTET PÅ TELEFON (skiva 5). Vid 390 px med iPhonens användaragent och pekskärm (i Chromium, inte Safari):
  *   (a) fältets text är minst 16 px (iOS zoomar in under det); vid 1280 px 14 px, som bubblorna;
  *   (b) fältet växer med fem rader, och agentens statusrad står kvar i sikte ovanför fältet medan det växer;
  *   (c) med 30 rader stannar höjden vid taket (160 px plus ramen) och fältet rullar inuti sig;
  *   (d) nära taket syns räknaren inom fönstret, och över taket står hela texten kvar, raden säger det och Skicka är avstängd;
- *   (e) ett tangentbord på 300 px (ett `visualViewport` som krymper) lägger fältets underkant ovanför tangentbordet.
+ *   (e) ett tangentbord på 300 px (ett `visualViewport` som krymper) lägger fältets underkant ovanför tangentbordet;
+ *   (f) 0.152.0 (#461, punkt 1): BOTTENRADEN OCH MIKROFONKNAPPEN GÖMS medan fältet har fokus OCH viewporten har krympt. Mätt i fyra lägen:
+ *       fokus utan krympning (en extern tangentbordsenhet): raden syns; fokus och tangentbord 300: raden och mikrofonen syns inte
+ *       (`display: none`, ingen träffyta kvar där den satt), `main` har ingen padding för raden och inget tomt glapp finns mellan
+ *       skrivfältet och viewportens underkant; fokus lämnas: raden är tillbaka; tangentbordet fälls med fokus kvar: raden är tillbaka.
+ *       Golv: raden syns innan tangentbordet (minst 60 px hög, mikrofonen minst 44 px).
  * ⛔ En riktig iPhone är inte mätt: zoomen och tangentbordet är Safaris beteende, och här mäts det ramverket gör åt dem.
  * @param {Verktyg} v
  */
@@ -327,6 +365,12 @@ export async function skrivfaltet(v) {
       // (e)
       if (telefon) {
         await falt.fill("Hej");
+        // (f) FÖRE tangentbordet: raden och mikrofonen syns, med fokus i fältet (en extern tangentbordsenhet krymper ingenting).
+        const rad0 = await bottenrad(page);
+        v.matt.push(`${namn}: (f) fokus utan tangentbord: ${JSON.stringify(rad0)}`);
+        v.krav(rad0.hojd >= 60 && rad0.mikrofon >= 44, `${namn}: (f) golv: bottenraden är ${rad0.hojd.toFixed(0)} px hög och mikrofonen ${rad0.mikrofon.toFixed(0)} px före tangentbordet, väntat minst 60 och 44.`);
+        v.krav(rad0.fokusIFalt, `${namn}: (f) golv: skrivfältet har inte fokus (${rad0.aktivt}), så provet mäter inte fokus och krympning ihop.`);
+        await bild(v, page, `skrivfalt-fore-tangentbord-${vp.width}.png`);
         await page.evaluate(() => /** @type {any} */ (window).__tangentbord(300));
         await page.waitForTimeout(200);
         const kant = await page.evaluate(() => ({ botten: /** @type {HTMLElement} */ (document.querySelector("[data-skrivfalt]")).getBoundingClientRect().bottom, synligt: window.innerHeight - 300 }));
@@ -338,7 +382,40 @@ export async function skrivfaltet(v) {
         const statusrad = await iSikte(page, "[data-agentstatus]");
         v.matt.push(`${namn}: (e) efter tangentbordet ${JSON.stringify(slut)}, statusraden ${JSON.stringify(statusrad)}`);
         v.krav(slut.kvar <= 2 && !slut.knapp && Boolean(statusrad?.inne), `${namn}: (e) vyn följde inte med när tangentbordet öppnades: ${JSON.stringify(slut)}, statusraden ${JSON.stringify(statusrad)}.`);
+        // (f) MED tangentbordet: raden och mikrofonen är borta, platsen med dem, och skrivfältet står direkt ovanför tangentbordet.
+        const rad1 = await bottenrad(page);
+        const glapp = kant.synligt - kant.botten;
+        v.matt.push(`${namn}: (f) fokus och tangentbord 300: ${JSON.stringify(rad1)}, glapp mellan skrivfältet och tangentbordet ${glapp.toFixed(0)} px`);
+        v.krav(!rad1.syns && rad1.display === "none" && rad1.hojd === 0, `${namn}: (f) bottenraden syns medan tangentbordet är uppe (display ${rad1.display}, höjd ${rad1.hojd.toFixed(0)}).`);
+        v.krav(rad1.mikrofon === 0, `${namn}: (f) mikrofonknappen syns medan tangentbordet är uppe (${rad1.mikrofon.toFixed(0)} px).`);
+        v.krav(!rad1.traffas, `${namn}: (f) bottenraden träffas fortfarande där den satt (${rad1.traffas}).`);
+        v.krav(rad1.mainPadding <= 1, `${namn}: (f) main reserverar ${rad1.mainPadding.toFixed(0)} px för en rad som inte finns, ett tomt glapp.`);
+        v.krav(rad1.navH === 0, `${namn}: (f) --bottom-nav-h är ${rad1.navH} px, väntat 0 medan raden är gömd.`);
+        v.krav(glapp >= -1 && glapp <= 24, `${namn}: (f) skrivfältet slutar ${glapp.toFixed(0)} px ovanför tangentbordet, väntat 0 till 24 (fältets egen luft).`);
         await bild(v, page, `skrivfalt-tangentbord-${vp.width}.png`);
+        // (f) Fokus lämnas: raden är tillbaka.
+        await falt.blur();
+        await page.waitForTimeout(150);
+        const rad2 = await bottenrad(page);
+        v.matt.push(`${namn}: (f) fokus lämnat, tangentbordet kvar: ${JSON.stringify(rad2)}`);
+        v.krav(rad2.syns && rad2.hojd >= 60 && rad2.mikrofon >= 44 && rad2.navH > 0, `${namn}: (f) raden kom inte tillbaka när fokus lämnade fältet (${JSON.stringify(rad2)}).`);
+        // (f) Tangentbordet fälls med fokus kvar: raden är tillbaka.
+        await falt.focus();
+        await page.waitForTimeout(150);
+        const rad3 = await bottenrad(page);
+        v.krav(!rad3.syns, `${namn}: (f) golv: fokus och tangentbord 300 igen ska gömma raden (${JSON.stringify(rad3)}).`);
+        await page.evaluate(() => /** @type {any} */ (window).__tangentbord(0));
+        await page.waitForTimeout(150);
+        const rad4 = await bottenrad(page);
+        v.matt.push(`${namn}: (f) tangentbordet fällt, fokus kvar: ${JSON.stringify(rad4)}`);
+        v.krav(rad4.syns && rad4.fokusIFalt && rad4.hojd >= 60 && rad4.navH > 0, `${namn}: (f) raden kom inte tillbaka när tangentbordet fälldes med fokus kvar (${JSON.stringify(rad4)}).`);
+        // (f) Krympning utan fokus (verktygsfältet, en dialog): ingenting göms.
+        await falt.blur();
+        await page.evaluate(() => /** @type {any} */ (window).__tangentbord(300));
+        await page.waitForTimeout(150);
+        const rad5 = await bottenrad(page);
+        v.krav(rad5.syns, `${namn}: (f) raden göms av en krympt viewport utan fokus i något fält (${JSON.stringify(rad5)}).`);
+        await page.evaluate(() => /** @type {any} */ (window).__tangentbord(0));
       }
     }, telefon ? { kontext: IPHONE, init: FALSKT_VV } : { init: FALSKT_VV });
   }
