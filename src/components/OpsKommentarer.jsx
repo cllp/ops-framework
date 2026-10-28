@@ -3,7 +3,7 @@ import { KOMMENTARBILAGA_TYPER, MAX_HANDELSEKOMMENTAR, MAX_KOMMENTARBILAGA, komm
 import { isImage } from "../lib/file.js";
 import { formatDagOchKlockslag } from "../lib/format.js";
 import { OppnaHandelseKontext } from "../lib/handelsekontext.js";
-import { namnMedVia } from "../lib/skapare.js";
+import { laesSkapare, namnMedVia } from "../lib/skapare.js";
 import { handelseIdUrAdress } from "../lib/handelsepanel.js";
 import { definierade, forvalda } from "../lib/ord.js";
 import { OpsButton } from "./OpsButton.jsx";
@@ -46,12 +46,33 @@ import { usePersonnamn } from "./usePersonnamn.js";
  * ⛔ AV SOM FÖRVAL. En app vars utrullade regel inte känner fältet hade fått varje kommentar med bilaga nekad, så appen slår på
  * det när regeln från 0.73.0 är utrullad. Bilagor som redan finns på en kommentar visas alltid.
  *
+ * ══ ⛔ EN KOMPONENT FÖR HÄNDELSER OCH ÄRENDEN (0.150.0, #381, beslut CP 2026-10-26) ═══════════════════════════════════════
+ *
+ * CP 2026-10-14: "vi har ju kommentarer till ärenden, så kommer samma modell in i händelser. Skulle kunna vara samma motor."
+ * Efter genomgången 2026-10-26 (CP: "Ja alla") är beslutet litet: EN UI-komponent, och den här är den. Datan ligger kvar där den är
+ * (`handelser/{id}/kommentarer` och appens `inkorg/{id}/kommentarer`), trådarna slås inte ihop, reglerna rörs inte, och en bilaga
+ * stannar i appen och skickas inte till GitHub (en kundbild ska inte bli publik av att hamna i en kommentar).
+ *
+ * Det som skilde ärendets tråd från den här var fyra saker, och de är fyra frivilliga props. Ingen av dem ändrar något utan sig:
+ *   - `radFot(k)`: en rad under en kommentar, t.ex. "På ärendet" med länk, eller skälet till att den inte kom fram. ⛔ Läget står på
+ *     VARJE rad och inte på tråden, för två kommentarer i samma tråd kan ha olika öde.
+ *   - `skrivHint`: en rad under skrivrutans etikett som säger vart kommentaren tar vägen INNAN man skrivit den.
+ *   - `fot`: en rad under tråden, t.ex. att kommentarer skrivna direkt på ärendet inte syns här. Ritas också när tråden är tom,
+ *     laddar eller föll, eftersom det den säger gäller hela tråden.
+ *   - `kanTaBort(k)`: får BARA snäva in. "Ta bort" kräver fortfarande `onTaBort` och att kommentaren är min; regeln släpper inte
+ *     igenom mer än så, och en knapp regeln nekar är en knapp som ljuger.
+ * En kommentars `skapadAv` får också vara den gamla strängen (appens ärenden bär den tills bakfyllnaden är körd).
+ *
  * @param {object} props
- * @param {ReadonlyArray<{ id: string, text: string, skapad: string, skapadAv?: { uid?: string | null, namn?: string } }>} props.kommentarer
+ * @param {ReadonlyArray<{ id: string, text: string, skapad: string, skapadAv?: { uid?: string | null, namn?: string } | string }>} props.kommentarer
  * @param {string} props.uid Den som tittar.
  * @param {(text: string, extra: { bilaga: import("../lib/file.js").Bilaga | null }) => Promise<unknown> | void} props.onSkriv
  * @param {boolean} [props.bilagor] (0.73.0) Visa filväljaren. Av som förval, se ovan.
  * @param {(id: string) => Promise<unknown> | void} [props.onTaBort]
+ * @param {(kommentar: any) => boolean} [props.kanTaBort] (0.150.0, #381) Snävar in vilka av MINA kommentarer som har "Ta bort". Utan: alla mina, när `onTaBort` finns.
+ * @param {(kommentar: any) => import("react").ReactNode} [props.radFot] (0.150.0, #381) En rad under varje kommentar, normalt dess synkläge. Returnerar den inget ritas inget.
+ * @param {string} [props.skrivHint] (0.150.0, #381) Hjälptexten under skrivrutans etikett: vart kommentaren tar vägen.
+ * @param {import("react").ReactNode} [props.fot] (0.150.0, #381) En rad under tråden, ovanför skrivrutan. Ritas i varje läge (tom, laddar, fel).
  * @param {boolean} [props.laddar]
  * @param {Error | string | null} [props.fel] Läsningen föll. Skrivs ut med texten.
  * @param {"sv" | "en"} [props.sprak]
@@ -80,6 +101,10 @@ function OpsKommentarerRitad({
   uid,
   onSkriv,
   onTaBort,
+  kanTaBort,
+  radFot,
+  skrivHint,
+  fot,
   bilagor = false,
   laddar = false,
   fel = null,
@@ -99,6 +124,9 @@ function OpsKommentarerRitad({
 }) {
   if (typeof onSkriv !== "function") throw new Error("OpsKommentarer: onSkriv krävs. En tråd utan skrivruta är en lista, och den heter inte kommentarer.");
   if (onTaBort !== undefined && typeof onTaBort !== "function") throw new Error("OpsKommentarer: onTaBort måste vara en funktion, eller utelämnas.");
+  for (const [namn, v] of Object.entries({ kanTaBort, radFot })) {
+    if (v !== undefined && typeof v !== "function") throw new Error(`OpsKommentarer: ${namn} måste vara en funktion, eller utelämnas.`);
+  }
   const personnamn = usePersonnamn();
   const rubrikId = useId();
   const [utkast, setUtkast] = useState("");
@@ -143,7 +171,12 @@ function OpsKommentarerRitad({
 
   // #369: trådens bilder räknas en gång (KAN 1), med kommentarens id så att platsen följer med (BÖR 2).
   // ⛔ Namnet på den som skrev går genom `namnMedVia` (0.135.0, lifehub.app#409): en kommentar som en personlig API-nyckel skrev heter "Miranda via Byggagent".
-  const skrivarnamn = (/** @type {any} */ stampel) => namnMedVia(personnamn(stampel?.namn ?? "", stampel?.uid ?? "").text, stampel?.via, sprak);
+  // 0.150.0 (#381): `laesSkapare` är den enda läsaren av fältet (regel 2) och tar båda formerna, objektet och den gamla strängen
+  // (appens ärenden bär den tills bakfyllnaden körts). Strängen ger ett namn och inget uid.
+  const skrivarnamn = (/** @type {any} */ stampel) => {
+    const s = laesSkapare(stampel);
+    return namnMedVia(personnamn(s.namn, s.uid ?? "").text, s.via, sprak);
+  };
   const galleri = tradensBilder(kommentarer ?? [], (/** @type {any} */ x) => `${bilagaText} ${skrivarnamn(x.skapadAv)}: ${x.bilaga.namn}`);
   return (
     <section
@@ -173,12 +206,15 @@ function OpsKommentarerRitad({
       ) : (
         <ul className="m-0 flex list-none flex-col gap-2 p-0">
           {kommentarer.map((/** @type {any} */ k) => {
-            const avUid = k.skapadAv?.uid ?? null;
+            const skapare = laesSkapare(k.skapadAv);
+            const avUid = skapare.uid;
             const min = avUid !== null && avUid === uid;
+            const kanTaBortDen = min && onTaBort && (kanTaBort ? kanTaBort(k) === true : true);
+            const radens = radFot ? radFot(k) : null;
             const namn = skrivarnamn(k.skapadAv);
             return (
               <li key={k.id} data-kommentar={k.id} className="flex min-w-0 gap-3 rounded-base bg-raised p-3">
-                <OpsIdentity name={namn} seed={avUid ?? k.id} size="avatar" />
+                <OpsIdentity name={namn} seed={avUid ?? (skapare.namn || k.id)} size="avatar" />
                 <div className="flex min-w-0 flex-1 flex-col gap-1">
                   <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
                     <span className="truncate text-etikett font-medium text-ink">
@@ -189,8 +225,13 @@ function OpsKommentarerRitad({
                   </div>
                   {k.text ? <p className="m-0 whitespace-pre-wrap break-words text-etikett text-ink">{k.text}</p> : null}
                   {k.bilaga?.dataUrl ? <Kommentarbilaga bilaga={k.bilaga} namn={namn} bilagaText={bilagaText} sprak={sprak} galleri={galleri} galleriPlats={galleri.findIndex((g) => g.id === k.id)} /> : null}
+                  {radens ? (
+                    <div data-kommentar-fot="" className="min-w-0 text-meta text-ink-muted">
+                      {radens}
+                    </div>
+                  ) : null}
                 </div>
-                {min && onTaBort ? (
+                {kanTaBortDen ? (
                   <OpsButton variant="ghost" size="sm" busy={tarBort === k.id} disabled={tarBort !== null} ariaLabel={`${taBortEtikett}, ${(k.text || k.bilaga?.namn || "").slice(0, 40)}`} onClick={() => taBort(k.id)}>
                     {taBortEtikett}
                   </OpsButton>
@@ -205,7 +246,12 @@ function OpsKommentarerRitad({
           {taBortFel}
         </p>
       ) : null}
-      <OpsField label={skrivEtikett} error={skrivfel ?? undefined}>
+      {fot ? (
+        <div data-kommentarer-fot="" className="min-w-0 text-meta text-ink-muted">
+          {fot}
+        </div>
+      ) : null}
+      <OpsField label={skrivEtikett} hint={skrivHint} error={skrivfel ?? undefined}>
         <OpsTextarea value={utkast} onChange={setUtkast} rows={3} maxLength={MAX_HANDELSEKOMMENTAR} disabled={skriver} onSend={skicka} {...(bilagor ? { bifogaPlats: setBifogaPlats } : {})} />
       </OpsField>
       {bilagor ? (
