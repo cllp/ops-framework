@@ -44,7 +44,7 @@ import { MAX_MINNESID, MAX_MINNESTEXT, MINNESFALT, MINNESKALLAFALT, MINNESKALLOR
 import { MAX_SKAPARKALLA, MAX_SKAPARNAMN, SKAPARFALT, VIA_FALTNAMN } from "./skapare.js";
 import { BESKRIVENAPPDATAFALT, BESKRIVNINGSDOKUMENTFALT, BESKRIVNINGSFALT, BESKRIVNINGSFORMAT, BESKRIVNINGSIDFORM, MAX_APPBESKRIVNING, MAX_BESKRIVNINGSNAMN, MAX_FALT, MAX_LISTOR, MIN_LISTOR } from "./beskrivenapp.js";
 import { KONFIGHANDELSER, KONFIGLOGGFALT } from "./konfiglogg.js";
-import { KALENDERVALFALT, KALENDERVISNINGAR, MAX_KALENDERVAL, MAX_KALENDERVALGRUPP } from "./kalendersynlighet.js";
+import { KALENDERVALFALT, KALENDERVALNYCKEL_FORM, KALENDERVISNINGAR, MAX_KALENDERVAL, MAX_KALENDERVALGRUPP } from "./kalendersynlighet.js";
 import { AVVECKLADE_KALENDERFALT, DATUMFORM, KALENDERFALT, KALENDERFARGER, KALENDERPOSTFALT, MAX_KALENDERNAMN, MAX_POSTBESKRIVNING, MAX_POSTPLATS, MAX_POSTTITEL, MINKALENDERFALT, TIDPUNKTSFORM } from "./kalendrar.js";
 import { KOMMENTARBILAGAFALT, KOMMENTARBILAGA_TYPER, KOMMENTARFALT, LASMARKESFALT, MAX_BILAGENAMN, MAX_HANDELSEKOMMENTAR, MAX_KOMMENTARBILAGA, SVARSFALT, SVARSVAL } from "./handelsemodell.js";
 import { AMNESFALT, AMNES_REGEL, BILAGA_TRADSKILJE, BILAGEMARKEFALT, FASTFALT, MAX_AMNESRUBRIK, GRUPPSAMTAL, LASTFALT, MAX_MEDDELANDE, MAX_NAMNER, MAX_TRADNAMN, MAX_UIDLANGD, MEDDELANDEFALT, NAMNERFALT, NAMNER_ALLA, REAKTIONSFALT, SVARPAFALT, REAKTIONSKODER, SAMTALSAVGRANSARE, SAMTALSFALT, TRADFALT, undersamlingskrock } from "./samtal.js";
@@ -2186,16 +2186,23 @@ ${nuRegelfunktion("opsMinnetNu")}
  *
  *   - LÄSA OCH SKRIVA: BARA PERSONEN SJÄLV (`{uid}` i sökvägen är den inloggade). Inte en gruppmedlem, inte en admin, inte ägaren: det här är hur NÅGON ser sin egen kalender, och
  *     en annans val är ingen annans sak. Samma form som `minaKalendrar`.
+ *   - ⛔ SKRIVA KRÄVER ETT AKTIVT MEDLEMSKAP I GRUPPEN (0.152.0, cllp/ops-framework#459): `opsArMedlem(gid)`, där `gid` är dokumentets id. Granskningen av lifehub.app#484 mätte i
+ *     emulatorn att en inloggad person kunde skapa `users/{egen}/kalenderval/{gruppId}` för en grupp hen aldrig varit med i: inget läckage (ingen annan läser dokumentet) men ett kostnadshål,
+ *     en egen undersamling som kan fyllas med dokument. Medlemskapet läses ur samma samling som resten av ramverkets regler (`regelfragment({ medlemskap })`), så fragmentet FÅR INGEN NY
+ *     PARAMETER: appen skickar redan samlingsnamnet dit, och ramverket känner det inte här heller. LÄSNINGEN kräver inget medlemskap: en person som lämnat gruppen läser sitt gamla
+ *     dokument (ingen vy frågar efter det), och en `list` på samlingen kan inte pröva ett medlemskap per dokument.
  *   - RADERA: aldrig. "Alla kalendrar" skriver ett tomt dokument, och ett tomt dokument är ett val (en annan enhet ska få det).
  *   - FORMEN: exakt fälten `v`, `syns`, `visning` och (bara efter "Visa bara den här") `fore`; `v == 1`; de tre kartorna är kartor med högst `MAX_KALENDERVAL` poster; `syns` och `fore`
  *     har bara sanningsvärden, `visning` bara `handelser`, `ram` och `bada` (`KALENDERVISNINGAR`). Allt härlett ur `src/lib/kalendersynlighet.js`, samma som klientens läsare prövar med.
  *   - DOKUMENTETS ID ÄR GRUPPENS, i `ID_FORM`. Ramverket tolkar inte appens minnesnyckel (`person:grupp`): `createKalendervalskalla` binder ihop person och grupp.
  *
- * ⛔ NYCKLARNA I KARTORNA PRÖVAS INTE. En regel har ingen loop, och en nyckel är ett kalender-id som appen valt. Det som ändå skyddar: bara personen själv skriver sitt eget dokument,
- * antalet poster har ett tak, och klientens läsare (`rensaKalenderSynlighet`) släpper allt som inte är en känd form. Ett fel värde kan bara göra att personens EGEN kalender ser fel ut.
+ * ⛔ NYCKLARNA I KARTORNA PRÖVAS (0.152.0, cllp/ops-framework#459). Före 0.152.0 stod här att de inte prövades eftersom en regel inte har någon loop. Det var sant om loopen och fel om slutsatsen:
+ * 200 nycklar på 1 400 tecken vardera gav ungefär 280 kB i ett enda dokument. `keys().join(',')` ger EN sträng av alla nycklar, och ett `matches()` på den prövar varje nyckel mot
+ * `KALENDERVALNYCKEL_FORM` (en kalenderrads id, högst `MAX_KALENDERVALNYCKEL` tecken). Skiljetecknet `,` ingår inte i formen, men `matches()` ensamt släpper in EN nyckel som innehåller kommatecken
+ * (`a,b,c,...` ser ut som många korta nycklar och kan vara hur lång som helst): mätt i emulatorn innan `split(',').size() == keys().size()` lades till. Det som ändå är sant kvar: bara personen själv skriver sitt eget dokument, och ett fel VÄRDE kan bara göra att personens EGEN kalender ser fel ut.
  *
  * ⛔ RAMVERKET KÄNNER INTE SAMLINGSNAMNET. Appen skickar det, och samma namn till `createKalendervalskalla`. Reglerna ska vara deployade INNAN klienten börjar skriva: en regel i
- * `main` är inte en regel i produktion. Fragmentet använder `opsInloggad` ur `regelfragment()`, och ska limmas in efter det.
+ * `main` är inte en regel i produktion. Fragmentet använder `opsInloggad` och `opsArMedlem` ur `regelfragment()`, och ska limmas in efter det.
  *
  * @param {string} namn Samlingsnamnet appen valt.
  * @param {{ anvandare?: string }} [sokvag] Användarsamlingen. Förval `users`, samma som `kalenderregelfragment`.
@@ -2207,12 +2214,21 @@ export function kalendervalsregelfragment(namn, sokvag = {}) {
   const lista = (/** @type {readonly (string|boolean)[]} */ f) => f.map((x) => (typeof x === "boolean" ? String(x) : `"${x}"`)).join(", ");
   const idMonster = regelRegex(ID_FORM);
   const karta = (/** @type {string} */ falt, /** @type {readonly (string|boolean)[]} */ tillatna) =>
-    `${falt} is map && ${falt}.size() <= ${MAX_KALENDERVAL} && ${falt}.values().hasOnly([${lista(tillatna)}])`;
+    `${falt} is map && ${falt}.size() <= ${MAX_KALENDERVAL} && opsKalendervalNycklar(${falt}) && ${falt}.values().hasOnly([${lista(tillatna)}])`;
+  const nyckel = regelRegex(KALENDERVALNYCKEL_FORM);
 
   return `    // ══ Ramverkets kalenderval. GENERERAD, ändra inte för hand ══
     //
     // Källa: ops-framework, kalendervalsregelfragment() i src/lib/regler.js. Kräver regelfragment() ovanför.
-    // Bara personen själv läser och skriver sitt dokument. Dokumentets id är gruppens.
+    // Bara personen själv läser och skriver sitt dokument, och skriver bara för en grupp hen är aktiv medlem i. Dokumentets id är gruppens.
+
+    // ⛔ Alla nycklar i en karta, prövade mot en kalenderrads id. En regel har ingen loop: nycklarna slås ihop till en sträng som prövas i ett svep.
+    // Antalet delar efter en delning på skiljetecknet ska vara lika med antalet nycklar: en nyckel med ett kommatecken i ser annars ut som två nycklar på 80 tecken var.
+    function opsKalendervalNycklar(k) {
+      return k.size() == 0
+        || (k.keys().join(',').matches('${nyckel}(,${nyckel})*')
+          && k.keys().join(',').split(',').size() == k.size());
+    }
 
     function opsKalendervalGiltigt(d) {
       return d.keys().hasOnly([${lista(KALENDERVALFALT)}])
@@ -2228,6 +2244,7 @@ export function kalendervalsregelfragment(namn, sokvag = {}) {
       allow create, update: if opsInloggad() && request.auth.uid == uid
         && gid.matches('${idMonster}')
         && gid.size() <= ${MAX_KALENDERVALGRUPP}
+        && opsArMedlem(gid)
         && opsKalendervalGiltigt(request.resource.data);
       allow delete: if false;
     }

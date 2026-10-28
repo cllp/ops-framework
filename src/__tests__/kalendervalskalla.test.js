@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createKalendervalskalla } from "../data/kalendervalskalla.js";
 import { createMemorySource } from "../data/adapters.js";
-import { MAX_KALENDERVAL, TOM_SYNLIGHET } from "../lib/kalendersynlighet.js";
+import { KALENDERVALNYCKEL_FORM, MAX_KALENDERVAL, MAX_KALENDERVALNYCKEL, TOM_SYNLIGHET, kalenderValDokument, kalenderValOgiltigNyckel } from "../lib/kalendersynlighet.js";
 import { kalendervalsregelfragment } from "../lib/regler.js";
 
 /**
@@ -95,5 +95,42 @@ describe("kalendervalsregelfragment", () => {
     expect(t).toContain('d.visning.values().hasOnly(["handelser", "ram", "bada"])');
     expect(t).toContain("allow delete: if false;");
     expect(t).toContain("request.auth.uid == uid");
+  });
+
+  it("⛔ kräver ett aktivt medlemskap i gruppen, ur regelfragment(): ingen ny parameter, ingen samlingsnamn att skicka", () => {
+    const t = kalendervalsregelfragment("kalenderval");
+    expect(t).toMatch(/allow create, update: if opsInloggad\(\) && request\.auth\.uid == uid\n\s+&& gid\.matches\([^)]*\)\n\s+&& gid\.size\(\) <= 80\n\s+&& opsArMedlem\(gid\)/);
+    // Läsningen kräver inget medlemskap (en list kan inte pröva ett per dokument), och radering är aldrig tillåten.
+    expect(t).toContain("allow read: if opsInloggad() && request.auth.uid == uid;");
+    expect(kalendervalsregelfragment.length).toBe(1);
+    expect(t).toBe(kalendervalsregelfragment("kalenderval", {}));
+  });
+
+  it("⛔ prövar varje nyckel i alla tre kartorna mot kalenderradens id, härlett ur klientens form", () => {
+    const t = kalendervalsregelfragment("kalenderval");
+    const nyckel = `[A-Za-z0-9][A-Za-z0-9_:.-]{0,${MAX_KALENDERVALNYCKEL - 1}}`;
+    expect(t).toContain(`k.keys().join(',').matches('${nyckel}(,${nyckel})*')`);
+    expect(t).toContain("k.keys().join(',').split(',').size() == k.size()");
+    for (const falt of ["d.syns", "d.visning", "d.fore"]) expect(t).toContain(`opsKalendervalNycklar(${falt})`);
+  });
+});
+
+describe("kalenderValDokument: nycklarna är kalenderrader (#459)", () => {
+  it("formen är den reglerna prövar med: ett id på högst MAX_KALENDERVALNYCKEL tecken", () => {
+    expect(MAX_KALENDERVALNYCKEL).toBe(80);
+    for (const ok of ["a", "cps-ab", "ical:abc", "mina:privat", "app:arenden", "ical:Abc.DEF_1", "k".repeat(80)]) expect(KALENDERVALNYCKEL_FORM.test(ok), ok).toBe(true);
+    for (const fel of ["", " ", "a b", "a,b", "a/b", "åäö", ":x", "-x", "k".repeat(81)]) expect(KALENDERVALNYCKEL_FORM.test(fel), JSON.stringify(fel)).toBe(false);
+  });
+
+  it("kastar med ett besked som pekar ut kartan och nyckeln, innan reglerna hinner neka", () => {
+    expect(() => kalenderValDokument({ v: 1, syns: { ["k".repeat(81)]: true }, visning: {} })).toThrow(/syns har nyckeln "k{40}", som inte är ett kalender-id \(högst 80 tecken/);
+    expect(() => kalenderValDokument({ v: 1, syns: {}, visning: { "a b": "ram" } })).toThrow(/visning har nyckeln "a b"/);
+    expect(() => kalenderValDokument({ v: 1, syns: {}, visning: {}, fore: { "a,b": true } })).toThrow(/fore har nyckeln "a,b"/);
+    expect(() => kalenderValDokument({ v: 1, syns: { "ical:abc": false, "mina:privat": true }, visning: { "app:arenden": "ram" }, fore: {} })).not.toThrow();
+  });
+
+  it("kalenderValOgiltigNyckel säger vilken karta och vilken nyckel, eller null när allt är ett id", () => {
+    expect(kalenderValOgiltigNyckel({ v: 1, syns: { a: true }, visning: { "x y": "ram" } })).toEqual({ namn: "visning", nyckel: "x y" });
+    expect(kalenderValOgiltigNyckel({ v: 1, syns: { a: true }, visning: {} })).toBeNull();
   });
 });

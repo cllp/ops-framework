@@ -116,6 +116,20 @@ export const MAX_KALENDERVALGRUPP = 80;
 export const MAX_KALENDERVAL = 200;
 
 /**
+ * Längsta nyckel i `syns`, `visning` och `fore` (0.152.0, cllp/ops-framework#459): en kalenderrads id. Samma tal som dokumentets eget id (`MAX_KALENDERVALGRUPP`), så det finns
+ * ETT tak för "ett id" i det här dokumentet. Utan taket gav 200 nycklar på 1 400 tecken ungefär 280 kB i ett enda dokument.
+ */
+export const MAX_KALENDERVALNYCKEL = 80;
+
+/**
+ * Formen på en nyckel i kartorna: en kalenderrads id, högst `MAX_KALENDERVALNYCKEL` tecken. Ramverkets egna id:n (`ID_FORM`) är små bokstäver, siffror, `-` och `_`; en appens rader
+ * har dessutom ett prefix (`ical:`, `mina:`, `app:`) och ett id som kommer utifrån (en kalender från Mitt konto), därför släpps också `:`, `.` och versaler in. Det som INTE släpps in är
+ * det som gör en nyckel dyr eller tvetydig: blanksteg, `,` (skiljetecknet reglerna prövar med), snedstreck, Unicode och en nyckel som börjar på ett skiljetecken.
+ * Reglerna (`kalendervalsregelfragment`) härleder sitt uttryck härifrån, och `kalenderValDokument` prövar samma form innan något skrivs.
+ */
+export const KALENDERVALNYCKEL_FORM = new RegExp(`^[A-Za-z0-9][A-Za-z0-9_:.-]{0,${MAX_KALENDERVALNYCKEL - 1}}$`);
+
+/**
  * Formen på dokumentet, utan någon kontroll. `fore` står där bara när den finns. Den enda platsen formen byggs (webbläsarens text och kontots dokument är samma sak).
  * @param {KalenderSynlighet} val
  * @returns {{ v: 1, syns: Record<string, boolean>, visning: Record<string, Kalendervisning>, fore?: Record<string, boolean> }}
@@ -137,7 +151,22 @@ function kalenderValForm(val) {
 export function kalenderValDokument(val) {
   const brott = kalenderValForManga(val);
   if (brott) throw new Error(`kalenderValDokument: ${brott.namn} har ${brott.antal} poster, högst ${MAX_KALENDERVAL} sparas på kontot.`);
+  const nyckel = kalenderValOgiltigNyckel(val);
+  if (nyckel) throw new Error(`kalenderValDokument: ${nyckel.namn} har nyckeln ${JSON.stringify(nyckel.nyckel.slice(0, 40))}, som inte är ett kalender-id (högst ${MAX_KALENDERVALNYCKEL} tecken: bokstäver, siffror, - _ : och .). Reglerna nekar den.`);
   return kalenderValForm(val);
+}
+
+/**
+ * Första nyckeln i någon av kartorna som inte är en kalenderrads id (`KALENDERVALNYCKEL_FORM`), eller `null`. Samma prövning som reglerna gör, så ett nekat skrivfel ("Missing or
+ * insufficient permissions") får ett besked som säger vad som är fel innan det hinner dit.
+ * @param {KalenderSynlighet} val
+ * @returns {{ namn: string, nyckel: string } | null}
+ */
+export function kalenderValOgiltigNyckel(val) {
+  for (const [namn, karta] of /** @type {const} */ ([["syns", val.syns], ["visning", val.visning], ["fore", val.fore ?? {}]])) {
+    for (const nyckel of Object.keys(karta)) if (!KALENDERVALNYCKEL_FORM.test(nyckel)) return { namn, nyckel };
+  }
+  return null;
 }
 
 /**
