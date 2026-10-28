@@ -79,7 +79,7 @@ const HUVUDTON = {
  * @param {PubliktSprak} [props.sprak] Språkval, kompakt (SV / EN). Utelämnat: inget språkval.
  * @param {{ href: string, label: string }} [props.loggaIn] "Logga in", en textlänk till höger.
  * @param {{ href: string, label: string }} [props.kom] Accentknappen, "Kom igång".
- * @param {import("react").ReactNode} [props.konto] (0.150.0, #352) Kontot: avataren och dess meny, ritad av appen. Står där Logga in och accentknappen annars står, och ERSÄTTER dem: den som är inloggad ska inte erbjudas att logga in eller komma igång. Under `md` står den bredvid hamburgaren och inte i menyn, och mobilmenyn har då inte heller Logga in eller accentknappen. Ritas EN gång (en hel meny finns inte i två exemplar, varav ett dolt). Ramverket vet inget om vad kontot är: raderna i menyn byggs med `radKlass` och fälten med `faltKlass`, som är exporterade.
+ * @param {import("react").ReactNode} [props.konto] (0.150.0, #352) Kontot: avataren och dess meny, ritad av appen. Står där Logga in och accentknappen annars står, och ERSÄTTER dem: den som är inloggad ska inte erbjudas att logga in eller komma igång. Under `md` står den bredvid hamburgaren och inte i menyn, och mobilmenyn har då inte heller Logga in eller accentknappen. Har menyn då inget innehåll alls (inga länkar och inget språkval) ritas ingen hamburgare: en dialog med bara stängknappen är ingen meny. Ritas EN gång (en hel meny finns inte i två exemplar, varav ett dolt). Ramverket vet inget om vad kontot är: raderna i menyn byggs med `radKlass` och fälten med `faltKlass`, som är exporterade.
  * @param {boolean} [props.transparent] Genomskinlig med oskärpa över en hjälte (SessionStudios startsida); annars helt i tonens färg.
  * @param {"mork"|"ljus"} [props.ton] Toppradens ton: `mork` (förval, som SessionStudio) eller `ljus`. Loggan kommer från instansen och ska fungera på båda; en genomskinlig logga utan ram gör det.
  * @param {PubliktHuvudTexter} props.texter Orden som inte är innehåll: navigeringens namn och menyknapparnas. Ramverket har inga förval, eftersom en sida har ett språk och ramverket inte vet vilket.
@@ -111,7 +111,10 @@ export function OpsPublikHuvud({ logga, lankar, mobilLankar, sprak, loggaIn, kom
       ) : null}
     </div>
   );
-  const menyn = (
+  // 0.150.0: hamburgaren ritas bara när menyn har något att visa. Med ett konto som ersätter Logga in och accentknappen, inga länkar och
+  // inget språkval hade den öppnat en dialog med bara stängknappen.
+  const harMenyn = mobil.length > 0 || Boolean(sprak) || (!konto && Boolean(loggaIn || kom));
+  const menyn = !harMenyn ? null : (
     <Dialog.Root open={oppen} onOpenChange={setOppen}>
       <Dialog.Trigger asChild>
         <button

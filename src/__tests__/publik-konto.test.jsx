@@ -97,6 +97,29 @@ describe("OpsPublikHuvud: konto", () => {
   });
 });
 
+describe("hamburgaren ritas bara när menyn har något att visa", () => {
+  const hamburgare = () => screen.queryByRole("button", { name: "Öppna meny" });
+  it("⛔ ett konto, inga länkar och inget språkval: ingen hamburgare (menyn hade bara haft stängknappen)", () => {
+    render(<OpsPublikHuvud logga={LOGGA} lankar={[]} loggaIn={LOGGA_IN} kom={KOM} konto={KONTO} texter={TEXTER} />);
+    expect(hamburgare()).toBeNull();
+    expect(screen.getAllByRole("button", { name: "Konto: Anna Ek" })).toHaveLength(1);
+  });
+  it("länkar, ett språkval eller (utan konto) Logga in ger menyn ett innehåll, och då finns hamburgaren", () => {
+    const { unmount: a } = render(<OpsPublikHuvud logga={LOGGA} lankar={LANKAR} konto={KONTO} texter={TEXTER} />);
+    expect(hamburgare()).not.toBeNull();
+    a();
+    const { unmount: b } = render(<OpsPublikHuvud logga={LOGGA} lankar={[]} sprak={SPRAK} konto={KONTO} texter={TEXTER} />);
+    expect(hamburgare()).not.toBeNull();
+    b();
+    render(<OpsPublikHuvud logga={LOGGA} lankar={[]} loggaIn={LOGGA_IN} texter={TEXTER} />);
+    expect(hamburgare()).not.toBeNull();
+  });
+  it("utan konto och utan något alls i menyn ritas ingen heller", () => {
+    render(<OpsPublikHuvud logga={LOGGA} lankar={[]} texter={TEXTER} />);
+    expect(hamburgare()).toBeNull();
+  });
+});
+
 describe("radKlass och faltKlass är exporterade (regel 2: en app skriver inte av dem för hand)", () => {
   it("är funktioner som ger en klasssträng, och samma som ramverkets egna kontroller använder", () => {
     expect(typeof radKlass).toBe("function");
