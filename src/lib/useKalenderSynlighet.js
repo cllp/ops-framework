@@ -14,6 +14,7 @@ import {
   sattKalenderVisning,
   skrivKalenderSynlighet,
   synligaKalenderRader,
+  TOM_SYNLIGHET,
   vaxlaKalenderSynlighet,
   visaBaraKalender,
 } from "./kalendersynlighet.js";
@@ -127,6 +128,7 @@ export function useKalenderSynlighet({ minne = "", kalendrar, lagring, konto, on
       setState((s) => (s.nyckel === nyckel ? { nyckel, val: fn(s.val) } : s));
       // ⛔ Medan kontot hämtas (eller inte gick att hämta) sparas varje tryck som en funktion, och spelas upp ovanpå kontots värde när det kommer.
       const c = styr.current;
+      if (c && c.nyckel === nyckel) c.gen += 1;
       if (c && c.nyckel === nyckel && c.status !== "klar") {
         c.ops.push(fn);
         if (c.status === "lasfel") ladda(c, setState, setKontoFel, valRef);
@@ -142,7 +144,7 @@ export function useKalenderSynlighet({ minne = "", kalendrar, lagring, konto, on
       setKontoFel(null);
       return;
     }
-    const c = /** @type {Kontostyrning} */ ({ nyckel, konto: /** @type {Kalenderkonto} */ (kontoRef.current), status: "laser", ops: [], kontoText: null, onskadVal: null, onskadText: null, iflygning: false, avslutad: false });
+    const c = /** @type {Kontostyrning} */ ({ nyckel, konto: /** @type {Kalenderkonto} */ (kontoRef.current), status: "laser", ops: [], kontoText: null, onskadVal: null, onskadText: null, iflygning: false, avslutad: false, gen: 0 });
     styr.current = c;
     setKontoFel(null);
     ladda(c, setState, setKontoFel, valRef);
@@ -193,7 +195,7 @@ export function useKalenderSynlighet({ minne = "", kalendrar, lagring, konto, on
     if (!c || c.nyckel !== nyckel || c.status !== "klar") return;
     const text = skrivKalenderSynlighet(val);
     // ⛔ Medan en skrivning väntar räknas också ett val som är lika med det som stod där SIST: personen kan ha ändrat tillbaka, och då ska det gamla skrivas igen när den väntande är klar.
-    if (text === c.kontoText && !c.iflygning) return;
+    if (text === kontoBas(c) && !c.iflygning) return;
     planera(c, val, text, setKontoFel);
   }, [val, nyckel, harKonto]);
 
@@ -294,7 +296,18 @@ export function useKalenderSynlighet({ minne = "", kalendrar, lagring, konto, on
  * @property {string | null} onskadText
  * @property {boolean} iflygning En skrivning väntar på svar. Högst en.
  * @property {boolean} avslutad Vyn försvann eller minnet byttes: inget tillstånd rörs mer, men en skrivning som redan går avslutas.
+ * @property {number} gen Räknas upp vid varje tryck och varje skrivning (start och slut). En omläsning som startade vid en annan generation är äldre än något som hänt sedan, och släpps.
  */
+
+/** Texten för ett tomt val: vad kontot "har" när det inte har något dokument. En flik utan val och ett konto utan dokument är samma läge. */
+const TOMTEXT = skrivKalenderSynlighet(TOM_SYNLIGHET);
+
+/**
+ * Texten som står på kontot, och TOMTEXT när det inte har något dokument (`kontoText` är `null`). ⛔ Jämförelser går mot den här och aldrig mot `null` (granskningen av PR 458, fynd 1):
+ * mot `null` är varje text "olika", och en flik utan val mot ett konto utan dokument trodde sig ha något osparat och tog aldrig upp en annan enhets val.
+ * @param {Kontostyrning} c
+ */
+const kontoBas = (c) => c.kontoText ?? TOMTEXT;
 
 /**
  * Hämtar kontots värde. Kallas vid start och när en läsning som misslyckats ska försökas igen.
@@ -348,6 +361,7 @@ function ladda(c, setState, setKontoFel, valRef) {
  * @param {import("react").MutableRefObject<import("./kalendersynlighet.js").KalenderSynlighet>} valRef
  */
 function lasaOm(c, setState, valRef) {
+  const genStart = c.gen;
   /** @type {Promise<unknown>} */
   let lopp;
   try {
@@ -359,11 +373,13 @@ function lasaOm(c, setState, valRef) {
     (data) => {
       // Medan läsningen väntade kan personen ha tryckt, en skrivning ha startat eller vyn ha försvunnit: då gäller det som är nyare än läsningen.
       if (c.avslutad || c.status !== "klar" || c.iflygning) return;
-      if (skrivKalenderSynlighet(valRef.current) !== c.kontoText) return;
+      // ⛔ Ett tryck eller en skrivning som hänt sedan läsningen startade är nyare än svaret, också när skrivningen hunnit bli klar och inget längre är osparat (granskningen av PR 458, fynd 3).
+      if (c.gen !== genStart) return;
+      if (skrivKalenderSynlighet(valRef.current) !== kontoBas(c)) return;
       const kontots = data === null || data === undefined ? null : rensaKalenderSynlighet(data);
       if (!kontots) return;
       const text = skrivKalenderSynlighet(kontots);
-      if (text === c.kontoText) return;
+      if (text === kontoBas(c)) return;
       c.kontoText = text;
       setState((s) => (s.nyckel === c.nyckel ? { nyckel: c.nyckel, val: kontots } : s));
     },
@@ -395,8 +411,9 @@ function kor(c, setKontoFel, tvinga = false) {
   const val = c.onskadVal;
   const text = c.onskadText;
   if (!val || text === null) return;
-  if (!tvinga && text === c.kontoText) return;
+  if (!tvinga && text === kontoBas(c)) return;
   c.iflygning = true;
+  c.gen += 1;
   /** @type {Promise<unknown>} */
   let lopp;
   try {
@@ -407,6 +424,7 @@ function kor(c, setKontoFel, tvinga = false) {
   lopp.then(
     () => {
       c.iflygning = false;
+      c.gen += 1;
       c.kontoText = text;
       if (!c.avslutad) setKontoFel(null);
       // Något nyare kom medan den här väntade: nu skrivs det, en gång.
@@ -414,6 +432,7 @@ function kor(c, setKontoFel, tvinga = false) {
     },
     (fel) => {
       c.iflygning = false;
+      c.gen += 1;
       rapporteraFel(fel, { yta: "useKalenderSynlighet", steg: "spara synlighet på kontot" });
       if (!c.avslutad) setKontoFel("skriv");
     },

@@ -67,6 +67,8 @@ export function OpsAtgardsblad({ namn, poster, children = null, baraKnapp = fals
   const { handelser, iSlappet, stoppaSlappet } = useLangtryck({
     onLangtryck: () => setOppen(true),
     hogerklick: true,
+    // ⛔ MUSEN HAR HÖGERKLICK OCH ⋮ (0.151.0, granskningen av PR 458, fynd 5): ett långsamt musklick på en rad öppnade menyn i stället för raden. Fingret och pennan håller in som förut.
+    utanMus: true,
     hoppaOver: (mal) => mal instanceof Element && Boolean(mal.closest("[data-ops-atgard-knapp]")),
   });
   const menyRef = useRef(/** @type {HTMLDivElement | null} */ (null));

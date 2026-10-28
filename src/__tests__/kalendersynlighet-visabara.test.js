@@ -153,6 +153,8 @@ describe("dokumentet på kontot", () => {
   it("kastar med ett begripligt fel över taket, innan reglerna hinner neka", () => {
     const syns = Object.fromEntries(Array.from({ length: MAX_KALENDERVAL + 1 }, (_, i) => [`k${i}`, true]));
     expect(() => kalenderValDokument({ v: 1, syns, visning: {} })).toThrow(/syns har 201 poster, högst 200/);
+    // ⛔ Webbläsarens text kastar aldrig: taket är kontots.
+    expect(() => skrivKalenderSynlighet({ v: 1, syns, visning: {} })).not.toThrow();
     expect(() => kalenderValDokument({ v: 1, syns: Object.fromEntries(Object.entries(syns).slice(0, MAX_KALENDERVAL)), visning: {} })).not.toThrow();
   });
 

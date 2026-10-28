@@ -120,8 +120,8 @@ function Kalenderrad({ k, syn, o, oppen, onOppna }) {
   const visning = syn.visning(k.id);
   const ensam = syn.arEnsam(k.id);
   const kanBara = syn.kanVisaBara;
-  // ⛔ ETT LÅNGTRYCK, EN MENY-TANGENT OCH ETT HÖGERKLICK GÖR SAMMA SAK SOM KNAPPEN (`useLangtryck`). Utan fler än en kalender är gesten avslagen: ytan beter sig då som förut.
-  const lang = useLangtryck({ onLangtryck: kanBara ? () => syn.visaBara(k.id) : null, hogerklick: true, haptik: true });
+  // ⛔ ETT LÅNGTRYCK, EN MENY-TANGENT OCH ETT HÖGERKLICK GÖR SAMMA SAK SOM KNAPPEN (`useLangtryck`). Musen håller inte in (`utanMus`): den har högerklick och knappen, och ett långsamt klick ska vara ett klick. Utan fler än en kalender är gesten avslagen: ytan beter sig då som förut.
+  const lang = useLangtryck({ onLangtryck: kanBara ? () => syn.visaBara(k.id) : null, hogerklick: true, haptik: true, utanMus: true });
   const visaBaraKnapp = kanBara ? (
     <button
       type="button"
@@ -194,23 +194,47 @@ function Kalenderrad({ k, syn, o, oppen, onOppna }) {
 
 /**
  * Sektionerna i den ordning de ritas.
+ *
+ * ══ ⛔ RADERNA KNYTS TILL SEKTIONERNA MED EN STABIL NYCKEL, OCH BARA RUBRIKEN ÖVERSÄTTS (granskningen av PR 458, fynd 4) ═══════
+ *
+ * Appen deklarerar `{ namn: "Gruppens kalendrar" }` och `{ namn: "Mina kalendrar", tomText }` (lifehub.app `kalenderlista.js`). Rader utan `sektion` hör till "grupp" eller "mina", och före
+ * 0.151.0 var nyckeln bokstaven i namnet. När listans förval blev tvåspråkiga hamnade raderna på `sprak="en"` i nya sektioner ("Group calendars", "My calendars") medan appens deklarerade
+ * (svenska) stod tomma. Nu är nyckeln `"grupp"` respektive `"mina"`, och ett deklarerat eller radens eget `sektion` som är något av de två standardnamnen på NÅGOT språk (`SEKTIONSNYCKEL`)
+ * binds till den nyckeln. Rubriken som ritas är då standardnamnet på listans språk. Alla andra namn är appens och ritas som de är, med sin egen nyckel. ⛔ Det gamla sättet att deklarera
+ * fungerar oförändrat: appen behöver inte ändras. En deklarerad `tomText` är appens ord och översätts inte; saknas den får "mina" sin standardtext på listans språk.
+ *
  * @param {ReadonlyArray<import("./OpsCalendar.jsx").KalenderVal>} kalendrar
  * @param {ReadonlyArray<{ namn: string, tomText?: string }> | undefined} deklarerade
  * @param {Record<keyof typeof ORD_OPSKALENDERLISTA, string>} o
  * @returns {{ namn: string, tomText?: string, rader: import("./OpsCalendar.jsx").KalenderVal[] }[]}
  */
 function sektionerFor(kalendrar, deklarerade, o) {
+  /** Nyckeln för ett namn: "grupp" eller "mina" om det är ett standardnamn på något språk, annars namnet självt. @param {string} namn */
+  const nyckelFor = (namn) => SEKTIONSNYCKEL.get(namn) ?? namn;
+  /** Rubriken som ritas för en nyckel. @param {string} nyckel @param {string} namn */
+  const rubrikFor = (nyckel, namn) => (nyckel === "grupp" ? o.gruppens : nyckel === "mina" ? o.mina : namn);
   /** @param {import("./OpsCalendar.jsx").KalenderVal} k */
-  const namnPa = (k) => (typeof k.sektion === "string" && k.sektion.trim() ? k.sektion.trim() : k.grupp ? o.gruppens : o.mina);
+  const nyckelPa = (k) => (typeof k.sektion === "string" && k.sektion.trim() ? nyckelFor(k.sektion.trim()) : k.grupp ? "grupp" : "mina");
   /** @type {Map<string, { namn: string, tomText?: string, rader: import("./OpsCalendar.jsx").KalenderVal[] }>} */
   const karta = new Map();
   // Utan deklarerade sektioner är det de två gamla som gäller: gruppens (bara med rader) och mina (alltid, med sin tomrad).
   const start = deklarerade ?? [{ namn: o.gruppens }, { namn: o.mina, tomText: o.minaTom }];
-  for (const s of start) if (s && typeof s.namn === "string" && s.namn && !karta.has(s.namn)) karta.set(s.namn, { namn: s.namn, tomText: s.tomText, rader: [] });
+  for (const s of start) {
+    if (!s || typeof s.namn !== "string" || !s.namn) continue;
+    const nyckel = nyckelFor(s.namn);
+    if (!karta.has(nyckel)) karta.set(nyckel, { namn: rubrikFor(nyckel, s.namn), tomText: s.tomText, rader: [] });
+  }
   for (const k of kalendrar) {
-    const namn = namnPa(k);
-    if (!karta.has(namn)) karta.set(namn, { namn, rader: [] });
-    karta.get(namn)?.rader.push(k);
+    const nyckel = nyckelPa(k);
+    if (!karta.has(nyckel)) karta.set(nyckel, { namn: rubrikFor(nyckel, typeof k.sektion === "string" ? k.sektion.trim() : nyckel), rader: [] });
+    karta.get(nyckel)?.rader.push(k);
   }
   return [...karta.values()].filter((s) => s.rader.length > 0 || Boolean(s.tomText));
 }
+
+/** Standardnamnen på varje språk till sin nyckel. Hämtade ur ordboken, så att ett nytt språk där följer med. */
+const SEKTIONSNYCKEL = new Map(
+  /** @type {Array<[string, string]>} */ (
+    Object.entries({ grupp: ORD_OPSKALENDERLISTA.gruppens, mina: ORD_OPSKALENDERLISTA.mina }).flatMap(([nyckel, ord]) => Object.values(ord).map((text) => /** @type {[string, string]} */ ([text, nyckel])))
+  ),
+);

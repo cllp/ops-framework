@@ -458,16 +458,38 @@ describe("⛔ en flik som blir synlig läser om kontot", () => {
     expect(result.current.arSynlig("gruppen")).toBe(true);
   });
 
-  it("ett tryck medan omläsningen väntar vinner över den", async () => {
-    const k = styrbart({ las: { v: 1, syns: {}, visning: {} }, lasHallen: false });
+  it("⛔ ett sent svar på omläsningen skriver aldrig över ett nyare tryck, också när trycket hunnit sparas klart", async () => {
+    const k = styrbart({ las: { v: 1, syns: {}, visning: {} } });
     const { result } = rita({ lagring: lokalt(), konto: k.konto });
     await tomrunda();
     const hall = k.holdLas();
-    byt("visible");
-    act(() => result.current.vaxla("apple"));
+    byt("visible"); // omläsningen startar och väntar
+    act(() => result.current.vaxla("apple")); // trycket, och skrivningen går igenom innan svaret kommer
+    await tomrunda();
+    expect(k.stat.skriv).toEqual([{ v: 1, syns: { apple: false }, visning: {} }]);
+    // Nu inget osparat alls: det som skyddade förut ("skiljer sig från kontot") är borta. Svaret är ändå äldre än trycket.
     await act(async () => hall.ok({ v: 1, syns: { gruppen: false }, visning: {} }));
     expect(result.current.arSynlig("apple")).toBe(false);
     expect(result.current.arSynlig("gruppen")).toBe(true);
+  });
+
+  it("⛔ en ny person: val på enhet B, sedan omläsning på enhet A, som varken har val eller något på kontot: A visar B:s val och skriver inte över det", async () => {
+    const kalla = createKalendervalskalla({ kalla: createMemorySource(), kalenderval: "kalenderval" });
+    const A = rita({ lagring: lokalt(), konto: kalla.konto("ny-person", "g") });
+    await tomrunda();
+    expect(await kalla.las("ny-person", "g")).toBeNull();
+    // Enhet B väljer, och skriver till kontot.
+    const B = rita({ lagring: lokalt(), konto: kalla.konto("ny-person", "g") });
+    await tomrunda();
+    act(() => B.result.current.vaxla("apple"));
+    await waitFor(async () => expect(await kalla.las("ny-person", "g")).toMatchObject({ syns: { apple: false } }));
+    // A blir synlig igen.
+    byt("hidden");
+    byt("visible");
+    await waitFor(() => expect(A.result.current.arSynlig("apple")).toBe(false));
+    // A:s nästa tryck bygger på B:s val.
+    act(() => A.result.current.vaxla("gruppen"));
+    await waitFor(async () => expect(await kalla.las("ny-person", "g")).toMatchObject({ syns: { apple: false, gruppen: false } }));
   });
 
   it("ett fel i omläsningen rapporteras men syns inte i listan, och utan konto händer ingenting", async () => {
@@ -483,5 +505,33 @@ describe("⛔ en flik som blir synlig läser om kontot", () => {
     const utan = rita({ lagring: lokalt() });
     byt("visible");
     expect(utan.result.current.kontoFel).toBeNull();
+  });
+});
+
+describe("⛔ taket på poster kraschar aldrig kalendern", () => {
+  const manga = Object.fromEntries(Array.from({ length: 201 }, (_, i) => [`k${i}`, true]));
+
+  it("utan konto: en person med över 200 val kan rita och ändra, och ingenting kastar", async () => {
+    const lag = lokalt({ [NYCKEL]: { v: 1, syns: manga, visning: {} } });
+    const { result } = rita({ lagring: lag });
+    act(() => result.current.vaxla("apple"));
+    await tomrunda();
+    expect(result.current.arSynlig("apple")).toBe(false);
+    expect(Object.keys(JSON.parse(/** @type {string} */ (lag.varden.get(NYCKEL))).syns)).toHaveLength(202);
+  });
+
+  it("med konto: kastar bara vid skrivning mot kontot, som kontoFel 'skriv', och valet gäller ändå", async () => {
+    const kalla = createKalendervalskalla({ kalla: createMemorySource(), kalenderval: "kalenderval" });
+    const lag = lokalt({ [NYCKEL]: { v: 1, syns: manga, visning: {} } });
+    const { result } = rita({ lagring: lag, konto: kalla.konto("u", "g") });
+    await tomrunda();
+    // Redan lyftet av de lokala valen (kontot har inget dokument) misslyckas, synligt, och ritningen kraschar inte.
+    expect(result.current.kontoFel).toBe("skriv");
+    expect(fanget[0]).toContain("högst 200");
+    act(() => result.current.vaxla("apple"));
+    await tomrunda();
+    expect(result.current.kontoFel).toBe("skriv");
+    expect(result.current.arSynlig("apple")).toBe(false);
+    expect(await kalla.las("u", "g")).toBeNull();
   });
 });

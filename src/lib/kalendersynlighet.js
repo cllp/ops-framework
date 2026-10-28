@@ -116,19 +116,29 @@ export const MAX_KALENDERVALGRUPP = 80;
 export const MAX_KALENDERVAL = 200;
 
 /**
- * Dokumentet som sparas på kontot (och, som JSON, i webbläsaren): samma form på båda ställena. `fore` står där bara när den finns.
+ * Formen på dokumentet, utan någon kontroll. `fore` står där bara när den finns. Den enda platsen formen byggs (webbläsarens text och kontots dokument är samma sak).
+ * @param {KalenderSynlighet} val
+ * @returns {{ v: 1, syns: Record<string, boolean>, visning: Record<string, Kalendervisning>, fore?: Record<string, boolean> }}
+ */
+function kalenderValForm(val) {
+  return val.fore ? { v: 1, syns: val.syns, visning: val.visning, fore: val.fore } : { v: 1, syns: val.syns, visning: val.visning };
+}
+
+/**
+ * Dokumentet som sparas på KONTOT: samma form som i webbläsaren, men det KASTAR över `MAX_KALENDERVAL` poster innan reglerna hinner neka det (ett nekat skrivfel syns som
+ * "Missing or insufficient permissions" och säger ingenting om att personen har för många val).
  *
- * ⛔ KASTAR FÖR MÅNGA POSTER i stället för att låta reglerna neka det: ett nekat skrivfel syns som "Missing or insufficient permissions", och det
- * säger ingenting om att personen har över `MAX_KALENDERVAL` val.
+ * ⛔ KASTAR BARA HÄR, ALDRIG VID LÄSNING ELLER RITNING (granskningen av PR 458, fynd 6). Taket är kontots och reglernas; webbläsarens text (`skrivKalenderSynlighet`) kontrollerar
+ * ingenting, så att en person med fler val kan använda kalendern, också i en app utan Firebase. Källan (`createKalendervalskalla`) anropar den här, och hooken fångar felet som `kontoFel` "skriv".
  *
  * @param {KalenderSynlighet} val
  * @returns {{ v: 1, syns: Record<string, boolean>, visning: Record<string, Kalendervisning>, fore?: Record<string, boolean> }}
  */
 export function kalenderValDokument(val) {
   for (const [namn, karta] of /** @type {const} */ ([["syns", val.syns], ["visning", val.visning], ["fore", val.fore ?? {}]])) {
-    if (Object.keys(karta).length > MAX_KALENDERVAL) throw new Error(`kalenderValDokument: ${namn} har ${Object.keys(karta).length} poster, högst ${MAX_KALENDERVAL} sparas.`);
+    if (Object.keys(karta).length > MAX_KALENDERVAL) throw new Error(`kalenderValDokument: ${namn} har ${Object.keys(karta).length} poster, högst ${MAX_KALENDERVAL} sparas på kontot.`);
   }
-  return val.fore ? { v: 1, syns: val.syns, visning: val.visning, fore: val.fore } : { v: 1, syns: val.syns, visning: val.visning };
+  return kalenderValForm(val);
 }
 
 /**
@@ -136,7 +146,7 @@ export function kalenderValDokument(val) {
  * @returns {string}
  */
 export function skrivKalenderSynlighet(val) {
-  return JSON.stringify(kalenderValDokument(val));
+  return JSON.stringify(kalenderValForm(val));
 }
 
 /**
