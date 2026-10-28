@@ -2,6 +2,7 @@ import { memo } from "react";
 import { cx } from "../lib/cx.js";
 import { arPreliminar, markorlayout } from "../lib/calendar.js";
 import { postklasser, prickklass } from "../lib/kalenderfarg.js";
+import { MAX_KALENDERRAMAR } from "../lib/kalenderramar.js";
 import { BortaIkon, LagerIkon } from "./icons.jsx";
 
 /**
@@ -73,6 +74,7 @@ function DagrutaRitad({ day, dayKey, entries, markerade, spann, enkla, isToday, 
     ...(lager > 0 ? [`${lager} lager`] : []),
   ].join(", ");
   const vald = chosen || forhand;
+  const ramar = ramarAv(dekor);
   const nedtonad = vald ? "" : sok === "miss" ? "sok" : sok === "" && forbi ? "forbi" : "";
 
   return (
@@ -140,7 +142,10 @@ function DagrutaRitad({ day, dayKey, entries, markerade, spann, enkla, isToday, 
           plats är desamma med och utan lager: en `border-2` på rutan hade flyttat siffran och prickarna en pixel. På en dag
           som varit tonas ramen med rutan (förebild 7: ramen den 23 september är blekare än den 7 oktober). Ingen ram på den valda rutan, som SS (`!picked && layerBorderColor`). Från 640 px som SS webb (`MonthGrid.jsx:421`):
           2 px innanför kanten (`inset-0.5`), rundning 8 och 70 procents täckning. */}
-      {dekor?.ram && !vald ? <span aria-hidden="true" data-dagram={dekor.ram} className={cx("pointer-events-none absolute -inset-px z-1 rounded-base border-2 sm:inset-0.5 sm:rounded-sm sm:opacity-70", DAGRAM[dekor.ram])} /> : null}
+      {ramar.length > 0 && !vald ? <span aria-hidden="true" data-dagram={ramar[0]} className={cx("pointer-events-none absolute -inset-px z-1 rounded-base border-2 sm:inset-0.5 sm:rounded-sm sm:opacity-70", DAGRAM[ramar[0]])} /> : null}
+      {/* ⛔ DEN ANDRA RAMEN LIGGER INUTI DEN FÖRSTA (0.151.0, CP 2026-10-28): samma 2 px, en pixel luft emellan (`inset` 3 px längre in än den yttre), så att båda syns som två linjer och inte som en tjock.
+          Inre rundning = yttre minus avståndet. Utan ramar i rutan, eller med bara en, ritas den inte, och rutan ser ut exakt som förut. */}
+      {ramar.length > 1 && !vald ? <span aria-hidden="true" data-dagram-inre={ramar[1]} className={cx("pointer-events-none absolute inset-0.5 z-1 rounded-[calc(var(--radius-base)-3px)] border-2 sm:inset-[5px] sm:rounded-[calc(var(--radius-sm)-3px)] sm:opacity-70", DAGRAM[ramar[1]])} /> : null}
       <Dagnummer day={day} isToday={isToday} vald={vald}>
         {borta > 0 || lager > 0 || narvaro ? <Indikatorrad borta={borta} lager={lager} narvaro={narvaro} vald={vald} /> : null}
       </Dagnummer>
@@ -222,7 +227,8 @@ export const Dagruta = memo(DagrutaRitad, samma);
 /**
  * @typedef {object} Dagdekor
  * @property {1|2|3|4|5|6} [ton] En ton ur identitetspaletten som bakgrund på rutan (SS lagrets `tint`).
- * @property {1|2|3|4|5|6} [ram] (0.61.0) En ram på 2 px i identitetspalettens färg runt rutan (SS lagrets `borderColor`).
+ * @property {1|2|3|4|5|6} [ram] (0.61.0) En ram på 2 px i identitetspalettens färg runt rutan (SS lagrets `borderColor`). Appens egen: den vinner över `ramar`.
+ * @property {ReadonlyArray<1|2|3|4|5|6>} [ramar] (0.151.0) Kalendrarnas ramar, ytterst först, högst två (`MAX_KALENDERRAMAR`): den andra ritas inuti den första. `OpsCalendar` sätter dem ur kalendrarnas visning (Ram eller Båda).
  * @property {{ antal: number }} [borta] (0.61.0) Så många är borta eller upptagna den dagen (`bortaAntal`). Brickan med
  *   `UserX` i hörnet, räknaren från 2, och "N borta" i knappens namn. 0 eller utelämnad ritar ingenting.
  * @property {{ antal: number }} [lager] (0.61.0) Så många lager gäller den dagen. Brickan med `Layers` under, räknaren
@@ -256,6 +262,18 @@ let hornmarkenVarnad = false;
 export function aterstallHornmarkenVarning() {
   hornmarkenVarnad = false;
 }
+
+/**
+ * Ramarna en ruta ritar: appens egen `ram` (en, som förut), annars kalendrarnas `ramar`, högst två.
+ * @param {Dagdekor | undefined} dekor @returns {ReadonlyArray<1|2|3|4|5|6>}
+ */
+function ramarAv(dekor) {
+  if (!dekor) return TOMMA_RAMAR;
+  if (dekor.ram) return [dekor.ram];
+  return dekor.ramar && dekor.ramar.length > 0 ? dekor.ramar.slice(0, MAX_KALENDERRAMAR) : TOMMA_RAMAR;
+}
+/** @type {ReadonlyArray<1|2|3|4|5|6>} */
+const TOMMA_RAMAR = Object.freeze([]);
 
 /** @param {string} text */
 function utvecklingsvarning(text) {

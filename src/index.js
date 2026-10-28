@@ -155,7 +155,7 @@ export { OpsUtanMedlemskap } from "./components/OpsUtanMedlemskap.jsx";
 export { getTheme, setTheme, initTheme } from "./lib/theme.js";
 export { identityTone, initials, IDENTITY_TONE_COUNT } from "./lib/identity.js";
 export { urgency, splitTodayUpcoming, daysBetween, daysUntil, collectEvents } from "./lib/events.js";
-export { dateKey, todayKey, months, monthGrid, perDay, kalenderfonster, isoVecka, datumOmfang, bandIVecka, filtreraPoster, forvaldKalenderId, EGNA_APPEN, appForTyp, apparFor } from "./lib/calendar.js";
+export { dateKey, todayKey, months, monthGrid, perDay, kalenderfonster, isoVecka, datumOmfang, bandIVecka, filtreraPoster, kalenderNyckelForPost, arPostIDoldKalender, delaPosterPaSynlighet, forvaldKalenderId, EGNA_APPEN, appForTyp, apparFor } from "./lib/calendar.js";
 export { readCaseFlow } from "./lib/caseFlow.js";
 export { splitMarkdown, splitInline } from "./lib/markdown.js";
 export { createPromptSource } from "./lib/prompt.js";
@@ -248,7 +248,7 @@ export { sokGruppikoner, forslagUrGruppnamn, VANLIGA_GRUPPIKONER } from "./lib/g
 export { medlemsinfo } from "./lib/gruppmedlemmar.js";
 export { personnamn, NAMN_SAKNAS } from "./lib/personnamn.js";
 export { OpsGruppSida } from "./components/OpsGruppSida.jsx";
-export { regelfragment, gruppadSamling, generateRules, lagringsregelfragment, katalogregelfragment, konfigloggregelfragment, samtalsregelfragment, kalenderregelfragment, handelseregelfragment, bibliotekregelfragment, minnesregelfragment, modulinstallningsregelfragment, beskrivenappdataregelfragment, beskrivningsregelfragment, delningsregelfragment, gastregelfragment } from "./lib/regler.js";
+export { regelfragment, gruppadSamling, generateRules, lagringsregelfragment, katalogregelfragment, konfigloggregelfragment, samtalsregelfragment, kalenderregelfragment, kalendervalsregelfragment, handelseregelfragment, bibliotekregelfragment, minnesregelfragment, modulinstallningsregelfragment, beskrivenappdataregelfragment, beskrivningsregelfragment, delningsregelfragment, gastregelfragment } from "./lib/regler.js";
 /*
  * ⛔ MEJLKÖNS REGLER (0.76.0, #101). Text in och text ut, ingen React, och inget
  * beroende till transporten. Fragmentet står för sig: klienten läser inte kön
@@ -274,8 +274,17 @@ export { lagerNyckel, lasDoldaLager, synligaLager, lagerFarg } from "./lib/kalen
  * ⛔ KALENDRARNA SOM EN LISTA, ETT MINNE (0.134.0, cllp/lifehub.app#402). Vilka kalendrar som syns och hur de visas (Händelser, Ram eller Båda) är personens val per grupp, i ETT minne.
  * `OpsCalendar kalenderMinne` använder det själv; en vy som ska följa samma val (Idag) kallar `useKalenderSynlighet` med samma `minne` och samma `kalendrar`. Lagret ovan är föråldrat.
  */
-export { KALENDERVISNINGAR, FORVALD_KALENDERVISNING, kalenderSynlighetNyckel, lasKalenderSynlighet, skrivKalenderSynlighet, arKalenderSynlig, kalenderVisning, vaxlaKalenderSynlighet, sattKalenderVisning, aterstallKalenderSynlighet, synligaKalenderRader, arForvaldSynlighet } from "./lib/kalendersynlighet.js";
+export { KALENDERVISNINGAR, FORVALD_KALENDERVISNING, kalenderSynlighetNyckel, lasKalenderSynlighet, skrivKalenderSynlighet, arKalenderSynlig, kalenderVisning, vaxlaKalenderSynlighet, sattKalenderVisning, aterstallKalenderSynlighet, synligaKalenderRader, arForvaldSynlighet, rensaKalenderSynlighet, kalenderValDokument, harKalenderVal, visaBaraKalender, arEnsamSynlig, doldaKalenderIds, KALENDERVALFALT, MAX_KALENDERVAL, MAX_KALENDERVALGRUPP } from "./lib/kalendersynlighet.js";
 export { useKalenderSynlighet } from "./lib/useKalenderSynlighet.js";
+/*
+ * ⛔ KALENDERVALEN FÖLJER KONTOT, LÅNGTRYCK VISAR BARA EN, TVÅ RAMAR OCH DAGEN (0.151.0, CP 2026-10-28).
+ * `createKalendervalskalla` är kontots halva (ett dokument per person och grupp, `kalendervalsregelfragment` är reglerna: bara personen själv), och `OpsCalendar kalenderKonto` / `useKalenderSynlighet({ konto })` tar
+ * `källa.konto(uid, gruppId)`. Appens Dagen frågar `useKalenderSynlighet().dela(poster)` vad som är dolt och ritar de dolda blekta (`DOLD_RAD_KLASS`) och märkta (`OpsDoldMarke`), på samma sätt som månadsvyns snabbtitt.
+ */
+export { createKalendervalskalla } from "./data/kalendervalskalla.js";
+export { kalenderRamar, MAX_KALENDERRAMAR } from "./lib/kalenderramar.js";
+export { OpsDoldMarke, DOLD_RAD_KLASS, ORD_OPSDOLDMARKE } from "./components/OpsDoldMarke.jsx";
+export { ORD_OPSKALENDERLISTA } from "./components/OpsKalenderLista.jsx";
 /*
  * ⛔ TILLGÄNGLIGHETEN (0.61.0, #259 skiva 1): vem i gruppen som är borta eller upptagen en dag, härledd ur posterna och aldrig
  * lagrad. En post med läget `dold` räknas inte alls. Hörnbrickan i `OpsCalendar` får `bortaAntal` via `dagdekor`.

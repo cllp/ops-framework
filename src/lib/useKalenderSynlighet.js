@@ -2,21 +2,34 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { rapporteraFel } from "./felrapport.js";
 import {
   aterstallKalenderSynlighet,
+  arEnsamSynlig,
   arForvaldSynlighet,
   arKalenderSynlig,
+  doldaKalenderIds,
+  harKalenderVal,
   kalenderSynlighetNyckel,
   kalenderVisning,
   lasKalenderSynlighet,
+  rensaKalenderSynlighet,
   sattKalenderVisning,
   skrivKalenderSynlighet,
   synligaKalenderRader,
   vaxlaKalenderSynlighet,
+  visaBaraKalender,
 } from "./kalendersynlighet.js";
+import { delaPosterPaSynlighet, forvaldKalenderId } from "./calendar.js";
 
 /**
  * Lagringen som den ser ut för den som läser: `getItem` och `setItem`. `setItem` får svara med ett löfte (en app som sparar på en server), men
  * ingenting i kalendern väntar på det.
  * @typedef {{ getItem: (n: string) => string | null, setItem: (n: string, v: string) => void | Promise<unknown> }} Kalenderlagring
+ */
+
+/**
+ * Kontot som valen också bor på (0.151.0): två funktioner, båda får svara med ett löfte. `las` ger dokumentet (formen i `kalenderValDokument`) eller `null` när kontot inte har något än,
+ * och KASTAR när det inte gick att fråga ("fanns inget" och "kunde inte fråga" är olika saker). `skriv` får hela minnet (`KalenderSynlighet`) och ersätter dokumentet.
+ * `createKalendervalskalla(...).konto(uid, gruppId)` är Firestore-vägen; en app utan Firebase skickar sin egen, eller ingen alls.
+ * @typedef {{ las: () => Promise<unknown> | unknown, skriv: (val: import("./kalendersynlighet.js").KalenderSynlighet) => Promise<unknown> | unknown }} Kalenderkonto
  */
 
 /** @returns {Kalenderlagring | undefined} */
@@ -58,13 +71,34 @@ function lasFran(lager, nyckel) {
  * ⛔ UTAN `minne` GÄLLER VALET BARA DEN HÄR VISNINGEN. Ramverket känner inte personen eller gruppen; en app som inte skickar `minne` får
  * listan men inget som överlever en omladdning, och det är dokumenterat och inte ett fel.
  *
+ * ══ ⛔ KONTOT ÄR HEMMET, WEBBLÄSAREN ÄR EN FÖRHANDSCACHE (0.151.0) ═══════════════════════════════════════════════════
+ *
+ * CP 2026-10-28: "Väljer jag ram i mobilen syns det inte på datorn." Med `konto` (se `Kalenderkonto`) följer valen personen mellan enheterna:
+ *
+ *   - KALENDERN RITAS DIREKT med det lokala minnet, som förut. Kontots värde hämtas efteråt och ERSÄTTER det när det kommer (och skrivs till det lokala minnet, så att nästa
+ *     besök på den här enheten börjar med det som gäller).
+ *   - ETT TRYCK SOM GJORDES MEDAN KONTOT HÄMTADES FÖRLORAS INTE: det spelas upp igen ovanpå kontots värde. Personens senaste tryck vinner över det hon inte hunnit se.
+ *   - FÖRSTA GÅNGEN (kontot har inget dokument alls) lyfts de lokala valen upp en gång, om det finns några, så att ingen förlorar det hen redan valt. Ett tomt lokalt minne
+ *     skriver ingenting: ett dokument som bara säger "förval" är inte ett val. Ett dokument som finns vinner alltid, också ett tomt (det är "Alla kalendrar" på en annan enhet).
+ *   - ETT TRYCK SKRIVS DIREKT OCH OPTIMISTISKT. ⛔ HÖGST EN SKRIVNING ÄR PÅGÅENDE, och snabba tryck i följd samlas: medan en skrivning väntar markeras bara att något nyare finns,
+ *     och när den är klar skrivs det SENASTE en gång. Tävlande skrivningar kan komma fram i fel ordning, och då hade ett äldre val stått kvar på kontot. Den sista vinner.
+ *   - ⛔ FELET SYNS, ALDRIG TYST: `kontoFel` är "las" (kontot gick inte att läsa, det som visas är den här enhetens) eller "skriv" (valet sparades inte på kontot).
+ *     Listan skriver ut det med en knapp, `sparaIgen`. Ett nytt val försöker igen av sig själv. Valet rullas aldrig tillbaka: det som ritades är det personen bad om.
+ *   - ⛔ EN LÄSNING SOM MISSLYCKADES SKRIVER INGET: kontots värde är okänt, och att skriva den här enhetens val över det hade kunnat ta bort det en annan enhet valt. Nästa val
+ *     försöker läsa igen först.
+ *   - UTAN `konto` (en app utan Firebase) är allt som förut, bara det lokala minnet. Kärnan ska gå att använda utan Firebase.
+ *
+ * ⛔ `konto` BYTS INTE UT UNDER LIVET: den gäller för det `minne` den skickades med, och en app som byter grupp byter både `minne` och `konto`. Ändras bara `konto`
+ * (ett nytt objekt för samma minne, som en app som inte `useMemo`:ar det) läses inget om, och den gamla gäller tills `minne` byts.
+ *
  * @param {object} props
  * @param {string} [props.minne] Vem och vilken grupp valet gäller, appens val. Sparas under `kalenderSynlighetNyckel(minne)`.
  * @param {ReadonlyArray<{ id: string, avFranStart?: boolean }>} [props.kalendrar] Raderna. Utan dem finns inget att välja.
  * @param {Kalenderlagring} [props.lagring] Förval `window.localStorage` när den går att läsa.
+ * @param {Kalenderkonto} [props.konto] (0.151.0) Kontot valen också bor på. Utan: bara det lokala minnet.
  * @param {(ids: string[]) => void} [props.onSynliga] Id:n som syns, i radernas ordning, en gång vid start och varje gång mängden ändras.
  */
-export function useKalenderSynlighet({ minne = "", kalendrar, lagring, onSynliga }) {
+export function useKalenderSynlighet({ minne = "", kalendrar, lagring, konto, onSynliga }) {
   const lager = lagring || webblasarlagring();
   const nyckel = minne ? kalenderSynlighetNyckel(minne) : "";
   const [state, setState] = useState(() => ({ nyckel, val: lasFran(lager, nyckel) }));
@@ -75,12 +109,46 @@ export function useKalenderSynlighet({ minne = "", kalendrar, lagring, onSynliga
     setState(aktuell);
   }
   const val = aktuell.val;
+  const valRef = useRef(val);
+  valRef.current = val;
+
+  const kontoRef = useRef(konto);
+  kontoRef.current = konto;
+  const harKonto = Boolean(konto) && nyckel !== "";
+  /** @type {import("react").MutableRefObject<Kontostyrning | null>} */
+  const styr = useRef(null);
+  const [kontoFel, setKontoFel] = useState(/** @type {null | "las" | "skriv"} */ (null));
 
   const andra = useCallback(
     /** @param {(v: import("./kalendersynlighet.js").KalenderSynlighet) => import("./kalendersynlighet.js").KalenderSynlighet} fn */
-    (fn) => setState((s) => (s.nyckel === nyckel ? { nyckel, val: fn(s.val) } : s)),
+    (fn) => {
+      setState((s) => (s.nyckel === nyckel ? { nyckel, val: fn(s.val) } : s));
+      // ⛔ Medan kontot hämtas (eller inte gick att hämta) sparas varje tryck som en funktion, och spelas upp ovanpå kontots värde när det kommer.
+      const c = styr.current;
+      if (c && c.nyckel === nyckel && c.status !== "klar") {
+        c.ops.push(fn);
+        if (c.status === "lasfel") ladda(c, setState, setKontoFel, valRef);
+      }
+    },
     [nyckel],
   );
+
+  // Kontot: hämta en gång per minne, och sluta lyssna när minnet byts eller vyn försvinner.
+  useEffect(() => {
+    if (!harKonto) {
+      styr.current = null;
+      setKontoFel(null);
+      return;
+    }
+    const c = /** @type {Kontostyrning} */ ({ nyckel, konto: /** @type {Kalenderkonto} */ (kontoRef.current), status: "laser", ops: [], kontoText: null, onskadVal: null, onskadText: null, iflygning: false, avslutad: false });
+    styr.current = c;
+    setKontoFel(null);
+    ladda(c, setState, setKontoFel, valRef);
+    return () => {
+      c.avslutad = true;
+      if (styr.current === c) styr.current = null;
+    };
+  }, [nyckel, harKonto]);
 
   // Sparandet, efter ritningen. `sparat` är det som redan ligger i lagringen eller just lästes därifrån, så att ett byte av minne inte skriver.
   const sparat = useRef({ nyckel, text: skrivKalenderSynlighet(val) });
@@ -103,8 +171,20 @@ export function useKalenderSynlighet({ minne = "", kalendrar, lagring, onSynliga
     }
   }, [val, nyckel, lager]);
 
+  // Och till kontot, när det är läst och valet skiljer sig från det som står där. ⛔ Kontots eget värde som just lästs skrivs inte tillbaka (`kontoText` är det).
+  useEffect(() => {
+    const c = styr.current;
+    if (!c || c.nyckel !== nyckel || c.status !== "klar") return;
+    const text = skrivKalenderSynlighet(val);
+    // ⛔ Medan en skrivning väntar räknas också ett val som är lika med det som stod där SIST: personen kan ha ändrat tillbaka, och då ska det gamla skrivas igen när den väntande är klar.
+    if (text === c.kontoText && !c.iflygning) return;
+    planera(c, val, text, setKontoFel);
+  }, [val, nyckel, harKonto]);
+
   const rader = useMemo(() => (kalendrar || []).filter((r) => r && typeof r.id === "string" && r.id.length > 0), [kalendrar]);
   const synliga = useMemo(() => synligaKalenderRader(rader, val).map((r) => r.id), [rader, val]);
+  const dolda = useMemo(() => doldaKalenderIds(rader, val), [rader, val]);
+  const forvaldId = useMemo(() => forvaldKalenderId(/** @type {any} */ (kalendrar)), [kalendrar]);
 
   // Bara när det finns rader: en app utan kalendrar har inget att följa. Samma nyckel två gånger ger inget anrop.
   const onSynligaRef = useRef(onSynliga);
@@ -125,6 +205,8 @@ export function useKalenderSynlighet({ minne = "", kalendrar, lagring, onSynliga
   return {
     /** Id:n som syns, i radernas ordning. */
     synliga,
+    /** (0.151.0) Id:n som INTE syns, i radernas ordning. Det Dagen frågar efter, via `dela`. */
+    dolda,
     /** Personens egna visningsval, `{ [id]: "ram" | "bada" }`. En rad som inte står här visas som händelser. Samma objekt tills något ändras. */
     visningar: val.visning,
     /** @param {string} id */
@@ -149,6 +231,144 @@ export function useKalenderSynlighet({ minne = "", kalendrar, lagring, onSynliga
       const r = radPerId.get(id);
       if (r) andra((v) => sattKalenderVisning(r, visning, v));
     },
+    /**
+     * (0.151.0) "Visa bara den här": raden blir ensam synlig. Samma val en gång till, när den redan är det, tar tillbaka valen som gällde före (`visaBaraKalender`).
+     * @param {string} id
+     */
+    visaBara: (id) => {
+      const r = radPerId.get(id);
+      if (r) andra((v) => visaBaraKalender(r, rader, v));
+    },
+    /** (0.151.0) Är det här den enda raden som syns? Då är "Visa bara den här" ett återtag. @param {string} id */
+    arEnsam: (id) => {
+      const r = radPerId.get(id);
+      return r ? arEnsamSynlig(r, rader, val) : false;
+    },
+    /** (0.151.0) Finns det mer än en rad? Med en enda kalender betyder "visa bara den här" ingenting. */
+    kanVisaBara: rader.length > 1,
+    /**
+     * (0.151.0) Delar poster i de som syns och de som är dolda av kalenderlistan, samma avgörande som månadsvyns snabbtitt. För appens Dagen: visa de dolda blekta (`DOLD_RAD_KLASS`)
+     * och märkta (`OpsDoldMarke`) på ett tryck, utan att ändra valen.
+     * @template {{ kalender?: { id: string } | null }} T
+     * @param {readonly T[]} poster
+     */
+    dela: (poster) => delaPosterPaSynlighet(poster, { dolda, forvaldId }),
+    /** (0.151.0) Vad som gick fel mot kontot: "las" (kontot gick inte att läsa) eller "skriv" (valet sparades inte där). `null` när allt är som det ska. */
+    kontoFel,
+    /** (0.151.0) Försök igen: läser kontot om det inte gick, annars skrivs det senaste valet. Gör ingenting utan konto. */
+    sparaIgen: () => {
+      const c = styr.current;
+      if (!c || c.nyckel !== nyckel) return;
+      if (c.status === "lasfel") ladda(c, setState, setKontoFel, valRef);
+      else if (c.status === "klar") planera(c, valRef.current, skrivKalenderSynlighet(valRef.current), setKontoFel, true);
+    },
     aterstall: () => andra(aterstallKalenderSynlighet),
   };
+}
+
+/**
+ * Styrningen mot kontot för ETT minne. Ett nytt objekt för varje minne, så att ett svar som kommer efter ett byte av grupp aldrig skrivs in i fel grupp.
+ * @typedef {object} Kontostyrning
+ * @property {string} nyckel
+ * @property {Kalenderkonto} konto
+ * @property {"laser" | "klar" | "lasfel"} status
+ * @property {Array<(v: import("./kalendersynlighet.js").KalenderSynlighet) => import("./kalendersynlighet.js").KalenderSynlighet>} ops Tryck som gjorts innan kontots värde var känt, i ordning.
+ * @property {string | null} kontoText Texten som står på kontot (läst eller skriven). `null`: kontot har inget dokument.
+ * @property {import("./kalendersynlighet.js").KalenderSynlighet | null} onskadVal Det senaste valet, som ska ligga på kontot.
+ * @property {string | null} onskadText
+ * @property {boolean} iflygning En skrivning väntar på svar. Högst en.
+ * @property {boolean} avslutad Vyn försvann eller minnet byttes: inget tillstånd rörs mer, men en skrivning som redan går avslutas.
+ */
+
+/**
+ * Hämtar kontots värde. Kallas vid start och när en läsning som misslyckats ska försökas igen.
+ * @param {Kontostyrning} c
+ * @param {import("react").Dispatch<import("react").SetStateAction<{ nyckel: string, val: import("./kalendersynlighet.js").KalenderSynlighet }>>} setState
+ * @param {(f: null | "las" | "skriv") => void} setKontoFel
+ * @param {import("react").MutableRefObject<import("./kalendersynlighet.js").KalenderSynlighet>} valRef
+ */
+function ladda(c, setState, setKontoFel, valRef) {
+  c.status = "laser";
+  /** @type {Promise<unknown>} */
+  let lopp;
+  try {
+    lopp = Promise.resolve(c.konto.las());
+  } catch (fel) {
+    lopp = Promise.reject(fel);
+  }
+  lopp.then(
+    (data) => {
+      if (c.avslutad) return;
+      c.status = "klar";
+      setKontoFel(null);
+      const kontots = data === null || data === undefined ? null : rensaKalenderSynlighet(data);
+      if (kontots) {
+        c.kontoText = skrivKalenderSynlighet(kontots);
+        const ny = c.ops.reduce((v, fn) => fn(v), kontots);
+        c.ops = [];
+        setState((s) => (s.nyckel === c.nyckel ? { nyckel: c.nyckel, val: ny } : s));
+        return;
+      }
+      // Kontot har inget dokument: det lokala är det enda som finns, och lyfts upp en gång om det är något.
+      c.kontoText = null;
+      c.ops = [];
+      const lokalt = valRef.current;
+      if (harKalenderVal(lokalt)) planera(c, lokalt, skrivKalenderSynlighet(lokalt), setKontoFel);
+    },
+    (fel) => {
+      if (c.avslutad) return;
+      c.status = "lasfel";
+      rapporteraFel(fel, { yta: "useKalenderSynlighet", steg: "läsa synlighet från kontot" });
+      setKontoFel("las");
+    },
+  );
+}
+
+/**
+ * Anmäler att `val` ska ligga på kontot. Medan en skrivning väntar markeras bara det nyaste; när den är klar skrivs det en gång.
+ * @param {Kontostyrning} c
+ * @param {import("./kalendersynlighet.js").KalenderSynlighet} val
+ * @param {string} text
+ * @param {(f: null | "las" | "skriv") => void} setKontoFel
+ * @param {boolean} [tvinga] Skriv också när texten redan är den som står där (Försök igen efter ett fel).
+ */
+function planera(c, val, text, setKontoFel, tvinga = false) {
+  c.onskadVal = val;
+  c.onskadText = text;
+  if (c.iflygning) return;
+  kor(c, setKontoFel, tvinga);
+}
+
+/**
+ * @param {Kontostyrning} c
+ * @param {(f: null | "las" | "skriv") => void} setKontoFel
+ * @param {boolean} [tvinga]
+ */
+function kor(c, setKontoFel, tvinga = false) {
+  const val = c.onskadVal;
+  const text = c.onskadText;
+  if (!val || text === null) return;
+  if (!tvinga && text === c.kontoText) return;
+  c.iflygning = true;
+  /** @type {Promise<unknown>} */
+  let lopp;
+  try {
+    lopp = Promise.resolve(c.konto.skriv(val));
+  } catch (fel) {
+    lopp = Promise.reject(fel);
+  }
+  lopp.then(
+    () => {
+      c.iflygning = false;
+      c.kontoText = text;
+      if (!c.avslutad) setKontoFel(null);
+      // Något nyare kom medan den här väntade: nu skrivs det, en gång.
+      if (c.onskadText !== text) kor(c, setKontoFel);
+    },
+    (fel) => {
+      c.iflygning = false;
+      rapporteraFel(fel, { yta: "useKalenderSynlighet", steg: "spara synlighet på kontot" });
+      if (!c.avslutad) setKontoFel("skriv");
+    },
+  );
 }
