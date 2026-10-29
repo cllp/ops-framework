@@ -502,6 +502,34 @@ export function lasKalenderpost(rad) {
 }
 
 /**
+ * Koderna från `kalenderformFel` som reglerna i produktion REDAN nekade före 0.153.0 (cllp/ops-framework#467). Ett dokument som bara bär sådana koder blir inte nytt nekat av 0.153.0: det låg utanför formen
+ * redan, skrivet av servern eller ett skript. Alla andra koder (`id`, `ikon`, `ordning`, `forvald`, `iFlodet`, `arkiverad`, `beskrivning`, `plats`, `blockerar`) är nya med 0.153.0 och ger slutkod 1.
+ *
+ * ⛔ HÄRLEDD UR DIFFEN MELLAN 0.152.0:s OCH 0.153.0:s REGELTEXT (`git show 40e1bde -- src/lib/regler.js`), inte mätt i emulatorn. Före 0.153.0 prövade `minaKalendrar` bara fältlistan (`keys().hasOnly`, samma lista som nu), `namn`
+ * (text, 1 till `MAX_KALENDERNAMN`) och `farg` (ur `KALENDERFARGER`); `kalenderposter` bara fältlistan, `kalenderId` (text, och att kalendern finns), `titel` (text, 1 till `MAX_POSTTITEL`), `heldag` (sanningsvärde),
+ * `start` och `slut` (formen) och att `slut` inte är före `start`. Fältlistorna var oförändrade mellan 0.151.0 (det som låg i produktion när 0.153.0 mättes) och 0.152.0.
+ *
+ * ⛔ `beskrivning` OCH `plats` STÅR MED FLIT SOM NYA, fast en text över taket också nekades förut: före 0.153.0 prövades bara `size()` på dem, och en lista eller karta under taket släpptes in. Att räkna dem som nya är den säkra
+ * riktningen, ett dokument för mycket i slutkoden och aldrig ett för lite. `stor` är ingen regelkod och står utanför båda grupperna.
+ */
+export const KALENDERFORM_REDAN_NEKAT = /** @type {readonly string[]} */ (["okant-falt", "namn", "farg", "kalenderId", "titel", "heldag", "start", "slut", "tidsordning"]);
+
+/**
+ * Namnen på fälten i ett lagrat dokument som inte hör till formen (`MINKALENDERFALT` respektive `KALENDERPOSTFALT`, utan `id`: nyckeln står i sökvägen och lagras aldrig som ett fält). BARA NAMN, aldrig värden:
+ * mätningen skrivs ut i ett ärende, och värdena är personernas egna. Tom lista när dokumentet inte har några, eller inte är ett objekt (det fallet säger `kalenderformFel` som `okant-falt`).
+ *
+ * @param {"kalender" | "post"} slag
+ * @param {unknown} data
+ * @returns {string[]}
+ */
+export function kalenderformOkandaFalt(slag, data) {
+  const d = data && typeof data === "object" && !Array.isArray(data) ? /** @type {Record<string, any>} */ (data) : null;
+  if (!d) return [];
+  const tillatna = /** @type {readonly string[]} */ (slag === "kalender" ? MINKALENDERFALT : KALENDERPOSTFALT).filter((f) => f !== "id");
+  return Object.keys(d).filter((f) => !tillatna.includes(f));
+}
+
+/**
  * Vad i ett lagrat dokument i `minaKalendrar` eller `kalenderposter` som reglerna från 0.153.0 inte släpper igenom (cllp/ops-framework#463). Tom lista: dokumentet kan skrivas om som det står.
  *
  * ══ ⛔ VARFÖR DEN FINNS ═════════════════════════════════════════════════════════════════════════════════════
@@ -525,8 +553,7 @@ export function kalenderformFel(slag, id, data) {
   if (typeof id !== "string" || !ID_FORM.test(id) || id.length > MAX_KALENDERID) fel.push("id");
   const d = data && typeof data === "object" && !Array.isArray(data) ? /** @type {Record<string, any>} */ (data) : null;
   if (!d) return [...fel, "okant-falt"];
-  const tillatna = /** @type {readonly string[]} */ (slag === "kalender" ? MINKALENDERFALT : KALENDERPOSTFALT).filter((f) => f !== "id");
-  if (Object.keys(d).some((f) => !tillatna.includes(f))) fel.push("okant-falt");
+  if (kalenderformOkandaFalt(slag, d).length > 0) fel.push("okant-falt");
   const sant = (/** @type {string} */ f, /** @type {boolean} */ ok) => {
     if (!ok) fel.push(f);
   };
@@ -557,16 +584,35 @@ export function kalenderformFel(slag, id, data) {
 /**
  * Räknar avvikelserna i en lista dokument. Ren funktion (skriptet `scripts/mat-kalenderdokument.mjs` läser dokumenten och skriver ut svaret), provad i `src/__tests__/kalendrar-lasning.test.js`.
  *
+ * ⛔ TVÅ SLAG AVVIKELSER (cllp/ops-framework#467). Mätt i produktion 2026-10-29: 35 av 98 poster hade ett okänt fält (`id`), men reglerna i produktion nekade redan samma fältlista, så 0.153.0 gjorde ingenting nytt nekat för dem. En mätning
+ * som svarar "bryter något mot formen" i stället för "blir något NYTT nekat" stoppar en deploy som inte behövde stoppas. Därför delas svaret (koderna i `KALENDERFORM_REDAN_NEKAT`):
+ *   - `nyaNekade`, `perKodNy`, `exempelNya`: dokument med minst en kod som är ny med 0.153.0. De ger slutkod 1 (`kalenderformSlutkod`). Ett dokument som bär både en ny och en gammal kod räknas här och inte som `redanNekade`.
+ *   - `redanNekade`, `perKodRedan`, `exempelRedan`: dokument som bara bär koder som reglerna i produktion redan nekade. De skrivs ut men ger inte slutkod 1.
+ *   - `okandaFalt`: för varje fältnamn utanför formen, i hur många dokument det står. Bara namn, aldrig värden.
+ * `perKod` och `exempel` är oförändrade (alla koder, alla dokument), och `stor` står utanför båda slagen.
+ *
  * @param {Array<{ sokvag: string, id: string, data: unknown, byte?: number }>} dokument
  * @param {{ slag: "kalender" | "post", stor?: number, exempel?: number }} val
- * @returns {{ lasta: number, medAvvikelse: number, stora: number, perKod: Record<string, number>, exempel: Array<{ sokvag: string, koder: string[] }>, personer: number, flestHosEnPerson: number }}
+ * @returns {{ lasta: number, medAvvikelse: number, stora: number, perKod: Record<string, number>, exempel: Array<{ sokvag: string, koder: string[] }>, personer: number, flestHosEnPerson: number, nyaNekade: number, redanNekade: number, perKodNy: Record<string, number>, perKodRedan: Record<string, number>, exempelNya: Array<{ sokvag: string, koder: string[] }>, exempelRedan: Array<{ sokvag: string, koder: string[] }>, okandaFalt: Record<string, number> }}
  */
 export function kalenderformMatning(dokument, { slag, stor = 20_000, exempel = 5 }) {
   /** @type {Record<string, number>} */
   const perKod = {};
+  /** @type {Record<string, number>} */
+  const perKodNy = {};
+  /** @type {Record<string, number>} */
+  const perKodRedan = {};
+  /** @type {Record<string, number>} */
+  const okandaFalt = {};
   /** @type {Array<{ sokvag: string, koder: string[] }>} */
   const ex = [];
+  /** @type {Array<{ sokvag: string, koder: string[] }>} */
+  const exNya = [];
+  /** @type {Array<{ sokvag: string, koder: string[] }>} */
+  const exRedan = [];
   let medAvvikelse = 0;
+  let nyaNekade = 0;
+  let redanNekade = 0;
   let stora = 0;
   /** @type {Map<string, number>} */
   const perPerson = new Map();
@@ -583,12 +629,30 @@ export function kalenderformMatning(dokument, { slag, stor = 20_000, exempel = 5
     medAvvikelse += 1;
     for (const k of koder) perKod[k] = (perKod[k] ?? 0) + 1;
     if (ex.length < exempel) ex.push({ sokvag: d.sokvag, koder });
+    const harNy = koder.some((k) => k !== "stor" && !KALENDERFORM_REDAN_NEKAT.includes(k));
+    const harRedan = koder.some((k) => KALENDERFORM_REDAN_NEKAT.includes(k));
+    for (const k of koder) {
+      if (k === "stor") continue;
+      const grupp = KALENDERFORM_REDAN_NEKAT.includes(k) ? perKodRedan : perKodNy;
+      grupp[k] = (grupp[k] ?? 0) + 1;
+    }
+    for (const f of kalenderformOkandaFalt(slag, d.data)) okandaFalt[f] = (okandaFalt[f] ?? 0) + 1;
+    if (harNy) {
+      nyaNekade += 1;
+      if (exNya.length < exempel) exNya.push({ sokvag: d.sokvag, koder });
+    } else if (harRedan) {
+      redanNekade += 1;
+      if (exRedan.length < exempel) exRedan.push({ sokvag: d.sokvag, koder });
+    }
   }
-  return { lasta: dokument.length, medAvvikelse, stora, perKod, exempel: ex, personer: perPerson.size, flestHosEnPerson: Math.max(0, ...perPerson.values()) };
+  return { lasta: dokument.length, medAvvikelse, stora, perKod, exempel: ex, personer: perPerson.size, flestHosEnPerson: Math.max(0, ...perPerson.values()), nyaNekade, redanNekade, perKodNy, perKodRedan, exempelNya: exNya, exempelRedan: exRedan, okandaFalt };
 }
 
 /**
- * Slutkoden för `scripts/mat-kalenderdokument.mjs` (granskningen av PR 464): 1 när någon samling lästes som tom, eller när något dokument bär en avvikelse som reglerna nekar, `id` inräknat; annars 0.
+ * Slutkoden för `scripts/mat-kalenderdokument.mjs` (granskningen av PR 464, rättad i cllp/ops-framework#467): 1 när någon samling lästes som tom, eller när något dokument bär en avvikelse som BLIR NY med 0.153.0, `id` inräknat; annars 0.
+ *
+ * ⛔ DET SOM REDAN VAR NEKAT FÖRE 0.153.0 GER INTE 1 (#467, `KALENDERFORM_REDAN_NEKAT`). Slutkoden svarar på frågan deployen behöver, "blir något NYTT nekat?", och inte på "bryter något mot formen?". Mätt i produktion 2026-10-29 stoppade
+ * 35 poster med ett okänt fält (`id`) en deploy, fast reglerna i produktion nekade samma fältlista redan. De står i utskriften, med antal och fältnamn, men ger inte kod 1.
  *
  * ⛔ `id` RÄKNAS. Ett id utanför formen låser ingen ute i reglerna (det prövas bara vid `create`), men `byggMinKalender` och `byggKalenderpost` kastar på det, så dokumentet är redan oläsligt för ramverket, och
  * CHANGELOG 0.153.0 säger "noll avvikelser, också id" innan reglerna deployas. ⛔ `stor` RÄKNAS INTE: ett stort dokument med rätt form låser inte ute någon. Det står i utskriften, som underlag för ett tak.
@@ -599,7 +663,7 @@ export function kalenderformMatning(dokument, { slag, stor = 20_000, exempel = 5
 export function kalenderformSlutkod(svar) {
   for (const s of svar) {
     if (s.lasta === 0) return 1;
-    if (Object.entries(s.perKod).some(([k, n]) => k !== "stor" && n > 0)) return 1;
+    if (Object.entries(s.perKod).some(([k, n]) => k !== "stor" && !KALENDERFORM_REDAN_NEKAT.includes(k) && n > 0)) return 1;
   }
   return 0;
 }

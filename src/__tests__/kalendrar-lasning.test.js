@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createMemorySource } from "../data/adapters.js";
 import { createKalenderkalla } from "../data/kalenderkalla.js";
-import { KALENDERIKONER, MAX_KALENDERID, MAX_KALENDERIKON, byggKalenderpost, byggMinKalender, lasKalenderpost, lasMinKalender, lasMinaKalendrar, validateMinaKalendrar, kalenderformFel, kalenderformMatning, kalenderformSlutkod } from "../lib/kalendrar.js";
+import { KALENDERFORM_REDAN_NEKAT, KALENDERIKONER, MAX_KALENDERID, MAX_KALENDERIKON, byggKalenderpost, byggMinKalender, lasKalenderpost, lasMinKalender, lasMinaKalendrar, validateMinaKalendrar, kalenderformFel, kalenderformMatning, kalenderformOkandaFalt, kalenderformSlutkod } from "../lib/kalendrar.js";
 import { kalenderregelfragment } from "../lib/regler.js";
 
 /*
@@ -119,6 +119,9 @@ describe("taken i reglerna är härledda ur konstanterna", () => {
   });
 });
 
+/** Koderna som är NYA med 0.153.0: reglerna nekade dem inte förut. Skrivna ut här, inte härledda ur `KALENDERFORM_REDAN_NEKAT`, så att provet nedan kan jämföra de två listorna mot det `kalenderformFel` faktiskt säger. */
+const NYA_KODER = ["id", "ikon", "ordning", "forvald", "iFlodet", "arkiverad", "beskrivning", "plats", "blockerar"];
+
 describe("kalenderformFel och mätningen i produktion", () => {
   const { id: _k, ...kalData } = kal();
   const { id: _p, ...postData } = post();
@@ -142,6 +145,65 @@ describe("kalenderformFel och mätningen i produktion", () => {
     expect(kalenderformFel("post", "tand", minimal)).toEqual([]);
   });
   /*
+   * ⛔ VARJE KOD ÄR KLASSAD (#467). En kod som `kalenderformFel` kan säga men som varken står i `KALENDERFORM_REDAN_NEKAT` eller i listan över nya koder räknas av slutkoden som NY, alltså som ett skäl att stoppa deployen,
+   * och en ny kod läggs till utan att någon tänker på frågan. Provet kör funktionen på dokument som bryter mot varje regel och kräver att varje kod som kommer ut är klassad, att listorna inte överlappar och att ingen
+   * kod i `KALENDERFORM_REDAN_NEKAT` är död (aldrig sagd av funktionen: en tautologisk lista kan inte falla).
+   */
+  it("⛔ varje kod som kalenderformFel säger är klassad som ny eller redan nekad, listorna överlappar inte och ingen redan-nekad kod är död", () => {
+    const sagda = new Set([
+      ...kalenderformFel("kalender", "Min Kalender", { namn: "", farg: 99, ikon: 5, ordning: "x", forvald: 1, iFlodet: 1, arkiverad: 1, okand: 1 }),
+      ...kalenderformFel("kalender", "privat", null),
+      ...kalenderformFel("post", "Min Post", { kalenderId: 5, titel: "", beskrivning: [], plats: [], blockerar: 1, heldag: "ja", start: 1, slut: 1, okand: 1 }),
+      ...kalenderformFel("post", "tand", { ...postData, slut: "2026-10-05T08:00" }),
+      ...kalenderformFel("post", "tand", { ...postData, heldag: true }),
+    ]);
+    const klassade = new Set([...KALENDERFORM_REDAN_NEKAT, ...NYA_KODER]);
+    expect([...sagda].filter((k) => !klassade.has(k)).sort()).toEqual([]);
+    expect(KALENDERFORM_REDAN_NEKAT.filter((k) => NYA_KODER.includes(k))).toEqual([]);
+    expect(KALENDERFORM_REDAN_NEKAT.filter((k) => !sagda.has(k)).sort()).toEqual([]);
+    expect(NYA_KODER.filter((k) => !sagda.has(k)).sort()).toEqual([]);
+  });
+  it("kalenderformOkandaFalt ger bara fältnamn: id ligger i sökvägen och räknas som okänt om det står som ett fält", () => {
+    expect(kalenderformOkandaFalt("post", { ...postData, id: "hemligt-varde", extra: 1 })).toEqual(["id", "extra"]);
+    expect(kalenderformOkandaFalt("kalender", kalData)).toEqual([]);
+    expect(kalenderformOkandaFalt("kalender", null)).toEqual([]);
+    expect(kalenderformOkandaFalt("kalender", ["id"])).toEqual([]);
+  });
+  /*
+   * ⛔ PRODUKTIONENS FALL (#467), uppbyggt som mätningen 2026-10-29: 98 poster, 35 med fältet `id` som en server eller ett skript skrev. Reglerna i produktion nekade redan fältlistan, så inget av dem är nytt.
+   */
+  it("⛔ 35 av 98 poster med ett okänt fält id: 35 redan nekade, 0 nya, och fältnamnet (aldrig värdet) står i svaret", () => {
+    const dok = Array.from({ length: 98 }, (_, i) => ({
+      sokvag: `users/uid${String(i % 12).padStart(8, "0")}/kalenderposter/p${i}`,
+      id: `p${i}`,
+      data: i < 35 ? { ...postData, id: `hemligt-varde-${i}` } : postData,
+      byte: 300,
+    }));
+    const svar = kalenderformMatning(dok, { slag: "post" });
+    expect(svar).toMatchObject({ lasta: 98, medAvvikelse: 35, nyaNekade: 0, redanNekade: 35, perKodNy: {}, perKodRedan: { "okant-falt": 35 }, okandaFalt: { id: 35 }, exempelNya: [] });
+    expect(JSON.stringify(svar.okandaFalt)).not.toContain("hemligt-varde");
+    expect(svar.exempelRedan).toHaveLength(5);
+    expect(kalenderformSlutkod([svar, kalenderformMatning([{ sokvag: "users/u/minaKalendrar/privat", id: "privat", data: kalData }], { slag: "kalender" })])).toBe(0);
+  });
+  it("⛔ en ny avvikelse bland de redan nekade syns i sin egen grupp och ger kod 1, också när de gamla fyller exempellistan", () => {
+    const dok = [
+      ...Array.from({ length: 20 }, (_, i) => ({ sokvag: `users/uid${i}/kalenderposter/g${i}`, id: `g${i}`, data: { ...postData, id: `g${i}` } })),
+      { sokvag: "users/uidny/kalenderposter/ny", id: "ny", data: { ...postData, blockerar: "ja" } },
+      { sokvag: "users/uidbada/kalenderposter/bada", id: "bada", data: { ...postData, id: "bada", beskrivning: ["a"] } },
+      { sokvag: "users/uidstor/kalenderposter/stor", id: "stor", data: postData, byte: 99_999 },
+    ];
+    const svar = kalenderformMatning(dok, { slag: "post", exempel: 2 });
+    expect(svar).toMatchObject({ lasta: 23, nyaNekade: 2, redanNekade: 20, stora: 1, perKodNy: { blockerar: 1, beskrivning: 1 }, perKodRedan: { "okant-falt": 21 }, okandaFalt: { id: 21 } });
+    expect(svar.exempelRedan).toHaveLength(2);
+    expect(svar.exempelNya.map((e) => e.sokvag)).toEqual(["users/uidny/kalenderposter/ny", "users/uidbada/kalenderposter/bada"]);
+    expect(kalenderformSlutkod([svar])).toBe(1);
+  });
+  it("tomhet är ett svar: ingen avvikelse ger nollor och tomma grupper, inte saknade fält", () => {
+    const svar = kalenderformMatning([{ sokvag: "users/u/kalenderposter/tand", id: "tand", data: postData }], { slag: "post" });
+    expect(svar).toMatchObject({ lasta: 1, medAvvikelse: 0, nyaNekade: 0, redanNekade: 0, perKodNy: {}, perKodRedan: {}, okandaFalt: {}, exempelNya: [], exempelRedan: [] });
+  });
+
+  /*
    * ⛔ SLUTKODEN (granskningen av PR 464). Förut räknade skriptet inte `id`, fast CHANGELOG säger "Noll avvikelser (också id)" innan reglerna deployas: ett körskript som sade 0
    * med dokument som ramverket inte kan läsa hade sett ut som ett klartecken. Allt som reglerna nekar är kod 1; `stor` låser inte ute någon och står bara i utskriften.
    */
@@ -150,8 +212,21 @@ describe("kalenderformFel och mätningen i produktion", () => {
     it("⛔ id ger kod 1", () => {
       expect(kalenderformSlutkod([svar({ id: 1 }), svar({})])).toBe(1);
     });
-    it("⛔ varje annan kod som reglerna nekar ger kod 1", () => {
-      for (const k of ["ikon", "ordning", "okant-falt", "beskrivning", "tidsordning", "namn"]) expect(kalenderformSlutkod([svar({}), svar({ [k]: 2 })])).toBe(1);
+    it("⛔ varje kod som är NY med 0.153.0 ger kod 1", () => {
+      for (const k of NYA_KODER) expect(kalenderformSlutkod([svar({}), svar({ [k]: 2 })])).toBe(1);
+    });
+    /*
+     * ⛔ DET SOM REDAN VAR NEKAT FÖRE 0.153.0 GER KOD 0 (#467). Mätt i produktion 2026-10-29: 35 av 98 poster hade ett okänt fält (`id`), och slutkoden 1 stoppade en deploy som inte gjorde något nytt nekat,
+     * eftersom reglerna i produktion (0.151.0) krävde samma fältlista. Rött med den gamla logiken: `okant-falt` och `namn` gav 1 här.
+     */
+    it("⛔ varje kod som reglerna REDAN nekade före 0.153.0 ger kod 0 (#467)", () => {
+      for (const k of KALENDERFORM_REDAN_NEKAT) expect(kalenderformSlutkod([svar({}), svar({ [k]: 35 })])).toBe(0);
+      expect(kalenderformSlutkod([svar({ "okant-falt": 35 }), svar({})])).toBe(0);
+    });
+    it("⛔ en ny kod bredvid en gammal ger fortfarande kod 1: det nya göms inte av det gamla", () => {
+      expect(kalenderformSlutkod([svar({ "okant-falt": 35, ikon: 1 }), svar({})])).toBe(1);
+      expect(kalenderformSlutkod([svar({ "okant-falt": 35 }), svar({ blockerar: 1 })])).toBe(1);
+      expect(kalenderformSlutkod([svar({ "okant-falt": 35, stor: 2 }), svar({})])).toBe(0);
     });
     it("⛔ stor ensam ger kod 0: den låser inte ute någon", () => {
       expect(kalenderformSlutkod([svar({ stor: 4 }), svar({})])).toBe(0);
