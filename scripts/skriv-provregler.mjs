@@ -18,7 +18,7 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { mejlregelfragment } from "../src/lib/mejl.js";
-import { beskrivenappdataregelfragment, beskrivningsregelfragment, bibliotekregelfragment, delningsregelfragment, gastregelfragment, lagringsregelfragment, gruppadSamling, handelseregelfragment, kalenderregelfragment, kalendervalsregelfragment, katalogregelfragment, konfigloggregelfragment, minnesregelfragment, modulinstallningsregelfragment, regelfragment, samtalsregelfragment } from "../src/lib/regler.js";
+import { beskrivenappdataregelfragment, beskrivningsregelfragment, bibliotekregelfragment, delningsregelfragment, gastregelfragment, lagringsregelfragment, gruppadSamling, handelseregelfragment, kalenderregelfragment, kalendervalsregelfragment, katalogregelfragment, konfigloggregelfragment, minnesregelfragment, modulinstallningsregelfragment, platsregelfragment, regelfragment, samtalsregelfragment } from "../src/lib/regler.js";
 
 const rot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const ut = path.join(rot, "rules", "provregler.rules");
@@ -76,6 +76,9 @@ const ut = path.join(rot, "rules", "provregler.rules");
  *   här en påhittad samling utan block av eget: regelfragmentet slår bara upp posten, så klienten når den inte i provet, och den läggs in med reglerna avstängda.
  *   Händelsens och ärendets grenar ligger i samma fil, så att proven för en händelse också visar att den inte rubbats av ärendets.
  *
+ * ⛔ GRUPPENS EGNA PLATSER (0.155.0, cllp/ops-framework#469): `bibliotekregelfragment("bibliotek", { ..., platser: true })`, `lagringsregelfragment({ bibliotek: { ..., platser: true } })` och
+ *   `platsregelfragment("bibliotekplatser")` (platsernas egen samling, namnet påhittat som hos en app). Platsen `plats~<grupp>~<id>` slås inte upp: `rules/__tests__/platser.test.mjs`.
+ *
  * ⛔ BESKRIVNA APPAR (0.99.0): `beskrivenappdataregelfragment("appdata")` och `beskrivningsregelfragment("appbeskrivningar")`.
  *   Namnen är påhittade, som hos en app.
  */
@@ -95,7 +98,8 @@ ${kalenderregelfragment({ kalenderdelningar: "kalenderdelningar" })}
 ${kalendervalsregelfragment("kalenderval")}
 ${handelseregelfragment()}
 ${mejlregelfragment("mejlko")}
-${bibliotekregelfragment("bibliotek", { handelser: "handelser", arenden: "inkorg" })}
+${bibliotekregelfragment("bibliotek", { handelser: "handelser", arenden: "inkorg", platser: true })}
+${platsregelfragment("bibliotekplatser")}
 ${delningsregelfragment("delningar", { gruppdelar: true })}
 ${gastregelfragment("gastinbjudningar")}
 ${minnesregelfragment("gruppmine")}
@@ -134,7 +138,7 @@ const utLagring = path.join(rot, "rules", "provlagring.rules");
 const lagring = `rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-${lagringsregelfragment({ bibliotek: { gruppPrefix: "grupper", postPrefix: "bibliotek", samling: "bibliotek", handelsefiler: true, arendefiler: true } })}
+${lagringsregelfragment({ bibliotek: { gruppPrefix: "grupper", postPrefix: "bibliotek", samling: "bibliotek", handelsefiler: true, arendefiler: true, platser: true } })}
     match /{allaFiler=**} {
       allow read, write: if false;
     }

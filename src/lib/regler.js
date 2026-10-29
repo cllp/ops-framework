@@ -38,10 +38,11 @@ import {
 import { ID_FORM, KATALOGAVGRANSARE, KATEGORIFALT } from "./katalog.js";
 import { INSTALLNINGSVARDEFALT, MAX_INSTALLNINGSGRUPP, MAX_INSTALLNINGSID, MAX_INSTALLNINGSTEXT, MAX_MODULINSTALLNINGAR, MODULINSTALLNINGFALT, VISA_I_HUVUDMENYN } from "./modulinstallningar.js";
 import { MAX_TYPAVVIKELSER, MAX_TYPID, MAX_TYPNAMN, MODULTYPID_FORM, TYPAVVIKELSEFALT, TYPYTOR } from "./modultyper.js";
-import { ADRESSFORM, ARENDEFORM, ARENDE_PREFIX, BIBLIOTEKFALT, BIBLIOTEKTYPER, BILDFORM, FILFALT, HANDELSEFORM, HANDELSE_PREFIX, LJUD_STOLPAR, MITT_PREFIX, MAX_BIBLIOTEKFILNAMN, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKSOKVAG, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, MAX_BIBLIOTEKUTSKRIFT, MAX_LISTPOSTER, MAX_LJUD_MS, MAX_TAGGAR, POSTIDFORM, TAGGFORM, TOPPFORM, filContentTypeMonster, filMimeMonster, filtakRegel } from "./bibliotek.js";
+import { ADRESSFORM, ARENDEFORM, ARENDE_PREFIX, BIBLIOTEKFALT, BIBLIOTEKTYPER, BILDFORM, FILFALT, HANDELSEFORM, HANDELSE_PREFIX, LJUD_STOLPAR, MITT_PREFIX, PLATSFORM, PLATSIDFORM, PLATS_PREFIX, MAX_BIBLIOTEKFILNAMN, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKSOKVAG, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, MAX_BIBLIOTEKUTSKRIFT, MAX_LISTPOSTER, MAX_LJUD_MS, MAX_TAGGAR, POSTIDFORM, TAGGFORM, TOPPFORM, filContentTypeMonster, filMimeMonster, filtakRegel } from "./bibliotek.js";
 import { LANKKALLOR, lankkallaForm } from "./lankkalla.js";
 import { MAX_MINNESID, MAX_MINNESTEXT, MINNESFALT, MINNESKALLAFALT, MINNESKALLOR } from "./minne.js";
 import { MAX_SKAPARKALLA, MAX_SKAPARNAMN, SKAPARFALT, VIA_FALTNAMN } from "./skapare.js";
+import { MAX_PLATSNAMN, PLATSFALT, PLATSNYCKEL_AVGRANSARE } from "./platser.js";
 import { BESKRIVENAPPDATAFALT, BESKRIVNINGSDOKUMENTFALT, BESKRIVNINGSFALT, BESKRIVNINGSFORMAT, BESKRIVNINGSIDFORM, MAX_APPBESKRIVNING, MAX_BESKRIVNINGSNAMN, MAX_FALT, MAX_LISTOR, MIN_LISTOR } from "./beskrivenapp.js";
 import { KONFIGHANDELSER, KONFIGLOGGFALT } from "./konfiglogg.js";
 import { KALENDERVALFALT, KALENDERVALNYCKEL_FORM, KALENDERVISNINGAR, MAX_KALENDERVAL, MAX_KALENDERVALGRUPP } from "./kalendersynlighet.js";
@@ -497,7 +498,10 @@ ${
  * gruppen prövar Firestore-regeln när posten skapas (`bibliotekregelfragment` med `arenden`), av samma skäl som för händelsen. Utan flaggan är texten byte för byte
  * den förra, och med bara `handelsefiler: true` är den byte för byte den som 0.121.0 skrev.
  *
- * @param {{ prefix?: string, bibliotek?: { gruppPrefix: string, postPrefix: string, samling: string, medlemskap?: string, handelsefiler?: boolean, arendefiler?: boolean } }} [konfig]
+ * ⛔ GRUPPENS EGNA PLATSER (0.155.0, cllp/ops-framework#469): `bibliotek.platser: true` släpper in platsen `plats~<grupp>~<id>` på samma sätt: gruppens medlemskap, tolkat ur platsen, och posten ska finnas med samma plats. Till
+ * skillnad från de två ovan finns det inget objekt att slå upp, så Firestore-regeln för posten (`bibliotekregelfragment` med `platser: true`) prövar bara medlemskapet. Utan flaggan är texten byte för byte den förra.
+ *
+ * @param {{ prefix?: string, bibliotek?: { gruppPrefix: string, postPrefix: string, samling: string, medlemskap?: string, handelsefiler?: boolean, arendefiler?: boolean, platser?: boolean } }} [konfig]
  *   `prefix` förval `"profilbilder"`. `bibliotek` lägger till filerna, med sökväg
  *   `/{gruppPrefix}/{groupId}/{postPrefix}/{postId}/{filnamn}` som appen namnger.
  * @returns {string}
@@ -536,6 +540,7 @@ export function lagringsregelfragment(konfig = {}) {
   const medlemskap = kontrolleraNamn(konfig.bibliotek.medlemskap ?? "memberships", "medlemskap");
   const handelsefiler = konfig.bibliotek.handelsefiler === true;
   const arendefiler = konfig.bibliotek.arendefiler === true;
+  const platser = konfig.bibliotek.platser === true;
   // Objekten vars platser släpps in, i den ordning grenarna prövas. Utan någon är texten byte för byte den förra.
   const objekt = [
     ...(handelsefiler
@@ -556,6 +561,17 @@ export function lagringsregelfragment(konfig = {}) {
           kommentar: `    // ⛔ ETT ÄRENDES FILER (0.122.0): platsen ${ARENDE_PREFIX}<grupp>~<inkorgspostens id>. Samma behörighet som en händelses: gruppens medlemskap, tolkat ur platsen,
     // och bara om platsen har exakt den formen (tre delar). Att ärendet finns och ligger i gruppen prövar regeln för posten när den skapas, inte den här.
     // En plats som börjar ${ARENDE_PREFIX} prövas aldrig som en grupp med hela strängen som id.
+`,
+        }]
+      : []),
+    ...(platser
+      ? [{
+          namn: "Plats",
+          prefix: PLATS_PREFIX,
+          form: PLATSFORM,
+          kommentar: `    // ⛔ GRUPPENS EGNA PLATSER (0.155.0, cllp/ops-framework#469): platsen ${PLATS_PREFIX}<grupp>~<id>. Samma behörighet som en händelses och ett ärendes: gruppens medlemskap, tolkat ur platsen,
+    // och bara om platsen har exakt den formen (tre delar). Platsen slås inte upp, varken här eller i Firestore-regeln för posten: gruppen står i id:t. En plats som börjar ${PLATS_PREFIX} prövas aldrig som en grupp
+    // med hela strängen som id.
 `,
         }]
       : []),
@@ -1980,13 +1996,22 @@ ${bilagaRegelfunktion("opsKommentarbilagaGiltig")}
  *   - Grenarna utesluter varandra, och en plats som börjar \`arende~\` prövas bara som ärendeplats.
  *   - \`arenden\` och \`handelser\` är oberoende av varandra, och utan \`arenden\` är texten byte för byte den som 0.121.0 skrev.
  *
+ * ⛔ GRUPPENS EGNA PLATSER (0.155.0, cllp/ops-framework#469). Med `platser: true` släpps platsen `plats~<grupp>~<id>` in som en femte plats. Till skillnad från en händelses och ett ärendes slås INGET upp: gruppen står i
+ * id:t, och formen prövas först (exakt tre delar, `PLATSFORM`). Platsen är sortering och inte ett objekt, så den bär alla fyra typer (inget `typ == "fil"`-krav).
+ *   - LÄSA: aktiv medlem i platsens grupp, också en agent.
+ *   - SKAPA: som i gruppen (aktiv medlem som är en person, som sig själv, serverns klocka).
+ *   - ÄNDRA och RADERA: författaren (aktiv medlem), eller ägare och admin i gruppen. Som i gruppen.
+ *   - GRENARNA UTESLUTER VARANDRA, och en plats som börjar `plats~` prövas bara som en egen plats. Utan `platser` är texten byte för byte den förra, och en egen plats nekas.
+ *   - KOSTNADEN: medlemskapet, två av Firestores tio dokumentanrop, på varje väg (mätt, `rules/__tests__/platser.test.mjs`).
+ *   Platsens NAMN bor i en egen samling (`platsregelfragment`). Skicka `platser: true` till `lagringsregelfragment` också.
+ *
  * ⛔ `via` PÅ SKAPAREN (0.135.0, lifehub.app#409). En post som en personlig API-nyckel skrev åt personen bär `skapadAv.via = { nyckelId, namn }`, skrivet av servern (Admin SDK). En KLIENT skriver
  *   aldrig fältet: ett `create` med `via` nekas, och `skapadAv` står stilla vid en ändring (som förut). Men personen och admin måste kunna ÄNDRA en post hens nyckel skrev, och `hasOnly` över
  *   de fyra klientfälten hade nekat varje ändring av en rad som bär `via`. `opsSkaparstampel` släpper därför in de fyra fälten ELLER exakt den stämpel som redan står på raden.
  *   `SKAPARFALT` har inte `via` (listan är härledd in i `hasOnly`, och ett fält som läggs dit öppnar regeln), och regelprovet (`rules/__tests__/skapare-via.test.mjs`) visar båda hållen.
  *
  * @param {string} namn Samlingsnamnet appen valt.
- * @param {{ gruppPrefix?: string, postPrefix?: string, handelser?: string, arenden?: string }} [sokvag] Samma namn som `lagringsregelfragment({ bibliotek })` får.
+ * @param {{ gruppPrefix?: string, postPrefix?: string, handelser?: string, arenden?: string, platser?: boolean }} [sokvag] Samma namn som `lagringsregelfragment({ bibliotek })` får.
  *   `handelser` är appens händelsesamling (ramverket känner inget samlingsnamn). Skicka det och \`handelsefiler: true\` till \`lagringsregelfragment\`.
  *   `arenden` (0.122.0) är appens samling där ett ärende bor, normalt inkorgen. Skicka det och \`arendefiler: true\` till \`lagringsregelfragment\`.
  *   Förval `grupper` och `bibliotek`. Använder appen andra måste den skicka dem hit också, annars nekas dess egna uppladdningar
@@ -1999,6 +2024,7 @@ export function bibliotekregelfragment(namn, sokvag = {}) {
   const postPrefix = kontrolleraNamn(sokvag.postPrefix ?? "bibliotek", "postPrefix");
   const handelser = sokvag.handelser === undefined ? null : kontrolleraNamn(sokvag.handelser, "handelser");
   const arenden = sokvag.arenden === undefined ? null : kontrolleraNamn(sokvag.arenden, "arenden");
+  const egnaPlatser = sokvag.platser === true;
   const lista = (/** @type {readonly string[]} */ f) => f.map((x) => `"${x}"`).join(", ");
   // Varje typ har en egen gren nedan. En ny typ i modellen utan sin gren hade nekats tyst i produktion.
   if (BIBLIOTEKTYPER.join(",") !== "anteckning,lank,fil,lista") {
@@ -2064,13 +2090,40 @@ export function bibliotekregelfragment(namn, sokvag = {}) {
     }
 `)
     .join("\n");
-  const handelseFunktioner = objekt.length > 0 ? `${objektFunktioner}\n` : "";
+  // ⛔ GRUPPENS EGNA PLATSER (0.155.0, cllp/ops-framework#469): `plats~<grupp>~<id>`. Till skillnad från ett objekts plats slås ingenting upp: gruppen står i id:t, och behörigheten är gruppens medlemskap, tolkat
+  // ur platsen efter att formen prövats. Kostnaden är fast, mätt i emulatorn: medlemskapet (exists och get på samma dokument, två anrop) och inget mer, av tio. Platsen släpper in ALLA typer (en egen
+  // plats är sortering, som gruppens bibliotek) och har ingen gren i grenTyp. Utan platser: true skrivs ingenting, och texten är byte för byte den förra.
+  const platsFunktioner = egnaPlatser
+    ? `    // ⛔ GRUPPENS EGNA PLATSER (0.155.0, cllp/ops-framework#469): platsen ${PLATS_PREFIX}<grupp>~<id>. Formen först (exakt tre delar), så att split() alltid har tre element, och sedan gruppens medlemskap
+    // tolkat ur platsen. Platsen slås inte upp: gruppen står i id:t, och alla i gruppen ser alla platser, som gruppens bibliotek (regel 13, inga läsregler som avgör synlighet). En plats som börjar
+    // ${PLATS_PREFIX} prövas aldrig som en grupp med hela strängen som id. Kostnad: medlemskapet, två av tio anrop.
+    function opsBibliotekArEgenPlats(gid) {
+      return gid is string && gid.matches('(?s)${PLATS_PREFIX}.*');
+    }
+    function opsBibliotekEgenPlatsMedlem(gid) {
+      return gid.matches('${regelRegex(PLATSFORM)}') && opsArMedlem(gid.split('~')[1]);
+    }
+    function opsBibliotekEgenPlatsAdmin(gid) {
+      return gid.matches('${regelRegex(PLATSFORM)}') && opsArAdmin(gid.split('~')[1]);
+    }
+    function opsBibliotekEgenPlatsPerson(gid) {
+      return opsBibliotekEgenPlatsMedlem(gid) && opsMedlemskapet(gid.split('~')[1]).data.typ == 'person';
+    }
+
+`
+    : "";
+  const handelseFunktioner = (objekt.length > 0 ? `${objektFunktioner}\n` : "") + platsFunktioner;
   // Grenarna i ordning före Mitt bibliotek och gruppen. Med ett objekt är de samma tecken som 0.121.0 skrev.
-  const grenMedlem = objekt.map((o) => `opsBibliotekAr${o.namn}(gid) ? opsBibliotek${o.namn}Medlem(gid) : `).join("");
-  const grenAdmin = objekt.map((o) => `opsBibliotekAr${o.namn}(gid) ? opsBibliotek${o.namn}Admin(gid) : `).join("");
+  /** @type {{ ar: string, medlem: string, admin: string, person: string }[]} */
+  const grenar = [
+    ...objekt.map((o) => ({ ar: `opsBibliotekAr${o.namn}`, medlem: `opsBibliotek${o.namn}Medlem`, admin: `opsBibliotek${o.namn}Admin`, person: `opsBibliotek${o.namn}Person` })),
+    ...(egnaPlatser ? [{ ar: "opsBibliotekArEgenPlats", medlem: "opsBibliotekEgenPlatsMedlem", admin: "opsBibliotekEgenPlatsAdmin", person: "opsBibliotekEgenPlatsPerson" }] : []),
+  ];
+  const grenMedlem = grenar.map((g) => `${g.ar}(gid) ? ${g.medlem}(gid) : `).join("");
+  const grenAdmin = grenar.map((g) => `${g.ar}(gid) ? ${g.admin}(gid) : `).join("");
   const grenTyp = objekt.map((o) => `        && (!opsBibliotekAr${o.namn}(d.groupId) || d.typ == "fil")\n`).join("");
-  const grenSkapa = objekt.length > 0
-    ? "          " + objekt.map((o) => `opsBibliotekAr${o.namn}(request.resource.data.groupId)\n            ? opsBibliotek${o.namn}Person(request.resource.data.groupId)\n            : `).join("")
+  const grenSkapa = grenar.length > 0
+    ? "          " + grenar.map((g) => `${g.ar}(request.resource.data.groupId)\n            ? ${g.person}(request.resource.data.groupId)\n            : `).join("")
     : "          ";
   return `    // ══ Ramverkets bibliotek. GENERERAD, ändra inte för hand ══
     //
@@ -2254,6 +2307,85 @@ ${grenSkapa}opsBibliotekArMitt(request.resource.data.groupId)
         );
       allow delete: if (opsBibliotekPlatsMedlem(resource.data.groupId) && resource.data.skapadAv.uid == request.auth.uid)
         || opsBibliotekPlatsAdmin(resource.data.groupId);
+    }
+`;
+}
+
+/**
+ * Regelfragmentet för gruppens egna platser i Biblioteket (0.155.0, cllp/ops-framework#469): namnet, vem som skapade platsen och om den är arkiverad.
+ *
+ * ══ ⛔ VAD SOM GÄLLER, OCH VARFÖR ═══════════════════════════════════════
+ *
+ *   - NYCKELN: `<grupp>|<id>` (`platsnyckel`), och nyckeln måste börja med radens EGEN grupp och sluta på ett plats-id (`PLATSIDFORM`). Det är det som gör id:t unikt per grupp: ett andra dokument med samma
+ *     nyckel kan inte finnas, och en admin i grupp A kan inte skapa `B|x` med `groupId: "A"` (samma lärdom som katalogens nyckel, 0.33.0). Id:t lagras inte på raden.
+ *   - LÄSA: aktiv medlem i radens grupp, också en agent. Platserna är bara namn, och agenten behöver listan för att hitta filerna (cllp/ops-framework#469 punkt 5). Det är ingen skillnad mot gruppens
+ *     bibliotek, som en agent redan läser. En fråga utan `groupId` går inte att bevisa och nekas.
+ *   - SKAPA: aktiv medlem som är en person (inte en agent), som sig själv (`skapadAv.uid`, typen `manniska`, och aldrig `via`), med `skapad` nära serverns klocka, `arkiverad: false` och exakt fälten i `PLATSFALT`.
+ *   - BYTA NAMN OCH ARKIVERA: den som skapade platsen, eller ägare och admin i gruppen, alla som aktiva medlemmar och personer. Bara `namn` och `arkiverad` kan ändras; gruppen, skaparen och `skapad` står stilla.
+ *     `arkiverad` går åt båda håll: en arkiverad plats tas fram igen, annars kunde filerna på den aldrig nås och flyttas ut.
+ *   - RADERA: aldrig. "Varför försvann den" frågas alltid i efterhand, och posterna på platsen pekar på id:t.
+ *
+ * ⛔ REGELN PRÖVAR INTE ATT NAMNET ÄR UNIKT. Det vore en lista att gå igenom, och det går inte i en regel. Klienten avvisar ett dubblettnamn (`platsnamnFel`), och ett dubblettnamn som ändå skrivs skadar inget:
+ * id:t är nyckeln. Och reglerna för POSTERNA (`bibliotekregelfragment` med `platser: true`) slår inte upp den här samlingen alls: gruppen står i platsens id. En post kan alltså skrivas till en plats som saknar
+ * dokument, och den syns då inte i växlaren. Det är medvetet (ingen extra uppslagning, regel 13) och postens behörighet är densamma som i gruppens bibliotek.
+ *
+ * ⛔ KOSTNADEN ÄR FAST OCH MÄTT: medlemskapet (exists och get på samma dokument, två anrop av tio) och inget mer, för alla vägar. Se `rules/__tests__/platser.test.mjs`.
+ *
+ * ⛔ RAMVERKET KÄNNER INTE SAMLINGSNAMNET. Fragmentet använder `opsArMedlem`, `opsMedlemskapet` och `opsArAdmin` ur `regelfragment()`, och ska limmas in efter det. Namnet får inte vara en av ramverkets egna samlingar.
+ *
+ * @param {string} namn Samlingsnamnet appen valt.
+ * @returns {string}
+ */
+export function platsregelfragment(namn) {
+  const samling = kontrolleraNamn(namn, "platser");
+  if (Object.values(GRUNDSAMLINGAR).includes(samling)) {
+    throw new Error(`platsregelfragment: samlingen "${samling}" är en av ramverkets egna (${Object.values(GRUNDSAMLINGAR).join(", ")}). Platserna har en egen samling, för ett andra block på en samling lägger en andra regel på den.`);
+  }
+  const lista = (/** @type {readonly string[]} */ f) => f.map((x) => `"${x}"`).join(", ");
+  return `    // ══ Ramverkets platser i Biblioteket (0.155.0). GENERERAD, ändra inte för hand ══
+    //
+    // Källa: ops-framework, platsregelfragment() i src/lib/regler.js. Kräver regelfragment() ovanför.
+
+${nuRegelfunktion("opsPlatsernaNu")}
+
+    // Platsens fält. Skaparen är en person och aldrig \`via\`: en plats skapas av en medlem i klienten, inte av en nyckel. Namnet trimmas som i biblioteket (Firestores trim tar bara U+0000 till U+0020).
+    function opsPlatsGiltig(d) {
+      return d.keys().hasOnly([${lista(PLATSFALT)}])
+        && d.namn is string
+        && d.namn.trim().size() > 0
+        && d.namn.size() <= ${MAX_PLATSNAMN}
+        && d.arkiverad is bool
+        && d.skapadAv.keys().hasOnly([${lista(SKAPARFALT)}])
+        && d.skapadAv.namn is string
+        && d.skapadAv.namn.size() <= ${MAX_SKAPARNAMN}
+        && d.skapadAv.typ == "manniska"
+        && d.skapadAv.kalla is string
+        && d.skapadAv.kalla.size() <= ${MAX_SKAPARKALLA};
+    }
+
+    // Den som får byta namn och arkivera: skaparen, eller ägare och admin, alla som aktiva medlemmar och personer. Medlemskapet är ett dokument (exists och get), oavsett gren.
+    function opsFarAndraPlatsen(gid, skapare) {
+      return opsArMedlem(gid)
+        && opsMedlemskapet(gid).data.typ == 'person'
+        && (skapare == request.auth.uid
+          || opsMedlemskapet(gid).data.roll == 'agare'
+          || opsMedlemskapet(gid).data.roll == 'admin');
+    }
+
+    match /${samling}/{id} {
+      allow read: if opsArMedlem(resource.data.groupId);
+      allow create: if opsArMedlem(request.resource.data.groupId)
+        && opsMedlemskapet(request.resource.data.groupId).data.typ == 'person'
+        && id.matches(request.resource.data.groupId + '[${PLATSNYCKEL_AVGRANSARE}]${regelRegex(PLATSIDFORM)}')
+        && request.resource.data.skapadAv.uid == request.auth.uid
+        && opsPlatsernaNu(request.resource.data.skapad)
+        && request.resource.data.arkiverad == false
+        && opsPlatsGiltig(request.resource.data);
+      allow update: if request.resource.data.groupId == resource.data.groupId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["namn", "arkiverad"])
+        && opsPlatsGiltig(request.resource.data)
+        && opsFarAndraPlatsen(resource.data.groupId, resource.data.skapadAv.uid);
+      allow delete: if false;
     }
 `;
 }
