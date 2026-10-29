@@ -195,17 +195,29 @@ describe("Källan för ett ärendes plats", () => {
     expect(await source.list("bibliotek", {})).toHaveLength(0);
   });
 
-  it("flytten kastar åt alla håll, med ett skäl som nämner ärendet, och ingenting skrivs eller raderas", async () => {
-    const { arende, grupp, handelse, source } = kallor();
+  it("flytten IN i ett ärende kastar, med ett skäl som nämner ärendet, och ingenting skrivs eller raderas", async () => {
+    const { arende, grupp, handelse, annan, source } = kallor();
     const post = await arende.laddaUppFil({ rubrik: "Bio", fil: pdf });
     const lagom = vi.fn(async () => new Blob([new Uint8Array(2000)]));
-    await expect(flyttaBibliotekspost({ fran: arende, till: grupp, id: post.id, satt: "flytta", hamtaFil: lagom })).rejects.toThrow(/ett ärendes bibliotek flyttas inte/);
-    await expect(flyttaBibliotekspost({ fran: grupp, till: arende, id: post.id, satt: "kopiera", hamtaFil: lagom })).rejects.toThrow(/ett ärendes bibliotek flyttas inte/);
-    await expect(flyttaBibliotekspost({ fran: arende, till: kallor().annan, id: post.id, satt: "kopiera", hamtaFil: lagom })).rejects.toThrow(/ett ärendes bibliotek/);
+    await expect(flyttaBibliotekspost({ fran: grupp, till: arende, id: post.id, satt: "kopiera", hamtaFil: lagom })).rejects.toThrow(/ett ärendes bibliotek flyttas inte till/);
+    await expect(flyttaBibliotekspost({ fran: arende, till: annan, id: post.id, satt: "kopiera", hamtaFil: lagom })).rejects.toThrow(/ett ärendes bibliotek flyttas inte till/);
     // Mellan ett ärende och en händelse också: det är två objekt med var sin synlighet.
-    await expect(flyttaBibliotekspost({ fran: arende, till: handelse, id: post.id, satt: "kopiera", hamtaFil: lagom })).rejects.toThrow(/bibliotek flyttas inte/);
+    await expect(flyttaBibliotekspost({ fran: arende, till: handelse, id: post.id, satt: "kopiera", hamtaFil: lagom })).rejects.toThrow(/händelses bibliotek flyttas inte till/);
+    await expect(flyttaBibliotekspost({ fran: handelse, till: arende, id: post.id, satt: "kopiera", hamtaFil: lagom })).rejects.toThrow(/ett ärendes bibliotek flyttas inte till/);
     expect(lagom).not.toHaveBeenCalled();
     expect(await source.list("bibliotek", {})).toHaveLength(1);
+  });
+
+  it("flytten UT ur ett ärende går (0.155.0, cllp/ops-framework#469): kopia eller flytt till gruppens plats", async () => {
+    const { arende, grupp } = kallor();
+    const post = await arende.laddaUppFil({ rubrik: "Bio", fil: pdf });
+    const lagom = vi.fn(async () => new Blob([new Uint8Array(2000)]));
+    await flyttaBibliotekspost({ fran: arende, till: grupp, id: post.id, satt: "kopiera", hamtaFil: lagom });
+    expect((await arende.las()).poster).toHaveLength(1);
+    expect((await grupp.las()).poster).toHaveLength(1);
+    await flyttaBibliotekspost({ fran: arende, till: grupp, id: post.id, satt: "flytta", hamtaFil: lagom });
+    expect((await arende.las()).poster).toHaveLength(0);
+    expect((await grupp.las()).poster).toHaveLength(2);
   });
 });
 

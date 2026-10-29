@@ -30,8 +30,12 @@ import { OpsButton } from "./OpsButton.jsx";
  * det ändå (aktiv medlem som person, objektet finns i gruppen), så knappen döljer en knapp som nekas och är inte skyddet. Krävs, utan förval:
  * en medlem som får läsa men inte lägga till ska inte se en knapp som inte går att använda, och en app som glömt propen ska märka det.
  *
- * ⛔ BARA FILER, och inget flyttas dit eller därifrån. En anteckning eller en länk på ett objekt är objektets text en gång till, och en flytt
- * är ett beslut om vem som ser filen, som objektet redan har bestämt. `OpsBibliotek` kastar om platsen ges som `platser` eller `grupper`.
+ * ⛔ BARA FILER, och inget flyttas IN i ett objekt. En anteckning eller en länk på ett objekt är objektets text en gång till, och en flytt in är ett beslut om vem som ser filen, som objektet redan har
+ * bestämt. `OpsBibliotek` kastar om ett objekts plats ges som `platser` eller `grupper`.
+ *
+ * ⛔ MEN EN FIL KAN FLYTTAS ELLER KOPIERAS UT (0.155.0, cllp/ops-framework#469, CP 2026-10-29: "En fil hamnar i Biblioteket bara för att någon väljer det: Flytta eller Kopiera till en plats."). Med `grupper`
+ * (platserna den kan gå till: gruppens bibliotek och gruppens egna platser, helst inte en annan grupps) och `onDela` får varje fil raderna Flytta och Kopiera i sin meny, och `flyttaBibliotekspost` gör flytten
+ * (`fran` är objektets källa, `till` platsens). Ett objekts filer syns inte i Biblioteket eller i växlaren av sig själva; det är det här valet som lägger dem där.
  *
  * @param {object} props
  * @param {{ groupId: string, las: () => Promise<any>, prenumerera?: Function, spara: Function, laddaUppFil: Function, radera: Function }} props.kalla
@@ -56,6 +60,8 @@ import { OpsButton } from "./OpsButton.jsx";
  * @param {(inmatning: any) => Promise<void> | void} [props.onAterkalla] Se `OpsBibliotek`.
  * @param {(inmatning: { id: string, url: string, till: string }) => Promise<void | boolean> | void | boolean} [props.onMejlaLank] (0.128.0, cllp/lifehub.app#356) Se `OpsBibliotek`. Fältet "Skicka till mejl" i dialogen Dela länk.
  * @param {string} [props.sprak] "sv" eller "en". Förval ur `OpsSprakProvider`.
+ * @param {readonly { id: string, namn: string }[]} [props.grupper] (0.155.0) Platserna en fil kan flyttas eller kopieras till (`{ id: plats, namn }`): gruppens bibliotek och gruppens egna platser (`platsval`). Ritar Flytta och Kopiera i filens meny tillsammans med `onDela`. Aldrig ett objekts plats: den kastar.
+ * @param {(inmatning: { id: string, groupId: string, satt: "flytta" | "kopiera" }) => void | Promise<void>} [props.onDela] (0.155.0) Flytta eller kopiera filen `id` till platsen `groupId`. Normalt `flyttaBibliotekspost({ fran: kalla, till, id, satt, hamtaFil })`.
  * @param {string} [props.rubrik] Förval "Filer".
  * @param {string} [props.laddaUppEtikett] Förval "Ladda upp".
  */
@@ -84,7 +90,7 @@ const SLAG = {
 };
 
 /** @param {any} p */
-function PlatsfilerRitad({ slag: kravtSlag, kalla, jag, kanLaggaTill, rubrik, laddaUppEtikett, filUrl, hamtaAdress, onFyllLjud, onSkrivUt, onSkrivUtIgen, onTaBortUtskrift, onAnteckningAvUtskrift, delningar, delningGruppdel, gruppnamn, onDelaLank, onAndraNedladdning, onAterkalla, onMejlaLank }) {
+function PlatsfilerRitad({ slag: kravtSlag, kalla, jag, kanLaggaTill, rubrik, laddaUppEtikett, grupper, onDela, filUrl, hamtaAdress, onFyllLjud, onSkrivUt, onSkrivUtIgen, onTaBortUtskrift, onAnteckningAvUtskrift, delningar, delningGruppdel, gruppnamn, onDelaLank, onAndraNedladdning, onAterkalla, onMejlaLank }) {
   const rubrikId = useId();
   const [vald, setVald] = useState(/** @type {any} */ (null));
   const [skapar, setSkapar] = useState(/** @type {"fil" | null} */ (null));
@@ -151,6 +157,8 @@ function PlatsfilerRitad({ slag: kravtSlag, kalla, jag, kanLaggaTill, rubrik, la
           await kalla.radera(id);
           if (vald?.id === id) setVald(null);
         }}
+        {...(grupper ? { grupper } : {})}
+        {...(onDela ? { onDela } : {})}
         {...(filUrl ? { filUrl } : {})}
         {...(hamtaAdress ? { hamtaAdress } : {})}
         {...(onFyllLjud ? { onFyllLjud } : {})}
