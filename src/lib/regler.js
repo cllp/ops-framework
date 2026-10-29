@@ -38,14 +38,14 @@ import {
 import { ID_FORM, KATALOGAVGRANSARE, KATEGORIFALT } from "./katalog.js";
 import { INSTALLNINGSVARDEFALT, MAX_INSTALLNINGSGRUPP, MAX_INSTALLNINGSID, MAX_INSTALLNINGSTEXT, MAX_MODULINSTALLNINGAR, MODULINSTALLNINGFALT, VISA_I_HUVUDMENYN } from "./modulinstallningar.js";
 import { MAX_TYPAVVIKELSER, MAX_TYPID, MAX_TYPNAMN, MODULTYPID_FORM, TYPAVVIKELSEFALT, TYPYTOR } from "./modultyper.js";
-import { ADRESSFORM, ARENDEFORM, ARENDE_PREFIX, BIBLIOTEKFALT, BIBLIOTEKTYPER, BILDFORM, FILFALT, HANDELSEFORM, HANDELSE_PREFIX, LJUD_STOLPAR, MITT_PREFIX, MAX_BIBLIOTEKFILNAMN, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKSOKVAG, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, MAX_BIBLIOTEKUTSKRIFT, MAX_LISTPOSTER, MAX_LJUD_MS, MAX_TAGGAR, POSTIDFORM, TAGGFORM, TOPPFORM, filMimeMonster, filtakRegel } from "./bibliotek.js";
+import { ADRESSFORM, ARENDEFORM, ARENDE_PREFIX, BIBLIOTEKFALT, BIBLIOTEKTYPER, BILDFORM, FILFALT, HANDELSEFORM, HANDELSE_PREFIX, LJUD_STOLPAR, MITT_PREFIX, MAX_BIBLIOTEKFILNAMN, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKSOKVAG, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, MAX_BIBLIOTEKUTSKRIFT, MAX_LISTPOSTER, MAX_LJUD_MS, MAX_TAGGAR, POSTIDFORM, TAGGFORM, TOPPFORM, filContentTypeMonster, filMimeMonster, filtakRegel } from "./bibliotek.js";
 import { LANKKALLOR, lankkallaForm } from "./lankkalla.js";
 import { MAX_MINNESID, MAX_MINNESTEXT, MINNESFALT, MINNESKALLAFALT, MINNESKALLOR } from "./minne.js";
 import { MAX_SKAPARKALLA, MAX_SKAPARNAMN, SKAPARFALT, VIA_FALTNAMN } from "./skapare.js";
 import { BESKRIVENAPPDATAFALT, BESKRIVNINGSDOKUMENTFALT, BESKRIVNINGSFALT, BESKRIVNINGSFORMAT, BESKRIVNINGSIDFORM, MAX_APPBESKRIVNING, MAX_BESKRIVNINGSNAMN, MAX_FALT, MAX_LISTOR, MIN_LISTOR } from "./beskrivenapp.js";
 import { KONFIGHANDELSER, KONFIGLOGGFALT } from "./konfiglogg.js";
 import { KALENDERVALFALT, KALENDERVALNYCKEL_FORM, KALENDERVISNINGAR, MAX_KALENDERVAL, MAX_KALENDERVALGRUPP } from "./kalendersynlighet.js";
-import { AVVECKLADE_KALENDERFALT, DATUMFORM, KALENDERFALT, KALENDERFARGER, KALENDERPOSTFALT, MAX_KALENDERNAMN, MAX_POSTBESKRIVNING, MAX_POSTPLATS, MAX_POSTTITEL, MINKALENDERFALT, TIDPUNKTSFORM } from "./kalendrar.js";
+import { AVVECKLADE_KALENDERFALT, DATUMFORM, KALENDERFALT, KALENDERFARGER, KALENDERPOSTFALT, MAX_KALENDERID, MAX_KALENDERIKON, MAX_KALENDERNAMN, MAX_POSTBESKRIVNING, MAX_POSTPLATS, MAX_POSTTITEL, MINKALENDERFALT, TIDPUNKTSFORM } from "./kalendrar.js";
 import { KOMMENTARBILAGAFALT, KOMMENTARBILAGA_TYPER, KOMMENTARFALT, LASMARKESFALT, MAX_BILAGENAMN, MAX_HANDELSEKOMMENTAR, MAX_KOMMENTARBILAGA, SVARSFALT, SVARSVAL } from "./handelsemodell.js";
 import { AMNESFALT, AMNES_REGEL, BILAGA_TRADSKILJE, BILAGEMARKEFALT, FASTFALT, MAX_AMNESRUBRIK, GRUPPSAMTAL, LASTFALT, MAX_MEDDELANDE, MAX_NAMNER, MAX_TRADNAMN, MAX_UIDLANGD, MEDDELANDEFALT, NAMNERFALT, NAMNER_ALLA, REAKTIONSFALT, SVARPAFALT, REAKTIONSKODER, SAMTALSAVGRANSARE, SAMTALSFALT, TRADFALT, undersamlingskrock } from "./samtal.js";
 
@@ -617,7 +617,8 @@ ${handelsefunktioner}    function opsFilPlatsMedlem(gid) {
         // ⛔ LJUD OCH VIDEO HAR VAR SITT TAK (CP 2026-10-18, WAV; 2026-10-19, video): familjernas tak och det allmänna står i FILTAK och
         // MAX_BIBLIOTEKFIL (src/lib/bibliotek.js) och skrivs hit ur dem.
         && ${filtakRegel("request.resource.contentType", "request.resource.size", "\n          ")}
-        && request.resource.contentType.matches('${filMimeMonster()}');
+        // ⛔ TEXTFILENS TECKENKODNING (0.153.0, ops-framework#460 punkt 3): text/plain får bära '; charset=utf-8' (lagringsContentType i bibliotek.js). Reglerna ska vara deployade FÖRE klienten.
+        && request.resource.contentType.matches('${filContentTypeMonster()}');
       allow delete: if false;
     }
 `;
@@ -1535,6 +1536,7 @@ export function kalenderregelfragment(namn = {}) {
   const lista = (/** @type {readonly (string|number)[]} */ f) => f.map((x) => (typeof x === "number" ? String(x) : `"${x}"`)).join(", ");
   const datum = regeluttryck(DATUMFORM);
   const tidpunkt = regeluttryck(TIDPUNKTSFORM);
+  const idMonster = regelRegex(ID_FORM);
   /*
    * ⛔ `id` LAGRAS INTE PÅ RADEN (rättat 0.37.0). 0.36.0 krävde `request.resource.data.id == kid`, alltså att nyckeln
    * också stod som ett fält. Det är samma uppgift två gånger (arbetsreglernas punkt 2), och det gick dessutom inte att
@@ -1566,39 +1568,67 @@ ${gruppadSamlingBlock(gruppkalendrar, { skrivvillkor: "opsArAdmin", falt: [...KA
       return /databases/$(database)/documents/${anvandare}/$(uid)/${minaKalendrar}/$(kid);
     }
 
+    // ⛔ TAK FÖR MINA KALENDRAR OCH DERAS POSTER (0.153.0, cllp/ops-framework#463). Mätt i emulatorn före rättelsen: ett id på 1 400 tecken, ett id med versaler och blanksteg och en
+    // \`ikon\` på 900 kB släpptes in, och ett fält av fel sort (en lista i \`beskrivning\`, vars \`size()\` är antalet element) gick förbi längdprövningen. Ingenting läcker, men en person kunde fylla sina
+    // egna dokument utan gräns. Id:t prövas bara vid \`create\`: ett dokument som redan finns kan inte byta id, och ett nej på dess ändring hade låst ute ägaren. De valfria fälten prövas bara när de finns
+    // (\`!('x' in d) || ...\`): byggaren fyller i \`false\` för ett sanningsvärde som utelämnas, men en rad skriven på annat sätt kan sakna dem, och ett utvärderingsfel på ett saknat fält är ett nej.
+    function opsMinKalenderGiltig(d) {
+      return d.keys().hasOnly([${lista(utanId(MINKALENDERFALT))}])
+        && d.namn is string
+        && d.namn.size() > 0
+        && d.namn.size() <= ${MAX_KALENDERNAMN}
+        && d.farg in [${lista(KALENDERFARGER)}]
+        && (!('ikon' in d) || (d.ikon is string && d.ikon.size() <= ${MAX_KALENDERIKON} && d.ikon.matches('${idMonster}')))
+        && (!('ordning' in d) || d.ordning is number)
+        && (!('forvald' in d) || d.forvald is bool)
+        && (!('iFlodet' in d) || d.iFlodet is bool)
+        && (!('arkiverad' in d) || d.arkiverad is bool);
+    }
+
+    function opsKalenderpostGiltig(uid, d) {
+      return d.keys().hasOnly([${lista(utanId(KALENDERPOSTFALT))}])
+        && d.kalenderId is string
+        && exists(opsMinKalender(uid, d.kalenderId))
+        && get(opsMinKalender(uid, d.kalenderId)).data.get('arkiverad', false) != true
+        && d.titel is string
+        && d.titel.size() > 0
+        && d.titel.size() <= ${MAX_POSTTITEL}
+        && d.get('beskrivning', '') is string
+        && d.get('beskrivning', '').size() <= ${MAX_POSTBESKRIVNING}
+        && d.get('plats', '') is string
+        && d.get('plats', '').size() <= ${MAX_POSTPLATS}
+        && d.get('blockerar', false) is bool
+        && d.heldag is bool
+        && d.start is string
+        && d.slut is string
+        && ((d.heldag == true
+            && d.start.matches('${datum}')
+            && d.slut.matches('${datum}'))
+          || (d.heldag == false
+            && d.start.matches('${tidpunkt}')
+            && d.slut.matches('${tidpunkt}')))
+        && d.slut >= d.start;
+    }
+
     match /${anvandare}/{uid}/${minaKalendrar}/{kid} {
       allow read: if opsInloggad() && request.auth.uid == uid;
-      allow create, update: if opsInloggad() && request.auth.uid == uid
-        && request.resource.data.keys().hasOnly([${lista(utanId(MINKALENDERFALT))}])
-        && request.resource.data.namn is string
-        && request.resource.data.namn.size() > 0
-        && request.resource.data.namn.size() <= ${MAX_KALENDERNAMN}
-        && request.resource.data.farg in [${lista(KALENDERFARGER)}];
+      allow create: if opsInloggad() && request.auth.uid == uid
+        && kid.matches('${idMonster}')
+        && kid.size() <= ${MAX_KALENDERID}
+        && opsMinKalenderGiltig(request.resource.data);
+      allow update: if opsInloggad() && request.auth.uid == uid
+        && opsMinKalenderGiltig(request.resource.data);
       allow delete: if false;
     }
 
     match /${anvandare}/{uid}/${kalenderposter}/{pid} {
       allow read, delete: if opsInloggad() && request.auth.uid == uid;
-      allow create, update: if opsInloggad() && request.auth.uid == uid
-        && request.resource.data.keys().hasOnly([${lista(utanId(KALENDERPOSTFALT))}])
-        && request.resource.data.kalenderId is string
-        && exists(opsMinKalender(uid, request.resource.data.kalenderId))
-        && get(opsMinKalender(uid, request.resource.data.kalenderId)).data.get('arkiverad', false) != true
-        && request.resource.data.titel is string
-        && request.resource.data.titel.size() > 0
-        && request.resource.data.titel.size() <= ${MAX_POSTTITEL}
-        && request.resource.data.get('beskrivning', '').size() <= ${MAX_POSTBESKRIVNING}
-        && request.resource.data.get('plats', '').size() <= ${MAX_POSTPLATS}
-        && request.resource.data.heldag is bool
-        && request.resource.data.start is string
-        && request.resource.data.slut is string
-        && ((request.resource.data.heldag == true
-            && request.resource.data.start.matches('${datum}')
-            && request.resource.data.slut.matches('${datum}'))
-          || (request.resource.data.heldag == false
-            && request.resource.data.start.matches('${tidpunkt}')
-            && request.resource.data.slut.matches('${tidpunkt}')))
-        && request.resource.data.slut >= request.resource.data.start;
+      allow create: if opsInloggad() && request.auth.uid == uid
+        && pid.matches('${idMonster}')
+        && pid.size() <= ${MAX_KALENDERID}
+        && opsKalenderpostGiltig(uid, request.resource.data);
+      allow update: if opsInloggad() && request.auth.uid == uid
+        && opsKalenderpostGiltig(uid, request.resource.data);
     }
 `;
 }

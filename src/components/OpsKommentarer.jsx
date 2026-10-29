@@ -5,6 +5,7 @@ import { formatDagOchKlockslag } from "../lib/format.js";
 import { OppnaHandelseKontext } from "../lib/handelsekontext.js";
 import { laesSkapare, namnMedVia } from "../lib/skapare.js";
 import { handelseIdUrAdress } from "../lib/handelsepanel.js";
+import { RAKNARE_FRAN } from "../lib/samtal.js";
 import { definierade, forvalda } from "../lib/ord.js";
 import { OpsButton } from "./OpsButton.jsx";
 import { OpsField, OpsTextarea } from "./OpsField.jsx";
@@ -63,6 +64,13 @@ import { usePersonnamn } from "./usePersonnamn.js";
  *     igenom mer än så, och en knapp regeln nekar är en knapp som ljuger.
  * En kommentars `skapadAv` får också vara den gamla strängen (appens ärenden bär den tills bakfyllnaden är körd).
  *
+ * ══ ⛔ TECKENRÄKNARE, OCH INGEN TYST KAPNING (0.153.0, cllp/ops-framework#460 punkt 7) ═══════════════════════════════════════════════
+ *
+ * Skrivrutan hade `maxLength={MAX_HANDELSEKOMMENTAR}`, och webbläsaren kapar en inklistrad text vid taket utan ett ord: appen ställde ut taket under rutan som nödlösning
+ * (lifehub.app PR 480, granskningspunkt 12). Nu är det som i chattens skrivfält (`OpsMeddelanden`, 0.106.0): hela texten står kvar, räknaren syns de sista `RAKNARE_FRAN` tecknen
+ * ("Kommentaren är N tecken, taket är 5000"), och över taket säger en rad hur många tecken för lång den är, fältet markeras och Skicka är avstängd. Taket är modellens
+ * (`MAX_HANDELSEKOMMENTAR`), samma som regeln och `byggKommentar`.
+ *
  * @param {object} props
  * @param {ReadonlyArray<{ id: string, text: string, skapad: string, skapadAv?: { uid?: string | null, namn?: string } | string }>} props.kommentarer
  * @param {string} props.uid Den som tittar.
@@ -88,6 +96,8 @@ import { usePersonnamn } from "./usePersonnamn.js";
  * @param {string} [props.duText]
  * @param {string} [props.bifogaEtikett]
  * @param {string} [props.bilagaText]
+ * @param {string} [props.langdText] (0.153.0) Räknaren de sista tecknen före taket. `{n}` och `{max}` byts. Förval "Kommentaren är {n} tecken, taket är {max}.".
+ * @param {string} [props.forLangText] (0.153.0) Felet över taket. `{over}` byts. Förval "Kommentaren är {over} tecken för lång. Korta den för att skicka.".
  */
 export function OpsKommentarer(props) {
   const kontext = useOpsSprak();
@@ -121,6 +131,8 @@ function OpsKommentarerRitad({
   duText = ORD_OPSKOMMENTARER.duText.sv,
   bifogaEtikett = ORD_OPSKOMMENTARER.bifogaEtikett.sv,
   bilagaText = ORD_OPSKOMMENTARER.bilagaText.sv,
+  langdText = ORD_OPSKOMMENTARER.langdText.sv,
+  forLangText = ORD_OPSKOMMENTARER.forLangText.sv,
 }) {
   if (typeof onSkriv !== "function") throw new Error("OpsKommentarer: onSkriv krävs. En tråd utan skrivruta är en lista, och den heter inte kommentarer.");
   if (onTaBort !== undefined && typeof onTaBort !== "function") throw new Error("OpsKommentarer: onTaBort måste vara en funktion, eller utelämnas.");
@@ -140,7 +152,12 @@ function OpsKommentarerRitad({
   const [taBortFel, setTaBortFel] = useState(/** @type {string | null} */ (null));
   const locale = sprak === "en" ? "en-GB" : "sv-SE";
   const rensad = utkast.trim();
-  const kanSkicka = Boolean(rensad || bilaga);
+  // ⛔ INGEN TYST KAPNING (se filhuvudet): längden räknas som modellen räknar den (`byggKommentar` prövar den trimmade texten), och över taket är Skicka avstängd.
+  const langd = rensad.length;
+  const forLang = langd > MAX_HANDELSEKOMMENTAR;
+  // ⛔ RÄKNAREN RÄKNAR SAMMA LÄNGD SOM TAKET PRÖVAR (granskningen av PR 464): den trimmade. Förut stod `utkast.length` i räknaren, så blanksteg i kanterna gav en siffra över taket på en text som gick att skicka.
+  const visaRaknare = langd >= MAX_HANDELSEKOMMENTAR - RAKNARE_FRAN;
+  const kanSkicka = Boolean(rensad || bilaga) && !forLang;
 
   const skicka = async () => {
     if (!kanSkicka || skriver) return;
@@ -251,8 +268,14 @@ function OpsKommentarerRitad({
           {fot}
         </div>
       ) : null}
-      <OpsField label={skrivEtikett} hint={skrivHint} error={skrivfel ?? undefined}>
-        <OpsTextarea value={utkast} onChange={setUtkast} rows={3} maxLength={MAX_HANDELSEKOMMENTAR} disabled={skriver} onSend={skicka} {...(bilagor ? { bifogaPlats: setBifogaPlats } : {})} />
+      {/* ⛔ RÄKNAREN ÄR FÄLTETS (granskningen av PR 464): kopplad med `aria-describedby` som i chattens skrivfält, och EN levande yta. Över taket bär den felet själv; `error` är bara sändfelet. */}
+      <OpsField
+        label={skrivEtikett}
+        hint={skrivHint}
+        error={skrivfel ?? undefined}
+        raknare={visaRaknare ? { over: forLang, text: forLang ? forLangText.replace("{over}", String(langd - MAX_HANDELSEKOMMENTAR)) : langdText.replace("{n}", String(langd)).replace("{max}", String(MAX_HANDELSEKOMMENTAR)) } : undefined}
+      >
+        <OpsTextarea value={utkast} onChange={setUtkast} rows={3} disabled={skriver} onSend={skicka} {...(bilagor ? { bifogaPlats: setBifogaPlats } : {})} />
       </OpsField>
       {bilagor ? (
         // Gemknappen sitter i skrivrutan (som chattens Bifoga); här står bara förhandsvisningen och felet, när det finns något att visa.
@@ -292,6 +315,8 @@ export const ORD_OPSKOMMENTARER = {
   duText: { sv: "du", en: "you" },
   bifogaEtikett: { sv: "Bifoga", en: "Attach" },
   bilagaText: { sv: "Bilaga från", en: "Attachment from" },
+  langdText: { sv: "Kommentaren är {n} tecken, taket är {max}.", en: "The comment is {n} characters, the limit is {max}." },
+  forLangText: { sv: "Kommentaren är {over} tecken för lång. Korta den för att skicka.", en: "The comment is {over} characters too long. Shorten it to send." },
 };
 
 /**

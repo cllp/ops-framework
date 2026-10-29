@@ -17,7 +17,7 @@ import {
   valjForvald,
 } from "../lib/kalendrar.js";
 import { valjbara } from "../lib/katalog.js";
-import { KALENDERIKON_KOMPONENT, KALENDERIKON_NAMN } from "../lib/kalenderikoner.js";
+import { KALENDERIKON_KOMPONENT, KALENDERIKON_NAMN, kalenderIkonKomponent } from "../lib/kalenderikoner.js";
 import { AndraIkon, ArkiveraIkon, ChevronNedIkon, PlusIkon, TaFramIkon } from "./icons.jsx";
 import { OpsButton } from "./OpsButton.jsx";
 import { OpsField, OpsInput } from "./OpsField.jsx";
@@ -192,7 +192,7 @@ function Sektion({ slag, rubrik, hjalp, tomText, lista, kanAndra, lasText, sprak
         {valbara.map((k, i) => {
           const namn = text(k.namn, sprak);
           const arForvald = !!forvald && forvald.id === k.id;
-          const Ikon = KALENDERIKON_KOMPONENT[/** @type {keyof typeof KALENDERIKON_KOMPONENT} */ (k.ikon)];
+          const Ikon = kalenderIkonKomponent(k.ikon);
           return (
             <li
               key={k.id}
@@ -308,7 +308,7 @@ const FARGRUTA = { 1: "bg-identity-1", 2: "bg-identity-2", 3: "bg-identity-3", 4
  * @param {{ utkast: { id: string | null, namn: string, farg: number, ikon: string, forvald: boolean, forvaldFran: boolean }, setUtkast: (f: (u: any) => any) => void, upptagen: boolean, fel: string | null, ny: boolean, onAvbryt: () => void, onSpara: () => void }} props
  */
 function Redigerare({ utkast, setUtkast, upptagen, fel, ny, onAvbryt, onSpara }) {
-  const Ikon = KALENDERIKON_KOMPONENT[/** @type {keyof typeof KALENDERIKON_KOMPONENT} */ (utkast.ikon)];
+  const Ikon = kalenderIkonKomponent(utkast.ikon);
   return (
     <div data-kalenderredigerare="" className="flex flex-col gap-3 border-t border-line pt-4">
       <p className="m-0 text-etikett font-medium text-ink-secondary">{ny ? "Ny kalender" : "Redigera kalender"}</p>

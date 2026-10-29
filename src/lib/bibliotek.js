@@ -439,6 +439,54 @@ export function filMimeMonster() {
 }
 
 /**
+ * Teckenkodningen en textfil får som innehållstyp i lagringen (0.153.0, cllp/ops-framework#460 punkt 3, lifehub.app QA-fynd 5).
+ *
+ * ══ ⛔ VARFÖR ═══════════════════════════════════════════════════════════════════════════════════════════════
+ *
+ * En uppladdad `.txt` öppnades med trasig teckenkodning ("fÃ¶r" i stället för "för"): filen sparades som `text/plain` UTAN `charset`, och webbläsaren gissar när länken öppnas direkt från lagringen. `normaliseraMime`
+ * skär bort allt efter `;` av ett gott skäl (postens `fil.mime` är en nyckel som regeln och `filSort` jämför mot), så kodningen kunde aldrig följa med. Den följer nu med på ETT ställe: innehållstypen
+ * på lagringsobjektet, och bara där. Postens `fil.mime` är oförändrat `text/plain`, och Firestore-regeln för posten är orörd.
+ *
+ * ⛔ STORAGE-REGELN ÄR DEN ENDA SOM RÖRS, OCH DEN MÅSTE VARA DEPLOYAD FÖRE KLIENTEN. `filContentTypeMonster` släpper in BÅDA formerna (`text/plain` och `text/plain; charset=utf-8`), så en äldre klient mot nya regler
+ * fungerar som förut. En ny klient mot GAMLA regler får sin textfil nekad av lagringen (andra filer påverkas inte), och posten tas tillbaka som vid varje avbruten uppladdning. En regel i `main` är inte
+ * en regel i produktion.
+ *
+ * @param {unknown} mime Postens MIME, redan normaliserad.
+ * @returns {string} Innehållstypen att ladda upp med: `text/plain; charset=utf-8` för en textfil, annars samma MIME.
+ */
+export function lagringsContentType(mime) {
+  const m = normaliseraMime(mime);
+  return m.startsWith("text/") ? `${m}; charset=utf-8` : m;
+}
+
+/** Så många byte av en textfil som detaljen visar (0.153.0, ops-framework#460 punkt 3). En textfil får vara `MAX_BIBLIOTEKFIL`, och en detalj som ritar 25 MB text är en flik som hänger sig. */
+export const TEXTFORHANDS_BYTE = 100_000;
+
+/**
+ * Textfilens byte som text (0.153.0, ops-framework#460 punkt 3): UTF-8, och Windows-1252 när byten inte är giltig UTF-8 (en fil sparad som "ANSI" i Anteckningar). Utan reserven blev varje ä en ersättningsruta.
+ *
+ * @param {Uint8Array} bytes
+ * @param {boolean} [avklippt] Byten är början av en längre fil. Ett tecken som klipps mitt i är då inte ett fel och visas inte: det ofullständiga slutet hoppas över.
+ * @returns {string}
+ */
+export function avkodaTextfil(bytes, avklippt = false) {
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes, { stream: avklippt });
+  } catch {
+    return new TextDecoder("windows-1252").decode(bytes);
+  }
+}
+
+/**
+ * `matches()`-uttrycket för innehållstypen på ett lagringsobjekt, härlett ur `FILMIME` som `filMimeMonster`, men med den valfria teckenkodningen efter en text-MIME (`lagringsContentType`). Bara Storage-regeln
+ * skriver in det här: Firestore-regeln för posten jämför `fil.mime`, som aldrig bär en kodning.
+ * @returns {string}
+ */
+export function filContentTypeMonster() {
+  return `^(${FILMIME.map((m) => (m.startsWith("text/") ? `${m}(; charset=utf-8)?` : m)).join("|")})$`;
+}
+
+/**
  * Rubriken på en ny idé: ordet Idé, datum och tid. Personen kan döpa om den.
  *
  * @param {Date} [nu]

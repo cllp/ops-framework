@@ -6,7 +6,7 @@ import { formatDate, formatTime, formatRelativeDate } from "../lib/format.js";
 import { KOMMENTARBILAGA_TYPER, MAX_KOMMENTARBILAGA, bilagaUrDokument, kommentarbilagaFel } from "../lib/handelsemodell.js";
 import { readAttachment } from "../lib/file.js";
 import { arGastId } from "../lib/gast.js";
-import { AGENTSTATUS_MAX_ALDER, MAX_MEDDELANDE, MAX_TRADNAMN, REAKTIONSKODER, agentstatus, amnesrubrik, bilagenyckel, delaSamtalsnyckel, samtalsdeltagare, samtalsnyckel, summeraReaktioner, synligText, tradensNamn } from "../lib/samtal.js";
+import { AGENTSTATUS_MAX_ALDER, MAX_MEDDELANDE, MAX_TRADNAMN, RAKNARE_FRAN, REAKTIONSKODER, agentstatus, amnesrubrik, bilagenyckel, delaSamtalsnyckel, samtalsdeltagare, samtalsnyckel, summeraReaktioner, synligText, tradensNamn } from "../lib/samtal.js";
 import { useSamtal } from "../data/useSamtal.jsx";
 import { harAmnen, harBilagor, harCitat, harFasta, harOmnamnanden, harReaktioner, harStatus, harTradar, harTyst } from "../data/samtalskalla.js";
 import { BilagaVisning } from "./BilagaVisning.jsx";
@@ -1607,8 +1607,8 @@ const MAX_FORSLAG = 6;
  */
 export const SKRIVFALT_TAK = 160;
 
-/** Så nära taket visas räknaren, i tecken. Samma avstånd som SS (`chatLimits.js`, de sista 500). */
-export const RAKNARE_FRAN = 500;
+/** Så nära taket visas räknaren, i tecken: `RAKNARE_FRAN` ur `lib/samtal.js` (0.153.0, delad med `OpsKommentarer`). Återexporterad för proven. */
+export { RAKNARE_FRAN };
 
 /**
  * Trådens skrivfält: en textruta och knappen Skicka. Samma i ett samtal och i läget "nytt", så att det första meddelandet
@@ -2240,11 +2240,22 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik: rubrikProp, marke, lastT
    * läsmärke (samtalet öppnat ur adressen innan inkorgen svarat) ritas ingen avdelare, eftersom märket inte är känt.
    */
   const [markeVidOppning] = useState(lastTillProp);
+  /*
+   * ⛔ BARA DET SOM FANNS NÄR SAMTALET ÖPPNADES KAN VARA "NYTT SEDAN SIST" (0.153.0, cllp/ops-framework#460 punkt 6, lifehub.app QA-fynd 13c). Avdelaren jämförde bara mot läsmärket, så ett svar som kom MEDAN
+   * samtalet var öppet räknades som nytt sedan sist: i en helt nystartad tråd (märket stod på ens egen första rad) hamnade avdelaren före agentens första svar, och likadant före ett svar som kom
+   * medan man läste. Det är inte nytt sedan sist, det är nytt nu, och det ser man redan. Tiden på det senaste meddelandet i FÖRSTA laddningen är gränsen (en ref, satt en gång): det som kommer
+   * efter den räknas inte. En tom första laddning ger gränsen 0, så en ny tråd får aldrig någon avdelare.
+   * Felriktningen är den säkra: levererar en prenumeration en första ofullständig omgång (en cache) räknas det som kom i andra omgången som nytt nu, och avdelaren uteblir. Den hamnar aldrig fel.
+   */
+  const oppnadTid = useRef(/** @type {number | null} */ (null));
   const nyttFran = useMemo(() => {
     if (typeof markeVidOppning !== "number" || ny) return null;
+    if (oppnadTid.current === null && meddelanden !== null) oppnadTid.current = meddelanden.reduce((hogst, m) => Math.max(hogst, m.tid), 0);
+    const oppnad = oppnadTid.current;
+    if (oppnad === null) return null;
     if (!alla.some((m) => m.tid <= markeVidOppning)) return null;
-    return alla.find((m) => m.av !== uid && m.tid > markeVidOppning)?.id ?? null;
-  }, [alla, markeVidOppning, uid, ny]);
+    return alla.find((m) => m.av !== uid && m.tid > markeVidOppning && m.tid <= oppnad)?.id ?? null;
+  }, [alla, meddelanden, markeVidOppning, uid, ny]);
   const reakt = useReaktioner(harReaktioner(las) ? las : null, samtal.id, undefined, uid);
   // ⛔ Citat bara utanför gruppchatten (regeln kräver det): där är tråden svaret.
   const medCitat = harCitat(kalla) && samtal.slag !== "grupp";

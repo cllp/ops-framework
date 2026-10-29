@@ -12,11 +12,13 @@ import {
   MAX_BIBLIOTEKVIDEO,
   byggPost,
   filInmatningsfel,
+  filContentTypeMonster,
   filMimeMonster,
   filSort,
   filTak,
   filtakRegel,
   filtreraBibliotek,
+  lagringsContentType,
   mimeUrFilnamn,
   normaliseraMime,
 } from "../lib/bibliotek.js";
@@ -140,10 +142,21 @@ describe("⛔ ett hem för varje tak: klienten och båda reglerna läser FILTAK"
     expect(lagringsregelfragment({ bibliotek: { ...sok, samling: "bibliotek" } })).toContain(`<= ${MAX_BIBLIOTEKFIL}`);
   });
 
-  it("båda reglerna släpper in video/mp4 och video/quicktime ur samma mönster som klienten", () => {
+  it("båda reglerna släpper in video/mp4 och video/quicktime ur samma lista som klienten (FILMIME)", () => {
     const sok = { gruppPrefix: "grupper", postPrefix: "bibliotek" };
     expect(bibliotekregelfragment("bibliotek", sok)).toContain(filMimeMonster());
-    expect(lagringsregelfragment({ bibliotek: { ...sok, samling: "bibliotek" } })).toContain(filMimeMonster());
+    /*
+     * ⛔ STORAGE-REGELN BÄR `filContentTypeMonster` sedan 0.153.0 (#460 punkt 3): samma FILMIME, men text/plain får bära '; charset=utf-8'. Provet mäter
+     * att det är samma lista och inte en handskriven kopia: varje format i FILMIME, i den form klienten laddar upp det (`lagringsContentType`), och i postens form, matchar mönstret.
+     */
+    const lagringstext = lagringsregelfragment({ bibliotek: { ...sok, samling: "bibliotek" } });
+    expect(lagringstext).toContain(filContentTypeMonster());
+    const monster = new RegExp(filContentTypeMonster());
+    for (const m of FILMIME) {
+      expect(monster.test(m)).toBe(true);
+      expect(monster.test(lagringsContentType(m))).toBe(true);
+    }
+    expect(monster.test("video/x-msvideo")).toBe(false);
     expect(filMimeMonster()).toContain("video/mp4|video/quicktime");
   });
 });

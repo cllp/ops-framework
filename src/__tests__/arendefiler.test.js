@@ -219,7 +219,7 @@ describe("Regelfragmenten", () => {
     expect(bibliotekregelfragment("bibliotek", { ...sok, handelser: "handelser" })).toBe(fixtur("bibliotekregelfragment-0.128.0-handelser.rules"));
   });
 
-  it("utan arendefiler är Storage-texten byte för byte den som 0.127.0 skrev (0.121.0 plus video), med och utan handelsefiler", () => {
+  it("utan arendefiler är Storage-texten byte för byte den som 0.127.0 skrev (0.121.0 plus video; plus teckenkodningen på text/plain i 0.153.0, se rules/__tests__/lagring-bibliotek.test.mjs: bara den raden är ändrad), med och utan handelsefiler", () => {
     expect(lagringsregelfragment({ bibliotek: lagring })).toBe(fixtur("lagringsregelfragment-0.127.0.rules"));
     expect(lagringsregelfragment({ bibliotek: { ...lagring, arendefiler: false } })).toBe(fixtur("lagringsregelfragment-0.127.0.rules"));
     expect(lagringsregelfragment({ bibliotek: { ...lagring, handelsefiler: true } })).toBe(fixtur("lagringsregelfragment-0.127.0-handelsefiler.rules"));

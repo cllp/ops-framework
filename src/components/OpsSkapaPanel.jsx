@@ -3,7 +3,7 @@ import { cx } from "../lib/cx.js";
 import { ChevronNedIkon } from "./icons.jsx";
 import { OpsButton } from "./OpsButton.jsx";
 import { OpsSkapaRubrik } from "./OpsSkapaRubrik.jsx";
-import { SkapaPanelStatusKontext } from "./skapaPanelStatus.js";
+import { SkapaPanelKlarKontext, SkapaPanelStatusKontext } from "./skapaPanelStatus.js";
 import { TillbakaKnapp } from "./TillbakaKnapp.jsx";
 
 /**
@@ -40,6 +40,12 @@ import { TillbakaKnapp } from "./TillbakaKnapp.jsx";
  * redan har den när texten kommer. Knappraden är fast längst ned och syns alltså också när formuläret är långt. `Avbryt` är orört: att
  * lämna panelen medan något skapas är ett val, och panelen avgör inte åt någon att det inte går.
  *
+ * ══ ⛔ KLART DÖLJER KNAPPRADEN (0.153.0, cllp/ops-framework#460 punkt 4) ═══════════════════════════════════════════
+ *
+ * Formuläret kan också säga att det är KLART (`useSkapaPanelKlar`): det har sparat och ritar ett kvitto ("Lägg in en till"). Då döljs hela knappraden, `Spara` och `Avbryt` med, eftersom ingen av dem
+ * längre betyder något: en `Spara` på ett kvitto sparar en dubblett, och `Avbryt` av något som redan skapats avbryter ingenting. `Tillbaka` högst upp finns kvar, och kvittot bär sina egna val. Startar formuläret om
+ * rapporterar det `false` och knapparna kommer tillbaka. QA-fynd 12c i lifehub.app#482.
+ *
  * @param {object} props
  * ══ ⛔ KOLUMNBREDDEN ÄR SS, PER FORMULÄR (0.32.0, #180) ═══════════════════════════════════════════════════════════
  *
@@ -62,6 +68,7 @@ import { TillbakaKnapp } from "./TillbakaKnapp.jsx";
 export function OpsSkapaPanel({ kolumn = "bred", titel, onTillbaka, tillbakaEtikett = "Tillbaka", skapasIEtikett = "Skapas i", skapasI = null, onByt, avbrytEtikett = "Avbryt", sparaEtikett, formId, children }) {
   const ref = useRef(/** @type {HTMLElement | null} */ (null));
   const [status, setStatus] = useState(/** @type {import("./skapaPanelStatus.js").SkapaStatus} */ (null));
+  const [klar, setKlar] = useState(false);
   const [hojd, setHojd] = useState(/** @type {number | null} */ (null));
 
   // ⛔ Höjden ur `visualViewport`: `dvh` följer inte iOS-tangentbordet, `visualViewport.height` gör det.
@@ -81,6 +88,7 @@ export function OpsSkapaPanel({ kolumn = "bred", titel, onTillbaka, tillbakaEtik
   const rubrikId = useId();
   return (
     <SkapaPanelStatusKontext.Provider value={setStatus}>
+      <SkapaPanelKlarKontext.Provider value={setKlar}>
       <section
         ref={ref}
         aria-labelledby={rubrikId}
@@ -126,6 +134,7 @@ export function OpsSkapaPanel({ kolumn = "bred", titel, onTillbaka, tillbakaEtik
             {children}
           </div>
         </div>
+        {klar ? null : (
         <div
           data-skapa-knappar=""
           className="sticky bottom-0 shrink-0 border-t border-line bg-canvas pb-(--safe-bottom)"
@@ -145,7 +154,9 @@ export function OpsSkapaPanel({ kolumn = "bred", titel, onTillbaka, tillbakaEtik
             ) : null}
           </div>
         </div>
+        )}
       </section>
+      </SkapaPanelKlarKontext.Provider>
     </SkapaPanelStatusKontext.Provider>
   );
 }

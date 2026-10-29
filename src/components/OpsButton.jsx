@@ -56,7 +56,9 @@ const VARIANTER = {
  */
 const STORLEKAR = {
   // ⛔ 0.31.0: SS `ui/PrimaryButton.jsx:44-47`: `sm` är `px-3 py-1.5 text-xs`, `md` `px-4 py-2 text-sm`. `sm` var `py-1 text-sm`.
-  sm: "gap-1.5 px-3 py-1.5 text-meta min-h-8",
+  // ⛔ 0.153.0 (cllp/ops-framework#460 punkt 2): 44 px hög under md, 32 från md. lifehub.app:s `check:layout` mätte `sm` till 32 till 36 px på telefon, och en liten knapp är inte mindre träffbar på en
+  // telefon än en stor: tummen är lika bred. Samma gräns som toastens stängknapp (`min-h-11 md:min-h-8`). Höjden kommer ur `min-h`, inte ur padding, så texten sitter lika högt som förut på dator.
+  sm: "gap-1.5 px-3 py-1.5 text-meta min-h-11 md:min-h-8",
   // ⛔ text-sm, INTE text-base (#164, mätt av en annan agent mot
   // SessionStudios `ProfileView.jsx` rad ~604, Spara-knappen): 14 px, inte
   // 16 px. Höjden (min-h-11, 44 px träffyta) är ORÖRD: den är ett mått för
@@ -65,7 +67,7 @@ const STORLEKAR = {
 };
 
 const IKONSTORLEKAR = {
-  sm: "px-1 py-1 min-w-8 min-h-8",
+  sm: "px-1 py-1 min-w-11 min-h-11 md:min-w-8 md:min-h-8",
   md: "px-2 py-2 min-w-11 min-h-11",
 };
 

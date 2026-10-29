@@ -70,20 +70,24 @@ const ETIKETTER = {
  * @param {string} [props.error] Sträng, inte boolean. Ett fält som bara vet ATT det är fel hjälper ingen.
  * @param {boolean} [props.required]
  * @param {"standard"|"liten"} [props.labelSize] `liten` (0.32.1) är SS profilens etikett, se `ETIKETTER`.
+ * @param {{ text: string, over: boolean }} [props.raknare] (0.153.0, granskningen av PR 464) En längdräknare under fältet: kopplad till fältet med `aria-describedby`, och EN levande yta
+ *   (`role="status"`, artig) också över taket. ⛔ Över taket är fältet ogiltigt (`aria-invalid`) utan att felet också står som `error`: en `role="alert"` bredvid räknarens status hade lästs upp vid
+ *   varje tangent, två gånger. `error` är för felet som kommer en gång (ett sändfel), räknaren för det som ändras medan man skriver.
  * @param {import("react").ReactNode} props.children
  */
-export function OpsField({ label, hint, error, required = false, labelSize = "standard", children }) {
+export function OpsField({ label, hint, error, required = false, labelSize = "standard", raknare, children }) {
   const id = useId();
   const hintId = hint ? `${id}-hint` : undefined;
   const errorId = error ? `${id}-fel` : undefined;
-  const describedBy = cx(hintId, errorId) || undefined;
+  const raknarId = raknare ? `${id}-raknare` : undefined;
+  const describedBy = cx(hintId, errorId, raknarId) || undefined;
   const etikettKlass = ETIKETTER[labelSize];
   if (!etikettKlass) {
     throw new Error(`OpsField: okänd labelSize "${labelSize}". Giltiga: ${Object.keys(ETIKETTER).join(", ")}.`);
   }
 
   return (
-    <FieldContext.Provider value={{ id, etikettId: `${id}-etikett`, describedBy, invalid: Boolean(error), required: required }}>
+    <FieldContext.Provider value={{ id, etikettId: `${id}-etikett`, describedBy, invalid: Boolean(error) || Boolean(raknare?.over), required: required }}>
       <div className="flex flex-col gap-1">
         {/* ⛔ #167: font-medium, inte font-semibold. Samma mätning som
             OpsStat/OpsTable, se OpsStat.jsx. */}
@@ -106,6 +110,11 @@ export function OpsField({ label, hint, error, required = false, labelSize = "st
           // när någon råkar navigera förbi det.
           <p id={errorId} role="alert" className="text-hjalp text-danger">
             {error}
+          </p>
+        ) : null}
+        {raknare ? (
+          <p id={raknarId} role="status" data-langdraknare={raknare.over ? "over" : "nara"} className={cx("m-0 text-right text-liten tabular-nums", raknare.over ? "text-danger" : "text-ink-muted")}>
+            {raknare.text}
           </p>
         ) : null}
       </div>

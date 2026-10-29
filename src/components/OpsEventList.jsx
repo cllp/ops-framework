@@ -337,11 +337,15 @@ function OpsEventListRitad({
 
                   ⛔ Lös aldrig trängsel med `flex-nowrap` och trunkering: text får plats eller får en rad till. */}
               {h.when || h.deadline || h.updatedAt || url ? (
-                <div className={cx("flex flex-wrap items-baseline gap-x-2 gap-y-1 text-meta tabular-nums text-ink-muted", harChevron && !harPillrad && "pr-9")} data-datumrad="">
+                <div className={cx("flex flex-wrap items-baseline gap-x-2 gap-y-1 text-meta tabular-nums text-ink-muted", harChevron && "pr-9")} data-datumrad="">
                   {h.when ? <span>{h.when}</span> : null}
                   {h.deadline ? <span>{h.deadline}</span> : null}
                   {h.updatedAt ? <span>{h.updatedAt}</span> : null}
+                    {/* ⛔ LÄNKEN ÄR EN LÄNK I LÖPTEXT (0.153.0, cllp/ops-framework#460 punkt 2): ärendenumret står i en rad av små märken, och i en `<span>` är `<a>` inline i texten i stället för ett eget
+                        flexobjekt. Mätt i lifehub.app (`check:layout`, #246): som flexobjekt var den en kontroll på 15x16 px, och en yta på 44 px hade gjort varje rad med ett ärendenummer 28 px högre. Att göra den till en
+                        yta på 44 px är ett eget beslut om radernas höjd. Chevronen ligger inte över den: raden reserverar chevronens plats (`pr-9`). */}
                     {url ? (
+                    <span>
                       <a
                         href={url}
                         onClick={(e) => onNavigate?.(url, e)}
@@ -360,6 +364,7 @@ function OpsEventListRitad({
                           {h.urlLabel ? `${h.urlLabel} ${h.title}` : `Öppna ${h.title}`}
                         </span>
                       </a>
+                    </span>
                     ) : null}
                 </div>
               ) : null}
@@ -396,7 +401,7 @@ function OpsEventListRitad({
                   riktig adress (`?handelse=<id>`, går att öppna i en ny flik) och sin egen fokusring. Dess `::after` täcker hela kortet (`-inset` lika med
                   kortets padding), så ett tryck var som helst på kortet öppnar. Kontrollerna på kortet (åtgärden, utfällningen, länken) har `z-10` och tar
                   sina egna tryck. Utan `handelseId` är titeln text som förut. */}
-              <span className={cx("text-etikett font-medium text-ink", harChevron && !harPillrad && !harDatumrad && "pr-9")} data-titel="">
+              <span className={cx("text-etikett font-medium text-ink", harChevron && !(harPillrad && harDatumrad) && "pr-9")} data-titel="">
                 {h.handelseId && oppnaHandelse ? (
                   <HandelseLank id={h.handelseId} oppna={oppnaHandelse} tacker="after:-inset-(--card-padding) after:rounded-[var(--radius-card)]">
                     {h.title}
