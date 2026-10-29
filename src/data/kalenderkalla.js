@@ -1,6 +1,7 @@
 import { gruppensRader, katalognyckel } from "../lib/katalog.js";
-import { byggGruppkalender, byggKalenderpost, byggMinKalender, efterOrdning, lasKalenderpost, lasMinaKalendrar, validateGruppkalendrar } from "../lib/kalendrar.js";
+import { byggGruppkalender, byggKalenderpost, byggMinKalender, efterOrdning, lasKalenderpost, lasMinKalender, lasMinaKalendrar, validateGruppkalendrar } from "../lib/kalendrar.js";
 import { byggKommentar, byggSvar } from "../lib/handelsemodell.js";
+import { byggKalenderdelning, lasKalenderdelningar } from "../lib/kalenderdelning.js";
 
 /**
  * Kalenderkällan: läser och skriver gruppens kalendrar, mina kalendrar och posterna i mina kalendrar (0.37.0, #179 F2).
@@ -21,15 +22,22 @@ import { byggKommentar, byggSvar } from "../lib/handelsemodell.js";
  * @param {string} [konfig.gruppkalendrar] Förval `"gruppkalendrar"`.
  * @param {string} [konfig.minaKalendrar] Förval `"minaKalendrar"`.
  * @param {string} [konfig.kalenderposter] Förval `"kalenderposter"`.
+ * @param {string} [konfig.kalenderdelningar] (0.154.0, cllp/lifehub.app#485) Samlingen där en delning av en egen kalender står, med samma namn som till
+ *   `kalenderregelfragment({ kalenderdelningar })`. Inget förval: utan den finns ingen delning, och metoderna för delning kastar med skälet.
  */
 export function createKalenderkalla(konfig) {
-  const { kalla, anvandare = "users", gruppkalendrar = "gruppkalendrar", minaKalendrar = "minaKalendrar", kalenderposter = "kalenderposter" } = konfig ?? /** @type {any} */ ({});
+  const { kalla, anvandare = "users", gruppkalendrar = "gruppkalendrar", minaKalendrar = "minaKalendrar", kalenderposter = "kalenderposter", kalenderdelningar } = konfig ?? /** @type {any} */ ({});
   if (!kalla || typeof kalla.list !== "function" || typeof kalla.create !== "function") {
     throw new Error("createKalenderkalla: kalla krävs, en datakälla (createFirestoreSource, createMemorySource).");
   }
-  for (const [falt, v] of Object.entries({ anvandare, gruppkalendrar, minaKalendrar, kalenderposter })) {
+  for (const [falt, v] of Object.entries({ anvandare, gruppkalendrar, minaKalendrar, kalenderposter, ...(kalenderdelningar === undefined ? {} : { kalenderdelningar }) })) {
     if (typeof v !== "string" || !/^[A-Za-z][A-Za-z0-9_-]*$/.test(v)) throw new Error(`createKalenderkalla: ${falt} "${v}" är inte ett samlingsnamn.`);
   }
+  /** Delningarnas samling, eller ett kast som säger vad som saknas. */
+  const delningsSamling = () => {
+    if (kalenderdelningar === undefined) throw new Error("createKalenderkalla: kalenderdelningar krävs för att dela en kalender, samma namn som till kalenderregelfragment({ kalenderdelningar }).");
+    return kalenderdelningar;
+  };
   /** @param {string} uid */
   const kravUid = (uid) => {
     if (typeof uid !== "string" || !uid) throw new Error("createKalenderkalla: uid krävs. Mina kalendrar är en persons.");
@@ -123,6 +131,80 @@ export function createKalenderkalla(konfig) {
     /** Tar bort en post. En privat post får raderas av sin ägare (se `kalenderregelfragment`). @param {string} uid @param {string} id */
     async taBortPost(uid, id) {
       await kalla.remove(posterVag(uid), id);
+    },
+
+    /*
+     * ══ ⛔ DELNING AV EN EGEN KALENDER (0.154.0, cllp/lifehub.app#485): BARA LÄSNING ══════════════════════════════════════════
+     *
+     * En delning är en rad i `kalenderdelningar` (`lib/kalenderdelning.js`), och reglerna släpper in mottagarens läsning av kalendern och dess poster medan raden
+     * finns. Ingen av metoderna nedan skriver i ägarens kalender eller poster: mottagaren har ingen skrivväg, och ägarens är oförändrad.
+     */
+
+    /** Ägarens delningar av sina kalendrar. Frågan begränsar `agare`, som reglerna kräver. @param {string} agare */
+    async delningar(agare) {
+      return lasKalenderdelningar(await kalla.list(delningsSamling(), { where: { agare: kravUid(agare) } }));
+    },
+
+    /**
+     * Delar en av ägarens kalendrar med en person (`{ person: uid }`) eller en grupp (`{ grupp: gid }`), bara för läsning. Att dela med en grupp när kalendern
+     * redan delas med en annan byter gruppen (en kalender delas med högst en grupp, se `lib/kalenderdelning.js`). Reglerna kräver att kalendern är ägarens och inte
+     * arkiverad, och att ägaren är aktiv medlem i gruppen.
+     * @param {string} agare @param {string} kalenderId @param {import("../lib/kalenderdelning.js").Kalendermottagare} mottagare
+     */
+    async dela(agare, kalenderId, mottagare) {
+      const m = /** @type {Record<string, any>} */ (mottagare ?? {});
+      const d = byggKalenderdelning({ agare: kravUid(agare), kalenderId, ...("person" in m ? { person: m.person } : {}), ...("grupp" in m ? { groupId: m.grupp } : {}) });
+      await kalla.create(delningsSamling(), d);
+      return d;
+    },
+
+    /**
+     * Slutar dela: tar bort raden, och då stänger reglerna läsningen. En delning som redan är borta är ingen fel (någon annan flik hann före).
+     * ⛔ EN ANNANS DELNING KASTAR HÄR, med ett fel som säger varför, innan reglerna hinner säga "Missing or insufficient permissions".
+     * @param {string} agare @param {string} delningId
+     */
+    async slutaDela(agare, delningId) {
+      const samling = delningsSamling();
+      const rad = await kalla.read(samling, delningId);
+      if (!rad) return { borttagen: false };
+      if (rad.agare !== kravUid(agare)) throw new Error("createKalenderkalla.slutaDela: delningen är någon annans. Bara den som delat en kalender slutar dela den.");
+      await kalla.remove(samling, delningId);
+      return { borttagen: true };
+    },
+
+    /**
+     * Delningarna till den som tittar: de som delats med personen, och med den aktiva gruppen när den anges. Två frågor, var och en begränsad så som reglerna
+     * kräver (`person` respektive `groupId`). `deladeKalendrar` gör dem till en rad per kalender.
+     * @param {string} uid @param {{ groupId?: string | null }} [val]
+     */
+    async deladeMedMig(uid, { groupId = null } = {}) {
+      const samling = delningsSamling();
+      const [personer, grupp] = await Promise.all([
+        kalla.list(samling, { where: { person: kravUid(uid) } }),
+        groupId ? kalla.list(samling, { where: { groupId } }) : Promise.resolve([]),
+      ]);
+      return lasKalenderdelningar([...personer, ...grupp]);
+    },
+
+    /**
+     * Var en delad kalender och dess poster läses: en sökväg och ett id för kalendern, och en sökväg och en fråga för posterna. ⛔ FRÅGAN BEGRÄNSAR `kalenderId`, och
+     * det är inte en optimering: reglerna kan bara bevisa att den som läser har fått delningen när frågan säger vilken kalender den gäller. För en app som läser live
+     * (`useLiveCollection(poster.samling, poster.fraga)`), så att samma fråga används som i `deladePoster`.
+     * @param {string} agare @param {string} kalenderId
+     */
+    deladeVagar(agare, kalenderId) {
+      return { kalender: { samling: minaVag(agare), id: kalenderId }, poster: { samling: posterVag(agare), fraga: { where: { kalenderId } } } };
+    },
+
+    /** En kalender som delats med mig, läkt som ägarens egen läsning (`lasMinKalender`), eller `null` när den inte finns. @param {string} agare @param {string} kalenderId */
+    async deladKalender(agare, kalenderId) {
+      const rad = await kalla.read(minaVag(agare), kalenderId);
+      return rad ? lasMinKalender(rad) : null;
+    },
+
+    /** Posterna i en kalender som delats med mig, läkta (`lasKalenderpost`). @param {string} agare @param {string} kalenderId */
+    async deladePoster(agare, kalenderId) {
+      return (await kalla.list(posterVag(agare), { where: { kalenderId } })).map((r) => lasKalenderpost(r));
     },
   });
 }

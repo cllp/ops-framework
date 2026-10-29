@@ -18,7 +18,9 @@ import {
 } from "../lib/kalendrar.js";
 import { valjbara } from "../lib/katalog.js";
 import { KALENDERIKON_KOMPONENT, KALENDERIKON_NAMN, kalenderIkonKomponent } from "../lib/kalenderikoner.js";
-import { AndraIkon, ArkiveraIkon, ChevronNedIkon, PlusIkon, TaFramIkon } from "./icons.jsx";
+import { AndraIkon, ArkiveraIkon, ChevronNedIkon, GruppIkon, PlusIkon, TaFramIkon } from "./icons.jsx";
+import { KalenderDelning } from "./KalenderDelning.jsx";
+import { forvalda } from "../lib/ord.js";
 import { OpsButton } from "./OpsButton.jsx";
 import { OpsField, OpsInput } from "./OpsField.jsx";
 import { OpsIdentity } from "./OpsIdentity.jsx";
@@ -66,8 +68,10 @@ import { OpsCheckbox } from "./OpsToggle.jsx";
  * @param {(rader: import("../lib/kalendrar.js").MinKalender[], sprak: string) => Promise<unknown> | void} props.onSparaMina
  * @param {string} [props.gruppNamn] Står i gruppsektionens rubrik ("Alfa AB:s kalendrar"). Utan den "Gruppens kalendrar".
  * @param {string} [props.sprak]
+ * @param {Delning} [props.delning] (0.154.0, cllp/lifehub.app#485) Dela en av mina kalendrar med gruppen eller en person, bara för läsning. Med den får varje egen kalender
+ *   knappen Dela (dialogen `KalenderDelning`) och raden "Delas med 2" under namnet. Utan den är vyn som förut. Reglerna är `kalenderregelfragment({ kalenderdelningar })`.
  */
-export function OpsKalendrar({ gruppens, mina, groupId, kanAndraGruppens, onSparaGruppens, onSparaMina, gruppNamn, sprak: sprakProp }) {
+export function OpsKalendrar({ gruppens, mina, groupId, kanAndraGruppens, onSparaGruppens, onSparaMina, gruppNamn, sprak: sprakProp, delning }) {
   // ⛔ Språket ur appens `OpsSprakProvider` när appen inte gav ett (0.46.0, cllp/bolag-ops#528).
   const sprakKontext = useOpsSprak();
   const sprak = sprakProp ?? sprakKontext;
@@ -88,7 +92,7 @@ export function OpsKalendrar({ gruppens, mina, groupId, kanAndraGruppens, onSpar
       <Sektion
         slag="mina"
         rubrik="Mina kalendrar"
-        hjalp="Dina egna kalendrar syns bara för dig. Poster i dem kan blockera din tillgänglighet."
+        hjalp={forvalda(ORD_OPSKALENDRAR_DELNING, sprak)[delning ? "minaHjalpDelning" : "minaHjalp"]}
         tomText="Du har inga egna kalendrar ännu."
         lista={mina}
         kanAndra
@@ -96,10 +100,37 @@ export function OpsKalendrar({ gruppens, mina, groupId, kanAndraGruppens, onSpar
         sprak={sprak}
         bygg={(r) => byggMinKalender(r)}
         onSpara={onSparaMina}
+        delning={delning}
       />
     </div>
   );
 }
+
+/**
+ * Orden för delningen i Hantera kalendrar, på båda språken (0.154.0, granskningen av PR 468). `{namn}` är kalenderns namn och `{antal}` hur många den delas med.
+ * Resten av vyn bär fortfarande sina svenska förval (befintlig skuld, `check-sprak`); det nya är tvåspråkigt från början.
+ */
+export const ORD_OPSKALENDRAR_DELNING = {
+  dela: { sv: "Dela {namn}", en: "Share {namn}" },
+  delasMed: { sv: "Delas med {antal}", en: "Shared with {antal}" },
+  forvald: { sv: "Förvald", en: "Default" },
+  minaHjalp: { sv: "Dina egna kalendrar syns bara för dig. Poster i dem kan blockera din tillgänglighet.", en: "Your own calendars are visible only to you. Entries in them can block your availability." },
+  minaHjalpDelning: {
+    sv: "Dina egna kalendrar syns för dig och för dem du delar dem med. Poster i dem kan blockera din tillgänglighet.",
+    en: "Your own calendars are visible to you and to those you share them with. Entries in them can block your availability.",
+  },
+};
+
+/**
+ * Delningen av mina kalendrar, som appen ger `OpsKalendrar` (0.154.0). Se `KalenderDelning`.
+ * @typedef {object} Delning
+ * @property {ReadonlyArray<import("../lib/kalenderdelning.js").Kalenderdelning>} delningar Ägarens delningar (`createKalenderkalla().delningar(uid)`), tom när det inte finns några.
+ * @property {{ id: string, namn: string } | null} [grupp] Den aktiva gruppen, för Dela med gruppen.
+ * @property {ReadonlyArray<{ uid: string, namn: string }>} [personer] De man kan dela med, vanligen gruppens medlemmar utom en själv.
+ * @property {(m: import("../lib/kalenderdelning.js").Kalendermottagare) => string | undefined} [namnFor] Namnet på en mottagare som inte står bland `personer` eller är `grupp`.
+ * @property {(kalenderId: string, mottagare: import("../lib/kalenderdelning.js").Kalendermottagare) => Promise<unknown>} onDela
+ * @property {(delning: import("../lib/kalenderdelning.js").Kalenderdelning) => Promise<unknown>} onSlutaDela
+ */
 
 /**
  * @typedef {{ id: string, namn: any, farg: number, ikon: string, ordning: number, forvald: boolean, arkiverad: boolean, iFlodet: boolean }} Kal
@@ -107,10 +138,15 @@ export function OpsKalendrar({ gruppens, mina, groupId, kanAndraGruppens, onSpar
 
 /**
  * En sektion: listan, arkiverade och redigeraren.
- * @param {{ slag: "grupp" | "mina", rubrik: string, hjalp: string, tomText?: string, lista: ReadonlyArray<any>, kanAndra: boolean, lasText: string, sprak: string, bygg: (r: Record<string, any>) => any, onSpara: (rader: any[], sprak: string) => Promise<unknown> | void }} props
+ * @param {{ slag: "grupp" | "mina", rubrik: string, hjalp: string, tomText?: string, lista: ReadonlyArray<any>, kanAndra: boolean, lasText: string, sprak: string, bygg: (r: Record<string, any>) => any, onSpara: (rader: any[], sprak: string) => Promise<unknown> | void, delning?: Delning }} props
  */
-function Sektion({ slag, rubrik, hjalp, tomText, lista, kanAndra, lasText, sprak, bygg, onSpara }) {
+function Sektion({ slag, rubrik, hjalp, tomText, lista, kanAndra, lasText, sprak, bygg, onSpara, delning }) {
   const rubrikId = useId();
+  // Kalendern vars Dela-dialog är öppen, eller null. `arkiverad`: dialogen visar bara vem den delas med och Sluta dela.
+  const [delar, setDelar] = useState(/** @type {{ id: string, namn: string, arkiverad: boolean } | null} */ (null));
+  const od = forvalda(ORD_OPSKALENDRAR_DELNING, sprak);
+  /** @param {string} id */
+  const antalDelningar = (id) => (delning ? delning.delningar.filter((d) => d.kalenderId === id).length : 0);
   const [utkast, setUtkast] = useState(/** @type {null | { id: string | null, namn: string, farg: number, ikon: string, forvald: boolean, forvaldFran: boolean }} */ (null));
   const [upptagen, setUpptagen] = useState(false);
   const [fel, setFel] = useState(/** @type {string | null} */ (null));
@@ -193,19 +229,26 @@ function Sektion({ slag, rubrik, hjalp, tomText, lista, kanAndra, lasText, sprak
           const namn = text(k.namn, sprak);
           const arForvald = !!forvald && forvald.id === k.id;
           const Ikon = kalenderIkonKomponent(k.ikon);
+          const delasMed = antalDelningar(k.id);
+          // ⛔ RADEN BRYTS NÄR KNAPPARNA INTE RYMS BREDVID NAMNET (0.154.0). Med Dela har en egen kalender fem knappar, och på en telefon (390 px) fick namnet
+          // 20 px och syntes inte (mätt i check-skalyta avsnitt 58). Knapparna går då till en egen rad, högerställda, och namnet får hela bredden.
           return (
             <li
               key={k.id}
               data-kalenderrad={k.id}
-              className={cx("flex min-w-0 items-center gap-2 rounded-base border bg-canvas p-2", utkast && utkast.id === k.id ? "border-accent" : "border-line")}
+              className={cx("flex min-w-0 flex-wrap items-center gap-2 rounded-base border bg-canvas p-2", utkast && utkast.id === k.id ? "border-accent" : "border-line")}
             >
               <OpsIdentity name={namn} seed={k.id} tone={/** @type {1|2|3|4|5|6} */ (k.farg)} icon={Ikon} size="sm" />
-              <span className="min-w-0 flex-1">
+              <span className="min-w-0 grow basis-16">
                 <span className="block truncate text-etikett text-ink">{namn}</span>
-                {arForvald ? <span className="block text-meta text-ink-muted">Förvald</span> : null}
+                {arForvald || delasMed > 0 ? (
+                  <span className="block text-meta text-ink-muted" data-kalenderrad-marke="">
+                    {[arForvald ? od.forvald : "", delasMed > 0 ? od.delasMed.replace("{antal}", String(delasMed)) : ""].filter(Boolean).join(" · ")}
+                  </span>
+                ) : null}
               </span>
               {kanAndra ? (
-                <span className="flex shrink-0 items-center gap-0.5">
+                <span className="ml-auto flex shrink-0 items-center gap-0.5">
                   <IkonKnapp etikett={`Flytta upp ${namn}`} disabled={upptagen || i === 0} onClick={() => spara(flyttaKalender(/** @type {any} */ (lista), k.id, -1, sprak))}>
                     <span className="flex rotate-180">
                       <ChevronNedIkon size={16} />
@@ -214,6 +257,11 @@ function Sektion({ slag, rubrik, hjalp, tomText, lista, kanAndra, lasText, sprak
                   <IkonKnapp etikett={`Flytta ned ${namn}`} disabled={upptagen || i === valbara.length - 1} onClick={() => spara(flyttaKalender(/** @type {any} */ (lista), k.id, 1, sprak))}>
                     <ChevronNedIkon size={16} />
                   </IkonKnapp>
+                  {delning ? (
+                    <IkonKnapp etikett={od.dela.replace("{namn}", namn)} disabled={upptagen} onClick={() => setDelar({ id: k.id, namn, arkiverad: false })}>
+                      <GruppIkon size={16} />
+                    </IkonKnapp>
+                  ) : null}
                   <IkonKnapp etikett={`Redigera ${namn}`} disabled={upptagen} onClick={() => oppnaRedigera(k)}>
                     <AndraIkon size={16} />
                   </IkonKnapp>
@@ -233,9 +281,24 @@ function Sektion({ slag, rubrik, hjalp, tomText, lista, kanAndra, lasText, sprak
           <ul className="m-0 mt-2 flex list-none flex-col gap-2 p-0">
             {arkiverade.map((k) => {
               const namn = text(k.namn, sprak);
+              // ⛔ EN ARKIVERAD KALENDER SOM FORTFARANDE HAR DELNINGAR SÄGER DET (granskningen av PR 468). Den delas inte längre (reglerna släpper inte in posterna),
+              // men raderna står kvar tills ägaren slutar dela, och de ska gå att se och stänga härifrån.
+              const delasMed = antalDelningar(k.id);
               return (
-                <li key={k.id} className="flex min-w-0 items-center gap-2 rounded-base border border-line p-2 opacity-70">
-                  <span className="min-w-0 flex-1 truncate text-etikett text-ink-secondary">{namn}</span>
+                <li key={k.id} data-arkiverad-rad={k.id} className="flex min-w-0 items-center gap-2 rounded-base border border-line p-2 opacity-70">
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-etikett text-ink-secondary">{namn}</span>
+                    {delasMed > 0 ? (
+                      <span className="block text-meta text-ink-muted" data-kalenderrad-marke="">
+                        {od.delasMed.replace("{antal}", String(delasMed))}
+                      </span>
+                    ) : null}
+                  </span>
+                  {delning && delasMed > 0 ? (
+                    <IkonKnapp etikett={od.dela.replace("{namn}", namn)} disabled={upptagen} onClick={() => setDelar({ id: k.id, namn, arkiverad: true })}>
+                      <GruppIkon size={16} />
+                    </IkonKnapp>
+                  ) : null}
                   {kanAndra ? (
                     <IkonKnapp etikett={`Ta fram ${namn}`} disabled={upptagen} onClick={() => spara([arkiveraKalender(/** @type {any} */ (lista), k.id, false)])}>
                       <TaFramIkon size={16} />
@@ -278,6 +341,24 @@ function Sektion({ slag, rubrik, hjalp, tomText, lista, kanAndra, lasText, sprak
             setFel(null);
           }}
           onSpara={sparaUtkast}
+        />
+      ) : null}
+
+      {delning && delar ? (
+        <KalenderDelning
+          open
+          onOpenChange={(v) => {
+            if (!v) setDelar(null);
+          }}
+          kalender={{ id: delar.id, namn: delar.namn }}
+          arkiverad={delar.arkiverad}
+          delningar={delning.delningar}
+          grupp={delning.grupp ?? null}
+          personer={delning.personer ?? []}
+          namnFor={delning.namnFor}
+          onDela={delning.onDela}
+          onSlutaDela={delning.onSlutaDela}
+          sprak={sprak}
         />
       ) : null}
     </section>

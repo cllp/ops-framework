@@ -49,6 +49,7 @@
  *       node scripts/check-skalyta.mjs --bara-bandkontrast  bara avsnitt 49, bandets text mot underlaget över en vald ruta (0.120.0), ljust och mörkt
  *       node scripts/check-skalyta.mjs --bara-0127       bara avsnitt 50 till 52, preliminära poster, tilläggsrutan i Ny händelse och video i Biblioteket (0.127.0)
  *       node scripts/check-skalyta.mjs --bara-grupp-vantar  bara avsnitt 53, Spara och statusraden medan en grupp skapas (0.129.0)
+ *       node scripts/check-skalyta.mjs --bara-kalenderdelning  bara avsnitt 58, Dela en egen kalender och mottagarens lista, 390 och 1280 px (0.154.0)
  *       node scripts/check-skalyta.mjs --bara-kategori  bara avsnitt 54, formuläret "Lägg till kategori": ett namn räcker (0.130.0)
  *       node scripts/check-skalyta.mjs --bara-gaster    bara avsnitt 55, gästernas lista och gästens egen sida, 390 och 1280 px (0.131.0)
  *       node scripts/check-skalyta.mjs --bara-gastgrupp  bara avsnitt 56, gästens bantade gränssnitt för hela gruppen och inbjudningsdialogen, 390 och 1280 px (0.132.0), och avsnitt 57, ärenden till en gäst (fliken, kommentar, Markera klar, väljaren och märket)
@@ -1071,6 +1072,14 @@ if (argv.includes("--bara-0127")) {
   await kalenderPreliminar();
   await nyHandelseTillagg();
   await bibliotekVideo();
+  await browser.close();
+  avsluta();
+  process.exit(0);
+}
+
+// `--bara-kalenderdelning`: bara avsnitt 58, Dela en egen kalender (0.154.0). Hela körningen kör det också.
+if (argv.includes("--bara-kalenderdelning")) {
+  await kalenderdelning();
   await browser.close();
   avsluta();
   process.exit(0);
@@ -8185,6 +8194,164 @@ async function gastArenden() {
   }
 }
 
+/**
+ * Avsnitt 58 (0.154.0, cllp/lifehub.app#485): DELA EN EGEN KALENDER, BARA LÄSNING, vid 390 och 1280 px i riktig CSS. Scenerna `kalenderdelning` (ägarens Hantera kalendrar
+ * med `delning`) och `kalenderdelning-mottagare` (Bos kalender med Annas delade Barnveckor). Krav, varje del för sig:
+ *   (a) Varje egen kalender har fem knappar (Flytta upp, Flytta ned, Dela, Redigera, Arkivera) på 44 px under 768 och 32 från, inom kortet, och namnet får minst
+ *       64 px (golv: två rader). Raden för Barnveckor säger "Förvald · Delas med 1".
+ *   (b) Dela öppnar dialogen "Dela Barnveckor" helt inom fönstret: listan "Delas med" med Bo Lind och Sluta dela (44 px under 768), Dela med Familjen, väljaren och
+ *       Dela (avstängd utan val).
+ *   (c) Dela med Familjen medan anropet väntar: knappen upptagen (`aria-busy`), med snurra och "Delar…"; när det släpps står Familjen i listan och knappen är borta.
+ *   (d) Dela med Cecilia Holm: tre rader, och raden i Hantera kalendrar säger "Delas med 3".
+ *   (e) Sluta dela med Bo Lind: två rader kvar, Bo står inte längre i listan.
+ *   (f) Ingen sidled-överflödning, med dialogen stängd och öppen.
+ *   (g) Mottagaren: listan Kalendrar har sektionen "Delade med mig" med Barnveckor och märket "Delad av Anna Berg. Bara läsning"; växeln är på; att slå av den
+ *       ändrar dagen 2026-10-12 och att slå på den igen ger tillbaka samma dag. Ingen överflödning.
+ */
+async function kalenderdelning() {
+  for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
+    const namn = `kalenderdelning ${vp.width}`;
+    const telefon = vp.width < 768;
+    const knapp = telefon ? 44 : 32;
+    const over = (/** @type {import("playwright").Page} */ page) => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    const { page, context } = await oppna("kalenderdelning", vp);
+    try {
+      await page.waitForSelector('[data-kalendersektion="mina"]');
+      krav(!(await page.$('[data-saknas="KalenderDelning"]')), `${namn}: KalenderDelning saknas i den byggda versionen.`);
+      // (a)
+      const a = await page.evaluate(() => {
+        const kort = /** @type {HTMLElement} */ (document.querySelector('[data-kalendersektion="mina"]'));
+        const kr = kort.getBoundingClientRect();
+        return [...kort.querySelectorAll("li[data-kalenderrad]")].map((rad) => {
+          const rr = rad.getBoundingClientRect();
+          const namnEl = /** @type {HTMLElement | null} */ (rad.querySelector(".truncate"));
+          return {
+            id: rad.getAttribute("data-kalenderrad"),
+            namnBredd: namnEl ? namnEl.getBoundingClientRect().width : 0,
+            marke: (rad.querySelector("[data-kalenderrad-marke]")?.textContent || "").trim(),
+            knappar: [...rad.querySelectorAll("button")].map((b) => ({ namn: b.getAttribute("aria-label"), h: b.getBoundingClientRect().height, hoger: b.getBoundingClientRect().right })),
+            inom: rr.right <= kr.right + 0.5 && rr.left >= kr.left - 0.5,
+          };
+        });
+      });
+      matt.push(`${namn} (a): rader ${JSON.stringify(a.map((r) => ({ id: r.id, namn: Math.round(r.namnBredd), marke: r.marke, knappar: r.knappar.map((k) => Math.round(k.h)) })))}`);
+      krav(a.length >= 2, `${namn} (a): ${a.length} egna kalendrar i kortet, väntat minst 2 (golv).`);
+      krav(a.every((r) => r.knappar.length === 5 && r.knappar.some((k) => /^Dela /.test(k.namn || "")) && r.knappar.every((k) => Math.abs(k.h - knapp) < 0.6)), `${namn} (a): knapparna ${JSON.stringify(a.map((r) => r.knappar.map((k) => `${k.namn} ${Math.round(k.h)}`)))}, väntat fem per rad med Dela, ${knapp} px.`);
+      krav(a.every((r) => r.inom && r.namnBredd >= 64), `${namn} (a): namnen får ${JSON.stringify(a.map((r) => Math.round(r.namnBredd)))} px och raderna ${a.every((r) => r.inom) ? "ligger" : "ligger inte"} inom kortet, väntat minst 64 px och inom.`);
+      krav(a[0] && a[0].marke === "Förvald · Delas med 1", `${namn} (a): Barnveckor säger ${JSON.stringify(a[0] && a[0].marke)}, väntat "Förvald · Delas med 1".`);
+      krav((await over(page)) <= 0, `${namn} (f): sidan flödar över i sidled med dialogen stängd.`);
+      if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `kalenderdelning-hantera-${vp.width}.png`), fullPage: true });
+
+      // (b)
+      await page.getByRole("button", { name: "Dela Barnveckor" }).click();
+      const dialog = page.getByRole("dialog", { name: "Dela Barnveckor" });
+      await dialog.waitFor();
+      await page.evaluate(() => Promise.race([Promise.all(document.getAnimations().map((x) => x.finished.catch(() => null))), new Promise((r) => setTimeout(r, 1000))]));
+      const lasDialog = () =>
+        page.evaluate(() => {
+          const d = /** @type {HTMLElement} */ (document.querySelector('[role="dialog"]'));
+          const r = d.getBoundingClientRect();
+          const knappar = [...d.querySelectorAll("button")];
+          const slutaDela = knappar.filter((b) => (b.textContent || "").trim() === "Sluta dela").map((b) => b.getBoundingClientRect().height);
+          const dela = knappar.find((b) => (b.textContent || "").trim() === "Dela");
+          return {
+            inom: r.left >= -0.5 && r.right <= innerWidth + 0.5 && r.top >= -0.5,
+            bredd: Math.round(r.width),
+            rader: [...d.querySelectorAll("[data-kalenderdelning-rad]")].map((x) => (x.querySelector(".truncate")?.textContent || "").trim()),
+            slutaDela,
+            gruppknapp: knappar.map((b) => (b.textContent || "").trim()).find((t) => /^Dela med /.test(t)) || null,
+            delaAv: dela ? /** @type {HTMLButtonElement} */ (dela).disabled : null,
+            valjare: !!d.querySelector('[role="combobox"]'),
+            over: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+          };
+        });
+      const b = await lasDialog();
+      matt.push(`${namn} (b): ${JSON.stringify(b)}`);
+      krav(b.inom && b.over <= 0, `${namn} (b, f): dialogen ${b.inom ? "är" : "är inte"} inom fönstret (bredd ${b.bredd}), överflödning ${b.over} px.`);
+      krav(JSON.stringify(b.rader) === JSON.stringify(["Bo Lind"]) && b.slutaDela.length === 1 && b.slutaDela.every((h) => h >= knapp - 0.6), `${namn} (b): listan ${JSON.stringify(b.rader)}, Sluta dela ${JSON.stringify(b.slutaDela)} px, väntat Bo Lind och en Sluta dela på minst ${knapp} px.`);
+      krav(b.gruppknapp === "Dela med Familjen" && b.valjare && b.delaAv === true, `${namn} (b): gruppknappen ${JSON.stringify(b.gruppknapp)}, väljaren ${b.valjare}, Dela avstängd ${b.delaAv}. Väntat "Dela med Familjen", en väljare och Dela avstängd utan val.`);
+      if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `kalenderdelning-dialog-${vp.width}.png`) });
+
+      // (c) väntan på Dela med Familjen
+      await page.evaluate(() => {
+        const w = /** @type {any} */ (window);
+        w.__delat.length = 0;
+        w.__delaHall = true;
+      });
+      await dialog.getByRole("button", { name: "Dela med Familjen" }).click();
+      await page.waitForSelector('[role="dialog"] button[aria-busy="true"]', { timeout: 3000 });
+      const c = await page.evaluate(() => {
+        const knapp_ = [...document.querySelectorAll('[role="dialog"] button')].find((x) => x.getAttribute("aria-busy") === "true");
+        return { text: knapp_ ? (knapp_.textContent || "").trim() : null, snurra: !!(knapp_ && knapp_.querySelector("svg")), spard: !!(knapp_ && /** @type {HTMLButtonElement} */ (knapp_).disabled) };
+      });
+      await page.evaluate(() => /** @type {any} */ (window).__delaSlapp());
+      await page.waitForFunction(() => document.querySelectorAll("[data-kalenderdelning-rad]").length === 2, null, { timeout: 3000 });
+      const c2 = await lasDialog();
+      const anrop = await page.evaluate(() => JSON.stringify(/** @type {any} */ (window).__delat));
+      matt.push(`${namn} (c): medan anropet väntar ${JSON.stringify(c)}, efter ${JSON.stringify(c2.rader)}, anrop ${anrop}`);
+      krav(c.snurra && c.spard && /Delar…/.test(c.text || ""), `${namn} (c): knappen medan anropet väntar ${JSON.stringify(c)}, väntat snurra, spärrad och "Delar…".`);
+      krav(anrop === JSON.stringify([{ slag: "dela", kalenderId: "barnveckor", mottagare: { grupp: "familjen" } }]) && c2.rader[0] === "Familjen" && c2.gruppknapp === null, `${namn} (c): anropen ${anrop}, listan ${JSON.stringify(c2.rader)}, gruppknappen ${JSON.stringify(c2.gruppknapp)}. Väntat ett anrop med gruppen, Familjen först och ingen gruppknapp.`);
+
+      // (d) en person till
+      await dialog.getByRole("combobox").click();
+      await page.getByRole("option", { name: "Cecilia Holm" }).click();
+      await dialog.getByRole("button", { name: "Dela", exact: true }).click();
+      await page.waitForFunction(() => document.querySelectorAll("[data-kalenderdelning-rad]").length === 3, null, { timeout: 3000 });
+      const d = await lasDialog();
+      const marke = await page.evaluate(() => (document.querySelector('li[data-kalenderrad="barnveckor"] [data-kalenderrad-marke]')?.textContent || "").trim());
+      matt.push(`${namn} (d): ${JSON.stringify(d.rader)}, raden "${marke}"`);
+      krav(JSON.stringify(d.rader) === JSON.stringify(["Familjen", "Bo Lind", "Cecilia Holm"]) && marke === "Förvald · Delas med 3" && d.over <= 0, `${namn} (d): listan ${JSON.stringify(d.rader)}, raden ${JSON.stringify(marke)}, överflödning ${d.over}. Väntat Familjen, Bo Lind, Cecilia Holm och "Förvald · Delas med 3".`);
+      if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `kalenderdelning-dialog-delad-${vp.width}.png`) });
+
+      // (e) sluta dela med Bo
+      await dialog.getByRole("button", { name: "Sluta dela med Bo Lind" }).click();
+      await page.waitForFunction(() => document.querySelectorAll("[data-kalenderdelning-rad]").length === 2, null, { timeout: 3000 });
+      const e = await lasDialog();
+      krav(JSON.stringify(e.rader) === JSON.stringify(["Familjen", "Cecilia Holm"]), `${namn} (e): efter Sluta dela med Bo Lind står ${JSON.stringify(e.rader)}, väntat Familjen och Cecilia Holm.`);
+    } catch (err) {
+      krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (err).message).split("\n")[0]}).`);
+    }
+    await context.close();
+
+    // (g) mottagaren
+    const m = await oppna("kalenderdelning-mottagare", vp);
+    let steg = "start";
+    try {
+      krav(!(await m.page.$("[data-saknas]")), `${namn} mottagaren: deladeKalendrar saknas i den byggda versionen.`);
+      const dag = () => m.page.evaluate(() => document.querySelector('[data-cal-day="2026-10-12"]')?.getAttribute("aria-label") || "");
+      const fore = await dag();
+      steg = "öppna listan";
+      await m.page.getByRole("button", { name: /^Kalendrar: / }).click();
+      const lista = m.page.getByRole("dialog", { name: "Kalendrar" });
+      await lista.waitFor();
+      steg = "läsa sektionen";
+      const g = await m.page.evaluate(() => {
+        const sek = document.querySelector('[data-kalendersektion="Delade med mig"]');
+        const vaxel = /** @type {HTMLInputElement | null} */ (sek ? sek.querySelector('[role="switch"]') : null);
+        return { finns: !!sek, text: sek ? (sek.textContent || "").replace(/\s+/g, " ").trim() : "", pa: vaxel ? vaxel.checked : null, over: document.documentElement.scrollWidth - document.documentElement.clientWidth };
+      });
+      if (bildmapp) await m.page.screenshot({ path: path.join(bildmapp, `kalenderdelning-mottagare-lista-${vp.width}.png`) });
+      steg = "slå av";
+      // Ett tryck på radens namn, som en person gör: växeln är en dold `input` i en `label`, och den går inte att klicka på själv.
+      await lista.getByText("Barnveckor", { exact: true }).click();
+      await m.page.waitForFunction(() => /** @type {HTMLInputElement | null} */ (document.querySelector('[data-kalendersektion="Delade med mig"] [role="switch"]'))?.checked === false, null, { timeout: 3000 });
+      const dold = await dag();
+      steg = "slå på";
+      // Ett tryck på radens namn, som en person gör: växeln är en dold `input` i en `label`, och den går inte att klicka på själv.
+      await lista.getByText("Barnveckor", { exact: true }).click();
+      await m.page.waitForFunction(() => /** @type {HTMLInputElement | null} */ (document.querySelector('[data-kalendersektion="Delade med mig"] [role="switch"]'))?.checked === true, null, { timeout: 3000 });
+      const igen = await dag();
+      matt.push(`${namn} (g): ${JSON.stringify(g)}, dagen före ${JSON.stringify(fore)}, dold ${JSON.stringify(dold)}, igen ${JSON.stringify(igen)}`);
+      krav(g.finns && /Barnveckor/.test(g.text) && /Delad av Anna Berg\. Bara läsning/.test(g.text) && g.pa === true, `${namn} (g): sektionen ${g.finns ? JSON.stringify(g.text) : "saknas"}, växeln ${g.pa}. Väntat Barnveckor med "Delad av Anna Berg. Bara läsning" och växeln på.`);
+      krav(fore !== "" && dold !== fore && igen === fore, `${namn} (g): dagen 2026-10-12 ${JSON.stringify(fore)}, dold ${JSON.stringify(dold)}, på igen ${JSON.stringify(igen)}. Väntat att den ändras när kalendern döljs och kommer tillbaka.`);
+      krav(g.over <= 0, `${namn} (g): sidan flödar över i sidled med listan öppen.`);
+    } catch (err) {
+      krav(false, `${namn} mottagaren: provet avbröts vid "${steg}" (${String(/** @type {Error} */ (err).message).split("\n")[0]}).`);
+    }
+    await m.context.close();
+  }
+}
+
 await apparArkHylla();
 await apparArkOrdning();
 await textfaltMedTal();
@@ -8200,6 +8367,7 @@ await kategoriFormular();
 await gastVyer();
 await gastGrupp();
 await gastArenden();
+await kalenderdelning();
 
 await browser.close();
 avsluta();
