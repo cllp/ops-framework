@@ -38,7 +38,7 @@ import {
 import { ID_FORM, KATALOGAVGRANSARE, KATEGORIFALT } from "./katalog.js";
 import { INSTALLNINGSVARDEFALT, MAX_INSTALLNINGSGRUPP, MAX_INSTALLNINGSID, MAX_INSTALLNINGSTEXT, MAX_MODULINSTALLNINGAR, MODULINSTALLNINGFALT, VISA_I_HUVUDMENYN } from "./modulinstallningar.js";
 import { MAX_TYPAVVIKELSER, MAX_TYPID, MAX_TYPNAMN, MODULTYPID_FORM, TYPAVVIKELSEFALT, TYPYTOR } from "./modultyper.js";
-import { ADRESSFORM, ARENDEFORM, ARENDE_PREFIX, BIBLIOTEKFALT, BIBLIOTEKTYPER, BILDFORM, FILFALT, HANDELSEFORM, HANDELSE_PREFIX, LJUD_STOLPAR, MITT_PREFIX, MAX_BIBLIOTEKFILNAMN, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKSOKVAG, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, MAX_BIBLIOTEKUTSKRIFT, MAX_LISTPOSTER, MAX_LJUD_MS, MAX_TAGGAR, POSTIDFORM, TAGGFORM, TOPPFORM, filMimeMonster, filtakRegel } from "./bibliotek.js";
+import { ADRESSFORM, ARENDEFORM, ARENDE_PREFIX, BIBLIOTEKFALT, BIBLIOTEKTYPER, BILDFORM, FILFALT, HANDELSEFORM, HANDELSE_PREFIX, LJUD_STOLPAR, MITT_PREFIX, MAX_BIBLIOTEKFILNAMN, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKSOKVAG, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, MAX_BIBLIOTEKUTSKRIFT, MAX_LISTPOSTER, MAX_LJUD_MS, MAX_TAGGAR, POSTIDFORM, TAGGFORM, TOPPFORM, filContentTypeMonster, filMimeMonster, filtakRegel } from "./bibliotek.js";
 import { LANKKALLOR, lankkallaForm } from "./lankkalla.js";
 import { MAX_MINNESID, MAX_MINNESTEXT, MINNESFALT, MINNESKALLAFALT, MINNESKALLOR } from "./minne.js";
 import { MAX_SKAPARKALLA, MAX_SKAPARNAMN, SKAPARFALT, VIA_FALTNAMN } from "./skapare.js";
@@ -617,7 +617,8 @@ ${handelsefunktioner}    function opsFilPlatsMedlem(gid) {
         // ⛔ LJUD OCH VIDEO HAR VAR SITT TAK (CP 2026-10-18, WAV; 2026-10-19, video): familjernas tak och det allmänna står i FILTAK och
         // MAX_BIBLIOTEKFIL (src/lib/bibliotek.js) och skrivs hit ur dem.
         && ${filtakRegel("request.resource.contentType", "request.resource.size", "\n          ")}
-        && request.resource.contentType.matches('${filMimeMonster()}');
+        // ⛔ TEXTFILENS TECKENKODNING (0.153.0, ops-framework#460 punkt 3): text/plain får bära '; charset=utf-8' (lagringsContentType i bibliotek.js). Reglerna ska vara deployade FÖRE klienten.
+        && request.resource.contentType.matches('${filContentTypeMonster()}');
       allow delete: if false;
     }
 `;

@@ -16,6 +16,7 @@
 import { medlemskapsId } from "../../src/lib/grupp.js";
 import { mittBibliotek } from "../../src/lib/bibliotek.js";
 import { after, before, describe, it } from "node:test";
+import assert from "node:assert/strict";
 import { assertFails, assertSucceeds, initializeTestEnvironment } from "@firebase/rules-unit-testing";
 import { doc, setDoc } from "firebase/firestore";
 import { deleteObject, getBytes, ref, uploadBytes } from "firebase/storage";
@@ -133,5 +134,28 @@ describe("Lagring: video har ett eget tak på 100 MB (CP 2026-10-19, cllp/lifehu
   });
   it("ljudets tak är oförändrat: en WAV över 100 MB går in", async () => {
     await assertSucceeds(uploadBytes(ref(lagringSom(AGARE), `grupper/${CPS}/bibliotek/g1/lat.wav`), new Uint8Array(100 * 1024 * 1024 + 1), { contentType: "audio/wav" }));
+  });
+});
+
+describe("Lagring: en textfil får sin teckenkodning (0.153.0, cllp/ops-framework#460 punkt 3, lifehub.app QA-fynd 5)", () => {
+  const text = new TextEncoder().encode("Hej, för vår skull.");
+  const sok = (/** @type {string} */ namn) => ref(lagringSom(AGARE), `grupper/${CPS}/bibliotek/g1/${namn}`);
+
+  it("⛔ text/plain; charset=utf-8 går in (röd mot 0.152.0: regeln jämförde hela strängen och nekade den)", async () => {
+    await assertSucceeds(uploadBytes(sok("anteckning.txt"), text, { contentType: "text/plain; charset=utf-8" }));
+  });
+  it("text/plain utan kodning går fortfarande in: en äldre klient mot de nya reglerna fungerar som förut", async () => {
+    await assertSucceeds(uploadBytes(sok("gammal.txt"), text, { contentType: "text/plain" }));
+  });
+  it("⛔ en annan kodning, en kodning på en bild och andra textformat nekas", async () => {
+    await assertFails(uploadBytes(sok("latin.txt"), text, { contentType: "text/plain; charset=iso-8859-1" }));
+    await assertFails(uploadBytes(sok("bild.png"), text, { contentType: "image/png; charset=utf-8" }));
+    await assertFails(uploadBytes(sok("sida.html"), text, { contentType: "text/html; charset=utf-8" }));
+    await assertFails(uploadBytes(sok("extra.txt"), text, { contentType: "text/plain; charset=utf-8; boundary=x" }));
+  });
+  it("⛔ en text som bär kodningen läses tillbaka med den (objektets innehållstyp är den som laddades upp)", async () => {
+    await assertSucceeds(uploadBytes(sok("las.txt"), text, { contentType: "text/plain; charset=utf-8" }));
+    const bytes = await getBytes(sok("las.txt"));
+    assert.equal(new TextDecoder("utf-8").decode(bytes), "Hej, för vår skull.");
   });
 });

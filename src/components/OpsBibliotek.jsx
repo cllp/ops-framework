@@ -7,7 +7,7 @@ import { OpsDokument } from "./OpsDokument.jsx";
 import { OpsMarkdown } from "./OpsMarkdown.jsx";
 import { OpsModal } from "./OpsModal.jsx";
 import { OpsSvepRad } from "./OpsSvepRad.jsx";
-import { ADRESSFORM, BIBLIOTEKTYPER, BILDFORM, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKURL, uppladdningAvbruten, uppladdningenAvbrytsKl, allaTaggar, arDelbar, arLjudpost, arMittBibliotek, farAndra, normaliseraTaggar, anteckningsrubrikNu, beskrivObjektbibliotek, filInmatningsfel, LJUDFIL_ACCEPT, ljudfilFel, mimeUrFilnamn, filadressFel, filSort, filtreraBibliotek, inmatningsfel, ljudDatum, ljudRubrik, normaliseraAdress, trimSomRegeln } from "../lib/bibliotek.js";
+import { ADRESSFORM, BIBLIOTEKTYPER, BILDFORM, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKURL, uppladdningAvbruten, uppladdningenAvbrytsKl, allaTaggar, arDelbar, arLjudpost, arMittBibliotek, farAndra, normaliseraTaggar, anteckningsrubrikNu, beskrivObjektbibliotek, filInmatningsfel, LJUDFIL_ACCEPT, ljudfilFel, mimeUrFilnamn, filadressFel, filSort, filtreraBibliotek, inmatningsfel, ljudDatum, ljudRubrik, normaliseraAdress, normaliseraMime, avkodaTextfil, TEXTFORHANDS_BYTE, trimSomRegeln } from "../lib/bibliotek.js";
 import { OpsTaggFilter, OpsTaggRad, menyPilar } from "./OpsTaggar.jsx";
 
 export { menyPilar, OpsTaggFilter as TaggFilter };
@@ -163,6 +163,9 @@ function useBibliotekskalla(kalla) {
  * @param {(inmatning: { id: string, durationMs?: number, peaks?: string }) => void | Promise<void>} [props.onFyllLjud] Skriver längd och våg på en post som saknar dem. Listan räknar dem i bakgrunden, utan att någon trycker på spela. (0.93.0) Anropas bara när `jag` får ändra posten (`farAndra`): reglerna nekar alla andra, och längden visas ändå.
  * @param {(post: { fil?: { sokvag?: string } }) => string} [props.filUrl] Appen ger adressen till en fil. Tom sträng visas som att adressen saknas. Synkron, och vinner när den är ifylld.
  * @param {(sokvag: string) => Promise<string>} [props.hamtaAdress] (0.88.2) Nedladdningsadressen för `fil.sokvag`, när `filUrl` är tom. Svaret cachas per sökväg, så listan och detaljen delar den. Medan den hämtas visas inte "Filen har ingen adress."
+ * @param {(sokvag: string) => Promise<Blob>} [props.hamtaFil] (0.153.0, ops-framework#460 punkt 3) Filens byte, normalt `lagring.hamta` (`getBlob`, med inloggningen, så Storage-regeln avgör vem som får läsa). Med den visas en
+ *   textfil (`text/plain`) som text i detaljen, avkodad som UTF-8 (och som Windows-1252 om byten inte är giltig UTF-8), de första 100 000 byten med en rad som säger att resten finns i filen. Utan den visas bara länken, som förut.
+ *   ⛔ Förhandsvisningen ändrar ingen regel och hämtar bara den öppna filen, aldrig listan.
  * @param {unknown} [props.onSpelaIn] Borttagen (0.90.8). Skickas den kastas ett fel: listan hade en egen inspelare, och att tysta propen hade sett ut som att ljudet fortfarande sparades där.
  * @param {unknown} [props.inspelare] Borttagen tillsammans med listans inspelare. Skickas den kastas ett fel.
  * @param {readonly { id: string, namn: string }[]} [props.grupper] Platser posten kan flyttas eller kopieras till. Mitt bibliotek (`mittBibliotek(uid)`) är en av dem när appen ger den (0.101.0): menyn får då Flytta till och Kopiera till Mitt bibliotek, och i Mitt bibliotek Dela med gruppen.
@@ -207,7 +210,7 @@ function useBibliotekskalla(kalla) {
  * @param {readonly string[]} [props.gruppTaggar] (0.143.0, lifehub.app#398) Gruppens samlade taggar (inklusive taggar från Inkorgen och Ärenden), hämtade en gång i skalet. Slås ihop med bibliotekets egna taggar i filtret och förslagen.
  * @param {boolean} [props.adresserPaBegaran] (0.132.0, lifehub.app#389) Filernas adresser hämtas bara för posten som är öppen, aldrig för hela listan. Förvalet hämtar en adress per fil när listan ritas, vilket är billigt för en medlem (`getDownloadURL`) och dyrt för en gäst: varje adress är en signering som räknas mot ett tak per dygn. Mätt i designen av skiva 2 som felantagande: listan hämtade alla. En fil som öppnats förut visas med sin adress också i listan.
  */
-export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, trasiga: trasigaProp = [], laddar: laddarProp = false, vald = null, skapar = null, jag, onOppna, onStang, onSkapa, onSpara, onRadera, onLaddaUpp, onFyllLjud, onSpelaIn, inspelare, filUrl, hamtaAdress, grupper = [], onDela, platser = [], plats, onPlats, onSkrivUt, onSkrivUtIgen, onTaBortUtskrift, onAnteckningAvUtskrift, onGorForslag, delningar = [], delningGruppdel, gruppnamn: gruppnamnProp, onDelaLank, onAndraNedladdning, onAterkalla, onMejlaLank, onLankInfo, hubHref, hubEtikett, onNavigate, modulId = "bibliotek", ram = null, activeHref, modul = null, inbaddad = false, tomText, utanHubb = false, adresserPaBegaran = false, gruppTaggar = [] }) {
+export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, trasiga: trasigaProp = [], laddar: laddarProp = false, vald = null, skapar = null, jag, onOppna, onStang, onSkapa, onSpara, onRadera, onLaddaUpp, onFyllLjud, onSpelaIn, inspelare, filUrl, hamtaAdress, hamtaFil, grupper = [], onDela, platser = [], plats, onPlats, onSkrivUt, onSkrivUtIgen, onTaBortUtskrift, onAnteckningAvUtskrift, onGorForslag, delningar = [], delningGruppdel, gruppnamn: gruppnamnProp, onDelaLank, onAndraNedladdning, onAterkalla, onMejlaLank, onLankInfo, hubHref, hubEtikett, onNavigate, modulId = "bibliotek", ram = null, activeHref, modul = null, inbaddad = false, tomText, utanHubb = false, adresserPaBegaran = false, gruppTaggar = [] }) {
   if (kalla !== undefined && (posterProp !== undefined || felProp !== null || laddarProp !== false || (Array.isArray(trasigaProp) && trasigaProp.length > 0))) {
     throw new Error("OpsBibliotek: kalla och poster/fel/trasiga/laddar kan inte ges tillsammans. Med kalla läser vyn själv, och två sanningar om samma lista hade låtit den ena vinna tyst.");
   }
@@ -714,7 +717,19 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
     <Rot tillbaka={detalj ? undefined : listTillbaka}>
       <div data-bibliotek="" className="flex min-w-0 w-full flex-col gap-4">
         {detalj ? (
-          <Detalj key={`${skaparTyp ?? ""}:${vald?.id ?? ""}:${startLage}`} post={vald ? medFyll(poster.find((p) => p.id === vald.id) ?? vald) : null} skapar={skaparTyp} startLage={startLage} onStang={onStang} onSpara={onSpara} onLaddaUpp={onLaddaUpp} filUrl={filUrl} adressFor={adressFor} onLjus={setLjus} onSkrivUt={onSkrivUt} onSkrivUtIgen={onSkrivUtIgen} onTaBortUtskrift={onTaBortUtskrift} onAnteckningAvUtskrift={onAnteckningAvUtskrift} menyFor={menyFor} onMeta={togMeta} tillbakaEtikett={inbaddad ? "Filer" : "Tillbaka"} poster={poster} jag={jag} onLankInfo={onLankInfo} onOppnaPost={(p) => oppnaMed(p, "las")} />
+          <Detalj key={`${skaparTyp ?? ""}:${vald?.id ?? ""}:${startLage}`} post={vald ? medFyll(poster.find((p) => p.id === vald.id) ?? vald) : null} skapar={skaparTyp} startLage={startLage} onStang={onStang} onSpara={onSpara} onLaddaUpp={onLaddaUpp} filUrl={filUrl} hamtaFil={hamtaFil} adressFor={adressFor} taggrad={vald && !skaparTyp ? (() => {
+            // ⛔ TAGGARNA RITAS OCKSÅ I DETALJEN (0.153.0, ops-framework#460 punkt 3, lifehub.app QA-fynd 5): förut bara på listkortet, så den som öppnade en post såg inte vilka taggar den hade. Samma rad, samma rätt att ändra
+            // (`farAndra`) och samma förslag som på kortet, men utan filter: listan är inte synlig medan en post är öppen, och ett tryck på en tagg skulle ställa in ett filter ingen ser.
+            const rad = poster.find((p) => p.id === vald.id) ?? vald;
+            return (
+              <OpsTaggRad
+                taggar={rad.taggar}
+                kanAndra={farAndra(rad, jag)}
+                forslag={gruppensTaggar.map((g) => g.tagg)}
+                onAndra={typeof onSpara === "function" ? (ny) => onSpara({ id: rad.id, taggar: ny }) : undefined}
+              />
+            );
+          })() : null} onLjus={setLjus} onSkrivUt={onSkrivUt} onSkrivUtIgen={onSkrivUtIgen} onTaBortUtskrift={onTaBortUtskrift} onAnteckningAvUtskrift={onAnteckningAvUtskrift} menyFor={menyFor} onMeta={togMeta} tillbakaEtikett={inbaddad ? "Filer" : "Tillbaka"} poster={poster} jag={jag} onLankInfo={onLankInfo} onOppnaPost={(p) => oppnaMed(p, "las")} />
         ) : (
           <div data-bibliotek-huvud="" className="flex min-w-0 flex-col gap-3">
             {/* ⛔ SESSIONSTUDIOS HUVUD, SOM I APPEN (0.102.0, CP 2026-10-14 med skärmbilder från SessionStudios app: "Listningen
@@ -1536,9 +1551,9 @@ function NyKnapp({ flik, onSkapa, onRost, erbjudRost, onLaddaUppLjud }) {
 /**
  * Bild öppnas i förhandsvisning. PDF och övrigt i ny flik. Utan adress sägs det.
  *
- * @param {{ post: { id?: string, typ?: string, rubrik?: string, skapad?: number, durationMs?: number, peaks?: string, fil?: { namn?: string, mime?: string, byte?: number, sokvag?: string } }, lage: Adresslage, kopplad: boolean, onLjus?: (adress: string) => void, onMeta?: (id: string, meta: { durationMs?: number, peaks?: string }) => void, onRadera?: () => void }} props
+ * @param {{ post: { id?: string, typ?: string, rubrik?: string, skapad?: number, durationMs?: number, peaks?: string, fil?: { namn?: string, mime?: string, byte?: number, sokvag?: string } }, lage: Adresslage, kopplad: boolean, onLjus?: (adress: string) => void, onMeta?: (id: string, meta: { durationMs?: number, peaks?: string }) => void, onRadera?: () => void, hamtaFil?: (sokvag: string) => Promise<Blob> }} props
  */
-function FilVisning({ post, lage, kopplad, onLjus, onMeta, onRadera }) {
+function FilVisning({ post, lage, kopplad, onLjus, onMeta, onRadera, hamtaFil }) {
   const spelare = useSpelare();
   const sort = filSort(post.fil?.mime);
   const namn = post.fil?.namn ?? "Fil";
@@ -1613,11 +1628,97 @@ function FilVisning({ post, lage, kopplad, onLjus, onMeta, onRadera }) {
       </div>
     );
   }
+  // ⛔ EN TEXTFIL VISAS SOM TEXT (0.153.0, ops-framework#460 punkt 3), när appen ger ett sätt att hämta byten (`hamtaFil`). Länken står kvar under: den är utvägen när texten inte går att visa.
+  if (typeof hamtaFil === "function" && normaliseraMime(post.fil?.mime) === "text/plain" && post.fil?.sokvag) {
+    return (
+      <div data-bibliotek-fil="" className="flex min-w-0 flex-col gap-2">
+        <TextForhandsvisning hamta={hamtaFil} sokvag={post.fil.sokvag} namn={post.rubrik ?? namn} />
+        <a href={adress} target="_blank" rel="noopener noreferrer" className="w-fit text-etikett text-accent underline underline-offset-2">
+          {rad}
+        </a>
+      </div>
+    );
+  }
   return (
     <a href={adress} target="_blank" rel="noopener noreferrer" data-bibliotek-fil="" className="text-etikett text-accent underline underline-offset-2">
       {rad}
     </a>
   );
+}
+
+/**
+ * Textfilens innehåll i detaljen (0.153.0, ops-framework#460 punkt 3, lifehub.app QA-fynd 5).
+ *
+ * ══ ⛔ VARFÖR ═══════════════════════════════════════════════════════════════════════════════════════════════
+ *
+ * En `.txt` öppnades direkt från lagringen och webbläsaren gissade teckenkodningen: "fÃ¶r" i stället för "för". Här hämtas byten med inloggningen (`hamtaFil`, `getBlob`) och avkodas av oss, som UTF-8,
+ * med Windows-1252 som reserv för en fil som inte är giltig UTF-8 (`avkodaTextfil`). Ingen regeländring behövs, och förhandsvisningen är rätt oavsett vilken innehållstyp lagringen har (en fil som laddades upp före 0.153.0 har ingen kodning).
+ *
+ * ⛔ BARA DE FÖRSTA `TEXTFORHANDS_BYTE` BYTEN, och raden under säger det när det finns mer. En textfil får vara 25 MB, och en detalj som ritar 25 MB text är en flik som hänger sig. Tomhet och fel skrivs ut (arbetsreglernas punkt 5):
+ * en tom fil säger "Filen är tom.", och en fil som inte gick att hämta säger varför, med länken kvar under.
+ *
+ * @param {{ hamta: (sokvag: string) => Promise<Blob>, sokvag: string, namn: string }} props
+ */
+function TextForhandsvisning({ hamta, sokvag, namn }) {
+  const [lage, setLage] = useState(/** @type {{ lage: "hamtar" } | { lage: "klar", text: string, avkortad: boolean } | { lage: "fel", fel: string }} */ ({ lage: "hamtar" }));
+  // ⛔ FUNKTIONEN I EN REF, SÖKVÄGEN SOM BEROENDE. En app som skickar `hamtaFil={(s) => lagring.hamta(s)}` ger en ny funktion vid varje rendering, och texten hade hämtats om (och blinkat "Hämtar texten.") varje gång något annat i vyn ändrades.
+  const hamtaRef = useRef(hamta);
+  hamtaRef.current = hamta;
+  useEffect(() => {
+    let kvar = true;
+    setLage({ lage: "hamtar" });
+    Promise.resolve()
+      .then(() => hamtaRef.current(sokvag))
+      .then(async (blob) => {
+        const avkortad = blob.size > TEXTFORHANDS_BYTE;
+        const del = avkortad ? blob.slice(0, TEXTFORHANDS_BYTE) : blob;
+        const bytes = new Uint8Array(await blobBytes(del));
+        if (kvar) setLage({ lage: "klar", text: avkodaTextfil(bytes, avkortad), avkortad });
+      })
+      .catch((e) => {
+        if (kvar) setLage({ lage: "fel", fel: filadressFel(e) });
+      });
+    return () => {
+      kvar = false;
+    };
+  }, [sokvag]);
+  if (lage.lage === "hamtar") return <p role="status" data-bibliotek-text="hamtar" className="m-0 text-etikett text-ink-muted">Hämtar texten.</p>;
+  if (lage.lage === "fel") {
+    return (
+      <p role="alert" data-bibliotek-text="fel" className="m-0 text-etikett text-danger">
+        {`Texten gick inte att visa. ${lage.fel}`}
+      </p>
+    );
+  }
+  if (lage.text === "") return <p role="status" data-bibliotek-text="tom" className="m-0 text-etikett text-ink-muted">Filen är tom.</p>;
+  return (
+    <div className="flex min-w-0 flex-col gap-1">
+      <pre
+        data-bibliotek-text="klar"
+        tabIndex={0}
+        aria-label={`Innehållet i ${namn}`}
+        className="m-0 max-h-96 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-sunken p-3 font-mono text-meta text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+      >
+        {lage.text}
+      </pre>
+      {lage.avkortad ? (
+        <p data-bibliotek-text-avkortad="" className="m-0 text-meta text-ink-muted">
+          Det här är början av filen. Resten finns i filen.
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+/** @param {Blob} blob @returns {Promise<ArrayBuffer>} */
+function blobBytes(blob) {
+  if (typeof blob.arrayBuffer === "function") return blob.arrayBuffer();
+  return new Promise((los, fel) => {
+    const l = new FileReader();
+    l.onload = () => los(/** @type {ArrayBuffer} */ (l.result));
+    l.onerror = () => fel(l.error ?? new Error("Filen gick inte att läsa."));
+    l.readAsArrayBuffer(blob);
+  });
 }
 
 /**
@@ -1649,6 +1750,8 @@ function Adress({ url }) {
  * @param {(inmatning: { id?: string, typ: string, rubrik: string, text?: string, url?: string, fil?: { sokvag: string, namn: string, mime: string, byte: number } }) => void | boolean | Promise<void | boolean>} props.onSpara Kastar den eller avvisas löftet visas felet i formuläret och läget står kvar (0.93.0). `false` betyder att det inte gick.
  * @param {(inmatning: { id?: string, rubrik: string, fil: File }) => void | Promise<void>} [props.onLaddaUpp]
  * @param {(post: { fil?: { sokvag?: string } }) => string} [props.filUrl]
+ * @param {(sokvag: string) => Promise<Blob>} [props.hamtaFil] (0.153.0) Se `OpsBibliotek`.
+ * @param {import("react").ReactNode} [props.taggrad] (0.153.0) Postens taggar, ritade under innehållet i läsläget. Se `OpsBibliotek`.
  * @param {(post: { typ?: string, skapad?: number, fil?: { sokvag?: string, mime?: string, klar?: boolean } }) => Adresslage} [props.adressFor]
  * @param {(adress: string) => void} [props.onLjus]
  * @param {(post: any) => Promise<void> | void} [props.onSkrivUt]
@@ -1663,7 +1766,7 @@ function Adress({ url }) {
  * @param {(url: string) => Promise<{ titel?: string, artist?: string, kalla?: string, bild?: string }>} [props.onLankInfo] (0.128.0) Se `OpsBibliotek`.
  * @param {(post: import("../lib/bibliotek.js").Bibliotekspost & { id: string }) => void} props.onOppnaPost (0.128.0) Öppnar en post ur en lista.
  */
-function Detalj({ post, skapar, startLage, onStang, onSpara, onLaddaUpp, filUrl, adressFor, onLjus, onSkrivUt, onSkrivUtIgen, onTaBortUtskrift, onAnteckningAvUtskrift, menyFor, onMeta, tillbakaEtikett, poster, jag, onLankInfo, onOppnaPost }) {
+function Detalj({ post, skapar, startLage, onStang, onSpara, onLaddaUpp, filUrl, hamtaFil, taggrad, adressFor, onLjus, onSkrivUt, onSkrivUtIgen, onTaBortUtskrift, onAnteckningAvUtskrift, menyFor, onMeta, tillbakaEtikett, poster, jag, onLankInfo, onOppnaPost }) {
   const sprak = useOpsSprak();
   const typ = skapar ?? post?.typ ?? "anteckning";
   const [rubrik, setRubrik] = useState(post && !skapar ? post.rubrik : "");
@@ -1859,10 +1962,10 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, onLaddaUpp, filUrl,
   }
 
   const radera = post && !skapar ? menyFor(post, true, setLage).find((m) => m.id === "radera") : undefined;
-  const lasning = typ === "anteckning" ? (
+  const innehall = typ === "anteckning" ? (
     post?.text ? <OpsMarkdown text={post.text} dokument /> : <p className="text-etikett text-ink">Anteckningen har ingen text.</p>
   ) : typ === "fil" && post ? (
-    <FilVisning post={post} lage={filLage} kopplad={kopplad} onLjus={onLjus} onMeta={onMeta} onRadera={radera ? radera.onValj : undefined} />
+    <FilVisning post={post} lage={filLage} kopplad={kopplad} onLjus={onLjus} onMeta={onMeta} onRadera={radera ? radera.onValj : undefined} hamtaFil={hamtaFil} />
   ) : typ === "lista" && post ? (
     <ListaVisning lista={post} poster={poster} kanAndra={farAndra(post, jag)} onSpara={onSpara} onOppnaPost={onOppnaPost} />
   ) : post && typ === "lank" ? (
@@ -1876,6 +1979,17 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, onLaddaUpp, filUrl,
     </div>
   ) : (
     <Adress url={post?.url ?? url} />
+  );
+  // ⛔ Taggarna står under innehållet i läsläget, för alla sorter (0.153.0). I redigeringsläget finns de inte: de ändras med sin egen rad, som på kortet.
+  const lasning = taggrad ? (
+    <div className="flex min-w-0 flex-col gap-4">
+      {innehall}
+      <div data-bibliotek-detalj-taggar="" className="min-w-0">
+        {taggrad}
+      </div>
+    </div>
+  ) : (
+    innehall
   );
 
   const redigering = (

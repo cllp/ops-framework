@@ -109,6 +109,12 @@ export const LASTFALT = /** @type {const} */ (["lastTill"]);
 /** Tak för ett meddelandes text, i tecken. Regeln har samma tak, härlett härifrån. */
 export const MAX_MEDDELANDE = 4000;
 
+/**
+ * Så nära taket visas räknaren, i tecken (de sista 500). Samma avstånd som SS (`chatLimits.js`). Bor här och inte i en vy (0.153.0, #460 punkt 7): chattens skrivfält och kommentarsfältet
+ * (`OpsKommentarer`) räknar mot samma avstånd, och två konstanter med samma avsikt glider isär.
+ */
+export const RAKNARE_FRAN = 500;
+
 /** Gruppchattens nyckeldel efter gruppen. */
 export const GRUPPSAMTAL = "grupp";
 

@@ -147,7 +147,7 @@ export function BilagaVisning({ bilaga, alt, marke = "data-kommentar-bilaga-visa
       href={bilaga.dataUrl}
       download={bilaga.namn || "bilaga"}
       {...attr}
-      className="flex w-fit max-w-full items-center gap-2 rounded-md border border-line bg-sunken px-3 py-2 text-meta text-ink no-underline hover:bg-accent-faint"
+      className="flex min-h-11 w-fit max-w-full items-center gap-2 rounded-md border border-line bg-sunken px-3 py-2 text-meta text-ink no-underline hover:bg-accent-faint"
     >
       <FilIkon />
       <span className="min-w-0 truncate">{bilaga.namn}</span>

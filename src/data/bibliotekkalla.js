@@ -28,7 +28,7 @@
  * strömma utan att kunna hade varit den tysta nedfallsväg `contract.js` varnar för. Ingen polling.
  */
 
-import { byggPost, farAndra, filInmatningsfel, filSort, kodaToppar, mimeUrFilnamn, normaliseraMime, peaksGiltiga, postFel, trimSomRegeln, MAX_LJUD_MS, MAX_BIBLIOTEKFIL, beskrivObjektbibliotek } from "../lib/bibliotek.js";
+import { byggPost, farAndra, filInmatningsfel, filSort, kodaToppar, lagringsContentType, mimeUrFilnamn, normaliseraMime, peaksGiltiga, postFel, trimSomRegeln, MAX_LJUD_MS, MAX_BIBLIOTEKFIL, beskrivObjektbibliotek } from "../lib/bibliotek.js";
 import { metaUrBytes, wavMetaUrBlob } from "../lib/ljudspelare.js";
 import { byggSkapare } from "../lib/skapare.js";
 import { FALT_BORT } from "./contract.js";
@@ -407,7 +407,8 @@ export function createBibliotekskalla(config) {
         await lagring.laddaUpp({
           sokvag: vag,
           fil: inmatning.blob ?? fil,
-          contentType: mime,
+          // ⛔ En textfil får sin teckenkodning här och bara här (0.153.0, `lagringsContentType`): postens `fil.mime` är `text/plain`.
+          contentType: lagringsContentType(mime),
           ...(typeof inmatning.rapportera === "function" ? { rapportera: inmatning.rapportera } : {}),
         });
         // ⛔ `andrad` FÖLJER MED: regeln kräver att en ändring av filen bär sin egen tid (opsBiblioteketNu).
