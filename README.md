@@ -2221,6 +2221,30 @@ CP 2026-10-28 (cllp/ops-framework#461, #459). Inget är brytande för en app som
 2. **Nycklarna:** raderna i `kalendrar` har id som `ical:<id>`, `mina:<id>`, `app:arenden` och gruppens egna. **Kontrollera att varje rad-id följer `KALENDERVALNYCKEL_FORM`** (bokstäver, siffror, `-`, `_`, `:`, `.`, högst 80 tecken); ett id utanför den formen kastar nu vid skrivning i stället för att nekas av reglerna. Ett id från Mitt konto (`ical:<id>`) kommer utifrån, och ramverket känner inte dess form.
 3. **Provet som dokumenterade hålet** (lifehub.app `rules/__tests__/kalenderval.test.mjs`, "KÄNT HÅL"): blir rött vid ompinningen och ska **vändas till `assertFails`** (rubriken tas bort), inte tas bort.
 
+### Tak för egna kalendrar och kalenderposter, och småsakerna ur QA-svepet (0.153.0)
+
+CP:s nattplan 2026-10-28 (lifehub.app#486, spår 1): cllp/ops-framework#463 och #460. Inget är brytande för en app som bara pinnar om, med ett undantag som är en ordning och inte en kodändring: **reglerna ska vara deployade när klienten börjar skriva textfiler med kodning** (punkt D).
+
+| Namn | Vad |
+|---|---|
+| **A. Tak för `users/{uid}/minaKalendrar` och `kalenderposter`** (#463, `kalenderregelfragment`) | Se raden för `kalenderregelfragment`. Reglerna är röda utan ändringen i emulatorn (`rules/__tests__/kalendertak.test.mjs`) och släpper in varje dokument ramverket själv skriver. **Ingen låses ute:** id:t prövas bara vid `create`, fält som saknas prövas inte, och läsvägen läker (`lasMinKalender`, `lasKalenderpost`) så att en rad med ett fält reglerna nu nekar går att skriva om. **Mätning i produktion innan reglerna deployas:** `node web/node_modules/ops-framework/scripts/mat-kalenderdokument.mjs --projekt <projekt-id>` (bara läsning, kör Grok). Noll avvikelser utom `id` betyder att ingen kan låsas ute. Skriptet använder `kalenderformFel`, som provas mot emulatorn mot reglerna så att mätningen och regeln inte kan säga olika |
+| **B. Toast med åtgärd** (#460 punkt 1, `useOpsToast().show({ atgard })`) | Se raden för `useOpsToast`. Appen kan ta bort `AngraBesked.jsx` (regel 2: en sanning) och visa "Händelsen är borttagen" med Ångra som en toast |
+| **C. Tryckytor och chevron på listrader** (#460 punkt 2, `check:tryckytor`) | `OpsButton` `sm` är 44 px hög under `md` (32 från `md`, som förut); titelknappen på en rad med en källa (`RadLank`) är 44 px hög under `md`; filbilagans länk är minst 44 px; chevronen på `OpsEventList` ligger inte längre över ett ärendenummer eller över en lång titel (datumraden reserverar alltid chevronens plats, och titeln gör det när den börjar högst upp i kortet). Ärendenumret är en länk i löptext (`<span><a>`) och mäts därför inte som en egen kontroll; det är inte en större tryckyta, se frågan i PR-texten. ⛔ **Raderna med titeln som knapp är 24 px högre på telefon** (mätt: 96 till 120 px och 60 till 84 px). Mätt före och efter med `check:tryckytor --dist` |
+| **D. Textfil i Biblioteket** (#460 punkt 3) | `lagringsContentType("text/plain")` är `text/plain; charset=utf-8` och används vid uppladdning; **Storage-regeln släpper in båda formerna** (`filContentTypeMonster`), och Firestore-regeln för posten är orörd (postens `fil.mime` är `text/plain`). `OpsBibliotek` tar `hamtaFil` och visar textfilen som text, och postens taggar ritas i detaljen. Se raden för `OpsBibliotek`. ⛔ **Ordningen är en regeldeploy före klienten:** en ny klient mot GAMLA Storage-regler får en textfil nekad (andra filer påverkas inte), en äldre klient mot de nya reglerna fungerar som förut. Mätt i emulatorn, `rules/__tests__/lagring-bibliotek.test.mjs` |
+| **E. Spara och Avbryt döljs när formuläret är klart** (#460 punkt 4) | `useSkapaPanelKlar(klar)` (och `useSkapaPanelStatus(vantar, text)`, som nu också är exporterad) säger till `OpsSkapaPanel` att formuläret sparat och ritar ett kvitto ("Lägg in en till"). Panelen döljer då hela knappraden; `Tillbaka` högst upp och kvittots egna val finns kvar, och knapparna kommer tillbaka när formuläret rapporterar `false`. Gäller Nytt ärende i appen: anropa `useSkapaPanelKlar(kvittoLage)` i formuläret |
+| **F. "Nytt sedan sist" jämförs mot när samtalet öppnades** (#460 punkt 6) | Avdelaren står bara före ett meddelande som FANNS när samtalet öppnades och kom efter läsmärket. Ett svar som kommer medan samtalet är öppet är nytt nu, inte nytt sedan sist: i en helt nystartad tråd hamnade avdelaren före agentens första svar. Gränsen är det senaste meddelandet i första laddningen; en tom första laddning ger ingen avdelare |
+| **G. Teckenräknare i `OpsKommentarer`** (#460 punkt 7) | Se raden för `OpsKommentarer` |
+
+⛔ **Vad appen gör efter ompinningen till 0.153.0:**
+
+1. **Mät först (Grok, bara läsning):** `node web/node_modules/ops-framework/scripts/mat-kalenderdokument.mjs --projekt <projekt-id>`. Noll avvikelser utom `id` (och `id` ska också vara noll) innan reglerna deployas.
+2. **Reglerna:** generera `firestore.rules` och `storage.rules` på nytt (samma anrop) och **deploya reglerna innan** klienten mergas.
+3. **Läsningen:** byt `validateMinaKalendrar` mot `lasMinaKalendrar` och `byggKalenderpost` mot `lasKalenderpost` där raderna läses ur databasen (`byggKalenderlasning`).
+4. **Toasten:** ta bort `AngraBesked.jsx` och använd `useOpsToast().show({ title, atgard: { etikett: "Ångra", onKlick } })`.
+5. **Biblioteket:** skicka `hamtaFil={(sokvag) => lagring.hamta(sokvag)}` till `OpsBibliotek`.
+6. **Nytt ärende:** anropa `useSkapaPanelKlar(kvittoLage)` i formuläret.
+7. **Taket i `check:layout`** (tryckyta 37, överlapp 1) sänks i den PR som ompinnar: mät först, sänk till det uppmätta.
+
 ### Händelsepanelen (0.40.0, #214)
 
 CP 2026-10-01: "Vi behöver en händelsepanel. Så man navigerar dit från kalender och från idag. Händelsepanelen skall ha en tillbaka knapp. Kolla SessionStudio." En händelse har en egen sida: `OpsHandelsePanel` ritar den i SS ordning (Tillbaka, titel med status, typrad, ruta med datum, tid och plats, beskrivning, svar), och skalet äger adressen och Tillbaka.
