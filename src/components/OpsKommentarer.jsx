@@ -6,7 +6,6 @@ import { OppnaHandelseKontext } from "../lib/handelsekontext.js";
 import { laesSkapare, namnMedVia } from "../lib/skapare.js";
 import { handelseIdUrAdress } from "../lib/handelsepanel.js";
 import { RAKNARE_FRAN } from "../lib/samtal.js";
-import { cx } from "../lib/cx.js";
 import { definierade, forvalda } from "../lib/ord.js";
 import { OpsButton } from "./OpsButton.jsx";
 import { OpsField, OpsTextarea } from "./OpsField.jsx";
@@ -156,7 +155,8 @@ function OpsKommentarerRitad({
   // ⛔ INGEN TYST KAPNING (se filhuvudet): längden räknas som modellen räknar den (`byggKommentar` prövar den trimmade texten), och över taket är Skicka avstängd.
   const langd = rensad.length;
   const forLang = langd > MAX_HANDELSEKOMMENTAR;
-  const visaRaknare = utkast.length >= MAX_HANDELSEKOMMENTAR - RAKNARE_FRAN;
+  // ⛔ RÄKNAREN RÄKNAR SAMMA LÄNGD SOM TAKET PRÖVAR (granskningen av PR 464): den trimmade. Förut stod `utkast.length` i räknaren, så blanksteg i kanterna gav en siffra över taket på en text som gick att skicka.
+  const visaRaknare = langd >= MAX_HANDELSEKOMMENTAR - RAKNARE_FRAN;
   const kanSkicka = Boolean(rensad || bilaga) && !forLang;
 
   const skicka = async () => {
@@ -268,18 +268,15 @@ function OpsKommentarerRitad({
           {fot}
         </div>
       ) : null}
-      <OpsField label={skrivEtikett} hint={skrivHint} error={skrivfel ?? (forLang ? forLangText.replace("{over}", String(langd - MAX_HANDELSEKOMMENTAR)) : undefined)}>
+      {/* ⛔ RÄKNAREN ÄR FÄLTETS (granskningen av PR 464): kopplad med `aria-describedby` som i chattens skrivfält, och EN levande yta. Över taket bär den felet själv; `error` är bara sändfelet. */}
+      <OpsField
+        label={skrivEtikett}
+        hint={skrivHint}
+        error={skrivfel ?? undefined}
+        raknare={visaRaknare ? { over: forLang, text: forLang ? forLangText.replace("{over}", String(langd - MAX_HANDELSEKOMMENTAR)) : langdText.replace("{n}", String(langd)).replace("{max}", String(MAX_HANDELSEKOMMENTAR)) } : undefined}
+      >
         <OpsTextarea value={utkast} onChange={setUtkast} rows={3} disabled={skriver} onSend={skicka} {...(bilagor ? { bifogaPlats: setBifogaPlats } : {})} />
       </OpsField>
-      {visaRaknare ? (
-        <p
-          data-langdraknare={forLang ? "over" : "nara"}
-          role="status"
-          className={cx("m-0 -mt-2 text-right text-liten tabular-nums", forLang ? "text-danger" : "text-ink-muted")}
-        >
-          {langdText.replace("{n}", String(utkast.length)).replace("{max}", String(MAX_HANDELSEKOMMENTAR))}
-        </p>
-      ) : null}
       {bilagor ? (
         // Gemknappen sitter i skrivrutan (som chattens Bifoga); här står bara förhandsvisningen och felet, när det finns något att visa.
         <div data-kommentar-bilaga="" className="empty:hidden">

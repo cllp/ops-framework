@@ -197,14 +197,20 @@ describe("⛔ ingen låses ute: det som redan står i databasen går att ändra"
     const mina = await k.mina(AGARE);
     const jattelik = mina.find((x) => x.id === "jattelik-ikon");
     assert.equal(jattelik?.ikon, KALENDERIKONER[0], "ikonen utanför listan ersätts vid läsning");
-    assert.equal(mina.find((x) => x.id === "okand-ikon")?.ikon, KALENDERIKONER[0]);
+    // ⛔ En ikon som klarar reglerna men saknas i listan behålls (granskningen av PR 464): en nyare klient kan ha lagt till den. Den går att skriva tillbaka, se nedan.
+    assert.equal(mina.find((x) => x.id === "okand-ikon")?.ikon, "stjarna-med-sju-armar");
     assert.equal(mina.find((x) => x.id === "minimal")?.ikon, KALENDERIKONER[0], "en rad utan ikon (reglerna kräver inte fältet) går att läsa");
     const fel = mina.find((x) => x.id === "fel-sort");
-    assert.equal(fel?.ordning, 0);
+    assert.equal(fel?.ordning, 5, "ordning som numerisk text läses som talet (granskningen av PR 464)");
     assert.equal(fel?.forvald, false);
     assert.ok(jattelik);
     await assertSucceeds(k.sparaMina(AGARE, [{ ...jattelik, namn: "Läkt" }]));
     await assertSucceeds(k.sparaMina(AGARE, [/** @type {any} */ (fel)]));
+    const okand = mina.find((x) => x.id === "okand-ikon");
+    assert.ok(okand);
+    await assertSucceeds(k.sparaMina(AGARE, [{ ...okand, namn: "Okänd ikon, sparad" }]));
+    assert.equal((await k.mina(AGARE)).find((x) => x.id === "okand-ikon")?.ikon, "stjarna-med-sju-armar", "den äldre klienten skriver inte över ikonen");
+    assert.equal((await k.mina(AGARE)).find((x) => x.id === "fel-sort")?.ordning, 5);
     const efter = (await k.mina(AGARE)).find((x) => x.id === "jattelik-ikon");
     assert.equal(efter?.namn, "Läkt");
     assert.equal(efter?.ikon, KALENDERIKONER[0]);

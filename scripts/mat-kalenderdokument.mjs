@@ -9,12 +9,15 @@
  *
  * ══ ⛔ VAD SVARET AVGÖR ═══════════════════════════════════════════════════════════════════════════════════════
  *
- *   - NOLL avvikelser i alla slag utom `id`: ingen kan låsas ute. Reglerna kan deployas, och läkningen i `createKalenderkalla` behövs bara som skydd.
+ *   - NOLL avvikelser i alla slag, `id` inräknat: ingen kan låsas ute. Reglerna kan deployas, och läkningen i `createKalenderkalla` behövs bara som skydd. Slutkoden är då 0.
  *   - NÅGON avvikelse i `ikon`, `ordning`, `forvald`, `iFlodet`, `arkiverad`, `beskrivning`, `plats` eller `blockerar`: dokumentet kan inte skrivas om som det står (nekas av reglerna). `lasMinKalender` och `lasKalenderpost` läker raden vid
  *     läsning, så den som öppnar appen i 0.153.0 skriver en frisk rad; ändå ska antalet vara känt INNAN reglerna deployas, och de dokumenten rättas av en bakfyllnad om appen läser dem på ett annat sätt än ramverkets.
  *   - `id` (utanför `ID_FORM` eller över 80 tecken): prövas bara vid create, så ingen låses ute. Men `byggMinKalender` och `byggKalenderpost` kastar på ett sådant id vid läsning, så ett dokument med det är redan i dag
- *     oläsligt för ramverket; antalet ska vara 0.
- *   - Ett dokument över `--stor` byte (förval 20 000) räknas som stort: det är det kostnadshålet #463 beskriver, och det syns här även om formen är rätt.
+ *     oläsligt för ramverket; antalet ska vara 0, och det ger slutkod 1 som varje annan avvikelse.
+ *   - Ett dokument över `--stor` byte (förval 20 000) räknas som stort: det är det kostnadshålet #463 beskriver, och det syns här även om formen är rätt. ⛔ `stor` ensam ger INTE slutkod 1: det låser inte ute någon.
+ *
+ * ⛔ SLUTKODEN (`kalenderformSlutkod`, provad i `src/__tests__/kalendrar-lasning.test.js`): 1 när någon samling lästes som tom eller något dokument bär en avvikelse som reglerna nekar (också `id`), 0 annars.
+ *   Före granskningen av PR 464 räknade skriptet inte `id` men räknade `stor`, alltså tvärtom mot vad CHANGELOG 0.153.0 säger.
  *
  * Formen kommer ur `kalenderformFel` (`src/lib/kalendrar.js`), härledd ur samma konstanter som reglerna och provad mot emulatorn i `rules/__tests__/kalendertak.test.mjs`.
  *
@@ -30,7 +33,7 @@ import process from "node:process";
 import { createRequire } from "node:module";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { kalenderformMatning } from "../src/lib/kalendrar.js";
+import { kalenderformMatning, kalenderformSlutkod } from "../src/lib/kalendrar.js";
 
 /** @param {string[]} argv @param {string} namn */
 function flagga(argv, namn) {
@@ -67,11 +70,13 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
   initializeApp({ credential: applicationDefault(), projectId: projekt });
   const db = getFirestore();
 
-  let kod = 0;
+  /** @type {Array<{ lasta: number, perKod: Record<string, number> }>} */
+  const svaren = [];
   for (const [slag, samling] of /** @type {const} */ ([["kalender", namn.minaKalendrar], ["post", namn.kalenderposter]])) {
     const snap = await db.collectionGroup(samling).get();
     const dokument = snap.docs.map((d) => ({ sokvag: d.ref.path, id: d.id, data: d.data(), byte: jsonByte(d.data()) }));
     const svar = kalenderformMatning(dokument, { slag, stor, exempel });
+    svaren.push(svar);
     // ⛔ UTSKRIFTEN SÄGER ALLTID ALLT (arbetsreglernas punkt 5): också noll skrivs ut, med vad nollan gäller.
     console.log(`\n${samling}: ${svar.lasta} dokument lästa, ${svar.medAvvikelse} med avvikelse, ${svar.stora} över ${stor} byte.`);
     const koder = Object.entries(svar.perKod);
@@ -81,9 +86,9 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
     for (const e of svar.exempel) console.log(`  exempel ${kortad(e.sokvag)}: ${e.koder.join(", ")}`);
     if (svar.lasta === 0) {
       console.log("  ⛔ NOLL dokument lästa. Det är inte ett svar: kontrollera projekt-id och samlingsnamn innan du läser det som att ingen kan låsas ute.");
-      kod = 1;
     }
-    if (Object.keys(svar.perKod).some((k) => k !== "id")) kod = Math.max(kod, 1);
   }
+  const kod = kalenderformSlutkod(svaren);
+  console.log(`\nSlutkod ${kod}: ${kod === 0 ? "inga avvikelser som reglerna nekar, också id. Reglerna kan deployas. (\`stor\` låser inte ute någon och ger inte kod 1; siffran ovan är underlaget för ett tak.)" : "minst en avvikelse som reglerna nekar (eller en samling utan dokument). Deploya inte reglerna förrän den är förklarad."}`);
   process.exit(kod);
 }

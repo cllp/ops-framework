@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createMemorySource } from "../data/adapters.js";
 import { createKalenderkalla } from "../data/kalenderkalla.js";
-import { KALENDERIKONER, MAX_KALENDERID, MAX_KALENDERIKON, byggKalenderpost, byggMinKalender, lasKalenderpost, lasMinKalender, lasMinaKalendrar, validateMinaKalendrar, kalenderformFel, kalenderformMatning } from "../lib/kalendrar.js";
+import { KALENDERIKONER, MAX_KALENDERID, MAX_KALENDERIKON, byggKalenderpost, byggMinKalender, lasKalenderpost, lasMinKalender, lasMinaKalendrar, validateMinaKalendrar, kalenderformFel, kalenderformMatning, kalenderformSlutkod } from "../lib/kalendrar.js";
 import { kalenderregelfragment } from "../lib/regler.js";
 
 /*
@@ -15,19 +15,18 @@ const kal = (extra = {}) => ({ id: "privat", namn: "Privat", farg: 2, ikon: "hja
 const post = (extra = {}) => ({ id: "tand", kalenderId: "privat", titel: "Tandläkaren", beskrivning: "", plats: "", start: "2026-10-05T09:00", slut: "2026-10-05T10:00", heldag: false, blockerar: false, ...extra });
 
 describe("lasMinKalender", () => {
-  it("⛔ en ikon utanför listan, en ikon på 900 kB och en ikon som saknas blir den första ur listan", () => {
-    expect(lasMinKalender(kal({ ikon: "stjarna-med-sju-armar" })).ikon).toBe(KALENDERIKONER[0]);
+  it("⛔ en ikon på 900 kB, en ikon som inte är text och en ikon som saknas blir den första ur listan", () => {
     expect(lasMinKalender(kal({ ikon: "x".repeat(900_000) })).ikon).toBe(KALENDERIKONER[0]);
     expect(lasMinKalender(kal({ ikon: 7 })).ikon).toBe(KALENDERIKONER[0]);
     const { ikon: _i, ...utanIkon } = kal();
     expect(lasMinKalender(utanIkon).ikon).toBe(KALENDERIKONER[0]);
   });
-  it("⛔ skrivvägen är oförändrat strikt: samma rad kastar i byggMinKalender", () => {
-    expect(() => byggMinKalender(kal({ ikon: "stjarna-med-sju-armar" }))).toThrow(/finns inte/);
-    expect(() => validateMinaKalendrar([kal({ ikon: "x".repeat(50) })])).toThrow(/finns inte/);
+  it("⛔ skrivvägen är strikt mot det reglerna nekar: en ikon över taket kastar i byggMinKalender", () => {
+    expect(() => byggMinKalender(kal({ ikon: "x".repeat(900) }))).toThrow(/ikon/);
+    expect(() => validateMinaKalendrar([kal({ ikon: "x".repeat(50) })])).toThrow(/ikon/);
   });
   it("⛔ ett fält utanför MINKALENDERFALT släpps, ordning som inte är ett heltal blir 0 och sanningsvärden som inte är det blir false", () => {
-    const k = lasMinKalender({ ...kal(), stor: "x".repeat(10), ordning: "5", forvald: "ja", iFlodet: { a: 1 }, arkiverad: 1 });
+    const k = lasMinKalender({ ...kal(), stor: "x".repeat(10), ordning: "fem", forvald: "ja", iFlodet: { a: 1 }, arkiverad: 1 });
     expect(k).toEqual({ id: "privat", namn: "Privat", farg: 2, ikon: "hjarta", ordning: 0, forvald: false, iFlodet: false, arkiverad: false });
     expect(Object.keys(k)).not.toContain("stor");
   });
@@ -42,9 +41,37 @@ describe("lasMinKalender", () => {
   });
 });
 
+describe("lasMinKalender förstör inte giltig data (granskningen av PR 464)", () => {
+  /*
+   * ⛔ LÄKNINGEN FÅR BARA SLÄPPA DET REGLERNA NEKAR. Före rättelsen blev `ordning: "3"` 0 (byggaren läser den som 3, och 3 klarar reglerna), och en ikon som klarar reglerna men som den här
+   * versionen av ramverket inte känner (en nyare klient har lagt till den) skrevs om till `kalender`: en äldre klient hade då skrivit över den nyare klientens ikon vid nästa sparning.
+   */
+  it("⛔ ordning som numerisk text läses som talet", () => {
+    expect(lasMinKalender(kal({ ordning: "3" })).ordning).toBe(3);
+    expect(lasMinKalender(kal({ ordning: " 40 " })).ordning).toBe(40);
+    expect(lasMinKalender(kal({ ordning: "-10" })).ordning).toBe(-10);
+  });
+  it("ordning som inte är ett heltal, som tal eller som text, blir 0", () => {
+    for (const ordning of ["3.5", "tre", "", true, null, 2.5, {}]) expect(lasMinKalender(kal({ ordning })).ordning).toBe(0);
+  });
+  it("⛔ en ikon som klarar reglerna men saknas i KALENDERIKONER behålls i datan, och skrivvägen tar emot den", () => {
+    const k = lasMinKalender(kal({ ikon: "stjarna-med-sju-armar" }));
+    expect(k.ikon).toBe("stjarna-med-sju-armar");
+    expect(byggMinKalender(k).ikon).toBe("stjarna-med-sju-armar");
+    expect(kalenderformFel("kalender", "privat", { ...k, id: undefined })).not.toContain("ikon");
+  });
+  it("en ikon som reglerna nekar blir den första ur listan, och skrivvägen kastar på den", () => {
+    for (const ikon of ["x".repeat(MAX_KALENDERIKON + 1), "x".repeat(900_000), "Stor Ikon", "data:image/png;base64,AA", 7]) {
+      expect(lasMinKalender(kal({ ikon })).ikon).toBe(KALENDERIKONER[0]);
+      expect(() => byggMinKalender(kal({ ikon }))).toThrow(/ikon/);
+    }
+    expect(lasMinKalender(kal({ ikon: "x".repeat(MAX_KALENDERIKON) })).ikon).toBe("x".repeat(MAX_KALENDERIKON));
+  });
+});
+
 describe("lasMinaKalendrar", () => {
   it("läker varje rad och behåller kontrollerna: unika id och högst en förvald", () => {
-    expect(lasMinaKalendrar([kal(), kal({ id: "resor", ikon: "okand" })]).map((k) => k.ikon)).toEqual(["hjarta", KALENDERIKONER[0]]);
+    expect(lasMinaKalendrar([kal(), kal({ id: "resor", ikon: "Okänd Ikon" }), kal({ id: "ny", ikon: "okand" })]).map((k) => k.ikon)).toEqual(["hjarta", KALENDERIKONER[0], "okand"]);
     expect(() => lasMinaKalendrar([kal(), kal()])).toThrow(/finns två gånger/);
     expect(() => lasMinaKalendrar([kal({ forvald: true }), kal({ id: "resor", forvald: true })])).toThrow(/förvald/i);
     expect(() => lasMinaKalendrar("inte en lista")).toThrow(/lista/);
@@ -67,14 +94,14 @@ describe("createKalenderkalla läser med läkning", () => {
   it("⛔ mina() och poster() ger läkta rader i stället för att kasta, medan sparaMina är strikt", async () => {
     const kalla = createKalenderkalla({
       kalla: createMemorySource({
-        "users/u1/minaKalendrar": [kal({ ikon: "x".repeat(900_000) }), kal({ id: "resor", namn: "Resor", ordning: 10, ikon: "okand" })],
+        "users/u1/minaKalendrar": [kal({ ikon: "x".repeat(900_000) }), kal({ id: "resor", namn: "Resor", ordning: 10, ikon: "Okänd Ikon" })],
         "users/u1/kalenderposter": [post({ beskrivning: ["a"], blockerar: "ja" })],
       }),
     });
     const mina = await kalla.mina("u1");
     expect(mina.map((k) => [k.id, k.ikon])).toEqual([["privat", KALENDERIKONER[0]], ["resor", KALENDERIKONER[0]]]);
     expect((await kalla.poster("u1"))[0]).toMatchObject({ beskrivning: "", blockerar: false });
-    await expect(kalla.sparaMina("u1", [{ ...kal(), ikon: "x".repeat(900) }])).rejects.toThrow(/finns inte/);
+    await expect(kalla.sparaMina("u1", [{ ...kal(), ikon: "x".repeat(900) }])).rejects.toThrow(/ikon/);
     await expect(kalla.sparaMina("u1", mina)).resolves.toMatchObject({ skrivna: 2 });
   });
 });
@@ -114,6 +141,28 @@ describe("kalenderformFel och mätningen i produktion", () => {
     const { beskrivning: _b, plats: _pl, blockerar: _bl, ...minimal } = postData;
     expect(kalenderformFel("post", "tand", minimal)).toEqual([]);
   });
+  /*
+   * ⛔ SLUTKODEN (granskningen av PR 464). Förut räknade skriptet inte `id`, fast CHANGELOG säger "Noll avvikelser (också id)" innan reglerna deployas: ett körskript som sade 0
+   * med dokument som ramverket inte kan läsa hade sett ut som ett klartecken. Allt som reglerna nekar är kod 1; `stor` låser inte ute någon och står bara i utskriften.
+   */
+  describe("kalenderformSlutkod", () => {
+    const svar = (/** @type {Record<string, number>} */ perKod, lasta = 3) => ({ lasta, perKod });
+    it("⛔ id ger kod 1", () => {
+      expect(kalenderformSlutkod([svar({ id: 1 }), svar({})])).toBe(1);
+    });
+    it("⛔ varje annan kod som reglerna nekar ger kod 1", () => {
+      for (const k of ["ikon", "ordning", "okant-falt", "beskrivning", "tidsordning", "namn"]) expect(kalenderformSlutkod([svar({}), svar({ [k]: 2 })])).toBe(1);
+    });
+    it("⛔ stor ensam ger kod 0: den låser inte ute någon", () => {
+      expect(kalenderformSlutkod([svar({ stor: 4 }), svar({})])).toBe(0);
+      expect(kalenderformSlutkod([svar({ stor: 4, id: 1 }), svar({})])).toBe(1);
+    });
+    it("⛔ noll lästa dokument i en samling ger kod 1: noll är inte ett svar", () => {
+      expect(kalenderformSlutkod([svar({}, 0), svar({})])).toBe(1);
+      expect(kalenderformSlutkod([svar({}), svar({})])).toBe(0);
+    });
+  });
+
   it("⛔ mätningen räknar per kod, kortar inte bort noll och flaggar stora dokument", () => {
     const dok = [
       { sokvag: "users/abcdefghij/minaKalendrar/privat", id: "privat", data: kalData, byte: 100 },

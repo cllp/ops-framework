@@ -1,6 +1,7 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { OpsBibliotek } from "../components/OpsBibliotek.jsx";
+import { OpsSprakProvider } from "../components/OpsSprak.jsx";
 import { createMemorySource } from "../data/adapters.js";
 import { createBibliotekskalla } from "../data/bibliotekkalla.js";
 import { FILMIME, TEXTFORHANDS_BYTE, avkodaTextfil, byggPost, filContentTypeMonster, filMimeMonster, lagringsContentType } from "../lib/bibliotek.js";
@@ -101,6 +102,23 @@ describe("textfilen i detaljen", () => {
     const text = await screen.findByLabelText("Innehållet i stor.txt");
     expect(text.textContent).toHaveLength(TEXTFORHANDS_BYTE);
     expect(document.querySelector("[data-bibliotek-text-avkortad]")?.textContent).toContain("början av filen");
+  });
+
+  it("⛔ orden följer språket (granskningen av PR 464)", async () => {
+    const { unmount } = render(
+      <OpsSprakProvider sprak="en">
+        <OpsBibliotek poster={[fil("stor.txt", "text/plain")]} jag={JAG} vald={fil("stor.txt", "text/plain")} onOppna={() => {}} onStang={() => {}} onSpara={() => {}} hubHref="/hub" filUrl={() => "https://lagring.example/fil"} hamtaFil={async () => blobAv(["a".repeat(TEXTFORHANDS_BYTE + 1)])} />
+      </OpsSprakProvider>,
+    );
+    expect(await screen.findByLabelText("The contents of stor.txt")).toBeTruthy();
+    expect(document.querySelector("[data-bibliotek-text-avkortad]")?.textContent).toBe("This is the start of the file. The rest is in the file.");
+    unmount();
+    render(
+      <OpsSprakProvider sprak="en">
+        <OpsBibliotek poster={[fil("tom.txt", "text/plain")]} jag={JAG} vald={fil("tom.txt", "text/plain")} onOppna={() => {}} onStang={() => {}} onSpara={() => {}} hubHref="/hub" filUrl={() => "https://lagring.example/fil"} hamtaFil={async () => blobAv([])} />
+      </OpsSprakProvider>,
+    );
+    expect(await screen.findByText("The file is empty.")).toBeTruthy();
   });
 
   it("⛔ en tom fil säger det, och ett fel säger varför med länken kvar", async () => {

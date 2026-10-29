@@ -63,6 +63,28 @@ describe("OpsToast med åtgärd", () => {
     await waitFor(() => expect(screen.queryByText("Borttagen")).toBeNull());
   });
 
+  /*
+   * ⛔ GRANSKNINGEN AV PR 464: åtgärden hade ingen beskrivning för skärmläsare. Radix läser upp toasten som text, och knappen i den nås inte med Tab från där man står;
+   * `Toast.Action altText` är Radix väg att säga hur. Mätt som det Radix läser upp (`data-radix-toast-announce-alt` på åtgärden), inte som en klass.
+   */
+  it("⛔ åtgärden har en beskrivning för skärmläsare, med förval på båda språken och en egen när appen ger den", async () => {
+    const alt = () => document.querySelector("[data-toast-atgard-ram]")?.getAttribute("data-radix-toast-announce-alt");
+    const forsta = rendera({ title: "Borttagen", atgard: { etikett: "Ångra", onKlick: () => {} } });
+    await visa();
+    await screen.findByRole("button", { name: "Ångra" });
+    expect(alt()).toBe("Ångra: tryck F8 för att nå knappen i aviseringen.");
+    forsta.unmount();
+    const andra = rendera({ title: "Removed", atgard: { etikett: "Undo", onKlick: () => {} } }, "en");
+    await visa();
+    await screen.findByRole("button", { name: "Undo" });
+    expect(alt()).toBe("Undo: press F8 to reach the button in the notification.");
+    andra.unmount();
+    rendera({ title: "Borttagen", atgard: { etikett: "Ångra", onKlick: () => {}, beskrivning: "Ångra finns också under Händelser." } });
+    await visa();
+    await screen.findByRole("button", { name: "Ångra" });
+    expect(alt()).toBe("Ångra finns också under Händelser.");
+  });
+
   it("⛔ knappen är 44 px hög under md (samma klasser som OpsButton sm)", async () => {
     rendera({ title: "Borttagen", atgard: { etikett: "Ångra", onKlick: () => {} } });
     await visa();
@@ -135,6 +157,10 @@ describe("OpsToast med åtgärd", () => {
     );
     for (const atgard of [{ etikett: "", onKlick: () => {} }, { etikett: "Ångra" }, { onKlick: () => {} }, "Ångra"]) {
       expect(() => /** @type {any} */ (show)({ title: "x", atgard }), JSON.stringify(atgard)).toThrow(/atgard kräver/);
+    }
+    // En tom beskrivning kastar: den är skärmläsarens enda väg till åtgärden (granskningen av PR 464).
+    for (const beskrivning of ["", "  ", 7]) {
+      expect(() => /** @type {any} */ (show)({ title: "x", atgard: { etikett: "Ångra", onKlick: () => {}, beskrivning } })).toThrow(/beskrivning/);
     }
   });
 });

@@ -76,6 +76,33 @@ describe("räknaren i OpsKommentarer", () => {
     expect(onSkriv).toHaveBeenCalledWith("a".repeat(MAX_HANDELSEKOMMENTAR), expect.anything());
   });
 
+  /*
+   * ⛔ GRANSKNINGEN AV PR 464: räknaren räknade `utkast.length` medan taket prövar den trimmade texten, den var inte kopplad till fältet, och över taket stod felet BÅDE som
+   * fältets `role="alert"` och som räknarens `role="status"`, så en skärmläsare läste upp det två gånger vid varje tangent.
+   */
+  it("⛔ räknaren visar den trimmade längden, samma som taket prövar", () => {
+    visa();
+    skriv(`   ${"a".repeat(MAX_HANDELSEKOMMENTAR - 10)}   `);
+    expect(document.querySelector("[data-langdraknare]")?.textContent).toBe(`Kommentaren är ${MAX_HANDELSEKOMMENTAR - 10} tecken, taket är ${MAX_HANDELSEKOMMENTAR}.`);
+  });
+  it("⛔ räknaren är kopplad till fältet med aria-describedby, nära taket och över det", () => {
+    visa();
+    for (const n of [MAX_HANDELSEKOMMENTAR - 1, MAX_HANDELSEKOMMENTAR + 3]) {
+      skriv("a".repeat(n));
+      const r = /** @type {HTMLElement} */ (document.querySelector("[data-langdraknare]"));
+      expect(r.id).not.toBe("");
+      expect((falt().getAttribute("aria-describedby") ?? "").split(" ")).toContain(r.id);
+    }
+  });
+  it("⛔ över taket finns EN levande yta: räknarens status, ingen alert", () => {
+    visa();
+    skriv("a".repeat(MAX_HANDELSEKOMMENTAR + 3));
+    expect(document.querySelectorAll('[role="alert"]')).toHaveLength(0);
+    const levande = [...document.querySelectorAll('[role="status"], [aria-live]')].filter((e) => (e.textContent ?? "").includes("för lång"));
+    expect(levande).toHaveLength(1);
+    expect(falt().getAttribute("aria-invalid")).toBe("true");
+  });
+
   it("engelska orden följer språket", () => {
     render(
       <OpsSprakProvider sprak="en">

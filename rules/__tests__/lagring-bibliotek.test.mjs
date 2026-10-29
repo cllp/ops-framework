@@ -19,7 +19,7 @@ import { after, before, describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { assertFails, assertSucceeds, initializeTestEnvironment } from "@firebase/rules-unit-testing";
 import { doc, setDoc } from "firebase/firestore";
-import { deleteObject, getBytes, ref, uploadBytes } from "firebase/storage";
+import { deleteObject, getBytes, getMetadata, ref, uploadBytes } from "firebase/storage";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -153,8 +153,11 @@ describe("Lagring: en textfil får sin teckenkodning (0.153.0, cllp/ops-framewor
     await assertFails(uploadBytes(sok("sida.html"), text, { contentType: "text/html; charset=utf-8" }));
     await assertFails(uploadBytes(sok("extra.txt"), text, { contentType: "text/plain; charset=utf-8; boundary=x" }));
   });
-  it("⛔ en text som bär kodningen läses tillbaka med den (objektets innehållstyp är den som laddades upp)", async () => {
+  // ⛔ GRANSKNINGEN AV PR 464: provet hette "läses tillbaka med kodningen" men mätte bara byten. Nu mäts objektets innehållstyp, som är det en webbläsare läser när länken öppnas direkt.
+  it("⛔ en text som bär kodningen läses tillbaka med den: objektets innehållstyp är den som laddades upp, och byten är oförändrade", async () => {
     await assertSucceeds(uploadBytes(sok("las.txt"), text, { contentType: "text/plain; charset=utf-8" }));
+    const meta = await getMetadata(sok("las.txt"));
+    assert.equal(meta.contentType, "text/plain; charset=utf-8");
     const bytes = await getBytes(sok("las.txt"));
     assert.equal(new TextDecoder("utf-8").decode(bytes), "Hej, för vår skull.");
   });

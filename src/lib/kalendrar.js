@@ -117,7 +117,7 @@ export const MAX_KALENDERID = 80;
 
 /**
  * Längsta ikon en av mina kalendrar får bära (0.153.0, #463). En ikon är ett NAMN ur `KALENDERIKONER` (längst `portfolj`, åtta tecken), aldrig en bild. Reglerna prövar formen (`ID_FORM`)
- * och det här taket, inte listan: en ikon som ramverket lägger till ska inte kräva en regeldeploy. Läsningen (`lasMinKalender`) byter en ikon utanför listan mot `KALENDERIKONER[0]`.
+ * och det här taket, inte listan: en ikon som ramverket lägger till ska inte kräva en regeldeploy. Byggaren och läsningen prövar samma form; en ikon i formen som saknas i listan behålls och ritas med reservikonen, och bara en ikon utanför formen blir `KALENDERIKONER[0]` vid läsning.
  */
 export const MAX_KALENDERIKON = 40;
 
@@ -322,6 +322,17 @@ export function standardGruppkalender(groupId) {
   return { ...rad, id: gruppkalendernyckel(groupId, STANDARDKALENDER_ID) };
 }
 
+/** En ikon i den form reglerna tar emot (`opsMinKalenderGiltig`): ett namn i `ID_FORM`, högst `MAX_KALENDERIKON` tecken. @param {unknown} v @returns {v is string} */
+function ikonFormOk(v) {
+  return typeof v === "string" && v.length <= MAX_KALENDERIKON && ID_FORM.test(v);
+}
+
+/** Ett heltal, eller text som bara är ett heltal ("3", " 40 ", "-10"). `Number` ensam hade läst `true`, `null` och "" som tal. @param {unknown} v @returns {boolean} */
+function heltalEllerHeltalstext(v) {
+  if (typeof v === "number") return Number.isInteger(v);
+  return typeof v === "string" && /^\s*-?\d+\s*$/.test(v);
+}
+
 /**
  * Bygger en av mina kalendrar, eller kastar.
  *
@@ -341,7 +352,14 @@ export function byggMinKalender(d) {
   const farg = Number(r.farg);
   if (!(/** @type {readonly number[]} */ (KALENDERFARGER)).includes(farg)) throw new Error(`${var_}: farg för "${id}" måste vara ${KALENDERFARGER.join(", ")}, inte ${JSON.stringify(r.farg)}.`);
   const ikon = rensa(r.ikon);
-  if (!(/** @type {readonly string[]} */ (KALENDERIKONER)).includes(ikon)) throw new Error(`${var_}: ikon "${ikon}" för "${id}" finns inte (${KALENDERIKONER.join(", ")}).`);
+  /*
+   * ⛔ IKONEN PRÖVAS MOT REGLERNAS FORM, INTE MOT LISTAN (granskningen av PR 464). En ikon som en nyare version av ramverket lagt till i `KALENDERIKONER` finns inte i den här listan; hade
+   * byggaren kastat på den hade en äldre klient inte kunnat spara kalendern alls, och hade läsningen bytt den mot `kalender` hade den äldre klienten skrivit över den nyare klientens val.
+   * Den behålls, och ritas med reservikonen (`kalenderIkonKomponent`). Listan är det väljaren erbjuder, och reglerna prövar samma form som här (`ikonFormOk`).
+   */
+  if (!ikonFormOk(ikon)) {
+    throw new Error(`${var_}: ikon "${String(ikon).slice(0, 60)}" för "${id}" är inte ett ikonnamn: små bokstäver, siffror, - och _, högst ${MAX_KALENDERIKON} tecken (${KALENDERIKONER.join(", ")}).`);
+  }
   const ordning = r.ordning === undefined ? 0 : Number(r.ordning);
   if (!Number.isInteger(ordning)) throw new Error(`${var_}: ordning för "${id}" måste vara ett heltal.`);
   return {
@@ -362,9 +380,10 @@ export function byggMinKalender(d) {
  *
  * ⛔ VARFÖR LÄSVÄGEN SLÄPPER OCH INTE KASTAR. Reglerna nekar från 0.153.0 en `ikon` som inte är ett kort namn och fält av fel sort. Ett dokument som redan står i databasen med en sådan `ikon` hade, om läsaren behöll
  * den, följt med i varje senare skrivning (`sparaMina` skriver HELA raden), nekats, och "Försök igen" aldrig lyckats. Ägaren hade låsts ute från sin egen kalender. Därför:
- *   - en `ikon` utanför `KALENDERIKONER`, eller som saknas (reglerna kräver inte fältet, byggaren gör det), blir `KALENDERIKONER[0]` (kalender),
+ *   - en `ikon` som reglerna nekar (inte text, inte ett namn i `ID_FORM`, över `MAX_KALENDERIKON` tecken), eller som saknas (reglerna kräver inte fältet, byggaren gör det), blir `KALENDERIKONER[0]` (kalender).
+ *     ⛔ En ikon som klarar reglerna men saknas i `KALENDERIKONER` BEHÅLLS (granskningen av PR 464): en nyare klient kan ha lagt till den, och den ritas med reservikonen,
  *   - ett fält utanför `MINKALENDERFALT` släpps (`hasOnly` i reglerna hade nekat det),
- *   - `ordning` som inte är ett heltal blir 0, och `forvald`, `iFlodet` och `arkiverad` som inte är sanningsvärden blir `false`.
+ *   - `ordning` som inte är ett heltal blir 0 (numerisk text som "3" är 3, som byggaren läser den), och `forvald`, `iFlodet` och `arkiverad` som inte är sanningsvärden blir `false`.
  * Det som INTE läker: ett id utanför `ID_FORM` (dokumentets nyckel går inte att byta), ett tomt eller för långt `namn` och en ogiltig `farg`. De kastar som förut, med skälet.
  *
  * @param {unknown} rad
@@ -375,8 +394,9 @@ export function lasMinKalender(rad) {
   /** @type {Record<string, any>} */
   const ut = {};
   for (const f of MINKALENDERFALT) if (f in r) ut[f] = r[f];
-  if (!(typeof ut.ikon === "string" && (/** @type {readonly string[]} */ (KALENDERIKONER)).includes(ut.ikon.trim()))) ut.ikon = KALENDERIKONER[0];
-  if ("ordning" in ut && !(typeof ut.ordning === "number" && Number.isInteger(ut.ordning))) ut.ordning = 0;
+  if (!(typeof ut.ikon === "string" && ikonFormOk(ut.ikon.trim()))) ut.ikon = KALENDERIKONER[0];
+  // ⛔ "3" ÄR 3 (granskningen av PR 464): byggaren läser numerisk text som talet och skriver talet, som reglerna tar emot. Bara det som inte är ett heltal blir 0.
+  if ("ordning" in ut && !heltalEllerHeltalstext(ut.ordning)) ut.ordning = 0;
   for (const f of /** @type {const} */ (["forvald", "iFlodet", "arkiverad"])) if (f in ut && typeof ut[f] !== "boolean") ut[f] = false;
   return byggMinKalender(ut);
 }
@@ -565,6 +585,23 @@ export function kalenderformMatning(dokument, { slag, stor = 20_000, exempel = 5
     if (ex.length < exempel) ex.push({ sokvag: d.sokvag, koder });
   }
   return { lasta: dokument.length, medAvvikelse, stora, perKod, exempel: ex, personer: perPerson.size, flestHosEnPerson: Math.max(0, ...perPerson.values()) };
+}
+
+/**
+ * Slutkoden för `scripts/mat-kalenderdokument.mjs` (granskningen av PR 464): 1 när någon samling lästes som tom, eller när något dokument bär en avvikelse som reglerna nekar, `id` inräknat; annars 0.
+ *
+ * ⛔ `id` RÄKNAS. Ett id utanför formen låser ingen ute i reglerna (det prövas bara vid `create`), men `byggMinKalender` och `byggKalenderpost` kastar på det, så dokumentet är redan oläsligt för ramverket, och
+ * CHANGELOG 0.153.0 säger "noll avvikelser, också id" innan reglerna deployas. ⛔ `stor` RÄKNAS INTE: ett stort dokument med rätt form låser inte ute någon. Det står i utskriften, som underlag för ett tak.
+ *
+ * @param {ReadonlyArray<{ lasta: number, perKod: Record<string, number> }>} svar Ett svar från `kalenderformMatning` per samling.
+ * @returns {0 | 1}
+ */
+export function kalenderformSlutkod(svar) {
+  for (const s of svar) {
+    if (s.lasta === 0) return 1;
+    if (Object.entries(s.perKod).some(([k, n]) => k !== "stor" && n > 0)) return 1;
+  }
+  return 0;
 }
 
 /**

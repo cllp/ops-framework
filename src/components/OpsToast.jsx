@@ -23,7 +23,7 @@ import { KryssIkon } from "./icons.jsx";
  *
  * ══ ⛔ EN ÅTGÄRD PÅ TOASTEN: ÅNGRA (0.153.0, cllp/ops-framework#460 punkt 1) ═══════════════════════════════════════════════════
  *
- * `atgard: { etikett, onKlick }` ritar en knapp i toasten, normalt "Ångra". Händelsen: lifehub.app byggde en egen yta för "Händelsen är borttagen" med Ångra
+ * `atgard: { etikett, onKlick, beskrivning? }` ritar en knapp i toasten, normalt "Ångra". `beskrivning` är skärmläsarens text (Radix `altText`), förval "Ångra: tryck F8 för att nå knappen i aviseringen.". Händelsen: lifehub.app byggde en egen yta för "Händelsen är borttagen" med Ångra
  * (`AngraBesked.jsx`, `OpsBanner` plus `OpsButton`), eftersom `OpsToast` bekräftade men inte kunde erbjuda något, och `OpsSvepRad` väntar innan åtgärden sker och tar
  * inte tillbaka något som redan skett. En andra yta för samma sak är regel 2 på fel sida.
  *
@@ -36,7 +36,7 @@ import { KryssIkon } from "./icons.jsx";
  */
 
 /**
- * @typedef {{ etikett: string, onKlick: () => void | Promise<unknown> }} Toastatgard
+ * @typedef {{ etikett: string, onKlick: () => void | Promise<unknown>, beskrivning?: string }} Toastatgard
  * @typedef {{ id: number, title: string, description?: string, tone: "success"|"danger"|"info", atgard?: Toastatgard }} Toastpost
  */
 
@@ -45,6 +45,9 @@ const ToastContext = createContext(/** @type {{ show: (t: Omit<Toastpost, "id">)
 
 export const ORD_OPSTOAST = {
   atgardFel: { sv: "Det gick inte", en: "That did not work" },
+  // ⛔ Skärmläsarens beskrivning av åtgärden (Radix `Toast.Action altText`, granskningen av PR 464): toasten läses upp, men knappen i den nås inte med Tab från där man står. F8 är Radix förvalda
+  // kortkommando till aviseringarna (`Toast.Viewport hotkey`). `{etikett}` byts mot knappens ord.
+  atgardBeskrivning: { sv: "{etikett}: tryck F8 för att nå knappen i aviseringen.", en: "{etikett}: press F8 to reach the button in the notification." },
 };
 
 // ⛔ bolag-ops#535 (CP 2026-10-02, inkorgsbild): bekräftelserutan "tog in massa
@@ -73,6 +76,9 @@ export function OpsToastProvider({ children, closeLabel = "Stäng" }) {
   const show = useCallback((/** @type {Omit<Toastpost, "id">} */ entry) => {
     if (entry.atgard !== undefined && (typeof entry.atgard?.etikett !== "string" || !entry.atgard.etikett.trim() || typeof entry.atgard.onKlick !== "function")) {
       throw new Error("OpsToast: atgard kräver { etikett, onKlick }. En knapp utan ord eller utan funktion är en knapp som inte gör något.");
+    }
+    if (entry.atgard?.beskrivning !== undefined && (typeof entry.atgard.beskrivning !== "string" || !entry.atgard.beskrivning.trim())) {
+      throw new Error("OpsToast: atgard.beskrivning är skärmläsarens väg till åtgärden och får inte vara tom. Utelämna den för förvalet.");
     }
     setPoster((tidigare) => [...tidigare, { ...entry, id: Date.now() + Math.random() }]);
   }, []);
@@ -121,12 +127,24 @@ export function OpsToastProvider({ children, closeLabel = "Stäng" }) {
                 <Toast.Description className="m-0 mt-1 text-meta text-ink-secondary">{p.description}</Toast.Description>
               ) : null}
               {p.atgard ? (
-                <div className="mt-2">
-                  {/* ⛔ EN `OpsButton`, så att knappen är upptagen medan åtgärden väntar (`check-vantar`) och är 44 px hög under md. Toasten stängs när åtgärden är klar, se `kor`. */}
-                  <OpsButton variant="secondary" size="sm" onClick={() => kor(/** @type {Toastatgard} */ (p.atgard), p.id)}>
-                    {p.atgard.etikett}
-                  </OpsButton>
-                </div>
+                /*
+                 * ⛔ RADIX `Toast.Action` MED `altText` (granskningen av PR 464): skärmläsaren läser upp beskrivningen i stället för knappens ord, så att den som inte når knappen vet hur.
+                 * `asChild` på ramen och inte på knappen: `OpsButton` är ett stängt API utan `forwardRef`. `Toast.Action` är en `Toast.Close`, och ett klick stänger normalt
+                 * toasten direkt; `preventDefault` hindrar det, eftersom toasten ska stå kvar medan åtgärden väntar och stängas av `kor`. `type` tas bort: ramen är ingen knapp.
+                 */
+                <Toast.Action
+                  asChild
+                  altText={p.atgard.beskrivning ?? ordet(ORD_OPSTOAST, "atgardBeskrivning", sprak).replace("{etikett}", p.atgard.etikett)}
+                  type={undefined}
+                  onClick={(e) => e.preventDefault()}
+                >
+                  <div className="mt-2" data-toast-atgard-ram="">
+                    {/* ⛔ EN `OpsButton`, så att knappen är upptagen medan åtgärden väntar (`check-vantar`) och är 44 px hög under md. Toasten stängs när åtgärden är klar, se `kor`. */}
+                    <OpsButton variant="secondary" size="sm" onClick={() => kor(/** @type {Toastatgard} */ (p.atgard), p.id)}>
+                      {p.atgard.etikett}
+                    </OpsButton>
+                  </div>
+                </Toast.Action>
               ) : null}
             </div>
             <Toast.Close

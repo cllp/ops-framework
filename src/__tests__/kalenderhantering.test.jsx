@@ -325,6 +325,18 @@ describe("OpsKalendrar (F2)", () => {
     expect(mina[0]).toEqual([{ id: "traning", namn: "Träning", farg: 5, ikon: "stjarna", ordning: 10, forvald: false, iFlodet: false, arkiverad: false }]);
   });
 
+  it("⛔ en ikon som ramverket inte känner ritas med reservikonen och står kvar när kalendern sparas (granskningen av PR 464)", async () => {
+    const { mina } = visa({ mina: [mk("privat", { ikon: "ny-ikon" })] });
+    const rad = /** @type {HTMLElement} */ (document.querySelector('[data-kalenderrad="privat"]'));
+    expect(rad.querySelector("svg")).not.toBeNull();
+    const sektion = screen.getByRole("region", { name: "Mina kalendrar" });
+    fireEvent.click(within(sektion).getByRole("button", { name: "Redigera Privat" }));
+    fireEvent.change(within(sektion).getByRole("textbox", { name: "Namn" }), { target: { value: "Privat igen" } });
+    fireEvent.click(within(sektion).getByRole("button", { name: "Spara ändringar" }));
+    await waitFor(() => expect(mina).toHaveLength(1));
+    expect(mina[0][0]).toMatchObject({ id: "privat", namn: "Privat igen", ikon: "ny-ikon" });
+  });
+
   it("byter namn på gruppens kalender och gör den förvald: två rader i samma sparning", async () => {
     const { gruppens } = visa();
     const sektion = screen.getByRole("region", { name: "Gruppens kalendrar" });

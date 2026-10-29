@@ -1660,6 +1660,8 @@ function FilVisning({ post, lage, kopplad, onLjus, onMeta, onRadera, hamtaFil })
  * @param {{ hamta: (sokvag: string) => Promise<Blob>, sokvag: string, namn: string }} props
  */
 function TextForhandsvisning({ hamta, sokvag, namn }) {
+  const sprak = useOpsSprak();
+  const o = (/** @type {keyof typeof ORD_BIBLIOTEKTEXT} */ k) => ordet(ORD_BIBLIOTEKTEXT, k, sprak);
   const [lage, setLage] = useState(/** @type {{ lage: "hamtar" } | { lage: "klar", text: string, avkortad: boolean } | { lage: "fel", fel: string }} */ ({ lage: "hamtar" }));
   // ⛔ FUNKTIONEN I EN REF, SÖKVÄGEN SOM BEROENDE. En app som skickar `hamtaFil={(s) => lagring.hamta(s)}` ger en ny funktion vid varje rendering, och texten hade hämtats om (och blinkat "Hämtar texten.") varje gång något annat i vyn ändrades.
   const hamtaRef = useRef(hamta);
@@ -1682,33 +1684,46 @@ function TextForhandsvisning({ hamta, sokvag, namn }) {
       kvar = false;
     };
   }, [sokvag]);
-  if (lage.lage === "hamtar") return <p role="status" data-bibliotek-text="hamtar" className="m-0 text-etikett text-ink-muted">Hämtar texten.</p>;
+  if (lage.lage === "hamtar") return <p role="status" data-bibliotek-text="hamtar" className="m-0 text-etikett text-ink-muted">{o("hamtar")}</p>;
   if (lage.lage === "fel") {
     return (
       <p role="alert" data-bibliotek-text="fel" className="m-0 text-etikett text-danger">
-        {`Texten gick inte att visa. ${lage.fel}`}
+        {`${o("fel")} ${lage.fel}`}
       </p>
     );
   }
-  if (lage.text === "") return <p role="status" data-bibliotek-text="tom" className="m-0 text-etikett text-ink-muted">Filen är tom.</p>;
+  if (lage.text === "") return <p role="status" data-bibliotek-text="tom" className="m-0 text-etikett text-ink-muted">{o("tom")}</p>;
   return (
     <div className="flex min-w-0 flex-col gap-1">
       <pre
         data-bibliotek-text="klar"
         tabIndex={0}
-        aria-label={`Innehållet i ${namn}`}
+        aria-label={o("innehall").replace("{namn}", namn)}
         className="m-0 max-h-96 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-sunken p-3 font-mono text-meta text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
       >
         {lage.text}
       </pre>
       {lage.avkortad ? (
         <p data-bibliotek-text-avkortad="" className="m-0 text-meta text-ink-muted">
-          Det här är början av filen. Resten finns i filen.
+          {o("avkortad")}
         </p>
       ) : null}
     </div>
   );
 }
+
+/**
+ * Textförhandsvisningens ord (0.153.0, granskningen av PR 464), på båda språken som resten av komponentens ordböcker. ⛔ Resten av `FilVisning` ("Hämtar filen.", "Filen har ingen adress.", "Radera")
+ * och `filadressFel` är fortfarande bara svenska: befintlig skuld, inte rättad här.
+ * @type {import("../lib/ord.js").Ordbok}
+ */
+const ORD_BIBLIOTEKTEXT = {
+  hamtar: { sv: "Hämtar texten.", en: "Fetching the text." },
+  fel: { sv: "Texten gick inte att visa.", en: "The text could not be shown." },
+  tom: { sv: "Filen är tom.", en: "The file is empty." },
+  innehall: { sv: "Innehållet i {namn}", en: "The contents of {namn}" },
+  avkortad: { sv: "Det här är början av filen. Resten finns i filen.", en: "This is the start of the file. The rest is in the file." },
+};
 
 /** @param {Blob} blob @returns {Promise<ArrayBuffer>} */
 function blobBytes(blob) {

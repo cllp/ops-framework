@@ -34,7 +34,7 @@ import { OppnaHandelseKontext } from "../lib/handelsekontext.js";
 import { RadkallorKontext } from "../lib/radkallorkontext.js";
 import { validateRadkallor } from "../lib/radkallor.js";
 import { HANDELSEPARAM, handelseIdUrAdress, medHandelse } from "../lib/handelsepanel.js";
-import { KALENDERIKON_KOMPONENT } from "../lib/kalenderikoner.js";
+import { kalenderIkonKomponent } from "../lib/kalenderikoner.js";
 import { text } from "../lib/sprak.js";
 import { skapalaget, typerAttValja } from "../lib/skapa.js";
 import { malForInspelning, tillaggFor } from "../lib/tillagg.js";
@@ -1654,8 +1654,10 @@ function OpsAppShellRitad({
     ? (() => {
         const g = skapaGrupperLista.find((x) => x.id === skapaEffektivGrupp);
         const ikon = (/** @type {string} */ id) => {
-          const I = KALENDERIKON_KOMPONENT[/** @type {keyof typeof KALENDERIKON_KOMPONENT} */ (id)];
-          return I ? <I size={18} /> : undefined;
+          // ⛔ En ikon som den här versionen inte känner ritas med reserven (`kalenderIkonKomponent`, granskningen av PR 464).
+          if (!id) return undefined;
+          const I = kalenderIkonKomponent(id);
+          return <I size={18} />;
         };
         return /** @type {Array<any>} */ ([
           // ⛔ GRUPPEN SJÄLV SOM RAD NÄR DEN SAKNAR KALENDER OCH PERSONEN HAR EGNA (0.120.0, cllp/lifehub.app#367). Utan den raden gick det

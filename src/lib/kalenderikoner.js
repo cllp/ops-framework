@@ -22,3 +22,12 @@ if (Object.keys(KALENDERIKON_KOMPONENT).length !== KALENDERIKONER.length || KALE
 
 /** Ikonens namn i en väljare, för skärmläsare. */
 export const KALENDERIKON_NAMN = /** @type {const} */ ({ kalender: "Kalender", grupp: "Grupp", portfolj: "Portfölj", hus: "Hus", stjarna: "Stjärna", hjarta: "Hjärta", blixt: "Blixt", bok: "Bok" });
+
+/**
+ * Komponenten som ritar en kalenders ikon, med `KalenderIkon` som reserv (granskningen av PR 464). En ikon som klarar reglerna men som den här versionen av ramverket inte känner (en nyare
+ * version har lagt till den i `KALENDERIKONER`) behålls i datan (`lasMinKalender`, `byggMinKalender`) och ritas med reserven, så att en äldre klient varken kraschar på den eller skriver över den.
+ * @param {string | undefined} id
+ */
+export function kalenderIkonKomponent(id) {
+  return (id && Object.hasOwn(KALENDERIKON_KOMPONENT, id) ? KALENDERIKON_KOMPONENT[/** @type {keyof typeof KALENDERIKON_KOMPONENT} */ (id)] : null) ?? KalenderIkon;
+}
