@@ -108,6 +108,19 @@ export const MAX_POSTTITEL = 200;
 export const MAX_POSTBESKRIVNING = 2000;
 export const MAX_POSTPLATS = 200;
 
+/**
+ * Längsta id en av mina kalendrar eller en post får ha (0.153.0, cllp/ops-framework#463). Samma tak som ett grupp-id och en kalenderrads nyckel i kalendervalen
+ * (`MAX_KALENDERVALGRUPP`, `MAX_KALENDERVALNYCKEL`). Appens egna id:n är mycket kortare: `kalenderIdUrNamn` ger högst 40 tecken plus ett suffix, och en posts id är `p-` och tolv tecken.
+ * Reglerna (`kalenderregelfragment`) prövar det på `create`, aldrig på `update`: ett dokument som redan finns kan inte byta id, och en regel som nekade dess ändring hade låst ute ägaren.
+ */
+export const MAX_KALENDERID = 80;
+
+/**
+ * Längsta ikon en av mina kalendrar får bära (0.153.0, #463). En ikon är ett NAMN ur `KALENDERIKONER` (längst `portfolj`, åtta tecken), aldrig en bild. Reglerna prövar formen (`ID_FORM`)
+ * och det här taket, inte listan: en ikon som ramverket lägger till ska inte kräva en regeldeploy. Läsningen (`lasMinKalender`) byter en ikon utanför listan mot `KALENDERIKONER[0]`.
+ */
+export const MAX_KALENDERIKON = 40;
+
 /** Förvald tidszon. En inställning, inte en konstant i koden (se filhuvudet). */
 export const STANDARD_TIDSZON = "Europe/Stockholm";
 
@@ -344,21 +357,63 @@ export function byggMinKalender(d) {
 }
 
 /**
- * Validerar mina kalendrar: unika id och högst en förvald, som för gruppens.
- * @param {unknown} rader @returns {MinKalender[]}
+ * Läser en av mina kalendrar ur databasen och LÄKER den (0.153.0, cllp/ops-framework#463). Skrivvägen (`byggMinKalender`) är strikt och kastar. Läsvägen släpper det reglerna inte längre tar emot,
+ * så att dokumentet läker vid nästa skrivning, på samma sätt som `rensaKalenderSynlighet` (0.152.0).
+ *
+ * ⛔ VARFÖR LÄSVÄGEN SLÄPPER OCH INTE KASTAR. Reglerna nekar från 0.153.0 en `ikon` som inte är ett kort namn och fält av fel sort. Ett dokument som redan står i databasen med en sådan `ikon` hade, om läsaren behöll
+ * den, följt med i varje senare skrivning (`sparaMina` skriver HELA raden), nekats, och "Försök igen" aldrig lyckats. Ägaren hade låsts ute från sin egen kalender. Därför:
+ *   - en `ikon` utanför `KALENDERIKONER`, eller som saknas (reglerna kräver inte fältet, byggaren gör det), blir `KALENDERIKONER[0]` (kalender),
+ *   - ett fält utanför `MINKALENDERFALT` släpps (`hasOnly` i reglerna hade nekat det),
+ *   - `ordning` som inte är ett heltal blir 0, och `forvald`, `iFlodet` och `arkiverad` som inte är sanningsvärden blir `false`.
+ * Det som INTE läker: ett id utanför `ID_FORM` (dokumentets nyckel går inte att byta), ett tomt eller för långt `namn` och en ogiltig `farg`. De kastar som förut, med skälet.
+ *
+ * @param {unknown} rad
+ * @returns {MinKalender}
  */
-export function validateMinaKalendrar(rader) {
+export function lasMinKalender(rad) {
+  const r = rad && typeof rad === "object" ? /** @type {Record<string, any>} */ (rad) : {};
+  /** @type {Record<string, any>} */
+  const ut = {};
+  for (const f of MINKALENDERFALT) if (f in r) ut[f] = r[f];
+  if (!(typeof ut.ikon === "string" && (/** @type {readonly string[]} */ (KALENDERIKONER)).includes(ut.ikon.trim()))) ut.ikon = KALENDERIKONER[0];
+  if ("ordning" in ut && !(typeof ut.ordning === "number" && Number.isInteger(ut.ordning))) ut.ordning = 0;
+  for (const f of /** @type {const} */ (["forvald", "iFlodet", "arkiverad"])) if (f in ut && typeof ut[f] !== "boolean") ut[f] = false;
+  return byggMinKalender(ut);
+}
+
+/**
+ * @param {unknown} rader
+ * @param {(rad: any) => MinKalender} bygg
+ * @returns {MinKalender[]}
+ */
+function minaKalendrarMed(rader, bygg) {
   if (!Array.isArray(rader)) throw new Error(`minaKalendrar: kalendrarna måste vara en lista, inte ${typeof rader}.`);
   /** @type {Set<string>} */
   const sedda = new Set();
   const ut = rader.map((r) => {
-    const k = byggMinKalender(r);
+    const k = bygg(r);
     if (sedda.has(k.id)) throw new Error(`minaKalendrar: id "${k.id}" finns två gånger.`);
     sedda.add(k.id);
     return k;
   });
   kontrolleraForvald(ut, "minaKalendrar");
   return ut;
+}
+
+/**
+ * Validerar mina kalendrar: unika id och högst en förvald, som för gruppens. SKRIVVÄGEN: strikt, kastar på varje avvikelse.
+ * @param {unknown} rader @returns {MinKalender[]}
+ */
+export function validateMinaKalendrar(rader) {
+  return minaKalendrarMed(rader, byggMinKalender);
+}
+
+/**
+ * Mina kalendrar ur databasen, läkta (`lasMinKalender`), med samma kontroller av unika id och högst en förvald. LÄSVÄGEN (`createKalenderkalla().mina`).
+ * @param {unknown} rader @returns {MinKalender[]}
+ */
+export function lasMinaKalendrar(rader) {
+  return minaKalendrarMed(rader, lasMinKalender);
 }
 
 /**
@@ -407,6 +462,109 @@ export function byggKalenderpost(d, config = {}) {
   if (!giltigtDatum(start.slice(0, 10)) || !giltigtDatum(slut.slice(0, 10))) throw new Error(`${var_}: ett datum för "${id}" finns inte i kalendern (${start} till ${slut}).`);
   if (slut < start) throw new Error(`${var_}: slut ${slut} för "${id}" är före start ${start}.`);
   return { id, kalenderId, titel, beskrivning, plats, start, slut, heldag, blockerar: bool(r.blockerar, `blockerar för "${id}"`, var_) };
+}
+
+/**
+ * Läser en post ur databasen och LÄKER den (0.153.0, #463), som `lasMinKalender`. Reglerna kräver från 0.153.0 att `beskrivning` och `plats` är text och `blockerar` ett sanningsvärde.
+ * Ett fält utanför `KALENDERPOSTFALT` släpps, `beskrivning` och `plats` som inte är text blir tomma och `blockerar` som inte är ett sanningsvärde blir `false`. Titel, kalender och tider kastar som förut.
+ *
+ * @param {unknown} rad
+ * @returns {Kalenderpost}
+ */
+export function lasKalenderpost(rad) {
+  const r = rad && typeof rad === "object" ? /** @type {Record<string, any>} */ (rad) : {};
+  /** @type {Record<string, any>} */
+  const ut = {};
+  for (const f of KALENDERPOSTFALT) if (f in r) ut[f] = r[f];
+  for (const f of /** @type {const} */ (["beskrivning", "plats"])) if (f in ut && typeof ut[f] !== "string") ut[f] = "";
+  if ("blockerar" in ut && typeof ut.blockerar !== "boolean") ut.blockerar = false;
+  return byggKalenderpost(ut);
+}
+
+/**
+ * Vad i ett lagrat dokument i `minaKalendrar` eller `kalenderposter` som reglerna från 0.153.0 inte släpper igenom (cllp/ops-framework#463). Tom lista: dokumentet kan skrivas om som det står.
+ *
+ * ══ ⛔ VARFÖR DEN FINNS ═════════════════════════════════════════════════════════════════════════════════════
+ *
+ * Reglerna får inte låsa ute någon från sina egna kalendrar. Ramverket känner inte appens produktion, så frågan "bryter något befintligt dokument mot den nya formen?" besvaras av en MÄTNING i produktion,
+ * `scripts/mat-kalenderdokument.mjs` (bara läsning), och mätningen använder den här funktionen. Den är härledd ur samma konstanter som reglerna (`MAX_KALENDERID`, `MAX_KALENDERIKON`, `ID_FORM`, fältlistorna), och
+ * `rules/__tests__/kalendertak.test.mjs` prövar mot emulatorn att den och reglerna säger samma sak om varje dokument i provet: en mätning som kan gå isär från regeln mäter inte regeln.
+ *
+ * Koderna: `id` (utanför `ID_FORM` eller över `MAX_KALENDERID`; PRÖVAS BARA VID CREATE, så det låser ingen ute, men `byggMinKalender` kastar på det vid läsning), `okant-falt`, `namn`, `farg`, `ikon`, `ordning`, `forvald`,
+ * `iFlodet`, `arkiverad` (kalender) samt `kalenderId`, `titel`, `beskrivning`, `plats`, `blockerar`, `heldag`, `start`, `slut`, `tidsordning` (post). Att kalendern finns och inte är arkiverad prövas inte: det är inte en
+ * egenskap hos dokumentet.
+ *
+ * @param {"kalender" | "post"} slag
+ * @param {string} id Dokumentets id (nyckeln i sökvägen).
+ * @param {unknown} data Dokumentets fält.
+ * @returns {string[]}
+ */
+export function kalenderformFel(slag, id, data) {
+  /** @type {string[]} */
+  const fel = [];
+  if (typeof id !== "string" || !ID_FORM.test(id) || id.length > MAX_KALENDERID) fel.push("id");
+  const d = data && typeof data === "object" && !Array.isArray(data) ? /** @type {Record<string, any>} */ (data) : null;
+  if (!d) return [...fel, "okant-falt"];
+  const tillatna = /** @type {readonly string[]} */ (slag === "kalender" ? MINKALENDERFALT : KALENDERPOSTFALT).filter((f) => f !== "id");
+  if (Object.keys(d).some((f) => !tillatna.includes(f))) fel.push("okant-falt");
+  const sant = (/** @type {string} */ f, /** @type {boolean} */ ok) => {
+    if (!ok) fel.push(f);
+  };
+  const finns = (/** @type {string} */ f) => f in d;
+  const text = (/** @type {unknown} */ v, /** @type {number} */ max) => typeof v === "string" && v.length <= max;
+  if (slag === "kalender") {
+    sant("namn", typeof d.namn === "string" && d.namn.length > 0 && d.namn.length <= MAX_KALENDERNAMN);
+    sant("farg", (/** @type {readonly unknown[]} */ (KALENDERFARGER)).includes(d.farg));
+    sant("ikon", !finns("ikon") || (text(d.ikon, MAX_KALENDERIKON) && ID_FORM.test(d.ikon)));
+    sant("ordning", !finns("ordning") || typeof d.ordning === "number");
+    for (const f of ["forvald", "iFlodet", "arkiverad"]) sant(f, !finns(f) || typeof d[f] === "boolean");
+    return fel;
+  }
+  sant("kalenderId", typeof d.kalenderId === "string");
+  sant("titel", typeof d.titel === "string" && d.titel.length > 0 && d.titel.length <= MAX_POSTTITEL);
+  sant("beskrivning", !finns("beskrivning") || text(d.beskrivning, MAX_POSTBESKRIVNING));
+  sant("plats", !finns("plats") || text(d.plats, MAX_POSTPLATS));
+  sant("blockerar", !finns("blockerar") || typeof d.blockerar === "boolean");
+  sant("heldag", typeof d.heldag === "boolean");
+  const form = d.heldag === true ? DATUMFORM : TIDPUNKTSFORM;
+  const tid = (/** @type {unknown} */ v) => typeof v === "string" && form.test(v);
+  sant("start", d.heldag === true || d.heldag === false ? tid(d.start) : false);
+  sant("slut", d.heldag === true || d.heldag === false ? tid(d.slut) : false);
+  sant("tidsordning", typeof d.start === "string" && typeof d.slut === "string" && d.slut >= d.start);
+  return fel;
+}
+
+/**
+ * Räknar avvikelserna i en lista dokument. Ren funktion (skriptet `scripts/mat-kalenderdokument.mjs` läser dokumenten och skriver ut svaret), provad i `src/__tests__/kalendrar-lasning.test.js`.
+ *
+ * @param {Array<{ sokvag: string, id: string, data: unknown, byte?: number }>} dokument
+ * @param {{ slag: "kalender" | "post", stor?: number, exempel?: number }} val
+ * @returns {{ lasta: number, medAvvikelse: number, stora: number, perKod: Record<string, number>, exempel: Array<{ sokvag: string, koder: string[] }>, personer: number, flestHosEnPerson: number }}
+ */
+export function kalenderformMatning(dokument, { slag, stor = 20_000, exempel = 5 }) {
+  /** @type {Record<string, number>} */
+  const perKod = {};
+  /** @type {Array<{ sokvag: string, koder: string[] }>} */
+  const ex = [];
+  let medAvvikelse = 0;
+  let stora = 0;
+  /** @type {Map<string, number>} */
+  const perPerson = new Map();
+  for (const d of dokument) {
+    // Sökvägen är `<användare>/<uid>/<samling>/<id>`: antalet dokument per person behövs för att kunna sätta ett tak per person ur siffror och inte ur en gissning.
+    const uid = d.sokvag.split("/")[1];
+    if (uid) perPerson.set(uid, (perPerson.get(uid) ?? 0) + 1);
+    const koder = kalenderformFel(slag, d.id, d.data);
+    if (typeof d.byte === "number" && d.byte > stor) {
+      stora += 1;
+      koder.push("stor");
+    }
+    if (koder.length === 0) continue;
+    medAvvikelse += 1;
+    for (const k of koder) perKod[k] = (perKod[k] ?? 0) + 1;
+    if (ex.length < exempel) ex.push({ sokvag: d.sokvag, koder });
+  }
+  return { lasta: dokument.length, medAvvikelse, stora, perKod, exempel: ex, personer: perPerson.size, flestHosEnPerson: Math.max(0, ...perPerson.values()) };
 }
 
 /**

@@ -1,5 +1,5 @@
 import { gruppensRader, katalognyckel } from "../lib/katalog.js";
-import { byggGruppkalender, byggKalenderpost, byggMinKalender, efterOrdning, validateGruppkalendrar, validateMinaKalendrar } from "../lib/kalendrar.js";
+import { byggGruppkalender, byggKalenderpost, byggMinKalender, efterOrdning, lasKalenderpost, lasMinaKalendrar, validateGruppkalendrar } from "../lib/kalendrar.js";
 import { byggKommentar, byggSvar } from "../lib/handelsemodell.js";
 
 /**
@@ -88,10 +88,16 @@ export function createKalenderkalla(konfig) {
       return skriv(byggda.map((k) => ({ collection: gruppkalendrar, data: { ...k, id: katalognyckel(groupId, k.id) } })));
     },
 
-    /** Mina kalendrar, också arkiverade, validerade och i sin ordning. @param {string} uid */
+    /**
+     * Mina kalendrar, också arkiverade, validerade och i sin ordning.
+     *
+     * ⛔ LÄSVÄGEN LÄKER (0.153.0, #463): `lasMinaKalendrar` släpper det reglerna inte längre tar emot (en ikon som inte är ett namn ur listan, ett okänt fält, ett fält av fel sort), så att raden
+     * går att skriva om. Skrivvägen (`sparaMina`) är strikt som förut.
+     * @param {string} uid
+     */
     async mina(uid) {
       const rader = await kalla.list(minaVag(uid));
-      return validateMinaKalendrar(rader).sort(efterOrdning);
+      return lasMinaKalendrar(rader).sort(efterOrdning);
     },
 
     /** Sparar en eller flera av mina kalendrar. @param {string} uid @param {ReadonlyArray<Record<string, any>>} rader */
@@ -99,9 +105,9 @@ export function createKalenderkalla(konfig) {
       return skriv(rader.map((r) => ({ collection: minaVag(uid), data: byggMinKalender(r) })));
     },
 
-    /** Posterna i mina kalendrar. @param {string} uid */
+    /** Posterna i mina kalendrar, läkta på samma sätt som kalendrarna (`lasKalenderpost`, 0.153.0). @param {string} uid */
     async poster(uid) {
-      return (await kalla.list(posterVag(uid))).map((r) => byggKalenderpost(r));
+      return (await kalla.list(posterVag(uid))).map((r) => lasKalenderpost(r));
     },
 
     /**
