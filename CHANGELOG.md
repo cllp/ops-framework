@@ -11,6 +11,10 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ## Ej utgivet
 
+- **Spelraden dockad mot bottenmenyn** (`OpsSpelare`, `tokens.css`, CP 2026-10-29): under 768 px har
+  spelraden bottenradens bakgrund ända ned till radens överkant, utan genomskinligt glapp, och
+  mikrofonknappen sitter i ett hack i spelarens nederkant. Bottenradens överkant döljs medan spelaren syns.
+
 - **Visionen i kanon** (`CLAUDE.md`, CP 2026-10-24): varför vi bygger, hur (agenten som
   första väg in, visuella hjälpmedel som den andra) och frågan till varje ärende: gör det
   här att någon tittar mindre på skärmen, eller mer? Följer med till konsumenternas

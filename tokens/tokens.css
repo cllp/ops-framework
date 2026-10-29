@@ -1195,6 +1195,13 @@
   --bottom-nav-overhang: 0px;
 }
 
+/* ─── Spelraden och bottenraden är en yta (CP 2026-10-29, skärmbild från iPhone). ──────────
+ * Spelraden har bottenradens bakgrund under 768 px och slutar mot radens överkant. Linjen överst på bottenraden skulle
+ * annars skära igenom spelaren och mikrofonknappens hack, så den tas bort medan en spelrad syns. Se `OpsSpelare.jsx`. */
+:root:has([data-ops-spelrad]) [data-ops-bottenrad] {
+  border-top-color: transparent;
+}
+
 /**
  * Mörkt läge har tre tillstånd, och ordningen spelar roll.
  *
