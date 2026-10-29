@@ -45,6 +45,7 @@ import { MAX_SKAPARKALLA, MAX_SKAPARNAMN, SKAPARFALT, VIA_FALTNAMN } from "./ska
 import { BESKRIVENAPPDATAFALT, BESKRIVNINGSDOKUMENTFALT, BESKRIVNINGSFALT, BESKRIVNINGSFORMAT, BESKRIVNINGSIDFORM, MAX_APPBESKRIVNING, MAX_BESKRIVNINGSNAMN, MAX_FALT, MAX_LISTOR, MIN_LISTOR } from "./beskrivenapp.js";
 import { KONFIGHANDELSER, KONFIGLOGGFALT } from "./konfiglogg.js";
 import { KALENDERVALFALT, KALENDERVALNYCKEL_FORM, KALENDERVISNINGAR, MAX_KALENDERVAL, MAX_KALENDERVALGRUPP } from "./kalendersynlighet.js";
+import { DELNINGSUID_FORM, KALENDERDELNINGFALT, KALENDERDELNING_AVGRANSARE, KALENDERDELNING_GRUPP, KALENDERDELNING_PERSON, MAX_DELNINGSGRUPP } from "./kalenderdelning.js";
 import { AVVECKLADE_KALENDERFALT, DATUMFORM, KALENDERFALT, KALENDERFARGER, KALENDERPOSTFALT, MAX_KALENDERID, MAX_KALENDERIKON, MAX_KALENDERNAMN, MAX_POSTBESKRIVNING, MAX_POSTPLATS, MAX_POSTTITEL, MINKALENDERFALT, TIDPUNKTSFORM } from "./kalendrar.js";
 import { KOMMENTARBILAGAFALT, KOMMENTARBILAGA_TYPER, KOMMENTARFALT, LASMARKESFALT, MAX_BILAGENAMN, MAX_HANDELSEKOMMENTAR, MAX_KOMMENTARBILAGA, SVARSFALT, SVARSVAL } from "./handelsemodell.js";
 import { AMNESFALT, AMNES_REGEL, BILAGA_TRADSKILJE, BILAGEMARKEFALT, FASTFALT, MAX_AMNESRUBRIK, GRUPPSAMTAL, LASTFALT, MAX_MEDDELANDE, MAX_NAMNER, MAX_TRADNAMN, MAX_UIDLANGD, MEDDELANDEFALT, NAMNERFALT, NAMNER_ALLA, REAKTIONSFALT, SVARPAFALT, REAKTIONSKODER, SAMTALSAVGRANSARE, SAMTALSFALT, TRADFALT, undersamlingskrock } from "./samtal.js";
@@ -1498,6 +1499,78 @@ ${texttak("          ", "mid")}
 const regeluttryck = (r) => r.source.replace(/^\^/, "").replace(/\$$/, "").replace(/\\d/g, "[0-9]");
 
 /**
+ * Delningarnas block och funktionen `opsKalenderDeladMedMig` (0.154.0, cllp/lifehub.app#485). Bara med `kalenderdelningar`; se `kalenderregelfragment`.
+ * Formerna och platserna kommer ur `lib/kalenderdelning.js`, så modellen och regeln inte kan glida isär.
+ * @param {string} samling @param {string} idMonster @returns {string}
+ */
+function delningsblock(samling, idMonster) {
+  const lista = (/** @type {readonly string[]} */ f) => f.map((x) => `"${x}"`).join(", ");
+  const uid = regelRegex(DELNINGSUID_FORM);
+  const a = KALENDERDELNING_AVGRANSARE;
+  return `    // ⛔ DELNINGEN AV EN EGEN KALENDER, BARA LÄSNING (0.154.0, cllp/lifehub.app#485). En rad per delning, nyckeln härledd ur fälten:
+    // {agare}${a}{kalenderId}${a}${KALENDERDELNING_PERSON}{uid} för en person och {agare}${a}{kalenderId}${a}${KALENDERDELNING_GRUPP} för gruppen (högst en grupp per kalender).
+    // Läsningen av kalendern och dess poster gör högst tre uppslag, oavsett hur många som fått den: personens rad, gruppens rad och medlemskapet.
+    // exists FÖRE get, som i opsHarMedlemskap: ett get på något som inte finns är ett fel, inte ett nej.
+    function opsKalenderdelningen(agare, kid, plats) {
+      return /databases/$(database)/documents/${samling}/$(agare + '${a}' + kid + '${a}' + plats);
+    }
+
+    function opsKalenderDeladMedMig(agare, kid) {
+      return opsInloggad()
+        && (exists(opsKalenderdelningen(agare, kid, '${KALENDERDELNING_PERSON}' + request.auth.uid))
+          || (exists(opsKalenderdelningen(agare, kid, '${KALENDERDELNING_GRUPP}'))
+            && opsArMedlem(get(opsKalenderdelningen(agare, kid, '${KALENDERDELNING_GRUPP}')).data.groupId)));
+    }
+
+    // Ägaren delar en egen kalender som finns och inte är arkiverad. Exakt en mottagare: en person (aldrig ägaren själv) eller en grupp där ägaren är aktiv
+    // medlem som person. Nyckeln måste vara den som fälten ger, så att regeln ovan hittar raden och samma delning inte kan stå två gånger.
+    function opsKalenderdelningGiltig(did, d) {
+      return d.keys().hasOnly([${lista(KALENDERDELNINGFALT)}])
+        && d.agare == request.auth.uid
+        && d.agare.matches('${uid}')
+        && d.kalenderId is string
+        && d.kalenderId.matches('${idMonster}')
+        && d.kalenderId.size() <= ${MAX_KALENDERID}
+        && exists(opsMinKalender(d.agare, d.kalenderId))
+        && get(opsMinKalender(d.agare, d.kalenderId)).data.get('arkiverad', false) != true
+        && (('person' in d
+            && !('groupId' in d)
+            && d.person is string
+            && d.person.matches('${uid}')
+            && d.person != d.agare
+            && did == d.agare + '${a}' + d.kalenderId + '${a}${KALENDERDELNING_PERSON}' + d.person)
+          || ('groupId' in d
+            && !('person' in d)
+            && d.groupId is string
+            && d.groupId.matches('${idMonster}')
+            && d.groupId.size() <= ${MAX_DELNINGSGRUPP}
+            && opsArMedlem(d.groupId)
+            && opsMedlemskapet(d.groupId).data.typ == 'person'
+            && did == d.agare + '${a}' + d.kalenderId + '${a}${KALENDERDELNING_GRUPP}'));
+    }
+
+    // Ägarens egen rad, ur nyckeln: dess första del är ägaren, och create kräver att den är den inloggade. Det gör att ägaren kan fråga efter och ta bort en rad som
+    // redan är borta (två flikar, ett dubbeltryck) utan att regeln läser resource.data på något som inte finns. split tar ett reguljärt uttryck, därav [|].
+    function opsKalenderdelningEgen(did) {
+      return did.split('[${a}]')[0] == request.auth.uid;
+    }
+
+    match /${samling}/{did} {
+      allow read: if opsInloggad()
+        && (opsKalenderdelningEgen(did)
+          || resource.data.agare == request.auth.uid
+          || resource.data.get('person', null) == request.auth.uid
+          || ('groupId' in resource.data && opsArMedlem(resource.data.groupId)));
+      allow create: if opsInloggad() && opsKalenderdelningGiltig(did, request.resource.data);
+      allow update: if opsInloggad() && resource.data.agare == request.auth.uid
+        && opsKalenderdelningGiltig(did, request.resource.data);
+      allow delete: if opsInloggad() && opsKalenderdelningEgen(did);
+    }
+
+`;
+}
+
+/**
  * Regelfragmentet för kalendrarna: gruppens kalendrar, mina kalendrar och posterna i mina kalendrar.
  *
  * ══ ⛔ VAD SOM GÄLLER, OCH VARFÖR ═══════════════════════════════════════
@@ -1519,13 +1592,32 @@ const regeluttryck = (r) => r.source.replace(/^\^/, "").replace(/\$$/, "").repla
  *     ⛔ EN POST FÅR RADERAS AV SIN ÄGARE, till skillnad från allt annat i ramverket. Skälet till "arkivering, aldrig
  *     radering" är att någon annan frågar "varför försvann den" i efterhand. En privat post har ingen annan läsare.
  *
- * ⛔ INGEN ANNAN LÄSER NÅGON ANNANS KALENDER. Inte en gruppmedlem, inte en admin. Delning per post till en grupp är en
- * senare fas, och då som en rad i gruppens scope: aldrig som en läsregel här som öppnar en annans hela samling.
+ * ⛔ INGEN ANNAN LÄSER NÅGON ANNANS KALENDER, UTOM DEN SOM FÅTT EN DELNING (0.154.0). Inte en gruppmedlem, inte en admin. Utan `kalenderdelningar` är
+ * texten byte för byte den som 0.153.0 skrev, och då läser bara ägaren.
+ *
+ * ══ ⛔ DELNINGEN, BARA LÄSNING (0.154.0, cllp/lifehub.app#485, `lib/kalenderdelning.js`) ═══════════════════════════
+ *
+ * Med `kalenderdelningar` (appens samlingsnamn) läggs ett block för delningarna till, och läsningen av en av mina kalendrar och dess poster släpps in för den som
+ * fått en delning av just den kalendern:
+ *   - DELNINGEN, SKAPA OCH ÄNDRA: bara ägaren (`agare` är den inloggade), bara för en egen kalender som finns och inte är arkiverad, med nyckeln härledd ur fälten
+ *     (`{agare}|{kalenderId}|person~{uid}` eller `{agare}|{kalenderId}|grupp`) och exakt de fyra fälten. En person är ett uid i `DELNINGSUID_FORM` och aldrig
+ *     ägaren själv. En grupp kräver att ägaren är aktiv medlem i den, som en person (`typ == 'person'`): man delar inte in i en grupp man inte är med i. Att ändra
+ *     en delning är att byta gruppen; personen och kalendern står i nyckeln och kan inte ändras.
+ *   - DELNINGEN, LÄSA: ägaren, personen som fått den, och en aktiv medlem i gruppen som fått den. En fråga måste begränsa `agare`, `person` eller `groupId`.
+ *   - DELNINGEN, RADERA: bara ägaren. Det är "Sluta dela".
+ *   - KALENDERN OCH POSTERNA, LÄSA: ägaren som förut, ELLER den som har en delning av kalendern (`opsKalenderDeladMedMig`): en rad för personen, eller gruppens
+ *     rad och ett aktivt medlemskap i den gruppen. En fråga efter posterna måste begränsa `kalenderId`, annars kan regeln inte bevisa vilken delning den gäller
+ *     och frågan nekas: ingen sveper en annans alla poster.
+ *   - KALENDERN OCH POSTERNA, SKRIVA: bara ägaren, oförändrat. Den som fått en delning skriver ingenting.
+ *
+ * ⛔ KOSTNADEN ÄR FAST OCH MÄTT (regel 13, ADR-020). En läsning av en delad post gör högst tre uppslag (personens rad, gruppens rad, medlemskapet), aldrig ett
+ * per grupp eller per mottagare. Det är skälet till att en kalender delas med högst en grupp: med en lista hade varje grupp kostat ett uppslag till, och en
+ * gruppmedlem hade inte kunnat FRÅGA efter delningarna alls (mätt i emulatorn, se `lib/kalenderdelning.js`).
  *
  * ⛔ RAMVERKET KÄNNER INTE SAMLINGSNAMNEN. `anvandare` måste vara samma namn som skickas till `regelfragment()`, och
- * fragmentet använder dess `opsInloggad` och `opsArAdmin`, alltså ska båda limmas in.
+ * fragmentet använder dess `opsInloggad`, `opsArMedlem`, `opsMedlemskapet` och `opsArAdmin`, alltså ska båda limmas in.
  *
- * @param {{ anvandare?: string, gruppkalendrar?: string, minaKalendrar?: string, kalenderposter?: string }} [namn]
+ * @param {{ anvandare?: string, gruppkalendrar?: string, minaKalendrar?: string, kalenderposter?: string, kalenderdelningar?: string }} [namn]
  * @returns {string}
  */
 export function kalenderregelfragment(namn = {}) {
@@ -1533,6 +1625,10 @@ export function kalenderregelfragment(namn = {}) {
   const gruppkalendrar = kontrolleraNamn(namn.gruppkalendrar ?? "gruppkalendrar", "gruppkalendrar");
   const minaKalendrar = kontrolleraNamn(namn.minaKalendrar ?? "minaKalendrar", "minaKalendrar");
   const kalenderposter = kontrolleraNamn(namn.kalenderposter ?? "kalenderposter", "kalenderposter");
+  const kalenderdelningar = namn.kalenderdelningar === undefined ? null : kontrolleraNamn(namn.kalenderdelningar, "kalenderdelningar");
+  if (kalenderdelningar && [anvandare, gruppkalendrar].includes(kalenderdelningar)) {
+    throw new Error(`kalenderregelfragment: kalenderdelningar "${kalenderdelningar}" krockar med en annan samling. Delningarna har en egen samling.`);
+  }
   const lista = (/** @type {readonly (string|number)[]} */ f) => f.map((x) => (typeof x === "number" ? String(x) : `"${x}"`)).join(", ");
   const datum = regeluttryck(DATUMFORM);
   const tidpunkt = regeluttryck(TIDPUNKTSFORM);
@@ -1610,8 +1706,8 @@ ${gruppadSamlingBlock(gruppkalendrar, { skrivvillkor: "opsArAdmin", falt: [...KA
         && d.slut >= d.start;
     }
 
-    match /${anvandare}/{uid}/${minaKalendrar}/{kid} {
-      allow read: if opsInloggad() && request.auth.uid == uid;
+${kalenderdelningar ? delningsblock(kalenderdelningar, idMonster) : ""}    match /${anvandare}/{uid}/${minaKalendrar}/{kid} {
+      allow read: if opsInloggad() && request.auth.uid == uid${kalenderdelningar ? "\n        || opsKalenderDeladMedMig(uid, kid)" : ""};
       allow create: if opsInloggad() && request.auth.uid == uid
         && kid.matches('${idMonster}')
         && kid.size() <= ${MAX_KALENDERID}
@@ -1622,7 +1718,13 @@ ${gruppadSamlingBlock(gruppkalendrar, { skrivvillkor: "opsArAdmin", falt: [...KA
     }
 
     match /${anvandare}/{uid}/${kalenderposter}/{pid} {
-      allow read, delete: if opsInloggad() && request.auth.uid == uid;
+${
+  kalenderdelningar
+    ? `      allow read: if opsInloggad() && request.auth.uid == uid
+        || opsKalenderDeladMedMig(uid, resource.data.kalenderId);
+      allow delete: if opsInloggad() && request.auth.uid == uid;`
+    : "      allow read, delete: if opsInloggad() && request.auth.uid == uid;"
+}
       allow create: if opsInloggad() && request.auth.uid == uid
         && pid.matches('${idMonster}')
         && pid.size() <= ${MAX_KALENDERID}

@@ -297,6 +297,34 @@ export { tillganglighetForDag, bortaAntal } from "./lib/tillganglighet.js";
  * härledda ur händelserna och svaren.
  */
 export { OpsKalendrar } from "./components/OpsKalendrar.jsx";
+/*
+ * ⛔ DELA EN EGEN KALENDER, BARA LÄSNING (0.154.0, cllp/lifehub.app#485). En delning är en rad i appens samling (`kalenderregelfragment({ kalenderdelningar })`), och
+ * reglerna släpper in mottagarens läsning av kalendern och posterna medan raden finns. `OpsKalendrar delning` ritar Dela, `deladeKalendrar` och `deladKalenderTillVal`
+ * gör mottagarens rader i listan Kalendrar, och `deladPostTillRad` hennes poster i kalendern.
+ */
+export {
+  KALENDERDELNINGFALT,
+  KALENDERDELNING_AVGRANSARE,
+  KALENDERDELNING_PERSON,
+  KALENDERDELNING_GRUPP,
+  DELNINGSUID_FORM,
+  MAX_DELNINGSGRUPP,
+  kalenderdelningId,
+  byggKalenderdelning,
+  lasKalenderdelningar,
+  kalendermottagare,
+  delningarAvKalender,
+  deladKalenderRadId,
+  deladeKalendrar,
+  ORD_KALENDERDELNING,
+  deladKalenderTillVal,
+  DELADPOST_HANDELSEPREFIX,
+  deladPostHandelseId,
+  deladPostUrHandelseId,
+  deladPostTillRad,
+  deladPostTillHandelse,
+} from "./lib/kalenderdelning.js";
+export { KalenderDelning, ORD_KALENDERDELNINGSDIALOG } from "./components/KalenderDelning.jsx";
 export { OpsSvar, OpsSvarSummor, OpsSvarsknappar, OpsSvarsrad, ORD_OPSSVAR } from "./components/OpsSvar.jsx";
 export { OpsKommentarer, OpsKommentarsrad, ORD_OPSKOMMENTARER, ORD_OPSKOMMENTARSRAD } from "./components/OpsKommentarer.jsx";
 /*

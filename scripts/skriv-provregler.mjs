@@ -45,6 +45,10 @@ const ut = path.join(rot, "rules", "provregler.rules");
  * ⛔ KALENDRARNA MED FÖRVALDA NAMN (0.36.0, #179 F0): `kalenderregelfragment()`, alltså `gruppkalendrar`,
  * `users/{uid}/minaKalendrar` och `users/{uid}/kalenderposter`.
  *
+ * ⛔ KALENDERDELNINGARNA (0.154.0, cllp/lifehub.app#485): `kalenderregelfragment({ kalenderdelningar: "kalenderdelningar" })`. Namnet är påhittat, som hos en app. Med det släpps
+ *   mottagarens läsning av en delad kalender och dess poster in; utan det är texten byte för byte 0.153.0:s (mätt i `src/__tests__/kalenderdelning.test.js`), och
+ *   `rules/__tests__/kalendrar.test.mjs` visar att ingen annan läser något ändå.
+ *
  * ⛔ KALENDERVALEN (0.151.0): `kalendervalsregelfragment("kalenderval")`, alltså `users/{uid}/kalenderval/{gruppId}`. Namnet är påhittat, som hos en app. Bara personen själv läser och skriver.
  *
  * ⛔ HÄNDELSEMODELLEN MED FÖRVALDA NAMN (0.37.0, #179 F3): `handelseregelfragment()`, alltså svaren under
@@ -87,7 +91,7 @@ ${gruppadSamling("stampelrader", { skaparfalt: "skapadAv" })}
 ${katalogregelfragment("kataloger")}
 ${konfigloggregelfragment("konfiglogg")}
 ${samtalsregelfragment({ tradar: "tradar", status: "status", reaktioner: "reaktioner", omnamnanden: true, citat: true, fasta: "fasta", bilagor: true, bilagaSamling: "bilagor", tyst: "tyst", amnen: true })}
-${kalenderregelfragment()}
+${kalenderregelfragment({ kalenderdelningar: "kalenderdelningar" })}
 ${kalendervalsregelfragment("kalenderval")}
 ${handelseregelfragment()}
 ${mejlregelfragment("mejlko")}

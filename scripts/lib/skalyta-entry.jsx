@@ -961,6 +961,109 @@ function KalendrarScen() {
 }
 
 /*
+ * 0.154.0 (cllp/lifehub.app#485): Dela en egen kalender, bara läsning. Ägarens Hantera kalendrar med `delning`: Barnveckor delas redan med Bo, Privat med
+ * ingen. Delningarna skrivs tillbaka i scenens tillstånd och i `window.__delat` (`{ slag, kalenderId, mottagare }`), som en app med en källa gör.
+ * `window.__delaHall = true` håller nästa anrop tills `window.__delaSlapp()`, så att väntan går att mäta. Saknas `KalenderDelning` i den byggda versionen
+ * (0.153.0) ritas hanteringen utan delning och en markör, och avsnitt 58 blir rött på det.
+ */
+const DL_AGARE = "uid-anna";
+window.__delat = [];
+window.__delaHall = false;
+window.__delaSlapp = () => {};
+const dlVanta = () =>
+  window.__delaHall
+    ? new Promise((r) => {
+        window.__delaSlapp = () => {
+          window.__delaHall = false;
+          r(undefined);
+        };
+      })
+    : Promise.resolve();
+function KalenderdelningScen() {
+  const { OpsView } = Ops;
+  const mina = [
+    { id: "barnveckor", namn: "Barnveckor", farg: 3, ikon: "hus", ordning: 0, forvald: true, iFlodet: false, arkiverad: false },
+    { id: "privat", namn: "Privat", farg: 5, ikon: "hjarta", ordning: 10, forvald: false, iFlodet: false, arkiverad: false },
+  ];
+  const bygg = Ops.byggKalenderdelning;
+  const [delningar, setDelningar] = useState(() => (bygg ? [bygg({ agare: DL_AGARE, kalenderId: "barnveckor", person: "uid-bo" })] : []));
+  if (!Ops.OpsKalendrar) return <Full><p data-saknas="OpsKalendrar">OpsKalendrar saknas</p></Full>;
+  return (
+    <Full>
+      <OpsView>
+        {Ops.KalenderDelning ? null : <p data-saknas="KalenderDelning">KalenderDelning saknas</p>}
+        <Ops.OpsKalendrar
+          groupId="familjen"
+          gruppNamn="Familjen"
+          gruppens={[]}
+          mina={mina}
+          kanAndraGruppens={false}
+          onSparaGruppens={() => {}}
+          onSparaMina={() => {}}
+          delning={{
+            delningar,
+            grupp: { id: "familjen", namn: "Familjen" },
+            personer: [
+              { uid: "uid-bo", namn: "Bo Lind" },
+              { uid: "uid-cecilia", namn: "Cecilia Holm" },
+            ],
+            onDela: async (kalenderId, m) => {
+              window.__delat.push({ slag: "dela", kalenderId, mottagare: m });
+              await dlVanta();
+              const d = bygg({ agare: DL_AGARE, kalenderId, ...("person" in m ? { person: m.person } : { groupId: m.grupp }) });
+              setDelningar((l) => [...l.filter((x) => x.id !== d.id), d]);
+            },
+            onSlutaDela: async (d) => {
+              window.__delat.push({ slag: "sluta", id: d.id });
+              await dlVanta();
+              setDelningar((l) => l.filter((x) => x.id !== d.id));
+            },
+          }}
+        />
+      </OpsView>
+    </Full>
+  );
+}
+
+/*
+ * 0.154.0: mottagarens kalender. Bo har fått Annas Barnveckor; den står under "Delade med mig" i listan Kalendrar med märket "Delad av Anna Berg. Bara
+ * läsning", och veckans post ritas i rutnätet med kalenderns färg. Raderna och posten byggs med ramverkets egna funktioner, som en app gör.
+ */
+const DL_IDAG = new Date(2026, 9, 5, 12);
+function KalenderdelningMottagareScen() {
+  const { OpsView, OpsCalendar } = Ops;
+  if (!Ops.deladeKalendrar || !Ops.deladKalenderTillVal || !Ops.deladPostTillRad) return <Full><p data-saknas="deladeKalendrar">deladeKalendrar saknas</p></Full>;
+  const delningar = [Ops.byggKalenderdelning({ agare: DL_AGARE, kalenderId: "barnveckor", person: "uid-bo" })];
+  const [delad] = Ops.deladeKalendrar(delningar, { uid: "uid-bo", groupId: "familjen" });
+  const kal = { id: "barnveckor", namn: "Barnveckor", farg: 3, ikon: "hus", ordning: 0, forvald: false, iFlodet: false, arkiverad: false };
+  const rad = Ops.deladKalenderTillVal(kal, delad, { agarnamn: "Anna Berg" });
+  const poster = [
+    Ops.deladPostTillRad({ id: "v42", kalenderId: "barnveckor", titel: "Barnen hos Anna", beskrivning: "", plats: "Visby", start: "2026-10-12", slut: "2026-10-18", heldag: true, blockerar: false }, rad, DL_AGARE),
+    { id: "egen", title: "Tandläkaren", date: "2026-10-14", kalender: { id: "mina:privat", namn: "Privat", farg: 5 } },
+  ];
+  return (
+    <Full>
+      <OpsView>
+        <OpsCalendar
+          ariaLabel="Kalender"
+          entries={poster}
+          today={DL_IDAG}
+          monthsBack={0}
+          monthsForward={0}
+          kalendrar={[{ id: "mina:privat", namn: "Privat", farg: 5 }, rad]}
+          kalendersektioner={[{ namn: "Gruppens kalendrar" }, { namn: "Mina kalendrar", tomText: "Du har inga egna kalendrar ännu." }, { namn: "Delade med mig" }]}
+          kalenderMinne="uid-bo:familjen"
+          lagring={{ getItem: () => null, setItem: () => {} }}
+          onOppnaHandelse={(id) => {
+            window.__oppnad = id;
+          }}
+        />
+      </OpsView>
+    </Full>
+  );
+}
+
+/*
  * 0.37.0 (#179 F3, #206): "Ny händelse" med kalender. Formuläret är appens (rubrik, datum, från och till, som bolag-ops),
  * och skalet står för Kalender, Kräv svar och Blockerar. Panelen öppnas med `useOppnaSkapa()("handelse", { datum })`, som
  * appens kalender gör när en dag är vald, och `window.__formProps` är vad formuläret fick senast.
@@ -2846,6 +2949,8 @@ function Scen() {
   if (s === "gastgrupp-arenden") return <GastArendenSidaScen />;
   if (s === "gastgrupp-mottagare") return <GastMottagareScen />;
   if (s.startsWith("gastsida-")) return <GastSidaScen lage={s.slice("gastsida-".length)} />;
+  if (s === "kalenderdelning") return <KalenderdelningScen />;
+  if (s === "kalenderdelning-mottagare") return <KalenderdelningMottagareScen />;
   if (s === "kategoriformular") return <KategoriFormularScen typ="sort" />;
   if (s === "kategoriformular-status") return <KategoriFormularScen typ="status" />;
   if (s === "installning") {
