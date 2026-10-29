@@ -3,7 +3,8 @@ import { useState } from "react";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { OpsCalendar } from "../components/OpsCalendar.jsx";
 import { OpsKalendrar } from "../components/OpsKalendrar.jsx";
-import { byggKalenderdelning, deladKalenderTillVal, deladPostTillRad, deladeKalendrar } from "../lib/kalenderdelning.js";
+import { OpsHandelsePanel } from "../components/OpsHandelsePanel.jsx";
+import { byggKalenderdelning, deladKalenderTillVal, deladPostTillHandelse, deladPostTillRad, deladeKalendrar, panelForDeladPost } from "../lib/kalenderdelning.js";
 import { byggKalenderpost, byggMinKalender } from "../lib/kalendrar.js";
 
 /*
@@ -20,12 +21,13 @@ const PERSONER = [
 ];
 
 /** Hantera kalendrar med delning, där appens onDela och onSlutaDela skriver i en lista som ritas om. */
-function Vy({ start = /** @type {any[]} */ ([]), onDela = vi.fn(), onSlutaDela = vi.fn() }) {
+function Vy({ start = /** @type {any[]} */ ([]), onDela = vi.fn(), onSlutaDela = vi.fn(), mina = MINA, sprak = /** @type {string | undefined} */ (undefined) }) {
   const [delningar, setDelningar] = useState(start);
   return (
     <OpsKalendrar
       gruppens={[]}
-      mina={MINA}
+      mina={mina}
+      sprak={sprak}
       groupId="familjen"
       kanAndraGruppens={false}
       onSparaGruppens={() => {}}
@@ -151,5 +153,66 @@ describe("den delade kalendern hos mottagaren: en rad bland de andra, som går a
     await waitFor(() => expect(within(sektion).getByRole("switch", { name: "Barnveckor" })).not.toBeChecked());
     expect(dagen()).not.toBe(fore);
     expect([...varden.values()].join("")).toContain(rad.id);
+  });
+});
+
+describe("granskningen av PR 468: arkiverade rader, språket, felen och panelen", () => {
+  it("⛔ en arkiverad kalender med delningar säger det, och dialogen har bara Sluta dela", async () => {
+    const mina = [MINA[0], byggMinKalender({ id: "gammal", namn: "Gammal", farg: 1, ikon: "bok", arkiverad: true })];
+    render(<Vy mina={mina} start={[byggKalenderdelning({ agare: A, kalenderId: "gammal", person: B })]} />);
+    const rad = /** @type {HTMLElement} */ (document.querySelector('[data-arkiverad-rad="gammal"]'));
+    expect(within(rad).getByText("Delas med 1")).toBeTruthy();
+    fireEvent.click(within(rad).getByRole("button", { name: "Dela Gammal" }));
+    const dialog = await screen.findByRole("dialog", { name: "Dela Gammal" });
+    expect(within(dialog).getByText("Kalendern är arkiverad och delas inte längre. Sluta dela tar bort raderna.")).toBeTruthy();
+    expect(within(dialog).queryByRole("button", { name: /^Dela med / })).toBeNull();
+    expect(within(dialog).queryByRole("combobox")).toBeNull();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Sluta dela med Bo" }));
+    await waitFor(() => expect(dialog.querySelectorAll("[data-kalenderdelning-rad]")).toHaveLength(0));
+    expect(rad.querySelector("[data-kalenderrad-marke]")).toBeNull();
+  });
+
+  it("på engelska: Share, Shared with, hjälptexten och dialogen", async () => {
+    render(<Vy sprak="en" start={[byggKalenderdelning({ agare: A, kalenderId: "barnveckor", person: B })]} />);
+    expect(screen.getByText("Your own calendars are visible to you and to those you share them with. Entries in them can block your availability.")).toBeTruthy();
+    expect(document.querySelector('[data-kalenderrad="barnveckor"] [data-kalenderrad-marke]')?.textContent).toBe("Default · Shared with 1");
+    fireEvent.click(screen.getByRole("button", { name: "Share Barnveckor" }));
+    expect(await screen.findByRole("dialog", { name: "Share Barnveckor" })).toBeTruthy();
+  });
+
+  it("⛔ ett nej från reglerna står som en begriplig mening i dialogen", async () => {
+    const onDela = vi.fn(async () => {
+      throw Object.assign(new Error("Missing or insufficient permissions."), { code: "permission-denied" });
+    });
+    render(<Vy onDela={onDela} />);
+    const dialog = await oppnaDela("Barnveckor");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Dela med Familjen" }));
+    const fel = await within(dialog).findByRole("alert");
+    expect(fel).toHaveTextContent("Det gick inte. Kalendern kan vara arkiverad, eller så är du inte längre med i gruppen.");
+    expect(fel.textContent).not.toMatch(/permissions/);
+  });
+
+  it("⛔ en delad post öppnas i panelen utan Redigera, Flytta och appens egna knappar; en egen post har dem", () => {
+    const post = byggKalenderpost({ id: "v45", kalenderId: "barnveckor", titel: "Barnen hos Anna", start: "2026-10-12", slut: "2026-10-12", heldag: true });
+    const rad = { id: `delad:${A}:barnveckor`, namn: "Barnveckor", farg: 3 };
+    const handelse = deladPostTillHandelse(post, rad, A);
+    const props = {
+      onTillbaka: () => {},
+      onRedigera: () => {},
+      flyttmal: [{ id: "privat", namn: "Privat", farg: 2, ikon: "kalender", atgard: "byt" }],
+      onFlytta: () => {},
+      atgarder: <button type="button">Ta bort</button>,
+    };
+    const { unmount } = render(<OpsHandelsePanel handelse={handelse} {...props} />);
+    // Grundläget: utan hjälpfunktionen ritas knapparna (provet ser att de finns innan det ser att de saknas).
+    expect(screen.getByRole("button", { name: "Redigera" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Flytta till kalender/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Ta bort" })).toBeTruthy();
+    unmount();
+    render(<OpsHandelsePanel handelse={handelse} {...panelForDeladPost(handelse.id, props)} />);
+    expect(screen.getByText("Barnen hos Anna")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Redigera" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Flytta till kalender/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Ta bort" })).toBeNull();
   });
 });

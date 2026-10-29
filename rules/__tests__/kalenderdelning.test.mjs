@@ -58,6 +58,7 @@ const MEDLEM = "uid-dl-medlem";
 const UTANFOR = "uid-dl-utanfor";
 const AVSLUTAD = "uid-dl-avslutad";
 const AGENT = "uid-dl-agent";
+const LAMNAR = "uid-dl-lamnar";
 const G = "dl-familj";
 const K = "dl-bolag";
 const H = "dl-annan";
@@ -92,6 +93,12 @@ before(async () => {
     await setDoc(doc(db, `users/${AGARE}/kalenderposter/resa`), post({ id: "resa", kalenderId: "resor", titel: "Visby" }));
     await setDoc(doc(db, `users/${AGARE}/kalenderposter/lakare`), post({ id: "lakare", kalenderId: "privat", titel: "Läkaren" }));
     await setDoc(doc(db, `users/${AGARE}/kalenderposter/kalla-post`), post({ id: "kalla-post", kalenderId: "kallan", titel: "Genom källan" }));
+    // Granskningen av PR 468: en kalender som arkiveras efter att den delats, och en ägare som lämnar gruppen hon delat med.
+    await setDoc(doc(db, `users/${AGARE}/minaKalendrar/arkivkal`), kal({ id: "arkivkal", namn: "Arkiveras" }));
+    await setDoc(doc(db, `users/${AGARE}/kalenderposter/arkiv-post`), post({ id: "arkiv-post", kalenderId: "arkivkal", titel: "I en kalender som arkiveras" }));
+    await medlem(LAMNAR, G);
+    await setDoc(doc(db, `users/${LAMNAR}/minaKalendrar/semester`), kal({ id: "semester", namn: "Semester" }));
+    await setDoc(doc(db, `users/${LAMNAR}/kalenderposter/sommar`), post({ id: "sommar", kalenderId: "semester", titel: "Sommarstugan" }));
   });
 });
 
@@ -220,6 +227,51 @@ describe("delningarna: var och en ser sina, ingen ser andras", () => {
     await assertSucceeds(deleteDoc(doc(som(AGARE), borta)));
     await assertFails(getDoc(doc(som(MEDLEM), borta)));
     await assertFails(deleteDoc(doc(som(MEDLEM), borta)));
+  });
+});
+
+describe("⛔ delningen stängs av sig själv (granskningen av PR 468): arkiverad kalender, ägaren lämnar gruppen, en agent", () => {
+  const lamnarPoster = (/** @type {string} */ uid) => getDocs(query(collection(som(uid), `users/${LAMNAR}/kalenderposter`), where("kalenderId", "==", "semester")));
+  const lamnarNyckel = (/** @type {{ person: string } | { grupp: string }} */ m) => `${SAMLING}/${kalenderdelningId(LAMNAR, "semester", m)}`;
+
+  it("en arkiverad kalender: posterna läses inte längre, kalenderns dokument går att läsa och säger att den är arkiverad", async () => {
+    await assertSucceeds(setDoc(doc(som(AGARE), nyckel("arkivkal", { person: PERSON })), rad({ agare: AGARE, kalenderId: "arkivkal", person: PERSON })));
+    await assertSucceeds(setDoc(doc(som(AGARE), nyckel("arkivkal", { grupp: G })), rad({ agare: AGARE, kalenderId: "arkivkal", groupId: G })));
+    await assertSucceeds(poster(PERSON, "arkivkal"));
+    await assertSucceeds(poster(MEDLEM, "arkivkal"));
+    await assertSucceeds(updateDoc(doc(som(AGARE), `users/${AGARE}/minaKalendrar/arkivkal`), { arkiverad: true }));
+    for (const uid of [PERSON, MEDLEM]) {
+      await assertFails(poster(uid, "arkivkal"));
+      await assertFails(getDoc(doc(som(uid), `users/${AGARE}/kalenderposter/arkiv-post`)));
+      const kalendern = await assertSucceeds(getDoc(doc(som(uid), `users/${AGARE}/minaKalendrar/arkivkal`)));
+      assert.equal(kalendern.data()?.arkiverad, true);
+    }
+    // Ägaren läser som förut, och tar fram den: då delas den igen.
+    await assertSucceeds(poster(AGARE, "arkivkal"));
+    await assertSucceeds(updateDoc(doc(som(AGARE), `users/${AGARE}/minaKalendrar/arkivkal`), { arkiverad: false }));
+    await assertSucceeds(poster(PERSON, "arkivkal"));
+    for (const m of [{ person: PERSON }, { grupp: G }]) await assertSucceeds(deleteDoc(doc(som(AGARE), nyckel("arkivkal", m))));
+  });
+
+  it("ägaren lämnar gruppen: gruppens delning läses inte längre, en delning med en person står kvar", async () => {
+    await assertSucceeds(setDoc(doc(som(LAMNAR), lamnarNyckel({ grupp: G })), rad({ agare: LAMNAR, kalenderId: "semester", groupId: G })));
+    await assertSucceeds(setDoc(doc(som(LAMNAR), lamnarNyckel({ person: PERSON })), rad({ agare: LAMNAR, kalenderId: "semester", person: PERSON })));
+    await assertSucceeds(lamnarPoster(MEDLEM));
+    await assertSucceeds(getDoc(doc(som(MEDLEM), `users/${LAMNAR}/minaKalendrar/semester`)));
+    await miljo.withSecurityRulesDisabled((ctx) => updateDoc(doc(ctx.firestore(), `memberships/${medlemskapsId(LAMNAR, G)}`), { status: "avslutad" }));
+    await assertFails(lamnarPoster(MEDLEM));
+    await assertFails(getDoc(doc(som(MEDLEM), `users/${LAMNAR}/minaKalendrar/semester`)));
+    await assertFails(getDoc(doc(som(MEDLEM), `users/${LAMNAR}/kalenderposter/sommar`)));
+    await assertSucceeds(lamnarPoster(PERSON));
+    // Den som lämnat slutar dela, och raderna går att ta bort också efteråt (nyckeln är hennes).
+    for (const m of [{ person: PERSON }, { grupp: G }]) await assertSucceeds(deleteDoc(doc(som(LAMNAR), lamnarNyckel(m))));
+  });
+
+  it("ett medlemskap med typen agent läser varken delade kalendrar eller gruppens delningar", async () => {
+    await assertSucceeds(poster(MEDLEM, "resor"));
+    await assertFails(poster(AGENT, "resor"));
+    await assertFails(getDoc(doc(som(AGENT), `users/${AGARE}/minaKalendrar/resor`)));
+    await assertFails(getDocs(query(collection(som(AGENT), SAMLING), where("groupId", "==", G))));
   });
 });
 

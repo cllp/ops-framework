@@ -27,8 +27,8 @@
  * ══ ⛔ SERVERN FILTRERAR INTE HÄR, REGLERNA GÖR DET, OCH KOSTNADEN ÄR MÄTT ═════════════════════════════════════════
  *
  * ADR-020 och regel 13 säger att läsregler inte ska avgöra synlighet. Skälet var SessionStudios kedjor av `exists()` per grupp som föll på Firestores tak
- * (`subscribe_blocked_shared_error`). Här är kostnaden fast och liten: en läsning av en delad post gör högst tre uppslag (personens delning, gruppens delning,
- * medlemskapet), oavsett hur många grupper någon är med i eller hur många som fått delningen. Frågan efter posterna begränsar `kalenderId` (`deladeVagar`),
+ * (`subscribe_blocked_shared_error`). Här är kostnaden fast och liten: en läsning av en delad post gör högst sju av Firestores tio dokumentanrop (personens delning,
+ * gruppens delning, den läsandes medlemskap, ägarens medlemskap, kalenderns arkivering), oavsett hur många grupper någon är med i eller hur många som fått delningen. Frågan efter posterna begränsar `kalenderId` (`deladeVagar`),
  * och en fråga utan den nekas, så ingen kan svepa en annans alla poster. Se `kalenderregelfragment`.
  */
 
@@ -213,17 +213,22 @@ function fnv1a(s) {
  * ⛔ ÄGARENS EGNA KOMMER INTE MED. Är ägaren med i gruppen hon delat med har hon redan kalendern under Mina kalendrar, och en andra rad hade varit två växlar
  * för samma kalender.
  *
+ * ⛔ EN GRUPPS DELNING FRÅN NÅGON SOM INTE LÄNGRE ÄR AKTIV MEDLEM KOMMER INTE MED (granskningen av PR 468), när appen ger `medlemmar`. Reglerna släpper inte
+ * längre in läsningen av en sådan kalender, och raden hade blivit en kalender som inte går att läsa. Raden står kvar i databasen tills ägaren slutar dela; en fråga
+ * efter gruppens delningar kan inte pröva ägarens medlemskap (den begränsar inte `agare`), så det sker här, ur den medlemslista appen redan har.
+ *
  * @param {ReadonlyArray<Kalenderdelning>} delningar Delningarna till mig och till gruppen (`createKalenderkalla().deladeMedMig`).
- * @param {{ uid: string, groupId?: string | null }} vem
+ * @param {{ uid: string, groupId?: string | null, medlemmar?: Iterable<string> | null }} vem `medlemmar`: uid för gruppens AKTIVA medlemmar (appens medlemslista).
  * @returns {DeladKalender[]}
  */
-export function deladeKalendrar(delningar, { uid, groupId = null }) {
+export function deladeKalendrar(delningar, { uid, groupId = null, medlemmar = null }) {
+  const aktiva = medlemmar ? new Set(medlemmar) : null;
   /** @type {Map<string, DeladKalender>} */
   const ut = new Map();
   for (const d of delningar) {
     if (d.agare === uid) continue;
     /** @type {"person" | "grupp" | null} */
-    const via = d.person !== undefined ? (d.person === uid ? "person" : null) : groupId && d.groupId === groupId ? "grupp" : null;
+    const via = d.person !== undefined ? (d.person === uid ? "person" : null) : groupId && d.groupId === groupId && (!aktiva || aktiva.has(d.agare)) ? "grupp" : null;
     if (!via) continue;
     const nyckel = `${d.agare}${KALENDERDELNING_AVGRANSARE}${d.kalenderId}`;
     const fanns = ut.get(nyckel);
@@ -249,12 +254,16 @@ export const ORD_KALENDERDELNING = {
  * En delad kalender som en rad i listan Kalendrar (`OpsKalenderLista`): namn, färg, sektionen "Delade med mig" och märket "Delad av Anna. Bara läsning".
  * Raden har samma växel och samma visning (Händelser, Ram, Båda) som varje annan kalender, och valet att dölja den sparas som för de andra.
  *
+ * ⛔ EN ARKIVERAD KALENDER GER `null` (granskningen av PR 468): den delas inte längre, reglerna släpper inte in dess poster, och raden ska inte stå i listan.
+ * Kalenderns eget dokument går att läsa just för att mottagaren ska kunna se det här, i stället för att en läsning faller utan förklaring.
+ *
  * @param {import("./kalendrar.js").MinKalender} kalender Ägarens kalender, läst med `createKalenderkalla().deladKalender`.
  * @param {DeladKalender} delad
  * @param {{ agarnamn?: string, sprak?: string }} [val]
- * @returns {import("../components/OpsCalendar.jsx").KalenderVal}
+ * @returns {import("../components/OpsCalendar.jsx").KalenderVal | null}
  */
 export function deladKalenderTillVal(kalender, delad, { agarnamn, sprak = "sv" } = {}) {
+  if (kalender.arkiverad) return null;
   const o = forvalda(ORD_KALENDERDELNING, sprak);
   const namn = rensa(agarnamn) || o.okandAgare;
   return { id: delad.radId, namn: kalender.namn, farg: kalender.farg, sektion: o.sektion, marke: o.marke.replace("{namn}", namn) };
@@ -307,4 +316,24 @@ export function deladPostTillRad(post, rad, agare) {
  */
 export function deladPostTillHandelse(post, rad, agare) {
   return { ...postTillHandelse({ ...post, kalenderId: rad.id }, [rad]), id: deladPostHandelseId(agare, post.id) };
+}
+
+/** Det som gör något med en händelse i `OpsHandelsePanel`, och som den som fått en delning inte får: ändra, flytta, dela vidare och egna åtgärder. */
+export const DELADPOST_UTAN_PROPS = /** @type {const} */ (["onRedigera", "flyttmal", "onFlytta", "onDela", "delningar", "onAterkalla", "onMejlaLank", "delningGruppdel", "atgarder", "knapprad"]);
+
+/**
+ * Panelens props för en händelse: oförändrade för en egen, och utan allt som ändrar den för en post i en kalender som delats med mig (granskningen av PR 468).
+ * Appen ger panelen sina vanliga props genom den här, så att en delad post öppnas utan Ändra, Flytta, Dela och Ta bort, och ingen knapp ritas som reglerna sedan
+ * nekar. "Kopiera till" står kvar: att kopiera till en egen kalender är att läsa, inte att ändra.
+ *
+ * @template {Record<string, any>} P
+ * @param {unknown} handelseId
+ * @param {P} props
+ * @returns {P}
+ */
+export function panelForDeladPost(handelseId, props) {
+  if (!deladPostUrHandelseId(handelseId)) return props;
+  const ut = /** @type {Record<string, any>} */ ({ ...props });
+  for (const f of DELADPOST_UTAN_PROPS) delete ut[f];
+  return /** @type {P} */ (ut);
 }

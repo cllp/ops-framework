@@ -15,7 +15,10 @@ import {
   kalenderdelningId,
   kalendermottagare,
   lasKalenderdelningar,
+  panelForDeladPost,
 } from "../lib/kalenderdelning.js";
+import { delningsfel, ORD_KALENDERDELNINGSDIALOG } from "../components/KalenderDelning.jsx";
+import { forvalda } from "../lib/ord.js";
 import { byggKalenderpost, byggMinKalender, postIdUrHandelseId } from "../lib/kalendrar.js";
 import { KALENDERVALNYCKEL_FORM } from "../lib/kalendersynlighet.js";
 import { kalenderregelfragment } from "../lib/regler.js";
@@ -183,9 +186,52 @@ describe("regelfragmentet: utan namnet oförändrat, med det ett block och läsn
     const text = kalenderregelfragment({ kalenderdelningar: "delade" });
     expect(text).toContain("match /delade/{did}");
     expect(text).toContain("|| opsKalenderDeladMedMig(uid, kid);");
-    expect(text).toContain("|| opsKalenderDeladMedMig(uid, resource.data.kalenderId);");
+    expect(text).toContain("|| (opsKalenderDeladMedMig(uid, resource.data.kalenderId)\n          && get(opsMinKalender(uid, resource.data.kalenderId)).data.get('arkiverad', false) != true);");
     expect(text).toContain("allow delete: if opsInloggad() && request.auth.uid == uid;");
     expect(text).not.toContain("allow read, delete");
     expect(() => kalenderregelfragment({ kalenderdelningar: "gruppkalendrar" })).toThrow(/krockar/);
+  });
+});
+
+describe("granskningen av PR 468: en arkiverad kalender, en ägare som lämnat, namnkrockar, panelen och felen", () => {
+  it("⛔ en arkiverad kalender blir ingen rad i mottagarens lista", () => {
+    const [rad] = deladeKalendrar([byggKalenderdelning({ agare: A, kalenderId: "k", person: B })], { uid: B });
+    expect(deladKalenderTillVal(byggMinKalender({ id: "k", namn: "K", farg: 1, ikon: "kalender", arkiverad: true }), rad)).toBeNull();
+    expect(deladKalenderTillVal(byggMinKalender({ id: "k", namn: "K", farg: 1, ikon: "kalender" }), rad)).not.toBeNull();
+  });
+
+  it("⛔ en grupps delning från någon som inte är aktiv medlem kommer inte med när appen ger medlemmarna; en delning med personen påverkas inte", () => {
+    const d = [byggKalenderdelning({ agare: A, kalenderId: "k", groupId: "g" }), byggKalenderdelning({ agare: C, kalenderId: "j", groupId: "g" }), byggKalenderdelning({ agare: C, kalenderId: "p", person: B })];
+    expect(deladeKalendrar(d, { uid: B, groupId: "g", medlemmar: [A, B] }).map((r) => r.kalenderId)).toEqual(["k", "p"]);
+    expect(deladeKalendrar(d, { uid: B, groupId: "g" }).map((r) => r.kalenderId)).toEqual(["k", "j", "p"]);
+  });
+
+  it("⛔ delningarnas samling får inte heta som en grundsamling eller en kalendersamling, med förvalt namn eller med appens", () => {
+    for (const namn of ["memberships", "groups", "invitations", "vitlista", "users", "gruppkalendrar", "minaKalendrar", "kalenderposter"]) {
+      expect(() => kalenderregelfragment({ kalenderdelningar: namn }), namn).toThrow(/krockar/);
+    }
+    expect(() => kalenderregelfragment({ kalenderdelningar: "medl", medlemskap: "medl" })).toThrow(/krockar/);
+    expect(() => kalenderregelfragment({ kalenderdelningar: "anv", anvandare: "anv" })).toThrow(/krockar/);
+    expect(kalenderregelfragment({ kalenderdelningar: "kalenderdelningar", medlemskap: "medl" })).toContain("/medl/$(agare + '|' + gid)");
+  });
+
+  it("⛔ panelen för en delad post: inga åtgärder som ändrar den, Kopiera står kvar; en egen post är orörd", () => {
+    const props = { onRedigera: () => {}, flyttmal: [], onFlytta: () => {}, atgarder: "x", knapprad: {}, onDela: async () => ({}), delningar: [], onAterkalla: async () => {}, kopieraTill: [], onKopiera: () => {}, handelse: null };
+    const delad = panelForDeladPost(deladPostHandelseId(A, "p1"), props);
+    expect(Object.keys(delad).sort()).toEqual(["handelse", "kopieraTill", "onKopiera"]);
+    expect(panelForDeladPost("post~p1", props)).toBe(props);
+    expect(panelForDeladPost(undefined, props)).toBe(props);
+  });
+
+  it("⛔ ett nej från reglerna blir en mening på dialogens språk, inte Firestores engelska", () => {
+    const sv = forvalda(ORD_KALENDERDELNINGSDIALOG, "sv");
+    const en = forvalda(ORD_KALENDERDELNINGSDIALOG, "en");
+    const nej = Object.assign(new Error("Missing or insufficient permissions."), { code: "permission-denied" });
+    expect(delningsfel(nej, sv)).toBe(sv.felNekad);
+    expect(delningsfel(nej, en)).toBe(en.felNekad);
+    expect(delningsfel(Object.assign(new Error("x"), { code: "firestore/unavailable" }), sv)).toBe(sv.felNatet);
+    expect(delningsfel(Object.assign(new Error("internal"), { code: "internal" }), sv)).toBe(sv.felOkant);
+    expect(delningsfel(new Error("Appens egen mening."), sv)).toBe("Appens egen mening.");
+    expect(sv.felNekad).not.toMatch(/permission/i);
   });
 });

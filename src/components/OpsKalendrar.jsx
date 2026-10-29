@@ -20,6 +20,7 @@ import { valjbara } from "../lib/katalog.js";
 import { KALENDERIKON_KOMPONENT, KALENDERIKON_NAMN, kalenderIkonKomponent } from "../lib/kalenderikoner.js";
 import { AndraIkon, ArkiveraIkon, ChevronNedIkon, GruppIkon, PlusIkon, TaFramIkon } from "./icons.jsx";
 import { KalenderDelning } from "./KalenderDelning.jsx";
+import { forvalda } from "../lib/ord.js";
 import { OpsButton } from "./OpsButton.jsx";
 import { OpsField, OpsInput } from "./OpsField.jsx";
 import { OpsIdentity } from "./OpsIdentity.jsx";
@@ -91,11 +92,7 @@ export function OpsKalendrar({ gruppens, mina, groupId, kanAndraGruppens, onSpar
       <Sektion
         slag="mina"
         rubrik="Mina kalendrar"
-        hjalp={
-          delning
-            ? "Dina egna kalendrar syns för dig och för dem du delar dem med. Poster i dem kan blockera din tillgänglighet."
-            : "Dina egna kalendrar syns bara för dig. Poster i dem kan blockera din tillgänglighet."
-        }
+        hjalp={forvalda(ORD_OPSKALENDRAR_DELNING, sprak)[delning ? "minaHjalpDelning" : "minaHjalp"]}
         tomText="Du har inga egna kalendrar ännu."
         lista={mina}
         kanAndra
@@ -108,6 +105,21 @@ export function OpsKalendrar({ gruppens, mina, groupId, kanAndraGruppens, onSpar
     </div>
   );
 }
+
+/**
+ * Orden för delningen i Hantera kalendrar, på båda språken (0.154.0, granskningen av PR 468). `{namn}` är kalenderns namn och `{antal}` hur många den delas med.
+ * Resten av vyn bär fortfarande sina svenska förval (befintlig skuld, `check-sprak`); det nya är tvåspråkigt från början.
+ */
+export const ORD_OPSKALENDRAR_DELNING = {
+  dela: { sv: "Dela {namn}", en: "Share {namn}" },
+  delasMed: { sv: "Delas med {antal}", en: "Shared with {antal}" },
+  forvald: { sv: "Förvald", en: "Default" },
+  minaHjalp: { sv: "Dina egna kalendrar syns bara för dig. Poster i dem kan blockera din tillgänglighet.", en: "Your own calendars are visible only to you. Entries in them can block your availability." },
+  minaHjalpDelning: {
+    sv: "Dina egna kalendrar syns för dig och för dem du delar dem med. Poster i dem kan blockera din tillgänglighet.",
+    en: "Your own calendars are visible to you and to those you share them with. Entries in them can block your availability.",
+  },
+};
 
 /**
  * Delningen av mina kalendrar, som appen ger `OpsKalendrar` (0.154.0). Se `KalenderDelning`.
@@ -130,8 +142,11 @@ export function OpsKalendrar({ gruppens, mina, groupId, kanAndraGruppens, onSpar
  */
 function Sektion({ slag, rubrik, hjalp, tomText, lista, kanAndra, lasText, sprak, bygg, onSpara, delning }) {
   const rubrikId = useId();
-  // Kalendern vars Dela-dialog är öppen, eller null.
-  const [delar, setDelar] = useState(/** @type {{ id: string, namn: string } | null} */ (null));
+  // Kalendern vars Dela-dialog är öppen, eller null. `arkiverad`: dialogen visar bara vem den delas med och Sluta dela.
+  const [delar, setDelar] = useState(/** @type {{ id: string, namn: string, arkiverad: boolean } | null} */ (null));
+  const od = forvalda(ORD_OPSKALENDRAR_DELNING, sprak);
+  /** @param {string} id */
+  const antalDelningar = (id) => (delning ? delning.delningar.filter((d) => d.kalenderId === id).length : 0);
   const [utkast, setUtkast] = useState(/** @type {null | { id: string | null, namn: string, farg: number, ikon: string, forvald: boolean, forvaldFran: boolean }} */ (null));
   const [upptagen, setUpptagen] = useState(false);
   const [fel, setFel] = useState(/** @type {string | null} */ (null));
@@ -214,7 +229,7 @@ function Sektion({ slag, rubrik, hjalp, tomText, lista, kanAndra, lasText, sprak
           const namn = text(k.namn, sprak);
           const arForvald = !!forvald && forvald.id === k.id;
           const Ikon = kalenderIkonKomponent(k.ikon);
-          const delasMed = delning ? delning.delningar.filter((d) => d.kalenderId === k.id).length : 0;
+          const delasMed = antalDelningar(k.id);
           // ⛔ RADEN BRYTS NÄR KNAPPARNA INTE RYMS BREDVID NAMNET (0.154.0). Med Dela har en egen kalender fem knappar, och på en telefon (390 px) fick namnet
           // 20 px och syntes inte (mätt i check-skalyta avsnitt 58). Knapparna går då till en egen rad, högerställda, och namnet får hela bredden.
           return (
@@ -228,7 +243,7 @@ function Sektion({ slag, rubrik, hjalp, tomText, lista, kanAndra, lasText, sprak
                 <span className="block truncate text-etikett text-ink">{namn}</span>
                 {arForvald || delasMed > 0 ? (
                   <span className="block text-meta text-ink-muted" data-kalenderrad-marke="">
-                    {[arForvald ? "Förvald" : "", delasMed > 0 ? `Delas med ${delasMed}` : ""].filter(Boolean).join(" · ")}
+                    {[arForvald ? od.forvald : "", delasMed > 0 ? od.delasMed.replace("{antal}", String(delasMed)) : ""].filter(Boolean).join(" · ")}
                   </span>
                 ) : null}
               </span>
@@ -243,7 +258,7 @@ function Sektion({ slag, rubrik, hjalp, tomText, lista, kanAndra, lasText, sprak
                     <ChevronNedIkon size={16} />
                   </IkonKnapp>
                   {delning ? (
-                    <IkonKnapp etikett={`Dela ${namn}`} disabled={upptagen} onClick={() => setDelar({ id: k.id, namn })}>
+                    <IkonKnapp etikett={od.dela.replace("{namn}", namn)} disabled={upptagen} onClick={() => setDelar({ id: k.id, namn, arkiverad: false })}>
                       <GruppIkon size={16} />
                     </IkonKnapp>
                   ) : null}
@@ -266,9 +281,24 @@ function Sektion({ slag, rubrik, hjalp, tomText, lista, kanAndra, lasText, sprak
           <ul className="m-0 mt-2 flex list-none flex-col gap-2 p-0">
             {arkiverade.map((k) => {
               const namn = text(k.namn, sprak);
+              // ⛔ EN ARKIVERAD KALENDER SOM FORTFARANDE HAR DELNINGAR SÄGER DET (granskningen av PR 468). Den delas inte längre (reglerna släpper inte in posterna),
+              // men raderna står kvar tills ägaren slutar dela, och de ska gå att se och stänga härifrån.
+              const delasMed = antalDelningar(k.id);
               return (
-                <li key={k.id} className="flex min-w-0 items-center gap-2 rounded-base border border-line p-2 opacity-70">
-                  <span className="min-w-0 flex-1 truncate text-etikett text-ink-secondary">{namn}</span>
+                <li key={k.id} data-arkiverad-rad={k.id} className="flex min-w-0 items-center gap-2 rounded-base border border-line p-2 opacity-70">
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-etikett text-ink-secondary">{namn}</span>
+                    {delasMed > 0 ? (
+                      <span className="block text-meta text-ink-muted" data-kalenderrad-marke="">
+                        {od.delasMed.replace("{antal}", String(delasMed))}
+                      </span>
+                    ) : null}
+                  </span>
+                  {delning && delasMed > 0 ? (
+                    <IkonKnapp etikett={od.dela.replace("{namn}", namn)} disabled={upptagen} onClick={() => setDelar({ id: k.id, namn, arkiverad: true })}>
+                      <GruppIkon size={16} />
+                    </IkonKnapp>
+                  ) : null}
                   {kanAndra ? (
                     <IkonKnapp etikett={`Ta fram ${namn}`} disabled={upptagen} onClick={() => spara([arkiveraKalender(/** @type {any} */ (lista), k.id, false)])}>
                       <TaFramIkon size={16} />
@@ -320,7 +350,8 @@ function Sektion({ slag, rubrik, hjalp, tomText, lista, kanAndra, lasText, sprak
           onOpenChange={(v) => {
             if (!v) setDelar(null);
           }}
-          kalender={delar}
+          kalender={{ id: delar.id, namn: delar.namn }}
+          arkiverad={delar.arkiverad}
           delningar={delning.delningar}
           grupp={delning.grupp ?? null}
           personer={delning.personer ?? []}

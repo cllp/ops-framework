@@ -31,9 +31,11 @@ import { OpsSelect } from "./OpsSelect.jsx";
  * @param {(m: import("../lib/kalenderdelning.js").Kalendermottagare) => string | undefined} [props.namnFor] Namnet på en mottagare i listan. Saknas det används `personer` och `grupp`.
  * @param {(kalenderId: string, mottagare: import("../lib/kalenderdelning.js").Kalendermottagare) => Promise<unknown>} props.onDela
  * @param {(delning: import("../lib/kalenderdelning.js").Kalenderdelning) => Promise<unknown>} props.onSlutaDela
+ * @param {boolean} [props.arkiverad] (granskningen av PR 468) Kalendern är arkiverad och delas inte längre. Dialogen visar då bara vem den delas med och Sluta dela,
+ *   med en rad som säger det: reglerna nekar en ny delning av en arkiverad kalender, och en knapp som nekas är en död knapp.
  * @param {string} [props.sprak]
  */
-export function KalenderDelning({ open, onOpenChange, kalender, delningar, grupp = null, personer = [], namnFor, onDela, onSlutaDela, sprak = "sv" }) {
+export function KalenderDelning({ open, onOpenChange, kalender, delningar, grupp = null, personer = [], namnFor, onDela, onSlutaDela, arkiverad = false, sprak = "sv" }) {
   const o = /** @type {Record<keyof typeof ORD_KALENDERDELNINGSDIALOG, string>} */ (forvalda(ORD_KALENDERDELNINGSDIALOG, sprak));
   const [vald, setVald] = useState("");
   const [fel, setFel] = useState("");
@@ -57,12 +59,12 @@ export function KalenderDelning({ open, onOpenChange, kalender, delningar, grupp
     try {
       await f();
     } catch (e) {
-      setFel(e instanceof Error ? e.message : String(e));
+      setFel(delningsfel(e, o));
     }
   };
 
   // Gruppen att dela med, när kalendern inte redan delas med just den.
-  const delaMedGruppen = grupp && (!gruppensRad || gruppensRad.groupId !== grupp.id) ? grupp : null;
+  const delaMedGruppen = !arkiverad && grupp && (!gruppensRad || gruppensRad.groupId !== grupp.id) ? grupp : null;
   return (
     <OpsModal
       open={open}
@@ -119,7 +121,11 @@ export function KalenderDelning({ open, onOpenChange, kalender, delningar, grupp
           </div>
         ) : null}
 
-        {kvar.length > 0 ? (
+        {arkiverad ? (
+          <p data-kalenderdelning-arkiverad="" className="m-0 text-meta text-ink-muted">
+            {o.arkiverad}
+          </p>
+        ) : kvar.length > 0 ? (
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
             <div className="min-w-0 flex-1">
               <OpsField label={o.delaMedPerson}>
@@ -154,6 +160,25 @@ export function KalenderDelning({ open, onOpenChange, kalender, delningar, grupp
   );
 }
 
+/**
+ * Ett fel från dialogens anrop som en mening på dialogens språk (granskningen av PR 468).
+ *
+ * ⛔ ETT NEJ FRÅN REGLERNA ÄR INTE FIRESTORES ENGELSKA. "Missing or insufficient permissions." säger ingenting till den som ville dela: det som hänt är nästan alltid
+ * att kalendern arkiverats eller att man inte längre är med i gruppen, i en annan flik eller på en annan enhet. Ett fel med en Firebase-kod (`permission-denied`,
+ * `unavailable` och de andra) får en mening; ett fel utan kod är appens eget, och appen har redan skrivit det för den som läser.
+ *
+ * @param {unknown} e @param {Record<string, string>} o
+ * @returns {string}
+ */
+export function delningsfel(e, o) {
+  const kod = e && typeof e === "object" && "code" in e ? String(/** @type {any} */ (e).code) : "";
+  const ren = kod.replace(/^firestore\//, "");
+  if (ren === "permission-denied") return o.felNekad;
+  if (ren === "unavailable" || ren === "deadline-exceeded") return o.felNatet;
+  if (kod) return o.felOkant;
+  return e instanceof Error ? e.message : String(e);
+}
+
 /** Dialogens ord på båda språken. `{namn}` byts mot kalenderns, gruppens eller personens namn. */
 export const ORD_KALENDERDELNINGSDIALOG = {
   titel: { sv: "Dela {namn}", en: "Share {namn}" },
@@ -175,6 +200,13 @@ export const ORD_KALENDERDELNINGSDIALOG = {
   allaHarDen: { sv: "Alla i gruppen har redan kalendern.", en: "Everyone in the group already has the calendar." },
   okandPerson: { sv: "En person", en: "A person" },
   okandGrupp: { sv: "En grupp", en: "A group" },
+  arkiverad: { sv: "Kalendern är arkiverad och delas inte längre. Sluta dela tar bort raderna.", en: "The calendar is archived and no longer shared. Stop sharing removes the rows." },
+  felNekad: {
+    sv: "Det gick inte. Kalendern kan vara arkiverad, eller så är du inte längre med i gruppen.",
+    en: "That did not work. The calendar may be archived, or you are no longer in the group.",
+  },
+  felNatet: { sv: "Det gick inte att nå servern. Försök igen.", en: "The server could not be reached. Try again." },
+  felOkant: { sv: "Det gick inte att spara delningen. Försök igen.", en: "The sharing could not be saved. Try again." },
   klar: { sv: "Klar", en: "Done" },
   stang: { sv: "Stäng", en: "Close" },
 };

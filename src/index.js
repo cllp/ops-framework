@@ -323,6 +323,8 @@ export {
   deladPostUrHandelseId,
   deladPostTillRad,
   deladPostTillHandelse,
+  DELADPOST_UTAN_PROPS,
+  panelForDeladPost,
 } from "./lib/kalenderdelning.js";
 export { KalenderDelning, ORD_KALENDERDELNINGSDIALOG } from "./components/KalenderDelning.jsx";
 export { OpsSvar, OpsSvarSummor, OpsSvarsknappar, OpsSvarsrad, ORD_OPSSVAR } from "./components/OpsSvar.jsx";
