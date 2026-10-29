@@ -29,6 +29,7 @@
 
 import { rapporteraFel } from "./felrapport.js";
 import { ordet } from "./ord.js";
+import { skapaOmgangslogg } from "./talklogg.js";
 
 /** Hur länge ett tryck måste ligga kvar för att vara ett långtryck. Samma tal som kalenderns snabbtitt och SessionStudio. */
 export const LANGTRYCK_MS = 450;
@@ -523,6 +524,10 @@ export function tystStrom(strom) {
  * @property {boolean} stannadeSjalv (0.107.0) Inspelaren hade redan stannat när Klar trycktes (spåret tog slut), så inget
  *   `stop`-event kunde komma.
  * @property {boolean} stoppetHann (0.107.0) `stop`-eventet kom inom `STOPP_VANTA_MS`. `false` betyder att inspelaren gav upp på det.
+ * @property {string} logg (0.155.0, cllp/lifehub.app#253) Omgångens händelser i den ordning de kom, med millisekunder sedan `starta()` anropades:
+ *   `anrop:0.gum:310.rec:318.data0:570.mute:900.unmute:1500.data:1750x9.stoppbegard:6000.stop:6012`. `gum` är strömmen öppnad, `mute`, `unmute` och
+ *   `sparslut` är spårens egna händelser, `rec` är `MediaRecorder.start()`, `data0` är en tom bit och `data` en med innehåll, `ctx-running` att en
+ *   ljudkontext skapades (och i vilket läge), `ctx-utesluten` att ingen skapades (WebKit, se `webblasarensInspelare`). Bara namn och tider, aldrig ljud.
  */
 
 /**
@@ -578,7 +583,15 @@ export const STOPP_VANTA_MS = 2000;
  * en ny omgång väntar på förra omgångens `AudioContext.close()` (högst `LJUDKONTEXT_VANTA_MS`) innan den öppnar mikrofonen. ⛔ HYPOTES,
  * INTE MÄTT PÅ EN IPHONE: att en ljudkontext som ännu inte stängts håller kvar telefonens ljudpass. Vad som hände står i `diagnos`.
  *
- * @param {{ mediaDevices?: MediaDevices, MediaRecorder?: typeof MediaRecorder, AudioContext?: typeof AudioContext, nu?: () => number, setTimeout?: (f: () => void, ms: number) => unknown }} [miljo]
+ * ⛔ PÅ WEBKIT SKAPAS INGEN LJUDKONTEXT (0.155.0, cllp/lifehub.app#253). Den fanns för en enda sak, prickarnas rörelse (`niva`), och skapades EFTER att
+ * mikrofonen öppnats och inspelningen startat. ⛔ HYPOTES, INTE MÄTT PÅ EN IPHONE: att den FÖRSTA ljudkontexten på en iOS-sida byter telefonens
+ * ljudpass medan inspelningen redan rullar, så att strömmen tystnar. Det är den enda sak i inspelaren som sker efter att strömmen öppnats och som
+ * ändrar telefonens ljud, och det passar mönstret CP mätte 2026-10-29: en inspelning som är död hela omgången, och nästa tryck, då en ljudkontext redan
+ * funnits på sidan, fungerar. En kosmetisk funktion får inte kunna störa det den ska visa. Utan ljudkontext står prickarna still i en inspelningsomgång
+ * på WebKit (`niva()` ger 0). En ljudkontext som skapas efter ett `await`, utanför en gest, är på iOS dessutom `suspended`, så det är osäkert att prickarna
+ * rörde sig förut. Loggen (`diagnos.logg`) visar `ctx-utesluten`; består felet efter det här är hypotesen avförd och ljudkontexten kan komma tillbaka.
+ *
+ * @param {{ mediaDevices?: MediaDevices, MediaRecorder?: typeof MediaRecorder, AudioContext?: typeof AudioContext, nu?: () => number, setTimeout?: (f: () => void, ms: number) => unknown, userAgent?: string }} [miljo]
  * @returns {Inspelare}
  */
 export function webblasarensInspelare(miljo = {}) {
@@ -587,6 +600,10 @@ export function webblasarensInspelare(miljo = {}) {
   const AC = miljo.AudioContext || (typeof AudioContext !== "undefined" ? AudioContext : undefined);
   const nu = miljo.nu || (() => Date.now());
   const vanta = miljo.setTimeout || ((/** @type {() => void} */ f, /** @type {number} */ ms) => setTimeout(f, ms));
+  // ⛔ (0.155.0) Ingen ljudkontext på WebKit, se filhuvudet ovanför funktionen. Avgörs vid skapandet av inspelaren, inte vid varje start.
+  const utanKontext = arWebKit(miljo.userAgent);
+  // ⛔ (0.155.0) OMGÅNGENS HÄNDELSELOGG (`talklogg.js`), nollad av varje `starta`. Bara namn och tider, aldrig ljud.
+  let logg = skapaOmgangslogg({ nu });
   /** @type {MediaStream | null} */
   let strom = null;
   /** @type {MediaRecorder | null} */
@@ -676,10 +693,13 @@ export function webblasarensInspelare(miljo = {}) {
       if (!md || !MR) throw new Error(ORD_TALK.felInspelningSaknas.sv);
       forsok += 1;
       const mitt = forsok;
+      logg = skapaOmgangslogg({ nu });
+      logg.notera("anrop");
       // ⛔ FÖRRA OMGÅNGENS LJUDKONTEXT FÖRST (0.107.0). Se filhuvudet ovanför. Ingen väntan när ingen fanns.
       forraLjudkontext = stangs ? await vantaPaLjudkontext() : null;
       if (mitt !== forsok) throw new Error(ORD_TALK.felAvbrotsForeMikrofon.sv);
       let ny = await hamta(mitt);
+      logg.notera("gum");
       omhamtad = false;
       /*
        * ⛔ EN TYST STRÖM HÄMTAS OM, EN GÅNG (lifehub.app#253). ⛔ HYPOTES, INTE MÄTT PÅ EN IPHONE: WebKit på iOS kan lämna en ström
@@ -693,11 +713,23 @@ export function webblasarensInspelare(miljo = {}) {
       if (tystStrom(ny)) {
         ny.getTracks().forEach((t) => t.stop());
         omhamtad = true;
+        logg.notera("omhamtad");
         ny = await hamta(mitt);
+        logg.notera("gum2");
       }
       tystVidStart = tystStrom(ny);
       sparVidStart = sparLage(ny);
       strom = ny;
+      // ⛔ (0.155.0) SPÅRENS EGNA HÄNDELSER: när WebKit tystar (`mute`), släpper (`unmute`) eller tar slut (`sparslut`) strömmen, i förhållande till `rec` och `ctx`.
+      // Ett spår som tystnar efter att inspelningen startat är något annat än ett som var tyst från början.
+      for (const t of typeof ny.getAudioTracks === "function" ? ny.getAudioTracks() : []) {
+        if (typeof t?.addEventListener !== "function") continue;
+        for (const [handelse, namn] of /** @type {const} */ ([["mute", "mute"], ["unmute", "unmute"], ["ended", "sparslut"]])) {
+          t.addEventListener(handelse, () => {
+            if (mitt === forsok) logg.notera(namn);
+          });
+        }
+      }
       /*
        * ⛔ FALLER STARTEN EFTER ATT MIKROFONEN ÖPPNATS SLÄPPS DEN HÄR (0.107.0). Förut stod strömmen kvar när `new MediaRecorder` eller
        * `start()` kastade, och bara en `kasta()` utifrån stängde den. En anropare som inte hann göra det (ett nyare försök ägde
@@ -709,6 +741,7 @@ export function webblasarensInspelare(miljo = {}) {
         bitar = [];
         rec.ondataavailable = (e) => {
           if (e.data && e.data.size > 0) bitar.push(e.data);
+          logg.notera(e.data && e.data.size > 0 ? "data" : "data0");
         };
         /*
          * ⛔ OM STOPP-EVENTET REDAN KOMMIT (granskningen av PR 392 varv 2, KAN 1). Enligt specifikationen blir `state` "inactive" först,
@@ -720,7 +753,9 @@ export function webblasarensInspelare(miljo = {}) {
           stoppSett = true;
         };
         rec.start(250);
+        logg.notera("rec");
       } catch (fel) {
+        logg.notera("startfel", /** @type {any} */ (fel)?.name);
         rec = null;
         bitar = [];
         valtFormat = "";
@@ -729,7 +764,9 @@ export function webblasarensInspelare(miljo = {}) {
       }
       start = nu();
       ljudkontextVidStart = "ingen";
-      if (AC) {
+      if (AC && utanKontext) {
+        logg.notera("ctx-utesluten");
+      } else if (AC) {
         try {
           ctx = new AC();
           const kalla = ctx.createMediaStreamSource(strom);
@@ -741,6 +778,7 @@ export function webblasarensInspelare(miljo = {}) {
           analys = null;
         }
         ljudkontextVidStart = String(ctx?.state ?? "ingen");
+        logg.notera("ctx", ljudkontextVidStart);
       }
     },
     stoppa() {
@@ -761,6 +799,7 @@ export function webblasarensInspelare(miljo = {}) {
         const avsluta = (stoppetHann) => {
           if (gjort) return;
           gjort = true;
+          logg.notera(stoppetHann ? "stop" : "stopp-vantan");
           r.onstop = null;
           /*
            * ⛔ OCKSÅ `ondataavailable` (granskningen av PR 392, MÅSTE 1). Gick taket ut stod den kvar och skrev till `bitar`, som nästa
@@ -775,7 +814,7 @@ export function webblasarensInspelare(miljo = {}) {
           const blob = new Blob(bitar, { type: mimeType });
           const sekunder = Math.round((nu() - start) / 100) / 10;
           /** @type {Inspelningsdiagnos} */
-          const diagnos = { tystVidStart, omhamtad, tystVidStopp, bitar: bitar.length, sparVidStart, sparVidStopp, ljudkontextVidStart, ljudkontextVidStopp, forraLjudkontext, stannadeSjalv, stoppetHann };
+          const diagnos = { tystVidStart, omhamtad, tystVidStopp, bitar: bitar.length, sparVidStart, sparVidStopp, ljudkontextVidStart, ljudkontextVidStopp, forraLjudkontext, stannadeSjalv, stoppetHann, logg: logg.text() };
           if (rec === r) {
             rec = null;
             valtFormat = "";
@@ -783,6 +822,7 @@ export function webblasarensInspelare(miljo = {}) {
           }
           klar({ blob, mimeType, sekunder, diagnos });
         };
+        logg.notera("stoppbegard");
         // ⛔ EN INSPELARE SOM REDAN STANNAT GER INGET STOPP-EVENT (0.107.0). Se `STOPP_VANTA_MS`.
         if (stannadeSjalv) {
           avsluta(true);
@@ -986,6 +1026,9 @@ export function skapaIgenkanningsniva({ nu = () => Date.now() } = {}) {
  *   typiskt en som mikrofonen nekats eller som webbläsaren tyst inte körde.
  * @property {string | null} felkod Den senaste felkoden, också de tysta (`no-speech`) och `aborted`, eller namnet på ett kast vid
  *   `start()` (till exempel `InvalidStateError`). `null` när inget fel kom.
+ * @property {string} logg (0.155.0, cllp/lifehub.app#253) Omgångens händelser i den ordning de kom, med millisekunder sedan `start()` anropades:
+ *   `anrop:0.start:40.audiostart:55.soundstart:410.result:812x5.speechend:3000.end:3012`. Bara namn, felkoder och tider (`talklogg.js`).
+ *   Tom sträng när inget noterats.
  */
 
 /**
@@ -1138,6 +1181,9 @@ export function webblasarensIgenkanning(miljo = {}) {
   let startHandelse = false;
   /** @type {string | null} */
   let senasteFelkod = null;
+  // ⛔ (0.155.0, cllp/lifehub.app#253) OMGÅNGENS HÄNDELSELOGG: i vilken ordning och när webbläsaren sade `start`, `audiostart`, `soundstart`, `speechstart`,
+  // `result`, `nomatch`, `error` och `end`. Nollas av varje `starta`. Bara namn, felkoder och tider, aldrig text.
+  let logg = skapaOmgangslogg({ nu });
   /**
    * ⛔ DEN SENAST SKAPADE IGENKÄNNAREN OCH OM DEN SAGT `end` (0.107.0, lifehub.app#253). `slapp` väntar på den innan nästa omgång.
    * `begard` är när `stop()` eller `abort()` begärdes, `slutVid` när `end` kom.
@@ -1197,7 +1243,11 @@ export function webblasarensIgenkanning(miljo = {}) {
     senaste = post;
     const galler = () => mitt === forsok && rec === r;
     rec.onresult = (/** @type {any} */ e) => {
-      if (!galler()) return;
+      if (!galler()) {
+        logg.notera("gammal-result");
+        return;
+      }
+      logg.notera("result");
       let nyaSlutliga = "";
       let delvis = "";
       for (let i = e.resultIndex; i < e.results.length; i += 1) {
@@ -1206,13 +1256,25 @@ export function webblasarensIgenkanning(miljo = {}) {
         if (res.isFinal) nyaSlutliga += `${t} `;
         else delvis += t;
       }
+      if (nyaSlutliga) logg.notera("slutlig");
       if (nyaSlutliga) slutlig = `${slutlig} ${nyaSlutliga}`.trim();
       pagaende = delvis;
       onText(hel());
     };
     rec.onstart = () => {
-      if (galler()) startHandelse = true;
+      if (galler()) {
+        startHandelse = true;
+        logg.notera("start");
+      } else logg.notera("gammal-start");
     };
+    // ⛔ (0.155.0) DE HÄNDELSER SOM BARA LOGGAS lyssnas på med `addEventListener`, inte med `on…`-egenskaper: `onsoundstart` och de andra sätts av
+    // `onLjud` nedan bara när någon lyssnar (en omgång som också har en inspelare ska vara som förut), och en loggare får inte ändra vilka
+    // hanterare som finns. En igenkänning utan `addEventListener` (en egen från appen, ett prov) loggar då bara det som `on…` ovan ger.
+    if (typeof rec.addEventListener === "function") {
+      for (const handelse of ["audiostart", "soundstart", "speechstart", "speechend", "soundend", "audioend", "nomatch"]) {
+        rec.addEventListener(handelse, () => logg.notera(galler() ? handelse : `gammal-${handelse}`));
+      }
+    }
     // ⛔ LJUDHÄNDELSERNA KOPPLAS BARA OM NÅGON LYSSNAR (0.115.0, cllp/lifehub.app#345). De är det som driver prickarna när bara igenkänningen
     // kör. Utan `onLjud` sätts ingen hanterare alls, så att en omgång som också har en inspelare är exakt som förut. En hanterare som kastar
     // får aldrig ta ned igenkänningen: felet går till felrapporten.
@@ -1229,6 +1291,7 @@ export function webblasarensIgenkanning(miljo = {}) {
       }
     }
     rec.onerror = (/** @type {any} */ e) => {
+      logg.notera(galler() ? "error" : "gammal-error", e?.error);
       if (!galler()) return;
       if (TYSTA_FEL.includes(e?.error)) {
         // ⛔ Också tystnaden noteras (0.114.0): `no-speech` är texten som uteblev, och det är den man söker efter i diagnosen.
@@ -1241,6 +1304,7 @@ export function webblasarensIgenkanning(miljo = {}) {
     rec.onend = () => {
       // ⛔ Slutet noteras före försöksnumret: också en igenkännare som inte längre gäller har släppt mikrofonen när den säger `end`.
       post.markera();
+      logg.notera(galler() ? "end" : "gammal-end");
       if (!galler()) return;
       if (aktiv && !trasig) {
         // Mitt i: webbläsaren tog en paus. Det pågående hör till texten, och lyssnandet fortsätter.
@@ -1265,6 +1329,7 @@ export function webblasarensIgenkanning(miljo = {}) {
             if (mitt !== forsok || !aktiv || trasig) return;
             try {
               forsokStart = nu();
+              logg.notera("omstart");
               r = ny(mitt, sprak, onText, onFel, onLjud);
               r.start();
             } catch (fel) {
@@ -1298,6 +1363,7 @@ export function webblasarensIgenkanning(miljo = {}) {
       startadeOmgang = false;
       startHandelse = false;
       senasteFelkod = null;
+      logg = skapaOmgangslogg({ nu });
       // ⛔ DEN FÖRRA OMGÅNGENS IGENKÄNNARE STÄNGS INNAN EN NY STARTAS (0.99.0). Safari, och iOS i synnerhet, tillåter bara EN
       // aktiv igenkänning, och `start()` på en andra kastar InvalidStateError. En igenkännare som `stoppa()` gett upp på (väntetiden
       // gick ut utan att webbläsaren sade `end`) levde kvar, och nästa omgång föll tyst: texten blev tom och inget förklarade varför.
@@ -1313,6 +1379,7 @@ export function webblasarensIgenkanning(miljo = {}) {
       narSlut = null;
       try {
         r = ny(forsok, sprak, onText, onFel, onLjud);
+        logg.notera("anrop");
         r.start();
         startadeOmgang = true;
         forsokStart = nu();
@@ -1339,6 +1406,7 @@ export function webblasarensIgenkanning(miljo = {}) {
         const sluta = (iTid) => {
           if (gjort) return;
           gjort = true;
+          if (!iTid) logg.notera("vantan-slut");
           // ⛔ TIDEN TOG SLUT: webbläsaren gav aldrig sitt sista besked, och texten kan sakna slutet. Igenkännaren stängs då här,
           // annars lever den kvar och blockerar nästa omgång (se `starta`).
           if (!iTid && mitt === forsok) stang(r);
@@ -1346,6 +1414,7 @@ export function webblasarensIgenkanning(miljo = {}) {
         };
         narSlut = () => sluta(true);
         vanta(() => sluta(false), IGENKANNING_VANTA_MS);
+        logg.notera("stopp");
         begar(r);
         try {
           r.stop();
@@ -1361,6 +1430,7 @@ export function webblasarensIgenkanning(miljo = {}) {
       narSlut = null;
       const gammal = r;
       r = null;
+      logg.notera("kasta");
       begar(gammal);
       try {
         gammal?.abort();
@@ -1370,7 +1440,7 @@ export function webblasarensIgenkanning(miljo = {}) {
     },
     /** (0.114.0) Vad omgångens igenkänning gjorde. Läses efter `stoppa`, för felrapporten `ingen-text`. */
     diagnos() {
-      return { startade: startadeOmgang, startHandelse, felkod: senasteFelkod };
+      return { startade: startadeOmgang, startHandelse, felkod: senasteFelkod, logg: logg.text() };
     },
     /*
      * ⛔ FÖRRA OMGÅNGEN ÄR HELT AVSLUTAD INNAN NÄSTA BÖRJAR (0.107.0, lifehub.app#253). CP 2026-10-15 på iPhone: "Det är som att

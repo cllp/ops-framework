@@ -536,12 +536,12 @@ describe("flödet och miljön", () => {
       abort() {}
     }
     const g = /** @type {NonNullable<ReturnType<typeof webblasarensIgenkanning>>} */ (webblasarensIgenkanning({ SpeechRecognition: /** @type {any} */ (SR) }));
-    expect(/** @type {any} */ (g).diagnos()).toEqual({ startade: false, startHandelse: false, felkod: null });
+    expect(/** @type {any} */ (g).diagnos()).toEqual({ startade: false, startHandelse: false, felkod: null, logg: "" });
     g.starta({ sprak: "sv-SE", onText: () => {}, onFel: () => {} });
     instanser[0].onstart();
     instanser[0].onerror({ error: "no-speech" });
-    expect(/** @type {any} */ (g).diagnos()).toEqual({ startade: true, startHandelse: true, felkod: "no-speech" });
+    expect(/** @type {any} */ (g).diagnos()).toEqual({ startade: true, startHandelse: true, felkod: "no-speech", logg: expect.stringMatching(/^anrop:0\.start:\d+\.error-no-speech:\d+$/) });
     g.starta({ sprak: "sv-SE", onText: () => {}, onFel: () => {} });
-    expect(/** @type {any} */ (g).diagnos()).toEqual({ startade: true, startHandelse: false, felkod: null });
+    expect(/** @type {any} */ (g).diagnos()).toEqual({ startade: true, startHandelse: false, felkod: null, logg: "anrop:0" });
   });
 });

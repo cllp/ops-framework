@@ -3,6 +3,7 @@ import { AVBRYT_FRAGA_SEKUNDER, LANGTRYCK_MS, MAX_SEKUNDER, SPARAT_MS, TALK_SKIC
 import { useOpsSprak } from "./OpsSprak.jsx";
 import { formateraTid } from "../lib/ljudspelare.js";
 import { rapporteraFel } from "../lib/felrapport.js";
+import { forraOmgangen, noteraOmgangsslut } from "../lib/talklogg.js";
 import { AgentIkon, AnteckningIkon, ArendePlusIkon, BockIkon, HandelsePlusIkon, KopieraIkon, KryssIkon, KugghjulIkon, MeddelandeIkon, MikrofonIkon, StoppIkon } from "./icons.jsx";
 import { useKopiera } from "./useKopiera.js";
 import { OpsSpinner } from "./OpsSpinner.jsx";
@@ -130,6 +131,12 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, insp
    * `omgang` räknar starter som fick mikrofonspärren i den här kroken. Inget om personen, ingen text.
    */
   const omgang = useRef(0);
+  /**
+   * ⛔ FÖRRA OMGÅNGEN PÅ SIDAN, SEDD NÄR DEN HÄR STARTADE, OCH OM DEN HÄR REDAN NOTERATS SOM SLUTAD (0.155.0, cllp/lifehub.app#253). Förra omgången kan ha
+   * hört till en ANNAN instans (skalets TALK, chattens skrivfält), så posten bor i `talklogg.js` och inte här. Bara till felrapporten.
+   */
+  const forraVidStart = useRef(/** @type {{ forra: string, forraLogg: string } | null} */ (null));
+  const slutNoterad = useRef(0);
   const forraIgenkanning = useRef(/** @type {import("../lib/talk.js").Igenkanningsslut | null} */ (null));
   const monterad = useRef(true);
   const [sekunder, setSekunder] = useState(0);
@@ -171,6 +178,21 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, insp
   const omgangsIgk = useRef(/** @type {import("../lib/talk.js").Igenkanning | null} */ (null));
   /** Omgången kör BARA igenkänningen och ingen inspelare (TALK med valen på WebKit). */
   const barOmgang = useRef(false);
+  /** Vad som höll mikrofonen i den här omgången, för loggen (0.155.0). */
+  const mekanism = () => (barOmgang.current ? "igenkanning" : omgangsIgk.current ? "bada" : "inspelning");
+  /** Igenkänningens logg i den här omgången, eller tom sträng när ingen igenkänning kört (0.155.0). */
+  const igenkanningensLogg = () => omgangsIgk.current?.diagnos?.()?.logg ?? "";
+  /**
+   * Noterar hur den här omgången slutade, EN gång per omgång: den första noteringen gäller (ett fel som kommer före kastet förblir `fel`, inte `kastad`).
+   * @param {"text" | "ljud" | "tomt" | "fel" | "kastad"} utfall @param {string} [logg] Förval: igenkänningens.
+   */
+  const noteraSlut = (utfall, logg) => {
+    if (omgang.current === 0 || slutNoterad.current === omgang.current) return;
+    slutNoterad.current = omgang.current;
+    noteraOmgangsslut({ mekanism: mekanism(), utfall, logg: logg ?? igenkanningensLogg(), vid: Date.now() });
+  };
+  /** De fält om förra omgången som varje felrapport bär. `ingen` är ett svar (regel 5): första omgången på sidan har ingen förra. */
+  const forraFalt = () => ({ forra: forraVidStart.current?.forra ?? "ingen", forraLogg: forraVidStart.current?.forraLogg ?? "" });
   /**
    * ⛔ NIVÅN I EN OMGÅNG UTAN INSPELARE (0.115.0, cllp/lifehub.app#345). Prickarna matas annars av inspelaren, och i en `barOmgang` finns ingen:
    * de stod stilla. Nivån räknas då ur igenkänningens egna händelser (`skapaIgenkanningsniva`), utan en egen mikrofonström. `sistaLangd` är
@@ -248,9 +270,9 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, insp
 
   /**
    * Felrapporten `ingen-text` (0.114.0). ⛔ Ingen text från personen: bara siffror, flaggor och koder. Se `skicka` för vad den svarar på.
-   * @param {number} sekunder @param {number} bytes
+   * @param {number} sekunder @param {number} bytes @param {string} [loggInsp] (0.155.0) Inspelarens logg, när det fanns en.
    */
-  const rapporteraIngenText = (sekunder, bytes) => {
+  const rapporteraIngenText = (sekunder, bytes, loggInsp) => {
     const g = omgangsIgk.current;
     const finns = g !== null;
     const diag = finns ? (g.diagnos?.() ?? null) : null;
@@ -258,6 +280,11 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, insp
     rapporteraFel(new Error("TALK: det fanns ljud men ingen text."), {
       yta: "OpsTalk",
       steg: "ingen-text",
+      // ⛔ (0.155.0) HÄNDELSEFÖRLOPPET FÖRST: igenkänningens och inspelarens händelser med tider, och hur förra omgången på sidan slutade (`talklogg.js`). Appens
+      // felmottagare tar ett begränsat antal nycklar i den ordning de står, så det som ska mätas står före det äldre.
+      ...(loggInsp !== undefined ? { loggInsp } : {}),
+      ...forraFalt(),
+      ...(finns ? { loggIgk: diag?.logg ?? "" } : {}),
       sekunder,
       bytes,
       igenkanning: finns,
@@ -285,6 +312,7 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, insp
     const l = lageRef.current.lage;
     if (mitt !== forsok.current || !monterad.current || (l !== "haller" && l !== "lyssnar")) return;
     rapporteraIngenText(mikStart.current ? Math.round((Date.now() - mikStart.current) / 100) / 10 : 0, 0);
+    noteraSlut("fel");
     setReserv(true);
     skicka({ typ: "fel", text: ORD_TALK.felIgenkanning.sv });
   };
@@ -339,6 +367,7 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, insp
   const skicka = useCallback(
     /** @param {import("../lib/talk.js").Talkhandelse} h */
     (h) => {
+      const fore = lageRef.current.lage;
       const nasta = talkNasta(lageRef.current, h);
       lageRef.current = nasta;
       setTillstand({ lage: nasta.lage, ...(nasta.fel ? { fel: nasta.fel } : {}) });
@@ -357,6 +386,8 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, insp
         setTextFel("");
         nollaUtskrift();
         kastaText();
+        // ⛔ (0.155.0) BARA EN OMGÅNG SOM PÅGICK KASTAS I LOGGEN: efter ett lyckat val (Agent, Stäng) kastas fältet också, och då får det inte skriva över hur omgången gick.
+        if (fore === "haller" || fore === "lyssnar") noteraSlut("kastad");
         try {
           insp().kasta();
         } catch (fel) {
@@ -403,6 +434,7 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, insp
         forsok.current += 1;
         const mitt = forsok.current;
         omgang.current += 1;
+        forraVidStart.current = forraOmgangen();
         forraIgenkanning.current = null;
         rensaTak();
         /*
@@ -501,6 +533,7 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, insp
             // Ett gammalt försök har redan släppt spärren och visat sitt. Ett nytt försök kan äga den nu.
             // ⛔ Spärren släpps av felet självt: "fel" under håll eller lyssnar ger "kasta", och den grenen släpper den.
             if (mitt !== forsok.current || !monterad.current) return;
+            noteraSlut("fel", "");
             skicka({ typ: "fel", text: talkFeltext(fel) });
           });
       }
@@ -658,6 +691,7 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, insp
              */
             if (bara && (!hord || typeof onAgentRef.current !== "function")) {
               rapporteraIngenText(ljud.sekunder, 0);
+              noteraSlut("tomt");
               senast.current = null;
               setKanIgen(false);
               setText("");
@@ -673,16 +707,23 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, insp
              * till felrapporten, eftersom orsaken på iOS är en hypotes som bara en riktig telefon kan avgöra (regel 3).
              */
             if (!hord && !(ljud.blob && ljud.blob.size > 0)) {
+              // ⛔ (0.155.0) Inspelarens logg får sitt eget namn (`loggInsp`) och igenkänningens sitt (`loggIgk`), så att de inte kan förväxlas när båda kört (Chrome).
+              const { logg: loggInsp = "", ...inspDiagnos } = ljud.diagnos ?? {};
+              noteraSlut("tomt", loggInsp);
               rapporteraFel(new Error("TALK: inspelningen gav inget ljud och ingen text, och inget skickades."), {
                 yta: "OpsTalk",
                 steg: "tomt-ljud",
+                // ⛔ (0.155.0) HÄNDELSEFÖRLOPPET FÖRST, se `ingen-text`. Inspelarens (`loggInsp`) och igenkänningens (`loggIgk`, bara när en igenkänning kört) logg har var sitt namn.
+                loggInsp,
+                ...forraFalt(),
+                ...(omgangsIgk.current !== null ? { loggIgk: igenkanningensLogg() } : {}),
                 sekunder: ljud.sekunder,
                 igenkanning: omgangsIgk.current !== null,
                 // ⛔ (0.107.0) Omgången och hur förra igenkänningen slutade. `null` för förra igenkänningen betyder att ingen fanns.
                 omgang: omgang.current,
                 forraIgenkanningHann: forraIgenkanning.current ? forraIgenkanning.current.hann : null,
                 forraIgenkanningMs: forraIgenkanning.current ? forraIgenkanning.current.ms : null,
-                ...(ljud.diagnos ?? {}),
+                ...inspDiagnos,
               });
               senast.current = null;
               setKanIgen(false);
@@ -698,7 +739,8 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, insp
              * hemskärmen och webbläsaren. ⛔ Ingen text från personen. `utanIgenkanning` säger varför ingen fanns: avstängd av appen,
              * WebKit (Safari och alla webbläsare på iOS, se `arWebKit`) eller saknas i webbläsaren.
              */
-            if (!hord) rapporteraIngenText(ljud.sekunder, ljud.blob.size);
+            if (!hord) rapporteraIngenText(ljud.sekunder, ljud.blob.size, ljud.diagnos?.logg ?? "");
+            noteraSlut(hord ? "text" : "ljud", bara ? undefined : (ljud.diagnos?.logg ?? igenkanningensLogg()));
             const post = { blob: ljud.blob, mimeType: ljud.mimeType, sekunder: ljud.sekunder, ...(hord ? { text: hord } : {}) };
             setText(hord);
             senast.current = post;
