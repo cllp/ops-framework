@@ -1,3 +1,4 @@
+import { flyttaForbi } from "../components/OpsModulRam.jsx";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { OpsHuvudmenyProvider } from "../components/OpsHuvudmeny.jsx";
@@ -233,37 +234,56 @@ describe("modulramen", () => {
     expect(screen.getByRole("switch", { name: "På" })).not.toBeChecked();
   });
 
-  it("ordningen är pilar med platsen mellan, och den flyttar innan sparningen svarar", async () => {
+  it("ordningen är vänster- och högerpilar utan räknare, och den flyttar innan sparningen svarar", async () => {
     /** @type {() => void} */
     let avsla = () => {};
     const r = ram({
       onOrdning: vi.fn(() => new Promise((_, nej) => { avsla = () => nej(new Error("Nätet svarade inte")); })),
     });
     render(<OpsModulSida modul={EKONOMI} activeHref="/ekonomi?lage=installningar" hubHref="/hub" ram={r}><p /></OpsModulSida>);
-    expect(screen.queryByText("Flytta upp")).toBeNull();
-    expect(screen.queryByText("Flytta ned")).toBeNull();
-    expect(screen.queryByText(/Plats \d/)).toBeNull();
-    expect(screen.queryByText("Synlighet")).toBeNull();
-    expect(document.querySelector("[data-ordning-plats]")?.textContent).toBe("1/2");
-    expect(screen.getByRole("button", { name: "Flytta upp" })).toBeDisabled();
-    fireEvent.click(screen.getByRole("button", { name: "Flytta ned" }));
-    expect(document.querySelector("[data-ordning-plats]")?.textContent).toBe("2/2");
+    expect(screen.queryByText("Flytta vänster")).toBeNull();
+    expect(screen.queryByText(/\d\/\d/)).toBeNull();
+    expect(document.querySelector("[data-ordning-plats]")).toBeNull();
+    const ordning = () => [...document.querySelectorAll("[data-ordning-app]")].map((e) => e.getAttribute("data-ordning-app"));
+    expect(ordning()).toEqual(["ekonomi", "bibliotek"]);
+    expect(document.querySelector('[data-ordning-app="ekonomi"]')?.getAttribute("aria-current")).toBe("true");
+    expect(screen.getByRole("button", { name: "Flytta vänster" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Flytta höger" }));
+    expect(ordning()).toEqual(["bibliotek", "ekonomi"]);
+    expect(screen.getByRole("button", { name: "Flytta höger" })).toBeDisabled();
     expect(r.onOrdning).toHaveBeenCalledWith(["bibliotek", "ekonomi"]);
     avsla();
-    await waitFor(() => expect(document.querySelector("[data-ordning-plats]")?.textContent).toBe("1/2"));
+    await waitFor(() => expect(ordning()).toEqual(["ekonomi", "bibliotek"]));
   });
 
-  it("ikonraden öppnar ikonen och sparar den inte", () => {
+  it("en fäst app visar huvudmenyns rad och flyttar förbi appar som inte är fästa", () => {
+    const r = ram({
+      grupp: { moduler: ["bibliotek", "agenter", "ekonomi"], huvudmeny: ["bibliotek", "ekonomi"] },
+      appar: [{ id: "bibliotek", namn: "Bibliotek", ikon: <svg data-testid="bib" /> }],
+    });
+    render(<OpsModulSida modul={EKONOMI} activeHref="/ekonomi?lage=installningar" hubHref="/hub" ram={r}><p /></OpsModulSida>);
+    expect([...document.querySelectorAll("[data-ordning-app]")].map((e) => e.getAttribute("data-ordning-app"))).toEqual(["bibliotek", "ekonomi"]);
+    expect(screen.getByTestId("bib")).toBeTruthy();
+    expect(screen.getByText("Platsen i huvudmenyn.")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Flytta höger" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Flytta vänster" }));
+    expect(r.onOrdning).toHaveBeenCalledWith(["ekonomi", "bibliotek", "agenter"]);
+  });
+
+  it("ikonraden är skrivskyddad: ingen knapp, ingen chevron, ingen utfällning", () => {
     const r = ram();
     render(<OpsModulSida modul={EKONOMI} activeHref="/ekonomi?lage=installningar" hubHref="/hub" ram={r}><p /></OpsModulSida>);
-    const knapp = screen.getByRole("button", { name: /Ikon/ });
-    expect(knapp.getAttribute("aria-expanded")).toBe("false");
-    expect(document.querySelector("[data-ikon-opp]")).toBeNull();
-    fireEvent.click(knapp);
-    expect(knapp.getAttribute("aria-expanded")).toBe("true");
-    expect(document.querySelector("[data-ikon-opp]")).toBeTruthy();
-    expect(r.onSpara).not.toHaveBeenCalled();
-    expect(r.onOrdning).not.toHaveBeenCalled();
+    const rad = document.querySelector('[data-allmant="ikon"]');
+    expect(rad?.tagName).toBe("DIV");
+    expect(rad?.querySelector("button, [aria-expanded]")).toBeNull();
+    expect(screen.queryByRole("button", { name: /Ikon/ })).toBeNull();
+    expect(screen.getByText("Appens ikon.")).toBeTruthy();
+  });
+
+  it("flyttaForbi hoppar över appar utanför raden och står still i ändarna", () => {
+    expect(flyttaForbi(["a", "x", "b"], ["a", "b"], "b", -1)).toEqual(["b", "a", "x"]);
+    expect(flyttaForbi(["a", "x", "b"], ["a", "b"], "a", 1)).toEqual(["x", "b", "a"]);
+    expect(flyttaForbi(["a", "b"], ["a", "b"], "a", -1)).toEqual(["a", "b"]);
   });
 
   it("kugghjulet och Klar sitter i huvudets bakre plats", () => {

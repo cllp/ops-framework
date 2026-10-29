@@ -11,6 +11,11 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ## Ej utgivet
 
+### Ändrat
+- `OpsModulRam`, Allmänt: Ikon-raden är skrivskyddad, utan chevron och utan utfällning. Ikonen kommer från manifestet.
+- `OpsModulRam`, Ordning: räknaren "n/N" är borta. Pilarna är ←/→ "Flytta vänster/höger", som den vågräta huvudmenyn, och de är gråa i ändarna. Under raden finns en liten förhandsvisning av ikonraden med appen markerad: huvudmenyns fästa appar när appen är fäst, annars alla appar. Ett steg flyttar förbi närmaste granne i raden.
+- Nytt, valfritt: `ram.appar` (`{ id, namn?, ikon? }[]`) ger ikonerna till förhandsvisningen. Saknas en app ritas dess första bokstav. Ny export av hjälpen `flyttaForbi` från komponentfilen.
+
 - **Visionen i kanon** (`CLAUDE.md`, CP 2026-10-24): varför vi bygger, hur (agenten som
   första väg in, visuella hjälpmedel som den andra) och frågan till varje ärende: gör det
   här att någon tittar mindre på skärmen, eller mer? Följer med till konsumenternas
