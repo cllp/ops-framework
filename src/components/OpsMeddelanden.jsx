@@ -10,6 +10,7 @@ import { AGENTSTATUS_MAX_ALDER, MAX_MEDDELANDE, MAX_TRADNAMN, RAKNARE_FRAN, REAK
 import { useSamtal } from "../data/useSamtal.jsx";
 import { harAmnen, harBilagor, harCitat, harFasta, harOmnamnanden, harReaktioner, harStatus, harTradar, harTyst } from "../data/samtalskalla.js";
 import { BilagaVisning } from "./BilagaVisning.jsx";
+import { KopieraBilagaKnapp } from "./BilageKopiering.jsx";
 import { CHATTINFO_TEXTER, ORD_CHATTINFO, OpsChattinfo } from "./OpsChattinfo.jsx";
 import { OpsTooltip } from "./OpsTooltip.jsx";
 import { OpsMarkdown } from "./OpsMarkdown.jsx";
@@ -473,6 +474,7 @@ function VisadBilaga({ m, kalla, sid, trad, alt, texter }) {
     return (
       <span className="mt-1 block max-w-full">
         <BilagaVisning bilaga={/** @type {any} */ (inline)} alt={alt} marke="data-meddelande-bilaga" />
+        <KopieraBilagaKnapp bilaga={inline} />
       </span>
     );
   }
@@ -489,6 +491,7 @@ function VisadBilaga({ m, kalla, sid, trad, alt, texter }) {
   return (
     <span className="mt-1 block max-w-full">
       <BilagaVisning bilaga={/** @type {any} */ (bilaga)} alt={alt} marke="data-meddelande-bilaga" />
+      <KopieraBilagaKnapp bilaga={bilaga} />
     </span>
   );
 }
