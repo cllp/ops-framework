@@ -25,6 +25,8 @@
 import { trimSomRegeln, platsBibliotek, PLATSIDFORM } from "./bibliotek.js";
 import { ID_FORM, KATALOGAVGRANSARE, slugUrNamn } from "./katalog.js";
 import { byggSkapare } from "./skapare.js";
+import { ordet } from "./ord.js";
+import { RESERVSPRAK } from "./sprak.js";
 
 /** Fälten ett platsdokument bär. `id` är nyckeln (`<grupp>|<id>`) och lagras inte. Samma lista i regelns `hasOnly`. */
 export const PLATSFALT = /** @type {const} */ (["groupId", "namn", "skapadAv", "skapad", "arkiverad"]);
@@ -83,6 +85,13 @@ export function harledPlatsId(namn, upptagna = []) {
   }
 }
 
+/** Felen för ett platsnamn, på båda språken. Ordboken står här och ingen annanstans (arbetsreglernas punkt 2). */
+export const ORD_PLATSNAMNFEL = {
+  saknas: { sv: "Platsen behöver ett namn.", en: "The place needs a name." },
+  forLangt: { sv: "Namnet är {antal} tecken. Taket är {tak}.", en: "The name is {antal} characters. The limit is {tak}." },
+  finnsRedan: { sv: "Det finns redan en plats som heter {namn}.", en: "There is already a place called {namn}." },
+};
+
 /**
  * Skälet till att ett namn inte går att använda, eller `null`. Trimmat som regeln gör det (`trimSomRegeln`), högst `MAX_PLATSNAMN` tecken.
  *
@@ -90,16 +99,18 @@ export function harledPlatsId(namn, upptagna = []) {
  * byter namn och räknas inte mot sig själv. Reglerna prövar inte detta (de skulle behöva en lista), så det är klientens sak, och ett namn som ändå skrivs dubbelt skadar ingenting.
  *
  * @param {unknown} namn
- * @param {{ befintliga?: ReadonlyArray<{ id: string, namn: string }>, utom?: string }} [val]
+ * @param {{ befintliga?: ReadonlyArray<{ id: string, namn: string }>, utom?: string, sprak?: string }} [val] `sprak` är `"sv"` eller `"en"`, förval svenska.
  * @returns {string | null}
  */
 export function platsnamnFel(namn, val = {}) {
+  const sprak = val.sprak ?? RESERVSPRAK;
+  const t = (/** @type {keyof typeof ORD_PLATSNAMNFEL} */ nyckel) => ordet(ORD_PLATSNAMNFEL, nyckel, sprak);
   const n = trimSomRegeln(namn);
-  if (!n) return "Platsen behöver ett namn.";
-  if (n.length > MAX_PLATSNAMN) return `Namnet är ${n.length} tecken. Taket är ${MAX_PLATSNAMN}.`;
+  if (!n) return t("saknas");
+  if (n.length > MAX_PLATSNAMN) return t("forLangt").replace("{antal}", String(n.length)).replace("{tak}", String(MAX_PLATSNAMN));
   const lika = n.toLocaleLowerCase("sv");
   const finns = (val.befintliga ?? []).find((p) => p.id !== val.utom && trimSomRegeln(p.namn).toLocaleLowerCase("sv") === lika);
-  if (finns) return `Det finns redan en plats som heter ${finns.namn}.`;
+  if (finns) return t("finnsRedan").replace("{namn}", finns.namn);
   return null;
 }
 

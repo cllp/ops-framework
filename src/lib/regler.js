@@ -570,7 +570,7 @@ export function lagringsregelfragment(konfig = {}) {
           prefix: PLATS_PREFIX,
           form: PLATSFORM,
           kommentar: `    // ⛔ GRUPPENS EGNA PLATSER (0.155.0, cllp/ops-framework#469): platsen ${PLATS_PREFIX}<grupp>~<id>. Samma behörighet som en händelses och ett ärendes: gruppens medlemskap, tolkat ur platsen,
-    // och bara om platsen har exakt den formen (tre delar). Platsen slås inte upp, varken här eller i Firestore-regeln för posten: gruppen står i id:t. En plats som börjar ${PLATS_PREFIX} prövas aldrig som en grupp
+    // och bara om platsen har exakt den formen (tre delar). Platsen slås inte upp, varken här eller i regeln för posten: gruppen står i id:t. En plats som börjar ${PLATS_PREFIX} prövas aldrig som en grupp
     // med hela strängen som id.
 `,
         }]

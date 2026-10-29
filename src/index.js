@@ -193,7 +193,7 @@ export { hubbForGrupp, valbaraModuler, hubbPoster, huvudmenyPoster, modulLage, b
  * Tilläggen (0.60.0, #251, beslut 0003): en app pluggar in i en plats ramverkets yta erbjuder, och ändrar aldrig ytan.
  * `tillagg` i `defineModule`, platserna, filtret på påslagna moduler och raden "Syns på".
  */
-export { HANDELSE_PLATSER, INSPELNING_PLATSER, INSTALLNINGAR_PLATSER, PLATSER, PLATSYTOR, tillaggFor, malForInspelning, synsPa, synsPaText } from "./lib/tillagg.js";
+export { HANDELSE_PLATSER, INSPELNING_PLATSER, INSTALLNINGAR_PLATSER, SKAPA_PLATSER, PLATSER, PLATSYTOR, tillaggFor, malForInspelning, synsPa, synsPaText } from "./lib/tillagg.js";
 
 /*
  * ⛔ KÄLLKONTRAKTET (#129). Registret och granskarna är data in och data ut,
@@ -249,7 +249,7 @@ export { sokGruppikoner, forslagUrGruppnamn, VANLIGA_GRUPPIKONER } from "./lib/g
 export { medlemsinfo } from "./lib/gruppmedlemmar.js";
 export { personnamn, NAMN_SAKNAS } from "./lib/personnamn.js";
 export { OpsGruppSida } from "./components/OpsGruppSida.jsx";
-export { regelfragment, gruppadSamling, generateRules, lagringsregelfragment, katalogregelfragment, konfigloggregelfragment, samtalsregelfragment, kalenderregelfragment, kalendervalsregelfragment, handelseregelfragment, bibliotekregelfragment, minnesregelfragment, modulinstallningsregelfragment, beskrivenappdataregelfragment, beskrivningsregelfragment, delningsregelfragment, gastregelfragment } from "./lib/regler.js";
+export { regelfragment, gruppadSamling, generateRules, lagringsregelfragment, katalogregelfragment, konfigloggregelfragment, samtalsregelfragment, kalenderregelfragment, kalendervalsregelfragment, handelseregelfragment, bibliotekregelfragment, platsregelfragment, minnesregelfragment, modulinstallningsregelfragment, beskrivenappdataregelfragment, beskrivningsregelfragment, delningsregelfragment, gastregelfragment } from "./lib/regler.js";
 /*
  * ⛔ MEJLKÖNS REGLER (0.76.0, #101). Text in och text ut, ingen React, och inget
  * beroende till transporten. Fragmentet står för sig: klienten läser inte kön
@@ -338,6 +338,8 @@ export { OpsHandelsePanel } from "./components/OpsHandelsePanel.jsx";
 /* (0.121.0, cllp/lifehub.app#366) En händelses filer: sektionen "Filer", `OpsBibliotek` inbäddad för händelsens plats. Appen skickar den som `filer` till panelen. */
 export { OpsHandelsefiler, ORD_OPSHANDELSEFILER } from "./components/OpsHandelsefiler.jsx";
 export { OpsPlatsfiler, ORD_OPSPLATSFILER } from "./components/OpsPlatsfiler.jsx";
+export { OpsBilagekopiering, KopieraBilagaKnapp, ORD_BILAGEKOPIERING } from "./components/BilageKopiering.jsx";
+export { ORD_BIBLIOTEKPLATSER } from "./components/BibliotekPlatser.jsx";
 export { HANDELSEPARAM, handelseHref } from "./lib/handelsepanel.js";
 /*
  * ⛔ EN RAD, EN PANEL (0.145.0, cllp/ops-framework#446): varje rad i kalendern och Idag öppnas i samma panel, med en knapprad som alltid står på samma ställe och Dela på alla rader.
@@ -372,11 +374,13 @@ export { OpsHubblista } from "./components/OpsHubbar.jsx";
 export { OpsGruppFormular } from "./components/OpsGruppFormular.jsx";
 export { sakerstallAnvandare, sparaInstallningar, andringen } from "./lib/profil.js";
 export { createCatalogSource } from "./data/katalogkalla.js";
-export { BIBLIOTEKTYPER, anteckningsrubrikNu, BIBLIOTEKFLIKAR, BIBLIOTEKFALT, FILFALT, FILMIME, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, MAX_BIBLIOTEKFIL, MAX_BIBLIOTEKLJUD, filTak, mimeUrFilnamn, MAX_BIBLIOTEKFILNAMN, MAX_BIBLIOTEKSOKVAG, MAX_BIBLIOTEKUTSKRIFT, IDE_MAX_SEKUNDER, LJUD_STOLPAR, MAX_LJUD_MS, ADRESSFORM, inmatningsfel, filInmatningsfel, filFel, filSort, LJUDFIL_ACCEPT, ljudfilFel, arLjudpost, arDelbar, filMimeMonster, filContentTypeMonster, lagringsContentType, avkodaTextfil, TEXTFORHANDS_BYTE, normaliseraMime, utskriftFel, ideRubrik, ljudRubrik, ljudDatum, peaksGiltiga, kodaToppar, avkodaToppar, ljudMetaFel, postFel, byggPost, filtreraBibliotek, normaliseraAdress, farAndra, MAX_TAGGAR, MAX_TAGGLANGD, TAGGFORM, normaliseraTagg, normaliseraTaggar, taggarFel, allaTaggar, taggfarg, TAGGFARGER, MITT_PREFIX, MITTFORM, mittBibliotek, arMittBibliotek, mittJag, HANDELSE_PREFIX, HANDELSEIDFORM, HANDELSEFORM, handelseBibliotek, arHandelseBibliotek, handelsedelar, ARENDE_PREFIX, ARENDEIDFORM, ARENDEFORM, arendeBibliotek, arArendeBibliotek, arendedelar, arObjektbibliotek, gruppForPlats, MAX_LISTPOSTER, POSTIDFORM, BILDFORM, listaFel } from "./lib/bibliotek.js";
+export { BIBLIOTEKTYPER, anteckningsrubrikNu, BIBLIOTEKFLIKAR, BIBLIOTEKFALT, FILFALT, FILMIME, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, MAX_BIBLIOTEKFIL, MAX_BIBLIOTEKLJUD, filTak, mimeUrFilnamn, MAX_BIBLIOTEKFILNAMN, MAX_BIBLIOTEKSOKVAG, MAX_BIBLIOTEKUTSKRIFT, IDE_MAX_SEKUNDER, LJUD_STOLPAR, MAX_LJUD_MS, ADRESSFORM, inmatningsfel, filInmatningsfel, filFel, filSort, LJUDFIL_ACCEPT, ljudfilFel, arLjudpost, arDelbar, filMimeMonster, filContentTypeMonster, lagringsContentType, avkodaTextfil, TEXTFORHANDS_BYTE, normaliseraMime, utskriftFel, ideRubrik, ljudRubrik, ljudDatum, peaksGiltiga, kodaToppar, avkodaToppar, ljudMetaFel, postFel, byggPost, filtreraBibliotek, normaliseraAdress, farAndra, MAX_TAGGAR, MAX_TAGGLANGD, TAGGFORM, normaliseraTagg, normaliseraTaggar, taggarFel, allaTaggar, taggfarg, TAGGFARGER, MITT_PREFIX, MITTFORM, mittBibliotek, arMittBibliotek, mittJag, HANDELSE_PREFIX, HANDELSEIDFORM, HANDELSEFORM, handelseBibliotek, arHandelseBibliotek, handelsedelar, ARENDE_PREFIX, ARENDEIDFORM, ARENDEFORM, arendeBibliotek, arArendeBibliotek, arendedelar, arObjektbibliotek, gruppForPlats, PLATS_PREFIX, PLATSIDFORM, PLATSFORM, platsBibliotek, arPlatsBibliotek, platsdelar, MAX_LISTPOSTER, POSTIDFORM, BILDFORM, listaFel } from "./lib/bibliotek.js";
+export { PLATSFALT, MAX_PLATSNAMN, PLATSER_UTAN_SOK, platsnyckel, harledPlatsId, ORD_PLATSNAMNFEL, platsnamnFel, platsidFel, byggPlats, platsFranRad, lasPlatser, platsval, farAndraPlats } from "./lib/platser.js";
+export { createPlatskalla } from "./data/platskalla.js";
 /* (0.128.0, cllp/lifehub.app#378) Smart länk och listor i Biblioteket: källan ur adressen, rubriken ur titel och artist, och en listas rader mot platsens poster. */
 export { LANKKALLOR, KALLOR, lankKalla, lankKallnamn, lankRubrik, lankkallaForm } from "./lib/lankkalla.js";
 export { LISTRADTEXT, LISTA_I_LISTA_TEXT, LISTA_FLYTT_TEXT, losLista, listorAttLaggaI, kandidaterForLista, laggTillPost, taBortPost } from "./lib/biblioteklista.js";
-export { createBibliotekskalla, flyttaBibliotekspost } from "./data/bibliotekkalla.js";
+export { createBibliotekskalla, flyttaBibliotekspost, bilagaKanKopieras, kopieraBilagaTillPlats } from "./data/bibliotekkalla.js";
 export { OpsBibliotek } from "./components/OpsBibliotek.jsx";
 export { OpsTaggPiller, OpsTaggRad, OpsTaggFilter, ORD_TAGGAR } from "./components/OpsTaggar.jsx";
 // 0.119.0 (lifehub.app#356): publik delning av en biblioteksfil. Vyn och det den delar med servern. Tokenet och tjänsten ligger i `ops-framework/node`.
