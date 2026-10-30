@@ -175,7 +175,7 @@
         && (
           (d.typ == "anteckning"
             && d.text.trim().size() > 0
-            && d.text.size() <= 8000
+            && d.text.size() <= 20000
             && !d.keys().hasAny(["url", "kalla", "bild", "poster", "fil", "utskrift", "utskriftJobb", "durationMs", "peaks", "version"]))
           || (d.typ == "lank"
             && d.url.size() <= 2000
