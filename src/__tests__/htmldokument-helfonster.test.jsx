@@ -4,7 +4,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { OpsBibliotek } from "../components/OpsBibliotek.jsx";
-import { OpsHtmlVy } from "../components/OpsHtmlDokument.jsx";
+import { OpsHtmlVy } from "../components/OpsHtmlVy.jsx";
 import { OpsSprakProvider } from "../components/OpsSprak.jsx";
 import { byggPost } from "../lib/bibliotek.js";
 import { HTML_SANDBOX, HTML_UTSKRIFTSMEDDELANDE, htmlVyAdress } from "../lib/htmldokument.js";
@@ -324,7 +324,7 @@ describe("⛔ det finns bara en väg in för HTML: en ruta, och aldrig en blob- 
     for (const f of komponenter) {
       expect(kod(f), path.relative(rot, f)).not.toMatch(/createObjectURL/);
     }
-    expect(kod(path.join(rot, "src", "components", "OpsHtmlDokument.jsx"))).not.toMatch(/\bsrc=\{/);
+    for (const f of ["OpsHtmlDokument.jsx", "OpsHtmlVy.jsx"]) expect(kod(path.join(rot, "src", "components", f)), f).not.toMatch(/\bsrc=\{/);
   });
 
   it("sandlådan i lib är exakt de två orden, och ingen annan kod i src skriver ett sandbox-värde", () => {
