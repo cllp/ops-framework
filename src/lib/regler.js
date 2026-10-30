@@ -42,7 +42,7 @@ import { ADRESSFORM, ARENDEFORM, ARENDE_PREFIX, BIBLIOTEKFALT, BIBLIOTEKTYPER, B
 import { LANKKALLOR, lankkallaForm } from "./lankkalla.js";
 import { MAX_MINNESID, MAX_MINNESTEXT, MINNESFALT, MINNESKALLAFALT, MINNESKALLOR } from "./minne.js";
 import { MAX_SKAPARKALLA, MAX_SKAPARNAMN, SKAPARFALT, VIA_FALTNAMN } from "./skapare.js";
-import { MAX_PLATSNAMN, PLATSFALT, PLATSNYCKEL_AVGRANSARE } from "./platser.js";
+import { MAX_PLATSNAMN, PLATSFALT_FORVALTAD, PLATSNYCKEL_AVGRANSARE } from "./platser.js";
 import { BESKRIVENAPPDATAFALT, BESKRIVNINGSDOKUMENTFALT, BESKRIVNINGSFALT, BESKRIVNINGSFORMAT, BESKRIVNINGSIDFORM, MAX_APPBESKRIVNING, MAX_BESKRIVNINGSNAMN, MAX_FALT, MAX_LISTOR, MIN_LISTOR } from "./beskrivenapp.js";
 import { KONFIGHANDELSER, KONFIGLOGGFALT } from "./konfiglogg.js";
 import { KALENDERVALFALT, KALENDERVALNYCKEL_FORM, KALENDERVISNINGAR, MAX_KALENDERVAL, MAX_KALENDERVALGRUPP } from "./kalendersynlighet.js";
@@ -2324,6 +2324,9 @@ ${grenSkapa}opsBibliotekArMitt(request.resource.data.groupId)
  *   - BYTA NAMN OCH ARKIVERA: den som skapade platsen, eller ägare och admin i gruppen, alla som aktiva medlemmar och personer. Bara `namn` och `arkiverad` kan ändras; gruppen, skaparen och `skapad` står stilla.
  *     `arkiverad` går åt båda håll: en arkiverad plats tas fram igen, annars kunde filerna på den aldrig nås och flyttas ut.
  *   - RADERA: aldrig. "Varför försvann den" frågas alltid i efterhand, och posterna på platsen pekar på id:t.
+ *   - FÖRVALTAD AV EN MODUL (`forvaltas: { modul }`): en klient sätter inte fältet vid skapandet, och på en plats som har det ändrar ingen klient något alls (namn, arkivering eller fältet självt). Bara servern
+ *     (Admin SDK, som går förbi reglerna) skapar en förvaltad plats och ändrar dess namn och arkivering, med `byggForvaltadPlats` och `uppdateraForvaltadPlats`. Ingen ny uppslagning: villkoren läser bara fält på
+ *     dokumentet, så kostnaden är oförändrad. Skälet (regel 2): projektets namn och platsens namn får inte kunna säga olika saker, och servern skriver båda i samma transaktion.
  *
  * ⛔ REGELN PRÖVAR INTE ATT NAMNET ÄR UNIKT. Det vore en lista att gå igenom, och det går inte i en regel. Klienten avvisar ett dubblettnamn (`platsnamnFel`), och ett dubblettnamn som ändå skrivs skadar inget:
  * id:t är nyckeln. Och reglerna för POSTERNA (`bibliotekregelfragment` med `platser: true`) slår inte upp den här samlingen alls: gruppen står i platsens id. En post kan alltså skrivas till en plats som saknar
@@ -2338,7 +2341,7 @@ ${grenSkapa}opsBibliotekArMitt(request.resource.data.groupId)
  */
 export function platsregelfragment(namn) {
   const samling = kontrolleraNamn(namn, "platser");
-  if (Object.values(GRUNDSAMLINGAR).includes(samling)) {
+  if ((/** @type {readonly string[]} */ (Object.values(GRUNDSAMLINGAR))).includes(samling)) {
     throw new Error(`platsregelfragment: samlingen "${samling}" är en av ramverkets egna (${Object.values(GRUNDSAMLINGAR).join(", ")}). Platserna har en egen samling, för ett andra block på en samling lägger en andra regel på den.`);
   }
   const lista = (/** @type {readonly string[]} */ f) => f.map((x) => `"${x}"`).join(", ");
@@ -2350,7 +2353,7 @@ ${nuRegelfunktion("opsPlatsernaNu")}
 
     // Platsens fält. Skaparen är en person och aldrig \`via\`: en plats skapas av en medlem i klienten, inte av en nyckel. Namnet trimmas som i biblioteket (Firestores trim tar bara U+0000 till U+0020).
     function opsPlatsGiltig(d) {
-      return d.keys().hasOnly([${lista(PLATSFALT)}])
+      return d.keys().hasOnly([${lista(PLATSFALT_FORVALTAD)}])
         && d.namn is string
         && d.namn.trim().size() > 0
         && d.namn.size() <= ${MAX_PLATSNAMN}
@@ -2380,8 +2383,10 @@ ${nuRegelfunktion("opsPlatsernaNu")}
         && request.resource.data.skapadAv.uid == request.auth.uid
         && opsPlatsernaNu(request.resource.data.skapad)
         && request.resource.data.arkiverad == false
+        && !('forvaltas' in request.resource.data)
         && opsPlatsGiltig(request.resource.data);
       allow update: if request.resource.data.groupId == resource.data.groupId
+        && !('forvaltas' in resource.data)
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["namn", "arkiverad"])
         && opsPlatsGiltig(request.resource.data)
         && opsFarAndraPlatsen(resource.data.groupId, resource.data.skapadAv.uid);

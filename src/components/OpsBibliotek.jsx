@@ -43,7 +43,7 @@ import { TillbakaKnapp } from "./TillbakaKnapp.jsx";
 import { ModulLageKnapp, OpsModulRam, kravRam } from "./OpsModulRam.jsx";
 import { OpsView } from "./OpsView.jsx";
 import { NyPlatsFormular, NyPlatsRad, ORD_BIBLIOTEKPLATSER, PlatsInstallningar, PlatsMeny } from "./BibliotekPlatser.jsx";
-import { PLATSER_UTAN_SOK, farAndraPlats } from "../lib/platser.js";
+import { PLATSER_UTAN_SOK } from "../lib/platser.js";
 
 /**
  * Gruppens bibliotek: lista och detalj för anteckning och länk.
@@ -735,6 +735,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
       jag={jag}
       egna={egnaPlatser}
       sprak={sprak}
+      onNavigate={onNavigate}
       onArkiverad={() => {
         // Den arkiverade platsen ligger inte kvar i växlaren: gå till den första som finns (gruppens egen står först).
         const annan = platserIVaxlaren.find((p) => p.id !== plats);

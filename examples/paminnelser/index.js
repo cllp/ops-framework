@@ -241,6 +241,20 @@ export const paminnelser = defineModule({
       spara: sparaPaminnelse,
       maxSekunder: 60,
     },
+    /*
+     * ⛔ `skapa.rad` (0.155.0, lifehub.app#491): en rad i plusmenyn och i långtrycket, bara i grupper som har modulen
+     * påslagen. `ikon` är ett element, och `onSkapa` får `{ grupp }` (den aktiva gruppen) när raden väljs. Skalet har
+     * ingen fast rad för någon modul: raden kommer härifrån.
+     */
+    {
+      plats: "skapa.rad",
+      id: "ny-paminnelse",
+      etikett: { sv: "Ny påminnelse", en: "New reminder" },
+      ikon: createElement(Bell, { size: 16 }),
+      onSkapa: () => {
+        window.location.assign("/paminnelser/lista");
+      },
+    },
   ],
 
   /*

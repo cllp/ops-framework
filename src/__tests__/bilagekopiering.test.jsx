@@ -51,7 +51,13 @@ describe("bilagaTillBlob", () => {
     const b = bilagaTillBlob(bild());
     expect(b.type).toBe("image/png");
     expect(b.size).toBe(8);
-    expect(new Uint8Array(await b.arrayBuffer())[0]).toBe(0x89);
+    const bytes = await new Promise((ok, fel) => {
+      const l = new FileReader();
+      l.onload = () => ok(new Uint8Array(/** @type {ArrayBuffer} */ (l.result)));
+      l.onerror = () => fel(l.error);
+      l.readAsArrayBuffer(b);
+    });
+    expect(Array.from(bytes)).toEqual([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
   });
   it("kastar för en bilaga utan giltig data-URL, med ogiltig base64 och för en tom", () => {
     expect(() => bilagaTillBlob({ dataUrl: "http://x/a.png" })).toThrow(/ingen giltig data-URL/);
@@ -69,7 +75,7 @@ describe("kopieraBilagaTillPlats", () => {
     expect(post.fil.sokvag).toBe(`grupper/plats~cps-ab~demos/bibliotek/${post.id}/kvitto.png`);
     expect(uppladdat).toHaveLength(1);
     expect(uppladdat[0].contentType).toBe("image/png");
-    expect((await k.lista()).map((p) => p.id)).toContain(post.id);
+    expect((await k.las()).poster.map((p) => p.id)).toContain(post.id);
   });
 
   it("⛔ en typ Biblioteket inte tar emot (text/csv) kastar med skälet, och ingenting skrivs", async () => {
@@ -78,7 +84,7 @@ describe("kopieraBilagaTillPlats", () => {
     expect(bilagaKanKopieras(bild())).toBe(true);
     await expect(kopieraBilagaTillPlats({ bilaga: csv(), till: k })).rejects.toThrow(/text\/csv/);
     expect(uppladdat).toHaveLength(0);
-    expect(await k.lista()).toHaveLength(0);
+    expect((await k.las()).poster).toHaveLength(0);
   });
 
   it("⛔ en händelses och ett ärendes plats tar inte emot kopian, och en bilaga som inte klarar chattens prövning kopieras inte", async () => {

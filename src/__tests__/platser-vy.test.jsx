@@ -72,7 +72,7 @@ describe("Raden Ny plats i växlaren", () => {
     await oppnaVaxlaren();
     expect(screen.queryByRole("menuitem", { name: "Ny plats" })).toBeNull();
     expect(screen.getAllByRole("menuitemradio")).toHaveLength(2);
-    expect(screen.queryByRole("searchbox")).toBeNull();
+    expect(screen.queryByRole("searchbox", { name: "Sök plats" })).toBeNull();
   });
 
   it("egnaPlatser utan onNy ritar ingen rad", async () => {
@@ -377,16 +377,20 @@ describe("Flytta UT ur ett objekts filer (OpsPlatsfiler)", () => {
       sokvag: ({ groupId: g, postId, namn }) => `grupper/${g}/bibliotek/${postId}/${namn}`,
     });
   }
-  const oppnaMeny = async () => {
+  // Källan levererar först och prenumererar sedan: en omritning mellan klicket och läsningen stänger menyn. Klicka igen bara medan den är stängd (som platsfiler-delning).
+  const oppnaMeny = async (/** @type {string} */ rad) => {
     const user = userEvent.setup();
-    await user.click(await screen.findByRole("button", { name: "Åtgärder för Biljett" }));
+    await waitFor(() => {
+      if (!screen.queryByRole("menuitem", { name: rad })) fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Biljett" }));
+      expect(screen.getByRole("menuitem", { name: rad })).toBeInTheDocument();
+    });
     return user;
   };
 
   it("författaren får Flytta eller kopiera till gruppens plats och en egen plats, och onDela får platsen", async () => {
     const onDela = vi.fn(async () => {});
     render(<OpsPlatsfiler kalla={bygg()} jag={jag()} kanLaggaTill grupper={[GRUPPEN, { id: "plats~cps-ab~demos", namn: "Demos" }]} onDela={onDela} />);
-    const user = await oppnaMeny();
+    const user = await oppnaMeny("Flytta eller kopiera");
     await user.click(screen.getByRole("menuitem", { name: "Flytta eller kopiera" }));
     const ruta = screen.getByRole("dialog", { name: "Flytta eller kopiera" });
     await user.click(within(ruta).getByRole("combobox", { name: "Flytta eller kopiera till" }));
@@ -400,7 +404,7 @@ describe("Flytta UT ur ett objekts filer (OpsPlatsfiler)", () => {
   it("en vanlig medlem som inte skrev filen får kopiera till gruppens platser men inte flytta, och inte till en annan grupp", async () => {
     const onDela = vi.fn(async () => {});
     render(<OpsPlatsfiler kalla={bygg()} jag={jag(ANNA)} kanLaggaTill grupper={[GRUPPEN, { id: "plats~cps-ab~demos", namn: "Demos" }, { id: "andra-ab", namn: "Andra" }]} onDela={onDela} />);
-    const user = await oppnaMeny();
+    const user = await oppnaMeny("Kopiera till en plats");
     expect(screen.queryByRole("menuitem", { name: "Flytta eller kopiera" })).toBeNull();
     await user.click(screen.getByRole("menuitem", { name: "Kopiera till en plats" }));
     const ruta = screen.getByRole("dialog", { name: "Kopiera" });
@@ -411,7 +415,7 @@ describe("Flytta UT ur ett objekts filer (OpsPlatsfiler)", () => {
 
   it("utan grupper och onDela är menyn som förut: ingen flytt", async () => {
     render(<OpsPlatsfiler kalla={bygg()} jag={jag()} kanLaggaTill />);
-    await oppnaMeny();
+    await oppnaMeny("Byt namn");
     expect(screen.queryByRole("menuitem", { name: /Flytta|Kopiera/ })).toBeNull();
     expect(screen.getByRole("menuitem", { name: "Byt namn" })).toBeInTheDocument();
   });
@@ -422,5 +426,69 @@ describe("Flytta UT ur ett objekts filer (OpsPlatsfiler)", () => {
     expect(() => render(<OpsBibliotek poster={[]} jag={jag()} inbaddad onOppna={() => {}} onStang={() => {}} onSkapa={() => {}} egnaPlatser={{ platser: [] }} />)).toThrow(/inbaddad hör ihop med en enda plats/);
     expect(() => render(<OpsBibliotek poster={[]} jag={jag()} hubHref="/hub" onOppna={() => {}} onStang={() => {}} onSkapa={() => {}} egnaPlatser={{}} />)).toThrow(/egnaPlatser ska vara/);
     tyst.mockRestore();
+  });
+});
+
+describe("En plats som en modul förvaltar (0.155.0)", () => {
+  const forv = (extra = {}) => rad("ombyggnad", "Ombyggnad", { forvaltas: { modul: "projekt" }, ...extra });
+  const moduler = { projekt: { namn: "Projekt", href: "/projekt/ombyggnad" } };
+  const PLATS = "plats~cps-ab~ombyggnad";
+
+  it("syns i växlaren som vilken plats som helst, men ⋮ har inte Byt namn och Arkivera: där står Sköts från Projekt", async () => {
+    const onByttNamn = vi.fn();
+    const onArkivera = vi.fn();
+    render(<Vy egna={{ platser: platserUr([forv(), rad("demos", "Demos")]), onByttNamn, onArkivera, moduler }} plats={PLATS} />);
+    // Skaparen (KIM) fick annars Byt namn och Arkivera: här får hen dem inte, eftersom servern äger namnet.
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Åtgärder för Ombyggnad" }));
+    expect(screen.queryByRole("menuitem", { name: "Byt namn" })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: "Arkivera" })).toBeNull();
+    expect(screen.getByRole("menuitem", { name: "Sköts från Projekt" })).toBeInTheDocument();
+    expect(onByttNamn).not.toHaveBeenCalled();
+    expect(onArkivera).not.toHaveBeenCalled();
+  });
+
+  it("raden är en länk till modulens adress via onNavigate, och en avstängd rad med skäl när adressen saknas", async () => {
+    const onNavigate = vi.fn();
+    const { unmount } = render(<Vy egna={{ platser: platserUr([forv()]), onByttNamn: vi.fn(), onArkivera: vi.fn(), moduler }} plats={PLATS} extra={{ onNavigate }} />);
+    fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Ombyggnad" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /Sköts från Projekt/ }));
+    expect(onNavigate).toHaveBeenCalledWith("/projekt/ombyggnad", undefined);
+    unmount();
+    render(<Vy egna={{ platser: platserUr([forv()]), onByttNamn: vi.fn(), onArkivera: vi.fn(), moduler: { projekt: { namn: "Projekt" } } }} plats={PLATS} />);
+    fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Ombyggnad" }));
+    const rad2 = screen.getByRole("menuitem", { name: /Sköts från Projekt/ });
+    expect(rad2).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByText(/Namnet och arkiveringen ändras där/)).toBeInTheDocument();
+  });
+
+  it("⛔ en modul appen inte beskrivit visas med sitt id, så att raden aldrig är tom", async () => {
+    render(<Vy egna={{ platser: platserUr([forv()]), onByttNamn: vi.fn(), moduler: {} }} plats={PLATS} />);
+    fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Ombyggnad" }));
+    expect(screen.getByRole("menuitem", { name: /Sköts från projekt/ })).toBeInTheDocument();
+  });
+
+  it("under Inställningar står Sköts från Projekt som en länk, utan Byt namn, Arkivera och Ta fram igen, också för en arkiverad förvaltad plats", async () => {
+    // Raden prövas direkt: avsnittet är samma komponent som kugghjulet ritar.
+    const { PlatsInstallningar } = await import("../components/BibliotekPlatser.jsx");
+    render(
+      <PlatsInstallningar
+        egna={{ platser: platserUr([forv({ arkiverad: true }), rad("demos", "Demos")]), onByttNamn: vi.fn(), onArkivera: vi.fn(), onTaFram: vi.fn(), moduler }}
+        jag={jag()}
+        sprak="sv"
+      />,
+    );
+    const forvaltad = document.querySelector('[data-bibliotek-platsrad="ombyggnad"]');
+    expect(forvaltad).not.toBeNull();
+    expect(within(/** @type {HTMLElement} */ (forvaltad)).getByRole("link", { name: "Sköts från Projekt" })).toHaveAttribute("href", "/projekt/ombyggnad");
+    expect(within(/** @type {HTMLElement} */ (forvaltad)).queryByRole("button")).toBeNull();
+    // En fri plats har knapparna som förut.
+    const fri = /** @type {HTMLElement} */ (document.querySelector('[data-bibliotek-platsrad="demos"]'));
+    expect(within(fri).getByRole("button", { name: "Byt namn: Demos" })).toBeInTheDocument();
+  });
+
+  it("filerna på en förvaltad plats flyttas som vanligt: den ligger kvar som val i Flytta eller kopiera", async () => {
+    const lista = platsval(platserUr([forv()]));
+    expect(lista).toEqual([{ id: PLATS, namn: "Ombyggnad" }]);
   });
 });

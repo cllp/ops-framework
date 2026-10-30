@@ -12,6 +12,9 @@
  * det. Med en källa som har `createNew` (minnet, Admin SDK) skrivs aldrig något över. Listan som `skapa` läser först används bara för att härleda ett ledigt id och ge ett vänligt besked om ett dubblettnamn: den är
  * inte skyddet.
  *
+ * ⛔ EN FÖRVALTAD PLATS (`forvaltas: { modul }`) SKAPAS OCH ÄNDRAS BARA AV SERVERN (0.155.0). Källan har ingen väg för det: `skapa` skriver aldrig fältet, och `byttNamn`, `arkivera` och `taFram` kastar med skälet för en
+ * förvaltad plats. Servern bygger raderna med `byggForvaltadPlats` och `uppdateraForvaltadPlats` och skriver dem med Admin SDK.
+ *
  * ⛔ SKAPARE OCH KLOCKA SÄTTS HÄR. Vyn skickar namn (och eventuellt id). En vy som fick skriva `skapadAv` hade kunnat lägga en plats i någons namn, och regeln hade sagt nej först i produktion.
  */
 
@@ -81,6 +84,16 @@ export function createPlatskalla(config) {
     const svar = platsFranRad(rad);
     if (!("plats" in svar)) throw new Error(`Platsen ${platsId} går inte att läsa. ${svar.fel}`);
     return svar.plats;
+  };
+
+  /**
+   * ⛔ EN FÖRVALTAD PLATS ÄNDRAS INTE HÄRIFRÅN (0.155.0). Reglerna nekar det ändå, men ett nej från databasen är "Missing or insufficient permissions". Här står skälet, och ingenting skrivs.
+   * @param {import("../lib/platser.js").Plats} plats
+   */
+  const kravFri = (plats) => {
+    if (plats.forvaltas) {
+      throw new Error(`Platsen ${plats.namn} sköts från modulen ${plats.forvaltas.modul || "(okänd)"} och ändras där, inte härifrån.`);
+    }
   };
 
   return {
@@ -169,7 +182,7 @@ export function createPlatskalla(config) {
       } catch (e) {
         throw skrivfel(e, "Platsen skapades inte.");
       }
-      return { id: bygg.id, groupId, plats: bygg.plats, ...bygg.rad };
+      return { id: bygg.id, plats: bygg.plats, ...bygg.rad };
     },
 
     /**
@@ -180,6 +193,8 @@ export function createPlatskalla(config) {
      */
     async byttNamn(platsId, namn) {
       const { platser } = lasPlatser(await source.list(samling, fraga));
+      const nu = platser.find((p) => p.id === platsId);
+      if (nu) kravFri(nu);
       const fel = platsnamnFel(namn, { befintliga: platser, utom: platsId });
       if (fel) throw new Error(fel);
       try {
@@ -196,6 +211,7 @@ export function createPlatskalla(config) {
      * @returns {Promise<import("../lib/platser.js").Plats>}
      */
     async arkivera(platsId) {
+      kravFri(await hamta(platsId));
       try {
         await source.update(samling, platsnyckel(groupId, platsId), { arkiverad: true });
       } catch (e) {
@@ -210,6 +226,7 @@ export function createPlatskalla(config) {
      * @returns {Promise<import("../lib/platser.js").Plats>}
      */
     async taFram(platsId) {
+      kravFri(await hamta(platsId));
       try {
         await source.update(samling, platsnyckel(groupId, platsId), { arkiverad: false });
       } catch (e) {

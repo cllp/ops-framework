@@ -24,7 +24,7 @@ import {
   postFel,
 } from "../lib/bibliotek.js";
 import { harledKategoriId, ID_FORM } from "../lib/katalog.js";
-import { MAX_PLATSNAMN, PLATSFALT, byggPlats, farAndraPlats, harledPlatsId, lasPlatser, platsFranRad, platsidFel, platsnamnFel, platsnyckel, platsval } from "../lib/platser.js";
+import { MAX_PLATSNAMN, PLATSFALT, PLATSFALT_FORVALTAD, arForvaltad, byggForvaltadPlats, uppdateraForvaltadPlats, byggPlats, farAndraPlats, harledPlatsId, lasPlatser, platsFranRad, platsidFel, platsnamnFel, platsnyckel, platsval } from "../lib/platser.js";
 import { bibliotekregelfragment, lagringsregelfragment, platsregelfragment } from "../lib/regler.js";
 
 /**
@@ -114,7 +114,7 @@ describe("Platsen plats~<grupp>~<id>", () => {
 describe("Platsens id", () => {
   it("härleds ur namnet: gemener, å och ä till a, ö till o, högst 24 tecken, och det följer alltid PLATSIDFORM", () => {
     expect(harledPlatsId("Demos")).toBe("demos");
-    expect(harledPlatsId("Räksmörgåsar och Annat")).toBe("raksmorgasar-och-annat");
+    expect(harledPlatsId("Räksmörgåsar och Annat")).toBe("raksmorgasar-och-anna");
     expect(harledPlatsId("Live 2026")).toBe("live-2026");
     expect(harledPlatsId("Ett mycket långt namn som aldrig ryms i ett plats-id")).toHaveLength(21);
     for (const namn of ["Demos", "Ett mycket långt namn som aldrig ryms i ett plats-id", "!!!", "日本語", "å", "-x-", "A_B"]) {
@@ -266,7 +266,8 @@ describe("Platskällan", () => {
     await expect(k.skapa({ namn: "  " })).rejects.toThrow(/behöver ett namn/);
     expect(await source.list("bibliotekplatser", {})).toHaveLength(1);
     // Ett namn som ger samma id men ett annat namn får ett suffix.
-    expect((await k.skapa({ namn: "Ombyggnad!" })).id).toBe("ombyggnad-2");
+    expect((await k.skapa({ namn: "Demo", id: "demo" })).id).toBe("demo");
+    expect((await k.skapa({ namn: "Demo!" })).id).toBe("demo-2");
   });
 
   it("skriver aldrig över: med createNew säger ett upptaget id det, och en nekad skrivning blir en mening", async () => {
@@ -410,7 +411,14 @@ describe("Regelfragmenten", () => {
     // Alla fyra typer släpps in: inget typ == "fil"-villkor för platsen.
     expect(med).not.toMatch(/opsBibliotekArEgenPlats\(d\.groupId\)/);
     // Händelsens och ärendets funktioner finns kvar, ordagrant.
-    for (const rad of utan.split("\n").filter((r) => /opsBibliotek(Handelse|Arende)/.test(r))) expect(med, rad).toContain(rad);
+    const fran = utan.indexOf("function opsBibliotekArHandelse");
+    const sista = utan.indexOf("function opsBibliotekArendePerson");
+    const till = utan.indexOf("\n    }\n", sista) + "\n    }\n".length;
+    expect(fran, "golv: händelsens första funktion hittades").toBeGreaterThan(0);
+    expect(sista, "golv: ärendets sista funktion hittades").toBeGreaterThan(fran);
+    const block = utan.slice(fran, till);
+    expect(block.split("\n").length, "golv: minst 40 rader jämförda").toBeGreaterThan(40);
+    expect(med).toContain(block);
     expect(med).toContain("gid.matches('plats~[a-z0-9][a-z0-9_-]*~[a-z0-9][a-z0-9_-]{0,23}')");
   });
 
@@ -426,7 +434,7 @@ describe("Regelfragmenten", () => {
   it("platsregelfragment: nyckeln, fälten, rollerna och att inget raderas står i texten, och krockande samlingsnamn kastar", () => {
     const text = platsregelfragment("bibliotekplatser");
     expect(text).toContain("match /bibliotekplatser/{id}");
-    expect(text).toContain('d.keys().hasOnly(["groupId", "namn", "skapadAv", "skapad", "arkiverad"])');
+    expect(text).toContain('d.keys().hasOnly(["groupId", "namn", "skapadAv", "skapad", "arkiverad", "forvaltas"])');
     expect(text).toContain("id.matches(request.resource.data.groupId + '[|][a-z0-9][a-z0-9_-]{0,23}')");
     expect(text).toContain('affectedKeys().hasOnly(["namn", "arkiverad"])');
     expect(text).toContain("allow delete: if false;");
@@ -440,5 +448,98 @@ describe("Regelfragmenten", () => {
     const text = platsregelfragment("p");
     expect(text).toContain(`d.namn.size() <= ${MAX_PLATSNAMN}`);
     for (const f of PLATSFALT) expect(text).toContain(`"${f}"`);
+  });
+});
+
+describe("En plats en modul förvaltar (0.155.0)", () => {
+  const FRAN = { groupId: GRUPP, namn: "Ombyggnad", skapadAv: skapare(), skapad: NU, modul: "projekt", id: "ombyggnad-2027" };
+
+  it("byggForvaltadPlats ger dokumentet med forvaltas, nyckeln och namnprövningen, och byggPlats ger aldrig fältet", () => {
+    const b = byggForvaltadPlats(FRAN);
+    expect(b.nyckel).toBe("cps-ab|ombyggnad-2027");
+    expect(b.plats).toBe("plats~cps-ab~ombyggnad-2027");
+    expect(b.rad).toMatchObject({ groupId: GRUPP, namn: "Ombyggnad", arkiverad: false, forvaltas: { modul: "projekt" } });
+    expect(Object.keys(b.rad).sort()).toEqual([...PLATSFALT_FORVALTAD].sort());
+    expect(Object.hasOwn(byggPlats({ groupId: GRUPP, namn: "Fri", skapadAv: skapare() }).rad, "forvaltas")).toBe(false);
+    // Samma prövning som vid en fri plats: namn, id, dubbletter och skaparen.
+    expect(() => byggForvaltadPlats({ ...FRAN, namn: "  " })).toThrow(/behöver ett namn/);
+    expect(() => byggForvaltadPlats({ ...FRAN, namn: "a".repeat(61) })).toThrow(/Taket är 60/);
+    expect(() => byggForvaltadPlats({ ...FRAN, id: "Fel Id" })).toThrow(/går inte att använda/);
+    expect(() => byggForvaltadPlats({ ...FRAN, befintliga: [{ id: "ombyggnad-2027", namn: "Annat" }] })).toThrow(/redan en plats med id:t/);
+    expect(() => byggForvaltadPlats({ ...FRAN, befintliga: [{ id: "x", namn: "ombyggnad" }] })).toThrow(/redan en plats som heter/);
+    expect(() => byggForvaltadPlats({ ...FRAN, skapadAv: { uid: KIM, namn: "Bot", typ: "agent", kalla: "agent" } })).toThrow(/skapas av en medlem/);
+    // Modulen: krävs, och i id-form.
+    expect(() => byggForvaltadPlats({ ...FRAN, modul: undefined })).toThrow(/förvaltare/);
+    expect(() => byggForvaltadPlats({ ...FRAN, modul: "Projekt!" })).toThrow(/förvaltare/);
+    expect(() => byggForvaltadPlats({ ...FRAN, modul: "a".repeat(49) })).toThrow(/förvaltare/);
+  });
+
+  it("id:t härleds ur namnet när det inte anges, som för en fri plats", () => {
+    expect(byggForvaltadPlats({ ...FRAN, id: undefined, namn: "Demos" }).id).toBe("demos");
+  });
+
+  it("raden läses tillbaka som förvaltad, och en trasig forvaltas räknas som förvaltad (fail closed)", () => {
+    const b = byggForvaltadPlats(FRAN);
+    const { plats } = /** @type {any} */ (platsFranRad({ id: b.nyckel, ...b.rad }));
+    expect(plats.forvaltas).toEqual({ modul: "projekt" });
+    expect(arForvaltad(plats)).toBe(true);
+    expect(arForvaltad(/** @type {any} */ (platsFranRad({ id: "cps-ab|fri", groupId: GRUPP, namn: "Fri", skapadAv: skapare(), skapad: NU, arkiverad: false })).plats)).toBe(false);
+    const trasig = /** @type {any} */ (platsFranRad({ id: b.nyckel, ...b.rad, forvaltas: "projekt" })).plats;
+    expect(arForvaltad(trasig)).toBe(true);
+    expect(trasig.forvaltas).toEqual({ modul: "" });
+    expect(platsval([plats]).map((p) => p.namn)).toEqual(["Ombyggnad"]);
+  });
+
+  it("farAndraPlats säger nej för en förvaltad plats, också till skaparen, ägaren och admin", () => {
+    const b = byggForvaltadPlats(FRAN);
+    const { plats } = /** @type {any} */ (platsFranRad({ id: b.nyckel, ...b.rad }));
+    for (const roll of ["medlem", "admin", "agare"]) {
+      expect(farAndraPlats(plats, { uid: KIM, roll, groupId: GRUPP, status: "aktiv" }), roll).toBe(false);
+    }
+    expect(farAndraPlats({ ...plats, forvaltas: undefined }, { uid: KIM, roll: "medlem", groupId: GRUPP, status: "aktiv" })).toBe(true);
+  });
+
+  it("uppdateraForvaltadPlats ger bara de fält som ändras, och kastar för fel modul, en fri plats, ett dåligt namn och en tom ändring", () => {
+    const b = byggForvaltadPlats(FRAN);
+    const { plats } = /** @type {any} */ (platsFranRad({ id: b.nyckel, ...b.rad }));
+    expect(uppdateraForvaltadPlats({ plats, modul: "projekt", namn: " Ombyggnad B " })).toEqual({ nyckel: "cps-ab|ombyggnad-2027", andring: { namn: "Ombyggnad B" } });
+    expect(uppdateraForvaltadPlats({ plats, modul: "projekt", arkiverad: true }).andring).toEqual({ arkiverad: true });
+    expect(uppdateraForvaltadPlats({ plats, modul: "projekt", namn: "Nytt", arkiverad: false }).andring).toEqual({ namn: "Nytt", arkiverad: false });
+    // Platsens eget namn är inte en krock med sig själv, men en annans är det.
+    expect(uppdateraForvaltadPlats({ plats, modul: "projekt", namn: "Ombyggnad", befintliga: [{ id: plats.id, namn: "Ombyggnad" }] }).andring).toEqual({ namn: "Ombyggnad" });
+    expect(() => uppdateraForvaltadPlats({ plats, modul: "projekt", namn: "Live", befintliga: [{ id: "live", namn: "Live" }] })).toThrow(/redan en plats som heter Live/);
+    expect(() => uppdateraForvaltadPlats({ plats, modul: "projekt", namn: "" })).toThrow(/behöver ett namn/);
+    expect(() => uppdateraForvaltadPlats({ plats, modul: "annan", namn: "X" })).toThrow(/förvaltas av modulen "projekt", inte av "annan"/);
+    expect(() => uppdateraForvaltadPlats({ plats: { ...plats, forvaltas: undefined }, modul: "projekt", namn: "X" })).toThrow(/förvaltas inte av någon modul/);
+    expect(() => uppdateraForvaltadPlats({ plats, modul: "projekt" })).toThrow(/ingenting att ändra/);
+    expect(() => uppdateraForvaltadPlats({ plats, modul: "projekt", arkiverad: /** @type {any} */ ("ja") })).toThrow(/sant eller falskt/);
+  });
+
+  it("källan: en klient byter inte namn på, arkiverar eller tar fram en förvaltad plats, med skälet, och ingenting skrivs", async () => {
+    const source = createMemorySource();
+    const b = byggForvaltadPlats(FRAN);
+    await source.create("bibliotekplatser", { id: b.nyckel, ...b.rad });
+    const k = createPlatskalla({ source, platser: "bibliotekplatser", groupId: GRUPP, skapare: () => skapare() });
+    await expect(k.byttNamn("ombyggnad-2027", "Kapad")).rejects.toThrow(/sköts från modulen projekt och ändras där/);
+    await expect(k.arkivera("ombyggnad-2027")).rejects.toThrow(/sköts från modulen projekt/);
+    await expect(k.taFram("ombyggnad-2027")).rejects.toThrow(/sköts från modulen projekt/);
+    const kvar = (await k.las()).platser[0];
+    expect(kvar).toMatchObject({ namn: "Ombyggnad", arkiverad: false, forvaltas: { modul: "projekt" } });
+    // Servern skriver raden som uppdateraForvaltadPlats ger, och källan läser den.
+    const { nyckel, andring } = uppdateraForvaltadPlats({ plats: kvar, modul: "projekt", namn: "Ombyggnad B", arkiverad: true });
+    await source.update("bibliotekplatser", nyckel, andring);
+    expect((await k.las()).platser[0]).toMatchObject({ namn: "Ombyggnad B", arkiverad: true, forvaltas: { modul: "projekt" } });
+    // En fri plats i samma samling går som förut.
+    await k.skapa({ namn: "Fri" });
+    await expect(k.byttNamn("fri", "Fri 2")).resolves.toMatchObject({ namn: "Fri 2" });
+  });
+
+  it("regelfragmentet: klienten sätter inte fältet och ändrar inget på en plats som har det, och kostar inget extra", () => {
+    const text = platsregelfragment("bibliotekplatser");
+    expect(text).toContain("!('forvaltas' in request.resource.data)");
+    expect(text).toContain("!('forvaltas' in resource.data)");
+    expect(text).toContain(`d.keys().hasOnly([${PLATSFALT_FORVALTAD.map((x) => `"${x}"`).join(", ")}])`);
+    // Villkoren läser fält på dokumentet: ingen ny get() eller exists() mellan platsens funktioner.
+    expect(text.match(/\bget\(|\bexists\(/g) ?? []).toHaveLength(0);
   });
 });

@@ -1,5 +1,5 @@
 import { useId, useState } from "react";
-import { Archive, Pencil, Plus, RotateCcw } from "lucide-react";
+import { Archive, ExternalLink, Pencil, Plus, RotateCcw } from "lucide-react";
 import { platsnamnFel, farAndraPlats } from "../lib/platser.js";
 import { trimSomRegeln } from "../lib/bibliotek.js";
 import { ordet } from "../lib/ord.js";
@@ -42,6 +42,8 @@ export const ORD_BIBLIOTEKPLATSER = {
     en: "Archive the place {namn}? It is hidden from the switcher. The files stay, and the place can be restored under the settings (the cog).",
   },
   taFram: { sv: "Ta fram igen", en: "Restore" },
+  skotsFran: { sv: "Sköts från {namn}", en: "Managed from {namn}" },
+  skotsHint: { sv: "Namnet och arkiveringen ändras där. Filerna på platsen flyttas som vanligt.", en: "The name and archiving are changed there. Files on the place move as usual." },
   platser: { sv: "Platser", en: "Places" },
   platserHint: { sv: "Gruppens egna platser i Biblioteket. En arkiverad plats syns inte i växlaren, och filerna på den ligger kvar.", en: "The group's own places in the Library. An archived place is not in the switcher, and the files on it stay." },
   inga: { sv: "Gruppen har inga egna platser än. Skapa en under Platser i Biblioteket.", en: "The group has no places of its own yet. Create one under Places in the Library." },
@@ -50,6 +52,19 @@ export const ORD_BIBLIOTEKPLATSER = {
   skaptInte: { sv: "Platsen kunde inte skapas.", en: "The place could not be created." },
   ejKopplad: { sv: "Platserna är inte kopplade. Ingenting ändrades.", en: "Places are not connected. Nothing was changed." },
 };
+
+/**
+ * Namn och adress för modulen som förvaltar platsen. Ett modul-id appen inte beskrivit visas med id:t, så att raden aldrig är tom.
+ * @param {import("../lib/platser.js").Plats} plats
+ * @param {EgnaPlatser} egna
+ * @returns {{ namn: string, href?: string } | null}
+ */
+function forvaltare(plats, egna) {
+  if (!plats.forvaltas) return null;
+  const id = plats.forvaltas.modul;
+  const info = egna.moduler?.[id];
+  return { namn: info?.namn || id || "?", ...(info?.href ? { href: info.href } : {}) };
+}
 
 /** @param {unknown} e */
 const felText = (e) => (e instanceof Error && e.message ? e.message : String(e));
@@ -61,6 +76,7 @@ const felText = (e) => (e instanceof Error && e.message ? e.message : String(e))
  * @property {(inmatning: { id: string, namn: string }) => Promise<void | boolean> | void | boolean} [onByttNamn]
  * @property {(inmatning: { id: string }) => Promise<void | boolean> | void | boolean} [onArkivera]
  * @property {(inmatning: { id: string }) => Promise<void | boolean> | void | boolean} [onTaFram]
+ * @property {Record<string, { namn: string, href?: string }>} [moduler] (0.155.0) Modulerna som förvaltar platser, per modul-id (`plats.forvaltas.modul`): namnet och gärna en adress. En förvaltad plats visas som vilken som helst i växlaren, men kugghjulet har inte Byt namn och Arkivera för den: där står raden "Sköts från <namn>" (en länk när adressen finns). Ett modul-id som saknas här visas med id:t som namn.
  */
 
 /**
@@ -85,7 +101,7 @@ export function NyPlatsFormular({ befintliga, onNy, onKlar, onAvbryt, sprak }) {
     setUpptagen(true);
     try {
       const svar = await onNy({ namn: trimSomRegeln(namn) });
-      if (svar === false) throw new Error(t("skaptInte"));
+      if (/** @type {any} */ (svar) === false) throw new Error(t("skaptInte"));
       onKlar(svar);
     } catch (err) {
       setFel(felText(err));
@@ -200,11 +216,27 @@ function ArkivDialog({ atgard, egna, t, onStang, onKlar }) {
 /**
  * Menyn för den plats som visas just nu, bredvid växlaren: ⋮ med Byt namn och Arkivera. Ritas bara för en egen plats som personen får ändra (`farAndraPlats`), och i övrigt inte alls.
  *
- * @param {{ plats: import("../lib/platser.js").Plats, jag: any, egna: EgnaPlatser, sprak: string, onArkiverad: (plats: import("../lib/platser.js").Plats) => void }} props
+ * ⛔ EN FÖRVALTAD PLATS har inte Byt namn och Arkivera (reglerna nekar dem): där står i stället en rad "Sköts från <modulens namn>", en länk när appen gav en adress och annars en avstängd rad med skälet.
+ *
+ * @param {{ plats: import("../lib/platser.js").Plats, jag: any, egna: EgnaPlatser, sprak: string, onArkiverad: (plats: import("../lib/platser.js").Plats) => void, onNavigate?: (href: string, event: any) => void }} props
  */
-export function PlatsMeny({ plats, jag, egna, sprak, onArkiverad }) {
+export function PlatsMeny({ plats, jag, egna, sprak, onArkiverad, onNavigate }) {
   const t = (/** @type {keyof typeof ORD_BIBLIOTEKPLATSER} */ nyckel) => ordet(ORD_BIBLIOTEKPLATSER, nyckel, sprak);
   const [atgard, setAtgard] = useState(/** @type {null | { slag: "namn" | "arkivera", plats: import("../lib/platser.js").Plats }} */ (null));
+  const forv = forvaltare(plats, egna);
+  if (forv) {
+    const etikett = t("skotsFran").replace("{namn}", forv.namn);
+    const { href } = forv;
+    /** @type {import("./OpsAtgardsblad.jsx").Atgard} */
+    const rad = href
+      ? { id: "plats-skots-fran", etikett, ikon: <ExternalLink size={16} aria-hidden="true" />, onValj: () => { if (typeof onNavigate === "function") onNavigate(href, undefined); else if (typeof window !== "undefined") window.location.assign(href); } }
+      : { id: "plats-skots-fran", etikett, ikon: <ExternalLink size={16} aria-hidden="true" />, avstangd: true, forklaring: t("skotsHint"), onValj: () => {} };
+    return (
+      <span data-bibliotek-plats-meny="" data-bibliotek-plats-forvaltad="" className="inline-flex shrink-0">
+        <OpsAtgardsblad namn={plats.namn} poster={[rad]} baraKnapp />
+      </span>
+    );
+  }
   if (!farAndraPlats(plats, jag)) return null;
   /** @type {import("./OpsAtgardsblad.jsx").Atgard[]} */
   const poster = [
@@ -263,13 +295,22 @@ export function PlatsInstallningar({ egna, jag, sprak }) {
         <ul className="m-0 flex list-none flex-col gap-1 p-0">
           {egna.platser.map((p) => {
             const far = farAndraPlats(p, jag);
+            const forv = forvaltare(p, egna);
             return (
               <li key={p.id} data-bibliotek-platsrad={p.id} className="flex min-w-0 flex-wrap items-center justify-between gap-2">
                 <span className="min-w-0 truncate">
                   {p.namn}
                   {p.arkiverad ? <span className="ml-2 text-meta text-ink-muted">{t("arkiverad")}</span> : null}
                 </span>
-                {far ? (
+                {forv ? (
+                  <span data-bibliotek-plats-skots="" className="shrink-0 text-meta text-ink-muted">
+                    {forv.href ? (
+                      <a href={forv.href} className="text-accent underline underline-offset-2">{t("skotsFran").replace("{namn}", forv.namn)}</a>
+                    ) : (
+                      t("skotsFran").replace("{namn}", forv.namn)
+                    )}
+                  </span>
+                ) : far ? (
                   <span className="flex shrink-0 gap-2">
                     {egna.onByttNamn ? (
                       <OpsButton variant="secondary" size="sm" ariaLabel={`${t("bytNamn")}: ${p.namn}`} onClick={() => setAtgard({ slag: "namn", plats: p })}>{t("bytNamn")}</OpsButton>

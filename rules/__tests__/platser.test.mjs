@@ -24,7 +24,7 @@ import { platsnyckel } from "../../src/lib/platser.js";
 import { after, before, describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { assertFails, assertSucceeds, initializeTestEnvironment } from "@firebase/rules-unit-testing";
-import { collection, deleteDoc, doc, getDoc, getDocs, query, setDoc, updateDoc, where } from "firebase/firestore";
+import { collection, deleteDoc, deleteField, doc, getDoc, getDocs, query, setDoc, updateDoc, where } from "firebase/firestore";
 import { deleteObject, getBytes, ref, uploadBytes } from "firebase/storage";
 import fs from "node:fs";
 import path from "node:path";
@@ -142,6 +142,9 @@ before(async () => {
     await setDoc(doc(db, `bibliotekplatser/${platsnyckel(CPS, "demos")}`), platsrad(CPS, MEDLEM1));
     await setDoc(doc(db, `bibliotekplatser/${platsnyckel(CPS, "live")}`), platsrad(CPS, MEDLEM2, { namn: "Live" }));
     await setDoc(doc(db, `bibliotekplatser/${platsnyckel(ANDRA, "live")}`), platsrad(ANDRA, GRANNE, { namn: "Live" }));
+    // En plats en modul förvaltar: skriven med reglerna avstängda, som servern (Admin SDK) skriver den.
+    await setDoc(doc(db, `bibliotekplatser/${platsnyckel(CPS, "projekt-1")}`), platsrad(CPS, MEDLEM1, { namn: "Ombyggnad", forvaltas: { modul: "projekt" } }));
+    await setDoc(doc(db, `bibliotekplatser/${platsnyckel(CPS, "projekt-2")}`), platsrad(CPS, MEDLEM1, { namn: "Renovering", forvaltas: { modul: "projekt" }, arkiverad: true }));
   });
   // Objekten finns, med reglerna avstängda: ett nekat utfall som hade uteblivit ändå mäter ingenting.
   await miljo.withSecurityRulesDisabled(async (ctx) => {
@@ -385,6 +388,53 @@ describe("Platsen som data: skapa", () => {
     const utan = platsrad(CPS, MEDLEM1);
     delete utan.arkiverad;
     await nekas(setDoc(doc(som(MEDLEM1), `bibliotekplatser/${platsnyckel(CPS, "x45")}`), utan));
+  });
+});
+
+describe("Platsen som data: förvaltad av en modul (0.155.0)", () => {
+  const P = (id) => `bibliotekplatser/${platsnyckel(CPS, id)}`;
+  const nyckelNy = platsnyckel(CPS, "projekt-3");
+
+  it("alla i gruppen läser en förvaltad plats, också en agent", async () => {
+    for (const uid of [MEDLEM1, MEDLEM2, ADMIN, AGARE, AGENT]) await lyckas(getDoc(doc(som(uid), P("projekt-1"))));
+    await nekas(getDoc(doc(som(GRANNE), P("projekt-1"))));
+    await nekas(getDoc(doc(som(UTOMSTAENDE), P("projekt-1"))));
+  });
+  it("⛔ ingen klient byter namn på eller arkiverar en förvaltad plats: inte skaparen, inte admin, inte ägaren", async () => {
+    for (const uid of [MEDLEM1, ADMIN, AGARE]) {
+      await nekas(updateDoc(doc(som(uid), P("projekt-1")), { namn: "Kapad" }));
+      await nekas(updateDoc(doc(som(uid), P("projekt-1")), { arkiverad: true }));
+      await nekas(updateDoc(doc(som(uid), P("projekt-1")), { namn: "Kapad", arkiverad: true }));
+    }
+  });
+  it("⛔ ingen klient tar fram en arkiverad förvaltad plats, och ingen tar bort förvaltningsfältet", async () => {
+    for (const uid of [MEDLEM1, ADMIN, AGARE]) {
+      await nekas(updateDoc(doc(som(uid), P("projekt-2")), { arkiverad: false }));
+      await nekas(updateDoc(doc(som(uid), P("projekt-1")), { forvaltas: deleteField() }));
+      await nekas(updateDoc(doc(som(uid), P("projekt-1")), { forvaltas: { modul: "annan" } }));
+    }
+  });
+  it("⛔ ingen klient gör en fri plats förvaltad genom en ändring, och ingen skapar en plats med forvaltas", async () => {
+    await nekas(updateDoc(doc(som(MEDLEM1), P("demos")), { forvaltas: { modul: "projekt" } }));
+    await nekas(updateDoc(doc(som(ADMIN), P("demos")), { forvaltas: { modul: "projekt" } }));
+    for (const uid of [MEDLEM1, ADMIN, AGARE]) {
+      await nekas(setDoc(doc(som(uid), `bibliotekplatser/${nyckelNy}`), platsrad(CPS, uid, { forvaltas: { modul: "projekt" } })));
+    }
+    // Samma rad utan fältet går: det är fältet som nekas, inte raden.
+    await lyckas(setDoc(doc(som(MEDLEM1), `bibliotekplatser/${nyckelNy}`), platsrad(CPS, MEDLEM1)));
+  });
+  it("ingen raderar en förvaltad plats", async () => {
+    await nekas(deleteDoc(doc(som(MEDLEM1), P("projekt-1"))));
+    await nekas(deleteDoc(doc(som(AGARE), P("projekt-1"))));
+  });
+  it("en fri plats ändras som förut (förvaltningen drar inte med sig de andra)", async () => {
+    await lyckas(updateDoc(doc(som(MEDLEM1), P("demos")), { namn: "Demos nytt" }));
+    await lyckas(updateDoc(doc(som(MEDLEM1), P("demos")), { namn: "Demos" }));
+  });
+  it("posterna på en förvaltad plats är gruppens vanliga: medlemmar läser och skriver som på varje plats", async () => {
+    const plats = platsBibliotek(CPS, "projekt-1");
+    await lyckas(getDoc(doc(som(MEDLEM2), "bibliotek/f1")));
+    await lyckas(setDoc(doc(som(MEDLEM2), "bibliotek/pf1"), anteckning(plats, MEDLEM2)));
   });
 });
 

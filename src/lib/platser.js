@@ -31,6 +31,18 @@ import { RESERVSPRAK } from "./sprak.js";
 /** Fälten ett platsdokument bär. `id` är nyckeln (`<grupp>|<id>`) och lagras inte. Samma lista i regelns `hasOnly`. */
 export const PLATSFALT = /** @type {const} */ (["groupId", "namn", "skapadAv", "skapad", "arkiverad"]);
 
+/**
+ * Fälten ett platsdokument kan bära när en modul förvaltar platsen (0.155.0): de vanliga och `forvaltas`. Fältet skrivs bara av servern (Admin SDK, modulens egen funktion), aldrig av en klient: reglerna
+ * nekar en klient både att sätta det vid skapandet och att ändra något alls på en plats som har det. Samma lista i regelns `hasOnly` för ett dokument som redan finns.
+ */
+export const PLATSFALT_FORVALTAD = /** @type {const} */ ([...PLATSFALT, "forvaltas"]);
+
+/** Fältet `forvaltas` har exakt ett fält: modulens id. Ramverket känner inte modulen, appen skickar in id:t. */
+export const FORVALTNINGSFALT = /** @type {const} */ (["modul"]);
+
+/** Längsta modul-id i `forvaltas.modul`. */
+export const MAX_FORVALTARE = 48;
+
 /** Längsta namn, i tecken, efter trim. Samma sorts tak som rubriken på en post, men kortare: namnet står i en växlare. */
 export const MAX_PLATSNAMN = 60;
 
@@ -49,6 +61,7 @@ export const PLATSNYCKEL_AVGRANSARE = KATALOGAVGRANSARE;
  * @property {import("./skapare.js").Skapare} skapadAv
  * @property {number} skapad Millisekunder.
  * @property {boolean} arkiverad Döljs i växlaren. Posterna ligger kvar och går att flytta ut när platsen tas fram igen.
+ * @property {{ modul: string }} [forvaltas] (0.155.0) Platsen förvaltas av en modul (till exempel ett projekts plats): bara servern ändrar namn och arkivering, och en klient kan inte. Saknas fältet sköter gruppen platsen själv.
  */
 
 /**
@@ -144,6 +157,7 @@ export function byggPlats(d) {
   const befintliga = d.befintliga ?? [];
   const namnFel = platsnamnFel(d.namn, { befintliga });
   if (namnFel) throw new Error(namnFel);
+  /** @type {string} */
   let id;
   if (d.id !== undefined && d.id !== null) {
     const idFel = platsidFel(d.id);
@@ -168,6 +182,81 @@ export function byggPlats(d) {
 }
 
 /**
+ * Är platsen förvaltad av en modul? Då ändras namn och arkivering av servern, aldrig av en klient (reglerna nekar det).
+ * @param {Pick<Plats, "forvaltas"> | null | undefined} plats
+ * @returns {boolean}
+ */
+export function arForvaltad(plats) {
+  return Boolean(plats && plats.forvaltas);
+}
+
+/** @param {unknown} modul @returns {string | null} Skälet till att modul-id:t inte går att använda, eller null. */
+function modulFel(modul) {
+  if (typeof modul !== "string" || !ID_FORM.test(modul) || modul.length > MAX_FORVALTARE) {
+    return `Modulens id "${typeof modul === "string" ? modul : ""}" går inte att använda som förvaltare. Gemener, siffror, bindestreck och understreck, högst ${MAX_FORVALTARE} tecken.`;
+  }
+  return null;
+}
+
+/**
+ * Dokumentet för en plats en modul förvaltar, med nyckeln. För SERVERN (Admin SDK, modulens egen funktion): en klient kan inte skriva det (reglerna nekar `forvaltas` vid skapande), så det är den här funktionen
+ * och regeln som måste vara överens, och de delar `PLATSFALT_FORVALTAD`, `MAX_PLATSNAMN` och namnprövningen. Allt annat är som `byggPlats`: id från anroparen (projektets tagg) eller härlett ur namnet, ett
+ * namn som saknas eller redan finns kastar, och skaparen är en person (den som skapade projektet), aldrig en agent.
+ *
+ * ⛔ SKÄLET (regel 2): projektets namn och platsens namn får inte kunna säga olika saker. Servern skriver båda i SAMMA transaktion, och `byggForvaltadPlats` och `uppdateraForvaltadPlats` ger raderna den skriver.
+ *
+ * @param {object} d Som `byggPlats`, plus modulen.
+ * @param {string} d.modul Modulens id, till exempel `projekt`. Ramverket känner inte modulen.
+ * @param {string} d.groupId
+ * @param {string} d.namn
+ * @param {Record<string, unknown>} d.skapadAv
+ * @param {string} [d.id]
+ * @param {number} [d.skapad]
+ * @param {ReadonlyArray<{ id: string, namn: string }>} [d.befintliga]
+ * @returns {{ nyckel: string, id: string, plats: string, rad: Omit<Plats, "id" | "plats"> & { forvaltas: { modul: string } } }}
+ */
+export function byggForvaltadPlats(d) {
+  const fel = modulFel(d?.modul);
+  if (fel) throw new Error(`byggForvaltadPlats: ${fel}`);
+  const bygg = byggPlats(d);
+  return { ...bygg, rad: { ...bygg.rad, forvaltas: { modul: d.modul } } };
+}
+
+/**
+ * Ändringen servern skriver på en förvaltad plats: ett nytt namn, arkivering eller båda. Kastar med skälet om platsen inte förvaltas av just den här modulen (en annan modul, eller ingen), om namnet inte går att
+ * använda (tomt, för långt, ett namn som en annan plats i gruppen redan har) eller om ingenting ändras. Svarar bara med de fält som ändras, så att servern kan skriva dem med en `update` i samma transaktion som projektet.
+ *
+ * @param {object} d
+ * @param {Pick<Plats, "id" | "groupId" | "forvaltas">} d.plats Platsen som den lästes (`platsFranRad`).
+ * @param {string} d.modul Modulen som ändrar. Måste vara platsens förvaltare.
+ * @param {string} [d.namn]
+ * @param {boolean} [d.arkiverad]
+ * @param {ReadonlyArray<{ id: string, namn: string }>} [d.befintliga] Gruppens platser, för namnkrocken.
+ * @returns {{ nyckel: string, andring: { namn?: string, arkiverad?: boolean } }}
+ */
+export function uppdateraForvaltadPlats(d) {
+  const fel = modulFel(d?.modul);
+  if (fel) throw new Error(`uppdateraForvaltadPlats: ${fel}`);
+  if (!d.plats?.forvaltas) throw new Error(`uppdateraForvaltadPlats: platsen ${d.plats?.id} förvaltas inte av någon modul. En fri plats ändras av gruppen, inte av servern.`);
+  if (d.plats.forvaltas.modul !== d.modul) {
+    throw new Error(`uppdateraForvaltadPlats: platsen ${d.plats.id} förvaltas av modulen "${d.plats.forvaltas.modul}", inte av "${d.modul}".`);
+  }
+  /** @type {{ namn?: string, arkiverad?: boolean }} */
+  const andring = {};
+  if (d.namn !== undefined) {
+    const namnFel = platsnamnFel(d.namn, { befintliga: d.befintliga ?? [], utom: d.plats.id });
+    if (namnFel) throw new Error(namnFel);
+    andring.namn = trimSomRegeln(d.namn);
+  }
+  if (d.arkiverad !== undefined) {
+    if (typeof d.arkiverad !== "boolean") throw new Error("uppdateraForvaltadPlats: arkiverad ska vara sant eller falskt.");
+    andring.arkiverad = d.arkiverad;
+  }
+  if (Object.keys(andring).length === 0) throw new Error("uppdateraForvaltadPlats: ingenting att ändra. Ange namn eller arkiverad.");
+  return { nyckel: platsnyckel(d.plats.groupId, d.plats.id), andring };
+}
+
+/**
  * En plats ur en lagrad rad, eller `null` när raden inte är en plats (fel nyckel, fel grupp, ett namn utan innehåll). Ett fel är aldrig tyst: `lasPlatser` samlar dem i `trasiga`.
  *
  * @param {Record<string, any>} rad Raden som den kom ur källan, med `id` = nyckeln.
@@ -189,6 +278,10 @@ export function platsFranRad(rad) {
       skapadAv: byggSkapare(rad.skapadAv ?? {}),
       skapad: Number.isInteger(rad.skapad) ? rad.skapad : 0,
       arkiverad: rad.arkiverad === true,
+      // ⛔ FAIL CLOSED: ett `forvaltas` som finns men är trasigt räknas som förvaltat (med modul ""), inte som fritt. En plats som ser fri ut och nekas vid tryck är sämre än en som säger att den sköts någon annanstans.
+      ...(rad.forvaltas !== undefined && rad.forvaltas !== null
+        ? { forvaltas: { modul: typeof rad.forvaltas?.modul === "string" ? rad.forvaltas.modul : "" } }
+        : {}),
     },
   };
 }
@@ -227,12 +320,15 @@ export function platsval(platser) {
  * Får den här personen byta namn på och arkivera platsen? Samma villkor som regelns `update`: den som skapade den, eller ägare och admin i gruppen, båda som aktiva medlemmar. `jag` är medlemskapet i
  * platsens grupp, eller `null`. Ett utelämnat värde är "vet inte" och ger nej: en knapp som nekas vid tryck är värre än ingen knapp.
  *
- * @param {Pick<Plats, "groupId" | "skapadAv">} plats
+ * ⛔ EN FÖRVALTAD PLATS ÄNDRAS INTE AV EN KLIENT (0.155.0): svaret är nej oavsett roll, eftersom reglerna nekar det. Servern (modulens egen funktion) ändrar den.
+ *
+ * @param {Pick<Plats, "groupId" | "skapadAv" | "forvaltas">} plats
  * @param {{ uid?: string | null, roll?: string, groupId?: string, status?: string, typ?: string } | null | undefined} jag
  * @returns {boolean}
  */
 export function farAndraPlats(plats, jag) {
   if (!plats || !jag || typeof jag.uid !== "string" || !jag.uid) return false;
+  if (plats.forvaltas) return false;
   if (jag.status !== undefined && jag.status !== "aktiv") return false;
   if (jag.groupId !== undefined && jag.groupId !== plats.groupId) return false;
   if (jag.typ !== undefined && jag.typ !== "person") return false;
