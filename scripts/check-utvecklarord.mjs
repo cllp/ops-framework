@@ -40,7 +40,18 @@
  *   - strängar inuti `${}` i en mall (`${tom ? "a" : "b"}`): allt mellan `${` och `}` räknas som kod och tas bort före läsningen;
  *   - `text=` och `children=` som props (`<OpsBanner text="..." />`, `children="..."`). `text` är bortvalt med flit, se ovan;
  *     `children` som prop förekommer inte i ramverket;
- *   - text som byggs någon annanstans och skickas vidare i en variabel, och text som kommer ur en ordbok utan `sv:`/`en:`.
+ *   - text som byggs någon annanstans och skickas vidare i en variabel, och text som kommer ur en ordbok utan `sv:`/`en:`;
+ *   - JSX-text som börjar med `;` direkt efter en tagg (`<b>Anna</b>; samlingen saknas`, eventuellt med `)` före): se "Kod efter ett JSX-uttryck" nedan. Det är priset för att kod inte ska läsas som text. Mätt i ramverkets src 2026-10-29: 96 av 483 JSX-läsningar började med `;`, och alla 96 var kod (`; return (`, `); const klass = ...`).
+ *
+ * ══ ⛔ KOD EFTER ETT JSX-UTTRYCK ÄR INTE TEXT (0.155.0, #466) ═════════════════════════════════════════════════
+ *
+ * Mätt i cllp/lifehub.app#487 (2026-10-29): `return <OpsTom />;` följt av `const samlingen = hamta(rader);` slog larm i Kostnader. JSX-textmönstret läser allt mellan en
+ * taggs `>` och nästa `<` eller `{`, och efter ett JSX-uttryck som är en hel sats (`return <X />;`) är det som följer kod: `;`, ett nytt uttryck, ett variabelnamn. Appen fick formulera
+ * om vyn för att vakten skulle bli grön. Det är fel riktning: vakten mäter användartext och ska inte styra hur koden formas (samma fel hade appens `check-apptext` med `tom ? (`).
+ *
+ * Rotorsaken är att mönstret inte vet var ett JSX-uttryck slutar. Det vet den inte heller nu (det är ingen parser), men en text som BÖRJAR med `;` (efter noll eller flera `)` och blanksteg) är
+ * slutet på en sats och aldrig början på en mening: `return <X />;`, `return (<X />);`, `items.map((i) => <Row key={i} />);`. Hela den läsningen släpps, eftersom allt fram till nästa `<` eller `{`
+ * då är kod. Ett `)` utan `;` släpps INTE (`(se <a>länken</a>) samlingen saknas` är en mening), och inte heller `,` eller `.` efter taggen, av samma skäl.
  *
  * Ett nytt mönster läggs till när ett av fallen har hänt i en app, med ett prov i test-guards som är rött utan mönstret.
  *
@@ -124,6 +135,9 @@ export const MONSTER = [
   },
 ];
 
+/** En JSX-text som börjar där en sats slutar: `;`, eventuellt efter `)` (`return (<X />);`). Allt fram till nästa `<` eller `{` är då kod. */
+const JSX_SATSSLUT = /^\s*\)*\s*;/;
+
 /**
  * Användartexterna i en källfil, med radnummer.
  * @param {string} kallkod
@@ -138,6 +152,8 @@ export function anvandartexter(kallkod) {
       const rad = kod.slice(0, traff.index).split("\n").length;
       // En ternär har två grenar, alltså två grupper. De andra mönstren har en.
       for (const grupp of traff.slice(1)) {
+        // ⛔ KOD EFTER ETT JSX-UTTRYCK (0.155.0, #466): en JSX-text som börjar med `;` (efter noll eller flera `)`) är slutet på en sats, se filhuvudet.
+        if (namn === "jsxtext" && JSX_SATSSLUT.test(grupp ?? "")) continue;
         // ⛔ En mall: `${...}` är kod, inte text. Annars blir `${OPS_FRAMEWORK_VERSION}` ett utvecklarord i menyns versionsrad.
         const text = (grupp ?? "").replace(/\$\{[^}]*\}/g, " ");
         if (!text.trim()) continue;

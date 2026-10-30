@@ -55,7 +55,8 @@ export { STANDARDKALENDER_ID, STANDARDKALENDER_NAMN, standardGruppkalender } fro
  */
 export { createHandelsefilerService, createPlatsfilerService } from "./handelsefiler.js";
 export { arDelbar } from "../lib/bibliotek.js";
-export { handelseBibliotek, handelsedelar, arHandelseBibliotek, arendeBibliotek, arendedelar, arArendeBibliotek, arObjektbibliotek, gruppForPlats } from "../lib/bibliotek.js";
+export { handelseBibliotek, handelsedelar, arHandelseBibliotek, arendeBibliotek, arendedelar, arArendeBibliotek, arObjektbibliotek, gruppForPlats, platsBibliotek, platsdelar, arPlatsBibliotek } from "../lib/bibliotek.js";
+export { PLATSFALT_FORVALTAD, FORVALTNINGSFALT, platsnyckel, platsnamnFel, byggForvaltadPlats, uppdateraForvaltadPlats, platsFranRad, arForvaltad } from "../lib/platser.js";
 
 /*
  * ⛔ AGENTENS ID OCH MEDDELANDETS FORM ÄVEN HÄR (lifehub.app#47). Servern som svarar som agenten skriver ett vanligt

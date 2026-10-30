@@ -1606,6 +1606,8 @@ function OpsAppShellRitad({
   }
   // ⛔ PLATSEN `handelse.atgard` (0.60.0, #251, beslut 0003): bara moduler som är påslagna i gruppen, och en avslagen moduls komponent anropas inte.
   const handelseAtgarder = skapa?.moduler ? tillaggFor({ moduler: skapa.moduler, grupp: skapa.aktivGrupp, plats: "handelse.atgard" }) : [];
+  // ⛔ PLATSEN `skapa.rad` (0.155.0, cllp/lifehub.app#491): modulernas egna rader i plusmenyn och i långtrycket, med SAMMA grind som `handelse.atgard` (gruppens påslagna moduler). Ramverket har inga fasta rader för en enskild modul.
+  const skapaRader = skapa?.moduler ? tillaggFor({ moduler: skapa.moduler, grupp: skapa.aktivGrupp, plats: "skapa.rad" }) : [];
   const inspelningsMal = malForInspelning({ appMal: talk?.mal, moduler: skapa?.moduler, grupp: skapa?.aktivGrupp, sprak: skapa?.sprak ?? sprak });
   // ⛔ TVÅ SORTERS MÅL, TVÅ VÄGAR IN (0.99.0). CP 2026-10-13 kväll: "Ja vi kör på bara text för att få en bra användarupplevelse."
   // `malForInspelning` ger båda sorterna i en lista, och det är den som var felet i hur skalet använde den: mikrofonen (huvudets
@@ -1614,7 +1616,7 @@ function OpsAppShellRitad({
   // (`spara` är en funktion) nås bara genom modulens egen rad, Röstinspelning i Ny-menyn (`useOppnaInspelning`), som öppnar fältet
   // låst till målet och utan val. Listan och dess kontrakt är oförändrade: det är skalet som delar den.
   const appInspelningsMal = inspelningsMal.filter((m) => typeof m.spara !== "function");
-  const harRamverksrader = Boolean(talk) || inspelningsMal.length > 0 || Boolean(skapa?.handelse) || handelseAtgarder.length > 0 || Boolean(skapa?.arende) || typeof skapa?.grupp === "function" || typeof skapa?.nyttMeddelande === "function";
+  const harRamverksrader = Boolean(talk) || inspelningsMal.length > 0 || Boolean(skapa?.handelse) || handelseAtgarder.length > 0 || skapaRader.length > 0 || Boolean(skapa?.arende) || typeof skapa?.grupp === "function" || typeof skapa?.nyttMeddelande === "function";
   // ⛔ TOMHET ÄR ETT SVAR: INGET PLUS ALLS NÄR DET INTE FINNS NÅGOT ATT VISA.
   // En knapp som öppnar en tom popover är sämre än ingen knapp, den lär den
   // som trycker att plusset i den här appen inte gör något.
@@ -2071,6 +2073,21 @@ function OpsAppShellRitad({
           {typeof skapa?.grupp === "function" ? (
             <OpsPanelRow icon={<GruppIkon size={18} />} label={nyGruppEtikett} accent onClick={() => oppna({ kind: "grupp" })} />
           ) : null}
+          {/* ⛔ PLATSEN `skapa.rad` (0.155.0, lifehub.app#491): modulernas egna rader, efter ramverkets. Listan stängs först och modulens `onSkapa` anropas i nästa tick, som ramverkets rader gör för arket
+              (en yta som stängs och en modal som öppnas i samma tick gick bra för en popover men inte för ett ark). En avslagen moduls rad ritas inte och dess funktion anropas inte. */}
+          {skapaRader.map((t) => (
+            <OpsPanelRow
+              key={`${t.modulId}:${t.id}`}
+              icon={/** @type {import("react").ReactNode} */ (t.ikon)}
+              label={text(t.etikett, skapa?.sprak ?? sprak)}
+              accent
+              onClick={() => {
+                stang();
+                const grupp = skapa?.aktivGrupp;
+                setTimeout(() => /** @type {Function} */ (t.onSkapa)({ grupp }), 0);
+              }}
+            />
+          ))}
         </div>
       ) : null}
       {/* ⛔ EN AVDELARE MELLAN RAMVERKETS RADER OCH MODULERNAS, bara när BÅDA finns. */}
@@ -2123,6 +2140,7 @@ function OpsAppShellRitad({
     (!talk && inspelningsMal.length > 0) ||
     Boolean(skapa?.handelse) ||
     handelseAtgarder.length > 0 ||
+    skapaRader.length > 0 ||
     Boolean(skapa?.arende) ||
     typeof skapa?.grupp === "function" ||
     typeof skapa?.nyttMeddelande === "function" ||

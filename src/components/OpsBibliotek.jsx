@@ -7,7 +7,7 @@ import { OpsDokument } from "./OpsDokument.jsx";
 import { OpsMarkdown } from "./OpsMarkdown.jsx";
 import { OpsModal } from "./OpsModal.jsx";
 import { OpsSvepRad } from "./OpsSvepRad.jsx";
-import { ADRESSFORM, BIBLIOTEKTYPER, BILDFORM, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKURL, uppladdningAvbruten, uppladdningenAvbrytsKl, allaTaggar, arDelbar, arLjudpost, arMittBibliotek, farAndra, normaliseraTaggar, anteckningsrubrikNu, beskrivObjektbibliotek, filInmatningsfel, LJUDFIL_ACCEPT, ljudfilFel, mimeUrFilnamn, filadressFel, filSort, filtreraBibliotek, inmatningsfel, ljudDatum, ljudRubrik, normaliseraAdress, normaliseraMime, avkodaTextfil, TEXTFORHANDS_BYTE, trimSomRegeln } from "../lib/bibliotek.js";
+import { ADRESSFORM, BIBLIOTEKTYPER, BILDFORM, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKURL, uppladdningAvbruten, uppladdningenAvbrytsKl, allaTaggar, arDelbar, arLjudpost, arMittBibliotek, farAndra, normaliseraTaggar, anteckningsrubrikNu, beskrivObjektbibliotek, arPlatsBibliotek, gruppForPlats, filInmatningsfel, LJUDFIL_ACCEPT, ljudfilFel, mimeUrFilnamn, filadressFel, filSort, filtreraBibliotek, inmatningsfel, ljudDatum, ljudRubrik, normaliseraAdress, normaliseraMime, avkodaTextfil, TEXTFORHANDS_BYTE, trimSomRegeln } from "../lib/bibliotek.js";
 import { OpsTaggFilter, OpsTaggRad, menyPilar } from "./OpsTaggar.jsx";
 
 export { menyPilar, OpsTaggFilter as TaggFilter };
@@ -42,6 +42,8 @@ import { talkOrd } from "../lib/talk.js";
 import { TillbakaKnapp } from "./TillbakaKnapp.jsx";
 import { ModulLageKnapp, OpsModulRam, kravRam } from "./OpsModulRam.jsx";
 import { OpsView } from "./OpsView.jsx";
+import { NyPlatsFormular, NyPlatsRad, ORD_BIBLIOTEKPLATSER, PlatsInstallningar, PlatsMeny } from "./BibliotekPlatser.jsx";
+import { PLATSER_UTAN_SOK } from "../lib/platser.js";
 
 /**
  * Gruppens bibliotek: lista och detalj för anteckning och länk.
@@ -168,7 +170,7 @@ function useBibliotekskalla(kalla) {
  *   ⛔ Förhandsvisningen ändrar ingen regel och hämtar bara den öppna filen, aldrig listan.
  * @param {unknown} [props.onSpelaIn] Borttagen (0.90.8). Skickas den kastas ett fel: listan hade en egen inspelare, och att tysta propen hade sett ut som att ljudet fortfarande sparades där.
  * @param {unknown} [props.inspelare] Borttagen tillsammans med listans inspelare. Skickas den kastas ett fel.
- * @param {readonly { id: string, namn: string }[]} [props.grupper] Platser posten kan flyttas eller kopieras till. Mitt bibliotek (`mittBibliotek(uid)`) är en av dem när appen ger den (0.101.0): menyn får då Flytta till och Kopiera till Mitt bibliotek, och i Mitt bibliotek Dela med gruppen.
+ * @param {readonly { id: string, namn: string }[]} [props.grupper] Platser posten kan flyttas eller kopieras till. (0.155.0) Också gruppens egna platser (`platsval`), och också för en inbäddad lista (`OpsPlatsfiler`): en händelses och ett ärendes filer kan flyttas eller kopieras UT till dem, aldrig in i ett annat objekt. Mitt bibliotek (`mittBibliotek(uid)`) är en av dem när appen ger den (0.101.0): menyn får då Flytta till och Kopiera till Mitt bibliotek, och i Mitt bibliotek Dela med gruppen.
  * @param {(inmatning: { id: string, groupId: string, satt: "flytta" | "kopiera" }) => void | Promise<void>} [props.onDela] Flytta eller kopiera. Saknas den visas felet, posten är kvar. `flyttaBibliotekspost` gör flytten.
  * @param {readonly { id: string, namn: string }[]} [props.platser] (0.101.0) Platserna personen växlar mellan, till exempel gruppens bibliotek och Mitt bibliotek. Färre än två: ingen växlare.
  * @param {string} [props.plats] (0.101.0) Platsen som visas nu, ett `id` ur `platser`.
@@ -204,13 +206,18 @@ function useBibliotekskalla(kalla) {
  * @param {import("../lib/modul.js").Modul | null} [props.modul] (0.89.0) Manifestet inställningarna läser. Krävs med `ram`.
  * @param {boolean} [props.inbaddad] (0.121.0, lifehub.app#366) Listan som en sektion i en annan vy, till exempel en händelses eller ett ärendes Filer (`OpsPlatsfiler`). Ingen vyram och ingen
  *   tillbaka-rad till hubben (`hubHref` krävs inte), ingen sök-, tagg-, flik- eller "+ Ny"-rad, bara listan och detaljen: den som äger sektionen (`OpsPlatsfiler`) ritar rubriken och Ladda upp
- *   och sätter `skapar` (`"fil"`), eftersom en händelses och ett ärendes bibliotek har bara filer. Detaljens tillbaka heter "Filer". `ram`, `platser`, `plats`, `onPlats`, `grupper` och `onDela` hör inte hit och kastar: en inbäddad lista har en plats.
+ *   och sätter `skapar` (`"fil"`), eftersom en händelses och ett ärendes bibliotek har bara filer. Detaljens tillbaka heter "Filer". `ram`, `platser`, `plats`, `onPlats` och `egnaPlatser` hör inte hit och kastar: en inbäddad lista har en plats. `grupper` och `onDela` går bra (0.155.0): filerna kan flyttas eller kopieras ut.
  * @param {string} [props.tomText] (0.122.0) Beskrivningen under "Inga filer än." när den inbäddade listan är tom. Förval "Filer som läggs till här hör bara till händelsen." (en konstant, inte ett parameterförval; `OpsPlatsfiler` skickar rätt mening för ärendet).
  * @param {boolean} [props.utanHubb] (0.132.0, lifehub.app#389) Ingen tillbaka-rad till hubben och ingen `hubHref`: gästens bibliotek, där ingen hubb finns att gå till. Allt annat som i det fristående biblioteket (sök, flikar, taggar). Utan den krävs `hubHref` som förut.
  * @param {readonly string[]} [props.gruppTaggar] (0.143.0, lifehub.app#398) Gruppens samlade taggar (inklusive taggar från Inkorgen och Ärenden), hämtade en gång i skalet. Slås ihop med bibliotekets egna taggar i filtret och förslagen.
+ * @param {import("./BibliotekPlatser.jsx").EgnaPlatser | null} [props.egnaPlatser] (0.155.0, cllp/ops-framework#469) Gruppens egna platser, och vad som görs med dem. `{ platser, onNy?, onByttNamn?, onArkivera?, onTaFram? }`, normalt
+ *   `createPlatskalla`: `platser` är `las().platser` (arkiverade med), `onNy` är `skapa`, och de andra byter namn, arkiverar och tar fram igen. ⛔ APPEN LÄGGER SJÄLV PLATSERNA I `platser` OCH `grupper`
+ *   (`platsval(platser)`, efter gruppens egen plats och Mitt bibliotek): växlaren och Flytta-menyn är appens lista, och en plats som inte står där syns inte. Med `onNy` får växlaren raden "Ny plats" sist, och
+ *   en ny plats öppnas direkt (`onPlats`). En egen plats som personen får ändra (den som skapade den, ägare och admin) får ⋮ med Byt namn och Arkivera bredvid växlaren, och kugghjulet (`ram`) får avsnittet
+ *   Platser med alla platser, också de arkiverade, och Ta fram igen. Över 8 rader i växlaren får listan ett sökfält. Utan propen är allt som förut. Hör inte hit med `inbaddad`.
  * @param {boolean} [props.adresserPaBegaran] (0.132.0, lifehub.app#389) Filernas adresser hämtas bara för posten som är öppen, aldrig för hela listan. Förvalet hämtar en adress per fil när listan ritas, vilket är billigt för en medlem (`getDownloadURL`) och dyrt för en gäst: varje adress är en signering som räknas mot ett tak per dygn. Mätt i designen av skiva 2 som felantagande: listan hämtade alla. En fil som öppnats förut visas med sin adress också i listan.
  */
-export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, trasiga: trasigaProp = [], laddar: laddarProp = false, vald = null, skapar = null, jag, onOppna, onStang, onSkapa, onSpara, onRadera, onLaddaUpp, onFyllLjud, onSpelaIn, inspelare, filUrl, hamtaAdress, hamtaFil, grupper = [], onDela, platser = [], plats, onPlats, onSkrivUt, onSkrivUtIgen, onTaBortUtskrift, onAnteckningAvUtskrift, onGorForslag, delningar = [], delningGruppdel, gruppnamn: gruppnamnProp, onDelaLank, onAndraNedladdning, onAterkalla, onMejlaLank, onLankInfo, hubHref, hubEtikett, onNavigate, modulId = "bibliotek", ram = null, activeHref, modul = null, inbaddad = false, tomText, utanHubb = false, adresserPaBegaran = false, gruppTaggar = [] }) {
+export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, trasiga: trasigaProp = [], laddar: laddarProp = false, vald = null, skapar = null, jag, onOppna, onStang, onSkapa, onSpara, onRadera, onLaddaUpp, onFyllLjud, onSpelaIn, inspelare, filUrl, hamtaAdress, hamtaFil, grupper = [], onDela, platser = [], plats, onPlats, onSkrivUt, onSkrivUtIgen, onTaBortUtskrift, onAnteckningAvUtskrift, onGorForslag, delningar = [], delningGruppdel, gruppnamn: gruppnamnProp, onDelaLank, onAndraNedladdning, onAterkalla, onMejlaLank, onLankInfo, hubHref, hubEtikett, onNavigate, modulId = "bibliotek", ram = null, activeHref, modul = null, inbaddad = false, tomText, utanHubb = false, adresserPaBegaran = false, gruppTaggar = [], egnaPlatser = null }) {
   if (kalla !== undefined && (posterProp !== undefined || felProp !== null || laddarProp !== false || (Array.isArray(trasigaProp) && trasigaProp.length > 0))) {
     throw new Error("OpsBibliotek: kalla och poster/fel/trasiga/laddar kan inte ges tillsammans. Med kalla läser vyn själv, och två sanningar om samma lista hade låtit den ena vinna tyst.");
   }
@@ -227,8 +234,13 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
     const objekt = /** @type {{ ord: string, objekt: string }} */ (beskrivObjektbibliotek(objektplats.id));
     throw new Error(`OpsBibliotek: platsen "${objektplats.id}" är ${objekt.ord} och hör inte hemma i platser eller grupper. Filerna hör till ${objekt.objekt} och flyttas inte dit eller därifrån; de visas av OpsPlatsfiler.`);
   }
-  if (inbaddad && (ram || platser.length > 0 || grupper.length > 0 || plats !== undefined || onPlats !== undefined || onDela !== undefined)) {
-    throw new Error("OpsBibliotek: inbaddad hör ihop med en enda plats. ram, platser, plats, onPlats, grupper och onDela är för det fristående biblioteket.");
+  // ⛔ EN INBÄDDAD LISTA HAR EN PLATS, MEN FILERNA KAN FLYTTAS UT (0.155.0, cllp/ops-framework#469, CP 2026-10-29: "En fil hamnar i Biblioteket bara för att någon väljer det: Flytta eller Kopiera till en plats").
+  // `grupper` (platserna en fil kan flyttas eller kopieras TILL) och `onDela` gäller därför också här. Växlaren, kugghjulet och egna platser gör det inte: en händelses filer har ingen växlare.
+  if (inbaddad && (ram || platser.length > 0 || plats !== undefined || onPlats !== undefined || egnaPlatser)) {
+    throw new Error("OpsBibliotek: inbaddad hör ihop med en enda plats. ram, platser, plats, onPlats och egnaPlatser är för det fristående biblioteket; grupper och onDela (dit en fil flyttas eller kopieras) går bra.");
+  }
+  if (egnaPlatser !== null && (typeof egnaPlatser !== "object" || !Array.isArray(egnaPlatser.platser))) {
+    throw new Error("OpsBibliotek: egnaPlatser ska vara { platser, onNy?, onByttNamn?, onArkivera?, onTaFram? }, där platser är gruppens egna platser (createPlatskalla().las().platser), arkiverade med.");
   }
   if (!inbaddad && !utanHubb && (typeof hubHref !== "string" || hubHref === "")) {
     throw new Error("OpsBibliotek: hubHref krävs (0.83.0), hubbens adress. Sidan har Ekonomis tillbaka-rad, och en rad som inte vet vart den leder är en knapp som inte gör något.");
@@ -290,6 +302,8 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
   // Poster som flyttas eller kopieras just nu, ur menyn. Deras flyttval visas inte förrän svaret kommit.
   const [flyttar, setFlyttar] = useState(/** @type {string[]} */ ([]));
   const [status, setStatus] = useState("");
+  // En plats som just skapats kan saknas i `platser` en stund (appens prenumeration är inte framme): växlaren ritar den ändå, med sitt namn.
+  const [nyligen, setNyligen] = useState(/** @type {{ id: string, namn: string }[]} */ ([]));
   const adresser = useFilAdresser(poster, vald, filUrl, hamtaAdress, adresserPaBegaran);
   useUppladdningsklocka(poster, vald);
   const adressFor = (/** @type {{ typ?: string, skapad?: number, fil?: { sokvag?: string, mime?: string, klar?: boolean } }} */ post) =>
@@ -594,9 +608,12 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
         }
         // Fler platser i en ruta: författaren flyttar eller kopierar till Mitt bibliotek och de andra grupperna, en admin kopierar
         // till de andra grupperna.
-        const platserIRutan = egen ? (mitt ? 1 : 0) + andra.length : far ? andra.length : 0;
+        //
+        // ⛔ KOPIERA TILL GRUPPENS EGNA PLATSER FÅR VARJE MEDLEM (0.155.0, cllp/ops-framework#469). En kopia är en NY post som den som kopierar skriver på målet, och läsningen av källan gav redan innehållet: samma
+        // grupp, samma synlighet, ingenting nytt blir synligt för någon. Det är därför bara platser i SAMMA grupp (`gruppForPlats`) som en vanlig medlem får kopiera till; en annan grupp kräver förvaltare som förut.
+        const platserIRutan = egen ? (mitt ? 1 : 0) + andra.length : far ? andra.length : andra.filter((g) => iSammaGrupp(post, g.id)).length;
         if (platserIRutan > 0) {
-          ut.push({ id: "dela", etikett: egen ? "Flytta eller kopiera" : "Kopiera till en annan grupp", onValj: () => setDelar(post) });
+          ut.push({ id: "dela", etikett: egen ? "Flytta eller kopiera" : far ? "Kopiera till en annan grupp" : "Kopiera till en plats", onValj: () => setDelar(post) });
         }
       }
     }
@@ -673,25 +690,59 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
   const synliga = filtreraBibliotek(poster, { flik: aktivFlik, sok, taggar: valda });
   const installningar = Boolean(ram && modul && arInstallningslage(/** @type {string} */ (activeHref)));
   if (installningar && modul) {
+    // ⛔ PLATSERNA UNDER KUGGHJULET (0.155.0): avsnittet Platser står först i "Egna inställningar", före appens egen slot. Utan `egnaPlatser` är `ram` som förut.
+    const ramMedPlatser = ram && egnaPlatser ? { ...ram, egna: <><PlatsInstallningar egna={egnaPlatser} jag={jag} sprak={sprak} />{ram.egna}</> } : ram;
     return (
-      <OpsModulRam modul={modul} activeHref={/** @type {string} */ (activeHref)} hubHref={/** @type {string} */ (hubHref)} hubEtikett={hubEtikett} onNavigate={onNavigate} sprak={sprak} ram={ram}>
+      <OpsModulRam modul={modul} activeHref={/** @type {string} */ (activeHref)} hubHref={/** @type {string} */ (hubHref)} hubEtikett={hubEtikett} onNavigate={onNavigate} sprak={sprak} ram={ramMedPlatser}>
         {null}
       </OpsModulRam>
     );
   }
   const visaKnapp = Boolean(ram && ram.farAndra);
+  const platserIVaxlaren = [...platser, ...nyligen.filter((n) => !platser.some((p) => p.id === n.id))];
+  const kanSkapaPlats = Boolean(egnaPlatser && typeof egnaPlatser.onNy === "function" && jag && (jag.status === undefined || jag.status === "aktiv"));
+  const bytPlats = (/** @type {string} */ v) => {
+    setValdaTaggar([]);
+    setStatus("");
+    if (typeof onPlats === "function") onPlats(v);
+  };
+  // ⛔ MED `egnaPlatser.onNy` FINNS VÄXLAREN ÄVEN MED EN ENDA PLATS (0.155.0): annars hade en grupp utan Mitt bibliotek aldrig kunnat skapa sin första. Utan `egnaPlatser` är villkoret som förut.
   const platsValjare =
-    platser.length >= 2 && plats ? (
+    (platserIVaxlaren.length >= 2 || (kanSkapaPlats && platserIVaxlaren.length >= 1)) && plats ? (
       <PlatsValjare
-        platser={platser}
+        platser={platserIVaxlaren}
         plats={plats}
-        onPlats={(v) => {
-          setValdaTaggar([]);
-          setStatus("");
-          if (typeof onPlats === "function") onPlats(v);
-        }}
+        onPlats={bytPlats}
+        ny={kanSkapaPlats && egnaPlatser
+          ? {
+              befintliga: egnaPlatser.platser.map((p) => ({ id: p.id, namn: p.namn })),
+              onNy: /** @type {NonNullable<typeof egnaPlatser.onNy>} */ (egnaPlatser.onNy),
+              onKlar: (svar) => {
+                if (svar && typeof svar === "object" && typeof svar.plats === "string") {
+                  setNyligen((n) => [...n, { id: svar.plats, namn: typeof svar.namn === "string" ? svar.namn : svar.plats }]);
+                  bytPlats(svar.plats);
+                }
+              },
+            }
+          : null}
       />
     ) : null;
+  // Menyn för en egen plats som visas just nu (Byt namn, Arkivera). Ritas bara för den som får ändra den.
+  const aktuellEgenPlats = egnaPlatser && plats && arPlatsBibliotek(plats) ? egnaPlatser.platser.find((p) => p.plats === plats) ?? null : null;
+  const platsMeny = egnaPlatser && aktuellEgenPlats ? (
+    <PlatsMeny
+      plats={aktuellEgenPlats}
+      jag={jag}
+      egna={egnaPlatser}
+      sprak={sprak}
+      onNavigate={onNavigate}
+      onArkiverad={() => {
+        // Den arkiverade platsen ligger inte kvar i växlaren: gå till den första som finns (gruppens egen står först).
+        const annan = platserIVaxlaren.find((p) => p.id !== plats);
+        if (annan) bytPlats(annan.id);
+      }}
+    />
+  ) : null;
   // ⛔ HUVUDET ÄR MEDDELANDENS (0.102.0, CP 2026-10-14: "Kolla header panelen på chatt. Den är mycket tunnare och bättre än
   // bibliotek. Gör dessa enhetliga"): ikonen, "Bibliotek", platsen som piller och kugghjulet på en rad. Raden "N objekt" är
   // borta: antalet står redan i fliken Allt, och två ställen för samma tal är två ställen som kan säga olika (regel 2).
@@ -699,6 +750,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
     platsValjare || visaKnapp ? (
       <>
         {platsValjare}
+        {platsMeny}
         {visaKnapp ? <ModulLageKnapp ram={ram} activeHref={/** @type {string} */ (activeHref)} onNavigate={onNavigate} sprak={sprak} installningar={false} /> : null}
       </>
     ) : null;
@@ -918,7 +970,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
           <DelaKontroll
             id={delar.id}
             // Författaren ser Mitt bibliotek bland platserna (0.102.0): kopian dit flyttade hit ur menyn, för att korta den.
-            grupper={grupper.filter((g) => g.id !== delar.groupId && (!arMittBibliotek(g.id) || (Boolean(jag) && delar.skapadAv?.uid === jag?.uid)))}
+            grupper={grupper.filter((g) => g.id !== delar.groupId && (!arMittBibliotek(g.id) || (Boolean(jag) && delar.skapadAv?.uid === jag?.uid)) && (farAndra(delar, jag) || iSammaGrupp(delar, g.id)))}
             kanFlytta={Boolean(jag) && delar.skapadAv?.uid === jag?.uid}
             onDela={onDela}
             onStart={(id) => setFlyttar((f) => (f.includes(id) ? f : [...f, id]))}
@@ -932,6 +984,17 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
       </OpsModal>
     </Rot>
   );
+}
+
+/**
+ * Ligger målet i samma grupp som posten? Gruppens eget bibliotek, en egen plats (`plats~…`) och en händelses eller ett ärendes plats i gruppen har alla samma grupp (`gruppForPlats`); Mitt bibliotek
+ * och en annan grupp har inte det.
+ * @param {{ groupId: string }} post
+ * @param {string} malId
+ * @returns {boolean}
+ */
+function iSammaGrupp(post, malId) {
+  return !arMittBibliotek(malId) && !arMittBibliotek(post.groupId) && gruppForPlats(post.groupId) === gruppForPlats(malId);
 }
 
 /**
@@ -1186,14 +1249,32 @@ function Flikar({ flikar, antal }) {
  * Platsen som ett piller med reglage-ikonen, och en lista med platserna under (SessionStudios "My Library" i appen). Den valda
  * har en bock.
  *
- * @param {{ platser: readonly { id: string, namn: string }[], plats: string, onPlats: (id: string) => void }} props
+ * @param {{ platser: readonly { id: string, namn: string }[], plats: string, onPlats: (id: string) => void, ny?: { befintliga: ReadonlyArray<{ id: string, namn: string }>, onNy: NonNullable<import("./BibliotekPlatser.jsx").EgnaPlatser["onNy"]>, onKlar?: (svar: any) => void } | null }} props
+ *   `ny` (0.155.0) ritar raden "Ny plats" sist i listan. Över `PLATSER_UTAN_SOK` rader får listan ett sökfält.
  */
-export function PlatsValjare({ platser, plats, onPlats }) {
+export function PlatsValjare({ platser, plats, onPlats, ny = null }) {
+  const sprak = useOpsSprak();
+  const t = (/** @type {keyof typeof ORD_BIBLIOTEKPLATSER} */ nyckel) => ordet(ORD_BIBLIOTEKPLATSER, nyckel, sprak);
   const [oppen, setOppen] = useState(false);
+  const [sok, setSok] = useState("");
+  const [lage, setLage] = useState(/** @type {"lista" | "ny"} */ ("lista"));
   const namn = platser.find((p) => p.id === plats)?.namn ?? plats;
+  // ⛔ SÖKFÄLTET KOMMER FÖRST NÄR LISTAN BLIVIT LÅNG (0.155.0, cllp/ops-framework#469: "TAM får 13 projekt"). Under gränsen är växlaren som förut.
+  const visaSok = platser.length > PLATSER_UTAN_SOK;
+  const fraga = sok.trim().toLocaleLowerCase("sv");
+  const synliga = visaSok && fraga ? platser.filter((p) => p.namn.toLocaleLowerCase("sv").includes(fraga)) : platser;
   return (
     <div data-bibliotek-plats={arMittBibliotek(plats) ? "mitt" : "grupp"} className="min-w-0">
-      <Popover.Root open={oppen} onOpenChange={setOppen}>
+      <Popover.Root
+        open={oppen}
+        onOpenChange={(o) => {
+          setOppen(o);
+          if (!o) {
+            setSok("");
+            setLage("lista");
+          }
+        }}
+      >
         <Popover.Trigger
           aria-label={`Vilket bibliotek: ${namn}`}
           className="inline-flex min-h-11 min-w-0 cursor-pointer items-center gap-2 rounded-full border border-ink-secondary px-4 text-etikett font-medium text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
@@ -1203,24 +1284,48 @@ export function PlatsValjare({ platser, plats, onPlats }) {
         </Popover.Trigger>
         <Popover.Portal>
           <Popover.Content align="start" sideOffset={4} collisionPadding={8} className={cx("z-(--z-dropdown) min-w-56 p-1", radBehallare())}>
-            <div role="menu" aria-label="Vilket bibliotek" onKeyDown={menyPilar}>
-              {platser.map((p) => (
-                <button
-                  key={p.id}
-                  type="button"
-                  role="menuitemradio"
-                  aria-checked={p.id === plats}
-                  onClick={() => {
-                    setOppen(false);
-                    if (p.id !== plats) onPlats(p.id);
-                  }}
-                  className={radKlass({ stor: true })}
-                >
-                  <span className="min-w-0 flex-1 truncate">{p.namn}</span>
-                  {p.id === plats ? <Check size={16} aria-hidden="true" className="shrink-0 text-accent" /> : null}
-                </button>
-              ))}
-            </div>
+            {lage === "ny" && ny ? (
+              <NyPlatsFormular
+                befintliga={ny.befintliga}
+                onNy={ny.onNy}
+                sprak={sprak}
+                onAvbryt={() => setLage("lista")}
+                onKlar={(svar) => {
+                  setOppen(false);
+                  setLage("lista");
+                  setSok("");
+                  ny.onKlar?.(svar);
+                }}
+              />
+            ) : (
+              <>
+                {visaSok ? (
+                  <div className="p-1">
+                    <OpsInput value={sok} onChange={setSok} type="search" ariaLabel={t("sokPlats")} placeholder={`${t("sokPlats")}...`} />
+                  </div>
+                ) : null}
+                <div role="menu" aria-label="Vilket bibliotek" onKeyDown={menyPilar}>
+                  {synliga.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={p.id === plats}
+                      onClick={() => {
+                        setOppen(false);
+                        if (p.id !== plats) onPlats(p.id);
+                      }}
+                      className={radKlass({ stor: true })}
+                    >
+                      <span className="min-w-0 flex-1 truncate">{p.namn}</span>
+                      {p.id === plats ? <Check size={16} aria-hidden="true" className="shrink-0 text-accent" /> : null}
+                    </button>
+                  ))}
+                  {synliga.length === 0 ? <p role="status" className="m-0 px-3 py-2 text-meta text-ink-muted">{t("ingenTraff")}</p> : null}
+                  {ny ? <NyPlatsRad sprak={sprak} onValj={() => setLage("ny")} /> : null}
+                </div>
+              </>
+            )}
           </Popover.Content>
         </Popover.Portal>
       </Popover.Root>

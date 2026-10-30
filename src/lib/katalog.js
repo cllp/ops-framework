@@ -192,7 +192,25 @@ export const ID_FORM = /^[a-z0-9][a-z0-9_-]*$/;
  * @returns {string}
  */
 export function harledKategoriId(namn, upptagna = []) {
-  const bas =
+  const bas = slugUrNamn(namn, 48) || "kategori";
+  const finns = new Set(upptagna);
+  if (!finns.has(bas)) return bas;
+  for (let n = 2; ; n += 1) {
+    const kandidat = `${bas}-${n}`;
+    if (!finns.has(kandidat)) return kandidat;
+  }
+}
+
+/**
+ * Ett namn som id-tecken: gemener, å och ä till a, ö till o (och övriga bokstäver med accent till sin grundbokstav), allt som inte är bokstav eller siffra till ett bindestreck, ett enda bindestreck mellan orden,
+ * inget i början eller slutet, högst `max` tecken. Tomt när namnet inte ger något tecken som går att använda. Den gemensamma delen av `harledKategoriId` och `harledPlatsId` (regel 2: en normalisering, inte två).
+ *
+ * @param {unknown} namn
+ * @param {number} max
+ * @returns {string}
+ */
+export function slugUrNamn(namn, max) {
+  return (
     rensa(namn)
       .toLowerCase()
       // Några bokstäver har ingen grundbokstav i Unicode (de är egna tecken, inte bokstav plus accent).
@@ -207,14 +225,9 @@ export function harledKategoriId(namn, upptagna = []) {
       .replace(/\p{M}+/gu, "")
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-+|-+$/g, "")
-      .slice(0, 48)
-      .replace(/-+$/g, "") || "kategori";
-  const finns = new Set(upptagna);
-  if (!finns.has(bas)) return bas;
-  for (let n = 2; ; n += 1) {
-    const kandidat = `${bas}-${n}`;
-    if (!finns.has(kandidat)) return kandidat;
-  }
+      .slice(0, max)
+      .replace(/-+$/g, "")
+  );
 }
 
 /**

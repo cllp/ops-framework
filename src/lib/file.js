@@ -229,3 +229,27 @@ export async function readAttachment(file, { maxChars, typer }) {
   }
   return { dataUrl, namn: filensNamn(file), typ: file.type || "", tecken: dataUrl.length };
 }
+
+/**
+ * Bilagans innehåll som en Blob (0.155.0, cllp/ops-framework#469). En bilaga bär sin fil som en data-URL (`data:<typ>;base64,<innehåll>`), och en Blob är vad Biblioteket tar emot (`laddaUppFil`).
+ * Typen tas ur data-URL:en och inte ur `bilaga.typ`: regeln för bilagan kräver att prefixet är exakt typen, så de två är samma sak, och en Blob som bär en annan typ än sitt innehåll vore en fil som
+ * ser ut att vara något den inte är. Kastar med skälet hellre än att ge en tom fil: en kopia utan innehåll hade sett ut som att den lyckats (regel 5).
+ *
+ * @param {{ dataUrl?: unknown }} bilaga
+ * @returns {Blob}
+ */
+export function bilagaTillBlob(bilaga) {
+  const url = typeof bilaga?.dataUrl === "string" ? bilaga.dataUrl : "";
+  const m = /^data:([^,;]+(?:;[^,;=]+=[^,;]+)*);base64,([A-Za-z0-9+/]*={0,2})$/.exec(url);
+  if (!m) throw new Error("Bilagan har inget innehåll att kopiera (ingen giltig data-URL).");
+  let binar;
+  try {
+    binar = atob(m[2]);
+  } catch {
+    throw new Error("Bilagans innehåll går inte att läsa (ogiltig base64).");
+  }
+  const bytes = new Uint8Array(binar.length);
+  for (let i = 0; i < binar.length; i += 1) bytes[i] = binar.charCodeAt(i);
+  if (bytes.length === 0) throw new Error("Bilagan är tom.");
+  return new Blob([bytes], { type: m[1] });
+}

@@ -28,9 +28,11 @@
  * strömma utan att kunna hade varit den tysta nedfallsväg `contract.js` varnar för. Ingen polling.
  */
 
-import { byggPost, farAndra, filInmatningsfel, filSort, kodaToppar, lagringsContentType, mimeUrFilnamn, normaliseraMime, peaksGiltiga, postFel, trimSomRegeln, MAX_LJUD_MS, MAX_BIBLIOTEKFIL, beskrivObjektbibliotek } from "../lib/bibliotek.js";
+import { byggPost, farAndra, filInmatningsfel, filSort, kodaToppar, lagringsContentType, mimeUrFilnamn, normaliseraMime, peaksGiltiga, postFel, trimSomRegeln, MAX_LJUD_MS, MAX_BIBLIOTEKFIL, FILMIME, beskrivObjektbibliotek } from "../lib/bibliotek.js";
 import { metaUrBytes, wavMetaUrBlob } from "../lib/ljudspelare.js";
 import { byggSkapare } from "../lib/skapare.js";
+import { bilagaTillBlob } from "../lib/file.js";
+import { kommentarbilagaFel } from "../lib/handelsemodell.js";
 import { FALT_BORT } from "./contract.js";
 
 /**
@@ -465,13 +467,15 @@ export async function flyttaBibliotekspost(inmatning) {
   if (!fran || !till || typeof fran.hamta !== "function" || typeof till.spara !== "function") {
     throw new Error("flyttaBibliotekspost: fran och till krävs, två källor ur createBibliotekskalla.");
   }
-  // ⛔ EN HÄNDELSES ELLER ETT ÄRENDES BIBLIOTEK FLYTTAS INTE TILL ELLER FRÅN (0.121.0, 0.122.0, lifehub.app#366). En flytt är ett beslut om vem som ser filen, och
-  // ett objekts fils synlighet är objektets. In skulle publicera en privat fil för gruppen eller gömma en fil för dem som söker i gruppens
-  // bibliotek; ut skulle klippa loss biljetten från bion. Och flytten kontrollerar inte objektets villkor i klienten. Kastar hellre än
-  // tiger: en flytt som tyst gjorde något annat hade sett ut som att den gått bra (regel 5).
-  const objekt = beskrivObjektbibliotek(fran.groupId) ?? beskrivObjektbibliotek(till.groupId);
-  if (objekt) {
-    throw new Error(`flyttaBibliotekspost: ${objekt.ord} flyttas inte till eller från. Filerna hör till ${objekt.objekt}, och vem som ser dem följer ${objekt.objekt}.`);
+  // ⛔ ETT OBJEKTS FILER FLYTTAS INTE IN I ETT ANNAT OBJEKT, OCH DE FLYTTAS UT BARA TILL EN PLATS SOM MAN SORTERAR PÅ (0.121.0, 0.122.0, ändrat 0.155.0). En händelses och ett ärendes filer hör till objektet, och
+  // vem som ser dem följer objektet. IN i ett objekt skulle publicera en privat fil för objektets grupp eller gömma en fil för dem som söker i gruppens bibliotek, och flytten kontrollerar inte objektets villkor
+  // i klienten (att objektet finns och ligger i gruppen prövar reglerna när posten skapas). Kastar hellre än tiger: en flytt som tyst gjorde något annat hade sett ut som att den gått bra (regel 5).
+  //
+  // UT till gruppens plats, en egen plats (`plats~…`) eller Mitt bibliotek går, sedan 0.155.0 (cllp/ops-framework#469, CP 2026-10-29): "En fil hamnar i Biblioteket bara för att någon väljer det: Flytta
+  // eller Kopiera till en plats." Det är ett val av en person, och det är exakt den flytt som förut nekades. Ett objekt till ett objekt kastar fortfarande, också mellan två händelser.
+  const tillObjekt = beskrivObjektbibliotek(till.groupId);
+  if (tillObjekt) {
+    throw new Error(`flyttaBibliotekspost: ${tillObjekt.ord} flyttas inte till. Filerna hör till ${tillObjekt.objekt}, och vem som ser dem följer ${tillObjekt.objekt}. Flytta eller kopiera dem till gruppens bibliotek eller en egen plats i stället.`);
   }
   if (fran.groupId === till.groupId) throw new Error("Posten ligger redan där.");
   const post = await fran.hamta(id);
@@ -519,6 +523,61 @@ export async function flyttaBibliotekspost(inmatning) {
     }
   }
   return ny;
+}
+
+/**
+ * Kan en chattbilaga läggas i Biblioteket? Typen ska vara en som Biblioteket tar emot (`FILMIME`, efter `normaliseraMime`, så `audio/webm;codecs=opus` är `audio/webm`) och bilagan ska klara samma prövning som i chatten.
+ * Chattens `text/csv` är den enda typ bilagan får som Biblioteket inte tar emot; den går inte att kopiera dit, och åtgärden ritas inte för den.
+ *
+ * @param {unknown} bilaga
+ * @returns {boolean}
+ */
+export function bilagaKanKopieras(bilaga) {
+  if (kommentarbilagaFel(bilaga)) return false;
+  return /** @type {readonly string[]} */ (FILMIME).includes(normaliseraMime(/** @type {any} */ (bilaga).typ));
+}
+
+/**
+ * Kopierar en chattbilaga till en plats i Biblioteket (0.155.0, cllp/ops-framework#469, CP 2026-10-29: "En fil hamnar i Biblioteket bara för att någon väljer det: Flytta eller Kopiera till en plats.").
+ *
+ * ══ ⛔ HUR EN CHATTBILAGA LAGRAS, OCH VARFÖR DET HÄR INTE KOSTAR EN REGEL ═══════════════════════════════════════════════
+ *
+ * En bilaga i en chatt ligger i samtalet och inte i Biblioteket: meddelandet bär märket `{ namn, typ }`, och filen själv ligger som en data-URL i ett eget dokument,
+ * `<samtal>/{sid}/<bilagaSamling>/{meddelandets id}` (`samtalsregelfragment` med `bilagor: true`, högst `MAX_KOMMENTARBILAGA` tecken). Den når därför inte agentens `lasBiblioteket` eller sökningen
+ * i Biblioteket, som läser bibliotekets poster. Den här funktionen gör bilagan till en vanlig fil på platsen: byte ur data-URL:en (`bilagaTillBlob`) går genom `laddaUppFil`, alltså samma post, samma
+ * Storage-sökväg och samma regler som en uppladdning. Ingen ny regel, ingen ny samling och ingen ny uppslagning behövs: den som kopierar är en medlem som skriver en ny post i sitt eget namn på
+ * en plats hen redan får skriva i.
+ *
+ * ⛔ KOPIERA, ALDRIG FLYTTA. Bilagan är en del av meddelandet, och ett meddelande som tappar sin bilaga är ett annat meddelande. Samtalet rörs inte.
+ * ⛔ BARA TILL GRUPPENS PLATS, EN EGEN PLATS ELLER MITT BIBLIOTEK. Kastar för en händelses och ett ärendes plats, som för `flyttaBibliotekspost`: filerna där hör till objektet.
+ * ⛔ KASTAR HELLRE ÄN GER EN TOM FIL: en typ Biblioteket inte tar emot (`text/csv`), en bilaga utan innehåll och en som inte klarar chattens egen prövning ger ett fel med skälet, och ingenting skrivs.
+ *
+ * @param {object} inmatning
+ * @param {{ namn?: string, typ?: string, dataUrl?: string, tecken?: number }} inmatning.bilaga Bilagan som `bilagaUrDokument` ger den (eller som den står inline på ett äldre meddelande).
+ * @param {ReturnType<typeof createBibliotekskalla>} inmatning.till Källan för platsen filen hamnar på.
+ * @param {string} [inmatning.rubrik] Förval filens namn.
+ * @returns {Promise<import("../lib/bibliotek.js").Bibliotekspost & { id: string }>} Posten på platsen.
+ */
+export async function kopieraBilagaTillPlats(inmatning) {
+  const { bilaga, till, rubrik } = inmatning ?? /** @type {any} */ ({});
+  if (!till || typeof till.laddaUppFil !== "function") throw new Error("kopieraBilagaTillPlats: till krävs, en källa ur createBibliotekskalla.");
+  const objekt = beskrivObjektbibliotek(till.groupId);
+  if (objekt) {
+    throw new Error(`kopieraBilagaTillPlats: ${objekt.ord} tar inte emot en kopia av en chattbilaga. Filerna där hör till ${objekt.objekt}. Välj gruppens bibliotek eller en egen plats.`);
+  }
+  const fel = kommentarbilagaFel(bilaga);
+  if (fel) throw new Error(`Bilagan går inte att kopiera: ${fel}`);
+  const mime = normaliseraMime(bilaga.typ);
+  if (!(/** @type {readonly string[]} */ (FILMIME)).includes(mime)) {
+    throw new Error(`Filtypen ${bilaga.typ} går inte att lägga i Biblioteket, så bilagan kopierades inte.`);
+  }
+  const blob = bilagaTillBlob(bilaga);
+  return till.laddaUppFil({
+    ...(typeof rubrik === "string" && rubrik.trim() ? { rubrik } : {}),
+    namn: bilaga.namn,
+    fil: { name: bilaga.namn, type: mime, size: blob.size },
+    blob,
+  });
 }
 
 /**

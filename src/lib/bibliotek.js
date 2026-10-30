@@ -316,6 +316,63 @@ export function arendedelar(plats) {
 }
 
 /**
+ * ⛔ GRUPPENS EGNA PLATSER (0.155.0, cllp/ops-framework#469, CP 2026-10-29: "Man kan inte lägga till flera platser i en grupp. Om man vill ha den sorteringen. Det är detta som saknas."). Samma
+ * mönster som en händelses och ett ärendes plats, med två skarvar i strängen: `plats~<grupp>~<id>`, där `<id>` är platsens eget id i gruppen (`PLATSIDFORM`).
+ *
+ * ⛔ SKILLNADEN MOT EN HÄNDELSES OCH ETT ÄRENDES PLATS ÄR ATT DEN HÄR ÄR GRUPPENS, INTE ETT OBJEKTS. En händelses filer hör till händelsen och följer den (ingen flytt dit eller därifrån), och ingen
+ * händelse blir en rad i växlaren. En egen plats är till för det man själv sorterar (projekt, "Demos", "Live"): en vanlig plats i växlaren, med allt biblioteket kan (anteckningar, länkar, listor och
+ * filer), och poster flyttas dit och därifrån som mellan gruppens bibliotek och Mitt bibliotek. Den räknas därför INTE av `arObjektbibliotek` och `beskrivObjektbibliotek`.
+ *
+ * ⛔ REGELN SLÅR INTE UPP PLATSEN. Gruppen står i id:t (`gruppForPlats`), behörigheten är gruppens medlemskap, och en plats utan dokument i platsernas samling är bara en plats som inte syns i växlaren. Alla
+ * i gruppen ser alla platser, precis som gruppens bibliotek (regel 13: inga läsregler som avgör synlighet). Se `bibliotekregelfragment` med `platser: true`.
+ *
+ * ⛔ PREFIXET KAN INTE KROCKA med en grupp, `mitt~<uid>`, `handelse~…`, `arende~…` eller kalenderpostens `post~<id>`: ingen har samma prefix, och ett grupp-id (`ID_FORM`) har aldrig ett `~`.
+ */
+export const PLATS_PREFIX = "plats~";
+
+/**
+ * Ett plats-id: gemener, siffror, bindestreck och understreck, högst 24 tecken. Smalare än ett händelse-id med flit: id:t skrivs av en människa eller härleds ur ett namn (`harledPlatsId`) eller en tagg
+ * (Projekt-modulen gör platsens id till projektets tagg), och det ska vara läsbart i en adress och aldrig skilja sig åt bara på versaler.
+ */
+export const PLATSIDFORM = /^[a-z0-9][a-z0-9_-]{0,23}$/;
+
+/** Hela platsen. Gruppdelen är `ID_FORM` ur katalogen, som för händelsens. Samma uttryck skrivs in i regeln via `regelRegex`. */
+export const PLATSFORM = platsform(PLATS_PREFIX, PLATSIDFORM);
+
+/**
+ * Platsen för en av gruppens egna platser. Kastar när grupp-id:t eller plats-id:t inte går att använda: en plats med fel form släpps aldrig in av reglerna, och en tyst felaktig plats vore en post ingen ser.
+ * @param {unknown} groupId
+ * @param {unknown} platsId
+ * @returns {string}
+ */
+export function platsBibliotek(groupId, platsId) {
+  const { plats, g, o } = byggObjektplats(PLATS_PREFIX, PLATSFORM, groupId, platsId);
+  if (!plats) {
+    throw new Error(`platsBibliotek: grupp "${g}" och plats "${o}" går inte att använda som plats. Ett grupp-id (a-z, 0-9, - och _) och ett plats-id (a-z, 0-9, - och _, högst 24 tecken, utan ~ och /) krävs.`);
+  }
+  return plats;
+}
+
+/**
+ * Är platsen en av gruppens egna platser?
+ * @param {unknown} plats
+ * @returns {boolean}
+ */
+export function arPlatsBibliotek(plats) {
+  return typeof plats === "string" && PLATSFORM.test(plats);
+}
+
+/**
+ * Gruppen och plats-id:t ur en egen plats, eller `null` för allt annat.
+ * @param {unknown} plats
+ * @returns {{ groupId: string, platsId: string } | null}
+ */
+export function platsdelar(plats) {
+  const d = objektdelar(PLATSFORM, plats);
+  return d ? { groupId: d.groupId, platsId: d.id } : null;
+}
+
+/**
  * Är platsen ett objekts bibliotek, alltså en händelses eller ett ärendes? Det gäller allt som är gemensamt för de två: bara filer, ingen flytt dit
  * eller därifrån, och inte bland platserna i en väljare.
  * @param {unknown} plats
@@ -339,7 +396,7 @@ export function beskrivObjektbibliotek(plats) {
 }
 
 /**
- * Gruppen vars medlemskap gäller på platsen: en händelses eller ett ärendes plats ger sin grupp, allt annat ges tillbaka som det är.
+ * Gruppen vars medlemskap gäller på platsen: en händelses, ett ärendes eller en egen plats (`plats~…`, 0.155.0) ger sin grupp, allt annat ges tillbaka som det är.
  *
  * ⛔ EN SANNING FÖR VEM SOM FÅR (regel 2). Delningstjänsten och appens server (utskrift, städning) slår upp medlemskapet med den här
  * i stället för att tolka strängen var för sig. Glömmer en server den nekas objektets filer, den släpper aldrig in fel person: ett
@@ -349,7 +406,7 @@ export function beskrivObjektbibliotek(plats) {
  * @returns {string}
  */
 export function gruppForPlats(plats) {
-  return handelsedelar(plats)?.groupId ?? arendedelar(plats)?.groupId ?? plats;
+  return handelsedelar(plats)?.groupId ?? arendedelar(plats)?.groupId ?? platsdelar(plats)?.groupId ?? plats;
 }
 
 /**
@@ -1120,7 +1177,7 @@ export function farAndra(post, jag) {
   // den inloggades uid och inget annat, och en admin i någon grupp hade annars sett knappar regeln nekar.
   if (arMittBibliotek(post.groupId)) return post.groupId === `${MITT_PREFIX}${jag.uid}` && post.skapadAv?.uid === jag.uid;
   if (jag.status !== undefined && jag.status !== "aktiv") return false;
-  // ⛔ PÅ EN HÄNDELSES ELLER ETT ÄRENDES PLATS GÄLLER GRUPPENS ROLLER (0.121.0, 0.122.0). `jag` är medlemskapet i gruppen, och platsen är gruppens plus ett objekt.
+  // ⛔ PÅ EN HÄNDELSES, ETT ÄRENDES ELLER EN EGEN PLATS GÄLLER GRUPPENS ROLLER (0.121.0, 0.122.0, 0.155.0). `jag` är medlemskapet i gruppen, och platsen är gruppens plus ett objekt eller ett namn.
   if (jag.groupId !== undefined && jag.groupId !== gruppForPlats(String(post.groupId))) return false;
   if (post.skapadAv?.uid === jag.uid) return true;
   return /** @type {readonly string[]} */ (FORVALTARROLLER).includes(String(jag.roll ?? ""));
@@ -1254,7 +1311,7 @@ export function postFel(d) {
   if (yta) return yta;
 
   const groupId = str(d.groupId);
-  if (!ID_FORM.test(groupId) && !MITTFORM.test(groupId) && !arObjektbibliotek(groupId)) return `Gruppen "${groupId}" är inte ett grupp-id.`;
+  if (!ID_FORM.test(groupId) && !MITTFORM.test(groupId) && !arObjektbibliotek(groupId) && !arPlatsBibliotek(groupId)) return `Gruppen "${groupId}" är inte ett grupp-id.`;
   // ⛔ EN HÄNDELSES OCH ETT ÄRENDES BIBLIOTEK HAR BARA FILER (0.121.0, 0.122.0). En anteckning eller en länk på en händelse är händelsens beskrivning en gång till
   // (regel 2), och på ett ärende är den ärendets text och kommentarerna.
   const objektord = beskrivObjektbibliotek(groupId)?.ord;

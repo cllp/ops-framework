@@ -2117,6 +2117,30 @@ const gruppmapp = fs.mkdtempSync(path.join(rot, ".ops-vaktprov-"));
   );
   kravGront("utvecklarord: en kommentar, ett felmeddelande och en jämförelse är inga brott", [ordvakt, path.join(ordmapp, "smutsig")]);
 
+  // ⛔ KOD EFTER ETT JSX-UTTRYCK ÄR INTE TEXT (0.155.0, #466; mätt i cllp/lifehub.app#487). `return <OpsTom />;` följt av en sats som nämner `samlingen` lästes som JSX-text. Fyra former av satsslut
+  // (hel tagg, tagg med innehåll, inom parentes, parentesen på egen rad) ska vara gröna, och varje form har sin egen fil så att ett hål i ett av fallen inte göms av de andra.
+  const satsslut = {
+    "självstängd tagg": "  if (!rader) return <OpsTom />;\n  const samlingen = hamta(rader);\n  return <OpsLista rader={samlingen} />;\n",
+    "tagg med innehåll": "  if (!rader) return <p>Tomt</p>;\n  const samlingen = hamta(rader);\n  return <OpsLista rader={samlingen} />;\n",
+    "inom parentes": "  if (!rader) return (<OpsTom />);\n  const samlingen = hamta(rader);\n  return <OpsLista rader={samlingen} />;\n",
+    "parentesen på egen rad": "  if (!rader) return (\n    <OpsTom />\n  );\n  const samlingen = hamta(rader);\n  return <OpsLista rader={samlingen} />;\n",
+    "som pilens kropp": "  const rubriker = rader.map((r) => <OpsRad key={r.id} />);\n  const samlingen = hamta(rubriker);\n  return <OpsLista rader={samlingen} />;\n",
+  };
+  for (const [form, kropp] of Object.entries(satsslut)) {
+    fs.writeFileSync(prov, `export function OpsProvlista({ rader }) {\n${kropp}}\n`);
+    kravGront(`utvecklarord: kod efter ett JSX-uttryck är inte text (${form})`, [ordvakt, path.join(ordmapp, "smutsig")]);
+  }
+  // ...och vakten är inte blind av det: ett riktigt utvecklarord i JSX-text fälls fortfarande, också i samma fil som en sats som slutar med en tagg, och också efter ett `)` eller ett `,` som inte slutar en sats.
+  const kodForeText = "export function OpsProvlista({ rader }) {\n  if (!rader) return <OpsTom />;\n  const rubrik = hamta(rader);\n  return <OpsLista rader={rubrik} />;\n}\n\nexport function OpsProvtom() {\n  return TEXT;\n}\n";
+  for (const [form, text, ord] of /** @type {const} */ ([
+    ["en egen mening efter en sats", "<p>Samlingen är tom</p>", '"Samlingen"'],
+    ["efter en sluten parentes i löpande text", "<p>Se <a href=\"/hjalp\">hjälpen</a>) om seedningen saknas</p>", '"seedningen"'],
+    ["efter ett kommatecken i löpande text", "<p><b>Anna</b>, och samlingens ägare</p>", '"samlingens"'],
+  ])) {
+    fs.writeFileSync(prov, kodForeText.replace("TEXT", text));
+    kravRott(`utvecklarord: ett utvecklarord i JSX-text fälls fortfarande (${form})`, [ordvakt, path.join(ordmapp, "smutsig")], ord);
+  }
+
   const tunn = path.join(ordmapp, "tunn");
   fs.mkdirSync(tunn, { recursive: true });
   fs.writeFileSync(path.join(tunn, "Ensam.jsx"), "export function Ensam() { return <p>Hej</p>; }\n");

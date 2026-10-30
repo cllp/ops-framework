@@ -78,14 +78,33 @@ export const INSPELNING_PLATSER = /** @type {const} */ (["inspelning.mal"]);
  */
 export const INSTALLNINGAR_PLATSER = /** @type {const} */ (["installningar.sektion"]);
 
-/** @typedef {typeof HANDELSE_PLATSER[number] | typeof INSPELNING_PLATSER[number] | typeof INSTALLNINGAR_PLATSER[number]} Plats */
+/**
+ * Platsen i plusmenyn och i långtrycket på mittknappen (0.155.0, cllp/lifehub.app#491 "Tillägg 5", "Nytt projekt" på plus och i TALK).
+ *
+ * - `skapa.rad`: en rad i plussets lista, `{ id, etikett, ikon, onSkapa }`. Etiketten är radens namn ("Nytt projekt"), ikonen ett React-element, och `onSkapa({ grupp })` det som sker när personen väljer
+ *   raden: normalt att leda till modulens egen "Nytt ..." (samma formulär och samma adress som modulens egen lista, en väg och inte två). Listan stängs först och `onSkapa` anropas direkt därefter.
+ *
+ * ══ ⛔ HÄNDELSEN: VARJE NY MODUL HADE BLIVIT EN NY FAST RAD ═══════════════════════════════════════════════════════════
+ *
+ * Plusmenyn hade fasta rader (Ny händelse, Nytt ärende, Nytt meddelande, Ny grupp) och en plats för händelsens åtgärder (`handelse.atgard`), men ingenting för en modul som vill att "Nytt projekt" ska stå på plus. En fast
+ * rad för Projekt hade gjort nästa modul till en ny specialare. Med platsen anmäler en modul sina rader i manifestet, och skalet visar dem bara i en grupp där modulen är påslagen (`tillaggFor`, samma grind som
+ * för alla tillägg: gruppens `moduler`, och en kärnmodul är alltid på). Inga fasta rader för en enskild modul.
+ *
+ * ⛔ I TALK ÄR DET AGENTEN SOM SKAPAR, INTE DEN HÄR RADEN. Plusmenyn är den visuella vägen; "nytt projekt Ombyggnad" sagt till TALK går genom agentens verktyg, som är appens. Platsen rör inte TALK.
+ *
+ * ⛔ MED `talk` ÖPPNAR MITTKNAPPEN INTE PLUSMENYN PÅ ETT TRYCK (ett tryck är TALK). Raderna nås då med långtryck på mittknappen, som alltid öppnar listan när den har något utöver TALK, och en rad från den här platsen
+ * räknas som något. Samma beteende som Ny händelse och Ny grupp har där.
+ */
+export const SKAPA_PLATSER = /** @type {const} */ (["skapa.rad"]);
+
+/** @typedef {typeof HANDELSE_PLATSER[number] | typeof INSPELNING_PLATSER[number] | typeof INSTALLNINGAR_PLATSER[number] | typeof SKAPA_PLATSER[number]} Plats */
 
 /**
  * Alla platser, för valideringen. ⛔ Härledd ur ytornas listor och aldrig skriven för sig: en andra lista hade kunnat sakna en plats
  * som en yta ritar.
  * @type {ReadonlyArray<string>}
  */
-export const PLATSER = Object.freeze([...HANDELSE_PLATSER, ...INSPELNING_PLATSER, ...INSTALLNINGAR_PLATSER]);
+export const PLATSER = Object.freeze([...HANDELSE_PLATSER, ...INSPELNING_PLATSER, ...INSTALLNINGAR_PLATSER, ...SKAPA_PLATSER]);
 
 /**
  * Ytornas namn som användaren ser dem, nyckel är platsens första led (`handelse` i `handelse.sektion`).
@@ -98,6 +117,7 @@ export const PLATSYTOR = Object.freeze({
   handelse: Object.freeze({ sv: "Händelser", en: "Events" }),
   inspelning: Object.freeze({ sv: "Inspelning", en: "Recording" }),
   installningar: Object.freeze({ sv: "Inställningar", en: "Settings" }),
+  skapa: Object.freeze({ sv: "Plus", en: "Plus" }),
 });
 
 /** @param {string} plats @returns {string} */

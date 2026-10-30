@@ -65,7 +65,7 @@ const MODULFALT = ["id", "namn", "nav", "routes", "samlingar", "kallor", "skapar
  * ⛔ INGA PROPS. Komponenten får `{ handelse, grupp }` av ytan och inget annat, och ett fält som lät manifestet skicka egna värden
  * hade gjort tillägget till något ytan inte längre kan uttala sig om.
  */
-const TILLAGGSFALT = ["plats", "id", "etikett", "komponent", "spara", "maxSekunder", "skapa"];
+const TILLAGGSFALT = ["plats", "id", "etikett", "komponent", "spara", "maxSekunder", "skapa", "ikon", "onSkapa"];
 
 /**
  * Fälten modulens kort i hubben får bära (0.37.0, #184).
@@ -142,7 +142,7 @@ export const KALLTYPER = /** @type {const} */ (["handelser", "sok", "hjalp", "no
 
 /**
  * @typedef {object} Tillagg
- * @property {string} plats En av ramverkets platser (`PLATSER`: `HANDELSE_PLATSER`, `INSPELNING_PLATSER`, `INSTALLNINGAR_PLATSER`).
+ * @property {string} plats En av ramverkets platser (`PLATSER`: `HANDELSE_PLATSER`, `INSPELNING_PLATSER`, `INSTALLNINGAR_PLATSER`, `SKAPA_PLATSER`).
  * @property {string} id Maskinnyckeln. Unik inom modulen.
  * @property {{ sv: string, en: string }} etikett Det användaren ser: sektionens rubrik, åtgärdens namn. Båda språken krävs.
  * @property {unknown} [komponent] Komponenten ytan ritar med `{ handelse, grupp }` (på `handelse.skapa`: `{ grupp, varde, onVarde }`, på `installningar.sektion` (0.140.0): `{ grupp }`). Krävs på händelsens platser. Hör inte hemma på `inspelning.mal`.
@@ -151,6 +151,8 @@ export const KALLTYPER = /** @type {const} */ (["handelser", "sok", "hjalp", "no
  *   hur formuläret för en ny händelse frågar tillägget. `datumEjSatt(varde)` är sant när tillägget vill att datum inte sätts nu, `fel(varde)` ger skälen att inte spara
  *   än, och `efterSkapa({ handelseId, varde, grupp })` anropas en gång efter att händelsen är skriven. Alla valfria, minst en krävs. Se `tillagg.js`.
  * @property {number} [maxSekunder] (0.93.0) Längsta inspelningen målet tar emot, i sekunder, ett positivt heltal. Bara på `inspelning.mal`. Utelämnad gäller TALK:s tak (`MAX_SEKUNDER`, 120). Bibliotekets mål anger `IDE_MAX_SEKUNDER` (10 minuter).
+ * @property {unknown} [ikon] (0.155.0) Ett React-element, till exempel `<FolderPlus size={18} />`. Bara på `skapa.rad`, och krävs där: raden i plusmenyn har en ikon som alla andra rader.
+ * @property {(arg: { grupp: unknown }) => unknown} [onSkapa] (0.155.0) Det som sker när personen väljer raden på `skapa.rad`, med den aktiva gruppen. Krävs där, och ingen annanstans. Plusmenyn är stängd när den anropas.
  */
 
 /**
@@ -535,7 +537,7 @@ function byggTillagg(varde, var_) {
     }
     const okanda = Object.keys(t).filter((n) => !TILLAGGSFALT.includes(n));
     if (okanda.length > 0) {
-      throw var_(`tillagg[${i}]`, `bär fälten ${okanda.join(", ")} som inte känns igen. Ett tillägg bär ${TILLAGGSFALT.join(", ")}, och komponenten får det ytan ger den: { handelse, grupp } på händelsens platser, { grupp } på installningar.sektion.`);
+      throw var_(`tillagg[${i}]`, `bär fälten ${okanda.join(", ")} som inte känns igen. Ett tillägg bär ${TILLAGGSFALT.join(", ")}, och komponenten får det ytan ger den: { handelse, grupp } på händelsens platser, { grupp } på installningar.sektion, { grupp } till onSkapa på skapa.rad.`);
     }
     const plats = rensa(t.plats);
     if (!PLATSER.includes(plats)) {
@@ -559,6 +561,24 @@ function byggTillagg(varde, var_) {
       );
     }
     const etikett = Object.freeze({ sv, en });
+    if (plats === "skapa.rad") {
+      for (const falt of ["komponent", "spara", "maxSekunder", "skapa"]) {
+        if (t[falt] !== undefined) {
+          throw var_(`tillagg[${i}].${falt} för "${tid}"`, "hör inte hemma på skapa.rad. Platsen tar emot ikon och onSkapa, och ramverket ritar raden i plusmenyn.");
+        }
+      }
+      if (!arElement(t.ikon)) {
+        throw var_(`tillagg[${i}].ikon för "${tid}"`, "krävs på skapa.rad och måste vara ett React-element, till exempel <FolderPlus size={18} />. En rad utan ikon blir ett hål i en lista som har ikoner på varje rad.");
+      }
+      if (typeof t.onSkapa !== "function") {
+        throw var_(`tillagg[${i}].onSkapa för "${tid}"`, `krävs på skapa.rad och måste vara en funktion${typeof t.onSkapa === "undefined" ? "" : `, inte ${typeof t.onSkapa}`}. Den anropas med { grupp } när personen väljer raden, och en rad utan funktion är en rad som inte gör något.`);
+      }
+      ut.push(Object.freeze({ plats, id: tid, etikett, ikon: t.ikon, onSkapa: t.onSkapa }));
+      return;
+    }
+    if (t.ikon !== undefined || t.onSkapa !== undefined) {
+      throw var_(`tillagg[${i}].${t.ikon !== undefined ? "ikon" : "onSkapa"} för "${tid}"`, "hör bara hemma på platsen skapa.rad. Det är raden i plusmenyn, och en annan plats ritar sin egen yta.");
+    }
     if (plats === "inspelning.mal") {
       if (t.skapa !== undefined) {
         throw var_(`tillagg[${i}].skapa för "${tid}"`, "hör bara hemma på platsen handelse.skapa. Inspelningsmålet tar emot spara.");
