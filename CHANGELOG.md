@@ -9,6 +9,28 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## Ej utgivet
+
+Blir 0.159.0. Ett HTML-dokument öppnas i ett eget fönster i stället för att laddas ned (CP 2026-10-30: "de skulle gå att öppna direkt i ett fönster. Inte ladda ner så."). Inget är brytande: utan `oppnaHtml` är Biblioteket oförändrat.
+
+### Ett HTML-dokument i ett eget fönster
+
+**Var nedladdningen skedde.** Lagringen svarar `Content-Disposition: attachment` för en HTML-fil (skyddet i 0.156.0: koden får aldrig köras på lagringens eller appens ursprung). Därför laddades en direktlänk alltid ned. I `OpsBibliotek` var det **filnamnet under rutan i postens panel** (`<a href download>`, 0.156.0), och i en grupp, ett händelsebibliotek eller en gästs bibliotek utan `hamtaFil` den enda länken. Kortet i listan öppnade redan panelen och laddade inte ned. Chattens bilagor kan inte vara HTML (`KOMMENTARBILAGA_TYPER`), och den publika delningssidan (`DeladFil`) säger "Filen går inte att visa här. Ladda ner den".
+
+**Skärmtid (frågan till ärendet):** detta tar bort ett steg (ladda ned, hitta filen, öppna den) och lägger inget till: ingen ny vy att leta efter, ett tryck på dokumentet där det redan ligger.
+
+- **`OpsHtmlVy`** (ny): dokumentet i hela fönstret (`h-dvh`) på en sida utan skal. En smal rad överst med filens namn, vem som laddade upp den, **Spara som PDF** och Stäng (`onStang`, `stangEtikett`), och meningen om att innehållet kommer från filen och inte från appen (samma märkning som rutan i detaljen, ur samma ord). Rutan fyller resten. Hämtningen med inloggningen (`hamta`, som `hamtaFil`), väntan, fel och tomt dokument skrivs ut, med Stäng kvar.
+- **`oppnaHtml(post)` på `OpsBibliotek`** (ny, frivillig): svarar med adressen till appens sida för dokumentet. Kortet i listan är då en länk (`target="_blank"`, `rel="noopener noreferrer"`, ingen `download`), filnamnet i detaljen likaså, och **Ladda ned** är ett eget val bredvid. "Visa detaljer" i postens meny når rutan, versionerna och Ladda ned. Funktionen anropas bara för ett HTML-dokument med en fil.
+- **`htmlVyAdress(oppnaHtml, post)`** (ny, exporterad): kastar för en adress som inte är en sida i appen (`blob:`, `data:`, `javascript:`, `//värd`).
+- ⛔ **Säkerheten är oförändrad, och bara EN ruta finns.** Rutan flyttades till `HtmlRuta` i `OpsHtmlDokument.jsx`: `sandbox="allow-scripts allow-modals"`, `srcdoc` ur texten som hämtats med inloggningen, aldrig `src`, aldrig en `blob:`- eller `data:`-adress, aldrig lagringens adress. Detaljen, versionsraden och helfönstervyn går alla genom den. Ett prov läser källan och kräver att `<iframe` står på exakt ett ställe i `src`, att `sandbox` sätts bara där, och att ingen komponent anropar `createObjectURL`.
+- **Fynd i skärmmätningen:** sidramens `scrollbar-gutter: stable` lämnade en tom remsa på 10 px längs högerkanten (rutan 1270 px i ett fönster på 1280). Vyn sätter `scrollbar-gutter: auto` på `html` medan den visas och återställer det när den lämnas.
+- **Ännu inte med** (se README): händelsens och ärendets filer (`OpsPlatsfiler` ger inte `oppnaHtml` vidare), gästens bibliotek och den publika delningssidan (ingen inloggning att hämta texten med).
+
+**Att göra i appen efter ompinningen till 0.159.0**
+
+1. Ge `OpsBibliotek` `oppnaHtml={(post) => "<sidans adress>"}` och bygg sidan: slå upp posten i platsens egen lista (samma behörighet som Biblioteket, och samma svar för "får inte" som för "finns inte"), och rita `<OpsHtmlVy hamta={hamtaFil} sokvag namn skapadAv onStang />` före skalet. lifehub.app: `/bibliotek/visa/<postId>?plats=<platsen>`, PR i appen.
+2. Ingen regeldeploy behövs. Ordningen är som vanligt: ramverket mergas och publiceras, därefter appens ompinning.
+
 ## 0.158.0
 
 Fyra delar: raden Versioner för ett HTML-dokument i Biblioteket, en ny regel 15 i kanon, spelraden dockad mot bottenmenyn och Ordning i modulramen med förhandsvisning (Groks PR 470 och 471, granskade av Claude, rättade i egna commits). **Brytande, litet:** `ORD_OPSMODULRAM` (publik export) har inte längre nycklarna `upp` och `ned`, se Ordning i modulramen.
