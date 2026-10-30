@@ -8211,7 +8211,7 @@ async function gastArenden() {
  *   (b) Utfälld: tre rader, varje inom raden och fönstret, med knapparna Öppna och Återställ på version 2 och 1 (fyra knappar, 44 px under 768 och 32 från), ingen på den nuvarande.
  *       Texten ("Kim, ...") är inte klippt. Golv: tre rader och fyra knappar.
  *   (c) Öppna version 2: den avspärrade rutan (`sandbox="allow-scripts allow-modals"`) fyller kolumnen i bredd, är minst 200 px hög, och sidan flödar inte över i sidled.
- *   (d) Återställ medan anropet väntar: knappen upptagen (`aria-busy`) med snurra och "Återställer…", lika bred som före, den andra Återställ spärrad; när det släpps står "återställd" och knappen är fri.
+ *   (d) Återställ medan anropet väntar: knappen upptagen (`aria-busy`) med snurra och "Återställer…", inte smalare än före (verbet är längre än etiketten) och inom fönstret, den andra Återställ spärrad; när det släpps står "återställd" och knappen är fri.
  *   (e) En konflikt: meningen och Läs om ligger inom fönstret, knappen är minst så hög som övriga, och sidan flödar inte över.
  *   (f) Uppladdningsraden "Ladda upp ny version" ligger inom fönstret.
  */
@@ -8284,11 +8284,12 @@ async function bibliotekHtmlVersioner() {
       const d = await page.evaluate(() => {
         const k = /** @type {HTMLButtonElement} */ (document.querySelector('button[aria-label="Återställ version 1"]'));
         const andra = /** @type {HTMLButtonElement} */ (document.querySelector('button[aria-label="Återställ version 2"]'));
-        return { busy: k.getAttribute("aria-busy") === "true", snurra: !!k.querySelector("svg"), text: (k.textContent || "").trim(), bredd: k.getBoundingClientRect().width, andraSparrad: andra.disabled };
+        return { busy: k.getAttribute("aria-busy") === "true", snurra: !!k.querySelector("svg"), text: (k.textContent || "").trim(), bredd: k.getBoundingClientRect().width, hoger: k.getBoundingClientRect().right, andraSparrad: andra.disabled };
       });
       matt.push(`${namn} (d): ${JSON.stringify(d)}, före ${fore.toFixed(1)}`);
       krav(d.busy && d.snurra && /Återställer…/.test(d.text) && d.andraSparrad, `${namn} (d): upptagen ${d.busy}, snurra ${d.snurra}, text ${JSON.stringify(d.text)}, den andra spärrad ${d.andraSparrad}, väntat sant, sant, "Återställer…" och sant.`);
-      krav(Math.abs(d.bredd - fore) <= 1, `${namn} (d): knappen är ${d.bredd.toFixed(1)} px bred medan den väntar och var ${fore.toFixed(1)} före, väntat lika bred.`);
+      // ⛔ Verbet i pågående form ("Återställer…") är längre än etiketten ("Återställ"), och OpsButton gör knappen lika bred som den bredaste av dem (0.141.0): den växer EN gång när den börjar vänta, inte flera. Krävs: inte smalare än före, och inom fönstret.
+      krav(d.bredd >= fore - 0.5 && d.bredd <= fore + 80 && d.hoger <= vp.width + 0.5, `${namn} (d): knappen är ${d.bredd.toFixed(1)} px bred medan den väntar och var ${fore.toFixed(1)} före och slutar ${d.hoger.toFixed(0)}, väntat inte smalare, högst 80 px bredare och inom fönstret.`);
       await page.evaluate(() => /** @type {any} */ (window).__versionsSlapp());
       await page.waitForSelector("[data-html-versioner-besked]");
       const d2 = await page.evaluate(() => ({ besked: (document.querySelector("[data-html-versioner-besked]")?.textContent || "").trim(), busy: !!document.querySelector('[data-html-versioner] button[aria-busy="true"]'), anrop: /** @type {any} */ (window).__versionsAnrop.filter((/** @type {string} */ x) => x.startsWith("aterstall")) }));

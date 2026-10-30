@@ -360,7 +360,7 @@ describe("Språk och tolkning", () => {
     for (const [k, t] of Object.entries(ORD_HTMLVERSIONER)) {
       expect(t.sv, `sv ${k}`).toBeTruthy();
       expect(t.en, `en ${k}`).toBeTruthy();
-      expect(`${t.sv}${t.en}`, `tankstreck ${k}`).not.toMatch(/[—–]/);
+      expect(`${t.sv}${t.en}`, `tankstreck ${k}`).not.toMatch(/[\u2014\u2013]/);
     }
     const post = version3();
     render(

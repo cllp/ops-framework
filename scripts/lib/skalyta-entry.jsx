@@ -2187,7 +2187,7 @@ function BibliotekHtmlVersionerYta() {
   if (!Bib || !bygg) return <p data-saknas="OpsBibliotek">OpsBibliotek saknas</p>;
   const tid = Date.UTC(2026, 9, 29, 10, 0);
   const kim = { uid: "uid-1", namn: "Kim", typ: "manniska", kalla: "bibliotek" };
-  const anna = { uid: "uid-2", namn: "Anna Berg", typ: "manniska", kalla: "bibliotek", via: "Byggagent" };
+  const anna = { uid: "uid-2", namn: "Anna Berg", typ: "manniska", kalla: "bibliotek", via: { nyckelId: "k1", namn: "Byggagent" } };
   let post;
   try {
     post = { ...bygg({ groupId: "cps-ab", typ: "fil", rubrik: "Kvartalsrapport med ett långt namn som får plats", fil: { sokvag: "grupper/cps-ab/bibliotek/p1/kvartalsrapport-med-ett-langt-namn.html", namn: "kvartalsrapport-med-ett-langt-namn.html", mime: "text/html", byte: 2048, klar: true }, skapadAv: kim, skapad: tid, andrad: tid }), id: "p1", version: { nr: 3, av: anna, tid: tid + 7_200_000 } };
