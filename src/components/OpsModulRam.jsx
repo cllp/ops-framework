@@ -183,10 +183,11 @@ export function ModulHjalpKnapp({ href, onNavigate, sprak }) {
  * @param {string} [props.sprak]
  * @param {ModulRam | null} [props.ram]
  * @param {string} [props.rubrikNamn] Ersätter modulens namn i rubriken. Agenter sätter agentens namn.
+ * @param {import("react").ReactNode} [props.atgard] (0.160.0) Modulens egen åtgärd i huvudet, före frågetecknet. Visas inte i inställningsläget.
  * @param {string} [props.hjalpBas="/hjalp"] (0.92.1) Hjälpsidans adress. Frågetecknet leder hit med `#hjalp/<modulId>`.
  * @param {import("react").ReactNode} props.children Visningen. Dold i inställningsläget.
  */
-export function OpsModulRam({ modul, activeHref, hubHref, hubEtikett, onNavigate, sprak: sprakProp, ram = null, rubrikNamn, hjalpBas = "/hjalp", children }) {
+export function OpsModulRam({ modul, activeHref, hubHref, hubEtikett, onNavigate, sprak: sprakProp, ram = null, rubrikNamn, hjalpBas = "/hjalp", atgard: egenAtgard = null, children }) {
   kravRam(ram, "OpsModulRam");
   const sprakKontext = useOpsSprak();
   const sprak = sprakProp ?? sprakKontext;
@@ -197,8 +198,9 @@ export function OpsModulRam({ modul, activeHref, hubHref, hubEtikett, onNavigate
   const visaHjalp = Boolean(modul.hjalp) && !installningar;
   const hjalpHref = visaHjalp ? hjalpAdress(hjalpBas, modul.id) : null;
   const atgard =
-    visaHjalp || visaKnapp ? (
+    visaHjalp || visaKnapp || (egenAtgard != null && !installningar) ? (
       <span className="inline-flex items-center gap-1">
+        {egenAtgard != null && !installningar ? egenAtgard : null}
         {visaHjalp && hjalpHref ? <ModulHjalpKnapp href={hjalpHref} onNavigate={onNavigate} sprak={sprak} /> : null}
         {visaKnapp ? <ModulLageKnapp ram={ram} activeHref={activeHref} onNavigate={onNavigate} sprak={sprak} installningar={installningar} /> : null}
       </span>

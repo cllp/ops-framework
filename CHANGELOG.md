@@ -9,6 +9,20 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.160.0
+
+Modulens insida utan upprepning (CP 2026-10-30: "Projekt" stod tre gånger, i huvudet, i en ensam flik och i en rubrik). Inget är brytande: en modul med flera delar ser ut som förut, och utan `atgard` är huvudet oförändrat.
+
+### Ändrat
+
+- **En modul med en enda del ritar ingen flikrad** (`OpsModulSida`). En ensam flik upprepar rubriken och kan inte väljas bort. Delens vy ritas som förut i `data-moduldel`.
+
+### Tillagt
+
+- **`atgard` på `OpsModulSida` och `OpsModulRam`**: modulens egen åtgärd i huvudet, före frågetecknet och kugghjulet (till exempel knappen Nytt projekt). Den visas inte i inställningsläget, där huvudet bara har Klar.
+
+---
+
 ## 0.159.0
 
 Tre delar: ett HTML-dokument öppnas i ett eget fönster i stället för att laddas ned (CP 2026-10-30: "de skulle gå att öppna direkt i ett fönster. Inte ladda ner så."), raden Versioner hämtas först när den behövs (mätt: -2 977 byte gzip i en apps JavaScript före första vyn) och ett tillägg i regel 15 i kanon. Inget är brytande: utan `oppnaHtml` är Biblioteket oförändrat, och versionsraden beter sig som i 0.158.0.

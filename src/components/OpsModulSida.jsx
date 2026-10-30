@@ -41,9 +41,10 @@ import { OpsModulRam } from "./OpsModulRam.jsx";
  * @param {string} [props.hubEtikett] Förval "Appar" (0.50.0; tidigare "Hub").
  * @param {import("./OpsModulRam.jsx").ModulRam | null} [props.ram] (0.89.0) Inställningsläget. Utelämnad: ramen som förut, utan kugghjul.
  * @param {string} [props.hjalpBas="/hjalp"] (0.92.1) Vidare till `OpsModulRam`.
+ * @param {import("react").ReactNode} [props.atgard] (0.160.0) Modulens egen åtgärd i huvudet, före frågetecknet och kugghjulet, till exempel "Nytt projekt".
  * @param {import("react").ReactNode} props.children Den öppna delens vy.
  */
-export function OpsModulSida({ modul, activeHref, hubHref, onNavigate, sprak: sprakProp, navEtikett, hubEtikett = "Appar", ram = null, hjalpBas = "/hjalp", children }) {
+export function OpsModulSida({ modul, activeHref, hubHref, onNavigate, sprak: sprakProp, navEtikett, hubEtikett = "Appar", ram = null, hjalpBas = "/hjalp", atgard = null, children }) {
   // ⛔ Språket ur appens `OpsSprakProvider` när appen inte gav ett (0.46.0, cllp/bolag-ops#528).
   const sprakKontext = useOpsSprak();
   const sprak = sprakProp ?? sprakKontext;
@@ -60,8 +61,10 @@ export function OpsModulSida({ modul, activeHref, hubHref, onNavigate, sprak: sp
     rullaInAktiv(rad.current);
   }, [aktiv]);
   return (
-    <OpsModulRam modul={modul} activeHref={activeHref} hubHref={hubHref} hubEtikett={hubEtikett} onNavigate={onNavigate} sprak={sprak} ram={ram} hjalpBas={hjalpBas}>
+    <OpsModulRam modul={modul} activeHref={activeHref} hubHref={hubHref} hubEtikett={hubEtikett} onNavigate={onNavigate} sprak={sprak} ram={ram} hjalpBas={hjalpBas} atgard={atgard}>
       {/* ⛔ RADENS KLASSER BOR I `modulram.js` (0.83.0), så att Bibliotekets flikrad (`OpsTabs` med `medOrd`) ser ut som den här. */}
+      {/* ⛔ EN DEL GER INGEN FLIKRAD (0.160.0, CP 2026-10-30). En ensam flik upprepar rubriken och går inte att välja: "Projekt" stod tre gånger. */}
+      {modul.hubb.delar.length > 1 ? (
       <nav aria-label={navEtikett ?? (sprak === "en" ? `${namn}: parts` : `${namn}: delar`)} data-modulnav={modul.id} className={FLIKOMSLAG}>
         <ul ref={rad} className={FLIKRAD}>
           {modul.hubb.delar.map((d) => {
@@ -79,6 +82,7 @@ export function OpsModulSida({ modul, activeHref, hubHref, onNavigate, sprak: sp
           })}
         </ul>
       </nav>
+      ) : null}
       <div data-moduldel={aktiv ?? ""}>{children}</div>
     </OpsModulRam>
   );
