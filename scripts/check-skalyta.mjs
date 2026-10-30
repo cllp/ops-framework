@@ -1088,6 +1088,18 @@ if (argv.includes("--bara-kalenderdelning")) {
   process.exit(0);
 }
 
+/** Skriver ner väntrutans mått (`__versionerVantan`) i den stund den hamnar i sidan: `MutationObserver` körs som mikrouppgift direkt efter ritningen, före att den lata modulen hunnit ersätta rutan. */
+const HTMLVERSIONER_VANTAR_INIT = `(() => {
+  window.__versionerVantan = null;
+  new MutationObserver(() => {
+    if (window.__versionerVantan) return;
+    const v = document.querySelector("[data-html-versioner-vantar]");
+    if (!v) return;
+    const r = v.getBoundingClientRect();
+    window.__versionerVantan = { h: r.height, w: r.width, l: r.left };
+  }).observe(document, { childList: true, subtree: true });
+})();`;
+
 // `--bara-htmlversioner`: bara avsnitt 59, versionsraden för ett HTML-dokument (0.158.0). Hela körningen kör det också.
 if (argv.includes("--bara-htmlversioner")) {
   await bibliotekHtmlVersioner();
@@ -8395,13 +8407,16 @@ async function bibliotekHtmlVy() {
  *   (d) Återställ medan anropet väntar: knappen upptagen (`aria-busy`) med snurra och "Återställer…", inte smalare än före (verbet är längre än etiketten) och inom fönstret, den andra Återställ spärrad; när det släpps står "återställd" och knappen är fri.
  *   (e) En konflikt: meningen och Läs om ligger inom fönstret, knappen är minst så hög som övriga, och sidan flödar inte över.
  *   (f) Uppladdningsraden "Ladda upp ny version" ligger inom fönstret.
+ *   (g) (0.159.0) Raden hämtas först när detaljen ritas. Medan koden kommer står en tom ruta, och den är lika bred, lika hög och på samma ställe som den hopfällda raden (högst 0,5 px), så att innehållet
+ *       under inte hoppar. Golv: rutan måste ha setts. Röd mot 0.158.0:s statiska import (ingen ruta), grön med den lata.
  */
 async function bibliotekHtmlVersioner() {
   for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
     const namn = `html-versioner ${vp.width}`;
     const knapp = vp.width < 768 ? 44 : 32;
     const over = (/** @type {import("playwright").Page} */ page) => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
-    const { page, context } = await oppna("bibliotekhtmlversioner", vp);
+    // (g): raden hämtas först när detaljen ritas (0.159.0), och medan koden kommer står en tom ruta. En iakttagare skriver ner rutans mått i samma stund den hamnar i sidan, före raden.
+    const { page, context } = await oppna("bibliotekhtmlversioner", vp, standardtema, 1, null, 0, { init: HTMLVERSIONER_VANTAR_INIT });
     try {
       await page.waitForSelector("[data-html-versioner]");
       krav(!(await page.$('[data-saknas="OpsBibliotek"]')), `${namn}: OpsBibliotek saknas i den byggda versionen.`);
@@ -8415,6 +8430,16 @@ async function bibliotekHtmlVersioner() {
       matt.push(`${namn} (a): raden ${a.l.toFixed(0)}-${a.r.toFixed(0)}, träffyta ${a.h.toFixed(0)}, "${a.nu}", anrop ${a.anrop}`);
       krav(a.l >= -0.5 && a.r <= a.fonsterB + 0.5 && a.h >= 44, `${namn} (a): raden ligger ${a.l.toFixed(0)}-${a.r.toFixed(0)} i ett fönster på ${a.fonsterB} med träffytan ${a.h.toFixed(0)} px, väntat inom fönstret och minst 44.`);
       krav(a.nu === "Version 3" && a.anrop === 0, `${namn} (a): raden säger "${a.nu}" efter ${a.anrop} anrop, väntat "Version 3" och inget anrop innan den fälls ut.`);
+      // (g)
+      const g = await page.evaluate(() => {
+        const rad = /** @type {HTMLElement} */ (document.querySelector("[data-html-versioner]"));
+        const r = rad.getBoundingClientRect();
+        return { vantan: /** @type {any} */ (window).__versionerVantan, rad: { h: r.height, w: r.width, l: r.left, antalVantar: document.querySelectorAll("[data-html-versioner-vantar]").length } };
+      });
+      matt.push(`${namn} (g): väntrutan ${g.vantan ? `${g.vantan.w.toFixed(1)}x${g.vantan.h.toFixed(1)}` : "sågs inte"}, raden ${g.rad.w.toFixed(1)}x${g.rad.h.toFixed(1)}`);
+      krav(!!g.vantan, `${namn} (g): väntrutan sågs aldrig (golv: iakttagaren såg ingenting, så "lika hög" är inte mätt). Importen kan ha blivit statisk igen.`);
+      krav(!!g.vantan && Math.abs(g.vantan.h - g.rad.h) <= 0.5 && Math.abs(g.vantan.w - g.rad.w) <= 0.5 && Math.abs(g.vantan.l - g.rad.l) <= 0.5, `${namn} (g): väntrutan är ${g.vantan ? `${g.vantan.w.toFixed(1)}x${g.vantan.h.toFixed(1)} vid ${g.vantan.l.toFixed(1)}` : "okänd"} och den hopfällda raden ${g.rad.w.toFixed(1)}x${g.rad.h.toFixed(1)} vid ${g.rad.l.toFixed(1)}, väntat samma mått (högst 0,5 px): annars hoppar innehållet under när raden kommer.`);
+      krav(g.rad.antalVantar === 0, `${namn} (g): ${g.rad.antalVantar} väntrutor kvar när raden är ritad, väntat 0.`);
       await page.click("[data-html-versioner] summary");
       await page.waitForSelector("[data-html-versioner-lista]");
       // (b)

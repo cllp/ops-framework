@@ -6,7 +6,7 @@ import { OpsAtgardsblad } from "./OpsAtgardsblad.jsx";
 import { OpsDokument } from "./OpsDokument.jsx";
 import { OpsHtmlDokumentHamtat } from "./OpsHtmlDokument.jsx";
 import { htmlVyAdress } from "../lib/htmldokument.js";
-import { BibliotekHtmlVersioner } from "./BibliotekHtmlVersioner.jsx";
+import { BibliotekHtmlVersionerLat } from "./BibliotekHtmlVersionerLat.jsx";
 import { OpsMarkdown } from "./OpsMarkdown.jsx";
 import { OpsModal } from "./OpsModal.jsx";
 import { OpsSvepRad } from "./OpsSvepRad.jsx";
@@ -1783,7 +1783,7 @@ function FilVisning({ post, lage, kopplad, onLjus, onMeta, onRadera, hamtaFil, v
             {rad}
           </a>
         )}
-        {versioner ? <BibliotekHtmlVersioner key={post.id} post={post} {...versioner} /> : null}
+        {versioner ? <BibliotekHtmlVersionerLat key={post.id} post={post} {...versioner} /> : null}
       </div>
     );
   }
