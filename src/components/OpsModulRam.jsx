@@ -220,7 +220,7 @@ export function OpsModulRam({ modul, activeHref, hubHref, hubEtikett, onNavigate
  * @property {boolean} farAndra
  * @property {{ moduler: ReadonlyArray<string>, huvudmeny?: ReadonlyArray<string> | null } | null} [grupp]
  * @property {(moduler: string[]) => void | Promise<void>} [onOrdning]
- * @property {ReadonlyArray<{ id: string, namn?: string, ikon?: import("react").ReactNode }>} [appar] (ej utgivet) Gruppens appar med ikon, för förhandsvisningen under Ordning. Saknas en app ritas dess första bokstav.
+ * @property {ReadonlyArray<{ id: string, namn?: string, ikon?: import("react").ReactNode }>} [appar] (0.158.0) Gruppens appar med ikon, för förhandsvisningen under Ordning. Saknas en app ritas dess första bokstav.
  * @property {(huvudmeny: string[]) => void | Promise<void>} [onSparaHuvudmeny]
  * @property {(inmatning: { modulId: string, varden: Record<string, boolean | string> }) => void | Promise<void>} [onSpara]
  * @property {Readonly<Record<string, boolean | string>> | null} [sparade]
