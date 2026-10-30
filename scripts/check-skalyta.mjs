@@ -51,6 +51,7 @@
  *       node scripts/check-skalyta.mjs --bara-grupp-vantar  bara avsnitt 53, Spara och statusraden medan en grupp skapas (0.129.0)
  *       node scripts/check-skalyta.mjs --bara-kalenderdelning  bara avsnitt 58, Dela en egen kalender och mottagarens lista, 390 och 1280 px (0.154.0)
  *       node scripts/check-skalyta.mjs --bara-htmlversioner  bara avsnitt 59, versionsraden för ett HTML-dokument i Biblioteket, 390 och 1280 px (0.158.0)
+ *       node scripts/check-skalyta.mjs --bara-htmlvy    bara avsnitt 60, ett HTML-dokument i hela fönstret och Bibliotekets länkar dit, 390 och 1280 px (0.159.0)
  *       node scripts/check-skalyta.mjs --bara-kategori  bara avsnitt 54, formuläret "Lägg till kategori": ett namn räcker (0.130.0)
  *       node scripts/check-skalyta.mjs --bara-gaster    bara avsnitt 55, gästernas lista och gästens egen sida, 390 och 1280 px (0.131.0)
  *       node scripts/check-skalyta.mjs --bara-gastgrupp  bara avsnitt 56, gästens bantade gränssnitt för hela gruppen och inbjudningsdialogen, 390 och 1280 px (0.132.0), och avsnitt 57, ärenden till en gäst (fliken, kommentar, Markera klar, väljaren och märket)
@@ -1090,6 +1091,14 @@ if (argv.includes("--bara-kalenderdelning")) {
 // `--bara-htmlversioner`: bara avsnitt 59, versionsraden för ett HTML-dokument (0.158.0). Hela körningen kör det också.
 if (argv.includes("--bara-htmlversioner")) {
   await bibliotekHtmlVersioner();
+  await browser.close();
+  avsluta();
+  process.exit(0);
+}
+
+// `--bara-htmlvy`: bara avsnitt 60, ett HTML-dokument i hela fönstret (0.159.0). Hela körningen kör det också.
+if (argv.includes("--bara-htmlvy")) {
+  await bibliotekHtmlVy();
   await browser.close();
   avsluta();
   process.exit(0);
@@ -8220,6 +8229,163 @@ async function gastArenden() {
 }
 
 /**
+ * Avsnitt 60 (0.159.0): ETT HTML-DOKUMENT I HELA FÖNSTRET OCH BIBLIOTEKETS LÄNKAR DIT, vid 390 och 1280 px i riktig CSS (CP 2026-10-30: "de skulle gå att öppna direkt i ett fönster. Inte ladda ner så.").
+ * jsdom kör ingen CSS och ingen layout, så proven i `htmldokument-helfonster.test.jsx` mäter beteendet och det här hur vyn LIGGER. Scenerna är `bibliotekhtmlvy` (och `-fel`, `-tom`) och `bibliotekhtmloppna` (och `-detalj`). Krav:
+ *   (a) Vyn fyller fönstret: roten är lika bred och lika hög som fönstret, sidan flödar inte över, och ingenting skrollar i sidled.
+ *   (b) Raden överst ligger inom fönstret, bär namnet (klippt med punkter om det är långt, aldrig utanför), uppladdaren, Spara som PDF och Stäng med träffyta på minst 44 px under 768 och 32 från, och meningen om att innehållet
+ *       kommer från filen och inte från appen syns hel (inte klippt). Golv: två knappar och två textrader mättes.
+ *   (c) Rutan (`iframe`, `sandbox="allow-scripts allow-modals"`, inget `src`) börjar där raden slutar, fyller resten av fönstrets höjd och hela dess bredd, och dokumentets innehåll syns i den (bilden tas, och rutans yta är dokumentets egen färg).
+ *   (d) Stäng anropar `onStang` en gång. Fel och tomt dokument skriver ut det, utan ruta, och raden med Stäng står kvar och ligger inom fönstret.
+ *   (e) Biblioteket med `oppnaHtml`: kortet är en länk med `target="_blank"` som täcker kortet och är minst 44 px hög; i detaljen ligger filnamnet (länken till vyn) och Ladda ned (en knapp) inom fönstret, båda minst 44 px höga under 768, och sidan flödar inte över.
+ */
+async function bibliotekHtmlVy() {
+  for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
+    const namn = `html-vy ${vp.width}`;
+    const knapp = vp.width < 768 ? 44 : 32;
+    const over = (/** @type {import("playwright").Page} */ page) => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    {
+      const { page, context } = await oppna("bibliotekhtmlvy", vp);
+      try {
+        await page.waitForSelector("[data-html-vy]");
+        krav(!(await page.$('[data-saknas="OpsHtmlVy"]')), `${namn}: OpsHtmlVy saknas i den byggda versionen.`);
+        await page.waitForSelector("[data-html-vy-ruta]");
+        await page.waitForTimeout(300);
+        const m = await page.evaluate(() => {
+          const rot = /** @type {HTMLElement} */ (document.querySelector("[data-html-vy]"));
+          const rad = /** @type {HTMLElement} */ (document.querySelector("[data-html-vy-rad]"));
+          const ruta = /** @type {HTMLIFrameElement} */ (document.querySelector("[data-html-vy-ruta]"));
+          const rr = rot.getBoundingClientRect();
+          const radR = rad.getBoundingClientRect();
+          const ur = ruta.getBoundingClientRect();
+          const namnEl = /** @type {HTMLElement} */ (document.querySelector("[data-html-vy-namn]"));
+          const skydd = /** @type {HTMLElement} */ (document.querySelector("[data-html-vy-skydd]"));
+          const nr = namnEl.getBoundingClientRect();
+          const sr = skydd.getBoundingClientRect();
+          const av = /** @type {HTMLElement} */ (document.querySelector("[data-html-vy-av]"));
+          return {
+            fonsterB: window.innerWidth, fonsterH: window.innerHeight,
+            rot: { l: rr.left, r: rr.right, t: rr.top, b: rr.bottom, w: rr.width, h: rr.height },
+            rad: { l: radR.left, r: radR.right, t: radR.top, b: radR.bottom },
+            ruta: { l: ur.left, r: ur.right, t: ur.top, b: ur.bottom, w: ur.width, h: ur.height, sandbox: ruta.getAttribute("sandbox"), src: ruta.hasAttribute("src"), srcdoc: (ruta.getAttribute("srcdoc") || "").includes("Kvartalsrapport") },
+            namn: { text: (namnEl.textContent || "").trim(), r: nr.right, l: nr.left, klippt: namnEl.scrollWidth > namnEl.clientWidth + 1, punkter: getComputedStyle(namnEl).textOverflow },
+            av: (av.textContent || "").trim(),
+            skydd: { t: sr.top, b: sr.bottom, l: sr.left, r: sr.right, klippt: skydd.scrollHeight > skydd.clientHeight + 1 || skydd.scrollWidth > skydd.clientWidth + 1, text: (skydd.textContent || "").trim() },
+            knappar: [...rad.querySelectorAll("button")].map((b) => ({ text: (b.textContent || "").trim(), h: b.getBoundingClientRect().height, l: b.getBoundingClientRect().left, r: b.getBoundingClientRect().right, t: b.getBoundingClientRect().top, b: b.getBoundingClientRect().bottom })),
+            over: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+          };
+        });
+        matt.push(`${namn} (a-c): roten ${m.rot.w.toFixed(0)}x${m.rot.h.toFixed(0)} i ${m.fonsterB}x${m.fonsterH}, raden ${m.rad.t.toFixed(0)}-${m.rad.b.toFixed(0)}, rutan ${m.ruta.t.toFixed(0)}-${m.ruta.b.toFixed(0)} (${m.ruta.w.toFixed(0)} bred), knappar ${JSON.stringify(m.knappar.map((k) => Math.round(k.h)))}`);
+        // (a)
+        krav(Math.abs(m.rot.w - m.fonsterB) <= 1 && Math.abs(m.rot.h - m.fonsterH) <= 1 && m.rot.t >= -0.5 && m.rot.l >= -0.5, `${namn} (a): vyn är ${m.rot.w.toFixed(0)}x${m.rot.h.toFixed(0)} från ${m.rot.l.toFixed(0)},${m.rot.t.toFixed(0)} i ett fönster på ${m.fonsterB}x${m.fonsterH}, väntat hela fönstret.`);
+        krav(m.over <= 0, `${namn} (a): sidan flödar över ${m.over} px i sidled.`);
+        // (b)
+        krav(m.knappar.length === 2 && m.knappar.map((k) => k.text).join("|") === "Spara som PDF|Till Biblioteket", `${namn} (b): knapparna är ${JSON.stringify(m.knappar.map((k) => k.text))}, väntat Spara som PDF och Till Biblioteket (golv: två).`);
+        krav(m.knappar.every((k) => k.h >= knapp - 0.6 && k.l >= -0.5 && k.r <= m.fonsterB + 0.5 && k.t >= m.rad.t - 0.5 && k.b <= m.rad.b + 0.5), `${namn} (b): knapparna ${JSON.stringify(m.knappar.map((k) => `${k.text} ${Math.round(k.h)}`))}, väntat minst ${knapp} px höga och inom raden och fönstret.`);
+        krav(m.rad.l >= -0.5 && m.rad.r <= m.fonsterB + 0.5 && m.namn.l >= -0.5 && m.namn.r <= m.fonsterB + 0.5, `${namn} (b): raden ${m.rad.l.toFixed(0)}-${m.rad.r.toFixed(0)} och namnet ${m.namn.l.toFixed(0)}-${m.namn.r.toFixed(0)} ska ligga inom fönstret på ${m.fonsterB}.`);
+        krav(m.namn.text.length > 30 && m.namn.punkter === "ellipsis", `${namn} (b): namnet "${m.namn.text}" har textOverflow "${m.namn.punkter}", väntat ellipsis (det är långt med flit).`);
+        krav(/Uppladdat av Anna Berg-Lindström via Byggagent/.test(m.av), `${namn} (b): uppladdaren säger ${JSON.stringify(m.av)}.`);
+        krav(!m.skydd.klippt && /avskilt från appen/.test(m.skydd.text) && /lösenord/.test(m.skydd.text) && m.skydd.l >= -0.5 && m.skydd.r <= m.fonsterB + 0.5 && m.skydd.b <= m.rad.b + 0.5, `${namn} (b): meningen om var innehållet kommer ifrån är ${m.skydd.klippt ? "klippt" : "hel"} (${m.skydd.l.toFixed(0)}-${m.skydd.r.toFixed(0)}, slutar ${m.skydd.b.toFixed(0)} i en rad som slutar ${m.rad.b.toFixed(0)}).`);
+        // (c)
+        krav(m.ruta.sandbox === "allow-scripts allow-modals" && !m.ruta.src && m.ruta.srcdoc, `${namn} (c): rutan har sandbox "${m.ruta.sandbox}", src ${m.ruta.src}, dokumentet i srcdoc ${m.ruta.srcdoc}, väntat "allow-scripts allow-modals", inget src och dokumentet.`);
+        krav(Math.abs(m.ruta.t - m.rad.b) <= 1 && Math.abs(m.ruta.b - m.fonsterH) <= 1 && Math.abs(m.ruta.w - m.fonsterB) <= 1 && m.ruta.h >= 300, `${namn} (c): rutan ligger ${m.ruta.t.toFixed(0)}-${m.ruta.b.toFixed(0)} (${m.ruta.w.toFixed(0)} bred) under en rad som slutar ${m.rad.b.toFixed(0)} i ett fönster på ${m.fonsterB}x${m.fonsterH}, väntat från radens slut till fönstrets botten och hela bredden.`);
+        // Dokumentets egen bakgrund (#eef3ff) syns i rutan: pixeln mitt i rutans nedre del är inte appens yta.
+        const png = await page.screenshot({ clip: { x: Math.floor(m.fonsterB / 2), y: Math.floor((m.ruta.t + m.ruta.b) / 2) + 40, width: 1, height: 1 } });
+        const dok = await page.evaluate(async (b64) => {
+          const bild = new Image();
+          bild.src = `data:image/png;base64,${b64}`;
+          await bild.decode();
+          const c = document.createElement("canvas");
+          c.width = 1;
+          c.height = 1;
+          const g = /** @type {CanvasRenderingContext2D} */ (c.getContext("2d"));
+          g.drawImage(bild, 0, 0);
+          return [...g.getImageData(0, 0, 1, 1).data].slice(0, 3);
+        }, png.toString("base64"));
+        matt.push(`${namn} (c): pixeln i rutan ${JSON.stringify(dok)}`);
+        krav(Math.abs(dok[0] - 0xee) <= 2 && Math.abs(dok[1] - 0xf3) <= 2 && Math.abs(dok[2] - 0xff) <= 2, `${namn} (c): pixeln mitt i rutan är rgb(${dok.join(",")}), väntat dokumentets bakgrund rgb(238,243,255): dokumentet ritades inte i rutan.`);
+        if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `html-vy-${vp.width}.png`) });
+        // (d)
+        await page.getByRole("button", { name: "Till Biblioteket" }).click();
+        const stang = await page.evaluate(() => /** @type {any} */ (window).__vyStang);
+        krav(stang === 1, `${namn} (d): Stäng anropade onStang ${stang} gånger, väntat 1.`);
+        krav((await over(page)) <= 0, `${namn} (d): sidan flödar över efter trycket.`);
+      } catch (e) {
+        krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+      }
+      await context.close();
+    }
+    for (const [scen, text, fil] of /** @type {const} */ ([["bibliotekhtmlvy-fel", /Dokumentet gick inte att visa\. Nätet föll\./, "fel"], ["bibliotekhtmlvy-tom", /Dokumentet är tomt\./, "tom"]])) {
+      const { page, context } = await oppna(scen, vp);
+      try {
+        await page.waitForSelector("[data-html-vy-lage]");
+        const m = await page.evaluate(() => {
+          const lage = /** @type {HTMLElement} */ (document.querySelector("[data-html-vy-lage]"));
+          const stang = [...document.querySelectorAll("[data-html-vy-rad] button")].find((b) => (b.textContent || "").trim() === "Till Biblioteket");
+          const pdf = [...document.querySelectorAll("[data-html-vy-rad] button")].find((b) => (b.textContent || "").trim() === "Spara som PDF");
+          const lr = lage.getBoundingClientRect();
+          const sr = stang ? stang.getBoundingClientRect() : null;
+          return { text: (lage.textContent || "").trim(), l: lr.left, r: lr.right, ruta: !!document.querySelector("iframe"), stang: sr ? { h: sr.height, r: sr.right, l: sr.left } : null, pdfSparrad: pdf ? /** @type {HTMLButtonElement} */ (pdf).disabled : null, fonsterB: window.innerWidth, over: document.documentElement.scrollWidth - document.documentElement.clientWidth };
+        });
+        matt.push(`${namn} (d, ${fil}): "${m.text}", ruta ${m.ruta}, Stäng ${JSON.stringify(m.stang)}`);
+        krav(text.test(m.text) || (fil === "tom" && text.test(m.text)), `${namn} (d, ${fil}): texten är ${JSON.stringify(m.text)}.`);
+        krav(!m.ruta && m.pdfSparrad === true, `${namn} (d, ${fil}): rutan ${m.ruta ? "ritades" : "saknas"} och Spara som PDF är ${m.pdfSparrad === true ? "spärrad" : "inte spärrad"}, väntat ingen ruta och en spärrad knapp.`);
+        krav(!!m.stang && m.stang.h >= knapp - 0.6 && m.stang.l >= -0.5 && m.stang.r <= m.fonsterB + 0.5 && m.l >= -0.5 && m.r <= m.fonsterB + 0.5 && m.over <= 0, `${namn} (d, ${fil}): Stäng ${JSON.stringify(m.stang)} och texten ${m.l.toFixed(0)}-${m.r.toFixed(0)} ska ligga inom fönstret på ${m.fonsterB}, och sidan flödar över ${m.over} px.`);
+        if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `html-vy-${fil}-${vp.width}.png`) });
+      } catch (e) {
+        krav(false, `${namn} (${fil}): provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+      }
+      await context.close();
+    }
+    // (e) Biblioteket: kortet är en länk, och detaljen har filnamnet som länk och Ladda ned som eget val.
+    {
+      const { page, context } = await oppna("bibliotekhtmloppna", vp);
+      try {
+        await page.waitForSelector("[data-bibliotek-oppna-html]");
+        const m = await page.evaluate(() => {
+          const lank = /** @type {HTMLAnchorElement} */ (document.querySelector("[data-bibliotek-oppna-html]"));
+          const kort = /** @type {HTMLElement} */ (lank.closest("[data-bibliotek-kort]"));
+          const lr = lank.getBoundingClientRect();
+          const kr = kort.getBoundingClientRect();
+          return { href: lank.getAttribute("href"), target: lank.getAttribute("target"), rel: lank.getAttribute("rel"), download: lank.hasAttribute("download"), l: lr, k: { l: kr.left, r: kr.right, t: kr.top, b: kr.bottom }, over: document.documentElement.scrollWidth - document.documentElement.clientWidth, fonsterB: window.innerWidth };
+        });
+        const lr = m.l;
+        matt.push(`${namn} (e, lista): länken ${lr.width.toFixed(0)}x${lr.height.toFixed(0)}, kortet ${(m.k.r - m.k.l).toFixed(0)} brett`);
+        krav(m.href === "/bibliotek/visa/p1?plats=cps-ab" && m.target === "_blank" && m.rel === "noopener noreferrer" && !m.download, `${namn} (e, lista): länken är ${JSON.stringify({ href: m.href, target: m.target, rel: m.rel, download: m.download })}.`);
+        krav(lr.height >= 44 && Math.abs(lr.left - m.k.l) <= 1 && Math.abs(lr.right - m.k.r) <= 1 && Math.abs(lr.top - m.k.t) <= 1 && Math.abs(lr.bottom - m.k.b) <= 1, `${namn} (e, lista): länken ${lr.width.toFixed(0)}x${lr.height.toFixed(0)} täcker inte kortet (${(m.k.r - m.k.l).toFixed(0)}x${(m.k.b - m.k.t).toFixed(0)}) eller är lägre än 44 px.`);
+        krav(m.over <= 0, `${namn} (e, lista): sidan flödar över ${m.over} px.`);
+        if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `html-oppna-lista-${vp.width}.png`) });
+      } catch (e) {
+        krav(false, `${namn} (e, lista): provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+      }
+      await context.close();
+    }
+    {
+      const { page, context } = await oppna("bibliotekhtmloppna-detalj", vp);
+      try {
+        await page.waitForSelector("[data-bibliotek-ladda-ned]");
+        await page.waitForSelector("[data-html-dokument-ruta]");
+        await page.waitForTimeout(200);
+        const m = await page.evaluate(() => {
+          const oppna = /** @type {HTMLElement} */ (document.querySelector("[data-bibliotek-oppna-html]"));
+          const ladda = /** @type {HTMLAnchorElement} */ (document.querySelector("[data-bibliotek-ladda-ned]"));
+          const or = oppna.getBoundingClientRect();
+          const lr = ladda.getBoundingClientRect();
+          return { o: { l: or.left, r: or.right, h: or.height, t: or.top, b: or.bottom, text: (oppna.textContent || "").replace(/\s+/g, " ").trim(), href: oppna.getAttribute("href") }, l: { l: lr.left, r: lr.right, h: lr.height, t: lr.top, b: lr.bottom, text: (ladda.textContent || "").trim(), download: ladda.hasAttribute("download"), href: ladda.getAttribute("href") }, over: document.documentElement.scrollWidth - document.documentElement.clientWidth, fonsterB: window.innerWidth, ruta: document.querySelectorAll("[data-html-dokument-ruta]").length };
+        });
+        matt.push(`${namn} (e, detalj): filnamnet ${m.o.l.toFixed(0)}-${m.o.r.toFixed(0)}x${m.o.h.toFixed(0)}, Ladda ned ${m.l.l.toFixed(0)}-${m.l.r.toFixed(0)}x${m.l.h.toFixed(0)}`);
+        krav(m.o.href === "/bibliotek/visa/p1?plats=cps-ab" && /kvartalsrapport-med-ett-langt-namn\.html/.test(m.o.text) && m.l.text === "Ladda ned" && m.l.download && m.l.href === "https://lagring.example/fil" && m.ruta === 1, `${namn} (e, detalj): filnamnet ${JSON.stringify(m.o)} och Ladda ned ${JSON.stringify(m.l)}, rutor ${m.ruta}.`);
+        krav(m.o.h >= knapp - 0.6 && m.l.h >= knapp - 0.6, `${namn} (e, detalj): träffytorna är ${Math.round(m.o.h)} och ${Math.round(m.l.h)} px, väntat minst ${knapp}.`);
+        krav(m.o.l >= -0.5 && m.o.r <= m.fonsterB + 0.5 && m.l.l >= -0.5 && m.l.r <= m.fonsterB + 0.5 && m.over <= 0, `${namn} (e, detalj): filnamnet ${m.o.l.toFixed(0)}-${m.o.r.toFixed(0)} och Ladda ned ${m.l.l.toFixed(0)}-${m.l.r.toFixed(0)} ska ligga inom fönstret på ${m.fonsterB}, och sidan flödar över ${m.over} px.`);
+        if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `html-oppna-detalj-${vp.width}.png`), fullPage: true });
+      } catch (e) {
+        krav(false, `${namn} (e, detalj): provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+      }
+      await context.close();
+    }
+  }
+}
+
+/**
  * Avsnitt 59 (0.158.0): VERSIONSRADEN FÖR ETT HTML-DOKUMENT I BIBLIOTEKETS DETALJ, vid 390 och 1280 px i riktig CSS. Scenen `bibliotekhtmlversioner` (skalyta-entry.jsx) är ett HTML-dokument på
  * version 3 med stubbar som svarar som `createHtmlDokumentService`. jsdom kör ingen CSS, så proven i `htmldokument-versioner.test.jsx` mäter beteendet och det här hur raden LIGGER. Krav:
  *   (a) Raden "Versioner" ligger inom fönstret med en träffyta på minst 44 px, och säger "Version 3" utan att listan är hämtad (inget anrop än).
@@ -8515,6 +8681,7 @@ await gastGrupp();
 await gastArenden();
 await kalenderdelning();
 await bibliotekHtmlVersioner();
+await bibliotekHtmlVy();
 
 await browser.close();
 avsluta();

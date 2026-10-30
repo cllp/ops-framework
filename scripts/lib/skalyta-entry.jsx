@@ -2246,6 +2246,53 @@ function BibliotekHtmlVersionerYta() {
   );
 }
 
+/**
+ * 0.159.0: ett HTML-dokument i hela fönstret (`OpsHtmlVy`), utan skal. `lage` är "klar", "fel" eller "tom"; en lång rubrik och ett långt uppladdarnamn visar att raden klarar 390 px.
+ * Dokumentet har en egen färgad bakgrund, så att rutans gräns mot raden syns i bilden.
+ */
+function BibliotekHtmlVyYta({ lage = "klar" }) {
+  const Vy = Ops.OpsHtmlVy;
+  if (!Vy) return <p data-saknas="OpsHtmlVy">OpsHtmlVy saknas</p>;
+  const sida = "<!doctype html><html><body style=\"margin:0;font-family:sans-serif;background:#eef3ff\"><h1 style=\"padding:16px\">Kvartalsrapport</h1><p style=\"padding:0 16px\">Ett stycke i dokumentet.</p></body></html>";
+  const hamta = lage === "fel" ? async () => { throw new Error("Nätet föll."); } : lage === "tom" ? async () => new Blob([""]) : async () => new Blob([sida], { type: "text/html" });
+  const anna = { uid: "uid-2", namn: "Anna Berg-Lindström", typ: "manniska", kalla: "bibliotek", via: { nyckelId: "k1", namn: "Byggagent" } };
+  return <Vy hamta={hamta} sokvag="grupper/cps-ab/bibliotek/p1/kvartalsrapport.html" namn="kvartalsrapport-med-ett-langt-namn-som-far-plats.html" skapadAv={anna} onStang={() => { const w = /** @type {any} */ (window); w.__vyStang = (w.__vyStang || 0) + 1; }} stangEtikett="Till Biblioteket" />;
+}
+
+/**
+ * 0.159.0: Biblioteket med `oppnaHtml`: listan med ett HTML-dokument (kortet är en länk till vyn), eller, med `oppnaDetalj`, detaljen med filnamnet som länk och Ladda ned som eget val.
+ */
+function BibliotekHtmlOppnaYta({ oppnaDetalj = false }) {
+  const Bib = Ops.OpsBibliotek;
+  const bygg = Ops.byggPost;
+  if (!Bib || !bygg) return <p data-saknas="OpsBibliotek">OpsBibliotek saknas</p>;
+  const tid = Date.UTC(2026, 9, 29, 10, 0);
+  const kim = { uid: "uid-1", namn: "Kim", typ: "manniska", kalla: "bibliotek" };
+  let post;
+  try {
+    post = { ...bygg({ groupId: "cps-ab", typ: "fil", rubrik: "Kvartalsrapport med ett långt namn som får plats", fil: { sokvag: "grupper/cps-ab/bibliotek/p1/kvartalsrapport-med-ett-langt-namn.html", namn: "kvartalsrapport-med-ett-langt-namn.html", mime: "text/html", byte: 2048, klar: true }, skapadAv: kim, skapad: tid, andrad: tid }), id: "p1" };
+  } catch (e) {
+    return <p data-saknas="html">{e instanceof Error ? e.message : "html saknas"}</p>;
+  }
+  return (
+    <Bib
+      poster={[post]}
+      jag={{ uid: "uid-1", roll: "medlem" }}
+      vald={oppnaDetalj ? post : null}
+      skapar={null}
+      onOppna={() => {}}
+      onStang={() => {}}
+      onSkapa={() => {}}
+      onSpara={() => {}}
+      filUrl={() => "https://lagring.example/fil"}
+      hamtaFil={async () => new Blob(["<!doctype html><h1>Kvartalsrapport</h1>"], { type: "text/html" })}
+      oppnaHtml={(p) => `/bibliotek/visa/${p.id}?plats=${p.groupId}`}
+      hubHref="/hub"
+      onNavigate={(_href, e) => e.preventDefault()}
+    />
+  );
+}
+
 /** Ljudraden: rubrik, datum och längd, spela, våg, ⋯. En rad utan namn faller tillbaka på Röstinspelning. */
 function BibliotekLjudYta({ oppnaDetalj = false }) {
   const Bib = Ops.OpsBibliotek;
@@ -3067,6 +3114,11 @@ function Scen() {
   }
   if (s === "bibliotekvideo") return <Full><BibliotekVideoYta /></Full>;
   if (s === "bibliotekhtmlversioner") return <Full><BibliotekHtmlVersionerYta /></Full>;
+  if (s === "bibliotekhtmlvy") return <BibliotekHtmlVyYta />;
+  if (s === "bibliotekhtmlvy-fel") return <BibliotekHtmlVyYta lage="fel" />;
+  if (s === "bibliotekhtmlvy-tom") return <BibliotekHtmlVyYta lage="tom" />;
+  if (s === "bibliotekhtmloppna") return <Full><BibliotekHtmlOppnaYta /></Full>;
+  if (s === "bibliotekhtmloppna-detalj") return <Full><BibliotekHtmlOppnaYta oppnaDetalj /></Full>;
   // 0.87.0 (#321): utfälld aktivitet. Raden visar rubrik och detalj. Utfällningen ska inte rita dem igen.
   if (s === "aktivitet") {
     const rader = [

@@ -143,6 +143,16 @@ describe("OpsHtmlVy: dokumentet i hela fönstret", () => {
     expect(document.querySelector("[data-html-vy-av]")?.textContent).toBe("Uploaded by Kim");
   });
 
+  it("sidramens reserverade rullningslist släpps medan vyn visas och återställs när den lämnas", async () => {
+    document.documentElement.style.scrollbarGutter = "stable";
+    const { unmount } = render(<OpsHtmlVy hamta={hamtaSida()} sokvag="s" namn="rapport.html" />);
+    await vantaRuta();
+    expect(document.documentElement.style.scrollbarGutter).toBe("auto");
+    unmount();
+    expect(document.documentElement.style.scrollbarGutter).toBe("stable");
+    document.documentElement.style.scrollbarGutter = "";
+  });
+
   it("en ny hamta-funktion vid varje rendering hämtar inte om dokumentet", async () => {
     const hamtad = vi.fn(async () => new Blob([sida]));
     const { rerender } = render(<OpsHtmlVy hamta={(s) => hamtad(s)} sokvag="s" namn="rapport.html" />);

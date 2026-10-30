@@ -117,6 +117,17 @@ export function OpsHtmlVy({ hamta, sokvag, namn, skapadAv, onStang, stangEtikett
   const vem = skapadAv ? skaparensNamn(skapadAv, sprak) : "";
   const etikett = o("vyEtikett").replace("{namn}", namn);
   const visas = lage.lage === "klar" && html.trim() !== "";
+  // ⛔ SIDRAMENS RESERVERADE RULLNINGSLIST GÄLLER INTE EN VY SOM FYLLER FÖNSTRET (mätt i `check-skalyta` avsnitt 60). Tokens ger `html` `scrollbar-gutter: stable`, så att innehåll inte hoppar i sidled när en sida får en rullningslist.
+  // Vyn har ingen: den är exakt fönstrets höjd, och dokumentet rullar i sin egen ruta. Utan raden stod en tom remsa (10 till 15 px i en webbläsare med vanliga rullningslister) längs högerkanten, och rutan var smalare än fönstret.
+  // Värdet sätts när vyn visas och återställs när den lämnas, så att nästa sida får sidramens regel som förut.
+  useEffect(() => {
+    const rot = document.documentElement;
+    const fore = rot.style.scrollbarGutter;
+    rot.style.scrollbarGutter = "auto";
+    return () => {
+      rot.style.scrollbarGutter = fore;
+    };
+  }, []);
   function skrivUt() {
     // ⛔ "*" ÄR DET ENDA MÅLET SOM GÅR (se `OpsHtmlDokument`): rutan har ett anonymt ursprung, och meddelandet bär bara typen.
     ram.current?.contentWindow?.postMessage({ typ: HTML_UTSKRIFTSMEDDELANDE }, "*");
