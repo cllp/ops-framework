@@ -50,6 +50,7 @@
  *       node scripts/check-skalyta.mjs --bara-0127       bara avsnitt 50 till 52, preliminära poster, tilläggsrutan i Ny händelse och video i Biblioteket (0.127.0)
  *       node scripts/check-skalyta.mjs --bara-grupp-vantar  bara avsnitt 53, Spara och statusraden medan en grupp skapas (0.129.0)
  *       node scripts/check-skalyta.mjs --bara-kalenderdelning  bara avsnitt 58, Dela en egen kalender och mottagarens lista, 390 och 1280 px (0.154.0)
+ *       node scripts/check-skalyta.mjs --bara-htmlversioner  bara avsnitt 59, versionsraden för ett HTML-dokument i Biblioteket, 390 och 1280 px (0.158.0)
  *       node scripts/check-skalyta.mjs --bara-kategori  bara avsnitt 54, formuläret "Lägg till kategori": ett namn räcker (0.130.0)
  *       node scripts/check-skalyta.mjs --bara-gaster    bara avsnitt 55, gästernas lista och gästens egen sida, 390 och 1280 px (0.131.0)
  *       node scripts/check-skalyta.mjs --bara-gastgrupp  bara avsnitt 56, gästens bantade gränssnitt för hela gruppen och inbjudningsdialogen, 390 och 1280 px (0.132.0), och avsnitt 57, ärenden till en gäst (fliken, kommentar, Markera klar, väljaren och märket)
@@ -1081,6 +1082,14 @@ if (argv.includes("--bara-0127")) {
 // `--bara-kalenderdelning`: bara avsnitt 58, Dela en egen kalender (0.154.0). Hela körningen kör det också.
 if (argv.includes("--bara-kalenderdelning")) {
   await kalenderdelning();
+  await browser.close();
+  avsluta();
+  process.exit(0);
+}
+
+// `--bara-htmlversioner`: bara avsnitt 59, versionsraden för ett HTML-dokument (0.158.0). Hela körningen kör det också.
+if (argv.includes("--bara-htmlversioner")) {
+  await bibliotekHtmlVersioner();
   await browser.close();
   avsluta();
   process.exit(0);
@@ -8196,6 +8205,126 @@ async function gastArenden() {
 }
 
 /**
+ * Avsnitt 59 (0.158.0): VERSIONSRADEN FÖR ETT HTML-DOKUMENT I BIBLIOTEKETS DETALJ, vid 390 och 1280 px i riktig CSS. Scenen `bibliotekhtmlversioner` (skalyta-entry.jsx) är ett HTML-dokument på
+ * version 3 med stubbar som svarar som `createHtmlDokumentService`. jsdom kör ingen CSS, så proven i `htmldokument-versioner.test.jsx` mäter beteendet och det här hur raden LIGGER. Krav:
+ *   (a) Raden "Versioner" ligger inom fönstret med en träffyta på minst 44 px, och säger "Version 3" utan att listan är hämtad (inget anrop än).
+ *   (b) Utfälld: tre rader, varje inom raden och fönstret, med knapparna Öppna och Återställ på version 2 och 1 (fyra knappar, 44 px under 768 och 32 från), ingen på den nuvarande.
+ *       Texten ("Kim, ...") är inte klippt. Golv: tre rader och fyra knappar.
+ *   (c) Öppna version 2: den avspärrade rutan (`sandbox="allow-scripts allow-modals"`) fyller kolumnen i bredd, är minst 200 px hög, och sidan flödar inte över i sidled.
+ *   (d) Återställ medan anropet väntar: knappen upptagen (`aria-busy`) med snurra och "Återställer…", lika bred som före, den andra Återställ spärrad; när det släpps står "återställd" och knappen är fri.
+ *   (e) En konflikt: meningen och Läs om ligger inom fönstret, knappen är minst så hög som övriga, och sidan flödar inte över.
+ *   (f) Uppladdningsraden "Ladda upp ny version" ligger inom fönstret.
+ */
+async function bibliotekHtmlVersioner() {
+  for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
+    const namn = `html-versioner ${vp.width}`;
+    const knapp = vp.width < 768 ? 44 : 32;
+    const over = (/** @type {import("playwright").Page} */ page) => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    const { page, context } = await oppna("bibliotekhtmlversioner", vp);
+    try {
+      await page.waitForSelector("[data-html-versioner]");
+      krav(!(await page.$('[data-saknas="OpsBibliotek"]')), `${namn}: OpsBibliotek saknas i den byggda versionen.`);
+      // (a)
+      const a = await page.evaluate(() => {
+        const rad = /** @type {HTMLElement} */ (document.querySelector("[data-html-versioner]"));
+        const sum = /** @type {HTMLElement} */ (rad.querySelector("summary"));
+        const r = rad.getBoundingClientRect();
+        return { l: r.left, r: r.right, h: sum.getBoundingClientRect().height, nu: (rad.querySelector("[data-html-versioner-nu]")?.textContent || "").trim(), anrop: /** @type {any} */ (window).__versionsAnrop.length, fonsterB: window.innerWidth };
+      });
+      matt.push(`${namn} (a): raden ${a.l.toFixed(0)}-${a.r.toFixed(0)}, träffyta ${a.h.toFixed(0)}, "${a.nu}", anrop ${a.anrop}`);
+      krav(a.l >= -0.5 && a.r <= a.fonsterB + 0.5 && a.h >= 44, `${namn} (a): raden ligger ${a.l.toFixed(0)}-${a.r.toFixed(0)} i ett fönster på ${a.fonsterB} med träffytan ${a.h.toFixed(0)} px, väntat inom fönstret och minst 44.`);
+      krav(a.nu === "Version 3" && a.anrop === 0, `${namn} (a): raden säger "${a.nu}" efter ${a.anrop} anrop, väntat "Version 3" och inget anrop innan den fälls ut.`);
+      await page.click("[data-html-versioner] summary");
+      await page.waitForSelector("[data-html-versioner-lista]");
+      // (b)
+      const b = await page.evaluate(() => {
+        const rad = /** @type {HTMLElement} */ (document.querySelector("[data-html-versioner]"));
+        const rr = rad.getBoundingClientRect();
+        return [...rad.querySelectorAll("[data-html-version]")].map((li) => {
+          const lr = li.getBoundingClientRect();
+          return {
+            nr: li.getAttribute("data-html-version"),
+            inom: lr.left >= rr.left - 0.5 && lr.right <= rr.right + 0.5 && lr.right <= window.innerWidth + 0.5,
+            klippt: li.scrollWidth > li.clientWidth + 1,
+            text: (li.textContent || "").replace(/\s+/g, " ").trim(),
+            knappar: [...li.querySelectorAll("button")].map((x) => ({ namn: x.getAttribute("aria-label"), h: x.getBoundingClientRect().height, r: x.getBoundingClientRect().right, l: x.getBoundingClientRect().left })),
+          };
+        });
+      });
+      const knappar = b.flatMap((x) => x.knappar);
+      matt.push(`${namn} (b): ${JSON.stringify(b.map((x) => ({ nr: x.nr, knappar: x.knappar.map((k) => Math.round(k.h)) })))}`);
+      krav(b.length === 3 && knappar.length === 4, `${namn} (b): ${b.length} rader och ${knappar.length} knappar, väntat 3 och 4 (golv).`);
+      krav(b.every((x) => x.inom && !x.klippt), `${namn} (b): raderna ${b.map((x) => `${x.nr}:${x.inom ? "inom" : "utanför"}${x.klippt ? " klippt" : ""}`).join(" ")}, väntat inom raden och fönstret och inte klippta.`);
+      krav(knappar.every((k) => k.h >= knapp - 0.6 && k.l >= -0.5 && k.r <= vp.width + 0.5), `${namn} (b): knapparna ${JSON.stringify(knappar.map((k) => `${k.namn} ${Math.round(k.h)}`))}, väntat minst ${knapp} px höga och inom fönstret.`);
+      krav(b[0] && b[0].knappar.length === 0 && /Nuvarande/.test(b[0].text) && /Anna Berg via Byggagent/.test(b[0].text), `${namn} (b): version 3 säger ${JSON.stringify(b[0] && b[0].text)}, väntat märket Nuvarande, "Anna Berg via Byggagent" och inga knappar.`);
+      krav((await over(page)) <= 0, `${namn} (b): sidan flödar över i sidled med listan utfälld.`);
+      if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `html-versioner-lista-${vp.width}.png`), fullPage: true });
+      // (c)
+      await page.click('button[aria-label="Öppna version 2"]');
+      await page.waitForSelector("[data-html-versioner-oppen] iframe");
+      await page.waitForTimeout(200);
+      const c = await page.evaluate(() => {
+        const ruta = /** @type {HTMLElement} */ (document.querySelector("[data-html-versioner-oppen] iframe"));
+        const kol = /** @type {HTMLElement} */ (document.querySelector("[data-html-versioner-oppen]"));
+        const rr = ruta.getBoundingClientRect();
+        const kr = kol.getBoundingClientRect();
+        return { w: rr.width, h: rr.height, kw: kr.width, l: rr.left, r: rr.right, sandbox: ruta.getAttribute("sandbox"), kr: kr.right, rubrik: (kol.querySelector("p")?.textContent || "").trim() };
+      });
+      matt.push(`${namn} (c): rutan ${c.w.toFixed(0)}x${c.h.toFixed(0)} i en kolumn på ${c.kw.toFixed(0)}, sandbox "${c.sandbox}"`);
+      krav(c.sandbox === "allow-scripts allow-modals", `${namn} (c): sandbox är "${c.sandbox}", väntat "allow-scripts allow-modals".`);
+      krav(Math.abs(c.w - c.kw) <= 1 && c.r <= vp.width + 0.5 && c.h >= 200, `${namn} (c): rutan är ${c.w.toFixed(0)}x${c.h.toFixed(0)} i en kolumn på ${c.kw.toFixed(0)}, väntat full bredd inom fönstret och minst 200 px hög.`);
+      krav(c.rubrik === "Du tittar på version 2, inte den nuvarande.", `${namn} (c): rubriken säger ${JSON.stringify(c.rubrik)}.`);
+      krav((await over(page)) <= 0, `${namn} (c): sidan flödar över i sidled med en äldre version öppen.`);
+      if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `html-versioner-oppen-${vp.width}.png`), fullPage: true });
+      // (d)
+      await page.evaluate(() => { /** @type {any} */ (window).__versionsHall = true; });
+      const fore = await page.evaluate(() => /** @type {HTMLElement} */ (document.querySelector('button[aria-label="Återställ version 1"]')).getBoundingClientRect().width);
+      await page.click('button[aria-label="Återställ version 1"]');
+      await page.waitForSelector('button[aria-label="Återställ version 1"][aria-busy="true"]', { timeout: 3000 });
+      const d = await page.evaluate(() => {
+        const k = /** @type {HTMLButtonElement} */ (document.querySelector('button[aria-label="Återställ version 1"]'));
+        const andra = /** @type {HTMLButtonElement} */ (document.querySelector('button[aria-label="Återställ version 2"]'));
+        return { busy: k.getAttribute("aria-busy") === "true", snurra: !!k.querySelector("svg"), text: (k.textContent || "").trim(), bredd: k.getBoundingClientRect().width, andraSparrad: andra.disabled };
+      });
+      matt.push(`${namn} (d): ${JSON.stringify(d)}, före ${fore.toFixed(1)}`);
+      krav(d.busy && d.snurra && /Återställer…/.test(d.text) && d.andraSparrad, `${namn} (d): upptagen ${d.busy}, snurra ${d.snurra}, text ${JSON.stringify(d.text)}, den andra spärrad ${d.andraSparrad}, väntat sant, sant, "Återställer…" och sant.`);
+      krav(Math.abs(d.bredd - fore) <= 1, `${namn} (d): knappen är ${d.bredd.toFixed(1)} px bred medan den väntar och var ${fore.toFixed(1)} före, väntat lika bred.`);
+      await page.evaluate(() => /** @type {any} */ (window).__versionsSlapp());
+      await page.waitForSelector("[data-html-versioner-besked]");
+      const d2 = await page.evaluate(() => ({ besked: (document.querySelector("[data-html-versioner-besked]")?.textContent || "").trim(), busy: !!document.querySelector('[data-html-versioner] button[aria-busy="true"]'), anrop: /** @type {any} */ (window).__versionsAnrop.filter((/** @type {string} */ x) => x.startsWith("aterstall")) }));
+      krav(d2.besked === "Version 1 är återställd som version 4." && !d2.busy && d2.anrop.length === 1 && d2.anrop[0] === "aterstall:1:3", `${namn} (d): efter släppet ${JSON.stringify(d2)}, väntat beskedet "Version 1 är återställd som version 4.", ingen upptagen knapp och ett anrop aterstall:1:3.`);
+      // (e)
+      await page.evaluate(() => { /** @type {any} */ (window).__versionsHall = false; /** @type {any} */ (window).__versionsKonflikt = true; });
+      await page.click('button[aria-label="Återställ version 2"]');
+      await page.waitForSelector("[data-html-versioner-konflikt]");
+      const e = await page.evaluate(() => {
+        const k = /** @type {HTMLElement} */ (document.querySelector("[data-html-versioner-konflikt]"));
+        const kn = /** @type {HTMLElement} */ (k.querySelector("button"));
+        const kr = k.getBoundingClientRect();
+        const nr = kn.getBoundingClientRect();
+        return { text: (k.querySelector("p")?.textContent || "").trim(), l: kr.left, r: kr.right, knappH: nr.height, knappText: (kn.textContent || "").trim(), knappR: nr.right };
+      });
+      matt.push(`${namn} (e): konflikt ${e.l.toFixed(0)}-${e.r.toFixed(0)}, knapp ${e.knappH.toFixed(0)}`);
+      krav(/^Någon annan hann före/.test(e.text) && e.knappText === "Läs om", `${namn} (e): meningen säger ${JSON.stringify(e.text)} och knappen ${JSON.stringify(e.knappText)}.`);
+      krav(e.l >= -0.5 && e.r <= vp.width + 0.5 && e.knappR <= vp.width + 0.5 && e.knappH >= knapp - 0.6, `${namn} (e): konflikten ligger ${e.l.toFixed(0)}-${e.r.toFixed(0)} och knappen ${e.knappH.toFixed(0)} px hög, väntat inom fönstret och minst ${knapp}.`);
+      krav((await over(page)) <= 0, `${namn} (e): sidan flödar över i sidled med konflikten synlig.`);
+      if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `html-versioner-konflikt-${vp.width}.png`), fullPage: true });
+      // (f)
+      const f = await page.evaluate(() => {
+        const ny = /** @type {HTMLElement} */ (document.querySelector("[data-html-versioner-ny]"));
+        const k = /** @type {HTMLElement} */ (ny.querySelector("button"));
+        const r = k.getBoundingClientRect();
+        return { text: (k.textContent || "").trim(), l: r.left, r: r.right, h: r.height };
+      });
+      krav(f.text === "Ladda upp ny version" && f.l >= -0.5 && f.r <= vp.width + 0.5 && f.h >= knapp - 0.6, `${namn} (f): uppladdningsknappen ${JSON.stringify(f)}, väntat "Ladda upp ny version" inom fönstret och minst ${knapp} px hög.`);
+    } catch (err) {
+      krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (err).message).split("\n")[0]}).`);
+    }
+    await context.close();
+  }
+}
+
+/**
  * Avsnitt 58 (0.154.0, cllp/lifehub.app#485): DELA EN EGEN KALENDER, BARA LÄSNING, vid 390 och 1280 px i riktig CSS. Scenerna `kalenderdelning` (ägarens Hantera kalendrar
  * med `delning`) och `kalenderdelning-mottagare` (Bos kalender med Annas delade Barnveckor). Krav, varje del för sig:
  *   (a) Varje egen kalender har fem knappar (Flytta upp, Flytta ned, Dela, Redigera, Arkivera) på 44 px under 768 och 32 från, inom kortet, och namnet får minst
@@ -8369,6 +8498,7 @@ await gastVyer();
 await gastGrupp();
 await gastArenden();
 await kalenderdelning();
+await bibliotekHtmlVersioner();
 
 await browser.close();
 avsluta();
