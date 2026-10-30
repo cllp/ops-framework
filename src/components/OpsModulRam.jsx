@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { arInstallningslage, flyttaId, medInstallningslage, sattModul, utanInstallningslage } from "../lib/apparark.js";
+import { arInstallningslage, medInstallningslage, sattModul, utanInstallningslage } from "../lib/apparark.js";
 import { cx } from "../lib/cx.js";
 import { formatDateTime } from "../lib/format.js";
 import { lasKopplingslage } from "../lib/kopplingar.js";
@@ -7,7 +7,7 @@ import { hjalpAdress } from "../lib/modilhjalp.js";
 import { huvudmenyInom, installningsVarden, ORD_VISA_I_HUVUDMENYN, sattHuvudmeny } from "../lib/modulinstallningar.js";
 import { ordet } from "../lib/ord.js";
 import { text } from "../lib/sprak.js";
-import { ChevronHogerIkon, ChevronNedIkon, KugghjulIkon } from "./icons.jsx";
+import { ChevronHogerIkon, ChevronVansterIkon, KugghjulIkon } from "./icons.jsx";
 import { OpsBanner } from "./OpsBanner.jsx";
 import { OpsButton } from "./OpsButton.jsx";
 import { OpsField, OpsInput } from "./OpsField.jsx";
@@ -60,8 +60,11 @@ export const ORD_OPSMODULRAM = {
   ikon: { sv: "Ikon", en: "Icon" },
   ikonText: { sv: "Appens ikon.", en: "The app's icon." },
   ordning: { sv: "Ordning", en: "Order" },
-  upp: { sv: "Flytta upp", en: "Move up" },
-  ned: { sv: "Flytta ned", en: "Move down" },
+  vanster: { sv: "Flytta vänster", en: "Move left" },
+  hoger: { sv: "Flytta höger", en: "Move right" },
+  ordningHuvud: { sv: "Platsen i huvudmenyn.", en: "Its place in the main menu." },
+  ordningAppar: { sv: "Platsen bland apparna.", en: "Its place among the apps." },
+  forhandsvisning: { sv: "Förhandsvisning av ordningen", en: "Preview of the order" },
   dold: { sv: "Avstängd. Den syns inte i Appar.", en: "Off. It does not appear in Apps." },
   kopplingar: { sv: "Kopplingar", en: "Connections" },
   ansluten: { sv: "Ansluten", en: "Connected" },
@@ -217,6 +220,7 @@ export function OpsModulRam({ modul, activeHref, hubHref, hubEtikett, onNavigate
  * @property {boolean} farAndra
  * @property {{ moduler: ReadonlyArray<string>, huvudmeny?: ReadonlyArray<string> | null } | null} [grupp]
  * @property {(moduler: string[]) => void | Promise<void>} [onOrdning]
+ * @property {ReadonlyArray<{ id: string, namn?: string, ikon?: import("react").ReactNode }>} [appar] (0.158.0) Gruppens appar med ikon, för förhandsvisningen under Ordning. Saknas en app ritas dess första bokstav.
  * @property {(huvudmeny: string[]) => void | Promise<void>} [onSparaHuvudmeny]
  * @property {(inmatning: { modulId: string, varden: Record<string, boolean | string> }) => void | Promise<void>} [onSpara]
  * @property {Readonly<Record<string, boolean | string>> | null} [sparade]
@@ -283,12 +287,10 @@ export function InstallningsInnehall({ modul, ram, sprak }) {
   const propHuvud = Array.isArray(grupp?.huvudmeny) ? grupp.huvudmeny : [];
   const [listor, setListor] = useState(/** @type {{ moduler: string[], huvudmeny: string[] } | null} */ (null));
   const [boolUtkast, setBoolUtkast] = useState(/** @type {Record<string, boolean>} */ ({}));
-  const [ikonOpp, setIkonOpp] = useState(false);
   // ⛔ En kärnmodul är alltid på (0.106.0, #386, `karna.js`): listan läses med den, också när den sparade saknar den.
   const moduler = listor ? listor.moduler : medKarna(propModuler, [modul]);
   const huvudmeny = listor ? listor.huvudmeny : [...propHuvud];
   const pa = moduler.includes(modul.id);
-  const plats = moduler.indexOf(modul.id);
   const fast = huvudmeny.includes(modul.id);
   const deklarationer = (modul.kopplingar && modul.kopplingar.length > 0 ? modul.kopplingar : ram.deklarationer) ?? [];
   const egnaFalt = (modul.installningar ?? []).filter((f) => f.hem === "samling");
@@ -329,6 +331,36 @@ export function InstallningsInnehall({ modul, ram, sprak }) {
     return bakgrund(arbete, () => setListor(fore));
   };
 
+  // Ordning: raden som syns i huvudmenyn (fästa appar i gruppens ordning) när appen är fäst, annars alla appar som i Hubben.
+  const rad = fast ? moduler.filter((id) => huvudmeny.includes(id)) : moduler;
+  const radPlats = rad.indexOf(modul.id);
+  const apparById = new Map((ram.appar ?? []).map((a) => [a.id, a]));
+  /** @param {-1 | 1} steg */
+  const flytta = (steg) => {
+    if (typeof ram.onOrdning !== "function") {
+      setLitetFel(t("ordningSaknas"));
+      return;
+    }
+    fokusEfter.current = steg;
+    const nasta = flyttaForbi(moduler, rad, modul.id, steg);
+    sparaListor({ moduler: nasta, huvudmeny }, () => {
+      const a = ram.onOrdning?.(nasta);
+      return a ? Promise.resolve(a).then(() => {}) : undefined;
+    });
+  };
+  // ⛔ FOKUS FÖLJER MED NÄR PILEN BLIR GRÅ (granskningen av PR 470). Flyttas appen till en ände blir pilen man tryckte på `disabled`, och en spärrad knapp kan inte ha fokus: tangentbordet och skärmläsaren tappade sin plats.
+  // Efter ett tryck flyttas fokus till den motsatta pilen, och bara när den man tryckte på inte längre går att trycka på. Raden rensas efter första omritningen, så en sparning som misslyckas och rullas tillbaka inte flyttar fokus i efterhand.
+  const pilar = useRef(/** @type {HTMLSpanElement | null} */ (null));
+  const fokusEfter = useRef(/** @type {-1 | 0 | 1} */ (0));
+  useEffect(() => {
+    const steg = fokusEfter.current;
+    if (!steg) return;
+    fokusEfter.current = 0;
+    const rot = pilar.current;
+    const klickad = /** @type {HTMLButtonElement | null} */ (rot?.querySelector(`[data-ordning-pil="${steg < 0 ? "vanster" : "hoger"}"]`) ?? null);
+    const motsatt = /** @type {HTMLButtonElement | null} */ (rot?.querySelector(`[data-ordning-pil="${steg < 0 ? "hoger" : "vanster"}"]`) ?? null);
+    if (klickad?.disabled && motsatt && !motsatt.disabled) motsatt.focus();
+  }, [radPlats, rad.length]);
   const ikon = modul.hubb ? /** @type {import("react").ReactNode} */ (modul.hubb.ikon) : null;
 
   // ⛔ 0.147.0: avsnitten är värden och inte uppställda i ritningen, så att ordningen är ETT val (`ram.egnaForst`) och inte två kopior av avsnitten.
@@ -531,71 +563,56 @@ export function InstallningsInnehall({ modul, ram, sprak }) {
             />
           </Rad>
           <Rad>
-            <button
-              type="button"
-              data-allmant="ikon"
-              aria-expanded={ikonOpp}
-              onClick={() => setIkonOpp((v) => !v)}
-              className="flex min-h-11 w-full cursor-pointer items-center gap-3 px-4 py-2 text-left focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
-            >
+            <div data-allmant="ikon" className="flex min-h-11 w-full items-center gap-3 px-4 py-2">
               <span aria-hidden="true" className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-raised text-ink [&_svg]:size-4">{ikon}</span>
               <span className="min-w-0 flex-1">
                 <span className="block text-etikett text-ink">{t("ikon")}</span>
                 <span className="mt-0.5 block text-etikett text-ink-muted">{t("ikonText")}</span>
               </span>
-              <span aria-hidden="true" className={cx("inline-flex shrink-0 text-ink-muted", ikonOpp && "rotate-90")}>
-                <ChevronHogerIkon size={18} />
-              </span>
-            </button>
-            {ikonOpp ? (
-              <div data-ikon-opp="" className="flex justify-center px-4 pb-4">
-                <span aria-hidden="true" className="flex size-16 items-center justify-center rounded-xl bg-raised text-ink [&_svg]:size-8">{ikon}</span>
-              </div>
-            ) : null}
+            </div>
           </Rad>
           <Rad>
-            <div data-allmant="ordning" className="flex min-h-11 items-center gap-3 px-4 py-2">
-              <span className="min-w-0 flex-1">
-                <span className="block text-etikett text-ink">{t("ordning")}</span>
-                {!pa ? <span className="mt-0.5 block text-etikett text-ink-muted">{t("dold")}</span> : null}
-              </span>
-              <span className="flex shrink-0 items-center">
-                <IkonKnapp
-                  etikett={t("upp")}
-                  disabled={!ram.farAndra || !pa || plats <= 0}
-                  onClick={() => {
-                    if (typeof ram.onOrdning !== "function") {
-                      setLitetFel(t("ordningSaknas"));
-                      return;
-                    }
-                    const nasta = flyttaId(moduler, modul.id, -1);
-                    sparaListor({ moduler: nasta, huvudmeny }, () => {
-                      const a = ram.onOrdning?.(nasta);
-                      return a ? Promise.resolve(a).then(() => {}) : undefined;
-                    });
-                  }}
-                >
-                  <span className="flex rotate-180"><ChevronNedIkon size={18} /></span>
-                </IkonKnapp>
-                <span data-ordning-plats="" className="min-w-10 text-center text-etikett tabular-nums text-ink">{plats >= 0 ? `${plats + 1}/${moduler.length}` : "-"}</span>
-                <IkonKnapp
-                  etikett={t("ned")}
-                  disabled={!ram.farAndra || !pa || plats < 0 || plats >= moduler.length - 1}
-                  onClick={() => {
-                    if (typeof ram.onOrdning !== "function") {
-                      setLitetFel(t("ordningSaknas"));
-                      return;
-                    }
-                    const nasta = flyttaId(moduler, modul.id, 1);
-                    sparaListor({ moduler: nasta, huvudmeny }, () => {
-                      const a = ram.onOrdning?.(nasta);
-                      return a ? Promise.resolve(a).then(() => {}) : undefined;
-                    });
-                  }}
-                >
-                  <ChevronNedIkon size={18} />
-                </IkonKnapp>
-              </span>
+            <div data-allmant="ordning" className="flex flex-col gap-2 px-4 py-2">
+              <div className="flex min-h-11 items-center gap-3">
+                <span className="min-w-0 flex-1">
+                  <span className="block text-etikett text-ink">{t("ordning")}</span>
+                  <span className="mt-0.5 block text-etikett text-ink-muted">{!pa ? t("dold") : fast ? t("ordningHuvud") : t("ordningAppar")}</span>
+                </span>
+                <span ref={pilar} className="flex shrink-0 items-center">
+                  <IkonKnapp pil="vanster" etikett={t("vanster")} disabled={!ram.farAndra || !pa || radPlats <= 0} onClick={() => flytta(-1)}>
+                    <ChevronVansterIkon size={18} />
+                  </IkonKnapp>
+                  <IkonKnapp pil="hoger" etikett={t("hoger")} disabled={!ram.farAndra || !pa || radPlats < 0 || radPlats >= rad.length - 1} onClick={() => flytta(1)}>
+                    <ChevronHogerIkon size={18} />
+                  </IkonKnapp>
+                </span>
+              </div>
+              {pa ? (
+                <ol data-ordning-rad="" aria-label={t("forhandsvisning")} className="m-0 flex list-none flex-wrap gap-1.5 p-0">
+                  {rad.map((id) => {
+                    const app = apparById.get(id);
+                    const denna = id === modul.id;
+                    const bild = denna ? ikon : app?.ikon;
+                    // ⛔ ETT LÄSBART NAMN PÅ VARJE RAD (granskningen av PR 470): ikonen är en SVG utan text, och `title` läses inte upp. Namnet är appens riktiga, aldrig det råa id:t när ett finns.
+                    const namn = denna ? text(modul.namn, sprak) || modul.id : app?.namn || id;
+                    return (
+                      <li
+                        key={id}
+                        data-ordning-app={id}
+                        aria-current={denna ? "true" : undefined}
+                        title={namn}
+                        className={cx(
+                          "flex size-8 items-center justify-center rounded-lg text-etikett [&_svg]:size-4",
+                          denna ? "bg-raised text-ink ring-2 ring-accent" : "bg-raised text-ink-muted",
+                        )}
+                      >
+                        <span aria-hidden="true" className="flex items-center justify-center">{bild ?? String(namn).slice(0, 1).toUpperCase()}</span>
+                        <span className="sr-only">{namn}</span>
+                      </li>
+                    );
+                  })}
+                </ol>
+              ) : null}
             </div>
           </Rad>
         </Grupp>
@@ -628,11 +645,12 @@ function Rad({ children }) {
   return <li className="border-b border-line last:border-b-0">{children}</li>;
 }
 
-/** @param {{ etikett: string, disabled?: boolean, onClick: () => void, children: import("react").ReactNode }} props */
-function IkonKnapp({ etikett, disabled, onClick, children }) {
+/** @param {{ etikett: string, disabled?: boolean, onClick: () => void, pil?: "vanster" | "hoger", children: import("react").ReactNode }} props */
+function IkonKnapp({ etikett, disabled, onClick, pil, children }) {
   return (
     <button
       type="button"
+      data-ordning-pil={pil}
       aria-label={etikett}
       disabled={disabled}
       onClick={onClick}
@@ -682,5 +700,22 @@ function karta(egna, varden, texter, boolUtkast = {}, extra = {}) {
     else if (Object.hasOwn(boolUtkast, f.id)) ut[f.id] = boolUtkast[f.id];
     else ut[f.id] = varden[f.id];
   }
+  return ut;
+}
+
+/**
+ * Flyttar `id` förbi grannen i `rad` (en delmängd av `lista` i samma ordning). Steget märks alltså i raden även när appar utanför raden ligger emellan.
+ * @param {ReadonlyArray<string>} lista
+ * @param {ReadonlyArray<string>} rad
+ * @param {string} id
+ * @param {-1 | 1} steg
+ */
+export function flyttaForbi(lista, rad, id, steg) {
+  const i = rad.indexOf(id);
+  const granne = rad[i + steg];
+  if (i < 0 || granne == null) return lista.slice();
+  const ut = lista.filter((x) => x !== id);
+  const g = ut.indexOf(granne);
+  ut.splice(steg < 0 ? g : g + 1, 0, id);
   return ut;
 }

@@ -424,6 +424,38 @@ maskin under ett pass.
 ensamma eller i följd. Ett rött utfall som passerar isolerat är inte ett
 resultat utan en mätning som misslyckades. Skriv det så, med båda utfallen.
 
+## 15. PR:en eller ärendet är kön. Exakt en etikett säger vems tur det är.
+
+CP 2026-10-30: "NI väntar på varandra hela tiden och allt fastnar." Tio av Groks
+PR:ar hade då väntat över ett dygn på Claudes granskning, och ingenting sa till
+Claude att de fanns: PR:arna var gröna och färdiga, men ingen lista, notis eller
+etikett pekade ut dem. Den som hade gjort sin del gick vidare, den som skulle ta
+vid visste inte om det, och CP fick vara den som märkte stilleståndet. Han bad
+inte om att de tio skulle tas, utan om "en permanent lösning" och inte ett
+enskilt ärende som kö. Ett ärende som samlar köns innehåll är en andra lista att
+hålla i takt med verkligheten (regel 2), och den ruttnar (regel 10).
+
+**Regeln:** själva PR:en eller ärendet är kön. Exakt en av tre etiketter säger
+vems tur det är:
+
+| Etikett | Vems tur | Vad som ska stå |
+|---|---|---|
+| `vantar-claude` | Claude | Granskning, eller ett fel att titta på |
+| `vantar-grok` | Grok | Merge, deploy eller körning, med blocket som kommentar i PR:en eller ärendet |
+| `vantar-cp` | CP | Ett beslut eller ett test i telefonen, med frågan i en rad |
+
+- **Den som har gjort sin del byter etikett i samma steg.** Att pusha, öppna
+  utkastet, kommentera eller köra klart är inte avslutat förrän etiketten säger
+  vem som är nästa. Ingenting öppet som väntar på någon står utan etikett.
+- **Varje agent söker på sin etikett minst en gång i timmen, i alla repon**
+  (`bolag-ops`, `lifehub.app`, `lifehub.identity`, `tam`, ramverket). En sökning
+  utan träff är inte ett svar förrän du vet vilka repon du sökte i (regel 3).
+- **Ett långt ärende med block är ingen kö.** Det går inte att se vems tur det
+  är i en lång tråd, och ett block begravt i kommentar 40 hittas av ingen.
+  Blocket läggs i en egen kommentar och etiketten sätts.
+- Etiketterna är exakt tre, med exakt de här namnen. En fjärde ("väntar-alla",
+  "blockerad") är en etikett som inte pekar ut någon.
+
 ---
 
 ## Vad som inte är regler här

@@ -395,21 +395,27 @@ function Spelrad({ lage }) {
    * som alla ytor räknar med (`main`, `OpsMeddelanden`, toasten, `arkOvanforRad`) redan innehåller överhänget och ingen av dem
    * behöver känna till det. Utfyllnaden är genomskinlig och tar inga tryck (`pointer-events-none`), så knappen under den går att
    * trycka. Själva raden är den inre rutan. Från 768 px finns ingen bottenmeny och inget överhäng, och utfyllnaden är 0.
+   *
+   * ⛔ INGET GLAPP MOT BOTTENMENYN (CP 29 okt: "spelaren lade sig längst ner omkring knappen o det inte blev glapp"). Under
+   * 768 px har hela rutan, utfyllnaden inräknad, bottenradens bakgrund (`bg-surface`), och bottenradens överkant tas bort medan
+   * spelraden syns (`tokens.css`, `[data-ops-bottenrad]`). Spelaren och menyn blir en yta, och knappen sitter i ett hack i
+   * spelarens nederkant med sin ring i samma färg. Rutan ligger ett lager UNDER bottenraden (`z-chrome` minus 1), annars målar
+   * bakgrunden över knappens övre del, eftersom spelraden kommer efter menyn i dokumentet.
    */
   return (
     <div
       ref={rad}
       data-ops-spelrad-ruta=""
       className={cx(
-        "pointer-events-none fixed inset-x-0 bottom-[calc(var(--bottom-nav-h)+var(--safe-bottom))] z-(--z-chrome) pb-(--bottom-nav-overhang)",
-        "md:bottom-(--safe-bottom) md:pb-0",
+        "pointer-events-none fixed inset-x-0 bottom-[calc(var(--bottom-nav-h)+var(--safe-bottom))] z-[calc(var(--z-chrome)-1)] bg-surface pb-(--bottom-nav-overhang)",
+        "md:bottom-(--safe-bottom) md:z-(--z-chrome) md:bg-transparent md:pb-0",
       )}
     >
       <div
         role="region"
         aria-label={`Spelar ${spar.namn}`}
         data-ops-spelrad=""
-        className="pointer-events-auto border-t border-line bg-raised"
+        className="pointer-events-auto border-t border-line bg-surface md:bg-raised"
       >
         <div aria-hidden="true" className="h-0.5 bg-line">
           <div className="h-full bg-accent" style={{ width: `${pos * 100}%` }} />

@@ -9,12 +9,63 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
-## Ej utgivet
+## 0.158.0
+
+Fyra delar: raden Versioner för ett HTML-dokument i Biblioteket, en ny regel 15 i kanon, spelraden dockad mot bottenmenyn och Ordning i modulramen med förhandsvisning (Groks PR 470 och 471, granskade av Claude, rättade i egna commits). **Brytande, litet:** `ORD_OPSMODULRAM` (publik export) har inte längre nycklarna `upp` och `ned`, se Ordning i modulramen.
+
+### Kanon
 
 - **Visionen i kanon** (`CLAUDE.md`, CP 2026-10-24): varför vi bygger, hur (agenten som
   första väg in, visuella hjälpmedel som den andra) och frågan till varje ärende: gör det
   här att någon tittar mindre på skärmen, eller mer? Följer med till konsumenternas
   kanonkopia vid nästa utgivning och ompinning.
+- **Regel 15 i kanon: PR:en eller ärendet är kön** (`CLAUDE.md`, CP 2026-10-30). Tio av
+  Groks PR:ar väntade över ett dygn på Claudes granskning utan att något sa till Claude att
+  de fanns: "NI väntar på varandra hela tiden och allt fastnar." CP bad om "en permanent
+  lösning" och inte om ett ärende som kö. Regeln: exakt en av tre etiketter säger vems tur
+  det är (`vantar-claude`, `vantar-grok`, `vantar-cp`), den som gjort sin del byter etikett
+  i samma steg, varje agent söker på sin etikett minst en gång i timmen i alla repon, och ett
+  långt ärende med block är ingen kö. Följer med till konsumenternas kanonkopia vid nästa
+  utgivning och ompinning (`check-kanon --skriv`).
+
+### Spelraden dockad mot bottenmenyn
+
+cllp/ops-framework PR 471 (Grok), CP 2026-10-29, skärmbild från iPhone.
+
+- Under 768 px har spelraden och dess ruta bottenradens bakgrund ända ned till radens överkant, utan genomskinligt glapp, och mikrofonknappen sitter i ett hack i spelarens nederkant (`OpsSpelare`, `tokens.css`). Bottenradens överkantslinje döljs medan spelaren syns, så att den inte skär genom spelaren och hacket. Från 768 px är allt som förut.
+- **Mätt i renderad CSS, inte läst ur källan.** `check-skalyta` avsnitt 24 (`--bara-spelrad`) mäter nu beräknade färger: spelraden och dess ruta har bottenradens bakgrund, rutan slutar vid bottenradens överkant (±1 px) och bottenradens överkantslinje är genomskinlig medan spelraden syns, i alla fyra telefonlägen (Idag och Kalender, med och utan säker zon). **Grönt** med ändringen (46 kontroller, inga brott), **rött** mot 0.157.0:s `OpsSpelare` och `tokens.css`: 8 brott, rutan genomskinlig (`rgba(0, 0, 0, 0)`) och linjen kvar (`rgb(232, 226, 218)`). Källgrepsprovet `spelrad-dockad.test.js` står kvar men bevisar bara att klasserna finns.
+
+### Ordning i modulramen: vänster och höger, med förhandsvisning
+
+cllp/ops-framework PR 470 (Grok), rättad efter granskningen.
+
+- `OpsModulRam`, Allmänt: Ikon-raden är skrivskyddad, utan chevron och utan utfällning. Ikonen kommer från manifestet.
+- `OpsModulRam`, Ordning: räknaren "n/N" är borta. Pilarna är ←/→ "Flytta vänster/höger", som den vågräta huvudmenyn, och de är gråa i ändarna. Under raden finns en liten förhandsvisning av ikonraden med appen markerad: huvudmenyns fästa appar när appen är fäst, annars alla appar. Ett steg flyttar förbi närmaste granne i raden (`flyttaForbi`, ny export).
+- Nytt, valfritt: `ram.appar` (`{ id, namn?, ikon? }[]`) ger ikonerna och namnen till förhandsvisningen. Saknas en app ritas dess första bokstav.
+- **Brytande, litet.** `ORD_OPSMODULRAM` är en publik export, och nycklarna `upp` ("Flytta upp") och `ned` ("Flytta ned") är borta, ersatta av `vanster` och `hoger` (och `ordningHuvud`, `ordningAppar`, `forhandsvisning`). En app som läser de gamla nycklarna ur ordboken får `undefined`. Komponenten ritar inte längre upp/ned-pilar, så det finns inget att behålla dem för.
+- **Rättat efter granskningen.** (1) Varje rad i förhandsvisningen har ett läsbart namn: ikonen är en SVG utan text och `title` läses inte upp, så namnet står som text för skärmläsare (appens riktiga namn ur manifestet, `ram.appar` för de andra) och aldrig det råa `modul.id` när ett namn finns. (2) När ett tryck flyttar appen till änden blir pilen man tryckte på spärrad och tappade fokus; fokus går nu till den motsatta pilen, och bara när den tryckta blev spärrad (en sparning som misslyckas och rullas tillbaka flyttar inte fokus i efterhand). **Prov, åt båda håll:** `modulram.test.jsx` har fem nya prov (namn per rad, namn på engelska och en app utan namn, fokus i änden, fokus kvar mitt i raden, ingen fokusflytt vid rullad sparning) som är **röda utan rättelserna (5 av 5)** och gröna med dem (26 av 26 i filen), och ett prov som låser att `upp` och `ned` är borta.
+
+### Raden Versioner för ett HTML-dokument i Biblioteket
+
+Uppföljning av 0.156.0 (cllp/ops-framework#472). Inget är brytande: utan propparna nedan är Biblioteket oförändrat. **Skärmtid (frågan till ärendet):** raden är hopfälld och hämtar ingenting förrän den fälls ut, och den som aldrig laddar upp en HTML-fil ser den inte. Den smala varianten, CP:s val: ingen jämförelse mellan versioner.
+
+- **Raden.** I detaljen för ett HTML-dokument (`text/html`) och bara där ritar `OpsBibliotek` en hopfälld rad **Versioner** (med "Version N" i sammanfattningen, ur postens `version.nr`). Utfälld: listan med nummer, vem (`skaparensNamn`, med `via`) och när, den nuvarande märkt; **Öppna** på en äldre version ritar den i den avspärrade rutan (`OpsHtmlDokument`, samma sandlåda); **Återställ** skapar en ny version; **Ladda upp ny version** tar en HTML-fil (prövas här först: typ, tom, tak).
+- **Fyra frivilliga props, i samma stil som `hamtaFil`:** `htmlVersioner(post)` (listan; utan den ritas ingen rad), `hamtaHtmlVersion(post, nr)`, `aterstallHtml(post, nr, fran)` och `nyHtmlVersion(post, fil, fran)`. En prop som saknas tar bort knappen som behöver den. Återställ och uppladdning ritas bara för den som får ändra posten (`farAndra`).
+- ⛔ **Skrivningarna går via appen och servern, aldrig mot Firestore härifrån.** En klientskrivning klarar inte steget från version 2 till 3 för en admin, eftersom reglernas uttrycksgräns tar slut. `fran` är versionen personen såg (ur den senast lästa listan, annars `version.nr`), och går vidare till `createHtmlDokumentService`, som svarar `konflikt` när någon hann före.
+- **Felen syns.** En konflikt (`fel.kod === "konflikt"` eller `status`/`httpStatus` 409) blir en mening med knappen **Läs om**, och nästa försök utgår från den nyare versionen. Tom lista ("Inga versioner hittades."), ett svar i fel form, ett fel vid hämtningen (med Försök igen), en version som saknas i historiken, en återställning eller fil som inte blev en ny version (`ny: false`) och alla andra fel skrivs ut med sin orsak. Tjänstens felkoder har egna meningar. Orden (`ORD_HTMLVERSIONER`) finns på svenska och engelska.
+- **Ytan.** Knapparna visar att de väntar (`busyLabel`, `check-vantar` grön), raderna staplas på 390 px och knapparna är 44 px höga (32 från 768), typografin och tokens är Bibliotekets. Verbet i pågående form är längre än etiketten ("Återställer…" mot "Återställ"), så knappen växer en gång när den börjar vänta (73 till 115 px mätt): det är `OpsButton`s regel sedan 0.141.0 och inget nytt.
+- Appen måste bygga fyra anrop (versioner, läsa en version, återställa, ny version) mot `createHtmlDokumentService`: README, [Versionsraden i Biblioteket](README.md#versionsraden-i-biblioteket-01580), har tabellen.
+
+**Prov, åt båda håll (versionsraden).** Allt mätt 2026-10-30. **Grönt:** `htmldokument-versioner.test.jsx` **29 prov**, `check-vantar` grön, och `check-skalyta` i sin helhet **3 470 kontroller utan brott** (avsnitt 59 är 38 av dem, 390 och 1280 px, i en riktig webbläsare). **Rött utan ändringen:** mot `OpsBibliotek` från 0.157.0 faller **25 av de 29 proven** (de fyra som består säger att ingen rad finns utan propparna, att en PDF inte får någon rad, ordböckerna och de rena funktionerna), och skärmkontrollen mot 0.157.0:s byggda paket avbryts på att raden saknas, i båda bredderna. **Mutationer, ett skydd i taget borttaget, provfilen ensam, alla röda:** konflikten känns inte igen (3 prov röda), `fran` alltid 1 (3), listan hämtas utan att raden fällts ut (4), ett fel i listan tigs (2), `ny: false` låtsas vara lyckat (2), tom lista tigs (1), Återställ utan `farAndra` (1), uppladdning utan `farAndra` (1), en fil som inte är HTML släpps igenom (1), ingen omläsning när dokumentets fil byter (1). **Två fynd på vägen, rättade:** (1) första skärmkontrollen krävde att Återställ är lika bred medan den väntar och mätte 73 px före och 115 px under. Det är `OpsButton`s regel (knappen är lika bred som den bredaste av etiketten och verbet i pågående form, sedan 0.141.0) och inget fel i raden; kravet är nu att knappen inte blir smalare, växer högst 80 px och stannar inom fönstret. (2) Scenen gav `via` som en sträng, och raden visade därför inte "via Byggagent" (formen är `{ nyckelId, namn }`). **Ej bevisat härifrån:** hur raden ser ut för en riktig användare i appen (skärmkontrollen kör ramverkets scen med stubbar, inte appens API), och att appens anrop översätter tjänstens `konflikt` till ett fel med `kod: "konflikt"` eller status 409 (README säger att appen måste göra det).
+
+**Grindens siffror för hela 0.158.0, och regel 14.** `npm run check` bygger, kontrollerar typer, tokens, exporter, docs, stängt API, `check-vantar`, `check-sprak` med flera och kör vitest: **292 filer, 5 630 prov**. Under belastning (andra agenters sviter på samma maskin, kölåset upptaget i över en timme så att körningarna gick med lägre prioritet utan lås) föll ett prov i taget som mäter väggtid: `kalenderlista.test.jsx` (111 ms mot taket 100, två körningar av tre isolerat gröna vid ett tillfälle då skärmkontrollen gick samtidigt) och `talk-ingen-text.test.jsx` (en räknare som räknade ms). Båda är **gröna isolerade (24 av 24 tre gånger, 32 av 32)**, alltså en mätning som misslyckades och inte ett resultat. **Omkörd en gång till på sista koden (ingen annan svit igång från mig): `npm run check` grön, 292 filer och 5 630 prov, exit 0.**
+
+### Att göra i appen efter ompinningen till 0.158.0
+
+1. **`ram.appar` till `OpsModulRam`.** Skicka gruppens appar som `ram.appar` (`{ id, namn, ikon }[]`: appens id, dess namn på användarens språk och dess ikon ur manifestet) så att förhandsvisningen under Ordning visar riktiga ikoner och namn. Utan dem ritas första bokstaven och id:t läses upp. Läser appen `ORD_OPSMODULRAM.upp` eller `.ned` någonstans: byt till `vanster` och `hoger`.
+2. **Callbacks till versionsraden.** Ge `OpsBibliotek` `htmlVersioner`, `hamtaHtmlVersion`, `aterstallHtml` och `nyHtmlVersion`, som anropar appens API och servern (`createHtmlDokumentService`: `versioner`, `lasVersion`, `aterstall`, `uppdatera`). Appens wrapper ska göra tjänstens `konflikt` till ett fel med `kod: "konflikt"` (eller status 409). Tabellen och villkoren: README, [Versionsraden i Biblioteket](README.md#versionsraden-i-biblioteket-01580). Utan dem syns ingen rad.
+3. **Kanonkopian.** Kör `node scripts/check-kanon.mjs --skriv` i varje konsument så att regel 15 följer med, och skapa de tre etiketterna `vantar-claude`, `vantar-grok` och `vantar-cp` i varje repo.
+4. **Deployordning** som vid 0.156.0: ramverket mergas och publiceras, reglerna är redan deployade för versionerna, och först därefter mergas appens klient. Raden kräver inga nya regler.
 
 ## 0.157.0
 

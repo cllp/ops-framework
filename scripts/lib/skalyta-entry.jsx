@@ -2176,6 +2176,76 @@ function BibliotekVideoYta({ oppnaDetalj = true }) {
   );
 }
 
+/**
+ * 0.158.0: ett HTML-dokument på version 3 med raden "Versioner". Callbackarna är stubbar som svarar som `createHtmlDokumentService` gör.
+ * `window.__versionsHall = true` gör att Återställ ger ett löfte som väntar tills `window.__versionsSlapp()` körs, och `window.__versionsKonflikt = true`
+ * att det avslås med `kod: "konflikt"`, så att väntan och konflikten går att mäta. `window.__versionsAnrop` samlar vad raden anropade.
+ */
+function BibliotekHtmlVersionerYta() {
+  const Bib = Ops.OpsBibliotek;
+  const bygg = Ops.byggPost;
+  if (!Bib || !bygg) return <p data-saknas="OpsBibliotek">OpsBibliotek saknas</p>;
+  const tid = Date.UTC(2026, 9, 29, 10, 0);
+  const kim = { uid: "uid-1", namn: "Kim", typ: "manniska", kalla: "bibliotek" };
+  const anna = { uid: "uid-2", namn: "Anna Berg", typ: "manniska", kalla: "bibliotek", via: { nyckelId: "k1", namn: "Byggagent" } };
+  let post;
+  try {
+    post = { ...bygg({ groupId: "cps-ab", typ: "fil", rubrik: "Kvartalsrapport med ett långt namn som får plats", fil: { sokvag: "grupper/cps-ab/bibliotek/p1/kvartalsrapport-med-ett-langt-namn.html", namn: "kvartalsrapport-med-ett-langt-namn.html", mime: "text/html", byte: 2048, klar: true }, skapadAv: kim, skapad: tid, andrad: tid }), id: "p1", version: { nr: 3, av: anna, tid: tid + 7_200_000 } };
+  } catch (e) {
+    return <p data-saknas="html">{e instanceof Error ? e.message : "html saknas"}</p>;
+  }
+  // @ts-ignore
+  window.__versionsAnrop = window.__versionsAnrop ?? [];
+  const lista = {
+    nuvarande: 3,
+    versioner: [
+      { nr: 3, nuvarande: true, av: anna, tid: tid + 7_200_000, saknas: false },
+      { nr: 2, nuvarande: false, av: kim, tid: tid + 3_600_000, saknas: false },
+      { nr: 1, nuvarande: false, av: kim, tid, saknas: false },
+    ],
+  };
+  const sida = (/** @type {string} */ t) => `<!doctype html><h1 style="font-family:sans-serif">${t}</h1><p style="font-family:sans-serif">Ett stycke i dokumentet.</p>`;
+  return (
+    <Bib
+      poster={[post]}
+      jag={{ uid: "uid-1", roll: "medlem" }}
+      vald={post}
+      skapar={null}
+      onOppna={() => {}}
+      onStang={() => {}}
+      onSkapa={() => {}}
+      onSpara={() => {}}
+      filUrl={() => "https://lagring.example/fil"}
+      hamtaFil={async () => new Blob([sida("Version 3")], { type: "text/html" })}
+      htmlVersioner={async () => {
+        // @ts-ignore
+        window.__versionsAnrop.push("lista");
+        return lista;
+      }}
+      hamtaHtmlVersion={async (_p, nr) => {
+        // @ts-ignore
+        window.__versionsAnrop.push(`hamta:${nr}`);
+        return sida(`Version ${nr}`);
+      }}
+      aterstallHtml={(_p, nr, fran) => {
+        // @ts-ignore
+        window.__versionsAnrop.push(`aterstall:${nr}:${fran}`);
+        // @ts-ignore
+        if (window.__versionsKonflikt) return Promise.reject(Object.assign(new Error("Dokumentet har uppdaterats."), { kod: "konflikt" }));
+        // @ts-ignore
+        if (!window.__versionsHall) return Promise.resolve({ ny: true, nr: 4 });
+        return new Promise((los) => {
+          // @ts-ignore
+          window.__versionsSlapp = () => los({ ny: true, nr: 4 });
+        });
+      }}
+      nyHtmlVersion={async () => ({ ny: true, nr: 4 })}
+      hubHref="/hub"
+      onNavigate={(_href, e) => e.preventDefault()}
+    />
+  );
+}
+
 /** Ljudraden: rubrik, datum och längd, spela, våg, ⋯. En rad utan namn faller tillbaka på Röstinspelning. */
 function BibliotekLjudYta({ oppnaDetalj = false }) {
   const Bib = Ops.OpsBibliotek;
@@ -2996,6 +3066,7 @@ function Scen() {
     return <Full><BibliotekLjudYta oppnaDetalj={s === "bibliotekljuddetalj"} /></Full>;
   }
   if (s === "bibliotekvideo") return <Full><BibliotekVideoYta /></Full>;
+  if (s === "bibliotekhtmlversioner") return <Full><BibliotekHtmlVersionerYta /></Full>;
   // 0.87.0 (#321): utfälld aktivitet. Raden visar rubrik och detalj. Utfällningen ska inte rita dem igen.
   if (s === "aktivitet") {
     const rader = [
