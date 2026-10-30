@@ -780,3 +780,42 @@ describe("⛔ Appar har vyns tunna huvud med åtgärden (0.103.0, CP 2026-10-14)
     expect(() => render(<OpsVyAtgard onClick={/** @type {any} */ (undefined)}>X</OpsVyAtgard>)).toThrow(/onClick krävs/);
   });
 });
+
+describe("⛔ en ensam del och modulens egen åtgärd (0.160.0, CP 2026-10-30)", () => {
+  it("en modul med en del ritar ingen flikrad, en med flera gör det", () => {
+    const en = render(
+      <OpsModulSida modul={moduler()[1]} activeHref="/resor/kommande" hubHref="/hub">
+        <p>kommande</p>
+      </OpsModulSida>,
+    );
+    expect(en.container.querySelector("[data-modulnav]")).toBeNull();
+    expect(en.container.querySelector('[data-moduldel="kommande"]')?.textContent).toBe("kommande");
+    en.unmount();
+    const flera = render(
+      <OpsModulSida modul={moduler()[0]} activeHref="/ekonomi/oversikt" hubHref="/hub">
+        <p>x</p>
+      </OpsModulSida>,
+    );
+    expect(flera.container.querySelector("[data-modulnav]")).not.toBeNull();
+  });
+
+  it("åtgärden står i huvudet före kugghjulet, och inte i inställningsläget", () => {
+    const knapp = <button type="button">Nytt</button>;
+    const visning = render(
+      <OpsModulSida modul={moduler()[1]} activeHref="/resor/kommande" hubHref="/hub" ram={{ farAndra: true }} atgard={knapp}>
+        <p>x</p>
+      </OpsModulSida>,
+    );
+    const nytt = screen.getByRole("button", { name: "Nytt" });
+    const kugg = /** @type {HTMLElement} */ (visning.container.querySelector('[data-modul-lage-knapp="installningar"]'));
+    expect(kugg).not.toBeNull();
+    expect(nytt.compareDocumentPosition(kugg) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    visning.unmount();
+    render(
+      <OpsModulSida modul={moduler()[1]} activeHref="/resor/kommande?lage=installningar" hubHref="/hub" ram={{ farAndra: true }} atgard={knapp}>
+        <p>x</p>
+      </OpsModulSida>,
+    );
+    expect(screen.queryByRole("button", { name: "Nytt" })).toBeNull();
+  });
+});
