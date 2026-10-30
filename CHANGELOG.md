@@ -16,6 +16,17 @@ anteckningar är en version ingen kan välja att hoppa över.
   här att någon tittar mindre på skärmen, eller mer? Följer med till konsumenternas
   kanonkopia vid nästa utgivning och ompinning.
 
+## 0.157.0
+
+### Väljaren med `flera` väntar på appens omritning och inte på en timer
+
+cllp/ops-framework#475. Inget är brytande: samma props, samma `onChange`, samma ordning på filerna.
+
+- **Felet.** Två snabba inklistringar kunde tappa den första filen. Efter varje `onChange` väntade nästa omgång ett `setTimeout(0)`, i tron att appens omritning hunnit före. Inklistringens lyssnare sitter på `document`, utanför Reacts händelser, och då schemalägger React 18 omritningen i sin egen schemaläggare. Under last kom timern först, nästa omgång läste den gamla listan och skrev `[...gammal lista, b]` över `[...gammal lista, a]`. Mätt i CI på cllp/ops-framework#474 (provet "nästa omgång börjar läsas först när appen har ritat den förra" föll där och var grönt lokalt på samma commit). Följden för en användare är hypotes ur mekanismen, inte mätt i en webbläsare.
+- **Lagningen.** Omgången skapar en väntan innan den anropar `onChange`, och väljaren löser den i den commit där `value` har blivit en annan lista. Ingen tidsgräns ligger i vägen när appen tar emot ändringen, hur sent i förhållande till väljaren omritningen än kommer.
+- **Taket, och varför det är en tidsgräns.** En app som vägrar ändringen (behåller `value`, vilket läget uttryckligen tillåter) gör ingenting alls, och inifrån väljaren går det inte att skilja från en app som är långsam. Utan tak hade kön stått still efter första vägran. Efter 300 ms räknas ändringen som vägrad: nästa omgång läser den lista appen har, och inget fel visas. En app som tar emot ändringen senare än så kan fortfarande tappa en fil i nästa omgång; det gäller bara en app som inte ritar om på 300 ms. Beskeden om avvisade filer visas nu direkt när filerna lästs och väntar inte på appen. En vägrande app ser "Läser" i 300 ms efter sista filen.
+- **Provet.** `filvaljare-flera-mock.test.jsx` har nu ett prov där appens omritning medvetet kommer efter en egen timer på 60 ms, och som kräver att båda filerna finns och att den andra omgången byggde på listan med den första i. Rött mot 0.155.0:s kod (listan blev `["b.pdf"]`), grönt med lagningen, oberoende av maskinens last. Det gamla provet fångade samma fel bara när lasten råkade ordna timrarna så; under fem parallella vitest-sviter föll det 0 av 20 gånger både före och efter, vilket är skälet till att det inte räcker som vakt. Ett andra prov låser att en vägrande app inte stoppar kön.
+
 ## 0.156.0
 
 ### HTML-dokument i Biblioteket: en avspärrad ruta, versioner och en server för API:et

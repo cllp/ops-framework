@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { flushSync } from "react-dom";
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { OpsFilePicker } from "../components/OpsFilePicker.jsx";
@@ -68,7 +69,75 @@ describe("OpsFilePicker flera: två omgångar i följd", () => {
     klistra([new File(["b"], "b.pdf", { type: "application/pdf" })]);
 
     await waitFor(() => expect(logg).toContain("ritar:a,b"));
-    // Utan kön börjar b läsas medan a läses; utan andetaget börjar b läsas innan appen ritat a.
+    // Utan kön börjar b läsas medan a läses; utan väntan på appens commit börjar b läsas innan appen ritat a.
     expect(logg.filter((x) => ["läs:a.pdf", "ritar:a", "läs:b.pdf", "ritar:a,b"].includes(x))).toEqual(["läs:a.pdf", "ritar:a", "läs:b.pdf", "ritar:a,b"]);
+  });
+});
+
+describe("OpsFilePicker flera: appens omritning kommer efter en timer", () => {
+  /**
+   * ⛔ DET HÄR PROVET ÄR DETERMINISTISKT, OBEROENDE AV MASKINENS LAST (#475). Provet ovan fångar samma fel bara om omritningen råkar komma efter
+   * ett `setTimeout(0)`, och det avgörs av lasten: det var grönt lokalt och rött i CI på samma commit. Här kommer appens omritning medvetet
+   * EFTER en egen timer som är längre än varje andetag väljaren kan ta (60 ms mot 0 ms), så en väljare som väntar på en timer läser alltid
+   * en gammal lista. Appen ritar om synkront i sin timer (`flushSync`) så att provet inte i sin tur hänger på Reacts schemaläggare.
+   */
+  it("andra omgången läser appens lista EFTER den förra, och båda filerna finns i listan till slut", async () => {
+    logg.length = 0;
+    /** @type {string[][]} */
+    const anrop = [];
+    /** @type {any[]} */
+    let senaste = [];
+    function Yta() {
+      const [lista, setLista] = useState(/** @type {any[]} */ ([]));
+      senaste = lista;
+      return (
+        <OpsFilePicker
+          flera
+          value={lista}
+          onChange={(ny) => {
+            anrop.push(ny.map((/** @type {any} */ b) => b.namn));
+            setTimeout(() => flushSync(() => setLista(ny)), 60);
+          }}
+          maxChars={100000}
+        />
+      );
+    }
+    render(<Yta />);
+
+    klistra([new File(["a"], "a.pdf", { type: "application/pdf" })]);
+    klistra([new File(["b"], "b.pdf", { type: "application/pdf" })]);
+
+    await waitFor(() => expect(senaste.map((b) => b.namn)).toEqual(["a.pdf", "b.pdf"]), { timeout: 3000 });
+    // Den andra omgången byggde på appens lista med a i, inte på den tomma som gällde när b började läsas.
+    expect(anrop).toEqual([["a.pdf"], ["a.pdf", "b.pdf"]]);
+  });
+
+  it("en app som vägrar ändringen stoppar inte kön: nästa omgång läses ändå, ur det appen har", async () => {
+    /** @type {string[][]} */
+    const anrop = [];
+    function Yta() {
+      const [lista, setLista] = useState(/** @type {any[]} */ ([]));
+      return (
+        <OpsFilePicker
+          flera
+          value={lista}
+          onChange={(ny) => {
+            anrop.push(ny.map((/** @type {any} */ b) => b.namn));
+            // Vägrar den första filen, tar den andra.
+            if (ny.some((/** @type {any} */ b) => b.namn === "ja.pdf")) setLista(ny);
+          }}
+          maxChars={100000}
+        />
+      );
+    }
+    render(<Yta />);
+
+    klistra([new File(["a"], "nej.pdf", { type: "application/pdf" })]);
+    klistra([new File(["b"], "ja.pdf", { type: "application/pdf" })]);
+
+    await waitFor(() => expect(anrop).toHaveLength(2), { timeout: 3000 });
+    expect(anrop).toEqual([["nej.pdf"], ["ja.pdf"]]);
+    await waitFor(() => expect(screen.getByText("ja.pdf")).toBeInTheDocument());
+    expect(screen.queryByText("nej.pdf")).toBeNull();
   });
 });

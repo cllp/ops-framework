@@ -289,6 +289,12 @@ function EnFil({
   );
 }
 
+/**
+ * Hur länge en omgång väntar på att appen ska rita om med den nya listan innan den räknar ändringen som vägrad (se `vantaPaAppen`).
+ * 300 ms är arton bildrutor vid 60 Hz: långt över hur lång en omritning tar, kort nog att en app som vägrar inte låter nästa inklistring hänga.
+ */
+const APPENS_TAK_MS = 300;
+
 /** En tom lista med fast identitet, så att `value={null}` inte ger en ny lista vid varje ritning. */
 const TOM = /** @type {readonly import("../lib/file.js").Bilaga[]} */ ([]);
 
@@ -324,10 +330,54 @@ function FleraFiler({ value, onChange, maxChars, accept, typer, paste = true, ar
   const paChange = useRef(onChange);
   paChange.current = onChange;
   // ⛔ INLÄSNINGARNA GÅR I KÖ, en omgång i taget. Två omgångar i följd (två inklistringar) bygger på varandra bara om den andra läser appens lista
-  // EFTER att appen visat den första: därför väntar nästa omgång tills den förra är klar och appen fått rita om.
+  // EFTER att appen visat den första: därför väntar nästa omgång tills den förra är klar och appen har ritat om med den nya listan.
   const kedja = useRef(/** @type {Promise<void>} */ (Promise.resolve()));
+  // ⛔ NÄSTA OMGÅNG VÄNTAR PÅ APPENS COMMIT, INTE PÅ EN TIMER (#475). Förut väntade den ett `setTimeout(0)` efter `onChange`, i tron att appens omritning
+  // hunnit före. Inklistringens lyssnare sitter på `document`, utanför Reacts händelser, och då schemalägger React 18 omritningen i sin egen
+  // schemaläggare: under last kom timern först, nästa omgång läste en gammal `nu.current` och skrev `[...gammal lista, b]` över `[...gammal lista, a]`.
+  // Nu skapas en väntan INNAN `onChange` anropas, och effekten nedan löser den i den commit där `value` blivit en annan lista än den som gällde då.
+  /** @type {import("react").MutableRefObject<{ fran: readonly import("../lib/file.js").Bilaga[], klar: () => void } | null>} */
+  const appens = useRef(null);
   // Hur många inläsningar som pågår, för "Läser".
   const pagar = useRef(0);
+
+  /**
+   * Ett löfte som löses när appen har ritat om med en annan lista än `fran`, eller efter `APPENS_TAK_MS`.
+   *
+   * ⛔ TAKET ÄR EN TIDSGRÄNS OCH INTE EN SIGNAL, och det finns ingen signal att ta i stället: en app som VÄGRAR ändringen (behåller `value`,
+   * vilket flera-läget uttryckligen tillåter) gör ingenting alls, och inifrån väljaren ser det likadant ut som en app som är långsam.
+   * Utan tak står kön still för alltid efter den första vägran. Löper taket ut behandlas det som en vägran: nästa omgång läser den lista appen
+   * har, och inget fel visas, eftersom en vägran är appens rätt. Det som inte hanteras är en app som tar emot ändringen LÄNGRE efter än taket;
+   * den får sina filer tappade i nästa omgång, och det är därför taket är satt till många bildrutor och inte till ett andetag.
+   *
+   * @param {readonly import("../lib/file.js").Bilaga[]} fran
+   * @returns {Promise<void>}
+   */
+  const vantaPaAppen = (fran) =>
+    new Promise((klar) => {
+      const tak = setTimeout(() => post.klar(), APPENS_TAK_MS);
+      const post = {
+        fran,
+        klar: () => {
+          clearTimeout(tak);
+          if (appens.current === post) appens.current = null;
+          klar();
+        },
+      };
+      appens.current = post;
+    });
+
+  // Efter varje commit där listan blivit en annan: appen har ritat om, och nästa omgång får läsa den. Vid avmontering släpps en väntande omgång, så
+  // att ingen timer eller kedja hänger kvar.
+  useEffect(() => {
+    if (appens.current && lista !== appens.current.fran) appens.current.klar();
+  }, [lista]);
+  useEffect(
+    () => () => {
+      appens.current?.klar();
+    },
+    [],
+  );
 
   /** @param {File[]} filer */
   const lasOmgang = async (filer) => {
@@ -345,12 +395,13 @@ function FleraFiler({ value, onChange, maxChars, accept, typer, paste = true, ar
         }
       }
       // ⛔ INGEN LYCKAD FIL BETYDER INGEN ÄNDRING. Ett onChange med den gamla listan hade fått appen att spara om något som inte ändrats.
-      if (nya.length > 0) {
-        paChange.current([...nu.current, ...nya]);
-        // Ett andetag, så att appens omritning med den nya listan hinner före nästa omgång.
-        await new Promise((klar) => setTimeout(klar, 0));
-      }
+      // Beskeden först: de hör till filerna som lästes och ska inte vänta på appen.
       if (nej.length > 0) setFel((f) => [...f, ...nej]);
+      if (nya.length > 0) {
+        const vantan = vantaPaAppen(nu.current);
+        paChange.current([...nu.current, ...nya]);
+        await vantan;
+      }
     } finally {
       pagar.current -= 1;
       setLaser(pagar.current > 0);
