@@ -4303,6 +4303,12 @@ async function spelradMotMikrofon() {
         overhang,
         dok: document.documentElement.scrollHeight,
         fonster: window.innerHeight,
+        // 0.158.0 (PR 471): spelraden och bottenraden är EN yta under 768 px. Beräknade färger i den renderade sidan, inte klasserna i källan.
+        rutaBg: getComputedStyle(/** @type {Element} */ (document.querySelector("[data-ops-spelrad-ruta]"))).backgroundColor,
+        radBg: getComputedStyle(/** @type {Element} */ (document.querySelector("[data-ops-spelrad]"))).backgroundColor,
+        navBg: document.querySelector("[data-ops-bottenrad]") ? getComputedStyle(/** @type {Element} */ (document.querySelector("[data-ops-bottenrad]"))).backgroundColor : null,
+        navLinje: document.querySelector("[data-ops-bottenrad]") ? getComputedStyle(/** @type {Element} */ (document.querySelector("[data-ops-bottenrad]"))).borderTopColor : null,
+        rutaBottom: rect(document.querySelector("[data-ops-spelrad-ruta]"))?.bottom ?? null,
       };
     });
     if (fel.length) krav(false, `${namn}: sidan kastade ${fel[0]}`);
@@ -4327,6 +4333,15 @@ async function spelradMotMikrofon() {
         krav(luft >= -0.5, `${namn}: spelradens underkant ligger ${(-luft).toFixed(1)} px under mikrofonknappens överkant. Spelaren täcker knappen (cllp/lifehub.app#417): den ska stå ovanför överhänget (--bottom-nav-overhang ${m.overhang} px), inte på bottenradens överkant.`);
         krav(m.mikMitt === true && m.mikOverkant === true, `${namn}: ett tryck på mikrofonknappen träffar inte knappen (mitt ${m.mikMitt}, strax under överkanten ${m.mikOverkant}). Spelaren ligger över den.`);
         krav(Math.abs(hang - m.overhang) <= 1, `${namn}: spelradens underkant står ${hang.toFixed(1)} px ovanför bottenradens överkant, väntat överhänget ${m.overhang} px (+-1).`);
+        // ⛔ DOCKAD UTAN GLAPP (PR 471, CP 2026-10-29): spelraden och dess ruta (som fyller överhänget) har bottenradens bakgrund och är inte genomskinliga, rutan slutar vid bottenradens överkant,
+        // och bottenradens egen överkant har ingen synlig linje medan spelraden syns (annars skär den genom spelaren och hacket). Golv: bottenradens färg lästes.
+        const opak = (/** @type {string | null} */ c) => c !== null && c !== "transparent" && !/^rgba\(.*,\s*0\)$/.test(c) && !/\/\s*0\)$/.test(c);
+        const genomskinlig = (/** @type {string | null} */ c) => c === null || c === "transparent" || /^rgba\(.*,\s*0\)$/.test(c) || /\/\s*0\)$/.test(c);
+        matt.push(`${namn}: bakgrunder spelrad ${m.radBg}, ruta ${m.rutaBg}, bottenrad ${m.navBg}, bottenradens överkantslinje ${m.navLinje}, rutans underkant ${m.rutaBottom} mot bottenradens överkant ${m.navTop.toFixed(1)}`);
+        krav(opak(m.navBg), `${namn} (dockad): bottenradens bakgrund lästes som ${m.navBg}, väntat en ifylld färg (golv).`);
+        krav(m.radBg === m.navBg && m.rutaBg === m.navBg, `${namn} (dockad): spelraden har ${m.radBg} och dess ruta ${m.rutaBg}, väntat bottenradens bakgrund ${m.navBg} i båda, så att det inte syns ett genomskinligt glapp mellan spelaren och menyn.`);
+        krav(m.rutaBottom !== null && Math.abs(m.rutaBottom - m.navTop) <= 1, `${namn} (dockad): spelradens ruta slutar ${m.rutaBottom} och bottenraden börjar ${m.navTop.toFixed(1)}, väntat samma kant (+-1): annars är det ett glapp.`);
+        krav(genomskinlig(m.navLinje), `${namn} (dockad): bottenradens överkantslinje är ${m.navLinje} medan spelraden syns, väntat genomskinlig: annars skär den genom spelaren och mikrofonknappens hack.`);
         krav(Math.abs(m.spelradH - hojd) <= 1, `${namn}: --spelrad-h är ${m.spelradH} px men avståndet från spelradens överkant till bottenradens överkant är ${hojd.toFixed(1)} px. Det som räknar med --spelrad-h (ytan, toasten, ark) slutar då på fel ställe.`);
       }
     } else {
