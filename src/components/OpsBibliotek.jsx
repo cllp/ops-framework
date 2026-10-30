@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import * as Popover from "@radix-ui/react-popover";
 import * as Tabs from "@radix-ui/react-tabs";
-import { Check, File as FilIkon, FileText, Globe, Image as BildIkon, Library, Link2, List as ListIkon, Mic, Plus, SlidersHorizontal, Upload } from "lucide-react";
+import { Check, File as FilIkon, FileText, Globe, Image as BildIkon, Library, Link2, List as ListIkon, Mic, ExternalLink, Plus, SlidersHorizontal, Upload } from "lucide-react";
 import { OpsAtgardsblad } from "./OpsAtgardsblad.jsx";
 import { OpsDokument } from "./OpsDokument.jsx";
 import { OpsHtmlDokumentHamtat } from "./OpsHtmlDokument.jsx";
+import { htmlVyAdress } from "../lib/htmldokument.js";
 import { BibliotekHtmlVersioner } from "./BibliotekHtmlVersioner.jsx";
 import { OpsMarkdown } from "./OpsMarkdown.jsx";
 import { OpsModal } from "./OpsModal.jsx";
@@ -25,7 +26,7 @@ import { cx } from "../lib/cx.js";
 import { arInstallningslage } from "../lib/apparark.js";
 import { modulTillbaka } from "../lib/modulram.js";
 import { radBehallare, radKlass } from "../lib/radKlass.js";
-import { OpsButton } from "./OpsButton.jsx";
+import { OpsButton, knappKlass } from "./OpsButton.jsx";
 import { OpsLjudspelare } from "./OpsLjudspelare.jsx";
 import { OpsSpelaKnapp, OpsSpelarKontroller, useSpelare } from "./OpsSpelare.jsx";
 import { OpsEmpty } from "./OpsEmpty.jsx";
@@ -176,6 +177,9 @@ function useBibliotekskalla(kalla) {
  * @param {(post: any, nr: number) => Promise<string | { text: string }>} [props.hamtaHtmlVersion] (0.158.0) Texten för version `nr` (`html.lasVersion`). Med den får raden knappen Öppna, som ritar versionen i den avspärrade rutan (`OpsHtmlDokument`).
  * @param {(post: any, nr: number, fran: number) => Promise<unknown>} [props.aterstallHtml] (0.158.0) Återställer version `nr` som en NY version, ur version `fran` (den som personen såg). Löser till svaret från `html.aterstall` eller inget. Knappen Återställ ritas för den som får ändra posten (`farAndra`).
  * @param {(post: any, fil: File, fran: number) => Promise<unknown>} [props.nyHtmlVersion] (0.158.0) Sparar `fil` (en HTML-fil, prövad här först) som en ny version, ur version `fran`. Löser till svaret från `html.uppdatera` eller inget. "Ladda upp ny version" ritas för den som får ändra posten.
+ * @param {(post: any) => string | null | undefined} [props.oppnaHtml] (0.159.0, CP 2026-10-30: "de skulle gå att öppna direkt i ett fönster. Inte ladda ner så.") Adressen till appens helfönstervy för ett HTML-dokument (`text/html`), eller `null`/`undefined` för en post som inte ska öppnas så.
+ *   Med den öppnar ett tryck på ett HTML-dokument i listan, och filnamnet i detaljen, vyn i ett nytt fönster eller en ny flik (`target="_blank"`), i stället för att ladda ned filen. "Ladda ned" finns kvar som ett eget val i detaljen, och "Visa detaljer" i postens meny.
+ *   Funktionen anropas bara för ett HTML-dokument med en fil. ⛔ Svaret ska vara en sida i appen (börja med `/`) eller en `https://`-adress; allt annat kastar (`htmlVyAdress`). Vyn är `OpsHtmlVy`, i appens egen rutt, med samma avspärrade ruta som detaljen. Utan propen är Biblioteket oförändrat.
  * @param {unknown} [props.onSpelaIn] Borttagen (0.90.8). Skickas den kastas ett fel: listan hade en egen inspelare, och att tysta propen hade sett ut som att ljudet fortfarande sparades där.
  * @param {unknown} [props.inspelare] Borttagen tillsammans med listans inspelare. Skickas den kastas ett fel.
  * @param {readonly { id: string, namn: string }[]} [props.grupper] Platser posten kan flyttas eller kopieras till. (0.155.0) Också gruppens egna platser (`platsval`), och också för en inbäddad lista (`OpsPlatsfiler`): en händelses och ett ärendes filer kan flyttas eller kopieras UT till dem, aldrig in i ett annat objekt. Mitt bibliotek (`mittBibliotek(uid)`) är en av dem när appen ger den (0.101.0): menyn får då Flytta till och Kopiera till Mitt bibliotek, och i Mitt bibliotek Dela med gruppen.
@@ -225,7 +229,7 @@ function useBibliotekskalla(kalla) {
  *   Platser med alla platser, också de arkiverade, och Ta fram igen. Över 8 rader i växlaren får listan ett sökfält. Utan propen är allt som förut. Hör inte hit med `inbaddad`.
  * @param {boolean} [props.adresserPaBegaran] (0.132.0, lifehub.app#389) Filernas adresser hämtas bara för posten som är öppen, aldrig för hela listan. Förvalet hämtar en adress per fil när listan ritas, vilket är billigt för en medlem (`getDownloadURL`) och dyrt för en gäst: varje adress är en signering som räknas mot ett tak per dygn. Mätt i designen av skiva 2 som felantagande: listan hämtade alla. En fil som öppnats förut visas med sin adress också i listan.
  */
-export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, trasiga: trasigaProp = [], laddar: laddarProp = false, vald = null, skapar = null, jag, onOppna, onStang, onSkapa, onSpara, onRadera, onLaddaUpp, onFyllLjud, onSpelaIn, inspelare, filUrl, hamtaAdress, hamtaFil, htmlVersioner, hamtaHtmlVersion, aterstallHtml, nyHtmlVersion, grupper = [], onDela, platser = [], plats, onPlats, onSkrivUt, onSkrivUtIgen, onTaBortUtskrift, onAnteckningAvUtskrift, onGorForslag, delningar = [], delningGruppdel, gruppnamn: gruppnamnProp, onDelaLank, onAndraNedladdning, onAterkalla, onMejlaLank, onLankInfo, hubHref, hubEtikett, onNavigate, modulId = "bibliotek", ram = null, activeHref, modul = null, inbaddad = false, tomText, utanHubb = false, adresserPaBegaran = false, gruppTaggar = [], egnaPlatser = null }) {
+export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, trasiga: trasigaProp = [], laddar: laddarProp = false, vald = null, skapar = null, jag, onOppna, onStang, onSkapa, onSpara, onRadera, onLaddaUpp, onFyllLjud, onSpelaIn, inspelare, filUrl, hamtaAdress, hamtaFil, htmlVersioner, hamtaHtmlVersion, aterstallHtml, nyHtmlVersion, oppnaHtml, grupper = [], onDela, platser = [], plats, onPlats, onSkrivUt, onSkrivUtIgen, onTaBortUtskrift, onAnteckningAvUtskrift, onGorForslag, delningar = [], delningGruppdel, gruppnamn: gruppnamnProp, onDelaLank, onAndraNedladdning, onAterkalla, onMejlaLank, onLankInfo, hubHref, hubEtikett, onNavigate, modulId = "bibliotek", ram = null, activeHref, modul = null, inbaddad = false, tomText, utanHubb = false, adresserPaBegaran = false, gruppTaggar = [], egnaPlatser = null }) {
   if (kalla !== undefined && (posterProp !== undefined || felProp !== null || laddarProp !== false || (Array.isArray(trasigaProp) && trasigaProp.length > 0))) {
     throw new Error("OpsBibliotek: kalla och poster/fel/trasiga/laddar kan inte ges tillsammans. Med kalla läser vyn själv, och två sanningar om samma lista hade låtit den ena vinna tyst.");
   }
@@ -574,7 +578,8 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
       ut.push({ id: "dela-lank", etikett: "Dela länk", onValj: () => setDelarLank(post) });
     }
     // ⛔ EN MUSIKLÄNK ÖPPNAS DIREKT VID ETT TRYCK (0.128.0), så detaljen nås härifrån. Utan raden gick det inte att komma åt Byt namn-formuläret, taggarna och Redigera för en sådan länk.
-    if (!iDetalj && oppnasDirekt(post)) ut.push({ id: "detaljer", etikett: "Visa detaljer", onValj: () => oppnaMed(post, "las") });
+    // ⛔ SAMMA FÖR ETT HTML-DOKUMENT SOM ÖPPNAS I EGET FÖNSTER (0.159.0, `oppnaHtml`): kortet är då en länk till vyn, och detaljen (rutan, versionerna, Ladda ned) nås härifrån.
+    if (!iDetalj && (oppnasDirekt(post) || htmlVyAdress(oppnaHtml, post))) ut.push({ id: "detaljer", etikett: "Visa detaljer", onValj: () => oppnaMed(post, "las") });
     // ⛔ LÄGG I LISTA (0.128.0, lifehub.app#378): långtrycksmenyn på varje post. Bara en medlem som är aktiv och bara där en lista kan finnas: en händelses och ett ärendes bibliotek har
     // bara filer (reglerna), och utan `onSpara` hade valet inte gått att spara.
     // ⛔ EN LISTA HAR RADEN OCKSÅ, AVSTÄNGD OCH MED SKÄL (0.133.0, CP 2026-10-20: tre typer med tre olika menyer ska bli en). Förut saknades raden på en lista, och en meny där en rad
@@ -777,7 +782,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
     <Rot tillbaka={detalj ? undefined : listTillbaka}>
       <div data-bibliotek="" className="flex min-w-0 w-full flex-col gap-4">
         {detalj ? (
-          <Detalj key={`${skaparTyp ?? ""}:${vald?.id ?? ""}:${startLage}`} post={vald ? medFyll(poster.find((p) => p.id === vald.id) ?? vald) : null} skapar={skaparTyp} startLage={startLage} onStang={onStang} onSpara={onSpara} onLaddaUpp={onLaddaUpp} filUrl={filUrl} hamtaFil={hamtaFil} htmlVersioner={htmlVersioner} hamtaHtmlVersion={hamtaHtmlVersion} aterstallHtml={aterstallHtml} nyHtmlVersion={nyHtmlVersion} adressFor={adressFor} taggrad={vald && !skaparTyp ? (() => {
+          <Detalj key={`${skaparTyp ?? ""}:${vald?.id ?? ""}:${startLage}`} post={vald ? medFyll(poster.find((p) => p.id === vald.id) ?? vald) : null} skapar={skaparTyp} startLage={startLage} onStang={onStang} onSpara={onSpara} onLaddaUpp={onLaddaUpp} filUrl={filUrl} hamtaFil={hamtaFil} htmlVersioner={htmlVersioner} hamtaHtmlVersion={hamtaHtmlVersion} aterstallHtml={aterstallHtml} nyHtmlVersion={nyHtmlVersion} oppnaHtml={oppnaHtml} adressFor={adressFor} taggrad={vald && !skaparTyp ? (() => {
             // ⛔ TAGGARNA RITAS OCKSÅ I DETALJEN (0.153.0, ops-framework#460 punkt 3, lifehub.app QA-fynd 5): förut bara på listkortet, så den som öppnade en post såg inte vilka taggar den hade. Samma rad, samma rätt att ändra
             // (`farAndra`) och samma förslag som på kortet, men utan filter: listan är inte synlig medan en post är öppen, och ett tryck på en tagg skulle ställa in ett filter ingen ser.
             const rad = poster.find((p) => p.id === vald.id) ?? vald;
@@ -860,6 +865,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
                         meny={menyFor(rad, false)}
                         svep={svepFor(rad)}
                         delad={delningar.some((d) => d.postId === rad.id)}
+                        htmlVy={htmlVyAdress(oppnaHtml, rad)}
                         onOppna={() => oppnaMed(rad, "las")}
                         onMeta={togMeta}
                         taggrad={(
@@ -1390,9 +1396,9 @@ function kortMeta(post) {
  * ⛔ EN DELAD POST BÄR EN LITEN MARKERING (0.119.0, lifehub.app#356): ordet "Delad" med en länkikon i metaraden. Den som ser listan ska inte
  * behöva öppna en meny för att veta vad som har en publik länk, och ikonen ensam säger det inte.
  *
- * @param {{ post: import("../lib/bibliotek.js").Bibliotekspost & { id: string }, lage: Adresslage, meny: import("./OpsAtgardsblad.jsx").Atgard[], svep: any[], onOppna: () => void, onMeta: (id: string, meta: { durationMs?: number, peaks?: string }) => void, taggrad: import("react").ReactNode, delad?: boolean }} props
+ * @param {{ post: import("../lib/bibliotek.js").Bibliotekspost & { id: string }, lage: Adresslage, meny: import("./OpsAtgardsblad.jsx").Atgard[], svep: any[], onOppna: () => void, onMeta: (id: string, meta: { durationMs?: number, peaks?: string }) => void, taggrad: import("react").ReactNode, delad?: boolean, htmlVy?: string }} props
  */
-function BibliotekKort({ post, lage, meny, svep, onOppna, onMeta, taggrad, delad = false }) {
+function BibliotekKort({ post, lage, meny, svep, onOppna, onMeta, taggrad, delad = false, htmlVy = "" }) {
   const spelare = useSpelare();
   const ljud = arLjudpost(post);
   const bild = post.typ === "fil" && filSort(post.fil?.mime) === "bild";
@@ -1420,6 +1426,17 @@ function BibliotekKort({ post, lage, meny, svep, onOppna, onMeta, taggrad, delad
               rel="noopener noreferrer"
               aria-label={`Öppna ${namn} i ${lankKallnamn(postensKalla(post))}`}
               data-bibliotek-oppna-direkt=""
+              className="absolute inset-0 z-0 cursor-pointer rounded-lg bg-transparent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            />
+          ) : htmlVy ? (
+            // ⛔ ETT HTML-DOKUMENT ÖPPNAS I ETT EGET FÖNSTER VID ETT TRYCK (0.159.0, `oppnaHtml`), av samma skäl som en musiklänk: en riktig länk fungerar med mellanklick och långtryck, och en popup-spärr kan inte stoppa den.
+            // Adressen är appens egen sida för dokumentet (`OpsHtmlVy`), aldrig filen: filen laddas ned (`attachment`), och ritas bara i den avspärrade rutan.
+            <a
+              href={htmlVy}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={`Öppna ${namn} i ett eget fönster`}
+              data-bibliotek-oppna-html=""
               className="absolute inset-0 z-0 cursor-pointer rounded-lg bg-transparent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
             />
           ) : (
@@ -1664,9 +1681,9 @@ function NyKnapp({ flik, onSkapa, onRost, erbjudRost, onLaddaUppLjud }) {
 /**
  * Bild öppnas i förhandsvisning. PDF och övrigt i ny flik. Utan adress sägs det.
  *
- * @param {{ post: { id?: string, typ?: string, rubrik?: string, skapad?: number, skapadAv?: unknown, durationMs?: number, peaks?: string, fil?: { namn?: string, mime?: string, byte?: number, sokvag?: string } }, lage: Adresslage, kopplad: boolean, onLjus?: (adress: string) => void, onMeta?: (id: string, meta: { durationMs?: number, peaks?: string }) => void, onRadera?: () => void, hamtaFil?: (sokvag: string) => Promise<Blob>, versioner?: { lista: (post: any) => Promise<unknown>, hamtaVersion?: (post: any, nr: number) => Promise<any>, aterstall?: (post: any, nr: number, fran: number) => Promise<unknown>, nyVersion?: (post: any, fil: File, fran: number) => Promise<unknown>, kanAndra: boolean } }} props
+ * @param {{ post: { id?: string, typ?: string, rubrik?: string, skapad?: number, skapadAv?: unknown, durationMs?: number, peaks?: string, fil?: { namn?: string, mime?: string, byte?: number, sokvag?: string } }, lage: Adresslage, kopplad: boolean, onLjus?: (adress: string) => void, onMeta?: (id: string, meta: { durationMs?: number, peaks?: string }) => void, onRadera?: () => void, hamtaFil?: (sokvag: string) => Promise<Blob>, htmlVy?: string, versioner?: { lista: (post: any) => Promise<unknown>, hamtaVersion?: (post: any, nr: number) => Promise<any>, aterstall?: (post: any, nr: number, fran: number) => Promise<unknown>, nyVersion?: (post: any, fil: File, fran: number) => Promise<unknown>, kanAndra: boolean } }} props
  */
-function FilVisning({ post, lage, kopplad, onLjus, onMeta, onRadera, hamtaFil, versioner }) {
+function FilVisning({ post, lage, kopplad, onLjus, onMeta, onRadera, hamtaFil, versioner, htmlVy = "" }) {
   const spelare = useSpelare();
   const sort = filSort(post.fil?.mime);
   const namn = post.fil?.namn ?? "Fil";
@@ -1744,13 +1761,28 @@ function FilVisning({ post, lage, kopplad, onLjus, onMeta, onRadera, hamtaFil, v
   // ⛔ ETT HTML-DOKUMENT RITAS I EN AVSPÄRRAD RUTA (0.156.0, cllp/ops-framework#472), aldrig som en länk som öppnar sidan och aldrig i appens ursprung: se `OpsHtmlDokument`. Länken under är nedladdning
   // (lagringen svarar `attachment`), och den enda väg när rutan inte kan visa dokumentet. Utan `hamtaFil` finns ingen ruta, bara nedladdningen.
   // ⛔ VERSIONSRADEN (0.158.0) ritas bara här, för ett HTML-dokument, och bara när appen ger `htmlVersioner`. Den kräver inte `hamtaFil`: utan den är dokumentet en nedladdning, men historiken går ändå att läsa.
-  if ((typeof hamtaFil === "function" || versioner) && arHtmlMime(post.fil?.mime) && post.fil?.sokvag) {
+  // ⛔ MED `oppnaHtml` (0.159.0, CP 2026-10-30: "de skulle gå att öppna direkt i ett fönster. Inte ladda ner så.") ÖPPNAR FILNAMNET HELFÖNSTERVYN i ett nytt fönster eller en ny flik, och nedladdningen är ett eget val bredvid ("Ladda ned").
+  // Förut var filnamnet själva nedladdningen. Utan `oppnaHtml` är raden oförändrad. Adressen under `Ladda ned` är fortfarande lagringens (`attachment`): den ritas aldrig, den laddas bara ned.
+  if ((typeof hamtaFil === "function" || versioner || htmlVy) && arHtmlMime(post.fil?.mime) && post.fil?.sokvag) {
     return (
       <div data-bibliotek-fil="" className="flex min-w-0 flex-col gap-2">
         {typeof hamtaFil === "function" ? <OpsHtmlDokumentHamtat hamta={hamtaFil} sokvag={post.fil.sokvag} namn={post.fil.namn ?? namn} skapadAv={post.skapadAv} /> : null}
-        <a href={adress} target="_blank" rel="noopener noreferrer" download={post.fil.namn} className="w-fit text-etikett text-accent underline underline-offset-2">
-          {rad}
-        </a>
+        {htmlVy ? (
+          <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
+            <a href={htmlVy} target="_blank" rel="noopener noreferrer" data-bibliotek-oppna-html="" className="inline-flex min-h-11 min-w-0 max-w-full items-center gap-1.5 text-etikett text-accent underline underline-offset-2 md:min-h-8">
+              <span className="min-w-0 break-words">{rad}</span>
+              <ExternalLink size={14} aria-hidden="true" className="shrink-0" />
+              <span className="sr-only">{HTML_OPPNAS_I_FONSTER}</span>
+            </a>
+            <a href={adress} target="_blank" rel="noopener noreferrer" download={post.fil.namn} data-bibliotek-ladda-ned="" className={knappKlass({ variant: "secondary", size: "sm" })}>
+              Ladda ned
+            </a>
+          </div>
+        ) : (
+          <a href={adress} target="_blank" rel="noopener noreferrer" download={post.fil.namn} className="w-fit text-etikett text-accent underline underline-offset-2">
+            {rad}
+          </a>
+        )}
         {versioner ? <BibliotekHtmlVersioner key={post.id} post={post} {...versioner} /> : null}
       </div>
     );
@@ -1772,6 +1804,9 @@ function FilVisning({ post, lage, kopplad, onLjus, onMeta, onRadera, hamtaFil, v
     </a>
   );
 }
+
+/** Det skärmläsaren läser efter filnamnet när länken öppnar dokumentet i ett eget fönster (0.159.0). */
+const HTML_OPPNAS_I_FONSTER = "Öppnas i ett eget fönster.";
 
 /**
  * Textfilens innehåll i detaljen (0.153.0, ops-framework#460 punkt 3, lifehub.app QA-fynd 5).
@@ -1897,6 +1932,7 @@ function Adress({ url }) {
  * @param {(post: any, nr: number) => Promise<any>} [props.hamtaHtmlVersion] (0.158.0) Se `OpsBibliotek`.
  * @param {(post: any, nr: number, fran: number) => Promise<unknown>} [props.aterstallHtml] (0.158.0) Se `OpsBibliotek`.
  * @param {(post: any, fil: File, fran: number) => Promise<unknown>} [props.nyHtmlVersion] (0.158.0) Se `OpsBibliotek`.
+ * @param {(post: any) => string | null | undefined} [props.oppnaHtml] (0.159.0) Se `OpsBibliotek`.
  * @param {import("react").ReactNode} [props.taggrad] (0.153.0) Postens taggar, ritade under innehållet i läsläget. Se `OpsBibliotek`.
  * @param {(post: { typ?: string, skapad?: number, fil?: { sokvag?: string, mime?: string, klar?: boolean } }) => Adresslage} [props.adressFor]
  * @param {(adress: string) => void} [props.onLjus]
@@ -1912,7 +1948,7 @@ function Adress({ url }) {
  * @param {(url: string) => Promise<{ titel?: string, artist?: string, kalla?: string, bild?: string }>} [props.onLankInfo] (0.128.0) Se `OpsBibliotek`.
  * @param {(post: import("../lib/bibliotek.js").Bibliotekspost & { id: string }) => void} props.onOppnaPost (0.128.0) Öppnar en post ur en lista.
  */
-function Detalj({ post, skapar, startLage, onStang, onSpara, onLaddaUpp, filUrl, hamtaFil, htmlVersioner, hamtaHtmlVersion, aterstallHtml, nyHtmlVersion, taggrad, adressFor, onLjus, onSkrivUt, onSkrivUtIgen, onTaBortUtskrift, onAnteckningAvUtskrift, menyFor, onMeta, tillbakaEtikett, poster, jag, onLankInfo, onOppnaPost }) {
+function Detalj({ post, skapar, startLage, onStang, onSpara, onLaddaUpp, filUrl, hamtaFil, htmlVersioner, hamtaHtmlVersion, aterstallHtml, nyHtmlVersion, oppnaHtml, taggrad, adressFor, onLjus, onSkrivUt, onSkrivUtIgen, onTaBortUtskrift, onAnteckningAvUtskrift, menyFor, onMeta, tillbakaEtikett, poster, jag, onLankInfo, onOppnaPost }) {
   const sprak = useOpsSprak();
   const typ = skapar ?? post?.typ ?? "anteckning";
   const [rubrik, setRubrik] = useState(post && !skapar ? post.rubrik : "");
@@ -2111,7 +2147,7 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, onLaddaUpp, filUrl,
   const innehall = typ === "anteckning" ? (
     post?.text ? <OpsMarkdown text={post.text} dokument /> : <p className="text-etikett text-ink">Anteckningen har ingen text.</p>
   ) : typ === "fil" && post ? (
-    <FilVisning post={post} lage={filLage} kopplad={kopplad} onLjus={onLjus} onMeta={onMeta} onRadera={radera ? radera.onValj : undefined} hamtaFil={hamtaFil} versioner={htmlVersioner ? { lista: htmlVersioner, hamtaVersion: hamtaHtmlVersion, aterstall: aterstallHtml, nyVersion: nyHtmlVersion, kanAndra: farAndra(post, jag) } : undefined} />
+    <FilVisning post={post} lage={filLage} kopplad={kopplad} onLjus={onLjus} onMeta={onMeta} onRadera={radera ? radera.onValj : undefined} hamtaFil={hamtaFil} htmlVy={htmlVyAdress(oppnaHtml, post)} versioner={htmlVersioner ? { lista: htmlVersioner, hamtaVersion: hamtaHtmlVersion, aterstall: aterstallHtml, nyVersion: nyHtmlVersion, kanAndra: farAndra(post, jag) } : undefined} />
   ) : typ === "lista" && post ? (
     <ListaVisning lista={post} poster={poster} kanAndra={farAndra(post, jag)} onSpara={onSpara} onOppnaPost={onOppnaPost} />
   ) : post && typ === "lank" ? (
