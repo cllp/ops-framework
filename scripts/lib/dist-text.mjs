@@ -1,8 +1,8 @@
 /**
  * Texten i ramverkets byggda paket, för vakter och montage som SKANNAR den (Tailwinds källscanning, `sentry`, en planterad ändring).
  *
- * ⛔ Före 0.155.0 var `dist` en enda fil, `dist/index.js`, och femton skript läste den med `fs.readFileSync(dist, "utf8")` och samma två
- * `replace`. Sedan 0.155.0 är det EN FIL PER KÄLLMODUL (`scripts/build.mjs`, cllp/ops-framework#465), och klassnamnen ligger i `dist/components/*.js`.
+ * ⛔ Före 0.156.0 var `dist` en enda fil, `dist/index.js`, och femton skript läste den med `fs.readFileSync(dist, "utf8")` och samma två
+ * `replace`. Sedan 0.156.0 är det EN FIL PER KÄLLMODUL (`scripts/build.mjs`, cllp/ops-framework#465), och klassnamnen ligger i `dist/components/*.js`.
  * Ett skript som läser bara `dist/index.js` ser då en lista över namn och inget annat: Tailwind hittar inga klasser och vakten blir röd, eller
  * värre, grön av att ingenting fanns att hitta (arbetsreglernas punkt 4, "tomt underlag"). Läsningen har därför ETT hem (regel 2).
  *

@@ -135,6 +135,18 @@ Versionen är en **git-tagg**, inte npm, eftersom repot är privat:
 npm kör ramverkets `prepare` vid installation, alltså bygger bundle och typer åt
 sig själv. Byggkedjan behöver läsrättighet till repot.
 
+⛔ **Paketet är en fil per modul, inte en enda bundle (0.156.0, #465).** `dist/` har samma
+mappar som `src/`, och `dist/index.js` är bara listan över namn. Importsättet är oförändrat:
+`import { OpsMeddelanden } from "ops-framework"` fungerar som förut, och `exports` har inga nya
+ingångar. Skillnaden syns i appens bygge: eftersom `package.json` säger `sideEffects: ["*.css"]`
+lägger bundlern (Vite) en komponent som bara en lat sida importerar i den sidans bit och inte i
+startfilen. Före 0.156.0 var `dist/index.js` en enda modul på 2,4 MB, och allt appen använde ur den
+hamnade i startfilen. Appen behöver inte ändra något; för att få effekten ska den lata sidan
+importera sina komponenter ur "ops-framework" (inte via en egen återexport från en fil som
+startfilen också laddar) och ladda sidan med `React.lazy` eller `import()`.
+`lucide-react` är externt i bygget sedan samma version, som README alltid sagt att det är
+(en peer dependency som appen och ramverket delar). Mäts av `check-delbarhet`.
+
 ### Strategin för att rensa upp i något befintligt
 
 **Ett tak som bara får sjunka.** Mät dagens siffror, lås dem, låt dem gå ner.
@@ -1408,7 +1420,7 @@ ingen kan nå just då.
 `import ... from "ops-framework/sentry"`, aldrig av en app som inte
 gör det. `@sentry/browser` är en `peerDependency`, `optional: true`, ALDRIG en
 `dependency`: en `dependency` installeras åt ALLA, oavsett om de importerar
-filen. `check-paket.mjs` bevisar att ramverkets egen `dist/index.js` aldrig
+filen. `check-paket.mjs` bevisar att ingen fil i ramverkets egen `dist` (sedan 0.156.0 en fil per modul)
 nämner Sentry.
 
 ⛔ **KONTRAKTET, INTE EN SDK.** `Felmottagare` är formen `{ fanga, satt }`.
@@ -2935,6 +2947,7 @@ kan köras av en app mot sin egen källkatalog. Inställningsvyn (`OpsKatalogIns
 | `check-exports` | den publika ytan stämmer med modulerna, inget internt läcker |
 | `check-closed-api` | ingen primitiv tar `className`, ingen app lappar, ingen ad-hoc-färg |
 | `check-css-build` | bygger CSS på riktigt och läser i resultatet |
+| `check-delbarhet` | (0.156.0, #465) **en lat sida i en app drar in sin del av ramverket först när sidan laddas.** Bygger en tillfällig app med Vite mot paketet installerat som en länk i `node_modules` (så att `exports` och `sideEffects` är de riktiga): startfilen importerar `OpsButton`, en lat sida importerar `OpsMeddelanden` och `OpsBibliotek`. Kräver att de två ligger i den lata sidans bit och inte i startfilen, med golv för att sidan faktiskt fick dem och att startfilen fick `OpsButton`. `--bevisa` slår ihop samma `dist` till en enda fil (som före 0.156.0) och kräver rött för båda |
 | `check-fonts` | typsnittet hämtas med `<link>` i mallen, aldrig med en `@import` som ignoreras |
 | `check-chart-colors` | diagrampaletten **mäts**, i båda lägen och mot ramverkets egna ytor. Den enda regeln i repot som inte går att bedöma med ögat: identitetstonerna såg rimliga ut och föll på tre av fem kontroller |
 | `check-token-overrides` | en konsumentapps stilrot följer kontraktet. ⛔ `@source` ska peka på `node_modules/ops-framework/` (0.68.0): en sökväg via det gamla scopade namnets katalog ger en ostylad app utan fel |
