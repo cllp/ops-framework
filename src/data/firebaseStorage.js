@@ -53,13 +53,15 @@ export function createFirebaseStorageSource(config) {
   return createStorageSource({
     name: "firebase-storage",
 
-    async laddaUpp({ sokvag, fil, contentType, rapportera }) {
+    async laddaUpp({ sokvag, fil, contentType, contentDisposition, rapportera }) {
       const s = typeof sokvag === "string" ? sokvag.trim() : "";
       if (!s) throw new Error("createFirebaseStorageSource.laddaUpp: sokvag krävs.");
       if (fil === undefined || fil === null) throw new Error("createFirebaseStorageSource.laddaUpp: fil krävs.");
       const referens = ref(storage, s);
       const mime = typeof contentType === "string" ? contentType.trim() : "";
-      const meta = mime ? { contentType: mime } : undefined;
+      // ⛔ `contentDisposition` (0.156.0): en HTML-fil laddas upp som `attachment`, så att en direktlänk laddar ned den och aldrig ritar den. Storage-regeln kräver det.
+      const dispo = typeof contentDisposition === "string" ? contentDisposition.trim() : "";
+      const meta = mime || dispo ? { ...(mime ? { contentType: mime } : {}), ...(dispo ? { contentDisposition: dispo } : {}) } : undefined;
       const rap = typeof rapportera === "function" ? rapportera : null;
 
       // ⛔ RESUMABLE NÄR SDK:N HAR DEN, OCKSÅ UTAN FRAMSTEG (CP 2026-10-18, WAV upp till 250 MB). `uploadBytes` skickar allt i ett

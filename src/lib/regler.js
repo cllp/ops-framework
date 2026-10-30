@@ -38,13 +38,14 @@ import {
 import { ID_FORM, KATALOGAVGRANSARE, KATEGORIFALT } from "./katalog.js";
 import { INSTALLNINGSVARDEFALT, MAX_INSTALLNINGSGRUPP, MAX_INSTALLNINGSID, MAX_INSTALLNINGSTEXT, MAX_MODULINSTALLNINGAR, MODULINSTALLNINGFALT, VISA_I_HUVUDMENYN } from "./modulinstallningar.js";
 import { MAX_TYPAVVIKELSER, MAX_TYPID, MAX_TYPNAMN, MODULTYPID_FORM, TYPAVVIKELSEFALT, TYPYTOR } from "./modultyper.js";
-import { ADRESSFORM, ARENDEFORM, ARENDE_PREFIX, BIBLIOTEKFALT, BIBLIOTEKTYPER, BILDFORM, FILFALT, HANDELSEFORM, HANDELSE_PREFIX, LJUD_STOLPAR, MITT_PREFIX, PLATSFORM, PLATSIDFORM, PLATS_PREFIX, MAX_BIBLIOTEKFILNAMN, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKSOKVAG, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, MAX_BIBLIOTEKUTSKRIFT, MAX_LISTPOSTER, MAX_LJUD_MS, MAX_TAGGAR, POSTIDFORM, TAGGFORM, TOPPFORM, filContentTypeMonster, filMimeMonster, filtakRegel } from "./bibliotek.js";
+import { ADRESSFORM, ARENDEFORM, ARENDE_PREFIX, BIBLIOTEKFALT, BIBLIOTEKTYPER, BILDFORM, FILFALT, HANDELSEFORM, HANDELSE_PREFIX, HTML_DISPOSITIONSMONSTER, HTML_MIME, LJUD_STOLPAR, MITT_PREFIX, PLATSFORM, PLATSIDFORM, PLATS_PREFIX, MAX_BIBLIOTEKFILNAMN, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKSOKVAG, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, MAX_BIBLIOTEKUTSKRIFT, MAX_HTMLVERSION, MAX_LISTPOSTER, MAX_LJUD_MS, MAX_TAGGAR, POSTIDFORM, TAGGFORM, TOPPFORM, filContentTypeMonster, filMimeMonster, filtakRegel } from "./bibliotek.js";
 import { LANKKALLOR, lankkallaForm } from "./lankkalla.js";
 import { MAX_MINNESID, MAX_MINNESTEXT, MINNESFALT, MINNESKALLAFALT, MINNESKALLOR } from "./minne.js";
 import { MAX_SKAPARKALLA, MAX_SKAPARNAMN, SKAPARFALT, VIA_FALTNAMN } from "./skapare.js";
 import { MAX_PLATSNAMN, PLATSFALT_FORVALTAD, PLATSNYCKEL_AVGRANSARE } from "./platser.js";
 import { BESKRIVENAPPDATAFALT, BESKRIVNINGSDOKUMENTFALT, BESKRIVNINGSFALT, BESKRIVNINGSFORMAT, BESKRIVNINGSIDFORM, MAX_APPBESKRIVNING, MAX_BESKRIVNINGSNAMN, MAX_FALT, MAX_LISTOR, MIN_LISTOR } from "./beskrivenapp.js";
 import { KONFIGHANDELSER, KONFIGLOGGFALT } from "./konfiglogg.js";
+import { VERSIONSFALT } from "./htmldokument.js";
 import { KALENDERVALFALT, KALENDERVALNYCKEL_FORM, KALENDERVISNINGAR, MAX_KALENDERVAL, MAX_KALENDERVALGRUPP } from "./kalendersynlighet.js";
 import { DELNINGSUID_FORM, KALENDERDELNINGFALT, KALENDERDELNING_AVGRANSARE, KALENDERDELNING_GRUPP, KALENDERDELNING_PERSON, MAX_DELNINGSGRUPP } from "./kalenderdelning.js";
 import { AVVECKLADE_KALENDERFALT, DATUMFORM, KALENDERFALT, KALENDERFARGER, KALENDERPOSTFALT, MAX_KALENDERID, MAX_KALENDERIKON, MAX_KALENDERNAMN, MAX_POSTBESKRIVNING, MAX_POSTPLATS, MAX_POSTTITEL, MINKALENDERFALT, TIDPUNKTSFORM } from "./kalendrar.js";
@@ -641,7 +642,11 @@ ${handelsefunktioner}    function opsFilPlatsMedlem(gid) {
         // MAX_BIBLIOTEKFIL (src/lib/bibliotek.js) och skrivs hit ur dem.
         && ${filtakRegel("request.resource.contentType", "request.resource.size", "\n          ")}
         // ⛔ TEXTFILENS TECKENKODNING (0.153.0, ops-framework#460 punkt 3): text/plain får bära '; charset=utf-8' (lagringsContentType i bibliotek.js). Reglerna ska vara deployade FÖRE klienten.
-        && request.resource.contentType.matches('${filContentTypeMonster()}');
+        && request.resource.contentType.matches('${filContentTypeMonster()}')
+        // ⛔ EN HTML-FIL (0.156.0, cllp/ops-framework#472) LADDAS UPP SOM EN BILAGA OCH ÄNDRAS ALDRIG. Utan 'attachment' ritar en direktlänk filen som en sida med dokumentets kod körande utanför den avspärrade rutan, så
+        // en HTML-fil utan det nekas. Och ett HTML-objekt skrivs över aldrig: varje version är ett eget objekt (htmldokument.js), och en historik vars filer går att byta ut är ingen historik.
+        && (!request.resource.contentType.matches('^${HTML_MIME}.*') || (request.resource.contentDisposition != null && request.resource.contentDisposition.matches('${HTML_DISPOSITIONSMONSTER}')))
+        && (resource == null || !resource.contentType.matches('^${HTML_MIME}.*'));
       allow delete: if false;
     }
 `;
@@ -2011,7 +2016,11 @@ ${bilagaRegelfunktion("opsKommentarbilagaGiltig")}
  *   `SKAPARFALT` har inte `via` (listan är härledd in i `hasOnly`, och ett fält som läggs dit öppnar regeln), och regelprovet (`rules/__tests__/skapare-via.test.mjs`) visar båda hållen.
  *
  * @param {string} namn Samlingsnamnet appen valt.
- * @param {{ gruppPrefix?: string, postPrefix?: string, handelser?: string, arenden?: string, platser?: boolean }} [sokvag] Samma namn som `lagringsregelfragment({ bibliotek })` får.
+ * ⛔ HTML-DOKUMENTETS VERSIONER (0.156.0, cllp/ops-framework#472): se `versionsregelfragment`. En post med MIME text/html får aldrig byta fil, byte eller MIME om inte samma skrivning också går vidare till nästa versionsnummer och skriver
+ * versionsdokumentet för den ersatta versionen (`versioner` är samlingens namn, och samma namn ska ges `versionsregelfragment`). Utan `versioner` går ett HTML-dokuments fil inte att byta alls: hellre ett nej än en historik som går att kringgå.
+ * `version` (postens fält) skrivs bara av det steget, och finns aldrig när posten skapas.
+ *
+ * @param {{ gruppPrefix?: string, postPrefix?: string, handelser?: string, arenden?: string, platser?: boolean, versioner?: string }} [sokvag] Samma namn som `lagringsregelfragment({ bibliotek })` får.
  *   `handelser` är appens händelsesamling (ramverket känner inget samlingsnamn). Skicka det och \`handelsefiler: true\` till \`lagringsregelfragment\`.
  *   `arenden` (0.122.0) är appens samling där ett ärende bor, normalt inkorgen. Skicka det och \`arendefiler: true\` till \`lagringsregelfragment\`.
  *   Förval `grupper` och `bibliotek`. Använder appen andra måste den skicka dem hit också, annars nekas dess egna uppladdningar
@@ -2025,6 +2034,8 @@ export function bibliotekregelfragment(namn, sokvag = {}) {
   const handelser = sokvag.handelser === undefined ? null : kontrolleraNamn(sokvag.handelser, "handelser");
   const arenden = sokvag.arenden === undefined ? null : kontrolleraNamn(sokvag.arenden, "arenden");
   const egnaPlatser = sokvag.platser === true;
+  // ⛔ VERSIONERNA (0.156.0, cllp/ops-framework#472): samlingen där de ersatta versionerna av ett HTML-dokument ligger. Utan den går ett HTML-dokuments fil aldrig att byta (det finns inget sätt att spara den gamla versionen).
+  const versioner = sokvag.versioner === undefined ? null : kontrolleraNamn(sokvag.versioner, "versioner");
   const lista = (/** @type {readonly string[]} */ f) => f.map((x) => `"${x}"`).join(", ");
   // Varje typ har en egen gren nedan. En ny typ i modellen utan sin gren hade nekats tyst i produktion.
   if (BIBLIOTEKTYPER.join(",") !== "anteckning,lank,fil,lista") {
@@ -2217,6 +2228,44 @@ ${handelseFunktioner}    function opsBibliotekPlatsMedlem(gid) {
         ));
     }
 
+    // ⛔ HTML-DOKUMENT OCH DERAS VERSIONER (0.156.0, cllp/ops-framework#472). Ett HTML-dokument är en filpost med MIME ${HTML_MIME}. Dess nuvarande version står på posten (fil och version), de ersatta som egna dokument i
+    // ${versioner ?? "(ingen samling angiven: ett HTML-dokuments fil går inte att byta)"}. Version 1 har inget fält version.
+    function opsBibliotekArHtml(d) {
+      return d.typ == "fil" && d.fil.mime == "${HTML_MIME}";
+    }
+    function opsBibliotekVersionNr(d) {
+      return d.get('version', null) == null ? 1 : d.version.nr;
+    }
+    // Fältet version: nr (2 till ${MAX_HTMLVERSION}), vem som skrev versionen (en person, samma stämpel som skapadAv) och när. Den som redan står på raden får stå kvar, så en annan ändring av posten (titeln) nekas inte.
+    function opsBibliotekVersionGiltig(v, fore) {
+      return v is map
+        && v.keys().hasOnly(["nr", "av", "tid"])
+        && v.nr is int
+        && v.nr >= 2
+        && v.nr <= ${MAX_HTMLVERSION}
+        && v.tid is int
+        && v.av is map
+        && opsSkaparstampel(v.av, fore)
+        && v.av.uid is string
+        && v.av.namn is string
+        && v.av.typ == "manniska"
+        && v.av.kalla is string;
+    }
+    // Ändringen av ett HTML-dokument, före och efter. Utan nytt version-fält står filen still. Med det: nästa nummer, av den som skriver, med postens nya andrad som tid, en annan fil, och versionsdokumentet för den ersatta
+    // versionen finns efter skrivningen (existsAfter). Dokumentets INNEHÅLL prövar versionsdokumentets egen regel (versionsregelfragment), som kräver att det är exakt posten som den var.
+    function opsBibliotekHtmlSteg(fore, efter, postId) {
+      return (efter.get('version', null) == fore.get('version', null)
+          && (!opsBibliotekArHtml(fore)
+            || (efter.fil.sokvag == fore.fil.sokvag && efter.fil.byte == fore.fil.byte && efter.fil.mime == fore.fil.mime)))
+        || ${versioner ? `(opsBibliotekArHtml(fore)
+          && opsBibliotekArHtml(efter)
+          && efter.get('version', null) != null
+          && efter.version.nr == opsBibliotekVersionNr(fore) + 1
+          && efter.version.av.uid == request.auth.uid
+          && efter.version.tid == efter.andrad
+          && existsAfter(/databases/$(database)/documents/${versioner}/$(postId + '|' + string(opsBibliotekVersionNr(fore)))))` : "false"};
+    }
+
     function opsBibliotekspostGiltig(d, postId) {
       return d.keys().hasOnly([${lista(BIBLIOTEKFALT)}])
         && (!d.keys().hasAny(["taggar"]) || opsBibliotekTaggar(d.taggar))
@@ -2231,17 +2280,17 @@ ${grenTyp}        && (
           (d.typ == "anteckning"
             && d.text.trim().size() > 0
             && d.text.size() <= ${MAX_BIBLIOTEKTEXT}
-            && !d.keys().hasAny(["url", "kalla", "bild", "poster", "fil", "utskrift", "utskriftJobb", "durationMs", "peaks"]))
+            && !d.keys().hasAny(["url", "kalla", "bild", "poster", "fil", "utskrift", "utskriftJobb", "durationMs", "peaks", "version"]))
           || (d.typ == "lank"
             && d.url.size() <= ${MAX_BIBLIOTEKURL}
             && d.url.matches('${regelRegex(ADRESSFORM)}')
             && (!d.keys().hasAny(["kalla"]) || opsBibliotekKalla(d))
             && (!d.keys().hasAny(["bild"]) || (d.bild.size() <= ${MAX_BIBLIOTEKURL} && d.bild.matches('${regelRegex(BILDFORM)}')))
-            && !d.keys().hasAny(["text", "poster", "fil", "utskrift", "utskriftJobb", "durationMs", "peaks"]))
+            && !d.keys().hasAny(["text", "poster", "fil", "utskrift", "utskriftJobb", "durationMs", "peaks", "version"]))
           || (d.typ == "lista"
             && d.keys().hasAll(["poster"])
             && opsBibliotekPoster(d.poster)
-            && !d.keys().hasAny(["text", "url", "kalla", "bild", "fil", "utskrift", "utskriftJobb", "durationMs", "peaks"]))
+            && !d.keys().hasAny(["text", "url", "kalla", "bild", "fil", "utskrift", "utskriftJobb", "durationMs", "peaks", "version"]))
           || (d.typ == "fil"
             && d.fil.keys().hasOnly([${lista(FILFALT)}])
             && (!('klar' in d.fil) || d.fil.klar is bool)
@@ -2256,6 +2305,7 @@ ${grenTyp}        && (
             && d.fil.byte > 0
             && ${filtakRegel("d.fil.mime", "d.fil.byte")}
             && !d.keys().hasAny(["text", "url", "kalla", "bild", "poster"])
+            && (!d.keys().hasAny(["version"]) || (opsBibliotekArHtml(d) && opsBibliotekVersionGiltig(d.version, resource == null ? null : resource.data.get('version', {}).get('av', null))))
             && (
               !d.keys().hasAny(["utskrift"])
               || (d.utskrift.size() <= ${MAX_BIBLIOTEKUTSKRIFT} && d.fil.mime.matches('^audio/.*'))
@@ -2287,6 +2337,8 @@ ${grenSkapa}opsBibliotekArMitt(request.resource.data.groupId)
         && opsBiblioteketNu(request.resource.data.andrad)
         // ⛔ UTSKRIFTSJOBBET SKRIVS BARA AV SERVERN (0.133.0). En klient kan inte skapa en post som påstår att en utskrift pågår.
         && !request.resource.data.keys().hasAny(["utskriftJobb"])
+        // ⛔ EN NY POST ÄR VERSION 1 OCH HAR INGET FÄLT version (0.156.0): numret räknas bara upp av ett versionssteg på en post som finns.
+        && !request.resource.data.keys().hasAny(["version"])
         && opsBibliotekspostGiltig(request.resource.data, id);
       allow update: if request.resource.data.groupId == resource.data.groupId
         && request.resource.data.typ == resource.data.typ
@@ -2301,12 +2353,74 @@ ${grenSkapa}opsBibliotekArMitt(request.resource.data.groupId)
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["durationMs", "peaks"]))
         )
         && opsBibliotekspostGiltig(request.resource.data, id)
+        && opsBibliotekHtmlSteg(resource.data, request.resource.data, id)
         && (
           (opsBibliotekPlatsMedlem(resource.data.groupId) && resource.data.skapadAv.uid == request.auth.uid)
           || opsBibliotekPlatsAdmin(resource.data.groupId)
         );
       allow delete: if (opsBibliotekPlatsMedlem(resource.data.groupId) && resource.data.skapadAv.uid == request.auth.uid)
         || opsBibliotekPlatsAdmin(resource.data.groupId);
+    }
+`;
+}
+
+/**
+ * Regelfragmentet för HTML-dokumentens ersatta versioner (0.156.0, cllp/ops-framework#472): ett dokument per ersatt version, `<postId>|<nr>`, som bara skrivs och aldrig ändras eller raderas.
+ *
+ * ══ ⛔ VAD SOM GÄLLER, OCH VARFÖR ═══════════════════════════════════════
+ *
+ *   - LÄSA: den som får läsa dokumentets plats (`opsBibliotekPlatsMedlem`, alltså gruppens medlemskap, Mitt bibliotek, en händelses och så vidare). Samma behörighet som posten. Platsen står på versionsdokumentet.
+ *   - SKAPA: bara tillsammans med att posten går vidare till nästa version, i SAMMA skrivning (en batch eller transaktion). Dokumentet ska vara exakt posten SOM DEN VAR: samma plats, samma fil, samma skrivare (`skapadAv`, eller förra
+ *     versionens `av`) och samma tid (`skapad`, eller förra versionens `tid`), och numret ska vara postens nuvarande. Efter skrivningen ska posten ha fått en annan fil (`getAfter`): ett dokument skrivs inte i förväg eller utan att posten går vidare.
+ *     Dokumentet har ingen egen behörighetsprövning, och det är avsiktligt: det kan inte skrivas utan att POSTEN i samma skrivning byter fil, och en fil byts bara av den som får ändra posten (skaparen, ägare eller admin) och bara till nästa nummer, av den som står som
+ *     versionens skrivare (`opsBibliotekHtmlSteg`). Mutationsprovet visade att behörigheten, kravet på nästa nummer och skrivaren inte gick att skilja åt mellan de två reglerna, så varje villkor står på ETT ställe (regel 2). Nyckeln är `<postId>|<nr>` och ingen annan: den är constrainten som gör att två samtidiga uppdateringar ur samma version inte båda kan lyckas.
+ *   - ÄNDRA och RADERA: aldrig. "Den förra finns kvar" är hela poängen, och en historik som går att skriva om är ingen historik. När ett dokument tas bort för gott gör servern det (Admin SDK, som går förbi reglerna) tillsammans med posten.
+ *
+ * ⛔ KOSTNADEN ÄR MÄTT (`rules/__tests__/htmldokument.test.mjs`), inte uppskattad: dokumentet bär fyra anrop (posten före och efter, och att den finns före och efter) plus medlemskapet.
+ * ⛔ RAMVERKET KÄNNER INTE SAMLINGSNAMNEN. Appen skickar båda: samlingen för versionerna (`namn`) och samlingen för posterna (`bibliotek`, samma som `bibliotekregelfragment`). Fragmentet använder funktionerna som `bibliotekregelfragment` skriver
+ * (`opsBibliotekPlatsMedlem`, `opsBibliotekPlatsAdmin`, `opsBibliotekArHtml`, `opsBibliotekVersionNr`) och ska limmas in efter det, med `versioner: namn` angivet där.
+ *
+ * @param {string} namn Samlingsnamnet appen valt för versionerna.
+ * @param {{ bibliotek: string }} sokvag `bibliotek`: appens biblioteksamling (samma namn som `bibliotekregelfragment(namn)`).
+ * @returns {string}
+ */
+export function versionsregelfragment(namn, sokvag) {
+  const samling = kontrolleraNamn(namn, "versioner");
+  const bibliotek = kontrolleraNamn(sokvag?.bibliotek, "bibliotek");
+  if ((/** @type {readonly string[]} */ (Object.values(GRUNDSAMLINGAR))).includes(samling)) {
+    throw new Error(`versionsregelfragment: samlingen "${samling}" är en av ramverkets egna (${Object.values(GRUNDSAMLINGAR).join(", ")}). Versionerna har en egen samling, för ett andra block på en samling lägger en andra regel på den.`);
+  }
+  if (samling === bibliotek) throw new Error(`versionsregelfragment: versionerna och posterna kan inte dela samling ("${samling}"). Ett versionsdokument är ingen bibliotekspost.`);
+  const lista = (/** @type {readonly string[]} */ f) => f.map((x) => `"${x}"`).join(", ");
+  const post = `/databases/$(database)/documents/${bibliotek}/$(d.postId)`;
+  return `    // ══ Ramverkets HTML-versioner i Biblioteket (0.156.0). GENERERAD, ändra inte för hand ══
+    //
+    // Källa: ops-framework, versionsregelfragment() i src/lib/regler.js. Kräver bibliotekregelfragment() ovanför, anropad med versioner: '${samling}'.
+
+    // Ett versionsdokument för den ersatta versionen, skrivet i samma skrivning som posten går vidare till nästa version. Exists före get: ett get på något som inte finns är ett fel, inte ett nej.
+    function opsBibliotekVersionsdokGiltig(d, id) {
+      return d.keys().hasOnly([${lista(VERSIONSFALT)}])
+        && d.postId is string
+        && d.postId.matches('${regelRegex(POSTIDFORM)}')
+        && d.nr is int
+        && d.nr >= 1
+        && d.nr < ${MAX_HTMLVERSION}
+        && id == d.postId + '|' + string(d.nr)
+        && exists(${post})
+        && existsAfter(${post})
+        && opsBibliotekArHtml(get(${post}).data)
+        && get(${post}).data.groupId == d.groupId
+        && opsBibliotekVersionNr(get(${post}).data) == d.nr
+        && d.fil == get(${post}).data.fil
+        && d.av == (get(${post}).data.get('version', null) == null ? get(${post}).data.skapadAv : get(${post}).data.version.av)
+        && d.tid == (get(${post}).data.get('version', null) == null ? get(${post}).data.skapad : get(${post}).data.version.tid)
+        && getAfter(${post}).data.fil.sokvag != d.fil.sokvag;
+    }
+
+    match /${samling}/{id} {
+      allow read: if opsBibliotekPlatsMedlem(resource.data.groupId);
+      allow create: if opsBibliotekVersionsdokGiltig(request.resource.data, id);
+      allow update, delete: if false;
     }
 `;
 }

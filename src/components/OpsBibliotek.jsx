@@ -4,10 +4,11 @@ import * as Tabs from "@radix-ui/react-tabs";
 import { Check, File as FilIkon, FileText, Globe, Image as BildIkon, Library, Link2, List as ListIkon, Mic, Plus, SlidersHorizontal, Upload } from "lucide-react";
 import { OpsAtgardsblad } from "./OpsAtgardsblad.jsx";
 import { OpsDokument } from "./OpsDokument.jsx";
+import { OpsHtmlDokumentHamtat } from "./OpsHtmlDokument.jsx";
 import { OpsMarkdown } from "./OpsMarkdown.jsx";
 import { OpsModal } from "./OpsModal.jsx";
 import { OpsSvepRad } from "./OpsSvepRad.jsx";
-import { ADRESSFORM, BIBLIOTEKTYPER, BILDFORM, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKURL, uppladdningAvbruten, uppladdningenAvbrytsKl, allaTaggar, arDelbar, arLjudpost, arMittBibliotek, farAndra, normaliseraTaggar, anteckningsrubrikNu, beskrivObjektbibliotek, arPlatsBibliotek, gruppForPlats, filInmatningsfel, LJUDFIL_ACCEPT, ljudfilFel, mimeUrFilnamn, filadressFel, filSort, filtreraBibliotek, inmatningsfel, ljudDatum, ljudRubrik, normaliseraAdress, normaliseraMime, avkodaTextfil, TEXTFORHANDS_BYTE, trimSomRegeln } from "../lib/bibliotek.js";
+import { ADRESSFORM, BIBLIOTEKTYPER, BILDFORM, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKURL, uppladdningAvbruten, uppladdningenAvbrytsKl, allaTaggar, arDelbar, arLjudpost, arMittBibliotek, farAndra, normaliseraTaggar, anteckningsrubrikNu, beskrivObjektbibliotek, arHtmlMime, arPlatsBibliotek, gruppForPlats, filInmatningsfel, LJUDFIL_ACCEPT, ljudfilFel, mimeUrFilnamn, filadressFel, filSort, filtreraBibliotek, inmatningsfel, ljudDatum, ljudRubrik, normaliseraAdress, normaliseraMime, avkodaTextfil, TEXTFORHANDS_BYTE, trimSomRegeln } from "../lib/bibliotek.js";
 import { OpsTaggFilter, OpsTaggRad, menyPilar } from "./OpsTaggar.jsx";
 
 export { menyPilar, OpsTaggFilter as TaggFilter };
@@ -1656,7 +1657,7 @@ function NyKnapp({ flik, onSkapa, onRost, erbjudRost, onLaddaUppLjud }) {
 /**
  * Bild öppnas i förhandsvisning. PDF och övrigt i ny flik. Utan adress sägs det.
  *
- * @param {{ post: { id?: string, typ?: string, rubrik?: string, skapad?: number, durationMs?: number, peaks?: string, fil?: { namn?: string, mime?: string, byte?: number, sokvag?: string } }, lage: Adresslage, kopplad: boolean, onLjus?: (adress: string) => void, onMeta?: (id: string, meta: { durationMs?: number, peaks?: string }) => void, onRadera?: () => void, hamtaFil?: (sokvag: string) => Promise<Blob> }} props
+ * @param {{ post: { id?: string, typ?: string, rubrik?: string, skapad?: number, skapadAv?: unknown, durationMs?: number, peaks?: string, fil?: { namn?: string, mime?: string, byte?: number, sokvag?: string } }, lage: Adresslage, kopplad: boolean, onLjus?: (adress: string) => void, onMeta?: (id: string, meta: { durationMs?: number, peaks?: string }) => void, onRadera?: () => void, hamtaFil?: (sokvag: string) => Promise<Blob> }} props
  */
 function FilVisning({ post, lage, kopplad, onLjus, onMeta, onRadera, hamtaFil }) {
   const spelare = useSpelare();
@@ -1728,6 +1729,18 @@ function FilVisning({ post, lage, kopplad, onLjus, onMeta, onRadera, hamtaFil })
       <div data-bibliotek-fil="" className="flex flex-col gap-2">
         <video data-bibliotek-video="" src={adress} controls playsInline preload="metadata" aria-label={post.rubrik ?? namn} className="block h-auto max-h-96 w-full rounded-lg bg-sunken" />
         <a href={adress} target="_blank" rel="noopener noreferrer" className="w-fit text-etikett text-accent underline underline-offset-2">
+          {rad}
+        </a>
+      </div>
+    );
+  }
+  // ⛔ ETT HTML-DOKUMENT RITAS I EN AVSPÄRRAD RUTA (0.156.0, cllp/ops-framework#472), aldrig som en länk som öppnar sidan och aldrig i appens ursprung: se `OpsHtmlDokument`. Länken under är nedladdning
+  // (lagringen svarar `attachment`), och den enda väg när rutan inte kan visa dokumentet. Utan `hamtaFil` finns ingen ruta, bara nedladdningen.
+  if (typeof hamtaFil === "function" && arHtmlMime(post.fil?.mime) && post.fil?.sokvag) {
+    return (
+      <div data-bibliotek-fil="" className="flex min-w-0 flex-col gap-2">
+        <OpsHtmlDokumentHamtat hamta={hamtaFil} sokvag={post.fil.sokvag} namn={post.fil.namn ?? namn} skapadAv={post.skapadAv} />
+        <a href={adress} target="_blank" rel="noopener noreferrer" download={post.fil.namn} className="w-fit text-etikett text-accent underline underline-offset-2">
           {rad}
         </a>
       </div>

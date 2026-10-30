@@ -432,6 +432,9 @@ export const FILMIME = /** @type {const} */ ([
   "video/quicktime",
   "application/pdf",
   "text/plain",
+  // ⛔ HTML-DOKUMENT (0.156.0, cllp/ops-framework#472). En HTML-fil kan köra kod, och får därför bara ritas i en avspärrad ruta (`HTML_SANDBOX` i `htmldokument.js`), aldrig som en sida i appens ursprung.
+  // Samma tak som text. Lagringen sparar den som `text/html; charset=utf-8` med `Content-Disposition: attachment`, så att en direktlänk laddar ned filen och aldrig ritar den.
+  "text/html",
 ]);
 
 /**
@@ -514,6 +517,79 @@ export function filMimeMonster() {
 export function lagringsContentType(mime) {
   const m = normaliseraMime(mime);
   return m.startsWith("text/") ? `${m}; charset=utf-8` : m;
+}
+
+/**
+ * HTML-dokument (0.156.0, cllp/ops-framework#472).
+ *
+ * ══ ⛔ VARFÖR HTML ÄR EN EGEN SORT FIL ═══════════════════════════════════════════════════════════════════════════
+ *
+ * En HTML-fil kan köra kod. Ritad i appens eget ursprung kunde koden läsa inloggningen hos den som öppnar filen och handla i hens namn: vem som helst i gruppen kunde ta över de andras konton genom att ladda upp en fil.
+ * Därför ritas en HTML-fil bara i en avspärrad ruta (`HTML_SANDBOX` i `htmldokument.js`), och en direktlänk till filen laddar ned den (`lagringsContentDisposition`) och ritar den aldrig.
+ * Den är i övrigt en vanlig filpost: samma tak som text, samma plats, samma regler. Det som skiljer är att ett HTML-dokument har versioner (`htmldokument.js`).
+ */
+export const HTML_MIME = "text/html";
+
+/** Så många versioner ett HTML-dokument får ha. Samma tal i regeln (`version.nr`) och i versionsdokumentet. */
+export const MAX_HTMLVERSION = 1000;
+
+/** Fälten i postens `version`: numret på den nuvarande versionen, vem som skrev den och när. En post som aldrig uppdaterats har inget fält och är version 1. */
+export const HTMLVERSIONSFALT = /** @type {const} */ (["nr", "av", "tid"]);
+
+/**
+ * Är MIME:n HTML? Efter `normaliseraMime`, så `text/html; charset=utf-8` är det också.
+ * @param {unknown} mime
+ * @returns {boolean}
+ */
+export function arHtmlMime(mime) {
+  return normaliseraMime(mime) === HTML_MIME;
+}
+
+/**
+ * Mönstret Storage-regeln kräver av `Content-Disposition` på en HTML-fil: den ska börja med `attachment`. Härlett ur samma ord som `lagringsContentDisposition` skriver.
+ */
+export const HTML_DISPOSITIONSMONSTER = "^attachment(;.*)?$";
+
+/**
+ * `Content-Disposition` som en HTML-fil laddas upp med (0.156.0): `attachment`, så att en direktlänk till filen laddas ned och aldrig ritas av webbläsaren. Filen ritas bara i den avspärrade rutan.
+ *
+ * ⛔ STORAGE-REGELN KRÄVER DET OCH `lagringsregelfragment` NEKAR EN HTML-FIL UTAN (`HTML_DISPOSITIONSMONSTER`). Gäller klienten. En signerad adress från servern går förbi reglerna, så appens API sätter samma rubrik själv i `filer/klar`.
+ * Filnamnet står med en ASCII-reserv och en UTF-8-form (RFC 6266), så att å, ä och ö hålls hela i nedladdningen.
+ *
+ * @param {unknown} mime
+ * @param {unknown} namn Filens namn.
+ * @returns {string | undefined} Rubrikens värde för en HTML-fil, annars `undefined` (andra filer sätter ingen).
+ */
+export function lagringsContentDisposition(mime, namn) {
+  if (!arHtmlMime(mime)) return undefined;
+  const ren = str(namn).replace(/[\u0000-\u001f\u007f]/g, "").replace(/[\\/]/g, "_") || "dokument.html";
+  const ascii = ren.replace(/[^A-Za-z0-9._ -]/g, "_");
+  const utf8 = encodeURIComponent(ren).replace(/['()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
+  return `attachment; filename="${ascii}"; filename*=UTF-8''${utf8}`;
+}
+
+/**
+ * Skälet till att postens `version` inte håller, eller `null`. En post utan fältet är version 1 och håller. Fältet hör bara till ett HTML-dokument.
+ *
+ * @param {Record<string, unknown>} d Hela posten.
+ * @returns {string | null}
+ */
+export function htmlVersionFel(d) {
+  if (!("version" in d) || d.version == null) return null;
+  const fil = /** @type {{ mime?: unknown } | undefined} */ (d.fil && typeof d.fil === "object" ? d.fil : undefined);
+  if (!arHtmlMime(fil?.mime)) return "Bara ett HTML-dokument har versioner.";
+  const v = d.version;
+  if (typeof v !== "object" || Array.isArray(v)) return "version ska vara ett objekt med nr, av och tid.";
+  const okanda = Object.keys(v).filter((k) => !(/** @type {readonly string[]} */ (HTMLVERSIONSFALT).includes(k)));
+  if (okanda.length > 0) return `Versionen har fälten ${okanda.join(", ")}, och de hör inte dit.`;
+  const { nr, av, tid } = /** @type {Record<string, unknown>} */ (v);
+  if (!Number.isInteger(nr) || /** @type {number} */ (nr) < 2 || /** @type {number} */ (nr) > MAX_HTMLVERSION) return `Versionens nr ska vara ett heltal från 2 till ${MAX_HTMLVERSION}. Version 1 har inget fält.`;
+  if (!Number.isInteger(tid) || /** @type {number} */ (tid) < 0) return "Versionens tid ska vara ett heltal, millisekunder.";
+  if (!av || typeof av !== "object") return "Versionen saknar vem som skrev den.";
+  const skrivare = byggSkapare(/** @type {any} */ (av));
+  if (!skrivare.uid) return "Versionen saknar vem som skrev den.";
+  if (skrivare.typ !== "manniska") return "En version skrivs av en medlem, och typen på den som skrev är manniska.";
+  return null;
 }
 
 /** Så många byte av en textfil som detaljen visar (0.153.0, ops-framework#460 punkt 3). En textfil får vara `MAX_BIBLIOTEKFIL`, och en detalj som ritar 25 MB text är en flik som hänger sig. */
@@ -683,7 +759,7 @@ export function peaksGiltiga(peaks) {
  * `text` hör till en anteckning och `url` till en länk. Regeln kräver att den
  * andra saknas, så en anteckning inte kan bära en adress vid sidan av texten.
  */
-export const BIBLIOTEKFALT = /** @type {const} */ (["groupId", "typ", "rubrik", "text", "url", "kalla", "bild", "poster", "fil", "utskrift", "utskriftJobb", "durationMs", "peaks", "taggar", "skapadAv", "skapad", "andrad"]);
+export const BIBLIOTEKFALT = /** @type {const} */ (["groupId", "typ", "rubrik", "text", "url", "kalla", "bild", "poster", "fil", "utskrift", "utskriftJobb", "durationMs", "peaks", "taggar", "version", "skapadAv", "skapad", "andrad"]);
 
 /**
  * En länks adress: http eller https, och sedan bara synliga ASCII-tecken.
@@ -720,6 +796,7 @@ const FORVALTARROLLER = /** @type {const} */ (["agare", "admin"]);
  * @property {string} [utskrift] Bara på ett ljud. Saknas fältet har ingen bett om en utskrift. Tom sträng är en utskrift utan ord.
  * @property {Record<string, unknown>} [utskriftJobb] (0.133.0) Bara på ett ljud, och bara servern skriver det: läget för en utskrift som pågår eller gick fel (`{ status: "pagar" | "fel", startad, av: { uid, namn }, fel? }`, se `utskriftLage`). Tas bort när utskriften är klar, för då finns `utskrift`. Klienten skriver det aldrig (reglerna).
  * @property {number} [durationMs] Bara på ett ljud. Millisekunder. Saknas fältet är längden inte räknad än.
+ * @property {{ nr: number, av: import("./skapare.js").Skapare, tid: number }} [version] (0.156.0) Bara på ett HTML-dokument som uppdaterats minst en gång: numret på den NUVARANDE versionen (2 eller högre), vem som skrev den och när. Saknas fältet är dokumentet version 1 (`nuvarandeVersion`). De tidigare versionerna är egna dokument (`htmldokument.js`).
  * @property {string[]} [taggar] (0.100.0) Högst `MAX_TAGGAR`, var och en i `TAGGFORM`, utan dubbletter. Saknas fältet har posten inga.
  * @property {string} [peaks] Bara på ett ljud. Vågen som en sträng: `LJUD_STOLPAR` tecken ur `TOPP_TECKEN`, ett per stolpe (`kodaToppar`, `avkodaToppar`). Saknas fältet är vågen inte räknad än.
  * @property {import("./skapare.js").Skapare} skapadAv
@@ -821,7 +898,7 @@ export function filTak(mime) {
 
 /**
  * MIME ur filnamnet när webbläsaren inte säger någon (Safari ger ofta tom typ för AIFF och FLAC, och Windows för .mov). Bara
- * ljudformaten och videoformaten som annars faller bort. `.mp4` och `.m4v` ger `video/mp4`, `.mov` ger `video/quicktime`. Tom sträng
+ * ljudformaten och videoformaten som annars faller bort, och (0.156.0) `.html` och `.htm`, som ger `text/html`. `.mp4` och `.m4v` ger `video/mp4`, `.mov` ger `video/quicktime`. Tom sträng
  * när ändelsen är okänd.
  * @param {unknown} namn
  * @returns {string}
@@ -830,7 +907,7 @@ export function mimeUrFilnamn(namn) {
   const m = /\.([a-z0-9]+)$/i.exec(str(namn));
   const andelse = m ? m[1].toLowerCase() : "";
   // (0.133.0) m4a, mp3, aac och ogg: Safari och Android ger ofta tom typ för dem, och utan namnet blev en vald ljudfil "Formatet (tom) går inte att lägga in".
-  return ({ wav: "audio/wav", wave: "audio/wav", aif: "audio/aiff", aiff: "audio/aiff", flac: "audio/flac", m4a: "audio/mp4", mp3: "audio/mpeg", aac: "audio/aac", ogg: "audio/ogg", oga: "audio/ogg", mp4: "video/mp4", m4v: "video/mp4", mov: "video/quicktime" })[andelse] ?? "";
+  return ({ html: "text/html", htm: "text/html", wav: "audio/wav", wave: "audio/wav", aif: "audio/aiff", aiff: "audio/aiff", flac: "audio/flac", m4a: "audio/mp4", mp3: "audio/mpeg", aac: "audio/aac", ogg: "audio/ogg", oga: "audio/ogg", mp4: "video/mp4", m4v: "video/mp4", mov: "video/quicktime" })[andelse] ?? "";
 }
 
 /**
@@ -1205,13 +1282,13 @@ export function inmatningsfel(d) {
   }
 
   if (typ === "lista") {
-    const f = fremmandeFalt(d, ["text", "url", "kalla", "bild", "fil", "utskrift", "utskriftJobb", "durationMs", "peaks"]);
+    const f = fremmandeFalt(d, ["text", "url", "kalla", "bild", "fil", "utskrift", "utskriftJobb", "durationMs", "peaks", "version"]);
     if (f) return `En lista har rubrik och poster, och fältet ${f} hör inte dit.`;
     return listaFel(d.poster);
   }
 
   if (typ === "anteckning") {
-    const fa = fremmandeFalt(d, ["kalla", "bild", "poster"]);
+    const fa = fremmandeFalt(d, ["kalla", "bild", "poster", "version"]);
     if (fa) return `En anteckning har text, och fältet ${fa} hör inte dit.`;
     if ("url" in d && d.url != null && str(d.url) !== "") return "En anteckning har text, och ingen adress.";
     if ("fil" in d && d.fil != null) return "En anteckning har text, och ingen fil.";
@@ -1233,6 +1310,8 @@ export function inmatningsfel(d) {
     if (filfel) return filfel;
     const metaf = ljudMetaFel(d);
     if (metaf) return metaf;
+    const versionf = htmlVersionFel(d);
+    if (versionf) return versionf;
     const jobbf = utskriftJobbFel(d);
     if (jobbf) return jobbf;
     if (!("utskrift" in d) || d.utskrift == null) return null;
@@ -1240,6 +1319,7 @@ export function inmatningsfel(d) {
   }
 
   if ("poster" in d && d.poster != null) return "En länk har en adress, och inga poster.";
+  if ("version" in d && d.version != null) return "En länk har en adress, och ingen version.";
   if ("text" in d && d.text != null && str(d.text) !== "") return "En länk har en adress, och ingen brödtext.";
   if ("fil" in d && d.fil != null) return "En länk har en adress, och ingen fil.";
   if ("utskrift" in d && d.utskrift != null) return "En länk har en adress, och ingen utskrift.";
@@ -1382,6 +1462,10 @@ export function byggPost(d) {
     if ("utskriftJobb" in d && d.utskriftJobb != null) post.utskriftJobb = { .../** @type {Record<string, unknown>} */ (d.utskriftJobb) };
     if ("durationMs" in d && d.durationMs != null) post.durationMs = /** @type {number} */ (d.durationMs);
     if ("peaks" in d && d.peaks != null) post.peaks = /** @type {string} */ (d.peaks);
+    if ("version" in d && d.version != null) {
+      const v = /** @type {{ nr: number, av: Record<string, unknown>, tid: number }} */ (d.version);
+      post.version = { nr: v.nr, av: byggSkapare(/** @type {any} */ (v.av)), tid: v.tid };
+    }
   }
   return post;
 }

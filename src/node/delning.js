@@ -91,7 +91,7 @@
 import { createHash, randomBytes, scrypt, timingSafeEqual } from "node:crypto";
 // @ts-expect-error Samma skäl: ramverket har inga Node-typer.
 import { Buffer } from "node:buffer";
-import { arDelbar, arLjudpost, arMittBibliotek, gruppForPlats, handelseBibliotek, ljudRubrik, mittBibliotek, peaksGiltiga, POSTIDFORM, trimSomRegeln } from "../lib/bibliotek.js";
+import { arDelbar, arHtmlMime, arLjudpost, arMittBibliotek, gruppForPlats, handelseBibliotek, ljudRubrik, mittBibliotek, peaksGiltiga, POSTIDFORM, trimSomRegeln } from "../lib/bibliotek.js";
 import { losLista } from "../lib/biblioteklista.js";
 import {
   ADRESSSEGMENT,
@@ -385,12 +385,16 @@ export function byggAdressdelning(d) {
  * formen, och den riktiga formen går som `filename*` med procentkodning (RFC 5987). Annars är ett filnamn med `"` eller en
  * radbrytning ett sätt att skriva egna headrar.
  *
+ * ⛔ EN HTML-FIL ÄR ALLTID `attachment` (0.156.0, cllp/ops-framework#472). `mime` är valfri och bara HTML ändras av den: en signerad adress som svarade `inline` på en HTML-fil hade ritat den som en sida på lagringens
+ * adress, med dokumentets kod körande, utanför den avspärrade rutan. Det gäller också en länk som delats utan nedladdning och en fil på en händelsesida (som annars öppnas inline).
+ *
  * @param {string} namn
  * @param {boolean} bifoga
+ * @param {unknown} [mime] Filens MIME. Anropare som har den ska skicka den.
  * @returns {string}
  */
-export function delningsDisposition(namn, bifoga) {
-  if (!bifoga) return "inline";
+export function delningsDisposition(namn, bifoga, mime) {
+  if (!bifoga && !arHtmlMime(mime)) return "inline";
   const rent = (typeof namn === "string" ? namn : "").trim();
   const enkel = rent.replace(/[^A-Za-z0-9._ -]/g, "_") || "fil";
   const kodad = encodeURIComponent(rent || "fil").replace(/['()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
@@ -884,7 +888,7 @@ export function createDelningService(konfig) {
     const filnamn = text(post.fil.namn);
     const typ = delningsTyp(post.fil.mime);
     const sign = (/** @type {boolean} */ bifoga) =>
-      lagring.signeradAdress({ sokvag: post.fil.sokvag, sekunder: SIGNERAD_SEKUNDER, disposition: delningsDisposition(filnamn, bifoga), mime: post.fil.mime });
+      lagring.signeradAdress({ sokvag: post.fil.sokvag, sekunder: SIGNERAD_SEKUNDER, disposition: delningsDisposition(filnamn, bifoga, post.fil.mime), mime: post.fil.mime });
     const url = await sign(nedladdning);
     // En PDF som ska visas inbäddad kan inte komma från en adress med `attachment`: webbläsaren sparar den i stället för att visa den.
     const visaUrl = nedladdning && typ === "pdf" ? await sign(false) : null;
@@ -1037,7 +1041,7 @@ export function createDelningService(konfig) {
           mime: String(post.fil.mime ?? ""),
           storlek: Number.isInteger(post.fil.byte) ? post.fil.byte : null,
           // En fil på en händelsesida ÖPPNAS (inline): en bild, en PDF och ett ljud ska visas, och webbläsaren sparar det den inte kan visa.
-          url: await lagring.signeradAdress({ sokvag: post.fil.sokvag, sekunder: SIGNERAD_SEKUNDER, disposition: delningsDisposition(filnamn, false), mime: post.fil.mime }),
+          url: await lagring.signeradAdress({ sokvag: post.fil.sokvag, sekunder: SIGNERAD_SEKUNDER, disposition: delningsDisposition(filnamn, false, post.fil.mime), mime: post.fil.mime }),
         };
       }),
     );
