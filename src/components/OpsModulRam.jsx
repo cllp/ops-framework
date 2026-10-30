@@ -341,12 +341,26 @@ export function InstallningsInnehall({ modul, ram, sprak }) {
       setLitetFel(t("ordningSaknas"));
       return;
     }
+    fokusEfter.current = steg;
     const nasta = flyttaForbi(moduler, rad, modul.id, steg);
     sparaListor({ moduler: nasta, huvudmeny }, () => {
       const a = ram.onOrdning?.(nasta);
       return a ? Promise.resolve(a).then(() => {}) : undefined;
     });
   };
+  // ⛔ FOKUS FÖLJER MED NÄR PILEN BLIR GRÅ (granskningen av PR 470). Flyttas appen till en ände blir pilen man tryckte på `disabled`, och en spärrad knapp kan inte ha fokus: tangentbordet och skärmläsaren tappade sin plats.
+  // Efter ett tryck flyttas fokus till den motsatta pilen, och bara när den man tryckte på inte längre går att trycka på. Raden rensas efter första omritningen, så en sparning som misslyckas och rullas tillbaka inte flyttar fokus i efterhand.
+  const pilar = useRef(/** @type {HTMLSpanElement | null} */ (null));
+  const fokusEfter = useRef(/** @type {-1 | 0 | 1} */ (0));
+  useEffect(() => {
+    const steg = fokusEfter.current;
+    if (!steg) return;
+    fokusEfter.current = 0;
+    const rot = pilar.current;
+    const klickad = /** @type {HTMLButtonElement | null} */ (rot?.querySelector(`[data-ordning-pil="${steg < 0 ? "vanster" : "hoger"}"]`) ?? null);
+    const motsatt = /** @type {HTMLButtonElement | null} */ (rot?.querySelector(`[data-ordning-pil="${steg < 0 ? "hoger" : "vanster"}"]`) ?? null);
+    if (klickad?.disabled && motsatt && !motsatt.disabled) motsatt.focus();
+  }, [radPlats, rad.length]);
   const ikon = modul.hubb ? /** @type {import("react").ReactNode} */ (modul.hubb.ikon) : null;
 
   // ⛔ 0.147.0: avsnitten är värden och inte uppställda i ritningen, så att ordningen är ETT val (`ram.egnaForst`) och inte två kopior av avsnitten.
@@ -564,11 +578,11 @@ export function InstallningsInnehall({ modul, ram, sprak }) {
                   <span className="block text-etikett text-ink">{t("ordning")}</span>
                   <span className="mt-0.5 block text-etikett text-ink-muted">{!pa ? t("dold") : fast ? t("ordningHuvud") : t("ordningAppar")}</span>
                 </span>
-                <span className="flex shrink-0 items-center">
-                  <IkonKnapp etikett={t("vanster")} disabled={!ram.farAndra || !pa || radPlats <= 0} onClick={() => flytta(-1)}>
+                <span ref={pilar} className="flex shrink-0 items-center">
+                  <IkonKnapp pil="vanster" etikett={t("vanster")} disabled={!ram.farAndra || !pa || radPlats <= 0} onClick={() => flytta(-1)}>
                     <ChevronVansterIkon size={18} />
                   </IkonKnapp>
-                  <IkonKnapp etikett={t("hoger")} disabled={!ram.farAndra || !pa || radPlats < 0 || radPlats >= rad.length - 1} onClick={() => flytta(1)}>
+                  <IkonKnapp pil="hoger" etikett={t("hoger")} disabled={!ram.farAndra || !pa || radPlats < 0 || radPlats >= rad.length - 1} onClick={() => flytta(1)}>
                     <ChevronHogerIkon size={18} />
                   </IkonKnapp>
                 </span>
@@ -579,7 +593,8 @@ export function InstallningsInnehall({ modul, ram, sprak }) {
                     const app = apparById.get(id);
                     const denna = id === modul.id;
                     const bild = denna ? ikon : app?.ikon;
-                    const namn = denna ? modul.id : app?.namn ?? id;
+                    // ⛔ ETT LÄSBART NAMN PÅ VARJE RAD (granskningen av PR 470): ikonen är en SVG utan text, och `title` läses inte upp. Namnet är appens riktiga, aldrig det råa id:t när ett finns.
+                    const namn = denna ? text(modul.namn, sprak) || modul.id : app?.namn || id;
                     return (
                       <li
                         key={id}
@@ -591,7 +606,8 @@ export function InstallningsInnehall({ modul, ram, sprak }) {
                           denna ? "bg-raised text-ink ring-2 ring-accent" : "bg-raised text-ink-muted",
                         )}
                       >
-                        {bild ?? <span aria-hidden="true">{String(namn).slice(0, 1).toUpperCase()}</span>}
+                        <span aria-hidden="true" className="flex items-center justify-center">{bild ?? String(namn).slice(0, 1).toUpperCase()}</span>
+                        <span className="sr-only">{namn}</span>
                       </li>
                     );
                   })}
@@ -629,11 +645,12 @@ function Rad({ children }) {
   return <li className="border-b border-line last:border-b-0">{children}</li>;
 }
 
-/** @param {{ etikett: string, disabled?: boolean, onClick: () => void, children: import("react").ReactNode }} props */
-function IkonKnapp({ etikett, disabled, onClick, children }) {
+/** @param {{ etikett: string, disabled?: boolean, onClick: () => void, pil?: "vanster" | "hoger", children: import("react").ReactNode }} props */
+function IkonKnapp({ etikett, disabled, onClick, pil, children }) {
   return (
     <button
       type="button"
+      data-ordning-pil={pil}
       aria-label={etikett}
       disabled={disabled}
       onClick={onClick}

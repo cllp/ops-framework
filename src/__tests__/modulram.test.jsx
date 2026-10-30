@@ -1,8 +1,9 @@
-import { flyttaForbi } from "../components/OpsModulRam.jsx";
+import { ORD_OPSMODULRAM, flyttaForbi } from "../components/OpsModulRam.jsx";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { OpsHuvudmenyProvider } from "../components/OpsHuvudmeny.jsx";
 import { OpsModulSida } from "../components/OpsModulSida.jsx";
+import { OpsSprakProvider } from "../components/OpsSprak.jsx";
 import { OpsSwitch } from "../components/OpsToggle.jsx";
 import { defineModule } from "../lib/modul.js";
 
@@ -268,6 +269,83 @@ describe("modulramen", () => {
     expect(screen.getByRole("button", { name: "Flytta höger" })).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "Flytta vänster" }));
     expect(r.onOrdning).toHaveBeenCalledWith(["ekonomi", "bibliotek", "agenter"]);
+  });
+
+  it("⛔ varje rad i förhandsvisningen har ett läsbart namn, också när ikonen är en SVG, och aldrig det råa id:t för den aktuella appen (granskningen av PR 470)", () => {
+    const r = ram({ appar: [{ id: "bibliotek", namn: "Bibliotek", ikon: <svg data-testid="bib" /> }, { id: "ekonomi", ikon: <svg /> }] });
+    render(<OpsModulSida modul={EKONOMI} activeHref="/ekonomi?lage=installningar" hubHref="/hub" ram={r}><p /></OpsModulSida>);
+    const rad = (/** @type {string} */ id) => /** @type {HTMLElement} */ (document.querySelector(`[data-ordning-app="${id}"]`));
+    // Den aktuella appen heter sitt riktiga namn ("Ekonomi"), inte sitt id ("ekonomi"), i både texten för skärmläsare och title.
+    expect(rad("ekonomi").textContent).toBe("Ekonomi");
+    expect(rad("ekonomi").getAttribute("title")).toBe("Ekonomi");
+    // Den andra har ikonen som SVG och ett namn som text.
+    expect(rad("bibliotek").textContent).toBe("Bibliotek");
+    expect(rad("bibliotek").querySelector("svg")?.closest("[aria-hidden=true]")).not.toBeNull();
+    // Ikonen läses inte upp, namnet gör det: listan har två namngivna rader.
+    expect([...document.querySelectorAll("[data-ordning-app]")].map((e) => e.querySelector(".sr-only")?.textContent)).toEqual(["Ekonomi", "Bibliotek"]);
+  });
+
+  it("namnet följer språket, och en app utan namn i ram.appar får sitt id i stället för en tom rad", () => {
+    const r = ram({ grupp: { moduler: ["ekonomi", "okand"], huvudmeny: [] } });
+    render(<OpsSprakProvider sprak="en"><OpsModulSida modul={EKONOMI} activeHref="/ekonomi?lage=installningar" hubHref="/hub" ram={r}><p /></OpsModulSida></OpsSprakProvider>);
+    expect(document.querySelector('[data-ordning-app="ekonomi"]')?.textContent).toBe("Finance");
+    // Utan ikon ritas första bokstaven (dold för skärmläsare) och namnet står som text: id:t, eftersom inget namn finns.
+    expect(document.querySelector('[data-ordning-app="okand"] .sr-only')?.textContent).toBe("okand");
+    expect(document.querySelector('[data-ordning-app="okand"] [aria-hidden=true]')?.textContent).toBe("O");
+  });
+
+  it("⛔ när appen flyttas till änden flyttas fokus till den motsatta pilen, och inte tappas på den spärrade (granskningen av PR 470)", () => {
+    const r = ram();
+    render(<OpsModulSida modul={EKONOMI} activeHref="/ekonomi?lage=installningar" hubHref="/hub" ram={r}><p /></OpsModulSida>);
+    const hoger = screen.getByRole("button", { name: "Flytta höger" });
+    hoger.focus();
+    expect(document.activeElement).toBe(hoger);
+    fireEvent.click(hoger);
+    expect(hoger).toBeDisabled();
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Flytta vänster" }));
+    // Och tillbaka: nu är vänster pilen som blir spärrad, och fokus går till höger.
+    fireEvent.click(screen.getByRole("button", { name: "Flytta vänster" }));
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Flytta höger" }));
+  });
+
+  it("fokus ligger kvar på pilen när den inte blev spärrad (appen är inte i änden)", () => {
+    const r = ram({ grupp: { moduler: ["bibliotek", "ekonomi", "agenter"], huvudmeny: [] } });
+    render(<OpsModulSida modul={EKONOMI} activeHref="/ekonomi?lage=installningar" hubHref="/hub" ram={r}><p /></OpsModulSida>);
+    const hoger = screen.getByRole("button", { name: "Flytta höger" });
+    hoger.focus();
+    fireEvent.click(hoger);
+    expect(hoger).toBeDisabled();
+    // ekonomi stod i mitten och hamnade sist: höger är spärrad, så fokus går till vänster.
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Flytta vänster" }));
+    const vanster = screen.getByRole("button", { name: "Flytta vänster" });
+    fireEvent.click(vanster);
+    // Nu står ekonomi i mitten igen: ingen av pilarna är spärrad och fokus är kvar på den som trycktes.
+    expect(vanster).not.toBeDisabled();
+    expect(document.activeElement).toBe(vanster);
+  });
+
+  it("⛔ en sparning som misslyckas flyttar inte fokus i efterhand", async () => {
+    /** @type {() => void} */
+    let avsla = () => {};
+    const r = ram({ onOrdning: vi.fn(() => new Promise((_, nej) => { avsla = () => nej(new Error("Nätet svarade inte")); })) });
+    render(<OpsModulSida modul={EKONOMI} activeHref="/ekonomi?lage=installningar" hubHref="/hub" ram={r}><p /></OpsModulSida>);
+    fireEvent.click(screen.getByRole("button", { name: "Flytta höger" }));
+    const vanster = screen.getByRole("button", { name: "Flytta vänster" });
+    expect(document.activeElement).toBe(vanster);
+    vanster.blur();
+    document.body.focus();
+    avsla();
+    await waitFor(() => expect([...document.querySelectorAll("[data-ordning-app]")].map((e) => e.getAttribute("data-ordning-app"))).toEqual(["ekonomi", "bibliotek"]));
+    expect(document.activeElement).not.toBe(screen.getByRole("button", { name: "Flytta höger" }));
+  });
+
+  it("⛔ ORD_OPSMODULRAM: nycklarna upp och ned är borta (en liten brytande ändring, står i CHANGELOG), vänster och höger finns på båda språken", () => {
+    expect(Object.keys(ORD_OPSMODULRAM)).not.toContain("upp");
+    expect(Object.keys(ORD_OPSMODULRAM)).not.toContain("ned");
+    for (const k of /** @type {const} */ (["vanster", "hoger"])) {
+      expect(ORD_OPSMODULRAM[k].sv).toBeTruthy();
+      expect(ORD_OPSMODULRAM[k].en).toBeTruthy();
+    }
   });
 
   it("ikonraden är skrivskyddad: ingen knapp, ingen chevron, ingen utfällning", () => {
