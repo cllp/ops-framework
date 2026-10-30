@@ -9,6 +9,12 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.161.0
+
+### Ändrat
+
+- `MAX_BIBLIOTEKTEXT` är 20000 tecken (var 8000). En anteckning får nu vara lika lång som en utskrift. Talet skrivs in i regelfragmentet ur konstanten, så appen behöver generera om `firestore.rules` och driftsätta reglerna före hosting.
+
 ## 0.160.0
 
 Modulens insida utan upprepning (CP 2026-10-30: "Projekt" stod tre gånger, i huvudet, i en ensam flik och i en rubrik). Inget är brytande: en modul med flera delar ser ut som förut, och utan `atgard` är huvudet oförändrat.

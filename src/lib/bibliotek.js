@@ -50,7 +50,7 @@ export const BIBLIOTEKFLIKAR = /** @type {const} */ (["alla", "ljud", "antecknin
 
 /** Tak. Samma tal skrivs in i regelfragmentet, ur de här konstanterna. */
 export const MAX_BIBLIOTEKRUBRIK = 200;
-export const MAX_BIBLIOTEKTEXT = 8000;
+export const MAX_BIBLIOTEKTEXT = 20000;
 export const MAX_BIBLIOTEKURL = 2000;
 /**
  * Högst så här många poster i en lista (0.128.0). Taket finns i regeln också, ur den här konstanten. 200 rymmer en spellista och en mapp med kvitton, och håller
