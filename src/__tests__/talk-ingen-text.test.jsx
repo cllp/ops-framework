@@ -542,6 +542,7 @@ describe("flödet och miljön", () => {
     instanser[0].onerror({ error: "no-speech" });
     expect(/** @type {any} */ (g).diagnos()).toEqual({ startade: true, startHandelse: true, felkod: "no-speech", logg: expect.stringMatching(/^anrop:0\.start:\d+\.error-no-speech:\d+$/) });
     g.starta({ sprak: "sv-SE", onText: () => {}, onFel: () => {} });
-    expect(/** @type {any} */ (g).diagnos()).toEqual({ startade: true, startHandelse: false, felkod: null, logg: "anrop:0" });
+    // Loggen nollas: bara den nya omgångens anrop står kvar. Tiden är millisekunder sedan `starta()` och kan vara mer än 0 på en långsam maskin (CI 2026-10-30 gav 1).
+    expect(/** @type {any} */ (g).diagnos()).toEqual({ startade: true, startHandelse: false, felkod: null, logg: expect.stringMatching(/^anrop:\d+$/) });
   });
 });

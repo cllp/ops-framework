@@ -450,6 +450,12 @@ vems tur det är:
 - **Varje agent söker på sin etikett minst en gång i timmen, i alla repon**
   (`bolag-ops`, `lifehub.app`, `lifehub.identity`, `tam`, ramverket). En sökning
   utan träff är inte ett svar förrän du vet vilka repon du sökte i (regel 3).
+  ⛔ **Sök PR:ar med PR-sökningen, inte med ärendesökningen.** Mätt 2026-10-30,
+  första dagen regeln gällde: ärendesökningen med `label:vantar-claude` gav noll
+  träffar i alla tre repon, fast lifehub.identity PR 111 bar etiketten, och
+  PR-sökningen (`is:pr is:open label:vantar-claude`) gav den direkt. Kön hade
+  alltså varit tom för den som sökte på det första sättet. Sök PR:ar och ärenden
+  var för sig, och kontrollera sökningen mot en träff du redan vet om.
 - **Ett långt ärende med block är ingen kö.** Det går inte att se vems tur det
   är i en lång tråd, och ett block begravt i kommentar 40 hittas av ingen.
   Blocket läggs i en egen kommentar och etiketten sätts.

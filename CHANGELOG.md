@@ -9,6 +9,47 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.159.0
+
+Tre delar: ett HTML-dokument öppnas i ett eget fönster i stället för att laddas ned (CP 2026-10-30: "de skulle gå att öppna direkt i ett fönster. Inte ladda ner så."), raden Versioner hämtas först när den behövs (mätt: -2 977 byte gzip i en apps JavaScript före första vyn) och ett tillägg i regel 15 i kanon. Inget är brytande: utan `oppnaHtml` är Biblioteket oförändrat, och versionsraden beter sig som i 0.158.0.
+
+### Kanon
+
+- **Regel 15: sök PR:ar med PR-sökningen, inte med ärendesökningen** (`CLAUDE.md`, mätt 2026-10-30, första dagen regeln gällde). Ärendesökningen med `label:vantar-claude` gav noll träffar i alla tre repon, fast lifehub.identity PR 111 bar etiketten, och PR-sökningen (`is:pr is:open label:vantar-claude`) gav den direkt. Kön hade varit tom för den som sökte på det första sättet. Sök PR:ar och ärenden var för sig, och kontrollera sökningen mot en träff du redan vet om. Följer med till konsumenternas kanonkopia vid ompinningen (`check-kanon --skriv`).
+
+### Ett HTML-dokument i ett eget fönster
+
+**Var nedladdningen skedde.** Lagringen svarar `Content-Disposition: attachment` för en HTML-fil (skyddet i 0.156.0: koden får aldrig köras på lagringens eller appens ursprung). Därför laddades en direktlänk alltid ned. I `OpsBibliotek` var det **filnamnet under rutan i postens panel** (`<a href download>`, 0.156.0), och i en grupp, ett händelsebibliotek eller en gästs bibliotek utan `hamtaFil` den enda länken. Kortet i listan öppnade redan panelen och laddade inte ned. Chattens bilagor kan inte vara HTML (`KOMMENTARBILAGA_TYPER`), och den publika delningssidan (`DeladFil`) säger "Filen går inte att visa här. Ladda ner den".
+
+**Skärmtid (frågan till ärendet):** detta tar bort ett steg (ladda ned, hitta filen, öppna den) och lägger inget till: ingen ny vy att leta efter, ett tryck på dokumentet där det redan ligger.
+
+- **`OpsHtmlVy`** (ny, egen modul `OpsHtmlVy.jsx` så att den inte ligger i en apps paket före första vyn): dokumentet i hela fönstret (`h-dvh`) på en sida utan skal. En smal rad överst med filens namn, vem som laddade upp den, **Spara som PDF** och Stäng (`onStang`, `stangEtikett`), och meningen om att innehållet kommer från filen och inte från appen (samma märkning som rutan i detaljen, ur samma ord). Rutan fyller resten. Hämtningen med inloggningen (`hamta`, som `hamtaFil`), väntan, fel och tomt dokument skrivs ut, med Stäng kvar.
+- **`oppnaHtml(post)` på `OpsBibliotek`** (ny, frivillig): svarar med adressen till appens sida för dokumentet. Kortet i listan är då en länk (`target="_blank"`, `rel="noopener noreferrer"`, ingen `download`), filnamnet i detaljen likaså, och **Ladda ned** är ett eget val bredvid. "Visa detaljer" i postens meny når rutan, versionerna och Ladda ned. Funktionen anropas bara för ett HTML-dokument med en fil.
+- **`htmlVyAdress(oppnaHtml, post)`** (ny, exporterad): kastar för en adress som inte är en sida i appen (`blob:`, `data:`, `javascript:`, `//värd`).
+- ⛔ **Säkerheten är oförändrad, och bara EN ruta finns.** Rutan flyttades till `HtmlRuta` i `OpsHtmlDokument.jsx`: `sandbox="allow-scripts allow-modals"`, `srcdoc` ur texten som hämtats med inloggningen, aldrig `src`, aldrig en `blob:`- eller `data:`-adress, aldrig lagringens adress. Detaljen, versionsraden och helfönstervyn går alla genom den. Ett prov läser källan och kräver att `<iframe` står på exakt ett ställe i `src`, att `sandbox` sätts bara där, och att ingen komponent anropar `createObjectURL`.
+- **Fynd i skärmmätningen:** sidramens `scrollbar-gutter: stable` lämnade en tom remsa på 10 px längs högerkanten (rutan 1270 px i ett fönster på 1280). Vyn sätter `scrollbar-gutter: auto` på `html` medan den visas och återställer det när den lämnas.
+- **Ännu inte med** (se README): händelsens och ärendets filer (`OpsPlatsfiler` ger inte `oppnaHtml` vidare), gästens bibliotek och den publika delningssidan (ingen inloggning att hämta texten med).
+
+### Raden Versioner hämtas när den behövs
+
+Uppföljning av 0.158.0. **Skärmtid (frågan till ärendet):** oförändrad för den som ser raden, och en lättare första vy för alla.
+
+- **Vad som var fel.** `BibliotekHtmlVersioner` (cirka 420 rader) låg statiskt i `OpsBibliotek`, så en app som importerar `OpsBibliotek` drog in den före första vyn, fast raden bara ritas i detaljen för ett `text/html`-dokument och är hopfälld.
+- **Nu** ritar `OpsBibliotek` `BibliotekHtmlVersionerLat` (ny intern modul), som hämtar raden med `React.lazy` och en dynamisk import bakom `Suspense`. Paketet skriver en fil per källmodul och lämnar importerna mellan dem som importer, också den dynamiska (`scripts/build.mjs`): appens bundler gör modulen till en egen bit utan att appen gör något. Ingen ny export, ingen ny inställning.
+- **Medan biten kommer** står en tom ruta med den hopfällda radens ram och höjd, byggd av samma klasser och en hård blank i stället för orden, dold för skärmläsare och utan text, så att innehållet under inte hoppar.
+- ⛔ **Felet syns** (arbetsreglernas punkt 5). Går hämtningen fel (nätet föll, eller en ny version är utlagd och den gamla biten finns inte längre) står meningen "Versionsraden gick inte att läsa in. Ladda om sidan." i stället för raden, och Biblioteket runt står kvar. Utan gränsen hade `lazy` kastat felet uppåt och tagit hela detaljen med sig.
+- **Mätt, summan gzip före första vyn** (Vite, minifierad tillfällig app vars startfil importerar `OpsBibliotek` ur paketet, React, Radix och ikoner utanför som i `check-delbarhet`; samma bygge av 0.158.0 på `472944e` och av detta): **90 255 byte före, 87 278 efter, alltså -2 977 byte gzip** (283 324 mot 272 282 tecken oförminskat). Raden är nu en egen bit på **4 945 byte gzip** som bara hämtas när ett HTML-dokument öppnas. (Appens egen siffra blir en annan, eftersom komprimeringen av resten ändras med: lifehub.app:s uppskattning var cirka 4,2 kB. Räkna om i appen vid ompinningen, inte härifrån.)
+- **Bevisat i båda riktningar (regel 4).** Nya prov: `htmldokument-versioner-lat.test.jsx` (väntrutan före raden, sedan raden på samma plats) och `htmldokument-versioner-lasfel.test.jsx` (meningen när hämtningen fallerar och dokumentet under står kvar): båda **röda mot 0.158.0** (ingen väntruta; den statiska importen kastar vid laddning) och gröna nu. `check-skalyta` avsnitt 59 (g) mäter i riktig CSS att väntrutan och den hopfällda raden är lika breda, lika höga och på samma ställe (högst 0,5 px; 348x54 vid 390 px och 761x54 vid 1280 px): **rött mot 0.158.0** (rutan sågs aldrig, golvet), **rött mot en ruta med `p-3` i stället för `p-4`** (46 mot 54 px) och grönt nu. De 29 proven i `htmldokument-versioner.test.jsx` är oförändrade och gröna.
+
+**Grindens siffror för hela 0.159.0, och regel 14.** Kört ensamt under `flock` (en svit i taget på maskinen, regel 14), på den färdiga grenen: `npm run check` grön (bygger 296 moduler, typer, tokens, exporter 1051, docs, stängt API, `check-delbarhet` grönt och `--bevisa` rött som väntat, `check-sprak` 112 av tak 112, `check-paket` och `npm test`: **295 provfiler och 5 653 prov gröna**). `check:skalyta` **3 528 kontroller, inga brott** (avsnitt 59 (g) och 60 ingår), `check:kontrollyta` 40 mätningar, inga brott, `check:tryckytor` 32 krav uppfyllda och beviset rött som väntat. **Inget rött passerade isolerat**, så ingen mätning behövde göras om (regel 14).
+
+### Att göra i appen efter ompinningen till 0.159.0
+
+1. **Koppla `oppnaHtml` på `OpsBibliotek` till en vy-adress och rita `OpsHtmlVy` i en egen route.** Ge `OpsBibliotek` `oppnaHtml={(post) => "<sidans adress>"}` och bygg sidan: slå upp posten i platsens egen lista (samma behörighet som Biblioteket, och samma svar för "får inte" som för "finns inte"), och rita `<OpsHtmlVy hamta={hamtaFil} sokvag namn skapadAv onStang />` före skalet, i en egen route utan skal. lifehub.app: `/bibliotek/visa/<postId>?plats=<platsen>`, PR i appen. README, [Ett HTML-dokument i ett eget fönster (0.159.0)](README.md#ett-html-dokument-i-ett-eget-fonster-0159), har kontraktet.
+2. **Kanonkopia.** Kör `node scripts/check-kanon.mjs --skriv` i varje konsument så att tillägget i regel 15 följer med.
+3. **Räkna om storleken i appen.** Versionsraden är nu en egen bit och dras bort ur startfilen; sänk appens tak för startfilen (`check-jsstorlek`) efter ett eget bygge, så som 0.156.0 gjorde, i stället för att anta siffran ovan.
+4. Ingen regeldeploy behövs. Ordningen är som vanligt: ramverket mergas och publiceras, därefter appens ompinning.
+
 ## 0.158.0
 
 Fyra delar: raden Versioner för ett HTML-dokument i Biblioteket, en ny regel 15 i kanon, spelraden dockad mot bottenmenyn och Ordning i modulramen med förhandsvisning (Groks PR 470 och 471, granskade av Claude, rättade i egna commits). **Brytande, litet:** `ORD_OPSMODULRAM` (publik export) har inte längre nycklarna `upp` och `ned`, se Ordning i modulramen.

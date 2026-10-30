@@ -75,6 +75,32 @@ export function arHtmlDokument(post) {
 }
 
 /**
+ * Adressen till helfönstervyn för ett HTML-dokument, ur appens `oppnaHtml(post)` (0.159.0), eller `""` när posten inte ska öppnas så.
+ *
+ * ⛔ BARA ETT HTML-DOKUMENT MED EN FIL (`arHtmlDokument` och en sökväg). För allt annat är svaret `""` utan att funktionen anropas: appens funktion ska aldrig behöva svara på "är det här HTML?".
+ * ⛔ ADRESSEN ÄR EN SIDA I APPEN, ALDRIG FILEN OCH ALDRIG EN `blob:`- ELLER `data:`-ADRESS. Den ska börja med ett snedstreck (en sida i samma app) eller `https://`/`http://`. Allt annat kastar, med skälet:
+ * en `javascript:`-, `data:`- eller `blob:`-adress i en länk som öppnas i ett nytt fönster hade kört dokumentets kod med appens rättigheter, och en adress som tyst ignorerades hade lämnat en länk som ser trasig ut utan
+ * att någon vet varför. Svarar funktionen `null`, `undefined` eller en tom text gäller posten som förut (nedladdning), och det är ett svar och inget fel.
+ *
+ * @param {unknown} oppnaHtml `(post) => string | null | undefined`, eller något annat (då `""`).
+ * @param {{ typ?: unknown, fil?: { mime?: unknown, sokvag?: unknown } | null } | null | undefined} post
+ * @returns {string}
+ */
+export function htmlVyAdress(oppnaHtml, post) {
+  if (typeof oppnaHtml !== "function") return "";
+  if (!arHtmlDokument(post) || typeof post?.fil?.sokvag !== "string" || post.fil.sokvag === "") return "";
+  const svar = oppnaHtml(post);
+  if (svar === null || svar === undefined || svar === "") return "";
+  if (typeof svar !== "string" || !HTML_VYADRESSFORM.test(svar)) {
+    throw new Error(`oppnaHtml: svaret ska vara adressen till en sida i appen (börja med / eller https://), fick ${typeof svar === "string" ? JSON.stringify(svar.slice(0, 40)) : typeof svar}. En blob-, data- eller javascript-adress är aldrig tillåten: den kör dokumentets kod med appens rättigheter.`);
+  }
+  return svar;
+}
+
+/** Formen på en vy-adress: en sida i appen (`/…`, inte `//…`) eller en `http(s)`-adress. */
+const HTML_VYADRESSFORM = /^(?:\/(?!\/)|https?:\/\/)\S*$/;
+
+/**
  * HTML-texten som rutan ritar (`srcdoc`): skriptet för utskriften FÖRST, sedan dokumentet. Har dokumentet en inledande doctype hamnar skriptet direkt efter den: ett `srcdoc` ritas i standardläge av sig självt, men en doctype
  * efter ett skript hade blivit en ignorerad rad, och dokumentet skulle se ut att sakna en.
  *
