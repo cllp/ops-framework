@@ -32,6 +32,7 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { contrast } from "./vendor/validate_palette.js";
 import { startaWebblasare } from "./lib/matVyport.mjs";
+import { distUtanKommentarer } from "./lib/dist-text.mjs";
 
 const rot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const argv = process.argv.slice(2);
@@ -100,7 +101,7 @@ try {
   });
   // ⛔ Kommentarerna bort ur dist innan Tailwind skannar den, annars blir ord i kommentarer klasser (samma som bibliotek-montage).
   const distSkannad = path.join(arbetsmapp, "dist-skannad.js");
-  fs.writeFileSync(distSkannad, fs.readFileSync(dist, "utf8").replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/[^\n]*$/gm, " "));
+  fs.writeFileSync(distSkannad, distUtanKommentarer(dist));
   const cssRatt = (
     await postcss([tailwind()]).process(
       `@import "tailwindcss" source(none);\n@import "${tokensFil.replace(/\\/g, "/")}";\n@source "${distSkannad.replace(/\\/g, "/")}";\n@source "${entryFil.replace(/\\/g, "/")}";\n`,

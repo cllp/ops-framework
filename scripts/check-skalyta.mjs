@@ -69,6 +69,7 @@ import { startaWebblasare } from "./lib/matVyport.mjs";
 import { kravPaMittknappen, matMittknappen } from "./lib/mittknappMatt.mjs";
 import { chattepiken0106 } from "./lib/skalyta0106.mjs";
 import { fokusKort } from "./lib/fokusKort.mjs";
+import { distUtanKommentarer } from "./lib/dist-text.mjs";
 
 const rot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const argv = process.argv.slice(2);
@@ -130,7 +131,7 @@ const skript = js.outputFiles[0].text;
 // ⛔ dist skannas UTAN kommentarer, av samma skäl som i check-css-build: citerade
 // klasser i ett filhuvud är inte vår kod och ska inte generera regler.
 const distSkannad = path.join(arbetsmapp, "dist-skannad.js");
-fs.writeFileSync(distSkannad, fs.readFileSync(dist, "utf8").replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/[^\n]*$/gm, " "));
+fs.writeFileSync(distSkannad, distUtanKommentarer(dist));
 const cssRatt = (
   await postcss([tailwind()]).process(
     `@import "tailwindcss" source(none);\n@import "${tokensFil.replace(/\\/g, "/")}";\n@source "${distSkannad.replace(/\\/g, "/")}";\n@source "${entryFil.replace(/\\/g, "/")}";\n`,

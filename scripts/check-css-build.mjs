@@ -25,6 +25,7 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 import postcss from "postcss";
 import tailwind from "@tailwindcss/postcss";
+import { distUtanKommentarer as skannaDist } from "./lib/dist-text.mjs";
 
 const rot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const dist = path.join(rot, "dist", "index.js");
@@ -83,7 +84,7 @@ fs.writeFileSync(path.join(arbetsmapp, "fixtur.jsx"), fixtur);
 const distUtanKommentarer = path.join(arbetsmapp, "dist-skannad.js");
 fs.writeFileSync(
   distUtanKommentarer,
-  fs.readFileSync(dist, "utf8").replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/[^\n]*$/gm, " "),
+  skannaDist(dist),
 );
 
 /*

@@ -12,6 +12,7 @@ import path from "node:path";
 import { build } from "esbuild";
 import postcss from "postcss";
 import tailwind from "@tailwindcss/postcss";
+import { distUtanKommentarer } from "./dist-text.mjs";
 
 /**
  * @param {{ rot: string, yta: string, namn: string, dist?: string }} val `yta` relativt `rot`, `namn` är arbetsmappens prefix. `dist` är en annan byggd version att fotografera (före-bilden mot origin/main).
@@ -39,7 +40,7 @@ export async function byggYta({ rot, yta, namn, dist: annanDist }) {
       logLevel: "error",
     });
     const distSkannad = path.join(arbetsmapp, "dist-skannad.js");
-    fs.writeFileSync(distSkannad, fs.readFileSync(dist, "utf8").replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/[^\n]*$/gm, " "));
+    fs.writeFileSync(distSkannad, distUtanKommentarer(dist));
     const cssRatt = (
       await postcss([tailwind()]).process(
         `@import "tailwindcss" source(none);\n@import "${tokensFil.replace(/\\/g, "/")}";\n@source "${distSkannad.replace(/\\/g, "/")}";\n@source "${entryFil.replace(/\\/g, "/")}";\n`,
