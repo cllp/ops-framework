@@ -216,7 +216,8 @@ describe("Återställ", () => {
     klar({ ny: true, nr: 4, aterstallning: 1 });
     expect(await screen.findByText("Version 1 är återställd som version 4.")).toBeTruthy();
     await waitFor(() => expect(htmlVersioner).toHaveBeenCalledTimes(2));
-    await waitFor(() => expect(screen.getByText("Version 4")).toBeTruthy());
+    await waitFor(() => expect(document.querySelector('[data-html-version="4"][data-html-version-nuvarande]')).not.toBeNull());
+    expect(document.querySelector("[data-html-versioner-nu]")?.textContent).toBe("Version 4");
   });
 
   it("⛔ en återställning som inte blev en ny version säger det, i stället för att låtsas", async () => {
@@ -238,7 +239,7 @@ describe("Återställ", () => {
     // Orsaken i klartext från servern visas inte som ett "oväntat fel": det är en konflikt.
     expect(screen.queryByText(/Det gick inte\./)).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Läs om" }));
-    await waitFor(() => expect(screen.getByText("Version 5")).toBeTruthy());
+    await waitFor(() => expect(document.querySelector('[data-html-version="5"][data-html-version-nuvarande]')).not.toBeNull());
     expect(screen.queryByText(/Någon annan hann före/)).toBeNull();
     // Nästa försök utgår från den nyare versionen.
     fireEvent.click(screen.getByRole("button", { name: "Återställ version 1" }));
