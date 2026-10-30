@@ -1909,7 +1909,7 @@ export function createGastService(konfig) {
     const visas = ["bild", "ljud", "video", "pdf"].includes(delningsTyp(mime));
     const bifoga = b?.bifoga === true || (b?.bifoga === undefined && !visas);
     try {
-      const url = await GS.lagring.signeradAdress({ sokvag: post?.fil.sokvag, sekunder: SIGNERAD_SEKUNDER, disposition: delningsDisposition(filnamn, bifoga), mime });
+      const url = await GS.lagring.signeradAdress({ sokvag: post?.fil.sokvag, sekunder: SIGNERAD_SEKUNDER, disposition: delningsDisposition(filnamn, bifoga, mime), mime });
       return vitlista({ ok: true, url, namn: filnamn, mime }, GASTGRUPPSVARSFALT.fil);
     } catch (fel) {
       await aterlamna(RAKNARE, rakn.id, RAKNEFALT, rakn.fonster);

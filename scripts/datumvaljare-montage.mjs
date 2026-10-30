@@ -33,6 +33,7 @@ const ENTRY = `
 import { createRoot } from "react-dom/client";
 import { useState } from "react";
 import * as Ops from "OPS_DIST";
+import { distUtanKommentarer } from "./lib/dist-text.mjs";
 
 // Syntetiska händelser. Appen äger dem och räknar fram dagarna per månad.
 const HANDELSER = ["2026-10-05", "2026-10-12", "2026-10-14", "2026-10-14", "2026-10-21", "2026-10-26", "2026-11-03", "2026-11-17"];
@@ -64,7 +65,7 @@ const entryFil = path.join(arbetsmapp, "entry.jsx");
 fs.writeFileSync(entryFil, ENTRY.replace("OPS_DIST", dist.replace(/\\/g, "/")));
 const js = await build({ entryPoints: [entryFil], bundle: true, write: false, format: "iife", jsx: "automatic", platform: "browser", target: ["es2022"], define: { "process.env.NODE_ENV": '"production"' }, logLevel: "error" });
 const distSkannad = path.join(arbetsmapp, "dist-skannad.js");
-fs.writeFileSync(distSkannad, fs.readFileSync(dist, "utf8").replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/[^\n]*$/gm, " "));
+fs.writeFileSync(distSkannad, distUtanKommentarer(dist));
 const cssRatt = (
   await postcss([tailwind()]).process(
     `@import "tailwindcss" source(none);\n@import "${tokensFil.replace(/\\/g, "/")}";\n@source "${distSkannad.replace(/\\/g, "/")}";\n@source "${entryFil.replace(/\\/g, "/")}";\n`,

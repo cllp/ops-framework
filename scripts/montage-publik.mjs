@@ -65,6 +65,7 @@ fs.writeFileSync(
   `import { createRoot } from "react-dom/client";
 import HomePage from "${slash(landing)}/HomePage.jsx";
 import HowItWorksPage from "${slash(landing)}/HowItWorksPage.jsx";
+import { distUtanKommentarer } from "./lib/dist-text.mjs";
 const Sida = window.__ss === "hiw" ? HowItWorksPage : HomePage;
 createRoot(document.getElementById("root")).render(<Sida />);
 window.__redo = true;
@@ -105,7 +106,7 @@ fs.writeFileSync(fwEntry, fs.readFileSync(path.join(rot, "scripts", "lib", "publ
 const fwJs = await build({ entryPoints: [fwEntry], bundle: true, write: false, format: "iife", jsx: "automatic", platform: "browser", target: ["es2022"], define: { "process.env.NODE_ENV": '"production"' }, logLevel: "error" });
 const fwSkript = fwJs.outputFiles[0].text;
 const distSkannad = path.join(arbete, "dist-skannad.js");
-fs.writeFileSync(distSkannad, fs.readFileSync(dist, "utf8").replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/[^\n]*$/gm, " "));
+fs.writeFileSync(distSkannad, distUtanKommentarer(dist));
 /** @param {string} brand */
 async function fwCss(brand) {
   return (

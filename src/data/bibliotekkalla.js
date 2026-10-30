@@ -28,7 +28,7 @@
  * strömma utan att kunna hade varit den tysta nedfallsväg `contract.js` varnar för. Ingen polling.
  */
 
-import { byggPost, farAndra, filInmatningsfel, filSort, kodaToppar, lagringsContentType, mimeUrFilnamn, normaliseraMime, peaksGiltiga, postFel, trimSomRegeln, MAX_LJUD_MS, MAX_BIBLIOTEKFIL, FILMIME, beskrivObjektbibliotek } from "../lib/bibliotek.js";
+import { arHtmlMime, byggPost, farAndra, filInmatningsfel, filSort, kodaToppar, lagringsContentDisposition, lagringsContentType, mimeUrFilnamn, normaliseraMime, peaksGiltiga, postFel, trimSomRegeln, MAX_LJUD_MS, MAX_BIBLIOTEKFIL, FILMIME, beskrivObjektbibliotek } from "../lib/bibliotek.js";
 import { metaUrBytes, wavMetaUrBlob } from "../lib/ljudspelare.js";
 import { byggSkapare } from "../lib/skapare.js";
 import { bilagaTillBlob } from "../lib/file.js";
@@ -68,7 +68,7 @@ function aterstallning(tidigare) {
  * @param {() => { uid?: string | null, namn?: string, typ?: string, kalla?: string }} config.skapare
  * @param {() => { uid?: string | null, roll?: string, groupId?: string } | null} [config.jag] Den inloggades medlemskap. Krävs när `radera` anropas.
  * @param {(rad: { id: string, post: Record<string, unknown>, av: { uid?: string | null, roll?: string, groupId?: string } | null }) => Promise<void> | void} [config.anteckna] Skriver vem som raderar, innan raden tas bort. Krävs när `radera` anropas. Kastar den lämnas posten kvar.
- * @param {{ laddaUpp: (inmatning: { sokvag: string, fil: unknown, contentType?: string }) => Promise<unknown> }} [config.lagring] Krävs när `laddaUppFil` anropas.
+ * @param {{ laddaUpp: (inmatning: { sokvag: string, fil: unknown, contentType?: string, contentDisposition?: string }) => Promise<unknown> }} [config.lagring] Krävs när `laddaUppFil` anropas.
  * @param {(delar: { groupId: string, postId: string, namn: string }) => string} [config.sokvag] Appen bygger sökvägen. Krävs när `laddaUppFil` anropas.
  */
 export function createBibliotekskalla(config) {
@@ -374,6 +374,11 @@ export function createBibliotekskalla(config) {
         if (tidigare.groupId !== groupId) {
           throw new Error(`Biblioteket: posten hör till "${tidigare.groupId}" och sparas inte i "${groupId}".`);
         }
+        // ⛔ ETT HTML-DOKUMENT ERSÄTTS ALDRIG PÅ DEN HÄR VÄGEN (0.156.0, cllp/ops-framework#472). Att byta dess fil är en ny version med den förra kvar (`createHtmlDokumentService.uppdatera`), och reglerna nekar ett byte av fil
+        // utan det. Säger vi det här får personen skälet i stället för "Missing or insufficient permissions".
+        if (arHtmlDokumentFil(tidigare)) {
+          throw new Error("Ett HTML-dokument ersätts inte med en ny fil. Att uppdatera det skapar en ny version, och den förra finns kvar.");
+        }
       }
       const nu = Date.now();
       const ljud = filSort(mime) === "ljud";
@@ -411,6 +416,8 @@ export function createBibliotekskalla(config) {
           fil: inmatning.blob ?? fil,
           // ⛔ En textfil får sin teckenkodning här och bara här (0.153.0, `lagringsContentType`): postens `fil.mime` är `text/plain`.
           contentType: lagringsContentType(mime),
+          // ⛔ EN HTML-FIL LADDAS UPP SOM EN BILAGA (0.156.0, cllp/ops-framework#472): en direktlänk till den laddar ned filen och ritar den aldrig. Storage-regeln nekar en HTML-fil utan det. Andra filer sätter ingen.
+          ...(lagringsContentDisposition(mime, namn) ? { contentDisposition: lagringsContentDisposition(mime, namn) } : {}),
           ...(typeof inmatning.rapportera === "function" ? { rapportera: inmatning.rapportera } : {}),
         });
         // ⛔ `andrad` FÖLJER MED: regeln kräver att en ändring av filen bär sin egen tid (opsBiblioteketNu).
@@ -435,6 +442,9 @@ export function createBibliotekskalla(config) {
     },
   };
 }
+
+/** @param {Record<string, any> | null} post */
+const arHtmlDokumentFil = (post) => post?.typ === "fil" && arHtmlMime(post.fil?.mime);
 
 /**
  * Flyttar eller kopierar en post från en plats till en annan (0.101.0, lifehub.app#226): från gruppen till Mitt bibliotek, från

@@ -15,6 +15,7 @@ import { build } from "esbuild";
 import postcss from "postcss";
 import tailwind from "@tailwindcss/postcss";
 import { startaWebblasare } from "./lib/matVyport.mjs";
+import { distUtanKommentarer } from "./lib/dist-text.mjs";
 
 const rot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const dist = path.join(rot, "dist", "index.js");
@@ -32,7 +33,7 @@ const entryFil = path.join(arbetsmapp, "entry.jsx");
 fs.writeFileSync(entryFil, entry);
 const js = await build({ entryPoints: [entryFil], bundle: true, write: false, format: "iife", jsx: "automatic", platform: "browser", target: ["es2022"], define: { "process.env.NODE_ENV": '"production"' }, logLevel: "error" });
 const distSkannad = path.join(arbetsmapp, "dist-skannad.js");
-fs.writeFileSync(distSkannad, fs.readFileSync(dist, "utf8").replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/[^\n]*$/gm, " "));
+fs.writeFileSync(distSkannad, distUtanKommentarer(dist));
 const cssRatt = (
   await postcss([tailwind()]).process(
     `@import "tailwindcss" source(none);\n@import "${tokensFil.replace(/\\/g, "/")}";\n@source "${distSkannad.replace(/\\/g, "/")}";\n@source "${entryFil.replace(/\\/g, "/")}";\n`,

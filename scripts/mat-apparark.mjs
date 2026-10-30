@@ -30,6 +30,7 @@ process.on("exit", () => fs.rmSync(arbetsmapp, { recursive: true, force: true })
 const entryKalla = `import { createRoot } from "react-dom/client";
 import { useState } from "react";
 import * as Ops from ${JSON.stringify(dist)};
+import { distUtanKommentarer } from "./lib/dist-text.mjs";
 
 const Ikon = () => <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="4" /></svg>;
 const NAMN = ["Ekonomi", "Bibliotek", "Meddelanden", "Kontakter", "Filer", "Copilot"];
@@ -81,7 +82,7 @@ const js = await build({
   logLevel: "error",
 });
 const distSkannad = path.join(arbetsmapp, "dist-skannad.js");
-fs.writeFileSync(distSkannad, fs.readFileSync(dist, "utf8").replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/[^\n]*$/gm, " "));
+fs.writeFileSync(distSkannad, distUtanKommentarer(dist));
 const tokensFil = path.join(rot, "tokens", "tokens.css");
 const css = (
   await postcss([tailwind()]).process(

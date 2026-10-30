@@ -46,6 +46,7 @@ import path from "node:path";
 import process from "node:process";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { distText } from "./lib/dist-text.mjs";
 
 const rot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const argv = process.argv.slice(2);
@@ -133,7 +134,7 @@ if (paket.main) granskaIngang(paket.main, "main");
 
   const distVag = path.join(paketrot, "dist", "index.js");
   if (fs.existsSync(distVag)) {
-    const bundle = fs.readFileSync(distVag, "utf8");
+    const bundle = distText(distVag);
     if (/sentry/i.test(bundle)) {
       fel.push(`${path.relative(paketrot, distVag)} nämner "sentry". Bundlen som varje app får ska vara identisk oavsett om appen valt Sentry eller inte.`);
     }

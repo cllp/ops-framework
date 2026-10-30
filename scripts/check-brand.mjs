@@ -73,6 +73,7 @@ import postcss from "postcss";
 import tailwind from "@tailwindcss/postcss";
 import { startaWebblasare } from "./lib/matVyport.mjs";
 import { innehall } from "./lib/publik-innehall.mjs";
+import { distFiler, distUtanKommentarer } from "./lib/dist-text.mjs";
 
 const rot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const argv = process.argv.slice(2);
@@ -126,15 +127,24 @@ if (argv.includes("--bevisa")) {
     fs.writeFileSync(path.join(mapp, "tokens-utan-sparrning.css"), utanSparrning);
     // Innehållssidans färger: `PUBLIK_KLASS` i en kopia av dist sätts tillbaka till appens färger (`text-accent`, `text-ink`,
     // `text-ink-secondary`), alltså som före runda 3 av granskningen av PR 350. Då är Life Hubs överrad guld på kräm (2,3:1).
-    const distText = fs.readFileSync(dist, "utf8");
-    const gammalDist = distText
-      .replace("text-publik-eyebrow uppercase text-publik-markering", "text-publik-eyebrow uppercase text-accent")
-      .replace("text-publik-rubrik text-publik-ljus-text", "text-publik-rubrik text-ink")
-      .replace("text-publik-sida text-publik-ljus-text", "text-publik-sida text-ink")
-      .replace("text-publik-block text-publik-ljus-text", "text-publik-block text-ink")
-      .replace("text-publik-brod text-publik-ljus-dampad", "text-publik-brod text-ink-secondary");
-    if (gammalDist === distText) throw new Error("check-brand --bevisa: PUBLIK_KLASS hittades inte i dist, så provet av innehållssidans färger provar ingenting.");
-    fs.writeFileSync(path.join(mapp, "dist-gamla-farger.js"), gammalDist);
+    // Sedan 0.155.0 är dist en fil per modul (`lib/publikKlass.js` bär konstanten), så HELA mappen kopieras och ändras där strängarna finns.
+    const gammalDistMapp = path.join(mapp, "dist-gamla-farger");
+    fs.cpSync(path.dirname(dist), gammalDistMapp, { recursive: true, filter: (k) => !k.endsWith(".map") && path.basename(k) !== "types" });
+    let gammalAndrad = false;
+    for (const f of distFiler(path.join(gammalDistMapp, path.basename(dist)))) {
+      const text = fs.readFileSync(f, "utf8");
+      const gammal = text
+        .replace("text-publik-eyebrow uppercase text-publik-markering", "text-publik-eyebrow uppercase text-accent")
+        .replace("text-publik-rubrik text-publik-ljus-text", "text-publik-rubrik text-ink")
+        .replace("text-publik-sida text-publik-ljus-text", "text-publik-sida text-ink")
+        .replace("text-publik-block text-publik-ljus-text", "text-publik-block text-ink")
+        .replace("text-publik-brod text-publik-ljus-dampad", "text-publik-brod text-ink-secondary");
+      if (gammal !== text) {
+        fs.writeFileSync(f, gammal);
+        gammalAndrad = true;
+      }
+    }
+    if (!gammalAndrad) throw new Error("check-brand --bevisa: PUBLIK_KLASS hittades inte i dist, så provet av innehållssidans färger provar ingenting.");
 
     /** @type {{ namn: string, args: string[], forvantat: string | null, flera?: boolean }[]} */
     const fall = [
@@ -143,7 +153,7 @@ if (argv.includes("--bevisa")) {
       { namn: "rött: en brandfil utan typsnittsraden ändrar inte den publika rubriken", args: ["--brand", path.join(mapp, "brand-utan-publik.css")], forvantat: "brandfilen ändrade inte den publika rubriken" },
       { namn: "rött: utan ramverkets rytmregel ligger blocken tätt, 0 px i stället för 96", args: ["--tokens", path.join(mapp, "tokens-utan-rytm.css")], forvantat: "rytmen:", flera: true },
       { namn: "rött: utan fallet hjälte med bild följd av avsnitt blir luften 0 px i stället för 80 och 96", args: ["--tokens", path.join(mapp, "tokens-utan-hjalteavsnitt.css")], forvantat: "hjälte med bild till avsnitt", flera: true },
-      { namn: "rött: innehållssidans överrad i appens accent blir guld på kräm och styrs inte av brandfilen", args: ["--dist", path.join(mapp, "dist-gamla-farger.js")], forvantat: "innehållssidan", flera: true },
+      { namn: "rött: innehållssidans överrad i appens accent blir guld på kräm och styrs inte av brandfilen", args: ["--dist", path.join(mapp, "dist-gamla-farger", path.basename(dist))], forvantat: "innehållssidan", flera: true },
       { namn: "rött: utan spärrningen på rubrikrollerna är rubrikerna bredare än SS", args: ["--tokens", path.join(mapp, "tokens-utan-sparrning.css")], forvantat: "spärrningen:", flera: true },
       { namn: "rött: toppraden i en smal centrerad kolumn flyttar loggan mellan sidor", args: ["--logga-mitt"], forvantat: "loggan ligger inte på samma plats", flera: true },
     ];
@@ -329,7 +339,7 @@ const publikSkript = publikJs.outputFiles[0].text;
 
 // ⛔ dist skannas utan sina kommentarer, av samma skäl som i check-css-build: citerade klasser är inte vår kod.
 const distSkannad = path.join(arbetsmapp, "dist-skannad.js");
-fs.writeFileSync(distSkannad, fs.readFileSync(dist, "utf8").replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/[^\n]*$/gm, " "));
+fs.writeFileSync(distSkannad, distUtanKommentarer(dist));
 
 // Provets egen olagrade regel: det vakten kräver att en instans ska kunna skriva. `:root { --color-accent }` är
 // raden som förlorade i mörkt läge före 0.94.0.

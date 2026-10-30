@@ -78,6 +78,10 @@
           || (request.resource.contentType.matches('^audio/.*') && request.resource.size <= 262144000)
           || (request.resource.contentType.matches('^video/.*') && request.resource.size <= 104857600))
         // ⛔ TEXTFILENS TECKENKODNING (0.153.0, ops-framework#460 punkt 3): text/plain får bära '; charset=utf-8' (lagringsContentType i bibliotek.js). Reglerna ska vara deployade FÖRE klienten.
-        && request.resource.contentType.matches('^(image/jpeg|image/png|image/webp|image/gif|audio/webm|audio/mp4|audio/mpeg|audio/ogg|audio/wav|audio/aiff|audio/flac|audio/aac|video/mp4|video/quicktime|application/pdf|text/plain(; charset=utf-8)?)$');
+        && request.resource.contentType.matches('^(image/jpeg|image/png|image/webp|image/gif|audio/webm|audio/mp4|audio/mpeg|audio/ogg|audio/wav|audio/aiff|audio/flac|audio/aac|video/mp4|video/quicktime|application/pdf|text/plain(; charset=utf-8)?|text/html(; charset=utf-8)?)$')
+        // ⛔ EN HTML-FIL (0.156.0, cllp/ops-framework#472) LADDAS UPP SOM EN BILAGA OCH ÄNDRAS ALDRIG. Utan 'attachment' ritar en direktlänk filen som en sida med dokumentets kod körande utanför den avspärrade rutan, så
+        // en HTML-fil utan det nekas. Och ett HTML-objekt skrivs över aldrig: varje version är ett eget objekt (htmldokument.js), och en historik vars filer går att byta ut är ingen historik.
+        && (!request.resource.contentType.matches('^text/html.*') || (request.resource.contentDisposition != null && request.resource.contentDisposition.matches('^attachment(;.*)?$')))
+        && (resource == null || !resource.contentType.matches('^text/html.*'));
       allow delete: if false;
     }

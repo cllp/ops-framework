@@ -40,7 +40,9 @@ describe("innehållstypen i lagringen", () => {
     expect(sluten.test("text/plain; charset=utf-8")).toBe(true);
     expect(sluten.test("text/plain; charset=iso-8859-1")).toBe(false);
     expect(sluten.test("image/png; charset=utf-8")).toBe(false);
-    expect(sluten.test("text/html")).toBe(false);
+    // text/html blev ett format i 0.156.0 (HTML-dokument, htmldokument.test.jsx): ett annat text-format än text/plain och text/html släpps fortfarande inte in.
+    expect(sluten.test("text/csv")).toBe(false);
+    expect(sluten.test("text/html")).toBe(true);
     for (const m of FILMIME) expect(sluten.test(m), m).toBe(true);
     // Postens `fil.mime` bär aldrig en kodning: Firestore-regelns uttryck är det gamla.
     expect(new RegExp(filMimeMonster()).test("text/plain; charset=utf-8")).toBe(false);

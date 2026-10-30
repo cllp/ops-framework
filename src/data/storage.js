@@ -42,7 +42,7 @@ export const STORAGE_OPERATIONS = ["laddaUpp", "taBort", "adress"];
 
 /**
  * @typedef {object} StorageSource
- * @property {(input: { sokvag: string, fil: unknown, contentType?: string, rapportera?: (andel: number) => void }) => Promise<UppladdadFil>} laddaUpp
+ * @property {(input: { sokvag: string, fil: unknown, contentType?: string, contentDisposition?: string, rapportera?: (andel: number) => void }) => Promise<UppladdadFil>} laddaUpp
  * @property {(sokvag: string) => Promise<void>} taBort
  * @property {(sokvag: string) => Promise<string>} adress Nedladdningsadressen för en sökväg som redan ligger i lagringen. Kastar när sökvägen saknas eller är tom.
  * @property {(sokvag: string) => Promise<Blob>} [hamta] (0.101.0) Filens byte. Valfri, eftersom bara den som flyttar en fil mellan två platser behöver den (`flyttaBibliotekspost`). Saknas den kastar flytten med ett skäl.

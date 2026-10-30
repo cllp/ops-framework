@@ -1451,6 +1451,16 @@ kravRott(
     fs.writeFileSync(path.join(mappB, "dist", "index.js"), '// @sentry/browser råkade hamna här\n');
     kravRott("paket: dist/index.js nämner sentry", [paketvakt, mappB, "--struktur"], 'nämner "sentry"');
   }
+
+  // ⛔ 0.155.0 (#465): dist är EN FIL PER MODUL. Sentry i en annan modul än dist/index.js är lika mycket i varje apps bundle, och en vakt som
+  // bara läste index.js (som före 0.155.0) hade varit grön här. Rött utan lösningen: mot check-paket före 0.155.0 gav fixturen inget brott.
+  {
+    const mappC = paketrot("sentry-i-modul", HEL);
+    fs.mkdirSync(path.join(mappC, "dist", "lib"), { recursive: true });
+    fs.writeFileSync(path.join(mappC, "dist", "index.js"), 'export { x } from "./lib/x.js";\n');
+    fs.writeFileSync(path.join(mappC, "dist", "lib", "x.js"), 'import * as S from "@sentry/browser";\nexport const x = S;\n');
+    kravRott("paket: en annan modul i dist nämner sentry", [paketvakt, mappC, "--struktur"], 'nämner "sentry"');
+  }
 }
 
 /*
