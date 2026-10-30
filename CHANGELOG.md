@@ -50,7 +50,6 @@ __GRIND__
 3. **Räkna om storleken i appen.** Versionsraden är nu en egen bit och dras bort ur startfilen; sänk appens tak för startfilen (`check-jsstorlek`) efter ett eget bygge, så som 0.156.0 gjorde, i stället för att anta siffran ovan.
 4. Ingen regeldeploy behövs. Ordningen är som vanligt: ramverket mergas och publiceras, därefter appens ompinning.
 
-__GRIND__
 ## 0.158.0
 
 Fyra delar: raden Versioner för ett HTML-dokument i Biblioteket, en ny regel 15 i kanon, spelraden dockad mot bottenmenyn och Ordning i modulramen med förhandsvisning (Groks PR 470 och 471, granskade av Claude, rättade i egna commits). **Brytande, litet:** `ORD_OPSMODULRAM` (publik export) har inte längre nycklarna `upp` och `ned`, se Ordning i modulramen.
