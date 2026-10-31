@@ -181,6 +181,10 @@ import { AgentIkon, AndraIkon, KopieraIkon, ArkiveraIkon, TaFramIkon, BildIkon, 
  * @property {string} [bifogaBild] Förval "Bifoga bild".
  * @property {string} [taFoto] Förval "Ta foto".
  * @property {string} [valjFil] Förval "Välj fil".
+ * @property {string} [franBiblioteket] (0.164.0, lifehub.app#226) Plusmenyns rad mot Biblioteket. Förval "Lägg till från Biblioteket".
+ * @property {string} [sokBiblioteket] Förval "Sök i Biblioteket".
+ * @property {string} [bibliotekTomt] Förval "Inget i Biblioteket matchar.".
+ * @property {string} [bibliotekLaddar] Förval "Hämtar Biblioteket …".
  * @property {string} [gast] (0.132.0) Märket vid en gästs meddelande, och namnet på en gäst som saknar namn. Förval "Gäst".
  * @property {string} [bilagaText] (0.77.0, #292) Förled i bildens alt-text. Förval "Bilaga från".
  * @property {string} [taBortBilaga] Förval "Ta bort bilagan".
@@ -355,6 +359,10 @@ const ORD_MEDDELANDEN = {
   bifogaBild: { sv: "Bifoga bild", en: "Attach image" },
   taFoto: { sv: "Ta foto", en: "Take photo" },
   valjFil: { sv: "Välj fil", en: "Choose file" },
+  franBiblioteket: { sv: "Lägg till från Biblioteket", en: "Add from the Library" },
+  sokBiblioteket: { sv: "Sök i Biblioteket", en: "Search the Library" },
+  bibliotekTomt: { sv: "Inget i Biblioteket matchar.", en: "Nothing in the Library matches." },
+  bibliotekLaddar: { sv: "Hämtar Biblioteket …", en: "Loading the Library …" },
   gast: { sv: "Gäst", en: "Guest" },
   bilagaText: { sv: "Bilaga från", en: "Attachment from" },
   taBortBilaga: { sv: "Ta bort bilagan", en: "Remove the attachment" },
@@ -701,6 +709,7 @@ export function texterPa(sprak, texter) {
  *   hördes, skriver `onTranscribe` ut ljudet.
  * @param {(filer: File[], slag: "bild" | "foto" | "fil") => void} [props.onBifoga] (0.77.0, #292) Skickas till `OpsSamtal` och `OpsTrad`.
  *   Med `bilagor` på källan ritas pluset ändå, och filen läses av ramverket. `onBifoga` anropas då inte.
+ * @param {Franbiblioteket} [props.franBiblioteket] (0.164.0, lifehub.app#226) Raden "Lägg till från Biblioteket" i pluset. Posten blir en fil och går samma väg som "Välj fil".
  * @param {string} [props.mejl] (0.80.0, #301) Adressen appen skickar in. Utan den ritas ingen mejlknapp. Ramverket känner inga adresser.
  * @param {(rad: { samtal: string, trad: string, meddelande: string, text: string, av: string }) => void | Promise<void>} [props.onLyftTillMinnet]
  *   (0.86.0, lifehub.app#66) Uttryckligt lyft av ett meddelande i en tråd. Utan den ritas ingen knapp, och inget lyfts av sig självt.
@@ -721,7 +730,7 @@ export function texterPa(sprak, texter) {
  * @param {string} [props.nyttUtkast] (0.105.0) Texten som står i skrivfältet när läget "nytt" öppnas, till exempel det man sade i TALK och
  *   valde Meddelande för. Ingenting skickas: personen väljer mottagare och trycker Skicka.
  */
-export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt, nytt, valtAgent, onValj, onOlasta, valtTrad, onValjTrad, sprak: sprakProp, texter = {}, postkort, onTranscribe, onStoppaAgent, inspelare, igenkanning, onBifoga, mejl, onLyftTillMinnet, minneHref, tillbaka, ram = null, activeHref, modul = null, onVisaAgent, onForslag, nyttUtkast }) {
+export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt, nytt, valtAgent, onValj, onOlasta, valtTrad, onValjTrad, sprak: sprakProp, texter = {}, postkort, onTranscribe, onStoppaAgent, inspelare, igenkanning, onBifoga, franBiblioteket, mejl, onLyftTillMinnet, minneHref, tillbaka, ram = null, activeHref, modul = null, onVisaAgent, onForslag, nyttUtkast }) {
   kravRam(ram, "OpsMeddelanden");
   if (onForslag !== undefined && typeof onForslag !== "function") throw new Error(`OpsMeddelanden: onForslag ska vara en funktion, fick ${typeof onForslag}.`);
   if (nyttUtkast !== undefined && typeof nyttUtkast !== "string") throw new Error(`OpsMeddelanden: nyttUtkast ska vara en sträng, fick ${typeof nyttUtkast}.`);
@@ -1161,7 +1170,7 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
             groupId={groupId}
             agent={nyAgent}
             utkast={nyttUtkast}
-            samtalsprops={{ postkort, onTranscribe, onStoppaAgent, inspelare, igenkanning, namnFor, medlemmar, sprak, texter: t, onBifoga, mejl, onVisaAgent, onForslag }}
+            samtalsprops={{ postkort, onTranscribe, onStoppaAgent, inspelare, igenkanning, namnFor, medlemmar, sprak, texter: t, onBifoga, franBiblioteket, mejl, onVisaAgent, onForslag }}
             marke={<OpsIdentity name={namn.get(nyAgent)?.namn || t.agent} seed={nyAgent} size="md" icon={AgentIkon} rund />}
             onTillbaka={() => valj(null, { agent: nyAgent })}
             onSkapat={(s, m) => {
@@ -1207,6 +1216,7 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
             sprak={sprak}
             texter={t}
             onBifoga={onBifoga}
+            franBiblioteket={franBiblioteket}
             mejl={mejl}
             onLyftTillMinnet={onLyftTillMinnet}
             minneHref={minneHref}
@@ -1242,6 +1252,7 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
             sprak={sprak}
             texter={t}
             onBifoga={onBifoga}
+            franBiblioteket={franBiblioteket}
             mejl={mejl}
             onVisaAgent={onVisaAgent}
             onForslag={onForslag}
@@ -1644,11 +1655,11 @@ export { RAKNARE_FRAN };
  * `onSkicka` får `{ text }` när det är det sagda som skickas. Den ska då lösa när meddelandet är skickat och avvisa när det inte gick,
  * så att ytan kan säga det; utan `text` skickar den fältets text som förut.
  *
- * @param {{ text: string, setText: (t: string) => void, skickar: boolean, onSkicka: (extra?: { namner?: string[], text?: string }) => void | Promise<void>, texter: Required<Meddelandetexter>, sprak: string, fokus?: boolean, omnamnande?: Omnamnande | null, fokusNyckel?: string, onEscape?: () => void, platstext?: string, onTranscribe?: (blob: Blob) => Promise<string>, inspelare?: import("../lib/talk.js").Inspelare, igenkanning?: import("../lib/talk.js").Igenkanning | boolean, onBifoga?: (filer: File[], slag: "bild" | "foto" | "fil") => void, harBilaga?: boolean, kamera?: "okand" | "ja" | "nej", agentArbetar?: boolean, onStoppaAgent?: () => void, maxTecken?: number }} props
+ * @param {{ text: string, setText: (t: string) => void, skickar: boolean, onSkicka: (extra?: { namner?: string[], text?: string }) => void | Promise<void>, texter: Required<Meddelandetexter>, sprak: string, fokus?: boolean, omnamnande?: Omnamnande | null, fokusNyckel?: string, onEscape?: () => void, platstext?: string, onTranscribe?: (blob: Blob) => Promise<string>, inspelare?: import("../lib/talk.js").Inspelare, igenkanning?: import("../lib/talk.js").Igenkanning | boolean, onBifoga?: (filer: File[], slag: "bild" | "foto" | "fil") => void, franBiblioteket?: Franbiblioteket, harBilaga?: boolean, kamera?: "okand" | "ja" | "nej", agentArbetar?: boolean, onStoppaAgent?: () => void, maxTecken?: number }} props
  *   `maxTecken` (0.132.0): taket i tecken. Förval `MAX_MEDDELANDE`; en gäst har ett lägre (`GASTSKRIV_MAX_TECKEN`). Räknaren och spärren på Skicka följer det.
  *   ⛔ EXPORTERAD FRÅN FILEN FÖR `OpsGastChatt`, INTE UR RAMVERKET (`src/index.js`): gästens skrivfält är chattens utan bilagor, mikrofon, omnämnanden och agent.
  */
-export function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, sprak, fokus = false, omnamnande = null, fokusNyckel, onEscape, platstext, onTranscribe, inspelare, igenkanning, onBifoga, harBilaga = false, kamera = "nej", agentArbetar = false, onStoppaAgent, maxTecken = MAX_MEDDELANDE }) {
+export function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, sprak, fokus = false, omnamnande = null, fokusNyckel, onEscape, platstext, onTranscribe, inspelare, igenkanning, onBifoga, franBiblioteket, harBilaga = false, kamera = "nej", agentArbetar = false, onStoppaAgent, maxTecken = MAX_MEDDELANDE }) {
   const ruta = useRef(/** @type {HTMLTextAreaElement | null} */ (null));
   const listId = useId();
   const raknarId = useId();
@@ -1786,7 +1797,7 @@ export function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, sprak, 
         skicka();
       }}
     >
-      {onBifoga ? <Plusmeny onBifoga={onBifoga} texter={t} kamera={kamera === "ja"} kameraKand={kamera !== "okand"} /> : null}
+      {onBifoga ? <Plusmeny onBifoga={onBifoga} franBiblioteket={franBiblioteket} texter={t} kamera={kamera === "ja"} kameraKand={kamera !== "okand"} /> : null}
       <div data-skrivruta="" className="flex min-h-11 min-w-0 flex-1 items-end rounded-3xl border border-line bg-canvas focus-within:border-accent">
       {oppen ? (
         <ul id={listId} role="listbox" aria-label={t.namnForslag} data-omnamnande="" className="absolute bottom-full left-3 z-10 mb-1 max-w-[calc(100%-1.5rem)] min-w-56 list-none overflow-hidden rounded-card border border-line bg-surface p-1 shadow-md">
@@ -1931,11 +1942,16 @@ export function rosttexter(t) {
  *
  * ⛔ EXPORTERAD FRÅN FILEN FÖR PROVEN, INTE UR RAMVERKET (`src/index.js`). Appen kopplar inte in den själv.
  *
- * @param {{ onBifoga: (filer: File[], slag: "bild" | "foto" | "fil") => void, texter: Required<Meddelandetexter>, kamera?: boolean, kameraKand?: boolean }} props
+ * ⛔ "LÄGG TILL FRÅN BIBLIOTEKET" (0.164.0, lifehub.app#226) ritas bara med `franBiblioteket`. Raden öppnar en väljare med sök i samma ruta som menyn. En vald post hämtas som fil
+ * (`franBiblioteket.fil`) och lämnas till `onBifoga` som "fil", samma väg som "Välj fil": ett meddelande bär en bilaga, och kopian i samtalet finns kvar om posten senare tas bort ur Biblioteket.
+ * Ett fel skrivs ut i väljaren, aldrig tyst.
+ *
+ * @param {{ onBifoga: (filer: File[], slag: "bild" | "foto" | "fil") => void, franBiblioteket?: Franbiblioteket, texter: Required<Meddelandetexter>, kamera?: boolean, kameraKand?: boolean }} props
  *   `kameraKand` (förval sann, proven): när den är falsk står `data-kamera="okand"` tills uppräkningen är klar.
  */
-export function Plusmeny({ onBifoga, texter: t, kamera = true, kameraKand = true }) {
+export function Plusmeny({ onBifoga, franBiblioteket, texter: t, kamera = true, kameraKand = true }) {
   const [oppen, setOppen] = useState(false);
+  const [valjer, setValjer] = useState(false);
   const knapp = useRef(/** @type {HTMLButtonElement | null} */ (null));
   const meny = useRef(/** @type {HTMLDivElement | null} */ (null));
   const menyId = useId();
@@ -1946,6 +1962,7 @@ export function Plusmeny({ onBifoga, texter: t, kamera = true, kameraKand = true
   }, [oppen]);
   const stang = () => {
     setOppen(false);
+    setValjer(false);
     knapp.current?.focus();
   };
   const rader = /** @type {const} */ ([
@@ -2003,7 +2020,33 @@ export function Plusmeny({ onBifoga, texter: t, kamera = true, kameraKand = true
               {etikett}
             </button>
           ))}
+          {franBiblioteket ? (
+            <button
+              type="button"
+              role="menuitem"
+              data-plusrad="bibliotek"
+              onClick={() => {
+                setOppen(false);
+                setValjer(true);
+              }}
+              className="flex min-h-11 cursor-pointer items-center gap-3 rounded-base px-3 text-left text-etikett text-ink hover:bg-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
+            >
+              <span aria-hidden="true" className="inline-flex text-ink-secondary"><MappIkon /></span>
+              {t.franBiblioteket}
+            </button>
+          ) : null}
         </div>
+      ) : null}
+      {valjer && franBiblioteket ? (
+        <Bibliotekvaljare
+          kalla={franBiblioteket}
+          texter={t}
+          onStang={stang}
+          onValt={(fil) => {
+            onBifoga([fil], "fil");
+            stang();
+          }}
+        />
       ) : null}
       {rader.map(([slag]) => (
         <input
@@ -2025,6 +2068,94 @@ export function Plusmeny({ onBifoga, texter: t, kamera = true, kameraKand = true
           }}
         />
       ))}
+    </div>
+  );
+}
+
+/**
+ * @typedef {object} Franbiblioteket (0.164.0, lifehub.app#226) Appens väg till sitt bibliotek, för plusmenyns väljare.
+ * @property {() => Promise<ReadonlyArray<{ id: string, namn: string }>>} poster Posterna som går att lägga till (filer), i den ordning de ska visas.
+ * @property {(id: string) => Promise<File>} fil Hämtar postens innehåll som en fil.
+ */
+
+/**
+ * Väljaren bakom "Lägg till från Biblioteket": sök och en lista, i samma ruta som plusmenyn. Escape stänger.
+ * @param {{ kalla: Franbiblioteket, texter: Required<Meddelandetexter>, onStang: () => void, onValt: (fil: File) => void }} props
+ */
+function Bibliotekvaljare({ kalla, texter: t, onStang, onValt }) {
+  const [poster, setPoster] = useState(/** @type {ReadonlyArray<{ id: string, namn: string }> | null} */ (null));
+  const [fel, setFel] = useState(/** @type {string | null} */ (null));
+  const [sok, setSok] = useState("");
+  const [hamtar, setHamtar] = useState(/** @type {string | null} */ (null));
+  useEffect(() => {
+    let levande = true;
+    kalla.poster().then(
+      (lista) => {
+        if (levande) setPoster(lista);
+      },
+      (e) => {
+        if (levande) setFel(e instanceof Error ? e.message : String(e));
+      },
+    );
+    return () => {
+      levande = false;
+    };
+  }, [kalla]);
+  const q = sok.trim().toLocaleLowerCase();
+  const synliga = (poster ?? []).filter((p) => !q || p.namn.toLocaleLowerCase().includes(q));
+  const hamtaPost = async (/** @type {string} */ id) => {
+    if (hamtar) return;
+    setHamtar(id);
+    setFel(null);
+    try {
+      onValt(await kalla.fil(id));
+    } catch (e) {
+      setFel(e instanceof Error ? e.message : String(e));
+      setHamtar(null);
+    }
+  };
+  return (
+    <div
+      role="dialog"
+      aria-label={t.franBiblioteket}
+      data-bibliotekvaljare=""
+      onKeyDown={(e) => {
+        if (e.key === "Escape") {
+          e.preventDefault();
+          onStang();
+        }
+      }}
+      className="absolute bottom-full left-0 z-10 mb-2 flex max-h-80 w-72 max-w-[calc(100vw-1.5rem)] flex-col gap-1 rounded-card border border-line bg-surface p-2 shadow-md"
+    >
+      <input
+        type="search"
+        // eslint-disable-next-line jsx-a11y/no-autofocus -- väljaren öppnas av ett tryck för att söka, och fokus ska följa med
+        autoFocus
+        value={sok}
+        onChange={(e) => setSok(e.target.value)}
+        placeholder={t.sokBiblioteket}
+        aria-label={t.sokBiblioteket}
+        className="min-h-11 rounded-base border border-line bg-canvas px-3 text-etikett text-ink focus-visible:outline-2 focus-visible:outline-accent"
+      />
+      {fel ? <p role="alert" className="m-0 px-1 text-etikett text-danger">{fel}</p> : null}
+      {poster === null && !fel ? <p className="m-0 px-1 text-etikett text-ink-secondary">{t.bibliotekLaddar}</p> : null}
+      {poster !== null && !synliga.length ? <p className="m-0 px-1 text-etikett text-ink-secondary">{t.bibliotekTomt}</p> : null}
+      <ul className="m-0 flex list-none flex-col overflow-y-auto p-0">
+        {synliga.map((p) => (
+          <li key={p.id}>
+            <button
+              type="button"
+              data-bibliotekpost={p.id}
+              disabled={Boolean(hamtar)}
+              aria-busy={hamtar === p.id || undefined}
+              onClick={() => hamtaPost(p.id)}
+              className="flex min-h-11 w-full cursor-pointer items-center rounded-base px-3 text-left text-etikett text-ink hover:bg-hover disabled:cursor-default disabled:opacity-60 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
+            >
+              <span className="truncate">{p.namn}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
@@ -2201,6 +2332,7 @@ function agentDeltagare(samtal, uid, medlemmar) {
  *   Texten står i inspelningsytan, inte i skrivfältet. ⛔ AV SOM FÖRVAL, av samma skäl som i TALK: webbläsaren skickar talet till Googles
  *   eller Apples taltjänst, och det är appens val. `true` slår på webbläsarens taligenkänning när den finns. Utan den, eller när inget
  *   hördes, skriver `onTranscribe` ut ljudet.
+ * @param {Franbiblioteket} [props.franBiblioteket] (0.164.0, lifehub.app#226) Raden "Lägg till från Biblioteket" i pluset.
  * @param {(filer: File[], slag: "bild" | "foto" | "fil") => void} [props.onBifoga] (0.77.0, #292) Ritar pluset. Med `bilagor` på
  *   källan läser ramverket filen själv och den här anropas inte. Utan `bilagor` lämnas filerna hit, och utan den ritas inget plus.
  * @param {string} [props.mejl] (0.80.0, #301) Adressen appen skickar in. Utan den ritas ingen mejlknapp.
@@ -2211,7 +2343,7 @@ function agentDeltagare(samtal, uid, medlemmar) {
  *   meddelandet med `skickaIAmne`. Kräver `amne`.
  * @param {(samtal: import("../lib/samtal.js").Samtal, meddelande: any) => void} [props.onSkapat] (0.106.0) Anropas när ett nytt ämne skapats.
  */
-export function OpsSamtal({ kalla, uid, samtal, rubrik: rubrikProp, marke, lastTill: lastTillProp, namnFor, medlemmar, onLast, onSkickat, utkast, onOppnaTrad, tradminne, fokusRot, onFokuserad, sprak: sprakProp, texter = {}, postkort, onTranscribe, onStoppaAgent, inspelare, igenkanning, onBifoga: onBifogaProp, mejl, onVisaAgent, onForslag, amne: amneProp, ny = false, onSkapat }) {
+export function OpsSamtal({ kalla, uid, samtal, rubrik: rubrikProp, marke, lastTill: lastTillProp, namnFor, medlemmar, onLast, onSkickat, utkast, onOppnaTrad, tradminne, fokusRot, onFokuserad, sprak: sprakProp, texter = {}, postkort, onTranscribe, onStoppaAgent, inspelare, igenkanning, onBifoga: onBifogaProp, franBiblioteket, mejl, onVisaAgent, onForslag, amne: amneProp, ny = false, onSkapat }) {
   // ⛔ Språket ur appens `OpsSprakProvider` när appen inte gav ett (0.46.0, cllp/bolag-ops#528).
   const sprakKontext = useOpsSprak();
   const sprak = sprakProp ?? sprakKontext;
@@ -2629,6 +2761,7 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik: rubrikProp, marke, lastT
         inspelare={inspelare}
         igenkanning={igenkanning}
         onBifoga={bilage.onBifoga}
+        franBiblioteket={franBiblioteket}
         harBilaga={Boolean(bilage.bilaga)}
         kamera={bilage.kamera}
         agentArbetar={agentArbetar(agentlage)}
@@ -2949,6 +3082,7 @@ export function Meddelanderader({ meddelanden, uid, namnFor: namnForProp, medlem
  *   Texten står i inspelningsytan, inte i skrivfältet. ⛔ AV SOM FÖRVAL, av samma skäl som i TALK: webbläsaren skickar talet till Googles
  *   eller Apples taltjänst, och det är appens val. `true` slår på webbläsarens taligenkänning när den finns. Utan den, eller när inget
  *   hördes, skriver `onTranscribe` ut ljudet.
+ * @param {Franbiblioteket} [props.franBiblioteket] (0.164.0, lifehub.app#226) Raden "Lägg till från Biblioteket" i pluset.
  * @param {(filer: File[], slag: "bild" | "foto" | "fil") => void} [props.onBifoga] (0.77.0, #292) Samma som på `OpsSamtal`.
  * @param {string} [props.sprak]
  * @param {Meddelandetexter} [props.texter]
@@ -2958,7 +3092,7 @@ export function Meddelanderader({ meddelanden, uid, namnFor: namnForProp, medlem
  * @param {string} [props.minneHref] (0.86.0) Länk till minnesvyn i trådens huvud. Utan den ingen länk.
  * @param {(agent: { id: string, namn: string }) => void} [props.onVisaAgent] (0.90.0) Agentens avatar i tråden öppnar inställningarna.
  */
-export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, medlemmar, onStang, onSvarat, onDopt, sprak: sprakProp, texter = {}, postkort, onTranscribe, onStoppaAgent, inspelare, igenkanning, onBifoga: onBifogaProp, mejl, onLyftTillMinnet, minneHref, onVisaAgent }) {
+export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, medlemmar, onStang, onSvarat, onDopt, sprak: sprakProp, texter = {}, postkort, onTranscribe, onStoppaAgent, inspelare, igenkanning, onBifoga: onBifogaProp, franBiblioteket, mejl, onLyftTillMinnet, minneHref, onVisaAgent }) {
   if (!harTradar(kallan)) throw new Error("OpsTrad: källan har inga trådar. Skicka `tradar` till createSamtalskalla, med samma namn som till samtalsregelfragment.");
   const kalla = kallan;
   const sprakKontext = useOpsSprak();
@@ -3298,6 +3432,7 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
         inspelare={inspelare}
         igenkanning={igenkanning}
         onBifoga={bilage.onBifoga}
+        franBiblioteket={franBiblioteket}
         harBilaga={Boolean(bilage.bilaga)}
         kamera={bilage.kamera}
         agentArbetar={agentArbetar(agentlage)}
