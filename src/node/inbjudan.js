@@ -409,7 +409,8 @@ export function inbjudningstjanst(konfig, namn) {
      * inloggning, och skillnaden mellan "inget väntade" och "två blev till
      * medlemskap" är det enda som avgör om vyn ska säga något.
      *
-     * @param {{ uid: string, epost: string, epostVerifierad: boolean, namn?: string }} b
+     * @param {{ uid: string, epost: string, epostVerifierad: boolean, namn?: string, bara?: string[] }} b
+     *   `bara` (0.171.0, lifehub.app#533): inbjudningarnas id. Bara de accepteras, övriga väntande lämnas orörda. Utelämnad = alla.
      *   `namn`: den inloggades namn ur inloggningen. Används BARA när profilraden saknar namn (0.40.1, #218).
      *   `epostVerifierad` (0.82.0, #313): `request.auth.token.email_verified`, rakt ur inloggningen. Krävs och måste vara `true`.
      * @returns {Promise<{ accepterade: string[], utgangna: string[] }>}
@@ -443,9 +444,20 @@ export function inbjudningstjanst(konfig, namn) {
        * väntande rad ett medlemskap hur gammal den än var, med den roll den bar när den skrevs. Samma
        * `arUtgangen` som `bjudIn`, och de utgångna står i svaret (`utgangna`) i stället för att tyst falla bort.
        */
+      /*
+       * ⛔ `bara` (0.171.0, lifehub.app#533): ett ja till EN inbjudan får inte ta de andra med sig. En tom lista eller
+       * något annat än strängar kastar, så att ett fel hos anroparen inte blir "alla".
+       */
+      let bara = null;
+      if (b?.bara !== undefined) {
+        if (!Array.isArray(b.bara) || b.bara.length === 0 || !b.bara.every((x) => typeof x === "string" && x.trim() !== "")) {
+          throw new Error("accepteraInbjudningar: bara ska vara en lista med inbjudningarnas id, minst ett. Utelämna den för alla.");
+        }
+        bara = new Set(b.bara.map((x) => x.trim()));
+      }
       const nu = Date.now();
       /** @type {Array<Record<string, any>>} */
-      const listade = (await kalla.list(INBJUDNINGAR, { where: { epost } })).filter((/** @type {Record<string, any>} */ i) => i.status === "vantar");
+      const listade = (await kalla.list(INBJUDNINGAR, { where: { epost } })).filter((/** @type {Record<string, any>} */ i) => i.status === "vantar" && (!bara || bara.has(i.id)));
       const vantande = listade.filter((i) => !arUtgangen(i, nu));
       const utgangna = listade.filter((i) => arUtgangen(i, nu)).map((i) => i.groupId);
 
