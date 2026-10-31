@@ -2103,7 +2103,7 @@ function Bibliotekvaljare({ kalla, texter: t, onStang, onValt }) {
   }, [kalla]);
   const q = sok.trim().toLocaleLowerCase();
   const synliga = (poster ?? []).filter((p) => !q || p.namn.toLocaleLowerCase().includes(q));
-  const valj = async (/** @type {string} */ id) => {
+  const hamtaPost = async (/** @type {string} */ id) => {
     if (hamtar) return;
     setHamtar(id);
     setFel(null);
@@ -2148,7 +2148,7 @@ function Bibliotekvaljare({ kalla, texter: t, onStang, onValt }) {
               data-bibliotekpost={p.id}
               disabled={Boolean(hamtar)}
               aria-busy={hamtar === p.id || undefined}
-              onClick={() => valj(p.id)}
+              onClick={() => hamtaPost(p.id)}
               className="flex min-h-11 w-full cursor-pointer items-center rounded-base px-3 text-left text-etikett text-ink hover:bg-hover disabled:cursor-default disabled:opacity-60 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
             >
               <span className="truncate">{p.namn}</span>
@@ -2332,6 +2332,7 @@ function agentDeltagare(samtal, uid, medlemmar) {
  *   Texten står i inspelningsytan, inte i skrivfältet. ⛔ AV SOM FÖRVAL, av samma skäl som i TALK: webbläsaren skickar talet till Googles
  *   eller Apples taltjänst, och det är appens val. `true` slår på webbläsarens taligenkänning när den finns. Utan den, eller när inget
  *   hördes, skriver `onTranscribe` ut ljudet.
+ * @param {Franbiblioteket} [props.franBiblioteket] (0.164.0, lifehub.app#226) Raden "Lägg till från Biblioteket" i pluset.
  * @param {(filer: File[], slag: "bild" | "foto" | "fil") => void} [props.onBifoga] (0.77.0, #292) Ritar pluset. Med `bilagor` på
  *   källan läser ramverket filen själv och den här anropas inte. Utan `bilagor` lämnas filerna hit, och utan den ritas inget plus.
  * @param {string} [props.mejl] (0.80.0, #301) Adressen appen skickar in. Utan den ritas ingen mejlknapp.
@@ -3081,6 +3082,7 @@ export function Meddelanderader({ meddelanden, uid, namnFor: namnForProp, medlem
  *   Texten står i inspelningsytan, inte i skrivfältet. ⛔ AV SOM FÖRVAL, av samma skäl som i TALK: webbläsaren skickar talet till Googles
  *   eller Apples taltjänst, och det är appens val. `true` slår på webbläsarens taligenkänning när den finns. Utan den, eller när inget
  *   hördes, skriver `onTranscribe` ut ljudet.
+ * @param {Franbiblioteket} [props.franBiblioteket] (0.164.0, lifehub.app#226) Raden "Lägg till från Biblioteket" i pluset.
  * @param {(filer: File[], slag: "bild" | "foto" | "fil") => void} [props.onBifoga] (0.77.0, #292) Samma som på `OpsSamtal`.
  * @param {string} [props.sprak]
  * @param {Meddelandetexter} [props.texter]
