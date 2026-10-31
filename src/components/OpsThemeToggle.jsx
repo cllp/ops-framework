@@ -1,6 +1,8 @@
 import { useState } from "react";
 import * as Popover from "@radix-ui/react-popover";
 import { cx } from "../lib/cx.js";
+import { forvalda } from "../lib/ord.js";
+import { useOpsSprak } from "./OpsSprak.jsx";
 import { getTheme, setTheme } from "../lib/theme.js";
 import { ManeIkon, SkarmIkon, SolIkon } from "./icons.jsx";
 import { ValRad } from "./ValRad.jsx";
@@ -37,21 +39,31 @@ import { radBehallare } from "../lib/radKlass.js";
  * använder skärmläsare och gissningsbar för alla andra.
  */
 
+/** OpsThemeToggles förval (0.172.0, cllp/lifehub.app#580). */
+export const ORD_OPSTHEMETOGGLE = {
+  ariaLabel: { sv: "Utseende", en: "Appearance" },
+  system: { sv: "Följ systemet", en: "Follow the system" },
+  light: { sv: "Ljust", en: "Light" },
+  dark: { sv: "Mörkt", en: "Dark" },
+};
+
 /**
  * @param {object} props
  * @param {string} [props.ariaLabel]
  * @param {{ system?: string, light?: string, dark?: string }} [props.labels]
  */
-export function OpsThemeToggle({ ariaLabel = "Utseende", labels = {} }) {
+export function OpsThemeToggle({ ariaLabel: ariaLabelProp, labels = {} }) {
+  const o = forvalda(ORD_OPSTHEMETOGGLE, useOpsSprak());
+  const ariaLabel = ariaLabelProp ?? o.ariaLabel;
   // Läses en gång vid montering. Attributet på <html> är redan satt av
   // `initTheme` före första renderingen, så det finns inget att synka här.
   const [state, setLage] = useState(() => getTheme());
   const [oppen, setOppen] = useState(false);
 
   const choice = [
-    { value: "system", label: labels.system ?? "Följ systemet", Ikon: SkarmIkon },
-    { value: "light", label: labels.light ?? "Ljust", Ikon: SolIkon },
-    { value: "dark", label: labels.dark ?? "Mörkt", Ikon: ManeIkon },
+    { value: "system", label: labels.system ?? o.system, Ikon: SkarmIkon },
+    { value: "light", label: labels.light ?? o.light, Ikon: SolIkon },
+    { value: "dark", label: labels.dark ?? o.dark, Ikon: ManeIkon },
   ];
 
   const nuvarande = choice.find((v) => v.value === state) ?? choice[0];

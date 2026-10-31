@@ -2533,7 +2533,7 @@ function OpsAppShellRitad({
                   trigger={
                     <button
                       type="button"
-                      aria-label={`${hubbEtikett}, nu: ${aktivHubbNamn(hubbar)}`}
+                      aria-label={`${hubbEtikett}, ${ordet(TEXT_SKAL, "hubbNu", sprak)}: ${aktivHubbNamn(hubbar)}`}
                       className="flex size-11 items-center justify-center rounded-md text-ink-secondary hover:bg-sunken focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                     >
                       <ChevronNedIkon size={16} />
@@ -3087,6 +3087,7 @@ export const TEXT_SKAL = {
   blockerarHint: { sv: "Syns bara för dig. Gruppen ser att du är upptagen, inte vad du gör.", en: "Only visible to you. The group sees that you are busy, not what you are doing." },
   flerDestinationer: { sv: "fler destinationer", en: "more destinations" },
   flerAtgarder: { sv: "fler åtgärder", en: "more actions" },
+  hubbNu: { sv: "nu", en: "current" },
 };
 
 export const ORD_OPSAPPSHELL = {

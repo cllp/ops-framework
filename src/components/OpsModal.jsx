@@ -1,5 +1,6 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import { cx } from "../lib/cx.js";
+import { useOpsSprak } from "./OpsSprak.jsx";
 import { KryssIkon } from "./icons.jsx";
 
 /**
@@ -35,7 +36,10 @@ const STORLEKAR = {
  * @param {string} [props.closeLabel] Skärmläsarnamn på stängknappen. Ska översättas.
  * @param {import("react").ReactNode} props.children
  */
-export function OpsModal({ open, onOpenChange, title, description, size = "md", footer, closeLabel = "Stäng", children }) {
+export function OpsModal({ open, onOpenChange, title, description, size = "md", footer, closeLabel: closeLabelProp, children }) {
+  // 0.172.0 (cllp/lifehub.app#580): förvalet på appens språk.
+  const sprak = useOpsSprak();
+  const closeLabel = closeLabelProp ?? (sprak === "en" ? "Close" : "Stäng");
   const storlekKlass = STORLEKAR[size];
   if (!storlekKlass) {
     throw new Error(`OpsModal: okänd size "${size}". Giltiga: ${Object.keys(STORLEKAR).join(", ")}.`);
