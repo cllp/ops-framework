@@ -1471,6 +1471,18 @@ export function byggPost(d) {
 }
 
 /**
+ * Arkivet (0.163.0, lifehub.app#283, CP 2026-10-28): att arkivera är att sätta den här taggen. Inget eget läge och ingen egen vy.
+ * ⛔ DOLD SOM STANDARD: `filtreraBibliotek` släpper inte igenom en arkiverad post, inte heller i en sökning, förrän taggen är vald i taggfiltret. Då söker sökningen i arkivet.
+ * Att ta fram en post är att ta bort taggen, på kortet eller i detaljen, som vilken tagg som helst.
+ */
+export const ARKIVTAGG = "arkiv";
+
+/** @param {{ taggar?: unknown }} post */
+export function arArkiverad(post) {
+  return Array.isArray(post?.taggar) && post.taggar.includes(ARKIVTAGG);
+}
+
+/**
  * Listan efter flik och sök. Sökningen läser det som redan hämtats: en andra
  * samling för sökord hade varit en kopia av rubriken.
  *
@@ -1494,7 +1506,9 @@ export function filtreraBibliotek(poster, val = {}) {
   // ⛔ "#kvitto" SÖKER PÅ TAGGEN (granskningen av PR 363): raden visar taggen med #, och den som söker skriver det den ser.
   const sok = str(val.sok).toLowerCase().replace(/^#+/, "");
   const valda = Array.isArray(val.taggar) ? val.taggar : [];
+  const iArkivet = valda.includes(ARKIVTAGG);
   return [...poster]
+    .filter((p) => iArkivet || !arArkiverad(p))
     .filter((p) => valda.every((t) => Array.isArray(p.taggar) && p.taggar.includes(t)))
     .filter((p) => {
       if (flik === "alla") return true;
