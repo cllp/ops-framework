@@ -30,14 +30,14 @@ import { KryssIkon } from "./icons.jsx";
  *   - TIDSFÖNSTRET ÄR `ANGRA_MS` (åtta sekunder, ur `OpsSvepRad`), inte toastens sex. En toast med en knapp ska ge tid att läsa, förstå och trycka, och det är samma fönster som
  *     svepradens Ångra: två Ångra i samma app med olika tid vore två sanningar. Radix pausar nedräkningen medan pekaren är över toasten eller fokus är i den.
  *   - KNAPPEN ÄR EN `OpsButton`, 44 PX HÖG PÅ TELEFON och upptagen medan åtgärden väntar. Toasten står kvar tills åtgärden är klar och stängs sedan, lyckad eller inte.
- *   - ⛔ ETT FEL I ÅTGÄRDEN BLIR EN NY TOAST, ALDRIG TYST. `onKlick` får vara asynkron; kastar den eller avvisas löftet visas felets text i en `danger`-toast. En Ångra som inte gick
+ *   - ⛔ ETT FEL I ÅTGÄRDEN BLIR EN NY TOAST, ALDRIG TYST, OCH DEN STÅR KVAR TILLS DEN STÄNGS (0.162.0). `onKlick` får vara asynkron; kastar den eller avvisas löftet visas felets text i en `danger`-toast. En Ångra som inte gick
  *     igenom och som ser ut att ha gjort det är värre än ingen Ångra (arbetsreglernas punkt 5).
  *   - Toasten med åtgärd är fortfarande en BEKRÄFTELSE: den bär ingen information som bara finns där, och åtgärden får inte vara den enda vägen till det den gör.
  */
 
 /**
  * @typedef {{ etikett: string, onKlick: () => void | Promise<unknown>, beskrivning?: string }} Toastatgard
- * @typedef {{ id: number, title: string, description?: string, tone: "success"|"danger"|"info", atgard?: Toastatgard }} Toastpost
+ * @typedef {{ id: number, title: string, description?: string, tone: "success"|"danger"|"info", atgard?: Toastatgard, kvar?: boolean }} Toastpost
  */
 
 /** @type {import("react").Context<{ show: (t: Omit<Toastpost, "id">) => void } | null>} */
@@ -94,7 +94,8 @@ export function OpsToastProvider({ children, closeLabel = "Stäng" }) {
       try {
         await atgard.onKlick();
       } catch (e) {
-        show({ title: ordet(ORD_OPSTOAST, "atgardFel", sprak), description: e instanceof Error ? e.message : String(e), tone: "danger" });
+        // ⛔ FELET STÅR KVAR TILLS DET STÄNGS (0.162.0): en Ångra som inte gick och vars besked försvann efter sex sekunder lämnar personen utan att veta. Det var skälet till lifehub.app:s egen yta (`AngraBesked`).
+        setPoster((tidigare) => [...tidigare, { title: ordet(ORD_OPSTOAST, "atgardFel", sprak), description: e instanceof Error ? e.message : String(e), tone: "danger", kvar: true, id: Date.now() + Math.random() }]);
       }
       stang(id);
     },
@@ -114,8 +115,9 @@ export function OpsToastProvider({ children, closeLabel = "Stäng" }) {
           <Toast.Root
             key={p.id}
             // ⛔ En toast med åtgärd lever lika länge som svepradens Ångra (`ANGRA_MS`), se filhuvudet.
-            duration={p.atgard ? ANGRA_MS : undefined}
+            duration={p.kvar ? Infinity : p.atgard ? ANGRA_MS : undefined}
             data-toast-atgard={p.atgard ? "" : undefined}
+            data-toast-kvar={p.kvar ? "" : undefined}
             onOpenChange={(open) => {
               if (!open) setPoster((tidigare) => tidigare.filter((t) => t.id !== p.id));
             }}
