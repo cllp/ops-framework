@@ -3999,7 +3999,8 @@ for (const tema of /** @type {const} */ (["light", "dark"])) {
   try {
     const k = await page.evaluate(() => {
       const nav = document.querySelector('nav[aria-label="Mina grupper"]');
-      const kort = (/** @type {string} */ n) => /** @type {HTMLElement | null} */ ([...nav.querySelectorAll("li[role=button]")].find((l) => l.getAttribute("aria-label") === n) ?? null);
+      // 0.172.1: sedan #521 (0.168.0) är kortet en `li[data-gruppkort]` och namnet sitter på valknappen i den.
+      const kort = (/** @type {string} */ n) => /** @type {HTMLElement | null} */ ([...nav.querySelectorAll("li[data-gruppkort]")].find((l) => l.querySelector("[data-gruppkort-val]")?.getAttribute("aria-label") === n) ?? null);
       // 0.65.0 (#265): sonden bär kulören som märket, `--grupp-kulor`. Ton 3 är kulör 29 och ton 5 kulör 336 (`ARV_TON_KULOR`).
       const sonda = (/** @type {string} */ klass, /** @type {string} */ prop, /** @type {number} */ kulor) => { const e = document.createElement("span"); e.className = klass; e.style.setProperty("--grupp-kulor", String(kulor)); document.body.append(e); const v = getComputedStyle(e)[prop]; e.remove(); return v; };
       const knapp = (/** @type {HTMLElement | null} */ li, /** @type {string} */ n) => li ? /** @type {HTMLElement | null} */ (li.querySelector(`button[aria-label="${n}"]`)) : null;
