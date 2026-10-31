@@ -891,3 +891,26 @@ describe("⛔ en gammal väntande inbjudan med rollen agare ger admin (CP 2026-1
     expect(m).toMatchObject({ status: "aktiv", roll: "admin" });
   });
 });
+
+describe("bara (0.171.0, lifehub.app#533)", () => {
+  it("accepterar bara de utpekade, de andra väntar kvar", async () => {
+    const { tjanst, kalla } = bygg({
+      memberships: [
+        { id: medlemskapsId(AGARE, GRUPP), userId: AGARE, groupId: GRUPP, roll: "agare", typ: "person", status: "aktiv" },
+        { id: medlemskapsId(AGARE, "andra"), userId: AGARE, groupId: "andra", roll: "agare", typ: "person", status: "aktiv" },
+      ],
+    });
+    const a = await tjanst.bjudIn({ avUid: AGARE, groupId: GRUPP, epost: "ny@x.se" });
+    const b = await tjanst.bjudIn({ avUid: AGARE, groupId: "andra", epost: "ny@x.se" });
+    expect(await tjanst.accepteraInbjudningar({ uid: MEDLEM, epost: "ny@x.se", epostVerifierad: true, bara: [b.id] })).toEqual({ accepterade: ["andra"], utgangna: [] });
+    expect(await kalla.read("memberships", medlemskapsId(MEDLEM, GRUPP))).toBeFalsy();
+    expect((await kalla.read("invitations", a.id)).status).toBe("vantar");
+    expect((await kalla.read("invitations", b.id)).status).toBe("accepterad");
+  });
+  it("en tom eller felaktig lista kastar i stället för att bli alla", async () => {
+    const { tjanst } = bygg();
+    for (const bara of [[], [""], "x", [1]]) {
+      await expect(tjanst.accepteraInbjudningar({ uid: MEDLEM, epost: "ny@x.se", epostVerifierad: true, bara: /** @type {any} */ (bara) })).rejects.toThrow(/bara ska vara/);
+    }
+  });
+});

@@ -9,6 +9,12 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.171.0
+
+### Tillagt
+
+- **`accepteraInbjudningar({ bara })` (cllp/lifehub.app#533).** Med `bara: [id]` accepteras bara de utpekade inbjudningarna, övriga väntande rörs inte. Ett ja till en grupp tar inte längre de andra med sig. Utelämnad gäller som förut alla. En tom eller felaktig lista kastar.
+
 ## 0.170.0
 
 ### Tillagt
