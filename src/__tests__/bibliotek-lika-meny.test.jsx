@@ -28,7 +28,7 @@ const LISTA = { ...byggPost(med({ typ: "lista", rubrik: "Spellista", poster: ["f
 const ALLA = [FIL, ANTECKNING, LANK, LISTA];
 
 /** Ordningen CP bad om, med varje rad som kan finnas. En meny är en delföljd av den här, i den här ordningen. */
-const ORDNING = ["Redigera", "Byt namn", "Dela länk", "Visa detaljer", "Lägg i lista", "Kopiera länk", "Flytta till Mitt bibliotek", "Kopiera till Mitt bibliotek", "Flytta eller kopiera", "Arkivera", "Radera"];
+const ORDNING = ["Redigera", "Byt namn", "Lägg till tagg", "Dela länk", "Visa detaljer", "Lägg i lista", "Kopiera länk", "Flytta till Mitt bibliotek", "Kopiera till Mitt bibliotek", "Flytta eller kopiera", "Arkivera", "Radera"];
 
 function Vy({ poster = ALLA, vald: startVald = null, onSpara = vi.fn(), grupper = GRUPPER, onDelaLank = vi.fn() }) {
   const [vald, setVald] = useState(startVald);
@@ -65,8 +65,9 @@ describe("⛔ samma meny för fil, anteckning, länk och lista", () => {
       const ut = etiketter(post.rubrik);
       // Länken har dessutom Kopiera länk (den har en adress att kopiera), på sin plats i ordningen. Annars är menyn densamma.
       const vantat = post.typ === "lank"
-        ? ["Byt namn", "Dela länk", "Lägg i lista", "Kopiera länk", "Flytta eller kopiera", "Arkivera", "Radera"]
-        : ["Byt namn", "Dela länk", "Lägg i lista", "Flytta eller kopiera", "Arkivera", "Radera"];
+        ? ["Byt namn", "Lägg till tagg", "Dela länk", "Lägg i lista", "Kopiera länk", "Flytta eller kopiera", "Arkivera", "Radera"]
+        : ["Byt namn", "Lägg till tagg", "Dela länk", "Lägg i lista", "Flytta eller kopiera", "Arkivera", "Radera"];
+      // 0.165.0: "Lägg till tagg" står i menyn när posten saknar taggar (kortet visar inte längre taggraden då).
       expect(ut, post.typ).toEqual(vantat);
       // Och alla är en delföljd av CP:s ordning.
       let i = -1;
@@ -128,6 +129,7 @@ describe("⛔ samma meny för fil, anteckning, länk och lista", () => {
     const menyn = screen.getByRole("menu", { name: "Spellista" });
     const lagg = rader("Spellista").find((r) => r.querySelector(".truncate")?.textContent === "Lägg i lista");
     rader("Spellista")[0].focus();
+    fireEvent.keyDown(menyn, { key: "ArrowDown" });
     fireEvent.keyDown(menyn, { key: "ArrowDown" });
     fireEvent.keyDown(menyn, { key: "ArrowDown" });
     expect(document.activeElement).toBe(lagg);

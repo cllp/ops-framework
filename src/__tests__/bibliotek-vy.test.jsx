@@ -565,7 +565,7 @@ describe("OpsBibliotek", () => {
     render(<Harness start={[ljud]} filUrl={() => "https://exempel.se/ide.webm"} />);
     fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Idé 2026-10-08 21:05" }));
     const meny = screen.getByRole("menu", { name: "Idé 2026-10-08 21:05" });
-    expect(within(meny).getAllByRole("menuitem").map((r) => r.textContent)).toEqual(["Byt namn", "Lägg i lista", "Kopiera länk", "Arkivera", "Radera"]);
+    expect(within(meny).getAllByRole("menuitem").map((r) => r.textContent)).toEqual(["Byt namn", "Lägg till tagg", "Lägg i lista", "Kopiera länk", "Arkivera", "Radera"]);
     for (const borta of ["Hastighet", "10 sekunder bakåt", "10 sekunder framåt", "Taggar", "Öppna", "Ladda ned", "Redigera"]) {
       expect(within(meny).queryByRole("menuitem", { name: borta }), borta).toBeNull();
     }
@@ -1028,12 +1028,12 @@ describe("OpsBibliotek", () => {
     fireEvent.contextMenu(/** @type {HTMLElement} */ (yta));
     const meny = screen.getByRole("menu", { name: "Protokoll" });
     // Högerklick ger samma korta meny som ⋮ och långtrycket. Redigera finns i detaljen, inte i listan.
-    expect(within(meny).getAllByRole("menuitem").map((r) => r.textContent)).toEqual(["Byt namn", "Lägg i lista", "Arkivera", "Radera"]);
+    expect(within(meny).getAllByRole("menuitem").map((r) => r.textContent)).toEqual(["Byt namn", "Lägg till tagg", "Lägg i lista", "Arkivera", "Radera"]);
     unmount();
 
     render(<Harness />);
     fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Protokoll" }));
-    expect(within(screen.getByRole("menu", { name: "Protokoll" })).getAllByRole("menuitem").map((r) => r.textContent)).toEqual(["Byt namn", "Lägg i lista", "Arkivera", "Radera"]);
+    expect(within(screen.getByRole("menu", { name: "Protokoll" })).getAllByRole("menuitem").map((r) => r.textContent)).toEqual(["Byt namn", "Lägg till tagg", "Lägg i lista", "Arkivera", "Radera"]);
     fireEvent.keyDown(screen.getByRole("menu", { name: "Protokoll" }), { key: "Escape" });
     fireEvent.click(screen.getByRole("button", { name: "Protokoll" }));
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Protokoll");

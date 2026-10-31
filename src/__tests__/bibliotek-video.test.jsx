@@ -240,11 +240,11 @@ describe("OpsBibliotek: video i listan och i detaljen", () => {
     expect(screen.getByRole("link", { name: /avtal\.pdf/ })).toBeInTheDocument();
   });
 
-  it("kortet i listan säger Video, med ändelsen, och ligger under Dokument", () => {
+  it("kortet i listan säger Video, med ändelsen, och ligger under Dokument (ett dokument säger bara ändelsen, 0.165.0)", () => {
     render(<Harness start={[film, pdf]} />);
     expect(document.querySelector('[data-bibliotek-kort="dokument"]')).not.toBeNull();
     expect(screen.getByText("Video · mp4")).toBeInTheDocument();
-    expect(screen.getByText("Dokument · pdf")).toBeInTheDocument();
+    expect(screen.getByText("PDF")).toBeInTheDocument();
     // Listan spelar ingenting: ingen <video> förrän posten öppnas.
     expect(document.querySelector("video")).toBeNull();
   });

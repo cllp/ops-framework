@@ -128,12 +128,13 @@ describe("fliken Listor och listans kort", () => {
     const listrader = within(screen.getByRole("menu", { name: "Spellista" })).getAllByRole("menuitem");
     expect(listrader.map((r) => r.textContent)).toEqual([
       "Byt namn",
+      "Lägg till tagg",
       "Lägg i listaEn lista kan inte ligga i en lista.",
       "Flytta eller kopieraEn lista pekar på poster i den här gruppen och flyttas inte.",
       "Arkivera",
       "Radera",
     ]);
-    expect(listrader.map((r) => r.getAttribute("aria-disabled"))).toEqual([null, "true", "true", null, null]);
+    expect(listrader.map((r) => r.getAttribute("aria-disabled"))).toEqual([null, null, "true", "true", null, null]);
     await user.keyboard("{Escape}");
     // En vanlig post på samma plats får däremot flyttvalen.
     await user.click(screen.getByRole("button", { name: "Åtgärder för Alfa" }));

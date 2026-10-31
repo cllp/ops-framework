@@ -9,6 +9,16 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.165.0
+
+### Rättat
+
+- **Interna länkar i en HTML fil i Biblioteket rullar i dokumentet** (CP 2026-10-31: innehållsförteckningen fungerade inte). En `srcdoc` ram ärver appens basadress, så `href="#avsnitt"` blev appens adress plus `#avsnitt` och ramen gick bort från dokumentet. `byggSrcdoc` lägger nu in `HTML_LANKSKRIPT`: en länk till `#id` (eller `name`) rullar till målet, `#` och `#top` rullar till början, en http(s), mailto eller tel länk skickas till `HtmlRuta` som `{ typ: HTML_LANKMEDDELANDE, href }` och öppnas i en ny flik med `noopener,noreferrer`, och alla andra länkar stoppas. `HtmlRuta` tar bara emot meddelanden från sin egen ram och prövar adressen med `externLankAdress`. Sandlådan är oförändrad (`allow-scripts allow-modals`, ingen `allow-same-origin`, ingen `allow-popups`). Prov: `htmldokument-lankar.test.jsx` (rött mot 0.164.1).
+
+### Ändrat
+
+- **Biblioteket visar varje post som en kompakt rad** (CP 2026-10-31: listningen var "ful och rörig"). Titeln står utan filändelse när rubriken är filens namn (`kortRubrik`), och under den står en grå rad med typen, storleken och datumet, till exempel "HTML · 68 kB · 31 okt." (`kortTyp`, `kortDatum`: året bara ett annat år). Typen har ingen egen rad i versaler längre. Taggraden ritas bara när posten har taggar; annars ligger "Lägg till tagg" i menyn (⋮, långtryck och högerklick) och öppnar fältet på kortet. `OpsTaggRad` har nya props `borjaSkriva` och `onSlutaSkriva`. Gäller alla posttyper. Prov: `bibliotek-kompakt-rad.test.jsx`; menyproven har raden Lägg till tagg.
+
 ## 0.164.1
 
 ### Ändrat
