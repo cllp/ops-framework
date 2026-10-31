@@ -164,3 +164,28 @@ describe("OpsToast med åtgärd", () => {
     }
   });
 });
+
+describe("OpsToast: felet efter en åtgärd står kvar tills det stängs (0.162.0, lifehub.app AngraBesked)", () => {
+  it("⛔ den röda toasten efter en åtgärd som föll försvinner inte av sig själv, och Stäng tar bort den", async () => {
+    vi.useFakeTimers();
+    rendera({ title: "Borttagen", atgard: { etikett: "Ångra", onKlick: async () => { throw new Error("Posten har ändrats."); } } });
+    await visa();
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Ångra" })); });
+    await act(async () => { await Promise.resolve(); });
+    expect(screen.getByText("Posten har ändrats.")).toBeTruthy();
+    await act(async () => { vi.advanceTimersByTime(60_000); });
+    expect(screen.queryByText("Posten har ändrats.")).not.toBeNull();
+    expect(document.querySelector("[data-toast-kvar]")).not.toBeNull();
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Stäng" })); });
+    await act(async () => { vi.advanceTimersByTime(1000); });
+    expect(screen.queryByText("Posten har ändrats.")).toBeNull();
+  });
+
+  it("en vanlig röd toast utan åtgärd bakom sig försvinner fortfarande efter sex sekunder", async () => {
+    vi.useFakeTimers();
+    rendera({ title: "Fel", tone: "danger" });
+    await visa();
+    await act(async () => { vi.advanceTimersByTime(6600); });
+    expect(screen.queryByText("Fel")).toBeNull();
+  });
+});

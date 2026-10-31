@@ -9,6 +9,12 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.162.0
+
+### Ändrat
+
+- **Felet efter en toasts åtgärd står kvar tills det stängs** (cllp/ops-framework#460 punkt 1, sista biten). En Ångra som föll gav en röd toast som försvann efter sex sekunder, och därför behöll lifehub.app sin egen yta (`AngraBesked`). Nu har den röda toasten ingen nedräkning (`data-toast-kvar`) och stängs med krysset. Vanliga toaster och toaster med åtgärd har samma tid som förut. Prov: två nya i `toast-atgard.test.jsx`, det första rött mot 0.161.0.
+
 ## 0.161.0
 
 ### Ändrat
