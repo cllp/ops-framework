@@ -565,7 +565,7 @@ describe("OpsBibliotek", () => {
     render(<Harness start={[ljud]} filUrl={() => "https://exempel.se/ide.webm"} />);
     fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Idé 2026-10-08 21:05" }));
     const meny = screen.getByRole("menu", { name: "Idé 2026-10-08 21:05" });
-    expect(within(meny).getAllByRole("menuitem").map((r) => r.textContent)).toEqual(["Byt namn", "Lägg i lista", "Kopiera länk", "Radera"]);
+    expect(within(meny).getAllByRole("menuitem").map((r) => r.textContent)).toEqual(["Byt namn", "Lägg i lista", "Kopiera länk", "Arkivera", "Radera"]);
     for (const borta of ["Hastighet", "10 sekunder bakåt", "10 sekunder framåt", "Taggar", "Öppna", "Ladda ned", "Redigera"]) {
       expect(within(meny).queryByRole("menuitem", { name: borta }), borta).toBeNull();
     }
@@ -924,6 +924,39 @@ describe("OpsBibliotek", () => {
     expect(screen.queryByRole("textbox")).toBeNull();
   });
 
+  it("⛔ svep avslöjar Arkivera (0.163.0, lifehub.app#283): efter Ångra-fönstret sparas taggen arkiv, och Ångra hindrar det", () => {
+    vi.useFakeTimers();
+    try {
+      const onSpara = vi.fn();
+      const { unmount } = render(<Harness onSparaOverride={onSpara} />);
+      svep(/** @type {HTMLElement} */ (screen.getByRole("button", { name: "Protokoll" }).closest("li")));
+      const k = screen.getByRole("button", { name: "Arkivera" });
+      peka(k, "pointerdown", 10, 10);
+      fireEvent.click(k);
+      expect(screen.getByText("Protokoll arkiveras.")).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Ångra" }));
+      act(() => { vi.advanceTimersByTime(ANGRA_MS); });
+      expect(onSpara).not.toHaveBeenCalled();
+      unmount();
+      render(<Harness onSparaOverride={onSpara} />);
+      svep(/** @type {HTMLElement} */ (screen.getByRole("button", { name: "Protokoll" }).closest("li")));
+      const k2 = screen.getByRole("button", { name: "Arkivera" });
+      peka(k2, "pointerdown", 10, 10);
+      fireEvent.click(k2);
+      act(() => { vi.advanceTimersByTime(ANGRA_MS); });
+      expect(onSpara).toHaveBeenCalledWith({ id: "a", taggar: ["arkiv"] });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("⛔ en arkiverad post syns inte förrän taggen arkiv väljs (0.163.0)", async () => {
+    const arkiverad = { ...poster[0], taggar: ["arkiv"] };
+    render(<Harness start={[arkiverad, poster[1]]} />);
+    expect(screen.queryByRole("button", { name: "Protokoll" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Bolagsverket" })).toBeInTheDocument();
+  });
+
   it("svep avslöjar Radera för den som får, och Ångra hindrar anropet", () => {
     vi.useFakeTimers();
     try {
@@ -995,19 +1028,19 @@ describe("OpsBibliotek", () => {
     fireEvent.contextMenu(/** @type {HTMLElement} */ (yta));
     const meny = screen.getByRole("menu", { name: "Protokoll" });
     // Högerklick ger samma korta meny som ⋮ och långtrycket. Redigera finns i detaljen, inte i listan.
-    expect(within(meny).getAllByRole("menuitem").map((r) => r.textContent)).toEqual(["Byt namn", "Lägg i lista", "Radera"]);
+    expect(within(meny).getAllByRole("menuitem").map((r) => r.textContent)).toEqual(["Byt namn", "Lägg i lista", "Arkivera", "Radera"]);
     unmount();
 
     render(<Harness />);
     fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Protokoll" }));
-    expect(within(screen.getByRole("menu", { name: "Protokoll" })).getAllByRole("menuitem").map((r) => r.textContent)).toEqual(["Byt namn", "Lägg i lista", "Radera"]);
+    expect(within(screen.getByRole("menu", { name: "Protokoll" })).getAllByRole("menuitem").map((r) => r.textContent)).toEqual(["Byt namn", "Lägg i lista", "Arkivera", "Radera"]);
     fireEvent.keyDown(screen.getByRole("menu", { name: "Protokoll" }), { key: "Escape" });
     fireEvent.click(screen.getByRole("button", { name: "Protokoll" }));
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Protokoll");
     expect(screen.queryByRole("textbox")).toBeNull();
     // I detaljen står Redigera först i menyn.
     fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Protokoll" }));
-    expect(screen.getAllByRole("menuitem").map((r) => r.textContent)).toEqual(["Redigera", "Byt namn", "Lägg i lista", "Radera"]);
+    expect(screen.getAllByRole("menuitem").map((r) => r.textContent)).toEqual(["Redigera", "Byt namn", "Lägg i lista", "Arkivera", "Radera"]);
   });
 
   it("⛔ ett sparande som avvisas syns i formuläret och står kvar i redigering, och två tryck sparar en gång", async () => {

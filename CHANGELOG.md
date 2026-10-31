@@ -9,6 +9,12 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.163.0
+
+### Tillagt
+
+- **Arkivet i Biblioteket är en dold tagg** (lifehub.app#283, CP 2026-10-28: inget eget läge och ingen egen vy). `ARKIVTAGG` (`"arkiv"`) och `arArkiverad(post)`. `filtreraBibliotek` döljer en arkiverad post, också i en sökning, tills taggen arkiv är vald i taggfiltret; då söker sökningen i arkivet. `OpsBibliotek` har Arkivera (och Ta fram) i svepet, med samma Ångra som Radera, och i menyn (⋮ och långtryck), där statusraden säger hur arkivet nås. Att ta bort taggen tar fram posten. Kräver `onSpara`. Ingen regeländring: det är en vanlig tagg. Prov: `bibliotek-arkiv.test.js` (rött mot 0.162.0) och två nya i `bibliotek-vy.test.jsx`; menyproven har raden Arkivera.
+
 ## 0.162.0
 
 ### Ändrat

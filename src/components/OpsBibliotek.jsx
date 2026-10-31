@@ -10,7 +10,7 @@ import { BibliotekHtmlVersionerLat } from "./BibliotekHtmlVersionerLat.jsx";
 import { OpsMarkdown } from "./OpsMarkdown.jsx";
 import { OpsModal } from "./OpsModal.jsx";
 import { OpsSvepRad } from "./OpsSvepRad.jsx";
-import { ADRESSFORM, BIBLIOTEKTYPER, BILDFORM, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKURL, uppladdningAvbruten, uppladdningenAvbrytsKl, allaTaggar, arDelbar, arLjudpost, arMittBibliotek, farAndra, normaliseraTaggar, anteckningsrubrikNu, beskrivObjektbibliotek, arHtmlMime, arPlatsBibliotek, gruppForPlats, filInmatningsfel, LJUDFIL_ACCEPT, ljudfilFel, mimeUrFilnamn, filadressFel, filSort, filtreraBibliotek, inmatningsfel, ljudDatum, ljudRubrik, normaliseraAdress, normaliseraMime, avkodaTextfil, TEXTFORHANDS_BYTE, trimSomRegeln } from "../lib/bibliotek.js";
+import { ARKIVTAGG, arArkiverad, ADRESSFORM, BIBLIOTEKTYPER, BILDFORM, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKURL, uppladdningAvbruten, uppladdningenAvbrytsKl, allaTaggar, arDelbar, arLjudpost, arMittBibliotek, farAndra, normaliseraTaggar, anteckningsrubrikNu, beskrivObjektbibliotek, arHtmlMime, arPlatsBibliotek, gruppForPlats, filInmatningsfel, LJUDFIL_ACCEPT, ljudfilFel, mimeUrFilnamn, filadressFel, filSort, filtreraBibliotek, inmatningsfel, ljudDatum, ljudRubrik, normaliseraAdress, normaliseraMime, avkodaTextfil, TEXTFORHANDS_BYTE, trimSomRegeln } from "../lib/bibliotek.js";
 import { OpsTaggFilter, OpsTaggRad, menyPilar } from "./OpsTaggar.jsx";
 
 export { menyPilar, OpsTaggFilter as TaggFilter };
@@ -630,6 +630,22 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
         }
       }
     }
+    // ⛔ ARKIVERA I MENYN OCKSÅ (0.163.0, lifehub.app#283): ett svep upptäcks inte, ett menyval gör det. Statusraden säger var posten finns, och att ta bort taggen tar fram den.
+    if (far && typeof onSpara === "function") {
+      const arkiverad = arArkiverad(post);
+      ut.push({
+        id: arkiverad ? "tafram" : "arkivera",
+        etikett: arkiverad ? "Ta fram ur arkivet" : "Arkivera",
+        onValj: () => {
+          Promise.resolve()
+            .then(() => onSpara({ id: post.id, taggar: arkiverad ? (post.taggar ?? []).filter((t) => t !== ARKIVTAGG) : [...(post.taggar ?? []), ARKIVTAGG] }))
+            .then(
+              () => setStatus(arkiverad ? "Framtagen ur arkivet." : `Arkiverad. Välj taggen ${ARKIVTAGG} för att se arkivet.`),
+              (e) => setStatus(e instanceof Error && e.message ? e.message : String(e)),
+            );
+        },
+      });
+    }
     if (far) ut.push({ id: "radera", etikett: "Radera", fara: true, onValj: () => fragaRadera(post.id) });
     return ut;
   }
@@ -672,11 +688,20 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
    */
   function svepFor(post) {
     if (!farAndra(post, jag)) return [];
-    return [{
+    const namnet = arLjudpost(post) ? ljudRubrik(post) : post.rubrik;
+    const arkiverad = arArkiverad(post);
+    // ⛔ ARKIVERA ÄR EN TAGG (0.163.0, lifehub.app#283): samma svep och samma Ångra som Radera, inget eget läge. Taggen döljer posten tills arkivtaggen väljs i filtret.
+    const arkiv = typeof onSpara === "function" ? [{
+      id: arkiverad ? "tafram" : "arkivera",
+      etikett: arkiverad ? "Ta fram" : "Arkivera",
+      angraMeddelande: arkiverad ? `${namnet} tas fram ur arkivet.` : `${namnet} arkiveras.`,
+      onValj: () => onSpara({ id: post.id, taggar: arkiverad ? (post.taggar ?? []).filter((t) => t !== ARKIVTAGG) : [...(post.taggar ?? []), ARKIVTAGG] }),
+    }] : [];
+    return [...arkiv, {
       id: "radera",
       etikett: "Radera",
       fara: true,
-      angraMeddelande: `${arLjudpost(post) ? ljudRubrik(post) : post.rubrik} tas bort.`,
+      angraMeddelande: `${namnet} tas bort.`,
       onValj: () => {
         if (typeof onRadera !== "function") throw new Error("Raderingen är inte kopplad. Posten är kvar.");
         return onRadera(post.id);

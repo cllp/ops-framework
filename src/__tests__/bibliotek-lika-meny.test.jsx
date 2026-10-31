@@ -28,7 +28,7 @@ const LISTA = { ...byggPost(med({ typ: "lista", rubrik: "Spellista", poster: ["f
 const ALLA = [FIL, ANTECKNING, LANK, LISTA];
 
 /** Ordningen CP bad om, med varje rad som kan finnas. En meny är en delföljd av den här, i den här ordningen. */
-const ORDNING = ["Redigera", "Byt namn", "Dela länk", "Visa detaljer", "Lägg i lista", "Kopiera länk", "Flytta till Mitt bibliotek", "Kopiera till Mitt bibliotek", "Flytta eller kopiera", "Radera"];
+const ORDNING = ["Redigera", "Byt namn", "Dela länk", "Visa detaljer", "Lägg i lista", "Kopiera länk", "Flytta till Mitt bibliotek", "Kopiera till Mitt bibliotek", "Flytta eller kopiera", "Arkivera", "Radera"];
 
 function Vy({ poster = ALLA, vald: startVald = null, onSpara = vi.fn(), grupper = GRUPPER, onDelaLank = vi.fn() }) {
   const [vald, setVald] = useState(startVald);
@@ -65,8 +65,8 @@ describe("⛔ samma meny för fil, anteckning, länk och lista", () => {
       const ut = etiketter(post.rubrik);
       // Länken har dessutom Kopiera länk (den har en adress att kopiera), på sin plats i ordningen. Annars är menyn densamma.
       const vantat = post.typ === "lank"
-        ? ["Byt namn", "Dela länk", "Lägg i lista", "Kopiera länk", "Flytta eller kopiera", "Radera"]
-        : ["Byt namn", "Dela länk", "Lägg i lista", "Flytta eller kopiera", "Radera"];
+        ? ["Byt namn", "Dela länk", "Lägg i lista", "Kopiera länk", "Flytta eller kopiera", "Arkivera", "Radera"]
+        : ["Byt namn", "Dela länk", "Lägg i lista", "Flytta eller kopiera", "Arkivera", "Radera"];
       expect(ut, post.typ).toEqual(vantat);
       // Och alla är en delföljd av CP:s ordning.
       let i = -1;
