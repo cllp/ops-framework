@@ -89,10 +89,30 @@ export function isAudio(kind) {
  * inte exakt 1,4, och prefixet räknas med. Skillnaden syns inte i "2 kB", vilket
  * är precis den precision frågan har.
  *
+ * ⛔ #524 (2026-10-31): med `dataUrl` räknas storleken EXAKT ur base64-delen. En fil på 40 B visades som "56 B",
+ * eftersom prefixet och overheaden räknades med. Små filer är just de där felet syns.
+ *
  * @param {number} chars
+ * @param {string} [dataUrl]
  */
-export function attachmentSize(chars) {
+export function attachmentSize(chars, dataUrl) {
+  const exakt = dataUrlBytes(dataUrl);
+  if (exakt !== null) return sizeText(exakt);
   return sizeText(Math.round(chars / CHARS_PER_BYTE));
+}
+
+/**
+ * Exakt antal byte i en base64-data-URL, eller `null` när adressen inte är en sådan (#524).
+ * @param {unknown} dataUrl
+ * @returns {number | null}
+ */
+export function dataUrlBytes(dataUrl) {
+  if (typeof dataUrl !== "string") return null;
+  const m = /^data:[^,]*;base64,/.exec(dataUrl);
+  if (!m) return null;
+  const b = dataUrl.slice(m[0].length).replace(/\s/g, "");
+  const fyll = b.endsWith("==") ? 2 : b.endsWith("=") ? 1 : 0;
+  return Math.max(0, Math.floor((b.length * 3) / 4) - fyll);
 }
 
 /** @param {number} byte */

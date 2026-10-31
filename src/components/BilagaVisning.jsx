@@ -84,7 +84,7 @@ export function BilagaVisning({ bilaga, alt, marke = "data-kommentar-bilaga-visa
       </p>
     );
   }
-  const storlek = bilaga.tecken ? attachmentSize(bilaga.tecken) : "";
+  const storlek = bilaga.tecken ? attachmentSize(bilaga.tecken, bilaga.dataUrl) : "";
   if (ljud) {
     return (
       <div {...attr} className="w-full min-w-0 max-w-full">

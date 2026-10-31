@@ -68,7 +68,7 @@ describe("⛔ OpsHandelsePanel: bilagan (#221)", () => {
     expect(bild.getAttribute("src")).toBe(BILD.dataUrl);
     const nedladdning = within(region).getByRole("link", { name: "kvitto.png" });
     expect(nedladdning.getAttribute("download")).toBe("kvitto.png");
-    expect(region.textContent).toMatch(/kB/);
+    expect(region.textContent).toMatch(/3 B/);
   });
 
   it("ett dokument är en länk med namn och storlek, ingen bild", () => {
@@ -78,7 +78,7 @@ describe("⛔ OpsHandelsePanel: bilagan (#221)", () => {
     const lank = within(region).getByRole("link", { name: "avtal.pdf" });
     expect(lank.getAttribute("href")).toBe(PDF.dataUrl);
     expect(lank.getAttribute("download")).toBe("avtal.pdf");
-    expect(region.textContent).toMatch(/kB/);
+    expect(region.textContent).toMatch(/3 B/);
   });
 
   it("utan bilaga (null eller utelämnad) ritas ingen bilageyta", () => {

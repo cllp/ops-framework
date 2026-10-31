@@ -548,7 +548,7 @@ function HandelseTillagg({ tillagg, handelse, grupp, sprak }) {
  */
 function HandelseBilaga({ bilaga, titel, etikett }) {
   const namn = bilaga.namn || etikett;
-  const storlek = typeof bilaga.tecken === "number" && bilaga.tecken > 0 ? attachmentSize(bilaga.tecken) : "";
+  const storlek = typeof bilaga.tecken === "number" && bilaga.tecken > 0 ? attachmentSize(bilaga.tecken, bilaga.dataUrl) : "";
   const rubrikId = useId();
   const lank = "font-medium text-ink underline decoration-line-strong underline-offset-2 hover:decoration-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent wrap-anywhere";
   return (

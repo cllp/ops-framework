@@ -148,6 +148,9 @@ function useBibliotekskalla(kalla) {
   return kalla ? lage : null;
 }
 
+/** Statusraden efter en arkivering (#283). */
+const arkivtips = () => `Arkiverad. Välj taggen ${ARKIVTAGG} för att se arkivet.`;
+
 /**
  * @param {object} props
  * @param {{ las: () => Promise<any>, prenumerera?: (lyssnare: (svar: any) => void, onFel: (fel: Error) => void) => () => void }} [props.kalla] (0.114.0) Bibliotekskällan (`createBibliotekskalla`). Med den läser vyn själv och en ny post syns direkt, se `useBibliotekskalla`. Ges den ska `poster`, `fel`, `trasiga` och `laddar` utelämnas: vyn har då två sanningar om samma lista, och den ena hade vunnit tyst.
@@ -315,6 +318,10 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
   // Poster som flyttas eller kopieras just nu, ur menyn. Deras flyttval visas inte förrän svaret kommit.
   const [flyttar, setFlyttar] = useState(/** @type {string[]} */ ([]));
   const [status, setStatus] = useState("");
+  // ⛔ (cllp/lifehub.app#283) Tipset om arkivtaggen har gjort sitt när arkivet visas. Förut stod "Arkiverad. Välj taggen ..." kvar ovanför arkivet.
+  useEffect(() => {
+    if (valdaTaggar.includes(ARKIVTAGG)) setStatus((s) => (s === arkivtips() ? "" : s));
+  }, [valdaTaggar]);
   // En plats som just skapats kan saknas i `platser` en stund (appens prenumeration är inte framme): växlaren ritar den ändå, med sitt namn.
   const [nyligen, setNyligen] = useState(/** @type {{ id: string, namn: string }[]} */ ([]));
   const adresser = useFilAdresser(poster, vald, filUrl, hamtaAdress, adresserPaBegaran);
@@ -643,7 +650,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
           Promise.resolve()
             .then(() => onSpara({ id: post.id, taggar: arkiverad ? (post.taggar ?? []).filter((t) => t !== ARKIVTAGG) : [...(post.taggar ?? []), ARKIVTAGG] }))
             .then(
-              () => setStatus(arkiverad ? "Framtagen ur arkivet." : `Arkiverad. Välj taggen ${ARKIVTAGG} för att se arkivet.`),
+              () => setStatus(arkiverad ? "Framtagen ur arkivet." : arkivtips()),
               (e) => setStatus(e instanceof Error && e.message ? e.message : String(e)),
             );
         },

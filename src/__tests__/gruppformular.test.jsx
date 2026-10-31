@@ -516,7 +516,7 @@ describe("⛔ tre ingångar öppnar SAMMA panel (skapa.grupp i skalet)", () => {
 
   it("⛔ färg och ikon på en grupp ritas i gruppanelen", () => {
     render(<OpsGruppanel grupper={GRUPPER} aktiv="g1" onValj={() => {}} />);
-    const beta = screen.getByRole("button", { name: "Beta AB" });
+    const beta = /** @type {HTMLElement} */ (screen.getByRole("button", { name: "Beta AB" }).closest("[data-gruppkort]"));
     const marke = within(beta).getByRole("img", { name: "Beta AB" });
     expect(marke).toHaveClass("ops-gruppmarke");
     expect(marke).toHaveAttribute("data-grupp-kulor", "240");

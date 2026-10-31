@@ -92,7 +92,7 @@ export function skapaOmgangslogg({ nu = () => Date.now() } = {}) {
  * Hur en omgång slutade, för nästa omgångs rapport.
  * @typedef {object} Omgangsslut
  * @property {"igenkanning" | "inspelning" | "bada"} mekanism Vad som höll mikrofonen: webbläsarens taligenkänning, inspelaren eller båda.
- * @property {"text" | "ljud" | "tomt" | "fel" | "kastad"} utfall `text`: texten kom fram. `ljud`: ljud men ingen text. `tomt`: varken ljud eller text. `fel`: ett fel
+ * @property {"text" | "ljud" | "tomt" | "tyst" | "fel" | "kastad"} utfall `text`: texten kom fram. `ljud`: ljud men ingen text. `tomt`: varken ljud eller text. `fel`: ett fel
  *   avbröt. `kastad`: personen avbröt.
  * @property {string} logg Omgångens logg, `skapaOmgangslogg().text()`.
  * @property {number} vid När omgången slutade, i klockans tid.
