@@ -221,7 +221,8 @@ export function OpsAtgardsblad({ namn, poster, children = null, baraKnapp = fals
           aria-label={etikett}
           // ⛔ BREDARE MED NÅGOT ÖVERST (0.106.0, #386 skiva 6). Chattens sex reaktioner om 44 px fick 34 px i en ruta på 224 px (mätt i
           // check-skalyta, chatt (3) vid 390 px). 288 px rymmer sex knappar om 44 px med mellanrum.
-          className={cx("z-(--z-dropdown) max-w-[calc(100vw-1rem)]", overst ? "w-72" : "w-56", radBehallare())}
+          // ⛔ (lh #569) ALDRIG HÖGRE ÄN UTRYMMET. I 1280x533 eller med zoom hamnade Arkivera och Radera under skärmkanten och gick inte att rulla fram. Radix ger höjden som finns, och resten rullar i rutan.
+          className={cx("z-(--z-dropdown) max-w-[calc(100vw-1rem)] max-h-(--radix-popover-content-available-height) overflow-y-auto overscroll-contain", overst ? "w-72" : "w-56", radBehallare())}
           onOpenAutoFocus={fokusForsta}
           onKeyDown={tangenter}
           onClickCapture={stoppaSlappet}

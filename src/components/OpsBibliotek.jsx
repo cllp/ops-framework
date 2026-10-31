@@ -1334,7 +1334,7 @@ export function PlatsValjare({ platser, plats, onPlats, ny = null }) {
           <span className="min-w-0 truncate">{namn}</span>
         </Popover.Trigger>
         <Popover.Portal>
-          <Popover.Content align="start" sideOffset={4} collisionPadding={8} className={cx("z-(--z-dropdown) min-w-56 p-1", radBehallare())}>
+          <Popover.Content align="start" sideOffset={4} collisionPadding={8} className={cx("z-(--z-dropdown) min-w-56 p-1 max-h-(--radix-popover-content-available-height) overflow-y-auto overscroll-contain", radBehallare())}>
             {lage === "ny" && ny ? (
               <NyPlatsFormular
                 befintliga={ny.befintliga}
@@ -1665,7 +1665,7 @@ function NyKnapp({ flik, onSkapa, onRost, erbjudRost, onLaddaUppLjud }) {
             {innehall}
           </Popover.Trigger>
           <Popover.Portal>
-            <Popover.Content align="end" sideOffset={4} className={cx("z-(--z-dropdown) min-w-44 p-1", radBehallare())}>
+            <Popover.Content align="end" sideOffset={4} className={cx("z-(--z-dropdown) min-w-44 p-1 max-h-(--radix-popover-content-available-height) overflow-y-auto overscroll-contain", radBehallare())}>
               <div role="menu" aria-label="Nytt ljud">
                 <button
                   type="button"
@@ -1717,7 +1717,7 @@ function NyKnapp({ flik, onSkapa, onRost, erbjudRost, onLaddaUppLjud }) {
         {innehall}
       </Popover.Trigger>
       <Popover.Portal>
-        <Popover.Content align="end" sideOffset={4} className={cx("z-(--z-dropdown) min-w-44 p-1", radBehallare())}>
+        <Popover.Content align="end" sideOffset={4} className={cx("z-(--z-dropdown) min-w-44 p-1 max-h-(--radix-popover-content-available-height) overflow-y-auto overscroll-contain", radBehallare())}>
           <div role="menu" aria-label="Ny post">
             {BIBLIOTEKTYPER.map((typ) => (
               <button
