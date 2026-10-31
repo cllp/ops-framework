@@ -9,6 +9,12 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.164.0
+
+### Tillagt
+
+- **"Lägg till från Biblioteket" i chattens plus** (lifehub.app#226, CP 2026-10-26: på ett ställe, chattens plus). Ny prop `franBiblioteket: { poster, fil }` på `OpsMeddelanden`, `OpsSamtal` och `OpsTrad`. Raden ritas bara med propen och öppnar en väljare med sök. En vald post hämtas som fil och går samma väg som "Välj fil", så samtalet bär en egen kopia. Ett fel skrivs ut i väljaren. Nya texter: `franBiblioteket`, `sokBiblioteket`, `bibliotekTomt`, `bibliotekLaddar`.
+
 ## 0.163.0
 
 ### Tillagt
