@@ -62,8 +62,27 @@ describe("⛔ appens forifyllt till Ny händelse (#552)", () => {
         <Fanga />
       </OpsAppShell>,
     );
-    expect(() => oppna("grupp", { forifyllt: { rubrik: "x" } })).toThrow(/forifyllt gäller bara "handelse"/);
+    expect(() => oppna("grupp", { forifyllt: { rubrik: "x" } })).toThrow(/forifyllt gäller bara "handelse" och "arende"/);
     expect(() => oppna("handelse", { id: "h1", forifyllt: { rubrik: "x" } })).toThrow(/forifyllt och id/);
     expect(() => oppna("handelse", { forifyllt: { taggar: "x" } })).toThrow(/lista med texter/);
+  });
+});
+
+describe("0.166.1: forifyllt till Nytt ärende", () => {
+  it("⛔ RÖTT MOT 0.166.0: ärendets formulär får rubriken i stället för att skalet kastar", async () => {
+    function Arende({ forifyllt }) {
+      return <p>ärende:{forifyllt?.rubrik || "tomt"}</p>;
+    }
+    function K() {
+      const oppna = useOppnaSkapa();
+      return <button type="button" onClick={() => oppna("arende", { forifyllt: { rubrik: "Följ upp" } })}>Nytt ärende</button>;
+    }
+    render(
+      <OpsAppShell brand="Ops" nav={[{ href: "/", label: "Start" }]} activeHref="/" skapa={{ sparaEtikett: "Spara", lage: "g", arende: (p) => <Arende {...p} /> }}>
+        <K />
+      </OpsAppShell>,
+    );
+    await userEvent.setup().click(screen.getByRole("button", { name: "Nytt ärende" }));
+    await waitFor(() => expect(screen.getByText("ärende:Följ upp")).toBeInTheDocument());
   });
 });

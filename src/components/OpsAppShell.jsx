@@ -1585,11 +1585,13 @@ function OpsAppShellRitad({
     if (appForifyllt !== undefined && appForifyllt !== null) {
       // ⛔ 0.166.0 (cllp/lifehub.app#552): STARTVÄRDEN GÄLLER BARA EN NY HÄNDELSE. Förut släpptes `forifyllt` tyst, och projektets
       // "Ny händelse" öppnade ett tomt formulär. Ett värde som inte kan nå formuläret är ett fel i appen.
-      if (nyckel !== "handelse") throw new Error(`useOppnaSkapa: forifyllt gäller bara "handelse", inte "${nyckel}".`);
+      // 0.166.1: "arende" tar också emot startvärden, som från TALK-fältet. 0.166.0 kastade, och appens "Nytt ärende" ur en händelse föll.
+      if (nyckel !== "handelse" && nyckel !== "arende") throw new Error(`useOppnaSkapa: forifyllt gäller bara "handelse" och "arende", inte "${nyckel}".`);
       if (extra?.id !== undefined && extra?.id !== null) throw new Error("useOppnaSkapa: forifyllt och id hör inte ihop. En ändring bär händelsens egna värden.");
       if (typeof appForifyllt !== "object" || Array.isArray(appForifyllt)) throw new Error("useOppnaSkapa: forifyllt ska vara ett objekt { rubrik?, beskrivning?, taggar? }.");
       if (appForifyllt.taggar !== undefined && (!Array.isArray(appForifyllt.taggar) || appForifyllt.taggar.some((t) => typeof t !== "string"))) throw new Error("useOppnaSkapa: forifyllt.taggar ska vara en lista med texter.");
-      if (!handelseSkapareFinns(skapa)) throw new Error("useOppnaSkapa: forifyllt kräver att skapa.handelse är ett formulär ({ form }), inte en färdig nod som inte kan ta emot startvärden.");
+      if (nyckel === "arende" && typeof skapa?.arende !== "function") throw new Error("useOppnaSkapa: forifyllt kräver att skapa.arende är en funktion ({ formId, onKlar, forifyllt }), inte en färdig nod som inte kan ta emot startvärden.");
+      if (nyckel === "handelse" && !handelseSkapareFinns(skapa)) throw new Error("useOppnaSkapa: forifyllt kräver att skapa.handelse är ett formulär ({ form }), inte en färdig nod som inte kan ta emot startvärden.");
     }
     const redigeraId = extra?.id;
     if (redigeraId !== undefined && redigeraId !== null) {
