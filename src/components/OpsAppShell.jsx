@@ -555,7 +555,13 @@ function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, s
  * ⛔ DE STÅR INTE I ADRESSEN. `?skapa=handelse` och `?skapa=arende` skrivs som vanligt, så att Tillbaka fungerar, men det som
  * sades skrivs inte i `&`-parametrar: det hade hamnat i webbläsarens historik och i varje server som loggar adresser, och ett
  * samtal är längre än en adress bör vara. En omladdning öppnar därför samma formulär tomt.
- * @typedef {{ rubrik: string, beskrivning: string }} TalkForifyllt
+ * `taggar` (0.166.0, cllp/lifehub.app#552) finns bara när appen öppnat formuläret med `useOppnaSkapa()("handelse", { forifyllt })`.
+ * @typedef {{ rubrik: string, beskrivning: string, taggar?: string[] }} TalkForifyllt
+ */
+
+/**
+ * Startvärden appen skickar med `useOppnaSkapa()("handelse", { forifyllt })` (0.166.0). Alla fält är frivilliga.
+ * @typedef {{ rubrik?: string, beskrivning?: string, taggar?: string[] }} AppForifyllt
  */
 
 /**
@@ -903,7 +909,11 @@ const KanSpelaInKontext = createContext(/** @type {((modulId: string) => boolean
  * Är posten inte tillgänglig (`skapa.nyttMeddelande` saknas, okänd nyckel) kastas ett fel: ingenting sker aldrig tyst.
  * Utanför `OpsAppShell` kastas ett fel direkt när hooken anropas.
  *
- * @returns {(nyckel: string, extra?: { groupId?: string, datum?: string, id?: string }) => void}
+ * `oppna("handelse", { forifyllt: { rubrik, beskrivning, taggar } })` (0.166.0, cllp/lifehub.app#552) öppnar "Ny händelse" med startvärden från appen,
+ * till exempel ett projekts tagg. Samma väg som TALK-fältets förifyllning: formuläret får `forifyllt`, och värdena står inte i adressen.
+ * Alla fält är frivilliga. `forifyllt` gäller bara en ny händelse: med `id`, eller till en annan nyckel, kastas ett fel.
+ *
+ * @returns {(nyckel: string, extra?: { groupId?: string, datum?: string, id?: string, forifyllt?: AppForifyllt }) => void}
  */
 export function useOppnaSkapa() {
   const oppna = useContext(OppnaSkapaKontext);
@@ -1314,6 +1324,8 @@ function OpsAppShellRitad({
   const skapaAdress = skapa?.adress !== false;
   const skapaPushad = useRef(false);
   const skapaRullning = useRef(0);
+  // Räknaren för förifyllda öppningar (TALK-fältet och, sedan 0.166.0, appens `forifyllt`): varje öppning är ett nytt formulär (`key`).
+  const talkOppningar = useRef(0);
   /** @param {any} form @returns {string} */
   const skapaNyckel = (form) => (form.kind === "modul" ? String(form.registrering.id) : form.kind === "redigeragrupp" ? "redigera-grupp" : form.kind);
   /** Återskapar ett formulär ur adressens `?skapa=`, eller `null`. */
@@ -1567,8 +1579,18 @@ function OpsAppShellRitad({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [skapaNycklar]);
 
-  /** @type {(nyckel: string, extra?: { groupId?: string, datum?: string, id?: string }) => void} */
+  /** @type {(nyckel: string, extra?: { groupId?: string, datum?: string, id?: string, forifyllt?: AppForifyllt }) => void} */
   const oppnaFranApp = (nyckel, extra) => {
+    const appForifyllt = extra?.forifyllt;
+    if (appForifyllt !== undefined && appForifyllt !== null) {
+      // ⛔ 0.166.0 (cllp/lifehub.app#552): STARTVÄRDEN GÄLLER BARA EN NY HÄNDELSE. Förut släpptes `forifyllt` tyst, och projektets
+      // "Ny händelse" öppnade ett tomt formulär. Ett värde som inte kan nå formuläret är ett fel i appen.
+      if (nyckel !== "handelse") throw new Error(`useOppnaSkapa: forifyllt gäller bara "handelse", inte "${nyckel}".`);
+      if (extra?.id !== undefined && extra?.id !== null) throw new Error("useOppnaSkapa: forifyllt och id hör inte ihop. En ändring bär händelsens egna värden.");
+      if (typeof appForifyllt !== "object" || Array.isArray(appForifyllt)) throw new Error("useOppnaSkapa: forifyllt ska vara ett objekt { rubrik?, beskrivning?, taggar? }.");
+      if (appForifyllt.taggar !== undefined && (!Array.isArray(appForifyllt.taggar) || appForifyllt.taggar.some((t) => typeof t !== "string"))) throw new Error("useOppnaSkapa: forifyllt.taggar ska vara en lista med texter.");
+      if (!handelseSkapareFinns(skapa)) throw new Error("useOppnaSkapa: forifyllt kräver att skapa.handelse är ett formulär ({ form }), inte en färdig nod som inte kan ta emot startvärden.");
+    }
     const redigeraId = extra?.id;
     if (redigeraId !== undefined && redigeraId !== null) {
       // ⛔ KASTAR HELLRE ÄN ÖPPNAR ETT TOMT "NY" (0.40.0). Ett id som inte är en text, eller till något annat än händelsen, är ett fel i appen.
@@ -1587,6 +1609,20 @@ function OpsAppShellRitad({
     const form = skapaFormFranNyckel(skapa, nyckel, { groupId: extra?.groupId, nyHandelseEtikett, datum: datum ?? null, redigera: redigeraId ?? null });
     if (!form && redigeraId) throw new Error("useOppnaSkapa: att ändra en händelse kräver `skapa.handelse` som ett formulär med `redigera` (en hook som läser händelsen). Utan den finns inget redigeringsläge.");
     if (!form) throw new Error(`useOppnaSkapa: skalets \`skapa\` har ingen post för "${nyckel}"${nyckel === "redigera-grupp" ? " med groupId" : ""}.`);
+    if (appForifyllt) {
+      // Samma räknare som TALK-fältet: en ny förifyllning är ett nytt formulär (`key`), också när panelen redan var öppen.
+      talkOppningar.current += 1;
+      oppnaSkapa({
+        ...form,
+        forifyllt: {
+          rubrik: typeof appForifyllt.rubrik === "string" ? appForifyllt.rubrik : "",
+          beskrivning: typeof appForifyllt.beskrivning === "string" ? appForifyllt.beskrivning : "",
+          ...(appForifyllt.taggar ? { taggar: [...appForifyllt.taggar] } : {}),
+        },
+        oppning: talkOppningar.current,
+      });
+      return;
+    }
     oppnaSkapa(form);
   };
 
@@ -1986,7 +2022,6 @@ function OpsAppShellRitad({
   // ska, så det går till `talk.onMeddelande`. Agent är den fjärde, och går till `talk.onAgent` genom kroken.
   // ⛔ EN NYCKEL BARA NÄR MOTTAGAREN FINNS. "Ny händelse" som färdig nod och "Nytt ärende" som färdig nod kan inte ta emot
   // startvärden, och en ikon som lovade samtalet men öppnade ett tomt formulär hade varit fel. Skalet låter dem vara.
-  const talkOppningar = useRef(0);
   /** @type {import("./OpsTalk.jsx").TalkVidare} */
   const talkVidare = {
     ...(typeof talk?.onMeddelande === "function" ? { meddelande: /** @type {NonNullable<typeof talk.onMeddelande>} */ (talk.onMeddelande) } : {}),

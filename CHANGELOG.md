@@ -9,6 +9,16 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.166.0
+
+### Ändrat
+
+- `useOppnaSkapa()("handelse", { forifyllt: { rubrik?, beskrivning?, taggar? } })` når händelseformuläret, så en app kan öppna Ny händelse med t.ex. ett projekts tagg ifylld. Fel nyckel, `id` tillsammans med `forifyllt` eller taggar som inte är en lista med texter kastar (cllp/lifehub.app#552).
+
+### Rättat
+
+- Kalenderns rulle står kvar när kalendern syns igen efter att ha varit dold, i stället för att hoppa tolv månader bakåt efter Avbryt i Ny händelse (cllp/lifehub.app#543).
+
 ## 0.165.0
 
 ### Rättat
