@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { AVBRYT_FRAGA_SEKUNDER, LANGTRYCK_MS, MAX_SEKUNDER, SPARAT_MS, TALK_SKICKAR_TEXT, TALK_INGET_LJUD, TALK_TEXTFEL, ORD_TALK, igenkanningensSprak, kanBeOmMikrofon, kanSpelaInIgen, kontrolleraSkickarText, talkFeltext, talkKvitto, talkMiljo, talkNasta, talkOrd, talkTextPa, talkUnderlag, webblasarensIgenkanning, arWebKit, webblasarensInspelare, skapaIgenkanningsniva, talkAnteckningsLank } from "../lib/talk.js";
+import { AVBRYT_FRAGA_SEKUNDER, LANGTRYCK_MS, MAX_SEKUNDER, SPARAT_MS, TALK_SKICKAR_TEXT, TALK_INGET_LJUD, TALK_INGET_TAL, barTystnad, TALK_TEXTFEL, ORD_TALK, igenkanningensSprak, kanBeOmMikrofon, kanSpelaInIgen, kontrolleraSkickarText, talkFeltext, talkKvitto, talkMiljo, talkNasta, talkOrd, talkTextPa, talkUnderlag, webblasarensIgenkanning, arWebKit, webblasarensInspelare, skapaIgenkanningsniva, talkAnteckningsLank } from "../lib/talk.js";
 import { useOpsSprak } from "./OpsSprak.jsx";
 import { formateraTid } from "../lib/ljudspelare.js";
 import { rapporteraFel } from "../lib/felrapport.js";
@@ -184,7 +184,7 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, insp
   const igenkanningensLogg = () => omgangsIgk.current?.diagnos?.()?.logg ?? "";
   /**
    * Noterar hur den här omgången slutade, EN gång per omgång: den första noteringen gäller (ett fel som kommer före kastet förblir `fel`, inte `kastad`).
-   * @param {"text" | "ljud" | "tomt" | "fel" | "kastad"} utfall @param {string} [logg] Förval: igenkänningens.
+   * @param {"text" | "ljud" | "tomt" | "tyst" | "fel" | "kastad"} utfall @param {string} [logg] Förval: igenkänningens.
    */
   const noteraSlut = (utfall, logg) => {
     if (omgang.current === 0 || slutNoterad.current === omgang.current) return;
@@ -739,6 +739,19 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, insp
              * hemskärmen och webbläsaren. ⛔ Ingen text från personen. `utanIgenkanning` säger varför ingen fanns: avstängd av appen,
              * WebKit (Safari och alla webbläsare på iOS, se `arWebKit`) eller saknas i webbläsaren.
              */
+            /*
+             * ⛔ BARA TYSTNAD SKICKAS ALDRIG (cllp/lifehub.app#539). QA 2026-10-31: en tyst inspelning gav en påhittad mening från
+             * modellen ("Hej! Jag ville bara säga ...") som gick att skicka. Mätaren såg aldrig något över tystnadsgränsen, så inget
+             * lämnas till appen och fältet säger vad som hände. Utan mätare (WebKit) är `toppNiva` null och servern avgör.
+             */
+            if (!hord && barTystnad(ljud.diagnos?.toppNiva)) {
+              noteraSlut("tyst", ljud.diagnos?.logg ?? "");
+              senast.current = null;
+              setKanIgen(false);
+              setText("");
+              skicka({ typ: "fel", text: TALK_INGET_TAL });
+              return undefined;
+            }
             if (!hord) rapporteraIngenText(ljud.sekunder, ljud.blob.size, ljud.diagnos?.logg ?? "");
             noteraSlut(hord ? "text" : "ljud", bara ? undefined : (ljud.diagnos?.logg ?? igenkanningensLogg()));
             const post = { blob: ljud.blob, mimeType: ljud.mimeType, sekunder: ljud.sekunder, ...(hord ? { text: hord } : {}) };

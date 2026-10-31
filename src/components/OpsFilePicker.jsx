@@ -595,7 +595,7 @@ function Forhandsvisning({ value, isImage, valdBilaga }) {
       )}
       <figcaption className="mt-1 text-etikett text-ink-muted">
         {isImage && value.bredd ? `${value.bredd} × ${value.hojd} px · ` : ""}
-        {attachmentSize(value.tecken)}
+        {attachmentSize(value.tecken, value.dataUrl)}
       </figcaption>
     </figure>
   );

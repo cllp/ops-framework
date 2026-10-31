@@ -225,6 +225,8 @@ describe("webblasarensInspelare och en tyst ström", () => {
       forraLjudkontext: null,
       stannadeSjalv: false,
       stoppetHann: true,
+      // (0.168.0, #539) Ljudets toppnivå. Utan analysator i testet är den null, och servern avgör.
+      toppNiva: null,
       // (0.155.0) Händelseloggen: namn och tider, klockan är riktig här och tiderna är 0 till några millisekunder.
       logg: expect.stringMatching(/^anrop:0\.gum:\d+\.omhamtad:\d+\.gum2:\d+\.rec:\d+\.stoppbegard:\d+\.stop:\d+$/),
     });

@@ -169,22 +169,6 @@ function valdStil(farg) {
 const MAX_AVATARER = 4;
 
 /**
- * Enter/Space aktiverar kortets val, precis som en riktig `<button>` redan
- * gör gratis. `<li role="button">` gör det inte utan hjälp.
- *
- * @param {() => void} valj
- * @returns {(e: import("react").KeyboardEvent) => void}
- */
-function tangentbordsVal(valj) {
-  return (e) => {
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      valj();
-    }
-  };
-}
-
-/**
  * Raderna i FULL FORM (kort, åtgärder, knappar, avatarer), bara för panelen.
  * `OpsGruppvaxlare`s ark använder `EnkelGruppanelRader` nedan i stället.
  *
@@ -238,20 +222,31 @@ function GruppanelRader({ grupper, aktiv, onValj, sprak, listEtikett, tomText, r
           // tangentbordet, något förlagan saknar.
           <li
             key={g.id}
-            role="button"
-            tabIndex={0}
+            data-gruppkort={g.id}
             onClick={valj}
-            onKeyDown={tangentbordsVal(valj)}
-            aria-current={vald ? "true" : undefined}
-            aria-label={namn}
             style={vald ? valdStil(g.farg).style : undefined}
             className={cx(
-              "flex w-full cursor-pointer flex-col overflow-hidden border p-3 text-left transition-all hover:shadow-md",
+              "relative flex w-full cursor-pointer flex-col overflow-hidden border p-3 text-left transition-all hover:shadow-md",
               RADIE,
-              "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+              "has-[[data-gruppkort-val]:focus-visible]:outline-2 has-[[data-gruppkort-val]:focus-visible]:outline-offset-2 has-[[data-gruppkort-val]:focus-visible]:outline-accent",
               vald ? valdStil(g.farg).className : "border-line bg-surface hover:border-line-strong",
             )}
           >
+            {/*
+             * ⛔ #521 (lifehub.app): KORTET ÄR INTE EN KNAPP MED KNAPPAR I. Valet är en egen knapp som täcker kortet för tangentbord och skärmläsare,
+             * och musen träffar kortet (`onClick` på raden) genom den (`pointer-events-none`). Åtgärdsknapparna är syskon, inte barn.
+             */}
+            <button
+              type="button"
+              data-gruppkort-val=""
+              aria-current={vald ? "true" : undefined}
+              aria-label={namn}
+              onClick={(e) => {
+                e.stopPropagation();
+                valj();
+              }}
+              className="pointer-events-none absolute inset-0 outline-none"
+            />
             {/* Rad 1: märke + åtgärder. GroupCard.jsx rad 70-107, sizePx=20. */}
             <div className="mb-1.5 flex items-center justify-between">
               <OpsIdentity name={namn} seed={g.id} imageUrl={g.bild || undefined} {...gruppmarkeProps(g)} size="xs" />

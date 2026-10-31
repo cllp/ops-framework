@@ -9,6 +9,15 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.168.0
+
+### Rättat
+
+- **Bibliotek (cllp/lifehub.app#283):** statusraden "Arkiverad. Välj taggen arkiv…" försvinner när arkivtaggen väljs. Tipset har gjort sitt när arkivet visas.
+- **TALK skickar aldrig bara tystnad (cllp/lifehub.app#539).** Inspelaren mäter toppnivån var 100:e ms (`diagnos.toppNiva`). Ligger den under `TYSTNADSGRANS` och ingen text hördes, lämnas inget till appen och fältet säger `TALK_INGET_TAL` med Spela in igen. Nya exporter: `TALK_INGET_TAL`, `TYSTNADSGRANS`, `barTystnad`. Utan mätare (WebKit) är nivån `null` och appens server avgör.
+- **Gruppkortet är ingen knapp med knappar i (cllp/lifehub.app#521).** `OpsGruppanel` ritar `<li data-gruppkort>` med en täckande knapp `data-gruppkort-val`.
+- **Bilagans storlek är exakt (cllp/lifehub.app#524).** `attachmentSize(chars, dataUrl)` räknar de avkodade byten (`dataUrlBytes`). Förut visades 40 B som 56 B.
+
 ## 0.167.0
 
 ### Ändrat

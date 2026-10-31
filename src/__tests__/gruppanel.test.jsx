@@ -68,12 +68,19 @@ describe("OpsGruppanel", () => {
     // ⛔ Kortet ÄR `role="button"` (se filhuvudet: SessionStudios `<div
     // onClick>`, ingen nästlad `OpsCard`), så markeringen sitter direkt på
     // den, inte på ett separat överlägg.
-    const kort = screen.getByRole("button", { name: "Bolaget" });
+    // ⛔ #521: valet är en knapp i kortet, och markeringen sitter på kortet (`li`) runt den.
+    const kort = /** @type {HTMLElement} */ (screen.getByRole("button", { name: "Bolaget" }).closest("[data-gruppkort]"));
     expect(kort.className).toMatch(/border-accent/);
     expect(kort.className).toMatch(/bg-accent\/10/);
     // ⛔ Ingen sådan klass på en OVALD grupp.
-    const ovaldKort = screen.getByRole("button", { name: "Klubben" });
+    const ovaldKort = /** @type {HTMLElement} */ (screen.getByRole("button", { name: "Klubben" }).closest("[data-gruppkort]"));
     expect(ovaldKort.className).not.toMatch(/border-accent/);
+  });
+
+  it("⛔ #521: kortet är ingen knapp med knappar i", () => {
+    render(<OpsGruppanel grupper={GRUPPER} aktiv="bolaget" onValj={() => {}} onInfo={() => {}} onRedigera={() => {}} />);
+    for (const k of screen.getAllByRole("button")) expect(k.querySelector("button")).toBe(null);
+    for (const li of document.querySelectorAll("[data-gruppkort]")) expect(li.getAttribute("role")).toBe(null);
   });
 
   it("tryck på en grupp anropar onValj med dess id", async () => {

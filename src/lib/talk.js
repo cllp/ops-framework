@@ -120,6 +120,7 @@ export const ORD_TALK = {
   felIngenPagar: { sv: "Ingen inspelning pågår.", en: "No recording is in progress." },
   felAvbrotsForeMikrofon: { sv: "Inspelningen avbröts innan mikrofonen öppnades.", en: "The recording was stopped before the microphone opened." },
   felSparradAvSidan: { sv: "Mikrofonen är spärrad av sidan som visar appen. Öppna appen i ett eget fönster för att spela in.", en: "The microphone is blocked by the page showing the app. Open the app in its own window to record." },
+  ingetTal: { sv: "Inget tal hördes i inspelningen, bara tystnad. Ingenting skickades. Tryck på Spela in igen och prata närmare mikrofonen.", en: "No speech was heard in the recording, only silence. Nothing was sent. Press Record again and speak closer to the microphone." },
   ingetLjud: { sv: "Mikrofonen gav inget ljud, och inget hördes som text. Ingenting skickades. Tryck på Spela in igen och prata en gång till.", en: "The microphone gave no audio, and nothing was heard as text. Nothing was sent. Press Record again and speak once more." },
   textFel: { sv: "Texten kan inte visas just nu. Det du säger spelas in ändå och sparas som ljud.", en: "The text can't be shown right now. What you say is still recorded and saved as audio." },
 };
@@ -484,6 +485,21 @@ export function kanBeOmMikrofon(feltext) {
  * igenkänning. Meningen säger vad som hände och vad man gör, och den är sann: ingenting lämnade telefonen.
  */
 export const TALK_INGET_LJUD = ORD_TALK.ingetLjud.sv;
+/** (cllp/lifehub.app#539) Fältets text när ljudet bara var tystnad. Inget skickas då, för en modell som får tystnad hittar på en mening. */
+export const TALK_INGET_TAL = ORD_TALK.ingetTal.sv;
+/**
+ * (cllp/lifehub.app#539) Den högsta nivån (0 till 1, samma skala som `niva`) som räknas som tystnad. Brus i ett tyst rum ligger under 0,05 och
+ * tal över 0,2 i Chrome med automatisk förstärkning. Gränsen ligger lågt, så att svagt tal aldrig stoppas.
+ */
+export const TYSTNADSGRANS = 0.06;
+/**
+ * Sant när inspelarens mätta toppnivå visar att inspelningen bara var tystnad. `null` (ingen mätare, WebKit) är aldrig tystnad.
+ * @param {unknown} toppNiva
+ * @returns {boolean}
+ */
+export function barTystnad(toppNiva) {
+  return typeof toppNiva === "number" && Number.isFinite(toppNiva) && toppNiva < TYSTNADSGRANS;
+}
 
 /**
  * Om fältet ska erbjuda en ny inspelning i stället för Försök igen: när det som fanns att skicka var tomt (`TALK_INGET_LJUD`).
@@ -492,7 +508,7 @@ export const TALK_INGET_LJUD = ORD_TALK.ingetLjud.sv;
  * @returns {boolean}
  */
 export function kanSpelaInIgen(feltext) {
-  return feltext === TALK_INGET_LJUD;
+  return feltext === TALK_INGET_LJUD || feltext === TALK_INGET_TAL;
 }
 
 /**
@@ -524,6 +540,7 @@ export function tystStrom(strom) {
  * @property {boolean} stannadeSjalv (0.107.0) Inspelaren hade redan stannat när Klar trycktes (spåret tog slut), så inget
  *   `stop`-event kunde komma.
  * @property {boolean} stoppetHann (0.107.0) `stop`-eventet kom inom `STOPP_VANTA_MS`. `false` betyder att inspelaren gav upp på det.
+ * @property {number | null} [toppNiva] (cllp/lifehub.app#539) Den högsta nivån under inspelningen, mätt var 100:e ms. `null` utan nivåmätare (WebKit).
  * @property {string} logg (0.155.0, cllp/lifehub.app#253) Omgångens händelser i den ordning de kom, med millisekunder sedan `starta()` anropades:
  *   `anrop:0.gum:310.rec:318.data0:570.mute:900.unmute:1500.data:1750x9.stoppbegard:6000.stop:6012`. `gum` är strömmen öppnad, `mute`, `unmute` och
  *   `sparslut` är spårens egna händelser, `rec` är `MediaRecorder.start()`, `data0` är en tom bit och `data` en med innehåll, `ctx-running` att en
@@ -615,6 +632,21 @@ export function webblasarensInspelare(miljo = {}) {
   let valtFormat = "";
   /** @type {AnalyserNode | null} */
   let analys = null;
+  /** (#539) Högsta nivån i omgången, `null` utan mätare. */
+  /** @type {number | null} */
+  let toppNiva = null;
+  /** @type {any} */
+  let matare = null;
+  const matNiva = () => {
+    if (!analys) return 0;
+    const data = new Uint8Array(analys.frequencyBinCount);
+    analys.getByteTimeDomainData(data);
+    let max = 0;
+    for (const v of data) max = Math.max(max, Math.abs(v - 128));
+    const n = Math.min(1, max / 64);
+    if (toppNiva !== null && n > toppNiva) toppNiva = n;
+    return n;
+  };
   /** @type {AudioContext | null} */
   let ctx = null;
   /**
@@ -671,6 +703,10 @@ export function webblasarensInspelare(miljo = {}) {
     return s;
   };
   const slapp = () => {
+    if (matare !== null) {
+      clearInterval(matare);
+      matare = null;
+    }
     strom?.getTracks().forEach((t) => t.stop());
     strom = null;
     if (ctx) {
@@ -764,6 +800,7 @@ export function webblasarensInspelare(miljo = {}) {
       }
       start = nu();
       ljudkontextVidStart = "ingen";
+      toppNiva = null;
       if (AC && utanKontext) {
         logg.notera("ctx-utesluten");
       } else if (AC) {
@@ -773,6 +810,14 @@ export function webblasarensInspelare(miljo = {}) {
           analys = ctx.createAnalyser();
           analys.fftSize = 256;
           kalla.connect(analys);
+          toppNiva = 0;
+          matare = setInterval(() => {
+            try {
+              matNiva();
+            } catch {
+              // Mätaren är bara en hjälp. Ett fel här stoppar aldrig inspelningen.
+            }
+          }, 100);
         } catch {
           // ⛔ Nivån är bara prickarnas rörelse. Utan den spelas det ändå in, och prickarna står stilla.
           analys = null;
@@ -814,7 +859,7 @@ export function webblasarensInspelare(miljo = {}) {
           const blob = new Blob(bitar, { type: mimeType });
           const sekunder = Math.round((nu() - start) / 100) / 10;
           /** @type {Inspelningsdiagnos} */
-          const diagnos = { tystVidStart, omhamtad, tystVidStopp, bitar: bitar.length, sparVidStart, sparVidStopp, ljudkontextVidStart, ljudkontextVidStopp, forraLjudkontext, stannadeSjalv, stoppetHann, logg: logg.text() };
+          const diagnos = { tystVidStart, omhamtad, tystVidStopp, bitar: bitar.length, sparVidStart, sparVidStopp, ljudkontextVidStart, ljudkontextVidStopp, forraLjudkontext, stannadeSjalv, stoppetHann, toppNiva, logg: logg.text() };
           if (rec === r) {
             rec = null;
             valtFormat = "";
@@ -858,12 +903,7 @@ export function webblasarensInspelare(miljo = {}) {
       slapp();
     },
     niva() {
-      if (!analys) return 0;
-      const data = new Uint8Array(analys.frequencyBinCount);
-      analys.getByteTimeDomainData(data);
-      let max = 0;
-      for (const v of data) max = Math.max(max, Math.abs(v - 128));
-      return Math.min(1, max / 64);
+      return matNiva();
     },
   };
 }
