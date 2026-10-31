@@ -360,6 +360,9 @@ function Huvudatgard({ atgard, langtryckText }) {
           "group relative translate-y-[calc(0.25rem-var(--bottom-nav-overhang))] inline-flex size-14 cursor-pointer items-center justify-center rounded-full",
           // `touch-none` och utan förhandsvisning bara när knappen går att hålla in: en vanlig knapp ska bete sig som en.
           (knapp || lang.aktiv) && cx("touch-none", LANGTRYCK_KLASS),
+          // ⛔ 0.167.0 (cllp/lifehub.app#522): PÅ LÅGA SKÄRMAR KRYMPER KNAPPEN OCH STICKER INTE UPP. Vid 267 px höjd täckte cirkeln
+          // raderna ovanför bottenraden, och ett tryck på en rad i Biblioteket eller Inställningar startade TALK i stället.
+          "[@media(max-height:31.25rem)]:size-11 [@media(max-height:31.25rem)]:translate-y-1",
           "bg-accent text-accent-contrast ring-4 ring-surface",
           "transition-colors duration-(--duration-fast) ease-standard hover:bg-accent-hover",
           "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",

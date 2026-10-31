@@ -3,7 +3,7 @@ import { cx } from "../lib/cx.js";
 import { ChevronNedIkon } from "./icons.jsx";
 import { OpsButton } from "./OpsButton.jsx";
 import { OpsSkapaRubrik } from "./OpsSkapaRubrik.jsx";
-import { SkapaPanelKlarKontext, SkapaPanelStatusKontext } from "./skapaPanelStatus.js";
+import { SkapaPanelArKlarKontext, SkapaPanelKlarKontext, SkapaPanelStatusKontext } from "./skapaPanelStatus.js";
 import { TillbakaKnapp } from "./TillbakaKnapp.jsx";
 
 /**
@@ -89,6 +89,7 @@ export function OpsSkapaPanel({ kolumn = "bred", titel, onTillbaka, tillbakaEtik
   return (
     <SkapaPanelStatusKontext.Provider value={setStatus}>
       <SkapaPanelKlarKontext.Provider value={setKlar}>
+      <SkapaPanelArKlarKontext.Provider value={klar}>
       <section
         ref={ref}
         aria-labelledby={rubrikId}
@@ -156,6 +157,7 @@ export function OpsSkapaPanel({ kolumn = "bred", titel, onTillbaka, tillbakaEtik
         </div>
         )}
       </section>
+      </SkapaPanelArKlarKontext.Provider>
       </SkapaPanelKlarKontext.Provider>
     </SkapaPanelStatusKontext.Provider>
   );

@@ -232,7 +232,7 @@ export { OpsOversikt, iOrdning } from "./components/OpsOversikt.jsx";
  */
 export { OpsSkapa } from "./components/OpsSkapa.jsx";
 export { OpsSkapaI } from "./components/OpsSkapaI.jsx";
-export { useSkapaPanelStatus, useSkapaPanelKlar } from "./components/skapaPanelStatus.js";
+export { useSkapaPanelStatus, useSkapaPanelKlar, DoljNarKlar, SkapaPanelArKlarKontext } from "./components/skapaPanelStatus.js";
 export { skaparFor, kontrolleraSkaparkataloger, typerAttValja, skapalaget } from "./lib/skapa.js";
 
 /*

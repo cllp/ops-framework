@@ -74,3 +74,15 @@ export function useSkapaPanelKlar(klar) {
   }, [rapportera, klar]);
   return rapportera !== null;
 }
+
+/**
+ * Sant medan formuläret i panelen visar sitt kvitto (0.167.0, cllp/lifehub.app#538). Skalets egna val runt formuläret (typ, "Kräv svar",
+ * "Blockerar", tilläggen) läser det och göms då, eftersom de hör till ett formulär som inte går att spara längre. Utanför en panel `false`.
+ * @type {import("react").Context<boolean>}
+ */
+export const SkapaPanelArKlarKontext = createContext(false);
+
+/** Gömmer `children` medan panelens formulär visar sitt kvitto (0.167.0). @param {{ children?: import("react").ReactNode }} props */
+export function DoljNarKlar({ children }) {
+  return useContext(SkapaPanelArKlarKontext) ? null : children;
+}
