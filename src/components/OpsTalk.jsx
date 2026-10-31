@@ -1096,7 +1096,7 @@ const VALEN = /** @type {const} */ ([
  * innehåller det synliga ordet går inte att säga åt en röststyrning, och det gäller på båda språken.
  */
 
-const INSPELNING_PROPS = ["lage", "fel", "niva", "sekunder", "tak", "framsteg", "kanIgen", "text", "textFel", "medText", "skickarText", "kvitto", "onAngra", "onKlar", "onAvbryt", "onIgen", "onStart", "onTillatMikrofon", "onInstallningar", "marke", "mal", "valt", "onValj", "vidare", "onAgent", "onAnteckning", "textVantar", "utskriftFel", "onSkrivUt", "kanSpelaIStallet", "onSpelaIStallet", "onLank", "klarEtikett"];
+const INSPELNING_PROPS = ["lage", "fel", "niva", "sekunder", "tak", "framsteg", "kanIgen", "text", "textFel", "medText", "skickarText", "kvitto", "onAngra", "onKlar", "onAvbryt", "onIgen", "onStart", "onTillatMikrofon", "onInstallningar", "marke", "mal", "valt", "onValj", "vidare", "onAgent", "onAnteckning", "textVantar", "utskriftFel", "onSkrivUt", "kanSpelaIStallet", "onSpelaIStallet", "onLank", "klarEtikett", "vy"];
 
 /**
  * Mottagarna av det sagda (0.103.0, 0.105.0). Var och en får underlaget när personen trycker på sitt val. En nyckel som saknas ritar
@@ -1172,6 +1172,7 @@ const INSPELNING_PROPS = ["lage", "fel", "niva", "sekunder", "tak", "framsteg", 
  * @param {() => void} [props.onSpelaIStallet] (0.114.0) "Spela in i stället" (`useTalk().spelaIStallet`): en inspelning utan igenkänning, som skrivs ut efteråt.
  * @param {() => void} [props.onSkrivUt] (0.114.0) Försöker skriva ut igen (`useTalk().skrivUt`). Ett tryck på ett val utan text anropar den.
  * @param {(href: string, event: any) => void} [props.onLank] (0.115.0) Ett tryck på länken i kvittot (`kvitto.lank`). Skalet ger sin `onNavigate` här. Fältet stängs efter anropet.
+ * @param {string} [props.vy] (0.167.0, cllp/lifehub.app#540) Skalets aktiva adress. När den byts stängs frågan "Kasta?".
  *   Utan den följer webbläsaren länken som en vanlig adress. Länken ritas bara när kvittot har en.
  * @param {string} [props.klarEtikett] (0.103.0) Namnet Klar läses upp med. Förval `ORD_TALK.klarNamn` på språket som gäller (0.104.0). Chattens skrivfält
  *   skickar det sagda som ett meddelande, och där hade "spara inspelningen" sagt något annat än det som händer. Ordet på skärmen är
@@ -1182,7 +1183,7 @@ export function OpsInspelning(props) {
   if (okanda.length > 0) {
     throw new Error(`OpsInspelning: okända props ${okanda.join(", ")}. Tillåtna: ${INSPELNING_PROPS.join(", ")}.`);
   }
-  const { lage, fel, niva, sekunder, tak, framsteg, kanIgen, text = "", textFel = "", medText = false, skickarText = TALK_SKICKAR_TEXT, kvitto = null, onAngra, onKlar, onAvbryt, onIgen, onStart, onTillatMikrofon, onInstallningar, marke, mal = [], valt = null, onValj, vidare, onAgent, onAnteckning, textVantar = false, utskriftFel = "", onSkrivUt, kanSpelaIStallet = false, onSpelaIStallet, onLank, klarEtikett: klarEtikettProp } = props;
+  const { lage, fel, niva, sekunder, tak, framsteg, kanIgen, text = "", textFel = "", medText = false, skickarText = TALK_SKICKAR_TEXT, kvitto = null, onAngra, onKlar, onAvbryt, onIgen, onStart, onTillatMikrofon, onInstallningar, marke, mal = [], valt = null, onValj, vidare, onAgent, onAnteckning, textVantar = false, utskriftFel = "", onSkrivUt, kanSpelaIStallet = false, onSpelaIStallet, onLank, klarEtikett: klarEtikettProp, vy } = props;
   if (vidare !== undefined) {
     const nycklar = ["meddelande", "handelse", "arende"];
     const felaktiga = vidare && typeof vidare === "object" ? Object.entries(vidare).filter(([k, v]) => !nycklar.includes(k) || typeof v !== "function").map(([k]) => k) : [typeof vidare];
@@ -1200,6 +1201,14 @@ export function OpsInspelning(props) {
     throw new Error(`OpsInspelning: klarEtikett ska vara en sträng som inte är tom, fick ${typeof klarEtikettProp === "string" ? JSON.stringify(klarEtikettProp) : typeof klarEtikettProp}. En knapp utan namn går inte att hitta för den som lyssnar.`);
   }
   const [fragar, setFragar] = useState(false);
+  // ⛔ 0.167.0 (cllp/lifehub.app#540): FRÅGAN "KASTA?" HÖR TILL VYN DÄR DEN STÄLLDES. Byts vyn (`vy`, skalets aktiva adress) stängs
+  // frågan och inspelningen fortsätter. Den stod annars kvar ovanpå nästa sida, och ingen visste vad svaret gällde.
+  const forraVy = useRef(vy);
+  useEffect(() => {
+    if (forraVy.current === vy) return;
+    forraVy.current = vy;
+    setFragar(false);
+  }, [vy]);
   /** Felet när en mottagare kastade (0.103.0). Det sagda står kvar, så att det går att trycka igen eller stänga. */
   const [vidareFel, setVidareFel] = useState("");
   /** Valet som tryckts innan texten fanns (0.114.0). Det lämnas så fort texten kommer, och glöms om utskriften faller. */
@@ -1681,11 +1690,12 @@ export function OpsInspelning(props) {
  *   kanSpelaIStallet?: boolean,
  *   onSpelaIStallet?: () => void,
  *   onLank?: (href: string, event: any) => void,
+ *   vy?: string,
  * }} props `medText`, `skickarText`, `kvitto` och `onAngra` (0.97.0) kommer ur `useTalk` med samma namn (`onAngra` är `angra`).
  *   `vidare` och `onAgent` (0.105.0: `useTalk().agent`) går som de är till `OpsInspelning`, liksom `onAnteckning` (`useTalk().anteckning`),
  *   `textVantar`, `utskriftFel` och `onSkrivUt` (0.114.0: `useTalk().textVantar`, `.utskriftFel`, `.skrivUt`).
  */
-export function OpsTalk({ lage, fel, niva, sekunder = 0, tak = MAX_SEKUNDER, framsteg = null, kanIgen = false, text = "", textFel = "", medText = false, skickarText = TALK_SKICKAR_TEXT, kvitto = null, onAngra, onSkicka, onAvbryt, onIgen = () => {}, onTillatMikrofon, onInstallningar, marke, mal = [], valt = null, onValj, vidare, onAgent, onAnteckning, textVantar, utskriftFel, onSkrivUt, kanSpelaIStallet, onSpelaIStallet, onLank }) {
+export function OpsTalk({ lage, fel, niva, sekunder = 0, tak = MAX_SEKUNDER, framsteg = null, kanIgen = false, text = "", textFel = "", medText = false, skickarText = TALK_SKICKAR_TEXT, kvitto = null, onAngra, onSkicka, onAvbryt, onIgen = () => {}, onTillatMikrofon, onInstallningar, marke, mal = [], valt = null, onValj, vidare, onAgent, onAnteckning, textVantar, utskriftFel, onSkrivUt, kanSpelaIStallet, onSpelaIStallet, onLank, vy }) {
   if (lage === "vila" || lage === "trycker") return null;
   return (
     <div
@@ -1730,6 +1740,7 @@ export function OpsTalk({ lage, fel, niva, sekunder = 0, tak = MAX_SEKUNDER, fra
           kanSpelaIStallet={kanSpelaIStallet}
           onSpelaIStallet={onSpelaIStallet}
           onLank={onLank}
+          vy={vy}
         />
       </div>
     </div>

@@ -9,6 +9,13 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.167.0
+
+### Ändrat
+- Skalets val runt händelseformuläret (typ, "Kräv svar", "Blockerar", tillägg) göms medan formuläret visar sitt kvitto. Ny `DoljNarKlar` och `SkapaPanelArKlarKontext` (cllp/lifehub.app#538).
+- Frågan "Kasta den här inspelningen?" stängs när skalets vy byts, och inspelningen fortsätter. Ny prop `vy` på `OpsTalk` och `OpsInspelning` (cllp/lifehub.app#540).
+- Mittknappen i bottenraden krymper till 44 px och sticker inte upp på skärmar lägre än 500 px (cllp/lifehub.app#522).
+
 ## 0.166.1
 
 ### Rättat

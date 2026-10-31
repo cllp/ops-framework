@@ -1,3 +1,4 @@
+import { DoljNarKlar } from "./skapaPanelStatus.js";
 import { Children, cloneElement, Component, createContext, Fragment, isValidElement, useContext, useEffect, useId, useMemo, useRef, useState } from "react";
 import { definierade, forvalda, ordet } from "../lib/ord.js";
 import { useOpsSprak } from "./OpsSprak.jsx";
@@ -1801,6 +1802,8 @@ function OpsAppShellRitad({
     const kalenderProps = r.id === "handelse" ? { datum: skapaForm.datum ?? (skapaForm.redigera ? null : idagI()), ...(skapaForm.redigera ? { redigera: skapaForm.redigera } : { forifyllt: skapaForm.forifyllt ?? null }), kalender: skapaKalender, kravSvar: skapaKalender?.slag === "grupp" && kravSvarPa, blockerar: skapaKalender?.slag === "mina" && skapaBlockerar } : {};
     skapaModalInnehall = (
       <div className="flex flex-col gap-3">
+        {/* ⛔ 0.167.0 (cllp/lifehub.app#538): SKALETS VAL RUNT FORMULÄRET GÖMS UNDER KVITTOT (`DoljNarKlar`), som knappraden. */}
+        <DoljNarKlar>
         {r.katalog !== null && !egenPost ? (
           <OpsField label={skapaTypEtikett}>
             <OpsSelect
@@ -1811,6 +1814,7 @@ function OpsAppShellRitad({
             />
           </OpsField>
         ) : null}
+        </DoljNarKlar>
         {/* ⛔ `groupId` KOMMER UR `skapaLaget`, INTE UR `skapa.lage` DIREKT
             (samma skäl som gamla `OpsSkapa`): i "redo"-läget är de samma
             värde, men beslutet om vad "aktiv grupp" betyder ligger på ETT
@@ -1819,6 +1823,7 @@ function OpsAppShellRitad({
         {/* ⛔ 0.37.0 (#179 F3): VALEN SOM HÖR TILL KALENDERN, EFTER APPENS FÄLT. "Kräv svar" bara i en gruppkalender, "Blockerar
             tillgänglighet" bara i en av mina: i en egen kalender finns inga svar, och gruppens händelser blockerar inte någons
             tillgänglighet. "Skicka mejl" visas inte, se `HandelseSkapare.kalendrar`. */}
+        <DoljNarKlar>
         {skapaKalender?.slag === "grupp" ? (
           <div data-krav-svar="">
             <OpsSwitch label={ordet(TEXT_SKAL, "kravSvar", sprak)} hint={ordet(TEXT_SKAL, "kravSvarHint", sprak)} checked={kravSvarPa} onChange={setSkapaKravSvar} />
@@ -1839,6 +1844,7 @@ function OpsAppShellRitad({
             <OpsSwitch label={ordet(TEXT_SKAL, "blockerar", sprak)} hint={ordet(TEXT_SKAL, "blockerarHint", sprak)} checked={skapaBlockerar} onChange={setSkapaBlockerar} />
           </div>
         ) : null}
+        </DoljNarKlar>
       </div>
     );
     // ⛔ 0.40.0 (#214): I REDIGERINGSLÄGE RITAS INNEHÅLLET FÖRST NÄR SKALETS VAL ÄR IFYLLDA ur händelsen. Se `HandelseRedigeringsgrind`.
@@ -2957,6 +2963,7 @@ function OpsAppShellRitad({
           onAngra={talkStyr.angra}
           onSkicka={talkStyr.skickaIn}
           onAvbryt={talkStyr.avbryt}
+          vy={activeHref}
           onIgen={talkStyr.igen}
           onTillatMikrofon={talkStyr.direkt}
           onInstallningar={talk?.onInstallningar}
