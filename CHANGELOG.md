@@ -9,6 +9,12 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.166.1
+
+### Rättat
+
+- `useOppnaSkapa()("arende", { forifyllt })` öppnar Nytt ärende med startvärdena, som TALK-fältet gör. 0.166.0 kastade för allt utom "handelse", och en app som redan skickade `forifyllt` till ärendet föll (cllp/lifehub.app#552).
+
 ## 0.166.0
 
 ### Ändrat
