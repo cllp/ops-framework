@@ -9,6 +9,12 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.169.0
+
+### Rättat
+
+- **Menyn får plats på skärmen (cllp/lifehub.app#569).** `OpsAtgardsblad` och Bibliotekets två rutor är aldrig högre än utrymmet Radix ger (`--radix-popover-content-available-height`) och rullar själva. I 1280x533 eller med zoom gick Arkivera och Radera förut inte att nå.
+
 ## 0.168.0
 
 ### Rättat
