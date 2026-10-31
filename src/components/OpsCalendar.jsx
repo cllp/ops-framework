@@ -1582,6 +1582,27 @@ export function OpsCalendar({
   }, [toToday]);
 
   /*
+   * ══ ⛔ RULLNINGEN STÅR KVAR NÄR KALENDERN SYNS IGEN (0.166.0, cllp/lifehub.app#543) ═════════════════════════════════════════
+   *
+   * Skalet döljer appens vy (`hidden`) medan Ny händelse är öppen. En dold yta tappar sin `scrollTop`, så efter Avbryt stod rullen
+   * överst, alltså tolv månader bakåt (oktober 2025 i stället för oktober 2026). Skalets återställning gäller fönstret, inte den här
+   * rullen. När ytan får en höjd igen läggs det senast sparade läget tillbaka. Ingen polling: samma observatör som mäter storleken.
+   */
+  const senasteTopp = useRef(0);
+  useEffect(() => {
+    const rulle = rulleRef.current;
+    if (!rulle || typeof ResizeObserver !== "function") return undefined;
+    let dold = rulle.clientHeight === 0;
+    const obs = new ResizeObserver(() => {
+      const nuDold = rulle.clientHeight === 0;
+      if (dold && !nuDold && senasteTopp.current > 0 && rulle.scrollTop !== senasteTopp.current) rulle.scrollTop = senasteTopp.current;
+      dold = nuDold;
+    });
+    obs.observe(rulle);
+    return () => obs.disconnect();
+  }, []);
+
+  /*
    * ══ ⛔ VILKA MÅNADER SOM SYNS, NÄR RULLNINGEN HAR STANNAT (0.74.0, #284) ══════════════════════════════════════════════
    *
    * lifehub.app läste `data-kalender-rulle` och `data-cal-day` ur kalenderns DOM för att veta vilket fönster den skulle hämta
@@ -1885,6 +1906,8 @@ export function OpsCalendar({
              * observatören aldrig svarade. Till 0.35.0 syntes det inte: fyra månader rullar man sällan förbi i ett hopp.
              */
             planeraSynliga();
+            // Rullningen sparas bara när ytan syns: en dold yta (`hidden`) rapporterar 0 och hade skrivit över läget (#543).
+            if (e.currentTarget.clientHeight > 0) senasteTopp.current = e.currentTarget.scrollTop;
             const m = todayRef.current;
             if (!m) return;
             setDirection(scrollDirection(m.getBoundingClientRect(), e.currentTarget.getBoundingClientRect()));
