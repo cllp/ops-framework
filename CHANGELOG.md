@@ -9,6 +9,12 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.173.0
+
+### Rättat
+
+- `OpsCalendar` öppnar på innevarande månad också när den monterats dold (lifehub.app#583). Hoppet till idag väntar tills rullen får höjd, i stället för att landa överst tolv månader bakåt.
+
 ## 0.172.0
 
 ### Ändrat

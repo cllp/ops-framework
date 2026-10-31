@@ -1575,10 +1575,14 @@ export function OpsCalendar({
    * utan hoppet öppnar kalendern på en månad som passerat. `didRef` gör att det inte sker igen när posterna uppdateras.
    */
   const didRef = useRef(false);
+  // ⛔ MONTERAD MEDAN DOLD (cllp/lifehub.app#583): utan höjd landar hoppet överst, tolv månader bakåt. Då väntar hoppet tills ytan syns.
+  const idagVantar = useRef(false);
   useEffect(() => {
     if (didRef.current) return;
     didRef.current = true;
-    toToday();
+    const rulle = rulleRef.current;
+    if (rulle && rulle.clientHeight === 0) idagVantar.current = true;
+    else toToday();
   }, [toToday]);
 
   /*
@@ -1595,12 +1599,15 @@ export function OpsCalendar({
     let dold = rulle.clientHeight === 0;
     const obs = new ResizeObserver(() => {
       const nuDold = rulle.clientHeight === 0;
-      if (dold && !nuDold && senasteTopp.current > 0 && rulle.scrollTop !== senasteTopp.current) rulle.scrollTop = senasteTopp.current;
+      if (!nuDold && idagVantar.current) {
+        idagVantar.current = false;
+        toToday();
+      } else if (dold && !nuDold && senasteTopp.current > 0 && rulle.scrollTop !== senasteTopp.current) rulle.scrollTop = senasteTopp.current;
       dold = nuDold;
     });
     obs.observe(rulle);
     return () => obs.disconnect();
-  }, []);
+  }, [toToday]);
 
   /*
    * ══ ⛔ VILKA MÅNADER SOM SYNS, NÄR RULLNINGEN HAR STANNAT (0.74.0, #284) ══════════════════════════════════════════════
