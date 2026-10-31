@@ -9,6 +9,12 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.172.0
+
+### Ändrat
+
+- **Förvalen följer appens språk (cllp/lifehub.app#580).** `OpsGruppanel` (ny `ORD_OPSGRUPPANEL`: Visa grupp, Redigera grupp, Mina grupper, Skapa grupp, tomtexten, Fäll ihop/ut grupplistan, rollerna, medlemmar och "+N fler"), `OpsThemeToggle` (ny `ORD_OPSTHEMETOGGLE`: Utseende och valen), `OpsModal` (Stäng) och hubbväxlarens "nu:" läser `OpsSprakProvider`. Appens egna etiketter vinner som förut.
+
 ## 0.171.0
 
 ### Tillagt

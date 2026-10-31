@@ -30,7 +30,7 @@ const rot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const katalog = path.join(rot, "src", "components");
 
 /** Taket. ⛔ FÅR BARA SJUNKA. */
-export const TAK = 112;
+export const TAK = 101;
 const GOLV_FILER = 90;
 const MONSTER = /(?:^|[\s({,])([a-zA-Z]*(?:[Ll]abel|[Ee]tikett|[Tt]ext|[Rr]ubrik|[Tt]itel|[Bb]eskrivning)) = "([^"]+)"/g;
 

@@ -8,6 +8,7 @@ import { OpsPill } from "./OpsPill.jsx";
 import { AndraIkon, ChevronVansterIkon, ChevronHogerIkon, GruppIkon, HusIkon, InfoIkon, PersonIkon, PlusIkon } from "./icons.jsx";
 import { text } from "../lib/sprak.js";
 import { forvalda } from "../lib/ord.js";
+import { useOpsSprak } from "./OpsSprak.jsx";
 import { gruppmarkeProps } from "../lib/gruppikoner.js";
 import { fargTillKulor } from "../lib/gruppfarg.js";
 import { OpsHubblista, aktivHubbNamn } from "./OpsHubbar.jsx";
@@ -505,20 +506,34 @@ export function OpsGruppanel({
   onSkapa,
   onInfo,
   onRedigera,
-  infoEtikett = "Visa grupp",
-  redigeraEtikett = "Redigera grupp",
+  infoEtikett: infoEtikettProp,
+  redigeraEtikett: redigeraEtikettProp,
   infalld,
   onInfalld,
-  sprak,
-  listEtikett = "Mina grupper",
-  skapaEtikett = "Skapa grupp",
-  tomText = "Du är inte medlem i någon grupp.",
-  kollapsaEtikett = "Fäll ihop grupplistan",
-  fallUtEtikett = "Fäll ut grupplistan",
-  rollNamn = { agare: "Ägare", admin: "Admin", medlem: "Medlem" },
-  medlemmarEtikett = "medlemmar",
-  flerAvatarerEtikett = "fler",
+  sprak: sprakProp,
+  listEtikett: listEtikettProp,
+  skapaEtikett: skapaEtikettProp,
+  tomText: tomTextProp,
+  kollapsaEtikett: kollapsaEtikettProp,
+  fallUtEtikett: fallUtEtikettProp,
+  rollNamn: rollNamnProp,
+  medlemmarEtikett: medlemmarEtikettProp,
+  flerAvatarerEtikett: flerAvatarerEtikettProp,
 }) {
+  // ⛔ 0.172.0 (cllp/lifehub.app#580): förvalen på appens språk, ur ORD_OPSGRUPPANEL. Appens egna etiketter vinner.
+  const kontextSprak = useOpsSprak();
+  const sprak = sprakProp ?? kontextSprak;
+  const o = forvalda(ORD_OPSGRUPPANEL, sprak);
+  const infoEtikett = infoEtikettProp ?? o.infoEtikett;
+  const redigeraEtikett = redigeraEtikettProp ?? o.redigeraEtikett;
+  const listEtikett = listEtikettProp ?? o.listEtikett;
+  const skapaEtikett = skapaEtikettProp ?? o.skapaEtikett;
+  const tomText = tomTextProp ?? o.tomText;
+  const kollapsaEtikett = kollapsaEtikettProp ?? o.kollapsaEtikett;
+  const fallUtEtikett = fallUtEtikettProp ?? o.fallUtEtikett;
+  const rollNamn = rollNamnProp ?? { agare: o.rollAgare, admin: o.rollAdmin, medlem: o.rollMedlem };
+  const medlemmarEtikett = medlemmarEtikettProp ?? o.medlemmarEtikett;
+  const flerAvatarerEtikett = flerAvatarerEtikettProp ?? o.flerAvatarerEtikett;
   if (typeof onValj !== "function") {
     throw new Error("OpsGruppanel: onValj krävs. En panel som inte kan välja är en lista som ser ut som en kontroll.");
   }
@@ -783,6 +798,22 @@ export function OpsGruppvaxlare({
     </OpsPanel>
   );
 }
+
+/** OpsGruppanels förval på svenska och engelska (0.172.0, cllp/lifehub.app#580). */
+export const ORD_OPSGRUPPANEL = {
+  infoEtikett: { sv: "Visa grupp", en: "Show group" },
+  redigeraEtikett: { sv: "Redigera grupp", en: "Edit group" },
+  listEtikett: { sv: "Mina grupper", en: "My groups" },
+  skapaEtikett: { sv: "Skapa grupp", en: "Create group" },
+  tomText: { sv: "Du är inte medlem i någon grupp.", en: "You are not a member of any group." },
+  kollapsaEtikett: { sv: "Fäll ihop grupplistan", en: "Collapse the group list" },
+  fallUtEtikett: { sv: "Fäll ut grupplistan", en: "Expand the group list" },
+  rollAgare: { sv: "Ägare", en: "Owner" },
+  rollAdmin: { sv: "Admin", en: "Admin" },
+  rollMedlem: { sv: "Medlem", en: "Member" },
+  medlemmarEtikett: { sv: "medlemmar", en: "members" },
+  flerAvatarerEtikett: { sv: "fler", en: "more" },
+};
 
 /**
  * Växlarens ord för översikten (0.112.0, cllp/lifehub.app#319). En tabell per språk, som `ORD_OPSBOTTOMNAV`.
