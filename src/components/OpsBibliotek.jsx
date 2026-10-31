@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import * as Popover from "@radix-ui/react-popover";
 import * as Tabs from "@radix-ui/react-tabs";
 import { Check, File as FilIkon, FileText, Globe, Image as BildIkon, Library, Link2, List as ListIkon, Mic, ExternalLink, Plus, SlidersHorizontal, Upload } from "lucide-react";
@@ -305,6 +305,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
   // Flaggan i en ref: två tryck i samma tick ser annars båda `namnBusy === false`.
   const namnSparar = useRef(false);
   const [raderar, setRaderar] = useState(/** @type {string | null} */ (null));
+  const [taggarFor, setTaggarFor] = useState(/** @type {string | null} */ (null));
   const [raderaFel, setRaderaFel] = useState("");
   const [delar, setDelar] = useState(/** @type {null | (import("../lib/bibliotek.js").Bibliotekspost & { id: string })} */ (null));
   // ⛔ Dela länk (0.119.0): dialogen för en publik länk till en fil.
@@ -571,6 +572,8 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
     const ut = [];
     if (far && iDetalj && sattRedigera) ut.push({ id: "redigera", etikett: "Redigera", onValj: () => sattRedigera("redigera") });
     if (far) ut.push({ id: "namn", etikett: "Byt namn", onValj: () => borjaNamn(post) });
+    // ⛔ LÄGG TILL TAGG UR MENYN (0.165.0): kortet visar taggraden bara när posten har taggar. Utan taggar öppnar raden här fältet på kortet. Samma rätt som taggraden (`farAndra` och `onSpara`).
+    if (far && !iDetalj && typeof onSpara === "function" && !(Array.isArray(post.taggar) && post.taggar.length > 0)) ut.push({ id: "tagg", etikett: "Lägg till tagg", onValj: () => setTaggarFor(post.id) });
     // ⛔ DELA LÄNK FINNS PÅ ALLA FYRA TYPER (0.133.0, lifehub.app#356, CP 2026-10-18: "Vi skall ju ha en publik länk till varje artefakt"). Förut bara på en färdig fil (0.119.0).
     // Villkoret är oförändrat i övrigt: bara den som får ändra posten (`farAndra`: författaren, en admin eller en ägare, och i Mitt bibliotek bara ägaren), samma som servern kontrollerar,
     // så knappen lovar inget som funktionen sedan nekar. Det som skiljer är vad som går att dela (`arDelbar`): en fil som ännu laddas upp har ingenting att visa.
@@ -893,7 +896,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
                         htmlVy={htmlVyAdress(oppnaHtml, rad)}
                         onOppna={() => oppnaMed(rad, "las")}
                         onMeta={togMeta}
-                        taggrad={(
+                        taggrad={(Array.isArray(rad.taggar) && rad.taggar.length > 0) || taggarFor === rad.id ? (
                           <OpsTaggRad
                             taggar={rad.taggar}
                             kanAndra={kanAndra}
@@ -901,8 +904,10 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
                             valda={valda}
                             onFilter={(t) => setValdaTaggar(valda.includes(t) ? valda.filter((x) => x !== t) : [...valda, t])}
                             onAndra={typeof onSpara === "function" ? (ny) => onSpara({ id: rad.id, taggar: ny }) : undefined}
+                            borjaSkriva={taggarFor === rad.id}
+                            onSlutaSkriva={() => setTaggarFor((nu) => (nu === rad.id ? null : nu))}
                           />
-                        )}
+                        ) : null}
                       />
                     );
                   })}
@@ -1401,9 +1406,48 @@ function kortMeta(post) {
   }
   const ms = post.durationMs;
   if (arLjudpost(post) && Number.isInteger(ms) && /** @type {number} */ (ms) > 0) delar.push(formateraTid(/** @type {number} */ (ms) / 1000));
-  const datum = ljudDatum(arLjudpost(post) ? post.skapad : post.andrad ?? post.skapad);
+  const datum = kortDatum(arLjudpost(post) ? post.skapad : post.andrad ?? post.skapad);
   if (datum) delar.push(datum);
   return delar;
+}
+
+/**
+ * Datumet på kortet (0.165.0): "31 okt." i år, "31 okt. 2025" ett annat år. Detaljen visar alltid året (`ljudDatum`).
+ * @param {unknown} ms
+ * @param {number} [nu]
+ */
+export function kortDatum(ms, nu = Date.now()) {
+  const hel = ljudDatum(ms);
+  if (!hel) return "";
+  const d = new Date(/** @type {number} */ (ms));
+  if (d.getFullYear() !== new Date(nu).getFullYear()) return hel;
+  return new Intl.DateTimeFormat("sv-SE", { day: "numeric", month: "short" }).format(d);
+}
+
+/**
+ * Rubriken på kortet (0.165.0): en fil utan sin filändelse när rubriken är filens namn ("sang-v1.html" blir "sang-v1"). En rubrik som någon har gett posten (Byt namn) visas som den är.
+ * Ändelsen står i stället först i metaraden (`kortTyp`). Gäller alla filtyper.
+ *
+ * @param {{ typ: string, rubrik?: string, fil?: { namn?: string } | null }} post
+ */
+export function kortRubrik(post) {
+  const rubrik = trimSomRegeln(post.rubrik) || "Post";
+  if (post.typ !== "fil") return rubrik;
+  const ext = /\.([a-z0-9]{1,6})$/i.exec(rubrik)?.[1];
+  const filExt = /\.([a-z0-9]{1,6})$/i.exec(post.fil?.namn ?? "")?.[1];
+  if (!ext || !filExt || ext.toLowerCase() !== filExt.toLowerCase()) return rubrik;
+  return rubrik.slice(0, -(ext.length + 1)).trim() || rubrik;
+}
+
+/**
+ * Typen först i metaraden (0.165.0): en fil som sin ändelse i versaler ("HTML", "PDF"), annars typens namn ("Anteckning", "Länk · Spotify", "Ljud").
+ * @param {any} post
+ */
+export function kortTyp(post) {
+  const etikett = typEtikett(post);
+  if (post.typ !== "fil") return etikett;
+  const [sort, ur] = etikett.split(" · ");
+  return sort === "Dokument" && ur ? ur.toUpperCase() : etikett;
 }
 
 /**
@@ -1427,7 +1471,7 @@ function BibliotekKort({ post, lage, meny, svep, onOppna, onMeta, taggrad, delad
   const spelare = useSpelare();
   const ljud = arLjudpost(post);
   const bild = post.typ === "fil" && filSort(post.fil?.mime) === "bild";
-  const namn = ljud ? ljudRubrik(post) : trimSomRegeln(post.rubrik) || "Post";
+  const namn = ljud ? ljudRubrik(post) : kortRubrik(post);
   const forhands = forhandsText(post);
   const meta = kortMeta(post);
   const sprak = useOpsSprak();
@@ -1441,7 +1485,7 @@ function BibliotekKort({ post, lage, meny, svep, onOppna, onMeta, taggrad, delad
   return (
     <OpsSvepRad kort atgarder={svep}>
       <OpsAtgardsblad kort namn={namn} poster={meny}>
-        <div data-bibliotek-kort={ljud ? "ljud" : bild ? "bild" : post.typ === "fil" ? "dokument" : post.typ} className="relative flex min-w-0 flex-1 items-start gap-4">
+        <div data-bibliotek-kort={ljud ? "ljud" : bild ? "bild" : post.typ === "fil" ? "dokument" : post.typ} className="relative flex min-w-0 flex-1 items-center gap-3">
           {/* ⛔ ETT TRYCK PÅ EN MUSIKLÄNK ÖPPNAR LÅTEN DIREKT (0.128.0, CP 2026-10-20), i en ny flik. Det är en riktig länk och inte en knapp som anropar `window.open`: då fungerar den med
               mellanklick, långtryck och Spotifys egna app (en universell länk i iOS), och en popup-spärr kan inte stoppa den. Detaljen nås ur menyn ("Visa detaljer"). */}
           {oppnasDirekt(post) ? (
@@ -1494,19 +1538,24 @@ function BibliotekKort({ post, lage, meny, svep, onOppna, onMeta, taggrad, delad
             )}
           </span>
           )}
-          <div className="pointer-events-none relative flex min-w-0 flex-1 flex-col gap-1.5">
+          {/* ⛔ EN KOMPAKT RAD (0.165.0, CP 2026-10-31: "listning i bibliotek lite ful och rörig"): titeln utan filändelse, och under den EN grå rad med typen, storleken och datumet ("HTML · 68 kB · 31 okt."). Typen stod förut
+              på en egen rad i versaler, och "Lägg till tagg" stod på varje kort. Taggraden ritas nu bara när posten har taggar; annars nås den ur menyn (`menyFor`, "Lägg till tagg"). */}
+          <div className="pointer-events-none relative flex min-w-0 flex-1 flex-col gap-0.5">
             <span className="block truncate text-etikett font-medium text-ink">{namn}</span>
-            <span data-bibliotek-typ="" className="text-meta tracking-wide text-ink-muted uppercase">{typEtikett(post)}</span>
             {taggrad}
-            {forhands ? <span data-bibliotek-forhands-text="" className="line-clamp-2 text-meta text-ink-secondary wrap-anywhere">{forhands}</span> : null}
-            {meta.length > 0 || delad || skriverUt ? (
-              <span data-bibliotek-metarad="" className="flex flex-wrap gap-3 text-meta text-ink-muted">
-                {meta.map((m) => <span key={m} data-ljud-langd={m.includes(":") ? "" : undefined}>{m}</span>)}
-                {delad ? <span data-bibliotek-delad="" className="inline-flex items-center gap-1"><Link2 size={12} aria-hidden="true" />Delad</span> : null}
-                {/* ⛔ UTSKRIFTEN PÅGÅR (0.133.0): läget läses ur posten (`utskriftLage`), så markeringen står kvar också när man gått från detaljen och kommer tillbaka. */}
-                {skriverUt ? <span data-bibliotek-skriver-ut="" className="inline-flex items-center gap-1"><OpsSpinner size="sm" decorative />{talkOrd("skriverUt", sprak)}</span> : null}
-              </span>
-            ) : null}
+            {forhands ? <span data-bibliotek-forhands-text="" className="line-clamp-1 text-meta text-ink-secondary wrap-anywhere">{forhands}</span> : null}
+            <span data-bibliotek-metarad="" className="flex min-w-0 flex-wrap items-center gap-x-1.5 text-meta text-ink-muted">
+              {[kortTyp(post), ...meta].map((m, i) => (
+                <Fragment key={`${i}:${m}`}>
+                  {i > 0 ? <span aria-hidden="true">·</span> : null}
+                  <span data-bibliotek-typ={i === 0 ? "" : undefined} data-ljud-langd={i > 0 && /^\d+:\d\d$/.test(m) ? "" : undefined}>{m}</span>
+                </Fragment>
+              ))}
+              {delad ? <span aria-hidden="true">·</span> : null}
+              {delad ? <span data-bibliotek-delad="" className="inline-flex items-center gap-1"><Link2 size={12} aria-hidden="true" />Delad</span> : null}
+              {/* ⛔ UTSKRIFTEN PÅGÅR (0.133.0): läget läses ur posten (`utskriftLage`), så markeringen står kvar också när man gått från detaljen och kommer tillbaka. */}
+              {skriverUt ? <span data-bibliotek-skriver-ut="" className="inline-flex items-center gap-1"><OpsSpinner size="sm" decorative />{talkOrd("skriverUt", sprak)}</span> : null}
+            </span>
             {ljudStatus ? <span role={lage.lage === "hamtar" ? "status" : "alert"} className={cx("text-meta", lage.lage === "hamtar" ? "text-ink-secondary" : "text-danger")}>{ljudStatus}</span> : null}
           </div>
           {ljud && iSkalet && lage.lage === "klar" ? (

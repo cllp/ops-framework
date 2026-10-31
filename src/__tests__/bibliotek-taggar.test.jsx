@@ -131,7 +131,13 @@ const taggarPa = (rubrik) => [...kortet(rubrik).querySelectorAll("[data-bibliote
 /** Öppnar fältet "Ny tagg" på kortet. @param {string} rubrik */
 function oppnaFalt(rubrik) {
   const k = kortet(rubrik);
-  fireEvent.click(within(k).getByRole("button", { name: /^(Lägg till tagg|Tagg)$/ }));
+  const knapp = within(k).queryByRole("button", { name: /^(Lägg till tagg|Tagg)$/ });
+  if (knapp) fireEvent.click(knapp);
+  else {
+    // 0.165.0: utan taggar har kortet ingen taggrad; "Lägg till tagg" ligger i menyn och öppnar fältet direkt.
+    fireEvent.click(within(k).getByRole("button", { name: `Åtgärder för ${rubrik}` }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Lägg till tagg" }));
+  }
   return within(k).getByRole("textbox", { name: "Ny tagg" });
 }
 
@@ -361,9 +367,15 @@ describe("⛔ taggarna i vyn", () => {
     expect(taggarPa("Tankning")).toEqual([]);
   });
 
-  it("en post utan taggar har Lägg till tagg, och en med taggar har Tagg", () => {
+  it("⛔ en post utan taggar har ingen taggrad men Lägg till tagg i menyn, och en med taggar har Tagg (0.165.0)", () => {
     render(<Harness start={[post("a", "Tankning", undefined), post("b", "Lunch", ["mat"])]} />);
-    expect(within(kortet("Tankning")).getByRole("button", { name: "Lägg till tagg" })).toBeInTheDocument();
+    expect(kortet("Tankning").querySelector("[data-bibliotek-taggar]")).toBeNull();
+    expect(within(kortet("Tankning")).queryByRole("button", { name: "Lägg till tagg" })).toBeNull();
+    fireEvent.click(within(kortet("Tankning")).getByRole("button", { name: "Åtgärder för Tankning" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Lägg till tagg" }));
+    const falt = within(kortet("Tankning")).getByRole("textbox", { name: "Ny tagg" });
+    fireEvent.keyDown(falt, { key: "Escape" });
+    expect(kortet("Tankning").querySelector("[data-bibliotek-taggar]")).toBeNull();
     expect(within(kortet("Lunch")).getByRole("button", { name: "Tagg" })).toBeInTheDocument();
     expect(within(kortet("Lunch")).queryByRole("button", { name: "Lägg till tagg" })).toBeNull();
   });
@@ -383,7 +395,8 @@ describe("⛔ taggarna i vyn", () => {
 
     render(<Harness jag={{ uid: "uid-annan", roll: "admin" }} start={poster} />);
     expect(screen.getByRole("button", { name: "Ta bort taggen kvitto" })).toBeInTheDocument();
-    expect(within(kortet("Lunch")).getByRole("button", { name: "Lägg till tagg" })).toBeInTheDocument();
+    fireEvent.click(within(kortet("Lunch")).getByRole("button", { name: "Åtgärder för Lunch" }));
+    expect(screen.getByRole("menuitem", { name: "Lägg till tagg" })).toBeInTheDocument();
   });
 
   it("den som inte är medlem (jag: null) ser taggarna men kan inte ändra dem", () => {

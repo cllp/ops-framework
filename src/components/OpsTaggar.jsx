@@ -1,4 +1,4 @@
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import * as Popover from "@radix-ui/react-popover";
 import { Tag, X } from "lucide-react";
 import { MAX_TAGGAR, MAX_TAGGLANGD, normaliseraTagg, normaliseraTaggar, taggarFel, taggfarg } from "../lib/bibliotek.js";
@@ -130,13 +130,21 @@ export function OpsTaggPiller({ tagg, onFilter, vald = false, onTaBort, sprak })
  *
  * ⛔ SAMMA RÄTT SOM BYT NAMN: `kanAndra` är `farAndra`, författaren och admin. Andra ser taggarna och kan filtrera på dem.
  *
- * @param {{ taggar?: readonly string[], kanAndra?: boolean, forslag?: readonly string[], valda?: readonly string[], onFilter?: (tagg: string) => void, onAndra?: (nastaTaggar: string[]) => void | boolean | Promise<void | boolean>, sprak?: "sv" | "en" }} props `sprak` (0.149.0): språket för knappar, fält och egna felmeddelanden, annars `OpsSprakProvider`, annars svenska. Ett fel som `onAndra` själv kastar visas som det är.
+ * @param {{ taggar?: readonly string[], kanAndra?: boolean, forslag?: readonly string[], valda?: readonly string[], onFilter?: (tagg: string) => void, onAndra?: (nastaTaggar: string[]) => void | boolean | Promise<void | boolean>, sprak?: "sv" | "en", borjaSkriva?: boolean, onSlutaSkriva?: () => void }} props `sprak` (0.149.0): språket för knappar, fält och egna felmeddelanden, annars `OpsSprakProvider`, annars svenska. Ett fel som `onAndra` själv kastar visas som det är.
  */
-export function OpsTaggRad({ taggar, kanAndra = false, forslag = [], valda = [], onFilter, onAndra, sprak }) {
+export function OpsTaggRad({ taggar, kanAndra = false, forslag = [], valda = [], onFilter, onAndra, sprak, borjaSkriva = false, onSlutaSkriva }) {
   const { o, sp } = useTaggord(sprak);
   const sparade = Array.isArray(taggar) ? taggar : [];
   const [visas, setVisas] = useState(/** @type {string[] | null} */ (null));
-  const [skriver, setSkriver] = useState(false);
+  const [skriver, setSkriver] = useState(Boolean(borjaSkriva && kanAndra));
+  // ⛔ ÖPPNAD UR MENYN (0.165.0): `borjaSkriva` öppnar fältet direkt (Biblioteket, "Lägg till tagg" i menyn när posten saknar taggar). `onSlutaSkriva` säger till när fältet stängs, så kortet kan dölja raden igen.
+  const slutaRef = useRef(onSlutaSkriva);
+  slutaRef.current = onSlutaSkriva;
+  const varSkriver = useRef(skriver);
+  useEffect(() => {
+    if (varSkriver.current && !skriver) slutaRef.current?.();
+    varSkriver.current = skriver;
+  }, [skriver]);
   const [utkast, setUtkast] = useState("");
   // ⛔ ESCAPE AVBRYTER, ÄVEN OM FÄLTET SEDAN TAPPAR FOKUS. Fältet tas bort i samma rendering som Escape, och en webbläsare som
   // skickar blur då hade sett det gamla utkastet i `onBlur` och sparat taggen man just avbröt.
