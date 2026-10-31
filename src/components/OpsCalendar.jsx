@@ -1581,8 +1581,9 @@ export function OpsCalendar({
     if (didRef.current) return;
     didRef.current = true;
     const rulle = rulleRef.current;
-    if (rulle && rulle.clientHeight === 0) idagVantar.current = true;
-    else toToday();
+    // Hoppet görs alltid. Dold yta med observatör: hoppet görs om en gång när ytan får höjd.
+    toToday();
+    if (rulle && rulle.clientHeight === 0 && typeof ResizeObserver === "function") idagVantar.current = true;
   }, [toToday]);
 
   /*
