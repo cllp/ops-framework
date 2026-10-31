@@ -9,7 +9,7 @@ import { createBibliotekskalla } from "../data/bibliotekkalla.js";
 import { createHtmlDokumentService } from "../node/htmldokument.js";
 import { delningsDisposition } from "../node/delning.js";
 import { FILMIME, byggPost, filContentTypeMonster, filInmatningsfel, lagringsContentDisposition, lagringsContentType, mimeUrFilnamn, MAX_BIBLIOTEKFIL, postFel } from "../lib/bibliotek.js";
-import { HTML_SANDBOX, HTML_UTSKRIFTSMEDDELANDE, HTML_UTSKRIFTSSKRIPT, arHtmlDokument, byggAterstallning, byggNyVersion, byggSrcdoc, htmlBytes, htmlText, nastaVersionssokvag, nuvarandeVersion, versionFel, versionslista, versionsnyckel } from "../lib/htmldokument.js";
+import { HTML_SANDBOX, HTML_UTSKRIFTSMEDDELANDE, HTML_UTSKRIFTSSKRIPT, HTML_LANKSKRIPT, arHtmlDokument, byggAterstallning, byggNyVersion, byggSrcdoc, htmlBytes, htmlText, nastaVersionssokvag, nuvarandeVersion, versionFel, versionslista, versionsnyckel } from "../lib/htmldokument.js";
 import { bibliotekregelfragment, lagringsregelfragment, versionsregelfragment } from "../lib/regler.js";
 
 /*
@@ -138,9 +138,9 @@ describe("Rutan", () => {
 
   it("byggSrcdoc lägger skriptet först, men efter en inledande doctype", () => {
     expect(byggSrcdoc("<p>x</p>").startsWith("<script>")).toBe(true);
-    expect(byggSrcdoc("<!DOCTYPE html><p>x</p>")).toBe(`<!DOCTYPE html><script>${HTML_UTSKRIFTSSKRIPT}</script><p>x</p>`);
+    expect(byggSrcdoc("<!DOCTYPE html><p>x</p>")).toBe(`<!DOCTYPE html><script>${HTML_UTSKRIFTSSKRIPT}${HTML_LANKSKRIPT}</script><p>x</p>`);
     expect(byggSrcdoc("﻿  <!doctype html>\n<p>x</p>").indexOf("<script>")).toBeGreaterThan(0);
-    expect(byggSrcdoc("")).toBe(`<script>${HTML_UTSKRIFTSSKRIPT}</script>`);
+    expect(byggSrcdoc("")).toBe(`<script>${HTML_UTSKRIFTSSKRIPT}${HTML_LANKSKRIPT}</script>`);
   });
 
   it("⛔ rutan är märkt med filens namn och vem som laddade upp den, och med att innehållet inte är appens", () => {

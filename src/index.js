@@ -70,7 +70,7 @@ export { OpsLjudspelare } from "./components/OpsLjudspelare.jsx";
 export { OpsHtmlDokument, OpsHtmlDokumentHamtat, ORD_HTMLDOKUMENT } from "./components/OpsHtmlDokument.jsx";
 export { OpsHtmlVy } from "./components/OpsHtmlVy.jsx";
 export { ORD_HTMLVERSIONER } from "./components/BibliotekHtmlVersioner.jsx";
-export { HTML_SANDBOX, HTML_UTSKRIFTSMEDDELANDE, HTML_UTSKRIFTSSKRIPT, arHtmlDokument, htmlVyAdress, byggSrcdoc, htmlText, htmlBytes, VERSIONSFALT, VERSIONSAVGRANSARE, versionsnyckel, nuvarandeVersion, nastaVersionssokvag, byggNyVersion, versionFel, versionslista, byggAterstallning } from "./lib/htmldokument.js";
+export { HTML_SANDBOX, HTML_UTSKRIFTSMEDDELANDE, HTML_UTSKRIFTSSKRIPT, HTML_LANKMEDDELANDE, HTML_LANKSKRIPT, externLankAdress, arHtmlDokument, htmlVyAdress, byggSrcdoc, htmlText, htmlBytes, VERSIONSFALT, VERSIONSAVGRANSARE, versionsnyckel, nuvarandeVersion, nastaVersionssokvag, byggNyVersion, versionFel, versionslista, byggAterstallning } from "./lib/htmldokument.js";
 export { OpsSpelareProvider, OpsSpelaKnapp, OpsSpelarKontroller, useSpelare, ORD_OPSSPELARE } from "./components/OpsSpelare.jsx";
 // ⛔ `readAttachment` och `MAX_SIDE` exporteras MED FLIT inte. En app som läser filer
 // själv har gått runt komponenten, och då finns två ställen som bestämmer vad som
