@@ -65,6 +65,40 @@ export const HTML_UTSKRIFTSMEDDELANDE = "ops-framework:skriv-ut";
  */
 export const HTML_UTSKRIFTSSKRIPT = `window.addEventListener("message",function(e){if(e.source!==parent)return;var d=e.data;if(d&&d.typ===${JSON.stringify(HTML_UTSKRIFTSMEDDELANDE)}){window.print();}});`;
 
+/** Meddelandet som rutan skickar när en extern länk i dokumentet trycks (0.165.0). Bär bara adressen; fönstret som ritar rutan prövar den (`oppnaExternLank`) och öppnar den i en ny flik. */
+export const HTML_LANKMEDDELANDE = "ops-framework:oppna-lank";
+
+/**
+ * Skriptet för dokumentets länkar, läggs i `srcdoc` direkt efter utskriftsskriptet (0.165.0, lifehub.app: "interna länkar funkar inte, typ innehållsförteckning").
+ *
+ * ⛔ VARFÖR: ett `srcdoc` har adressen `about:srcdoc` men ärver BASADRESSEN från fönstret som ritar det. `href="#avsnitt"` blir då appens egen adress plus `#avsnitt`, ett annat dokument än rutan, och ett tryck
+ * laddade appens sida i rutan i stället för att skrolla. Skriptet tar trycket på en länk:
+ *
+ *   `#…`                         skrollar till elementet med det id:t (eller namnet) i rutan. `#` ensam och `#top` skrollar till början. Inget lämnar rutan.
+ *   `http(s):`, `mailto:`, `tel:`  skickas som `HTML_LANKMEDDELANDE` till fönstret som ritar rutan, som öppnar den i en ny flik med `noopener`. Rutan får fortfarande inte öppna fönster själv (`allow-popups` saknas).
+ *   allt annat (relativa sökvägar, `javascript:`, `data:`)   stoppas: det hade pekat på appens ursprung eller kört kod, och dokumentet har inga andra sidor.
+ *
+ * ⛔ SÄKERHETEN ÄR OFÖRÄNDRAD: sandlådan är densamma (`HTML_SANDBOX`). Fönstret prövar avsändaren (rutans eget fönster) och adressens protokoll själv; vad skriptet påstår räcker inte.
+ */
+export const HTML_LANKSKRIPT = `window.addEventListener("click",function(e){if(e.defaultPrevented||e.button>0)return;var t=e.target;if(t&&t.nodeType!==1)t=t.parentElement;var a=t&&t.closest?t.closest("a[href]"):null;if(!a)return;var h=(a.getAttribute("href")||"").trim();if(h.charAt(0)==="#"){e.preventDefault();var id=h.slice(1);try{id=decodeURIComponent(id)}catch(x){}var m=id?document.getElementById(id)||document.getElementsByName(id)[0]:null;if(m){m.scrollIntoView({block:"start"});}else if(!id||id.toLowerCase()==="top"){window.scrollTo(0,0);}return;}e.preventDefault();if(/^(https?:|mailto:|tel:)/i.test(h)){parent.postMessage({typ:${JSON.stringify(HTML_LANKMEDDELANDE)},href:h},"*");}});`;
+
+/**
+ * Adressen som fönstret ska öppna för ett `HTML_LANKMEDDELANDE`, eller `""` när den inte får öppnas. Bara `http:`, `https:`, `mailto:` och `tel:`; aldrig `javascript:`, `data:` eller `blob:`.
+ * @param {unknown} data Meddelandets innehåll.
+ * @returns {string}
+ */
+export function externLankAdress(data) {
+  if (!data || typeof data !== "object" || /** @type {any} */ (data).typ !== HTML_LANKMEDDELANDE) return "";
+  const href = /** @type {any} */ (data).href;
+  if (typeof href !== "string" || href.length > 4096) return "";
+  try {
+    const u = new URL(href);
+    return ["http:", "https:", "mailto:", "tel:"].includes(u.protocol) ? u.href : "";
+  } catch {
+    return "";
+  }
+}
+
 /**
  * Är posten ett HTML-dokument? En fil med MIME `text/html`.
  * @param {{ typ?: unknown, fil?: { mime?: unknown } | null } | null | undefined} post
@@ -109,7 +143,7 @@ const HTML_VYADRESSFORM = /^(?:\/(?!\/)|https?:\/\/)\S*$/;
  */
 export function byggSrcdoc(html) {
   const text = typeof html === "string" ? html : "";
-  const skript = `<script>${HTML_UTSKRIFTSSKRIPT}</script>`;
+  const skript = `<script>${HTML_UTSKRIFTSSKRIPT}${HTML_LANKSKRIPT}</script>`;
   const doctype = /^(?:﻿)?\s*<!doctype[^>]*>/i.exec(text);
   return doctype ? text.slice(0, doctype[0].length) + skript + text.slice(doctype[0].length) : skript + text;
 }

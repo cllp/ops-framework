@@ -2,7 +2,7 @@ import { forwardRef, useEffect, useMemo, useRef, useState } from "react";
 import { OpsButton } from "./OpsButton.jsx";
 import { useOpsSprak } from "./OpsSprak.jsx";
 import { avkodaTextfil, filadressFel } from "../lib/bibliotek.js";
-import { HTML_SANDBOX, HTML_UTSKRIFTSMEDDELANDE, byggSrcdoc } from "../lib/htmldokument.js";
+import { HTML_SANDBOX, HTML_UTSKRIFTSMEDDELANDE, byggSrcdoc, externLankAdress } from "../lib/htmldokument.js";
 import { ordet } from "../lib/ord.js";
 import { skaparensNamn } from "../lib/skapare.js";
 
@@ -93,18 +93,37 @@ export function OpsHtmlDokumentHamtat({ hamta, sokvag, namn, skapadAv }) {
  */
 export const HtmlRuta = forwardRef(
   /** @param {{ mark: string, title: string, srcDoc: string, className: string }} props @param {import("react").ForwardedRef<HTMLIFrameElement>} ref */
-  ({ mark, title, srcDoc, className }, ref) => (
-    <iframe
-      ref={ref}
-      {...{ [mark]: "" }}
-      title={title}
-      sandbox={HTML_SANDBOX}
-      srcDoc={srcDoc}
-      referrerPolicy="no-referrer"
-      className={className}
-      style={{ colorScheme: "light" }}
-    />
-  ),
+  ({ mark, title, srcDoc, className }, ref) => {
+    const egen = useRef(/** @type {HTMLIFrameElement | null} */ (null));
+    // ⛔ EXTERNA LÄNKAR I DOKUMENTET (0.165.0): rutan får inte öppna fönster (`allow-popups` saknas), så dess länkskript (`HTML_LANKSKRIPT`) skickar adressen hit. Bara ett meddelande från JUST den här rutans
+    // fönster räknas, och adressen prövas här (`externLankAdress`: http, https, mailto, tel). Fliken öppnas med `noopener`, så sidan når aldrig appens fönster.
+    useEffect(() => {
+      /** @param {MessageEvent} e */
+      const ta = (e) => {
+        if (!egen.current || e.source !== egen.current.contentWindow) return;
+        const adress = externLankAdress(e.data);
+        if (adress) window.open(adress, "_blank", "noopener,noreferrer");
+      };
+      window.addEventListener("message", ta);
+      return () => window.removeEventListener("message", ta);
+    }, []);
+    return (
+      <iframe
+        ref={(el) => {
+          egen.current = el;
+          if (typeof ref === "function") ref(el);
+          else if (ref) ref.current = el;
+        }}
+        {...{ [mark]: "" }}
+        title={title}
+        sandbox={HTML_SANDBOX}
+        srcDoc={srcDoc}
+        referrerPolicy="no-referrer"
+        className={className}
+        style={{ colorScheme: "light" }}
+      />
+    );
+  },
 );
 HtmlRuta.displayName = "HtmlRuta";
 
