@@ -914,7 +914,7 @@ const KanSpelaInKontext = createContext(/** @type {((modulId: string) => boolean
  * till exempel ett projekts tagg. Samma väg som TALK-fältets förifyllning: formuläret får `forifyllt`, och värdena står inte i adressen.
  * Alla fält är frivilliga. `forifyllt` gäller bara en ny händelse: med `id`, eller till en annan nyckel, kastas ett fel.
  *
- * @returns {(nyckel: string, extra?: { groupId?: string, datum?: string, id?: string, forifyllt?: AppForifyllt }) => void}
+ * @returns {(nyckel: string, extra?: { groupId?: string, datum?: string, id?: string, forifyllt?: AppForifyllt, typ?: string }) => void}
  */
 export function useOppnaSkapa() {
   const oppna = useContext(OppnaSkapaKontext);
@@ -1580,7 +1580,7 @@ function OpsAppShellRitad({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [skapaNycklar]);
 
-  /** @type {(nyckel: string, extra?: { groupId?: string, datum?: string, id?: string, forifyllt?: AppForifyllt }) => void} */
+  /** @type {(nyckel: string, extra?: { groupId?: string, datum?: string, id?: string, forifyllt?: AppForifyllt, typ?: string }) => void} */
   const oppnaFranApp = (nyckel, extra) => {
     const appForifyllt = extra?.forifyllt;
     if (appForifyllt !== undefined && appForifyllt !== null) {
@@ -1609,9 +1609,18 @@ function OpsAppShellRitad({
       if (typeof datum !== "string" || !giltigtDatum(datum)) throw new Error(`useOppnaSkapa: datum "${String(datum)}" finns inte. Formen är YYYY-MM-DD.`);
       if (!handelseSkapareFinns(skapa)) throw new Error("useOppnaSkapa: datum kräver att skapa.handelse är ett formulär ({ form }), inte en färdig nod som inte kan ta emot dagen.");
     }
+    // ⛔ 0.170.0 (cllp/lifehub.app#537): APPEN KAN FÖRVÄLJA TYPEN, till exempel Sammankomst när Ny händelse öppnas från kalendern.
+    // Bara ett förval: personen byter i Typ som vanligt. En typ som inte finns i katalogen ger katalogens första, som utan förval.
+    const begardTyp = extra?.typ;
+    if (begardTyp !== undefined && begardTyp !== null) {
+      if (nyckel !== "handelse") throw new Error(`useOppnaSkapa: typ gäller bara "handelse", inte "${nyckel}".`);
+      if (typeof begardTyp !== "string" || begardTyp === "") throw new Error("useOppnaSkapa: typ ska vara typens id, en text som inte är tom.");
+      if (redigeraId !== undefined && redigeraId !== null) throw new Error("useOppnaSkapa: typ och id hör inte ihop. En ändring bär händelsens egen typ.");
+    }
     const form = skapaFormFranNyckel(skapa, nyckel, { groupId: extra?.groupId, nyHandelseEtikett, datum: datum ?? null, redigera: redigeraId ?? null });
     if (!form && redigeraId) throw new Error("useOppnaSkapa: att ändra en händelse kräver `skapa.handelse` som ett formulär med `redigera` (en hook som läser händelsen). Utan den finns inget redigeringsläge.");
     if (!form) throw new Error(`useOppnaSkapa: skalets \`skapa\` har ingen post för "${nyckel}"${nyckel === "redigera-grupp" ? " med groupId" : ""}.`);
+    if (typeof begardTyp === "string" && begardTyp !== "") setSkapaTyp((x) => ({ ...x, handelse: begardTyp }));
     if (appForifyllt) {
       // Samma räknare som TALK-fältet: en ny förifyllning är ett nytt formulär (`key`), också när panelen redan var öppen.
       talkOppningar.current += 1;
@@ -1781,7 +1790,9 @@ function OpsAppShellRitad({
     const skapaSprak = skapa?.sprak ?? "sv";
     // ⛔ 0.37.0: EN POST I EN AV MINA KALENDRAR HAR INGEN TYP (`KALENDERPOSTFALT`), så typvalet ritas inte och `typ` är `null`.
     const egenPost = skapaKalender?.slag === "mina";
-    const vald = egenPost ? null : (skapaTyp[r.id] ?? typer[0]?.id ?? null);
+    const begard = skapaTyp[r.id];
+    // ⛔ 0.170.0 (#537): ett förval som inte finns bland typerna ger den första, så att Typ aldrig står tom vid ett nytt formulär.
+    const vald = egenPost ? null : (begard !== undefined && (skapaForm.redigera || typer.some((k) => k.id === begard)) ? begard : typer[0]?.id ?? null);
     const kravSvarFor = r.id === "handelse" ? /** @type {any} */ (skapa?.handelse)?.kravSvarFor : undefined;
     const kravSvarPa = skapaKravSvar ?? (typeof kravSvarFor === "function" && vald !== null && kravSvarFor(vald) === true);
     const Form = /** @type {any} */ (r.form);
