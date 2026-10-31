@@ -9,6 +9,12 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.170.0
+
+### Tillagt
+
+- **Förvald typ i Ny händelse (cllp/lifehub.app#537).** `useOppnaSkapa()("handelse", { typ })` förväljer typen i skalets Typ. Bara ett förval: personen byter som vanligt. En typ som inte finns i katalogen ger den första. `typ` till en annan nyckel, eller med `id`, kastar.
+
 ## 0.169.0
 
 ### Rättat
