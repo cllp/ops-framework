@@ -82,7 +82,8 @@ export const ORD_OPSAGENTER = {
   kunskapHjalp: { sv: "Det agenten ska veta, och det den får minnas.", en: "What the agent should know, and what it may remember." },
   modell: { sv: "Modell", en: "Model" },
   modellAvsnitt: { sv: "Modell och nycklar", en: "Model and keys" },
-  avancerat: { sv: "Avancerat", en: "Advanced" },
+  // ⛔ "Avancerat" som undertext lästes som ett eget avsnitt som ledde till samma sida (lifehub.app e2e 2026-10-31). Undertexten säger nu vad avsnittet innehåller.
+  modellRad: { sv: "Vilken modell agenten svarar med, och dina nycklar", en: "Which model the agent replies with, and your keys" },
   modellHjalp: { sv: "Välj den modell agenten ska svara med.", en: "Choose the model the agent should reply with." },
   modellLista: { sv: "Modeller", en: "Models" },
   kopplaNyckel: { sv: "Koppla nyckel", en: "Connect a key" },
@@ -742,7 +743,7 @@ function AgentFalt(props) {
             <AvsnittsRad href={medAvsnitt(activeHref, "om")} titel={t("om")} hint={t("omRad")} onNavigate={onNavigate} />
             <AvsnittsRad href={medAvsnitt(activeHref, "kan")} titel={t("kan")} hint={t("kanRad")} onNavigate={onNavigate} />
             <AvsnittsRad href={medAvsnitt(activeHref, "kunskap")} titel={t("kunskap")} hint={t("kunskapRad")} onNavigate={onNavigate} />
-            <AvsnittsRad href={medAvsnitt(activeHref, "modell")} titel={t("modellAvsnitt")} hint={t("avancerat")} onNavigate={onNavigate} />
+            <AvsnittsRad href={medAvsnitt(activeHref, "modell")} titel={t("modellAvsnitt")} hint={t("modellRad")} onNavigate={onNavigate} />
           </ul>
         </nav>
       </div>
@@ -939,7 +940,6 @@ function AgentFalt(props) {
       ) : null}
       {avsnitt === "modell" ? (
         <AvsnittsYta titel={t("modellAvsnitt")} hjalp={t("modellHjalp")}>
-          <p className="m-0 text-hjalp text-ink-muted">{t("avancerat")}</p>
           <ModellValjare
             t={t}
             sprak={sprak}

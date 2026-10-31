@@ -9,6 +9,12 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.164.1
+
+### Ändrat
+
+- **Agentens avsnitt Modell och nycklar har ingen "Avancerat" längre** (lifehub.app e2e 2026-10-31). Undertexten "Avancerat" lästes som ett eget avsnitt som visade samma sida som Modell och nycklar. Raden har nu undertexten `modellRad` som säger vad avsnittet innehåller, och den lösa raden "Avancerat" överst i avsnittet är borta. Texten `avancerat` är borttagen.
+
 ## 0.164.0
 
 ### Tillagt
