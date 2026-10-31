@@ -1,0 +1,13 @@
+{
+  "extraKnownMarketplaces": {
+    "skissramverk": {
+      "source": {
+        "source": "github",
+        "repo": "cllp/skissramverk"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "skissramverk@skissramverk": true
+  }
+}

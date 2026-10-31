@@ -9,3 +9,5 @@ Börja med avsnittet "Samarbetet" och metaregeln överst.
 
 ⛔ Den här filen är en hänvisning och ingen kopia. Skriv aldrig in reglerna
 här: två handskrivna original glider isär (regel 2).
+
+Dokument i CP:s skisstil görs med cllp/skissramverk, se dess AGENTS.md. Rendera med npx --yes github:cllp/skissramverk <spec> <ut>.
