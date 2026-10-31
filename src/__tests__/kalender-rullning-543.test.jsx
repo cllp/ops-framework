@@ -46,3 +46,37 @@ describe("⛔ rullningen efter en dold period (#543)", () => {
     }
   });
 });
+
+describe("⛔ kalendern monterad medan dold öppnar på idag (lifehub.app#583)", () => {
+  it("hoppet till idag väntar tills ytan får höjd", () => {
+    /** @type {Array<() => void>} */
+    const svar = [];
+    globalThis.ResizeObserver = class {
+      constructor(cb) {
+        svar.push(() => cb([]));
+      }
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    };
+    let hojd = 0;
+    const hojdSpion = vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockImplementation(() => hojd);
+    const toppSpion = vi.spyOn(HTMLElement.prototype, "offsetTop", "get").mockImplementation(function () {
+      return this.hasAttribute?.("data-kalender-rulle") ? 0 : 3000;
+    });
+    try {
+      const { container } = render(<OpsCalendar ariaLabel="Kalender" entries={[]} />);
+      const rulle = /** @type {HTMLElement} */ (container.querySelector("[data-kalender-rulle]"));
+      const till = [];
+      rulle.scrollTo = (o) => till.push(o.top);
+      expect(till).toEqual([]);
+      hojd = 600;
+      act(() => svar.forEach((f) => f()));
+      expect(till.length).toBe(1);
+      expect(till[0]).toBeGreaterThan(0);
+    } finally {
+      hojdSpion.mockRestore();
+      toppSpion.mockRestore();
+    }
+  });
+});
