@@ -9,6 +9,12 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.175.0
+
+### Fixat
+
+- `OpsBibliotek`: Ladda ned sparar filen i stället för att öppna den i ny flik. `download` ignoreras mot en annan origin (firebasestorage), så med `hamtaFil` hämtas byten som blob och sparas via objectURL. Går hämtningen fel öppnas adressen som förut.
+
 ## 0.174.0
 
 ### Fixat
