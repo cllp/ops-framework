@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useRef, useState } from "react";
+import { sparaSomFil } from "../lib/sparaFil.js";
 import * as Popover from "@radix-ui/react-popover";
 import * as Tabs from "@radix-ui/react-tabs";
 import { Check, File as FilIkon, FileText, Globe, Image as BildIkon, Library, Link2, List as ListIkon, Mic, ExternalLink, Plus, SlidersHorizontal, Upload } from "lucide-react";
@@ -1762,16 +1763,25 @@ function NyKnapp({ flik, onSkapa, onRost, erbjudRost, onLaddaUppLjud }) {
 /**
  * ⛔ LADDA NED FÖR VARJE FIL I DETALJEN (lifehub.app QA 2026-11-01): sedan 0.102.0 står nedladdningen i detaljen och inte i menyn, men bara
  * HTML-dokumentet med `oppnaHtml` fick knappen. En textfil, en video, en PDF och övriga filer hade bara filnamnet som länk, som öppnar
- * filen i en ny flik. Knappen bär `download` med filens namn.
- * @param {{ adress: string, namn: string, children: any }} props
- */
-function FilMedLaddaNed({ adress, namn, children }) {
+ * filen i en ny flik. Knappen bär `download` med filens namn. Med `hamta` och `sokvag` sparar knappen filen via `sparaSomFil`
+ * (lib/sparaFil.js, 0.175.0), eftersom `download` ignoreras mot en annan origin.
+ * @param {{ adress?: string, namn: string, hamta?: (sokvag: string) => Promise<Blob>, sokvag?: string }} props */
+function LaddaNedLank({ adress, namn, hamta, sokvag }) {
+  const kanHamta = typeof hamta === "function" && Boolean(sokvag);
+  return (
+    <a href={adress} target="_blank" rel="noopener noreferrer" download={namn} data-bibliotek-ladda-ned="" className={knappKlass({ variant: "secondary", size: "sm" })}
+      onClick={kanHamta ? (e) => { e.preventDefault(); if (typeof hamta === "function" && sokvag) void sparaSomFil({ hamta, sokvag, namn, adress }); } : undefined}>
+      Ladda ned
+    </a>
+  );
+}
+
+/** @param {{ adress?: string, namn: string, hamta?: (sokvag: string) => Promise<Blob>, sokvag?: string, children: any }} props */
+function FilMedLaddaNed({ adress, namn, hamta, sokvag, children }) {
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
       {children}
-      <a href={adress} target="_blank" rel="noopener noreferrer" download={namn} data-bibliotek-ladda-ned="" className={knappKlass({ variant: "secondary", size: "sm" })}>
-        Ladda ned
-      </a>
+      <LaddaNedLank adress={adress} namn={namn} hamta={hamta} sokvag={sokvag} />
     </div>
   );
 }
@@ -1850,7 +1860,7 @@ function FilVisning({ post, lage, kopplad, onLjus, onMeta, onRadera, hamtaFil, v
     return (
       <div data-bibliotek-fil="" className="flex flex-col gap-2">
         <video data-bibliotek-video="" src={adress} controls playsInline preload="metadata" aria-label={post.rubrik ?? namn} className="block h-auto max-h-96 w-full rounded-lg bg-sunken" />
-        <FilMedLaddaNed adress={adress} namn={namn}>
+        <FilMedLaddaNed adress={adress} namn={namn} hamta={hamtaFil} sokvag={post.fil?.sokvag}>
           <a href={adress} target="_blank" rel="noopener noreferrer" className="w-fit text-etikett text-accent underline underline-offset-2">
             {rad}
           </a>
@@ -1874,9 +1884,7 @@ function FilVisning({ post, lage, kopplad, onLjus, onMeta, onRadera, hamtaFil, v
               <ExternalLink size={14} aria-hidden="true" className="shrink-0" />
               <span className="sr-only">{HTML_OPPNAS_I_FONSTER}</span>
             </a>
-            <a href={adress} target="_blank" rel="noopener noreferrer" download={post.fil.namn} data-bibliotek-ladda-ned="" className={knappKlass({ variant: "secondary", size: "sm" })}>
-              Ladda ned
-            </a>
+            <LaddaNedLank adress={adress} namn={post.fil.namn ?? namn} />
           </div>
         ) : (
           <a href={adress} target="_blank" rel="noopener noreferrer" download={post.fil.namn} className="w-fit text-etikett text-accent underline underline-offset-2">
@@ -1892,7 +1900,7 @@ function FilVisning({ post, lage, kopplad, onLjus, onMeta, onRadera, hamtaFil, v
     return (
       <div data-bibliotek-fil="" className="flex min-w-0 flex-col gap-2">
         <TextForhandsvisning hamta={hamtaFil} sokvag={post.fil.sokvag} namn={post.rubrik ?? namn} />
-        <FilMedLaddaNed adress={adress} namn={namn}>
+        <FilMedLaddaNed adress={adress} namn={namn} hamta={hamtaFil} sokvag={post.fil?.sokvag}>
           <a href={adress} target="_blank" rel="noopener noreferrer" className="w-fit text-etikett text-accent underline underline-offset-2">
             {rad}
           </a>
@@ -1902,7 +1910,7 @@ function FilVisning({ post, lage, kopplad, onLjus, onMeta, onRadera, hamtaFil, v
   }
   return (
     <div data-bibliotek-fil="">
-      <FilMedLaddaNed adress={adress} namn={namn}>
+      <FilMedLaddaNed adress={adress} namn={namn} hamta={hamtaFil} sokvag={post.fil?.sokvag}>
         <a href={adress} target="_blank" rel="noopener noreferrer" className="text-etikett text-accent underline underline-offset-2">
           {rad}
         </a>
