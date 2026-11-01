@@ -1760,6 +1760,23 @@ function NyKnapp({ flik, onSkapa, onRost, erbjudRost, onLaddaUppLjud }) {
 }
 
 /**
+ * ⛔ LADDA NED FÖR VARJE FIL I DETALJEN (lifehub.app QA 2026-11-01): sedan 0.102.0 står nedladdningen i detaljen och inte i menyn, men bara
+ * HTML-dokumentet med `oppnaHtml` fick knappen. En textfil, en video, en PDF och övriga filer hade bara filnamnet som länk, som öppnar
+ * filen i en ny flik. Knappen bär `download` med filens namn.
+ * @param {{ adress: string, namn: string, children: any }} props
+ */
+function FilMedLaddaNed({ adress, namn, children }) {
+  return (
+    <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
+      {children}
+      <a href={adress} target="_blank" rel="noopener noreferrer" download={namn} data-bibliotek-ladda-ned="" className={knappKlass({ variant: "secondary", size: "sm" })}>
+        Ladda ned
+      </a>
+    </div>
+  );
+}
+
+/**
  * Bild öppnas i förhandsvisning. PDF och övrigt i ny flik. Utan adress sägs det.
  *
  * @param {{ post: { id?: string, typ?: string, rubrik?: string, skapad?: number, skapadAv?: unknown, durationMs?: number, peaks?: string, fil?: { namn?: string, mime?: string, byte?: number, sokvag?: string } }, lage: Adresslage, kopplad: boolean, onLjus?: (adress: string) => void, onMeta?: (id: string, meta: { durationMs?: number, peaks?: string }) => void, onRadera?: () => void, hamtaFil?: (sokvag: string) => Promise<Blob>, htmlVy?: string, versioner?: { lista: (post: any) => Promise<unknown>, hamtaVersion?: (post: any, nr: number) => Promise<any>, aterstall?: (post: any, nr: number, fran: number) => Promise<unknown>, nyVersion?: (post: any, fil: File, fran: number) => Promise<unknown>, kanAndra: boolean } }} props
@@ -1833,9 +1850,11 @@ function FilVisning({ post, lage, kopplad, onLjus, onMeta, onRadera, hamtaFil, v
     return (
       <div data-bibliotek-fil="" className="flex flex-col gap-2">
         <video data-bibliotek-video="" src={adress} controls playsInline preload="metadata" aria-label={post.rubrik ?? namn} className="block h-auto max-h-96 w-full rounded-lg bg-sunken" />
-        <a href={adress} target="_blank" rel="noopener noreferrer" className="w-fit text-etikett text-accent underline underline-offset-2">
-          {rad}
-        </a>
+        <FilMedLaddaNed adress={adress} namn={namn}>
+          <a href={adress} target="_blank" rel="noopener noreferrer" className="w-fit text-etikett text-accent underline underline-offset-2">
+            {rad}
+          </a>
+        </FilMedLaddaNed>
       </div>
     );
   }
@@ -1873,16 +1892,22 @@ function FilVisning({ post, lage, kopplad, onLjus, onMeta, onRadera, hamtaFil, v
     return (
       <div data-bibliotek-fil="" className="flex min-w-0 flex-col gap-2">
         <TextForhandsvisning hamta={hamtaFil} sokvag={post.fil.sokvag} namn={post.rubrik ?? namn} />
-        <a href={adress} target="_blank" rel="noopener noreferrer" className="w-fit text-etikett text-accent underline underline-offset-2">
-          {rad}
-        </a>
+        <FilMedLaddaNed adress={adress} namn={namn}>
+          <a href={adress} target="_blank" rel="noopener noreferrer" className="w-fit text-etikett text-accent underline underline-offset-2">
+            {rad}
+          </a>
+        </FilMedLaddaNed>
       </div>
     );
   }
   return (
-    <a href={adress} target="_blank" rel="noopener noreferrer" data-bibliotek-fil="" className="text-etikett text-accent underline underline-offset-2">
-      {rad}
-    </a>
+    <div data-bibliotek-fil="">
+      <FilMedLaddaNed adress={adress} namn={namn}>
+        <a href={adress} target="_blank" rel="noopener noreferrer" className="text-etikett text-accent underline underline-offset-2">
+          {rad}
+        </a>
+      </FilMedLaddaNed>
+    </div>
   );
 }
 

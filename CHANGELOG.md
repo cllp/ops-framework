@@ -9,6 +9,12 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.174.0
+
+### Fixat
+
+- **Ladda ned i detaljen för varje fil** (lifehub.app QA 2026-11-01). En textfil, en video, en PDF och övriga filer hade bara filnamnet som länk i bibliotekets detalj. Nu står knappen Ladda ned (med `download`) bredvid, som för HTML-dokumentet. Prov: `bibliotek-ladda-ned-alla.test.jsx`.
+
 ## 0.173.0
 
 ### Rättat
