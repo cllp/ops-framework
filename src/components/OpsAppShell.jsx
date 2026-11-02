@@ -41,6 +41,8 @@ import { skapalaget, typerAttValja } from "../lib/skapa.js";
 import { malForInspelning, tillaggFor } from "../lib/tillagg.js";
 import { kordarePafunktion, MenyAvdelningar, menyAppAvdelning, menyFot, MenyRubrikRad, menySektioner, validateMeny } from "./OpsMeny.jsx";
 import { OpsSkapaGenvagar, useSkapaGenvag } from "./OpsSkapaGenvag.jsx";
+import { OpsFlytandeSkapa } from "./OpsFlytandeSkapa.jsx";
+import { flytandeSkapaPa } from "../lib/flytandeSkapa.js";
 
 /**
  * ⛔ EN VÄG IN I INSPELNINGEN UTAN ATT HÅLLA (#276): raden i Skapa och huvudets mikrofonknapp lämnar SAMMA form till
@@ -1067,6 +1069,15 @@ function GenvagRam({ nyckel, ikon, tips = true, className, children }) {
  *   Utan `skapa`, eller utan NÅGOT den kan visa (inga `handelse`/`arende` OCH modulerna i `ingenGrupp`/`tomt`-
  *   läge), ritas inget plus alls (tomhet är ett svar, arbetsreglernas punkt 5).
  * @param {string} [props.skapaLabel] Skärmläsarnamn på plusknappen.
+ * @param {ReadonlyArray<string> | ((activeHref: string) => boolean)} [props.flytandeSkapa] (0.176.0, cllp/lifehub.app#582) Slår på den flytande Skapa-knappen på telefon
+ *   (under 768 px): en egen rund plusknapp nere till höger ovanför bottenraden som öppnar SAMMA skapa-lista som ett långtryck på mikrofonen.
+ *   Appen säger för vilka vyer: en LISTA med adresser (`['/kalender', '/inkorg']`; en adress gäller också sina undersidor, `/` bara startsidan) eller en FUNKTION av
+ *   aktiv adress (`(href) => href.startsWith('/kalender')`) som svarar true eller false. Förval: utelämnad, och då ritas ingen knapp och inget ändras.
+ *   ⛔ Fel form kastar (ett enkelt `true` finns inte: knappen hör till vissa vyer). ⛔ Kräver `fasta` och `talk` samt något i skapa-listan utöver TALK
+ *   (`skapaListaUtomTalk`): utan `talk` är bottenradens mittknapp redan plusset (ett plus per yta), och utan lista finns inget att öppna.
+ *   Knappen göms medan en panel, ett ark eller en dialog är öppen, medan TALK inte vilar och medan tangentbordet är uppe, och ritas aldrig i översikten
+ *   utan bottenrad. Medan den syns lägger `main` knappens höjd på sin `padding-bottom` (`--flytande-skapa-h`). Namnet är `skapaLabel` ("Skapa" / "Create").
+ *   Slå inte på den för en vy som är exakt fönstrets höjd med eget skrivfält i botten (Meddelanden): där finns redan ett eget sätt att skapa.
  * @param {Omit<import("./OpsTalk.jsx").TalkVal, "onTalk"> & { mal?: ReadonlyArray<{ id: string, etikett: string }>, onMeddelande?: (underlag: import("../lib/talk.js").Talkunderlag) => void, onAgent?: (text: string) => void | Promise<void>, onAnteckning?: (text: string) => void | import("../lib/talk.js").Talkanteckningslank | Promise<void | import("../lib/talk.js").Talkanteckningslank>, tillText?: (blob: Blob, meta: { mimeType: string, sekunder: number }) => Promise<string>, onTalk: (blob: Blob, meta: { mimeType: string, sekunder: number, rapportera: (andel: number) => void, mal?: { id: string }, text?: string }) => Promise<void | import("../lib/talk.js").Talkkvitto> | void | import("../lib/talk.js").Talkkvitto }} [props.talk] TALK (0.57.0, cllp/lifehub.app#2). ⛔ (0.103.0) Bottenradens mittknapp
  *   är då en mikrofon: ett vanligt tryck spelar in, och ett långtryck öppnar skapa-listan (utan TALK-raden) när den har något.
  *   Före 0.103.0 spelade ett långtryck på plusset in och ett tryck öppnade Skapa. Huvudets plus (bred skärm, och den gamla
@@ -1146,6 +1157,7 @@ function OpsAppShellRitad({
   handelsepanel,
   radkallor,
   skapaLabel = ORD_OPSAPPSHELL.skapaLabel.sv,
+  flytandeSkapa,
   nyHandelseEtikett = ORD_OPSAPPSHELL.nyHandelseEtikett.sv,
   nyttArendeEtikett = ORD_OPSAPPSHELL.nyttArendeEtikett.sv,
   nyGruppEtikett = ORD_OPSAPPSHELL.nyGruppEtikett.sv,
@@ -1955,6 +1967,9 @@ function OpsAppShellRitad({
     return a;
   });
   const [skapaBottenOppen, setSkapaBottenOppen] = useState(false);
+  // ⛔ EN FUNKTION FÖR ATT ÖPPNA SKAPA-LISTAN PÅ TELEFON (0.176.0, cllp/lifehub.app#582). Mikrofonens långtryck, bottenradens plus utan `talk`
+  // och den flytande Skapa-knappen går alla hit. Tre kopior hade kunnat glida isär i vad de öppnar.
+  const oppnaSkapaLista = () => setSkapaBottenOppen(true);
   // ⛔ Kroken körs alltid (krokarnas regel), men utan `talk` når ingen den: plusset får ingen `talk` och raden ritas inte.
   const [valtInspelning, setValtInspelning] = useState(/** @type {string | null} */ (null));
   // Ett valt id gäller appens mål (valet i fältet) eller ett modulmål (modulens rad). Utan val är det appens första mål, aldrig en modul.
@@ -1976,7 +1991,7 @@ function OpsAppShellRitad({
       }
       return talk.onTalk(blob, valtMal ? { ...meta, mal: { id: valtMal.id } } : meta);
     },
-    onKlick: () => (harFasta ? setSkapaBottenOppen(true) : primaryAction?.onClick()),
+    onKlick: () => (harFasta ? oppnaSkapaLista() : primaryAction?.onClick()),
     // ⛔ AGENT BARA FÖR APPENS MÅL (0.105.0). Ett fält låst till Biblioteket sparar ljudet där, och ett val hade lämnat det någon annanstans.
     onAgent: !laastTillModul && typeof talk?.onAgent === "function" ? talk.onAgent : undefined,
     // ⛔ (0.114.0, cllp/ops-framework#402) Anteckning och utskriften hör till valen och gäller därför bara appens mål, som Agent.
@@ -2206,9 +2221,9 @@ function OpsAppShellRitad({
    * ⛔ Långtrycket som spelade in (0.57.0) är borta: ett tryck räcker, och fältet låg ändå kvar när man släppte.
    */
   const bottenAtgard = (() => {
-    const bas = harFasta ? (visaSkapaKnapp ? { label: skapaLabel, onClick: () => setSkapaBottenOppen(true) } : undefined) : primaryAction;
+    const bas = harFasta ? (visaSkapaKnapp ? { label: skapaLabel, onClick: oppnaSkapaLista } : undefined) : primaryAction;
     if (!bas || !talk) return bas;
-    const langtryck = harFasta ? (skapaListaUtomTalk ? () => setSkapaBottenOppen(true) : undefined) : bas.onClick;
+    const langtryck = harFasta ? (skapaListaUtomTalk ? oppnaSkapaLista : undefined) : bas.onClick;
     return {
       label: talkKnappNamn(talkStyr.lage, sprak),
       onClick: () => oppnaSkapa(TALK_FORM),
@@ -2256,6 +2271,10 @@ function OpsAppShellRitad({
    */
   const hemgrupp = iOversikt && grupper?.oversikt?.hemgrupp && grupper.lista.some((g) => g.id === grupper.oversikt?.hemgrupp) ? grupper.oversikt.hemgrupp : null;
   const utanBottenrad = iOversikt && !hemgrupp;
+  // ⛔ Ej utgivet (cllp/lifehub.app#582): DEN FLYTANDE SKAPA-KNAPPEN. Propen prövas alltid (fel form kastar även när knappen inte kan ritas),
+  // men knappen finns bara när det finns en bottenrad, ett plus att öppna och en lista utöver TALK: se `flytandeSkapa` i JSDoc.
+  const flytandePa = flytandeSkapaPa(flytandeSkapa, activeHref);
+  const flytandeMojlig = flytandePa && !utanBottenrad && bottenPlus && Boolean(talk) && skapaListaUtomTalk;
   /** @type {((href: string, event: any) => void) | undefined} */
   const bottenNavigera = hemgrupp && grupper
     ? (href, event) => {
@@ -2892,7 +2911,8 @@ function OpsAppShellRitad({
       {/* `padding-bottom` lika med bottenradens höjd plus säker yta, men bara
           under md där baren finns. Utan den ligger sista kortet under baren, och
           det upptäcks först när någon inte hittar sin sista rad. */}
-      <main className={utanBottenrad ? "pb-[calc(var(--safe-bottom)+var(--spelrad-h,0px))] md:pb-(--spelrad-h,0px)" : "pb-[calc(var(--bottom-nav-h)+var(--safe-bottom)+var(--spelrad-h,0px))] md:pb-(--spelrad-h,0px)"}>
+      {/* ⛔ 0.176.0: `--flytande-skapa-h` är knappens höjd plus luft medan den syns (`OpsFlytandeSkapa`), annars 0. Under 768 px bara, där knappen finns. */}
+      <main className={utanBottenrad ? "pb-[calc(var(--safe-bottom)+var(--spelrad-h,0px))] md:pb-(--spelrad-h,0px)" : "pb-[calc(var(--bottom-nav-h)+var(--safe-bottom)+var(--spelrad-h,0px)+var(--flytande-skapa-h,0px))] md:pb-(--spelrad-h,0px)"}>
         {/* ⛔ #159: ALLTID PÅ, se OpsFelgrans filhuvud. Ingen prop stänger av den. */}
         <OpsFelgrans felmottagare={felmottagare} rubrik={felRubrik} beskrivning={felBeskrivning} laddaOmEtikett={laddaOmEtikett}>
           {/* ⛔ 0.31.0: APPENS VY ÄR KVAR I DOM:EN, DOLD, medan skapa-panelen visas. Tillbaka återställer då exakt vyn man kom
@@ -2941,6 +2961,15 @@ function OpsAppShellRitad({
         ark={apparArk && apparHref ? { href: apparHref, oppen: arkOppen, onOppen: setArkOppen } : undefined}
       />
       )}
+      {flytandeMojlig ? (
+        <OpsFlytandeSkapa
+          mojlig
+          panelOppen={skapaPanelSyns || handelsePanelSyns || skapaBottenOppen || skapaVaxlare || arkOppen}
+          talkLage={talkStyr.lage}
+          onOppna={oppnaSkapaLista}
+          label={skapaLabel}
+        />
+      ) : null}
       {/* Hyllan, inte en modal som täcker raden. Lagret är `--z-ark` inuti
           OpsApparArk (`arkHyllaZ`), under kromet, så pluset i bottenraden
           målar över hyllans kant. */}

@@ -9,6 +9,12 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.176.0
+
+### Tillagt
+
+- **Flytande Skapa-knapp på telefon (cllp/lifehub.app#582).** Under 768 px ligger skapa-listan bakom ett långtryck på mikrofonen och inget på skärmen säger det. `OpsAppShell` får `flytandeSkapa`: en lista med adresser (`['/kalender', '/inkorg']`) eller en funktion `(activeHref) => boolean` som anger de vyer där en egen, rund plusknapp ritas nere till höger ovanför bottenraden. Den öppnar SAMMA lista som långtrycket (en funktion, ingen kopia), och långtrycket finns kvar. Förval: av, så inget ändras för appar som inte slår på den. Knappen göms medan en panel, ett ark eller en dialog är öppen, medan TALK inte vilar och medan tangentbordet är uppe, och den göms inte vid rullning. Medan den syns lägger `main` knappens höjd på sin `padding-bottom` (`--flytande-skapa-h`). Namnet är `skapaLabel` ("Skapa" / "Create"), storleken och luften är tokens (`--flytande-skapa-storlek`, `--flytande-skapa-luft`, 44 px på låga skärmar). Kräver `fasta`, `talk` och något i skapa-listan utöver TALK: utan `talk` är mittknappen redan plusset. Prov: `flytande-skapa.test.jsx` (25), mätt i Chromium i `scripts/flytande-skapa-montage.mjs` (`npm run check:flytande-skapa`).
+
 ## 0.175.0
 
 ### Fixat
