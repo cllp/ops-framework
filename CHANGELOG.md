@@ -9,6 +9,12 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.176.1
+
+### Fixat
+
+- **Den flytande Skapa-knappen låg över kalenderns dagpanel (cllp/lifehub.app#582).** CP 2026-11-02 20:55, skärmbild från telefonen: "Här blir en krock i mobilen." Dagpanelen staplas under rutnätet på telefon och har en egen Skapa-ruta nere till höger, och knappen låg ovanpå den. Dagpanelen är ingen Radix-dialog och snabbtitten en `role="dialog"` utan `data-state`, så ingen av dem dolde knappen. En yta som tar knappens plats säger det nu själv med `data-ops-doljer-flytande-skapa` (`DOLJER_FLYTANDE_SKAPA` i `lib/flytandeSkapa.js`), och dagpanelen och snabbtitten bär det. Knappen kommer tillbaka när panelen stängs. Prov: tre nya i `flytande-skapa.test.jsx`, två röda utan attributen på kalenderns ytor.
+
 ## 0.176.0
 
 ### Tillagt
