@@ -4,6 +4,7 @@ import { ordet } from "../lib/ord.js";
 import { cx } from "../lib/cx.js";
 import { radBehallare, radKlass } from "../lib/radKlass.js";
 import { KryssIkon } from "./icons.jsx";
+import { OpsSpinner } from "./OpsSpinner.jsx";
 import { useOpsSprak } from "./OpsSprak.jsx";
 import { LANGTRYCK_KLASS, useLangtryck } from "./useLangtryck.js";
 
@@ -109,9 +110,10 @@ export function OpsHuvudmenyIkonVal({ namn, onTaBort, children }) {
         >
           <p data-ops-atgard-namn="" className="m-0 truncate px-3 pt-2 pb-1 text-meta font-medium text-ink-muted">{namn}</p>
           <div role="menu" aria-label={namn} className="flex flex-col p-1">
-            <button type="button" role="menuitem" tabIndex={-1} disabled={upptagen} className={radKlass({ stor: true })} onClick={valj}>
+            <button type="button" role="menuitem" tabIndex={-1} disabled={upptagen} aria-busy={upptagen || undefined} className={radKlass({ stor: true })} onClick={valj}>
               <span aria-hidden="true" className="flex shrink-0 items-center text-ink-secondary [&_svg]:size-4">
-                <KryssIkon size={16} />
+                {/* ⛔ EN SNURRA MEDAN DET SPARAS (check-vantar): borttagningen är ett anrop, och en knapp som inte visar att den väntar trycks igen. */}
+                {upptagen ? <OpsSpinner size="sm" decorative /> : <KryssIkon size={16} />}
               </span>
               <span className="min-w-0 flex-1 truncate">{ordet(ORD_OPSHUVUDMENYIKONVAL, "taBort", sprak)}</span>
             </button>
