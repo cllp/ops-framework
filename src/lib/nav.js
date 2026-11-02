@@ -120,3 +120,47 @@ export function entryActive(entry, activeHref) {
   }
   return false;
 }
+
+/**
+ * Bredden (px) från vilken en `breddklass` döljer en rad, eller `null` när klassen inte är en `min-*:hidden` eller `md:hidden`/`lg:hidden` som skalet kan resonera om (0.177.0).
+ * Tailwind 4: `min-[360px]:hidden` är `width >= 360px`, `md:hidden` är `width >= 48rem` (768) och `lg:hidden` är `width >= 64rem` (1024).
+ * @param {string} klass
+ * @returns {number | null}
+ */
+function doljFran(klass) {
+  const min = /(?:^|\s)min-\[(\d+)px\]:hidden(?:\s|$)/.exec(klass);
+  if (min) return Number(min[1]);
+  if (/(?:^|\s)lg:hidden(?:\s|$)/.test(klass)) return 1024;
+  if (/(?:^|\s)md:hidden(?:\s|$)/.test(klass)) return 768;
+  return null;
+}
+
+/**
+ * Klassen som döljer en HEL avdelning i Meny på de bredder där alla dess rader är dolda (0.177.0).
+ *
+ * ⛔ HÄNDELSEN: granskningen av 360f0ed. Raderna för en app vars ikon syns i toppraden bär en `breddklass` (`min-[360px]:hidden` m.fl.). Med två eller tre fästa appar vid
+ * 600 px är alla raderna i avdelningen "Appen" dolda, men rubriken ovanför står kvar: en rubrik över ingenting. Rubriken får inte stå ensam.
+ *
+ * Alla raderna dolda betyder att bredden är minst lika stor som VARJE rads gräns, alltså den största gränsen: avdelningen får klassen från den rad som döljs sist. Det räknas ur
+ * radernas egna klasser vid ritningen, ingen mätning i JS. En avdelning där någon rad saknar klass (en app som lägger egna rader, överskottet, en åtgärd) syns alltid, och då
+ * ska rubriken stå kvar: svaret är `undefined`. Samma för en klass vi inte kan tolka: hellre en rubrik för mycket än en rad som försvinner.
+ *
+ * @param {ReadonlyArray<{ breddklass?: string }> | null | undefined} poster
+ * @returns {string | undefined}
+ */
+export function avdelningsBreddklass(poster) {
+  if (!Array.isArray(poster) || poster.length === 0) return undefined;
+  let storst = -1;
+  /** @type {string | undefined} */
+  let klass;
+  for (const p of poster) {
+    if (typeof p?.breddklass !== "string" || p.breddklass === "") return undefined;
+    const fran = doljFran(p.breddklass);
+    if (fran === null) return undefined;
+    if (fran > storst) {
+      storst = fran;
+      klass = p.breddklass;
+    }
+  }
+  return klass;
+}

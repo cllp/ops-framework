@@ -44,8 +44,9 @@ function Yta() {
               <Ops.OpsIconLink key={n} href={`/${n.toLowerCase()}`} label={n} kvarIHuvudet badge={i === 1 ? 12 : undefined} icon={<Ops.OpsIdentity name={n} seed={n} size="sm" />} />
             ),
           )}
-          <Ops.OpsIconLink href="/sok" label="Sök" icon={<Ops.OpsIdentity name="Sök" seed="sok" size="sm" />} />
-          <Ops.OpsIconLink href="/fraga" label="Fråga" icon={<Ops.OpsIdentity name="Fråga" seed="fraga" size="sm" />} />
+          {/* window.__utanSok: ingen Sök och Fråga. De flyttas annars till Meny som rader utan breddklass, och då är avdelningen "Appen" aldrig tom. */}
+          {window.__utanSok ? null : <Ops.OpsIconLink href="/sok" label="Sök" icon={<Ops.OpsIdentity name="Sök" seed="sok" size="sm" />} />}
+          {window.__utanSok ? null : <Ops.OpsIconLink href="/fraga" label="Fråga" icon={<Ops.OpsIdentity name="Fråga" seed="fraga" size="sm" />} />}
         </>
       }
       anvandare={<Ops.OpsIconLink href="/profil" label="Min profil" avatar icon={<Ops.OpsIdentity name="Claes-Philip Staiger" seed="cp" size="sm" />} />}

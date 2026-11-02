@@ -8,6 +8,7 @@ import { defineModule } from "../lib/modul.js";
 import { byggGrupp } from "../lib/grupp.js";
 import { HUVUDMENY_MAX, sattHuvudmeny } from "../lib/modulinstallningar.js";
 import { LANGTRYCK_MS } from "../lib/apparark.js";
+import { avdelningsBreddklass } from "../lib/nav.js";
 
 /**
  * Taket för appikonerna i toppraden (0.177.0, `HUVUDMENY_MAX`).
@@ -36,8 +37,8 @@ function appar(antal) {
   return ID.slice(0, antal).map((id, i) => <OpsIconLink key={id} href={`/${id}`} label={NAMN[i]} kvarIHuvudet icon={<I />} />);
 }
 
-/** @param {{ antal?: number, ark?: object | null, meny?: object | undefined, sprak?: "sv" | "en" }} [v] */
-function Skal({ antal = 7, ark, meny: m = meny, sprak = "sv" } = {}) {
+/** @param {{ antal?: number, ark?: object | null, meny?: object | undefined, sprak?: "sv" | "en", sok?: boolean }} [v] `sok: false` tar bort Sök: den flyttas annars till Meny som en rad utan breddklass, och då är avdelningen aldrig tom. */
+function Skal({ antal = 7, ark, meny: m = meny, sprak = "sv", sok = true } = {}) {
   const lista = ID.slice(0, antal);
   const apparArk = ark === null ? undefined : { moduler, grupp: { moduler: lista, huvudmeny: lista }, farAndra: true, ...ark };
   return (
@@ -51,7 +52,7 @@ function Skal({ antal = 7, ark, meny: m = meny, sprak = "sv" } = {}) {
           <>
             <OpsIconLink href="/inkorg" label="Inkorg" icon={<I />} />
             {appar(antal)}
-            <OpsIconLink href="/sok" label="Sök" icon={<I />} />
+            {sok ? <OpsIconLink href="/sok" label="Sök" icon={<I />} /> : null}
           </>
         }
         meny={m}
@@ -248,6 +249,52 @@ describe("3. läsvägen klipper aldrig", () => {
     render(<Skal antal={HUVUDMENY_MAX} />);
     expect(within(screen.getByRole("banner")).getByRole("link", { name: "Inkorg" })).toBeTruthy();
     expect(ikonKlass("Inkorg")).toBe("");
+  });
+});
+
+describe("3b. rubriken över raderna i Meny", () => {
+  afterEach(cleanup);
+  const avdelning = () => /** @type {HTMLElement} */ (within(screen.getByRole("dialog")).getByText("Appen").closest("[data-meny-avdelning]"));
+  const oppna = () => fireEvent.click(within(screen.getByRole("navigation", { name: "Snabbnavigering" })).getByRole("button", { name: "Meny" }));
+
+  it("⛔ avdelningsBreddklass: klassen från raden som döljs sist, och inget om någon rad syns alltid eller klassen inte kan tolkas", () => {
+    expect(avdelningsBreddklass([{ breddklass: "min-[360px]:hidden" }])).toBe("min-[360px]:hidden");
+    expect(avdelningsBreddklass([{ breddklass: "min-[360px]:hidden" }, { breddklass: "min-[390px]:hidden" }])).toBe("min-[390px]:hidden");
+    expect(avdelningsBreddklass([{ breddklass: "min-[390px]:hidden" }, { breddklass: "min-[360px]:hidden" }, { breddklass: "lg:hidden" }])).toBe("lg:hidden");
+    expect(avdelningsBreddklass([{ breddklass: "min-[360px]:hidden" }, {}])).toBeUndefined();
+    expect(avdelningsBreddklass([{ breddklass: "max-[360px]:hidden" }])).toBeUndefined();
+    expect(avdelningsBreddklass([])).toBeUndefined();
+  });
+
+  it("⛔ två fästa appar: avdelningen Appen döljs med raden (ikon 1) som döljs, alltså från 360 px", () => {
+    render(<Skal antal={2} sok={false} />);
+    oppna();
+    expect(avdelning().className).toContain("min-[360px]:hidden");
+  });
+
+  it("⛔ tre fästa appar: avdelningen döljs när den sista raden döljs, alltså från 390 px", () => {
+    render(<Skal antal={3} sok={false} />);
+    oppna();
+    expect(avdelning().className).toContain("min-[390px]:hidden");
+    expect(avdelning().className).not.toContain("min-[360px]:hidden");
+  });
+
+  it("Sök och andra flyttade åtgärder är rader som alltid syns: med dem står rubriken kvar vid varje bredd", () => {
+    render(<Skal antal={2} />);
+    oppna();
+    expect(avdelning().className).not.toMatch(/hidden/);
+  });
+
+  it("⛔ med överskott (sju appar) finns rader som alltid syns, och avdelningen får ingen dold-klass", () => {
+    render(<Skal antal={7} sok={false} />);
+    oppna();
+    expect(avdelning().className).not.toMatch(/hidden/);
+  });
+
+  it("⛔ en app som lägger egna rader i meny.app har rader som alltid syns: rubriken står kvar", () => {
+    render(<Skal antal={2} sok={false} meny={{ ...meny, app: [{ href: "/appens", label: "Appens egen" }] }} />);
+    oppna();
+    expect(avdelning().className).not.toMatch(/hidden/);
   });
 });
 

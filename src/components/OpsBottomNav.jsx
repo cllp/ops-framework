@@ -5,7 +5,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { cx } from "../lib/cx.js";
 import { KryssIkon, MenuIcon, PlusIkon } from "./icons.jsx";
 import { TALK_ORD } from "../lib/talk.js";
-import { entryActive, validateNav } from "../lib/nav.js";
+import { avdelningsBreddklass, entryActive, validateNav } from "../lib/nav.js";
 import { OpsCountBadge } from "./counter.jsx";
 import { radBehallare, radKlass } from "../lib/radKlass.js";
 import { kordarePafunktion, MenyAvdelningar, menyAppAvdelning, menyFot, menySektioner, MenyTillbakaKnapp, validateMeny } from "./OpsMeny.jsx";
@@ -165,6 +165,7 @@ function OpsBottomNavRitad({
   if (inMenu.length > 0) {
     avdelningar.push({
       key: "nav",
+      klass: avdelningsBreddklass(inMenu),
       innehall: inMenu.map((entry) => <SheetPost key={entry.href} entry={entry} activeHref={activeHref} onNavigate={klick} badgeText={badgeText} />),
     });
   }
