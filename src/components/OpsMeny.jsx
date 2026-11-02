@@ -273,7 +273,7 @@ export function MenyAppPoster({ poster, activeHref, onNavigate, stang, badgeText
     );
   };
   return poster.map((p) => (
-    <div key={p.href} className="flex flex-col gap-0.5">
+    <div key={p.href} className={cx("flex flex-col gap-0.5", /** @type {any} */ (p).breddklass)}>
       {rad(p)}
       {(p.children ?? []).map((c) => rad(c, true))}
     </div>

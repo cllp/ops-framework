@@ -21,6 +21,8 @@ import { ID_FORM } from "./katalog.js";
  * @property {string | { sv: string, en?: string } | null} [info] (0.30.1) EN kort rad under namnet på modulens kort i Hub.
  *   Utelämnad: ingen rad. `null`: ramverket skriver "Inget nytt" (tomhet är ett svar, arbetsreglernas punkt 5).
  * @property {{ href: string, label: string, badge?: number, info?: string | { sv: string, en?: string } | null }[]} [children] EN nivå, aldrig fler.
+ * @property {string} [breddklass] (0.177.0) En Tailwind-klass som döljer raden på de bredder där posten ligger någon annanstans. Skalet sätter den på appraderna i Meny som är dolda i toppraden på just de breddarna
+ *   (`max-[359px]:hidden` i raden ↔ `min-[360px]:hidden` här), så att en app finns på exakt ett ställe på varje bredd. Ritas på radens omslag i `MenyAppPoster` och i bottenradens ark.
  * @property {string | null} [skapa] (0.103.0) Vad ett långtryck på postens ikon skapar: en nyckel som `useOppnaSkapa()` tar
  *   ("handelse", "arende", "grupp", "meddelande" eller en moduls registrerings id). Skalet öppnar den med sin `oppnaSkapa`.
  *   Har nyckeln ingen mottagare i skalet just nu händer inget, och ikonen går inte att hålla in. `null` eller utelämnad: ingen genväg.

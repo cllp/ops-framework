@@ -3,19 +3,25 @@
  *
  * Kör: npm run build && node scripts/huvudmeny-matt.mjs [--bevisa]   (`npm run check:huvudmeny` kör båda, i `check:all`)
  *
- * ⛔ HÄNDELSEN: CP 2026-11-02 20:58, med en skärmbild från telefonen. Sju appar hade "Visa i huvudmenyn" och toppraden klippte den sista ikonen. Taket
- * `HUVUDMENY_MAX` (src/lib/modulinstallningar.js) är ett tal, och ett tal som ingen mätt är en gissning. Den här mätningen gör två saker.
+ * ⛔ HÄNDELSEN: CP 2026-11-02 20:58, med en skärmbild från telefonen. Sju appar hade "Visa i huvudmenyn" och toppraden klippte den sista ikonen. CP:s beslut ("4, kör"):
+ * man får välja fyra (`HUVUDMENY_MAX`, src/lib/modulinstallningar.js), och hur många som SYNS följer bredden. Båda tal ska mätas, inte antas.
  *
- *   1. KAPACITET: största antal appikoner som ryms i toppraden vid 320, 360 och 390 px, tillsammans med hemikon, gruppmärke, Inkorg som åtgärd och avatar
- *      (scenen `kapacitet` i scripts/lib/huvudmeny-yta.jsx, där ikonerna INTE bär `kvarIHuvudet` så skalet inte kan kapa dem). "Ryms" är samma mått som
- *      hemikon-montage.mjs: raden rullar inte i sidled, ingen kontroll sticker ut eller ligger över en annan, och klungan tränger inte in i radens högerpadding.
- *      RÖTT när `HUVUDMENY_MAX` är större än kapaciteten vid 360 px: taket lovar då en plats som inte finns. Är taket mindre skrivs det ut som en varning,
- *      eftersom en tom plats är ett val och inget brott. 320 px skrivs ut men fäller inte: den bredden rymmer en ikon mindre och gäller en telefon från 2016.
- *   2. TAKET I BRUK: en grupp med sju fästa appar (CP:s) ritas vid 320 till 1280 px. Toppraden ska rymmas, ha exakt `HUVUDMENY_MAX` appikoner, och resten ska
- *      vara rader i Meny (bottenradens ark under 768 px, huvudets meny från 768 px), så att ingen app försvunnit utan att det syns.
+ *   1. KAPACITET: största antal appikoner som ryms i toppraden vid 320, 360, 390, 768, 1024 och 1280 px, tillsammans med hemikon, gruppmärke, Inkorg som åtgärd och
+ *      avatar (scenen `kapacitet` i scripts/lib/huvudmeny-yta.jsx, där ikonerna INTE bär `kvarIHuvudet` så skalet inte kan dölja eller kapa dem). "Ryms" är samma mått
+ *      som hemikon-montage.mjs: raden rullar inte i sidled, ingen kontroll sticker ut eller ligger över en annan, och klungan tränger inte in i radens högerpadding.
+ *      Tabellen i `HUVUDMENY_MAX` (1 vid 320, 2 vid 360, 3 vid 390 och 768, fler än 4 från 1024) är det här utfallet, och dold-klasserna i `HUVUDMENY_BREDDSTEG` är byggda på den.
+ *   2. TAKET I BRUK, med fyra och med sju fästa appar (CP:s har sju), vid 15 bredder runt varje brytpunkt (320, 340, 359, 360, 375, 389, 390, 414, 600, 767, 768, 1000, 1023, 1024, 1280):
+ *      a. Toppraden ska rymmas: ingen rullning, ingen klippning, inget överlapp (RÖTT annars, utom 320 px, se nedan).
+ *      b. ⛔ VARJE APP STÅR PÅ EXAKT ETT STÄLLE: som synlig ikon i toppraden eller som synlig rad i Meny (bottenradens ark under 768 px, huvudets meny från 768 px).
+ *         Aldrig på båda och aldrig på inget. Det är det som gör att en dold ikon inte försvinner.
+ *      c. Med sju: de efter de första fyra står i Meny på alla bredder.
+ *      d. Synliga ikoner får aldrig vara fler än kapaciteten vid bredden. Är de färre skrivs en varning (en tom plats är ett val, inget brott).
  *
- * ⛔ GOLV: minst 3 bredder x 9 antal i kapacitetsmätningen och 6 bredder i bruket måste ha hittat huvudet och minst en kontroll i det.
- * ⛔ BEVISET ÅT MOTSATT HÅLL (`--bevisa`): samma mätare på taket + 1 appikoner vid 360 px MÅSTE bli röd. En mätare som aldrig sett ikoner klippas är ingen vakt (regel 4).
+ * 320 px: tabellen säger 1, och dold-klasserna visar 1 där också. Klungan tränger in 0 px. Mäts som alla andra bredder.
+ *
+ * ⛔ GOLV: minst 54 kapacitets- och 30 bruksmätpunkter måste ha hittat huvudet och minst en kontroll i det.
+ * ⛔ BEVISET ÅT MOTSATT HÅLL (`--bevisa`), två gånger: (1) en dold-klass tas bort ur ikon 1 vid 320 px, och mätaren MÅSTE bli röd (raden klipps, appen står på två ställen).
+ *    (2) den omvända klassen tas bort ur ikon 1:s rad i Meny vid 400 px, och mätaren MÅSTE bli röd (appen står på två ställen). En mätare som aldrig sett ett fel är ingen vakt (regel 4).
  */
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -90,31 +96,108 @@ async function rita(bredd, v) {
   return { page, context, sidfel };
 }
 
-/** @type {string[]} */
-const fel = [];
-let punkter = 0;
+const APPNAMN = ["Bibliotek", "Meddelanden", "Ekonomi", "Recept", "Agenter", "Foton", "Planering"];
+
+/**
+ * Öppnar Meny på bredden (bottenradens ark under 768 px, huvudets meny från 768 px) och ger namnen på de rader som SYNS.
+ * @param {import("playwright").Page} page @param {number} bredd @returns {Promise<string[]>}
+ */
+async function synligaMenyrader(page, bredd) {
+  try {
+    if (bredd < 768) {
+      await page.getByRole("navigation", { name: "Snabbnavigering" }).getByRole("button", { name: "Meny" }).click();
+      await page.waitForSelector('[role="dialog"]', { timeout: 4000 });
+      return await page.$$eval('[role="dialog"] a', (as) => as.filter((a) => a.getBoundingClientRect().height > 0).map((a) => (a.getAttribute("aria-label") || a.textContent || "").trim()));
+    }
+    await page.locator("header").getByRole("button", { name: /fler åtgärder/ }).click();
+    await page.waitForSelector('[role="dialog"], [data-radix-popper-content-wrapper]', { timeout: 4000 });
+    // Överskottet bor i en egen navigering; saknas den finns inga rader, och det är inget fel för en grupp inom taket.
+    return await page.$$eval("[data-huvudmeny-overskott] a", (as) => as.filter((a) => a.getBoundingClientRect().height > 0).map((a) => (a.textContent || "").trim()));
+  } catch {
+    return [];
+  }
+}
+
+/** Raderna bär ikonens initial före namnet (scenens OpsIdentity) och ibland räknaren efter, så namnet söks inuti. Appnamnen är inte delar av varandra. @param {string[]} rader @param {string} namn */
+const harRad = (rader, namn) => rader.some((r) => r.includes(namn));
+
+/**
+ * Mäter en bredd med `antal` fästa appar: raden, och var varje app står.
+ * @param {number} bredd @param {number} antal @param {(page: import("playwright").Page) => Promise<void>} [forandra] Ändrar sidan före mätningen (bara beviset).
+ */
+async function matBruk(bredd, antal, forandra) {
+  const { page, context, sidfel } = await rita(bredd, { lage: "tak", antal });
+  if (forandra) await forandra(page);
+  const m = await page.evaluate(mat);
+  const rader = await synligaMenyrader(page, bredd);
+  await context.close();
+  /** @type {string[]} */
+  const f = [];
+  if (sidfel.length) f.push(`sidfel: ${sidfel.join("; ")}`);
+  f.push(...brott(m, bredd));
+  /** @type {string[]} */
+  const placering = [];
+  for (const namn of APPNAMN.slice(0, antal)) {
+    const iHuvud = m.apparIHuvudet.includes(namn);
+    const iMeny = harRad(rader, namn);
+    placering.push(`${namn}:${iHuvud ? "H" : ""}${iMeny ? "M" : ""}`);
+    if (iHuvud && iMeny) f.push(`${namn} står på TVÅ ställen (toppraden och Meny)`);
+    if (!iHuvud && !iMeny) f.push(`${namn} står INGENSTANS (varken i toppraden eller i Meny)`);
+  }
+  // Med fler än taket ska de efter de första `max` stå i Meny.
+  for (const namn of APPNAMN.slice(m.max, antal)) if (!harRad(rader, namn)) f.push(`${namn} (efter de första ${m.max}) saknas i Meny`);
+  if (m.apparIHuvudet.length > m.max) f.push(`${m.apparIHuvudet.length} appikoner i toppraden, taket är ${m.max}`);
+  return { m, f, placering, rader };
+}
 
 if (bevisa) {
-  // Taket + 1 vid 360 px måste klippas, annars mäter mätaren ingenting.
   const forsta = await rita(360, { lage: "kapacitet", antal: 0 });
   const max = (await forsta.page.evaluate(mat)).max;
   await forsta.context.close();
-  const { page, context } = await rita(360, { lage: "kapacitet", antal: max + 1 });
-  const m = await page.evaluate(mat);
-  await context.close();
-  const f = brott(m, 360);
-  console.log(`bevis: ${max + 1} appikoner (taket + 1) vid 360 px: ${f.length ? `RÖTT som väntat (${f.join(" | ")})` : "GRÖNT, och det är fel"}`);
+  /** @type {string[]} */
+  const falsk = [];
+  // (1) Dold-klassen av ikon 1 borttagen vid 320 px: två ikoner där bara en ryms.
+  const ett = await matBruk(320, max, (page) => page.evaluate(() => {
+    const el = document.querySelector('[data-huvudmeny-plats="1"]');
+    if (el) el.className = el.className.replace("max-[360px]:hidden", "");
+    else throw new Error("ikon 1 saknar omslag");
+  }));
+  console.log(`bevis 1: dold-klassen borttagen ur ikon 1 vid 320 px: ${ett.f.length ? `RÖTT som väntat (${ett.f.join(" | ")})` : "GRÖNT, och det är fel"}`);
+  if (ett.f.length === 0) falsk.push("bevis 1");
+  // (2) Den omvända klassen borttagen ur ikon 1:s rad i Meny vid 400 px: appen står i toppraden och i Meny.
+  // Raden finns först när Meny är öppen, så klassen tas bort efter öppningen.
+  {
+    const { page, context } = await rita(400, { lage: "tak", antal: max });
+    const m = await page.evaluate(mat);
+    await page.getByRole("navigation", { name: "Snabbnavigering" }).getByRole("button", { name: "Meny" }).click();
+    await page.waitForSelector('[role="dialog"]', { timeout: 4000 });
+    await page.evaluate(() => {
+      for (const d of document.querySelectorAll('[role="dialog"] a')) {
+        const o = d.parentElement;
+        if (o && (d.textContent || "").includes("Meddelanden")) o.className = o.className.replace("min-[360px]:hidden", "");
+      }
+    });
+    const rader = await page.$$eval('[role="dialog"] a', (as) => as.filter((a) => a.getBoundingClientRect().height > 0).map((a) => (a.textContent || "").trim()));
+    await context.close();
+    const dubbel = m.apparIHuvudet.includes("Meddelanden") && harRad(rader, "Meddelanden");
+    console.log(`bevis 2: den omvända klassen borttagen ur ikon 1:s rad i Meny vid 400 px: ${dubbel ? "RÖTT som väntat (Meddelanden står på TVÅ ställen)" : "GRÖNT, och det är fel"}`);
+    if (!dubbel) falsk.push("bevis 2");
+  }
   await browser.close();
   stada();
-  if (f.length === 0) {
-    console.error("huvudmeny-matt --bevisa: mätaren blev inte röd för taket + 1 vid 360 px. Den mäter då inte att ikonerna klipps.");
+  if (falsk.length) {
+    console.error(`huvudmeny-matt --bevisa: mätaren blev inte röd i ${falsk.join(", ")}. Den mäter då inte att ikonerna klipps eller dubbleras.`);
     process.exit(1);
   }
   process.exit(0);
 }
 
+/** @type {string[]} */
+const fel = [];
+let punkter = 0;
+
 // ── 1. KAPACITET ─────────────────────────────────────────────────────────────────────────────────────────
-const KAP_BREDDER = [320, 360, 390];
+const KAP_BREDDER = [320, 360, 390, 768, 1024, 1280];
 /** @type {Record<number, number>} */
 const kapacitet = {};
 let max = NaN;
@@ -137,54 +220,29 @@ for (const bredd of KAP_BREDDER) {
 }
 if (!Number.isInteger(max) || max < 1) fel.push(`HUVUDMENY_MAX lästes som ${max}. Ett tak ska vara ett heltal från 1.`);
 console.log(`HUVUDMENY_MAX = ${max}`);
-if (max > kapacitet[360]) fel.push(`HUVUDMENY_MAX (${max}) är större än vad som ryms vid 360 px (${kapacitet[360]}): taket lovar en plats som inte finns`);
-if (max < kapacitet[360]) console.log(`  VARNING: taket (${max}) är lägre än vad som ryms vid 360 px (${kapacitet[360]}). En plats står tom. Höj HUVUDMENY_MAX om det inte är ett val.`);
-if (max > kapacitet[320]) console.log(`  OBS: vid 320 px ryms ${kapacitet[320]}, en mindre än taket. Gäller en telefon från 2016 och fäller inte mätningen.`);
 
 // ── 2. TAKET I BRUK ──────────────────────────────────────────────────────────────────────────────────────
-const SJU = 7;
-for (const bredd of [320, 360, 390, 768, 1024, 1280]) {
-  const { page, context, sidfel } = await rita(bredd, { lage: "tak", antal: SJU });
-  const m = await page.evaluate(mat);
-  /** @type {string[]} */
-  const f = [];
-  if (sidfel.length) f.push(`sidfel: ${sidfel.join("; ")}`);
-  if (m.antal >= 2) punkter++;
-  // 320 px rymmer en ikon mindre än taket (se ovan) och mäts för att skrivas ut, inte för att fälla.
-  const rymmer = brott(m, bredd);
-  const bindande = bredd !== 320;
-  if (m.apparIHuvudet.length !== m.max) f.push(`${m.apparIHuvudet.length} appikoner i toppraden, väntat ${m.max}`);
-  // Resten ska vara rader i Meny.
-  const rest = ["Bibliotek", "Meddelanden", "Ekonomi", "Recept", "Agenter", "Foton", "Planering"].slice(m.max);
-  /** @type {string[]} */
-  let imeny = [];
-  // En Meny utan raderna är ett brott, inte ett kraschat skript: skalet utan taket har ingen "Fler appar".
-  try {
-    if (bredd < 768) {
-      await page.getByRole("navigation", { name: "Snabbnavigering" }).getByRole("button", { name: "Meny" }).click();
-      await page.waitForSelector('[role="dialog"]', { timeout: 4000 });
-      imeny = await page.$$eval('[role="dialog"] a', (as) => as.map((a) => (a.getAttribute("aria-label") || a.textContent || "").trim()));
-    } else {
-      await page.locator("header").getByRole("button", { name: /fler åtgärder/ }).click();
-      await page.waitForSelector("[data-huvudmeny-overskott]", { timeout: 2000 });
-      imeny = await page.$$eval("[data-huvudmeny-overskott] a", (as) => as.map((a) => (a.textContent || "").trim()));
-    }
-  } catch {
-    f.push("Meny gick inte att öppna med raderna för apparna som inte ryms");
+const BRUKS_BREDDER = [320, 340, 359, 360, 375, 389, 390, 414, 600, 767, 768, 1000, 1023, 1024, 1280];
+/** Kapaciteten vid en bredd: den närmaste uppmätta bredden under eller på den. @param {number} bredd */
+const kapVid = (bredd) => kapacitet[[...KAP_BREDDER].reverse().find((b) => b <= bredd) ?? 320];
+for (const antal of [Math.min(4, max), 7]) {
+  for (const bredd of BRUKS_BREDDER) {
+    const { m, f, placering } = await matBruk(bredd, antal, undefined);
+    if (m.antal >= 2) punkter++;
+    const synliga = m.apparIHuvudet.length;
+    const cap = kapVid(bredd);
+    if (synliga > cap) f.push(`${synliga} synliga appikoner men bara ${cap} ryms vid ${bredd} px`);
+    const varning = synliga < Math.min(cap, antal, max) ? `  VARNING: ${synliga} syns men ${Math.min(cap, antal, max)} hade rymts` : "";
+    console.log(`bruk ${String(antal).padStart(1)} appar ${String(bredd).padStart(4)} px: ${synliga} i toppraden (ryms ${cap}), längst ut ${m.langstUt.toFixed(0)} av ${m.inneKant === null ? "?" : m.inneKant.toFixed(0)}${f.length ? `  ROTT: ${f.join(" | ")}` : ""}${varning}`);
+    if (antal === 7 && (bredd === 360 || bredd === 768)) console.log(`   ${placering.join(" ")}   (H toppraden, M Meny)`);
+    for (const x of f) fel.push(`bruk ${antal} appar ${bredd}: ${x}`);
   }
-  // Raderna bär ikonens initial före namnet (scenens OpsIdentity), så namnet kan stå sist.
-  const saknas = rest.filter((n) => !imeny.some((r) => r.endsWith(n)));
-  if (saknas.length) f.push(`saknas i Meny: ${saknas.join(", ")} (Meny har ${imeny.join(", ") || "inget"})`);
-  await context.close();
-  console.log(`tak ${String(bredd).padStart(4)} px: ${m.apparIHuvudet.length} av ${SJU} appikoner i toppraden, ${rest.length - saknas.length} av ${rest.length} i Meny, längst ut ${m.langstUt.toFixed(0)} av ${m.inneKant === null ? "?" : m.inneKant.toFixed(0)}${rymmer.length ? `  ${bindande ? "ROTT" : "OBS"}: ${rymmer.join(" | ")}` : ""}${f.length ? `  ROTT: ${f.join(" | ")}` : ""}`);
-  for (const x of f) fel.push(`tak ${bredd}: ${x}`);
-  if (bindande) for (const x of rymmer) fel.push(`tak ${bredd}: ${x}`);
 }
 
 await browser.close();
 stada();
-if (punkter < 3 * 9 + 6) {
-  console.error(`huvudmeny-matt: bara ${punkter} mätpunkter, väntat ${3 * 9 + 6}. En vakt som mäter färre är grön av att ingenting lästes.`);
+if (punkter < 54 + 30) {
+  console.error(`huvudmeny-matt: bara ${punkter} mätpunkter, väntat ${54 + 30}. En vakt som mäter färre är grön av att ingenting lästes.`);
   process.exit(1);
 }
 if (fel.length) {

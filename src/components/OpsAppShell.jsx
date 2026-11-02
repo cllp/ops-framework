@@ -22,7 +22,7 @@ import { rapporteraFel, registreraFelmottagare } from "../lib/felrapport.js";
 import { OpsButton } from "./OpsButton.jsx";
 import { OpsIconLink } from "./OpsIconLink.jsx";
 import { OpsHuvudmenyIkonVal } from "./OpsHuvudmenyIkonVal.jsx";
-import { HUVUDMENY_MAX, sattHuvudmeny } from "../lib/modulinstallningar.js";
+import { HUVUDMENY_BREDDSTEG, HUVUDMENY_MAX, sattHuvudmeny } from "../lib/modulinstallningar.js";
 import { OpsPanel, OpsPanelRow } from "./OpsPanel.jsx";
 import { OpsHubblista, aktivHubbNamn, provaHubbar } from "./OpsHubbar.jsx";
 import { OpsSkapaI } from "./OpsSkapaI.jsx";
@@ -1921,29 +1921,49 @@ function OpsAppShellRitad({
   // lovar. Hemmet finns ändå: bottenradens Meny ritas alltid under `md`, och dess
   // ark visar `moreNav` som rader. Med `meny` går raderna in i appens avdelning som
   // förut, utan `meny` i arkets navigeringsrader. Ingen åtgärd försvinner tyst.
-  // ══ ⛔ TAKET FÖR APPIKONERNA I TOPPRADEN (0.177.0, `HUVUDMENY_MAX`) ═══════════════════════════════════════════════════════════
+  // ══ ⛔ TAKET FÖR APPIKONERNA I TOPPRADEN (0.177.0, `HUVUDMENY_MAX` = 4, `HUVUDMENY_BREDDSTEG`) ══════════════════════════════════════
   //
   // CP 2026-11-02 20:58, med en skärmbild från telefonen (390 px): toppraden klippte den sista appikonen. `ATGARDER_SMAL` flyttar åtgärder till menyn, men en
-  // appikon bär `kvarIHuvudet` och stannar alltid, så sju fästa appar ritades alla. De första `HUVUDMENY_MAX` (i appens ordning, den som `huvudmenyPoster` ger)
-  // får stå kvar. Resten tas ur toppraden på alla bredder och blir rader i Meny: bottenradens ark under `md`, huvudets meny från `md` (`overskottsRader`).
-  // Ingen app försvinner, och inga data ändras: en grupp som redan har sju visar två och har fem i Meny.
+  // appikon bär `kvarIHuvudet` och stannar alltid, så sju fästa appar ritades alla. CP:s beslut ("4, kör"): man får välja fyra. De första fyra (i appens ordning, den
+  // som `huvudmenyPoster` ger) ritas; resten, som en grupp som redan hade fler kan ha, ligger i Meny på ALLA bredder (`overskottsRader`).
+  //
+  // ⛔ VAD SOM SYNS FÖLJER BREDDEN, MÄTT (`scripts/huvudmeny-matt.mjs`, se `HUVUDMENY_MAX`): vid 320 px ryms 1 appikon, vid 360 px 2, vid 390 px 3 (och 768 px
+  // också 3, flikarna delar raden) och från `lg` (1024 px) fler än 4. Ikon k (0-räknat) får därför en klass som döljer den under bredden där den inte ryms (`max-[360px]:hidden`,
+  // `max-[390px]:hidden`, `max-lg:hidden`).
+  // Det är CSS och inte en mätning i JS: en mätning vid körning ger en rad som hoppar när fliken ritats, och klasserna går att kontrollera mot Chromium.
+  // Samma app står då som en rad i Meny på exakt de bredderna, med den omvända klassen (`breddRader`: `min-[360px]:hidden`, `min-[390px]:hidden`, `lg:hidden`), så att varje app finns på exakt ETT
+  // ställe på varje bredd. Ingen data ändras: en grupp med sju visar upp till fyra beroende på bredden och har resten i Meny.
   // ⛔ BARA `kvarIHuvudet`-IKONER RÄKNAS. Inkorg, sök och de andra åtgärderna har sitt eget tak (`ATGARDER_SMAL`).
   const alla = plattaAtgarder(actions);
   /** @type {import("react").ReactElement[]} */
   const overskottsIkoner = [];
   let kvarRaknade = 0;
+  /** Ordningsnumret (0-räknat) bland de ikoner som stannar, per element. */
+  const appPlats = new Map();
   const atgardsLista = alla.filter((a) => {
     if (a.type !== OpsIconLink || /** @type {any} */ (a.props).kvarIHuvudet !== true) return true;
+    if (kvarRaknade >= HUVUDMENY_MAX) {
+      overskottsIkoner.push(a);
+      return false;
+    }
+    appPlats.set(a, kvarRaknade);
     kvarRaknade += 1;
-    if (kvarRaknade <= HUVUDMENY_MAX) return true;
-    overskottsIkoner.push(a);
-    return false;
+    return true;
   });
-  /** @type {import("../lib/nav.js").NavPost[]} */
-  const overskottsRader = overskottsIkoner.map((a) => {
+  /** @param {import("react").ReactElement} a @param {string} [breddklass] @returns {import("../lib/nav.js").NavPost} */
+  const somRad = (a, breddklass) => {
     const p = /** @type {any} */ (a.props);
-    return { href: p.href, label: p.label, icon: p.icon, ...(typeof p.badge === "number" ? { badge: p.badge } : {}) };
-  });
+    return { href: p.href, label: p.label, icon: p.icon, ...(typeof p.badge === "number" ? { badge: p.badge } : {}), ...(breddklass ? { breddklass } : {}) };
+  };
+  /** Appar som alltid ligger i Meny: de efter de första fyra. */
+  const overskottsRader = overskottsIkoner.map((a) => somRad(a));
+  /** Appar som ligger i Meny på de bredder där deras ikon är dold i toppraden. Bottenradens Meny (under `md`) får alla. */
+  const breddRader = [...appPlats.entries()].filter(([, k]) => HUVUDMENY_BREDDSTEG[k]).map(([a, k]) => somRad(a, HUVUDMENY_BREDDSTEG[k]?.imeny));
+  /** Raderna i huvudets meny (från `md`): överskottet, och de breddsteg som döljs på en bredd över `md`. */
+  const huvudmenyRader = [
+    ...[...appPlats.entries()].filter(([, k]) => HUVUDMENY_BREDDSTEG[k]?.iHuvudmenyn).map(([a, k]) => somRad(a, HUVUDMENY_BREDDSTEG[k]?.imeny)),
+    ...overskottsRader,
+  ];
   // ⛔ EN FÄST MODUL STANNAR (0.88.2). CP 2026-10-09, telefon, grupp "my": huvudet visade tema, inkorg, Bibliotek
   // och avatar. Meddelanden saknades. `huvudmenyPoster` hade inte tappat den (den har kort och stod i `huvudmeny`,
   // utan märket `meddelanden-av`). Ordningen är `moduler`, så Bibliotek kom före Meddelanden och tog den enda
@@ -1995,7 +2015,16 @@ function OpsAppShellRitad({
   const atgarderIHuvud = atgardsLista.map((a, i) => {
     // Bara `OpsIconLink` kan flyttas. `flyttbara` är en delmängd (index >= `atgSmal`) och
     // får inte avgöra surfplattsomsaget: index ATGARDER_SURF ligger inte i den listan.
-    if (a.type === OpsIconLink && stannarIHuvudet(a)) return appikonMedVal(a, i);
+    if (a.type === OpsIconLink && stannarIHuvudet(a)) {
+      const ikon = appikonMedVal(a, i);
+      const dold = HUVUDMENY_BREDDSTEG[appPlats.get(a) ?? -1]?.dold;
+      // `contents` så omslaget inte blir en ruta i klungan; den breddklassen går före `contents` i CSS-ordningen och döljer hela ikonen.
+      return dold ? (
+        <span key={a.key ?? `appikon-${i}`} data-huvudmeny-plats={appPlats.get(a)} className={cx("contents", dold)}>
+          {ikon}
+        </span>
+      ) : ikon;
+    }
     if (a.type !== OpsIconLink) return a;
     // ⛔ `contents`, inte `inline-flex`: omslaget får inte bli en egen ruta i klungan.
     if (i >= atgSmal) {
@@ -2466,7 +2495,7 @@ function OpsAppShellRitad({
   // bara vid överflöd: menyn (notiser, aktivitet, Logga ut, versionen) finns
   // oavsett om navigeringen råkar rymmas. Utan `meny` är villkoret oförändrat:
   // bara nav-överflöd eller menuExtras tvingar fram knappen.
-  const visaHamburgare = Boolean(meny) || inMenu.length > 0 || Boolean(menuExtras) || surfRader.length > 0 || overskottsRader.length > 0;
+  const visaHamburgare = Boolean(meny) || inMenu.length > 0 || Boolean(menuExtras) || surfRader.length > 0 || huvudmenyRader.length > 0;
 
   // ⛔ MENYNS ORDNING, en lista och inte en JSX-trädgren per yta: ramverkets
   // sektioner (Aktivitet, Inställningar, Hjälp, Notiser), appens egna länkar
@@ -2903,9 +2932,9 @@ function OpsAppShellRitad({
                         ) : null}
                         {/* ⛔ APPARNA SOM INTE RYMS I TOPPRADEN (0.177.0, `HUVUDMENY_MAX`). Från `md`, där bottenraden inte finns: under `md` ligger samma rader i bottenradens ark. En egen
                             navigering med eget namn, överst: det är apparna man just inte ser i raden ovanför. */}
-                        {overskottsRader.length > 0 ? (
-                          <nav aria-label={ordet(TEXT_SKAL, "huvudmenyOverskott", sprak)} data-huvudmeny-overskott="" className="hidden flex-col gap-0.5 p-1 md:flex">
-                            {overskottsRader.map((s) => (
+                        {huvudmenyRader.length > 0 ? (
+                          <nav aria-label={ordet(TEXT_SKAL, "huvudmenyOverskott", sprak)} data-huvudmeny-overskott="" className={cx("hidden flex-col gap-0.5 p-1 md:flex", overskottsRader.length === 0 && "lg:hidden")}>
+                            {huvudmenyRader.map((s) => (
                               <a
                                 key={s.href}
                                 href={s.href}
@@ -2913,7 +2942,7 @@ function OpsAppShellRitad({
                                   stangMenyn(false);
                                   onActivate(s.href, e);
                                 }}
-                                className={radKlass({ active: entryActive(s, activeHref) })}
+                                className={cx(radKlass({ active: entryActive(s, activeHref) }), s.breddklass)}
                                 aria-current={entryActive(s, activeHref) ? "page" : undefined}
                               >
                                 {s.icon ? (
@@ -3021,7 +3050,7 @@ function OpsAppShellRitad({
       {utanBottenrad ? null : (
       <OpsBottomNav
         nav={bottenNav}
-        moreNav={[...(harFasta ? [] : navLista.slice(Math.min(smaltTak, primaryAction ? 3 : 4))), ...(meny ? [] : [...overskottsRader, ...flyttadeRader])]}
+        moreNav={[...(harFasta ? [] : navLista.slice(Math.min(smaltTak, primaryAction ? 3 : 4))), ...(meny ? [] : [...breddRader, ...overskottsRader, ...flyttadeRader])]}
         activeHref={activeHref}
         onNavigate={bottenNavigera}
         primaryAction={bottenAtgard}
@@ -3031,7 +3060,7 @@ function OpsAppShellRitad({
         // ⛔ #382: skalets `sprak` når inte bottenradens ordbok via kontexten, så texten läses ur den här, ur samma tabell.
         langtryckText={forvalda(ORD_OPSBOTTOMNAV, sprak).langtryckText}
         menuExtras={menuExtras}
-        meny={meny ? { sprak, ...meny, app: [...overskottsRader, ...flyttadeRader, ...(meny.app ?? [])] } : meny}
+        meny={meny ? { sprak, ...meny, app: [...breddRader, ...overskottsRader, ...flyttadeRader, ...(meny.app ?? [])] } : meny}
         ark={apparArk && apparHref ? { href: apparHref, oppen: arkOppen, onOppen: setArkOppen } : undefined}
       />
       )}

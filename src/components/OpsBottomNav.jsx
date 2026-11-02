@@ -482,7 +482,7 @@ function BottomLank({ entry, active, onClick, badgeText, genvag }) {
 function SheetPost({ entry, activeHref, onNavigate, badgeText }) {
   const hasChildren = Array.isArray(entry.children) && entry.children.length > 0;
   return (
-    <div className="flex flex-col gap-0.5">
+    <div className={cx("flex flex-col gap-0.5", entry.breddklass)}>
       <a
         href={entry.href}
         onClick={(e) => onNavigate(entry.href, e)}

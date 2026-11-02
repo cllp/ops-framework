@@ -64,32 +64,51 @@ export const ORD_VISA_I_HUVUDMENYN = {
 };
 
 /**
- * Hur många appar som får stå i huvudmenyn, alltså hur många appikoner toppraden bär (0.177.0).
+ * Hur många appar man får VÄLJA till huvudmenyn (0.177.0). Hur många som SYNS i toppraden beror på bredden, se `HUVUDMENY_BREDDSTEG`.
  *
- * ══ ⛔ MÄTT, INTE GISSAT (2026-11-02, byggd dist, `scripts/huvudmeny-matt.mjs`) ═══════════════════════════════════════════
+ * ══ ⛔ BESLUTET OCH MÄTNINGEN (CP 2026-11-02, "4, kör") ═════════════════════════════════════════════════════════════════════
  * CP 2026-11-02 20:58, med en skärmbild från telefonen: "för många ikoner i topraden, de måste kunna flyttas", och sedan: "Vi kanske skall ha ett max
  * antal ikoner så att användaren får prioritera själv?" Gruppens ägare kunde slå på "Visa i huvudmenyn" för hur många appar som helst (CP:s grupp hade
  * sju), och toppraden har en bredd. `ATGARDER_SMAL` tar bort åtgärder ur raden, men appikonerna bär `kvarIHuvudet` och flyttas aldrig: den sista klipptes
  * vid högerkanten.
  *
- * Scenen är huvudet som lifehub.app bygger det: hemikon (44), gruppmärke (44), Inkorg som åtgärd, N appikoner, avatar (44), med en räknare på en av dem.
- * Varje ikon är 44 px med 2 px emellan. "Ryms" betyder att raden inte rullar i sidled och att klungan inte tränger in i radens högerpadding
- * (samma mått som `ATGARDER_SMAL_HEM` bygger på). Största antal appikoner som ryms:
+ * Ett tak på det som ryms vid 360 px hade blivit 2, och det är för lite för en dator. Därför är det två tal: taket för vad man får välja är 4 (CP:s beslut),
+ * och vad som syns följer bredden, mätt. Scenen är huvudet som lifehub.app bygger det: hemikon (44), gruppmärke (44), Inkorg som åtgärd, N appikoner,
+ * avatar (44), med en räknare på en av dem. Varje ikon är 44 px med 2 px emellan. "Ryms" betyder att raden inte rullar i sidled, att ingenting överlappar
+ * och att klungan inte tränger in i radens högerpadding (samma mått som `ATGARDER_SMAL_HEM` bygger på). Största antal appikoner som ryms
+ * (`scripts/huvudmeny-matt.mjs`, byggd dist, Chromium):
  *
- *   bredd   appikoner som ryms
- *   320     1
- *   360     2    <- det här är talet
- *   390     3
+ *   bredd            appikoner som ryms     hur skalet gör
+ *   320 - 359        1                      ikon 0 syns, ikon 1-3 ligger i Meny
+ *   360 - 389        2                      ikon 0-1 syns
+ *   390 - 1023       3                      ikon 0-2 syns (768 px rymmer 3, inte 4: flikarna Idag/Kalender/Appar delar raden)
+ *   1024 och mer     6 (1024), 8 (1280)     alla fyra syns
  *
- * Talet är det som ryms vid 360 px, den smalaste bredd en nutida telefon har. Vid 320 px ryms en mindre än taket, och det är ett medvetet val som mätningen
- * skriver ut varje gång: 320 px är en telefon från 2016, och ett tak som sattes efter den hade gett 390-telefonen en tom plats den kunde ha använt.
- * Mätningen blir röd när taket är större än vad som ryms vid 360 px.
+ * Dolt görs med CSS (Tailwind-brytpunkter) och inte med mätning i JS: en mätning vid körning ger en layout som hoppar, och klasserna bor i markeringen så att
+ * mätningen kan kontrollera exakt dem. Samma bredder styr raderna i Meny, omvända: en app står på exakt ett ställe på varje bredd.
  *
  * Taket gäller på tre ställen, och de läser alla den här konstanten: skrivvägen (`byggGrupp` och `sattHuvudmeny` nekar fler), reglaget "Visa i
- * huvudmenyn" (`OpsModulRam`, går inte att slå på när raden är full) och läsvägen (`OpsAppShell` ritar de första N i toppraden och lägger resten i Meny,
- * så en grupp som redan har fler än taket förlorar ingen app). Ingen data migreras.
+ * huvudmenyn" (`OpsModulRam`, går inte att slå på när raden är full) och läsvägen (`OpsAppShell` ritar de första 4 och lägger resten i Meny på alla
+ * bredder, så en grupp som redan har fler än taket förlorar ingen app). Ingen data migreras.
  */
-export const HUVUDMENY_MAX = 2;
+export const HUVUDMENY_MAX = 4;
+
+/**
+ * Hur ikon k (0-räknat, i appens ordning) döljs i toppraden och visas i Meny i stället, ur mätningen ovan. `dold` sitter på ikonen, `imeny` på raden i Meny: samma bredd,
+ * omvänd riktning. Ikon 0 syns alltid (1 ryms vid 320 px). `iHuvudmenyn` är sant när ikonen döljs på en bredd där huvudets meny finns (från `md`): raden ska då stå
+ * i den menyn också, annars bara i bottenradens Meny (under `md`).
+ * ⛔ Tailwind 4 gör `max-[360px]` till `width < 360px` och `max-lg` till `width < 64rem`, och `min-[360px]` till `width >= 360px`. Därför är gränsen skriven som talet där
+ * ikonen FÖRST ryms (360, 390), och klasserna är varandras motsatser på pixeln: mätt i `scripts/huvudmeny-matt.mjs` vid 359, 360, 389 och 390 px. Ett första utkast med
+ * `max-[359px]` dolde ikonen först under 359 px, och mätningen visade den på två ställen vid 359 och 389.
+ * ⛔ Strängarna står hela, aldrig ihopsatta: Tailwind hittar bara klasser som står i källan.
+ * @type {ReadonlyArray<{ dold: string, imeny: string, iHuvudmenyn: boolean } | null>}
+ */
+export const HUVUDMENY_BREDDSTEG = Object.freeze([
+  null,
+  { dold: "max-[360px]:hidden", imeny: "min-[360px]:hidden", iHuvudmenyn: false },
+  { dold: "max-[390px]:hidden", imeny: "min-[390px]:hidden", iHuvudmenyn: false },
+  { dold: "max-lg:hidden", imeny: "lg:hidden", iHuvudmenyn: true },
+]);
 
 /**
  * Orden när huvudmenyn är full. `{antal}` är `HUVUDMENY_MAX`. ⛔ Ett nej som tyst ignoreras är förbjudet (arbetsreglernas punkt 5): reglaget är avstängt

@@ -138,45 +138,116 @@ describe("2. reglaget Visa i huvudmenyn", () => {
 describe("3. läsvägen klipper aldrig", () => {
   afterEach(cleanup);
 
-  it("⛔ sju fästa appar: de första N i toppraden, i appens ordning, och inga fler", () => {
+  /** Klassen som döljer ett element vid en bredd? Tailwind 4: `max-*` är `width < N` och `min-*` är `width >= N`. Bara de brytpunkter skalet använder. @param {string} klass @param {number} bredd */
+  function doljs(klass, bredd) {
+    const max = /max-\[(\d+)px\]:hidden/.exec(klass);
+    if (max) return bredd < Number(max[1]);
+    const min = /min-\[(\d+)px\]:hidden/.exec(klass);
+    if (min) return bredd >= Number(min[1]);
+    if (/(^|\s)max-lg:hidden/.test(klass)) return bredd < 1024;
+    if (/(^|\s)lg:hidden/.test(klass)) return bredd >= 1024;
+    return false;
+  }
+  /** Klasserna på ikonens omslag (`data-huvudmeny-plats`), eller tomt när ikonen aldrig döljs. @param {string} namn */
+  function ikonKlass(namn) {
+    const lank = within(screen.getByRole("banner")).getByRole("link", { name: namn });
+    return lank.closest("[data-huvudmeny-plats]")?.className ?? "";
+  }
+  /** Klasserna på radens omslag i Meny. @param {HTMLElement} ark @param {string} namn */
+  const radKlass = (ark, namn) => within(ark).getByRole("link", { name: namn }).parentElement?.className ?? "";
+  const oppnaBottenMeny = () => {
+    fireEvent.click(within(screen.getByRole("navigation", { name: "Snabbnavigering" })).getByRole("button", { name: "Meny" }));
+    return screen.getByRole("dialog");
+  };
+
+  it("⛔ sju fästa appar: de första HUVUDMENY_MAX (4) ritas i toppraden, i appens ordning, och inga fler", () => {
+    expect(HUVUDMENY_MAX).toBe(4);
     render(<Skal antal={7} />);
     expect(iToppraden()).toEqual(NAMN.slice(0, HUVUDMENY_MAX));
   });
 
-  it("⛔ resten är rader i bottenradens Meny, i ordning, och ingen app saknas någonstans", () => {
-    render(<Skal antal={7} />);
-    fireEvent.click(within(screen.getByRole("navigation", { name: "Snabbnavigering" })).getByRole("button", { name: "Meny" }));
-    const ark = screen.getByRole("dialog");
-    const rader = NAMN.slice(HUVUDMENY_MAX).map((n) => within(ark).getByRole("link", { name: n }).getAttribute("href"));
-    expect(rader).toEqual(ID.slice(HUVUDMENY_MAX).map((id) => `/${id}`));
-    // Ingen dubblering: de som står i toppraden är inte också rader i menyn.
-    for (const n of NAMN.slice(0, HUVUDMENY_MAX)) expect(within(ark).queryByRole("link", { name: n })).toBeNull();
+  it("⛔ ikon 0 syns alltid, ikon 1-3 döljs under bredden där de inte ryms (mätt: 1 vid 320, 2 vid 360, 3 vid 390 och 768, 4 från lg)", () => {
+    render(<Skal antal={4} />);
+    expect(ikonKlass(NAMN[0])).toBe("");
+    expect(ikonKlass(NAMN[1])).toContain("max-[360px]:hidden");
+    expect(ikonKlass(NAMN[2])).toContain("max-[390px]:hidden");
+    expect(ikonKlass(NAMN[3])).toContain("max-lg:hidden");
+    // Omslaget är `contents`: det blir ingen egen ruta i klungan.
+    expect(ikonKlass(NAMN[1])).toContain("contents");
   });
 
-  it("⛔ och i huvudets meny från md, som en egen navigering med namn, så att ingen app bara finns på telefonen", () => {
+  it("⛔ raderna i bottenradens Meny har de OMVÄNDA klasserna, i appens ordning, och ikon 0 har ingen rad", () => {
+    render(<Skal antal={4} />);
+    const ark = oppnaBottenMeny();
+    expect(within(ark).queryByRole("link", { name: NAMN[0] })).toBeNull();
+    expect(radKlass(ark, NAMN[1])).toContain("min-[360px]:hidden");
+    expect(radKlass(ark, NAMN[2])).toContain("min-[390px]:hidden");
+    expect(radKlass(ark, NAMN[3])).toContain("lg:hidden");
+  });
+
+  it("⛔ en app står på EXAKT ETT ställe på varje bredd: i toppraden eller i Meny, aldrig båda och aldrig ingen", () => {
+    // Första ritningen: toppradens klasser och huvudets meny (från md). Radix döljer resten av sidan för skärmläsare medan en DIALOG är öppen, så bottenradens ark läses i en egen ritning.
+    const forsta = render(<Skal antal={7} />);
+    const ikonKlasser = NAMN.slice(0, HUVUDMENY_MAX).map(ikonKlass);
+    fireEvent.click(within(screen.getByRole("banner")).getByRole("button", { name: /fler åtgärder/ }));
+    const huvudNav = screen.getByRole("navigation", { name: "Fler appar" });
+    const huvudKlasser = Object.fromEntries(within(huvudNav).getAllByRole("link").map((a) => [a.textContent, a.className]));
+    forsta.unmount();
+    render(<Skal antal={7} />);
+    const ark = oppnaBottenMeny();
+    for (const bredd of [320, 340, 359, 360, 375, 389, 390, 414, 600, 767, 768, 1000, 1023, 1024, 1280]) {
+      for (const [k, namn] of NAMN.entries()) {
+        const iHuvud = k < HUVUDMENY_MAX && !doljs(ikonKlasser[k], bredd);
+        // Under md är det bottenradens Meny, från md huvudets meny (bottenraden finns inte då).
+        const iMeny = bredd < 768
+          ? k > 0 && (k >= HUVUDMENY_MAX || !doljs(radKlass(ark, namn), bredd))
+          : k >= HUVUDMENY_MAX || (namn in huvudKlasser && !doljs(huvudKlasser[namn], bredd));
+        expect(Number(iHuvud) + Number(iMeny), `${namn} (ikon ${k}) vid ${bredd} px: toppraden ${iHuvud}, Meny ${iMeny}`).toBe(1);
+      }
+    }
+  });
+
+  it("⛔ de efter de första fyra står i Meny på alla bredder, utan breddklass, i ordning, och ingen app saknas", () => {
+    render(<Skal antal={7} />);
+    const ark = oppnaBottenMeny();
+    for (const n of NAMN.slice(HUVUDMENY_MAX)) {
+      expect(within(ark).getByRole("link", { name: n }).getAttribute("href")).toBe(`/${n.toLowerCase()}`);
+      expect(radKlass(ark, n)).not.toMatch(/hidden/);
+    }
+  });
+
+  it("⛔ och i huvudets meny från md, som en egen navigering med namn: ikon 3 (dold under lg) först, med omvänd klass, sedan överskottet utan klass", () => {
     render(<Skal antal={7} />);
     fireEvent.click(within(screen.getByRole("banner")).getByRole("button", { name: /fler åtgärder/ }));
     const nav = screen.getByRole("navigation", { name: "Fler appar" });
-    expect(within(nav).getAllByRole("link").map((a) => a.textContent)).toEqual(NAMN.slice(HUVUDMENY_MAX));
+    const lankar = within(nav).getAllByRole("link");
+    expect(lankar.map((a) => a.textContent)).toEqual(NAMN.slice(HUVUDMENY_MAX - 1));
+    expect(lankar[0].className).toContain("lg:hidden");
+    for (const a of lankar.slice(1)) expect(a.className).not.toMatch(/hidden/);
+    // Med överskott finns navigeringen på alla bredder.
+    expect(nav.className).not.toContain("lg:hidden");
   });
 
-  it("⛔ utan meny gäller samma sak: raderna ligger i bottenradens ark", () => {
+  it("⛔ utan meny gäller samma sak: raderna ligger i bottenradens ark, med samma klasser", () => {
     render(<Skal antal={7} meny={undefined} />);
-    fireEvent.click(within(screen.getByRole("navigation", { name: "Snabbnavigering" })).getByRole("button", { name: "Meny" }));
-    const ark = screen.getByRole("dialog");
+    const ark = oppnaBottenMeny();
+    expect(radKlass(ark, NAMN[1])).toContain("min-[360px]:hidden");
     for (const n of NAMN.slice(HUVUDMENY_MAX)) expect(within(ark).getByRole("link", { name: n })).toBeTruthy();
   });
 
-  it("en grupp inom taket är oförändrad: alla i toppraden, ingen 'Fler appar'", () => {
+  it("en grupp med exakt taket har inget överskott: huvudets meny har bara ikon 3, och navigeringen göms från lg", () => {
     render(<Skal antal={HUVUDMENY_MAX} />);
     expect(iToppraden()).toEqual(NAMN.slice(0, HUVUDMENY_MAX));
     fireEvent.click(within(screen.getByRole("banner")).getByRole("button", { name: /fler åtgärder/ }));
-    expect(screen.queryByRole("navigation", { name: "Fler appar" })).toBeNull();
+    const nav = screen.getByRole("navigation", { name: "Fler appar" });
+    expect(within(nav).getAllByRole("link").map((a) => a.textContent)).toEqual([NAMN[HUVUDMENY_MAX - 1]]);
+    expect(nav.className).toContain("lg:hidden");
   });
 
   it("taket räknar bara kvarIHuvudet: Inkorg och Sök är åtgärder med sitt eget tak", () => {
     render(<Skal antal={HUVUDMENY_MAX} />);
     expect(within(screen.getByRole("banner")).getByRole("link", { name: "Inkorg" })).toBeTruthy();
+    expect(ikonKlass("Inkorg")).toBe("");
   });
 });
 
