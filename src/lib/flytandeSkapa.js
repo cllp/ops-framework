@@ -61,14 +61,25 @@ export function flytandeSkapaSyns({ pa, tangentbordUppe, panelOppen, dialogOppen
 }
 
 /**
- * Finns en öppen dialog i dokumentet? Radix sätter `role="dialog"` och `data-state="open"` på innehållet, och tar bort det ur DOM när det stängs.
+ * ⛔ EN YTA SOM BÄR SIN EGEN SKAPA ELLER LIGGER DÄR KNAPPEN STÅR SÄGER DET MED DET HÄR ATTRIBUTET (0.176.1).
+ *
+ * CP 2026-11-02 20:55, med en skärmbild från telefonen: "Här blir en krock i mobilen." Kalenderns dagpanel staplas under rutnätet på
+ * telefon och har en egen Skapa-ruta nere till höger, och den flytande knappen låg ovanpå den: två plus i samma hörn, det ena över
+ * det andra. Dagpanelen är ingen Radix-dialog, och snabbtitten är en `role="dialog"` utan `data-state`, så ingen av dem fångades av
+ * frågan nedan. Komponenten själv vet att den tar platsen, och den säger det här i stället för att skalet gissar ur klasser eller roller.
+ */
+export const DOLJER_FLYTANDE_SKAPA = "data-ops-doljer-flytande-skapa";
+
+/**
+ * Står något öppet där knappen inte ska ligga? En Radix-dialog (`role="dialog"` och `data-state="open"`, tas ur DOM när den stängs)
+ * eller en yta som bär `DOLJER_FLYTANDE_SKAPA` (kalenderns dagpanel och snabbtitt).
  * @param {ParentNode} [rot]
  * @returns {boolean}
  */
 export function arDialogOppen(rot) {
   const r = rot ?? (typeof document !== "undefined" ? document : null);
   if (!r) return false;
-  return r.querySelector('[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"]') !== null;
+  return r.querySelector(`[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"], [${DOLJER_FLYTANDE_SKAPA}]`) !== null;
 }
 
 /**

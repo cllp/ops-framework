@@ -543,7 +543,7 @@ function DayPanel({ days, statusWords, onClose, onTaBort, onSkapa, locale, arMin
   const avsnitt = mina.length > 0 && gruppens.length > 0 ? [{ rubrik: "Grupp", rader: gruppens }, { rubrik: "Mina", rader: mina }] : [{ rubrik: "", rader }];
 
   return (
-    <section aria-label={name} data-dagpanel="" className="flex w-full flex-col gap-2 p-3 lg:p-0">
+    <section aria-label={name} data-dagpanel="" data-ops-doljer-flytande-skapa="" className="flex w-full flex-col gap-2 p-3 lg:p-0">
       {/*
        * ⛔ PILLREN OCH STÄNGKRYSSET ÄR TVÅ YTOR (bolag-ops#556). Före det delade de en
        * `flex-wrap`-rad där stängkrysset hade `ml-auto`: när flera dagar valdes klämdes
@@ -731,6 +731,7 @@ function Snabbtitt({ dayKey, alla, synliga, onClose, locale, oppna, oppnaExtern,
       role="dialog"
       aria-labelledby={rubrikId}
       data-snabbtitt=""
+      data-ops-doljer-flytande-skapa=""
       className="ops-contrast-panel max-h-75 w-full max-w-70 overflow-y-auto rounded-xl bg-contrast-panel p-2.5 text-ink shadow-xl"
     >
       <div className="mb-1.5 flex items-start justify-between gap-2">

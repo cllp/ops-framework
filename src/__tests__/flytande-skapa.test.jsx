@@ -2,7 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { OpsAppShell } from "../components/OpsAppShell.jsx";
 import { LANGTRYCK_MS } from "../lib/apparark.js";
-import { flytandeSkapaPa, flytandeSkapaSyns } from "../lib/flytandeSkapa.js";
+import { DOLJER_FLYTANDE_SKAPA, arDialogOppen, flytandeSkapaPa, flytandeSkapaSyns } from "../lib/flytandeSkapa.js";
+import { OpsCalendar } from "../components/OpsCalendar.jsx";
+import { LANGTRYCK_MS as DAG_LANGTRYCK_MS } from "../lib/talk.js";
 
 /**
  * Den flytande Skapa-knappen på telefon (0.176.0, cllp/lifehub.app#582, CP 2026-11-02).
@@ -284,5 +286,62 @@ describe("den flytande Skapa-knappen i skalet", () => {
     } finally {
       tyst.mockRestore();
     }
+  });
+});
+
+/**
+ * ⛔ KROCKEN MED KALENDERNS DAGPANEL (0.176.1). CP 2026-11-02 20:55, skärmbild från telefonen: "Här blir en krock i mobilen."
+ * Dagpanelen staplas under rutnätet på telefon och har en egen Skapa-ruta nere till höger, och den flytande knappen låg ovanpå den.
+ * Dagpanelen är ingen Radix-dialog och snabbtitten en `role="dialog"` utan `data-state`, så ingen av dem dolde knappen.
+ */
+describe("den flytande knappen och kalenderns egna ytor", () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => {
+    vi.useRealTimers();
+    window.history.replaceState(null, "", "/");
+    rot().style.removeProperty("--flytande-skapa-h");
+  });
+  const POSTER = [{ id: "a", date: "2026-10-12", title: "Rep", status: "oppet" }];
+  const ORD = { oppet: "Öppet", pagar: "Pågår", vantar: "Väntar", klart: "Klart", akut: "Akut" };
+  const kalender = () => <OpsCalendar entries={POSTER} ariaLabel="Kalender" today={new Date(2026, 9, 5)} statusWords={ORD} onSkapa={() => {}} />;
+  const ruta = (/** @type {string} */ dag) => /** @type {HTMLElement} */ (document.querySelector(`[data-cal-day="${dag}"]`));
+
+  it("arDialogOppen svarar ja för en yta med attributet, och nej utan", () => {
+    const yta = document.createElement("section");
+    document.body.appendChild(yta);
+    try {
+      expect(arDialogOppen()).toBe(false);
+      yta.setAttribute(DOLJER_FLYTANDE_SKAPA, "");
+      expect(arDialogOppen()).toBe(true);
+    } finally {
+      yta.remove();
+    }
+  });
+
+  it("⛔ döljs medan dagpanelen är öppen, och kommer tillbaka när den stängs", async () => {
+    render(Skal({ barn: kalender() }));
+    await flush();
+    expect(flyt()).not.toBeNull();
+    fireEvent.click(ruta("2026-10-12"));
+    await flush();
+    expect(document.querySelector("[data-dagpanel]")).not.toBeNull();
+    expect(flyt()).toBeNull();
+    const panel = /** @type {HTMLElement} */ (document.querySelector("[data-dagpanel]"));
+    fireEvent.click(/** @type {HTMLElement} */ (panel.querySelector('button[aria-label^="Stäng"]')));
+    await flush();
+    expect(document.querySelector("[data-dagpanel]")).toBeNull();
+    expect(flyt()).not.toBeNull();
+  });
+
+  it("⛔ döljs medan snabbtitten är öppen", async () => {
+    render(Skal({ barn: kalender() }));
+    await flush();
+    fireEvent.pointerDown(ruta("2026-10-12"), { pointerId: 1, clientX: 10, clientY: 10, button: 0 });
+    act(() => vi.advanceTimersByTime(DAG_LANGTRYCK_MS));
+    fireEvent.pointerUp(ruta("2026-10-12"), { pointerId: 1 });
+    fireEvent.click(ruta("2026-10-12"));
+    await flush();
+    expect(document.querySelector("[data-snabbtitt]")).not.toBeNull();
+    expect(flyt()).toBeNull();
   });
 });
