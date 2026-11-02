@@ -4,7 +4,7 @@ import { cx } from "../lib/cx.js";
 import { formatDateTime } from "../lib/format.js";
 import { lasKopplingslage } from "../lib/kopplingar.js";
 import { hjalpAdress } from "../lib/modilhjalp.js";
-import { huvudmenyInom, installningsVarden, ORD_VISA_I_HUVUDMENYN, sattHuvudmeny } from "../lib/modulinstallningar.js";
+import { HUVUDMENY_MAX, huvudmenyInom, installningsVarden, ORD_HUVUDMENY_FULL, ORD_VISA_I_HUVUDMENYN, sattHuvudmeny } from "../lib/modulinstallningar.js";
 import { ordet } from "../lib/ord.js";
 import { text } from "../lib/sprak.js";
 import { ChevronHogerIkon, ChevronVansterIkon, KugghjulIkon } from "./icons.jsx";
@@ -294,6 +294,10 @@ export function InstallningsInnehall({ modul, ram, sprak }) {
   const huvudmeny = listor ? listor.huvudmeny : [...propHuvud];
   const pa = moduler.includes(modul.id);
   const fast = huvudmeny.includes(modul.id);
+  // ⛔ TAKET FÖR TOPPRADEN (0.177.0, `HUVUDMENY_MAX`). Raden räknar bara appar gruppen har (`huvudmenyInom`): ett gammalt id för en borttagen app tar ingen plats i toppraden.
+  // Är den full går reglaget inte att slå på för en app som inte redan står där, och hinten säger det i klartext. Att slå av går alltid.
+  const huvudmenyIgrupp = huvudmenyInom(huvudmeny, moduler);
+  const huvudmenyFull = !fast && huvudmenyIgrupp.length >= HUVUDMENY_MAX;
   const deklarationer = (modul.kopplingar && modul.kopplingar.length > 0 ? modul.kopplingar : ram.deklarationer) ?? [];
   const egnaFalt = (modul.installningar ?? []).filter((f) => f.hem === "samling");
   const allmantId = useId();
@@ -547,16 +551,23 @@ export function InstallningsInnehall({ modul, ram, sprak }) {
             <OpsSwitch
               placering="rad"
               label={text(ORD_VISA_I_HUVUDMENYN.label, sprak)}
-              hint={text(ORD_VISA_I_HUVUDMENYN.hint, sprak)}
+              hint={huvudmenyFull && ram.farAndra && pa ? text(ORD_HUVUDMENY_FULL.full, sprak).replace("{antal}", String(HUVUDMENY_MAX)) : text(ORD_VISA_I_HUVUDMENYN.hint, sprak)}
               checked={fast}
-              disabled={!ram.farAndra || !grupp || !pa || !modul.hubb}
+              disabled={!ram.farAndra || !grupp || !pa || !modul.hubb || huvudmenyFull}
               onChange={(nasta) => {
                 if (!grupp) return;
                 if (typeof ram.onSparaHuvudmeny !== "function") {
                   setLitetFel(t("huvudmenySaknas"));
                   return;
                 }
-                const nastaHuvud = sattHuvudmeny(huvudmeny, modul.id, nasta);
+                // ⛔ `sattHuvudmeny` nekar fler än taket med ord. Reglaget är redan avstängt när raden är full, så kastet är andra spärren, och felraden visar det om något ändå når hit.
+                let nastaHuvud;
+                try {
+                  nastaHuvud = sattHuvudmeny(huvudmenyIgrupp, modul.id, nasta);
+                } catch (e) {
+                  setLitetFel(e instanceof Error ? e.message : String(e));
+                  return;
+                }
                 return sparaListor({ moduler, huvudmeny: nastaHuvud }, () => {
                   const b = ram.onSparaHuvudmeny?.(nastaHuvud);
                   return b ? Promise.resolve(b).then(() => {}) : undefined;

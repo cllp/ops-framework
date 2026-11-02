@@ -5,7 +5,7 @@ import { OpsPanelRow } from "./OpsPanel.jsx";
 import { ChevronVansterIkon, LoggaUtIkon } from "./icons.jsx";
 import { OpsCountBadge } from "./counter.jsx";
 import { cx } from "../lib/cx.js";
-import { validateNav } from "../lib/nav.js";
+import { avdelningsBreddklass, validateNav } from "../lib/nav.js";
 import { radKlass } from "../lib/radKlass.js";
 import { text } from "../lib/sprak.js";
 import { OPS_FRAMEWORK_VERSION } from "../lib/frameworkVersion.generated.js";
@@ -205,6 +205,7 @@ export function menySektioner({ sektioner, kor, visaUndervy }) {
  * @typedef {object} MenyAvdelning
  * @property {string} key
  * @property {import("react").ReactNode} innehall
+ * @property {string} [klass] (0.177.0) Klass på hela avdelningen, till exempel den som döljer den när alla dess rader är dolda på bredden (`avdelningsBreddklass`). Avgränsaren följer med: den hör till avdelningen.
  */
 
 /**
@@ -220,7 +221,7 @@ export function menySektioner({ sektioner, kor, visaUndervy }) {
 export function MenyAvdelningar({ avdelningar }) {
   const synliga = /** @type {MenyAvdelning[]} */ (avdelningar.filter((a) => a && a.innehall));
   return synliga.map((a, i) => (
-    <div key={a.key} data-meny-avdelning={a.key} className={cx("flex flex-col gap-0.5 p-1", i > 0 && "border-t border-line")}>
+    <div key={a.key} data-meny-avdelning={a.key} className={cx("flex flex-col gap-0.5 p-1", i > 0 && "border-t border-line", a.klass)}>
       {a.innehall}
     </div>
   ));
@@ -273,7 +274,7 @@ export function MenyAppPoster({ poster, activeHref, onNavigate, stang, badgeText
     );
   };
   return poster.map((p) => (
-    <div key={p.href} className="flex flex-col gap-0.5">
+    <div key={p.href} className={cx("flex flex-col gap-0.5", /** @type {any} */ (p).breddklass)}>
       {rad(p)}
       {(p.children ?? []).map((c) => rad(c, true))}
     </div>
@@ -305,6 +306,8 @@ export function menyAppAvdelning({ meny, activeHref, onNavigate, stang, badgeTex
   const rubrik = text(meny.appRubrik ?? { sv: "Appen", en: "App" }, meny.sprak ?? "sv");
   return {
     key: "app",
+    // ⛔ En rubrik står aldrig över en avdelning vars alla rader är dolda på bredden (0.177.0): avdelningen får klassen från raden som döljs sist.
+    klass: avdelningsBreddklass(meny.app),
     innehall: (
       <>
         <MenySektionsrubrik>{rubrik}</MenySektionsrubrik>
