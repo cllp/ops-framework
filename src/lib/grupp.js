@@ -37,6 +37,7 @@ import { byggSkapare } from "./skapare.js";
 import { byggNamn } from "./sprak.js";
 import { SPRAK } from "./sprak.js";
 import { arGiltigGruppfarg } from "./gruppfarg.js";
+import { HUVUDMENY_MAX, ORD_HUVUDMENY_FULL } from "./modulinstallningar.js";
 import { PROFILIKONER, PROFILFARGER, GRUPPIKONER, GRUPPINITIALER_FORM, KATALOGNAMN, arGiltigProfilikon } from "./markeformer.js";
 
 
@@ -552,6 +553,10 @@ export function byggExternaDatakallor(varde, id) {
  * en modul i huvudet som gruppen inte har. Den som läser en rad där en modul tagits bort ska inte få en grupp som kastar:
  * huvudet ritar bara de id som också står i `moduler`.
  *
+ * ⛔ TAKET `HUVUDMENY_MAX` GÄLLER BARA SKRIVVÄGEN (0.177.0). CP 2026-11-02 20:58: toppraden klippte den sjunde appikonen, och beslutet blev ett tak där användaren
+ * prioriterar själv. En ny grupp får därför inte börja med fler än taket. Läsvägen kastar aldrig på längden: en grupp som redan har sju (CP:s hade det) ska gå att
+ * läsa, och skalet ritar de första `HUVUDMENY_MAX` i toppraden och lägger resten i Meny. Ingen migrering, och ingen läsning som börjar kasta mot en rad som redan finns.
+ *
  * @param {unknown} varde
  * @param {string} id Gruppens id, för felet.
  * @param {ReadonlyArray<string> | null} moduler Gruppens moduler på skrivvägen, `null` på läsvägen.
@@ -575,6 +580,9 @@ function byggHuvudmeny(varde, id, moduler) {
     }
     ut.push(modulId);
   });
+  if (moduler && ut.length > HUVUDMENY_MAX) {
+    throw new Error(`groups: huvudmeny för "${id}" har ${ut.length} moduler (${ut.join(", ")}). ${ORD_HUVUDMENY_FULL.full.sv.replace("{antal}", String(HUVUDMENY_MAX))}`);
+  }
   return Object.freeze(ut);
 }
 

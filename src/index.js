@@ -430,7 +430,7 @@ export { installningsSektioner } from "./components/installningsSektioner.jsx";
  * ⛔ MODULENS INSTÄLLNINGAR (0.88.0, en plats 0.89.0). Pinnen "Visa i huvudmenyn" skrivs på gruppen.
  * Modulens egna fält skrivs i en samling appen namnger. Reglagen ritas i modulramen, inte i gruppvyn.
  */
-export { VISA_I_HUVUDMENYN, sattHuvudmeny, huvudmenyInom, installningarFor, installningsVarden } from "./lib/modulinstallningar.js";
+export { VISA_I_HUVUDMENYN, HUVUDMENY_MAX, ORD_HUVUDMENY_FULL, sattHuvudmeny, huvudmenyInom, installningarFor, installningsVarden } from "./lib/modulinstallningar.js";
 export { createModulinstallningskalla } from "./data/modulinstallningskalla.js";
 export { OpsModulInstallningar, ORD_OPSMODULINSTALLNINGAR } from "./components/OpsModulInstallningar.jsx";
 /*

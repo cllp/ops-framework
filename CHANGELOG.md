@@ -9,6 +9,21 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.177.0
+
+### Tillagt
+
+- **Ett tak för hur många appar som står i huvudmenyn: `HUVUDMENY_MAX` (2).** CP 2026-11-02 20:58, skärmbild från telefonen (390 px): gruppen hade sju appar med "Visa i huvudmenyn" och toppraden klippte den sista ikonen vid högerkanten. `ATGARDER_SMAL` tar bort åtgärder ur raden men appikonerna bär `kvarIHuvudet` och flyttades aldrig. CP: "för många ikoner i topraden, de måste kunna flyttas" och sedan "Vi kanske skall ha ett max antal ikoner så att användaren får prioritera själv?" Beslut: ett tak, och användaren prioriterar själv. **Talet är mätt, inte gissat:** i Chromium mot byggd dist, med hemikon, gruppmärke, Inkorg som åtgärd och avatar, ryms 1 appikon vid 320 px, **2 vid 360 px** och 3 vid 390 px. Taket är det som ryms vid 360. Vid 320 px ryms en mindre, och mätningen skriver ut det utan att fälla. `HUVUDMENY_MAX` och `ORD_HUVUDMENY_FULL` exporteras.
+- **Skrivvägen nekar fler än taket, med ord.** `byggGrupp` med modulerna (skrivvägen, `createGroupService`) kastar "Toppraden rymmer 2. Ta bort en först.", och det gör `sattHuvudmeny` när en app som inte redan står där läggs till i en full lista. Att ta bort kastar aldrig. Läsvägen kastar inte på längden: en grupp som redan har sju går att läsa.
+- **Reglaget "Visa i huvudmenyn" går inte att slå på när raden är full.** I `OpsModulRam` är det avstängt för en app som inte redan står där, och hinten säger det på svenska och engelska ("Toppraden rymmer 2. Ta bort en först." / "The top bar holds 2. Remove one first."). En app som redan står där kan alltid slås av. Raden räknar bara appar gruppen har.
+- **Långtryck på en appikon i toppraden: "Ta bort från huvudmenyn" / "Remove from main menu".** `OpsAppShell` får `apparArk.onSparaHuvudmeny`, SAMMA callback som `ModulRam.onSparaHuvudmeny` (reglaget), och valet skriver `groups.huvudmeny` utan appen genom `sattHuvudmeny`: ett fält, en skrivväg. Gesten är `useLangtryck` (fingret håller in, högerklick och Shift+F10; ett långsamt musklick är ingen genväg). Ikonen hör ihop med appen genom adressen (`hubb.rutt` i `apparArk.moduler`). Ritas inget alls utan callback, utan `apparArk.farAndra` (samma villkor som reglaget), för en ikon som inte är en app i gruppens `huvudmeny` eller som redan har `skapa`. Ett fel från callbacken står i rutan och rutan stannar öppen. Appen behöver bara skicka `onSparaHuvudmeny` i `apparArk`, samma funktion som i `ram`.
+- **`scripts/huvudmeny-matt.mjs` (`npm run check:huvudmeny`, i `check:all`).** Mäter kapaciteten vid 320, 360 och 390 px och blir röd när `HUVUDMENY_MAX` är större än vad som ryms vid 360. Mäter sedan en grupp med sju fästa appar vid 320 till 1280 px: toppraden ska rymmas, ha exakt `HUVUDMENY_MAX` appikoner, och resten ska vara rader i Meny. `--bevisa` kräver att samma mätare blir röd för taket + 1, så den är sedd falla.
+
+### Ändrat
+
+- **Läsvägen klipper aldrig.** `OpsAppShell` ritar de första `HUVUDMENY_MAX` ikonerna med `kvarIHuvudet` i toppraden, i den ordning appen skickat dem (appens ordning), på alla bredder. Resten blir rader i Meny: bottenradens ark under `md`, och från `md` en egen navigering "Fler appar" överst i huvudets meny. Ingen app försvinner och ingen data migreras: en grupp med sju visar två och har fem i Meny. Bara `kvarIHuvudet`-ikoner räknas, så Inkorg, sök och andra åtgärder har kvar sitt eget tak (`ATGARDER_SMAL`).
+- Prov: `huvudmeny-tak.test.jsx` (21), röda mot 0.176.1 (12 faller) och gröna med ändringen.
+
 ## 0.176.1
 
 ### Fixat

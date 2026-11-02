@@ -64,6 +64,43 @@ export const ORD_VISA_I_HUVUDMENYN = {
 };
 
 /**
+ * Hur många appar som får stå i huvudmenyn, alltså hur många appikoner toppraden bär (0.177.0).
+ *
+ * ══ ⛔ MÄTT, INTE GISSAT (2026-11-02, byggd dist, `scripts/huvudmeny-matt.mjs`) ═══════════════════════════════════════════
+ * CP 2026-11-02 20:58, med en skärmbild från telefonen: "för många ikoner i topraden, de måste kunna flyttas", och sedan: "Vi kanske skall ha ett max
+ * antal ikoner så att användaren får prioritera själv?" Gruppens ägare kunde slå på "Visa i huvudmenyn" för hur många appar som helst (CP:s grupp hade
+ * sju), och toppraden har en bredd. `ATGARDER_SMAL` tar bort åtgärder ur raden, men appikonerna bär `kvarIHuvudet` och flyttas aldrig: den sista klipptes
+ * vid högerkanten.
+ *
+ * Scenen är huvudet som lifehub.app bygger det: hemikon (44), gruppmärke (44), Inkorg som åtgärd, N appikoner, avatar (44), med en räknare på en av dem.
+ * Varje ikon är 44 px med 2 px emellan. "Ryms" betyder att raden inte rullar i sidled och att klungan inte tränger in i radens högerpadding
+ * (samma mått som `ATGARDER_SMAL_HEM` bygger på). Största antal appikoner som ryms:
+ *
+ *   bredd   appikoner som ryms
+ *   320     1
+ *   360     2    <- det här är talet
+ *   390     3
+ *
+ * Talet är det som ryms vid 360 px, den smalaste bredd en nutida telefon har. Vid 320 px ryms en mindre än taket, och det är ett medvetet val som mätningen
+ * skriver ut varje gång: 320 px är en telefon från 2016, och ett tak som sattes efter den hade gett 390-telefonen en tom plats den kunde ha använt.
+ * Mätningen blir röd när taket är större än vad som ryms vid 360 px.
+ *
+ * Taket gäller på tre ställen, och de läser alla den här konstanten: skrivvägen (`byggGrupp` och `sattHuvudmeny` nekar fler), reglaget "Visa i
+ * huvudmenyn" (`OpsModulRam`, går inte att slå på när raden är full) och läsvägen (`OpsAppShell` ritar de första N i toppraden och lägger resten i Meny,
+ * så en grupp som redan har fler än taket förlorar ingen app). Ingen data migreras.
+ */
+export const HUVUDMENY_MAX = 2;
+
+/**
+ * Orden när huvudmenyn är full. `{antal}` är `HUVUDMENY_MAX`. ⛔ Ett nej som tyst ignoreras är förbjudet (arbetsreglernas punkt 5): reglaget är avstängt
+ * och säger varför, och skrivvägen kastar med samma ord.
+ * @type {{ full: { sv: string, en: string } }}
+ */
+export const ORD_HUVUDMENY_FULL = {
+  full: { sv: "Toppraden rymmer {antal}. Ta bort en först.", en: "The top bar holds {antal}. Remove one first." },
+};
+
+/**
  * @typedef {object} Installningsdeklaration
  * @property {string} id
  * @property {{ sv: string, en: string }} namn
@@ -202,6 +239,8 @@ export function installningarFor(modul) {
 /**
  * Lägger till eller tar bort ett modul-id i huvudmenyn, utan att röra ordningen på de andra.
  *
+ * ⛔ Kastar när `pa` är sant, modulen inte redan står i listan och listan redan har `HUVUDMENY_MAX` poster (0.177.0). Att ta bort kastar aldrig.
+ *
  * @param {ReadonlyArray<string> | null | undefined} huvudmeny
  * @param {string} modulId
  * @param {boolean} pa
@@ -209,7 +248,12 @@ export function installningarFor(modul) {
  */
 export function sattHuvudmeny(huvudmeny, modulId, pa) {
   const lista = Array.isArray(huvudmeny) ? [...huvudmeny] : [];
-  if (pa) return lista.includes(modulId) ? lista : [...lista, modulId];
+  if (pa) {
+    if (lista.includes(modulId)) return lista;
+    // ⛔ SKRIVVÄGEN NEKAR FLER ÄN TAKET (0.177.0), och nekar med ord. En lista som tyst lämnades oförändrad hade fått reglaget att se ut att fungera.
+    if (lista.length >= HUVUDMENY_MAX) throw new Error(`sattHuvudmeny: ${ORD_HUVUDMENY_FULL.full.sv.replace("{antal}", String(HUVUDMENY_MAX))} "${modulId}" lades inte till.`);
+    return [...lista, modulId];
+  }
   return lista.filter((id) => id !== modulId);
 }
 
