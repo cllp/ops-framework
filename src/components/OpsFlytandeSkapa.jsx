@@ -5,7 +5,7 @@ import { flytandeSkapaSyns, useDialogOppen } from "../lib/flytandeSkapa.js";
 import { useTangentbordUppe } from "../lib/tangentbord.js";
 
 /**
- * Den flytande Skapa-knappen (ej utgivet, cllp/lifehub.app#582). Internt för `OpsAppShell`, inte i det publika API:et: appen slår på den
+ * Den flytande Skapa-knappen (0.176.0, cllp/lifehub.app#582). Internt för `OpsAppShell`, inte i det publika API:et: appen slår på den
  * med skalets `flytandeSkapa`. Beslutet om den ritas bor i `src/lib/flytandeSkapa.js` (läs filhuvudet där för händelsen).
  *
  * ⛔ DEN TAR SIN PLATS (regel 3 i CP:s beslut). Medan knappen syns står `--flytande-skapa-h` på <html> och `OpsAppShell`s `main` lägger

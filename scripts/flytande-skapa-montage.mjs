@@ -1,5 +1,5 @@
 /**
- * Mätning och skärmbilder av den flytande Skapa-knappen (ej utgivet, cllp/lifehub.app#582) mot en byggd dist, i en riktig webbläsare.
+ * Mätning och skärmbilder av den flytande Skapa-knappen (0.176.0, cllp/lifehub.app#582) mot en byggd dist, i en riktig webbläsare.
  *
  * CP 2026-11-02: under 768 px är mikrofonen mittknapp och skapa-listan ligger bakom ett långtryck som inget avslöjar. Plustecknet på
  * mikrofonen togs bort i 0.104.0, så knappen är en EGEN, rund plusknapp nere till höger. jsdom kör ingen CSS, så det som handlar om

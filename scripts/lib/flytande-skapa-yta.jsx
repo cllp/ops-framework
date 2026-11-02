@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import * as Ops from "OPS_DIST";
 
 /*
- * Ytan för mätningen och skärmbilderna av den flytande Skapa-knappen (ej utgivet, `scripts/flytande-skapa-montage.mjs`, cllp/lifehub.app#582).
+ * Ytan för mätningen och skärmbilderna av den flytande Skapa-knappen (0.176.0, `scripts/flytande-skapa-montage.mjs`, cllp/lifehub.app#582).
  * Skalet med `talk`, `skapa` och `flytandeSkapa={["/", "/kalender"]}`: Hub är en vy där appen INTE slagit på knappen. Innehållet är
  * långt nog att rulla, så att mätningen kan prova att sista kortet går att få fram ovanför knappen och att knappen står kvar vid rullning.
  */

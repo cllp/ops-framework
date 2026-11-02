@@ -9,7 +9,7 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
-## Oreleaserat
+## 0.176.0
 
 ### Tillagt
 

@@ -1146,7 +1146,7 @@
    * mycket. Ändras knappen är det den här raden som ska ändras.) */
   --bottom-nav-overhang: 1rem;
 
-  /* ─── Den flytande Skapa-knappen på telefon (ej utgivet, cllp/lifehub.app#582). ───────────────────────────────────
+  /* ─── Den flytande Skapa-knappen på telefon (0.176.0, cllp/lifehub.app#582). ───────────────────────────────────
    * CP 2026-11-02: inget på skärmen sa att mikrofonen i mitten också skapar. `OpsFlytandeSkapa` är en egen rund plusknapp nere
    * till höger ovanför bottenraden. Storleken är träffytan (minst 44 px, här 56 som mittknappen) och luften är avståndet till
    * kanten och till raden. ⛔ Summan (`--flytande-skapa-h`) sätts på <html> av komponenten medan knappen syns, och `main` lägger

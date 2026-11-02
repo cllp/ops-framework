@@ -1069,7 +1069,7 @@ function GenvagRam({ nyckel, ikon, tips = true, className, children }) {
  *   Utan `skapa`, eller utan NÅGOT den kan visa (inga `handelse`/`arende` OCH modulerna i `ingenGrupp`/`tomt`-
  *   läge), ritas inget plus alls (tomhet är ett svar, arbetsreglernas punkt 5).
  * @param {string} [props.skapaLabel] Skärmläsarnamn på plusknappen.
- * @param {ReadonlyArray<string> | ((activeHref: string) => boolean)} [props.flytandeSkapa] (ej utgivet, cllp/lifehub.app#582) Slår på den flytande Skapa-knappen på telefon
+ * @param {ReadonlyArray<string> | ((activeHref: string) => boolean)} [props.flytandeSkapa] (0.176.0, cllp/lifehub.app#582) Slår på den flytande Skapa-knappen på telefon
  *   (under 768 px): en egen rund plusknapp nere till höger ovanför bottenraden som öppnar SAMMA skapa-lista som ett långtryck på mikrofonen.
  *   Appen säger för vilka vyer: en LISTA med adresser (`['/kalender', '/inkorg']`; en adress gäller också sina undersidor, `/` bara startsidan) eller en FUNKTION av
  *   aktiv adress (`(href) => href.startsWith('/kalender')`) som svarar true eller false. Förval: utelämnad, och då ritas ingen knapp och inget ändras.
@@ -1967,7 +1967,7 @@ function OpsAppShellRitad({
     return a;
   });
   const [skapaBottenOppen, setSkapaBottenOppen] = useState(false);
-  // ⛔ EN FUNKTION FÖR ATT ÖPPNA SKAPA-LISTAN PÅ TELEFON (ej utgivet, cllp/lifehub.app#582). Mikrofonens långtryck, bottenradens plus utan `talk`
+  // ⛔ EN FUNKTION FÖR ATT ÖPPNA SKAPA-LISTAN PÅ TELEFON (0.176.0, cllp/lifehub.app#582). Mikrofonens långtryck, bottenradens plus utan `talk`
   // och den flytande Skapa-knappen går alla hit. Tre kopior hade kunnat glida isär i vad de öppnar.
   const oppnaSkapaLista = () => setSkapaBottenOppen(true);
   // ⛔ Kroken körs alltid (krokarnas regel), men utan `talk` når ingen den: plusset får ingen `talk` och raden ritas inte.
@@ -2911,7 +2911,7 @@ function OpsAppShellRitad({
       {/* `padding-bottom` lika med bottenradens höjd plus säker yta, men bara
           under md där baren finns. Utan den ligger sista kortet under baren, och
           det upptäcks först när någon inte hittar sin sista rad. */}
-      {/* ⛔ ej utgivet: `--flytande-skapa-h` är knappens höjd plus luft medan den syns (`OpsFlytandeSkapa`), annars 0. Under 768 px bara, där knappen finns. */}
+      {/* ⛔ 0.176.0: `--flytande-skapa-h` är knappens höjd plus luft medan den syns (`OpsFlytandeSkapa`), annars 0. Under 768 px bara, där knappen finns. */}
       <main className={utanBottenrad ? "pb-[calc(var(--safe-bottom)+var(--spelrad-h,0px))] md:pb-(--spelrad-h,0px)" : "pb-[calc(var(--bottom-nav-h)+var(--safe-bottom)+var(--spelrad-h,0px)+var(--flytande-skapa-h,0px))] md:pb-(--spelrad-h,0px)"}>
         {/* ⛔ #159: ALLTID PÅ, se OpsFelgrans filhuvud. Ingen prop stänger av den. */}
         <OpsFelgrans felmottagare={felmottagare} rubrik={felRubrik} beskrivning={felBeskrivning} laddaOmEtikett={laddaOmEtikett}>

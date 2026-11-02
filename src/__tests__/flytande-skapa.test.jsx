@@ -5,7 +5,7 @@ import { LANGTRYCK_MS } from "../lib/apparark.js";
 import { flytandeSkapaPa, flytandeSkapaSyns } from "../lib/flytandeSkapa.js";
 
 /**
- * Den flytande Skapa-knappen på telefon (ej utgivet, cllp/lifehub.app#582, CP 2026-11-02).
+ * Den flytande Skapa-knappen på telefon (0.176.0, cllp/lifehub.app#582, CP 2026-11-02).
  *
  * Under 768 px är mittknappen en mikrofon och skapa-listan ligger bakom ett långtryck som inget på skärmen avslöjar. Plustecknet på
  * mikrofonen togs bort i 0.104.0, så svaret är en EGEN knapp. jsdom kör ingen CSS: att den är `md:hidden` provas här som klass, och

@@ -41,7 +41,7 @@
  *       node scripts/check-skalyta.mjs --utan-fasta     bara för att bevisa vakten mot en äldre dist (0.29)
  *       node scripts/check-skalyta.mjs --bilder <mapp>   skriver skärmbilderna dit (för montaget, regel 12)
  *       node scripts/check-skalyta.mjs --bara-chatt      bara avsnitt 29g, chattens nattskiva (#273), för en snabb körning
- *       node scripts/check-skalyta.mjs --bara-spelrad    bara avsnitt 24, spelraden mot mikrofonknappen och ytan (ej utgivet, cllp/lifehub.app#417)
+ *       node scripts/check-skalyta.mjs --bara-spelrad    bara avsnitt 24, spelraden mot mikrofonknappen och ytan (0.176.0, cllp/lifehub.app#417)
  *       node scripts/check-skalyta.mjs --bara-appar      bara Appar-hyllan mot plusknappen (0.90.6)
  *       node scripts/check-skalyta.mjs --bara-textfalt   bara avsnitt 45, tal i ett vanligt textfält (0.104.0)
  *       node scripts/check-skalyta.mjs --bara-talkval    bara avsnitt 46, valen efter talet och förslagen i chatten (0.105.0)

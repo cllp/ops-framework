@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 /**
- * Den flytande Skapa-knappen på telefon (ej utgivet, cllp/lifehub.app#582): vad som avgör om den ritas.
+ * Den flytande Skapa-knappen på telefon (0.176.0, cllp/lifehub.app#582): vad som avgör om den ritas.
  *
  * ══ ⛔ HÄNDELSEN ═══════════════════════════════════════════════════════════════════════════════════════════════════════
  *
