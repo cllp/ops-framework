@@ -127,6 +127,7 @@ import { NAMNER_ALLA, samtalsnyckel } from "../lib/samtal.js";
 import { SIGNERAD_SEKUNDER, delningsTyp } from "../lib/delning.js";
 import { delningsDisposition } from "./delning.js";
 import { epostFel } from "../lib/mejl.js";
+import { isOpenCase } from "../lib/caseModel.js";
 import { andringsnyckel, nastaSekvens } from "./ics.js";
 
 const DYGN_MS = 24 * 60 * 60 * 1000;
@@ -1722,7 +1723,7 @@ export function createGastService(konfig) {
     const alla = rader
       .slice(0, GASTARENDE_SKANNA_MAX)
       .filter((r) => r.groupId === groupId && gastDelegerad(r.mottagare, s.gastId))
-      .sort((x, y) => Number(y.status === "ny") - Number(x.status === "ny") || String(y.skapad ?? "").localeCompare(String(x.skapad ?? "")) || String(x.id).localeCompare(String(y.id)));
+      .sort((x, y) => Number(isOpenCase(y.status)) - Number(isOpenCase(x.status)) || String(y.skapad ?? "").localeCompare(String(x.skapad ?? "")) || String(x.id).localeCompare(String(y.id)));
     const egna = alla.slice(0, GASTARENDE_MAX);
     // `avkortad`: gästen har fler ärenden än listan visar (sorterat: öppna först, nyast först), eller fler än servern läser. En kapad lista säger det och ser aldrig ut som hela.
     const avkortad = rader.length > GASTARENDE_SKANNA_MAX || alla.length > egna.length;

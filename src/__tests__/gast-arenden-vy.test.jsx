@@ -86,6 +86,14 @@ describe("OpsGastArenden", () => {
     expect(screen.getByText(/Här ligger ärendena som gruppen har gett dig\. Du kan kommentera och markera dem klara, men inte öppna dem igen\./)).toBeInTheDocument();
   });
 
+  it("⛔ ett ärende som pågår är öppet: statusen står som Pågår i varningston, och Markera klar finns kvar", () => {
+    rita({ poster: [{ ...POSTER[0], status: "pagar" }] });
+    const kort = document.querySelector("[data-gast-arende='a-1']");
+    expect(kort.getAttribute("data-status")).toBe("pagar");
+    expect(kort.querySelector("[data-gast-arende-status]").textContent).toBe("Pågår");
+    expect(within(kort).getByRole("button", { name: "Markera klar" })).toBeInTheDocument();
+  });
+
   it("⛔ vyn gör inget urval och visar ingen länk: GitHub-adressen finns inte i vyn, och inga länkar leder ut", () => {
     rita({ poster: [{ ...POSTER[0], url: "https://github.com/HEMLIGT/x/issues/1" }] });
     // Vyn ritar bara fälten den känner; ett fält servern aldrig skulle skicka ritas ändå inte.

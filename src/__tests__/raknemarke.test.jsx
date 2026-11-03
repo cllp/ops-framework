@@ -43,6 +43,9 @@ describe("STATUS_TONES (bolag-ops #363)", () => {
   it("⛔ Ny är info, samma ton överallt", () => {
     expect(STATUS_TONES.ny).toBe("info");
     expect(statusTone("hanterad")).toBe("success");
+    expect(STATUS_TONES.pagar).toBe("warning");
+    expect(statusTone("pagar")).toBe("warning");
+    expect(new Set([statusTone("ny"), statusTone("pagar"), statusTone("hanterad")]).size).toBe(3);
     expect(statusTone("okänt")).toBe("neutral");
     expect(statusTone(null)).toBe("neutral");
   });

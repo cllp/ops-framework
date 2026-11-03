@@ -3,13 +3,14 @@ import { GASTSKRIV_MAX_TECKEN } from "../lib/gast.js";
 import { formatDagOchKlockslag, formatDate } from "../lib/format.js";
 import { definierade, forvalda } from "../lib/ord.js";
 import { statusTone } from "../lib/statusTone.js";
+import { isOpenCase } from "../lib/caseModel.js";
 import { OpsButton } from "./OpsButton.jsx";
 import { OpsEmpty } from "./OpsEmpty.jsx";
 import { Skrivfalt, texterPa } from "./OpsMeddelanden.jsx";
 import { OpsPill } from "./OpsPill.jsx";
 
 /**
- * Orden i gästens ärenden, på svenska och engelska (0.132.0, cllp/lifehub.app#389, skiva 3). Statusorden är ärendemodellens tre lägen (`ny`, `hanterad`, `avskriven`); en annan status ritas som den är.
+ * Orden i gästens ärenden, på svenska och engelska (0.132.0, cllp/lifehub.app#389, skiva 3). Statusorden är ärendemodellens fyra statusar (`ny`, `pagar`, `hanterad`, `avskriven`); en annan status ritas som den är.
  * @type {import("../lib/ord.js").Ordbok}
  */
 export const ORD_OPSGASTARENDEN = {
@@ -23,6 +24,7 @@ export const ORD_OPSGASTARENDEN = {
   fel: { sv: "Ärendena kunde inte hämtas just nu.", en: "The cases could not be loaded right now." },
   avkortad: { sv: "Du har fler ärenden än vi visar. Det kan finnas ärenden hos dig som inte syns här.", en: "You have more cases than we show. There may be cases with you that are not shown here." },
   status_ny: { sv: "Öppet", en: "Open" },
+  status_pagar: { sv: "Pågår", en: "In progress" },
   status_hanterad: { sv: "Klart", en: "Done" },
   status_avskriven: { sv: "Avskrivet", en: "Dismissed" },
   forfaller: { sv: "Förfaller {datum}", en: "Due {datum}" },
@@ -65,7 +67,7 @@ function Arendekort({ post, onKommentera, onKlar, sprak, t }) {
       levande.current = false;
     };
   }, []);
-  const oppen = post.status === "ny";
+  const oppen = isOpenCase(post.status);
   const statusText = post.status ? (t[`status_${post.status}`] ?? post.status) : "";
   const kommentarer = post.kommentarer ?? [];
 
