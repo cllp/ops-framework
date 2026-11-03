@@ -9,6 +9,15 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.180.0
+
+### Ändrat
+
+- **Officedokument går att lägga i Biblioteket: Word (.docx), Excel (.xlsx) och PowerPoint (.pptx).** CP 2026-11-03, med en skärmbild av "Formatet application/vnd.openxmlformats-officedocument.wordprocessingml.document går inte att lägga in": "VI behöver kunna ha officedokument i LIfe Hub." De tre typerna står i `FILMIME`, så klienten, Firestore-regeln och lagringsregeln släpper in dem ur samma lista, och `mimeUrFilnamn` ger dem när webbläsaren inte säger någon typ. De visas inte i appen (inget nytt bibliotek, CP samma dag: "Gör inget som tynger appen"): de laddas ned och öppnas i enhetens egen app. Taket är det allmänna, 25 MB.
+  - ⛔ De äldre formaten (.doc, .xls, .ppt) och makroformaten (.docm, .xlsm, .pptm) tas inte emot: de kan bära makron, och ingen har bett om dem.
+  - ⛔ Appen måste generera om och deploya sina regler (`check-regelfragment --skriv`, lagringsregeln) FÖRE klienten, annars säger klienten ja och lagringen nej.
+  - Prov: `bibliotek-office.test.js` (4). Mot 0.179.0: 3 failed (provet för de gamla formaten är grönt i båda, det är en vakt mot att de läggs till av misstag).
+
 ## 0.179.0
 
 ### Ändrat
