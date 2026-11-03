@@ -1,16 +1,15 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { BilagaVisning } from "../components/BilagaVisning.jsx";
 import { OpsSprakProvider } from "../components/OpsSprak.jsx";
 
 /*
- * ⛔ EN PDF OCH EN TEXTFIL I EN BILAGA ÖPPNAS I EN DIALOG (0.178.0, cllp/lifehub.app#524).
+ * ⛔ EN TEXTFIL I EN BILAGA ÖPPNAS I EN DIALOG (0.178.0, cllp/lifehub.app#524). En PDF är som förut en nedladdningslänk (se nedan).
  *
  * Händelsen: en textfil bifogad i chatten visades som 56 B mot Bibliotekets 40 B, och ett klick på den laddade ned den i stället för att visa den. Storleken lagades i 0.168.0. Omtestet var DELVIS: klicket gav fortfarande
  * en `data:`-länk med `download`. Orsaken var `BilagaVisning`, som gjorde allt utom bild och ljud till `<a href={dataUrl} download>`.
  *
  * Det som mäts är det som såg fel ut för användaren: ingen `a[download]` förrän dialogen är öppen, innehållet syns i dialogen, och nedladdningen finns kvar i dialogens fot.
- * jsdom har ingen `URL.createObjectURL`, så PDF-provet ger den en attrapp och mäter att ramen får en `src` och att adressen städas bort.
  */
 
 const b64 = (/** @type {string} */ t) => btoa(unescape(encodeURIComponent(t)));
@@ -64,54 +63,18 @@ describe("textfil och CSV", () => {
 });
 
 describe("PDF", () => {
-  const skapade = /** @type {string[]} */ ([]);
-  const stadade = /** @type {string[]} */ ([]);
-  const original = { skapa: URL.createObjectURL, stada: URL.revokeObjectURL };
-  beforeEach(() => {
-    skapade.length = 0;
-    stadade.length = 0;
-    URL.createObjectURL = vi.fn(() => {
-      const u = `blob:prov/${skapade.length + 1}`;
-      skapade.push(u);
-      return u;
-    });
-    URL.revokeObjectURL = vi.fn((u) => void stadade.push(u));
-  });
-  afterEach(() => {
-    URL.createObjectURL = original.skapa;
-    URL.revokeObjectURL = original.stada;
-  });
-
-  it("⛔ ingen a[download] förrän dialogen är öppen, sedan en ram med blob-adress, och adressen städas när dialogen stängs", async () => {
-    render(<BilagaVisning bilaga={fil("application/pdf", "utdrag.pdf", "%PDF-1.4 prov")} alt="Bilaga: utdrag.pdf" />);
-    expect(document.querySelector("a[download]")).toBeNull();
-    expect(document.querySelector("iframe")).toBeNull();
-    expect(skapade).toHaveLength(0);
-    fireEvent.click(screen.getByRole("button", { name: "Visa: utdrag.pdf" }));
-    const dialog = await screen.findByRole("dialog", { name: "utdrag.pdf" });
-    const ram = await waitFor(() => {
-      const el = dialog.querySelector("iframe[data-bilaga-pdf]");
-      if (!el) throw new Error("ramen är inte ritad än");
-      return /** @type {HTMLIFrameElement} */ (el);
-    });
-    expect(ram.getAttribute("src")).toBe(skapade[0]);
-    expect(ram.getAttribute("title")).toBe("utdrag.pdf");
-    expect(within(dialog).getByRole("link", { name: "Ladda ned" })).toHaveAttribute("download", "utdrag.pdf");
-    expect(stadade).toHaveLength(0);
-    fireEvent.click(within(dialog).getByRole("button", { name: "Stäng" }));
-    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-    expect(stadade).toEqual(skapade);
-  });
-
-  it("⛔ kan blobben inte göras står det i en rad och ingen tom ram ritas, med nedladdningen kvar", async () => {
-    URL.createObjectURL = vi.fn(() => {
-      throw new Error("ingen blob här");
-    });
-    render(<BilagaVisning bilaga={fil("application/pdf", "utdrag.pdf", "%PDF-1.4 prov")} alt="Bilaga: utdrag.pdf" />);
-    fireEvent.click(screen.getByRole("button", { name: "Visa: utdrag.pdf" }));
-    const dialog = await screen.findByRole("dialog", { name: "utdrag.pdf" });
-    expect(await within(dialog).findByRole("alert")).toHaveTextContent("PDF:en gick inte att visa här. Ladda ned den i stället.");
-    expect(dialog.querySelector("iframe")).toBeNull();
-    expect(within(dialog).getByRole("link", { name: "Ladda ned" })).toBeInTheDocument();
+  it("⛔ en PDF är som förut en nedladdningslänk: ingen ram och ingen blob-adress (ramverkets vakt i htmldokument-helfonster.test.jsx)", () => {
+    const skapa = vi.fn();
+    const original = URL.createObjectURL;
+    URL.createObjectURL = skapa;
+    try {
+      render(<BilagaVisning bilaga={fil("application/pdf", "utdrag.pdf", "%PDF-1.4 prov")} alt="Bilaga: utdrag.pdf" />);
+      expect(screen.getByRole("link", { name: /utdrag\.pdf/ })).toHaveAttribute("download", "utdrag.pdf");
+      expect(screen.queryByRole("button")).toBeNull();
+      expect(document.querySelector("iframe")).toBeNull();
+      expect(skapa).not.toHaveBeenCalled();
+    } finally {
+      URL.createObjectURL = original;
+    }
   });
 });
