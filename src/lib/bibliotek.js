@@ -435,6 +435,12 @@ export const FILMIME = /** @type {const} */ ([
   // ⛔ HTML-DOKUMENT (0.156.0, cllp/ops-framework#472). En HTML-fil kan köra kod, och får därför bara ritas i en avspärrad ruta (`HTML_SANDBOX` i `htmldokument.js`), aldrig som en sida i appens ursprung.
   // Samma tak som text. Lagringen sparar den som `text/html; charset=utf-8` med `Content-Disposition: attachment`, så att en direktlänk laddar ned filen och aldrig ritar den.
   "text/html",
+  // ⛔ OFFICEDOKUMENT (0.180.0, CP 2026-11-03 med en skärmbild av "Formatet application/vnd.openxmlformats-officedocument.wordprocessingml.document går inte att lägga in": "VI behöver kunna ha
+  // officedokument i LIfe Hub"). Word, Excel och PowerPoint i sina nuvarande format. De visas inte i appen (det hade krävt ett tungt bibliotek, CP samma dag: "Gör inget som tynger appen"): de laddas ned
+  // och öppnas i enhetens egen app. ⛔ DE ÄLDRE FORMATEN (.doc, .xls, .ppt) OCH MAKROFORMATEN (.docm, .xlsm, .pptm) TAS INTE EMOT: de kan bära makron, och ingen har bett om dem.
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
 ]);
 
 /**
@@ -899,7 +905,7 @@ export function filTak(mime) {
 /**
  * MIME ur filnamnet när webbläsaren inte säger någon (Safari ger ofta tom typ för AIFF och FLAC, och Windows för .mov). Bara
  * ljudformaten och videoformaten som annars faller bort, och (0.156.0) `.html` och `.htm`, som ger `text/html`. `.mp4` och `.m4v` ger `video/mp4`, `.mov` ger `video/quicktime`. Tom sträng
- * när ändelsen är okänd.
+ * när ändelsen är okänd. (0.180.0) `.docx`, `.xlsx` och `.pptx` ger sina Office-typer: Windows och Android ger ibland tom typ för dem.
  * @param {unknown} namn
  * @returns {string}
  */
@@ -907,7 +913,7 @@ export function mimeUrFilnamn(namn) {
   const m = /\.([a-z0-9]+)$/i.exec(str(namn));
   const andelse = m ? m[1].toLowerCase() : "";
   // (0.133.0) m4a, mp3, aac och ogg: Safari och Android ger ofta tom typ för dem, och utan namnet blev en vald ljudfil "Formatet (tom) går inte att lägga in".
-  return ({ html: "text/html", htm: "text/html", wav: "audio/wav", wave: "audio/wav", aif: "audio/aiff", aiff: "audio/aiff", flac: "audio/flac", m4a: "audio/mp4", mp3: "audio/mpeg", aac: "audio/aac", ogg: "audio/ogg", oga: "audio/ogg", mp4: "video/mp4", m4v: "video/mp4", mov: "video/quicktime" })[andelse] ?? "";
+  return ({ html: "text/html", htm: "text/html", wav: "audio/wav", wave: "audio/wav", aif: "audio/aiff", aiff: "audio/aiff", flac: "audio/flac", m4a: "audio/mp4", mp3: "audio/mpeg", aac: "audio/aac", ogg: "audio/ogg", oga: "audio/ogg", mp4: "video/mp4", m4v: "video/mp4", mov: "video/quicktime", docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation" })[andelse] ?? "";
 }
 
 /**
