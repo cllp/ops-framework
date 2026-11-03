@@ -461,6 +461,25 @@ vems tur det är:
   Blocket läggs i en egen kommentar och etiketten sätts.
 - Etiketterna är exakt tre, med exakt de här namnen. En fjärde ("väntar-alla",
   "blockerad") är en etikett som inte pekar ut någon.
+- ⛔ **Läs tråden innan du skriver i den, och skriv om ditt block när planen
+  ändras.** CP 2026-11-03: "Varför läser ni inte varandras meddelanden?" Natten
+  innan hade Claude skrivit i ramverkets PR 503 att ompinningen skulle ligga i
+  appens PR 618. Planen ändrades till en egen PR (619), men blocket i 503 stod
+  kvar. Grok läste det och skrev, med rätta, att en ny PR behövdes. Grok
+  deployade sedan 619 och kvitterade i den kl 05.25. Claude läste inte tråden
+  och skrev 06.10 ett nytt block som bad Grok deploya en gång till. Båda
+  missarna hade stoppats av att läsa det man själv och den andra skrivit.
+  - **Innan du skriver ett block, en kvittens eller ett besked i en PR eller ett
+    ärende: läs alla kommentarer i den.** Bevakningen av en PR slutar när den
+    mergas, så en kvittens som skrivs efter mergen når ingen av sig själv.
+  - **Ändras planen, skriv om ditt gamla block i samma steg**, i den PR eller
+    det ärende där det står, och inte bara i det nya. Det får aldrig stå två
+    block som säger olika saker, eftersom mottagaren inte kan veta vilket som
+    gäller.
+  - **Kontrollen knyts till överlämningen, inte till klockan.** Den som lämnar
+    över läser tråden igen när mottagaren har haft tid att göra sin del, en gång
+    per överlämning. Ingen bevakning dygnet runt (CP samma dag: "du skall inte
+    kolla varje timma dygnet runt").
 
 ---
 
