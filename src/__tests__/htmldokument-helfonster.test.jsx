@@ -306,24 +306,36 @@ describe("⛔ det finns bara en väg in för HTML: en ruta, och aldrig en blob- 
   /** Källan utan kommentarer: rader som börjar med `*`, `//` eller `/*`. En närvarokontroll i en kommentar mäter ingenting. */
   const kod = (/** @type {string} */ fil) => fs.readFileSync(fil, "utf8").split("\n").filter((r) => !/^\s*(\*|\/\/|\/\*)/.test(r)).join("\n");
 
-  it("`<iframe` står på exakt ett ställe i src, och det ställe sätter sandboxen", () => {
+  // ⛔ ETT UNDANTAG, OCH BARA ETT (0.179.0, cllp/lifehub.app#524, CP 2026-11-03: "Gör det ändå på det enkla sättet"): en PDF-bilaga visas i en ram med blob-adress i `BilagaVisning`.
+  // Vakten skyddar mot att något som inte är vad det säger körs på appens ursprung, och därför kräver den att undantaget prövar typen `application/pdf` innan adressen görs.
+  // Ett tredje ställe, eller ett undantag utan typkontrollen, är rött.
+  const PDF_UNDANTAG = "src/components/BilagaVisning.jsx";
+
+  it("`<iframe` står på exakt ett ställe i src utom PDF-undantaget, och det ställe sätter sandboxen", () => {
     const alla = filer(path.join(rot, "src"));
     // Golv: ett prov som läser ingenting är grönt av fel skäl.
     expect(alla.length).toBeGreaterThan(150);
     const med = alla.filter((f) => /<iframe\b/.test(kod(f)));
-    expect(med.map((f) => path.relative(rot, f))).toEqual(["src/components/OpsHtmlDokument.jsx"]);
-    const k = kod(med[0]);
+    expect(med.map((f) => path.relative(rot, f)).sort()).toEqual([PDF_UNDANTAG, "src/components/OpsHtmlDokument.jsx"].sort());
+    expect((kod(path.join(rot, PDF_UNDANTAG)).match(/<iframe\b/g) ?? []).length).toBe(1);
+    const k = kod(path.join(rot, "src/components/OpsHtmlDokument.jsx"));
     expect((k.match(/<iframe\b/g) ?? []).length).toBe(1);
     expect(k).toMatch(/sandbox=\{HTML_SANDBOX\}/);
     expect(k).not.toMatch(/\ballow-same-origin\b/);
   });
 
-  it("ingen komponent skapar en blob-adress, och ingen sätter `src` på en ruta", () => {
+  it("ingen komponent utom PDF-undantaget skapar en blob-adress, undantaget prövar typen först, och HTML-rutan sätter aldrig `src`", () => {
     const komponenter = filer(path.join(rot, "src", "components"));
     expect(komponenter.length).toBeGreaterThan(100);
     for (const f of komponenter) {
+      if (path.relative(rot, f) === PDF_UNDANTAG) continue;
       expect(kod(f), path.relative(rot, f)).not.toMatch(/createObjectURL/);
     }
+    const u = kod(path.join(rot, PDF_UNDANTAG));
+    expect((u.match(/createObjectURL\(/g) ?? []).length).toBe(1);
+    // Typkontrollen står före adressen i källan.
+    expect(u.indexOf('blob.type !== "application/pdf"')).toBeGreaterThan(-1);
+    expect(u.indexOf('blob.type !== "application/pdf"')).toBeLessThan(u.indexOf("createObjectURL("));
     for (const f of ["OpsHtmlDokument.jsx", "OpsHtmlVy.jsx"]) expect(kod(path.join(rot, "src", "components", f)), f).not.toMatch(/\bsrc=\{/);
   });
 

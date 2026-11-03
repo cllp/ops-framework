@@ -226,7 +226,7 @@ describe("OpsLjudspelare", () => {
     }
   });
 
-  it("en ljudbilaga spelas, en pdf laddas ned", () => {
+  it("en ljudbilaga spelas, en pdf får ingen spelare", () => {
     expect(isAudio("audio/mpeg")).toBe(true);
     expect(isAudio("image/png")).toBe(false);
     const url = "data:audio/mpeg;base64,AAA";
@@ -240,7 +240,8 @@ describe("OpsLjudspelare", () => {
 
     const pdf = "data:application/pdf;base64,JVBERi0=";
     render(<BilagaVisning bilaga={{ dataUrl: pdf, namn: "utdrag.pdf", typ: "application/pdf", tecken: pdf.length }} alt="pdf" />);
-    expect(screen.getByRole("link", { name: /utdrag\.pdf/ })).toHaveAttribute("data-kommentar-bilaga-visad", "fil");
+    // En PDF öppnas i en dialog sedan 0.179.0 (cllp/lifehub.app#524): en knapp, ingen spelare.
+    expect(screen.getByRole("button", { name: /utdrag\.pdf/ })).toHaveAttribute("data-kommentar-bilaga-visad", "fil");
     expect(document.querySelector("audio")).toBeNull();
   });
 

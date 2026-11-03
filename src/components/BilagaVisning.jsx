@@ -17,16 +17,13 @@ export const ORD_BILAGAVISNING = {
   foregaende: { sv: "Föregående bild", en: "Previous image" },
   nasta: { sv: "Nästa bild", en: "Next image" },
   avBilder: { sv: "av", en: "of" },
-  // 0.178.0 (cllp/lifehub.app#524): en textfil öppnas i dialogen, och ordet säger det i stället för "Ladda ned".
+  // 0.178.0 (cllp/lifehub.app#524): en PDF eller textfil öppnas i dialogen, och ordet säger det i stället för "Ladda ned".
   visa: { sv: "Visa", en: "View" },
+  pdfFel: { sv: "PDF:en gick inte att visa här. Ladda ned den i stället.", en: "The PDF could not be shown here. Download it instead." },
 };
 
-/**
- * Typerna en bilaga kan ha och som visas i en dialog (0.178.0): text och CSV. ⛔ PDF ÄR INTE MED, och det är ett beslut (granskningen av 0.178.0): en PDF i en ram behöver en blob-adress (en `data:`-adress visas
- * inte i en ram), och ramverket har en vakt för att ingen komponent skapar en blob-adress och att den enda `<iframe>` är den avspärrade HTML-rutan (`htmldokument-helfonster.test.jsx`, 0.159.0). En blob-adress har
- * appens ursprung, så en fil som inte är vad den säger körs där. Vakten var röd på det första utkastet. En PDF är därför som förut en nedladdningslänk; en förhandsvisning av PDF är ett eget beslut.
- */
-const FORHANDSVISBARA = ["text/plain", "text/csv"];
+/** Typerna en bilaga kan ha och som visas i en dialog (0.178.0, PDF från 0.179.0). Allt som `kommentarbilagaFel` släpper in och inte är bild eller ljud: PDF, text och CSV. */
+const FORHANDSVISBARA = ["application/pdf", "text/plain", "text/csv"];
 
 /**
  * Snabbvyn för en bilaga: bilden som en miniatyr som öppnas i full storlek, en fil som en nedladdningslänk med namn och storlek.
@@ -37,13 +34,14 @@ const FORHANDSVISBARA = ["text/plain", "text/csv"];
  * ⛔ RITAS BARA NÄR `kommentarbilagaFel` är `null` (0.80.0, #300). En dataUrl som inte är filens typ, till exempel
  * `javascript:`, blir ingen `href` och ingen `src`. Namnet sägs ändå, så en ogiltig rad inte ser ut som att den inte fanns.
  *
- * ⛔ EN TEXTFIL ÖPPNAS I EN DIALOG, DEN LADDAS INTE NED VID TRYCK (0.178.0, cllp/lifehub.app#524). Samma fel som bilden hade i 0.106.0: filen var en `<a download>` med en `data:`-adress, och ett tryck på en
+ * ⛔ EN PDF OCH EN TEXTFIL ÖPPNAS I EN DIALOG, DE LADDAS INTE NED VID TRYCK (text 0.178.0, PDF 0.179.0, cllp/lifehub.app#524). Samma fel som bilden hade i 0.106.0: filen var en `<a download>` med en `data:`-adress, och ett tryck på en PDF eller en
  * textfil i chatten sparade den i stället för att visa den. Omtestet av #524 på ops-framework 0.168.0 var DELVIS: storleken stämde, men klicket gav fortfarande en nedladdning. Nu är raden en knapp med samma mönster som bilden:
  * `OpsModal` med "Ladda ned" i foten, så ingen `a[download]` finns förrän dialogen är öppen. En text- eller CSV-fil visas som text i `<pre>` med samma komponent som Biblioteket (`TextForhandsvisning`: UTF-8 med
- * Windows-1252 som reserv, tak, tomhet och fel sägs). Texten läses ur data-URL:en i minnet (`bilagaTillBlob`), utan någon adress.
- *
- * ⛔ INGEN `<iframe>` FÖR EN PDF. Den ritas olika i varje webbläsare, och en tom ruta ser ut som att filen inte kom fram. Dessutom kräver en ram en blob-adress, och en blob-adress har appens ursprung: ramverkets vakt
- * (`htmldokument-helfonster.test.jsx`) tillåter ingen komponent att skapa en, och ingen `<iframe>` utom den avspärrade HTML-rutan. Det första utkastet av 0.178.0 visade PDF:en så och var rött på vakten. En PDF är därför en nedladdningslänk som förut.
+ * Windows-1252 som reserv, tak, tomhet och fel sägs). En PDF visas i en `<iframe>` med en blob-adress, som städas bort när dialogen stängs (`revokeObjectURL`).
+ * ⛔ DET HÄR ERSÄTTER REGELN "INGEN `<iframe>` FÖR EN PDF", OCH DET ÄR CP:S BESLUT (2026-11-03: "Gör inget som tynger appen ... Gör det ändå på det enkla sättet"). Regeln hade två skäl. Det första: en ram ritas olika i varje webbläsare och en tom ruta ser ut som att filen inte kom
+ * fram. Det möts med namnet i rubriken, "Ladda ned" i foten och en rad (`pdfFel`) i stället för en tom ruta. Det andra: ramen kräver en blob-adress, och en blob-adress har appens ursprung, så en fil som inte är vad den säger hade körts
+ * där (vakten i `htmldokument-helfonster.test.jsx`). Det möts här: blobben görs BARA när data-URL:en är exakt `application/pdf` (`kommentarbilagaFel` kräver redan att prefixet är bilagans typ), och en blob med en annan typ blir felraden och
+ * aldrig en ram. Webbläsaren visar då filen i sin PDF-visare och inte som en sida. Vakten tillåter det här ena stället och inget annat. iOS Safari visar bara första sidan i en ram; nedladdningen är en tryckning bort.
  * En typ utanför listan (`FORHANDSVISBARA`) är som förut en nedladdningslänk, så att en ny filtyp i `KOMMENTARBILAGA_TYPER` inte blir en dialog som inte kan visa den.
  *
  * ⛔ ETT LJUD ÄR `OpsLjudspelare`, INTE EN NEDLADDNINGSLÄNK (0.90.8). Samma spelare som Biblioteket.
@@ -196,10 +194,47 @@ export function BilagaVisning({ bilaga, alt, marke = "data-kommentar-bilaga-visa
             </a>
           }
         >
-          <TextForhandsvisning hamta={(d) => Promise.resolve(bilagaTillBlob({ dataUrl: d }))} sokvag={bilaga.dataUrl} namn={bilaga.namn} />
+          {bilaga.typ === "application/pdf" ? (
+            <PdfVisning bilaga={bilaga} felText={o.pdfFel} />
+          ) : (
+            <TextForhandsvisning hamta={(d) => Promise.resolve(bilagaTillBlob({ dataUrl: d }))} sokvag={bilaga.dataUrl} namn={bilaga.namn} />
+          )}
         </OpsModal>
       ) : null}
     </>
   );
 }
 
+/**
+ * En PDF-bilaga i en ram (0.178.0, cllp/lifehub.app#524). Data-URL:en görs till en Blob och visas med en blob-adress, eftersom webbläsare vägrar visa en PDF från en `data:`-adress i en ram. Adressen städas bort när dialogen stängs
+ * (`revokeObjectURL`), annars ligger filen kvar i minnet till sidan laddas om. ⛔ KAN ADRESSEN INTE GÖRAS (ogiltig data-URL, eller en miljö utan `URL.createObjectURL`) SÄGER EN RAD DET, och ramen ritas inte: en tom ruta ser ut som att filen inte kom fram.
+ *
+ * @param {{ bilaga: import("../lib/file.js").Bilaga, felText: string }} props
+ */
+function PdfVisning({ bilaga, felText }) {
+  const [lage, setLage] = useState(/** @type {{ url: string } | { fel: true } | null} */ (null));
+  useEffect(() => {
+    let url = "";
+    try {
+      const blob = bilagaTillBlob(bilaga);
+      // ⛔ BARA EN PDF BLIR EN RAM (0.179.0). En blob med en annan typ hade fått appens ursprung och visats som det den säger att den är.
+      if (blob.type !== "application/pdf") throw new Error("Bilagan är inte en PDF.");
+      url = URL.createObjectURL(blob);
+      setLage({ url });
+    } catch {
+      setLage({ fel: true });
+    }
+    return () => {
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, [bilaga]);
+  if (!lage) return null;
+  if ("fel" in lage) {
+    return (
+      <p role="alert" data-bilaga-pdf="fel" className="m-0 text-meta text-danger">
+        {felText}
+      </p>
+    );
+  }
+  return <iframe data-bilaga-pdf="" title={bilaga.namn} src={lage.url} className="block h-[70dvh] w-full rounded-md border border-line bg-sunken" />;
+}

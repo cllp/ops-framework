@@ -291,12 +291,13 @@ describe("OpsKommentarer med bilagor", () => {
     expect(screen.queryByRole("button", { name: "Ta bort" })).toBeNull();
   });
 
-  it("en fil som inte är en bild visas med sitt namn och laddas ned", () => {
+  it("⛔ en PDF visas med sitt namn som en knapp som öppnar den, och laddas inte ned vid tryck (cllp/lifehub.app#524)", () => {
     const pdf = "data:application/pdf;base64,JVBERi0=";
     render(<OpsKommentarer kommentarer={[{ ...k("a1", bo, "2026-10-06T09:00:00.000Z", "Utdraget"), bilaga: { dataUrl: pdf, namn: "utdrag.pdf", typ: "application/pdf", tecken: pdf.length } }]} uid="anna" onSkriv={() => {}} />);
-    const lank = screen.getByRole("link", { name: /utdrag\.pdf/ });
-    expect(lank).toHaveAttribute("download", "utdrag.pdf");
-    expect(lank.getAttribute("data-kommentar-bilaga-visad")).toBe("fil");
+    const knapp = screen.getByRole("button", { name: /utdrag\.pdf/ });
+    expect(knapp.hasAttribute("download")).toBe(false);
+    expect(knapp.getAttribute("data-kommentar-bilaga-visad")).toBe("fil");
+    expect(document.querySelector("a[download]")).toBeNull();
   });
 
   it("inklistring (Cmd+V) ger en bilaga med förhandsvisning, och den skickas med texten", async () => {
