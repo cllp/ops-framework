@@ -11,6 +11,10 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ## 0.177.0
 
+### Fixat
+
+- **Provet för TALK:s diagnos läste den riktiga klockan** (`talk-ingen-text.test.jsx`). Det antog att ingen millisekund går mellan `starta()` och felet, och Publish för 0.177.0 föll 2026-11-02 på `anrop:1` i stället för `anrop:0` (CI 2026-10-30 hade samma fel i andra omgången). Provet ger nu funktionen en fast klocka (`nu`) och prövar exakt. Rött med en klocka som går (Date.now ökar en millisekund per anrop), grönt med den fasta. Ingen källkod ändrad.
+
 ### Tillagt
 
 - **Ett tak för hur många appar man får välja till huvudmenyn: `HUVUDMENY_MAX` (4).** CP 2026-11-02 20:58, skärmbild från telefonen (390 px): gruppen hade sju appar med "Visa i huvudmenyn" och toppraden klippte den sista ikonen vid högerkanten. `ATGARDER_SMAL` tar bort åtgärder ur raden men appikonerna bär `kvarIHuvudet` och flyttades aldrig. CP: "för många ikoner i topraden, de måste kunna flyttas" och "Vi kanske skall ha ett max antal ikoner så att användaren får prioritera själv?" Beslut samma kväll ("4, kör"): man får välja fyra, och vad som SYNS beror på bredden. `HUVUDMENY_MAX` och `ORD_HUVUDMENY_FULL` exporteras.
