@@ -9,6 +9,15 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.179.0
+
+### Ändrat
+
+- **En PDF-bilaga öppnas i en dialog och visas i en ram, i stället för att laddas ned vid tryck (cllp/lifehub.app#524).** CP 2026-11-03: "Gör inget som tynger appen ... Gör det ändå på det enkla sättet." I 0.178.0 var PDF kvar som nedladdning, eftersom ramen kräver en blob-adress och ramverkets vakt (`htmldokument-helfonster.test.jsx`) inte tillät någon. Nu får `BilagaVisning` ett undantag, och bara det: blobben görs bara när data-URL:en är exakt `application/pdf` (en blob med annan typ ger felraden och aldrig en ram), så webbläsaren visar filen i sin PDF-visare och aldrig som en sida på appens ursprung. Inget nytt bibliotek och ingen ny export.
+  - Vakten tillåter exakt två `<iframe>` (den avspärrade HTML-rutan och PDF-ramen) och exakt ett `createObjectURL`, och kräver att typkontrollen står före adressen. Röd när kontrollen tas bort (sedd falla).
+  - Prov: `bilaga-forhandsvisning.test.jsx` (PDF i ram med städad adress, felraden, och en bilaga som säger PDF men är HTML ger varken ram eller adress). `kommentarer`, `bild-oppnas-stor` och `ljudspelare` flyttade från länk till knapp för PDF. Röda mot 0.178.0 (5 failed), gröna med ändringen.
+  - iOS Safari visar bara första sidan i en ram; "Ladda ned" finns i dialogens fot.
+
 ## 0.178.0
 
 ### Fixat
