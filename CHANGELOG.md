@@ -9,6 +9,15 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.181.0
+
+### Ändrat
+
+- **Ett ärende kan ha läget Pågår (`pagar`) mellan Ny och Hanterad.** CP:s riktning: någon ska kunna ta ett ärende utan att det är avklarat, och alla ska se det. `STATES.IN_PROGRESS`, `OPEN_STATES` (`ny` och `pagar`) och en övergångstabell i `caseModel`. Nya byggare: `buildStart` (ny till pågår), `buildStop` (pågår till ny) och `buildReopen` (slutläge till ny, tömmer `resultat` och `closed`), plus `isOpen`/`canMove` på modellen och `isOpenCase` exporterad för ytor utan modell. `statusTone('pagar')` är `warning`. Gästens ärendelista sorterar `pagar` som öppet, och `OpsGastArenden` visar "Pågår"/"In progress" och behåller Markera klar.
+  - ⛔ `daysInNew` ger `null` för `pagar`: larmet betyder "ingen har rört posten", och någon har gjort det.
+  - ⛔ Reglerna behöver ingen ändring: inget regelfragment villkorar ett statusvärde. Vaktprovet `regler-arendestatus.test.js` blir rött om ett fragment någon gång får en bokstavlig ärendestatus.
+  - Appen (lifehub.app) behöver vid ompinningen: `pagar` i API:ts status, agentens verktyg via `buildStart`/`buildStop`/`buildReopen`, `modell.OPEN_STATES` som `oppna` till `visaUppgifter` och i alla öppet-filter och räknemärken (annars hamnar en uppgift som pågår i `avvisade`), kolumnen Pågår, etiketten `pagar` i GitHub-synken och statusreglerna i Firestore.
+
 ## 0.180.0
 
 ### Ändrat

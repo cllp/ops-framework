@@ -91,8 +91,10 @@ Du kan byta mellan månad, vecka och dag. En dag utan poster är tom med flit, i
         "Vad är inkorgen?",
         `Inkorgen samlar det som väntar på dig: nya poster, saker att godkänna och det apparna skickar in.
 
-När du tar hand om en post lämnar den inkorgen. Det betyder att den är omvandlad eller avklarad enligt sorten, inte alltid att hela arbetet är slut.`,
-        ["ärende", "kö", "hanterad", "ny"],
+När du tar hand om en post lämnar den inkorgen. Det betyder att den är omvandlad eller avklarad enligt sorten, inte alltid att hela arbetet är slut.
+
+Ett ärende kan ha läget Pågår: någon har tagit det men det är inte klart. Det räknas som öppet tills det är hanterat.`,
+        ["ärende", "kö", "hanterad", "ny", "pågår"],
       ),
       a(
         "arende-svar",

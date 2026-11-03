@@ -16,7 +16,11 @@
  * "det finns något att se" på en ikon. Ett rött chip på varje oläst rad gjorde
  * en lugn lista till en larmlista, och en ny post är inget fel.
  *
- * ⛔ Nycklarna är ärendemodellens lägen (`ny`, `hanterad`, `avskriven`). En app
+ * ⛔ "PÅGÅR" ÄR WARNING (0.181.0): någon har tagit sig an posten men den är inte klar,
+ * och det ska synas på håll utan att likna "ny" (blå, ingen har tittat) eller
+ * "hanterad" (grön, klar). Gul betyder här "öppen och under arbete", inte fel.
+ *
+ * ⛔ Nycklarna är ärendemodellens statusar (`ny`, `pagar`, `hanterad`, `avskriven`). En app
  * med egna lägen slår upp sina egna ord; en okänd nyckel ger `neutral` och
  * aldrig en gissad färg.
  */
@@ -24,6 +28,7 @@
 /** @type {Readonly<Record<string, "neutral"|"success"|"warning"|"danger"|"info">>} */
 export const STATUS_TONES = Object.freeze({
   ny: "info",
+  pagar: "warning",
   hanterad: "success",
   avskriven: "neutral",
 });

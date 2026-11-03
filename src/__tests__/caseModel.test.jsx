@@ -229,7 +229,7 @@ describe("avslut", () => {
 
   it("ger STATUS och det utfasade STATES som samma objekt", () => {
     expect(modell.STATUS).toBe(modell.STATES);
-    expect(modell.STATUS).toEqual({ NEW: "ny", HANDLED: "hanterad", DISMISSED: "avskriven" });
+    expect(modell.STATUS).toEqual({ NEW: "ny", IN_PROGRESS: "pagar", HANDLED: "hanterad", DISMISSED: "avskriven" });
   });
 
   it("kastar i stället för att skriva något halvt", () => {
@@ -280,5 +280,59 @@ describe("daysInNew", () => {
     expect(modell.daysInNew({ status: "ny", skapad: "inte ett datum" })).toBeNull();
     expect(modell.daysInNew({ status: "ny" })).toBeNull();
     expect(modell.daysInNew(null)).toBeNull();
+  });
+});
+
+/**
+ * Pågår (0.181.0, CP 2026-11-03): ett fjärde, ÖPPET läge. Före: statusen fanns inte, och en post som någon börjat på kunde bara stå som "ny".
+ */
+describe("pagar (0.181.0)", () => {
+  it("är ett öppet läge: OPEN_STATES är ny och pagar, isOpen följer, och en okänd status är inte öppen", () => {
+    expect(modell.STATUS.IN_PROGRESS).toBe("pagar");
+    expect([...modell.OPEN_STATES]).toEqual(["ny", "pagar"]);
+    expect(modell.isOpen("ny")).toBe(true);
+    expect(modell.isOpen("pagar")).toBe(true);
+    for (const s of ["hanterad", "avskriven", "okänd", "", null, undefined]) expect(modell.isOpen(s), String(s)).toBe(false);
+  });
+
+  it("övergångarna: ny till pagar och tillbaka, öppen till slutläge, slutläge bara till ny", () => {
+    const g = [["ny", "pagar"], ["pagar", "ny"], ["ny", "hanterad"], ["ny", "avskriven"], ["pagar", "hanterad"], ["pagar", "avskriven"], ["hanterad", "ny"], ["avskriven", "ny"]];
+    for (const [fran, till] of g) expect(modell.canMove(fran, till), `${fran} till ${till}`).toBe(true);
+    const nej = [["hanterad", "pagar"], ["avskriven", "pagar"], ["pagar", "pagar"], ["ny", "ny"], ["hanterad", "avskriven"], ["okänd", "pagar"], [null, "pagar"]];
+    for (const [fran, till] of nej) expect(modell.canMove(fran, till), `${fran} till ${till}`).toBe(false);
+  });
+
+  it("buildStart: bara från ny, och skriver bara status", () => {
+    expect(modell.buildStart("ny")).toEqual({ status: "pagar" });
+    for (const fran of ["pagar", "hanterad", "avskriven", undefined]) expect(() => modell.buildStart(fran), String(fran)).toThrow(/byggPagar/);
+  });
+
+  it("buildStop: bara från pagar, tillbaka till ny", () => {
+    expect(modell.buildStop("pagar")).toEqual({ status: "ny" });
+    for (const fran of ["ny", "hanterad", "avskriven", undefined]) expect(() => modell.buildStop(fran), String(fran)).toThrow(/byggAvPagar/);
+  });
+
+  it("buildReopen: ett slutläge går till ny och tömmer avslutet, ett öppet läge kan inte öppnas igen", () => {
+    for (const fran of ["hanterad", "avskriven"]) expect(modell.buildReopen(fran)).toEqual({ status: "ny", resultat: null, closed: null });
+    for (const fran of ["ny", "pagar", undefined]) expect(() => modell.buildReopen(fran), String(fran)).toThrow(/byggOppnaIgen/);
+  });
+
+  it("⛔ pagar är inget slutläge: avslut kräver fortfarande hanterad eller avskriven, och en post som pågår avslutas med samma krav på not", () => {
+    expect(modell.missingAtClose("pagar", { not: "x" })).toHaveLength(1);
+    expect(() => modell.buildClose("pagar", { not: "x" })).toThrow(/Avslut kräver/);
+    expect(modell.missingAtClose("hanterad", {})).toHaveLength(1);
+    expect(modell.missingAtClose("avskriven", { not: "   " })).toHaveLength(1);
+    expect(modell.buildClose("hanterad", { not: "Gjort" }, { nu: () => "T" })).toMatchObject({ status: "hanterad", closed: "T" });
+  });
+
+  it("⛔ daysInNew är null för pagar: larmet betyder att ingen rört posten", () => {
+    const skapad = "2026-09-10T00:00:00Z";
+    expect(modell.daysInNew({ status: "ny", skapad }, Date.parse("2026-09-17T00:00:00Z"))).toBe(7);
+    expect(modell.daysInNew({ status: "pagar", skapad }, Date.parse("2026-09-17T00:00:00Z"))).toBeNull();
+  });
+
+  it("isOpenCase är samma lista för ytor utan modell", async () => {
+    const { isOpenCase } = await import("../lib/caseModel.js");
+    expect(["ny", "pagar", "hanterad", "avskriven"].map(isOpenCase)).toEqual([true, true, false, false]);
   });
 });

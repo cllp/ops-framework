@@ -3,6 +3,7 @@ import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { byggUppgift, uppgiftFel, visaUppgifter } from "../lib/uppgift.js";
+import { createCaseModel } from "../index.js";
 import { collectEvents } from "../lib/events.js";
 import { OpsEventList } from "../components/OpsEventList.jsx";
 import { OpsCalendar } from "../components/OpsCalendar.jsx";
@@ -174,5 +175,21 @@ describe("0.78.1: status, dag, typ och ordning (#302)", () => {
     expect(avsnitt).not.toMatch(/Ingen av dem är mergad/);
     expect(avsnitt).toMatch(/0\.77\.0/);
     expect(avsnitt).toMatch(/0\.76\.3/);
+  });
+});
+
+describe("0.181.0: pagar är en öppen status", () => {
+  it("⛔ med modellens OPEN_STATES som oppna syns en uppgift som pågår på Idag, och utan pagar i listan avvisas den (därför ska appen skicka listan ur modellen)", () => {
+    const modell = createCaseModel({
+      kinds: [{ value: "uppgift", label: "Uppgift", externalLabel: "uppgift" }],
+      priorities: [{ value: snarast, label: "Snarast", externalLabel: "snarast" }],
+      baseLabel: "ops",
+    });
+    const rad = post({ status: "pagar", deadline: "2026-10-07", typ: "uppgift" });
+    const med = visaUppgifter([rad], { ...bas, oppna: modell.OPEN_STATES, klara: [modell.STATUS.HANDLED, modell.STATUS.DISMISSED] });
+    expect(med.avvisade).toEqual([]);
+    expect(med.idag.map((r) => r.id)).toEqual(["u1"]);
+    const utan = visaUppgifter([rad], { ...bas, oppna: ["ny"], klara: KLARA });
+    expect(utan.avvisade.map((r) => r.id)).toEqual(["u1"]);
   });
 });

@@ -59,7 +59,13 @@
 const MAX_TITLE_DEFAULT = 120;
 
 /**
- * De statusar en post kan sluta i, plus den den börjar i.
+ * De statusar en post kan sluta i, plus de två öppna den lever i innan dess.
+ *
+ * ⛔ "PAGAR" ÄR EN STATUS OCH INGEN TAGG (CP 2026-11-03, "KÖR på pagar som riktigt
+ * läge"). En tagg hade gett två sanningar om samma sak: ett ärende som är hanterat
+ * och samtidigt märkt pågår (regel 2). "pagar" är ett ÖPPET läge, inget slutläge:
+ * `missingAtClose` och avslut är oförändrade, och `OPEN_STATES` är den enda listan
+ * över vad som räknas som öppet, så att ingen yta behöver skriva "ny" ensam.
  *
  * ⛔ TVÅ SLUTSTATUSAR, INTE EN. "Hanterad" betyder att något gjordes,
  * "avskriven" att någon tagit ställning till att inget skulle göras. Utan den
@@ -67,11 +73,61 @@ const MAX_TITLE_DEFAULT = 120;
  * och båda ser ut som en post som slutat röra sig.
  *
  * ⛔ VÄRDENA ÄNDRAS INTE. "ny", "hanterad" och "avskriven" står i Firestore på
- * varje post som finns. Ett ordbyte i gränssnittet är inte en datamigrering,
+ * varje post som finns, och "pagar" (utan å, som alla nycklar) kom 0.181.0. Ett ordbyte i gränssnittet är inte en datamigrering,
  * och den dagen de två blandas ihop blir bytet av ett ord ett fält som inte
  * går att läsa (CP 2026-09-25, cllp/bolag-ops#359).
  */
-const STATES = Object.freeze({ NEW: "ny", HANDLED: "hanterad", DISMISSED: "avskriven" });
+const STATES = Object.freeze({ NEW: "ny", IN_PROGRESS: "pagar", HANDLED: "hanterad", DISMISSED: "avskriven" });
+
+/**
+ * Statusarna där en post är öppen, alltså inte avslutad. Ordningen är flödets.
+ *
+ * ⛔ EN LISTA, och `isOpen` läser den. En yta som skriver `status === "ny"` räknar
+ * en post som någon börjat på som stängd.
+ */
+const OPEN_STATES = Object.freeze([STATES.NEW, STATES.IN_PROGRESS]);
+
+/**
+ * Vilka övergångar som finns, på ETT ställe. Ny till pågår och tillbaka, öppen till
+ * ett slutläge (kräver not, se `missingAtClose`), och ett slutläge öppnas igen till
+ * "ny". Ett slutläge går aldrig direkt till "pagar": då hade en avskriven post
+ * hoppat över att någon först tog ställning till att den lever igen.
+ */
+const TRANSITIONS = Object.freeze({
+  [STATES.NEW]: Object.freeze([STATES.IN_PROGRESS, STATES.HANDLED, STATES.DISMISSED]),
+  [STATES.IN_PROGRESS]: Object.freeze([STATES.NEW, STATES.HANDLED, STATES.DISMISSED]),
+  [STATES.HANDLED]: Object.freeze([STATES.NEW]),
+  [STATES.DISMISSED]: Object.freeze([STATES.NEW]),
+});
+
+/**
+ * Är statusen öppen? Samma sak som `modell.isOpen`, för ytor utan en modell (gästens ärenden på servern och i vyn).
+ *
+ * @param {string | null | undefined} state
+ */
+export function isOpenCase(state) {
+  return OPEN_STATES.includes(/** @type {any} */ (state));
+}
+const isOpenState = isOpenCase;
+
+/** @param {string | null | undefined} from @param {string} to */
+function canMoveInternal(from, to) {
+  const lista = /** @type {Record<string, readonly string[]>} */ (TRANSITIONS)[String(from ?? "")];
+  return Array.isArray(lista) && lista.includes(to);
+}
+
+/**
+ * Bygger en övergång som inte är ett avslut, eller kastar med skälet.
+ *
+ * @param {string | null | undefined} from
+ * @param {string} to
+ * @param {string} verb
+ */
+function assertMove(from, to, verb) {
+  if (!canMoveInternal(from, to)) {
+    throw new Error(`${verb}: en post med status "${String(from)}" går inte till "${to}".`);
+  }
+}
 
 /** Ett dygn i millisekunder. */
 const DAY_MS = 86400000;
@@ -272,6 +328,61 @@ export function createCaseModel(config) {
     /** Statusnamnen, så appen slipper skriva strängarna själv. */
     STATUS: STATES,
 
+    /** Statusarna där en post är öppen (`ny` och `pagar`). Appens "öppna"-filter, räknemärken och Idag läser den här. */
+    OPEN_STATES,
+
+    /** Övergångstabellen: status till de statusar posten får gå till. */
+    TRANSITIONS,
+
+    /** Är posten öppen? Falskt för en okänd status, aldrig en gissning. @param {string | null | undefined} state */
+    isOpen(state) {
+      return isOpenState(state);
+    },
+
+    /** Får en post gå från `from` till `to`? @param {string | null | undefined} from @param {string} to */
+    canMove(from, to) {
+      return canMoveInternal(from, to);
+    },
+
+    /**
+     * Sätter pågår: bara från "ny". Returnerar fälten som skrivs, inget mer.
+     *
+     * ⛔ APPEN, API:T OCH AGENTEN ANVÄNDER DENNA, och ingen av dem skriver "pagar" för
+     * hand (regel 2). `resultat` och `closed` rörs inte: en öppen post har inget av dem.
+     *
+     * @param {string} from Postens nuvarande status.
+     * @returns {{ status: string }}
+     */
+    buildStart(from) {
+      assertMove(from, STATES.IN_PROGRESS, "byggPagar");
+      return { status: STATES.IN_PROGRESS };
+    },
+
+    /**
+     * Tar bort pågår: bara från "pagar", tillbaka till "ny".
+     *
+     * @param {string} from Postens nuvarande status.
+     * @returns {{ status: string }}
+     */
+    buildStop(from) {
+      if (from !== STATES.IN_PROGRESS) throw new Error(`byggAvPagar: bara en post som pågår kan sättas tillbaka, den här är "${String(from)}".`);
+      return { status: STATES.NEW };
+    },
+
+    /**
+     * Öppnar en avslutad post igen. Går till "ny" och tömmer avslutet, så att en öppen
+     * post aldrig bär ett resultat och en stängningstid från förra gången.
+     *
+     * @param {string} from Postens nuvarande status, "hanterad" eller "avskriven".
+     * @returns {{ status: string, resultat: null, closed: null }}
+     */
+    buildReopen(from) {
+      if (from !== STATES.HANDLED && from !== STATES.DISMISSED) {
+        throw new Error(`byggOppnaIgen: bara en avslutad post kan öppnas igen, den här är "${String(from)}".`);
+      }
+      return { status: STATES.NEW, resultat: null, closed: null };
+    },
+
     /**
      * @deprecated Heter `STATUS` sedan cllp/ops-framework#94. Tas bort tidigast
      * när bolag-ops pekar på en tagg som har bytt (cllp/bolag-ops#362).
@@ -327,6 +438,11 @@ export function createCaseModel(config) {
 
     /**
      * Hur många hela dygn posten legat i "ny". Null när den inte är ny.
+     *
+     * ⛔ "PAGAR" GER NULL MED FLIT, och det är det enda stället där "pagar" inte
+     * behandlas som "ny". Larmet betyder "ingen har rört den", och en post någon
+     * tagit sig an är rörd. Att den ligger länge i "pagar" är ett annat larm, med
+     * en annan klocka, som ingen har bett om.
      *
      * ⛔ EN GAMMAL "NY" ÄR ETT LARM, INTE ETT TILLSTÅND. Ligger inskick kvar
      * orörda betyder det att kedjan är trasig någonstans, och den sortens fel

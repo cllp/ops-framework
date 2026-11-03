@@ -568,6 +568,15 @@ describe("skiva 3: ärenden som delegerats till en gäst", () => {
     }
   });
 
+  it("⛔ ett ärende som pågår räknas som öppet i ordningen: öppna (ny och pagar) före avslutade, nyast först", async () => {
+    const h = bygg();
+    await h.grund.create("arenden", { id: "a-pagar", groupId: GRUPP, rubrik: "Pågående", text: "x", status: "pagar", skapad: "2026-08-01", sort: "uppgift", mottagare: { slag: "gast", gastId: ANNA, namn: "Anna" } });
+    const g = await gruppGast(h, "anna@foretag.se", { namn: "Anna" });
+    const svar = await h.tjanst.arenden({ sessionsnyckel: g.sessionsnyckel });
+    expect(svar.poster.map((p) => p.id)).toEqual(["a-anna", "a-anna2", "a-pagar", "a-anna-klar"]);
+    expect(svar.poster.find((p) => p.id === "a-pagar").status).toBe("pagar");
+  });
+
   it("två gäster ser var sin lista, och en gäst utan något delegerat får en tom lista som ett svar (ok: true)", async () => {
     const h = bygg();
     const anna = await gruppGast(h, "anna@foretag.se");
