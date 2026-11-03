@@ -49,12 +49,13 @@ describe("en bild öppnas stor vid tryck", () => {
     expect(within(dialog).getByRole("button", { name: "Close" })).toBeInTheDocument();
   });
 
-  it("⛔ en fil som inte är en bild laddas fortfarande ned, utan dialog", () => {
+  it("⛔ en fil som inte är en bild är en knapp som öppnar en dialog, inte en nedladdning (cllp/lifehub.app#524, innehållet prövas i bilaga-forhandsvisning.test.jsx)", () => {
     const pdf = "data:application/pdf;base64,JVBERi0=";
     render(<BilagaVisning bilaga={{ dataUrl: pdf, namn: "utdrag.pdf", typ: "application/pdf", tecken: pdf.length }} alt="pdf" />);
-    expect(screen.getByRole("link", { name: /utdrag\.pdf/ })).toHaveAttribute("download", "utdrag.pdf");
-    expect(screen.queryByRole("button")).toBeNull();
+    expect(screen.queryByRole("link", { name: /utdrag\.pdf/ })).toBeNull();
+    expect(screen.getByRole("button", { name: /utdrag\.pdf/ })).toBeInTheDocument();
   });
+
 });
 
 describe("bläddra mellan trådens bilder (#369)", () => {

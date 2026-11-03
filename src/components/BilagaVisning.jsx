@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { attachmentSize, isAudio, isImage } from "../lib/file.js";
+import { attachmentSize, bilagaTillBlob, isAudio, isImage } from "../lib/file.js";
 import { kommentarbilagaFel } from "../lib/handelsemodell.js";
 import { forvalda } from "../lib/ord.js";
 import { FilIkon } from "./icons.jsx";
 import { OpsLjudspelare } from "./OpsLjudspelare.jsx";
 import { OpsModal } from "./OpsModal.jsx";
 import { useOpsSprak } from "./OpsSprak.jsx";
+import { TextForhandsvisning } from "./TextForhandsvisning.jsx";
 
 /** Orden i den stora bilden, på båda språken (0.106.0, #386 skiva 9). */
 export const ORD_BILAGAVISNING = {
@@ -16,7 +17,13 @@ export const ORD_BILAGAVISNING = {
   foregaende: { sv: "Föregående bild", en: "Previous image" },
   nasta: { sv: "Nästa bild", en: "Next image" },
   avBilder: { sv: "av", en: "of" },
+  // 0.178.0 (cllp/lifehub.app#524): en PDF eller textfil öppnas i dialogen, och ordet säger det i stället för "Ladda ned".
+  visa: { sv: "Visa", en: "View" },
+  pdfFel: { sv: "PDF:en gick inte att visa här. Ladda ned den i stället.", en: "The PDF could not be shown here. Download it instead." },
 };
+
+/** Typerna en bilaga kan ha och som visas i en dialog (0.178.0). Allt som `kommentarbilagaFel` släpper in och inte är bild eller ljud: PDF, text och CSV. */
+const FORHANDSVISBARA = ["application/pdf", "text/plain", "text/csv"];
 
 /**
  * Snabbvyn för en bilaga: bilden som en miniatyr som öppnas i full storlek, en fil som en nedladdningslänk med namn och storlek.
@@ -27,7 +34,13 @@ export const ORD_BILAGAVISNING = {
  * ⛔ RITAS BARA NÄR `kommentarbilagaFel` är `null` (0.80.0, #300). En dataUrl som inte är filens typ, till exempel
  * `javascript:`, blir ingen `href` och ingen `src`. Namnet sägs ändå, så en ogiltig rad inte ser ut som att den inte fanns.
  *
- * ⛔ INGEN `<iframe>` FÖR EN PDF. Den ritas olika i varje webbläsare, och en tom ruta ser ut som att filen inte kom fram.
+ * ⛔ EN PDF OCH EN TEXTFIL ÖPPNAS I EN DIALOG, DE LADDAS INTE NED VID TRYCK (0.178.0, cllp/lifehub.app#524). Samma fel som bilden hade i 0.106.0: filen var en `<a download>` med en `data:`-adress, och ett tryck på en PDF eller en
+ * textfil i chatten sparade den i stället för att visa den. Omtestet av #524 på ops-framework 0.168.0 var DELVIS: storleken stämde, men klicket gav fortfarande en nedladdning. Nu är raden en knapp med samma mönster som bilden:
+ * `OpsModal` med "Ladda ned" i foten, så ingen `a[download]` finns förrän dialogen är öppen. En text- eller CSV-fil visas som text i `<pre>` med samma komponent som Biblioteket (`TextForhandsvisning`: UTF-8 med
+ * Windows-1252 som reserv, tak, tomhet och fel sägs). En PDF visas i en `<iframe>` med en blob-adress, som städas bort när dialogen stängs (`revokeObjectURL`).
+ * ⛔ DET HÄR ERSÄTTER REGELN "INGEN `<iframe>` FÖR EN PDF" (den stod här tidigare: den ritas olika i varje webbläsare, och en tom ruta ser ut som att filen inte kom fram). Skälet var riktigt och gäller kvar, så rutan står aldrig ensam: namnet
+ * står i dialogens rubrik, "Ladda ned" i foten, och kan blobben inte göras säger en rad det (`pdfFel`) i stället för en tom ruta. Webbläsare som inte visar en PDF i en ram (iOS Safari visar första sidan) har nedladdningen en tryckning bort.
+ * En typ utanför listan (`FORHANDSVISBARA`) är som förut en nedladdningslänk, så att en ny filtyp i `KOMMENTARBILAGA_TYPER` inte blir en dialog som inte kan visa den.
  *
  * ⛔ ETT LJUD ÄR `OpsLjudspelare`, INTE EN NEDLADDNINGSLÄNK (0.90.8). Samma spelare som Biblioteket.
  * Märket blir `ljud` så en provning kan skilja det från en fil som fortfarande laddas ned.
@@ -142,16 +155,81 @@ export function BilagaVisning({ bilaga, alt, marke = "data-kommentar-bilaga-visa
       </>
     );
   }
-  return (
-    <a
-      href={bilaga.dataUrl}
-      download={bilaga.namn || "bilaga"}
-      {...attr}
-      className="flex min-h-11 w-fit max-w-full items-center gap-2 rounded-md border border-line bg-sunken px-3 py-2 text-meta text-ink no-underline hover:bg-accent-faint"
-    >
+  const filInnehall = (
+    <>
       <FilIkon />
       <span className="min-w-0 truncate">{bilaga.namn}</span>
       {storlek ? <span className="shrink-0 text-ink-muted">{storlek}</span> : null}
-    </a>
+    </>
   );
+  const filKlass = "flex min-h-11 w-fit max-w-full items-center gap-2 rounded-md border border-line bg-sunken px-3 py-2 text-meta text-ink no-underline hover:bg-accent-faint";
+  if (!FORHANDSVISBARA.includes(bilaga.typ)) {
+    return (
+      <a href={bilaga.dataUrl} download={bilaga.namn || "bilaga"} {...attr} className={filKlass}>
+        {filInnehall}
+      </a>
+    );
+  }
+  return (
+    <>
+      <button type="button" {...attr} data-bilaga-oppna="" aria-label={`${o.visa}: ${bilaga.namn}`} ref={knapp} onClick={oppna} className={`${filKlass} cursor-pointer text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent`}>
+        {filInnehall}
+      </button>
+      {stor ? (
+        <OpsModal
+          open
+          // ⛔ Fokus tillbaka till knappen när dialogen stängs, som för bilden: Radix lämnar det till en Trigger, och här finns ingen.
+          onOpenChange={(v) => {
+            setStor(v);
+            if (!v) setTimeout(() => knapp.current?.focus(), 0);
+          }}
+          title={bilaga.namn}
+          size="lg"
+          closeLabel={o.stang}
+          footer={
+            <a href={bilaga.dataUrl} download={bilaga.namn || "bilaga"} data-bilaga-ladda-ned="" className="inline-flex min-h-11 items-center rounded-md px-3 text-etikett font-medium text-accent no-underline hover:bg-accent-faint focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
+              {o.laddaNed}
+            </a>
+          }
+        >
+          {bilaga.typ === "application/pdf" ? (
+            <PdfVisning bilaga={bilaga} felText={o.pdfFel} />
+          ) : (
+            <TextForhandsvisning hamta={(d) => Promise.resolve(bilagaTillBlob({ dataUrl: d }))} sokvag={bilaga.dataUrl} namn={bilaga.namn} />
+          )}
+        </OpsModal>
+      ) : null}
+    </>
+  );
+}
+
+/**
+ * En PDF-bilaga i en ram (0.178.0, cllp/lifehub.app#524). Data-URL:en görs till en Blob och visas med en blob-adress, eftersom webbläsare vägrar visa en PDF från en `data:`-adress i en ram. Adressen städas bort när dialogen stängs
+ * (`revokeObjectURL`), annars ligger filen kvar i minnet till sidan laddas om. ⛔ KAN ADRESSEN INTE GÖRAS (ogiltig data-URL, eller en miljö utan `URL.createObjectURL`) SÄGER EN RAD DET, och ramen ritas inte: en tom ruta ser ut som att filen inte kom fram.
+ *
+ * @param {{ bilaga: import("../lib/file.js").Bilaga, felText: string }} props
+ */
+function PdfVisning({ bilaga, felText }) {
+  const [lage, setLage] = useState(/** @type {{ url: string } | { fel: true } | null} */ (null));
+  useEffect(() => {
+    let url = "";
+    try {
+      url = URL.createObjectURL(bilagaTillBlob(bilaga));
+      setLage({ url });
+    } catch {
+      setLage({ fel: true });
+    }
+    return () => {
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, [bilaga]);
+  if (!lage) return null;
+  if ("fel" in lage) {
+    return (
+      <p role="alert" data-bilaga-pdf="fel" className="m-0 text-meta text-danger">
+        {felText}
+      </p>
+    );
+  }
+  return <iframe data-bilaga-pdf="" title={bilaga.namn} src={lage.url} className="block h-[70dvh] w-full rounded-md border border-line bg-sunken" />;
 }
