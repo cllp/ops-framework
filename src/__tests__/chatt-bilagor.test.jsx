@@ -141,10 +141,12 @@ describe("pluset", () => {
     fireEvent.change(/** @type {HTMLInputElement} */ (document.querySelector('[data-plusval="fil"]')), {
       target: { files: [new File(["hej"], "anteckning.txt", { type: "text/plain" })] },
     });
-    expect(await screen.findByRole("link", { name: /anteckning\.txt/ })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: /anteckning\.txt/ })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Skicka" }));
     await waitFor(() => expect(screen.queryByRole("button", { name: "Ta bort bilagan" })).toBeNull());
-    expect(screen.getByRole("link", { name: /anteckning\.txt/ })).toHaveAttribute("data-meddelande-bilaga", "fil");
+    // ⛔ cllp/lifehub.app#524: en textbilaga i chatten är en knapp som visar texten, inte en nedladdningslänk.
+    expect(screen.getByRole("button", { name: /anteckning\.txt/ })).toHaveAttribute("data-meddelande-bilaga", "fil");
+    expect(document.querySelector("a[download]")).toBeNull();
     const rader = await s.meddelanden(p.id);
     expect(rader.at(-1)?.bilaga?.namn).toBe("anteckning.txt");
     expect(rader.at(-1)?.text).toBe("");

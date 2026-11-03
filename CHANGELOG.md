@@ -9,6 +9,16 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.178.0
+
+### Fixat
+
+- **En textfil i en bilaga öppnas i en dialog i stället för att laddas ned vid tryck (cllp/lifehub.app#524).** Händelsen: en textfil bifogad i chatten visade 56 B mot Bibliotekets 40 B, och ett klick laddade ned den i stället för att visa den. Storleken lagades i 0.168.0, men omtestet på lifehub.app var DELVIS: klicket gav fortfarande en `data:`-länk med `download`. Orsaken var `BilagaVisning`, som gjorde allt utom bild och ljud till `<a href={dataUrl} download>`. Nu är raden en knapp (samma mönster som bilden sedan 0.106.0) som öppnar `OpsModal` med "Ladda ned" i foten, och ingen `a[download]` finns förrän dialogen är öppen. Gäller allt som använder `BilagaVisning`: chattens meddelanden, kommentarerna och Chattinfo.
+  - **Text och CSV** visas som text i en `<pre>`, med samma komponent som Biblioteket (`TextForhandsvisning`, utbruten ur `OpsBibliotek` och inte kopierad): UTF-8 med Windows-1252 som reserv, tak, och tomhet och fel sägs.
+  - **PDF är som förut en nedladdningslänk.** Ett första utkast visade PDF:en i en `<iframe>` med blob-adress och var rött på ramverkets vakt (`htmldokument-helfonster.test.jsx`: ingen komponent skapar en blob-adress, och den enda `<iframe>` är den avspärrade HTML-rutan). En blob-adress har appens ursprung. En förhandsvisning av PDF är ett eget beslut.
+  - Nytt ord `visa` på svenska och engelska. Ingen ny export.
+  - Prov: `bilaga-forhandsvisning.test.jsx` (4), och `chatt-bilagor` flyttat från länk till knapp för en textbilaga. Röda mot 0.177.0, gröna med ändringen. PDF-proven i `kommentarer`, `bild-oppnas-stor` och `ljudspelare` står orörda.
+
 ## 0.177.0
 
 ### Fixat

@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { attachmentSize, isAudio, isImage } from "../lib/file.js";
+import { attachmentSize, bilagaTillBlob, isAudio, isImage } from "../lib/file.js";
 import { kommentarbilagaFel } from "../lib/handelsemodell.js";
 import { forvalda } from "../lib/ord.js";
 import { FilIkon } from "./icons.jsx";
 import { OpsLjudspelare } from "./OpsLjudspelare.jsx";
 import { OpsModal } from "./OpsModal.jsx";
 import { useOpsSprak } from "./OpsSprak.jsx";
+import { TextForhandsvisning } from "./TextForhandsvisning.jsx";
 
 /** Orden i den stora bilden, på båda språken (0.106.0, #386 skiva 9). */
 export const ORD_BILAGAVISNING = {
@@ -16,7 +17,16 @@ export const ORD_BILAGAVISNING = {
   foregaende: { sv: "Föregående bild", en: "Previous image" },
   nasta: { sv: "Nästa bild", en: "Next image" },
   avBilder: { sv: "av", en: "of" },
+  // 0.178.0 (cllp/lifehub.app#524): en textfil öppnas i dialogen, och ordet säger det i stället för "Ladda ned".
+  visa: { sv: "Visa", en: "View" },
 };
+
+/**
+ * Typerna en bilaga kan ha och som visas i en dialog (0.178.0): text och CSV. ⛔ PDF ÄR INTE MED, och det är ett beslut (granskningen av 0.178.0): en PDF i en ram behöver en blob-adress (en `data:`-adress visas
+ * inte i en ram), och ramverket har en vakt för att ingen komponent skapar en blob-adress och att den enda `<iframe>` är den avspärrade HTML-rutan (`htmldokument-helfonster.test.jsx`, 0.159.0). En blob-adress har
+ * appens ursprung, så en fil som inte är vad den säger körs där. Vakten var röd på det första utkastet. En PDF är därför som förut en nedladdningslänk; en förhandsvisning av PDF är ett eget beslut.
+ */
+const FORHANDSVISBARA = ["text/plain", "text/csv"];
 
 /**
  * Snabbvyn för en bilaga: bilden som en miniatyr som öppnas i full storlek, en fil som en nedladdningslänk med namn och storlek.
@@ -27,7 +37,14 @@ export const ORD_BILAGAVISNING = {
  * ⛔ RITAS BARA NÄR `kommentarbilagaFel` är `null` (0.80.0, #300). En dataUrl som inte är filens typ, till exempel
  * `javascript:`, blir ingen `href` och ingen `src`. Namnet sägs ändå, så en ogiltig rad inte ser ut som att den inte fanns.
  *
- * ⛔ INGEN `<iframe>` FÖR EN PDF. Den ritas olika i varje webbläsare, och en tom ruta ser ut som att filen inte kom fram.
+ * ⛔ EN TEXTFIL ÖPPNAS I EN DIALOG, DEN LADDAS INTE NED VID TRYCK (0.178.0, cllp/lifehub.app#524). Samma fel som bilden hade i 0.106.0: filen var en `<a download>` med en `data:`-adress, och ett tryck på en
+ * textfil i chatten sparade den i stället för att visa den. Omtestet av #524 på ops-framework 0.168.0 var DELVIS: storleken stämde, men klicket gav fortfarande en nedladdning. Nu är raden en knapp med samma mönster som bilden:
+ * `OpsModal` med "Ladda ned" i foten, så ingen `a[download]` finns förrän dialogen är öppen. En text- eller CSV-fil visas som text i `<pre>` med samma komponent som Biblioteket (`TextForhandsvisning`: UTF-8 med
+ * Windows-1252 som reserv, tak, tomhet och fel sägs). Texten läses ur data-URL:en i minnet (`bilagaTillBlob`), utan någon adress.
+ *
+ * ⛔ INGEN `<iframe>` FÖR EN PDF. Den ritas olika i varje webbläsare, och en tom ruta ser ut som att filen inte kom fram. Dessutom kräver en ram en blob-adress, och en blob-adress har appens ursprung: ramverkets vakt
+ * (`htmldokument-helfonster.test.jsx`) tillåter ingen komponent att skapa en, och ingen `<iframe>` utom den avspärrade HTML-rutan. Det första utkastet av 0.178.0 visade PDF:en så och var rött på vakten. En PDF är därför en nedladdningslänk som förut.
+ * En typ utanför listan (`FORHANDSVISBARA`) är som förut en nedladdningslänk, så att en ny filtyp i `KOMMENTARBILAGA_TYPER` inte blir en dialog som inte kan visa den.
  *
  * ⛔ ETT LJUD ÄR `OpsLjudspelare`, INTE EN NEDLADDNINGSLÄNK (0.90.8). Samma spelare som Biblioteket.
  * Märket blir `ljud` så en provning kan skilja det från en fil som fortfarande laddas ned.
@@ -142,16 +159,47 @@ export function BilagaVisning({ bilaga, alt, marke = "data-kommentar-bilaga-visa
       </>
     );
   }
-  return (
-    <a
-      href={bilaga.dataUrl}
-      download={bilaga.namn || "bilaga"}
-      {...attr}
-      className="flex min-h-11 w-fit max-w-full items-center gap-2 rounded-md border border-line bg-sunken px-3 py-2 text-meta text-ink no-underline hover:bg-accent-faint"
-    >
+  const filInnehall = (
+    <>
       <FilIkon />
       <span className="min-w-0 truncate">{bilaga.namn}</span>
       {storlek ? <span className="shrink-0 text-ink-muted">{storlek}</span> : null}
-    </a>
+    </>
+  );
+  const filKlass = "flex min-h-11 w-fit max-w-full items-center gap-2 rounded-md border border-line bg-sunken px-3 py-2 text-meta text-ink no-underline hover:bg-accent-faint";
+  if (!FORHANDSVISBARA.includes(bilaga.typ)) {
+    return (
+      <a href={bilaga.dataUrl} download={bilaga.namn || "bilaga"} {...attr} className={filKlass}>
+        {filInnehall}
+      </a>
+    );
+  }
+  return (
+    <>
+      <button type="button" {...attr} data-bilaga-oppna="" aria-label={`${o.visa}: ${bilaga.namn}`} ref={knapp} onClick={oppna} className={`${filKlass} cursor-pointer text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent`}>
+        {filInnehall}
+      </button>
+      {stor ? (
+        <OpsModal
+          open
+          // ⛔ Fokus tillbaka till knappen när dialogen stängs, som för bilden: Radix lämnar det till en Trigger, och här finns ingen.
+          onOpenChange={(v) => {
+            setStor(v);
+            if (!v) setTimeout(() => knapp.current?.focus(), 0);
+          }}
+          title={bilaga.namn}
+          size="lg"
+          closeLabel={o.stang}
+          footer={
+            <a href={bilaga.dataUrl} download={bilaga.namn || "bilaga"} data-bilaga-ladda-ned="" className="inline-flex min-h-11 items-center rounded-md px-3 text-etikett font-medium text-accent no-underline hover:bg-accent-faint focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
+              {o.laddaNed}
+            </a>
+          }
+        >
+          <TextForhandsvisning hamta={(d) => Promise.resolve(bilagaTillBlob({ dataUrl: d }))} sokvag={bilaga.dataUrl} namn={bilaga.namn} />
+        </OpsModal>
+      ) : null}
+    </>
   );
 }
+
