@@ -165,6 +165,7 @@ function grupp_id(namn) {
  * @param {object} konfig
  * @param {import("../data/contract.js").DataSource<any>} konfig.kalla Måste ha `batch` (kontraktets regel 6).
  * @param {Samlingar} [konfig.samlingar]
+ * @param {() => number} [konfig.nu] Klockan inbjudningarna räknar giltigheten med, i millisekunder. Förval `Date.now`. Går vidare till `createInvitationService` (0.183.1, #511).
  * @param {Record<string, ReadonlyArray<unknown> | import("./katalog.js").KatalogStandard>} [konfig.kataloger]
  *   Appens katalogstandardvärden, en nyckel per samling (#162). Anges de skrivs
  *   de som den nya gruppens kataloger I SAMMA BATCH som gruppen och ägarens
@@ -250,7 +251,7 @@ export function createGroupService(konfig) {
    * när batchen har gått igenom, alltså är det rätt ordning att bjuda in efter commit.
    */
   // ⛔ Felen namnger createGroupService, det är den appen anropade (0.80.1, granskningen av PR 308, K4).
-  const inbjudan = inbjudningstjanst({ kalla, samlingar: { anvandare: ANVANDARE, medlemskap: MEDLEMSKAP, inbjudningar: INBJUDNINGAR } }, "createGroupService");
+  const inbjudan = inbjudningstjanst({ kalla, samlingar: { anvandare: ANVANDARE, medlemskap: MEDLEMSKAP, inbjudningar: INBJUDNINGAR }, nu: konfig?.nu }, "createGroupService");
 
   return {
     /**
