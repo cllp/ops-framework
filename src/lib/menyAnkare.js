@@ -24,7 +24,7 @@ export function punktRekt(rad, punkt) {
 export function bottenReservPx(doc = typeof document === "undefined" ? undefined : document, win = typeof window === "undefined" ? undefined : window) {
   if (!doc || !win) return 0;
   const nav = doc.querySelector("[data-ops-bottenrad]");
-  if (!(nav instanceof win.HTMLElement)) return 0;
+  if (!nav) return 0;
   const stil = win.getComputedStyle(nav);
   if (stil.display === "none" || stil.visibility === "hidden") return 0;
   let topp = nav.getBoundingClientRect().top;

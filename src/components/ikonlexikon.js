@@ -49,9 +49,21 @@
  * - `klistraIn`: urklipp med en pil, att ta in det som ligger i urklipp. Inte gemet: ett gem är en bilaga som redan finns.
  * - `slappBild`: en bild med ett plus, att släppa eller lägga in en bild eller fil. Inte `Image` ensam: pluset säger att
  *   något läggs till.
+ * - (0.185.0) Ny händelse i snabbmenyn är `nyHandelse` ovan. En egen nyckel `handelse` med samma `CalendarPlus` hade varit två
+ *   namn på en betydelse, och vakten hade inte sett det eftersom bilden är densamma.
+ * - `projekt`: ett projekt (`FolderKanban`).
+ * - `bokning`: en bokning (`CalendarCheck`).
+ * - `bibliotek`: Biblioteket (`Library`).
+ * - `ekonomi`: Ekonomi (`Wallet`).
+ * - `laddaUpp`: ladda upp en fil (`Upload`).
+ * - `appar`: fliken Appar och en app utan egen bild (`LayoutGrid`). Nyckeln är appar, inte hubb: hubb är instansen, appar är listan.
+ * - `stang`: stäng (`X`).
+ * - `skapa`: skapa, plusknappen (`Plus`).
+ * - `omrostning`: en omröstning (`Vote`).
+ * - `grupp`: Ny grupp (`Users`), samma bild som plusets rad och `GruppIkon`.
  */
 
-import { ArrowDownUp, Bell, Bot, CalendarPlus, ChevronsUpDown, CircleHelp, ClipboardPaste, ImagePlus, Inbox, ListChecks, ListPlus, MessageSquare, Monitor, Moon, MoreHorizontal, Search, Settings, SlidersHorizontal, Sun } from "lucide-react";
+import { ArrowDownUp, Bell, Bot, CalendarCheck, CalendarPlus, ChevronsUpDown, CircleHelp, ClipboardPaste, FolderKanban, ImagePlus, Inbox, LayoutGrid, Library, ListChecks, ListPlus, MessageSquare, Monitor, Moon, MoreHorizontal, Plus, Search, Settings, SlidersHorizontal, Sun, Upload, Users, Vote, Wallet, X } from "lucide-react";
 
 /**
  * Betydelse till ikon. Fryst: en app som vill ha en annan bild för en betydelse ska ändra den här, inte skriva över den.
@@ -76,6 +88,16 @@ import { ArrowDownUp, Bell, Bot, CalendarPlus, ChevronsUpDown, CircleHelp, Clipb
  *   temaSystem: import("lucide-react").LucideIcon,
  *   klistraIn: import("lucide-react").LucideIcon,
  *   slappBild: import("lucide-react").LucideIcon,
+ *   projekt: import("lucide-react").LucideIcon,
+ *   bokning: import("lucide-react").LucideIcon,
+ *   bibliotek: import("lucide-react").LucideIcon,
+ *   ekonomi: import("lucide-react").LucideIcon,
+ *   laddaUpp: import("lucide-react").LucideIcon,
+ *   appar: import("lucide-react").LucideIcon,
+ *   stang: import("lucide-react").LucideIcon,
+ *   skapa: import("lucide-react").LucideIcon,
+ *   omrostning: import("lucide-react").LucideIcon,
+ *   grupp: import("lucide-react").LucideIcon,
  * }>}
  */
 export const IKON_FOR = Object.freeze({
@@ -98,4 +120,14 @@ export const IKON_FOR = Object.freeze({
   temaSystem: Monitor,
   klistraIn: ClipboardPaste,
   slappBild: ImagePlus,
+  projekt: FolderKanban,
+  bokning: CalendarCheck,
+  bibliotek: Library,
+  ekonomi: Wallet,
+  laddaUpp: Upload,
+  appar: LayoutGrid,
+  stang: X,
+  skapa: Plus,
+  omrostning: Vote,
+  grupp: Users,
 });

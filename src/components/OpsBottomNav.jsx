@@ -84,7 +84,7 @@ const MAX_IN_ROW_WITH_ACTION = 3;
  *   hamburgaren: appens sektioner, navigeringens överflödsrader, `menuExtras`, Logga ut, versionerna.
  *   `meny.rubrik` styr då även sheetens rubrikrad (annars `sheetLabel`).
  * @param {string} [props.langtryckText] (0.103.0, #382) Andra halvan av mittknappens namn när den är en mikrofon med skapa bakom: "Håll inne för att skapa". Namnet blir "TALK, prata in. Håll inne för att skapa", så att den som inte ser plusset hör att det finns en väg till.
- * @param {{ href: string, oppen: boolean, onOppen: (oppen: boolean) => void }} [props.ark] (0.89.0) Fliken med det här href öppnar app-arket i stället för att navigera. Medan arket är öppet är den fliken den aktiva.
+ * @param {{ href: string, oppen: boolean, onOppen: (oppen: boolean) => void, snabbmeny?: boolean, onTillSidan?: () => void }} [props.ark] (0.89.0) Fliken med det här href öppnar app-arket i stället för att navigera. Medan arket är öppet är den fliken den aktiva. `snabbmeny` (0.184.0): ett tryck öppnar snabbmenyn (`onOppen`), ett långtryck går till sidan (`onTillSidan`) i stället för Skapa app.
  */
 function OpsBottomNavRitad({
   nav,
@@ -180,7 +180,11 @@ function OpsBottomNavRitad({
       aria-label={navLabel}
       data-ops-bottenrad=""
       data-tangentbord={tangentbordUppe ? "uppe" : undefined}
-      className={cx("fixed inset-x-0 bottom-0 z-(--z-chrome) border-t border-line bg-surface pb-(--safe-bottom) md:hidden", tangentbordUppe && "hidden")}
+      className={cx(
+        "fixed inset-x-0 bottom-0 border-t border-line bg-surface pb-(--safe-bottom) md:hidden",
+        ark?.snabbmeny && ark.oppen ? "z-(--z-modal)" : "z-(--z-chrome)",
+        tangentbordUppe && "hidden",
+      )}
     >
       <div className="mx-auto flex h-(--bottom-nav-h) max-w-md items-stretch">
         {inRow.slice(0, brytpunkt).map((entry) => (
@@ -416,29 +420,37 @@ function platsKlass(active) {
  * Medan arket är öppet är den knappen den enda aktiva fliken. Adressen rörs inte,
  * så när arket stängs är den tidigare fliken vald igen.
  *
- * @param {{ entry: import("../lib/nav.js").NavPost, activeHref: string, ark?: { href: string, oppen: boolean, onOppen: (oppen: boolean) => void }, onClick: (e: any) => void, badgeText: string }} props
+ * @param {{ entry: import("../lib/nav.js").NavPost, activeHref: string, ark?: { href: string, oppen: boolean, onOppen: (oppen: boolean) => void, snabbmeny?: boolean, onTillSidan?: () => void }, onClick: (e: any) => void, badgeText: string }} props
  */
 function BottomPost({ entry, activeHref, ark, onClick, badgeText }) {
   const arArk = Boolean(ark && entry.href === ark.href);
   const active = ark?.oppen ? arArk : entryActive(entry, activeHref);
   // ⛔ 0.103.0: ETT LÅNGTRYCK PÅ IKONEN SKAPAR I MODULEN (`entry.skapa`), se `OpsSkapaGenvag.jsx`. Ett vanligt tryck gör det det
   // alltid gjort. Kroken anropas före grenarna, så att både arkets knapp och länken får den (krokarnas regel).
-  const genvag = useSkapaGenvag(entry.skapa, entry.label);
+  // ⛔ 0.184.0: MED SNABBMENY ÄR LÅNGTRYCKET SIDAN, INTE SKAPA APP. Nyckeln skickas inte till genvägen, så inget tips om Skapa app.
+  const genvag = useSkapaGenvag(arArk && ark?.snabbmeny ? undefined : entry.skapa, entry.label);
+  const tillSidan = useLangtryck({
+    onLangtryck: arArk && ark?.snabbmeny && typeof ark.onTillSidan === "function" ? () => ark.onTillSidan?.() : null,
+    haptik: true,
+  });
+  const lang = arArk && ark?.snabbmeny ? tillSidan : genvag;
   if (arArk && ark) {
     return (
       <button
         type="button"
+        data-ops-appar-knapp=""
         aria-expanded={ark.oppen}
-        aria-controls="ops-appar-ark"
+        aria-haspopup={ark.snabbmeny ? "dialog" : undefined}
+        aria-controls={ark.snabbmeny ? "ops-snabbmeny-appar" : "ops-appar-ark"}
         aria-current={active ? "page" : undefined}
-        {...genvag.handelser}
-        data-skapa-genvag={genvag.aktiv ? entry.skapa : undefined}
-        aria-keyshortcuts={genvag.kortkommando}
+        {...lang.handelser}
+        data-skapa-genvag={!ark.snabbmeny && genvag.aktiv ? entry.skapa : undefined}
+        aria-keyshortcuts={lang.kortkommando}
         onClick={() => {
-          genvag.tryckt();
+          if (!ark.snabbmeny) genvag.tryckt();
           ark.onOppen(!ark.oppen);
         }}
-        className={cx(platsKlass(active), genvag.klass)}
+        className={cx(platsKlass(active), lang.aktiv ? LANGTRYCK_KLASS : "")}
       >
         <span className="relative inline-flex [&_svg]:size-6">
           {entry.icon ?? <span className="inline-block size-6 rounded-full border-2 border-current" aria-hidden="true" />}

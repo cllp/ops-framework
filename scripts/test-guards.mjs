@@ -1918,9 +1918,11 @@ const gruppmapp = fs.mkdtempSync(path.join(rot, ".ops-vaktprov-"));
     "har två betydelser: sok, hjalp",
   );
   kravRott("ikonlexikon: en karta som inte är fryst", [vakt, "--lexikon", lexikonkopia("ofryst", (s) => s.replace("Object.freeze({", "({")), komponenter], "inte fryst");
+  // ⛔ ALLT EFTER `filter` STRYKS (0.185.0): förut ströks ett fast intervall till `temaSystem`, och när kartan växte efter den (0.184.0, 0.185.0)
+  // låg för många betydelser kvar. Vakten blev då röd av fel anledning, och provet mätte inte längre golvet.
   kravRott(
     "ikonlexikon golv: färre än tio betydelser",
-    [vakt, "--lexikon", lexikonkopia("tunn", (s) => s.replace(/  sortering: ArrowDownUp,[\s\S]*?  temaSystem: Monitor,\n/, "")), komponenter],
+    [vakt, "--lexikon", lexikonkopia("tunn", (s) => s.replace(/  sortering: ArrowDownUp,[\s\S]*?\n\}\);/, "});")), komponenter],
     "väntat minst 10",
   );
 
