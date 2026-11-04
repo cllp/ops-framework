@@ -9,6 +9,19 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.185.0
+
+### Tillagt
+
+- **Ikonnycklar för det appen redan ritar, och en snabbmeny.** `IKON_FOR` får `projekt` (FolderKanban), `bokning` (CalendarCheck), `bibliotek` (Library), `ekonomi` (Wallet), `laddaUpp` (Upload), `appar` (LayoutGrid), `stang` (X), `skapa` (Plus) och `omrostning` (Vote). Omslag och de ställen som importerade samma bild direkt ur `lucide-react` går genom kartan. Nyckeln heter `appar` och inte hubb: hubb är instansen, appar är listan.
+- **`OpsSnabbmeny`.** Två former. `skapa`: högerjusterad kolumn ovanför knappen, etikett i ett mörkt märke till vänster och rund mörk ikon till höger, pluset blir ett kryss. `appar`: centrerad kolumn rakt ovanför knappen, rund ikon med etikett under och en pil mot knappen. Bakgrunden dimmas och blurras. Stängs med tryck utanför, Escape och bakåt. Fokusfälla och dialog är Radix. `OpsAppShell` slår på det med `snabbmenyer`. Då är Skapa Ny händelse, Nytt ärende, Nytt meddelande och Ny grupp (de appen gett, i den ordningen). Ny grupp är med för att telefonen annars saknar väg att skapa grupp (CP 2026-11-04). Ikonerna är `nyHandelse`, `nyttArende`, `meddelande` och `grupp` (`SKAPA_IKON`): Ny händelse har ingen egen nyckel `handelse`, eftersom `nyHandelse` (0.184.0) redan är samma bild med samma betydelse. `skapa.rad` och registreringar ritas inte där. Appar i bottenraden öppnar menyn med samma kort som Appar-vyn (`arkRader`), och ett långtryck går till Appar-sidan. Utan propen är skalet som förut.
+  - Prov: `snabbmeny.test.jsx`. Mot 0.184.0: importen av `OpsSnabbmeny` och `skapaSnabbPoster` saknas.
+
+### Rättat
+
+- **`OpsAtgardsblad`: rutan sitter vid ⋮ eller fingret, och aldrig bakom bottenraden.** CP 2026-11-04, lifehub.app v1.0.1114, Ärenden på telefon: menyn för ett kort öppnades under hela kortet och täckte nästa kort, eller hamnade bakom bottenraden. Rutan förankrades vid hela raden, och bottenraden ligger ovanpå sidan, så Radix såg ingen kant där. Nu förankras den vid ⋮ när ⋮ öppnade den och vid punkten där fingret höll in vid långtryck eller högerklick, och bottenradens höjd (mätt med mikrofonen) är en kant i `collisionPadding`, så rutan vänds uppåt i stället. Ingen ändring i anropet. lifehub.app PR 646 flyttade rutan inifrån appen; det behövs inte längre.
+  - Prov: `atgardsblad-ankare-646.test.jsx` (3). Mot 0.184.0: 2 röda (rutan på 504, under hela kortet, i stället för 106 och 424).
+
 ## 0.184.0
 
 ### Tillagt

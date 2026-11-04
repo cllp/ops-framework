@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { List, Plus, Table2 } from "lucide-react";
+import { List, Table2 } from "lucide-react";
+import { IKON_FOR } from "./ikonlexikon.js";
 import { OpsBanner } from "./OpsBanner.jsx";
 import { OpsButton, knappKlass } from "./OpsButton.jsx";
 import { OpsDatePicker } from "./OpsDatePicker.jsx";
@@ -370,7 +371,7 @@ function Appvy({ b, kalla, jag, medlemmar, sprak, tillbaka }) {
               onClick={() => setLage({ lista: lista.id, rad: null })}
               className={cx(knappKlass(), "shrink-0 cursor-pointer")}
             >
-              <Plus size={16} aria-hidden="true" />
+              <IKON_FOR.skapa size={16} aria-hidden="true" />
               <span>{t("ny")}</span>
             </button>
           ) : null}

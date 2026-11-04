@@ -2,7 +2,8 @@ import { Fragment, useEffect, useRef, useState } from "react";
 import { sparaSomFil } from "../lib/sparaFil.js";
 import * as Popover from "@radix-ui/react-popover";
 import * as Tabs from "@radix-ui/react-tabs";
-import { Check, File as FilIkon, FileText, Globe, Image as BildIkon, Library, Link2, List as ListIkon, Mic, ExternalLink, Plus, Upload } from "lucide-react";
+import { Check, File as FilIkon, FileText, Globe, Image as BildIkon, Link2, List as ListIkon, Mic, ExternalLink } from "lucide-react";
+import { IKON_FOR } from "./ikonlexikon.js";
 import { GruppvalIkon } from "./icons.jsx";
 import { OpsAtgardsblad } from "./OpsAtgardsblad.jsx";
 import { OpsDokument } from "./OpsDokument.jsx";
@@ -808,7 +809,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
   const listTillbaka = inbaddad || utanHubb
     ? undefined
     : {
-        ...modulTillbaka({ namn: "Bibliotek", hubHref: /** @type {string} */ (hubHref), hubEtikett, onNavigate, sprak, modulId, ikon: <Library size={18} /> }),
+        ...modulTillbaka({ namn: "Bibliotek", hubHref: /** @type {string} */ (hubHref), hubEtikett, onNavigate, sprak, modulId, ikon: <IKON_FOR.bibliotek size={18} /> }),
         ...(atgard ? { atgard } : {}),
       };
 
@@ -886,7 +887,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
                 <OpsEmpty busy title={inbaddad ? "Hämtar filerna" : "Hämtar biblioteket"} />
               ) : synliga.length === 0 ? (
                 <OpsEmpty
-                  icon={inbaddad || sok || valda.length > 0 ? null : <Library size={28} />}
+                  icon={inbaddad || sok || valda.length > 0 ? null : <IKON_FOR.bibliotek size={28} />}
                   title={inbaddad ? "Inga filer än." : sok || valda.length > 0 ? "Inga träffar." : poster.length === 0 ? "Biblioteket är tomt." : "Inget här ännu."}
                   description={inbaddad ? (tomText ?? TOM_FILER_FORVAL) : sok ? `Inget matchar "${sok}"${valda.length > 0 ? ` med ${valda.join(" och ")}` : ""}.` : valda.length > 0 ? `Inget här har ${valda.join(" och ")}.` : "Lägg till en anteckning, en länk, ett ljud eller en fil."}
                 />
@@ -1249,7 +1250,7 @@ function useFilAdresser(poster, vald, filUrl, hamtaAdress, paBegaran = false) {
  * @type {ReadonlyArray<{ id: Flik, namn: string, ikon: import("react").ReactNode, alltid?: boolean }>}
  */
 const FLIKAR = [
-  { id: "alla", namn: "Allt", ikon: <Library size={16} aria-hidden="true" />, alltid: true },
+  { id: "alla", namn: "Allt", ikon: <IKON_FOR.bibliotek size={16} aria-hidden="true" />, alltid: true },
   { id: "ljud", namn: "Ljud", ikon: <Mic size={16} aria-hidden="true" />, alltid: true },
   { id: "anteckning", namn: "Anteckningar", ikon: <FileText size={16} aria-hidden="true" /> },
   { id: "bild", namn: "Bilder", ikon: <BildIkon size={16} aria-hidden="true" /> },
@@ -1636,7 +1637,7 @@ function NyKnapp({ flik, onSkapa, onRost, erbjudRost, onLaddaUppLjud }) {
   const ljudFalt = useRef(/** @type {HTMLInputElement | null} */ (null));
   const innehall = (
     <>
-      <Plus size={16} aria-hidden="true" />
+      <IKON_FOR.skapa size={16} aria-hidden="true" />
       <span>Ny</span>
     </>
   );
@@ -1660,7 +1661,7 @@ function NyKnapp({ flik, onSkapa, onRost, erbjudRost, onLaddaUppLjud }) {
       return (
         <>
           <button type="button" aria-label="Ladda upp ljudfil" onClick={() => ljudFalt.current?.click()} className={NY_KLASS}>
-            <Upload size={16} aria-hidden="true" />
+            <IKON_FOR.laddaUpp size={16} aria-hidden="true" />
             <span>Ladda upp</span>
           </button>
           {falt}
@@ -1686,7 +1687,7 @@ function NyKnapp({ flik, onSkapa, onRost, erbjudRost, onLaddaUppLjud }) {
                   className={radKlass({ stor: true })}
                 >
                   <span aria-hidden="true" className="flex shrink-0 items-center text-ink-secondary [&_svg]:size-4">
-                    <Upload size={16} />
+                    <IKON_FOR.laddaUpp size={16} />
                   </span>
                   <span className="min-w-0 flex-1 truncate">Ladda upp ljudfil</span>
                 </button>

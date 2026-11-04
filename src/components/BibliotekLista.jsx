@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { GripVertical, Plus, X } from "lucide-react";
+import { GripVertical } from "lucide-react";
+import { IKON_FOR } from "./ikonlexikon.js";
 import { MAX_BIBLIOTEKRUBRIK, MAX_LISTPOSTER, filtreraBibliotek, inmatningsfel, ljudRubrik, arLjudpost, trimSomRegeln } from "../lib/bibliotek.js";
 import { LISTRADTEXT, kandidaterForLista, laggTillPost, losLista, taBortPost } from "../lib/biblioteklista.js";
 import { flyttaFore, flyttaId } from "../lib/apparark.js";
@@ -159,7 +160,7 @@ export function ListaVisning({ lista, poster, kanAndra, onSpara, onOppnaPost }) 
       {kanAndra ? (
         <div className="flex flex-wrap items-center gap-2">
           <OpsButton variant="secondary" size="sm" onClick={() => { setSok(""); setLagger(true); }} disabled={idn.length >= MAX_LISTPOSTER}>
-            <Plus size={16} aria-hidden="true" />
+            <IKON_FOR.skapa size={16} aria-hidden="true" />
             Lägg till
           </OpsButton>
           {idn.length >= MAX_LISTPOSTER ? <span className="text-meta text-ink-muted">Listan är full: högst {MAX_LISTPOSTER} poster.</span> : null}
@@ -252,7 +253,7 @@ export function ListaVisning({ lista, poster, kanAndra, onSpara, onOppnaPost }) 
                     onClick={() => void spara(taBortPost(idn, r.id))}
                     className="flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-ink-muted hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                   >
-                    <X size={18} aria-hidden="true" />
+                    <IKON_FOR.stang size={18} aria-hidden="true" />
                   </button>
                 ) : null}
               </li>

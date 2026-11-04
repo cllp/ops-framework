@@ -1,5 +1,6 @@
 import { useId, useState } from "react";
-import { Archive, ExternalLink, Pencil, Plus, RotateCcw } from "lucide-react";
+import { Archive, ExternalLink, Pencil, RotateCcw } from "lucide-react";
+import { IKON_FOR } from "./ikonlexikon.js";
 import { platsnamnFel, farAndraPlats } from "../lib/platser.js";
 import { trimSomRegeln } from "../lib/bibliotek.js";
 import { ordet } from "../lib/ord.js";
@@ -347,7 +348,7 @@ export function NyPlatsRad({ onValj, sprak }) {
       onClick={onValj}
       className={radKlass({ stor: true })}
     >
-      <Plus size={16} aria-hidden="true" className="shrink-0" />
+      <IKON_FOR.skapa size={16} aria-hidden="true" className="shrink-0" />
       <span className="min-w-0 flex-1 truncate">{ordet(ORD_BIBLIOTEKPLATSER, "nyPlats", sprak)}</span>
     </button>
   );

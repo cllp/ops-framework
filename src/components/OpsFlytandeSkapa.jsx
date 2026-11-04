@@ -1,6 +1,6 @@
 import { useLayoutEffect } from "react";
 import { cx } from "../lib/cx.js";
-import { PlusIkon } from "./icons.jsx";
+import { KryssIkon, PlusIkon } from "./icons.jsx";
 import { flytandeSkapaSyns, useDialogOppen } from "../lib/flytandeSkapa.js";
 import { useTangentbordUppe } from "../lib/tangentbord.js";
 
@@ -18,10 +18,12 @@ import { useTangentbordUppe } from "../lib/tangentbord.js";
  * ⛔ Knappen ligger ovanför spelraden (`--spelrad-h`) och bottenraden (`--bottom-nav-h`, 0 medan tangentbordet är uppe), under dialoger
  * (`--z-chrome` mot `--z-overlay`). Från 768 px finns den inte (`md:hidden`): där har huvudet ett plus.
  *
- * @param {{ mojlig: boolean, panelOppen: boolean, talkLage: string, onOppna: () => void, label: string }} props
+ * @param {{ mojlig: boolean, panelOppen: boolean, talkLage: string, onOppna: () => void, label: string, oppen?: boolean, stangEtikett?: string }} props
  *   `mojlig`: appen har slagit på knappen för vyn och skalet har en lista att öppna. `onOppna` är SAMMA funktion som mikrofonens långtryck.
+ *   `oppen`: snabbmenyn är uppe. Knappen blir ett kryss och ligger över dimningen, så ett nytt tryck stänger. `stangEtikett` är då knappens namn, på användarens språk
+ *   ur skalet (`closeLabel`). Inget svenskt förval här (`check-sprak`): utan den heter knappen `label` som förut.
  */
-export function OpsFlytandeSkapa({ mojlig, panelOppen, talkLage, onOppna, label }) {
+export function OpsFlytandeSkapa({ mojlig, panelOppen, talkLage, onOppna, label, oppen = false, stangEtikett }) {
   const tangentbordUppe = useTangentbordUppe();
   const dialogOppen = useDialogOppen(mojlig);
   const syns = flytandeSkapaSyns({ pa: mojlig, tangentbordUppe, panelOppen, dialogOppen, talkLage });
@@ -40,11 +42,14 @@ export function OpsFlytandeSkapa({ mojlig, panelOppen, talkLage, onOppna, label 
     <button
       type="button"
       data-ops-flytande-skapa=""
-      aria-label={label}
+      data-ops-skapa-knapp=""
+      aria-label={oppen && stangEtikett ? stangEtikett : label}
+      aria-expanded={oppen}
       aria-haspopup="dialog"
       onClick={onOppna}
       className={cx(
-        "fixed z-(--z-chrome) inline-flex size-(--flytande-skapa-storlek) cursor-pointer items-center justify-center rounded-full md:hidden",
+        "fixed inline-flex size-(--flytande-skapa-storlek) cursor-pointer items-center justify-center rounded-full md:hidden",
+        oppen ? "z-(--z-dropdown)" : "z-(--z-chrome)",
         "right-[calc(var(--flytande-skapa-luft)+var(--safe-right))]",
         "bottom-[calc(var(--bottom-nav-h)+var(--safe-bottom)+var(--spelrad-h,0px)+var(--flytande-skapa-luft))]",
         "bg-accent text-accent-contrast shadow-lg",
@@ -52,7 +57,7 @@ export function OpsFlytandeSkapa({ mojlig, panelOppen, talkLage, onOppna, label 
         "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
       )}
     >
-      <PlusIkon size={26} />
+      {oppen ? <KryssIkon size={26} /> : <PlusIkon size={26} />}
     </button>
   );
 }

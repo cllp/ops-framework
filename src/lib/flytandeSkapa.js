@@ -79,7 +79,15 @@ export const DOLJER_FLYTANDE_SKAPA = "data-ops-doljer-flytande-skapa";
 export function arDialogOppen(rot) {
   const r = rot ?? (typeof document !== "undefined" ? document : null);
   if (!r) return false;
-  return r.querySelector(`[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"], [${DOLJER_FLYTANDE_SKAPA}]`) !== null;
+  if (r.querySelector(`[${DOLJER_FLYTANDE_SKAPA}]`) !== null) return true;
+  const dialoger = r.querySelectorAll(`[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"]`);
+  for (const d of dialoger) {
+    // ⛔ SKAPA-SNABBMENYN ÄR SJÄLV PLUSKNAPPEN (0.184.0). Den dimmar bakgrunden och byter plus mot kryss. Räknades den som
+    // en dialog här hade knappen försvunnit i samma ögonblick den skulle bli ett kryss.
+    if (d.getAttribute("data-ops-snabbmeny") === "skapa") continue;
+    return true;
+  }
+  return false;
 }
 
 /**

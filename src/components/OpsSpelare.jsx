@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { ChevronDown, X } from "lucide-react";
+import { ChevronDown } from "lucide-react";
+import { IKON_FOR } from "./ikonlexikon.js";
 import { avkodaToppar, kodaToppar, toppListaGiltig } from "../lib/bibliotek.js";
 import {
   HOPP_SEKUNDER,
@@ -437,7 +438,7 @@ function Spelrad({ lage }) {
             aria-label="Stäng spelaren"
             className="inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full text-ink-secondary hover:bg-hover hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           >
-            <X size={20} aria-hidden="true" />
+            <IKON_FOR.stang size={20} aria-hidden="true" />
           </button>
         </div>
       </div>
@@ -477,7 +478,7 @@ function Spelarark({ lage, oppen, onOppen }) {
               aria-label="Stäng spelaren"
               className="inline-flex size-11 cursor-pointer items-center justify-center rounded-full text-ink-secondary hover:bg-hover hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
             >
-              <X size={22} aria-hidden="true" />
+              <IKON_FOR.stang size={22} aria-hidden="true" />
             </button>
           </div>
           <Dialog.Title className="m-0 text-center text-titel font-medium text-ink wrap-anywhere">{spar?.namn ?? ""}</Dialog.Title>

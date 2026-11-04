@@ -202,7 +202,7 @@ mörkt deklareras **en gång**; blocken som aktiverar den får bara peka.
 
 ### Komponenter
 
-**165 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
+**166 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
 eller `...rest`. Ett okänt värde kastar med läsbar text i stället för att rendera
 något godtyckligt.
 
@@ -2691,6 +2691,12 @@ två modeller för sin navigering, och en app väljer EN.
 avataren en 28 px cirkel i en 32 px knapp med ring. Mätt i `check-skalyta`, inte antaget.
 Observerat vid mätningen: i ljust tema är `--color-raised` och `--color-surface` samma tal
 (`#fefcf6`, SessionStudios `bg-card` och `bg-surface`), så hovern syns inte mot ytan där; i mörkt tema gör den det.
+
+### Snabbmenyer för Skapa och Appar (0.185.0)
+
+`OpsSnabbmeny` är en meny som växer ut från en knapp, i två former: `variant="skapa"` (högerjusterad kolumn ovanför pluset, etikett i ett mörkt märke och en rund ikon, pluset blir ett kryss) och `variant="appar"` (centrerad kolumn ovanför fliken Appar, rund ikon med etiketten under). Props: `oppen`, `onOppen`, `variant`, `etikett` (dialogens namn), `poster` (`{ id, etikett, ikon?, ikonNod?, onValj }`, `ikon` är en nyckel i `IKON_FOR`), `ankare` (väljare till knappen) och `tomText`. Bakgrunden dimmas, och menyn stängs med tryck utanför, Escape och bakåt.
+
+`OpsAppShell` slår på båda med `snabbmenyer`. Valen i Skapa räknas ut av `skapaSnabbPoster` i ordningen `SKAPA_SNABB_ORDNING` (Ny händelse, Nytt ärende, Nytt meddelande, Ny grupp), bara de appen gett en mottagare för. Apparna kommer ur `apparSnabbPoster`, med de inbyggda apparnas ikoner i `APP_IKON`. Utan propen är skalet som förut.
 
 ### Långtryck på ikonerna och mikrofonen (0.103.0)
 
