@@ -8,7 +8,7 @@ import { cx } from "../lib/cx.js";
 import { OpsSpelareProvider } from "./OpsSpelare.jsx";
 import { OpsBrand } from "./OpsBrand.jsx";
 import { OpsBottomNav, ORD_OPSBOTTOMNAV } from "./OpsBottomNav.jsx";
-import { OpsApparArk } from "./OpsApparArk.jsx";
+import { OpsApparArk, ORD_OPSAPPARARK } from "./OpsApparArk.jsx";
 import { OpsGruppanel, OpsGruppvaxlare, ORD_OPSOVERSIKT } from "./OpsGruppanel.jsx";
 import { entryActive, validateNav } from "../lib/nav.js";
 import { Counter } from "./counter.jsx";
@@ -45,6 +45,9 @@ import { kordarePafunktion, MenyAvdelningar, menyAppAvdelning, menyFot, MenyRubr
 import { OpsSkapaGenvagar, useSkapaGenvag } from "./OpsSkapaGenvag.jsx";
 import { OpsFlytandeSkapa } from "./OpsFlytandeSkapa.jsx";
 import { flytandeSkapaPa } from "../lib/flytandeSkapa.js";
+import { OpsSnabbmeny } from "./OpsSnabbmeny.jsx";
+import { apparSnabbPoster, skapaSnabbPoster } from "../lib/snabbmeny.js";
+import { arkRader } from "../lib/apparark.js";
 
 /**
  * ⛔ EN VÄG IN I INSPELNINGEN UTAN ATT HÅLLA (#276): raden i Skapa och huvudets mikrofonknapp lämnar SAMMA form till
@@ -1080,6 +1083,10 @@ function GenvagRam({ nyckel, ikon, tips = true, className, children }) {
  *   Knappen göms medan en panel, ett ark eller en dialog är öppen, medan TALK inte vilar och medan tangentbordet är uppe, och ritas aldrig i översikten
  *   utan bottenrad. Medan den syns lägger `main` knappens höjd på sin `padding-bottom` (`--flytande-skapa-h`). Namnet är `skapaLabel` ("Skapa" / "Create").
  *   Slå inte på den för en vy som är exakt fönstrets höjd med eget skrivfält i botten (Meddelanden): där finns redan ett eget sätt att skapa.
+ * @param {boolean} [props.snabbmenyer] (0.184.0) Plus öppnar en snabbmeny (kolumn uppåt, plus blir kryss) i stället för popover och ark.
+ *   Appar i bottenraden öppnar en snabbmeny rakt ovanför fliken, och ett långtryck på Appar går till Appar-sidan. Valen i Skapa är
+ *   Ny händelse, Nytt ärende och Nytt meddelande, bara de appen gett. Ny grupp, `skapa.rad` och registreringar ritas inte där.
+ *   Apparna är `arkRader` ur `apparArk`: gruppens installerade kort, samma urval som Appar-vyn. Utan propen är skalet som förut.
  * @param {Omit<import("./OpsTalk.jsx").TalkVal, "onTalk"> & { mal?: ReadonlyArray<{ id: string, etikett: string }>, onMeddelande?: (underlag: import("../lib/talk.js").Talkunderlag) => void, onAgent?: (text: string) => void | Promise<void>, onAnteckning?: (text: string) => void | import("../lib/talk.js").Talkanteckningslank | Promise<void | import("../lib/talk.js").Talkanteckningslank>, tillText?: (blob: Blob, meta: { mimeType: string, sekunder: number }) => Promise<string>, onTalk: (blob: Blob, meta: { mimeType: string, sekunder: number, rapportera: (andel: number) => void, mal?: { id: string }, text?: string }) => Promise<void | import("../lib/talk.js").Talkkvitto> | void | import("../lib/talk.js").Talkkvitto }} [props.talk] TALK (0.57.0, cllp/lifehub.app#2). ⛔ (0.103.0) Bottenradens mittknapp
  *   är då en mikrofon: ett vanligt tryck spelar in, och ett långtryck öppnar skapa-listan (utan TALK-raden) när den har något.
  *   Före 0.103.0 spelade ett långtryck på plusset in och ett tryck öppnade Skapa. Huvudets plus (bred skärm, och den gamla
@@ -1161,6 +1168,7 @@ function OpsAppShellRitad({
   radkallor,
   skapaLabel = ORD_OPSAPPSHELL.skapaLabel.sv,
   flytandeSkapa,
+  snabbmenyer = false,
   nyHandelseEtikett = ORD_OPSAPPSHELL.nyHandelseEtikett.sv,
   nyttArendeEtikett = ORD_OPSAPPSHELL.nyttArendeEtikett.sv,
   nyGruppEtikett = ORD_OPSAPPSHELL.nyGruppEtikett.sv,
@@ -1183,6 +1191,9 @@ function OpsAppShellRitad({
   // Samma skäl som `maxTopNavSmal`s kast nedan, och som punkt 5 i arbetsreglerna:
   // en tyst nedsläppsväg är värre än ett fel.
   const harFasta = fasta !== undefined;
+  if (typeof snabbmenyer !== "boolean") {
+    throw new Error("OpsAppShell: snabbmenyer måste vara true eller false. Utelämnad är false, och då är pluset och Appar som förut.");
+  }
   if (talk !== undefined && (!talk || typeof talk.onTalk !== "function")) {
     throw new Error("OpsAppShell: \"talk\" måste ha onTalk (funktion). Utan mottagare hade det man sade försvunnit tyst.");
   }
@@ -2045,9 +2056,19 @@ function OpsAppShellRitad({
     return a;
   });
   const [skapaBottenOppen, setSkapaBottenOppen] = useState(false);
+  const [skapaMeny, setSkapaMeny] = useState(false);
+  const [apparMeny, setApparMeny] = useState(false);
   // ⛔ EN FUNKTION FÖR ATT ÖPPNA SKAPA-LISTAN PÅ TELEFON (0.176.0, cllp/lifehub.app#582). Mikrofonens långtryck, bottenradens plus utan `talk`
   // och den flytande Skapa-knappen går alla hit. Tre kopior hade kunnat glida isär i vad de öppnar.
-  const oppnaSkapaLista = () => setSkapaBottenOppen(true);
+  // ⛔ 0.184.0: MED `snabbmenyer` ÖPPNAR SAMMA FUNKTION SNABBMENYN, INTE ARKET.
+  const oppnaSkapaLista = () => {
+    if (snabbmenyer) {
+      setApparMeny(false);
+      setSkapaMeny(true);
+      return;
+    }
+    setSkapaBottenOppen(true);
+  };
   // ⛔ Kroken körs alltid (krokarnas regel), men utan `talk` når ingen den: plusset får ingen `talk` och raden ritas inte.
   const [valtInspelning, setValtInspelning] = useState(/** @type {string | null} */ (null));
   // Ett valt id gäller appens mål (valet i fältet) eller ett modulmål (modulens rad). Utan val är det appens första mål, aldrig en modul.
@@ -2382,10 +2403,14 @@ function OpsAppShellRitad({
     if (handelseId !== null) stangHandelse(true, false);
     // ⛔ 0.89.0: arket stängs när man går någonstans. Fliken man stod på blir vald igen, för adressen byttes inte av att arket öppnades.
     if (arkOppen) setArkOppen(false);
+    if (snabbmenyer) {
+      setSkapaMeny(false);
+      setApparMeny(false);
+    }
     if (onNavigate) onNavigate(href, e);
   };
   const flikPa = (/** @type {any} */ s) => {
-    if (arkOppen && apparHref) return s.href === apparHref;
+    if ((snabbmenyer ? apparMeny : arkOppen) && apparHref) return s.href === apparHref;
     return harFasta ? djupAktiv(s, activeHref) : entryActive(s, activeHref);
   };
 
@@ -2552,6 +2577,37 @@ function OpsAppShellRitad({
     ? navLista.map((p, i) => (i === 2 ? { ...p, children: (moduler ?? []).flatMap((m) => [{ href: m.href, label: m.label }, ...(m.children ?? [])]) } : p))
     : navLista;
 
+  // ⛔ 0.184.0: SNABBMENYNS VAL UR SAMMA FRÅGOR SOM ARKET. Bara de tre raderna, och bara när mottagaren finns.
+  const skapaSnabb = snabbmenyer
+    ? skapaSnabbPoster({
+        handelse: Boolean(skapa?.handelse),
+        arende: Boolean(skapa?.arende),
+        meddelande: typeof skapa?.nyttMeddelande === "function",
+        etiketter: { handelse: nyHandelseEtikett, arende: nyttArendeEtikett, meddelande: nyttMeddelandeEtikett },
+      }).map((p) => ({
+        ...p,
+        onValj: () => {
+          if (p.id === "handelse") {
+            oppnaSkapa(
+              handelseSkapare
+                ? { kind: "modul", registrering: { id: "handelse", namn: nyHandelseEtikett, katalog: handelseSkapare.katalog === undefined ? "handelsetyper" : handelseSkapare.katalog, form: handelseSkapare.form } }
+                : { kind: "handelse" },
+            );
+          } else if (p.id === "arende") oppnaSkapa({ kind: "arende" });
+          else oppnaSkapa({ kind: "meddelande" });
+        },
+      }))
+    : [];
+  const apparKort = snabbmenyer && apparArk ? arkRader(apparArk.grupp ?? null, apparArk.moduler ?? []) : [];
+  const apparSnabb = apparSnabbPoster(apparKort.map((r) => ({ id: r.id, href: r.href, etikett: text(r.namn, sprak) }))).map((p) => {
+    const rad = apparKort.find((r) => r.id === p.id);
+    return {
+      ...p,
+      ikonNod: /** @type {import("react").ReactNode} */ (rad?.ikon),
+      onValj: () => onActivate(p.href, { preventDefault() {} }),
+    };
+  });
+
   // ⛔ SKALET ÄGER SPELAREN (0.102.0): ett ljud som startas i en vy spelar vidare när man byter sida, med spelraden ovanför
   // bottenraden. Se OpsSpelare.jsx.
   return (
@@ -2568,7 +2624,7 @@ function OpsAppShellRitad({
           `top-(--safe-top)` utan padding: den satt 47 px NED, och remsan ovanför, statusfältets höjd, var otäckt, så sidan
           rullade förbi bakom klockan och headern såg ut att flyta. `check-skalyta` avsnitt 21 emulerar zonerna (`--safe-top: 47px`)
           och mäter att headern börjar vid y = 0. Övriga fasta ytor räknar redan `safe-top + topbar-height`, det är headerns nya höjd. */}
-      <header className="sticky top-0 z-(--z-chrome) border-b border-line bg-surface pt-(--safe-top)">
+      <header className={cx("sticky top-0 border-b border-line bg-surface pt-(--safe-top)", snabbmenyer && skapaMeny ? "z-(--z-dropdown)" : "z-(--z-chrome)")}>
         {/*
           ⛔ TRE KOLUMNER PÅ md+, TVÅ UNDER.
 
@@ -2691,7 +2747,7 @@ function OpsAppShellRitad({
                 onActivate={onActivate}
                 badgeText={badgeText}
                 submenuLabel={submenuLabel}
-                arkKnapp={apparArk && s.href === apparHref ? { oppen: arkOppen, onOppen: setArkOppen } : null}
+                arkKnapp={apparArk && !snabbmenyer && s.href === apparHref ? { oppen: arkOppen, onOppen: setArkOppen } : null}
                 classes={cx(
                   lankKlass(flikPa(s) ? "pa" : "av"),
                   // Utanför det som får plats vid 768: finns i menyn i stället,
@@ -2725,6 +2781,22 @@ function OpsAppShellRitad({
                 sidan; en rad öppnar en RIKTIG `OpsModal`, se filhuvudets
                 ärende (#168). */}
             {visaSkapaKnapp && !iOversikt ? (
+              snabbmenyer ? (
+                <button
+                  type="button"
+                  data-ops-skapa-knapp=""
+                  aria-label={skapaMeny ? closeLabel : skapaLabel}
+                  aria-expanded={skapaMeny}
+                  aria-haspopup="dialog"
+                  onClick={() => {
+                    setApparMeny(false);
+                    setSkapaMeny((v) => !v);
+                  }}
+                  className={huvudPlusKlass({ synligMobil: !bottenPlus, aktiv: skapaMeny })}
+                >
+                  {skapaMeny ? <KryssIkon size={24} /> : <PlusIkon size={24} />}
+                </button>
+              ) : (
               <Popover.Root open={skapaOppen} onOpenChange={setSkapaOppen}>
                 {/*
                   ⛔ FRÅN 0.60.0 EN FYLLD ACCENTCIRKEL PÅ DATOR (md och uppåt),
@@ -2792,6 +2864,7 @@ function OpsAppShellRitad({
                   </Popover.Content>
                 </Popover.Portal>
               </Popover.Root>
+              )
             ) : null}
             {/* ⛔ TALK FÅR EN EGEN KNAPP PÅ DATOR (#276). CP 2026-10-06 21:37, med en skärmbild av Skapa-menyn: "TALK
                 förtjänar en egen knapp i web. Och i mobil vet vi ju hur den skall sitta." På dator tog TALK två klick
@@ -3061,22 +3134,50 @@ function OpsAppShellRitad({
         langtryckText={forvalda(ORD_OPSBOTTOMNAV, sprak).langtryckText}
         menuExtras={menuExtras}
         meny={meny ? { sprak, ...meny, app: [...breddRader, ...overskottsRader, ...flyttadeRader, ...(meny.app ?? [])] } : meny}
-        ark={apparArk && apparHref ? { href: apparHref, oppen: arkOppen, onOppen: setArkOppen } : undefined}
+        ark={apparArk && apparHref ? {
+          href: apparHref,
+          oppen: snabbmenyer ? apparMeny : arkOppen,
+          onOppen: snabbmenyer ? (/** @type {boolean} */ v) => { setSkapaMeny(false); setApparMeny(v); } : setArkOppen,
+          ...(snabbmenyer ? { snabbmeny: true, onTillSidan: () => onActivate(apparHref, { preventDefault() {} }) } : {}),
+        } : undefined}
       />
       )}
       {flytandeMojlig ? (
         <OpsFlytandeSkapa
           mojlig
-          panelOppen={skapaPanelSyns || handelsePanelSyns || skapaBottenOppen || skapaVaxlare || arkOppen}
+          panelOppen={skapaPanelSyns || handelsePanelSyns || skapaBottenOppen || skapaVaxlare || arkOppen || apparMeny}
           talkLage={talkStyr.lage}
-          onOppna={oppnaSkapaLista}
+          onOppna={snabbmenyer ? () => { setApparMeny(false); setSkapaMeny((v) => !v); } : oppnaSkapaLista}
           label={skapaLabel}
+          oppen={snabbmenyer && skapaMeny}
+          stangEtikett={closeLabel}
         />
+      ) : null}
+      {snabbmenyer ? (
+        <>
+          <OpsSnabbmeny
+            oppen={skapaMeny}
+            onOppen={setSkapaMeny}
+            variant="skapa"
+            etikett={skapaLabel}
+            poster={skapaSnabb}
+            ankare={["[data-ops-flytande-skapa]", "[data-ops-skapa-knapp]", "[data-talk-knapp]"]}
+          />
+          <OpsSnabbmeny
+            oppen={apparMeny}
+            onOppen={setApparMeny}
+            variant="appar"
+            etikett={ordet(ORD_OPSAPPARARK, "titel", sprak)}
+            poster={apparSnabb}
+            tomText={ordet(ORD_OPSAPPARARK, "inga", sprak)}
+            ankare="[data-ops-appar-knapp]"
+          />
+        </>
       ) : null}
       {/* Hyllan, inte en modal som täcker raden. Lagret är `--z-ark` inuti
           OpsApparArk (`arkHyllaZ`), under kromet, så pluset i bottenraden
           målar över hyllans kant. */}
-      {apparArk && apparHref ? (
+      {apparArk && apparHref && !snabbmenyer ? (
         <OpsApparArk
           oppen={arkOppen}
           onOppen={setArkOppen}
@@ -3133,7 +3234,7 @@ function OpsAppShellRitad({
           en tumme når, och det som Meny redan är. Ordningen (stäng arket, öppna
           modalen ett tick senare) är `kordarePafunktion`s lärdom (#158): två
           Radix-dialoger som byter plats i samma händelse låser sidan. */}
-      {bottenPlus ? (
+      {bottenPlus && !snabbmenyer ? (
         <Dialog.Root open={skapaBottenOppen} onOpenChange={setSkapaBottenOppen}>
           <Dialog.Portal>
             <Dialog.Overlay className="fixed inset-0 z-(--z-overlay) bg-scrim md:hidden" />

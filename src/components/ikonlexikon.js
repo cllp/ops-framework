@@ -44,9 +44,19 @@
  * - `temaLjust`, `temaMorkt`, `temaSystem`: de tre lägena i `OpsThemeToggle`. ⛔ `Monitor` betyder "följ systemet",
  *   inte "tema". Knappen i topplisten visar NUVARANDE läge och läses därför som "dator" när läget är systemets; det är en
  *   fråga om var växlaren sitter (CP:s beslut om toppen), inte om vilken bild ett läge har.
+ * - `handelse`: Ny händelse (`CalendarPlus`), samma bild som plusets rad.
+ * - `projekt`: ett projekt (`FolderKanban`).
+ * - `bokning`: en bokning (`CalendarCheck`).
+ * - `bibliotek`: Biblioteket (`Library`).
+ * - `ekonomi`: Ekonomi (`Wallet`).
+ * - `laddaUpp`: ladda upp en fil (`Upload`).
+ * - `appar`: fliken Appar och en app utan egen bild (`LayoutGrid`). Nyckeln är appar, inte hubb: hubb är instansen, appar är listan.
+ * - `stang`: stäng (`X`).
+ * - `skapa`: skapa, plusknappen (`Plus`).
+ * - `omrostning`: en omröstning (`Vote`).
  */
 
-import { ArrowDownUp, Bell, Bot, ChevronsUpDown, CircleHelp, Inbox, ListChecks, MessageSquare, Monitor, Moon, MoreHorizontal, Search, Settings, SlidersHorizontal, Sun } from "lucide-react";
+import { ArrowDownUp, Bell, Bot, CalendarCheck, CalendarPlus, ChevronsUpDown, CircleHelp, FolderKanban, Inbox, LayoutGrid, Library, ListChecks, MessageSquare, Monitor, Moon, MoreHorizontal, Plus, Search, Settings, SlidersHorizontal, Sun, Upload, Vote, Wallet, X } from "lucide-react";
 
 /**
  * Betydelse till ikon. Fryst: en app som vill ha en annan bild för en betydelse ska ändra den här, inte skriva över den.
@@ -67,6 +77,16 @@ import { ArrowDownUp, Bell, Bot, ChevronsUpDown, CircleHelp, Inbox, ListChecks, 
  *   temaLjust: import("lucide-react").LucideIcon,
  *   temaMorkt: import("lucide-react").LucideIcon,
  *   temaSystem: import("lucide-react").LucideIcon,
+ *   handelse: import("lucide-react").LucideIcon,
+ *   projekt: import("lucide-react").LucideIcon,
+ *   bokning: import("lucide-react").LucideIcon,
+ *   bibliotek: import("lucide-react").LucideIcon,
+ *   ekonomi: import("lucide-react").LucideIcon,
+ *   laddaUpp: import("lucide-react").LucideIcon,
+ *   appar: import("lucide-react").LucideIcon,
+ *   stang: import("lucide-react").LucideIcon,
+ *   skapa: import("lucide-react").LucideIcon,
+ *   omrostning: import("lucide-react").LucideIcon,
  * }>}
  */
 export const IKON_FOR = Object.freeze({
@@ -85,4 +105,14 @@ export const IKON_FOR = Object.freeze({
   temaLjust: Sun,
   temaMorkt: Moon,
   temaSystem: Monitor,
+  handelse: CalendarPlus,
+  projekt: FolderKanban,
+  bokning: CalendarCheck,
+  bibliotek: Library,
+  ekonomi: Wallet,
+  laddaUpp: Upload,
+  appar: LayoutGrid,
+  stang: X,
+  skapa: Plus,
+  omrostning: Vote,
 });

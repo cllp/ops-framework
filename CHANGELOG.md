@@ -9,6 +9,14 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.184.0
+
+### Tillagt
+
+- **Ikonnycklar för det appen redan ritar, och en snabbmeny.** `IKON_FOR` får `handelse` (CalendarPlus), `projekt` (FolderKanban), `bokning` (CalendarCheck), `bibliotek` (Library), `ekonomi` (Wallet), `laddaUpp` (Upload), `appar` (LayoutGrid), `stang` (X), `skapa` (Plus) och `omrostning` (Vote). Omslag och de ställen som importerade samma bild direkt ur `lucide-react` går genom kartan. Nyckeln heter `appar` och inte hubb: hubb är instansen, appar är listan.
+- **`OpsSnabbmeny`.** Två former. `skapa`: högerjusterad kolumn ovanför knappen, etikett i ett mörkt märke till vänster och rund mörk ikon till höger, pluset blir ett kryss. `appar`: centrerad kolumn rakt ovanför knappen, rund ikon med etikett under och en pil mot knappen. Bakgrunden dimmas och blurras. Stängs med tryck utanför, Escape och bakåt. Fokusfälla och dialog är Radix. `OpsAppShell` slår på det med `snabbmenyer`. Då är Skapa bara Ny händelse, Nytt ärende och Nytt meddelande (de appen gett). Ny grupp, `skapa.rad` och registreringar ritas inte där. Appar i bottenraden öppnar menyn med samma kort som Appar-vyn (`arkRader`), och ett långtryck går till Appar-sidan. Utan propen är skalet som förut.
+  - Prov: `snabbmeny.test.jsx`. Mot 0.183.1: importen av `OpsSnabbmeny` och `skapaSnabbPoster` saknas.
+
 ## 0.183.1
 
 ### Rättat

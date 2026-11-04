@@ -36,7 +36,7 @@
  */
 
 import { KALLMARKEN } from "../lib/kallmarken.js";
-import { Archive, ArchiveRestore, AudioLines, Copy, BellOff, Camera, Flame, Folder, Image as BildLucide, Laugh, Link, Mail, PartyPopper, Pause, Pin, Play, Reply, SkipBack, SkipForward, Square, StickyNote, ThumbsUp, ArrowRight, BookOpen, Briefcase, Building2, Calendar, CalendarDays, CalendarPlus, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, Crown, ExternalLink, FileText, Globe, Hash, Heart, Home, Info, Layers, LayoutGrid, Lock, LogOut, MessagesSquare, Mic, SendHorizontal, MapPin, Maximize2, Menu, Minimize2, PanelRightOpen, Paperclip, Pencil, Plus, Smile, Star, User, UserX, Users, UsersRound, X, Zap } from "lucide-react";
+import { Archive, ArchiveRestore, AudioLines, Copy, BellOff, Camera, Flame, Folder, Image as BildLucide, Laugh, Link, Mail, PartyPopper, Pause, Pin, Play, Reply, SkipBack, SkipForward, Square, StickyNote, ThumbsUp, ArrowRight, BookOpen, Briefcase, Building2, Calendar, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, Crown, ExternalLink, FileText, Globe, Hash, Heart, Home, Info, Layers, Lock, LogOut, MessagesSquare, Mic, SendHorizontal, MapPin, Maximize2, Menu, Minimize2, PanelRightOpen, Paperclip, Pencil, Smile, Star, User, UserX, Users, UsersRound, Zap } from "lucide-react";
 import { IKON_FOR } from "./ikonlexikon.js";
 
 /** Reaktionen "tumme" (0.75.0). @param {{ size?: number }} props */
@@ -95,7 +95,8 @@ export function KugghjulIkon({ size = 20 }) {
 
 /** @param {{ size?: number }} props */
 export function KryssIkon({ size = 16 }) {
-  return <X size={size} aria-hidden="true" strokeWidth={1.5} />;
+  const Ikon = IKON_FOR.stang;
+  return <Ikon size={size} aria-hidden="true" strokeWidth={1.5} />;
 }
 
 /** @param {{ size?: number }} props */
@@ -111,7 +112,8 @@ export function MenuIcon({ size = 24 }) {
  * @param {{ size?: number }} props
  */
 export function PlusIkon({ size = 24 }) {
-  return <Plus size={size} aria-hidden="true" strokeWidth={1.5} />;
+  const Ikon = IKON_FOR.skapa;
+  return <Ikon size={size} aria-hidden="true" strokeWidth={1.5} />;
 }
 
 /** @param {{ size?: number }} props */
@@ -387,7 +389,8 @@ export function AktivitetIkon({ size = 16 }) {
  * @param {{ size?: number }} props
  */
 export function HandelsePlusIkon({ size = 18 }) {
-  return <CalendarPlus size={size} aria-hidden="true" />;
+  const Ikon = IKON_FOR.handelse;
+  return <Ikon size={size} aria-hidden="true" />;
 }
 
 /**
@@ -423,7 +426,8 @@ export function KalenderIkon({ size = 20 }) {
 
 /** @param {{ size?: number }} props */
 export function HubIkon({ size = 20 }) {
-  return <LayoutGrid size={size} aria-hidden="true" strokeWidth={1.5} />;
+  const Ikon = IKON_FOR.appar;
+  return <Ikon size={size} aria-hidden="true" strokeWidth={1.5} />;
 }
 
 /**

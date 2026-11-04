@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import * as Popover from "@radix-ui/react-popover";
-import { Tag, X } from "lucide-react";
+import { Tag } from "lucide-react";
+import { IKON_FOR } from "./ikonlexikon.js";
 import { MAX_TAGGAR, MAX_TAGGLANGD, normaliseraTagg, normaliseraTaggar, taggarFel, taggfarg } from "../lib/bibliotek.js";
 import { cx } from "../lib/cx.js";
 import { forvalda } from "../lib/ord.js";
@@ -114,7 +115,7 @@ export function OpsTaggPiller({ tagg, onFilter, vald = false, onTaBort, sprak })
           onClick={() => onTaBort(tagg)}
           className="mr-1 inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-full bg-transparent hover:bg-black/10 focus-visible:outline-2 focus-visible:outline-accent"
         >
-          <X size={12} aria-hidden="true" />
+          <IKON_FOR.stang size={12} aria-hidden="true" />
         </button>
       ) : null}
     </span>
