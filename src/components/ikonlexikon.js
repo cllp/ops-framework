@@ -54,9 +54,10 @@
  * - `stang`: stäng (`X`).
  * - `skapa`: skapa, plusknappen (`Plus`).
  * - `omrostning`: en omröstning (`Vote`).
+ * - `grupp`: Ny grupp (`Users`), samma bild som plusets rad och `GruppIkon`.
  */
 
-import { ArrowDownUp, Bell, Bot, CalendarCheck, CalendarPlus, ChevronsUpDown, CircleHelp, FolderKanban, Inbox, LayoutGrid, Library, ListChecks, MessageSquare, Monitor, Moon, MoreHorizontal, Plus, Search, Settings, SlidersHorizontal, Sun, Upload, Vote, Wallet, X } from "lucide-react";
+import { ArrowDownUp, Bell, Bot, CalendarCheck, CalendarPlus, ChevronsUpDown, CircleHelp, FolderKanban, Inbox, LayoutGrid, Library, ListChecks, MessageSquare, Monitor, Moon, MoreHorizontal, Plus, Search, Settings, SlidersHorizontal, Sun, Upload, Users, Vote, Wallet, X } from "lucide-react";
 
 /**
  * Betydelse till ikon. Fryst: en app som vill ha en annan bild för en betydelse ska ändra den här, inte skriva över den.
@@ -87,6 +88,7 @@ import { ArrowDownUp, Bell, Bot, CalendarCheck, CalendarPlus, ChevronsUpDown, Ci
  *   stang: import("lucide-react").LucideIcon,
  *   skapa: import("lucide-react").LucideIcon,
  *   omrostning: import("lucide-react").LucideIcon,
+ *   grupp: import("lucide-react").LucideIcon,
  * }>}
  */
 export const IKON_FOR = Object.freeze({
@@ -115,4 +117,5 @@ export const IKON_FOR = Object.freeze({
   stang: X,
   skapa: Plus,
   omrostning: Vote,
+  grupp: Users,
 });

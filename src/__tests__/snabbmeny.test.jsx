@@ -14,25 +14,32 @@ import { OpsAppShell } from "../components/OpsAppShell.jsx";
  * Med ändringen är de tre raderna Ny händelse, Nytt ärende, Nytt meddelande, och Appar öppnar menyn i stället för arket.
  */
 
-const etiketter = { handelse: "Ny händelse", arende: "Nytt ärende", meddelande: "Nytt meddelande" };
+const etiketter = { handelse: "Ny händelse", arende: "Nytt ärende", meddelande: "Nytt meddelande", grupp: "Ny grupp" };
 
 describe("skapaSnabbPoster", () => {
   it("är arkets tre rader, i den ordningen, och bara de som finns", () => {
-    expect(SKAPA_SNABB_ORDNING).toEqual(["handelse", "arende", "meddelande"]);
-    expect(skapaSnabbPoster({ handelse: true, arende: true, meddelande: true, etiketter }).map((p) => p.etikett)).toEqual([
+    expect(SKAPA_SNABB_ORDNING).toEqual(["handelse", "arende", "meddelande", "grupp"]);
+    expect(skapaSnabbPoster({ handelse: true, arende: true, meddelande: true, grupp: true, etiketter }).map((p) => p.etikett)).toEqual([
       "Ny händelse",
       "Nytt ärende",
       "Nytt meddelande",
+      "Ny grupp",
+    ]);
+    expect(skapaSnabbPoster({ handelse: true, arende: true, meddelande: true, grupp: true, etiketter }).map((p) => p.ikon)).toEqual([
+      "handelse",
+      "arende",
+      "meddelande",
+      "grupp",
     ]);
     expect(skapaSnabbPoster({ handelse: true, arende: true, etiketter }).map((p) => p.id)).toEqual(["handelse", "arende"]);
     expect(skapaSnabbPoster({ etiketter })).toEqual([]);
   });
 
-  it("tar inte med grupp, projekt eller skapa app", () => {
-    const poster = skapaSnabbPoster({ handelse: true, arende: true, meddelande: true, etiketter });
-    expect(poster.map((p) => p.id)).not.toContain("grupp");
-    expect(poster.map((p) => p.id)).not.toContain("nytt-projekt");
-    expect(poster.map((p) => p.id)).not.toContain("skapa-app");
+  it("tar inte med projekt eller skapa app, och Ny grupp bara när mottagaren finns", () => {
+    const utan = skapaSnabbPoster({ handelse: true, arende: true, meddelande: true, etiketter });
+    expect(utan.map((p) => p.id)).not.toContain("grupp");
+    expect(utan.map((p) => p.id)).not.toContain("nytt-projekt");
+    expect(utan.map((p) => p.id)).not.toContain("skapa-app");
   });
 });
 
@@ -64,6 +71,7 @@ describe("IKON_FOR för snabbmenyerna", () => {
     expect(IKON_FOR.stang.displayName).toBe("X");
     expect(IKON_FOR.skapa.displayName).toBe("Plus");
     expect(IKON_FOR.omrostning.displayName).toBe("Vote");
+    expect(IKON_FOR.grupp.displayName).toBe("Users");
     const { container: handelse } = render(<HandelsePlusIkon />);
     const { container: plus } = render(<PlusIkon />);
     const { container: kryss } = render(<KryssIkon />);
@@ -147,7 +155,7 @@ describe("skalet med snabbmenyer", () => {
     niva: () => 0,
   });
 
-  it("plus öppnar de tre raderna och inte Ny grupp, och Appar öppnar menyn", () => {
+  it("plus öppnar de fyra raderna med Ny grupp sist, och Appar öppnar menyn", () => {
     render(
       <OpsAppShell
         brand="Ops"
@@ -178,8 +186,8 @@ describe("skalet med snabbmenyer", () => {
     );
     fireEvent.click(document.querySelector("[data-ops-flytande-skapa]"));
     const dialog = screen.getByRole("dialog", { name: "Skapa" });
-    expect(withinNames(dialog)).toEqual(["Ny händelse", "Nytt ärende", "Nytt meddelande"]);
-    expect(screen.queryByRole("button", { name: "Ny grupp" })).toBeNull();
+    expect(withinNames(dialog)).toEqual(["Ny händelse", "Nytt ärende", "Nytt meddelande", "Ny grupp"]);
+    expect(dialog.querySelector(".lucide-users")).not.toBeNull();
     expect(screen.queryByRole("button", { name: "Skapa app" })).toBeNull();
     expect(document.querySelector("[data-ops-flytande-skapa]").getAttribute("aria-expanded")).toBe("true");
     fireEvent.click(document.querySelector("[data-ops-appar-knapp]"));

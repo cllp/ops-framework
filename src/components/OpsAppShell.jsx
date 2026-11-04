@@ -1085,7 +1085,7 @@ function GenvagRam({ nyckel, ikon, tips = true, className, children }) {
  *   Slå inte på den för en vy som är exakt fönstrets höjd med eget skrivfält i botten (Meddelanden): där finns redan ett eget sätt att skapa.
  * @param {boolean} [props.snabbmenyer] (0.184.0) Plus öppnar en snabbmeny (kolumn uppåt, plus blir kryss) i stället för popover och ark.
  *   Appar i bottenraden öppnar en snabbmeny rakt ovanför fliken, och ett långtryck på Appar går till Appar-sidan. Valen i Skapa är
- *   Ny händelse, Nytt ärende och Nytt meddelande, bara de appen gett. Ny grupp, `skapa.rad` och registreringar ritas inte där.
+ *   Ny händelse, Nytt ärende, Nytt meddelande och Ny grupp, bara de appen gett. `skapa.rad` och registreringar ritas inte där.
  *   Apparna är `arkRader` ur `apparArk`: gruppens installerade kort, samma urval som Appar-vyn. Utan propen är skalet som förut.
  * @param {Omit<import("./OpsTalk.jsx").TalkVal, "onTalk"> & { mal?: ReadonlyArray<{ id: string, etikett: string }>, onMeddelande?: (underlag: import("../lib/talk.js").Talkunderlag) => void, onAgent?: (text: string) => void | Promise<void>, onAnteckning?: (text: string) => void | import("../lib/talk.js").Talkanteckningslank | Promise<void | import("../lib/talk.js").Talkanteckningslank>, tillText?: (blob: Blob, meta: { mimeType: string, sekunder: number }) => Promise<string>, onTalk: (blob: Blob, meta: { mimeType: string, sekunder: number, rapportera: (andel: number) => void, mal?: { id: string }, text?: string }) => Promise<void | import("../lib/talk.js").Talkkvitto> | void | import("../lib/talk.js").Talkkvitto }} [props.talk] TALK (0.57.0, cllp/lifehub.app#2). ⛔ (0.103.0) Bottenradens mittknapp
  *   är då en mikrofon: ett vanligt tryck spelar in, och ett långtryck öppnar skapa-listan (utan TALK-raden) när den har något.
@@ -2577,13 +2577,15 @@ function OpsAppShellRitad({
     ? navLista.map((p, i) => (i === 2 ? { ...p, children: (moduler ?? []).flatMap((m) => [{ href: m.href, label: m.label }, ...(m.children ?? [])]) } : p))
     : navLista;
 
-  // ⛔ 0.184.0: SNABBMENYNS VAL UR SAMMA FRÅGOR SOM ARKET. Bara de tre raderna, och bara när mottagaren finns.
+  // ⛔ 0.184.0: SNABBMENYNS VAL UR SAMMA FRÅGOR SOM ARKET. Fyra rader, och bara när mottagaren finns.
+  // Ny grupp är med (CP 2026-11-04): utan den saknar telefonen en väg att skapa grupp.
   const skapaSnabb = snabbmenyer
     ? skapaSnabbPoster({
         handelse: Boolean(skapa?.handelse),
         arende: Boolean(skapa?.arende),
         meddelande: typeof skapa?.nyttMeddelande === "function",
-        etiketter: { handelse: nyHandelseEtikett, arende: nyttArendeEtikett, meddelande: nyttMeddelandeEtikett },
+        grupp: typeof skapa?.grupp === "function",
+        etiketter: { handelse: nyHandelseEtikett, arende: nyttArendeEtikett, meddelande: nyttMeddelandeEtikett, grupp: nyGruppEtikett },
       }).map((p) => ({
         ...p,
         onValj: () => {
@@ -2594,6 +2596,7 @@ function OpsAppShellRitad({
                 : { kind: "handelse" },
             );
           } else if (p.id === "arende") oppnaSkapa({ kind: "arende" });
+          else if (p.id === "grupp") oppnaSkapa({ kind: "grupp" });
           else oppnaSkapa({ kind: "meddelande" });
         },
       }))

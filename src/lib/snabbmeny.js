@@ -3,10 +3,10 @@
  *
  * ══ ⛔ SKAPA ÄR TRE RADER, I ARKETS ORDNING ═══════════════════════════════════
  *
- * Plusets ark ritar Ny händelse, Nytt ärende och Nytt meddelande i den ordningen (OpsAppShell, renderSkapaLista),
- * och bara när appen gett mottagaren. Snabbmenyn läser samma tre frågor. Ny grupp, modulernas `skapa.rad` (Nytt projekt)
- * och registreringar (Skapa app) ingår inte: gruppen skapas där grupperna hanteras, ett projekt skapas i Projekt, och
- * Skapa app står i Appars huvud.
+ * Plusets ark ritar Ny händelse, Nytt ärende, Nytt meddelande och Ny grupp i den ordningen (OpsAppShell, renderSkapaLista),
+ * och bara när appen gett mottagaren. Snabbmenyn läser samma fyra frågor. Ny grupp är med för att telefonen annars
+ * saknar väg att skapa en grupp (CP 2026-11-04). Modulernas `skapa.rad` (Nytt projekt) och registreringar (Skapa app)
+ * ingår inte: ett projekt skapas i Projekt, och Skapa app står i Appars huvud.
  *
  * ══ ⛔ APPAR ÄR VYNS KORT, INTE HUBBEN ═══════════════════════════════════════
  *
@@ -15,8 +15,8 @@
  * (en ren tilläggsmodul) står inte här heller.
  */
 
-/** @type {readonly ["handelse", "arende", "meddelande"]} */
-export const SKAPA_SNABB_ORDNING = Object.freeze(["handelse", "arende", "meddelande"]);
+/** @type {readonly ["handelse", "arende", "meddelande", "grupp"]} */
+export const SKAPA_SNABB_ORDNING = Object.freeze(["handelse", "arende", "meddelande", "grupp"]);
 
 /**
  * Ikonnyckel i `IKON_FOR` för en inbyggd app. En beskriven app har ingen nyckel: den ritas med sitt eget märke.
@@ -32,11 +32,11 @@ export const APP_IKON = Object.freeze({
 });
 
 /**
- * @param {{ handelse?: boolean, arende?: boolean, meddelande?: boolean, etiketter: { handelse: string, arende: string, meddelande: string } }} val
- * @returns {Array<{ id: "handelse" | "arende" | "meddelande", etikett: string, ikon: "handelse" | "arende" | "meddelande" }>}
+ * @param {{ handelse?: boolean, arende?: boolean, meddelande?: boolean, grupp?: boolean, etiketter: { handelse: string, arende: string, meddelande: string, grupp: string } }} val
+ * @returns {Array<{ id: "handelse" | "arende" | "meddelande" | "grupp", etikett: string, ikon: "handelse" | "arende" | "meddelande" | "grupp" }>}
  */
-export function skapaSnabbPoster({ handelse = false, arende = false, meddelande = false, etiketter }) {
-  const finns = { handelse: handelse === true, arende: arende === true, meddelande: meddelande === true };
+export function skapaSnabbPoster({ handelse = false, arende = false, meddelande = false, grupp = false, etiketter }) {
+  const finns = { handelse: handelse === true, arende: arende === true, meddelande: meddelande === true, grupp: grupp === true };
   return SKAPA_SNABB_ORDNING.filter((id) => finns[id]).map((id) => ({ id, etikett: etiketter[id], ikon: id }));
 }
 
