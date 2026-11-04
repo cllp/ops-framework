@@ -427,6 +427,11 @@ export { OpsModulTyper } from "./components/OpsModulTyper.jsx";
 export { OpsInstallningar, ORD_OPSINSTALLNINGAR, useInstallningspanel } from "./components/OpsInstallningar.jsx";
 export { installningsSektioner } from "./components/installningsSektioner.jsx";
 /*
+ * ⛔ IKONLEXIKONET (cllp/lifehub.app#634): betydelse till Lucide-ikon, en bild per betydelse. Designgenomgången 2026-11-04
+ * såg samma ikon betyda filter, Inställningar och en väljare på samma skärmar. Appen ritar sina betydelser ur samma karta.
+ */
+export { IKON_FOR } from "./components/ikonlexikon.js";
+/*
  * ⛔ MODULENS INSTÄLLNINGAR (0.88.0, en plats 0.89.0). Pinnen "Visa i huvudmenyn" skrivs på gruppen.
  * Modulens egna fält skrivs i en samling appen namnger. Reglagen ritas i modulramen, inte i gruppvyn.
  */

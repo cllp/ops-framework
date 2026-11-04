@@ -1885,6 +1885,60 @@ const gruppmapp = fs.mkdtempSync(path.join(rot, ".ops-vaktprov-"));
   kravRott("handritade ikoner golv: fel sökväg", [ikonvakt, path.join(ikonmapp, "finns-inte")], "finns inte");
 }
 
+// ── En ikon, en betydelse (cllp/lifehub.app#634) ───────────────────────────
+//
+// ⛔ Designgenomgången 2026-11-04: skjutreglaget var filter, Inställningar och platsväljaren på samma skärmar. Vakten
+// ska bli röd för båda vägarna felet kom in: två betydelser i kartan med samma bild, och en direkt Lucide-import förbi
+// kartan. Kopian av lexikonet läggs i arbetsmappen under node_modules så att dess `lucide-react` löses till samma paket.
+{
+  const vakt = "scripts/check-ikonlexikon.mjs";
+  const mapp = path.join(arbetsmapp, "ikonlexikon");
+  const lexikon = fs.readFileSync(path.join(rot, "src", "components", "ikonlexikon.js"), "utf8");
+  const komponenter = path.join(rot, "src", "components");
+  /** @param {string} namn @param {(s: string) => string} mutera */
+  const lexikonkopia = (namn, mutera) => {
+    const fil = path.join(mapp, `${namn}.js`);
+    const muterat = mutera(lexikon);
+    if (muterat === lexikon) throw new Error(`ikonlexikon ${namn}: mutationen ändrade ingenting`);
+    fs.mkdirSync(mapp, { recursive: true });
+    fs.writeFileSync(fil, muterat);
+    return fil;
+  };
+
+  kravGront("ikonlexikon: ramverkets egen karta och src är gröna", [vakt]);
+
+  kravRott(
+    "ikonlexikon: filter och inställningar med samma ikon",
+    [vakt, "--lexikon", lexikonkopia("dubbel", (s) => s.replace("filter: SlidersHorizontal,", "filter: Settings,")), komponenter],
+    "har två betydelser: installningar, filter",
+  );
+  kravRott(
+    "ikonlexikon: ett alias räknas som samma ikon",
+    [vakt, "--lexikon", lexikonkopia("alias", (s) => s.replace("import {", "import { SearchIcon,").replace("hjalp: CircleHelp,", "hjalp: SearchIcon,")), komponenter],
+    "har två betydelser: sok, hjalp",
+  );
+  kravRott("ikonlexikon: en karta som inte är fryst", [vakt, "--lexikon", lexikonkopia("ofryst", (s) => s.replace("Object.freeze({", "({")), komponenter], "inte fryst");
+  kravRott(
+    "ikonlexikon golv: färre än tio betydelser",
+    [vakt, "--lexikon", lexikonkopia("tunn", (s) => s.replace(/  sortering: ArrowDownUp,[\s\S]*?  temaSystem: Monitor,\n/, "")), komponenter],
+    "väntat minst 10",
+  );
+
+  // Rött: platsväljarens gamla rad, alltså felet som det såg ut, i en kopia av komponenterna.
+  const smutsig = path.join(mapp, "smutsig");
+  fs.cpSync(komponenter, smutsig, { recursive: true });
+  fs.writeFileSync(path.join(smutsig, "OpsProvvaljare.jsx"), 'import { SlidersHorizontal as Reglage } from "lucide-react";\nexport function OpsProvvaljare() {\n  return <Reglage size={18} />;\n}\n');
+  kravRott("ikonlexikon: en direkt import förbi kartan, under ett annat namn", [vakt, smutsig], 'betyder "filter"');
+  fs.writeFileSync(path.join(smutsig, "OpsProvvaljare.jsx"), 'import * as L from "lucide-react";\nexport function OpsProvvaljare() {\n  return <L.Settings />;\n}\n');
+  kravRott("ikonlexikon: en import vakten inte kan läsa är inte ren", [vakt, smutsig], "inte känner igen");
+
+  const tunnmapp = path.join(mapp, "tunnkatalog");
+  fs.mkdirSync(tunnmapp, { recursive: true });
+  fs.writeFileSync(path.join(tunnmapp, "Ensam.jsx"), "export function Ensam() { return null; }\n");
+  kravRott("ikonlexikon golv: för få filer lästa", [vakt, tunnmapp], "väntat fler än");
+  kravRott("ikonlexikon golv: fel sökväg", [vakt, path.join(mapp, "finns-inte")], "finns inte");
+}
+
 // ── Vakten mot egna storlekar och typsnitt (#173) ───────────────────────────
 //
 // ⛔ Samma skäl som ikonvakten ovan: en vakt ingen sett faila är en förhoppning.

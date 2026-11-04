@@ -2,7 +2,8 @@ import { Fragment, useEffect, useRef, useState } from "react";
 import { sparaSomFil } from "../lib/sparaFil.js";
 import * as Popover from "@radix-ui/react-popover";
 import * as Tabs from "@radix-ui/react-tabs";
-import { Check, File as FilIkon, FileText, Globe, Image as BildIkon, Library, Link2, List as ListIkon, Mic, ExternalLink, Plus, SlidersHorizontal, Upload } from "lucide-react";
+import { Check, File as FilIkon, FileText, Globe, Image as BildIkon, Library, Link2, List as ListIkon, Mic, ExternalLink, Plus, Upload } from "lucide-react";
+import { GruppvalIkon } from "./icons.jsx";
 import { OpsAtgardsblad } from "./OpsAtgardsblad.jsx";
 import { OpsDokument } from "./OpsDokument.jsx";
 import { OpsHtmlDokumentHamtat } from "./OpsHtmlDokument.jsx";
@@ -1299,8 +1300,12 @@ function Flikar({ flikar, antal }) {
 }
 
 /**
- * Platsen som ett piller med reglage-ikonen, och en lista med platserna under (SessionStudios "My Library" i appen). Den valda
- * har en bock.
+ * Platsen som ett piller med väljarens ikon efter namnet, och en lista med platserna under (SessionStudios "My Library" i
+ * appen). Den valda har en bock.
+ *
+ * ⛔ INTE SKJUTREGLAGET, FAST FÖREBILDEN HAR DET. Designgenomgången 2026-11-04 (cllp/lifehub.app#634) såg reglaget betyda
+ * filter, Inställningar och den här väljaren på samma skärmar. Väljaren byter bibliotek, den filtrerar inte, så den har
+ * `GruppvalIkon` (`IKON_FOR.gruppval`), och den står efter namnet som i varje annan väljare där pilen säger "välj en annan".
  *
  * @param {{ platser: readonly { id: string, namn: string }[], plats: string, onPlats: (id: string) => void, ny?: { befintliga: ReadonlyArray<{ id: string, namn: string }>, onNy: NonNullable<import("./BibliotekPlatser.jsx").EgnaPlatser["onNy"]>, onKlar?: (svar: any) => void } | null }} props
  *   `ny` (0.155.0) ritar raden "Ny plats" sist i listan. Över `PLATSER_UTAN_SOK` rader får listan ett sökfält.
@@ -1332,8 +1337,10 @@ export function PlatsValjare({ platser, plats, onPlats, ny = null }) {
           aria-label={`Vilket bibliotek: ${namn}`}
           className="inline-flex min-h-11 min-w-0 cursor-pointer items-center gap-2 rounded-full border border-ink-secondary px-4 text-etikett font-medium text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         >
-          <SlidersHorizontal size={18} aria-hidden="true" className="shrink-0" />
           <span className="min-w-0 truncate">{namn}</span>
+          <span aria-hidden="true" className="shrink-0 text-ink-muted">
+            <GruppvalIkon size={16} />
+          </span>
         </Popover.Trigger>
         <Popover.Portal>
           <Popover.Content align="start" sideOffset={4} collisionPadding={8} className={cx("z-(--z-dropdown) min-w-56 p-1 max-h-(--radix-popover-content-available-height) overflow-y-auto overscroll-contain", radBehallare())}>

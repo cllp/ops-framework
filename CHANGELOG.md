@@ -9,6 +9,16 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.182.0
+
+### Ändrat
+
+- **Ett ikonlexikon: en betydelse, en ikon (`IKON_FOR`).** Designgenomgången 2026-11-04 och Groks granskning (lifehub.app#633, #634) såg samma ikon betyda olika saker: skjutreglaget var filter, Inställningar och platsväljaren i Biblioteket, och lådan (`Inbox`) var både Inkorgen och Ärenden. `IKON_FOR` är en fryst karta från betydelse till Lucide-ikon (15 betydelser), exporterad ur paketet, och ramverkets egna ikonomslag hämtar sin ikon ur den.
+  - Synligt: "Nytt ärende" i plusset, i TALK:s val och i förslagen ritas med `ListChecks` i stället för `Inbox`. Platsväljaren i Biblioteket ritar `GruppvalIkon` (`ChevronsUpDown`) efter namnet i stället för skjutreglaget före.
+  - Vakten `check:ikonlexikon` blir röd om två betydelser delar ikon (alias räknas), om kartan inte är fryst, och om en fil i `src/components` eller `src/lib` importerar en ikon ur kartan direkt ur `lucide-react`. Golv: 10 betydelser och 50 lästa filer. Nio fall i `test-guards`. Mot 0.181.0: 13 brott.
+  - Prov: `ikonlexikon.test.jsx` (4). Mot 0.181.0: 2 röda.
+  - Appen (lifehub.app) behöver vid ompinningen: menyraden Inställningar i `App.jsx` ritar skjutreglaget och ska ha `IKON_FOR.installningar`. Inkorg, Sök, Notiser och Hjälp i `App.jsx` samt Inkorgen i `InboxView.jsx` och `GruppView.jsx` hämtar ur kartan. I `SettingsView.jsx` krockar Händelsetyper (`ListChecks`, som nu är ärende) och Inkorgstyper (`Inbox`).
+
 ## 0.181.0
 
 ### Ändrat

@@ -36,7 +36,8 @@
  */
 
 import { KALLMARKEN } from "../lib/kallmarken.js";
-import { Archive, ArchiveRestore, AudioLines, Copy, BellOff, Camera, Flame, Folder, Image as BildLucide, Laugh, Link, Mail, PartyPopper, Pause, Pin, Play, Reply, SkipBack, SkipForward, Square, StickyNote, ThumbsUp, ArrowDownUp, ArrowRight, Bell, BookOpen, Briefcase, Building2, Calendar, CalendarDays, CalendarPlus, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, Crown, ExternalLink, FileText, Globe, Hash, Heart, Home, Inbox, Info, Layers, LayoutGrid, Lock, LogOut, MessageSquare, MessagesSquare, Mic, Search as SokLucide, SendHorizontal, Bot, MapPin, Maximize2, Menu, Minimize2, Monitor, Moon, MoreHorizontal, PanelRightOpen, Paperclip, Pencil, Plus, Settings, SlidersHorizontal, Smile, Star, Sun, User, UserX, Users, UsersRound, X, Zap } from "lucide-react";
+import { Archive, ArchiveRestore, AudioLines, Copy, BellOff, Camera, Flame, Folder, Image as BildLucide, Laugh, Link, Mail, PartyPopper, Pause, Pin, Play, Reply, SkipBack, SkipForward, Square, StickyNote, ThumbsUp, ArrowRight, BookOpen, Briefcase, Building2, Calendar, CalendarDays, CalendarPlus, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, Crown, ExternalLink, FileText, Globe, Hash, Heart, Home, Info, Layers, LayoutGrid, Lock, LogOut, MessagesSquare, Mic, SendHorizontal, MapPin, Maximize2, Menu, Minimize2, PanelRightOpen, Paperclip, Pencil, Plus, Smile, Star, User, UserX, Users, UsersRound, X, Zap } from "lucide-react";
+import { IKON_FOR } from "./ikonlexikon.js";
 
 /** Reaktionen "tumme" (0.75.0). @param {{ size?: number }} props */
 export function TummeUppIkon({ size = 20 }) {
@@ -88,7 +89,8 @@ export function MikrofonIkon({ size = 20 }) {
 
 /** TALK: inställningarna i fältet, vart det inspelade ska och vilken modell (0.57.0). @param {{ size?: number }} props */
 export function KugghjulIkon({ size = 20 }) {
-  return <Settings size={size} aria-hidden="true" strokeWidth={1.5} />;
+  const Ikon = IKON_FOR.installningar;
+  return <Ikon size={size} aria-hidden="true" strokeWidth={1.5} />;
 }
 
 /** @param {{ size?: number }} props */
@@ -119,17 +121,25 @@ export function BockIkon({ size = 16 }) {
 
 /** @param {{ size?: number }} props */
 export function SolIkon({ size = 18 }) {
-  return <Sun size={size} aria-hidden="true" strokeWidth={1.5} />;
+  const Ikon = IKON_FOR.temaLjust;
+  return <Ikon size={size} aria-hidden="true" strokeWidth={1.5} />;
 }
 
 /** @param {{ size?: number }} props */
 export function ManeIkon({ size = 18 }) {
-  return <Moon size={size} aria-hidden="true" strokeWidth={1.5} />;
+  const Ikon = IKON_FOR.temaMorkt;
+  return <Ikon size={size} aria-hidden="true" strokeWidth={1.5} />;
 }
 
-/** Följ systemet: en skärm, alltså "vad enheten säger". @param {{ size?: number }} props */
+/**
+ * Följ systemet: en skärm, alltså "vad enheten säger" (`IKON_FOR.temaSystem`). ⛔ Bilden betyder läget, inte "tema". I
+ * `OpsThemeToggle` visar knappen NUVARANDE läge, så i systemläget står en skärm i topplisten och läses som "dator"
+ * (designgenomgången 2026-11-04, cllp/lifehub.app#634). Det är en fråga om var växlaren sitter, och den väntar på CP.
+ * @param {{ size?: number }} props
+ */
 export function SkarmIkon({ size = 18 }) {
-  return <Monitor size={size} aria-hidden="true" strokeWidth={1.5} />;
+  const Ikon = IKON_FOR.temaSystem;
+  return <Ikon size={size} aria-hidden="true" strokeWidth={1.5} />;
 }
 
 /**
@@ -145,9 +155,15 @@ export function HelskarmAvIkon({ size = 20 }) {
   return <Minimize2 size={size} aria-hidden="true" strokeWidth={1.5} />;
 }
 
-/** @param {{ size?: number }} props */
+/**
+ * Filter, och BARA filter (`IKON_FOR.filter`). ⛔ Designgenomgången 2026-11-04 (cllp/lifehub.app#634) fann skjutreglaget
+ * som filter, som Inställningar och som platsväljaren i Biblioteket på samma skärmar. En väljare har `GruppvalIkon`, en
+ * inställning har `KugghjulIkon`.
+ * @param {{ size?: number }} props
+ */
 export function ReglageIkon({ size = 20 }) {
-  return <SlidersHorizontal size={size} aria-hidden="true" strokeWidth={1.5} />;
+  const Ikon = IKON_FOR.filter;
+  return <Ikon size={size} aria-hidden="true" strokeWidth={1.5} />;
 }
 
 
@@ -170,9 +186,23 @@ export function ReglageIkon({ size = 20 }) {
  * @param {{ size?: number }} props
  */
 export function SortIcon({ size = 20 }) {
-  return <ArrowDownUp size={size} aria-hidden="true" strokeWidth={1.5} />;
+  const Ikon = IKON_FOR.sortering;
+  return <Ikon size={size} aria-hidden="true" strokeWidth={1.5} />;
 }
 
+
+/**
+ * Byt vad vyn visar: vilken grupp eller vilket bibliotek (`IKON_FOR.gruppval`).
+ *
+ * ⛔ FINNS FÖR ATT PLATSVÄLJAREN I BIBLIOTEKET RITADE SKJUTREGLAGET (designgenomgången 2026-11-04, cllp/lifehub.app#634).
+ * Den hade det från SessionStudios "My Library", men där bredvid stod filtren med samma bild, och en väljare är inte ett
+ * filter: väljaren byter vad man tittar på, filtret smalnar av det man redan tittar på. Förebilden är ett golv (regel 13).
+ * @param {{ size?: number }} props
+ */
+export function GruppvalIkon({ size = 16 }) {
+  const Ikon = IKON_FOR.gruppval;
+  return <Ikon size={size} aria-hidden="true" strokeWidth={1.5} />;
+}
 
 /**
  * Chevron åt höger. Raden som öppnar en undervy i en panel.
@@ -298,7 +328,8 @@ export function JordglobIkon({ size = 20 }) {
  * @param {{ size?: number }} props
  */
 export function MerIkon({ size = 18 }) {
-  return <MoreHorizontal size={size} aria-hidden="true" strokeWidth={1.5} />;
+  const Ikon = IKON_FOR.mer;
+  return <Ikon size={size} aria-hidden="true" strokeWidth={1.5} />;
 }
 
 /**
@@ -334,7 +365,8 @@ export function TaFramIkon({ size = 16 }) {
  * @param {{ size?: number }} props
  */
 export function NotisIkon({ size = 16 }) {
-  return <Bell size={size} aria-hidden="true" strokeWidth={1.5} />;
+  const Ikon = IKON_FOR.notiser;
+  return <Ikon size={size} aria-hidden="true" strokeWidth={1.5} />;
 }
 
 /**
@@ -359,12 +391,16 @@ export function HandelsePlusIkon({ size = 18 }) {
 }
 
 /**
- * "Nytt ärende" i plusset (#168). Ramverket har ingen egen "inkorg"-ikon
- * sedan förut; `Inbox` är samma familj som övriga rader här.
+ * "Nytt ärende" i plusset (#168), i TALK:s val och i förslagen (`IKON_FOR.arende`).
+ *
+ * ⛔ HÄR STOD `Inbox`, MED SKÄLET "RAMVERKET HAR INGEN EGEN INKORG-IKON". Skälet var sant i ramverket och falskt på
+ * skärmen: appen ritar Inkorgen med samma `Inbox`, och designgenomgången 2026-11-04 (cllp/lifehub.app#634) såg samma låda
+ * betyda både Inkorgen och Ärenden. Ett ärende är en uppgift, så det är `ListChecks`; lådan är Inkorgens (`IKON_FOR.inkorg`).
  * @param {{ size?: number }} props
  */
 export function ArendePlusIkon({ size = 18 }) {
-  return <Inbox size={size} aria-hidden="true" />;
+  const Ikon = IKON_FOR.arende;
+  return <Ikon size={size} aria-hidden="true" />;
 }
 
 /**
@@ -396,7 +432,8 @@ export function HubIkon({ size = 20 }) {
  * @param {{ size?: number }} props
  */
 export function MeddelandeIkon({ size = 18 }) {
-  return <MessageSquare size={size} aria-hidden="true" strokeWidth={1.5} />;
+  const Ikon = IKON_FOR.meddelande;
+  return <Ikon size={size} aria-hidden="true" strokeWidth={1.5} />;
 }
 
 /** En tråd i gruppchatten: "Svara i tråd" och märket med antal svar (0.68.0, lifehub.app#60). @param {{ size?: number }} props */
@@ -416,12 +453,13 @@ export function LasIkon({ size = 14 }) {
 
 /** Sökfältet i inkorgen (SS `Search w-3 h-3`, `ChatInboxPanel.jsx:1067`). @param {{ size?: number }} props */
 export function SokIkon({ size = 14 }) {
-  return <SokLucide size={size} aria-hidden="true" strokeWidth={1.5} />;
+  const Ikon = IKON_FOR.sok;
+  return <Ikon size={size} aria-hidden="true" strokeWidth={1.5} />;
 }
 
 /**
  * Anteckning (0.114.0, cllp/ops-framework#402): valet efter talet som sparar det sagda som en anteckning. `StickyNote` är ett
- * lapp-blad och skiljer sig från `Inbox` (Ärende) och `MessageSquare` (Meddelande) bredvid, i samma tunna streck.
+ * lapp-blad och skiljer sig från `ListChecks` (Ärende) och `MessageSquare` (Meddelande) bredvid, i samma tunna streck.
  * @param {{ size?: number }} props
  */
 export function AnteckningIkon({ size = 18 }) {
@@ -430,7 +468,8 @@ export function AnteckningIkon({ size = 18 }) {
 
 /** Agenten som mottagare och deltagare (0.34.0, plats för #185). @param {{ size?: number }} props */
 export function AgentIkon({ size = 18 }) {
-  return <Bot size={size} aria-hidden="true" strokeWidth={1.5} />;
+  const Ikon = IKON_FOR.agent;
+  return <Ikon size={size} aria-hidden="true" strokeWidth={1.5} />;
 }
 
 /**
