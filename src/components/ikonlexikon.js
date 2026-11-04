@@ -1,0 +1,88 @@
+/**
+ * Ikonlexikonet: vilken Lucide-ikon som betyder vad. En betydelse, en ikon, och en ikon, en betydelse.
+ *
+ * ── ⛔ HÄNDELSEN ────────────────────────────────────────────────────────────
+ *
+ * Claudes designgenomgång 2026-11-04 (lifehub.app i 390 och 1280 px) och Groks granskning (cllp/lifehub.app#633)
+ * fann samma sak från två håll: samma ikon betydde olika saker. Skjutreglaget (`SlidersHorizontal`) var filter i Idag
+ * och Inkorgen, Inställningar i Menyn och platsväljaren i Biblioteket. Kugghjulet (`Settings`) var OCKSÅ Inställningar,
+ * i Meddelanden, Biblioteket och Ekonomi. `Inbox` var både Inkorgen och Ärenden. CP: "Gör en sprint ... så att det blir
+ * snyggt och användarvänligt och rent." (sprinten cllp/lifehub.app#634).
+ *
+ * En ikon är ett ord utan text. Betyder samma bild två saker måste användaren läsa etiketten för att veta vilken, och
+ * då gör bilden ingenting. Betyder två bilder samma sak lär sig användaren två ord för en sak.
+ *
+ * ── ⛔ VARFÖR EN KARTA PÅ ETT STÄLLE ────────────────────────────────────────
+ *
+ * Felet uppstod för att varje yta valde sin ikon själv, med en direkt import ur `lucide-react` mitt i komponenten.
+ * Ingen av dem var fel i sin fil; felet syntes först när två filer stod bredvid varandra på samma skärm (regel 2: en
+ * sanning per faktum). Kartan är det enda stället där en betydelse får en bild. `icons.jsx` hämtar sina omslag härifrån,
+ * och appen importerar samma karta ur paketets index, så att ramverk och app ritar samma ord med samma bild.
+ *
+ * `scripts/check-ikonlexikon.mjs` blir röd om två betydelser delar ikon, och om en fil i `src/components` eller
+ * `src/lib` importerar en ikon ur kartan direkt ur `lucide-react` i stället för genom kartan.
+ *
+ * ── ⛔ VAD SOM INTE HÖR HIT ─────────────────────────────────────────────────
+ *
+ * Gruppikonkatalogen (`gruppikonkatalog.generated.*`) är bilder användaren VÄLJER åt sin grupp. De bär ingen betydelse
+ * i ramverkets mening, och en grupp får gärna ha en inkorg som märke. Profilikonerna (`PROFILIKONER`) likaså.
+ *
+ * ── Betydelserna ────────────────────────────────────────────────────────────
+ *
+ * - `installningar`: kugghjulet, överallt där något ställs in. Aldrig skjutreglaget.
+ * - `filter`: skjutreglaget, och BARA filter. En väljare, en inställning eller en sortering får inte låna det.
+ * - `sortering`: i vilken ordning raderna ligger (se `SortIcon` i `icons.jsx` för varför den är ramverkets).
+ * - `sok`: förstoringsglaset.
+ * - `inkorg`: Inkorgen, det som kommit in och väntar på att hanteras.
+ * - `arende`: ett ärende, något att göra. ⛔ `ListChecks` och inte `Inbox`: ett ärende är en uppgift, inte en låda. Inte
+ *   `SquareCheckBig` heller, för en kryssruta läses som "klar" eller "vald", och bocken (`Check`) betyder redan vald.
+ * - `meddelande`, `notiser`, `agent`: samma bilder som SessionStudio (se respektive omslag i `icons.jsx`).
+ * - `hjalp`: frågetecknet i en ring. Ramverket ritar det inte själv i dag, men appen gör det, och då ska det stå här.
+ * - `gruppval`: byt vilken grupp eller vilket bibliotek vyn visar. `ChevronsUpDown`, "välj en annan", och skild från
+ *   filter: en väljare byter vad man tittar på, ett filter smalnar av det man redan tittar på.
+ * - `mer`: tre punkter, en meny med sällanåtgärder.
+ * - `temaLjust`, `temaMorkt`, `temaSystem`: de tre lägena i `OpsThemeToggle`. ⛔ `Monitor` betyder "följ systemet",
+ *   inte "tema". Knappen i topplisten visar NUVARANDE läge och läses därför som "dator" när läget är systemets; det är en
+ *   fråga om var växlaren sitter (CP:s beslut om toppen), inte om vilken bild ett läge har.
+ */
+
+import { ArrowDownUp, Bell, Bot, ChevronsUpDown, CircleHelp, Inbox, ListChecks, MessageSquare, Monitor, Moon, MoreHorizontal, Search, Settings, SlidersHorizontal, Sun } from "lucide-react";
+
+/**
+ * Betydelse till ikon. Fryst: en app som vill ha en annan bild för en betydelse ska ändra den här, inte skriva över den.
+ *
+ * @type {Readonly<{
+ *   installningar: import("lucide-react").LucideIcon,
+ *   filter: import("lucide-react").LucideIcon,
+ *   sortering: import("lucide-react").LucideIcon,
+ *   sok: import("lucide-react").LucideIcon,
+ *   inkorg: import("lucide-react").LucideIcon,
+ *   arende: import("lucide-react").LucideIcon,
+ *   meddelande: import("lucide-react").LucideIcon,
+ *   notiser: import("lucide-react").LucideIcon,
+ *   agent: import("lucide-react").LucideIcon,
+ *   hjalp: import("lucide-react").LucideIcon,
+ *   gruppval: import("lucide-react").LucideIcon,
+ *   mer: import("lucide-react").LucideIcon,
+ *   temaLjust: import("lucide-react").LucideIcon,
+ *   temaMorkt: import("lucide-react").LucideIcon,
+ *   temaSystem: import("lucide-react").LucideIcon,
+ * }>}
+ */
+export const IKON_FOR = Object.freeze({
+  installningar: Settings,
+  filter: SlidersHorizontal,
+  sortering: ArrowDownUp,
+  sok: Search,
+  inkorg: Inbox,
+  arende: ListChecks,
+  meddelande: MessageSquare,
+  notiser: Bell,
+  agent: Bot,
+  hjalp: CircleHelp,
+  gruppval: ChevronsUpDown,
+  mer: MoreHorizontal,
+  temaLjust: Sun,
+  temaMorkt: Moon,
+  temaSystem: Monitor,
+});
