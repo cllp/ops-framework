@@ -37,7 +37,7 @@
 
 // @ts-expect-error Noden har crypto. Ramverket har inga Node-typer: lib är DOM, för webben. Samma rad som i mejl.js.
 import { createHash } from "node:crypto";
-import { byggInbjudan, byggMedlemskap, MEDLEMSKAPSAVGRANSARE, medlemskapsId } from "../lib/grupp.js";
+import { INBJUDNING_GILTIGHET_DAGAR, byggInbjudan, byggMedlemskap, MEDLEMSKAPSAVGRANSARE, medlemskapsId } from "../lib/grupp.js";
 
 /** @param {unknown} v @returns {string} */
 const epostform = (v) => (typeof v === "string" ? v.trim().toLowerCase() : "");
@@ -97,9 +97,9 @@ const accepteradesUnderTiden = (groupId, id) =>
  * kunde en inbjudan vara för gammal för att bjudas in igen och ändå ny nog att accepteras.
  *
  * @param {Record<string, any>} rad
- * @param {number} [nu]
+ * @param {number} nu
  */
-const arUtgangen = (rad, nu = Date.now()) =>
+const arUtgangen = (rad, nu) =>
   rad.status === "vantar" && typeof rad.giltigTill === "string" && Date.parse(rad.giltigTill) <= nu;
 
 /**
@@ -113,9 +113,9 @@ const arUtgangen = (rad, nu = Date.now()) =>
  *
  * @param {Array<Record<string, any>>} rader
  * @param {string} nyttId
- * @param {number} [nu]
+ * @param {number} nu
  */
-const raden = (rader, nyttId, nu = Date.now()) => {
+const raden = (rader, nyttId, nu) => {
   /** @param {Record<string, any>} r */
   const sort = (r) => (r.status === "vantar" && !arUtgangen(r, nu) ? 0 : r.status === "accepterad" ? 1 : arUtgangen(r, nu) ? 2 : r.status === "aterkallad" ? 3 : 4);
   return [...rader].sort((a, b) => sort(a) - sort(b) || Number(b.id === nyttId) - Number(a.id === nyttId) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))[0];
@@ -161,6 +161,7 @@ export const rollEfterAccept = (roll) => (roll === "agare" ? "admin" : roll);
  * @param {object} konfig
  * @param {import("../data/contract.js").DataSource<any>} konfig.kalla
  * @param {Samlingar} [konfig.samlingar]
+ * @param {() => number} [konfig.nu] Klockan i millisekunder. Förval `Date.now`. 0.183.1, #511.
  * @returns {{ bjudIn: (b: any) => Promise<any>, accepteraInbjudningar: (b: any) => Promise<any> }}
  */
 export function createInvitationService(konfig) {
@@ -186,7 +187,22 @@ export function inbjudningstjanst(konfig, namn) {
    * 'kalla' of 'undefined'" INNAN valideringen hinner köra, alltså ett fel som
    * inte nämner fabriken och inte säger vad appen glömde.
    */
-  const { kalla, samlingar = {} } = konfig ?? {};
+  const { kalla, samlingar = {}, nu: klocka } = konfig ?? {};
+  /*
+   * ⛔ KLOCKAN ÄR ETT ARGUMENT (0.183.1, #511). Tjänsten prövade giltigheten mot `Date.now()` medan appens flöde
+   * körde på sin egen klocka. Mätt 2026-11-04 08:12 i cllp/lifehub.app: ett prov med fast klocka och en fixtur som
+   * gick ut 08:00 samma morgon blev rött på main och på varje gren, eftersom ramverket räknade på väggklockan.
+   * Samma klocka styr nu både giltigheten som prövas och `giltigTill` som skrivs, så de två kan inte gå isär.
+   */
+  if (klocka !== undefined && typeof klocka !== "function") {
+    throw new Error(`${namn}: nu ska vara en funktion som ger klockan i millisekunder, eller utelämnas för Date.now.`);
+  }
+  const nuMs = () => {
+    const t = klocka ? klocka() : Date.now();
+    if (typeof t !== "number" || !Number.isFinite(t)) throw new Error(`${namn}: nu gav ${String(t)}, inte en tid i millisekunder.`);
+    return t;
+  };
+  const giltigTillFran = (/** @type {number} */ t) => new Date(t + INBJUDNING_GILTIGHET_DAGAR * 86_400_000).toISOString();
   if (!kalla || typeof kalla.read !== "function" || typeof kalla.list !== "function" || typeof kalla.create !== "function") {
     throw new Error(`${namn}: en datakälla med read, list och create krävs. Ramverket känner ingen databas.`);
   }
@@ -332,7 +348,8 @@ export function inbjudningstjanst(konfig, namn) {
        */
       const nyttId = inbjudningsId(groupId, epost);
       const rader = (await kalla.list(INBJUDNINGAR, { where: { epost } })).filter((/** @type {Record<string, any>} */ i) => i.groupId === groupId);
-      const rad = raden(rader, nyttId);
+      const tid = nuMs();
+      const rad = raden(rader, nyttId, tid);
 
       /*
        * ⛔ KODEN BYTS VID VARJE NY RUNDA. Ramverket skapar ingen kod: appen skickar in hashen av den kod den
@@ -344,7 +361,7 @@ export function inbjudningstjanst(konfig, namn) {
 
       if (rad) {
         const status = rad.status;
-        const utgangen = arUtgangen(rad);
+        const utgangen = arUtgangen(rad, tid);
         if (status === "vantar" && !utgangen) throw new Error(redanVantande(groupId, rad.id));
         /*
          * ⛔ EN ACCEPTERAD RAD ÖPPNAS IGEN, DEN SÄGER INTE "REDAN MEDLEM" (0.80.1, granskningen av PR 308, B2).
@@ -377,7 +394,7 @@ export function inbjudningstjanst(konfig, namn) {
         /** @type {Record<string, unknown>} */
         const villkor = { status };
         if (typeof rad.giltigTill === "string") villkor.giltigTill = rad.giltigTill;
-        const ny = byggInbjudan({ id: rad.id, epost, groupId, roll, status: "vantar", skapadAv: b.skapadAv ?? {}, tokenHash });
+        const ny = byggInbjudan({ id: rad.id, epost, groupId, roll, status: "vantar", skapadAv: b.skapadAv ?? {}, tokenHash, giltigTill: giltigTillFran(tid) });
         const data = { status: ny.status, roll: ny.roll, tokenHash: ny.tokenHash, giltigTill: ny.giltigTill, skapadAv: ny.skapadAv };
         const { updated, row } = await uppdateraOm(INBJUDNINGAR, rad.id, villkor, data);
         if (!updated) throw new Error(efterKapplopp(groupId, rad.id, row));
@@ -396,6 +413,7 @@ export function inbjudningstjanst(konfig, namn) {
         status: "vantar",
         skapadAv: b.skapadAv ?? {},
         tokenHash,
+        giltigTill: giltigTillFran(tid),
       });
       const { created, row } = await skapaNy(INBJUDNINGAR, inbjudan);
       if (!created) throw new Error(efterKapplopp(groupId, inbjudan.id, row));
@@ -455,7 +473,7 @@ export function inbjudningstjanst(konfig, namn) {
         }
         bara = new Set(b.bara.map((x) => x.trim()));
       }
-      const nu = Date.now();
+      const nu = nuMs();
       /** @type {Array<Record<string, any>>} */
       const listade = (await kalla.list(INBJUDNINGAR, { where: { epost } })).filter((/** @type {Record<string, any>} */ i) => i.status === "vantar" && (!bara || bara.has(i.id)));
       const vantande = listade.filter((i) => !arUtgangen(i, nu));

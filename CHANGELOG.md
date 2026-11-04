@@ -9,6 +9,14 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.183.1
+
+### Rättat
+
+- **`createInvitationService` tar en klocka, `nu`, och prövar giltigheten mot den och inte mot `Date.now()`.** Mätt 2026-11-04 08:12 i cllp/lifehub.app: `api-405-inbjudan` blev rött på main och på varje gren. Provet kör på en fast klocka, fixturens inbjudan gick ut 08:00 samma morgon mot väggklockan, och ramverket släppte då igenom en dubblett som skulle ha nekats. Samma klocka styr nu tre saker: om en väntande rad har gått ut i `bjudIn`, samma sak i accepten, och `giltigTill` som skrivs på en ny eller återöppnad rad. Därför kan de inte gå isär. `createGroupService` skickar sin `nu` vidare till inbjudningarna. Utelämnad är klockan `Date.now`, alltså oförändrat för den som inte säger något. En klocka som inte är en funktion, eller som inte ger millisekunder, är ett fel som säger det (#511).
+  - Prov: `inbjudan-klocka-511.test.js` (6). Mot 0.183.0: 6 röda. `inbjudan.test.js`: 77 gröna, oförändrade.
+  - Appen (lifehub.app) behöver vid ompinningen: `inbjudanTjanst(db, { nu })` med samma klocka som `skapaInbjudanFlode`, och fixturen i `functions/__tests__/api405hjalp.js` tillbaka till ett fast `giltigTill` mot `NU`.
+
 ## 0.183.0
 
 ### Ändrat
