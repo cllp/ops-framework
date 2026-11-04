@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { IKON_FOR } from "../index.js";
-import { ArendePlusIkon, GruppvalIkon, KugghjulIkon, ReglageIkon, SkarmIkon } from "../components/icons.jsx";
+import { ArendePlusIkon, GruppvalIkon, HandelsePlusIkon, KugghjulIkon, ReglageIkon, SkarmIkon } from "../components/icons.jsx";
 import { PlatsValjare } from "../components/OpsBibliotek.jsx";
 
 /**
@@ -32,6 +32,23 @@ describe("IKON_FOR (cllp/lifehub.app#634)", () => {
     const { container: inkorg } = render(<IKON_FOR.inkorg />);
     expect(lucideKlass(arende)).toBe("lucide-list-checks");
     expect(lucideKlass(inkorg)).toBe("lucide-inbox");
+  });
+
+  it("klistra in och släpp en bild har egna bilder, inte en betydelse som redan finns", () => {
+    const { container: klistra } = render(<IKON_FOR.klistraIn />);
+    const { container: slapp } = render(<IKON_FOR.slappBild />);
+    expect(lucideKlass(klistra)).toBe("lucide-clipboard-paste");
+    expect(lucideKlass(slapp)).toBe("lucide-image-plus");
+    expect(lucideKlass(klistra)).not.toBe(lucideKlass(slapp));
+  });
+
+  it("nytt ärende är ListPlus och ny händelse är CalendarPlus, skilda från ärendet och från varandra", () => {
+    const { container: nytt } = render(<IKON_FOR.nyttArende />);
+    const { container: ny } = render(<IKON_FOR.nyHandelse />);
+    expect(lucideKlass(nytt)).toBe("lucide-list-plus");
+    expect(lucideKlass(ny)).toBe("lucide-calendar-plus");
+    expect(lucideKlass(render(<HandelsePlusIkon />).container)).toBe("lucide-calendar-plus");
+    expect(lucideKlass(nytt)).not.toBe(lucideKlass(render(<IKON_FOR.arende />).container));
   });
 
   it("platsväljaren i Biblioteket ritar väljarens ikon, inte filtrets skjutreglage", () => {
