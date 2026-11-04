@@ -6,6 +6,7 @@ import { ordet } from "../lib/ord.js";
 import { radBehallare, radKlass } from "../lib/radKlass.js";
 import { useOpsSprak } from "./OpsSprak.jsx";
 import { useLangtryck } from "./useLangtryck.js";
+import { bottenReservPx, punktRekt } from "../lib/menyAnkare.js";
 
 /**
  * Långtryck, högerklick och en ⋮-knapp öppnar samma åtgärder för en post.
@@ -64,8 +65,36 @@ export function OpsAtgardsblad({ namn, poster, children = null, baraKnapp = fals
    * ⛔ 0.103.0: LOGIKEN BOR I `useLangtryck`, som skalets ikoner också använder. Den stod här, och en andra kopia i bottenraden
    * hade glidit isär från den.
    */
+  /*
+   * ⛔ RUTAN SITTER VID DET SOM ÖPPNADE DEN, OCH ALDRIG BAKOM BOTTENRADEN (0.185.0). CP 2026-11-04, lifehub.app v1.0.1114, Ärenden på telefon:
+   * menyn för ett kort öppnades under hela kortet och täckte nästa kort, eller hamnade bakom bottenraden. Rutan förankrades vid hela raden
+   * (`Popover.Anchor` runt raden), och bottenraden ligger ovanpå sidan, så Radix såg ingen kant där. Nu förankras den vid ⋮ när ⋮ öppnade den
+   * och vid punkten där fingret höll in vid ett långtryck eller högerklick, och bottenradens höjd räknas som en kant (`collisionPadding`).
+   * Får rutan inte plats under vänds den uppåt, som förut mot fönstrets kant. Appen rörde förut Radix stilar inifrån (lifehub.app PR 646);
+   * det behövs inte längre.
+   */
+  const radRef = useRef(/** @type {HTMLDivElement | null} */ (null));
+  const knappRef = useRef(/** @type {HTMLButtonElement | null} */ (null));
+  const tryck = useRef(/** @type {{ x: number, y: number } | null} */ (null));
+  const lage = useRef(/** @type {"knapp" | "tryck"} */ ("knapp"));
+  const [reserv, setReserv] = useState(0);
+  const ankare = useRef({
+    getBoundingClientRect: () => {
+      const rad = radRef.current;
+      if (lage.current === "tryck" && tryck.current && rad) return punktRekt(rad.getBoundingClientRect(), tryck.current);
+      return (knappRef.current ?? rad)?.getBoundingClientRect() ?? punktRekt({ left: 0, top: 0 }, { x: 0, y: 0 });
+    },
+  });
+  /** @param {boolean} v @param {"knapp" | "tryck"} hur */
+  const oppna = (v, hur) => {
+    if (v) {
+      lage.current = hur;
+      setReserv(bottenReservPx());
+    }
+    setOppen(v);
+  };
   const { handelser, iSlappet, stoppaSlappet } = useLangtryck({
-    onLangtryck: () => setOppen(true),
+    onLangtryck: () => oppna(true, "tryck"),
     hogerklick: true,
     // ⛔ MUSEN HAR HÖGERKLICK OCH ⋮ (0.151.0, granskningen av PR 458, fynd 5): ett långsamt musklick på en rad öppnade menyn i stället för raden. Fingret och pennan håller in som förut.
     utanMus: true,
@@ -188,6 +217,7 @@ export function OpsAtgardsblad({ namn, poster, children = null, baraKnapp = fals
   const knappInnehall = <MoreVertical size={20} aria-hidden="true" />;
   const knapp = (
     <Popover.Trigger
+      ref={knappRef}
       type="button"
       data-ops-atgard-knapp=""
       aria-label={etikett}
@@ -201,9 +231,18 @@ export function OpsAtgardsblad({ namn, poster, children = null, baraKnapp = fals
     <span className="inline-flex">{knapp}</span>
   ) : (
     <div
+      ref={radRef}
       data-ops-atgard=""
       className={kort ? "flex w-full items-start gap-1 py-4 pr-1 pl-4" : "flex w-full items-center gap-1 px-4 py-3"}
       {...handelser}
+      onPointerDownCapture={(e) => {
+        const r = e.currentTarget.getBoundingClientRect();
+        tryck.current = { x: e.clientX - r.left, y: e.clientY - r.top };
+      }}
+      onContextMenuCapture={(e) => {
+        const r = e.currentTarget.getBoundingClientRect();
+        tryck.current = { x: e.clientX - r.left, y: e.clientY - r.top };
+      }}
     >
       <div className={cx("flex min-w-0 flex-1 gap-3", kort ? "items-start" : "items-center")}>{children}</div>
       {knapp}
@@ -211,13 +250,14 @@ export function OpsAtgardsblad({ namn, poster, children = null, baraKnapp = fals
   );
 
   return (
-    <Popover.Root open={oppen} onOpenChange={setOppen}>
-      {baraKnapp ? rad : <Popover.Anchor asChild>{rad}</Popover.Anchor>}
+    <Popover.Root open={oppen} onOpenChange={(v) => oppna(v, "knapp")}>
+      {baraKnapp ? null : <Popover.Anchor virtualRef={ankare} />}
+      {rad}
       <Popover.Portal>
         <Popover.Content
           align="end"
           sideOffset={4}
-          collisionPadding={8}
+          collisionPadding={{ top: 8, left: 8, right: 8, bottom: 8 + reserv }}
           aria-label={etikett}
           // ⛔ BREDARE MED NÅGOT ÖVERST (0.106.0, #386 skiva 6). Chattens sex reaktioner om 44 px fick 34 px i en ruta på 224 px (mätt i
           // check-skalyta, chatt (3) vid 390 px). 288 px rymmer sex knappar om 44 px med mellanrum.
