@@ -148,13 +148,16 @@ export function OpsSegmented({ options, value, onChange, ariaLabel }) {
               }
             }}
             className={cx(
-              "inline-flex min-h-9 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-full py-1.5 text-etikett font-medium",
+              // ⛔ 44 PX PÅ TELEFON, 36 PX FRÅN `md` (lifehub.app#634, 2026-11-04). Segmenten var 36 px överallt, och appens `check:layout` räknade dem som för små
+              // tryckytor: Alla/Öppna/Stängda under Ärenden och Idags två. När Ärendens växel Lista/Tavla blev två ikonsegment (CP: "en rad", "kanske ikon") kom två till.
+              // Med musen räcker 36 px, med tummen gör det inte det. Mätt i appen med den här raden: tryckytans fynd från 21 till 14.
+              "inline-flex min-h-11 md:min-h-9 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-full py-1.5 text-etikett font-medium",
               "transition-all duration-(--duration-fast) ease-standard",
               "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
               // ⛔ Ikonsegmentet är kvadratiskt och inte ett smalare piller.
               // `px-5` runt en 16 px ikon ger en yta som är bredare än hög och
               // läses som ett ord som råkat sakna text.
-              baraIkoner ? "justify-center px-2.5" : "px-4",
+              baraIkoner ? "min-w-11 md:min-w-9 justify-center px-2.5" : "px-4",
               chosen ? "bg-ink text-canvas shadow-sm" : "text-ink-muted hover:text-ink-secondary",
             )}
           >
