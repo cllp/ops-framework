@@ -9,6 +9,14 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.183.0
+
+### Ändrat
+
+- **`OpsSegmented` är 44 px på telefon och 36 px från `md`.** Ett ikonsegment är också minst 44 px brett. Appens `check:layout` räknade segmenten som för små tryckytor: Alla, Öppna och Stängda under Ärenden och Idags två. När Ärendens växel mellan lista och tavla blev två ikonsegment (CP 2026-11-04: "en rad", "kanske ikon", lifehub.app#634) kom två till. Med musen räcker 36 px, med tummen gör det inte det. Mätt i appen med ändringen: tryckytans fynd från 21 till 14.
+  - Prov: `segment-tryckyta-634.test.jsx` (2). Mot 0.182.1: 2 röda. Klasserna mäts här, och pixlarna mäts av appens `check:layout` i Playwright.
+  - Appen (lifehub.app) behöver vid ompinningen: sänka taket för tryckytan i `check:layout` till det nya mätvärdet, och i en rad med ett segment, kontrollera att raden inte bryts i 390 px (Ärendens verktygsrad behöver `gap-x-1.5`).
+
 ## 0.182.1
 
 ### Ändrat
