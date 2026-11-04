@@ -34,6 +34,14 @@ describe("IKON_FOR (cllp/lifehub.app#634)", () => {
     expect(lucideKlass(inkorg)).toBe("lucide-inbox");
   });
 
+  it("klistra in och släpp en bild har egna bilder, inte en betydelse som redan finns", () => {
+    const { container: klistra } = render(<IKON_FOR.klistraIn />);
+    const { container: slapp } = render(<IKON_FOR.slappBild />);
+    expect(lucideKlass(klistra)).toBe("lucide-clipboard-paste");
+    expect(lucideKlass(slapp)).toBe("lucide-image-plus");
+    expect(lucideKlass(klistra)).not.toBe(lucideKlass(slapp));
+  });
+
   it("platsväljaren i Biblioteket ritar väljarens ikon, inte filtrets skjutreglage", () => {
     render(<PlatsValjare platser={[{ id: "a", namn: "Ett" }, { id: "b", namn: "Två" }]} plats="a" onPlats={() => {}} />);
     const knapp = screen.getByRole("button", { name: "Vilket bibliotek: Ett" });

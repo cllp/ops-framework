@@ -44,9 +44,12 @@
  * - `temaLjust`, `temaMorkt`, `temaSystem`: de tre lägena i `OpsThemeToggle`. ⛔ `Monitor` betyder "följ systemet",
  *   inte "tema". Knappen i topplisten visar NUVARANDE läge och läses därför som "dator" när läget är systemets; det är en
  *   fråga om var växlaren sitter (CP:s beslut om toppen), inte om vilken bild ett läge har.
+ * - `klistraIn`: urklipp med en pil, att ta in det som ligger i urklipp. Inte gemet: ett gem är en bilaga som redan finns.
+ * - `slappBild`: en bild med ett plus, att släppa eller lägga in en bild eller fil. Inte `Image` ensam: pluset säger att
+ *   något läggs till.
  */
 
-import { ArrowDownUp, Bell, Bot, ChevronsUpDown, CircleHelp, Inbox, ListChecks, MessageSquare, Monitor, Moon, MoreHorizontal, Search, Settings, SlidersHorizontal, Sun } from "lucide-react";
+import { ArrowDownUp, Bell, Bot, ChevronsUpDown, CircleHelp, ClipboardPaste, ImagePlus, Inbox, ListChecks, MessageSquare, Monitor, Moon, MoreHorizontal, Search, Settings, SlidersHorizontal, Sun } from "lucide-react";
 
 /**
  * Betydelse till ikon. Fryst: en app som vill ha en annan bild för en betydelse ska ändra den här, inte skriva över den.
@@ -67,6 +70,8 @@ import { ArrowDownUp, Bell, Bot, ChevronsUpDown, CircleHelp, Inbox, ListChecks, 
  *   temaLjust: import("lucide-react").LucideIcon,
  *   temaMorkt: import("lucide-react").LucideIcon,
  *   temaSystem: import("lucide-react").LucideIcon,
+ *   klistraIn: import("lucide-react").LucideIcon,
+ *   slappBild: import("lucide-react").LucideIcon,
  * }>}
  */
 export const IKON_FOR = Object.freeze({
@@ -85,4 +90,6 @@ export const IKON_FOR = Object.freeze({
   temaLjust: Sun,
   temaMorkt: Moon,
   temaSystem: Monitor,
+  klistraIn: ClipboardPaste,
+  slappBild: ImagePlus,
 });
