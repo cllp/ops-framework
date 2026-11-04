@@ -480,6 +480,21 @@ vems tur det är:
     över läser tråden igen när mottagaren har haft tid att göra sin del, en gång
     per överlämning. Ingen bevakning dygnet runt (CP samma dag: "du skall inte
     kolla varje timma dygnet runt").
+- ⛔ **Kvittensen står i PR:en, alltid.** CP 2026-11-04: "NI VÄNTAR PÅ
+  VARANDRA" och sedan "Bra kvittensen i pr alltid". lifehub.app PR 628
+  deployades 07:10, live som v1.0.1109, men beskedet om deployen gick till
+  CP och inte till PR:en. Claude kan inte nå appens adress från sin miljö
+  (mätt samma dag: anslutningen nekas), så tråden var det enda stället där
+  Claude kunde se läget. I tråden stod fortfarande "MERGA NU". En timme
+  senare skrev Claude ett besked om en deploy som redan var gjord, och PR
+  635 väntade under tiden.
+  - **En merge eller deploy är klar först när kvittensen står i PR:en:**
+    körningens eller deployens rader, versionen i appen och tiden, och
+    etiketten tas bort. Ett besked bara i chatten eller i ett annat ärende
+    räknas inte. Det gäller också efter en merge, när bevakningen av PR:en
+    har slutat.
+  - **Den som tar vid läser kvittensen och inget annat** innan den skriver
+    något om läget.
 
 ---
 

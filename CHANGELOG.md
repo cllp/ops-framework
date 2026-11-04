@@ -9,6 +9,12 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.182.1
+
+### Ändrat
+
+- **Arbetsreglerna, regel 15: kvittensen står i PR:en, alltid.** CP 2026-11-04: "Bra kvittensen i pr alltid". lifehub.app PR 628 var live som v1.0.1109 i en timme medan tråden fortfarande sade MERGA NU, eftersom beskedet om deployen gick till CP och inte till PR:en. En merge eller deploy är klar först när raderna, versionen och tiden står i PR:en och etiketten är borttagen. Konsumentrepona får regeln med `check-kanon --skriv` vid nästa ompinning.
+
 ## 0.182.0
 
 ### Ändrat
