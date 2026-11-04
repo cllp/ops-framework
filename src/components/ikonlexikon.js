@@ -36,6 +36,8 @@
  * - `inkorg`: Inkorgen, det som kommit in och väntar på att hanteras.
  * - `arende`: ett ärende, något att göra. ⛔ `ListChecks` och inte `Inbox`: ett ärende är en uppgift, inte en låda. Inte
  *   `SquareCheckBig` heller, för en kryssruta läses som "klar" eller "vald", och bocken (`Check`) betyder redan vald.
+ * - `nyttArende`: skapa ett ärende. `ListPlus`, skild från `arende`: pluset säger att något nytt läggs till, listan med bockar är ärendet som redan finns.
+ * - `nyHandelse`: skapa en händelse. `CalendarPlus`, samma bild som plusmenyns Ny händelse. Skild från kalenderns egna ikoner, som inte är betydelser här.
  * - `meddelande`, `notiser`, `agent`: samma bilder som SessionStudio (se respektive omslag i `icons.jsx`).
  * - `hjalp`: frågetecknet i en ring. Ramverket ritar det inte själv i dag, men appen gör det, och då ska det stå här.
  * - `gruppval`: byt vilken grupp eller vilket bibliotek vyn visar. `ChevronsUpDown`, "välj en annan", och skild från
@@ -49,7 +51,7 @@
  *   något läggs till.
  */
 
-import { ArrowDownUp, Bell, Bot, ChevronsUpDown, CircleHelp, ClipboardPaste, ImagePlus, Inbox, ListChecks, MessageSquare, Monitor, Moon, MoreHorizontal, Search, Settings, SlidersHorizontal, Sun } from "lucide-react";
+import { ArrowDownUp, Bell, Bot, CalendarPlus, ChevronsUpDown, CircleHelp, ClipboardPaste, ImagePlus, Inbox, ListChecks, ListPlus, MessageSquare, Monitor, Moon, MoreHorizontal, Search, Settings, SlidersHorizontal, Sun } from "lucide-react";
 
 /**
  * Betydelse till ikon. Fryst: en app som vill ha en annan bild för en betydelse ska ändra den här, inte skriva över den.
@@ -61,6 +63,8 @@ import { ArrowDownUp, Bell, Bot, ChevronsUpDown, CircleHelp, ClipboardPaste, Ima
  *   sok: import("lucide-react").LucideIcon,
  *   inkorg: import("lucide-react").LucideIcon,
  *   arende: import("lucide-react").LucideIcon,
+ *   nyttArende: import("lucide-react").LucideIcon,
+ *   nyHandelse: import("lucide-react").LucideIcon,
  *   meddelande: import("lucide-react").LucideIcon,
  *   notiser: import("lucide-react").LucideIcon,
  *   agent: import("lucide-react").LucideIcon,
@@ -81,6 +85,8 @@ export const IKON_FOR = Object.freeze({
   sok: Search,
   inkorg: Inbox,
   arende: ListChecks,
+  nyttArende: ListPlus,
+  nyHandelse: CalendarPlus,
   meddelande: MessageSquare,
   notiser: Bell,
   agent: Bot,

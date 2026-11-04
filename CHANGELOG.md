@@ -9,6 +9,13 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.184.0
+
+### Tillagt
+
+- `IKON_FOR.klistraIn` (`ClipboardPaste`) och `IKON_FOR.slappBild` (`ImagePlus`) för att klistra in och släppa en bild i Biblioteket (#513).
+- `IKON_FOR.nyttArende` (`ListPlus`) och `IKON_FOR.nyHandelse` (`CalendarPlus`) för knapparna Nytt ärende och Ny händelse; `HandelsePlusIkon` går via lexikonet (#514).
+
 ## 0.183.1
 
 ### Rättat
