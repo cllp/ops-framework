@@ -3,7 +3,11 @@ import { GASTGRUPPFUNKTIONER } from "../lib/gast.js";
 import { DATUM_EJ_SATT } from "../lib/handelsemodell.js";
 import { definierade, forvalda } from "../lib/ord.js";
 import { OpsBibliotek } from "./OpsBibliotek.jsx";
-import { InfoIkon } from "./icons.jsx";
+import { FULL_HEIGHT_CLASSES, useFullHeight } from "../lib/fullHeight.js";
+import { cx } from "../lib/cx.js";
+import { IKON_FOR } from "./ikonlexikon.js";
+import { InfoIkon, KalenderIkon, MeddelandeIkon } from "./icons.jsx";
+import { OpsBottomNav } from "./OpsBottomNav.jsx";
 import { OpsCalendar } from "./OpsCalendar.jsx";
 import { OpsEmpty } from "./OpsEmpty.jsx";
 import { OpsGastArenden } from "./OpsGastArenden.jsx";
@@ -14,6 +18,52 @@ import { useGastsidaInfo } from "./gastsidaInfo.js";
 import { OpsSprakProvider } from "./OpsSprak.jsx";
 import { OpsSvarSummor } from "./OpsSvar.jsx";
 import { OpsTabPanel, OpsTabs } from "./OpsTabs.jsx";
+
+/** Telefonen: samma brytpunkt som skalets bottenrad (`md`, 48 rem). Under den är flikarna en bottenrad och innehållet fyller höjden. */
+const SMAL_SKARM = "(max-width: 47.99rem)";
+
+/** Är skärmen smalare än `md`? `false` där webbläsaren inte kan svara (jsdom utan `matchMedia`), alltså datorns flikrad. @returns {boolean} */
+function useSmalSkarm() {
+  const las = () => typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia(SMAL_SKARM).matches;
+  const [smal, setSmal] = useState(las);
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return undefined;
+    const fraga = window.matchMedia(SMAL_SKARM);
+    const lyssna = () => setSmal(fraga.matches);
+    lyssna();
+    if (typeof fraga.addEventListener === "function") {
+      fraga.addEventListener("change", lyssna);
+      return () => fraga.removeEventListener("change", lyssna);
+    }
+    fraga.addListener?.(lyssna);
+    return () => fraga.removeListener?.(lyssna);
+  }, []);
+  return smal;
+}
+
+/** Ikonerna i gästens bottenrad, en per funktion. */
+const FLIKIKON = /** @type {Record<string, import("react").ReactNode>} */ ({
+  chatt: <MeddelandeIkon size={24} />,
+  kalender: <KalenderIkon size={24} />,
+  bibliotek: <IKON_FOR.bibliotek size={24} aria-hidden="true" />,
+  arenden: <IKON_FOR.arende size={24} aria-hidden="true" />,
+});
+
+/**
+ * Ytan mellan huvudet och bottenraden på en telefon (0.190.0, CP 2026-11-05 i cllp/lifehub.app#658, del B: "Innehållet får hela höjden"). Höjden är skalets
+ * (`useFullHeight`, `FULL_HEIGHT_CLASSES`): den mäts ut till bottenradens överkant, eller spelradens när ljud spelar, och ytan rullar i sig själv. Chatten fyller den
+ * (`fyll`), så att skrivfältet står närmast bottenraden. Ett eget element per flik (`key`), så att höjden mäts om när fliken byts.
+ * @param {{ flik: string, children: import("react").ReactNode }} props
+ */
+function GastTelefonyta({ flik, children }) {
+  const ref = useRef(/** @type {HTMLDivElement | null} */ (null));
+  const stil = useFullHeight(ref);
+  return (
+    <div key={flik} ref={ref} style={stil} data-gast-telefonyta={flik} className={cx("flex min-w-0 flex-col", FULL_HEIGHT_CLASSES)}>
+      {children}
+    </div>
+  );
+}
 
 /**
  * Orden i gruppens gästvy, på svenska och engelska (0.132.0, cllp/lifehub.app#389, skiva 2). Flikarnas namn härleds ur `GASTGRUPPFUNKTIONER`: ett nytt ord där är en ny flik här.
@@ -124,6 +174,7 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
   if (funktioner.length === 0) throw new Error("OpsGastGrupp: gruppen har inga funktioner att visa (grupp.funktioner).");
 
   const [flik, setFlik] = useState(/** @type {string} */ (funktioner[0]));
+  const smal = useSmalSkarm();
   // ⛔ (i) ÄR STÄNGD FRÅN BÖRJAN (0.190.0, CP 2026-11-05 i cllp/lifehub.app#658). 0.188.0 visade ingressen öppen första gången och mindes att den setts; CP ville ha en rad,
   // "Du är gäst.", och resten bakom (i). Minnet (`ops-gast:ingress-sedd`) behövs inte längre och skrivs inte.
   const [infoOppen, setInfoOppen] = useState(false);
@@ -547,6 +598,35 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
   const aktivFlik = synliga.includes(/** @type {any} */ (flik)) ? flik : synliga[0];
   const flikar = synliga.map((f) => ({ id: f, label: t[`flik_${f}`] }));
   const chatt = /** @type {{ meddelanden: any[], fler: boolean } | undefined} */ (data.chatt);
+  /** @param {string} v */
+  const valjFlik = (v) => {
+    setFlik(v);
+    // Tillbaka i kalenderfliken visas listan, inte en händelse man lämnade.
+    if (v !== "kalender") tillKalendern();
+  };
+  /**
+   * Innehållet i en flik, samma på telefon och dator: det är bara ramen runt som skiljer (flikrad eller bottenrad).
+   * @param {string} f
+   */
+  const innehall = (f) =>
+    f === "chatt" ? (
+      <OpsGastChatt
+        meddelanden={chatt?.meddelanden ?? []}
+        fler={Boolean(chatt?.fler)}
+        onAldre={aldreLaddar ? undefined : () => ladda("chatt", { aldre: true })}
+        onSkriv={skrivChatt}
+        laddar={!chatt && !fel.chatt}
+        fel={fel.chatt}
+        sprak={sprak}
+        fyll={smal}
+      />
+    ) : f === "kalender" ? (
+      kalenderInnehall()
+    ) : f === "bibliotek" ? (
+      bibliotekInnehall()
+    ) : (
+      <OpsGastArenden poster={arendeData?.poster ?? []} avkortad={Boolean(arendeData?.avkortad)} onKommentera={kommenteraArende} onKlar={markeraArendeKlart} laddar={!arendeData && !fel.arenden} fel={fel.arenden} sprak={sprak} />
+    );
 
   // ⛔ SPRÅKET GÄLLER HELA GÄSTENS TRÄD (0.190.0, QA fynd 4 i cllp/lifehub.app#658): komponenterna som läser språket ur sammanhanget
   // (`OpsBibliotek`, taggarna, spelaren) fick svenska, eftersom gästsidan ritas utanför appens skal och ingen satte det.
@@ -577,38 +657,31 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
           </div>
         ) : null}
       </header>
+      {smal ? (
+        <>
+          <GastTelefonyta flik={aktivFlik}>{innehall(aktivFlik)}</GastTelefonyta>
+          <OpsBottomNav
+            utanMeny
+            nav={synliga.map((f) => ({ href: `#${f}`, label: t[`flik_${f}`], icon: FLIKIKON[f] }))}
+            activeHref={`#${aktivFlik}`}
+            navLabel={t.flikarEtikett}
+            onNavigate={(href, e) => {
+              e?.preventDefault?.();
+              valjFlik(href.slice(1));
+            }}
+          />
+        </>
+      ) : (
       <OpsTabs
         fast
         tabs={flikar}
         value={aktivFlik}
-        onChange={(v) => {
-          setFlik(v);
-          // Tillbaka i kalenderfliken visas listan, inte en händelse man lämnade.
-          if (v !== "kalender") tillKalendern();
-        }}
+        onChange={valjFlik}
         ariaLabel={t.flikarEtikett}
       >
-        {funktioner.includes("chatt") ? (
-          <OpsTabPanel id="chatt">
-            <OpsGastChatt
-              meddelanden={chatt?.meddelanden ?? []}
-              fler={Boolean(chatt?.fler)}
-              onAldre={aldreLaddar ? undefined : () => ladda("chatt", { aldre: true })}
-              onSkriv={skrivChatt}
-              laddar={!chatt && !fel.chatt}
-              fel={fel.chatt}
-              sprak={sprak}
-            />
-          </OpsTabPanel>
-        ) : null}
-        {funktioner.includes("kalender") ? <OpsTabPanel id="kalender">{kalenderInnehall()}</OpsTabPanel> : null}
-        {funktioner.includes("bibliotek") ? <OpsTabPanel id="bibliotek">{bibliotekInnehall()}</OpsTabPanel> : null}
-        {visaArenden ? (
-          <OpsTabPanel id="arenden">
-            <OpsGastArenden poster={arendeData?.poster ?? []} avkortad={Boolean(arendeData?.avkortad)} onKommentera={kommenteraArende} onKlar={markeraArendeKlart} laddar={!arendeData && !fel.arenden} fel={fel.arenden} sprak={sprak} />
-          </OpsTabPanel>
-        ) : null}
+        {synliga.map((f) => <OpsTabPanel key={f} id={f}>{innehall(f)}</OpsTabPanel>)}
       </OpsTabs>
+      )}
     </div>
     </OpsSprakProvider>
   );

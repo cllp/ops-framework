@@ -580,7 +580,9 @@ export function OpsGastSida({ lank = null, onLos, onHamta, onNyLank, onNamn, onR
           <PublikSprakval aktivt={aktivt} etikett={t.sprakEtikett} onVal={valj} />
         </div>
       </header>
-      <main className={cx("mx-auto w-full flex-1 px-4 pt-8 pb-16 sm:pt-12", spalt)}>
+      {/* ⛔ I GRUPPEN PÅ TELEFON SLUTAR SIDAN VID BOTTENRADEN (0.190.0, del B): ytan fyller höjden ut till raden (`OpsGastGrupp`), och `main` lämnar exakt radens och den säkra ytans
+          höjd under sig, som skalets `main`. Med `pb-16` hade sidan blivit högre än fönstret och rullat ovanpå ytans egen rullning. */}
+      <main className={cx("mx-auto w-full flex-1 px-4", grupplage ? "pt-4 pb-[calc(var(--bottom-nav-h)+var(--safe-bottom)+var(--spelrad-h,0px))] md:pt-12 md:pb-16" : "pt-8 pb-16 sm:pt-12", spalt)}>
         {lage.fas === "startar" ? (
           <OpsEmpty busy title={t.laddar} busyLabel={t.laddar} />
         ) : lage.fas === "adress" ? (

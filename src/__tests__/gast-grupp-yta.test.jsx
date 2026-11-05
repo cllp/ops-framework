@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { OpsGastGrupp } from "../components/OpsGastGrupp.jsx";
 import { OpsTabs, OpsTabPanel } from "../components/OpsTabs.jsx";
@@ -99,5 +99,53 @@ describe("kalendern får resten av höjden (samma mekanism som skalet)", () => {
     expect(yta?.className).toMatch(/h-\[calc\(var\(--fullhojd-botten\)_-_var\(--fullhojd-topp\)\)\]/);
     expect(yta?.style.getPropertyValue("--fullhojd-topp")).toMatch(/^\d+px$/);
     expect(yta?.style.getPropertyValue("--fullhojd-botten")).toMatch(/^\d+px$/);
+  });
+});
+
+describe("telefonen: bottenrad och hela höjden (0.190.0, del B)", () => {
+  /** @param {boolean} smal */
+  const skarm = (smal) => vi.stubGlobal("matchMedia", (/** @type {string} */ q) => ({ matches: q.includes("max-width") ? smal : false, media: q, addEventListener: () => {}, removeEventListener: () => {} }));
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("⛔ under md är flikarna en bottenrad utan Meny och utan mittknapp, och innehållet fyller höjden ut till raden", async () => {
+    skarm(true);
+    const api = apiMed();
+    render(<OpsGastGrupp grupp={{ namn: "Källan", funktioner: ["chatt", "kalender", "bibliotek"] }} api={api} intervallMs={0} idag={new Date(2026, 10, 5)} />);
+    expect(screen.queryByRole("tablist")).toBeNull();
+    const rad = /** @type {HTMLElement} */ (document.querySelector("nav[data-ops-bottenrad]"));
+    expect(rad).not.toBeNull();
+    // Golv: tre platser, alla länkar, ingen Meny och ingen rund knapp.
+    expect([...rad.querySelectorAll("a")].map((a) => a.textContent)).toEqual(["Chatt", "Kalender", "Bibliotek"]);
+    expect(rad.querySelectorAll("button")).toHaveLength(0);
+    expect(rad.querySelector("a[aria-current='page']")?.textContent).toBe("Chatt");
+    const yta = /** @type {HTMLElement} */ (document.querySelector("[data-gast-telefonyta]"));
+    expect(yta.className).toContain("h-[calc(var(--fullhojd-botten)_-_var(--fullhojd-topp))]");
+    expect(yta.style.getPropertyValue("--fullhojd-botten")).toMatch(/px$/);
+    expect(yta.querySelector("[data-gast-chatt][data-fyll]")).not.toBeNull();
+    // Kalender i raden byter innehåll, och adressen ändras inte.
+    fireEvent.click(within(rad).getByText("Kalender"));
+    await waitFor(() => expect(api.kalender).toHaveBeenCalledTimes(1));
+    expect(document.querySelector("[data-gast-telefonyta]")?.getAttribute("data-gast-telefonyta")).toBe("kalender");
+    expect(rad.querySelector("a[aria-current='page']")?.textContent).toBe("Kalender");
+    expect(window.location.hash).toBe("");
+  });
+
+  it("på dator ligger flikarna kvar högst upp och ingen bottenrad ritas", () => {
+    skarm(false);
+    render(<OpsGastGrupp grupp={{ namn: "Källan", funktioner: ["chatt", "kalender"] }} api={apiMed()} intervallMs={0} />);
+    expect(screen.getByRole("tablist").className).toMatch(/\bsticky\b/);
+    expect(document.querySelector("nav[data-ops-bottenrad]")).toBeNull();
+    expect(document.querySelector("[data-gast-chatt][data-fyll]")).toBeNull();
+  });
+
+  it("⛔ OpsBottomNav utanMeny kastar när en post inte får plats i raden, i stället för att gömma den", async () => {
+    const { OpsBottomNav } = await import("../components/OpsBottomNav.jsx");
+    const nav = ["a", "b", "c", "d", "e"].map((x) => ({ href: `#${x}`, label: x }));
+    expect(() => render(<OpsBottomNav nav={nav} activeHref="#a" utanMeny />)).toThrow(/får inte plats/);
+    const { unmount } = render(<OpsBottomNav nav={nav.slice(0, 3)} activeHref="#a" utanMeny />);
+    expect(screen.queryByText("Meny")).toBeNull();
+    unmount();
+    render(<OpsBottomNav nav={nav.slice(0, 3)} activeHref="#a" />);
+    expect(screen.getByText("Meny")).toBeInTheDocument();
   });
 });

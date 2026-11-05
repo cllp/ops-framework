@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { cx } from "../lib/cx.js";
 import { GASTSKRIV_MAX_TECKEN } from "../lib/gast.js";
 import { definierade, forvalda } from "../lib/ord.js";
 import { OpsButton } from "./OpsButton.jsx";
@@ -52,8 +53,10 @@ const EGEN = "__gast_egen__";
  * @param {Partial<Record<keyof typeof ORD_OPSGASTCHATT, string>>} [props.ord]
  * @param {import("../lib/talk.js").Igenkanning | boolean} [props.igenkanning] (0.190.0, CP 2026-11-05: gästen får mikrofon) Webbläsarens taligenkänning i skrivfältet, samma som
  *   medlemmarnas. Förval `true`: ljudvågen står där webbläsaren har igenkänningen och saknas annars. Ingen serverutskrift för gäster. `false` stänger av den.
+ * @param {boolean} [props.fyll] (0.190.0, del B) Chatten fyller sin förälders höjd: loggen rullar i den och skrivfältet står längst ned. Gästens telefonvy, där ytan
+ *   mellan huvudet och bottenraden har en mätt höjd. Utan den är loggen högst 60 % av fönstret, som förut.
  */
-export function OpsGastChatt({ meddelanden, fler = false, onAldre, onSkriv, laddar = false, fel = null, sprak = "sv", ord, igenkanning = true }) {
+export function OpsGastChatt({ meddelanden, fler = false, onAldre, onSkriv, laddar = false, fel = null, sprak = "sv", ord, igenkanning = true, fyll = false }) {
   if (!Array.isArray(meddelanden)) {
     throw new Error("OpsGastChatt: meddelanden måste vara en lista, tom när chatten är tom. Utan den går det inte att skilja 'inga meddelanden' från 'inte hämtad'.");
   }
@@ -108,7 +111,7 @@ export function OpsGastChatt({ meddelanden, fler = false, onAldre, onSkriv, ladd
   );
 
   return (
-    <section aria-label={t.rubrik} data-gast-chatt="" className="flex min-w-0 flex-col gap-3">
+    <section aria-label={t.rubrik} data-gast-chatt="" data-fyll={fyll ? "" : undefined} className={cx("flex min-w-0 flex-col gap-3", fyll && "min-h-0 flex-1 pt-2")}>
       {fel ? (
         <p role="alert" data-gast-chatt-fel="" className="m-0 text-etikett text-danger">{t.fel}</p>
       ) : laddar ? (
@@ -125,7 +128,7 @@ export function OpsGastChatt({ meddelanden, fler = false, onAldre, onSkriv, ladd
             const el = e.currentTarget;
             vidBotten.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
           }}
-          className="flex max-h-[60dvh] min-h-48 min-w-0 flex-col overflow-y-auto rounded-lg border border-line bg-surface p-3"
+          className={cx("flex min-w-0 flex-col overflow-y-auto rounded-lg border border-line bg-surface p-3", fyll ? "min-h-0 flex-1" : "max-h-[60dvh] min-h-48")}
         >
           {fler && onAldre ? (
             <div className="flex justify-center pb-2">
