@@ -79,6 +79,33 @@ describe("OpsGastLista, gruppläget", () => {
     expect(screen.getByLabelText("E-postadress")).toHaveValue("");
   });
 
+  it("⛔ bekräftelsen står kvar och visar att den bjuder in tills servern svarat, och ett andra tryck bjuder inte in igen (CP 2026-11-05)", async () => {
+    // CP: "Finns ingen progress-bar när man klickar på bjuden så man kan komma att trycka många gånger." Dialogen stängdes före anropet, och formulärets knapp var tryckbar igen med adressen kvar.
+    let svara = () => {};
+    const onBjudGrupp = vi.fn(() => new Promise((r) => (svara = r)));
+    rita({ personer: [], onBjudGrupp });
+    fireEvent.change(screen.getByLabelText("E-postadress"), { target: { value: "nils@foretag.se" } });
+    await klicka(screen.getByRole("button", { name: "Bjud in gäst till hela gruppen" }));
+    const dialog = await screen.findByRole("dialog");
+    await klicka(within(dialog).getByRole("button", { name: "Bjud in" }));
+    expect(onBjudGrupp).toHaveBeenCalledTimes(1);
+    // Under väntan: dialogen är kvar, knappen är upptagen och säger vad den gör, och Avbryt går inte att trycka.
+    expect(screen.getByRole("dialog")).toBe(dialog);
+    const upptagen = within(dialog).getByText("Bjuder in…").closest("button");
+    expect(upptagen).toHaveAttribute("aria-busy", "true");
+    expect(within(dialog).getByRole("button", { name: "Avbryt" })).toBeDisabled();
+    await klicka(upptagen);
+    await klicka(within(dialog).getByRole("button", { name: "Avbryt" }));
+    expect(onBjudGrupp).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("dialog")).toBe(dialog);
+    await act(async () => {
+      svara(undefined);
+    });
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(screen.getByLabelText("E-postadress")).toHaveValue("");
+    expect(onBjudGrupp).toHaveBeenCalledTimes(1);
+  });
+
   it("Avbryt i bekräftelsen bjuder inte in någon och lämnar formuläret ifyllt", async () => {
     const onBjudGrupp = vi.fn();
     rita({ personer: [], onBjudGrupp });

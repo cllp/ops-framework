@@ -93,6 +93,29 @@ describe("OpsMedlemmar med gäster", () => {
     expect(screen.getByLabelText("E-post")).toHaveValue("");
   });
 
+  it("⛔ bekräftelsen står kvar och är upptagen tills servern svarat, så ett andra tryck bjuder inte in igen (CP 2026-11-05)", async () => {
+    const user = userEvent.setup();
+    let svara = () => {};
+    const onBjud = vi.fn(() => new Promise((r) => (svara = r)));
+    rita({ onBjud });
+    await valjGast(user);
+    await user.type(screen.getByLabelText("E-post"), "nils@foretag.se");
+    await user.click(screen.getByRole("button", { name: "Bjud in utan konto" }));
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: "Bjud in", exact: true }));
+    const upptagen = within(dialog).getByText("Bjuder in…").closest("button");
+    expect(upptagen).toHaveAttribute("aria-busy", "true");
+    expect(within(dialog).getByRole("button", { name: "Avbryt" })).toBeDisabled();
+    await user.click(upptagen);
+    expect(onBjud).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("dialog")).toBe(dialog);
+    await act(async () => {
+      svara(undefined);
+    });
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(screen.getByLabelText("E-post")).toHaveValue("");
+  });
+
   it("Avbryt bjuder inte in någon, och en adress som inte är en adress öppnar ingen dialog", async () => {
     const user = userEvent.setup();
     const { props } = rita();

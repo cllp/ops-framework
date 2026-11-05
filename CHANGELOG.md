@@ -9,6 +9,16 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.189.0
+
+### Rättat
+
+- **Bjud in en gäst till hela gruppen går inte att trycka två gånger (CP 2026-11-05: "Finns ingen progress-bar när man klickar på bjuden så man kan komma att trycka många gånger").** Bekräftelsen (`GastBekraftelse`, i `OpsGastLista` och `OpsMedlemmar`) stängdes FÖRE anropet till servern. Under väntan syntes ingenting, och formulärets knapp var tryckbar igen med adressen kvar, så varje tryck bjöd in en gång till och skickade ett nytt mejl.
+  - Bekräftelsen står nu kvar tills servern svarat. Knappen är upptagen (snurra, `aria-busy`, spärr) och säger "Bjuder in…" / "Inviting…" (`bekraftaGruppPagar`). Avbryt och stängningen gör ingenting under tiden. Sedan stängs den, också när servern svarat med ett fel, och felet står i formuläret som förut.
+  - Samma sak när en gästs uppgifter raderas: "Raderar…" / "Deleting…" (`bekraftaRaderaPagar`).
+  - `onBekrafta` till `GastBekraftelse` ger nu ett löfte. Komponenten exporteras bara inom ramverket, så ingen app berörs.
+  - Prov: ett nytt i `gast-lista-grupp.test.jsx` och ett i `medlemmar-gaster.test.jsx`. Båda är röda utan ändringen ("Unable to find ... dialog" respektive "Bjuder in…" saknas) och gröna med den.
+
 ## 0.188.0
 
 ### Tillagt

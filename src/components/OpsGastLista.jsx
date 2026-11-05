@@ -72,12 +72,14 @@ export const ORD_OPSGASTLISTA = {
     en: "What the guest has already read or downloaded cannot be taken back. If the invitation is withdrawn, access is closed at the guest's next request, and a file that has already been opened can be reached for at most {minuter} more minutes.",
   },
   bekraftaGruppKnapp: { sv: "Bjud in", en: "Invite" },
+  bekraftaGruppPagar: { sv: "Bjuder in…", en: "Inviting…" },
   bekraftaRaderaTitel: { sv: "Radera uppgifterna om {vem}?", en: "Delete the data about {vem}?" },
   bekraftaRaderaText: {
     sv: "Inbjudningarna, inloggningarna, räknarna, svaren, rösterna och meddelandena i chatten och kommentarerna på ärenden som delegerats till gästen tas bort, ärendena slutar peka på gästen, och platsen blir ledig. Det går inte att ångra. Personen kan bjudas in igen, som en ny gäst.",
     en: "The invitations, the sign-ins, the counters, the answers, the votes and the messages in the chat and the comments on cases delegated to the guest are removed, the cases no longer point to the guest, and the place becomes free. It cannot be undone. The person can be invited again, as a new guest.",
   },
   bekraftaRaderaKnapp: { sv: "Radera", en: "Delete" },
+  bekraftaRaderaPagar: { sv: "Raderar…", en: "Deleting…" },
   avbryt: { sv: "Avbryt", en: "Cancel" },
   stang: { sv: "Stäng", en: "Close" },
   // ── I gruppens medlemsvy (`OpsMedlemmar`, 0.132.0): gästen är ett val i Roll ──
@@ -127,25 +129,45 @@ export function gastFelText(e, t, totalt) {
  *
  * ⛔ EXPORTERAD FRÅN FILEN FÖR `OpsMedlemmar`, INTE UR RAMVERKET (`src/index.js`).
  *
- * @param {{ bekrafta: { slag: "grupp", epost: string, namn: string } | { slag: "radera", gastId: string, epost: string, namn: string }, t: Record<string, string>, onBekrafta: () => void, onAvbryt: () => void }} props
+ * ⛔ DIALOGEN STÅR KVAR TILLS SERVERN SVARAT (CP 2026-11-05: "Finns ingen progress-bar när man klickar på bjuden så man kan komma att trycka många
+ * gånger"). Förut stängde den som anropade dialogen först och väntade sedan på servern. Då syntes ingenting under väntan, och formulärets knapp
+ * var tryckbar igen med adressen kvar, så varje nytt tryck bjöd in en gång till. Nu ger `onBekrafta` ett löfte: knappen är upptagen (snurra och
+ * spärr, `OpsButton`), Avbryt och stängningen gör ingenting under tiden, och den som anropade stänger dialogen när löftet är klart.
+ *
+ * @param {{ bekrafta: { slag: "grupp", epost: string, namn: string } | { slag: "radera", gastId: string, epost: string, namn: string }, t: Record<string, string>, onBekrafta: () => Promise<unknown>, onAvbryt: () => void }} props
  */
 export function GastBekraftelse({ bekrafta, t, onBekrafta, onAvbryt }) {
   const vem = bekrafta.namn ? bekrafta.namn : bekrafta.epost;
+  const [pagar, setPagar] = useState(false);
+  const pagarRef = useRef(false);
+  const avbryt = () => {
+    if (!pagarRef.current) onAvbryt();
+  };
+  const genomfor = async () => {
+    pagarRef.current = true;
+    setPagar(true);
+    try {
+      await onBekrafta();
+    } finally {
+      pagarRef.current = false;
+      setPagar(false);
+    }
+  };
   return (
     <OpsModal
       open
       onOpenChange={(o) => {
-        if (!o) onAvbryt();
+        if (!o) avbryt();
       }}
       size="sm"
       title={(bekrafta.slag === "grupp" ? t.bekraftaGruppTitel : t.bekraftaRaderaTitel).replace("{vem}", vem)}
       closeLabel={t.stang}
       footer={
         <div className="flex flex-wrap items-center justify-end gap-2">
-          <OpsButton variant="secondary" onClick={onAvbryt}>
+          <OpsButton variant="secondary" onClick={avbryt} disabled={pagar}>
             {t.avbryt}
           </OpsButton>
-          <OpsButton variant={bekrafta.slag === "grupp" ? "primary" : "danger"} onClick={onBekrafta}>
+          <OpsButton variant={bekrafta.slag === "grupp" ? "primary" : "danger"} onClick={genomfor} busyLabel={bekrafta.slag === "grupp" ? t.bekraftaGruppPagar : t.bekraftaRaderaPagar}>
             {bekrafta.slag === "grupp" ? t.bekraftaGruppKnapp : t.bekraftaRaderaKnapp}
           </OpsButton>
         </div>
@@ -326,24 +348,28 @@ export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud
     setBekrafta({ slag: "grupp", epost: e.trim(), namn: n.trim() });
   }
 
+  /** Det dialogens knapp väntar på. Dialogen stängs först när servern svarat (se `GastBekraftelse`), så att ingenting går att trycka två gånger. */
   async function genomforBekraftelse() {
     const b = bekrafta;
     if (!b) return;
-    setBekrafta(null);
-    if (b.slag === "grupp") {
-      if (!onBjudGrupp) return;
-      try {
-        await onBjudGrupp({ epost: b.epost, namn: b.namn });
-        if (levande.current) {
-          setEpost("");
-          setNamn("");
+    try {
+      if (b.slag === "grupp") {
+        if (!onBjudGrupp) return;
+        try {
+          await onBjudGrupp({ epost: b.epost, namn: b.namn });
+          if (levande.current) {
+            setEpost("");
+            setNamn("");
+          }
+        } catch (e) {
+          if (levande.current) setFel(felText(e));
         }
-      } catch (e) {
-        if (levande.current) setFel(felText(e));
+        return;
       }
-      return;
+      if (onRadera) await pa(b.gastId, onRadera, { gastId: b.gastId, epost: b.epost });
+    } finally {
+      if (levande.current) setBekrafta(null);
     }
-    if (onRadera) await pa(b.gastId, onRadera, { gastId: b.gastId, epost: b.epost });
   }
 
   /** @param {{ slag: string, funktion?: string }} omfang @param {string | null | undefined} titel */
