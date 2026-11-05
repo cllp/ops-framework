@@ -10,6 +10,7 @@ import { OpsGastArenden } from "./OpsGastArenden.jsx";
 import { OpsGastChatt } from "./OpsGastChatt.jsx";
 import { OpsHandelsePanel } from "./OpsHandelsePanel.jsx";
 import { OpsList, OpsListRow } from "./OpsList.jsx";
+import { OpsSprakProvider } from "./OpsSprak.jsx";
 import { OpsSvarSummor } from "./OpsSvar.jsx";
 import { OpsTabPanel, OpsTabs } from "./OpsTabs.jsx";
 
@@ -578,7 +579,10 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
   const flikar = synliga.map((f) => ({ id: f, label: t[`flik_${f}`] }));
   const chatt = /** @type {{ meddelanden: any[], fler: boolean } | undefined} */ (data.chatt);
 
+  // ⛔ SPRÅKET GÄLLER HELA GÄSTENS TRÄD (0.190.0, QA fynd 4 i cllp/lifehub.app#658): komponenterna som läser språket ur sammanhanget
+  // (`OpsBibliotek`, taggarna, spelaren) fick svenska, eftersom gästsidan ritas utanför appens skal och ingen satte det.
   return (
+    <OpsSprakProvider sprak={sprak}>
     <div data-gast-grupp="" className="flex min-w-0 flex-col gap-4 text-ink sm:rounded-xl sm:border sm:border-line sm:bg-canvas sm:p-5">
       <header className="flex min-w-0 flex-col gap-1">
         <div className="flex min-w-0 items-center gap-2">
@@ -630,5 +634,6 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
         ) : null}
       </OpsTabs>
     </div>
+    </OpsSprakProvider>
   );
 }

@@ -656,13 +656,14 @@ export function anteckningsrubrikNu(nu = new Date()) {
  * Tom sträng när tiden inte är ett heltal: då är datumet oställt, inte "noll".
  *
  * @param {unknown} ms
+ * @param {string} [sprak] (0.190.0) Månadens namn på språket. Förval svenska.
  * @returns {string}
  */
-export function ljudDatum(ms) {
+export function ljudDatum(ms, sprak = "sv") {
   if (!Number.isInteger(ms)) return "";
   const d = new Date(/** @type {number} */ (ms));
   if (Number.isNaN(d.getTime())) return "";
-  return new Intl.DateTimeFormat("sv-SE", { day: "numeric", month: "short", year: "numeric" }).format(d);
+  return new Intl.DateTimeFormat(sprak === "en" ? "en-GB" : "sv-SE", { day: "numeric", month: "short", year: "numeric" }).format(d);
 }
 
 /**

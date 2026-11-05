@@ -9,6 +9,7 @@ import { LankMark, TypIkon, oppnasDirekt, plattKlass, typEtikett } from "./Bibli
 import { OpsButton } from "./OpsButton.jsx";
 import { OpsField, OpsInput } from "./OpsField.jsx";
 import { OpsModal } from "./OpsModal.jsx";
+import { useOpsSprak } from "./OpsSprak.jsx";
 
 /*
  * Listor i Biblioteket: vyn av en lista, "Lägg till" inifrån listan och "Lägg i lista" ur en posts meny (0.128.0, cllp/lifehub.app#378).
@@ -72,6 +73,7 @@ function RadMark({ post }) {
  * @param {(post: import("../lib/bibliotek.js").Bibliotekspost & { id: string }) => void} props.onOppnaPost
  */
 export function ListaVisning({ lista, poster, kanAndra, onSpara, onOppnaPost }) {
+  const sprak = useOpsSprak();
   const [lokal, setLokal] = useState(/** @type {string[] | null} */ (null));
   const [fel, setFel] = useState("");
   const [lagger, setLagger] = useState(false);
@@ -282,7 +284,7 @@ export function ListaVisning({ lista, poster, kanAndra, onSpara, onOppnaPost }) 
                   <RadMark post={p} />
                   <span className="flex min-w-0 flex-1 flex-col">
                     <span className="truncate text-etikett text-ink">{postNamn(p)}</span>
-                    <span className="text-meta tracking-wide text-ink-muted uppercase">{typEtikett(p)}</span>
+                    <span className="text-meta tracking-wide text-ink-muted uppercase">{typEtikett(p, sprak)}</span>
                   </span>
                   {/* vantar-ej: posten läggs i listan direkt (setLokal) och rullas tillbaka med ett fel om skrivningen faller, se spara() */}
                   <OpsButton
@@ -316,12 +318,13 @@ export function ListaVisning({ lista, poster, kanAndra, onSpara, onOppnaPost }) 
  * @param {{ post: import("../lib/bibliotek.js").Bibliotekspost & { id: string }, namn: string, onOppnaPost: (post: any) => void }} props
  */
 function Raden({ post, namn, onOppnaPost }) {
+  const sprak = useOpsSprak();
   const innehall = (
     <>
       <RadMark post={post} />
       <span className="flex min-w-0 flex-1 flex-col text-left">
         <span className="truncate text-etikett font-medium text-ink">{namn}</span>
-        <span data-bibliotek-typ="" className="text-meta tracking-wide text-ink-muted uppercase">{typEtikett(post)}</span>
+        <span data-bibliotek-typ="" className="text-meta tracking-wide text-ink-muted uppercase">{typEtikett(post, sprak)}</span>
       </span>
     </>
   );

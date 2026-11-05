@@ -2,6 +2,7 @@ import { useState } from "react";
 import { File as FilIkon, FileText, Globe, Image as BildIkon, List as ListIkon, Mic, Video as VideoIkon } from "lucide-react";
 import { ADRESSFORM, filSort } from "../lib/bibliotek.js";
 import { lankKalla, lankKallnamn } from "../lib/lankkalla.js";
+import { ordet } from "../lib/ord.js";
 import { KallIkon } from "./icons.jsx";
 
 /*
@@ -73,19 +74,43 @@ export function oppnasDirekt(post) {
  * "LJUD · WEBM", "BILD · HEIC", "DOKUMENT · PDF". Ändelsen ur filnamnet, annars ur MIME. En musiklänk säger sin källa: "LÄNK · SPOTIFY".
  *
  * @param {{ typ: string, kalla?: string, url?: string, fil?: { namn?: string, mime?: string } }} post
+ * @param {string} [sprak] (0.190.0) Språket typens namn står på. Förval svenska.
  */
-export function typEtikett(post) {
-  if (post.typ === "anteckning") return "Anteckning";
-  if (post.typ === "lista") return "Lista";
+export function typEtikett(post, sprak = "sv") {
+  const o = (/** @type {keyof typeof ORD_BIBLIOTEKTYP} */ k) => ordet(ORD_BIBLIOTEKTYP, k, sprak);
+  if (post.typ === "anteckning") return o("anteckning");
+  if (post.typ === "lista") return o("lista");
   if (post.typ === "lank") {
     const kalla = lankKallnamn(postensKalla(post));
-    return kalla ? `Länk · ${kalla}` : "Länk";
+    return kalla ? `${o("lank")} · ${kalla}` : o("lank");
   }
   const sort = filSort(post.fil?.mime);
-  const namn = sort === "ljud" ? "Ljud" : sort === "bild" ? "Bild" : sort === "video" ? "Video" : "Dokument";
-  const ur = /\.([a-z0-9]{1,6})$/i.exec(post.fil?.namn ?? "")?.[1] ?? /\/([a-z0-9.+-]+)$/i.exec(post.fil?.mime ?? "")?.[1]?.replace(/^x-/, "") ?? "";
+  const namn = o(sort === "ljud" ? "ljud" : sort === "bild" ? "bild" : sort === "video" ? "video" : "dokument");
+  const ur = filandelse(post);
   return ur ? `${namn} · ${ur}` : namn;
 }
+
+/**
+ * Filens ändelse ur filnamnet, annars ur MIME ("pdf", "mp3"), eller tom.
+ * @param {{ fil?: { namn?: string, mime?: string } | null }} post
+ */
+export function filandelse(post) {
+  return /\.([a-z0-9]{1,6})$/i.exec(post.fil?.namn ?? "")?.[1] ?? /\/([a-z0-9.+-]+)$/i.exec(post.fil?.mime ?? "")?.[1]?.replace(/^x-/, "") ?? "";
+}
+
+/**
+ * Typernas namn på svenska och engelska (0.190.0, QA fynd 4 i cllp/lifehub.app#658: gästens bibliotek visade "Ljud · mp3" på engelska).
+ * @type {import("../lib/ord.js").Ordbok}
+ */
+export const ORD_BIBLIOTEKTYP = {
+  anteckning: { sv: "Anteckning", en: "Note" },
+  lista: { sv: "Lista", en: "List" },
+  lank: { sv: "Länk", en: "Link" },
+  ljud: { sv: "Ljud", en: "Audio" },
+  bild: { sv: "Bild", en: "Image" },
+  video: { sv: "Video", en: "Video" },
+  dokument: { sv: "Dokument", en: "Document" },
+};
 
 /**
  * Märket för en länk: omslaget som en cirkel med källans märke i hörnet, eller bara källans märke när det inte finns något omslag (eller det inte gick att hämta). En länk

@@ -388,6 +388,32 @@ describe("OpsGastGrupp: det bantade gränssnittet", () => {
     expect(m.api.fil).toHaveBeenCalledTimes(1);
   });
 
+  it("⛔ biblioteket på engelska: inga svenska ord i listan eller i en öppnad fil (0.190.0, QA fynd 4 i cllp/lifehub.app#658)", async () => {
+    const m = apiMed();
+    rita({ api: m.api, logg: m.logg, sprak: "en" });
+    await valjFlik(screen.getByRole("tab", { name: "Library" }));
+    await screen.findByText("Låtlista");
+    // Golv: fyra kort ritade. Ett bibliotek som inte ritades hade saknat de svenska orden av fel skäl.
+    expect(document.querySelectorAll("[data-bibliotek-kort]")).toHaveLength(4);
+    /** Synlig text och de attribut en skärmläsare eller ett sökfält visar. Postens egna rubriker och namn (appens data) räknas inte. */
+    const synligt = () => {
+      const rot = /** @type {HTMLElement} */ (document.querySelector("[data-gast-bibliotek]"));
+      const attr = [...rot.querySelectorAll("*")].flatMap((n) => ["aria-label", "placeholder", "title"].map((a) => n.getAttribute(a) ?? ""));
+      return [rot.textContent ?? "", ...attr].join(" | ").replace(/Låtlista|Kom ihåg tejp|Tejp och skruvar|Scenen|Maja|Agda/g, "");
+    };
+    const SVENSKA = ["Sök...", "Sök i biblioteket", "Taggar", "Typ i biblioteket", "Biblioteket", "Allt", "Ljud", "Anteckning", "Bild", "Dokument", "Länk", "jan.", "okt.", "Tillbaka", "Skriven av", "Ladda ned", "Hämtar", "Filen har ingen adress"];
+    expect(SVENSKA.length).toBeGreaterThanOrEqual(15);
+    const lista = synligt();
+    for (const ord of SVENSKA) expect(lista, `listan: ${ord}`).not.toContain(ord);
+    for (const ord of ["Search the library", "Tags", "All", "Audio", "Note", "Image"]) expect(lista, `listan: ${ord}`).toContain(ord);
+    await klicka(screen.getByRole("button", { name: "Låtlista" }));
+    await screen.findByText("Download");
+    const detalj = synligt();
+    for (const ord of SVENSKA) expect(detalj, `detaljen: ${ord}`).not.toContain(ord);
+    expect(detalj).toContain("Back");
+    expect(detalj).toContain("Written by");
+  });
+
   it("gästen skriver i chatten: skrivChatt anropas med texten och meddelandet står i chatten som gästens eget, märkt Gäst; ett nej från servern visar texten", async () => {
     const { api } = rita();
     await screen.findByText("Välkommen till gruppen", { selector: "[data-bubbla] *" });
