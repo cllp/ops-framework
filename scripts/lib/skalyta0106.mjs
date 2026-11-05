@@ -442,18 +442,23 @@ export async function skrivfaltet(v) {
  * ⛔ Med Mer-knappen och de lösa knapparna i DOM:en samtidigt (före `useBredd`) var det fler, och chatten ritades nästan dubbelt så långsamt
  * i jsdom. Taket får bara sjunka, och det följer det mätta (granskningen av PR 390): telefonen mätt 23,8 har taket 24. Ett tak på 26
  * hade släppt in två element till per meddelande utan att vakten blev röd. Datorn är oförändrad mot 0.105.0 och har kvar 26.
+ * ⛔ 0.190.0 (granskningen av PR 524): CI mätte 25,8 och 27 med långtrycket. Tre element hade kommit till: en egen behållare för namnraden
+ * med tiden, ett omslag runt bubblan för långtrycket och en dold ⋮ som stod kvar i DOM:en på pekskärm. Nu är namnraden själva namnet med
+ * tiden i, långtrycket sätts på bubblan (`cloneElement`, inget omslag) och pekskärmen ritar ingen ⋮. Mätt: telefonen 16,8 (taket sänkt
+ * till 17), datorn 26 (oförändrat).
  */
-const TAK_ELEMENT_PER_MEDDELANDE = { telefon: 24, dator: 26 };
+const TAK_ELEMENT_PER_MEDDELANDE = { telefon: 17, dator: 26 };
 
 /**
- * (6) EN MER-KNAPP PER MEDDELANDE PÅ TELEFON (skiva 6). Gruppchatten med trådar, reaktioner och fästa, fem meddelanden.
+ * (6) EN MENY PER MEDDELANDE PÅ TELEFON (skiva 6, långt tryck sedan 0.190.0). Gruppchatten med trådar, reaktioner och fästa, fem meddelanden.
  *   390 px, iPhonens användaragent och pekskärm (Chromium):
  *   (a) under varje bubbla syns ingen lös åtgärd (Reagera, Fäst, Svara med citat, Svara i tråd), bara innehåll: tiden, en reaktion,
- *       nålen på ett fäst meddelande; och exakt en ⋮ per meddelande, med träffyta minst 44 x 44;
- *   (b) ⋮ på det sista meddelandet, närmast skrivfältet, öppnar en meny som ryms i fönstret, med sex reaktioner överst och posterna
- *       Svara i tråd, Fäst och Kopiera;
+ *       nålen på ett fäst meddelande. ⛔ 0.190.0 (del D, CP 2026-11-05): på pekskärm finns ingen ⋮ alls, varken synlig eller dold i DOM:en;
+ *       varje bubbla bär långtrycket (`data-langtryck-bubbla`) i stället. Före 0.190.0 mätte (a) exakt en ⋮ om 44 x 44 per meddelande;
+ *   (b) ett långt tryck (riktiga fingerhändelser genom CDP, 700 ms) på det sista meddelandet, närmast skrivfältet, öppnar en meny som ryms
+ *       i fönstret, med sex reaktioner överst och posterna Svara i tråd, Fäst och Kopiera;
  *   (c) Kopiera lägger meddelandets text i urklippet (läst tillbaka ur webbläsaren) och raden säger Kopierat.
- *   1280 px: ingen ⋮, och Reagera syns när pekaren står på meddelandet, som förut.
+ *   1280 px (mus): ingen ⋮, och Reagera syns när pekaren står på meddelandet, som förut (de lösa knapparna är datorns uppsättning, regel 13).
  * Golv: minst fem meddelanden.
  * @param {Verktyg} v
  */
@@ -471,7 +476,8 @@ export async function merKnappen(v) {
             return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== "hidden";
           };
           const losa = [...rad.querySelectorAll("[data-reagera], [data-citera], [data-fast][aria-pressed='false'], [data-tradmarke='ny'], [data-lyft-minne]")].filter(syns);
-          const mer = [...rad.querySelectorAll("[data-mer] button")].filter(syns).map((b) => {
+          // ⋮ på dator står i DOM:en men är genomskinlig tills pekaren står på meddelandet (0.190.0): genomskinlig räknas inte som synlig.
+          const mer = [...rad.querySelectorAll("[data-mer] button")].filter((b) => syns(b) && getComputedStyle(/** @type {Element} */ (b.closest("[data-mer]"))).opacity !== "0").map((b) => {
             const r = b.getBoundingClientRect();
             return { w: Math.round(r.width), h: Math.round(r.height) };
           });
@@ -492,11 +498,18 @@ export async function merKnappen(v) {
         // (a)
         const losa = rader.flatMap((r) => r.losa);
         v.krav(losa.length === 0, `${namn}: (a) lösa åtgärder syns under bubblorna: ${JSON.stringify(losa)}.`);
-        v.krav(rader.every((r) => r.mer.length === 1 && r.mer[0].w >= 44 && r.mer[0].h >= 44), `${namn}: (a) inte exakt en ⋮ om minst 44 x 44 per meddelande: ${JSON.stringify(rader.map((r) => r.mer))}.`);
+        const dom = await page.evaluate(() => [...document.querySelectorAll("[data-ops-samtal] [data-meddelande]")].map((rad) => ({ mer: rad.querySelectorAll("[data-mer]").length, langtryck: rad.querySelectorAll("[data-langtryck-bubbla]").length })));
+        v.matt.push(`${namn}: (a) ⋮ och långtryck per meddelande ${JSON.stringify(dom)}`);
+        v.krav(dom.every((r) => r.mer === 0 && r.langtryck === 1), `${namn}: (a) på pekskärm ska ingen ⋮ finnas och varje bubbla bära långtrycket: ${JSON.stringify(dom)}.`);
         await bild(v, page, `mer-rader-${vp.width}.png`);
-        // (b)
-        const sista = page.locator("[data-ops-samtal] [data-meddelande]").last();
-        await sista.locator("[data-mer] button").click();
+        // (b) Ett riktigt finger: touchStart, ligg kvar 700 ms (långtrycket utlöses vid 500), touchEnd. Ingen syntetisk PointerEvent.
+        const sista = page.locator("[data-ops-samtal] [data-meddelande]").last().locator("[data-langtryck-bubbla]");
+        const ruta = /** @type {{ x: number, y: number, width: number, height: number }} */ (await sista.boundingBox());
+        const punkt = { x: Math.round(ruta.x + ruta.width / 2), y: Math.round(ruta.y + ruta.height / 2) };
+        const cdp = await page.context().newCDPSession(page);
+        await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [punkt] });
+        await page.waitForTimeout(700);
+        await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
         const meny = page.locator("[role=menu]");
         await meny.waitFor({ timeout: 4000 });
         const m = await page.evaluate(() => {
