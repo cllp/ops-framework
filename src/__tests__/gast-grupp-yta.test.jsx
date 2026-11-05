@@ -32,49 +32,44 @@ const lagringMed = (start = {}) => {
   return { getItem: (k) => d[k] ?? null, setItem: (k, v) => { d[k] = v; }, d };
 };
 
-const rita = (props = {}) => render(<OpsGastGrupp grupp={GRUPP} api={apiMed()} intervallMs={0} idag={new Date(2026, 10, 5)} {...props} />);
+const rita = (/** @type {Record<string, any>} */ { lagring: _bortlagd, ...props } = {}) => render(<OpsGastGrupp grupp={GRUPP} api={apiMed()} intervallMs={0} idag={new Date(2026, 10, 5)} {...props} />);
 const ingress = () => document.querySelector("[data-gast-grupp-ingress]");
 const infoKnapp = () => /** @type {HTMLElement} */ (document.querySelector("[data-gast-grupp-info]"));
 
-describe("ingressen bakom (i)", () => {
-  it("⛔ öppen första gången, och minns att den setts", async () => {
+describe("huvudet: en rad och (i) (0.190.0, del A)", () => {
+  it("⛔ under gruppens namn står bara Du är gäst., (i) är stängd från början och skriver inget minne", () => {
     const lagring = lagringMed();
     rita({ lagring });
-    expect(ingress()?.textContent).toMatch(/Du är gäst i Källan/);
-    expect(infoKnapp().getAttribute("aria-expanded")).toBe("true");
-    await waitFor(() => expect(lagring.d["ops-gast:ingress-sedd"]).toBe("1"));
-  });
-
-  it("⛔ nästa gång är den stängd, (i) öppnar och stänger den, och knappen bär ett namn", () => {
-    rita({ lagring: lagringMed({ "ops-gast:ingress-sedd": "1" }) });
+    expect(document.querySelector("[data-gast-roll]")?.textContent).toBe("Du är gäst.");
     expect(ingress()).toBeNull();
     expect(infoKnapp().getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByText(/Du är gäst i Källan/)).toBeNull();
+    expect(screen.queryByText("Du ser hela gruppens chatt, från början.")).toBeNull();
+    expect(lagring.d["ops-gast:ingress-sedd"]).toBeUndefined();
+    expect(window.localStorage.getItem("ops-gast:ingress-sedd")).toBeNull();
+  });
+
+  it("⛔ (i) öppnar behörigheten och att hela chatten syns, och stänger den; knappen bär ett namn", () => {
+    rita();
     expect(infoKnapp().getAttribute("aria-label")).toBe("Om din roll som gäst");
     fireEvent.click(infoKnapp());
     expect(ingress()?.textContent).toMatch(/Du är gäst i Källan/);
+    expect(ingress()?.textContent).toContain("Du ser hela gruppens chatt, från början.");
     expect(infoKnapp().getAttribute("aria-controls")).toBe(ingress()?.id);
     fireEvent.click(infoKnapp());
     expect(ingress()).toBeNull();
   });
 
-  it("⛔ går minnet inte att läsa (kastar, eller är null) är den öppen varje gång, och ett minne som inte går att skriva kastar inte", () => {
-    const kastar = { getItem: () => { throw new Error("blockerat"); }, setItem: () => { throw new Error("blockerat"); } };
-    const { unmount } = rita({ lagring: kastar });
-    expect(ingress()).not.toBeNull();
-    unmount();
-    rita({ lagring: null });
-    expect(ingress()).not.toBeNull();
-  });
-
-  it("på engelska säger (i) det på engelska", () => {
-    rita({ sprak: "en", lagring: lagringMed({ "ops-gast:ingress-sedd": "1" }) });
+  it("på engelska säger huvudet och (i) det på engelska", () => {
+    rita({ sprak: "en" });
+    expect(document.querySelector("[data-gast-roll]")?.textContent).toBe("You are a guest.");
     expect(infoKnapp().getAttribute("aria-label")).toBe("About your role as a guest");
   });
 });
 
 describe("flikraden sitter kvar", () => {
   it("⛔ gästens flikrad är sticky under sidhuvudet och har bakgrund, de tre flikarna är oförändrade", () => {
-    rita({ lagring: lagringMed() });
+    rita();
     const rad = screen.getByRole("tablist");
     expect(rad.className).toMatch(/\bsticky\b/);
     expect(rad.className).toMatch(/top-14/);

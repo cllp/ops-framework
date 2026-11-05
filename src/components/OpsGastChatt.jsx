@@ -12,7 +12,6 @@ import { Meddelanderader, Skrivfalt, texterPa } from "./OpsMeddelanden.jsx";
 export const ORD_OPSGASTCHATT = {
   rubrik: { sv: "Chatt", en: "Chat" },
   tom: { sv: "Inga meddelanden än.", en: "No messages yet." },
-  historik: { sv: "Du ser hela gruppens chatt, från början.", en: "You can see the whole group chat, from the beginning." },
   // ⛔ (0.190.0, QA fynd 8 i cllp/lifehub.app#658) Ingen mening under skrivfältet längre: märket Gäst syns på bubblan, en klippknapp som saknas säger att bilagor
   // inte går, och trådar hör till backloggen och inte till gästens vy. Bara den som inte får skriva får en rad, eftersom det inte syns på något annat sätt.
   skrivskyddad: { sv: "Du kan läsa chatten men inte skriva i den.", en: "You can read the chat but not write in it." },
@@ -110,7 +109,6 @@ export function OpsGastChatt({ meddelanden, fler = false, onAldre, onSkriv, ladd
 
   return (
     <section aria-label={t.rubrik} data-gast-chatt="" className="flex min-w-0 flex-col gap-3">
-      <p data-gast-chatt-historik="" className="m-0 text-meta text-ink-muted">{t.historik}</p>
       {fel ? (
         <p role="alert" data-gast-chatt-fel="" className="m-0 text-etikett text-danger">{t.fel}</p>
       ) : laddar ? (

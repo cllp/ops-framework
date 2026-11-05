@@ -62,7 +62,8 @@ describe("OpsGastChatt", () => {
     expect(document.querySelectorAll("textarea, input, [contenteditable]")).toHaveLength(0);
     expect(screen.queryByRole("button", { name: /skicka/i })).toBeNull();
     expect(screen.getByText(/Du kan läsa chatten men inte skriva i den/)).toBeInTheDocument();
-    expect(screen.getByText("Du ser hela gruppens chatt, från början.")).toBeInTheDocument();
+    // (0.190.0, del A) "Hela chatten" står i gruppens (i)-panel, inte i chatten.
+    expect(screen.queryByText("Du ser hela gruppens chatt, från början.")).toBeNull();
   });
 
   it("⛔ tomt är ett svar, ett fel är inte tomt, och äldre meddelanden hämtas med en knapp som bara finns när det finns fler", async () => {
@@ -277,7 +278,7 @@ describe("OpsGastGrupp: det bantade gränssnittet", () => {
     expect(screen.queryByRole("tab", { name: "Ärenden" })).toBeNull();
     expect(await screen.findByText("Välkommen till gruppen", { selector: "[data-bubbla] *" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Källan");
-    expect(screen.getByText(/Du är gäst i Källan/)).toBeInTheDocument();
+    expect(document.querySelector("[data-gast-roll]")).toHaveTextContent("Du är gäst.");
     for (const f of ["Kalender", "Bibliotek"]) {
       await klicka(screen.getByRole("tab", { name: f }));
       await waitFor(() => expect(document.querySelector("[data-gast-grupp]")).not.toBeNull());
@@ -621,6 +622,78 @@ describe("OpsGastSida med hela gruppen", () => {
     grupplevande = false;
     await klicka(screen.getByRole("button", { name: "Uppdatera" }));
     expect(await screen.findByText("Rep")).toBeInTheDocument();
+  });
+});
+
+describe("OpsGastSida med OpsGastGrupp: (i) bär integriteten och Skriv in adressen igen (0.190.0, del A)", () => {
+  const lagringMed = (start = {}) => {
+    const d = { ...start };
+    return { getItem: (k) => d[k] ?? null, setItem: (k, v) => { d[k] = v; }, removeItem: (k) => { delete d[k]; }, d };
+  };
+  const gruppSvar = { ok: true, namn: "Anna", funktion: "grupp", grupp: { namn: "Källan", funktioner: ["chatt"] } };
+  const api = () => Object.fromEntries(GASTGRUPPATGARDER.map((a) => [a, vi.fn(async () => (a === "chatt" ? { ok: true, meddelanden: [], fler: false } : { ok: true, poster: [] }))]));
+  const rita = (props = {}) => {
+    const lagring = lagringMed({ [`ops-gast:${ID}`]: SESSION, [`ops-gast:${ID2}`]: SESSION2, "ops-gast:senaste": ID, "ops-gast:alla": JSON.stringify([ID, ID2]) });
+    const onRaderaMig = vi.fn(async () => ({ ok: true }));
+    const utf = render(
+      <OpsGastSida
+        lank={null}
+        onLos={vi.fn()}
+        onHamta={vi.fn(async () => gruppSvar)}
+        onNyLank={vi.fn()}
+        onRaderaMig={onRaderaMig}
+        renderGrupp={({ grupp }) => <OpsGastGrupp grupp={grupp} api={api()} intervallMs={0} />}
+        intervallMs={0}
+        {...props}
+        lagring={lagring}
+      />,
+    );
+    return { ...utf, lagring, onRaderaMig };
+  };
+
+  it("⛔ integriteten och sidfotens Du är gäst står inte under gruppen; (i) bär integriteten med Radera och Skriv in adressen igen", async () => {
+    rita();
+    await screen.findByRole("heading", { level: 1, name: "Källan" });
+    // Stängd från början: ingenting av det syns.
+    expect(document.querySelector("[data-gast-integritet]")).toBeNull();
+    expect(document.querySelector("[data-gast-not]")).toBeNull();
+    expect(screen.queryByText("Skriv in adressen igen")).toBeNull();
+    await klicka(screen.getByRole("button", { name: "Om din roll som gäst" }));
+    const panel = /** @type {HTMLElement} */ (document.querySelector("[data-gast-grupp-ingress]"));
+    expect(within(panel).getByText("Integritet och dina uppgifter")).toBeInTheDocument();
+    expect(within(panel).getByRole("button", { name: "Skriv in adressen igen" })).toBeInTheDocument();
+    await klicka(within(panel).getByText("Integritet och dina uppgifter"));
+    expect(within(panel).getByRole("button", { name: "Radera mina uppgifter" })).toBeInTheDocument();
+  });
+
+  it("⛔ Skriv in adressen igen glömmer alla sessioner på enheten och går till adressteget, utan att fråga servern", async () => {
+    const { lagring } = rita({ lank: { id: ID, nyckel: NYCKEL } });
+    await screen.findByRole("heading", { level: 1, name: "Källan" });
+    await klicka(screen.getByRole("button", { name: "Om din roll som gäst" }));
+    await klicka(screen.getByRole("button", { name: "Skriv in adressen igen" }));
+    expect(await screen.findByLabelText("Din e-postadress")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { level: 1, name: "Källan" })).toBeNull();
+    for (const k of [`ops-gast:${ID}`, `ops-gast:${ID2}`, "ops-gast:senaste", "ops-gast:alla"]) expect(lagring.d[k], k).toBeUndefined();
+  });
+
+  it("⛔ marke ritas i skalets märkesruta: 40 px hög, högst --logo-bredd, en bild per tema och appens namn som alternativtext", async () => {
+    rita({ marke: { ljus: "https://x/ljus.png", mork: "https://x/mork.png", namn: "LifeHub" }, huvud: <a href="/">Tillbaka</a> });
+    await screen.findByRole("heading", { level: 1, name: "Källan" });
+    const ruta = /** @type {HTMLElement} */ (document.querySelector("[data-gast-huvud] [data-gast-marke]"));
+    expect(ruta.className.split(" ")).toEqual(expect.arrayContaining(["h-10", "max-w-(--logo-bredd)", "overflow-hidden"]));
+    expect([...ruta.querySelectorAll("img")].map((i) => i.getAttribute("src"))).toEqual(["https://x/ljus.png", "https://x/mork.png"]);
+    expect(screen.getByRole("img", { name: "LifeHub" })).toBeInTheDocument();
+    // Appens eget huvud står kvar efter märket.
+    expect(within(/** @type {HTMLElement} */ (document.querySelector("[data-gast-huvud]"))).getByRole("link", { name: "Tillbaka" })).toBeInTheDocument();
+    expect(() => render(<OpsGastSida lank={null} onLos={vi.fn()} onHamta={vi.fn(async () => gruppSvar)} onNyLank={vi.fn()} marke={{ ljus: "a" }} />)).toThrow(/marke är/);
+  });
+
+  it("utan länken i minnet blir det sidan som skickar en ny länk", async () => {
+    rita();
+    await screen.findByRole("heading", { level: 1, name: "Källan" });
+    await klicka(screen.getByRole("button", { name: "Om din roll som gäst" }));
+    await klicka(screen.getByRole("button", { name: "Skriv in adressen igen" }));
+    expect(await screen.findByRole("button", { name: "Skicka en ny länk" })).toBeInTheDocument();
   });
 });
 

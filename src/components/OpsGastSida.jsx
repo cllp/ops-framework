@@ -13,6 +13,7 @@ import { OpsDisclosure } from "./OpsDisclosure.jsx";
 import { OpsEmpty } from "./OpsEmpty.jsx";
 import { OpsField, OpsInput } from "./OpsField.jsx";
 import { PublikSprakval } from "./PublikSprakval.jsx";
+import { GastsidaInfo } from "./gastsidaInfo.js";
 
 /**
  * Orden på gästsidan, på svenska och engelska (0.131.0, cllp/lifehub.app#389). Svenskan i feltexterna är `GASTFEL` och ingen kopia av den (regel 2).
@@ -76,8 +77,28 @@ export const ORD_OPSGASTSIDA = {
   raderaFraga: { sv: "Radera allt vi har sparat om dig, i alla grupper? Det går inte att ångra.", en: "Delete everything we have kept about you, in every group? It cannot be undone." },
   raderaBekrafta: { sv: "Ja, radera allt", en: "Yes, delete everything" },
   raderaAvbryt: { sv: "Avbryt", en: "Cancel" },
+  // ⛔ (0.190.0, QA fynd 7 i cllp/lifehub.app#658) En delad enhet: länken glömmer sessionerna här och frågar efter adressen igen.
+  skrivInIgen: { sv: "Skriv in adressen igen", en: "Enter the address again" },
   raderad: { sv: "Dina uppgifter är raderade. Du har inte längre någon åtkomst, och inget av det vi sparade om dig finns kvar.", en: "Your data has been deleted. You no longer have access, and nothing we kept about you remains." },
 };
+
+/**
+ * Appens bildlogga i samma ruta som skalets märke (0.190.0): 40 px hög som `OpsBrand`s ruta i toppraden, högst `--logo-bredd` bred. Bilden är 64 px hög och beskärs
+ * uppe och nere i samma proportion som inloggningen (`OpsInloggning`: 2,5 rem av 14 rem), så att det som syns är märket och inte bildens luft. En bild per tema, som där.
+ * @param {{ marke: { ljus: string, mork: string, namn: string } }} props
+ */
+function GastMarke({ marke }) {
+  if (!marke || typeof marke.ljus !== "string" || typeof marke.mork !== "string" || typeof marke.namn !== "string" || !marke.namn.trim()) {
+    throw new Error("OpsGastSida: marke är { ljus, mork, namn }: en bild per tema och appens namn som alternativtext.");
+  }
+  return (
+    <span data-gast-marke="" className="flex h-10 max-w-(--logo-bredd) shrink-0 items-center overflow-hidden">
+      {[["ljus", marke.ljus, "mix-blend-multiply"], ["mork", marke.mork, ""]].map(([tema, src, extra]) => (
+        <img key={tema} src={src} alt={tema === "ljus" ? marke.namn : ""} aria-hidden={tema === "ljus" ? undefined : true} className={cx(tema === "ljus" ? "ops-ordmarke-ljus" : "ops-ordmarke-mork", "h-16 w-auto max-w-full object-contain", extra)} />
+      ))}
+    </span>
+  );
+}
 
 /** Orsakerna där en länk som gått ut ändå går att ersätta: adressen stämde, så sidan erbjuder en ny länk. */
 const ERSATTBARA = /** @type {readonly string[]} */ (["utgangen"]);
@@ -129,14 +150,17 @@ const ERSATTBARA = /** @type {readonly string[]} */ (["utgangen"]);
  * @param {(arg: { sak: Record<string, any>, funktion: string, sessionsnyckel: string, uppdatera: () => Promise<void> }) => import("react").ReactNode} [props.renderSak] Sakens kort. `uppdatera` hämtar saken på nytt (efter en röst).
  * @param {(arg: { grupp: { namn: string, funktioner: readonly string[] }, namn: string, sessionsnyckel: string, uppdatera: () => Promise<void> }) => import("react").ReactNode} [props.renderGrupp] (0.132.0) Hela gruppen. `uppdatera` hämtar om sidan:
  *   anropa den när en åtgärd nekas (`aterkallad`), så byts allt mot texten direkt i stället för vid nästa minut. Utan den visas en text om att inbjudan inte går att visa.
- * @param {import("react").ReactNode} [props.huvud] Appens logga eller namn, till vänster i huvudet.
+ * @param {import("react").ReactNode} [props.huvud] Appens logga eller namn, till vänster i huvudet. Med `marke` står det efter märket (en länk tillbaka till hubben).
+ * @param {{ ljus: string, mork: string, namn: string }} [props.marke] (0.190.0, CP 2026-11-05 i cllp/lifehub.app#658, del A) Appens bildlogga, en URL per tema, ritad i samma
+ *   ruta som skalets märke (40 px hög, `--logo-bredd` bred) och beskuren som inloggningens (`OpsInloggning ordmarke`): appens bilder är fyrkantiga med luft runt, och i `huvud`
+ *   som `h-8` blev loggan en bråkdel av appens. `namn` är bildens alternativtext.
  * @param {string} [props.sprak] `sv` eller `en` om appen styr det. Utelämnat: sidan väljer själv och minns valet.
  * @param {(sprak: string) => void} [props.onSprak]
  * @param {number} [props.intervallMs] Hur ofta saken hämtas på nytt medan sidan är öppen. Förval 60 000. `0` stänger av tidtagningen (fokus hämtar ändå).
  * @param {{ getItem: (k: string) => string | null, setItem: (k: string, v: string) => void, removeItem: (k: string) => void, key?: (i: number) => string | null, length?: number } | null} [props.lagring] Minnet för sessionen. Förval `localStorage`; `null` ger bara minne för den här sidvisningen.
  * @param {Partial<Record<keyof typeof ORD_OPSGASTSIDA, string>>} [props.ord] Egna texter, som vinner över ordboken.
  */
-export function OpsGastSida({ lank = null, onLos, onHamta, onNyLank, onNamn, onRaderaMig, onSvara, renderSak, renderGrupp, huvud, sprak, onSprak, intervallMs = 60_000, lagring, ord }) {
+export function OpsGastSida({ lank = null, onLos, onHamta, onNyLank, onNamn, onRaderaMig, onSvara, renderSak, renderGrupp, huvud, marke, sprak, onSprak, intervallMs = 60_000, lagring, ord }) {
   for (const [namn, f] of /** @type {const} */ ([["onLos", onLos], ["onHamta", onHamta], ["onNyLank", onNyLank]])) {
     if (typeof f !== "function") throw new Error(`OpsGastSida: ${namn} krävs, en funktion som anropar appens /api/gast.`);
   }
@@ -448,6 +472,26 @@ export function OpsGastSida({ lank = null, onLos, onHamta, onNyLank, onNamn, onR
     setLage({ fas: "raderad" });
   }
 
+  /**
+   * Glömmer gästen på enheten och frågar efter adressen igen (0.190.0, QA fynd 7 i cllp/lifehub.app#658): en delad dator eller telefon ska inte öppna någon annans grupp
+   * för nästa person. ALLA sessioner på enheten glöms, inte bara den som visas: nästa person ska inte heller hamna i den förras omröstning. Servern rörs inte: sessionen
+   * gäller tills den går ut, men nyckeln finns inte längre på enheten. Med länken i minnet (samma sidvisning) är det adressteget; utan den sidan som skickar en ny länk.
+   */
+  function skrivInIgen() {
+    for (const id of sparadeIds()) glomSession(id);
+    mem.current.glom(ALLA);
+    mem.current.glom(SENASTE);
+    aktivId.current = lank ? lank.id : null;
+    setSessionsnyckel(null);
+    setSvar(null);
+    setEpost("");
+    setFel("");
+    setOrsak("");
+    setNamnSparat(false);
+    setFragarRadera(false);
+    setLage({ fas: lank ? "adress" : "ny-lank" });
+  }
+
   const adressFormulär = (/** @type {{ rubrik: string, ingress: string, etikett: string, knapp: string, onKlar: () => Promise<void> }} */ p) => (
     <form
       data-gast-form={lage.fas}
@@ -477,6 +521,50 @@ export function OpsGastSida({ lank = null, onLos, onHamta, onNyLank, onNamn, onR
     </form>
   );
 
+  const integritet = (
+            <section data-gast-integritet="" className="flex min-w-0 max-w-2xl flex-col gap-3">
+              <OpsDisclosure summary={t.integritetRubrik}>
+                <div className="flex flex-col gap-3 pt-2">
+                  <p data-gast-integritet-lagrat="" className="m-0 text-meta text-publik-ljus-dampad">{t.integritetLagrat}</p>
+                  <p data-gast-integritet-radera="" className="m-0 text-meta text-publik-ljus-dampad">{onRaderaMig ? t.integritetRadera : t.integritetUtanKnapp}</p>
+                  {onRaderaMig ? (
+                    fragarRadera ? (
+                      <div data-gast-radera-fraga="" role="group" aria-label={t.raderaKnapp} className="flex flex-col gap-3">
+                        <p className="m-0 text-etikett text-publik-ljus-text">{t.raderaFraga}</p>
+                        <div className="flex flex-wrap gap-2">
+                          <OpsButton variant="danger" onClick={raderaMig}>
+                            {t.raderaBekrafta}
+                          </OpsButton>
+                          <OpsButton variant="secondary" onClick={() => { setFragarRadera(false); setRaderaFel(""); }}>
+                            {t.raderaAvbryt}
+                          </OpsButton>
+                        </div>
+                        {raderaFel ? <p role="alert" data-gast-radera-fel="" className="m-0 text-etikett text-danger">{raderaFel}</p> : null}
+                      </div>
+                    ) : (
+                      <div>
+                        <OpsButton variant="secondary" onClick={() => setFragarRadera(true)}>
+                          {t.raderaKnapp}
+                        </OpsButton>
+                      </div>
+                    )
+                  ) : null}
+                </div>
+              </OpsDisclosure>
+            </section>
+  );
+  // Det som ligger i gruppens (i)-panel: integriteten och vägen tillbaka till adressteget.
+  const gruppInfo = (
+    <div data-gast-grupp-info-sida="" className="flex min-w-0 flex-col gap-2">
+      {integritet}
+      <div>
+        <button type="button" data-gast-skriv-in-igen="" onClick={skrivInIgen} className="inline-flex min-h-11 cursor-pointer items-center text-etikett text-accent underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
+          {t.skrivInIgen}
+        </button>
+      </div>
+    </div>
+  );
+
   const grupplage = lage.fas === "klar" && svar?.funktion === "grupp";
   // Hela gruppen behöver bredd: kalenderns rutnät och biblioteket blir trånga i 48 rem. En omröstning är kvar i den smala spalten.
   const spalt = grupplage ? "max-w-5xl" : "max-w-3xl";
@@ -485,7 +573,10 @@ export function OpsGastSida({ lank = null, onLos, onHamta, onNyLank, onNamn, onR
     <div lang={aktivt} data-gastsida="" data-sprak={aktivt} data-gast-lage={lage.fas} className={cx("flex min-h-dvh w-full flex-col", PUBLIK_TONER.ljus.band, PUBLIK_TONER.ljus.rubrik)}>
       <header className="sticky top-0 z-10 border-b border-publik-ljus-text/10 bg-publik-ljus">
         <div className={cx("mx-auto flex h-14 w-full items-center justify-between gap-3 px-4", spalt)}>
-          <div data-gast-huvud="" className="flex min-w-0 items-center">{huvud}</div>
+          <div data-gast-huvud="" className="flex min-w-0 items-center gap-3">
+            {marke ? <GastMarke marke={marke} /> : null}
+            {huvud}
+          </div>
           <PublikSprakval aktivt={aktivt} etikett={t.sprakEtikett} onVal={valj} />
         </div>
       </header>
@@ -512,7 +603,9 @@ export function OpsGastSida({ lank = null, onLos, onHamta, onNyLank, onNamn, onR
           <div data-gast-klar="" className="flex min-w-0 flex-col gap-6">
             {svar && svar.funktion === "grupp" ? (
               renderGrupp ? (
-                renderGrupp({ grupp: svar.grupp, namn: typeof svar.namn === "string" ? svar.namn : "", sessionsnyckel: /** @type {string} */ (sessionsnyckel), uppdatera: async () => void (await hamta(/** @type {string} */ (sessionsnyckel), { tyst: true })) })
+                <GastsidaInfo.Provider value={gruppInfo}>
+                  {renderGrupp({ grupp: svar.grupp, namn: typeof svar.namn === "string" ? svar.namn : "", sessionsnyckel: /** @type {string} */ (sessionsnyckel), uppdatera: async () => void (await hamta(/** @type {string} */ (sessionsnyckel), { tyst: true })) })}
+                </GastsidaInfo.Provider>
               ) : (
                 <div data-gast-grupp-ejstodd=""><OpsEmpty title={t.gruppEjStodd} /></div>
               )
@@ -545,37 +638,14 @@ export function OpsGastSida({ lank = null, onLos, onHamta, onNyLank, onNamn, onR
               </form>
             ) : null}
             {namnSparat ? <p data-gast-namn-sparat="" role="status" className={PUBLIK_KLASS.brod}>{t.namnSparat}</p> : null}
-            <section data-gast-integritet="" className="flex min-w-0 max-w-2xl flex-col gap-3">
-              <OpsDisclosure summary={t.integritetRubrik}>
-                <div className="flex flex-col gap-3 pt-2">
-                  <p data-gast-integritet-lagrat="" className="m-0 text-meta text-publik-ljus-dampad">{t.integritetLagrat}</p>
-                  <p data-gast-integritet-radera="" className="m-0 text-meta text-publik-ljus-dampad">{onRaderaMig ? t.integritetRadera : t.integritetUtanKnapp}</p>
-                  {onRaderaMig ? (
-                    fragarRadera ? (
-                      <div data-gast-radera-fraga="" role="group" aria-label={t.raderaKnapp} className="flex flex-col gap-3">
-                        <p className="m-0 text-etikett text-publik-ljus-text">{t.raderaFraga}</p>
-                        <div className="flex flex-wrap gap-2">
-                          <OpsButton variant="danger" onClick={raderaMig}>
-                            {t.raderaBekrafta}
-                          </OpsButton>
-                          <OpsButton variant="secondary" onClick={() => { setFragarRadera(false); setRaderaFel(""); }}>
-                            {t.raderaAvbryt}
-                          </OpsButton>
-                        </div>
-                        {raderaFel ? <p role="alert" data-gast-radera-fel="" className="m-0 text-etikett text-danger">{raderaFel}</p> : null}
-                      </div>
-                    ) : (
-                      <div>
-                        <OpsButton variant="secondary" onClick={() => setFragarRadera(true)}>
-                          {t.raderaKnapp}
-                        </OpsButton>
-                      </div>
-                    )
-                  ) : null}
-                </div>
-              </OpsDisclosure>
-            </section>
-            <p data-gast-not="" className="m-0 text-meta text-publik-ljus-dampad">{t.gastNot}</p>
+            {/* ⛔ I GRUPPEN BOR INTEGRITETEN BAKOM (i) (0.190.0, del A), tillsammans med "Skriv in adressen igen", och sidfotens "Du är gäst" är borta: gruppens huvud säger det.
+                En omröstning och en händelse har inget sådant huvud, och där står de kvar längst ned. */}
+            {svar?.funktion === "grupp" ? null : (
+              <>
+                {integritet}
+                <p data-gast-not="" className="m-0 text-meta text-publik-ljus-dampad">{t.gastNot}</p>
+              </>
+            )}
           </div>
         )}
       </main>

@@ -229,6 +229,8 @@ describe("OpsGastGrupp: ärendefliken", () => {
 
   it("ingressen säger att gästen bara ser de ärenden gruppen gett hen", async () => {
     rita(apiMed());
+    // (0.190.0, del A) Behörigheten står bakom (i), stängd från början.
+    fireEvent.click(screen.getByRole("button", { name: "Om din roll som gäst" }));
     expect(screen.getByText(/Du ser inte gruppens ärenden, bara de som gruppen har gett dig\./)).toBeInTheDocument();
   });
 
