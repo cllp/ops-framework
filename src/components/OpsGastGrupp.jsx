@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { GASTGRUPPFUNKTIONER } from "../lib/gast.js";
+import { kortDatum } from "../lib/deladdatum.js";
 import { DATUM_EJ_SATT } from "../lib/handelsemodell.js";
 import { definierade, forvalda } from "../lib/ord.js";
 import { OpsBibliotek } from "./OpsBibliotek.jsx";
@@ -8,7 +9,6 @@ import { cx } from "../lib/cx.js";
 import { IKON_FOR } from "./ikonlexikon.js";
 import { InfoIkon, KalenderIkon, MeddelandeIkon } from "./icons.jsx";
 import { OpsBottomNav } from "./OpsBottomNav.jsx";
-import { OpsCalendar } from "./OpsCalendar.jsx";
 import { OpsEmpty } from "./OpsEmpty.jsx";
 import { OpsGastArenden } from "./OpsGastArenden.jsx";
 import { OpsGastChatt } from "./OpsGastChatt.jsx";
@@ -84,9 +84,8 @@ export const ORD_OPSGASTGRUPP = {
   duArGast: { sv: "Du är gäst.", en: "You are a guest." },
   historik: { sv: "Du ser hela gruppens chatt, från början.", en: "You can see the whole group chat, from the beginning." },
   kalenderEtikett: { sv: "Kalender", en: "Calendar" },
-  kalenderTom: { sv: "Inga händelser i kalendern än.", en: "No events in the calendar yet." },
-  ejSattRubrik: { sv: "Datum ej satt", en: "Date not set" },
-  ejSattIngress: { sv: "De här händelserna har inget datum än. Öppna en för att svara eller rösta.", en: "These events have no date yet. Open one to answer or vote." },
+  ingetPaGang: { sv: "Inget på gång i gruppen.", en: "Nothing coming up in the group." },
+  paGangEtikett: { sv: "På gång", en: "Coming up" },
   kalenderAvkortad: { sv: "Kalendern visar de första {n} händelserna. Det finns fler.", en: "The calendar shows the first {n} events. There are more." },
   kalenderEjVisade: { sv: "{n} händelser visas inte, eftersom deras tid inte går att läsa.", en: "{n} events are not shown, because their time cannot be read." },
   laddar: { sv: "Hämtar", en: "Loading" },
@@ -144,7 +143,7 @@ const tidText = (h, till) => (h.tid ? (h.slutTid ? `${h.tid} ${till} ${h.slutTid
  *
  * ══ ⛔ VYERNA ÄR MEDLEMMENS, MED `jag: null` ══════════════════════════════════════════════════════════════════════════════
  *
- * Kalendern är `OpsCalendar` och händelsen `OpsHandelsePanel` utan penna eller flytt, svaren `OpsSvarSummor` (summor och mitt eget svar, inga namn), biblioteket `OpsBibliotek` med `jag: null` (ingen Ny, ingen
+ * Kalendern är en lista över det som är på gång (0.190.0, ingen månadsvy för gäster) och händelsen `OpsHandelsePanel` utan penna eller flytt, svaren `OpsSvarSummor` (summor och mitt eget svar, inga namn), biblioteket `OpsBibliotek` med `jag: null` (ingen Ny, ingen
  * redigering, ingen radering, ingen delning) och `adresserPaBegaran` (en signering per öppnad fil, aldrig en per post i listan). Chatten är medlemmens bubblor med chattens skrivfält utan bilagor, mikrofon och agent (`OpsGastChatt`): gästen får skriva (CP 2026-10-20), och
  * servern märker meddelandet Gäst.
  *
@@ -442,24 +441,33 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
   );
 
   const kalender = /** @type {any} */ (data.kalender);
-  const poster_kalender = useMemo(
-    () =>
-      kalender
-        ? kalender.handelser
-            .filter((/** @type {any} */ h) => h.datum)
-            .map((/** @type {any} */ h) => ({
-              id: h.id,
-              date: h.datum,
-              title: h.titel,
-              handelseId: h.id,
-              ...(h.slutDatum ? { endDate: h.slutDatum } : {}),
-              ...(h.heldag ? { allDay: true } : {}),
-              ...(tidText(h, sprak === "en" ? "to" : "till") ? { not: tidText(h, sprak === "en" ? "to" : "till") } : {}),
-            }))
-        : [],
-    [kalender, sprak],
-  );
-  const ejSatta = kalender ? kalender.handelser.filter((/** @type {any} */ h) => !h.datum) : [];
+  /*
+   * ══ ⛔ GÄSTENS KALENDER ÄR EN LISTA ÖVER DET SOM ÄR PÅ GÅNG, INGEN MÅNAD (0.190.0, CP 2026-11-05 i cllp/lifehub.app#658, del C) ═══════════════
+   *
+   * CP: "Skall bara kunna läsa va och således bara en kalendervy som är lista eller?" En gäst lägger inte in något: hen läser, svarar och röstar. Månadsvyn tyngde
+   * vyn utan att ge gästen något att göra, och den stryks för gäster (regel 13). Först det som saknar datum (en omröstning om datumet), sedan det som är på gång
+   * i tidsordning: en händelse som slutar i dag eller senare. Det som har varit visas inte.
+   */
+  const idagStr = useMemo(() => {
+    const d = idag ?? new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }, [idag]);
+  const paGang = useMemo(() => {
+    if (!kalender) return [];
+    const utanDatum = kalender.handelser.filter((/** @type {any} */ h) => !h.datum);
+    const kommande = kalender.handelser
+      .filter((/** @type {any} */ h) => h.datum && String(h.slutDatum ?? h.datum) >= idagStr)
+      .sort((/** @type {any} */ a, /** @type {any} */ b) => String(a.datum).localeCompare(String(b.datum)) || (a.heldag ? -1 : 0) - (b.heldag ? -1 : 0) || String(a.tid ?? "").localeCompare(String(b.tid ?? "")) || String(a.id).localeCompare(String(b.id)));
+    return [...utanDatum, ...kommande];
+  }, [kalender, idagStr]);
+  /** När, på en rad: "lör 7 nov 2026 · 18:00 till 20:00", till slutdatum när den är flera dagar, och "Datum ej satt" utan datum. @param {Record<string, any>} h */
+  const nartext = (h) => {
+    if (!h.datum) return DATUM_EJ_SATT[sprak === "en" ? "en" : "sv"];
+    const till = sprak === "en" ? "to" : "till";
+    const dagar = h.slutDatum && h.slutDatum !== h.datum ? `${kortDatum(h.datum, sprak)} ${till} ${kortDatum(h.slutDatum, sprak)}` : kortDatum(h.datum, sprak);
+    const tid = h.heldag ? "" : tidText(h, till);
+    return tid ? `${dagar} · ${tid}` : dagar;
+  };
 
   /** @param {Record<string, any>} h */
   const handelseVy = (h) => ({
@@ -535,33 +543,22 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
     if (fel.kalender) return <p role="alert" data-gast-kalender-fel="" className="m-0 text-etikett text-danger">{fel.kalender}</p>;
     if (!kalender || laddar.kalender) return <OpsEmpty busy title={t.laddar} busyLabel={t.laddar} />;
     return (
-      <div data-gast-kalender="" className="flex min-w-0 flex-col gap-4">
-        {kalender.handelser.length === 0 ? <OpsEmpty title={t.kalenderTom} /> : null}
-        {/* ⛔ `pb-6` tar tillbaka det kalendern drar av med `-mb-6` (`FULL_HEIGHT_CLASSES`): den är byggd för att vara sist i sin vy. Utan luften låg rubriken Datum ej satt över månadens sista rad (mätt i skalytans bild). */}
-        <div className="pb-6">
-        <OpsCalendar
-          ariaLabel={t.kalenderEtikett}
-          entries={poster_kalender}
-          onOppnaHandelse={oppnaHandelse}
-          lagring={{ getItem: () => null, setItem: () => {} }}
-          emptyText={t.kalenderTom}
-          locale={sprak === "en" ? "en-GB" : "sv-SE"}
-          {...(idag ? { today: idag } : {})}
-        />
-        </div>
-        {ejSatta.length > 0 ? (
-          <section aria-label={t.ejSattRubrik} data-gast-ejsatta="" className="flex min-w-0 flex-col gap-2">
-            <h2 className="m-0 text-sektion uppercase text-ink-muted">{DATUM_EJ_SATT[sprak === "en" ? "en" : "sv"]}</h2>
-            <p className="m-0 text-etikett text-ink-secondary">{t.ejSattIngress}</p>
-            <OpsList ariaLabel={t.ejSattRubrik}>
-              {ejSatta.map((/** @type {any} */ h) => (
-                <OpsListRow key={h.id} interactive onClick={() => oppnaHandelse(h.id)} ariaLabel={h.titel}>
-                  <span data-gast-ejsatt={h.id} className="min-w-0 flex-1 text-etikett text-ink wrap-anywhere">{h.titel}</span>
-                </OpsListRow>
-              ))}
-            </OpsList>
-          </section>
-        ) : null}
+      <div data-gast-kalender="" className="flex min-w-0 flex-col gap-3">
+        {paGang.length === 0 ? (
+          // ⛔ TOMT ÄR EN TYST RAD (0.190.0, QA fynd 9): inte en stor ruta som tar lika mycket plats som innehållet hade gjort.
+          <p role="status" data-gast-kalender-tom="" className="m-0 text-etikett text-ink-muted">{t.ingetPaGang}</p>
+        ) : (
+          <OpsList ariaLabel={t.paGangEtikett}>
+            {paGang.map((/** @type {any} */ h) => (
+              <OpsListRow key={h.id} interactive onClick={() => oppnaHandelse(h.id)} ariaLabel={h.titel}>
+                <span data-gast-pagang={h.id} data-ejsatt={h.datum ? undefined : ""} className="flex min-w-0 flex-1 flex-col gap-0.5">
+                  <span className="text-etikett font-medium text-ink wrap-anywhere">{h.titel}</span>
+                  <span className="text-meta text-ink-secondary">{nartext(h)}</span>
+                </span>
+              </OpsListRow>
+            ))}
+          </OpsList>
+        )}
         {kalender.avkortad ? <p role="status" data-gast-kalender-avkortad="" className="m-0 text-meta text-ink-muted">{t.kalenderAvkortad.replace("{n}", String(kalender.handelser.length))}</p> : null}
         {kalender.ejVisade > 0 ? <p role="status" data-gast-kalender-ejvisade="" className="m-0 text-meta text-ink-muted">{t.kalenderEjVisade.replace("{n}", String(kalender.ejVisade))}</p> : null}
       </div>

@@ -87,20 +87,8 @@ describe("flikraden sitter kvar", () => {
   });
 });
 
-describe("kalendern får resten av höjden (samma mekanism som skalet)", () => {
-  it("⛔ kalenderns rullyta bär höjden ur --fullhojd-variablerna, och variablerna är satta på samma element", async () => {
-    rita({ lagring: lagringMed() });
-    await act(async () => {
-      fireEvent.mouseDown(screen.getByRole("tab", { name: "Kalender" }), { button: 0 });
-    });
-    await waitFor(() => expect(document.querySelector("[data-gast-kalender]")).not.toBeNull());
-    const yta = /** @type {HTMLElement | null} */ (document.querySelector('[data-gast-kalender] [class*="fullhojd"]'));
-    expect(yta).not.toBeNull();
-    expect(yta?.className).toMatch(/h-\[calc\(var\(--fullhojd-botten\)_-_var\(--fullhojd-topp\)\)\]/);
-    expect(yta?.style.getPropertyValue("--fullhojd-topp")).toMatch(/^\d+px$/);
-    expect(yta?.style.getPropertyValue("--fullhojd-botten")).toMatch(/^\d+px$/);
-  });
-});
+// (0.190.0, del C) "Kalendern får resten av höjden" (0.188.0) mätte månadsvyns egen rullyta. Gästen har ingen månadsvy längre, och höjden på telefonen
+// bärs av gästens yta mellan huvudet och bottenraden (del B nedan), samma mekanism som skalet.
 
 describe("telefonen: bottenrad och hela höjden (0.190.0, del B)", () => {
   /** @param {boolean} smal */

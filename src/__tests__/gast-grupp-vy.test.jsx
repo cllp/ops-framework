@@ -313,13 +313,35 @@ describe("OpsGastGrupp: det bantade gränssnittet", () => {
     expect(api.chatt).toHaveBeenCalledTimes(1);
   });
 
-  it("kalendern ritas med OpsCalendar, Datum ej satt står för sig, och en händelse öppnas i OpsHandelsePanel utan penna eller flytt", async () => {
+  it("⛔ kalendern är en lista över det som är på gång, ingen månadsvy: utan datum först, sedan i tidsordning, och det som varit visas inte (0.190.0, del C)", async () => {
+    const m = apiMed({
+      kalender: async () => ({
+        ok: true,
+        handelser: [...HANDELSER, { id: "h-forr", titel: "Förra mötet", datum: "2026-10-01", slutDatum: null, tid: "10:00", slutTid: null, heldag: false, kravSvar: false, ejSatt: false }],
+        kalendrar: [],
+        avkortad: false,
+        ejVisade: 0,
+      }),
+    });
+    rita({ api: m.api, logg: m.logg });
+    await valjFlik(screen.getByRole("tab", { name: "Kalender" }));
+    const lista = await screen.findByRole("list", { name: "På gång" });
+    // Golv: tre rader. Fika (utan datum) först, sedan Möte och Repetition i tidsordning. Förra mötet (1 oktober) står inte med.
+    const rader = [...lista.querySelectorAll("[data-gast-pagang]")];
+    expect(rader.map((r) => r.getAttribute("data-gast-pagang"))).toEqual(["h-ejsatt", "h-mote", "h-fri"]);
+    expect(rader.map((r) => r.lastElementChild?.textContent)).toEqual(["Datum ej satt", "mån 2 nov 2026 · 18:00 till 20:00", "mån 9 nov 2026"]);
+    expect(screen.queryByText("Förra mötet")).toBeNull();
+    // Ingen månad: inget rutnät, inga veckodagar, ingen väg att lägga in något.
+    expect(screen.queryByRole("grid")).toBeNull();
+    expect(document.querySelector("[data-ops-kalender], [data-kalender-manad]")).toBeNull();
+    expect(screen.queryByRole("button", { name: /Ny händelse|Lägg till/ })).toBeNull();
+  });
+
+  it("ett tryck på en händelse öppnar den i OpsHandelsePanel med svaren, utan penna eller flytt, och Tillbaka går till listan", async () => {
     rita();
     await valjFlik(screen.getByRole("tab", { name: "Kalender" }));
-    await screen.findByRole("region", { name: "Datum ej satt" });
-    expect(document.querySelector("[data-gast-ejsatt='h-ejsatt']").textContent).toBe("Fika");
-    expect(screen.getByText("De här händelserna har inget datum än. Öppna en för att svara eller rösta.")).toBeInTheDocument();
-    await klicka(document.querySelector("[data-gast-ejsatt='h-ejsatt']"));
+    await screen.findByRole("list", { name: "På gång" });
+    await klicka(screen.getByRole("button", { name: "Fika" }));
     await screen.findByText("1 kommer, 0 kommer inte, 2 har inte svarat");
     const panel = document.querySelector("[data-handelsepanel]");
     expect(within(panel).getByRole("heading", { name: "Fika" })).toBeInTheDocument();
@@ -329,7 +351,16 @@ describe("OpsGastGrupp: det bantade gränssnittet", () => {
     // Utan en omröstningsrenderare säger sidan att omröstningen inte går att visa.
     expect(document.querySelector("[data-gast-omrostning-ejstodd]")).not.toBeNull();
     await klicka(within(panel).getByRole("button", { name: "Tillbaka" }));
-    expect(await screen.findByRole("region", { name: "Datum ej satt" })).toBeInTheDocument();
+    expect(await screen.findByRole("list", { name: "På gång" })).toBeInTheDocument();
+  });
+
+  it("⛔ inget på gång är en enda tyst rad, inte en stor tom ruta", async () => {
+    const m = apiMed({ kalender: async () => ({ ok: true, handelser: [{ id: "h-forr", titel: "Förr", datum: "2026-10-01", slutDatum: null, tid: null, slutTid: null, heldag: true, kravSvar: false, ejSatt: false }], kalendrar: [], avkortad: false, ejVisade: 0 }) });
+    rita({ api: m.api, logg: m.logg });
+    await valjFlik(screen.getByRole("tab", { name: "Kalender" }));
+    const rad = await screen.findByText("Inget på gång i gruppen.");
+    expect(rad.tagName).toBe("P");
+    expect(rad.closest("[data-gast-kalender]")?.querySelectorAll("[data-ops-empty], ul")).toHaveLength(0);
   });
 
   it("att svara anropar svara med händelsen och värdet och hämtar händelsen på nytt; ett fel står kvar utskrivet", async () => {
@@ -348,9 +379,8 @@ describe("OpsGastGrupp: det bantade gränssnittet", () => {
       })(),
     });
     await valjFlik(screen.getByRole("tab", { name: "Kalender" }));
-    await screen.findByRole("region", { name: "Datum ej satt" });
-    // Händelsen "Möte" öppnas ur dagpanelen i kalendern: här direkt via en lista, eftersom OpsCalendar bara visar dagen när den valts.
-    await klicka(document.querySelector("[data-gast-ejsatt='h-ejsatt']"));
+    await screen.findByRole("list", { name: "På gång" });
+    await klicka(screen.getByRole("button", { name: "Fika" }));
     await screen.findByText("1 kommer, 0 kommer inte, 2 har inte svarat");
     await klicka(screen.getByRole("button", { name: "Kommer" }));
     await screen.findByText("2 kommer, 0 kommer inte, 1 har inte svarat");
@@ -363,8 +393,8 @@ describe("OpsGastGrupp: det bantade gränssnittet", () => {
     const m = apiMed({ svara: async () => ({ ok: false, orsak: "for-manga" }) });
     rita({ api: m.api, logg: m.logg });
     await valjFlik(screen.getByRole("tab", { name: "Kalender" }));
-    await screen.findByRole("region", { name: "Datum ej satt" });
-    await klicka(document.querySelector("[data-gast-ejsatt='h-ejsatt']"));
+    await screen.findByRole("list", { name: "På gång" });
+    await klicka(screen.getByRole("button", { name: "Fika" }));
     await screen.findByText("1 kommer, 0 kommer inte, 2 har inte svarat");
     await klicka(screen.getByRole("button", { name: "Kommer" }));
     expect(await screen.findByText("Svaret sparades inte: Svaret kunde inte sparas just nu. Försök igen.")).toBeInTheDocument();
@@ -379,8 +409,8 @@ describe("OpsGastGrupp: det bantade gränssnittet", () => {
     ));
     rita({ api: m.api, logg: m.logg, renderOmrostning });
     await valjFlik(screen.getByRole("tab", { name: "Kalender" }));
-    await screen.findByRole("region", { name: "Datum ej satt" });
-    await klicka(document.querySelector("[data-gast-ejsatt='h-ejsatt']"));
+    await screen.findByRole("list", { name: "På gång" });
+    await klicka(screen.getByRole("button", { name: "Fika" }));
     await klicka(await screen.findByRole("button", { name: "Rösta ja" }));
     expect(m.logg.filter(([a]) => a === "rosta")).toEqual([["rosta", { handelseId: "h-ejsatt", forslagId: "f1", val: "ja" }]]);
     expect(m.api.handelse).toHaveBeenCalledTimes(2);
