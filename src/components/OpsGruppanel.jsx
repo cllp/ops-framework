@@ -144,7 +144,7 @@ const RADIE = "rounded-base";
  * @property {string} [farg] Gruppens valda färg: `kulor:<0-359>` (0.65.0, #265) eller en äldre ton ur `PROFILFARGER` (0.32.0). Utelämnad eller tom: kulören härleds ur `id`.
  * @property {string} [ikon] Gruppens valda ikon, ett Lucide-namn ur gruppikonkatalogen (0.65.0, #265) eller ett äldre id (`GRUPPIKONER`), eller `initialer:AB`. Utelämnad eller tom: initialer ur namnet.
  * @property {number} [medlemsantal] Utelämnad: ingen siffra ritas, aldrig "0" som gissning.
- * @property {"agare"|"admin"|"medlem"} [roll] Utelämnad: ingen rollpill, och ingen penna.
+ * @property {"agare"|"admin"|"medlem"|"gast"} [roll] Utelämnad: ingen rollpill, och ingen penna. `gast` (0.188.0, cllp/lifehub.app#658) är en grupp personen är gäst i: pillen säger Gäst, och varken (i) eller pennan ritas, eftersom en gäst inte har gruppens sida eller får ändra den.
  * @property {ReadonlyArray<GruppanelKnapp>} [atgarder] Uppe till höger på kortet (glob/info/penna, `GroupCard.jsx` rad 71-107). Utelämnad: inga.
  * @property {ReadonlyArray<GruppanelKnapp>} [knappar] Runda knappar på tredje raden (bibliotek/chatt, `GroupCard.jsx` rad 128-166). Utelämnad: inga.
  * @property {ReadonlyArray<GruppanelAvatar>} [avatarer] Avatarraden längst ner, max fyra, sedan "+N" (`GroupCard.jsx` rad 176-191). Utelämnad: ingen rad.
@@ -212,7 +212,7 @@ function GruppanelRader({ grupper, aktiv, onValj, sprak, listEtikett, tomText, r
         /** @type {GruppanelKnapp[]} */
         const alla = [
           ...(g.atgarder ?? []),
-          ...(onInfo ? [{ icon: <InfoIkon size={14} />, label: infoEtikett, onClick: () => onInfo(g.id) }] : []),
+          ...(onInfo && g.roll !== "gast" ? [{ icon: <InfoIkon size={14} />, label: infoEtikett, onClick: () => onInfo(g.id) }] : []),
           ...(kanRedigera ? [{ icon: <AndraIkon size={14} />, label: redigeraEtikett, onClick: () => onRedigera?.(g.id) }] : []),
         ];
 
@@ -531,7 +531,7 @@ export function OpsGruppanel({
   const tomText = tomTextProp ?? o.tomText;
   const kollapsaEtikett = kollapsaEtikettProp ?? o.kollapsaEtikett;
   const fallUtEtikett = fallUtEtikettProp ?? o.fallUtEtikett;
-  const rollNamn = rollNamnProp ?? { agare: o.rollAgare, admin: o.rollAdmin, medlem: o.rollMedlem };
+  const rollNamn = rollNamnProp ?? { agare: o.rollAgare, admin: o.rollAdmin, medlem: o.rollMedlem, gast: o.rollGast };
   const medlemmarEtikett = medlemmarEtikettProp ?? o.medlemmarEtikett;
   const flerAvatarerEtikett = flerAvatarerEtikettProp ?? o.flerAvatarerEtikett;
   if (typeof onValj !== "function") {
@@ -690,7 +690,7 @@ export function OpsGruppvaxlare({
   listEtikett = "Mina grupper",
   ingenGruppEtikett = "Ingen grupp",
   tomText = "Du är inte medlem i någon grupp än. Skapa en med plusset.",
-  rollNamn = { agare: "Ägare", admin: "Admin", medlem: "Medlem" },
+  rollNamn = { agare: "Ägare", admin: "Admin", medlem: "Medlem", gast: "Gäst" },
   etikett = "Byt grupp",
   nuEtikett = "nu",
   hubbar,
@@ -811,6 +811,7 @@ export const ORD_OPSGRUPPANEL = {
   rollAgare: { sv: "Ägare", en: "Owner" },
   rollAdmin: { sv: "Admin", en: "Admin" },
   rollMedlem: { sv: "Medlem", en: "Member" },
+  rollGast: { sv: "Gäst", en: "Guest" },
   medlemmarEtikett: { sv: "medlemmar", en: "members" },
   flerAvatarerEtikett: { sv: "fler", en: "more" },
 };

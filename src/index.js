@@ -414,6 +414,7 @@ export {
 } from "./lib/gast.js";
 export { OpsGastLista, ORD_OPSGASTLISTA } from "./components/OpsGastLista.jsx";
 export { OpsGastSida, ORD_OPSGASTSIDA } from "./components/OpsGastSida.jsx";
+export { sparaGastSession } from "./lib/gastminne.js";
 /*
  * 0.132.0 (cllp/lifehub.app#389, skiva 2): hela gruppen. Gästens bantade gränssnitt (`OpsGastGrupp`: chatt, kalender, ärenden, bibliotek) och dess delar. `OpsSvarSummor` är svaren som summor, för den som
  * inte får se vem som svarat.

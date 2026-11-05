@@ -3,6 +3,7 @@ import { GASTGRUPPFUNKTIONER } from "../lib/gast.js";
 import { DATUM_EJ_SATT } from "../lib/handelsemodell.js";
 import { definierade, forvalda } from "../lib/ord.js";
 import { OpsBibliotek } from "./OpsBibliotek.jsx";
+import { InfoIkon } from "./icons.jsx";
 import { OpsCalendar } from "./OpsCalendar.jsx";
 import { OpsEmpty } from "./OpsEmpty.jsx";
 import { OpsGastArenden } from "./OpsGastArenden.jsx";
@@ -11,6 +12,40 @@ import { OpsHandelsePanel } from "./OpsHandelsePanel.jsx";
 import { OpsList, OpsListRow } from "./OpsList.jsx";
 import { OpsSvarSummor } from "./OpsSvar.jsx";
 import { OpsTabPanel, OpsTabs } from "./OpsTabs.jsx";
+
+/** Minnesnyckeln för "ingressen är sedd". Delar prefixet med gästsessionerna men räknas aldrig som en session (`GASTINBJUDNINGSIDFORM` filtrerar). */
+const INGRESS_SEDD = "ops-gast:ingress-sedd";
+
+/** @param {{ getItem: (k: string) => string | null } | null | undefined} lagring */
+function minnet(lagring) {
+  if (lagring === null) return null;
+  try {
+    return lagring ?? globalThis.localStorage ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Har gästen sett ingressen förut? Falskt när minnet inte går att läsa, så att den då visas öppen.
+ * @param {{ getItem: (k: string) => string | null } | null | undefined} lagring
+ */
+function ingressSedd(lagring) {
+  try {
+    return minnet(lagring)?.getItem(INGRESS_SEDD) === "1";
+  } catch {
+    return false;
+  }
+}
+
+/** @param {{ getItem: (k: string) => string | null, setItem?: (k: string, v: string) => void } | null | undefined} lagring */
+function markeraIngressSedd(lagring) {
+  try {
+    /** @type {any} */ (minnet(lagring))?.setItem?.(INGRESS_SEDD, "1");
+  } catch {
+    /* Minnet går inte att skriva: ingressen visas öppen nästa gång också, vilket är rätt håll att fela åt. */
+  }
+}
 
 /**
  * Orden i gruppens gästvy, på svenska och engelska (0.132.0, cllp/lifehub.app#389, skiva 2). Flikarnas namn härleds ur `GASTGRUPPFUNKTIONER`: ett nytt ord där är en ny flik här.
@@ -26,6 +61,7 @@ export const ORD_OPSGASTGRUPP = {
     sv: "Du är gäst i {grupp}. Du kan läsa och skriva i gruppens chatt, svara och rösta i kalendern och läsa, spela och ladda ned i biblioteket. Du ser inte gruppens ärenden, bara de som gruppen har gett dig.",
     en: "You are a guest in {grupp}. You can read and write in the group's chat, answer and vote in the calendar, and read, play and download in the library. You do not see the group's cases, only those the group has given you.",
   },
+  omGruppen: { sv: "Om din roll som gäst", en: "About your role as a guest" },
   kalenderEtikett: { sv: "Kalender", en: "Calendar" },
   kalenderTom: { sv: "Inga händelser i kalendern än.", en: "No events in the calendar yet." },
   ejSattRubrik: { sv: "Datum ej satt", en: "Date not set" },
@@ -108,8 +144,9 @@ const tidText = (h, till) => (h.tid ? (h.slutTid ? `${h.tid} ${till} ${h.slutTid
  * @param {Date} [props.idag] Bara för prov: kalenderns idag.
  * @param {string} [props.sprak]
  * @param {Partial<Record<keyof typeof ORD_OPSGASTGRUPP, string>>} [props.ord]
+ * @param {{ getItem: (k: string) => string | null, setItem: (k: string, v: string) => void } | null} [props.lagring] (0.188.0) Minnet för att ingressen ("Du är gäst i ...") bara visas öppen första gången. Förval `localStorage`; `null` eller ett minne som inte går att läsa ger en öppen ingress varje gång.
  */
-export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallMs = 30_000, idag, sprak = "sv", ord }) {
+export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallMs = 30_000, idag, sprak = "sv", ord, lagring }) {
   if (!grupp || typeof grupp.namn !== "string" || !Array.isArray(grupp.funktioner)) throw new Error("OpsGastGrupp: grupp är { namn, funktioner } ur tjänstens hamta().grupp.");
   if (!api || typeof api.chatt !== "function") throw new Error("OpsGastGrupp: api krävs, anropen mot servern (gastGruppApi).");
   const t = { ...forvalda(ORD_OPSGASTGRUPP, sprak), ...definierade(/** @type {Record<string, string>} */ (ord ?? {})) };
@@ -117,6 +154,11 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
   if (funktioner.length === 0) throw new Error("OpsGastGrupp: gruppen har inga funktioner att visa (grupp.funktioner).");
 
   const [flik, setFlik] = useState(/** @type {string} */ (funktioner[0]));
+  // ⛔ INGRESSEN ÄR ÖPPEN FÖRSTA GÅNGEN OCH SEDAN BAKOM (i) (0.188.0, CP 2026-11-05: "kalender får inget utrymme"). Den tog 100 px av 844 på en telefon. Går minnet inte att läsa är den öppen varje gång: ett fel i minnet ska inte dölja något för en ny gäst.
+  const [ingressOppen, setIngressOppen] = useState(() => !ingressSedd(lagring));
+  useEffect(() => {
+    markeraIngressSedd(lagring);
+  }, [lagring]);
   const [data, setData] = useState(/** @type {Record<string, any>} */ ({}));
   const [fel, setFel] = useState(/** @type {Record<string, string | null>} */ ({}));
   const [laddar, setLaddar] = useState(/** @type {Record<string, boolean>} */ ({}));
@@ -539,10 +581,24 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
   return (
     <div data-gast-grupp="" className="flex min-w-0 flex-col gap-4 text-ink sm:rounded-xl sm:border sm:border-line sm:bg-canvas sm:p-5">
       <header className="flex min-w-0 flex-col gap-1">
-        <h1 data-gast-grupp-namn="" className="m-0 text-titel text-ink wrap-anywhere">{grupp.namn}</h1>
-        <p data-gast-grupp-ingress="" className="m-0 text-etikett text-ink-secondary">{t.gastIngress.replace("{grupp}", grupp.namn)}</p>
+        <div className="flex min-w-0 items-center gap-2">
+          <h1 data-gast-grupp-namn="" className="m-0 min-w-0 text-titel text-ink wrap-anywhere">{grupp.namn}</h1>
+          <button
+            type="button"
+            data-gast-grupp-info=""
+            aria-label={t.omGruppen}
+            aria-expanded={ingressOppen}
+            aria-controls="gast-grupp-ingress"
+            onClick={() => setIngressOppen((o) => !o)}
+            className="inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full text-ink-muted hover:bg-sunken hover:text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          >
+            <InfoIkon size={16} />
+          </button>
+        </div>
+        {ingressOppen ? <p id="gast-grupp-ingress" data-gast-grupp-ingress="" className="m-0 text-etikett text-ink-secondary">{t.gastIngress.replace("{grupp}", grupp.namn)}</p> : null}
       </header>
       <OpsTabs
+        fast
         tabs={flikar}
         value={aktivFlik}
         onChange={(v) => {

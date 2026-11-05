@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { cx } from "../lib/cx.js";
 import { lasSparatSprak, sparaSprak, valdSprak } from "../lib/deladdatum.js";
-import { GASTDELTASVAR, GASTFEL, GASTINBJUDNINGSIDFORM, GASTNYLANK_SVAR, GASTNYCKELFORM, MAX_GASTNAMN, normaliseraGastepost } from "../lib/gast.js";
+import { GASTDELTASVAR, GASTFEL, GASTNYLANK_SVAR, GASTNYCKELFORM, MAX_GASTNAMN, normaliseraGastepost } from "../lib/gast.js";
+import { ALLA, SENASTE, minne, sessionsnyckelFor, skrivSessionTillMinne, sparadeSessionsIds } from "../lib/gastminne.js";
 import { definierade, forvalda } from "../lib/ord.js";
 import { PUBLIK_KLASS, PUBLIK_TONER } from "../lib/publikKlass.js";
 import { SPRAK } from "../lib/sprak.js";
@@ -77,72 +78,6 @@ export const ORD_OPSGASTSIDA = {
 /** Orsakerna där en länk som gått ut ändå går att ersätta: adressen stämde, så sidan erbjuder en ny länk. */
 const ERSATTBARA = /** @type {readonly string[]} */ (["utgangen"]);
 
-/** Nyckeln en gästs session sparas under, per inbjudan. Sessionen ligger i webbläsarens minne och inte i adressen. */
-const sessionsnyckelFor = (/** @type {string} */ id) => `ops-gast:${id}`;
-/** Nyckeln som minns vilken inbjudan som senast öppnades, så att `/gast` utan länk öppnar rätt sak igen. */
-const SENASTE = "ops-gast:senaste";
-/** Nyckeln som minns ALLA inbjudningar som har en session på enheten (en JSON-lista, nyast först). 0.132.0: en gäst kan ha en omröstning och hela gruppen på samma enhet. */
-const ALLA = "ops-gast:alla";
-
-/**
- * Minnet för sessionen: webbläsarens (`localStorage`) om det går, annars ett som gäller tills sidan lämnas. Kastar aldrig: privat läge eller blockerad lagring ska inte stoppa sidan.
- * @param {{ getItem: (k: string) => string | null, setItem: (k: string, v: string) => void, removeItem: (k: string) => void } | null | undefined} lagring
- */
-function minne(lagring) {
-  /** @type {Record<string, string>} */
-  const reserv = {};
-  const l = lagring === undefined ? (() => { try { return globalThis.localStorage; } catch { return null; } })() : lagring;
-  return {
-    /** @param {string} k @returns {string | null} */
-    las(k) {
-      try {
-        const v = l ? l.getItem(k) : null;
-        return v ?? reserv[k] ?? null;
-      } catch {
-        return reserv[k] ?? null;
-      }
-    },
-    /** @param {string} k @param {string} v */
-    skriv(k, v) {
-      reserv[k] = v;
-      try {
-        l?.setItem(k, v);
-      } catch {
-        /* Reserven gäller tills sidan lämnas. */
-      }
-    },
-    /** @param {string} k */
-    glom(k) {
-      delete reserv[k];
-      try {
-        l?.removeItem(k);
-      } catch {
-        /* Inget att göra: det finns inget sparat. */
-      }
-    },
-    /**
-     * Nycklarna som börjar med `prefix`, för ett minne som kan räkna upp dem (`localStorage` kan; ett minne med bara get, set och remove kan inte). Hittar sessioner som skrevs innan
-     * indexet fanns (0.131.0 skrev inget index).
-     * @param {string} prefix
-     * @returns {string[]}
-     */
-    nycklar(prefix) {
-      const ut = new Set(Object.keys(reserv).filter((k) => k.startsWith(prefix)));
-      try {
-        const st = /** @type {any} */ (l);
-        if (st && typeof st.key === "function" && Number.isInteger(st.length)) {
-          for (let i = 0; i < st.length; i++) {
-            const k = st.key(i);
-            if (typeof k === "string" && k.startsWith(prefix)) ut.add(k);
-          }
-        }
-      } catch {
-        /* Minnet går inte att räkna upp: bara det vi redan känner till finns att välja på. */
-      }
-      return [...ut];
-    },
-  };
-}
 
 /**
  * Gästens egen sida: det en person ser som bjudits in utan konto, på `/gast` (0.131.0, cllp/lifehub.app#389, skiva 1; 0.132.0, skiva 2: hela gruppen).
@@ -246,27 +181,14 @@ export function OpsGastSida({ lank = null, onLos, onHamta, onNyLank, onNamn, onR
     if (onSprak) onSprak(s);
   }
 
-  /** Inbjudningarna som har en sparad session, den senast öppnade först. Indexet, och allt minnet kan räkna upp (sessioner från före indexet). */
+  /** Inbjudningarna som har en sparad session, den senast öppnade först. Samma läsning som `sparaGastSession` gör (en funktion, ett minnesformat). */
   function sparadeIds() {
-    /** @type {string[]} */
-    const ut = [];
-    const senaste = mem.current.las(SENASTE);
-    if (senaste) ut.push(senaste);
-    try {
-      const lista = JSON.parse(mem.current.las(ALLA) ?? "[]");
-      if (Array.isArray(lista)) for (const id of lista) if (typeof id === "string") ut.push(id);
-    } catch {
-      /* Ett trasigt index är ingen session: resten av listan gäller. */
-    }
-    for (const k of mem.current.nycklar("ops-gast:")) ut.push(k.slice("ops-gast:".length));
-    return [...new Set(ut)].filter((id) => GASTINBJUDNINGSIDFORM.test(id));
+    return sparadeSessionsIds(mem.current);
   }
 
   /** @param {string} id @param {string} nyckel */
   function skrivSession(id, nyckel) {
-    mem.current.skriv(sessionsnyckelFor(id), nyckel);
-    mem.current.skriv(SENASTE, id);
-    mem.current.skriv(ALLA, JSON.stringify([id, ...sparadeIds().filter((x) => x !== id)]));
+    skrivSessionTillMinne(mem.current, id, nyckel);
   }
 
   /** @param {string} id */
