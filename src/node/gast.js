@@ -7,11 +7,16 @@
  * kroppen, och tjänsten läser sessionen och inbjudan på nytt varje gång: det finns ingen token med inbyggd livslängd att vänta ut när någon dras tillbaka.
  * `memberships` skrivs, läses och provas aldrig här för en gäst.
  *
- * ══ ⛔ NYCKELN LEDER ALDRIG UT UR TJÄNSTEN ANNAT ÄN GENOM `skicka` ════════════════════════════════════════════════════
+ * ══ ⛔ NYCKELN LEDER ALDRIG UT UR TJÄNSTEN ANNAT ÄN PÅ TVÅ VÄGAR: BREVET (`skicka`) OCH `kopieraLank` ══════════════════════════
  *
- * Nyckeln i brevet är 32 slumpbyte och lagras bara som hash. Den enda vägen ut är den inskickade `skicka`-funktionen (appens mejlväg), som får `{ id, nyckel }`
+ * Nyckeln i brevet är 32 slumpbyte och lagras på inbjudans rad bara som hash. Den ena vägen ut är den inskickade `skicka`-funktionen (appens mejlväg), som får `{ id, nyckel }`
  * per länk och bygger adressen med `gastLank`. Inget returvärde från en metod här bär en nyckel, så en handler som av misstag returnerar tjänstens svar rakt ut
  * till webbläsaren läcker ingenting. Sessionsnyckeln är undantaget: den är svaret på `los`, och den hör hemma hos gästen.
+ *
+ * Den andra vägen kom 2026-11-05 (CP: "Jag skulle också vilja kunna se länken till inbjudningen, eller kopiera den", och när det gällde om länken skulle bytas: "Man kan behöva ge länken igen för de som
+ * fibblar bort den"): `kopieraLank` ger samma `{ id, nyckel }` till en medlem som får förvalta inbjudan, ur appens `lankvalv`, och är därmed det ENDA returvärdet som bär en nyckel. Det är säkert av tre skäl: bara den som
+ * får Skicka igen (samma prövning, ägare eller admin för en gruppinbjudan) får nyckeln, kopian ligger krypterad i ett valv som bara servern läser och inte på raden som medlemmens klient kan läsa, och den som
+ * öppnar länken måste ändå skriva gästens e-postadress.
  *
  * ══ ⛔ UNIKHET ÄR DOKUMENT-ID, ALDRIG EN LÄSNING FÖLJD AV EN SKRIVNING ═══════════════════════════════════════════════════
  *
@@ -332,13 +337,18 @@ function felMedKod(kod, meddelande) {
  *   Appens regel för vem som får bjuda in gäster till en händelse och dra tillbaka dem: för omröstningen skaparen, en admin eller en ägare, och bara medan datumet
  *   inte är valt. ⛔ `funktion` (0.146.0) säger vad inbjudan gäller: omröstningens regel ("bara medan datumet inte är valt") är fel för `delta`, som kräver ett datum. Appen svarar per funktion. KRÄVS, utan förval: att bjuda in en utomstående är att skicka ett brev i gruppens namn, och en tyst bred regel vore en dörr bredvid reglerna. Prövas
  *   EFTER medlemskapet (aktiv, och en person), aldrig i stället för det.
- * @param {(brev: Gastbrev) => void | Promise<void>} konfig.skicka Appens mejlväg. Får nyckeln, och är den enda väg en nyckel lämnar tjänsten på.
+ * @param {(brev: Gastbrev) => void | Promise<void>} konfig.skicka Appens mejlväg. Får nyckeln. Brevet är den ena av två vägar en nyckel lämnar tjänsten på; den andra är `kopieraLank` ur `lankvalv` (CP 2026-11-05: "Man kan behöva ge länken igen för de som fibblar bort den").
  * @param {{ falt: readonly string[], bygg: (arg: { inbjudan: Record<string, any>, gastId: string, handelse: Record<string, any> }) => Record<string, any> | Promise<Record<string, any>> }} [konfig.sak]
  *   Det gästen ser av saken. `falt` är hela listan: allt som `bygg` ger utöver den tas bort innan svaret lämnar tjänsten. Utan den ger `hamta` inget `sak`.
  * @param {{ handelseSida: (handelse: Record<string, any>) => { titel: string, plats?: string | null } }} [konfig.delta] (0.146.0) Slår på funktionen `delta` för en sak: gästen svarar Kommer, Kommer inte eller Kanske på en händelse och
  *   ser dess rubrik, tid och plats. `handelseSida` säger vilka av appens fält som är rubrik och plats; tiden är ramverkets (`HANDELSEKONTRAKT`). KRÄVER `radering`: tjänsten sparar gästens adress och svar. Utan `delta` svarar `bjud` med funktionen `delta` `ogiltigt-omfang`.
  * @param {Gastgrupp} [konfig.grupp] (0.132.0) Slår på omfånget "grupp": gästens chatt, kalender, ärenden och bibliotek. Utan den finns bara "en sak".
  * @param {Gastradering} [konfig.radering] (0.132.0) Raderingen av en gästs uppgifter. KRÄVS med `grupp`; utan den kastar `radera` och `raderaMig`.
+ * @param {{ spara: (arg: { id: string, groupId: string, nyckel: string }) => Promise<void>, hamta: (arg: { id: string, groupId: string }) => Promise<string | null>, radera: (arg: { id: string, groupId: string }) => Promise<void> }} [konfig.lankvalv]
+ *   (0.189.0) Valvet som gör `kopieraLank` möjlig (CP 2026-11-05: "Man kan behöva ge länken igen för de som fibblar bort den"). Servern sparar annars bara en hash av nyckeln, och en hash går inte att läsa ut.
+ *   Appen krypterar och lagrar: ramverket känner varken samling eller hemlighet. `spara` anropas varje gång en nyckel skapas eller roteras, INNAN brevet skickas, och kastar den får anroparen `valv-misslyckades`.
+ *   `radera` anropas för varje inbjudan som raderas (inte vid återkallelse: Skicka igen väcker den med en ny nyckel ändå). ⛔ Nyckeln ligger i valvet och inte på inbjudans rad, eftersom raden kan läsas av medlemmens klient
+ *   (`gastregelfragment`) och valvet bara av servern. Utelämnad: ingen kopia sparas och `kopieraLank` ger `ej-konfigurerad`.
  * @param {readonly string[]} [konfig.extraSparrade] Appens egna spärrade mejldomäner (`epostFel`).
  * @param {(fel: unknown) => void} [konfig.rapportera] Där ett brev som inte gick att skicka rapporteras när svaret ändå måste vara neutralt (`nyLank`). Förval `console.error`.
  * @param {() => number} [konfig.klocka] Millisekunder. Förval `Date.now`. Provens enda sätt att låta en länk gå ut.
@@ -348,7 +358,7 @@ export function createGastService(konfig) {
    * ⛔ DESTRUKTURERINGEN LIGGER I KROPPEN, av samma skäl som i `createDelningService`: `({ kalla })` i signaturen kastar Nodes "Cannot destructure" innan
    * valideringen hinner köra, och det felet nämner inte fabriken.
    */
-  const { kalla, samlingar, farBjuda, skicka, sak, delta, grupp, radering, extraSparrade = [], rapportera = (/** @type {unknown} */ fel) => console.error("createGastService:", fel), klocka = Date.now } = konfig ?? {};
+  const { kalla, samlingar, farBjuda, skicka, sak, delta, grupp, radering, lankvalv, extraSparrade = [], rapportera = (/** @type {unknown} */ fel) => console.error("createGastService:", fel), klocka = Date.now } = konfig ?? {};
   const namn = "createGastService";
   if (!kalla || typeof kalla.read !== "function" || typeof kalla.list !== "function" || typeof kalla.remove !== "function") {
     throw new Error(`${namn}: en datakälla med read, list och remove krävs. Ramverket känner ingen databas.`);
@@ -373,8 +383,13 @@ export function createGastService(konfig) {
   if (typeof farBjuda !== "function") {
     throw new Error(`${namn}: farBjuda krävs, appens regel för vem som får bjuda in gäster. Det finns inget förval: ramverket gissar inte vem som får skicka ett brev i gruppens namn.`);
   }
+  if (lankvalv !== undefined) {
+    if (!lankvalv || typeof lankvalv !== "object") throw new Error(`${namn}: lankvalv är ett objekt { spara, hamta, radera }, eller utelämnas.`);
+    for (const f of /** @type {const} */ (["spara", "hamta", "radera"])) if (typeof lankvalv[f] !== "function") throw new Error(`${namn}: lankvalv.${f} krävs, en funktion. Ett valv som inte kan radera lämnar nycklar kvar efter en radering.`);
+  }
+  const VALV = lankvalv ?? null;
   if (typeof skicka !== "function") {
-    throw new Error(`${namn}: skicka krävs, appens mejlväg. Nyckeln lämnar tjänsten bara genom den.`);
+    throw new Error(`${namn}: skicka krävs, appens mejlväg. Nyckeln lämnar tjänsten bara genom den och genom kopieraLank (lankvalv).`);
   }
   if (sak !== undefined) {
     if (!sak || !Array.isArray(sak.falt) || sak.falt.length === 0 || sak.falt.some((/** @type {unknown} */ f) => typeof f !== "string" || f === "")) {
@@ -810,6 +825,30 @@ export function createGastService(konfig) {
    * @returns {Promise<{ rad: Record<string, any>, nyckel: string }>}
    */
   async function roteraNyckel(rad) {
+    const { rad: ny, nyckel } = await roteraNyckelUtanValv(rad);
+    await sparaIValv(ny, nyckel);
+    return { rad: ny, nyckel };
+  }
+
+  /**
+   * Sparar nyckeln i valvet (`lankvalv`) INNAN brevet skickas. ⛔ Kastar valvet blir det `valv-misslyckades`, aldrig tyst (regel 5): inbjudan finns, men länken går inte att kopiera förrän Skicka igen lyckats.
+   * @param {Record<string, any>} rad
+   * @param {string} nyckel
+   */
+  async function sparaIValv(rad, nyckel) {
+    if (!VALV) return;
+    try {
+      await VALV.spara({ id: rad.id, groupId: rad.groupId, nyckel });
+    } catch (fel) {
+      throw Object.assign(felMedKod("valv-misslyckades", "länken gick inte att spara för kopiering. Inbjudan finns: använd Skicka igen."), { orsak: fel });
+    }
+  }
+
+  /**
+   * @param {Record<string, any>} rad
+   * @returns {Promise<{ rad: Record<string, any>, nyckel: string }>}
+   */
+  async function roteraNyckelUtanValv(rad) {
     let aktuell = rad;
     for (let i = 0; i < 4; i++) {
       const nyckel = nyGastnyckel();
@@ -948,6 +987,7 @@ export function createGastService(konfig) {
 
     // En ny rad börjar på SEQUENCE 0. En befintlig rad (Bjud in igen) jämförs mot det som skickades förra gången: ändrades tid eller plats däremellan stiger SEQUENCE.
     const sekvens = deltaUt ? (created ? 0 : await sekvensForUtskick(/** @type {Record<string, any>} */ (row), deltaUt)) : 0;
+    await sparaIValv(ny, brevNyckel);
     await levereraBrev({
       typ: created ? "inbjudan" : "igen",
       till: epost,
@@ -981,6 +1021,29 @@ export function createGastService(konfig) {
   }
 
   /**
+   * Prövningen som `skickaOm` och `kopieraLank` delar (en sanning, regel 2): giltigt id, raden finns, medlemmen får förvalta den, ägare eller admin för en gruppinbjudan och inte återkallad.
+   *
+   * @param {Record<string, any>} b `{ uid, id }`.
+   * @param {string} metod Metodens namn, för felmeddelandena.
+   * @returns {Promise<{ uid: string, rad: Record<string, any> }>}
+   */
+  async function provaForvaltning(b, metod) {
+    const uid = kravText(b?.uid, "uid", metod);
+    const id = kravText(b?.id, "id", metod);
+    if (!GASTINBJUDNINGSIDFORM.test(id)) throw felMedKod("finns-inte", `${metod}: id är en hash på 64 hextecken.`);
+    const rad = await kalla.read(INB, id);
+    if (!rad) throw felMedKod("finns-inte", `${metod}: inbjudan "${id}" finns inte.`);
+    await kravForvalta(uid, rad, metod);
+    // ⛔ ATT SKICKA OM EN GRUPPINBJUDAN ÄR ATT GE NY ÅTKOMST TILL HELA GRUPPEN, så det kräver ägare eller admin NU. Den som bjöd och sedan blev en vanlig medlem får fortfarande dra tillbaka
+    // (en dörr hen öppnat ska hen kunna stänga) men inte öppna den igen. Samma krav gäller att få länken (`kopieraLank`): en länk är en dörr, vare sig den skickas eller kopieras.
+    if (rad.omfang?.slag === "grupp" && !(await forvaltar(uid, rad.groupId))) {
+      throw felMedKod("ej-behorig", `${metod}: ${uid} är inte ägare eller admin i gruppen. Bara de ${metod === "kopieraLank" ? "hämtar länken till" : "skickar"} en gruppinbjudan.`);
+    }
+    if (rad.aterkallad !== null) throw felMedKod("aterkallad", `${metod}: inbjudan "${id}" är återkallad. Bjud in på nytt.`);
+    return { uid, rad };
+  }
+
+  /**
    * Skickar en ny länk till en aktiv inbjudan. Nyckeln roteras, så den gamla länken slutar fungera. Platsen bekräftas, så att ett utskick också lagar en plats som
    * en samtidig återkallelse tömde. En återkallad inbjudan skickas inte om: väck den med `bjud`, som tar en plats på nytt.
    *
@@ -988,18 +1051,8 @@ export function createGastService(konfig) {
    * @returns {Promise<{ id: string }>}
    */
   async function skickaOm(b) {
-    const uid = kravText(b?.uid, "uid", "skickaOm");
-    const id = kravText(b?.id, "id", "skickaOm");
-    if (!GASTINBJUDNINGSIDFORM.test(id)) throw felMedKod("finns-inte", "skickaOm: id är en hash på 64 hextecken.");
-    const rad = await kalla.read(INB, id);
-    if (!rad) throw felMedKod("finns-inte", `skickaOm: inbjudan "${id}" finns inte.`);
-    await kravForvalta(uid, rad, "skickaOm");
-    // ⛔ ATT SKICKA OM EN GRUPPINBJUDAN ÄR ATT GE NY ÅTKOMST TILL HELA GRUPPEN, så det kräver ägare eller admin NU. Den som bjöd och sedan blev en vanlig medlem får fortfarande dra tillbaka
-    // (en dörr hen öppnat ska hen kunna stänga) men inte öppna den igen.
-    if (rad.omfang?.slag === "grupp" && !(await forvaltar(uid, rad.groupId))) {
-      throw felMedKod("ej-behorig", `skickaOm: ${uid} är inte ägare eller admin i gruppen. Bara de skickar en gruppinbjudan.`);
-    }
-    if (rad.aterkallad !== null) throw felMedKod("aterkallad", `skickaOm: inbjudan "${id}" är återkallad. Bjud in på nytt.`);
+    const { uid, rad } = await provaForvaltning(b, "skickaOm");
+    const id = rad.id;
     // ⛔ EN DELTA-INBJUDAN PÅ EN HÄNDELSE SOM FÖRSVUNNIT SKICKAS INTE OM: länken i brevet leder till en sida som säger att det inte finns. Rosta-inbjudan är som förut.
     const delta = rad.omfang?.funktion === "delta" && DELTA ? deltaHandelseUt(await lasHandelse(rad.omfang.handelseId, "skickaOm")) : null;
     await tagPlats(rad.groupId, gastId(rad.epost));
@@ -1014,6 +1067,26 @@ export function createGastService(konfig) {
       skickadAv: { uid, namn: text(medlem?.namn) || text(rad.skapadAv?.namn) },
     });
     return { id };
+  }
+
+  /**
+   * ⛔ DEN ANDRA VÄGEN UT FÖR EN NYCKEL (CP 2026-11-05: "Man kan behöva ge länken igen för de som fibblar bort den"). Ger SAMMA länk som i mejlet, ur valvet (`lankvalv`): ingen rotation, ingen plats, inget brev,
+   * och raden ändras inte. Samma krav som Skicka igen, och dessutom: länken får inte ha gått ut (`utgangen`; då behövs en ny, alltså Skicka igen), valvet måste vara på (`ej-konfigurerad`) och ha en kopia
+   * som hör till inbjudans nuvarande nyckel (`ingen-kopia`: en inbjudan från före valvet, eller en kopia som inte hann sparas när nyckeln roterades).
+   *
+   * @param {Record<string, any>} b `{ uid, id }`.
+   * @returns {Promise<{ id: string, nyckel: string, lankGiltigTill: number }>}
+   */
+  async function kopieraLank(b) {
+    const { rad } = await provaForvaltning(b, "kopieraLank");
+    if (!VALV) throw felMedKod("ej-konfigurerad", "kopieraLank: createGastService fick inget lankvalv. Utan det sparas ingen kopia av nyckeln och länken går inte att ge igen.");
+    if (typeof rad.lankGiltigTill === "number" && rad.lankGiltigTill < klocka()) throw felMedKod("utgangen", `kopieraLank: länken till "${rad.id}" har gått ut. Skicka igen för en ny.`);
+    const nyckel = await VALV.hamta({ id: rad.id, groupId: rad.groupId });
+    // ⛔ KOPIAN MÅSTE HÖRA TILL RADENS NUVARANDE NYCKEL. En kopia som inte matchar hashen är en gammal länk som inte fungerar, och den får aldrig lämna tjänsten som om den gjorde det.
+    if (typeof nyckel !== "string" || nyckel === "" || gastnyckelHash(nyckel) !== rad.nyckelHash) {
+      throw felMedKod("ingen-kopia", `kopieraLank: det finns ingen kopia av den nuvarande länken till "${rad.id}". Skicka igen en gång, sedan går den att kopiera.`);
+    }
+    return { id: rad.id, nyckel, lankGiltigTill: rad.lankGiltigTill };
   }
 
   /**
@@ -2141,7 +2214,11 @@ export function createGastService(konfig) {
       if (await kalla.read(RAKNARE, nid)) await taBort(RAKNARE, nid);
     }
     if (radering.spar) await radering.spar({ epost: d.epost, gastId: gId, grupper: berorda, alla: allaBort });
-    for (const r of rader) await taBort(INB, r.id);
+    for (const r of rader) {
+      await taBort(INB, r.id);
+      // Kopian av nyckeln följer med raden: en raderad inbjudan lämnar ingen länk kvar. Raden först, så att en körning som dör mellan de två går att köra om (valvets `radera` är idempotent).
+      if (VALV) await VALV.radera({ id: r.id, groupId: r.groupId });
+    }
     let platserSlappta = 0;
     for (const g of berorda) if (await slappPlatsOmTom(g, d.epost)) platserSlappta++;
     return { inbjudningar: rader.length, sessioner, roster, meddelanden, arenden: arendenRorda, platserSlappta, grupper: berorda };
@@ -2184,5 +2261,5 @@ export function createGastService(konfig) {
     return { ok: true };
   }
 
-  return { bjud, aterkalla, skickaOm, lista, platser, los, minaGruppgaster, oppnaGruppgast, session, hamta, sattNamn, nyLank, stadaSessioner, deltaSvara, tidAndrad, chatt, skrivChatt, kalender, handelse, svara, rosta, bibliotek, fil, arenden, kommenteraArende, markeraArendeKlart, levandeGaster, aterkallaAlla, ersattAvMedlem, radera, raderaMig };
+  return { bjud, aterkalla, skickaOm, kopieraLank, lista, platser, los, minaGruppgaster, oppnaGruppgast, session, hamta, sattNamn, nyLank, stadaSessioner, deltaSvara, tidAndrad, chatt, skrivChatt, kalender, handelse, svara, rosta, bibliotek, fil, arenden, kommenteraArende, markeraArendeKlart, levandeGaster, aterkallaAlla, ersattAvMedlem, radera, raderaMig };
 }

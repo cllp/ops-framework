@@ -390,6 +390,10 @@ export const GASTFELKODER = /** @type {const} */ ([
   "brev-misslyckades",
   "ogiltigt-omfang",
   "ogiltig-text",
+  "valv-misslyckades",
+  "ingen-kopia",
+  "utgangen",
+  "ej-konfigurerad",
 ]);
 
 /**

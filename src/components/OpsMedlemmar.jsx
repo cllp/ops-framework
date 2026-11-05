@@ -145,15 +145,20 @@ export function OpsMedlemmar({
     setEpost("");
   };
 
+  /** Dialogens knapp väntar på det här, och dialogen stängs först när servern svarat (`GastBekraftelse`): ett andra tryck under väntan bjuder inte in igen. */
   async function bjudGast() {
     const b = bekrafta;
-    setBekrafta(null);
-    if (!b || !gaster) return;
+    if (!b || !gaster) {
+      setBekrafta(null);
+      return;
+    }
     try {
       await gaster.onBjud({ epost: b.epost, namn: b.namn });
       setEpost("");
     } catch (e) {
       setGastFel(gastFelText(e, t, gaster.platser.totalt));
+    } finally {
+      setBekrafta(null);
     }
   }
 

@@ -171,7 +171,7 @@ const SAMLINGAR_ATT_SOKA = [`samtal/${GRUPP}|grupp/meddelanden`, "gastinbjudning
  * @param {boolean} [val.utanArenden] Appen har ingen ärendedelegering till gäster (skiva 3 av).
  * @param {Record<string, any[]>} [val.extra]
  */
-function bygg({ omslut = (k) => k, utanGrupp = false, utanArenden = false, arendeFalt = null, extra = {}, signeringsfel = null, kommenteraFel = null } = {}) {
+function bygg({ omslut = (k) => k, utanGrupp = false, utanArenden = false, arendeFalt = null, extra = {}, signeringsfel = null, kommenteraFel = null, lankvalv = null } = {}) {
   const grund = createMemorySource({ ...seed(), ...extra });
   const kalla = omslut(grund);
   let nu = NU;
@@ -249,6 +249,7 @@ function bygg({ omslut = (k) => k, utanGrupp = false, utanArenden = false, arend
             },
           },
           radering: { roster, spar },
+          ...(lankvalv ? { lankvalv } : {}),
         }),
   });
   return { grund, kalla, tjanst, brev, signera, roster, spar, rostlogg, arendelogg, arenden, tid: (/** @type {number} */ t) => { nu = t; }, nu: () => nu };
@@ -1245,6 +1246,18 @@ describe("återkalla alla, ersatt av medlem, listan och nya länkar", () => {
     await expect(h.tjanst.aterkallaAlla({ uid: AGARE, groupId: GRUPP, gastId: gastId("ingen@foretag.se") })).rejects.toMatchObject({ kod: "finns-inte" });
     await expect(h.tjanst.aterkallaAlla({ uid: AGARE, groupId: GRUPP, gastId: "inte-ett-id" })).rejects.toMatchObject({ kod: "finns-inte" });
     expect((await h.grund.list("gastinbjudningar")).find((r) => r.epost === "bo@foretag.se").aterkallad).toBeNull();
+  });
+
+  it("⛔ kopieraLank på en gruppinbjudan kräver ägare eller admin, som Skicka igen, och ger samma nyckel som brevet (0.189.0)", async () => {
+    const kopior = new Map();
+    const lankvalv = { spara: async ({ id, nyckel }) => void kopior.set(id, nyckel), hamta: async ({ id }) => kopior.get(id) ?? null, radera: async ({ id }) => void kopior.delete(id) };
+    const h = bygg({ lankvalv });
+    const { id, lank } = await gruppGast(h, "anna@foretag.se", { uid: ADMIN });
+    await expect(h.tjanst.kopieraLank({ uid: AGARE, id })).resolves.toMatchObject({ id, nyckel: lank.nyckel });
+    // Den som bjöd och sedan blev en vanlig medlem får dra tillbaka men inte hämta länken: en länk är en dörr.
+    await h.grund.update("memberships", medlemskapsId(ADMIN, GRUPP), { roll: "medlem" });
+    await expect(h.tjanst.kopieraLank({ uid: ADMIN, id })).rejects.toMatchObject({ kod: "ej-behorig" });
+    await expect(h.tjanst.kopieraLank({ uid: MEDLEM, id })).rejects.toMatchObject({ kod: "ej-behorig" });
   });
 
   it("den som bjöd får dra tillbaka sin gruppinbjudan även efter att ha blivit en vanlig medlem, men inte skicka om den", async () => {
