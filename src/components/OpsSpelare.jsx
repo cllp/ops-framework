@@ -59,6 +59,7 @@ import { OpsSpinner } from "./OpsSpinner.jsx";
  * @property {number} [durationMs] Sparad längd.
  * @property {string} [peaks] Sparad våg, som `kodaToppar` ger den.
  * @property {(meta: { durationMs?: number, peaks?: string }) => void} [onMeta] Anropas när längd eller våg räknats fram ur filen.
+ * @property {boolean} [laddaNed] (0.190.0) `false`: arket ritar ingen Ladda ned (gruppen har stängt av nedladdning för gäster). Förval: Ladda ned finns.
  */
 
 /**
@@ -662,6 +663,7 @@ export function OpsSpelarKontroller({ spar, stor = false }) {
             {hastighetText(lage.hastighet)}
           </button>
         ) : null}
+        {spar.laddaNed === false ? null : (
         <a
           href={spar.src}
           download={spar.namn || "ljud"}
@@ -670,6 +672,7 @@ export function OpsSpelarKontroller({ spar, stor = false }) {
         >
           {sord("laddaNed", sprak)}
         </a>
+        )}
       </div>
       {aktiv && lage.fel ? <p role="alert" className="m-0 text-center text-meta text-danger">{lage.fel}</p> : null}
     </div>

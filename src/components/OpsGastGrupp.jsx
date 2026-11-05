@@ -99,6 +99,8 @@ export const ORD_OPSGASTGRUPP = {
   fel_kundeInte: { sv: "Det gick inte just nu. Försök igen.", en: "That did not work right now. Try again." },
   "fel_ogiltig-text": { sv: "Meddelandet är tomt eller för långt.", en: "The message is empty or too long." },
   "fel_for-manga": { sv: "För många anrop. Vänta en stund och försök igen.", en: "Too many requests. Wait a while and try again." },
+  // (0.190.0) Gruppen har stängt av nedladdning för gäster: ett dokument som bara kan laddas ned går inte att öppna.
+  "fel_nedladdning-av": { sv: "Gruppen har stängt av nedladdning. Filen går inte att öppna här.", en: "The group has turned off downloads. The file cannot be opened here." },
   fel_saknas: { sv: "Det du bad om finns inte längre.", en: "What you asked for no longer exists." },
   fel_nej: { sv: "Det gick inte.", en: "That did not work." },
   fel_arende: { sv: "Ärendet ligger inte längre hos dig, eller är redan klart.", en: "The case is no longer with you, or is already done." },
@@ -156,7 +158,8 @@ const tidText = (h, till) => (h.tid ? (h.slutTid ? `${h.tid} ${till} ${h.slutTid
  * ⛔ NEKAS ETT ANROP (`aterkallad`, `nej`) ANROPAS `onNekad`, och sidan byter allt mot texten "Inbjudan är återkallad". Vyn visar aldrig kvar det som lästs när åtkomsten är borta.
  *
  * @param {object} props
- * @param {{ namn: string, funktioner: readonly string[] }} props.grupp Tjänstens `hamta().grupp`.
+ * @param {{ namn: string, funktioner: readonly string[], nedladdning?: boolean }} props.grupp Tjänstens `hamta().grupp`. (0.190.0) `nedladdning: false`: gruppen har stängt av nedladdning
+ *   (`grupp.farLaddaNed`), och varken biblioteket eller spelarens ark ritar Ladda ned. Utelämnad: som förut.
  * @param {ReturnType<typeof import("../lib/gast.js").gastGruppApi>} props.api Anropen mot servern, bundna till sessionen (`gastGruppApi(anrop, sessionsnyckel)`).
  * @param {(orsak: string) => void} [props.onNekad] Ett anrop nekades. Normalt `uppdatera` ur `renderGrupp`, som hämtar om sidan.
  * @param {(arg: { handelse: Record<string, any>, omrostning: Record<string, any>, rosta: (arg: { forslagId: string, val: string }) => Promise<void>, uppdatera: () => Promise<void> }) => import("react").ReactNode} [props.renderOmrostning]
@@ -582,6 +585,7 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
           hamtaAdress={hamtaAdress}
           adresserPaBegaran
           utanHubb
+          utanNedladdning={grupp.nedladdning === false}
         />
         {bibliotek && bibliotek.poster.length === 0 ? <p data-gast-bibliotek-tom="" role="status" className="m-0 text-etikett text-ink-muted">{t.bibliotekTom}</p> : null}
         {bibliotek?.avkortad ? <p role="status" data-gast-bibliotek-avkortad="" className="m-0 text-meta text-ink-muted">{t.bibliotekAvkortad.replace("{n}", String(bibliotek.poster.length))}</p> : null}

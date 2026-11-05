@@ -104,4 +104,51 @@ describe("gästens spelare", () => {
     expect(within(ark).getByRole("link", { name: "Download Demo" })).toHaveTextContent("Download");
     expect(ark.textContent).not.toMatch(/Spelar|Ladda ned|längd okänd/);
   });
+
+  it("⛔ med nedladdning: false ritas ingen Ladda ned, varken i spelarens ark eller i en öppnad fil; spela och visa går som förut (0.190.0, del Q)", async () => {
+    const api = apiMed();
+    render(<OpsGastGrupp grupp={{ namn: "Källan", funktioner: ["chatt", "bibliotek"], nedladdning: false }} api={api} intervallMs={0} />);
+    await act(async () => {
+      fireEvent.mouseDown(screen.getByRole("tab", { name: "Bibliotek" }), { button: 0 });
+    });
+    await screen.findByText("Demo");
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Spela Demo" }));
+    });
+    const rad = /** @type {HTMLElement} */ (await waitFor(() => {
+      const r = document.querySelector("[data-ops-spelrad]");
+      expect(r).not.toBeNull();
+      return r;
+    }));
+    await act(async () => {
+      fireEvent.click(within(rad).getByRole("button", { name: "Öppna spelaren för Demo" }));
+    });
+    const ark = /** @type {HTMLElement} */ (document.querySelector("[data-ops-spelarark]"));
+    // Spelaren är kvar: vågen och knapparna.
+    expect(within(ark).getByRole("slider", { name: "Spola i Demo" })).toBeInTheDocument();
+    expect(within(ark).queryByRole("link", { name: /Ladda ned/ })).toBeNull();
+    expect(ark.textContent).not.toContain("Ladda ned");
+    await act(async () => {
+      fireEvent.click(within(ark).getByRole("button", { name: "Fäll ihop spelaren" }));
+    });
+    // En PDF: länken till filen finns (visa), men ingen Ladda ned.
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Låtlista" }));
+    });
+    await screen.findByRole("link", { name: /lat\.pdf/ });
+    expect(document.querySelector("[data-bibliotek-ladda-ned]")).toBeNull();
+  });
+
+  it("utan nedladdning i svaret (som förut) står Ladda ned i en öppnad fil", async () => {
+    render(<OpsGastGrupp grupp={{ namn: "Källan", funktioner: ["chatt", "bibliotek"] }} api={apiMed()} intervallMs={0} />);
+    await act(async () => {
+      fireEvent.mouseDown(screen.getByRole("tab", { name: "Bibliotek" }), { button: 0 });
+    });
+    await screen.findByText("Låtlista");
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Låtlista" }));
+    });
+    await screen.findByRole("link", { name: /lat\.pdf/ });
+    expect(document.querySelector("[data-bibliotek-ladda-ned]")).not.toBeNull();
+  });
 });

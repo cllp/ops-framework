@@ -171,7 +171,7 @@ const SAMLINGAR_ATT_SOKA = [`samtal/${GRUPP}|grupp/meddelanden`, "gastinbjudning
  * @param {boolean} [val.utanArenden] Appen har ingen ärendedelegering till gäster (skiva 3 av).
  * @param {Record<string, any[]>} [val.extra]
  */
-function bygg({ omslut = (k) => k, utanGrupp = false, utanArenden = false, arendeFalt = null, extra = {}, signeringsfel = null, kommenteraFel = null, lankvalv = null } = {}) {
+function bygg({ omslut = (k) => k, utanGrupp = false, utanArenden = false, arendeFalt = null, extra = {}, signeringsfel = null, kommenteraFel = null, lankvalv = null, farLaddaNed = undefined } = {}) {
   const grund = createMemorySource({ ...seed(), ...extra });
   const kalla = omslut(grund);
   let nu = NU;
@@ -237,6 +237,7 @@ function bygg({ omslut = (k) => k, utanGrupp = false, utanArenden = false, arend
             lagring: { signeradAdress: signera },
             handelseSida: (h) => ({ titel: h.rubrik, beskrivning: h.text, plats: h.plats }),
             ...(utanArenden ? {} : { arenden: arendeFalt ? { ...arenden, falt: arendeFalt } : arenden }),
+            ...(farLaddaNed !== undefined ? { farLaddaNed } : {}),
             omrostning: {
               falt: ["forslag", "mina"],
               bygg: async ({ handelse, gastId: g }) => (handelse.id === "h-ejsatt" ? { forslag: [{ id: "f1", datum: "2026-12-01" }], mina: (await grund.list("datumroster")).filter((r) => r.gastId === g).map((r) => r.val), hemlig: "HEMLIGT-APPFALT" } : null),
@@ -528,10 +529,10 @@ describe("vitlistade fält: ingen medlems adress, uid eller hemlighet lämnar se
   it("hamta för en gruppgäst svarar med gruppens namn och funktionerna: chatt, kalender, bibliotek och ärenden, och utan appens ärendedelegering bara de tre första", async () => {
     const h = bygg();
     const g = await gruppGast(h);
-    expect(await h.tjanst.hamta({ sessionsnyckel: g.sessionsnyckel })).toEqual({ ok: true, namn: "", funktion: "grupp", grupp: { namn: "Källan", funktioner: ["chatt", "kalender", "bibliotek", "arenden"] } });
+    expect(await h.tjanst.hamta({ sessionsnyckel: g.sessionsnyckel })).toEqual({ ok: true, namn: "", funktion: "grupp", grupp: { namn: "Källan", funktioner: ["chatt", "kalender", "bibliotek", "arenden"], nedladdning: true } });
     const utan = bygg({ utanArenden: true });
     const u = await gruppGast(utan);
-    expect(await utan.tjanst.hamta({ sessionsnyckel: u.sessionsnyckel })).toEqual({ ok: true, namn: "", funktion: "grupp", grupp: { namn: "Källan", funktioner: ["chatt", "kalender", "bibliotek"] } });
+    expect(await utan.tjanst.hamta({ sessionsnyckel: u.sessionsnyckel })).toEqual({ ok: true, namn: "", funktion: "grupp", grupp: { namn: "Källan", funktioner: ["chatt", "kalender", "bibliotek"], nedladdning: true } });
   });
 });
 
@@ -1144,6 +1145,42 @@ describe("nedladdning: en signerad adress, rätt fil, tak per dygn, och ingen ad
     expect(h.signera.mock.calls.at(-1)[0].disposition).toBe("inline");
     await h.tjanst.fil({ sessionsnyckel: g.sessionsnyckel, postId: "p-ljud", bifoga: true });
     expect(h.signera.mock.calls.at(-1)[0].disposition).toMatch(/^attachment/);
+  });
+
+  it("⛔ med farLaddaNed som svarar false ges ingen nedladdningslänk (nedladdning-av, ingen räknare), men spela och visa går; hamta bär nedladdning: false (0.190.0, CP 2026-11-05)", async () => {
+    const farLaddaNed = vi.fn(async () => false);
+    const h = bygg({ farLaddaNed });
+    const g = await gruppGast(h);
+    expect((await h.tjanst.hamta({ sessionsnyckel: g.sessionsnyckel })).grupp).toMatchObject({ nedladdning: false });
+    expect(farLaddaNed).toHaveBeenCalledWith({ groupId: "kallan" });
+    const forst = h.signera.mock.calls.length;
+    // Nedladdning: en tvingad (bifoga: true) och ett dokument som bara kan laddas ned. Ingen signering.
+    expect(await h.tjanst.fil({ sessionsnyckel: g.sessionsnyckel, postId: "p-ljud", bifoga: true })).toEqual({ ok: false, orsak: "nedladdning-av" });
+    expect(await h.tjanst.fil({ sessionsnyckel: g.sessionsnyckel, postId: "p-doc" })).toEqual({ ok: false, orsak: "nedladdning-av" });
+    expect(h.signera.mock.calls.length).toBe(forst);
+    // Spela och visa: inline som förut.
+    expect((await h.tjanst.fil({ sessionsnyckel: g.sessionsnyckel, postId: "p-ljud" })).ok).toBe(true);
+    expect(h.signera.mock.calls.at(-1)[0].disposition).toBe("inline");
+    expect((await h.tjanst.fil({ sessionsnyckel: g.sessionsnyckel, postId: "p-pdf" })).ok).toBe(true);
+    expect(h.signera.mock.calls.at(-1)[0].disposition).toBe("inline");
+    // De nekade tar inget av taket (50 per dygn): efter 60 nekade nedladdningar går en spelning ändå.
+    for (let i = 0; i < 60; i++) {
+      // Anropstaket per minut (60) är ett annat tak: klockan flyttas en minut var tjugonde gång, inom samma dygn.
+      if (i % 20 === 0) h.tid(h.nu() + 61_000);
+      expect((await h.tjanst.fil({ sessionsnyckel: g.sessionsnyckel, postId: "p-doc" })).orsak).toBe("nedladdning-av");
+    }
+    expect((await h.tjanst.fil({ sessionsnyckel: g.sessionsnyckel, postId: "p-ljud" })).ok).toBe(true);
+  });
+
+  it("utan farLaddaNed, och med true, är nedladdningen som förut, och ett värde som inte är en funktion kastar", async () => {
+    for (const farLaddaNed of [undefined, () => true]) {
+      const h = bygg(farLaddaNed ? { farLaddaNed } : {});
+      const g = await gruppGast(h);
+      expect((await h.tjanst.hamta({ sessionsnyckel: g.sessionsnyckel })).grupp.nedladdning).toBe(true);
+      expect((await h.tjanst.fil({ sessionsnyckel: g.sessionsnyckel, postId: "p-ljud", bifoga: true })).ok).toBe(true);
+      expect(h.signera.mock.calls.at(-1)[0].disposition).toMatch(/^attachment/);
+    }
+    expect(() => bygg({ farLaddaNed: true })).toThrow(/farLaddaNed är en funktion/);
   });
 
   it("bara gruppens egna färdiga filer med exakt sökväg: händelsens, Mitt bibliotek, en annan grupps, en som pekar på en annans fil, en med punkter, en som inte är klar och en med fel post i sökvägen nekas", async () => {

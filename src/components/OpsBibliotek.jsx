@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { sparaSomFil } from "../lib/sparaFil.js";
 import * as Popover from "@radix-ui/react-popover";
 import * as Tabs from "@radix-ui/react-tabs";
@@ -181,6 +181,12 @@ function medNal(post, ny) {
  * också när språket var engelska, eftersom de var skrivna direkt i komponenten.
  * @type {import("../lib/ord.js").Ordbok}
  */
+/**
+ * Får den som ser biblioteket ladda ned (0.190.0, CP 2026-11-05: "Vill att man skall kunna förhindra nedladdning till gäster")? Ett sammanhang och inte en prop genom varje
+ * kort, detalj och spelare: Ladda ned står på fyra ställen, och en prop som glömdes på ett av dem hade varit en knapp som syntes fast gruppen stängt av den.
+ */
+const NedladdningKontext = createContext(true);
+
 const ORD_BIBLIOTEKLISTA = {
   flik_alla: { sv: "Allt", en: "All" },
   flik_ljud: { sv: "Ljud", en: "Audio" },
@@ -318,8 +324,9 @@ const arkivtips = () => `Arkiverad. Välj taggen ${ARKIVTAGG} för att se arkive
  *   under listan (och i detaljen): stjärnan ändras inte förrän `stjarnor` ändras, så en stjärna som inte sparades ser inte sparad ut.
  * @param {import("react").ReactNode} [props.huvudRad] (0.187.0, cllp/ops-framework#517) En rad som appen äger, ritad som en egen rad under sökfältet, "+ Ny" och Taggar i huvudet (inte i samma rad: på en telefon krymper sökrutan då till ett par bokstäver). Förut sköt appen in sin
  *   "Klistra in"-knapp i huvudet genom DOM:en och bevakade den med en MutationObserver. Utan propen finns ingen rad. Hör inte hit med `inbaddad`, som inte har något huvud.
+ * @param {boolean} [props.utanNedladdning] (0.190.0, CP 2026-11-05: "Vill att man skall kunna förhindra nedladdning till gäster.") Ingen Ladda ned: varken i en fils detalj eller i spelarens ark för ett ljud ur listan. Gästens bibliotek när gruppen stängt av nedladdning (`grupp.nedladdning: false`). Visa och spela är som förut.
  */
-export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, trasiga: trasigaProp = [], laddar: laddarProp = false, vald = null, skapar = null, jag, onOppna, onStang, onSkapa, onSpara, onRadera, onLaddaUpp, onFyllLjud, onSpelaIn, inspelare, filUrl, hamtaAdress, hamtaFil, htmlVersioner, hamtaHtmlVersion, aterstallHtml, nyHtmlVersion, oppnaHtml, grupper = [], onDela, platser = [], plats, onPlats, onSkrivUt, onSkrivUtIgen, onTaBortUtskrift, onAnteckningAvUtskrift, onGorForslag, delningar = [], delningGruppdel, gruppnamn: gruppnamnProp, onDelaLank, onAndraNedladdning, onAterkalla, onMejlaLank, onLankInfo, githubLasare, hubHref, hubEtikett, onNavigate, modulId = "bibliotek", ram = null, activeHref, modul = null, inbaddad = false, tomText, utanHubb = false, adresserPaBegaran = false, gruppTaggar = [], egnaPlatser = null, stjarnor, onStjarna, huvudRad }) {
+export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, trasiga: trasigaProp = [], laddar: laddarProp = false, vald = null, skapar = null, jag, onOppna, onStang, onSkapa, onSpara, onRadera, onLaddaUpp, onFyllLjud, onSpelaIn, inspelare, filUrl, hamtaAdress, hamtaFil, htmlVersioner, hamtaHtmlVersion, aterstallHtml, nyHtmlVersion, oppnaHtml, grupper = [], onDela, platser = [], plats, onPlats, onSkrivUt, onSkrivUtIgen, onTaBortUtskrift, onAnteckningAvUtskrift, onGorForslag, delningar = [], delningGruppdel, gruppnamn: gruppnamnProp, onDelaLank, onAndraNedladdning, onAterkalla, onMejlaLank, onLankInfo, githubLasare, hubHref, hubEtikett, onNavigate, modulId = "bibliotek", ram = null, activeHref, modul = null, inbaddad = false, tomText, utanHubb = false, adresserPaBegaran = false, gruppTaggar = [], egnaPlatser = null, stjarnor, onStjarna, huvudRad, utanNedladdning = false }) {
   if (kalla !== undefined && (posterProp !== undefined || felProp !== null || laddarProp !== false || (Array.isArray(trasigaProp) && trasigaProp.length > 0))) {
     throw new Error("OpsBibliotek: kalla och poster/fel/trasiga/laddar kan inte ges tillsammans. Med kalla läser vyn själv, och två sanningar om samma lista hade låtit den ena vinna tyst.");
   }
@@ -472,7 +479,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
       const url = adresser.klar[s];
       if (url) {
         const p = medFyll(post);
-        spelareHar?.vaxla({ id: p.id, namn: ljudRubrik(p), src: url, durationMs: p.durationMs, peaks: p.peaks, onMeta: (m) => togMeta(p.id, m) });
+        spelareHar?.vaxla({ id: p.id, namn: ljudRubrik(p), src: url, durationMs: p.durationMs, peaks: p.peaks, onMeta: (m) => togMeta(p.id, m), ...(utanNedladdning ? { laddaNed: false } : {}) });
         klara.push(s);
       } else if (adresser.fel[s]) klara.push(s);
     }
@@ -1011,6 +1018,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
   // Inställningsläget vinner över detaljen: länken från arket öppnar inställningarna, inte posten.
   const Rot = inbaddad ? InbaddadRot : OpsView;
   return (
+    <NedladdningKontext.Provider value={!utanNedladdning}>
     <Rot tillbaka={detalj ? undefined : listTillbaka}>
       <div data-bibliotek="" className="flex min-w-0 w-full flex-col gap-4">
         {detalj ? (
@@ -1243,6 +1251,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
         ) : <p>Ingen post vald.</p>}
       </OpsModal>
     </Rot>
+    </NedladdningKontext.Provider>
   );
 }
 
@@ -1703,6 +1712,7 @@ export function kortTyp(post, sprak = "sv") {
  */
 function BibliotekKort({ post, lage, meny, svep, onOppna, onMeta, taggrad, delad = false, htmlVy = "", github = false, nalad = false, nalOrd = "", stjarna = null, onSpelaPaBegaran }) {
   const spelare = useSpelare();
+  const farLaddaNed = useContext(NedladdningKontext);
   const ljud = arLjudpost(post);
   const bild = post.typ === "fil" && filSort(post.fil?.mime) === "bild";
   const namn = ljud ? ljudRubrik(post) : kortRubrik(post);
@@ -1813,6 +1823,7 @@ function BibliotekKort({ post, lage, meny, svep, onOppna, onMeta, taggrad, delad
                   durationMs: post.durationMs,
                   peaks: post.peaks,
                   onMeta: (m) => onMeta(post.id, m),
+                  ...(farLaddaNed ? {} : { laddaNed: false }),
                 }}
                 {...(lage.lage === "klar" ? {} : { laddar: lage.lage === "hamtar", onSpela: () => onSpelaPaBegaran?.(post) })}
               />
@@ -2078,7 +2089,10 @@ function NyKnapp({ flik, onSkapa, onRost, erbjudRost, onLaddaUppLjud }) {
  * @param {{ adress?: string, namn: string, hamta?: (sokvag: string) => Promise<Blob>, sokvag?: string }} props */
 function LaddaNedLank({ adress, namn, hamta, sokvag }) {
   const sprak = useOpsSprak();
+  const far = useContext(NedladdningKontext);
   const kanHamta = typeof hamta === "function" && Boolean(sokvag);
+  // ⛔ GRUPPEN HAR STÄNGT AV NEDLADDNING (0.190.0): ingen knapp. Filen visas fortfarande där den kan visas (länken till den, rutan, spelaren).
+  if (!far) return null;
   return (
     <a href={adress} target="_blank" rel="noopener noreferrer" download={namn} data-bibliotek-ladda-ned="" className={knappKlass({ variant: "secondary", size: "sm" })}
       onClick={kanHamta ? (e) => { e.preventDefault(); if (typeof hamta === "function" && sokvag) void sparaSomFil({ hamta, sokvag, namn, adress }); } : undefined}>
@@ -2104,6 +2118,7 @@ function FilMedLaddaNed({ adress, namn, hamta, sokvag, children }) {
  */
 function FilVisning({ post, lage, kopplad, onLjus, onMeta, onRadera, hamtaFil, versioner, htmlVy = "" }) {
   const spelare = useSpelare();
+  const farLaddaNed = useContext(NedladdningKontext);
   const sprak = useOpsSprak();
   const o = (/** @type {keyof typeof ORD_BIBLIOTEKLISTA} */ k) => ordet(ORD_BIBLIOTEKLISTA, k, sprak);
   const sort = filSort(post.fil?.mime);
@@ -2144,7 +2159,7 @@ function FilVisning({ post, lage, kopplad, onLjus, onMeta, onRadera, hamtaFil, v
     // ⛔ I SKALET ÄR DETALJENS SPELARE SKALETS (0.102.0): vågen och kontrollerna styr spelraden, så ljudet spelar vidare när man
     // går tillbaka till listan. Utanför skalet spelar posten själv, som förut.
     if (spelare) {
-      return <OpsSpelarKontroller spar={{ id, namn: rubrik, src: adress, durationMs: post.durationMs, peaks: post.peaks, onMeta: id && onMeta ? (m) => onMeta(id, m) : undefined }} />;
+      return <OpsSpelarKontroller spar={{ id, namn: rubrik, src: adress, durationMs: post.durationMs, peaks: post.peaks, onMeta: id && onMeta ? (m) => onMeta(id, m) : undefined, ...(farLaddaNed ? {} : { laddaNed: false }) }} />;
     }
     return (
       <OpsLjudspelare
@@ -2200,7 +2215,7 @@ function FilVisning({ post, lage, kopplad, onLjus, onMeta, onRadera, hamtaFil, v
             <LaddaNedLank adress={adress} namn={post.fil.namn ?? namn} />
           </div>
         ) : (
-          <a href={adress} target="_blank" rel="noopener noreferrer" download={post.fil.namn} className="w-fit text-etikett text-accent underline underline-offset-2">
+          <a href={adress} target="_blank" rel="noopener noreferrer" download={farLaddaNed ? post.fil.namn : undefined} className="w-fit text-etikett text-accent underline underline-offset-2">
             {rad}
           </a>
         )}
