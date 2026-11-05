@@ -36,7 +36,7 @@
  */
 
 import { KALLMARKEN } from "../lib/kallmarken.js";
-import { Archive, ArchiveRestore, AudioLines, Copy, BellOff, Camera, Flame, Folder, Image as BildLucide, Laugh, Link, Mail, PartyPopper, Pause, Pin, Play, Reply, SkipBack, SkipForward, Square, StickyNote, ThumbsUp, ArrowRight, BookOpen, Briefcase, Building2, Calendar, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, Crown, ExternalLink, FileText, Globe, Hash, Heart, Home, Info, Layers, Lock, LogOut, MessagesSquare, Mic, SendHorizontal, MapPin, Maximize2, Menu, Minimize2, PanelRightOpen, Paperclip, Pencil, Smile, Star, User, UserX, UsersRound, Zap } from "lucide-react";
+import { Archive, ArchiveRestore, AudioLines, Copy, BellOff, Camera, Flame, Folder, Image as BildLucide, Laugh, Link, Mail, PartyPopper, Pause, Play, Reply, SkipBack, SkipForward, Square, StickyNote, ThumbsUp, ArrowRight, BookOpen, Briefcase, Building2, Calendar, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, Crown, ExternalLink, FileText, Globe, Hash, Heart, Home, Info, Layers, Lock, LogOut, MessagesSquare, Mic, SendHorizontal, MapPin, Maximize2, Menu, Minimize2, PanelRightOpen, Paperclip, Pencil, Smile, User, UserX, UsersRound, Zap } from "lucide-react";
 import { IKON_FOR } from "./ikonlexikon.js";
 
 /** Reaktionen "tumme" (0.75.0). @param {{ size?: number }} props */
@@ -248,7 +248,8 @@ export function PersonIkon({ size = 20 }) {
 }
 /** @param {{ size?: number }} props */
 export function StjarnaIkon({ size = 20 }) {
-  return <Star size={size} aria-hidden="true" strokeWidth={1.5} />;
+  const Ikon = IKON_FOR.stjarna;
+  return <Ikon size={size} aria-hidden="true" strokeWidth={1.5} />;
 }
 /** @param {{ size?: number }} props */
 export function HjartaIkon({ size = 20 }) {
@@ -532,7 +533,8 @@ export function PilHogerIkon({ size = 16 }) {
 
 /** Fäst ett meddelande i samtalet (chattens nattskiva). @param {{ size?: number }} props */
 export function FastIkon({ size = 16 }) {
-  return <Pin size={size} aria-hidden="true" strokeWidth={1.5} />;
+  const Ikon = IKON_FOR.nal;
+  return <Ikon size={size} aria-hidden="true" strokeWidth={1.5} />;
 }
 
 /** Svara med citat i ett privat samtal (chattens nattskiva). @param {{ size?: number }} props */
