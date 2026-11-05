@@ -2074,8 +2074,9 @@ export function createGastService(konfig) {
     const visas = ["bild", "ljud", "video", "pdf"].includes(delningsTyp(mime));
     const bifoga = b?.bifoga === true || (b?.bifoga === undefined && !visas);
     // ⛔ NEDLADDNINGEN KAN VARA AVSTÄNGD I GRUPPEN (0.190.0, `farLaddaNed`): en adress med `attachment` ges inte, och ingen räknare tas. Spela och visa (`inline`) går som förut.
-    // Ett dokument som bara kan laddas ned (Word, en okänd sort) har ingen `inline`-väg och nekas också.
-    if (bifoga && !(await nedladdningTillaten(groupId))) return orsak("nedladdning-av");
+    // Ett dokument som bara kan laddas ned (Word, en okänd sort) har ingen `inline`-väg och nekas också, OCKSÅ när gästen ber om `bifoga: false`:
+    // en `inline`-adress till en sort webbläsaren inte kan visa laddas ned ändå, så frågan avgörs på sorten och inte på vad gästen ber om (granskningen).
+    if ((bifoga || !visas) && !(await nedladdningTillaten(groupId))) return orsak("nedladdning-av");
     const rakn = await reserveraRaknare(hash(`gastfil|${s.inbjudan.id}`), { max: GASTFIL_PER_DYGN, fonsterMs: DYGN_MS });
     if (!rakn) return orsak("for-manga");
     try {

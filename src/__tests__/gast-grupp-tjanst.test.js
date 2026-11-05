@@ -1157,6 +1157,8 @@ describe("nedladdning: en signerad adress, rätt fil, tak per dygn, och ingen ad
     // Nedladdning: en tvingad (bifoga: true) och ett dokument som bara kan laddas ned. Ingen signering.
     expect(await h.tjanst.fil({ sessionsnyckel: g.sessionsnyckel, postId: "p-ljud", bifoga: true })).toEqual({ ok: false, orsak: "nedladdning-av" });
     expect(await h.tjanst.fil({ sessionsnyckel: g.sessionsnyckel, postId: "p-doc" })).toEqual({ ok: false, orsak: "nedladdning-av" });
+    // Granskningen: en gäst som ber om bifoga: false för en sort som inte går att visa får ändå ingen adress, eftersom en inline-adress till ett Word-dokument laddas ned ändå.
+    expect(await h.tjanst.fil({ sessionsnyckel: g.sessionsnyckel, postId: "p-doc", bifoga: false })).toEqual({ ok: false, orsak: "nedladdning-av" });
     expect(h.signera.mock.calls.length).toBe(forst);
     // Spela och visa: inline som förut.
     expect((await h.tjanst.fil({ sessionsnyckel: g.sessionsnyckel, postId: "p-ljud" })).ok).toBe(true);
