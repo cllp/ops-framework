@@ -566,6 +566,32 @@ export function OpsGastSida({ lank = null, onLos, onHamta, onNyLank, onNamn, onR
   );
 
   const grupplage = lage.fas === "klar" && svar?.funktion === "grupp";
+  // ⛔ I GRUPPEN STÅR NAMNRUTAN ÖVERST (0.190.0, granskning av PR 524): under gruppen hamnade den efter ytan som fyller höjden ut till bottenraden, och på telefon
+  // rullade då hela sidan ovanpå chattens egen rullning (check-skalyta 56 (e), "sidan rullar true"). Ovanför mäts den in i ytans topp, och ytan blir kortare i stället.
+  const namnruta = (
+    <>
+      {onNamn && svar && !svar.namn && !namnSparat ? (
+        <form
+          data-gast-namn=""
+          noValidate
+          className="flex max-w-md flex-col gap-3"
+          onSubmit={(e) => {
+            e.preventDefault();
+          }}
+        >
+          <OpsField label={t.namnEtikett} error={fel || undefined}>
+            <OpsInput value={namn} onChange={setNamn} maxLength={MAX_GASTNAMN} autoComplete="name" tal={false} />
+          </OpsField>
+          <div>
+            <OpsButton type="submit" variant="secondary" onClick={sparaNamn}>
+              {t.namnSpara}
+            </OpsButton>
+          </div>
+        </form>
+      ) : null}
+      {namnSparat ? <p data-gast-namn-sparat="" role="status" className={PUBLIK_KLASS.brod}>{t.namnSparat}</p> : null}
+    </>
+  );
   // Hela gruppen behöver bredd: kalenderns rutnät och biblioteket blir trånga i 48 rem. En omröstning är kvar i den smala spalten.
   const spalt = grupplage ? "max-w-5xl" : "max-w-3xl";
 
@@ -603,6 +629,7 @@ export function OpsGastSida({ lank = null, onLos, onHamta, onNyLank, onNamn, onR
           </div>
         ) : (
           <div data-gast-klar="" className="flex min-w-0 flex-col gap-6">
+            {grupplage ? namnruta : null}
             {svar && svar.funktion === "grupp" ? (
               renderGrupp ? (
                 <GastsidaInfo.Provider value={gruppInfo}>
@@ -620,26 +647,7 @@ export function OpsGastSida({ lank = null, onLos, onHamta, onNyLank, onNamn, onR
             ) : svar && renderSak && svar.sak ? (
               renderSak({ sak: svar.sak, funktion: String(svar.funktion ?? ""), sessionsnyckel: /** @type {string} */ (sessionsnyckel), uppdatera: async () => void (await hamta(/** @type {string} */ (sessionsnyckel), { tyst: true })) })
             ) : null}
-            {onNamn && svar && !svar.namn && !namnSparat ? (
-              <form
-                data-gast-namn=""
-                noValidate
-                className="flex max-w-md flex-col gap-3"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                }}
-              >
-                <OpsField label={t.namnEtikett} error={fel || undefined}>
-                  <OpsInput value={namn} onChange={setNamn} maxLength={MAX_GASTNAMN} autoComplete="name" tal={false} />
-                </OpsField>
-                <div>
-                  <OpsButton type="submit" variant="secondary" onClick={sparaNamn}>
-                    {t.namnSpara}
-                  </OpsButton>
-                </div>
-              </form>
-            ) : null}
-            {namnSparat ? <p data-gast-namn-sparat="" role="status" className={PUBLIK_KLASS.brod}>{t.namnSparat}</p> : null}
+            {grupplage ? null : namnruta}
             {/* ⛔ I GRUPPEN BOR INTEGRITETEN BAKOM (i) (0.190.0, del A), tillsammans med "Skriv in adressen igen", och sidfotens "Du är gäst" är borta: gruppens huvud säger det.
                 En omröstning och en händelse har inget sådant huvud, och där står de kvar längst ned. */}
             {svar?.funktion === "grupp" ? null : (

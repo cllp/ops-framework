@@ -53,8 +53,8 @@ describe("en Mer-knapp per meddelande på telefon", () => {
     for (const rad of rader) {
       const mer = rad.querySelectorAll("[data-mer]");
       expect(mer.length).toBe(1);
-      // (0.190.0) Med mus syns ⋮ vid hover och fokus, på pekskärm ritas den inte (menyn öppnas med ett långt tryck på bubblan).
-      expect(mer[0].className.split(/\s+/)).toEqual(expect.arrayContaining(["pointer-fine:opacity-0", "pointer-fine:group-hover:opacity-100", "pointer-fine:group-focus-within:opacity-100", "pointer-coarse:[&_[data-ops-atgard-knapp]]:hidden"]));
+      // (0.190.0) Med mus syns ⋮ vid hover och fokus. På pekskärm ritas den inte alls (chatt-langtryck.test.jsx).
+      expect(mer[0].className.split(/\s+/)).toEqual(expect.arrayContaining(["opacity-0", "group-hover:opacity-100", "group-focus-within:opacity-100"]));
       expect(within(/** @type {HTMLElement} */ (mer[0])).getByRole("button").getAttribute("aria-label")).toBe("Åtgärder för Meddelande från Bo Lind");
     }
     // Golv: fyra sorters lösa åtgärder, och varje är dold under md.
@@ -110,7 +110,8 @@ describe("en Mer-knapp per meddelande på telefon", () => {
   it("⛔ med känd bredd ritas bara den ena uppsättningen: Mer på telefon, de lösa knapparna på dator (regel 13)", async () => {
     const { s, g } = await underlag();
     for (const [smal, finns, saknas] of /** @type {const} */ ([[true, "[data-mer]", "[data-reagera]"], [false, "[data-reagera]", "[data-mer]"]])) {
-      vi.stubGlobal("matchMedia", (/** @type {string} */ q) => ({ matches: smal, media: q, addEventListener() {}, removeEventListener() {} }));
+      // Bara bredden stubbas: med mus (0.190.0 läser också `(pointer: coarse)`, och en pekskärm har ingen ⋮ alls).
+      vi.stubGlobal("matchMedia", (/** @type {string} */ q) => ({ matches: q.includes("max-width") ? smal : false, media: q, addEventListener() {}, removeEventListener() {} }));
       const { unmount } = render(<OpsMeddelanden kalla={s} uid="anna" groupId="g" gruppNamn="G" medlemmar={MEDLEMMAR} valt={g.id} />);
       await within(await screen.findByRole("log")).findByText("Fäst den här");
       expect(document.querySelectorAll(finns).length).toBe(2);

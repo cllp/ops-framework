@@ -15,9 +15,10 @@ import { OpsPill } from "./OpsPill.jsx";
  */
 export const ORD_OPSGASTARENDEN = {
   rubrik: { sv: "Ärenden till dig", en: "Cases for you" },
+  // ⛔ (0.190.0) Att gästen bara ser sina egna ärenden stod i gruppens ingress, som nu ligger bakom (i). Det står därför här, överst i fliken, där gästen ser ärendena.
   ingress: {
-    sv: "Här ligger ärendena som gruppen har gett dig. Du kan kommentera och markera dem klara, men inte öppna dem igen.",
-    en: "These are the cases the group has given you. You can comment on them and mark them done, but not reopen them.",
+    sv: "Du ser bara de ärenden som gruppen har gett dig, inte gruppens andra. Du kan kommentera och markera dem klara, men inte öppna dem igen.",
+    en: "You only see the cases the group has given you, not the group's other cases. You can comment on them and mark them done, but not reopen them.",
   },
   tom: { sv: "Inga ärenden ligger hos dig just nu.", en: "No cases are with you right now." },
   laddar: { sv: "Hämtar ärendena", en: "Loading the cases" },

@@ -574,6 +574,20 @@ describe("OpsGastSida med hela gruppen", () => {
     expect(document.querySelector("main").className).not.toContain("max-w-5xl");
   });
 
+  it("⛔ i gruppen står namnrutan ovanför gruppen, så att ytan som fyller höjden inte trycker den under bottenraden (granskning av PR 524); i en omröstning står den under", async () => {
+    const lagring = lagringMed({ [`ops-gast:${ID}`]: SESSION, "ops-gast:senaste": ID });
+    const fore = (/** @type {Element} */ a, /** @type {Element} */ b) => !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+    const { unmount } = rita({ lagring, onNamn: vi.fn(async () => {}) });
+    await screen.findByText("Gruppinnehåll");
+    const namn = /** @type {Element} */ (document.querySelector("[data-gast-namn]"));
+    expect(namn).toBeTruthy();
+    expect(fore(namn, /** @type {Element} */ (document.querySelector("[data-grupp]")))).toBe(true);
+    unmount();
+    rita({ lagring, onHamta: vi.fn(async () => sakSvar), onNamn: vi.fn(async () => {}) });
+    await screen.findByText("Rep");
+    expect(fore(/** @type {Element} */ (document.querySelector("[data-sak]")), /** @type {Element} */ (document.querySelector("[data-gast-namn]")))).toBe(true);
+  });
+
   it("utan renderGrupp säger sidan att inbjudan inte går att visa, i stället för att tiga", async () => {
     rita({ lagring: lagringMed({ [`ops-gast:${ID}`]: SESSION, "ops-gast:senaste": ID }), renderGrupp: undefined });
     expect(await screen.findByText("Den här inbjudan går inte att visa i den här versionen av appen.")).toBeInTheDocument();

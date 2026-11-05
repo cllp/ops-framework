@@ -41,7 +41,7 @@ describe("medlemmens chatt med en gästs meddelande", () => {
     const m = document.querySelector("[data-gast-markning]");
     expect(m).not.toBeNull();
     // (0.190.0) Namnraden bär också tiden, så namnet läses ur sin egen del av raden.
-    expect(m.parentElement.querySelector("[data-avsandare]").textContent).toBe("Gäst");
+    expect(m.closest("[data-avsandare]")?.firstChild?.textContent).toBe("Gäst");
     expect(m.textContent).toBe("Gäst");
     expect(document.body.textContent).not.toContain(BO);
   });

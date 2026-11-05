@@ -83,7 +83,7 @@ describe("OpsGastArenden", () => {
     expect(kort[2].querySelector("[data-gast-arende-fler]").textContent).toBe("Äldre kommentarer visas inte.");
     expect(kort[0].querySelector("[data-gast-arende-fler]")).toBeNull();
     expect(kort[1].textContent).toContain("Inga kommentarer än.");
-    expect(screen.getByText(/Här ligger ärendena som gruppen har gett dig\. Du kan kommentera och markera dem klara, men inte öppna dem igen\./)).toBeInTheDocument();
+    expect(screen.getByText(/Du ser bara de ärenden som gruppen har gett dig, inte gruppens andra\. Du kan kommentera och markera dem klara, men inte öppna dem igen\./)).toBeInTheDocument();
   });
 
   it("⛔ ett ärende som pågår är öppet: statusen står som Pågår i varningston, och Markera klar finns kvar", () => {

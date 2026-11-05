@@ -95,7 +95,10 @@ describe("gästens chatt: långtryck på bubblan", () => {
     expect(document.querySelectorAll("[data-bubbla]")).toHaveLength(3);
     expect(namnrader).toHaveLength(2);
     const bo = /** @type {HTMLElement} */ (namnrader[1]);
-    expect([...bo.children].map((c) => c.hasAttribute("data-avsandare") ? "namn" : c.hasAttribute("data-gast-markning") ? "gast" : c.hasAttribute("data-meddelande-tid") ? "tid" : "?")).toEqual(["namn", "gast", "tid"]);
+    // Namnraden är namnets egen span (inget extra element): namnet, märket Gäst och tiden i den ordningen.
+    expect(bo.hasAttribute("data-avsandare")).toBe(true);
+    expect(bo.firstChild?.textContent).toBe("Bo Gäst");
+    expect([...bo.children].map((c) => (c.hasAttribute("data-gast-markning") ? "gast" : c.hasAttribute("data-meddelande-tid") ? "tid" : "?"))).toEqual(["gast", "tid"]);
     expect(document.querySelectorAll("[data-meddelande-tid]")).toHaveLength(2);
     // Ingen tid i raden under någon bubbla.
     for (const b of document.querySelectorAll("[data-bubbla]")) {

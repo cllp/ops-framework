@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { cloneElement, isValidElement, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { webblasarensIgenkanning } from "../lib/talk.js";
 import { OpsSprakProvider, useOpsSprak } from "./OpsSprak.jsx";
 import { forvalda, ordet } from "../lib/ord.js";
@@ -3009,20 +3009,28 @@ export function Meddelanderader({ meddelanden, uid, namnFor: namnForProp, medlem
                 {/* ⛔ ETT MEDDELANDE FRÅN EN NYCKEL BÄR ALLTID SITT MÄRKE (0.135.0): namnraden ritas även i ett privat samtal, och på ens eget meddelande. */}
                 {/* ⛔ TIDEN STÅR PÅ NAMNRADEN (0.190.0, CP 2026-11-05 i cllp/lifehub.app#658): efter namnet och märket Gäst, inte på en egen rad under bubblan. Det
                     första meddelandet i en följd bär raden; ett som följer inom fem minuter från samma avsändare står utan, som namnet. */}
+                {/* ⛔ INGET EXTRA ELEMENT FÖR NAMNRADEN (granskningen av PR 524, skalyta 47 (6): 27 element per meddelande mot taket 26). Raden är samma span som namnet
+                    stod i förut, och tiden flyttade in i den från raden under bubblan: lika många element som i 0.189.0. Utan namn är tiden själv raden. */}
                 {egen && !fortsattning ? (
-                  <span data-namnrad="eget" className="mr-1 mb-0.5 flex items-center gap-1.5 text-liten text-ink-muted">
-                    {m.via ? <span data-via-eget="">{avNamnFor(namnFor, m, uid, texter.du, sprak)}</span> : null}
-                    <span data-meddelande-tid="" className="tabular-nums">{formatTime(m.tid, { locale })}</span>
-                  </span>
+                  m.via ? (
+                    <span data-namnrad="eget" data-via-eget="" className="mr-1 mb-0.5 flex items-center gap-1.5 text-liten text-ink-muted">
+                      {avNamnFor(namnFor, m, uid, texter.du, sprak)}
+                      <span data-meddelande-tid="" className="tabular-nums">{formatTime(m.tid, { locale })}</span>
+                    </span>
+                  ) : (
+                    <span data-namnrad="eget" data-meddelande-tid="" className="mr-1 mb-0.5 text-liten tabular-nums text-ink-muted">{formatTime(m.tid, { locale })}</span>
+                  )
                 ) : null}
                 {!egen && !fortsattning ? (
-                  <span data-namnrad="annans" className="mb-0.5 ml-1 flex items-center gap-1.5 text-liten text-ink-muted">
-                    {visaNamn || m.via ? (
-                      <span data-avsandare="" data-namn-saknas={person === NAMN_SAKNAS ? "" : undefined}>{avNamnFor(namnFor, m, uid, texter.du, sprak)}</span>
-                    ) : null}
-                    {(visaNamn || m.via) && arGast(m) ? <span data-gast-markning="" className="rounded-full bg-sunken px-1.5 py-px text-mikro font-medium text-ink-secondary">{texter.gast}</span> : null}
-                    <span data-meddelande-tid="" className="tabular-nums">{formatTime(m.tid, { locale })}</span>
-                  </span>
+                  visaNamn || m.via ? (
+                    <span data-namnrad="annans" data-avsandare="" className="mb-0.5 ml-1 flex items-center gap-1.5 text-liten text-ink-muted" data-namn-saknas={person === NAMN_SAKNAS ? "" : undefined}>
+                      {avNamnFor(namnFor, m, uid, texter.du, sprak)}
+                      {arGast(m) ? <span data-gast-markning="" className="rounded-full bg-sunken px-1.5 py-px text-mikro font-medium text-ink-secondary">{texter.gast}</span> : null}
+                      <span data-meddelande-tid="" className="tabular-nums">{formatTime(m.tid, { locale })}</span>
+                    </span>
+                  ) : (
+                    <span data-namnrad="annans" data-meddelande-tid="" className="mb-0.5 ml-1 text-liten tabular-nums text-ink-muted">{formatTime(m.tid, { locale })}</span>
+                  )
                 ) : null}
                 {m.svarPa && citat ? <Citat mid={m.svarPa} uppslag={citat.uppslag} egen={egen} uid={uid} namnFor={namnFor} texter={texter} /> : null}
                 {m.text ? (
@@ -3061,7 +3069,7 @@ export function Meddelanderader({ meddelanden, uid, namnFor: namnForProp, medlem
                   <AgentensForslag varde={/** @type {any} */ (m).forslag} sid={sid} mid={m.id} onForslag={onForslag} />
                 ) : null}
                 {reakt?.pa ? <Reaktionschips m={m} egen={egen} reakt={reakt} texter={texter} /> : null}
-                <Meddelandemeta m={m} egen={egen} bredd={bredd} menyPa={menyPa} oppnadVid={meny?.id === m.id ? meny.punkt : null} onOppnadVid={(v) => { if (!v) setMeny(null); }} extra={extra} mer={merFor?.(m) ?? []} namn={egen ? texter.dittMeddelande : `${texter.svarPa} ${avNamnFor(namnFor, m, uid, texter.du, sprak)}`} reakt={reakt} fasta={fasta} citat={citat} texter={texter} />
+                <Meddelandemeta m={m} egen={egen} bredd={bredd} menyPa={menyPa} pekskarm={pekskarm} oppnadVid={meny?.id === m.id ? meny.punkt : null} onOppnadVid={(v) => { if (!v) setMeny(null); }} extra={extra} mer={merFor?.(m) ?? []} namn={egen ? texter.dittMeddelande : `${texter.svarPa} ${avNamnFor(namnFor, m, uid, texter.du, sprak)}`} reakt={reakt} fasta={fasta} citat={citat} texter={texter} />
               </div>
             </div>
           </div>
@@ -3996,16 +4004,14 @@ function usePekskarm() {
 function Langtryckbubbla({ pa, onMeny, children }) {
   const punkt = useRef({ x: 0, y: 0 });
   const { handelser, aktiv } = useLangtryck({ onLangtryck: pa ? () => onMeny(punkt.current) : null, hogerklick: true, utanMus: true });
-  if (!aktiv) return <>{children}</>;
+  if (!aktiv || !isValidElement(children)) return <>{children}</>;
   /** @param {{ clientX: number, clientY: number }} e */
   const spara = (e) => {
     punkt.current = { x: e.clientX, y: e.clientY };
   };
-  return (
-    <div data-langtryck-bubbla="" className={cx("flex max-w-full min-w-0 flex-col", LANGTRYCK_KLASS)} onPointerDownCapture={spara} onContextMenuCapture={spara} {...handelser}>
-      {children}
-    </div>
-  );
+  // ⛔ HÄNDELSERNA SÄTTS PÅ BUBBLAN SJÄLV, INTE PÅ ETT OMSLAG (granskningen av PR 524): ett omslag per meddelande var ett element till per rad, och skalytans tak räknar dem.
+  const barn = /** @type {import("react").ReactElement<any>} */ (children);
+  return cloneElement(barn, { ...handelser, "data-langtryck-bubbla": "", onPointerDownCapture: spara, onContextMenuCapture: spara, className: cx(barn.props.className, LANGTRYCK_KLASS) });
 }
 
 /**
@@ -4021,14 +4027,14 @@ function Langtryckbubbla({ pa, onMeny, children }) {
  * ⛔ TIDEN STÅR INTE HÄR LÄNGRE (0.190.0): den står på namnraden ovanför bubblan, se `Meddelanderader`. ⋮ ritas där en meny behövs (`menyPa`: smal skärm eller
  * pekskärm) och öppnas också utifrån, av ett långtryck på bubblan (`oppnadVid`).
  *
- * @param {{ m: import("../lib/samtal.js").Meddelande & { id: string }, egen: boolean, bredd: "smal" | "bred" | null, menyPa: boolean, oppnadVid: { x: number, y: number } | null,
+ * @param {{ m: import("../lib/samtal.js").Meddelande & { id: string }, egen: boolean, bredd: "smal" | "bred" | null, menyPa: boolean, pekskarm: boolean, oppnadVid: { x: number, y: number } | null,
  *   onOppnadVid: (oppen: boolean) => void, extra: import("react").ReactNode,
  *   mer: import("./OpsAtgardsblad.jsx").Atgard[], namn: string, reakt?: ReturnType<typeof useReaktioner>,
  *   fasta?: { pa?: boolean, ids: Set<string>, vaxla: (mid: string) => void } | null,
  *   citat?: { pa: boolean, onCitera: (m: import("../lib/samtal.js").Meddelande & { id: string }) => void } | null,
  *   texter: Required<Meddelandetexter> }} props
  */
-function Meddelandemeta({ m, egen, bredd, menyPa, oppnadVid, onOppnadVid, extra, mer, namn, reakt, fasta, citat, texter: t }) {
+function Meddelandemeta({ m, egen, bredd, menyPa, pekskarm, oppnadVid, onOppnadVid, extra, mer, namn, reakt, fasta, citat, texter: t }) {
   const losa = bredd !== "smal";
   const merKnapp = menyPa;
   const [kopia, setKopia] = useState(/** @type {null | "ok" | "fel"} */ (null));
@@ -4122,14 +4128,15 @@ function Meddelandemeta({ m, egen, bredd, menyPa, oppnadVid, onOppnadVid, extra,
         </button>
       ) : null}
       {merKnapp && (poster.length > 0 || reaktioner) ? (
-        // ⛔ PRICKARNA SYNS BARA DÄR DE BEHÖVS (0.190.0, CP 2026-11-05): på en pekskärm öppnar ett långt tryck på bubblan menyn och ⋮ ritas inte; med mus syns ⋮ när
-        // pekaren är över raden eller raden har fokus, så tangentbordet når den som förut (Tab till ⋮ ger fokus inom raden och gör den synlig).
-        <span
-          data-mer={m.id}
-          className="-my-2 inline-flex transition-opacity duration-(--duration-fast) ease-standard pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100 pointer-fine:group-focus-within:opacity-100 pointer-coarse:[&_[data-ops-atgard-knapp]]:hidden"
-        >
-          <OpsAtgardsblad baraKnapp namn={namn} poster={poster} overst={reaktioner} oppnadVid={oppnadVid} onOppnadVid={onOppnadVid} />
-        </span>
+        // ⛔ PRICKARNA SYNS BARA DÄR DE BEHÖVS (0.190.0, CP 2026-11-05): på en pekskärm öppnar ett långt tryck på bubblan menyn och ⋮ ritas inte alls (`utanKnapp`: bara
+        // menyn, inget element i raden); med mus syns ⋮ när pekaren är över raden eller raden har fokus, så tangentbordet når den som förut (Tab till ⋮ gör den synlig).
+        pekskarm ? (
+          <OpsAtgardsblad baraKnapp utanKnapp namn={namn} poster={poster} overst={reaktioner} oppnadVid={oppnadVid} onOppnadVid={onOppnadVid} />
+        ) : (
+          <span data-mer={m.id} className="-my-2 inline-flex opacity-0 transition-opacity duration-(--duration-fast) ease-standard group-hover:opacity-100 group-focus-within:opacity-100">
+            <OpsAtgardsblad baraKnapp namn={namn} poster={poster} overst={reaktioner} oppnadVid={oppnadVid} onOppnadVid={onOppnadVid} />
+          </span>
+        )
       ) : null}
       {kopia ? (
         <span role="status" data-kopierat={kopia} className={cx("text-liten", kopia === "fel" ? "text-danger" : "text-ink-muted")}>

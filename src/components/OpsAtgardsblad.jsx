@@ -56,8 +56,10 @@ export const ORD_OPSATGARDSBLAD = {
  *   Chattens bubbla tar långtrycket (CP 2026-11-05: "menyn öppnas med ett långt tryck"), och ⋮ står på en annan rad. Punkten är där fingret höll in, och
  *   menyn förankras där som vid ett långtryck på en rad. `null` eller utelämnad: menyn öppnas av ⋮ som förut.
  * @param {(oppen: boolean) => void} [props.onOppnadVid] (0.190.0) Anropas när menyn stängs eller öppnas av ⋮, så att den som öppnade utifrån kan släppa sin punkt.
+ * @param {boolean} [props.utanKnapp] (0.190.0) Med `baraKnapp`: ingen ⋮ alls, menyn öppnas bara utifrån (`oppnadVid`). Chattens bubbla på pekskärm, där ett långt tryck är vägen och en dold
+ *   knapp hade varit tre element per meddelande som ingen ser.
  */
-export function OpsAtgardsblad({ namn, poster, children = null, baraKnapp = false, kort = false, overst, oppnadVid = null, onOppnadVid }) {
+export function OpsAtgardsblad({ namn, poster, children = null, baraKnapp = false, kort = false, overst, oppnadVid = null, onOppnadVid, utanKnapp = false }) {
   const sprak = useOpsSprak();
   const [inreOppen, setOppen] = useState(false);
   // ⛔ ÖPPNAD UTIFRÅN (0.190.0): en punkt betyder öppen. Rutan stängs av samma vägar som annars (utanför, Escape, en post), och `onOppnadVid(false)` släpper punkten.
@@ -245,7 +247,7 @@ export function OpsAtgardsblad({ namn, poster, children = null, baraKnapp = fals
   );
 
   const rad = baraKnapp ? (
-    <span className="inline-flex">{knapp}</span>
+    utanKnapp ? null : <span className="inline-flex">{knapp}</span>
   ) : (
     <div
       ref={radRef}
@@ -268,7 +270,7 @@ export function OpsAtgardsblad({ namn, poster, children = null, baraKnapp = fals
 
   return (
     <Popover.Root open={oppen} onOpenChange={(v) => oppna(v, "knapp")}>
-      {baraKnapp && !utifran ? null : <Popover.Anchor virtualRef={ankare} />}
+      {baraKnapp && !utifran && !utanKnapp ? null : <Popover.Anchor virtualRef={ankare} />}
       {rad}
       <Popover.Portal>
         <Popover.Content
