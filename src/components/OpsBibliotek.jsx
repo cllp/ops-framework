@@ -12,6 +12,8 @@ import { TextForhandsvisning } from "./TextForhandsvisning.jsx";
 import { htmlVyAdress } from "../lib/htmldokument.js";
 import { BibliotekHtmlVersionerLat } from "./BibliotekHtmlVersionerLat.jsx";
 import { OpsMarkdown } from "./OpsMarkdown.jsx";
+import { GithubDokumentVisningLat } from "./GithubDokumentVisningLat.jsx";
+import { githubDokument } from "../lib/githubdokument.js";
 import { OpsModal } from "./OpsModal.jsx";
 import { OpsSvepRad } from "./OpsSvepRad.jsx";
 import { ARKIVTAGG, arArkiverad, ADRESSFORM, BIBLIOTEKTYPER, BILDFORM, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKURL, uppladdningAvbruten, uppladdningenAvbrytsKl, allaTaggar, arDelbar, arLjudpost, arMittBibliotek, farAndra, normaliseraTaggar, anteckningsrubrikNu, beskrivObjektbibliotek, arHtmlMime, arPlatsBibliotek, gruppForPlats, filInmatningsfel, LJUDFIL_ACCEPT, ljudfilFel, mimeUrFilnamn, filadressFel, filSort, filtreraBibliotek, inmatningsfel, ljudDatum, ljudRubrik, normaliseraAdress, normaliseraMime, trimSomRegeln } from "../lib/bibliotek.js";
@@ -215,6 +217,7 @@ const arkivtips = () => `Arkiverad. Välj taggen ${ARKIVTAGG} för att se arkive
  * @param {(inmatning: { id: string, nedladdning: boolean }) => Promise<void> | void} [props.onAndraNedladdning] (0.119.0) Slår på eller av nedladdning på en länk som lever. Ett fel visas i dialogen och reglaget står kvar.
  * @param {(inmatning: { id: string }) => Promise<void> | void} [props.onAterkalla] (0.119.0) Stänger länken, för alltid. "Stäng länken" i dialogen. En ny delning ger ett nytt token.
  * @param {(inmatning: { id: string, url: string, till: string }) => Promise<void | boolean> | void | boolean} [props.onMejlaLank] (0.128.0, cllp/lifehub.app#356) Skickar en delad länk med mejl, via appens mejlväg. Med den visar dialogen Dela länk fältet "Skicka till mejl" och knappen Skicka, under länkens adress (när länken är nyss skapad, eller en som lever och har en adress). `id` är delningens id och `url` hela adressen. Ramverket prövar adressen (`epostFel`: form och spärrade domäner) innan anropet och visar svaret, lyckat eller inte; ett kast eller `false` är ett fel i dialogen. Hör till `onDelaLank`. Utan den syns inget fält.
+ * @param {(post: any) => Promise<import("./GithubDokumentVisning.jsx").GithubLasning>} [props.githubLasare] (0.186.0, cllp/lifehub.app#653) Läser filen en länk pekar på i gruppens GitHub-repo. En länk vars adress är `https://github.com/<ägare>/<repo>/blob/<ref>/<sökväg>` (`githubDokument`) öppnas då i ett läsläge i detaljen, efter filens sort (markdown, html, pdf, bild, text, csv; word, excel och övrigt får Ladda ned), med "Ändrad {datum} av {av}" och en länk Öppna i GitHub, i stället för att skicka personen till github.com. Svaret är `{ lage, text?, base64?, mime?, andrad?, av?, storlek? }` där `lage` är `last`, `saknas`, `obehorig`, `inte-gruppens`, `for-stor` eller `fel`; ett avvisat löfte ritas som `fel`. Ingen ny posttyp: posten är en vanlig länk. Utan den är länken som förut. Se `GithubDokumentVisning` för begränsningarna.
  * @param {(url: string) => Promise<{ titel?: string, artist?: string, kalla?: string, bild?: string }>} [props.onLankInfo] (0.128.0, cllp/lifehub.app#378) Hämtar titel, artist och omslag för en musiklänk (Spotify, YouTube, Apple Music eller SoundCloud), normalt en callable som anropar `lankInfoUrOembed` på nodsidan. När en sådan adress klistras in i Ny länk (eller lämnas med fokus) anropas den EN gång per adress, och rubriken fylls i som "titel, artist" om den är tom eller fortfarande den som förra uppslaget fyllde i. Rubriken går att ändra. `bild` sparas på posten (en https-adress). `kalla` i svaret ignoreras: ramverket härleder källan ur adressen (`lankKalla`), så att den inte finns på två ställen. Faller anropet, eller ger det varken titel eller artist, står rubrikfältet tomt och orsaken i en rad under adressen: aldrig tyst. Utan den görs inget uppslag, och en vanlig länk är som förut.
  * @param {string} [props.modulId] (0.88.1) Modulens id i appen, förval "bibliotek". Står den i huvudmenyn har listan ingen tillbaka-rad.
  * @param {string} [props.hubHref] (0.83.0) Hubbens adress: tillbaka-radens mål, som `OpsModulSida`. Krävs, utom med `inbaddad` (0.121.0).
@@ -236,7 +239,7 @@ const arkivtips = () => `Arkiverad. Välj taggen ${ARKIVTAGG} för att se arkive
  *   Platser med alla platser, också de arkiverade, och Ta fram igen. Över 8 rader i växlaren får listan ett sökfält. Utan propen är allt som förut. Hör inte hit med `inbaddad`.
  * @param {boolean} [props.adresserPaBegaran] (0.132.0, lifehub.app#389) Filernas adresser hämtas bara för posten som är öppen, aldrig för hela listan. Förvalet hämtar en adress per fil när listan ritas, vilket är billigt för en medlem (`getDownloadURL`) och dyrt för en gäst: varje adress är en signering som räknas mot ett tak per dygn. Mätt i designen av skiva 2 som felantagande: listan hämtade alla. En fil som öppnats förut visas med sin adress också i listan.
  */
-export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, trasiga: trasigaProp = [], laddar: laddarProp = false, vald = null, skapar = null, jag, onOppna, onStang, onSkapa, onSpara, onRadera, onLaddaUpp, onFyllLjud, onSpelaIn, inspelare, filUrl, hamtaAdress, hamtaFil, htmlVersioner, hamtaHtmlVersion, aterstallHtml, nyHtmlVersion, oppnaHtml, grupper = [], onDela, platser = [], plats, onPlats, onSkrivUt, onSkrivUtIgen, onTaBortUtskrift, onAnteckningAvUtskrift, onGorForslag, delningar = [], delningGruppdel, gruppnamn: gruppnamnProp, onDelaLank, onAndraNedladdning, onAterkalla, onMejlaLank, onLankInfo, hubHref, hubEtikett, onNavigate, modulId = "bibliotek", ram = null, activeHref, modul = null, inbaddad = false, tomText, utanHubb = false, adresserPaBegaran = false, gruppTaggar = [], egnaPlatser = null }) {
+export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, trasiga: trasigaProp = [], laddar: laddarProp = false, vald = null, skapar = null, jag, onOppna, onStang, onSkapa, onSpara, onRadera, onLaddaUpp, onFyllLjud, onSpelaIn, inspelare, filUrl, hamtaAdress, hamtaFil, htmlVersioner, hamtaHtmlVersion, aterstallHtml, nyHtmlVersion, oppnaHtml, grupper = [], onDela, platser = [], plats, onPlats, onSkrivUt, onSkrivUtIgen, onTaBortUtskrift, onAnteckningAvUtskrift, onGorForslag, delningar = [], delningGruppdel, gruppnamn: gruppnamnProp, onDelaLank, onAndraNedladdning, onAterkalla, onMejlaLank, onLankInfo, githubLasare, hubHref, hubEtikett, onNavigate, modulId = "bibliotek", ram = null, activeHref, modul = null, inbaddad = false, tomText, utanHubb = false, adresserPaBegaran = false, gruppTaggar = [], egnaPlatser = null }) {
   if (kalla !== undefined && (posterProp !== undefined || felProp !== null || laddarProp !== false || (Array.isArray(trasigaProp) && trasigaProp.length > 0))) {
     throw new Error("OpsBibliotek: kalla och poster/fel/trasiga/laddar kan inte ges tillsammans. Med kalla läser vyn själv, och två sanningar om samma lista hade låtit den ena vinna tyst.");
   }
@@ -285,6 +288,9 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
   }
   if (onLankInfo !== undefined && typeof onLankInfo !== "function") {
     throw new Error("OpsBibliotek: onLankInfo måste vara en funktion (url) => Promise<{ titel, artist, bild }> (eller utelämnas).");
+  }
+  if (githubLasare !== undefined && typeof githubLasare !== "function") {
+    throw new Error("OpsBibliotek: githubLasare måste vara en funktion (post) => Promise<{ lage, text?, base64?, ... }> (eller utelämnas).");
   }
   const sprak = useOpsSprak();
   const oppnaInspelning = useInspelningOppnare();
@@ -833,7 +839,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
                 onAndra={typeof onSpara === "function" ? (ny) => onSpara({ id: rad.id, taggar: ny }) : undefined}
               />
             );
-          })() : null} onLjus={setLjus} onSkrivUt={onSkrivUt} onSkrivUtIgen={onSkrivUtIgen} onTaBortUtskrift={onTaBortUtskrift} onAnteckningAvUtskrift={onAnteckningAvUtskrift} menyFor={menyFor} onMeta={togMeta} tillbakaEtikett={inbaddad ? "Filer" : "Tillbaka"} poster={poster} jag={jag} onLankInfo={onLankInfo} onOppnaPost={(p) => oppnaMed(p, "las")} />
+          })() : null} onLjus={setLjus} onSkrivUt={onSkrivUt} onSkrivUtIgen={onSkrivUtIgen} onTaBortUtskrift={onTaBortUtskrift} onAnteckningAvUtskrift={onAnteckningAvUtskrift} menyFor={menyFor} onMeta={togMeta} tillbakaEtikett={inbaddad ? "Filer" : "Tillbaka"} poster={poster} jag={jag} onLankInfo={onLankInfo} githubLasare={githubLasare} onOppnaPost={(p) => oppnaMed(p, "las")} />
         ) : (
           <div data-bibliotek-huvud="" className="flex min-w-0 flex-col gap-3">
             {/* ⛔ SESSIONSTUDIOS HUVUD, SOM I APPEN (0.102.0, CP 2026-10-14 med skärmbilder från SessionStudios app: "Listningen
@@ -904,6 +910,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
                         meny={menyFor(rad, false)}
                         svep={svepFor(rad)}
                         delad={delningar.some((d) => d.postId === rad.id)}
+                        github={typeof githubLasare === "function" && rad.typ === "lank" && githubDokument(rad.url) !== null}
                         htmlVy={htmlVyAdress(oppnaHtml, rad)}
                         onOppna={() => oppnaMed(rad, "las")}
                         onMeta={togMeta}
@@ -1482,9 +1489,9 @@ export function kortTyp(post) {
  * ⛔ EN DELAD POST BÄR EN LITEN MARKERING (0.119.0, lifehub.app#356): ordet "Delad" med en länkikon i metaraden. Den som ser listan ska inte
  * behöva öppna en meny för att veta vad som har en publik länk, och ikonen ensam säger det inte.
  *
- * @param {{ post: import("../lib/bibliotek.js").Bibliotekspost & { id: string }, lage: Adresslage, meny: import("./OpsAtgardsblad.jsx").Atgard[], svep: any[], onOppna: () => void, onMeta: (id: string, meta: { durationMs?: number, peaks?: string }) => void, taggrad: import("react").ReactNode, delad?: boolean, htmlVy?: string }} props
+ * @param {{ post: import("../lib/bibliotek.js").Bibliotekspost & { id: string }, lage: Adresslage, meny: import("./OpsAtgardsblad.jsx").Atgard[], svep: any[], onOppna: () => void, onMeta: (id: string, meta: { durationMs?: number, peaks?: string }) => void, taggrad: import("react").ReactNode, delad?: boolean, htmlVy?: string, github?: boolean }} props
  */
-function BibliotekKort({ post, lage, meny, svep, onOppna, onMeta, taggrad, delad = false, htmlVy = "" }) {
+function BibliotekKort({ post, lage, meny, svep, onOppna, onMeta, taggrad, delad = false, htmlVy = "", github = false }) {
   const spelare = useSpelare();
   const ljud = arLjudpost(post);
   const bild = post.typ === "fil" && filSort(post.fil?.mime) === "bild";
@@ -1533,7 +1540,10 @@ function BibliotekKort({ post, lage, meny, svep, onOppna, onMeta, taggrad, delad
               className="absolute inset-0 z-0 cursor-pointer rounded-lg bg-transparent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
             />
           )}
-          {post.typ === "lank" ? (
+          {github ? (
+            // ⛔ EN FIL I GITHUB HAR EN EGEN IKON (0.186.0): en vanlig länk är jordgloben, och en fil i repot ska inte se ut som en webbadress.
+            <span data-bibliotek-ikon="repoDokument" className="pointer-events-none relative flex size-11 shrink-0 items-center justify-center rounded-full bg-typ-lank/15"><IKON_FOR.repoDokument size={20} aria-hidden="true" className="text-typ-lank" /></span>
+          ) : post.typ === "lank" ? (
             <span data-bibliotek-ikon="lank" className="pointer-events-none relative flex shrink-0"><LankMark post={post} /></span>
           ) : (
           <span data-bibliotek-ikon={post.typ} className={cx("relative flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-full", ljud && !iSkalet ? "" : "pointer-events-none", plattKlass(post))}>
@@ -1979,9 +1989,10 @@ function Adress({ url }) {
  * @param {ReadonlyArray<import("../lib/bibliotek.js").Bibliotekspost & { id: string }>} props.poster (0.128.0) Platsens poster, de enda en lista läses mot.
  * @param {{ uid: string, roll: string, groupId?: string, status?: string } | null} props.jag
  * @param {(url: string) => Promise<{ titel?: string, artist?: string, kalla?: string, bild?: string }>} [props.onLankInfo] (0.128.0) Se `OpsBibliotek`.
+ * @param {(post: any) => Promise<import("./GithubDokumentVisning.jsx").GithubLasning>} [props.githubLasare] (0.186.0) Se `OpsBibliotek`.
  * @param {(post: import("../lib/bibliotek.js").Bibliotekspost & { id: string }) => void} props.onOppnaPost (0.128.0) Öppnar en post ur en lista.
  */
-function Detalj({ post, skapar, startLage, onStang, onSpara, onLaddaUpp, filUrl, hamtaFil, htmlVersioner, hamtaHtmlVersion, aterstallHtml, nyHtmlVersion, oppnaHtml, taggrad, adressFor, onLjus, onSkrivUt, onSkrivUtIgen, onTaBortUtskrift, onAnteckningAvUtskrift, menyFor, onMeta, tillbakaEtikett, poster, jag, onLankInfo, onOppnaPost }) {
+function Detalj({ post, skapar, startLage, onStang, onSpara, onLaddaUpp, filUrl, hamtaFil, htmlVersioner, hamtaHtmlVersion, aterstallHtml, nyHtmlVersion, oppnaHtml, taggrad, adressFor, onLjus, onSkrivUt, onSkrivUtIgen, onTaBortUtskrift, onAnteckningAvUtskrift, menyFor, onMeta, tillbakaEtikett, poster, jag, onLankInfo, githubLasare, onOppnaPost }) {
   const sprak = useOpsSprak();
   const typ = skapar ?? post?.typ ?? "anteckning";
   const [rubrik, setRubrik] = useState(post && !skapar ? post.rubrik : "");
@@ -2183,6 +2194,9 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, onLaddaUpp, filUrl,
     <FilVisning post={post} lage={filLage} kopplad={kopplad} onLjus={onLjus} onMeta={onMeta} onRadera={radera ? radera.onValj : undefined} hamtaFil={hamtaFil} htmlVy={htmlVyAdress(oppnaHtml, post)} versioner={htmlVersioner ? { lista: htmlVersioner, hamtaVersion: hamtaHtmlVersion, aterstall: aterstallHtml, nyVersion: nyHtmlVersion, kanAndra: farAndra(post, jag) } : undefined} />
   ) : typ === "lista" && post ? (
     <ListaVisning lista={post} poster={poster} kanAndra={farAndra(post, jag)} onSpara={onSpara} onOppnaPost={onOppnaPost} />
+  ) : post && typ === "lank" && typeof githubLasare === "function" && githubDokument(post.url) !== null ? (
+    // ⛔ EN FIL I GRUPPENS GITHUB-REPO ÖPPNAS I ETT LÄSLÄGE I APPEN (0.186.0, lifehub.app#653), inte på github.com. Se `GithubDokumentVisning`.
+    <GithubDokumentVisningLat post={post} lasare={githubLasare} />
   ) : post && typ === "lank" ? (
     // ⛔ En sparad länk visar sin källa och sitt omslag, och adressen som en riktig länk (0.128.0). Ingen inbäddad spelare och ingen förhandsvisning utöver det (CP 2026-10-20).
     <div data-bibliotek-lank-lasning="" className="flex min-w-0 items-start gap-4">

@@ -243,6 +243,8 @@ export { flyttmal, postensTidsfalt } from "../lib/flytta.js";
  */
 export { lankInfoUrOembed } from "./lankinfo.js";
 export { LANKKALLOR, lankKalla, lankRubrik } from "../lib/lankkalla.js";
+// (0.186.0, lifehub.app#653) Läsaren och API:t i appen tolkar och bygger adressen till en fil i gruppens repo med samma funktion som vyn.
+export { GITHUB_SORTER, GITHUB_LAGEN, githubDokument, githubDokumentUrl } from "../lib/githubdokument.js";
 
 /*
  * ⛔ GÄSTER (0.131.0, cllp/lifehub.app#389, skiva 1; 0.132.0, skiva 2: hela gruppen, se `docs/beslut/0012`). En gäst är en inbjudan och aldrig ett medlemskap eller ett konto, och nyckeln och sessionen hashas med `node:crypto`, som aldrig ska bundlas till en

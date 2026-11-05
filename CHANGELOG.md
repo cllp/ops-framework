@@ -9,6 +9,18 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.186.0
+
+### Tillagt
+
+- **En fil i gruppens GitHub-repo öppnas i ett läsläge i Biblioteket, inte på github.com.** CP (cllp/lifehub.app#653): "Har inte kunnat öppna dokument från mobile eller webläsare i github på ett bra sätt". En länk till en fil på github.com skickade personen ut ur appen till en sida som är trång i en telefon och kräver en inloggning till. `OpsBibliotek` får den valfria `githubLasare(post) => Promise<{ lage, text?, base64?, mime?, andrad?, av?, storlek? }>`. Med den öppnas en länk vars adress är `https://github.com/<ägare>/<repo>/blob/<ref>/<sökväg>` i ett läsläge i detaljen: överst "Ändrad {datum} av {av}" och "Öppna i GitHub", under den innehållet efter filens sort. Markdown ritas med `OpsMarkdown`, HTML i den avspärrade rutan (`OpsHtmlDokument`, oförändrad sandlåda), PDF genom bilageviset (`BilagaVisning`, det enda stället som gör en blob-adress), bild som `<img>` med data-URL (bara png, jpeg, gif och webp), text och CSV som text (`TextForhandsvisning`; en halv CSV-läsare visar fel kolumner utan att säga det), och Word, Excel och övrigt som "Kan inte visas i appen." med Ladda ned. Lägena `saknas`, `obehorig`, `inte-gruppens`, `for-stor` och `fel` har var sin rad på svenska och engelska, och ett avvisat löfte ritas som `fel`. Väntan syns (`aria-busy` och snurra). Raden i listan får en egen ikon, `IKON_FOR.repoDokument` (GitBranch).
+  - **Ingen ny posttyp och inga nya fält (regel 2).** Posten är en vanlig länk (`typ: "lank"`). Repo, ref, sökväg, filnamn, ändelse och sort härleds ur adressen vid läsning av `githubDokument(url)`, och sorten tas aldrig ur svaret. `kalla` förblir `annat`: `LANKKALLOR` gäller oEmbed-källor och rörs inte, så ingen regeldeploy krävs. Utan `githubLasare` är länken som förut.
+  - Nytt i huvudingången: `githubDokument`, `githubDokumentUrl`, `GITHUB_SORTER`, `GITHUB_LAGEN`, `githubMarkdown`. Parsern tar bara `https://github.com/` exakt (värden jämförs som hel värddel: `github.com.evil.se` och `github.com@evil.se` ger `null`), ett ref-segment, och nekar `..`, tomma segment, felaktig avkodning och kodade snedstreck. `svg` är `annat` med avsikt, den kan bära skript.
+  - Kända begränsningar: en gren med snedstreck i namnet tolkas som ref + sökväg; relativa bilder och länkar i markdown visas inte (`githubMarkdown` gör dem till text); en PDF över `MAX_KOMMENTARBILAGA` (cirka 500 kB) kan inte visas och får Ladda ned. Appens `githubLasare` (servern, gruppens koppling) är inte en del av den här skivan.
+  - Prov: `githubdokument-lib.test.js` (40) och `githubdokument-vy.test.jsx` (30). Utan ändringen: lib-provet fäller på att modulen saknas; med `OpsBibliotek.jsx` återställd men resten kvar blir 27 av de 30 vyproven röda (de tre som är gröna åt båda håll är de som bevisar att utan `githubLasare` är allt som förut). Med en parser som släpper `github.com.evil.se`, `github.com@evil.se` och `..` blir 6 prov röda. Med ändringen är alla 70 gröna.
+
+- **Läsläget laddas när det behövs, och nodsidan når parsern.** `GithubDokumentVisning` ligger bakom en dynamisk import (`GithubDokumentVisningLat`, samma väg som versionsraden i 0.159.0). Statiskt lade det 2 227 byte gzip på lifehub.app:s startfiler (appens `check:jsstorlek`). Gränsen mot en modul som inte går att hämta är utbruten till `LatGrans` och delas med `BibliotekHtmlVersionerLat`. `ops-framework/node` exporterar `githubDokument`, `githubDokumentUrl`, `GITHUB_SORTER` och `GITHUB_LAGEN`, så att appens läsare och API inte behöver huvudingången (`nod-ren-ingang`).
+
 ## 0.185.1
 
 ### Rättat

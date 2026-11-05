@@ -385,6 +385,7 @@ export { PLATSFALT, PLATSFALT_FORVALTAD, FORVALTNINGSFALT, MAX_FORVALTARE, arFor
 export { createPlatskalla } from "./data/platskalla.js";
 /* (0.128.0, cllp/lifehub.app#378) Smart länk och listor i Biblioteket: källan ur adressen, rubriken ur titel och artist, och en listas rader mot platsens poster. */
 export { LANKKALLOR, KALLOR, lankKalla, lankKallnamn, lankRubrik, lankkallaForm } from "./lib/lankkalla.js";
+export { GITHUB_SORTER, GITHUB_LAGEN, githubDokument, githubDokumentUrl, githubMarkdown } from "./lib/githubdokument.js";
 export { LISTRADTEXT, LISTA_I_LISTA_TEXT, LISTA_FLYTT_TEXT, losLista, listorAttLaggaI, kandidaterForLista, laggTillPost, taBortPost } from "./lib/biblioteklista.js";
 export { createBibliotekskalla, flyttaBibliotekspost, bilagaKanKopieras, kopieraBilagaTillPlats } from "./data/bibliotekkalla.js";
 export { OpsBibliotek } from "./components/OpsBibliotek.jsx";
