@@ -92,7 +92,9 @@ describe("OpsGastChatt", () => {
     expect(screen.queryByRole("button", { name: /Bifoga|bild|foto|fil/i })).toBeNull();
     expect(document.querySelector("[data-mikrofon]")).toBeNull();
     expect(document.querySelector("input[type=file]")).toBeNull();
-    expect(screen.getByText(/Du skriver som gäst: dina meddelanden märks Gäst/)).toBeInTheDocument();
+    // (0.190.0, QA fynd 8) Ingen mening under skrivfältet: märket Gäst syns på bubblan, och trådarna hör till backloggen.
+    expect(document.querySelector("[data-gast-chatt-skrivskyddad]")).toBeNull();
+    expect(document.body.textContent).not.toMatch(/Du skriver som gäst|Svar i trådar visas inte/);
     fireEvent.change(falt, { target: { value: "  Hej gruppen  " } });
     await klicka(screen.getByRole("button", { name: "Skicka" }));
     expect(onSkriv).toHaveBeenCalledWith("Hej gruppen");
@@ -102,6 +104,25 @@ describe("OpsGastChatt", () => {
     await klicka(screen.getByRole("button", { name: "Skicka" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("För många anrop.");
     expect(falt).toHaveValue("Igen");
+  });
+
+  it("⛔ gästen får mikrofon där webbläsaren har taligenkänning, i chatten och i ett ärende, och ingen där den saknas (0.190.0, CP 2026-11-05)", async () => {
+    const { OpsGastArenden } = await import("../components/OpsGastArenden.jsx");
+    const ARENDE = [{ id: "a1", rubrik: "Hämta nycklar", status: "ny", kommentarer: [] }];
+    const { unmount } = render(<OpsGastChatt meddelanden={[]} onSkriv={vi.fn()} />);
+    expect(document.querySelector("[data-mikrofon]")).toBeNull();
+    unmount();
+    // Webbläsarens igenkänning finns (Chrome: `webkitSpeechRecognition`). Ingen serverutskrift behövs.
+    vi.stubGlobal("webkitSpeechRecognition", function SR() {});
+    try {
+      const chatt = render(<OpsGastChatt meddelanden={[]} onSkriv={vi.fn()} />);
+      expect(document.querySelectorAll("[data-mikrofon]")).toHaveLength(1);
+      chatt.unmount();
+      render(<OpsGastArenden poster={ARENDE} onKommentera={vi.fn()} onKlar={vi.fn()} />);
+      expect(document.querySelectorAll("[data-mikrofon]")).toHaveLength(1);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("⛔ ett tomt fält skickar inget, och över taket (1000 tecken) är Skicka spärrad med en räknare", async () => {

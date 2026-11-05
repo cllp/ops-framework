@@ -40,7 +40,9 @@ describe("medlemmens chatt med en gästs meddelande", () => {
     rita([{ id: "b", av: BO, text: "Hej", tid: T }]);
     const m = document.querySelector("[data-gast-markning]");
     expect(m).not.toBeNull();
-    expect(m.parentElement.textContent).toBe("GästGäst");
+    // (0.190.0) Namnraden bär också tiden, så namnet läses ur sin egen del av raden.
+    expect(m.parentElement.querySelector("[data-avsandare]").textContent).toBe("Gäst");
+    expect(m.textContent).toBe("Gäst");
     expect(document.body.textContent).not.toContain(BO);
   });
 

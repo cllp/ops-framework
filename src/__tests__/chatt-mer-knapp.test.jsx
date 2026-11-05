@@ -53,7 +53,8 @@ describe("en Mer-knapp per meddelande på telefon", () => {
     for (const rad of rader) {
       const mer = rad.querySelectorAll("[data-mer]");
       expect(mer.length).toBe(1);
-      expect(mer[0].className.split(/\s+/)).toContain("md:hidden");
+      // (0.190.0) Med mus syns ⋮ vid hover och fokus, på pekskärm ritas den inte (menyn öppnas med ett långt tryck på bubblan).
+      expect(mer[0].className.split(/\s+/)).toEqual(expect.arrayContaining(["pointer-fine:opacity-0", "pointer-fine:group-hover:opacity-100", "pointer-fine:group-focus-within:opacity-100", "pointer-coarse:[&_[data-ops-atgard-knapp]]:hidden"]));
       expect(within(/** @type {HTMLElement} */ (mer[0])).getByRole("button").getAttribute("aria-label")).toBe("Åtgärder för Meddelande från Bo Lind");
     }
     // Golv: fyra sorters lösa åtgärder, och varje är dold under md.

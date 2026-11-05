@@ -1,4 +1,4 @@
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import * as Popover from "@radix-ui/react-popover";
 import { MoreVertical } from "lucide-react";
 import { cx } from "../lib/cx.js";
@@ -52,10 +52,17 @@ export const ORD_OPSATGARDSBLAD = {
  * @param {boolean} [props.kort] (0.102.0) Raden är ett kort: ⋮ uppe till höger i stället för mitt på raden, och tätare kant.
  * @param {(stang: () => void) => import("react").ReactNode} [props.overst] (0.106.0, #386) Något som står överst i rutan, under namnet
  *   och före posterna: chattens reaktioner, som på telefonen bor i samma meny som meddelandets åtgärder. Får en funktion som stänger.
+ * @param {{ x: number, y: number } | null} [props.oppnadVid] (0.190.0) Med `baraKnapp`: menyn är öppnad utifrån, vid den här punkten i fönstret.
+ *   Chattens bubbla tar långtrycket (CP 2026-11-05: "menyn öppnas med ett långt tryck"), och ⋮ står på en annan rad. Punkten är där fingret höll in, och
+ *   menyn förankras där som vid ett långtryck på en rad. `null` eller utelämnad: menyn öppnas av ⋮ som förut.
+ * @param {(oppen: boolean) => void} [props.onOppnadVid] (0.190.0) Anropas när menyn stängs eller öppnas av ⋮, så att den som öppnade utifrån kan släppa sin punkt.
  */
-export function OpsAtgardsblad({ namn, poster, children = null, baraKnapp = false, kort = false, overst }) {
+export function OpsAtgardsblad({ namn, poster, children = null, baraKnapp = false, kort = false, overst, oppnadVid = null, onOppnadVid }) {
   const sprak = useOpsSprak();
-  const [oppen, setOppen] = useState(false);
+  const [inreOppen, setOppen] = useState(false);
+  // ⛔ ÖPPNAD UTIFRÅN (0.190.0): en punkt betyder öppen. Rutan stängs av samma vägar som annars (utanför, Escape, en post), och `onOppnadVid(false)` släpper punkten.
+  const utifran = oppnadVid !== null && typeof oppnadVid === "object";
+  const oppen = inreOppen || utifran;
   /*
    * ⛔ FINGRET SOM ÖPPNADE MENYN VÄLJER INGET NÄR DET LYFTS (0.100.1, lifehub.app#226). På en smal skärm var menyn då ett ark nerifrån.
    * Hölls en rad i nedre halvan av skärmen låg arket under fingret när det lyftes, och klicket som följer släppet träffade raden
@@ -78,8 +85,12 @@ export function OpsAtgardsblad({ namn, poster, children = null, baraKnapp = fals
   const tryck = useRef(/** @type {{ x: number, y: number } | null} */ (null));
   const lage = useRef(/** @type {"knapp" | "tryck"} */ ("knapp"));
   const [reserv, setReserv] = useState(0);
+  const utifranRef = useRef(oppnadVid);
+  utifranRef.current = oppnadVid;
   const ankare = useRef({
     getBoundingClientRect: () => {
+      const p = utifranRef.current;
+      if (p && typeof p === "object") return punktRekt({ left: 0, top: 0 }, p);
       const rad = radRef.current;
       if (lage.current === "tryck" && tryck.current && rad) return punktRekt(rad.getBoundingClientRect(), tryck.current);
       return (knappRef.current ?? rad)?.getBoundingClientRect() ?? punktRekt({ left: 0, top: 0 }, { x: 0, y: 0 });
@@ -92,7 +103,13 @@ export function OpsAtgardsblad({ namn, poster, children = null, baraKnapp = fals
       setReserv(bottenReservPx());
     }
     setOppen(v);
+    if (!v && utifranRef.current) onOppnadVid?.(false);
   };
+  useEffect(() => {
+    if (!utifran) return;
+    lage.current = "tryck";
+    setReserv(bottenReservPx());
+  }, [utifran]);
   const { handelser, iSlappet, stoppaSlappet } = useLangtryck({
     onLangtryck: () => oppna(true, "tryck"),
     hogerklick: true,
@@ -192,7 +209,7 @@ export function OpsAtgardsblad({ namn, poster, children = null, baraKnapp = fals
             className={radKlass({ stor: true })}
             onClick={() => {
               if (iSlappet()) return;
-              setOppen(false);
+              oppna(false, "knapp");
               p.onValj();
             }}
           >
@@ -251,7 +268,7 @@ export function OpsAtgardsblad({ namn, poster, children = null, baraKnapp = fals
 
   return (
     <Popover.Root open={oppen} onOpenChange={(v) => oppna(v, "knapp")}>
-      {baraKnapp ? null : <Popover.Anchor virtualRef={ankare} />}
+      {baraKnapp && !utifran ? null : <Popover.Anchor virtualRef={ankare} />}
       {rad}
       <Popover.Portal>
         <Popover.Content
@@ -284,7 +301,7 @@ export function OpsAtgardsblad({ namn, poster, children = null, baraKnapp = fals
           }}
         >
           <p data-ops-atgard-namn="" className="m-0 truncate px-3 pt-2 pb-1 text-meta font-medium text-ink-muted">{namn}</p>
-          {overst ? <div data-ops-atgard-overst="">{overst(() => setOppen(false))}</div> : null}
+          {overst ? <div data-ops-atgard-overst="">{overst(() => oppna(false, "knapp"))}</div> : null}
           {poster.length > 0 ? rader : null}
         </Popover.Content>
       </Popover.Portal>

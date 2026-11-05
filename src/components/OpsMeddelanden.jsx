@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { webblasarensIgenkanning } from "../lib/talk.js";
 import { OpsSprakProvider, useOpsSprak } from "./OpsSprak.jsx";
 import { forvalda, ordet } from "../lib/ord.js";
 import { cx } from "../lib/cx.js";
@@ -35,6 +36,7 @@ import { forslagUrData } from "../lib/forslag.js";
 import { rapporteraFel } from "../lib/felrapport.js";
 import { tangentbordTackt } from "../lib/tangentbord.js";
 import { OpsAtgardsblad } from "./OpsAtgardsblad.jsx";
+import { LANGTRYCK_KLASS, useLangtryck } from "./useLangtryck.js";
 import { AgentIkon, AndraIkon, KopieraIkon, ArkiveraIkon, TaFramIkon, BildIkon, FastIkon, FilIkon, KameraIkon, MappIkon, MejlIkon, NotisIkon, PanelIkon, StoppIkon, TystIkon, ChevronHogerIkon, ChevronNedIkon, CiteraIkon, ChevronVansterIkon, GruppIkon, KryssIkon, LasIkon, LeendeIkon, MeddelandeIkon, PlusIkon, SkickaIkon, SokIkon, TradIkon } from "./icons.jsx";
 
 /**
@@ -1770,7 +1772,10 @@ export function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, sprak, 
    * som Skicka-knappens `disabled`, så de två kan inte säga olika saker om vad som är tomt (regel 2).
    */
   const tomt = !text.trim() && !harBilaga;
-  const visaMik = Boolean(onTranscribe) && tomt;
+  // ⛔ (0.190.0, CP 2026-11-05: gästen får mikrofon) Webbläsarens taligenkänning räcker som väg, utan appens utskrift: gästen har ingen server som skriver ut ljud.
+  // `igenkanning: true` ger ljudvågen bara där webbläsaren har igenkänningen (`webblasarensIgenkanning`), annars hade knappen bara kunnat ge ett fel.
+  const harIgenkanning = igenkanning === true ? webblasarensIgenkanning() !== null : Boolean(igenkanning && typeof igenkanning === "object");
+  const visaMik = (Boolean(onTranscribe) || harIgenkanning) && tomt;
   /*
    * ⛔ YTAN STÅR I FÄLTETS PLATS MEDAN RÖSTEN ARBETAR (0.103.0). CP 2026-10-14, med en skärmbild av agentchatten där "Skriver ut det
    * inspelade…" stod under skrivfältet: "Sedan funkar inte tal i meddelanden på samma sätt som TALK, det skall skrivas ut text i realtid
@@ -2942,6 +2947,11 @@ export function Meddelanderader({ meddelanden, uid, namnFor: namnForProp, medlem
   const sprak = typeof locale === "string" && locale ? (locale.startsWith("en") ? "en" : "sv") : kontextsprak;
   const medlemsbild = (/** @type {string} */ id) => (medlemmar ?? []).find((m) => m.userId === id)?.bild || undefined;
   const medlemstyp = (/** @type {string} */ id) => (medlemmar ?? []).find((m) => m.userId === id)?.typ;
+  // ⛔ MENYN ÖPPNAS MED ETT LÅNGT TRYCK PÅ BUBBLAN PÅ PEKSKÄRM (0.190.0, CP 2026-11-05 i cllp/lifehub.app#658: "långt tryck", prickarna bara vid hover på dator). Ett meddelande åt gången:
+  // punkten är där fingret höll in, och menyn (`Meddelandemeta`) förankras där.
+  const pekskarm = usePekskarm();
+  const [meny, setMeny] = useState(/** @type {{ id: string, punkt: { x: number, y: number } } | null} */ (null));
+  const menyPa = bredd !== "bred" || pekskarm;
   return (
     <>
       {meddelanden.map((m, i, alla) => {
@@ -2997,17 +3007,26 @@ export function Meddelanderader({ meddelanden, uid, namnFor: namnForProp, medlem
               ) : null}
               <div className={cx("flex min-w-0 max-w-[70%] flex-col", egen ? "items-end" : "items-start")}>
                 {/* ⛔ ETT MEDDELANDE FRÅN EN NYCKEL BÄR ALLTID SITT MÄRKE (0.135.0): namnraden ritas även i ett privat samtal, och på ens eget meddelande. */}
-                {egen && !fortsattning && m.via ? (
-                  <span data-via-eget="" className="mr-1 mb-0.5 text-liten text-ink-muted">{avNamnFor(namnFor, m, uid, texter.du, sprak)}</span>
+                {/* ⛔ TIDEN STÅR PÅ NAMNRADEN (0.190.0, CP 2026-11-05 i cllp/lifehub.app#658): efter namnet och märket Gäst, inte på en egen rad under bubblan. Det
+                    första meddelandet i en följd bär raden; ett som följer inom fem minuter från samma avsändare står utan, som namnet. */}
+                {egen && !fortsattning ? (
+                  <span data-namnrad="eget" className="mr-1 mb-0.5 flex items-center gap-1.5 text-liten text-ink-muted">
+                    {m.via ? <span data-via-eget="">{avNamnFor(namnFor, m, uid, texter.du, sprak)}</span> : null}
+                    <span data-meddelande-tid="" className="tabular-nums">{formatTime(m.tid, { locale })}</span>
+                  </span>
                 ) : null}
-                {!egen && !fortsattning && (visaNamn || m.via) ? (
-                  <span data-avsandare="" className="mb-0.5 ml-1 flex items-center gap-1.5 text-liten text-ink-muted" data-namn-saknas={person === NAMN_SAKNAS ? "" : undefined}>
-                    {avNamnFor(namnFor, m, uid, texter.du, sprak)}
-                    {arGast(m) ? <span data-gast-markning="" className="rounded-full bg-sunken px-1.5 py-px text-mikro font-medium text-ink-secondary">{texter.gast}</span> : null}
+                {!egen && !fortsattning ? (
+                  <span data-namnrad="annans" className="mb-0.5 ml-1 flex items-center gap-1.5 text-liten text-ink-muted">
+                    {visaNamn || m.via ? (
+                      <span data-avsandare="" data-namn-saknas={person === NAMN_SAKNAS ? "" : undefined}>{avNamnFor(namnFor, m, uid, texter.du, sprak)}</span>
+                    ) : null}
+                    {(visaNamn || m.via) && arGast(m) ? <span data-gast-markning="" className="rounded-full bg-sunken px-1.5 py-px text-mikro font-medium text-ink-secondary">{texter.gast}</span> : null}
+                    <span data-meddelande-tid="" className="tabular-nums">{formatTime(m.tid, { locale })}</span>
                   </span>
                 ) : null}
                 {m.svarPa && citat ? <Citat mid={m.svarPa} uppslag={citat.uppslag} egen={egen} uid={uid} namnFor={namnFor} texter={texter} /> : null}
                 {m.text ? (
+                  <Langtryckbubbla pa={menyPa} onMeny={(punkt) => setMeny({ id: m.id, punkt })}>
                   <div
                     data-bubbla=""
                     data-traff={traffar?.ids.has(m.id) ? (traffar.aktuell === m.id ? "aktuell" : "traff") : undefined}
@@ -3023,6 +3042,7 @@ export function Meddelanderader({ meddelanden, uid, namnFor: namnForProp, medlem
                         bubblan: den egna är accentfärgad. */}
                     <OpsMarkdown text={m.text} chatt />
                   </div>
+                  </Langtryckbubbla>
                 ) : null}
                 {m.bilaga ? (
                   <VisadBilaga
@@ -3041,7 +3061,7 @@ export function Meddelanderader({ meddelanden, uid, namnFor: namnForProp, medlem
                   <AgentensForslag varde={/** @type {any} */ (m).forslag} sid={sid} mid={m.id} onForslag={onForslag} />
                 ) : null}
                 {reakt?.pa ? <Reaktionschips m={m} egen={egen} reakt={reakt} texter={texter} /> : null}
-                <Meddelandemeta m={m} egen={egen} locale={locale} bredd={bredd} extra={extra} mer={merFor?.(m) ?? []} namn={egen ? texter.dittMeddelande : `${texter.svarPa} ${avNamnFor(namnFor, m, uid, texter.du, sprak)}`} reakt={reakt} fasta={fasta} citat={citat} texter={texter} />
+                <Meddelandemeta m={m} egen={egen} bredd={bredd} menyPa={menyPa} oppnadVid={meny?.id === m.id ? meny.punkt : null} onOppnadVid={(v) => { if (!v) setMeny(null); }} extra={extra} mer={merFor?.(m) ?? []} namn={egen ? texter.dittMeddelande : `${texter.svarPa} ${avNamnFor(namnFor, m, uid, texter.du, sprak)}`} reakt={reakt} fasta={fasta} citat={citat} texter={texter} />
               </div>
             </div>
           </div>
@@ -3944,6 +3964,50 @@ function useBredd() {
   return bredd;
 }
 
+/** En pekskärm utan mus: menyn öppnas med ett långt tryck och ⋮ ritas inte (0.190.0). */
+const PEKSKARM = "(pointer: coarse)";
+
+/** Är pekaren ett finger? `false` där webbläsaren inte kan svara (jsdom utan `matchMedia`). @returns {boolean} */
+function usePekskarm() {
+  const las = () => typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia(PEKSKARM).matches;
+  const [pa, setPa] = useState(las);
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return undefined;
+    const fraga = window.matchMedia(PEKSKARM);
+    const lyssna = () => setPa(fraga.matches);
+    lyssna();
+    if (typeof fraga.addEventListener === "function") {
+      fraga.addEventListener("change", lyssna);
+      return () => fraga.removeEventListener("change", lyssna);
+    }
+    fraga.addListener?.(lyssna);
+    return () => fraga.removeListener?.(lyssna);
+  }, []);
+  return pa;
+}
+
+/**
+ * Bubblan som tar långtrycket (0.190.0). Ett finger som håller still i `LANGTRYCK_MS` (500 ms) öppnar meddelandets meny vid punkten, ett finger som rör sig
+ * mer än några pixlar avbryter (det rullar), och `contextmenu` (högerklick, Android mitt i ett tryck) öppnar samma meny. Logiken är `useLangtryck`, samma som
+ * Bibliotekets rader: en mus startar ingen timer (`utanMus`), den har ⋮ och högerklick.
+ *
+ * @param {{ pa: boolean, onMeny: (punkt: { x: number, y: number }) => void, children: import("react").ReactNode }} props
+ */
+function Langtryckbubbla({ pa, onMeny, children }) {
+  const punkt = useRef({ x: 0, y: 0 });
+  const { handelser, aktiv } = useLangtryck({ onLangtryck: pa ? () => onMeny(punkt.current) : null, hogerklick: true, utanMus: true });
+  if (!aktiv) return <>{children}</>;
+  /** @param {{ clientX: number, clientY: number }} e */
+  const spara = (e) => {
+    punkt.current = { x: e.clientX, y: e.clientY };
+  };
+  return (
+    <div data-langtryck-bubbla="" className={cx("flex max-w-full min-w-0 flex-col", LANGTRYCK_KLASS)} onPointerDownCapture={spara} onContextMenuCapture={spara} {...handelser}>
+      {children}
+    </div>
+  );
+}
+
 /**
  * Raden under bubblan: tiden, vyns innehåll (trådens märke), och meddelandets åtgärder.
  *
@@ -3954,15 +4018,19 @@ function useBredd() {
  * bubblas text inte att markera utan att sidan förstorar. På dator är raden oförändrad: ikonerna syns vid hover och fokus.
  * Det som är INNEHÅLL står kvar på båda: trådens märke "3 svar" och nålen på ett fäst meddelande.
  *
- * @param {{ m: import("../lib/samtal.js").Meddelande & { id: string }, egen: boolean, locale: string, bredd: "smal" | "bred" | null, extra: import("react").ReactNode,
+ * ⛔ TIDEN STÅR INTE HÄR LÄNGRE (0.190.0): den står på namnraden ovanför bubblan, se `Meddelanderader`. ⋮ ritas där en meny behövs (`menyPa`: smal skärm eller
+ * pekskärm) och öppnas också utifrån, av ett långtryck på bubblan (`oppnadVid`).
+ *
+ * @param {{ m: import("../lib/samtal.js").Meddelande & { id: string }, egen: boolean, bredd: "smal" | "bred" | null, menyPa: boolean, oppnadVid: { x: number, y: number } | null,
+ *   onOppnadVid: (oppen: boolean) => void, extra: import("react").ReactNode,
  *   mer: import("./OpsAtgardsblad.jsx").Atgard[], namn: string, reakt?: ReturnType<typeof useReaktioner>,
  *   fasta?: { pa?: boolean, ids: Set<string>, vaxla: (mid: string) => void } | null,
  *   citat?: { pa: boolean, onCitera: (m: import("../lib/samtal.js").Meddelande & { id: string }) => void } | null,
  *   texter: Required<Meddelandetexter> }} props
  */
-function Meddelandemeta({ m, egen, locale, bredd, extra, mer, namn, reakt, fasta, citat, texter: t }) {
+function Meddelandemeta({ m, egen, bredd, menyPa, oppnadVid, onOppnadVid, extra, mer, namn, reakt, fasta, citat, texter: t }) {
   const losa = bredd !== "smal";
-  const merKnapp = bredd !== "bred";
+  const merKnapp = menyPa;
   const [kopia, setKopia] = useState(/** @type {null | "ok" | "fel"} */ (null));
   useEffect(() => {
     if (!kopia) return undefined;
@@ -4024,7 +4092,6 @@ function Meddelandemeta({ m, egen, locale, bredd, extra, mer, namn, reakt, fasta
     : undefined;
   return (
     <span className={cx("relative mt-0.5 flex max-w-full items-center gap-1.5", egen ? "mr-1 flex-row-reverse" : "ml-1")}>
-      <span className="text-liten tabular-nums text-ink-muted">{formatTime(m.tid, { locale })}</span>
       {extra}
       {reakt?.pa && losa ? <ReageraKnapp m={m} egen={egen} reakt={reakt} texter={t} /> : null}
       {fasta && (losa || fast) ? (
@@ -4055,8 +4122,13 @@ function Meddelandemeta({ m, egen, locale, bredd, extra, mer, namn, reakt, fasta
         </button>
       ) : null}
       {merKnapp && (poster.length > 0 || reaktioner) ? (
-        <span data-mer={m.id} className="-my-2 inline-flex md:hidden">
-          <OpsAtgardsblad baraKnapp namn={namn} poster={poster} overst={reaktioner} />
+        // ⛔ PRICKARNA SYNS BARA DÄR DE BEHÖVS (0.190.0, CP 2026-11-05): på en pekskärm öppnar ett långt tryck på bubblan menyn och ⋮ ritas inte; med mus syns ⋮ när
+        // pekaren är över raden eller raden har fokus, så tangentbordet når den som förut (Tab till ⋮ ger fokus inom raden och gör den synlig).
+        <span
+          data-mer={m.id}
+          className="-my-2 inline-flex transition-opacity duration-(--duration-fast) ease-standard pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100 pointer-fine:group-focus-within:opacity-100 pointer-coarse:[&_[data-ops-atgard-knapp]]:hidden"
+        >
+          <OpsAtgardsblad baraKnapp namn={namn} poster={poster} overst={reaktioner} oppnadVid={oppnadVid} onOppnadVid={onOppnadVid} />
         </span>
       ) : null}
       {kopia ? (
