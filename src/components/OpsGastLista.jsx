@@ -28,6 +28,23 @@ export const ORD_OPSGASTLISTA = {
   skickaIgenNamn: { sv: "Skicka länken igen till {vem}", en: "Send the link again to {vem}" },
   skickaIgenPagar: { sv: "Skickar…", en: "Sending…" },
   skickaIgenKlar: { sv: "En ny länk är skickad till {vem}. Den gäller i {dagar} dagar, och den förra länken fungerar inte längre.", en: "A new link has been sent to {vem}. It is valid for {dagar} days, and the previous link no longer works." },
+  kopieraLank: { sv: "Kopiera länk", en: "Copy link" },
+  kopieraLankNamn: { sv: "Kopiera länken till {vem}", en: "Copy the link to {vem}" },
+  kopieraLankPagar: { sv: "Hämtar länken…", en: "Getting the link…" },
+  kopieraLankFaltNamn: { sv: "Länk till {vem}", en: "Link for {vem}" },
+  kopieraLankKnapp: { sv: "Kopiera", en: "Copy" },
+  kopieraLankKopierad: { sv: "Kopierad", en: "Copied" },
+  kopieraLankMarkerad: { sv: "Markerad, kopiera den med Kopiera i menyn", en: "Selected, copy it with Copy in the menu" },
+  kopieraLankGiltig: { sv: "Samma länk som i mejlet. Den gäller till {datum}.", en: "The same link as in the email. It is valid until {datum}." },
+  kopieraLankInget: { sv: "Inget mejl skickades.", en: "No email was sent." },
+  kopieraLankDela: { sv: "Dela", en: "Share" },
+  kopieraLankDelaRubrik: { sv: "Inbjudan till {grupp}", en: "Invitation to {grupp}" },
+  kopieraLankDelaRubrikUtanGrupp: { sv: "Inbjudan", en: "Invitation" },
+  kopieraLankDelaText: { sv: "Öppna länken och skriv din e-postadress, samma som inbjudan gick till.", en: "Open the link and enter your email address, the one the invitation was sent to." },
+  kopieraLankDelaFel: { sv: "Det gick inte att dela. Kopiera länken i stället.", en: "Could not share. Copy the link instead." },
+  felValv: { sv: "Länken kunde inte sparas för kopiering. Inbjudan finns: tryck Skicka igen.", en: "The link could not be saved for copying. The invitation exists: press Send again." },
+  felIngenKopia: { sv: "Den här länken skapades innan länkar sparades. Tryck Skicka igen en gång, sedan går den att kopiera.", en: "This link was created before links were saved. Press Send again once, then it can be copied." },
+  felUtgangen: { sv: "Länken har gått ut. Tryck Skicka igen för en ny.", en: "The link has expired. Press Send again for a new one." },
   draTillbaka: { sv: "Dra tillbaka", en: "Withdraw" },
   draTillbakaNamn: { sv: "Dra tillbaka inbjudan till {vem}", en: "Withdraw the invitation to {vem}" },
   draTillbakaPagar: { sv: "Drar tillbaka…", en: "Withdrawing…" },
@@ -100,6 +117,9 @@ const FELKOD_TILL_ORD = /** @type {Record<string, string>} */ ({
   "ogiltigt-namn": "felNamn",
   "brev-misslyckades": "felBrev",
   "ej-behorig": "felEjBehorig",
+  "valv-misslyckades": "felValv",
+  "ingen-kopia": "felIngenKopia",
+  utgangen: "felUtgangen",
 });
 
 /** (0.146.0) Tonen på ett deltasvar. `null` (inte svarat än) är ingen varning: det är ett läge. */
@@ -124,6 +144,64 @@ export function gastFelText(e, t, totalt) {
   const ordNyckel = typeof kod === "string" ? FELKOD_TILL_ORD[kod] : undefined;
   if (ordNyckel) return t[ordNyckel].replace("{totalt}", String(totalt)).replace("{max}", String(MAX_GASTNAMN));
   return e instanceof Error && e.message ? e.message : t.felReserv;
+}
+
+/**
+ * Länken till en inbjudan (0.189.0): ett skrivskyddat fält, en Kopiera-knapp och, där webbläsaren kan dela (`navigator.share`, telefonens delningsmeny: SMS, WhatsApp, mejl), en Dela-knapp
+ * (CP 2026-11-05: "en bra sak är att kunna skicka den via SMS också eller på annat sätt till den jag vill bjuda in"). Båda anropas direkt i klickhanteraren, eftersom webbläsaren kräver ett
+ * användartryck. ⛔ Misslyckas kopieringen (ingen `navigator.clipboard`, eller den kastar) markeras texten och det står vad medlemmen gör i stället; misslyckas delningen (utom att personen
+ * stängde menyn: `AbortError`) står det att länken går att kopiera. Inget tyst fel (regel 5).
+ *
+ * @param {{ lank: { url: string, lankGiltigTill?: number }, vem: string, t: Record<string, string>, sprak: string, gruppnamn?: string }} props
+ */
+function GastLank({ lank, vem, t, sprak, gruppnamn }) {
+  const { url, lankGiltigTill } = lank;
+  const ruta = useRef(/** @type {HTMLDivElement | null} */ (null));
+  const [besked, setBesked] = useState("");
+  const kanDela = typeof navigator !== "undefined" && typeof navigator.share === "function";
+  const datum = Number.isFinite(lankGiltigTill) ? new Intl.DateTimeFormat(sprak === "en" ? "en-GB" : "sv-SE", { day: "numeric", month: "long", year: "numeric" }).format(new Date(/** @type {number} */ (lankGiltigTill))) : "";
+  async function kopiera() {
+    setBesked("");
+    try {
+      if (!navigator.clipboard || typeof navigator.clipboard.writeText !== "function") throw new Error("ingen urklippsfunktion");
+      await navigator.clipboard.writeText(url);
+      setBesked(t.kopieraLankKopierad);
+    } catch {
+      ruta.current?.querySelector("input")?.select();
+      setBesked(t.kopieraLankMarkerad);
+    }
+  }
+  async function dela() {
+    setBesked("");
+    try {
+      await navigator.share({ title: gruppnamn ? t.kopieraLankDelaRubrik.replace("{grupp}", gruppnamn) : t.kopieraLankDelaRubrikUtanGrupp, text: t.kopieraLankDelaText, url });
+    } catch (e) {
+      if (/** @type {{ name?: string }} */ (e)?.name === "AbortError") return;
+      setBesked(t.kopieraLankDelaFel);
+    }
+  }
+  return (
+    <div ref={ruta} data-gast-lank="" className="flex flex-col gap-1">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="min-w-0 flex-1">
+          <OpsInput value={url} onChange={() => {}} readOnly tal={false} ariaLabel={t.kopieraLankFaltNamn.replace("{vem}", vem)} />
+        </div>
+        <OpsButton size="sm" variant="secondary" onClick={kopiera}>
+          {t.kopieraLankKnapp}
+        </OpsButton>
+        {kanDela ? (
+          <OpsButton size="sm" variant="secondary" onClick={dela}>
+            {t.kopieraLankDela}
+          </OpsButton>
+        ) : null}
+      </div>
+      <p className="m-0 text-etikett text-ink-secondary wrap-anywhere">
+        {datum ? `${t.kopieraLankGiltig.replace("{datum}", datum)} ` : ""}
+        {t.kopieraLankInget}
+      </p>
+      {besked ? <p role="status" data-gast-lank-besked="" className="m-0 text-etikett text-ink-secondary wrap-anywhere">{besked}</p> : null}
+    </div>
+  );
 }
 
 /**
@@ -243,6 +321,8 @@ export function GastBekraftelse({ bekrafta, t, onBekrafta, onAvbryt }) {
  * @param {(inmatning: { epost: string, namn: string }) => void | Promise<unknown>} [props.onBjud] Bjuder in, eller bjuder in en återkallad igen. Utelämnad: ingen knapp och inget formulär.
  * @param {(inmatning: { epost: string, namn: string }) => void | Promise<unknown>} [props.onBjudGrupp] (0.132.0) Bjuder in till hela gruppen, efter att medlemmen bekräftat i dialogen. Bara i gruppläget.
  * @param {(arg: { id: string }) => void | Promise<unknown>} [props.onSkickaOm]
+ * @param {(arg: { id: string }) => Promise<{ url: string, lankGiltigTill: number }>} [props.onKopieraLank] (0.189.0, CP 2026-11-05: "Jag skulle också vilja kunna se länken till inbjudningen, eller kopiera den.") Ger SAMMA länk som i mejlet, utan att skicka något mejl (tjänstens `kopieraLank`). Ger `{ url, lankGiltigTill }`, som visas i ett fält med en Kopiera-knapp och en Dela-knapp där webbläsaren kan dela. Utelämnad: ingen knapp.
+ * @param {string} [props.gruppnamn] (0.189.0) Gruppens namn, för rubriken i delningsmenyn ("Inbjudan till {grupp}"). Utelämnad: "Inbjudan".
  * @param {(arg: { id: string }) => void | Promise<unknown>} [props.onAterkalla]
  * @param {(arg: { gastId: string }) => void | Promise<unknown>} [props.onAterkallaAlla] (0.132.0) Drar tillbaka alla personens inbjudningar i gruppen. Bara i gruppläget.
  * @param {(arg: { gastId: string, epost: string }) => void | Promise<unknown>} [props.onRadera] (0.132.0) Raderar personens uppgifter, efter att medlemmen bekräftat i dialogen. Utelämnad: ingen knapp.
@@ -251,7 +331,7 @@ export function GastBekraftelse({ bekrafta, t, onBekrafta, onAvbryt }) {
  * @param {string} [props.sprak]
  * @param {Partial<Record<keyof typeof ORD_OPSGASTLISTA, string>>} [props.ord] Egna texter, som vinner över ordboken.
  */
-export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud, onBjudGrupp, onSkickaOm, onAterkalla, onAterkallaAlla, onRadera, utanRubrik = false, nu, sprak = "sv", ord }) {
+export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud, onBjudGrupp, onSkickaOm, onKopieraLank, onAterkalla, onAterkallaAlla, onRadera, gruppnamn, utanRubrik = false, nu, sprak = "sv", ord }) {
   if (personer !== undefined && gaster !== undefined) {
     throw new Error("OpsGastLista: ange antingen gaster (en omröstning) eller personer (hela gruppen), inte båda. Två listor över samma gäster hade kunnat säga olika saker.");
   }
@@ -275,7 +355,7 @@ export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud
     }
     if (onBjudGrupp !== undefined || onAterkallaAlla !== undefined) throw new Error("OpsGastLista: onBjudGrupp och onAterkallaAlla hör till listan över hela gruppen (personer).");
   }
-  for (const [namn, f] of /** @type {const} */ ([["onBjud", onBjud], ["onBjudGrupp", onBjudGrupp], ["onSkickaOm", onSkickaOm], ["onAterkalla", onAterkalla], ["onAterkallaAlla", onAterkallaAlla], ["onRadera", onRadera]])) {
+  for (const [namn, f] of /** @type {const} */ ([["onBjud", onBjud], ["onBjudGrupp", onBjudGrupp], ["onSkickaOm", onSkickaOm], ["onKopieraLank", onKopieraLank], ["onAterkalla", onAterkalla], ["onAterkallaAlla", onAterkallaAlla], ["onRadera", onRadera]])) {
     if (f !== undefined && typeof f !== "function") throw new Error(`OpsGastLista: ${namn} måste vara en funktion (eller utelämnas).`);
   }
   const t = { ...forvalda(ORD_OPSGASTLISTA, sprak), ...definierade(/** @type {Record<string, string>} */ (ord ?? {})) };
@@ -286,6 +366,8 @@ export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud
   const [radfel, setRadfel] = useState(/** @type {Record<string, string>} */ ({}));
   // Beskedet efter ett lyckat Skicka igen (CP 2026-11-05: "Det skall vara en progress också som berättar vad den gör"). Utan det ändrades ingenting synligt efter ett tryck.
   const [radklar, setRadklar] = useState(/** @type {Record<string, string>} */ ({}));
+  // Länkarna som hämtats, per inbjudans id. De ligger bara i minnet och försvinner när vyn stängs: servern kan inte läsa ut en länk i efterhand.
+  const [lankar, setLankar] = useState(/** @type {Record<string, { url: string, lankGiltigTill: number }>} */ ({}));
   const [bekrafta, setBekrafta] = useState(/** @type {{ slag: "grupp", epost: string, namn: string } | { slag: "radera", gastId: string, epost: string, namn: string } | null} */ (null));
   const levande = useRef(true);
   useEffect(() => {
@@ -339,6 +421,36 @@ export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud
       if (klar && levande.current) setRadklar((r) => ({ ...r, [id]: klar }));
     } catch (e) {
       if (levande.current) setRadfel((r) => ({ ...r, [id]: felText(e) }));
+    }
+  }
+
+  /**
+   * Skicka igen byter nyckel, så en länk som visas för samma inbjudan slutar fungera i samma stund. Den tas bort innan anropet, så att listan aldrig visar en länk som inte går att använda.
+   * @param {string} inbjudanId
+   */
+  function glomLank(inbjudanId) {
+    setLankar((l) => {
+      if (!(inbjudanId in l)) return l;
+      const kvar = { ...l };
+      delete kvar[inbjudanId];
+      return kvar;
+    });
+  }
+
+  /**
+   * Hämtar länken till en inbjudan (`onKopieraLank`) och visar den under raden. Ett fel visas som radfel, som vid Skicka igen.
+   * @param {string} radId Raden som får felet (som `pa`).
+   * @param {string} inbjudanId
+   */
+  async function hamtaLank(radId, inbjudanId) {
+    setRadfel((r) => ({ ...r, [radId]: "" }));
+    setRadklar((r) => ({ ...r, [radId]: "" }));
+    try {
+      const svar = await /** @type {NonNullable<typeof onKopieraLank>} */ (onKopieraLank)({ id: inbjudanId });
+      if (!svar || typeof svar.url !== "string" || svar.url === "") throw new Error("onKopieraLank måste ge { url } med länken.");
+      if (levande.current) setLankar((l) => ({ ...l, [inbjudanId]: { url: svar.url, lankGiltigTill: svar.lankGiltigTill } }));
+    } catch (e) {
+      if (levande.current) setRadfel((r) => ({ ...r, [radId]: felText(e) }));
     }
   }
 
@@ -453,8 +565,13 @@ export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud
                           ) : (
                             <>
                               {onSkickaOm ? (
-                                <OpsButton size="sm" variant="secondary" ariaLabel={`${t.skickaIgenNamn.replace("{vem}", vem)} (${omfangText(i.omfang, i.titel)})`} busyLabel={t.skickaIgenPagar} onClick={() => pa(p.gastId, onSkickaOm, { id: i.id }, t.skickaIgenKlar.replace("{vem}", vem).replace("{dagar}", String(GASTLANKDAGAR)))}>
+                                <OpsButton size="sm" variant="secondary" ariaLabel={`${t.skickaIgenNamn.replace("{vem}", vem)} (${omfangText(i.omfang, i.titel)})`} busyLabel={t.skickaIgenPagar} onClick={() => (glomLank(i.id), pa(p.gastId, onSkickaOm, { id: i.id }, t.skickaIgenKlar.replace("{vem}", vem).replace("{dagar}", String(GASTLANKDAGAR))))}>
                                   {t.skickaIgen}
+                                </OpsButton>
+                              ) : null}
+                              {onKopieraLank ? (
+                                <OpsButton size="sm" variant="secondary" ariaLabel={`${t.kopieraLankNamn.replace("{vem}", vem)} (${omfangText(i.omfang, i.titel)})`} busyLabel={t.kopieraLankPagar} onClick={() => hamtaLank(p.gastId, i.id)}>
+                                  {t.kopieraLank}
                                 </OpsButton>
                               ) : null}
                               {onAterkalla ? (
@@ -465,6 +582,7 @@ export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud
                             </>
                           )}
                         </div>
+                        {lankar[i.id] && !aterkallad ? <GastLank lank={lankar[i.id]} vem={vem} t={t} sprak={sprak} gruppnamn={gruppnamn} /> : null}
                       </li>
                     );
                   })}
@@ -507,7 +625,7 @@ export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud
                     <OpsPill tone={STATUSTON[status]}>{t[`status_${status}`]}</OpsPill>
                   </span>
                 </div>
-                {onBjud || onSkickaOm || onAterkalla || onRadera ? (
+                {onBjud || onSkickaOm || onKopieraLank || onAterkalla || onRadera ? (
                   <div className="flex flex-wrap items-center gap-2">
                     {aterkallad ? (
                       onBjud ? (
@@ -518,8 +636,13 @@ export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud
                     ) : (
                       <>
                         {onSkickaOm ? (
-                          <OpsButton size="sm" variant="secondary" ariaLabel={t.skickaIgenNamn.replace("{vem}", vem)} busyLabel={t.skickaIgenPagar} onClick={() => pa(g.id, onSkickaOm, { id: g.id }, t.skickaIgenKlar.replace("{vem}", vem).replace("{dagar}", String(GASTLANKDAGAR)))}>
+                          <OpsButton size="sm" variant="secondary" ariaLabel={t.skickaIgenNamn.replace("{vem}", vem)} busyLabel={t.skickaIgenPagar} onClick={() => (glomLank(g.id), pa(g.id, onSkickaOm, { id: g.id }, t.skickaIgenKlar.replace("{vem}", vem).replace("{dagar}", String(GASTLANKDAGAR))))}>
                             {t.skickaIgen}
+                          </OpsButton>
+                        ) : null}
+                        {onKopieraLank ? (
+                          <OpsButton size="sm" variant="secondary" ariaLabel={t.kopieraLankNamn.replace("{vem}", vem)} busyLabel={t.kopieraLankPagar} onClick={() => hamtaLank(g.id, g.id)}>
+                            {t.kopieraLank}
                           </OpsButton>
                         ) : null}
                         {onAterkalla ? (
@@ -536,6 +659,7 @@ export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud
                     ) : null}
                   </div>
                 ) : null}
+                {lankar[g.id] && !aterkallad ? <GastLank lank={lankar[g.id]} vem={vem} t={t} sprak={sprak} gruppnamn={gruppnamn} /> : null}
                 {radklar[g.id] ? <p role="status" data-gast-klar="" className="m-0 text-etikett text-ink-secondary wrap-anywhere">{radklar[g.id]}</p> : null}
                 {radfel[g.id] || radfel[gastIdEllerTom(g.epost)] ? <p role="alert" data-gast-fel="" className="m-0 text-etikett text-danger wrap-anywhere">{radfel[g.id] || radfel[gastIdEllerTom(g.epost)]}</p> : null}
               </li>
