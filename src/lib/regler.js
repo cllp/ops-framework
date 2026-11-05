@@ -38,7 +38,7 @@ import {
 import { ID_FORM, KATALOGAVGRANSARE, KATEGORIFALT } from "./katalog.js";
 import { INSTALLNINGSVARDEFALT, MAX_INSTALLNINGSGRUPP, MAX_INSTALLNINGSID, MAX_INSTALLNINGSTEXT, MAX_MODULINSTALLNINGAR, MODULINSTALLNINGFALT, VISA_I_HUVUDMENYN } from "./modulinstallningar.js";
 import { MAX_TYPAVVIKELSER, MAX_TYPID, MAX_TYPNAMN, MODULTYPID_FORM, TYPAVVIKELSEFALT, TYPYTOR } from "./modultyper.js";
-import { ADRESSFORM, ARENDEFORM, ARENDE_PREFIX, BIBLIOTEKFALT, BIBLIOTEKTYPER, BILDFORM, FILFALT, HANDELSEFORM, HANDELSE_PREFIX, HTML_DISPOSITIONSMONSTER, HTML_MIME, LJUD_STOLPAR, MITT_PREFIX, PLATSFORM, PLATSIDFORM, PLATS_PREFIX, MAX_BIBLIOTEKFILNAMN, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKSOKVAG, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, MAX_BIBLIOTEKUTSKRIFT, MAX_HTMLVERSION, MAX_LISTPOSTER, MAX_LJUD_MS, MAX_TAGGAR, POSTIDFORM, TAGGFORM, TOPPFORM, filContentTypeMonster, filMimeMonster, filtakRegel } from "./bibliotek.js";
+import { ADRESSFORM, NALTAGG, ARENDEFORM, ARENDE_PREFIX, BIBLIOTEKFALT, BIBLIOTEKTYPER, BILDFORM, FILFALT, HANDELSEFORM, HANDELSE_PREFIX, HTML_DISPOSITIONSMONSTER, HTML_MIME, LJUD_STOLPAR, MITT_PREFIX, PLATSFORM, PLATSIDFORM, PLATS_PREFIX, MAX_BIBLIOTEKFILNAMN, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKSOKVAG, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, MAX_BIBLIOTEKUTSKRIFT, MAX_HTMLVERSION, MAX_LISTPOSTER, MAX_LJUD_MS, MAX_TAGGAR, POSTIDFORM, TAGGFORM, TOPPFORM, filContentTypeMonster, filMimeMonster, filtakRegel } from "./bibliotek.js";
 import { LANKKALLOR, lankkallaForm } from "./lankkalla.js";
 import { MAX_MINNESID, MAX_MINNESTEXT, MINNESFALT, MINNESKALLAFALT, MINNESKALLOR } from "./minne.js";
 import { MAX_SKAPARKALLA, MAX_SKAPARNAMN, SKAPARFALT, VIA_FALTNAMN } from "./skapare.js";
@@ -2149,6 +2149,14 @@ ${nuRegelfunktion("opsBiblioteketNu")}
     // matches(): mönstret kommer ur TOPPFORM i bibliotek.js, så det inte kan glida isär från modellens peaksGiltiga.
     // Ingen separat "is string" eller size(): mönstret kräver exakt ${LJUD_STOLPAR} tecken, och matches() på något som
     // inte är en sträng är ett fel, och ett fel är ett nej (regel 4: ett villkor som inte kan ändra utfallet är ingen spärr).
+    // ⛔ SKILJER SIG TAGGARNA I EXAKT NÅLEN, ÅT BÅDA HÅLLEN (0.190.0)? Att nåla eller ta bort nålen är taggen '${NALTAGG}' (NALTAGG i
+    // bibliotek.js), och den får skrivas utan ny andrad så att posten inte hoppar överst av att nålas. Saknas fältet är det inga taggar.
+    function opsBibliotekBaraNal(fore, efter) {
+      let a = fore.get('taggar', []).toSet();
+      let b = efter.get('taggar', []).toSet();
+      return a.difference(b).union(b.difference(a)) == ['${NALTAGG}'].toSet();
+    }
+
     function opsBibliotekToppar(p) {
       return p.matches('${regelRegex(TOPPFORM)}');
     }
@@ -2351,6 +2359,10 @@ ${grenSkapa}opsBibliotekArMitt(request.resource.data.groupId)
           opsBiblioteketNu(request.resource.data.andrad)
           || (request.resource.data.andrad == resource.data.andrad
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["durationMs", "peaks"]))
+          // ⛔ NÅLEN ÄNDRAR INTE POSTEN (0.190.0, cllp/lifehub.app PR 656): bara taggarna rörs, och skillnaden åt båda hållen är exakt nålen.
+          || (request.resource.data.andrad == resource.data.andrad
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["taggar"])
+            && opsBibliotekBaraNal(resource.data, request.resource.data))
         )
         && opsBibliotekspostGiltig(request.resource.data, id)
         && opsBibliotekHtmlSteg(resource.data, request.resource.data, id)

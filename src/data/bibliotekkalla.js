@@ -28,7 +28,7 @@
  * strömma utan att kunna hade varit den tysta nedfallsväg `contract.js` varnar för. Ingen polling.
  */
 
-import { arHtmlMime, byggPost, farAndra, filInmatningsfel, filSort, kodaToppar, lagringsContentDisposition, lagringsContentType, mimeUrFilnamn, normaliseraMime, peaksGiltiga, postFel, trimSomRegeln, MAX_LJUD_MS, MAX_BIBLIOTEKFIL, FILMIME, beskrivObjektbibliotek } from "../lib/bibliotek.js";
+import { NALTAGG, normaliseraTaggar, arHtmlMime, byggPost, farAndra, filInmatningsfel, filSort, kodaToppar, lagringsContentDisposition, lagringsContentType, mimeUrFilnamn, normaliseraMime, peaksGiltiga, postFel, trimSomRegeln, MAX_LJUD_MS, MAX_BIBLIOTEKFIL, FILMIME, beskrivObjektbibliotek } from "../lib/bibliotek.js";
 import { metaUrBytes, wavMetaUrBlob } from "../lib/ljudspelare.js";
 import { byggSkapare } from "../lib/skapare.js";
 import { bilagaTillBlob } from "../lib/file.js";
@@ -42,6 +42,19 @@ import { FALT_BORT } from "./contract.js";
  * @property {Error | null} fel
  * @property {{ id: string, fel: string, groupId?: string, skapadAv?: { uid?: string | null } }[]} trasiga Rader som inte gick att läsa och därför inte står i `poster`. `groupId` och `skapadAv` följer med när raden har dem, så att den som får kan radera den.
  */
+
+/**
+ * Skiljer sig två tagglistor åt i exakt nålen och ingenting annat, åt båda hållen (0.190.0)? Jämförs som mängder efter samma
+ * normalisering som posten får (`normaliseraTaggar`), så att ordning och skiftläge inte räknas som en ändring.
+ * @param {unknown} fore
+ * @param {unknown} efter
+ */
+function baraNalSkiljer(fore, efter) {
+  const a = new Set(normaliseraTaggar(fore));
+  const b = new Set(normaliseraTaggar(efter));
+  const skillnad = [...[...a].filter((x) => !b.has(x)), ...[...b].filter((x) => !a.has(x))];
+  return skillnad.length === 1 && skillnad[0] === NALTAGG;
+}
 
 /**
  * Det en ersättning skrev över, som en uppdatering som sätter tillbaka det (granskningen av PR 408). Filen går tillbaka som ett helt
@@ -254,6 +267,15 @@ export function createBibliotekskalla(config) {
       const baraMetaFyll = Boolean(id)
         && nycklar.some((k) => k === "durationMs" || k === "peaks")
         && nycklar.every((k) => k === "id" || k === "durationMs" || k === "peaks");
+      // ⛔ ATT NÅLA ELLER TA BORT NÅLEN ÄNDRAR INTE `andrad` (0.190.0, Groks kontroll i cllp/lifehub.app PR 656). Nålen är taggen `nal`
+      // (`NALTAGG`), skriven med samma `spara`, och förut fick posten ny tid och hoppade överst i listan bara för att någon nålade den.
+      // Nålen säger att posten ska stå först, inte att någon ändrat den. Bara när skillnaden åt båda hållen är EXAKT nålen: en annan
+      // tagg i samma anrop är en ändring som förut. Reglerna släpper samma form utan ny tid (`opsBibliotekBaraNal`).
+      const baraNal = Boolean(id)
+        && nycklar.includes("taggar")
+        && nycklar.every((k) => k === "id" || k === "taggar")
+        && baraNalSkiljer(tidigare?.taggar, inmatning?.taggar);
+      const behallAndrad = (baraMetaFyll || baraNal) && typeof tidigare?.andrad === "number";
       /** @type {Record<string, unknown>} */
       const underlag = {
         groupId,
@@ -263,7 +285,7 @@ export function createBibliotekskalla(config) {
         url: inmatning && "url" in inmatning ? inmatning.url : (id ? tidigare?.url : inmatning?.url),
         skapadAv: id ? tidigare?.skapadAv : byggSkapare(skapare()),
         skapad: id ? tidigare?.skapad : nu,
-        andrad: baraMetaFyll && typeof tidigare?.andrad === "number" ? tidigare.andrad : nu,
+        andrad: behallAndrad ? tidigare?.andrad : nu,
       };
       if (fil !== undefined) underlag.fil = fil;
       if (inmatning && "utskrift" in inmatning) underlag.utskrift = inmatning.utskrift;

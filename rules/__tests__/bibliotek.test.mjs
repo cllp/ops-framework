@@ -504,6 +504,34 @@ describe("bibliotekets regler: ändra och radera", () => {
     await assertSucceeds(updateDoc(doc(db(MEDLEM), "bibliotek/cps-ljud-nekas"), { durationMs: 4000, andrad: Date.now() }));
   });
 
+  it("⛔ att nåla eller ta bort nålen får lämna andrad som den var (0.190.0), en annan taggändring kräver serverns klocka", async () => {
+    const gammal = T0 - EN_TIMME;
+    const gammalAnteckning = (taggar) => anteckning({ skapad: gammal, andrad: gammal, ...(taggar ? { taggar } : {}) });
+    await miljo.withSecurityRulesDisabled(async (ctx) => {
+      const adminDb = ctx.firestore();
+      await setDoc(doc(adminDb, "bibliotek/nal-utan"), gammalAnteckning(null));
+      await setDoc(doc(adminDb, "bibliotek/nal-med"), gammalAnteckning(["styrelse"]));
+      await setDoc(doc(adminDb, "bibliotek/nal-ar"), gammalAnteckning(["styrelse", "nal"]));
+      await setDoc(doc(adminDb, "bibliotek/nal-ensam"), gammalAnteckning(["nal"]));
+      await setDoc(doc(adminDb, "bibliotek/nal-nej"), gammalAnteckning(["styrelse"]));
+    });
+    // Nåla: på en post utan taggar och på en med taggar.
+    await assertSucceeds(updateDoc(doc(db(MEDLEM), "bibliotek/nal-utan"), { taggar: ["nal"], andrad: gammal }));
+    await assertSucceeds(updateDoc(doc(db(MEDLEM), "bibliotek/nal-med"), { taggar: ["styrelse", "nal"], andrad: gammal }));
+    // Ta bort nålen: kvar står de andra taggarna, eller inga alls (fältet tas bort).
+    await assertSucceeds(updateDoc(doc(db(MEDLEM), "bibliotek/nal-ar"), { taggar: ["styrelse"], andrad: gammal }));
+    await assertSucceeds(updateDoc(doc(db(MEDLEM), "bibliotek/nal-ensam"), { taggar: deleteField(), andrad: gammal }));
+    // En annan taggändring med den gamla klockan är ett nej: en ny tagg, en ny tagg med nålen, och nålen med en rubrik.
+    await assertFails(updateDoc(doc(db(MEDLEM), "bibliotek/nal-nej"), { taggar: ["styrelse", "budget"], andrad: gammal }));
+    await assertFails(updateDoc(doc(db(MEDLEM), "bibliotek/nal-nej"), { taggar: ["styrelse", "budget", "nal"], andrad: gammal }));
+    await assertFails(updateDoc(doc(db(MEDLEM), "bibliotek/nal-nej"), { taggar: ["styrelse", "nal"], rubrik: "Nytt", andrad: gammal }));
+    await assertFails(updateDoc(doc(db(MEDLEM), "bibliotek/nal-nej"), { taggar: ["nal"], andrad: gammal }));
+    // En annan medlem får inte nåla någon annans post, med eller utan klockan.
+    await assertFails(updateDoc(doc(db(ANNAN), "bibliotek/nal-nej"), { taggar: ["styrelse", "nal"], andrad: gammal }));
+    // Med serverns klocka går en vanlig taggändring som förut.
+    await assertSucceeds(updateDoc(doc(db(MEDLEM), "bibliotek/nal-nej"), { taggar: ["styrelse", "budget"], andrad: Date.now() }));
+  });
+
   it("författaren, admin och ägare raderar, och ingen annan", async () => {
     const AGARE = "uid-cps-agare";
     await miljo.withSecurityRulesDisabled(async (ctx) => {

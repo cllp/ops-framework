@@ -13,6 +13,14 @@
     // matches(): mönstret kommer ur TOPPFORM i bibliotek.js, så det inte kan glida isär från modellens peaksGiltiga.
     // Ingen separat "is string" eller size(): mönstret kräver exakt 48 tecken, och matches() på något som
     // inte är en sträng är ett fel, och ett fel är ett nej (regel 4: ett villkor som inte kan ändra utfallet är ingen spärr).
+    // ⛔ SKILJER SIG TAGGARNA I EXAKT NÅLEN, ÅT BÅDA HÅLLEN (0.190.0)? Att nåla eller ta bort nålen är taggen 'nal' (NALTAGG i
+    // bibliotek.js), och den får skrivas utan ny andrad så att posten inte hoppar överst av att nålas. Saknas fältet är det inga taggar.
+    function opsBibliotekBaraNal(fore, efter) {
+      let a = fore.get('taggar', []).toSet();
+      let b = efter.get('taggar', []).toSet();
+      return a.difference(b).union(b.difference(a)) == ['nal'].toSet();
+    }
+
     function opsBibliotekToppar(p) {
       return p.matches('[A-Za-z0-9_-]{48}');
     }
@@ -249,6 +257,10 @@
           opsBiblioteketNu(request.resource.data.andrad)
           || (request.resource.data.andrad == resource.data.andrad
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["durationMs", "peaks"]))
+          // ⛔ NÅLEN ÄNDRAR INTE POSTEN (0.190.0, cllp/lifehub.app PR 656): bara taggarna rörs, och skillnaden åt båda hållen är exakt nålen.
+          || (request.resource.data.andrad == resource.data.andrad
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["taggar"])
+            && opsBibliotekBaraNal(resource.data, request.resource.data))
         )
         && opsBibliotekspostGiltig(request.resource.data, id)
         && opsBibliotekHtmlSteg(resource.data, request.resource.data, id)
