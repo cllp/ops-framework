@@ -157,7 +157,7 @@ describe("skalet med snabbmenyer", () => {
     niva: () => 0,
   });
 
-  it("plus öppnar de fyra raderna med Ny grupp sist, och Appar öppnar menyn", () => {
+  it("plus öppnar de fyra raderna med Ny grupp sist, och Appar öppnar menyn", async () => {
     render(
       <OpsAppShell
         brand="Ops"
@@ -187,13 +187,14 @@ describe("skalet med snabbmenyer", () => {
       </OpsAppShell>,
     );
     fireEvent.click(document.querySelector("[data-ops-flytande-skapa]"));
-    const dialog = screen.getByRole("dialog", { name: "Skapa" });
+    // ⛔ (0.187.0, #518) Menyn läses in när den behövs: första trycket öppnar den, men en tick senare.
+    const dialog = await screen.findByRole("dialog", { name: "Skapa" });
     expect(withinNames(dialog)).toEqual(["Ny händelse", "Nytt ärende", "Nytt meddelande", "Ny grupp"]);
     expect(dialog.querySelector(".lucide-users")).not.toBeNull();
     expect(screen.queryByRole("button", { name: "Skapa app" })).toBeNull();
     expect(document.querySelector("[data-ops-flytande-skapa]").getAttribute("aria-expanded")).toBe("true");
     fireEvent.click(document.querySelector("[data-ops-appar-knapp]"));
-    expect(screen.getByRole("dialog", { name: "Appar" })).toBeTruthy();
+    expect(await screen.findByRole("dialog", { name: "Appar" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Bibliotek" })).toBeTruthy();
     expect(document.querySelector("[data-ops-flytande-skapa]")).toBeNull();
   });

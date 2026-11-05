@@ -26,6 +26,12 @@
  * ⛔ Komponenterna känns igen på sin funktionsdeklaration (`function OpsMeddelanden(`), som är identisk om koden ligger i en egen modul eller i en
  * samlad fil. Ett namn i en kommentar räknas alltså inte.
  *
+ * ══ ⛔ SNABBMENYN I SKALET (0.187.0, cllp/ops-framework#518) ═══════════════════════════════════════
+ *
+ * `OpsAppShell` importerade `OpsSnabbmeny` statiskt, och menyns kod (cirka 1,7 kB gzip i lifehub.app) låg då i varje apps startfil för en meny som ritas först vid ett tryck. Det lades inte märke till
+ * eftersom delningen ovan mäter två sidor och inte skalet. Därför mäts nu också en app vars startfil importerar `OpsAppShell`: `OpsSnabbmeny` ska ligga i en egen bit (golv: någon bit innehåller den, annars har provet
+ * inte mätt något) och inte i startfilen och det den laddar statiskt. Den mäts med funktionsdeklarationen, inte med ordet `lazy`: en statisk import som läggs tillbaka ska göra provet rött.
+ *
  * ⛔ RÖTT UTAN DELNINGEN, GRÖNT MED DEN (arbetsreglernas punkt 4): `--bevisa` slår ihop samma `dist` till en enda fil (som före 0.156.0) och kör
  * samma mätning. Den ska ge rött på punkt 2 för båda komponenterna. Är den grön mäter provet ingenting.
  *
@@ -42,6 +48,10 @@ import { build as vite } from "vite";
 
 const rot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const bevisa = process.argv.includes("--bevisa");
+
+/** Skalet som startfilen importerar i den andra appen, och komponenten som INTE får följa med det (0.187.0). */
+const SKAL = "OpsAppShell";
+const SKALETS_LATA = ["OpsSnabbmeny"];
 
 /** De lata komponenterna, och den som startfilen får. */
 const LATA = ["OpsMeddelanden", "OpsBibliotek"];
@@ -93,6 +103,51 @@ async function mat(paketmapp, namn) {
   return { kodStart, kodLat: lat.code, bitarStart: iStart.size, bytesStart: kodStart.length };
 }
 
+/**
+ * Som `mat`, men appen har bara en startfil som importerar skalet (inga lata sidor av appens eget). Svarar vad startfilen och allt den laddar statiskt innehåller, och vad alla andra bitar innehåller.
+ * @param {string} paketmapp
+ * @param {string} namn
+ */
+async function matSkal(paketmapp, namn) {
+  const app = path.join(arbete, namn);
+  fs.mkdirSync(path.join(app, "node_modules"), { recursive: true });
+  fs.symlinkSync(paketmapp, path.join(app, "node_modules", "ops-framework"), "dir");
+  fs.writeFileSync(path.join(app, "start.js"), `import { ${SKAL} } from "ops-framework";\nglobalThis.__skal = ${SKAL};\n`);
+  const ut = /** @type {import("rollup").RollupOutput} */ (
+    await vite({
+      root: app,
+      configFile: false,
+      logLevel: "silent",
+      build: { write: false, minify: false, modulePreload: false, rollupOptions: { input: path.join(app, "start.js"), external: (id) => !id.startsWith(".") && !path.isAbsolute(id) && id !== "ops-framework" } },
+    })
+  );
+  const bitar = ut.output.filter((o) => o.type === "chunk");
+  const start = bitar.find((b) => b.isEntry);
+  if (!start) throw new Error(`${namn}: bygget gav ${bitar.length} bitar, men ingen startfil.`);
+  const iStart = new Set();
+  const gaIgenom = (/** @type {string} */ fil) => {
+    if (iStart.has(fil)) return;
+    iStart.add(fil);
+    for (const i of bitar.find((x) => x.fileName === fil)?.imports ?? []) gaIgenom(i);
+  };
+  gaIgenom(start.fileName);
+  const kodStart = bitar.filter((b) => iStart.has(b.fileName)).map((b) => b.code).join("\n");
+  const kodAndra = bitar.filter((b) => !iStart.has(b.fileName)).map((b) => b.code).join("\n");
+  return { kodStart, kodAndra, bitarStart: iStart.size, bytesStart: kodStart.length };
+}
+
+/** @param {Awaited<ReturnType<typeof matSkal>>} m @returns {string[]} */
+function skalBrott(m) {
+  /** @type {string[]} */
+  const fel = [];
+  if (!harFunktion(m.kodStart, SKAL)) fel.push(`GOLV: startfilen innehåller inte ${SKAL}, som den importerar. Provet har inte mätt skalet.`);
+  for (const n of SKALETS_LATA) {
+    if (!harFunktion(m.kodAndra, n)) fel.push(`GOLV: ingen bit utanför startfilen innehåller ${n}. Skalet har tappat sin dynamiska import, eller så ligger komponenten i startfilen, och "startfilen innehåller den inte" är då sant av fel skäl.`);
+    if (harFunktion(m.kodStart, n)) fel.push(`${n} ligger i startfilen (${m.bitarStart} bit(ar), ${m.bytesStart} tecken) fast bara ett tryck i skalet ritar den. Skalet ska läsa in den när den behövs (OpsSnabbmenyLat).`);
+  }
+  return fel;
+}
+
 /** @param {string} kod @param {string} namn */
 const harFunktion = (kod, namn) => kod.includes(`function ${namn}(`);
 
@@ -122,14 +177,23 @@ if (bevisa) {
     console.error(`check-delbarhet --bevisa: PROVET FÅNGAR INGET. Mot samma paket som EN modul skulle ${LATA.join(" och ")} ligga i startfilen, men det gjorde ${forvantat.length ? forvantat.join(" och ") : "ingen av dem"}.\n${fel.join("\n") || "(inga brott alls)"}`);
     process.exit(1);
   }
-  console.log(`check-delbarhet --bevisa: RÖTT som väntat mot en enda modul (${fel.length} brott, startfilen ${m.bytesStart} tecken), och det är beviset att provet biter.`);
+  // (0.187.0) Skalet mot samma enda modul: menyn ligger i startfilen, och det är rött. Den enda modulen har ingen bit utanför startfilen, så golvet slår också till; kravet är att båda brotten finns.
+  const ms = await matSkal(enkel, "enkel-skal");
+  const felSkal = skalBrott(ms);
+  const forvantatSkal = SKALETS_LATA.filter((n) => felSkal.some((f) => f.startsWith(`${n} ligger i startfilen`)));
+  if (forvantatSkal.length !== SKALETS_LATA.length) {
+    console.error(`check-delbarhet --bevisa: PROVET FÅNGAR INGET I SKALET. Mot samma paket som EN modul skulle ${SKALETS_LATA.join(" och ")} ligga i startfilen, men det gjorde ${forvantatSkal.length ? forvantatSkal.join(" och ") : "ingen av dem"}. Då mäter provet ingenting.`);
+    process.exit(1);
+  }
+  console.log(`check-delbarhet --bevisa: RÖTT som väntat mot en enda modul (${fel.length + felSkal.length} brott, startfilen ${m.bytesStart} tecken), och det är beviset att provet biter.`);
   process.exit(0);
 }
 
 const m = await mat(rot, "delat");
-const fel = brott(m);
+const ms = await matSkal(rot, "delat-skal");
+const fel = [...brott(m), ...skalBrott(ms)];
 if (fel.length) {
   console.error(`check-delbarhet: RÖTT. ${fel.length} brott:\n${fel.map((f) => `  - ${f}`).join("\n")}`);
   process.exit(1);
 }
-console.log(`check-delbarhet: GRÖNT. ${LATA.join(" och ")} ligger i den lata sidans bit och inte i startfilen (${m.bitarStart} bit(ar), ${m.bytesStart} tecken före första vyn), och ${START} ligger i startfilen.`);
+console.log(`check-delbarhet: GRÖNT. ${LATA.join(" och ")} ligger i den lata sidans bit och inte i startfilen (${m.bitarStart} bit(ar), ${m.bytesStart} tecken före första vyn), och ${START} ligger i startfilen. Skalet (${SKAL}, ${ms.bitarStart} bit(ar), ${ms.bytesStart} tecken före första vyn) har ${SKALETS_LATA.join(" och ")} i en egen bit.`);

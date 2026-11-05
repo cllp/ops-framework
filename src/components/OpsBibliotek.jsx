@@ -16,7 +16,7 @@ import { GithubDokumentVisningLat } from "./GithubDokumentVisningLat.jsx";
 import { githubDokument } from "../lib/githubdokument.js";
 import { OpsModal } from "./OpsModal.jsx";
 import { OpsSvepRad } from "./OpsSvepRad.jsx";
-import { ARKIVTAGG, arArkiverad, ADRESSFORM, BIBLIOTEKTYPER, BILDFORM, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKURL, uppladdningAvbruten, uppladdningenAvbrytsKl, allaTaggar, arDelbar, arLjudpost, arMittBibliotek, farAndra, normaliseraTaggar, anteckningsrubrikNu, beskrivObjektbibliotek, arHtmlMime, arPlatsBibliotek, gruppForPlats, filInmatningsfel, LJUDFIL_ACCEPT, ljudfilFel, mimeUrFilnamn, filadressFel, filSort, filtreraBibliotek, inmatningsfel, ljudDatum, ljudRubrik, normaliseraAdress, normaliseraMime, trimSomRegeln } from "../lib/bibliotek.js";
+import { ARKIVTAGG, arArkiverad, NALTAGG, arNalad, ADRESSFORM, BIBLIOTEKTYPER, BILDFORM, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKURL, uppladdningAvbruten, uppladdningenAvbrytsKl, allaTaggar, arDelbar, arLjudpost, arMittBibliotek, farAndra, normaliseraTaggar, anteckningsrubrikNu, beskrivObjektbibliotek, arHtmlMime, arPlatsBibliotek, gruppForPlats, filInmatningsfel, LJUDFIL_ACCEPT, ljudfilFel, mimeUrFilnamn, filadressFel, filSort, filtreraBibliotek, inmatningsfel, ljudDatum, ljudRubrik, normaliseraAdress, normaliseraMime, trimSomRegeln } from "../lib/bibliotek.js";
 import { OpsTaggFilter, OpsTaggRad, menyPilar } from "./OpsTaggar.jsx";
 
 export { menyPilar, OpsTaggFilter as TaggFilter };
@@ -154,6 +154,45 @@ function useBibliotekskalla(kalla) {
   return kalla ? lage : null;
 }
 
+/**
+ * Postens taggar utan nålen (0.187.0). ⛔ NÅLEN SYNS SOM EN IKON OCH INTE SOM EN TAGG: den har ingen mening som filter (nålade poster ligger redan först), och ett piller som säger "nal" bredvid ikonen hade sagt samma sak två gånger.
+ * Arkivet gör det motsatta med skäl: dess tagg ÄR sättet att komma åt arkivet, så den är ett vanligt piller och står i taggfiltret. `OpsTaggRad` är gemensam med Inkorgen och Ärenden, så nålen döljs här, där den bär en mening, och inte i komponenten.
+ *
+ * @param {unknown} taggar
+ * @returns {string[]}
+ */
+function synligaTaggar(taggar) {
+  return Array.isArray(taggar) ? taggar.filter((t) => typeof t === "string" && t !== NALTAGG) : [];
+}
+
+/**
+ * Taggarna som raden skickade tillbaka (utan nålen, se `synligaTaggar`) med nålen på igen om posten är nålad. Annars hade varje ändring av en tagg tagit bort nålen.
+ *
+ * @param {{ taggar?: unknown }} post
+ * @param {readonly string[]} ny
+ * @returns {string[]}
+ */
+function medNal(post, ny) {
+  return arNalad(post) && !ny.includes(NALTAGG) ? [...ny, NALTAGG] : [...ny];
+}
+
+/**
+ * Orden för nålen och stjärnan (0.187.0, cllp/lifehub.app#653), svenska och engelska, i en ordbok bredvid komponenten (som `ORD_TAGGAR`).
+ * @type {import("../lib/ord.js").Ordbok}
+ */
+const ORD_BIBLIOTEKMARKERING = {
+  nalaFast: { sv: "Nåla fast", en: "Pin" },
+  taBortNalen: { sv: "Ta bort nålen", en: "Unpin" },
+  nalad: { sv: "Nålad", en: "Pinned" },
+  naladStatus: { sv: "Nålad. Posten står överst för alla på platsen.", en: "Pinned. The post is at the top for everyone here." },
+  nalenBort: { sv: "Nålen är borttagen.", en: "The pin is removed." },
+  nalFel: { sv: "Nålen kunde inte sparas.", en: "The pin could not be saved." },
+  stjarnmark: { sv: "Stjärnmärk", en: "Star" },
+  taBortStjarnan: { sv: "Ta bort stjärnan", en: "Remove the star" },
+  stjarnmarkta: { sv: "Stjärnmärkta", en: "Starred" },
+  stjarnFel: { sv: "Stjärnan kunde inte sparas.", en: "The star could not be saved." },
+};
+
 /** Statusraden efter en arkivering (#283). */
 const arkivtips = () => `Arkiverad. Välj taggen ${ARKIVTAGG} för att se arkivet.`;
 
@@ -238,8 +277,14 @@ const arkivtips = () => `Arkiverad. Välj taggen ${ARKIVTAGG} för att se arkive
  *   en ny plats öppnas direkt (`onPlats`). En egen plats som personen får ändra (den som skapade den, ägare och admin) får ⋮ med Byt namn och Arkivera bredvid växlaren, och kugghjulet (`ram`) får avsnittet
  *   Platser med alla platser, också de arkiverade, och Ta fram igen. Över 8 rader i växlaren får listan ett sökfält. Utan propen är allt som förut. Hör inte hit med `inbaddad`.
  * @param {boolean} [props.adresserPaBegaran] (0.132.0, lifehub.app#389) Filernas adresser hämtas bara för posten som är öppen, aldrig för hela listan. Förvalet hämtar en adress per fil när listan ritas, vilket är billigt för en medlem (`getDownloadURL`) och dyrt för en gäst: varje adress är en signering som räknas mot ett tak per dygn. Mätt i designen av skiva 2 som felantagande: listan hämtade alla. En fil som öppnats förut visas med sin adress också i listan.
+ * @param {ReadonlySet<string> | readonly string[]} [props.stjarnor] (0.187.0, cllp/lifehub.app#653) Postid:n personen stjärnmärkt. ⛔ STJÄRNAN ÄR PERSONENS EGEN: den bor hos appen (en samling per person), aldrig på posten, och ingen annan ser den. Hör ihop med `onStjarna`: båda eller ingen
+ *   (kastar annars). Med dem får varje rad och detaljen en stjärnknapp (`aria-pressed`), och fliken "Stjärnmärkta" visas så snart minst en post på platsen är stjärnmärkt. Utan dem är allt som förut.
+ * @param {(post: import("../lib/bibliotek.js").Bibliotekspost & { id: string }, pa: boolean) => Promise<void> | void} [props.onStjarna] (0.187.0) Stjärnmärk (`pa: true`) eller ta bort stjärnan (`pa: false`) på posten. Knappen väntar medan löftet pågår, och ett avvisat löfte visas som ett fel
+ *   under listan (och i detaljen): stjärnan ändras inte förrän `stjarnor` ändras, så en stjärna som inte sparades ser inte sparad ut.
+ * @param {import("react").ReactNode} [props.huvudRad] (0.187.0, cllp/ops-framework#517) En rad som appen äger, ritad som en egen rad under sökfältet, "+ Ny" och Taggar i huvudet (inte i samma rad: på en telefon krymper sökrutan då till ett par bokstäver). Förut sköt appen in sin
+ *   "Klistra in"-knapp i huvudet genom DOM:en och bevakade den med en MutationObserver. Utan propen finns ingen rad. Hör inte hit med `inbaddad`, som inte har något huvud.
  */
-export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, trasiga: trasigaProp = [], laddar: laddarProp = false, vald = null, skapar = null, jag, onOppna, onStang, onSkapa, onSpara, onRadera, onLaddaUpp, onFyllLjud, onSpelaIn, inspelare, filUrl, hamtaAdress, hamtaFil, htmlVersioner, hamtaHtmlVersion, aterstallHtml, nyHtmlVersion, oppnaHtml, grupper = [], onDela, platser = [], plats, onPlats, onSkrivUt, onSkrivUtIgen, onTaBortUtskrift, onAnteckningAvUtskrift, onGorForslag, delningar = [], delningGruppdel, gruppnamn: gruppnamnProp, onDelaLank, onAndraNedladdning, onAterkalla, onMejlaLank, onLankInfo, githubLasare, hubHref, hubEtikett, onNavigate, modulId = "bibliotek", ram = null, activeHref, modul = null, inbaddad = false, tomText, utanHubb = false, adresserPaBegaran = false, gruppTaggar = [], egnaPlatser = null }) {
+export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, trasiga: trasigaProp = [], laddar: laddarProp = false, vald = null, skapar = null, jag, onOppna, onStang, onSkapa, onSpara, onRadera, onLaddaUpp, onFyllLjud, onSpelaIn, inspelare, filUrl, hamtaAdress, hamtaFil, htmlVersioner, hamtaHtmlVersion, aterstallHtml, nyHtmlVersion, oppnaHtml, grupper = [], onDela, platser = [], plats, onPlats, onSkrivUt, onSkrivUtIgen, onTaBortUtskrift, onAnteckningAvUtskrift, onGorForslag, delningar = [], delningGruppdel, gruppnamn: gruppnamnProp, onDelaLank, onAndraNedladdning, onAterkalla, onMejlaLank, onLankInfo, githubLasare, hubHref, hubEtikett, onNavigate, modulId = "bibliotek", ram = null, activeHref, modul = null, inbaddad = false, tomText, utanHubb = false, adresserPaBegaran = false, gruppTaggar = [], egnaPlatser = null, stjarnor, onStjarna, huvudRad }) {
   if (kalla !== undefined && (posterProp !== undefined || felProp !== null || laddarProp !== false || (Array.isArray(trasigaProp) && trasigaProp.length > 0))) {
     throw new Error("OpsBibliotek: kalla och poster/fel/trasiga/laddar kan inte ges tillsammans. Med kalla läser vyn själv, och två sanningar om samma lista hade låtit den ena vinna tyst.");
   }
@@ -263,6 +308,18 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
   }
   if (egnaPlatser !== null && (typeof egnaPlatser !== "object" || !Array.isArray(egnaPlatser.platser))) {
     throw new Error("OpsBibliotek: egnaPlatser ska vara { platser, onNy?, onByttNamn?, onArkivera?, onTaFram? }, där platser är gruppens egna platser (createPlatskalla().las().platser), arkiverade med.");
+  }
+  if ((stjarnor === undefined) !== (onStjarna === undefined)) {
+    throw new Error("OpsBibliotek: stjarnor och onStjarna hör ihop (0.187.0). Utan onStjarna går stjärnan inte att sätta, och utan stjarnor vet listan inte vilka som är stjärnmärkta: båda eller ingen.");
+  }
+  if (stjarnor !== undefined && !(stjarnor instanceof Set) && !Array.isArray(stjarnor)) {
+    throw new Error("OpsBibliotek: stjarnor ska vara en Set eller en lista med postid:n (0.187.0), de poster personen stjärnmärkt.");
+  }
+  if (onStjarna !== undefined && typeof onStjarna !== "function") {
+    throw new Error("OpsBibliotek: onStjarna ska vara en funktion (post, pa) => Promise<void> (0.187.0).");
+  }
+  if (huvudRad !== undefined && inbaddad) {
+    throw new Error("OpsBibliotek: huvudRad (0.187.0) är en rad i huvudet, och en inbäddad lista har inget huvud (ingen sök-, tagg- eller Ny-rad). Raden hade inte ritats.");
   }
   if (!inbaddad && !utanHubb && (typeof hubHref !== "string" || hubHref === "")) {
     throw new Error("OpsBibliotek: hubHref krävs (0.83.0), hubbens adress. Sidan har Ekonomis tillbaka-rad, och en rad som inte vet vart den leder är en knapp som inte gör något.");
@@ -328,6 +385,8 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
   // Poster som flyttas eller kopieras just nu, ur menyn. Deras flyttval visas inte förrän svaret kommit.
   const [flyttar, setFlyttar] = useState(/** @type {string[]} */ ([]));
   const [status, setStatus] = useState("");
+  // ⛔ (0.187.0) Felet från en nål eller en stjärna. Egen rad som syns både i listan och i detaljen: `status` ritas bara i listan, och ett fel som försvinner i detaljen är en tyst nedsläppsväg.
+  const [markerFel, setMarkerFel] = useState("");
   // ⛔ (cllp/lifehub.app#283) Tipset om arkivtaggen har gjort sitt när arkivet visas. Förut stod "Arkiverad. Välj taggen ..." kvar ovanför arkivet.
   useEffect(() => {
     if (valdaTaggar.includes(ARKIVTAGG)) setStatus((s) => (s === arkivtips() ? "" : s));
@@ -405,6 +464,53 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
   }
   const skaparTyp = jag ? skapar : null;
   const detalj = Boolean(skaparTyp || vald);
+  const mord = (/** @type {keyof typeof ORD_BIBLIOTEKMARKERING} */ nyckel) => ordet(ORD_BIBLIOTEKMARKERING, nyckel, sprak);
+  const felText = (/** @type {unknown} */ e, /** @type {string} */ reserv) => (e instanceof Error && e.message ? e.message : typeof e === "string" && e ? e : reserv);
+  // ⛔ STJÄRNORNA SOM EN MÄNGD (0.187.0): `null` utan propen, och då finns varken knapp eller flik. En tom mängd är något annat: ingen post är stjärnmärkt än, men knappen finns.
+  const stjarnMangd = stjarnor === undefined ? null : new Set(stjarnor);
+
+  /**
+   * Nåla fast eller ta bort nålen (0.187.0). Nålen är taggen `nal` på posten (`NALTAGG`), skriven genom `onSpara` som vilken tagg som helst, och därför samma rätt som Arkivera (`farAndra`).
+   * Löftet lämnas tillbaka så att en anropare kan vänta, och ett fel står kvar under listan och i detaljen (`markerFel`).
+   *
+   * @param {import("../lib/bibliotek.js").Bibliotekspost & { id: string }} post
+   */
+  function vaxlaNal(post) {
+    const nalad = arNalad(post);
+    setMarkerFel("");
+    return Promise.resolve()
+      .then(() => /** @type {NonNullable<typeof onSpara>} */ (onSpara)({ id: post.id, taggar: nalad ? (post.taggar ?? []).filter((t) => t !== NALTAGG) : [...(post.taggar ?? []), NALTAGG] }))
+      .then(
+        () => setStatus(nalad ? mord("nalenBort") : mord("naladStatus")),
+        (e) => setMarkerFel(felText(e, mord("nalFel"))),
+      );
+  }
+
+  /**
+   * Stjärnmärk eller ta bort stjärnan (0.187.0). Löftet lämnas tillbaka: knappen väntar på det (`StjarnKnapp`), och ett fel står kvar under listan och i detaljen. Stjärnan ändras först när appen ändrar `stjarnor`.
+   *
+   * @param {import("../lib/bibliotek.js").Bibliotekspost & { id: string }} post
+   */
+  function vaxlaStjarna(post) {
+    const pa = !(stjarnMangd && stjarnMangd.has(post.id));
+    setMarkerFel("");
+    return Promise.resolve()
+      .then(() => /** @type {NonNullable<typeof onStjarna>} */ (onStjarna)(post, pa))
+      .then(
+        () => {},
+        (e) => setMarkerFel(felText(e, mord("stjarnFel"))),
+      );
+  }
+
+  /**
+   * Nålen och stjärnan som de ritas på en rad och i detaljens huvud.
+   * @param {import("../lib/bibliotek.js").Bibliotekspost & { id: string }} post
+   */
+  function stjarnFor(post) {
+    if (!stjarnMangd) return null;
+    const pa = stjarnMangd.has(post.id);
+    return { pa, etikett: pa ? mord("taBortStjarnan") : mord("stjarnmark"), onVaxla: () => vaxlaStjarna(post) };
+  }
 
   /**
    * @param {import("../lib/bibliotek.js").Bibliotekspost & { id: string }} post
@@ -590,7 +696,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
     if (far && iDetalj && sattRedigera) ut.push({ id: "redigera", etikett: "Redigera", onValj: () => sattRedigera("redigera") });
     if (far) ut.push({ id: "namn", etikett: "Byt namn", onValj: () => borjaNamn(post) });
     // ⛔ LÄGG TILL TAGG UR MENYN (0.165.0): kortet visar taggraden bara när posten har taggar. Utan taggar öppnar raden här fältet på kortet. Samma rätt som taggraden (`farAndra` och `onSpara`).
-    if (far && !iDetalj && typeof onSpara === "function" && !(Array.isArray(post.taggar) && post.taggar.length > 0)) ut.push({ id: "tagg", etikett: "Lägg till tagg", onValj: () => setTaggarFor(post.id) });
+    if (far && !iDetalj && typeof onSpara === "function" && synligaTaggar(post.taggar).length === 0) ut.push({ id: "tagg", etikett: "Lägg till tagg", onValj: () => setTaggarFor(post.id) });
     // ⛔ DELA LÄNK FINNS PÅ ALLA FYRA TYPER (0.133.0, lifehub.app#356, CP 2026-10-18: "Vi skall ju ha en publik länk till varje artefakt"). Förut bara på en färdig fil (0.119.0).
     // Villkoret är oförändrat i övrigt: bara den som får ändra posten (`farAndra`: författaren, en admin eller en ägare, och i Mitt bibliotek bara ägaren), samma som servern kontrollerar,
     // så knappen lovar inget som funktionen sedan nekar. Det som skiljer är vad som går att dela (`arDelbar`): en fil som ännu laddas upp har ingenting att visa.
@@ -649,6 +755,11 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
           ut.push({ id: "dela", etikett: egen ? "Flytta eller kopiera" : far ? "Kopiera till en annan grupp" : "Kopiera till en plats", onValj: () => setDelar(post) });
         }
       }
+    }
+    // ⛔ NÅLA FAST I MENYN (0.187.0, cllp/lifehub.app#653): samma ställe och samma rätt som Arkivera (`farAndra`, och `onSpara` som skriver taggen). Nålen gäller alla på platsen, så den som inte får ändra posten får inte heller nåla den.
+    if (far && typeof onSpara === "function") {
+      const nalad = arNalad(post);
+      ut.push({ id: nalad ? "ta-bort-nalen" : "nala", etikett: nalad ? mord("taBortNalen") : mord("nalaFast"), onValj: () => { vaxlaNal(post); } });
     }
     // ⛔ ARKIVERA I MENYN OCKSÅ (0.163.0, lifehub.app#283): ett svep upptäcks inte, ett menyval gör det. Statusraden säger var posten finns, och att ta bort taggen tar fram den.
     if (far && typeof onSpara === "function") {
@@ -731,21 +842,28 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
 
   // ⛔ GRUPPENS TAGGAR RÄKNAS UR POSTERNA (regel 2). Ett val på en tagg som inte längre finns (sista posten raderad eller omtaggad)
   // faller bort, annars hade listan stått tom med ett filter ingen kan se eller ta bort.
-  const egnaTaggar = allaTaggar(poster);
+  const egnaTaggar = allaTaggar(poster).filter((g) => g.tagg !== NALTAGG);
   const extraGruppTaggar = Array.isArray(gruppTaggar)
     ? normaliseraTaggar(gruppTaggar)
-        .filter((t) => !egnaTaggar.some((g) => g.tagg === t))
+        .filter((t) => t !== NALTAGG && !egnaTaggar.some((g) => g.tagg === t))
         .sort((a, b) => a.localeCompare(b, "sv"))
         .map((tagg) => ({ tagg, antal: 0 }))
     : [];
   const gruppensTaggar = [...egnaTaggar, ...extraGruppTaggar];
   const valda = valdaTaggar.filter((t) => gruppensTaggar.some((g) => g.tagg === t));
-  const antal = /** @type {Record<Flik, number>} */ (Object.fromEntries(FLIKAR.map((f) => [f.id, filtreraBibliotek(poster, { flik: f.id }).length])));
+  // ⛔ FLIKEN STJÄRNMÄRKTA (0.187.0) står efter Allt och finns bara med `stjarnor`. Det är en flik och inte en knapp vid sidan av: flikraden är redan där man väljer vad listan visar, och den visar en tom flik inte alls
+  // (nedan), så den som ännu inte stjärnmärkt något ser den inte. Följden är att den inte kombineras med en typflik (stjärnmärkta länkar): den kombineras med sök och taggar, som alla flikar.
+  const flikLista = stjarnMangd
+    ? [FLIKAR[0], { id: /** @type {Flik} */ ("stjarna"), namn: mord("stjarnmarkta"), ikon: <IKON_FOR.stjarna size={16} aria-hidden="true" /> }, ...FLIKAR.slice(1)]
+    : FLIKAR;
+  /** @param {Flik} f */
+  const flikVal = (f) => (f === "stjarna" ? { flik: "alla", stjarnmarkta: /** @type {Set<string>} */ (stjarnMangd) } : { flik: f });
+  const antal = /** @type {Record<Flik, number>} */ (Object.fromEntries(flikLista.map((f) => [f.id, filtreraBibliotek(poster, flikVal(f.id)).length])));
   // ⛔ EN TOM FLIK VISAS INTE, UTOM ALLT OCH LJUD (0.102.0, som SessionStudios `useMyLibraryTabs`). En flik som tömts medan den var
   // vald faller tillbaka till Allt, härlett här och inte i ett eget tillstånd: en flik som inte syns kan inte heller vara vald.
-  const synligaFlikar = FLIKAR.filter((f) => f.alltid || antal[f.id] > 0);
+  const synligaFlikar = flikLista.filter((f) => ("alltid" in f && f.alltid) || antal[f.id] > 0);
   const aktivFlik = synligaFlikar.some((f) => f.id === flik) ? flik : "alla";
-  const synliga = filtreraBibliotek(poster, { flik: aktivFlik, sok, taggar: valda });
+  const synliga = filtreraBibliotek(poster, { ...flikVal(aktivFlik), sok, taggar: valda });
   const installningar = Boolean(ram && modul && arInstallningslage(/** @type {string} */ (activeHref)));
   if (installningar && modul) {
     // ⛔ PLATSERNA UNDER KUGGHJULET (0.155.0): avsnittet Platser står först i "Egna inställningar", före appens egen slot. Utan `egnaPlatser` är `ram` som förut.
@@ -833,12 +951,15 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
             const rad = poster.find((p) => p.id === vald.id) ?? vald;
             return (
               <OpsTaggRad
-                taggar={rad.taggar}
+                taggar={synligaTaggar(rad.taggar)}
                 kanAndra={farAndra(rad, jag)}
                 forslag={gruppensTaggar.map((g) => g.tagg)}
-                onAndra={typeof onSpara === "function" ? (ny) => onSpara({ id: rad.id, taggar: ny }) : undefined}
+                onAndra={typeof onSpara === "function" ? (ny) => onSpara({ id: rad.id, taggar: medNal(rad, ny) }) : undefined}
               />
             );
+          })() : null} markering={vald ? (() => {
+            const rad = poster.find((p) => p.id === vald.id) ?? vald;
+            return <Markering nalad={arNalad(rad)} nalOrd={mord("nalad")} stjarna={stjarnFor(rad)} />;
           })() : null} onLjus={setLjus} onSkrivUt={onSkrivUt} onSkrivUtIgen={onSkrivUtIgen} onTaBortUtskrift={onTaBortUtskrift} onAnteckningAvUtskrift={onAnteckningAvUtskrift} menyFor={menyFor} onMeta={togMeta} tillbakaEtikett={inbaddad ? "Filer" : "Tillbaka"} poster={poster} jag={jag} onLankInfo={onLankInfo} githubLasare={githubLasare} onOppnaPost={(p) => oppnaMed(p, "las")} />
         ) : (
           <div data-bibliotek-huvud="" className="flex min-w-0 flex-col gap-3">
@@ -851,7 +972,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
               </div>
               {jag ? (
                 <NyKnapp
-                  flik={aktivFlik}
+                  flik={aktivFlik === "stjarna" ? "alla" : aktivFlik}
                   onSkapa={onSkapa}
                   erbjudRost={erbjudRost}
                   onLaddaUppLjud={laddaUppLjud}
@@ -867,6 +988,8 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
               ) : null}
               <OpsTaggFilter taggar={gruppensTaggar} valda={valda} onValda={setValdaTaggar} />
             </div>}
+            {/* ⛔ APPENS EGEN RAD (0.187.0, cllp/ops-framework#517): under sök, "+ Ny" och Taggar, aldrig i samma rad. På en telefon krymper sökrutan till ett par bokstäver när en knapp till delar raden. */}
+            {huvudRad ? <div data-bibliotek-huvudrad="" className="flex min-w-0 flex-wrap items-center gap-2">{huvudRad}</div> : null}
             <Tabs.Root value={aktivFlik} onValueChange={(v) => setFlik(/** @type {Flik} */ (v))} className="flex min-w-0 flex-col gap-3">
             {inbaddad ? null : <Flikar flikar={synligaFlikar} antal={antal} />}
             {rostFel ? <p role="alert">{rostFel}</p> : null}
@@ -886,7 +1009,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
                 </ul>
               </div>
             ) : null}
-            <Tabs.Content value={aktivFlik} data-bibliotek-panel="" aria-label={FLIKAR.find((f) => f.id === aktivFlik)?.namn ?? "Allt"} className="flex min-w-0 flex-col gap-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
+            <Tabs.Content value={aktivFlik} data-bibliotek-panel="" aria-label={flikLista.find((f) => f.id === aktivFlik)?.namn ?? "Allt"} className="flex min-w-0 flex-col gap-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
               {fel ? (
                 <p role="alert" data-bibliotek-fel="">{fel}</p>
               ) : laddar ? (
@@ -902,10 +1025,14 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
                   {synliga.map((rad) => {
                     const post = medFyll(rad);
                     const kanAndra = farAndra(rad, jag);
+                    const radTaggar = synligaTaggar(rad.taggar);
                     return (
                       <BibliotekKort
                         key={post.id}
                         post={post}
+                        nalad={arNalad(rad)}
+                        nalOrd={mord("nalad")}
+                        stjarna={stjarnFor(rad)}
                         lage={adressFor(post)}
                         meny={menyFor(rad, false)}
                         svep={svepFor(rad)}
@@ -914,14 +1041,14 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
                         htmlVy={htmlVyAdress(oppnaHtml, rad)}
                         onOppna={() => oppnaMed(rad, "las")}
                         onMeta={togMeta}
-                        taggrad={(Array.isArray(rad.taggar) && rad.taggar.length > 0) || taggarFor === rad.id ? (
+                        taggrad={radTaggar.length > 0 || taggarFor === rad.id ? (
                           <OpsTaggRad
-                            taggar={rad.taggar}
+                            taggar={radTaggar}
                             kanAndra={kanAndra}
                             forslag={gruppensTaggar.map((g) => g.tagg)}
                             valda={valda}
                             onFilter={(t) => setValdaTaggar(valda.includes(t) ? valda.filter((x) => x !== t) : [...valda, t])}
-                            onAndra={typeof onSpara === "function" ? (ny) => onSpara({ id: rad.id, taggar: ny }) : undefined}
+                            onAndra={typeof onSpara === "function" ? (ny) => onSpara({ id: rad.id, taggar: medNal(rad, ny) }) : undefined}
                             borjaSkriva={taggarFor === rad.id}
                             onSlutaSkriva={() => setTaggarFor((nu) => (nu === rad.id ? null : nu))}
                           />
@@ -936,6 +1063,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
             {status ? <p role="status">{status}</p> : null}
           </div>
         )}
+        {markerFel ? <p role="alert" data-bibliotek-markerfel="">{markerFel}</p> : null}
         {ljus ? (
           <div role="dialog" aria-label="Förhandsvisning" data-bibliotek-ljus="" className="flex flex-col gap-2">
             <img src={ljus} alt="" />
@@ -1246,7 +1374,7 @@ function useFilAdresser(poster, vald, filUrl, hamtaAdress, paBegaran = false) {
 }
 
 /**
- * @typedef {"alla" | "ljud" | "anteckning" | "bild" | "fil" | "lank" | "lista"} Flik
+ * @typedef {"alla" | "ljud" | "anteckning" | "bild" | "fil" | "lank" | "lista" | "stjarna"} Flik
  */
 
 /**
@@ -1489,9 +1617,11 @@ export function kortTyp(post) {
  * ⛔ EN DELAD POST BÄR EN LITEN MARKERING (0.119.0, lifehub.app#356): ordet "Delad" med en länkikon i metaraden. Den som ser listan ska inte
  * behöva öppna en meny för att veta vad som har en publik länk, och ikonen ensam säger det inte.
  *
- * @param {{ post: import("../lib/bibliotek.js").Bibliotekspost & { id: string }, lage: Adresslage, meny: import("./OpsAtgardsblad.jsx").Atgard[], svep: any[], onOppna: () => void, onMeta: (id: string, meta: { durationMs?: number, peaks?: string }) => void, taggrad: import("react").ReactNode, delad?: boolean, htmlVy?: string, github?: boolean }} props
+ * ⛔ NÅLEN OCH STJÄRNAN (0.187.0): en nålad post bär en liten nål före rubriken (ikonen har texten `nalOrd` för skärmläsaren), och med `stjarna` sitter stjärnknappen till höger, före spelknappen. Utan dem ritas kortet som förut.
+ *
+ * @param {{ nalad?: boolean, nalOrd?: string, stjarna?: { pa: boolean, etikett: string, onVaxla: () => Promise<unknown> } | null, post: import("../lib/bibliotek.js").Bibliotekspost & { id: string }, lage: Adresslage, meny: import("./OpsAtgardsblad.jsx").Atgard[], svep: any[], onOppna: () => void, onMeta: (id: string, meta: { durationMs?: number, peaks?: string }) => void, taggrad: import("react").ReactNode, delad?: boolean, htmlVy?: string, github?: boolean }} props
  */
-function BibliotekKort({ post, lage, meny, svep, onOppna, onMeta, taggrad, delad = false, htmlVy = "", github = false }) {
+function BibliotekKort({ post, lage, meny, svep, onOppna, onMeta, taggrad, delad = false, htmlVy = "", github = false, nalad = false, nalOrd = "", stjarna = null }) {
   const spelare = useSpelare();
   const ljud = arLjudpost(post);
   const bild = post.typ === "fil" && filSort(post.fil?.mime) === "bild";
@@ -1568,7 +1698,14 @@ function BibliotekKort({ post, lage, meny, svep, onOppna, onMeta, taggrad, delad
           {/* ⛔ EN KOMPAKT RAD (0.165.0, CP 2026-10-31: "listning i bibliotek lite ful och rörig"): titeln utan filändelse, och under den EN grå rad med typen, storleken och datumet ("HTML · 68 kB · 31 okt."). Typen stod förut
               på en egen rad i versaler, och "Lägg till tagg" stod på varje kort. Taggraden ritas nu bara när posten har taggar; annars nås den ur menyn (`menyFor`, "Lägg till tagg"). */}
           <div className="pointer-events-none relative flex min-w-0 flex-1 flex-col gap-0.5">
-            <span className="block truncate text-etikett font-medium text-ink">{namn}</span>
+            {nalad ? (
+              <span className="flex min-w-0 items-center gap-1.5">
+                <NalMark nalOrd={nalOrd} />
+                <span className="block min-w-0 truncate text-etikett font-medium text-ink">{namn}</span>
+              </span>
+            ) : (
+              <span className="block truncate text-etikett font-medium text-ink">{namn}</span>
+            )}
             {taggrad}
             {forhands ? <span data-bibliotek-forhands-text="" className="line-clamp-1 text-meta text-ink-secondary wrap-anywhere">{forhands}</span> : null}
             <span data-bibliotek-metarad="" className="flex min-w-0 flex-wrap items-center gap-x-1.5 text-meta text-ink-muted">
@@ -1585,6 +1722,7 @@ function BibliotekKort({ post, lage, meny, svep, onOppna, onMeta, taggrad, delad
             </span>
             {ljudStatus ? <span role={lage.lage === "hamtar" ? "status" : "alert"} className={cx("text-meta", lage.lage === "hamtar" ? "text-ink-secondary" : "text-danger")}>{ljudStatus}</span> : null}
           </div>
+          {stjarna ? <span className="relative shrink-0"><StjarnKnapp stjarna={stjarna} /></span> : null}
           {ljud && iSkalet && lage.lage === "klar" ? (
             <span className="relative shrink-0">
               <OpsSpelaKnapp
@@ -1602,6 +1740,78 @@ function BibliotekKort({ post, lage, meny, svep, onOppna, onMeta, taggrad, delad
         </div>
       </OpsAtgardsblad>
     </OpsSvepRad>
+  );
+}
+
+/**
+ * Nålen före rubriken på en nålad post (0.187.0). Ikonen är dekor för ögat och texten är för skärmläsaren: en nål utan ord hade varit en bild som bara en seende läser.
+ *
+ * @param {{ nalOrd: string }} props
+ */
+function NalMark({ nalOrd }) {
+  return (
+    <span data-bibliotek-nal="" className="inline-flex shrink-0 items-center text-ink-secondary">
+      <IKON_FOR.nal size={14} aria-hidden="true" />
+      <span className="sr-only">{nalOrd}</span>
+    </span>
+  );
+}
+
+/**
+ * Stjärnknappen (0.187.0): personens egen markering. `aria-pressed` bär läget, namnet bär handlingen ("Stjärnmärk" / "Ta bort stjärnan"), och stjärnan är fylld när den är satt så att läget inte bara sitter i färgen.
+ *
+ * ⛔ KNAPPEN VÄNTAR (check-vantar): medan anropet pågår ersätts stjärnan av en snurra, knappen är `aria-busy` och spärrad, och ett andra tryck i samma tick gör ingenting (en ref, eftersom två tryck ser samma tillstånd).
+ * Felet visas inte här: knappen vet inte var det ska stå, och `OpsBibliotek` ritar det under listan och i detaljen.
+ *
+ * @param {{ stjarna: { pa: boolean, etikett: string, onVaxla: () => Promise<unknown> } }} props
+ */
+function StjarnKnapp({ stjarna }) {
+  const [vantar, setVantar] = useState(false);
+  const pagar = useRef(false);
+  const monterad = useRef(true);
+  useEffect(() => {
+    monterad.current = true;
+    return () => {
+      monterad.current = false;
+    };
+  }, []);
+  function tryck() {
+    if (pagar.current) return undefined;
+    pagar.current = true;
+    setVantar(true);
+    return Promise.resolve(stjarna.onVaxla()).finally(() => {
+      pagar.current = false;
+      if (monterad.current) setVantar(false);
+    });
+  }
+  return (
+    <button
+      type="button"
+      aria-pressed={stjarna.pa}
+      aria-label={stjarna.etikett}
+      aria-busy={vantar}
+      disabled={vantar}
+      data-bibliotek-stjarna={stjarna.pa ? "pa" : "av"}
+      onClick={tryck}
+      className="flex size-11 cursor-pointer items-center justify-center rounded-full bg-transparent text-ink-secondary hover:bg-accent-faint hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed"
+    >
+      {vantar ? <OpsSpinner size="sm" decorative /> : <IKON_FOR.stjarna size={18} aria-hidden="true" className={stjarna.pa ? "fill-current text-accent" : undefined} />}
+    </button>
+  );
+}
+
+/**
+ * Nålen och stjärnan i detaljhuvudet (0.187.0), före menyn.
+ *
+ * @param {{ nalad: boolean, nalOrd: string, stjarna: { pa: boolean, etikett: string, onVaxla: () => Promise<unknown> } | null }} props
+ */
+function Markering({ nalad, nalOrd, stjarna }) {
+  if (!nalad && !stjarna) return null;
+  return (
+    <span data-bibliotek-markering="" className="flex shrink-0 items-center gap-1">
+      {nalad ? <NalMark nalOrd={nalOrd} /> : null}
+      {stjarna ? <StjarnKnapp stjarna={stjarna} /> : null}
+    </span>
   );
 }
 
@@ -1640,7 +1850,7 @@ function PostMark({ post, bildAdress = "" }) {
  * ⛔ UTAN MOTTAGARE FINNS INGEN RÖSTINSPELNING ATT ERBJUDA (`erbjudRost`, cllp/ops-framework#391): raden i menyn ritas inte. Förut ritades ingen knapp
  * alls under Ljud, och det är därför uppladdning saknades.
  *
- * @param {{ flik: Flik, onSkapa: (typ: "anteckning" | "lank" | "fil" | "lista") => void, onRost: () => void, erbjudRost: boolean, onLaddaUppLjud: (fil: File) => void }} props
+ * @param {{ flik: Exclude<Flik, "stjarna">, onSkapa: (typ: "anteckning" | "lank" | "fil" | "lista") => void, onRost: () => void, erbjudRost: boolean, onLaddaUppLjud: (fil: File) => void }} props
  */
 function NyKnapp({ flik, onSkapa, onRost, erbjudRost, onLaddaUppLjud }) {
   const [oppen, setOppen] = useState(false);
@@ -1977,6 +2187,7 @@ function Adress({ url }) {
  * @param {(post: any, fil: File, fran: number) => Promise<unknown>} [props.nyHtmlVersion] (0.158.0) Se `OpsBibliotek`.
  * @param {(post: any) => string | null | undefined} [props.oppnaHtml] (0.159.0) Se `OpsBibliotek`.
  * @param {import("react").ReactNode} [props.taggrad] (0.153.0) Postens taggar, ritade under innehållet i läsläget. Se `OpsBibliotek`.
+ * @param {import("react").ReactNode} [props.markering] (0.187.0) Nålen och stjärnan, ritade i detaljhuvudet före menyn. Se `OpsBibliotek`.
  * @param {(post: { typ?: string, skapad?: number, fil?: { sokvag?: string, mime?: string, klar?: boolean } }) => Adresslage} [props.adressFor]
  * @param {(adress: string) => void} [props.onLjus]
  * @param {(post: any) => Promise<void> | void} [props.onSkrivUt]
@@ -1992,7 +2203,7 @@ function Adress({ url }) {
  * @param {(post: any) => Promise<import("./GithubDokumentVisning.jsx").GithubLasning>} [props.githubLasare] (0.186.0) Se `OpsBibliotek`.
  * @param {(post: import("../lib/bibliotek.js").Bibliotekspost & { id: string }) => void} props.onOppnaPost (0.128.0) Öppnar en post ur en lista.
  */
-function Detalj({ post, skapar, startLage, onStang, onSpara, onLaddaUpp, filUrl, hamtaFil, htmlVersioner, hamtaHtmlVersion, aterstallHtml, nyHtmlVersion, oppnaHtml, taggrad, adressFor, onLjus, onSkrivUt, onSkrivUtIgen, onTaBortUtskrift, onAnteckningAvUtskrift, menyFor, onMeta, tillbakaEtikett, poster, jag, onLankInfo, githubLasare, onOppnaPost }) {
+function Detalj({ post, skapar, startLage, onStang, onSpara, onLaddaUpp, filUrl, hamtaFil, htmlVersioner, hamtaHtmlVersion, aterstallHtml, nyHtmlVersion, oppnaHtml, taggrad, markering, adressFor, onLjus, onSkrivUt, onSkrivUtIgen, onTaBortUtskrift, onAnteckningAvUtskrift, menyFor, onMeta, tillbakaEtikett, poster, jag, onLankInfo, githubLasare, onOppnaPost }) {
   const sprak = useOpsSprak();
   const typ = skapar ?? post?.typ ?? "anteckning";
   const [rubrik, setRubrik] = useState(post && !skapar ? post.rubrik : "");
@@ -2290,6 +2501,7 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, onLaddaUpp, filUrl,
         ikon={mark}
         rubrik={rubrikVy}
         meta={metaText}
+        markering={post && !skapar ? markering : null}
         meny={post && !skapar ? <OpsAtgardsblad baraKnapp namn={menyNamn} poster={menyFor(post, true, setLage)} /> : null}
       />
       <OpsDokument
@@ -2319,15 +2531,16 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, onLaddaUpp, filUrl,
  * Gemensamt detaljhuvud för alla typer: Tillbaka, ikon och ⋯ på en rad,
  * rubriken på egen rad med rollen `rubrik`, sedan metadata.
  *
- * @param {{ onTillbaka: () => void, tillbakaEtikett: string, ikon: import("react").ReactNode, rubrik: string, meta?: string, meny?: import("react").ReactNode }} props
+ * @param {{ onTillbaka: () => void, tillbakaEtikett: string, ikon: import("react").ReactNode, rubrik: string, meta?: string, markering?: import("react").ReactNode, meny?: import("react").ReactNode }} props
  */
-function BibliotekDetaljHuvud({ onTillbaka, tillbakaEtikett, ikon, rubrik, meta = "", meny = null }) {
+function BibliotekDetaljHuvud({ onTillbaka, tillbakaEtikett, ikon, rubrik, meta = "", markering = null, meny = null }) {
   return (
     <header data-bibliotek-detaljhuvud="" className="flex min-w-0 flex-col gap-3">
       <div className="flex min-w-0 items-center gap-2">
         <TillbakaKnapp onClick={onTillbaka} etikett={tillbakaEtikett} className="self-start" />
         <span className="shrink-0">{ikon}</span>
         <span className="min-w-0 flex-1" aria-hidden="true" />
+        {markering}
         {meny}
       </div>
       <h1 className="m-0 min-w-0 text-rubrik text-ink wrap-anywhere">{rubrik}</h1>

@@ -45,7 +45,7 @@ import { kordarePafunktion, MenyAvdelningar, menyAppAvdelning, menyFot, MenyRubr
 import { OpsSkapaGenvagar, useSkapaGenvag } from "./OpsSkapaGenvag.jsx";
 import { OpsFlytandeSkapa } from "./OpsFlytandeSkapa.jsx";
 import { flytandeSkapaPa } from "../lib/flytandeSkapa.js";
-import { OpsSnabbmeny } from "./OpsSnabbmeny.jsx";
+import { OpsSnabbmenyLat } from "./OpsSnabbmenyLat.jsx";
 import { apparSnabbPoster, skapaSnabbPoster } from "../lib/snabbmeny.js";
 import { arkRader } from "../lib/apparark.js";
 
@@ -3158,7 +3158,7 @@ function OpsAppShellRitad({
       ) : null}
       {snabbmenyer ? (
         <>
-          <OpsSnabbmeny
+          <OpsSnabbmenyLat
             oppen={skapaMeny}
             onOppen={setSkapaMeny}
             variant="skapa"
@@ -3166,7 +3166,7 @@ function OpsAppShellRitad({
             poster={skapaSnabb}
             ankare={["[data-ops-flytande-skapa]", "[data-ops-skapa-knapp]", "[data-talk-knapp]"]}
           />
-          <OpsSnabbmeny
+          <OpsSnabbmenyLat
             oppen={apparMeny}
             onOppen={setApparMeny}
             variant="appar"

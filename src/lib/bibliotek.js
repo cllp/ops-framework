@@ -1489,6 +1489,20 @@ export function arArkiverad(post) {
 }
 
 /**
+ * Nålen (0.187.0, cllp/lifehub.app#653, CP: "Stjärna = bara personen, Nål = överst för alla på platsen"): att nåla fast en post är att sätta den här taggen, på
+ * exakt samma sätt som arkivet. Ingen ny posttyp och inget nytt fält, alltså ingen regeländring: taggen sparas som vilken tagg som helst (`onSpara({ id, taggar })`)
+ * och gäller alla som ser platsen, eftersom den bor på posten.
+ * ⛔ ÖVERST I LISTAN: `filtreraBibliotek` lägger nålade poster först, efter sök och filter och före den vanliga ordningen. En arkiverad post är aldrig först.
+ * ⛔ STJÄRNAN HÖR INTE HIT: den är personens egen och bor hos appen (`stjarnor` och `onStjarna` på `OpsBibliotek`), aldrig på posten.
+ */
+export const NALTAGG = "nal";
+
+/** @param {{ taggar?: unknown }} post */
+export function arNalad(post) {
+  return Array.isArray(post?.taggar) && post.taggar.includes(NALTAGG);
+}
+
+/**
  * Listan efter flik och sök. Sökningen läser det som redan hämtats: en andra
  * samling för sökord hade varit en kopia av rubriken.
  *
@@ -1501,7 +1515,12 @@ export function arArkiverad(post) {
  * ⛔ TAGGARNA ÄR "OCH" (0.100.0): två valda taggar visar posterna som bär båda. Det är så filtret blir smalare för varje val, som
  * flikarna. Sökningen läser också taggarna, så den som skriver "kvitto" hittar en post taggad kvitto.
  *
- * @param {{ flik?: string, sok?: string, taggar?: readonly string[] }} [val]
+ * ⛔ NÅLADE POSTER STÅR FÖRST (0.187.0, `NALTAGG`), efter sök och filter. Inom de nålade, och inom de andra, är ordningen den vanliga. En arkiverad post är aldrig först: den syns bara när arkivet
+ * är valt, och där är ordningen den vanliga.
+ *
+ * ⛔ `stjarnmarkta` (0.187.0): postid:n personen stjärnmärkt. Utelämnad: inget filter. Given, också tom: bara poster vars id finns i den syns (en tom mängd ger en tom lista, inte alla).
+ *
+ * @param {{ flik?: string, sok?: string, taggar?: readonly string[], stjarnmarkta?: ReadonlySet<string> | readonly string[] }} [val]
  * @returns {T[]}
  */
 export function filtreraBibliotek(poster, val = {}) {
@@ -1513,8 +1532,12 @@ export function filtreraBibliotek(poster, val = {}) {
   const sok = str(val.sok).toLowerCase().replace(/^#+/, "");
   const valda = Array.isArray(val.taggar) ? val.taggar : [];
   const iArkivet = valda.includes(ARKIVTAGG);
+  const stjarnor = val.stjarnmarkta === undefined ? null : val.stjarnmarkta instanceof Set ? val.stjarnmarkta : new Set(val.stjarnmarkta);
+  /** @param {{ taggar?: unknown }} p */
+  const forst = (p) => (arNalad(p) && !arArkiverad(p) ? 0 : 1);
   return [...poster]
     .filter((p) => iArkivet || !arArkiverad(p))
+    .filter((p) => stjarnor === null || (typeof p.id === "string" && stjarnor.has(p.id)))
     .filter((p) => valda.every((t) => Array.isArray(p.taggar) && p.taggar.includes(t)))
     .filter((p) => {
       if (flik === "alla") return true;
@@ -1526,8 +1549,9 @@ export function filtreraBibliotek(poster, val = {}) {
     })
     .filter((p) => {
       if (!sok) return true;
-      const hay = `${p.rubrik}\n${p.text ?? ""}\n${p.url ?? ""}\n${p.fil?.namn ?? ""}\n${(p.taggar ?? []).join("\n")}`.toLowerCase();
+      // ⛔ Nålen är dold som tagg (0.187.0): att söka på "nal" ska inte ge de nålade posterna.
+      const hay = `${p.rubrik}\n${p.text ?? ""}\n${p.url ?? ""}\n${p.fil?.namn ?? ""}\n${(p.taggar ?? []).filter((t) => t !== NALTAGG).join("\n")}`.toLowerCase();
       return hay.includes(sok);
     })
-    .sort((a, b) => b.andrad - a.andrad || a.rubrik.localeCompare(b.rubrik, "sv"));
+    .sort((a, b) => forst(a) - forst(b) || b.andrad - a.andrad || a.rubrik.localeCompare(b.rubrik, "sv"));
 }
