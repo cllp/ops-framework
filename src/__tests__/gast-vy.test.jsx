@@ -207,7 +207,7 @@ describe("OpsGastSida", () => {
     );
     return { ...utf, lagring, onLos, onHamta, onNyLank };
   };
-  const skrivAdress = (v) => fireEvent.change(screen.getByLabelText("Skriv adressen inbjudan skickades till"), { target: { value: v } });
+  const skrivAdress = (v) => fireEvent.change(screen.getByLabelText("Din e-postadress"), { target: { value: v } });
 
   it("första öppningen med en länk frågar efter adressen, postar id, nyckel och adress, sparar sessionen och visar saken", async () => {
     const { onLos, onHamta, lagring } = rita();
@@ -242,7 +242,7 @@ describe("OpsGastSida", () => {
     expect(await screen.findByText("Rep")).toBeInTheDocument();
     expect(onHamta).toHaveBeenCalledWith({ sessionsnyckel: SESSION });
     expect(onLos).not.toHaveBeenCalled();
-    expect(screen.queryByLabelText("Skriv adressen inbjudan skickades till")).toBeNull();
+    expect(screen.queryByLabelText("Din e-postadress")).toBeNull();
   });
 
   it("utan länk öppnas den senast öppnade inbjudans session", async () => {
@@ -255,7 +255,7 @@ describe("OpsGastSida", () => {
   it("en session som servern inte känner igen glöms, och sidan frågar efter adressen igen", async () => {
     const lagring = lagringMed({ [`ops-gast:${ID}`]: SESSION });
     rita({ lagring, onHamta: vi.fn(async () => ({ ok: false, orsak: "nej" })) });
-    expect(await screen.findByLabelText("Skriv adressen inbjudan skickades till")).toBeInTheDocument();
+    expect(await screen.findByLabelText("Din e-postadress")).toBeInTheDocument();
     expect(lagring.d[`ops-gast:${ID}`]).toBeUndefined();
   });
 
@@ -263,7 +263,7 @@ describe("OpsGastSida", () => {
     const lagring = lagringMed({ [`ops-gast:${ID}`]: SESSION });
     rita({ lagring, onHamta: vi.fn(async () => ({ ok: false, orsak: "aterkallad" })) });
     expect(await screen.findByText(GASTFEL.aterkallad)).toBeInTheDocument();
-    expect(screen.queryByLabelText("Skriv adressen inbjudan skickades till")).toBeNull();
+    expect(screen.queryByLabelText("Din e-postadress")).toBeNull();
     expect(lagring.d[`ops-gast:${ID}`]).toBe(SESSION);
   });
 
@@ -272,10 +272,27 @@ describe("OpsGastSida", () => {
     await screen.findByRole("heading", { name: "Du är inbjuden" });
     skrivAdress("fel@foretag.se");
     fireEvent.click(screen.getByRole("button", { name: "Fortsätt" }));
-    expect(await screen.findByText(GASTFEL.nej)).toBeInTheDocument();
+    // (0.190.0, QA fynd 2) Texten säger att adressen inte hör till inbjudan, inte att den har fel form.
+    expect(await screen.findByText("Den adressen hör inte till den här inbjudan. Skriv samma adress som mejlet kom till.")).toBeInTheDocument();
+    expect(screen.queryByText("Det där ser inte ut som en e-postadress.")).toBeNull();
     expect(onLos).toHaveBeenCalledTimes(1);
-    expect(screen.getByLabelText("Skriv adressen inbjudan skickades till")).toBeInTheDocument();
+    expect(screen.getByLabelText("Din e-postadress")).toBeInTheDocument();
     expect(screen.queryByText("Rep")).toBeNull();
+  });
+
+  it("⛔ adressteget säger varför adressen behövs en gång, och etiketten upprepar det inte; samma form på engelska (0.190.0, QA fynd 2)", async () => {
+    const { unmount } = rita();
+    await screen.findByRole("heading", { name: "Du är inbjuden" });
+    expect(screen.getByText("Skriv din e-postadress, samma som inbjudan kom till. Så vet vi att det är du. Du behöver inget konto.")).toBeInTheDocument();
+    expect(screen.getByLabelText("Din e-postadress")).toBeInTheDocument();
+    expect(document.body.textContent).not.toContain("Skriv adressen inbjudan skickades till");
+    unmount();
+    rita({ sprak: "en", onLos: vi.fn(async () => ({ ok: false, orsak: "nej" })) });
+    await screen.findByRole("heading", { name: "You are invited" });
+    expect(screen.getByText("Enter your email address, the same one the invitation was sent to. That is how we know it is you. You do not need an account.")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Your email address"), { target: { value: "fel@foretag.se" } });
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    expect(await screen.findByText("That address does not belong to this invitation. Enter the same address the email was sent to.")).toBeInTheDocument();
   });
 
   it("en adress som inte är en adress anropar inte servern: den räknar felaktiga försök", async () => {

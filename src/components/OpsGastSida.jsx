@@ -24,10 +24,14 @@ export const ORD_OPSGASTSIDA = {
   // ⛔ RUBRIKEN NÄR ADRESSEN FRÅGAS ÄR NEUTRAL (0.146.0). Före inloggningen vet sidan inte vad inbjudan gäller (en omröstning, en händelse att svara på, hela gruppen), och "rösta" var fel åt den som bjudits in till
   // en händelse. Nyckelnamnet står kvar, så att en app som ger egna ord (`ord.rubrikRosta`) fortfarande träffar rätt text.
   rubrikRosta: { sv: "Du är inbjuden", en: "You are invited" },
-  ingress: { sv: "Skriv adressen inbjudan skickades till, så öppnas den. Du behöver inget konto.", en: "Enter the address the invitation was sent to and it opens. You do not need an account." },
-  adressEtikett: { sv: "Skriv adressen inbjudan skickades till", en: "Enter the address the invitation was sent to" },
+  // ⛔ EN MENING OM VARFÖR, OCH ETIKETTEN SÄGER INTE SAMMA SAK EN GÅNG TILL (0.190.0, QA fynd 2 i cllp/lifehub.app#658): ingressen och etiketten var samma mening.
+  ingress: { sv: "Skriv din e-postadress, samma som inbjudan kom till. Så vet vi att det är du. Du behöver inget konto.", en: "Enter your email address, the same one the invitation was sent to. That is how we know it is you. You do not need an account." },
+  adressEtikett: { sv: "Din e-postadress", en: "Your email address" },
   fortsatt: { sv: "Fortsätt", en: "Continue" },
   felAdress: { sv: "Det där ser inte ut som en e-postadress.", en: "That does not look like an email address." },
+  // ⛔ ETT NEJ VID ADRESSEN SÄGER VAD SOM ÄR FEL, OCH BARA DET SERVERN VET (0.190.0, QA fynd 2): fel adress och fel nyckel är samma nej byte för byte, så texten är densamma
+  // för båda och ingen kan pröva sig fram. Formfelet (`felAdress`) står bara när adressen verkligen inte är en adress (`normaliseraGastepost` ger null).
+  felInbjudan: { sv: "Den adressen hör inte till den här inbjudan. Skriv samma adress som mejlet kom till.", en: "That address does not belong to this invitation. Enter the same address the email was sent to." },
   orsak_nej: { sv: GASTFEL.nej, en: "The link or the address was not right" },
   orsak_aterkallad: { sv: GASTFEL.aterkallad, en: "The invitation has been withdrawn" },
   orsak_utgangen: { sv: GASTFEL.utgangen, en: "The link has expired" },
@@ -363,7 +367,7 @@ export function OpsGastSida({ lank = null, onLos, onHamta, onNyLank, onNamn, onR
       return;
     }
     const o = r && typeof r.orsak === "string" ? r.orsak : "nej";
-    setFel(t[`orsak_${o}`] ?? t.orsak_nej);
+    setFel(o === "nej" ? t.felInbjudan : (t[`orsak_${o}`] ?? t.felInbjudan));
     if (ERSATTBARA.includes(o)) setOrsak(`orsak_${o}`);
   }
 
