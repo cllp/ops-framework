@@ -43,7 +43,7 @@ const medlemskap = (uid, groupId, roll, extra = {}) => ({ id: medlemskapsId(uid,
 /** Appens regel i provet: skaparen, en admin eller en ägare, och bara medan datumet inte är valt. */
 const farBjuda = ({ uid, medlemskap: m, handelse }) => !handelse.datum && (handelse.skapadAv === uid || m.roll === "agare" || m.roll === "admin");
 
-function bygg({ omslut = (/** @type {any} */ k) => k, sak, extraMedlemskap = [], skickaFel = null } = {}) {
+function bygg({ omslut = (/** @type {any} */ k) => k, sak, extraMedlemskap = [], skickaFel = null, valv = false, valvFel = null } = {}) {
   const grundkalla = createMemorySource({
     memberships: [
       medlemskap(AGARE, GRUPP, "agare"),
@@ -77,6 +77,21 @@ function bygg({ omslut = (/** @type {any} */ k) => k, sak, extraMedlemskap = [],
   });
   const rapportera = vi.fn();
   let nu = NU;
+  // Länkvalvet som ett stand-in (0.189.0): en karta id till nyckel. `valv: "null"` ger ett valv som aldrig har någon kopia.
+  /** @type {Map<string, string>} */
+  const kopior = new Map();
+  const lankvalv = valv
+    ? {
+        spara: vi.fn(async ({ id, nyckel }) => {
+          if (valvFel) throw valvFel;
+          kopior.set(id, nyckel);
+        }),
+        hamta: vi.fn(async ({ id }) => (valv === "tomt" ? null : kopior.get(id) ?? null)),
+        radera: vi.fn(async ({ id }) => {
+          kopior.delete(id);
+        }),
+      }
+    : null;
   const tjanst = createGastService({
     kalla,
     samlingar: { inbjudningar: "gastinbjudningar", sessioner: "gastsessioner", platser: "gastplatser", raknare: "gastraknare", handelser: "handelser" },
@@ -84,9 +99,10 @@ function bygg({ omslut = (/** @type {any} */ k) => k, sak, extraMedlemskap = [],
     skicka,
     rapportera,
     ...(sak ? { sak } : {}),
+    ...(lankvalv ? { lankvalv, radering: {} } : {}),
     klocka: () => nu,
   });
-  return { kalla: grundkalla, tjanst, brev, skicka, rapportera, tid: (/** @type {number} */ ny) => { nu = ny; }, nu: () => nu };
+  return { kalla: grundkalla, tjanst, brev, skicka, rapportera, lankvalv, kopior, tid: (/** @type {number} */ ny) => { nu = ny; }, nu: () => nu };
 }
 
 const epostN = (n) => `gast${n}@foretag.se`;
@@ -645,6 +661,98 @@ describe("aterkalla", () => {
     for (const p of await platserRader(kalla)) await kalla.remove("gastplatser", p.id);
     await tjanst.skickaOm({ uid: SKAPARE, id });
     expect(await platserRader(kalla)).toHaveLength(1);
+  });
+});
+
+describe("kopieraLank: samma länk igen ur valvet (0.189.0, CP 2026-11-05: \"Man kan behöva ge länken igen för de som fibblar bort den\")", () => {
+  it("bjud sparar nyckeln i valvet INNAN brevet skickas, och kopieraLank ger SAMMA nyckel som brevet fick och den fungerar i los", async () => {
+    const h = bygg({ valv: true });
+    let sparadeFore = -1;
+    h.skicka.mockImplementationOnce(async (b) => {
+      sparadeFore = h.lankvalv.spara.mock.calls.length;
+      h.brev.push(b);
+    });
+    const { id } = await bjud(h.tjanst);
+    expect(sparadeFore).toBe(1);
+    const ut = await h.tjanst.kopieraLank({ uid: SKAPARE, id });
+    expect(ut).toEqual({ id, nyckel: senasteLank(h.brev).nyckel, lankGiltigTill: NU + GASTLANKDAGAR * DYGN });
+    await expect(h.tjanst.los({ id, nyckel: ut.nyckel, epost: "anna@foretag.se", ip: IP })).resolves.toBeTruthy();
+  });
+
+  it("skickaOm sparar den nya nyckeln, och kopieraLank ger den nya (den gamla kopian är ersatt)", async () => {
+    const h = bygg({ valv: true });
+    const { id } = await bjud(h.tjanst);
+    const forsta = senasteLank(h.brev).nyckel;
+    await h.tjanst.skickaOm({ uid: SKAPARE, id });
+    const andra = senasteLank(h.brev).nyckel;
+    expect(andra).not.toBe(forsta);
+    expect((await h.tjanst.kopieraLank({ uid: SKAPARE, id })).nyckel).toBe(andra);
+  });
+
+  it("kopieraLank skickar inget brev, räknar inget utskick, roterar ingenting och ändrar inte raden", async () => {
+    const h = bygg({ valv: true });
+    const { id } = await bjud(h.tjanst);
+    const fore = JSON.stringify(await h.kalla.read("gastinbjudningar", id));
+    const brevFore = h.skicka.mock.calls.length;
+    const sparatFore = h.lankvalv.spara.mock.calls.length;
+    await h.tjanst.kopieraLank({ uid: SKAPARE, id });
+    await h.tjanst.kopieraLank({ uid: SKAPARE, id });
+    expect(h.skicka.mock.calls.length).toBe(brevFore);
+    expect(h.lankvalv.spara.mock.calls.length).toBe(sparatFore);
+    expect(JSON.stringify(await h.kalla.read("gastinbjudningar", id))).toBe(fore);
+  });
+
+  it("nekas för en återkallad (aterkallad), en utgången (utgangen), en utan kopia (ingen-kopia) och utan valv (ej-konfigurerad); okänt id ger finns-inte", async () => {
+    const h = bygg({ valv: true });
+    const { id } = await bjud(h.tjanst);
+    await expect(h.tjanst.kopieraLank({ uid: SKAPARE, id: "0".repeat(64) })).rejects.toMatchObject({ kod: "finns-inte" });
+    // Utgången.
+    h.tid(NU + (GASTLANKDAGAR + 1) * DYGN);
+    await expect(h.tjanst.kopieraLank({ uid: SKAPARE, id })).rejects.toMatchObject({ kod: "utgangen" });
+    h.tid(NU);
+    // Återkallad.
+    await h.tjanst.aterkalla({ uid: SKAPARE, id });
+    await expect(h.tjanst.kopieraLank({ uid: SKAPARE, id })).rejects.toMatchObject({ kod: "aterkallad" });
+    // Ingen kopia (valvet har ingen), och en kopia som inte hör till nuvarande nyckel.
+    const t = bygg({ valv: "tomt" });
+    const b = await bjud(t.tjanst);
+    await expect(t.tjanst.kopieraLank({ uid: SKAPARE, id: b.id })).rejects.toMatchObject({ kod: "ingen-kopia" });
+    const u = bygg({ valv: true });
+    const c = await bjud(u.tjanst);
+    u.kopior.set(c.id, nyGastnyckel());
+    await expect(u.tjanst.kopieraLank({ uid: SKAPARE, id: c.id })).rejects.toMatchObject({ kod: "ingen-kopia" });
+    // Utan valv.
+    const v = bygg();
+    const d = await bjud(v.tjanst);
+    await expect(v.tjanst.kopieraLank({ uid: SKAPARE, id: d.id })).rejects.toMatchObject({ kod: "ej-konfigurerad" });
+  });
+
+  it("⛔ ett valv som kastar ger valv-misslyckades och inget brev (aldrig tyst)", async () => {
+    const h = bygg({ valv: true, valvFel: new Error("kms nere") });
+    await expect(bjud(h.tjanst)).rejects.toMatchObject({ kod: "valv-misslyckades" });
+    expect(h.skicka).not.toHaveBeenCalled();
+    // Inbjudan finns (Skicka igen löser det), och skickaOm ger samma kod utan brev.
+    const [rad] = await h.kalla.list("gastinbjudningar");
+    expect(rad).toBeTruthy();
+    await expect(h.tjanst.skickaOm({ uid: SKAPARE, id: rad.id })).rejects.toMatchObject({ kod: "valv-misslyckades" });
+    expect(h.skicka).not.toHaveBeenCalled();
+  });
+
+  it("radera tar bort kopian för varje raderad inbjudan, och en återkallelse gör det inte", async () => {
+    const h = bygg({ valv: true });
+    const a = await bjud(h.tjanst);
+    const b = await bjud(h.tjanst, { handelseId: "h2" });
+    await h.tjanst.aterkalla({ uid: SKAPARE, id: a.id });
+    expect(h.lankvalv.radera).not.toHaveBeenCalled();
+    await h.tjanst.radera({ uid: ADMIN, groupId: GRUPP, gastId: gastId("anna@foretag.se") });
+    expect(h.lankvalv.radera.mock.calls.map(([x]) => x.id).sort()).toEqual([a.id, b.id].sort());
+    expect(h.kopior.size).toBe(0);
+  });
+
+  it("bygget vägrar ett valv utan spara, hamta eller radera", () => {
+    const ok = { kalla: createMemorySource({}), samlingar: { inbjudningar: "a", sessioner: "b", platser: "c", raknare: "d", handelser: "e" }, farBjuda: () => true, skicka: async () => {} };
+    expect(() => createGastService({ ...ok, lankvalv: { spara: async () => {}, hamta: async () => null, radera: async () => {} } })).not.toThrow();
+    expect(() => createGastService({ ...ok, lankvalv: { spara: async () => {}, hamta: async () => null } })).toThrow(/lankvalv.radera/);
   });
 });
 
