@@ -69,6 +69,10 @@ export function OpsSnabbmeny({ oppen, onOppen, variant, etikett, poster, ankare,
       return undefined;
     }
     if (!pushede.current) {
+      // ⛔ CP 2026-11-05, v1.0.1117: `orsak` stod kvar på "bak" från förra stängningen, och `onOpenChange` hoppar över "bak".
+      // Andra gången gick menyn därför inte att stänga med tryck utanför eller Escape. Varje öppning börjar utan orsak.
+      orsak.current = null;
+      vald.current = null;
       window.history.pushState({ ...(window.history.state ?? {}), opsSnabbmeny: variant }, "");
       pushede.current = true;
     }
