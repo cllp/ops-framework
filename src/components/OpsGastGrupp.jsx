@@ -16,6 +16,7 @@ import { OpsHandelsePanel } from "./OpsHandelsePanel.jsx";
 import { OpsList, OpsListRow } from "./OpsList.jsx";
 import { useGastsidaInfo } from "./gastsidaInfo.js";
 import { OpsSprakProvider } from "./OpsSprak.jsx";
+import { OpsSpelareProvider } from "./OpsSpelare.jsx";
 import { OpsSvarSummor } from "./OpsSvar.jsx";
 import { OpsTabPanel, OpsTabs } from "./OpsTabs.jsx";
 
@@ -627,8 +628,11 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
 
   // ⛔ SPRÅKET GÄLLER HELA GÄSTENS TRÄD (0.190.0, QA fynd 4 i cllp/lifehub.app#658): komponenterna som läser språket ur sammanhanget
   // (`OpsBibliotek`, taggarna, spelaren) fick svenska, eftersom gästsidan ritas utanför appens skal och ingen satte det.
+  // ⛔ SAMMA SPELARE SOM I APPEN (0.190.0, CP 2026-11-05, del P): skalets `OpsSpelareProvider` runt gruppen, med spelraden ovanför bottenraden på telefonen och längst ned
+  // på datorn, och arket med vågen, -10/+10, hastigheten och Ladda ned. Ingen andra spelare (regel 2): providern är hela monteringen, som i `OpsAppShell`.
   return (
     <OpsSprakProvider sprak={sprak}>
+    <OpsSpelareProvider>
     <div data-gast-grupp="" className="flex min-w-0 flex-col gap-4 text-ink sm:rounded-xl sm:border sm:border-line sm:bg-canvas sm:p-5">
       <header className="flex min-w-0 flex-col">
         <h1 data-gast-grupp-namn="" className="m-0 min-w-0 text-titel text-ink wrap-anywhere">{grupp.namn}</h1>
@@ -680,6 +684,7 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
       </OpsTabs>
       )}
     </div>
+    </OpsSpelareProvider>
     </OpsSprakProvider>
   );
 }

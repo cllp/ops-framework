@@ -22,6 +22,8 @@ import {
   startFelText,
 } from "../lib/ljudspelare.js";
 import { cx } from "../lib/cx.js";
+import { ordet } from "../lib/ord.js";
+import { useOpsSprak } from "./OpsSprak.jsx";
 import { radBehallare } from "../lib/radKlass.js";
 import { HoppaBakatIkon, HoppaFramatIkon, PausaIkon, SpelaIkon } from "./icons.jsx";
 import { OpsSpinner } from "./OpsSpinner.jsx";
@@ -82,7 +84,31 @@ import { OpsSpinner } from "./OpsSpinner.jsx";
 export const ORD_OPSSPELARE = {
   spelar: { sv: "Spelar", en: "Playing" },
   spola: { sv: "Tryck för att spola", en: "Tap to scrub" },
+  // (0.190.0) Resten av spelarens ord, så att en gäst på engelska inte får svenska i spelraden och arket (samma skäl som bibliotekets ord, QA fynd 4).
+  spelarNamn: { sv: "Spelar {namn}", en: "Playing {namn}" },
+  oppna: { sv: "Öppna spelaren för {namn}", en: "Open the player for {namn}" },
+  stang: { sv: "Stäng spelaren", en: "Close the player" },
+  fallIhop: { sv: "Fäll ihop spelaren", en: "Minimise the player" },
+  spela: { sv: "Spela {namn}", en: "Play {namn}" },
+  pausa: { sv: "Pausa {namn}", en: "Pause {namn}" },
+  spolaI: { sv: "Spola i {namn}", en: "Scrub in {namn}" },
+  avLangd: { sv: "{tid} av {langd}", en: "{tid} of {langd}" },
+  okandLangd: { sv: "okänd längd", en: "unknown length" },
+  langdOkand: { sv: "längd okänd", en: "length unknown" },
+  bakat: { sv: "10 sekunder bakåt", en: "10 seconds back" },
+  framat: { sv: "10 sekunder framåt", en: "10 seconds forward" },
+  hastighet: { sv: "Uppspelningshastighet {h}", en: "Playback speed {h}" },
+  laddaNed: { sv: "Ladda ned", en: "Download" },
+  laddaNedNamn: { sv: "Ladda ned {namn}", en: "Download {namn}" },
 };
+
+/**
+ * Ett ord ur spelarens ordbok på språket, med `{namn}` och de andra fälten ifyllda.
+ * @param {keyof typeof ORD_OPSSPELARE} nyckel @param {string} sprak @param {Record<string, string>} [varden]
+ */
+function sord(nyckel, sprak, varden = {}) {
+  return Object.entries(varden).reduce((t, [k, v]) => t.replace(`{${k}}`, v), ordet(ORD_OPSSPELARE, nyckel, sprak));
+}
 
 const SpelarKontext = createContext(/** @type {Spelarlage | null} */ (null));
 
@@ -362,6 +388,7 @@ export function OpsSpelareProvider({ children }) {
  */
 function Spelrad({ lage }) {
   const { spar, spelar, laddar, tid, langd, fel } = lage;
+  const sprak = useOpsSprak();
   const rad = useRef(/** @type {HTMLDivElement | null} */ (null));
   /*
    * ⛔ SPELRADEN TAR SIN PLATS, DEN LÄGGER SIG INTE ÖVER (granskningen av PR 366, MÅSTE 2). Förut låg den fast ovanför bottenraden
@@ -414,7 +441,7 @@ function Spelrad({ lage }) {
     >
       <div
         role="region"
-        aria-label={`Spelar ${spar.namn}`}
+        aria-label={sord("spelarNamn", sprak, { namn: spar.namn })}
         data-ops-spelrad=""
         className="pointer-events-auto border-t border-line bg-surface md:bg-raised"
       >
@@ -425,17 +452,17 @@ function Spelrad({ lage }) {
           <button
             type="button"
             onClick={lage.oppnaArk}
-            aria-label={`Öppna spelaren för ${spar.namn}`}
+            aria-label={sord("oppna", sprak, { namn: spar.namn })}
             className="flex min-h-11 min-w-0 flex-1 cursor-pointer flex-col justify-center bg-transparent text-left focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
           >
             <span className="block truncate text-etikett font-medium text-ink">{spar.namn}</span>
-            <span className={cx("block truncate text-meta", fel ? "text-danger" : "text-ink-muted")}>{fel || spar.undertitel || ORD_OPSSPELARE.spola.sv}</span>
+            <span className={cx("block truncate text-meta", fel ? "text-danger" : "text-ink-muted")}>{fel || spar.undertitel || sord("spola", sprak)}</span>
           </button>
           <SpelaKnapp spelar={spelar} laddar={laddar} namn={spar.namn} storlek="mellan" onClick={() => lage.vaxla(spar)} />
           <button
             type="button"
             onClick={lage.stang}
-            aria-label="Stäng spelaren"
+            aria-label={sord("stang", sprak)}
             className="inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full text-ink-secondary hover:bg-hover hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           >
             <IKON_FOR.stang size={20} aria-hidden="true" />
@@ -454,6 +481,7 @@ function Spelrad({ lage }) {
  */
 function Spelarark({ lage, oppen, onOppen }) {
   const { spar } = lage;
+  const sprak = useOpsSprak();
   return (
     <Dialog.Root open={oppen} onOpenChange={onOppen}>
       <Dialog.Portal>
@@ -468,14 +496,14 @@ function Spelarark({ lage, oppen, onOppen }) {
           )}
         >
           <div className="flex items-center justify-between gap-3">
-            <Dialog.Close aria-label="Fäll ihop spelaren" className="inline-flex size-11 cursor-pointer items-center justify-center rounded-full text-ink-secondary hover:bg-hover hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
+            <Dialog.Close aria-label={sord("fallIhop", sprak)} className="inline-flex size-11 cursor-pointer items-center justify-center rounded-full text-ink-secondary hover:bg-hover hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
               <ChevronDown size={24} aria-hidden="true" />
             </Dialog.Close>
-            <span className="text-etikett font-medium text-ink-secondary">{ORD_OPSSPELARE.spelar.sv}</span>
+            <span className="text-etikett font-medium text-ink-secondary">{sord("spelar", sprak)}</span>
             <button
               type="button"
               onClick={lage.stang}
-              aria-label="Stäng spelaren"
+              aria-label={sord("stang", sprak)}
               className="inline-flex size-11 cursor-pointer items-center justify-center rounded-full text-ink-secondary hover:bg-hover hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
             >
               <IKON_FOR.stang size={22} aria-hidden="true" />
@@ -493,11 +521,12 @@ function Spelarark({ lage, oppen, onOppen }) {
  * @param {{ spelar: boolean, laddar: boolean, namn: string, storlek: "liten" | "mellan" | "stor", onClick: () => void, disabled?: boolean }} props
  */
 function SpelaKnapp({ spelar, laddar, namn, storlek, onClick, disabled = false }) {
+  const sprak = useOpsSprak();
   const ikon = storlek === "stor" ? 30 : storlek === "mellan" ? 18 : 16;
   return (
     <button
       type="button"
-      aria-label={`${spelar ? "Pausa" : "Spela"} ${namn}`}
+      aria-label={sord(spelar ? "pausa" : "spela", sprak, { namn })}
       aria-busy={laddar || undefined}
       disabled={disabled}
       onClick={onClick}
@@ -515,11 +544,15 @@ function SpelaKnapp({ spelar, laddar, namn, storlek, onClick, disabled = false }
  * Spelknappen på en post i en lista: spela, och pausa när just den posten spelar. Utanför skalet ritas den inte, och anroparen ritar
  * `OpsLjudspelare` i stället (`useSpelare()` är då `null`).
  *
- * @param {{ spar: Spar }} props
+ * ⛔ (0.190.0) MED `onSpela` FINNS ÄNNU INGEN ADRESS: knappen ber om den (gästens bibliotek hämtar adressen först när någon vill spela), och `laddar` visar
+ * snurran medan den hämtas. Spelningen startas av den som fick adressen, i samma spelare.
+ *
+ * @param {{ spar: Spar, onSpela?: () => void, laddar?: boolean }} props
  */
-export function OpsSpelaKnapp({ spar }) {
+export function OpsSpelaKnapp({ spar, onSpela, laddar = false }) {
   const lage = useSpelare();
   if (!lage) return null;
+  if (typeof onSpela === "function") return <SpelaKnapp spelar={false} laddar={laddar} namn={spar.namn} storlek="liten" onClick={onSpela} disabled={laddar} />;
   const aktiv = lage.spar?.src === spar.src;
   return <SpelaKnapp spelar={aktiv && lage.spelar} laddar={aktiv && lage.laddar} namn={spar.namn} storlek="liten" onClick={() => lage.vaxla(spar)} />;
 }
@@ -535,6 +568,7 @@ export function OpsSpelaKnapp({ spar }) {
  */
 export function OpsSpelarKontroller({ spar, stor = false }) {
   const lage = useSpelare();
+  const sprak = useOpsSprak();
   const aktiv = Boolean(lage && lage.spar?.src === spar.src);
   const egnaToppar = useMemo(() => topparFor(spar.peaks, spar.src), [spar.peaks, spar.src]);
   if (!lage) return null;
@@ -563,8 +597,8 @@ export function OpsSpelarKontroller({ spar, stor = false }) {
           step={1}
           value={Math.round(pos * 1000)}
           disabled={!langd}
-          aria-label={`Spola i ${spar.namn}`}
-          aria-valuetext={`${formateraTid(tid)} av ${langd > 0 ? formateraTid(langd) : "okänd längd"}`}
+          aria-label={sord("spolaI", sprak, { namn: spar.namn })}
+          aria-valuetext={sord("avLangd", sprak, { tid: formateraTid(tid), langd: langd > 0 ? formateraTid(langd) : sord("okandLangd", sprak) })}
           onChange={(e) => {
             const kvot = Number(e.target.value) / 1000;
             if (!aktiv) {
@@ -592,12 +626,12 @@ export function OpsSpelarKontroller({ spar, stor = false }) {
       </div>
       <div className="flex items-center justify-between text-meta text-ink-secondary tabular-nums">
         <span data-ljud-tid="">{formateraTid(tid)}</span>
-        <span>{langd > 0 ? formateraTid(langd) : "längd okänd"}</span>
+        <span>{langd > 0 ? formateraTid(langd) : sord("langdOkand", sprak)}</span>
       </div>
       <div className="flex items-center justify-center gap-8">
         <button
           type="button"
-          aria-label="10 sekunder bakåt"
+          aria-label={sord("bakat", sprak)}
           disabled={!startad}
           onClick={() => lage.hoppaOm(-HOPP_SEKUNDER)}
           className="inline-flex min-h-11 min-w-11 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-md text-ink hover:bg-hover focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-40"
@@ -608,7 +642,7 @@ export function OpsSpelarKontroller({ spar, stor = false }) {
         <SpelaKnapp spelar={aktiv && lage.spelar} laddar={aktiv && lage.laddar} namn={spar.namn} storlek={stor ? "stor" : "mellan"} onClick={() => lage.vaxla(spar)} />
         <button
           type="button"
-          aria-label="10 sekunder framåt"
+          aria-label={sord("framat", sprak)}
           disabled={!startad}
           onClick={() => lage.hoppaOm(HOPP_SEKUNDER)}
           className="inline-flex min-h-11 min-w-11 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-md text-ink hover:bg-hover focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-40"
@@ -622,7 +656,7 @@ export function OpsSpelarKontroller({ spar, stor = false }) {
           <button
             type="button"
             onClick={lage.bytHastighet}
-            aria-label={`Uppspelningshastighet ${hastighetText(lage.hastighet)}`}
+            aria-label={sord("hastighet", sprak, { h: hastighetText(lage.hastighet) })}
             className="inline-flex min-h-11 cursor-pointer items-center rounded-md px-3 text-meta font-medium text-ink-secondary hover:bg-hover hover:text-ink focus-visible:outline-2 focus-visible:outline-accent"
           >
             {hastighetText(lage.hastighet)}
@@ -631,10 +665,10 @@ export function OpsSpelarKontroller({ spar, stor = false }) {
         <a
           href={spar.src}
           download={spar.namn || "ljud"}
-          aria-label={`Ladda ned ${spar.namn}`}
+          aria-label={sord("laddaNedNamn", sprak, { namn: spar.namn })}
           className="inline-flex min-h-11 items-center rounded-md px-3 text-meta text-ink-secondary underline underline-offset-2 hover:text-ink focus-visible:outline-2 focus-visible:outline-accent"
         >
-          Ladda ned
+          {sord("laddaNed", sprak)}
         </a>
       </div>
       {aktiv && lage.fel ? <p role="alert" className="m-0 text-center text-meta text-danger">{lage.fel}</p> : null}

@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { sparaSomFil } from "../lib/sparaFil.js";
 import * as Popover from "@radix-ui/react-popover";
 import * as Tabs from "@radix-ui/react-tabs";
@@ -428,10 +428,25 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
   }, [valdaTaggar]);
   // En plats som just skapats kan saknas i `platser` en stund (appens prenumeration är inte framme): växlaren ritar den ändå, med sitt namn.
   const [nyligen, setNyligen] = useState(/** @type {{ id: string, namn: string }[]} */ ([]));
-  const adresser = useFilAdresser(poster, vald, filUrl, hamtaAdress, adresserPaBegaran);
+  /*
+   * ⛔ SPELA PÅ BEGÄRAN (0.190.0, CP 2026-11-05 i cllp/lifehub.app#658, del P: "att spelaren skall bli såhär och att man kan få upp den på samma sätt som i appen").
+   * Med `adresserPaBegaran` (gästen) har en post i listan ingen adress förrän den öppnas, och därför stod ingen Spela på kortet. Nu står den där, och ett tryck hämtar
+   * adressen för just den posten (en signering, samma väg som när posten öppnas) och startar den i skalets spelare när adressen kommit. Fler signeringar än förut blir
+   * det inte: en per spelad post, aldrig en per post i listan.
+   */
+  const [spelaNar, setSpelaNar] = useState(/** @type {Record<string, any>} */ ({}));
+  const begarda = useMemo(() => Object.values(spelaNar), [spelaNar]);
+  const adresser = useFilAdresser(poster, vald, filUrl, hamtaAdress, adresserPaBegaran, begarda);
   useUppladdningsklocka(poster, vald);
   const adressFor = (/** @type {{ typ?: string, skapad?: number, fil?: { sokvag?: string, mime?: string, klar?: boolean } }} */ post) =>
-    losAdress(post, filUrl, hamtaAdress, adresser, adresserPaBegaran && !(vald?.fil?.sokvag && post?.fil?.sokvag === vald.fil.sokvag));
+    losAdress(post, filUrl, hamtaAdress, adresser, adresserPaBegaran && !(vald?.fil?.sokvag && post?.fil?.sokvag === vald.fil.sokvag) && !(post?.fil?.sokvag && spelaNar[post.fil.sokvag]));
+  const spelareHar = useSpelare();
+  const spelaPaBegaran = adresserPaBegaran && spelareHar
+    ? (/** @type {any} */ post) => {
+        const s = typeof post?.fil?.sokvag === "string" ? post.fil.sokvag.trim() : "";
+        if (s) setSpelaNar((m) => (m[s] ? m : { ...m, [s]: post }));
+      }
+    : undefined;
   const [fylld, setFylld] = useState(/** @type {Record<string, { durationMs?: number, peaks?: string }>} */ ({}));
   const sparatMeta = useRef(/** @type {Set<string>} */ (new Set()));
   const onFyllRef = useRef(onFyllLjud);
@@ -447,6 +462,23 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
     if (!extra) return post;
     return /** @type {T} */ ({ ...post, ...extra });
   }
+  // En begärd spelning startar när adressen kommit, och släpps när den inte gick att få (felet står då på kortet som för en öppnad post).
+  useEffect(() => {
+    const vantande = Object.entries(spelaNar);
+    if (vantande.length === 0) return;
+    /** @type {string[]} */
+    const klara = [];
+    for (const [s, post] of vantande) {
+      const url = adresser.klar[s];
+      if (url) {
+        const p = medFyll(post);
+        spelareHar?.vaxla({ id: p.id, namn: ljudRubrik(p), src: url, durationMs: p.durationMs, peaks: p.peaks, onMeta: (m) => togMeta(p.id, m) });
+        klara.push(s);
+      } else if (adresser.fel[s]) klara.push(s);
+    }
+    if (klara.length > 0) setSpelaNar((m) => Object.fromEntries(Object.entries(m).filter(([s]) => !klara.includes(s))));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [spelaNar, adresser.klar, adresser.fel]);
   /**
    * Bakgrund: spelaren räknar längd och toppar utan att någon trycker på spela,
    * och det här skriver dem på posten så nästa lista visar längden direkt.
@@ -1078,6 +1110,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
                         htmlVy={htmlVyAdress(oppnaHtml, rad)}
                         onOppna={() => oppnaMed(rad, "las")}
                         onMeta={togMeta}
+                        onSpelaPaBegaran={spelaPaBegaran}
                         taggrad={radTaggar.length > 0 || taggarFor === rad.id ? (
                           <OpsTaggRad
                             taggar={radTaggar}
@@ -1334,7 +1367,7 @@ function useUppladdningsklocka(poster, vald) {
  * @param {((sokvag: string) => Promise<string>) | undefined} hamtaAdress
  * @param {boolean} [paBegaran] (0.132.0) Bara den öppna posten hämtas, aldrig hela listan.
  */
-function useFilAdresser(poster, vald, filUrl, hamtaAdress, paBegaran = false) {
+function useFilAdresser(poster, vald, filUrl, hamtaAdress, paBegaran = false, begarda = /** @type {readonly any[]} */ ([])) {
   const sprak = useOpsSprak();
   const sprakRef = useRef(sprak);
   sprakRef.current = sprak;
@@ -1348,7 +1381,7 @@ function useFilAdresser(poster, vald, filUrl, hamtaAdress, paBegaran = false) {
   felRef.current = fel;
   hamtaRef.current = hamtaAdress;
   const harHamta = typeof hamtaAdress === "function";
-  const underlag = paBegaran ? (vald ? [vald] : []) : vald && !poster.some((p) => p === vald || (p.id && p.id === vald.id)) ? [...poster, vald] : poster;
+  const underlag = paBegaran ? [...(vald ? [vald] : []), ...begarda] : vald && !poster.some((p) => p === vald || (p.id && p.id === vald.id)) ? [...poster, vald] : poster;
   const nyckel = underlag
     .map((post) => {
       if (postAdress(post, filUrl)) return "";
@@ -1666,9 +1699,9 @@ export function kortTyp(post, sprak = "sv") {
  *
  * ⛔ NÅLEN OCH STJÄRNAN (0.187.0): en nålad post bär en liten nål före rubriken (ikonen har texten `nalOrd` för skärmläsaren), och med `stjarna` sitter stjärnknappen till höger, före spelknappen. Utan dem ritas kortet som förut.
  *
- * @param {{ nalad?: boolean, nalOrd?: string, stjarna?: { pa: boolean, etikett: string, onVaxla: () => Promise<unknown> } | null, post: import("../lib/bibliotek.js").Bibliotekspost & { id: string }, lage: Adresslage, meny: import("./OpsAtgardsblad.jsx").Atgard[], svep: any[], onOppna: () => void, onMeta: (id: string, meta: { durationMs?: number, peaks?: string }) => void, taggrad: import("react").ReactNode, delad?: boolean, htmlVy?: string, github?: boolean }} props
+ * @param {{ onSpelaPaBegaran?: (post: any) => void, nalad?: boolean, nalOrd?: string, stjarna?: { pa: boolean, etikett: string, onVaxla: () => Promise<unknown> } | null, post: import("../lib/bibliotek.js").Bibliotekspost & { id: string }, lage: Adresslage, meny: import("./OpsAtgardsblad.jsx").Atgard[], svep: any[], onOppna: () => void, onMeta: (id: string, meta: { durationMs?: number, peaks?: string }) => void, taggrad: import("react").ReactNode, delad?: boolean, htmlVy?: string, github?: boolean }} props
  */
-function BibliotekKort({ post, lage, meny, svep, onOppna, onMeta, taggrad, delad = false, htmlVy = "", github = false, nalad = false, nalOrd = "", stjarna = null }) {
+function BibliotekKort({ post, lage, meny, svep, onOppna, onMeta, taggrad, delad = false, htmlVy = "", github = false, nalad = false, nalOrd = "", stjarna = null, onSpelaPaBegaran }) {
   const spelare = useSpelare();
   const ljud = arLjudpost(post);
   const bild = post.typ === "fil" && filSort(post.fil?.mime) === "bild";
@@ -1770,7 +1803,7 @@ function BibliotekKort({ post, lage, meny, svep, onOppna, onMeta, taggrad, delad
             {ljudStatus ? <span role={lage.lage === "hamtar" ? "status" : "alert"} className={cx("text-meta", lage.lage === "hamtar" ? "text-ink-secondary" : "text-danger")}>{ljudStatus}</span> : null}
           </div>
           {stjarna ? <span className="relative shrink-0"><StjarnKnapp stjarna={stjarna} /></span> : null}
-          {ljud && iSkalet && lage.lage === "klar" ? (
+          {ljud && iSkalet && (lage.lage === "klar" || (onSpelaPaBegaran && (lage.lage === "pa-begaran" || lage.lage === "hamtar"))) ? (
             <span className="relative shrink-0">
               <OpsSpelaKnapp
                 spar={{
@@ -1781,6 +1814,7 @@ function BibliotekKort({ post, lage, meny, svep, onOppna, onMeta, taggrad, delad
                   peaks: post.peaks,
                   onMeta: (m) => onMeta(post.id, m),
                 }}
+                {...(lage.lage === "klar" ? {} : { laddar: lage.lage === "hamtar", onSpela: () => onSpelaPaBegaran?.(post) })}
               />
             </span>
           ) : null}
