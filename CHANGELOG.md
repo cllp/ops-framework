@@ -9,6 +9,13 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.185.1
+
+### Rättat
+
+- **`OpsSnabbmeny` gick inte att stänga andra gången den öppnades.** CP 2026-11-05, life-hub.app v1.0.1117 i telefonen. Plus öppnade menyn, men andra gången reagerade varken tryck utanför eller krysset, och appen fick stängas. Orsaken var att `orsak` stod kvar på `"bak"` efter första stängningen. `onOpenChange` hoppar över `"bak"`, så Radix stängning kom aldrig fram. Varje öppning nollställer nu orsaken och valet. Gäller både Skapa och Appar.
+  - Prov: `snabbmeny-andra-gangen.test.jsx` (2). Mot 0.185.0 blir båda röda, och det första fallerar just på gång 2. Med rättelsen är båda gröna, och snabbmenyns övriga prov är gröna, 10 av 10.
+
 ## 0.185.0
 
 ### Tillagt
