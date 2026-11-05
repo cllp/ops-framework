@@ -12,7 +12,7 @@ import { TextForhandsvisning } from "./TextForhandsvisning.jsx";
 import { htmlVyAdress } from "../lib/htmldokument.js";
 import { BibliotekHtmlVersionerLat } from "./BibliotekHtmlVersionerLat.jsx";
 import { OpsMarkdown } from "./OpsMarkdown.jsx";
-import { GithubDokumentVisning } from "./GithubDokumentVisning.jsx";
+import { GithubDokumentVisningLat } from "./GithubDokumentVisningLat.jsx";
 import { githubDokument } from "../lib/githubdokument.js";
 import { OpsModal } from "./OpsModal.jsx";
 import { OpsSvepRad } from "./OpsSvepRad.jsx";
@@ -2196,7 +2196,7 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, onLaddaUpp, filUrl,
     <ListaVisning lista={post} poster={poster} kanAndra={farAndra(post, jag)} onSpara={onSpara} onOppnaPost={onOppnaPost} />
   ) : post && typ === "lank" && typeof githubLasare === "function" && githubDokument(post.url) !== null ? (
     // ⛔ EN FIL I GRUPPENS GITHUB-REPO ÖPPNAS I ETT LÄSLÄGE I APPEN (0.186.0, lifehub.app#653), inte på github.com. Se `GithubDokumentVisning`.
-    <GithubDokumentVisning post={post} lasare={githubLasare} />
+    <GithubDokumentVisningLat post={post} lasare={githubLasare} />
   ) : post && typ === "lank" ? (
     // ⛔ En sparad länk visar sin källa och sitt omslag, och adressen som en riktig länk (0.128.0). Ingen inbäddad spelare och ingen förhandsvisning utöver det (CP 2026-10-20).
     <div data-bibliotek-lank-lasning="" className="flex min-w-0 items-start gap-4">

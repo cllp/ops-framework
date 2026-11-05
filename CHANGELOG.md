@@ -19,6 +19,8 @@ anteckningar är en version ingen kan välja att hoppa över.
   - Kända begränsningar: en gren med snedstreck i namnet tolkas som ref + sökväg; relativa bilder och länkar i markdown visas inte (`githubMarkdown` gör dem till text); en PDF över `MAX_KOMMENTARBILAGA` (cirka 500 kB) kan inte visas och får Ladda ned. Appens `githubLasare` (servern, gruppens koppling) är inte en del av den här skivan.
   - Prov: `githubdokument-lib.test.js` (40) och `githubdokument-vy.test.jsx` (30). Utan ändringen: lib-provet fäller på att modulen saknas; med `OpsBibliotek.jsx` återställd men resten kvar blir 27 av de 30 vyproven röda (de tre som är gröna åt båda håll är de som bevisar att utan `githubLasare` är allt som förut). Med en parser som släpper `github.com.evil.se`, `github.com@evil.se` och `..` blir 6 prov röda. Med ändringen är alla 70 gröna.
 
+- **Läsläget laddas när det behövs, och nodsidan når parsern.** `GithubDokumentVisning` ligger bakom en dynamisk import (`GithubDokumentVisningLat`, samma väg som versionsraden i 0.159.0). Statiskt lade det 2 227 byte gzip på lifehub.app:s startfiler (appens `check:jsstorlek`). Gränsen mot en modul som inte går att hämta är utbruten till `LatGrans` och delas med `BibliotekHtmlVersionerLat`. `ops-framework/node` exporterar `githubDokument`, `githubDokumentUrl`, `GITHUB_SORTER` och `GITHUB_LAGEN`, så att appens läsare och API inte behöver huvudingången (`nod-ren-ingang`).
+
 ## 0.185.1
 
 ### Rättat

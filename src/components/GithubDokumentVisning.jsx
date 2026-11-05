@@ -4,7 +4,7 @@ import { BilagaVisning } from "./BilagaVisning.jsx";
 import { OpsButton } from "./OpsButton.jsx";
 import { OpsHtmlDokument } from "./OpsHtmlDokument.jsx";
 import { OpsMarkdown } from "./OpsMarkdown.jsx";
-import { OpsSpinner } from "./OpsSpinner.jsx";
+import { GithubDokumentVantar } from "./GithubDokumentVisningLat.jsx";
 import { useOpsSprak } from "./OpsSprak.jsx";
 import { TextForhandsvisning } from "./TextForhandsvisning.jsx";
 import { avkodaTextfil } from "../lib/bibliotek.js";
@@ -19,7 +19,6 @@ import { sparaSomFil } from "../lib/sparaFil.js";
  * @type {import("../lib/ord.js").Ordbok}
  */
 export const ORD_GITHUBDOKUMENT = {
-  hamtar: { sv: "Hämtar filen från GitHub.", en: "Fetching the file from GitHub." },
   oppna: { sv: "Öppna i GitHub", en: "Open in GitHub" },
   andrad: { sv: "Ändrad {datum} av {av}", en: "Changed {datum} by {av}" },
   andradUtanAv: { sv: "Ändrad {datum}", en: "Changed {datum}" },
@@ -118,10 +117,7 @@ export function GithubDokumentVisning({ post, lasare }) {
   if (!svar) {
     return (
       <div data-github-dokument="hamtar" role="status" aria-busy="true" className="flex min-w-0 flex-col gap-2">
-        <span className="inline-flex items-center gap-2 text-etikett text-ink-muted">
-          <OpsSpinner size="sm" decorative />
-          {o("hamtar")}
-        </span>
+        <GithubDokumentVantar />
         {oppna}
       </div>
     );

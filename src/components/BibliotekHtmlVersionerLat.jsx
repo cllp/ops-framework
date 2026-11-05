@@ -1,4 +1,5 @@
-import { Component, Suspense, lazy } from "react";
+import { Suspense, lazy } from "react";
+import { LatGrans } from "./LatGrans.jsx";
 import { useOpsSprak } from "./OpsSprak.jsx";
 import { ordet } from "../lib/ord.js";
 
@@ -28,11 +29,11 @@ const Versioner = lazy(() => import("./BibliotekHtmlVersioner.jsx").then((m) => 
 export function BibliotekHtmlVersionerLat(props) {
   const sprak = useOpsSprak();
   return (
-    <Granser fel={<p role="alert" data-html-versioner-lasfel="" className="m-0 text-etikett text-danger wrap-anywhere">{ordet(ORD_HTMLVERSIONER_LAT, "lasfel", sprak)}</p>}>
+    <LatGrans fel={<p role="alert" data-html-versioner-lasfel="" className="m-0 text-etikett text-danger wrap-anywhere">{ordet(ORD_HTMLVERSIONER_LAT, "lasfel", sprak)}</p>}>
       <Suspense fallback={<VersionsradVantar />}>
         <Versioner {...props} />
       </Suspense>
-    </Granser>
+    </LatGrans>
   );
 }
 
@@ -52,23 +53,6 @@ function VersionsradVantar() {
       </div>
     </div>
   );
-}
-
-/** En gräns som visar `fel` i stället för raden när modulen inte gick att hämta. */
-class Granser extends Component {
-  /** @param {{ children: import("react").ReactNode, fel: import("react").ReactNode }} props */
-  constructor(props) {
-    super(props);
-    this.state = { fallit: false };
-  }
-
-  static getDerivedStateFromError() {
-    return { fallit: true };
-  }
-
-  render() {
-    return this.state.fallit ? this.props.fel : this.props.children;
-  }
 }
 
 /** @type {import("../lib/ord.js").Ordbok} */
