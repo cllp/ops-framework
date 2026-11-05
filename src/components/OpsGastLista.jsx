@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { SIGNERAD_SEKUNDER } from "../lib/delning.js";
-import { GAST_PLATSER_GRATIS, MAX_GASTNAMN, gastId, gastStatus, normaliseraGastepost } from "../lib/gast.js";
+import { GAST_PLATSER_GRATIS, GASTLANKDAGAR, MAX_GASTNAMN, gastId, gastStatus, normaliseraGastepost } from "../lib/gast.js";
 import { cx } from "../lib/cx.js";
 import { definierade, forvalda } from "../lib/ord.js";
 import { OpsButton } from "./OpsButton.jsx";
@@ -26,8 +26,11 @@ export const ORD_OPSGASTLISTA = {
   bjud: { sv: "Bjud in utan konto", en: "Invite without an account" },
   skickaIgen: { sv: "Skicka igen", en: "Send again" },
   skickaIgenNamn: { sv: "Skicka länken igen till {vem}", en: "Send the link again to {vem}" },
+  skickaIgenPagar: { sv: "Skickar…", en: "Sending…" },
+  skickaIgenKlar: { sv: "En ny länk är skickad till {vem}. Den gäller i {dagar} dagar, och den förra länken fungerar inte längre.", en: "A new link has been sent to {vem}. It is valid for {dagar} days, and the previous link no longer works." },
   draTillbaka: { sv: "Dra tillbaka", en: "Withdraw" },
   draTillbakaNamn: { sv: "Dra tillbaka inbjudan till {vem}", en: "Withdraw the invitation to {vem}" },
+  draTillbakaPagar: { sv: "Drar tillbaka…", en: "Withdrawing…" },
   bjudIgen: { sv: "Bjud in igen", en: "Invite again" },
   bjudIgenNamn: { sv: "Bjud in {vem} igen", en: "Invite {vem} again" },
   status_vantar: { sv: "Inbjuden", en: "Invited" },
@@ -72,7 +75,7 @@ export const ORD_OPSGASTLISTA = {
     en: "What the guest has already read or downloaded cannot be taken back. If the invitation is withdrawn, access is closed at the guest's next request, and a file that has already been opened can be reached for at most {minuter} more minutes.",
   },
   bekraftaGruppKnapp: { sv: "Bjud in", en: "Invite" },
-  bekraftaGruppPagar: { sv: "Bjuder in…", en: "Inviting…" },
+  bekraftaGruppPagar: { sv: "Skickar inbjudan…", en: "Sending the invitation…" },
   bekraftaRaderaTitel: { sv: "Radera uppgifterna om {vem}?", en: "Delete the data about {vem}?" },
   bekraftaRaderaText: {
     sv: "Inbjudningarna, inloggningarna, räknarna, svaren, rösterna och meddelandena i chatten och kommentarerna på ärenden som delegerats till gästen tas bort, ärendena slutar peka på gästen, och platsen blir ledig. Det går inte att ångra. Personen kan bjudas in igen, som en ny gäst.",
@@ -281,6 +284,8 @@ export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud
   const [namn, setNamn] = useState("");
   const [fel, setFel] = useState("");
   const [radfel, setRadfel] = useState(/** @type {Record<string, string>} */ ({}));
+  // Beskedet efter ett lyckat Skicka igen (CP 2026-11-05: "Det skall vara en progress också som berättar vad den gör"). Utan det ändrades ingenting synligt efter ett tryck.
+  const [radklar, setRadklar] = useState(/** @type {Record<string, string>} */ ({}));
   const [bekrafta, setBekrafta] = useState(/** @type {{ slag: "grupp", epost: string, namn: string } | { slag: "radera", gastId: string, epost: string, namn: string } | null} */ (null));
   const levande = useRef(true);
   useEffect(() => {
@@ -324,11 +329,14 @@ export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud
    * @param {string} id
    * @param {(arg: any) => void | Promise<unknown>} fn
    * @param {any} arg
+   * @param {string} [klar] Beskedet på raden när anropet lyckats. Utelämnat: inget besked (listan visar själv vad som ändrats).
    */
-  async function pa(id, fn, arg) {
+  async function pa(id, fn, arg, klar) {
     setRadfel((r) => ({ ...r, [id]: "" }));
+    setRadklar((r) => ({ ...r, [id]: "" }));
     try {
       await fn(arg);
+      if (klar && levande.current) setRadklar((r) => ({ ...r, [id]: klar }));
     } catch (e) {
       if (levande.current) setRadfel((r) => ({ ...r, [id]: felText(e) }));
     }
@@ -445,12 +453,12 @@ export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud
                           ) : (
                             <>
                               {onSkickaOm ? (
-                                <OpsButton size="sm" variant="secondary" ariaLabel={`${t.skickaIgenNamn.replace("{vem}", vem)} (${omfangText(i.omfang, i.titel)})`} onClick={() => pa(p.gastId, onSkickaOm, { id: i.id })}>
+                                <OpsButton size="sm" variant="secondary" ariaLabel={`${t.skickaIgenNamn.replace("{vem}", vem)} (${omfangText(i.omfang, i.titel)})`} busyLabel={t.skickaIgenPagar} onClick={() => pa(p.gastId, onSkickaOm, { id: i.id }, t.skickaIgenKlar.replace("{vem}", vem).replace("{dagar}", String(GASTLANKDAGAR)))}>
                                   {t.skickaIgen}
                                 </OpsButton>
                               ) : null}
                               {onAterkalla ? (
-                                <OpsButton size="sm" variant="ghost" ariaLabel={`${t.draTillbakaNamn.replace("{vem}", vem)} (${omfangText(i.omfang, i.titel)})`} onClick={() => pa(p.gastId, onAterkalla, { id: i.id })}>
+                                <OpsButton size="sm" variant="ghost" ariaLabel={`${t.draTillbakaNamn.replace("{vem}", vem)} (${omfangText(i.omfang, i.titel)})`} busyLabel={t.draTillbakaPagar} onClick={() => pa(p.gastId, onAterkalla, { id: i.id })}>
                                   {t.draTillbaka}
                                 </OpsButton>
                               ) : null}
@@ -464,7 +472,7 @@ export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud
                 {(onAterkallaAlla && harAktiv) || onRadera ? (
                   <div className="flex flex-wrap items-center gap-2 border-t border-line pt-2">
                     {onAterkallaAlla && harAktiv ? (
-                      <OpsButton size="sm" variant="ghost" ariaLabel={t.draTillbakaAllaNamn.replace("{vem}", vem)} onClick={() => pa(p.gastId, onAterkallaAlla, { gastId: p.gastId })}>
+                      <OpsButton size="sm" variant="ghost" ariaLabel={t.draTillbakaAllaNamn.replace("{vem}", vem)} busyLabel={t.draTillbakaPagar} onClick={() => pa(p.gastId, onAterkallaAlla, { gastId: p.gastId })}>
                         {t.draTillbakaAlla}
                       </OpsButton>
                     ) : null}
@@ -475,6 +483,7 @@ export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud
                     ) : null}
                   </div>
                 ) : null}
+                {radklar[p.gastId] ? <p role="status" data-gast-klar="" className="m-0 text-etikett text-ink-secondary wrap-anywhere">{radklar[p.gastId]}</p> : null}
                 {radfel[p.gastId] ? <p role="alert" data-gast-fel="" className="m-0 text-etikett text-danger wrap-anywhere">{radfel[p.gastId]}</p> : null}
               </li>
             );
@@ -509,12 +518,12 @@ export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud
                     ) : (
                       <>
                         {onSkickaOm ? (
-                          <OpsButton size="sm" variant="secondary" ariaLabel={t.skickaIgenNamn.replace("{vem}", vem)} onClick={() => pa(g.id, onSkickaOm, { id: g.id })}>
+                          <OpsButton size="sm" variant="secondary" ariaLabel={t.skickaIgenNamn.replace("{vem}", vem)} busyLabel={t.skickaIgenPagar} onClick={() => pa(g.id, onSkickaOm, { id: g.id }, t.skickaIgenKlar.replace("{vem}", vem).replace("{dagar}", String(GASTLANKDAGAR)))}>
                             {t.skickaIgen}
                           </OpsButton>
                         ) : null}
                         {onAterkalla ? (
-                          <OpsButton size="sm" variant="ghost" ariaLabel={t.draTillbakaNamn.replace("{vem}", vem)} onClick={() => pa(g.id, onAterkalla, { id: g.id })}>
+                          <OpsButton size="sm" variant="ghost" ariaLabel={t.draTillbakaNamn.replace("{vem}", vem)} busyLabel={t.draTillbakaPagar} onClick={() => pa(g.id, onAterkalla, { id: g.id })}>
                             {t.draTillbaka}
                           </OpsButton>
                         ) : null}
@@ -527,6 +536,7 @@ export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud
                     ) : null}
                   </div>
                 ) : null}
+                {radklar[g.id] ? <p role="status" data-gast-klar="" className="m-0 text-etikett text-ink-secondary wrap-anywhere">{radklar[g.id]}</p> : null}
                 {radfel[g.id] || radfel[gastIdEllerTom(g.epost)] ? <p role="alert" data-gast-fel="" className="m-0 text-etikett text-danger wrap-anywhere">{radfel[g.id] || radfel[gastIdEllerTom(g.epost)]}</p> : null}
               </li>
             );

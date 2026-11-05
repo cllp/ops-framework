@@ -91,7 +91,7 @@ describe("OpsGastLista, gruppläget", () => {
     expect(onBjudGrupp).toHaveBeenCalledTimes(1);
     // Under väntan: dialogen är kvar, knappen är upptagen och säger vad den gör, och Avbryt går inte att trycka.
     expect(screen.getByRole("dialog")).toBe(dialog);
-    const upptagen = within(dialog).getByText("Bjuder in…").closest("button");
+    const upptagen = within(dialog).getByText("Skickar inbjudan…").closest("button");
     expect(upptagen).toHaveAttribute("aria-busy", "true");
     expect(within(dialog).getByRole("button", { name: "Avbryt" })).toBeDisabled();
     await klicka(upptagen);
@@ -133,6 +133,23 @@ describe("OpsGastLista, gruppläget", () => {
     await klicka(screen.getByRole("button", { name: "Bjud in gäst till hela gruppen" }));
     await klicka(within(await screen.findByRole("dialog")).getByRole("button", { name: "Bjud in" }));
     await waitFor(() => expect(document.querySelector("[data-gastlista-bjudfel]")).toHaveTextContent("Gruppen har 5 gäster"));
+  });
+
+  it("⛔ Skicka igen säger vad den gör medan den väntar, och sedan att en ny länk är skickad och att den förra inte gäller (CP 2026-11-05)", async () => {
+    let svara = () => {};
+    const onSkickaOm = vi.fn(() => new Promise((r) => (svara = r)));
+    rita({ onSkickaOm });
+    const rad = document.querySelectorAll("[data-gast-inbjudan]")[0];
+    await klicka(within(rad).getByRole("button", { name: /Skicka länken igen till anna@foretag.se/ }));
+    expect(within(rad).getByText("Skickar…").closest("button")).toHaveAttribute("aria-busy", "true");
+    expect(document.querySelector("[data-gast-klar]")).toBeNull();
+    await act(async () => {
+      svara(undefined);
+    });
+    await waitFor(() =>
+      expect(document.querySelector("[data-gast-klar]")).toHaveTextContent("En ny länk är skickad till anna@foretag.se. Den gäller i 30 dagar, och den förra länken fungerar inte längre."),
+    );
+    expect(onSkickaOm).toHaveBeenCalledTimes(1);
   });
 
   it("Skicka igen och Dra tillbaka gäller en inbjudan och skickar inbjudans id, inte personens", async () => {

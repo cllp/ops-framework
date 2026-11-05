@@ -103,7 +103,7 @@ describe("OpsMedlemmar med gäster", () => {
     await user.click(screen.getByRole("button", { name: "Bjud in utan konto" }));
     const dialog = await screen.findByRole("dialog");
     await user.click(within(dialog).getByRole("button", { name: "Bjud in", exact: true }));
-    const upptagen = within(dialog).getByText("Bjuder in…").closest("button");
+    const upptagen = within(dialog).getByText("Skickar inbjudan…").closest("button");
     expect(upptagen).toHaveAttribute("aria-busy", "true");
     expect(within(dialog).getByRole("button", { name: "Avbryt" })).toBeDisabled();
     await user.click(upptagen);
