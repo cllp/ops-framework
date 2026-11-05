@@ -81,21 +81,25 @@ describe("minaGruppgaster: vad hubben listar", () => {
     await expect(h.tjanst.minaGruppgaster({ epostBekraftad: true })).resolves.toEqual({ gruppgaster: [] });
   });
 
-  it("en återkallad, en utgången och en inbjudan till en raderad grupp räknas inte; en levande gör det", async () => {
+  it("en återkallad och en inbjudan till en raderad grupp räknas inte; en levande gör det", async () => {
     const h = bygg();
     const levande = await bjudGrupp(h, "collan@foretag.se");
     const aterkallad = await bjudGrupp(h, "collan@foretag.se", GRANNEN);
     await h.tjanst.aterkalla({ uid: AGARE, id: aterkallad });
     expect((await h.tjanst.minaGruppgaster({ epost: "collan@foretag.se", epostBekraftad: true })).gruppgaster.map((g) => g.id)).toEqual([levande]);
 
-    // Utgången: länkens giltighet har gått ut.
-    h.tid(NU + (GASTLANKDAGAR + 1) * DYGN);
-    await expect(h.tjanst.minaGruppgaster({ epost: "collan@foretag.se", epostBekraftad: true })).resolves.toEqual({ gruppgaster: [] });
-
     // Raderad grupp: inbjudan finns kvar men gruppen inte.
-    h.tid(NU);
-    expect((await h.tjanst.minaGruppgaster({ epost: "collan@foretag.se", epostBekraftad: true })).gruppgaster).toHaveLength(1);
     await h.grund.remove("groups", GRUPP);
+    await expect(h.tjanst.minaGruppgaster({ epost: "collan@foretag.se", epostBekraftad: true })).resolves.toEqual({ gruppgaster: [] });
+  });
+
+  it("⛔ EN INBJUDAN VARS LÄNK GÅTT UT LISTAS ÄNDÅ för den bekräftade adressen: länkens giltighet skyddar mejlnyckeln, inte den inloggade vägen", async () => {
+    const h = bygg();
+    const id = await bjudGrupp(h, "collan@foretag.se");
+    h.tid(NU + (GASTLANKDAGAR + 1) * DYGN);
+    expect((await h.tjanst.minaGruppgaster({ epost: "collan@foretag.se", epostBekraftad: true })).gruppgaster.map((g) => g.id)).toEqual([id]);
+    // Men inte efter en återkallelse, hur gammal länken än är.
+    await h.tjanst.aterkalla({ uid: AGARE, id });
     await expect(h.tjanst.minaGruppgaster({ epost: "collan@foretag.se", epostBekraftad: true })).resolves.toEqual({ gruppgaster: [] });
   });
 
@@ -168,18 +172,23 @@ describe("oppnaGruppgast: samma session som länken, utan länken", () => {
     expect((await h.grund.read("gastinbjudningar", id)).forstInloggad).toBeNull();
   });
 
-  it("en återkallad inbjudan nekas (aterkallad) och en utgången likaså (utgangen), men bara när adressen stämde", async () => {
+  it("en återkallad inbjudan nekas (aterkallad), men bara när adressen stämde", async () => {
     const h = bygg();
     const id = await bjudGrupp(h, "collan@foretag.se");
     await h.tjanst.aterkalla({ uid: AGARE, id });
     expect(await h.tjanst.oppnaGruppgast({ id, epost: "collan@foretag.se", epostBekraftad: true, ip: IP })).toEqual({ ok: false, orsak: "aterkallad" });
     // En främling får inte veta att den är återkallad.
     expect(await h.tjanst.oppnaGruppgast({ id, epost: "annan@foretag.se", epostBekraftad: true, ip: IP })).toEqual({ ok: false, orsak: "nej" });
-
-    const ny = await bjudGrupp(h, "bo@foretag.se");
-    h.tid(NU + (GASTLANKDAGAR + 1) * DYGN);
-    expect(await h.tjanst.oppnaGruppgast({ id: ny, epost: "bo@foretag.se", epostBekraftad: true, ip: IP })).toEqual({ ok: false, orsak: "utgangen" });
     expect(await h.grund.list("gastsessioner")).toHaveLength(0);
+  });
+
+  it("⛔ en inbjudan vars länk gått ut öppnas ändå för den bekräftade adressen (som nyLank skickar en ny länk), och sessionen gäller", async () => {
+    const h = bygg();
+    const id = await bjudGrupp(h, "collan@foretag.se");
+    h.tid(NU + (GASTLANKDAGAR + 1) * DYGN);
+    const svar = await h.tjanst.oppnaGruppgast({ id, epost: "collan@foretag.se", epostBekraftad: true, ip: IP });
+    expect(svar).toMatchObject({ ok: true });
+    expect(await h.tjanst.hamta({ sessionsnyckel: svar.sessionsnyckel })).toMatchObject({ ok: true, funktion: "grupp" });
   });
 
   it("samma tak per IP som länken: efter GASTIP_MAX misslyckade försök nekas också en rätt person (for-manga), och ett lyckat anrop ger tillbaka sitt försök", async () => {

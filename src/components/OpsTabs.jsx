@@ -36,10 +36,11 @@ import { FLIKIKON, FLIKOMSLAG, FLIKRAD, flikKlass, rullaInAktiv } from "../lib/m
  * @param {string} props.value
  * @param {(id: string) => void} props.onChange
  * @param {string} props.ariaLabel Vad flikraden styr. Krävs, annars är den namnlös för skärmläsare.
+ * @param {boolean} [props.fast] (0.188.0, lifehub.app#658) Flikraden sitter kvar högst upp när sidan rullas (`sticky`, under en 3,5 rem hög sidhuvudsrad) och har canvasens bakgrund. Förval falskt: i appens skal ligger raden i ett eget rullfält.
  * @param {boolean} [props.medOrd] (0.83.0) Ikon, ord och antal på en rad, som modulens länkrad. Kräver `icon` på varje flik.
  * @param {import("react").ReactNode} props.children Ett `OpsTabPanel` per flik.
  */
-export function OpsTabs({ tabs, value, onChange, ariaLabel, medOrd = false, children }) {
+export function OpsTabs({ tabs, value, onChange, ariaLabel, medOrd = false, fast = false, children }) {
   if (!Array.isArray(tabs) || tabs.length === 0) {
     throw new Error("OpsTabs: tabs krävs och måste ha minst en flik.");
   }
@@ -64,7 +65,7 @@ export function OpsTabs({ tabs, value, onChange, ariaLabel, medOrd = false, chil
       {/* ⛔ `medOrd` använder `FLIKRAD` (samma som modulens delar): en rad som rullar i sidled.
           Omslaget (`FLIKOMSLAG`) gör att raden kan bli smalare än orden, annars rullar sidan.
           De andra formerna behåller sin egen sidorullning: ikonformen delar bredden (`flex-1`). */}
-      <Tabs.List ref={lista} aria-label={ariaLabel} className={medOrd ? FLIKRAD : "flex gap-1 overflow-x-auto border-b border-line"}>
+      <Tabs.List ref={lista} aria-label={ariaLabel} className={cx(medOrd ? FLIKRAD : "flex gap-1 overflow-x-auto border-b border-line", fast && "sticky top-14 z-[5] bg-canvas")}>
         {tabs.map((f) => (
           <Tabs.Trigger
             key={f.id}

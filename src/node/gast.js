@@ -1170,7 +1170,8 @@ export function createGastService(konfig) {
    * ⛔ ADRESSEN MÅSTE VARA BEVISAD AV ANROPAREN (`epostBekraftad: true`) OCH ÄR ANNARS INGEN ADRESS. En obekräftad adress ger en tom lista, aldrig ett fel: ett fel hade låtit en person fråga vilka adresser som
    * har en inbjudan. Ramverket kan inte själv se vad inloggningen bevisat, så anroparen säger det, på samma sätt som `epostVerifierad` till medlemsaccepten.
    *
-   * ⛔ BARA LEVANDE INBJUDNINGAR TILL HELA GRUPPEN, samma prov som `los`: inte återkallad, länken inte utgången, gruppen finns. En inbjudan till en omröstning eller en händelse är inte en grupp och listas inte.
+   * ⛔ BARA LEVANDE INBJUDNINGAR TILL HELA GRUPPEN: inte återkallad och gruppen finns. ⛔ LÄNKENS GILTIGHET (`lankGiltigTill`, `GASTLANKDAGAR`) GÄLLER INTE HÄR. Den skyddar mejllänkens nyckel, som kan ha hamnat hos fel person. Här är beviset den
+   * bekräftade adressen, samma bevis som `nyLank` använder för att skicka en ny länk, och en gäst som inte svarat på 30 dagar ska inte försvinna ur hubben för att mejlet blev gammalt. En inbjudan till en omröstning eller en händelse är inte en grupp och listas inte.
    * ⛔ INGEN ADRESS, INGET NAMN PÅ ANDRA OCH INGEN NYCKEL I SVARET: `{ id, groupId, namn }`, med gruppens namn ur appens egen läsning.
    *
    * @param {Record<string, any>} b `{ epost, epostBekraftad }`.
@@ -1180,8 +1181,7 @@ export function createGastService(konfig) {
     if (b?.epostBekraftad !== true) return { gruppgaster: [] };
     const epost = normaliseraGastepost(b?.epost, extraSparrade);
     if (epost === null || !GS) return { gruppgaster: [] };
-    const nu = klocka();
-    const rader = (await kalla.list(INB, { where: { epost } })).filter((r) => r.omfang?.slag === "grupp" && r.aterkallad === null && typeof r.lankGiltigTill === "number" && r.lankGiltigTill > nu);
+    const rader = (await kalla.list(INB, { where: { epost } })).filter((r) => r.omfang?.slag === "grupp" && r.aterkallad === null);
     /** @type {Array<{ id: string, groupId: string, namn: string }>} */
     const ut = [];
     for (const r of rader) {
@@ -1196,7 +1196,8 @@ export function createGastService(konfig) {
    * Öppnar gruppen som gäst för en INLOGGAD person, utan mejllänken: samma session som `los` ger, mot samma tak och med samma felräknare per IP (`GASTIP_MAX`), och inget medlemskap skrivs.
    *
    * ⛔ BEVISET ÄR DEN BEKRÄFTADE ADRESSEN I STÄLLET FÖR NYCKELN. `epostBekraftad: true` och en adress som är inbjudans, jämförd som i `los` (båda jämförelserna görs alltid). Fel adress, obekräftad adress,
-   * okänd inbjudan och en inbjudan av fel slag är samma `nej` byte för byte. `aterkallad` och `utgangen` ges först när adressen stämde, som i `los`.
+   * okänd inbjudan och en inbjudan av fel slag är samma `nej` byte för byte. `aterkallad` ges först när adressen stämde, som i `los`.
+   * ⛔ LÄNKENS GILTIGHET PRÖVAS INTE (ingen `utgangen`): den skyddar mejllänkens nyckel, och här bevisar den bekräftade adressen, som när `nyLank` skickar en ny länk.
    * ⛔ INGEN RÄKNARE PÅ INBJUDAN, BARA PÅ IP. Räknaren per inbjudan i `los` skyddar en nyckel som går att gissa. Här är det adressen som bevisar, och en främmande inloggad person som fick ett inbjudnings-id
    * hade kunnat låsa ute gästen genom att misslyckas på den. IP-taket gäller ändå, och ett lyckat anrop ger tillbaka sitt försök.
    *
@@ -1219,10 +1220,6 @@ export function createGastService(konfig) {
     if (rad.aterkallad !== null) {
       await ge();
       return orsak("aterkallad");
-    }
-    if (!(typeof rad.lankGiltigTill === "number" && rad.lankGiltigTill > klocka())) {
-      await ge();
-      return orsak("utgangen");
     }
     const sessionsnyckel = await oppnaSession(id);
     await ge();
