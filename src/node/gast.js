@@ -1145,10 +1145,86 @@ export function createGastService(konfig) {
       return orsak("utgangen");
     }
 
+    const sessionsnyckel = await oppnaSession(id);
+    await ge();
+    return { ok: true, sessionsnyckel };
+  }
+
+  /**
+   * Skapar sessionen för en inbjudan och märker första inloggningen. ⛔ DET ENDA STÄLLET EN SESSION BLIR TILL (regel 2): länken (`los`) och den inloggade personens väg (`oppnaGruppgast`) ger samma form,
+   * och en session som bara kan nås genom ett av dem hade varit en andra sorts session.
+   * @param {string} id Inbjudans id.
+   * @returns {Promise<string>} Sessionsnyckeln. Den lämnar tjänsten bara som returvärde till anroparen, aldrig i en logg.
+   */
+  async function oppnaSession(id) {
     const sessionsnyckel = nyGastnyckel();
     const nu = klocka();
     await skapaNy(SESS, { id: gastnyckelHash(sessionsnyckel), inbjudningId: id, skapad: nu, senast: nu });
     await uppdateraOm(INB, id, { forstInloggad: null }, { forstInloggad: nu });
+    return sessionsnyckel;
+  }
+
+  /**
+   * Gruppgästinbjudningarna som en INLOGGAD person har, för hubbens grupplista (cllp/lifehub.app#658 punkt 0): gruppen, och det minsta en lista behöver.
+   *
+   * ⛔ ADRESSEN MÅSTE VARA BEVISAD AV ANROPAREN (`epostBekraftad: true`) OCH ÄR ANNARS INGEN ADRESS. En obekräftad adress ger en tom lista, aldrig ett fel: ett fel hade låtit en person fråga vilka adresser som
+   * har en inbjudan. Ramverket kan inte själv se vad inloggningen bevisat, så anroparen säger det, på samma sätt som `epostVerifierad` till medlemsaccepten.
+   *
+   * ⛔ BARA LEVANDE INBJUDNINGAR TILL HELA GRUPPEN, samma prov som `los`: inte återkallad, länken inte utgången, gruppen finns. En inbjudan till en omröstning eller en händelse är inte en grupp och listas inte.
+   * ⛔ INGEN ADRESS, INGET NAMN PÅ ANDRA OCH INGEN NYCKEL I SVARET: `{ id, groupId, namn }`, med gruppens namn ur appens egen läsning.
+   *
+   * @param {Record<string, any>} b `{ epost, epostBekraftad }`.
+   * @returns {Promise<{ gruppgaster: Array<{ id: string, groupId: string, namn: string }> }>}
+   */
+  async function minaGruppgaster(b) {
+    if (b?.epostBekraftad !== true) return { gruppgaster: [] };
+    const epost = normaliseraGastepost(b?.epost, extraSparrade);
+    if (epost === null || !GS) return { gruppgaster: [] };
+    const nu = klocka();
+    const rader = (await kalla.list(INB, { where: { epost } })).filter((r) => r.omfang?.slag === "grupp" && r.aterkallad === null && typeof r.lankGiltigTill === "number" && r.lankGiltigTill > nu);
+    /** @type {Array<{ id: string, groupId: string, namn: string }>} */
+    const ut = [];
+    for (const r of rader) {
+      const g = await kalla.read(GS.samlingar.grupper, r.groupId);
+      if (!g) continue;
+      ut.push({ id: String(r.id), groupId: String(r.groupId), namn: text(g.namn) });
+    }
+    return { gruppgaster: ut.sort((x, y) => x.namn.localeCompare(y.namn, "sv") || x.id.localeCompare(y.id)) };
+  }
+
+  /**
+   * Öppnar gruppen som gäst för en INLOGGAD person, utan mejllänken: samma session som `los` ger, mot samma tak och med samma felräknare per IP (`GASTIP_MAX`), och inget medlemskap skrivs.
+   *
+   * ⛔ BEVISET ÄR DEN BEKRÄFTADE ADRESSEN I STÄLLET FÖR NYCKELN. `epostBekraftad: true` och en adress som är inbjudans, jämförd som i `los` (båda jämförelserna görs alltid). Fel adress, obekräftad adress,
+   * okänd inbjudan och en inbjudan av fel slag är samma `nej` byte för byte. `aterkallad` och `utgangen` ges först när adressen stämde, som i `los`.
+   * ⛔ INGEN RÄKNARE PÅ INBJUDAN, BARA PÅ IP. Räknaren per inbjudan i `los` skyddar en nyckel som går att gissa. Här är det adressen som bevisar, och en främmande inloggad person som fick ett inbjudnings-id
+   * hade kunnat låsa ute gästen genom att misslyckas på den. IP-taket gäller ändå, och ett lyckat anrop ger tillbaka sitt försök.
+   *
+   * @param {Record<string, any>} b `{ id, epost, epostBekraftad, ip }`.
+   * @returns {Promise<{ ok: true, sessionsnyckel: string } | { ok: false, orsak: Gastorsak }>}
+   */
+  async function oppnaGruppgast(b) {
+    const ipHash = ipId(b?.ip, "oppnaGruppgast", "los");
+    const ipRes = await reserveraRaknare(ipHash, { max: GASTIP_MAX, fonsterMs: GASTIP_FONSTER_MS });
+    if (!ipRes) return orsak("for-manga");
+    const id = b?.id;
+    if (typeof id !== "string" || !GASTINBJUDNINGSIDFORM.test(id)) return nej();
+    const rad = await kalla.read(INB, id);
+    if (!rad) return nej();
+    const epost = normaliseraGastepost(b?.epost, extraSparrade);
+    // Båda jämförelserna görs alltid, så att tiden inte säger vilken av dem som var fel.
+    const epostStammer = epost !== null && likaHash(hash(epost), hash(text(rad.epost)));
+    if (b?.epostBekraftad !== true || !epostStammer || rad.omfang?.slag !== "grupp" || !GS) return nej();
+    const ge = () => aterlamna(RAKNARE, ipRes.id, RAKNEFALT, ipRes.fonster);
+    if (rad.aterkallad !== null) {
+      await ge();
+      return orsak("aterkallad");
+    }
+    if (!(typeof rad.lankGiltigTill === "number" && rad.lankGiltigTill > klocka())) {
+      await ge();
+      return orsak("utgangen");
+    }
+    const sessionsnyckel = await oppnaSession(id);
     await ge();
     return { ok: true, sessionsnyckel };
   }
@@ -2111,5 +2187,5 @@ export function createGastService(konfig) {
     return { ok: true };
   }
 
-  return { bjud, aterkalla, skickaOm, lista, platser, los, session, hamta, sattNamn, nyLank, stadaSessioner, deltaSvara, tidAndrad, chatt, skrivChatt, kalender, handelse, svara, rosta, bibliotek, fil, arenden, kommenteraArende, markeraArendeKlart, levandeGaster, aterkallaAlla, ersattAvMedlem, radera, raderaMig };
+  return { bjud, aterkalla, skickaOm, lista, platser, los, minaGruppgaster, oppnaGruppgast, session, hamta, sattNamn, nyLank, stadaSessioner, deltaSvara, tidAndrad, chatt, skrivChatt, kalender, handelse, svara, rosta, bibliotek, fil, arenden, kommenteraArende, markeraArendeKlart, levandeGaster, aterkallaAlla, ersattAvMedlem, radera, raderaMig };
 }

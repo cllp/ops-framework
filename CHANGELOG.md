@@ -9,6 +9,19 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.188.0
+
+### Tillagt
+
+- **Gästgrupperna syns i hubben (cllp/lifehub.app#658 punkt 0).** CP 2026-11-05: Collan bjöds in som gäst, loggade in i Lifehub och såg bara sin egen grupp. Hubbens grupplista läser `memberships`, och en gäst är en inbjudan och aldrig ett medlemskap (beslut 0011), så gästgruppen syntes aldrig för en inloggad person. Samarbetet ska finnas där personen redan är: en rad i listan, och samma gästvy som mejllänken leder till.
+  - **Tjänsten (`createGastService`) får två anrop för en INLOGGAD person.** `minaGruppgaster({ epost, epostBekraftad })` svarar `{ gruppgaster: [{ id, groupId, namn }] }`: bara levande inbjudningar till hela gruppen (inte återkallad, länken inte utgången, gruppen finns), och inget annat lämnar tjänsten (ingen adress, ingen nyckel, ingen inbjudare). `oppnaGruppgast({ id, epost, epostBekraftad, ip })` ger samma session som `los` ger, utan länken, och skriver inget medlemskap.
+  - **Bevisen är appens och prövas av tjänsten.** Ramverket ser inte vad inloggningen bevisat, så anroparen säger `epostBekraftad: true` (som `epostVerifierad` till medlemsaccepten), och allt annat än exakt `true` är en tom lista respektive `nej`. Fel adress, obekräftad adress, okänd inbjudan, en inbjudan till en omröstning eller en händelse och skräp i indata är ETT `nej`, byte för byte. `aterkallad` och `utgangen` ges först när adressen stämde, som i `los`.
+  - **Ett ställe för sessionen (regel 2).** Sessionen och märkningen av första inloggningen bor i en intern `oppnaSession`, som `los` nu anropar. Länkens väg och den inloggades väg kan därför inte ge två olika sorters sessioner.
+  - **Samma tak som länken, men inte samma räknare.** IP-räknaren är `los`s (`GASTIP_MAX`, samma rad per IP), så en IP som är stoppad på länken är stoppad här också, och ett lyckat anrop ger tillbaka sitt försök. Räknaren per inbjudan ges inte: den skyddar en nyckel som går att gissa, och här bevisar adressen. Gavs den hade en främmande inloggad person som fått tag i ett inbjudnings-id kunnat låsa ute gästen genom att misslyckas på det.
+  - **`sparaGastSession({ id, sessionsnyckel, lagring? })` (huvudingången).** Sparar sessionen på enheten i samma form som `OpsGastSida` gör efter en inlösen (sessionen, `senaste` och indexet), så att en app som fått en session av `oppnaGruppgast` går till `/gast` och sidan öppnar gruppen utan länk. Appen känner aldrig nycklarna i minnet. Svarar `false` när enhetens minne inte tog emot skrivningen (privat läge), i stället för att låtsas. `OpsGastSida` använder nu samma två funktioner (`sparadeSessionsIds`, `skrivSessionTillMinne`) för sitt eget minne.
+  - **Grupplistan: `roll: "gast"` på en grupprad.** `OpsGruppanel` (kort, remsa och telefonens ark) och `OpsGruppvaxlare` ritar pillen "Gäst" / "Guest" (`ORD_OPSGRUPPANEL.rollGast`), och (i) ritas inte för en gästgrupp: en gäst har inte gruppens sida. Pennan ritades redan bara för ägare och admin. Ingen ny prop och ingen ny komponent: en gästgrupp är en rad i samma lista, och ett tryck anropar `onValj` med dess id som för varje annan grupp. Vad som sedan händer är appens.
+  - Prov: `gast-hubb-tjanst.test.js` (13) och `gast-hubb-vy.test.jsx` (8).
+
 ## 0.187.0
 
 ### Tillagt

@@ -144,6 +144,65 @@ function minne(lagring) {
   };
 }
 
+/** @typedef {ReturnType<typeof minne>} Gastminne */
+
+/**
+ * Inbjudningarna som har en sparad session, den senast öppnade först. Indexet, och allt minnet kan räkna upp (sessioner från före indexet).
+ * @param {Gastminne} mem
+ * @returns {string[]}
+ */
+function sparadeSessionsIds(mem) {
+  /** @type {string[]} */
+  const ut = [];
+  const senaste = mem.las(SENASTE);
+  if (senaste) ut.push(senaste);
+  try {
+    const lista = JSON.parse(mem.las(ALLA) ?? "[]");
+    if (Array.isArray(lista)) for (const id of lista) if (typeof id === "string") ut.push(id);
+  } catch {
+    /* Ett trasigt index är ingen session: resten av listan gäller. */
+  }
+  for (const k of mem.nycklar("ops-gast:")) ut.push(k.slice("ops-gast:".length));
+  return [...new Set(ut)].filter((id) => GASTINBJUDNINGSIDFORM.test(id));
+}
+
+/**
+ * Skriver en session, markerar den som den senast öppnade och lägger den först i indexet.
+ * @param {Gastminne} mem
+ * @param {string} id
+ * @param {string} nyckel
+ */
+function skrivSessionTillMinne(mem, id, nyckel) {
+  mem.skriv(sessionsnyckelFor(id), nyckel);
+  mem.skriv(SENASTE, id);
+  mem.skriv(ALLA, JSON.stringify([id, ...sparadeSessionsIds(mem).filter((x) => x !== id)]));
+}
+
+/**
+ * Sparar en gästsession på enheten på samma sätt som `OpsGastSida` gör efter en inlösen, och markerar inbjudan som den som öppnas näst (cllp/lifehub.app#658 punkt 0). En app som ger en inloggad person
+ * en gästsession (`oppnaGruppgast` i tjänsten) sparar den här och går till `/gast`, som öppnar den utan länk. ⛔ ETT MINNESFORMAT, TVÅ SKRIVARE: appen känner aldrig nycklarna.
+ *
+ * @param {object} p
+ * @param {string} p.id Inbjudans id (64 hextecken).
+ * @param {string} p.sessionsnyckel
+ * @param {{ getItem: (k: string) => string | null, setItem: (k: string, v: string) => void, removeItem: (k: string) => void } | null} [p.lagring] Förval `localStorage`; `null` ger bara minne.
+ * @returns {boolean} Sann när sessionen kunde skrivas till enhetens minne. Falsk när minnet är blockerat (privat läge): sidan på `/gast` hittar då ingen session.
+ */
+export function sparaGastSession({ id, sessionsnyckel, lagring }) {
+  if (typeof id !== "string" || !GASTINBJUDNINGSIDFORM.test(id) || typeof sessionsnyckel !== "string" || !GASTNYCKELFORM.test(sessionsnyckel)) {
+    throw new Error("sparaGastSession: id är en inbjudans id (64 hextecken) och sessionsnyckel en nyckel (43 tecken).");
+  }
+  const mem = minne(lagring);
+  skrivSessionTillMinne(mem, id, sessionsnyckel);
+  // Minnet svalde skrivningen om det inte går att läsa tillbaka ur enhetens eget lager (reserven gäller bara tills sidan lämnas).
+  try {
+    const l = lagring === undefined ? globalThis.localStorage : lagring;
+    return l != null && l.getItem(sessionsnyckelFor(id)) === sessionsnyckel;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Gästens egen sida: det en person ser som bjudits in utan konto, på `/gast` (0.131.0, cllp/lifehub.app#389, skiva 1; 0.132.0, skiva 2: hela gruppen).
  *
@@ -246,27 +305,14 @@ export function OpsGastSida({ lank = null, onLos, onHamta, onNyLank, onNamn, onR
     if (onSprak) onSprak(s);
   }
 
-  /** Inbjudningarna som har en sparad session, den senast öppnade först. Indexet, och allt minnet kan räkna upp (sessioner från före indexet). */
+  /** Inbjudningarna som har en sparad session, den senast öppnade först. Samma läsning som `sparaGastSession` gör (en funktion, ett minnesformat). */
   function sparadeIds() {
-    /** @type {string[]} */
-    const ut = [];
-    const senaste = mem.current.las(SENASTE);
-    if (senaste) ut.push(senaste);
-    try {
-      const lista = JSON.parse(mem.current.las(ALLA) ?? "[]");
-      if (Array.isArray(lista)) for (const id of lista) if (typeof id === "string") ut.push(id);
-    } catch {
-      /* Ett trasigt index är ingen session: resten av listan gäller. */
-    }
-    for (const k of mem.current.nycklar("ops-gast:")) ut.push(k.slice("ops-gast:".length));
-    return [...new Set(ut)].filter((id) => GASTINBJUDNINGSIDFORM.test(id));
+    return sparadeSessionsIds(mem.current);
   }
 
   /** @param {string} id @param {string} nyckel */
   function skrivSession(id, nyckel) {
-    mem.current.skriv(sessionsnyckelFor(id), nyckel);
-    mem.current.skriv(SENASTE, id);
-    mem.current.skriv(ALLA, JSON.stringify([id, ...sparadeIds().filter((x) => x !== id)]));
+    skrivSessionTillMinne(mem.current, id, nyckel);
   }
 
   /** @param {string} id */
