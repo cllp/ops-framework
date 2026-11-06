@@ -40,7 +40,8 @@ Tidsstämpel på allt som har hänt, inte bara datum. CP 2026-11-06: "Alla uppda
 
 ### Mätt
 
-- Se PR:en för startfilens storlek före och efter (`check:delbarhet`).
+- **Startfilen**, `check:delbarhet` (Vite mot det byggda paketet, tecken före första vyn): en app vars startfil importerar `OpsBibliotek` 528 899 på 0.193.0, 529 720 nu, alltså 821 tecken mer (tidsstämpeln, detaljens rad och de nya orden). En app med bara `OpsButton` 11 024 före och efter, en app med `OpsAppShell` 441 296 före och efter.
+- `check:skalyta`: 3 619 kontroller, inga brott, före och efter. `npm run check`: 341 provfiler, 6 092 prov, gröna.
 
 ## 0.193.0
 
