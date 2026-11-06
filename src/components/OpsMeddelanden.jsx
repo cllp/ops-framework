@@ -34,7 +34,7 @@ import { REAKTIONSVY, reaktionsnamnPa } from "./reaktionsvy.js";
 import { OpsForslag } from "./OpsForslag.jsx";
 import { forslagUrData } from "../lib/forslag.js";
 import { rapporteraFel } from "../lib/felrapport.js";
-import { tangentbordTackt } from "../lib/tangentbord.js";
+import { useTangentbordTackt } from "../lib/tangentbord.js";
 import { OpsAtgardsblad } from "./OpsAtgardsblad.jsx";
 import { LANGTRYCK_KLASS, useLangtryck } from "./useLangtryck.js";
 import { AgentIkon, AndraIkon, KopieraIkon, ArkiveraIkon, TaFramIkon, BildIkon, FastIkon, FilIkon, KameraIkon, MappIkon, MejlIkon, NotisIkon, PanelIkon, StoppIkon, TystIkon, ChevronHogerIkon, ChevronNedIkon, CiteraIkon, ChevronVansterIkon, GruppIkon, KryssIkon, LasIkon, LeendeIkon, MeddelandeIkon, PlusIkon, SkickaIkon, SokIkon, TradIkon } from "./icons.jsx";
@@ -1276,7 +1276,7 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
 
 /**
  * Hur mycket av fönstret tangentbordet täcker, i pixlar, ur `visualViewport` (0.106.0, #386 skiva 5). 0 utan tangentbord, och 0 där
- * API:t saknas.
+ * API:t saknas. Sedan 0.195.0 är det `useTangentbordTackt` i `lib/tangentbord.js`, delad med gästens chatt (regel 2).
  *
  * ⛔ VARFÖR. Höjden var `100dvh` minus skalets ramar, och `dvh` följer inte iOS-tangentbordet: fönstret som layouten räknar med står
  * kvar, och tangentbordet läggs över dess nedre del. Skrivfältet kunde då hamna under tangentbordet. Ramverket visste det redan
@@ -1286,23 +1286,7 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
  * ⛔ (hypotes, inte mätt på en riktig iPhone) Chromium har inget virtuellt tangentbord. Skalytan prövar med ett `visualViewport` som
  * krymper, check-skalyta 47 (5), och en riktig iPhone är inte mätt.
  */
-function useTangentbord() {
-  const [tackt, setTackt] = useState(0);
-  useEffect(() => {
-    const vv = typeof window !== "undefined" ? window.visualViewport : null;
-    if (!vv) return undefined;
-    // ⛔ SAMMA MÄTNING SOM BOTTENRADEN (`src/lib/tangentbord.js`, granskningen av PR 462): två sanningar om samma tangentbord hade glidit isär.
-    const mat = () => setTackt(tangentbordTackt());
-    mat();
-    vv.addEventListener("resize", mat);
-    vv.addEventListener("scroll", mat);
-    return () => {
-      vv.removeEventListener("resize", mat);
-      vv.removeEventListener("scroll", mat);
-    };
-  }, []);
-  return tackt;
-}
+const useTangentbord = useTangentbordTackt;
 
 /**
  * Gruppchatten som ingen har öppnat än (0.68.0): skapas med `oppnaGrupp` när någon öppnar raden, och läggs sedan in i listan
@@ -1657,11 +1641,15 @@ export { RAKNARE_FRAN };
  * `onSkicka` får `{ text }` när det är det sagda som skickas. Den ska då lösa när meddelandet är skickat och avvisa när det inte gick,
  * så att ytan kan säga det; utan `text` skickar den fältets text som förut.
  *
- * @param {{ text: string, setText: (t: string) => void, skickar: boolean, onSkicka: (extra?: { namner?: string[], text?: string }) => void | Promise<void>, texter: Required<Meddelandetexter>, sprak: string, fokus?: boolean, omnamnande?: Omnamnande | null, fokusNyckel?: string, onEscape?: () => void, platstext?: string, onTranscribe?: (blob: Blob) => Promise<string>, inspelare?: import("../lib/talk.js").Inspelare, igenkanning?: import("../lib/talk.js").Igenkanning | boolean, onBifoga?: (filer: File[], slag: "bild" | "foto" | "fil") => void, franBiblioteket?: Franbiblioteket, harBilaga?: boolean, kamera?: "okand" | "ja" | "nej", agentArbetar?: boolean, onStoppaAgent?: () => void, maxTecken?: number }} props
+ * @param {{ text: string, setText: (t: string) => void, skickar: boolean, onSkicka: (extra?: { namner?: string[], text?: string }) => void | Promise<void>, texter: Required<Meddelandetexter>, sprak: string, fokus?: boolean, omnamnande?: Omnamnande | null, fokusNyckel?: string, onEscape?: () => void, platstext?: string, onTranscribe?: (blob: Blob) => Promise<string>, inspelare?: import("../lib/talk.js").Inspelare, igenkanning?: import("../lib/talk.js").Igenkanning | boolean, onBifoga?: (filer: File[], slag: "bild" | "foto" | "fil") => void, franBiblioteket?: Franbiblioteket, harBilaga?: boolean, kamera?: "okand" | "ja" | "nej", agentArbetar?: boolean, onStoppaAgent?: () => void, maxTecken?: number, ram?: boolean }} props
  *   `maxTecken` (0.132.0): taket i tecken. Förval `MAX_MEDDELANDE`; en gäst har ett lägre (`GASTSKRIV_MAX_TECKEN`). Räknaren och spärren på Skicka följer det.
  *   ⛔ EXPORTERAD FRÅN FILEN FÖR `OpsGastChatt`, INTE UR RAMVERKET (`src/index.js`): gästens skrivfält är chattens utan bilagor, mikrofon, omnämnanden och agent.
+ *   `ram` (0.195.0): fältet står i en panel, med ett streck över sig (`border-t`) och panelens indrag (`px-3`). Förval sant, som i appens chatt, där strecket skiljer fältet från
+ *   loggen i samma panel. Gästens chatt sätter `false`: inget streck och inget eget indrag, så att fältet har samma vänster- och högerkant som meddelandena. CP 2026-11-06, med
+ *   skärmbilder av gästens chatt: "Du kan ta bort ett streck mellan här också vid chatten. avdelaren." och från telefonen: "Även i telefon finns det extra horisontella strecket som
+ *   inte behövs. Sedan kanske skrivfältet kan vara lika brett som chattramen?"
  */
-export function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, sprak, fokus = false, omnamnande = null, fokusNyckel, onEscape, platstext, onTranscribe, inspelare, igenkanning, onBifoga, franBiblioteket, harBilaga = false, kamera = "nej", agentArbetar = false, onStoppaAgent, maxTecken = MAX_MEDDELANDE }) {
+export function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, sprak, fokus = false, omnamnande = null, fokusNyckel, onEscape, platstext, onTranscribe, inspelare, igenkanning, onBifoga, franBiblioteket, harBilaga = false, kamera = "nej", agentArbetar = false, onStoppaAgent, maxTecken = MAX_MEDDELANDE, ram = true }) {
   const ruta = useRef(/** @type {HTMLTextAreaElement | null} */ (null));
   const listId = useId();
   const raknarId = useId();
@@ -1796,7 +1784,7 @@ export function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, sprak, 
     <>
     <form
       data-skrivfalt=""
-      className="relative flex shrink-0 items-end gap-2 border-t border-line px-3 py-2"
+      className={cx("relative flex shrink-0 items-end gap-2 py-2", ram && "border-t border-line px-3")}
       onSubmit={(e) => {
         e.preventDefault();
         skicka();

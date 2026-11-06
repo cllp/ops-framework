@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 
 /**
  * Är tangentbordet uppe? Bottenraden göms medan det är det (0.152.0, cllp/ops-framework#461, punkt 1).
@@ -191,4 +191,31 @@ function prenumerera(lyssna) {
  */
 export function useTangentbordUppe() {
   return useSyncExternalStore(prenumerera, () => uppe, () => false);
+}
+
+/**
+ * Hur mycket av fönstret tangentbordet täcker, i pixlar (`tangentbordTackt`), och mätt om när `visualViewport` ändras eller flyttas. 0 utan tangentbord, och 0 där API:t saknas.
+ *
+ * ⛔ EN HOOK FÖR APPENS CHATT OCH GÄSTENS (0.195.0, regel 2). Den låg som `useTangentbord` inne i `OpsMeddelanden` (0.106.0, #386 skiva 5), och gästens yta hade en egen
+ * mätning bredvid (`useGastTangentbord` med `gastTangentbordExtra`, 0.192.0) som räknade ur `window.innerHeight` och en uppmätt underkant. CP 2026-11-06, från iPhone i gästens Chatt
+ * på 0.192.0: "När man börjar skriva hoppar den upp så här." Skrivfältet stod högst upp under adressraden och det var tomt ned till tangentbordet, medan appens chatt på samma
+ * telefon står kvar ovanför tangentbordet. Nu bär båda samma tal i samma CSS-uttryck: `100dvh` minus det som ligger ovanför, minus det största av bottenraden och tangentbordet.
+ * @returns {number}
+ */
+export function useTangentbordTackt() {
+  const [tackt, setTackt] = useState(0);
+  useEffect(() => {
+    const vv = typeof window !== "undefined" ? window.visualViewport : null;
+    if (!vv) return undefined;
+    // ⛔ SAMMA MÄTNING SOM BOTTENRADEN (`tangentbordMatt`, granskningen av PR 462): två sanningar om samma tangentbord hade glidit isär.
+    const mat = () => setTackt(tangentbordTackt());
+    mat();
+    vv.addEventListener("resize", mat);
+    vv.addEventListener("scroll", mat);
+    return () => {
+      vv.removeEventListener("resize", mat);
+      vv.removeEventListener("scroll", mat);
+    };
+  }, []);
+  return tackt;
 }

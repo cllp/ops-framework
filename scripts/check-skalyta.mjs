@@ -8111,7 +8111,25 @@ async function gastGrupp() {
           namnform: !!document.querySelector("[data-gast-oversikt] [data-gast-namn]"),
           chatt: !!document.querySelector("[data-gast-chatt]"),
         }));
-        krav(over.namn === "Källan" && over.huvud === "Källan" && over.roll && over.namnform && !over.chatt, `${namn} sida (d): översikten är ${JSON.stringify(over)}, väntat gruppnamn, roll, namnformulär och ingen chatt.`);
+        // ⛔ 0.195.0: gruppens namn står inte i huvudet (CP 2026-11-06: "Ta bort den bredvid loggan"). Kravet sade förut att huvudet bar namnet, och blev rött med 0.195.0.
+        krav(over.namn === "Källan" && over.huvud === "" && over.roll && over.namnform && !over.chatt, `${namn} sida (d): översikten är ${JSON.stringify(over)}, väntat gruppnamn, inget namn i huvudet, roll, namnformulär och ingen chatt.`);
+        // (d) 0.195.0: temaknappen i huvudet (CP: "kan vi ha ljust/mörkt läge switch där också?"), märket som länk till appens sida, och raden om appen sist i översikten.
+        const app = await page.evaluate(() => {
+          const knapp = document.querySelector("header [data-gast-huvud-val] button[aria-label^='Utseende']");
+          const kr = knapp ? knapp.getBoundingClientRect() : null;
+          const marke = document.querySelector("header a[data-gast-marke]");
+          const over = document.querySelector("[data-gast-oversikt]");
+          const rad = over ? over.lastElementChild : null;
+          const rr = rad ? rad.getBoundingClientRect() : null;
+          return {
+            knapp: kr ? { b: kr.width, h: kr.height, inom: kr.right <= innerWidth + 0.5 } : null,
+            marke: marke ? { href: marke.getAttribute("href"), target: marke.getAttribute("target"), rel: marke.getAttribute("rel"), etikett: marke.getAttribute("aria-label") } : null,
+            rad: rad && rad.hasAttribute("data-gast-om-appen") ? { text: (rad.textContent || "").trim(), inom: rr ? rr.left >= -0.5 && rr.right <= innerWidth + 0.5 : false } : null,
+          };
+        });
+        krav(app.knapp !== null && app.knapp.b >= 44 && app.knapp.h >= 44 && app.knapp.inom, `${namn} sida (d): temaknappen i huvudet är ${JSON.stringify(app.knapp)}, väntat minst 44 x 44 inom skärmen.`);
+        krav(app.marke !== null && app.marke.href === "https://life-hub.app" && app.marke.target === "_blank" && app.marke.rel === "noopener noreferrer" && app.marke.etikett === "Om LifeHub, öppnas i en ny flik", `${namn} sida (d): märket som länk är ${JSON.stringify(app.marke)}.`);
+        krav(app.rad !== null && app.rad.text === "Källan använder LifeHub, där grupper organiserar sig utan att jaga varandra. Läs mer" && app.rad.inom, `${namn} sida (d): raden om appen sist i översikten är ${JSON.stringify(app.rad)}.`);
         if (telefon) {
           // Spara på samma rad som fältet (CP 2026-11-06 07:35), minst 44 px, också när fönstret är 320 px brett.
           const matNamnrad = () => page.evaluate(() => {
@@ -8174,8 +8192,32 @@ async function gastGrupp() {
             return { glapp: rad.top - skriv.bottom, rullar: document.documentElement.scrollHeight > innerHeight + 1, logg: /** @type {HTMLElement} */ (document.querySelector("[data-gast-chatt-logg]")).getBoundingClientRect().height };
           });
           matt.push(`${namn} sida: skrivfältet ${hojd.glapp.toFixed(0)} px över bottenraden, loggen ${hojd.logg.toFixed(0)} px, sidan rullar ${hojd.rullar}`);
-          krav(hojd.glapp >= -0.5 && hojd.glapp <= 40 && !hojd.rullar && hojd.logg >= 200, `${namn} sida (e): chatten fyller inte höjden: skrivfältet ${hojd.glapp.toFixed(0)} px över bottenraden (väntat 0 till 40), sidan rullar ${hojd.rullar}, loggen ${hojd.logg.toFixed(0)} px (väntat minst 200).`);
+          // ⛔ -1 (0.195.0): ytan räknas nu som appens chatt, ur `--bottom-nav-h` (68 px), och raden är 69 px med sin kantlinje. Kantlinjen ligger över skrivfältets egen
+          // utfyllnad (`py-2`), som i appens chatt med samma uttryck. Mätt: -1 px, dokumentet 844 i 844.
+          krav(hojd.glapp >= -1.5 && hojd.glapp <= 40 && !hojd.rullar && hojd.logg >= 200, `${namn} sida (e): chatten fyller inte höjden: skrivfältet ${hojd.glapp.toFixed(0)} px över bottenraden (väntat -1 till 40), sidan rullar ${hojd.rullar}, loggen ${hojd.logg.toFixed(0)} px (väntat minst 200).`);
+        } else {
+          // (e) 0.195.0, CP 2026-11-06 på datorn: "Kan sidan gå ända ner eller hur blir det i chatten i Web?" Chatten fyller höjden också på datorn: skrivfältet står närmast
+          // fönstrets underkant, och sidan rullar inte ovanpå loggens egen rullning.
+          const hojd = await page.evaluate(() => {
+            const skriv = /** @type {HTMLElement} */ (document.querySelector("[data-gast-chatt-skriv]")).getBoundingClientRect();
+            return { glapp: innerHeight - skriv.bottom, rullar: document.documentElement.scrollHeight > innerHeight + 1, logg: /** @type {HTMLElement} */ (document.querySelector("[data-gast-chatt-logg]")).getBoundingClientRect().height };
+          });
+          matt.push(`${namn} sida: skrivfältet ${hojd.glapp.toFixed(0)} px över fönstrets underkant, loggen ${hojd.logg.toFixed(0)} px, sidan rullar ${hojd.rullar}`);
+          krav(hojd.glapp >= -0.5 && hojd.glapp <= 40 && !hojd.rullar && hojd.logg >= 400, `${namn} sida (e): chatten fyller inte höjden på datorn: skrivfältet ${hojd.glapp.toFixed(0)} px över fönstrets underkant (väntat 0 till 40), sidan rullar ${hojd.rullar}, loggen ${hojd.logg.toFixed(0)} px (väntat minst 400).`);
         }
+        // (e) 0.195.0: inget streck mellan loggen och skrivfältet, ingen ram runt loggen, och skrivfältets ruta har samma vänster- och högerkant som meddelandenas yta
+        // (CP från telefonen: "Sedan kanske skrivfältet kan vara lika brett som chattramen?"). Loggens ruta och dess innerbredd (utan en rullningslist) mäts båda och skrivs ut.
+        const kant = await page.evaluate(() => {
+          const logg = /** @type {HTMLElement} */ (document.querySelector("[data-gast-chatt-logg]"));
+          const ruta = /** @type {HTMLElement} */ (document.querySelector("[data-gast-chatt-skriv] [data-skrivruta]"));
+          const form = /** @type {HTMLElement} */ (document.querySelector("[data-gast-chatt-skriv] [data-skrivfalt]"));
+          const l = logg.getBoundingClientRect();
+          const r = ruta.getBoundingClientRect();
+          const cs = getComputedStyle(logg);
+          return { loggX: l.left, loggB: l.width, loggInre: logg.clientWidth, rutaX: r.left, rutaB: r.width, streck: parseFloat(getComputedStyle(form).borderTopWidth) || 0, loggram: parseFloat(cs.borderTopWidth) || 0 };
+        });
+        matt.push(`${namn} sida: loggen x ${kant.loggX.toFixed(0)} bredd ${kant.loggB.toFixed(0)} (inre ${kant.loggInre}), skrivfältet x ${kant.rutaX.toFixed(0)} bredd ${kant.rutaB.toFixed(0)} px`);
+        krav(Math.abs(kant.loggX - kant.rutaX) <= 0.5 && Math.abs(kant.loggB - kant.rutaB) <= 0.5 && kant.streck === 0 && kant.loggram === 0, `${namn} sida (e): loggen x ${kant.loggX.toFixed(1)} bredd ${kant.loggB.toFixed(1)}, skrivfältet x ${kant.rutaX.toFixed(1)} bredd ${kant.rutaB.toFixed(1)} (väntat lika), streck över fältet ${kant.streck} px och ram runt loggen ${kant.loggram} px (väntat 0).`);
         if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `gaster-grupp-sida-chatt-${w}.png`), fullPage: true });
         // Gästen skriver: texten går till skrivChatt, bubblan står som gästens eget och fältet töms.
         await page.evaluate(() => { /** @type {any} */ (window).__gastgruppanrop.length = 0; });
@@ -8284,13 +8326,20 @@ async function gastGrupp() {
             await tang.page.locator("[data-gast-chatt-skriv] textarea").click();
             await tang.page.evaluate(() => /** @type {any} */ (window).__tangentbord(300, false, 0));
             await tang.page.waitForTimeout(300);
-            const k = await tang.page.evaluate(() => {
+            const matTang = () => tang.page.evaluate(() => {
               const skriv = document.querySelector("[data-gast-chatt-skriv]")?.getBoundingClientRect() ?? null;
               const vv = /** @type {VisualViewport} */ (window.visualViewport);
-              return { botten: skriv ? skriv.bottom - (vv.offsetTop || 0) : null, synligt: vv.height, extra: document.querySelector("[data-gast-tangentbord]")?.getAttribute("data-gast-tangentbord") ?? "" };
+              return { botten: skriv ? skriv.bottom - (vv.offsetTop || 0) : null, synligt: vv.height, extra: document.querySelector("[data-gast-telefonyta]")?.getAttribute("data-tangentbord") ?? "", logg: document.querySelector("[data-gast-chatt-logg]")?.getBoundingClientRect().height ?? 0 };
             });
-            matt.push(`${namn} tangentbord 300: fältets underkant ${k.botten?.toFixed(0)}, synligt ${k.synligt}, indrag ${k.extra}`);
-            krav(k.botten !== null && k.botten <= k.synligt + 1, `${namn} tangentbord: skrivfältet slutar vid ${k.botten}, under den synliga ytan som börjar vid ${k.synligt}. En riktig iPhone är inte mätt: viewporten är låtsad.`);
+            // ⛔ 0.195.0 (CP från iPhone: "När man börjar skriva hoppar den upp så här."): fältet står DIREKT ovanför tangentbordet, inte bara någonstans ovanför det (högst 40 px glapp),
+            // och loggen syns. Tre lägen: iOS utan förskjutning, iOS där Safari flyttat den synliga ytan ned lika mycket som tangentbordet, och Android där innerHeight krymper.
+            for (const [lage, android, forskjutning] of /** @type {const} */ ([["ios", false, 0], ["ios förskjuten", false, 300], ["android", true, 0]])) {
+              await tang.page.evaluate(([a, f]) => /** @type {any} */ (window).__tangentbord(300, a, f), [android, forskjutning]);
+              await tang.page.waitForTimeout(300);
+              const k = await matTang();
+              matt.push(`${namn} tangentbord 300 (${lage}): fältets underkant ${k.botten?.toFixed(0)}, synligt ${k.synligt}, indrag ${k.extra}, loggen ${k.logg.toFixed(0)} px`);
+              krav(k.botten !== null && k.botten <= k.synligt + 1 && k.botten >= k.synligt - 40 && k.logg >= 100, `${namn} tangentbord (${lage}): skrivfältet slutar vid ${k.botten}, den synliga ytan slutar vid ${k.synligt} (väntat högst 40 px ovanför), loggen ${k.logg.toFixed(0)} px (väntat minst 100). En riktig iPhone är inte mätt: viewporten är låtsad.`);
+            }
             if (bildmapp) await tang.page.screenshot({ path: path.join(bildmapp, `gaster-grupp-sida-tangentbord-${w}.png`), fullPage: false });
           } catch (err) {
             krav(false, `${namn} tangentbord: provet avbröts (${String(/** @type {Error} */ (err).message).split("\n")[0]}).`);

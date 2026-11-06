@@ -9,12 +9,14 @@ import { createContext, useContext } from "react";
  * (gruppvyn ensam, i prov) är värdet `null`, och översikten visar bara gruppens egna rader.
  *
  * `minne` och `inbjudan` är till för senast valda flik. Inbjudan är id:t, 64 hextecken. Minnet får bara flikens namn.
+ * `omAppen` (0.195.0) är raden om appen sist i översikten, eller `null` när appen inte gett `omAppen` till `OpsGastSida`.
  *
  * @typedef {{
  *   integritet: import("react").ReactNode,
  *   namn: import("react").ReactNode,
  *   minne: import("../lib/gastminne.js").Gastminne | null,
  *   inbjudan: string | null,
+ *   omAppen?: import("react").ReactNode,
  * }} GastsidaOversikt
  */
 

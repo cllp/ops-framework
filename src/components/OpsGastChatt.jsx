@@ -32,7 +32,19 @@ export const ORD_OPSGASTCHATT = {
   tradLaddar: { sv: "Hämtar tråden", en: "Loading the thread" },
   tradFel: { sv: "Tråden kunde inte hämtas just nu.", en: "The thread could not be loaded right now." },
   tradTom: { sv: "Inga svar än.", en: "No replies yet." },
+  // ⛔ SKRIVFÄLTET SÄGER VART MEDDELANDET GÅR (0.195.0). CP 2026-11-06 på datorn: "Vet inte var man skall skriva in chattmeddelanden. Konstigt om den ligger längst ner kanske?
+  // Hur brukar det se ut?", med Signal som förebild: fältet längst ned och platstexten "Meddelande". Här med gruppens namn, eftersom gästen bara har en chatt och kan undra vem som läser.
+  platstext: { sv: "Meddelande till {grupp}", en: "Message to {grupp}" },
+  platstextTrad: { sv: "Svara i tråden", en: "Reply in the thread" },
 };
+
+/**
+ * Loggens klasser (0.195.0). Utan `fyll` är loggen en ruta med egen ram, högst 60 % av fönstret. Med `fyll` är den hela ytan utan ram (CP 2026-11-06: "Det finns en rund
+ * border i web, den yttersta som känns överflödig"), och skrivfältet under har inget streck och inget eget indrag (`ram={false}`):
+ * det har samma vänster- och högerkant som meddelandena (CP samma dag från telefonen: "Sedan kanske skrivfältet kan vara lika brett som chattramen?").
+ */
+const LOGG_RUTA = "max-h-[60dvh] min-h-48 rounded-lg border border-line bg-surface p-3";
+const LOGG_FYLLD = "min-h-0 flex-1 py-3";
 
 /** Märket för gästens egna meddelanden i raderna. Ingen avsändare kan heta så, och namnen kommer aldrig härifrån. */
 const EGEN = "__gast_egen__";
@@ -75,9 +87,11 @@ const EGEN = "__gast_egen__";
  * @param {(trad: string, text: string) => Promise<unknown>} [props.onSkrivITrad] (0.191.0) Svarar i tråden (tjänstens `skrivChatt({ trad, text })`). Utan den: tråden går att läsa men inte svara i.
  * @param {(postId: string) => void} [props.onOppnaPost] (0.191.0) Öppnar posten ett kort pekar på, i gästens bibliotek.
  * @param {boolean} [props.fyll] (0.190.0, del B) Chatten fyller sin förälders höjd: loggen rullar i den och skrivfältet står längst ned. Gästens telefonvy, där ytan
- *   mellan huvudet och bottenraden har en mätt höjd. Utan den är loggen högst 60 % av fönstret, som förut.
+ *   mellan huvudet och bottenraden har en mätt höjd, och sedan 0.195.0 också datorns (CP 2026-11-06: "Kan sidan gå ända ner eller hur blir det i chatten i Web?"). Utan den är loggen
+ *   högst 60 % av fönstret, som förut. ⛔ I FYLLT LÄGE HAR LOGGEN INGEN EGEN RAM: den är hela ytan, som i Signal, och en ram runt den blev en ruta i en ruta.
+ * @param {string} [props.gruppnamn] (0.195.0) Gruppens namn, till skrivfältets platstext ("Meddelande till {grupp}"). Utan den står skrivfältets egen platstext.
  */
-export function OpsGastChatt({ meddelanden, fler = false, onAldre, onSkriv, laddar = false, fel = null, onForsokIgen, sprak = "sv", ord, igenkanning = true, fyll = false, onLasTrad, onSkrivITrad, onOppnaPost }) {
+export function OpsGastChatt({ meddelanden, fler = false, onAldre, onSkriv, laddar = false, fel = null, onForsokIgen, sprak = "sv", ord, igenkanning = true, fyll = false, onLasTrad, onSkrivITrad, onOppnaPost, gruppnamn }) {
   if (!Array.isArray(meddelanden)) {
     throw new Error("OpsGastChatt: meddelanden måste vara en lista, tom när chatten är tom. Utan den går det inte att skilja 'inga meddelanden' från 'inte hämtad'.");
   }
@@ -215,7 +229,7 @@ export function OpsGastChatt({ meddelanden, fler = false, onAldre, onSkriv, ladd
             const el = e.currentTarget;
             vidBotten.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
           }}
-          className={cx("flex min-w-0 flex-col overflow-y-auto rounded-lg border border-line bg-surface p-3", fyll ? "min-h-0 flex-1" : "max-h-[60dvh] min-h-48")}
+          className={cx("flex min-w-0 flex-col overflow-y-auto", fyll ? LOGG_FYLLD : LOGG_RUTA)}
         >
           {fler && onAldre ? (
             <div className="flex justify-center pb-2">
@@ -256,8 +270,8 @@ export function OpsGastChatt({ meddelanden, fler = false, onAldre, onSkriv, ladd
         </div>
       )}
       {onSkriv ? (
-        <div data-gast-chatt-skriv="" className="flex min-w-0 flex-col">
-          <Skrivfalt text={skrivText} setText={setSkrivText} skickar={skickar} onSkicka={skicka} texter={texter} sprak={sprak} maxTecken={GASTSKRIV_MAX_TECKEN} igenkanning={igenkanning} />
+        <div data-gast-chatt-skriv="" className={cx("flex min-w-0 flex-col", fyll && "mt-auto")}>
+          <Skrivfalt text={skrivText} setText={setSkrivText} skickar={skickar} onSkicka={skicka} texter={texter} sprak={sprak} maxTecken={GASTSKRIV_MAX_TECKEN} igenkanning={igenkanning} ram={false} platstext={gruppnamn ? t.platstext.replace("{grupp}", gruppnamn) : undefined} />
         </div>
       ) : null}
       {skrivFel ? <p role="alert" data-gast-chatt-skrivfel="" className="m-0 text-etikett text-danger">{skrivFel}</p> : null}
@@ -304,14 +318,14 @@ function GastTrad({ trad, t, texter, locale, sprak, postkort, onStang, onSkriv, 
       ) : rader.length === 0 ? (
         <OpsEmpty title={t.tradTom} />
       ) : (
-        <div role="log" aria-label={t.trad} className={cx("flex min-w-0 flex-col overflow-y-auto rounded-lg border border-line bg-surface p-3", fyll ? "min-h-0 flex-1" : "max-h-[60dvh] min-h-48")}>
+        <div role="log" aria-label={t.trad} className={cx("flex min-w-0 flex-col overflow-y-auto", fyll ? LOGG_FYLLD : LOGG_RUTA)}>
           <Meddelanderader meddelanden={/** @type {any} */ (rader)} uid={EGEN} namnFor={(/** @type {string} */ namn) => namn} medlemmar={[]} locale={locale} visaNamn texter={texter} postkort={postkort} />
           {!trad.laddar && trad.rot && trad.meddelanden.length === 0 ? <p data-gast-chatt-tradtom="" className="m-0 pt-2 text-meta text-ink-muted">{t.tradTom}</p> : null}
         </div>
       )}
       {onSkriv && trad.rot ? (
-        <div data-gast-chatt-tradskriv="" className="flex min-w-0 flex-col">
-          <Skrivfalt text={skrivText} setText={setSkrivText} skickar={skickar} onSkicka={skicka} texter={texter} sprak={sprak} maxTecken={GASTSKRIV_MAX_TECKEN} igenkanning={igenkanning} />
+        <div data-gast-chatt-tradskriv="" className={cx("flex min-w-0 flex-col", fyll && "mt-auto")}>
+          <Skrivfalt text={skrivText} setText={setSkrivText} skickar={skickar} onSkicka={skicka} texter={texter} sprak={sprak} maxTecken={GASTSKRIV_MAX_TECKEN} igenkanning={igenkanning} ram={false} platstext={t.platstextTrad} />
         </div>
       ) : null}
       {skrivFel ? <p role="alert" data-gast-chatt-tradskrivfel="" className="m-0 text-etikett text-danger">{skrivFel}</p> : null}

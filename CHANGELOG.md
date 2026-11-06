@@ -9,6 +9,42 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.195.0
+
+Gästvyn: gruppens namn en gång, och en utloggning som säger vad den gör. CP 2026-11-06, med två skärmbilder från telefonen: "Gruppnamnet Skarv i Web skall inte vara bredvid Lifehub. Den kan vara nedanför utan att pressa ner raden. Vidare i Mobil står den två gånger. Ta bort den bredvid loggan." och "Vad gör denna med be om en ny länk? Varför då? ... Skriv in adressen igen? Hänger inte med".
+
+### Ändrat
+
+- **Gruppens namn står inte bredvid loggan.** Huvudet bär bara märket och språkvalet. Namnet är gruppens rubrik (`h1`), en gång: på datorn över flikarna, där det följer med i varje flik utan att huvudet blir högre, och på telefonen i Översikt, där bottenraden redan säger var man är.
+- **"Skriv in adressen igen" heter "Logga ut på den här enheten"** och står inne i "Integritet och dina uppgifter", med raden "Du kommer tillbaka med länken i ditt mejl." Knappen gjorde redan det: den glömmer gästens sessioner på enheten. Namnet sa det inte, och den stod mitt i översikten.
+- **"Be om en ny länk" säger först att länken i mejlet räcker**, och att en ny länk gör de gamla ogiltiga. Utan länken i minnet landar en utloggad gäst där, och en ny länk hade ogiltigförklarat inbjudningsmejlet utan att gästen visste om det.
+
+Gästens sida på datorn, CP 2026-11-06 med skärmbilder från my.life-hub.app/guest: "Kan sidan gå ända ner eller hur blir det i chatten i Web? Och kan vi ha ljust/mörkt läge switch där också?", "Det finns en rund border i web, den yttersta som känns överflödig", "Vet inte var man skall skriva in chattmeddelanden. Konstigt om den ligger längst ner kanske? Hur brukar det se ut?" (med Signal som förebild: fältet längst ned och platstexten "Meddelande"), "Du kan ta bort ett streck mellan här också vid chatten. avdelaren." och från telefonen: "Även i telefon finns det extra horisontella strecket som inte behövs. Sedan kanske skrivfältet kan vara lika brett som chattramen?"
+
+- **Ingen ram runt gruppen på datorn.** `[data-gast-grupp]` hade `sm:rounded-xl sm:border sm:border-line sm:bg-canvas sm:p-5`, en ruta på sidan med sidans bakgrund runt sig. Innehållet ligger nu direkt på sidan, som på telefonen.
+- **Chatten fyller höjden på datorn.** I Chatt står chatten i en uppmätt yta (`data-gast-datoryta`, samma `useFullHeight` som telefonens) från flikraden ut till fönstrets underkant eller spelradens överkant. Loggen rullar i den, och skrivfältet står längst ned och syns alltid. `OpsGastGrupp` ger `OpsGastChatt` `fyll` på alla bredder. Marginalen `-mb-16` tar tillbaka `main`:s nedre utfyllnad på datorn, så att sidan inte rullar ovanpå loggen. Översikt, Kalender och Bibliotek rullar sidan som förut: biblioteket har egna rullytor, och en yta runt dem hade gett två rullningar i varandra.
+- **Ingen ram runt loggen och inget streck över skrivfältet i gästens chatt**, på telefon och dator. Strecket var skrivfältets eget `border-t` (`Skrivfalt` i `OpsMeddelanden.jsx`). Det är kvar i appens chatt, där det skiljer fältet från loggen i samma panel: den nya propen `ram` (förval sant) styr strecket och panelens indrag, och gästens chatt sätter `ram={false}`. I fyllt läge har loggen ingen egen ram (`rounded-lg border bg-surface`), som i Signal.
+- **Skrivfältet har samma vänster- och högerkant som meddelandena**, utan eget indrag (`px-3` följer `ram`).
+- **Skrivfältet säger vart meddelandet går:** "Meddelande till {gruppens namn}" ("Message to {group}"), och i en tråd "Svara i tråden" ("Reply in the thread"). `OpsGastChatt` tar gruppens namn som `gruppnamn`, och `OpsGastGrupp` ger det. Också med en tom logg står skrivfältet längst ned (`mt-auto`).
+- **Skrivfältet står kvar ovanför tangentbordet på telefonen.** CP 2026-11-06 från iPhone i gästens Chatt på 0.192.0: "När man börjar skriva hoppar den upp så här." Skrivfältet hade hamnat högst upp under adressraden, och under det var det tomt ned till tangentbordet. Gästens yta räknar nu sin höjd i samma CSS-uttryck som appens chatt (`OpsMeddelanden`): `100dvh` minus det som ligger ovanför ytan, minus det största av bottenraden och tangentbordet (`--tangentbord`), minus spelraden. Tangentbordets tal kommer ur samma hook, `useTangentbordTackt` i `lib/tangentbord.js`, som förut låg privat i `OpsMeddelanden` (regel 2). Bottenraden göms medan man skriver, som i appen. Förut räknades underkanten i JS ur `window.innerHeight` eller bottenradens överkant, och tangentbordet drogs av en gång till (`gastTangentbordExtra`, borttagen). (hypotes, inte mätt på en riktig iPhone) Ytan krympte med tangentbordet medan Safari flyttade den synliga ytan ned lika mycket. Chromium har inget virtuellt tangentbord, och det gamla och det nya uttrycket ger samma läge med ett låtsat `visualViewport`: det som avgör är CP:s iPhone. Datorns fyllda chatt drar inte av något tangentbord, som appens chatt på `md`.
+- **Ljust och mörkt i gästens huvud.** Ramverkets `OpsThemeToggle` står bredvid språkvalet. Den skriver `<html data-theme>` och sparar valet i `localStorage` (`ops-theme`), som i appen, och etiketten följer sidans språk ("Utseende", "Appearance"). Sidans färger följer temat utan ändring: `publik-ljus` är `canvas`, `ink` och `ink-secondary` (`tokens.css`).
+
+### Tillagt
+
+- **`omAppen` på `OpsGastSida`** (CP 2026-11-06): `{ href, namn }`, appens egen sida. Med den är märket i huvudet en länk dit i en ny flik (`target="_blank"`, `rel="noopener noreferrer"`), med etiketten "Om {namn}, öppnas i en ny flik", och sist i gruppens översikt står "{gruppens namn} använder {namn}, där grupper organiserar sig utan att jaga varandra. Läs mer" ("{group} uses {namn}, where groups get organised without chasing each other. Read more"), med Läs mer som länk. `href` måste vara `https:`, annars kastar sidan. Utan propen är allt som förut.
+
+### Det appen kan göra
+
+- **Ge `omAppen={{ href: "https://life-hub.app", namn: "LifeHub" }}`** till `OpsGastSida` för märkets länk och raden i översikten. Ramverket känner inte appens adresser.
+
+### Prov
+
+- Nya prov i `src/__tests__/gast-dator-195.test.jsx`, röda utan ändringen och gröna med den: ingen ram på `[data-gast-grupp]`, chatten med `data-fyll` i en uppmätt yta på datorn, platstexten, inget `border-t` på gästens skrivfält och ingen ram på den fyllda loggen, inget indrag på skrivfältet som loggen saknar, temaknappen i huvudet som växlar och sparar, och `omAppen`. Vakterna för det oförändrade (appens skrivfält har kvar strecket, Kalender har ingen uppmätt yta, `publik-ljus` är temats färger) har setts röda med koden muterad.
+- `gast-dator-195.test.jsx`, avsnitt 7: med ett låtsat `visualViewport` (som `tangentbord.test.jsx`) bär gästens telefonyta tangentbordets höjd i `--tangentbord`, i appens uttryck och utan uppmätt underkant, bottenraden göms, och när Safari flyttat den synliga ytan ned lika mycket dras ingenting av. Rött med telefonytan från 0.192.0, grönt med den nya.
+- `gast-grupp-yta.test.jsx`: provet för telefonens yta krävde förut uttrycket ur `--fullhojd-botten` och kräver nu appens. `gast-oversikt.test.jsx`: provet för `gastTangentbordExtra` är borttaget med funktionen.
+- `gast-grupp-yta.test.jsx`: provet "på dator ... ingen bottenrad" sade att chatten inte fyller höjden på datorn och mätte ingenting, eftersom Chatt inte var vald. Det väljer nu Chatt och kräver `data-fyll`.
+- `check:skalyta` mäter i gästens chatt på datorn att skrivfältet står vid fönstrets underkant och att sidan inte rullar, i båda bredderna att loggen och skrivfältet har samma x och bredd utan streck och ram, i huvudet temaknappen (minst 44 x 44), märkets länk och raden om appen, och med tangentbordet uppe att skrivfältet står högst 40 px ovanför den synliga ytans underkant och att loggen syns, i tre lägen (iOS, iOS med förskjuten synlig yta, Android). Kravet att skrivfältet står 0 till 40 px över bottenraden tål nu -1: ytan räknas ur `--bottom-nav-h` (68 px) som appens chatt, och raden är 69 px med sin kantlinje, som ligger över fältets egen utfyllnad. Mätt: -1 px, dokumentet 844 i 844. Kravet att gruppens namn står i huvudet (`data-gast-huvud-grupp`) var kvar från före 0.195.0 och säger nu tvärtom.
+
 ## 0.194.0
 
 Tidsstämpel på allt som har hänt, inte bara datum. CP 2026-11-06: "Alla uppdateringar av projektinformation i modulen projekt behöver datum/tidsstämpel. Även dokument finns bara datum på. Det räcker inte. Jag vill ha tidsstämpel på allt. ... Ny info skall ha datum/tidsstämplar." Det här är ramverkets del; Projekt-modulen är appens.

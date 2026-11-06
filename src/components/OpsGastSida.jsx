@@ -12,6 +12,8 @@ import { ORD_OPSDELADHANDELSE } from "./OpsDeladHandelse.jsx";
 import { OpsDisclosure } from "./OpsDisclosure.jsx";
 import { OpsEmpty } from "./OpsEmpty.jsx";
 import { OpsField, OpsInput } from "./OpsField.jsx";
+import { OpsSprakProvider } from "./OpsSprak.jsx";
+import { OpsThemeToggle } from "./OpsThemeToggle.jsx";
 import { PublikSprakval } from "./PublikSprakval.jsx";
 import { GastsidaInfo } from "./gastsidaInfo.js";
 
@@ -40,7 +42,11 @@ export const ORD_OPSGASTSIDA = {
   orsak_saknas: { sv: GASTFEL.saknas, en: "What you were invited to no longer exists" },
   kundeInte: { sv: "Det gick inte just nu. Försök igen.", en: "That did not work right now. Try again." },
   nyLankRubrik: { sv: "Be om en ny länk", en: "Ask for a new link" },
-  nyLankIngress: { sv: "Skriv din adress, så skickar vi en ny länk om adressen har en inbjudan.", en: "Enter your address and we will send a new link if the address has an invitation." },
+  // ⛔ (0.195.0) Sidan säger först att länken i mejlet räcker: en ny länk gör de gamla ogiltiga, och den som bara loggat ut ska inte ogiltigförklara sin inbjudan av misstag.
+  nyLankIngress: {
+    sv: "Har du kvar mejlet med inbjudan, öppna länken i det. Annars skriver du din adress här, så skickar vi en ny länk om adressen har en inbjudan. En ny länk gör att de gamla slutar fungera.",
+    en: "If you still have the invitation email, open the link in it. Otherwise enter your address here and we will send a new link if the address has an invitation. A new link makes the old ones stop working.",
+  },
   nyLankKnapp: { sv: "Skicka en ny länk", en: "Send a new link" },
   nyLankSvar: { sv: GASTNYLANK_SVAR, en: "If the address has an invitation we have sent a link." },
   namnEtikett: { sv: "Vad ska gruppen kalla dig? (valfritt)", en: "What should the group call you? (optional)" },
@@ -81,8 +87,16 @@ export const ORD_OPSGASTSIDA = {
   raderaFraga: { sv: "Radera allt vi har sparat om dig, i alla grupper? Det går inte att ångra.", en: "Delete everything we have kept about you, in every group? It cannot be undone." },
   raderaBekrafta: { sv: "Ja, radera allt", en: "Yes, delete everything" },
   raderaAvbryt: { sv: "Avbryt", en: "Cancel" },
-  // ⛔ (0.190.0, QA fynd 7 i cllp/lifehub.app#658) En delad enhet: länken glömmer sessionerna här och frågar efter adressen igen.
-  skrivInIgen: { sv: "Skriv in adressen igen", en: "Enter the address again" },
+  // ⛔ (0.190.0, QA fynd 7 i cllp/lifehub.app#658) En delad enhet: knappen glömmer sessionerna här och frågar efter adressen igen.
+  // ⛔ (0.195.0, CP 2026-11-06: "Vad gör denna med be om en ny länk? Varför då? ... Skriv in adressen igen? Hänger inte med") Den hette "Skriv in adressen igen", vilket inte säger att man
+  // loggas ut. Utan länken i minnet landade gästen på "Be om en ny länk", och en ny länk gör de gamla ogiltiga, också den i inbjudningsmejlet. Nu säger knappen vad den gör, den står inne i
+  // integriteten och inte mitt i översikten, och raden före säger hur man kommer tillbaka.
+  loggaUt: { sv: "Logga ut på den här enheten", en: "Sign out on this device" },
+  loggaUtText: { sv: "Du kommer tillbaka med länken i ditt mejl.", en: "You come back with the link in your email." },
+  // (0.195.0, CP 2026-11-06) Loggan och en rad om appen, med `omAppen`. `{namn}` är appens namn, `{grupp}` gruppens.
+  omAppenEtikett: { sv: "Om {namn}, öppnas i en ny flik", en: "About {namn}, opens in a new tab" },
+  omAppenRad: { sv: "{grupp} använder {namn}, där grupper organiserar sig utan att jaga varandra.", en: "{grupp} uses {namn}, where groups get organised without chasing each other." },
+  omAppenLasMer: { sv: "Läs mer", en: "Read more" },
   raderad: { sv: "Dina uppgifter är raderade. Du har inte längre någon åtkomst, och inget av det vi sparade om dig finns kvar.", en: "Your data has been deleted. You no longer have access, and nothing we kept about you remains." },
 };
 
@@ -93,19 +107,59 @@ export const ORD_OPSGASTSIDA = {
  * höga och beskar uppe och nere som inloggningen. Märket blev ändå cirka 50 x 22 px i appens montage, eftersom en fyrkant med luft runt inte kan bli bredare än sin höjd i
  * en ruta som är 40 px hög. CP:s klagomål var just att loggan var "typ obefintligt liten". Nu fyller bilden rutans höjd, bredden följer bildens form (ett märke i 4:1 blir
  * cirka 160 x 40 px), och ingenting beskärs: `object-contain` och `object-left` håller hela märket synligt och mot vänsterkanten. En bild per tema, som i inloggningen.
- * @param {{ marke: { ljus: string, mork: string, namn: string } }} props
+ *
+ * ⛔ MED `omAppen` ÄR MÄRKET EN LÄNK TILL APPENS EGEN SIDA, I EN NY FLIK (0.195.0), så att gästens session ligger kvar där den var. Länkens namn säger vart den går och att den
+ * öppnar en ny flik (`etikett`); bildens alternativtext hade bara sagt appens namn.
+ * @param {{ marke: { ljus: string, mork: string, namn: string }, lank?: { href: string, etikett: string } | null }} props
  */
-function GastMarke({ marke }) {
+function GastMarke({ marke, lank = null }) {
   if (!marke || typeof marke.ljus !== "string" || typeof marke.mork !== "string" || typeof marke.namn !== "string" || !marke.namn.trim()) {
     throw new Error("OpsGastSida: marke är { ljus, mork, namn }: en bild per tema och appens namn som alternativtext.");
   }
+  const bilder = [["ljus", marke.ljus, "mix-blend-multiply"], ["mork", marke.mork, ""]].map(([tema, src, extra]) => (
+    <img key={tema} src={src} alt={tema === "ljus" && !lank ? marke.namn : ""} aria-hidden={tema === "ljus" && !lank ? undefined : true} className={cx(tema === "ljus" ? "ops-ordmarke-ljus" : "ops-ordmarke-mork", "h-full w-auto max-w-full object-contain object-left", extra)} />
+  ));
+  if (lank) {
+    return (
+      <a
+        href={lank.href}
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label={lank.etikett}
+        data-gast-marke=""
+        data-gast-marke-lank=""
+        className="flex h-6 max-w-(--logo-bredd) shrink-0 items-center rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+      >
+        {bilder}
+      </a>
+    );
+  }
   return (
     <span data-gast-marke="" className="flex h-6 max-w-(--logo-bredd) shrink-0 items-center">
-      {[["ljus", marke.ljus, "mix-blend-multiply"], ["mork", marke.mork, ""]].map(([tema, src, extra]) => (
-        <img key={tema} src={src} alt={tema === "ljus" ? marke.namn : ""} aria-hidden={tema === "ljus" ? undefined : true} className={cx(tema === "ljus" ? "ops-ordmarke-ljus" : "ops-ordmarke-mork", "h-full w-auto max-w-full object-contain object-left", extra)} />
-      ))}
+      {bilder}
     </span>
   );
+}
+
+/**
+ * Prövar appens `omAppen` (0.195.0): `{ href, namn }`, där `href` är en `https:`-adress. Allt annat kastar, med skälet: en `javascript:`-adress i en länk kör kod på gästens sida,
+ * och en `http:`-adress skickar gästen ut okrypterat från en sida som bär en sessionsnyckel. Samma hållning som `provadVyAdress` för Bibliotekets vyer, men strängare: bara https.
+ * @param {unknown} omAppen
+ * @returns {{ href: string, namn: string } | null}
+ */
+function provatOmAppen(omAppen) {
+  if (omAppen === undefined || omAppen === null) return null;
+  const o = /** @type {{ href?: unknown, namn?: unknown }} */ (omAppen);
+  let https = false;
+  try {
+    https = typeof o.href === "string" && new URL(o.href).protocol === "https:";
+  } catch {
+    https = false;
+  }
+  if (!https || typeof o.namn !== "string" || !o.namn.trim()) {
+    throw new Error(`OpsGastSida: omAppen är { href, namn }, där href är en https-adress (fick ${typeof o.href === "string" ? JSON.stringify(o.href.slice(0, 40)) : typeof o.href}) och namn är appens namn. En javascript-, data- eller http-adress är aldrig tillåten.`);
+  }
+  return { href: /** @type {string} */ (o.href), namn: o.namn.trim() };
 }
 
 /** Orsakerna där en länk som gått ut ändå går att ersätta: adressen stämde, så sidan erbjuder en ny länk. */
@@ -162,13 +216,16 @@ const ERSATTBARA = /** @type {readonly string[]} */ (["utgangen"]);
  * @param {{ ljus: string, mork: string, namn: string }} [props.marke] (0.190.0, CP 2026-11-05 i cllp/lifehub.app#658, del A) Appens ordmärke, en URL per tema: en BRED bild som är
  *   tätt beskuren runt märket, som appens headerbild (1079 x 260, ungefär 4:1), inte fyrkantig konst med luft runt. Den ritas i samma ruta som skalets märke (40 px hög, högst
  *   `--logo-bredd` bred), fyller höjden och beskärs inte, så ett märke i 4:1 blir cirka 160 x 40 px. `namn` är bildens alternativtext.
+ * @param {{ href: string, namn: string }} [props.omAppen] (0.195.0, CP 2026-11-06) Appens egen sida om sig själv. Med den blir märket i huvudet en länk dit (ny flik), och sist i gruppens
+ *   översikt står "{gruppens namn} använder {namn}, där grupper organiserar sig utan att jaga varandra. Läs mer", med Läs mer som länk. Ramverket känner inte appens adresser, därför en prop.
+ *   `href` måste vara `https:`; allt annat kastar. Utan den är märket en bild och raden saknas.
  * @param {string} [props.sprak] `sv` eller `en` om appen styr det. Utelämnat: sidan väljer själv och minns valet.
  * @param {(sprak: string) => void} [props.onSprak]
  * @param {number} [props.intervallMs] Hur ofta saken hämtas på nytt medan sidan är öppen. Förval 60 000. `0` stänger av tidtagningen (fokus hämtar ändå).
  * @param {{ getItem: (k: string) => string | null, setItem: (k: string, v: string) => void, removeItem: (k: string) => void, key?: (i: number) => string | null, length?: number } | null} [props.lagring] Minnet för sessionen. Förval `localStorage`; `null` ger bara minne för den här sidvisningen.
  * @param {Partial<Record<keyof typeof ORD_OPSGASTSIDA, string>>} [props.ord] Egna texter, som vinner över ordboken.
  */
-export function OpsGastSida({ lank = null, onLos, onHamta, onNyLank, onNamn, onRaderaMig, onSvara, renderSak, renderGrupp, huvud, marke, sprak, onSprak, intervallMs = 60_000, lagring, ord }) {
+export function OpsGastSida({ lank = null, onLos, onHamta, onNyLank, onNamn, onRaderaMig, onSvara, renderSak, renderGrupp, huvud, marke, omAppen, sprak, onSprak, intervallMs = 60_000, lagring, ord }) {
   for (const [namn, f] of /** @type {const} */ ([["onLos", onLos], ["onHamta", onHamta], ["onNyLank", onNyLank]])) {
     if (typeof f !== "function") throw new Error(`OpsGastSida: ${namn} krävs, en funktion som anropar appens /api/gast.`);
   }
@@ -184,6 +241,7 @@ export function OpsGastSida({ lank = null, onLos, onHamta, onNyLank, onNamn, onR
   const [valt, setValt] = useState(() => valdSprak({ sparat: lasSparatSprak(), webblasare: typeof navigator === "undefined" ? undefined : navigator.language }));
   const aktivt = sprak ?? valt;
   const t = { ...forvalda(ORD_OPSGASTSIDA, aktivt), ...definierade(/** @type {Record<string, string>} */ (ord ?? {})) };
+  const appen = provatOmAppen(omAppen);
   const mem = useRef(minne(lagring));
   // Rubrikens tre ord (När och var, till, Plats) är den delade händelsesidans: en inbjuden ser samma rubrik som den som fått en delad länk (`DeladRubrik`).
   const { tidEtikett, till, platsEtikett } = forvalda(ORD_OPSDELADHANDELSE, aktivt);
@@ -502,7 +560,7 @@ export function OpsGastSida({ lank = null, onLos, onHamta, onNyLank, onNamn, onR
    * för nästa person. ALLA sessioner på enheten glöms, inte bara den som visas: nästa person ska inte heller hamna i den förras omröstning. Servern rörs inte: sessionen
    * gäller tills den går ut, men nyckeln finns inte längre på enheten. Med länken i minnet (samma sidvisning) är det adressteget; utan den sidan som skickar en ny länk.
    */
-  function skrivInIgen() {
+  function loggaUt() {
     for (const id of sparadeIds()) glomSession(id);
     mem.current.glom(ALLA);
     mem.current.glom(SENASTE);
@@ -549,7 +607,8 @@ export function OpsGastSida({ lank = null, onLos, onHamta, onNyLank, onNamn, onR
     </form>
   );
 
-  const integritet = (
+  /** @param {boolean} [medUtloggning] Gruppens integritet bär Logga ut på den här enheten (0.195.0). En omröstning och en händelse har ingen. */
+  const integritetsruta = (medUtloggning = false) => (
             <section data-gast-integritet="" className="flex min-w-0 max-w-2xl flex-col gap-3">
               <OpsDisclosure summary={t.integritetRubrik}>
                 <div className="flex flex-col gap-3 pt-2">
@@ -577,23 +636,36 @@ export function OpsGastSida({ lank = null, onLos, onHamta, onNyLank, onNamn, onR
                       </div>
                     )
                   ) : null}
+                  {medUtloggning ? (
+                    <div data-gast-logga-ut-rad="" className="flex flex-col items-start gap-2 border-t border-line pt-3">
+                      <p className="m-0 text-meta text-publik-ljus-dampad">{t.loggaUtText}</p>
+                      <OpsButton variant="secondary" onClick={loggaUt}>
+                        {t.loggaUt}
+                      </OpsButton>
+                    </div>
+                  ) : null}
                 </div>
               </OpsDisclosure>
             </section>
   );
-  // Det som ligger i gruppens (i)-panel: integriteten och vägen tillbaka till adressteget.
+  const integritet = integritetsruta();
+  // Det som står i gruppens översikt: integriteten, med Logga ut på den här enheten inne i den.
   const gruppInfo = (
     <div data-gast-grupp-info-sida="" className="flex min-w-0 flex-col gap-2">
-      {integritet}
-      <div>
-        <button type="button" data-gast-skriv-in-igen="" onClick={skrivInIgen} className="inline-flex min-h-11 cursor-pointer items-center text-etikett text-accent underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
-          {t.skrivInIgen}
-        </button>
-      </div>
+      {integritetsruta(true)}
     </div>
   );
 
   const grupplage = lage.fas === "klar" && svar?.funktion === "grupp";
+  // Raden om appen sist i översikten (0.195.0). Bara i gruppen: den nämner gruppens namn, och en omröstning eller en händelse har ingen översikt.
+  const omAppenRad = appen && grupplage && typeof svar?.grupp?.namn === "string" ? (
+    <p data-gast-om-appen="" className="m-0 max-w-prose text-meta text-publik-ljus-dampad">
+      {t.omAppenRad.replace("{grupp}", svar.grupp.namn).replace("{namn}", appen.namn)}{" "}
+      <a href={appen.href} target="_blank" rel="noopener noreferrer" className="font-medium text-accent underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
+        {t.omAppenLasMer}
+      </a>
+    </p>
+  ) : null;
   // Namnet på översikten (0.192.0). Ett sparat namn visas med Ändra. Formuläret står bara när namnet saknas eller när gästen ändrar det.
   // En omröstning och en händelse har ingen översikt, och där står `namnruta` kvar under innehållet.
   const visatNamn = visningsnamn !== null ? visningsnamn : (typeof svar?.namn === "string" ? svar.namn.trim() : "");
@@ -664,13 +736,20 @@ export function OpsGastSida({ lank = null, onLos, onHamta, onNyLank, onNamn, onR
       <header className="sticky top-0 z-10 border-b border-publik-ljus-text/10 bg-publik-ljus">
         <div className={cx("mx-auto flex h-12 w-full items-center justify-between gap-3 px-4", spalt)}>
           <div data-gast-huvud="" className="flex min-w-0 items-center gap-2">
-            {marke ? <GastMarke marke={marke} /> : null}
-            {grupplage && typeof svar?.grupp?.namn === "string" && svar.grupp.namn ? (
-              <span data-gast-huvud-grupp="" className="min-w-0 truncate text-etikett font-medium">{svar.grupp.namn}</span>
-            ) : null}
+            {marke ? <GastMarke marke={marke} lank={appen ? { href: appen.href, etikett: t.omAppenEtikett.replace("{namn}", appen.namn) } : null} /> : null}
+            {/* ⛔ GRUPPENS NAMN STÅR INTE BREDVID LOGGAN (0.195.0, CP 2026-11-06: "Gruppnamnet Skarv i Web skall inte vara bredvid Lifehub. Den kan vara nedanför utan att pressa ner raden.
+                Vidare i Mobil står den två gånger. Ta bort den bredvid loggan."). Namnet är gruppens rubrik i `OpsGastGrupp`: över flikarna på datorn, i Översikt på telefonen. */}
             {huvud}
           </div>
-          <PublikSprakval aktivt={aktivt} etikett={t.sprakEtikett} onVal={valj} />
+          {/* ⛔ LJUST OCH MÖRKT I GÄSTENS HUVUD (0.195.0, CP 2026-11-06: "Och kan vi ha ljust/mörkt läge switch där också?"). Appens egen växlare (`OpsThemeToggle`), inte en kopia:
+              den skriver `<html data-theme>` och sparar valet i `localStorage` (`ops-theme`), som i appen. Sidans färger följer temat, eftersom `publik-ljus` är `canvas` och `ink`
+              (`tokens.css`). Ordet ("Utseende", "Appearance") läses ur språkets sammanhang, som sidan sätter här: huvudet ligger utanför gruppens `OpsSprakProvider`. */}
+          <div data-gast-huvud-val="" className="flex shrink-0 items-center gap-1">
+            <PublikSprakval aktivt={aktivt} etikett={t.sprakEtikett} onVal={valj} />
+            <OpsSprakProvider sprak={aktivt}>
+              <OpsThemeToggle />
+            </OpsSprakProvider>
+          </div>
         </div>
       </header>
       {/* ⛔ I GRUPPEN PÅ TELEFON SLUTAR SIDAN VID BOTTENRADEN (0.190.0, del B): ytan fyller höjden ut till raden (`OpsGastGrupp`), och `main` lämnar exakt radens och den säkra ytans
@@ -698,7 +777,7 @@ export function OpsGastSida({ lank = null, onLos, onHamta, onNyLank, onNamn, onR
           <div data-gast-klar="" className="flex min-w-0 flex-col gap-6">
             {svar && svar.funktion === "grupp" ? (
               renderGrupp ? (
-                <GastsidaInfo.Provider value={{ integritet: gruppInfo, namn: gruppNamnBlock, minne: mem.current, inbjudan: aktivId.current }}>
+                <GastsidaInfo.Provider value={{ integritet: gruppInfo, namn: gruppNamnBlock, minne: mem.current, inbjudan: aktivId.current, omAppen: omAppenRad }}>
                   {renderGrupp({ grupp: svar.grupp, namn: typeof svar.namn === "string" ? svar.namn : "", sessionsnyckel: /** @type {string} */ (sessionsnyckel), uppdatera: async () => void (await hamta(/** @type {string} */ (sessionsnyckel), { tyst: true })) })}
                 </GastsidaInfo.Provider>
               ) : (
