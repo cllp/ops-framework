@@ -13,6 +13,10 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 En PDF i appens egen vy, med Presentera i helskärm sida för sida (cllp/ops-framework#530). CP 2026-11-06, med en skärmbild av en PDF öppnad direkt från lagringen i Edge: "Det är inte så bra att det står firebase storage mm när man presenterar. Går det att köra PDF i ett eget fönster som döljer den länkraden ungefär som html-filen och sedan att man kan visa pdf:en i presentationsläge, helskärm, så att inte LIFE-HUB syns heller?" CP:s svar på frågorna: sida för sida, och gäster får presentera. Spärren mot nedladdning gäller fortfarande.
 
+### Det appen måste göra
+
+- **Installera `pdfjs-dist@6.4.299` i webbappen** (`npm install --save-exact pdfjs-dist@6.4.299` i `web/`, inte i `functions/`). Utan paketet visar PDF-vyn en rad om att visningen inte är installerad.
+
 ### Tillagt
 
 - **PDF-vyn i Bibliotekets detalj.** En post med `application/pdf` ritas av pdf.js (`pdfjs-dist` 6.4.299, låst exakt, legacy-bygget) på en canvas per sida, i stället för en länk till lagringens adress. Byten hämtas med appens `hamtaFil` (inloggningen), och utan den (gästens bibliotek) ur den adress Biblioteket redan har, i datalagret (`src/data/filbytes.js`, `lasFilbytes`). Lagringens adress syns varken i vyn eller i adressfältet. Ingen ny prop krävs för detaljen.
@@ -25,7 +29,8 @@ En PDF i appens egen vy, med Presentera i helskärm sida för sida (cllp/ops-fra
 
 ### Ändrat
 
-- **`pdfjs-dist` är ett beroende** och externt i paketets bygge (`scripts/build.mjs`), så att appens bundler gör det till en egen bit och workern till en egen fil. Det drar med sig `@napi-rs/canvas` som valfritt beroende (pdf.js i Node). Webbläsaren använder det aldrig.
+- **`pdfjs-dist` är ett valfritt peer-beroende** (`peerDependencies` med `peerDependenciesMeta.optional`, och samma version i `devDependencies` för ramverkets egna prov och `check:delbarhet`), externt i paketets bygge (`scripts/build.mjs`), så att appens bundler gör det till en egen bit och workern till en egen fil. Skälet (granskningen av PR:en): lifehub.app installerar ramverket också i `functions/`, och som vanligt beroende hade `pdfjs-dist` och dess valfria `@napi-rs/canvas` (cirka 37 MB med en inbyggd binär) hamnat i Cloud Functions-installationen, där ingen PDF ritas. Mätt med `npm pack` och `npm install <tgz> --omit=dev` i en tom katalog: varken `pdfjs-dist` eller `@napi-rs` installeras.
+- **Saknas `pdfjs-dist` i appen** bygger appen ändå: Vite ersätter importen av ett valfritt peer-beroende med en tom modul (mätt i en Vite-byggd app utan paketet). `laddaPdfjs` känner igen den, och vyn säger "Visningen för PDF är inte installerad i den här appen." i stället för ett nätfel.
 - **Legacy-bygget av pdf.js, inte det moderna.** Det moderna bygget anropar `Promise.try`, `Map.prototype.getOrInsertComputed` och `Math.sumPrecise` utan reservväg. Mätt: ramverkets prov föll med "Promise.try is not a function" (Node 22), och samma funktioner saknas i Safari före 18.2 och i fler webbläsare för de två andra. Legacy-bygget bär dem själv, för cirka 58 kB i pdf.js och 57 kB i workern, bara när en PDF öppnas.
 - **`blobBytes`** har ett hem (`lib/blobbytes.js`). HTML-rutan och textförhandsvisningen hade var sin kopia, och PDF-vyn hade blivit den tredje.
 

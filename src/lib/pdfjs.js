@@ -29,6 +29,9 @@ import { blobBytes } from "./blobbytes.js";
 /** Det som skickas till `getDocument` utöver byten. Se filhuvudet. */
 export const PDF_DOKUMENTVAL = Object.freeze({ isEvalSupported: false, enableXfa: false, stopAtErrors: false });
 
+/** Felkoden när appen inte har installerat `pdfjs-dist`. */
+export const PDFJS_SAKNAS = "pdfjs-saknas";
+
 /** @type {Promise<any> | null} */
 let pdfjsLaddas = null;
 
@@ -40,6 +43,8 @@ export function laddaPdfjs() {
   if (!pdfjsLaddas) {
     pdfjsLaddas = import("pdfjs-dist/legacy/build/pdf.mjs")
       .then((pdfjs) => {
+        // ⛔ PAKETET ÄR APPENS (valfritt peer-beroende, 0.193.0). Saknas det ersätter Vite importen med en tom modul i bygget, och då ska felet säga att visningen inte är installerad, inte att nätet föll.
+        if (!pdfjs || !("getDocument" in pdfjs) || typeof pdfjs.getDocument !== "function" || !pdfjs.GlobalWorkerOptions) throw Object.assign(new Error("pdfjs-dist saknas i appen. Installera pdfjs-dist@6.4.299."), { code: PDFJS_SAKNAS });
         if (!pdfjs.GlobalWorkerOptions.workerSrc) pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerAdress() || standardWorker();
         return pdfjs;
       })

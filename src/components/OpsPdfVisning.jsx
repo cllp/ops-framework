@@ -8,7 +8,7 @@ import { ExternLankIkon } from "./icons.jsx";
 import { filadressFel } from "../lib/bibliotek.js";
 import { cx } from "../lib/cx.js";
 import { ordet } from "../lib/ord.js";
-import { laddaPdfjs, oppnaPdf, pdfFelsort } from "../lib/pdfjs.js";
+import { PDFJS_SAKNAS, laddaPdfjs, oppnaPdf, pdfFelsort } from "../lib/pdfjs.js";
 import { SIDNUMMER_MS, bytSida, klickSteg, skarmSkala, svepSteg, tangentIPresentation } from "../lib/pdfpresentation.js";
 import { sparaSomFil } from "../lib/sparaFil.js";
 
@@ -48,7 +48,7 @@ export function OpsPdfVisning({ hamta, sokvag, namn, fonster, laddaNed = true, h
   hamtaRef.current = hamta;
   const filRef = useRef(/** @type {Blob | null} */ (null));
   const [forsok, setForsok] = useState(0);
-  const [lage, setLage] = useState(/** @type {{ lage: "hamtar" } | { lage: "klar", dokument: any, antal: number, sida1: { bredd: number, hojd: number } } | { lage: "fel", sort: "import" | "hamta" | "losenord" | "trasig" | "annat", text: string }} */ ({ lage: "hamtar" }));
+  const [lage, setLage] = useState(/** @type {{ lage: "hamtar" } | { lage: "klar", dokument: any, antal: number, sida1: { bredd: number, hojd: number } } | { lage: "fel", sort: "import" | "saknas" | "hamta" | "losenord" | "trasig" | "annat", text: string }} */ ({ lage: "hamtar" }));
 
   // ── Hämtningen: pdf.js och byten samtidigt, och felet efter vad som föll ────────────────────────────────────────────
   useEffect(() => {
@@ -60,7 +60,7 @@ export function OpsPdfVisning({ hamta, sokvag, namn, fonster, laddaNed = true, h
     (async () => {
       const [pdfjs, fil] = await Promise.allSettled([laddaPdfjs(), Promise.resolve().then(() => hamtaRef.current(sokvag))]);
       if (!kvar) return;
-      if (pdfjs.status === "rejected") return setLage({ lage: "fel", sort: "import", text: "" });
+      if (pdfjs.status === "rejected") return setLage({ lage: "fel", sort: pdfjs.reason?.code === PDFJS_SAKNAS ? "saknas" : "import", text: "" });
       if (fil.status === "rejected") return setLage({ lage: "fel", sort: "hamta", text: filadressFel(fil.reason) });
       filRef.current = fil.value;
       try {
@@ -337,11 +337,12 @@ const CSS_PER_PUNKT = 96 / 72;
 const KANT = 12;
 
 /**
- * @param {{ sort: "import" | "hamta" | "losenord" | "trasig" | "annat", text: string }} fel
+ * @param {{ sort: "import" | "saknas" | "hamta" | "losenord" | "trasig" | "annat", text: string }} fel
  * @param {(k: keyof typeof ORD_PDFVISNING) => string} o
  */
 function felText(fel, o) {
   if (fel.sort === "import") return o("felImport");
+  if (fel.sort === "saknas") return o("felSaknas");
   if (fel.sort === "hamta") return `${o("felHamta")} ${fel.text}`.trim();
   if (fel.sort === "losenord") return o("felLosenord");
   if (fel.sort === "trasig") return o("felTrasig");
@@ -446,6 +447,7 @@ export const ORD_PDFVISNING = {
   hamtar: { sv: "Hämtar dokumentet.", en: "Fetching the document." },
   tom: { sv: "PDF:en har inga sidor.", en: "The PDF has no pages." },
   forsokIgen: { sv: "Försök igen", en: "Try again" },
+  felSaknas: { sv: "Visningen för PDF är inte installerad i den här appen.", en: "The PDF viewer is not installed in this app." },
   felImport: { sv: "Visningen för PDF gick inte att hämta. Kontrollera nätet och försök igen.", en: "The PDF viewer could not be loaded. Check the network and try again." },
   felHamta: { sv: "Dokumentet gick inte att hämta.", en: "The document could not be fetched." },
   felLosenord: { sv: "PDF:en är skyddad med lösenord och kan inte visas här.", en: "The PDF is password protected and cannot be shown here." },

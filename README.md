@@ -3364,6 +3364,8 @@ CP 2026-11-06, med en skärmbild av en PDF öppnad direkt från lagringen i Edge
 
 En PDF ritas nu av pdf.js (Mozilla, `pdfjs-dist` 6.4.299, legacy-bygget: det moderna anropar `Promise.try` och andra nya funktioner utan reservväg, och föll i Node 22 och saknas i Safari före 18.2) i appens egen vy, i Bibliotekets detalj och i ett eget fönster. Filen hämtas som byte och ritas på en canvas per sida. Lagringens adress finns aldrig i vyn och aldrig i adressfältet.
 
+⛔ **Appen installerar `pdfjs-dist` själv**, i den del som ritar vyn: `npm install --save-exact pdfjs-dist@6.4.299` (lifehub.app: i `web/`, inte i `functions/`). Ramverket har det som valfritt peer-beroende, så att det inte följer med in i en installation där ingen PDF ritas (Cloud Functions; paketet drar med sig `@napi-rs/canvas`, cirka 37 MB). Saknas det bygger appen ändå, och vyn säger "Visningen för PDF är inte installerad i den här appen."
+
 | Del | Vad |
 |---|---|
 | Detaljen i `OpsBibliotek` | Ingen ny prop behövs: en post med `application/pdf` ritas i PDF-vyn. Byten hämtas med `hamtaFil(sokvag)` (samma callback som HTML-dokumentet och textfilen, `getBlob` med inloggningen). Utan `hamtaFil` (gästens bibliotek) hämtas de ur den adress Biblioteket redan fått av `hamtaAdress` eller `filUrl`, i datalagret (`lasFilbytes`). |
