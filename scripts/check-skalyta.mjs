@@ -1154,6 +1154,7 @@ if (argv.includes("--bara-gaster")) {
 if (argv.includes("--bara-gastgrupp")) {
   await gastGrupp();
   await gastArenden();
+  await gastTelefon();
   await browser.close();
   avsluta();
   process.exit(0);
@@ -8396,6 +8397,120 @@ async function gastGrupp() {
  * Avsnitt 57 (0.132.0, lifehub.app#389, skiva 3): ärenden till en gäst. Gästens flik Ärenden (fyra flikar, tre kort, kommentar, Markera klar som frågar först) och medlemmens sida (väljaren för ansvarig med gäster
  * och märket Gäst / Gäst (inbjudan återkallad)), 390 och 1280 px, i riktig CSS.
  */
+// ═══ 56b. Gäst med telefonnummer (0.197.0, cllp/lifehub.app#661) ═══
+//
+// CP 2026-11-05: "Alltså bjud in via telefon eller e-post. Då kan man ange mottagarens telefonnummer och sedan får man trycka dela via SMS från sin egen telefon." Ärendet bad om skärmbilder av Bjud in med Telefon och av
+// gästens telefonsteg, i 390 och 1280.
+// (a) Medlemmens lista: valet E-post eller Telefon finns, med Telefon ett fält av typen tel. Ett nummer och Bjud in öppnar bekräftelsen med numret i normaliserad form, och inget anrop går före den. Bjud in anropar med numret,
+//     hämtar länken (`onKopieraLank`) och visar den under formuläret med Kopiera och Dela (minst 32 px), helt inom skärmen och utan sidled. Dela ger telefonens delningsmeny sms-texten och länken.
+// (b) Telefongästens rad visar numret och har Ny länk, inte Skicka igen.
+// (c) Gästens sida med en telefonlänk (`&s=tel`): en h1, fältet Ditt telefonnummer av typen tel och inget e-postfält, utan sidled, och Fortsätt postar { id, nyckel, telefon }.
+async function gastTelefon() {
+  const DELA = "window.__delat = null; Object.defineProperty(navigator, 'share', { configurable: true, value: async (d) => { window.__delat = d; } });";
+  for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
+    const w = vp.width;
+    const namn = `gäst med telefon ${w}`;
+    {
+      const { page, context } = await oppna("gastgrupp-telefon", vp, standardtema, 1, null, 0, { init: DELA });
+      try {
+        lista: {
+        // ⛔ Ett brott och inte ett kast: en version som inte känner en gäst med telefonnummer kastar i listan, och det ska stå som ett brott bland de andra.
+        const ritad = await page.waitForSelector("[data-gastlista]").then(() => true, () => false);
+        krav(ritad, `${namn}: listan med en gäst med telefonnummer ritades inte (en person med telefon och epost null ska gå att visa).`);
+        if (!ritad) break lista;
+        // (b) raden för gästen med telefon
+        const rad = await page.evaluate(() => {
+          const r = document.querySelector(`[data-gast-person="g_${"4".repeat(40)}"]`);
+          if (!r) return null;
+          const knappar = [...r.querySelectorAll("button")].map((b) => (b.textContent || "").trim());
+          return { nummer: (r.querySelector("[data-gast-telefon]")?.textContent || "").trim(), knappar };
+        });
+        krav(rad !== null, `${namn} (b): telefongästens rad ritades inte. Då mättes inte raden.`);
+        if (rad) {
+          krav(rad.nummer === "+46701234567", `${namn} (b): raden visar numret ${JSON.stringify(rad.nummer)}, väntat +46701234567.`);
+          krav(rad.knappar.includes("Ny länk") && !rad.knappar.includes("Skicka igen"), `${namn} (b): radens knappar är ${JSON.stringify(rad.knappar)}, väntat Ny länk och inte Skicka igen.`);
+        }
+        // (a) valet och formuläret
+        const flik = page.getByRole("tab", { name: "Telefon" });
+        const finns = (await flik.count()) === 1;
+        krav(finns, `${namn} (a): valet Telefon finns inte i formuläret.`);
+        if (finns) {
+          await flik.click();
+          const falt = await page.evaluate(() => ({ tel: document.querySelectorAll('[data-gastlista-form] input[type="tel"]').length, epost: document.querySelectorAll('[data-gastlista-form] input[type="email"]').length }));
+          krav(falt.tel === 1 && falt.epost === 0, `${namn} (a): med Telefon vald har formuläret ${falt.tel} telefonfält och ${falt.epost} e-postfält, väntat 1 och 0.`);
+          if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `gast-telefon-form-${w}.png`), fullPage: true });
+          await page.locator('[data-gastlista-form] input[type="tel"]').fill("070-123 45 67");
+          await page.getByRole("button", { name: "Bjud in gäst till hela gruppen" }).click();
+          await page.waitForSelector('[role="dialog"]');
+          const d = await page.evaluate(() => ({ titel: (document.querySelector('[role="dialog"] h2')?.textContent || "").trim(), anrop: JSON.stringify(/** @type {any} */ (window).__gastgruppanrop) }));
+          krav(d.titel === "Bjud in +46701234567 till hela gruppen?", `${namn} (a): bekräftelsens rubrik är ${JSON.stringify(d.titel)}, väntat numret i normaliserad form.`);
+          krav(d.anrop === "[]", `${namn} (a): ett anrop gick före bekräftelsen (${d.anrop}).`);
+          await page.locator('[role="dialog"]').getByRole("button", { name: "Bjud in", exact: true }).click();
+          await page.waitForSelector("[data-gastlista-telefonlank]");
+          const l = await page.evaluate(() => {
+            const ruta = /** @type {HTMLElement} */ (document.querySelector("[data-gastlista-telefonlank]"));
+            const r = ruta.getBoundingClientRect();
+            const knapp = (/** @type {string} */ t) => [...ruta.querySelectorAll("button")].find((b) => (b.textContent || "").trim() === t);
+            const k = knapp("Kopiera");
+            const dl = knapp("Dela");
+            return {
+              anrop: JSON.stringify(/** @type {any} */ (window).__gastgruppanrop),
+              url: /** @type {HTMLInputElement | null} */ (ruta.querySelector("input"))?.value ?? "",
+              inom: r.left >= -0.5 && r.right <= innerWidth + 0.5,
+              overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+              kopiera: k ? k.getBoundingClientRect().height : null,
+              dela: dl ? dl.getBoundingClientRect().height : null,
+            };
+          });
+          matt.push(`${namn}: länken ${l.inom ? "inom skärmen" : "utanför"}, Kopiera ${l.kopiera === null ? "saknas" : l.kopiera.toFixed(0) + " px"}, Dela ${l.dela === null ? "saknas" : l.dela.toFixed(0) + " px"}`);
+          krav(l.anrop === JSON.stringify([["bjudGrupp", { telefon: "+46701234567", namn: "" }], ["kopieraLank", { id: "a".repeat(64) }]]), `${namn} (a): anropen blev ${l.anrop}, väntat bjudGrupp med numret och sedan kopieraLank med inbjudans id.`);
+          krav(l.url.endsWith("&s=tel"), `${namn} (a): länken i fältet är ${JSON.stringify(l.url)}, väntat telefonlänken.`);
+          krav(l.inom && !l.overflow, `${namn} (a): länken ligger inte inom skärmen (inom ${l.inom}, sidled ${l.overflow}).`);
+          krav(l.kopiera !== null && l.kopiera >= 32 && l.dela !== null && l.dela >= 32, `${namn} (a): Kopiera ${l.kopiera} px och Dela ${l.dela} px, väntat båda minst 32 px.`);
+          if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `gast-telefon-lank-${w}.png`), fullPage: true });
+          if (l.dela !== null) {
+            await page.locator("[data-gastlista-telefonlank]").getByRole("button", { name: "Dela" }).click();
+            const delat = await page.evaluate(() => JSON.stringify(/** @type {any} */ (window).__delat));
+            krav(delat === JSON.stringify({ title: "Inbjudan till Källan", text: "Öppna länken och skriv ditt telefonnummer, samma som inbjudan gäller.", url: l.url }), `${namn} (a): Dela gav ${delat}.`);
+          }
+        }
+        }
+      } finally {
+        await context.close();
+      }
+    }
+    // (c) gästens sida med en telefonlänk
+    {
+      const { page, context } = await oppna("gastsida-telefon", vp, standardtema, 1, null, 0, { kontext: { locale: "sv-SE" } });
+      try {
+        await page.waitForSelector("[data-gast-form]");
+        const g = await page.evaluate(() => {
+          const lab = [...document.querySelectorAll("label")].find((x) => (x.textContent || "").includes("Ditt telefonnummer"));
+          return {
+            h1: document.querySelectorAll("h1").length,
+            tel: document.querySelectorAll('[data-gast-form] input[type="tel"]').length,
+            epost: document.querySelectorAll('[data-gast-form] input[type="email"]').length,
+            etikett: Boolean(lab),
+            overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+          };
+        });
+        krav(g.h1 === 1 && g.tel === 1 && g.epost === 0 && g.etikett, `${namn} (c): gästens steg har ${g.h1} h1, ${g.tel} telefonfält, ${g.epost} e-postfält och etiketten ${g.etikett}, väntat 1, 1, 0 och Ditt telefonnummer.`);
+        krav(!g.overflow, `${namn} (c): gästens steg flödar över i sidled.`);
+        if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `gast-telefon-sida-${w}.png`), fullPage: true });
+        if (g.tel === 1) {
+          await page.locator('[data-gast-form] input[type="tel"]').fill("070 123 45 67");
+          await page.getByRole("button", { name: "Fortsätt" }).click();
+          await page.waitForTimeout(150);
+          const los = await page.evaluate(() => JSON.stringify((/** @type {any} */ (window).__gastanrop || []).find((x) => x[0] === "los") ?? null));
+          krav(los === JSON.stringify(["los", { id: "a".repeat(64), nyckel: "K".repeat(43), telefon: "070 123 45 67" }]), `${namn} (c): Fortsätt postade ${los}, väntat { id, nyckel, telefon }.`);
+        }
+      } finally {
+        await context.close();
+      }
+    }
+  }
+}
+
 async function gastArenden() {
   const SV_WEBBLASARE = { kontext: { locale: "sv-SE" } };
   const vyer = [{ width: 390, height: 844 }, { width: 1280, height: 900 }];
@@ -9122,6 +9237,7 @@ await kategoriFormular();
 await gastVyer();
 await gastGrupp();
 await gastArenden();
+await gastTelefon();
 await kalenderdelning();
 await bibliotekHtmlVersioner();
 await bibliotekHtmlVy();

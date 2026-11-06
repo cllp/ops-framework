@@ -526,7 +526,7 @@ export function normaliseraGasttelefon(telefon) {
   if (typeof telefon !== "string") return null;
   const radat = telefon.normalize("NFKC").trim();
   if (radat.length === 0 || radat.length > MAX_GASTTELEFON_INMATNING) return null;
-  let t = radat.replace(/[\s\-‐-―−()]/g, "");
+  let t = radat.replace(/[\s\-\u2010-\u2015\u2212()]/g, "");
   if (t.startsWith("00")) t = `+${t.slice(2)}`;
   else if (/^0[1-9]/.test(t)) t = `+46${t.slice(1)}`;
   if (!/^\+[1-9][0-9]*$/.test(t)) return null;

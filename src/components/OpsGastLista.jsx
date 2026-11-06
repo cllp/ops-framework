@@ -105,6 +105,11 @@ export const ORD_OPSGASTLISTA = {
   stang: { sv: "Stäng", en: "Close" },
   // ── Telefon (0.197.0, cllp/lifehub.app#661): inbjudan med ett nummer, länken delas från den egna telefonen ──
   kontaktVal: { sv: "Bjud in med", en: "Invite with" },
+  // Ingressen när Telefon är valt: gruppens ingress börjar med att gästen får ett mejl, och det gör en gäst med telefon inte.
+  ingressGruppTelefon: {
+    sv: "En gäst får en länk som du delar, till exempel som sms, och kan följa gruppen utan konto: läsa och skriva i chatten, svara och rösta i kalendern och läsa, spela och ladda ned i biblioteket. Gästen ser inte gruppens ärenden, bara de som gruppen delegerar till hen.",
+    en: "A guest gets a link that you share, for example as a text message, and can follow the group without an account: read and write in the chat, answer and vote in the calendar, and read, play and download in the library. The guest does not see the group's cases, only those the group delegates to them.",
+  },
   kontaktEpost: { sv: "E-post", en: "Email" },
   kontaktTelefon: { sv: "Telefon", en: "Phone" },
   telefonEtikett: { sv: "Telefonnummer", en: "Phone number" },
@@ -796,7 +801,7 @@ export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud
             e.preventDefault();
           }}
         >
-          <p className="m-0 text-etikett text-ink-secondary">{gruppLage ? t.ingressGrupp : t.ingress}</p>
+          <p className="m-0 text-etikett text-ink-secondary">{telefonValt ? t.ingressGruppTelefon : gruppLage ? t.ingressGrupp : t.ingress}</p>
           {fulla ? <p data-gastlista-fulla="" role="status" className="m-0 text-etikett text-ink">{t.platserFulla.replace("{totalt}", String(platser.totalt))}</p> : null}
           {gruppLage && medTelefon ? (
             <div data-gastlista-kontaktval="">

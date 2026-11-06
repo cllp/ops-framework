@@ -65,8 +65,12 @@ describe("OpsGastLista: Bjud in med Telefon", () => {
     // @ts-ignore
     window.navigator.share = share;
     const { onBjudGrupp, onKopieraLank } = rita();
+    expect(screen.getByText(/^En gäst får ett mejl med en länk/)).toBeInTheDocument();
     await klicka(screen.getByRole("tab", { name: "Telefon" }));
     expect(screen.queryByLabelText("E-postadress")).toBeNull();
+    // Ingressen lovar inget mejl när inbjudan gäller ett nummer.
+    expect(screen.getByText(/^En gäst får en länk som du delar/)).toBeInTheDocument();
+    expect(screen.queryByText(/^En gäst får ett mejl med en länk/)).toBeNull();
     fireEvent.change(screen.getByLabelText("Telefonnummer"), { target: { value: "070-123 45 67" } });
     fireEvent.change(screen.getByLabelText("Namn (valfritt)"), { target: { value: "Tove" } });
     await klicka(screen.getByRole("button", { name: "Bjud in gäst till hela gruppen" }));
