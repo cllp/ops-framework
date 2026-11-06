@@ -278,19 +278,25 @@ export function gruppRutaKlass({ vald = false, interaktiv = true } = {}) {
  *
  * ⛔ TEXTFÄLT HAR 1,5 PX KANT (`kant: "falt"`), VÄLJARE 1 PX (`kant: "val"`), SOM SS. Talet är SS egna och inte en gissning.
  *
- * @param {{ invalid?: boolean, filled?: boolean, trigger?: boolean, kant?: "falt" | "val" }} [val]
+ * ⛔ (0.196.0) `yta: "fylld"`: ett fält utan synlig kant, i en fylld yta (`bg-hover`), som skrivfältet i chatten. CP 2026-11-06, med en skärmbild av gästens sida: "Ta bort borders runt chatten och
+ * överallt." Används i gästens sida (`OpsGastSida`, namnfältet), inte i appens formulär, där SS-kanten står kvar. Kanten finns kvar i bredd men är genomskinlig, så att fältet inte byter mått, och den
+ * syns när den bär betydelse: röd vid ett fel och i accent vid fokus, tillsammans med fokusringen.
+ *
+ * @param {{ invalid?: boolean, filled?: boolean, trigger?: boolean, kant?: "falt" | "val", yta?: "kant" | "fylld" }} [val]
  * @returns {string}
  */
-export function faltKlass({ invalid = false, filled = true, trigger = false, kant = "falt" } = {}) {
+export function faltKlass({ invalid = false, filled = true, trigger = false, kant = "falt", yta = "kant" } = {}) {
+  const fylld = yta === "fylld";
   return cx(
-    "w-full rounded-base bg-surface px-3 py-2 min-h-11 text-brod md:pointer-fine:text-etikett transition-colors duration-(--duration-fast) ease-standard",
+    "w-full rounded-base px-3 py-2 min-h-11 text-brod md:pointer-fine:text-etikett transition-colors duration-(--duration-fast) ease-standard",
+    fylld ? "bg-hover" : "bg-surface",
     trigger && "inline-flex items-center justify-between gap-2",
     kant === "falt" ? "border-[1.5px]" : "border",
     filled ? "text-ink" : "text-ink-muted",
     "placeholder:text-ink-muted",
     "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent focus-visible:border-accent",
     "disabled:opacity-55 disabled:cursor-not-allowed",
-    invalid ? "border-danger" : "border-line hover:border-line-strong",
+    invalid ? "border-danger" : fylld ? "border-transparent" : "border-line hover:border-line-strong",
   );
 }
 

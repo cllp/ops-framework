@@ -78,7 +78,10 @@ export function OpsDisclosure({ summary, children, defaultOpen = false, open, on
       id={id}
       open={arOppen}
       onToggle={hanteraToggle}
-      className="group rounded-lg border border-line bg-raised"
+      // ⛔ INGEN KANTLINJE (0.196.0, CP 2026-11-06: "Ta bort borders runt chatten och överallt."). Avsnittet skiljs ut av en svag yta (`bg-hover`, samma som chattens bubblor och skrivfält), och innehållet
+      // av avståndet under rubrikraden, inte av ett streck. Förut `border border-line bg-raised` och `border-t border-divider` runt innehållet: i ljust läge är `raised` nästan samma färg som sidan,
+      // så det var kanten ensam som ritade rutan. Fokus syns med fokusringen på rubrikraden.
+      className="group rounded-lg bg-hover"
     >
       <summary
         className={cx(
@@ -104,7 +107,7 @@ export function OpsDisclosure({ summary, children, defaultOpen = false, open, on
           <ChevronNedIkon />
         </span>
       </summary>
-      <div className="border-t border-divider p-4">{children}</div>
+      <div className="px-4 pb-4">{children}</div>
     </details>
   );
 }

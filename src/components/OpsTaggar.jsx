@@ -325,7 +325,8 @@ export function OpsTaggFilter({ taggar, valda, onValda, extra, sprak }) {
         className={cx(
           "inline-flex min-h-11 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border px-4 text-etikett font-medium",
           "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-          aktiv ? "border-transparent bg-accent text-accent-contrast" : "border-line bg-raised text-ink hover:bg-hover",
+          // ⛔ (0.196.0) Ingen synlig kant i vila: samma fyllda yta som sökfältet bredvid (`OpsInput yta="fylld"`). CP 2026-11-06: "Ta bort borders runt chatten och överallt."
+          aktiv ? "border-transparent bg-accent text-accent-contrast" : "border-transparent bg-hover text-ink hover:bg-sunken",
         )}
       >
         <span>{aktiv ? `${o.taggar} (${antalValda})` : o.taggar}</span>

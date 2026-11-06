@@ -36,7 +36,7 @@
  */
 
 import { KALLMARKEN } from "../lib/kallmarken.js";
-import { Archive, ArchiveRestore, AudioLines, Copy, BellOff, Camera, Flame, Folder, Image as BildLucide, Laugh, Link, Mail, PartyPopper, Pause, Play, Reply, SkipBack, SkipForward, Square, StickyNote, ThumbsUp, ArrowRight, BookOpen, Briefcase, Building2, Calendar, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, Crown, ExternalLink, FileText, Globe, Hash, Heart, Home, Info, Layers, Lock, LogOut, MessagesSquare, Mic, SendHorizontal, MapPin, Maximize2, Menu, Minimize2, PanelRightOpen, Paperclip, Pencil, Smile, User, UserX, UsersRound, Zap } from "lucide-react";
+import { Archive, ArchiveRestore, AudioLines, Copy, BellOff, Camera, Flame, Folder, Image as BildLucide, Laugh, Link, Mail, PartyPopper, Pause, Play, Reply, SkipBack, SkipForward, Square, StickyNote, ThumbsUp, ArrowRight, BookOpen, Briefcase, Building2, Calendar, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, Crown, ExternalLink, FileText, Globe, Hash, Heart, Home, Info, Layers, Lock, LogOut, MessagesSquare, Mic, SendHorizontal, MapPin, Menu, Minimize2, PanelRightOpen, Paperclip, Pencil, Smile, User, UserX, UsersRound, Zap } from "lucide-react";
 import { IKON_FOR } from "./ikonlexikon.js";
 
 /** Reaktionen "tumme" (0.75.0). @param {{ size?: number }} props */
@@ -150,7 +150,8 @@ export function SkarmIkon({ size = 18 }) {
  * expandera-pil hade varit ett tredje formspråk för en knapp som redan har ett.
  */
 export function HelskarmIkon({ size = 20 }) {
-  return <Maximize2 size={size} aria-hidden="true" strokeWidth={1.5} />;
+  const Ikon = IKON_FOR.helskarm;
+  return <Ikon size={size} aria-hidden="true" strokeWidth={1.5} />;
 }
 
 export function HelskarmAvIkon({ size = 20 }) {

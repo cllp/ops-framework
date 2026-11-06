@@ -637,7 +637,7 @@ export function OpsGastSida({ lank = null, onLos, onHamta, onNyLank, onNamn, onR
                     )
                   ) : null}
                   {medUtloggning ? (
-                    <div data-gast-logga-ut-rad="" className="flex flex-col items-start gap-2 border-t border-line pt-3">
+                    <div data-gast-logga-ut-rad="" className="flex flex-col items-start gap-2 pt-3">
                       <p className="m-0 text-meta text-publik-ljus-dampad">{t.loggaUtText}</p>
                       <OpsButton variant="secondary" onClick={loggaUt}>
                         {t.loggaUt}
@@ -692,7 +692,7 @@ export function OpsGastSida({ lank = null, onLos, onHamta, onNyLank, onNamn, onR
       <OpsField label={t.namnEtikett} error={fel || undefined}>
         <div data-gast-namn-rad="" className="flex min-w-0 items-stretch gap-2">
           <div className="min-w-0 flex-1">
-            <OpsInput value={namn} onChange={setNamn} maxLength={MAX_GASTNAMN} autoComplete="name" tal={false} />
+            <OpsInput value={namn} onChange={setNamn} maxLength={MAX_GASTNAMN} autoComplete="name" tal={false} yta="fylld" />
           </div>
           <OpsButton type="submit" variant="secondary" busyLabel={t.namnSparar} onClick={sparaNamn}>{t.namnSpara}</OpsButton>
         </div>
@@ -716,7 +716,7 @@ export function OpsGastSida({ lank = null, onLos, onHamta, onNyLank, onNamn, onR
           }}
         >
           <OpsField label={t.namnEtikett} error={fel || undefined}>
-            <OpsInput value={namn} onChange={setNamn} maxLength={MAX_GASTNAMN} autoComplete="name" tal={false} />
+            <OpsInput value={namn} onChange={setNamn} maxLength={MAX_GASTNAMN} autoComplete="name" tal={false} yta="fylld" />
           </OpsField>
           <div>
             <OpsButton type="submit" variant="secondary" onClick={sparaNamn}>

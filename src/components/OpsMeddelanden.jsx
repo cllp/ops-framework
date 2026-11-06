@@ -15,7 +15,7 @@ import { KopieraBilagaKnapp } from "./BilageKopiering.jsx";
 import { CHATTINFO_TEXTER, ORD_CHATTINFO, OpsChattinfo } from "./OpsChattinfo.jsx";
 import { OpsTooltip } from "./OpsTooltip.jsx";
 import { OpsMarkdown } from "./OpsMarkdown.jsx";
-import { splitInline } from "../lib/markdown.js";
+import { splitInline, utanLankar } from "../lib/markdown.js";
 import { OpsBanner } from "./OpsBanner.jsx";
 import { OpsIdentity } from "./OpsIdentity.jsx";
 import { NAMN_SAKNAS } from "../lib/personnamn.js";
@@ -1791,7 +1791,9 @@ export function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, sprak, 
       }}
     >
       {onBifoga ? <Plusmeny onBifoga={onBifoga} franBiblioteket={franBiblioteket} texter={t} kamera={kamera === "ja"} kameraKand={kamera !== "okand"} /> : null}
-      <div data-skrivruta="" className="flex min-h-11 min-w-0 flex-1 items-end rounded-3xl border border-line bg-canvas focus-within:border-accent">
+      {/* ⛔ INGEN KANTLINJE RUNT PILLRET (0.196.0, CP 2026-11-06 med en skärmbild av gästens chatt: "Ta bort borders runt chatten och överallt."). En fylld yta, som Signal: det syns ändå var man
+          skriver, och platstexten säger vad. Fokus syns med fokusringen (`focus-within:outline`), inte med en kant som byter färg. Samma pill i appens chatt och i gästens. */}
+      <div data-skrivruta="" className="flex min-h-11 min-w-0 flex-1 items-end rounded-3xl bg-hover focus-within:outline-2 focus-within:outline-offset-0 focus-within:outline-accent">
       {oppen ? (
         <ul id={listId} role="listbox" aria-label={t.namnForslag} data-omnamnande="" className="absolute bottom-full left-3 z-10 mb-1 max-w-[calc(100%-1.5rem)] min-w-56 list-none overflow-hidden rounded-card border border-line bg-surface p-1 shadow-md">
           {forslag.map((k, i) => (
@@ -1871,7 +1873,7 @@ export function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, sprak, 
           className="group/knapp inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full focus-visible:outline-none"
         >
           {/* ⛔ Träffytan är knappen, 44 px; cirkeln inuti är det man ser. */}
-          <span className="inline-flex size-9 items-center justify-center rounded-full bg-hover text-ink-secondary transition-colors duration-(--duration-fast) ease-standard group-hover/knapp:text-ink group-focus-visible/knapp:outline-2 group-focus-visible/knapp:outline-offset-1 group-focus-visible/knapp:outline-accent">
+          <span className="inline-flex size-9 items-center justify-center rounded-full bg-surface text-ink-secondary transition-colors duration-(--duration-fast) ease-standard group-hover/knapp:text-ink group-focus-visible/knapp:outline-2 group-focus-visible/knapp:outline-offset-1 group-focus-visible/knapp:outline-accent">
             <StoppIkon size={12} />
           </span>
         </button>
@@ -2681,18 +2683,7 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik: rubrikProp, marke, lastT
                         data-tradrot={m.id}
                         aria-describedby={beskrivning}
                         onClick={() => onOppnaTrad?.(m.id)}
-                        className={cx(
-                          /* ⛔ KAN 6: träffytan är 44 px, men raden växer inte: de negativa marginalerna lägger ytan i luften
-                             mellan meddelandena. KAN 9: på dator syns "Svara i tråd" först när pekaren eller fokus är på
-                             meddelandet, så att en lång chatt inte blir en rad knappar. Märket syns alltid, det är innehåll.
-                             ⛔ 0.106.0 (#386 skiva 6): på telefon stod "Svara i tråd" här under varje meddelande, med skälet att en
-                             meny vore ett steg till. Med tre ikoner bredvid blev det fyra lösa åtgärder per bubbla, och CP bad om
-                             en Mer-knapp. Där bor den nu, som första post (`merFor`). */
-                          "-my-2 min-h-11 max-w-full cursor-pointer items-center gap-1 rounded-full px-2 text-liten transition-[color,background-color,opacity] duration-(--duration-fast) ease-standard focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
-                          finns
-                            ? "inline-flex text-accent hover:bg-accent-faint"
-                            : "hidden text-ink-muted hover:bg-hover hover:text-ink md:inline-flex md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 md:focus-visible:opacity-100",
-                        )}
+                        className={tradknappKlass(finns)}
                       >
                         <TradIkon size={12} />
                         {finns ? (
@@ -2721,22 +2712,7 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik: rubrikProp, marke, lastT
       <TillSenaste lage={lasposition} arbetar={arbetsord(agentlage)} texter={t} />
       </div>
 
-      {svarPa ? (
-        <div data-svarar-pa={svarPa.id} className="flex shrink-0 items-center gap-2 border-t border-line px-3 pt-2 text-meta text-ink-secondary">
-          <CiteraIkon size={14} />
-          <span className="min-w-0 flex-1 truncate">
-            {t.svararPa} <span className="font-medium text-ink">{avNamnFor(namnFor, svarPa, uid, t.du, sprak)}</span>: {synligText(svarPa, 60)}
-          </span>
-          <button
-            type="button"
-            aria-label={t.avbrytCitat}
-            onClick={() => setSvarPa(null)}
-            className="inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full text-ink-muted hover:bg-hover hover:text-ink focus-visible:outline-2 focus-visible:outline-accent"
-          >
-            <KryssIkon size={14} />
-          </button>
-        </div>
-      ) : null}
+      {svarPa ? <SvararPaRad m={svarPa} namn={avNamnFor(namnFor, svarPa, uid, t.du, sprak)} onAvbryt={() => setSvarPa(null)} texter={t} /> : null}
       <Bilageutkast bilaga={bilage.bilaga} fel={bilage.fel} onTaBort={bilage.tom} texter={t} />
       <Skrivfalt
         text={text}
@@ -3021,36 +2997,44 @@ export function Meddelanderader({ meddelanden, uid, namnFor: namnForProp, medlem
                   )
                 ) : null}
                 {m.svarPa && citat ? <Citat mid={m.svarPa} uppslag={citat.uppslag} egen={egen} uid={uid} namnFor={namnFor} texter={texter} /> : null}
-                {m.text ? (
-                  <Langtryckbubbla pa={menyPa} onMeny={(punkt) => setMeny({ id: m.id, punkt })}>
-                  <div
-                    data-bubbla=""
-                    data-traff={traffar?.ids.has(m.id) ? (traffar.aktuell === m.id ? "aktuell" : "traff") : undefined}
-                    className={cx(
-                      "min-w-0 rounded-2xl px-3.5 py-2 text-etikett leading-relaxed break-words",
-                      traffar?.ids.has(m.id) ? (traffar.aktuell === m.id ? "outline-2 outline-offset-2 outline-accent" : "outline-1 outline-offset-2 outline-line-strong") : "",
-                      egen ? "bg-accent text-accent-contrast" : "bg-hover text-ink",
-                      fortsattning && egen ? "rounded-tr-lg" : "",
-                      fortsattning && !egen ? "rounded-tl-lg" : "",
-                    )}
-                  >
-                    {/* ⛔ #273: chattens delmängd av markdown, med klickbara http- och https-länkar och ingen HTML. Färgen ärvs från
-                        bubblan: den egna är accentfärgad. */}
-                    <OpsMarkdown text={m.text} chatt />
-                  </div>
-                  </Langtryckbubbla>
-                ) : null}
-                {m.bilaga ? (
-                  <VisadBilaga
-                    m={m}
-                    kalla={kalla}
-                    sid={sid ?? ""}
-                    trad={trad}
-                    alt={`${texter.bilagaText} ${avNamnFor(namnFor, m, uid, texter.du, sprak)}: ${m.bilaga.namn}`}
-                    texter={texter}
-                  />
-                ) : null}
-                {postkort ? <Postkortrad text={m.text} postkort={postkort} egen={egen} texter={texter} /> : null}
+                {/* ⛔ EN LÄNK SOM BLEV ETT KORT STÅR INTE OCKSÅ I BUBBLAN (0.196.0, cllp/ops-framework#527): `visad` är texten utan de länkar som slogs upp till ett kort. Var länken allt som stod blir
+                    det ingen bubbla, bara kortet. Ett uppslag som gav `null` eller föll lämnar länken kvar (regel 5). Den lagrade texten är orörd. */}
+                <MedPostkort text={m.text} postkort={postkort} egen={egen} texter={texter}>
+                  {(visad, kort) => (
+                    <>
+                      {visad ? (
+                        <Langtryckbubbla pa={menyPa} onMeny={(punkt) => setMeny({ id: m.id, punkt })}>
+                        <div
+                          data-bubbla=""
+                          data-traff={traffar?.ids.has(m.id) ? (traffar.aktuell === m.id ? "aktuell" : "traff") : undefined}
+                          className={cx(
+                            "min-w-0 rounded-2xl px-3.5 py-2 text-etikett leading-relaxed break-words",
+                            traffar?.ids.has(m.id) ? (traffar.aktuell === m.id ? "outline-2 outline-offset-2 outline-accent" : "outline-1 outline-offset-2 outline-line-strong") : "",
+                            egen ? "bg-accent text-accent-contrast" : "bg-hover text-ink",
+                            fortsattning && egen ? "rounded-tr-lg" : "",
+                            fortsattning && !egen ? "rounded-tl-lg" : "",
+                          )}
+                        >
+                          {/* ⛔ #273: chattens delmängd av markdown, med klickbara http- och https-länkar och ingen HTML. Färgen ärvs från
+                              bubblan: den egna är accentfärgad. */}
+                          <OpsMarkdown text={visad} chatt />
+                        </div>
+                        </Langtryckbubbla>
+                      ) : null}
+                      {m.bilaga ? (
+                        <VisadBilaga
+                          m={m}
+                          kalla={kalla}
+                          sid={sid ?? ""}
+                          trad={trad}
+                          alt={`${texter.bilagaText} ${avNamnFor(namnFor, m, uid, texter.du, sprak)}: ${m.bilaga.namn}`}
+                          texter={texter}
+                        />
+                      ) : null}
+                      {kort}
+                    </>
+                  )}
+                </MedPostkort>
                 {/* ⛔ BARA UNDER EN AGENTS SVAR (0.105.0). Ett meddelande från en person som bär `forslag` (en klient skrev förbi
                     reglerna, eller ett fält med samma namn) får inga knappar: ett förslag är något agenten lägger fram. */}
                 {onForslag && !egen && sid && medlemstyp(m.av) === "agent" && /** @type {any} */ (m).forslag !== undefined ? (
@@ -4511,6 +4495,49 @@ function Fastarad({ fasta, kalla, sid, laddade, uid, namnFor, texter: t }) {
 }
 
 /**
+ * Klasserna för trådens knapp under ett meddelande: märket "3 svar" när tråden finns, och "Svara i tråd" när den inte gör det. EN form för appens chatt och gästens (0.196.0, regel 2).
+ *
+ * ⛔ KAN 6: träffytan är 44 px, men raden växer inte: de negativa marginalerna lägger ytan i luften mellan meddelandena. KAN 9: på dator syns "Svara i tråd" först när pekaren eller fokus är på
+ * meddelandet, så att en lång chatt inte blir en rad knappar. Märket syns alltid, det är innehåll. ⛔ 0.106.0 (#386 skiva 6): på telefon stod "Svara i tråd" här under varje meddelande, med skälet
+ * att en meny vore ett steg till. Med tre ikoner bredvid blev det fyra lösa åtgärder per bubbla, och CP bad om en Mer-knapp. Där bor den nu, som första post (`merFor`).
+ *
+ * @param {boolean} finns
+ */
+export function tradknappKlass(finns) {
+  return cx(
+    "-my-2 min-h-11 max-w-full cursor-pointer items-center gap-1 rounded-full px-2 text-liten transition-[color,background-color,opacity] duration-(--duration-fast) ease-standard focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
+    finns
+      ? "inline-flex text-accent hover:bg-accent-faint"
+      : "hidden text-ink-muted hover:bg-hover hover:text-ink md:inline-flex md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 md:focus-visible:opacity-100",
+  );
+}
+
+/**
+ * Raden ovanför skrivfältet när man svarar med citat: "Svarar på {namn}: {utdrag}" och ett kryss som ångrar. EN rad för appens chatt och gästens (0.196.0, regel 2).
+ * `ram`: strecket ovanför, som skrivfältets (`Skrivfalt`). Gästens chatt har inget (0.195.0).
+ *
+ * @param {{ m: import("../lib/samtal.js").Meddelande & { id: string }, namn: string, onAvbryt: () => void, texter: Required<Meddelandetexter>, ram?: boolean }} props
+ */
+export function SvararPaRad({ m, namn, onAvbryt, texter: t, ram = true }) {
+  return (
+    <div data-svarar-pa={m.id} className={cx("flex shrink-0 items-center gap-2 pt-2 text-meta text-ink-secondary", ram && "border-t border-line px-3")}>
+      <CiteraIkon size={14} />
+      <span className="min-w-0 flex-1 truncate">
+        {t.svararPa} <span className="font-medium text-ink">{namn}</span>: {synligText(m, 60)}
+      </span>
+      <button
+        type="button"
+        aria-label={t.avbrytCitat}
+        onClick={onAvbryt}
+        className="inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full text-ink-muted hover:bg-hover hover:text-ink focus-visible:outline-2 focus-visible:outline-accent"
+      >
+        <KryssIkon size={14} />
+      </button>
+    </div>
+  );
+}
+
+/**
  * @typedef {object} Postkort (chattens nattskiva) Länkar till appens egna poster, ritade som kort under bubblan.
  * @property {(url: string) => ({ titel: string, undertitel?: string, ikon?: import("react").ReactNode } | null) | Promise<{ titel: string, undertitel?: string, ikon?: import("react").ReactNode } | null>} slaUpp
  *   Appens uppslag: en adress i texten ger postens titel (och gärna typ som `undertitel` och en ikon), eller `null` när adressen inte är
@@ -4539,20 +4566,30 @@ function slaUppPostkort(sla, url) {
 /**
  * Korten för länkarna i ett meddelande: bara de http- och https-adresser texten redan gör klickbara (samma parser som bubblan),
  * högst `MAX_POSTKORT`, och bara de appen känner igen. ⛔ Ett uppslag som föll sägs ut, aldrig tyst.
- * @param {{ text: string, postkort: Postkort, egen: boolean, texter: Required<Meddelandetexter> }} props
+ *
+ * ⛔ (0.196.0, cllp/ops-framework#527) KOMPONENTEN GER OCKSÅ TEXTEN SOM SKA STÅ I BUBBLAN (`children(visad, kort)`): texten utan de länkar som blev ett kort (`utanLankar`). Förut stod länken både som en lång,
+ * radbruten adress i bubblan och som kortet under den, samma sak två gånger. En länk vars uppslag inte svarat än, gav `null` eller föll står kvar, så att ingenting försvinner tyst (regel 5).
+ * Utan `postkort` är texten orörd och inga uppslag görs.
+ *
+ * ⛔ KORTET HAR INGEN KANTLINJE (0.196.0, CP 2026-11-06: "Ta bort borders runt chatten och överallt."): det skiljs ut av samma svaga yta som bubblorna (`bg-hover`), och fokus syns med fokusringen.
+ *
+ * @param {{ text: string, postkort?: Postkort, egen: boolean, texter: Required<Meddelandetexter>, children: (visad: string, kort: import("react").ReactNode) => import("react").ReactNode }} props
  */
-function Postkortrad({ text, postkort, egen, texter: t }) {
+function MedPostkort({ text, postkort, egen, texter: t, children }) {
   const adresser = useMemo(() => {
+    if (!postkort) return [];
     /** @type {string[]} */
     const ut = [];
     for (const rad of String(text ?? "").split(/\r?\n/)) for (const b of splitInline(rad)) if (b.kind === "link" && b.url && !ut.includes(b.url)) ut.push(b.url);
     return ut.slice(0, MAX_POSTKORT);
-  }, [text]);
+  }, [text, postkort]);
+  const sla = postkort?.slaUpp;
   const [svar, setSvar] = useState(/** @type {Record<string, any>} */ ({}));
   useEffect(() => {
+    if (!sla) return undefined;
     let levande = true;
     for (const url of adresser) {
-      slaUppPostkort(postkort.slaUpp, url).then(
+      slaUppPostkort(sla, url).then(
         (r) => levande && setSvar((f) => ({ ...f, [url]: r ?? null })),
         () => levande && setSvar((f) => ({ ...f, [url]: { fel: true } })),
       );
@@ -4560,11 +4597,13 @@ function Postkortrad({ text, postkort, egen, texter: t }) {
     return () => {
       levande = false;
     };
-  }, [adresser, postkort.slaUpp]);
+  }, [adresser, sla]);
   const kort = adresser.filter((u) => svar[u]);
-  if (kort.length === 0) return null;
-  return (
-    <div className={cx("mt-1 flex w-full max-w-72 flex-col gap-1", egen ? "items-end" : "items-start")}>
+  const somKort = kort.filter((u) => !svar[u].fel);
+  if (!postkort || kort.length === 0) return children(text, null);
+  return children(
+    somKort.length ? utanLankar(text, somKort) : text,
+    <div data-postkortrad="" className={cx("mt-1 flex w-full max-w-72 flex-col gap-1", egen ? "items-end" : "items-start")}>
       {kort.map((url) =>
         svar[url].fel ? (
           <p key={url} data-postkort-fel={url} role="alert" className="m-0 text-liten text-danger">
@@ -4576,7 +4615,7 @@ function Postkortrad({ text, postkort, egen, texter: t }) {
             href={url}
             data-postkort={url}
             onClick={postkort.onOppna ? (e) => postkort.onOppna?.(url, e) : undefined}
-            className="flex min-h-11 w-full items-center gap-2.5 rounded-card border border-line bg-surface px-3 py-2 text-left no-underline transition-colors duration-(--duration-fast) ease-standard hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            className="flex min-h-11 w-full items-center gap-2.5 rounded-card bg-hover px-3 py-2 text-left no-underline transition-colors duration-(--duration-fast) ease-standard hover:bg-sunken focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           >
             <span aria-hidden="true" className="inline-flex shrink-0 text-accent">
               {svar[url].ikon ?? <FilIkon size={18} />}
@@ -4588,7 +4627,7 @@ function Postkortrad({ text, postkort, egen, texter: t }) {
           </a>
         ),
       )}
-    </div>
+    </div>,
   );
 }
 

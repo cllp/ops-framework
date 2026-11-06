@@ -10,6 +10,7 @@ import {
   GASTARENDEKOMMENTARFALT,
   GASTBIBLIOTEK_MAX,
   GASTCHATT_SIDA,
+  GASTCHATTFALT,
   GASTFIL_PER_DYGN,
   GASTGRUPPATGARDER,
   GASTGRUPPFUNKTIONER,
@@ -1452,13 +1453,31 @@ describe("gästen skriver i chatten (CP 2026-10-20: gästen får skriva)", () =>
     expect(await h.tjanst.skrivChatt({ sessionsnyckel: g.sessionsnyckel, text: "igen" })).toMatchObject({ ok: true });
   });
 
-  it("⛔ en gäst kan inte bifoga eller skicka något annat än text: bilaga, citat, omnämnanden, avsändare och tid kastas tillbaka", async () => {
+  // (0.196.0) Citatet (`svarPa`) är inte längre med här: gästen får svara med citat i gruppens chatt, se provet under. I en tråd nekas det som förut (avsnittet om trådar).
+  it("⛔ en gäst kan inte bifoga eller skicka något annat än text och ett citat: bilaga, omnämnanden, avsändare och tid kastas tillbaka, och ett citat som inte är ett id likaså", async () => {
     const h = bygg();
     const g = await gruppGast(h);
-    for (const extra of [{ bilaga: { namn: "a.png", typ: "image/png", dataUrl: "data:image/png;base64,AAAA" } }, { svarPa: "m1" }, { namner: ["alla"] }, { av: AGARE }, { tid: 1 }]) {
-      await expect(h.tjanst.skrivChatt({ sessionsnyckel: g.sessionsnyckel, text: "Hej", ...extra }), Object.keys(extra)[0]).rejects.toMatchObject({ kod: "ogiltig-text" });
+    for (const extra of [{ bilaga: { namn: "a.png", typ: "image/png", dataUrl: "data:image/png;base64,AAAA" } }, { namner: ["alla"] }, { av: AGARE }, { tid: 1 }, { svarPa: "" }, { svarPa: "a/b" }, { svarPa: 5 }]) {
+      await expect(h.tjanst.skrivChatt({ sessionsnyckel: g.sessionsnyckel, text: "Hej", ...extra }), JSON.stringify(extra)).rejects.toMatchObject({ kod: "ogiltig-text" });
     }
     expect(await skrivna(h)).toEqual([]);
+  });
+
+  it("⛔ (0.196.0) gästen svarar med citat i gruppens chatt: svarPa sparas som id:t, svaret bär citatet, och ett citat av agentens meddelande eller ett som inte finns ger saknas utan att något skrivs", async () => {
+    const h = bygg();
+    const g = await gruppGast(h, "anna@foretag.se", { namn: "Anna" });
+    const s = await h.tjanst.skrivChatt({ sessionsnyckel: g.sessionsnyckel, text: "Tack!", svarPa: "m1" });
+    expect(s).toMatchObject({ ok: true, meddelande: { text: "Tack!", egen: true, svarPa: { id: "m1", namn: "Agda Ägare", text: "Välkommen till gruppen" } } });
+    expect(Object.keys(s.meddelande).every((k) => GASTCHATTFALT.includes(k))).toBe(true);
+    const sparad = (await skrivna(h)).find((r) => r.text === "Tack!");
+    expect(sparad).toMatchObject({ svarPa: "m1", av: ANNA, avNamn: "Anna" });
+    // Medlemmens chatt och gästens nästa hämtning ser samma citat.
+    const c = await h.tjanst.chatt({ sessionsnyckel: g.sessionsnyckel });
+    expect(c.meddelanden.find((/** @type {any} */ m) => m.text === "Tack!").svarPa).toEqual({ id: "m1", namn: "Agda Ägare", text: "Välkommen till gruppen" });
+    const fore = (await skrivna(h)).length;
+    expect(await h.tjanst.skrivChatt({ sessionsnyckel: g.sessionsnyckel, text: "x", svarPa: "m3" })).toEqual({ ok: false, orsak: "saknas" });
+    expect(await h.tjanst.skrivChatt({ sessionsnyckel: g.sessionsnyckel, text: "x", svarPa: "finns-inte" })).toEqual({ ok: false, orsak: "saknas" });
+    expect((await skrivna(h)).length).toBe(fore);
   });
 
   it("skrivChatt finns i gästens åtgärder och ger ett svar av listan", async () => {

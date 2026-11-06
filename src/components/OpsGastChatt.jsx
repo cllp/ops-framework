@@ -5,7 +5,8 @@ import { definierade, forvalda } from "../lib/ord.js";
 import { OpsButton } from "./OpsButton.jsx";
 import { OpsGastFelrad } from "./OpsGastFelrad.jsx";
 import { OpsEmpty } from "./OpsEmpty.jsx";
-import { Meddelanderader, Skrivfalt, texterPa } from "./OpsMeddelanden.jsx";
+import { Meddelanderader, Skrivfalt, SvararPaRad, texterPa, tradknappKlass } from "./OpsMeddelanden.jsx";
+import { TradIkon } from "./icons.jsx";
 /** Kortets ritning, hämtad när ett kort slås upp (se `bibliotekPostkortVisning`). */
 const laddaPostkortVisning = () => import("./bibliotekPostkortVisning.jsx");
 
@@ -44,7 +45,11 @@ export const ORD_OPSGASTCHATT = {
  * det har samma vänster- och högerkant som meddelandena (CP samma dag från telefonen: "Sedan kanske skrivfältet kan vara lika brett som chattramen?").
  */
 const LOGG_RUTA = "max-h-[60dvh] min-h-48 rounded-lg border border-line bg-surface p-3";
-const LOGG_FYLLD = "min-h-0 flex-1 py-3";
+// ⛔ LUFTEN LIGGER INNE I RULLYTAN, INTE RUNT DEN (0.196.0). CP 2026-11-06 i telefonen: "glapp under sidhuvudet och den översta chattbubblan klipps", och fel i nederkanten.
+// Med `pt-2` och `gap-3` runt loggen klipptes meddelandena vid loggens kant, 24 px under sidhuvudet och 12 px över skrivfältet: en tom remsa med ett halvt meddelande vid kanten.
+// Nu går rullytan kant i kant med sidhuvudet och skrivfältet, och luften är loggens egen utfyllnad, som rullar med (`check:skalyta`, (e) kanterna).
+// Är meddelandena färre än ytan står de nederst, närmast skrivfältet, som i en meddelandeapp (`mt-auto` på första barnet, inte `justify-end`, som gör toppen orullbar).
+const LOGG_FYLLD = "min-h-0 flex-1 py-3 [&>:first-child]:mt-auto";
 
 /** Märket för gästens egna meddelanden i raderna. Ingen avsändare kan heta så, och namnen kommer aldrig härifrån. */
 const EGEN = "__gast_egen__";
@@ -62,6 +67,12 @@ const EGEN = "__gast_egen__";
  * ⛔ TRÅDAR (0.191.0, cllp/lifehub.app#663): ett meddelande med svar bär knappen "N svar" (tjänstens `svar`). Den öppnar tråden i samma yta: roten, svaren och ett skrivfält som svarar i tråden
  * (`onLasTrad`, `onSkrivITrad`, tjänstens `chatt({ trad })` och `skrivChatt({ trad })`). Bara text, som i chatten. Utan `onLasTrad` ritas ingen knapp.
  *
+ * ⛔ SVARA OCH SVARA I TRÅD (0.196.0, CP 2026-11-06 via koordinatorn: "Det enda jag undrar är chatt trådar. Finns ju i appen idag."): samma meny som medlemmens chatt (`Meddelandemeta` i
+ * `Meddelanderader`), med långtryck på telefon och hovring eller ⋮ på dator, men bara två val för gästen: Svara med citat (`citat`) och Svara i tråd (`merFor`, och på dator samma knapp under
+ * bubblan som medlemmen har, `tradknappKlass`). Svara i tråd öppnar tråden också när meddelandet inte har några svar än, och gästens första svar öppnar den (tjänsten gör det). Reaktioner,
+ * nålning, redigering och radering finns inte: Meddelanderader ritar dem bara när vyn ger dem, och gästens vy ger dem inte. Citatet ritas som hos medlemmen (`Citat`), ur meddelandena som hämtats:
+ * ett citerat meddelande som inte finns bland dem står med medlemmens ord för det (`citatSaknas`, "Meddelandet går inte att läsa."). Raden "Svarar på" ovanför skrivfältet är medlemmens (`SvararPaRad`).
+ *
  * ⛔ KORT (0.191.0): en länk till en post i gruppens bibliotek ritas som chattens kort (`kort` ur tjänsten, ritat med `postkortFor`, samma rubrik, typ och ikon som listan). Servern har redan
  * prövat att gästen ser posten; vyn ritar bara det den fick. Ett tryck öppnar posten i gästens bibliotek (`onOppnaPost`), aldrig länken: den pekar på medlemmarnas app.
  *
@@ -74,7 +85,8 @@ const EGEN = "__gast_egen__";
  * @param {ReadonlyArray<{ id: string, av: { namn: string }, text: string, tid: number, svarPa?: { id: string, namn: string, text: string }, bilaga?: { namn: string, typ: string } }>} props.meddelanden Tjänstens `chatt().meddelanden`, äldst först.
  * @param {boolean} [props.fler] Det finns äldre meddelanden (`chatt().fler`).
  * @param {() => void | Promise<unknown>} [props.onAldre] Hämtar nästa sida bakåt. Utan den ritas ingen knapp.
- * @param {(text: string) => Promise<unknown>} [props.onSkriv] (0.132.0, CP 2026-10-20: "Gästen får skriva") Skickar ett meddelande (tjänstens `skrivChatt`). Ger den ett fel visas dess text under fältet och texten står kvar.
+ * @param {(text: string, svarPa?: string) => Promise<unknown>} [props.onSkriv] (0.132.0, CP 2026-10-20: "Gästen får skriva") Skickar ett meddelande (tjänstens `skrivChatt`). Ger den ett fel visas dess text under fältet och texten står kvar.
+ *   (0.196.0) `svarPa`: id:t på meddelandet gästen svarar på med citat (tjänstens `skrivChatt({ svarPa })`).
  *   Utan den ritas inget skrivfält och sidan säger att chatten bara går att läsa.
  * @param {boolean} [props.laddar] Första sidan hämtas ännu.
  * @param {string | null} [props.fel] Hämtningen föll. Ett fel är inte "inga meddelanden".
@@ -109,6 +121,21 @@ export function OpsGastChatt({ meddelanden, fler = false, onAldre, onSkriv, ladd
     const el = logg.current;
     if (el && vidBotten.current) el.scrollTop = el.scrollHeight;
   }, [sistaId]);
+  // ⛔ STÅR KVAR NEDERST NÄR NÅGOT ÄNDRAR HÖJD (0.196.0). CP 2026-11-06 i telefonen på 1.0.1128: sista meddelandet klipptes ovanför skrivfältet. Mätt i 390 px: loggen stod på
+  // `scrollTop` 39 av 104, eftersom rullningen ovan skedde en gång, när meddelandena kom, och ytan och innehållet fick sin höjd efter det (ytans topp mäts, kort och typsnitt laddar).
+  // Nu följer loggen sin egen och innehållets storlek så länge läsaren står nederst (`vidBotten`). Den som har rullat upp flyttas inte.
+  const harLogg = !fel && !laddar && meddelanden.length > 0;
+  useEffect(() => {
+    const el = logg.current;
+    if (!el || !harLogg || typeof ResizeObserver === "undefined") return undefined;
+    const tillBotten = () => {
+      if (vidBotten.current) el.scrollTop = el.scrollHeight;
+    };
+    const ro = new ResizeObserver(tillBotten);
+    ro.observe(el);
+    for (const barn of el.children) ro.observe(barn);
+    return () => ro.disconnect();
+  }, [harLogg, sistaId]);
 
   const [skrivText, setSkrivText] = useState("");
   const [skickar, setSkickar] = useState(false);
@@ -120,15 +147,18 @@ export function OpsGastChatt({ meddelanden, fler = false, onAldre, onSkriv, ladd
       levande.current = false;
     };
   }, []);
+  // Meddelandet gästen svarar på med citat (0.196.0). Raden i `rader`, så att "Svarar på" och citatet visar samma namn och text.
+  const [svarPa, setSvarPa] = useState(/** @type {{ id: string, text: string, av: string, tid: number } | null} */ (null));
   async function skicka() {
     const ut = skrivText.trim();
     if (!ut || !onSkriv || skickar) return;
     setSkickar(true);
     setSkrivFel("");
     try {
-      await onSkriv(ut);
+      await (svarPa ? onSkriv(ut, svarPa.id) : onSkriv(ut));
       if (!levande.current) return;
       setSkrivText("");
+      setSvarPa(null);
       // Det gästen själv skrev ska synas: scrollen följer med hela vägen ned.
       vidBotten.current = true;
     } catch (e) {
@@ -139,17 +169,32 @@ export function OpsGastChatt({ meddelanden, fler = false, onAldre, onSkriv, ladd
   }
   // ── Tråden (0.191.0) ──
   const [trad, setTrad] = useState(/** @type {null | { id: string, rot: any, meddelanden: any[], fel: boolean, laddar: boolean }} */ (null));
-  /** @param {string} id */
-  async function oppnaTrad(id) {
+  /**
+   * Öppnar tråden direkt (vyn byter till tråden med "Hämtar tråden"), och hämtningen sker i effekten under. ⛔ (0.196.0) Trycket startar inget anrop självt: väntan syns i trådens egen
+   * väntrad (`OpsEmpty busy`), och knappen som trycktes finns inte kvar att visa en snurra på. Så kan "Svara i tråd" vara medlemmens rena knapp (`tradknappKlass`).
+   * @param {string} id
+   */
+  function oppnaTrad(id) {
     if (!onLasTrad) return;
     setTrad({ id, rot: null, meddelanden: [], fel: false, laddar: true });
-    try {
-      const r = await onLasTrad(id);
-      if (levande.current) setTrad((f) => (f && f.id === id ? { id, rot: r.rot, meddelanden: r.meddelanden ?? [], fel: false, laddar: false } : f));
-    } catch {
-      if (levande.current) setTrad((f) => (f && f.id === id ? { ...f, fel: true, laddar: false } : f));
-    }
   }
+  const lasTradRef = useRef(onLasTrad);
+  lasTradRef.current = onLasTrad;
+  const laddarTrad = trad?.laddar ? trad.id : null;
+  useEffect(() => {
+    const las = lasTradRef.current;
+    if (!laddarTrad || !las) return undefined;
+    let kvar = true;
+    Promise.resolve()
+      .then(() => las(laddarTrad))
+      .then(
+        (r) => kvar && setTrad((f) => (f && f.id === laddarTrad ? { id: laddarTrad, rot: r.rot, meddelanden: r.meddelanden ?? [], fel: false, laddar: false } : f)),
+        () => kvar && setTrad((f) => (f && f.id === laddarTrad ? { ...f, fel: true, laddar: false } : f)),
+      );
+    return () => {
+      kvar = false;
+    };
+  }, [laddarTrad]);
   /** @param {string} id @param {string} text */
   async function skrivITrad(id, text) {
     if (!onSkrivITrad) return;
@@ -162,10 +207,23 @@ export function OpsGastChatt({ meddelanden, fler = false, onAldre, onSkriv, ladd
   // ⛔ GÄSTENS EGNA MEDDELANDEN ÄR "EGNA" (höger, accentfärg) som medlemmens: `uid` är ett märke som bara raderna känner igen. Ett annat namn är en avsändare, och märket Gäst sitter på varje meddelande en gäst skrivit.
   const rader = useMemo(() => meddelanden.map((m) => ({ id: m.id, text: m.text, av: m.egen ? EGEN : m.av.namn, tid: m.tid, ...(m.gast ? { gast: true } : {}), ...(m.svarPa ? { svarPa: m.svarPa.id } : {}) })), [meddelanden]);
   const originalPerId = useMemo(() => new Map(meddelanden.map((m) => [m.id, m])), [meddelanden]);
-  const uppslag = useMemo(
-    () => new Map(meddelanden.filter((m) => m.svarPa).map((m) => [/** @type {string} */ (m.svarPa?.id), { id: /** @type {string} */ (m.svarPa?.id), av: /** @type {string} */ (m.svarPa?.namn), text: /** @type {string} */ (m.svarPa?.text), tid: 0 }])),
-    [meddelanden],
-  );
+  // ⛔ CITATET UR DET SOM HÄMTATS (0.196.0), som medlemmens `useMeddelandeuppslag` utan källa: ett citerat meddelande bland de hämtade visas med sitt namn och sin text, ett som inte finns där
+  // står som "Meddelandet går inte att läsa." (`null`, medlemmens `citatSaknas`), aldrig som en tom ruta.
+  const uppslag = useMemo(() => {
+    const perId = new Map(rader.map((r) => [r.id, r]));
+    // Finns det citerade inte bland raderna (agentens meddelande, som gästen inte ser i listan) står tjänstens eget citat (`svarPa` med namn och text) som reserv, som före 0.196.0.
+    /** @param {string} id */
+    const tjanstens = (id) => {
+      const c = meddelanden.find((m) => m.svarPa?.id === id)?.svarPa;
+      return c && typeof c.text === "string" ? { id, av: c.namn, text: c.text, tid: 0 } : null;
+    };
+    return new Map(rader.filter((r) => r.svarPa).map((r) => [/** @type {string} */ (r.svarPa), perId.get(/** @type {string} */ (r.svarPa)) ?? tjanstens(/** @type {string} */ (r.svarPa))]));
+  }, [rader, meddelanden]);
+  /** Antalet svar i meddelandets tråd, som tjänsten räknade dem. @param {string} id */
+  const antalSvar = (id) => {
+    const svar = /** @type {any} */ (originalPerId.get(id))?.svar;
+    return typeof svar === "number" && svar > 0 ? svar : 0;
+  };
 
   // ── Korten (0.191.0) ──
   // ⛔ ETT STABILT UPPSLAG: chatten minns uppslagen per funktion, så funktionen är densamma mellan ritningarna och läser korten ur en ref som följer meddelandena.
@@ -212,7 +270,7 @@ export function OpsGastChatt({ meddelanden, fler = false, onAldre, onSkriv, ladd
   }
 
   return (
-    <section aria-label={t.rubrik} data-gast-chatt="" data-fyll={fyll ? "" : undefined} className={cx("flex min-w-0 flex-col gap-3", fyll && "min-h-0 flex-1 pt-2")}>
+    <section aria-label={t.rubrik} data-gast-chatt="" data-fyll={fyll ? "" : undefined} className={cx("flex min-w-0 flex-col", fyll ? "min-h-0 flex-1" : "gap-3")}>
       {fel ? (
         <OpsGastFelrad data="gast-chatt-fel" text={t.fel} forsokIgen={t.forsokIgen} onForsokIgen={onForsokIgen} />
       ) : laddar ? (
@@ -246,19 +304,27 @@ export function OpsGastChatt({ meddelanden, fler = false, onAldre, onSkriv, ladd
             locale={locale}
             visaNamn
             texter={texter}
-            citat={{ pa: false, onCitera: () => {}, uppslag: /** @type {any} */ (uppslag) }}
+            citat={{ pa: Boolean(onSkriv), onCitera: (m) => setSvarPa(/** @type {any} */ (m)), uppslag: /** @type {any} */ (uppslag) }}
+            merFor={onLasTrad ? (m) => (antalSvar(m.id) > 0 ? [] : [{ id: "trad", etikett: texter.svaraITrad, ikon: <TradIkon size={16} />, onValj: () => oppnaTrad(m.id) }]) : undefined}
             postkort={postkort}
             efter={(m) => {
               const original = /** @type {any} */ (originalPerId.get(m.id));
               const bilaga = original?.bilaga;
-              const svar = typeof original?.svar === "number" && original.svar > 0 ? original.svar : 0;
-              if (!bilaga && !(svar && onLasTrad)) return null;
+              const svar = antalSvar(m.id);
+              if (!bilaga && !onLasTrad) return null;
               return (
                 <>
                   {bilaga ? <span data-gast-chatt-bilaga="" className="text-meta text-ink-muted">{t.bilaga.replace("{namn}", bilaga.namn)}</span> : null}
+                  {/* (0.196.0) Svara i tråd under bubblan på dator, vid hovring och fokus, samma knapp som medlemmens. På telefon står den i menyn (`merFor`). */}
+                  {!svar && onLasTrad ? (
+                    <button type="button" data-tradmarke="ny" data-tradrot={m.id} onClick={() => oppnaTrad(m.id)} className={tradknappKlass(false)}>
+                      <TradIkon size={12} />
+                      <span>{texter.svaraITrad}</span>
+                    </button>
+                  ) : null}
                   {svar && onLasTrad ? (
                     <span data-gast-chatt-svar={m.id}>
-                      <OpsButton variant="ghost" size="sm" onClick={() => oppnaTrad(m.id)} busyLabel={t.tradLaddar}>
+                      <OpsButton variant="ghost" size="sm" onClick={() => oppnaTrad(m.id)}>
                         {svar === 1 ? t.svarEtt : t.svar.replace("{n}", String(svar))}
                       </OpsButton>
                     </span>
@@ -271,7 +337,8 @@ export function OpsGastChatt({ meddelanden, fler = false, onAldre, onSkriv, ladd
       )}
       {onSkriv ? (
         <div data-gast-chatt-skriv="" className={cx("flex min-w-0 flex-col", fyll && "mt-auto")}>
-          <Skrivfalt text={skrivText} setText={setSkrivText} skickar={skickar} onSkicka={skicka} texter={texter} sprak={sprak} maxTecken={GASTSKRIV_MAX_TECKEN} igenkanning={igenkanning} ram={false} platstext={gruppnamn ? t.platstext.replace("{grupp}", gruppnamn) : undefined} />
+          {svarPa ? <SvararPaRad m={/** @type {any} */ (svarPa)} namn={svarPa.av === EGEN ? texter.du : svarPa.av} onAvbryt={() => setSvarPa(null)} texter={texter} ram={false} /> : null}
+          <Skrivfalt text={skrivText} setText={setSkrivText} skickar={skickar} onSkicka={skicka} texter={texter} sprak={sprak} maxTecken={GASTSKRIV_MAX_TECKEN} igenkanning={igenkanning} ram={false} platstext={gruppnamn ? t.platstext.replace("{grupp}", gruppnamn) : undefined} fokusNyckel={svarPa?.id} onEscape={svarPa ? () => setSvarPa(null) : undefined} />
         </div>
       ) : null}
       {skrivFel ? <p role="alert" data-gast-chatt-skrivfel="" className="m-0 text-etikett text-danger">{skrivFel}</p> : null}
@@ -305,7 +372,7 @@ function GastTrad({ trad, t, texter, locale, sprak, postkort, onStang, onSkriv, 
     }
   }
   return (
-    <section aria-label={t.trad} data-gast-chatt-trad={trad.id} className={cx("flex min-w-0 flex-col gap-3", fyll && "min-h-0 flex-1 pt-2")}>
+    <section aria-label={t.trad} data-gast-chatt-trad={trad.id} className={cx("flex min-w-0 flex-col", fyll ? "min-h-0 flex-1" : "gap-3")}>
       <div>
         <OpsButton variant="secondary" size="sm" onClick={onStang}>
           {t.tillbaka}

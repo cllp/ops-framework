@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { OpsButton } from "./OpsButton.jsx";
+import { DokumentKnapp, Dokumentrad } from "./Dokumentrad.jsx";
 import { OpsGastFelrad } from "./OpsGastFelrad.jsx";
 import { useOpsSprak } from "./OpsSprak.jsx";
-import { HtmlZoomRad, useHtmlZoom } from "./htmlZoom.jsx";
+import { useHtmlZoom } from "./htmlZoom.jsx";
 import { IKON_FOR } from "./ikonlexikon.js";
 import { ExternLankIkon } from "./icons.jsx";
 import { filadressFel } from "../lib/bibliotek.js";
@@ -23,10 +23,12 @@ import { sparaSomFil } from "../lib/sparaFil.js";
  * ══ ⛔ SÅ HÄR FUNGERAR VYN ═══════════════════════════════════════════════════════════════════════════════════════════
  *
  * 1. FILEN HÄMTAS SOM BYTE (`hamta(sokvag)`, appens `hamtaFil` med inloggningen) och ritas av pdf.js på en canvas per sida. Lagringens adress finns aldrig i vyn: inte i en länk, inte i en `src`, inte i adressfältet.
- * 2. EN SMAL RAD: filnamnet, Sida x av y, zoomen (samma som HTML-rutan, `useHtmlZoom` och `HtmlZoomRad`, med Anpassa till bredd som förval), Presentera, Ladda ned, och Öppna i eget fönster eller Stäng.
+ * 2. EN RAD (0.196.0, `Dokumentrad`, samma som HTML-rutan): zoomen (`useHtmlZoom`, med Anpassa till bredd som förval), sidan som "1/3" när det finns fler än en, och ikonknapparna Helskärm, Ladda ned, och Öppna i eget fönster eller Stäng.
+ *    Ingen egen bakgrund, ingen ram och inget filnamn i detaljen (posten har sin rubrik). I helfönstret står namnet som rubrik. Förut (0.193.0) stod filnamnet i en egen ruta, Presentera som stor knapp och Ladda ned på en egen rad:
+ *    CP 2026-11-06, "Det här ser jättekonstigt ut, kolla hur ful titeln ligger skarv.pdf. Det här håller inte. Presentera är ett konstigt ord i sammanhanget."
  *    Ladda ned följer spärren (`laddaNed: false`, gästens bibliotek när gruppen stängt av nedladdning) och sparar byten vyn redan har (`sparaSomFil`, aldrig lagringens adress).
  * 3. SIDORNA RITAS NÄR DE SYNS (`IntersectionObserver`): en PDF på hundra sidor ritar inte hundra canvas när den öppnas. Utan observatören ritas alla.
- * 4. PRESENTERA: Fullscreen API på vyns eget element, en sida i taget, anpassad till skärmen, utan rad och utan appens skal. Pilar, mellanslag, PageUp, PageDown, klick och svep byter sida (`lib/pdfvisning.js`),
+ * 4. HELSKÄRM (hette Presentera till 0.196.0): Fullscreen API på vyns eget element, en sida i taget, anpassad till skärmen, utan rad och utan appens skal. Pilar, mellanslag, PageUp, PageDown, klick och svep byter sida (`lib/pdfvisning.js`),
  *    Esc avslutar, och sidnumret syns en kort stund vid varje sidbyte (`SIDNUMMER_MS`). Där elementet inte kan gå till helskärm (Safari på iPhone har inget Fullscreen API för element) fyller presentationen
  *    fönstret i stället. ⛔ Det kan inte lovas att Safaris egen rad är borta där. Som hemskärmsapp är fönstret hela skärmen.
  * 5. ⛔ FEL SYNS, MED FÖRSÖK IGEN (regel 5, samma rad som gästflikarna i #675, `OpsGastFelrad`): en fil som inte går att hämta, en import av pdf.js som faller, en PDF med lösenord och en fil som inte är en PDF.
@@ -91,11 +93,13 @@ export function OpsPdfVisning({ hamta, sokvag, namn, fonster, laddaNed = true, h
   const rulla = useRef(/** @type {HTMLDivElement | null} */ (null));
   const ta = zoom.ta;
   const sidbredd = klar?.sida1.bredd ?? 0;
+  // Luften runt sidorna finns bara i helfönstret. I detaljen står sidan kant i kant med raden ovanför, som HTML-rutan.
+  const kant = helfonster ? KANT : 0;
   useEffect(() => {
     const el = rulla.current;
     if (!el || !sidbredd) return undefined;
     const matt = () => {
-      const synlig = el.clientWidth - 2 * KANT;
+      const synlig = el.clientWidth - 2 * kant;
       if (synlig > 0) ta({ typ: "matt", innehall: sidbredd, synlig });
     };
     matt();
@@ -103,7 +107,7 @@ export function OpsPdfVisning({ hamta, sokvag, namn, fonster, laddaNed = true, h
     const ro = new ResizeObserver(matt);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [sidbredd, ta]);
+  }, [sidbredd, ta, kant]);
 
   // ── Presentationen ──────────────────────────────────────────────────────────────────────────────────────────────────
   const yta = useRef(/** @type {HTMLElement | null} */ (null));
@@ -267,44 +271,28 @@ export function OpsPdfVisning({ hamta, sokvag, namn, fonster, laddaNed = true, h
     );
   }
 
+  // ⛔ EN RAD, INGEN EGEN YTA (0.196.0, `Dokumentrad`): zoomen, sidan och ikonknapparna på en rad utan bakgrund och utan ram. I detaljen står inget filnamn: posten har redan sin rubrik.
+  // I helfönstret står namnet som rubrik bredvid raden (under den i en telefon), i appens vanliga rubrikstil.
+  const rad = (
+    <Dokumentrad mark="data-pdf-rad" etikett={o("verktyg")} zoom={klar ? zoom : null} sprak={sprak} sida={antal > 0 ? { nr: sida, antal, etikett: sidtext } : null}>
+      <DokumentKnapp mark="data-pdf-helskarm" ikon={IKON_FOR.helskarm} etikett={o("helskarm")} disabled={!klar} onClick={() => presentera()} />
+      {laddaNed ? <DokumentKnapp mark="data-pdf-ladda-ned" ikon={IKON_FOR.laddaNed} etikett={o("laddaNed")} onClick={() => sparaFilen()} /> : null}
+      {fonster ? <DokumentKnapp mark="data-pdf-fonster" ikon={ExternLankIkon} etikett={o("fonster")} href={fonster} /> : null}
+      {onStang ? <DokumentKnapp mark="data-pdf-stang" ikon={IKON_FOR.stang} etikett={stangEtikett || o("stang")} onClick={onStang} /> : null}
+    </Dokumentrad>
+  );
+
   return (
-    <section ref={yta} data-pdf-vy={helfonster ? "helfonster" : ""} aria-label={etikett} className={cx("flex min-w-0 flex-col bg-surface text-ink", helfonster ? "h-dvh min-h-0 w-full" : "gap-2")}>
-      <header data-pdf-rad="" className={cx("flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2", helfonster && "border-b border-line bg-raised px-4 py-2")}>
-        <div className="flex min-w-0 flex-1 basis-48 flex-col">
-          {helfonster ? (
-            <h1 data-pdf-namn="" className="m-0 truncate text-etikett font-medium text-ink">{namn}</h1>
-          ) : (
-            <p data-pdf-namn="" className="m-0 truncate text-etikett font-medium text-ink">{namn}</p>
-          )}
-          <p data-pdf-sida="" className="m-0 text-meta text-ink-secondary tabular-nums">{sidtext || " "}</p>
-        </div>
-        <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
-          {klar ? <HtmlZoomRad zoom={zoom} sprak={sprak} /> : null}
-          <OpsButton variant="secondary" size="sm" disabled={!klar} onClick={() => presentera()}>
-            {o("presentera")}
-          </OpsButton>
-          {laddaNed ? (
-            <span data-pdf-ladda-ned="">
-              <OpsButton variant="ghost" size="sm" onClick={() => sparaFilen()}>
-                {o("laddaNed")}
-              </OpsButton>
-            </span>
-          ) : null}
-          {fonster ? (
-            <span data-pdf-fonster="">
-              <OpsButton variant="ghost" size="sm" href={fonster} newTab>
-                {o("fonster")}
-                <ExternLankIkon size={14} />
-              </OpsButton>
-            </span>
-          ) : null}
-          {onStang ? (
-            <OpsButton variant="ghost" size="sm" onClick={onStang}>
-              {stangEtikett || o("stang")}
-            </OpsButton>
-          ) : null}
-        </div>
-      </header>
+    <section ref={yta} data-pdf-vy={helfonster ? "helfonster" : ""} aria-label={etikett} className={cx("flex min-w-0 flex-col text-ink", helfonster ? "h-dvh min-h-0 w-full bg-canvas" : "gap-2")}>
+      {/* Helfönstret står på appens bakgrund (`bg-canvas`), samma som detaljen, så att den vita sidan syns mot den. Raden och rubriken har ingen egen yta. */}
+      {helfonster ? (
+        <header data-pdf-huvud="" className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2">
+          <h1 data-pdf-namn="" className="m-0 min-w-0 flex-1 basis-48 truncate text-rubrik text-ink">{namn}</h1>
+          {rad}
+        </header>
+      ) : (
+        rad
+      )}
       {lage.lage === "hamtar" ? (
         <p role="status" data-pdf-lage="hamtar" className={cx("m-0 text-etikett text-ink-muted", helfonster && "px-4 py-4")}>{o("hamtar")}</p>
       ) : lage.lage === "fel" ? (
@@ -314,11 +302,12 @@ export function OpsPdfVisning({ hamta, sokvag, namn, fonster, laddaNed = true, h
       ) : antal === 0 ? (
         <p role="status" data-pdf-lage="tom" className={cx("m-0 text-etikett text-ink-muted", helfonster && "px-4 py-4")}>{o("tom")}</p>
       ) : (
+        // ⛔ INGEN RAM OCH INGEN EGEN BAKGRUND RUNT SIDORNA (0.196.0, CP: "sidan i en egen ram med rundade hörn inne i rutan"). Sidan står på samma yta som raden, som HTML-rutans dokument.
         <div
           ref={rulla}
           data-pdf-sidor=""
-          className={cx("min-w-0 overflow-auto bg-sunken", helfonster ? "min-h-0 flex-1" : "h-[70vh] min-h-72 rounded-lg border border-line")}
-          style={{ padding: KANT }}
+          className={cx("min-w-0 overflow-auto", helfonster ? "min-h-0 flex-1" : "h-[70vh] min-h-72")}
+          style={{ padding: kant }}
         >
           <div className="mx-auto flex w-max min-w-full flex-col items-center gap-3">
             {Array.from({ length: antal }, (_, i) => (
@@ -377,7 +366,7 @@ function SynligSida({ dokument, nr, skala, sida1, rot, onSyns, etikett }) {
     };
   }, [nr, rot]);
   return (
-    <div ref={ram} data-pdf-sidram={nr} className="shadow-sm" style={synlig ? undefined : { width: sida1.bredd * skala, height: sida1.hojd * skala, background: "white" }}>
+    <div ref={ram} data-pdf-sidram={nr} style={synlig ? undefined : { width: sida1.bredd * skala, height: sida1.hojd * skala, background: "white" }}>
       {synlig ? <Sida dokument={dokument} nr={nr} skala={skala} mark="data-pdf-sida-canvas" etikett={etikett} /> : null}
     </div>
   );
@@ -435,15 +424,17 @@ function Sida({ dokument, nr, skala, yta, mark, etikett }) {
 export const ORD_PDFVISNING = {
   etikett: { sv: "PDF: {namn}", en: "PDF: {namn}" },
   vyEtikett: { sv: "PDF i helt fönster: {namn}", en: "PDF, full window: {namn}" },
-  presentationEtikett: { sv: "Presentation: {namn}", en: "Presentation: {namn}" },
-  presentation: { sv: "presentation", en: "presentation" },
+  presentationEtikett: { sv: "Helskärm: {namn}", en: "Full screen: {namn}" },
+  presentation: { sv: "helskärm", en: "full screen" },
+  verktyg: { sv: "Dokumentet", en: "Document" },
   sida: { sv: "Sida {nr} av {antal}", en: "Page {nr} of {antal}" },
   sidaEtikett: { sv: "Sida {nr}", en: "Page {nr}" },
-  presentera: { sv: "Presentera", en: "Present" },
+  // ⛔ HELSKÄRM, INTE PRESENTERA (0.196.0). CP 2026-11-06: "Presentera är ett konstigt ord i sammanhanget." Knappen gör sidan stor, det är det den heter.
+  helskarm: { sv: "Helskärm", en: "Full screen" },
   laddaNed: { sv: "Ladda ned", en: "Download" },
   fonster: { sv: "Öppna i eget fönster", en: "Open in a new window" },
   stang: { sv: "Stäng", en: "Close" },
-  avsluta: { sv: "Avsluta presentationen", en: "End the presentation" },
+  avsluta: { sv: "Stäng helskärm", en: "Close full screen" },
   hamtar: { sv: "Hämtar dokumentet.", en: "Fetching the document." },
   tom: { sv: "PDF:en har inga sidor.", en: "The PDF has no pages." },
   forsokIgen: { sv: "Försök igen", en: "Try again" },

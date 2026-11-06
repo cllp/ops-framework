@@ -511,12 +511,12 @@ async function chattensNattskiva() {
           return kort.map((x) => {
             const r = x.getBoundingClientRect();
             const bubbla = /** @type {HTMLElement} */ (x.closest("[data-meddelande]")?.querySelector("[data-bubbla]"));
-            return { text: (x.textContent || "").trim(), h: r.height, inom: r.left >= l.getBoundingClientRect().left - 0.5 && r.right <= l.getBoundingClientRect().right + 0.5, under: r.top >= bubbla.getBoundingClientRect().bottom - 0.5, lankKvar: Boolean(bubbla.querySelector("a[href]")) };
+            return { text: (x.textContent || "").trim(), h: r.height, inom: r.left >= l.getBoundingClientRect().left - 0.5 && r.right <= l.getBoundingClientRect().right + 0.5, under: r.top >= bubbla.getBoundingClientRect().bottom - 0.5, lankKvar: Boolean(bubbla.querySelector(`a[href="${x.getAttribute("data-postkort")}"]`)) };
           });
         });
         matt.push(`${namn}: ${JSON.stringify(k)}`);
         krav(k.length === 1, `${namn}: ${k.length} kort, väntat 1. Golv.`);
-        krav(k.every((x) => x.text === "Moms augusti (#464)Ärende, öppet" && x.h >= 43.5 && x.inom && x.under && x.lankKvar), `${namn}: kortet ska stå under bubblan, inom loggen, 44 px högt, med appens titel, och länken stå kvar i texten (${JSON.stringify(k)}).`);
+        krav(k.every((x) => x.text === "Moms augusti (#464)Ärende, öppet" && x.h >= 43.5 && x.inom && x.under && !x.lankKvar), `${namn}: kortet ska stå under bubblan, inom loggen, 44 px högt, med appens titel, och länken INTE stå i texten (0.196.0, cllp/ops-framework#527: förut stod den kvar, samma sak två gånger) (${JSON.stringify(k)}).`);
         if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `chatt-7-postkort-${vp.width}.png`) });
         krav((await over(page)) <= 0, `${namn}: sidan flödar över ${await over(page)} px horisontellt.`);
       } catch (e) {
@@ -8205,6 +8205,27 @@ async function gastGrupp() {
           matt.push(`${namn} sida: skrivfältet ${hojd.glapp.toFixed(0)} px över fönstrets underkant, loggen ${hojd.logg.toFixed(0)} px, sidan rullar ${hojd.rullar}`);
           krav(hojd.glapp >= -0.5 && hojd.glapp <= 40 && !hojd.rullar && hojd.logg >= 400, `${namn} sida (e): chatten fyller inte höjden på datorn: skrivfältet ${hojd.glapp.toFixed(0)} px över fönstrets underkant (väntat 0 till 40), sidan rullar ${hojd.rullar}, loggen ${hojd.logg.toFixed(0)} px (väntat minst 400).`);
         }
+        // (e) KANTERNA (0.196.0). CP 2026-11-06 i telefonen på 1.0.1128, mörkt läge: "glapp under sidhuvudet och den översta chattbubblan klipps", och fel i nederkanten.
+        // Mätt före rättelsen i 390 x 664: loggens rullkant 24 px under sidhuvudet och 12 px över skrivfältet, och loggen stod på scrollTop 39 av 104, så sista meddelandet klipptes.
+        // Nu: loggen står nederst (sista meddelandet syns helt), rullkanten möter skrivfältet, och på telefonen möter den sidhuvudet. Golv: loggen, skrivfältet och ett meddelande hittades.
+        await page.waitForTimeout(300);
+        const kanter = await page.evaluate(() => {
+          const logg = /** @type {HTMLElement | null} */ (document.querySelector("[data-gast-chatt-logg]"));
+          const skriv = document.querySelector("[data-gast-chatt-skriv]");
+          const rader = [...document.querySelectorAll("[data-gast-chatt-logg] [data-meddelande]")];
+          const huvud = document.querySelector("header");
+          if (!logg || !skriv || rader.length === 0 || !huvud) return null;
+          const l = logg.getBoundingClientRect();
+          const sista = rader[rader.length - 1].getBoundingClientRect();
+          return { kvarNed: logg.scrollHeight - logg.scrollTop - logg.clientHeight, sistaNed: sista.bottom, loggTopp: l.top, loggNed: l.bottom, skrivTopp: skriv.getBoundingClientRect().top, huvudNed: huvud.getBoundingClientRect().bottom, rader: rader.length };
+        });
+        krav(kanter !== null, `${namn} sida (e, golv): loggen, skrivfältet, sidhuvudet eller ett meddelande hittades inte.`);
+        if (kanter) {
+          matt.push(`${namn} sida, kanterna: ${kanter.rader} meddelanden, ${kanter.kvarNed.toFixed(0)} px kvar att rulla ned, rullkanten ${(kanter.loggTopp - kanter.huvudNed).toFixed(0)} px under sidhuvudet och ${(kanter.skrivTopp - kanter.loggNed).toFixed(0)} px över skrivfältet`);
+          krav(kanter.kvarNed <= 1 && kanter.sistaNed <= kanter.loggNed + 0.5, `${namn} sida (e): chatten står inte nederst: ${kanter.kvarNed.toFixed(0)} px kvar att rulla, och sista meddelandet slutar på ${kanter.sistaNed.toFixed(0)} med loggens kant på ${kanter.loggNed.toFixed(0)} (väntat 0 kvar och inget klippt).`);
+          krav(Math.abs(kanter.skrivTopp - kanter.loggNed) <= 1, `${namn} sida (e): ${(kanter.skrivTopp - kanter.loggNed).toFixed(0)} px mellan loggens rullkant och skrivfältet (väntat 0): ett meddelande klipps då mitt i ett tomrum.`);
+          if (telefon) krav(Math.abs(kanter.loggTopp - kanter.huvudNed) <= 1, `${namn} sida (e): loggens rullkant står ${(kanter.loggTopp - kanter.huvudNed).toFixed(0)} px under sidhuvudet (väntat 0): ett meddelande som rullar upp klipps då mitt i ett tomrum.`);
+        }
         // (e) 0.195.0: inget streck mellan loggen och skrivfältet, ingen ram runt loggen, och skrivfältets ruta har samma vänster- och högerkant som meddelandenas yta
         // (CP från telefonen: "Sedan kanske skrivfältet kan vara lika brett som chattramen?"). Loggens ruta och dess innerbredd (utan en rullningslist) mäts båda och skrivs ut.
         const kant = await page.evaluate(() => {
@@ -8643,13 +8664,13 @@ async function bibliotekHtmlVy() {
         await page.waitForSelector("[data-html-dokument-ruta]");
         await page.waitForTimeout(200);
         const m = await page.evaluate(() => {
-          // 0.192.0 (#529): med rutan står Öppna i eget fönster i rutans verktygsrad, och filnamnet är text bredvid Ladda ned.
+          // 0.192.0 (#529): med rutan står Öppna i eget fönster i rutans verktygsrad, och filnamnet är text bredvid Ladda ned. Sedan 0.196.0 en ikonknapp (`DokumentKnapp`): namnet står i aria-label.
           const oppna = /** @type {HTMLElement} */ (document.querySelector("[data-html-dokument-fonster] a"));
           const ladda = /** @type {HTMLAnchorElement} */ (document.querySelector("[data-bibliotek-ladda-ned]"));
           const filnamn = (document.querySelector("[data-bibliotek-filnamn]")?.textContent || "").trim();
           const or = oppna.getBoundingClientRect();
           const lr = ladda.getBoundingClientRect();
-          return { o: { l: or.left, r: or.right, h: or.height, t: or.top, b: or.bottom, text: (oppna.textContent || "").replace(/\s+/g, " ").trim(), href: oppna.getAttribute("href"), target: oppna.getAttribute("target"), filnamn }, l: { l: lr.left, r: lr.right, h: lr.height, t: lr.top, b: lr.bottom, text: (ladda.textContent || "").trim(), download: ladda.hasAttribute("download"), href: ladda.getAttribute("href") }, over: document.documentElement.scrollWidth - document.documentElement.clientWidth, fonsterB: window.innerWidth, ruta: document.querySelectorAll("[data-html-dokument-ruta]").length };
+          return { o: { l: or.left, r: or.right, h: or.height, t: or.top, b: or.bottom, text: (oppna.getAttribute("aria-label") || oppna.textContent || "").replace(/\s+/g, " ").trim(), href: oppna.getAttribute("href"), target: oppna.getAttribute("target"), filnamn }, l: { l: lr.left, r: lr.right, h: lr.height, t: lr.top, b: lr.bottom, text: (ladda.textContent || "").trim(), download: ladda.hasAttribute("download"), href: ladda.getAttribute("href") }, over: document.documentElement.scrollWidth - document.documentElement.clientWidth, fonsterB: window.innerWidth, ruta: document.querySelectorAll("[data-html-dokument-ruta]").length };
         });
         matt.push(`${namn} (e, detalj): Öppna i eget fönster ${m.o.l.toFixed(0)}-${m.o.r.toFixed(0)}x${m.o.h.toFixed(0)}, Ladda ned ${m.l.l.toFixed(0)}-${m.l.r.toFixed(0)}x${m.l.h.toFixed(0)}`);
         krav(m.o.href === "/bibliotek/visa/p1?plats=cps-ab" && m.o.target === "_blank" && /Öppna i eget fönster/.test(m.o.text) && /kvartalsrapport-med-ett-langt-namn\.html/.test(m.o.filnamn) && m.l.text === "Ladda ned" && m.l.download && m.l.href === "https://lagring.example/fil" && m.ruta === 1, `${namn} (e, detalj): Öppna i eget fönster ${JSON.stringify(m.o)} och Ladda ned ${JSON.stringify(m.l)}, rutor ${m.ruta}.`);

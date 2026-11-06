@@ -133,27 +133,102 @@ describe("adressen till PDF:ens eget fönster och pdf.js-valen", () => {
 });
 
 describe("vyn: raden, sidorna och zoomen", () => {
-  it("filnamnet, Sida 1 av 3, zoomen anpassad till bredd, Presentera och Ladda ned. Alla sidor ritas när ingen observatör finns", async () => {
+  it("helfönstret: filnamnet som rubrik utanför raden, och i raden zoomen anpassad till bredd, 1/3, Helskärm, Ladda ned och Stäng. Alla sidor ritas när ingen observatör finns", async () => {
     await visaVyn({ onStang: () => {} });
     const rad = /** @type {HTMLElement} */ (document.querySelector("[data-pdf-rad]"));
-    expect(within(rad).getByRole("heading", { name: "kvartal.pdf" })).toBeTruthy();
+    const rubrik = screen.getByRole("heading", { name: "kvartal.pdf" });
+    expect(rad.contains(rubrik)).toBe(false);
     expect(rad.querySelector("[data-html-zoom-anpassad]")).toBeTruthy();
-    expect(within(rad).getByRole("button", { name: "Presentera" })).toBeTruthy();
+    expect(rad.querySelector("[data-dokumentrad-sida]")?.textContent).toBe("1/3Sida 1 av 3");
+    expect(within(rad).getByRole("button", { name: "Helskärm" })).toBeTruthy();
     expect(within(rad).getByRole("button", { name: "Ladda ned" })).toBeTruthy();
     expect(within(rad).getByRole("button", { name: "Stäng" })).toBeTruthy();
     await waitFor(() => expect(document.querySelectorAll("[data-pdf-sida-canvas]")).toHaveLength(3));
   });
-  it("⛔ laddaNed={false} döljer Ladda ned, och Presentera finns kvar", async () => {
+  it("⛔ laddaNed={false} döljer Ladda ned, och Helskärm finns kvar", async () => {
     await visaVyn({ laddaNed: false });
     expect(screen.queryByRole("button", { name: "Ladda ned" })).toBeNull();
-    expect(screen.getByRole("button", { name: "Presentera" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Helskärm" })).toBeTruthy();
+  });
+  it("en PDF med en sida visar ingen sidräkning i raden", async () => {
+    pdfjs.antal = 1;
+    render(<OpsPdfVy hamta={async () => pdfBlob()} sokvag="s" namn="kvartal.pdf" />);
+    await waitFor(() => expect(document.querySelectorAll("[data-pdf-sida-canvas]")).toHaveLength(1));
+    expect(document.querySelector("[data-dokumentrad-sida]")).toBeNull();
+    expect(screen.queryByText(/Sida 1 av 1/)).toBeNull();
   });
 });
 
-describe("Presentera: en sida i taget, utan rad", () => {
+describe("⛔ verktygsraden i detaljen (0.196.0): en rad, utan filnamn, utan ram och bakgrund", () => {
+  /*
+   * CP 2026-11-06, med en skärmbild från telefonen: "Det här ser jättekonstigt ut, kolla hur ful titeln ligger skarv.pdf. Det här håller inte. Presentera är ett konstigt ord i sammanhanget."
+   * Rött med 0.195.0 (raden i 0.193.0): filnamnet stod i raden, knappen hette Presentera, raden bröts (`flex-wrap`), och vyn hade `bg-surface` och sidorna en ruta med `rounded-lg border bg-sunken`.
+   */
+  const RAM = /(^|\s)(border|rounded|bg-|shadow|ring-)/;
+  async function detaljen(/** @type {Record<string, any>} */ extra = {}) {
+    const post = pdfPost();
+    render(<OpsBibliotek poster={[post]} jag={JAG} vald={post} onOppna={() => {}} onStang={() => {}} onSpara={() => {}} hubHref="/hub" filUrl={() => LAGRING} hamtaFil={async () => pdfBlob()} oppnaPdf={() => "/bibliotek/visa/p?plats=g"} {...extra} />);
+    await screen.findByText("Sida 1 av 3");
+    return /** @type {HTMLElement} */ (document.querySelector("[data-bibliotek-pdf]"));
+  }
+
+  it("inget filnamn i PDF-vyn: detaljen har redan rubriken", async () => {
+    const pdf = await detaljen();
+    expect(pdf.textContent).not.toContain("kvartal.pdf");
+    expect(pdf.querySelector("[data-pdf-namn]")).toBeNull();
+    expect(within(pdf).queryByRole("heading")).toBeNull();
+  });
+
+  it("etiketten är Helskärm, med samma namn som title, och Presentera finns inte", async () => {
+    const pdf = await detaljen();
+    const knapp = within(pdf).getByRole("button", { name: "Helskärm" });
+    expect(knapp.getAttribute("title")).toBe("Helskärm");
+    expect(within(pdf).queryByText(/Presentera/)).toBeNull();
+    expect(within(pdf).getByRole("button", { name: "Ladda ned" }).getAttribute("title")).toBe("Ladda ned");
+    expect(within(pdf).getByRole("link", { name: "Öppna i eget fönster" }).getAttribute("title")).toBe("Öppna i eget fönster");
+  });
+
+  it("en enda rad: ett element bär zoomen, sidan och alla knappar, och det bryts inte", async () => {
+    const pdf = await detaljen();
+    const rader = pdf.querySelectorAll("[data-pdf-rad]");
+    expect(rader).toHaveLength(1);
+    const rad = /** @type {HTMLElement} */ (rader[0]);
+    expect(rad.className).toMatch(/(^|\s)flex-nowrap(\s|$)/);
+    expect(rad.className).not.toMatch(/(^|\s)flex-wrap(\s|$)/);
+    expect(rad.querySelector("[data-html-zoom]")).toBeTruthy();
+    expect(rad.querySelector("[data-dokumentrad-sida]")).toBeTruthy();
+    for (const namn of ["Helskärm", "Ladda ned"]) expect(within(rad).getByRole("button", { name: namn })).toBeTruthy();
+    expect(within(rad).getByRole("link", { name: "Öppna i eget fönster" })).toBeTruthy();
+    // Alla knappar och länkar i PDF-vyn står i raden (golv: fem, zoomens tre och två till).
+    const kontroller = [...pdf.querySelectorAll("button, a")];
+    expect(kontroller.length).toBeGreaterThanOrEqual(5);
+    expect(kontroller.every((k) => rad.contains(k))).toBe(true);
+  });
+
+  it("ingen ram eller bakgrund runt raden eller runt sidorna, och ingen skugga runt sidan", async () => {
+    const pdf = await detaljen();
+    const rad = /** @type {HTMLElement} */ (pdf.querySelector("[data-pdf-rad]"));
+    /** @type {HTMLElement | null} */
+    let el = rad;
+    const lasta = [];
+    while (el && el !== pdf.parentElement) {
+      lasta.push(el);
+      expect(el.className, el.outerHTML.slice(0, 120)).not.toMatch(RAM);
+      el = el.parentElement;
+    }
+    expect(lasta.length).toBeGreaterThanOrEqual(3);
+    const sidor = /** @type {HTMLElement} */ (pdf.querySelector("[data-pdf-sidor]"));
+    expect(sidor.className).not.toMatch(RAM);
+    const sidramar = [...pdf.querySelectorAll("[data-pdf-sidram]")];
+    expect(sidramar.length).toBe(3);
+    for (const s of sidramar) expect(/** @type {HTMLElement} */ (s).className).not.toMatch(RAM);
+  });
+});
+
+describe("Helskärm: en sida i taget, utan rad", () => {
   it("⛔ pilar, mellanslag, PageUp och PageDown byter sida inom gränserna, Home och End går till ändarna, och Esc avslutar", async () => {
     await visaVyn();
-    fireEvent.click(screen.getByRole("button", { name: "Presentera" }));
+    fireEvent.click(screen.getByRole("button", { name: "Helskärm" }));
     // jsdom har inget Fullscreen API: presentationen fyller fönstret i stället, som på en iPhone.
     expect(presentation()?.getAttribute("data-pdf-presentation")).toBe("fonster");
     expect(document.querySelector("[data-pdf-rad]")).toBeNull();
@@ -183,7 +258,7 @@ describe("Presentera: en sida i taget, utan rad", () => {
     await visaVyn();
     vi.useFakeTimers();
     try {
-      fireEvent.click(screen.getByRole("button", { name: "Presentera" }));
+      fireEvent.click(screen.getByRole("button", { name: "Helskärm" }));
       tangent("ArrowRight");
       const nummer = /** @type {HTMLElement} */ (document.querySelector('[role="status"][aria-live="polite"]'));
       expect(nummer.textContent).toBe("2 / 3");
@@ -197,7 +272,7 @@ describe("Presentera: en sida i taget, utan rad", () => {
 
   it("klick byter sida (vänstra tredjedelen bakåt), svep byter sida, och knappen avslutar utan tangentbord", async () => {
     await visaVyn();
-    fireEvent.click(screen.getByRole("button", { name: "Presentera" }));
+    fireEvent.click(screen.getByRole("button", { name: "Helskärm" }));
     const yta = /** @type {HTMLElement} */ (presentation());
     vi.spyOn(yta, "getBoundingClientRect").mockReturnValue(/** @type {any} */ ({ left: 0, top: 0, width: 900, height: 600, right: 900, bottom: 600 }));
     fireEvent.click(yta, { clientX: 600, clientY: 300 });
@@ -207,7 +282,7 @@ describe("Presentera: en sida i taget, utan rad", () => {
     fireEvent.touchStart(yta, { touches: [{ clientX: 500, clientY: 300 }] });
     fireEvent.touchEnd(yta, { changedTouches: [{ clientX: 300, clientY: 310 }] });
     expect(visadSida()).toBe("2");
-    fireEvent.click(screen.getByRole("button", { name: "Avsluta presentationen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Stäng helskärm" }));
     expect(presentation()).toBeNull();
   });
 
@@ -225,7 +300,7 @@ describe("Presentera: en sida i taget, utan rad", () => {
     HTMLElement.prototype.requestFullscreen = begar;
     try {
       const vy = /** @type {HTMLElement} */ (document.querySelector("[data-pdf-vy]"));
-      fireEvent.click(screen.getByRole("button", { name: "Presentera" }));
+      fireEvent.click(screen.getByRole("button", { name: "Helskärm" }));
       expect(begar).toHaveBeenCalledTimes(1);
       expect(begar.mock.contexts[0]).toBe(vy);
       expect(presentation()?.getAttribute("data-pdf-presentation")).toBe("helskarm");
@@ -250,7 +325,7 @@ describe("Presentera: en sida i taget, utan rad", () => {
     // @ts-ignore
     HTMLElement.prototype.requestFullscreen = () => Promise.reject(new TypeError("Permissions check failed"));
     try {
-      fireEvent.click(screen.getByRole("button", { name: "Presentera" }));
+      fireEvent.click(screen.getByRole("button", { name: "Helskärm" }));
       await waitFor(() => expect(presentation()?.getAttribute("data-pdf-presentation")).toBe("fonster"));
       expect(visadSida()).toBe("1");
     } finally {
@@ -272,7 +347,7 @@ describe("⛔ fel syns, med Försök igen (regel 5)", () => {
     render(<OpsPdfVy hamta={hamta} sokvag="s" namn="kvartal.pdf" />);
     const fel = await screen.findByRole("alert");
     expect(fel.textContent).toBe("Dokumentet gick inte att hämta. Nätet föll.");
-    expect(screen.getByRole("button", { name: "Presentera" }).hasAttribute("disabled")).toBe(true);
+    expect(screen.getByRole("button", { name: "Helskärm" }).hasAttribute("disabled")).toBe(true);
     fireEvent.click(screen.getByRole("button", { name: "Försök igen" }));
     await screen.findByText("Sida 1 av 3");
     expect(hamta).toHaveBeenCalledTimes(2);
@@ -309,12 +384,12 @@ describe("Biblioteket: PDF:en i detaljen, aldrig lagringens adress", () => {
     expect(screen.getByRole("button", { name: "Ladda ned" })).toBeTruthy();
   });
 
-  it("⛔ gästens spärr (utanNedladdning) döljer Ladda ned, och Presentera finns kvar", async () => {
+  it("⛔ gästens spärr (utanNedladdning) döljer Ladda ned, och Helskärm finns kvar", async () => {
     visaBiblioteket({ hamtaFil: async () => pdfBlob(), utanNedladdning: true });
     await screen.findByText("Sida 1 av 3");
     expect(screen.queryByRole("button", { name: "Ladda ned" })).toBeNull();
     expect(screen.queryByText("Ladda ned")).toBeNull();
-    expect(screen.getByRole("button", { name: "Presentera" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Helskärm" })).toBeTruthy();
   });
 
   it("utan hamtaFil (gästens bibliotek) hämtas byten ur den adress Biblioteket redan har, och adressen ritas inte", async () => {
@@ -324,7 +399,7 @@ describe("Biblioteket: PDF:en i detaljen, aldrig lagringens adress", () => {
     await screen.findByText("Sida 1 av 3");
     expect(hamta).toHaveBeenCalledWith(LAGRING);
     expect(document.body.innerHTML).not.toContain("firebasestorage");
-    expect(screen.getByRole("button", { name: "Presentera" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Helskärm" })).toBeTruthy();
   });
 
   it("med oppnaPdf står Öppna i eget fönster i raden, och kortet i listan är en länk till appens sida", async () => {
