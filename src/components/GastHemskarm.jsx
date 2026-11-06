@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { lasAppmanifest } from "../data/appmanifest.js";
 import { gastHemskarmTips } from "../lib/gastHemskarm.js";
 import { forvalda } from "../lib/ord.js";
 import { OpsDisclosure } from "./OpsDisclosure.jsx";
@@ -48,18 +49,10 @@ export function GastHemskarm({ sprak = "sv", miljo }) {
     const href = document.querySelector('link[rel="manifest"]')?.getAttribute("href");
     if (!href) return undefined;
     const kontroll = new AbortController();
-    fetch(href, { signal: kontroll.signal })
-      .then((s) => (s.ok ? s.json() : null))
-      .then((json) => {
-        if (!levande || !json || typeof json !== "object") return;
-        const m = /** @type {{ display?: unknown, start_url?: unknown }} */ (json);
-        setLast({
-          ...bas,
-          manifest: {
-            ...(typeof m.display === "string" ? { display: m.display } : {}),
-            ...(typeof m.start_url === "string" ? { start_url: m.start_url } : {}),
-          },
-        });
+    lasAppmanifest(href, { signal: kontroll.signal })
+      .then((manifest) => {
+        if (!levande || !manifest) return;
+        setLast({ ...bas, manifest });
       })
       .catch(() => {
         /* Utan manifest lovar vi inget app-läge. iOS-stegen behöver det inte. */

@@ -122,14 +122,8 @@ export const ORD_OPSGASTGRUPP = {
   flik_kalender: { sv: "Kalender", en: "Calendar" },
   flik_bibliotek: { sv: "Bibliotek", en: "Library" },
   flik_arenden: { sv: "Ärenden", en: "Cases" },
-  gastIngress: {
-    sv: "Du är gäst i {grupp}. Du kan läsa och skriva i gruppens chatt, svara och rösta i kalendern och läsa, spela och ladda ned i biblioteket. Du ser inte gruppens ärenden, bara de som gruppen har gett dig.",
-    en: "You are a guest in {grupp}. You can read and write in the group's chat, answer and vote in the calendar, and read, play and download in the library. You do not see the group's cases, only those the group has given you.",
-  },
-  omGruppen: { sv: "Om din roll som gäst", en: "About your role as a guest" },
-  // ⛔ EN RAD UNDER GRUPPENS NAMN (0.190.0, CP 2026-11-05 i cllp/lifehub.app#658, del A). Allt annat om rollen står bakom (i), som är stängd från början.
+  // ⛔ EN RAD UNDER GRUPPENS NAMN (0.190.0, CP 2026-11-05 i cllp/lifehub.app#658, del A). Allt annat om rollen står på översikten (0.192.0, `gastBehorighetsrader`).
   duArGast: { sv: "Du är gäst.", en: "You are a guest." },
-  historik: { sv: "Du ser hela gruppens chatt, från början.", en: "You can see the whole group chat, from the beginning." },
   kalenderEtikett: { sv: "Kalender", en: "Calendar" },
   ingetPaGang: { sv: "Inget på gång i gruppen.", en: "Nothing coming up in the group." },
   paGangEtikett: { sv: "På gång", en: "Coming up" },
