@@ -192,8 +192,14 @@ export function OpsGastChatt({ meddelanden, fler = false, onAldre, onSkriv, ladd
   // står som "Meddelandet går inte att läsa." (`null`, medlemmens `citatSaknas`), aldrig som en tom ruta.
   const uppslag = useMemo(() => {
     const perId = new Map(rader.map((r) => [r.id, r]));
-    return new Map(rader.filter((r) => r.svarPa).map((r) => [/** @type {string} */ (r.svarPa), perId.get(/** @type {string} */ (r.svarPa)) ?? null]));
-  }, [rader]);
+    // Finns det citerade inte bland raderna (agentens meddelande, som gästen inte ser i listan) står tjänstens eget citat (`svarPa` med namn och text) som reserv, som före 0.196.0.
+    /** @param {string} id */
+    const tjanstens = (id) => {
+      const c = meddelanden.find((m) => m.svarPa?.id === id)?.svarPa;
+      return c && typeof c.text === "string" ? { id, av: c.namn, text: c.text, tid: 0 } : null;
+    };
+    return new Map(rader.filter((r) => r.svarPa).map((r) => [/** @type {string} */ (r.svarPa), perId.get(/** @type {string} */ (r.svarPa)) ?? tjanstens(/** @type {string} */ (r.svarPa))]));
+  }, [rader, meddelanden]);
   /** Antalet svar i meddelandets tråd, som tjänsten räknade dem. @param {string} id */
   const antalSvar = (id) => {
     const svar = /** @type {any} */ (originalPerId.get(id))?.svar;

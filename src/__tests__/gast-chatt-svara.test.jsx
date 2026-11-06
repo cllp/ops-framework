@@ -131,8 +131,16 @@ describe("gästens meny på ett meddelande: Svara och Svara i tråd, och inget a
     expect(citat.textContent).toBe("Agda Ägare: Välkommen");
   });
 
-  it("⛔ ett citerat meddelande som inte finns bland de hämtade står med appens ord för det, Meddelandet går inte att läsa", async () => {
+  it("⛔ ett citerat meddelande som inte finns bland de hämtade står med tjänstens eget citat, som före 0.196.0", async () => {
     await rita([...MEDDELANDEN, { id: "m3", av: { namn: "Bo" }, text: "Svar på något gammalt", tid: T(9), svarPa: { id: "gammalt", namn: "Agda Ägare", text: "Det gamla" } }]);
+    const citat = /** @type {HTMLElement} */ (document.querySelector('[data-citat="gammalt"]'));
+    expect(citat).not.toBeNull();
+    expect(citat.querySelector("[data-citat-saknas]")).toBeNull();
+    expect(citat.textContent).toBe("Agda Ägare: Det gamla");
+  });
+
+  it("⛔ ett citat utan text, varken bland de hämtade eller från tjänsten, står med appens ord för det, Meddelandet går inte att läsa", async () => {
+    await rita([...MEDDELANDEN, { id: "m3", av: { namn: "Bo" }, text: "Svar på något gammalt", tid: T(9), svarPa: /** @type {any} */ ({ id: "gammalt" }) }]);
     const citat = /** @type {HTMLElement} */ (document.querySelector('[data-citat="gammalt"]'));
     expect(citat).not.toBeNull();
     expect(citat.querySelector("[data-citat-saknas]")).not.toBeNull();
