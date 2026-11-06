@@ -1,7 +1,7 @@
 import { useContext, useId, useState } from "react";
 import { KOMMENTARBILAGA_TYPER, MAX_HANDELSEKOMMENTAR, MAX_KOMMENTARBILAGA, kommentarbilagaFel } from "../lib/handelsemodell.js";
 import { isImage } from "../lib/file.js";
-import { formatDagOchKlockslag } from "../lib/format.js";
+import { formatDateTime } from "../lib/format.js";
 import { OppnaHandelseKontext } from "../lib/handelsekontext.js";
 import { laesSkapare, namnMedVia } from "../lib/skapare.js";
 import { handelseIdUrAdress } from "../lib/handelsepanel.js";
@@ -238,7 +238,7 @@ function OpsKommentarerRitad({
                       {namn}
                       {min ? ` (${duText})` : ""}
                     </span>
-                    <span className="text-meta text-ink-muted">{formatDagOchKlockslag(k.skapad, { locale })}</span>
+                    <span className="text-meta text-ink-muted">{formatDateTime(k.skapad, { locale })}</span>
                   </div>
                   {k.text ? <p className="m-0 whitespace-pre-wrap break-words text-etikett text-ink">{k.text}</p> : null}
                   {k.bilaga?.dataUrl ? <Kommentarbilaga bilaga={k.bilaga} namn={namn} bilagaText={bilagaText} sprak={sprak} galleri={galleri} galleriPlats={galleri.findIndex((g) => g.id === k.id)} /> : null}

@@ -6,6 +6,7 @@ import { useOpsSprak } from "./OpsSprak.jsx";
 import { arHtmlMime, filInmatningsfel, mimeUrFilnamn } from "../lib/bibliotek.js";
 import { ordet } from "../lib/ord.js";
 import { skaparensNamn } from "../lib/skapare.js";
+import { formatDateTime } from "../lib/format.js";
 
 /**
  * Versionsraden för ett HTML-dokument i Bibliotekets detalj (0.158.0, cllp/ops-framework, uppföljning av #472).
@@ -327,17 +328,18 @@ export function arKonflikt(e) {
   return x.kod === "konflikt" || x.code === "konflikt" || x.status === 409 || x.httpStatus === 409;
 }
 
-/** @param {number} ms @param {string} sprak */
-function versionstid(ms, sprak) {
-  const d = new Date(ms);
-  if (Number.isNaN(d.getTime())) return "";
-  return new Intl.DateTimeFormat(sprak === "en" ? "en-GB" : "sv-SE", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }).format(d);
+/**
+ * Versionens tid, i ramverkets enda form för en tidsstämpel (0.194.0, `formatDateTime`): "2026-11-06 13:42". Förut "6 nov. 2026 13:42" med en egen `Intl`.
+ * @param {number} ms
+ */
+function versionstid(ms) {
+  return Number.isFinite(ms) ? formatDateTime(ms) : "";
 }
 
 /** @param {Versionsrad} r @param {string} sprak @param {(k: keyof typeof ORD_HTMLVERSIONER, v?: Record<string, string | number>) => string} o */
 function versionsrad(r, sprak, o) {
   const vem = r.av ? skaparensNamn(r.av, sprak) : "";
-  const tid = r.tid === null ? "" : versionstid(r.tid, sprak);
+  const tid = r.tid === null ? "" : versionstid(r.tid);
   if (vem && tid) return o("avTid", { vem, tid });
   return vem || tid || o("okand");
 }

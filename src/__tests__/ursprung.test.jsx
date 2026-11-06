@@ -60,7 +60,8 @@ describe("typensUrsprung: modulen ur typen, inget eget fält", () => {
 });
 
 const rad = { id: "h1", title: "Bokslutsmöte", daysLeft: 3 };
-const skapad = new Date(2026, 8, 29, 9, 12).toISOString();
+// ⛔ 0.194.0: tidsstämpeln visas i svensk tid, inte i maskinens. 07:12 UTC är 09:12 i svensk sommartid.
+const skapad = new Date(Date.UTC(2026, 8, 29, 7, 12)).toISOString();
 
 describe("ursprunget i listan", () => {
   it("efter skaparen: 'i Ekonomi', och modulen är en länk tillbaka till posten", () => {
@@ -72,7 +73,7 @@ describe("ursprunget i listan", () => {
       />,
     );
     const rad1 = /** @type {HTMLElement} */ (document.querySelector("[data-ursprungsrad]"));
-    expect(rad1.textContent).toBe("Människa: Skapad av Claes Philip, 29 sep 09:12i Ekonomi");
+    expect(rad1.textContent).toBe("Människa: Skapad av Claes Philip, 2026-09-29 09:12i Ekonomi");
     const lank = screen.getByRole("link", { name: "Öppna kvittot i Ekonomi" });
     expect(lank.getAttribute("href")).toBe("/ekonomi/kvitto/k1");
     expect(lank.textContent).toBe("Ekonomi");
@@ -88,7 +89,7 @@ describe("ursprunget i listan", () => {
 
   it("en okänd sorts skapare får ursprunget i samma text: 'Skapad av ..., i Ekonomi'", () => {
     render(<OpsEventList events={[{ ...rad, skapadAv: "gammal@example.se", skapad, ursprung: { modul: "Ekonomi" } }]} />);
-    expect(/** @type {HTMLElement} */ (document.querySelector("[data-ursprungsrad]")).textContent).toBe("Skapad av gammal@example.se, 29 sep 09:12, i Ekonomi");
+    expect(/** @type {HTMLElement} */ (document.querySelector("[data-ursprungsrad]")).textContent).toBe("Skapad av gammal@example.se, 2026-09-29 09:12, i Ekonomi");
   });
 
   it("orden går att byta (engelska)", () => {
@@ -144,7 +145,7 @@ describe("ursprunget i händelsepanelen", () => {
       />,
     );
     const r = /** @type {HTMLElement} */ (document.querySelector("[data-handelsepanel] [data-ursprungsrad]"));
-    expect(r.textContent).toBe("Agent: Skapad av ops-agent, 29 sep 09:12i Ekonomi");
+    expect(r.textContent).toBe("Agent: Skapad av ops-agent, 2026-09-29 09:12i Ekonomi");
     expect(r.querySelector("svg")).not.toBeNull();
     expect(screen.getByRole("link", { name: "Ekonomi" }).getAttribute("href")).toBe("/ekonomi/k1");
   });

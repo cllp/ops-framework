@@ -7,6 +7,7 @@ import { OpsEmpty } from "./OpsEmpty.jsx";
 import { OpsList, OpsListRow } from "./OpsList.jsx";
 import { useOpsSprak } from "./OpsSprak.jsx";
 import { OpsView } from "./OpsView.jsx";
+import { formatDateTime } from "../lib/format.js";
 
 /**
  * Gruppens minne: listan hela gruppen ser, och ändra eller ta bort för den som lyfte raden och för ägaren.
@@ -172,5 +173,6 @@ function kallanamn(slag) {
 /** @param {number} ms @param {string} sprak */
 function nar(ms, sprak) {
   if (!Number.isInteger(ms)) return "Tid saknas";
-  return new Date(ms).toLocaleString(sprak === "en" ? "en-GB" : "sv-SE");
+  // ⛔ Ramverkets tidsstämpel (0.194.0), inte `toLocaleString`, som gav sekunder och enhetens zon.
+  return formatDateTime(ms, { locale: sprak });
 }

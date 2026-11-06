@@ -8,7 +8,7 @@ import { GithubDokumentVantar } from "./GithubDokumentVisningLat.jsx";
 import { useOpsSprak } from "./OpsSprak.jsx";
 import { TextForhandsvisning } from "./TextForhandsvisning.jsx";
 import { avkodaTextfil } from "../lib/bibliotek.js";
-import { formatDate } from "../lib/format.js";
+import { formatDateTime } from "../lib/format.js";
 import { GITHUB_LAGEN, githubDokument, githubMarkdown } from "../lib/githubdokument.js";
 import { kommentarbilagaFel } from "../lib/handelsemodell.js";
 import { ordet } from "../lib/ord.js";
@@ -144,7 +144,7 @@ export function GithubDokumentVisning({ post, lasare }) {
       </div>
     );
   }
-  const datum = svar.andrad && !Number.isNaN(new Date(svar.andrad).getTime()) ? formatDate(svar.andrad, { style: "long", locale: sprak === "en" ? "en-GB" : "sv-SE" }) : "";
+  const datum = svar.andrad && !Number.isNaN(new Date(svar.andrad).getTime()) ? formatDateTime(svar.andrad) : "";
   const rad = datum ? (svar.av ? o("andrad", { datum, av: svar.av }) : o("andradUtanAv", { datum })) : "";
   const text = typeof svar.text === "string" ? svar.text : bytes ? avkodaTextfil(bytes) : null;
   /** @type {import("react").ReactNode} */

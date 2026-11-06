@@ -10,6 +10,7 @@ import { OpsBanner } from "./OpsBanner.jsx";
 import { Delrubrik, delrubrik, useInstallningspanel } from "./OpsInstallningar.jsx";
 import { OpsButton } from "./OpsButton.jsx";
 import { OpsDisclosure } from "./OpsDisclosure.jsx";
+import { formatDateTime } from "../lib/format.js";
 import { AndraIkon, ArkiveraIkon, TaFramIkon } from "./icons.jsx";
 import { OpsField, OpsInput } from "./OpsField.jsx";
 import { OpsList, OpsListRow } from "./OpsList.jsx";
@@ -423,7 +424,9 @@ export function OpsKatalogInstallning({
           <ul className="m-0 flex list-none flex-col gap-1 p-0">
             {logg.slice(0, 5).map((rad) => (
               <li key={`${rad.id}-${rad.nar}`} className="flex flex-wrap items-baseline gap-x-2 text-hjalp text-ink-muted">
-                <span className="tabular-nums">{String(rad.nar || "").slice(0, 16).replace("T", " ")}</span>
+                {/* ⛔ `formatDateTime` (0.194.0) och inte de 16 första tecknen ur ISO-strängen: `nar` skrivs med `toISOString()`, alltså i UTC, och
+                    raden visade då 12:42 för en ändring som gjordes 13:42 i Stockholm. */}
+                <span className="tabular-nums">{formatDateTime(rad.nar)}</span>
                 <span className="text-ink">{beskrivKonfigandring(rad, sprak)}</span>
                 {/* ⛔ Vem, när det finns. Utan namnet är loggen en lista över
                     att något hände, vilket är den halva ingen frågar efter. */}

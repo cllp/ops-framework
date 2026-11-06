@@ -133,21 +133,70 @@ export function formatDate(value, choice = {}) {
 }
 
 /**
- * Datum och klockslag.
- * @param {Date | number | string | null | undefined} value
- * @param {{ locale?: string }} [choice]
+ * Tidszonen en tidsstämpel visas i när inget annat sägs: svensk tid.
+ *
+ * ⛔ EN SANNING (regel 2). Konstanten bodde i `kalendrar.js` som kalenderns förval, och `kalendrar.js` exporterar den härifrån
+ * sedan 0.194.0. Formatfunktionen ska inte behöva dra in kalendermodulen för att veta vilken zon som gäller.
+ */
+export const STANDARD_TIDSZON = "Europe/Stockholm";
+
+/** @type {Map<string, Intl.DateTimeFormat>} */
+const TIDSSTAMPELFORMAT = new Map();
+
+/** @param {string} tidszon */
+function tidsstampelformat(tidszon) {
+  let f = TIDSSTAMPELFORMAT.get(tidszon);
+  if (!f) {
+    f = new Intl.DateTimeFormat("en-CA", { timeZone: tidszon, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+    TIDSSTAMPELFORMAT.set(tidszon, f);
+  }
+  return f;
+}
+
+/**
+ * Tidsstämpeln för något som HAR HÄNT: "2026-11-06 13:42". Ramverkets enda form för skapad, ändrad, uppladdad,
+ * kommenterad och loggad, och den appen ska använda för samma sak.
+ *
+ * CP 2026-11-06: "Alla uppdateringar av projektinformation i modulen projekt behöver datum/tidsstämpel. Även dokument
+ * finns bara datum på. Det räcker inte. Jag vill ha tidsstämpel på allt." Biblioteket visade "31 okt." på kortet och
+ * ingen tid alls i detaljen, fast posten bär millisekunden den skapades. Kommentarerna visade "29 sep 09:12" utan år,
+ * och kategoriloggen visade UTC-klockan ur en ISO-sträng, en timme fel på vintern och två på sommaren.
+ *
+ * ⛔ BARA FÖR HÄNDELSER, INTE FÖR PLANERADE DATUM. En deadline, en milstolpe eller en heldag i kalendern är ett datum
+ * till sin natur och visas med `formatDate` eller kalenderns egna former. En tidsstämpel på dem hade påstått ett
+ * klockslag ingen har satt.
+ *
+ * ⛔ ÅÅÅÅ-MM-DD OCH KLOCKSLAG MED KOLON, PÅ BÅDA SPRÅKEN. Datumet i ISO-form är det appen redan visar, och det kan inte
+ * läsas fel: engelskans "06/11/2026" är 6 november i London och 11 juni i New York. Klockslaget följer den form chatten
+ * och aktiviteten redan har (`formatTime`, "13:42", 24 timmar), så att samma ögonblick inte står med kolon i en tråd och
+ * med punkt i Biblioteket bredvid. `locale` tas emot för att anropen ska se ut som för de andra formaterarna, men
+ * formen är densamma på svenska och engelska, med flit.
+ *
+ * ⛔ SAMMANSATT UR `formatToParts`, aldrig ur `format()`, av samma skäl som `formatDagOchKlockslag`: vilka skiljetecken
+ * `Intl` sätter beror på ICU-versionen. `hourCycle: "h23"` så att midnatt är "00:05" och aldrig "24:05".
+ *
+ * ⛔ SVENSK TID SOM FÖRVAL (`STANDARD_TIDSZON`), inte enhetens. En telefon med fel zon, eller ett bygge med `TZ=UTC`,
+ * ska inte flytta klockslaget på något som hände. Appen ger `tidszon` när den har en egen inställning, samma IANA-namn
+ * som kalenderns (`kontrolleraTidszon`). En okänd zon kastar, och ska prövas vid uppstart, inte här.
+ *
+ * ⛔ ETT RENT DATUM FÖRBLIR ETT DATUM. Äldre data som bara bär "2026-11-06" visas som "2026-11-06", aldrig som
+ * "2026-11-06 00:00": en nolla är ett påstående om klockslaget, och det klockslaget finns inte (samma tanke som `MISSING`).
+ *
+ * Tar `Date`, millisekunder, ISO-sträng eller en Firestore-`Timestamp` (allt med `toMillis()`). Saknat eller ogiltigt
+ * värde blir `MISSING`.
+ *
+ * @param {Date | number | string | { toMillis: () => number } | null | undefined} value
+ * @param {{ locale?: string, tidszon?: string }} [choice]
  * @returns {string}
  */
 export function formatDateTime(value, choice = {}) {
+  const rent = typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
   const d = toDate(value);
   if (!d) return MISSING;
-  return new Intl.DateTimeFormat(choice.locale ?? LANGUAGE, {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(d);
+  const delar = tidsstampelformat(rent ? "UTC" : choice.tidszon ?? STANDARD_TIDSZON).formatToParts(d);
+  const del = (/** @type {string} */ typ) => delar.find((p) => p.type === typ)?.value ?? "";
+  const datum = `${del("year")}-${del("month")}-${del("day")}`;
+  return rent ? datum : `${datum} ${del("hour")}:${del("minute")}`;
 }
 
 /**
@@ -238,11 +287,13 @@ function midnight(d) {
 }
 
 /**
- * @param {Date | number | string | null | undefined} value
+ * ⛔ En Firestore-`Timestamp` (allt med `toMillis()`) läses som sina millisekunder (0.194.0). Utan det blev
+ * `new Date(timestamp)` ett ogiltigt datum, och raden visade `MISSING` för en tid som fanns.
+ * @param {Date | number | string | { toMillis: () => number } | null | undefined} value
  * @returns {Date | null}
  */
 function toDate(value) {
   if (value === null || value === undefined || value === "") return null;
-  const d = value instanceof Date ? value : new Date(value);
+  const d = value instanceof Date ? value : typeof value === "object" && typeof value.toMillis === "function" ? new Date(value.toMillis()) : new Date(/** @type {string | number} */ (value));
   return Number.isNaN(d.getTime()) ? null : d;
 }

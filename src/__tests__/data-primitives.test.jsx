@@ -300,11 +300,10 @@ describe("formatering", () => {
     expect(formatDate("2026-07-01", { style: "long" })).toContain("1 juli");
   });
 
+  // ⛔ 0.194.0: exakt form, inte "innehåller 2026". Det gamla provet var grönt för varje form med årtalet i, och mätte inte
+  // vilken tid det var: `new Date(2026, 8, 15, 14, 5)` är maskinens zon, och tidsstämpeln visas i svensk tid. Se tidsstampel.test.js.
   it("formaterar datum och tid tillsammans", () => {
-    const out = formatDateTime(new Date(2026, 8, 15, 14, 5));
-    expect(out).toContain("2026");
-    expect(out).toContain("14");
-    expect(out).toContain("05");
+    expect(formatDateTime(Date.UTC(2026, 8, 15, 12, 5))).toBe("2026-09-15 14:05");
   });
 
   it("avrundar decimaler i stället för att klippa", () => {

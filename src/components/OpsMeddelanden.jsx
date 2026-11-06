@@ -3,7 +3,7 @@ import { webblasarensIgenkanning } from "../lib/talk.js";
 import { OpsSprakProvider, useOpsSprak } from "./OpsSprak.jsx";
 import { forvalda, ordet } from "../lib/ord.js";
 import { cx } from "../lib/cx.js";
-import { formatDate, formatTime, formatRelativeDate } from "../lib/format.js";
+import { formatDateTime, formatTime, formatRelativeDate } from "../lib/format.js";
 import { KOMMENTARBILAGA_TYPER, MAX_KOMMENTARBILAGA, bilagaUrDokument, kommentarbilagaFel } from "../lib/handelsemodell.js";
 import { readAttachment } from "../lib/file.js";
 import { arGastId } from "../lib/gast.js";
@@ -426,13 +426,13 @@ const TEXTER = /** @type {any} */ ({
 });
 
 /**
- * Tiden på en rad: klockslag i dag, annars datum.
+ * Tiden på en rad: klockslag i dag, annars tidsstämpeln (0.194.0, `formatDateTime`). Förut bara datum för en äldre dag.
  * @param {number} tid @param {number} nu @param {string} locale
  */
 function radtid(tid, nu, locale) {
   const d = new Date(tid);
   const n = new Date(nu);
-  return d.toDateString() === n.toDateString() ? formatTime(tid, { locale }) : formatDate(tid, { locale });
+  return d.toDateString() === n.toDateString() ? formatTime(tid, { locale }) : formatDateTime(tid, { locale });
 }
 
 /** "i dag" blir "I dag" i avdelaren, som SS (`ChatDateDivider.jsx`). @param {string} t */
