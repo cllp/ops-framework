@@ -623,6 +623,45 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
   }
 
   /**
+   * En färdig fil kan kopieras även innan adressen hämtats (lifehub.app#673). Gästen hämtar adresser först när posten öppnas,
+   * och menyn ska inte vänta på det. Nedladdning av ger ingen filadress att kopiera: den adressen är filen.
+   * @param {{ typ?: string, fil?: { sokvag?: string, klar?: boolean } }} post
+   */
+  function filKanKopieras(post) {
+    if (utanNedladdning || post.typ !== "fil" || uppladdningAvbruten(post) || post.fil?.klar === false) return false;
+    const sokvag = typeof post.fil?.sokvag === "string" ? post.fil.sokvag.trim() : "";
+    return sokvag !== "" && typeof hamtaAdress === "function";
+  }
+
+  /**
+   * @param {{ typ?: string, url?: string, fil?: { sokvag?: string, mime?: string, klar?: boolean } }} post
+   */
+  function kopieraPostensLank(post) {
+    const klar = post.typ === "fil" && utanNedladdning ? "" : lankAttKopiera(post);
+    if (klar) {
+      kopieraLank(klar);
+      return;
+    }
+    if (!filKanKopieras(post)) {
+      setStatus("Länken kunde inte kopieras.");
+      return;
+    }
+    const sokvag = /** @type {{ fil: { sokvag: string } }} */ (post).fil.sokvag.trim();
+    const hamta = hamtaAdress;
+    if (typeof hamta !== "function") {
+      setStatus("Länken kunde inte kopieras.");
+      return;
+    }
+    Promise.resolve()
+      .then(() => hamta(sokvag))
+      .then((adress) => {
+        if (typeof adress === "string" && ADRESSFORM.test(adress)) kopieraLank(adress);
+        else setStatus("Länken kunde inte kopieras.");
+      })
+      .catch((e) => setStatus(e instanceof Error && e.message ? e.message : "Länken kunde inte kopieras."));
+  }
+
+  /**
    * @param {string} url
    */
   function kopieraLank(url) {
@@ -814,8 +853,9 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
       if (post.typ === "lista") ut.push({ id: "lagg-i-lista", etikett: "Lägg i lista", avstangd: true, forklaring: LISTA_I_LISTA_TEXT, onValj: () => {} });
       else ut.push({ id: "lagg-i-lista", etikett: "Lägg i lista", onValj: () => setLaggPost(post) });
     }
-    const lank = lankAttKopiera(post);
-    if (lank) ut.push({ id: "kopiera", etikett: "Kopiera länk", onValj: () => kopieraLank(lank) });
+    // ⛔ KOPIERA LÄNK VÄNTAR INTE PÅ ATT POSTEN ÖPPNATS (lifehub.app#673). Adressen kan hämtas först vid tryck. En fil vars nedladdning är av har inget att kopiera, i listan och i detaljen.
+    const lank = post.typ === "fil" && utanNedladdning ? "" : lankAttKopiera(post);
+    if (lank || filKanKopieras(post)) ut.push({ id: "kopiera", etikett: "Kopiera länk", onValj: () => kopieraPostensLank(post) });
     // ⛔ MITT BIBLIOTEK OCH GRUPPEN (0.101.0, lifehub.app#226). Beslutet: "Flytta till Mitt bibliotek / Dela med gruppen" i samma
     // meny som Byt namn. Att flytta ut ur gruppen får bara författaren: en admin som flyttade någon annans post till sitt eget
     // bibliotek hade tagit den från gruppen. Att kopiera dit får den som läser, eftersom läsningen redan ger innehållet.

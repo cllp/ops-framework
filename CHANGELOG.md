@@ -9,6 +9,10 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## Ej släppt
+
+Gästens bibliotekmeny (lifehub.app#673, QA 2026-11-06). Kopiera länk på en färdig fil står i listan och i detaljen, också innan filadressen hämtats. Ett tryck hämtar adressen då. Nedladdning av ger ingen sådan rad, varken före eller efter öppning. En länkpost kopieras som förut.
+
 ## 0.191.0
 
 Kommentera en artefakt via chatten (cllp/lifehub.app#663, CP 2026-11-05: "Vi behöver ha kommentarer på artefakter, även för gäster. Alla typer av artefakter skall kunna ha en kommentarstråd.", och om förslaget att gå genom chatten: "Kör på allt"). Ingen ny samling, inget nytt fält på meddelanden och ingen ny regel: regelfragmentet och fixturerna i `rules/__fixturer__` är byte för byte lika.
