@@ -40,6 +40,13 @@
  * (0.192.0, cllp/ops-framework#529) Zoomen i HTML-rutan växte samma startfil från 296 084 till 300 860 byte (95 548 till 97 216 gzip). Rutan (`OpsHtmlDokument`), zoomens tillstånd (`useHtmlZoom`)
  * och dess räkning (`anpassadSkala` i `lib/htmlruta.js`) ska ligga i en egen bit (`OpsHtmlDokumentLat`).
  *
+ * ══ ⛔ PDF-VYN OCH PDF.JS (0.193.0, cllp/ops-framework#530) ═══════════════════════════════════════
+ *
+ * PDF-vyn (`OpsPdfVisning`) och pdf.js ritas bara i detaljen för en PDF. pdf.js är över en megabyte, och i en startfil hade den kostat varje app vid varje start för en fil som kanske aldrig öppnas.
+ * Därför mäts tre saker med `OpsBibliotek` som startfilens import: `OpsPdfVisning` och `laddaPdfjs` ligger i en egen bit (`OpsPdfVisningLat`), importen av paketet `pdfjs-dist` står i en bit utanför startfilen
+ * och aldrig i den (golv: någon bit har den), och i ett bygge där Vite får bunta pdf.js (inte externt) blir workern en egen fil som bara den lata biten pekar på. Det sista är beviset att workerns adress
+ * (`new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url)` i `lib/pdfjs.js`) fungerar när en app bundlar ramverket med Vite.
+ *
  * ⛔ RÖTT UTAN DELNINGEN, GRÖNT MED DEN (arbetsreglernas punkt 4): `--bevisa` slår ihop samma `dist` till en enda fil (som före 0.156.0) och kör
  * samma mätning. Den ska ge rött på punkt 2 för båda komponenterna. Är den grön mäter provet ingenting.
  *
@@ -58,15 +65,20 @@ const rot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const bevisa = process.argv.includes("--bevisa");
 
 /**
- * Komponenter som en startfil importerar, och det som INTE får följa med dem: skalet och snabbmenyn (0.187.0), biblioteket och tråden på en post (0.191.0).
- * @type {ReadonlyArray<{ skal: string, lata: readonly string[], via: string }>}
+ * Komponenter som en startfil importerar, och det som INTE får följa med dem: skalet och snabbmenyn (0.187.0), biblioteket och tråden på en post (0.191.0). `paket` (0.193.0) är paket vars import inte får stå i startfilen.
+ * @type {ReadonlyArray<{ skal: string, lata: readonly string[], via: string, paket?: readonly string[] }>}
  */
 const SKALEN = [
   { skal: "OpsAppShell", lata: ["OpsSnabbmeny"], via: "OpsSnabbmenyLat" },
   { skal: "OpsBibliotek", lata: ["BibliotekKommentarer"], via: "BibliotekKommentarerLat" },
   // (0.192.0, #529) Rutan och zoomen ritas bara i detaljen för ett HTML-dokument. `htmlruta` står för rutans skript och räkning, som inte får följa med `htmldokument.js` in i startfilen.
   { skal: "OpsBibliotek", lata: ["OpsHtmlDokument", "useHtmlZoom", "anpassadSkala"], via: "OpsHtmlDokumentLat" },
+  // (0.193.0, #530) PDF-vyn och pdf.js ritas bara i detaljen för en PDF.
+  { skal: "OpsBibliotek", lata: ["OpsPdfVisning", "laddaPdfjs"], via: "OpsPdfVisningLat", paket: ["pdfjs-dist"] },
 ];
+
+/** En import av paketet (statisk eller dynamisk) i en bit. Ett namn i en kommentar eller en text räknas inte. @param {string} kod @param {string} paket */
+const importerar = (kod, paket) => new RegExp(`(?:\\bimport\\s*\\(\\s*|\\bfrom\\s*)["']${paket.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:/[^"']*)?["']`).test(kod);
 
 /** De lata komponenterna, och den som startfilen får. */
 const LATA = ["OpsMeddelanden", "OpsBibliotek"];
@@ -152,6 +164,47 @@ async function matSkal(paketmapp, namn, SKAL) {
   return { kodStart, kodAndra, bitarStart: iStart.size, bytesStart: kodStart.length };
 }
 
+/**
+ * (0.193.0, #530) Workern i en app som bundlar ramverket med Vite. Samma tillfälliga app med `OpsBibliotek` i startfilen, men `pdfjs-dist` buntas (är inte externt), så som det blir hos appen.
+ * Svarar brotten: workern ska vara en egen fil i bygget, den lata biten ska peka på den och på pdf.js (`getDocument`), och startfilen ska varken innehålla pdf.js eller workerns namn.
+ * @returns {Promise<{ fel: string[], worker: string, lat: number }>}
+ */
+async function matWorker() {
+  const app = path.join(arbete, "pdfworker");
+  fs.mkdirSync(path.join(app, "node_modules"), { recursive: true });
+  fs.symlinkSync(rot, path.join(app, "node_modules", "ops-framework"), "dir");
+  fs.writeFileSync(path.join(app, "start.js"), `import { OpsBibliotek } from "ops-framework";\nglobalThis.__skal = OpsBibliotek;\n`);
+  const ut = /** @type {import("rollup").RollupOutput} */ (
+    await vite({
+      root: app,
+      configFile: false,
+      logLevel: "silent",
+      build: { write: false, minify: false, modulePreload: false, rollupOptions: { input: path.join(app, "start.js"), external: (id) => !id.startsWith(".") && !path.isAbsolute(id) && id !== "ops-framework" && !id.startsWith("pdfjs-dist") } },
+    })
+  );
+  const bitar = ut.output.filter((o) => o.type === "chunk");
+  const start = bitar.find((b) => b.isEntry);
+  if (!start) throw new Error("pdfworker: ingen startfil i bygget.");
+  const iStart = new Set();
+  const gaIgenom = (/** @type {string} */ fil) => {
+    if (iStart.has(fil)) return;
+    iStart.add(fil);
+    for (const i of bitar.find((x) => x.fileName === fil)?.imports ?? []) gaIgenom(i);
+  };
+  gaIgenom(start.fileName);
+  const kodStart = bitar.filter((b) => iStart.has(b.fileName)).map((b) => b.code).join("\n");
+  const andra = bitar.filter((b) => !iStart.has(b.fileName));
+  const worker = ut.output.find((o) => o.type === "asset" && /pdf\.worker/.test(o.fileName));
+  /** @type {string[]} */
+  const fel = [];
+  if (!worker) fel.push("Workern blev ingen egen fil i appens bygge. `new URL(\"pdfjs-dist/build/pdf.worker.min.mjs\", import.meta.url)` i lib/pdfjs.js löses inte av Vite, och pdf.js startar utan worker.");
+  const pdfjsBit = andra.find((b) => b.code.includes("GlobalWorkerOptions") && b.code.includes("getDocument"));
+  if (!pdfjsBit) fel.push("GOLV: ingen bit utanför startfilen innehåller pdf.js (getDocument). Provet har inte mätt pdf.js.");
+  if (worker && !andra.some((b) => b.code.includes(path.basename(worker.fileName)))) fel.push(`Ingen lat bit pekar på workern (${worker.fileName}).`);
+  if (kodStart.includes("getDocument") || /pdf\.worker/.test(kodStart)) fel.push("pdf.js eller workern ligger i startfilen.");
+  return { fel, worker: worker?.fileName ?? "", lat: pdfjsBit?.code.length ?? 0 };
+}
+
 /** @param {Awaited<ReturnType<typeof matSkal>>} m @param {(typeof SKALEN)[number]} s @returns {string[]} */
 function skalBrott(m, s) {
   /** @type {string[]} */
@@ -160,6 +213,10 @@ function skalBrott(m, s) {
   for (const n of s.lata) {
     if (!harFunktion(m.kodAndra, n)) fel.push(`GOLV: ingen bit utanför startfilen innehåller ${n}. ${s.skal} har tappat sin dynamiska import, eller så ligger komponenten i startfilen, och "startfilen innehåller den inte" är då sant av fel skäl.`);
     if (harFunktion(m.kodStart, n)) fel.push(`${n} ligger i startfilen (${m.bitarStart} bit(ar), ${m.bytesStart} tecken) fast ${s.skal} ritar den först när den behövs. Läs in den då (${s.via}).`);
+  }
+  for (const p of s.paket ?? []) {
+    if (!importerar(m.kodAndra, p)) fel.push(`GOLV: ingen bit utanför startfilen importerar ${p}. Provet har inte mätt paketet.`);
+    if (importerar(m.kodStart, p)) fel.push(`${p} ligger i startfilen (${m.bitarStart} bit(ar), ${m.bytesStart} tecken) fast bara ${s.via} behöver det.`);
   }
   return fel;
 }
@@ -200,9 +257,10 @@ if (bevisa) {
     const ms = await matSkal(enkel, `enkel-${i}-${s.skal}`, s.skal);
     const f = skalBrott(ms, s);
     felSkal.push(...f);
-    const forvantatSkal = s.lata.filter((n) => f.some((x) => x.startsWith(`${n} ligger i startfilen`)));
-    if (forvantatSkal.length !== s.lata.length) {
-      console.error(`check-delbarhet --bevisa: PROVET FÅNGAR INGET FÖR ${s.skal}. Mot samma paket som EN modul skulle ${s.lata.join(" och ")} ligga i startfilen, men det gjorde ${forvantatSkal.length ? forvantatSkal.join(" och ") : "ingen av dem"}. Då mäter provet ingenting.`);
+    const alla = [...s.lata, ...(s.paket ?? [])];
+    const forvantatSkal = alla.filter((n) => f.some((x) => x.startsWith(`${n} ligger i startfilen`)));
+    if (forvantatSkal.length !== alla.length) {
+      console.error(`check-delbarhet --bevisa: PROVET FÅNGAR INGET FÖR ${s.skal}. Mot samma paket som EN modul skulle ${alla.join(" och ")} ligga i startfilen, men det gjorde ${forvantatSkal.length ? forvantatSkal.join(" och ") : "ingen av dem"}. Då mäter provet ingenting.`);
       process.exit(1);
     }
   }
@@ -214,9 +272,10 @@ const m = await mat(rot, "delat");
 /** @type {Array<{ s: (typeof SKALEN)[number], ms: Awaited<ReturnType<typeof matSkal>> }>} */
 const matta = [];
 for (const [i, s] of SKALEN.entries()) matta.push({ s, ms: await matSkal(rot, `delat-${i}-${s.skal}`, s.skal) });
-const fel = [...brott(m), ...matta.flatMap(({ s, ms }) => skalBrott(ms, s))];
+const w = await matWorker();
+const fel = [...brott(m), ...matta.flatMap(({ s, ms }) => skalBrott(ms, s)), ...w.fel];
 if (fel.length) {
   console.error(`check-delbarhet: RÖTT. ${fel.length} brott:\n${fel.map((f) => `  - ${f}`).join("\n")}`);
   process.exit(1);
 }
-console.log(`check-delbarhet: GRÖNT. ${LATA.join(" och ")} ligger i den lata sidans bit och inte i startfilen (${m.bitarStart} bit(ar), ${m.bytesStart} tecken före första vyn), och ${START} ligger i startfilen. ${matta.map(({ s, ms }) => `${s.skal} (${ms.bitarStart} bit(ar), ${ms.bytesStart} tecken före första vyn) har ${s.lata.join(" och ")} i en egen bit`).join(", och ")}.`);
+console.log(`check-delbarhet: GRÖNT. ${LATA.join(" och ")} ligger i den lata sidans bit och inte i startfilen (${m.bitarStart} bit(ar), ${m.bytesStart} tecken före första vyn), och ${START} ligger i startfilen. ${matta.map(({ s, ms }) => `${s.skal} (${ms.bitarStart} bit(ar), ${ms.bytesStart} tecken före första vyn) har ${s.lata.join(" och ")}${s.paket ? ` och importen av ${s.paket.join(" och ")}` : ""} i en egen bit`).join(", och ")}. pdf.js-workern blir en egen fil i appens bygge (${w.worker}), och bara den lata biten pekar på den.`);
