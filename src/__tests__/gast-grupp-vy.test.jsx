@@ -710,7 +710,9 @@ describe("OpsGastSida med OpsGastGrupp: översikten bär integriteten, och Logga
 
   it("⛔ integriteten står på översikten, inte i chatten, och Radera ligger bakom den", async () => {
     rita();
-    const oversikt = /** @type {HTMLElement} */ (await screen.findByRole("heading", { level: 1, name: "Källan" })).closest("[data-gast-oversikt]");
+    await screen.findByRole("heading", { level: 1, name: "Källan" });
+    // (0.195.0) På datorn står rubriken över flikarna och inte inne i översikten, så översikten letas upp för sig.
+    const oversikt = document.querySelector("[data-gast-oversikt]");
     expect(oversikt).toBeTruthy();
     expect(document.querySelector("[data-gast-not]")).toBeNull();
     expect(within(/** @type {HTMLElement} */ (oversikt)).getByText("Integritet och dina uppgifter")).toBeInTheDocument();
