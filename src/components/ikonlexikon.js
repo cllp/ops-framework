@@ -63,9 +63,10 @@
  * - `grupp`: Ny grupp (`Users`), samma bild som plusets rad och `GruppIkon`.
  * - (0.187.0, cllp/lifehub.app#653) `nal`: nålen (`Pin`), överst för alla på platsen. Samma betydelse som "Fäst" ett meddelande i ett samtal, så `FastIkon` hämtar den härifrån. Inte stjärnan.
  * - (0.187.0) `stjarna`: stjärnan (`Star`), personens egen markering som bara hen ser. Skild från `nal`: en stjärna är mitt, en nål är allas. `StjarnaIkon` (en bild i profil- och kalenderikonernas urval) hämtar den härifrån.
+ * - (0.192.0) `oversikt`: översikten för en gruppgäst (`LayoutDashboard`). Inte hemmet: en hemikon läses som den privata hemgruppen.
  */
 
-import { ArrowDownUp, Bell, Bot, CalendarCheck, CalendarPlus, ChevronsUpDown, CircleHelp, ClipboardPaste, FolderKanban, GitBranch, ImagePlus, Inbox, LayoutGrid, Library, ListChecks, ListPlus, MessageSquare, Monitor, Moon, MoreHorizontal, Pin, Plus, Search, Settings, SlidersHorizontal, Star, Sun, Upload, Users, Vote, Wallet, X } from "lucide-react";
+import { ArrowDownUp, Bell, Bot, CalendarCheck, CalendarPlus, ChevronsUpDown, CircleHelp, ClipboardPaste, FolderKanban, GitBranch, ImagePlus, Inbox, LayoutDashboard, LayoutGrid, Library, ListChecks, ListPlus, MessageSquare, Monitor, Moon, MoreHorizontal, Pin, Plus, Search, Settings, SlidersHorizontal, Star, Sun, Upload, Users, Vote, Wallet, X } from "lucide-react";
 
 /**
  * Betydelse till ikon. Fryst: en app som vill ha en annan bild för en betydelse ska ändra den här, inte skriva över den.
@@ -103,6 +104,7 @@ import { ArrowDownUp, Bell, Bot, CalendarCheck, CalendarPlus, ChevronsUpDown, Ci
  *   repoDokument: import("lucide-react").LucideIcon,
  *   nal: import("lucide-react").LucideIcon,
  *   stjarna: import("lucide-react").LucideIcon,
+ *   oversikt: import("lucide-react").LucideIcon,
  * }>}
  */
 export const IKON_FOR = Object.freeze({
@@ -138,4 +140,5 @@ export const IKON_FOR = Object.freeze({
   repoDokument: GitBranch,
   nal: Pin,
   stjarna: Star,
+  oversikt: LayoutDashboard,
 });

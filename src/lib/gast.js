@@ -229,8 +229,29 @@ export const GASTSKRIV_MAX_TECKEN = 1000;
 /** Högsta antal meddelanden en gäst skriver per inbjudan och minut. Räknas i `gastraknare`, som övriga gästräknare, och är strängare än läsningen (`GASTANROP_PER_MINUT`). */
 export const GASTSKRIV_PER_MINUT = 10;
 
-/** Sökvägen gästsidan ritas på. Appen lägger sidan där före sin inloggningsgrind. */
-export const GASTSOKVAG = "/gast";
+/**
+ * Sökvägen nya gästlänkar använder (CP 2026-11-06: `/guest`). Appen ritar sidan där före sin inloggningsgrind.
+ * `gastLank` läser den här och ingen annan sträng (regel 2).
+ */
+export const GASTSOKVAG = "/guest";
+
+/**
+ * Den tidigare sökvägen. Samma sida, så att en länk som redan skickats fortfarande öppnar.
+ * Ingen egen tokenhantering: fragmentet läses likadant, och nyckeln ligger inte i sökvägen.
+ */
+export const GASTSOKVAG_TIDIGARE = "/gast";
+
+/**
+ * Är sökvägen gästens sida, den nya eller den tidigare, med eller utan avslutande snedstreck?
+ * `/api/gast`, `/guest/x` och `/guestbook` är inte sidan.
+ * @param {unknown} pathname
+ * @returns {boolean}
+ */
+export function arGastsidansAdress(pathname) {
+  if (typeof pathname !== "string" || pathname === "") return false;
+  const p = pathname.length > 1 && pathname.endsWith("/") ? pathname.slice(0, -1) : pathname;
+  return p === GASTSOKVAG || p === GASTSOKVAG_TIDIGARE;
+}
 
 /**
  * Fälten i en inbjudningspost. `id` är hashen av (grupp, adress, omfång) och är dokumentets id, inte ett fält.
@@ -298,8 +319,8 @@ export const GASTSVARSFALT = /** @type {const} */ (["ok", "namn", "funktion", "s
  * dokument sprids ut. En medlems adress, uid eller namn har ingen plats i någon av dem utom där det står: chattens avsändarnamn är ett namn och aldrig en adress eller ett uid.
  */
 export const GASTGRUPPSVARSFALT = /** @type {const} */ ({
-  /** `hamta` för en gruppinbjudan: gruppens namn och funktionerna, och (0.190.0) om gästen får ladda ned (`nedladdning`, gruppens `farLaddaNed`). */
-  hamta: ["namn", "funktioner", "nedladdning", "kommentera"],
+  /** `hamta` för en gruppinbjudan: gruppens namn och funktionerna, (0.190.0) om gästen får ladda ned (`nedladdning`) och (0.192.0) gruppens befintliga beskrivning, tom när den saknas. */
+  hamta: ["namn", "funktioner", "nedladdning", "kommentera", "beskrivning"],
   /** Svaret på `chatt`. `fler`: det finns äldre meddelanden. `ingetNytt`: en ping där inget är nyare än `nyast`. `rot` (0.191.0): rotmeddelandet när gästen läser en tråd (`trad`), `null` när roten inte finns. */
   chatt: ["ok", "meddelanden", "fler", "ingetNytt", "rot"],
   /** Svaret på `skrivChatt`: meddelandet som det nu står i chatten, i samma form som en rad i `chatt`. */
@@ -614,7 +635,7 @@ export function gastplatsId(groupId, nummer) {
 }
 
 /**
- * Länken i brevet: appens basadress, `/gast` och ett FRAGMENT med id och nyckel (`#i=<id>&k=<nyckel>`).
+ * Länken i brevet: appens basadress, `GASTSOKVAG` (`/guest`) och ett FRAGMENT med id och nyckel (`#i=<id>&k=<nyckel>`).
  *
  * ⛔ NYCKELN LIGGER I FRAGMENTET, INTE I SÖKVÄGEN. Ett fragment skickas aldrig till en server av webbläsaren: det hamnar inte i Hostings begärandelogg, inte i
  * `Referer` och inte i ett mejlprograms förhandshämtning, som bara hämtar sidan och aldrig kör dess skript. Delningens `/g/<adress>` ligger i sökvägen och loggas;

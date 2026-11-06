@@ -34,36 +34,24 @@ const lagringMed = (start = {}) => {
 
 const rita = (/** @type {Record<string, any>} */ { lagring: _bortlagd, ...props } = {}) => render(<OpsGastGrupp grupp={GRUPP} api={apiMed()} intervallMs={0} idag={new Date(2026, 10, 5)} {...props} />);
 const ingress = () => document.querySelector("[data-gast-grupp-ingress]");
-const infoKnapp = () => /** @type {HTMLElement} */ (document.querySelector("[data-gast-grupp-info]"));
 
-describe("huvudet: en rad och (i) (0.190.0, del A)", () => {
-  it("⛔ under gruppens namn står bara Du är gäst., (i) är stängd från början och skriver inget minne", () => {
-    const lagring = lagringMed();
-    rita({ lagring });
-    expect(document.querySelector("[data-gast-roll]")?.textContent).toBe("Du är gäst.");
-    expect(ingress()).toBeNull();
-    expect(infoKnapp().getAttribute("aria-expanded")).toBe("false");
-    expect(screen.queryByText(/Du är gäst i Källan/)).toBeNull();
-    expect(screen.queryByText("Du ser hela gruppens chatt, från början.")).toBeNull();
-    expect(lagring.d["ops-gast:ingress-sedd"]).toBeUndefined();
-    expect(window.localStorage.getItem("ops-gast:ingress-sedd")).toBeNull();
-  });
-
-  it("⛔ (i) öppnar behörigheten och att hela chatten syns, och stänger den; knappen bär ett namn", () => {
+describe("översikten (0.192.0)", () => {
+  it("⛔ landar på översikt: gruppnamnet är rubriken, Du är gäst står där, och behörigheten följer funktionerna", () => {
     rita();
-    expect(infoKnapp().getAttribute("aria-label")).toBe("Om din roll som gäst");
-    fireEvent.click(infoKnapp());
-    expect(ingress()?.textContent).toMatch(/Du är gäst i Källan/);
-    expect(ingress()?.textContent).toContain("Du ser hela gruppens chatt, från början.");
-    expect(infoKnapp().getAttribute("aria-controls")).toBe(ingress()?.id);
-    fireEvent.click(infoKnapp());
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Källan");
+    expect(document.querySelector("[data-gast-roll]")?.textContent).toBe("Du är gäst.");
+    expect(document.querySelector("[data-gast-oversikt]")?.textContent).toMatch(/Du kan läsa och skriva i chatten, från början/);
+    expect(document.querySelector("[data-gast-oversikt]")?.textContent).toMatch(/Du kan se vad som är på gång/);
+    expect(document.querySelector("[data-gast-oversikt]")?.textContent).not.toMatch(/biblioteket|ladda ned|ärenden/i);
+    expect(document.querySelector("[data-gast-grupp-info]")).toBeNull();
     expect(ingress()).toBeNull();
+    expect(screen.queryByText(/Du är gäst i Källan/)).toBeNull();
   });
 
-  it("på engelska säger huvudet och (i) det på engelska", () => {
+  it("på engelska heter fliken Overview och rollen sägs på engelska", () => {
     rita({ sprak: "en" });
+    expect(screen.getAllByRole("tab").map((f) => f.textContent)[0]).toBe("Overview");
     expect(document.querySelector("[data-gast-roll]")?.textContent).toBe("You are a guest.");
-    expect(infoKnapp().getAttribute("aria-label")).toBe("About your role as a guest");
   });
 });
 
@@ -72,9 +60,9 @@ describe("flikraden sitter kvar", () => {
     rita();
     const rad = screen.getByRole("tablist");
     expect(rad.className).toMatch(/\bsticky\b/);
-    expect(rad.className).toMatch(/top-14/);
+    expect(rad.className).toMatch(/top-12/);
     expect(rad.className).toMatch(/bg-canvas/);
-    expect(screen.getAllByRole("tab").map((f) => f.textContent)).toEqual(["Chatt", "Kalender"]);
+    expect(screen.getAllByRole("tab").map((f) => f.textContent)).toEqual(["Översikt", "Chatt", "Kalender"]);
   });
 
   it("OpsTabs är som förut utan `fast`", () => {
@@ -103,13 +91,16 @@ describe("telefonen: bottenrad och hela höjden (0.190.0, del B)", () => {
     const rad = /** @type {HTMLElement} */ (document.querySelector("nav[data-ops-bottenrad]"));
     expect(rad).not.toBeNull();
     // Golv: tre platser, alla länkar, ingen Meny och ingen rund knapp.
-    expect([...rad.querySelectorAll("a")].map((a) => a.textContent)).toEqual(["Chatt", "Kalender", "Bibliotek"]);
+    expect([...rad.querySelectorAll("a")].map((a) => a.textContent)).toEqual(["Översikt", "Chatt", "Kalender", "Bibliotek"]);
     expect(rad.querySelectorAll("button")).toHaveLength(0);
-    expect(rad.querySelector("a[aria-current='page']")?.textContent).toBe("Chatt");
+    expect(rad.querySelector("a[aria-current='page']")?.textContent).toBe("Översikt");
     const yta = /** @type {HTMLElement} */ (document.querySelector("[data-gast-telefonyta]"));
     expect(yta.className).toContain("h-[calc(var(--fullhojd-botten)_-_var(--fullhojd-topp))]");
     expect(yta.style.getPropertyValue("--fullhojd-botten")).toMatch(/px$/);
-    expect(yta.querySelector("[data-gast-chatt][data-fyll]")).not.toBeNull();
+    expect(yta.querySelector("[data-gast-oversikt]")).not.toBeNull();
+    expect(yta.querySelector("[data-gast-chatt]")).toBeNull();
+    fireEvent.click(within(rad).getByText("Chatt"));
+    await waitFor(() => expect(document.querySelector("[data-gast-chatt][data-fyll]")).not.toBeNull());
     // Kalender i raden byter innehåll, och adressen ändras inte.
     fireEvent.click(within(rad).getByText("Kalender"));
     await waitFor(() => expect(api.kalender).toHaveBeenCalledTimes(1));
@@ -129,7 +120,8 @@ describe("telefonen: bottenrad och hela höjden (0.190.0, del B)", () => {
   it("⛔ OpsBottomNav utanMeny kastar när en post inte får plats i raden, i stället för att gömma den", async () => {
     const { OpsBottomNav } = await import("../components/OpsBottomNav.jsx");
     const nav = ["a", "b", "c", "d", "e"].map((x) => ({ href: `#${x}`, label: x }));
-    expect(() => render(<OpsBottomNav nav={nav} activeHref="#a" utanMeny />)).toThrow(/får inte plats/);
+    expect(() => render(<OpsBottomNav nav={nav} activeHref="#a" utanMeny />)).not.toThrow();
+    expect(() => render(<OpsBottomNav nav={[...nav, { href: "#f", label: "f" }]} activeHref="#a" utanMeny />)).toThrow(/får inte plats/);
     const { unmount } = render(<OpsBottomNav nav={nav.slice(0, 3)} activeHref="#a" utanMeny />);
     expect(screen.queryByText("Meny")).toBeNull();
     unmount();

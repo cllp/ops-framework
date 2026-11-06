@@ -9,6 +9,33 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.192.0
+
+Förslag till nästa version efter den publicerade 0.191.0. Inte publicerad i den här PR:en.
+
+Gästens gruppvy: chatten är bara chatten (CP 2026-11-06, i telefonen på /gast i gruppen Skarv: "Chatt skall bara vara chatt."). Översikt är en egen flik, inte Hem, så den inte blandas ihop med den privata hemgruppen. Spara på namnet står på samma rad som fältet (CP 2026-11-06 07:35).
+
+### Tillagt
+
+- **Fliken Översikt** först i gästens rad (`Översikt` / `Overview`), med ikonen `IKON_FOR.oversikt` (`LayoutDashboard`). Den är en vy, inte en behörighet, och står inte i `GASTGRUPPFUNKTIONER`.
+- **På översikten:** gruppnamnet som innehållsrubrik, gruppens befintliga beskrivning när den inte är tom, "Du är gäst.", korta rader om vad just den här gästens funktioner tillåter (`gastBehorighetsrader`: bara `funktioner`, `nedladdning` och `kommentera`), det frivilliga namnet, integriteten med radering, och "Skriv in adressen igen".
+- **`hamta().grupp.beskrivning`:** gruppens befintliga beskrivning, kapad vid `MAX_GRUPPBESKRIVNING`, tom sträng när den saknas. Inget annat fält följer med.
+- **Sparat namn** visas som "Gruppen kallar dig {namn}." med Ändra. Formuläret står bara när namnet saknas eller när gästen ändrar det. Spara står till höger om fältet, minst 44 px, inte på en egen rad under.
+- **`GASTSOKVAG` är `/guest`** (CP 2026-11-06 07:42). `gastLank` bygger nya länkar där, med samma fragment `#i=&k=`. `/gast` är `GASTSOKVAG_TIDIGARE`: `arGastsidansAdress` känner båda, och nyckeln ligger inte i sökvägen. `/api/gast` är oförändrad.
+- **Senast valda flik** sparas per inbjudan (`ops-gast:flik:<id>`, bara flikens namn). En allmän gruppinbjudan landar på översikt. En gäst som redan valt en flik kommer tillbaka dit. En saklänk (omröstning eller händelse) öppnar saken, inte översikten.
+- **Lägg till på hemskärmen** på översikten, stängd, borta i redan installerat läge (`gastHemskarmTips`). iPhone och Chrome på iPhone: användarens egna steg, ingen automatisk installation. "Utan adressfältet" sägs bara när `apple-mobile-web-app-capable` är ja och manifestets `display` är standalone, fullscreen eller minimal-ui. Android sägs inget om förrän manifestet är läst, och texten lovar inte en ikon per grupp.
+- **Tangentbord:** gästens yta dras ihop med `gastTangentbordExtra` (`tangentbordTackt`), så skrivfältet hamnar ovanför ett låtsat tangentbord. En riktig iPhone är inte mätt.
+
+### Ändrat
+
+- **Chatt, kalender och bibliotek** har inte namnformulär, beskrivning, gästinfo eller hemskärmstips. Ett kompakt sidhuvud har det mindre ordmärket (24 px) och gruppnamnet för orientering.
+- **Bottenraden utan Meny** rymmer fem flikar (`MAX_UTAN_MENY`), så Ärenden får plats bredvid översikten. Med Meny är taket fortfarande fyra.
+- **Flikraden** som sitter kvar (`OpsTabs fast`) ligger under ett sidhuvud på 3 rem (`top-12`).
+
+### Inte gjort
+
+- **En installationsidentitet per grupp.** Två namn är inte två appar. Safari på iPhone och Chrome på iPhone skiljer hemskärmsikoner på adressen, inte på manifestets `id`. Chrome på Android använder manifestets `id`, och appens manifest är ett, med `start_url` `/`. En egen identitet per grupp kräver en publik startadress utan gästtoken och ett manifest per grupp. Sessionerna är fortfarande per ursprung, inte per ikon. Se `docs/beslut/0015-gast-hemskarm.md`. Ingen provisorisk manifestlösning är inbyggd.
+
 ## 0.191.0
 
 Kommentera en artefakt via chatten (cllp/lifehub.app#663, CP 2026-11-05: "Vi behöver ha kommentarer på artefakter, även för gäster. Alla typer av artefakter skall kunna ha en kommentarstråd.", och om förslaget att gå genom chatten: "Kör på allt"). Ingen ny samling, inget nytt fält på meddelanden och ingen ny regel: regelfragmentet och fixturerna i `rules/__fixturer__` är byte för byte lika.

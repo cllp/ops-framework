@@ -271,7 +271,7 @@ function GastMedlemmarScen() {
     </Skal>
   );
 }
-const GASTGRUPP = { namn: "Källan", funktioner: ["chatt", "kalender", "bibliotek"] };
+const GASTGRUPP = { namn: "Källan", beskrivning: "Vi övar på tisdagar.", funktioner: ["chatt", "kalender", "bibliotek"] };
 const GASTGRUPP_SVAR = {
   chatt: () => ({ ok: true, fler: true, meddelanden: [
     { id: "m1", av: { namn: "Agda Ägare" }, text: "Välkommen till gruppen. Här samlar vi allt inför höstens spelningar, och det här är en lång rad som måste få brytas utan att sidan flödar över i sidled.", tid: Date.UTC(2026, 9, 19, 9, 0) },

@@ -58,6 +58,12 @@ import { useTangentbordUppe } from "../lib/tangentbord.js";
 
 const MAX_IN_ROW = 4;
 
+/**
+ * Utan Meny är raden bara flikarna (gästens telefon). Fem ryms: Översikt, Chatt, Kalender, Bibliotek och Ärenden.
+ * Med Meny är den femte platsen Menyn, och taket förblir fyra.
+ */
+const MAX_UTAN_MENY = 5;
+
 /** Med en huvudåtgärd i mitten ryms färre flikar. Mätt, se filhuvudet. */
 const MAX_IN_ROW_WITH_ACTION = 3;
 
@@ -130,7 +136,7 @@ function OpsBottomNavRitad({
     throw new Error("OpsBottomNav: primaryAction.langtryck måste vara en funktion eller utelämnas. En knapp som ser ut att gå att hålla in och inte gör något är värre än ingen genväg.");
   }
 
-  const tak = primaryAction ? MAX_IN_ROW_WITH_ACTION : MAX_IN_ROW;
+  const tak = primaryAction ? MAX_IN_ROW_WITH_ACTION : utanMeny ? MAX_UTAN_MENY : MAX_IN_ROW;
   const inRow = nav.slice(0, tak);
 
   // Knappen delar raden på mitten. Udda antal flikar ger en extra till vänster,

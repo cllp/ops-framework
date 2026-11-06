@@ -14,6 +14,48 @@ export const SENASTE = "ops-gast:senaste";
 export const ALLA = "ops-gast:alla";
 
 /**
+ * Flikar en gruppgäst kan ha valt senast (0.192.0). Översikt är landningen, inte en behörighet.
+ * Värdet som sparas är bara ett av de här orden. Aldrig en nyckel, en adress eller ett id ur en länk.
+ */
+export const GASTFLIKAR = /** @type {const} */ (["oversikt", "chatt", "kalender", "bibliotek", "arenden"]);
+
+/** Nyckel för senast valda flik, per inbjudan. Inbjudans id är redan minnets nyckel för sessionen. Inget mer lagras. */
+export const gastFlikNyckel = (/** @type {string} */ id) => `ops-gast:flik:${id}`;
+
+/**
+ * Senast valda flik, eller `null` när inget giltigt finns. Ett värde som inte är en flik läses som inget (regel 5: tomt är ett svar).
+ * @param {{ las: (k: string) => string | null } | null | undefined} minne
+ * @param {string | null | undefined} id Inbjudans id, 64 hextecken. Annat än det sparas inte.
+ * @returns {(typeof GASTFLIKAR)[number] | null}
+ */
+export function lasGastFlik(minne, id) {
+  if (!minne || typeof id !== "string" || !GASTINBJUDNINGSIDFORM.test(id)) return null;
+  let v = null;
+  try {
+    v = minne.las(gastFlikNyckel(id));
+  } catch {
+    return null;
+  }
+  return /** @type {readonly string[]} */ (GASTFLIKAR).includes(/** @type {string} */ (v)) ? /** @type {(typeof GASTFLIKAR)[number]} */ (v) : null;
+}
+
+/**
+ * Minns fliken. Skriver bara ett ord ur `GASTFLIKAR`, och bara under inbjudans id. Ett minne som kastar stoppar inte flikbytet.
+ * @param {{ skriv: (k: string, v: string) => void } | null | undefined} minne
+ * @param {string | null | undefined} id
+ * @param {string} flik
+ */
+export function skrivGastFlik(minne, id, flik) {
+  if (!minne || typeof id !== "string" || !GASTINBJUDNINGSIDFORM.test(id)) return;
+  if (!/** @type {readonly string[]} */ (GASTFLIKAR).includes(flik)) return;
+  try {
+    minne.skriv(gastFlikNyckel(id), flik);
+  } catch {
+    /* Flikbytet gäller ändå. */
+  }
+}
+
+/**
  * Minnet för sessionen: webbläsarens (`localStorage`) om det går, annars ett som gäller tills sidan lämnas. Kastar aldrig: privat läge eller blockerad lagring ska inte stoppa sidan.
  * @param {{ getItem: (k: string) => string | null, setItem: (k: string, v: string) => void, removeItem: (k: string) => void } | null | undefined} lagring
  */

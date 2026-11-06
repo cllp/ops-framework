@@ -216,22 +216,22 @@ describe("OpsGastGrupp: ärendefliken", () => {
   it("⛔ fliken Ärenden hämtas direkt vid start och finns bara när gästen har minst ett ärende: med ärenden fyra flikar, utan ärenden ingen alls", async () => {
     const m = apiMed();
     const { unmount } = rita(m);
-    await waitFor(() => expect(screen.getAllByRole("tab").map((f) => f.textContent)).toEqual(["Chatt", "Ärenden"]));
+    await waitFor(() => expect(screen.getAllByRole("tab").map((f) => f.textContent)).toEqual(["Översikt", "Chatt", "Ärenden"]));
     expect(m.api.arenden).toHaveBeenCalledTimes(1);
     unmount();
     const tom = apiMed({ poster: [] });
     rita(tom);
     await waitFor(() => expect(tom.api.arenden).toHaveBeenCalledTimes(1));
+    await valjFlik(screen.getByRole("tab", { name: "Chatt" }));
     await screen.findByText("Välkommen", { selector: "[data-bubbla] *" });
-    expect(screen.getAllByRole("tab").map((f) => f.textContent)).toEqual(["Chatt"]);
+    expect(screen.getAllByRole("tab").map((f) => f.textContent)).toEqual(["Översikt", "Chatt"]);
     expect(screen.queryByRole("tab", { name: "Ärenden" })).toBeNull();
   });
 
-  it("ingressen säger att gästen bara ser de ärenden gruppen gett hen", async () => {
+  it("översikten säger att gästen bara ser de ärenden gruppen gett hen, och bara för att funktionen finns", async () => {
     rita(apiMed());
-    // (0.190.0, del A) Behörigheten står bakom (i), stängd från början.
-    fireEvent.click(screen.getByRole("button", { name: "Om din roll som gäst" }));
-    expect(screen.getByText(/Du ser inte gruppens ärenden, bara de som gruppen har gett dig\./)).toBeInTheDocument();
+    expect(document.querySelector("[data-gast-behorighet]")?.textContent).toMatch(/Du ser bara ärenden som gruppen har gett dig/);
+    expect(document.querySelector("[data-gast-behorighet]")?.textContent).not.toMatch(/biblioteket|kalendern/);
   });
 
   it("⛔ ett fel vid hämtningen ger fliken med felet, inte en flik som saknas", async () => {
@@ -300,7 +300,7 @@ describe("OpsGastGrupp: ärendefliken", () => {
     await klicka(within(kort).getByRole("button", { name: "Markera klar" }));
     await klicka(within(kort).getByRole("button", { name: "Ja, markera klart" }));
     await waitFor(() => expect(screen.queryByRole("tab", { name: "Ärenden" })).toBeNull());
-    expect(screen.getByRole("tab", { name: "Chatt" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: "Översikt" })).toHaveAttribute("aria-selected", "true");
   });
 
   it("⛔ en gäst som kommenterar får servern fel (för många anrop) utskrivet under fältet, och sidan säger inte att åtkomsten är borta", async () => {

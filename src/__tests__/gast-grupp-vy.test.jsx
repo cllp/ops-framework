@@ -274,11 +274,14 @@ describe("OpsGastGrupp: det bantade gränssnittet", () => {
   it("har exakt tre flikar och ingen länk eller knapp som leder ut ur sidan", async () => {
     rita();
     const flikar = screen.getAllByRole("tab");
-    expect(flikar.map((f) => f.textContent)).toEqual(["Chatt", "Kalender", "Bibliotek"]);
+    expect(flikar.map((f) => f.textContent)).toEqual(["Översikt", "Chatt", "Kalender", "Bibliotek"]);
     expect(screen.queryByRole("tab", { name: "Ärenden" })).toBeNull();
-    expect(await screen.findByText("Välkommen till gruppen", { selector: "[data-bubbla] *" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Källan");
     expect(document.querySelector("[data-gast-roll]")).toHaveTextContent("Du är gäst.");
+    expect(document.querySelector("[data-gast-chatt]")).toBeNull();
+    await valjFlik(screen.getByRole("tab", { name: "Chatt" }));
+    expect(await screen.findByText("Välkommen till gruppen", { selector: "[data-bubbla] *" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { level: 1 })).toBeNull();
     for (const f of ["Kalender", "Bibliotek"]) {
       await klicka(screen.getByRole("tab", { name: f }));
       await waitFor(() => expect(document.querySelector("[data-gast-grupp]")).not.toBeNull());
@@ -289,12 +292,12 @@ describe("OpsGastGrupp: det bantade gränssnittet", () => {
 
   it("flikarna följer vilka funktioner gruppen har, och ärendefliken finns bara när funktionen finns OCH gästen har ett ärende (se skiva 3 nedan)", async () => {
     const { unmount } = rita({ grupp: { namn: "Källan", funktioner: ["chatt", "bibliotek"] } });
-    expect(screen.getAllByRole("tab").map((f) => f.textContent)).toEqual(["Chatt", "Bibliotek"]);
+    expect(screen.getAllByRole("tab").map((f) => f.textContent)).toEqual(["Översikt", "Chatt", "Bibliotek"]);
     unmount();
     // Funktionen finns men gästen har inga ärenden: ingen flik.
     const m = rita({ grupp: { namn: "Källan", funktioner: ["chatt", "arenden"] } });
     await waitFor(() => expect(m.api.arenden).toHaveBeenCalledTimes(1));
-    expect(screen.getAllByRole("tab").map((f) => f.textContent)).toEqual(["Chatt"]);
+    expect(screen.getAllByRole("tab").map((f) => f.textContent)).toEqual(["Översikt", "Chatt"]);
     expect(() => render(<OpsGastGrupp grupp={{ namn: "K", funktioner: [] }} api={apiMed().api} />)).toThrow(/inga funktioner/);
     expect(() => render(<OpsGastGrupp grupp={null} api={apiMed().api} />)).toThrow(/grupp är/);
     expect(() => render(<OpsGastGrupp grupp={GRUPP} api={{}} />)).toThrow(/api krävs/);
@@ -302,6 +305,8 @@ describe("OpsGastGrupp: det bantade gränssnittet", () => {
 
   it("en flik hämtas när den öppnas första gången och inte före, och inte igen vid ett byte tillbaka inom en minut", async () => {
     const { api } = rita();
+    expect(api.chatt).not.toHaveBeenCalled();
+    await valjFlik(screen.getByRole("tab", { name: "Chatt" }));
     await screen.findByText("Välkommen till gruppen", { selector: "[data-bubbla] *" });
     expect(api.chatt).toHaveBeenCalledTimes(1);
     for (const a of ["kalender", "bibliotek", "handelse", "fil", "skrivChatt"]) expect(api[a], a).not.toHaveBeenCalled();
@@ -468,6 +473,7 @@ describe("OpsGastGrupp: det bantade gränssnittet", () => {
 
   it("gästen skriver i chatten: skrivChatt anropas med texten och meddelandet står i chatten som gästens eget, märkt Gäst; ett nej från servern visar texten", async () => {
     const { api } = rita();
+    await valjFlik(screen.getByRole("tab", { name: "Chatt" }));
     await screen.findByText("Välkommen till gruppen", { selector: "[data-bubbla] *" });
     fireEvent.change(screen.getByRole("textbox", { name: /Skriv/ }), { target: { value: "Hej från mig" } });
     await klicka(screen.getByRole("button", { name: "Skicka" }));
@@ -485,6 +491,7 @@ describe("OpsGastGrupp: det bantade gränssnittet", () => {
     const onNekad = vi.fn();
     const m = apiMed({ kalender: async () => ({ ok: false, orsak: "aterkallad" }) });
     const forsta = rita({ api: m.api, logg: m.logg, onNekad });
+    await valjFlik(screen.getByRole("tab", { name: "Chatt" }));
     await screen.findByText("Välkommen till gruppen", { selector: "[data-bubbla] *" });
     await valjFlik(screen.getByRole("tab", { name: "Kalender" }));
     await waitFor(() => expect(onNekad).toHaveBeenCalledWith("aterkallad"));
@@ -508,6 +515,7 @@ describe("OpsGastGrupp: det bantade gränssnittet", () => {
       },
     });
     rita({ api: m.api, logg: m.logg, intervallMs: 30_000 });
+    await valjFlik(screen.getByRole("tab", { name: "Chatt" }));
     await screen.findByText("Tack Agda", { selector: "[data-bubbla] *" });
     await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
     expect(m.logg.filter(([a]) => a === "chatt").map(([, x]) => x)).toEqual([{}, { nyast: MEDDELANDEN[2].tid }]);
@@ -527,6 +535,7 @@ describe("OpsGastGrupp: det bantade gränssnittet", () => {
     const aldre = [{ id: "m0", av: { namn: "Agda Ägare" }, text: "Det första", tid: MEDDELANDEN[0].tid - 1000 }];
     const m = apiMed({ chatt: async (a) => (a.fore !== undefined ? { ok: true, meddelanden: aldre, fler: false } : { ok: true, meddelanden: MEDDELANDEN, fler: true }) });
     rita({ api: m.api, logg: m.logg });
+    await valjFlik(screen.getByRole("tab", { name: "Chatt" }));
     await klicka(await screen.findByRole("button", { name: "Visa äldre meddelanden" }));
     expect(await screen.findByText("Det första", { selector: "[data-bubbla] *" })).toBeInTheDocument();
     expect(m.logg.filter(([a]) => a === "chatt").map(([, x]) => x)).toEqual([{}, { fore: MEDDELANDEN[0].tid }]);
@@ -574,14 +583,12 @@ describe("OpsGastSida med hela gruppen", () => {
     expect(document.querySelector("main").className).not.toContain("max-w-5xl");
   });
 
-  it("⛔ i gruppen står namnrutan ovanför gruppen, så att ytan som fyller höjden inte trycker den under bottenraden (granskning av PR 524); i en omröstning står den under", async () => {
+  it("⛔ namnrutan ligger inte utanför gruppen (den ritas på översikten); i en omröstning står den under", async () => {
     const lagring = lagringMed({ [`ops-gast:${ID}`]: SESSION, "ops-gast:senaste": ID });
     const fore = (/** @type {Element} */ a, /** @type {Element} */ b) => !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
     const { unmount } = rita({ lagring, onNamn: vi.fn(async () => {}) });
     await screen.findByText("Gruppinnehåll");
-    const namn = /** @type {Element} */ (document.querySelector("[data-gast-namn]"));
-    expect(namn).toBeTruthy();
-    expect(fore(namn, /** @type {Element} */ (document.querySelector("[data-grupp]")))).toBe(true);
+    expect(document.querySelector("[data-gast-namn]")).toBeNull();
     unmount();
     rita({ lagring, onHamta: vi.fn(async () => sakSvar), onNamn: vi.fn(async () => {}) });
     await screen.findByText("Rep");
@@ -669,7 +676,7 @@ describe("OpsGastSida med hela gruppen", () => {
   });
 });
 
-describe("OpsGastSida med OpsGastGrupp: (i) bär integriteten och Skriv in adressen igen (0.190.0, del A)", () => {
+describe("OpsGastSida med OpsGastGrupp: översikten bär integriteten och Skriv in adressen igen (0.192.0)", () => {
   const lagringMed = (start = {}) => {
     const d = { ...start };
     return { getItem: (k) => d[k] ?? null, setItem: (k, v) => { d[k] = v; }, removeItem: (k) => { delete d[k]; }, d };
@@ -695,36 +702,36 @@ describe("OpsGastSida med OpsGastGrupp: (i) bär integriteten och Skriv in adres
     return { ...utf, lagring, onRaderaMig };
   };
 
-  it("⛔ integriteten och sidfotens Du är gäst står inte under gruppen; (i) bär integriteten med Radera och Skriv in adressen igen", async () => {
+  it("⛔ integriteten står på översikten, inte i chatten, och Radera ligger bakom den", async () => {
     rita();
-    await screen.findByRole("heading", { level: 1, name: "Källan" });
-    // Stängd från början: ingenting av det syns.
-    expect(document.querySelector("[data-gast-integritet]")).toBeNull();
+    const oversikt = /** @type {HTMLElement} */ (await screen.findByRole("heading", { level: 1, name: "Källan" })).closest("[data-gast-oversikt]");
+    expect(oversikt).toBeTruthy();
     expect(document.querySelector("[data-gast-not]")).toBeNull();
+    expect(within(/** @type {HTMLElement} */ (oversikt)).getByText("Integritet och dina uppgifter")).toBeInTheDocument();
+    expect(within(/** @type {HTMLElement} */ (oversikt)).getByRole("button", { name: "Skriv in adressen igen" })).toBeInTheDocument();
+    const detalj = /** @type {HTMLDetailsElement} */ (oversikt.querySelector("details"));
+    expect(detalj.open).toBe(false);
+    await klicka(within(/** @type {HTMLElement} */ (oversikt)).getByText("Integritet och dina uppgifter"));
+    expect(within(/** @type {HTMLElement} */ (oversikt)).getByRole("button", { name: "Radera mina uppgifter" })).toBeInTheDocument();
+    await valjFlik(screen.getByRole("tab", { name: "Chatt" }));
+    expect(document.querySelector("[data-gast-integritet]")).toBeNull();
     expect(screen.queryByText("Skriv in adressen igen")).toBeNull();
-    await klicka(screen.getByRole("button", { name: "Om din roll som gäst" }));
-    const panel = /** @type {HTMLElement} */ (document.querySelector("[data-gast-grupp-ingress]"));
-    expect(within(panel).getByText("Integritet och dina uppgifter")).toBeInTheDocument();
-    expect(within(panel).getByRole("button", { name: "Skriv in adressen igen" })).toBeInTheDocument();
-    await klicka(within(panel).getByText("Integritet och dina uppgifter"));
-    expect(within(panel).getByRole("button", { name: "Radera mina uppgifter" })).toBeInTheDocument();
   });
 
   it("⛔ Skriv in adressen igen glömmer alla sessioner på enheten och går till adressteget, utan att fråga servern", async () => {
     const { lagring } = rita({ lank: { id: ID, nyckel: NYCKEL } });
     await screen.findByRole("heading", { level: 1, name: "Källan" });
-    await klicka(screen.getByRole("button", { name: "Om din roll som gäst" }));
     await klicka(screen.getByRole("button", { name: "Skriv in adressen igen" }));
     expect(await screen.findByLabelText("Din e-postadress")).toBeInTheDocument();
     expect(screen.queryByRole("heading", { level: 1, name: "Källan" })).toBeNull();
     for (const k of [`ops-gast:${ID}`, `ops-gast:${ID2}`, "ops-gast:senaste", "ops-gast:alla"]) expect(lagring.d[k], k).toBeUndefined();
   });
 
-  it("⛔ marke ritas i skalets märkesruta: 40 px hög, högst --logo-bredd, ett brett ordmärke som fyller höjden utan beskärning, en bild per tema och appens namn som alternativtext", async () => {
+  it("⛔ marke ritas kompakt: 24 px hög, högst --logo-bredd, ett brett ordmärke som fyller höjden utan beskärning, en bild per tema och appens namn som alternativtext", async () => {
     rita({ marke: { ljus: "https://x/ljus.png", mork: "https://x/mork.png", namn: "LifeHub" }, huvud: <a href="/">Tillbaka</a> });
     await screen.findByRole("heading", { level: 1, name: "Källan" });
     const ruta = /** @type {HTMLElement} */ (document.querySelector("[data-gast-huvud] [data-gast-marke]"));
-    expect(ruta.className.split(" ")).toEqual(expect.arrayContaining(["h-10", "max-w-(--logo-bredd)"]));
+    expect(ruta.className.split(" ")).toEqual(expect.arrayContaining(["h-6", "max-w-(--logo-bredd)"]));
     // Granskningen av PR 524: ingen beskärning. Rutan klipper inte, och bilden fyller rutans höjd med bredden ur bildens form (storleken mäts i check:skalyta 56 (d)).
     expect(ruta.className).not.toMatch(/overflow-hidden/);
     expect([...ruta.querySelectorAll("img")].map((i) => i.getAttribute("src"))).toEqual(["https://x/ljus.png", "https://x/mork.png"]);
@@ -738,7 +745,6 @@ describe("OpsGastSida med OpsGastGrupp: (i) bär integriteten och Skriv in adres
   it("utan länken i minnet blir det sidan som skickar en ny länk", async () => {
     rita();
     await screen.findByRole("heading", { level: 1, name: "Källan" });
-    await klicka(screen.getByRole("button", { name: "Om din roll som gäst" }));
     await klicka(screen.getByRole("button", { name: "Skriv in adressen igen" }));
     expect(await screen.findByRole("button", { name: "Skicka en ny länk" })).toBeInTheDocument();
   });

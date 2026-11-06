@@ -97,7 +97,7 @@ function seed() {
       medlemskap(UTANFOR, GRANNEN, "agare", "Ulla Utanför"),
       medlemskap(FRAMLING, GRUPP, "agare", "Fredrik Främling", { status: "avslutad" }),
     ],
-    groups: [{ id: GRUPP, namn: "Källan", hemligt: "HEMLIGT-APPFALT" }, { id: GRANNEN, namn: "Grannen" }],
+    groups: [{ id: GRUPP, namn: "Källan", beskrivning: "Vi övar på tisdagar.", hemligt: "HEMLIGT-APPFALT" }, { id: GRANNEN, namn: "Grannen" }],
     handelser: [
       { id: "h-mote", groupId: GRUPP, rubrik: "Möte", text: "Vi ses i salen", plats: "Salen", datum: "2026-11-02", tid: "18:00", slutTid: "20:00", kravSvar: true, skapadAv: { uid: AGARE, epost: "agda.hemlig@privat.example" }, intern: "HEMLIGT-APPFALT" },
       { id: "h-fri", groupId: GRUPP, rubrik: "Repetition", datum: "2026-11-09", heldag: true },
@@ -530,10 +530,10 @@ describe("vitlistade fält: ingen medlems adress, uid eller hemlighet lämnar se
   it("hamta för en gruppgäst svarar med gruppens namn och funktionerna: chatt, kalender, bibliotek och ärenden, och utan appens ärendedelegering bara de tre första", async () => {
     const h = bygg();
     const g = await gruppGast(h);
-    expect(await h.tjanst.hamta({ sessionsnyckel: g.sessionsnyckel })).toEqual({ ok: true, namn: "", funktion: "grupp", grupp: { namn: "Källan", funktioner: ["chatt", "kalender", "bibliotek", "arenden"], nedladdning: true, kommentera: false } });
+    expect(await h.tjanst.hamta({ sessionsnyckel: g.sessionsnyckel })).toEqual({ ok: true, namn: "", funktion: "grupp", grupp: { namn: "Källan", funktioner: ["chatt", "kalender", "bibliotek", "arenden"], nedladdning: true, kommentera: false, beskrivning: "Vi övar på tisdagar." } });
     const utan = bygg({ utanArenden: true });
     const u = await gruppGast(utan);
-    expect(await utan.tjanst.hamta({ sessionsnyckel: u.sessionsnyckel })).toEqual({ ok: true, namn: "", funktion: "grupp", grupp: { namn: "Källan", funktioner: ["chatt", "kalender", "bibliotek"], nedladdning: true, kommentera: false } });
+    expect(await utan.tjanst.hamta({ sessionsnyckel: u.sessionsnyckel })).toEqual({ ok: true, namn: "", funktion: "grupp", grupp: { namn: "Källan", funktioner: ["chatt", "kalender", "bibliotek"], nedladdning: true, kommentera: false, beskrivning: "Vi övar på tisdagar." } });
   });
 });
 
