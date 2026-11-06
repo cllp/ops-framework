@@ -436,10 +436,15 @@ describe("OpsGastGrupp: det bantade gränssnittet", () => {
     expect(screen.queryByText(/Mitt bibliotek|Flytta/)).toBeNull();
     expect(document.querySelectorAll('a[href^="/"]')).toHaveLength(0);
     // Öppna en fil: en signering, med postens id, och inte fler.
+    // (0.193.0, #530) PDF:en ritas i appens egen vy: byten hämtas ur den signerade adressen, och adressen står inte i någon länk.
+    const hamta = vi.spyOn(globalThis, "fetch").mockResolvedValue(/** @type {any} */ ({ ok: true, status: 200, blob: async () => new Blob(["%PDF"], { type: "application/pdf" }) }));
     await klicka(screen.getByRole("button", { name: "Låtlista" }));
     await waitFor(() => expect(m.api.fil).toHaveBeenCalledTimes(1));
     expect(m.logg.filter(([a]) => a === "fil")).toEqual([["fil", { postId: "p-pdf" }]]);
-    expect(await screen.findByRole("link", { name: /lat\.pdf/ })).toHaveAttribute("href", "https://lagring.example/p-pdf");
+    expect(await screen.findByRole("button", { name: "Presentera" })).toBeTruthy();
+    await waitFor(() => expect(hamta).toHaveBeenCalledWith("https://lagring.example/p-pdf"));
+    expect(document.querySelector('[href="https://lagring.example/p-pdf"]')).toBeNull();
+    hamta.mockRestore();
     // Tillbaka till listan: ingen ny signering för en fil som redan öppnats, och ingen för de andra.
     await klicka(screen.getByRole("button", { name: /Tillbaka/ }));
     expect(m.api.fil).toHaveBeenCalledTimes(1);

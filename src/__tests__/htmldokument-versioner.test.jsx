@@ -87,7 +87,9 @@ describe("Versionsraden: när den finns", () => {
   it("⛔ en PDF får ingen versionsrad, också när appen ger htmlVersioner", async () => {
     const htmlVersioner = vi.fn(async () => lista3());
     rita({ post: pdf(), extra: { htmlVersioner } });
-    await screen.findByRole("link", { name: /avtal\.pdf/ });
+    // (0.193.0, #530) PDF:en ritas i sin egen vy, inte som en länk. Vänta in den, så att en sen versionsrad hade hunnit synas.
+    await waitFor(() => expect(document.querySelector("[data-bibliotek-pdf]")).toBeTruthy());
+    await screen.findByRole("button", { name: "Presentera" });
     expect(screen.queryByText("Versioner")).toBeNull();
     expect(htmlVersioner).not.toHaveBeenCalled();
   });

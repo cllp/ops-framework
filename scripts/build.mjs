@@ -39,6 +39,10 @@
  * appen bar två kopior av ikonkoden: sin egen och ramverkets. Med en fil per modul hade varje fil
  * dessutom fått en egen kopia av de ikoner den använder.
  *
+ * ⛔ `pdfjs-dist` är externt (0.193.0, cllp/ops-framework#530): PDF-vyn importerar det lat, och appens bundler ska göra det till en egen bit och
+ * lägga workern som en egen fil (`new URL("pdfjs-dist/legacy/build/pdf.worker.min.mjs", import.meta.url)` i `lib/pdfjs.js`). Buntat här hade det blivit en fil
+ * på över en megabyte i `dist`, och workerns adress hade pekat in i ramverkets mapp i stället för på paketet.
+ *
  * Klassnamnssträngarna överlever bygget oförändrade, vilket är det Tailwinds
  * källscanning behöver. Därför pekar konsumentens `@source` på `dist`, som nu är en mapp.
  */
@@ -48,7 +52,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 /** Det konsumenten installerar själv. Buntas det in får appen två kopior (och React kastar "invalid hook call"). */
-const EXTERNA = ["react", "react-dom", "react/jsx-runtime", "@radix-ui/*", "react-day-picker", "react-day-picker/*", "date-fns", "date-fns/*", "@date-fns/*", "lucide-react"];
+const EXTERNA = ["react", "react-dom", "react/jsx-runtime", "@radix-ui/*", "react-day-picker", "react-day-picker/*", "date-fns", "date-fns/*", "@date-fns/*", "lucide-react", "pdfjs-dist", "pdfjs-dist/*"];
 
 const gemensamt = {
   bundle: true,

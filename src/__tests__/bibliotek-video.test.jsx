@@ -235,9 +235,12 @@ describe("OpsBibliotek: video i listan och i detaljen", () => {
     // Utvägen när webbläsaren inte kan avkoda filen.
     expect(screen.getByRole("link", { name: /rep\.mp4/ })).toHaveAttribute("href", "https://exempel.se/grupper/cps-ab/bibliotek/film/rep.mp4");
     fireEvent.click(screen.getByRole("button", { name: "Tillbaka" }));
+    const hamta = vi.spyOn(globalThis, "fetch").mockResolvedValue(/** @type {any} */ ({ ok: false, status: 404, blob: async () => new Blob() }));
     fireEvent.click(screen.getByRole("button", { name: "Avtal" }));
     expect(document.querySelector("video")).toBeNull();
-    expect(screen.getByRole("link", { name: /avtal\.pdf/ })).toBeInTheDocument();
+    // (0.193.0, cllp/ops-framework#530) En PDF ritas i appens egen vy, inte som en länk till filen.
+    expect(document.querySelector("[data-bibliotek-pdf]")).toBeTruthy();
+    hamta.mockRestore();
   });
 
   it("kortet i listan säger Video, med ändelsen, och ligger under Dokument (ett dokument säger bara ändelsen, 0.165.0)", () => {

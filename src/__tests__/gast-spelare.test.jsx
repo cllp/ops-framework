@@ -131,12 +131,15 @@ describe("gästens spelare", () => {
     await act(async () => {
       fireEvent.click(within(ark).getByRole("button", { name: "Fäll ihop spelaren" }));
     });
-    // En PDF: länken till filen finns (visa), men ingen Ladda ned.
+    // En PDF: den visas i appens egen vy och kan presenteras (CP 2026-11-06, #530: gäster får presentera), men ingen Ladda ned.
+    const hamta = vi.spyOn(globalThis, "fetch").mockResolvedValue(/** @type {any} */ ({ ok: true, status: 200, blob: async () => new Blob(["%PDF"], { type: "application/pdf" }) }));
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Låtlista" }));
     });
-    await screen.findByRole("link", { name: /lat\.pdf/ });
-    expect(document.querySelector("[data-bibliotek-ladda-ned]")).toBeNull();
+    expect(await screen.findByRole("button", { name: "Presentera" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Ladda ned" })).toBeNull();
+    expect(document.querySelector("[data-bibliotek-ladda-ned], [data-pdf-ladda-ned]")).toBeNull();
+    hamta.mockRestore();
   });
 
   it("utan nedladdning i svaret (som förut) står Ladda ned i en öppnad fil", async () => {
@@ -145,10 +148,13 @@ describe("gästens spelare", () => {
       fireEvent.mouseDown(screen.getByRole("tab", { name: "Bibliotek" }), { button: 0 });
     });
     await screen.findByText("Låtlista");
+    const hamta = vi.spyOn(globalThis, "fetch").mockResolvedValue(/** @type {any} */ ({ ok: true, status: 200, blob: async () => new Blob(["%PDF"], { type: "application/pdf" }) }));
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Låtlista" }));
     });
-    await screen.findByRole("link", { name: /lat\.pdf/ });
-    expect(document.querySelector("[data-bibliotek-ladda-ned]")).not.toBeNull();
+    // (0.193.0, #530) Ladda ned står i PDF-vyns rad.
+    expect(await screen.findByRole("button", { name: "Ladda ned" })).toBeTruthy();
+    expect(document.querySelector("[data-pdf-ladda-ned]")).not.toBeNull();
+    hamta.mockRestore();
   });
 });

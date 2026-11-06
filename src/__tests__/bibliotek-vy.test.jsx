@@ -281,10 +281,12 @@ describe("OpsBibliotek", () => {
     expect(screen.getByRole("dialog", { name: "Förhandsvisning" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Stäng" }));
     fireEvent.click(screen.getByRole("button", { name: "Tillbaka" }));
+    // (0.193.0, cllp/ops-framework#530) En PDF öppnas inte längre i en ny flik mot lagringens adress: den ritas i appens egen vy, och adressen står i ingen länk.
+    const hamta = vi.spyOn(globalThis, "fetch").mockResolvedValue(/** @type {any} */ ({ ok: false, status: 404, blob: async () => new Blob() }));
     fireEvent.click(screen.getByRole("button", { name: "Avtal" }));
-    const lank = screen.getByRole("link", { name: /avtal\.pdf/ });
-    expect(lank).toHaveAttribute("target", "_blank");
-    expect(lank).toHaveAttribute("rel", "noopener noreferrer");
+    expect(document.querySelector("[data-bibliotek-pdf]")).toBeTruthy();
+    expect(screen.queryByRole("link", { name: /avtal\.pdf/ })).toBeNull();
+    hamta.mockRestore();
   });
 
   it("listan har ingen inspelare, Ny-menyn har Röstinspelning, och onSpelaIn kastas", () => {
