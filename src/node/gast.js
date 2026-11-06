@@ -1772,7 +1772,7 @@ export function createGastService(konfig) {
    * Gästen kommenterar en post i gruppens bibliotek (0.191.0, cllp/lifehub.app#663, CP 2026-11-05: "Vi behöver ha kommentarer på artefakter, även för gäster."). Kräver
    * `grupp.samlingar.tradar` och `grupp.bibliotekBas`; utan dem `nej`.
    *
-   * ⛔ SAMMA MODELL SOM FÖR EN MEDLEM (`lib/postkommentar.js`): kommentarstråden är ett rotmeddelande i gruppchatten med id `post~<postens id>`. Den första kommentaren SKAPAR roten
+   * ⛔ SAMMA MODELL SOM FÖR EN MEDLEM (`lib/postkommentar.js`): kommentarstråden är ett rotmeddelande i gruppchatten med id `post-<postens id>`. Den första kommentaren SKAPAR roten
    * (`createNew`), med kommentaren och postens länk som text, så att medlemmarna ser posten som kort. Finns roten redan blir kommentaren ett svar i dess tråd. Två som skriver samtidigt:
    * den som får "finns redan" skriver som svar. Ingen läsning före skrivningen avgör något.
    *

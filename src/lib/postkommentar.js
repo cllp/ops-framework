@@ -8,8 +8,8 @@ import { POSTIDFORM } from "./bibliotek.js";
  * CP 2026-11-05: "Vi behöver ha kommentarer på artefakter, även för gäster." och samma kväll "Skall vi vinkla oss med chatten istället?". Svaret blev chatten: ingen ny samling,
  * inget nytt fält på meddelandet och ingen ny regel. En egen kommentarsmodell hade varit en andra chatt, med samling, regler, aviseringar och en egen serverväg för gäster (regel 2 och 13).
  *
- * Kommentarstråden för en post är ett rotmeddelande i gruppchatten vars id FÖLJER AV POSTEN, `post~<postens id>` (`kommentarRotId`), och svaren ligger i rotens tråd,
- * `<samtal>/<sid>/<tradar>/post~<id>/<meddelanden>`. Posten behöver alltså inget fält som pekar på tråden, och tråden på posten är en läsning av ett dokument och en
+ * Kommentarstråden för en post är ett rotmeddelande i gruppchatten vars id FÖLJER AV POSTEN, `post-<postens id>` (`kommentarRotId`), och svaren ligger i rotens tråd,
+ * `<samtal>/<sid>/<tradar>/post-<id>/<meddelanden>`. Posten behöver alltså inget fält som pekar på tråden, och tråden på posten är en läsning av ett dokument och en
  * undersamling: ingen fråga och inget index.
  *
  * ⛔ VARFÖR INTE ETT FÄLT PÅ MEDDELANDET (mätt i #663): meddelandets och trådens regler har `hasOnly` på fälten. Ett fält som pekar på posten hade krävt en ny regelnyckel, och
@@ -22,8 +22,19 @@ import { POSTIDFORM } from "./bibliotek.js";
  * så en post som byter namn visar det nya namnet, och en borttagen post visar bara texten.
  */
 
-/** Prefixet på en kommentarsrot. `~` förekommer aldrig i ett postid (`POSTIDFORM`), så en rot kan inte förväxlas med ett vanligt meddelandes id. */
-export const KOMMENTARROT_PREFIX = "post~";
+/**
+ * Prefixet på en kommentarsrot: `post-`.
+ *
+ * ⛔ INTE `post~`, OCH SKÄLET ÄR REGELN. Med `bilagor` påslaget nekar samtalsfragmentet varje meddelande vars id bär trådskiljetecknet (`BILAGA_TRADSKILJE`, `~`):
+ * `&& !mid.matches('.*[~].*')` i `samtalsregelfragment`, eftersom en bilagas nyckel i en tråd är `<tråd>~<meddelande>` (`bilagenyckel`), och ett id med `~` hade gett en
+ * fil vars nyckel regeln läser som ett trådsvar. Den första versionen av 0.191.0 hade `post~`, och appens regelprov mot emulatorn fick PERMISSION_DENIED för en medlem,
+ * både på roten och på svaren i dess tråd. Ramverkets egna prov körde kommentarerna mot en källa utan regler, så det syntes inte där; gästerna gick förbi felet eftersom
+ * servern skriver med Admin SDK. Vakten står nu i `rules/__tests__/postkommentarer.test.mjs` och i `src/__tests__/postkommentar.test.js` (härledd ur samma teckenklass som regeln).
+ *
+ * ⛔ `-` KAN INTE KROCKA: ett postid börjar med en bokstav eller siffra (`POSTIDFORM`) och prefixet är fast, så `post-<id>` tolkas tillbaka till exakt ett postid
+ * (`postIdUrRot`). Ett vanligt meddelande kan aldrig börja med `post-`: Firestores automatiska id har bara `[A-Za-z0-9]`, och källans egna id börjar med `m_` (`nyttDokumentId`).
+ */
+export const KOMMENTARROT_PREFIX = "post-";
 
 /**
  * Kommentarsrotens id för en post.

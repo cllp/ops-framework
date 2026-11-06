@@ -3,7 +3,8 @@ import { createMemorySource } from "../data/adapters.js";
 import { createSamtalskalla } from "../data/samtalskalla.js";
 import { createPostkommentarer } from "../data/postkommentarer.js";
 import { adresserIText, bibliotekslank, kommentarRotId, kommentarRotText, lasBibliotekslank, postIdUrRot, utanPostlank } from "../lib/postkommentar.js";
-import { samtalsnyckel } from "../lib/samtal.js";
+import { BILAGA_TRADSKILJE, samtalsnyckel } from "../lib/samtal.js";
+import { tradskiljeTeckenklass } from "../lib/regler.js";
 
 /**
  * Kommentarer på en bibliotekspost, genom gruppens chatt (0.191.0, cllp/lifehub.app#663): modellen, samtalskällans `skickaPaRot` och medlemmens källa.
@@ -16,7 +17,7 @@ const BAS = "https://app.exempel.se/bibliotek";
 const GRUPP = "kallan";
 const SID = samtalsnyckel({ groupId: GRUPP, slag: "grupp" });
 const NOT = { id: "p-not", groupId: GRUPP, typ: "anteckning", rubrik: "Anteckning" };
-const ROT = "post~p-not";
+const ROT = "post-p-not";
 const MEDDELANDEN = `samtal/${SID}/meddelanden`;
 const SVAR = `samtal/${SID}/tradar/${ROT}/meddelanden`;
 
@@ -54,8 +55,24 @@ describe("modellen: id:t följer av posten, länken är appens form", () => {
     expect(kommentarRotId("p-not")).toBe(ROT);
     expect(postIdUrRot(ROT)).toBe("p-not");
     expect(postIdUrRot("m_abc_1_x")).toBeNull();
-    expect(postIdUrRot("post~")).toBeNull();
-    for (const fel of ["", "a/b", "post~x", "x".repeat(200), undefined]) expect(() => kommentarRotId(/** @type {any} */ (fel))).toThrow(/postid/);
+    expect(postIdUrRot("post-")).toBeNull();
+    for (const fel of ["", "a/b", "a~b", "-x", "x".repeat(200), undefined]) expect(() => kommentarRotId(/** @type {any} */ (fel))).toThrow(/postid/);
+  });
+
+  it("⛔ en kommentarsrot passerar samtalsfragmentets prövning av id:t med bilagor: inget trådskiljetecken (härlett ur regelns egen teckenklass)", () => {
+    // Samma uttryck som regeln skriver (`!mid.matches('.*' + klass + '.*')` i `samtalsregelfragment`), byggt ur samma konstant och samma funktion. Firestores
+    // `matches` prövar hela strängen, och det gör `^...$` här. Golv: varje tecken som får stå i ett postid, först, i mitten och sist.
+    const nekas = new RegExp(`^.*${tradskiljeTeckenklass(BILAGA_TRADSKILJE)}.*$`, "u");
+    expect(nekas.test(`a${BILAGA_TRADSKILJE}b`), "regeluttrycket måste neka ett id med skiljetecknet, annars mäter provet ingenting").toBe(true);
+    const tecken = "abcxyzABCXYZ0123456789_-";
+    const idn = ["p", "p-not", "x".repeat(128), ...[...tecken].flatMap((c) => (/[A-Za-z0-9]/.test(c) ? [c, `a${c}b`, `a${c}`] : [`a${c}b`, `a${c}`]))];
+    expect(idn.length).toBeGreaterThanOrEqual(60);
+    for (const id of idn) {
+      const rot = kommentarRotId(id);
+      expect(rot.includes(BILAGA_TRADSKILJE), rot).toBe(false);
+      expect(nekas.test(rot), rot).toBe(false);
+      expect(postIdUrRot(rot)).toBe(id);
+    }
   });
 
   it("bibliotekslank och lasBibliotekslank: samma form som appens sökträff, och bara appens egen adress läses tillbaka", () => {

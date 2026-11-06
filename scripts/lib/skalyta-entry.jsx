@@ -2195,7 +2195,7 @@ function BibliotekKommentarerYta() {
   const kim = { uid: "uid-1", namn: "Kim", typ: "manniska", kalla: "bibliotek" };
   const post = { ...bygg({ groupId: "cps-ab", typ: "anteckning", rubrik: "Protokoll från styrelsemötet", text: "Vi beslutade att flytta repetitionen till torsdag.", skapadAv: kim, skapad: tid, andrad: tid }), id: "p1" };
   const rader = [
-    { id: "post~p1", namn: "Anna Berg", text: "Bra protokoll. Kan vi lägga till vem som bokar lokalen?", tid: tid + 60_000 },
+    { id: "post-p1", namn: "Anna Berg", text: "Bra protokoll. Kan vi lägga till vem som bokar lokalen?", tid: tid + 60_000 },
     { id: "t1", namn: "Bo Lind", text: "Jag bokar. Länken: https://lokal.exempel.se/bokning/abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz", tid: tid + 120_000, gast: true },
     { id: "t2", namn: "Kim", text: "Tack!", tid: tid + 180_000, egen: true },
   ];

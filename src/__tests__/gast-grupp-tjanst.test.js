@@ -1677,7 +1677,7 @@ describe("0.191.0: trådar, kort och kommentarer på en post för en gäst (cllp
     await expect(h.tjanst.kommenteraPost({ sessionsnyckel: g.sessionsnyckel, postId: "p-not", text: "Hej", bilaga: { namn: "a.png", typ: "image/png" } })).rejects.toMatchObject({ kod: "ogiltig-text" });
     await expect(h.tjanst.kommenteraPost({ sessionsnyckel: g.sessionsnyckel, postId: "p-not", text: "Hej", namner: [AGARE] })).rejects.toMatchObject({ kod: "ogiltig-text" });
     expect((await h.grund.list(svarI("m1"))).map((m) => m.id)).toEqual(["t1", "t2"]);
-    expect(await h.grund.read(CHATT, "post~p-not")).toBeNull();
+    expect(await h.grund.read(CHATT, "post-p-not")).toBeNull();
   });
 
   it("⛔ kortet: en länk till en post gästen ser ger ett kort ur posten som den är nu; en annan plats, en annan grupp, en borttagen post och en främmande adress ger bara texten", async () => {
@@ -1724,7 +1724,7 @@ describe("0.191.0: trådar, kort och kommentarer på en post för en gäst (cllp
     expect(lista.has("p-okand") || lista.has("p-plats")).toBe(false);
   });
 
-  it("⛔ kommenteraPost: den första kommentaren skapar roten post~<id> med gästen som avsändare och postens länk, nästa blir ett svar; två samtidigt ger en rot och ett svar", async () => {
+  it("⛔ kommenteraPost: den första kommentaren skapar roten post-<id> med gästen som avsändare och postens länk, nästa blir ett svar; två samtidigt ger en rot och ett svar", async () => {
     const h = bygg({ kommentarer: true });
     const anna = await gruppGast(h, "anna@foretag.se", { namn: "Anna" });
     const bo = await gruppGast(h, "bo@foretag.se", { namn: "Bo" });
@@ -1734,14 +1734,14 @@ describe("0.191.0: trådar, kort och kommentarer på en post för en gäst (cllp
       h.tjanst.kommenteraPost({ sessionsnyckel: bo.sessionsnyckel, postId: "p-not", text: "Från Bo" }),
     ]);
     expect([a.rot, b.rot].sort()).toEqual([false, true]);
-    const rot = await h.grund.read(CHATT, "post~p-not");
+    const rot = await h.grund.read(CHATT, "post-p-not");
     expect(String(rot?.text).split("\n")[1]).toBe(lank(GRUPP, "p-not"));
-    const svar = await h.grund.list(svarI("post~p-not"));
+    const svar = await h.grund.list(svarI("post-p-not"));
     expect(svar).toHaveLength(1);
     expect([String(rot?.text).split("\n")[0], svar[0].text].sort()).toEqual(["Från Anna", "Från Bo"]);
     // Medlemmarna ser roten i chatten, och gästen ser kortet på den.
     const c = await h.tjanst.chatt({ sessionsnyckel: anna.sessionsnyckel });
-    expect(c.meddelanden.find((/** @type {any} */ m) => m.id === "post~p-not")).toMatchObject({ svar: 1, kort: [{ postId: "p-not" }] });
+    expect(c.meddelanden.find((/** @type {any} */ m) => m.id === "post-p-not")).toMatchObject({ svar: 1, kort: [{ postId: "p-not" }] });
     for (const postId of ["p-hand", "p-grannen", "p-mitt", "p-borta", ""]) {
       expect(await h.tjanst.kommenteraPost({ sessionsnyckel: anna.sessionsnyckel, postId, text: "x" }), postId).toEqual({ ok: false, orsak: "saknas" });
     }

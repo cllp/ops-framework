@@ -82,12 +82,12 @@ describe("⛔ Kommentera i biblioteket: menyn, tråden på posten och chatten ä
     await user.click(screen.getByRole("button", { name: "Kommentera" }));
     await waitFor(() => expect(document.querySelectorAll("[data-bibliotek-kommentar]")).toHaveLength(1));
     const sid = samtalsnyckel({ groupId: GRUPP, slag: "grupp" });
-    expect(await kalla.read(`samtal/${sid}/meddelanden`, "post~a1")).toMatchObject({ av: "bo", text: `Bra protokoll\n${bibliotekslank(BAS, { plats: GRUPP, postId: "a1" })}` });
+    expect(await kalla.read(`samtal/${sid}/meddelanden`, "post-a1")).toMatchObject({ av: "bo", text: `Bra protokoll\n${bibliotekslank(BAS, { plats: GRUPP, postId: "a1" })}` });
     // I tråden på posten står kommentaren utan postens egen länk.
-    expect(document.querySelector('[data-bibliotek-kommentar="post~a1"]')?.textContent).toContain("Bra protokoll");
-    expect(document.querySelector('[data-bibliotek-kommentar="post~a1"]')?.textContent).not.toContain(BAS);
+    expect(document.querySelector('[data-bibliotek-kommentar="post-a1"]')?.textContent).toContain("Bra protokoll");
+    expect(document.querySelector('[data-bibliotek-kommentar="post-a1"]')?.textContent).not.toContain(BAS);
     // Ett svar i chattens tråd syns under posten när den läses.
-    await samtal.skickaITrad(sid, "post~a1", { text: "Svar från chatten", av: "anna" });
+    await samtal.skickaITrad(sid, "post-a1", { text: "Svar från chatten", av: "anna" });
     await user.type(falt, "Och en till");
     await user.click(screen.getByRole("button", { name: "Kommentera" }));
     await waitFor(() => expect(document.querySelectorAll("[data-bibliotek-kommentar]")).toHaveLength(3));
@@ -96,7 +96,7 @@ describe("⛔ Kommentera i biblioteket: menyn, tråden på posten och chatten ä
       expect.stringContaining("Svar från chatten"),
       expect.stringContaining("Och en till"),
     ]);
-    expect((await kalla.list(`samtal/${sid}/tradar/post~a1/meddelanden`)).map((m) => m.text)).toEqual(["Svar från chatten", "Och en till"]);
+    expect((await kalla.list(`samtal/${sid}/tradar/post-a1/meddelanden`)).map((m) => m.text)).toEqual(["Svar från chatten", "Och en till"]);
   });
 
   it("utan källan: ingen Kommentera i menyn och ingen tråd på posten, som förut", async () => {
@@ -123,7 +123,7 @@ describe("⛔ gästens chatt: trådar och kort", () => {
   const LANK = bibliotekslank(BAS, { plats: GRUPP, postId: "a1" });
   const MEDDELANDEN = [
     { id: "m1", av: { namn: "Agda" }, text: "Välkommen", tid: 1000, svar: 1 },
-    { id: "post~a1", av: { namn: "Bo" }, text: `Bra protokoll\n${LANK}`, tid: 2000, kort: [{ url: LANK, postId: "a1", typ: "anteckning", rubrik: "Protokoll" }] },
+    { id: "post-a1", av: { namn: "Bo" }, text: `Bra protokoll\n${LANK}`, tid: 2000, kort: [{ url: LANK, postId: "a1", typ: "anteckning", rubrik: "Protokoll" }] },
   ];
 
   it("ett meddelande med svar visar knappen, tråden öppnas och gästen svarar med text i tråden", async () => {
