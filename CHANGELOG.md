@@ -9,6 +9,40 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.193.0
+
+En PDF i appens egen vy, med Presentera i helskärm sida för sida (cllp/ops-framework#530). CP 2026-11-06, med en skärmbild av en PDF öppnad direkt från lagringen i Edge: "Det är inte så bra att det står firebase storage mm när man presenterar. Går det att köra PDF i ett eget fönster som döljer den länkraden ungefär som html-filen och sedan att man kan visa pdf:en i presentationsläge, helskärm, så att inte LIFE-HUB syns heller?" CP:s svar på frågorna: sida för sida, och gäster får presentera. Spärren mot nedladdning gäller fortfarande.
+
+### Tillagt
+
+- **PDF-vyn i Bibliotekets detalj.** En post med `application/pdf` ritas av pdf.js (`pdfjs-dist` 6.4.299, låst exakt) på en canvas per sida, i stället för en länk till lagringens adress. Byten hämtas med appens `hamtaFil` (inloggningen), och utan den (gästens bibliotek) ur den adress Biblioteket redan har, i datalagret (`src/data/filbytes.js`, `lasFilbytes`). Lagringens adress syns varken i vyn eller i adressfältet. Ingen ny prop krävs för detaljen.
+- **En smal rad:** filnamnet, Sida x av y (sidan mitt i rutan), zoomen (samma `useHtmlZoom` och `HtmlZoomRad` som HTML-rutan, Anpassa till bredd som förval), Presentera och Ladda ned. Ladda ned sparar byten vyn redan har (`sparaSomFil`) och följer gästens spärr: med `utanNedladdning` finns ingen Ladda ned, och Presentera finns kvar.
+- **Presentera:** Fullscreen API på vyns eget element, en sida i taget, anpassad till skärmen, mot den mörka ytan (`publik-mork`) och utan rad eller skal. Pilar, mellanslag, PageUp, PageDown, Enter, Home och End, klick (vänstra tredjedelen bakåt) och svep byter sida, Esc avslutar, och en svag knapp i hörnet avslutar utan tangentbord. Sidnumret syns 1,5 sekunder vid varje byte. Utan Fullscreen API (Safari på iPhone), eller när webbläsaren avslår, fyller presentationen fönstret i stället. Lämnar webbläsaren helskärmen själv är presentationen slut.
+- **`oppnaPdf(post)` på `OpsBibliotek`**, som `oppnaHtml`: appens sida för PDF:en. Med den står Öppna i eget fönster i raden, och kortet i listan är en länk dit för mellanklick och långtryck (`data-bibliotek-oppna-pdf`), medan ett vanligt tryck öppnar detaljen.
+- **`OpsPdfVy`**: samma visning i hela fönstret, med Stäng, för appens sida. **`pdfVyAdress`** och **`arPdfDokument`**: de rena funktionerna under propen; `pdfVyAdress` kastar för en `blob:`-, `data:`- eller `javascript:`-adress med samma regel som `htmlVyAdress` (`provadVyAdress`, utbruten).
+- **`sattPdfWorker(adress)`**: appens egen adress till pdf.js-workern, för Vites utvecklingsläge eller en annan bundler. Utan den räknar ramverket fram adressen med `new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url)`, och Vite lägger workern som en egen fil i appens bygge.
+- **Fel syns, med Försök igen** (`OpsGastFelrad`, raden från #675): en fil som inte går att hämta, en import av pdf.js som faller, en PDF med lösenord och en fil som inte är en PDF. Försök igen hämtar på nytt, också pdf.js och vyn: ett misslyckat försök glöms, inte `React.lazy` som minns det.
+
+### Ändrat
+
+- **`pdfjs-dist` är ett beroende** och externt i paketets bygge (`scripts/build.mjs`), så att appens bundler gör det till en egen bit och workern till en egen fil. Det drar med sig `@napi-rs/canvas` som valfritt beroende (pdf.js i Node). Webbläsaren använder det aldrig.
+- **`blobBytes`** har ett hem (`lib/blobbytes.js`). HTML-rutan och textförhandsvisningen hade var sin kopia, och PDF-vyn hade blivit den tredje.
+
+### Mätt
+
+- **Startfilen**, en app vars startfil importerar `OpsBibliotek`, mätt med Vite mot det byggda paketet, minifierad: 293 299 byte (94 371 gzip) på 0.192.0, 295 652 (95 229) nu, alltså 2 353 byte (858 gzip) mer: den lata omslutningen (`OpsPdfVisningLat`), felraden, sorten och adressen (`lib/pdfvisning.js`) och hämtningen ur adressen. Varken vyn eller pdf.js. Presentationens regler låg först i `lib/pdfvisning.js` och växte startfilen med dem; de ligger nu i `lib/pdfpresentation.js`, som bara vyn läser.
+- **Det som hämtas när en PDF öppnas**, minifierat: vyn 12 456 byte, pdf.js 483 741 byte, och workern 1 264 342 byte som egen fil.
+- **`check:delbarhet`** mäter tre nya saker: `OpsPdfVisning` och `laddaPdfjs` i en egen bit, importen av `pdfjs-dist` aldrig i startfilen (golv: någon bit har den), och i ett bygge där Vite buntar pdf.js blir workern en egen fil som bara den lata biten pekar på. Rött med en statisk import av vyn i Biblioteket (sex brott), rött utan `new URL` för workern (workern blir ingen fil), grönt med ändringen, och `--bevisa` rött mot paketet som en enda modul.
+- **I en riktig webbläsare** (Chromium via Playwright, en Vite-byggd app med riktiga pdf.js och worker, en PDF på tre sidor): sidorna ritas (816 × 1056 pixlar vid 100 procent, med text), Sida 3 av 3 efter rullning, Presentera går till helskärm på vyns `section`, pil höger byter sida och Esc avslutar. I 390 × 844 utan Fullscreen API fyller presentationen fönstret (390 × 844), ett tryck byter sida och knappen i hörnet avslutar. En riktig iPhone är inte mätt.
+
+### Inte gjort
+
+- **Safari på iPhone:** presentationen fyller fönstret, men Safaris egen rad kan synas. Som hemskärmsapp är fönstret hela skärmen.
+- **Teckensnitt och bilder som pdf.js hämtar som egna filer** (`cMapUrl`, `standardFontDataUrl`, `wasmUrl`): en PDF med icke-inbäddade teckensnitt utanför standarduppsättningen, eller bilder i JPEG 2000, kan ritas med ett annat teckensnitt eller utan bilden.
+- **Lösenord:** en skyddad PDF visas inte, och säger det. Den kan laddas ned.
+- **Den publika delningssidan, en händelses filer och chattens bilagor** visar PDF som förut.
+- **Appens del** (lifehub.app): sidan för `oppnaPdf` med `OpsPdfVy`, och ompinningen.
+
 ## 0.192.0
 
 Gästens gruppvy, i två delar: Cursors översikt och /guest (cursor/gast-oversikt-418a, d45e74c och 0709e24) och rättningarna av cllp/lifehub.app#673 och #675 ovanpå. Och zoomen i HTML-dokument (cllp/ops-framework#529).
