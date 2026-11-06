@@ -41,7 +41,8 @@
 const CLOSE = /[.,;:!?)\]]+$/;
 
 /**
- * @typedef {{ kind: "text" | "link" | "code" | "bold" | "italic" | "break", value: string, url?: string }} Bit
+ * @typedef {{ kind: "text" | "link" | "code" | "bold" | "italic" | "break", value: string, url?: string, fran?: number, till?: number }} Bit
+ *   `fran` och `till` (0.196.0) står bara på en länk: var i raden den råa formen börjar och slutar, så att `utanLankar` kan klippa bort just den.
  * @typedef {{ cross: boolean | null, inline: Bit[] }} ListEntry
  * @typedef {{ kind: "heading", level: number, inline: Bit[] }
  *   | { kind: "paragraph", inline: Bit[] }
@@ -92,7 +93,7 @@ export function splitInline(row) {
     else if (m[2] !== undefined && m[3] !== undefined) {
       // ⛔ `[text](javascript:...)` blir TEXT, inte en länk, och behåller sin
       // råa form. Den som skrev den ska se att den inte blev en länk.
-      piece = saker(m[3]) ? { kind: "link", value: m[2], url: m[3] } : { kind: "text", value: m[0] };
+      piece = saker(m[3]) ? { kind: "link", value: m[2], url: m[3], fran: start, till: start + m[0].length } : { kind: "text", value: m[0] };
     } else if (m[4] !== undefined) piece = { kind: "bold", value: m[4] };
     else if (m[6] !== undefined) piece = { kind: "italic", value: m[6] };
     else if (m[7] !== undefined) piece = { kind: "italic", value: m[7] };
@@ -100,7 +101,7 @@ export function splitInline(row) {
       const url = m[5].replace(CLOSE, "");
       // Hela träffen var skiljetecken efter schemat: ingen adress att länka.
       if (url === "https://" || url === "http://") continue;
-      piece = { kind: "link", value: url, url };
+      piece = { kind: "link", value: url, url, fran: start, till: start + url.length };
       if (start > last) out.push({ kind: "text", value: row.slice(last, start) });
       out.push(piece);
       last = start + url.length;
@@ -138,6 +139,40 @@ export function lankarI(text) {
     ut.push({ url: bit.url, text: bit.value });
   }
   return ut;
+}
+
+/**
+ * Texten utan de länkar som ritas som kort (0.196.0, cllp/ops-framework#527). Bara VISNINGEN: den lagrade texten behåller länken, så att en klient utan kort fortfarande har en väg till posten.
+ *
+ * ⛔ SAMMA TOLKNING SOM BUBBLAN (`splitInline`): det som klipps bort är exakt det bubblan hade gjort till en länk, aldrig en adress inne i en kodsnutt. En `[text](adress)` tas bort hel, eftersom kortet bär
+ * postens rubrik. Bara en rad där något klipptes städas (dubbla mellanrum, ett tomt `()`, mellanrum i kanterna), så att en lista eller ett kodblock behåller sin indragning.
+ *
+ * @param {string | null | undefined} text
+ * @param {Iterable<string>} adresser
+ * @returns {string} Tom sträng när inget annat än länkarna stod i texten.
+ */
+export function utanLankar(text, adresser) {
+  const bort = new Set(adresser);
+  const kalla = typeof text === "string" ? text : "";
+  if (bort.size === 0) return kalla;
+  return kalla
+    .split(/\r?\n/)
+    .map((rad) => {
+      let ut = "";
+      let sist = 0;
+      for (const b of splitInline(rad)) {
+        if (b.kind !== "link" || !b.url || !bort.has(b.url) || b.fran === undefined || b.till === undefined) continue;
+        ut += rad.slice(sist, b.fran);
+        sist = b.till;
+      }
+      if (sist === 0) return rad;
+      // En rad som bara bar länken försvinner helt, i stället för att lämna en tom rad mitt i bubblan.
+      return (ut + rad.slice(sist)).replace(/\(\s*\)/g, "").replace(/[ \t]{2,}/g, " ").trim() || null;
+    })
+    .filter((rad) => rad !== null)
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/^\s*\n|\n\s*$/g, "");
 }
 
 /** @param {string} row @returns {string[]} */

@@ -15,7 +15,7 @@ import { KopieraBilagaKnapp } from "./BilageKopiering.jsx";
 import { CHATTINFO_TEXTER, ORD_CHATTINFO, OpsChattinfo } from "./OpsChattinfo.jsx";
 import { OpsTooltip } from "./OpsTooltip.jsx";
 import { OpsMarkdown } from "./OpsMarkdown.jsx";
-import { splitInline } from "../lib/markdown.js";
+import { splitInline, utanLankar } from "../lib/markdown.js";
 import { OpsBanner } from "./OpsBanner.jsx";
 import { OpsIdentity } from "./OpsIdentity.jsx";
 import { NAMN_SAKNAS } from "../lib/personnamn.js";
@@ -3021,36 +3021,44 @@ export function Meddelanderader({ meddelanden, uid, namnFor: namnForProp, medlem
                   )
                 ) : null}
                 {m.svarPa && citat ? <Citat mid={m.svarPa} uppslag={citat.uppslag} egen={egen} uid={uid} namnFor={namnFor} texter={texter} /> : null}
-                {m.text ? (
-                  <Langtryckbubbla pa={menyPa} onMeny={(punkt) => setMeny({ id: m.id, punkt })}>
-                  <div
-                    data-bubbla=""
-                    data-traff={traffar?.ids.has(m.id) ? (traffar.aktuell === m.id ? "aktuell" : "traff") : undefined}
-                    className={cx(
-                      "min-w-0 rounded-2xl px-3.5 py-2 text-etikett leading-relaxed break-words",
-                      traffar?.ids.has(m.id) ? (traffar.aktuell === m.id ? "outline-2 outline-offset-2 outline-accent" : "outline-1 outline-offset-2 outline-line-strong") : "",
-                      egen ? "bg-accent text-accent-contrast" : "bg-hover text-ink",
-                      fortsattning && egen ? "rounded-tr-lg" : "",
-                      fortsattning && !egen ? "rounded-tl-lg" : "",
-                    )}
-                  >
-                    {/* ⛔ #273: chattens delmängd av markdown, med klickbara http- och https-länkar och ingen HTML. Färgen ärvs från
-                        bubblan: den egna är accentfärgad. */}
-                    <OpsMarkdown text={m.text} chatt />
-                  </div>
-                  </Langtryckbubbla>
-                ) : null}
-                {m.bilaga ? (
-                  <VisadBilaga
-                    m={m}
-                    kalla={kalla}
-                    sid={sid ?? ""}
-                    trad={trad}
-                    alt={`${texter.bilagaText} ${avNamnFor(namnFor, m, uid, texter.du, sprak)}: ${m.bilaga.namn}`}
-                    texter={texter}
-                  />
-                ) : null}
-                {postkort ? <Postkortrad text={m.text} postkort={postkort} egen={egen} texter={texter} /> : null}
+                {/* ⛔ EN LÄNK SOM BLEV ETT KORT STÅR INTE OCKSÅ I BUBBLAN (0.196.0, cllp/ops-framework#527): `visad` är texten utan de länkar som slogs upp till ett kort. Var länken allt som stod blir
+                    det ingen bubbla, bara kortet. Ett uppslag som gav `null` eller föll lämnar länken kvar (regel 5). Den lagrade texten är orörd. */}
+                <MedPostkort text={m.text} postkort={postkort} egen={egen} texter={texter}>
+                  {(visad, kort) => (
+                    <>
+                      {visad ? (
+                        <Langtryckbubbla pa={menyPa} onMeny={(punkt) => setMeny({ id: m.id, punkt })}>
+                        <div
+                          data-bubbla=""
+                          data-traff={traffar?.ids.has(m.id) ? (traffar.aktuell === m.id ? "aktuell" : "traff") : undefined}
+                          className={cx(
+                            "min-w-0 rounded-2xl px-3.5 py-2 text-etikett leading-relaxed break-words",
+                            traffar?.ids.has(m.id) ? (traffar.aktuell === m.id ? "outline-2 outline-offset-2 outline-accent" : "outline-1 outline-offset-2 outline-line-strong") : "",
+                            egen ? "bg-accent text-accent-contrast" : "bg-hover text-ink",
+                            fortsattning && egen ? "rounded-tr-lg" : "",
+                            fortsattning && !egen ? "rounded-tl-lg" : "",
+                          )}
+                        >
+                          {/* ⛔ #273: chattens delmängd av markdown, med klickbara http- och https-länkar och ingen HTML. Färgen ärvs från
+                              bubblan: den egna är accentfärgad. */}
+                          <OpsMarkdown text={visad} chatt />
+                        </div>
+                        </Langtryckbubbla>
+                      ) : null}
+                      {m.bilaga ? (
+                        <VisadBilaga
+                          m={m}
+                          kalla={kalla}
+                          sid={sid ?? ""}
+                          trad={trad}
+                          alt={`${texter.bilagaText} ${avNamnFor(namnFor, m, uid, texter.du, sprak)}: ${m.bilaga.namn}`}
+                          texter={texter}
+                        />
+                      ) : null}
+                      {kort}
+                    </>
+                  )}
+                </MedPostkort>
                 {/* ⛔ BARA UNDER EN AGENTS SVAR (0.105.0). Ett meddelande från en person som bär `forslag` (en klient skrev förbi
                     reglerna, eller ett fält med samma namn) får inga knappar: ett förslag är något agenten lägger fram. */}
                 {onForslag && !egen && sid && medlemstyp(m.av) === "agent" && /** @type {any} */ (m).forslag !== undefined ? (
@@ -4539,20 +4547,30 @@ function slaUppPostkort(sla, url) {
 /**
  * Korten för länkarna i ett meddelande: bara de http- och https-adresser texten redan gör klickbara (samma parser som bubblan),
  * högst `MAX_POSTKORT`, och bara de appen känner igen. ⛔ Ett uppslag som föll sägs ut, aldrig tyst.
- * @param {{ text: string, postkort: Postkort, egen: boolean, texter: Required<Meddelandetexter> }} props
+ *
+ * ⛔ (0.196.0, cllp/ops-framework#527) KOMPONENTEN GER OCKSÅ TEXTEN SOM SKA STÅ I BUBBLAN (`children(visad, kort)`): texten utan de länkar som blev ett kort (`utanLankar`). Förut stod länken både som en lång,
+ * radbruten adress i bubblan och som kortet under den, samma sak två gånger. En länk vars uppslag inte svarat än, gav `null` eller föll står kvar, så att ingenting försvinner tyst (regel 5).
+ * Utan `postkort` är texten orörd och inga uppslag görs.
+ *
+ * ⛔ KORTET HAR INGEN KANTLINJE (0.196.0, CP 2026-11-06: "Ta bort borders runt chatten och överallt."): det skiljs ut av samma svaga yta som bubblorna (`bg-hover`), och fokus syns med fokusringen.
+ *
+ * @param {{ text: string, postkort?: Postkort, egen: boolean, texter: Required<Meddelandetexter>, children: (visad: string, kort: import("react").ReactNode) => import("react").ReactNode }} props
  */
-function Postkortrad({ text, postkort, egen, texter: t }) {
+function MedPostkort({ text, postkort, egen, texter: t, children }) {
   const adresser = useMemo(() => {
+    if (!postkort) return [];
     /** @type {string[]} */
     const ut = [];
     for (const rad of String(text ?? "").split(/\r?\n/)) for (const b of splitInline(rad)) if (b.kind === "link" && b.url && !ut.includes(b.url)) ut.push(b.url);
     return ut.slice(0, MAX_POSTKORT);
-  }, [text]);
+  }, [text, postkort]);
+  const sla = postkort?.slaUpp;
   const [svar, setSvar] = useState(/** @type {Record<string, any>} */ ({}));
   useEffect(() => {
+    if (!sla) return undefined;
     let levande = true;
     for (const url of adresser) {
-      slaUppPostkort(postkort.slaUpp, url).then(
+      slaUppPostkort(sla, url).then(
         (r) => levande && setSvar((f) => ({ ...f, [url]: r ?? null })),
         () => levande && setSvar((f) => ({ ...f, [url]: { fel: true } })),
       );
@@ -4560,11 +4578,13 @@ function Postkortrad({ text, postkort, egen, texter: t }) {
     return () => {
       levande = false;
     };
-  }, [adresser, postkort.slaUpp]);
+  }, [adresser, sla]);
   const kort = adresser.filter((u) => svar[u]);
-  if (kort.length === 0) return null;
-  return (
-    <div className={cx("mt-1 flex w-full max-w-72 flex-col gap-1", egen ? "items-end" : "items-start")}>
+  const somKort = kort.filter((u) => !svar[u].fel);
+  if (!postkort || kort.length === 0) return children(text, null);
+  return children(
+    somKort.length ? utanLankar(text, somKort) : text,
+    <div data-postkortrad="" className={cx("mt-1 flex w-full max-w-72 flex-col gap-1", egen ? "items-end" : "items-start")}>
       {kort.map((url) =>
         svar[url].fel ? (
           <p key={url} data-postkort-fel={url} role="alert" className="m-0 text-liten text-danger">
@@ -4576,7 +4596,7 @@ function Postkortrad({ text, postkort, egen, texter: t }) {
             href={url}
             data-postkort={url}
             onClick={postkort.onOppna ? (e) => postkort.onOppna?.(url, e) : undefined}
-            className="flex min-h-11 w-full items-center gap-2.5 rounded-card border border-line bg-surface px-3 py-2 text-left no-underline transition-colors duration-(--duration-fast) ease-standard hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            className="flex min-h-11 w-full items-center gap-2.5 rounded-card bg-hover px-3 py-2 text-left no-underline transition-colors duration-(--duration-fast) ease-standard hover:bg-sunken focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           >
             <span aria-hidden="true" className="inline-flex shrink-0 text-accent">
               {svar[url].ikon ?? <FilIkon size={18} />}
@@ -4588,7 +4608,7 @@ function Postkortrad({ text, postkort, egen, texter: t }) {
           </a>
         ),
       )}
-    </div>
+    </div>,
   );
 }
 
