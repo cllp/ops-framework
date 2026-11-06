@@ -1,10 +1,10 @@
 import { cx } from "../lib/cx.js";
-import { formatDagOchKlockslag } from "../lib/format.js";
+import { formatDateTime } from "../lib/format.js";
 import { laesSkapare, skaparensNamn } from "../lib/skapare.js";
 import { OpsProvenance } from "./OpsProvenance.jsx";
 
 /**
- * Raden "Skapad av Namn, 29 sep 09:12, i Ekonomi" under en händelses titel, i listan och i händelsepanelen (0.43.0, #224).
+ * Raden "Skapad av Namn, 2026-09-29 09:12, i Ekonomi" under en händelses titel, i listan och i händelsepanelen (0.43.0, #224).
  *
  * ══ ⛔ ETT STÄLLE FÖR RADEN ═══════════════════════════════════════════════════════════════════════════════════════════
  *
@@ -70,7 +70,7 @@ export function Ursprungsrad({ skapadAv, skapad, ursprung, skapadAvEtikett, iMod
   // ⛔ NAMNET GÅR GENOM `skaparensNamn` (0.135.0, lifehub.app#409): en rad som en personlig API-nyckel skrev ritas "Miranda via Byggagent".
   const skapare = skapadAv && skapad ? laesSkapare(skapadAv) : null;
   const skapareNamn = skapare ? skaparensNamn(skapadAv, sprak) : "";
-  const vem = skapareNamn ? `${skapadAvEtikett} ${skapareNamn}, ${formatDagOchKlockslag(/** @type {string} */ (skapad), { locale: sprak })}` : null;
+  const vem = skapareNamn ? `${skapadAvEtikett} ${skapareNamn}, ${formatDateTime(/** @type {string} */ (skapad), { locale: sprak })}` : null;
   if (!vem && !u) return null;
 
   const modul = u ? (

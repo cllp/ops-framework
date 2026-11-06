@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { GASTSKRIV_MAX_TECKEN } from "../lib/gast.js";
-import { formatDagOchKlockslag, formatDate } from "../lib/format.js";
+import { formatDateTime, formatDate } from "../lib/format.js";
 import { definierade, forvalda } from "../lib/ord.js";
 import { statusTone } from "../lib/statusTone.js";
 import { isOpenCase } from "../lib/caseModel.js";
@@ -125,7 +125,7 @@ function Arendekort({ post, onKommentera, onKlar, sprak, t, igenkanning }) {
                 <span className="flex min-w-0 flex-wrap items-center gap-1.5 text-liten text-ink-muted">
                   <span>{k.egen ? t.du : k.av.namn}</span>
                   {k.gast ? <span data-gast-markning="" className="rounded-full bg-surface px-1.5 py-px text-mikro font-medium text-ink-secondary">{t.gast}</span> : null}
-                  <span>{formatDagOchKlockslag(k.tid, { locale })}</span>
+                  <span>{formatDateTime(k.tid, { locale })}</span>
                 </span>
                 <span className="whitespace-pre-wrap text-etikett text-ink wrap-anywhere">{k.text}</span>
               </li>

@@ -44,6 +44,7 @@
 
 import { byggKategori, ID_FORM, KATEGORIFALT, katalognyckel, valjbara } from "./katalog.js";
 import { text } from "./sprak.js";
+import { STANDARD_TIDSZON } from "./format.js";
 
 /** Färgerna en kalender får ha: identitetspalettens sex toner (`--color-identity-1` till `-6`). */
 export const KALENDERFARGER = /** @type {const} */ ([1, 2, 3, 4, 5, 6]);
@@ -121,8 +122,8 @@ export const MAX_KALENDERID = 80;
  */
 export const MAX_KALENDERIKON = 40;
 
-/** Förvald tidszon. En inställning, inte en konstant i koden (se filhuvudet). */
-export const STANDARD_TIDSZON = "Europe/Stockholm";
+/** Förvald tidszon. En inställning, inte en konstant i koden (se filhuvudet). Bor i `format.js` sedan 0.194.0, där tidsstämpeln också läser den. */
+export { STANDARD_TIDSZON };
 
 /** `YYYY-MM-DD`. */
 export const DATUMFORM = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;

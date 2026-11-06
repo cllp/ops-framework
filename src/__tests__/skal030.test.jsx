@@ -338,21 +338,23 @@ describe("F: skapa händelse med typ och vem som skapade (#173)", () => {
   });
 
   const rad = { id: "h1", title: "Bokslutsmöte", daysLeft: 3 };
-  const skapad = new Date(2026, 8, 29, 9, 12).toISOString(); // lokal 09:12, oavsett maskinens tidszon
+  // ⛔ 0.194.0: tidsstämpeln visas i svensk tid (`STANDARD_TIDSZON`), inte i maskinens. 07:12 UTC är 09:12 i svensk sommartid.
+  const skapad = new Date(Date.UTC(2026, 8, 29, 7, 12)).toISOString();
 
-  it("OpsEventList: 'Skapad av Namn, 29 sep 09:12' när både skapadAv och skapad finns", () => {
+  it("OpsEventList: 'Skapad av Namn, 2026-09-29 09:12' när både skapadAv och skapad finns", () => {
     render(<OpsEventList events={[{ ...rad, skapadAv: { namn: "Claes Philip" }, skapad }]} />);
-    expect(screen.getByText("Skapad av Claes Philip, 29 sep 09:12")).toBeTruthy();
+    expect(screen.getByText("Skapad av Claes Philip, 2026-09-29 09:12")).toBeTruthy();
   });
 
-  it("språket styr månaden och orden", () => {
+  // ⛔ 0.194.0: tidsstämpeln har ingen månad i ord längre, så bara orden skiljer språken åt. Datumet är ISO på båda.
+  it("språket styr orden", () => {
     render(<OpsEventList sprak="en" skapadAvEtikett="Created by" events={[{ ...rad, skapadAv: { namn: "Claes Philip" }, skapad }]} />);
-    expect(screen.getByText(/^Created by Claes Philip, 29 Sep\w* 09:12$/)).toBeTruthy();
+    expect(screen.getByText("Created by Claes Philip, 2026-09-29 09:12")).toBeTruthy();
   });
 
   it("en människa och en agent går inte att förväxla: OpsProvenance skriver ut ordet", () => {
     render(<OpsEventList events={[{ ...rad, id: "a", skapadAv: { namn: "Agenten", typ: "agent" }, skapad }]} />);
-    const rad1 = screen.getByText(/^Skapad av Agenten, 29 sep 09:12$/);
+    const rad1 = screen.getByText("Skapad av Agenten, 2026-09-29 09:12");
     expect(rad1.className).toContain("bg-agent-bg");
   });
 

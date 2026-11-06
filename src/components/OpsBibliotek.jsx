@@ -24,6 +24,7 @@ import { OpsTaggFilter, OpsTaggRad, menyPilar } from "./OpsTaggar.jsx";
 
 export { menyPilar, OpsTaggFilter as TaggFilter };
 import { formateraTid } from "../lib/ljudspelare.js";
+import { formatDateTime } from "../lib/format.js";
 import { lankKalla, lankKallnamn, lankRubrik } from "../lib/lankkalla.js";
 import { LISTA_FLYTT_TEXT, LISTA_I_LISTA_TEXT, listorAttLaggaI } from "../lib/biblioteklista.js";
 import { UTSKRIFT_VANTETID_MS, uppskattadUtskriftstid, utskriftLage, utskriftPagatText } from "../lib/utskrift.js";
@@ -217,6 +218,10 @@ const ORD_BIBLIOTEKLISTA = {
   forhandsvisa: { sv: "Förhandsvisa {namn}", en: "Preview {namn}" },
   laddaNed: { sv: "Ladda ned", en: "Download" },
   skrivenAv: { sv: "Skriven av {namn}.", en: "Written by {namn}." },
+  // ⛔ NÄR, I DETALJEN (0.194.0). CP 2026-11-06: "Jag vill ha tidsstämpel på allt." Detaljen sade vem men aldrig när.
+  skrivenAvNar: { sv: "Skriven av {namn}, {tid}.", en: "Written by {namn}, {tid}." },
+  skapadNar: { sv: "Skapad {tid}.", en: "Created {tid}." },
+  andradNar: { sv: "Ändrad {tid}.", en: "Changed {tid}." },
   utanNamn: { sv: "Författaren saknar namn.", en: "The author has no name." },
 };
 
@@ -1676,23 +1681,19 @@ function kortMeta(post, sprak = "sv") {
   }
   const ms = post.durationMs;
   if (arLjudpost(post) && Number.isInteger(ms) && /** @type {number} */ (ms) > 0) delar.push(formateraTid(/** @type {number} */ (ms) / 1000));
-  const datum = kortDatum(arLjudpost(post) ? post.skapad : post.andrad ?? post.skapad, Date.now(), sprak);
+  const datum = kortTidpunkt(arLjudpost(post) ? post.skapad : post.andrad ?? post.skapad);
   if (datum) delar.push(datum);
   return delar;
 }
 
 /**
- * Datumet på kortet (0.165.0): "31 okt." i år, "31 okt. 2025" ett annat år. Detaljen visar alltid året (`ljudDatum`).
+ * Tidsstämpeln på kortet: "2026-11-06 13:42" (0.194.0, `formatDateTime`). Tom sträng när tiden inte är ett heltal: då är den oställd, inte "noll".
+ *
+ * ⛔ FÖRUT "31 okt." (0.165.0), utan klockslag fast posten bär millisekunden. CP 2026-11-06: "Även dokument finns bara datum på. Det räcker inte."
  * @param {unknown} ms
- * @param {number} [nu]
- * @param {string} [sprak] (0.190.0) Månadens namn på språket. Förval svenska.
  */
-export function kortDatum(ms, nu = Date.now(), sprak = "sv") {
-  const hel = ljudDatum(ms, sprak);
-  if (!hel) return "";
-  const d = new Date(/** @type {number} */ (ms));
-  if (d.getFullYear() !== new Date(nu).getFullYear()) return hel;
-  return new Intl.DateTimeFormat(sprak === "en" ? "en-GB" : "sv-SE", { day: "numeric", month: "short" }).format(d);
+export function kortTidpunkt(ms) {
+  return Number.isInteger(ms) ? formatDateTime(/** @type {number} */ (ms)) : "";
 }
 
 /**
@@ -2650,9 +2651,7 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, onLaddaUpp, filUrl,
   const menyNamn = ljud && post ? ljudRubrik(post) : (post ? (trimSomRegeln(post.rubrik) || "Post") : rubrikVy);
   // ⛔ Via `skaparensNamn` (0.135.0, lifehub.app#409): en post som en personlig API-nyckel skrev heter "Skriven av Miranda via Byggagent."
   const skaparNamn = post ? skaparensNamn(post.skapadAv, sprak) : "";
-  const metaText = lage === "las" && post
-    ? (skaparNamn ? ordet(ORD_BIBLIOTEKLISTA, "skrivenAv", sprak).replace("{namn}", skaparNamn) : ordet(ORD_BIBLIOTEKLISTA, "utanNamn", sprak))
-    : "";
+  const metaText = lage === "las" && post ? detaljMeta(post, skaparNamn, sprak) : "";
 
   return (
     <div data-bibliotek-detalj={typ} data-bibliotek-lasning={lage === "las" ? "" : undefined} className="flex flex-col gap-4">
@@ -2687,6 +2686,26 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, onLaddaUpp, filUrl,
       {lage === "las" && post && !skapar && kommentarer ? <BibliotekKommentarerLat key={post.id} post={post} kalla={kommentarer} fokus={fokusKommentar} sprak={sprak} /> : null}
     </div>
   );
+}
+
+/**
+ * Detaljens rad om vem och när (0.194.0): "Skriven av Miranda, 2026-11-06 13:42. Ändrad 2026-11-07 09:10."
+ *
+ * ⛔ ÄNDRAD STÅR BARA NÄR DEN SKILJER SIG FRÅN SKAPAD. Samma tid två gånger säger ingenting, och raden ska inte bli längre än
+ * det den har att säga. Saknas tiden (äldre post utan `skapad`) står raden som före 0.194.0, utan påhittad tid.
+ *
+ * @param {{ skapad?: number, andrad?: number }} post
+ * @param {string} skaparNamn
+ * @param {string} sprak
+ */
+function detaljMeta(post, skaparNamn, sprak) {
+  const o = (/** @type {keyof typeof ORD_BIBLIOTEKLISTA} */ k) => ordet(ORD_BIBLIOTEKLISTA, k, sprak);
+  const skapad = kortTidpunkt(post.skapad);
+  const vem = skaparNamn
+    ? (skapad ? o("skrivenAvNar").replace("{tid}", skapad) : o("skrivenAv")).replace("{namn}", skaparNamn)
+    : skapad ? `${o("skapadNar").replace("{tid}", skapad)} ${o("utanNamn")}` : o("utanNamn");
+  const andrad = Number.isInteger(post.andrad) && Number.isInteger(post.skapad) && /** @type {number} */ (post.andrad) > /** @type {number} */ (post.skapad) ? kortTidpunkt(post.andrad) : "";
+  return andrad && andrad !== skapad ? `${vem} ${o("andradNar").replace("{tid}", andrad)}` : vem;
 }
 
 /**

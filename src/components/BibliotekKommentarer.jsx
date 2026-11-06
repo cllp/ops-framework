@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { formatDagOchKlockslag } from "../lib/format.js";
+import { formatDateTime } from "../lib/format.js";
 import { MAX_MEDDELANDE } from "../lib/samtal.js";
 import { ordet } from "../lib/ord.js";
 import { OpsButton } from "./OpsButton.jsx";
@@ -122,7 +122,7 @@ export function BibliotekKommentarer({ post: postProp, kalla, fokus = false, spr
               <span className="flex min-w-0 flex-wrap items-center gap-1.5 text-liten text-ink-muted">
                 <span className="font-medium text-ink-secondary">{k.egen ? o("du") : k.namn}</span>
                 {k.gast ? <span data-gast-markning="" className="rounded-full bg-surface px-1.5 py-px text-mikro font-medium text-ink-secondary">{o("gast")}</span> : null}
-                <span>{formatDagOchKlockslag(k.tid, { locale })}</span>
+                <span>{formatDateTime(k.tid, { locale })}</span>
               </span>
               <span className="whitespace-pre-wrap text-etikett text-ink wrap-anywhere">{k.text}</span>
             </li>

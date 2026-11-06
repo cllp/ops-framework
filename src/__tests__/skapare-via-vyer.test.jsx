@@ -18,7 +18,8 @@ import { kommentarsrader } from "../lib/handelsemodell.js";
 
 const via = { nyckelId: "0123456789abcdef", namn: "Byggagent" };
 const miranda = { uid: "uid-miranda", namn: "Miranda", typ: "manniska", kalla: "api" };
-const skapad = new Date(2026, 8, 29, 9, 12).toISOString();
+// ⛔ UTC 07:12 är 09:12 i svensk sommartid. Tidsstämpeln visas i svensk tid sedan 0.194.0, oavsett maskinens zon.
+const skapad = new Date(Date.UTC(2026, 8, 29, 7, 12)).toISOString();
 
 describe("Ursprungsrad (OpsEventList och OpsHandelsePanel)", () => {
   const rad = { id: "h1", title: "Bokslutsmöte", daysLeft: 3 };
@@ -26,15 +27,15 @@ describe("Ursprungsrad (OpsEventList och OpsHandelsePanel)", () => {
   it("listan: 'Skapad av Miranda via Byggagent', och utan via 'Skapad av Miranda'", () => {
     render(<OpsEventList events={[{ ...rad, id: "a", skapadAv: { ...miranda, via }, skapad }, { ...rad, id: "b", skapadAv: miranda, skapad }]} />);
     const [med, utan] = /** @type {HTMLElement[]} */ ([...document.querySelectorAll("[data-ursprungsrad]")]);
-    expect(med.textContent).toContain("Skapad av Miranda via Byggagent, 29 sep 09:12");
-    expect(utan.textContent).toContain("Skapad av Miranda, 29 sep 09:12");
+    expect(med.textContent).toContain("Skapad av Miranda via Byggagent, 2026-09-29 09:12");
+    expect(utan.textContent).toContain("Skapad av Miranda, 2026-09-29 09:12");
     expect(utan.textContent).not.toContain("via");
   });
 
   it("panelen ritar samma rad", () => {
     render(<OpsHandelsePanel handelse={{ id: "h1", titel: "Bokslut", datum: "2026-10-12", skapadAv: { ...miranda, via }, skapad }} onTillbaka={() => {}} />);
     const r = /** @type {HTMLElement} */ (document.querySelector("[data-handelsepanel] [data-ursprungsrad]"));
-    expect(r.textContent).toContain("Skapad av Miranda via Byggagent, 29 sep 09:12");
+    expect(r.textContent).toContain("Skapad av Miranda via Byggagent, 2026-09-29 09:12");
   });
 
   it("⛔ märket syns också när skaparen är en människa: via gör inte raden till en agents (roboten är agentens)", () => {
@@ -86,15 +87,15 @@ describe("OpsBibliotek, en posts detalj", () => {
     return render(<OpsBibliotek poster={[p]} vald={p} jag={{ uid: "uid-miranda", roll: "medlem" }} onOppna={() => {}} onStang={() => {}} onSkapa={() => {}} onSpara={() => {}} hubHref="/hub" />);
   };
 
-  it("'Skriven av Miranda via Byggagent.' när en nyckel skrev posten", () => {
+  it("'Skriven av Miranda via Byggagent, <tid>.' när en nyckel skrev posten", () => {
     detalj({ ...miranda, via });
-    expect(document.querySelector("[data-bibliotek-meta]")?.textContent).toContain("Skriven av Miranda via Byggagent.");
+    expect(document.querySelector("[data-bibliotek-meta]")?.textContent).toContain("Skriven av Miranda via Byggagent, 2023-11-14 23:13.");
   });
 
-  it("och 'Skriven av Miranda.' utan via", () => {
+  it("och 'Skriven av Miranda, <tid>.' utan via", () => {
     detalj(miranda);
     const meta = document.querySelector("[data-bibliotek-meta]")?.textContent ?? "";
-    expect(meta).toContain("Skriven av Miranda.");
+    expect(meta).toContain("Skriven av Miranda, 2023-11-14 23:13.");
     expect(meta).not.toContain("via");
   });
 });
