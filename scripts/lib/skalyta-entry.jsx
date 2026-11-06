@@ -294,6 +294,13 @@ const GASTGRUPP_SVAR = {
   ] }),
   fil: ({ postId }) => ({ ok: true, url: "data:application/pdf;base64,JVBERi0xLjQK", namn: "lat.pdf", mime: "application/pdf", postId }),
 };
+/*
+ * Gästens ordmärke (granskningen av PR 524): ett brett, tätt beskuret märke i 4:1 som appens headerbild (1079 x 260), en bild per tema. Inget utanför märket är luft, så det som
+ * mäts i avsnitt 56 är märkets egen storlek.
+ */
+const gastOrdmarke = (/** @type {string} */ farg) =>
+  `data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="400" height="100" viewBox="0 0 400 100"><rect width="400" height="100" rx="12" fill="${farg}"/><rect x="24" y="30" width="352" height="40" fill="#ffffff"/></svg>`)}`;
+const GAST_MARKE = { ljus: gastOrdmarke("#2a6f5b"), mork: gastOrdmarke("#7fd1b9"), namn: "LifeHub" };
 function GastGruppSidaScen() {
   const w = /** @type {any} */ (window);
   const lagring = (() => {
@@ -309,7 +316,7 @@ function GastGruppSidaScen() {
       lank={{ id: GAST_ID, nyckel: GAST_NYCKEL }}
       lagring={lagring}
       intervallMs={0}
-      huvud={<span className="text-publik-ingress font-semibold text-publik-ljus-text">LifeHub</span>}
+      marke={GAST_MARKE}
       onLos={async () => ({ ok: true, sessionsnyckel: GAST_SESSION })}
       onHamta={async () => ({ ok: true, namn: "", funktion: "grupp", grupp: GASTGRUPP })}
       onNyLank={async () => ({ ok: true })}

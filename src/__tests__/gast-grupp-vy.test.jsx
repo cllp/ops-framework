@@ -720,12 +720,15 @@ describe("OpsGastSida med OpsGastGrupp: (i) bär integriteten och Skriv in adres
     for (const k of [`ops-gast:${ID}`, `ops-gast:${ID2}`, "ops-gast:senaste", "ops-gast:alla"]) expect(lagring.d[k], k).toBeUndefined();
   });
 
-  it("⛔ marke ritas i skalets märkesruta: 40 px hög, högst --logo-bredd, en bild per tema och appens namn som alternativtext", async () => {
+  it("⛔ marke ritas i skalets märkesruta: 40 px hög, högst --logo-bredd, ett brett ordmärke som fyller höjden utan beskärning, en bild per tema och appens namn som alternativtext", async () => {
     rita({ marke: { ljus: "https://x/ljus.png", mork: "https://x/mork.png", namn: "LifeHub" }, huvud: <a href="/">Tillbaka</a> });
     await screen.findByRole("heading", { level: 1, name: "Källan" });
     const ruta = /** @type {HTMLElement} */ (document.querySelector("[data-gast-huvud] [data-gast-marke]"));
-    expect(ruta.className.split(" ")).toEqual(expect.arrayContaining(["h-10", "max-w-(--logo-bredd)", "overflow-hidden"]));
+    expect(ruta.className.split(" ")).toEqual(expect.arrayContaining(["h-10", "max-w-(--logo-bredd)"]));
+    // Granskningen av PR 524: ingen beskärning. Rutan klipper inte, och bilden fyller rutans höjd med bredden ur bildens form (storleken mäts i check:skalyta 56 (d)).
+    expect(ruta.className).not.toMatch(/overflow-hidden/);
     expect([...ruta.querySelectorAll("img")].map((i) => i.getAttribute("src"))).toEqual(["https://x/ljus.png", "https://x/mork.png"]);
+    for (const bild of ruta.querySelectorAll("img")) expect(bild.className.split(" ")).toEqual(expect.arrayContaining(["h-full", "w-auto", "max-w-full", "object-contain", "object-left"]));
     expect(screen.getByRole("img", { name: "LifeHub" })).toBeInTheDocument();
     // Appens eget huvud står kvar efter märket.
     expect(within(/** @type {HTMLElement} */ (document.querySelector("[data-gast-huvud]"))).getByRole("link", { name: "Tillbaka" })).toBeInTheDocument();

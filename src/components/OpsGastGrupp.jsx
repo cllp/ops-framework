@@ -53,14 +53,20 @@ const FLIKIKON = /** @type {Record<string, import("react").ReactNode>} */ ({
 /**
  * Ytan mellan huvudet och bottenraden på en telefon (0.190.0, CP 2026-11-05 i cllp/lifehub.app#658, del B: "Innehållet får hela höjden"). Höjden är skalets
  * (`useFullHeight`, `FULL_HEIGHT_CLASSES`): den mäts ut till bottenradens överkant, eller spelradens när ljud spelar, och ytan rullar i sig själv. Chatten fyller den
- * (`fyll`), så att skrivfältet står närmast bottenraden. Ett eget element per flik (`key`), så att höjden mäts om när fliken byts.
+ * (`fyll`), så att skrivfältet står närmast bottenraden.
+ *
+ * ⛔ EN NY YTA PER FLIK, OCH NYCKELN SITTER DÄR YTAN RITAS (`<GastTelefonyta key={flik}>`), INTE PÅ ELEMENTET INUTI. Granskningen av PR 524, appens montage mot en
+ * byggd app: med ljud som spelade i biblioteket blev dokumentet 965 px högt i ett fönster på 844, och ytan slutade på 842 i stället för vid spelradens överkant.
+ * Nyckeln satt på `div`:en här inne. Då byttes elementet när fliken byttes, men komponenten och dess `useFullHeight` levde kvar med samma `ref`-objekt, så effekten
+ * kördes inte om och mätte och bevakade det gamla, urkopplade elementet. Dess ruta är noll, så nästa mätning (spelraden som dök upp) gav toppen 0 och höjden
+ * `botten - 0`. Med nyckeln på komponenten byts allt ihop: ny `ref`, ny effekt, nya observatörer på det element som faktiskt syns.
  * @param {{ flik: string, children: import("react").ReactNode }} props
  */
 function GastTelefonyta({ flik, children }) {
   const ref = useRef(/** @type {HTMLDivElement | null} */ (null));
   const stil = useFullHeight(ref);
   return (
-    <div key={flik} ref={ref} style={stil} data-gast-telefonyta={flik} className={cx("flex min-w-0 flex-col", FULL_HEIGHT_CLASSES)}>
+    <div ref={ref} style={stil} data-gast-telefonyta={flik} className={cx("flex min-w-0 flex-col", FULL_HEIGHT_CLASSES)}>
       {children}
     </div>
   );
@@ -664,7 +670,7 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
       </header>
       {smal ? (
         <>
-          <GastTelefonyta flik={aktivFlik}>{innehall(aktivFlik)}</GastTelefonyta>
+          <GastTelefonyta key={aktivFlik} flik={aktivFlik}>{innehall(aktivFlik)}</GastTelefonyta>
           <OpsBottomNav
             utanMeny
             nav={synliga.map((f) => ({ href: `#${f}`, label: t[`flik_${f}`], icon: FLIKIKON[f] }))}

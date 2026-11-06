@@ -8055,6 +8055,34 @@ async function gastGrupp() {
         krav(telefon ? m.tablist === 0 && m.bottenrad === 1 && m.radknappar === 0 : m.tablist === 1 && m.bottenrad === 0, `${namn} sida (d): ${m.tablist} flikrader och ${m.bottenrad} bottenrader med ${m.radknappar} knappar, väntat ${telefon ? "ingen flikrad och en bottenrad utan plus och utan Meny" : "en flikrad och ingen bottenrad"}.`);
         krav(m.h1 === 1 && !m.overflow, `${namn} sida (d): ${m.h1} h1 (väntat 1), sidled ${m.overflow}.`);
         krav(m.lankar.length === 0 && !/Inställningar|Ekonomi|Appar|Hubb|Agent/.test(m.sidtext), `${namn} sida (d): sidan har en väg ut eller ett ord ur appens skal (${JSON.stringify(m.lankar)}).`);
+        // (d) ORDMÄRKET (granskningen av PR 524: cirka 50 x 22 px i appens montage, CP: "typ obefintligt liten"). Scenen ger ett brett, tätt beskuret märke i 4:1, som appens
+        // headerbild. Det som mäts är den MÅLADE bilden (`object-fit` räknat ur bildens egen storlek) och vad av den som syns innanför rutan: minst 120 x 28 px, och hela märket
+        // synligt (ingen beskärning). Golv: exakt en synlig bild i märket, laddad.
+        const mk = await page.evaluate(() => {
+          const ruta = document.querySelector("[data-gast-marke]");
+          const bilder = ruta ? [...ruta.querySelectorAll("img")].filter((b) => getComputedStyle(b).display !== "none") : [];
+          if (!ruta || bilder.length !== 1 || !bilder[0].complete || !bilder[0].naturalWidth) return { golv: false, antal: bilder.length };
+          const b = bilder[0];
+          const r = b.getBoundingClientRect();
+          const cs = getComputedStyle(b);
+          const skala = cs.objectFit === "contain" ? Math.min(r.width / b.naturalWidth, r.height / b.naturalHeight) : null;
+          const w = skala === null ? r.width : b.naturalWidth * skala;
+          const h = skala === null ? r.height : b.naturalHeight * skala;
+          const [px, py] = cs.objectPosition.split(" ").map((v) => parseFloat(v) / 100);
+          const x0 = r.left + (r.width - w) * (Number.isFinite(px) ? px : 0.5);
+          const y0 = r.top + (r.height - h) * (Number.isFinite(py) ? py : 0.5);
+          const rr = ruta.getBoundingClientRect();
+          const klipper = getComputedStyle(ruta).overflow !== "visible";
+          const vx0 = klipper ? Math.max(x0, rr.left) : x0, vx1 = klipper ? Math.min(x0 + w, rr.right) : x0 + w;
+          const vy0 = klipper ? Math.max(y0, rr.top) : y0, vy1 = klipper ? Math.min(y0 + h, rr.bottom) : y0 + h;
+          return { golv: true, malad: { w, h }, synlig: { w: Math.max(0, vx1 - vx0), h: Math.max(0, vy1 - vy0) }, ruta: { w: rr.width, h: rr.height } };
+        });
+        matt.push(`${namn} sida: ordmärket ${mk.golv ? `målat ${mk.malad.w.toFixed(0)}x${mk.malad.h.toFixed(0)}, synligt ${mk.synlig.w.toFixed(0)}x${mk.synlig.h.toFixed(0)} i rutan ${mk.ruta.w.toFixed(0)}x${mk.ruta.h.toFixed(0)} px` : `hittades inte (${mk.antal} synliga bilder)`}`);
+        krav(mk.golv, `${namn} sida (d, golv): märket har ${mk.antal} synliga, laddade bilder, väntat 1.`);
+        if (mk.golv) {
+          krav(mk.synlig.w >= 120 && mk.synlig.h >= 28, `${namn} sida (d): ordmärket syns som ${mk.synlig.w.toFixed(0)}x${mk.synlig.h.toFixed(0)} px, väntat minst 120 x 28 med ett märke i 4:1.`);
+          krav(Math.abs(mk.synlig.w - mk.malad.w) <= 0.5 && Math.abs(mk.synlig.h - mk.malad.h) <= 0.5, `${namn} sida (d): ordmärket är beskuret: ${mk.malad.w.toFixed(0)}x${mk.malad.h.toFixed(0)} px målat, ${mk.synlig.w.toFixed(0)}x${mk.synlig.h.toFixed(0)} syns. Ett tätt beskuret märke ska synas helt.`);
+        }
         krav(m.bubblor >= 4 && m.skrivfalt === 1 && m.chattOverflow === false, `${namn} sida (e): chatten har ${m.bubblor} bubblor (väntat minst 4), ${m.skrivfalt} skrivfält (väntat 1), sidled ${m.chattOverflow}.`);
         // Skrivfältet är chattens, utan bilagor och agent. ⛔ 0.190.0 (del D, CP 2026-11-05: gästen får mikrofon): där webbläsaren har taligenkänning står ljudvågen i Skickas
         // plats när fältet är tomt, som för en medlem, och Skicka kommer när något skrivits. Ingen mening under fältet (QA fynd 8); en annan gästs meddelande bär märket Gäst.
@@ -8139,6 +8167,24 @@ async function gastGrupp() {
         }
         const hamtat = await page.evaluate(() => JSON.stringify(/** @type {any} */ (window).__gastgruppanrop.map((a) => a[0])));
         krav(hamtat.startsWith('["skrivChatt"') && ["kalender", "bibliotek"].every((a) => hamtat.includes(`"${a}"`)) && !hamtat.includes("arenden"), `${namn} sida (e): anropen blev ${hamtat}, väntat chatt (och skrivChatt) först och därefter kalender och bibliotek när flikarna öppnades, och aldrig arenden.`);
+        if (telefon) {
+          // (e) MED SPELRADEN (PR 524, appens montage mot en byggd app: dokumentet 965 px högt i 844 när ljud spelade i biblioteket). Ytan slutar vid spelradens överkant och
+          // sidan rullar inte. Golv: spelraden och ytan hittades.
+          await page.getByRole("button", { name: "Spela Demo" }).first().click();
+          await page.waitForSelector("[data-ops-spelrad]");
+          await page.waitForTimeout(300);
+          const sp = await page.evaluate(() => {
+            const yta = document.querySelector("[data-gast-telefonyta]")?.getBoundingClientRect() ?? null;
+            const rad = document.querySelector("[data-ops-spelrad]")?.getBoundingClientRect() ?? null;
+            return { ytaTop: yta?.top ?? null, ytaBottom: yta?.bottom ?? null, radTop: rad?.top ?? null, dok: document.documentElement.scrollHeight, fonster: innerHeight };
+          });
+          matt.push(`${namn} sida med spelrad: ytan ${sp.ytaTop?.toFixed(0)} till ${sp.ytaBottom?.toFixed(0)}, spelradens överkant ${sp.radTop?.toFixed(0)}, dokument ${sp.dok} i ${sp.fonster}`);
+          krav(sp.ytaBottom !== null && sp.radTop !== null, `${namn} sida (e, golv): ${sp.radTop === null ? "spelraden" : "ytan"} hittades inte med ljud som spelar.`);
+          if (sp.ytaBottom !== null && sp.radTop !== null) {
+            krav(Math.abs(sp.ytaBottom - sp.radTop) <= 2 && sp.dok <= sp.fonster + 1, `${namn} sida (e): med spelraden slutar ytan på ${sp.ytaBottom.toFixed(0)}, spelradens överkant är ${sp.radTop.toFixed(0)} (väntat samma, +-2), och dokumentet är ${sp.dok} px i ett fönster på ${sp.fonster} (väntat att sidan inte rullar).`);
+          }
+          if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `gaster-grupp-sida-spelrad-${w}.png`), fullPage: true });
+        }
 
         // (f) integriteten. ⛔ 0.190.0 (del A): den ligger bakom (i) under gruppens namn, stängd från början.
         krav(await page.getByText("Integritet och dina uppgifter").count() === 0, `${namn} sida (f): integriteten syns utan att (i) öppnats.`);

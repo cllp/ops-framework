@@ -83,8 +83,12 @@ export const ORD_OPSGASTSIDA = {
 };
 
 /**
- * Appens bildlogga i samma ruta som skalets märke (0.190.0): 40 px hög som `OpsBrand`s ruta i toppraden, högst `--logo-bredd` bred. Bilden är 64 px hög och beskärs
- * uppe och nere i samma proportion som inloggningen (`OpsInloggning`: 2,5 rem av 14 rem), så att det som syns är märket och inte bildens luft. En bild per tema, som där.
+ * Appens ordmärke i samma ruta som skalets märke (0.190.0): 40 px hög som `OpsBrand`s ruta i toppraden, högst `--logo-bredd` bred.
+ *
+ * ⛔ BILDEN ÄR ETT BRETT, TÄTT BESKURET ORDMÄRKE, INTE FYRKANTIG KONST MED LUFT (granskningen av PR 524). Den första formen tog appens fyrkantiga bilder, ritade dem 64 px
+ * höga och beskar uppe och nere som inloggningen. Märket blev ändå cirka 50 x 22 px i appens montage, eftersom en fyrkant med luft runt inte kan bli bredare än sin höjd i
+ * en ruta som är 40 px hög. CP:s klagomål var just att loggan var "typ obefintligt liten". Nu fyller bilden rutans höjd, bredden följer bildens form (ett märke i 4:1 blir
+ * cirka 160 x 40 px), och ingenting beskärs: `object-contain` och `object-left` håller hela märket synligt och mot vänsterkanten. En bild per tema, som i inloggningen.
  * @param {{ marke: { ljus: string, mork: string, namn: string } }} props
  */
 function GastMarke({ marke }) {
@@ -92,9 +96,9 @@ function GastMarke({ marke }) {
     throw new Error("OpsGastSida: marke är { ljus, mork, namn }: en bild per tema och appens namn som alternativtext.");
   }
   return (
-    <span data-gast-marke="" className="flex h-10 max-w-(--logo-bredd) shrink-0 items-center overflow-hidden">
+    <span data-gast-marke="" className="flex h-10 max-w-(--logo-bredd) shrink-0 items-center">
       {[["ljus", marke.ljus, "mix-blend-multiply"], ["mork", marke.mork, ""]].map(([tema, src, extra]) => (
-        <img key={tema} src={src} alt={tema === "ljus" ? marke.namn : ""} aria-hidden={tema === "ljus" ? undefined : true} className={cx(tema === "ljus" ? "ops-ordmarke-ljus" : "ops-ordmarke-mork", "h-16 w-auto max-w-full object-contain", extra)} />
+        <img key={tema} src={src} alt={tema === "ljus" ? marke.namn : ""} aria-hidden={tema === "ljus" ? undefined : true} className={cx(tema === "ljus" ? "ops-ordmarke-ljus" : "ops-ordmarke-mork", "h-full w-auto max-w-full object-contain object-left", extra)} />
       ))}
     </span>
   );
@@ -151,9 +155,9 @@ const ERSATTBARA = /** @type {readonly string[]} */ (["utgangen"]);
  * @param {(arg: { grupp: { namn: string, funktioner: readonly string[] }, namn: string, sessionsnyckel: string, uppdatera: () => Promise<void> }) => import("react").ReactNode} [props.renderGrupp] (0.132.0) Hela gruppen. `uppdatera` hämtar om sidan:
  *   anropa den när en åtgärd nekas (`aterkallad`), så byts allt mot texten direkt i stället för vid nästa minut. Utan den visas en text om att inbjudan inte går att visa.
  * @param {import("react").ReactNode} [props.huvud] Appens logga eller namn, till vänster i huvudet. Med `marke` står det efter märket (en länk tillbaka till hubben).
- * @param {{ ljus: string, mork: string, namn: string }} [props.marke] (0.190.0, CP 2026-11-05 i cllp/lifehub.app#658, del A) Appens bildlogga, en URL per tema, ritad i samma
- *   ruta som skalets märke (40 px hög, `--logo-bredd` bred) och beskuren som inloggningens (`OpsInloggning ordmarke`): appens bilder är fyrkantiga med luft runt, och i `huvud`
- *   som `h-8` blev loggan en bråkdel av appens. `namn` är bildens alternativtext.
+ * @param {{ ljus: string, mork: string, namn: string }} [props.marke] (0.190.0, CP 2026-11-05 i cllp/lifehub.app#658, del A) Appens ordmärke, en URL per tema: en BRED bild som är
+ *   tätt beskuren runt märket, som appens headerbild (1079 x 260, ungefär 4:1), inte fyrkantig konst med luft runt. Den ritas i samma ruta som skalets märke (40 px hög, högst
+ *   `--logo-bredd` bred), fyller höjden och beskärs inte, så ett märke i 4:1 blir cirka 160 x 40 px. `namn` är bildens alternativtext.
  * @param {string} [props.sprak] `sv` eller `en` om appen styr det. Utelämnat: sidan väljer själv och minns valet.
  * @param {(sprak: string) => void} [props.onSprak]
  * @param {number} [props.intervallMs] Hur ofta saken hämtas på nytt medan sidan är öppen. Förval 60 000. `0` stänger av tidtagningen (fokus hämtar ändå).
