@@ -45,7 +45,7 @@
  * PDF-vyn (`OpsPdfVisning`) och pdf.js ritas bara i detaljen för en PDF. pdf.js är över en megabyte, och i en startfil hade den kostat varje app vid varje start för en fil som kanske aldrig öppnas.
  * Därför mäts tre saker med `OpsBibliotek` som startfilens import: `OpsPdfVisning` och `laddaPdfjs` ligger i en egen bit (`OpsPdfVisningLat`), importen av paketet `pdfjs-dist` står i en bit utanför startfilen
  * och aldrig i den (golv: någon bit har den), och i ett bygge där Vite får bunta pdf.js (inte externt) blir workern en egen fil som bara den lata biten pekar på. Det sista är beviset att workerns adress
- * (`new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url)` i `lib/pdfjs.js`) fungerar när en app bundlar ramverket med Vite.
+ * (`new URL("pdfjs-dist/legacy/build/pdf.worker.min.mjs", import.meta.url)` i `lib/pdfjs.js`) fungerar när en app bundlar ramverket med Vite.
  *
  * ⛔ RÖTT UTAN DELNINGEN, GRÖNT MED DEN (arbetsreglernas punkt 4): `--bevisa` slår ihop samma `dist` till en enda fil (som före 0.156.0) och kör
  * samma mätning. Den ska ge rött på punkt 2 för båda komponenterna. Är den grön mäter provet ingenting.
@@ -197,7 +197,7 @@ async function matWorker() {
   const worker = ut.output.find((o) => o.type === "asset" && /pdf\.worker/.test(o.fileName));
   /** @type {string[]} */
   const fel = [];
-  if (!worker) fel.push("Workern blev ingen egen fil i appens bygge. `new URL(\"pdfjs-dist/build/pdf.worker.min.mjs\", import.meta.url)` i lib/pdfjs.js löses inte av Vite, och pdf.js startar utan worker.");
+  if (!worker) fel.push("Workern blev ingen egen fil i appens bygge. `new URL(\"pdfjs-dist/legacy/build/pdf.worker.min.mjs\", import.meta.url)` i lib/pdfjs.js löses inte av Vite, och pdf.js startar utan worker.");
   const pdfjsBit = andra.find((b) => b.code.includes("GlobalWorkerOptions") && b.code.includes("getDocument"));
   if (!pdfjsBit) fel.push("GOLV: ingen bit utanför startfilen innehåller pdf.js (getDocument). Provet har inte mätt pdf.js.");
   if (worker && !andra.some((b) => b.code.includes(path.basename(worker.fileName)))) fel.push(`Ingen lat bit pekar på workern (${worker.fileName}).`);

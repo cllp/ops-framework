@@ -8,12 +8,18 @@
  *
  * ══ ⛔ WORKERN ═══════════════════════════════════════════════════════════════════════════════════════════════════════
  *
- * pdf.js tolkar filen i en egen worker, och behöver dess adress. Ramverket känner inga sökvägar i appen, så adressen räknas fram med `new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url)`: Vite känner igen
+ * pdf.js tolkar filen i en egen worker, och behöver dess adress. Ramverket känner inga sökvägar i appen, så adressen räknas fram med `new URL("pdfjs-dist/legacy/build/pdf.worker.min.mjs", import.meta.url)`: Vite känner igen
  * mönstret i appens bygge, löser paketet och lägger workern som en egen fil bredvid appens övriga (mätt i `check:delbarhet`). Har appen gett en adress (`sattPdfWorker`) vinner den. Se README för när det behövs.
+ *
+ * ══ ⛔ LEGACY-BYGGET, INTE DET MODERNA ════════════════════════════════════════════════════════════════════════════════
+ *
+ * pdf.js 6 i sitt moderna bygge (`build/`) anropar `Promise.try`, `Map.prototype.getOrInsertComputed` och `Math.sumPrecise` utan reservväg. Mätt i ramverkets prov: Node 22 har inte `Promise.try`, och pdf.js föll
+ * med "Promise.try is not a function". Samma funktioner saknas i Safari före 18.2 (`Promise.try`) och i fler webbläsare för de två andra, alltså på en del av de iPhones där en PDF ska presenteras. Legacy-bygget
+ * (`legacy/build/`) bär dem själv. Det kostar cirka 58 kB i pdf.js och 57 kB i workern, minifierat (mätt i en Vite-byggd app), och bara när en PDF öppnas.
  *
  * ══ ⛔ SÄKERHETEN ════════════════════════════════════════════════════════════════════════════════════════════════════
  *
- * `isEvalSupported: false`: pdf.js får aldrig bygga kod ur filen. I 6.4.299 finns den vägen inte alls (mätt: varken `new Function` eller `eval(` i `pdf.mjs` eller i workern, och flaggan är borttagen ur pdf.js 6), men
+ * `isEvalSupported: false`: pdf.js får aldrig bygga kod ur filen. I 6.4.299 finns den vägen inte alls (mätt: varken `new Function` eller `eval(` i `pdf.mjs` eller i workern, i båda byggena, och flaggan är borttagen ur pdf.js 6), men
  * flaggan står kvar så att en äldre pdf.js i en app inte tyst öppnar den. `enableXfa: false`: inga XFA-formulär. Inget skript ur PDF:en körs: ingen `scripting`-sandlåda laddas, och vyn ritar bara sidorna på en
  * canvas (inga länkar, inga formulärfält, inget textlager).
  */
@@ -32,7 +38,7 @@ let pdfjsLaddas = null;
  */
 export function laddaPdfjs() {
   if (!pdfjsLaddas) {
-    pdfjsLaddas = import("pdfjs-dist")
+    pdfjsLaddas = import("pdfjs-dist/legacy/build/pdf.mjs")
       .then((pdfjs) => {
         if (!pdfjs.GlobalWorkerOptions.workerSrc) pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerAdress() || standardWorker();
         return pdfjs;
@@ -47,7 +53,7 @@ export function laddaPdfjs() {
 
 /** Workerns adress i appens bygge. Se filhuvudet. */
 function standardWorker() {
-  return new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).href;
+  return new URL("pdfjs-dist/legacy/build/pdf.worker.min.mjs", import.meta.url).href;
 }
 
 /**

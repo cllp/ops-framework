@@ -8,7 +8,7 @@ import { OpsPdfVy } from "../components/OpsPdfVy.jsx";
  *
  * ⛔ RÖTT UTAN ÄNDRINGEN: utan grenen för `import` i `OpsPdfVisning` står hämtningstexten kvar och provet hittar ingen felrad.
  */
-vi.mock("pdfjs-dist", () => {
+vi.mock("pdfjs-dist/legacy/build/pdf.mjs", () => {
   throw new Error("Failed to fetch dynamically imported module");
 });
 

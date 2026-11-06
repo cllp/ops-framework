@@ -3362,7 +3362,7 @@ CP 2026-10-30: "de skulle gå att öppna direkt i ett fönster. Inte ladda ner s
 
 CP 2026-11-06, med en skärmbild av en PDF öppnad direkt från lagringen i Edge: "Det är inte så bra att det står firebase storage mm när man presenterar. Går det att köra PDF i ett eget fönster som döljer den länkraden ungefär som html-filen och sedan att man kan visa pdf:en i presentationsläge, helskärm, så att inte LIFE-HUB syns heller?" Svaren på frågorna i ärendet: sida för sida, och gäster får presentera.
 
-En PDF ritas nu av pdf.js (Mozilla, `pdfjs-dist` 6.4.299) i appens egen vy, i Bibliotekets detalj och i ett eget fönster. Filen hämtas som byte och ritas på en canvas per sida. Lagringens adress finns aldrig i vyn och aldrig i adressfältet.
+En PDF ritas nu av pdf.js (Mozilla, `pdfjs-dist` 6.4.299, legacy-bygget: det moderna anropar `Promise.try` och andra nya funktioner utan reservväg, och föll i Node 22 och saknas i Safari före 18.2) i appens egen vy, i Bibliotekets detalj och i ett eget fönster. Filen hämtas som byte och ritas på en canvas per sida. Lagringens adress finns aldrig i vyn och aldrig i adressfältet.
 
 | Del | Vad |
 |---|---|
@@ -3375,14 +3375,14 @@ En PDF ritas nu av pdf.js (Mozilla, `pdfjs-dist` 6.4.299) i appens egen vy, i Bi
 | `sattPdfWorker(adress)` | Frivillig. Se workern nedan. |
 
 - ⛔ **pdf.js laddas lat, aldrig i startfilen.** Vyn (`OpsPdfVisning`) läses in av `OpsPdfVisningLat` när en PDF ska ritas, och pdf.js med en dynamisk import därifrån. `check:delbarhet` mäter att varken vyn, `laddaPdfjs` eller importen av `pdfjs-dist` finns i en startfil som importerar `OpsBibliotek`. Faller importen står en rad med **Försök igen**, och ett nytt försök hämtar på nytt.
-- ⛔ **Workern.** pdf.js tolkar filen i en worker. Ramverket räknar fram dess adress med `new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url)`, och Vite gör den till en egen fil i appens bygge (mätt i `check:delbarhet`: `assets/pdf.worker.min-<hash>.mjs`, och bara den lata biten pekar på den). Appen gör ingenting. I Vites utvecklingsläge kan förbuntningen av beroenden flytta ramverkets modul så att adressen inte längre stämmer (hypotes, inte mätt); ser man felraden "Visningen för PDF gick inte att hämta" i `vite dev` men inte i bygget, ge adressen själv en gång före första PDF:en:
+- ⛔ **Workern.** pdf.js tolkar filen i en worker. Ramverket räknar fram dess adress med `new URL("pdfjs-dist/legacy/build/pdf.worker.min.mjs", import.meta.url)`, och Vite gör den till en egen fil i appens bygge (mätt i `check:delbarhet`: `assets/pdf.worker.min-<hash>.mjs`, och bara den lata biten pekar på den). Appen gör ingenting. I Vites utvecklingsläge kan förbuntningen av beroenden flytta ramverkets modul så att adressen inte längre stämmer (hypotes, inte mätt); ser man felraden "Visningen för PDF gick inte att hämta" i `vite dev` men inte i bygget, ge adressen själv en gång före första PDF:en:
   ```js
-  import pdfWorker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+  import pdfWorker from "pdfjs-dist/legacy/build/pdf.worker.min.mjs?url";
   import { sattPdfWorker } from "ops-framework";
   sattPdfWorker(pdfWorker);
   ```
   Samma rad gäller en annan bundler än Vite. Alternativet är `optimizeDeps: { exclude: ["ops-framework"] }`.
-- ⛔ **Säkerheten.** `isEvalSupported: false` och `enableXfa: false` till `getDocument` (`PDF_DOKUMENTVAL` i `lib/pdfjs.js`). I pdf.js 6 finns ingen väg att bygga kod ur filen alls (mätt: varken `new Function` eller `eval(` i `pdf.mjs` eller workern), och flaggan står kvar för en äldre pdf.js. Inget skript ur PDF:en körs, inga formulärfält och inga länkar ritas: bara sidorna på en canvas. Lagringens regler är oförändrade.
+- ⛔ **Säkerheten.** `isEvalSupported: false` och `enableXfa: false` till `getDocument` (`PDF_DOKUMENTVAL` i `lib/pdfjs.js`). I pdf.js 6 finns ingen väg att bygga kod ur filen alls (mätt: varken `new Function` eller `eval(` i legacy-byggets `pdf.mjs` eller worker), och flaggan står kvar för en äldre pdf.js. Inget skript ur PDF:en körs, inga formulärfält och inga länkar ritas: bara sidorna på en canvas. Lagringens regler är oförändrade.
 - ⛔ **Fel syns, med Försök igen** (raden från #675, `OpsGastFelrad`): en fil som inte går att hämta (med skälet), en import av pdf.js som faller, en PDF med lösenord och en fil som inte är en PDF. En sida som inte går att rita säger det på sin plats.
 - **Sidorna ritas när de syns** (`IntersectionObserver`, en skärmhöjd före), så en lång PDF ritar inte alla sidor när den öppnas. Sida x av y är sidan mitt i rutan. Presentationen börjar på den sidan.
 - **CORS.** `hamtaFil` med `getBlob` och gästens hämtning ur den signerade adressen är båda anrop från appens ursprung till lagringen, och kräver att appens ursprung står i lagringens CORS (`storage.cors.json`, metoden `GET`). Det är samma krav som HTML-dokumentet redan har.

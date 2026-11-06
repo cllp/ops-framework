@@ -42,7 +42,7 @@ const pdfjs = vi.hoisted(() => {
   return s;
 });
 
-vi.mock("pdfjs-dist", () => ({
+vi.mock("pdfjs-dist/legacy/build/pdf.mjs", () => ({
   getDocument: (/** @type {any} */ v) => pdfjs.getDocument(v),
   GlobalWorkerOptions: pdfjs.GlobalWorkerOptions,
 }));
