@@ -16,7 +16,7 @@ function Harness({ start }) {
 }
 
 describe("Ladda ned i detaljen för varje filtyp", () => {
-  for (const [id, namn, mime] of [["txt", "ux-upload-test.txt", "text/plain"], ["pdf", "avtal.pdf", "application/pdf"], ["film", "rep.mp4", "video/mp4"], ["zip", "arkiv.zip", "application/zip"]]) {
+  for (const [id, namn, mime] of [["txt", "ux-upload-test.txt", "text/plain"], ["film", "rep.mp4", "video/mp4"], ["zip", "arkiv.zip", "application/zip"]]) {
     it(`⛔ ${namn} får Ladda ned med download`, () => {
       render(<Harness start={[post(id, `Post ${id}`, { namn, mime })]} />);
       fireEvent.click(screen.getByRole("button", { name: `Post ${id}` }));
@@ -25,6 +25,14 @@ describe("Ladda ned i detaljen för varje filtyp", () => {
       expect(knapp).toHaveAttribute("href", `https://exempel.se/grupper/g/bibliotek/${id}/${namn}`);
     });
   }
+  // (0.193.0, cllp/ops-framework#530) En PDF ritas i appens egen vy, och Ladda ned står i dess rad som en knapp som sparar byten vyn redan har: lagringens adress ska inte stå i någon länk.
+  it("⛔ avtal.pdf får Ladda ned i PDF-vyns rad, utan lagringens adress", async () => {
+    render(<Harness start={[post("pdf", "Post pdf", { namn: "avtal.pdf", mime: "application/pdf" })]} />);
+    fireEvent.click(screen.getByRole("button", { name: "Post pdf" }));
+    expect(await screen.findByRole("button", { name: "Ladda ned" })).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Ladda ned" })).toBeNull();
+    for (const el of document.querySelectorAll("[href]")) expect(el.getAttribute("href")).not.toContain("exempel.se/grupper/g/bibliotek/pdf");
+  });
 });
 
 describe("Ladda ned sparar via blob (QA 2026-11-01, download ignoreras cross-origin)", () => {

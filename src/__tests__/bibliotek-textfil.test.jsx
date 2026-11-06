@@ -154,11 +154,19 @@ describe("textfilen i detaljen", () => {
     expect(document.querySelector("[data-bibliotek-text]")).toBeNull();
   });
 
-  it("en PDF och en bild förhandsvisas inte som text: hamtaFil anropas inte", async () => {
+  // (0.193.0, cllp/ops-framework#530) En PDF ritas i PDF-vyn, som hämtar byten med samma `hamtaFil`. Den visas aldrig som text.
+  it("en PDF förhandsvisas inte som text, utan i PDF-vyn", async () => {
     const hamtaFil = vi.fn(async () => blobAv(["x"]));
     visa(fil("avtal.pdf", "application/pdf"), hamtaFil);
-    await screen.findByRole("link", { name: /avtal\.pdf/ });
+    await waitFor(() => expect(document.querySelector("[data-bibliotek-pdf]")).toBeTruthy());
+    expect(document.querySelector("[data-bibliotek-text]")).toBeNull();
+  });
+  it("en bild förhandsvisas inte som text: hamtaFil anropas inte", async () => {
+    const hamtaFil = vi.fn(async () => blobAv(["x"]));
+    visa(fil("bild.png", "image/png"), hamtaFil);
+    await screen.findByRole("button", { name: /Förhandsvisa/ });
     expect(hamtaFil).not.toHaveBeenCalled();
+    expect(document.querySelector("[data-bibliotek-text]")).toBeNull();
   });
 });
 
