@@ -17,6 +17,7 @@ import { OpsBottomNav } from "./OpsBottomNav.jsx";
 import { OpsEmpty } from "./OpsEmpty.jsx";
 import { OpsGastArenden } from "./OpsGastArenden.jsx";
 import { OpsGastChatt } from "./OpsGastChatt.jsx";
+import { OpsGastFelrad } from "./OpsGastFelrad.jsx";
 import { OpsHandelsePanel } from "./OpsHandelsePanel.jsx";
 import { OpsList, OpsListRow } from "./OpsList.jsx";
 import { useGastsidaInfo } from "./gastsidaInfo.js";
@@ -137,6 +138,7 @@ export const ORD_OPSGASTGRUPP = {
   rubrikSvar: { sv: "Svar", en: "Answer" },
   omrostningEjStodd: { sv: "Det finns en omröstning här som inte går att visa i den här versionen av appen.", en: "There is a vote here that cannot be shown in this version of the app." },
   fel_kundeInte: { sv: "Det gick inte just nu. Försök igen.", en: "That did not work right now. Try again." },
+  forsokIgen: { sv: "Försök igen", en: "Try again" },
   "fel_ogiltig-text": { sv: "Meddelandet är tomt eller för långt.", en: "The message is empty or too long." },
   "fel_for-manga": { sv: "För många anrop. Vänta en stund och försök igen.", en: "Too many requests. Wait a while and try again." },
   // (0.190.0) Gruppen har stängt av nedladdning för gäster: ett dokument som bara kan laddas ned går inte att öppna.
@@ -157,6 +159,9 @@ class GastFel extends Error {
     this.orsak = orsak;
   }
 }
+
+/** Orsaken i ett fel från `kor`. Allt annat (ett avvisat löfte, nätet) är `kundeInte`. Orsaken sparas, texten görs vid ritningen (#675). */
+const orsakAv = (/** @type {unknown} */ e) => (e instanceof GastFel ? e.orsak : "kundeInte");
 
 /** Så gammal får en flik vara innan den hämtas om när man kommer tillbaka till den eller fönstret får fokus, i millisekunder. Listorna hämtas på begäran och aldrig på en tidtagare: en kalender är hundratals läsningar. */
 const FRISKT_MS = 60_000;
@@ -213,6 +218,10 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
   if (!grupp || typeof grupp.namn !== "string" || !Array.isArray(grupp.funktioner)) throw new Error("OpsGastGrupp: grupp är { namn, funktioner } ur tjänstens hamta().grupp.");
   if (!api || typeof api.chatt !== "function") throw new Error("OpsGastGrupp: api krävs, anropen mot servern (gastGruppApi).");
   const t = { ...forvalda(ORD_OPSGASTGRUPP, sprak), ...definierade(/** @type {Record<string, string>} */ (ord ?? {})) };
+  // ⛔ ORDEN LÄSES GENOM EN REF I DE MINNESLAGDA ANROPEN (0.192.0, cllp/lifehub.app#675). `ladda`, `hamtaAdress` och `kommentarer` byggs om bara när `kor`
+  // ändras, och läste därför den första renderingens `t`. Appen sätter språket efter starten (GastSida, `valdSprak`), och felen kom då på engelska.
+  const tRef = useRef(t);
+  tRef.current = t;
   const funktioner = GASTGRUPPFUNKTIONER.filter((f) => grupp.funktioner.includes(f));
   if (funktioner.length === 0) throw new Error("OpsGastGrupp: gruppen har inga funktioner att visa (grupp.funktioner).");
 
@@ -257,15 +266,19 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
   }, []);
 
   /** @param {unknown} e */
-  const felText = (e) => {
-    const orsak = e instanceof GastFel ? e.orsak : "kundeInte";
-    return t[`fel_${orsak}`] ?? t.fel_nej;
-  };
+  const felText = (e) => felOrd(orsakAv(e));
+  /** Texten för en orsak, på det språk som gäller vid den här ritningen. */
+  const felOrd = (/** @type {string} */ orsak) => tRef.current[`fel_${orsak}`] ?? tRef.current.fel_nej;
 
   /** Hämtar en flik. `tyst`: ingen väntan visas och ett fel lämnar det som redan står (tidtagare, fokus). */
   const ladda = useCallback(
     async (/** @type {string} */ namn, /** @type {{ tyst?: boolean, aldre?: boolean, ping?: boolean }} */ val = {}) => {
-      if (!val.tyst && !val.aldre) setLaddar((l) => ({ ...l, [namn]: true }));
+      // ⛔ EN NY HÄMTNING TAR BORT DET GAMLA FELET (#675). Förut rensades det bara av en lyckad hämtning, och vyn visar felet före väntan:
+      // ett flikbyte hämtade på nytt men felet stod kvar tills sidan laddades om.
+      if (!val.tyst && !val.aldre) {
+        setLaddar((l) => ({ ...l, [namn]: true }));
+        setFel((f) => ({ ...f, [namn]: null }));
+      }
       if (val.aldre) setAldreLaddar(true);
       try {
         /** @type {any} */
@@ -297,7 +310,9 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
         setFel((f) => ({ ...f, [namn]: null }));
       } catch (e) {
         if (!levande.current) return;
-        if (!val.tyst) setFel((f) => ({ ...f, [namn]: felText(e) }));
+        // ⛔ ORSAKEN SPARAS, INTE TEXTEN (#675). `ladda` minns den första renderingens `t` (beroenden `[kor]`), så en sparad text stod kvar på
+        // engelska när appen satte svenska efter starten. Orsaken blir text vid ritningen (`felOrd`).
+        if (!val.tyst) setFel((f) => ({ ...f, [namn]: orsakAv(e) }));
       } finally {
         if (levande.current) {
           setLaddar((l) => ({ ...l, [namn]: false }));
@@ -477,7 +492,7 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
         const r = await kor("fil", { postId: sokvag });
         return r.url;
       } catch (e) {
-        throw new Error(e instanceof GastFel && e.orsak !== "kundeInte" ? felText(e) : t.bibliotekFilFel);
+        throw new Error(e instanceof GastFel && e.orsak !== "kundeInte" ? felText(e) : tRef.current.bibliotekFilFel);
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -630,7 +645,7 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
         </div>
       );
     }
-    if (fel.kalender) return <p role="alert" data-gast-kalender-fel="" className="m-0 text-etikett text-danger">{fel.kalender}</p>;
+    if (fel.kalender) return <OpsGastFelrad data="gast-kalender-fel" text={felOrd(fel.kalender)} forsokIgen={t.forsokIgen} onForsokIgen={() => void ladda("kalender")} />;
     if (!kalender || laddar.kalender) return <OpsEmpty busy title={t.laddar} busyLabel={t.laddar} />;
     return (
       <div data-gast-kalender="" className="flex min-w-0 flex-col gap-3">
@@ -656,7 +671,7 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
   };
 
   const bibliotekInnehall = () => {
-    if (fel.bibliotek) return <p role="alert" data-gast-bibliotek-fel="" className="m-0 text-etikett text-danger">{fel.bibliotek}</p>;
+    if (fel.bibliotek) return <OpsGastFelrad data="gast-bibliotek-fel" text={felOrd(fel.bibliotek)} forsokIgen={t.forsokIgen} onForsokIgen={() => void ladda("bibliotek")} />;
     return (
       <div data-gast-bibliotek="" className="flex min-w-0 flex-col gap-3">
         <OpsBibliotek
@@ -682,7 +697,8 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
 
   // ⛔ ÄRENDEFLIKEN FINNS BARA MED MINST ETT DELEGERAT ÄRENDE (skiva 3), eller när hämtningen föll: ett fel som tystades vore en flik som saknas utan att någon fick veta varför.
   const arendeData = /** @type {{ poster: any[], avkortad?: boolean } | undefined} */ (data.arenden);
-  const visaArenden = funktioner.includes("arenden") && ((arendeData?.poster.length ?? 0) > 0 || Boolean(fel.arenden));
+  // (0.192.0, #675) Också medan en ny hämtning pågår i den öppna fliken: en ny hämtning rensar felet, och utan raden hade fliken försvunnit under gästen.
+  const visaArenden = funktioner.includes("arenden") && ((arendeData?.poster.length ?? 0) > 0 || Boolean(fel.arenden) || (flik === "arenden" && Boolean(laddar.arenden)));
   const synliga = funktioner.filter((f) => f !== "arenden" || visaArenden);
   // Översikt är alltid först och är inte en behörighet. En sparad ärendeflik som inte längre har något att visa faller tillbaka hit.
   const ordning = ["oversikt", ...synliga];
@@ -739,6 +755,7 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
         onOppnaPost={funktioner.includes("bibliotek") ? oppnaPostUrChatten : undefined}
         laddar={!chatt && !fel.chatt}
         fel={fel.chatt}
+        onForsokIgen={() => void ladda("chatt")}
         sprak={sprak}
         fyll={smal}
       />
@@ -747,7 +764,7 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
     ) : f === "bibliotek" ? (
       bibliotekInnehall()
     ) : (
-      <OpsGastArenden poster={arendeData?.poster ?? []} avkortad={Boolean(arendeData?.avkortad)} onKommentera={kommenteraArende} onKlar={markeraArendeKlart} laddar={!arendeData && !fel.arenden} fel={fel.arenden} sprak={sprak} />
+      <OpsGastArenden poster={arendeData?.poster ?? []} avkortad={Boolean(arendeData?.avkortad)} onKommentera={kommenteraArende} onKlar={markeraArendeKlart} laddar={!arendeData && !fel.arenden} fel={fel.arenden} onForsokIgen={() => void ladda("arenden")} sprak={sprak} />
     );
 
   // ⛔ SPRÅKET GÄLLER HELA GÄSTENS TRÄD (0.190.0, QA fynd 4 i cllp/lifehub.app#658): komponenterna som läser språket ur sammanhanget
