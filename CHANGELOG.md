@@ -9,6 +9,39 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.194.0
+
+Tidsstämpel på allt som har hänt, inte bara datum. CP 2026-11-06: "Alla uppdateringar av projektinformation i modulen projekt behöver datum/tidsstämpel. Även dokument finns bara datum på. Det räcker inte. Jag vill ha tidsstämpel på allt. ... Ny info skall ha datum/tidsstämplar." Det här är ramverkets del; Projekt-modulen är appens.
+
+### Det appen måste göra
+
+- **Använd `formatDateTime(värde, { tidszon? })` för varje tidsstämpel** (skapad, ändrad, uppladdad, kommenterad, beslutad), i stället för egna `Intl`-former eller `formatDate`. Planerade datum (deadline, milstolpe, heldag) visas som förut med `formatDate`.
+
+### Ändrat
+
+- **`formatDateTime` är ramverkets enda tidsstämpel:** "2026-11-06 13:42". ÅÅÅÅ-MM-DD som appen redan visar, och klockslaget med kolon och 24 timmar, som chattens och aktivitetens `formatTime`, så att samma ögonblick inte står i två former på samma skärm. Samma form på svenska och engelska: engelskans "06/11/2026" är 6 november i London och 11 juni i New York. Sammansatt ur `formatToParts`, så formen beror inte på ICU-versionen. Förut gav den `Intl`:s egen form, och med `locale: "en"` blev det "11/06/2026, 01:42 PM".
+- **Svensk tid som förval**, `STANDARD_TIDSZON` (Europe/Stockholm), med `tidszon` för en app som har en egen inställning. Konstanten bor nu i `lib/format.js`, och `lib/kalendrar.js` exporterar samma värde därifrån (en sanning, regel 2).
+- **Ett rent datum förblir ett datum:** "2026-11-06" visas som "2026-11-06", aldrig som "2026-11-06 00:00".
+- **En Firestore-`Timestamp`** (allt med `toMillis()`) läses av alla formaterare i `lib/format.js`. Förut blev den ett ogiltigt datum och visades som `-`.
+- **Biblioteket:** kortets metarad visar tidsstämpeln ("HTML · 68 kB · 2026-10-31 10:07"), inte "31 okt.". Detaljen säger när, inte bara vem: "Skriven av Kim, 2026-11-06 13:42. Ändrad 2026-11-07 09:10.", med Ändrad bara när den skiljer sig från skapad. Versionsvyn för HTML och kommentarstråden visar samma form. `kortDatum` i `OpsBibliotek.jsx` heter `kortTidpunkt(ms)`.
+- **Samma form i** kommentarerna (`OpsKommentarer`, ärendets kommentarer för gästen), raden "Skapad av" (`Ursprungsrad`, i listan och i händelsepanelen), minnet (`OpsMinne`, förut `toLocaleString` med sekunder), GitHub-dokumentets "ändrad"-rad (förut bara datumet) och inkorgens rad för en äldre dag (förut bara datumet).
+
+### Rättat
+
+- **Kategoriloggen visade UTC.** "Senaste ändringarna" skrev ut de 16 första tecknen ur `nar`, som skrivs med `toISOString()`. En ändring 13:42 i Stockholm stod som 12:42 på vintern och 11:42 på sommaren. Nu `formatDateTime`.
+
+### Lämnat som datum, med skäl
+
+- Planerade datum: deadline och utförs i uppgifter, förfallodag i gästens ärenden, kalenderns dagar och heldagar, händelsepanelens datum, en delad händelses datum (`kortDatum` i `lib/deladdatum.js`), datumväljaren och `OpsBeskrivenApp`:s datumvärden. De är datum till sin natur.
+- Utgångsdatum för en delad länk och för en gästs länk (`giltigTill`): ett slut som någon har valt, inte något som har hänt.
+- Rubriker som är namn: "Anteckning 18 okt 00:47", "Röstinspelning 6 nov. 2026", "Idé 2026-11-06 13:42". En rubrik går att byta, och en tidsstämpel i rubriken är inte postens tidsstämpel.
+- Klockslaget under en dagsrubrik (chattens bubblor, aktivitetens rader): dagen står redan i rubriken (CP 2026-09-25 om dubblerad tid). Hela tidsstämpeln står i `title` och i detaljen, som förut.
+- `OpsStat`:s ålder i ord ("i går"): en färskhetssignal, med tidsstämpeln i `title`.
+
+### Mätt
+
+- Se PR:en för startfilens storlek före och efter (`check:delbarhet`).
+
 ## 0.193.0
 
 En PDF i appens egen vy, med Presentera i helskärm sida för sida (cllp/ops-framework#530). CP 2026-11-06, med en skärmbild av en PDF öppnad direkt från lagringen i Edge: "Det är inte så bra att det står firebase storage mm när man presenterar. Går det att köra PDF i ett eget fönster som döljer den länkraden ungefär som html-filen och sedan att man kan visa pdf:en i presentationsläge, helskärm, så att inte LIFE-HUB syns heller?" CP:s svar på frågorna: sida för sida, och gäster får presentera. Spärren mot nedladdning gäller fortfarande.

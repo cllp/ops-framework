@@ -674,8 +674,9 @@ typkontrollerades.
 | | |
 |---|---|
 | `formatCurrency`, `formatNumber`, `formatPercent` | svensk formatering via `Intl` |
-| `formatDate`, `formatDateTime` | rena datum visas som rätt dag, inte dagen innan |
-| `formatDagOchKlockslag` | (0.117.0 exporterad) "18 okt 00:47": dag, kort månad och klockslag i lokal tidszon |
+| `formatDate` | rena datum visas som rätt dag, inte dagen innan. För det som är PLANERAT: en deadline, en milstolpe, en heldag |
+| `formatDateTime` | (0.194.0) tidsstämpeln för allt som HAR HÄNT: "2026-11-06 13:42", samma form på svenska och engelska, i svensk tid (`STANDARD_TIDSZON`) om appen inte ger `tidszon`. Ett rent datum ("2026-11-06") förblir ett datum och blir aldrig "00:00". Tar `Date`, millisekunder, ISO-sträng och Firestore-`Timestamp`. Ramverkets enda form för skapad, ändrad, kommenterad och loggad; appen ska använda samma |
+| `formatDagOchKlockslag` | (0.117.0 exporterad) "18 okt 00:47": dag, kort månad och klockslag i lokal tidszon. Kvar för rubriker som "Anteckning 18 okt 00:47"; en tidsstämpel på en rad är `formatDateTime` |
 | `formatRelativeDate` | ålder i ord, räknad i kalenderdagar: 23:50 i går är "i går" klockan 00:10, inte "i dag" |
 | `getTheme`, `setTheme`, `initTheme` | ljust, mörkt, följ systemet |
 | `identityTone`, `initials`, `IDENTITY_TONE_COUNT` | deterministisk ton och initialer som inte klipper tecken |
