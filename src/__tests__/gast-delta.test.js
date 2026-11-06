@@ -836,7 +836,7 @@ describe("lista: delta och rosta på samma händelse hålls isär", () => {
     const delta = await h.tjanst.lista({ uid: SKAPARE, handelseId: "h-mote", funktion: "delta" });
     expect(delta.gaster.map((g) => [g.epost, g.deltasvar])).toEqual([[ANNA, "kommerInte"], [BO, null]]);
     for (const g of delta.gaster) {
-      expect(Object.keys(g).sort()).toEqual(["antalSkickade", "aterkallad", "deltasvar", "epost", "forstInloggad", "gastId", "id", "namn", "omfang", "skapad", "skapadAv", "skickad", "status"].sort());
+      expect(Object.keys(g).sort()).toEqual(["antalSkickade", "aterkallad", "deltasvar", "epost", "forstInloggad", "gastId", "id", "namn", "omfang", "skapad", "skapadAv", "skickad", "status", "telefon"].sort());
       expect(JSON.stringify(g)).not.toMatch(/nyckelHash|felAntal|sekvens|andringsnyckel/);
     }
     expect(delta.platser).toMatchObject({ anvanda: 3 });

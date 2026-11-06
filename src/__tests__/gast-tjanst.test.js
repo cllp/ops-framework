@@ -167,7 +167,7 @@ describe("bjud: vem får, och vad som skrivs", () => {
   it("en skapare bjuder in: raden skrivs, brevet bär nyckeln, och inget returvärde gör det", async () => {
     const { tjanst, brev, kalla } = bygg();
     const svar = await bjud(tjanst);
-    expect(svar).toEqual({ id: expect.stringMatching(/^[0-9a-f]{64}$/), gastId: gastId("anna@foretag.se"), ny: true, vackt: false });
+    expect(svar).toEqual({ id: expect.stringMatching(/^[0-9a-f]{64}$/), gastId: gastId("anna@foretag.se"), ny: true, vackt: false, slag: "epost" });
     expect(brev).toHaveLength(1);
     expect(brev[0]).toMatchObject({ typ: "inbjudan", till: "anna@foretag.se", skickadAv: { uid: SKAPARE } });
     const lank = brev[0].lankar[0];
@@ -675,7 +675,7 @@ describe("kopieraLank: samma länk igen ur valvet (0.189.0, CP 2026-11-05: \"Man
     const { id } = await bjud(h.tjanst);
     expect(sparadeFore).toBe(1);
     const ut = await h.tjanst.kopieraLank({ uid: SKAPARE, id });
-    expect(ut).toEqual({ id, nyckel: senasteLank(h.brev).nyckel, lankGiltigTill: NU + GASTLANKDAGAR * DYGN });
+    expect(ut).toEqual({ id, nyckel: senasteLank(h.brev).nyckel, lankGiltigTill: NU + GASTLANKDAGAR * DYGN, slag: "epost" });
     await expect(h.tjanst.los({ id, nyckel: ut.nyckel, epost: "anna@foretag.se", ip: IP })).resolves.toBeTruthy();
   });
 

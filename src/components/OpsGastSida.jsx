@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { cx } from "../lib/cx.js";
 import { lasSparatSprak, sparaSprak, valdSprak } from "../lib/deladdatum.js";
-import { GASTDELTASVAR, GASTFEL, GASTNYLANK_SVAR, GASTNYCKELFORM, MAX_GASTNAMN, normaliseraGastepost } from "../lib/gast.js";
+import { GASTDELTASVAR, GASTFEL, GASTNYLANK_SVAR, GASTNYCKELFORM, MAX_GASTNAMN, normaliseraGastepost, normaliseraGasttelefon } from "../lib/gast.js";
 import { ALLA, SENASTE, minne, sessionsnyckelFor, skrivSessionTillMinne, sparadeSessionsIds } from "../lib/gastminne.js";
 import { definierade, forvalda } from "../lib/ord.js";
 import { PUBLIK_KLASS, PUBLIK_TONER } from "../lib/publikKlass.js";
@@ -35,6 +35,13 @@ export const ORD_OPSGASTSIDA = {
   // ⛔ ETT NEJ VID ADRESSEN SÄGER VAD SOM ÄR FEL, OCH BARA DET SERVERN VET (0.190.0, QA fynd 2): fel adress och fel nyckel är samma nej byte för byte, så texten är densamma
   // för båda och ingen kan pröva sig fram. Formfelet (`felAdress`) står bara när adressen verkligen inte är en adress (`normaliseraGastepost` ger null).
   felInbjudan: { sv: "Den adressen hör inte till den här inbjudan. Skriv samma adress som mejlet kom till.", en: "That address does not belong to this invitation. Enter the same address the email was sent to." },
+  // ── (0.197.0, cllp/lifehub.app#661) En inbjudan till ett telefonnummer: länken bär tecknet (`tolkaGastLank` ger `slag: "telefon"`), och steget frågar efter numret i stället för adressen. ──
+  ingressTelefon: { sv: "Skriv ditt telefonnummer, samma som inbjudan gäller. Så vet vi att det är du. Du behöver inget konto.", en: "Enter your phone number, the one the invitation is for. That is how we know it is you. You do not need an account." },
+  telefonEtikett: { sv: "Ditt telefonnummer", en: "Your phone number" },
+  felTelefon: { sv: "Det där ser inte ut som ett telefonnummer. Skriv det med riktnummer, 070 123 45 67, eller med landsnummer, +46 70 123 45 67.", en: "That does not look like a phone number. Write it with the area code, 070 123 45 67, or with the country code, +46 70 123 45 67." },
+  felInbjudanTelefon: { sv: "Det numret hör inte till den här inbjudan. Skriv samma nummer som inbjudan gäller.", en: "That number does not belong to this invitation. Enter the same number the invitation is for." },
+  // Ingen ny länk på egen hand: den går med mejl, och en inbjudan med telefon har inget mejl. Den som bjöd ger en ny med Dela.
+  utgangenTelefon: { sv: "Be den som bjöd in dig om en ny länk.", en: "Ask the person who invited you for a new link." },
   orsak_nej: { sv: GASTFEL.nej, en: "The link or the address was not right" },
   orsak_aterkallad: { sv: GASTFEL.aterkallad, en: "The invitation has been withdrawn" },
   orsak_utgangen: { sv: GASTFEL.utgangen, en: "The link has expired" },
@@ -72,8 +79,8 @@ export const ORD_OPSGASTSIDA = {
   deltaSvarade_kanske: { sv: "Du har svarat: Kanske.", en: "You answered: Maybe." },
   integritetRubrik: { sv: "Integritet och dina uppgifter", en: "Privacy and your data" },
   integritetLagrat: {
-    sv: "Det här sparas om dig: din e-postadress och namnet du eller den som bjöd in dig angav, vad du bjudits in till, när, och av vem. Vi sparar också att du loggat in och när, och en kodad kopia av nyckeln som håller dig inloggad på den här enheten (själva nyckeln finns bara hos dig). Dina svar och röster sparas under ett id som räknas fram ur din adress, och de meddelanden du skriver i gruppens chatt sparas med ditt namn och märket Gäst, där alla i gruppen ser dem. Vi räknar hur många anrop du gör och hur många filer du hämtar, för att stoppa missbruk, och en av de fem gratis platserna i gruppen är reserverad åt dig. Appen kan dessutom spara adressen i sin utgående post. Inget av det används till annat än att du ska kunna vara med.",
-    en: "This is what we keep about you: your email address and the name you or the person who invited you gave, what you were invited to, when, and by whom. We also keep that you signed in and when, and a coded copy of the key that keeps you signed in on this device (the key itself only exists with you). Your answers and votes are kept under an id calculated from your address, and the messages you write in the group chat are kept with your name and the mark Guest, where everyone in the group can see them. We count how many requests you make and how many files you fetch, to stop abuse, and one of the five free places in the group is reserved for you. The app may also keep the address in its outgoing mail. None of it is used for anything except letting you take part.",
+    sv: "Det här sparas om dig: din e-postadress eller ditt telefonnummer och namnet du eller den som bjöd in dig angav, vad du bjudits in till, när, och av vem. Vi sparar också att du loggat in och när, och en kodad kopia av nyckeln som håller dig inloggad på den här enheten (själva nyckeln finns bara hos dig). Dina svar och röster sparas under ett id som räknas fram ur din adress, och de meddelanden du skriver i gruppens chatt sparas med ditt namn och märket Gäst, där alla i gruppen ser dem. Vi räknar hur många anrop du gör och hur många filer du hämtar, för att stoppa missbruk, och en av de fem gratis platserna i gruppen är reserverad åt dig. Appen kan dessutom spara adressen i sin utgående post. Inget av det används till annat än att du ska kunna vara med.",
+    en: "This is what we keep about you: your email address or phone number and the name you or the person who invited you gave, what you were invited to, when, and by whom. We also keep that you signed in and when, and a coded copy of the key that keeps you signed in on this device (the key itself only exists with you). Your answers and votes are kept under an id calculated from your address, and the messages you write in the group chat are kept with your name and the mark Guest, where everyone in the group can see them. We count how many requests you make and how many files you fetch, to stop abuse, and one of the five free places in the group is reserved for you. The app may also keep the address in its outgoing mail. None of it is used for anything except letting you take part.",
   },
   integritetRadera: {
     sv: "Så raderas det: tryck på knappen nedan, så tas allt detta bort direkt, i alla grupper du bjudits in till. Inbjudningarna, inloggningarna, räknarna, dina svar och röster, dina meddelanden i chatten och din plats försvinner, och det går inte att ångra. Den som bjöd in dig kan också radera dina uppgifter. Att en inbjudan dras tillbaka raderar ingenting av sig själv.",
@@ -201,8 +208,9 @@ const ERSATTBARA = /** @type {readonly string[]} */ (["utgangen"]);
  * ⛔ SPRÅKET ÄR BESÖKARENS (som `OpsDeladHandelse`): SV och EN i huvudet, förval webbläsarens språk, valet sparas. Ger appen `sprak` är språket appens.
  *
  * @param {object} props
- * @param {{ id: string, nyckel: string } | null} [props.lank] Id och nyckel ur adressens fragment (`tolkaGastLank`), eller `null` när sidan öppnas utan länk.
- * @param {(arg: { id: string, nyckel: string, epost: string }) => Promise<{ ok: boolean, sessionsnyckel?: string, orsak?: string }>} props.onLos
+ * @param {{ id: string, nyckel: string, slag?: "telefon" } | null} [props.lank] Id och nyckel ur adressens fragment (`tolkaGastLank`), eller `null` när sidan öppnas utan länk. (0.197.0) `slag: "telefon"`: steget frågar
+ *   efter ett telefonnummer, och `onLos` får `{ id, nyckel, telefon }` i stället för `epost`. Servern prövar numret mot inbjudan; tecknet i länken är ingen behörighet.
+ * @param {(arg: { id: string, nyckel: string, epost: string } | { id: string, nyckel: string, telefon: string }) => Promise<{ ok: boolean, sessionsnyckel?: string, orsak?: string }>} props.onLos
  * @param {(arg: { sessionsnyckel: string }) => Promise<{ ok: boolean, namn?: string, funktion?: string, sak?: Record<string, any>, grupp?: { namn: string, funktioner: readonly string[] }, orsak?: string }>} props.onHamta
  * @param {(arg: { epost: string }) => Promise<unknown>} props.onNyLank Ger alltid samma svar; sidan skriver ut `nyLankSvar` oavsett vad som kommer tillbaka.
  * @param {(arg: { sessionsnyckel: string, namn: string }) => Promise<unknown>} [props.onNamn] Utelämnad: ingen namnruta.
@@ -232,9 +240,10 @@ export function OpsGastSida({ lank = null, onLos, onHamta, onNyLank, onNamn, onR
   for (const [namn, f] of /** @type {const} */ ([["onNamn", onNamn], ["onRaderaMig", onRaderaMig], ["onSvara", onSvara], ["renderGrupp", renderGrupp]])) {
     if (f !== undefined && typeof f !== "function") throw new Error(`OpsGastSida: ${namn} måste vara en funktion (eller utelämnas).`);
   }
-  if (lank !== null && (!lank || typeof lank.id !== "string" || !GASTNYCKELFORM.test(lank.nyckel))) {
-    throw new Error("OpsGastSida: lank är { id, nyckel } ur tolkaGastLank, eller null.");
+  if (lank !== null && (!lank || typeof lank.id !== "string" || !GASTNYCKELFORM.test(lank.nyckel) || (lank.slag !== undefined && lank.slag !== "telefon"))) {
+    throw new Error("OpsGastSida: lank är { id, nyckel } (med slag: \"telefon\" för en inbjudan till ett nummer) ur tolkaGastLank, eller null.");
   }
+  const telefonlank = lank?.slag === "telefon";
   if (sprak !== undefined && !(/** @type {readonly string[]} */ (SPRAK).includes(sprak))) {
     throw new Error(`OpsGastSida: språket ${JSON.stringify(sprak)} finns inte (giltiga: ${SPRAK.join(", ")}).`);
   }
@@ -443,13 +452,14 @@ export function OpsGastSida({ lank = null, onLos, onHamta, onNyLank, onNamn, onR
   async function skickaAdress() {
     if (!lank) return;
     setFel("");
-    if (normaliseraGastepost(epost) === null) {
-      setFel(t.felAdress);
+    // (0.197.0) Med en telefonlänk är fältet ett nummer, prövat med samma funktion som servern. Det som skickas är det gästen skrev: servern normaliserar och jämför.
+    if (telefonlank ? normaliseraGasttelefon(epost) === null : normaliseraGastepost(epost) === null) {
+      setFel(telefonlank ? t.felTelefon : t.felAdress);
       return;
     }
     let r;
     try {
-      r = await onLos({ id: lank.id, nyckel: lank.nyckel, epost: epost.trim() });
+      r = await onLos(telefonlank ? { id: lank.id, nyckel: lank.nyckel, telefon: epost.trim() } : { id: lank.id, nyckel: lank.nyckel, epost: epost.trim() });
     } catch {
       if (levande.current) setFel(t.kundeInte);
       return;
@@ -469,7 +479,8 @@ export function OpsGastSida({ lank = null, onLos, onHamta, onNyLank, onNamn, onR
       return;
     }
     const o = r && typeof r.orsak === "string" ? r.orsak : "nej";
-    setFel(o === "nej" ? t.felInbjudan : (t[`orsak_${o}`] ?? t.felInbjudan));
+    const felInbjudan = telefonlank ? t.felInbjudanTelefon : t.felInbjudan;
+    setFel(o === "nej" ? felInbjudan : (t[`orsak_${o}`] ?? felInbjudan));
     if (ERSATTBARA.includes(o)) setOrsak(`orsak_${o}`);
   }
 
@@ -590,14 +601,20 @@ export function OpsGastSida({ lank = null, onLos, onHamta, onNyLank, onNamn, onR
       <h1 className={PUBLIK_KLASS.sida}>{p.rubrik}</h1>
       <p className={PUBLIK_KLASS.brod}>{p.ingress}</p>
       <OpsField label={p.etikett} error={fel || undefined}>
-        <OpsInput value={epost} onChange={setEpost} type="email" autoComplete="email" tal={false} />
+        {lage.fas === "adress" && telefonlank ? (
+          <OpsInput value={epost} onChange={setEpost} type="tel" autoComplete="tel" tal={false} />
+        ) : (
+          <OpsInput value={epost} onChange={setEpost} type="email" autoComplete="email" tal={false} />
+        )}
       </OpsField>
       <div>
         <OpsButton type="submit" variant="primary" onClick={p.onKlar}>
           {p.knapp}
         </OpsButton>
       </div>
-      {lage.fas === "adress" && orsak === "orsak_utgangen" ? (
+      {lage.fas === "adress" && orsak === "orsak_utgangen" && telefonlank ? (
+        <p data-gast-utgangen-telefon="" className={PUBLIK_KLASS.brod}>{t.utgangenTelefon}</p>
+      ) : lage.fas === "adress" && orsak === "orsak_utgangen" ? (
         <div className="flex flex-col gap-2">
           <OpsButton variant="secondary" onClick={begarNyLank}>
             {t.nyLankKnapp}
@@ -758,7 +775,7 @@ export function OpsGastSida({ lank = null, onLos, onHamta, onNyLank, onNamn, onR
         {lage.fas === "startar" ? (
           <OpsEmpty busy title={t.laddar} busyLabel={t.laddar} />
         ) : lage.fas === "adress" ? (
-          adressFormulär({ rubrik: t.rubrikRosta, ingress: t.ingress, etikett: t.adressEtikett, knapp: t.fortsatt, onKlar: skickaAdress })
+          adressFormulär({ rubrik: t.rubrikRosta, ingress: telefonlank ? t.ingressTelefon : t.ingress, etikett: telefonlank ? t.telefonEtikett : t.adressEtikett, knapp: t.fortsatt, onKlar: skickaAdress })
         ) : lage.fas === "ny-lank" ? (
           adressFormulär({ rubrik: t.nyLankRubrik, ingress: t.nyLankIngress, etikett: t.adressEtikett, knapp: t.nyLankKnapp, onKlar: begarNyLank })
         ) : lage.fas === "nylank-skickad" ? (
