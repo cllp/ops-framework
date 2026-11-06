@@ -714,6 +714,38 @@ export function createSamtalskalla(konfig) {
   }
 
   /**
+   * Skriver på en rot med ett id som följer av något annat (0.191.0, cllp/lifehub.app#663: kommentarstråden för en bibliotekspost, `kommentarRotId`). Finns roten inte SKAPAS
+   * den, med `rotText` och id:t `rot`. Finns den redan blir `text` ett svar i rotens tråd.
+   *
+   * ⛔ UNIKHETEN ÄR ID:T, INTE EN FRÅGA FÖRE. Två som skriver samtidigt går båda mot samma id, och den som får "finns redan" skriver som svar. Med `createNew` (minneskällan,
+   * Admin SDK) avgörs det i samma atomära steg. Utan den (webbklientens källa, där `create` med eget id är `setDoc`) är det REGELN som säger nej: meddelanden har
+   * `allow update: if false`, så en andra skapelse är en uppdatering som nekas, och då läses roten. Finns den inte efter ett nej kastas felet vidare, aldrig tyst.
+   *
+   * @param {string} sid @param {string} rot
+   * @param {{ text: string, rotText: string, av: string }} d
+   * @returns {Promise<{ rot: boolean, meddelande: any }>} `rot`: kommentaren blev roten. Annars blev den ett svar i tråden.
+   */
+  async function skickaPaRot(sid, rot, { text, rotText, av }) {
+    if (!sid) throw new Error("samtalskalla.skickaPaRot: sid krävs.");
+    if (typeof rot !== "string" || rot === "" || rot.includes("/")) throw new Error(`samtalskalla.skickaPaRot: rot "${String(rot)}" är inget dokument-id.`);
+    // Båda texterna byggs (och prövas) först, så att ett tomt svar inte lämnar en rot efter sig.
+    const forsta = nyttMeddelande({ text: rotText, av }, "samtalskalla.skickaPaRot");
+    nyttMeddelande({ text, av }, "samtalskalla.skickaPaRot");
+    const data = { id: rot, ...meddelandeAttLagra(forsta) };
+    if (typeof kalla.createNew === "function") {
+      const svar = await kalla.createNew(meddelandevag(sid), data);
+      if (svar.created) return { rot: true, meddelande: svar.row };
+    } else {
+      try {
+        return { rot: true, meddelande: await kalla.create(meddelandevag(sid), data) };
+      } catch (fel) {
+        if (!(await rotmeddelande(sid, rot))) throw fel;
+      }
+    }
+    return { rot: false, meddelande: await skickaITrad(sid, rot, { text, av }) };
+  }
+
+  /**
    * Döper om tråden, eller (med `null` eller tomt) går tillbaka till det härledda namnet.
    * @param {string} sid @param {string} tid @param {string | null} namn
    */
@@ -730,7 +762,7 @@ export function createSamtalskalla(konfig) {
     return /** @type {any} */ (await kalla.read(meddelandevag(sid), tid));
   }
 
-  const tradfunktioner = tradar === undefined ? {} : { tradar, trad, oppnaTrad, tradarFor, antalSvar, tradmeddelanden, prenumereraTrad, skickaITrad, dopOm, rotmeddelande };
+  const tradfunktioner = tradar === undefined ? {} : { tradar, trad, oppnaTrad, tradarFor, antalSvar, tradmeddelanden, prenumereraTrad, skickaITrad, skickaPaRot, dopOm, rotmeddelande };
 
   /*
    * ══ ⛔ AGENTENS STATUS (#273) ═════════════════════════════════════════════════════════════════════════════════════════
@@ -986,6 +1018,7 @@ export function createSamtalskalla(konfig) {
  * @property {(sid: string, tid: string) => Promise<Array<import("../lib/samtal.js").Meddelande & { id: string }>>} tradmeddelanden
  * @property {(sid: string, tid: string, lyssnare: { onData: (rader: any[]) => void, onError: (fel: Error) => void }) => (() => void) | null} prenumereraTrad
  * @property {(sid: string, tid: string, d: { text: string, av: string, namner?: ReadonlyArray<string> | null }) => Promise<any>} skickaITrad
+ * @property {(sid: string, rot: string, d: { text: string, rotText: string, av: string }) => Promise<{ rot: boolean, meddelande: any }>} skickaPaRot (0.191.0) Skapar roten med id:t, eller svarar i dess tråd när den finns.
  * @property {(sid: string, tid: string, namn: string | null) => Promise<any>} dopOm
  * @property {(sid: string, tid: string) => Promise<(import("../lib/samtal.js").Meddelande & { id: string }) | null>} rotmeddelande
  */

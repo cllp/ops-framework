@@ -171,7 +171,7 @@ const SAMLINGAR_ATT_SOKA = [`samtal/${GRUPP}|grupp/meddelanden`, "gastinbjudning
  * @param {boolean} [val.utanArenden] Appen har ingen ärendedelegering till gäster (skiva 3 av).
  * @param {Record<string, any[]>} [val.extra]
  */
-function bygg({ omslut = (k) => k, utanGrupp = false, utanArenden = false, arendeFalt = null, extra = {}, signeringsfel = null, kommenteraFel = null, lankvalv = null, farLaddaNed = undefined } = {}) {
+function bygg({ omslut = (k) => k, utanGrupp = false, utanArenden = false, arendeFalt = null, extra = {}, signeringsfel = null, kommenteraFel = null, lankvalv = null, farLaddaNed = undefined, kommentarer = false } = {}) {
   const grund = createMemorySource({ ...seed(), ...extra });
   const kalla = omslut(grund);
   let nu = NU;
@@ -233,7 +233,8 @@ function bygg({ omslut = (k) => k, utanGrupp = false, utanArenden = false, arend
       ? {}
       : {
           grupp: {
-            samlingar: { grupper: "groups", samtal: "samtal", meddelanden: "meddelanden", bibliotek: "bibliotek", svar: "svar" },
+            samlingar: { grupper: "groups", samtal: "samtal", meddelanden: "meddelanden", bibliotek: "bibliotek", svar: "svar", ...(kommentarer ? { tradar: "tradar" } : {}) },
+            ...(kommentarer ? { bibliotekBas: "https://app.exempel.se/bibliotek" } : {}),
             lagring: { signeradAdress: signera },
             handelseSida: (h) => ({ titel: h.rubrik, beskrivning: h.text, plats: h.plats }),
             ...(utanArenden ? {} : { arenden: arendeFalt ? { ...arenden, falt: arendeFalt } : arenden }),
@@ -529,10 +530,10 @@ describe("vitlistade fält: ingen medlems adress, uid eller hemlighet lämnar se
   it("hamta för en gruppgäst svarar med gruppens namn och funktionerna: chatt, kalender, bibliotek och ärenden, och utan appens ärendedelegering bara de tre första", async () => {
     const h = bygg();
     const g = await gruppGast(h);
-    expect(await h.tjanst.hamta({ sessionsnyckel: g.sessionsnyckel })).toEqual({ ok: true, namn: "", funktion: "grupp", grupp: { namn: "Källan", funktioner: ["chatt", "kalender", "bibliotek", "arenden"], nedladdning: true } });
+    expect(await h.tjanst.hamta({ sessionsnyckel: g.sessionsnyckel })).toEqual({ ok: true, namn: "", funktion: "grupp", grupp: { namn: "Källan", funktioner: ["chatt", "kalender", "bibliotek", "arenden"], nedladdning: true, kommentera: false } });
     const utan = bygg({ utanArenden: true });
     const u = await gruppGast(utan);
-    expect(await utan.tjanst.hamta({ sessionsnyckel: u.sessionsnyckel })).toEqual({ ok: true, namn: "", funktion: "grupp", grupp: { namn: "Källan", funktioner: ["chatt", "kalender", "bibliotek"], nedladdning: true } });
+    expect(await utan.tjanst.hamta({ sessionsnyckel: u.sessionsnyckel })).toEqual({ ok: true, namn: "", funktion: "grupp", grupp: { namn: "Källan", funktioner: ["chatt", "kalender", "bibliotek"], nedladdning: true, kommentera: false } });
   });
 });
 
@@ -1618,5 +1619,169 @@ describe("radering: inga spår av gästens adress, och platsen frigörs", () => 
     expect(await allt(trasig)).not.toContain("anna@foretag.se");
     expect(t.g.sessionsnyckel).toBeTruthy();
     expect(g.sessionsnyckel).toBeTruthy();
+  });
+});
+
+describe("0.191.0: trådar, kort och kommentarer på en post för en gäst (cllp/lifehub.app#663)", () => {
+  const BAS = "https://app.exempel.se/bibliotek";
+  const CHATT = `samtal/${GRUPP}|grupp/meddelanden`;
+  const TRADAR = `samtal/${GRUPP}|grupp/tradar`;
+  const svarI = (/** @type {string} */ rot) => `samtal/${GRUPP}|grupp/tradar/${rot}/meddelanden`;
+  const lank = (/** @type {string} */ plats, /** @type {string} */ post) => `${BAS}?plats=${encodeURIComponent(plats)}&post=${post}`;
+  /** En tråd under m1 med ett svar från Maja och ett från agenten (som gästen inte ser). */
+  const MED_TRAD = {
+    [TRADAR]: [{ id: "m1", skapad: 1100, skapadAv: MEDLEM }],
+    [svarI("m1")]: [
+      { id: "t1", text: "Svar i tråden", av: MEDLEM, tid: 1200 },
+      { id: "t2", text: "AGENTENS-SVAR-I-GRUPPCHATTEN", av: AGENT, tid: 1300 },
+    ],
+  };
+
+  it("⛔ gästen ser tråden: antalet svar under meddelandet och svaren, utan agentens, och kan svara med text", async () => {
+    const h = bygg({ kommentarer: true, extra: MED_TRAD });
+    const g = await gruppGast(h, "anna@foretag.se", { namn: "Anna" });
+    const c = await h.tjanst.chatt({ sessionsnyckel: g.sessionsnyckel });
+    expect(c.meddelanden.find((/** @type {any} */ m) => m.id === "m1").svar).toBe(1);
+    expect(c.meddelanden.find((/** @type {any} */ m) => m.id === "m2").svar).toBeUndefined();
+    const t = await h.tjanst.chatt({ sessionsnyckel: g.sessionsnyckel, trad: "m1" });
+    expect(t.rot).toMatchObject({ id: "m1", text: "Välkommen till gruppen", av: { namn: "Agda Ägare" } });
+    expect(t.meddelanden.map((/** @type {any} */ m) => m.text)).toEqual(["Svar i tråden"]);
+    expect(JSON.stringify(t)).not.toContain("AGENTENS-SVAR");
+    expect(Object.keys(t).every((k) => GASTGRUPPSVARSFALT.chatt.includes(/** @type {any} */ (k)))).toBe(true);
+    const s = await h.tjanst.skrivChatt({ sessionsnyckel: g.sessionsnyckel, trad: "m1", text: "Gästens svar" });
+    expect(s).toMatchObject({ ok: true, meddelande: { text: "Gästens svar", gast: true, egen: true, av: { namn: "Anna" } } });
+    const rader = await h.grund.list(svarI("m1"));
+    expect(rader.find((r) => r.text === "Gästens svar")).toMatchObject({ av: ANNA, avNamn: "Anna" });
+    // Huvudchatten fick inget nytt meddelande: svaret ligger i tråden.
+    expect((await h.grund.list(CHATT)).some((m) => m.text === "Gästens svar")).toBe(false);
+    expect((await h.tjanst.chatt({ sessionsnyckel: g.sessionsnyckel })).meddelanden.find((/** @type {any} */ m) => m.id === "m1").svar).toBe(2);
+  });
+
+  it("⛔ gästen svarar i en tråd som inte fanns: tråden öppnas, med gästen som skapare, och en rot som är agentens eller saknas ger saknas", async () => {
+    const h = bygg({ kommentarer: true });
+    const g = await gruppGast(h);
+    expect(await h.tjanst.skrivChatt({ sessionsnyckel: g.sessionsnyckel, trad: "m2", text: "Första svaret" })).toMatchObject({ ok: true });
+    expect(await h.grund.read(TRADAR, "m2")).toMatchObject({ id: "m2", skapadAv: ANNA });
+    expect(await h.tjanst.skrivChatt({ sessionsnyckel: g.sessionsnyckel, trad: "m3", text: "x" })).toEqual({ ok: false, orsak: "saknas" });
+    expect(await h.tjanst.skrivChatt({ sessionsnyckel: g.sessionsnyckel, trad: "finns-inte", text: "x" })).toEqual({ ok: false, orsak: "saknas" });
+    expect(await h.tjanst.chatt({ sessionsnyckel: g.sessionsnyckel, trad: "m3" })).toEqual({ ok: true, rot: null, meddelanden: [], fler: false });
+    expect(await h.grund.list(svarI("m3"))).toHaveLength(0);
+  });
+
+  it("⛔ gästen nekas bilaga, omnämnanden och citat i tråden, och inget skrivs", async () => {
+    const h = bygg({ kommentarer: true, extra: MED_TRAD });
+    const g = await gruppGast(h);
+    for (const extra of [{ bilaga: { namn: "a.png", typ: "image/png" } }, { namner: [AGARE] }, { svarPa: "t1" }, { av: AGARE }]) {
+      await expect(h.tjanst.skrivChatt({ sessionsnyckel: g.sessionsnyckel, trad: "m1", text: "Hej", ...extra }), JSON.stringify(extra)).rejects.toMatchObject({ kod: "ogiltig-text" });
+    }
+    await expect(h.tjanst.kommenteraPost({ sessionsnyckel: g.sessionsnyckel, postId: "p-not", text: "Hej", bilaga: { namn: "a.png", typ: "image/png" } })).rejects.toMatchObject({ kod: "ogiltig-text" });
+    await expect(h.tjanst.kommenteraPost({ sessionsnyckel: g.sessionsnyckel, postId: "p-not", text: "Hej", namner: [AGARE] })).rejects.toMatchObject({ kod: "ogiltig-text" });
+    expect((await h.grund.list(svarI("m1"))).map((m) => m.id)).toEqual(["t1", "t2"]);
+    expect(await h.grund.read(CHATT, "post~p-not")).toBeNull();
+  });
+
+  it("⛔ kortet: en länk till en post gästen ser ger ett kort ur posten som den är nu; en annan plats, en annan grupp, en borttagen post och en främmande adress ger bara texten", async () => {
+    const text = [
+      lank(GRUPP, "p-not"),
+      lank(`handelse~${GRUPP}~h-mote`, "p-hand"),
+      lank(GRANNEN, "p-grannen"),
+      lank(GRUPP, "p-borta"),
+      `https://annan.exempel.se/bibliotek?plats=${GRUPP}&post=p-pdf`,
+      // En länk som säger en annan plats än gruppens: posten finns i gruppen, men länken pekar inte dit gästen kan öppna den.
+      lank(`handelse~${GRUPP}~h-mote`, "p-ljud"),
+    ].join("\n");
+    const h = bygg({ kommentarer: true, extra: { [CHATT]: [...seed()[CHATT], { id: "m9", text: `Kolla\n${text}`, av: MEDLEM, tid: 9000 }, { id: "m10", text: `${lank(`handelse~${GRUPP}~h-mote`, "p-hand")}\n${lank(`mitt~${AGARE}`, "p-mitt")}`, av: MEDLEM, tid: 9100 }] } });
+    const g = await gruppGast(h);
+    await h.grund.update("bibliotek", "p-not", { rubrik: "Nytt namn" });
+    const c = await h.tjanst.chatt({ sessionsnyckel: g.sessionsnyckel });
+    const m9 = c.meddelanden.find((/** @type {any} */ m) => m.id === "m9");
+    expect(m9.kort).toEqual([{ url: lank(GRUPP, "p-not"), postId: "p-not", typ: "anteckning", rubrik: "Nytt namn" }]);
+    expect(m9.text).toContain("p-hand");
+    expect(c.meddelanden.find((/** @type {any} */ m) => m.id === "m10").kort).toBeUndefined();
+    expect(JSON.stringify(c)).not.toContain("HANDELSEFIL-HEMLIG");
+    expect(JSON.stringify(c)).not.toContain("GRANNENS-HEMLIGHET");
+    expect(JSON.stringify(c)).not.toContain("MITT-BIBLIOTEK-HEMLIG");
+    // Utan bibliotekBas: inga kort alls, som förut.
+    const utan = bygg({ extra: { [CHATT]: [{ id: "m9", text: lank(GRUPP, "p-not"), av: MEDLEM, tid: 9000 }] } });
+    const u = await gruppGast(utan);
+    expect((await utan.tjanst.chatt({ sessionsnyckel: u.sessionsnyckel })).meddelanden[0].kort).toBeUndefined();
+  });
+
+  it("⛔ predikatet delas: posterna i gästens lista är exakt de poster vars länk ger ett kort (golv: minst fem på varje sida)", async () => {
+    const poster = seed().bibliotek;
+    const okandTyp = { id: "p-okand", groupId: GRUPP, typ: "hemlig-typ", rubrik: "OKAND-TYP", skapad: 1, andrad: 1 };
+    const projekt = { id: "p-plats", groupId: `plats~${GRUPP}~demos`, typ: "anteckning", rubrik: "PROJEKTPLATS", text: "x", skapad: 1, andrad: 1 };
+    const alla = [...poster, okandTyp, projekt];
+    const h = bygg({ kommentarer: true, extra: { bibliotek: alla, [CHATT]: alla.map((p, i) => ({ id: `l${i}`, text: lank(p.groupId, p.id), av: MEDLEM, tid: 10_000 + i })) } });
+    const g = await gruppGast(h);
+    const lista = new Set((await h.tjanst.bibliotek({ sessionsnyckel: g.sessionsnyckel })).poster.map((/** @type {any} */ p) => p.id));
+    const c = await h.tjanst.chatt({ sessionsnyckel: g.sessionsnyckel });
+    const kort = new Set(c.meddelanden.flatMap((/** @type {any} */ m) => (m.kort ?? []).map((/** @type {any} */ k) => k.postId)));
+    const utan = alla.map((p) => p.id).filter((id) => !lista.has(id));
+    expect(lista.size).toBeGreaterThanOrEqual(5);
+    expect(utan.length).toBeGreaterThanOrEqual(5);
+    expect([...kort].sort()).toEqual([...lista].sort());
+    expect(lista.has("p-okand") || lista.has("p-plats")).toBe(false);
+  });
+
+  it("⛔ kommenteraPost: den första kommentaren skapar roten post~<id> med gästen som avsändare och postens länk, nästa blir ett svar; två samtidigt ger en rot och ett svar", async () => {
+    const h = bygg({ kommentarer: true });
+    const anna = await gruppGast(h, "anna@foretag.se", { namn: "Anna" });
+    const bo = await gruppGast(h, "bo@foretag.se", { namn: "Bo" });
+    expect(await h.tjanst.hamta({ sessionsnyckel: anna.sessionsnyckel })).toMatchObject({ grupp: { kommentera: true } });
+    const [a, b] = await Promise.all([
+      h.tjanst.kommenteraPost({ sessionsnyckel: anna.sessionsnyckel, postId: "p-not", text: "Från Anna" }),
+      h.tjanst.kommenteraPost({ sessionsnyckel: bo.sessionsnyckel, postId: "p-not", text: "Från Bo" }),
+    ]);
+    expect([a.rot, b.rot].sort()).toEqual([false, true]);
+    const rot = await h.grund.read(CHATT, "post~p-not");
+    expect(String(rot?.text).split("\n")[1]).toBe(lank(GRUPP, "p-not"));
+    const svar = await h.grund.list(svarI("post~p-not"));
+    expect(svar).toHaveLength(1);
+    expect([String(rot?.text).split("\n")[0], svar[0].text].sort()).toEqual(["Från Anna", "Från Bo"]);
+    // Medlemmarna ser roten i chatten, och gästen ser kortet på den.
+    const c = await h.tjanst.chatt({ sessionsnyckel: anna.sessionsnyckel });
+    expect(c.meddelanden.find((/** @type {any} */ m) => m.id === "post~p-not")).toMatchObject({ svar: 1, kort: [{ postId: "p-not" }] });
+    for (const postId of ["p-hand", "p-grannen", "p-mitt", "p-borta", ""]) {
+      expect(await h.tjanst.kommenteraPost({ sessionsnyckel: anna.sessionsnyckel, postId, text: "x" }), postId).toEqual({ ok: false, orsak: "saknas" });
+    }
+    // Utan tradar och bibliotekBas: nej, och hamta säger att det inte går.
+    const utan = bygg();
+    const u = await gruppGast(utan);
+    expect(await utan.tjanst.kommenteraPost({ sessionsnyckel: u.sessionsnyckel, postId: "p-not", text: "x" })).toEqual({ ok: false, orsak: "nej" });
+    expect(await utan.tjanst.chatt({ sessionsnyckel: u.sessionsnyckel, trad: "m1" })).toEqual({ ok: false, orsak: "nej" });
+  });
+
+  it("⛔ raderingen tar gästens trådsvar och gästens id på trådarna, men inte andras svar", async () => {
+    const h = bygg({ kommentarer: true, extra: MED_TRAD });
+    const g = await gruppGast(h, "anna@foretag.se", { namn: "Anna" });
+    await h.tjanst.skrivChatt({ sessionsnyckel: g.sessionsnyckel, trad: "m1", text: "Annas svar" });
+    await h.tjanst.skrivChatt({ sessionsnyckel: g.sessionsnyckel, trad: "m2", text: "Annas tråd" });
+    await h.tjanst.kommenteraPost({ sessionsnyckel: g.sessionsnyckel, postId: "p-not", text: "Annas kommentar" });
+    const fore = JSON.stringify([await h.grund.list(svarI("m1")), await h.grund.list(svarI("m2")), await h.grund.list(TRADAR), await h.grund.list(CHATT)]);
+    expect(fore).toContain(ANNA);
+    await h.tjanst.radera({ uid: AGARE, groupId: GRUPP, gastId: ANNA });
+    const efter = JSON.stringify([await h.grund.list(svarI("m1")), await h.grund.list(svarI("m2")), await h.grund.list(TRADAR), await h.grund.list(CHATT)]);
+    expect(efter).not.toContain(ANNA);
+    expect(efter).not.toContain("Annas");
+    expect((await h.grund.list(svarI("m1"))).map((m) => m.id)).toEqual(["t1", "t2"]);
+  });
+
+  it("en återkallad gäst nekas trådar och kommentarer vid nästa anrop", async () => {
+    const h = bygg({ kommentarer: true, extra: MED_TRAD });
+    const g = await gruppGast(h);
+    await h.tjanst.aterkalla({ uid: AGARE, id: g.id });
+    expect(await h.tjanst.chatt({ sessionsnyckel: g.sessionsnyckel, trad: "m1" })).toEqual({ ok: false, orsak: "aterkallad" });
+    expect(await h.tjanst.skrivChatt({ sessionsnyckel: g.sessionsnyckel, trad: "m1", text: "x" })).toEqual({ ok: false, orsak: "aterkallad" });
+    expect(await h.tjanst.kommenteraPost({ sessionsnyckel: g.sessionsnyckel, postId: "p-not", text: "x" })).toEqual({ ok: false, orsak: "aterkallad" });
+  });
+
+  it("konfigurationen: tradar är ett namn skilt från meddelanden, och bibliotekBas en adress", () => {
+    const grund = { kalla: createMemorySource({}), samlingar: { inbjudningar: "i", sessioner: "s", platser: "p", raknare: "r", handelser: "h" }, farBjuda: () => true, skicka: async () => {}, radering: {} };
+    const grupp = (/** @type {any} */ x) => ({ samlingar: { grupper: "groups", samtal: "samtal", meddelanden: "meddelanden", bibliotek: "bibliotek", svar: "svar", ...x.samlingar }, lagring: { signeradAdress: async () => "" }, handelseSida: () => ({ titel: "" }), ...x.extra });
+    expect(() => createGastService({ ...grund, grupp: grupp({ samlingar: { tradar: "meddelanden" } }) })).toThrow(/olika namn/);
+    expect(() => createGastService({ ...grund, grupp: grupp({ samlingar: { tradar: "groups" } }) })).toThrow(/eget namn/);
+    expect(() => createGastService({ ...grund, grupp: grupp({ samlingar: { tradar: "tradar" }, extra: { bibliotekBas: "inte-en-adress" } }) })).toThrow(/ingen adress/);
+    expect(() => createGastService({ ...grund, grupp: grupp({ samlingar: { tradar: "tradar" }, extra: { bibliotekBas: BAS } }) })).not.toThrow();
   });
 });

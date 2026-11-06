@@ -24,6 +24,7 @@ import { formateraTid } from "../lib/ljudspelare.js";
 import { lankKalla, lankKallnamn, lankRubrik } from "../lib/lankkalla.js";
 import { LISTA_FLYTT_TEXT, LISTA_I_LISTA_TEXT, listorAttLaggaI } from "../lib/biblioteklista.js";
 import { UTSKRIFT_VANTETID_MS, uppskattadUtskriftstid, utskriftLage, utskriftPagatText } from "../lib/utskrift.js";
+import { BibliotekKommentarer } from "./BibliotekKommentarer.jsx";
 import { LankMark, TypIkon, filandelse, oppnasDirekt, plattKlass, postensKalla, typEtikett } from "./BibliotekPostvisning.jsx";
 import { LaggILista, ListaVisning } from "./BibliotekLista.jsx";
 import { MejlaLank } from "./MejlaLank.jsx";
@@ -324,9 +325,13 @@ const arkivtips = () => `Arkiverad. Välj taggen ${ARKIVTAGG} för att se arkive
  *   under listan (och i detaljen): stjärnan ändras inte förrän `stjarnor` ändras, så en stjärna som inte sparades ser inte sparad ut.
  * @param {import("react").ReactNode} [props.huvudRad] (0.187.0, cllp/ops-framework#517) En rad som appen äger, ritad som en egen rad under sökfältet, "+ Ny" och Taggar i huvudet (inte i samma rad: på en telefon krymper sökrutan då till ett par bokstäver). Förut sköt appen in sin
  *   "Klistra in"-knapp i huvudet genom DOM:en och bevakade den med en MutationObserver. Utan propen finns ingen rad. Hör inte hit med `inbaddad`, som inte har något huvud.
+ * @param {import("../data/postkommentarer.js").Postkommentarer | null} [props.kommentarer] (0.191.0, cllp/lifehub.app#663, CP 2026-11-05: "Vi behöver ha kommentarer på artefakter, även för gäster.") Kommentarer på en post,
+ *   genom gruppens chatt. Med den får menyn "Kommentera" (för en post som `kanKommentera` släpper igenom) och en posts detalj tråden under innehållet: kommentarerna och ett fält att skriva i
+ *   (`BibliotekKommentarer`). Den första kommentaren blir ett meddelande i gruppchatten med posten som kort, och nästa ett svar i dess tråd. Medlemmens källa är `createPostkommentarer`,
+ *   gästens bygger `OpsGastGrupp`. Utelämnad: ingen tråd och inget menyval, som förut.
  * @param {boolean} [props.utanNedladdning] (0.190.0, CP 2026-11-05: "Vill att man skall kunna förhindra nedladdning till gäster.") Ingen Ladda ned: varken i en fils detalj eller i spelarens ark för ett ljud ur listan. Gästens bibliotek när gruppen stängt av nedladdning (`grupp.nedladdning: false`). Visa och spela är som förut.
  */
-export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, trasiga: trasigaProp = [], laddar: laddarProp = false, vald = null, skapar = null, jag, onOppna, onStang, onSkapa, onSpara, onRadera, onLaddaUpp, onFyllLjud, onSpelaIn, inspelare, filUrl, hamtaAdress, hamtaFil, htmlVersioner, hamtaHtmlVersion, aterstallHtml, nyHtmlVersion, oppnaHtml, grupper = [], onDela, platser = [], plats, onPlats, onSkrivUt, onSkrivUtIgen, onTaBortUtskrift, onAnteckningAvUtskrift, onGorForslag, delningar = [], delningGruppdel, gruppnamn: gruppnamnProp, onDelaLank, onAndraNedladdning, onAterkalla, onMejlaLank, onLankInfo, githubLasare, hubHref, hubEtikett, onNavigate, modulId = "bibliotek", ram = null, activeHref, modul = null, inbaddad = false, tomText, utanHubb = false, adresserPaBegaran = false, gruppTaggar = [], egnaPlatser = null, stjarnor, onStjarna, huvudRad, utanNedladdning = false }) {
+export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, trasiga: trasigaProp = [], laddar: laddarProp = false, vald = null, skapar = null, jag, onOppna, onStang, onSkapa, onSpara, onRadera, onLaddaUpp, onFyllLjud, onSpelaIn, inspelare, filUrl, hamtaAdress, hamtaFil, htmlVersioner, hamtaHtmlVersion, aterstallHtml, nyHtmlVersion, oppnaHtml, grupper = [], onDela, platser = [], plats, onPlats, onSkrivUt, onSkrivUtIgen, onTaBortUtskrift, onAnteckningAvUtskrift, onGorForslag, delningar = [], delningGruppdel, gruppnamn: gruppnamnProp, onDelaLank, onAndraNedladdning, onAterkalla, onMejlaLank, onLankInfo, githubLasare, hubHref, hubEtikett, onNavigate, modulId = "bibliotek", ram = null, activeHref, modul = null, inbaddad = false, tomText, utanHubb = false, adresserPaBegaran = false, gruppTaggar = [], egnaPlatser = null, stjarnor, onStjarna, huvudRad, utanNedladdning = false, kommentarer = null }) {
   if (kalla !== undefined && (posterProp !== undefined || felProp !== null || laddarProp !== false || (Array.isArray(trasigaProp) && trasigaProp.length > 0))) {
     throw new Error("OpsBibliotek: kalla och poster/fel/trasiga/laddar kan inte ges tillsammans. Med kalla läser vyn själv, och två sanningar om samma lista hade låtit den ena vinna tyst.");
   }
@@ -410,6 +415,8 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
   const [sok, setSok] = useState("");
   const [valdaTaggar, setValdaTaggar] = useState(/** @type {string[]} */ ([]));
   const [startLage, setStartLage] = useState(/** @type {"las" | "redigera"} */ ("las"));
+  // (0.191.0) Posten vars kommentarsfält får fokus när detaljen ritas: personen valde Kommentera i menyn.
+  const [kommenteraFor, setKommenteraFor] = useState(/** @type {string | null} */ (null));
   const [byter, setByter] = useState(/** @type {null | (import("../lib/bibliotek.js").Bibliotekspost & { id: string })} */ (null));
   const [namnUtkast, setNamnUtkast] = useState("");
   const [namnFel, setNamnFel] = useState("");
@@ -593,8 +600,12 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
    */
   function oppnaMed(post, lage) {
     setStartLage(lage);
+    setKommenteraFor(null);
     onOppna(post);
   }
+
+  /** (0.191.0) Får posten kommenteras? Bara med en källa, och bara där källan säger ja (medlemmens: aldrig Mitt bibliotek). */
+  const kanKommenteras = (/** @type {{ id: string, groupId: string }} */ post) => Boolean(kommentarer) && (typeof kommentarer?.kanKommentera !== "function" || kommentarer.kanKommentera(post));
 
   /**
    * @param {{ typ?: string, url?: string, fil?: { sokvag?: string, mime?: string } }} post
@@ -781,6 +792,17 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
     // ⛔ EN MUSIKLÄNK ÖPPNAS DIREKT VID ETT TRYCK (0.128.0), så detaljen nås härifrån. Utan raden gick det inte att komma åt Byt namn-formuläret, taggarna och Redigera för en sådan länk.
     // ⛔ SAMMA FÖR ETT HTML-DOKUMENT SOM ÖPPNAS I EGET FÖNSTER (0.159.0, `oppnaHtml`): kortet är då en länk till vyn, och detaljen (rutan, versionerna, Ladda ned) nås härifrån.
     if (!iDetalj && (oppnasDirekt(post) || htmlVyAdress(oppnaHtml, post))) ut.push({ id: "detaljer", etikett: "Visa detaljer", onValj: () => oppnaMed(post, "las") });
+    // ⛔ KOMMENTERA (0.191.0, lifehub.app#663): öppnar posten med fältet i fokus, i listan och i detaljen. Tråden är chattens, och samma rad för en medlem och en gäst.
+    if (kanKommenteras(post)) {
+      ut.push({
+        id: "kommentera",
+        etikett: "Kommentera",
+        onValj: () => {
+          if (!iDetalj) oppnaMed(post, "las");
+          setKommenteraFor(post.id);
+        },
+      });
+    }
     // ⛔ LÄGG I LISTA (0.128.0, lifehub.app#378): långtrycksmenyn på varje post. Bara en medlem som är aktiv och bara där en lista kan finnas: en händelses och ett ärendes bibliotek har
     // bara filer (reglerna), och utan `onSpara` hade valet inte gått att spara.
     // ⛔ EN LISTA HAR RADEN OCKSÅ, AVSTÄNGD OCH MED SKÄL (0.133.0, CP 2026-10-20: tre typer med tre olika menyer ska bli en). Förut saknades raden på en lista, och en meny där en rad
@@ -1037,7 +1059,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
           })() : null} markering={vald ? (() => {
             const rad = poster.find((p) => p.id === vald.id) ?? vald;
             return <Markering nalad={arNalad(rad)} nalOrd={mord("nalad")} stjarna={stjarnFor(rad)} />;
-          })() : null} onLjus={setLjus} onSkrivUt={onSkrivUt} onSkrivUtIgen={onSkrivUtIgen} onTaBortUtskrift={onTaBortUtskrift} onAnteckningAvUtskrift={onAnteckningAvUtskrift} menyFor={menyFor} onMeta={togMeta} tillbakaEtikett={lord(inbaddad ? "filer" : "tillbaka")} poster={poster} jag={jag} onLankInfo={onLankInfo} githubLasare={githubLasare} onOppnaPost={(p) => oppnaMed(p, "las")} />
+          })() : null} onLjus={setLjus} onSkrivUt={onSkrivUt} onSkrivUtIgen={onSkrivUtIgen} onTaBortUtskrift={onTaBortUtskrift} onAnteckningAvUtskrift={onAnteckningAvUtskrift} menyFor={menyFor} onMeta={togMeta} tillbakaEtikett={lord(inbaddad ? "filer" : "tillbaka")} poster={poster} jag={jag} onLankInfo={onLankInfo} githubLasare={githubLasare} onOppnaPost={(p) => oppnaMed(p, "las")} kommentarer={vald && !skaparTyp && kanKommenteras(vald) ? kommentarer : null} fokusKommentar={Boolean(vald) && kommenteraFor === vald?.id} />
         ) : (
           <div data-bibliotek-huvud="" className="flex min-w-0 flex-col gap-3">
             {/* ⛔ SESSIONSTUDIOS HUVUD, SOM I APPEN (0.102.0, CP 2026-10-14 med skärmbilder från SessionStudios app: "Listningen
@@ -2301,8 +2323,10 @@ function Adress({ url }) {
  * @param {(url: string) => Promise<{ titel?: string, artist?: string, kalla?: string, bild?: string }>} [props.onLankInfo] (0.128.0) Se `OpsBibliotek`.
  * @param {(post: any) => Promise<import("./GithubDokumentVisning.jsx").GithubLasning>} [props.githubLasare] (0.186.0) Se `OpsBibliotek`.
  * @param {(post: import("../lib/bibliotek.js").Bibliotekspost & { id: string }) => void} props.onOppnaPost (0.128.0) Öppnar en post ur en lista.
+ * @param {import("../data/postkommentarer.js").Postkommentarer | null} [props.kommentarer] (0.191.0) Se `OpsBibliotek`. Ges bara när posten får kommenteras.
+ * @param {boolean} [props.fokusKommentar] (0.191.0) Kommentarsfältet får fokus: personen valde Kommentera.
  */
-function Detalj({ post, skapar, startLage, onStang, onSpara, onLaddaUpp, filUrl, hamtaFil, htmlVersioner, hamtaHtmlVersion, aterstallHtml, nyHtmlVersion, oppnaHtml, taggrad, markering, adressFor, onLjus, onSkrivUt, onSkrivUtIgen, onTaBortUtskrift, onAnteckningAvUtskrift, menyFor, onMeta, tillbakaEtikett, poster, jag, onLankInfo, githubLasare, onOppnaPost }) {
+function Detalj({ post, skapar, startLage, onStang, onSpara, onLaddaUpp, filUrl, hamtaFil, htmlVersioner, hamtaHtmlVersion, aterstallHtml, nyHtmlVersion, oppnaHtml, taggrad, markering, adressFor, onLjus, onSkrivUt, onSkrivUtIgen, onTaBortUtskrift, onAnteckningAvUtskrift, menyFor, onMeta, tillbakaEtikett, poster, jag, onLankInfo, githubLasare, onOppnaPost, kommentarer = null, fokusKommentar = false }) {
   const sprak = useOpsSprak();
   const typ = skapar ?? post?.typ ?? "anteckning";
   const [rubrik, setRubrik] = useState(post && !skapar ? post.rubrik : "");
@@ -2622,6 +2646,7 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, onLaddaUpp, filUrl,
       {lage === "las" && post && ljud ? (
         <UtskriftKontroll post={post} jag={jag} onSkrivUt={onSkrivUt} onSkrivUtIgen={onSkrivUtIgen} onTaBortUtskrift={onTaBortUtskrift} onAnteckningAvUtskrift={onAnteckningAvUtskrift} />
       ) : null}
+      {lage === "las" && post && !skapar && kommentarer ? <BibliotekKommentarer key={post.id} post={post} kalla={kommentarer} fokus={fokusKommentar} sprak={sprak} /> : null}
     </div>
   );
 }

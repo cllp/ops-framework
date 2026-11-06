@@ -21,6 +21,7 @@
  * medlemmarna ändå.
  */
 
+import { BIBLIOTEKTYPER } from "./bibliotek.js";
 import { SVARSVAL } from "./handelsemodell.js";
 import { epostFel } from "./mejl.js";
 
@@ -84,6 +85,20 @@ export const GASTARENDE_SKANNA_MAX = 2000;
 export const GASTARENDEKOMMENTARER_MAX = 100;
 /** Flest biblioteksposter i gästens lista. */
 export const GASTBIBLIOTEK_MAX = 1000;
+
+/**
+ * Ser en gäst i gruppen `groupId` posten (0.191.0, cllp/lifehub.app#663)? Gruppens EGEN plats (`groupId` är exakt gruppen, aldrig `handelse~...`, `arende~...`, `plats~...` eller `mitt~...`)
+ * och en av bibliotekets typer. ⛔ EN SANNING FÖR LISTAN OCH KORTET (regel 2): gästens bibliotek (`createGastService().bibliotek`) och kortet för en post i gästens chatt prövar båda
+ * den här, så att kortet aldrig visar en post som listan inte visar. Synlighet per post finns inte, med flit (regel 13).
+ *
+ * @param {unknown} post
+ * @param {string} groupId
+ * @returns {boolean}
+ */
+export function gastSerBibliotekspost(post, groupId) {
+  const p = /** @type {any} */ (post);
+  return Boolean(p) && typeof p === "object" && typeof groupId === "string" && groupId !== "" && p.groupId === groupId && /** @type {readonly unknown[]} */ (BIBLIOTEKTYPER).includes(p.typ);
+}
 /** Högsta antalet anrop per inbjudan och minut (gruppens funktioner). Därefter `for-manga`, som appen svarar 429 på. */
 export const GASTANROP_PER_MINUT = 60;
 /** Högsta antalet filer (signerade adresser) per inbjudan och dygn. Trafiken ut ur lagringen är den enda kostnad en gäst kan driva upp själv. */
@@ -284,9 +299,9 @@ export const GASTSVARSFALT = /** @type {const} */ (["ok", "namn", "funktion", "s
  */
 export const GASTGRUPPSVARSFALT = /** @type {const} */ ({
   /** `hamta` för en gruppinbjudan: gruppens namn och funktionerna, och (0.190.0) om gästen får ladda ned (`nedladdning`, gruppens `farLaddaNed`). */
-  hamta: ["namn", "funktioner", "nedladdning"],
-  /** Svaret på `chatt`. `fler`: det finns äldre meddelanden. `ingetNytt`: en ping där inget är nyare än `nyast`. */
-  chatt: ["ok", "meddelanden", "fler", "ingetNytt"],
+  hamta: ["namn", "funktioner", "nedladdning", "kommentera"],
+  /** Svaret på `chatt`. `fler`: det finns äldre meddelanden. `ingetNytt`: en ping där inget är nyare än `nyast`. `rot` (0.191.0): rotmeddelandet när gästen läser en tråd (`trad`), `null` när roten inte finns. */
+  chatt: ["ok", "meddelanden", "fler", "ingetNytt", "rot"],
   /** Svaret på `skrivChatt`: meddelandet som det nu står i chatten, i samma form som en rad i `chatt`. */
   skrivChatt: ["ok", "meddelande"],
   /** Svaret på `kalender`. */
@@ -303,7 +318,15 @@ export const GASTGRUPPSVARSFALT = /** @type {const} */ ({
   markeraArendeKlart: ["ok"],
   /** Svaret på `fil`. */
   fil: ["ok", "url", "namn", "mime"],
+  /** (0.191.0) Svaret på `kommenteraPost`: kommentaren som den nu står, roten i chatten eller ett svar i dess tråd (`rot` säger vilket). */
+  kommenteraPost: ["ok", "meddelande", "rot"],
 });
+
+/**
+ * (0.191.0, cllp/lifehub.app#663) Fälten på ett kort för en bibliotekspost i gästens chatt. `url` är länken i texten som kortet hör till, `postId` postens id (det gästens bibliotek
+ * öppnar). Kortet byggs av servern när chatten läses, ur posten som den är då, och bara för en post som klarar `gastSerBibliotekspost`. Titeln lagras aldrig.
+ */
+export const GASTPOSTKORTFALT = /** @type {const} */ (["url", "postId", "typ", "rubrik", "mime"]);
 
 /**
  * (Skiva 3) Fälten på ett ärende hos en gäst: rubrik, text, status, förfallodag och kommentarer. ⛔ ALDRIG ärendets GitHub-adress eller repots namn, och aldrig ett uid, en adress eller ett annat fält appen har på raden.
@@ -313,14 +336,17 @@ export const GASTARENDEFALT = /** @type {const} */ (["id", "rubrik", "text", "st
 /** (Skiva 3) Fälten på en kommentar hos en gäst. `av` är `{ namn }` och aldrig ett uid; `gast` är sant när en gäst skrev den (märket Gäst) och `egen` när det är gästens egen. */
 export const GASTARENDEKOMMENTARFALT = /** @type {const} */ (["id", "text", "tid", "av", "gast", "egen"]);
 
-/** Fälten på ett chattmeddelande hos en gäst. `av` är `{ namn }`; `gast` är sant när en gäst skrev det (märket Gäst) och `egen` när det är gästens eget (0.132.0); `svarPa` är ett citat `{ id, namn, text }` med kapad text; `namner` är namn och aldrig uid. */
-export const GASTCHATTFALT = /** @type {const} */ (["id", "av", "text", "tid", "svarPa", "namner", "bilaga", "gast", "egen"]);
+/**
+ * Fälten på ett chattmeddelande hos en gäst. `av` är `{ namn }`; `gast` är sant när en gäst skrev det (märket Gäst) och `egen` när det är gästens eget (0.132.0); `svarPa` är ett citat `{ id, namn, text }` med kapad text; `namner` är namn och aldrig uid.
+ * (0.191.0) `svar` är antalet svar i meddelandets tråd som gästen ser (agentens räknas inte), utelämnat utan tråd; `kort` är korten för länkar till gruppens bibliotek (`GASTPOSTKORTFALT`).
+ */
+export const GASTCHATTFALT = /** @type {const} */ (["id", "av", "text", "tid", "svarPa", "namner", "bilaga", "gast", "egen", "svar", "kort"]);
 
 /**
  * Åtgärderna en gruppgäst anropar på servern (`POST /api/gast`), förutom `los`, `hamta`, `namn`, `nylank` och `raderaMig` som varje gäst har. Namnen står här och ingen annanstans (regel 2):
  * tjänstens metoder, appens vitlista för vad en handler släpper in, och vyns anrop läser samma lista.
  */
-export const GASTGRUPPATGARDER = /** @type {const} */ (["chatt", "skrivChatt", "kalender", "handelse", "svara", "rosta", "bibliotek", "fil", "arenden", "kommenteraArende", "markeraArendeKlart"]);
+export const GASTGRUPPATGARDER = /** @type {const} */ (["chatt", "skrivChatt", "kalender", "handelse", "svara", "rosta", "bibliotek", "fil", "arenden", "kommenteraArende", "markeraArendeKlart", "kommenteraPost"]);
 
 /**
  * Bygger gruppvyns `api` av appens ENDA anrop mot `/api/gast`. `anrop` får `{ atgard, sessionsnyckel, ...argument }` och ska svara med serverns JSON (`{ ok, ... }`); appens handler skickar

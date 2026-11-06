@@ -2184,6 +2184,26 @@ function BibliotekVideoYta({ oppnaDetalj = true }) {
 }
 
 /**
+ * 0.191.0 (cllp/lifehub.app#663): tråden på en post. En anteckning med tre kommentarer (en lång utan blanksteg, en från en gäst) och fältet. Källan är en stubbe med samma form
+ * som `createPostkommentarer`. Saknas `BibliotekKommentarer` i den byggda versionen ritas en markör, och avsnittet säger att tråden saknas.
+ */
+function BibliotekKommentarerYta() {
+  const Bib = Ops.OpsBibliotek;
+  const bygg = Ops.byggPost;
+  if (!Bib || !bygg || !Ops.BibliotekKommentarer) return <p data-saknas="BibliotekKommentarer">BibliotekKommentarer saknas</p>;
+  const tid = Date.UTC(2026, 10, 6, 10, 0);
+  const kim = { uid: "uid-1", namn: "Kim", typ: "manniska", kalla: "bibliotek" };
+  const post = { ...bygg({ groupId: "cps-ab", typ: "anteckning", rubrik: "Protokoll från styrelsemötet", text: "Vi beslutade att flytta repetitionen till torsdag.", skapadAv: kim, skapad: tid, andrad: tid }), id: "p1" };
+  const rader = [
+    { id: "post~p1", namn: "Anna Berg", text: "Bra protokoll. Kan vi lägga till vem som bokar lokalen?", tid: tid + 60_000 },
+    { id: "t1", namn: "Bo Lind", text: "Jag bokar. Länken: https://lokal.exempel.se/bokning/abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz", tid: tid + 120_000, gast: true },
+    { id: "t2", namn: "Kim", text: "Tack!", tid: tid + 180_000, egen: true },
+  ];
+  const kalla = { las: async () => ({ rader }), kommentera: async () => {} };
+  return <Bib poster={[post]} jag={{ uid: "uid-1", roll: "medlem" }} vald={post} skapar={null} onOppna={() => {}} onStang={() => {}} onSkapa={() => {}} onSpara={() => {}} hubHref="/hub" onNavigate={(_h, e) => e.preventDefault()} kommentarer={kalla} />;
+}
+
+/**
  * 0.158.0: ett HTML-dokument på version 3 med raden "Versioner". Callbackarna är stubbar som svarar som `createHtmlDokumentService` gör.
  * `window.__versionsHall = true` gör att Återställ ger ett löfte som väntar tills `window.__versionsSlapp()` körs, och `window.__versionsKonflikt = true`
  * att det avslås med `kod: "konflikt"`, så att väntan och konflikten går att mäta. `window.__versionsAnrop` samlar vad raden anropade.
@@ -3121,6 +3141,7 @@ function Scen() {
   }
   if (s === "bibliotekvideo") return <Full><BibliotekVideoYta /></Full>;
   if (s === "bibliotekhtmlversioner") return <Full><BibliotekHtmlVersionerYta /></Full>;
+  if (s === "bibliotekkommentarer") return <Full><BibliotekKommentarerYta /></Full>;
   if (s === "bibliotekhtmlvy") return <BibliotekHtmlVyYta />;
   if (s === "bibliotekhtmlvy-fel") return <BibliotekHtmlVyYta lage="fel" />;
   if (s === "bibliotekhtmlvy-tom") return <BibliotekHtmlVyYta lage="tom" />;

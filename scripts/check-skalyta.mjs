@@ -51,6 +51,7 @@
  *       node scripts/check-skalyta.mjs --bara-grupp-vantar  bara avsnitt 53, Spara och statusraden medan en grupp skapas (0.129.0)
  *       node scripts/check-skalyta.mjs --bara-kalenderdelning  bara avsnitt 58, Dela en egen kalender och mottagarens lista, 390 och 1280 px (0.154.0)
  *       node scripts/check-skalyta.mjs --bara-htmlversioner  bara avsnitt 59, versionsraden för ett HTML-dokument i Biblioteket, 390 och 1280 px (0.158.0)
+ *       node scripts/check-skalyta.mjs --bara-kommentarer  bara avsnitt 61, tråden på en post i Biblioteket, 390 och 1280 px (0.191.0)
  *       node scripts/check-skalyta.mjs --bara-htmlvy    bara avsnitt 60, ett HTML-dokument i hela fönstret och Bibliotekets länkar dit, 390 och 1280 px (0.159.0)
  *       node scripts/check-skalyta.mjs --bara-kategori  bara avsnitt 54, formuläret "Lägg till kategori": ett namn räcker (0.130.0)
  *       node scripts/check-skalyta.mjs --bara-gaster    bara avsnitt 55, gästernas lista och gästens egen sida, 390 och 1280 px (0.131.0)
@@ -1103,6 +1104,14 @@ const HTMLVERSIONER_VANTAR_INIT = `(() => {
 // `--bara-htmlversioner`: bara avsnitt 59, versionsraden för ett HTML-dokument (0.158.0). Hela körningen kör det också.
 if (argv.includes("--bara-htmlversioner")) {
   await bibliotekHtmlVersioner();
+  await browser.close();
+  avsluta();
+  process.exit(0);
+}
+
+// `--bara-kommentarer`: bara avsnitt 61, tråden på en post (0.191.0). Hela körningen kör det också.
+if (argv.includes("--bara-kommentarer")) {
+  await bibliotekKommentarer();
   await browser.close();
   avsluta();
   process.exit(0);
@@ -8501,6 +8510,63 @@ async function bibliotekHtmlVy() {
  *   (g) (0.159.0) Raden hämtas först när detaljen ritas. Medan koden kommer står en tom ruta, och den är lika bred, lika hög och på samma ställe som den hopfällda raden (högst 0,5 px), så att innehållet
  *       under inte hoppar. Golv: rutan måste ha setts. Röd mot 0.158.0:s statiska import (ingen ruta), grön med den lata.
  */
+/**
+ * 61 (0.191.0, cllp/lifehub.app#663): tråden på en post i Biblioteket, 390 och 1280 px.
+ * (a) tråden ligger under innehållet, inom fönstret, och sidan flödar inte över i sidled;
+ * (b) varje kommentar ligger inom tråden och är inte klippt, också den med en lång adress utan blanksteg (golv: tre rader);
+ * (c) fältet och knappen Kommentera ligger inom tråden, och knappen har en träffyta på minst 44 px på telefon och 32 på dator;
+ * (d) tråden står efter innehållet och taggarna, inte före.
+ */
+async function bibliotekKommentarer() {
+  for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
+    const namn = `kommentarer ${vp.width}`;
+    const knapp = vp.width < 768 ? 44 : 32;
+    const { page, context } = await oppna("bibliotekkommentarer", vp);
+    try {
+      await page.waitForSelector("[data-bibliotek-kommentarer], [data-saknas]");
+      krav(!(await page.$("[data-saknas]")), `${namn}: BibliotekKommentarer saknas i den byggda versionen.`);
+      await page.waitForSelector("[data-bibliotek-kommentar]");
+      const m = await page.evaluate(() => {
+        const t = /** @type {HTMLElement} */ (document.querySelector("[data-bibliotek-kommentarer]"));
+        const tr = t.getBoundingClientRect();
+        const innehall = /** @type {HTMLElement | null} */ (document.querySelector("[data-bibliotek-detalj]"));
+        const knappen = [...t.querySelectorAll("button")].find((b) => (b.textContent || "").trim() === "Kommentera");
+        const falt = t.querySelector("textarea");
+        const lasning = document.querySelector("[data-bibliotek-detalj] .text-etikett, [data-bibliotek-detalj] article, [data-bibliotek-detalj] p");
+        return {
+          sektion: { l: tr.left, r: tr.right, top: tr.top },
+          over: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+          rader: [...t.querySelectorAll("[data-bibliotek-kommentar]")].map((li) => {
+            const r = li.getBoundingClientRect();
+            return { id: li.getAttribute("data-bibliotek-kommentar"), l: r.left, r: r.right, klippt: li.scrollWidth > li.clientWidth + 1 };
+          }),
+          knapp: knappen ? { h: knappen.getBoundingClientRect().height, l: knappen.getBoundingClientRect().left, r: knappen.getBoundingClientRect().right } : null,
+          falt: falt ? { l: falt.getBoundingClientRect().left, r: falt.getBoundingClientRect().right } : null,
+          efterInnehall: Boolean(innehall && lasning && lasning.getBoundingClientRect().top < tr.top),
+          fonsterB: window.innerWidth,
+        };
+      });
+      matt.push(`${namn}: tråden ${m.sektion.l.toFixed(0)}-${m.sektion.r.toFixed(0)}, ${m.rader.length} rader, knappen ${m.knapp ? m.knapp.h.toFixed(0) : "saknas"} px, överflöd ${m.over}`);
+      // (a)
+      krav(m.sektion.l >= -0.5 && m.sektion.r <= m.fonsterB + 0.5 && m.over <= 0, `${namn} (a): tråden ligger ${m.sektion.l.toFixed(0)}-${m.sektion.r.toFixed(0)} i ett fönster på ${m.fonsterB}, och sidan flödar över ${m.over} px; väntat inom fönstret och inget överflöd.`);
+      // (b)
+      krav(m.rader.length === 3, `${namn} (b): ${m.rader.length} kommentarer, väntat 3 (golv).`);
+      krav(m.rader.every((r) => r.l >= m.sektion.l - 0.5 && r.r <= m.sektion.r + 0.5 && !r.klippt), `${namn} (b): raderna ${JSON.stringify(m.rader)}, väntat inom tråden och inte klippta.`);
+      // (c)
+      krav(!!m.knapp && !!m.falt, `${namn} (c): knappen Kommentera eller fältet saknas.`);
+      if (m.knapp && m.falt) {
+        krav(m.knapp.h >= knapp - 0.6 && m.knapp.l >= m.sektion.l - 0.5 && m.knapp.r <= m.sektion.r + 0.5, `${namn} (c): knappen är ${m.knapp.h.toFixed(0)} px hög vid ${m.knapp.l.toFixed(0)}-${m.knapp.r.toFixed(0)}, väntat minst ${knapp} och inom tråden.`);
+        krav(m.falt.l >= m.sektion.l - 0.5 && m.falt.r <= m.sektion.r + 0.5, `${namn} (c): fältet ligger ${m.falt.l.toFixed(0)}-${m.falt.r.toFixed(0)}, väntat inom tråden.`);
+      }
+      // (d)
+      krav(m.efterInnehall, `${namn} (d): tråden står inte efter postens innehåll.`);
+      if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `kommentarer-${vp.width}.png`), fullPage: true });
+    } finally {
+      await context.close();
+    }
+  }
+}
+
 async function bibliotekHtmlVersioner() {
   for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
     const namn = `html-versioner ${vp.width}`;
@@ -8798,6 +8864,7 @@ await gastArenden();
 await kalenderdelning();
 await bibliotekHtmlVersioner();
 await bibliotekHtmlVy();
+await bibliotekKommentarer();
 
 await browser.close();
 avsluta();
