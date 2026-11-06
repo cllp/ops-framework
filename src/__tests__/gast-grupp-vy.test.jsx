@@ -281,7 +281,8 @@ describe("OpsGastGrupp: det bantade gränssnittet", () => {
     expect(document.querySelector("[data-gast-chatt]")).toBeNull();
     await valjFlik(screen.getByRole("tab", { name: "Chatt" }));
     expect(await screen.findByText("Välkommen till gruppen", { selector: "[data-bubbla] *" })).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { level: 1 })).toBeNull();
+    // (0.195.0) På datorn står gruppens namn över flikarna och följer med i varje flik, en gång.
+    expect(screen.getAllByRole("heading", { level: 1 }).map((h) => h.textContent)).toEqual(["Källan"]);
     for (const f of ["Kalender", "Bibliotek"]) {
       await klicka(screen.getByRole("tab", { name: f }));
       await waitFor(() => expect(document.querySelector("[data-gast-grupp]")).not.toBeNull());
@@ -681,7 +682,7 @@ describe("OpsGastSida med hela gruppen", () => {
   });
 });
 
-describe("OpsGastSida med OpsGastGrupp: översikten bär integriteten och Skriv in adressen igen (0.192.0)", () => {
+describe("OpsGastSida med OpsGastGrupp: översikten bär integriteten, och Logga ut på den här enheten står inne i den (0.195.0)", () => {
   const lagringMed = (start = {}) => {
     const d = { ...start };
     return { getItem: (k) => d[k] ?? null, setItem: (k, v) => { d[k] = v; }, removeItem: (k) => { delete d[k]; }, d };
@@ -713,20 +714,25 @@ describe("OpsGastSida med OpsGastGrupp: översikten bär integriteten och Skriv 
     expect(oversikt).toBeTruthy();
     expect(document.querySelector("[data-gast-not]")).toBeNull();
     expect(within(/** @type {HTMLElement} */ (oversikt)).getByText("Integritet och dina uppgifter")).toBeInTheDocument();
-    expect(within(/** @type {HTMLElement} */ (oversikt)).getByRole("button", { name: "Skriv in adressen igen" })).toBeInTheDocument();
     const detalj = /** @type {HTMLDetailsElement} */ (oversikt.querySelector("details"));
     expect(detalj.open).toBe(false);
+    // ⛔ (0.195.0, CP 2026-11-06: "Skriv in adressen igen? Hänger inte med") Utloggningen står inte mitt i översikten, utan inne i integriteten, och säger vad den gör.
+    expect(within(detalj).getByText("Logga ut på den här enheten", { selector: "button, button *" })).toBeInTheDocument();
+    expect(detalj.querySelector("[data-gast-logga-ut-rad]")?.textContent).toContain("Du kommer tillbaka med länken i ditt mejl.");
+    expect(screen.queryByText("Skriv in adressen igen")).toBeNull();
     await klicka(within(/** @type {HTMLElement} */ (oversikt)).getByText("Integritet och dina uppgifter"));
     expect(within(/** @type {HTMLElement} */ (oversikt)).getByRole("button", { name: "Radera mina uppgifter" })).toBeInTheDocument();
+    expect(within(/** @type {HTMLElement} */ (oversikt)).getByRole("button", { name: "Logga ut på den här enheten" })).toBeInTheDocument();
     await valjFlik(screen.getByRole("tab", { name: "Chatt" }));
     expect(document.querySelector("[data-gast-integritet]")).toBeNull();
-    expect(screen.queryByText("Skriv in adressen igen")).toBeNull();
+    expect(screen.queryByText("Logga ut på den här enheten")).toBeNull();
   });
 
-  it("⛔ Skriv in adressen igen glömmer alla sessioner på enheten och går till adressteget, utan att fråga servern", async () => {
+  it("⛔ Logga ut på den här enheten glömmer alla sessioner på enheten och går till adressteget, utan att fråga servern", async () => {
     const { lagring } = rita({ lank: { id: ID, nyckel: NYCKEL } });
     await screen.findByRole("heading", { level: 1, name: "Källan" });
-    await klicka(screen.getByRole("button", { name: "Skriv in adressen igen" }));
+    await klicka(screen.getByText("Integritet och dina uppgifter"));
+    await klicka(screen.getByRole("button", { name: "Logga ut på den här enheten" }));
     expect(await screen.findByLabelText("Din e-postadress")).toBeInTheDocument();
     expect(screen.queryByRole("heading", { level: 1, name: "Källan" })).toBeNull();
     for (const k of [`ops-gast:${ID}`, `ops-gast:${ID2}`, "ops-gast:senaste", "ops-gast:alla"]) expect(lagring.d[k], k).toBeUndefined();
@@ -742,6 +748,9 @@ describe("OpsGastSida med OpsGastGrupp: översikten bär integriteten och Skriv 
     expect([...ruta.querySelectorAll("img")].map((i) => i.getAttribute("src"))).toEqual(["https://x/ljus.png", "https://x/mork.png"]);
     for (const bild of ruta.querySelectorAll("img")) expect(bild.className.split(" ")).toEqual(expect.arrayContaining(["h-full", "w-auto", "max-w-full", "object-contain", "object-left"]));
     expect(screen.getByRole("img", { name: "LifeHub" })).toBeInTheDocument();
+    // ⛔ (0.195.0, CP 2026-11-06: "Ta bort den bredvid loggan.") Gruppens namn står inte i huvudet, bara som sidans rubrik, en gång.
+    expect(document.querySelector("[data-gast-huvud]")?.textContent).not.toContain("Källan");
+    expect(screen.getAllByRole("heading", { level: 1, name: "Källan" })).toHaveLength(1);
     // Appens eget huvud står kvar efter märket.
     expect(within(/** @type {HTMLElement} */ (document.querySelector("[data-gast-huvud]"))).getByRole("link", { name: "Tillbaka" })).toBeInTheDocument();
     expect(() => render(<OpsGastSida lank={null} onLos={vi.fn()} onHamta={vi.fn(async () => gruppSvar)} onNyLank={vi.fn()} marke={{ ljus: "a" }} />)).toThrow(/marke är/);
@@ -750,8 +759,12 @@ describe("OpsGastSida med OpsGastGrupp: översikten bär integriteten och Skriv 
   it("utan länken i minnet blir det sidan som skickar en ny länk", async () => {
     rita();
     await screen.findByRole("heading", { level: 1, name: "Källan" });
-    await klicka(screen.getByRole("button", { name: "Skriv in adressen igen" }));
+    await klicka(screen.getByText("Integritet och dina uppgifter"));
+    await klicka(screen.getByRole("button", { name: "Logga ut på den här enheten" }));
     expect(await screen.findByRole("button", { name: "Skicka en ny länk" })).toBeInTheDocument();
+    // ⛔ (0.195.0) Sidan säger först att länken i mejlet räcker, och att en ny länk gör de gamla ogiltiga.
+    expect(document.body.textContent).toContain("Har du kvar mejlet med inbjudan, öppna länken i det.");
+    expect(document.body.textContent).toContain("En ny länk gör att de gamla slutar fungera.");
   });
 });
 

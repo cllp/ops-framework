@@ -714,12 +714,18 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
   };
   const beskrivning = typeof grupp.beskrivning === "string" ? grupp.beskrivning.trim() : "";
   const behorighet = gastBehorighetsrader(grupp, sprak);
+  // ⛔ GRUPPENS NAMN ÄR SIDANS RUBRIK, EN GÅNG (0.195.0, CP 2026-11-06: "i Mobil står den två gånger. Ta bort den bredvid loggan."). Förut stod namnet både i gästsidans huvud, bredvid loggan,
+  // och som rubrik i Översikt. Nu bara här: på datorn över flikarna, så att det står kvar i varje flik utan att huvudet blir högre, och på telefonen i Översikt, där bottenraden
+  // redan säger var man är.
+  const rubrik = <h1 data-gast-grupp-namn="" className="m-0 min-w-0 text-titel text-ink wrap-anywhere">{grupp.namn}</h1>;
   const oversikt = (
     <div data-gast-oversikt="" className="flex min-w-0 flex-col gap-6">
-      <div className="flex min-w-0 flex-col gap-2">
-        <h1 data-gast-grupp-namn="" className="m-0 min-w-0 text-titel text-ink wrap-anywhere">{grupp.namn}</h1>
-        {beskrivning ? <p data-gast-grupp-beskrivning="" className="m-0 max-w-prose text-etikett text-ink-secondary">{beskrivning}</p> : null}
-      </div>
+      {smal || beskrivning ? (
+        <div className="flex min-w-0 flex-col gap-2">
+          {smal ? rubrik : null}
+          {beskrivning ? <p data-gast-grupp-beskrivning="" className="m-0 max-w-prose text-etikett text-ink-secondary">{beskrivning}</p> : null}
+        </div>
+      ) : null}
       <div className="flex min-w-0 flex-col gap-2">
         <p data-gast-roll="" className="m-0 text-meta text-ink-secondary">{t.duArGast}</p>
         {behorighet.length > 0 ? (
@@ -790,6 +796,8 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
           />
         </>
       ) : (
+      <>
+      {rubrik}
       <OpsTabs
         fast
         tabs={flikar}
@@ -799,6 +807,7 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
       >
         {ordning.map((f) => <OpsTabPanel key={f} id={f}>{innehall(f)}</OpsTabPanel>)}
       </OpsTabs>
+      </>
       )}
     </div>
     </OpsSpelareProvider>

@@ -83,6 +83,24 @@ describe("telefonen: bottenrad och hela höjden (0.190.0, del B)", () => {
   const skarm = (smal) => vi.stubGlobal("matchMedia", (/** @type {string} */ q) => ({ matches: q.includes("max-width") ? smal : false, media: q, addEventListener: () => {}, removeEventListener: () => {} }));
   afterEach(() => vi.unstubAllGlobals());
 
+  it("⛔ gruppens namn står en gång (0.195.0): på telefonen som rubrik i Översikt och inte i de andra flikarna, på datorn över flikarna", async () => {
+    skarm(true);
+    const { unmount } = render(<OpsGastGrupp grupp={{ namn: "Källan", funktioner: ["chatt", "kalender"] }} api={apiMed()} intervallMs={0} idag={new Date(2026, 10, 5)} />);
+    const rubriker = screen.getAllByRole("heading", { level: 1 });
+    expect(rubriker.map((h) => h.textContent)).toEqual(["Källan"]);
+    expect(rubriker[0].closest("[data-gast-oversikt]")).not.toBeNull();
+    fireEvent.click(within(/** @type {HTMLElement} */ (document.querySelector("nav[data-ops-bottenrad]"))).getByText("Chatt"));
+    await waitFor(() => expect(document.querySelector("[data-gast-chatt]")).not.toBeNull());
+    expect(screen.queryByRole("heading", { level: 1 })).toBeNull();
+    unmount();
+    skarm(false);
+    render(<OpsGastGrupp grupp={{ namn: "Källan", funktioner: ["chatt", "kalender"] }} api={apiMed()} intervallMs={0} idag={new Date(2026, 10, 5)} />);
+    const dator = screen.getAllByRole("heading", { level: 1 });
+    expect(dator.map((h) => h.textContent)).toEqual(["Källan"]);
+    expect(dator[0].closest("[data-gast-oversikt]")).toBeNull();
+    expect(dator[0].compareDocumentPosition(screen.getByRole("tablist")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it("⛔ under md är flikarna en bottenrad utan Meny och utan mittknapp, och innehållet fyller höjden ut till raden", async () => {
     skarm(true);
     const api = apiMed();

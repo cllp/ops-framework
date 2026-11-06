@@ -9,6 +9,16 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.195.0
+
+Gästvyn: gruppens namn en gång, och en utloggning som säger vad den gör. CP 2026-11-06, med två skärmbilder från telefonen: "Gruppnamnet Skarv i Web skall inte vara bredvid Lifehub. Den kan vara nedanför utan att pressa ner raden. Vidare i Mobil står den två gånger. Ta bort den bredvid loggan." och "Vad gör denna med be om en ny länk? Varför då? ... Skriv in adressen igen? Hänger inte med".
+
+### Ändrat
+
+- **Gruppens namn står inte bredvid loggan.** Huvudet bär bara märket och språkvalet. Namnet är gruppens rubrik (`h1`), en gång: på datorn över flikarna, där det följer med i varje flik utan att huvudet blir högre, och på telefonen i Översikt, där bottenraden redan säger var man är.
+- **"Skriv in adressen igen" heter "Logga ut på den här enheten"** och står inne i "Integritet och dina uppgifter", med raden "Du kommer tillbaka med länken i ditt mejl." Knappen gjorde redan det: den glömmer gästens sessioner på enheten. Namnet sa det inte, och den stod mitt i översikten.
+- **"Be om en ny länk" säger först att länken i mejlet räcker**, och att en ny länk gör de gamla ogiltiga. Utan länken i minnet landar en utloggad gäst där, och en ny länk hade ogiltigförklarat inbjudningsmejlet utan att gästen visste om det.
+
 ## 0.194.0
 
 Tidsstämpel på allt som har hänt, inte bara datum. CP 2026-11-06: "Alla uppdateringar av projektinformation i modulen projekt behöver datum/tidsstämpel. Även dokument finns bara datum på. Det räcker inte. Jag vill ha tidsstämpel på allt. ... Ny info skall ha datum/tidsstämplar." Det här är ramverkets del; Projekt-modulen är appens.
