@@ -411,6 +411,7 @@ export {
   GASTORSAKER, GASTFEL, GASTFELKODER, GASTNYLANK_SVAR, GASTSTATUSAR, GASTPLATSNUMMER, normaliseraGastepost, gastId, gastomfangsnyckel, gastplatsId, gastLank, tolkaGastLank, gastStatus,
   GASTGRUPPFUNKTIONER, GASTARENDE_MAX, GASTARENDE_SKANNA_MAX, GASTARENDEKOMMENTARER_MAX, GASTARENDEFALT, GASTARENDEKOMMENTARFALT, byggGastMottagare, gastDelegerad, tolkaGastMottagare, GASTCHATT_SIDA, GASTKALENDER_MAX, GASTBIBLIOTEK_MAX, GASTANROP_PER_MINUT, GASTFIL_PER_DYGN, GASTGRUPPSVARSFALT, GASTCHATTFALT, GASTHANDELSEFALT, GASTKALENDERFALT, GASTFILFALT, GASTBIBLIOTEKFALT, GASTPERSONFALT, GASTPERSONINBJUDANFALT, GASTTIDIGAREMEDLEM, arGastId, GASTNAMNLOS, GASTSKRIV_MAX_TECKEN, GASTSKRIV_PER_MINUT, GASTGRUPPATGARDER, gastOmfangGer, gastGruppApi,
   GASTDELTASVAR, GASTDELTAHANDELSEFALT, GASTDELTAATGARDER, GASTDELTARADFALT, GASTDELTALISTFALT,
+  gastSerBibliotekspost, GASTPOSTKORTFALT,
 } from "./lib/gast.js";
 export { OpsGastLista, ORD_OPSGASTLISTA } from "./components/OpsGastLista.jsx";
 export { OpsGastSida, ORD_OPSGASTSIDA } from "./components/OpsGastSida.jsx";
@@ -459,6 +460,16 @@ export { OpsBeskrivenApp, ORD_OPSBESKRIVENAPP } from "./components/OpsBeskrivenA
  */
 export { SAMTALSSLAG, SAMTALSFALT, MEDDELANDEFALT, LASTFALT, MAX_MEDDELANDE, MOTTAGARSLAG, ARENDEMOTTAGARSLAG, samtalsnyckel, byggSamtal, byggMeddelande, byggMottagare, byggArendemottagare, olastaI, motpart, utdrag, TRADFALT, MAX_TRADNAMN, AUTONAMN_LANGD, AUTONAMN_MINST, NAMNLOS_TRAD, rensaForNamn, autonamn, tradensNamn, byggTrad, kravTradnamn, undersamlingskrock, AGENTSTATUS_ID, AGENTLAGEN, AGENTSTATUSFALT, AGENTSTATUS_MAX_ALDER, byggAgentstatus, agentstatus, REAKTIONSKODER, REAKTIONSFALT, REAKTIONSTAK, reaktionsnyckel, byggReaktion, summeraReaktioner, NAMNERFALT, NAMNER_ALLA, MAX_NAMNER, MAX_UIDLANGD, kravNamner, namnda, arNamnd, agentenNamnd, SVARPAFALT, FASTFALT, FASTA_TAK, byggFastning, AMNESFALT, AMNES_FORM, MAX_AMNESRUBRIK, NAMNLOST_AMNE, kravAmne, nyttAmnesId, amnesId, parnyckel, kravAmnesrubrik, amnesrubrik } from "./lib/samtal.js";
 export { createSamtalskalla, samtalsnotiser, harTradar, harStatus, harReaktioner, harOmnamnanden, harCitat, harFasta, harBilagor, harTyst, harAmnen, harLevandeInkorg } from "./data/samtalskalla.js";
+/*
+ * 0.191.0 (cllp/lifehub.app#663): kommentarer på en bibliotekspost, genom gruppens chatt. Roten är ett meddelande med id `post-<postens id>`, svaren dess tråd. Ingen ny samling och ingen ny regel.
+ * `createPostkommentarer` är medlemmens källa till `OpsBibliotek({ kommentarer })`, `bibliotekPostkort` chattens kort för en länk till biblioteket.
+ */
+export { KOMMENTARROT_PREFIX, kommentarRotId, postIdUrRot, bibliotekslank, lasBibliotekslank, adresserIText, kommentarRotText, utanPostlank } from "./lib/postkommentar.js";
+export { createPostkommentarer } from "./data/postkommentarer.js";
+export { BibliotekKommentarer, ORD_BIBLIOTEKKOMMENTARER } from "./components/BibliotekKommentarer.jsx";
+export { BibliotekKommentarerLat, ORD_BIBLIOTEKKOMMENTARER_LAT, forladdaBibliotekKommentarer } from "./components/BibliotekKommentarerLat.jsx";
+export { bibliotekPostkort } from "./components/bibliotekPostkort.jsx";
+export { postkortFor } from "./components/bibliotekPostkortVisning.jsx";
 export { useSamtal } from "./data/useSamtal.jsx";
 export { OpsMottagare } from "./components/OpsMottagare.jsx";
 export { OpsMeddelanden, OpsSamtal, OpsMeddelandeLank, OpsTrad } from "./components/OpsMeddelanden.jsx";

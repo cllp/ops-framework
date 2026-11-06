@@ -77,8 +77,9 @@ CP 2026-10-20 (https://github.com/cllp/lifehub.app/issues/389#issuecomment-62990
 ## Det som inte är gjort, och varför
 
 - **Delegeringen i appen** (servern, reglerna, spegeln till GitHub, mejlet): se "Kvar för appen" i skiva 3. Att en gäst som blir medlem får sina delegeringar flyttade: `ersattAvMedlem` återkallar inbjudan, och delegeringen pekar sedan på ett `gastId` utan levande inbjudan (medlemmarna ser det som återkallad).
-- **Att en gäst bifogar något eller svarar i en tråd.** Gästen skriver bara text i huvudchatten (och i kommentarerna på sina ärenden), och vyn säger det ("Du kan inte bifoga filer. Svar i trådar visas inte än").
-- **Trådsvar och bilagornas innehåll i gästens chatt.** Bilagan visas med sitt namn ("Bilagor visas inte för gäster"). Se regel 13.
+- **Att en gäst bifogar något.** Gästen skriver bara text, i chatten, i en tråd och i kommentarerna på sina ärenden och poster. En klippknapp som saknas säger att bilagor inte går.
+- **Bilagornas innehåll i gästens chatt.** Bilagan visas med sitt namn ("Bilagor visas inte för gäster"). Se regel 13.
+- ⛔ **Trådar är inte längre utelämnade (0.191.0, cllp/lifehub.app#663).** Raden här sade förut att en gäst inte ser svar i trådar och inte svarar i dem, och vyn sade "Svar i trådar visas inte än". CP 2026-11-05 ville ha kommentarer på artefakter "även för gäster", och kommentarerna blev chattens trådar. Med `grupp.samlingar.tradar` ser gästen antalet svar under ett meddelande, läser tråden (`chatt({ trad })`) och svarar med text (`skrivChatt({ trad })`); med `grupp.bibliotekBas` dessutom kort för länkar till biblioteket (bara poster som klarar `gastSerBibliotekspost`, samma prövning som listan) och `kommenteraPost`. Agentens meddelanden döljs också i en tråd. Gästens trådsvar raderas med gästen, och en tråd gästen öppnade får gruppens agent som `skapadAv` vid raderingen (tråden bär andras svar och tas inte bort). Fortfarande ingen bilaga, inget omnämnande och inget citat.
 - **Sms (46elks).** Skiva 4.
 - **Brevets text** (appens, med en variant för omfånget `grupp`), omröstningens modell, ärendets form, samlingsnamnen och routen `/gast`: appens.
 - **Att växla en gäst till medlem.** Appens växling anropar `ersattAvMedlem({ epost, groupId })`, som drar tillbaka gästens inbjudningar i just den gruppen och släpper platsen. Bara servern, aldrig en klient.
@@ -121,11 +122,11 @@ CP 2026-10-20 (https://github.com/cllp/lifehub.app/issues/389#issuecomment-62990
 **Stryks, och vad det hade kostat.**
 - *Gruppens ärendelista i gästvyn:* **stryks**, skälet är att ärendelistan kan bära sådant som inte rör gästen (en sort som hör till Ekonomi, ett ärendes GitHub-adress, ett kvitto). Att filtrera fram det som rör gästen hade krävt en behörighetsmodell per ärende. Det som är med är bara det som delegerats till gästen (skiva 3, ovan), valt av servern på gästens id.
 - *Bilagor och uppladdning från en gäst:* en gäst som laddar upp är en gäst som kan fylla lagringen. Gästen skriver bara text.
-- *Skriva i trådar:* trådsvar visas inte i gästens chatt, och gästen skriver bara i huvudchatten.
+- *Skriva i trådar:* ~~trådsvar visas inte i gästens chatt, och gästen skriver bara i huvudchatten.~~ Inte längre strukket (0.191.0, cllp/lifehub.app#663): gästen läser trådar och svarar med text, se "Det som inte är gjort" ovan.
 - *Privata samtal, agentens meddelanden och Ekonomi:* en gäst har inget i dem att göra. Agentens egna meddelanden döljs i chatten; ett medlemsmeddelande som citerar agenten går inte att filtrera och ingen påstår något annat.
 - *Mitt bibliotek och händelsens eller ärendets filer i gästens bibliotek:* bara gruppens egen plats. Hade krävt en behörighetsmodell per post.
 - *Synlighet per post för gäster:* hade varit "permissions-träsket" (ADR-020 i SessionStudio: läsregler som avgör vem som ser vad, som föll på Firestores gräns för `exists()`). Gäster når bara servern, så ingen läsregel behövs, och priset är den kvarvarande risken ovan: allt i kalendern och biblioteket syns, och chatten.
-- *Bilagornas innehåll och trådsvar i gästens chatt:* en signering per bild i en historik på hundratals meddelanden hade tagit gästens filtak på en sida.
+- *Bilagornas innehåll i gästens chatt:* en signering per bild i en historik på hundratals meddelanden hade tagit gästens filtak på en sida.
 - *Reaktioner, fästa meddelanden och sök i chatten:* ingen av dem behövs för att läsa, och varje är en egen yta att hålla i takt.
 
 ## Proven, båda riktningarna

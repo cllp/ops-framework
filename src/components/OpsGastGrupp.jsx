@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
-import { GASTGRUPPFUNKTIONER } from "../lib/gast.js";
+import { GASTGRUPPFUNKTIONER, GASTSKRIV_MAX_TECKEN } from "../lib/gast.js";
+import { kommentarRotId } from "../lib/postkommentar.js";
 import { kortDatum } from "../lib/deladdatum.js";
 import { DATUM_EJ_SATT } from "../lib/handelsemodell.js";
 import { definierade, forvalda } from "../lib/ord.js";
@@ -164,7 +165,7 @@ const tidText = (h, till) => (h.tid ? (h.slutTid ? `${h.tid} ${till} ${h.slutTid
  * ⛔ NEKAS ETT ANROP (`aterkallad`, `nej`) ANROPAS `onNekad`, och sidan byter allt mot texten "Inbjudan är återkallad". Vyn visar aldrig kvar det som lästs när åtkomsten är borta.
  *
  * @param {object} props
- * @param {{ namn: string, funktioner: readonly string[], nedladdning?: boolean }} props.grupp Tjänstens `hamta().grupp`. (0.190.0) `nedladdning: false`: gruppen har stängt av nedladdning
+ * @param {{ namn: string, funktioner: readonly string[], nedladdning?: boolean, kommentera?: boolean }} props.grupp Tjänstens `hamta().grupp`. (0.190.0) `nedladdning: false`: gruppen har stängt av nedladdning
  *   (`grupp.farLaddaNed`), och varken biblioteket eller spelarens ark ritar Ladda ned. Utelämnad: som förut.
  * @param {ReturnType<typeof import("../lib/gast.js").gastGruppApi>} props.api Anropen mot servern, bundna till sessionen (`gastGruppApi(anrop, sessionsnyckel)`).
  * @param {(orsak: string) => void} [props.onNekad] Ett anrop nekades. Normalt `uppdatera` ur `renderGrupp`, som hämtar om sidan.
@@ -450,6 +451,51 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
     [kor],
   );
 
+  /*
+   * ⛔ KOMMENTARER PÅ EN POST (0.191.0, cllp/lifehub.app#663): samma tråd som medlemmarnas, genom servern. Tråden läses med `chatt({ trad })` och skrivs med `kommenteraPost`, som skapar
+   * roten i gruppchatten första gången och svarar i dess tråd sedan. Bara när servern säger att det går (`grupp.kommentera`). Rotens text bär postens länk, för medlemmarnas kort:
+   * här står posten redan öppen, så raden med länken (den som bär kortet för just posten) visas inte.
+   */
+  const kommentarer = useMemo(() => {
+    if (!grupp.kommentera) return null;
+    /** @param {any} m @param {string} postId */
+    const rad = (m, postId) => {
+      const egenLank = new Set((m.kort ?? []).filter((/** @type {any} */ k) => k.postId === postId).map((/** @type {any} */ k) => k.url));
+      const text = String(m.text ?? "").split(/\r?\n/).filter((r) => !egenLank.has(r.trim())).join("\n").trim();
+      return { id: m.id, namn: m.av?.namn ?? "", text, tid: m.tid, ...(m.egen ? { egen: true } : {}), ...(m.gast ? { gast: true } : {}) };
+    };
+    /** @type {import("../data/postkommentarer.js").Postkommentarer} */
+    const kalla = {
+      maxTecken: GASTSKRIV_MAX_TECKEN,
+      async las(post) {
+        const r = await kor("chatt", { trad: kommentarRotId(post.id) });
+        return { rader: r.rot ? [rad(r.rot, post.id), ...r.meddelanden.map((/** @type {any} */ m) => rad(m, post.id))] : [] };
+      },
+      async kommentera(post, text) {
+        try {
+          return await kor("kommenteraPost", { postId: post.id, text });
+        } catch (e) {
+          throw new Error(felText(e));
+        }
+      },
+    };
+    return kalla;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [grupp.kommentera, kor]);
+  /** Ett kort i chatten öppnar posten i gästens bibliotek. */
+  // Posten ett kort pekar på, tills biblioteket är hämtat. Ett kort öppnas också när biblioteket inte lästs än.
+  const [vantarPost, setVantarPost] = useState(/** @type {string | null} */ (null));
+  const oppnaPostUrChatten = useCallback((/** @type {string} */ postId) => {
+    setFlik("bibliotek");
+    setVantarPost(postId);
+  }, []);
+  useEffect(() => {
+    if (!vantarPost || !bibliotek) return;
+    const p = poster.find((/** @type {any} */ x) => x.id === vantarPost);
+    if (p) setValdPost(p);
+    setVantarPost(null);
+  }, [vantarPost, bibliotek, poster]);
+
   const kalender = /** @type {any} */ (data.kalender);
   /*
    * ══ ⛔ GÄSTENS KALENDER ÄR EN LISTA ÖVER DET SOM ÄR PÅ GÅNG, INGEN MÅNAD (0.190.0, CP 2026-11-05 i cllp/lifehub.app#658, del C) ═══════════════
@@ -592,6 +638,7 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
           adresserPaBegaran
           utanHubb
           utanNedladdning={grupp.nedladdning === false}
+          kommentarer={kommentarer}
         />
         {bibliotek && bibliotek.poster.length === 0 ? <p data-gast-bibliotek-tom="" role="status" className="m-0 text-etikett text-ink-muted">{t.bibliotekTom}</p> : null}
         {bibliotek?.avkortad ? <p role="status" data-gast-bibliotek-avkortad="" className="m-0 text-meta text-ink-muted">{t.bibliotekAvkortad.replace("{n}", String(bibliotek.poster.length))}</p> : null}
@@ -623,6 +670,15 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
         fler={Boolean(chatt?.fler)}
         onAldre={aldreLaddar ? undefined : () => ladda("chatt", { aldre: true })}
         onSkriv={skrivChatt}
+        onLasTrad={(trad) => kor("chatt", { trad })}
+        onSkrivITrad={async (trad, text) => {
+          try {
+            await kor("skrivChatt", { trad, text });
+          } catch (e) {
+            throw new Error(felText(e));
+          }
+        }}
+        onOppnaPost={funktioner.includes("bibliotek") ? oppnaPostUrChatten : undefined}
         laddar={!chatt && !fel.chatt}
         fel={fel.chatt}
         sprak={sprak}

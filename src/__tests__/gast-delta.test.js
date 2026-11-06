@@ -535,9 +535,11 @@ describe("⛔ en delta-gäst ser aldrig resten av gruppen", () => {
     arenden: (t, k) => t.arenden({ sessionsnyckel: k }),
     kommenteraArende: (t, k) => t.kommenteraArende({ sessionsnyckel: k, arendeId: "a-grupp", text: "Hej" }),
     markeraArendeKlart: (t, k) => t.markeraArendeKlart({ sessionsnyckel: k, arendeId: "a-grupp" }),
+    // 0.191.0 (cllp/lifehub.app#663): kommentarer på en post. Ett nej för en delta-gäst redan vid sessionen, före konfigurationen.
+    kommenteraPost: (t, k) => t.kommenteraPost({ sessionsnyckel: k, postId: "p-pdf", text: "Hej" }),
   };
 
-  it("alla elva gruppåtgärder är ett nej för en delta-gäst, och samma anrop fungerar för en gruppgäst (positiv kontroll)", async () => {
+  it("alla tolv gruppåtgärder är ett nej för en delta-gäst, och samma anrop fungerar för en gruppgäst (positiv kontroll)", async () => {
     const h = bygg();
     const d = await deltaGast(h);
     const gr = await gruppGast(h);

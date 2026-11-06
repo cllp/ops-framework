@@ -9,6 +9,43 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.191.0
+
+Kommentera en artefakt via chatten (cllp/lifehub.app#663, CP 2026-11-05: "Vi behöver ha kommentarer på artefakter, även för gäster. Alla typer av artefakter skall kunna ha en kommentarstråd.", och om förslaget att gå genom chatten: "Kör på allt"). Ingen ny samling, inget nytt fält på meddelanden och ingen ny regel: regelfragmentet och fixturerna i `rules/__fixturer__` är byte för byte lika.
+
+### Tillagt
+
+- **Kommentarstråden för en post är ett rotmeddelande i gruppchatten med id `post-<postens id>`** (`kommentarRotId`, `postIdUrRot`, `KOMMENTARROT_PREFIX`), och svaren ligger i dess tråd. Den första kommentaren skapar roten; texten är kommentaren och postens länk (`kommentarRotText`, `bibliotekslank(bas, { plats, postId })`, formen `<bas>?plats=<p>&post=<id>` som appens sökträff). Finns roten redan blir kommentaren ett svar.
+  - **Prefixet är `post-` och inte `post~`** (granskningen av PR 526, appens regelprov mot emulatorn). Samtalsfragmentet nekar med `bilagor` varje meddelande vars id bär trådskiljetecknet (`!mid.matches('.*[~].*')`, eftersom en bilagas nyckel i en tråd är `<tråd>~<meddelande>`, `BILAGA_TRADSKILJE`), så `post~<id>` gav PERMISSION_DENIED för en medlem, både på roten och på svaren. Ramverkets prov hade kört kommentarerna mot minneskällan, utan regler; gästerna gick förbi felet eftersom servern skriver med Admin SDK. `-` kan inte krocka: ett postid börjar med en bokstav eller siffra (`POSTIDFORM`), och Firestores automatiska id har bara `[A-Za-z0-9]`. Regeln är oförändrad. Vakterna: `rules/__tests__/postkommentarer.test.mjs` kör roten och svaret med ramverkets källa mot provreglerna (med `tradar` och `bilagor`), och ett enhetsprov kräver att `kommentarRotId()` aldrig bär `BILAGA_TRADSKILJE`, härlett ur regelns egen teckenklass (`tradskiljeTeckenklass`). Båda röda med `post~` och gröna med `post-`.
+- **`samtalskalla.skickaPaRot(sid, rot, { text, rotText, av })`** (med `tradar`): skapar roten på id:t eller svarar i dess tråd. Med `createNew` i ett atomärt steg; i webbklientens källa avgör regeln (meddelanden har `allow update: if false`), och den som får nej läser roten och svarar. Två som skriver samtidigt ger en rot och ett svar, provat med båda sorterna av källa. Ett nej som inte beror på roten kastas vidare.
+- **`createPostkommentarer({ samtal, groupId, uid, bas, namnFor })`**: medlemmens källa (`Postkommentarer`: `las`, `kommentera`, `prenumerera`, `kanKommentera`, `maxTecken`). Öppnar gruppchatten först (regeln kräver att samtalet finns). Mitt bibliotek kommenteras inte.
+- **`OpsBibliotek({ kommentarer })`**: menyn får "Kommentera" (i listan och i detaljen; fältet får fokus), och postens detalj tråden under innehållet (`BibliotekKommentarer`, orden i `ORD_BIBLIOTEKKOMMENTARER`): kommentarerna äldst först, utan postens egen länk (`utanPostlank`), "Inga kommentarer än." när tråden är tom, och ett fält med Kommentera ("Skickar…" medan det väntar; ett fel står under fältet och texten står kvar). Utan propen: som förut.
+- **Tråden och kortets ritning läses in när de behövs** (granskningen av PR 526: appens `check:jsstorlek` växte med 1 318 byte från ramverket ensamt, nästan allt i bibliotekets fil, eftersom `OpsBibliotek` importerade `BibliotekKommentarer` statiskt). `OpsBibliotek` ritar `BibliotekKommentarerLat` (samma mönster som `OpsSnabbmenyLat` i 0.187.0): `lazy` med `fallback={null}`, alltså ingen tråd och ingen snurra medan biten hämtas (tråden står sist i detaljen, så inget under den flyttar sig), och `LatGrans` runt, så att ett fel vid hämtningen blir en mening med `role="alert"` (`ORD_BIBLIOTEKKOMMENTARER_LAT`) och aldrig en tyst post utan tråd. Med en källa förladdas biten när webbläsaren har tid över (`forladdaBibliotekKommentarer`). `postkortFor` ligger i en egen modul (`bibliotekPostkortVisning`) som `bibliotekPostkort` och gästens chatt hämtar när ett kort slås upp.
+  - **Mätt** (`npm run build`, sedan Vite mot det byggda paketet, en app vars startfil importerar ett namn, minifierad, startfilen och allt den laddar statiskt): `OpsBibliotek` 294 735 byte (95 108 gzip) i 0.190.0, 298 548 (96 269) med den statiska importen, 296 045 (95 509) nu: 2 503 byte (760 gzip) mindre än med den statiska importen, och 1 310 (401 gzip) mer än 0.190.0 (menyraden Kommentera, förladdningen och den lata omslutningen). Trådens egen bit är 3 767 byte (1 692 gzip). `bibliotekPostkort` ensam i en startfil: 6 447 byte (2 845 gzip) med ritningen statisk, 3 461 (1 730) nu. `OpsMeddelanden` är oförändrad (275 548). Appens `check:jsstorlek` räknar på sitt sätt och ska mätas där.
+  - **Vakt:** `check-delbarhet` mäter också en app vars startfil importerar `OpsBibliotek`: `BibliotekKommentarer` ska ligga i en egen bit och inte i startfilen. Rött med den statiska importen (två brott: golvet och att tråden ligger i startfilen), grönt med den lata, och `--bevisa` rött mot paketet som en enda modul. Prov i `postkommentar-lat.test.jsx` (4), röda med statisk import och gröna med den lata.
+- **`bibliotekPostkort({ bas, hamta, onOppna, sprak })`**: chattens `postkort` för länkar till biblioteket. Appens `hamta({ plats, postId })` ger posten när kortet ritas, och kortet ritas med `postkortFor` (samma rubrik, typ och ikon som listan). Titeln lagras aldrig.
+- **Gästen (`createGastService`):** valfria `grupp.samlingar.tradar` och `grupp.bibliotekBas`.
+  - `chatt` ger varje meddelande `svar` (antalet svar gästen ser i tråden, utan agentens) och `kort` (`GASTPOSTKORTFALT`: `url`, `postId`, `typ`, `rubrik`, `mime`) för en länk i appens form till en post gästen ser. `chatt({ trad })` ger tråden: `rot` och svaren i samma vitlistade form, `rot: null` när roten inte finns eller är agentens.
+  - `skrivChatt({ trad, text })` svarar i en tråd, bara text: bilaga, omnämnanden, citat, `av` och `tid` nekas (`ogiltig-text`) som i chatten. En rot som saknas eller är agentens ger `saknas`.
+  - Ny åtgärd `kommenteraPost({ postId, text })` i `GASTGRUPPATGARDER`: samma modell som medlemmens, med `createNew` på roten. Bara en post gästen ser, annars `saknas`. Kräver båda konfigurationerna, annars `nej`. `hamta().grupp.kommentera` säger om det går.
+  - **`gastSerBibliotekspost(post, groupId)`**: villkoret som stod inline i `bibliotek()` (gruppens egen plats och en av bibliotekets typer), utbrutet så att listan och kortet prövar samma sak (regel 2).
+  - Raderingen tar gästens trådsvar, och en tråd gästen öppnade får gruppens agent som `skapadAv` (tråden bär andras svar och tas inte bort). Kastar över 20 000 trådar, som för händelsesvaren.
+- **`OpsGastChatt`:** "N svar" under ett meddelande med svar öppnar tråden i samma yta (roten, svaren, skrivfältet, "Till chatten"), med `onLasTrad` och `onSkrivITrad`. Kortet ritas ur serverns `kort`, och ett tryck öppnar posten i gästens bibliotek (`onOppnaPost`), aldrig länken till medlemmarnas app. **`OpsGastGrupp`** kopplar allt, och ger gästens bibliotek Kommentera när `grupp.kommentera` är sant.
+- **Lib:** `lasBibliotekslank`, `adresserIText`.
+
+### Ändrat
+
+- **`hamta().grupp` bär `kommentera`** (`true` med `tradar` och `bibliotekBas`, annars `false`, utskrivet). `GASTGRUPPSVARSFALT.chatt` har `rot`, `GASTCHATTFALT` har `svar` och `kort`, och `GASTGRUPPSVARSFALT.kommenteraPost` är ny.
+- **Unikhetsprövningen i `createGastService` räknar `tradar`.** Ärendenas prövning byggde en egen lista över gruppens samlingar och hade räknat en för lite; den läser nu samma lista (`gruppnamn`). `tradar` och `meddelanden` ska ha olika namn.
+- **"Svar i trådar visas inte än" är borta** ur gästtjänstens dokumentation och ur `docs/beslut/0012-gaster-hela-gruppen.md`, som säger vad som gäller nu.
+
+### För appen
+
+- `OpsBibliotek kommentarer={createPostkommentarer({ samtal, groupId, uid, bas, namnFor })}` (med `useMemo`).
+- Chattens `postkort={bibliotekPostkort({ bas, hamta, onOppna })}` (med `useMemo`), där `hamta` läser posten genom bibliotekets källa och svarar `null` på ett nej från reglerna.
+- `createGastService({ grupp: { samlingar: { ..., tradar: "tradar" }, bibliotekBas } })` i `functions/gast.js`, och `kommenteraPost` släppt igenom i `/api/gast` (`gastgrupp.js`), med `ogiltig-text` som 400 som för chatten.
+- Reglerna ändras inte.
+
 ## 0.190.0
 
 Gästvyn enkel (cllp/lifehub.app#658, planen A till H med CP:s beslut 2026-11-05: "Bra gillar allt", kalendern bara lista), plus nålen (lifehub.app PR 656), gästens spelare (del P) och en strömbrytare för gästernas nedladdning (del Q). Del F (inbjudningsmejlet) är appens och finns inte här.
