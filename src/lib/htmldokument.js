@@ -123,10 +123,21 @@ export function arHtmlDokument(post) {
 export function htmlVyAdress(oppnaHtml, post) {
   if (typeof oppnaHtml !== "function") return "";
   if (!arHtmlDokument(post) || typeof post?.fil?.sokvag !== "string" || post.fil.sokvag === "") return "";
-  const svar = oppnaHtml(post);
+  return provadVyAdress(oppnaHtml(post), "oppnaHtml");
+}
+
+/**
+ * Appens svar på "var ligger vyn för den här filen?", prövat (0.193.0: delat av `htmlVyAdress` och `pdfVyAdress`, en regel och inte två kopior). `null`, `undefined` och `""` betyder ingen vy och ger `""`.
+ * En sida i appen (`/…`, inte `//…`) eller en `http(s)`-adress godtas. Allt annat kastar, med skälet och med namnet på appens funktion (`kalla`).
+ *
+ * @param {unknown} svar
+ * @param {string} kalla Namnet på appens funktion, för felet.
+ * @returns {string}
+ */
+export function provadVyAdress(svar, kalla) {
   if (svar === null || svar === undefined || svar === "") return "";
   if (typeof svar !== "string" || !HTML_VYADRESSFORM.test(svar)) {
-    throw new Error(`oppnaHtml: svaret ska vara adressen till en sida i appen (börja med / eller https://), fick ${typeof svar === "string" ? JSON.stringify(svar.slice(0, 40)) : typeof svar}. En blob-, data- eller javascript-adress är aldrig tillåten: den kör dokumentets kod med appens rättigheter.`);
+    throw new Error(`${kalla}: svaret ska vara adressen till en sida i appen (börja med / eller https://), fick ${typeof svar === "string" ? JSON.stringify(svar.slice(0, 40)) : typeof svar}. En blob-, data- eller javascript-adress är aldrig tillåten: den kör dokumentets kod med appens rättigheter.`);
   }
   return svar;
 }

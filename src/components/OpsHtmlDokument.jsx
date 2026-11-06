@@ -2,6 +2,7 @@ import { forwardRef, useEffect, useMemo, useRef, useState } from "react";
 import { OpsButton } from "./OpsButton.jsx";
 import { useOpsSprak } from "./OpsSprak.jsx";
 import { avkodaTextfil, filadressFel } from "../lib/bibliotek.js";
+import { blobBytes } from "../lib/blobbytes.js";
 import { HTML_SANDBOX, HTML_UTSKRIFTSMEDDELANDE, externLankAdress } from "../lib/htmldokument.js";
 import { HTML_ZOOMMEDDELANDE, byggSrcdoc, tolkaRutmeddelande } from "../lib/htmlruta.js";
 import { cx } from "../lib/cx.js";
@@ -224,14 +225,3 @@ export const ORD_HTMLDOKUMENT = {
   fel: { sv: "Dokumentet gick inte att visa.", en: "The document could not be shown." },
   tom: { sv: "Dokumentet är tomt.", en: "The document is empty." },
 };
-
-/** @param {Blob} blob @returns {Promise<ArrayBuffer>} */
-function blobBytes(blob) {
-  if (typeof blob.arrayBuffer === "function") return blob.arrayBuffer();
-  return new Promise((los, fel) => {
-    const l = new FileReader();
-    l.onload = () => los(/** @type {ArrayBuffer} */ (l.result));
-    l.onerror = () => fel(l.error ?? new Error("Filen gick inte att läsa."));
-    l.readAsArrayBuffer(blob);
-  });
-}

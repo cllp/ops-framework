@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { avkodaTextfil, filadressFel, TEXTFORHANDS_BYTE } from "../lib/bibliotek.js";
 import { ordet } from "../lib/ord.js";
 import { useOpsSprak } from "./OpsSprak.jsx";
+import { blobBytes } from "../lib/blobbytes.js";
 
 /**
  * Textfilens innehåll i detaljen (0.153.0, ops-framework#460 punkt 3, lifehub.app QA-fynd 5).
@@ -87,14 +88,3 @@ const ORD_BIBLIOTEKTEXT = {
   innehall: { sv: "Innehållet i {namn}", en: "The contents of {namn}" },
   avkortad: { sv: "Det här är början av filen. Resten finns i filen.", en: "This is the start of the file. The rest is in the file." },
 };
-
-/** @param {Blob} blob @returns {Promise<ArrayBuffer>} */
-function blobBytes(blob) {
-  if (typeof blob.arrayBuffer === "function") return blob.arrayBuffer();
-  return new Promise((los, fel) => {
-    const l = new FileReader();
-    l.onload = () => los(/** @type {ArrayBuffer} */ (l.result));
-    l.onerror = () => fel(l.error ?? new Error("Filen gick inte att läsa."));
-    l.readAsArrayBuffer(blob);
-  });
-}
