@@ -244,6 +244,36 @@ function GastGruppListaScen() {
   );
 }
 
+/*
+ * 0.197.0 (lifehub.app#661): Bjud in med Telefon. Listan har en gäst med telefonnummer (Ny länk på raden) och en med adress, och formuläret valet E-post eller Telefon (`medTelefon`).
+ * `onBjudGrupp` svarar som tjänsten (`{ id, slag }`), och `onKopieraLank` med en telefonlänk (`&s=tel`). Anropen samlas i `window.__gastgruppanrop`.
+ */
+const GASTTELEFONLANK = `https://my.life-hub.app/guest#i=${"a".repeat(64)}&k=${"N".repeat(43)}&s=tel`;
+function GastTelefonScen() {
+  const w = /** @type {any} */ (window);
+  return (
+    <Skal>
+      <div className="px-4 py-4">
+        <OpsGastLista
+          personer={[
+            { gastId: "g_" + "4".repeat(40), epost: null, telefon: "+46701234567", namn: "Tove Telefonsson", status: "vantar", inbjudningar: [{ id: "i5", omfang: { slag: "grupp" }, titel: null, status: "vantar" }] },
+            GASTPERSONER[0],
+          ]}
+          platser={{ anvanda: 2, totalt: 5 }}
+          nu={GAST_NU}
+          medTelefon
+          gruppnamn="Källan"
+          onBjudGrupp={async (v) => { w.__gastgruppanrop.push(["bjudGrupp", v]); return { id: "a".repeat(64), slag: "telefon" }; }}
+          onKopieraLank={async (v) => { w.__gastgruppanrop.push(["kopieraLank", v]); return { url: GASTTELEFONLANK, lankGiltigTill: GAST_NU + 30 * 86400000 }; }}
+          onSkickaOm={async (v) => { w.__gastgruppanrop.push(["skickaOm", v]); return { id: v.id, slag: "telefon" }; }}
+          onAterkalla={(v) => { w.__gastgruppanrop.push(["aterkalla", v]); }}
+          onRadera={(v) => { w.__gastgruppanrop.push(["radera", v]); }}
+        />
+      </div>
+    </Skal>
+  );
+}
+
 /** 0.132.0: gruppens medlemsvy med gäster. "Gäst (utan konto)" är ett val i Roll under Bjud in; väntande gäster står bland de väntande inbjudningarna. */
 function GastMedlemmarScen() {
   return (
@@ -455,7 +485,7 @@ function GastSidaScen({ lage }) {
   })();
   return (
     <OpsGastSida
-      lank={lage === "nylank" ? null : { id: GAST_ID, nyckel: GAST_NYCKEL }}
+      lank={lage === "nylank" ? null : lage === "telefon" ? { id: GAST_ID, nyckel: GAST_NYCKEL, slag: "telefon" } : { id: GAST_ID, nyckel: GAST_NYCKEL }}
       lagring={lagring}
       intervallMs={0}
       huvud={<span className="text-publik-ingress font-semibold text-publik-ljus-text">LifeHub</span>}
@@ -3092,6 +3122,7 @@ function Scen() {
   if (s === "gastlista") return <GastListaScen full={false} />;
   if (s === "gastlista-full") return <GastListaScen full />;
   if (s === "gastgrupp-lista") return <GastGruppListaScen />;
+  if (s === "gastgrupp-telefon") return <GastTelefonScen />;
   if (s === "gastgrupp-medlemmar") return <GastMedlemmarScen />;
   if (s === "gastgrupp-sida") return <GastGruppSidaScen />;
   if (s === "gastgrupp-arenden") return <GastArendenSidaScen />;

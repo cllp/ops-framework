@@ -1,12 +1,13 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { SIGNERAD_SEKUNDER } from "../lib/delning.js";
-import { GAST_PLATSER_GRATIS, GASTLANKDAGAR, MAX_GASTNAMN, gastId, gastStatus, normaliseraGastepost } from "../lib/gast.js";
+import { GAST_PLATSER_GRATIS, GASTLANKDAGAR, MAX_GASTNAMN, gastId, gastStatus, normaliseraGastepost, normaliseraGasttelefon } from "../lib/gast.js";
 import { cx } from "../lib/cx.js";
 import { definierade, forvalda } from "../lib/ord.js";
 import { OpsButton } from "./OpsButton.jsx";
 import { OpsField, OpsInput } from "./OpsField.jsx";
 import { OpsModal } from "./OpsModal.jsx";
 import { OpsPill } from "./OpsPill.jsx";
+import { OpsSegmented } from "./OpsSegmented.jsx";
 
 /**
  * Orden i gästlistan, på svenska och engelska (0.131.0, cllp/lifehub.app#389). Statusorden hör till `GASTSTATUSAR` och är de enda platserna de skrivs ut på.
@@ -102,6 +103,27 @@ export const ORD_OPSGASTLISTA = {
   bekraftaRaderaPagar: { sv: "Raderar…", en: "Deleting…" },
   avbryt: { sv: "Avbryt", en: "Cancel" },
   stang: { sv: "Stäng", en: "Close" },
+  // ── Telefon (0.197.0, cllp/lifehub.app#661): inbjudan med ett nummer, länken delas från den egna telefonen ──
+  kontaktVal: { sv: "Bjud in med", en: "Invite with" },
+  // Ingressen när Telefon är valt: gruppens ingress börjar med att gästen får ett mejl, och det gör en gäst med telefon inte.
+  ingressGruppTelefon: {
+    sv: "En gäst får en länk som du delar, till exempel som sms, och kan följa gruppen utan konto: läsa och skriva i chatten, svara och rösta i kalendern och läsa, spela och ladda ned i biblioteket. Gästen ser inte gruppens ärenden, bara de som gruppen delegerar till hen.",
+    en: "A guest gets a link that you share, for example as a text message, and can follow the group without an account: read and write in the chat, answer and vote in the calendar, and read, play and download in the library. The guest does not see the group's cases, only those the group delegates to them.",
+  },
+  kontaktEpost: { sv: "E-post", en: "Email" },
+  kontaktTelefon: { sv: "Telefon", en: "Phone" },
+  telefonEtikett: { sv: "Telefonnummer", en: "Phone number" },
+  telefonHjalp: { sv: "Inget sms skickas härifrån. Du får länken och delar den med Dela, till exempel som sms från din telefon.", en: "No text message is sent from here. You get the link and share it with Share, for example as a text from your phone." },
+  felTelefon: { sv: "Det där ser inte ut som ett telefonnummer. Skriv det med riktnummer, 070 123 45 67, eller med landsnummer, +46 70 123 45 67.", en: "That does not look like a phone number. Write it with the area code, 070 123 45 67, or with the country code, +46 70 123 45 67." },
+  telefonLank: { sv: "Inbjudan är klar. Dela länken med {vem}.", en: "The invitation is ready. Share the link with {vem}." },
+  telefonUtanLank: { sv: "Inbjudan finns. Tryck Kopiera länk på gästens rad för att dela den.", en: "The invitation exists. Press Copy link on the guest's row to share it." },
+  kopieraLankDelaTextTelefon: { sv: "Öppna länken och skriv ditt telefonnummer, samma som inbjudan gäller.", en: "Open the link and enter your phone number, the one the invitation is for." },
+  kopieraLankGiltigTelefon: { sv: "Länken gäller till {datum}.", en: "The link is valid until {datum}." },
+  kopieraLankIngetTelefon: { sv: "Inget sms skickades. Dela länken själv.", en: "No text message was sent. Share the link yourself." },
+  nyLank: { sv: "Ny länk", en: "New link" },
+  nyLankNamn: { sv: "Ge {vem} en ny länk", en: "Give {vem} a new link" },
+  nyLankPagar: { sv: "Skapar…", en: "Creating…" },
+  nyLankKlar: { sv: "En ny länk är skapad. Den gäller i {dagar} dagar, och den förra länken fungerar inte längre. Dela den nya.", en: "A new link has been created. It is valid for {dagar} days, and the previous link no longer works. Share the new one." },
   // ── I gruppens medlemsvy (`OpsMedlemmar`, 0.132.0): gästen är ett val i Roll ──
   rollGast: { sv: "Gäst (utan konto)", en: "Guest (no account)" },
   medlemsNotMedGast: {
@@ -114,6 +136,7 @@ export const ORD_OPSGASTLISTA = {
 const FELKOD_TILL_ORD = /** @type {Record<string, string>} */ ({
   "platser-slut": "platserFulla",
   "ogiltig-epost": "felEpost",
+  "ogiltig-telefon": "felTelefon",
   "ogiltigt-namn": "felNamn",
   "brev-misslyckades": "felBrev",
   "ej-behorig": "felEjBehorig",
@@ -152,9 +175,11 @@ export function gastFelText(e, t, totalt) {
  * användartryck. ⛔ Misslyckas kopieringen (ingen `navigator.clipboard`, eller den kastar) markeras texten och det står vad medlemmen gör i stället; misslyckas delningen (utom att personen
  * stängde menyn: `AbortError`) står det att länken går att kopiera. Inget tyst fel (regel 5).
  *
- * @param {{ lank: { url: string, lankGiltigTill?: number }, vem: string, t: Record<string, string>, sprak: string, gruppnamn?: string }} props
+ * (0.197.0) `telefon`: länken gäller ett telefonnummer. Delningen säger åt gästen att skriva sitt nummer, och raden under säger att inget sms skickades i stället för "samma länk som i mejlet".
+ *
+ * @param {{ lank: { url: string, lankGiltigTill?: number }, vem: string, t: Record<string, string>, sprak: string, gruppnamn?: string, telefon?: boolean }} props
  */
-function GastLank({ lank, vem, t, sprak, gruppnamn }) {
+function GastLank({ lank, vem, t, sprak, gruppnamn, telefon = false }) {
   const { url, lankGiltigTill } = lank;
   const ruta = useRef(/** @type {HTMLDivElement | null} */ (null));
   const [besked, setBesked] = useState("");
@@ -174,14 +199,14 @@ function GastLank({ lank, vem, t, sprak, gruppnamn }) {
   async function dela() {
     setBesked("");
     try {
-      await navigator.share({ title: gruppnamn ? t.kopieraLankDelaRubrik.replace("{grupp}", gruppnamn) : t.kopieraLankDelaRubrikUtanGrupp, text: t.kopieraLankDelaText, url });
+      await navigator.share({ title: gruppnamn ? t.kopieraLankDelaRubrik.replace("{grupp}", gruppnamn) : t.kopieraLankDelaRubrikUtanGrupp, text: telefon ? t.kopieraLankDelaTextTelefon : t.kopieraLankDelaText, url });
     } catch (e) {
       if (/** @type {{ name?: string }} */ (e)?.name === "AbortError") return;
       setBesked(t.kopieraLankDelaFel);
     }
   }
   return (
-    <div ref={ruta} data-gast-lank="" className="flex flex-col gap-1">
+    <div ref={ruta} data-gast-lank={telefon ? "telefon" : ""} className="flex flex-col gap-1">
       <div className="flex flex-wrap items-center gap-2">
         <div className="min-w-0 flex-1">
           <OpsInput value={url} onChange={() => {}} readOnly tal={false} ariaLabel={t.kopieraLankFaltNamn.replace("{vem}", vem)} />
@@ -196,8 +221,8 @@ function GastLank({ lank, vem, t, sprak, gruppnamn }) {
         ) : null}
       </div>
       <p className="m-0 text-etikett text-ink-secondary wrap-anywhere">
-        {datum ? `${t.kopieraLankGiltig.replace("{datum}", datum)} ` : ""}
-        {t.kopieraLankInget}
+        {datum ? `${(telefon ? t.kopieraLankGiltigTelefon : t.kopieraLankGiltig).replace("{datum}", datum)} ` : ""}
+        {telefon ? t.kopieraLankIngetTelefon : t.kopieraLankInget}
       </p>
       {besked ? <p role="status" data-gast-lank-besked="" className="m-0 text-etikett text-ink-secondary wrap-anywhere">{besked}</p> : null}
     </div>
@@ -215,10 +240,10 @@ function GastLank({ lank, vem, t, sprak, gruppnamn }) {
  * var tryckbar igen med adressen kvar, så varje nytt tryck bjöd in en gång till. Nu ger `onBekrafta` ett löfte: knappen är upptagen (snurra och
  * spärr, `OpsButton`), Avbryt och stängningen gör ingenting under tiden, och den som anropade stänger dialogen när löftet är klart.
  *
- * @param {{ bekrafta: { slag: "grupp", epost: string, namn: string } | { slag: "radera", gastId: string, epost: string, namn: string }, t: Record<string, string>, onBekrafta: () => Promise<unknown>, onAvbryt: () => void }} props
+ * @param {{ bekrafta: { slag: "grupp", epost?: string, telefon?: string, namn: string } | { slag: "radera", gastId: string, epost?: string, telefon?: string, namn: string }, t: Record<string, string>, onBekrafta: () => Promise<unknown>, onAvbryt: () => void }} props
  */
 export function GastBekraftelse({ bekrafta, t, onBekrafta, onAvbryt }) {
-  const vem = bekrafta.namn ? bekrafta.namn : bekrafta.epost;
+  const vem = bekrafta.namn || bekrafta.epost || bekrafta.telefon || "";
   const [pagar, setPagar] = useState(false);
   const pagarRef = useRef(false);
   const avbryt = () => {
@@ -292,7 +317,8 @@ export function GastBekraftelse({ bekrafta, t, onBekrafta, onAvbryt }) {
 /**
  * @typedef {object} Person
  * @property {string} gastId
- * @property {string} epost
+ * @property {string | null} epost (0.197.0) `null` för en gäst med telefonnummer.
+ * @property {string | null} [telefon] (0.197.0) Numret i E.164 för en gäst som bjudits in med telefon, annars `null` eller utelämnat.
  * @property {string} [namn]
  * @property {"aterkallad" | "utgangen" | "har-rostat" | "inloggad" | "vantar"} [status] Den mest aktiva av personens inbjudningar.
  * @property {ReadonlyArray<PersonInbjudan>} inbjudningar
@@ -319,7 +345,10 @@ export function GastBekraftelse({ bekrafta, t, onBekrafta, onAvbryt }) {
  * @param {{ anvanda: number, totalt: number }} props.platser Hur många av platserna som används (tjänstens `lista(...).platser`). Serverns siffra, inte en räkning av raderna: platserna är serverns bokföring.
  * @param {ReadonlyArray<string>} [props.harRostat] `gastId` för de gäster som appen vet har röstat. Ger status `har-rostat`.
  * @param {(inmatning: { epost: string, namn: string }) => void | Promise<unknown>} [props.onBjud] Bjuder in, eller bjuder in en återkallad igen. Utelämnad: ingen knapp och inget formulär.
- * @param {(inmatning: { epost: string, namn: string }) => void | Promise<unknown>} [props.onBjudGrupp] (0.132.0) Bjuder in till hela gruppen, efter att medlemmen bekräftat i dialogen. Bara i gruppläget.
+ * @param {(inmatning: { epost: string, namn: string } | { telefon: string, namn: string }) => void | Promise<unknown>} [props.onBjudGrupp] (0.132.0) Bjuder in till hela gruppen, efter att medlemmen bekräftat i dialogen. Bara i gruppläget.
+ *   (0.197.0) Med Telefon vald får den `{ telefon, namn }` och ska ge tjänstens svar, minst `{ id }`: vyn hämtar då länken med `onKopieraLank` och visar den med Dela och Kopiera direkt.
+ * @param {boolean} [props.medTelefon] (0.197.0, cllp/lifehub.app#661) Ger valet E-post eller Telefon i gruppens inbjudan. Kräver `onBjudGrupp` och `onKopieraLank`: utan länken når en telefoninbjudan ingen.
+ *   ⛔ Ett val appen slår på, inget förval: en app vars `onBjudGrupp` bara skickar en adress hade fått en Telefon-knapp som alltid nekas.
  * @param {(arg: { id: string }) => void | Promise<unknown>} [props.onSkickaOm]
  * @param {(arg: { id: string }) => Promise<{ url: string, lankGiltigTill: number }>} [props.onKopieraLank] (0.189.0, CP 2026-11-05: "Jag skulle också vilja kunna se länken till inbjudningen, eller kopiera den.") Ger SAMMA länk som i mejlet, utan att skicka något mejl (tjänstens `kopieraLank`). Ger `{ url, lankGiltigTill }`, som visas i ett fält med en Kopiera-knapp och en Dela-knapp där webbläsaren kan dela. Utelämnad: ingen knapp.
  * @param {string} [props.gruppnamn] (0.189.0) Gruppens namn, för rubriken i delningsmenyn ("Inbjudan till {grupp}"). Utelämnad: "Inbjudan".
@@ -331,7 +360,7 @@ export function GastBekraftelse({ bekrafta, t, onBekrafta, onAvbryt }) {
  * @param {string} [props.sprak]
  * @param {Partial<Record<keyof typeof ORD_OPSGASTLISTA, string>>} [props.ord] Egna texter, som vinner över ordboken.
  */
-export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud, onBjudGrupp, onSkickaOm, onKopieraLank, onAterkalla, onAterkallaAlla, onRadera, gruppnamn, utanRubrik = false, nu, sprak = "sv", ord }) {
+export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud, onBjudGrupp, onSkickaOm, onKopieraLank, onAterkalla, onAterkallaAlla, onRadera, gruppnamn, medTelefon = false, utanRubrik = false, nu, sprak = "sv", ord }) {
   if (personer !== undefined && gaster !== undefined) {
     throw new Error("OpsGastLista: ange antingen gaster (en omröstning) eller personer (hela gruppen), inte båda. Två listor över samma gäster hade kunnat säga olika saker.");
   }
@@ -345,7 +374,7 @@ export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud
   }
   if (gruppLage) {
     for (const p of rader) {
-      if (!p || typeof p.gastId !== "string" || typeof p.epost !== "string" || !Array.isArray(p.inbjudningar)) throw new Error("OpsGastLista: varje person har { gastId, epost, inbjudningar } (tjänstens lista({ groupId }).personer).");
+      if (!p || typeof p.gastId !== "string" || !(typeof p.epost === "string" || typeof p.telefon === "string") || !Array.isArray(p.inbjudningar)) throw new Error("OpsGastLista: varje person har { gastId, epost, inbjudningar }, med telefon i stället för epost för en gäst med telefonnummer (tjänstens lista({ groupId }).personer).");
       for (const i of p.inbjudningar) if (!i || typeof i.id !== "string" || typeof i.omfang?.slag !== "string") throw new Error("OpsGastLista: varje inbjudan har { id, omfang: { slag } }.");
     }
     if (onBjud !== undefined) throw new Error("OpsGastLista: onBjud hör till listan över en omröstning. Hela gruppen bjuds in med onBjudGrupp.");
@@ -354,6 +383,10 @@ export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud
       if (!g || typeof g.id !== "string" || typeof g.epost !== "string") throw new Error("OpsGastLista: varje gäst har { id, epost }.");
     }
     if (onBjudGrupp !== undefined || onAterkallaAlla !== undefined) throw new Error("OpsGastLista: onBjudGrupp och onAterkallaAlla hör till listan över hela gruppen (personer).");
+    if (medTelefon) throw new Error("OpsGastLista: medTelefon hör till listan över hela gruppen (personer). En omröstning och en händelse bjuds in med e-post.");
+  }
+  if (medTelefon && (onBjudGrupp === undefined || onKopieraLank === undefined)) {
+    throw new Error("OpsGastLista: medTelefon kräver onBjudGrupp och onKopieraLank. Inget sms skickas, så länken är det enda som når en gäst med telefonnummer.");
   }
   for (const [namn, f] of /** @type {const} */ ([["onBjud", onBjud], ["onBjudGrupp", onBjudGrupp], ["onSkickaOm", onSkickaOm], ["onKopieraLank", onKopieraLank], ["onAterkalla", onAterkalla], ["onAterkallaAlla", onAterkallaAlla], ["onRadera", onRadera]])) {
     if (f !== undefined && typeof f !== "function") throw new Error(`OpsGastLista: ${namn} måste vara en funktion (eller utelämnas).`);
@@ -362,13 +395,19 @@ export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud
   const rubrikId = useId();
   const [epost, setEpost] = useState("");
   const [namn, setNamn] = useState("");
+  // (0.197.0) E-post eller Telefon i gruppens inbjudan, och numret. Fälten är två, så att ett byte av val aldrig skickar en adress som nummer eller tvärtom.
+  const [kontaktslag, setKontaktslag] = useState(/** @type {"epost" | "telefon"} */ ("epost"));
+  const [telefon, setTelefon] = useState("");
+  // Länken efter en inbjudan med telefon: den visas under formuläret direkt, med Dela och Kopiera.
+  const [nyTelefonlank, setNyTelefonlank] = useState(/** @type {{ vem: string, url: string, lankGiltigTill: number } | null} */ (null));
   const [fel, setFel] = useState("");
   const [radfel, setRadfel] = useState(/** @type {Record<string, string>} */ ({}));
   // Beskedet efter ett lyckat Skicka igen (CP 2026-11-05: "Det skall vara en progress också som berättar vad den gör"). Utan det ändrades ingenting synligt efter ett tryck.
   const [radklar, setRadklar] = useState(/** @type {Record<string, string>} */ ({}));
   // Länkarna som hämtats, per inbjudans id. De ligger bara i minnet och försvinner när vyn stängs: servern kan inte läsa ut en länk i efterhand.
   const [lankar, setLankar] = useState(/** @type {Record<string, { url: string, lankGiltigTill: number }>} */ ({}));
-  const [bekrafta, setBekrafta] = useState(/** @type {{ slag: "grupp", epost: string, namn: string } | { slag: "radera", gastId: string, epost: string, namn: string } | null} */ (null));
+  const [bekrafta, setBekrafta] = useState(/** @type {{ slag: "grupp", epost?: string, telefon?: string, namn: string } | { slag: "radera", gastId: string, epost?: string, telefon?: string, namn: string } | null} */ (null));
+  const telefonValt = gruppLage && medTelefon && kontaktslag === "telefon";
   const levande = useRef(true);
   useEffect(() => {
     levande.current = true;
@@ -441,10 +480,11 @@ export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud
    * Hämtar länken till en inbjudan (`onKopieraLank`) och visar den under raden. Ett fel visas som radfel, som vid Skicka igen.
    * @param {string} radId Raden som får felet (som `pa`).
    * @param {string} inbjudanId
+   * @param {{ behallKlar?: boolean }} [val] `behallKlar`: beskedet på raden står kvar (Ny länk för en gäst med telefon hämtar länken efter sitt eget besked).
    */
-  async function hamtaLank(radId, inbjudanId) {
+  async function hamtaLank(radId, inbjudanId, val = {}) {
     setRadfel((r) => ({ ...r, [radId]: "" }));
-    setRadklar((r) => ({ ...r, [radId]: "" }));
+    if (!val.behallKlar) setRadklar((r) => ({ ...r, [radId]: "" }));
     try {
       const svar = await /** @type {NonNullable<typeof onKopieraLank>} */ (onKopieraLank)({ id: inbjudanId });
       if (!svar || typeof svar.url !== "string" || svar.url === "") throw new Error("onKopieraLank måste ge { url } med länken.");
@@ -452,6 +492,45 @@ export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud
     } catch (e) {
       if (levande.current) setRadfel((r) => ({ ...r, [radId]: felText(e) }));
     }
+  }
+
+  /**
+   * (0.197.0) Öppnar bekräftelsen för en inbjudan med telefon. Numret prövas först med samma funktion som servern (`normaliseraGasttelefon`), och det är den normaliserade formen som skickas.
+   * @param {string} tel
+   * @param {string} n
+   */
+  function begarGruppTelefon(tel, n) {
+    setFel("");
+    setNyTelefonlank(null);
+    const normal = normaliseraGasttelefon(tel);
+    if (normal === null) {
+      setFel(t.felTelefon);
+      return;
+    }
+    if (n.trim().length > MAX_GASTNAMN) {
+      setFel(t.felNamn.replace("{max}", String(MAX_GASTNAMN)));
+      return;
+    }
+    setBekrafta({ slag: "grupp", telefon: normal, namn: n.trim() });
+  }
+
+  /**
+   * (0.197.0) Ny länk för en gäst med telefon: `onSkickaOm` byter nyckel utan brev, och den nya länken hämtas och visas direkt. Felet visas på raden, som vid Skicka igen.
+   * @param {string} radId
+   * @param {string} inbjudanId
+   * @param {string} vem
+   */
+  async function nyLankTelefon(radId, inbjudanId, vem) {
+    setRadfel((r) => ({ ...r, [radId]: "" }));
+    setRadklar((r) => ({ ...r, [radId]: "" }));
+    try {
+      await /** @type {NonNullable<typeof onSkickaOm>} */ (onSkickaOm)({ id: inbjudanId });
+    } catch (e) {
+      if (levande.current) setRadfel((r) => ({ ...r, [radId]: felText(e) }));
+      return;
+    }
+    if (levande.current) setRadklar((r) => ({ ...r, [radId]: t.nyLankKlar.replace("{vem}", vem).replace("{dagar}", String(GASTLANKDAGAR)) }));
+    if (onKopieraLank) await hamtaLank(radId, inbjudanId, { behallKlar: true });
   }
 
   /** Öppnar bekräftelsen för att bjuda in till hela gruppen. Adressen prövas först, så att dialogen aldrig öppnas för något som ändå skulle nekas. */
@@ -475,8 +554,12 @@ export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud
     try {
       if (b.slag === "grupp") {
         if (!onBjudGrupp) return;
+        if (typeof b.telefon === "string") {
+          await bjudGruppTelefon(b.telefon, b.namn);
+          return;
+        }
         try {
-          await onBjudGrupp({ epost: b.epost, namn: b.namn });
+          await onBjudGrupp({ epost: /** @type {string} */ (b.epost), namn: b.namn });
           if (levande.current) {
             setEpost("");
             setNamn("");
@@ -486,9 +569,42 @@ export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud
         }
         return;
       }
-      if (onRadera) await pa(b.gastId, onRadera, { gastId: b.gastId, epost: b.epost });
+      if (onRadera) await pa(b.gastId, onRadera, { gastId: b.gastId, ...(typeof b.telefon === "string" ? { telefon: b.telefon } : { epost: b.epost }) });
     } finally {
       if (levande.current) setBekrafta(null);
+    }
+  }
+
+  /**
+   * (0.197.0) Bjuder in med telefon och hämtar länken direkt, så att den som bjöd kan dela den i samma stund. ⛔ Ger appen inget id tillbaka står det att inbjudan finns och var länken hämtas, aldrig tyst (regel 5).
+   * @param {string} tel Det normaliserade numret.
+   * @param {string} n
+   */
+  async function bjudGruppTelefon(tel, n) {
+    const vem = n || tel;
+    /** @type {unknown} */
+    let svar;
+    try {
+      svar = await /** @type {NonNullable<typeof onBjudGrupp>} */ (onBjudGrupp)({ telefon: tel, namn: n });
+    } catch (e) {
+      if (levande.current) setFel(felText(e));
+      return;
+    }
+    if (levande.current) {
+      setTelefon("");
+      setNamn("");
+    }
+    const id = svar && typeof svar === "object" ? /** @type {{ id?: unknown }} */ (svar).id : undefined;
+    if (typeof id !== "string" || id === "" || !onKopieraLank) {
+      if (levande.current) setFel(t.telefonUtanLank);
+      return;
+    }
+    try {
+      const lank = await onKopieraLank({ id });
+      if (!lank || typeof lank.url !== "string" || lank.url === "") throw new Error("onKopieraLank måste ge { url } med länken.");
+      if (levande.current) setNyTelefonlank({ vem, url: lank.url, lankGiltigTill: lank.lankGiltigTill });
+    } catch (e) {
+      if (levande.current) setFel(`${t.telefonUtanLank} ${felText(e)}`);
     }
   }
 
@@ -530,7 +646,10 @@ export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud
       ) : gruppLage ? (
         <ul data-gastlista-lista="" className="m-0 flex list-none flex-col gap-2 p-0">
           {/** @type {ReadonlyArray<Person>} */ (rader).map((p) => {
-            const vem = p.namn ? p.namn : p.epost;
+            // (0.197.0) Kontakten är adressen eller numret: en gäst med telefon har ingen adress.
+            const kontakt = typeof p.epost === "string" && p.epost !== "" ? p.epost : p.telefon ?? "";
+            const personTelefon = !(typeof p.epost === "string" && p.epost !== "") && typeof p.telefon === "string";
+            const vem = p.namn ? p.namn : kontakt;
             const status = /** @type {keyof typeof STATUSTON} */ (p.status ?? "vantar");
             const harAktiv = p.inbjudningar.some((i) => i.status !== "aterkallad");
             return (
@@ -538,7 +657,7 @@ export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud
                 <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-1">
                   <div className="flex min-w-0 flex-col">
                     <span data-gast-namn="" className="min-w-0 text-etikett text-ink wrap-anywhere">{vem}</span>
-                    {p.namn ? <span data-gast-epost="" className="min-w-0 text-meta text-ink-muted wrap-anywhere">{p.epost}</span> : null}
+                    {p.namn ? <span {...(personTelefon ? { "data-gast-telefon": "" } : { "data-gast-epost": "" })} className="min-w-0 text-meta text-ink-muted wrap-anywhere">{kontakt}</span> : null}
                   </div>
                   <OpsPill tone={STATUSTON[status]}>{t[`status_${status}`]}</OpsPill>
                 </div>
@@ -558,13 +677,18 @@ export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud
                         <div className="flex flex-wrap items-center gap-2">
                           {aterkallad ? (
                             i.omfang.slag === "grupp" && onBjudGrupp ? (
-                              <OpsButton size="sm" variant="secondary" ariaLabel={t.bjudIgenNamn.replace("{vem}", vem)} onClick={() => begarGrupp(p.epost, p.namn ?? "")}>
+                              <OpsButton size="sm" variant="secondary" ariaLabel={t.bjudIgenNamn.replace("{vem}", vem)} onClick={() => (personTelefon ? begarGruppTelefon(kontakt, p.namn ?? "") : begarGrupp(kontakt, p.namn ?? ""))}>
                                 {t.bjudIgen}
                               </OpsButton>
                             ) : null
                           ) : (
                             <>
-                              {onSkickaOm ? (
+                              {onSkickaOm && personTelefon ? (
+                                // (0.197.0) En gäst med telefon får inget brev: Ny länk byter nyckel, och den nya länken hämtas och visas direkt för att delas.
+                                <OpsButton size="sm" variant="secondary" ariaLabel={`${t.nyLankNamn.replace("{vem}", vem)} (${omfangText(i.omfang, i.titel)})`} busyLabel={t.nyLankPagar} onClick={() => (glomLank(i.id), nyLankTelefon(p.gastId, i.id, vem))}>
+                                  {t.nyLank}
+                                </OpsButton>
+                              ) : onSkickaOm ? (
                                 <OpsButton size="sm" variant="secondary" ariaLabel={`${t.skickaIgenNamn.replace("{vem}", vem)} (${omfangText(i.omfang, i.titel)})`} busyLabel={t.skickaIgenPagar} onClick={() => (glomLank(i.id), pa(p.gastId, onSkickaOm, { id: i.id }, t.skickaIgenKlar.replace("{vem}", vem).replace("{dagar}", String(GASTLANKDAGAR))))}>
                                   {t.skickaIgen}
                                 </OpsButton>
@@ -582,7 +706,7 @@ export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud
                             </>
                           )}
                         </div>
-                        {lankar[i.id] && !aterkallad ? <GastLank lank={lankar[i.id]} vem={vem} t={t} sprak={sprak} gruppnamn={gruppnamn} /> : null}
+                        {lankar[i.id] && !aterkallad ? <GastLank lank={lankar[i.id]} vem={vem} t={t} sprak={sprak} gruppnamn={gruppnamn} telefon={personTelefon} /> : null}
                       </li>
                     );
                   })}
@@ -595,7 +719,7 @@ export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud
                       </OpsButton>
                     ) : null}
                     {onRadera ? (
-                      <OpsButton size="sm" variant="ghost" ariaLabel={t.raderaNamn.replace("{vem}", vem)} onClick={() => setBekrafta({ slag: "radera", gastId: p.gastId, epost: p.epost, namn: p.namn ?? "" })}>
+                      <OpsButton size="sm" variant="ghost" ariaLabel={t.raderaNamn.replace("{vem}", vem)} onClick={() => setBekrafta({ slag: "radera", gastId: p.gastId, ...(personTelefon ? { telefon: kontakt } : { epost: kontakt }), namn: p.namn ?? "" })}>
                         {t.radera}
                       </OpsButton>
                     ) : null}
@@ -677,17 +801,43 @@ export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud
             e.preventDefault();
           }}
         >
-          <p className="m-0 text-etikett text-ink-secondary">{gruppLage ? t.ingressGrupp : t.ingress}</p>
+          <p className="m-0 text-etikett text-ink-secondary">{telefonValt ? t.ingressGruppTelefon : gruppLage ? t.ingressGrupp : t.ingress}</p>
           {fulla ? <p data-gastlista-fulla="" role="status" className="m-0 text-etikett text-ink">{t.platserFulla.replace("{totalt}", String(platser.totalt))}</p> : null}
-          <OpsField label={t.epostEtikett}>
-            <OpsInput value={epost} onChange={setEpost} type="email" autoComplete="off" disabled={fulla} tal={false} />
-          </OpsField>
+          {gruppLage && medTelefon ? (
+            <div data-gastlista-kontaktval="">
+              <OpsSegmented
+                ariaLabel={t.kontaktVal}
+                value={kontaktslag}
+                onChange={(v) => {
+                  setFel("");
+                  setKontaktslag(v === "telefon" ? "telefon" : "epost");
+                }}
+                options={[
+                  { value: "epost", label: t.kontaktEpost },
+                  { value: "telefon", label: t.kontaktTelefon },
+                ]}
+              />
+            </div>
+          ) : null}
+          {telefonValt ? (
+            <OpsField label={t.telefonEtikett} hint={t.telefonHjalp}>
+              <OpsInput value={telefon} onChange={setTelefon} type="tel" autoComplete="off" disabled={fulla} tal={false} />
+            </OpsField>
+          ) : (
+            <OpsField label={t.epostEtikett}>
+              <OpsInput value={epost} onChange={setEpost} type="email" autoComplete="off" disabled={fulla} tal={false} />
+            </OpsField>
+          )}
           <OpsField label={t.namnEtikett}>
             <OpsInput value={namn} onChange={setNamn} autoComplete="off" maxLength={MAX_GASTNAMN} disabled={fulla} tal={false} />
           </OpsField>
           {fel ? <p role="alert" data-gastlista-bjudfel="" className="m-0 text-etikett text-danger wrap-anywhere">{fel}</p> : null}
           <div>
-            {gruppLage ? (
+            {telefonValt ? (
+              <OpsButton variant="primary" disabled={fulla || telefon.trim() === ""} onClick={() => begarGruppTelefon(telefon, namn)}>
+                {t.bjudGrupp}
+              </OpsButton>
+            ) : gruppLage ? (
               <OpsButton variant="primary" disabled={fulla || epost.trim() === ""} onClick={() => begarGrupp(epost, namn)}>
                 {t.bjudGrupp}
               </OpsButton>
@@ -697,6 +847,12 @@ export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud
               </OpsButton>
             )}
           </div>
+          {nyTelefonlank ? (
+            <div data-gastlista-telefonlank="" className="flex min-w-0 flex-col gap-2">
+              <p role="status" className="m-0 text-etikett text-ink wrap-anywhere">{t.telefonLank.replace("{vem}", nyTelefonlank.vem)}</p>
+              <GastLank lank={nyTelefonlank} vem={nyTelefonlank.vem} t={t} sprak={sprak} gruppnamn={gruppnamn} telefon />
+            </div>
+          ) : null}
         </form>
       ) : null}
 

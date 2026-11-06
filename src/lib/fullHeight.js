@@ -163,8 +163,15 @@ export function useFullHeight(ref) {
     botten: typeof window !== "undefined" && window.innerHeight > 0 ? window.innerHeight : RESERV_BOTTEN,
   }));
 
+  // ⛔ ELEMENTET, INTE BARA REF-OBJEKTET (#525). Granskningen av PR 524 (0.190.0): ett `key` bytte elementet under hooken, ref-objektet var detsamma,
+  // och mätningen och observatörerna satt kvar på det gamla, urkopplade elementet. Gästens telefonsida blev 965 px hög i 844. Nu läses `ref.current`
+  // efter varje rendering, och ett nytt element startar om mätningen (`fullhojd-elementbyte-525.test.jsx`).
+  const [el, setEl] = useState(/** @type {HTMLElement | null} */ (null));
   useEffect(() => {
-    const el = ref.current;
+    if (ref.current !== el) setEl(ref.current);
+  });
+
+  useEffect(() => {
     if (!el || typeof window === "undefined") return undefined;
 
     const measure = () => {
@@ -211,7 +218,7 @@ export function useFullHeight(ref) {
       obs?.disconnect();
       if (ram && typeof cancelAnimationFrame === "function") cancelAnimationFrame(ram);
     };
-  }, [ref]);
+  }, [el]);
 
   /*
    * ⛔ Kastad till `CSSProperties`, eftersom TypeScript inte känner till egna

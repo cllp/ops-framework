@@ -16,7 +16,7 @@
  * Den andra vägen kom 2026-11-05 (CP: "Jag skulle också vilja kunna se länken till inbjudningen, eller kopiera den", och när det gällde om länken skulle bytas: "Man kan behöva ge länken igen för de som
  * fibblar bort den"): `kopieraLank` ger samma `{ id, nyckel }` till en medlem som får förvalta inbjudan, ur appens `lankvalv`, och är därmed det ENDA returvärdet som bär en nyckel. Det är säkert av tre skäl: bara den som
  * får Skicka igen (samma prövning, ägare eller admin för en gruppinbjudan) får nyckeln, kopian ligger krypterad i ett valv som bara servern läser och inte på raden som medlemmens klient kan läsa, och den som
- * öppnar länken måste ändå skriva gästens e-postadress.
+ * öppnar länken måste ändå skriva gästens e-postadress (eller, sedan 0.197.0, telefonnummer för en inbjudan med telefon).
  *
  * ══ ⛔ UNIKHET ÄR DOKUMENT-ID, ALDRIG EN LÄSNING FÖLJD AV EN SKRIVNING ═══════════════════════════════════════════════════
  *
@@ -124,6 +124,9 @@ import {
   gastomfangsnyckel,
   gastplatsId,
   normaliseraGastepost,
+  normaliseraGasttelefon,
+  gastkontaktnyckel,
+  gastkontaktPaRad,
 } from "../lib/gast.js";
 import { MAX_GRUPPBESKRIVNING, agentId, medlemskapsId } from "../lib/grupp.js";
 import { trimSomRegeln } from "../lib/bibliotek.js";
@@ -188,18 +191,36 @@ function likaHash(a, b) {
 }
 
 /**
- * Inbjudans dokument-id: SHA-256 i hex av (grupp, normaliserad adress, omfångsnyckel). JSON-kodat, så att inget tecken i en adress kan flytta gränsen mellan delarna.
- * Samma adress till samma sak i samma grupp är samma id, och det är hela unikhetsmekanismen.
+ * Kontakten i ett anrop eller en byggd rad: `epost` ELLER `telefon` (0.197.0), normaliserad, eller `null` om den inte går att använda. Båda på en gång är `null`: en inbjudan gäller en kontakt.
+ * @param {{ epost?: unknown, telefon?: unknown } | null | undefined} d
+ * @param {readonly string[]} [extraSparrade]
+ * @returns {import("../lib/gast.js").Gastkontakt | null}
+ */
+function kontaktIAnrop(d, extraSparrade = []) {
+  if (d?.telefon !== undefined) {
+    if (d?.epost !== undefined) return null;
+    const varde = normaliseraGasttelefon(d.telefon);
+    return varde === null ? null : { slag: "telefon", varde };
+  }
+  const varde = normaliseraGastepost(d?.epost, extraSparrade);
+  return varde === null ? null : { slag: "epost", varde };
+}
+
+/**
+ * Inbjudans dokument-id: SHA-256 i hex av (grupp, normaliserad kontakt, omfångsnyckel). JSON-kodat, så att inget tecken i en adress kan flytta gränsen mellan delarna.
+ * Samma kontakt till samma sak i samma grupp är samma id, och det är hela unikhetsmekanismen.
  *
- * @param {{ groupId: string, epost: string, omfang: import("../lib/gast.js").Gastomfang }} d
+ * ⛔ (0.197.0) FÖR EN ADRESS ÄR MITTDELEN ADRESSEN SJÄLV, SOM FÖRE TELEFONEN (`gastkontaktnyckel`). Ett befintligt id räknas exakt som förut och provet i `gast-telefon.test.js` låser värdena. Ett nummer är `tel:<nummer>`.
+ *
+ * @param {{ groupId: string, epost?: string, telefon?: string, omfang: import("../lib/gast.js").Gastomfang }} d
  * @returns {string}
  */
 export function gastInbjudningsId(d) {
-  const epost = normaliseraGastepost(d?.epost);
-  if (epost === null) throw new Error("gastInbjudningsId: en inbjudan har en e-postadress som går att skicka till.");
+  const kontakt = kontaktIAnrop(d);
+  if (kontakt === null) throw new Error("gastInbjudningsId: en inbjudan har en e-postadress som går att skicka till, eller ett telefonnummer.");
   const groupId = text(d?.groupId);
   if (!groupId) throw new Error("gastInbjudningsId: groupId krävs.");
-  return hash(JSON.stringify([groupId, epost, gastomfangsnyckel(d.omfang)]));
+  return hash(JSON.stringify([groupId, gastkontaktnyckel(kontakt), gastomfangsnyckel(d.omfang)]));
 }
 
 /**
@@ -210,7 +231,8 @@ export function gastInbjudningsId(d) {
  *
  * @param {object} d
  * @param {string} d.groupId
- * @param {string} d.epost
+ * @param {string} [d.epost] Adressen, eller
+ * @param {string} [d.telefon] (0.197.0) numret. Exakt en av dem, och raden bär bara den.
  * @param {string} [d.namn]
  * @param {import("../lib/gast.js").Gastomfang} d.omfang
  * @param {{ uid: string, namn?: string }} d.skapadAv
@@ -221,8 +243,8 @@ export function gastInbjudningsId(d) {
  */
 export function byggGastinbjudan(d) {
   if (!d || typeof d !== "object") throw new Error("byggGastinbjudan: en inbjudan krävs.");
-  const epost = normaliseraGastepost(d.epost);
-  if (epost === null) throw new Error("byggGastinbjudan: epost är ingen adress som går att skicka till.");
+  const kontakt = kontaktIAnrop(d);
+  if (kontakt === null) throw new Error("byggGastinbjudan: epost är ingen adress som går att skicka till (eller telefon inget nummer, eller båda angavs).");
   const groupId = text(d.groupId);
   const uid = text(d.skapadAv?.uid);
   if (!groupId) throw new Error("byggGastinbjudan: groupId krävs.");
@@ -237,10 +259,12 @@ export function byggGastinbjudan(d) {
   if (delta && (typeof d.andringsnyckel !== "string" || d.andringsnyckel === "")) {
     throw new Error("byggGastinbjudan: en delta-inbjudan bär andringsnyckel (ur andringsnyckel()), det som SEQUENCE jämförs mot vid nästa utskick.");
   }
+  // ⛔ EN E-POSTRAD HAR EXAKT DE FÄLT DEN HADE FÖRE 0.197.0. En telefonrad har `telefon` där e-postraden har `epost`, och inget annat skiljer.
+  const kontaktfalt = kontakt.slag === "telefon" ? { telefon: kontakt.varde } : { epost: kontakt.varde };
   return {
-    id: gastInbjudningsId({ groupId, epost, omfang }),
+    id: gastInbjudningsId({ groupId, ...kontaktfalt, omfang }),
     groupId,
-    epost,
+    ...kontaktfalt,
     namn,
     omfang,
     skapadAv: { uid, namn: text(d.skapadAv?.namn) },
@@ -321,8 +345,9 @@ function felMedKod(kod, meddelande) {
  * @typedef {object} Gastradering Det som gör att en gästs uppgifter går att radera (0.132.0, CP 2026-10-20: klart före första gruppgästen). KRÄVS när `grupp` finns.
  * @property {string} [svar] Undersamlingens namn för händelsesvar (`<handelser>/<id>/<svar>/<g_-id>`), för en app utan `grupp` (med `grupp` är det `grupp.samlingar.svar`).
  * @property {(arg: { gastId: string, groupId: string }) => void | Promise<void>} [roster] Tar bort gästens röster i gruppen (appens modell). Utan den tas inga röster bort: ge den när appen har omröstning.
- * @property {(arg: { epost: string, gastId: string, grupper: readonly string[], alla: boolean }) => void | Promise<void>} [spar]
+ * @property {(arg: { epost: string | null, telefon?: string, gastId: string, grupper: readonly string[], alla: boolean }) => void | Promise<void>} [spar]
  *   Där appen själv sparat adressen (mejlkön, loggar): tas bort vid radering. Ramverket kan inte veta var. `alla`: personens sista inbjudan försvann, inte bara i `grupper`.
+ *   (0.197.0) En gäst med telefonnummer ger `{ epost: null, telefon }`. En gäst med e-post ger exakt det den gav förut, utan `telefon`.
  */
 
 /** @typedef {"nej" | "aterkallad" | "utgangen" | "for-manga" | "saknas"} Gastorsak */
@@ -688,12 +713,18 @@ export function createGastService(konfig) {
   const lasPlatser = (groupId) => Promise.all(GASTPLATSNUMMER.map((n) => kalla.read(PLATSER, gastplatsId(groupId, n))));
 
   /**
+   * Fältet en kontakt står i på inbjudans rad, som ett villkor för en fråga: `{ epost }` eller `{ telefon }` (0.197.0). En e-postkontakt frågas exakt som förut.
+   * @param {import("../lib/gast.js").Gastkontakt} kontakt
+   */
+  const kontaktVillkor = (kontakt) => (kontakt.slag === "telefon" ? { telefon: kontakt.varde } : { epost: kontakt.varde });
+
+  /**
    * Gästens aktiva inbjudningar i gruppen.
    * @param {string} groupId
-   * @param {string} epost
+   * @param {import("../lib/gast.js").Gastkontakt} kontakt
    */
-  async function aktivaInbjudningar(groupId, epost) {
-    const rader = await kalla.list(INB, { where: { epost } });
+  async function aktivaInbjudningar(groupId, kontakt) {
+    const rader = await kalla.list(INB, { where: kontaktVillkor(kontakt) });
     return rader.filter((r) => r.groupId === groupId && r.aterkallad === null);
   }
 
@@ -709,7 +740,7 @@ export function createGastService(konfig) {
     const gamla = rader.map((r, i) => ({ r, nummer: GASTPLATSNUMMER[i] })).filter((p) => p.r && typeof p.r.skapad === "number" && nu - p.r.skapad > PLATSFRIST_MS);
     if (gamla.length === 0) return 0;
     const alla = await kalla.list(INB, { where: { groupId } });
-    const levande = new Set(alla.filter((r) => r.aterkallad === null).map((r) => gastId(r.epost)));
+    const levande = new Set(alla.filter((r) => r.aterkallad === null).map((r) => gastIdEllerNull(r)));
     let n = 0;
     for (const p of gamla) {
       if (levande.has(/** @type {Record<string, any>} */ (p.r).gastId)) continue;
@@ -741,12 +772,12 @@ export function createGastService(konfig) {
   /**
    * Släpper gästens plats när hen inte har någon aktiv inbjudan kvar i gruppen.
    * @param {string} groupId
-   * @param {string} epost
+   * @param {import("../lib/gast.js").Gastkontakt} kontakt
    * @returns {Promise<boolean>} Sant om en plats släpptes.
    */
-  async function slappPlatsOmTom(groupId, epost) {
-    if ((await aktivaInbjudningar(groupId, epost)).length > 0) return false;
-    const gId = gastId(epost);
+  async function slappPlatsOmTom(groupId, kontakt) {
+    if ((await aktivaInbjudningar(groupId, kontakt)).length > 0) return false;
+    const gId = gastId(kontakt);
     let slappt = false;
     const rader = await lasPlatser(groupId);
     for (const [i, r] of rader.entries()) {
@@ -911,8 +942,12 @@ export function createGastService(konfig) {
    * ⛔ HELA GRUPPEN KRÄVER ÄGARE ELLER ADMIN, och regeln är ramverkets och inte en callback (CP 2026-10-20: "Ägare och admin bjuder in till hela gruppen"). En app kan inte släppa in fler:
    * gästen läser gruppens hela chatthistorik, och det är mer än en omröstning. Vill man släppa in fler ändras ramverket, med en ny händelse här.
    *
-   * @param {Record<string, any>} b `{ uid, handelseId, epost, namn?, funktion? }` för en sak (`funktion` är `rosta`, förval, eller `delta`, 0.146.0), `{ uid, slag: "grupp", groupId, epost, namn? }` för hela gruppen.
-   * @returns {Promise<{ id: string, gastId: string, ny: boolean, vackt: boolean }>}
+   * ⛔ (0.197.0, cllp/lifehub.app#661) MED `telefon` I STÄLLET FÖR `epost` SKICKAS INGET BREV. Inbjudan skapas och nyckeln sparas i valvet (`lankvalv`), och svaret bär `slag: "telefon"` och inbjudans id, så att vyn genast hämtar
+   * länken med `kopieraLank` och visar Dela (SMS från den inbjudandes egen telefon) och Kopiera. Utan valv svarar den `ej-konfigurerad` INNAN något skrivs: länken hade annars aldrig nått någon. Bara till hela gruppen
+   * (`slag: "grupp"`): en händelse att svara på (`delta`) lever av kalenderbrevet och dess ändringar, och en omröstning bjuds in från händelsen med e-post. Platser, tak och räknare är desamma som för en adress.
+   *
+   * @param {Record<string, any>} b `{ uid, handelseId, epost, namn?, funktion? }` för en sak (`funktion` är `rosta`, förval, eller `delta`, 0.146.0), `{ uid, slag: "grupp", groupId, epost | telefon, namn? }` för hela gruppen.
+   * @returns {Promise<{ id: string, gastId: string, ny: boolean, vackt: boolean, slag: "epost" | "telefon" }>}
    */
   async function bjud(b) {
     const uid = kravText(b?.uid, "uid", "bjud");
@@ -923,10 +958,19 @@ export function createGastService(konfig) {
     const funktion = b?.funktion === undefined ? /** @type {const} */ ("rosta") : b.funktion;
     if (!(/** @type {readonly unknown[]} */ (GASTFUNKTIONER).includes(funktion))) throw felMedKod("ogiltigt-omfang", `bjud: funktionen ${JSON.stringify(funktion)} finns inte. Giltiga: ${GASTFUNKTIONER.join(", ")}.`);
     if (funktion === "delta" && !DELTA) throw felMedKod("ogiltigt-omfang", "bjud: delta är inte påslaget (createGastService fick ingen delta).");
-    const epost = normaliseraGastepost(b?.epost, extraSparrade);
+    const telefonlage = b?.telefon !== undefined;
+    if (telefonlage) {
+      if (b?.epost !== undefined) throw felMedKod("ogiltig-telefon", "bjud: ange antingen epost eller telefon. En inbjudan gäller en kontakt.");
+      if (!grupplage) throw felMedKod("ogiltigt-omfang", "bjud: en inbjudan med telefon gäller hela gruppen (slag: \"grupp\"). En omröstning och en händelse bjuds in med e-post.");
+      if (normaliseraGasttelefon(b.telefon) === null) throw felMedKod("ogiltig-telefon", "bjud: telefonnumret går inte att använda. Skriv det med riktnummer (070 ...) eller landsnummer (+46 ...).");
+      // ⛔ VALVET FÖRE ALLT SOM SKRIVS: utan brev är länken i valvet den enda vägen till gästen.
+      if (!VALV) throw felMedKod("ej-konfigurerad", "bjud: en inbjudan med telefon kräver lankvalv. Inget brev skickas, och utan valvet når länken aldrig någon.");
+    }
+    const kontakt = kontaktIAnrop(telefonlage ? { telefon: b.telefon } : { epost: b?.epost }, extraSparrade);
+    const epost = telefonlage ? null : kontakt?.varde ?? null;
     // Ordningen i skiva 1: händelsen läses före adressen prövas bara när det är en sak. Ett fel ska vara samma fel som förut.
     const handelseId = grupplage ? "" : kravText(b?.handelseId, "handelseId", "bjud");
-    if (epost === null) throw felMedKod("ogiltig-epost", `bjud: ${epostFel(b?.epost, extraSparrade) ?? "adressen går inte att skicka till"}`);
+    if (kontakt === null) throw felMedKod("ogiltig-epost", `bjud: ${epostFel(b?.epost, extraSparrade) ?? "adressen går inte att skicka till"}`);
     const gastnamn = text(b?.namn);
     if (gastnamn.length > MAX_GASTNAMN) throw felMedKod("ogiltigt-namn", `bjud: namnet får vara högst ${MAX_GASTNAMN} tecken.`);
 
@@ -964,14 +1008,14 @@ export function createGastService(konfig) {
       omfang = { slag: "sak", funktion, handelseId };
     }
 
-    const gId = gastId(epost);
+    const gId = gastId(kontakt);
     // ⛔ PLATSEN FÖRST: en plats utan inbjudan kostar en plats, en inbjudan utan plats bryter taket. En person tar EN plats oavsett omfång (platsen är nyckad på gästen).
     await tagPlats(groupId, gId);
 
     const nyckel = nyGastnyckel();
     const skapad = klocka();
     const skapadAv = { uid, namn: text(medlem.namn) };
-    const ny = byggGastinbjudan({ groupId, epost, namn: gastnamn, omfang, skapadAv, skapad, nyckel, ...(deltaUt ? { andringsnyckel: andringsnyckel(deltaUt) } : {}) });
+    const ny = byggGastinbjudan({ groupId, ...kontaktVillkor(kontakt), namn: gastnamn, omfang, skapadAv, skapad, nyckel, ...(deltaUt ? { andringsnyckel: andringsnyckel(deltaUt) } : {}) });
     const { created, row } = await skapaNy(INB, ny);
     let brevNyckel = nyckel;
     let vackt = false;
@@ -1012,14 +1056,16 @@ export function createGastService(konfig) {
     // En ny rad börjar på SEQUENCE 0. En befintlig rad (Bjud in igen) jämförs mot det som skickades förra gången: ändrades tid eller plats däremellan stiger SEQUENCE.
     const sekvens = deltaUt ? (created ? 0 : await sekvensForUtskick(/** @type {Record<string, any>} */ (row), deltaUt)) : 0;
     await sparaIValv(ny, brevNyckel);
+    // ⛔ ETT NUMMER FÅR INGET BREV: länken ligger i valvet, och den som bjöd delar den från sin egen telefon (`kopieraLank`).
+    if (kontakt.slag === "telefon") return { id: ny.id, gastId: gId, ny: created, vackt, slag: kontakt.slag };
     await levereraBrev({
       typ: created ? "inbjudan" : "igen",
-      till: epost,
+      till: /** @type {string} */ (epost),
       namn: gastnamn || text(row?.namn),
       lankar: [brevlank(ny, brevNyckel, deltaUt ? { ut: deltaUt, sekvens } : null)],
       skickadAv: skapadAv,
     });
-    return { id: ny.id, gastId: gId, ny: created, vackt };
+    return { id: ny.id, gastId: gId, ny: created, vackt, slag: kontakt.slag };
   }
 
   /**
@@ -1040,7 +1086,7 @@ export function createGastService(konfig) {
     // ⛔ SESSIONERNA RADERAS INTE HÄR. Varje anrop läser inbjudan på nytt och nekas redan, och en öppen sida ska kunna säga "Inbjudan är återkallad" inom en minut i stället för
     // ett nej som läses som ett fel på länken. Sessionen får ligga: den ger `aterkallad` så länge inbjudan är återkallad, förnyas inte av det, och tas av `stadaSessioner` när den
     // blivit 90 dagar gammal. En inbjudan som väcks igen (`bjud`) öppnar samma session på nytt, vilket är avsikten.
-    const platsSlappt = await slappPlatsOmTom(rad.groupId, rad.epost);
+    const platsSlappt = await slappPlatsOmTom(rad.groupId, radensKontakt(rad));
     return { id, platsSlappt };
   }
 
@@ -1071,15 +1117,25 @@ export function createGastService(konfig) {
    * Skickar en ny länk till en aktiv inbjudan. Nyckeln roteras, så den gamla länken slutar fungera. Platsen bekräftas, så att ett utskick också lagar en plats som
    * en samtidig återkallelse tömde. En återkallad inbjudan skickas inte om: väck den med `bjud`, som tar en plats på nytt.
    *
+   * ⛔ (0.197.0) EN TELEFONINBJUDAN FÅR EN NY LÄNK OCH INGET BREV: nyckeln roteras och sparas i valvet, och svaret bär `slag: "telefon"` så att vyn hämtar den nya länken (`kopieraLank`) och erbjuder Dela.
+   * Utan valv `ej-konfigurerad`, innan något ändras.
+   *
    * @param {Record<string, any>} b `{ uid, id }`.
-   * @returns {Promise<{ id: string }>}
+   * @returns {Promise<{ id: string, slag: "epost" | "telefon" }>}
    */
   async function skickaOm(b) {
     const { uid, rad } = await provaForvaltning(b, "skickaOm");
     const id = rad.id;
+    const kontakt = radensKontakt(rad);
+    if (kontakt.slag === "telefon") {
+      if (!VALV) throw felMedKod("ej-konfigurerad", "skickaOm: en inbjudan med telefon har inget brev, och utan lankvalv går en ny länk inte att ge.");
+      await tagPlats(rad.groupId, gastId(kontakt));
+      await roteraNyckel(rad);
+      return { id, slag: kontakt.slag };
+    }
     // ⛔ EN DELTA-INBJUDAN PÅ EN HÄNDELSE SOM FÖRSVUNNIT SKICKAS INTE OM: länken i brevet leder till en sida som säger att det inte finns. Rosta-inbjudan är som förut.
     const delta = rad.omfang?.funktion === "delta" && DELTA ? deltaHandelseUt(await lasHandelse(rad.omfang.handelseId, "skickaOm")) : null;
-    await tagPlats(rad.groupId, gastId(rad.epost));
+    await tagPlats(rad.groupId, gastId(kontakt));
     const { rad: ny, nyckel } = await roteraNyckel(rad);
     const sekvens = delta ? await sekvensForUtskick(ny, delta) : 0;
     const medlem = await aktivtMedlemskap(uid, rad.groupId);
@@ -1090,7 +1146,7 @@ export function createGastService(konfig) {
       lankar: [brevlank(ny, nyckel, delta ? { ut: delta, sekvens } : null)],
       skickadAv: { uid, namn: text(medlem?.namn) || text(rad.skapadAv?.namn) },
     });
-    return { id };
+    return { id, slag: kontakt.slag };
   }
 
   /**
@@ -1098,8 +1154,10 @@ export function createGastService(konfig) {
    * och raden ändras inte. Samma krav som Skicka igen, och dessutom: länken får inte ha gått ut (`utgangen`; då behövs en ny, alltså Skicka igen), valvet måste vara på (`ej-konfigurerad`) och ha en kopia
    * som hör till inbjudans nuvarande nyckel (`ingen-kopia`: en inbjudan från före valvet, eller en kopia som inte hann sparas när nyckeln roterades).
    *
+   * ⛔ (0.197.0) SVARET BÄR `slag` ("epost" eller "telefon"), som appen ger `gastLank`: en telefonlänk bär tecknet som får sidan att fråga efter ett nummer.
+   *
    * @param {Record<string, any>} b `{ uid, id }`.
-   * @returns {Promise<{ id: string, nyckel: string, lankGiltigTill: number }>}
+   * @returns {Promise<{ id: string, nyckel: string, lankGiltigTill: number, slag: "epost" | "telefon" }>}
    */
   async function kopieraLank(b) {
     const { rad } = await provaForvaltning(b, "kopieraLank");
@@ -1110,7 +1168,7 @@ export function createGastService(konfig) {
     if (typeof nyckel !== "string" || nyckel === "" || gastnyckelHash(nyckel) !== rad.nyckelHash) {
       throw felMedKod("ingen-kopia", `kopieraLank: det finns ingen kopia av den nuvarande länken till "${rad.id}". Skicka igen en gång, sedan går den att kopiera.`);
     }
-    return { id: rad.id, nyckel, lankGiltigTill: rad.lankGiltigTill };
+    return { id: rad.id, nyckel, lankGiltigTill: rad.lankGiltigTill, slag: radensKontakt(rad).slag };
   }
 
   /**
@@ -1157,7 +1215,8 @@ export function createGastService(konfig) {
       /** @type {Map<string, Record<string, any>[]>} */
       const perPerson = new Map();
       for (const r of alla) {
-        const id = gastId(r.epost);
+        const id = gastIdEllerNull(r);
+        if (!id) continue;
         perPerson.set(id, [...(perPerson.get(id) ?? []), r]);
       }
       const personer = [...perPerson.entries()].map(([id, rader]) => {
@@ -1170,7 +1229,9 @@ export function createGastService(konfig) {
         });
         const status = inbjudningar.map((i) => i.status).sort((x, y) => ordning.indexOf(x) - ordning.indexOf(y))[0];
         const senaste = rader[rader.length - 1];
-        const person = { gastId: id, epost: senaste.epost, namn: text(rader.find((r) => text(r.namn))?.namn), status, inbjudningar };
+        // (0.197.0) Kontakten som `epost` eller `telefon`, den andra `null`: en person är samma kontakt på alla sina rader (gästens id är kontaktens).
+        const kontakt = radensKontakt(senaste);
+        const person = { gastId: id, epost: kontakt.slag === "epost" ? kontakt.varde : null, telefon: kontakt.slag === "telefon" ? kontakt.varde : null, namn: text(rader.find((r) => text(r.namn))?.namn), status, inbjudningar };
         return Object.fromEntries(GASTPERSONFALT.map((f) => [f, /** @type {Record<string, any>} */ (person)[f]]));
       });
       return { personer, platser: await platsLage(groupId) };
@@ -1181,10 +1242,10 @@ export function createGastService(konfig) {
     if (!(await aktivtMedlemskap(uid, groupId))) throw felMedKod("ej-behorig", `lista: ${uid} är inte aktiv medlem i gruppen "${groupId}".`);
     const rader = (await kalla.list(INB, { where: { groupId } })).filter((r) => r.omfang?.handelseId === handelseId && r.omfang?.funktion === funktion).sort((x, y) => x.skapad - y.skapad);
     const gaster = rader.map((r) => {
-      const id = gastId(r.epost);
+      const id = gastId(radensKontakt(r));
       /** @type {Record<string, any>} */
       const ut = {};
-      const visad = { ...r, gastId: id, status: gastStatus(r, { nu, harRostat: rostat.has(id) && funktion !== "delta" }) };
+      const visad = { epost: null, telefon: null, ...r, gastId: id, status: gastStatus(r, { nu, harRostat: rostat.has(id) && funktion !== "delta" }) };
       for (const f of funktion === "delta" ? [...GASTLISTFALT, ...GASTDELTALISTFALT] : GASTLISTFALT) ut[f] = /** @type {Record<string, any>} */ (visad)[f];
       return ut;
     });
@@ -1205,7 +1266,10 @@ export function createGastService(konfig) {
   /**
    * Löser in en länk: nyckeln och adressen stämmer, inbjudan är aktiv och länken har inte gått ut. Svaret är en sessionsnyckel som gästen sparar på enheten.
    *
-   * @param {Record<string, any>} b `{ id, nyckel, epost, ip }`.
+   * ⛔ (0.197.0) KONTAKTEN ÄR `epost` ELLER `telefon`, OCH DEN JÄMFÖRS MOT INBJUDANS EGEN KONTAKT, SLAG OCH VÄRDE (`gastkontaktnyckel`), i konstant tid. Ett nummer släpper aldrig in en e-postinbjudan och en adress aldrig
+   * en telefoninbjudan: nyckeln är `tel:<nummer>` mot adressen, och de kan aldrig vara lika. Fel kontakt, fel slag, båda angivna, fel nyckel och okänd inbjudan är samma `nej` byte för byte, och räknas lika.
+   *
+   * @param {Record<string, any>} b `{ id, nyckel, epost, ip }` eller `{ id, nyckel, telefon, ip }`.
    * @returns {Promise<{ ok: true, sessionsnyckel: string } | { ok: false, orsak: Gastorsak }>}
    */
   async function los(b) {
@@ -1222,11 +1286,12 @@ export function createGastService(konfig) {
     const res = await reservera(INB, id, rad, INBFALT, { max: GASTFEL_MAX, fonsterMs: GASTFEL_FONSTER_MS });
     if (!res) return orsak("for-manga");
 
-    const epost = normaliseraGastepost(b?.epost, extraSparrade);
-    // Båda jämförelserna görs alltid, så att tiden inte säger vilken av dem som var fel.
+    const kontakt = kontaktIAnrop(b, extraSparrade);
+    const radens = gastkontaktPaRad(rad);
+    // Båda jämförelserna görs alltid, så att tiden inte säger vilken av dem som var fel. För en adress är det exakt jämförelsen före 0.197.0: hashen av adressen mot hashen av radens adress.
     const nyckelStammer = likaHash(hash(nyckel), rad.nyckelHash);
-    const epostStammer = epost !== null && likaHash(hash(epost), hash(text(rad.epost)));
-    if (!nyckelStammer || !epostStammer) return nej();
+    const kontaktStammer = kontakt !== null && radens !== null && likaHash(hash(gastkontaktnyckel(kontakt)), hash(gastkontaktnyckel(radens)));
+    if (!nyckelStammer || !kontaktStammer) return nej();
 
     // Nyckeln och adressen stämde: det här är gästen, eller någon som har allt gästen har. Försöket ges tillbaka, eftersom det inte var en gissning som missade.
     const ge = async () => {
@@ -1349,7 +1414,7 @@ export function createGastService(konfig) {
     const grupplage = rad.omfang?.slag === "grupp";
     return {
       ok: true,
-      gastId: gastId(rad.epost),
+      gastId: gastId(radensKontakt(rad)),
       inbjudan: {
         id: rad.id,
         groupId: rad.groupId,
@@ -1949,7 +2014,7 @@ export function createGastService(konfig) {
       const medlemmar = await kalla.list(MEDLEMSKAP, { where: { groupId } });
       const personer = medlemmar.filter((m) => m.status === "aktiv" && m.typ !== "agent" && typeof m.userId === "string").map((m) => m.userId);
       // ⛔ BARA GÄSTER I GRUPPEN, samma mängd som `levandeGaster` och medlemmens `OpsSvar` räknar. En gäst för en sak (omröstning, delta) har ingen svarsrad här och hade annars alltid räknats som "har inte svarat".
-      const gaster = (await kalla.list(INB, { where: { groupId } })).filter((r) => r.aterkallad === null && r.omfang?.slag === "grupp").map((r) => gastId(r.epost));
+      const gaster = (await kalla.list(INB, { where: { groupId } })).filter((r) => r.aterkallad === null && r.omfang?.slag === "grupp").map((r) => gastIdEllerNull(r)).filter((g) => g !== null);
       const summa = sammanstallSvar(rader, [...personer, ...new Set(gaster)]);
       const mitt = rader.find((r) => r.id === s.gastId)?.svar;
       svar.svar = { kommer: summa.kommer, kommerInte: summa.kommerInte, ejSvarat: summa.ejSvarat, text: summa.text, mitt: mitt === "kommer" || mitt === "kommerInte" ? mitt : null };
@@ -2057,7 +2122,8 @@ export function createGastService(konfig) {
     if (!h || h.arkiverad === true || !text(h.groupId)) return { skickade: 0, aktiva: 0, saknas: true };
     const groupId = text(h.groupId);
     const rader = (await kalla.list(INB, { where: { groupId } }))
-      .filter((r) => r.omfang?.slag === "sak" && r.omfang.funktion === "delta" && r.omfang.handelseId === handelseId && r.aterkallad === null)
+      // (0.197.0) Bara rader med en adress: ett brev går bara till en adress (en telefoninbjudan gäller aldrig en händelse, se `bjud`).
+      .filter((r) => r.omfang?.slag === "sak" && r.omfang.funktion === "delta" && r.omfang.handelseId === handelseId && r.aterkallad === null && typeof r.epost === "string")
       .sort((x, y) => x.skapad - y.skapad);
     const ut = deltaHandelseUt(h);
     let skickade = 0;
@@ -2323,11 +2389,24 @@ export function createGastService(konfig) {
    * @returns {string | null}
    */
   function gastIdEllerNull(r) {
+    const k = gastkontaktPaRad(r);
+    if (!k) return null;
     try {
-      return gastId(r.epost);
+      return gastId(k);
     } catch {
       return null;
     }
+  }
+
+  /**
+   * Radens kontakt, eller ett fel om raden inte bär någon. ⛔ Ingen tyst reserv: en rad utan kontakt är en trasig rad, och en tjänst som gissade en kontakt hade kunnat ge fel gäst en plats.
+   * @param {Record<string, any>} r
+   * @returns {import("../lib/gast.js").Gastkontakt}
+   */
+  function radensKontakt(r) {
+    const k = gastkontaktPaRad(r);
+    if (!k) throw new Error(`gast: inbjudan "${String(r?.id)}" bär varken epost eller telefon.`);
+    return k;
   }
 
   /**
@@ -2351,7 +2430,7 @@ export function createGastService(konfig) {
       const { updated } = await uppdateraOm(INB, r.id, { aterkallad: null }, { aterkallad: klocka() });
       if (updated) aterkallade++;
     }
-    const platsSlappt = await slappPlatsOmTom(groupId, rader[0].epost);
+    const platsSlappt = await slappPlatsOmTom(groupId, radensKontakt(rader[0]));
     return { aterkallade, platsSlappt };
   }
 
@@ -2376,7 +2455,7 @@ export function createGastService(konfig) {
       const { updated } = await uppdateraOm(INB, r.id, { aterkallad: null }, { aterkallad: klocka() });
       if (updated) aterkallade++;
     }
-    const platsSlappt = rader.length > 0 ? await slappPlatsOmTom(groupId, epost) : false;
+    const platsSlappt = rader.length > 0 ? await slappPlatsOmTom(groupId, { slag: "epost", varde: epost }) : false;
     return { aterkallade, platsSlappt };
   }
 
@@ -2460,12 +2539,14 @@ export function createGastService(konfig) {
    * ⛔ INBJUDNINGARNA TAS BORT SIST. De är det som visar vad som återstår att radera (sessionerna pekar på dem, räknarnas id härleds ur dem), så en radering som dör på vägen går att köra om.
    * ⛔ ALLT SOM BÄR ADRESSEN ELLER DEN HÄRLEDDA IDENTITETEN SKA BORT. Kvar blir bara räknare per IP (en hash av en IP och inget av personen) och det som aldrig hört till personen.
    *
-   * @param {{ epost: string, grupper: readonly string[] | null }} d `grupper: null` är alla personens grupper.
+   * ⛔ (0.197.0) KONTAKTEN, INTE ADRESSEN: en telefongäst raderas på samma sätt, med `radering.spar({ epost: null, telefon, ... })`. En e-postgäst ger `spar` exakt det den fick förut.
+   *
+   * @param {{ kontakt: import("../lib/gast.js").Gastkontakt, grupper: readonly string[] | null }} d `grupper: null` är alla personens grupper.
    */
   async function raderaUppgifter(d) {
     if (!radering) throw new Error("radera: createGastService fick ingen radering. Utan den går en gästs uppgifter inte att ta bort, och tjänsten gör det därför inte till hälften.");
-    const gId = gastId(d.epost);
-    const alla = await kalla.list(INB, { where: { epost: d.epost } });
+    const gId = gastId(d.kontakt);
+    const alla = await kalla.list(INB, { where: kontaktVillkor(d.kontakt) });
     const rader = d.grupper ? alla.filter((r) => /** @type {readonly string[]} */ (d.grupper).includes(r.groupId)) : alla;
     const berorda = [...new Set(rader.map((r) => String(r.groupId)))];
     let roster = 0;
@@ -2494,14 +2575,17 @@ export function createGastService(konfig) {
       const nid = hash(`nylank-epost|${gId}`);
       if (await kalla.read(RAKNARE, nid)) await taBort(RAKNARE, nid);
     }
-    if (radering.spar) await radering.spar({ epost: d.epost, gastId: gId, grupper: berorda, alla: allaBort });
+    if (radering.spar) {
+      const kontaktUt = d.kontakt.slag === "telefon" ? { epost: null, telefon: d.kontakt.varde } : { epost: d.kontakt.varde };
+      await radering.spar({ ...kontaktUt, gastId: gId, grupper: berorda, alla: allaBort });
+    }
     for (const r of rader) {
       await taBort(INB, r.id);
       // Kopian av nyckeln följer med raden: en raderad inbjudan lämnar ingen länk kvar. Raden först, så att en körning som dör mellan de två går att köra om (valvets `radera` är idempotent).
       if (VALV) await VALV.radera({ id: r.id, groupId: r.groupId });
     }
     let platserSlappta = 0;
-    for (const g of berorda) if (await slappPlatsOmTom(g, d.epost)) platserSlappta++;
+    for (const g of berorda) if (await slappPlatsOmTom(g, d.kontakt)) platserSlappta++;
     return { inbjudningar: rader.length, sessioner, roster, meddelanden, arenden: arendenRorda, platserSlappta, grupper: berorda };
   }
 
@@ -2520,7 +2604,7 @@ export function createGastService(konfig) {
     const rader = (await kalla.list(INB, { where: { groupId } })).filter((r) => gastIdEllerNull(r) === gId);
     if (rader.length === 0) throw felMedKod("finns-inte", `radera: gästen har inga uppgifter i gruppen "${groupId}".`);
     for (const r of rader) await kravForvalta(uid, r, "radera");
-    return raderaUppgifter({ epost: rader[0].epost, grupper: [groupId] });
+    return raderaUppgifter({ kontakt: radensKontakt(rader[0]), grupper: [groupId] });
   }
 
   /**
@@ -2538,7 +2622,7 @@ export function createGastService(konfig) {
     if (!s || typeof s.senast !== "number" || klocka() - s.senast > GASTSESSIONSDAGAR * DYGN_MS) return nej();
     const rad = await kalla.read(INB, s.inbjudningId);
     if (!rad) return nej();
-    await raderaUppgifter({ epost: rad.epost, grupper: null });
+    await raderaUppgifter({ kontakt: radensKontakt(rad), grupper: null });
     return { ok: true };
   }
 

@@ -1311,7 +1311,7 @@ describe("återkalla alla, ersatt av medlem, listan och nya länkar", () => {
     // En annan vanlig medlem får varken eller.
     const { id: id2 } = await h.tjanst.bjud({ uid: AGARE, slag: "grupp", groupId: GRUPP, epost: "bo@foretag.se" });
     await expect(h.tjanst.aterkalla({ uid: MEDLEM, id: id2 })).rejects.toMatchObject({ kod: "ej-behorig" });
-    await expect(h.tjanst.skickaOm({ uid: AGARE, id: id2 })).resolves.toEqual({ id: id2 });
+    await expect(h.tjanst.skickaOm({ uid: AGARE, id: id2 })).resolves.toEqual({ id: id2, slag: "epost" });
   });
 
   it("ersattAvMedlem drar tillbaka personens gästinbjudningar i just den gruppen och släpper platsen; gästens svar står kvar men räknas inte", async () => {
@@ -1338,7 +1338,8 @@ describe("återkalla alla, ersatt av medlem, listan och nya länkar", () => {
     expect(l.platser).toEqual({ anvanda: 2, totalt: GAST_PLATSER_GRATIS, lediga: 3 });
     expect(l.personer).toHaveLength(2);
     const anna = l.personer.find((p) => p.epost === "anna@foretag.se");
-    expect(Object.keys(anna).sort()).toEqual(["epost", "gastId", "inbjudningar", "namn", "status"]);
+    expect(Object.keys(anna).sort()).toEqual(["epost", "gastId", "inbjudningar", "namn", "status", "telefon"]);
+    expect(anna.telefon).toBeNull();
     expect(anna).toMatchObject({ gastId: gastId("anna@foretag.se"), namn: "Anna", status: "vantar" });
     expect(anna.inbjudningar.map((i) => [i.omfang.slag, i.titel])).toEqual([["grupp", null], ["sak", "Möte"]]);
     expect(JSON.stringify(l)).not.toMatch(/nyckelHash|felAntal/);

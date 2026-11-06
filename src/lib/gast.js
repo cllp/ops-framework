@@ -259,7 +259,9 @@ export function arGastsidansAdress(pathname) {
  */
 export const GASTFALT = /** @type {const} */ ([
   "groupId",
+  // (0.197.0) EN av `epost` och `telefon`: raden bär den kontakt inbjudan gäller, aldrig båda.
   "epost",
+  "telefon",
   "namn",
   "omfang",
   "skapadAv",
@@ -295,7 +297,9 @@ export const GASTDELTALISTFALT = /** @type {const} */ (["deltasvar"]);
 export const GASTLISTFALT = /** @type {const} */ ([
   "id",
   "gastId",
+  // (0.197.0) Den ena är kontakten och den andra `null`: tomt är ett svar (regel 5), och vyn ritar den som finns.
   "epost",
+  "telefon",
   "namn",
   "omfang",
   "skapadAv",
@@ -399,7 +403,7 @@ export const GASTFILFALT = /** @type {const} */ (["sokvag", "namn", "mime", "byt
 export const GASTBIBLIOTEKFALT = /** @type {const} */ (["id", "typ", "rubrik", "text", "url", "kalla", "bild", "poster", "taggar", "fil", "utskrift", "durationMs", "peaks", "skapad", "andrad", "skapadAvNamn"]);
 
 /** Fälten på en person i medlemmens lista (0.132.0, `lista` för en grupp): en rad per person och inte per inbjudan. Adressen ser medlemmarna ändå (CP 2026-10-20). */
-export const GASTPERSONFALT = /** @type {const} */ (["gastId", "epost", "namn", "status", "inbjudningar"]);
+export const GASTPERSONFALT = /** @type {const} */ (["gastId", "epost", "telefon", "namn", "status", "inbjudningar"]);
 
 /** Fälten på en av personens inbjudningar i medlemmens lista. `titel` är omröstningens rubrik när appen gett `grupp.handelseSida`. */
 export const GASTPERSONINBJUDANFALT = /** @type {const} */ (["id", "omfang", "titel", "status", "skapad", "skickad", "antalSkickade", "forstInloggad", "aterkallad"]);
@@ -429,6 +433,8 @@ export const GASTFEL = {
  */
 export const GASTFELKODER = /** @type {const} */ ([
   "ogiltig-epost",
+  // (0.197.0) Numret går inte att använda (`normaliseraGasttelefon`), eller både adress och nummer angavs.
+  "ogiltig-telefon",
   "ogiltigt-namn",
   "finns-inte",
   "ej-behorig",
@@ -478,6 +484,114 @@ export function normaliseraGastepost(epost, extraSparrade = []) {
   // eslint-disable-next-line no-control-regex
   if (/[\u0000-\u001f\u007f\s]/.test(a)) return null;
   return epostFel(a, extraSparrade) === null ? a : null;
+}
+
+// ── Telefonnumret och kontakten (0.197.0, cllp/lifehub.app#661) ───────────────────────────────────────────────────────
+
+/**
+ * ══ ⛔ EN GÄST KAN HA ETT TELEFONNUMMER I STÄLLET FÖR EN ADRESS, OCH ALLT SOM VAR NYCKLAT PÅ ADRESSEN ÄR NU NYCKLAT PÅ KONTAKTEN ══════════
+ *
+ * CP 2026-11-05: "kan vi låta en gäst logga in via sitt telefonnummer också om man anger det när man lägger till gästen? Alltså bjud in via telefon eller e-post. Då kan man ange mottagarens
+ * telefonnummer och sedan får man trycka dela via SMS från sin egen telefon." Servern skickar inga SMS: länken delas från den inbjudandes egen telefon, och numret är det gästen skriver för att visa att
+ * det är hen, på samma plats som adressen.
+ *
+ * Kontakten är `{ slag: "epost" | "telefon", varde }`. Inbjudans rad bär den som EN av två fält, `epost` eller `telefon`, aldrig båda (regel 2: slaget är vilket fält som finns, ingen andra uppgift som kan säga emot).
+ *
+ * ⛔ EN E-POSTKONTAKT RÄKNAS EXAKT SOM FÖRUT. `gastkontaktnyckel` för en adress ÄR den normaliserade adressen, samma text som `gastId` och `gastInbjudningsId` hashade före 0.197.0, så varje id, `gastId`,
+ * plats och räknare för en gäst som redan bjudits in med e-post är oförändrad efter en uppgradering (`gast-telefon.test.js` låser värdena räknade med den tidigare koden). Ett nummer får prefixet `tel:`:
+ * en adress kan aldrig börja så och sakna `@`, så ett nummer och en adress kan aldrig ge samma nyckel.
+ *
+ * ⛔ EN E-POSTGÄST OCH EN TELEFONGÄST FÖR SAMMA PERSON ÄR TVÅ GÄSTER OCH TAR TVÅ PLATSER. Det finns inget bevis för att de är samma person, och att slå ihop dem på en gissning hade gett den ena den
+ * andras inbjudningar.
+ */
+export const GASTKONTAKTSLAG = /** @type {const} */ (["epost", "telefon"]);
+
+/** Längsta inmatning som prövas som telefonnummer, i tecken (med mellanslag och bindestreck). Ett nummer i E.164 har högst 15 siffror. */
+export const MAX_GASTTELEFON_INMATNING = 40;
+
+/**
+ * Numret som det jämförs och lagras, i E.164 (`+` och 8 till 15 siffror), eller `null`. Samma funktion på servern och i vyn: "samma nummer" betyder samma sak överallt (regel 2).
+ *
+ * - Mellanslag, bindestreck (också de typografiska strecken och minustecknet som ett inklistrat nummer kan bära) och parenteser tas bort.
+ * - `00` först är utlandsprefixet och blir `+`.
+ * - En inledande `0` (inte `00`) är ett svenskt nummer: `070 123 45 67` blir `+46701234567`. Ett nummer utan `+`, `00` eller `0` först nekas, eftersom landet då är en gissning.
+ * - `+46 0` (en vanlig skrivning av `+46 (0)70`) tappar nollan, så att samma nummer alltid blir samma gäst.
+ * - Ett svenskt nummer har 7 till 9 siffror efter `+46`. Andra länder prövas bara mot E.164:s längd.
+ * - Bokstäver, för få eller för många siffror och allt som inte är en text ger `null`.
+ *
+ * @param {unknown} telefon
+ * @returns {string | null}
+ */
+export function normaliseraGasttelefon(telefon) {
+  if (typeof telefon !== "string") return null;
+  const radat = telefon.normalize("NFKC").trim();
+  if (radat.length === 0 || radat.length > MAX_GASTTELEFON_INMATNING) return null;
+  let t = radat.replace(/[\s\-\u2010-\u2015\u2212()]/g, "");
+  if (t.startsWith("00")) t = `+${t.slice(2)}`;
+  else if (/^0[1-9]/.test(t)) t = `+46${t.slice(1)}`;
+  if (!/^\+[1-9][0-9]*$/.test(t)) return null;
+  if (t.startsWith("+460")) t = `+46${t.slice(4)}`;
+  const siffror = t.length - 1;
+  if (siffror < 8 || siffror > 15) return null;
+  if (t.startsWith("+46")) {
+    const nationellt = t.length - 3;
+    if (nationellt < 7 || nationellt > 9 || t[3] === "0") return null;
+  }
+  return t;
+}
+
+/**
+ * @typedef {{ slag: "epost" | "telefon", varde: string }} Gastkontakt
+ */
+
+/**
+ * Kontakten som den jämförs och lagras, eller `null` om den inte går att använda: `{ slag: "epost", varde }` med en adress (`normaliseraGastepost`) eller `{ slag: "telefon", varde }` med ett nummer
+ * (`normaliseraGasttelefon`). Ett okänt slag är `null`, inte en gissning.
+ *
+ * @param {unknown} kontakt
+ * @param {readonly string[]} [extraSparrade] Appens egna spärrade domäner (`epostFel`), för en adress.
+ * @returns {Gastkontakt | null}
+ */
+export function normaliseraGastkontakt(kontakt, extraSparrade = []) {
+  const k = /** @type {{ slag?: unknown, varde?: unknown } | null} */ (kontakt);
+  if (!k || typeof k !== "object") return null;
+  if (k.slag === "epost") {
+    const varde = normaliseraGastepost(k.varde, extraSparrade);
+    return varde === null ? null : { slag: "epost", varde };
+  }
+  if (k.slag === "telefon") {
+    const varde = normaliseraGasttelefon(k.varde);
+    return varde === null ? null : { slag: "telefon", varde };
+  }
+  return null;
+}
+
+/**
+ * Texten en kontakt hashas som i `gastId` och `gastInbjudningsId`. ⛔ FÖR EN ADRESS ÄR DET ADRESSEN SJÄLV, oförändrat sedan skiva 1, så att inget befintligt id ändras. Ett nummer får prefixet `tel:`.
+ * Förutsätter en normaliserad kontakt (`normaliseraGastkontakt`) och kastar annars.
+ *
+ * @param {Gastkontakt} kontakt
+ * @returns {string}
+ */
+export function gastkontaktnyckel(kontakt) {
+  if (kontakt?.slag === "epost" && typeof kontakt.varde === "string" && kontakt.varde !== "") return kontakt.varde;
+  if (kontakt?.slag === "telefon" && typeof kontakt.varde === "string" && kontakt.varde.startsWith("+")) return `tel:${kontakt.varde}`;
+  throw new Error("gastkontaktnyckel: en normaliserad kontakt krävs, { slag: 'epost' | 'telefon', varde }.");
+}
+
+/**
+ * Kontakten på en inbjudans rad: `telefon` om raden bär ett nummer, annars `epost`. `null` för en rad som inte bär någon. Raden lagrar redan den normaliserade formen, och den läses som den står (trimmad),
+ * på samma sätt som tjänsten jämförde `rad.epost` före 0.197.0.
+ *
+ * @param {unknown} rad
+ * @returns {Gastkontakt | null}
+ */
+export function gastkontaktPaRad(rad) {
+  const r = /** @type {{ epost?: unknown, telefon?: unknown } | null} */ (rad);
+  if (!r || typeof r !== "object") return null;
+  if (typeof r.telefon === "string" && r.telefon.trim() !== "") return { slag: "telefon", varde: r.telefon.trim() };
+  if (typeof r.epost === "string" && r.epost.trim() !== "") return { slag: "epost", varde: r.epost.trim() };
+  return null;
 }
 
 /** SHA-256:s rundkonstanter: de 32 första bitarna av bråkdelarna av kubikrötterna ur de 64 första primtalen. */
@@ -553,10 +667,17 @@ export function sha256Hex(text) {
  * Gästens identitet ur adressen: `g_` och de 40 första tecknen av SHA-256 av den normaliserade adressen (`normaliseraGastepost`). Samma adress ger samma
  * gäst, oavsett hur många inbjudningar eller grupper adressen finns i. Kastar för något som inte är en adress, så att en felskriven rad aldrig blir en gäst.
  *
- * @param {string} epost
+ * (0.197.0) En kontakt (`{ slag, varde }`) ger samma sak: en adress som kontakt är samma gäst som adressen ensam, och ett nummer hashas som `tel:<nummer>` (`gastkontaktnyckel`).
+ *
+ * @param {string | Gastkontakt} epost En adress, eller en kontakt.
  * @returns {string}
  */
 export function gastId(epost) {
+  if (epost && typeof epost === "object") {
+    const k = normaliseraGastkontakt(epost);
+    if (k === null) throw new Error("gastId: kontakten är ingen adress eller inget nummer som går att använda.");
+    return `g_${sha256Hex(gastkontaktnyckel(k)).slice(0, 40)}`;
+  }
   const a = normaliseraGastepost(epost);
   if (a === null) throw new Error("gastId: en gäst har en e-postadress. Det som skickades in är ingen adress som går att skicka till.");
   return `g_${sha256Hex(a).slice(0, 40)}`;
@@ -641,8 +762,11 @@ export function gastplatsId(groupId, nummer) {
  * `Referer` och inte i ett mejlprograms förhandshämtning, som bara hämtar sidan och aldrig kör dess skript. Delningens `/g/<adress>` ligger i sökvägen och loggas;
  * det är rätt för en publik adress och fel för en nyckel. Sidan postar nyckeln själv, först när gästen skrivit sin adress.
  *
+ * ⛔ (0.197.0) EN LÄNK TILL EN TELEFONINBJUDAN BÄR `&s=tel` (`slag: "telefon"`). Sidan vet inte slaget innan gästen svarat, så tecknet säger att den ska fråga efter ett telefonnummer. Tecknet är
+ * ingen behörighet: servern jämför det gästen skriver mot inbjudans egen kontakt, och ett nummer släpper aldrig in en e-postinbjudan (eller tvärtom). En e-postlänk ser ut exakt som före 0.197.0.
+ *
  * @param {string} bas Instansens adress med protokoll och utan sökväg, till exempel `https://my.life-hub.app`.
- * @param {{ id: string, nyckel: string }} lank
+ * @param {{ id: string, nyckel: string, slag?: "epost" | "telefon" }} lank `slag` ur tjänstens `kopieraLank`. Utelämnat: `epost`.
  * @returns {string}
  */
 export function gastLank(bas, lank) {
@@ -652,15 +776,21 @@ export function gastLank(bas, lank) {
   if (!lank || !GASTINBJUDNINGSIDFORM.test(lank.id) || !GASTNYCKELFORM.test(lank.nyckel)) {
     throw new Error("gastLank: { id, nyckel } krävs, id som 64 hextecken och nyckeln som 43 tecken ur A-Z, a-z, 0-9, - och _.");
   }
-  return `${bas.replace(/\/+$/, "")}${GASTSOKVAG}#i=${lank.id}&k=${lank.nyckel}`;
+  if (lank.slag !== undefined && !(/** @type {readonly unknown[]} */ (GASTKONTAKTSLAG)).includes(lank.slag)) {
+    throw new Error(`gastLank: slag är ${GASTKONTAKTSLAG.join(" eller ")}, eller utelämnas (fick ${JSON.stringify(lank.slag)}).`);
+  }
+  return `${bas.replace(/\/+$/, "")}${GASTSOKVAG}#i=${lank.id}&k=${lank.nyckel}${lank.slag === "telefon" ? "&s=tel" : ""}`;
 }
 
 /**
  * Id och nyckel ur adressens fragment (`location.hash`), eller `null` om det inte är en gästlänk. Tolerant för ett inledande `#`, strikt för formen:
  * en halv länk (bara id) ger `null`, så att sidan frågar efter adressen i stället för att försöka lösa in något som aldrig kan stämma.
  *
+ * (0.197.0) `s=tel` ger `slag: "telefon"`, och sidan frågar då efter ett nummer. En e-postlänk ger exakt `{ id, nyckel }` som förut. Ett okänt tecken ger `null`: en länk från en version sidan inte känner
+ * är inte en e-postlänk.
+ *
  * @param {unknown} fragment
- * @returns {{ id: string, nyckel: string } | null}
+ * @returns {{ id: string, nyckel: string, slag?: "telefon" } | null}
  */
 export function tolkaGastLank(fragment) {
   if (typeof fragment !== "string") return null;
@@ -672,6 +802,8 @@ export function tolkaGastLank(fragment) {
     if (i > 0) v[d.slice(0, i)] = d.slice(i + 1);
   }
   if (!v.i || !v.k || !GASTINBJUDNINGSIDFORM.test(v.i) || !GASTNYCKELFORM.test(v.k)) return null;
+  if (v.s === "tel") return { id: v.i, nyckel: v.k, slag: "telefon" };
+  if (v.s !== undefined) return null;
   return { id: v.i, nyckel: v.k };
 }
 
