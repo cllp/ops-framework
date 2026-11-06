@@ -289,6 +289,10 @@ function felMedKod(kod, meddelande) {
  *   rosta: (arg: { handelse: Record<string, any>, gastId: string, groupId: string, forslagId: string, val: string }) => { ok: boolean } | Promise<{ ok: boolean }> }} [omrostning]
  *   Omröstningen på ett datum är appens modell. `bygg` ger det en gäst ser (förslag, summor, egna röster) och `falt` är hela listan; `rosta` skriver rösten (appens prövning, samma som en
  *   medlems). Utelämnad: `rosta` svarar `nej` och `handelse` bär ingen `omrostning`. Rösterna tas bort av `radering.roster`.
+ * @property {(arg: { groupId: string }) => boolean | Promise<boolean>} [farLaddaNed] (0.190.0, CP 2026-11-05: "Vill att man skall kunna förhindra nedladdning till gäster.") Gruppens
+ *   strömbrytare. Utelämnad, eller `true`: som förut. `false`: `fil` ger ingen nedladdningslänk (`Content-Disposition: attachment`) utan svarar `nedladdning-av`, medan spela och visa
+ *   (`inline`) går som förut, och `hamta` bär `grupp.nedladdning: false` så att vyn inte ritar Ladda ned. ⛔ Det gästen kan lyssna på eller se skickas till enheten: spärren stoppar
+ *   den enkla vägen, inte den som spelar in.
  */
 
 /**
@@ -406,7 +410,7 @@ export function createGastService(konfig) {
     }
   }
   const DELTA = delta ?? null;
-  /** @type {null | { samlingar: Record<string, string>, lagring: Gastgrupp["lagring"], gruppPrefix: string, postPrefix: string, handelseSida: Gastgrupp["handelseSida"], arenden?: Gastarenden, omrostning?: Gastgrupp["omrostning"], funktioner: readonly string[] }} */
+  /** @type {null | { samlingar: Record<string, string>, lagring: Gastgrupp["lagring"], gruppPrefix: string, postPrefix: string, handelseSida: Gastgrupp["handelseSida"], arenden?: Gastarenden, omrostning?: Gastgrupp["omrostning"], farLaddaNed?: Gastgrupp["farLaddaNed"], funktioner: readonly string[] }} */
   let GS = null;
   if (radering !== undefined) {
     if (!radering || typeof radering !== "object") throw new Error(`${namn}: radering är ett objekt (Gastradering), eller utelämnas.`);
@@ -429,6 +433,7 @@ export function createGastService(konfig) {
     }
     if (typeof grupp.lagring?.signeradAdress !== "function") throw new Error(`${namn}: grupp.lagring.signeradAdress krävs. Gästen får aldrig en öppen sökväg, bara en adress som går ut.`);
     if (typeof grupp.handelseSida !== "function") throw new Error(`${namn}: grupp.handelseSida krävs, en funktion som säger vilka av appens fält som är titel, beskrivning och plats.`);
+    if (grupp.farLaddaNed !== undefined && typeof grupp.farLaddaNed !== "function") throw new Error(`${namn}: grupp.farLaddaNed är en funktion ({ groupId }) => boolean, eller utelämnas. Ett värde som inte går att fråga hade varit en strömbrytare som tyst inte gjorde något.`);
     const prefix = (/** @type {unknown} */ v, /** @type {string} */ fall, /** @type {string} */ falt) => {
       const x = v === undefined ? fall : v;
       if (typeof x !== "string" || !SAMLINGSFORM.test(x)) throw new Error(`${namn}: grupp.lagring.${falt} är ett namn.`);
@@ -464,6 +469,7 @@ export function createGastService(konfig) {
       handelseSida: grupp.handelseSida,
       arenden: grupp.arenden,
       omrostning: grupp.omrostning,
+      farLaddaNed: grupp.farLaddaNed,
       // ⛔ FUNKTIONERNA SOM FINNS ÄR DE SOM ÄR KONFIGURERADE. En gruppinbjudan ger fyra, men en ärendeflik utan ärenden bakom sig hade varit en död flik (skiva 3).
       funktioner: GASTGRUPPFUNKTIONER.filter((f) => f !== "arenden" || grupp.arenden !== undefined),
     };
@@ -498,7 +504,11 @@ export function createGastService(konfig) {
 
   /** Det enda nej som skiljer sig från ingenting: byte för byte detsamma varje gång. */
   const nej = () => ({ ok: /** @type {const} */ (false), orsak: /** @type {const} */ ("nej") });
-  /** @param {"aterkallad" | "utgangen" | "for-manga" | "saknas"} orsak */
+  /**
+   * (0.190.0) `nedladdning-av` bara från `fil`, när gruppen stängt av nedladdning. Mallen behåller den smala typen, så att `los` och `hamta` fortfarande bara kan svara med `Gastorsak`.
+   * @template {"aterkallad" | "utgangen" | "for-manga" | "saknas" | "nedladdning-av"} T
+   * @param {T} orsak
+   */
   const orsak = (orsak) => ({ ok: /** @type {const} */ (false), orsak });
 
   // ── Medlemskap och behörighet ─────────────────────────────────────────────────────────────────────────────────────
@@ -1478,6 +1488,16 @@ export function createGastService(konfig) {
   }
 
   /**
+   * Får gästerna i gruppen ladda ned (0.190.0)? Utan `grupp.farLaddaNed` ja, som förut. Bara `false` stänger av: ett svar som inte är ett tydligt nej ändrar ingenting för befintliga gäster.
+   * @param {string} groupId
+   * @returns {Promise<boolean>}
+   */
+  async function nedladdningTillaten(groupId) {
+    if (!GS || typeof GS.farLaddaNed !== "function") return true;
+    return (await GS.farLaddaNed({ groupId })) !== false;
+  }
+
+  /**
    * `hamta` för en gruppinbjudan: gruppens namn och funktionerna, och inget annat.
    * @param {{ gastId: string, inbjudan: { id: string, groupId: string, namn: string } }} s
    */
@@ -1486,7 +1506,7 @@ export function createGastService(konfig) {
     if (!(await reserveraAnrop(s.inbjudan.id))) return orsak("for-manga");
     const g = await kalla.read(GS.samlingar.grupper, s.inbjudan.groupId);
     if (!g) return orsak("saknas");
-    const svar = { ok: true, namn: s.inbjudan.namn, funktion: "grupp", grupp: vitlista({ namn: text(g.namn), funktioner: [...GS.funktioner] }, GASTGRUPPSVARSFALT.hamta) };
+    const svar = { ok: true, namn: s.inbjudan.namn, funktion: "grupp", grupp: vitlista({ namn: text(g.namn), funktioner: [...GS.funktioner], nedladdning: await nedladdningTillaten(s.inbjudan.groupId) }, GASTGRUPPSVARSFALT.hamta) };
     return Object.fromEntries(Object.entries(svar).filter(([k]) => /** @type {readonly string[]} */ (GASTSVARSFALT).includes(k)));
   }
 
@@ -2049,12 +2069,16 @@ export function createGastService(konfig) {
     if (!postId) return orsak("saknas");
     const post = await kalla.read(GS.samlingar.bibliotek, postId);
     if (!arGruppFil(post, groupId)) return orsak("saknas");
-    const rakn = await reserveraRaknare(hash(`gastfil|${s.inbjudan.id}`), { max: GASTFIL_PER_DYGN, fonsterMs: DYGN_MS });
-    if (!rakn) return orsak("for-manga");
     const filnamn = text(post?.fil.namn);
     const mime = text(post?.fil.mime);
     const visas = ["bild", "ljud", "video", "pdf"].includes(delningsTyp(mime));
     const bifoga = b?.bifoga === true || (b?.bifoga === undefined && !visas);
+    // ⛔ NEDLADDNINGEN KAN VARA AVSTÄNGD I GRUPPEN (0.190.0, `farLaddaNed`): en adress med `attachment` ges inte, och ingen räknare tas. Spela och visa (`inline`) går som förut.
+    // Ett dokument som bara kan laddas ned (Word, en okänd sort) har ingen `inline`-väg och nekas också, OCKSÅ när gästen ber om `bifoga: false`:
+    // en `inline`-adress till en sort webbläsaren inte kan visa laddas ned ändå, så frågan avgörs på sorten och inte på vad gästen ber om (granskningen).
+    if ((bifoga || !visas) && !(await nedladdningTillaten(groupId))) return orsak("nedladdning-av");
+    const rakn = await reserveraRaknare(hash(`gastfil|${s.inbjudan.id}`), { max: GASTFIL_PER_DYGN, fonsterMs: DYGN_MS });
+    if (!rakn) return orsak("for-manga");
     try {
       const url = await GS.lagring.signeradAdress({ sokvag: post?.fil.sokvag, sekunder: SIGNERAD_SEKUNDER, disposition: delningsDisposition(filnamn, bifoga, mime), mime });
       return vitlista({ ok: true, url, namn: filnamn, mime }, GASTGRUPPSVARSFALT.fil);

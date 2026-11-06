@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState } from "react";
+import { Fragment, createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { sparaSomFil } from "../lib/sparaFil.js";
 import * as Popover from "@radix-ui/react-popover";
 import * as Tabs from "@radix-ui/react-tabs";
@@ -24,7 +24,7 @@ import { formateraTid } from "../lib/ljudspelare.js";
 import { lankKalla, lankKallnamn, lankRubrik } from "../lib/lankkalla.js";
 import { LISTA_FLYTT_TEXT, LISTA_I_LISTA_TEXT, listorAttLaggaI } from "../lib/biblioteklista.js";
 import { UTSKRIFT_VANTETID_MS, uppskattadUtskriftstid, utskriftLage, utskriftPagatText } from "../lib/utskrift.js";
-import { LankMark, TypIkon, oppnasDirekt, plattKlass, postensKalla, typEtikett } from "./BibliotekPostvisning.jsx";
+import { LankMark, TypIkon, filandelse, oppnasDirekt, plattKlass, postensKalla, typEtikett } from "./BibliotekPostvisning.jsx";
 import { LaggILista, ListaVisning } from "./BibliotekLista.jsx";
 import { MejlaLank } from "./MejlaLank.jsx";
 import { useInspelningOppnare, useKanSpelaIn } from "./OpsAppShell.jsx";
@@ -177,6 +177,47 @@ function medNal(post, ny) {
 }
 
 /**
+ * Listans ord på svenska och engelska (0.190.0, QA fynd 4 i cllp/lifehub.app#658): flikarna, sökfältet och metaraden stod på svenska
+ * också när språket var engelska, eftersom de var skrivna direkt i komponenten.
+ * @type {import("../lib/ord.js").Ordbok}
+ */
+/**
+ * Får den som ser biblioteket ladda ned (0.190.0, CP 2026-11-05: "Vill att man skall kunna förhindra nedladdning till gäster")? Ett sammanhang och inte en prop genom varje
+ * kort, detalj och spelare: Ladda ned står på fyra ställen, och en prop som glömdes på ett av dem hade varit en knapp som syntes fast gruppen stängt av den.
+ */
+const NedladdningKontext = createContext(true);
+
+const ORD_BIBLIOTEKLISTA = {
+  flik_alla: { sv: "Allt", en: "All" },
+  flik_ljud: { sv: "Ljud", en: "Audio" },
+  flik_anteckning: { sv: "Anteckningar", en: "Notes" },
+  flik_bild: { sv: "Bilder", en: "Images" },
+  flik_fil: { sv: "Dokument", en: "Documents" },
+  flik_lank: { sv: "Länkar", en: "Links" },
+  flik_lista: { sv: "Listor", en: "Lists" },
+  typEtikett: { sv: "Typ i biblioteket", en: "Type in the library" },
+  sokEtikett: { sv: "Sök i biblioteket", en: "Search the library" },
+  sokPlats: { sv: "Sök...", en: "Search..." },
+  listaEtikett: { sv: "Biblioteket", en: "The library" },
+  tomLista: { sv: "Tom lista", en: "Empty list" },
+  enPost: { sv: "1 post", en: "1 item" },
+  flerPoster: { sv: "{n} poster", en: "{n} items" },
+  oppnaI: { sv: "Öppna {namn} i {kalla}", en: "Open {namn} in {kalla}" },
+  oppnaFonster: { sv: "Öppna {namn} i ett eget fönster", en: "Open {namn} in a new window" },
+  tillbaka: { sv: "Tillbaka", en: "Back" },
+  filer: { sv: "Filer", en: "Files" },
+  hamtarBiblioteket: { sv: "Hämtar biblioteket", en: "Loading the library" },
+  hamtarFilerna: { sv: "Hämtar filerna", en: "Loading the files" },
+  hamtarFilen: { sv: "Hämtar filen.", en: "Loading the file." },
+  hamtarLjudet: { sv: "Hämtar ljudet.", en: "Loading the audio." },
+  ingenAdress: { sv: "Filen har ingen adress.", en: "The file has no address." },
+  forhandsvisa: { sv: "Förhandsvisa {namn}", en: "Preview {namn}" },
+  laddaNed: { sv: "Ladda ned", en: "Download" },
+  skrivenAv: { sv: "Skriven av {namn}.", en: "Written by {namn}." },
+  utanNamn: { sv: "Författaren saknar namn.", en: "The author has no name." },
+};
+
+/**
  * Orden för nålen och stjärnan (0.187.0, cllp/lifehub.app#653), svenska och engelska, i en ordbok bredvid komponenten (som `ORD_TAGGAR`).
  * @type {import("../lib/ord.js").Ordbok}
  */
@@ -283,8 +324,9 @@ const arkivtips = () => `Arkiverad. Välj taggen ${ARKIVTAGG} för att se arkive
  *   under listan (och i detaljen): stjärnan ändras inte förrän `stjarnor` ändras, så en stjärna som inte sparades ser inte sparad ut.
  * @param {import("react").ReactNode} [props.huvudRad] (0.187.0, cllp/ops-framework#517) En rad som appen äger, ritad som en egen rad under sökfältet, "+ Ny" och Taggar i huvudet (inte i samma rad: på en telefon krymper sökrutan då till ett par bokstäver). Förut sköt appen in sin
  *   "Klistra in"-knapp i huvudet genom DOM:en och bevakade den med en MutationObserver. Utan propen finns ingen rad. Hör inte hit med `inbaddad`, som inte har något huvud.
+ * @param {boolean} [props.utanNedladdning] (0.190.0, CP 2026-11-05: "Vill att man skall kunna förhindra nedladdning till gäster.") Ingen Ladda ned: varken i en fils detalj eller i spelarens ark för ett ljud ur listan. Gästens bibliotek när gruppen stängt av nedladdning (`grupp.nedladdning: false`). Visa och spela är som förut.
  */
-export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, trasiga: trasigaProp = [], laddar: laddarProp = false, vald = null, skapar = null, jag, onOppna, onStang, onSkapa, onSpara, onRadera, onLaddaUpp, onFyllLjud, onSpelaIn, inspelare, filUrl, hamtaAdress, hamtaFil, htmlVersioner, hamtaHtmlVersion, aterstallHtml, nyHtmlVersion, oppnaHtml, grupper = [], onDela, platser = [], plats, onPlats, onSkrivUt, onSkrivUtIgen, onTaBortUtskrift, onAnteckningAvUtskrift, onGorForslag, delningar = [], delningGruppdel, gruppnamn: gruppnamnProp, onDelaLank, onAndraNedladdning, onAterkalla, onMejlaLank, onLankInfo, githubLasare, hubHref, hubEtikett, onNavigate, modulId = "bibliotek", ram = null, activeHref, modul = null, inbaddad = false, tomText, utanHubb = false, adresserPaBegaran = false, gruppTaggar = [], egnaPlatser = null, stjarnor, onStjarna, huvudRad }) {
+export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, trasiga: trasigaProp = [], laddar: laddarProp = false, vald = null, skapar = null, jag, onOppna, onStang, onSkapa, onSpara, onRadera, onLaddaUpp, onFyllLjud, onSpelaIn, inspelare, filUrl, hamtaAdress, hamtaFil, htmlVersioner, hamtaHtmlVersion, aterstallHtml, nyHtmlVersion, oppnaHtml, grupper = [], onDela, platser = [], plats, onPlats, onSkrivUt, onSkrivUtIgen, onTaBortUtskrift, onAnteckningAvUtskrift, onGorForslag, delningar = [], delningGruppdel, gruppnamn: gruppnamnProp, onDelaLank, onAndraNedladdning, onAterkalla, onMejlaLank, onLankInfo, githubLasare, hubHref, hubEtikett, onNavigate, modulId = "bibliotek", ram = null, activeHref, modul = null, inbaddad = false, tomText, utanHubb = false, adresserPaBegaran = false, gruppTaggar = [], egnaPlatser = null, stjarnor, onStjarna, huvudRad, utanNedladdning = false }) {
   if (kalla !== undefined && (posterProp !== undefined || felProp !== null || laddarProp !== false || (Array.isArray(trasigaProp) && trasigaProp.length > 0))) {
     throw new Error("OpsBibliotek: kalla och poster/fel/trasiga/laddar kan inte ges tillsammans. Med kalla läser vyn själv, och två sanningar om samma lista hade låtit den ena vinna tyst.");
   }
@@ -393,10 +435,25 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
   }, [valdaTaggar]);
   // En plats som just skapats kan saknas i `platser` en stund (appens prenumeration är inte framme): växlaren ritar den ändå, med sitt namn.
   const [nyligen, setNyligen] = useState(/** @type {{ id: string, namn: string }[]} */ ([]));
-  const adresser = useFilAdresser(poster, vald, filUrl, hamtaAdress, adresserPaBegaran);
+  /*
+   * ⛔ SPELA PÅ BEGÄRAN (0.190.0, CP 2026-11-05 i cllp/lifehub.app#658, del P: "att spelaren skall bli såhär och att man kan få upp den på samma sätt som i appen").
+   * Med `adresserPaBegaran` (gästen) har en post i listan ingen adress förrän den öppnas, och därför stod ingen Spela på kortet. Nu står den där, och ett tryck hämtar
+   * adressen för just den posten (en signering, samma väg som när posten öppnas) och startar den i skalets spelare när adressen kommit. Fler signeringar än förut blir
+   * det inte: en per spelad post, aldrig en per post i listan.
+   */
+  const [spelaNar, setSpelaNar] = useState(/** @type {Record<string, any>} */ ({}));
+  const begarda = useMemo(() => Object.values(spelaNar), [spelaNar]);
+  const adresser = useFilAdresser(poster, vald, filUrl, hamtaAdress, adresserPaBegaran, begarda);
   useUppladdningsklocka(poster, vald);
   const adressFor = (/** @type {{ typ?: string, skapad?: number, fil?: { sokvag?: string, mime?: string, klar?: boolean } }} */ post) =>
-    losAdress(post, filUrl, hamtaAdress, adresser, adresserPaBegaran && !(vald?.fil?.sokvag && post?.fil?.sokvag === vald.fil.sokvag));
+    losAdress(post, filUrl, hamtaAdress, adresser, adresserPaBegaran && !(vald?.fil?.sokvag && post?.fil?.sokvag === vald.fil.sokvag) && !(post?.fil?.sokvag && spelaNar[post.fil.sokvag]));
+  const spelareHar = useSpelare();
+  const spelaPaBegaran = adresserPaBegaran && spelareHar
+    ? (/** @type {any} */ post) => {
+        const s = typeof post?.fil?.sokvag === "string" ? post.fil.sokvag.trim() : "";
+        if (s) setSpelaNar((m) => (m[s] ? m : { ...m, [s]: post }));
+      }
+    : undefined;
   const [fylld, setFylld] = useState(/** @type {Record<string, { durationMs?: number, peaks?: string }>} */ ({}));
   const sparatMeta = useRef(/** @type {Set<string>} */ (new Set()));
   const onFyllRef = useRef(onFyllLjud);
@@ -412,6 +469,23 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
     if (!extra) return post;
     return /** @type {T} */ ({ ...post, ...extra });
   }
+  // En begärd spelning startar när adressen kommit, och släpps när den inte gick att få (felet står då på kortet som för en öppnad post).
+  useEffect(() => {
+    const vantande = Object.entries(spelaNar);
+    if (vantande.length === 0) return;
+    /** @type {string[]} */
+    const klara = [];
+    for (const [s, post] of vantande) {
+      const url = adresser.klar[s];
+      if (url) {
+        const p = medFyll(post);
+        spelareHar?.vaxla({ id: p.id, namn: ljudRubrik(p), src: url, durationMs: p.durationMs, peaks: p.peaks, onMeta: (m) => togMeta(p.id, m), ...(utanNedladdning ? { laddaNed: false } : {}) });
+        klara.push(s);
+      } else if (adresser.fel[s]) klara.push(s);
+    }
+    if (klara.length > 0) setSpelaNar((m) => Object.fromEntries(Object.entries(m).filter(([s]) => !klara.includes(s))));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [spelaNar, adresser.klar, adresser.fel]);
   /**
    * Bakgrund: spelaren räknar längd och toppar utan att någon trycker på spela,
    * och det här skriver dem på posten så nästa lista visar längden direkt.
@@ -465,6 +539,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
   const skaparTyp = jag ? skapar : null;
   const detalj = Boolean(skaparTyp || vald);
   const mord = (/** @type {keyof typeof ORD_BIBLIOTEKMARKERING} */ nyckel) => ordet(ORD_BIBLIOTEKMARKERING, nyckel, sprak);
+  const lord = (/** @type {keyof typeof ORD_BIBLIOTEKLISTA} */ nyckel) => ordet(ORD_BIBLIOTEKLISTA, nyckel, sprak);
   const felText = (/** @type {unknown} */ e, /** @type {string} */ reserv) => (e instanceof Error && e.message ? e.message : typeof e === "string" && e ? e : reserv);
   // ⛔ STJÄRNORNA SOM EN MÄNGD (0.187.0): `null` utan propen, och då finns varken knapp eller flik. En tom mängd är något annat: ingen post är stjärnmärkt än, men knappen finns.
   const stjarnMangd = stjarnor === undefined ? null : new Set(stjarnor);
@@ -853,9 +928,10 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
   const valda = valdaTaggar.filter((t) => gruppensTaggar.some((g) => g.tagg === t));
   // ⛔ FLIKEN STJÄRNMÄRKTA (0.187.0) står efter Allt och finns bara med `stjarnor`. Det är en flik och inte en knapp vid sidan av: flikraden är redan där man väljer vad listan visar, och den visar en tom flik inte alls
   // (nedan), så den som ännu inte stjärnmärkt något ser den inte. Följden är att den inte kombineras med en typflik (stjärnmärkta länkar): den kombineras med sök och taggar, som alla flikar.
+  const flikarPaSprak = FLIKAR.map((f) => ({ ...f, namn: lord(f.namn) }));
   const flikLista = stjarnMangd
-    ? [FLIKAR[0], { id: /** @type {Flik} */ ("stjarna"), namn: mord("stjarnmarkta"), ikon: <IKON_FOR.stjarna size={16} aria-hidden="true" /> }, ...FLIKAR.slice(1)]
-    : FLIKAR;
+    ? [flikarPaSprak[0], { id: /** @type {Flik} */ ("stjarna"), namn: mord("stjarnmarkta"), ikon: <IKON_FOR.stjarna size={16} aria-hidden="true" /> }, ...flikarPaSprak.slice(1)]
+    : flikarPaSprak;
   /** @param {Flik} f */
   const flikVal = (f) => (f === "stjarna" ? { flik: "alla", stjarnmarkta: /** @type {Set<string>} */ (stjarnMangd) } : { flik: f });
   const antal = /** @type {Record<Flik, number>} */ (Object.fromEntries(flikLista.map((f) => [f.id, filtreraBibliotek(poster, flikVal(f.id)).length])));
@@ -942,6 +1018,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
   // Inställningsläget vinner över detaljen: länken från arket öppnar inställningarna, inte posten.
   const Rot = inbaddad ? InbaddadRot : OpsView;
   return (
+    <NedladdningKontext.Provider value={!utanNedladdning}>
     <Rot tillbaka={detalj ? undefined : listTillbaka}>
       <div data-bibliotek="" className="flex min-w-0 w-full flex-col gap-4">
         {detalj ? (
@@ -960,7 +1037,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
           })() : null} markering={vald ? (() => {
             const rad = poster.find((p) => p.id === vald.id) ?? vald;
             return <Markering nalad={arNalad(rad)} nalOrd={mord("nalad")} stjarna={stjarnFor(rad)} />;
-          })() : null} onLjus={setLjus} onSkrivUt={onSkrivUt} onSkrivUtIgen={onSkrivUtIgen} onTaBortUtskrift={onTaBortUtskrift} onAnteckningAvUtskrift={onAnteckningAvUtskrift} menyFor={menyFor} onMeta={togMeta} tillbakaEtikett={inbaddad ? "Filer" : "Tillbaka"} poster={poster} jag={jag} onLankInfo={onLankInfo} githubLasare={githubLasare} onOppnaPost={(p) => oppnaMed(p, "las")} />
+          })() : null} onLjus={setLjus} onSkrivUt={onSkrivUt} onSkrivUtIgen={onSkrivUtIgen} onTaBortUtskrift={onTaBortUtskrift} onAnteckningAvUtskrift={onAnteckningAvUtskrift} menyFor={menyFor} onMeta={togMeta} tillbakaEtikett={lord(inbaddad ? "filer" : "tillbaka")} poster={poster} jag={jag} onLankInfo={onLankInfo} githubLasare={githubLasare} onOppnaPost={(p) => oppnaMed(p, "las")} />
         ) : (
           <div data-bibliotek-huvud="" className="flex min-w-0 flex-col gap-3">
             {/* ⛔ SESSIONSTUDIOS HUVUD, SOM I APPEN (0.102.0, CP 2026-10-14 med skärmbilder från SessionStudios app: "Listningen
@@ -968,7 +1045,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
                 Platsen som piller står i vyns huvud, bredvid kugghjulet. */}
             {inbaddad ? null : <div className="flex min-w-0 items-center gap-2">
               <div className="min-w-0 flex-1">
-                <OpsInput value={sok} onChange={setSok} type="search" ariaLabel="Sök i biblioteket" placeholder="Sök..." />
+                <OpsInput value={sok} onChange={setSok} type="search" ariaLabel={lord("sokEtikett")} placeholder={lord("sokPlats")} />
               </div>
               {jag ? (
                 <NyKnapp
@@ -1009,11 +1086,11 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
                 </ul>
               </div>
             ) : null}
-            <Tabs.Content value={aktivFlik} data-bibliotek-panel="" aria-label={flikLista.find((f) => f.id === aktivFlik)?.namn ?? "Allt"} className="flex min-w-0 flex-col gap-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
+            <Tabs.Content value={aktivFlik} data-bibliotek-panel="" aria-label={flikLista.find((f) => f.id === aktivFlik)?.namn ?? lord("flik_alla")} className="flex min-w-0 flex-col gap-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
               {fel ? (
                 <p role="alert" data-bibliotek-fel="">{fel}</p>
               ) : laddar ? (
-                <OpsEmpty busy title={inbaddad ? "Hämtar filerna" : "Hämtar biblioteket"} />
+                <OpsEmpty busy title={lord(inbaddad ? "hamtarFilerna" : "hamtarBiblioteket")} />
               ) : synliga.length === 0 ? (
                 <OpsEmpty
                   icon={inbaddad || sok || valda.length > 0 ? null : <IKON_FOR.bibliotek size={28} />}
@@ -1021,7 +1098,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
                   description={inbaddad ? (tomText ?? TOM_FILER_FORVAL) : sok ? `Inget matchar "${sok}"${valda.length > 0 ? ` med ${valda.join(" och ")}` : ""}.` : valda.length > 0 ? `Inget här har ${valda.join(" och ")}.` : "Lägg till en anteckning, en länk, ett ljud eller en fil."}
                 />
               ) : (
-                <ul aria-label="Biblioteket" data-bibliotek-lista="" className="m-0 flex list-none flex-col gap-3 p-0">
+                <ul aria-label={lord("listaEtikett")} data-bibliotek-lista="" className="m-0 flex list-none flex-col gap-3 p-0">
                   {synliga.map((rad) => {
                     const post = medFyll(rad);
                     const kanAndra = farAndra(rad, jag);
@@ -1041,6 +1118,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
                         htmlVy={htmlVyAdress(oppnaHtml, rad)}
                         onOppna={() => oppnaMed(rad, "las")}
                         onMeta={togMeta}
+                        onSpelaPaBegaran={spelaPaBegaran}
                         taggrad={radTaggar.length > 0 || taggarFor === rad.id ? (
                           <OpsTaggRad
                             taggar={radTaggar}
@@ -1173,6 +1251,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
         ) : <p>Ingen post vald.</p>}
       </OpsModal>
     </Rot>
+    </NedladdningKontext.Provider>
   );
 }
 
@@ -1297,7 +1376,10 @@ function useUppladdningsklocka(poster, vald) {
  * @param {((sokvag: string) => Promise<string>) | undefined} hamtaAdress
  * @param {boolean} [paBegaran] (0.132.0) Bara den öppna posten hämtas, aldrig hela listan.
  */
-function useFilAdresser(poster, vald, filUrl, hamtaAdress, paBegaran = false) {
+function useFilAdresser(poster, vald, filUrl, hamtaAdress, paBegaran = false, begarda = /** @type {readonly any[]} */ ([])) {
+  const sprak = useOpsSprak();
+  const sprakRef = useRef(sprak);
+  sprakRef.current = sprak;
   const [klar, setKlar] = useState(/** @type {Record<string, string>} */ ({}));
   const [fel, setFel] = useState(/** @type {Record<string, string>} */ ({}));
   const klarRef = useRef(klar);
@@ -1308,7 +1390,7 @@ function useFilAdresser(poster, vald, filUrl, hamtaAdress, paBegaran = false) {
   felRef.current = fel;
   hamtaRef.current = hamtaAdress;
   const harHamta = typeof hamtaAdress === "function";
-  const underlag = paBegaran ? (vald ? [vald] : []) : vald && !poster.some((p) => p === vald || (p.id && p.id === vald.id)) ? [...poster, vald] : poster;
+  const underlag = paBegaran ? [...(vald ? [vald] : []), ...begarda] : vald && !poster.some((p) => p === vald || (p.id && p.id === vald.id)) ? [...poster, vald] : poster;
   const nyckel = underlag
     .map((post) => {
       if (postAdress(post, filUrl)) return "";
@@ -1351,7 +1433,7 @@ function useFilAdresser(poster, vald, filUrl, hamtaAdress, paBegaran = false) {
         .then((url) => {
           if (!kvar) return;
           if (typeof url !== "string" || url === "") {
-            setFel((f) => ({ ...f, [s]: "Filen har ingen adress." }));
+            setFel((f) => ({ ...f, [s]: ordet(ORD_BIBLIOTEKLISTA, "ingenAdress", sprakRef.current) }));
             return;
           }
           setKlar((c) => ({ ...c, [s]: url }));
@@ -1382,16 +1464,18 @@ function useFilAdresser(poster, vald, filUrl, hamtaAdress, paBegaran = false) {
  * och inte "Inspelningar", eftersom en uppladdad ljudfil hamnar där med. `alltid` är de två som syns också när de är tomma: Allt,
  * och Ljud, som SessionStudio, så att det finns en väg till en röstinspelning innan den första finns.
  *
- * @type {ReadonlyArray<{ id: Flik, namn: string, ikon: import("react").ReactNode, alltid?: boolean }>}
+ * `namn` är nyckeln i `ORD_BIBLIOTEKLISTA` (0.190.0): namnet slås upp på vyns språk där listan byggs.
+ *
+ * @type {ReadonlyArray<{ id: Flik, namn: keyof typeof ORD_BIBLIOTEKLISTA, ikon: import("react").ReactNode, alltid?: boolean }>}
  */
 const FLIKAR = [
-  { id: "alla", namn: "Allt", ikon: <IKON_FOR.bibliotek size={16} aria-hidden="true" />, alltid: true },
-  { id: "ljud", namn: "Ljud", ikon: <Mic size={16} aria-hidden="true" />, alltid: true },
-  { id: "anteckning", namn: "Anteckningar", ikon: <FileText size={16} aria-hidden="true" /> },
-  { id: "bild", namn: "Bilder", ikon: <BildIkon size={16} aria-hidden="true" /> },
-  { id: "fil", namn: "Dokument", ikon: <FilIkon size={16} aria-hidden="true" /> },
-  { id: "lank", namn: "Länkar", ikon: <Globe size={16} aria-hidden="true" /> },
-  { id: "lista", namn: "Listor", ikon: <ListIkon size={16} aria-hidden="true" /> },
+  { id: "alla", namn: "flik_alla", ikon: <IKON_FOR.bibliotek size={16} aria-hidden="true" />, alltid: true },
+  { id: "ljud", namn: "flik_ljud", ikon: <Mic size={16} aria-hidden="true" />, alltid: true },
+  { id: "anteckning", namn: "flik_anteckning", ikon: <FileText size={16} aria-hidden="true" /> },
+  { id: "bild", namn: "flik_bild", ikon: <BildIkon size={16} aria-hidden="true" /> },
+  { id: "fil", namn: "flik_fil", ikon: <FilIkon size={16} aria-hidden="true" /> },
+  { id: "lank", namn: "flik_lank", ikon: <Globe size={16} aria-hidden="true" /> },
+  { id: "lista", namn: "flik_lista", ikon: <ListIkon size={16} aria-hidden="true" /> },
 ];
 
 /**
@@ -1407,6 +1491,7 @@ const FLIKAR = [
  * @param {{ flikar: ReadonlyArray<{ id: Flik, namn: string, ikon: import("react").ReactNode }>, antal: Record<Flik, number> }} props
  */
 function Flikar({ flikar, antal }) {
+  const sprak = useOpsSprak();
   /*
    * ⛔ RADIX TABS, INTE HANDBYGGDA FLIKAR (granskningen av PR 366, MÅSTE 3). Raden hade `role="tablist"` och `role="tab"` men
    * inga piltangenter, ingen Home och End, ingen rörlig `tabIndex` och ingen `aria-controls`: skärmläsaren sade "flik 1 av 6" och
@@ -1415,7 +1500,7 @@ function Flikar({ flikar, antal }) {
   return (
     // Raden tonar ut mot högerkanten, som SessionStudios där sista fliken är avklippt: annars syns det inte att fler flikar finns
     // när raden slutar jämnt vid en flik (granskningen av PR 366, montaget).
-    <Tabs.List aria-label="Typ i biblioteket" data-bibliotek-flikar="rad" className="-mx-1 flex min-w-0 gap-1 overflow-x-auto px-1 pb-1 [mask-image:linear-gradient(to_right,black_calc(100%-2rem),transparent)] [scrollbar-width:none]">
+    <Tabs.List aria-label={ordet(ORD_BIBLIOTEKLISTA, "typEtikett", sprak)} data-bibliotek-flikar="rad" className="-mx-1 flex min-w-0 gap-1 overflow-x-auto px-1 pb-1 [mask-image:linear-gradient(to_right,black_calc(100%-2rem),transparent)] [scrollbar-width:none]">
       {flikar.map((f) => (
         <Tabs.Trigger
           key={f.id}
@@ -1545,12 +1630,13 @@ function forhandsText(post) {
  *
  * @param {{ typ: string, skapad?: number, andrad?: number, durationMs?: number, fil?: { byte?: number, mime?: string } }} post
  */
-function kortMeta(post) {
+function kortMeta(post, sprak = "sv") {
+  const o = (/** @type {keyof typeof ORD_BIBLIOTEKLISTA} */ k) => ordet(ORD_BIBLIOTEKLISTA, k, sprak);
   const delar = [];
   // ⛔ EN LISTA SÄGER HUR MÅNGA POSTER DEN HAR, OCH ATT DEN ÄR TOM (0.128.0, regel 5): "Tom lista" är ett svar, en utelämnad rad inte.
   if (post.typ === "lista") {
     const n = Array.isArray(/** @type {any} */ (post).poster) ? /** @type {any} */ (post).poster.length : 0;
-    delar.push(n === 0 ? "Tom lista" : n === 1 ? "1 post" : `${n} poster`);
+    delar.push(n === 0 ? o("tomLista") : n === 1 ? o("enPost") : o("flerPoster").replace("{n}", String(n)));
   }
   if (post.typ === "fil") {
     const storlek = filStorlek(post.fil?.byte);
@@ -1558,7 +1644,7 @@ function kortMeta(post) {
   }
   const ms = post.durationMs;
   if (arLjudpost(post) && Number.isInteger(ms) && /** @type {number} */ (ms) > 0) delar.push(formateraTid(/** @type {number} */ (ms) / 1000));
-  const datum = kortDatum(arLjudpost(post) ? post.skapad : post.andrad ?? post.skapad);
+  const datum = kortDatum(arLjudpost(post) ? post.skapad : post.andrad ?? post.skapad, Date.now(), sprak);
   if (datum) delar.push(datum);
   return delar;
 }
@@ -1567,13 +1653,14 @@ function kortMeta(post) {
  * Datumet på kortet (0.165.0): "31 okt." i år, "31 okt. 2025" ett annat år. Detaljen visar alltid året (`ljudDatum`).
  * @param {unknown} ms
  * @param {number} [nu]
+ * @param {string} [sprak] (0.190.0) Månadens namn på språket. Förval svenska.
  */
-export function kortDatum(ms, nu = Date.now()) {
-  const hel = ljudDatum(ms);
+export function kortDatum(ms, nu = Date.now(), sprak = "sv") {
+  const hel = ljudDatum(ms, sprak);
   if (!hel) return "";
   const d = new Date(/** @type {number} */ (ms));
   if (d.getFullYear() !== new Date(nu).getFullYear()) return hel;
-  return new Intl.DateTimeFormat("sv-SE", { day: "numeric", month: "short" }).format(d);
+  return new Intl.DateTimeFormat(sprak === "en" ? "en-GB" : "sv-SE", { day: "numeric", month: "short" }).format(d);
 }
 
 /**
@@ -1594,12 +1681,14 @@ export function kortRubrik(post) {
 /**
  * Typen först i metaraden (0.165.0): en fil som sin ändelse i versaler ("HTML", "PDF"), annars typens namn ("Anteckning", "Länk · Spotify", "Ljud").
  * @param {any} post
+ * @param {string} [sprak] (0.190.0)
  */
-export function kortTyp(post) {
-  const etikett = typEtikett(post);
+export function kortTyp(post, sprak = "sv") {
+  const etikett = typEtikett(post, sprak);
   if (post.typ !== "fil") return etikett;
-  const [sort, ur] = etikett.split(" · ");
-  return sort === "Dokument" && ur ? ur.toUpperCase() : etikett;
+  const ur = filandelse(post);
+  const sort = filSort(post.fil?.mime);
+  return sort !== "ljud" && sort !== "bild" && sort !== "video" && ur ? ur.toUpperCase() : etikett;
 }
 
 /**
@@ -1619,20 +1708,21 @@ export function kortTyp(post) {
  *
  * ⛔ NÅLEN OCH STJÄRNAN (0.187.0): en nålad post bär en liten nål före rubriken (ikonen har texten `nalOrd` för skärmläsaren), och med `stjarna` sitter stjärnknappen till höger, före spelknappen. Utan dem ritas kortet som förut.
  *
- * @param {{ nalad?: boolean, nalOrd?: string, stjarna?: { pa: boolean, etikett: string, onVaxla: () => Promise<unknown> } | null, post: import("../lib/bibliotek.js").Bibliotekspost & { id: string }, lage: Adresslage, meny: import("./OpsAtgardsblad.jsx").Atgard[], svep: any[], onOppna: () => void, onMeta: (id: string, meta: { durationMs?: number, peaks?: string }) => void, taggrad: import("react").ReactNode, delad?: boolean, htmlVy?: string, github?: boolean }} props
+ * @param {{ onSpelaPaBegaran?: (post: any) => void, nalad?: boolean, nalOrd?: string, stjarna?: { pa: boolean, etikett: string, onVaxla: () => Promise<unknown> } | null, post: import("../lib/bibliotek.js").Bibliotekspost & { id: string }, lage: Adresslage, meny: import("./OpsAtgardsblad.jsx").Atgard[], svep: any[], onOppna: () => void, onMeta: (id: string, meta: { durationMs?: number, peaks?: string }) => void, taggrad: import("react").ReactNode, delad?: boolean, htmlVy?: string, github?: boolean }} props
  */
-function BibliotekKort({ post, lage, meny, svep, onOppna, onMeta, taggrad, delad = false, htmlVy = "", github = false, nalad = false, nalOrd = "", stjarna = null }) {
+function BibliotekKort({ post, lage, meny, svep, onOppna, onMeta, taggrad, delad = false, htmlVy = "", github = false, nalad = false, nalOrd = "", stjarna = null, onSpelaPaBegaran }) {
   const spelare = useSpelare();
+  const farLaddaNed = useContext(NedladdningKontext);
   const ljud = arLjudpost(post);
   const bild = post.typ === "fil" && filSort(post.fil?.mime) === "bild";
   const namn = ljud ? ljudRubrik(post) : kortRubrik(post);
   const forhands = forhandsText(post);
-  const meta = kortMeta(post);
   const sprak = useOpsSprak();
+  const meta = kortMeta(post, sprak);
   const skriverUt = ljud && utskriftLage(post, Date.now()).lage === "pagar";
   // Ljudet bär sin status i metaraden när adressen inte är klar: "Hämtar ljudet." eller felet. Aldrig tyst (regel 5).
   const [spelFel, setSpelFel] = useState("");
-  const ljudStatus = ljud && lage.lage !== "klar" && lage.lage !== "pa-begaran" ? (lage.lage === "hamtar" ? "Hämtar ljudet." : lage.fel || "Filen har ingen adress.") : spelFel;
+  const ljudStatus = ljud && lage.lage !== "klar" && lage.lage !== "pa-begaran" ? (lage.lage === "hamtar" ? ordet(ORD_BIBLIOTEKLISTA, "hamtarLjudet", sprak) : lage.fel || ordet(ORD_BIBLIOTEKLISTA, "ingenAdress", sprak)) : spelFel;
   // I skalet spelar ljudet i skalets spelare, med knappen till höger. Utanför skalet finns ingen spelrad, och kortet har då en egen
   // liten spelare där ikonen står.
   const iSkalet = Boolean(spelare);
@@ -1647,7 +1737,7 @@ function BibliotekKort({ post, lage, meny, svep, onOppna, onMeta, taggrad, delad
               href={post.url}
               target="_blank"
               rel="noopener noreferrer"
-              aria-label={`Öppna ${namn} i ${lankKallnamn(postensKalla(post))}`}
+              aria-label={ordet(ORD_BIBLIOTEKLISTA, "oppnaI", sprak).replace("{namn}", namn).replace("{kalla}", lankKallnamn(postensKalla(post)))}
               data-bibliotek-oppna-direkt=""
               className="absolute inset-0 z-0 cursor-pointer rounded-lg bg-transparent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
             />
@@ -1658,7 +1748,7 @@ function BibliotekKort({ post, lage, meny, svep, onOppna, onMeta, taggrad, delad
               href={htmlVy}
               target="_blank"
               rel="noopener noreferrer"
-              aria-label={`Öppna ${namn} i ett eget fönster`}
+              aria-label={ordet(ORD_BIBLIOTEKLISTA, "oppnaFonster", sprak).replace("{namn}", namn)}
               data-bibliotek-oppna-html=""
               className="absolute inset-0 z-0 cursor-pointer rounded-lg bg-transparent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
             />
@@ -1709,7 +1799,7 @@ function BibliotekKort({ post, lage, meny, svep, onOppna, onMeta, taggrad, delad
             {taggrad}
             {forhands ? <span data-bibliotek-forhands-text="" className="line-clamp-1 text-meta text-ink-secondary wrap-anywhere">{forhands}</span> : null}
             <span data-bibliotek-metarad="" className="flex min-w-0 flex-wrap items-center gap-x-1.5 text-meta text-ink-muted">
-              {[kortTyp(post), ...meta].map((m, i) => (
+              {[kortTyp(post, sprak), ...meta].map((m, i) => (
                 <Fragment key={`${i}:${m}`}>
                   {i > 0 ? <span aria-hidden="true">·</span> : null}
                   <span data-bibliotek-typ={i === 0 ? "" : undefined} data-ljud-langd={i > 0 && /^\d+:\d\d$/.test(m) ? "" : undefined}>{m}</span>
@@ -1723,7 +1813,7 @@ function BibliotekKort({ post, lage, meny, svep, onOppna, onMeta, taggrad, delad
             {ljudStatus ? <span role={lage.lage === "hamtar" ? "status" : "alert"} className={cx("text-meta", lage.lage === "hamtar" ? "text-ink-secondary" : "text-danger")}>{ljudStatus}</span> : null}
           </div>
           {stjarna ? <span className="relative shrink-0"><StjarnKnapp stjarna={stjarna} /></span> : null}
-          {ljud && iSkalet && lage.lage === "klar" ? (
+          {ljud && iSkalet && (lage.lage === "klar" || (onSpelaPaBegaran && (lage.lage === "pa-begaran" || lage.lage === "hamtar"))) ? (
             <span className="relative shrink-0">
               <OpsSpelaKnapp
                 spar={{
@@ -1733,7 +1823,9 @@ function BibliotekKort({ post, lage, meny, svep, onOppna, onMeta, taggrad, delad
                   durationMs: post.durationMs,
                   peaks: post.peaks,
                   onMeta: (m) => onMeta(post.id, m),
+                  ...(farLaddaNed ? {} : { laddaNed: false }),
                 }}
+                {...(lage.lage === "klar" ? {} : { laddar: lage.lage === "hamtar", onSpela: () => onSpelaPaBegaran?.(post) })}
               />
             </span>
           ) : null}
@@ -1996,11 +2088,15 @@ function NyKnapp({ flik, onSkapa, onRost, erbjudRost, onLaddaUppLjud }) {
  * (lib/sparaFil.js, 0.175.0), eftersom `download` ignoreras mot en annan origin.
  * @param {{ adress?: string, namn: string, hamta?: (sokvag: string) => Promise<Blob>, sokvag?: string }} props */
 function LaddaNedLank({ adress, namn, hamta, sokvag }) {
+  const sprak = useOpsSprak();
+  const far = useContext(NedladdningKontext);
   const kanHamta = typeof hamta === "function" && Boolean(sokvag);
+  // ⛔ GRUPPEN HAR STÄNGT AV NEDLADDNING (0.190.0): ingen knapp. Filen visas fortfarande där den kan visas (länken till den, rutan, spelaren).
+  if (!far) return null;
   return (
     <a href={adress} target="_blank" rel="noopener noreferrer" download={namn} data-bibliotek-ladda-ned="" className={knappKlass({ variant: "secondary", size: "sm" })}
       onClick={kanHamta ? (e) => { e.preventDefault(); if (typeof hamta === "function" && sokvag) void sparaSomFil({ hamta, sokvag, namn, adress }); } : undefined}>
-      Ladda ned
+      {ordet(ORD_BIBLIOTEKLISTA, "laddaNed", sprak)}
     </a>
   );
 }
@@ -2022,6 +2118,9 @@ function FilMedLaddaNed({ adress, namn, hamta, sokvag, children }) {
  */
 function FilVisning({ post, lage, kopplad, onLjus, onMeta, onRadera, hamtaFil, versioner, htmlVy = "" }) {
   const spelare = useSpelare();
+  const farLaddaNed = useContext(NedladdningKontext);
+  const sprak = useOpsSprak();
+  const o = (/** @type {keyof typeof ORD_BIBLIOTEKLISTA} */ k) => ordet(ORD_BIBLIOTEKLISTA, k, sprak);
   const sort = filSort(post.fil?.mime);
   const namn = post.fil?.namn ?? "Fil";
   const rad = `${namn}${filStorlek(post.fil?.byte) ? ` · ${filStorlek(post.fil?.byte)}` : ""}`;
@@ -2036,10 +2135,10 @@ function FilVisning({ post, lage, kopplad, onLjus, onMeta, onRadera, hamtaFil, v
     );
   }
   if (lage.lage === "hamtar") {
-    return <p role="status" data-bibliotek-fil="">Hämtar filen.</p>;
+    return <p role="status" data-bibliotek-fil="">{o("hamtarFilen")}</p>;
   }
   if (lage.lage !== "klar") {
-    const text = lage.fel || (kopplad ? `Filen har ingen adress. ${rad}` : rad);
+    const text = lage.fel || (kopplad ? `${o("ingenAdress")} ${rad}` : rad);
     return (
       <p role={lage.fel ? "alert" : "status"} data-bibliotek-fil="">
         {text}
@@ -2049,7 +2148,7 @@ function FilVisning({ post, lage, kopplad, onLjus, onMeta, onRadera, hamtaFil, v
   const adress = lage.adress;
   if (sort === "bild") {
     return (
-      <button type="button" aria-label={`Förhandsvisa ${post.rubrik ?? namn}`} data-bibliotek-forhands="" onClick={() => onLjus?.(adress)} className="w-fit">
+      <button type="button" aria-label={o("forhandsvisa").replace("{namn}", post.rubrik ?? namn)} data-bibliotek-forhands="" onClick={() => onLjus?.(adress)} className="w-fit">
         <img src={adress} alt={post.rubrik ?? namn} className="max-h-48 rounded-sm object-contain" />
       </button>
     );
@@ -2060,7 +2159,7 @@ function FilVisning({ post, lage, kopplad, onLjus, onMeta, onRadera, hamtaFil, v
     // ⛔ I SKALET ÄR DETALJENS SPELARE SKALETS (0.102.0): vågen och kontrollerna styr spelraden, så ljudet spelar vidare när man
     // går tillbaka till listan. Utanför skalet spelar posten själv, som förut.
     if (spelare) {
-      return <OpsSpelarKontroller spar={{ id, namn: rubrik, src: adress, durationMs: post.durationMs, peaks: post.peaks, onMeta: id && onMeta ? (m) => onMeta(id, m) : undefined }} />;
+      return <OpsSpelarKontroller spar={{ id, namn: rubrik, src: adress, durationMs: post.durationMs, peaks: post.peaks, onMeta: id && onMeta ? (m) => onMeta(id, m) : undefined, ...(farLaddaNed ? {} : { laddaNed: false }) }} />;
     }
     return (
       <OpsLjudspelare
@@ -2116,7 +2215,7 @@ function FilVisning({ post, lage, kopplad, onLjus, onMeta, onRadera, hamtaFil, v
             <LaddaNedLank adress={adress} namn={post.fil.namn ?? namn} />
           </div>
         ) : (
-          <a href={adress} target="_blank" rel="noopener noreferrer" download={post.fil.namn} className="w-fit text-etikett text-accent underline underline-offset-2">
+          <a href={adress} target="_blank" rel="noopener noreferrer" download={farLaddaNed ? post.fil.namn : undefined} className="w-fit text-etikett text-accent underline underline-offset-2">
             {rad}
           </a>
         )}
@@ -2490,7 +2589,7 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, onLaddaUpp, filUrl,
   // ⛔ Via `skaparensNamn` (0.135.0, lifehub.app#409): en post som en personlig API-nyckel skrev heter "Skriven av Miranda via Byggagent."
   const skaparNamn = post ? skaparensNamn(post.skapadAv, sprak) : "";
   const metaText = lage === "las" && post
-    ? (skaparNamn ? `Skriven av ${skaparNamn}.` : "Författaren saknar namn.")
+    ? (skaparNamn ? ordet(ORD_BIBLIOTEKLISTA, "skrivenAv", sprak).replace("{namn}", skaparNamn) : ordet(ORD_BIBLIOTEKLISTA, "utanNamn", sprak))
     : "";
 
   return (

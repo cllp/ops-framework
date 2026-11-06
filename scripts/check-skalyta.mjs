@@ -8031,8 +8031,16 @@ async function gastGrupp() {
       try {
         await page.waitForSelector("[data-gast-grupp]");
         await page.waitForSelector("[data-gast-chatt-logg]");
-        const m = await page.evaluate(() => ({
-          flikar: [...document.querySelectorAll('[role="tab"]')].map((f) => ({ text: (f.textContent || "").trim(), h: f.getBoundingClientRect().height })),
+        // ⛔ 0.190.0 (cllp/lifehub.app#658 del B): under 768 px är flikarna gästens bottenrad (tre platser, inget plus, ingen Meny), från 768 px flikraden överst som förut.
+        const telefon = w < 768;
+        const byt = async (/** @type {string} */ flik) => (telefon ? page.locator("nav[data-ops-bottenrad] a", { hasText: flik }).click() : page.getByRole("tab", { name: flik }).click());
+        const m = await page.evaluate((tel) => ({
+          flikar: tel
+            ? [...document.querySelectorAll("nav[data-ops-bottenrad] a")].map((f) => ({ text: (f.textContent || "").trim(), h: f.getBoundingClientRect().height, b: f.getBoundingClientRect().width }))
+            : [...document.querySelectorAll('[role="tab"]')].map((f) => ({ text: (f.textContent || "").trim(), h: f.getBoundingClientRect().height, b: f.getBoundingClientRect().width })),
+          tablist: document.querySelectorAll('[role="tablist"]').length,
+          bottenrad: document.querySelectorAll("nav[data-ops-bottenrad]").length,
+          radknappar: document.querySelectorAll("nav[data-ops-bottenrad] button").length,
           h1: document.querySelectorAll("h1").length,
           overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
           lankar: [...document.querySelectorAll("a[href]")].map((a) => a.getAttribute("href")).filter((h) => h && !/^(https?:|#|blob:|data:)/.test(h)),
@@ -8040,36 +8048,88 @@ async function gastGrupp() {
           skrivfalt: document.querySelectorAll("[data-gast-grupp] textarea, [data-gast-grupp] [contenteditable]").length,
           bubblor: document.querySelectorAll("[data-bubbla]").length,
           chattOverflow: (() => { const l = document.querySelector("[data-gast-chatt-logg]"); return l ? l.scrollWidth > l.clientWidth + 1 : null; })(),
-        }));
-        matt.push(`${namn} sida: flikar ${m.flikar.map((f) => `${f.text} ${f.h.toFixed(0)}`).join(", ")} px, ${m.bubblor} bubblor`);
-        krav(JSON.stringify(m.flikar.map((f) => f.text)) === JSON.stringify(["Chatt", "Kalender", "Bibliotek"]), `${namn} sida (d, golv): flikarna är ${JSON.stringify(m.flikar.map((f) => f.text))}, väntat Chatt, Kalender, Bibliotek (ärenden finns inte för en gäst).`);
-        krav(m.flikar.every((f) => f.h >= 44), `${namn} sida (d): en flik är under 44 px hög (${m.flikar.map((f) => f.h.toFixed(0)).join("/")}).`);
+        }), telefon);
+        matt.push(`${namn} sida: ${telefon ? "bottenrad" : "flikar"} ${m.flikar.map((f) => `${f.text} ${f.b.toFixed(0)}x${f.h.toFixed(0)}`).join(", ")} px, ${m.bubblor} bubblor`);
+        krav(JSON.stringify(m.flikar.map((f) => f.text)) === JSON.stringify(["Chatt", "Kalender", "Bibliotek"]), `${namn} sida (d, golv): ${telefon ? "bottenradens platser" : "flikarna"} är ${JSON.stringify(m.flikar.map((f) => f.text))}, väntat Chatt, Kalender, Bibliotek (ärenden finns inte för en gäst).`);
+        krav(m.flikar.every((f) => f.h >= 44 && f.b >= 44), `${namn} sida (d): en ${telefon ? "plats i bottenraden" : "flik"} är under 44 x 44 px (${m.flikar.map((f) => `${f.b.toFixed(0)}x${f.h.toFixed(0)}`).join("/")}).`);
+        krav(telefon ? m.tablist === 0 && m.bottenrad === 1 && m.radknappar === 0 : m.tablist === 1 && m.bottenrad === 0, `${namn} sida (d): ${m.tablist} flikrader och ${m.bottenrad} bottenrader med ${m.radknappar} knappar, väntat ${telefon ? "ingen flikrad och en bottenrad utan plus och utan Meny" : "en flikrad och ingen bottenrad"}.`);
         krav(m.h1 === 1 && !m.overflow, `${namn} sida (d): ${m.h1} h1 (väntat 1), sidled ${m.overflow}.`);
         krav(m.lankar.length === 0 && !/Inställningar|Ekonomi|Appar|Hubb|Agent/.test(m.sidtext), `${namn} sida (d): sidan har en väg ut eller ett ord ur appens skal (${JSON.stringify(m.lankar)}).`);
+        // (d) ORDMÄRKET (granskningen av PR 524: cirka 50 x 22 px i appens montage, CP: "typ obefintligt liten"). Scenen ger ett brett, tätt beskuret märke i 4:1, som appens
+        // headerbild. Det som mäts är den MÅLADE bilden (`object-fit` räknat ur bildens egen storlek) och vad av den som syns innanför rutan: minst 120 x 28 px, och hela märket
+        // synligt (ingen beskärning). Golv: exakt en synlig bild i märket, laddad.
+        const mk = await page.evaluate(() => {
+          const ruta = document.querySelector("[data-gast-marke]");
+          const bilder = ruta ? [...ruta.querySelectorAll("img")].filter((b) => getComputedStyle(b).display !== "none") : [];
+          if (!ruta || bilder.length !== 1 || !bilder[0].complete || !bilder[0].naturalWidth) return { golv: false, antal: bilder.length };
+          const b = bilder[0];
+          const r = b.getBoundingClientRect();
+          const cs = getComputedStyle(b);
+          const skala = cs.objectFit === "contain" ? Math.min(r.width / b.naturalWidth, r.height / b.naturalHeight) : null;
+          const w = skala === null ? r.width : b.naturalWidth * skala;
+          const h = skala === null ? r.height : b.naturalHeight * skala;
+          const [px, py] = cs.objectPosition.split(" ").map((v) => parseFloat(v) / 100);
+          const x0 = r.left + (r.width - w) * (Number.isFinite(px) ? px : 0.5);
+          const y0 = r.top + (r.height - h) * (Number.isFinite(py) ? py : 0.5);
+          const rr = ruta.getBoundingClientRect();
+          const klipper = getComputedStyle(ruta).overflow !== "visible";
+          const vx0 = klipper ? Math.max(x0, rr.left) : x0, vx1 = klipper ? Math.min(x0 + w, rr.right) : x0 + w;
+          const vy0 = klipper ? Math.max(y0, rr.top) : y0, vy1 = klipper ? Math.min(y0 + h, rr.bottom) : y0 + h;
+          return { golv: true, malad: { w, h }, synlig: { w: Math.max(0, vx1 - vx0), h: Math.max(0, vy1 - vy0) }, ruta: { w: rr.width, h: rr.height } };
+        });
+        matt.push(`${namn} sida: ordmärket ${mk.golv ? `målat ${mk.malad.w.toFixed(0)}x${mk.malad.h.toFixed(0)}, synligt ${mk.synlig.w.toFixed(0)}x${mk.synlig.h.toFixed(0)} i rutan ${mk.ruta.w.toFixed(0)}x${mk.ruta.h.toFixed(0)} px` : `hittades inte (${mk.antal} synliga bilder)`}`);
+        krav(mk.golv, `${namn} sida (d, golv): märket har ${mk.antal} synliga, laddade bilder, väntat 1.`);
+        if (mk.golv) {
+          krav(mk.synlig.w >= 120 && mk.synlig.h >= 28, `${namn} sida (d): ordmärket syns som ${mk.synlig.w.toFixed(0)}x${mk.synlig.h.toFixed(0)} px, väntat minst 120 x 28 med ett märke i 4:1.`);
+          krav(Math.abs(mk.synlig.w - mk.malad.w) <= 0.5 && Math.abs(mk.synlig.h - mk.malad.h) <= 0.5, `${namn} sida (d): ordmärket är beskuret: ${mk.malad.w.toFixed(0)}x${mk.malad.h.toFixed(0)} px målat, ${mk.synlig.w.toFixed(0)}x${mk.synlig.h.toFixed(0)} syns. Ett tätt beskuret märke ska synas helt.`);
+        }
         krav(m.bubblor >= 4 && m.skrivfalt === 1 && m.chattOverflow === false, `${namn} sida (e): chatten har ${m.bubblor} bubblor (väntat minst 4), ${m.skrivfalt} skrivfält (väntat 1), sidled ${m.chattOverflow}.`);
-        // Skrivfältet är chattens, utan bilagor, mikrofon och agent, och Skicka går att träffa; en annan gästs meddelande bär märket Gäst.
+        // Skrivfältet är chattens, utan bilagor och agent. ⛔ 0.190.0 (del D, CP 2026-11-05: gästen får mikrofon): där webbläsaren har taligenkänning står ljudvågen i Skickas
+        // plats när fältet är tomt, som för en medlem, och Skicka kommer när något skrivits. Ingen mening under fältet (QA fynd 8); en annan gästs meddelande bär märket Gäst.
         const sk = await page.evaluate(() => {
           const rot = /** @type {HTMLElement} */ (document.querySelector("[data-gast-chatt-skriv]"));
-          const skicka = rot ? [...rot.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Skicka") : null;
+          const mik = rot ? /** @type {HTMLElement | null} */ (rot.querySelector("[data-mikrofon]")) : null;
           const fr = rot ? rot.getBoundingClientRect() : null;
+          const w = /** @type {any} */ (window);
+          const ua = navigator.userAgent;
           return {
             finns: !!rot,
             filer: rot ? rot.querySelectorAll("input[type=file]").length : -1,
             plus: rot ? rot.querySelectorAll("[data-plus]").length : -1,
             mik: rot ? rot.querySelectorAll("[data-mikrofon]").length : -1,
-            skickaHojd: skicka ? skicka.getBoundingClientRect().height : null,
+            mikStorlek: mik ? Math.min(mik.getBoundingClientRect().width, mik.getBoundingClientRect().height) : null,
+            igenkanning: (typeof w.SpeechRecognition === "function" || typeof w.webkitSpeechRecognition === "function") && !(/AppleWebKit/.test(ua) && !/Chrome|Chromium|Edg|HeadlessChrome/.test(ua)),
             inom: fr ? fr.left >= -0.5 && fr.right <= innerWidth + 0.5 : false,
             markningar: [...document.querySelectorAll("[data-gast-markning]")].map((e) => (e.textContent || "").trim()),
-            not: (document.querySelector("[data-gast-chatt-skrivskyddad]")?.textContent || "").trim(),
+            not: !!document.querySelector("[data-gast-chatt-skrivskyddad]") || /Du skriver som gäst|Svar i trådar visas inte/.test(document.body.innerText || ""),
           };
         });
-        krav(sk.finns && sk.filer === 0 && sk.plus === 0 && sk.mik === 0, `${namn} sida (e): skrivfältet ${sk.finns ? "finns" : "saknas"} med ${sk.filer} filfält, ${sk.plus} plusknappar och ${sk.mik} mikrofoner, väntat inga alls (gästen kan inte bifoga eller tala in).`);
-        krav(sk.skickaHojd !== null && sk.skickaHojd >= 44 && sk.inom, `${namn} sida (e): Skicka är ${sk.skickaHojd} px hög (väntat minst 44) och fältet ligger ${sk.inom ? "inom" : "utanför"} skärmen.`);
-        krav(JSON.stringify(sk.markningar) === JSON.stringify(["Gäst"]) && /Du skriver som gäst/.test(sk.not), `${namn} sida (e): märkena är ${JSON.stringify(sk.markningar)} (väntat ["Gäst"]) och noten ${JSON.stringify(sk.not)}.`);
+        matt.push(`${namn} sida: igenkänning ${sk.igenkanning}, ${sk.mik} mikrofoner (${sk.mikStorlek === null ? "ingen" : sk.mikStorlek.toFixed(0) + " px"})`);
+        krav(sk.finns && sk.filer === 0 && sk.plus === 0 && sk.mik === (sk.igenkanning ? 1 : 0), `${namn} sida (e): skrivfältet ${sk.finns ? "finns" : "saknas"} med ${sk.filer} filfält, ${sk.plus} plusknappar och ${sk.mik} mikrofoner, väntat inga filfält och plus, och ${sk.igenkanning ? "en mikrofon (webbläsaren har igenkänning)" : "ingen mikrofon (webbläsaren saknar igenkänning)"}.`);
+        krav(sk.mik === 0 || (sk.mikStorlek !== null && sk.mikStorlek >= 44), `${namn} sida (e): mikrofonen är ${sk.mikStorlek} px, väntat minst 44 x 44.`);
+        krav(sk.inom, `${namn} sida (e): skrivfältet ligger utanför skärmen.`);
+        krav(JSON.stringify(sk.markningar) === JSON.stringify(["Gäst"]) && !sk.not, `${namn} sida (e): märkena är ${JSON.stringify(sk.markningar)} (väntat ["Gäst"]), och en mening under skrivfältet ${sk.not ? "står kvar" : "saknas"} (väntat ingen).`);
+        if (telefon) {
+          // (e) Chatten fyller höjden: skrivfältet står närmast bottenraden, och sidan rullar inte ovanpå chattens egen rullning.
+          const hojd = await page.evaluate(() => {
+            const skriv = /** @type {HTMLElement} */ (document.querySelector("[data-gast-chatt-skriv]")).getBoundingClientRect();
+            const rad = /** @type {HTMLElement} */ (document.querySelector("nav[data-ops-bottenrad]")).getBoundingClientRect();
+            return { glapp: rad.top - skriv.bottom, rullar: document.documentElement.scrollHeight > innerHeight + 1, logg: /** @type {HTMLElement} */ (document.querySelector("[data-gast-chatt-logg]")).getBoundingClientRect().height };
+          });
+          matt.push(`${namn} sida: skrivfältet ${hojd.glapp.toFixed(0)} px över bottenraden, loggen ${hojd.logg.toFixed(0)} px, sidan rullar ${hojd.rullar}`);
+          krav(hojd.glapp >= -0.5 && hojd.glapp <= 40 && !hojd.rullar && hojd.logg >= 200, `${namn} sida (e): chatten fyller inte höjden: skrivfältet ${hojd.glapp.toFixed(0)} px över bottenraden (väntat 0 till 40), sidan rullar ${hojd.rullar}, loggen ${hojd.logg.toFixed(0)} px (väntat minst 200).`);
+        }
         if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `gaster-grupp-sida-chatt-${w}.png`), fullPage: true });
         // Gästen skriver: texten går till skrivChatt, bubblan står som gästens eget och fältet töms.
         await page.evaluate(() => { /** @type {any} */ (window).__gastgruppanrop.length = 0; });
         await page.locator("[data-gast-chatt-skriv] textarea").fill("Hej, här skriver gästen");
+        // Med text står Skicka där ljudvågen stod, och den går att träffa.
+        const skicka = await page.evaluate(() => {
+          const rot = /** @type {HTMLElement} */ (document.querySelector("[data-gast-chatt-skriv]"));
+          const b = [...rot.querySelectorAll("button")].find((x) => x.getAttribute("aria-label") === "Skicka");
+          return { h: b ? b.getBoundingClientRect().height : null, mik: rot.querySelectorAll("[data-mikrofon]").length };
+        });
+        krav(skicka.h !== null && skicka.h >= 44 && skicka.mik === 0, `${namn} sida (e): med text är Skicka ${skicka.h} px hög (väntat minst 44) och ${skicka.mik} mikrofoner står kvar (väntat 0).`);
         await page.locator("[data-gast-chatt-skriv]").getByRole("button", { name: "Skicka" }).click();
         await page.waitForSelector('[data-meddelande="eget"]');
         const skrev = await page.evaluate(() => ({
@@ -8082,28 +8142,53 @@ async function gastGrupp() {
         if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `gaster-grupp-sida-chatt-skrev-${w}.png`), fullPage: true });
 
         for (const [flik, vantat, bildnamn] of /** @type {const} */ ([["Kalender", "[data-gast-kalender]", "kalender"], ["Bibliotek", "[data-gast-bibliotek]", "bibliotek"]])) {
-          await page.getByRole("tab", { name: flik }).click();
+          await byt(flik);
           await page.waitForSelector(vantat);
           await page.waitForTimeout(150);
           const f = await page.evaluate(() => ({ overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth, anrop: JSON.stringify(/** @type {any} */ (window).__gastgruppanrop.map((a) => a[0])) }));
           krav(!f.overflow, `${namn} sida (e): fliken ${flik} flödar över i sidled.`);
           if (flik === "Kalender") {
-            krav(await page.locator("[data-gast-ejsatt]").count() === 1, `${namn} sida (e): Datum ej satt-listan har inte en händelse.`);
-            // Kalendern drar av 1,5 rem med `-mb-6` (den är byggd för att vara sist i sin vy): rubriken under den får inte ligga över rutnätets nederkant.
-            const luft = await page.evaluate(() => {
-              const rulle = document.querySelector("[data-kalender-rulle]");
-              const ejsatta = document.querySelector("[data-gast-ejsatta]");
-              return rulle && ejsatta ? ejsatta.getBoundingClientRect().top - rulle.getBoundingClientRect().bottom : null;
-            });
-            krav(luft !== null && luft >= 0, `${namn} sida (e): Datum ej satt ligger ${luft === null ? "ingenstans" : luft.toFixed(0) + " px"} från kalenderns nederkant, väntat minst 0 (inte ovanpå rutnätet).`);
+            // ⛔ 0.190.0 (del C, CP: "Skall bara kunna läsa va och således bara en kalendervy som är lista"): ingen månad, en lista över det som är på gång. Händelsen utan
+            // datum (omröstningen) först, sedan Möte den 27 oktober (scenens idag är 20 oktober). Varje rad går att träffa.
+            const k = await page.evaluate(() => ({
+              rader: [...document.querySelectorAll("[data-gast-pagang]")].map((r) => {
+                const knapp = /** @type {HTMLElement} */ (r.closest("button, a, [role=button]") ?? r);
+                return { id: r.getAttribute("data-gast-pagang"), ejsatt: r.hasAttribute("data-ejsatt"), h: knapp.getBoundingClientRect().height, nar: (r.lastElementChild?.textContent || "").trim() };
+              }),
+              manad: document.querySelectorAll("[data-kalender-rulle], [role=grid]").length,
+            }));
+            matt.push(`${namn} sida: kalenderlistan ${JSON.stringify(k.rader)}`);
+            krav(JSON.stringify(k.rader.map((r) => r.id)) === JSON.stringify(["h-ejsatt", "h-mote"]) && k.rader[0].ejsatt && k.rader[0].nar === "Datum ej satt", `${namn} sida (e, golv): kalenderlistan är ${JSON.stringify(k.rader)}, väntat Fika (Datum ej satt) först och sedan Möte.`);
+            krav(k.manad === 0, `${namn} sida (e): ${k.manad} månadsvyer ritades, väntat ingen för en gäst.`);
+            krav(k.rader.every((r) => r.h >= 44), `${namn} sida (e): en rad i kalenderlistan är under 44 px (${k.rader.map((r) => r.h.toFixed(0)).join("/")}).`);
           }
           if (flik === "Bibliotek") krav(await page.getByText("Låtlista").count() >= 1, `${namn} sida (e): biblioteksfliken ritade inte posten "Låtlista".`);
           if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `gaster-grupp-sida-${bildnamn}-${w}.png`), fullPage: true });
         }
         const hamtat = await page.evaluate(() => JSON.stringify(/** @type {any} */ (window).__gastgruppanrop.map((a) => a[0])));
         krav(hamtat.startsWith('["skrivChatt"') && ["kalender", "bibliotek"].every((a) => hamtat.includes(`"${a}"`)) && !hamtat.includes("arenden"), `${namn} sida (e): anropen blev ${hamtat}, väntat chatt (och skrivChatt) först och därefter kalender och bibliotek när flikarna öppnades, och aldrig arenden.`);
+        if (telefon) {
+          // (e) MED SPELRADEN (PR 524, appens montage mot en byggd app: dokumentet 965 px högt i 844 när ljud spelade i biblioteket). Ytan slutar vid spelradens överkant och
+          // sidan rullar inte. Golv: spelraden och ytan hittades.
+          await page.getByRole("button", { name: "Spela Demo" }).first().click();
+          await page.waitForSelector("[data-ops-spelrad]");
+          await page.waitForTimeout(300);
+          const sp = await page.evaluate(() => {
+            const yta = document.querySelector("[data-gast-telefonyta]")?.getBoundingClientRect() ?? null;
+            const rad = document.querySelector("[data-ops-spelrad]")?.getBoundingClientRect() ?? null;
+            return { ytaTop: yta?.top ?? null, ytaBottom: yta?.bottom ?? null, radTop: rad?.top ?? null, dok: document.documentElement.scrollHeight, fonster: innerHeight };
+          });
+          matt.push(`${namn} sida med spelrad: ytan ${sp.ytaTop?.toFixed(0)} till ${sp.ytaBottom?.toFixed(0)}, spelradens överkant ${sp.radTop?.toFixed(0)}, dokument ${sp.dok} i ${sp.fonster}`);
+          krav(sp.ytaBottom !== null && sp.radTop !== null, `${namn} sida (e, golv): ${sp.radTop === null ? "spelraden" : "ytan"} hittades inte med ljud som spelar.`);
+          if (sp.ytaBottom !== null && sp.radTop !== null) {
+            krav(Math.abs(sp.ytaBottom - sp.radTop) <= 2 && sp.dok <= sp.fonster + 1, `${namn} sida (e): med spelraden slutar ytan på ${sp.ytaBottom.toFixed(0)}, spelradens överkant är ${sp.radTop.toFixed(0)} (väntat samma, +-2), och dokumentet är ${sp.dok} px i ett fönster på ${sp.fonster} (väntat att sidan inte rullar).`);
+          }
+          if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `gaster-grupp-sida-spelrad-${w}.png`), fullPage: true });
+        }
 
-        // (f) integriteten
+        // (f) integriteten. ⛔ 0.190.0 (del A): den ligger bakom (i) under gruppens namn, stängd från början.
+        krav(await page.getByText("Integritet och dina uppgifter").count() === 0, `${namn} sida (f): integriteten syns utan att (i) öppnats.`);
+        await page.getByRole("button", { name: "Om din roll som gäst" }).click();
         await page.getByText("Integritet och dina uppgifter").click();
         const i = await page.evaluate(() => ({ lagrat: !!document.querySelector("[data-gast-integritet-lagrat]"), radera: (document.querySelector("[data-gast-integritet-radera]")?.textContent || "").trim().slice(0, 40) }));
         krav(i.lagrat && /Så raderas det: tryck på knappen/.test(i.radera), `${namn} sida (f): integritetstexten saknas eller hänvisar inte till knappen (${JSON.stringify(i)}).`);
@@ -8114,7 +8199,7 @@ async function gastGrupp() {
         krav(fraga.fraga && fraga.anrop === "[]", `${namn} sida (f): knappen ska fråga en gång innan något raderas (frågan ${fraga.fraga}, anrop ${fraga.anrop}).`);
         await page.getByRole("button", { name: "Ja, radera allt" }).click();
         await page.waitForSelector("[data-gast-raderad]");
-        const efter = await page.evaluate(() => ({ anrop: JSON.stringify(/** @type {any} */ (window).__gastgruppanrop), flikar: document.querySelectorAll('[role="tab"]').length, text: (document.querySelector("[data-gast-raderad]")?.textContent || "").trim() }));
+        const efter = await page.evaluate(() => ({ anrop: JSON.stringify(/** @type {any} */ (window).__gastgruppanrop), flikar: document.querySelectorAll('[role="tab"], nav[data-ops-bottenrad]').length, text: (document.querySelector("[data-gast-raderad]")?.textContent || "").trim() }));
         krav(efter.anrop === JSON.stringify([["raderaMig", { sessionsnyckel: "S".repeat(43) }]]) && efter.flikar === 0 && /raderade/.test(efter.text), `${namn} sida (f): efter bekräftelsen blev anropen ${efter.anrop}, flikar kvar ${efter.flikar}, text ${JSON.stringify(efter.text)}. Väntat raderaMig med sessionsnyckeln, inga flikar och texten att uppgifterna är raderade.`);
         if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `gaster-grupp-sida-raderad-${w}.png`), fullPage: true });
       } catch (err) {
@@ -8140,22 +8225,27 @@ async function gastArenden() {
       const { page, context } = await oppna("gastgrupp-arenden", vp, standardtema, 1, null, 0, SV_WEBBLASARE);
       try {
         await page.waitForSelector("[data-gast-grupp]");
-        await page.waitForSelector('[role="tab"]');
+        // ⛔ 0.190.0 (del B): under 768 px är flikarna bottenraden, med fyra platser när gästen har ärenden; från 768 px flikraden.
+        const telefon = w < 768;
+        const platser = telefon ? "nav[data-ops-bottenrad] a" : '[role="tab"]';
         // Fliken finns först när svaret på arenden kommit (hämtas vid start).
-        await page.getByRole("tab", { name: "Ärenden" }).waitFor();
-        const a = await page.evaluate(() => ({
-          flikar: [...document.querySelectorAll('[role="tab"]')].map((f) => ({ text: (f.textContent || "").trim(), h: f.getBoundingClientRect().height })),
+        const arendeflik = telefon ? page.locator("nav[data-ops-bottenrad] a", { hasText: "Ärenden" }) : page.getByRole("tab", { name: "Ärenden" });
+        await arendeflik.waitFor({ timeout: 4000 });
+        const a = await page.evaluate((sel) => ({
+          flikar: [...document.querySelectorAll(sel)].map((f) => ({ text: (f.textContent || "").trim(), h: f.getBoundingClientRect().height, b: f.getBoundingClientRect().width })),
           overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
           anrop: JSON.stringify(/** @type {any} */ (window).__gastgruppanrop.map((x) => x[0])),
-          ingress: (document.querySelector("[data-gast-grupp-ingress]")?.textContent || "").trim(),
-        }));
-        matt.push(`${namn}: flikar ${a.flikar.map((f) => `${f.text} ${f.h.toFixed(0)}`).join(", ")} px`);
-        krav(JSON.stringify(a.flikar.map((f) => f.text)) === JSON.stringify(["Chatt", "Kalender", "Bibliotek", "Ärenden"]), `${namn} (a, golv): flikarna är ${JSON.stringify(a.flikar.map((f) => f.text))}, väntat Chatt, Kalender, Bibliotek, Ärenden (gästen har ärenden).`);
-        krav(a.flikar.every((f) => f.h >= 44) && !a.overflow, `${namn} (a): en flik är under 44 px (${a.flikar.map((f) => f.h.toFixed(0)).join("/")}) eller sidan flödar över i sidled (${a.overflow}).`);
-        krav(a.anrop.includes('"arenden"') && /bara de som gruppen har gett dig/.test(a.ingress), `${namn} (a): anropen ${a.anrop}, ingressen ${JSON.stringify(a.ingress)}. Väntat att arenden hämtats vid start och att ingressen säger att gästen bara ser sina egna.`);
+        }), platser);
+        matt.push(`${namn}: ${telefon ? "bottenrad" : "flikar"} ${a.flikar.map((f) => `${f.text} ${f.b.toFixed(0)}x${f.h.toFixed(0)}`).join(", ")} px`);
+        krav(JSON.stringify(a.flikar.map((f) => f.text)) === JSON.stringify(["Chatt", "Kalender", "Bibliotek", "Ärenden"]), `${namn} (a, golv): ${telefon ? "bottenradens platser" : "flikarna"} är ${JSON.stringify(a.flikar.map((f) => f.text))}, väntat Chatt, Kalender, Bibliotek, Ärenden (gästen har ärenden).`);
+        krav(a.flikar.every((f) => f.h >= 44 && f.b >= 44) && !a.overflow, `${namn} (a): en flik är under 44 x 44 px (${a.flikar.map((f) => `${f.b.toFixed(0)}x${f.h.toFixed(0)}`).join("/")}) eller sidan flödar över i sidled (${a.overflow}).`);
+        krav(a.anrop.includes('"arenden"'), `${namn} (a): anropen ${a.anrop}. Väntat att arenden hämtats vid start.`);
 
-        await page.getByRole("tab", { name: "Ärenden" }).click();
+        await arendeflik.click();
         await page.waitForSelector("[data-gast-arenden]");
+        // ⛔ 0.190.0 (del A): att gästen bara ser sina egna ärenden stod i gruppens ingress, som nu är bakom (i). Det står överst i fliken.
+        const ingress = await page.evaluate(() => (document.querySelector("[data-gast-arenden-ingress]")?.textContent || "").trim());
+        krav(/bara de ärenden som gruppen har gett dig/.test(ingress), `${namn} (a): ärendeflikens ingress ${JSON.stringify(ingress)}, väntat att den säger att gästen bara ser sina egna.`);
         const b = await page.evaluate(() => {
           const kort = [...document.querySelectorAll("[data-gast-arende]")];
           const ut = (/** @type {Element} */ e) => e.scrollWidth > e.clientWidth + 1;

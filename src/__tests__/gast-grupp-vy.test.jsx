@@ -62,7 +62,8 @@ describe("OpsGastChatt", () => {
     expect(document.querySelectorAll("textarea, input, [contenteditable]")).toHaveLength(0);
     expect(screen.queryByRole("button", { name: /skicka/i })).toBeNull();
     expect(screen.getByText(/Du kan läsa chatten men inte skriva i den/)).toBeInTheDocument();
-    expect(screen.getByText("Du ser hela gruppens chatt, från början.")).toBeInTheDocument();
+    // (0.190.0, del A) "Hela chatten" står i gruppens (i)-panel, inte i chatten.
+    expect(screen.queryByText("Du ser hela gruppens chatt, från början.")).toBeNull();
   });
 
   it("⛔ tomt är ett svar, ett fel är inte tomt, och äldre meddelanden hämtas med en knapp som bara finns när det finns fler", async () => {
@@ -92,7 +93,9 @@ describe("OpsGastChatt", () => {
     expect(screen.queryByRole("button", { name: /Bifoga|bild|foto|fil/i })).toBeNull();
     expect(document.querySelector("[data-mikrofon]")).toBeNull();
     expect(document.querySelector("input[type=file]")).toBeNull();
-    expect(screen.getByText(/Du skriver som gäst: dina meddelanden märks Gäst/)).toBeInTheDocument();
+    // (0.190.0, QA fynd 8) Ingen mening under skrivfältet: märket Gäst syns på bubblan, och trådarna hör till backloggen.
+    expect(document.querySelector("[data-gast-chatt-skrivskyddad]")).toBeNull();
+    expect(document.body.textContent).not.toMatch(/Du skriver som gäst|Svar i trådar visas inte/);
     fireEvent.change(falt, { target: { value: "  Hej gruppen  " } });
     await klicka(screen.getByRole("button", { name: "Skicka" }));
     expect(onSkriv).toHaveBeenCalledWith("Hej gruppen");
@@ -102,6 +105,25 @@ describe("OpsGastChatt", () => {
     await klicka(screen.getByRole("button", { name: "Skicka" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("För många anrop.");
     expect(falt).toHaveValue("Igen");
+  });
+
+  it("⛔ gästen får mikrofon där webbläsaren har taligenkänning, i chatten och i ett ärende, och ingen där den saknas (0.190.0, CP 2026-11-05)", async () => {
+    const { OpsGastArenden } = await import("../components/OpsGastArenden.jsx");
+    const ARENDE = [{ id: "a1", rubrik: "Hämta nycklar", status: "ny", kommentarer: [] }];
+    const { unmount } = render(<OpsGastChatt meddelanden={[]} onSkriv={vi.fn()} />);
+    expect(document.querySelector("[data-mikrofon]")).toBeNull();
+    unmount();
+    // Webbläsarens igenkänning finns (Chrome: `webkitSpeechRecognition`). Ingen serverutskrift behövs.
+    vi.stubGlobal("webkitSpeechRecognition", function SR() {});
+    try {
+      const chatt = render(<OpsGastChatt meddelanden={[]} onSkriv={vi.fn()} />);
+      expect(document.querySelectorAll("[data-mikrofon]")).toHaveLength(1);
+      chatt.unmount();
+      render(<OpsGastArenden poster={ARENDE} onKommentera={vi.fn()} onKlar={vi.fn()} />);
+      expect(document.querySelectorAll("[data-mikrofon]")).toHaveLength(1);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("⛔ ett tomt fält skickar inget, och över taket (1000 tecken) är Skicka spärrad med en räknare", async () => {
@@ -256,7 +278,7 @@ describe("OpsGastGrupp: det bantade gränssnittet", () => {
     expect(screen.queryByRole("tab", { name: "Ärenden" })).toBeNull();
     expect(await screen.findByText("Välkommen till gruppen", { selector: "[data-bubbla] *" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Källan");
-    expect(screen.getByText(/Du är gäst i Källan/)).toBeInTheDocument();
+    expect(document.querySelector("[data-gast-roll]")).toHaveTextContent("Du är gäst.");
     for (const f of ["Kalender", "Bibliotek"]) {
       await klicka(screen.getByRole("tab", { name: f }));
       await waitFor(() => expect(document.querySelector("[data-gast-grupp]")).not.toBeNull());
@@ -291,13 +313,35 @@ describe("OpsGastGrupp: det bantade gränssnittet", () => {
     expect(api.chatt).toHaveBeenCalledTimes(1);
   });
 
-  it("kalendern ritas med OpsCalendar, Datum ej satt står för sig, och en händelse öppnas i OpsHandelsePanel utan penna eller flytt", async () => {
+  it("⛔ kalendern är en lista över det som är på gång, ingen månadsvy: utan datum först, sedan i tidsordning, och det som varit visas inte (0.190.0, del C)", async () => {
+    const m = apiMed({
+      kalender: async () => ({
+        ok: true,
+        handelser: [...HANDELSER, { id: "h-forr", titel: "Förra mötet", datum: "2026-10-01", slutDatum: null, tid: "10:00", slutTid: null, heldag: false, kravSvar: false, ejSatt: false }],
+        kalendrar: [],
+        avkortad: false,
+        ejVisade: 0,
+      }),
+    });
+    rita({ api: m.api, logg: m.logg });
+    await valjFlik(screen.getByRole("tab", { name: "Kalender" }));
+    const lista = await screen.findByRole("list", { name: "På gång" });
+    // Golv: tre rader. Fika (utan datum) först, sedan Möte och Repetition i tidsordning. Förra mötet (1 oktober) står inte med.
+    const rader = [...lista.querySelectorAll("[data-gast-pagang]")];
+    expect(rader.map((r) => r.getAttribute("data-gast-pagang"))).toEqual(["h-ejsatt", "h-mote", "h-fri"]);
+    expect(rader.map((r) => r.lastElementChild?.textContent)).toEqual(["Datum ej satt", "mån 2 nov 2026 · 18:00 till 20:00", "mån 9 nov 2026"]);
+    expect(screen.queryByText("Förra mötet")).toBeNull();
+    // Ingen månad: inget rutnät, inga veckodagar, ingen väg att lägga in något.
+    expect(screen.queryByRole("grid")).toBeNull();
+    expect(document.querySelector("[data-ops-kalender], [data-kalender-manad]")).toBeNull();
+    expect(screen.queryByRole("button", { name: /Ny händelse|Lägg till/ })).toBeNull();
+  });
+
+  it("ett tryck på en händelse öppnar den i OpsHandelsePanel med svaren, utan penna eller flytt, och Tillbaka går till listan", async () => {
     rita();
     await valjFlik(screen.getByRole("tab", { name: "Kalender" }));
-    await screen.findByRole("region", { name: "Datum ej satt" });
-    expect(document.querySelector("[data-gast-ejsatt='h-ejsatt']").textContent).toBe("Fika");
-    expect(screen.getByText("De här händelserna har inget datum än. Öppna en för att svara eller rösta.")).toBeInTheDocument();
-    await klicka(document.querySelector("[data-gast-ejsatt='h-ejsatt']"));
+    await screen.findByRole("list", { name: "På gång" });
+    await klicka(screen.getByRole("button", { name: "Fika" }));
     await screen.findByText("1 kommer, 0 kommer inte, 2 har inte svarat");
     const panel = document.querySelector("[data-handelsepanel]");
     expect(within(panel).getByRole("heading", { name: "Fika" })).toBeInTheDocument();
@@ -307,7 +351,16 @@ describe("OpsGastGrupp: det bantade gränssnittet", () => {
     // Utan en omröstningsrenderare säger sidan att omröstningen inte går att visa.
     expect(document.querySelector("[data-gast-omrostning-ejstodd]")).not.toBeNull();
     await klicka(within(panel).getByRole("button", { name: "Tillbaka" }));
-    expect(await screen.findByRole("region", { name: "Datum ej satt" })).toBeInTheDocument();
+    expect(await screen.findByRole("list", { name: "På gång" })).toBeInTheDocument();
+  });
+
+  it("⛔ inget på gång är en enda tyst rad, inte en stor tom ruta", async () => {
+    const m = apiMed({ kalender: async () => ({ ok: true, handelser: [{ id: "h-forr", titel: "Förr", datum: "2026-10-01", slutDatum: null, tid: null, slutTid: null, heldag: true, kravSvar: false, ejSatt: false }], kalendrar: [], avkortad: false, ejVisade: 0 }) });
+    rita({ api: m.api, logg: m.logg });
+    await valjFlik(screen.getByRole("tab", { name: "Kalender" }));
+    const rad = await screen.findByText("Inget på gång i gruppen.");
+    expect(rad.tagName).toBe("P");
+    expect(rad.closest("[data-gast-kalender]")?.querySelectorAll("[data-ops-empty], ul")).toHaveLength(0);
   });
 
   it("att svara anropar svara med händelsen och värdet och hämtar händelsen på nytt; ett fel står kvar utskrivet", async () => {
@@ -326,9 +379,8 @@ describe("OpsGastGrupp: det bantade gränssnittet", () => {
       })(),
     });
     await valjFlik(screen.getByRole("tab", { name: "Kalender" }));
-    await screen.findByRole("region", { name: "Datum ej satt" });
-    // Händelsen "Möte" öppnas ur dagpanelen i kalendern: här direkt via en lista, eftersom OpsCalendar bara visar dagen när den valts.
-    await klicka(document.querySelector("[data-gast-ejsatt='h-ejsatt']"));
+    await screen.findByRole("list", { name: "På gång" });
+    await klicka(screen.getByRole("button", { name: "Fika" }));
     await screen.findByText("1 kommer, 0 kommer inte, 2 har inte svarat");
     await klicka(screen.getByRole("button", { name: "Kommer" }));
     await screen.findByText("2 kommer, 0 kommer inte, 1 har inte svarat");
@@ -341,8 +393,8 @@ describe("OpsGastGrupp: det bantade gränssnittet", () => {
     const m = apiMed({ svara: async () => ({ ok: false, orsak: "for-manga" }) });
     rita({ api: m.api, logg: m.logg });
     await valjFlik(screen.getByRole("tab", { name: "Kalender" }));
-    await screen.findByRole("region", { name: "Datum ej satt" });
-    await klicka(document.querySelector("[data-gast-ejsatt='h-ejsatt']"));
+    await screen.findByRole("list", { name: "På gång" });
+    await klicka(screen.getByRole("button", { name: "Fika" }));
     await screen.findByText("1 kommer, 0 kommer inte, 2 har inte svarat");
     await klicka(screen.getByRole("button", { name: "Kommer" }));
     expect(await screen.findByText("Svaret sparades inte: Svaret kunde inte sparas just nu. Försök igen.")).toBeInTheDocument();
@@ -357,8 +409,8 @@ describe("OpsGastGrupp: det bantade gränssnittet", () => {
     ));
     rita({ api: m.api, logg: m.logg, renderOmrostning });
     await valjFlik(screen.getByRole("tab", { name: "Kalender" }));
-    await screen.findByRole("region", { name: "Datum ej satt" });
-    await klicka(document.querySelector("[data-gast-ejsatt='h-ejsatt']"));
+    await screen.findByRole("list", { name: "På gång" });
+    await klicka(screen.getByRole("button", { name: "Fika" }));
     await klicka(await screen.findByRole("button", { name: "Rösta ja" }));
     expect(m.logg.filter(([a]) => a === "rosta")).toEqual([["rosta", { handelseId: "h-ejsatt", forslagId: "f1", val: "ja" }]]);
     expect(m.api.handelse).toHaveBeenCalledTimes(2);
@@ -386,6 +438,32 @@ describe("OpsGastGrupp: det bantade gränssnittet", () => {
     // Tillbaka till listan: ingen ny signering för en fil som redan öppnats, och ingen för de andra.
     await klicka(screen.getByRole("button", { name: /Tillbaka/ }));
     expect(m.api.fil).toHaveBeenCalledTimes(1);
+  });
+
+  it("⛔ biblioteket på engelska: inga svenska ord i listan eller i en öppnad fil (0.190.0, QA fynd 4 i cllp/lifehub.app#658)", async () => {
+    const m = apiMed();
+    rita({ api: m.api, logg: m.logg, sprak: "en" });
+    await valjFlik(screen.getByRole("tab", { name: "Library" }));
+    await screen.findByText("Låtlista");
+    // Golv: fyra kort ritade. Ett bibliotek som inte ritades hade saknat de svenska orden av fel skäl.
+    expect(document.querySelectorAll("[data-bibliotek-kort]")).toHaveLength(4);
+    /** Synlig text och de attribut en skärmläsare eller ett sökfält visar. Postens egna rubriker och namn (appens data) räknas inte. */
+    const synligt = () => {
+      const rot = /** @type {HTMLElement} */ (document.querySelector("[data-gast-bibliotek]"));
+      const attr = [...rot.querySelectorAll("*")].flatMap((n) => ["aria-label", "placeholder", "title"].map((a) => n.getAttribute(a) ?? ""));
+      return [rot.textContent ?? "", ...attr].join(" | ").replace(/Låtlista|Kom ihåg tejp|Tejp och skruvar|Scenen|Maja|Agda/g, "");
+    };
+    const SVENSKA = ["Sök...", "Sök i biblioteket", "Taggar", "Typ i biblioteket", "Biblioteket", "Allt", "Ljud", "Anteckning", "Bild", "Dokument", "Länk", "jan.", "okt.", "Tillbaka", "Skriven av", "Ladda ned", "Hämtar", "Filen har ingen adress"];
+    expect(SVENSKA.length).toBeGreaterThanOrEqual(15);
+    const lista = synligt();
+    for (const ord of SVENSKA) expect(lista, `listan: ${ord}`).not.toContain(ord);
+    for (const ord of ["Search the library", "Tags", "All", "Audio", "Note", "Image"]) expect(lista, `listan: ${ord}`).toContain(ord);
+    await klicka(screen.getByRole("button", { name: "Låtlista" }));
+    await screen.findByText("Download");
+    const detalj = synligt();
+    for (const ord of SVENSKA) expect(detalj, `detaljen: ${ord}`).not.toContain(ord);
+    expect(detalj).toContain("Back");
+    expect(detalj).toContain("Written by");
   });
 
   it("gästen skriver i chatten: skrivChatt anropas med texten och meddelandet står i chatten som gästens eget, märkt Gäst; ett nej från servern visar texten", async () => {
@@ -496,6 +574,20 @@ describe("OpsGastSida med hela gruppen", () => {
     expect(document.querySelector("main").className).not.toContain("max-w-5xl");
   });
 
+  it("⛔ i gruppen står namnrutan ovanför gruppen, så att ytan som fyller höjden inte trycker den under bottenraden (granskning av PR 524); i en omröstning står den under", async () => {
+    const lagring = lagringMed({ [`ops-gast:${ID}`]: SESSION, "ops-gast:senaste": ID });
+    const fore = (/** @type {Element} */ a, /** @type {Element} */ b) => !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+    const { unmount } = rita({ lagring, onNamn: vi.fn(async () => {}) });
+    await screen.findByText("Gruppinnehåll");
+    const namn = /** @type {Element} */ (document.querySelector("[data-gast-namn]"));
+    expect(namn).toBeTruthy();
+    expect(fore(namn, /** @type {Element} */ (document.querySelector("[data-grupp]")))).toBe(true);
+    unmount();
+    rita({ lagring, onHamta: vi.fn(async () => sakSvar), onNamn: vi.fn(async () => {}) });
+    await screen.findByText("Rep");
+    expect(fore(/** @type {Element} */ (document.querySelector("[data-sak]")), /** @type {Element} */ (document.querySelector("[data-gast-namn]")))).toBe(true);
+  });
+
   it("utan renderGrupp säger sidan att inbjudan inte går att visa, i stället för att tiga", async () => {
     rita({ lagring: lagringMed({ [`ops-gast:${ID}`]: SESSION, "ops-gast:senaste": ID }), renderGrupp: undefined });
     expect(await screen.findByText("Den här inbjudan går inte att visa i den här versionen av appen.")).toBeInTheDocument();
@@ -574,6 +666,81 @@ describe("OpsGastSida med hela gruppen", () => {
     grupplevande = false;
     await klicka(screen.getByRole("button", { name: "Uppdatera" }));
     expect(await screen.findByText("Rep")).toBeInTheDocument();
+  });
+});
+
+describe("OpsGastSida med OpsGastGrupp: (i) bär integriteten och Skriv in adressen igen (0.190.0, del A)", () => {
+  const lagringMed = (start = {}) => {
+    const d = { ...start };
+    return { getItem: (k) => d[k] ?? null, setItem: (k, v) => { d[k] = v; }, removeItem: (k) => { delete d[k]; }, d };
+  };
+  const gruppSvar = { ok: true, namn: "Anna", funktion: "grupp", grupp: { namn: "Källan", funktioner: ["chatt"] } };
+  const api = () => Object.fromEntries(GASTGRUPPATGARDER.map((a) => [a, vi.fn(async () => (a === "chatt" ? { ok: true, meddelanden: [], fler: false } : { ok: true, poster: [] }))]));
+  const rita = (props = {}) => {
+    const lagring = lagringMed({ [`ops-gast:${ID}`]: SESSION, [`ops-gast:${ID2}`]: SESSION2, "ops-gast:senaste": ID, "ops-gast:alla": JSON.stringify([ID, ID2]) });
+    const onRaderaMig = vi.fn(async () => ({ ok: true }));
+    const utf = render(
+      <OpsGastSida
+        lank={null}
+        onLos={vi.fn()}
+        onHamta={vi.fn(async () => gruppSvar)}
+        onNyLank={vi.fn()}
+        onRaderaMig={onRaderaMig}
+        renderGrupp={({ grupp }) => <OpsGastGrupp grupp={grupp} api={api()} intervallMs={0} />}
+        intervallMs={0}
+        {...props}
+        lagring={lagring}
+      />,
+    );
+    return { ...utf, lagring, onRaderaMig };
+  };
+
+  it("⛔ integriteten och sidfotens Du är gäst står inte under gruppen; (i) bär integriteten med Radera och Skriv in adressen igen", async () => {
+    rita();
+    await screen.findByRole("heading", { level: 1, name: "Källan" });
+    // Stängd från början: ingenting av det syns.
+    expect(document.querySelector("[data-gast-integritet]")).toBeNull();
+    expect(document.querySelector("[data-gast-not]")).toBeNull();
+    expect(screen.queryByText("Skriv in adressen igen")).toBeNull();
+    await klicka(screen.getByRole("button", { name: "Om din roll som gäst" }));
+    const panel = /** @type {HTMLElement} */ (document.querySelector("[data-gast-grupp-ingress]"));
+    expect(within(panel).getByText("Integritet och dina uppgifter")).toBeInTheDocument();
+    expect(within(panel).getByRole("button", { name: "Skriv in adressen igen" })).toBeInTheDocument();
+    await klicka(within(panel).getByText("Integritet och dina uppgifter"));
+    expect(within(panel).getByRole("button", { name: "Radera mina uppgifter" })).toBeInTheDocument();
+  });
+
+  it("⛔ Skriv in adressen igen glömmer alla sessioner på enheten och går till adressteget, utan att fråga servern", async () => {
+    const { lagring } = rita({ lank: { id: ID, nyckel: NYCKEL } });
+    await screen.findByRole("heading", { level: 1, name: "Källan" });
+    await klicka(screen.getByRole("button", { name: "Om din roll som gäst" }));
+    await klicka(screen.getByRole("button", { name: "Skriv in adressen igen" }));
+    expect(await screen.findByLabelText("Din e-postadress")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { level: 1, name: "Källan" })).toBeNull();
+    for (const k of [`ops-gast:${ID}`, `ops-gast:${ID2}`, "ops-gast:senaste", "ops-gast:alla"]) expect(lagring.d[k], k).toBeUndefined();
+  });
+
+  it("⛔ marke ritas i skalets märkesruta: 40 px hög, högst --logo-bredd, ett brett ordmärke som fyller höjden utan beskärning, en bild per tema och appens namn som alternativtext", async () => {
+    rita({ marke: { ljus: "https://x/ljus.png", mork: "https://x/mork.png", namn: "LifeHub" }, huvud: <a href="/">Tillbaka</a> });
+    await screen.findByRole("heading", { level: 1, name: "Källan" });
+    const ruta = /** @type {HTMLElement} */ (document.querySelector("[data-gast-huvud] [data-gast-marke]"));
+    expect(ruta.className.split(" ")).toEqual(expect.arrayContaining(["h-10", "max-w-(--logo-bredd)"]));
+    // Granskningen av PR 524: ingen beskärning. Rutan klipper inte, och bilden fyller rutans höjd med bredden ur bildens form (storleken mäts i check:skalyta 56 (d)).
+    expect(ruta.className).not.toMatch(/overflow-hidden/);
+    expect([...ruta.querySelectorAll("img")].map((i) => i.getAttribute("src"))).toEqual(["https://x/ljus.png", "https://x/mork.png"]);
+    for (const bild of ruta.querySelectorAll("img")) expect(bild.className.split(" ")).toEqual(expect.arrayContaining(["h-full", "w-auto", "max-w-full", "object-contain", "object-left"]));
+    expect(screen.getByRole("img", { name: "LifeHub" })).toBeInTheDocument();
+    // Appens eget huvud står kvar efter märket.
+    expect(within(/** @type {HTMLElement} */ (document.querySelector("[data-gast-huvud]"))).getByRole("link", { name: "Tillbaka" })).toBeInTheDocument();
+    expect(() => render(<OpsGastSida lank={null} onLos={vi.fn()} onHamta={vi.fn(async () => gruppSvar)} onNyLank={vi.fn()} marke={{ ljus: "a" }} />)).toThrow(/marke är/);
+  });
+
+  it("utan länken i minnet blir det sidan som skickar en ny länk", async () => {
+    rita();
+    await screen.findByRole("heading", { level: 1, name: "Källan" });
+    await klicka(screen.getByRole("button", { name: "Om din roll som gäst" }));
+    await klicka(screen.getByRole("button", { name: "Skriv in adressen igen" }));
+    expect(await screen.findByRole("button", { name: "Skicka en ny länk" })).toBeInTheDocument();
   });
 });
 

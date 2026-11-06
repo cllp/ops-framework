@@ -283,8 +283,8 @@ export const GASTSVARSFALT = /** @type {const} */ (["ok", "namn", "funktion", "s
  * dokument sprids ut. En medlems adress, uid eller namn har ingen plats i någon av dem utom där det står: chattens avsändarnamn är ett namn och aldrig en adress eller ett uid.
  */
 export const GASTGRUPPSVARSFALT = /** @type {const} */ ({
-  /** `hamta` för en gruppinbjudan: gruppens namn och funktionerna. */
-  hamta: ["namn", "funktioner"],
+  /** `hamta` för en gruppinbjudan: gruppens namn och funktionerna, och (0.190.0) om gästen får ladda ned (`nedladdning`, gruppens `farLaddaNed`). */
+  hamta: ["namn", "funktioner", "nedladdning"],
   /** Svaret på `chatt`. `fler`: det finns äldre meddelanden. `ingetNytt`: en ping där inget är nyare än `nyast`. */
   chatt: ["ok", "meddelanden", "fler", "ingetNytt"],
   /** Svaret på `skrivChatt`: meddelandet som det nu står i chatten, i samma form som en rad i `chatt`. */
@@ -394,6 +394,8 @@ export const GASTFELKODER = /** @type {const} */ ([
   "ingen-kopia",
   "utgangen",
   "ej-konfigurerad",
+  // (0.190.0) Gruppen har stängt av nedladdning för gäster (`grupp.farLaddaNed`). `fil` svarar med den i stället för en adress med `attachment`.
+  "nedladdning-av",
 ]);
 
 /**

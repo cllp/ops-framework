@@ -1,50 +1,75 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { GASTGRUPPFUNKTIONER } from "../lib/gast.js";
+import { kortDatum } from "../lib/deladdatum.js";
 import { DATUM_EJ_SATT } from "../lib/handelsemodell.js";
 import { definierade, forvalda } from "../lib/ord.js";
 import { OpsBibliotek } from "./OpsBibliotek.jsx";
-import { InfoIkon } from "./icons.jsx";
-import { OpsCalendar } from "./OpsCalendar.jsx";
+import { FULL_HEIGHT_CLASSES, useFullHeight } from "../lib/fullHeight.js";
+import { cx } from "../lib/cx.js";
+import { IKON_FOR } from "./ikonlexikon.js";
+import { InfoIkon, KalenderIkon, MeddelandeIkon } from "./icons.jsx";
+import { OpsBottomNav } from "./OpsBottomNav.jsx";
 import { OpsEmpty } from "./OpsEmpty.jsx";
 import { OpsGastArenden } from "./OpsGastArenden.jsx";
 import { OpsGastChatt } from "./OpsGastChatt.jsx";
 import { OpsHandelsePanel } from "./OpsHandelsePanel.jsx";
 import { OpsList, OpsListRow } from "./OpsList.jsx";
+import { useGastsidaInfo } from "./gastsidaInfo.js";
+import { OpsSprakProvider } from "./OpsSprak.jsx";
+import { OpsSpelareProvider } from "./OpsSpelare.jsx";
 import { OpsSvarSummor } from "./OpsSvar.jsx";
 import { OpsTabPanel, OpsTabs } from "./OpsTabs.jsx";
 
-/** Minnesnyckeln för "ingressen är sedd". Delar prefixet med gästsessionerna men räknas aldrig som en session (`GASTINBJUDNINGSIDFORM` filtrerar). */
-const INGRESS_SEDD = "ops-gast:ingress-sedd";
+/** Telefonen: samma brytpunkt som skalets bottenrad (`md`, 48 rem). Under den är flikarna en bottenrad och innehållet fyller höjden. */
+const SMAL_SKARM = "(max-width: 47.99rem)";
 
-/** @param {{ getItem: (k: string) => string | null } | null | undefined} lagring */
-function minnet(lagring) {
-  if (lagring === null) return null;
-  try {
-    return lagring ?? globalThis.localStorage ?? null;
-  } catch {
-    return null;
-  }
+/** Är skärmen smalare än `md`? `false` där webbläsaren inte kan svara (jsdom utan `matchMedia`), alltså datorns flikrad. @returns {boolean} */
+function useSmalSkarm() {
+  const las = () => typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia(SMAL_SKARM).matches;
+  const [smal, setSmal] = useState(las);
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return undefined;
+    const fraga = window.matchMedia(SMAL_SKARM);
+    const lyssna = () => setSmal(fraga.matches);
+    lyssna();
+    if (typeof fraga.addEventListener === "function") {
+      fraga.addEventListener("change", lyssna);
+      return () => fraga.removeEventListener("change", lyssna);
+    }
+    fraga.addListener?.(lyssna);
+    return () => fraga.removeListener?.(lyssna);
+  }, []);
+  return smal;
 }
+
+/** Ikonerna i gästens bottenrad, en per funktion. */
+const FLIKIKON = /** @type {Record<string, import("react").ReactNode>} */ ({
+  chatt: <MeddelandeIkon size={24} />,
+  kalender: <KalenderIkon size={24} />,
+  bibliotek: <IKON_FOR.bibliotek size={24} aria-hidden="true" />,
+  arenden: <IKON_FOR.arende size={24} aria-hidden="true" />,
+});
 
 /**
- * Har gästen sett ingressen förut? Falskt när minnet inte går att läsa, så att den då visas öppen.
- * @param {{ getItem: (k: string) => string | null } | null | undefined} lagring
+ * Ytan mellan huvudet och bottenraden på en telefon (0.190.0, CP 2026-11-05 i cllp/lifehub.app#658, del B: "Innehållet får hela höjden"). Höjden är skalets
+ * (`useFullHeight`, `FULL_HEIGHT_CLASSES`): den mäts ut till bottenradens överkant, eller spelradens när ljud spelar, och ytan rullar i sig själv. Chatten fyller den
+ * (`fyll`), så att skrivfältet står närmast bottenraden.
+ *
+ * ⛔ EN NY YTA PER FLIK, OCH NYCKELN SITTER DÄR YTAN RITAS (`<GastTelefonyta key={flik}>`), INTE PÅ ELEMENTET INUTI. Granskningen av PR 524, appens montage mot en
+ * byggd app: med ljud som spelade i biblioteket blev dokumentet 965 px högt i ett fönster på 844, och ytan slutade på 842 i stället för vid spelradens överkant.
+ * Nyckeln satt på `div`:en här inne. Då byttes elementet när fliken byttes, men komponenten och dess `useFullHeight` levde kvar med samma `ref`-objekt, så effekten
+ * kördes inte om och mätte och bevakade det gamla, urkopplade elementet. Dess ruta är noll, så nästa mätning (spelraden som dök upp) gav toppen 0 och höjden
+ * `botten - 0`. Med nyckeln på komponenten byts allt ihop: ny `ref`, ny effekt, nya observatörer på det element som faktiskt syns.
+ * @param {{ flik: string, children: import("react").ReactNode }} props
  */
-function ingressSedd(lagring) {
-  try {
-    return minnet(lagring)?.getItem(INGRESS_SEDD) === "1";
-  } catch {
-    return false;
-  }
-}
-
-/** @param {{ getItem: (k: string) => string | null, setItem?: (k: string, v: string) => void } | null | undefined} lagring */
-function markeraIngressSedd(lagring) {
-  try {
-    /** @type {any} */ (minnet(lagring))?.setItem?.(INGRESS_SEDD, "1");
-  } catch {
-    /* Minnet går inte att skriva: ingressen visas öppen nästa gång också, vilket är rätt håll att fela åt. */
-  }
+function GastTelefonyta({ flik, children }) {
+  const ref = useRef(/** @type {HTMLDivElement | null} */ (null));
+  const stil = useFullHeight(ref);
+  return (
+    <div ref={ref} style={stil} data-gast-telefonyta={flik} className={cx("flex min-w-0 flex-col", FULL_HEIGHT_CLASSES)}>
+      {children}
+    </div>
+  );
 }
 
 /**
@@ -62,10 +87,12 @@ export const ORD_OPSGASTGRUPP = {
     en: "You are a guest in {grupp}. You can read and write in the group's chat, answer and vote in the calendar, and read, play and download in the library. You do not see the group's cases, only those the group has given you.",
   },
   omGruppen: { sv: "Om din roll som gäst", en: "About your role as a guest" },
+  // ⛔ EN RAD UNDER GRUPPENS NAMN (0.190.0, CP 2026-11-05 i cllp/lifehub.app#658, del A). Allt annat om rollen står bakom (i), som är stängd från början.
+  duArGast: { sv: "Du är gäst.", en: "You are a guest." },
+  historik: { sv: "Du ser hela gruppens chatt, från början.", en: "You can see the whole group chat, from the beginning." },
   kalenderEtikett: { sv: "Kalender", en: "Calendar" },
-  kalenderTom: { sv: "Inga händelser i kalendern än.", en: "No events in the calendar yet." },
-  ejSattRubrik: { sv: "Datum ej satt", en: "Date not set" },
-  ejSattIngress: { sv: "De här händelserna har inget datum än. Öppna en för att svara eller rösta.", en: "These events have no date yet. Open one to answer or vote." },
+  ingetPaGang: { sv: "Inget på gång i gruppen.", en: "Nothing coming up in the group." },
+  paGangEtikett: { sv: "På gång", en: "Coming up" },
   kalenderAvkortad: { sv: "Kalendern visar de första {n} händelserna. Det finns fler.", en: "The calendar shows the first {n} events. There are more." },
   kalenderEjVisade: { sv: "{n} händelser visas inte, eftersom deras tid inte går att läsa.", en: "{n} events are not shown, because their time cannot be read." },
   laddar: { sv: "Hämtar", en: "Loading" },
@@ -78,6 +105,8 @@ export const ORD_OPSGASTGRUPP = {
   fel_kundeInte: { sv: "Det gick inte just nu. Försök igen.", en: "That did not work right now. Try again." },
   "fel_ogiltig-text": { sv: "Meddelandet är tomt eller för långt.", en: "The message is empty or too long." },
   "fel_for-manga": { sv: "För många anrop. Vänta en stund och försök igen.", en: "Too many requests. Wait a while and try again." },
+  // (0.190.0) Gruppen har stängt av nedladdning för gäster: ett dokument som bara kan laddas ned går inte att öppna.
+  "fel_nedladdning-av": { sv: "Gruppen har stängt av nedladdning. Filen går inte att öppna här.", en: "The group has turned off downloads. The file cannot be opened here." },
   fel_saknas: { sv: "Det du bad om finns inte längre.", en: "What you asked for no longer exists." },
   fel_nej: { sv: "Det gick inte.", en: "That did not work." },
   fel_arende: { sv: "Ärendet ligger inte längre hos dig, eller är redan klart.", en: "The case is no longer with you, or is already done." },
@@ -123,7 +152,7 @@ const tidText = (h, till) => (h.tid ? (h.slutTid ? `${h.tid} ${till} ${h.slutTid
  *
  * ══ ⛔ VYERNA ÄR MEDLEMMENS, MED `jag: null` ══════════════════════════════════════════════════════════════════════════════
  *
- * Kalendern är `OpsCalendar` och händelsen `OpsHandelsePanel` utan penna eller flytt, svaren `OpsSvarSummor` (summor och mitt eget svar, inga namn), biblioteket `OpsBibliotek` med `jag: null` (ingen Ny, ingen
+ * Kalendern är en lista över det som är på gång (0.190.0, ingen månadsvy för gäster) och händelsen `OpsHandelsePanel` utan penna eller flytt, svaren `OpsSvarSummor` (summor och mitt eget svar, inga namn), biblioteket `OpsBibliotek` med `jag: null` (ingen Ny, ingen
  * redigering, ingen radering, ingen delning) och `adresserPaBegaran` (en signering per öppnad fil, aldrig en per post i listan). Chatten är medlemmens bubblor med chattens skrivfält utan bilagor, mikrofon och agent (`OpsGastChatt`): gästen får skriva (CP 2026-10-20), och
  * servern märker meddelandet Gäst.
  *
@@ -135,7 +164,8 @@ const tidText = (h, till) => (h.tid ? (h.slutTid ? `${h.tid} ${till} ${h.slutTid
  * ⛔ NEKAS ETT ANROP (`aterkallad`, `nej`) ANROPAS `onNekad`, och sidan byter allt mot texten "Inbjudan är återkallad". Vyn visar aldrig kvar det som lästs när åtkomsten är borta.
  *
  * @param {object} props
- * @param {{ namn: string, funktioner: readonly string[] }} props.grupp Tjänstens `hamta().grupp`.
+ * @param {{ namn: string, funktioner: readonly string[], nedladdning?: boolean }} props.grupp Tjänstens `hamta().grupp`. (0.190.0) `nedladdning: false`: gruppen har stängt av nedladdning
+ *   (`grupp.farLaddaNed`), och varken biblioteket eller spelarens ark ritar Ladda ned. Utelämnad: som förut.
  * @param {ReturnType<typeof import("../lib/gast.js").gastGruppApi>} props.api Anropen mot servern, bundna till sessionen (`gastGruppApi(anrop, sessionsnyckel)`).
  * @param {(orsak: string) => void} [props.onNekad] Ett anrop nekades. Normalt `uppdatera` ur `renderGrupp`, som hämtar om sidan.
  * @param {(arg: { handelse: Record<string, any>, omrostning: Record<string, any>, rosta: (arg: { forslagId: string, val: string }) => Promise<void>, uppdatera: () => Promise<void> }) => import("react").ReactNode} [props.renderOmrostning]
@@ -144,9 +174,8 @@ const tidText = (h, till) => (h.tid ? (h.slutTid ? `${h.tid} ${till} ${h.slutTid
  * @param {Date} [props.idag] Bara för prov: kalenderns idag.
  * @param {string} [props.sprak]
  * @param {Partial<Record<keyof typeof ORD_OPSGASTGRUPP, string>>} [props.ord]
- * @param {{ getItem: (k: string) => string | null, setItem: (k: string, v: string) => void } | null} [props.lagring] (0.188.0) Minnet för att ingressen ("Du är gäst i ...") bara visas öppen första gången. Förval `localStorage`; `null` eller ett minne som inte går att läsa ger en öppen ingress varje gång.
  */
-export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallMs = 30_000, idag, sprak = "sv", ord, lagring }) {
+export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallMs = 30_000, idag, sprak = "sv", ord }) {
   if (!grupp || typeof grupp.namn !== "string" || !Array.isArray(grupp.funktioner)) throw new Error("OpsGastGrupp: grupp är { namn, funktioner } ur tjänstens hamta().grupp.");
   if (!api || typeof api.chatt !== "function") throw new Error("OpsGastGrupp: api krävs, anropen mot servern (gastGruppApi).");
   const t = { ...forvalda(ORD_OPSGASTGRUPP, sprak), ...definierade(/** @type {Record<string, string>} */ (ord ?? {})) };
@@ -154,11 +183,12 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
   if (funktioner.length === 0) throw new Error("OpsGastGrupp: gruppen har inga funktioner att visa (grupp.funktioner).");
 
   const [flik, setFlik] = useState(/** @type {string} */ (funktioner[0]));
-  // ⛔ INGRESSEN ÄR ÖPPEN FÖRSTA GÅNGEN OCH SEDAN BAKOM (i) (0.188.0, CP 2026-11-05: "kalender får inget utrymme"). Den tog 100 px av 844 på en telefon. Går minnet inte att läsa är den öppen varje gång: ett fel i minnet ska inte dölja något för en ny gäst.
-  const [ingressOppen, setIngressOppen] = useState(() => !ingressSedd(lagring));
-  useEffect(() => {
-    markeraIngressSedd(lagring);
-  }, [lagring]);
+  const smal = useSmalSkarm();
+  // ⛔ (i) ÄR STÄNGD FRÅN BÖRJAN (0.190.0, CP 2026-11-05 i cllp/lifehub.app#658). 0.188.0 visade ingressen öppen första gången och mindes att den setts; CP ville ha en rad,
+  // "Du är gäst.", och resten bakom (i). Minnet (`ops-gast:ingress-sedd`) behövs inte längre och skrivs inte.
+  const [infoOppen, setInfoOppen] = useState(false);
+  const infoId = useId();
+  const sidansInfo = useGastsidaInfo();
   const [data, setData] = useState(/** @type {Record<string, any>} */ ({}));
   const [fel, setFel] = useState(/** @type {Record<string, string | null>} */ ({}));
   const [laddar, setLaddar] = useState(/** @type {Record<string, boolean>} */ ({}));
@@ -421,24 +451,33 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
   );
 
   const kalender = /** @type {any} */ (data.kalender);
-  const poster_kalender = useMemo(
-    () =>
-      kalender
-        ? kalender.handelser
-            .filter((/** @type {any} */ h) => h.datum)
-            .map((/** @type {any} */ h) => ({
-              id: h.id,
-              date: h.datum,
-              title: h.titel,
-              handelseId: h.id,
-              ...(h.slutDatum ? { endDate: h.slutDatum } : {}),
-              ...(h.heldag ? { allDay: true } : {}),
-              ...(tidText(h, sprak === "en" ? "to" : "till") ? { not: tidText(h, sprak === "en" ? "to" : "till") } : {}),
-            }))
-        : [],
-    [kalender, sprak],
-  );
-  const ejSatta = kalender ? kalender.handelser.filter((/** @type {any} */ h) => !h.datum) : [];
+  /*
+   * ══ ⛔ GÄSTENS KALENDER ÄR EN LISTA ÖVER DET SOM ÄR PÅ GÅNG, INGEN MÅNAD (0.190.0, CP 2026-11-05 i cllp/lifehub.app#658, del C) ═══════════════
+   *
+   * CP: "Skall bara kunna läsa va och således bara en kalendervy som är lista eller?" En gäst lägger inte in något: hen läser, svarar och röstar. Månadsvyn tyngde
+   * vyn utan att ge gästen något att göra, och den stryks för gäster (regel 13). Först det som saknar datum (en omröstning om datumet), sedan det som är på gång
+   * i tidsordning: en händelse som slutar i dag eller senare. Det som har varit visas inte.
+   */
+  const idagStr = useMemo(() => {
+    const d = idag ?? new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }, [idag]);
+  const paGang = useMemo(() => {
+    if (!kalender) return [];
+    const utanDatum = kalender.handelser.filter((/** @type {any} */ h) => !h.datum);
+    const kommande = kalender.handelser
+      .filter((/** @type {any} */ h) => h.datum && String(h.slutDatum ?? h.datum) >= idagStr)
+      .sort((/** @type {any} */ a, /** @type {any} */ b) => String(a.datum).localeCompare(String(b.datum)) || (a.heldag ? -1 : 0) - (b.heldag ? -1 : 0) || String(a.tid ?? "").localeCompare(String(b.tid ?? "")) || String(a.id).localeCompare(String(b.id)));
+    return [...utanDatum, ...kommande];
+  }, [kalender, idagStr]);
+  /** När, på en rad: "lör 7 nov 2026 · 18:00 till 20:00", till slutdatum när den är flera dagar, och "Datum ej satt" utan datum. @param {Record<string, any>} h */
+  const nartext = (h) => {
+    if (!h.datum) return DATUM_EJ_SATT[sprak === "en" ? "en" : "sv"];
+    const till = sprak === "en" ? "to" : "till";
+    const dagar = h.slutDatum && h.slutDatum !== h.datum ? `${kortDatum(h.datum, sprak)} ${till} ${kortDatum(h.slutDatum, sprak)}` : kortDatum(h.datum, sprak);
+    const tid = h.heldag ? "" : tidText(h, till);
+    return tid ? `${dagar} · ${tid}` : dagar;
+  };
 
   /** @param {Record<string, any>} h */
   const handelseVy = (h) => ({
@@ -514,33 +553,22 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
     if (fel.kalender) return <p role="alert" data-gast-kalender-fel="" className="m-0 text-etikett text-danger">{fel.kalender}</p>;
     if (!kalender || laddar.kalender) return <OpsEmpty busy title={t.laddar} busyLabel={t.laddar} />;
     return (
-      <div data-gast-kalender="" className="flex min-w-0 flex-col gap-4">
-        {kalender.handelser.length === 0 ? <OpsEmpty title={t.kalenderTom} /> : null}
-        {/* ⛔ `pb-6` tar tillbaka det kalendern drar av med `-mb-6` (`FULL_HEIGHT_CLASSES`): den är byggd för att vara sist i sin vy. Utan luften låg rubriken Datum ej satt över månadens sista rad (mätt i skalytans bild). */}
-        <div className="pb-6">
-        <OpsCalendar
-          ariaLabel={t.kalenderEtikett}
-          entries={poster_kalender}
-          onOppnaHandelse={oppnaHandelse}
-          lagring={{ getItem: () => null, setItem: () => {} }}
-          emptyText={t.kalenderTom}
-          locale={sprak === "en" ? "en-GB" : "sv-SE"}
-          {...(idag ? { today: idag } : {})}
-        />
-        </div>
-        {ejSatta.length > 0 ? (
-          <section aria-label={t.ejSattRubrik} data-gast-ejsatta="" className="flex min-w-0 flex-col gap-2">
-            <h2 className="m-0 text-sektion uppercase text-ink-muted">{DATUM_EJ_SATT[sprak === "en" ? "en" : "sv"]}</h2>
-            <p className="m-0 text-etikett text-ink-secondary">{t.ejSattIngress}</p>
-            <OpsList ariaLabel={t.ejSattRubrik}>
-              {ejSatta.map((/** @type {any} */ h) => (
-                <OpsListRow key={h.id} interactive onClick={() => oppnaHandelse(h.id)} ariaLabel={h.titel}>
-                  <span data-gast-ejsatt={h.id} className="min-w-0 flex-1 text-etikett text-ink wrap-anywhere">{h.titel}</span>
-                </OpsListRow>
-              ))}
-            </OpsList>
-          </section>
-        ) : null}
+      <div data-gast-kalender="" className="flex min-w-0 flex-col gap-3">
+        {paGang.length === 0 ? (
+          // ⛔ TOMT ÄR EN TYST RAD (0.190.0, QA fynd 9): inte en stor ruta som tar lika mycket plats som innehållet hade gjort.
+          <p role="status" data-gast-kalender-tom="" className="m-0 text-etikett text-ink-muted">{t.ingetPaGang}</p>
+        ) : (
+          <OpsList ariaLabel={t.paGangEtikett}>
+            {paGang.map((/** @type {any} */ h) => (
+              <OpsListRow key={h.id} interactive onClick={() => oppnaHandelse(h.id)} ariaLabel={h.titel}>
+                <span data-gast-pagang={h.id} data-ejsatt={h.datum ? undefined : ""} className="flex min-w-0 flex-1 flex-col gap-0.5">
+                  <span className="text-etikett font-medium text-ink wrap-anywhere">{h.titel}</span>
+                  <span className="text-meta text-ink-secondary">{nartext(h)}</span>
+                </span>
+              </OpsListRow>
+            ))}
+          </OpsList>
+        )}
         {kalender.avkortad ? <p role="status" data-gast-kalender-avkortad="" className="m-0 text-meta text-ink-muted">{t.kalenderAvkortad.replace("{n}", String(kalender.handelser.length))}</p> : null}
         {kalender.ejVisade > 0 ? <p role="status" data-gast-kalender-ejvisade="" className="m-0 text-meta text-ink-muted">{t.kalenderEjVisade.replace("{n}", String(kalender.ejVisade))}</p> : null}
       </div>
@@ -563,6 +591,7 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
           hamtaAdress={hamtaAdress}
           adresserPaBegaran
           utanHubb
+          utanNedladdning={grupp.nedladdning === false}
         />
         {bibliotek && bibliotek.poster.length === 0 ? <p data-gast-bibliotek-tom="" role="status" className="m-0 text-etikett text-ink-muted">{t.bibliotekTom}</p> : null}
         {bibliotek?.avkortad ? <p role="status" data-gast-bibliotek-avkortad="" className="m-0 text-meta text-ink-muted">{t.bibliotekAvkortad.replace("{n}", String(bibliotek.poster.length))}</p> : null}
@@ -577,58 +606,95 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
   const aktivFlik = synliga.includes(/** @type {any} */ (flik)) ? flik : synliga[0];
   const flikar = synliga.map((f) => ({ id: f, label: t[`flik_${f}`] }));
   const chatt = /** @type {{ meddelanden: any[], fler: boolean } | undefined} */ (data.chatt);
+  /** @param {string} v */
+  const valjFlik = (v) => {
+    setFlik(v);
+    // Tillbaka i kalenderfliken visas listan, inte en händelse man lämnade.
+    if (v !== "kalender") tillKalendern();
+  };
+  /**
+   * Innehållet i en flik, samma på telefon och dator: det är bara ramen runt som skiljer (flikrad eller bottenrad).
+   * @param {string} f
+   */
+  const innehall = (f) =>
+    f === "chatt" ? (
+      <OpsGastChatt
+        meddelanden={chatt?.meddelanden ?? []}
+        fler={Boolean(chatt?.fler)}
+        onAldre={aldreLaddar ? undefined : () => ladda("chatt", { aldre: true })}
+        onSkriv={skrivChatt}
+        laddar={!chatt && !fel.chatt}
+        fel={fel.chatt}
+        sprak={sprak}
+        fyll={smal}
+      />
+    ) : f === "kalender" ? (
+      kalenderInnehall()
+    ) : f === "bibliotek" ? (
+      bibliotekInnehall()
+    ) : (
+      <OpsGastArenden poster={arendeData?.poster ?? []} avkortad={Boolean(arendeData?.avkortad)} onKommentera={kommenteraArende} onKlar={markeraArendeKlart} laddar={!arendeData && !fel.arenden} fel={fel.arenden} sprak={sprak} />
+    );
 
+  // ⛔ SPRÅKET GÄLLER HELA GÄSTENS TRÄD (0.190.0, QA fynd 4 i cllp/lifehub.app#658): komponenterna som läser språket ur sammanhanget
+  // (`OpsBibliotek`, taggarna, spelaren) fick svenska, eftersom gästsidan ritas utanför appens skal och ingen satte det.
+  // ⛔ SAMMA SPELARE SOM I APPEN (0.190.0, CP 2026-11-05, del P): skalets `OpsSpelareProvider` runt gruppen, med spelraden ovanför bottenraden på telefonen och längst ned
+  // på datorn, och arket med vågen, -10/+10, hastigheten och Ladda ned. Ingen andra spelare (regel 2): providern är hela monteringen, som i `OpsAppShell`.
   return (
+    <OpsSprakProvider sprak={sprak}>
+    <OpsSpelareProvider>
     <div data-gast-grupp="" className="flex min-w-0 flex-col gap-4 text-ink sm:rounded-xl sm:border sm:border-line sm:bg-canvas sm:p-5">
-      <header className="flex min-w-0 flex-col gap-1">
-        <div className="flex min-w-0 items-center gap-2">
-          <h1 data-gast-grupp-namn="" className="m-0 min-w-0 text-titel text-ink wrap-anywhere">{grupp.namn}</h1>
+      <header className="flex min-w-0 flex-col">
+        <h1 data-gast-grupp-namn="" className="m-0 min-w-0 text-titel text-ink wrap-anywhere">{grupp.namn}</h1>
+        <div className="-my-2 flex min-w-0 items-center gap-1">
+          <p data-gast-roll="" className="m-0 text-meta text-ink-secondary">{t.duArGast}</p>
           <button
             type="button"
             data-gast-grupp-info=""
             aria-label={t.omGruppen}
-            aria-expanded={ingressOppen}
-            aria-controls="gast-grupp-ingress"
-            onClick={() => setIngressOppen((o) => !o)}
+            aria-expanded={infoOppen}
+            aria-controls={infoId}
+            onClick={() => setInfoOppen((o) => !o)}
             className="inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full text-ink-muted hover:bg-sunken hover:text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           >
             <InfoIkon size={16} />
           </button>
         </div>
-        {ingressOppen ? <p id="gast-grupp-ingress" data-gast-grupp-ingress="" className="m-0 text-etikett text-ink-secondary">{t.gastIngress.replace("{grupp}", grupp.namn)}</p> : null}
+        {infoOppen ? (
+          <div id={infoId} data-gast-grupp-ingress="" className="mt-2 flex min-w-0 flex-col gap-2 rounded-lg bg-sunken p-3">
+            <p className="m-0 text-etikett text-ink-secondary">{t.gastIngress.replace("{grupp}", grupp.namn)}</p>
+            {funktioner.includes("chatt") ? <p data-gast-chatt-historik="" className="m-0 text-etikett text-ink-secondary">{t.historik}</p> : null}
+            {sidansInfo}
+          </div>
+        ) : null}
       </header>
+      {smal ? (
+        <>
+          <GastTelefonyta key={aktivFlik} flik={aktivFlik}>{innehall(aktivFlik)}</GastTelefonyta>
+          <OpsBottomNav
+            utanMeny
+            nav={synliga.map((f) => ({ href: `#${f}`, label: t[`flik_${f}`], icon: FLIKIKON[f] }))}
+            activeHref={`#${aktivFlik}`}
+            navLabel={t.flikarEtikett}
+            onNavigate={(href, e) => {
+              e?.preventDefault?.();
+              valjFlik(href.slice(1));
+            }}
+          />
+        </>
+      ) : (
       <OpsTabs
         fast
         tabs={flikar}
         value={aktivFlik}
-        onChange={(v) => {
-          setFlik(v);
-          // Tillbaka i kalenderfliken visas listan, inte en händelse man lämnade.
-          if (v !== "kalender") tillKalendern();
-        }}
+        onChange={valjFlik}
         ariaLabel={t.flikarEtikett}
       >
-        {funktioner.includes("chatt") ? (
-          <OpsTabPanel id="chatt">
-            <OpsGastChatt
-              meddelanden={chatt?.meddelanden ?? []}
-              fler={Boolean(chatt?.fler)}
-              onAldre={aldreLaddar ? undefined : () => ladda("chatt", { aldre: true })}
-              onSkriv={skrivChatt}
-              laddar={!chatt && !fel.chatt}
-              fel={fel.chatt}
-              sprak={sprak}
-            />
-          </OpsTabPanel>
-        ) : null}
-        {funktioner.includes("kalender") ? <OpsTabPanel id="kalender">{kalenderInnehall()}</OpsTabPanel> : null}
-        {funktioner.includes("bibliotek") ? <OpsTabPanel id="bibliotek">{bibliotekInnehall()}</OpsTabPanel> : null}
-        {visaArenden ? (
-          <OpsTabPanel id="arenden">
-            <OpsGastArenden poster={arendeData?.poster ?? []} avkortad={Boolean(arendeData?.avkortad)} onKommentera={kommenteraArende} onKlar={markeraArendeKlart} laddar={!arendeData && !fel.arenden} fel={fel.arenden} sprak={sprak} />
-          </OpsTabPanel>
-        ) : null}
+        {synliga.map((f) => <OpsTabPanel key={f} id={f}>{innehall(f)}</OpsTabPanel>)}
       </OpsTabs>
+      )}
     </div>
+    </OpsSpelareProvider>
+    </OpsSprakProvider>
   );
 }

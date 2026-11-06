@@ -84,6 +84,9 @@ const MAX_IN_ROW_WITH_ACTION = 3;
  *   hamburgaren: appens sektioner, navigeringens överflödsrader, `menuExtras`, Logga ut, versionerna.
  *   `meny.rubrik` styr då även sheetens rubrikrad (annars `sheetLabel`).
  * @param {string} [props.langtryckText] (0.103.0, #382) Andra halvan av mittknappens namn när den är en mikrofon med skapa bakom: "Håll inne för att skapa". Namnet blir "TALK, prata in. Håll inne för att skapa", så att den som inte ser plusset hör att det finns en väg till.
+ * @param {boolean} [props.utanMeny] (0.190.0, cllp/lifehub.app#658 del B) Ingen Meny-plats och inget ark: raden är bara flikarna. För gästens telefonvy, där Chatt, Kalender och
+ *   Bibliotek är allt som finns och en Meny hade öppnat ett tomt ark. ⛔ KASTAR OM NÅGOT HADE HAMNAT I ARKET (fler poster än raden rymmer, `moreNav`, `meny`, `menuExtras`): en post utan
+ *   plats hade varit en sida ingen kan nå.
  * @param {{ href: string, oppen: boolean, onOppen: (oppen: boolean) => void, snabbmeny?: boolean, onTillSidan?: () => void }} [props.ark] (0.89.0) Fliken med det här href öppnar app-arket i stället för att navigera. Medan arket är öppet är den fliken den aktiva. `snabbmeny` (0.184.0): ett tryck öppnar snabbmenyn (`onOppen`), ett långtryck går till sidan (`onTillSidan`) i stället för Skapa app.
  */
 function OpsBottomNavRitad({
@@ -101,6 +104,7 @@ function OpsBottomNavRitad({
   menuExtras,
   meny,
   ark,
+  utanMeny = false,
 }) {
   validateNav(nav, "OpsBottomNav");
   if (meny) validateMeny(meny, "OpsBottomNav");
@@ -143,6 +147,9 @@ function OpsBottomNavRitad({
   // undersidor nås via Ekonomisidan, inte som dubblett i Mer.
   /** @type {import("../lib/nav.js").NavPost[]} */
   const inMenu = Array.isArray(moreNav) ? moreNav : nav.slice(tak);
+  if (utanMeny && (inMenu.length > 0 || meny || menuExtras)) {
+    throw new Error(`OpsBottomNav: utanMeny ritar ingen Meny, men ${inMenu.length > 0 ? `${inMenu.length} poster får inte plats i raden (högst ${tak})` : meny ? "meny är given" : "menuExtras är given"}. Det som inte står i raden hade inte gått att nå.`);
+  }
 
   /** @param {string} href @param {any} e */
   const klick = (href, e) => {
@@ -211,6 +218,7 @@ function OpsBottomNavRitad({
           />
         ))}
 
+        {utanMeny ? null : (
         <Dialog.Root open={oppen} onOpenChange={stangArket}>
           <Dialog.Trigger asChild>
             <button type="button" className={platsKlass(false)}>
@@ -274,6 +282,7 @@ function OpsBottomNavRitad({
             </Dialog.Content>
           </Dialog.Portal>
         </Dialog.Root>
+        )}
       </div>
     </nav>
   );

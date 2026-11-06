@@ -108,7 +108,8 @@ describe("OpsMeddelanden, ett meddelande från en nyckel", () => {
         <Meddelanderader meddelanden={meddelanden} uid="u-bo" namnFor={namn} medlemmar={[]} locale="sv-SE" visaNamn {...props} />
       </OpsSprakProvider>,
     );
-  const rubriker = () => [...document.querySelectorAll("[data-avsandare]")].map((e) => e.textContent);
+  // (0.190.0) Namnraden bär också tiden: namnet är radens första textnod.
+  const rubriker = () => [...document.querySelectorAll("[data-avsandare]")].map((e) => e.firstChild?.textContent);
 
   it("namnraden heter 'Miranda via Byggagent', och Mirandas eget meddelande heter 'Miranda'", () => {
     rita([
@@ -142,7 +143,7 @@ describe("OpsMeddelanden, ett meddelande från en nyckel", () => {
       { id: "a", av: "u-bo", text: "För hand", tid: T },
       { id: "b", av: "u-bo", via, text: "Från min nyckel", tid: T + 1000 },
     ]);
-    const eget = [...document.querySelectorAll("[data-via-eget]")].map((e) => e.textContent);
+    const eget = [...document.querySelectorAll("[data-via-eget]")].map((e) => e.firstChild?.textContent);
     expect(eget).toEqual(["Du via Byggagent"]);
   });
 

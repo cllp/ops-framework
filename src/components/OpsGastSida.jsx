@@ -13,6 +13,7 @@ import { OpsDisclosure } from "./OpsDisclosure.jsx";
 import { OpsEmpty } from "./OpsEmpty.jsx";
 import { OpsField, OpsInput } from "./OpsField.jsx";
 import { PublikSprakval } from "./PublikSprakval.jsx";
+import { GastsidaInfo } from "./gastsidaInfo.js";
 
 /**
  * Orden på gästsidan, på svenska och engelska (0.131.0, cllp/lifehub.app#389). Svenskan i feltexterna är `GASTFEL` och ingen kopia av den (regel 2).
@@ -24,10 +25,14 @@ export const ORD_OPSGASTSIDA = {
   // ⛔ RUBRIKEN NÄR ADRESSEN FRÅGAS ÄR NEUTRAL (0.146.0). Före inloggningen vet sidan inte vad inbjudan gäller (en omröstning, en händelse att svara på, hela gruppen), och "rösta" var fel åt den som bjudits in till
   // en händelse. Nyckelnamnet står kvar, så att en app som ger egna ord (`ord.rubrikRosta`) fortfarande träffar rätt text.
   rubrikRosta: { sv: "Du är inbjuden", en: "You are invited" },
-  ingress: { sv: "Skriv adressen inbjudan skickades till, så öppnas den. Du behöver inget konto.", en: "Enter the address the invitation was sent to and it opens. You do not need an account." },
-  adressEtikett: { sv: "Skriv adressen inbjudan skickades till", en: "Enter the address the invitation was sent to" },
+  // ⛔ EN MENING OM VARFÖR, OCH ETIKETTEN SÄGER INTE SAMMA SAK EN GÅNG TILL (0.190.0, QA fynd 2 i cllp/lifehub.app#658): ingressen och etiketten var samma mening.
+  ingress: { sv: "Skriv din e-postadress, samma som inbjudan kom till. Så vet vi att det är du. Du behöver inget konto.", en: "Enter your email address, the same one the invitation was sent to. That is how we know it is you. You do not need an account." },
+  adressEtikett: { sv: "Din e-postadress", en: "Your email address" },
   fortsatt: { sv: "Fortsätt", en: "Continue" },
   felAdress: { sv: "Det där ser inte ut som en e-postadress.", en: "That does not look like an email address." },
+  // ⛔ ETT NEJ VID ADRESSEN SÄGER VAD SOM ÄR FEL, OCH BARA DET SERVERN VET (0.190.0, QA fynd 2): fel adress och fel nyckel är samma nej byte för byte, så texten är densamma
+  // för båda och ingen kan pröva sig fram. Formfelet (`felAdress`) står bara när adressen verkligen inte är en adress (`normaliseraGastepost` ger null).
+  felInbjudan: { sv: "Den adressen hör inte till den här inbjudan. Skriv samma adress som mejlet kom till.", en: "That address does not belong to this invitation. Enter the same address the email was sent to." },
   orsak_nej: { sv: GASTFEL.nej, en: "The link or the address was not right" },
   orsak_aterkallad: { sv: GASTFEL.aterkallad, en: "The invitation has been withdrawn" },
   orsak_utgangen: { sv: GASTFEL.utgangen, en: "The link has expired" },
@@ -72,8 +77,32 @@ export const ORD_OPSGASTSIDA = {
   raderaFraga: { sv: "Radera allt vi har sparat om dig, i alla grupper? Det går inte att ångra.", en: "Delete everything we have kept about you, in every group? It cannot be undone." },
   raderaBekrafta: { sv: "Ja, radera allt", en: "Yes, delete everything" },
   raderaAvbryt: { sv: "Avbryt", en: "Cancel" },
+  // ⛔ (0.190.0, QA fynd 7 i cllp/lifehub.app#658) En delad enhet: länken glömmer sessionerna här och frågar efter adressen igen.
+  skrivInIgen: { sv: "Skriv in adressen igen", en: "Enter the address again" },
   raderad: { sv: "Dina uppgifter är raderade. Du har inte längre någon åtkomst, och inget av det vi sparade om dig finns kvar.", en: "Your data has been deleted. You no longer have access, and nothing we kept about you remains." },
 };
+
+/**
+ * Appens ordmärke i samma ruta som skalets märke (0.190.0): 40 px hög som `OpsBrand`s ruta i toppraden, högst `--logo-bredd` bred.
+ *
+ * ⛔ BILDEN ÄR ETT BRETT, TÄTT BESKURET ORDMÄRKE, INTE FYRKANTIG KONST MED LUFT (granskningen av PR 524). Den första formen tog appens fyrkantiga bilder, ritade dem 64 px
+ * höga och beskar uppe och nere som inloggningen. Märket blev ändå cirka 50 x 22 px i appens montage, eftersom en fyrkant med luft runt inte kan bli bredare än sin höjd i
+ * en ruta som är 40 px hög. CP:s klagomål var just att loggan var "typ obefintligt liten". Nu fyller bilden rutans höjd, bredden följer bildens form (ett märke i 4:1 blir
+ * cirka 160 x 40 px), och ingenting beskärs: `object-contain` och `object-left` håller hela märket synligt och mot vänsterkanten. En bild per tema, som i inloggningen.
+ * @param {{ marke: { ljus: string, mork: string, namn: string } }} props
+ */
+function GastMarke({ marke }) {
+  if (!marke || typeof marke.ljus !== "string" || typeof marke.mork !== "string" || typeof marke.namn !== "string" || !marke.namn.trim()) {
+    throw new Error("OpsGastSida: marke är { ljus, mork, namn }: en bild per tema och appens namn som alternativtext.");
+  }
+  return (
+    <span data-gast-marke="" className="flex h-10 max-w-(--logo-bredd) shrink-0 items-center">
+      {[["ljus", marke.ljus, "mix-blend-multiply"], ["mork", marke.mork, ""]].map(([tema, src, extra]) => (
+        <img key={tema} src={src} alt={tema === "ljus" ? marke.namn : ""} aria-hidden={tema === "ljus" ? undefined : true} className={cx(tema === "ljus" ? "ops-ordmarke-ljus" : "ops-ordmarke-mork", "h-full w-auto max-w-full object-contain object-left", extra)} />
+      ))}
+    </span>
+  );
+}
 
 /** Orsakerna där en länk som gått ut ändå går att ersätta: adressen stämde, så sidan erbjuder en ny länk. */
 const ERSATTBARA = /** @type {readonly string[]} */ (["utgangen"]);
@@ -125,14 +154,17 @@ const ERSATTBARA = /** @type {readonly string[]} */ (["utgangen"]);
  * @param {(arg: { sak: Record<string, any>, funktion: string, sessionsnyckel: string, uppdatera: () => Promise<void> }) => import("react").ReactNode} [props.renderSak] Sakens kort. `uppdatera` hämtar saken på nytt (efter en röst).
  * @param {(arg: { grupp: { namn: string, funktioner: readonly string[] }, namn: string, sessionsnyckel: string, uppdatera: () => Promise<void> }) => import("react").ReactNode} [props.renderGrupp] (0.132.0) Hela gruppen. `uppdatera` hämtar om sidan:
  *   anropa den när en åtgärd nekas (`aterkallad`), så byts allt mot texten direkt i stället för vid nästa minut. Utan den visas en text om att inbjudan inte går att visa.
- * @param {import("react").ReactNode} [props.huvud] Appens logga eller namn, till vänster i huvudet.
+ * @param {import("react").ReactNode} [props.huvud] Appens logga eller namn, till vänster i huvudet. Med `marke` står det efter märket (en länk tillbaka till hubben).
+ * @param {{ ljus: string, mork: string, namn: string }} [props.marke] (0.190.0, CP 2026-11-05 i cllp/lifehub.app#658, del A) Appens ordmärke, en URL per tema: en BRED bild som är
+ *   tätt beskuren runt märket, som appens headerbild (1079 x 260, ungefär 4:1), inte fyrkantig konst med luft runt. Den ritas i samma ruta som skalets märke (40 px hög, högst
+ *   `--logo-bredd` bred), fyller höjden och beskärs inte, så ett märke i 4:1 blir cirka 160 x 40 px. `namn` är bildens alternativtext.
  * @param {string} [props.sprak] `sv` eller `en` om appen styr det. Utelämnat: sidan väljer själv och minns valet.
  * @param {(sprak: string) => void} [props.onSprak]
  * @param {number} [props.intervallMs] Hur ofta saken hämtas på nytt medan sidan är öppen. Förval 60 000. `0` stänger av tidtagningen (fokus hämtar ändå).
  * @param {{ getItem: (k: string) => string | null, setItem: (k: string, v: string) => void, removeItem: (k: string) => void, key?: (i: number) => string | null, length?: number } | null} [props.lagring] Minnet för sessionen. Förval `localStorage`; `null` ger bara minne för den här sidvisningen.
  * @param {Partial<Record<keyof typeof ORD_OPSGASTSIDA, string>>} [props.ord] Egna texter, som vinner över ordboken.
  */
-export function OpsGastSida({ lank = null, onLos, onHamta, onNyLank, onNamn, onRaderaMig, onSvara, renderSak, renderGrupp, huvud, sprak, onSprak, intervallMs = 60_000, lagring, ord }) {
+export function OpsGastSida({ lank = null, onLos, onHamta, onNyLank, onNamn, onRaderaMig, onSvara, renderSak, renderGrupp, huvud, marke, sprak, onSprak, intervallMs = 60_000, lagring, ord }) {
   for (const [namn, f] of /** @type {const} */ ([["onLos", onLos], ["onHamta", onHamta], ["onNyLank", onNyLank]])) {
     if (typeof f !== "function") throw new Error(`OpsGastSida: ${namn} krävs, en funktion som anropar appens /api/gast.`);
   }
@@ -363,7 +395,7 @@ export function OpsGastSida({ lank = null, onLos, onHamta, onNyLank, onNamn, onR
       return;
     }
     const o = r && typeof r.orsak === "string" ? r.orsak : "nej";
-    setFel(t[`orsak_${o}`] ?? t.orsak_nej);
+    setFel(o === "nej" ? t.felInbjudan : (t[`orsak_${o}`] ?? t.felInbjudan));
     if (ERSATTBARA.includes(o)) setOrsak(`orsak_${o}`);
   }
 
@@ -444,6 +476,26 @@ export function OpsGastSida({ lank = null, onLos, onHamta, onNyLank, onNamn, onR
     setLage({ fas: "raderad" });
   }
 
+  /**
+   * Glömmer gästen på enheten och frågar efter adressen igen (0.190.0, QA fynd 7 i cllp/lifehub.app#658): en delad dator eller telefon ska inte öppna någon annans grupp
+   * för nästa person. ALLA sessioner på enheten glöms, inte bara den som visas: nästa person ska inte heller hamna i den förras omröstning. Servern rörs inte: sessionen
+   * gäller tills den går ut, men nyckeln finns inte längre på enheten. Med länken i minnet (samma sidvisning) är det adressteget; utan den sidan som skickar en ny länk.
+   */
+  function skrivInIgen() {
+    for (const id of sparadeIds()) glomSession(id);
+    mem.current.glom(ALLA);
+    mem.current.glom(SENASTE);
+    aktivId.current = lank ? lank.id : null;
+    setSessionsnyckel(null);
+    setSvar(null);
+    setEpost("");
+    setFel("");
+    setOrsak("");
+    setNamnSparat(false);
+    setFragarRadera(false);
+    setLage({ fas: lank ? "adress" : "ny-lank" });
+  }
+
   const adressFormulär = (/** @type {{ rubrik: string, ingress: string, etikett: string, knapp: string, onKlar: () => Promise<void> }} */ p) => (
     <form
       data-gast-form={lage.fas}
@@ -473,74 +525,7 @@ export function OpsGastSida({ lank = null, onLos, onHamta, onNyLank, onNamn, onR
     </form>
   );
 
-  const grupplage = lage.fas === "klar" && svar?.funktion === "grupp";
-  // Hela gruppen behöver bredd: kalenderns rutnät och biblioteket blir trånga i 48 rem. En omröstning är kvar i den smala spalten.
-  const spalt = grupplage ? "max-w-5xl" : "max-w-3xl";
-
-  return (
-    <div lang={aktivt} data-gastsida="" data-sprak={aktivt} data-gast-lage={lage.fas} className={cx("flex min-h-dvh w-full flex-col", PUBLIK_TONER.ljus.band, PUBLIK_TONER.ljus.rubrik)}>
-      <header className="sticky top-0 z-10 border-b border-publik-ljus-text/10 bg-publik-ljus">
-        <div className={cx("mx-auto flex h-14 w-full items-center justify-between gap-3 px-4", spalt)}>
-          <div data-gast-huvud="" className="flex min-w-0 items-center">{huvud}</div>
-          <PublikSprakval aktivt={aktivt} etikett={t.sprakEtikett} onVal={valj} />
-        </div>
-      </header>
-      <main className={cx("mx-auto w-full flex-1 px-4 pt-8 pb-16 sm:pt-12", spalt)}>
-        {lage.fas === "startar" ? (
-          <OpsEmpty busy title={t.laddar} busyLabel={t.laddar} />
-        ) : lage.fas === "adress" ? (
-          adressFormulär({ rubrik: t.rubrikRosta, ingress: t.ingress, etikett: t.adressEtikett, knapp: t.fortsatt, onKlar: skickaAdress })
-        ) : lage.fas === "ny-lank" ? (
-          adressFormulär({ rubrik: t.nyLankRubrik, ingress: t.nyLankIngress, etikett: t.adressEtikett, knapp: t.nyLankKnapp, onKlar: begarNyLank })
-        ) : lage.fas === "nylank-skickad" ? (
-          <div data-gast-nylank-skickad="">
-            <OpsEmpty title={t.nyLankSvar} />
-          </div>
-        ) : lage.fas === "raderad" ? (
-          <div data-gast-raderad="">
-            <OpsEmpty title={t.raderad} />
-          </div>
-        ) : lage.fas === "fel" ? (
-          <div data-gast-fel={orsak.replace(/^orsak_/, "")}>
-            <OpsEmpty title={t[orsak] ?? t.orsak_nej} />
-          </div>
-        ) : (
-          <div data-gast-klar="" className="flex min-w-0 flex-col gap-6">
-            {svar && svar.funktion === "grupp" ? (
-              renderGrupp ? (
-                renderGrupp({ grupp: svar.grupp, namn: typeof svar.namn === "string" ? svar.namn : "", sessionsnyckel: /** @type {string} */ (sessionsnyckel), uppdatera: async () => void (await hamta(/** @type {string} */ (sessionsnyckel), { tyst: true })) })
-              ) : (
-                <div data-gast-grupp-ejstodd=""><OpsEmpty title={t.gruppEjStodd} /></div>
-              )
-            ) : svar && svar.funktion === "delta" ? (
-              onSvara && svar.delta?.handelse ? (
-                <GastDelta delta={svar.delta} onSvara={svaraDelta} t={{ ...t, ...rubrikOrd }} sprak={aktivt} />
-              ) : (
-                <div data-gast-delta-ejstodd=""><OpsEmpty title={t.gruppEjStodd} /></div>
-              )
-            ) : svar && renderSak && svar.sak ? (
-              renderSak({ sak: svar.sak, funktion: String(svar.funktion ?? ""), sessionsnyckel: /** @type {string} */ (sessionsnyckel), uppdatera: async () => void (await hamta(/** @type {string} */ (sessionsnyckel), { tyst: true })) })
-            ) : null}
-            {onNamn && svar && !svar.namn && !namnSparat ? (
-              <form
-                data-gast-namn=""
-                noValidate
-                className="flex max-w-md flex-col gap-3"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                }}
-              >
-                <OpsField label={t.namnEtikett} error={fel || undefined}>
-                  <OpsInput value={namn} onChange={setNamn} maxLength={MAX_GASTNAMN} autoComplete="name" tal={false} />
-                </OpsField>
-                <div>
-                  <OpsButton type="submit" variant="secondary" onClick={sparaNamn}>
-                    {t.namnSpara}
-                  </OpsButton>
-                </div>
-              </form>
-            ) : null}
-            {namnSparat ? <p data-gast-namn-sparat="" role="status" className={PUBLIK_KLASS.brod}>{t.namnSparat}</p> : null}
+  const integritet = (
             <section data-gast-integritet="" className="flex min-w-0 max-w-2xl flex-col gap-3">
               <OpsDisclosure summary={t.integritetRubrik}>
                 <div className="flex flex-col gap-3 pt-2">
@@ -571,7 +556,110 @@ export function OpsGastSida({ lank = null, onLos, onHamta, onNyLank, onNamn, onR
                 </div>
               </OpsDisclosure>
             </section>
-            <p data-gast-not="" className="m-0 text-meta text-publik-ljus-dampad">{t.gastNot}</p>
+  );
+  // Det som ligger i gruppens (i)-panel: integriteten och vägen tillbaka till adressteget.
+  const gruppInfo = (
+    <div data-gast-grupp-info-sida="" className="flex min-w-0 flex-col gap-2">
+      {integritet}
+      <div>
+        <button type="button" data-gast-skriv-in-igen="" onClick={skrivInIgen} className="inline-flex min-h-11 cursor-pointer items-center text-etikett text-accent underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
+          {t.skrivInIgen}
+        </button>
+      </div>
+    </div>
+  );
+
+  const grupplage = lage.fas === "klar" && svar?.funktion === "grupp";
+  // ⛔ I GRUPPEN STÅR NAMNRUTAN ÖVERST (0.190.0, granskning av PR 524): under gruppen hamnade den efter ytan som fyller höjden ut till bottenraden, och på telefon
+  // rullade då hela sidan ovanpå chattens egen rullning (check-skalyta 56 (e), "sidan rullar true"). Ovanför mäts den in i ytans topp, och ytan blir kortare i stället.
+  const namnruta = (
+    <>
+      {onNamn && svar && !svar.namn && !namnSparat ? (
+        <form
+          data-gast-namn=""
+          noValidate
+          className="flex max-w-md flex-col gap-3"
+          onSubmit={(e) => {
+            e.preventDefault();
+          }}
+        >
+          <OpsField label={t.namnEtikett} error={fel || undefined}>
+            <OpsInput value={namn} onChange={setNamn} maxLength={MAX_GASTNAMN} autoComplete="name" tal={false} />
+          </OpsField>
+          <div>
+            <OpsButton type="submit" variant="secondary" onClick={sparaNamn}>
+              {t.namnSpara}
+            </OpsButton>
+          </div>
+        </form>
+      ) : null}
+      {namnSparat ? <p data-gast-namn-sparat="" role="status" className={PUBLIK_KLASS.brod}>{t.namnSparat}</p> : null}
+    </>
+  );
+  // Hela gruppen behöver bredd: kalenderns rutnät och biblioteket blir trånga i 48 rem. En omröstning är kvar i den smala spalten.
+  const spalt = grupplage ? "max-w-5xl" : "max-w-3xl";
+
+  return (
+    <div lang={aktivt} data-gastsida="" data-sprak={aktivt} data-gast-lage={lage.fas} className={cx("flex min-h-dvh w-full flex-col", PUBLIK_TONER.ljus.band, PUBLIK_TONER.ljus.rubrik)}>
+      <header className="sticky top-0 z-10 border-b border-publik-ljus-text/10 bg-publik-ljus">
+        <div className={cx("mx-auto flex h-14 w-full items-center justify-between gap-3 px-4", spalt)}>
+          <div data-gast-huvud="" className="flex min-w-0 items-center gap-3">
+            {marke ? <GastMarke marke={marke} /> : null}
+            {huvud}
+          </div>
+          <PublikSprakval aktivt={aktivt} etikett={t.sprakEtikett} onVal={valj} />
+        </div>
+      </header>
+      {/* ⛔ I GRUPPEN PÅ TELEFON SLUTAR SIDAN VID BOTTENRADEN (0.190.0, del B): ytan fyller höjden ut till raden (`OpsGastGrupp`), och `main` lämnar exakt radens och den säkra ytans
+          höjd under sig, som skalets `main`. Med `pb-16` hade sidan blivit högre än fönstret och rullat ovanpå ytans egen rullning. */}
+      <main className={cx("mx-auto w-full flex-1 px-4", grupplage ? "pt-4 pb-[calc(var(--bottom-nav-h)+var(--safe-bottom)+var(--spelrad-h,0px))] md:pt-12 md:pb-[calc(4rem+var(--spelrad-h,0px))]" : "pt-8 pb-16 sm:pt-12", spalt)}>
+        {lage.fas === "startar" ? (
+          <OpsEmpty busy title={t.laddar} busyLabel={t.laddar} />
+        ) : lage.fas === "adress" ? (
+          adressFormulär({ rubrik: t.rubrikRosta, ingress: t.ingress, etikett: t.adressEtikett, knapp: t.fortsatt, onKlar: skickaAdress })
+        ) : lage.fas === "ny-lank" ? (
+          adressFormulär({ rubrik: t.nyLankRubrik, ingress: t.nyLankIngress, etikett: t.adressEtikett, knapp: t.nyLankKnapp, onKlar: begarNyLank })
+        ) : lage.fas === "nylank-skickad" ? (
+          <div data-gast-nylank-skickad="">
+            <OpsEmpty title={t.nyLankSvar} />
+          </div>
+        ) : lage.fas === "raderad" ? (
+          <div data-gast-raderad="">
+            <OpsEmpty title={t.raderad} />
+          </div>
+        ) : lage.fas === "fel" ? (
+          <div data-gast-fel={orsak.replace(/^orsak_/, "")}>
+            <OpsEmpty title={t[orsak] ?? t.orsak_nej} />
+          </div>
+        ) : (
+          <div data-gast-klar="" className="flex min-w-0 flex-col gap-6">
+            {grupplage ? namnruta : null}
+            {svar && svar.funktion === "grupp" ? (
+              renderGrupp ? (
+                <GastsidaInfo.Provider value={gruppInfo}>
+                  {renderGrupp({ grupp: svar.grupp, namn: typeof svar.namn === "string" ? svar.namn : "", sessionsnyckel: /** @type {string} */ (sessionsnyckel), uppdatera: async () => void (await hamta(/** @type {string} */ (sessionsnyckel), { tyst: true })) })}
+                </GastsidaInfo.Provider>
+              ) : (
+                <div data-gast-grupp-ejstodd=""><OpsEmpty title={t.gruppEjStodd} /></div>
+              )
+            ) : svar && svar.funktion === "delta" ? (
+              onSvara && svar.delta?.handelse ? (
+                <GastDelta delta={svar.delta} onSvara={svaraDelta} t={{ ...t, ...rubrikOrd }} sprak={aktivt} />
+              ) : (
+                <div data-gast-delta-ejstodd=""><OpsEmpty title={t.gruppEjStodd} /></div>
+              )
+            ) : svar && renderSak && svar.sak ? (
+              renderSak({ sak: svar.sak, funktion: String(svar.funktion ?? ""), sessionsnyckel: /** @type {string} */ (sessionsnyckel), uppdatera: async () => void (await hamta(/** @type {string} */ (sessionsnyckel), { tyst: true })) })
+            ) : null}
+            {grupplage ? null : namnruta}
+            {/* ⛔ I GRUPPEN BOR INTEGRITETEN BAKOM (i) (0.190.0, del A), tillsammans med "Skriv in adressen igen", och sidfotens "Du är gäst" är borta: gruppens huvud säger det.
+                En omröstning och en händelse har inget sådant huvud, och där står de kvar längst ned. */}
+            {svar?.funktion === "grupp" ? null : (
+              <>
+                {integritet}
+                <p data-gast-not="" className="m-0 text-meta text-publik-ljus-dampad">{t.gastNot}</p>
+              </>
+            )}
           </div>
         )}
       </main>

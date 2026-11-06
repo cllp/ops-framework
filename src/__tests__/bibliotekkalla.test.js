@@ -472,6 +472,50 @@ describe("createBibliotekskalla", () => {
     }
   });
 
+  it("⛔ att nåla eller ta bort nålen flyttar inte andrad, men en annan taggändring gör det (0.190.0, lifehub.app PR 656)", async () => {
+    vi.useFakeTimers();
+    try {
+      const source = createMemorySource();
+      const kalla = createBibliotekskalla({ source, collection: "bibliotek", groupId: "cps-ab", skapare });
+      vi.setSystemTime(1_700_000_000_000);
+      const skapad = await kalla.spara({ typ: "anteckning", rubrik: "Protokoll", text: "Hej.", taggar: ["styrelse"] });
+      expect(skapad.andrad).toBe(1_700_000_000_000);
+
+      // Nåla en timme senare: taggen `nal` läggs till, och ingenting annat ändras.
+      vi.setSystemTime(1_700_003_600_000);
+      const nalad = await kalla.spara({ id: skapad.id, taggar: ["styrelse", "nal"] });
+      expect(nalad.taggar).toEqual(["styrelse", "nal"]);
+      expect(nalad.andrad).toBe(1_700_000_000_000);
+      expect((await kalla.las()).poster.find((p) => p.id === skapad.id)?.andrad).toBe(1_700_000_000_000);
+
+      // Ta bort nålen: samma sak åt andra hållen, också när nålen var den enda taggen.
+      vi.setSystemTime(1_700_007_200_000);
+      const avnalad = await kalla.spara({ id: skapad.id, taggar: ["styrelse"] });
+      expect(avnalad.andrad).toBe(1_700_000_000_000);
+      const ensam = await kalla.spara({ typ: "anteckning", rubrik: "Ensam", text: "x" });
+      const ensamNalad = await kalla.spara({ id: ensam.id, taggar: ["nal"] });
+      expect(ensamNalad.andrad).toBe(ensam.andrad);
+      vi.setSystemTime(1_700_010_800_000);
+      const ensamUtan = await kalla.spara({ id: ensam.id, taggar: [] });
+      expect(ensamUtan.taggar ?? []).toEqual([]);
+      expect(ensamUtan.andrad).toBe(ensam.andrad);
+
+      // En annan tagg är en ändring, ensam eller tillsammans med nålen.
+      vi.setSystemTime(1_700_014_400_000);
+      const annan = await kalla.spara({ id: skapad.id, taggar: ["styrelse", "budget"] });
+      expect(annan.andrad).toBe(1_700_014_400_000);
+      vi.setSystemTime(1_700_018_000_000);
+      const nalOchAnnan = await kalla.spara({ id: skapad.id, taggar: ["nal"] });
+      expect(nalOchAnnan.andrad).toBe(1_700_018_000_000);
+      // Nålen tillsammans med en rubrik är också en ändring.
+      vi.setSystemTime(1_700_021_600_000);
+      const nalOchRubrik = await kalla.spara({ id: skapad.id, rubrik: "Nytt namn", taggar: [] });
+      expect(nalOchRubrik.andrad).toBe(1_700_021_600_000);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("en läsning som föll är kalla fel, inte ett tomt bibliotek", async () => {
     const source = { list: async () => { throw new Error("nere"); }, read: async () => null, create: async () => ({ id: "n" }), update: async () => {} };
     const kalla = createBibliotekskalla({ source, collection: "bibliotek", groupId: "cps-ab", skapare });

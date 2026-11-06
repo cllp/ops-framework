@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { cx } from "../lib/cx.js";
 import { GASTSKRIV_MAX_TECKEN } from "../lib/gast.js";
 import { definierade, forvalda } from "../lib/ord.js";
 import { OpsButton } from "./OpsButton.jsx";
@@ -12,9 +13,9 @@ import { Meddelanderader, Skrivfalt, texterPa } from "./OpsMeddelanden.jsx";
 export const ORD_OPSGASTCHATT = {
   rubrik: { sv: "Chatt", en: "Chat" },
   tom: { sv: "Inga meddelanden än.", en: "No messages yet." },
-  historik: { sv: "Du ser hela gruppens chatt, från början.", en: "You can see the whole group chat, from the beginning." },
-  skrivskyddad: { sv: "Du kan läsa chatten men inte skriva i den. Svar i trådar visas inte än.", en: "You can read the chat but not write in it. Replies in threads are not shown yet." },
-  skrivNot: { sv: "Du skriver som gäst: dina meddelanden märks Gäst. Du kan inte bifoga filer. Svar i trådar visas inte än.", en: "You write as a guest: your messages are marked Guest. You cannot attach files. Replies in threads are not shown yet." },
+  // ⛔ (0.190.0, QA fynd 8 i cllp/lifehub.app#658) Ingen mening under skrivfältet längre: märket Gäst syns på bubblan, en klippknapp som saknas säger att bilagor
+  // inte går, och trådar hör till backloggen och inte till gästens vy. Bara den som inte får skriva får en rad, eftersom det inte syns på något annat sätt.
+  skrivskyddad: { sv: "Du kan läsa chatten men inte skriva i den.", en: "You can read the chat but not write in it." },
   skrivFel: { sv: "Meddelandet kunde inte skickas.", en: "The message could not be sent." },
   aldre: { sv: "Visa äldre meddelanden", en: "Show older messages" },
   bilaga: { sv: "Bilaga: {namn}. Bilagor visas inte för gäster.", en: "Attachment: {namn}. Attachments are not shown to guests." },
@@ -32,7 +33,8 @@ const EGEN = "__gast_egen__";
  *
  * `OpsMeddelanden` är 4 300 rader med en samtalskälla, skrivfält, trådar, reaktioner och fästa meddelanden, och ingenting av det går att slå av för en gäst. Den rena ritaren av raderna
  * (dagsavdelare, bubblor, tid) är en egen funktion i samma fil och tar raderna som props; den delas här (regel 2), så att en gästs chatt ser ut som medlemmens utan en andra bubbla att hålla i takt.
- * Skrivfältet är chattens (`Skrivfalt`, delat) utan bilagor, mikrofon, omnämnanden och agent. Trådar, reaktioner och bilagornas innehåll byggs inte, och sidan SÄGER det i stället för att tiga (`skrivNot`, `bilaga`).
+ * Skrivfältet är chattens (`Skrivfalt`, delat) utan bilagor, omnämnanden och agent. Mikrofonen är webbläsarens taligenkänning (0.190.0, `igenkanning`), aldrig serverns utskrift.
+ * Trådar, reaktioner och bilagornas innehåll byggs inte. En bilaga SÄGS (`bilaga`) i stället för att tiga; meningen under skrivfältet är borta (0.190.0, QA fynd 8).
  *
  * ⛔ AVSÄNDAREN ÄR ETT NAMN OCH ALDRIG ETT UID. Tjänsten (`createGastService.chatt`) skickar `av: { namn }`; vyn använder namnet som nyckel för avatar och sammanhållning av på varandra följande
  * meddelanden. Ingen adress eller uid finns att visa.
@@ -49,8 +51,12 @@ const EGEN = "__gast_egen__";
  * @param {string | null} [props.fel] Hämtningen föll. Ett fel är inte "inga meddelanden".
  * @param {string} [props.sprak]
  * @param {Partial<Record<keyof typeof ORD_OPSGASTCHATT, string>>} [props.ord]
+ * @param {import("../lib/talk.js").Igenkanning | boolean} [props.igenkanning] (0.190.0, CP 2026-11-05: gästen får mikrofon) Webbläsarens taligenkänning i skrivfältet, samma som
+ *   medlemmarnas. Förval `true`: ljudvågen står där webbläsaren har igenkänningen och saknas annars. Ingen serverutskrift för gäster. `false` stänger av den.
+ * @param {boolean} [props.fyll] (0.190.0, del B) Chatten fyller sin förälders höjd: loggen rullar i den och skrivfältet står längst ned. Gästens telefonvy, där ytan
+ *   mellan huvudet och bottenraden har en mätt höjd. Utan den är loggen högst 60 % av fönstret, som förut.
  */
-export function OpsGastChatt({ meddelanden, fler = false, onAldre, onSkriv, laddar = false, fel = null, sprak = "sv", ord }) {
+export function OpsGastChatt({ meddelanden, fler = false, onAldre, onSkriv, laddar = false, fel = null, sprak = "sv", ord, igenkanning = true, fyll = false }) {
   if (!Array.isArray(meddelanden)) {
     throw new Error("OpsGastChatt: meddelanden måste vara en lista, tom när chatten är tom. Utan den går det inte att skilja 'inga meddelanden' från 'inte hämtad'.");
   }
@@ -105,8 +111,7 @@ export function OpsGastChatt({ meddelanden, fler = false, onAldre, onSkriv, ladd
   );
 
   return (
-    <section aria-label={t.rubrik} data-gast-chatt="" className="flex min-w-0 flex-col gap-3">
-      <p data-gast-chatt-historik="" className="m-0 text-meta text-ink-muted">{t.historik}</p>
+    <section aria-label={t.rubrik} data-gast-chatt="" data-fyll={fyll ? "" : undefined} className={cx("flex min-w-0 flex-col gap-3", fyll && "min-h-0 flex-1 pt-2")}>
       {fel ? (
         <p role="alert" data-gast-chatt-fel="" className="m-0 text-etikett text-danger">{t.fel}</p>
       ) : laddar ? (
@@ -123,7 +128,7 @@ export function OpsGastChatt({ meddelanden, fler = false, onAldre, onSkriv, ladd
             const el = e.currentTarget;
             vidBotten.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
           }}
-          className="flex max-h-[60dvh] min-h-48 min-w-0 flex-col overflow-y-auto rounded-lg border border-line bg-surface p-3"
+          className={cx("flex min-w-0 flex-col overflow-y-auto rounded-lg border border-line bg-surface p-3", fyll ? "min-h-0 flex-1" : "max-h-[60dvh] min-h-48")}
         >
           {fler && onAldre ? (
             <div className="flex justify-center pb-2">
@@ -150,11 +155,11 @@ export function OpsGastChatt({ meddelanden, fler = false, onAldre, onSkriv, ladd
       )}
       {onSkriv ? (
         <div data-gast-chatt-skriv="" className="flex min-w-0 flex-col">
-          <Skrivfalt text={skrivText} setText={setSkrivText} skickar={skickar} onSkicka={skicka} texter={texter} sprak={sprak} maxTecken={GASTSKRIV_MAX_TECKEN} />
+          <Skrivfalt text={skrivText} setText={setSkrivText} skickar={skickar} onSkicka={skicka} texter={texter} sprak={sprak} maxTecken={GASTSKRIV_MAX_TECKEN} igenkanning={igenkanning} />
         </div>
       ) : null}
       {skrivFel ? <p role="alert" data-gast-chatt-skrivfel="" className="m-0 text-etikett text-danger">{skrivFel}</p> : null}
-      <p data-gast-chatt-skrivskyddad="" className="m-0 text-meta text-ink-muted">{onSkriv ? t.skrivNot : t.skrivskyddad}</p>
+      {onSkriv ? null : <p data-gast-chatt-skrivskyddad="" className="m-0 text-meta text-ink-muted">{t.skrivskyddad}</p>}
     </section>
   );
 }

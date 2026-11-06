@@ -54,7 +54,7 @@ describe("länk till post som kort", () => {
     ]);
     render(<OpsMeddelanden kalla={s} uid="anna" groupId="g" gruppNamn="G" medlemmar={MEDLEMMAR} valt={p.id} postkort={{ slaUpp }} />);
     await waitFor(() => expect(document.querySelectorAll("[data-postkort]").length).toBe(3));
-    const forsta = /** @type {HTMLElement} */ (document.querySelectorAll("[data-bubbla]")[0].parentElement);
+    const forsta = /** @type {HTMLElement} */ (document.querySelectorAll("[data-bubbla]")[0].closest("[data-meddelande]"));
     expect(forsta.querySelectorAll("[data-postkort]").length).toBe(2);
     expect(slaUpp.mock.calls.filter(([u]) => u === "https://app.exempel.se/arenden/1")).toHaveLength(1);
     expect(slaUpp.mock.calls.some(([u]) => u === "https://app.exempel.se/arenden/3")).toBe(false);
