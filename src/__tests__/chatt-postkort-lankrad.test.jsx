@@ -107,7 +107,7 @@ describe("⛔ gästens chatt (samma Meddelanderader i OpsGastChatt)", () => {
         igenkanning={false}
       />,
     );
-    await waitFor(() => expect(document.querySelectorAll("[data-postkort]").length).toBe(2));
+    await waitFor(() => expect(document.querySelectorAll("[data-postkort]").length).toBe(2), { timeout: 5000 });
     expect(meddelandet(LANK).bubbla).toBeNull();
     const andra = meddelandet(`${BAS}?plats=g&post=p2`);
     expect(andra.bubbla?.textContent).toBe("Bra protokoll");

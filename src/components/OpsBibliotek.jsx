@@ -1082,7 +1082,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
                 Platsen som piller står i vyns huvud, bredvid kugghjulet. */}
             {inbaddad ? null : <div className="flex min-w-0 items-center gap-2">
               <div className="min-w-0 flex-1">
-                <OpsInput value={sok} onChange={setSok} type="search" ariaLabel={lord("sokEtikett")} placeholder={lord("sokPlats")} />
+                <OpsInput value={sok} onChange={setSok} type="search" ariaLabel={lord("sokEtikett")} placeholder={lord("sokPlats")} yta="fylld" />
               </div>
               {jag ? (
                 <NyKnapp
@@ -1619,7 +1619,7 @@ export function PlatsValjare({ platser, plats, onPlats, ny = null }) {
               <>
                 {visaSok ? (
                   <div className="p-1">
-                    <OpsInput value={sok} onChange={setSok} type="search" ariaLabel={t("sokPlats")} placeholder={`${t("sokPlats")}...`} />
+                    <OpsInput value={sok} onChange={setSok} type="search" ariaLabel={t("sokPlats")} placeholder={`${t("sokPlats")}...`} yta="fylld" />
                   </div>
                 ) : null}
                 <div role="menu" aria-label="Vilket bibliotek" onKeyDown={menyPilar}>

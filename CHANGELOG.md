@@ -9,6 +9,44 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.196.0
+
+PDF-vyns verktygsrad, länken i chatten när den blivit ett kort, och inga kantlinjer som bara ramar in i gästens vy. CP 2026-11-06, med en skärmbild från telefonen (gästens bibliotek, en PDF i detaljen): "Det här ser jättekonstigt ut, kolla hur ful titeln ligger skarv.pdf. Det här håller inte. Presentera är ett konstigt ord i sammanhanget." och samma dag, med en skärmbild av gästens Chatt: "Ta bort borders runt chatten och överallt."
+
+### Ändrat
+
+- **PDF-vyn har en enda kompakt rad ovanför sidan** (`Dokumentrad`, ny och delad med HTML-rutan): zoomen (− procent +), sidan som "1/3" när det finns fler än en (skärmläsaren hör "Sida 1 av 3"), och till höger ikonknappar med namn för skärmläsaren och som `title`. Raden har ingen egen bakgrund och ingen ram, och den bryts inte: i 390 px står zoomen, sidan och tre ikonknappar på en rad (mätt i montaget, 44 px hög). Förut stod filnamnet stort i en egen ruta med "Sida 1 av 1" under, en rad med zoomen och en stor knapp Presentera, Ladda ned ensam på en egen rad, och sidan i en ram med rundade hörn.
+- **Inget filnamn i PDF-vyn i Bibliotekets detalj**, eftersom detaljen redan har postens rubrik. I det egna fönstret (`OpsPdfVy`) står filnamnet som rubrik i appens rubrikstil, bredvid raden på datorn och över den på telefonen.
+- **"Presentera" heter "Helskärm"** ("Full screen"), som en ikonknapp (`Maximize2`). Stängningen i helskärmsläget heter "Stäng helskärm" ("Close full screen"). Ladda ned (`Download`) och Öppna i eget fönster är ikonknappar i samma rad, och Ladda ned följer spärren som förut. I helfönstret är Stäng en ikonknapp (`X`) med appens ord som namn.
+- **Sidan ritas utan ram och utan skugga**, direkt på appens bakgrund, i detaljen och i helfönstret (`bg-canvas`, där den vita sidan syns i båda temana).
+- **HTML-rutans rad är samma rad**, ovanför rutan i stället för under den, med Öppna i eget fönster som samma ikonknapp. Spara som PDF står kvar som text, och raden om webbläsarens utskrift står under rutan och som `title` på knappen. Rutans kant står kvar: den visar var filens kod slutar och appen börjar.
+- **En länk som blivit ett postkort står inte också i bubblan** (cllp/ops-framework#527), i appens chatt och i gästens (`Meddelanderader`). Består meddelandet bara av länken blir det ingen bubbla, bara kortet. Står det text runt länken står texten kvar utan länken. En länk vars uppslag gav `null` (ingen åtkomst, raderad post) eller föll står kvar, så att ingenting försvinner tyst (regel 5). Den lagrade texten är orörd. Ny `utanLankar(text, adresser)` i `lib/markdown.js`, med samma tolkning som bubblan: en adress i en kodsnutt rörs inte, och en rad som bara bar länken försvinner.
+- **Inga kantlinjer som bara ramar in**, i gästens vy och där gästen delar komponent med appen (samma ändring på båda ställena):
+  - postkortet i chatten (`bg-hover`, samma yta som bubblorna, i stället för `border border-line bg-surface`);
+  - skrivfältets piller, i gästens chatt och i appens: en fylld yta som i Signal (`bg-hover`), och fokus syns med fokusringen (`focus-within:outline`) i stället för en kant som byter färg. Stoppknappens cirkel är `bg-surface` så att den syns mot pillret;
+  - `OpsDisclosure` (Integritet och dina uppgifter, och appens utfällbara avsnitt): `bg-hover` i stället för `border border-line bg-raised`, och inget streck över innehållet. I ljust läge är `raised` nästan sidans färg, så det var kanten ensam som ritade rutan;
+  - strecket över Logga ut på den här enheten inne i Integritet;
+  - namnfältet i gästens översikt och sökfältet i Biblioteket (`OpsInput yta="fylld"`), och Taggar bredvid sökfältet i vila.
+- **Kanter som bär betydelse står kvar:** fokusringen, ett fält som visar ett fel (`border-danger`, också i det fyllda fältet) och den valda fliken.
+
+### Tillagt
+
+- **`Dokumentrad` och `DokumentKnapp`** (`src/components/Dokumentrad.jsx`, intern): raden ovanför ett dokument. PDF-vyn och HTML-rutan ritar den.
+- **`yta: "fylld"` i `faltKlass` och `yta="fylld"` på `OpsInput`:** ett fält utan synlig kant i en fylld yta. Kanten finns kvar i bredd men är genomskinlig, så att fältet inte byter mått, och blir röd vid ett fel. Förvalet `kant` är oförändrat: appens formulär behåller SessionStudios kant.
+- **`helskarm` (`Maximize2`) och `laddaNed` (`Download`) i ikonlexikonet.** `HelskarmIkon` (appens helskärmsknapp) hämtar sin bild därifrån, så att helskärm har en bild. Uppdraget sade `Maximize`, men helskärmsknappen hade redan `Maximize2`, och två bilder för samma sak är det kartan finns för att stoppa.
+
+### Kvar, medvetet
+
+- **Knappar behåller sin kant** (`OpsButton` `secondary`, till exempel Spara bredvid namnfältet och Visa äldre meddelanden, och spelknappen i Biblioteket), och mikrofonknappen i skrivfältet behåller sin ring (CP:s tidigare beslut, se `talk.test.jsx`). Det är varianter i hela appen, och en knapps kant säger att den går att trycka på.
+- **Strecken mellan raderna i Kalenderns lista** (`OpsList`) och huvudets och bottenradens kant står kvar: de skiljer rader och delar av skärmen åt, och `OpsList` är appens lista överallt.
+
+### Prov
+
+- `pdfvisning.test.jsx`, nytt avsnitt "verktygsraden i detaljen": inget filnamn i detaljen, etiketten Helskärm med samma `title` och ingen Presentera, en enda rad (ett element bär zoomen, sidan och alla knappar och länkar i vyn, `flex-nowrap`), och ingen ram, bakgrund eller skugga runt raden, sidorna eller sidan. I helfönstret står filnamnet som rubrik utanför raden, och en PDF med en sida visar ingen sidräkning. Med 0.195.0:s vy: 15 röda av 26. Prov som låste det gamla och är uppdaterade: "filnamnet, Sida 1 av 3, ... Presentera och Ladda ned" (nu helfönstret med rubriken utanför raden), och varje prov som tryckte på "Presentera" eller "Avsluta presentationen" (nu "Helskärm" och "Stäng helskärm").
+- `chatt-postkort-lankrad.test.jsx` (ny): bara länken ger ingen bubbla, text runt länken står kvar utan länken, i appens chatt och i gästens; ett uppslag som gav `null` eller föll lämnar länken; `utanLankar` med kodsnutt, markdownlänk och indragning. Med 0.195.0:s `Meddelanderader`: 3 röda (beteendet), 4 gröna (vakterna åt andra hållet, som ska vara gröna i båda).
+- `gast-utan-kanter.test.jsx` (ny): postkortet och skrivfältets piller i gästens chatt har ingen synlig kant och har fokusringen, `OpsDisclosure` har ingen kant och inget streck, och det fyllda fältet har ingen synlig kant men `border-danger` vid fel, medan förvalet behåller `border-line`. Med 0.195.0: 4 röda av 4.
+- `check:skalyta`: Öppna i eget fönster i HTML-rutans rad läses ur `aria-label`, eftersom knappen är en ikonknapp.
+
 ## 0.195.0
 
 Gästvyn: gruppens namn en gång, och en utloggning som säger vad den gör. CP 2026-11-06, med två skärmbilder från telefonen: "Gruppnamnet Skarv i Web skall inte vara bredvid Lifehub. Den kan vara nedanför utan att pressa ner raden. Vidare i Mobil står den två gånger. Ta bort den bredvid loggan." och "Vad gör denna med be om en ny länk? Varför då? ... Skriv in adressen igen? Hänger inte med".

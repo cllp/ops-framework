@@ -157,6 +157,7 @@ const TILLATNA_TYPER = ["text", "email", "search", "tel", "url", "password", "nu
  *   och Klar skriver in det sagda där markören stod. ⛔ PÅ SOM FÖRVAL för `text` när fältet har `onChange` och webbläsaren har
  *   taligenkänning (se `talForval`). `tal={false}` stänger av. ⛔ ALDRIG för `password`, `email`, `number`, `search`, `tel` och `url`
  *   (`UTAN_TAL`): ett `tal` på dem kastar.
+ * @param {"kant" | "fylld"} [props.yta] (0.196.0) `fylld`: ingen synlig kant, en fylld yta (se `faltKlass`). Gästens sida. Förval `kant`.
  */
 export function OpsInput({
   value,
@@ -170,6 +171,7 @@ export function OpsInput({
   maxLength,
   ariaLabel,
   tal,
+  yta = "kant",
 }) {
   if (!TILLATNA_TYPER.includes(type)) {
     throw new Error(
@@ -186,13 +188,13 @@ export function OpsInput({
   } else {
     const t = talForval(tal, onChange, readOnly, "OpsInput", utskrift);
     if (t) {
-      return <TalFalt slag="input" f={f} value={value ?? ""} onChange={/** @type {(v: string) => void} */ (onChange)} placeholder={placeholder} name={name} disabled={disabled} readOnly={readOnly} maxLength={maxLength} ariaLabel={ariaLabel} typ={type} autoComplete={autoComplete} tal={t} />;
+      return <TalFalt slag="input" f={f} value={value ?? ""} onChange={/** @type {(v: string) => void} */ (onChange)} placeholder={placeholder} name={name} disabled={disabled} readOnly={readOnly} maxLength={maxLength} ariaLabel={ariaLabel} typ={type} autoComplete={autoComplete} tal={t} yta={yta} />;
     }
   }
   return (
     <input
       id={f.id}
-      className={faltKlass({ invalid: f.invalid })}
+      className={faltKlass({ invalid: f.invalid, yta })}
       type={type}
       value={value}
       onChange={onChange ? (e) => onChange(e.target.value) : undefined}
@@ -452,9 +454,9 @@ function sendGenvag(onSend) {
  * ⛔ ETT FÄLT PÅ EN RAD (0.106.0, #386 skiva 8): ljudvågen står vid fältets slut, mitt i höjden, och fältet har plats för den (`pe-12`).
  * Det sagda skrivs in på en rad: radbrytningar i det taltjänsten gav blir mellanslag, eftersom ett `input` inte bär dem.
  *
- * @param {{ slag: "textarea" | "input", f: { id?: string, etikettId?: string, describedBy?: string, invalid: boolean, required: boolean }, value: string, onChange: (v: string) => void, placeholder?: string, name?: string, rows?: number, disabled: boolean, readOnly?: boolean, maxLength?: number, ariaLabel?: string, onSend?: () => void, typ?: string, autoComplete?: string, tal: Textfaltstal, bifogaPlats?: (plats: HTMLElement | null) => void }} props
+ * @param {{ slag: "textarea" | "input", f: { id?: string, etikettId?: string, describedBy?: string, invalid: boolean, required: boolean }, value: string, onChange: (v: string) => void, placeholder?: string, name?: string, rows?: number, disabled: boolean, readOnly?: boolean, maxLength?: number, ariaLabel?: string, onSend?: () => void, typ?: string, autoComplete?: string, tal: Textfaltstal, bifogaPlats?: (plats: HTMLElement | null) => void, yta?: "kant" | "fylld" }} props
  */
-function TalFalt({ slag, f, value, onChange, placeholder, name, rows, disabled, readOnly = false, maxLength, ariaLabel, onSend, typ, autoComplete, tal, bifogaPlats }) {
+function TalFalt({ slag, f, value, onChange, placeholder, name, rows, disabled, readOnly = false, maxLength, ariaLabel, onSend, typ, autoComplete, tal, bifogaPlats, yta = "kant" }) {
   const sprak = useOpsSprak();
   const o = /** @type {Record<keyof typeof ORD_OPSTEXTAREA_TAL, string>} */ (forvalda(ORD_OPSTEXTAREA_TAL, sprak));
   const ruta = useRef(/** @type {HTMLTextAreaElement & HTMLInputElement | null} */ (null));
@@ -553,7 +555,7 @@ function TalFalt({ slag, f, value, onChange, placeholder, name, rows, disabled, 
               "aria-describedby": cx(f.describedBy, kapattext && besked) || undefined,
             };
             return slag === "input" ? (
-              <input {...egenskaper} type={typ ?? "text"} autoComplete={autoComplete} className={cx(faltKlass({ invalid: f.invalid }), "block", kanGeText && "pe-12")} />
+              <input {...egenskaper} type={typ ?? "text"} autoComplete={autoComplete} className={cx(faltKlass({ invalid: f.invalid, yta }), "block", kanGeText && "pe-12")} />
             ) : (
               <textarea {...egenskaper} onKeyDown={sendGenvag(onSend)} rows={rows} className={cx(faltKlass({ invalid: f.invalid }), "block resize-y", kanGeText && bifogaPlats ? "pe-28" : (kanGeText || bifogaPlats) && "pe-14")} />
             );

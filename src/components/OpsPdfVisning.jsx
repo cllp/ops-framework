@@ -283,9 +283,10 @@ export function OpsPdfVisning({ hamta, sokvag, namn, fonster, laddaNed = true, h
   );
 
   return (
-    <section ref={yta} data-pdf-vy={helfonster ? "helfonster" : ""} aria-label={etikett} className={cx("flex min-w-0 flex-col text-ink", helfonster ? "h-dvh min-h-0 w-full bg-surface" : "gap-2")}>
+    <section ref={yta} data-pdf-vy={helfonster ? "helfonster" : ""} aria-label={etikett} className={cx("flex min-w-0 flex-col text-ink", helfonster ? "h-dvh min-h-0 w-full bg-canvas" : "gap-2")}>
+      {/* Helfönstret står på appens bakgrund (`bg-canvas`), samma som detaljen, så att den vita sidan syns mot den. Raden och rubriken har ingen egen yta. */}
       {helfonster ? (
-        <header data-pdf-huvud="" className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-1 bg-raised px-4 py-2">
+        <header data-pdf-huvud="" className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2">
           <h1 data-pdf-namn="" className="m-0 min-w-0 flex-1 basis-48 truncate text-rubrik text-ink">{namn}</h1>
           {rad}
         </header>
