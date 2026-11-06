@@ -365,12 +365,13 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
   /**
    * Gästen skriver i chatten. Meddelandet läggs in i listan så som servern sparade det, och scrollen följer med. Ett fel kastas som ett Error med texten som ska stå under skrivfältet.
    * @param {string} text
+   * @param {string} [svarPa] (0.196.0) Meddelandet gästen svarar på med citat.
    */
-  const skrivChatt = async (text) => {
+  const skrivChatt = async (text, svarPa) => {
     /** @type {any} */
     let r;
     try {
-      r = await kor("skrivChatt", { text });
+      r = await kor("skrivChatt", svarPa ? { text, svarPa } : { text });
     } catch (e) {
       throw new Error(felText(e));
     }

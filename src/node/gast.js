@@ -1670,8 +1670,8 @@ export function createGastService(konfig) {
    * @param {unknown} v
    * @param {string} vad
    */
-  function kravTrad(v, vad) {
-    if (typeof v !== "string" || v === "" || v.length > 200 || v.includes("/") || v === "." || v === "..") throw felMedKod("ogiltig-text", `${vad}: trad är rotmeddelandets id.`);
+  function kravTrad(v, vad, falt = "trad") {
+    if (typeof v !== "string" || v === "" || v.length > 200 || v.includes("/") || v === "." || v === "..") throw felMedKod("ogiltig-text", `${vad}: ${falt} är ${falt === "trad" ? "rotmeddelandets" : "det citerade meddelandets"} id.`);
     return v;
   }
 
@@ -1700,8 +1700,9 @@ export function createGastService(konfig) {
    * @param {Record<string, any>} b
    * @param {string} vad
    */
-  function gastText(b, vad) {
+  function gastText(b, vad, { medCitat = false } = {}) {
     for (const f of ["bilaga", "svarPa", "namner", "av", "tid"]) {
+      if (f === "svarPa" && medCitat) continue;
       if (b?.[f] !== undefined) throw felMedKod("ogiltig-text", `${vad}: "${f}" kan en gäst inte skicka. En gäst skriver bara text.`);
     }
     const t = typeof b?.text === "string" ? b.text.trim() : "";
@@ -1723,7 +1724,7 @@ export function createGastService(konfig) {
    * Gästen skriver ett meddelande i gruppens chatt (0.132.0, CP 2026-10-20: "Gästen får skriva"), och (0.191.0, med `grupp.samlingar.tradar`) ett svar i en tråd (`trad`).
    *
    * ⛔ SERVERN SKRIVER, ALDRIG KLIENTEN, OCH ALDRIG SOM EN MEDLEM. Meddelandet får `av` = gästens `g_`-id (inget uid), gästens namn som `avNamn` och inget annat fält: ingen bilaga,
-   * inga omnämnanden, inget citat, också i en tråd. Märket Gäst härleds ur `av` (`arGastId`) i medlemmarnas chatt, så det kan inte saknas på ett meddelande en gäst skrivit och inte läggas på ett en medlem skrev.
+   * inga omnämnanden, och citat (`svarPa`) bara i gruppens chatt, inte i en tråd (0.196.0, se nedan). Märket Gäst härleds ur `av` (`arGastId`) i medlemmarnas chatt, så det kan inte saknas på ett meddelande en gäst skrivit och inte läggas på ett en medlem skrev.
    * En klient kan inte skriva raden: reglernas `av == request.auth.uid` och `hasOnly` nekar ett `g_`-id och ett `avNamn`.
    *
    * ⛔ ETT SVAR I EN TRÅD KRÄVER EN ROT SOM GÄSTEN SER: ett meddelande i gruppens chatt som inte är agentens. Annars `saknas`, samma svar som för en rot som inte finns.
@@ -1734,18 +1735,29 @@ export function createGastService(konfig) {
    * Taket på texten är `GASTSKRIV_MAX_TECKEN` och takten `GASTSKRIV_PER_MINUT` per inbjudan, i `gastraknare` som de andra räknarna (id = hash av `gastskriv|<inbjudan>`). En bilaga kastas
    * tillbaka: #389 stryker uppladdning för gäster.
    *
-   * @param {Record<string, any>} b `{ sessionsnyckel, text, trad? }`.
+   * ⛔ CITAT I GRUPPENS CHATT (0.196.0, CP 2026-11-06 via koordinatorn: "Det enda jag undrar är chatt trådar. Finns ju i appen idag."): `svarPa` är id:t på ett meddelande i gruppens chatt som gästen ser
+   * (inte agentens), samma fält som medlemmarnas citat (`svarPa` i `samtal.js`). Ett id som inte finns, eller som är agentens, ger `saknas` och inget skrivs. I en tråd nekas citatet som förut
+   * (`ogiltig-text`): gästens tråd har inget citat, och den regeln står kvar. Förut nekades citatet överallt ("En gäst skriver bara text").
+   *
+   * @param {Record<string, any>} b `{ sessionsnyckel, text, trad?, svarPa? }`.
    */
   async function skrivChatt(b) {
     const s = await gruppSession(b, "chatt");
     if (!s.ok || !GS) return s.ok ? nej() : s;
-    const t = gastText(b, "skrivChatt");
     const trad = b?.trad === undefined ? null : kravTrad(b.trad, "skrivChatt");
+    const t = gastText(b, "skrivChatt", { medCitat: trad === null });
+    const svarPa = b?.svarPa === undefined ? null : kravTrad(b.svarPa, "skrivChatt", "svarPa");
     if (trad !== null && !GS.tradar) return nej();
     const groupId = s.inbjudan.groupId;
     if (trad !== null) {
       const rot = await kalla.read(meddelandevag(groupId), trad);
       if (!rot || (await chattavsandare(groupId)).agenter.has(rot.av)) return orsak("saknas");
+    }
+    /** @type {Record<string, any> | null} */
+    let citerad = null;
+    if (svarPa !== null) {
+      citerad = await kalla.read(meddelandevag(groupId), svarPa);
+      if (!citerad || (await chattavsandare(groupId)).agenter.has(citerad.av)) return orsak("saknas");
     }
     const takt = await reserveraRaknare(hash(`gastskriv|${s.inbjudan.id}`), { max: GASTSKRIV_PER_MINUT, fonsterMs: MINUT_MS });
     if (!takt) return orsak("for-manga");
@@ -1754,6 +1766,7 @@ export function createGastService(konfig) {
     /** @type {Record<string, any>} */
     const rad = { text: t, av: s.gastId, tid };
     if (namn) rad.avNamn = namn;
+    if (svarPa !== null) rad.svarPa = svarPa;
     let sparad;
     try {
       if (trad !== null) await oppnaTradForGast(groupId, trad, s.gastId, tid);
@@ -1762,8 +1775,16 @@ export function createGastService(konfig) {
       await aterlamna(RAKNARE, takt.id, RAKNEFALT, takt.fonster);
       throw fel;
     }
+    /** @type {Record<string, any>} */
+    const citat = {};
+    if (citerad) {
+      // Citatet i svaret i samma form som `chatt` ger det (`chattrad`), så att det syns hos gästen direkt och inte först vid nästa hämtning.
+      const { namnFor, agenter } = await chattavsandare(groupId);
+      const form = await chattrad({ ...rad, id: sparad.id }, { groupId, gastId: s.gastId, sida: [citerad], namnFor, agenter, lasta: new Map(), medSvar: false });
+      if (form.svarPa) citat.svarPa = form.svarPa;
+    }
     return vitlista(
-      { ok: true, meddelande: vitlista({ id: sparad.id, av: { namn: namn || GASTNAMNLOS }, text: t, tid, gast: true, egen: true }, GASTCHATTFALT) },
+      { ok: true, meddelande: vitlista({ id: sparad.id, av: { namn: namn || GASTNAMNLOS }, text: t, tid, gast: true, egen: true, ...citat }, GASTCHATTFALT) },
       GASTGRUPPSVARSFALT.skrivChatt,
     );
   }

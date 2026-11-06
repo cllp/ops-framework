@@ -2683,18 +2683,7 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik: rubrikProp, marke, lastT
                         data-tradrot={m.id}
                         aria-describedby={beskrivning}
                         onClick={() => onOppnaTrad?.(m.id)}
-                        className={cx(
-                          /* ⛔ KAN 6: träffytan är 44 px, men raden växer inte: de negativa marginalerna lägger ytan i luften
-                             mellan meddelandena. KAN 9: på dator syns "Svara i tråd" först när pekaren eller fokus är på
-                             meddelandet, så att en lång chatt inte blir en rad knappar. Märket syns alltid, det är innehåll.
-                             ⛔ 0.106.0 (#386 skiva 6): på telefon stod "Svara i tråd" här under varje meddelande, med skälet att en
-                             meny vore ett steg till. Med tre ikoner bredvid blev det fyra lösa åtgärder per bubbla, och CP bad om
-                             en Mer-knapp. Där bor den nu, som första post (`merFor`). */
-                          "-my-2 min-h-11 max-w-full cursor-pointer items-center gap-1 rounded-full px-2 text-liten transition-[color,background-color,opacity] duration-(--duration-fast) ease-standard focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
-                          finns
-                            ? "inline-flex text-accent hover:bg-accent-faint"
-                            : "hidden text-ink-muted hover:bg-hover hover:text-ink md:inline-flex md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 md:focus-visible:opacity-100",
-                        )}
+                        className={tradknappKlass(finns)}
                       >
                         <TradIkon size={12} />
                         {finns ? (
@@ -2723,22 +2712,7 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik: rubrikProp, marke, lastT
       <TillSenaste lage={lasposition} arbetar={arbetsord(agentlage)} texter={t} />
       </div>
 
-      {svarPa ? (
-        <div data-svarar-pa={svarPa.id} className="flex shrink-0 items-center gap-2 border-t border-line px-3 pt-2 text-meta text-ink-secondary">
-          <CiteraIkon size={14} />
-          <span className="min-w-0 flex-1 truncate">
-            {t.svararPa} <span className="font-medium text-ink">{avNamnFor(namnFor, svarPa, uid, t.du, sprak)}</span>: {synligText(svarPa, 60)}
-          </span>
-          <button
-            type="button"
-            aria-label={t.avbrytCitat}
-            onClick={() => setSvarPa(null)}
-            className="inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full text-ink-muted hover:bg-hover hover:text-ink focus-visible:outline-2 focus-visible:outline-accent"
-          >
-            <KryssIkon size={14} />
-          </button>
-        </div>
-      ) : null}
+      {svarPa ? <SvararPaRad m={svarPa} namn={avNamnFor(namnFor, svarPa, uid, t.du, sprak)} onAvbryt={() => setSvarPa(null)} texter={t} /> : null}
       <Bilageutkast bilaga={bilage.bilaga} fel={bilage.fel} onTaBort={bilage.tom} texter={t} />
       <Skrivfalt
         text={text}
@@ -4516,6 +4490,49 @@ function Fastarad({ fasta, kalla, sid, laddade, uid, namnFor, texter: t }) {
         </ul>
       ) : null}
       {fasta.fler ? <p role="status" className="m-0 py-1 text-liten text-ink-muted">{t.fastaFler}</p> : null}
+    </div>
+  );
+}
+
+/**
+ * Klasserna för trådens knapp under ett meddelande: märket "3 svar" när tråden finns, och "Svara i tråd" när den inte gör det. EN form för appens chatt och gästens (0.196.0, regel 2).
+ *
+ * ⛔ KAN 6: träffytan är 44 px, men raden växer inte: de negativa marginalerna lägger ytan i luften mellan meddelandena. KAN 9: på dator syns "Svara i tråd" först när pekaren eller fokus är på
+ * meddelandet, så att en lång chatt inte blir en rad knappar. Märket syns alltid, det är innehåll. ⛔ 0.106.0 (#386 skiva 6): på telefon stod "Svara i tråd" här under varje meddelande, med skälet
+ * att en meny vore ett steg till. Med tre ikoner bredvid blev det fyra lösa åtgärder per bubbla, och CP bad om en Mer-knapp. Där bor den nu, som första post (`merFor`).
+ *
+ * @param {boolean} finns
+ */
+export function tradknappKlass(finns) {
+  return cx(
+    "-my-2 min-h-11 max-w-full cursor-pointer items-center gap-1 rounded-full px-2 text-liten transition-[color,background-color,opacity] duration-(--duration-fast) ease-standard focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
+    finns
+      ? "inline-flex text-accent hover:bg-accent-faint"
+      : "hidden text-ink-muted hover:bg-hover hover:text-ink md:inline-flex md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 md:focus-visible:opacity-100",
+  );
+}
+
+/**
+ * Raden ovanför skrivfältet när man svarar med citat: "Svarar på {namn}: {utdrag}" och ett kryss som ångrar. EN rad för appens chatt och gästens (0.196.0, regel 2).
+ * `ram`: strecket ovanför, som skrivfältets (`Skrivfalt`). Gästens chatt har inget (0.195.0).
+ *
+ * @param {{ m: import("../lib/samtal.js").Meddelande & { id: string }, namn: string, onAvbryt: () => void, texter: Required<Meddelandetexter>, ram?: boolean }} props
+ */
+export function SvararPaRad({ m, namn, onAvbryt, texter: t, ram = true }) {
+  return (
+    <div data-svarar-pa={m.id} className={cx("flex shrink-0 items-center gap-2 pt-2 text-meta text-ink-secondary", ram && "border-t border-line px-3")}>
+      <CiteraIkon size={14} />
+      <span className="min-w-0 flex-1 truncate">
+        {t.svararPa} <span className="font-medium text-ink">{namn}</span>: {synligText(m, 60)}
+      </span>
+      <button
+        type="button"
+        aria-label={t.avbrytCitat}
+        onClick={onAvbryt}
+        className="inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full text-ink-muted hover:bg-hover hover:text-ink focus-visible:outline-2 focus-visible:outline-accent"
+      >
+        <KryssIkon size={14} />
+      </button>
     </div>
   );
 }
