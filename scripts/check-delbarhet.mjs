@@ -37,6 +37,9 @@
  * `OpsBibliotek` importerade `BibliotekKommentarer` statiskt, och appens `check:jsstorlek` växte med 1 318 byte från ramverket ensamt, för en tråd som ritas först när en post öppnas och bara när
  * appen gett `kommentarer`. Samma mätning som för skalet, med `OpsBibliotek` som startfilens import: `BibliotekKommentarer` ska ligga i en egen bit (`BibliotekKommentarerLat`).
  *
+ * (0.192.0, cllp/ops-framework#529) Zoomen i HTML-rutan växte samma startfil från 296 084 till 300 860 byte (95 548 till 97 216 gzip). Rutan (`OpsHtmlDokument`), zoomens tillstånd (`useHtmlZoom`)
+ * och dess räkning (`anpassadSkala` i `lib/htmlruta.js`) ska ligga i en egen bit (`OpsHtmlDokumentLat`).
+ *
  * ⛔ RÖTT UTAN DELNINGEN, GRÖNT MED DEN (arbetsreglernas punkt 4): `--bevisa` slår ihop samma `dist` till en enda fil (som före 0.156.0) och kör
  * samma mätning. Den ska ge rött på punkt 2 för båda komponenterna. Är den grön mäter provet ingenting.
  *
@@ -61,6 +64,8 @@ const bevisa = process.argv.includes("--bevisa");
 const SKALEN = [
   { skal: "OpsAppShell", lata: ["OpsSnabbmeny"], via: "OpsSnabbmenyLat" },
   { skal: "OpsBibliotek", lata: ["BibliotekKommentarer"], via: "BibliotekKommentarerLat" },
+  // (0.192.0, #529) Rutan och zoomen ritas bara i detaljen för ett HTML-dokument. `htmlruta` står för rutans skript och räkning, som inte får följa med `htmldokument.js` in i startfilen.
+  { skal: "OpsBibliotek", lata: ["OpsHtmlDokument", "useHtmlZoom", "anpassadSkala"], via: "OpsHtmlDokumentLat" },
 ];
 
 /** De lata komponenterna, och den som startfilen får. */
@@ -191,8 +196,8 @@ if (bevisa) {
   // (0.187.0) Skalet mot samma enda modul: menyn ligger i startfilen, och det är rött. Den enda modulen har ingen bit utanför startfilen, så golvet slår också till; kravet är att båda brotten finns.
   /** @type {string[]} */
   const felSkal = [];
-  for (const s of SKALEN) {
-    const ms = await matSkal(enkel, `enkel-${s.skal}`, s.skal);
+  for (const [i, s] of SKALEN.entries()) {
+    const ms = await matSkal(enkel, `enkel-${i}-${s.skal}`, s.skal);
     const f = skalBrott(ms, s);
     felSkal.push(...f);
     const forvantatSkal = s.lata.filter((n) => f.some((x) => x.startsWith(`${n} ligger i startfilen`)));
@@ -208,7 +213,7 @@ if (bevisa) {
 const m = await mat(rot, "delat");
 /** @type {Array<{ s: (typeof SKALEN)[number], ms: Awaited<ReturnType<typeof matSkal>> }>} */
 const matta = [];
-for (const s of SKALEN) matta.push({ s, ms: await matSkal(rot, `delat-${s.skal}`, s.skal) });
+for (const [i, s] of SKALEN.entries()) matta.push({ s, ms: await matSkal(rot, `delat-${i}-${s.skal}`, s.skal) });
 const fel = [...brott(m), ...matta.flatMap(({ s, ms }) => skalBrott(ms, s))];
 if (fel.length) {
   console.error(`check-delbarhet: RÖTT. ${fel.length} brott:\n${fel.map((f) => `  - ${f}`).join("\n")}`);

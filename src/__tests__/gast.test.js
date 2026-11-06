@@ -8,6 +8,9 @@ import {
   GASTPLATSNUMMER,
   GAST_PLATSER_GRATIS,
   gastId,
+  GASTSOKVAG,
+  GASTSOKVAG_TIDIGARE,
+  arGastsidansAdress,
   gastLank,
   gastOmfangGer,
   gastStatus,
@@ -139,12 +142,25 @@ describe("omfång och platser", () => {
 describe("länken", () => {
   it("nyckeln ligger i fragmentet och inte i sökvägen, och tolkas tillbaka", () => {
     const url = gastLank("https://my.life-hub.app/", { id: ID, nyckel: NYCKEL });
-    expect(url).toBe(`https://my.life-hub.app/gast#i=${ID}&k=${NYCKEL}`);
+    expect(url).toBe(`https://my.life-hub.app/guest#i=${ID}&k=${NYCKEL}`);
+    const parsed = new URL(url);
+    expect(parsed.pathname).toBe("/guest");
+    expect(parsed.search).toBe("");
     // Ingenting före # bär nyckeln: det är det som loggas, sänds som Referer och hämtas i förväg.
     expect(url.split("#")[0]).not.toContain(NYCKEL);
-    expect(tolkaGastLank(new URL(url).hash)).toEqual({ id: ID, nyckel: NYCKEL });
+    expect(url.split("#")[0]).not.toContain(ID);
+    expect(tolkaGastLank(parsed.hash)).toEqual({ id: ID, nyckel: NYCKEL });
+    // Den tidigare adressen bär samma fragment och öppnar samma inbjudan. Nyckeln ligger inte i sökvägen där heller.
+    const gammal = `https://my.life-hub.app/gast#i=${ID}&k=${NYCKEL}`;
+    expect(new URL(gammal).search).toBe("");
+    expect(new URL(gammal).pathname).toBe("/gast");
+    expect(tolkaGastLank(new URL(gammal).hash)).toEqual({ id: ID, nyckel: NYCKEL });
     expect(tolkaGastLank(`i=${ID}&k=${NYCKEL}`)).toEqual({ id: ID, nyckel: NYCKEL });
     expect(tolkaGastLank(`k=${NYCKEL}&i=${ID}`)).toEqual({ id: ID, nyckel: NYCKEL });
+    expect(GASTSOKVAG).toBe("/guest");
+    expect(GASTSOKVAG_TIDIGARE).toBe("/gast");
+    for (const ja of ["/guest", "/guest/", "/gast", "/gast/"]) expect(arGastsidansAdress(ja), ja).toBe(true);
+    for (const nej of ["/", "/api/gast", "/guest/x", "/guestbook", "/GAST", "/GUEST", "", null]) expect(arGastsidansAdress(nej), String(nej)).toBe(false);
   });
 
   it("en halv eller trasig länk är ingen länk, så sidan frågar efter adressen i stället för att försöka", () => {

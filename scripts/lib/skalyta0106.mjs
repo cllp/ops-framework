@@ -264,7 +264,7 @@ const IPHONE = { isMobile: true, hasTouch: true, userAgent: "Mozilla/5.0 (iPhone
 /**
  * Ett `visualViewport` vi styr, så att ett tangentbord går att låtsas. Chromium har inget virtuellt tangentbord. Skriptet körs före sidan.
  */
-const FALSKT_VV = `(() => {
+export const FALSKT_VV = `(() => {
   const vv = new EventTarget();
   let h = window.innerHeight;
   Object.defineProperty(vv, "height", { get: () => h });

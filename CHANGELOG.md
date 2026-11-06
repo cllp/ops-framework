@@ -9,6 +9,57 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.192.0
+
+Gästens gruppvy, i två delar: Cursors översikt och /guest (cursor/gast-oversikt-418a, d45e74c och 0709e24) och rättningarna av cllp/lifehub.app#673 och #675 ovanpå. Och zoomen i HTML-dokument (cllp/ops-framework#529).
+
+Gästens gruppvy: chatten är bara chatten (CP 2026-11-06, i telefonen på /gast i gruppen Skarv: "Chatt skall bara vara chatt."). Översikt är en egen flik, inte Hem, så den inte blandas ihop med den privata hemgruppen. Spara på namnet står på samma rad som fältet (CP 2026-11-06 07:35).
+
+### Zoomen i HTML-dokument (cllp/ops-framework#529)
+
+CP 2026-11-06, med en skärmbild där rubriken och tabellens andra kolumn klipptes: "HTML-sidan är ofta för stor och man behöver scrolla i vyn." Om hjulet: "Bara i dokumentet om dokumentet är i fokus." Och beslutet: "Ja kör på det. Zoomen måste finnas med i förhandstitt."
+
+- **Anpassa till bredd är förvalet.** Rutans skript mäter dokumentets bredd vid zoom 1 och skickar den till appen, som räknar ut skalan (högst 100 procent) och skickar tillbaka den. Skalan räknas om när rutan eller dokumentet ändrar bredd. Ett dokument på 1800 px ryms i rutan utan rullning i sidled vid 390 och 1280 px (skalytan, avsnitt 62).
+- **− , procenten och +** vid rutan, i hela tiotal mellan 10 och 200 procent. Ett tryck på procenten går tillbaka till Anpassa till bredd. Minst 44 px på telefonen.
+- **Ctrl- och Cmd+hjul**, och nypning på en styrplatta, zoomar dokumentet bara när det har fokus (`document.hasFocus()` i rutan). Då och bara då stoppas webbläsarens zoom av sidan. Utan fokus zoomar hjulet hela appen som förut. Rutan har en ram medan den har fokus.
+- **Samma i detaljen, versionsraden och helfönstret**, eftersom zoomen bor med den enda rutan (`HtmlRuta`, `useHtmlZoom`, `HtmlZoomRad`). Skriptet och räkningen ligger i `lib/htmlruta.js`, som också är `byggSrcdoc`s nya hem.
+- **Förhandstitten först.** Ett vanligt tryck på ett HTML-kort i listan öppnar detaljen. Kortet är fortfarande en riktig länk till helfönstret, så mellanklick, Ctrl- eller Cmd+klick och långtryck öppnar det som förut. "Visa detaljer" är borttagen för HTML. **Öppna i eget fönster** står i rutans verktygsrad, och filnamnet bredvid Ladda ned är text. Beslutet från 30 oktober, "Inte ladda ner så", står kvar.
+- **Lägsta zoomen är 10 procent, inte 25.** Rutan i detaljen är 348 px bred i en telefon på 390 px, och ett dokument på 1800 px ryms först vid 19 procent.
+- **Sandlådan är oförändrad** (`allow-scripts allow-modals`, utan `allow-same-origin`). Appen tar bara emot ett meddelande från just rutans fönster, i känd form (`tolkaRutmeddelande`). Ett dokument som skickar falska meddelanden kan bara ändra sin egen zoom inom gränserna, och ramen runt sin egen ruta.
+- **Startfilen krymper:** rutan läses in lat i Biblioteket (`OpsHtmlDokumentLat`). En app vars startfil importerar `OpsBibliotek`, mätt med Vite mot det byggda paketet: 296 084 byte (95 548 gzip) på 0.191.0 med gästvyn, 300 860 (97 216) med zoomen i startfilen, 293 299 (94 371) med den lat. `check:delbarhet` vaktar det.
+
+### Tillagt
+
+- **Fliken Översikt** först i gästens rad (`Översikt` / `Overview`), med ikonen `IKON_FOR.oversikt` (`LayoutDashboard`). Den är en vy, inte en behörighet, och står inte i `GASTGRUPPFUNKTIONER`.
+- **På översikten:** gruppnamnet som innehållsrubrik, gruppens befintliga beskrivning när den inte är tom, "Du är gäst.", korta rader om vad just den här gästens funktioner tillåter (`gastBehorighetsrader`: bara `funktioner`, `nedladdning` och `kommentera`), det frivilliga namnet, integriteten med radering, och "Skriv in adressen igen".
+- **`hamta().grupp.beskrivning`:** gruppens befintliga beskrivning, kapad vid `MAX_GRUPPBESKRIVNING`, tom sträng när den saknas. Inget annat fält följer med.
+- **Sparat namn** visas som "Gruppen kallar dig {namn}." med Ändra. Formuläret står bara när namnet saknas eller när gästen ändrar det. Spara står till höger om fältet, minst 44 px, inte på en egen rad under.
+- **`GASTSOKVAG` är `/guest`** (CP 2026-11-06 07:42). `gastLank` bygger nya länkar där, med samma fragment `#i=&k=`. `/gast` är `GASTSOKVAG_TIDIGARE`: `arGastsidansAdress` känner båda, och nyckeln ligger inte i sökvägen. `/api/gast` är oförändrad.
+- **Senast valda flik** sparas per inbjudan (`ops-gast:flik:<id>`, bara flikens namn). En allmän gruppinbjudan landar på översikt. En gäst som redan valt en flik kommer tillbaka dit. En saklänk (omröstning eller händelse) öppnar saken, inte översikten.
+- **Lägg till på hemskärmen** på översikten, stängd, borta i redan installerat läge (`gastHemskarmTips`). iPhone och Chrome på iPhone: användarens egna steg, ingen automatisk installation. "Utan adressfältet" sägs bara när `apple-mobile-web-app-capable` är ja och manifestets `display` är standalone, fullscreen eller minimal-ui. Android sägs inget om förrän manifestet är läst, och texten lovar inte en ikon per grupp.
+- **Tangentbord:** gästens yta dras ihop med `gastTangentbordExtra` (`tangentbordTackt`), så skrivfältet hamnar ovanför ett låtsat tangentbord. En riktig iPhone är inte mätt.
+
+### Ändrat
+
+- **Chatt, kalender och bibliotek** har inte namnformulär, beskrivning, gästinfo eller hemskärmstips. Ett kompakt sidhuvud har det mindre ordmärket (24 px) och gruppnamnet för orientering.
+- **Bottenraden utan Meny** rymmer fem flikar (`MAX_UTAN_MENY`), så Ärenden får plats bredvid översikten. Med Meny är taket fortfarande fyra.
+- **Flikraden** som sitter kvar (`OpsTabs fast`) ligger under ett sidhuvud på 3 rem (`top-12`).
+
+### Rättat
+
+- **Samma meny i gästens lista och detalj** (cllp/lifehub.app#673). Kopiera länk för en fil krävde en hämtad adress, och gästens adresser hämtas bara för den öppna posten, så samma fil hade olika menyer före, under och efter att den öppnats. Utan Kommentera ritades ingen ⋮ alls i listan förrän filen öppnats. En fil vars adress hämtas på begäran (`adresserPaBegaran`) har nu ingen Kopiera länk: adressen är en signering som dör efter en kvart och gick att kopiera också när gruppen stängt av nedladdning. En länkpost behåller raden.
+- **Felet i en gästflik** (cllp/lifehub.app#675). Det står på det språk som gäller när det visas, också när appen satt språket efter starten (felets orsak sparas och blir text vid ritningen). En ny hämtning tar bort det gamla felet i stället för att gömma sig bakom det. Kalendern, biblioteket, chatten och ärendena har samma rad med **Försök igen** (`OpsGastFelrad`), och ärendefliken står kvar medan den hämtar igen. `OpsGastChatt` och `OpsGastArenden` tar `onForsokIgen`.
+- **Manifestet för hemskärmshjälpen** hämtas i en adapter (`src/data/appmanifest.js`, `lasAppmanifest`) och inte i vyn, så `check:data-layer` är grön.
+- **`GASTFLIKAR`** härleds ur `GASTGRUPPFUNKTIONER` i stället för att vara en andra lista.
+
+### Borttaget
+
+- Orden `gastIngress`, `omGruppen` och `historik` i `ORD_OPSGASTGRUPP`. Ingen läsare fanns kvar efter översikten. En app som skickar dem i `ord` får ett typfel.
+
+### Inte gjort
+
+- **En installationsidentitet per grupp.** Två namn är inte två appar. Safari på iPhone och Chrome på iPhone skiljer hemskärmsikoner på adressen, inte på manifestets `id`. Chrome på Android använder manifestets `id`, och appens manifest är ett, med `start_url` `/`. En egen identitet per grupp kräver en publik startadress utan gästtoken och ett manifest per grupp. Sessionerna är fortfarande per ursprung, inte per ikon. Se `docs/beslut/0015-gast-hemskarm.md`. Ingen provisorisk manifestlösning är inbyggd.
+
 ## 0.191.0
 
 Kommentera en artefakt via chatten (cllp/lifehub.app#663, CP 2026-11-05: "Vi behöver ha kommentarer på artefakter, även för gäster. Alla typer av artefakter skall kunna ha en kommentarstråd.", och om förslaget att gå genom chatten: "Kör på allt"). Ingen ny samling, inget nytt fält på meddelanden och ingen ny regel: regelfragmentet och fixturerna i `rules/__fixturer__` är byte för byte lika.

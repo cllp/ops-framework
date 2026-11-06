@@ -4,14 +4,57 @@
  * ⛔ EGEN MODUL OCH INTE I `OpsGastSida.jsx`: appens hub importerar `sparaGastSession` för att spara en session efter ett tryck på en gästgrupp. Låg den i sidans fil drog importen hela gästsidan
  * (och `OpsDeladHandelse`) in i startfilen, 10 kB gzip före första vyn (mätt med `check:jsstorlek` i lifehub.app). Sidan och hubben delar det här formatet (regel 2) utan att dela komponent.
  */
-import { GASTINBJUDNINGSIDFORM, GASTNYCKELFORM } from "./gast.js";
+import { GASTGRUPPFUNKTIONER, GASTINBJUDNINGSIDFORM, GASTNYCKELFORM } from "./gast.js";
 
 /** Nyckeln en gästs session sparas under, per inbjudan. Sessionen ligger i webbläsarens minne och inte i adressen. */
 export const sessionsnyckelFor = (/** @type {string} */ id) => `ops-gast:${id}`;
-/** Nyckeln som minns vilken inbjudan som senast öppnades, så att `/gast` utan länk öppnar rätt sak igen. */
+/** Nyckeln som minns vilken inbjudan som senast öppnades, så att gästsidan utan länk öppnar rätt sak igen. */
 export const SENASTE = "ops-gast:senaste";
 /** Nyckeln som minns ALLA inbjudningar som har en session på enheten (en JSON-lista, nyast först). 0.132.0: en gäst kan ha en omröstning och hela gruppen på samma enhet. */
 export const ALLA = "ops-gast:alla";
+
+/**
+ * Flikar en gruppgäst kan ha valt senast (0.192.0). Översikt är landningen, inte en behörighet.
+ * Värdet som sparas är bara ett av de här orden. Aldrig en nyckel, en adress eller ett id ur en länk.
+ * Härledd ur `GASTGRUPPFUNKTIONER` (regel 2): en ny funktion där är en flik som går att minnas här, utan en andra lista att hålla i takt.
+ */
+export const GASTFLIKAR = /** @type {const} */ (["oversikt", ...GASTGRUPPFUNKTIONER]);
+
+/** Nyckel för senast valda flik, per inbjudan. Inbjudans id är redan minnets nyckel för sessionen. Inget mer lagras. */
+export const gastFlikNyckel = (/** @type {string} */ id) => `ops-gast:flik:${id}`;
+
+/**
+ * Senast valda flik, eller `null` när inget giltigt finns. Ett värde som inte är en flik läses som inget (regel 5: tomt är ett svar).
+ * @param {{ las: (k: string) => string | null } | null | undefined} minne
+ * @param {string | null | undefined} id Inbjudans id, 64 hextecken. Annat än det sparas inte.
+ * @returns {(typeof GASTFLIKAR)[number] | null}
+ */
+export function lasGastFlik(minne, id) {
+  if (!minne || typeof id !== "string" || !GASTINBJUDNINGSIDFORM.test(id)) return null;
+  let v = null;
+  try {
+    v = minne.las(gastFlikNyckel(id));
+  } catch {
+    return null;
+  }
+  return /** @type {readonly string[]} */ (GASTFLIKAR).includes(/** @type {string} */ (v)) ? /** @type {(typeof GASTFLIKAR)[number]} */ (v) : null;
+}
+
+/**
+ * Minns fliken. Skriver bara ett ord ur `GASTFLIKAR`, och bara under inbjudans id. Ett minne som kastar stoppar inte flikbytet.
+ * @param {{ skriv: (k: string, v: string) => void } | null | undefined} minne
+ * @param {string | null | undefined} id
+ * @param {string} flik
+ */
+export function skrivGastFlik(minne, id, flik) {
+  if (!minne || typeof id !== "string" || !GASTINBJUDNINGSIDFORM.test(id)) return;
+  if (!/** @type {readonly string[]} */ (GASTFLIKAR).includes(flik)) return;
+  try {
+    minne.skriv(gastFlikNyckel(id), flik);
+  } catch {
+    /* Flikbytet gäller ändå. */
+  }
+}
 
 /**
  * Minnet för sessionen: webbläsarens (`localStorage`) om det går, annars ett som gäller tills sidan lämnas. Kastar aldrig: privat läge eller blockerad lagring ska inte stoppa sidan.
@@ -109,13 +152,13 @@ export function skrivSessionTillMinne(mem, id, nyckel) {
 
 /**
  * Sparar en gästsession på enheten på samma sätt som `OpsGastSida` gör efter en inlösen, och markerar inbjudan som den som öppnas näst (cllp/lifehub.app#658 punkt 0). En app som ger en inloggad person
- * en gästsession (`oppnaGruppgast` i tjänsten) sparar den här och går till `/gast`, som öppnar den utan länk. ⛔ ETT MINNESFORMAT, TVÅ SKRIVARE: appen känner aldrig nycklarna.
+ * en gästsession (`oppnaGruppgast` i tjänsten) sparar den här och går till `/guest`, som öppnar den utan länk. ⛔ ETT MINNESFORMAT, TVÅ SKRIVARE: appen känner aldrig nycklarna.
  *
  * @param {object} p
  * @param {string} p.id Inbjudans id (64 hextecken).
  * @param {string} p.sessionsnyckel
  * @param {{ getItem: (k: string) => string | null, setItem: (k: string, v: string) => void, removeItem: (k: string) => void } | null} [p.lagring] Förval `localStorage`; `null` ger bara minne.
- * @returns {boolean} Sann när sessionen kunde skrivas till enhetens minne. Falsk när minnet är blockerat (privat läge): sidan på `/gast` hittar då ingen session.
+ * @returns {boolean} Sann när sessionen kunde skrivas till enhetens minne. Falsk när minnet är blockerat (privat läge): gästsidan hittar då ingen session.
  */
 export function sparaGastSession({ id, sessionsnyckel, lagring }) {
   if (typeof id !== "string" || !GASTINBJUDNINGSIDFORM.test(id) || typeof sessionsnyckel !== "string" || !GASTNYCKELFORM.test(sessionsnyckel)) {

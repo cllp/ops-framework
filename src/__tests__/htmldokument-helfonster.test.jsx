@@ -194,19 +194,28 @@ describe("OpsBibliotek med oppnaHtml", () => {
   const rendera = (/** @type {Record<string, unknown>} */ extra = {}, poster = [html(), pdf()]) =>
     render(<OpsBibliotek poster={poster} jag={JAG} onOppna={() => {}} onStang={() => {}} onSkapa={() => {}} onSpara={() => {}} hubHref="/hub" filUrl={() => "https://lagring.example/fil"} {...extra} />);
 
-  it("⛔ ett tryck på ett HTML-dokument i listan är en länk till vyn i ett nytt fönster, och ingenting laddas ned", async () => {
+  it("⛔ ett vanligt tryck på ett HTML-kort öppnar förhandstitten (0.192.0, #529), och kortet är fortfarande en riktig länk till helfönstret", async () => {
     const onOppna = vi.fn();
     rendera({ oppnaHtml: vyFor, onOppna });
-    const lank = await screen.findByRole("link", { name: "Öppna Rapport i ett eget fönster" });
+    const lank = await screen.findByRole("link", { name: "Rapport" });
     expect(lank).toHaveAttribute("href", "/bibliotek/visa/p1?plats=cps-ab");
     expect(lank).toHaveAttribute("target", "_blank");
     expect(lank.getAttribute("rel")).toBe("noopener noreferrer");
     expect(lank.hasAttribute("download")).toBe(false);
-    // Länken är kortets tryckyta, och adressen är aldrig filens eller en blob.
     expect(lank.getAttribute("href")).not.toMatch(/lagring|^blob:|^data:/);
-    // Öppnas i eget fönster: detaljpanelen öppnas inte i det här.
-    expect(onOppna).not.toHaveBeenCalled();
-    // Inget annat HTML-kort har en knapp som öppnar panelen.
+    // Ett vanligt klick stoppas och öppnar detaljen.
+    const vanligt = new MouseEvent("click", { bubbles: true, cancelable: true, button: 0 });
+    lank.dispatchEvent(vanligt);
+    expect(vanligt.defaultPrevented).toBe(true);
+    expect(onOppna).toHaveBeenCalledTimes(1);
+    expect(onOppna.mock.calls[0][0].id).toBe("p1");
+    // Ctrl-, Cmd- och Skift+klick öppnar helfönstret som förut: länken får göra det den gör.
+    for (const tangent of ["ctrlKey", "metaKey", "shiftKey"]) {
+      const e = new MouseEvent("click", { bubbles: true, cancelable: true, button: 0, [tangent]: true });
+      lank.dispatchEvent(e);
+      expect(e.defaultPrevented, tangent).toBe(false);
+    }
+    expect(onOppna).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole("button", { name: "Rapport" })).toBeNull();
   });
 
@@ -238,34 +247,31 @@ describe("OpsBibliotek med oppnaHtml", () => {
     tyst.mockRestore();
   });
 
-  it("menyn på kortet har Visa detaljer, så att rutan, versionerna och Ladda ned nås", async () => {
+  it("menyn på ett HTML-kort har inte Visa detaljer längre (0.192.0): trycket öppnar redan detaljen", async () => {
     const user = userEvent.setup();
-    const onOppna = vi.fn();
-    rendera({ oppnaHtml: vyFor, onOppna });
+    rendera({ oppnaHtml: vyFor });
     await user.click(await screen.findByRole("button", { name: "Åtgärder för Rapport" }));
-    const rad = within(screen.getByRole("menu", { name: "Rapport" })).getByRole("menuitem", { name: /Visa detaljer/ });
-    await user.click(rad);
-    expect(onOppna).toHaveBeenCalledTimes(1);
-    expect(onOppna.mock.calls[0][0].id).toBe("p1");
+    expect(within(screen.getByRole("menu", { name: "Rapport" })).queryByRole("menuitem", { name: /Visa detaljer/ })).toBeNull();
   });
 
-  it("⛔ i detaljen öppnar filnamnet vyn i ett nytt fönster, Ladda ned är ett eget val, och rutan ritas som förut", async () => {
+  it("⛔ i detaljen står Öppna i eget fönster i rutans verktygsrad som en riktig länk, filnamnet är text, Ladda ned är ett eget val, och rutan ritas som förut", async () => {
     const post = html();
     const hamtaFil = hamtaSida();
     rendera({ oppnaHtml: vyFor, vald: post, hamtaFil }, [post]);
     await waitFor(() => expect(document.querySelector("iframe")).not.toBeNull());
     expect(document.querySelector("iframe")?.getAttribute("sandbox")).toBe("allow-scripts allow-modals");
-    const oppna = /** @type {HTMLAnchorElement} */ (document.querySelector("[data-bibliotek-oppna-html]"));
+    const oppna = screen.getByRole("link", { name: /Öppna i eget fönster/ });
+    expect(oppna.closest("[data-html-dokument-verktyg]")).not.toBeNull();
     expect(oppna.getAttribute("href")).toBe("/bibliotek/visa/p1?plats=cps-ab");
     expect(oppna.getAttribute("target")).toBe("_blank");
-    expect(oppna.getAttribute("rel")).toBe("noopener noreferrer");
+    expect(oppna.getAttribute("rel")).toMatch(/noopener/);
     expect(oppna.hasAttribute("download")).toBe(false);
-    expect(oppna.textContent).toContain("rapport.html");
-    expect(oppna).toHaveAccessibleName(/rapport\.html.*Öppnas i ett eget fönster/);
+    // En länk till fönstret, inte två.
+    expect(screen.getAllByRole("link").filter((l) => l.getAttribute("href") === "/bibliotek/visa/p1?plats=cps-ab")).toHaveLength(1);
+    expect(document.querySelector("[data-bibliotek-filnamn]")?.textContent).toContain("rapport.html");
     const ladda = screen.getByRole("link", { name: "Ladda ned" });
     expect(ladda).toHaveAttribute("href", "https://lagring.example/fil");
     expect(ladda).toHaveAttribute("download", "rapport.html");
-    // Det är lagringens adress som laddas ned, och den ritas aldrig: den enda rutan har srcdoc.
     expect(document.querySelectorAll("iframe").length).toBe(1);
     expect(document.querySelector("iframe")?.hasAttribute("src")).toBe(false);
   });

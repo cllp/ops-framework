@@ -88,6 +88,21 @@ export const FULL_HEIGHT_CLASSES = [
   "min-h-60",
 ].join(" ");
 
+/**
+ * Hur många pixlar gästens yta ska dras ihop så att skrivfältet hamnar ovanför tangentbordet (0.192.0).
+ *
+ * `botten` är den uppmätta underkanten i samma tal som `useFullHeight` skriver (`--fullhojd-botten`): bottenraden, spelraden eller fönstret.
+ * `layout` är layoutfönstrets höjd. `tackt` är hur mycket av layoutfönstrets nederkant som ligger under den synliga ytan (`tangentbordTackt`).
+ * Den synliga underkanten är `layout - tackt`. Är `botten` redan där eller högre (spelraden ovanför tangentbordet) blir svaret 0, så ytan inte dras ihop en gång till.
+ *
+ * @param {{ botten: number, layout: number, tackt: number }} m
+ * @returns {number}
+ */
+export function gastTangentbordExtra({ botten, layout, tackt }) {
+  if (!(botten > 0) || !(layout > 0) || !(tackt > 0)) return 0;
+  return Math.max(0, Math.round(botten - (layout - tackt)));
+}
+
 /** Reservvärde när inget går att mäta (SSR, jsdom före mount): en telefonhöjd, så att uttrycket aldrig blir tomt. */
 const RESERV_BOTTEN = 800;
 

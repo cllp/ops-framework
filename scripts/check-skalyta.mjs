@@ -53,6 +53,7 @@
  *       node scripts/check-skalyta.mjs --bara-htmlversioner  bara avsnitt 59, versionsraden för ett HTML-dokument i Biblioteket, 390 och 1280 px (0.158.0)
  *       node scripts/check-skalyta.mjs --bara-kommentarer  bara avsnitt 61, tråden på en post i Biblioteket, 390 och 1280 px (0.191.0)
  *       node scripts/check-skalyta.mjs --bara-htmlvy    bara avsnitt 60, ett HTML-dokument i hela fönstret och Bibliotekets länkar dit, 390 och 1280 px (0.159.0)
+ *       node scripts/check-skalyta.mjs --bara-htmlzoom  bara avsnitt 62, zoomen i HTML-rutan: ett dokument på 1800 px ryms i förvalet, knapparna och Ctrl+hjul med och utan fokus, 390 och 1280 px (0.192.0)
  *       node scripts/check-skalyta.mjs --bara-kategori  bara avsnitt 54, formuläret "Lägg till kategori": ett namn räcker (0.130.0)
  *       node scripts/check-skalyta.mjs --bara-gaster    bara avsnitt 55, gästernas lista och gästens egen sida, 390 och 1280 px (0.131.0)
  *       node scripts/check-skalyta.mjs --bara-gastgrupp  bara avsnitt 56, gästens bantade gränssnitt för hela gruppen och inbjudningsdialogen, 390 och 1280 px (0.132.0), och avsnitt 57, ärenden till en gäst (fliken, kommentar, Markera klar, väljaren och märket)
@@ -70,7 +71,7 @@ import postcss from "postcss";
 import tailwind from "@tailwindcss/postcss";
 import { startaWebblasare } from "./lib/matVyport.mjs";
 import { kravPaMittknappen, matMittknappen } from "./lib/mittknappMatt.mjs";
-import { chattepiken0106 } from "./lib/skalyta0106.mjs";
+import { chattepiken0106, FALSKT_VV } from "./lib/skalyta0106.mjs";
 import { fokusKort } from "./lib/fokusKort.mjs";
 import { distUtanKommentarer } from "./lib/dist-text.mjs";
 
@@ -1112,6 +1113,14 @@ if (argv.includes("--bara-htmlversioner")) {
 // `--bara-kommentarer`: bara avsnitt 61, tråden på en post (0.191.0). Hela körningen kör det också.
 if (argv.includes("--bara-kommentarer")) {
   await bibliotekKommentarer();
+  await browser.close();
+  avsluta();
+  process.exit(0);
+}
+
+// `--bara-htmlzoom`: bara avsnitt 62, zoomen i HTML-rutan (0.192.0, #529). Hela körningen kör det också.
+if (argv.includes("--bara-htmlzoom")) {
+  await bibliotekHtmlZoom();
   await browser.close();
   avsluta();
   process.exit(0);
@@ -8039,10 +8048,15 @@ async function gastGrupp() {
       const { page, context } = await oppna("gastgrupp-sida", vp, standardtema, 1, null, 0, SV_WEBBLASARE);
       try {
         await page.waitForSelector("[data-gast-grupp]");
-        await page.waitForSelector("[data-gast-chatt-logg]");
-        // ⛔ 0.190.0 (cllp/lifehub.app#658 del B): under 768 px är flikarna gästens bottenrad (tre platser, inget plus, ingen Meny), från 768 px flikraden överst som förut.
+        await page.waitForSelector("[data-gast-oversikt]");
+        // ⛔ 0.192.0: översikt är landningen. Under 768 px är flikarna bottenraden (Översikt, Chatt, Kalender, Bibliotek, inget plus, ingen Meny).
         const telefon = w < 768;
-        const byt = async (/** @type {string} */ flik) => (telefon ? page.locator("nav[data-ops-bottenrad] a", { hasText: flik }).click() : page.getByRole("tab", { name: flik }).click());
+        // Radix byter flik på mousedown. En vanlig click väntar på att träffytan ska ligga still, och den väntan har sett ut som ett fel när sidan just ritat om.
+        const byt = async (/** @type {string} */ flik) => {
+          const el = telefon ? page.locator("nav[data-ops-bottenrad] a", { hasText: flik }) : page.getByRole("tab", { name: flik });
+          if (telefon) await el.click();
+          else await el.dispatchEvent("mousedown");
+        };
         const m = await page.evaluate((tel) => ({
           flikar: tel
             ? [...document.querySelectorAll("nav[data-ops-bottenrad] a")].map((f) => ({ text: (f.textContent || "").trim(), h: f.getBoundingClientRect().height, b: f.getBoundingClientRect().width }))
@@ -8059,14 +8073,12 @@ async function gastGrupp() {
           chattOverflow: (() => { const l = document.querySelector("[data-gast-chatt-logg]"); return l ? l.scrollWidth > l.clientWidth + 1 : null; })(),
         }), telefon);
         matt.push(`${namn} sida: ${telefon ? "bottenrad" : "flikar"} ${m.flikar.map((f) => `${f.text} ${f.b.toFixed(0)}x${f.h.toFixed(0)}`).join(", ")} px, ${m.bubblor} bubblor`);
-        krav(JSON.stringify(m.flikar.map((f) => f.text)) === JSON.stringify(["Chatt", "Kalender", "Bibliotek"]), `${namn} sida (d, golv): ${telefon ? "bottenradens platser" : "flikarna"} är ${JSON.stringify(m.flikar.map((f) => f.text))}, väntat Chatt, Kalender, Bibliotek (ärenden finns inte för en gäst).`);
+        krav(JSON.stringify(m.flikar.map((f) => f.text)) === JSON.stringify(["Översikt", "Chatt", "Kalender", "Bibliotek"]), `${namn} sida (d, golv): ${telefon ? "bottenradens platser" : "flikarna"} är ${JSON.stringify(m.flikar.map((f) => f.text))}, väntat Översikt, Chatt, Kalender, Bibliotek (ärenden finns inte för en gäst).`);
         krav(m.flikar.every((f) => f.h >= 44 && f.b >= 44), `${namn} sida (d): en ${telefon ? "plats i bottenraden" : "flik"} är under 44 x 44 px (${m.flikar.map((f) => `${f.b.toFixed(0)}x${f.h.toFixed(0)}`).join("/")}).`);
         krav(telefon ? m.tablist === 0 && m.bottenrad === 1 && m.radknappar === 0 : m.tablist === 1 && m.bottenrad === 0, `${namn} sida (d): ${m.tablist} flikrader och ${m.bottenrad} bottenrader med ${m.radknappar} knappar, väntat ${telefon ? "ingen flikrad och en bottenrad utan plus och utan Meny" : "en flikrad och ingen bottenrad"}.`);
         krav(m.h1 === 1 && !m.overflow, `${namn} sida (d): ${m.h1} h1 (väntat 1), sidled ${m.overflow}.`);
         krav(m.lankar.length === 0 && !/Inställningar|Ekonomi|Appar|Hubb|Agent/.test(m.sidtext), `${namn} sida (d): sidan har en väg ut eller ett ord ur appens skal (${JSON.stringify(m.lankar)}).`);
-        // (d) ORDMÄRKET (granskningen av PR 524: cirka 50 x 22 px i appens montage, CP: "typ obefintligt liten"). Scenen ger ett brett, tätt beskuret märke i 4:1, som appens
-        // headerbild. Det som mäts är den MÅLADE bilden (`object-fit` räknat ur bildens egen storlek) och vad av den som syns innanför rutan: minst 120 x 28 px, och hela märket
-        // synligt (ingen beskärning). Golv: exakt en synlig bild i märket, laddad.
+        // (d) ORDMÄRKET. 0.190.0 krävde minst 120 x 28 för att märket inte skulle bli obefintligt. 0.192.0 gör huvudet kompakt (CP: chatten ska bara vara chatt): märket är 24 px högt, hela märket syns, och det är mindre än det förra 40 px-huvudet. Golv: en synlig, laddad bild.
         const mk = await page.evaluate(() => {
           const ruta = document.querySelector("[data-gast-marke]");
           const bilder = ruta ? [...ruta.querySelectorAll("img")].filter((b) => getComputedStyle(b).display !== "none") : [];
@@ -8089,10 +8101,46 @@ async function gastGrupp() {
         matt.push(`${namn} sida: ordmärket ${mk.golv ? `målat ${mk.malad.w.toFixed(0)}x${mk.malad.h.toFixed(0)}, synligt ${mk.synlig.w.toFixed(0)}x${mk.synlig.h.toFixed(0)} i rutan ${mk.ruta.w.toFixed(0)}x${mk.ruta.h.toFixed(0)} px` : `hittades inte (${mk.antal} synliga bilder)`}`);
         krav(mk.golv, `${namn} sida (d, golv): märket har ${mk.antal} synliga, laddade bilder, väntat 1.`);
         if (mk.golv) {
-          krav(mk.synlig.w >= 120 && mk.synlig.h >= 28, `${namn} sida (d): ordmärket syns som ${mk.synlig.w.toFixed(0)}x${mk.synlig.h.toFixed(0)} px, väntat minst 120 x 28 med ett märke i 4:1.`);
+          krav(mk.synlig.h >= 20 && mk.synlig.h <= 32 && mk.synlig.w >= 80 && mk.synlig.w <= 140, `${namn} sida (d): ordmärket syns som ${mk.synlig.w.toFixed(0)}x${mk.synlig.h.toFixed(0)} px, väntat ett kompakt märke i 4:1, 24 px högt.`);
           krav(Math.abs(mk.synlig.w - mk.malad.w) <= 0.5 && Math.abs(mk.synlig.h - mk.malad.h) <= 0.5, `${namn} sida (d): ordmärket är beskuret: ${mk.malad.w.toFixed(0)}x${mk.malad.h.toFixed(0)} px målat, ${mk.synlig.w.toFixed(0)}x${mk.synlig.h.toFixed(0)} syns. Ett tätt beskuret märke ska synas helt.`);
         }
-        krav(m.bubblor >= 4 && m.skrivfalt === 1 && m.chattOverflow === false, `${namn} sida (e): chatten har ${m.bubblor} bubblor (väntat minst 4), ${m.skrivfalt} skrivfält (väntat 1), sidled ${m.chattOverflow}.`);
+        const over = await page.evaluate(() => ({
+          namn: document.querySelector("[data-gast-grupp-namn]")?.textContent || "",
+          huvud: document.querySelector("[data-gast-huvud-grupp]")?.textContent || "",
+          roll: !!document.querySelector("[data-gast-oversikt] [data-gast-roll]"),
+          namnform: !!document.querySelector("[data-gast-oversikt] [data-gast-namn]"),
+          chatt: !!document.querySelector("[data-gast-chatt]"),
+        }));
+        krav(over.namn === "Källan" && over.huvud === "Källan" && over.roll && over.namnform && !over.chatt, `${namn} sida (d): översikten är ${JSON.stringify(over)}, väntat gruppnamn, roll, namnformulär och ingen chatt.`);
+        if (telefon) {
+          // Spara på samma rad som fältet (CP 2026-11-06 07:35), minst 44 px, också när fönstret är 320 px brett.
+          const matNamnrad = () => page.evaluate(() => {
+            const rad = document.querySelector("[data-gast-namn-rad]");
+            const falt = rad?.querySelector("input")?.getBoundingClientRect();
+            const knapp = [...(rad?.querySelectorAll("button") ?? [])].find((b) => (b.textContent || "").includes("Spara"))?.getBoundingClientRect();
+            if (!falt || !knapp) return null;
+            return { faltHoger: falt.right, knappVanster: knapp.left, faltTopp: falt.top, knappTopp: knapp.top, knappH: knapp.height, knappB: knapp.width, bredd: window.innerWidth };
+          });
+          const rad390 = await matNamnrad();
+          krav(rad390 !== null && rad390.knappVanster >= rad390.faltHoger - 1 && Math.abs(rad390.knappTopp - rad390.faltTopp) <= 8 && rad390.knappH >= 44 && rad390.knappB >= 44, `${namn} namnrad 390: ${JSON.stringify(rad390)}, väntat Spara till höger om fältet, minst 44 px.`);
+          await page.setViewportSize({ width: 320, height: 700 });
+          const rad320 = await matNamnrad();
+          krav(rad320 !== null && rad320.knappVanster >= rad320.faltHoger - 1 && Math.abs(rad320.knappTopp - rad320.faltTopp) <= 8 && rad320.knappH >= 44 && rad320.knappB >= 44, `${namn} namnrad 320: ${JSON.stringify(rad320)}, väntat Spara till höger om fältet, minst 44 px.`);
+          await page.setViewportSize({ width: vp.width, height: vp.height });
+        }
+        if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `gaster-grupp-sida-oversikt-${w}.png`), fullPage: true });
+        await byt("Chatt");
+        await page.waitForSelector("[data-gast-chatt-logg]");
+        const ch = await page.evaluate(() => ({
+          bubblor: document.querySelectorAll("[data-bubbla]").length,
+          skrivfalt: document.querySelectorAll("[data-gast-grupp] textarea, [data-gast-grupp] [contenteditable]").length,
+          chattOverflow: (() => { const l = document.querySelector("[data-gast-chatt-logg]"); return l ? l.scrollWidth > l.clientWidth + 1 : null; })(),
+          roll: !!document.querySelector("[data-gast-roll]"),
+          namnform: !!document.querySelector("[data-gast-namn]"),
+          beskrivning: !!document.querySelector("[data-gast-grupp-beskrivning]"),
+          hemskarm: !!document.querySelector("[data-gast-hemskarm]"),
+        }));
+        krav(ch.bubblor >= 4 && ch.skrivfalt === 1 && ch.chattOverflow === false && !ch.roll && !ch.namnform && !ch.beskrivning && !ch.hemskarm, `${namn} sida (e): chatten har ${ch.bubblor} bubblor, ${ch.skrivfalt} skrivfält, sidled ${ch.chattOverflow}, och översiktens innehåll ${JSON.stringify({ roll: ch.roll, namnform: ch.namnform, beskrivning: ch.beskrivning, hemskarm: ch.hemskarm })} (väntat borta).`);
         // Skrivfältet är chattens, utan bilagor och agent. ⛔ 0.190.0 (del D, CP 2026-11-05: gästen får mikrofon): där webbläsaren har taligenkänning står ljudvågen i Skickas
         // plats när fältet är tomt, som för en medlem, och Skicka kommer när något skrivits. Ingen mening under fältet (QA fynd 8); en annan gästs meddelande bär märket Gäst.
         const sk = await page.evaluate(() => {
@@ -8175,7 +8223,7 @@ async function gastGrupp() {
           if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `gaster-grupp-sida-${bildnamn}-${w}.png`), fullPage: true });
         }
         const hamtat = await page.evaluate(() => JSON.stringify(/** @type {any} */ (window).__gastgruppanrop.map((a) => a[0])));
-        krav(hamtat.startsWith('["skrivChatt"') && ["kalender", "bibliotek"].every((a) => hamtat.includes(`"${a}"`)) && !hamtat.includes("arenden"), `${namn} sida (e): anropen blev ${hamtat}, väntat chatt (och skrivChatt) först och därefter kalender och bibliotek när flikarna öppnades, och aldrig arenden.`);
+        krav(hamtat.startsWith('["skrivChatt"') && ["kalender", "bibliotek"].every((a) => hamtat.includes(`"${a}"`)) && !hamtat.includes("arenden"), `${namn} sida (e): anropen blev ${hamtat}, väntat skrivChatt först i det som räknades efter tömningen, sedan kalender och bibliotek, och aldrig arenden.`);
         if (telefon) {
           // (e) MED SPELRADEN (PR 524, appens montage mot en byggd app: dokumentet 965 px högt i 844 när ljud spelade i biblioteket). Ytan slutar vid spelradens överkant och
           // sidan rullar inte. Golv: spelraden och ytan hittades.
@@ -8195,10 +8243,12 @@ async function gastGrupp() {
           if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `gaster-grupp-sida-spelrad-${w}.png`), fullPage: true });
         }
 
-        // (f) integriteten. ⛔ 0.190.0 (del A): den ligger bakom (i) under gruppens namn, stängd från början.
-        krav(await page.getByText("Integritet och dina uppgifter").count() === 0, `${namn} sida (f): integriteten syns utan att (i) öppnats.`);
-        await page.getByRole("button", { name: "Om din roll som gäst" }).click();
-        await page.getByText("Integritet och dina uppgifter").click();
+        // (f) integriteten står på översikten, stängd, inte i chatten.
+        await byt("Översikt");
+        await page.waitForSelector("[data-gast-oversikt]");
+        await page.evaluate(() => window.scrollTo(0, 0));
+        krav(await page.getByText("Integritet och dina uppgifter").count() === 1, `${namn} sida (f): integriteten saknas på översikten.`);
+        await page.locator("[data-gast-oversikt] summary").click();
         const i = await page.evaluate(() => ({ lagrat: !!document.querySelector("[data-gast-integritet-lagrat]"), radera: (document.querySelector("[data-gast-integritet-radera]")?.textContent || "").trim().slice(0, 40) }));
         krav(i.lagrat && /Så raderas det: tryck på knappen/.test(i.radera), `${namn} sida (f): integritetstexten saknas eller hänvisar inte till knappen (${JSON.stringify(i)}).`);
         if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `gaster-grupp-sida-integritet-${w}.png`), fullPage: true });
@@ -8211,8 +8261,61 @@ async function gastGrupp() {
         const efter = await page.evaluate(() => ({ anrop: JSON.stringify(/** @type {any} */ (window).__gastgruppanrop), flikar: document.querySelectorAll('[role="tab"], nav[data-ops-bottenrad]').length, text: (document.querySelector("[data-gast-raderad]")?.textContent || "").trim() }));
         krav(efter.anrop === JSON.stringify([["raderaMig", { sessionsnyckel: "S".repeat(43) }]]) && efter.flikar === 0 && /raderade/.test(efter.text), `${namn} sida (f): efter bekräftelsen blev anropen ${efter.anrop}, flikar kvar ${efter.flikar}, text ${JSON.stringify(efter.text)}. Väntat raderaMig med sessionsnyckeln, inga flikar och texten att uppgifterna är raderade.`);
         if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `gaster-grupp-sida-raderad-${w}.png`), fullPage: true });
+        if (telefon) {
+          const tang = await oppna("gastgrupp-sida", vp, standardtema, 1, null, 0, { kontext: { locale: "sv-SE", isMobile: true, hasTouch: true }, init: FALSKT_VV });
+          try {
+            await tang.page.waitForSelector("[data-gast-oversikt]");
+            await tang.page.locator("[data-gast-namn] input").click();
+            await tang.page.evaluate(() => /** @type {any} */ (window).__tangentbord(300, false, 0));
+            await tang.page.waitForTimeout(300);
+            const namnTang = await tang.page.evaluate(() => {
+              const knapp = document.querySelector("[data-gast-namn-rad] button")?.getBoundingClientRect() ?? null;
+              const vv = /** @type {VisualViewport} */ (window.visualViewport);
+              return { botten: knapp ? knapp.bottom - (vv.offsetTop || 0) : null, synligt: vv.height, hojd: knapp?.height ?? null };
+            });
+            matt.push(`${namn} namn med tangentbord 300: Spara underkant ${namnTang.botten?.toFixed(0)}, synligt ${namnTang.synligt}, höjd ${namnTang.hojd?.toFixed(0)}`);
+            krav(namnTang.botten !== null && namnTang.hojd !== null && namnTang.hojd >= 44 && namnTang.botten <= namnTang.synligt + 1, `${namn} namn med tangentbord: Spara slutar vid ${namnTang.botten} (höjd ${namnTang.hojd}), synligt till ${namnTang.synligt}. En riktig iPhone är inte mätt.`);
+            if (bildmapp) await tang.page.screenshot({ path: path.join(bildmapp, `gaster-grupp-sida-namn-tangentbord-${w}.png`), fullPage: false });
+            await tang.page.evaluate(() => /** @type {any} */ (window).__tangentbord(0, false, 0));
+            await tang.page.locator("[data-gast-namn] input").evaluate((el) => /** @type {HTMLElement} */ (el).blur());
+            await tang.page.waitForTimeout(100);
+            await tang.page.locator("nav[data-ops-bottenrad] a", { hasText: "Chatt" }).click();
+            await tang.page.waitForSelector("[data-gast-chatt-skriv] textarea");
+            await tang.page.locator("[data-gast-chatt-skriv] textarea").click();
+            await tang.page.evaluate(() => /** @type {any} */ (window).__tangentbord(300, false, 0));
+            await tang.page.waitForTimeout(300);
+            const k = await tang.page.evaluate(() => {
+              const skriv = document.querySelector("[data-gast-chatt-skriv]")?.getBoundingClientRect() ?? null;
+              const vv = /** @type {VisualViewport} */ (window.visualViewport);
+              return { botten: skriv ? skriv.bottom - (vv.offsetTop || 0) : null, synligt: vv.height, extra: document.querySelector("[data-gast-tangentbord]")?.getAttribute("data-gast-tangentbord") ?? "" };
+            });
+            matt.push(`${namn} tangentbord 300: fältets underkant ${k.botten?.toFixed(0)}, synligt ${k.synligt}, indrag ${k.extra}`);
+            krav(k.botten !== null && k.botten <= k.synligt + 1, `${namn} tangentbord: skrivfältet slutar vid ${k.botten}, under den synliga ytan som börjar vid ${k.synligt}. En riktig iPhone är inte mätt: viewporten är låtsad.`);
+            if (bildmapp) await tang.page.screenshot({ path: path.join(bildmapp, `gaster-grupp-sida-tangentbord-${w}.png`), fullPage: false });
+          } catch (err) {
+            krav(false, `${namn} tangentbord: provet avbröts (${String(/** @type {Error} */ (err).message).split("\n")[0]}).`);
+          }
+          await tang.context.close();
+          const ios = await oppna("gastgrupp-sida", vp, standardtema, 1, null, 0, { kontext: { locale: "sv-SE", isMobile: true, hasTouch: true, userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1" } });
+          try {
+            await ios.page.waitForSelector("[data-gast-hemskarm='ios-safari']");
+            const tips = await ios.page.locator("[data-gast-hemskarm]").evaluate((el) => el.textContent || "");
+            const lovar = await ios.page.locator("[data-gast-hemskarm]").getAttribute("data-lovar-applage");
+            krav(/Dela/.test(tips) && /inte till automatiskt/.test(tips) && lovar === "nej", `${namn} hemskärm: ${JSON.stringify(tips)} lovar ${lovar}.`);
+            if (bildmapp) {
+              await ios.page.locator("[data-gast-hemskarm] summary").click();
+              await ios.page.screenshot({ path: path.join(bildmapp, `gaster-grupp-sida-hemskarm-${w}.png`), fullPage: true });
+            }
+            await ios.page.locator("nav[data-ops-bottenrad] a", { hasText: "Chatt" }).click();
+            await ios.page.waitForSelector("[data-gast-chatt]");
+            krav(await ios.page.locator("[data-gast-hemskarm]").count() === 0, `${namn} hemskärm: tipset står kvar i chatten.`);
+          } catch (err) {
+            krav(false, `${namn} hemskärm: provet avbröts (${String(/** @type {Error} */ (err).message).split("\n")[0]}).`);
+          }
+          await ios.context.close();
+        }
       } catch (err) {
-        krav(false, `${namn} sida: provet avbröts (${String(/** @type {Error} */ (err).message).split("\n")[0]}).`);
+        krav(false, `${namn} sida: provet avbröts (${String(/** @type {Error} */ (err).message).split("\n").slice(0, 4).join(" | ")}).`);
       }
       await context.close();
     }
@@ -8246,11 +8349,15 @@ async function gastArenden() {
           anrop: JSON.stringify(/** @type {any} */ (window).__gastgruppanrop.map((x) => x[0])),
         }), platser);
         matt.push(`${namn}: ${telefon ? "bottenrad" : "flikar"} ${a.flikar.map((f) => `${f.text} ${f.b.toFixed(0)}x${f.h.toFixed(0)}`).join(", ")} px`);
-        krav(JSON.stringify(a.flikar.map((f) => f.text)) === JSON.stringify(["Chatt", "Kalender", "Bibliotek", "Ärenden"]), `${namn} (a, golv): ${telefon ? "bottenradens platser" : "flikarna"} är ${JSON.stringify(a.flikar.map((f) => f.text))}, väntat Chatt, Kalender, Bibliotek, Ärenden (gästen har ärenden).`);
+        krav(JSON.stringify(a.flikar.map((f) => f.text)) === JSON.stringify(["Översikt", "Chatt", "Kalender", "Bibliotek", "Ärenden"]), `${namn} (a, golv): ${telefon ? "bottenradens platser" : "flikarna"} är ${JSON.stringify(a.flikar.map((f) => f.text))}, väntat Översikt, Chatt, Kalender, Bibliotek, Ärenden (gästen har ärenden).`);
         krav(a.flikar.every((f) => f.h >= 44 && f.b >= 44) && !a.overflow, `${namn} (a): en flik är under 44 x 44 px (${a.flikar.map((f) => `${f.b.toFixed(0)}x${f.h.toFixed(0)}`).join("/")}) eller sidan flödar över i sidled (${a.overflow}).`);
         krav(a.anrop.includes('"arenden"'), `${namn} (a): anropen ${a.anrop}. Väntat att arenden hämtats vid start.`);
 
-        await arendeflik.click();
+        if (telefon) await arendeflik.click();
+        else {
+          await arendeflik.dispatchEvent("mousedown");
+          await page.evaluate(() => window.scrollTo(0, 0));
+        }
         await page.waitForSelector("[data-gast-arenden]");
         // ⛔ 0.190.0 (del A): att gästen bara ser sina egna ärenden stod i gruppens ingress, som nu är bakom (i). Det står överst i fliken.
         const ingress = await page.evaluate(() => (document.querySelector("[data-gast-arenden-ingress]")?.textContent || "").trim());
@@ -8299,14 +8406,22 @@ async function gastArenden() {
         await andra.getByRole("button", { name: "Markera klar" }).click();
         const fraga = await page.evaluate(() => ({ text: (document.querySelector('[data-gast-arende="a-2"] [role="group"]')?.textContent || "").replace(/\s+/g, " "), anrop: JSON.stringify(/** @type {any} */ (window).__gastgruppanrop), knappar: [...document.querySelectorAll('[data-gast-arende="a-2"] [role="group"] button')].map((k) => ({ t: (k.textContent || "").trim(), h: k.getBoundingClientRect().height })), overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth }));
         krav(/Du kan inte öppna det igen/.test(fraga.text) && fraga.anrop === "[]" && fraga.knappar.length === 2 && fraga.knappar.every((k) => k.h >= 44) && !fraga.overflow, `${namn} (d): frågan ${JSON.stringify(fraga.text)}, anrop före Ja ${fraga.anrop}, knappar ${JSON.stringify(fraga.knappar)}, sidled ${fraga.overflow}.`);
-        if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `gaster-arenden-klar-fraga-${w}.png`), fullPage: true });
-        await andra.getByRole("button", { name: "Ja, markera klart" }).click();
+        if (bildmapp) await andra.locator('[role="group"]').screenshot({ path: path.join(bildmapp, `gaster-arenden-klar-fraga-${w}.png`) });
+        // Klicket går direkt efter mätningen. En helsidesbild däremellan har stängt frågan vid 1280 px innan knappen hunnit träffas.
+        const jaKlar = await page.evaluate(() => {
+          const knappar = [...document.querySelectorAll('[data-gast-arende="a-2"] button')].map((b) => (b.textContent || "").replace(/\s+/g, " ").trim());
+          const knapp = [...document.querySelectorAll('[data-gast-arende="a-2"] button')].find((b) => (b.textContent || "").includes("Ja, markera klart"));
+          if (!knapp) return { ok: false, knappar };
+          /** @type {HTMLElement} */ (knapp).click();
+          return { ok: true, knappar };
+        });
+        krav(jaKlar.ok, `${namn} (d): knappen Ja, markera klart saknas i ärende a-2 (${JSON.stringify(jaKlar.knappar)}).`);
         await page.waitForSelector('[data-gast-arende="a-2"][data-status="hanterad"]');
         const klar = await page.evaluate(() => ({ anrop: JSON.stringify(/** @type {any} */ (window).__gastgruppanrop.map((x) => x[0])), knappKvar: !!document.querySelector('[data-gast-arende="a-2"] [data-gast-arende-klar]'), status: (document.querySelector('[data-gast-arende="a-2"] [data-gast-arende-status]')?.textContent || "").trim() }));
         krav(klar.anrop === JSON.stringify(["markeraArendeKlart", "arenden"]) && !klar.knappKvar && klar.status === "Klart", `${namn} (d): efter Ja blev anropen ${klar.anrop} (väntat markeraArendeKlart och därefter en ny hämtning), knappen kvar ${klar.knappKvar}, status ${JSON.stringify(klar.status)}.`);
         if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `gaster-arenden-klar-${w}.png`), fullPage: true });
       } catch (err) {
-        krav(false, `${namn} fliken: provet avbröts (${String(/** @type {Error} */ (err).message).split("\n")[0]}).`);
+        krav(false, `${namn} fliken: provet avbröts (${String(/** @type {Error} */ (err).message).split("\n").slice(0, 4).join(" | ")}).`);
       }
       await context.close();
     }
@@ -8348,7 +8463,8 @@ async function gastArenden() {
  *       kommer från filen och inte från appen syns hel (inte klippt). Golv: två knappar och två textrader mättes.
  *   (c) Rutan (`iframe`, `sandbox="allow-scripts allow-modals"`, inget `src`) börjar där raden slutar, fyller resten av fönstrets höjd och hela dess bredd, och dokumentets innehåll syns i den (bilden tas, och rutans yta är dokumentets egen färg).
  *   (d) Stäng anropar `onStang` en gång. Fel och tomt dokument skriver ut det, utan ruta, och raden med Stäng står kvar och ligger inom fönstret.
- *   (e) Biblioteket med `oppnaHtml`: kortet är en länk med `target="_blank"` som täcker kortet och är minst 44 px hög; i detaljen ligger filnamnet (länken till vyn) och Ladda ned (en knapp) inom fönstret, båda minst 44 px höga under 768, och sidan flödar inte över.
+ *   (e) Biblioteket med `oppnaHtml`: kortet är en länk med `target="_blank"` som täcker kortet och är minst 44 px hög (ett vanligt tryck öppnar detaljen sedan 0.192.0, men länken står kvar för mellanklick och långtryck); i detaljen
+ *       ligger Öppna i eget fönster (i rutans verktygsrad sedan 0.192.0) och Ladda ned inom fönstret, båda minst 44 px höga under 768, och sidan flödar inte över.
  */
 async function bibliotekHtmlVy() {
   for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
@@ -8382,7 +8498,7 @@ async function bibliotekHtmlVy() {
             namn: { text: (namnEl.textContent || "").trim(), r: nr.right, l: nr.left, klippt: namnEl.scrollWidth > namnEl.clientWidth + 1, punkter: getComputedStyle(namnEl).textOverflow },
             av: (av.textContent || "").trim(),
             skydd: { t: sr.top, b: sr.bottom, l: sr.left, r: sr.right, klippt: skydd.scrollHeight > skydd.clientHeight + 1 || skydd.scrollWidth > skydd.clientWidth + 1, text: (skydd.textContent || "").trim() },
-            knappar: [...rad.querySelectorAll("button")].map((b) => ({ text: (b.textContent || "").trim(), h: b.getBoundingClientRect().height, l: b.getBoundingClientRect().left, r: b.getBoundingClientRect().right, t: b.getBoundingClientRect().top, b: b.getBoundingClientRect().bottom })),
+            knappar: [...rad.querySelectorAll("button")].filter((b) => !b.closest("[data-html-zoom]")).map((b) => ({ text: (b.textContent || "").trim(), h: b.getBoundingClientRect().height, l: b.getBoundingClientRect().left, r: b.getBoundingClientRect().right, t: b.getBoundingClientRect().top, b: b.getBoundingClientRect().bottom })),
             over: document.documentElement.scrollWidth - document.documentElement.clientWidth,
           };
         });
@@ -8478,19 +8594,94 @@ async function bibliotekHtmlVy() {
         await page.waitForSelector("[data-html-dokument-ruta]");
         await page.waitForTimeout(200);
         const m = await page.evaluate(() => {
-          const oppna = /** @type {HTMLElement} */ (document.querySelector("[data-bibliotek-oppna-html]"));
+          // 0.192.0 (#529): med rutan står Öppna i eget fönster i rutans verktygsrad, och filnamnet är text bredvid Ladda ned.
+          const oppna = /** @type {HTMLElement} */ (document.querySelector("[data-html-dokument-fonster] a"));
           const ladda = /** @type {HTMLAnchorElement} */ (document.querySelector("[data-bibliotek-ladda-ned]"));
+          const filnamn = (document.querySelector("[data-bibliotek-filnamn]")?.textContent || "").trim();
           const or = oppna.getBoundingClientRect();
           const lr = ladda.getBoundingClientRect();
-          return { o: { l: or.left, r: or.right, h: or.height, t: or.top, b: or.bottom, text: (oppna.textContent || "").replace(/\s+/g, " ").trim(), href: oppna.getAttribute("href") }, l: { l: lr.left, r: lr.right, h: lr.height, t: lr.top, b: lr.bottom, text: (ladda.textContent || "").trim(), download: ladda.hasAttribute("download"), href: ladda.getAttribute("href") }, over: document.documentElement.scrollWidth - document.documentElement.clientWidth, fonsterB: window.innerWidth, ruta: document.querySelectorAll("[data-html-dokument-ruta]").length };
+          return { o: { l: or.left, r: or.right, h: or.height, t: or.top, b: or.bottom, text: (oppna.textContent || "").replace(/\s+/g, " ").trim(), href: oppna.getAttribute("href"), target: oppna.getAttribute("target"), filnamn }, l: { l: lr.left, r: lr.right, h: lr.height, t: lr.top, b: lr.bottom, text: (ladda.textContent || "").trim(), download: ladda.hasAttribute("download"), href: ladda.getAttribute("href") }, over: document.documentElement.scrollWidth - document.documentElement.clientWidth, fonsterB: window.innerWidth, ruta: document.querySelectorAll("[data-html-dokument-ruta]").length };
         });
-        matt.push(`${namn} (e, detalj): filnamnet ${m.o.l.toFixed(0)}-${m.o.r.toFixed(0)}x${m.o.h.toFixed(0)}, Ladda ned ${m.l.l.toFixed(0)}-${m.l.r.toFixed(0)}x${m.l.h.toFixed(0)}`);
-        krav(m.o.href === "/bibliotek/visa/p1?plats=cps-ab" && /kvartalsrapport-med-ett-langt-namn\.html/.test(m.o.text) && m.l.text === "Ladda ned" && m.l.download && m.l.href === "https://lagring.example/fil" && m.ruta === 1, `${namn} (e, detalj): filnamnet ${JSON.stringify(m.o)} och Ladda ned ${JSON.stringify(m.l)}, rutor ${m.ruta}.`);
+        matt.push(`${namn} (e, detalj): Öppna i eget fönster ${m.o.l.toFixed(0)}-${m.o.r.toFixed(0)}x${m.o.h.toFixed(0)}, Ladda ned ${m.l.l.toFixed(0)}-${m.l.r.toFixed(0)}x${m.l.h.toFixed(0)}`);
+        krav(m.o.href === "/bibliotek/visa/p1?plats=cps-ab" && m.o.target === "_blank" && /Öppna i eget fönster/.test(m.o.text) && /kvartalsrapport-med-ett-langt-namn\.html/.test(m.o.filnamn) && m.l.text === "Ladda ned" && m.l.download && m.l.href === "https://lagring.example/fil" && m.ruta === 1, `${namn} (e, detalj): Öppna i eget fönster ${JSON.stringify(m.o)} och Ladda ned ${JSON.stringify(m.l)}, rutor ${m.ruta}.`);
         krav(m.o.h >= knapp - 0.6 && m.l.h >= knapp - 0.6, `${namn} (e, detalj): träffytorna är ${Math.round(m.o.h)} och ${Math.round(m.l.h)} px, väntat minst ${knapp}.`);
-        krav(m.o.l >= -0.5 && m.o.r <= m.fonsterB + 0.5 && m.l.l >= -0.5 && m.l.r <= m.fonsterB + 0.5 && m.over <= 0, `${namn} (e, detalj): filnamnet ${m.o.l.toFixed(0)}-${m.o.r.toFixed(0)} och Ladda ned ${m.l.l.toFixed(0)}-${m.l.r.toFixed(0)} ska ligga inom fönstret på ${m.fonsterB}, och sidan flödar över ${m.over} px.`);
+        krav(m.o.l >= -0.5 && m.o.r <= m.fonsterB + 0.5 && m.l.l >= -0.5 && m.l.r <= m.fonsterB + 0.5 && m.over <= 0, `${namn} (e, detalj): Öppna i eget fönster ${m.o.l.toFixed(0)}-${m.o.r.toFixed(0)} och Ladda ned ${m.l.l.toFixed(0)}-${m.l.r.toFixed(0)} ska ligga inom fönstret på ${m.fonsterB}, och sidan flödar över ${m.over} px.`);
         if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `html-oppna-detalj-${vp.width}.png`), fullPage: true });
       } catch (e) {
         krav(false, `${namn} (e, detalj): provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+      }
+      await context.close();
+    }
+  }
+}
+
+/**
+ * Avsnitt 62 (0.192.0, cllp/ops-framework#529): ZOOMEN I HTML-RUTAN, vid 390 och 1280 px, i detaljen (`bibliotekhtmlzoom`) och i helfönstret (`bibliotekhtmlvy-bred`). CP 2026-11-06: "HTML-sidan är ofta för stor
+ * och man behöver scrolla i vyn." och "Zoomen måste finnas med i förhandstitt." Dokumentet är 1800 px brett. jsdom kör ingen layout, så proven i `htmldokument-zoom.test.jsx` mäter beteendet och det här hur det LIGGER. Krav:
+ *   (a) I förvalet (Anpassa till bredd) rullar rutan inte i sidled: dokumentets `scrollWidth` är högst dess `clientWidth`, mätt inne i rutan, och tabellens sista cell slutar inom rutan. Sidan flödar inte över.
+ *   (b) Verktygsradens knappar (−, procenten, +, Spara som PDF, och i detaljen Öppna i eget fönster) är minst 44 px höga under 768 och 32 från, och ligger inom fönstret. Golv: fyra knappar i helfönstret, fem i detaljen.
+ *   (c) Ctrl+hjul över rutan UTAN fokus ändrar inte procenten. Efter ett klick i dokumentet har rutan ramen (`data-html-fokus`), och Ctrl+hjul ändrar procenten.
+ */
+async function bibliotekHtmlZoom() {
+  for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
+    const knapp = vp.width < 768 ? 44 : 32;
+    for (const [scen, var_, golv] of /** @type {const} */ ([["bibliotekhtmlzoom", "detalj", 5], ["bibliotekhtmlvy-bred", "helfönster", 4]])) {
+      const namn = `html-zoom ${var_} ${vp.width}`;
+      const { page, context } = await oppna(scen, vp);
+      try {
+        const rutaSel = var_ === "detalj" ? "[data-html-dokument-ruta]" : "[data-html-vy-ruta]";
+        await page.waitForSelector(rutaSel);
+        await page.waitForSelector("[data-html-zoom-procent]");
+        // Måttet kommer när dokumentet laddats: vänta tills procenten lämnat 100.
+        await page.waitForFunction(() => !/^100\s?%$/.test((document.querySelector("[data-html-zoom-procent]")?.textContent || "").replace(/\u00a0/g, " ").trim()), null, { timeout: 5000 }).catch(() => {});
+        await page.waitForTimeout(300);
+        const handtag = await page.$(rutaSel);
+        const ram = await handtag?.contentFrame();
+        if (!ram) throw new Error("rutans ram gick inte att nå");
+        const inne = await ram.evaluate(() => {
+          const r = document.documentElement;
+          const cell = /** @type {HTMLElement} */ (document.querySelector("[data-sista]"));
+          return { sw: r.scrollWidth, cw: r.clientWidth, zoom: r.style.zoom, cellH: cell ? cell.getBoundingClientRect().right : -1, iw: window.innerWidth };
+        });
+        const ute = await page.evaluate((sel) => {
+          const ruta = /** @type {HTMLElement} */ (document.querySelector(sel));
+          const rr = ruta.getBoundingClientRect();
+          const procent = (document.querySelector("[data-html-zoom-procent]")?.textContent || "").replace(/\u00a0/g, " ").trim();
+          const knappar = [...document.querySelectorAll("[data-html-zoom] button, [data-html-dokument-verktyg] button, [data-html-dokument-verktyg] a, [data-html-vy-rad] button")].filter((b, i, a) => a.indexOf(b) === i && /** @type {HTMLElement} */ (b).offsetParent !== null);
+          return { rutaB: rr.width, procent, anpassad: Boolean(document.querySelector("[data-html-zoom-anpassad]")), knappar: knappar.map((b) => { const r = b.getBoundingClientRect(); return { text: (b.getAttribute("aria-label") || b.textContent || "").replace(/\s+/g, " ").trim(), h: r.height, l: r.left, r: r.right }; }), over: document.documentElement.scrollWidth - document.documentElement.clientWidth, fonsterB: window.innerWidth };
+        }, rutaSel);
+        matt.push(`${namn}: rutan ${ute.rutaB.toFixed(0)} px, procent ${ute.procent}, zoom ${inne.zoom}, inne scrollWidth ${inne.sw} clientWidth ${inne.cw}, sista cellen slutar ${inne.cellH.toFixed(0)}, knappar ${ute.knappar.map((k) => `${k.text.slice(0, 18)} ${Math.round(k.h)}`).join(", ")}`);
+        krav(ute.anpassad && inne.sw <= inne.cw + 1, `${namn} (a): rutan rullar i sidled i förvalet: scrollWidth ${inne.sw}, clientWidth ${inne.cw}, zoom ${inne.zoom}, procent ${ute.procent}, anpassad ${ute.anpassad}.`);
+        krav(inne.cellH > 0 && inne.cellH <= inne.iw + 1, `${namn} (a): tabellens sista cell slutar ${inne.cellH.toFixed(0)}, rutans bredd inne ${inne.iw}.`);
+        krav(ute.over <= 0, `${namn} (a): sidan flödar över ${ute.over} px.`);
+        krav(ute.knappar.length >= golv, `${namn} (b): ${ute.knappar.length} knappar i verktygsraden, väntat minst ${golv}.`);
+        for (const k of ute.knappar) krav(k.h >= knapp - 0.6 && k.l >= -0.5 && k.r <= ute.fonsterB + 0.5, `${namn} (b): "${k.text}" är ${Math.round(k.h)} px hög (väntat minst ${knapp}) och ligger ${k.l.toFixed(0)}-${k.r.toFixed(0)} i fönstret på ${ute.fonsterB}.`);
+        if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `html-zoom-${var_ === "detalj" ? "detalj" : "vy"}-${vp.width}.png`), fullPage: var_ === "detalj" });
+        // (c) Ctrl+hjul utan fokus, sedan med.
+        const box = await handtag?.boundingBox();
+        if (!box) throw new Error("rutan har ingen yta");
+        const procentNu = () => page.evaluate(() => (document.querySelector("[data-html-zoom-procent]")?.textContent || "").replace(/\u00a0/g, " ").trim());
+        await page.mouse.move(box.x + box.width / 2, box.y + Math.min(box.height / 2, 120));
+        const fore = await procentNu();
+        await page.keyboard.down("Control");
+        await page.mouse.wheel(0, -100);
+        await page.keyboard.up("Control");
+        await page.waitForTimeout(250);
+        const utan = await procentNu();
+        const ramUtan = await page.evaluate((sel) => document.querySelector(sel)?.hasAttribute("data-html-fokus"), rutaSel);
+        await page.mouse.click(box.x + box.width / 2, box.y + Math.min(box.height / 2, 120));
+        await page.waitForTimeout(250);
+        const ramMed = await page.evaluate((sel) => document.querySelector(sel)?.hasAttribute("data-html-fokus"), rutaSel);
+        await page.keyboard.down("Control");
+        await page.mouse.wheel(0, -100);
+        await page.keyboard.up("Control");
+        await page.waitForTimeout(250);
+        const med = await procentNu();
+        matt.push(`${namn} (c): procent ${fore}, efter Ctrl+hjul utan fokus ${utan} (ram ${ramUtan ? "ja" : "nej"}), med fokus ${med} (ram ${ramMed ? "ja" : "nej"})`);
+        krav(utan === fore && !ramUtan, `${namn} (c): Ctrl+hjul utan fokus ändrade procenten från ${fore} till ${utan}, eller ramen stod redan (${ramUtan}).`);
+        krav(ramMed && med !== utan, `${namn} (c): efter ett klick i dokumentet: ram ${ramMed}, procenten ${utan} blev ${med} efter Ctrl+hjul.`);
+      } catch (e) {
+        krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
       }
       await context.close();
     }
@@ -8864,6 +9055,7 @@ await gastArenden();
 await kalenderdelning();
 await bibliotekHtmlVersioner();
 await bibliotekHtmlVy();
+await bibliotekHtmlZoom();
 await bibliotekKommentarer();
 
 await browser.close();

@@ -3,6 +3,7 @@ import { cx } from "../lib/cx.js";
 import { GASTSKRIV_MAX_TECKEN } from "../lib/gast.js";
 import { definierade, forvalda } from "../lib/ord.js";
 import { OpsButton } from "./OpsButton.jsx";
+import { OpsGastFelrad } from "./OpsGastFelrad.jsx";
 import { OpsEmpty } from "./OpsEmpty.jsx";
 import { Meddelanderader, Skrivfalt, texterPa } from "./OpsMeddelanden.jsx";
 /** Kortets ritning, hämtad när ett kort slås upp (se `bibliotekPostkortVisning`). */
@@ -21,6 +22,7 @@ export const ORD_OPSGASTCHATT = {
   skrivFel: { sv: "Meddelandet kunde inte skickas.", en: "The message could not be sent." },
   aldre: { sv: "Visa äldre meddelanden", en: "Show older messages" },
   bilaga: { sv: "Bilaga: {namn}. Bilagor visas inte för gäster.", en: "Attachment: {namn}. Attachments are not shown to guests." },
+  forsokIgen: { sv: "Försök igen", en: "Try again" },
   fel: { sv: "Chatten kunde inte hämtas just nu.", en: "The chat could not be loaded right now." },
   laddar: { sv: "Hämtar chatten", en: "Loading the chat" },
   svar: { sv: "{n} svar", en: "{n} replies" },
@@ -64,6 +66,7 @@ const EGEN = "__gast_egen__";
  *   Utan den ritas inget skrivfält och sidan säger att chatten bara går att läsa.
  * @param {boolean} [props.laddar] Första sidan hämtas ännu.
  * @param {string | null} [props.fel] Hämtningen föll. Ett fel är inte "inga meddelanden".
+ * @param {() => void} [props.onForsokIgen] (0.192.0, cllp/lifehub.app#675) Hämtar igen efter ett fel. Med den står en Försök igen under felet.
  * @param {string} [props.sprak]
  * @param {Partial<Record<keyof typeof ORD_OPSGASTCHATT, string>>} [props.ord]
  * @param {import("../lib/talk.js").Igenkanning | boolean} [props.igenkanning] (0.190.0, CP 2026-11-05: gästen får mikrofon) Webbläsarens taligenkänning i skrivfältet, samma som
@@ -74,7 +77,7 @@ const EGEN = "__gast_egen__";
  * @param {boolean} [props.fyll] (0.190.0, del B) Chatten fyller sin förälders höjd: loggen rullar i den och skrivfältet står längst ned. Gästens telefonvy, där ytan
  *   mellan huvudet och bottenraden har en mätt höjd. Utan den är loggen högst 60 % av fönstret, som förut.
  */
-export function OpsGastChatt({ meddelanden, fler = false, onAldre, onSkriv, laddar = false, fel = null, sprak = "sv", ord, igenkanning = true, fyll = false, onLasTrad, onSkrivITrad, onOppnaPost }) {
+export function OpsGastChatt({ meddelanden, fler = false, onAldre, onSkriv, laddar = false, fel = null, onForsokIgen, sprak = "sv", ord, igenkanning = true, fyll = false, onLasTrad, onSkrivITrad, onOppnaPost }) {
   if (!Array.isArray(meddelanden)) {
     throw new Error("OpsGastChatt: meddelanden måste vara en lista, tom när chatten är tom. Utan den går det inte att skilja 'inga meddelanden' från 'inte hämtad'.");
   }
@@ -197,7 +200,7 @@ export function OpsGastChatt({ meddelanden, fler = false, onAldre, onSkriv, ladd
   return (
     <section aria-label={t.rubrik} data-gast-chatt="" data-fyll={fyll ? "" : undefined} className={cx("flex min-w-0 flex-col gap-3", fyll && "min-h-0 flex-1 pt-2")}>
       {fel ? (
-        <p role="alert" data-gast-chatt-fel="" className="m-0 text-etikett text-danger">{t.fel}</p>
+        <OpsGastFelrad data="gast-chatt-fel" text={t.fel} forsokIgen={t.forsokIgen} onForsokIgen={onForsokIgen} />
       ) : laddar ? (
         <OpsEmpty busy title={t.laddar} busyLabel={t.laddar} />
       ) : meddelanden.length === 0 ? (

@@ -45,7 +45,11 @@ export const ORD_OPSGASTSIDA = {
   nyLankSvar: { sv: GASTNYLANK_SVAR, en: "If the address has an invitation we have sent a link." },
   namnEtikett: { sv: "Vad ska gruppen kalla dig? (valfritt)", en: "What should the group call you? (optional)" },
   namnSpara: { sv: "Spara", en: "Save" },
+  namnSparar: { sv: "Sparar…", en: "Saving…" },
   namnSparat: { sv: "Sparat", en: "Saved" },
+  namnKallas: { sv: "Gruppen kallar dig {namn}.", en: "The group calls you {namn}." },
+  namnAndra: { sv: "Ändra", en: "Change" },
+  namnAvbryt: { sv: "Avbryt", en: "Cancel" },
   gastNot: { sv: "Du är gäst. Du ser bara det du bjudits in till.", en: "You are a guest. You only see what you were invited to." },
   // Gäller varje inbjudan som appen inte gett en väg att visa: hela gruppen (`renderGrupp`) och en händelse att svara på (`onSvara`).
   gruppEjStodd: { sv: "Den här inbjudan går inte att visa i den här versionen av appen.", en: "This invitation cannot be shown in this version of the app." },
@@ -83,7 +87,7 @@ export const ORD_OPSGASTSIDA = {
 };
 
 /**
- * Appens ordmärke i samma ruta som skalets märke (0.190.0): 40 px hög som `OpsBrand`s ruta i toppraden, högst `--logo-bredd` bred.
+ * Appens ordmärke i gästens sidhuvud. 0.190.0 ritade det 40 px högt. 0.192.0 ritar det 24 px högt: huvudet är orientering, och gruppnamnet är rubriken på översikten. Högst `--logo-bredd` bred.
  *
  * ⛔ BILDEN ÄR ETT BRETT, TÄTT BESKURET ORDMÄRKE, INTE FYRKANTIG KONST MED LUFT (granskningen av PR 524). Den första formen tog appens fyrkantiga bilder, ritade dem 64 px
  * höga och beskar uppe och nere som inloggningen. Märket blev ändå cirka 50 x 22 px i appens montage, eftersom en fyrkant med luft runt inte kan bli bredare än sin höjd i
@@ -96,7 +100,7 @@ function GastMarke({ marke }) {
     throw new Error("OpsGastSida: marke är { ljus, mork, namn }: en bild per tema och appens namn som alternativtext.");
   }
   return (
-    <span data-gast-marke="" className="flex h-10 max-w-(--logo-bredd) shrink-0 items-center">
+    <span data-gast-marke="" className="flex h-6 max-w-(--logo-bredd) shrink-0 items-center">
       {[["ljus", marke.ljus, "mix-blend-multiply"], ["mork", marke.mork, ""]].map(([tema, src, extra]) => (
         <img key={tema} src={src} alt={tema === "ljus" ? marke.namn : ""} aria-hidden={tema === "ljus" ? undefined : true} className={cx(tema === "ljus" ? "ops-ordmarke-ljus" : "ops-ordmarke-mork", "h-full w-auto max-w-full object-contain object-left", extra)} />
       ))}
@@ -109,19 +113,19 @@ const ERSATTBARA = /** @type {readonly string[]} */ (["utgangen"]);
 
 
 /**
- * Gästens egen sida: det en person ser som bjudits in utan konto, på `/gast` (0.131.0, cllp/lifehub.app#389, skiva 1; 0.132.0, skiva 2: hela gruppen).
+ * Gästens egen sida: det en person ser som bjudits in utan konto, på `GASTSOKVAG` (`/guest`; den tidigare `/gast` öppnar samma sida) (0.131.0, cllp/lifehub.app#389, skiva 1; 0.132.0, skiva 2: hela gruppen).
  *
  * ══ ⛔ SIDAN HAR INGEN FIREBASE OCH INGET KONTO, OCH DEN RITAS FÖRE APPENS GRIND ════════════════════════════════════════
  *
- * Appen ritar den på `/gast` före sin inloggning, utan Firebase, med `noindex`. Sidan vet inget om gruppen, medlemmarna eller andra gäster: den får `onLos`, `onHamta`, `onNamn` och
+ * Appen ritar den på `/guest` före sin inloggning, utan Firebase, med `noindex`. `/gast` är samma sida. Sidan vet inget om gruppen, medlemmarna eller andra gäster: den får `onLos`, `onHamta`, `onNamn` och
  * `onNyLank` (appens anrop mot `/api/gast`) och ritar vad de svarar. Sakens eget kort (för omröstningen: förslagen, Ja, Kanske, Nej och summan) är appens och ritas av `renderSak`.
- * Hela gruppen (`funktion: "grupp"`) ritas av `renderGrupp`, normalt `OpsGastGrupp` med `gastGruppApi(anrop, sessionsnyckel)`: det bantade gränssnittet med fyra flikar och ingen väg ut ur `/gast`.
+ * Hela gruppen (`funktion: "grupp"`) ritas av `renderGrupp`, normalt `OpsGastGrupp` med `gastGruppApi(anrop, sessionsnyckel)`: det bantade gränssnittet med Översikt och ingen väg ut ur sidan.
  *
  * ══ ⛔ ADRESSEN SKRIVS EN GÅNG, SEDAN STANNAR GÄSTEN INLOGGAD PÅ ENHETEN ═══════════════════════════════════════════════
  *
  * Första öppningen med en länk (`lank`, ur `tolkaGastLank(location.hash)`): sidan frågar efter adressen och postar `{ id, nyckel, epost }`. Ett ja ger en sessionsnyckel som sparas i webbläsarens
  * minne (per inbjudan), och fragmentet tas bort ur adressraden så att nyckeln inte ligger kvar i historiken. Nästa gång sidan öppnas, med eller utan länk, hämtas saken direkt med sessionen. På en ny
- * enhet finns ingen session: gästen skriver adressen på `/gast` och får en ny länk (`onNyLank`), med samma svar hur det än gått.
+ * enhet finns ingen session: gästen skriver adressen på `/guest` och får en ny länk (`onNyLank`), med samma svar hur det än gått.
  *
  * ══ ⛔ FLERA SESSIONER PÅ SAMMA ENHET: INGEN GIVER UPP FÖRE DE ANDRA ÄR PRÖVADE (0.132.0) ══════════════════════════════
  *
@@ -194,6 +198,10 @@ export function OpsGastSida({ lank = null, onLos, onHamta, onNyLank, onNamn, onR
   const [fel, setFel] = useState("");
   const [namn, setNamn] = useState("");
   const [namnSparat, setNamnSparat] = useState(false);
+  /** Namnet som visas på översikten. Tom sträng: inget namn, formuläret står kvar. Sätts en gång ur servern, sedan ur sparningen. */
+  const [visningsnamn, setVisningsnamn] = useState(/** @type {string | null} */ (null));
+  const [andrarNamn, setAndrarNamn] = useState(false);
+  const namnLast = useRef(false);
   const [fragarRadera, setFragarRadera] = useState(false);
   const [raderaFel, setRaderaFel] = useState("");
   /** Inbjudan som den visade sessionen hör till. */
@@ -205,6 +213,14 @@ export function OpsGastSida({ lank = null, onLos, onHamta, onNyLank, onNamn, onR
       levande.current = false;
     };
   }, []);
+  // Serverns namn läses en gång. En senare hämtning (fokus, minut) får inte skriva över ett namn gästen just ändrat.
+  useEffect(() => {
+    if (namnLast.current || !svar || typeof svar.namn !== "string") return;
+    namnLast.current = true;
+    const n = svar.namn.trim();
+    setVisningsnamn(n);
+    setNamn(n);
+  }, [svar]);
 
   /** @param {string} s */
   function valj(s) {
@@ -417,8 +433,13 @@ export function OpsGastSida({ lank = null, onLos, onHamta, onNyLank, onNamn, onR
     if (!onNamn || !sessionsnyckel) return;
     setFel("");
     try {
-      await onNamn({ sessionsnyckel, namn: namn.trim() });
-      if (levande.current) setNamnSparat(true);
+      const n = namn.trim();
+      await onNamn({ sessionsnyckel, namn: n });
+      if (levande.current) {
+        setNamnSparat(true);
+        setVisningsnamn(n);
+        setAndrarNamn(false);
+      }
     } catch {
       if (levande.current) setFel(t.kundeInte);
     }
@@ -492,6 +513,9 @@ export function OpsGastSida({ lank = null, onLos, onHamta, onNyLank, onNamn, onR
     setFel("");
     setOrsak("");
     setNamnSparat(false);
+    namnLast.current = false;
+    setVisningsnamn(null);
+    setAndrarNamn(false);
     setFragarRadera(false);
     setLage({ fas: lank ? "adress" : "ny-lank" });
   }
@@ -570,8 +594,44 @@ export function OpsGastSida({ lank = null, onLos, onHamta, onNyLank, onNamn, onR
   );
 
   const grupplage = lage.fas === "klar" && svar?.funktion === "grupp";
-  // ⛔ I GRUPPEN STÅR NAMNRUTAN ÖVERST (0.190.0, granskning av PR 524): under gruppen hamnade den efter ytan som fyller höjden ut till bottenraden, och på telefon
-  // rullade då hela sidan ovanpå chattens egen rullning (check-skalyta 56 (e), "sidan rullar true"). Ovanför mäts den in i ytans topp, och ytan blir kortare i stället.
+  // Namnet på översikten (0.192.0). Ett sparat namn visas med Ändra. Formuläret står bara när namnet saknas eller när gästen ändrar det.
+  // En omröstning och en händelse har ingen översikt, och där står `namnruta` kvar under innehållet.
+  const visatNamn = visningsnamn !== null ? visningsnamn : (typeof svar?.namn === "string" ? svar.namn.trim() : "");
+  const gruppNamnBlock = !onNamn ? null : visatNamn && !andrarNamn ? (
+    <div data-gast-namn-visas="" className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+      <p className="m-0 text-etikett text-ink">{t.namnKallas.replace("{namn}", visatNamn)}</p>
+      <button
+        type="button"
+        data-gast-namn-andra=""
+        onClick={() => { setNamn(visatNamn); setFel(""); setAndrarNamn(true); }}
+        className="inline-flex min-h-11 cursor-pointer items-center text-etikett font-medium text-accent underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+      >
+        {t.namnAndra}
+      </button>
+    </div>
+  ) : (
+    <form
+      data-gast-namn=""
+      noValidate
+      className="flex max-w-md flex-col gap-2"
+      onSubmit={(e) => { e.preventDefault(); }}
+    >
+      {/* Spara står på samma rad som fältet (CP 2026-11-06 07:35: en egen rad under fältet känns klumpig). Knappen är minst 44 px. Avbryt ligger under, så raden inte får tre kontroller på en smal telefon. */}
+      <OpsField label={t.namnEtikett} error={fel || undefined}>
+        <div data-gast-namn-rad="" className="flex min-w-0 items-stretch gap-2">
+          <div className="min-w-0 flex-1">
+            <OpsInput value={namn} onChange={setNamn} maxLength={MAX_GASTNAMN} autoComplete="name" tal={false} />
+          </div>
+          <OpsButton type="submit" variant="secondary" busyLabel={t.namnSparar} onClick={sparaNamn}>{t.namnSpara}</OpsButton>
+        </div>
+      </OpsField>
+      {visatNamn ? (
+        <div>
+          <OpsButton type="button" variant="secondary" onClick={() => { setAndrarNamn(false); setFel(""); setNamn(visatNamn); }}>{t.namnAvbryt}</OpsButton>
+        </div>
+      ) : null}
+    </form>
+  );
   const namnruta = (
     <>
       {onNamn && svar && !svar.namn && !namnSparat ? (
@@ -602,9 +662,12 @@ export function OpsGastSida({ lank = null, onLos, onHamta, onNyLank, onNamn, onR
   return (
     <div lang={aktivt} data-gastsida="" data-sprak={aktivt} data-gast-lage={lage.fas} className={cx("flex min-h-dvh w-full flex-col", PUBLIK_TONER.ljus.band, PUBLIK_TONER.ljus.rubrik)}>
       <header className="sticky top-0 z-10 border-b border-publik-ljus-text/10 bg-publik-ljus">
-        <div className={cx("mx-auto flex h-14 w-full items-center justify-between gap-3 px-4", spalt)}>
-          <div data-gast-huvud="" className="flex min-w-0 items-center gap-3">
+        <div className={cx("mx-auto flex h-12 w-full items-center justify-between gap-3 px-4", spalt)}>
+          <div data-gast-huvud="" className="flex min-w-0 items-center gap-2">
             {marke ? <GastMarke marke={marke} /> : null}
+            {grupplage && typeof svar?.grupp?.namn === "string" && svar.grupp.namn ? (
+              <span data-gast-huvud-grupp="" className="min-w-0 truncate text-etikett font-medium">{svar.grupp.namn}</span>
+            ) : null}
             {huvud}
           </div>
           <PublikSprakval aktivt={aktivt} etikett={t.sprakEtikett} onVal={valj} />
@@ -633,10 +696,9 @@ export function OpsGastSida({ lank = null, onLos, onHamta, onNyLank, onNamn, onR
           </div>
         ) : (
           <div data-gast-klar="" className="flex min-w-0 flex-col gap-6">
-            {grupplage ? namnruta : null}
             {svar && svar.funktion === "grupp" ? (
               renderGrupp ? (
-                <GastsidaInfo.Provider value={gruppInfo}>
+                <GastsidaInfo.Provider value={{ integritet: gruppInfo, namn: gruppNamnBlock, minne: mem.current, inbjudan: aktivId.current }}>
                   {renderGrupp({ grupp: svar.grupp, namn: typeof svar.namn === "string" ? svar.namn : "", sessionsnyckel: /** @type {string} */ (sessionsnyckel), uppdatera: async () => void (await hamta(/** @type {string} */ (sessionsnyckel), { tyst: true })) })}
                 </GastsidaInfo.Provider>
               ) : (
@@ -652,8 +714,7 @@ export function OpsGastSida({ lank = null, onLos, onHamta, onNyLank, onNamn, onR
               renderSak({ sak: svar.sak, funktion: String(svar.funktion ?? ""), sessionsnyckel: /** @type {string} */ (sessionsnyckel), uppdatera: async () => void (await hamta(/** @type {string} */ (sessionsnyckel), { tyst: true })) })
             ) : null}
             {grupplage ? null : namnruta}
-            {/* ⛔ I GRUPPEN BOR INTEGRITETEN BAKOM (i) (0.190.0, del A), tillsammans med "Skriv in adressen igen", och sidfotens "Du är gäst" är borta: gruppens huvud säger det.
-                En omröstning och en händelse har inget sådant huvud, och där står de kvar längst ned. */}
+            {/* ⛔ I GRUPPEN BOR INTEGRITETEN OCH NAMNET PÅ ÖVERSIKTEN (0.192.0), inte ovanför chatten. En omröstning och en händelse har ingen översikt, och där står de kvar längst ned. */}
             {svar?.funktion === "grupp" ? null : (
               <>
                 {integritet}

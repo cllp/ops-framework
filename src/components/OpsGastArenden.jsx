@@ -5,6 +5,7 @@ import { definierade, forvalda } from "../lib/ord.js";
 import { statusTone } from "../lib/statusTone.js";
 import { isOpenCase } from "../lib/caseModel.js";
 import { OpsButton } from "./OpsButton.jsx";
+import { OpsGastFelrad } from "./OpsGastFelrad.jsx";
 import { OpsEmpty } from "./OpsEmpty.jsx";
 import { Skrivfalt, texterPa } from "./OpsMeddelanden.jsx";
 import { OpsPill } from "./OpsPill.jsx";
@@ -22,6 +23,7 @@ export const ORD_OPSGASTARENDEN = {
   },
   tom: { sv: "Inga ärenden ligger hos dig just nu.", en: "No cases are with you right now." },
   laddar: { sv: "Hämtar ärendena", en: "Loading the cases" },
+  forsokIgen: { sv: "Försök igen", en: "Try again" },
   fel: { sv: "Ärendena kunde inte hämtas just nu.", en: "The cases could not be loaded right now." },
   avkortad: { sv: "Du har fler ärenden än vi visar. Det kan finnas ärenden hos dig som inte syns här.", en: "You have more cases than we show. There may be cases with you that are not shown here." },
   status_ny: { sv: "Öppet", en: "Open" },
@@ -191,11 +193,12 @@ function Arendekort({ post, onKommentera, onKlar, sprak, t, igenkanning }) {
  * @param {(id: string) => Promise<unknown>} props.onKlar Tjänstens `markeraArendeKlart`. Avvisar med ett Error vars text visas.
  * @param {boolean} [props.laddar] Första hämtningen pågår.
  * @param {string | null} [props.fel] Hämtningen föll. Ett fel är inte "inga ärenden".
+ * @param {() => void} [props.onForsokIgen] (0.192.0, cllp/lifehub.app#675) Hämtar igen efter ett fel. Med den står en Försök igen under felet.
  * @param {string} [props.sprak]
  * @param {Partial<Record<keyof typeof ORD_OPSGASTARENDEN, string>>} [props.ord]
  * @param {boolean} [props.igenkanning] (0.190.0) Webbläsarens taligenkänning i kommentarsfältet, som i gästens chatt. Förval `true`, där webbläsaren har den.
  */
-export function OpsGastArenden({ poster, avkortad = false, onKommentera, onKlar, laddar = false, fel = null, sprak = "sv", ord, igenkanning = true }) {
+export function OpsGastArenden({ poster, avkortad = false, onKommentera, onKlar, laddar = false, fel = null, onForsokIgen, sprak = "sv", ord, igenkanning = true }) {
   if (!Array.isArray(poster)) {
     throw new Error("OpsGastArenden: poster måste vara en lista, tom när gästen inte har några. Utan den går det inte att skilja 'inga ärenden' från 'inte hämtade'.");
   }
@@ -207,7 +210,7 @@ export function OpsGastArenden({ poster, avkortad = false, onKommentera, onKlar,
     <section aria-label={t.rubrik} data-gast-arenden="" className="flex min-w-0 flex-col gap-4">
       <p data-gast-arenden-ingress="" className="m-0 text-etikett text-ink-secondary">{t.ingress}</p>
       {fel ? (
-        <p role="alert" data-gast-arenden-fel="" className="m-0 text-etikett text-danger">{t.fel}</p>
+        <OpsGastFelrad data="gast-arenden-fel" text={t.fel} forsokIgen={t.forsokIgen} onForsokIgen={onForsokIgen} />
       ) : laddar ? (
         <OpsEmpty busy title={t.laddar} busyLabel={t.laddar} />
       ) : poster.length === 0 ? (

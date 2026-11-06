@@ -125,7 +125,7 @@ import {
   gastplatsId,
   normaliseraGastepost,
 } from "../lib/gast.js";
-import { agentId, medlemskapsId } from "../lib/grupp.js";
+import { MAX_GRUPPBESKRIVNING, agentId, medlemskapsId } from "../lib/grupp.js";
 import { trimSomRegeln } from "../lib/bibliotek.js";
 import { KLOCKFORM, SVARSVAL, byggSvar, handelsefel, sammanstallSvar } from "../lib/handelsemodell.js";
 import { validateGruppkalendrar } from "../lib/kalendrar.js";
@@ -1520,7 +1520,7 @@ export function createGastService(konfig) {
     if (!(await reserveraAnrop(s.inbjudan.id))) return orsak("for-manga");
     const g = await kalla.read(GS.samlingar.grupper, s.inbjudan.groupId);
     if (!g) return orsak("saknas");
-    const svar = { ok: true, namn: s.inbjudan.namn, funktion: "grupp", grupp: vitlista({ namn: text(g.namn), funktioner: [...GS.funktioner], nedladdning: await nedladdningTillaten(s.inbjudan.groupId), kommentera: Boolean(GS.tradar && GS.bibliotekBas) }, GASTGRUPPSVARSFALT.hamta) };
+    const svar = { ok: true, namn: s.inbjudan.namn, funktion: "grupp", grupp: vitlista({ namn: text(g.namn), funktioner: [...GS.funktioner], nedladdning: await nedladdningTillaten(s.inbjudan.groupId), kommentera: Boolean(GS.tradar && GS.bibliotekBas), beskrivning: text(g.beskrivning).slice(0, MAX_GRUPPBESKRIVNING) }, GASTGRUPPSVARSFALT.hamta) };
     return Object.fromEntries(Object.entries(svar).filter(([k]) => /** @type {readonly string[]} */ (GASTSVARSFALT).includes(k)));
   }
 

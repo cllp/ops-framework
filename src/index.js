@@ -69,8 +69,10 @@ export { OpsFilePicker, ORD_OPSFILEPICKER } from "./components/OpsFilePicker.jsx
 export { OpsLjudspelare } from "./components/OpsLjudspelare.jsx";
 export { OpsHtmlDokument, OpsHtmlDokumentHamtat, ORD_HTMLDOKUMENT } from "./components/OpsHtmlDokument.jsx";
 export { OpsHtmlVy } from "./components/OpsHtmlVy.jsx";
+// (0.192.0, #529) `byggSrcdoc` bor i `lib/htmlruta.js` med zoomen, så att Bibliotekets startfil inte bär rutans skript. Zoomen är rutans egen och exporteras inte.
+export { byggSrcdoc } from "./lib/htmlruta.js";
 export { ORD_HTMLVERSIONER } from "./components/BibliotekHtmlVersioner.jsx";
-export { HTML_SANDBOX, HTML_UTSKRIFTSMEDDELANDE, HTML_UTSKRIFTSSKRIPT, HTML_LANKMEDDELANDE, HTML_LANKSKRIPT, externLankAdress, arHtmlDokument, htmlVyAdress, byggSrcdoc, htmlText, htmlBytes, VERSIONSFALT, VERSIONSAVGRANSARE, versionsnyckel, nuvarandeVersion, nastaVersionssokvag, byggNyVersion, versionFel, versionslista, byggAterstallning } from "./lib/htmldokument.js";
+export { HTML_SANDBOX, HTML_UTSKRIFTSMEDDELANDE, HTML_UTSKRIFTSSKRIPT, HTML_LANKMEDDELANDE, HTML_LANKSKRIPT, externLankAdress, arHtmlDokument, htmlVyAdress, htmlText, htmlBytes, VERSIONSFALT, VERSIONSAVGRANSARE, versionsnyckel, nuvarandeVersion, nastaVersionssokvag, byggNyVersion, versionFel, versionslista, byggAterstallning } from "./lib/htmldokument.js";
 export { OpsSpelareProvider, OpsSpelaKnapp, OpsSpelarKontroller, useSpelare, ORD_OPSSPELARE } from "./components/OpsSpelare.jsx";
 // ⛔ `readAttachment` och `MAX_SIDE` exporteras MED FLIT inte. En app som läser filer
 // själv har gått runt komponenten, och då finns två ställen som bestämmer vad som
@@ -407,7 +409,7 @@ export { DELNINGSDAGAR, FORVAL_DELNINGSDAGAR, HANDELSEDAGAR, FORVAL_HANDELSEDAGA
  */
 export {
   GAST_PLATSER_GRATIS, GASTSLAG, GASTFUNKTIONER, GASTLANKDAGAR, GASTSESSIONSDAGAR, GASTFEL_MAX, GASTFEL_FONSTER_MS, GASTIP_MAX, GASTIP_FONSTER_MS, GASTNYLANKIP_MAX, GASTNYLANKIP_FONSTER_MS,
-  GASTNYLANK_BREV_PER_DYGN, GASTNYLANK_MAX_LANKAR, MAX_GASTNAMN, MAX_GASTEPOST, GASTNYCKELFORM, GASTINBJUDNINGSIDFORM, GASTIDFORM, GASTSOKVAG, GASTFALT, GASTLISTFALT, GASTSVARSFALT,
+  GASTNYLANK_BREV_PER_DYGN, GASTNYLANK_MAX_LANKAR, MAX_GASTNAMN, MAX_GASTEPOST, GASTNYCKELFORM, GASTINBJUDNINGSIDFORM, GASTIDFORM, GASTSOKVAG, GASTSOKVAG_TIDIGARE, arGastsidansAdress, GASTFALT, GASTLISTFALT, GASTSVARSFALT,
   GASTORSAKER, GASTFEL, GASTFELKODER, GASTNYLANK_SVAR, GASTSTATUSAR, GASTPLATSNUMMER, normaliseraGastepost, gastId, gastomfangsnyckel, gastplatsId, gastLank, tolkaGastLank, gastStatus,
   GASTGRUPPFUNKTIONER, GASTARENDE_MAX, GASTARENDE_SKANNA_MAX, GASTARENDEKOMMENTARER_MAX, GASTARENDEFALT, GASTARENDEKOMMENTARFALT, byggGastMottagare, gastDelegerad, tolkaGastMottagare, GASTCHATT_SIDA, GASTKALENDER_MAX, GASTBIBLIOTEK_MAX, GASTANROP_PER_MINUT, GASTFIL_PER_DYGN, GASTGRUPPSVARSFALT, GASTCHATTFALT, GASTHANDELSEFALT, GASTKALENDERFALT, GASTFILFALT, GASTBIBLIOTEKFALT, GASTPERSONFALT, GASTPERSONINBJUDANFALT, GASTTIDIGAREMEDLEM, arGastId, GASTNAMNLOS, GASTSKRIV_MAX_TECKEN, GASTSKRIV_PER_MINUT, GASTGRUPPATGARDER, gastOmfangGer, gastGruppApi,
   GASTDELTASVAR, GASTDELTAHANDELSEFALT, GASTDELTAATGARDER, GASTDELTARADFALT, GASTDELTALISTFALT,

@@ -1,16 +1,26 @@
 import { createContext, useContext } from "react";
 
 /**
- * Det gästsidan lägger i gruppens (i)-panel (0.190.0, CP 2026-11-05 i cllp/lifehub.app#658, del A): integriteten med Radera mina uppgifter och
- * "Skriv in adressen igen". De bor i `OpsGastSida`, som äger sessionen och raderingen, men ritas i `OpsGastGrupp`s huvud, under gruppens namn.
+ * Det gästsidan lägger på gruppens översikt (0.190.0 integritet, 0.192.0 också namnet och minnet av fliken).
+ * Integriteten och namnrutan bor i `OpsGastSida`, som äger sessionen, och ritas av `OpsGastGrupp` på översikten.
+ * Chatten, kalendern och biblioteket ritar dem inte.
  *
- * ⛔ ETT SAMMANHANG OCH INTE EN PROP GENOM APPEN: appens `renderGrupp` ritar `OpsGastGrupp`, och en prop hade krävt att varje app förde den vidare.
- * Glömde en app det hade integriteten och raderingen försvunnit ur gruppens vy utan att någon såg det. Utan `OpsGastSida` (gruppvyn ensam, i prov)
- * är värdet `null`, och panelen visar bara gruppens egna rader.
+ * ⛔ ETT SAMMANHANG OCH INTE EN PROP GENOM APPEN: appens `renderGrupp` ritar `OpsGastGrupp`. Utan `OpsGastSida`
+ * (gruppvyn ensam, i prov) är värdet `null`, och översikten visar bara gruppens egna rader.
+ *
+ * `minne` och `inbjudan` är till för senast valda flik. Inbjudan är id:t, 64 hextecken. Minnet får bara flikens namn.
+ *
+ * @typedef {{
+ *   integritet: import("react").ReactNode,
+ *   namn: import("react").ReactNode,
+ *   minne: import("../lib/gastminne.js").Gastminne | null,
+ *   inbjudan: string | null,
+ * }} GastsidaOversikt
  */
-export const GastsidaInfo = createContext(/** @type {import("react").ReactNode} */ (null));
 
-/** Det gästsidan lagt i gruppens (i)-panel, eller `null`. */
+export const GastsidaInfo = createContext(/** @type {GastsidaOversikt | null} */ (null));
+
+/** Det gästsidan lagt på översikten, eller `null`. */
 export function useGastsidaInfo() {
   return useContext(GastsidaInfo);
 }

@@ -7,7 +7,7 @@ import { IKON_FOR } from "./ikonlexikon.js";
 import { GruppvalIkon } from "./icons.jsx";
 import { OpsAtgardsblad } from "./OpsAtgardsblad.jsx";
 import { OpsDokument } from "./OpsDokument.jsx";
-import { OpsHtmlDokumentHamtat } from "./OpsHtmlDokument.jsx";
+import { OpsHtmlDokumentLat } from "./OpsHtmlDokumentLat.jsx";
 import { TextForhandsvisning } from "./TextForhandsvisning.jsx";
 import { htmlVyAdress } from "../lib/htmldokument.js";
 import { BibliotekHtmlVersionerLat } from "./BibliotekHtmlVersionerLat.jsx";
@@ -204,7 +204,6 @@ const ORD_BIBLIOTEKLISTA = {
   enPost: { sv: "1 post", en: "1 item" },
   flerPoster: { sv: "{n} poster", en: "{n} items" },
   oppnaI: { sv: "Öppna {namn} i {kalla}", en: "Open {namn} in {kalla}" },
-  oppnaFonster: { sv: "Öppna {namn} i ett eget fönster", en: "Open {namn} in a new window" },
   tillbaka: { sv: "Tillbaka", en: "Back" },
   filer: { sv: "Filer", en: "Files" },
   hamtarBiblioteket: { sv: "Hämtar biblioteket", en: "Loading the library" },
@@ -615,7 +614,10 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
    */
   function lankAttKopiera(post) {
     if (post.typ === "lank" && typeof post.url === "string" && ADRESSFORM.test(post.url)) return post.url;
-    if (post.typ === "fil") {
+    // ⛔ INTE FÖR EN FIL VARS ADRESS HÄMTAS PÅ BEGÄRAN (0.192.0, cllp/lifehub.app#673). Adressen fanns bara för posten som var öppen, så raden stod i detaljen
+    // och i listan bara när adressen råkade ligga kvar: samma fil fick tre olika menyer i QA. Den adressen är dessutom en signering som dör efter en kvart och
+    // som gick att kopiera också när gruppen stängt av nedladdning. Den är ingen länk att dela, och då är menyn densamma i listan och i detaljen.
+    if (post.typ === "fil" && !adresserPaBegaran) {
       const lage = adressFor(post);
       if (lage.lage === "klar" && ADRESSFORM.test(lage.adress)) return lage.adress;
     }
@@ -793,8 +795,8 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
       ut.push({ id: "dela-lank", etikett: "Dela länk", onValj: () => setDelarLank(post) });
     }
     // ⛔ EN MUSIKLÄNK ÖPPNAS DIREKT VID ETT TRYCK (0.128.0), så detaljen nås härifrån. Utan raden gick det inte att komma åt Byt namn-formuläret, taggarna och Redigera för en sådan länk.
-    // ⛔ SAMMA FÖR ETT HTML-DOKUMENT SOM ÖPPNAS I EGET FÖNSTER (0.159.0, `oppnaHtml`): kortet är då en länk till vyn, och detaljen (rutan, versionerna, Ladda ned) nås härifrån.
-    if (!iDetalj && (oppnasDirekt(post) || htmlVyAdress(oppnaHtml, post))) ut.push({ id: "detaljer", etikett: "Visa detaljer", onValj: () => oppnaMed(post, "las") });
+    // ⛔ INTE FÖR ETT HTML-DOKUMENT (0.192.0, #529): ett tryck på kortet öppnar redan förhandstitten. Raden stod här 0.159.0 till 0.191.0, när trycket öppnade helfönstret.
+    if (!iDetalj && oppnasDirekt(post)) ut.push({ id: "detaljer", etikett: "Visa detaljer", onValj: () => oppnaMed(post, "las") });
     // ⛔ KOMMENTERA (0.191.0, lifehub.app#663): öppnar posten med fältet i fokus, i listan och i detaljen. Tråden är chattens, och samma rad för en medlem och en gäst.
     if (kanKommenteras(post)) {
       ut.push({
@@ -1767,13 +1769,20 @@ function BibliotekKort({ post, lage, meny, svep, onOppna, onMeta, taggrad, delad
               className="absolute inset-0 z-0 cursor-pointer rounded-lg bg-transparent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
             />
           ) : htmlVy ? (
-            // ⛔ ETT HTML-DOKUMENT ÖPPNAS I ETT EGET FÖNSTER VID ETT TRYCK (0.159.0, `oppnaHtml`), av samma skäl som en musiklänk: en riktig länk fungerar med mellanklick och långtryck, och en popup-spärr kan inte stoppa den.
+            // ⛔ ETT TRYCK ÖPPNAR FÖRHANDSTITTEN (0.192.0, cllp/ops-framework#529, CP 2026-11-06: "Ja kör på det."). Förut (0.159.0) öppnade trycket helfönstret i en ny flik, och detaljen nåddes ur menyn.
+            // Förhandstitten räcker oftast, man stannar i sammanhanget (taggar, versioner, kommentarer) och ingen flik blir kvar att stänga. Där står Öppna i eget fönster.
+            // ⛔ KORTET ÄR FORTFARANDE EN RIKTIG LÄNK TILL HELFÖNSTRET, så att mellanklick, Ctrl- eller Cmd+klick och långtryck öppnar det som förut. Bara ett vanligt klick stoppas och öppnar detaljen.
             // Adressen är appens egen sida för dokumentet (`OpsHtmlVy`), aldrig filen: filen laddas ned (`attachment`), och ritas bara i den avspärrade rutan.
             <a
               href={htmlVy}
               target="_blank"
               rel="noopener noreferrer"
-              aria-label={ordet(ORD_BIBLIOTEKLISTA, "oppnaFonster", sprak).replace("{namn}", namn)}
+              aria-label={namn}
+              onClick={(e) => {
+                if (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+                e.preventDefault();
+                onOppna();
+              }}
               data-bibliotek-oppna-html=""
               className="absolute inset-0 z-0 cursor-pointer rounded-lg bg-transparent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
             />
@@ -2229,8 +2238,15 @@ function FilVisning({ post, lage, kopplad, onLjus, onMeta, onRadera, hamtaFil, v
   if ((typeof hamtaFil === "function" || versioner || htmlVy) && arHtmlMime(post.fil?.mime) && post.fil?.sokvag) {
     return (
       <div data-bibliotek-fil="" className="flex min-w-0 flex-col gap-2">
-        {typeof hamtaFil === "function" ? <OpsHtmlDokumentHamtat hamta={hamtaFil} sokvag={post.fil.sokvag} namn={post.fil.namn ?? namn} skapadAv={post.skapadAv} /> : null}
-        {htmlVy ? (
+        {typeof hamtaFil === "function" ? <OpsHtmlDokumentLat hamta={hamtaFil} sokvag={post.fil.sokvag} namn={post.fil.namn ?? namn} skapadAv={post.skapadAv} fonster={htmlVy || undefined} /> : null}
+        {/* ⛔ MED RUTAN STÅR ÖPPNA I EGET FÖNSTER I DESS VERKTYGSRAD (0.192.0, #529), och filnamnet är bara text bredvid Ladda ned: två länkar till samma fönster hade varit två svar på samma fråga.
+            Utan rutan (ingen `hamtaFil`) är filnamnet länken som förut. */}
+        {htmlVy && typeof hamtaFil === "function" ? (
+          <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
+            <span data-bibliotek-filnamn="" className="min-w-0 break-words text-etikett text-ink-secondary">{rad}</span>
+            <LaddaNedLank adress={adress} namn={post.fil.namn ?? namn} />
+          </div>
+        ) : htmlVy ? (
           <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
             <a href={htmlVy} target="_blank" rel="noopener noreferrer" data-bibliotek-oppna-html="" className="inline-flex min-h-11 min-w-0 max-w-full items-center gap-1.5 text-etikett text-accent underline underline-offset-2 md:min-h-8">
               <span className="min-w-0 break-words">{rad}</span>
