@@ -11,7 +11,7 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ## 0.192.0
 
-Förslag till nästa version efter den publicerade 0.191.0. Inte publicerad i den här PR:en.
+Gästens gruppvy, i två delar: Cursors översikt och /guest (cursor/gast-oversikt-418a, d45e74c och 0709e24) och rättningarna av cllp/lifehub.app#673 och #675 ovanpå.
 
 Gästens gruppvy: chatten är bara chatten (CP 2026-11-06, i telefonen på /gast i gruppen Skarv: "Chatt skall bara vara chatt."). Översikt är en egen flik, inte Hem, så den inte blandas ihop med den privata hemgruppen. Spara på namnet står på samma rad som fältet (CP 2026-11-06 07:35).
 
@@ -31,6 +31,17 @@ Gästens gruppvy: chatten är bara chatten (CP 2026-11-06, i telefonen på /gast
 - **Chatt, kalender och bibliotek** har inte namnformulär, beskrivning, gästinfo eller hemskärmstips. Ett kompakt sidhuvud har det mindre ordmärket (24 px) och gruppnamnet för orientering.
 - **Bottenraden utan Meny** rymmer fem flikar (`MAX_UTAN_MENY`), så Ärenden får plats bredvid översikten. Med Meny är taket fortfarande fyra.
 - **Flikraden** som sitter kvar (`OpsTabs fast`) ligger under ett sidhuvud på 3 rem (`top-12`).
+
+### Rättat
+
+- **Samma meny i gästens lista och detalj** (cllp/lifehub.app#673). Kopiera länk för en fil krävde en hämtad adress, och gästens adresser hämtas bara för den öppna posten, så samma fil hade olika menyer före, under och efter att den öppnats. Utan Kommentera ritades ingen ⋮ alls i listan förrän filen öppnats. En fil vars adress hämtas på begäran (`adresserPaBegaran`) har nu ingen Kopiera länk: adressen är en signering som dör efter en kvart och gick att kopiera också när gruppen stängt av nedladdning. En länkpost behåller raden.
+- **Felet i en gästflik** (cllp/lifehub.app#675). Det står på det språk som gäller när det visas, också när appen satt språket efter starten (felets orsak sparas och blir text vid ritningen). En ny hämtning tar bort det gamla felet i stället för att gömma sig bakom det. Kalendern, biblioteket, chatten och ärendena har samma rad med **Försök igen** (`OpsGastFelrad`), och ärendefliken står kvar medan den hämtar igen. `OpsGastChatt` och `OpsGastArenden` tar `onForsokIgen`.
+- **Manifestet för hemskärmshjälpen** hämtas i en adapter (`src/data/appmanifest.js`, `lasAppmanifest`) och inte i vyn, så `check:data-layer` är grön.
+- **`GASTFLIKAR`** härleds ur `GASTGRUPPFUNKTIONER` i stället för att vara en andra lista.
+
+### Borttaget
+
+- Orden `gastIngress`, `omGruppen` och `historik` i `ORD_OPSGASTGRUPP`. Ingen läsare fanns kvar efter översikten. En app som skickar dem i `ord` får ett typfel.
 
 ### Inte gjort
 
