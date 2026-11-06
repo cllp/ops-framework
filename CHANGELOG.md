@@ -9,6 +9,14 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.197.0
+
+Nattsvepet 2026-11-06.
+
+### Rättat
+
+- **`useFullHeight` följer elementet, inte bara ref-objektet** (cllp/ops-framework#525). Granskningen av PR 524 (0.190.0): ett `key` bytte elementet under hooken, och mätningen och observatörerna satt kvar på det gamla, urkopplade elementet, så gästens telefonsida blev 965 px hög i 844. Det rättades då i komponenten. Nu läser hooken `ref.current` efter varje rendering, och ett nytt element startar om mätningen. Prov: `fullhojd-elementbyte-525.test.jsx`, rött mot den gamla hooken (100px i stället för 300px), grönt med rättelsen.
+
 ## 0.196.0
 
 PDF-vyns verktygsrad, länken i chatten när den blivit ett kort, och inga kantlinjer som bara ramar in i gästens vy. CP 2026-11-06, med en skärmbild från telefonen (gästens bibliotek, en PDF i detaljen): "Det här ser jättekonstigt ut, kolla hur ful titeln ligger skarv.pdf. Det här håller inte. Presentera är ett konstigt ord i sammanhanget." och samma dag, med en skärmbild av gästens Chatt: "Ta bort borders runt chatten och överallt."
