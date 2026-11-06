@@ -161,6 +161,8 @@ export function OpsPdfVisning({ hamta, sokvag, namn, fonster, laddaNed = true, h
     if (!presenterar) return undefined;
     /** @param {KeyboardEvent} e */
     const tangent = (e) => {
+      // Mellanslag och Enter på en knapp (Avsluta i hörnet) trycker knappen, och byter inte sida samtidigt.
+      if ((e.key === " " || e.key === "Enter") && e.target instanceof Element && e.target.closest("button")) return;
       const g = tangentIPresentation(e);
       if (g === null) return;
       e.preventDefault();
