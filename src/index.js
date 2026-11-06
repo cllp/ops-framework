@@ -467,7 +467,9 @@ export { createSamtalskalla, samtalsnotiser, harTradar, harStatus, harReaktioner
 export { KOMMENTARROT_PREFIX, kommentarRotId, postIdUrRot, bibliotekslank, lasBibliotekslank, adresserIText, kommentarRotText, utanPostlank } from "./lib/postkommentar.js";
 export { createPostkommentarer } from "./data/postkommentarer.js";
 export { BibliotekKommentarer, ORD_BIBLIOTEKKOMMENTARER } from "./components/BibliotekKommentarer.jsx";
-export { bibliotekPostkort, postkortFor } from "./components/bibliotekPostkort.jsx";
+export { BibliotekKommentarerLat, ORD_BIBLIOTEKKOMMENTARER_LAT, forladdaBibliotekKommentarer } from "./components/BibliotekKommentarerLat.jsx";
+export { bibliotekPostkort } from "./components/bibliotekPostkort.jsx";
+export { postkortFor } from "./components/bibliotekPostkortVisning.jsx";
 export { useSamtal } from "./data/useSamtal.jsx";
 export { OpsMottagare } from "./components/OpsMottagare.jsx";
 export { OpsMeddelanden, OpsSamtal, OpsMeddelandeLank, OpsTrad } from "./components/OpsMeddelanden.jsx";

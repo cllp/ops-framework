@@ -5,7 +5,8 @@ import { definierade, forvalda } from "../lib/ord.js";
 import { OpsButton } from "./OpsButton.jsx";
 import { OpsEmpty } from "./OpsEmpty.jsx";
 import { Meddelanderader, Skrivfalt, texterPa } from "./OpsMeddelanden.jsx";
-import { postkortFor } from "./bibliotekPostkort.jsx";
+/** Kortets ritning, hämtad när ett kort slås upp (se `bibliotekPostkortVisning`). */
+const laddaPostkortVisning = () => import("./bibliotekPostkortVisning.jsx");
 
 /**
  * Orden i gästens chatt, på svenska och engelska (0.132.0, cllp/lifehub.app#389, skiva 2).
@@ -158,9 +159,10 @@ export function OpsGastChatt({ meddelanden, fler = false, onAldre, onSkriv, ladd
     for (const x of trad?.rot ? [trad.rot, ...trad.meddelanden] : []) for (const k of /** @type {any[]} */ (x.kort ?? [])) m.set(k.url, k);
     return m;
   }, [meddelanden, trad]);
-  const slaUpp = useCallback((/** @type {string} */ url) => {
+  const slaUpp = useCallback(async (/** @type {string} */ url) => {
     const k = kortRef.current.get(url);
-    return k ? postkortFor({ typ: k.typ, rubrik: k.rubrik, ...(k.mime ? { fil: { mime: k.mime } } : {}) }, sprak) : null;
+    if (!k) return null;
+    return (await laddaPostkortVisning()).postkortFor({ typ: k.typ, rubrik: k.rubrik, ...(k.mime ? { fil: { mime: k.mime } } : {}) }, sprak);
   }, [sprak]);
   const postkort = useMemo(
     () => ({

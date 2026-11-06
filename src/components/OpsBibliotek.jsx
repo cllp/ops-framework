@@ -24,7 +24,7 @@ import { formateraTid } from "../lib/ljudspelare.js";
 import { lankKalla, lankKallnamn, lankRubrik } from "../lib/lankkalla.js";
 import { LISTA_FLYTT_TEXT, LISTA_I_LISTA_TEXT, listorAttLaggaI } from "../lib/biblioteklista.js";
 import { UTSKRIFT_VANTETID_MS, uppskattadUtskriftstid, utskriftLage, utskriftPagatText } from "../lib/utskrift.js";
-import { BibliotekKommentarer } from "./BibliotekKommentarer.jsx";
+import { BibliotekKommentarerLat, forladdaBibliotekKommentarer } from "./BibliotekKommentarerLat.jsx";
 import { LankMark, TypIkon, filandelse, oppnasDirekt, plattKlass, postensKalla, typEtikett } from "./BibliotekPostvisning.jsx";
 import { LaggILista, ListaVisning } from "./BibliotekLista.jsx";
 import { MejlaLank } from "./MejlaLank.jsx";
@@ -417,6 +417,9 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
   const [startLage, setStartLage] = useState(/** @type {"las" | "redigera"} */ ("las"));
   // (0.191.0) Posten vars kommentarsfält får fokus när detaljen ritas: personen valde Kommentera i menyn.
   const [kommenteraFor, setKommenteraFor] = useState(/** @type {string | null} */ (null));
+  // (0.191.0) Trådens bit hämtas i bakgrunden när appen gett en källa, så att den finns när en post öppnas (`BibliotekKommentarerLat`).
+  const harKommentarer = Boolean(kommentarer);
+  useEffect(() => (harKommentarer ? forladdaBibliotekKommentarer() : undefined), [harKommentarer]);
   const [byter, setByter] = useState(/** @type {null | (import("../lib/bibliotek.js").Bibliotekspost & { id: string })} */ (null));
   const [namnUtkast, setNamnUtkast] = useState("");
   const [namnFel, setNamnFel] = useState("");
@@ -2646,7 +2649,7 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, onLaddaUpp, filUrl,
       {lage === "las" && post && ljud ? (
         <UtskriftKontroll post={post} jag={jag} onSkrivUt={onSkrivUt} onSkrivUtIgen={onSkrivUtIgen} onTaBortUtskrift={onTaBortUtskrift} onAnteckningAvUtskrift={onAnteckningAvUtskrift} />
       ) : null}
-      {lage === "las" && post && !skapar && kommentarer ? <BibliotekKommentarer key={post.id} post={post} kalla={kommentarer} fokus={fokusKommentar} sprak={sprak} /> : null}
+      {lage === "las" && post && !skapar && kommentarer ? <BibliotekKommentarerLat key={post.id} post={post} kalla={kommentarer} fokus={fokusKommentar} sprak={sprak} /> : null}
     </div>
   );
 }
