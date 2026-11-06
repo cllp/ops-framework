@@ -69,6 +69,9 @@ export { OpsFilePicker, ORD_OPSFILEPICKER } from "./components/OpsFilePicker.jsx
 export { OpsLjudspelare } from "./components/OpsLjudspelare.jsx";
 export { OpsHtmlDokument, OpsHtmlDokumentHamtat, ORD_HTMLDOKUMENT } from "./components/OpsHtmlDokument.jsx";
 export { OpsHtmlVy } from "./components/OpsHtmlVy.jsx";
+// (0.193.0, cllp/ops-framework#530) En PDF i appens egen vy: sidor, zoom, Presentera i helskärm sida för sida. Vyn och pdf.js läses in först när en PDF ritas.
+export { OpsPdfVy } from "./components/OpsPdfVy.jsx";
+export { arPdfDokument, pdfVyAdress, sattPdfWorker } from "./lib/pdfvisning.js";
 // (0.192.0, #529) `byggSrcdoc` bor i `lib/htmlruta.js` med zoomen, så att Bibliotekets startfil inte bär rutans skript. Zoomen är rutans egen och exporteras inte.
 export { byggSrcdoc } from "./lib/htmlruta.js";
 export { ORD_HTMLVERSIONER } from "./components/BibliotekHtmlVersioner.jsx";

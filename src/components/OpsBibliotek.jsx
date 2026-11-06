@@ -8,8 +8,11 @@ import { GruppvalIkon } from "./icons.jsx";
 import { OpsAtgardsblad } from "./OpsAtgardsblad.jsx";
 import { OpsDokument } from "./OpsDokument.jsx";
 import { OpsHtmlDokumentLat } from "./OpsHtmlDokumentLat.jsx";
+import { OpsPdfVisningLat } from "./OpsPdfVisningLat.jsx";
 import { TextForhandsvisning } from "./TextForhandsvisning.jsx";
 import { htmlVyAdress } from "../lib/htmldokument.js";
+import { arPdfDokument, arPdfMime, pdfVyAdress } from "../lib/pdfvisning.js";
+import { lasFilbytes } from "../data/filbytes.js";
 import { BibliotekHtmlVersionerLat } from "./BibliotekHtmlVersionerLat.jsx";
 import { OpsMarkdown } from "./OpsMarkdown.jsx";
 import { GithubDokumentVisningLat } from "./GithubDokumentVisningLat.jsx";
@@ -269,6 +272,8 @@ const arkivtips = () => `Arkiverad. Välj taggen ${ARKIVTAGG} för att se arkive
  * @param {(post: any) => string | null | undefined} [props.oppnaHtml] (0.159.0, CP 2026-10-30: "de skulle gå att öppna direkt i ett fönster. Inte ladda ner så.") Adressen till appens helfönstervy för ett HTML-dokument (`text/html`), eller `null`/`undefined` för en post som inte ska öppnas så.
  *   Med den öppnar ett tryck på ett HTML-dokument i listan, och filnamnet i detaljen, vyn i ett nytt fönster eller en ny flik (`target="_blank"`), i stället för att ladda ned filen. "Ladda ned" finns kvar som ett eget val i detaljen, och "Visa detaljer" i postens meny.
  *   Funktionen anropas bara för ett HTML-dokument med en fil. ⛔ Svaret ska vara en sida i appen (börja med `/`) eller en `https://`-adress; allt annat kastar (`htmlVyAdress`). Vyn är `OpsHtmlVy`, i appens egen rutt, med samma avspärrade ruta som detaljen. Utan propen är Biblioteket oförändrat.
+ * @param {(post: any) => string | null | undefined} [props.oppnaPdf] (0.193.0, cllp/ops-framework#530, CP 2026-11-06: "Går det att köra PDF i ett eget fönster som döljer den länkraden ungefär som html-filen") Adressen till appens sida för en PDF (`application/pdf`), som ritar `OpsPdfVy`, eller `null`/`undefined`. Samma regler som `oppnaHtml`:
+ *   anropas bara för en PDF med en fil, och svaret ska vara en sida i appen (`/`) eller en `https://`-adress (`pdfVyAdress`). Med den står Öppna i eget fönster i PDF-vyns rad, och ett vanligt tryck på kortet öppnar detaljen medan mellanklick och långtryck öppnar sidan. PDF-vyn själv (sidor, zoom, Presentera) finns i detaljen också utan propen.
  * @param {unknown} [props.onSpelaIn] Borttagen (0.90.8). Skickas den kastas ett fel: listan hade en egen inspelare, och att tysta propen hade sett ut som att ljudet fortfarande sparades där.
  * @param {unknown} [props.inspelare] Borttagen tillsammans med listans inspelare. Skickas den kastas ett fel.
  * @param {readonly { id: string, namn: string }[]} [props.grupper] Platser posten kan flyttas eller kopieras till. (0.155.0) Också gruppens egna platser (`platsval`), och också för en inbäddad lista (`OpsPlatsfiler`): en händelses och ett ärendes filer kan flyttas eller kopieras UT till dem, aldrig in i ett annat objekt. Mitt bibliotek (`mittBibliotek(uid)`) är en av dem när appen ger den (0.101.0): menyn får då Flytta till och Kopiera till Mitt bibliotek, och i Mitt bibliotek Dela med gruppen.
@@ -330,7 +335,7 @@ const arkivtips = () => `Arkiverad. Välj taggen ${ARKIVTAGG} för att se arkive
  *   gästens bygger `OpsGastGrupp`. Utelämnad: ingen tråd och inget menyval, som förut.
  * @param {boolean} [props.utanNedladdning] (0.190.0, CP 2026-11-05: "Vill att man skall kunna förhindra nedladdning till gäster.") Ingen Ladda ned: varken i en fils detalj eller i spelarens ark för ett ljud ur listan. Gästens bibliotek när gruppen stängt av nedladdning (`grupp.nedladdning: false`). Visa och spela är som förut.
  */
-export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, trasiga: trasigaProp = [], laddar: laddarProp = false, vald = null, skapar = null, jag, onOppna, onStang, onSkapa, onSpara, onRadera, onLaddaUpp, onFyllLjud, onSpelaIn, inspelare, filUrl, hamtaAdress, hamtaFil, htmlVersioner, hamtaHtmlVersion, aterstallHtml, nyHtmlVersion, oppnaHtml, grupper = [], onDela, platser = [], plats, onPlats, onSkrivUt, onSkrivUtIgen, onTaBortUtskrift, onAnteckningAvUtskrift, onGorForslag, delningar = [], delningGruppdel, gruppnamn: gruppnamnProp, onDelaLank, onAndraNedladdning, onAterkalla, onMejlaLank, onLankInfo, githubLasare, hubHref, hubEtikett, onNavigate, modulId = "bibliotek", ram = null, activeHref, modul = null, inbaddad = false, tomText, utanHubb = false, adresserPaBegaran = false, gruppTaggar = [], egnaPlatser = null, stjarnor, onStjarna, huvudRad, utanNedladdning = false, kommentarer = null }) {
+export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, trasiga: trasigaProp = [], laddar: laddarProp = false, vald = null, skapar = null, jag, onOppna, onStang, onSkapa, onSpara, onRadera, onLaddaUpp, onFyllLjud, onSpelaIn, inspelare, filUrl, hamtaAdress, hamtaFil, htmlVersioner, hamtaHtmlVersion, aterstallHtml, nyHtmlVersion, oppnaHtml, oppnaPdf, grupper = [], onDela, platser = [], plats, onPlats, onSkrivUt, onSkrivUtIgen, onTaBortUtskrift, onAnteckningAvUtskrift, onGorForslag, delningar = [], delningGruppdel, gruppnamn: gruppnamnProp, onDelaLank, onAndraNedladdning, onAterkalla, onMejlaLank, onLankInfo, githubLasare, hubHref, hubEtikett, onNavigate, modulId = "bibliotek", ram = null, activeHref, modul = null, inbaddad = false, tomText, utanHubb = false, adresserPaBegaran = false, gruppTaggar = [], egnaPlatser = null, stjarnor, onStjarna, huvudRad, utanNedladdning = false, kommentarer = null }) {
   if (kalla !== undefined && (posterProp !== undefined || felProp !== null || laddarProp !== false || (Array.isArray(trasigaProp) && trasigaProp.length > 0))) {
     throw new Error("OpsBibliotek: kalla och poster/fel/trasiga/laddar kan inte ges tillsammans. Med kalla läser vyn själv, och två sanningar om samma lista hade låtit den ena vinna tyst.");
   }
@@ -1049,7 +1054,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
     <Rot tillbaka={detalj ? undefined : listTillbaka}>
       <div data-bibliotek="" className="flex min-w-0 w-full flex-col gap-4">
         {detalj ? (
-          <Detalj key={`${skaparTyp ?? ""}:${vald?.id ?? ""}:${startLage}`} post={vald ? medFyll(poster.find((p) => p.id === vald.id) ?? vald) : null} skapar={skaparTyp} startLage={startLage} onStang={onStang} onSpara={onSpara} onLaddaUpp={onLaddaUpp} filUrl={filUrl} hamtaFil={hamtaFil} htmlVersioner={htmlVersioner} hamtaHtmlVersion={hamtaHtmlVersion} aterstallHtml={aterstallHtml} nyHtmlVersion={nyHtmlVersion} oppnaHtml={oppnaHtml} adressFor={adressFor} taggrad={vald && !skaparTyp ? (() => {
+          <Detalj key={`${skaparTyp ?? ""}:${vald?.id ?? ""}:${startLage}`} post={vald ? medFyll(poster.find((p) => p.id === vald.id) ?? vald) : null} skapar={skaparTyp} startLage={startLage} onStang={onStang} onSpara={onSpara} onLaddaUpp={onLaddaUpp} filUrl={filUrl} hamtaFil={hamtaFil} htmlVersioner={htmlVersioner} hamtaHtmlVersion={hamtaHtmlVersion} aterstallHtml={aterstallHtml} nyHtmlVersion={nyHtmlVersion} oppnaHtml={oppnaHtml} oppnaPdf={oppnaPdf} adressFor={adressFor} taggrad={vald && !skaparTyp ? (() => {
             // ⛔ TAGGARNA RITAS OCKSÅ I DETALJEN (0.153.0, ops-framework#460 punkt 3, lifehub.app QA-fynd 5): förut bara på listkortet, så den som öppnade en post såg inte vilka taggar den hade. Samma rad, samma rätt att ändra
             // (`farAndra`) och samma förslag som på kortet, men utan filter: listan är inte synlig medan en post är öppen, och ett tryck på en tagg skulle ställa in ett filter ingen ser.
             const rad = poster.find((p) => p.id === vald.id) ?? vald;
@@ -1142,7 +1147,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
                         svep={svepFor(rad)}
                         delad={delningar.some((d) => d.postId === rad.id)}
                         github={typeof githubLasare === "function" && rad.typ === "lank" && githubDokument(rad.url) !== null}
-                        htmlVy={htmlVyAdress(oppnaHtml, rad)}
+                        vy={htmlVyAdress(oppnaHtml, rad) || pdfVyAdress(oppnaPdf, rad)}
                         onOppna={() => oppnaMed(rad, "las")}
                         onMeta={togMeta}
                         onSpelaPaBegaran={spelaPaBegaran}
@@ -1735,9 +1740,9 @@ export function kortTyp(post, sprak = "sv") {
  *
  * ⛔ NÅLEN OCH STJÄRNAN (0.187.0): en nålad post bär en liten nål före rubriken (ikonen har texten `nalOrd` för skärmläsaren), och med `stjarna` sitter stjärnknappen till höger, före spelknappen. Utan dem ritas kortet som förut.
  *
- * @param {{ onSpelaPaBegaran?: (post: any) => void, nalad?: boolean, nalOrd?: string, stjarna?: { pa: boolean, etikett: string, onVaxla: () => Promise<unknown> } | null, post: import("../lib/bibliotek.js").Bibliotekspost & { id: string }, lage: Adresslage, meny: import("./OpsAtgardsblad.jsx").Atgard[], svep: any[], onOppna: () => void, onMeta: (id: string, meta: { durationMs?: number, peaks?: string }) => void, taggrad: import("react").ReactNode, delad?: boolean, htmlVy?: string, github?: boolean }} props
+ * @param {{ onSpelaPaBegaran?: (post: any) => void, nalad?: boolean, nalOrd?: string, stjarna?: { pa: boolean, etikett: string, onVaxla: () => Promise<unknown> } | null, post: import("../lib/bibliotek.js").Bibliotekspost & { id: string }, lage: Adresslage, meny: import("./OpsAtgardsblad.jsx").Atgard[], svep: any[], onOppna: () => void, onMeta: (id: string, meta: { durationMs?: number, peaks?: string }) => void, taggrad: import("react").ReactNode, delad?: boolean, vy?: string, github?: boolean }} props
  */
-function BibliotekKort({ post, lage, meny, svep, onOppna, onMeta, taggrad, delad = false, htmlVy = "", github = false, nalad = false, nalOrd = "", stjarna = null, onSpelaPaBegaran }) {
+function BibliotekKort({ post, lage, meny, svep, onOppna, onMeta, taggrad, delad = false, vy = "", github = false, nalad = false, nalOrd = "", stjarna = null, onSpelaPaBegaran }) {
   const spelare = useSpelare();
   const farLaddaNed = useContext(NedladdningKontext);
   const ljud = arLjudpost(post);
@@ -1768,13 +1773,14 @@ function BibliotekKort({ post, lage, meny, svep, onOppna, onMeta, taggrad, delad
               data-bibliotek-oppna-direkt=""
               className="absolute inset-0 z-0 cursor-pointer rounded-lg bg-transparent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
             />
-          ) : htmlVy ? (
+          ) : vy ? (
+            // (0.193.0, #530) Samma kort för en PDF med appens `oppnaPdf`: `vy` är då PDF-vyns sida (`pdfVyAdress`), och märket säger vilken sort det är.
             // ⛔ ETT TRYCK ÖPPNAR FÖRHANDSTITTEN (0.192.0, cllp/ops-framework#529, CP 2026-11-06: "Ja kör på det."). Förut (0.159.0) öppnade trycket helfönstret i en ny flik, och detaljen nåddes ur menyn.
             // Förhandstitten räcker oftast, man stannar i sammanhanget (taggar, versioner, kommentarer) och ingen flik blir kvar att stänga. Där står Öppna i eget fönster.
             // ⛔ KORTET ÄR FORTFARANDE EN RIKTIG LÄNK TILL HELFÖNSTRET, så att mellanklick, Ctrl- eller Cmd+klick och långtryck öppnar det som förut. Bara ett vanligt klick stoppas och öppnar detaljen.
             // Adressen är appens egen sida för dokumentet (`OpsHtmlVy`), aldrig filen: filen laddas ned (`attachment`), och ritas bara i den avspärrade rutan.
             <a
-              href={htmlVy}
+              href={vy}
               target="_blank"
               rel="noopener noreferrer"
               aria-label={namn}
@@ -1783,7 +1789,7 @@ function BibliotekKort({ post, lage, meny, svep, onOppna, onMeta, taggrad, delad
                 e.preventDefault();
                 onOppna();
               }}
-              data-bibliotek-oppna-html=""
+              {...{ [arPdfDokument(post) ? "data-bibliotek-oppna-pdf" : "data-bibliotek-oppna-html"]: "" }}
               className="absolute inset-0 z-0 cursor-pointer rounded-lg bg-transparent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
             />
           ) : (
@@ -2146,11 +2152,11 @@ function FilMedLaddaNed({ adress, namn, hamta, sokvag, children }) {
 }
 
 /**
- * Bild öppnas i förhandsvisning. PDF och övrigt i ny flik. Utan adress sägs det.
+ * Bild öppnas i förhandsvisning, en PDF i appens egen vy (0.193.0), övrigt i ny flik. Utan adress sägs det.
  *
- * @param {{ post: { id?: string, typ?: string, rubrik?: string, skapad?: number, skapadAv?: unknown, durationMs?: number, peaks?: string, fil?: { namn?: string, mime?: string, byte?: number, sokvag?: string } }, lage: Adresslage, kopplad: boolean, onLjus?: (adress: string) => void, onMeta?: (id: string, meta: { durationMs?: number, peaks?: string }) => void, onRadera?: () => void, hamtaFil?: (sokvag: string) => Promise<Blob>, htmlVy?: string, versioner?: { lista: (post: any) => Promise<unknown>, hamtaVersion?: (post: any, nr: number) => Promise<any>, aterstall?: (post: any, nr: number, fran: number) => Promise<unknown>, nyVersion?: (post: any, fil: File, fran: number) => Promise<unknown>, kanAndra: boolean } }} props
+ * @param {{ post: { id?: string, typ?: string, rubrik?: string, skapad?: number, skapadAv?: unknown, durationMs?: number, peaks?: string, fil?: { namn?: string, mime?: string, byte?: number, sokvag?: string } }, lage: Adresslage, kopplad: boolean, onLjus?: (adress: string) => void, onMeta?: (id: string, meta: { durationMs?: number, peaks?: string }) => void, onRadera?: () => void, hamtaFil?: (sokvag: string) => Promise<Blob>, htmlVy?: string, pdfVy?: string, versioner?: { lista: (post: any) => Promise<unknown>, hamtaVersion?: (post: any, nr: number) => Promise<any>, aterstall?: (post: any, nr: number, fran: number) => Promise<unknown>, nyVersion?: (post: any, fil: File, fran: number) => Promise<unknown>, kanAndra: boolean } }} props
  */
-function FilVisning({ post, lage, kopplad, onLjus, onMeta, onRadera, hamtaFil, versioner, htmlVy = "" }) {
+function FilVisning({ post, lage, kopplad, onLjus, onMeta, onRadera, hamtaFil, versioner, htmlVy = "", pdfVy = "" }) {
   const spelare = useSpelare();
   const farLaddaNed = useContext(NedladdningKontext);
   const sprak = useOpsSprak();
@@ -2227,6 +2233,18 @@ function FilVisning({ post, lage, kopplad, onLjus, onMeta, onRadera, hamtaFil, v
             {rad}
           </a>
         </FilMedLaddaNed>
+      </div>
+    );
+  }
+  // ⛔ EN PDF RITAS I APPENS EGEN VY (0.193.0, cllp/ops-framework#530, CP 2026-11-06: "Det är inte så bra att det står firebase storage mm när man presenterar."), med sidor, zoom, Presentera och Ladda ned i en rad.
+  // Förut var filnamnet en länk till lagringens adress, och webbläsarens visare ritade filen med adressen i adressfältet. Nu hämtas byten och ritas av pdf.js (`OpsPdfVisningLat`), och adressen syns ingenstans.
+  // Byten hämtas med appens `hamtaFil` (inloggningen). Utan den (gästens bibliotek, där servern ger en signerad adress för en fil som visas) ur den adress Biblioteket redan har (`lasFilbytes`, i datalagret).
+  // Ladda ned följer spärren (`NedladdningKontext`): gästen får presentera, men ingen Ladda ned när gruppen stängt av den.
+  if (arPdfMime(post.fil?.mime)) {
+    const hamtaPdf = typeof hamtaFil === "function" ? hamtaFil : () => lasFilbytes(adress);
+    return (
+      <div data-bibliotek-fil="" data-bibliotek-pdf="" className="flex min-w-0 flex-col gap-2">
+        <OpsPdfVisningLat hamta={hamtaPdf} sokvag={post.fil?.sokvag || adress} namn={post.fil?.namn ?? namn} fonster={pdfVy || undefined} laddaNed={farLaddaNed} />
       </div>
     );
   }
@@ -2326,6 +2344,7 @@ function Adress({ url }) {
  * @param {(post: any, nr: number, fran: number) => Promise<unknown>} [props.aterstallHtml] (0.158.0) Se `OpsBibliotek`.
  * @param {(post: any, fil: File, fran: number) => Promise<unknown>} [props.nyHtmlVersion] (0.158.0) Se `OpsBibliotek`.
  * @param {(post: any) => string | null | undefined} [props.oppnaHtml] (0.159.0) Se `OpsBibliotek`.
+ * @param {(post: any) => string | null | undefined} [props.oppnaPdf] (0.193.0) Se `OpsBibliotek`.
  * @param {import("react").ReactNode} [props.taggrad] (0.153.0) Postens taggar, ritade under innehållet i läsläget. Se `OpsBibliotek`.
  * @param {import("react").ReactNode} [props.markering] (0.187.0) Nålen och stjärnan, ritade i detaljhuvudet före menyn. Se `OpsBibliotek`.
  * @param {(post: { typ?: string, skapad?: number, fil?: { sokvag?: string, mime?: string, klar?: boolean } }) => Adresslage} [props.adressFor]
@@ -2345,7 +2364,7 @@ function Adress({ url }) {
  * @param {import("../data/postkommentarer.js").Postkommentarer | null} [props.kommentarer] (0.191.0) Se `OpsBibliotek`. Ges bara när posten får kommenteras.
  * @param {boolean} [props.fokusKommentar] (0.191.0) Kommentarsfältet får fokus: personen valde Kommentera.
  */
-function Detalj({ post, skapar, startLage, onStang, onSpara, onLaddaUpp, filUrl, hamtaFil, htmlVersioner, hamtaHtmlVersion, aterstallHtml, nyHtmlVersion, oppnaHtml, taggrad, markering, adressFor, onLjus, onSkrivUt, onSkrivUtIgen, onTaBortUtskrift, onAnteckningAvUtskrift, menyFor, onMeta, tillbakaEtikett, poster, jag, onLankInfo, githubLasare, onOppnaPost, kommentarer = null, fokusKommentar = false }) {
+function Detalj({ post, skapar, startLage, onStang, onSpara, onLaddaUpp, filUrl, hamtaFil, htmlVersioner, hamtaHtmlVersion, aterstallHtml, nyHtmlVersion, oppnaHtml, oppnaPdf, taggrad, markering, adressFor, onLjus, onSkrivUt, onSkrivUtIgen, onTaBortUtskrift, onAnteckningAvUtskrift, menyFor, onMeta, tillbakaEtikett, poster, jag, onLankInfo, githubLasare, onOppnaPost, kommentarer = null, fokusKommentar = false }) {
   const sprak = useOpsSprak();
   const typ = skapar ?? post?.typ ?? "anteckning";
   const [rubrik, setRubrik] = useState(post && !skapar ? post.rubrik : "");
@@ -2544,7 +2563,7 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, onLaddaUpp, filUrl,
   const innehall = typ === "anteckning" ? (
     post?.text ? <OpsMarkdown text={post.text} dokument /> : <p className="text-etikett text-ink">Anteckningen har ingen text.</p>
   ) : typ === "fil" && post ? (
-    <FilVisning post={post} lage={filLage} kopplad={kopplad} onLjus={onLjus} onMeta={onMeta} onRadera={radera ? radera.onValj : undefined} hamtaFil={hamtaFil} htmlVy={htmlVyAdress(oppnaHtml, post)} versioner={htmlVersioner ? { lista: htmlVersioner, hamtaVersion: hamtaHtmlVersion, aterstall: aterstallHtml, nyVersion: nyHtmlVersion, kanAndra: farAndra(post, jag) } : undefined} />
+    <FilVisning post={post} lage={filLage} kopplad={kopplad} onLjus={onLjus} onMeta={onMeta} onRadera={radera ? radera.onValj : undefined} hamtaFil={hamtaFil} htmlVy={htmlVyAdress(oppnaHtml, post)} pdfVy={pdfVyAdress(oppnaPdf, post)} versioner={htmlVersioner ? { lista: htmlVersioner, hamtaVersion: hamtaHtmlVersion, aterstall: aterstallHtml, nyVersion: nyHtmlVersion, kanAndra: farAndra(post, jag) } : undefined} />
   ) : typ === "lista" && post ? (
     <ListaVisning lista={post} poster={poster} kanAndra={farAndra(post, jag)} onSpara={onSpara} onOppnaPost={onOppnaPost} />
   ) : post && typ === "lank" && typeof githubLasare === "function" && githubDokument(post.url) !== null ? (
