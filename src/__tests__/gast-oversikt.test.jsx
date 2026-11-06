@@ -6,7 +6,6 @@ import { GastHemskarm } from "../components/GastHemskarm.jsx";
 import { GASTGRUPPATGARDER } from "../lib/gast.js";
 import { gastBehorighetsrader } from "../lib/gastBehorighet.js";
 import { gastHemskarmTips } from "../lib/gastHemskarm.js";
-import { gastTangentbordExtra } from "../lib/fullHeight.js";
 import { gastFlikNyckel } from "../lib/gastminne.js";
 
 /**
@@ -41,15 +40,6 @@ describe("behörighetsraderna uppfinner inget", () => {
   it("tomt är en tom lista, inte en påhittad mening", () => {
     expect(gastBehorighetsrader({ funktioner: [] }, "sv")).toEqual([]);
     expect(gastBehorighetsrader(null, "en")).toEqual([]);
-  });
-});
-
-describe("tangentbordets indrag", () => {
-  it("⛔ drar ihop med det tangentbordet täcker, och inte när underkanten redan är den synliga", () => {
-    expect(gastTangentbordExtra({ botten: 800, layout: 800, tackt: 0 })).toBe(0);
-    expect(gastTangentbordExtra({ botten: 800, layout: 800, tackt: 300 })).toBe(300);
-    expect(gastTangentbordExtra({ botten: 766, layout: 800, tackt: 300 })).toBe(266);
-    expect(gastTangentbordExtra({ botten: 500, layout: 800, tackt: 300 })).toBe(0);
   });
 });
 

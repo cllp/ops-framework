@@ -113,8 +113,9 @@ describe("telefonen: bottenrad och hela höjden (0.190.0, del B)", () => {
     expect(rad.querySelectorAll("button")).toHaveLength(0);
     expect(rad.querySelector("a[aria-current='page']")?.textContent).toBe("Översikt");
     const yta = /** @type {HTMLElement} */ (document.querySelector("[data-gast-telefonyta]"));
-    expect(yta.className).toContain("h-[calc(var(--fullhojd-botten)_-_var(--fullhojd-topp))]");
-    expect(yta.style.getPropertyValue("--fullhojd-botten")).toMatch(/px$/);
+    // (0.195.0) Höjden är appens chatts uttryck ur `100dvh` (CP från iPhone: "När man börjar skriva hoppar den upp så här."); bara toppen mäts.
+    expect(yta.className).toContain("h-[calc(100dvh-var(--fullhojd-topp)-max(var(--bottom-nav-h)+var(--safe-bottom),var(--tangentbord,0px))-var(--spelrad-h,0px))]");
+    expect(yta.style.getPropertyValue("--fullhojd-topp")).toMatch(/px$/);
     expect(yta.querySelector("[data-gast-oversikt]")).not.toBeNull();
     expect(yta.querySelector("[data-gast-chatt]")).toBeNull();
     fireEvent.click(within(rad).getByText("Chatt"));
@@ -127,12 +128,18 @@ describe("telefonen: bottenrad och hela höjden (0.190.0, del B)", () => {
     expect(window.location.hash).toBe("");
   });
 
-  it("på dator ligger flikarna kvar högst upp och ingen bottenrad ritas", () => {
+  // (0.195.0) Provet sade förut att chatten INTE fyller höjden på datorn (`data-fyll` saknades). Det mätte dessutom ingenting: Chatt var inte vald, så ingen chatt fanns att pröva.
+  // CP 2026-11-06: "Kan sidan gå ända ner eller hur blir det i chatten i Web?" Nu fyller chatten höjden också på datorn, i en uppmätt yta (`data-gast-datoryta`).
+  it("på dator ligger flikarna kvar högst upp, ingen bottenrad ritas, och chatten fyller höjden (0.195.0)", async () => {
     skarm(false);
     render(<OpsGastGrupp grupp={{ namn: "Källan", funktioner: ["chatt", "kalender"] }} api={apiMed()} intervallMs={0} />);
     expect(screen.getByRole("tablist").className).toMatch(/\bsticky\b/);
     expect(document.querySelector("nav[data-ops-bottenrad]")).toBeNull();
-    expect(document.querySelector("[data-gast-chatt][data-fyll]")).toBeNull();
+    await act(async () => {
+      fireEvent.mouseDown(screen.getByRole("tab", { name: "Chatt" }), { button: 0 });
+    });
+    await waitFor(() => expect(document.querySelector("[data-gast-datoryta] [data-gast-chatt][data-fyll]")).not.toBeNull());
+    expect(document.querySelector("[data-gast-telefonyta]")).toBeNull();
   });
 
   it("⛔ OpsBottomNav utanMeny kastar när en post inte får plats i raden, i stället för att gömma den", async () => {

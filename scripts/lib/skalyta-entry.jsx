@@ -317,6 +317,7 @@ function GastGruppSidaScen() {
       lagring={lagring}
       intervallMs={0}
       marke={GAST_MARKE}
+      omAppen={{ href: "https://life-hub.app", namn: "LifeHub" }}
       onLos={async () => ({ ok: true, sessionsnyckel: GAST_SESSION })}
       onHamta={async () => ({ ok: true, namn: "", funktion: "grupp", grupp: GASTGRUPP })}
       onNyLank={async () => ({ ok: true })}

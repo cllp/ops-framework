@@ -7,8 +7,8 @@ import { kortDatum } from "../lib/deladdatum.js";
 import { DATUM_EJ_SATT } from "../lib/handelsemodell.js";
 import { definierade, forvalda } from "../lib/ord.js";
 import { OpsBibliotek } from "./OpsBibliotek.jsx";
-import { FULL_HEIGHT_CLASSES, gastTangentbordExtra, useFullHeight } from "../lib/fullHeight.js";
-import { tangentbordTackt } from "../lib/tangentbord.js";
+import { useFullHeight } from "../lib/fullHeight.js";
+import { useTangentbordTackt } from "../lib/tangentbord.js";
 import { cx } from "../lib/cx.js";
 import { IKON_FOR } from "./ikonlexikon.js";
 import { KalenderIkon, MeddelandeIkon } from "./icons.jsx";
@@ -58,54 +58,61 @@ const FLIKIKON = /** @type {Record<string, import("react").ReactNode>} */ ({
 });
 
 /**
- * Ytan mellan huvudet och bottenraden på en telefon (0.190.0, CP 2026-11-05 i cllp/lifehub.app#658, del B: "Innehållet får hela höjden"). Höjden är skalets
- * (`useFullHeight`, `FULL_HEIGHT_CLASSES`): den mäts ut till bottenradens överkant, eller spelradens när ljud spelar, och ytan rullar i sig själv. Chatten fyller den
- * (`fyll`), så att skrivfältet står närmast bottenraden.
+ * Ytan mellan huvudet och bottenraden på en telefon (0.190.0, CP 2026-11-05 i cllp/lifehub.app#658, del B: "Innehållet får hela höjden"). Toppen mäts (`useFullHeight`),
+ * och sedan 0.195.0 räknas höjden i CSS som i appens chatt (`TELEFONYTA_KLASSER`): ut till bottenradens överkant, spelradens när ljud spelar, eller tangentbordets. Ytan rullar i sig
+ * själv. Chatten fyller den (`fyll`), så att skrivfältet står närmast bottenraden.
  *
  * ⛔ EN NY YTA PER FLIK, OCH NYCKELN SITTER DÄR YTAN RITAS (`<GastTelefonyta key={flik}>`), INTE PÅ ELEMENTET INUTI. Granskningen av PR 524, appens montage mot en
  * byggd app: med ljud som spelade i biblioteket blev dokumentet 965 px högt i ett fönster på 844, och ytan slutade på 842 i stället för vid spelradens överkant.
  * Nyckeln satt på `div`:en här inne. Då byttes elementet när fliken byttes, men komponenten och dess `useFullHeight` levde kvar med samma `ref`-objekt, så effekten
  * kördes inte om och mätte och bevakade det gamla, urkopplade elementet. Dess ruta är noll, så nästa mätning (spelraden som dök upp) gav toppen 0 och höjden
  * `botten - 0`. Med nyckeln på komponenten byts allt ihop: ny `ref`, ny effekt, nya observatörer på det element som faktiskt syns.
- * @param {{ flik: string, children: import("react").ReactNode }} props
+ *
+ * Telefonens höjd (0.195.0), i samma uttryck som appens chatt (`OpsMeddelanden`): fönstrets `100dvh` minus det som ligger ovanför ytan (`--fullhojd-topp`, uppmätt), minus det största av
+ * bottenraden och tangentbordet (`--tangentbord`, `useTangentbordTackt`), minus spelraden. Bottenraden göms medan tangentbordet är uppe (`OpsBottomNav`, `data-ops-tangentbord` nollar
+ * `--bottom-nav-h`), så det som dras av då är tangentbordet.
+ *
+ * ⛔ HÄNDELSEN. CP 2026-11-06, från iPhone i gästens Chatt på 0.192.0: "När man börjar skriva hoppar den upp så här." Sidan hade rullat så att skrivfältet stod högst upp under
+ * adressraden, och under det var det tomt ned till tangentbordet: meddelandena syntes inte. Appens chatt på samma telefon gör rätt. Skillnaden var underkanten: 0.192.0 räknade den i JS
+ * ur `window.innerHeight` (eller bottenradens överkant) och drog sedan av det tangentbordet täcker en gång till (`gastTangentbordExtra`), medan appens chatt räknar allt i CSS ur `100dvh`.
+ * (hypotes, inte mätt på en riktig iPhone) Ytan krympte med tangentbordet medan Safari samtidigt flyttade den synliga ytan ned lika mycket, och då hamnade skrivfältet ett tangentbord för högt.
+ * Chromium har inget virtuellt tangentbord, så det enda som är mätt är att uttrycket nu är appens och att ytan följer ett låtsat `visualViewport` (check-skalyta och `gast-dator-195`).
+ *
+ * ⛔ INGEN NEGATIV MARGINAL. Ytan slutar vid bottenraden (eller spelraden), och `main` lämnar exakt bottenradens, den säkra ytans och spelradens höjd under sig: dokumentet blir `100dvh`.
  */
-/**
- * Drar ihop ytan med det tangentbordet täcker, i samma tal som medlemmens chatt (`tangentbordTackt`). 0 när inget tangentbord finns
- * och när underkanten redan är den synliga (spelraden). Provet sätter `botten`; utan den läses layoutfönstret.
- * @param {number} botten
- */
-function useGastTangentbord(botten) {
-  const [extra, setExtra] = useState(0);
-  useEffect(() => {
-    if (typeof window === "undefined") return undefined;
-    const mat = () => {
-      const layout = document.documentElement?.clientHeight || window.innerHeight || 0;
-      setExtra(gastTangentbordExtra({ botten, layout, tackt: tangentbordTackt() }));
-    };
-    mat();
-    const vv = window.visualViewport;
-    vv?.addEventListener("resize", mat);
-    vv?.addEventListener("scroll", mat);
-    window.addEventListener("resize", mat);
-    return () => {
-      vv?.removeEventListener("resize", mat);
-      vv?.removeEventListener("scroll", mat);
-      window.removeEventListener("resize", mat);
-    };
-  }, [botten]);
-  return extra;
-}
+const TELEFONYTA_KLASSER = "h-[calc(100dvh-var(--fullhojd-topp)-max(var(--bottom-nav-h)+var(--safe-bottom),var(--tangentbord,0px))-var(--spelrad-h,0px))] overflow-y-auto overscroll-contain";
 
 /** @param {{ flik: string, children: import("react").ReactNode }} props */
 function GastTelefonyta({ flik, children }) {
   const ref = useRef(/** @type {HTMLDivElement | null} */ (null));
-  const stil = useFullHeight(ref);
-  const botten = Number.parseFloat(String(/** @type {Record<string, string>} */ (stil)["--fullhojd-botten"] ?? ""));
-  const extra = useGastTangentbord(Number.isFinite(botten) ? botten : 0);
-  // Inline höjd slår klassens när tangentbordet täcker underkanten, och min-höjden släpps så ytan får bli kortare än 15 rem.
-  const style = extra > 0 ? { ...stil, height: `calc(var(--fullhojd-botten) - var(--fullhojd-topp) - ${extra}px)`, minHeight: 0 } : stil;
+  // Bara toppen ur mätningen: var ytan börjar. Underkanten är CSS, som i appens chatt.
+  const topp = /** @type {Record<string, string>} */ (useFullHeight(ref))["--fullhojd-topp"];
+  const tackt = useTangentbordTackt();
+  const style = /** @type {import("react").CSSProperties} */ ({ "--fullhojd-topp": topp, ...(tackt > 0 ? { "--tangentbord": `${tackt}px` } : {}) });
   return (
-    <div ref={ref} style={style} data-gast-telefonyta={flik} data-gast-tangentbord={extra > 0 ? String(extra) : undefined} className={cx("flex min-w-0 flex-col", FULL_HEIGHT_CLASSES)}>
+    <div ref={ref} style={style} data-gast-telefonyta={flik} data-tangentbord={tackt > 0 ? String(tackt) : undefined} className={cx("flex min-w-0 flex-col", TELEFONYTA_KLASSER)}>
+      {children}
+    </div>
+  );
+}
+
+/**
+ * Chattens yta på datorn (0.195.0, CP 2026-11-06 på datorn: "Kan sidan gå ända ner eller hur blir det i chatten i Web?"). Samma mätning som telefonens (`useFullHeight`): från ytans
+ * överkant, under flikraden, ut till fönstrets underkant eller spelradens överkant. Loggen rullar i den och skrivfältet står längst ned och syns alltid, som på telefonen och i Signal.
+ *
+ * ⛔ BARA CHATTEN. Översikt, Kalender, Bibliotek och Ärenden rullar sidan som förut. Biblioteket har egna rullytor och en egen sökrad, och en yta runt dem hade gett två rullningar i
+ * varandra. Chatten är den enda flik där det som ska nås (skrivfältet) står längst ned.
+ *
+ * ⛔ `-mb-16` ÄR `main`:S NEDRE UTFYLLNAD PÅ DATORN, MINUS SPELRADEN (`OpsGastSida`: `md:pb-[calc(4rem+var(--spelrad-h,0px))]`). Ytan slutar vid fönstret (eller spelraden), och
+ * utfyllnaden hade lagt 4 rem under den: dokumentet hade blivit högre än fönstret och rullat ovanpå loggens egen rullning. Med marginalen blir dokumentet exakt fönstrets höjd.
+ * Telefonens yta behöver ingen: där lämnar `main` exakt bottenradens höjd under sig (`TELEFONYTA_KLASSER`). Ändras utfyllnaden i `OpsGastSida` ändras talet här.
+ * @param {{ children: import("react").ReactNode }} props
+ */
+function GastDatoryta({ children }) {
+  const ref = useRef(/** @type {HTMLDivElement | null} */ (null));
+  const stil = useFullHeight(ref);
+  return (
+    <div ref={ref} style={stil} data-gast-datoryta="" className="flex h-[calc(var(--fullhojd-botten)_-_var(--fullhojd-topp))] min-h-60 min-w-0 flex-col -mb-16">
       {children}
     </div>
   );
@@ -737,6 +744,7 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
       </div>
       {sida?.integritet ?? null}
       <GastHemskarm sprak={sprak} />
+      {sida?.omAppen ?? null}
     </div>
   );
   /**
@@ -763,7 +771,8 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
         fel={fel.chatt}
         onForsokIgen={() => void ladda("chatt")}
         sprak={sprak}
-        fyll={smal}
+        gruppnamn={grupp.namn}
+        fyll
       />
     ) : f === "kalender" ? (
       kalenderInnehall()
@@ -780,7 +789,9 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
   return (
     <OpsSprakProvider sprak={sprak}>
     <OpsSpelareProvider>
-    <div data-gast-grupp="" className="flex min-w-0 flex-col gap-4 text-ink sm:rounded-xl sm:border sm:border-line sm:bg-canvas sm:p-5">
+    {/* ⛔ INGEN RAM RUNT GRUPPEN (0.195.0). CP 2026-11-06 på datorn: "Det finns en rund border i web, den yttersta som känns överflödig". Ramen (`sm:rounded-xl sm:border sm:bg-canvas sm:p-5`)
+        var en ruta på sidan, med sidans egen bakgrund runt sig; innehållet ligger nu direkt på sidan, som på telefonen. Den tog dessutom 20 px på varje sida från chatten och biblioteket. */}
+    <div data-gast-grupp="" className="flex min-w-0 flex-col gap-4 text-ink">
       {smal ? (
         <>
           <GastTelefonyta key={aktivFlik} flik={aktivFlik}>{innehall(aktivFlik)}</GastTelefonyta>
@@ -805,7 +816,7 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
         onChange={valjFlik}
         ariaLabel={t.flikarEtikett}
       >
-        {ordning.map((f) => <OpsTabPanel key={f} id={f}>{innehall(f)}</OpsTabPanel>)}
+        {ordning.map((f) => <OpsTabPanel key={f} id={f}>{f === "chatt" ? <GastDatoryta>{innehall(f)}</GastDatoryta> : innehall(f)}</OpsTabPanel>)}
       </OpsTabs>
       </>
       )}
