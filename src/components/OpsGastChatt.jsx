@@ -150,17 +150,32 @@ export function OpsGastChatt({ meddelanden, fler = false, onAldre, onSkriv, ladd
   }
   // ── Tråden (0.191.0) ──
   const [trad, setTrad] = useState(/** @type {null | { id: string, rot: any, meddelanden: any[], fel: boolean, laddar: boolean }} */ (null));
-  /** @param {string} id */
-  async function oppnaTrad(id) {
+  /**
+   * Öppnar tråden direkt (vyn byter till tråden med "Hämtar tråden"), och hämtningen sker i effekten under. ⛔ (0.196.0) Trycket startar inget anrop självt: väntan syns i trådens egen
+   * väntrad (`OpsEmpty busy`), och knappen som trycktes finns inte kvar att visa en snurra på. Så kan "Svara i tråd" vara medlemmens rena knapp (`tradknappKlass`).
+   * @param {string} id
+   */
+  function oppnaTrad(id) {
     if (!onLasTrad) return;
     setTrad({ id, rot: null, meddelanden: [], fel: false, laddar: true });
-    try {
-      const r = await onLasTrad(id);
-      if (levande.current) setTrad((f) => (f && f.id === id ? { id, rot: r.rot, meddelanden: r.meddelanden ?? [], fel: false, laddar: false } : f));
-    } catch {
-      if (levande.current) setTrad((f) => (f && f.id === id ? { ...f, fel: true, laddar: false } : f));
-    }
   }
+  const lasTradRef = useRef(onLasTrad);
+  lasTradRef.current = onLasTrad;
+  const laddarTrad = trad?.laddar ? trad.id : null;
+  useEffect(() => {
+    const las = lasTradRef.current;
+    if (!laddarTrad || !las) return undefined;
+    let kvar = true;
+    Promise.resolve()
+      .then(() => las(laddarTrad))
+      .then(
+        (r) => kvar && setTrad((f) => (f && f.id === laddarTrad ? { id: laddarTrad, rot: r.rot, meddelanden: r.meddelanden ?? [], fel: false, laddar: false } : f)),
+        () => kvar && setTrad((f) => (f && f.id === laddarTrad ? { ...f, fel: true, laddar: false } : f)),
+      );
+    return () => {
+      kvar = false;
+    };
+  }, [laddarTrad]);
   /** @param {string} id @param {string} text */
   async function skrivITrad(id, text) {
     if (!onSkrivITrad) return;
@@ -265,7 +280,7 @@ export function OpsGastChatt({ meddelanden, fler = false, onAldre, onSkriv, ladd
             visaNamn
             texter={texter}
             citat={{ pa: Boolean(onSkriv), onCitera: (m) => setSvarPa(/** @type {any} */ (m)), uppslag: /** @type {any} */ (uppslag) }}
-            merFor={onLasTrad ? (m) => (antalSvar(m.id) > 0 ? [] : [{ id: "trad", etikett: texter.svaraITrad, ikon: <TradIkon size={16} />, onValj: () => void oppnaTrad(m.id) }]) : undefined}
+            merFor={onLasTrad ? (m) => (antalSvar(m.id) > 0 ? [] : [{ id: "trad", etikett: texter.svaraITrad, ikon: <TradIkon size={16} />, onValj: () => oppnaTrad(m.id) }]) : undefined}
             postkort={postkort}
             efter={(m) => {
               const original = /** @type {any} */ (originalPerId.get(m.id));
@@ -277,14 +292,14 @@ export function OpsGastChatt({ meddelanden, fler = false, onAldre, onSkriv, ladd
                   {bilaga ? <span data-gast-chatt-bilaga="" className="text-meta text-ink-muted">{t.bilaga.replace("{namn}", bilaga.namn)}</span> : null}
                   {/* (0.196.0) Svara i tråd under bubblan på dator, vid hovring och fokus, samma knapp som medlemmens. På telefon står den i menyn (`merFor`). */}
                   {!svar && onLasTrad ? (
-                    <button type="button" data-tradmarke="ny" data-tradrot={m.id} onClick={() => void oppnaTrad(m.id)} className={tradknappKlass(false)}>
+                    <button type="button" data-tradmarke="ny" data-tradrot={m.id} onClick={() => oppnaTrad(m.id)} className={tradknappKlass(false)}>
                       <TradIkon size={12} />
                       <span>{texter.svaraITrad}</span>
                     </button>
                   ) : null}
                   {svar && onLasTrad ? (
                     <span data-gast-chatt-svar={m.id}>
-                      <OpsButton variant="ghost" size="sm" onClick={() => oppnaTrad(m.id)} busyLabel={t.tradLaddar}>
+                      <OpsButton variant="ghost" size="sm" onClick={() => oppnaTrad(m.id)}>
                         {svar === 1 ? t.svarEtt : t.svar.replace("{n}", String(svar))}
                       </OpsButton>
                     </span>
