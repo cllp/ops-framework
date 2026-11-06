@@ -69,8 +69,8 @@ export { OpsFilePicker, ORD_OPSFILEPICKER } from "./components/OpsFilePicker.jsx
 export { OpsLjudspelare } from "./components/OpsLjudspelare.jsx";
 export { OpsHtmlDokument, OpsHtmlDokumentHamtat, ORD_HTMLDOKUMENT } from "./components/OpsHtmlDokument.jsx";
 export { OpsHtmlVy } from "./components/OpsHtmlVy.jsx";
-// (0.192.0, #529) `byggSrcdoc` och zoomen bor i `lib/htmlruta.js`, så att Bibliotekets startfil inte bär rutans skript.
-export { byggSrcdoc, HTML_ZOOMMEDDELANDE, HTML_MATTMEDDELANDE, HTML_ZOOMSTEGMEDDELANDE, HTML_FOKUSMEDDELANDE, HTML_ZOOMSKRIPT, ZOOM_MIN, ZOOM_MAX, tolkaRutmeddelande, anpassadSkala, zoomSteg, zoomHjul } from "./lib/htmlruta.js";
+// (0.192.0, #529) `byggSrcdoc` bor i `lib/htmlruta.js` med zoomen, så att Bibliotekets startfil inte bär rutans skript. Zoomen är rutans egen och exporteras inte.
+export { byggSrcdoc } from "./lib/htmlruta.js";
 export { ORD_HTMLVERSIONER } from "./components/BibliotekHtmlVersioner.jsx";
 export { HTML_SANDBOX, HTML_UTSKRIFTSMEDDELANDE, HTML_UTSKRIFTSSKRIPT, HTML_LANKMEDDELANDE, HTML_LANKSKRIPT, externLankAdress, arHtmlDokument, htmlVyAdress, htmlText, htmlBytes, VERSIONSFALT, VERSIONSAVGRANSARE, versionsnyckel, nuvarandeVersion, nastaVersionssokvag, byggNyVersion, versionFel, versionslista, byggAterstallning } from "./lib/htmldokument.js";
 export { OpsSpelareProvider, OpsSpelaKnapp, OpsSpelarKontroller, useSpelare, ORD_OPSSPELARE } from "./components/OpsSpelare.jsx";
