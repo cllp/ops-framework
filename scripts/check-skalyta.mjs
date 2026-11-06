@@ -511,12 +511,12 @@ async function chattensNattskiva() {
           return kort.map((x) => {
             const r = x.getBoundingClientRect();
             const bubbla = /** @type {HTMLElement} */ (x.closest("[data-meddelande]")?.querySelector("[data-bubbla]"));
-            return { text: (x.textContent || "").trim(), h: r.height, inom: r.left >= l.getBoundingClientRect().left - 0.5 && r.right <= l.getBoundingClientRect().right + 0.5, under: r.top >= bubbla.getBoundingClientRect().bottom - 0.5, lankKvar: Boolean(bubbla.querySelector("a[href]")) };
+            return { text: (x.textContent || "").trim(), h: r.height, inom: r.left >= l.getBoundingClientRect().left - 0.5 && r.right <= l.getBoundingClientRect().right + 0.5, under: r.top >= bubbla.getBoundingClientRect().bottom - 0.5, lankKvar: Boolean(bubbla.querySelector(`a[href="${x.getAttribute("data-postkort")}"]`)) };
           });
         });
         matt.push(`${namn}: ${JSON.stringify(k)}`);
         krav(k.length === 1, `${namn}: ${k.length} kort, väntat 1. Golv.`);
-        krav(k.every((x) => x.text === "Moms augusti (#464)Ärende, öppet" && x.h >= 43.5 && x.inom && x.under && x.lankKvar), `${namn}: kortet ska stå under bubblan, inom loggen, 44 px högt, med appens titel, och länken stå kvar i texten (${JSON.stringify(k)}).`);
+        krav(k.every((x) => x.text === "Moms augusti (#464)Ärende, öppet" && x.h >= 43.5 && x.inom && x.under && !x.lankKvar), `${namn}: kortet ska stå under bubblan, inom loggen, 44 px högt, med appens titel, och länken INTE stå i texten (0.196.0, cllp/ops-framework#527: förut stod den kvar, samma sak två gånger) (${JSON.stringify(k)}).`);
         if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `chatt-7-postkort-${vp.width}.png`) });
         krav((await over(page)) <= 0, `${namn}: sidan flödar över ${await over(page)} px horisontellt.`);
       } catch (e) {

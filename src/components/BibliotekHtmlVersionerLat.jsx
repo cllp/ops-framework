@@ -41,7 +41,8 @@ export function BibliotekHtmlVersionerLat(props) {
 function VersionsradVantar() {
   return (
     <div data-html-versioner-vantar="" aria-hidden="true" className="min-w-0">
-      <div className="rounded-lg border border-line bg-raised">
+      {/* (0.196.0) Utan kant, som `OpsDisclosure`: en kant här hade gjort väntrutan 2 px högre än raden (mätt i `check:skalyta`, html-versioner (g)). */}
+      <div className="rounded-lg bg-hover">
         <div className="flex min-h-11 items-center gap-3 p-4">
           <div className="min-w-0 flex-1 text-etikett">
             <span className="flex min-w-0 flex-wrap items-baseline gap-x-3">
