@@ -59,7 +59,7 @@ export function pdfVyAdress(oppnaPdf, post) {
 let workerAdress = "";
 
 /**
- * Adressen till pdf.js-workern, när appen ger den själv (0.193.0). Utan den räknar vyn fram adressen med `new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url)`, som Vite gör till en egen fil i appens bygge.
+ * Adressen till pdf.js-workern, när appen ger den själv (0.193.0). Utan den räknar vyn fram adressen med `new URL("pdfjs-dist/legacy/build/pdf.worker.min.mjs", import.meta.url)`, som Vite gör till en egen fil i appens bygge.
  *
  * ⛔ ANROPAS FÖRE FÖRSTA PDF:EN. Ett anrop efter att pdf.js laddats ändrar inget för den sidan, eftersom pdf.js har startat sin worker då. Ett tomt värde tar bort appens adress.
  * Se README, avsnittet om PDF, för när appen behöver den (Vites utvecklingsläge med förbuntade beroenden, eller en annan bundler än Vite).

@@ -40,7 +40,7 @@
  * dessutom fått en egen kopia av de ikoner den använder.
  *
  * ⛔ `pdfjs-dist` är externt (0.193.0, cllp/ops-framework#530): PDF-vyn importerar det lat, och appens bundler ska göra det till en egen bit och
- * lägga workern som en egen fil (`new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url)` i `lib/pdfjs.js`). Buntat här hade det blivit en fil
+ * lägga workern som en egen fil (`new URL("pdfjs-dist/legacy/build/pdf.worker.min.mjs", import.meta.url)` i `lib/pdfjs.js`). Buntat här hade det blivit en fil
  * på över en megabyte i `dist`, och workerns adress hade pekat in i ramverkets mapp i stället för på paketet.
  *
  * Klassnamnssträngarna överlever bygget oförändrade, vilket är det Tailwinds
