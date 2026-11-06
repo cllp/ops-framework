@@ -82,7 +82,12 @@ const FLIKIKON = /** @type {Record<string, import("react").ReactNode>} */ ({
  */
 const TELEFONYTA_KLASSER = "h-[calc(100dvh-var(--fullhojd-topp)-max(var(--bottom-nav-h)+var(--safe-bottom),var(--tangentbord,0px))-var(--spelrad-h,0px))] overflow-y-auto overscroll-contain";
 
-/** @param {{ flik: string, children: import("react").ReactNode }} props */
+/**
+ * ⛔ `-mt-4` I CHATTEN ÄR `main`:S ÖVRE UTFYLLNAD PÅ TELEFONEN (`OpsGastSida`: `pt-4`), 0.196.0. CP 2026-11-06 i telefonen på 1.0.1128: glapp under sidhuvudet och en klippt översta bubbla.
+ * Chatten rullar i sig själv, och dess rullyta ska börja vid sidhuvudets kant, så att ett meddelande som rullar upp försvinner under huvudet och inte klipps mitt i ett tomrum. Ytans topp mäts
+ * (`useFullHeight`), så höjden följer med. De andra flikarna rullar sitt innehåll med luften kvar. Ändras utfyllnaden i `OpsGastSida` ändras talet här.
+ * @param {{ flik: string, children: import("react").ReactNode }} props
+ */
 function GastTelefonyta({ flik, children }) {
   const ref = useRef(/** @type {HTMLDivElement | null} */ (null));
   // Bara toppen ur mätningen: var ytan börjar. Underkanten är CSS, som i appens chatt.
@@ -90,7 +95,7 @@ function GastTelefonyta({ flik, children }) {
   const tackt = useTangentbordTackt();
   const style = /** @type {import("react").CSSProperties} */ ({ "--fullhojd-topp": topp, ...(tackt > 0 ? { "--tangentbord": `${tackt}px` } : {}) });
   return (
-    <div ref={ref} style={style} data-gast-telefonyta={flik} data-tangentbord={tackt > 0 ? String(tackt) : undefined} className={cx("flex min-w-0 flex-col", TELEFONYTA_KLASSER)}>
+    <div ref={ref} style={style} data-gast-telefonyta={flik} data-tangentbord={tackt > 0 ? String(tackt) : undefined} className={cx("flex min-w-0 flex-col", TELEFONYTA_KLASSER, flik === "chatt" && "-mt-4")}>
       {children}
     </div>
   );

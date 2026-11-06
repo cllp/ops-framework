@@ -8205,6 +8205,27 @@ async function gastGrupp() {
           matt.push(`${namn} sida: skrivfältet ${hojd.glapp.toFixed(0)} px över fönstrets underkant, loggen ${hojd.logg.toFixed(0)} px, sidan rullar ${hojd.rullar}`);
           krav(hojd.glapp >= -0.5 && hojd.glapp <= 40 && !hojd.rullar && hojd.logg >= 400, `${namn} sida (e): chatten fyller inte höjden på datorn: skrivfältet ${hojd.glapp.toFixed(0)} px över fönstrets underkant (väntat 0 till 40), sidan rullar ${hojd.rullar}, loggen ${hojd.logg.toFixed(0)} px (väntat minst 400).`);
         }
+        // (e) KANTERNA (0.196.0). CP 2026-11-06 i telefonen på 1.0.1128, mörkt läge: "glapp under sidhuvudet och den översta chattbubblan klipps", och fel i nederkanten.
+        // Mätt före rättelsen i 390 x 664: loggens rullkant 24 px under sidhuvudet och 12 px över skrivfältet, och loggen stod på scrollTop 39 av 104, så sista meddelandet klipptes.
+        // Nu: loggen står nederst (sista meddelandet syns helt), rullkanten möter skrivfältet, och på telefonen möter den sidhuvudet. Golv: loggen, skrivfältet och ett meddelande hittades.
+        await page.waitForTimeout(300);
+        const kanter = await page.evaluate(() => {
+          const logg = /** @type {HTMLElement | null} */ (document.querySelector("[data-gast-chatt-logg]"));
+          const skriv = document.querySelector("[data-gast-chatt-skriv]");
+          const rader = [...document.querySelectorAll("[data-gast-chatt-logg] [data-meddelande]")];
+          const huvud = document.querySelector("header");
+          if (!logg || !skriv || rader.length === 0 || !huvud) return null;
+          const l = logg.getBoundingClientRect();
+          const sista = rader[rader.length - 1].getBoundingClientRect();
+          return { kvarNed: logg.scrollHeight - logg.scrollTop - logg.clientHeight, sistaNed: sista.bottom, loggTopp: l.top, loggNed: l.bottom, skrivTopp: skriv.getBoundingClientRect().top, huvudNed: huvud.getBoundingClientRect().bottom, rader: rader.length };
+        });
+        krav(kanter !== null, `${namn} sida (e, golv): loggen, skrivfältet, sidhuvudet eller ett meddelande hittades inte.`);
+        if (kanter) {
+          matt.push(`${namn} sida, kanterna: ${kanter.rader} meddelanden, ${kanter.kvarNed.toFixed(0)} px kvar att rulla ned, rullkanten ${(kanter.loggTopp - kanter.huvudNed).toFixed(0)} px under sidhuvudet och ${(kanter.skrivTopp - kanter.loggNed).toFixed(0)} px över skrivfältet`);
+          krav(kanter.kvarNed <= 1 && kanter.sistaNed <= kanter.loggNed + 0.5, `${namn} sida (e): chatten står inte nederst: ${kanter.kvarNed.toFixed(0)} px kvar att rulla, och sista meddelandet slutar på ${kanter.sistaNed.toFixed(0)} med loggens kant på ${kanter.loggNed.toFixed(0)} (väntat 0 kvar och inget klippt).`);
+          krav(Math.abs(kanter.skrivTopp - kanter.loggNed) <= 1, `${namn} sida (e): ${(kanter.skrivTopp - kanter.loggNed).toFixed(0)} px mellan loggens rullkant och skrivfältet (väntat 0): ett meddelande klipps då mitt i ett tomrum.`);
+          if (telefon) krav(Math.abs(kanter.loggTopp - kanter.huvudNed) <= 1, `${namn} sida (e): loggens rullkant står ${(kanter.loggTopp - kanter.huvudNed).toFixed(0)} px under sidhuvudet (väntat 0): ett meddelande som rullar upp klipps då mitt i ett tomrum.`);
+        }
         // (e) 0.195.0: inget streck mellan loggen och skrivfältet, ingen ram runt loggen, och skrivfältets ruta har samma vänster- och högerkant som meddelandenas yta
         // (CP från telefonen: "Sedan kanske skrivfältet kan vara lika brett som chattramen?"). Loggens ruta och dess innerbredd (utan en rullningslist) mäts båda och skrivs ut.
         const kant = await page.evaluate(() => {

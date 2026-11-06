@@ -45,7 +45,11 @@ export const ORD_OPSGASTCHATT = {
  * det har samma vänster- och högerkant som meddelandena (CP samma dag från telefonen: "Sedan kanske skrivfältet kan vara lika brett som chattramen?").
  */
 const LOGG_RUTA = "max-h-[60dvh] min-h-48 rounded-lg border border-line bg-surface p-3";
-const LOGG_FYLLD = "min-h-0 flex-1 py-3";
+// ⛔ LUFTEN LIGGER INNE I RULLYTAN, INTE RUNT DEN (0.196.0). CP 2026-11-06 i telefonen: "glapp under sidhuvudet och den översta chattbubblan klipps", och fel i nederkanten.
+// Med `pt-2` och `gap-3` runt loggen klipptes meddelandena vid loggens kant, 24 px under sidhuvudet och 12 px över skrivfältet: en tom remsa med ett halvt meddelande vid kanten.
+// Nu går rullytan kant i kant med sidhuvudet och skrivfältet, och luften är loggens egen utfyllnad, som rullar med (`check:skalyta`, (e) kanterna).
+// Är meddelandena färre än ytan står de nederst, närmast skrivfältet, som i en meddelandeapp (`mt-auto` på första barnet, inte `justify-end`, som gör toppen orullbar).
+const LOGG_FYLLD = "min-h-0 flex-1 py-3 [&>:first-child]:mt-auto";
 
 /** Märket för gästens egna meddelanden i raderna. Ingen avsändare kan heta så, och namnen kommer aldrig härifrån. */
 const EGEN = "__gast_egen__";
@@ -117,6 +121,21 @@ export function OpsGastChatt({ meddelanden, fler = false, onAldre, onSkriv, ladd
     const el = logg.current;
     if (el && vidBotten.current) el.scrollTop = el.scrollHeight;
   }, [sistaId]);
+  // ⛔ STÅR KVAR NEDERST NÄR NÅGOT ÄNDRAR HÖJD (0.196.0). CP 2026-11-06 i telefonen på 1.0.1128: sista meddelandet klipptes ovanför skrivfältet. Mätt i 390 px: loggen stod på
+  // `scrollTop` 39 av 104, eftersom rullningen ovan skedde en gång, när meddelandena kom, och ytan och innehållet fick sin höjd efter det (ytans topp mäts, kort och typsnitt laddar).
+  // Nu följer loggen sin egen och innehållets storlek så länge läsaren står nederst (`vidBotten`). Den som har rullat upp flyttas inte.
+  const harLogg = !fel && !laddar && meddelanden.length > 0;
+  useEffect(() => {
+    const el = logg.current;
+    if (!el || !harLogg || typeof ResizeObserver === "undefined") return undefined;
+    const tillBotten = () => {
+      if (vidBotten.current) el.scrollTop = el.scrollHeight;
+    };
+    const ro = new ResizeObserver(tillBotten);
+    ro.observe(el);
+    for (const barn of el.children) ro.observe(barn);
+    return () => ro.disconnect();
+  }, [harLogg, sistaId]);
 
   const [skrivText, setSkrivText] = useState("");
   const [skickar, setSkickar] = useState(false);
@@ -251,7 +270,7 @@ export function OpsGastChatt({ meddelanden, fler = false, onAldre, onSkriv, ladd
   }
 
   return (
-    <section aria-label={t.rubrik} data-gast-chatt="" data-fyll={fyll ? "" : undefined} className={cx("flex min-w-0 flex-col gap-3", fyll && "min-h-0 flex-1 pt-2")}>
+    <section aria-label={t.rubrik} data-gast-chatt="" data-fyll={fyll ? "" : undefined} className={cx("flex min-w-0 flex-col", fyll ? "min-h-0 flex-1" : "gap-3")}>
       {fel ? (
         <OpsGastFelrad data="gast-chatt-fel" text={t.fel} forsokIgen={t.forsokIgen} onForsokIgen={onForsokIgen} />
       ) : laddar ? (
@@ -353,7 +372,7 @@ function GastTrad({ trad, t, texter, locale, sprak, postkort, onStang, onSkriv, 
     }
   }
   return (
-    <section aria-label={t.trad} data-gast-chatt-trad={trad.id} className={cx("flex min-w-0 flex-col gap-3", fyll && "min-h-0 flex-1 pt-2")}>
+    <section aria-label={t.trad} data-gast-chatt-trad={trad.id} className={cx("flex min-w-0 flex-col", fyll ? "min-h-0 flex-1" : "gap-3")}>
       <div>
         <OpsButton variant="secondary" size="sm" onClick={onStang}>
           {t.tillbaka}

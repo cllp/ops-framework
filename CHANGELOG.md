@@ -13,6 +13,10 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 PDF-vyns verktygsrad, länken i chatten när den blivit ett kort, och inga kantlinjer som bara ramar in i gästens vy. CP 2026-11-06, med en skärmbild från telefonen (gästens bibliotek, en PDF i detaljen): "Det här ser jättekonstigt ut, kolla hur ful titeln ligger skarv.pdf. Det här håller inte. Presentera är ett konstigt ord i sammanhanget." och samma dag, med en skärmbild av gästens Chatt: "Ta bort borders runt chatten och överallt."
 
+### Rättat
+
+- **Gästchatten i telefonen klipps inte längre i över- och underkanten.** CP 2026-11-06 i telefonen på 1.0.1128, mörkt läge: ett glapp under sidhuvudet, en klippt översta bubbla, och fel i nederkanten. Mätt i 390 x 664 px: loggens rullkant stod 24 px under sidhuvudet och 12 px över skrivfältet, så meddelandena klipptes mitt i ett tomrum. Loggen stod dessutom på `scrollTop` 39 av 104, eftersom den rullade ned en gång när meddelandena kom, och ytan och innehållet fick sin höjd efter det. Nu börjar rullytan vid sidhuvudet (`-mt-4` mot `main`:s utfyllnad, bara i chatten) och slutar vid skrivfältet, med luften inne i loggen. Loggen står kvar nederst när den eller innehållet ändrar höjd (`ResizeObserver`), så länge läsaren inte har rullat upp. Färre meddelanden än ytan rymmer står nederst, närmast skrivfältet. `check:skalyta` (e) mäter kanterna och att loggen står nederst: 4 brott utan rättelsen, inga med den.
+
 ### Ändrat
 
 - **PDF-vyn har en enda kompakt rad ovanför sidan** (`Dokumentrad`, ny och delad med HTML-rutan): zoomen (− procent +), sidan som "1/3" när det finns fler än en (skärmläsaren hör "Sida 1 av 3"), och till höger ikonknappar med namn för skärmläsaren och som `title`. Raden har ingen egen bakgrund och ingen ram, och den bryts inte: i 390 px står zoomen, sidan och tre ikonknappar på en rad (mätt i montaget, 44 px hög). Förut stod filnamnet stort i en egen ruta med "Sida 1 av 1" under, en rad med zoomen och en stor knapp Presentera, Ladda ned ensam på en egen rad, och sidan i en ram med rundade hörn.
