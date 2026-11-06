@@ -615,7 +615,10 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
    */
   function lankAttKopiera(post) {
     if (post.typ === "lank" && typeof post.url === "string" && ADRESSFORM.test(post.url)) return post.url;
-    if (post.typ === "fil") {
+    // ⛔ INTE FÖR EN FIL VARS ADRESS HÄMTAS PÅ BEGÄRAN (0.192.0, cllp/lifehub.app#673). Adressen fanns bara för posten som var öppen, så raden stod i detaljen
+    // och i listan bara när adressen råkade ligga kvar: samma fil fick tre olika menyer i QA. Den adressen är dessutom en signering som dör efter en kvart och
+    // som gick att kopiera också när gruppen stängt av nedladdning. Den är ingen länk att dela, och då är menyn densamma i listan och i detaljen.
+    if (post.typ === "fil" && !adresserPaBegaran) {
       const lage = adressFor(post);
       if (lage.lage === "klar" && ADRESSFORM.test(lage.adress)) return lage.adress;
     }
