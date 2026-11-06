@@ -19,7 +19,7 @@ describe("⛔ pdf.js går inte att hämta", () => {
     const fel = await screen.findByRole("alert");
     expect(fel.textContent).toBe("Visningen för PDF gick inte att hämta. Kontrollera nätet och försök igen.");
     expect(screen.queryByText("Hämtar dokumentet.")).toBeNull();
-    expect(screen.getByRole("button", { name: "Presentera" }).hasAttribute("disabled")).toBe(true);
+    expect(screen.getByRole("button", { name: "Helskärm" }).hasAttribute("disabled")).toBe(true);
     fireEvent.click(screen.getByRole("button", { name: "Försök igen" }));
     // Ett nytt försök hämtar på nytt: ett minne av felet hade gjort knappen död.
     expect((await screen.findByRole("alert")).textContent).toContain("Visningen för PDF");

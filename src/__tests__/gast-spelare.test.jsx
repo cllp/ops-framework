@@ -136,7 +136,7 @@ describe("gästens spelare", () => {
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Låtlista" }));
     });
-    expect(await screen.findByRole("button", { name: "Presentera" })).toBeTruthy();
+    expect(await screen.findByRole("button", { name: "Helskärm" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Ladda ned" })).toBeNull();
     expect(document.querySelector("[data-bibliotek-ladda-ned], [data-pdf-ladda-ned]")).toBeNull();
     hamta.mockRestore();

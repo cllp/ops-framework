@@ -442,7 +442,7 @@ describe("OpsGastGrupp: det bantade gränssnittet", () => {
     await klicka(screen.getByRole("button", { name: "Låtlista" }));
     await waitFor(() => expect(m.api.fil).toHaveBeenCalledTimes(1));
     expect(m.logg.filter(([a]) => a === "fil")).toEqual([["fil", { postId: "p-pdf" }]]);
-    expect(await screen.findByRole("button", { name: "Presentera" })).toBeTruthy();
+    expect(await screen.findByRole("button", { name: "Helskärm" })).toBeTruthy();
     await waitFor(() => expect(hamta).toHaveBeenCalledWith("https://lagring.example/p-pdf"));
     expect(document.querySelector('[href="https://lagring.example/p-pdf"]')).toBeNull();
     hamta.mockRestore();
@@ -470,7 +470,7 @@ describe("OpsGastGrupp: det bantade gränssnittet", () => {
     for (const ord of SVENSKA) expect(lista, `listan: ${ord}`).not.toContain(ord);
     for (const ord of ["Search the library", "Tags", "All", "Audio", "Note", "Image"]) expect(lista, `listan: ${ord}`).toContain(ord);
     await klicka(screen.getByRole("button", { name: "Låtlista" }));
-    await screen.findByText("Download");
+    await screen.findByRole("button", { name: "Download" });
     const detalj = synligt();
     for (const ord of SVENSKA) expect(detalj, `detaljen: ${ord}`).not.toContain(ord);
     expect(detalj).toContain("Back");

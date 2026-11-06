@@ -89,7 +89,7 @@ describe("Versionsraden: när den finns", () => {
     rita({ post: pdf(), extra: { htmlVersioner } });
     // (0.193.0, #530) PDF:en ritas i sin egen vy, inte som en länk. Vänta in den, så att en sen versionsrad hade hunnit synas.
     await waitFor(() => expect(document.querySelector("[data-bibliotek-pdf]")).toBeTruthy());
-    await screen.findByRole("button", { name: "Presentera" });
+    await screen.findByRole("button", { name: "Helskärm" });
     expect(screen.queryByText("Versioner")).toBeNull();
     expect(htmlVersioner).not.toHaveBeenCalled();
   });

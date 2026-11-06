@@ -15,6 +15,6 @@ describe("⛔ pdfjs-dist saknas i appen", () => {
   it("raden säger att visningen inte är installerad", async () => {
     render(<OpsPdfVy hamta={async () => new Blob(["%PDF"], { type: "application/pdf" })} sokvag="s" namn="kvartal.pdf" />);
     expect((await screen.findByRole("alert")).textContent).toBe("Visningen för PDF är inte installerad i den här appen.");
-    expect(screen.getByRole("button", { name: "Presentera" }).hasAttribute("disabled")).toBe(true);
+    expect(screen.getByRole("button", { name: "Helskärm" }).hasAttribute("disabled")).toBe(true);
   });
 });

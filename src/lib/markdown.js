@@ -41,8 +41,7 @@
 const CLOSE = /[.,;:!?)\]]+$/;
 
 /**
- * @typedef {{ kind: "text" | "link" | "code" | "bold" | "italic" | "break", value: string, url?: string, fran?: number, till?: number }} Bit
- *   `fran` och `till` (0.196.0) står bara på en länk: var i raden den råa formen börjar och slutar, så att `utanLankar` kan klippa bort just den.
+ * @typedef {{ kind: "text" | "link" | "code" | "bold" | "italic" | "break", value: string, url?: string }} Bit
  * @typedef {{ cross: boolean | null, inline: Bit[] }} ListEntry
  * @typedef {{ kind: "heading", level: number, inline: Bit[] }
  *   | { kind: "paragraph", inline: Bit[] }
@@ -77,16 +76,24 @@ function saker(url) {
  * @param {string} row @returns {Bit[]}
  */
 export function splitInline(row) {
+  return delaMedPlats(row).map(({ fran: _f, till: _t, ...bit }) => bit);
+}
+
+/**
+ * Samma delning som `splitInline`, med var i raden varje länks råa form börjar och slutar (`fran`, `till`, 0.196.0). Bara för `utanLankar`: `splitInline` ger samma bitar som förut, utan platserna.
+ * @param {string} row @returns {Array<Bit & { fran?: number, till?: number }>}
+ */
+function delaMedPlats(row) {
   if (typeof row !== "string" || row === "") return [];
 
-  /** @type {Bit[]} */
+  /** @type {Array<Bit & { fran?: number, till?: number }>} */
   const out = [];
   let last = 0;
   INLINE.lastIndex = 0;
 
   for (let m = INLINE.exec(row); m; m = INLINE.exec(row)) {
     const start = m.index;
-    /** @type {Bit | null} */
+    /** @type {(Bit & { fran?: number, till?: number }) | null} */
     let piece = null;
 
     if (m[1] !== undefined) piece = { kind: "code", value: m[1] };
@@ -101,9 +108,9 @@ export function splitInline(row) {
       const url = m[5].replace(CLOSE, "");
       // Hela träffen var skiljetecken efter schemat: ingen adress att länka.
       if (url === "https://" || url === "http://") continue;
-      piece = { kind: "link", value: url, url, fran: start, till: start + url.length };
+      const lank = { kind: /** @type {const} */ ("link"), value: url, url, fran: start, till: start + url.length };
       if (start > last) out.push({ kind: "text", value: row.slice(last, start) });
-      out.push(piece);
+      out.push(lank);
       last = start + url.length;
       INLINE.lastIndex = last;
       continue;
@@ -160,7 +167,7 @@ export function utanLankar(text, adresser) {
     .map((rad) => {
       let ut = "";
       let sist = 0;
-      for (const b of splitInline(rad)) {
+      for (const b of delaMedPlats(rad)) {
         if (b.kind !== "link" || !b.url || !bort.has(b.url) || b.fran === undefined || b.till === undefined) continue;
         ut += rad.slice(sist, b.fran);
         sist = b.till;
