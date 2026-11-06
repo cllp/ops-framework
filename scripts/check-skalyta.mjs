@@ -8643,13 +8643,13 @@ async function bibliotekHtmlVy() {
         await page.waitForSelector("[data-html-dokument-ruta]");
         await page.waitForTimeout(200);
         const m = await page.evaluate(() => {
-          // 0.192.0 (#529): med rutan står Öppna i eget fönster i rutans verktygsrad, och filnamnet är text bredvid Ladda ned.
+          // 0.192.0 (#529): med rutan står Öppna i eget fönster i rutans verktygsrad, och filnamnet är text bredvid Ladda ned. Sedan 0.196.0 en ikonknapp (`DokumentKnapp`): namnet står i aria-label.
           const oppna = /** @type {HTMLElement} */ (document.querySelector("[data-html-dokument-fonster] a"));
           const ladda = /** @type {HTMLAnchorElement} */ (document.querySelector("[data-bibliotek-ladda-ned]"));
           const filnamn = (document.querySelector("[data-bibliotek-filnamn]")?.textContent || "").trim();
           const or = oppna.getBoundingClientRect();
           const lr = ladda.getBoundingClientRect();
-          return { o: { l: or.left, r: or.right, h: or.height, t: or.top, b: or.bottom, text: (oppna.textContent || "").replace(/\s+/g, " ").trim(), href: oppna.getAttribute("href"), target: oppna.getAttribute("target"), filnamn }, l: { l: lr.left, r: lr.right, h: lr.height, t: lr.top, b: lr.bottom, text: (ladda.textContent || "").trim(), download: ladda.hasAttribute("download"), href: ladda.getAttribute("href") }, over: document.documentElement.scrollWidth - document.documentElement.clientWidth, fonsterB: window.innerWidth, ruta: document.querySelectorAll("[data-html-dokument-ruta]").length };
+          return { o: { l: or.left, r: or.right, h: or.height, t: or.top, b: or.bottom, text: (oppna.getAttribute("aria-label") || oppna.textContent || "").replace(/\s+/g, " ").trim(), href: oppna.getAttribute("href"), target: oppna.getAttribute("target"), filnamn }, l: { l: lr.left, r: lr.right, h: lr.height, t: lr.top, b: lr.bottom, text: (ladda.textContent || "").trim(), download: ladda.hasAttribute("download"), href: ladda.getAttribute("href") }, over: document.documentElement.scrollWidth - document.documentElement.clientWidth, fonsterB: window.innerWidth, ruta: document.querySelectorAll("[data-html-dokument-ruta]").length };
         });
         matt.push(`${namn} (e, detalj): Öppna i eget fönster ${m.o.l.toFixed(0)}-${m.o.r.toFixed(0)}x${m.o.h.toFixed(0)}, Ladda ned ${m.l.l.toFixed(0)}-${m.l.r.toFixed(0)}x${m.l.h.toFixed(0)}`);
         krav(m.o.href === "/bibliotek/visa/p1?plats=cps-ab" && m.o.target === "_blank" && /Öppna i eget fönster/.test(m.o.text) && /kvartalsrapport-med-ett-langt-namn\.html/.test(m.o.filnamn) && m.l.text === "Ladda ned" && m.l.download && m.l.href === "https://lagring.example/fil" && m.ruta === 1, `${namn} (e, detalj): Öppna i eget fönster ${JSON.stringify(m.o)} och Ladda ned ${JSON.stringify(m.l)}, rutor ${m.ruta}.`);

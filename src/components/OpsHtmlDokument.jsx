@@ -7,7 +7,8 @@ import { HTML_SANDBOX, HTML_UTSKRIFTSMEDDELANDE, externLankAdress } from "../lib
 import { HTML_ZOOMMEDDELANDE, byggSrcdoc, tolkaRutmeddelande } from "../lib/htmlruta.js";
 import { cx } from "../lib/cx.js";
 import { ExternLankIkon } from "./icons.jsx";
-import { HtmlZoomRad, useHtmlZoom } from "./htmlZoom.jsx";
+import { useHtmlZoom } from "./htmlZoom.jsx";
+import { DokumentKnapp, Dokumentrad } from "./Dokumentrad.jsx";
 import { ordet } from "../lib/ord.js";
 import { skaparensNamn } from "../lib/skapare.js";
 
@@ -51,6 +52,15 @@ export function OpsHtmlDokument({ html, namn, skapadAv, fonster }) {
       <p data-html-dokument-markning="" className="m-0 text-meta text-ink-secondary">
         {markning}
       </p>
+      {/* ⛔ SAMMA RAD SOM PDF-VYN (0.196.0, `Dokumentrad`), OVANFÖR RUTAN: zoomen till vänster, knapparna till höger, utan egen bakgrund. Två dokument i samma Bibliotek har sina knappar på samma ställe. */}
+      <Dokumentrad mark="data-html-dokument-verktyg" etikett={o("verktyg")} zoom={zoom} sprak={sprak}>
+        <span data-html-dokument-pdf-knapp="" className="inline-flex">
+          <OpsButton variant="ghost" size="sm" title={o("pdfHjalp")} onClick={skrivUt}>
+            {o("pdf")}
+          </OpsButton>
+        </span>
+        {fonster ? <DokumentKnapp mark="data-html-dokument-fonster" ikon={ExternLankIkon} etikett={o("fonster")} href={fonster} /> : null}
+      </Dokumentrad>
       <HtmlRuta
         ref={ram}
         mark="data-html-dokument-ruta"
@@ -59,21 +69,7 @@ export function OpsHtmlDokument({ html, namn, skapadAv, fonster }) {
         zoom={zoom}
         className="block h-[70vh] min-h-72 w-full rounded-lg border border-line bg-surface"
       />
-      <div data-html-dokument-verktyg="" className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <HtmlZoomRad zoom={zoom} sprak={sprak} />
-        <OpsButton variant="secondary" size="sm" data-html-dokument-pdf="" onClick={skrivUt}>
-          {o("pdf")}
-        </OpsButton>
-        {fonster ? (
-          <span data-html-dokument-fonster="">
-            <OpsButton variant="ghost" size="sm" href={fonster} newTab>
-              {o("fonster")}
-              <ExternLankIkon size={14} />
-            </OpsButton>
-          </span>
-        ) : null}
-        <span className="text-meta text-ink-muted">{o("pdfHjalp")}</span>
-      </div>
+      <p data-html-dokument-pdf-hjalp="" className="m-0 text-meta text-ink-muted">{o("pdfHjalp")}</p>
     </section>
   );
 }
@@ -220,6 +216,7 @@ export const ORD_HTMLDOKUMENT = {
   stang: { sv: "Stäng", en: "Close" },
   pdf: { sv: "Spara som PDF", en: "Save as PDF" },
   fonster: { sv: "Öppna i eget fönster", en: "Open in a new window" },
+  verktyg: { sv: "Dokumentet", en: "Document" },
   pdfHjalp: { sv: "Öppnar webbläsarens utskrift. Välj Spara som PDF där.", en: "Opens the browser's print dialog. Choose Save as PDF there." },
   hamtar: { sv: "Hämtar dokumentet.", en: "Fetching the document." },
   fel: { sv: "Dokumentet gick inte att visa.", en: "The document could not be shown." },
