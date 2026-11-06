@@ -113,19 +113,19 @@ const ERSATTBARA = /** @type {readonly string[]} */ (["utgangen"]);
 
 
 /**
- * Gästens egen sida: det en person ser som bjudits in utan konto, på `/gast` (0.131.0, cllp/lifehub.app#389, skiva 1; 0.132.0, skiva 2: hela gruppen).
+ * Gästens egen sida: det en person ser som bjudits in utan konto, på `GASTSOKVAG` (`/guest`; den tidigare `/gast` öppnar samma sida) (0.131.0, cllp/lifehub.app#389, skiva 1; 0.132.0, skiva 2: hela gruppen).
  *
  * ══ ⛔ SIDAN HAR INGEN FIREBASE OCH INGET KONTO, OCH DEN RITAS FÖRE APPENS GRIND ════════════════════════════════════════
  *
- * Appen ritar den på `/gast` före sin inloggning, utan Firebase, med `noindex`. Sidan vet inget om gruppen, medlemmarna eller andra gäster: den får `onLos`, `onHamta`, `onNamn` och
+ * Appen ritar den på `/guest` före sin inloggning, utan Firebase, med `noindex`. `/gast` är samma sida. Sidan vet inget om gruppen, medlemmarna eller andra gäster: den får `onLos`, `onHamta`, `onNamn` och
  * `onNyLank` (appens anrop mot `/api/gast`) och ritar vad de svarar. Sakens eget kort (för omröstningen: förslagen, Ja, Kanske, Nej och summan) är appens och ritas av `renderSak`.
- * Hela gruppen (`funktion: "grupp"`) ritas av `renderGrupp`, normalt `OpsGastGrupp` med `gastGruppApi(anrop, sessionsnyckel)`: det bantade gränssnittet med fyra flikar och ingen väg ut ur `/gast`.
+ * Hela gruppen (`funktion: "grupp"`) ritas av `renderGrupp`, normalt `OpsGastGrupp` med `gastGruppApi(anrop, sessionsnyckel)`: det bantade gränssnittet med Översikt och ingen väg ut ur sidan.
  *
  * ══ ⛔ ADRESSEN SKRIVS EN GÅNG, SEDAN STANNAR GÄSTEN INLOGGAD PÅ ENHETEN ═══════════════════════════════════════════════
  *
  * Första öppningen med en länk (`lank`, ur `tolkaGastLank(location.hash)`): sidan frågar efter adressen och postar `{ id, nyckel, epost }`. Ett ja ger en sessionsnyckel som sparas i webbläsarens
  * minne (per inbjudan), och fragmentet tas bort ur adressraden så att nyckeln inte ligger kvar i historiken. Nästa gång sidan öppnas, med eller utan länk, hämtas saken direkt med sessionen. På en ny
- * enhet finns ingen session: gästen skriver adressen på `/gast` och får en ny länk (`onNyLank`), med samma svar hur det än gått.
+ * enhet finns ingen session: gästen skriver adressen på `/guest` och får en ny länk (`onNyLank`), med samma svar hur det än gått.
  *
  * ══ ⛔ FLERA SESSIONER PÅ SAMMA ENHET: INGEN GIVER UPP FÖRE DE ANDRA ÄR PRÖVADE (0.132.0) ══════════════════════════════
  *

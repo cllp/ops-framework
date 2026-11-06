@@ -151,7 +151,7 @@ export function skrivSessionTillMinne(mem, id, nyckel) {
 
 /**
  * Sparar en gästsession på enheten på samma sätt som `OpsGastSida` gör efter en inlösen, och markerar inbjudan som den som öppnas näst (cllp/lifehub.app#658 punkt 0). En app som ger en inloggad person
- * en gästsession (`oppnaGruppgast` i tjänsten) sparar den här och går till `/gast`, som öppnar den utan länk. ⛔ ETT MINNESFORMAT, TVÅ SKRIVARE: appen känner aldrig nycklarna.
+ * en gästsession (`oppnaGruppgast` i tjänsten) sparar den här och går till `/guest`, som öppnar den utan länk. ⛔ ETT MINNESFORMAT, TVÅ SKRIVARE: appen känner aldrig nycklarna.
  *
  * @param {object} p
  * @param {string} p.id Inbjudans id (64 hextecken).

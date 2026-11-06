@@ -8397,8 +8397,16 @@ async function gastArenden() {
         await andra.getByRole("button", { name: "Markera klar" }).click();
         const fraga = await page.evaluate(() => ({ text: (document.querySelector('[data-gast-arende="a-2"] [role="group"]')?.textContent || "").replace(/\s+/g, " "), anrop: JSON.stringify(/** @type {any} */ (window).__gastgruppanrop), knappar: [...document.querySelectorAll('[data-gast-arende="a-2"] [role="group"] button')].map((k) => ({ t: (k.textContent || "").trim(), h: k.getBoundingClientRect().height })), overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth }));
         krav(/Du kan inte öppna det igen/.test(fraga.text) && fraga.anrop === "[]" && fraga.knappar.length === 2 && fraga.knappar.every((k) => k.h >= 44) && !fraga.overflow, `${namn} (d): frågan ${JSON.stringify(fraga.text)}, anrop före Ja ${fraga.anrop}, knappar ${JSON.stringify(fraga.knappar)}, sidled ${fraga.overflow}.`);
-        if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `gaster-arenden-klar-fraga-${w}.png`), fullPage: true });
-        await andra.getByRole("button", { name: "Ja, markera klart" }).click();
+        if (bildmapp) await andra.locator('[role="group"]').screenshot({ path: path.join(bildmapp, `gaster-arenden-klar-fraga-${w}.png`) });
+        // Klicket går direkt efter mätningen. En helsidesbild däremellan har stängt frågan vid 1280 px innan knappen hunnit träffas.
+        const jaKlar = await page.evaluate(() => {
+          const knappar = [...document.querySelectorAll('[data-gast-arende="a-2"] button')].map((b) => (b.textContent || "").replace(/\s+/g, " ").trim());
+          const knapp = [...document.querySelectorAll('[data-gast-arende="a-2"] button')].find((b) => (b.textContent || "").includes("Ja, markera klart"));
+          if (!knapp) return { ok: false, knappar };
+          /** @type {HTMLElement} */ (knapp).click();
+          return { ok: true, knappar };
+        });
+        krav(jaKlar.ok, `${namn} (d): knappen Ja, markera klart saknas i ärende a-2 (${JSON.stringify(jaKlar.knappar)}).`);
         await page.waitForSelector('[data-gast-arende="a-2"][data-status="hanterad"]');
         const klar = await page.evaluate(() => ({ anrop: JSON.stringify(/** @type {any} */ (window).__gastgruppanrop.map((x) => x[0])), knappKvar: !!document.querySelector('[data-gast-arende="a-2"] [data-gast-arende-klar]'), status: (document.querySelector('[data-gast-arende="a-2"] [data-gast-arende-status]')?.textContent || "").trim() }));
         krav(klar.anrop === JSON.stringify(["markeraArendeKlart", "arenden"]) && !klar.knappKvar && klar.status === "Klart", `${namn} (d): efter Ja blev anropen ${klar.anrop} (väntat markeraArendeKlart och därefter en ny hämtning), knappen kvar ${klar.knappKvar}, status ${JSON.stringify(klar.status)}.`);

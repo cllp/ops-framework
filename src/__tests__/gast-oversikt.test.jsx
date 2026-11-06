@@ -86,7 +86,7 @@ describe("hemskärmstips", () => {
     expect(annan?.lovarApplage).toBe(false);
     expect(annan?.text).toMatch(/startsidan, inte den här gruppen/);
     expect(annan?.text).not.toMatch(/Skarv|Lägg till på hemskärmen/);
-    const samma = gastHemskarmTips({ userAgent: ANDROID, sokvag: "/gast", manifest: { display: "standalone", start_url: "/gast" }, sprak: "sv" });
+    const samma = gastHemskarmTips({ userAgent: ANDROID, sokvag: "/guest", manifest: { display: "standalone", start_url: "/guest" }, sprak: "sv" });
     expect(samma?.text).toMatch(/inte en ikon per grupp/);
     expect(samma?.lovarApplage).toBe(false);
   });
