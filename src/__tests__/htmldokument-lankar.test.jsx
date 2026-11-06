@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { render } from "@testing-library/react";
-import { HTML_LANKMEDDELANDE, HTML_LANKSKRIPT, HTML_SANDBOX, byggSrcdoc, externLankAdress } from "../lib/htmldokument.js";
+import { HTML_LANKMEDDELANDE, HTML_LANKSKRIPT, HTML_SANDBOX, externLankAdress } from "../lib/htmldokument.js";
+import { byggSrcdoc } from "../lib/htmlruta.js";
 import { HtmlRuta } from "../components/OpsHtmlDokument.jsx";
 
 /**

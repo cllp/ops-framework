@@ -23,7 +23,7 @@
  *
  * ══ ⛔ SPARA SOM PDF: UTSKRIFT, VÄG 1 ═══════════════════════════════════════════════════════════════════════════════════
  *
- * Knappen vid rutan skickar ett `postMessage` till rutan. Visningen har lagt in ett litet skript FÖRST i `srcdoc` (`HTML_UTSKRIFTSSKRIPT`) som tar emot meddelandet och anropar `window.print()` i rutan.
+ * Knappen vid rutan skickar ett `postMessage` till rutan. Visningen har lagt in ett litet skript FÖRST i `srcdoc` (`HTML_UTSKRIFTSSKRIPT`, satt samman av `byggSrcdoc` i `lib/htmlruta.js`) som tar emot meddelandet och anropar `window.print()` i rutan.
  * PDF väljs i webbläsarens utskrift. Skriptet svarar bara på ett meddelande vars avsändare är fönstret som ritar rutan (`event.source === parent`): ett meddelande från något annat fönster gör ingenting.
  *
  * ⛔ HYPOTES, INTE MÄTT: iOS Safari kan skriva ut hela sidan i stället för rutan. Mäts på en riktig iPhone innan knappen lovas där. Server-PDF (väg 2) är inte byggd.
@@ -134,19 +134,6 @@ export function htmlVyAdress(oppnaHtml, post) {
 /** Formen på en vy-adress: en sida i appen (`/…`, inte `//…`) eller en `http(s)`-adress. */
 const HTML_VYADRESSFORM = /^(?:\/(?!\/)|https?:\/\/)\S*$/;
 
-/**
- * HTML-texten som rutan ritar (`srcdoc`): skriptet för utskriften FÖRST, sedan dokumentet. Har dokumentet en inledande doctype hamnar skriptet direkt efter den: ett `srcdoc` ritas i standardläge av sig självt, men en doctype
- * efter ett skript hade blivit en ignorerad rad, och dokumentet skulle se ut att sakna en.
- *
- * @param {string} html
- * @returns {string}
- */
-export function byggSrcdoc(html) {
-  const text = typeof html === "string" ? html : "";
-  const skript = `<script>${HTML_UTSKRIFTSSKRIPT}${HTML_LANKSKRIPT}</script>`;
-  const doctype = /^(?:﻿)?\s*<!doctype[^>]*>/i.exec(text);
-  return doctype ? text.slice(0, doctype[0].length) + skript + text.slice(doctype[0].length) : skript + text;
-}
 
 /**
  * Filens byte som HTML-text: UTF-8, och Windows-1252 när byten inte är giltig UTF-8 (`avkodaTextfil`). Hela filen, inget avkortas: en halv HTML-fil är inget dokument.

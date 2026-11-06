@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { OpsBibliotek } from "../components/OpsBibliotek.jsx";
 import { OpsSprakProvider } from "../components/OpsSprak.jsx";
@@ -33,8 +33,8 @@ describe("Versionsraden som inte gick att hämta", () => {
     expect(mening.getAttribute("role")).toBe("alert");
     expect(document.querySelector("[data-html-versioner]")).toBeNull();
     expect(document.querySelector("[data-html-versioner-vantar]")).toBeNull();
-    // Dokumentet självt ritas fortfarande.
-    expect(document.querySelector("iframe")).not.toBeNull();
+    // Dokumentet självt ritas fortfarande (rutan är sin egen lata bit sedan 0.192.0).
+    await waitFor(() => expect(document.querySelector("iframe")).not.toBeNull());
     tyst.mockRestore();
   });
 });

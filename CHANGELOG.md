@@ -11,9 +11,22 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ## 0.192.0
 
-Gästens gruppvy, i två delar: Cursors översikt och /guest (cursor/gast-oversikt-418a, d45e74c och 0709e24) och rättningarna av cllp/lifehub.app#673 och #675 ovanpå.
+Gästens gruppvy, i två delar: Cursors översikt och /guest (cursor/gast-oversikt-418a, d45e74c och 0709e24) och rättningarna av cllp/lifehub.app#673 och #675 ovanpå. Och zoomen i HTML-dokument (cllp/ops-framework#529).
 
 Gästens gruppvy: chatten är bara chatten (CP 2026-11-06, i telefonen på /gast i gruppen Skarv: "Chatt skall bara vara chatt."). Översikt är en egen flik, inte Hem, så den inte blandas ihop med den privata hemgruppen. Spara på namnet står på samma rad som fältet (CP 2026-11-06 07:35).
+
+### Zoomen i HTML-dokument (cllp/ops-framework#529)
+
+CP 2026-11-06, med en skärmbild där rubriken och tabellens andra kolumn klipptes: "HTML-sidan är ofta för stor och man behöver scrolla i vyn." Om hjulet: "Bara i dokumentet om dokumentet är i fokus." Och beslutet: "Ja kör på det. Zoomen måste finnas med i förhandstitt."
+
+- **Anpassa till bredd är förvalet.** Rutans skript mäter dokumentets bredd vid zoom 1 och skickar den till appen, som räknar ut skalan (högst 100 procent) och skickar tillbaka den. Skalan räknas om när rutan eller dokumentet ändrar bredd. Ett dokument på 1800 px ryms i rutan utan rullning i sidled vid 390 och 1280 px (skalytan, avsnitt 62).
+- **− , procenten och +** vid rutan, i hela tiotal mellan 10 och 200 procent. Ett tryck på procenten går tillbaka till Anpassa till bredd. Minst 44 px på telefonen.
+- **Ctrl- och Cmd+hjul**, och nypning på en styrplatta, zoomar dokumentet bara när det har fokus (`document.hasFocus()` i rutan). Då och bara då stoppas webbläsarens zoom av sidan. Utan fokus zoomar hjulet hela appen som förut. Rutan har en ram medan den har fokus.
+- **Samma i detaljen, versionsraden och helfönstret**, eftersom zoomen bor med den enda rutan (`HtmlRuta`, `useHtmlZoom`, `HtmlZoomRad`). Skriptet och räkningen ligger i `lib/htmlruta.js`, som också är `byggSrcdoc`s nya hem.
+- **Förhandstitten först.** Ett vanligt tryck på ett HTML-kort i listan öppnar detaljen. Kortet är fortfarande en riktig länk till helfönstret, så mellanklick, Ctrl- eller Cmd+klick och långtryck öppnar det som förut. "Visa detaljer" är borttagen för HTML. **Öppna i eget fönster** står i rutans verktygsrad, och filnamnet bredvid Ladda ned är text. Beslutet från 30 oktober, "Inte ladda ner så", står kvar.
+- **Lägsta zoomen är 10 procent, inte 25.** Rutan i detaljen är 348 px bred i en telefon på 390 px, och ett dokument på 1800 px ryms först vid 19 procent.
+- **Sandlådan är oförändrad** (`allow-scripts allow-modals`, utan `allow-same-origin`). Appen tar bara emot ett meddelande från just rutans fönster, i känd form (`tolkaRutmeddelande`). Ett dokument som skickar falska meddelanden kan bara ändra sin egen zoom inom gränserna, och ramen runt sin egen ruta.
+- **Startfilen krymper:** rutan läses in lat i Biblioteket (`OpsHtmlDokumentLat`). En app vars startfil importerar `OpsBibliotek`, mätt med Vite mot det byggda paketet: 296 084 byte (95 548 gzip) på 0.191.0 med gästvyn, 300 860 (97 216) med zoomen i startfilen, 293 299 (94 371) med den lat. `check:delbarhet` vaktar det.
 
 ### Tillagt
 

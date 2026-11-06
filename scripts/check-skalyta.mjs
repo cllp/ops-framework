@@ -53,6 +53,7 @@
  *       node scripts/check-skalyta.mjs --bara-htmlversioner  bara avsnitt 59, versionsraden för ett HTML-dokument i Biblioteket, 390 och 1280 px (0.158.0)
  *       node scripts/check-skalyta.mjs --bara-kommentarer  bara avsnitt 61, tråden på en post i Biblioteket, 390 och 1280 px (0.191.0)
  *       node scripts/check-skalyta.mjs --bara-htmlvy    bara avsnitt 60, ett HTML-dokument i hela fönstret och Bibliotekets länkar dit, 390 och 1280 px (0.159.0)
+ *       node scripts/check-skalyta.mjs --bara-htmlzoom  bara avsnitt 62, zoomen i HTML-rutan: ett dokument på 1800 px ryms i förvalet, knapparna och Ctrl+hjul med och utan fokus, 390 och 1280 px (0.192.0)
  *       node scripts/check-skalyta.mjs --bara-kategori  bara avsnitt 54, formuläret "Lägg till kategori": ett namn räcker (0.130.0)
  *       node scripts/check-skalyta.mjs --bara-gaster    bara avsnitt 55, gästernas lista och gästens egen sida, 390 och 1280 px (0.131.0)
  *       node scripts/check-skalyta.mjs --bara-gastgrupp  bara avsnitt 56, gästens bantade gränssnitt för hela gruppen och inbjudningsdialogen, 390 och 1280 px (0.132.0), och avsnitt 57, ärenden till en gäst (fliken, kommentar, Markera klar, väljaren och märket)
@@ -1112,6 +1113,14 @@ if (argv.includes("--bara-htmlversioner")) {
 // `--bara-kommentarer`: bara avsnitt 61, tråden på en post (0.191.0). Hela körningen kör det också.
 if (argv.includes("--bara-kommentarer")) {
   await bibliotekKommentarer();
+  await browser.close();
+  avsluta();
+  process.exit(0);
+}
+
+// `--bara-htmlzoom`: bara avsnitt 62, zoomen i HTML-rutan (0.192.0, #529). Hela körningen kör det också.
+if (argv.includes("--bara-htmlzoom")) {
+  await bibliotekHtmlZoom();
   await browser.close();
   avsluta();
   process.exit(0);
@@ -8454,7 +8463,8 @@ async function gastArenden() {
  *       kommer från filen och inte från appen syns hel (inte klippt). Golv: två knappar och två textrader mättes.
  *   (c) Rutan (`iframe`, `sandbox="allow-scripts allow-modals"`, inget `src`) börjar där raden slutar, fyller resten av fönstrets höjd och hela dess bredd, och dokumentets innehåll syns i den (bilden tas, och rutans yta är dokumentets egen färg).
  *   (d) Stäng anropar `onStang` en gång. Fel och tomt dokument skriver ut det, utan ruta, och raden med Stäng står kvar och ligger inom fönstret.
- *   (e) Biblioteket med `oppnaHtml`: kortet är en länk med `target="_blank"` som täcker kortet och är minst 44 px hög; i detaljen ligger filnamnet (länken till vyn) och Ladda ned (en knapp) inom fönstret, båda minst 44 px höga under 768, och sidan flödar inte över.
+ *   (e) Biblioteket med `oppnaHtml`: kortet är en länk med `target="_blank"` som täcker kortet och är minst 44 px hög (ett vanligt tryck öppnar detaljen sedan 0.192.0, men länken står kvar för mellanklick och långtryck); i detaljen
+ *       ligger Öppna i eget fönster (i rutans verktygsrad sedan 0.192.0) och Ladda ned inom fönstret, båda minst 44 px höga under 768, och sidan flödar inte över.
  */
 async function bibliotekHtmlVy() {
   for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
@@ -8488,7 +8498,7 @@ async function bibliotekHtmlVy() {
             namn: { text: (namnEl.textContent || "").trim(), r: nr.right, l: nr.left, klippt: namnEl.scrollWidth > namnEl.clientWidth + 1, punkter: getComputedStyle(namnEl).textOverflow },
             av: (av.textContent || "").trim(),
             skydd: { t: sr.top, b: sr.bottom, l: sr.left, r: sr.right, klippt: skydd.scrollHeight > skydd.clientHeight + 1 || skydd.scrollWidth > skydd.clientWidth + 1, text: (skydd.textContent || "").trim() },
-            knappar: [...rad.querySelectorAll("button")].map((b) => ({ text: (b.textContent || "").trim(), h: b.getBoundingClientRect().height, l: b.getBoundingClientRect().left, r: b.getBoundingClientRect().right, t: b.getBoundingClientRect().top, b: b.getBoundingClientRect().bottom })),
+            knappar: [...rad.querySelectorAll("button")].filter((b) => !b.closest("[data-html-zoom]")).map((b) => ({ text: (b.textContent || "").trim(), h: b.getBoundingClientRect().height, l: b.getBoundingClientRect().left, r: b.getBoundingClientRect().right, t: b.getBoundingClientRect().top, b: b.getBoundingClientRect().bottom })),
             over: document.documentElement.scrollWidth - document.documentElement.clientWidth,
           };
         });
@@ -8584,19 +8594,94 @@ async function bibliotekHtmlVy() {
         await page.waitForSelector("[data-html-dokument-ruta]");
         await page.waitForTimeout(200);
         const m = await page.evaluate(() => {
-          const oppna = /** @type {HTMLElement} */ (document.querySelector("[data-bibliotek-oppna-html]"));
+          // 0.192.0 (#529): med rutan står Öppna i eget fönster i rutans verktygsrad, och filnamnet är text bredvid Ladda ned.
+          const oppna = /** @type {HTMLElement} */ (document.querySelector("[data-html-dokument-fonster] a"));
           const ladda = /** @type {HTMLAnchorElement} */ (document.querySelector("[data-bibliotek-ladda-ned]"));
+          const filnamn = (document.querySelector("[data-bibliotek-filnamn]")?.textContent || "").trim();
           const or = oppna.getBoundingClientRect();
           const lr = ladda.getBoundingClientRect();
-          return { o: { l: or.left, r: or.right, h: or.height, t: or.top, b: or.bottom, text: (oppna.textContent || "").replace(/\s+/g, " ").trim(), href: oppna.getAttribute("href") }, l: { l: lr.left, r: lr.right, h: lr.height, t: lr.top, b: lr.bottom, text: (ladda.textContent || "").trim(), download: ladda.hasAttribute("download"), href: ladda.getAttribute("href") }, over: document.documentElement.scrollWidth - document.documentElement.clientWidth, fonsterB: window.innerWidth, ruta: document.querySelectorAll("[data-html-dokument-ruta]").length };
+          return { o: { l: or.left, r: or.right, h: or.height, t: or.top, b: or.bottom, text: (oppna.textContent || "").replace(/\s+/g, " ").trim(), href: oppna.getAttribute("href"), target: oppna.getAttribute("target"), filnamn }, l: { l: lr.left, r: lr.right, h: lr.height, t: lr.top, b: lr.bottom, text: (ladda.textContent || "").trim(), download: ladda.hasAttribute("download"), href: ladda.getAttribute("href") }, over: document.documentElement.scrollWidth - document.documentElement.clientWidth, fonsterB: window.innerWidth, ruta: document.querySelectorAll("[data-html-dokument-ruta]").length };
         });
-        matt.push(`${namn} (e, detalj): filnamnet ${m.o.l.toFixed(0)}-${m.o.r.toFixed(0)}x${m.o.h.toFixed(0)}, Ladda ned ${m.l.l.toFixed(0)}-${m.l.r.toFixed(0)}x${m.l.h.toFixed(0)}`);
-        krav(m.o.href === "/bibliotek/visa/p1?plats=cps-ab" && /kvartalsrapport-med-ett-langt-namn\.html/.test(m.o.text) && m.l.text === "Ladda ned" && m.l.download && m.l.href === "https://lagring.example/fil" && m.ruta === 1, `${namn} (e, detalj): filnamnet ${JSON.stringify(m.o)} och Ladda ned ${JSON.stringify(m.l)}, rutor ${m.ruta}.`);
+        matt.push(`${namn} (e, detalj): Öppna i eget fönster ${m.o.l.toFixed(0)}-${m.o.r.toFixed(0)}x${m.o.h.toFixed(0)}, Ladda ned ${m.l.l.toFixed(0)}-${m.l.r.toFixed(0)}x${m.l.h.toFixed(0)}`);
+        krav(m.o.href === "/bibliotek/visa/p1?plats=cps-ab" && m.o.target === "_blank" && /Öppna i eget fönster/.test(m.o.text) && /kvartalsrapport-med-ett-langt-namn\.html/.test(m.o.filnamn) && m.l.text === "Ladda ned" && m.l.download && m.l.href === "https://lagring.example/fil" && m.ruta === 1, `${namn} (e, detalj): Öppna i eget fönster ${JSON.stringify(m.o)} och Ladda ned ${JSON.stringify(m.l)}, rutor ${m.ruta}.`);
         krav(m.o.h >= knapp - 0.6 && m.l.h >= knapp - 0.6, `${namn} (e, detalj): träffytorna är ${Math.round(m.o.h)} och ${Math.round(m.l.h)} px, väntat minst ${knapp}.`);
-        krav(m.o.l >= -0.5 && m.o.r <= m.fonsterB + 0.5 && m.l.l >= -0.5 && m.l.r <= m.fonsterB + 0.5 && m.over <= 0, `${namn} (e, detalj): filnamnet ${m.o.l.toFixed(0)}-${m.o.r.toFixed(0)} och Ladda ned ${m.l.l.toFixed(0)}-${m.l.r.toFixed(0)} ska ligga inom fönstret på ${m.fonsterB}, och sidan flödar över ${m.over} px.`);
+        krav(m.o.l >= -0.5 && m.o.r <= m.fonsterB + 0.5 && m.l.l >= -0.5 && m.l.r <= m.fonsterB + 0.5 && m.over <= 0, `${namn} (e, detalj): Öppna i eget fönster ${m.o.l.toFixed(0)}-${m.o.r.toFixed(0)} och Ladda ned ${m.l.l.toFixed(0)}-${m.l.r.toFixed(0)} ska ligga inom fönstret på ${m.fonsterB}, och sidan flödar över ${m.over} px.`);
         if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `html-oppna-detalj-${vp.width}.png`), fullPage: true });
       } catch (e) {
         krav(false, `${namn} (e, detalj): provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+      }
+      await context.close();
+    }
+  }
+}
+
+/**
+ * Avsnitt 62 (0.192.0, cllp/ops-framework#529): ZOOMEN I HTML-RUTAN, vid 390 och 1280 px, i detaljen (`bibliotekhtmlzoom`) och i helfönstret (`bibliotekhtmlvy-bred`). CP 2026-11-06: "HTML-sidan är ofta för stor
+ * och man behöver scrolla i vyn." och "Zoomen måste finnas med i förhandstitt." Dokumentet är 1800 px brett. jsdom kör ingen layout, så proven i `htmldokument-zoom.test.jsx` mäter beteendet och det här hur det LIGGER. Krav:
+ *   (a) I förvalet (Anpassa till bredd) rullar rutan inte i sidled: dokumentets `scrollWidth` är högst dess `clientWidth`, mätt inne i rutan, och tabellens sista cell slutar inom rutan. Sidan flödar inte över.
+ *   (b) Verktygsradens knappar (−, procenten, +, Spara som PDF, och i detaljen Öppna i eget fönster) är minst 44 px höga under 768 och 32 från, och ligger inom fönstret. Golv: fyra knappar i helfönstret, fem i detaljen.
+ *   (c) Ctrl+hjul över rutan UTAN fokus ändrar inte procenten. Efter ett klick i dokumentet har rutan ramen (`data-html-fokus`), och Ctrl+hjul ändrar procenten.
+ */
+async function bibliotekHtmlZoom() {
+  for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
+    const knapp = vp.width < 768 ? 44 : 32;
+    for (const [scen, var_, golv] of /** @type {const} */ ([["bibliotekhtmlzoom", "detalj", 5], ["bibliotekhtmlvy-bred", "helfönster", 4]])) {
+      const namn = `html-zoom ${var_} ${vp.width}`;
+      const { page, context } = await oppna(scen, vp);
+      try {
+        const rutaSel = var_ === "detalj" ? "[data-html-dokument-ruta]" : "[data-html-vy-ruta]";
+        await page.waitForSelector(rutaSel);
+        await page.waitForSelector("[data-html-zoom-procent]");
+        // Måttet kommer när dokumentet laddats: vänta tills procenten lämnat 100.
+        await page.waitForFunction(() => !/^100\s?%$/.test((document.querySelector("[data-html-zoom-procent]")?.textContent || "").replace(/\u00a0/g, " ").trim()), null, { timeout: 5000 }).catch(() => {});
+        await page.waitForTimeout(300);
+        const handtag = await page.$(rutaSel);
+        const ram = await handtag?.contentFrame();
+        if (!ram) throw new Error("rutans ram gick inte att nå");
+        const inne = await ram.evaluate(() => {
+          const r = document.documentElement;
+          const cell = /** @type {HTMLElement} */ (document.querySelector("[data-sista]"));
+          return { sw: r.scrollWidth, cw: r.clientWidth, zoom: r.style.zoom, cellH: cell ? cell.getBoundingClientRect().right : -1, iw: window.innerWidth };
+        });
+        const ute = await page.evaluate((sel) => {
+          const ruta = /** @type {HTMLElement} */ (document.querySelector(sel));
+          const rr = ruta.getBoundingClientRect();
+          const procent = (document.querySelector("[data-html-zoom-procent]")?.textContent || "").replace(/\u00a0/g, " ").trim();
+          const knappar = [...document.querySelectorAll("[data-html-zoom] button, [data-html-dokument-verktyg] button, [data-html-dokument-verktyg] a, [data-html-vy-rad] button")].filter((b, i, a) => a.indexOf(b) === i && /** @type {HTMLElement} */ (b).offsetParent !== null);
+          return { rutaB: rr.width, procent, anpassad: Boolean(document.querySelector("[data-html-zoom-anpassad]")), knappar: knappar.map((b) => { const r = b.getBoundingClientRect(); return { text: (b.getAttribute("aria-label") || b.textContent || "").replace(/\s+/g, " ").trim(), h: r.height, l: r.left, r: r.right }; }), over: document.documentElement.scrollWidth - document.documentElement.clientWidth, fonsterB: window.innerWidth };
+        }, rutaSel);
+        matt.push(`${namn}: rutan ${ute.rutaB.toFixed(0)} px, procent ${ute.procent}, zoom ${inne.zoom}, inne scrollWidth ${inne.sw} clientWidth ${inne.cw}, sista cellen slutar ${inne.cellH.toFixed(0)}, knappar ${ute.knappar.map((k) => `${k.text.slice(0, 18)} ${Math.round(k.h)}`).join(", ")}`);
+        krav(ute.anpassad && inne.sw <= inne.cw + 1, `${namn} (a): rutan rullar i sidled i förvalet: scrollWidth ${inne.sw}, clientWidth ${inne.cw}, zoom ${inne.zoom}, procent ${ute.procent}, anpassad ${ute.anpassad}.`);
+        krav(inne.cellH > 0 && inne.cellH <= inne.iw + 1, `${namn} (a): tabellens sista cell slutar ${inne.cellH.toFixed(0)}, rutans bredd inne ${inne.iw}.`);
+        krav(ute.over <= 0, `${namn} (a): sidan flödar över ${ute.over} px.`);
+        krav(ute.knappar.length >= golv, `${namn} (b): ${ute.knappar.length} knappar i verktygsraden, väntat minst ${golv}.`);
+        for (const k of ute.knappar) krav(k.h >= knapp - 0.6 && k.l >= -0.5 && k.r <= ute.fonsterB + 0.5, `${namn} (b): "${k.text}" är ${Math.round(k.h)} px hög (väntat minst ${knapp}) och ligger ${k.l.toFixed(0)}-${k.r.toFixed(0)} i fönstret på ${ute.fonsterB}.`);
+        if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `html-zoom-${var_ === "detalj" ? "detalj" : "vy"}-${vp.width}.png`), fullPage: var_ === "detalj" });
+        // (c) Ctrl+hjul utan fokus, sedan med.
+        const box = await handtag?.boundingBox();
+        if (!box) throw new Error("rutan har ingen yta");
+        const procentNu = () => page.evaluate(() => (document.querySelector("[data-html-zoom-procent]")?.textContent || "").replace(/\u00a0/g, " ").trim());
+        await page.mouse.move(box.x + box.width / 2, box.y + Math.min(box.height / 2, 120));
+        const fore = await procentNu();
+        await page.keyboard.down("Control");
+        await page.mouse.wheel(0, -100);
+        await page.keyboard.up("Control");
+        await page.waitForTimeout(250);
+        const utan = await procentNu();
+        const ramUtan = await page.evaluate((sel) => document.querySelector(sel)?.hasAttribute("data-html-fokus"), rutaSel);
+        await page.mouse.click(box.x + box.width / 2, box.y + Math.min(box.height / 2, 120));
+        await page.waitForTimeout(250);
+        const ramMed = await page.evaluate((sel) => document.querySelector(sel)?.hasAttribute("data-html-fokus"), rutaSel);
+        await page.keyboard.down("Control");
+        await page.mouse.wheel(0, -100);
+        await page.keyboard.up("Control");
+        await page.waitForTimeout(250);
+        const med = await procentNu();
+        matt.push(`${namn} (c): procent ${fore}, efter Ctrl+hjul utan fokus ${utan} (ram ${ramUtan ? "ja" : "nej"}), med fokus ${med} (ram ${ramMed ? "ja" : "nej"})`);
+        krav(utan === fore && !ramUtan, `${namn} (c): Ctrl+hjul utan fokus ändrade procenten från ${fore} till ${utan}, eller ramen stod redan (${ramUtan}).`);
+        krav(ramMed && med !== utan, `${namn} (c): efter ett klick i dokumentet: ram ${ramMed}, procenten ${utan} blev ${med} efter Ctrl+hjul.`);
+      } catch (e) {
+        krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
       }
       await context.close();
     }
@@ -8970,6 +9055,7 @@ await gastArenden();
 await kalenderdelning();
 await bibliotekHtmlVersioner();
 await bibliotekHtmlVy();
+await bibliotekHtmlZoom();
 await bibliotekKommentarer();
 
 await browser.close();

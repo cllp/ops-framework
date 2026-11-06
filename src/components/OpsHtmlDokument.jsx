@@ -2,7 +2,11 @@ import { forwardRef, useEffect, useMemo, useRef, useState } from "react";
 import { OpsButton } from "./OpsButton.jsx";
 import { useOpsSprak } from "./OpsSprak.jsx";
 import { avkodaTextfil, filadressFel } from "../lib/bibliotek.js";
-import { HTML_SANDBOX, HTML_UTSKRIFTSMEDDELANDE, byggSrcdoc, externLankAdress } from "../lib/htmldokument.js";
+import { HTML_SANDBOX, HTML_UTSKRIFTSMEDDELANDE, externLankAdress } from "../lib/htmldokument.js";
+import { HTML_ZOOMMEDDELANDE, byggSrcdoc, tolkaRutmeddelande } from "../lib/htmlruta.js";
+import { cx } from "../lib/cx.js";
+import { ExternLankIkon } from "./icons.jsx";
+import { HtmlZoomRad, useHtmlZoom } from "./htmlZoom.jsx";
 import { ordet } from "../lib/ord.js";
 import { skaparensNamn } from "../lib/skapare.js";
 
@@ -24,11 +28,16 @@ import { skaparensNamn } from "../lib/skapare.js";
  * @param {string} props.html Dokumentets text.
  * @param {string} props.namn Filens namn.
  * @param {unknown} [props.skapadAv] Den som laddade upp filen (postens `skapadAv`).
+ * @param {string} [props.fonster] (0.192.0, #529) Adressen till helfönstervyn (`htmlVyAdress`). Med den står Öppna i eget fönster i verktygsraden, som en riktig länk i en ny flik.
+ *
+ * ⛔ ZOOMEN (0.192.0, cllp/ops-framework#529, CP 2026-11-06: "Zoomen måste finnas med i förhandstitt."): − , procenten och + i verktygsraden, Anpassa till bredd som förval, och Ctrl- eller Cmd+hjul när dokumentet
+ * har fokus. Se `useHtmlZoom` och `lib/htmldokument.js`.
  */
-export function OpsHtmlDokument({ html, namn, skapadAv }) {
+export function OpsHtmlDokument({ html, namn, skapadAv, fonster }) {
   const sprak = useOpsSprak();
   const o = (/** @type {keyof typeof ORD_HTMLDOKUMENT} */ k) => ordet(ORD_HTMLDOKUMENT, k, sprak);
   const ram = useRef(/** @type {HTMLIFrameElement | null} */ (null));
+  const zoom = useHtmlZoom();
   const srcDoc = useMemo(() => byggSrcdoc(html), [html]);
   const vem = skapadAv ? skaparensNamn(skapadAv, sprak) : "";
   const markning = (vem ? o("markningMed") : o("markningUtan")).replace("{namn}", namn).replace("{vem}", vem);
@@ -46,12 +55,22 @@ export function OpsHtmlDokument({ html, namn, skapadAv }) {
         mark="data-html-dokument-ruta"
         title={o("etikett").replace("{namn}", namn)}
         srcDoc={srcDoc}
+        zoom={zoom}
         className="block h-[70vh] min-h-72 w-full rounded-lg border border-line bg-surface"
       />
-      <div className="flex flex-wrap items-center gap-3">
+      <div data-html-dokument-verktyg="" className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <HtmlZoomRad zoom={zoom} sprak={sprak} />
         <OpsButton variant="secondary" size="sm" data-html-dokument-pdf="" onClick={skrivUt}>
           {o("pdf")}
         </OpsButton>
+        {fonster ? (
+          <span data-html-dokument-fonster="">
+            <OpsButton variant="ghost" size="sm" href={fonster} newTab>
+              {o("fonster")}
+              <ExternLankIkon size={14} />
+            </OpsButton>
+          </span>
+        ) : null}
         <span className="text-meta text-ink-muted">{o("pdfHjalp")}</span>
       </div>
     </section>
@@ -68,8 +87,9 @@ export function OpsHtmlDokument({ html, namn, skapadAv }) {
  * @param {string} props.sokvag
  * @param {string} props.namn
  * @param {unknown} [props.skapadAv]
+ * @param {string} [props.fonster] Se `OpsHtmlDokument`.
  */
-export function OpsHtmlDokumentHamtat({ hamta, sokvag, namn, skapadAv }) {
+export function OpsHtmlDokumentHamtat({ hamta, sokvag, namn, skapadAv, fonster }) {
   const sprak = useOpsSprak();
   const o = (/** @type {keyof typeof ORD_HTMLDOKUMENT} */ k) => ordet(ORD_HTMLDOKUMENT, k, sprak);
   const lage = useHamtatHtml(hamta, sokvag);
@@ -82,7 +102,7 @@ export function OpsHtmlDokumentHamtat({ hamta, sokvag, namn, skapadAv }) {
     );
   }
   if (lage.html.trim() === "") return <p role="status" data-html-dokument-lage="tom" className="m-0 text-etikett text-ink-muted">{o("tom")}</p>;
-  return <OpsHtmlDokument html={lage.html} namn={namn} skapadAv={skapadAv} />;
+  return <OpsHtmlDokument html={lage.html} namn={namn} skapadAv={skapadAv} fonster={fonster} />;
 }
 
 /**
@@ -92,9 +112,11 @@ export function OpsHtmlDokumentHamtat({ hamta, sokvag, namn, skapadAv }) {
  * och att rutan som ritas har exakt `HTML_SANDBOX`, så att en andra väg in inte kan läggas till utan att provet blir rött.
  */
 export const HtmlRuta = forwardRef(
-  /** @param {{ mark: string, title: string, srcDoc: string, className: string }} props @param {import("react").ForwardedRef<HTMLIFrameElement>} ref */
-  ({ mark, title, srcDoc, className }, ref) => {
+  /** @param {{ mark: string, title: string, srcDoc: string, className: string, zoom?: import("./htmlZoom.jsx").HtmlZoom }} props @param {import("react").ForwardedRef<HTMLIFrameElement>} ref */
+  ({ mark, title, srcDoc, className, zoom }, ref) => {
     const egen = useRef(/** @type {HTMLIFrameElement | null} */ (null));
+    const zoomRef = useRef(zoom);
+    zoomRef.current = zoom;
     // ⛔ EXTERNA LÄNKAR I DOKUMENTET (0.165.0): rutan får inte öppna fönster (`allow-popups` saknas), så dess länkskript (`HTML_LANKSKRIPT`) skickar adressen hit. Bara ett meddelande från JUST den här rutans
     // fönster räknas, och adressen prövas här (`externLankAdress`: http, https, mailto, tel). Fliken öppnas med `noopener`, så sidan når aldrig appens fönster.
     useEffect(() => {
@@ -102,11 +124,24 @@ export const HtmlRuta = forwardRef(
       const ta = (e) => {
         if (!egen.current || e.source !== egen.current.contentWindow) return;
         const adress = externLankAdress(e.data);
-        if (adress) window.open(adress, "_blank", "noopener,noreferrer");
+        if (adress) {
+          window.open(adress, "_blank", "noopener,noreferrer");
+          return;
+        }
+        // ⛔ ZOOMENS MEDDELANDEN (0.192.0, #529): samma avsändarprov, och innehållet prövas (`tolkaRutmeddelande`). Ett dokument som själv skickar dem kan bara ändra sin egen zoom inom gränserna och ramen runt sin egen ruta.
+        const m = tolkaRutmeddelande(e.data);
+        if (m) zoomRef.current?.ta(m);
       };
       window.addEventListener("message", ta);
       return () => window.removeEventListener("message", ta);
     }, []);
+    // Skalan till rutan när den ändras, och efter varje mått (ett omladdat dokument börjar på zoom 1). "*" av samma skäl som utskriften: rutan har ett anonymt ursprung, och meddelandet bär bara ett tal.
+    const skala = zoom?.skala;
+    const mattNr = zoom?.mattNr;
+    useEffect(() => {
+      if (skala === undefined) return;
+      egen.current?.contentWindow?.postMessage({ typ: HTML_ZOOMMEDDELANDE, skala }, "*");
+    }, [skala, mattNr]);
     return (
       <iframe
         ref={(el) => {
@@ -119,7 +154,9 @@ export const HtmlRuta = forwardRef(
         sandbox={HTML_SANDBOX}
         srcDoc={srcDoc}
         referrerPolicy="no-referrer"
-        className={className}
+        data-html-fokus={zoom?.fokus ? "" : undefined}
+        // ⛔ RAMEN SÄGER VAD HJULET ZOOMAR (CP: "Bara i dokumentet om dokumentet är i fokus."): med fokus zoomar Ctrl- eller Cmd+hjul dokumentet, utan fokus hela appen som förut.
+        className={cx(className, zoom?.fokus && "outline-2 outline-offset-2 outline-accent")}
         style={{ colorScheme: "light" }}
       />
     );
@@ -181,6 +218,7 @@ export const ORD_HTMLDOKUMENT = {
   uppladdatAv: { sv: "Uppladdat av {vem}", en: "Uploaded by {vem}" },
   stang: { sv: "Stäng", en: "Close" },
   pdf: { sv: "Spara som PDF", en: "Save as PDF" },
+  fonster: { sv: "Öppna i eget fönster", en: "Open in a new window" },
   pdfHjalp: { sv: "Öppnar webbläsarens utskrift. Välj Spara som PDF där.", en: "Opens the browser's print dialog. Choose Save as PDF there." },
   hamtar: { sv: "Hämtar dokumentet.", en: "Fetching the document." },
   fel: { sv: "Dokumentet gick inte att visa.", en: "The document could not be shown." },

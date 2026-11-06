@@ -2273,14 +2273,17 @@ function BibliotekHtmlVersionerYta() {
   );
 }
 
+/** 0.192.0 (#529): ett dokument som är 1800 px brett, med en tabell vars sista kolumn står längst till höger. I förvalet ska det rymmas i rutan, utan rullning i sidled. */
+const BRETT_DOKUMENT = "<!doctype html><html><body style=\"margin:0;font-family:sans-serif;background:#eef3ff\"><div data-bredd style=\"width:1800px;padding:16px;box-sizing:border-box\"><h1>Kvartalsrapport i bredformat</h1><table style=\"width:100%;border-collapse:collapse\"><tr><td>Intäkter</td><td style=\"text-align:right\" data-sista>1 200 000 kr</td></tr></table></div></body></html>";
+
 /**
  * 0.159.0: ett HTML-dokument i hela fönstret (`OpsHtmlVy`), utan skal. `lage` är "klar", "fel" eller "tom"; en lång rubrik och ett långt uppladdarnamn visar att raden klarar 390 px.
  * Dokumentet har en egen färgad bakgrund, så att rutans gräns mot raden syns i bilden.
  */
-function BibliotekHtmlVyYta({ lage = "klar" }) {
+function BibliotekHtmlVyYta({ lage = "klar", bred = false }) {
   const Vy = Ops.OpsHtmlVy;
   if (!Vy) return <p data-saknas="OpsHtmlVy">OpsHtmlVy saknas</p>;
-  const sida = "<!doctype html><html><body style=\"margin:0;font-family:sans-serif;background:#eef3ff\"><h1 style=\"padding:16px\">Kvartalsrapport</h1><p style=\"padding:0 16px\">Ett stycke i dokumentet.</p></body></html>";
+  const sida = bred ? BRETT_DOKUMENT : "<!doctype html><html><body style=\"margin:0;font-family:sans-serif;background:#eef3ff\"><h1 style=\"padding:16px\">Kvartalsrapport</h1><p style=\"padding:0 16px\">Ett stycke i dokumentet.</p></body></html>";
   const hamta = lage === "fel" ? async () => { throw new Error("Nätet föll."); } : lage === "tom" ? async () => new Blob([""]) : async () => new Blob([sida], { type: "text/html" });
   const anna = { uid: "uid-2", namn: "Anna Berg-Lindström", typ: "manniska", kalla: "bibliotek", via: { nyckelId: "k1", namn: "Byggagent" } };
   return <Vy hamta={hamta} sokvag="grupper/cps-ab/bibliotek/p1/kvartalsrapport.html" namn="kvartalsrapport-med-ett-langt-namn-som-far-plats.html" skapadAv={anna} onStang={() => { const w = /** @type {any} */ (window); w.__vyStang = (w.__vyStang || 0) + 1; }} stangEtikett="Till Biblioteket" />;
@@ -2289,7 +2292,7 @@ function BibliotekHtmlVyYta({ lage = "klar" }) {
 /**
  * 0.159.0: Biblioteket med `oppnaHtml`: listan med ett HTML-dokument (kortet är en länk till vyn), eller, med `oppnaDetalj`, detaljen med filnamnet som länk och Ladda ned som eget val.
  */
-function BibliotekHtmlOppnaYta({ oppnaDetalj = false }) {
+function BibliotekHtmlOppnaYta({ oppnaDetalj = false, bred = false }) {
   const Bib = Ops.OpsBibliotek;
   const bygg = Ops.byggPost;
   if (!Bib || !bygg) return <p data-saknas="OpsBibliotek">OpsBibliotek saknas</p>;
@@ -2312,7 +2315,7 @@ function BibliotekHtmlOppnaYta({ oppnaDetalj = false }) {
       onSkapa={() => {}}
       onSpara={() => {}}
       filUrl={() => "https://lagring.example/fil"}
-      hamtaFil={async () => new Blob(["<!doctype html><h1>Kvartalsrapport</h1>"], { type: "text/html" })}
+      hamtaFil={async () => new Blob([bred ? BRETT_DOKUMENT : "<!doctype html><h1>Kvartalsrapport</h1>"], { type: "text/html" })}
       oppnaHtml={(p) => `/bibliotek/visa/${p.id}?plats=${p.groupId}`}
       hubHref="/hub"
       onNavigate={(_href, e) => e.preventDefault()}
@@ -3147,6 +3150,8 @@ function Scen() {
   if (s === "bibliotekhtmlvy-tom") return <BibliotekHtmlVyYta lage="tom" />;
   if (s === "bibliotekhtmloppna") return <Full><BibliotekHtmlOppnaYta /></Full>;
   if (s === "bibliotekhtmloppna-detalj") return <Full><BibliotekHtmlOppnaYta oppnaDetalj /></Full>;
+  if (s === "bibliotekhtmlzoom") return <Full><BibliotekHtmlOppnaYta oppnaDetalj bred /></Full>;
+  if (s === "bibliotekhtmlvy-bred") return <BibliotekHtmlVyYta bred />;
   // 0.87.0 (#321): utfälld aktivitet. Raden visar rubrik och detalj. Utfällningen ska inte rita dem igen.
   if (s === "aktivitet") {
     const rader = [

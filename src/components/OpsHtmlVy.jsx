@@ -2,7 +2,9 @@ import { useEffect, useMemo, useRef } from "react";
 import { OpsButton } from "./OpsButton.jsx";
 import { useOpsSprak } from "./OpsSprak.jsx";
 import { HtmlRuta, ORD_HTMLDOKUMENT, useHamtatHtml } from "./OpsHtmlDokument.jsx";
-import { HTML_UTSKRIFTSMEDDELANDE, byggSrcdoc } from "../lib/htmldokument.js";
+import { HtmlZoomRad, useHtmlZoom } from "./htmlZoom.jsx";
+import { HTML_UTSKRIFTSMEDDELANDE } from "../lib/htmldokument.js";
+import { byggSrcdoc } from "../lib/htmlruta.js";
 import { ordet } from "../lib/ord.js";
 import { skaparensNamn } from "../lib/skapare.js";
 
@@ -35,6 +37,8 @@ export function OpsHtmlVy({ hamta, sokvag, namn, skapadAv, onStang, stangEtikett
   const sprak = useOpsSprak();
   const o = (/** @type {keyof typeof ORD_HTMLDOKUMENT} */ k) => ordet(ORD_HTMLDOKUMENT, k, sprak);
   const ram = useRef(/** @type {HTMLIFrameElement | null} */ (null));
+  // (0.192.0, #529) Samma zoom som i detaljen: Anpassa till bredd som förval, − och +, och Ctrl- eller Cmd+hjul när dokumentet har fokus.
+  const zoom = useHtmlZoom();
   const lage = useHamtatHtml(hamta, sokvag);
   const html = lage.lage === "klar" ? lage.html : "";
   const srcDoc = useMemo(() => byggSrcdoc(html), [html]);
@@ -63,7 +67,8 @@ export function OpsHtmlVy({ hamta, sokvag, namn, skapadAv, onStang, stangEtikett
           <h1 data-html-vy-namn="" className="m-0 truncate text-etikett font-medium text-ink">{namn}</h1>
           {vem ? <p data-html-vy-av="" className="m-0 truncate text-meta text-ink-secondary">{o("uppladdatAv").replace("{vem}", vem)}</p> : null}
         </div>
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
+          {visas ? <HtmlZoomRad zoom={zoom} sprak={sprak} /> : null}
           <OpsButton variant="secondary" size="sm" disabled={!visas} onClick={skrivUt}>
             {o("pdf")}
           </OpsButton>
@@ -82,7 +87,7 @@ export function OpsHtmlVy({ hamta, sokvag, namn, skapadAv, onStang, stangEtikett
       ) : !visas ? (
         <p role="status" data-html-vy-lage="tom" className="m-0 px-4 py-4 text-etikett text-ink-muted">{o("tom")}</p>
       ) : (
-        <HtmlRuta ref={ram} mark="data-html-vy-ruta" title={etikett} srcDoc={srcDoc} className="block min-h-0 w-full flex-1 border-0 bg-surface" />
+        <HtmlRuta ref={ram} mark="data-html-vy-ruta" title={etikett} srcDoc={srcDoc} zoom={zoom} className="block min-h-0 w-full flex-1 border-0 bg-surface" />
       )}
     </section>
   );
