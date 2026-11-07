@@ -19,14 +19,14 @@ Groks QA av gästerna och delningen 2026-11-07 (cllp/lifehub.app#687, överlämn
 - **Skicka en ny länk också på "Länken fungerar inte längre"** (punkt 4), när nyckeln HAR gällt. Inbjudan minns hashen av sina senaste nycklar (`tidigareNyckelHashar`, högst fem) när nyckeln byts, och bara `nyLank` läser dem. En påhittad nyckel får inget brev och räknas som förut. Ingen gammal nyckel öppnar något: `los` och `prova` läser bara `nyckelHash`.
 
 ### Chatten
-- **Kopiera i meddelandets meny också på dator** (punkt 9). ⋮ ritades bara på telefon och pekskärm, och Kopiera hade ingen lös ikon, så på dator fanns den inte. Nu står ⋮ på dator när meddelandet har text, med bara Kopiera. Gäller medlemmens och gästens chatt.
+- **Punkt 9 (Kopiera i chattens meny) ändras inte, med skäl.** På telefon och pekskärm har menyn redan Kopiera. På dator finns ingen meny (⋮) per meddelande, med flit (regel 13, 0.190.0): texten markeras och kopieras som på vilken sida som helst. En ⋮ på dator prövades i natt och fälldes av `check:skalyta`: 33 element per meddelande mot taket 26, som bara får sjunka.
 
 ### Delade sidor
 - **Den delade händelsen säger hur man svarar** (punkt 18): "Vill du svara? Be den som delade länken att bjuda in dig." En delad länk läses av vem som helst och bär därför inget svar.
 - **Sista raden om appen** (punkt 16): `OpsDeladSida` och `OpsDeladHandelse` tar `omAppen` (`{ href, namn }`, bara https) och slutar med "Delat från {namn}, där grupper samlar chatt, kalender och filer. Läs mer", som gästens översikt. Utan gruppens namn: svaret för en delad länk säger med flit ingenting om gruppen (beslut 0009).
 
 ### Prov
-Nya: `gast-tjanst` (prova; en nyckel som har gällt får brev), `gast-vy` (felet direkt, nätfel), `gast-lista-grupp` (rutan glöms), `chatt-mer-knapp` (Kopiera på dator), `delning-enhetlig-544` (hur man svarar, raden om appen). Ändrade, med skälet vid provet: `chatt-mer-knapp` (dator har nu ⋮ med Kopiera) och `gast-vy` (Skicka en ny länk finns efter ett nej). Alla nya prov är sedda röda utan ändringen.
+Nya: `gast-tjanst` (prova; en nyckel som har gällt får brev), `gast-vy` (felet direkt, nätfel), `gast-lista-grupp` (rutan glöms), `delning-enhetlig-544` (hur man svarar, raden om appen). Ändrat, med skälet vid provet: `gast-vy` (Skicka en ny länk finns efter ett nej). Alla nya prov är sedda röda utan ändringen.
 
 ---
 
