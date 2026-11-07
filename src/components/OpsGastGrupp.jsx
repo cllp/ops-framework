@@ -899,7 +899,7 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
       {/* ⛔ (0.198.0, förslag B) Gruppens egen beskrivning och "Du är gäst." på samma rad. Utan beskrivning står bara "Du är gäst.". */}
       <div className="flex min-w-0 flex-col gap-2">
         {smal ? rubrik : null}
-        <p data-gast-roll-rad="" className="m-0 max-w-prose text-brod text-ink-secondary wrap-anywhere">
+        <p data-gast-roll-rad="" className="m-0 max-w-prose text-etikett text-ink-secondary wrap-anywhere">
           {beskrivning ? <><span data-gast-grupp-beskrivning="">{beskrivning}</span>{" "}</> : null}
           <span data-gast-roll="">{t.duArGast}</span>
         </p>

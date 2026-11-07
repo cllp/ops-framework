@@ -8360,7 +8360,6 @@ async function gastGrupp() {
         krav(await page.getByText("Integritet och dina uppgifter").count() === 1, `${namn} sida (f): integriteten saknas på översikten.`);
         // (0.198.0) Översikten hämtas om när man kommer tillbaka; vänta tills rutorna ritats klart innan raden öppnas.
         await page.waitForFunction(() => !/Hämtar/.test(document.querySelector("[data-gast-rutor]")?.textContent || "Hämtar"));
-        await page.waitForTimeout(200);
         await page.locator("[data-gast-oversikt] [data-gast-integritet] summary").click();
         await page.waitForFunction(() => document.querySelector("[data-gast-oversikt] [data-gast-integritet] details")?.hasAttribute("open"));
         const i = await page.evaluate(() => ({ lagrat: !!document.querySelector("[data-gast-integritet-lagrat]"), radera: (document.querySelector("[data-gast-integritet-radera]")?.textContent || "").trim().slice(0, 40) }));
