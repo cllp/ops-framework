@@ -673,6 +673,17 @@ export function OpsGastSida({ lank = null, onLos, onProva, onHamta, onNyLank, on
             </OpsButton>
           }
         />
+      ) : losOrsak === "nej" && !telefonlank ? (
+        // ⛔ (0.202.0, QA 2026-11-07, punkt 4 i cllp/lifehub.app#687) EN GAMMAL ELLER ÄNDRAD LÄNK FÅR OCKSÅ BE OM EN NY: brevet går till inbjudans egen adress, gästen skriver ingenting,
+        // och svaret är detsamma hur det än går (tjänstens `nyLank`). En återkallad inbjudan får ingen knapp: den som bjöd har stängt den.
+        <OpsEmpty
+          title={t.lankenFungerarInte}
+          action={
+            <OpsButton variant="primary" onClick={begarNyLankForLank}>
+              {t.nyLankKnapp}
+            </OpsButton>
+          }
+        />
       ) : (
         <OpsEmpty title={losOrsak === "aterkallad" ? t.orsak_aterkallad : t.lankenFungerarInte} />
       )}

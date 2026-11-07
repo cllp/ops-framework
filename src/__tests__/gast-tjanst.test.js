@@ -926,6 +926,22 @@ describe("nyLank med en länk: Skicka en ny länk utan att skriva något (0.200.
     for (const s of [...utanBrev, medBrev]) expect(JSON.stringify(s)).toBe(SVAR);
   });
 
+  it("⛔ (0.202.0, lifehub.app#687 punkt 4) en nyckel som HAR gällt får en ny länk till inbjudans egen adress, en påhittad får inget, och den gamla öppnar fortfarande ingenting", async () => {
+    const { tjanst, brev } = bygg();
+    await bjud(tjanst);
+    const gammal = senasteLank(brev);
+    await bjud(tjanst);
+    brev.length = 0;
+    await tjanst.nyLank({ id: gammal.id, nyckel: nyGastnyckel(), ip: "198.51.100.71" });
+    expect(brev).toHaveLength(0);
+    expect(JSON.stringify(await tjanst.nyLank({ id: gammal.id, nyckel: gammal.nyckel, ip: "198.51.100.72" }))).toBe(SVAR);
+    expect(brev).toHaveLength(1);
+    expect(brev[0].till).toBe("anna@foretag.se");
+    const ny = senasteLank(brev);
+    expect(await tjanst.los({ id: gammal.id, nyckel: gammal.nyckel, ip: IP })).toEqual({ ok: false, orsak: "nej" });
+    expect(await tjanst.los({ id: ny.id, nyckel: ny.nyckel, ip: IP })).toMatchObject({ ok: true });
+  });
+
   it("fel nyckel räknas mot inbjudan som i los, och en rätt nyckel ger tillbaka sitt försök", async () => {
     const { tjanst, brev, kalla } = bygg();
     await bjud(tjanst);

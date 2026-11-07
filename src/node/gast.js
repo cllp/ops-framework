@@ -370,6 +370,9 @@ function felMedKod(kod, meddelande) {
  * @property {{ uid: string, namn: string } | null} skickadAv Den som bjöd eller skickade om. `null` för "ny länk", som gästen själv bad om.
  */
 
+/** (0.202.0) Hur många tidigare nycklar en inbjudan minns för `nyLank`. */
+const GASTTIDIGARE_NYCKLAR = 5;
+
 /**
  * Bygger tjänsten.
  *
@@ -886,6 +889,17 @@ export function createGastService(konfig) {
    * @param {Record<string, any>} rad Raden som den lästes.
    * @returns {Promise<{ rad: Record<string, any>, nyckel: string }>}
    */
+  /**
+   * (0.202.0) Hashen av nycklarna en inbjudan haft, den senaste först, högst `GASTTIDIGARE_NYCKLAR`. Bara `nyLank` läser dem: en gäst med ett gammalt brev får be om en ny länk
+   * (QA 2026-11-07, punkt 4 i cllp/lifehub.app#687), men en nyckel som aldrig funnits får inget brev. Ingen gammal nyckel öppnar något: `los` och `prova` läser bara `nyckelHash`.
+   * @param {Record<string, any>} rad Raden före bytet.
+   * @returns {string[]}
+   */
+  function tidigareHashar(rad) {
+    const forra = Array.isArray(rad?.tidigareNyckelHashar) ? rad.tidigareNyckelHashar.filter((h) => typeof h === "string") : [];
+    return [rad.nyckelHash, ...forra].filter((h) => typeof h === "string").slice(0, GASTTIDIGARE_NYCKLAR);
+  }
+
   async function roteraNyckel(rad) {
     const { rad: ny, nyckel } = await roteraNyckelUtanValv(rad);
     await sparaIValv(ny, nyckel);
@@ -917,6 +931,7 @@ export function createGastService(konfig) {
       const nu = klocka();
       const { updated, row } = await uppdateraOm(INB, aktuell.id, { nyckelHash: aktuell.nyckelHash }, {
         nyckelHash: gastnyckelHash(nyckel),
+        tidigareNyckelHashar: tidigareHashar(aktuell),
         skickad: nu,
         antalSkickade: (typeof aktuell.antalSkickade === "number" ? aktuell.antalSkickade : 0) + 1,
         lankGiltigTill: nu + GASTLANKDAGAR * DYGN_MS,
@@ -1037,6 +1052,7 @@ export function createGastService(konfig) {
         const nu = klocka();
         const { updated, row: ny2 } = await uppdateraOm(INB, aktuell.id, { nyckelHash: aktuell.nyckelHash, aterkallad: aktuell.aterkallad }, {
           nyckelHash: gastnyckelHash(k),
+          tidigareNyckelHashar: tidigareHashar(aktuell),
           aterkallad: null,
           skickad: nu,
           antalSkickade: (typeof aktuell.antalSkickade === "number" ? aktuell.antalSkickade : 0) + 1,
@@ -1552,8 +1568,13 @@ export function createGastService(konfig) {
     if (!rad) return;
     const res = await reservera(INB, id, rad, INBFALT, { max: GASTFEL_MAX, fonsterMs: GASTFEL_FONSTER_MS });
     if (!res) return;
-    if (!likaHash(hash(nyckel), rad.nyckelHash)) return;
-    // Nyckeln stämde: ingen gissning, så försöket ges tillbaka som i `los`.
+    // ⛔ (0.202.0, QA 2026-11-07, punkt 4 i cllp/lifehub.app#687) ÄVEN EN NYCKEL SOM HAR GÄLLT FÅR BE OM EN NY LÄNK: sidan "Länken fungerar inte längre" saknade knappen, och gästen med
+    // förra brevet kunde inte ta sig vidare. Brevet går bara till inbjudans EGEN adress. En nyckel som aldrig funnits är en gissning: den räknas och får inget brev, som förut.
+    const h = hash(nyckel);
+    const nu = likaHash(h, rad.nyckelHash);
+    const tidigare = !nu && Array.isArray(rad.tidigareNyckelHashar) && rad.tidigareNyckelHashar.some((t) => typeof t === "string" && likaHash(h, t));
+    if (!nu && !tidigare) return;
+    // Nyckeln har gällt: ingen gissning, så försöket ges tillbaka som i `los`.
     await aterlamna(INB, id, INBFALT, res.fonster);
     if (rad.aterkallad !== null) return;
     const kontakt = gastkontaktPaRad(rad);

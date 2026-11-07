@@ -305,9 +305,11 @@ describe("OpsGastSida", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Öppna" }));
     expect(await screen.findByText("Länken fungerar inte längre. Använd den senaste länken du fått, eller be den som bjöd in dig om en ny.")).toBeInTheDocument();
     expect(onLos).toHaveBeenCalledTimes(1);
-    // Inget att trycka på: samma länk ger samma nej.
+    // Öppna står inte kvar: samma länk ger samma nej.
     expect(screen.queryByRole("button", { name: "Öppna" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Skicka en ny länk" })).toBeNull();
+    // ⛔ ÄNDRAT I 0.202.0 (QA 2026-11-07, punkt 4 i lifehub.app#687): Skicka en ny länk finns nu också här, och anropet bär länkens id och nyckel. Servern skickar bara om nyckeln har gällt.
+    fireEvent.click(screen.getByRole("button", { name: "Skicka en ny länk" }));
+    await waitFor(() => expect(document.body.textContent).toContain(GASTNYLANK_SVAR));
     expect(screen.queryByText("Rep")).toBeNull();
     unmount();
     rita({ sprak: "en", onLos: vi.fn(async () => ({ ok: false, orsak: "nej" })) });
