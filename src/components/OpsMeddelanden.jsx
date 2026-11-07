@@ -4505,10 +4505,12 @@ function Fastarad({ fasta, kalla, sid, laddade, uid, namnFor, texter: t }) {
  */
 export function tradknappKlass(finns) {
   return cx(
-    "-my-2 min-h-11 max-w-full cursor-pointer items-center gap-1 rounded-full px-2 text-liten transition-[color,background-color,opacity] duration-(--duration-fast) ease-standard focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
+    // ⛔ (0.200.1) INGEN FYLLD BAKGRUND VID HOVRING. Knappen står mellan två bubblor och går in i raderna (`-my-2`, så att träffytan är 44 px utan att raden växer). Med `hover:bg-hover`
+    // fick den bubblornas ton och såg ut som en tredje bubbla (CP 2026-11-07: "samma färg och ingen ram, så den smälter ihop"). Bara texten ändras; fokusramen står kvar.
+    "-my-2 min-h-11 max-w-full cursor-pointer items-center gap-1 rounded-full px-2 text-liten underline-offset-4 transition-[color,opacity] duration-(--duration-fast) ease-standard hover:underline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
     finns
-      ? "inline-flex text-accent hover:bg-accent-faint"
-      : "hidden text-ink-muted hover:bg-hover hover:text-ink md:inline-flex md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 md:focus-visible:opacity-100",
+      ? "inline-flex text-accent"
+      : "hidden text-ink-muted hover:text-ink md:inline-flex md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 md:focus-visible:opacity-100",
   );
 }
 
