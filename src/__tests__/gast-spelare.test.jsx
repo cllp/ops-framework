@@ -74,6 +74,11 @@ describe("gästens spelare", () => {
     const ark = /** @type {HTMLElement} */ (document.querySelector("[data-ops-spelarark]"));
     expect(ark).not.toBeNull();
     expect(within(ark).getByText("Spelar")).toBeInTheDocument();
+    // Från 768 px svävar arket mitt i bilden, så det rundas också nertill (CP 2026-11-07). Under 768 px sitter det mot
+    // nederkanten och rundas bara upptill. jsdom kör ingen CSS: klassen är det som går att mäta här, och utseendet syns i webbläsaren.
+    expect(ark.className).toContain("rounded-t-card");
+    expect(ark.className).toContain("md:rounded-b-card");
+    expect(ark.className).toContain("md:border");
     expect(within(ark).getByRole("slider", { name: "Spola i Demo" })).toBeInTheDocument();
     expect(within(ark).getByRole("button", { name: "10 sekunder bakåt" })).toBeInTheDocument();
     expect(within(ark).getByRole("link", { name: "Ladda ned Demo" })).toHaveAttribute("href", "https://lagring.example/p-ljud?signerad=1");

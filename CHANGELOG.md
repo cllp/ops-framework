@@ -9,6 +9,15 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.199.0
+
+Gästens Översikt säger hur mycket som finns, och spelarens ark är rundat runt om på webben. CP 2026-11-07.
+
+### Ändrat
+
+- **Gästens Översikt säger hur mycket som finns, inte bara det nya.** Bibliotekets ruta visar alltid antalet ("24 filer", "200+ poster" när servern inte läst allt), och det nya står ovanför när det finns ("2 nya filer"). Chattens ruta säger när det senast skrevs ("Senast i går 18:40") i stället för "Inget nytt". Vid första besöket räknas inget som nytt, och då stod rutorna förut som om gruppen var tom. `oversikt` ger `antal`, `filer` och `fler` för biblioteket (`GASTOVERSIKTFALT.bibliotek`), med samma filter som `bibliotek`. CP 2026-11-07: "Vore bra med lite statistik med bibliotek om hur många artefakter det faktiskt är i biblioteket så man vill klicka där, även om inget är nytt".
+- **Spelarens ark är rundat runt om på webben.** Från 768 px svävar arket mitt i bilden och når inte nederkanten, så det rundas också nertill och får ram runt om, som appväljarens ark. På telefonen sitter det mot nederkanten och rundas bara upptill, som förut. CP 2026-11-07, med skärmbild: "är det snyggare i web att det är rundade hörn även nere?"
+
 ## 0.198.0
 
 Gästens Översikt, förslag B (cllp/ops-framework#536). CP 2026-11-07, om gästens hemskärm: "Vad vill en gäst se. Är det uppenbart vilka områden som finns? ... Den skall vara superbra."

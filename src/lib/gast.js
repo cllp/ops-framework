@@ -366,7 +366,8 @@ export const GASTOVERSIKTFALT = /** @type {const} */ ({
   meddelande: ["id", "namn", "text", "tid", "egen"],
   kalender: ["nasta"],
   handelse: ["id", "titel", "plats", "datum", "slutDatum", "tid", "slutTid", "heldag", "kravSvar", "mitt"],
-  bibliotek: ["nya", "senaste"],
+  // (Nästa version) `antal`, `filer` och `fler`: hur mycket biblioteket har, så att rutan säger det även när inget är nytt.
+  bibliotek: ["nya", "senaste", "antal", "filer", "fler"],
   post: ["id", "rubrik", "typ", "tid"],
 });
 

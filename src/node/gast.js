@@ -2427,11 +2427,19 @@ export function createGastService(konfig) {
     return vitlista({ nasta: nastaUt }, GASTOVERSIKTFALT.kalender);
   }
 
-  /** (0.198.0) Översiktens biblioteksdel: samma poster som `bibliotek`, nyast först. @param {{ rader: Record<string, any>[] }} lasta @param {number | undefined} sedanBibliotek */
-  function oversiktBibliotek({ rader: poster }, sedanBibliotek) {
+  /**
+   * (0.198.0) Översiktens biblioteksdel: samma poster som `bibliotek`, nyast först.
+   * (Nästa version, CP 2026-11-07: "Vore bra med lite statistik med bibliotek om hur många artefakter det faktiskt är i biblioteket så man vill klicka där, även om inget är nytt")
+   * `antal` är hur många poster gästen ser, `filer` hur många av dem som är filer, och `fler` att biblioteket har fler än `GASTBIBLIOTEK_MAX` och att `antal` alltså är en undre gräns.
+   * @param {{ rader: Record<string, any>[], avkortad: boolean }} lasta @param {number | undefined} sedanBibliotek
+   */
+  function oversiktBibliotek({ rader: poster, avkortad }, sedanBibliotek) {
     const nyaPoster = typeof sedanBibliotek === "number" ? poster.filter((p) => typeof p.skapad === "number" && p.skapad > sedanBibliotek).length : 0;
     const senastePoster = poster.slice(0, GASTOVERSIKT_SENASTE).map((p) => vitlista({ id: p.id, rubrik: trimSomRegeln(p.rubrik), typ: p.typ, tid: p.skapad }, GASTOVERSIKTFALT.post));
-    return vitlista({ nya: nyaPoster, senaste: senastePoster }, GASTOVERSIKTFALT.bibliotek);
+    return vitlista(
+      { nya: nyaPoster, senaste: senastePoster, antal: poster.length, filer: poster.filter((p) => p.typ === "fil").length, fler: avkortad === true },
+      GASTOVERSIKTFALT.bibliotek,
+    );
   }
 
   /**
