@@ -20,6 +20,7 @@ Gästen kommer in med länken utan att skriva något (cllp/ops-framework#540). Q
 - **`nyLank({ id, nyckel, ip })`**: den som har en länk, också en utgången, får en ny till inbjudans EGEN adress. Samma tak och samma svar som `nyLank({ epost, ip })`, och brevet byggs på samma ställe. Fel nyckel, en återkallad inbjudan och en telefoninbjudan skickar inget brev, med samma svar byte för byte. Fel nyckel räknas mot inbjudan som i `los`.
 - **`gastLank(bas, { id, nyckel, sprak })`** lägger `&l=sv` eller `&l=en` sist, så att sidan kan börja på inbjudans språk. `tolkaGastLank` ger `sprak`, och ett okänt `l` hoppas över. Utan `sprak` är länken exakt som förut.
 - **Delningens text i gästlistan** (Dela på en kopierad länk) säger "Öppna länken. Du behöver inget konto." för både e-post och telefon. Förut bad den gästen skriva sin adress eller sitt nummer, vilket sidan inte längre frågar efter. `kopieraLankDelaTextTelefon` är borttagen.
+- **`GASTFEL.nej` säger "Länken fungerar inte längre"** (engelska "The link no longer works"). Förut "Länken eller adressen stämde inte": det finns ingen adress att skriva längre.
 
 ### Borttaget
 

@@ -448,7 +448,7 @@ export const GASTORSAKER = /** @type {const} */ (["nej", "aterkallad", "utgangen
 
 /** @type {Record<"nej" | "aterkallad" | "utgangen" | "for-manga" | "saknas", string>} */
 export const GASTFEL = {
-  nej: "Länken eller adressen stämde inte",
+  nej: "Länken fungerar inte längre",
   aterkallad: "Inbjudan är återkallad",
   utgangen: "Länken har gått ut",
   "for-manga": "För många försök. Vänta en stund och försök igen",

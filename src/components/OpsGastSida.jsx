@@ -40,7 +40,7 @@ export const ORD_OPSGASTSIDA = {
   },
   // Ingen ny länk på egen hand: den går med mejl, och en inbjudan med telefon har inget mejl. Den som bjöd ger en ny med Dela.
   utgangenTelefon: { sv: "Be den som bjöd in dig om en ny länk.", en: "Ask the person who invited you for a new link." },
-  orsak_nej: { sv: GASTFEL.nej, en: "The link or the address was not right" },
+  orsak_nej: { sv: GASTFEL.nej, en: "The link no longer works" },
   orsak_aterkallad: { sv: GASTFEL.aterkallad, en: "The invitation has been withdrawn" },
   orsak_utgangen: { sv: GASTFEL.utgangen, en: "The link has expired" },
   "orsak_for-manga": { sv: GASTFEL["for-manga"], en: "Too many attempts. Wait a while and try again" },
