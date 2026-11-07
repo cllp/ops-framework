@@ -259,6 +259,11 @@ describe("OpsGastSida", () => {
     expect(await screen.findByRole("button", { name: "Öppna" })).toBeInTheDocument();
   });
 
+  it("⛔ (0.202.0) ett nej utan känd orsak (en server som inte känner prova svarar 400 utan orsak) ger Välkommen, inte felet", async () => {
+    rita({ onProva: vi.fn(async () => ({ ok: false })) });
+    expect(await screen.findByRole("button", { name: "Öppna" })).toBeInTheDocument();
+  });
+
   it("⛔ fragmentet tas bort ur adressraden när inloggningen lyckats, så att nyckeln inte ligger kvar i historiken", async () => {
     window.history.replaceState(null, "", `/gast#i=${ID}&k=${NYCKEL}`);
     rita();

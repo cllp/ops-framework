@@ -445,11 +445,10 @@ export function OpsGastSida({ lank = null, onLos, onProva, onHamta, onNyLank, on
           p = null;
         }
         if (!levande.current) return;
-        // Ett nätfel avgör ingenting: då visas Välkommen, och Öppna prövar på nytt.
-        if (p && p.ok === false) {
-          const o = typeof p.orsak === "string" ? p.orsak : "nej";
-          setLosOrsak(["aterkallad", "utgangen", "for-manga"].includes(o) ? o : "nej");
-        }
+        // Ett nätfel avgör ingenting: då visas Välkommen, och Öppna prövar på nytt. ⛔ BARA EN KÄND ORSAK ÄR ETT NEJ: en server som inte känner `prova` (en äldre funktion
+        // medan webben redan är ute) svarar 400 utan orsak, och då hade varje gäst fått "Länken fungerar inte längre" för en länk som fungerar. Öppna avgör i stället.
+        const o = p && p.ok === false && typeof p.orsak === "string" ? p.orsak : null;
+        if (o && ["nej", "aterkallad", "utgangen", "for-manga"].includes(o)) setLosOrsak(o);
       }
       setLage({ fas: lank ? "valkommen" : "ny-lank" });
     })();
