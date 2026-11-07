@@ -131,7 +131,7 @@ import {
   gastkontaktPaRad,
 } from "../lib/gast.js";
 import { MAX_GRUPPBESKRIVNING, agentId, medlemskapsId } from "../lib/grupp.js";
-import { trimSomRegeln } from "../lib/bibliotek.js";
+import { arArkiverad, trimSomRegeln } from "../lib/bibliotek.js";
 import { KLOCKFORM, SVARSVAL, byggSvar, handelsefel, sammanstallSvar } from "../lib/handelsemodell.js";
 import { validateGruppkalendrar } from "../lib/kalendrar.js";
 import { gruppensRader } from "../lib/katalog.js";
@@ -2433,7 +2433,10 @@ export function createGastService(konfig) {
    * `antal` är hur många poster gästen ser, `filer` hur många av dem som är filer, och `fler` att biblioteket har fler än `GASTBIBLIOTEK_MAX` och att `antal` alltså är en undre gräns.
    * @param {{ rader: Record<string, any>[], avkortad: boolean }} lasta @param {number | undefined} sedanBibliotek
    */
-  function oversiktBibliotek({ rader: poster, avkortad }, sedanBibliotek) {
+  function oversiktBibliotek({ rader, avkortad }, sedanBibliotek) {
+    // ⛔ RUTAN RÄKNAR DET LISTAN VISAR (QA 2026-11-07: rutan sa 3 filer, listan visade 2). En arkiverad post når gästen bara genom att välja arkivtaggen (`filtreraBibliotek`),
+    // så den är varken ny, senast eller räknad. Samma prövning som listan, inte en egen.
+    const poster = rader.filter((p) => !arArkiverad(p));
     const nyaPoster = typeof sedanBibliotek === "number" ? poster.filter((p) => typeof p.skapad === "number" && p.skapad > sedanBibliotek).length : 0;
     const senastePoster = poster.slice(0, GASTOVERSIKT_SENASTE).map((p) => vitlista({ id: p.id, rubrik: trimSomRegeln(p.rubrik), typ: p.typ, tid: p.skapad }, GASTOVERSIKTFALT.post));
     return vitlista(
