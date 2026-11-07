@@ -9,6 +9,20 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.200.1
+
+"Svara i tråd" smälter inte ihop med bubblorna. CP 2026-11-07, med en skärmbild av gästens chatt på datorn: "själva bubblan vid hover har samma färg och ingen ram, så den smälter ihop."
+
+### Ändrat
+
+- **Trådknappen (`tradknappKlass`) fyller ingen bakgrund vid hovring.** Knappen står mellan två bubblor och går in i raderna (`-my-2`, så att träffytan är 44 px utan att raden växer). Med `hover:bg-hover` fick den bubblornas ton och såg ut som en tredje bubbla. Nu ändras bara texten: Svara i tråd blir ljusare och understruken, "N svar" i medlemmens chatt understruken. Fokusramen för tangentbordet står kvar. Gäller gästens och medlemmens chatt, som delar knappen.
+
+### För appen
+
+Ompinning räcker. Inga nya props och inga borttagna exporter.
+
+---
+
 ## 0.200.0
 
 Gästen kommer in med länken utan att skriva något (cllp/ops-framework#540). QA 2026-11-07 och CP samma dag: gästen ska "komma direkt in ... hoppa över att bekräfta med mailen", och det ska vara "SUPERSIMPELT". Second opinion (Fable): mejlet öppnas ofta i mejlappens egen webbvy, som har egen lagring, så gästen fick skriva adressen på nytt i varje webbläsare.
