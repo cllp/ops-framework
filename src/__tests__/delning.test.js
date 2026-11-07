@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createMemorySource } from "../data/adapters.js";
 import { medlemskapsId } from "../lib/grupp.js";
 import { mittBibliotek } from "../lib/bibliotek.js";
-import { DELNINGSDAGAR, DELNINGSFEL, DELNINGSSVARSFALT, SIGNERAD_SEKUNDER, TOKENFORM, delningsTyp, delningsfel } from "../lib/delning.js";
+import { DELNINGSDAGAR, DELNINGSFEL, DELNINGSSVARSFALT, SIGNERAD_SEKUNDER, TOKENFORM, delningsTyp, delningsfel, delningsbesked } from "../lib/delning.js";
 import { delningsregelfragment } from "../lib/regler.js";
 import { byggDelning, createDelningService, delningsDisposition, delningsId, nyttDelningstoken } from "../node/delning.js";
 
@@ -472,10 +472,19 @@ describe("typ och texter", () => {
     expect(delningsTyp("text/plain")).toBe("dokument");
     expect(delningsTyp(undefined)).toBe("dokument");
   });
-  it("orden för de tre ursprungliga orsakerna står kvar (utom att saknas inte längre påstår att det var en fil, 0.133.0), och en okänd orsak får det utgångnas", () => {
-    expect(DELNINGSFEL).toMatchObject({ utgangen: "Länken har gått ut", stangd: "Länken är stängd", saknas: "Finns inte längre" });
-    expect(delningsfel("okänd")).toBe("Länken har gått ut");
-    expect(delningsfel(undefined)).toBe("Länken har gått ut");
+  // ⛔ (0.201.0, cllp/ops-framework#544) Provet sade förut att rubriken var orsaken ("Länken har gått ut", "Länken är stängd", "Finns inte längre"). Nu är rubriken gästens
+  // ("Länken fungerar inte längre") och orsaken står på en egen rad (`delningsbesked`). "Finns inte längre" påstår fortfarande ingen typ (0.133.0).
+  it("en länk som inte fungerar har gästens rubrik, en rad om varför och nästa väg, på båda språken, och en okänd orsak är en utgången", () => {
+    expect(DELNINGSFEL).toMatchObject({ utgangen: "Länken fungerar inte längre", stangd: "Länken fungerar inte längre", saknas: "Länken fungerar inte längre" });
+    expect(delningsfel("okänd")).toBe("Länken fungerar inte längre");
+    expect(delningsfel(undefined)).toBe("Länken fungerar inte längre");
+    expect(delningsbesked("utgangen", "sv")).toEqual({ rubrik: "Länken fungerar inte längre", varfor: "Den har gått ut.", nasta: "Be den som delade den om en ny länk." });
+    expect(delningsbesked("stangd", "sv").varfor).toBe("Den som delade den har dragit tillbaka den.");
+    expect(delningsbesked("saknas", "sv").varfor).toBe("Det som delades finns inte längre.");
+    expect(delningsbesked("saknas", "en")).toEqual({ rubrik: "The link no longer works", varfor: "What was shared no longer exists.", nasta: "Ask the person who shared it for a new link." });
+    expect(delningsbesked("okänd", "en").varfor).toBe("It has expired.");
+    expect(delningsbesked("fel-kod", "sv")).toEqual({ rubrik: "Koden stämde inte", varfor: "", nasta: "" });
+    expect(DELNINGSFEL["fel-kod"]).toBe("Koden stämde inte");
   });
 });
 

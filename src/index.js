@@ -397,6 +397,10 @@ export { OpsBibliotek } from "./components/OpsBibliotek.jsx";
 export { OpsTaggPiller, OpsTaggRad, OpsTaggFilter, ORD_TAGGAR } from "./components/OpsTaggar.jsx";
 // 0.119.0 (lifehub.app#356): publik delning av en biblioteksfil. Vyn och det den delar med servern. Tokenet och tjänsten ligger i `ops-framework/node`.
 export { OpsDelad } from "./components/OpsDelad.jsx";
+export { OpsDeladSida } from "./components/OpsDeladSida.jsx";
+export { DeladFel } from "./components/DeladFel.jsx";
+export { PublikHuvud } from "./components/PublikHuvud.jsx";
+export { ORD_OPSDELAD } from "./lib/deladord.js";
 // 0.125.0 (lifehub.app#377): samma delning för en händelse, med en läsbar adress (`/g/<grupp>/event/<händelse>` och `/g/<grupp>/lib/<fil>`), en valfri kod och en publik sida med eget huvud och språkval.
 export { OpsDeladHandelse, ORD_OPSDELADHANDELSE } from "./components/OpsDeladHandelse.jsx";
 export { ORD_DELADKOD } from "./components/DeladKod.jsx";
@@ -405,7 +409,7 @@ export { ORD_LANKRAD } from "./components/LankRad.jsx";
 export { ORD_HANDELSEDELNING } from "./components/HandelseDelning.jsx";
 export { ORD_MEJLALANK } from "./components/MejlaLank.jsx";
 export { DELAD_SPRAKNYCKEL, webblasarSprak, valdSprak, lasSparatSprak, sparaSprak, kortDatum, antalDagar, deladTid } from "./lib/deladdatum.js";
-export { DELNINGSDAGAR, FORVAL_DELNINGSDAGAR, HANDELSEDAGAR, FORVAL_HANDELSEDAGAR, SIGNERAD_SEKUNDER, TOKENFORM, DELNINGSSLAG, DELNINGSRATTIGHETER, DELNINGSFALT, ADRESSPREFIX, ADRESSSEGMENT, ADRESSDELFORM, MAX_ADRESSDEL, MAX_ADRESSDEL_TOTALT, SLUMPSLUT_TECKEN, SLUMPSLUTFORM, KODLANGD, FELKOD_MAX, FELKOD_FONSTER_MS, adressdel, arAdressdel, nastaAdressdel, foreslaAdress, byggAdress, tolkaAdress, delningsSokvag, delningsUrl, adressUrUppslag, kodFel, normaliseraKod, DELNINGSORSAKER, DELNINGSFEL, DELNINGSFELKODER, DELNINGSSVARSFALT, HANDELSESVARSFALT, HANDELSEFILFALT, MAX_HANDELSEFILER, ANTECKNINGSSVARSFALT, LANKSVARSFALT, LISTSVARSFALT, LISTRADSNYCKEL, LISTRADSKAL, MAX_DELADE_LISTPOSTER, delningsTyp, delningsfel } from "./lib/delning.js";
+export { DELNINGSDAGAR, FORVAL_DELNINGSDAGAR, HANDELSEDAGAR, FORVAL_HANDELSEDAGAR, SIGNERAD_SEKUNDER, TOKENFORM, DELNINGSSLAG, DELNINGSRATTIGHETER, DELNINGSFALT, ADRESSPREFIX, ADRESSSEGMENT, ADRESSDELFORM, MAX_ADRESSDEL, MAX_ADRESSDEL_TOTALT, SLUMPSLUT_TECKEN, SLUMPSLUTFORM, KODLANGD, FELKOD_MAX, FELKOD_FONSTER_MS, adressdel, arAdressdel, nastaAdressdel, foreslaAdress, byggAdress, tolkaAdress, delningsSokvag, delningsUrl, adressUrUppslag, kodFel, normaliseraKod, DELNINGSORSAKER, DELNINGSFEL, DELNINGSFELKODER, DELNINGSSVARSFALT, HANDELSESVARSFALT, HANDELSEFILFALT, MAX_HANDELSEFILER, ANTECKNINGSSVARSFALT, LANKSVARSFALT, LISTSVARSFALT, LISTRADSNYCKEL, LISTRADSKAL, MAX_DELADE_LISTPOSTER, delningsTyp, delningsfel, delningsbesked, ORD_DELNINGSFEL } from "./lib/delning.js";
 /*
  * 0.131.0 (cllp/lifehub.app#389): gäster. En gäst är en inbjudan och aldrig ett konto eller ett medlemskap. Konstanterna, formerna, texterna och `gastId` ligger här (vyn och reglerna läser dem),
  * nyckeln, sessionen och tjänsten i `ops-framework/node`. Vyerna: medlemmens lista och gästens egen sida.

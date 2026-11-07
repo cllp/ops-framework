@@ -1,8 +1,10 @@
-import { DELNINGSORSAKER, delningsfel } from "../lib/delning.js";
+import { ORD_OPSDELAD } from "../lib/deladord.js";
+import { forvalda } from "../lib/ord.js";
+import { DeladFel } from "./DeladFel.jsx";
 import { DeladFil } from "./DeladFil.jsx";
 import { DeladKod } from "./DeladKod.jsx";
 import { DeladLista } from "./DeladLista.jsx";
-import { useOpsSprak } from "./OpsSprak.jsx";
+import { OpsSprakProvider, useOpsSprak } from "./OpsSprak.jsx";
 import { OpsButton } from "./OpsButton.jsx";
 import { OpsEmpty } from "./OpsEmpty.jsx";
 import { OpsMarkdown } from "./OpsMarkdown.jsx";
@@ -53,7 +55,8 @@ import { OpsMarkdown } from "./OpsMarkdown.jsx";
  * @param {() => void | Promise<void>} [props.onNyUrl] Filen kunde inte läsas, troligen för att adressen gått ut. Appen hämtar länken igen och ger ett nytt `delning`. För en lista är det den NYA listan: servern läser om den vid varje hämtning.
  * @param {(kod: string) => void | Promise<void>} [props.onKod] (0.125.0) Koden som personen skrev. Med den ritas kodrutan när orsaken är `kod-kravs`, `fel-kod` eller `for-manga` (en fillänk kan ha en kod
  *   sedan 0.125.0); appen frågar servern med koden (`hamta(ref, { kod })`) och ger vyn ett nytt svar. Utan den står orsaken som text.
- * @param {string} [props.sprak] (0.125.0) `sv` eller `en`, för kodrutan. Förval: språket i `OpsSprakProvider`. Resten av vyn är svensk som förut.
+ * @param {string} [props.sprak] (0.125.0) `sv` eller `en`. Förval: språket i `OpsSprakProvider`. ⛔ (0.201.0) HELA VYN FÖLJER SPRÅKET, inte bara kodrutan (cllp/ops-framework#544): före 0.201.0 var resten svensk.
+ *   `OpsDeladSida` sätter språket, med samma ordning som gästens sida.
  */
 export function OpsDelad({ delning = null, orsak, laddar = false, onNyUrl, onKod, sprak }) {
   const kontextSprak = useOpsSprak();
@@ -67,38 +70,50 @@ export function OpsDelad({ delning = null, orsak, laddar = false, onNyUrl, onKod
   if (onKod !== undefined && typeof onKod !== "function") {
     throw new Error("OpsDelad: onKod ska vara en funktion.");
   }
-  if (laddar) return <OpsEmpty busy title="Hämtar filen" busyLabel="Hämtar filen" />;
-  if (orsak !== undefined) {
-    const kand = /** @type {readonly string[]} */ (DELNINGSORSAKER).includes(orsak);
-    if (onKod && (orsak === "kod-kravs" || orsak === "fel-kod" || orsak === "for-manga")) {
-      return <DeladKod orsak={orsak} onKod={onKod} sprak={sprak ?? kontextSprak} />;
-    }
-    return (
-      <div data-delad="fel" data-delad-orsak={kand ? orsak : "utgangen"}>
-        <OpsEmpty title={delningsfel(orsak)} />
-      </div>
-    );
+  const aktivt = sprak ?? kontextSprak;
+  const t = forvalda(ORD_OPSDELAD, aktivt);
+  /** @type {import("react").ReactNode} */
+  let innehall;
+  if (laddar) {
+    // ⛔ (0.201.0) "Hämtar", inte "Hämtar filen": en länk gäller en fil, en anteckning, en länk eller en lista, och vyn vet inte vilken förrän svaret kommit.
+    innehall = <OpsEmpty busy title={t.laddar} busyLabel={t.laddar} />;
+  } else if (orsak !== undefined) {
+    innehall =
+      onKod && (orsak === "kod-kravs" || orsak === "fel-kod" || orsak === "for-manga") ? (
+        <DeladKod orsak={orsak} onKod={onKod} sprak={aktivt} />
+      ) : (
+        <DeladFel orsak={orsak} sprak={aktivt} />
+      );
+  } else {
+    const d = /** @type {NonNullable<typeof delning>} */ (delning);
+    innehall =
+      d.typ === "anteckning" ? (
+        <DeladAnteckning delning={/** @type {{ rubrik: string, text: string }} */ (d)} t={t} />
+      ) : d.typ === "lank" ? (
+        <DeladLank delning={/** @type {{ rubrik: string, url: string }} */ (d)} t={t} />
+      ) : d.typ === "lista" ? (
+        <DeladLista delning={/** @type {any} */ (d)} onNyUrl={onNyUrl} />
+      ) : (
+        <DeladFil delning={/** @type {import("./DeladFil.jsx").DeladFilSvar} */ (d)} onNyUrl={onNyUrl} />
+      );
   }
-  const d = /** @type {NonNullable<typeof delning>} */ (delning);
-  if (d.typ === "anteckning") return <DeladAnteckning delning={/** @type {{ rubrik: string, text: string }} */ (d)} />;
-  if (d.typ === "lank") return <DeladLank delning={/** @type {{ rubrik: string, url: string }} */ (d)} />;
-  if (d.typ === "lista") return <DeladLista delning={/** @type {any} */ (d)} onNyUrl={onNyUrl} />;
-  return <DeladFil delning={/** @type {import("./DeladFil.jsx").DeladFilSvar} */ (d)} onNyUrl={onNyUrl} />;
+  // Barnen (`DeladFil`, `DeladLista`, ljudspelaren) läser språket ur sammanhanget, så det sätts här också när det kom som prop.
+  return <OpsSprakProvider sprak={aktivt}>{innehall}</OpsSprakProvider>;
 }
 
 /**
  * En delad anteckning: rubriken och texten, som biblioteket läser den (`OpsMarkdown`, ingen HTML tolkas).
- * @param {{ delning: { rubrik: string, text: string } }} props
+ * @param {{ delning: { rubrik: string, text: string }, t: Record<string, string> }} props
  */
-function DeladAnteckning({ delning }) {
+function DeladAnteckning({ delning, t }) {
   return (
     <article data-delad="anteckning" className="flex min-w-0 w-full flex-col gap-4">
       <header className="flex min-w-0 flex-col gap-1">
         <h1 data-delad-rubrik="" className="m-0 text-sida text-ink wrap-anywhere">{delning.rubrik}</h1>
-        <p data-delad-meta="" className="m-0 text-meta text-ink-muted">Anteckning</p>
+        <p data-delad-meta="" className="m-0 text-meta text-ink-muted">{t.anteckning}</p>
       </header>
       <div data-delad-text="" className="max-w-las">
-        {delning.text ? <OpsMarkdown text={delning.text} dokument /> : <p className="m-0 text-etikett text-ink-secondary">Anteckningen har ingen text.</p>}
+        {delning.text ? <OpsMarkdown text={delning.text} dokument /> : <p className="m-0 text-etikett text-ink-secondary">{t.ingenText}</p>}
       </div>
     </article>
   );
@@ -106,20 +121,20 @@ function DeladAnteckning({ delning }) {
 
 /**
  * En delad länk: rubriken och en tydlig knapp till adressen. Adressen står också som text.
- * @param {{ delning: { rubrik: string, url: string } }} props
+ * @param {{ delning: { rubrik: string, url: string }, t: Record<string, string> }} props
  */
-function DeladLank({ delning }) {
+function DeladLank({ delning, t }) {
   const oppnas = typeof delning.url === "string" && /^https?:\/\/[!-~]+$/.test(delning.url);
   return (
     <article data-delad="lank" className="flex min-w-0 w-full flex-col gap-4">
       <header className="flex min-w-0 flex-col gap-1">
         <h1 data-delad-rubrik="" className="m-0 text-sida text-ink wrap-anywhere">{delning.rubrik}</h1>
-        <p data-delad-meta="" className="m-0 text-meta text-ink-muted">Länk</p>
+        <p data-delad-meta="" className="m-0 text-meta text-ink-muted">{t.lank}</p>
       </header>
       <p data-delad-adress="" className="m-0 text-etikett text-ink-secondary wrap-anywhere">{delning.url}</p>
       {oppnas ? (
         <div>
-          <OpsButton variant="primary" href={delning.url} newTab ariaLabel={`Öppna länken ${delning.rubrik}`}>Öppna länken</OpsButton>
+          <OpsButton variant="primary" href={delning.url} newTab ariaLabel={t.oppnaLankenNamn.replace("{namn}", delning.rubrik)}>{t.oppnaLanken}</OpsButton>
         </div>
       ) : null}
     </article>

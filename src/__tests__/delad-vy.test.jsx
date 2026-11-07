@@ -25,6 +25,7 @@ describe("OpsDelad: lägen och feltexter", () => {
   });
 
   it("de tre orsakerna har sina texter, och en okänd får det utgångnas", () => {
+    // ⛔ (0.201.0, cllp/ops-framework#544) Rubriken är gästens, "Länken fungerar inte längre", och orsaken och nästa väg står under den. Förut var rubriken orsaken.
     for (const [orsak, text] of Object.entries(DELNINGSFEL)) {
       const { unmount } = render(<OpsDelad orsak={orsak} />);
       expect(screen.getByText(text), orsak).toBeInTheDocument();
@@ -32,13 +33,15 @@ describe("OpsDelad: lägen och feltexter", () => {
       unmount();
     }
     render(<OpsDelad orsak="okand" />);
-    expect(screen.getByText("Länken har gått ut")).toBeInTheDocument();
+    expect(screen.getByText("Länken fungerar inte längre")).toBeInTheDocument();
+    expect(screen.getByText("Den har gått ut. Be den som delade den om en ny länk.")).toBeInTheDocument();
   });
 
   it("medan länken hämtas står det, och ingen feltext", () => {
+    // (0.201.0) "Hämtar", inte "Hämtar filen": vyn vet inte om det är en fil, en anteckning, en länk eller en lista förrän svaret kommit.
     render(<OpsDelad laddar />);
-    expect(screen.getByText("Hämtar filen")).toBeInTheDocument();
-    expect(screen.queryByText(/gått ut|stängd|finns inte/)).toBeNull();
+    expect(screen.getByText("Hämtar")).toBeInTheDocument();
+    expect(screen.queryByText(/gått ut|stängd|finns inte|fungerar inte/)).toBeNull();
   });
 });
 
@@ -206,17 +209,18 @@ describe("OpsBibliotek: 'Dela länk' i menyn", () => {
 });
 
 describe("OpsBibliotek: dialogen", () => {
-  it("förvalen är 7 dagar och nedladdning AV, och skapa skickar dem", async () => {
-    const onDelaLank = vi.fn(async () => ({ id: "d1", url: "https://my.test/d/tok", giltigTill: tid + 7 * 86400000 }));
+  // ⛔ (0.201.0, CP 2026-11-07: "Ja, 30 dagar som förval") Förvalet var 7 dagar.
+  it("förvalen är 30 dagar och nedladdning AV, och skapa skickar dem", async () => {
+    const onDelaLank = vi.fn(async () => ({ id: "d1", url: "https://my.test/d/tok", giltigTill: tid + 30 * 86400000 }));
     render(<Vy poster={[pdf("p1", KIM)]} onDelaLank={onDelaLank} />);
     oppnaMeny("Avtal p1");
     fireEvent.click(screen.getByRole("menuitem", { name: "Dela länk" }));
     const dialog = await screen.findByRole("dialog", { name: "Dela länk" });
-    expect(within(dialog).getByRole("tab", { name: "7 dagar" })).toHaveAttribute("aria-selected", "true");
+    expect(within(dialog).getByRole("tab", { name: "30 dagar" })).toHaveAttribute("aria-selected", "true");
     expect(within(dialog).getAllByRole("tab").map((t) => t.textContent)).toEqual(["1 dag", "7 dagar", "30 dagar"]);
     expect(within(dialog).getByRole("switch", { name: "Tillåt nedladdning" })).not.toBeChecked();
     fireEvent.click(within(dialog).getByRole("button", { name: "Skapa länk" }));
-    await waitFor(() => expect(onDelaLank).toHaveBeenCalledWith({ postId: "p1", dagar: 7, nedladdning: false, kod: null, gruppdel: "grupp", fildel: "avtal-p1" }));
+    await waitFor(() => expect(onDelaLank).toHaveBeenCalledWith({ postId: "p1", dagar: 30, nedladdning: false, kod: null, gruppdel: "grupp", fildel: "avtal-p1" }));
     expect(await within(dialog).findByText("https://my.test/d/tok")).toBeInTheDocument();
   });
 
@@ -226,13 +230,13 @@ describe("OpsBibliotek: dialogen", () => {
     oppnaMeny("Avtal p1");
     fireEvent.click(screen.getByRole("menuitem", { name: "Dela länk" }));
     const dialog = await screen.findByRole("dialog", { name: "Dela länk" });
-    fireEvent.click(within(dialog).getByRole("tab", { name: "30 dagar" }));
+    fireEvent.click(within(dialog).getByRole("tab", { name: "1 dag" }));
     fireEvent.click(within(dialog).getByRole("switch", { name: "Tillåt nedladdning" }));
     fireEvent.click(within(dialog).getByRole("button", { name: "Skapa länk" }));
-    await waitFor(() => expect(onDelaLank).toHaveBeenCalledWith({ postId: "p1", dagar: 30, nedladdning: true, kod: null, gruppdel: "grupp", fildel: "avtal-p1" }));
+    await waitFor(() => expect(onDelaLank).toHaveBeenCalledWith({ postId: "p1", dagar: 1, nedladdning: true, kod: null, gruppdel: "grupp", fildel: "avtal-p1" }));
   });
 
-  it("Kopiera lägger hela adressen i urklipp, och Stäng länken återkallar och stänger dialogen med ett besked", async () => {
+  it("Kopiera lägger hela adressen i urklipp, och Dra tillbaka återkallar och stänger dialogen med ett besked", async () => {
     const skriv = vi.fn(() => Promise.resolve());
     Object.defineProperty(navigator, "clipboard", { value: { writeText: skriv }, configurable: true });
     const onDelaLank = vi.fn(async () => ({ id: "d1", url: "https://my.test/d/tok" }));
@@ -244,10 +248,11 @@ describe("OpsBibliotek: dialogen", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Skapa länk" }));
     fireEvent.click(await within(dialog).findByRole("button", { name: "Kopiera adressen" }));
     await waitFor(() => expect(skriv).toHaveBeenCalledWith("https://my.test/d/tok"));
-    fireEvent.click(within(dialog).getByRole("button", { name: "Stäng länken" }));
+    // (0.201.0) "Dra tillbaka", gästlistans ord. Förut "Stäng länken" och "Länken är stängd.".
+    fireEvent.click(within(dialog).getByRole("button", { name: "Dra tillbaka" }));
     await waitFor(() => expect(onAterkalla).toHaveBeenCalledWith({ id: "d1" }));
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "Dela länk" })).toBeNull());
-    expect(screen.getByRole("status")).toHaveTextContent("Länken är stängd.");
+    expect(screen.getByRole("status")).toHaveTextContent("Länken är tillbakadragen.");
   });
 
   it("nedladdningen går att ändra efteråt, och ett fel visas med reglaget kvar", async () => {
@@ -302,7 +307,7 @@ describe("OpsBibliotek: dialogen", () => {
     expect(within(dialog).queryByRole("button", { name: "Kopiera adressen" })).toBeNull();
     expect(within(dialog).queryByRole("button", { name: "Skapa länk" })).toBeNull();
     expect(within(dialog).getByRole("switch", { name: "Tillåt nedladdning" })).toBeChecked();
-    fireEvent.click(within(dialog).getByRole("button", { name: "Stäng länken" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Dra tillbaka" }));
     await waitFor(() => expect(onAterkalla).toHaveBeenCalledWith({ id: "d9" }));
   });
 });
@@ -334,7 +339,7 @@ describe("OpsBibliotek: dialogen, kod och adress (0.125.0)", () => {
     expect(dialog.querySelector("[data-delalank-slutmening]")?.textContent).toMatch(/exakt som du skriver den/);
     fireEvent.change(within(dialog).getByRole("textbox", { name: "Filens del av adressen" }), { target: { value: "Bubbelglasen.ver2" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Skapa länk" }));
-    await waitFor(() => expect(onDelaLank).toHaveBeenCalledWith({ postId: "p1", dagar: 7, nedladdning: false, kod: "hemligt1", gruppdel: "grupp", fildel: "bubbelglasen-ver2" }));
+    await waitFor(() => expect(onDelaLank).toHaveBeenCalledWith({ postId: "p1", dagar: 30, nedladdning: false, kod: "hemligt1", gruppdel: "grupp", fildel: "bubbelglasen-ver2" }));
   });
 
   it("gruppens namn ur platserna blir gruppdelen", async () => {

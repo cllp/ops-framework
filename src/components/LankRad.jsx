@@ -6,7 +6,8 @@ import { OpsButton } from "./OpsButton.jsx";
 import { useKopiera } from "./useKopiera.js";
 
 /**
- * En aktiv länk med sin fulla adress som text, sin rättighet, om den har kod och när den går ut, med Kopiera och Återkalla (0.125.0, cllp/lifehub.app#377).
+ * En aktiv länk med sin fulla adress som text, sin rättighet, om den har kod och när den går ut, med Kopiera och Dra tillbaka (0.125.0, cllp/lifehub.app#377; "Återkalla" till 0.201.0,
+ * då gästlistans ord blev det enda för samma handling, cllp/ops-framework#544).
  *
  * ══ ⛔ ADRESSEN STÅR SOM TEXT, SÅ ATT DEN GÅR ATT KLIPPA UR (CP 2026-10-19) ══════════════════════════════════════════════
  *
@@ -25,9 +26,9 @@ export const ORD_LANKRAD = {
   kopierad: { sv: "Kopierad", en: "Copied" },
   kopieraMisslyckades: { sv: "Det gick inte att kopiera. Adressen är markerad: kopiera den för hand.", en: "Copying failed. The address is selected: copy it by hand." },
   kopieraNamn: { sv: "Kopiera adressen", en: "Copy the address" },
-  aterkalla: { sv: "Återkalla", en: "Revoke" },
-  aterkallaNamn: { sv: "Återkalla länken {url}", en: "Revoke the link {url}" },
-  aterkallaFel: { sv: "Det gick inte att återkalla länken", en: "The link could not be revoked" },
+  aterkalla: { sv: "Dra tillbaka", en: "Withdraw" },
+  aterkallaNamn: { sv: "Dra tillbaka länken {url}", en: "Withdraw the link {url}" },
+  aterkallaFel: { sv: "Det gick inte att dra tillbaka länken", en: "The link could not be withdrawn" },
   rattighet_las: { sv: "Läslänk", en: "Read link" },
   medKod: { sv: "Med kod", en: "With code" },
   utanKod: { sv: "Utan kod", en: "No code" },
@@ -58,8 +59,9 @@ function lokaltDatum(ms) {
  * @param {string} [props.sprak]
  * @param {Partial<Record<keyof typeof ORD_LANKRAD, string>>} [props.ord]
  * @param {boolean} [props.nyligen] Länken skapades nyss: raden markeras så att den syns i listan.
+ * @param {import("react").ReactNode} [props.children] (0.201.0) Det som står sist på raden, till exempel Skicka till mejl (`MejlaLank`) för just den här länken.
  */
-export function LankRad({ lank, onAterkalla, sprak = "sv", ord, nyligen = false }) {
+export function LankRad({ lank, onAterkalla, sprak = "sv", ord, nyligen = false, children }) {
   const t = { ...forvalda(ORD_LANKRAD, sprak), ...definierade(/** @type {Record<string, string>} */ (ord ?? {})) };
   const { kopierat, misslyckades, kopiera } = useKopiera("LankRad");
   const text = useRef(/** @type {HTMLParagraphElement | null} */ (null));
@@ -127,6 +129,7 @@ export function LankRad({ lank, onAterkalla, sprak = "sv", ord, nyligen = false 
       </div>
       {misslyckades ? <p role="alert" data-lankrad-kopieringsfel="" className="m-0 text-etikett text-danger">{t.kopieraMisslyckades}</p> : null}
       {fel ? <p role="alert" data-lankrad-fel="" className="m-0 text-etikett text-danger wrap-anywhere">{fel}</p> : null}
+      {children}
     </li>
   );
 }

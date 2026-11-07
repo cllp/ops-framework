@@ -59,6 +59,17 @@ import { OpsView } from "./OpsView.jsx";
 import { NyPlatsFormular, NyPlatsRad, ORD_BIBLIOTEKPLATSER, PlatsInstallningar, PlatsMeny } from "./BibliotekPlatser.jsx";
 import { PLATSER_UTAN_SOK } from "../lib/platser.js";
 
+
+/**
+ * (0.201.0, cllp/ops-framework#544) Orden för en delad länk som också står på gästens sida: samma ord för samma sak. "Dra tillbaka" är gästlistans ord (`OpsGastLista`),
+ * och före 0.201.0 hette samma handling "Stäng länken" här och "Återkalla" på en händelse.
+ * @type {import("../lib/ord.js").Ordbok}
+ */
+const ORD_DELALANK = {
+  dela: { sv: "Dela länk", en: "Share link" },
+  draTillbaka: { sv: "Dra tillbaka", en: "Withdraw" },
+  tillbakadragen: { sv: "Länken är tillbakadragen.", en: "The link has been withdrawn." },
+};
 /**
  * Gruppens bibliotek: lista och detalj för anteckning och länk.
  *
@@ -305,7 +316,7 @@ const arkivtips = () => `Arkiverad. Välj taggen ${ARKIVTAGG} för att se arkive
  * @param {(inmatning: { postId: string, dagar: number, nedladdning: boolean, kod: string | null, gruppdel: string, fildel: string }) => Promise<{ id: string, url: string, giltigTill?: number, harKod?: boolean }>} [props.onDelaLank] (0.119.0) Skapar länken. Ritar "Dela länk" i menyn för varje post som går att dela (`arDelbar`: en färdig fil, en anteckning, en länk eller en lista, 0.133.0) och som personen får dela (`farAndra`). Löftet ska lösa till länkens id och HELA adressen (appen bygger den: `delningsUrl(bas, svar.sokvag)`).
  *   (0.125.0) Inmatningen har också `kod` (`null` utan kod, annars koden i klartext till servern, som hashar den), `gruppdel` och `fildel`: adressen är `/g/<gruppdel>/lib/<fildel>`, föreslagen ur gruppens namn och filens rubrik, och personen kan ändra båda. Utan kod lägger servern till ett slumpat slut. Kastar anropet med `kod: "adress-upptagen"` föreslår dialogen en annan adress. Kräver `onAndraNedladdning` och `onAterkalla`: en länk som inte går att stänga får inte kunna skapas.
  * @param {(inmatning: { id: string, nedladdning: boolean }) => Promise<void> | void} [props.onAndraNedladdning] (0.119.0) Slår på eller av nedladdning på en länk som lever. Ett fel visas i dialogen och reglaget står kvar.
- * @param {(inmatning: { id: string }) => Promise<void> | void} [props.onAterkalla] (0.119.0) Stänger länken, för alltid. "Stäng länken" i dialogen. En ny delning ger ett nytt token.
+ * @param {(inmatning: { id: string }) => Promise<void> | void} [props.onAterkalla] (0.119.0) Stänger länken, för alltid. "Dra tillbaka" i dialogen (0.201.0, förut "Stäng länken"). En ny delning ger ett nytt token.
  * @param {(inmatning: { id: string, url: string, till: string }) => Promise<void | boolean> | void | boolean} [props.onMejlaLank] (0.128.0, cllp/lifehub.app#356) Skickar en delad länk med mejl, via appens mejlväg. Med den visar dialogen Dela länk fältet "Skicka till mejl" och knappen Skicka, under länkens adress (när länken är nyss skapad, eller en som lever och har en adress). `id` är delningens id och `url` hela adressen. Ramverket prövar adressen (`epostFel`: form och spärrade domäner) innan anropet och visar svaret, lyckat eller inte; ett kast eller `false` är ett fel i dialogen. Hör till `onDelaLank`. Utan den syns inget fält.
  * @param {(post: any) => Promise<import("./GithubDokumentVisning.jsx").GithubLasning>} [props.githubLasare] (0.186.0, cllp/lifehub.app#653) Läser filen en länk pekar på i gruppens GitHub-repo. En länk vars adress är `https://github.com/<ägare>/<repo>/blob/<ref>/<sökväg>` (`githubDokument`) öppnas då i ett läsläge i detaljen, efter filens sort (markdown, html, pdf, bild, text, csv; word, excel och övrigt får Ladda ned), med "Ändrad {datum} av {av}" och en länk Öppna i GitHub, i stället för att skicka personen till github.com. Svaret är `{ lage, text?, base64?, mime?, andrad?, av?, storlek? }` där `lage` är `last`, `saknas`, `obehorig`, `inte-gruppens`, `for-stor` eller `fel`; ett avvisat löfte ritas som `fel`. Ingen ny posttyp: posten är en vanlig länk. Utan den är länken som förut. Se `GithubDokumentVisning` för begränsningarna.
  * @param {(url: string) => Promise<{ titel?: string, artist?: string, kalla?: string, bild?: string }>} [props.onLankInfo] (0.128.0, cllp/lifehub.app#378) Hämtar titel, artist och omslag för en musiklänk (Spotify, YouTube, Apple Music eller SoundCloud), normalt en callable som anropar `lankInfoUrOembed` på nodsidan. När en sådan adress klistras in i Ny länk (eller lämnas med fokus) anropas den EN gång per adress, och rubriken fylls i som "titel, artist" om den är tom eller fortfarande den som förra uppslaget fyllde i. Rubriken går att ändra. `bild` sparas på posten (en https-adress). `kalla` i svaret ignoreras: ramverket härleder källan ur adressen (`lankKalla`), så att den inte finns på två ställen. Faller anropet, eller ger det varken titel eller artist, står rubrikfältet tomt och orsaken i en rad under adressen: aldrig tyst. Utan den görs inget uppslag, och en vanlig länk är som förut.
@@ -802,7 +813,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
     // Villkoret är oförändrat i övrigt: bara den som får ändra posten (`farAndra`: författaren, en admin eller en ägare, och i Mitt bibliotek bara ägaren), samma som servern kontrollerar,
     // så knappen lovar inget som funktionen sedan nekar. Det som skiljer är vad som går att dela (`arDelbar`): en fil som ännu laddas upp har ingenting att visa.
     if (far && typeof onDelaLank === "function" && arDelbar(post)) {
-      ut.push({ id: "dela-lank", etikett: "Dela länk", onValj: () => setDelarLank(post) });
+      ut.push({ id: "dela-lank", etikett: ordet(ORD_DELALANK, "dela", sprak), onValj: () => setDelarLank(post) });
     }
     // ⛔ EN MUSIKLÄNK ÖPPNAS DIREKT VID ETT TRYCK (0.128.0), så detaljen nås härifrån. Utan raden gick det inte att komma åt Byt namn-formuläret, taggarna och Redigera för en sådan länk.
     // ⛔ INTE FÖR ETT HTML-DOKUMENT (0.192.0, #529): ett tryck på kortet öppnar redan förhandstitten. Raden stod här 0.159.0 till 0.191.0, när trycket öppnade helfönstret.
@@ -1225,7 +1236,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
       <OpsModal
         open={delarLank !== null}
         onOpenChange={(oppen) => { if (!oppen) setDelarLank(null); }}
-        title="Dela länk"
+        title={ordet(ORD_DELALANK, "dela", sprak)}
         size="sm"
       >
         {delarLank && typeof onDelaLank === "function" && typeof onAndraNedladdning === "function" && typeof onAterkalla === "function" ? (
@@ -3157,7 +3168,7 @@ function DelaLankKontroll({ post, gruppnamn, gruppdelForslag, delningar, onDelaL
       if (!levande.current) return;
       setStangda((s) => [...s, aktiv.id]);
       setSkapad(null);
-      onKlar("Länken är stängd.");
+      onKlar(ordet(ORD_DELALANK, "tillbakadragen", sprak));
     } catch (e) {
       if (levande.current) visaFel(e);
     } finally {
@@ -3189,7 +3200,7 @@ function DelaLankKontroll({ post, gruppnamn, gruppdelForslag, delningar, onDelaL
         </ul>
       ) : (
         <>
-          <p className="m-0 text-etikett text-ink-secondary">Det finns en länk till {DELA_OBJEKT[post.typ] ?? "filen"}, skapad med en äldre version. Den visades bara när den skapades. Behöver du adressen igen stänger du länken och skapar en ny.</p>
+          <p className="m-0 text-etikett text-ink-secondary">Det finns en länk till {DELA_OBJEKT[post.typ] ?? "filen"}, skapad med en äldre version. Den visades bara när den skapades. Behöver du adressen igen drar du tillbaka länken och skapar en ny.</p>
           {till ? <p className="m-0 text-etikett text-ink-muted">Gäller till {till}.</p> : null}
         </>
       )}
@@ -3198,7 +3209,7 @@ function DelaLankKontroll({ post, gruppnamn, gruppdelForslag, delningar, onDelaL
       {harNedladdning ? <OpsSwitch label="Tillåt nedladdning" hint={post.typ === "lista" ? "Gäller alla filer i listan." : undefined} checked={nedNu} disabled={pagar !== null} onChange={bytNedladdning} /> : null}
       {fel ? <p role="alert" className="m-0 text-etikett text-danger">{fel}</p> : null}
       <div className="flex gap-2">
-        <OpsButton variant="danger" busy={pagar === "stang"} onClick={stang}>Stäng länken</OpsButton>
+        <OpsButton variant="danger" busy={pagar === "stang"} onClick={stang}>{ordet(ORD_DELALANK, "draTillbaka", sprak)}</OpsButton>
       </div>
     </div>
   );

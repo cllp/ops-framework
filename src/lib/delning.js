@@ -21,17 +21,21 @@
 /** Utgångstider i dagar för en FIL. "Ingen utgång" finns inte för en fil (CP 2026-10-19): en länk som aldrig går ut är en länk som aldrig stängs. */
 export const DELNINGSDAGAR = /** @type {const} */ ([1, 7, 30]);
 
-/** Förvald utgångstid i dagar för en fil (CP 2026-10-19). */
-export const FORVAL_DELNINGSDAGAR = 7;
+/**
+ * Förvald utgångstid i dagar: 30, samma som en gästlänk (`GASTLANKDAGAR`). ⛔ (0.201.0) CP 2026-11-07: "Ja, 30 dagar som förval, ta bort Ingen gräns" (cllp/ops-framework#544).
+ * Före 0.201.0 var förvalet 7 dagar för en fil och "ingen gräns" för en händelse: samma sorts länk gällde olika länge beroende på var den skapades.
+ */
+export const FORVAL_DELNINGSDAGAR = 30;
 
 /**
- * Utgångstider för en HÄNDELSE: `null` är "ingen gräns" och är förvalet (CP 2026-10-19: "förvalt INGEN gräns, men alltid möjlig att
- * återkalla"). Samma 1, 7 och 30 dagar som för en fil, så att en siffra har ett ställe.
+ * Utgångstider för en HÄNDELSE: samma lista som för en fil (0.201.0, cllp/ops-framework#544). "Ingen gräns" (`null`) finns inte längre för en ny länk.
+ * ⛔ EN LÄNK SOM SKAPATS MED INGEN GRÄNS FÖRE 0.201.0 GÄLLER SOM FÖRUT: raden bär `giltigTill: null` och `hamta` läser den som förut. Det är bara en NY länk som måste ha ett slutdatum.
+ * Namnet står kvar så att appar som läser det inte går sönder, och värdet är samma lista (en sanning, regel 2).
  */
-export const HANDELSEDAGAR = /** @type {const} */ ([null, ...DELNINGSDAGAR]);
+export const HANDELSEDAGAR = DELNINGSDAGAR;
 
-/** Förvald utgångstid för en händelse: ingen gräns. */
-export const FORVAL_HANDELSEDAGAR = null;
+/** Förvald utgångstid för en händelse: samma som för en fil. */
+export const FORVAL_HANDELSEDAGAR = FORVAL_DELNINGSDAGAR;
 
 /** Så länge den signerade adressen till filen gäller, i sekunder. Vyn hämtar en ny när den gått ut. */
 export const SIGNERAD_SEKUNDER = 15 * 60;
@@ -279,17 +283,42 @@ export function normaliseraKod(kod) {
  */
 export const DELNINGSORSAKER = /** @type {const} */ (["utgangen", "stangd", "saknas", "handelse-saknas", "kod-kravs", "fel-kod", "for-manga"]);
 
-/** @type {Record<"utgangen" | "stangd" | "saknas" | "handelse-saknas" | "kod-kravs" | "fel-kod" | "for-manga", string>} */
+/**
+ * Orden för en länk som inte går att visa, på svenska och engelska (0.201.0, cllp/ops-framework#544).
+ *
+ * ══ ⛔ SAMMA BESKED SOM GÄSTENS (CP 2026-11-07: "Se till att allt är enhetligt med gästinbjudan så att det är samma upplevelse för användaren") ══
+ *
+ * Före 0.201.0 var rubriken orsaken ("Länken har gått ut", "Länken är stängd", "Finns inte längre"), bara på svenska på filens sida, och ingen sida sa vad man gör sedan.
+ * Gästens sida säger "Länken fungerar inte längre" och vad gästen gör. Nu har en delad länk samma rubrik (`rubrik`), en rad om varför (`orsak_<orsak>`) och nästa väg (`nasta`).
+ * Varför får stå kvar: en delad länk är ingen personlig inbjudan, och texten för `stangd` och `saknas` nås bara av den som redan har en riktig länk (se `DELNINGSORSAKER`).
+ * ⛔ "Finns inte längre" påstår ingen typ (0.133.0): en raderad post bär ingen typ att läsa.
+ * @type {import("./ord.js").Ordbok}
+ */
+export const ORD_DELNINGSFEL = {
+  rubrik: { sv: "Länken fungerar inte längre", en: "The link no longer works" },
+  orsak_utgangen: { sv: "Den har gått ut.", en: "It has expired." },
+  orsak_stangd: { sv: "Den som delade den har dragit tillbaka den.", en: "The person who shared it has withdrawn it." },
+  orsak_saknas: { sv: "Det som delades finns inte längre.", en: "What was shared no longer exists." },
+  "orsak_handelse-saknas": { sv: "Händelsen finns inte längre.", en: "The event no longer exists." },
+  nasta: { sv: "Be den som delade den om en ny länk.", en: "Ask the person who shared it for a new link." },
+  "kod-kravs": { sv: "Länken kräver en kod", en: "This link needs a code" },
+  "fel-kod": { sv: "Koden stämde inte", en: "The code was not right" },
+  "for-manga": { sv: "För många försök. Vänta en stund och försök igen", en: "Too many attempts. Wait a while and try again" },
+};
+
+/**
+ * Den svenska rubriken för en orsak, härledd ur `ORD_DELNINGSFEL` (en sanning, regel 2). En länk som inte fungerar har rubriken "Länken fungerar inte längre" oavsett varför,
+ * och raden om varför står i `delningsbesked`.
+ * @type {Record<"utgangen" | "stangd" | "saknas" | "handelse-saknas" | "kod-kravs" | "fel-kod" | "for-manga", string>}
+ */
 export const DELNINGSFEL = {
-  utgangen: "Länken har gått ut",
-  stangd: "Länken är stängd",
-  // ⛔ 0.133.0: "Finns inte längre" och inte "Filen finns inte längre". En länk gäller nu en fil, en anteckning, en länk eller en lista, och när posten är raderad finns inget kvar
-  // att läsa vilken av dem det var (raden bär ingen typ, den bor i posten). Texten får därför inte påstå en typ.
-  saknas: "Finns inte längre",
-  "handelse-saknas": "Händelsen finns inte längre",
-  "kod-kravs": "Länken kräver en kod",
-  "fel-kod": "Koden stämde inte",
-  "for-manga": "För många försök. Vänta en stund och försök igen",
+  utgangen: ORD_DELNINGSFEL.rubrik.sv,
+  stangd: ORD_DELNINGSFEL.rubrik.sv,
+  saknas: ORD_DELNINGSFEL.rubrik.sv,
+  "handelse-saknas": ORD_DELNINGSFEL.rubrik.sv,
+  "kod-kravs": ORD_DELNINGSFEL["kod-kravs"].sv,
+  "fel-kod": ORD_DELNINGSFEL["fel-kod"].sv,
+  "for-manga": ORD_DELNINGSFEL["for-manga"].sv,
 };
 
 /**
@@ -374,4 +403,19 @@ export function delningsTyp(mime) {
  */
 export function delningsfel(orsak) {
   return typeof orsak === "string" && Object.hasOwn(DELNINGSFEL, orsak) ? DELNINGSFEL[/** @type {keyof typeof DELNINGSFEL} */ (orsak)] : DELNINGSFEL.utgangen;
+}
+
+/**
+ * Beskedet för en länk som inte fungerar (0.201.0): rubriken, raden om varför och nästa väg, på språket. För en kodorsak (`kod-kravs`, `fel-kod`, `for-manga`) är rubriken orsakens egen text
+ * och raderna tomma: kodrutan säger resten. En okänd orsak är en utgången länk, som i `delningsfel`.
+ *
+ * @param {unknown} orsak
+ * @param {unknown} [sprak] `sv` eller `en`. Allt annat är svenska.
+ * @returns {{ rubrik: string, varfor: string, nasta: string }}
+ */
+export function delningsbesked(orsak, sprak) {
+  const s = sprak === "en" ? "en" : "sv";
+  const kand = typeof orsak === "string" && Object.hasOwn(DELNINGSFEL, orsak) ? orsak : "utgangen";
+  if (kand === "kod-kravs" || kand === "fel-kod" || kand === "for-manga") return { rubrik: ORD_DELNINGSFEL[kand][s], varfor: "", nasta: "" };
+  return { rubrik: ORD_DELNINGSFEL.rubrik[s], varfor: ORD_DELNINGSFEL[`orsak_${kand}`][s], nasta: ORD_DELNINGSFEL.nasta[s] };
 }

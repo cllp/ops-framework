@@ -483,15 +483,25 @@ describe("händelsens sida", () => {
 });
 
 describe("giltighet", () => {
-  it("⛔ en händelse har ingen gräns som förval och gäller länge, men en fil får det aldrig", async () => {
+  // ⛔ (0.201.0, cllp/ops-framework#544, CP 2026-11-07: "Ja, 30 dagar som förval, ta bort Ingen gräns") Provet sade förut att en händelse hade ingen gräns som förval och gällde i tio år.
+  it("⛔ en händelse har 30 dagar som förval, och ingen gräns (null) nekas för en ny länk, som för en fil", async () => {
     const { tjanst, kalla, tid } = bygg();
     const h = await delaHandelse(tjanst);
-    expect(h.giltigTill).toBeNull();
-    expect((await kalla.read("delningar", h.id)).giltigTill).toBeNull();
-    tid(NU + 3650 * DYGN);
-    expect((await tjanst.hamta(h.adress)).ok).toBe(true);
+    expect(h.giltigTill).toBe(NU + 30 * DYGN);
+    expect((await kalla.read("delningar", h.id)).giltigTill).toBe(NU + 30 * DYGN);
+    tid(NU + 30 * DYGN);
+    expect(await tjanst.hamta(h.adress)).toEqual({ ok: false, orsak: "utgangen" });
+    await expect(delaHandelse(tjanst, { dagar: null, handelsedel: "y" })).rejects.toThrow(/Ingen gräns finns inte/);
     for (const dagar of [undefined, null, 0, 2, 90]) await expect(delaFil(tjanst, { dagar }), String(dagar)).rejects.toThrow(/finns inte/);
     expect(await kalla.list("delningar")).toHaveLength(1);
+  });
+
+  it("⛔ en händelselänk med ingen gräns som skapades före 0.201.0 öppnas som förut", async () => {
+    const { tjanst, kalla, tid } = bygg();
+    const h = await delaHandelse(tjanst);
+    await kalla.update("delningar", h.id, { giltigTill: null });
+    tid(NU + 3650 * DYGN);
+    expect((await tjanst.hamta(h.adress)).ok).toBe(true);
   });
 
   it("en händelse kan ändå få 1, 7 eller 30 dagar, och går då ut på sekunden", async () => {
@@ -600,7 +610,7 @@ describe("gamla tokenlänkar lever kvar", () => {
   it("⛔ ett token öppnar aldrig en händelse: tokenformen hör bara till en fil", async () => {
     const { tjanst, kalla } = bygg();
     const token = nyttDelningstoken();
-    const rad = byggAdressdelning({ slag: "handelse", adress: "travel/event/resa-aaaaaaaa", handelseId: "h1", groupId: GRUPP, skapadAv: { uid: MEDLEM }, skapad: NU, dagar: null });
+    const rad = byggAdressdelning({ slag: "handelse", adress: "travel/event/resa-aaaaaaaa", handelseId: "h1", groupId: GRUPP, skapadAv: { uid: MEDLEM }, skapad: NU, dagar: 30 });
     await kalla.create("delningar", { ...rad, id: createHash("sha256").update(token).digest("hex") });
     expect(await tjanst.hamta(token)).toEqual({ ok: false, orsak: "utgangen" });
   });
@@ -724,7 +734,8 @@ describe("händelse: vem får dela, stänga och lista", () => {
       expect(rad.sokvag).toBe(`/g/${rad.id === min.id ? min.adress : annans.adress}`);
     }
     expect(lista.find((r) => r.id === annans.id)).toMatchObject({ harKod: true, giltigTill: NU + 30 * DYGN });
-    expect(lista.find((r) => r.id === min.id)).toMatchObject({ harKod: false, giltigTill: null });
+    // (0.201.0) Utan dagar är förvalet 30 dagar, inte ingen gräns.
+    expect(lista.find((r) => r.id === min.id)).toMatchObject({ harKod: false, giltigTill: NU + 30 * DYGN });
     // Filänkarna i platsen visar inga händelselänkar.
     const filer = await tjanst.lista({ uid: ADMIN, groupId: GRUPP });
     expect(filer.every((r) => r.slag === "post")).toBe(true);
