@@ -30,8 +30,9 @@ const SERVERNS_TOMT = "Inget ljud kom fram. Försök igen.";
  * En falsk webbläsare med mikrofon, inspelare och taligenkänning. `tysta` säger, per anrop till `getUserMedia`, om strömmen är tyst.
  * En tyst ström ger inga bitar, och taligenkänningen hör ingenting medan den är tyst. Utan post i listan är strömmen inte tyst.
  * @param {boolean[]} tysta
+ * @param {(() => number) | undefined} [nu] Klocka till inspelaren. Utan den läser den `Date.now`.
  */
-function falskTelefon(tysta) {
+function falskTelefon(tysta, nu) {
   /** @type {Array<{ muted: boolean, readyState: string, stoppad: boolean, stop: () => void }>} */
   const spar = [];
   let anrop = 0;
@@ -100,7 +101,7 @@ function falskTelefon(tysta) {
     if (!rec || !rec.startad || rec.slut || strom.muted) return;
     rec.onresult({ resultIndex: 0, results: [Object.assign([{ transcript: t }], { isFinal: true })] });
   };
-  const inspelare = webblasarensInspelare({ mediaDevices: /** @type {any} */ (mediaDevices), MediaRecorder: /** @type {any} */ (MR), AudioContext: undefined });
+  const inspelare = webblasarensInspelare({ mediaDevices: /** @type {any} */ (mediaDevices), MediaRecorder: /** @type {any} */ (MR), AudioContext: undefined, ...(nu ? { nu } : {}) });
   const igenkanning = /** @type {NonNullable<ReturnType<typeof webblasarensIgenkanning>>} */ (webblasarensIgenkanning({ SpeechRecognition: SR }));
   return { mediaDevices, spar, igenkannare, sag, inspelare, igenkanning };
 }
@@ -206,12 +207,23 @@ describe("andra omgången efter agentens fråga (lifehub.app#253)", () => {
 
 describe("webblasarensInspelare och en tyst ström", () => {
   it("hämtar en ny ström EN gång när alla spår är tysta, och stänger den tysta", async () => {
-    const tel = falskTelefon([true, true, true]);
+    // ⛔ EN FAST KLOCKA (`nu`), inte den riktiga (#542). Tiderna är millisekunder sedan omgångens nollpunkt, och
+    // regexen krävde exakt `anrop:0`. Under last hann en millisekund gå: `npm run check` fick `anrop:1.gum:1` fast
+    // omhämtningen, den stängda tysta strömmen och 0 byte stämde. Samma klass som Publish 0.177.0 i `talk-ingen-text`.
+    // Klockan står still under `starta` och provet flyttar den till 2000 före `stoppa`, så ordning och tider kan
+    // krävas exakt. Ingen sömn och inget större tak.
+    let t = 1_000;
+    const tel = falskTelefon([true, true, true], () => t);
     await tel.inspelare.starta();
+    t = 2_000;
     const ut = await tel.inspelare.stoppa();
     expect(tel.mediaDevices.getUserMedia).toHaveBeenCalledTimes(2);
     expect(tel.spar[0].stoppad).toBe(true);
     expect(ut.blob.size).toBe(0);
+    const logg = String(ut.diagnos?.logg ?? "");
+    const steg = logg.split(".").filter((del) => del.length > 0);
+    // Golv: loggen lästes. Tom sträng är inte ett godkänt förlopp.
+    expect(steg.length).toBeGreaterThanOrEqual(7);
     expect(ut.diagnos).toEqual({
       tystVidStart: true,
       omhamtad: true,
@@ -227,8 +239,9 @@ describe("webblasarensInspelare och en tyst ström", () => {
       stoppetHann: true,
       // (0.168.0, #539) Ljudets toppnivå. Utan analysator i testet är den null, och servern avgör.
       toppNiva: null,
-      // (0.155.0) Händelseloggen: namn och tider, klockan är riktig här och tiderna är 0 till några millisekunder.
-      logg: expect.stringMatching(/^anrop:0\.gum:\d+\.omhamtad:\d+\.gum2:\d+\.rec:\d+\.stoppbegard:\d+\.stop:\d+$/),
+      // Ordning: anrop, första strömmen, omhämtning, andra strömmen, inspelning, stoppbegäran, stopp.
+      // Startstegen ligger på 0. Stoppet ligger 1000 ms senare, på provets klocka.
+      logg: "anrop:0.gum:0.omhamtad:0.gum2:0.rec:0.stoppbegard:1000.stop:1000",
     });
   });
 
