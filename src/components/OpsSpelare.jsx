@@ -494,6 +494,10 @@ function Spelarark({ lage, oppen, onOppen }) {
             "fixed inset-x-0 bottom-0 z-(--z-modal) flex flex-col gap-6 px-5 pt-4 pb-[calc(2rem+var(--safe-bottom))]",
             "md:inset-x-auto md:top-1/2 md:left-1/2 md:bottom-auto md:w-[28rem] md:-translate-x-1/2 md:-translate-y-1/2 md:pb-8",
             radBehallare({ ark: true }),
+            // Från 768 px svävar arket mitt i bilden och når inte nederkanten, så det rundas runt om, som appväljarens ark
+            // (`OpsApparArk`). Raka hörn nertill hör till ett ark som sitter mot skärmens kant (CP 2026-11-07, med skärmbild:
+            // "är det snyggare i web att det är rundade hörn även nere?").
+            "md:rounded-b-card md:border",
           )}
         >
           <div className="flex items-center justify-between gap-3">

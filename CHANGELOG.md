@@ -9,6 +9,12 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## Ej utgivet
+
+### Ändrat
+
+- **Spelarens ark är rundat runt om på webben.** Från 768 px svävar arket mitt i bilden och når inte nederkanten, så det rundas också nertill och får ram runt om, som appväljarens ark. På telefonen sitter det mot nederkanten och rundas bara upptill, som förut. CP 2026-11-07, med skärmbild: "är det snyggare i web att det är rundade hörn även nere?"
+
 ## 0.198.0
 
 Gästens Översikt, förslag B (cllp/ops-framework#536). CP 2026-11-07, om gästens hemskärm: "Vad vill en gäst se. Är det uppenbart vilka områden som finns? ... Den skall vara superbra."
