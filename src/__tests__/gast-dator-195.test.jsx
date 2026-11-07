@@ -217,7 +217,7 @@ describe("6. loggan och en rad om appen (omAppen)", () => {
     const oversikt = /** @type {HTMLElement} */ (document.querySelector("[data-gast-oversikt]"));
     const rad = /** @type {HTMLElement} */ (oversikt.lastElementChild);
     expect(rad.hasAttribute("data-gast-om-appen")).toBe(true);
-    expect(rad.textContent).toBe("Skarv använder LifeHub, där grupper organiserar sig utan att jaga varandra. Läs mer");
+    expect(rad.textContent).toBe("Skarv samlar chatt, kalender och filer i LifeHub. Läs mer");
     const lasMer = within(rad).getByRole("link", { name: "Läs mer" });
     expect(lasMer).toHaveAttribute("href", "https://life-hub.app");
     expect(lasMer).toHaveAttribute("target", "_blank");
@@ -228,7 +228,7 @@ describe("6. loggan och en rad om appen (omAppen)", () => {
     ritaSida({ omAppen: OM, sprak: "en" });
     await screen.findByRole("heading", { name: "Skarv" });
     expect(screen.getByRole("link", { name: "About LifeHub, opens in a new tab" })).toBeInTheDocument();
-    expect(document.querySelector("[data-gast-om-appen]")?.textContent).toBe("Skarv uses LifeHub, where groups get organised without chasing each other. Read more");
+    expect(document.querySelector("[data-gast-om-appen]")?.textContent).toBe("Skarv brings chat, calendar and files together in LifeHub. Read more");
   });
 
   it("utan omAppen är allt som förut: märket är ingen länk och raden saknas", async () => {

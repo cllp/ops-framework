@@ -716,7 +716,8 @@ describe("OpsGastSida med OpsGastGrupp: översikten bär integriteten, och Logga
     expect(oversikt).toBeTruthy();
     expect(document.querySelector("[data-gast-not]")).toBeNull();
     expect(within(/** @type {HTMLElement} */ (oversikt)).getByText("Integritet och dina uppgifter")).toBeInTheDocument();
-    const detalj = /** @type {HTMLDetailsElement} */ (oversikt.querySelector("details"));
+    // (0.198.0) Integriteten är en av tre rader i hjälpgruppen; Vad kan jag göra här? står först.
+    const detalj = /** @type {HTMLDetailsElement} */ (oversikt.querySelector("[data-gast-integritet] details"));
     expect(detalj.open).toBe(false);
     // ⛔ (0.195.0, CP 2026-11-06: "Skriv in adressen igen? Hänger inte med") Utloggningen står inte mitt i översikten, utan inne i integriteten, och säger vad den gör.
     expect(within(detalj).getByText("Logga ut på den här enheten", { selector: "button, button *" })).toBeInTheDocument();

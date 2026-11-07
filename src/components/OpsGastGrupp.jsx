@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { GASTGRUPPFUNKTIONER, GASTSKRIV_MAX_TECKEN } from "../lib/gast.js";
 import { gastBehorighetsrader } from "../lib/gastBehorighet.js";
-import { lasGastFlik, skrivGastFlik } from "../lib/gastminne.js";
+import { GASTBESOKSOMRADEN, lasGastBesok, lasGastFlik, skrivGastBesok, skrivGastFlik } from "../lib/gastminne.js";
 import { kommentarRotId } from "../lib/postkommentar.js";
 import { kortDatum } from "../lib/deladdatum.js";
 import { DATUM_EJ_SATT } from "../lib/handelsemodell.js";
@@ -14,6 +14,8 @@ import { IKON_FOR } from "./ikonlexikon.js";
 import { KalenderIkon, MeddelandeIkon } from "./icons.jsx";
 import { GastHemskarm } from "./GastHemskarm.jsx";
 import { OpsBottomNav } from "./OpsBottomNav.jsx";
+import { OpsCountBadge } from "./counter.jsx";
+import { OpsDisclosure } from "./OpsDisclosure.jsx";
 import { OpsEmpty } from "./OpsEmpty.jsx";
 import { OpsGastArenden } from "./OpsGastArenden.jsx";
 import { OpsGastChatt } from "./OpsGastChatt.jsx";
@@ -161,6 +163,31 @@ export const ORD_OPSGASTGRUPP = {
   bibliotekTom: { sv: "Gruppens bibliotek är tomt.", en: "The group's library is empty." },
   bibliotekAvkortad: { sv: "Biblioteket visar de första {n} posterna. Det finns fler.", en: "The library shows the first {n} items. There are more." },
   bibliotekFilFel: { sv: "Filen kunde inte hämtas.", en: "The file could not be fetched." },
+  // ── (0.198.0, cllp/ops-framework#536, förslag B) Översiktens rutor: en per område, med det som hänt sedan gästens senaste besök. ──
+  oversiktRutor: { sv: "Det som hänt i gruppen", en: "What has happened in the group" },
+  nyaText: { sv: "nya", en: "new" },
+  narIdag: { sv: "i dag", en: "today" },
+  narIgar: { sv: "i går", en: "yesterday" },
+  chattNya1: { sv: "1 nytt sedan {nar}", en: "1 new since {nar}" },
+  chattNya: { sv: "{n} nya sedan {nar}", en: "{n} new since {nar}" },
+  chattNyaUtanBesok: { sv: "{n} nya", en: "{n} new" },
+  ingetNyttSedan: { sv: "Inget nytt sedan {nar}", en: "Nothing new since {nar}" },
+  ingetNytt: { sv: "Inget nytt", en: "Nothing new" },
+  chattTom: { sv: "Inga meddelanden än", en: "No messages yet" },
+  kalenderIngetPaGang: { sv: "Inget på gång", en: "Nothing coming up" },
+  kalenderSvara: { sv: "Svara", en: "Answer" },
+  kalenderKommer: { sv: "Du kommer", en: "You are coming" },
+  kalenderKommerInte: { sv: "Du kommer inte", en: "You are not coming" },
+  bibliotekNyFil: { sv: "1 ny fil", en: "1 new file" },
+  bibliotekNyaFiler: { sv: "{n} nya filer", en: "{n} new files" },
+  bibliotekNyPost: { sv: "1 ny post", en: "1 new item" },
+  bibliotekNyaPoster: { sv: "{n} nya poster", en: "{n} new items" },
+  bibliotekRutaTom: { sv: "Inget här än", en: "Nothing here yet" },
+  arendenTillDig: { sv: "{n} till dig", en: "{n} for you" },
+  arendenIngetTillDig: { sv: "Inget till dig", en: "Nothing for you" },
+  rutaFel: { sv: "Kunde inte hämtas", en: "Could not be loaded" },
+  duRubrik: { sv: "Du", en: "You" },
+  vadKanJagGora: { sv: "Vad kan jag göra här?", en: "What can I do here?" },
 };
 
 /** Ett fel från ett anrop, med orsaken som nyckel till en text. */
@@ -725,6 +752,142 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
     // Tillbaka i kalenderfliken visas listan, inte en händelse man lämnade.
     if (v !== "kalender") tillKalendern();
   };
+  /*
+   * ══ ⛔ ÖVERSIKTEN: DET SOM HÄNT SEDAN SIST (0.198.0, cllp/ops-framework#536, förslag B) ═══════════════════════════════════════════════
+   *
+   * CP 2026-11-07, om gästens hemskärm: "Vad vill en gäst se. Är det uppenbart vilka områden som finns? ... Den skall vara superbra." och sedan, om skisserna, förslag B: en ruta per område
+   * med det som hänt. Förut stod fem rader om rättigheter överst och ingenting om vad som hänt. Nu: en ruta per område (Chatt, Kalender, Bibliotek, Ärenden), och samma siffror i bottenraden.
+   *
+   * ⛔ "SEDAN SIST" MÄTS PER GÄST OCH ENHET, I ENHETENS MINNE (`lasGastBesok`): tiden för senaste besöket per område, nycklad på inbjudan. Ingen ny datamodell och inga regler. Första besöket
+   * räknar inget som nytt: ett område utan en tid sätts till nu, och nästa besök räknar därifrån. Servern räknar (`oversikt`), med samma filter som chatten och biblioteket.
+   *
+   * ⛔ SIFFRAN FÖRSVINNER NÄR MAN ÖPPNAR OMRÅDET: ett besök efter översiktens hämtning nollar dess siffra, och översikten hämtas om när man kommer tillbaka. Kalenderns siffra är
+   * 1 så länge nästa händelse ber om svar och gästen inte svarat: den nollas när Kalender öppnas och kommer tillbaka vid nästa hämtning om svaret fortfarande saknas, en påminnelse och inte en räkning.
+   */
+  const [besok, setBesok] = useState(() => lasGastBesok(sida?.minne, sida?.inbjudan));
+  const besokRef = useRef(besok);
+  besokRef.current = besok;
+  const [oversiktSvar, setOversiktSvar] = useState(/** @type {{ svar: Record<string, any>, hamtad: number } | null} */ (null));
+  const [oversiktFel, setOversiktFel] = useState(false);
+  // Första besöket: ett område utan en tid får tiden nu i minnet, men inte i den här sidvisningens räkning, så att inget räknas som nytt nu och allt efter det nästa gång.
+  useEffect(() => {
+    const nu = Date.now();
+    for (const omrade of GASTBESOKSOMRADEN) if (besokRef.current[omrade] === undefined) skrivGastBesok(sida?.minne, sida?.inbjudan, omrade, nu);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const laddaOversikt = useCallback(async () => {
+    const b = besokRef.current;
+    /** @type {Record<string, number>} */
+    const sedan = {};
+    if (typeof b.chatt === "number") sedan.chatt = b.chatt;
+    if (typeof b.bibliotek === "number") sedan.bibliotek = b.bibliotek;
+    try {
+      const r = await kor("oversikt", { sedan, idag: idagStr });
+      if (!levande.current) return;
+      setOversiktSvar({ svar: r, hamtad: Date.now() });
+      setOversiktFel(false);
+    } catch {
+      if (levande.current) setOversiktFel(true);
+    }
+  }, [kor, idagStr]);
+  // Hämtas vid start (bottenradens siffror gäller i varje flik) och varje gång man kommer tillbaka till Översikt.
+  useEffect(() => {
+    if (aktivFlik === "oversikt" || oversiktSvar === null) void laddaOversikt();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aktivFlik]);
+  useEffect(() => {
+    if (typeof window === "undefined" || aktivFlik !== "oversikt") return undefined;
+    const fokus = () => {
+      if (Date.now() - (oversiktSvar?.hamtad ?? 0) > 15_000) void laddaOversikt();
+    };
+    window.addEventListener("focus", fokus);
+    return () => window.removeEventListener("focus", fokus);
+  }, [aktivFlik, oversiktSvar, laddaOversikt]);
+  // Besöket i ett område: när det öppnas och när man lämnar det, så att det som kom medan man var där inte räknas som nytt.
+  useEffect(() => {
+    if (!(/** @type {readonly string[]} */ (GASTBESOKSOMRADEN)).includes(aktivFlik)) return undefined;
+    const markera = () => {
+      const nu = Date.now();
+      skrivGastBesok(sida?.minne, sida?.inbjudan, aktivFlik, nu);
+      if (levande.current) setBesok((b) => ({ ...b, [aktivFlik]: nu }));
+    };
+    markera();
+    return markera;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aktivFlik]);
+  const ov = oversiktSvar?.svar;
+  const nasta = /** @type {Record<string, any> | null | undefined} */ (ov?.kalender?.nasta);
+  /** Siffran för ett område: noll i det område som är öppet, och efter ett besök som kom efter hämtningen. @param {string} omrade @returns {number} */
+  const antalNya = (omrade) => {
+    if (!oversiktSvar || aktivFlik === omrade || (/** @type {Record<string, number | undefined>} */ (besok)[omrade] ?? 0) > oversiktSvar.hamtad) return 0;
+    if (omrade === "chatt") return typeof ov?.chatt?.nya === "number" ? ov.chatt.nya : 0;
+    if (omrade === "bibliotek") return typeof ov?.bibliotek?.nya === "number" ? ov.bibliotek.nya : 0;
+    if (omrade === "kalender") return nasta && nasta.kravSvar === true && !nasta.mitt ? 1 : 0;
+    return 0;
+  };
+  /** "i dag", "i går" eller ett kort datum: när gästen senast var i området. @param {number} tid */
+  const narText = (tid) => {
+    const d = new Date(tid);
+    const nu = idag ?? new Date();
+    const dag = (/** @type {Date} */ x) => `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`;
+    const igar = new Date(nu.getFullYear(), nu.getMonth(), nu.getDate() - 1);
+    if (dag(d) === dag(nu)) return t.narIdag;
+    if (dag(d) === dag(igar)) return t.narIgar;
+    // "lör 31 okt 2026" utan veckodag och år.
+    return kortDatum(dag(d), sprak).split(" ").slice(1, 3).join(" ");
+  };
+  /** När nästa händelse är, kort: veckodagen inom en vecka, annars datumet, och klockslaget. @param {Record<string, any>} h */
+  const nastaNar = (h) => {
+    const [vd, dagnr, man] = kortDatum(h.datum, sprak).split(" ");
+    const dagar = Math.round((Date.parse(`${h.datum}T12:00:00Z`) - Date.parse(`${idagStr}T12:00:00Z`)) / 86_400_000);
+    const nar = dagar >= 0 && dagar < 7 ? vd : `${dagnr} ${man}`;
+    return h.heldag || !h.tid ? nar : `${nar} ${h.tid}`;
+  };
+  /** Statusraderna i en ruta. Aldrig tom (regel 5): ett område utan något nytt säger det. @param {string} omrade @returns {{ text: string, accent?: boolean }[]} */
+  const rutrader = (omrade) => {
+    if (omrade === "arenden") {
+      if (fel.arenden) return [{ text: t.rutaFel }];
+      if (!arendeData) return [{ text: t.laddar }];
+      const n = arendeData.poster.length;
+      return [{ text: n > 0 ? t.arendenTillDig.replace("{n}", String(n)) : t.arendenIngetTillDig }];
+    }
+    if (oversiktFel && !ov) return [{ text: t.rutaFel }];
+    if (!ov) return [{ text: t.laddar }];
+    const sedan = /** @type {Record<string, number | undefined>} */ (besok)[omrade];
+    const n = antalNya(omrade);
+    if (omrade === "chatt") {
+      if (!ov.chatt || (ov.chatt.senaste ?? []).length === 0) return [{ text: t.chattTom }];
+      if (n > 0) return [{ text: typeof sedan === "number" ? (n === 1 ? t.chattNya1 : t.chattNya).replace("{n}", String(n)).replace("{nar}", narText(sedan)) : t.chattNyaUtanBesok.replace("{n}", String(n)) }];
+      return [{ text: typeof sedan === "number" ? t.ingetNyttSedan.replace("{nar}", narText(sedan)) : t.ingetNytt }];
+    }
+    if (omrade === "kalender") {
+      if (!nasta) return [{ text: t.kalenderIngetPaGang }];
+      /** @type {{ text: string, accent?: boolean }[]} */
+      const rader = [{ text: `${nasta.titel}, ${nastaNar(nasta)}` }];
+      if (nasta.mitt === "kommer") rader.push({ text: t.kalenderKommer });
+      else if (nasta.mitt === "kommerInte") rader.push({ text: t.kalenderKommerInte });
+      else if (nasta.kravSvar === true) rader.push({ text: t.kalenderSvara, accent: true });
+      return rader;
+    }
+    // Biblioteket. "filer" bara när alla nya är filer, annars poster: en länk eller en anteckning är ingen fil.
+    const senaste = /** @type {{ typ?: string, tid?: number }[]} */ (ov.bibliotek?.senaste ?? []);
+    if (senaste.length === 0) return [{ text: t.bibliotekRutaTom }];
+    if (n > 0) {
+      const nyaSedda = senaste.filter((p) => typeof p.tid === "number" && p.tid > (sedan ?? Infinity));
+      const filer = nyaSedda.length === Math.min(n, senaste.length) && nyaSedda.every((p) => p.typ === "fil");
+      return [{ text: (filer ? (n === 1 ? t.bibliotekNyFil : t.bibliotekNyaFiler) : n === 1 ? t.bibliotekNyPost : t.bibliotekNyaPoster).replace("{n}", String(n)) }];
+    }
+    return [{ text: typeof sedan === "number" ? t.ingetNyttSedan.replace("{nar}", narText(sedan)) : t.ingetNytt }];
+  };
+  /** Rutan öppnar området; Kalendern öppnar nästa händelse, där svaret ges. Ärenden utan något till gästen är ingen flik och rutan ingen knapp. @param {string} omrade */
+  const oppnaRuta = (omrade) => {
+    if (omrade === "arenden" && !visaArenden) return undefined;
+    return () => {
+      valjFlik(omrade);
+      if (omrade === "kalender" && nasta?.id) oppnaHandelse(nasta.id);
+    };
+  };
+
   const beskrivning = typeof grupp.beskrivning === "string" ? grupp.beskrivning.trim() : "";
   const behorighet = gastBehorighetsrader(grupp, sprak);
   // ⛔ GRUPPENS NAMN ÄR SIDANS RUBRIK, EN GÅNG (0.195.0, CP 2026-11-06: "i Mobil står den två gånger. Ta bort den bredvid loggan."). Förut stod namnet både i gästsidans huvud, bredvid loggan,
@@ -732,24 +895,64 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
   // redan säger var man är.
   const rubrik = <h1 data-gast-grupp-namn="" className="m-0 min-w-0 text-titel text-ink wrap-anywhere">{grupp.namn}</h1>;
   const oversikt = (
-    <div data-gast-oversikt="" className="flex min-w-0 flex-col gap-6">
-      {smal || beskrivning ? (
-        <div className="flex min-w-0 flex-col gap-2">
-          {smal ? rubrik : null}
-          {beskrivning ? <p data-gast-grupp-beskrivning="" className="m-0 max-w-prose text-etikett text-ink-secondary">{beskrivning}</p> : null}
-        </div>
-      ) : null}
+    <div data-gast-oversikt="" className="flex min-w-0 flex-col gap-6 md:max-w-2xl">
+      {/* ⛔ (0.198.0, förslag B) Gruppens egen beskrivning och "Du är gäst." på samma rad. Utan beskrivning står bara "Du är gäst.". */}
       <div className="flex min-w-0 flex-col gap-2">
-        <p data-gast-roll="" className="m-0 text-meta text-ink-secondary">{t.duArGast}</p>
-        {behorighet.length > 0 ? (
-          <ul data-gast-behorighet="" className="m-0 flex list-none flex-col gap-1 p-0">
-            {behorighet.map((rad) => <li key={rad} className="m-0 max-w-prose text-etikett text-ink">{rad}</li>)}
-          </ul>
-        ) : null}
-        {sida?.namn ?? null}
+        {smal ? rubrik : null}
+        <p data-gast-roll-rad="" className="m-0 max-w-prose text-etikett text-ink-secondary wrap-anywhere">
+          {beskrivning ? <><span data-gast-grupp-beskrivning="">{beskrivning}</span>{" "}</> : null}
+          <span data-gast-roll="">{t.duArGast}</span>
+        </p>
       </div>
-      {sida?.integritet ?? null}
-      <GastHemskarm sprak={sprak} />
+      <ul data-gast-rutor="" aria-label={t.oversiktRutor} className="m-0 grid list-none grid-cols-2 gap-3 p-0">
+        {funktioner.map((f) => {
+          const onClick = oppnaRuta(f);
+          // Kalenderns siffra står i bottenraden; i rutan bär "Svara" samma sak, som skissen.
+          const n = f === "arenden" || f === "kalender" ? 0 : antalNya(f);
+          const inne = (
+            <>
+              <span aria-hidden="true" className="text-accent [&_svg]:size-6">{FLIKIKON[f]}</span>
+              <span className="mt-4 flex min-w-0 items-center gap-2 text-rubrik text-ink">
+                <span className="min-w-0 wrap-anywhere">{t[`flik_${f}`]}</span>
+                <OpsCountBadge count={n} text={t.nyaText} placement="inline" />
+              </span>
+              {rutrader(f).map((r, i) => (
+                <span key={i} data-gast-ruta-rad={r.accent ? "accent" : ""} className={cx("mt-1 min-w-0 text-etikett wrap-anywhere", r.accent ? "font-medium text-accent" : "text-ink-secondary")}>{r.text}</span>
+              ))}
+            </>
+          );
+          const klass = "flex h-full w-full min-w-0 flex-col items-start rounded-xl bg-hover p-4 text-left";
+          return (
+            <li key={f} className="m-0 min-w-0">
+              {onClick ? (
+                <button type="button" data-gast-ruta={f} data-antal={n} onClick={onClick} className={cx(klass, "cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent")}>{inne}</button>
+              ) : (
+                <div data-gast-ruta={f} data-antal={n} className={klass}>{inne}</div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      {sida?.namn ? (
+        <section data-gast-du="" className="flex min-w-0 flex-col gap-2">
+          <h2 className="m-0 text-sektion uppercase text-ink-secondary">{t.duRubrik}</h2>
+          {sida.namn}
+        </section>
+      ) : null}
+      {/* ⛔ (0.198.0) Det som sällan behövs: tre rader i en grupp, stängda från början, utan kantlinjer runt. Hemskärmen ritas bara där det finns något att säga (`GastHemskarm`). */}
+      <div data-gast-hjalp="" className="flex min-w-0 flex-col overflow-hidden rounded-lg bg-hover [&>*+*]:border-t [&>*+*]:border-divider">
+        {behorighet.length > 0 ? (
+          <div data-gast-vad-kan-jag="">
+            <OpsDisclosure summary={<span className="flex min-w-0 items-center gap-3"><IKON_FOR.hjalp size={20} aria-hidden="true" className="shrink-0 text-ink-secondary" /><span className="min-w-0">{t.vadKanJagGora}</span></span>}>
+              <ul data-gast-behorighet="" className="m-0 flex list-none flex-col gap-1 p-0 pt-2">
+                {behorighet.map((rad) => <li key={rad} className="m-0 max-w-prose text-etikett text-ink">{rad}</li>)}
+              </ul>
+            </OpsDisclosure>
+          </div>
+        ) : null}
+        <GastHemskarm sprak={sprak} />
+        {sida?.integritet ?? null}
+      </div>
       {sida?.omAppen ?? null}
     </div>
   );
@@ -803,7 +1006,8 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
           <GastTelefonyta key={aktivFlik} flik={aktivFlik}>{innehall(aktivFlik)}</GastTelefonyta>
           <OpsBottomNav
             utanMeny
-            nav={ordning.map((f) => ({ href: `#${f}`, label: t[`flik_${f}`], icon: FLIKIKON[f] }))}
+            nav={ordning.map((f) => ({ href: `#${f}`, label: t[`flik_${f}`], icon: FLIKIKON[f], ...((/** @type {readonly string[]} */ (GASTBESOKSOMRADEN)).includes(f) ? { badge: antalNya(f) } : {}) }))}
+            badgeText={t.nyaText}
             activeHref={`#${aktivFlik}`}
             navLabel={t.flikarEtikett}
             onNavigate={(href, e) => {

@@ -91,6 +91,8 @@ import {
   GASTNAMNLOS,
   GASTGRUPPFUNKTIONER,
   GASTGRUPPSVARSFALT,
+  GASTOVERSIKTFALT,
+  GASTOVERSIKT_SENASTE,
   GASTHANDELSEFALT,
   GASTIP_FONSTER_MS,
   GASTIP_MAX,
@@ -1953,16 +1955,11 @@ export function createGastService(konfig) {
   }
 
   /**
-   * Gruppens kalender: alla händelser som inte är arkiverade, högst `GASTKALENDER_MAX`. Frågan kan inte avgränsas på datum: en händelse utan datum (en omröstning som pågår) saknar nyckeln, och
-   * Firestore kan inte fråga efter ett fält som saknas. Servern läser därför hela gruppens händelser med tak och filtrerar i minnet, som kalenderflödet. `avkortad` och `ejVisade` (händelser
-   * med en tid som inte går att läsa) skrivs alltid ut, också när de är noll.
-   *
-   * @param {Record<string, any>} b `{ sessionsnyckel }`.
+   * Gruppens händelser som en gäst ser dem (`handelseUt`), i datumordning: ⛔ EN LÄSNING FÖR KALENDERN OCH ÖVERSIKTEN (0.198.0), så att nästa händelse på översikten aldrig är en som kalendern inte visar.
+   * Högst `GASTKALENDER_MAX`; `avkortad` och `ejVisade` (en tid som inte går att läsa) räknas här.
+   * @param {string} groupId
    */
-  async function kalender(b) {
-    const s = await gruppSession(b, "kalender");
-    if (!s.ok || !GS) return s.ok ? nej() : s;
-    const groupId = s.inbjudan.groupId;
+  async function gruppensHandelser(groupId) {
     const rader = await kalla.list(HANDELSER, { where: { groupId }, limit: GASTKALENDER_MAX + 1 });
     const avkortad = rader.length > GASTKALENDER_MAX;
     let ejVisade = 0;
@@ -1981,6 +1978,21 @@ export function createGastService(konfig) {
       }
     }
     handelser.sort((x, y) => (x.datum ?? "9999") .localeCompare(y.datum ?? "9999") || String(x.tid ?? "").localeCompare(String(y.tid ?? "")) || String(x.id).localeCompare(String(y.id)));
+    return { handelser, avkortad, ejVisade };
+  }
+
+  /**
+   * Gruppens kalender: alla händelser som inte är arkiverade, högst `GASTKALENDER_MAX`. Frågan kan inte avgränsas på datum: en händelse utan datum (en omröstning som pågår) saknar nyckeln, och
+   * Firestore kan inte fråga efter ett fält som saknas. Servern läser därför hela gruppens händelser med tak och filtrerar i minnet, som kalenderflödet. `avkortad` och `ejVisade` (händelser
+   * med en tid som inte går att läsa) skrivs alltid ut, också när de är noll.
+   *
+   * @param {Record<string, any>} b `{ sessionsnyckel }`.
+   */
+  async function kalender(b) {
+    const s = await gruppSession(b, "kalender");
+    if (!s.ok || !GS) return s.ok ? nej() : s;
+    const groupId = s.inbjudan.groupId;
+    const { handelser, avkortad, ejVisade } = await gruppensHandelser(groupId);
     /** @type {Record<string, any>[]} */
     let kalendrar = [];
     if (GS.samlingar.gruppkalendrar) {
@@ -2292,6 +2304,22 @@ export function createGastService(konfig) {
   const strangar = (v) => (Array.isArray(v) ? v.filter((x) => typeof x === "string") : []);
 
   /**
+   * Postera i gruppens egen plats som en gäst ser, nyast först: ⛔ EN LÄSNING FÖR BIBLIOTEKET OCH ÖVERSIKTEN (0.198.0). Samma prövning som kortet i chatten (`gastSerBibliotekspost`, 0.191.0):
+   * en sanning för vad en gäst ser av biblioteket. Högst `GASTBIBLIOTEK_MAX`.
+   * @param {string} groupId
+   */
+  async function gruppensPoster(groupId) {
+    const rader = await kalla.list(/** @type {any} */ (GS).samlingar.bibliotek, { where: { groupId }, limit: GASTBIBLIOTEK_MAX + 1 });
+    return {
+      avkortad: rader.length > GASTBIBLIOTEK_MAX,
+      rader: rader
+        .slice(0, GASTBIBLIOTEK_MAX)
+        .filter((p) => gastSerBibliotekspost(p, groupId))
+        .sort((x, y) => (y.skapad ?? 0) - (x.skapad ?? 0) || String(x.id).localeCompare(String(y.id))),
+    };
+  }
+
+  /**
    * Gruppens bibliotek: posterna i gruppens egen plats (`groupId` är exakt gruppen, aldrig `handelse~...`, `arende~...` eller `mitt~...`), högst `GASTBIBLIOTEK_MAX`.
    * ⛔ `fil.sokvag` I SVARET ÄR POSTENS ID och ingen lagringssökväg: den riktiga sökvägen lämnar aldrig servern, och `fil` är det enda som signerar.
    *
@@ -2301,13 +2329,8 @@ export function createGastService(konfig) {
     const s = await gruppSession(b, "bibliotek");
     if (!s.ok || !GS) return s.ok ? nej() : s;
     const groupId = s.inbjudan.groupId;
-    const rader = await kalla.list(GS.samlingar.bibliotek, { where: { groupId }, limit: GASTBIBLIOTEK_MAX + 1 });
-    const avkortad = rader.length > GASTBIBLIOTEK_MAX;
-    const poster = rader
-      .slice(0, GASTBIBLIOTEK_MAX)
-      // ⛔ (0.191.0) Samma prövning som kortet i chatten (`gastSerBibliotekspost`): en sanning för vad en gäst ser av biblioteket.
-      .filter((p) => gastSerBibliotekspost(p, groupId))
-      .sort((x, y) => (y.skapad ?? 0) - (x.skapad ?? 0) || String(x.id).localeCompare(String(y.id)))
+    const { rader: synliga, avkortad } = await gruppensPoster(groupId);
+    const poster = synliga
       .map((p) => {
         /** @type {Record<string, any>} */
         const ut = { id: p.id, typ: p.typ, rubrik: trimSomRegeln(p.rubrik), skapad: p.skapad, andrad: p.andrad, skapadAvNamn: text(p.skapadAv?.namn) };
@@ -2329,6 +2352,86 @@ export function createGastService(konfig) {
         return vitlista(ut, GASTBIBLIOTEKFALT);
       });
     return vitlista({ ok: true, poster, avkortad }, GASTGRUPPSVARSFALT.bibliotek);
+  }
+
+
+  /**
+   * (0.198.0, cllp/ops-framework#536, förslag B) Gästens översikt i ETT anrop: det som hänt i chatten och biblioteket sedan gästens senaste besök, och nästa händelse med gästens eget svar.
+   * Klienten skickar tiderna för sina senaste besök (`sedan`, millisekunder per område, sparade på enheten) och får antalen räknade. Utan en tid för ett område räknas inget som nytt där
+   * (första besöket).
+   *
+   * ⛔ BARA DET GÄSTEN REDAN SER, MED SAMMA FILTER: chattens rader utan agentens (`chattavsandare`) och med namnen som i `chatt` (`chattrad`), händelserna ur samma läsning som `kalender`
+   * (`gruppensHandelser`), posterna ur samma som `bibliotek` (`gruppensPoster`). Svaret byggs fält för fält ur `GASTGRUPPSVARSFALT.oversikt` och `GASTOVERSIKTFALT`.
+   *
+   * ⛔ GÄSTENS EGNA MEDDELANDEN ÄR ALDRIG NYA. `nya` räknas över de senaste `GASTCHATT_SIDA` meddelandena: var alla nya är `fler` sant och talet ett golv.
+   *
+   * @param {Record<string, any>} b `{ sessionsnyckel, sedan?: { chatt?: number, bibliotek?: number }, idag?: "ÅÅÅÅ-MM-DD" }`. `idag` är gästens dag (enhetens tidszon), förval dagen i UTC.
+   */
+  async function oversikt(b) {
+    if (!GS) return nej();
+    // ⛔ ÖVERSIKTEN ÄR INGEN FUNKTION: sessionen prövas mot den första funktion tjänsten har (för en gruppgäst prövar `gastOmfangGer` bara att namnet är en gruppfunktion), och varje del
+    // nedan läses bara när dess funktion finns i `GS.funktioner`. En del utan funktion är `null` i svaret. Inget prov för en `null`-del: chatt, kalender och bibliotek går inte att välja
+    // bort i dag (`GS.funktioner` ovan är alla gruppfunktioner utom ärenden utan `grupp.arenden`), så vakten skrivs ett prov för den dag funktionerna blir valbara.
+    const s = await gruppSession(b, /** @type {(typeof GASTGRUPPFUNKTIONER)[number]} */ (GS.funktioner[0]));
+    if (!s.ok || !GS) return s.ok ? nej() : s;
+    const har = (/** @type {string} */ f) => /** @type {readonly string[]} */ (/** @type {any} */ (GS).funktioner).includes(f);
+    const sedan = b?.sedan === undefined ? {} : b.sedan;
+    if (!sedan || typeof sedan !== "object" || Array.isArray(sedan)) throw new Error("oversikt: sedan är { chatt?, bibliotek? } i millisekunder.");
+    for (const f of /** @type {const} */ (["chatt", "bibliotek"])) {
+      if (sedan[f] !== undefined && !Number.isFinite(sedan[f])) throw new Error(`oversikt: sedan.${f} är ett tal, millisekunder.`);
+    }
+    if (b?.idag !== undefined && (typeof b.idag !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(b.idag))) throw new Error("oversikt: idag är ÅÅÅÅ-MM-DD.");
+    const idag = b?.idag ?? new Date(klocka()).toISOString().slice(0, 10);
+    const groupId = s.inbjudan.groupId;
+
+    // Chatten: de senaste meddelandena utan agentens, samma som `chatt`.
+    const chattUt = har("chatt") ? await oversiktChatt(groupId, s.gastId, sedan.chatt) : null;
+    const kalenderUt = har("kalender") ? await oversiktKalender(groupId, s.gastId, idag) : null;
+    const bibliotekUt = har("bibliotek") ? oversiktBibliotek(await gruppensPoster(groupId), sedan.bibliotek) : null;
+    return vitlista({ ok: true, chatt: chattUt, kalender: kalenderUt, bibliotek: bibliotekUt }, GASTGRUPPSVARSFALT.oversikt);
+  }
+
+  /** (0.198.0) Översiktens chattdel. @param {string} groupId @param {string} gastIdet @param {number | undefined} sedanChatt */
+  async function oversiktChatt(groupId, gastIdet, sedanChatt) {
+    const rader = await kalla.list(meddelandevag(groupId), { sortBy: "tid", direction: "desc", limit: GASTCHATT_SIDA });
+    const { namnFor, agenter } = await chattavsandare(groupId);
+    const synliga = rader.filter((m) => !agenter.has(m.av));
+    const nyaRader = typeof sedanChatt === "number" ? synliga.filter((m) => m.av !== gastIdet && typeof m.tid === "number" && m.tid > sedanChatt) : [];
+    const c = { groupId, gastId: gastIdet, sida: rader, namnFor, agenter, lasta: new Map(), medSvar: false };
+    const senasteMeddelanden = await Promise.all(
+      synliga.slice(0, GASTOVERSIKT_SENASTE).map(async (m) => {
+        const r = await chattrad(m, c);
+        return vitlista({ id: r.id, namn: r.av.namn, text: kapa(r.text, 140), tid: r.tid, egen: r.egen }, GASTOVERSIKTFALT.meddelande);
+      }),
+    );
+    return vitlista({ nya: nyaRader.length, fler: nyaRader.length > 0 && nyaRader.length === synliga.length && rader.length === GASTCHATT_SIDA, senaste: senasteMeddelanden }, GASTOVERSIKTFALT.chatt);
+  }
+
+  /** (0.198.0) Översiktens kalenderdel. @param {string} groupId @param {string} gastIdet @param {string} idag */
+  async function oversiktKalender(groupId, gastIdet, idag) {
+    // Kalendern: nästa händelse som slutar i dag eller senare, i kalenderns ordning (heldag före klockslag samma dag), och gästens eget svar.
+    const { handelser } = await gruppensHandelser(groupId);
+    const nasta = handelser
+      .filter((h) => typeof h.datum === "string" && String(h.slutDatum ?? h.datum) >= idag)
+      .sort((x, y) => String(x.datum).localeCompare(String(y.datum)) || (x.heldag ? -1 : 0) - (y.heldag ? -1 : 0) || String(x.tid ?? "").localeCompare(String(y.tid ?? "")) || String(x.id).localeCompare(String(y.id)))[0];
+    /** @type {Record<string, any> | null} */
+    let nastaUt = null;
+    if (nasta) {
+      let mitt = null;
+      if (nasta.kravSvar === true) {
+        const rad = await kalla.read(svarVag(nasta.id), gastIdet);
+        mitt = rad?.svar === "kommer" || rad?.svar === "kommerInte" ? rad.svar : null;
+      }
+      nastaUt = vitlista({ ...nasta, mitt }, GASTOVERSIKTFALT.handelse);
+    }
+    return vitlista({ nasta: nastaUt }, GASTOVERSIKTFALT.kalender);
+  }
+
+  /** (0.198.0) Översiktens biblioteksdel: samma poster som `bibliotek`, nyast först. @param {{ rader: Record<string, any>[] }} lasta @param {number | undefined} sedanBibliotek */
+  function oversiktBibliotek({ rader: poster }, sedanBibliotek) {
+    const nyaPoster = typeof sedanBibliotek === "number" ? poster.filter((p) => typeof p.skapad === "number" && p.skapad > sedanBibliotek).length : 0;
+    const senastePoster = poster.slice(0, GASTOVERSIKT_SENASTE).map((p) => vitlista({ id: p.id, rubrik: trimSomRegeln(p.rubrik), typ: p.typ, tid: p.skapad }, GASTOVERSIKTFALT.post));
+    return vitlista({ nya: nyaPoster, senaste: senastePoster }, GASTOVERSIKTFALT.bibliotek);
   }
 
   /**
@@ -2626,5 +2729,5 @@ export function createGastService(konfig) {
     return { ok: true };
   }
 
-  return { bjud, aterkalla, skickaOm, kopieraLank, lista, platser, los, minaGruppgaster, oppnaGruppgast, session, hamta, sattNamn, nyLank, stadaSessioner, deltaSvara, tidAndrad, chatt, skrivChatt, kommenteraPost, kalender, handelse, svara, rosta, bibliotek, fil, arenden, kommenteraArende, markeraArendeKlart, levandeGaster, aterkallaAlla, ersattAvMedlem, radera, raderaMig };
+  return { bjud, aterkalla, skickaOm, kopieraLank, lista, platser, los, minaGruppgaster, oppnaGruppgast, session, hamta, sattNamn, nyLank, stadaSessioner, deltaSvara, tidAndrad, oversikt, chatt, skrivChatt, kommenteraPost, kalender, handelse, svara, rosta, bibliotek, fil, arenden, kommenteraArende, markeraArendeKlart, levandeGaster, aterkallaAlla, ersattAvMedlem, radera, raderaMig };
 }

@@ -9,6 +9,26 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.198.0
+
+Gästens Översikt, förslag B (cllp/ops-framework#536). CP 2026-11-07, om gästens hemskärm: "Vad vill en gäst se. Är det uppenbart vilka områden som finns? ... Den skall vara superbra."
+
+### Ändrat
+
+- **Översikten visar det som har hänt, inte en lista över rättigheter.** Uppifrån: gruppens namn, gruppens egen beskrivning med "Du är gäst." på samma rad (bara "Du är gäst." utan beskrivning), en ruta per område gruppen har (Chatt, Kalender, Bibliotek, Ärenden) i två kolumner, rubriken Du med namnet, tre stängda rader och raden om appen.
+  - **Rutorna** har ikon, namn, siffran för det nya och en rad status: "3 nya sedan i går", nästa händelse ("Repetition, tis 19:00") med "Svara" när gästen inte svarat eller svaret när hen har det, "2 nya filer" ("poster" när inte alla nya är filer), och "Inget till dig" eller "{n} till dig" för ärenden. Ett område utan något nytt säger det ("Inget nytt sedan i går", "Inget på gång", "Inget här än"), aldrig tomt. Tryck öppnar området; kalenderns ruta öppnar nästa händelse, där svaret ges. Ärenden utan något till gästen är ingen flik, och rutan är då ingen knapp.
+  - **"Sedan du var här" mäts per gäst och enhet** (`lasGastBesok`, `skrivGastBesok`, `GASTBESOKSOMRADEN` i `lib/gastminne.js`): tiden för senaste besöket i Chatt, Kalender och Bibliotek, nycklad på inbjudan och område (`ops-gast:besok:<inbjudan>:<område>`). Första besöket räknar inget som nytt och sparar tiden nu. Ingen ny datamodell och inga regler.
+  - **Bottenraden har siffror** på Chatt och Bibliotek (samma antal) och på Kalender (1 när gästen inte svarat på nästa händelse). Siffran försvinner när området öppnas; kalenderns kommer tillbaka vid nästa hämtning om svaret fortfarande saknas.
+  - **Rubriken Du**: namnfältet med Spara som förut, och med ett namn "Du syns som {namn} · Ändra" (`namnKallas`).
+  - **Tre rader i en grupp, stängda från början**: Vad kan jag göra här? (rättigheterna, `gastBehorighetsrader`), Lägg till på hemskärmen och Integritet och dina uppgifter, med ikoner (`IKON_FOR.hjalp`, nya `IKON_FOR.hemskarm` och `IKON_FOR.integritet`) och utan kantlinjer runt.
+  - **Raden om appen** (`omAppenRad`): "{grupp} samlar chatt, kalender och filer i {namn}. Läs mer", på engelska "{group} brings chat, calendar and files together in {name}. Read more". CP 2026-11-07: "Även texten".
+
+### Tillagt
+
+- **Gästtjänstens `oversikt`** (`src/node/gast.js`): det översikten behöver i ett anrop. In: `{ sessionsnyckel, sedan?: { chatt?, bibliotek? }, idag?: "ÅÅÅÅ-MM-DD" }`. Ut: `chatt: { nya, fler, senaste: [{ id, namn, text, tid, egen }] }`, `kalender: { nasta: { id, titel, plats, datum, slutDatum, tid, slutTid, heldag, kravSvar, mitt } | null }` och `bibliotek: { nya, senaste: [{ id, rubrik, typ, tid }] }`. Antalen räknas på servern efter klientens tider; gästens egna meddelanden och agentens räknas aldrig.
+  - ⛔ **Bara det gästen redan ser, med samma filter.** Händelserna och posterna läses av samma funktioner som `kalender` och `bibliotek` (`gruppensHandelser`, `gruppensPoster`, utbrutna), chattens namn byggs av `chattrad`. Svaret går genom `GASTGRUPPSVARSFALT.oversikt` och de nya listorna `GASTOVERSIKTFALT`; `GASTOVERSIKT_SENASTE` (3) är hur många av de senaste som ges.
+  - **`GASTGRUPPATGARDER` har `oversikt`**, så `gastGruppApi` och appens vitlista över åtgärder får den. ⛔ Appens `/api/gast` måste släppa igenom `atgard: "oversikt"` med `sedan` och `idag`.
+
 ## 0.197.0
 
 Nattsvepet 2026-11-06.

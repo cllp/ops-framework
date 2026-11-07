@@ -16,6 +16,7 @@ import { OpsSprakProvider } from "./OpsSprak.jsx";
 import { OpsThemeToggle } from "./OpsThemeToggle.jsx";
 import { PublikSprakval } from "./PublikSprakval.jsx";
 import { GastsidaInfo } from "./gastsidaInfo.js";
+import { IKON_FOR } from "./ikonlexikon.js";
 
 /**
  * Orden på gästsidan, på svenska och engelska (0.131.0, cllp/lifehub.app#389). Svenskan i feltexterna är `GASTFEL` och ingen kopia av den (regel 2).
@@ -60,7 +61,8 @@ export const ORD_OPSGASTSIDA = {
   namnSpara: { sv: "Spara", en: "Save" },
   namnSparar: { sv: "Sparar…", en: "Saving…" },
   namnSparat: { sv: "Sparat", en: "Saved" },
-  namnKallas: { sv: "Gruppen kallar dig {namn}.", en: "The group calls you {namn}." },
+  // (0.198.0, cllp/ops-framework#536, förslag B) Under rubriken Du på översikten: "Du syns som Collan · Ändra".
+  namnKallas: { sv: "Du syns som {namn}", en: "You appear as {namn}" },
   namnAndra: { sv: "Ändra", en: "Change" },
   namnAvbryt: { sv: "Avbryt", en: "Cancel" },
   gastNot: { sv: "Du är gäst. Du ser bara det du bjudits in till.", en: "You are a guest. You only see what you were invited to." },
@@ -102,7 +104,8 @@ export const ORD_OPSGASTSIDA = {
   loggaUtText: { sv: "Du kommer tillbaka med länken i ditt mejl.", en: "You come back with the link in your email." },
   // (0.195.0, CP 2026-11-06) Loggan och en rad om appen, med `omAppen`. `{namn}` är appens namn, `{grupp}` gruppens.
   omAppenEtikett: { sv: "Om {namn}, öppnas i en ny flik", en: "About {namn}, opens in a new tab" },
-  omAppenRad: { sv: "{grupp} använder {namn}, där grupper organiserar sig utan att jaga varandra.", en: "{grupp} uses {namn}, where groups get organised without chasing each other." },
+  // (0.198.0, CP 2026-11-07 i cllp/ops-framework#536: "Även texten") Vad appen är, kort. Förut "{grupp} använder {namn}, där grupper organiserar sig utan att jaga varandra."
+  omAppenRad: { sv: "{grupp} samlar chatt, kalender och filer i {namn}.", en: "{grupp} brings chat, calendar and files together in {namn}." },
   omAppenLasMer: { sv: "Läs mer", en: "Read more" },
   raderad: { sv: "Dina uppgifter är raderade. Du har inte längre någon åtkomst, och inget av det vi sparade om dig finns kvar.", en: "Your data has been deleted. You no longer have access, and nothing we kept about you remains." },
 };
@@ -225,7 +228,7 @@ const ERSATTBARA = /** @type {readonly string[]} */ (["utgangen"]);
  *   tätt beskuren runt märket, som appens headerbild (1079 x 260, ungefär 4:1), inte fyrkantig konst med luft runt. Den ritas i samma ruta som skalets märke (40 px hög, högst
  *   `--logo-bredd` bred), fyller höjden och beskärs inte, så ett märke i 4:1 blir cirka 160 x 40 px. `namn` är bildens alternativtext.
  * @param {{ href: string, namn: string }} [props.omAppen] (0.195.0, CP 2026-11-06) Appens egen sida om sig själv. Med den blir märket i huvudet en länk dit (ny flik), och sist i gruppens
- *   översikt står "{gruppens namn} använder {namn}, där grupper organiserar sig utan att jaga varandra. Läs mer", med Läs mer som länk. Ramverket känner inte appens adresser, därför en prop.
+ *   översikt står "{gruppens namn} samlar chatt, kalender och filer i {namn}. Läs mer" (0.198.0), med Läs mer som länk. Ramverket känner inte appens adresser, därför en prop.
  *   `href` måste vara `https:`; allt annat kastar. Utan den är märket en bild och raden saknas.
  * @param {string} [props.sprak] `sv` eller `en` om appen styr det. Utelämnat: sidan väljer själv och minns valet.
  * @param {(sprak: string) => void} [props.onSprak]
@@ -627,7 +630,8 @@ export function OpsGastSida({ lank = null, onLos, onHamta, onNyLank, onNamn, onR
   /** @param {boolean} [medUtloggning] Gruppens integritet bär Logga ut på den här enheten (0.195.0). En omröstning och en händelse har ingen. */
   const integritetsruta = (medUtloggning = false) => (
             <section data-gast-integritet="" className="flex min-w-0 max-w-2xl flex-col gap-3">
-              <OpsDisclosure summary={t.integritetRubrik}>
+              {/* (0.198.0, cllp/ops-framework#536) I gruppens översikt en rad med ikon i hjälpgruppen, som skissen. */}
+              <OpsDisclosure summary={medUtloggning ? <span className="flex min-w-0 items-center gap-3"><IKON_FOR.integritet size={20} aria-hidden="true" className="shrink-0 text-ink-secondary" /><span className="min-w-0">{t.integritetRubrik}</span></span> : t.integritetRubrik}>
                 <div className="flex flex-col gap-3 pt-2">
                   <p data-gast-integritet-lagrat="" className="m-0 text-meta text-publik-ljus-dampad">{t.integritetLagrat}</p>
                   <p data-gast-integritet-radera="" className="m-0 text-meta text-publik-ljus-dampad">{onRaderaMig ? t.integritetRadera : t.integritetUtanKnapp}</p>
@@ -687,8 +691,8 @@ export function OpsGastSida({ lank = null, onLos, onHamta, onNyLank, onNamn, onR
   // En omröstning och en händelse har ingen översikt, och där står `namnruta` kvar under innehållet.
   const visatNamn = visningsnamn !== null ? visningsnamn : (typeof svar?.namn === "string" ? svar.namn.trim() : "");
   const gruppNamnBlock = !onNamn ? null : visatNamn && !andrarNamn ? (
-    <div data-gast-namn-visas="" className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
-      <p className="m-0 text-etikett text-ink">{t.namnKallas.replace("{namn}", visatNamn)}</p>
+    <div data-gast-namn-visas="" className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1">
+      <p className="m-0 text-etikett text-ink-secondary">{t.namnKallas.replace("{namn}", visatNamn)}<span aria-hidden="true">{" ·"}</span></p>
       <button
         type="button"
         data-gast-namn-andra=""

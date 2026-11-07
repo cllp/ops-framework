@@ -68,9 +68,11 @@
  * - (0.196.0) `helskarm`: helskärm (`Maximize2`), samma bild i appens helskärmsknapp (`HelskarmIkon`) och i dokumentradens Helskärm. ⛔ Inte `Maximize`: helskärmsknappen
  *   hade redan `Maximize2` (SessionStudios bild), och en andra bild för samma sak är precis det kartan finns för att stoppa.
  * - (0.196.0) `laddaNed`: ladda ned en fil (`Download`), skild från `laddaUpp`.
+ * - (0.198.0, cllp/ops-framework#536) `hemskarm`: lägg till på hemskärmen (`SquarePlus`), raden i gästens översikt. Inte `skapa`: inget nytt skapas i gruppen.
+ * - (0.198.0) `integritet`: integritet och dina uppgifter (`Shield`), raden i gästens översikt.
  */
 
-import { ArrowDownUp, Bell, Bot, CalendarCheck, CalendarPlus, ChevronsUpDown, CircleHelp, ClipboardPaste, FolderKanban, GitBranch, ImagePlus, Inbox, LayoutDashboard, LayoutGrid, Library, ListChecks, ListPlus, MessageSquare, Monitor, Moon, MoreHorizontal, Pin, Plus, Search, Settings, SlidersHorizontal, Star, Sun, Upload, Users, Vote, Wallet, X, ZoomIn, ZoomOut, Maximize2, Download } from "lucide-react";
+import { ArrowDownUp, Bell, Bot, CalendarCheck, CalendarPlus, ChevronsUpDown, CircleHelp, ClipboardPaste, FolderKanban, GitBranch, ImagePlus, Inbox, LayoutDashboard, LayoutGrid, Library, ListChecks, ListPlus, MessageSquare, Monitor, Moon, MoreHorizontal, Pin, Plus, Search, Settings, Shield, SlidersHorizontal, SquarePlus, Star, Sun, Upload, Users, Vote, Wallet, X, ZoomIn, ZoomOut, Maximize2, Download } from "lucide-react";
 
 /**
  * Betydelse till ikon. Fryst: en app som vill ha en annan bild för en betydelse ska ändra den här, inte skriva över den.
@@ -113,6 +115,8 @@ import { ArrowDownUp, Bell, Bot, CalendarCheck, CalendarPlus, ChevronsUpDown, Ci
  *   zoomaUt: import("lucide-react").LucideIcon,
  *   helskarm: import("lucide-react").LucideIcon,
  *   laddaNed: import("lucide-react").LucideIcon,
+ *   hemskarm: import("lucide-react").LucideIcon,
+ *   integritet: import("lucide-react").LucideIcon,
  * }>}
  */
 export const IKON_FOR = Object.freeze({
@@ -153,4 +157,6 @@ export const IKON_FOR = Object.freeze({
   zoomaUt: ZoomOut,
   helskarm: Maximize2,
   laddaNed: Download,
+  hemskarm: SquarePlus,
+  integritet: Shield,
 });

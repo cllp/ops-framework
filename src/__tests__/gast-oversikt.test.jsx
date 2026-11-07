@@ -134,7 +134,7 @@ describe("namn på översikten", () => {
     fireEvent.change(screen.getByLabelText("Vad ska gruppen kalla dig? (valfritt)"), { target: { value: " Anna " } });
     fireEvent.click(screen.getByRole("button", { name: "Spara" }));
     await waitFor(() => expect(onNamn).toHaveBeenCalledWith({ sessionsnyckel: SESSION, namn: "Anna" }));
-    expect(await screen.findByText("Gruppen kallar dig Anna.")).toBeInTheDocument();
+    expect(await screen.findByText("Du syns som Anna")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Ändra" })).toBeInTheDocument();
     expect(document.querySelector("[data-gast-namn]")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Ändra" }));
@@ -147,7 +147,7 @@ describe("namn på översikten", () => {
     expect(await screen.findByText("Hej bror")).toBeInTheDocument();
     expect(document.querySelector("[data-gast-oversikt]")).toBeNull();
     await act(async () => { fireEvent.mouseDown(screen.getByRole("tab", { name: "Översikt" }), { button: 0 }); });
-    expect(await screen.findByText("Gruppen kallar dig Collan.")).toBeInTheDocument();
+    expect(await screen.findByText("Du syns som Collan")).toBeInTheDocument();
     expect(lagring.d[gastFlikNyckel(ID)]).toBe("oversikt");
   });
 

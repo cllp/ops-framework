@@ -345,7 +345,33 @@ export const GASTGRUPPSVARSFALT = /** @type {const} */ ({
   fil: ["ok", "url", "namn", "mime"],
   /** (0.191.0) Svaret på `kommenteraPost`: kommentaren som den nu står, roten i chatten eller ett svar i dess tråd (`rot` säger vilket). */
   kommenteraPost: ["ok", "meddelande", "rot"],
+  /**
+   * (0.198.0, cllp/ops-framework#536, förslag B) Svaret på `oversikt`: det gästens översikt behöver i ett anrop. Varje område är byggt ur sin lista i `GASTOVERSIKTFALT`, och bara ur det
+   * gästen redan ser i `chatt`, `kalender` och `bibliotek` (samma filter).
+   */
+  oversikt: ["ok", "chatt", "kalender", "bibliotek"],
 });
+
+/**
+ * (0.198.0, cllp/ops-framework#536) Fälten inne i `oversikt`. ⛔ ÖPPNA LISTOR, som `GASTGRUPPSVARSFALT`: allt som lämnar servern byggs fält för fält ur de här.
+ * - `chatt`: `nya` (meddelanden från andra än gästen efter `sedan.chatt`, räknade över de senaste `GASTCHATT_SIDA`), `fler` (alla de lästa var nya: `nya` är ett golv), `senaste` (de senaste meddelandena).
+ * - `meddelande`: avsändarens namn (aldrig ett uid), texten kapad, tiden och om det är gästens eget.
+ * - `kalender`: `nasta`, nästa händelse som slutar `idag` eller senare, eller `null`.
+ * - `handelse`: nästa händelse, med gästens eget svar (`mitt`: `kommer`, `kommerInte` eller `null`) när den ber om svar.
+ * - `bibliotek`: `nya` (poster skapade efter `sedan.bibliotek`), `senaste` (de nyaste posterna).
+ * - `post`: postens id, rubrik, typ och när den skapades (`tid`).
+ */
+export const GASTOVERSIKTFALT = /** @type {const} */ ({
+  chatt: ["nya", "fler", "senaste"],
+  meddelande: ["id", "namn", "text", "tid", "egen"],
+  kalender: ["nasta"],
+  handelse: ["id", "titel", "plats", "datum", "slutDatum", "tid", "slutTid", "heldag", "kravSvar", "mitt"],
+  bibliotek: ["nya", "senaste"],
+  post: ["id", "rubrik", "typ", "tid"],
+});
+
+/** (0.198.0) Så många av de senaste meddelandena och posterna `oversikt` ger. */
+export const GASTOVERSIKT_SENASTE = 3;
 
 /**
  * (0.191.0, cllp/lifehub.app#663) Fälten på ett kort för en bibliotekspost i gästens chatt. `url` är länken i texten som kortet hör till, `postId` postens id (det gästens bibliotek
@@ -371,7 +397,7 @@ export const GASTCHATTFALT = /** @type {const} */ (["id", "av", "text", "tid", "
  * Åtgärderna en gruppgäst anropar på servern (`POST /api/gast`), förutom `los`, `hamta`, `namn`, `nylank` och `raderaMig` som varje gäst har. Namnen står här och ingen annanstans (regel 2):
  * tjänstens metoder, appens vitlista för vad en handler släpper in, och vyns anrop läser samma lista.
  */
-export const GASTGRUPPATGARDER = /** @type {const} */ (["chatt", "skrivChatt", "kalender", "handelse", "svara", "rosta", "bibliotek", "fil", "arenden", "kommenteraArende", "markeraArendeKlart", "kommenteraPost"]);
+export const GASTGRUPPATGARDER = /** @type {const} */ (["oversikt", "chatt", "skrivChatt", "kalender", "handelse", "svara", "rosta", "bibliotek", "fil", "arenden", "kommenteraArende", "markeraArendeKlart", "kommenteraPost"]);
 
 /**
  * Bygger gruppvyns `api` av appens ENDA anrop mot `/api/gast`. `anrop` får `{ atgard, sessionsnyckel, ...argument }` och ska svara med serverns JSON (`{ ok, ... }`); appens handler skickar

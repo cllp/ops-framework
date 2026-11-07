@@ -8060,7 +8060,8 @@ async function gastGrupp() {
         };
         const m = await page.evaluate((tel) => ({
           flikar: tel
-            ? [...document.querySelectorAll("nav[data-ops-bottenrad] a")].map((f) => ({ text: (f.textContent || "").trim(), h: f.getBoundingClientRect().height, b: f.getBoundingClientRect().width }))
+            // (0.198.0) Platsens namn, inte siffran: bottenraden bär siffror på Chatt, Kalender och Bibliotek.
+            ? [...document.querySelectorAll("nav[data-ops-bottenrad] a")].map((f) => ({ text: (f.querySelector(".truncate")?.textContent || f.textContent || "").trim(), h: f.getBoundingClientRect().height, b: f.getBoundingClientRect().width }))
             : [...document.querySelectorAll('[role="tab"]')].map((f) => ({ text: (f.textContent || "").trim(), h: f.getBoundingClientRect().height, b: f.getBoundingClientRect().width })),
           tablist: document.querySelectorAll('[role="tablist"]').length,
           bottenrad: document.querySelectorAll("nav[data-ops-bottenrad]").length,
@@ -8130,7 +8131,44 @@ async function gastGrupp() {
         });
         krav(app.knapp !== null && app.knapp.b >= 44 && app.knapp.h >= 44 && app.knapp.inom, `${namn} sida (d): temaknappen i huvudet är ${JSON.stringify(app.knapp)}, väntat minst 44 x 44 inom skärmen.`);
         krav(app.marke !== null && app.marke.href === "https://life-hub.app" && app.marke.target === "_blank" && app.marke.rel === "noopener noreferrer" && app.marke.etikett === "Om LifeHub, öppnas i en ny flik", `${namn} sida (d): märket som länk är ${JSON.stringify(app.marke)}.`);
-        krav(app.rad !== null && app.rad.text === "Källan använder LifeHub, där grupper organiserar sig utan att jaga varandra. Läs mer" && app.rad.inom, `${namn} sida (d): raden om appen sist i översikten är ${JSON.stringify(app.rad)}.`);
+        krav(app.rad !== null && app.rad.text === "Källan samlar chatt, kalender och filer i LifeHub. Läs mer" && app.rad.inom, `${namn} sida (d): raden om appen sist i översikten är ${JSON.stringify(app.rad)}.`);
+        // (d) 0.198.0 (cllp/ops-framework#536, förslag B, CP 2026-11-07): en ruta per område i två kolumner, med det som hänt sedan gästens senaste besök (scenen: chatten i går,
+        // biblioteket för tio dagar sedan), siffrorna i bottenraden, rubriken Du, tre stängda rader utan ram, och inget som rullar i sidled.
+        await page.waitForFunction(() => /nya sedan/.test(document.querySelector('[data-gast-ruta="chatt"]')?.textContent || ""), null, { timeout: 5000 }).catch(() => {});
+        const rutor = await page.evaluate(() => {
+          const r = [...document.querySelectorAll("[data-gast-ruta]")].map((e) => {
+            const b = e.getBoundingClientRect();
+            return { id: e.getAttribute("data-gast-ruta"), text: (e.textContent || "").replace(/\s+/g, " ").trim(), x: Math.round(b.left), y: Math.round(b.top), b: b.width, h: b.height, inom: b.left >= -0.5 && b.right <= innerWidth + 0.5, knapp: e.tagName === "BUTTON", ram: getComputedStyle(e).borderTopWidth };
+          });
+          const hj = document.querySelector("[data-gast-hjalp]");
+          const nav = document.querySelector("nav[data-ops-bottenrad]");
+          const siffror = nav ? Object.fromEntries([...nav.querySelectorAll("a")].map((a) => [(a.querySelector(".truncate")?.textContent || "").trim(), (a.querySelector("[data-ops-count-badge] [aria-hidden]")?.textContent || "").trim()])) : null;
+          const rollrad = (document.querySelector("[data-gast-roll-rad]")?.textContent || "").trim();
+          return {
+            rutor: r,
+            rollrad,
+            du: (document.querySelector("[data-gast-du] h2")?.textContent || "").trim(),
+            hjalp: hj ? { rader: [...hj.querySelectorAll("details")].map((d) => ({ text: (d.querySelector("summary")?.textContent || "").trim(), oppen: d.open, ikon: !!d.querySelector("summary svg:not([class*='rotate']) , summary span svg") })), ram: getComputedStyle(hj).borderTopWidth } : null,
+            siffror,
+            sidled: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+          };
+        });
+        matt.push(`${namn} sida: rutorna ${JSON.stringify(rutor.rutor.map((x) => `${x.id} ${x.b.toFixed(0)}x${x.h.toFixed(0)} @${x.x},${x.y}: ${x.text}`))}, siffror ${JSON.stringify(rutor.siffror)}`);
+        krav(JSON.stringify(rutor.rutor.map((x) => x.id)) === JSON.stringify(["chatt", "kalender", "bibliotek", "arenden"]), `${namn} sida (d, golv): rutorna är ${JSON.stringify(rutor.rutor.map((x) => x.id))}, väntat chatt, kalender, bibliotek, arenden.`);
+        if (rutor.rutor.length === 4) {
+          const [c, k, bi, ar] = rutor.rutor;
+          krav(c.y === k.y && bi.y === ar.y && c.x === bi.x && k.x === ar.x && k.x > c.x && bi.y > c.y, `${namn} sida (d): rutorna står inte i två kolumner: ${JSON.stringify(rutor.rutor.map((x) => [x.x, x.y]))}.`);
+          krav(rutor.rutor.every((x) => x.inom && x.h >= 44 && x.ram === "0px"), `${namn} sida (d): en ruta ligger utanför skärmen, är under 44 px eller har en kantlinje: ${JSON.stringify(rutor.rutor.map((x) => ({ id: x.id, inom: x.inom, h: x.h, ram: x.ram })))}.`);
+          krav(c.text.includes("Chatt") && c.text.includes("3 nya sedan i går") && c.knapp, `${namn} sida (d): chattens ruta är ${JSON.stringify(c.text)}, väntat "3 nya sedan i går" och en knapp.`);
+          krav(k.text.includes("Möte, 27 okt 18:00") && k.text.includes("Svara") && k.knapp, `${namn} sida (d): kalenderns ruta är ${JSON.stringify(k.text)}, väntat nästa händelse och Svara.`);
+          krav(bi.text.includes("2 nya filer") && bi.knapp, `${namn} sida (d): bibliotekets ruta är ${JSON.stringify(bi.text)}, väntat "2 nya filer".`);
+          krav(ar.text.includes("Inget till dig") && !ar.knapp, `${namn} sida (d): ärendenas ruta är ${JSON.stringify(ar.text)}, väntat "Inget till dig" och ingen knapp (gästen har ingen ärendeflik).`);
+        }
+        krav(rutor.rollrad === "Vi övar på tisdagar. Du är gäst.", `${namn} sida (d): raden under namnet är ${JSON.stringify(rutor.rollrad)}, väntat gruppens beskrivning och "Du är gäst." på samma rad.`);
+        krav(rutor.du === "Du", `${namn} sida (d): rubriken Du saknas (${JSON.stringify(rutor.du)}).`);
+        krav(rutor.hjalp !== null && rutor.hjalp.ram === "0px" && rutor.hjalp.rader.length >= 2 && rutor.hjalp.rader.every((r) => !r.oppen) && rutor.hjalp.rader[0].text === "Vad kan jag göra här?" && rutor.hjalp.rader[rutor.hjalp.rader.length - 1].text === "Integritet och dina uppgifter", `${namn} sida (d): hjälpgruppen är ${JSON.stringify(rutor.hjalp)}, väntat Vad kan jag göra här? först och Integritet sist, alla stängda och utan ram.`);
+        krav(!rutor.sidled, `${namn} sida (d): översikten rullar i sidled.`);
+        if (telefon) krav(rutor.siffror !== null && rutor.siffror["Chatt"] === "3" && rutor.siffror["Kalender"] === "1" && rutor.siffror["Bibliotek"] === "2" && rutor.siffror["Översikt"] === "", `${namn} sida (d): siffrorna i bottenraden är ${JSON.stringify(rutor.siffror)}, väntat Chatt 3, Kalender 1 och Bibliotek 2.`);
         if (telefon) {
           // Spara på samma rad som fältet (CP 2026-11-06 07:35), minst 44 px, också när fönstret är 320 px brett.
           const matNamnrad = () => page.evaluate(() => {
@@ -8147,7 +8185,15 @@ async function gastGrupp() {
           krav(rad320 !== null && rad320.knappVanster >= rad320.faltHoger - 1 && Math.abs(rad320.knappTopp - rad320.faltTopp) <= 8 && rad320.knappH >= 44 && rad320.knappB >= 44, `${namn} namnrad 320: ${JSON.stringify(rad320)}, väntat Spara till höger om fältet, minst 44 px.`);
           await page.setViewportSize({ width: vp.width, height: vp.height });
         }
-        if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `gaster-grupp-sida-oversikt-${w}.png`), fullPage: true });
+        if (bildmapp) {
+          await page.screenshot({ path: path.join(bildmapp, `gaster-grupp-sida-oversikt-${w}.png`), fullPage: true });
+          // (0.198.0) Förslag B i båda teman, för jämförelsen med skisserna.
+          const andraTema = standardtema === "dark" ? "light" : "dark";
+          await page.emulateMedia({ colorScheme: andraTema });
+          await page.waitForTimeout(100);
+          await page.screenshot({ path: path.join(bildmapp, `gaster-grupp-sida-oversikt-${w}-${andraTema}.png`), fullPage: true });
+          await page.emulateMedia({ colorScheme: standardtema === "dark" ? "dark" : "light" });
+        }
         await byt("Chatt");
         await page.waitForSelector("[data-gast-chatt-logg]");
         const ch = await page.evaluate(() => ({
@@ -8312,7 +8358,10 @@ async function gastGrupp() {
         await page.waitForSelector("[data-gast-oversikt]");
         await page.evaluate(() => window.scrollTo(0, 0));
         krav(await page.getByText("Integritet och dina uppgifter").count() === 1, `${namn} sida (f): integriteten saknas på översikten.`);
-        await page.locator("[data-gast-oversikt] summary").click();
+        // (0.198.0) Översikten hämtas om när man kommer tillbaka; vänta tills rutorna ritats klart innan raden öppnas.
+        await page.waitForFunction(() => !/Hämtar/.test(document.querySelector("[data-gast-rutor]")?.textContent || "Hämtar"));
+        await page.locator("[data-gast-oversikt] [data-gast-integritet] summary").click();
+        await page.waitForFunction(() => document.querySelector("[data-gast-oversikt] [data-gast-integritet] details")?.hasAttribute("open"));
         const i = await page.evaluate(() => ({ lagrat: !!document.querySelector("[data-gast-integritet-lagrat]"), radera: (document.querySelector("[data-gast-integritet-radera]")?.textContent || "").trim().slice(0, 40) }));
         krav(i.lagrat && /Så raderas det: tryck på knappen/.test(i.radera), `${namn} sida (f): integritetstexten saknas eller hänvisar inte till knappen (${JSON.stringify(i)}).`);
         if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `gaster-grupp-sida-integritet-${w}.png`), fullPage: true });
@@ -8529,7 +8578,7 @@ async function gastArenden() {
         const arendeflik = telefon ? page.locator("nav[data-ops-bottenrad] a", { hasText: "Ärenden" }) : page.getByRole("tab", { name: "Ärenden" });
         await arendeflik.waitFor({ timeout: 4000 });
         const a = await page.evaluate((sel) => ({
-          flikar: [...document.querySelectorAll(sel)].map((f) => ({ text: (f.textContent || "").trim(), h: f.getBoundingClientRect().height, b: f.getBoundingClientRect().width })),
+          flikar: [...document.querySelectorAll(sel)].map((f) => ({ text: (f.querySelector(".truncate")?.textContent || f.textContent || "").trim(), h: f.getBoundingClientRect().height, b: f.getBoundingClientRect().width })),
           overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
           anrop: JSON.stringify(/** @type {any} */ (window).__gastgruppanrop.map((x) => x[0])),
         }), platser);

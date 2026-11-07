@@ -301,8 +301,18 @@ function GastMedlemmarScen() {
     </Skal>
   );
 }
-const GASTGRUPP = { namn: "Källan", beskrivning: "Vi övar på tisdagar.", funktioner: ["chatt", "kalender", "bibliotek"] };
+// (0.198.0) Med ärenden, som skissen för förslag B: rutan Ärenden står med "Inget till dig" när inget är delegerat till gästen, och fliken finns då inte.
+const GASTGRUPP = { namn: "Källan", beskrivning: "Vi övar på tisdagar.", funktioner: ["chatt", "kalender", "bibliotek", "arenden"] };
+/** (0.198.0) Gästens senaste besök: chatten i går, biblioteket för tio dagar sedan (scenens idag är 2026-10-20). */
+const GAST_BESOK = { chatt: new Date(2026, 9, 19, 8, 0).getTime(), bibliotek: new Date(2026, 9, 10, 8, 0).getTime(), kalender: new Date(2026, 9, 19, 8, 0).getTime() };
 const GASTGRUPP_SVAR = {
+  // (0.198.0, cllp/ops-framework#536) Som tjänsten svarar: tre nya i chatten, två nya filer, och nästa händelse utan gästens svar.
+  oversikt: () => ({ ok: true,
+    chatt: { nya: 3, fler: false, senaste: [{ id: "m4", namn: "Bo Gäst", text: "Hej, jag är gäst här", tid: Date.UTC(2026, 9, 19, 9, 15), egen: false }] },
+    kalender: { nasta: { id: "h-mote", titel: "Möte", plats: "Salen", datum: "2026-10-27", slutDatum: null, tid: "18:00", slutTid: "20:00", heldag: false, kravSvar: true, mitt: null } },
+    bibliotek: { nya: 2, senaste: [{ id: "p-pdf", rubrik: "Låtlista", typ: "fil", tid: Date.UTC(2026, 9, 15, 12) }, { id: "p-ljud", rubrik: "Demo", typ: "fil", tid: Date.UTC(2026, 9, 12, 12) }, { id: "p-not", rubrik: "Kom ihåg tejp", typ: "anteckning", tid: Date.UTC(2026, 9, 8, 12) }] },
+  }),
+  arenden: () => ({ ok: true, avkortad: false, poster: [] }),
   chatt: () => ({ ok: true, fler: true, meddelanden: [
     { id: "m1", av: { namn: "Agda Ägare" }, text: "Välkommen till gruppen. Här samlar vi allt inför höstens spelningar, och det här är en lång rad som måste få brytas utan att sidan flödar över i sidled.", tid: Date.UTC(2026, 9, 19, 9, 0) },
     { id: "m2", av: { namn: "Maja Medlem" }, text: "Tack Agda", tid: Date.UTC(2026, 9, 19, 9, 5), svarPa: { id: "m1", namn: "Agda Ägare", text: "Välkommen till gruppen" } },
@@ -334,7 +344,7 @@ const GAST_MARKE = { ljus: gastOrdmarke("#2a6f5b"), mork: gastOrdmarke("#7fd1b9"
 function GastGruppSidaScen() {
   const w = /** @type {any} */ (window);
   const lagring = (() => {
-    const d = { [`ops-gast:${GAST_ID}`]: GAST_SESSION };
+    const d = { [`ops-gast:${GAST_ID}`]: GAST_SESSION, ...Object.fromEntries(Object.entries(GAST_BESOK).map(([o, t]) => [`ops-gast:besok:${GAST_ID}:${o}`, String(t)])) };
     return { getItem: (k) => d[k] ?? null, setItem: (k, v) => { d[k] = v; }, removeItem: (k) => { delete d[k]; } };
   })();
   const anrop = async (arg) => {
