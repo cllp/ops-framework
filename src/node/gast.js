@@ -884,12 +884,6 @@ export function createGastService(konfig) {
   // ── Utskicken ─────────────────────────────────────────────────────────────────────────────────────────────────────
 
   /**
-   * Roterar nyckeln på en inbjudan (den gamla slutar fungera) och räknar ett utskick. Försöker om när en annan hann ändra raden.
-   *
-   * @param {Record<string, any>} rad Raden som den lästes.
-   * @returns {Promise<{ rad: Record<string, any>, nyckel: string }>}
-   */
-  /**
    * (0.202.0) Hashen av nycklarna en inbjudan haft, den senaste först, högst `GASTTIDIGARE_NYCKLAR`. Bara `nyLank` läser dem: en gäst med ett gammalt brev får be om en ny länk
    * (QA 2026-11-07, punkt 4 i cllp/lifehub.app#687), men en nyckel som aldrig funnits får inget brev. Ingen gammal nyckel öppnar något: `los` och `prova` läser bara `nyckelHash`.
    * @param {Record<string, any>} rad Raden före bytet.
@@ -900,6 +894,12 @@ export function createGastService(konfig) {
     return [rad.nyckelHash, ...forra].filter((h) => typeof h === "string").slice(0, GASTTIDIGARE_NYCKLAR);
   }
 
+  /**
+   * Roterar nyckeln på en inbjudan (den gamla slutar fungera) och räknar ett utskick. Försöker om när en annan hann ändra raden.
+   *
+   * @param {Record<string, any>} rad Raden som den lästes.
+   * @returns {Promise<{ rad: Record<string, any>, nyckel: string }>}
+   */
   async function roteraNyckel(rad) {
     const { rad: ny, nyckel } = await roteraNyckelUtanValv(rad);
     await sparaIValv(ny, nyckel);
@@ -1572,7 +1572,7 @@ export function createGastService(konfig) {
     // förra brevet kunde inte ta sig vidare. Brevet går bara till inbjudans EGEN adress. En nyckel som aldrig funnits är en gissning: den räknas och får inget brev, som förut.
     const h = hash(nyckel);
     const nu = likaHash(h, rad.nyckelHash);
-    const tidigare = !nu && Array.isArray(rad.tidigareNyckelHashar) && rad.tidigareNyckelHashar.some((t) => typeof t === "string" && likaHash(h, t));
+    const tidigare = !nu && Array.isArray(rad.tidigareNyckelHashar) && rad.tidigareNyckelHashar.some((/** @type {unknown} */ t) => typeof t === "string" && likaHash(h, t));
     if (!nu && !tidigare) return;
     // Nyckeln har gällt: ingen gissning, så försöket ges tillbaka som i `los`.
     await aterlamna(INB, id, INBFALT, res.fonster);
