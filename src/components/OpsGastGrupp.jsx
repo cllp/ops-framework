@@ -907,7 +907,8 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
       <ul data-gast-rutor="" aria-label={t.oversiktRutor} className="m-0 grid list-none grid-cols-2 gap-3 p-0">
         {funktioner.map((f) => {
           const onClick = oppnaRuta(f);
-          const n = f === "arenden" ? 0 : antalNya(f);
+          // Kalenderns siffra står i bottenraden; i rutan bär "Svara" samma sak, som skissen.
+          const n = f === "arenden" || f === "kalender" ? 0 : antalNya(f);
           const inne = (
             <>
               <span aria-hidden="true" className="text-accent [&_svg]:size-6">{FLIKIKON[f]}</span>

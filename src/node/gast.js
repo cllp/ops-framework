@@ -2368,8 +2368,13 @@ export function createGastService(konfig) {
    * @param {Record<string, any>} b `{ sessionsnyckel, sedan?: { chatt?: number, bibliotek?: number }, idag?: "ÅÅÅÅ-MM-DD" }`. `idag` är gästens dag (enhetens tidszon), förval dagen i UTC.
    */
   async function oversikt(b) {
-    const s = await gruppSession(b, "chatt");
+    if (!GS) return nej();
+    // ⛔ ÖVERSIKTEN ÄR INGEN FUNKTION: sessionen prövas mot den första funktion tjänsten har (för en gruppgäst prövar `gastOmfangGer` bara att namnet är en gruppfunktion), och varje del
+    // nedan läses bara när dess funktion finns i `GS.funktioner`. En del utan funktion är `null` i svaret. Inget prov för en `null`-del: chatt, kalender och bibliotek går inte att välja
+    // bort i dag (`GS.funktioner` ovan är alla gruppfunktioner utom ärenden utan `grupp.arenden`), så vakten skrivs ett prov för den dag funktionerna blir valbara.
+    const s = await gruppSession(b, /** @type {(typeof GASTGRUPPFUNKTIONER)[number]} */ (GS.funktioner[0]));
     if (!s.ok || !GS) return s.ok ? nej() : s;
+    const har = (/** @type {string} */ f) => /** @type {readonly string[]} */ (/** @type {any} */ (GS).funktioner).includes(f);
     const sedan = b?.sedan === undefined ? {} : b.sedan;
     if (!sedan || typeof sedan !== "object" || Array.isArray(sedan)) throw new Error("oversikt: sedan är { chatt?, bibliotek? } i millisekunder.");
     for (const f of /** @type {const} */ (["chatt", "bibliotek"])) {
@@ -2380,19 +2385,30 @@ export function createGastService(konfig) {
     const groupId = s.inbjudan.groupId;
 
     // Chatten: de senaste meddelandena utan agentens, samma som `chatt`.
+    const chattUt = har("chatt") ? await oversiktChatt(groupId, s.gastId, sedan.chatt) : null;
+    const kalenderUt = har("kalender") ? await oversiktKalender(groupId, s.gastId, idag) : null;
+    const bibliotekUt = har("bibliotek") ? oversiktBibliotek(await gruppensPoster(groupId), sedan.bibliotek) : null;
+    return vitlista({ ok: true, chatt: chattUt, kalender: kalenderUt, bibliotek: bibliotekUt }, GASTGRUPPSVARSFALT.oversikt);
+  }
+
+  /** (0.198.0) Översiktens chattdel. @param {string} groupId @param {string} gastIdet @param {number | undefined} sedanChatt */
+  async function oversiktChatt(groupId, gastIdet, sedanChatt) {
     const rader = await kalla.list(meddelandevag(groupId), { sortBy: "tid", direction: "desc", limit: GASTCHATT_SIDA });
     const { namnFor, agenter } = await chattavsandare(groupId);
     const synliga = rader.filter((m) => !agenter.has(m.av));
-    const nyaRader = typeof sedan.chatt === "number" ? synliga.filter((m) => m.av !== s.gastId && typeof m.tid === "number" && m.tid > sedan.chatt) : [];
-    const c = { groupId, gastId: s.gastId, sida: rader, namnFor, agenter, lasta: new Map(), medSvar: false };
+    const nyaRader = typeof sedanChatt === "number" ? synliga.filter((m) => m.av !== gastIdet && typeof m.tid === "number" && m.tid > sedanChatt) : [];
+    const c = { groupId, gastId: gastIdet, sida: rader, namnFor, agenter, lasta: new Map(), medSvar: false };
     const senasteMeddelanden = await Promise.all(
       synliga.slice(0, GASTOVERSIKT_SENASTE).map(async (m) => {
         const r = await chattrad(m, c);
         return vitlista({ id: r.id, namn: r.av.namn, text: kapa(r.text, 140), tid: r.tid, egen: r.egen }, GASTOVERSIKTFALT.meddelande);
       }),
     );
-    const chattUt = vitlista({ nya: nyaRader.length, fler: nyaRader.length > 0 && nyaRader.length === synliga.length && rader.length === GASTCHATT_SIDA, senaste: senasteMeddelanden }, GASTOVERSIKTFALT.chatt);
+    return vitlista({ nya: nyaRader.length, fler: nyaRader.length > 0 && nyaRader.length === synliga.length && rader.length === GASTCHATT_SIDA, senaste: senasteMeddelanden }, GASTOVERSIKTFALT.chatt);
+  }
 
+  /** (0.198.0) Översiktens kalenderdel. @param {string} groupId @param {string} gastIdet @param {string} idag */
+  async function oversiktKalender(groupId, gastIdet, idag) {
     // Kalendern: nästa händelse som slutar i dag eller senare, i kalenderns ordning (heldag före klockslag samma dag), och gästens eget svar.
     const { handelser } = await gruppensHandelser(groupId);
     const nasta = handelser
@@ -2403,26 +2419,19 @@ export function createGastService(konfig) {
     if (nasta) {
       let mitt = null;
       if (nasta.kravSvar === true) {
-        const rad = await kalla.read(svarVag(nasta.id), s.gastId);
+        const rad = await kalla.read(svarVag(nasta.id), gastIdet);
         mitt = rad?.svar === "kommer" || rad?.svar === "kommerInte" ? rad.svar : null;
       }
       nastaUt = vitlista({ ...nasta, mitt }, GASTOVERSIKTFALT.handelse);
     }
+    return vitlista({ nasta: nastaUt }, GASTOVERSIKTFALT.kalender);
+  }
 
-    // Biblioteket: samma poster som `bibliotek`, nyast först.
-    const { rader: poster } = await gruppensPoster(groupId);
-    const nyaPoster = typeof sedan.bibliotek === "number" ? poster.filter((p) => typeof p.skapad === "number" && p.skapad > sedan.bibliotek).length : 0;
+  /** (0.198.0) Översiktens biblioteksdel: samma poster som `bibliotek`, nyast först. @param {{ rader: Record<string, any>[] }} lasta @param {number | undefined} sedanBibliotek */
+  function oversiktBibliotek({ rader: poster }, sedanBibliotek) {
+    const nyaPoster = typeof sedanBibliotek === "number" ? poster.filter((p) => typeof p.skapad === "number" && p.skapad > sedanBibliotek).length : 0;
     const senastePoster = poster.slice(0, GASTOVERSIKT_SENASTE).map((p) => vitlista({ id: p.id, rubrik: trimSomRegeln(p.rubrik), typ: p.typ, tid: p.skapad }, GASTOVERSIKTFALT.post));
-
-    return vitlista(
-      {
-        ok: true,
-        chatt: chattUt,
-        kalender: vitlista({ nasta: nastaUt }, GASTOVERSIKTFALT.kalender),
-        bibliotek: vitlista({ nya: nyaPoster, senaste: senastePoster }, GASTOVERSIKTFALT.bibliotek),
-      },
-      GASTGRUPPSVARSFALT.oversikt,
-    );
+    return vitlista({ nya: nyaPoster, senaste: senastePoster }, GASTOVERSIKTFALT.bibliotek);
   }
 
   /**
