@@ -7734,12 +7734,12 @@ async function kategoriFormular() {
 // men jsdom kör ingen CSS och mäter därför aldrig hur det SER UT: att en lång adress bryts, att fältet och knappen syns utan rullning på
 // en telefon, att inget flödar över i sidled. Mätt här i en riktig webbläsare, vid 390 och 1280 px.
 //   (golv) medlemmens lista har fyra gäster och gästens sida ritas med sin rubrik, annars mättes inget.
-//   (a) ingen sidled-överflödning i något av lägena: listan (4 av 5 och 5 av 5), adressfrågan, saken efter inloggning, återkallad, ny länk.
+//   (a) ingen sidled-överflödning i något av lägena: listan (4 av 5 och 5 av 5), välkomsten, saken efter inloggning, återkallad, ny länk.
 //   (b) listan: en lång adress och ett långt namn bryts i sin rad (ingen rad är bredare än sin behållare), varje knapp i en rad är minst 32 px
 //       hög (`size="sm"`, som länkraderna) och "Bjud in utan konto" minst 44 px.
 //   (c) vid 5 av 5 är formuläret spärrat och texten säger varför; vid 4 av 5 är det öppet.
-//   (d) gästens sida: adressfältet och Fortsätt syns utan rullning vid 390 x 844, båda minst 44 px höga, och sidan har exakt en h1.
-//   (e) flödet: adress -> anrop med id, nyckel och adress -> sakens kort syns med sina knappar; nyckeln finns inte i sidans text efteråt.
+//   (d) gästens sida: välkomsten (0.200.0, förut adressfrågan) har inget fält, Öppna syns utan rullning vid 390 x 844 och är minst 44 px hög, och sidan har exakt en h1.
+//   (e) flödet: Öppna -> anrop med exakt id och nyckel -> sakens kort syns med sina knappar; nyckeln finns inte i sidans text efteråt.
 //   (f) en röst går ut genom sakens knapp och sidan hämtar om (`uppdatera`).
 //   (g) språkvalet: EN byter rubrik och knapp, SV tillbaka.
 //   (h) återkallad: texten står, sakens kort är borta. Ny länk: formuläret frågar efter adressen och svaret blir det vanliga.
@@ -7808,49 +7808,49 @@ async function gastVyer() {
     }
 
     // ── Gästens egen sida ──
-    // Adressfrågan: över vecket, stora träffytor, en h1.
+    // Välkomsten (0.200.0, förut adressfrågan): inget fält, Öppna över vecket med stor träffyta, en h1.
     {
       const { page, context } = await oppna("gastsida-adress", vp, standardtema, 1, null, 0, SV_WEBBLASARE);
       try {
-        await page.waitForSelector("[data-gast-form]");
+        await page.waitForSelector("[data-gast-valkommen]");
         const m = await page.evaluate(() => {
-          const falt = /** @type {HTMLElement} */ (document.querySelector("[data-gast-form] input"));
-          const knapp = [...document.querySelectorAll("[data-gast-form] button")].find((b) => (b.textContent || "").trim() === "Fortsätt");
-          const fr = falt.getBoundingClientRect();
+          const knapp = [...document.querySelectorAll("[data-gast-valkommen] button")].find((b) => (b.textContent || "").trim() === "Öppna");
           const kr = knapp ? knapp.getBoundingClientRect() : null;
-          return { h1: document.querySelectorAll("h1").length, faltBotten: fr.bottom, faltHojd: fr.height, knappBotten: kr ? kr.bottom : null, knappHojd: kr ? kr.height : null, innerH: innerHeight, overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth, rubrik: (document.querySelector("h1")?.textContent || "").trim() };
+          return { h1: document.querySelectorAll("h1").length, falt: document.querySelectorAll("main input, main textarea, main select").length, knappBotten: kr ? kr.bottom : null, knappHojd: kr ? kr.height : null, innerH: innerHeight, overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth, rubrik: (document.querySelector("h1")?.textContent || "").trim(), anrop: JSON.stringify(/** @type {any} */ (window).__gastanrop) };
         });
-        matt.push(`${namn} gästsida adress: rubrik ${JSON.stringify(m.rubrik)}, fält ${m.faltHojd.toFixed(0)} px (botten ${m.faltBotten.toFixed(0)}), Fortsätt ${m.knappHojd === null ? "saknas" : m.knappHojd.toFixed(0) + " px"} (botten ${m.knappBotten === null ? "?" : m.knappBotten.toFixed(0)}), fönster ${m.innerH}`);
-        krav(m.rubrik === "Du är inbjuden", `${namn} gästsida (golv): rubriken är ${JSON.stringify(m.rubrik)}.`);
-        krav(!m.overflow, `${namn} gästsida adress (a): sidan flödar över i sidled.`);
-        krav(m.h1 === 1, `${namn} gästsida adress (d): ${m.h1} h1, väntat exakt 1.`);
-        krav(m.knappBotten !== null && m.knappBotten <= m.innerH && m.faltBotten <= m.innerH, `${namn} gästsida adress (d): fältet (botten ${m.faltBotten.toFixed(0)}) och Fortsätt (botten ${m.knappBotten}) ska synas utan rullning i ett fönster ${m.innerH} px högt.`);
-        krav(m.faltHojd >= 44 && m.knappHojd !== null && m.knappHojd >= 44, `${namn} gästsida adress (d): fältet är ${m.faltHojd.toFixed(0)} px och Fortsätt ${m.knappHojd} px, väntat minst 44 px.`);
-        if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `gaster-sida-adress-${w}.png`), fullPage: true });
+        matt.push(`${namn} gästsida välkomst: rubrik ${JSON.stringify(m.rubrik)}, ${m.falt} fält, Öppna ${m.knappHojd === null ? "saknas" : m.knappHojd.toFixed(0) + " px"} (botten ${m.knappBotten === null ? "?" : m.knappBotten.toFixed(0)}), fönster ${m.innerH}`);
+        krav(m.rubrik === "Välkommen", `${namn} gästsida (golv): rubriken är ${JSON.stringify(m.rubrik)}.`);
+        krav(!m.overflow, `${namn} gästsida välkomst (a): sidan flödar över i sidled.`);
+        krav(m.h1 === 1, `${namn} gästsida välkomst (d): ${m.h1} h1, väntat exakt 1.`);
+        krav(m.falt === 0, `${namn} gästsida välkomst (d): ${m.falt} fält att fylla i, väntat inget. Gästen ska inte skriva något.`);
+        krav(m.knappBotten !== null && m.knappBotten <= m.innerH, `${namn} gästsida välkomst (d): Öppna (botten ${m.knappBotten}) ska synas utan rullning i ett fönster ${m.innerH} px högt.`);
+        krav(m.knappHojd !== null && m.knappHojd >= 44, `${namn} gästsida välkomst (d): Öppna är ${m.knappHojd} px, väntat minst 44 px.`);
+        // ⛔ Sidan löser inte in länken av sig själv: bara hämtningen av en sparad session (ingen här) får ha gått.
+        krav(!/"los"/.test(m.anrop), `${namn} gästsida välkomst (d): länken löstes in utan ett tryck på Öppna (${m.anrop}).`);
+        if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `gaster-sida-valkommen-${w}.png`), fullPage: true });
 
         // (g) språkvalet.
         await page.getByRole("button", { name: "EN", exact: true }).click();
-        const en = await page.evaluate(() => ({ h1: (document.querySelector("h1")?.textContent || "").trim(), knapp: [...document.querySelectorAll("[data-gast-form] button")].map((b) => (b.textContent || "").trim()).join("|") }));
-        krav(en.h1 === "You are invited" && /Continue/.test(en.knapp), `${namn} gästsida (g): efter EN är rubriken ${JSON.stringify(en.h1)} och knapparna ${JSON.stringify(en.knapp)}, väntat "You are invited" och "Continue".`);
-        if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `gaster-sida-adress-en-${w}.png`), fullPage: true });
+        const en = await page.evaluate(() => ({ h1: (document.querySelector("h1")?.textContent || "").trim(), knapp: [...document.querySelectorAll("[data-gast-valkommen] button")].map((b) => (b.textContent || "").trim()).join("|") }));
+        krav(en.h1 === "Welcome" && en.knapp === "Open", `${namn} gästsida (g): efter EN är rubriken ${JSON.stringify(en.h1)} och knapparna ${JSON.stringify(en.knapp)}, väntat "Welcome" och "Open".`);
+        if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `gaster-sida-valkommen-en-${w}.png`), fullPage: true });
         await page.getByRole("button", { name: "SV", exact: true }).click();
 
         // (e) flödet.
-        await page.locator("[data-gast-form] input").fill("anna@foretag.se");
-        await page.getByRole("button", { name: "Fortsätt" }).click();
+        await page.getByRole("button", { name: "Öppna" }).click();
         await page.waitForSelector("[data-gast-sak]");
         const e = await page.evaluate(() => ({
           anrop: JSON.stringify(/** @type {any} */ (window).__gastanrop),
           knappar: [...document.querySelectorAll("[data-gast-sak] button")].map((b) => (b.textContent || "").trim()).join("|"),
           harNyckel: document.documentElement.outerHTML.includes("K".repeat(43)),
-          formKvar: !!document.querySelector("[data-gast-form]"),
+          formKvar: !!document.querySelector("[data-gast-valkommen]"),
           not: (document.querySelector("[data-gast-not]")?.textContent || "").trim(),
           overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
           knappHojder: [...document.querySelectorAll("[data-gast-sak] button")].map((b) => b.getBoundingClientRect().height),
         }));
-        const forvantat = JSON.stringify([["los", { id: "a".repeat(64), nyckel: "K".repeat(43), epost: "anna@foretag.se" }], ["hamta", { sessionsnyckel: "S".repeat(43) }]]);
+        const forvantat = JSON.stringify([["los", { id: "a".repeat(64), nyckel: "K".repeat(43) }], ["hamta", { sessionsnyckel: "S".repeat(43) }]]);
         krav(e.anrop === forvantat, `${namn} gästsida (e): anropen blev ${e.anrop}, väntat ${forvantat}.`);
-        krav(e.knappar === "Ja|Kanske|Nej|Ja|Kanske|Nej" && !e.formKvar, `${namn} gästsida (e): sakens knappar ${JSON.stringify(e.knappar)}, adressformuläret kvar ${e.formKvar}. Väntat sex knappar och formuläret borta.`);
+        krav(e.knappar === "Ja|Kanske|Nej|Ja|Kanske|Nej" && !e.formKvar, `${namn} gästsida (e): sakens knappar ${JSON.stringify(e.knappar)}, välkomsten kvar ${e.formKvar}. Väntat sex knappar och välkomsten borta.`);
         krav(!e.harNyckel, `${namn} gästsida (e): nyckeln från länken står kvar i sidans HTML.`);
         krav(e.not.length > 0, `${namn} gästsida (e): noten "Du är gäst" saknas.`);
         krav(!e.overflow && Math.min(...e.knappHojder) >= 44, `${namn} gästsida klar (a): sidled-överflödning ${e.overflow}, lägsta sakknapp ${Math.min(...e.knappHojder).toFixed(0)} px (väntat minst 44).`);
@@ -7863,7 +7863,7 @@ async function gastVyer() {
         const f = await page.evaluate(() => JSON.stringify(/** @type {any} */ (window).__gastanrop));
         krav(f === JSON.stringify([["rosta", "f1", "Kanske"], ["hamta", { sessionsnyckel: "S".repeat(43) }]]), `${namn} gästsida (f): en röst gav anropen ${f}, väntat rosta f1 Kanske och därefter en ny hämtning.`);
       } catch (err) {
-        krav(false, `${namn} gästsida adress och flöde: provet avbröts (${String(/** @type {Error} */ (err).message).split("\n")[0]}).`);
+        krav(false, `${namn} gästsida välkomst och flöde: provet avbröts (${String(/** @type {Error} */ (err).message).split("\n")[0]}).`);
       }
       await context.close();
     }
@@ -8453,7 +8453,7 @@ async function gastGrupp() {
 // (a) Medlemmens lista: valet E-post eller Telefon finns, med Telefon ett fält av typen tel. Ett nummer och Bjud in öppnar bekräftelsen med numret i normaliserad form, och inget anrop går före den. Bjud in anropar med numret,
 //     hämtar länken (`onKopieraLank`) och visar den under formuläret med Kopiera och Dela (minst 32 px), helt inom skärmen och utan sidled. Dela ger telefonens delningsmeny sms-texten och länken.
 // (b) Telefongästens rad visar numret och har Ny länk, inte Skicka igen.
-// (c) Gästens sida med en telefonlänk (`&s=tel`): en h1, fältet Ditt telefonnummer av typen tel och inget e-postfält, utan sidled, och Fortsätt postar { id, nyckel, telefon }.
+// (c) Gästens sida med en telefonlänk (`&s=tel`): en h1 och inget fält alls (0.200.0: förut fältet Ditt telefonnummer), utan sidled, och Öppna postar exakt { id, nyckel }.
 async function gastTelefon() {
   const DELA = "window.__delat = null; Object.defineProperty(navigator, 'share', { configurable: true, value: async (d) => { window.__delat = d; } });";
   for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
@@ -8520,7 +8520,7 @@ async function gastTelefon() {
           if (l.dela !== null) {
             await page.locator("[data-gastlista-telefonlank]").getByRole("button", { name: "Dela" }).click();
             const delat = await page.evaluate(() => JSON.stringify(/** @type {any} */ (window).__delat));
-            krav(delat === JSON.stringify({ title: "Inbjudan till Källan", text: "Öppna länken och skriv ditt telefonnummer, samma som inbjudan gäller.", url: l.url }), `${namn} (a): Dela gav ${delat}.`);
+            krav(delat === JSON.stringify({ title: "Inbjudan till Källan", text: "Öppna länken. Du behöver inget konto.", url: l.url }), `${namn} (a): Dela gav ${delat}.`);
           }
         }
         }
@@ -8532,26 +8532,21 @@ async function gastTelefon() {
     {
       const { page, context } = await oppna("gastsida-telefon", vp, standardtema, 1, null, 0, { kontext: { locale: "sv-SE" } });
       try {
-        await page.waitForSelector("[data-gast-form]");
-        const g = await page.evaluate(() => {
-          const lab = [...document.querySelectorAll("label")].find((x) => (x.textContent || "").includes("Ditt telefonnummer"));
-          return {
-            h1: document.querySelectorAll("h1").length,
-            tel: document.querySelectorAll('[data-gast-form] input[type="tel"]').length,
-            epost: document.querySelectorAll('[data-gast-form] input[type="email"]').length,
-            etikett: Boolean(lab),
-            overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
-          };
-        });
-        krav(g.h1 === 1 && g.tel === 1 && g.epost === 0 && g.etikett, `${namn} (c): gästens steg har ${g.h1} h1, ${g.tel} telefonfält, ${g.epost} e-postfält och etiketten ${g.etikett}, väntat 1, 1, 0 och Ditt telefonnummer.`);
-        krav(!g.overflow, `${namn} (c): gästens steg flödar över i sidled.`);
+        await page.waitForSelector("[data-gast-valkommen]");
+        const g = await page.evaluate(() => ({
+          h1: document.querySelectorAll("h1").length,
+          falt: document.querySelectorAll("main input, main textarea, main select").length,
+          oppna: [...document.querySelectorAll("[data-gast-valkommen] button")].some((b) => (b.textContent || "").trim() === "Öppna"),
+          overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+        }));
+        krav(g.h1 === 1 && g.falt === 0 && g.oppna, `${namn} (c): gästens välkomst har ${g.h1} h1, ${g.falt} fält och Öppna ${g.oppna}, väntat 1, 0 och Öppna.`);
+        krav(!g.overflow, `${namn} (c): gästens välkomst flödar över i sidled.`);
         if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `gast-telefon-sida-${w}.png`), fullPage: true });
-        if (g.tel === 1) {
-          await page.locator('[data-gast-form] input[type="tel"]').fill("070 123 45 67");
-          await page.getByRole("button", { name: "Fortsätt" }).click();
+        if (g.oppna) {
+          await page.getByRole("button", { name: "Öppna" }).click();
           await page.waitForTimeout(150);
           const los = await page.evaluate(() => JSON.stringify((/** @type {any} */ (window).__gastanrop || []).find((x) => x[0] === "los") ?? null));
-          krav(los === JSON.stringify(["los", { id: "a".repeat(64), nyckel: "K".repeat(43), telefon: "070 123 45 67" }]), `${namn} (c): Fortsätt postade ${los}, väntat { id, nyckel, telefon }.`);
+          krav(los === JSON.stringify(["los", { id: "a".repeat(64), nyckel: "K".repeat(43) }]), `${namn} (c): Öppna postade ${los}, väntat exakt { id, nyckel }.`);
         }
       } finally {
         await context.close();

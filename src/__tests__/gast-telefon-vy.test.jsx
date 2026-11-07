@@ -2,10 +2,11 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { OpsGastLista } from "../components/OpsGastLista.jsx";
 import { OpsGastSida } from "../components/OpsGastSida.jsx";
+import { GASTFEL } from "../lib/gast.js";
 
 /**
  * Vyn för gäst med telefonnummer (0.197.0, cllp/lifehub.app#661): valet E-post eller Telefon i gruppens inbjudan, länken med Dela och Kopiera direkt efter inbjudan, Ny länk på en telefongästs rad,
- * och gästsidans steg som frågar efter numret när länken bär tecknet.
+ * och gästsidan med en länk som bär tecknet (sedan 0.200.0 frågar den inte efter numret, men en utgången telefonlänk ger ingen knapp för en ny länk).
  * jsdom mäter att rätt text och rätt anrop finns; hur det SER UT mäts i skalytan.
  *
  * ⛔ VARJE PROV HAR SETTS FALLA (regel 4): utfallen med koden muterad står i leveransens rapport.
@@ -87,7 +88,7 @@ describe("OpsGastLista: Bjud in med Telefon", () => {
     expect(within(/** @type {HTMLElement} */ (lank)).getByDisplayValue(URL_TEL)).toBeInTheDocument();
     expect(within(/** @type {HTMLElement} */ (lank)).getByText(/Inget sms skickades/)).toBeInTheDocument();
     await klicka(within(/** @type {HTMLElement} */ (lank)).getByRole("button", { name: "Dela" }));
-    expect(share).toHaveBeenCalledWith({ title: "Inbjudan till Källan", text: "Öppna länken och skriv ditt telefonnummer, samma som inbjudan gäller.", url: URL_TEL });
+    expect(share).toHaveBeenCalledWith({ title: "Inbjudan till Källan", text: "Öppna länken. Du behöver inget konto.", url: URL_TEL });
     expect(within(/** @type {HTMLElement} */ (lank)).getByRole("button", { name: "Kopiera" })).toBeInTheDocument();
   });
 
@@ -140,7 +141,7 @@ describe("OpsGastLista: en telefongäst i listan", () => {
   });
 });
 
-describe("OpsGastSida: steget med telefon", () => {
+describe("OpsGastSida: en telefonlänk", () => {
   const lagringMed = () => {
     const d = {};
     return { getItem: (k) => d[k] ?? null, setItem: (k, v) => { d[k] = v; }, removeItem: (k) => { delete d[k]; }, d };
@@ -153,35 +154,21 @@ describe("OpsGastSida: steget med telefon", () => {
     return { onLos, onNyLank };
   };
 
-  it("frågar efter telefonnumret, postar { id, nyckel, telefon } och loggar in som vanligt", async () => {
+  it("(0.200.0) frågar inte efter numret: välkomsten har inget fält, och Öppna postar exakt { id, nyckel } och loggar in som vanligt", async () => {
     const { onLos } = rita();
-    expect(await screen.findByText("Skriv ditt telefonnummer, samma som inbjudan gäller. Så vet vi att det är du. Du behöver inget konto.")).toBeInTheDocument();
-    expect(screen.queryByLabelText("Din e-postadress")).toBeNull();
-    const falt = screen.getByLabelText("Ditt telefonnummer");
-    expect(falt).toHaveAttribute("type", "tel");
-    fireEvent.change(falt, { target: { value: "070-123 45 67" } });
-    await klicka(screen.getByRole("button", { name: "Fortsätt" }));
-    await waitFor(() => expect(onLos).toHaveBeenCalledWith({ id: ID, nyckel: NYCKEL, telefon: "070-123 45 67" }));
+    expect(await screen.findByRole("heading", { name: "Välkommen" })).toBeInTheDocument();
+    expect(document.querySelectorAll("input")).toHaveLength(0);
+    await klicka(screen.getByRole("button", { name: "Öppna" }));
+    await waitFor(() => expect(onLos).toHaveBeenCalledTimes(1));
+    expect(onLos.mock.calls[0][0]).toStrictEqual({ id: ID, nyckel: NYCKEL });
     expect(await screen.findByText("Rep")).toBeInTheDocument();
-  });
-
-  it("ett nummer i fel form anropar inte servern, och ett nej säger att numret inte hör till inbjudan", async () => {
-    const { onLos } = rita({ onLos: vi.fn(async () => ({ ok: false, orsak: "nej" })) });
-    const falt = await screen.findByLabelText("Ditt telefonnummer");
-    fireEvent.change(falt, { target: { value: "anna@foretag.se" } });
-    await klicka(screen.getByRole("button", { name: "Fortsätt" }));
-    expect(onLos).not.toHaveBeenCalled();
-    expect(screen.getByText(/inte ut som ett telefonnummer/)).toBeInTheDocument();
-    fireEvent.change(falt, { target: { value: "0709999999" } });
-    await klicka(screen.getByRole("button", { name: "Fortsätt" }));
-    expect(await screen.findByText("Det numret hör inte till den här inbjudan. Skriv samma nummer som inbjudan gäller.")).toBeInTheDocument();
   });
 
   it("en utgången länk erbjuder ingen ny länk med mejl, utan säger att den som bjöd ger en ny", async () => {
     const { onNyLank } = rita({ onLos: vi.fn(async () => ({ ok: false, orsak: "utgangen" })) });
-    fireEvent.change(await screen.findByLabelText("Ditt telefonnummer"), { target: { value: "0701234567" } });
-    await klicka(screen.getByRole("button", { name: "Fortsätt" }));
+    await klicka(await screen.findByRole("button", { name: "Öppna" }));
     expect(await screen.findByText("Be den som bjöd in dig om en ny länk.")).toBeInTheDocument();
+    expect(screen.getByText(GASTFEL.utgangen)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Skicka en ny länk" })).toBeNull();
     expect(onNyLank).not.toHaveBeenCalled();
   });

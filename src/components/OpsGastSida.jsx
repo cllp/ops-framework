@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { cx } from "../lib/cx.js";
 import { lasSparatSprak, sparaSprak, valdSprak } from "../lib/deladdatum.js";
-import { GASTDELTASVAR, GASTFEL, GASTNYLANK_SVAR, GASTNYCKELFORM, MAX_GASTNAMN, normaliseraGastepost, normaliseraGasttelefon } from "../lib/gast.js";
+import { GASTDELTASVAR, GASTFEL, GASTNYLANK_SVAR, GASTNYCKELFORM, MAX_GASTNAMN, normaliseraGastepost } from "../lib/gast.js";
 import { ALLA, SENASTE, minne, sessionsnyckelFor, skrivSessionTillMinne, sparadeSessionsIds } from "../lib/gastminne.js";
 import { definierade, forvalda } from "../lib/ord.js";
 import { PUBLIK_KLASS, PUBLIK_TONER } from "../lib/publikKlass.js";
@@ -25,25 +25,22 @@ import { IKON_FOR } from "./ikonlexikon.js";
 export const ORD_OPSGASTSIDA = {
   sprakEtikett: { sv: "Språk", en: "Language" },
   laddar: { sv: "Hämtar", en: "Loading" },
-  // ⛔ RUBRIKEN NÄR ADRESSEN FRÅGAS ÄR NEUTRAL (0.146.0). Före inloggningen vet sidan inte vad inbjudan gäller (en omröstning, en händelse att svara på, hela gruppen), och "rösta" var fel åt den som bjudits in till
-  // en händelse. Nyckelnamnet står kvar, så att en app som ger egna ord (`ord.rubrikRosta`) fortfarande träffar rätt text.
-  rubrikRosta: { sv: "Du är inbjuden", en: "You are invited" },
-  // ⛔ EN MENING OM VARFÖR, OCH ETIKETTEN SÄGER INTE SAMMA SAK EN GÅNG TILL (0.190.0, QA fynd 2 i cllp/lifehub.app#658): ingressen och etiketten var samma mening.
-  ingress: { sv: "Skriv din e-postadress, samma som inbjudan kom till. Så vet vi att det är du. Du behöver inget konto.", en: "Enter your email address, the same one the invitation was sent to. That is how we know it is you. You do not need an account." },
+  // ⛔ VÄLKOMSTEN ERSÄTTER ADRESSTEGET (0.200.0, cllp/ops-framework#540). QA 2026-11-07 och CP samma dag: gästen ska "komma direkt in ... hoppa över att bekräfta med mailen", och det ska vara
+  // "SUPERSIMPELT". Rubriken är neutral av samma skäl som förut (0.146.0): före inloggningen vet sidan inte vad inbjudan gäller.
+  valkommenRubrik: { sv: "Välkommen", en: "Welcome" },
+  valkommenIngress: { sv: "Du har fått en inbjudan. Du behöver inget konto.", en: "You have been invited. You do not need an account." },
+  oppna: { sv: "Öppna", en: "Open" },
+  // Adressen frågas bara på sidan utan länk (`ny-lank`), av den som har tappat allt.
   adressEtikett: { sv: "Din e-postadress", en: "Your email address" },
-  fortsatt: { sv: "Fortsätt", en: "Continue" },
   felAdress: { sv: "Det där ser inte ut som en e-postadress.", en: "That does not look like an email address." },
-  // ⛔ ETT NEJ VID ADRESSEN SÄGER VAD SOM ÄR FEL, OCH BARA DET SERVERN VET (0.190.0, QA fynd 2): fel adress och fel nyckel är samma nej byte för byte, så texten är densamma
-  // för båda och ingen kan pröva sig fram. Formfelet (`felAdress`) står bara när adressen verkligen inte är en adress (`normaliseraGastepost` ger null).
-  felInbjudan: { sv: "Den adressen hör inte till den här inbjudan. Skriv samma adress som mejlet kom till.", en: "That address does not belong to this invitation. Enter the same address the email was sent to." },
-  // ── (0.197.0, cllp/lifehub.app#661) En inbjudan till ett telefonnummer: länken bär tecknet (`tolkaGastLank` ger `slag: "telefon"`), och steget frågar efter numret i stället för adressen. ──
-  ingressTelefon: { sv: "Skriv ditt telefonnummer, samma som inbjudan gäller. Så vet vi att det är du. Du behöver inget konto.", en: "Enter your phone number, the one the invitation is for. That is how we know it is you. You do not need an account." },
-  telefonEtikett: { sv: "Ditt telefonnummer", en: "Your phone number" },
-  felTelefon: { sv: "Det där ser inte ut som ett telefonnummer. Skriv det med riktnummer, 070 123 45 67, eller med landsnummer, +46 70 123 45 67.", en: "That does not look like a phone number. Write it with the area code, 070 123 45 67, or with the country code, +46 70 123 45 67." },
-  felInbjudanTelefon: { sv: "Det numret hör inte till den här inbjudan. Skriv samma nummer som inbjudan gäller.", en: "That number does not belong to this invitation. Enter the same number the invitation is for." },
+  // ⛔ ETT NEJ EFTER ÖPPNA SÄGER VAD GÄSTEN KAN GÖRA (0.200.0). Fel nyckel och okänd inbjudan är samma nej byte för byte, och den vanligaste orsaken är en äldre länk efter att en ny skickats.
+  lankenFungerarInte: {
+    sv: "Länken fungerar inte längre. Använd den senaste länken du fått, eller be den som bjöd in dig om en ny.",
+    en: "The link no longer works. Use the latest link you received, or ask the person who invited you for a new one.",
+  },
   // Ingen ny länk på egen hand: den går med mejl, och en inbjudan med telefon har inget mejl. Den som bjöd ger en ny med Dela.
   utgangenTelefon: { sv: "Be den som bjöd in dig om en ny länk.", en: "Ask the person who invited you for a new link." },
-  orsak_nej: { sv: GASTFEL.nej, en: "The link or the address was not right" },
+  orsak_nej: { sv: GASTFEL.nej, en: "The link no longer works" },
   orsak_aterkallad: { sv: GASTFEL.aterkallad, en: "The invitation has been withdrawn" },
   orsak_utgangen: { sv: GASTFEL.utgangen, en: "The link has expired" },
   "orsak_for-manga": { sv: GASTFEL["for-manga"], en: "Too many attempts. Wait a while and try again" },
@@ -172,10 +169,6 @@ function provatOmAppen(omAppen) {
   return { href: /** @type {string} */ (o.href), namn: o.namn.trim() };
 }
 
-/** Orsakerna där en länk som gått ut ändå går att ersätta: adressen stämde, så sidan erbjuder en ny länk. */
-const ERSATTBARA = /** @type {readonly string[]} */ (["utgangen"]);
-
-
 /**
  * Gästens egen sida: det en person ser som bjudits in utan konto, på `GASTSOKVAG` (`/guest`; den tidigare `/gast` öppnar samma sida) (0.131.0, cllp/lifehub.app#389, skiva 1; 0.132.0, skiva 2: hela gruppen).
  *
@@ -185,11 +178,20 @@ const ERSATTBARA = /** @type {readonly string[]} */ (["utgangen"]);
  * `onNyLank` (appens anrop mot `/api/gast`) och ritar vad de svarar. Sakens eget kort (för omröstningen: förslagen, Ja, Kanske, Nej och summan) är appens och ritas av `renderSak`.
  * Hela gruppen (`funktion: "grupp"`) ritas av `renderGrupp`, normalt `OpsGastGrupp` med `gastGruppApi(anrop, sessionsnyckel)`: det bantade gränssnittet med Översikt och ingen väg ut ur sidan.
  *
- * ══ ⛔ ADRESSEN SKRIVS EN GÅNG, SEDAN STANNAR GÄSTEN INLOGGAD PÅ ENHETEN ═══════════════════════════════════════════════
+ * ══ ⛔ LÄNKEN RÄCKER: VÄLKOMMEN OCH ÖPPNA, INGET ATT SKRIVA (0.200.0) ═══════════════════════════════════════════════════
  *
- * Första öppningen med en länk (`lank`, ur `tolkaGastLank(location.hash)`): sidan frågar efter adressen och postar `{ id, nyckel, epost }`. Ett ja ger en sessionsnyckel som sparas i webbläsarens
- * minne (per inbjudan), och fragmentet tas bort ur adressraden så att nyckeln inte ligger kvar i historiken. Nästa gång sidan öppnas, med eller utan länk, hämtas saken direkt med sessionen. På en ny
- * enhet finns ingen session: gästen skriver adressen på `/guest` och får en ny länk (`onNyLank`), med samma svar hur det än gått.
+ * Före 0.200.0 frågade sidan efter gästens adress (eller nummer) innan länken löstes in. QA 2026-11-07 och CP samma dag: gästen ska "komma direkt in ... hoppa över att bekräfta med mailen", och det
+ * ska vara "SUPERSIMPELT". Second opinion (Fable, cllp/ops-framework#540): mejlet öppnas ofta i mejlappens egen webbvy, som har egen lagring, så gästen fick skriva adressen i varje webbläsare.
+ *
+ * Första öppningen med en länk (`lank`, ur `tolkaGastLank(location.hash)`) i en webbläsare: sidan säger Välkommen och visar knappen Öppna. Knappen postar `{ id, nyckel }`, och ett ja ger en
+ * sessionsnyckel som sparas i webbläsarens minne (per inbjudan). Fragmentet tas bort ur adressraden så att nyckeln inte ligger kvar i historiken. Nästa gång sidan öppnas, med eller utan länk, hämtas
+ * saken direkt med sessionen, utan välkomsten. Länken förbrukas inte: samma länk öppnar i en annan webbläsare också.
+ *
+ * ⛔ SIDAN LÖSER INTE IN LÄNKEN AV SIG SJÄLV, BARA KNAPPEN GÖR DET. En säkerhetsskanner i ett mejlprogram kan öppna sidan, och en sida som loggade in vid sidladdningen hade gett skannern en session
+ * och märkt gästen som inloggad. Knappen är också platsen för välkomsten. (Att knappen stoppar en skanner som kör skript är en bedömning, inte mätt.)
+ *
+ * Har länken gått ut erbjuder sidan Skicka en ny länk (`onNyLank({ id, nyckel })`): brevet går till inbjudans egen adress och gästen skriver ingenting. En telefonlänk (`slag: "telefon"`) har inget brev, och
+ * sidan ber gästen fråga den som bjöd in. Utan någon länk alls (sidan öppnad på `/guest`) skriver gästen sin adress och får en ny länk (`onNyLank({ epost })`), med samma svar hur det än gått.
  *
  * ══ ⛔ FLERA SESSIONER PÅ SAMMA ENHET: INGEN GIVER UPP FÖRE DE ANDRA ÄR PRÖVADE (0.132.0) ══════════════════════════════
  *
@@ -198,7 +200,8 @@ const ERSATTBARA = /** @type {readonly string[]} */ (["utgangen"]);
  * indexet `ops-gast:alla`, sedan allt som minnet kan räkna upp): den första som svarar vinner och blir den senast öppnade, och först när ALLA nekats visas orsaken. Samma sak när en återkallelse
  * upptäcks medan sidan är öppen. En länk i adressraden (`lank`) är ett uttryckligt val och prövar bara sin egen inbjudan.
  *
- * ⛔ ALLA NEJ ÄR ETT NEJ. Fel nyckel, fel adress och okänd inbjudan ger samma text (`orsak_nej`). `aterkallad` och `utgangen` kommer bara när adressen stämt. Sidan försöker inte vara klyftigare än servern.
+ * ⛔ ALLA NEJ ÄR ETT NEJ. Fel nyckel och okänd inbjudan ger samma text (`lankenFungerarInte` efter Öppna, `orsak_nej` för en session). `aterkallad` och `utgangen` kommer bara när nyckeln stämt. Sidan försöker
+ * inte vara klyftigare än servern.
  *
  * ⛔ ÅTERKALLNING SYNS INOM EN MINUT. Sidan hämtar på nytt när fliken får fokus och var `intervallMs`:e millisekund medan den är öppen (förval 60 s). Svarar servern att inbjudan är återkallad byts
  * sakens kort mot texten (och gruppens flikar försvinner med allt som lästs), och inget mer går att göra.
@@ -206,16 +209,17 @@ const ERSATTBARA = /** @type {readonly string[]} */ (["utgangen"]);
  * ⛔ GÄSTEN KAN RADERA SIG SJÄLV (0.132.0, CP 2026-10-20: klart före första gruppgästen). Längst ned står vad som sparas och hur det raderas (`integritet*`), och med `onRaderaMig` en knapp som frågar en gång
  * och sedan tar bort allt. Utan `onRaderaMig` säger texten att den som bjöd in raderar, i stället för att lova en knapp som inte finns.
  *
- * ⛔ KNAPPARNA VÄNTAR SJÄLVA (`OpsButton`, 0.129.0). Ett andra tryck medan ett anrop väntar startar inget nytt: servern räknar felaktiga adresser per inbjudan.
+ * ⛔ KNAPPARNA VÄNTAR SJÄLVA (`OpsButton`, 0.129.0). Ett andra tryck medan ett anrop väntar startar inget nytt: servern räknar felaktiga försök per inbjudan.
  *
  * ⛔ SPRÅKET ÄR BESÖKARENS (som `OpsDeladHandelse`): SV och EN i huvudet, förval webbläsarens språk, valet sparas. Ger appen `sprak` är språket appens.
  *
  * @param {object} props
- * @param {{ id: string, nyckel: string, slag?: "telefon" } | null} [props.lank] Id och nyckel ur adressens fragment (`tolkaGastLank`), eller `null` när sidan öppnas utan länk. (0.197.0) `slag: "telefon"`: steget frågar
- *   efter ett telefonnummer, och `onLos` får `{ id, nyckel, telefon }` i stället för `epost`. Servern prövar numret mot inbjudan; tecknet i länken är ingen behörighet.
- * @param {(arg: { id: string, nyckel: string, epost: string } | { id: string, nyckel: string, telefon: string }) => Promise<{ ok: boolean, sessionsnyckel?: string, orsak?: string }>} props.onLos
+ * @param {{ id: string, nyckel: string, slag?: "telefon", sprak?: "sv" | "en" } | null} [props.lank] Id och nyckel ur adressens fragment (`tolkaGastLank`), eller `null` när sidan öppnas utan länk. (0.197.0) `slag: "telefon"`:
+ *   en länk som gått ut ger ingen knapp för en ny länk, eftersom en telefoninbjudan inte har något brev. Tecknet är ingen behörighet.
+ * @param {(arg: { id: string, nyckel: string }) => Promise<{ ok: boolean, sessionsnyckel?: string, orsak?: string }>} props.onLos (0.200.0) Bara id och nyckel: gästen skriver ingenting.
  * @param {(arg: { sessionsnyckel: string }) => Promise<{ ok: boolean, namn?: string, funktion?: string, sak?: Record<string, any>, grupp?: { namn: string, funktioner: readonly string[] }, orsak?: string }>} props.onHamta
- * @param {(arg: { epost: string }) => Promise<unknown>} props.onNyLank Ger alltid samma svar; sidan skriver ut `nyLankSvar` oavsett vad som kommer tillbaka.
+ * @param {(arg: { epost: string } | { id: string, nyckel: string }) => Promise<unknown>} props.onNyLank Ger alltid samma svar; sidan skriver ut `nyLankSvar` oavsett vad som kommer tillbaka. (0.200.0) `{ id, nyckel }` när
+ *   gästen har en länk som gått ut (brevet går till inbjudans egen adress), `{ epost }` när sidan öppnats utan länk.
  * @param {(arg: { sessionsnyckel: string, namn: string }) => Promise<unknown>} [props.onNamn] Utelämnad: ingen namnruta.
  * @param {(arg: { sessionsnyckel: string, val: string }) => Promise<{ ok: boolean, mitt?: string, orsak?: string }>} [props.onSvara] (0.146.0) Gästen svarar på en händelse (`delta`): appens anrop mot `/api/gast` med åtgärden `deltaSvara`, `val` ur
  *   `GASTDELTASVAR`. Sidan ritar händelsen och de tre knapparna själv. Nekas svaret (`aterkallad`, `saknas`, `nej`) hämtas sidan om, så att texten byts direkt. Utelämnad: en `delta`-inbjudan visas inte (`gruppEjStodd`), i stället för knappar som inte gör något.
@@ -259,12 +263,14 @@ export function OpsGastSida({ lank = null, onLos, onHamta, onNyLank, onNamn, onR
   const { tidEtikett, till, platsEtikett } = forvalda(ORD_OPSDELADHANDELSE, aktivt);
   const rubrikOrd = { tidEtikett, till, platsEtikett };
 
-  /** @type {[{ fas: "startar" | "adress" | "ny-lank" | "klar" | "fel" | "nylank-skickad" | "raderad" }, Function]} */
+  /** @type {[{ fas: "startar" | "valkommen" | "ny-lank" | "klar" | "fel" | "nylank-skickad" | "raderad" }, Function]} */
   const [lage, setLage] = useState({ fas: "startar" });
   const [sessionsnyckel, setSessionsnyckel] = useState(/** @type {string | null} */ (null));
   const [svar, setSvar] = useState(/** @type {Record<string, any> | null} */ (null));
   const [orsak, setOrsak] = useState("");
   const [epost, setEpost] = useState("");
+  /** (0.200.0) Svaret på Öppna när det inte blev en session: `nej`, `aterkallad`, `utgangen`, `for-manga` eller `natfel`. Tom: inget svar än. */
+  const [losOrsak, setLosOrsak] = useState("");
   const [fel, setFel] = useState("");
   const [namn, setNamn] = useState("");
   const [namnSparat, setNamnSparat] = useState(false);
@@ -411,7 +417,8 @@ export function OpsGastSida({ lank = null, onLos, onHamta, onNyLank, onNamn, onR
     [onHamta, forsokSessioner],
   );
 
-  // Första gången: finns en session för inbjudan (länkens, annars alla sparade, den senast öppnade först) hämtas saken direkt. Annars frågar sidan efter adressen, eller erbjuder en ny länk.
+  // Första gången: finns en session för inbjudan (länkens, annars alla sparade, den senast öppnade först) hämtas saken direkt. Annars välkomnar sidan gästen med knappen Öppna, eller erbjuder en ny länk.
+  // ⛔ Länken löses aldrig in här, bara av knappen (se filhuvudet: en skanner som öppnar sidan ska inte få en session).
   useEffect(() => {
     const ids = lank ? [lank.id] : sparadeIds();
     if (lank) aktivId.current = lank.id;
@@ -423,13 +430,13 @@ export function OpsGastSida({ lank = null, onLos, onHamta, onNyLank, onNamn, onR
         setLage({ fas: "fel" });
         return;
       }
-      // En återkallad eller saknad inbjudan är ett besked till gästen och inget skäl att be om adressen. `for-manga` likaså.
+      // En återkallad eller saknad inbjudan är ett besked till gästen och inget skäl att visa Öppna. `for-manga` likaså.
       if ("orsak" in res && res.orsak) {
         setOrsak(`orsak_${res.orsak}`);
         setLage({ fas: "fel" });
         return;
       }
-      setLage({ fas: lank ? "adress" : "ny-lank" });
+      setLage({ fas: lank ? "valkommen" : "ny-lank" });
     })();
     // Körs en gång per sidvisning och länk: att hämta om vid varje ny funktionsidentitet vore att hämta i en loop.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -452,19 +459,15 @@ export function OpsGastSida({ lank = null, onLos, onHamta, onNyLank, onNamn, onR
     };
   }, [sessionsnyckel, lage.fas, intervallMs, hamta]);
 
-  async function skickaAdress() {
+  /** (0.200.0) Öppna: löser in länken med id och nyckel. Gästen skriver ingenting. */
+  async function oppna() {
     if (!lank) return;
-    setFel("");
-    // (0.197.0) Med en telefonlänk är fältet ett nummer, prövat med samma funktion som servern. Det som skickas är det gästen skrev: servern normaliserar och jämför.
-    if (telefonlank ? normaliseraGasttelefon(epost) === null : normaliseraGastepost(epost) === null) {
-      setFel(telefonlank ? t.felTelefon : t.felAdress);
-      return;
-    }
+    setLosOrsak("");
     let r;
     try {
-      r = await onLos(telefonlank ? { id: lank.id, nyckel: lank.nyckel, telefon: epost.trim() } : { id: lank.id, nyckel: lank.nyckel, epost: epost.trim() });
+      r = await onLos({ id: lank.id, nyckel: lank.nyckel });
     } catch {
-      if (levande.current) setFel(t.kundeInte);
+      if (levande.current) setLosOrsak("natfel");
       return;
     }
     if (!levande.current) return;
@@ -482,9 +485,18 @@ export function OpsGastSida({ lank = null, onLos, onHamta, onNyLank, onNamn, onR
       return;
     }
     const o = r && typeof r.orsak === "string" ? r.orsak : "nej";
-    const felInbjudan = telefonlank ? t.felInbjudanTelefon : t.felInbjudan;
-    setFel(o === "nej" ? felInbjudan : (t[`orsak_${o}`] ?? felInbjudan));
-    if (ERSATTBARA.includes(o)) setOrsak(`orsak_${o}`);
+    setLosOrsak(["aterkallad", "utgangen", "for-manga"].includes(o) ? o : "nej");
+  }
+
+  /** (0.200.0) En länk som gått ut: en ny går till inbjudans egen adress. Gästen skriver ingenting, och svaret är detsamma hur det än gick. */
+  async function begarNyLankForLank() {
+    if (!lank) return;
+    try {
+      await onNyLank({ id: lank.id, nyckel: lank.nyckel });
+    } catch {
+      // ⛔ Ett fel visas inte som ett annat svar än det vanliga: servern svarar likadant hur det än gått, och sidan gör det också.
+    }
+    if (levande.current) setLage({ fas: "nylank-skickad" });
   }
 
   async function begarNyLank() {
@@ -570,9 +582,9 @@ export function OpsGastSida({ lank = null, onLos, onHamta, onNyLank, onNamn, onR
   }
 
   /**
-   * Glömmer gästen på enheten och frågar efter adressen igen (0.190.0, QA fynd 7 i cllp/lifehub.app#658): en delad dator eller telefon ska inte öppna någon annans grupp
+   * Glömmer gästen på enheten (0.190.0, QA fynd 7 i cllp/lifehub.app#658): en delad dator eller telefon ska inte öppna någon annans grupp
    * för nästa person. ALLA sessioner på enheten glöms, inte bara den som visas: nästa person ska inte heller hamna i den förras omröstning. Servern rörs inte: sessionen
-   * gäller tills den går ut, men nyckeln finns inte längre på enheten. Med länken i minnet (samma sidvisning) är det adressteget; utan den sidan som skickar en ny länk.
+   * gäller tills den går ut, men nyckeln finns inte längre på enheten. Med länken i minnet (samma sidvisning) är det välkomsten med Öppna; utan den sidan som skickar en ny länk.
    */
   function loggaUt() {
     for (const id of sparadeIds()) glomSession(id);
@@ -584,14 +596,16 @@ export function OpsGastSida({ lank = null, onLos, onHamta, onNyLank, onNamn, onR
     setEpost("");
     setFel("");
     setOrsak("");
+    setLosOrsak("");
     setNamnSparat(false);
     namnLast.current = false;
     setVisningsnamn(null);
     setAndrarNamn(false);
     setFragarRadera(false);
-    setLage({ fas: lank ? "adress" : "ny-lank" });
+    setLage({ fas: lank ? "valkommen" : "ny-lank" });
   }
 
+  // Bara för den som inte har någon länk alls: adressen, och en ny länk till den.
   const adressFormulär = (/** @type {{ rubrik: string, ingress: string, etikett: string, knapp: string, onKlar: () => Promise<void> }} */ p) => (
     <form
       data-gast-form={lage.fas}
@@ -604,27 +618,50 @@ export function OpsGastSida({ lank = null, onLos, onHamta, onNyLank, onNamn, onR
       <h1 className={PUBLIK_KLASS.sida}>{p.rubrik}</h1>
       <p className={PUBLIK_KLASS.brod}>{p.ingress}</p>
       <OpsField label={p.etikett} error={fel || undefined}>
-        {lage.fas === "adress" && telefonlank ? (
-          <OpsInput value={epost} onChange={setEpost} type="tel" autoComplete="tel" tal={false} />
-        ) : (
-          <OpsInput value={epost} onChange={setEpost} type="email" autoComplete="email" tal={false} />
-        )}
+        <OpsInput value={epost} onChange={setEpost} type="email" autoComplete="email" tal={false} />
       </OpsField>
       <div>
         <OpsButton type="submit" variant="primary" onClick={p.onKlar}>
           {p.knapp}
         </OpsButton>
       </div>
-      {lage.fas === "adress" && orsak === "orsak_utgangen" && telefonlank ? (
-        <p data-gast-utgangen-telefon="" className={PUBLIK_KLASS.brod}>{t.utgangenTelefon}</p>
-      ) : lage.fas === "adress" && orsak === "orsak_utgangen" ? (
-        <div className="flex flex-col gap-2">
-          <OpsButton variant="secondary" onClick={begarNyLank}>
-            {t.nyLankKnapp}
-          </OpsButton>
-        </div>
-      ) : null}
     </form>
+  );
+
+  // (0.200.0) Välkomsten med Öppna, eller beskedet efter Öppna. `for-manga` och ett nätfel låter knappen stå kvar: att försöka igen senare kan gå. Ett nej, en återkallad och en utgången länk gör det inte.
+  const kanForsokaIgen = losOrsak === "" || losOrsak === "for-manga" || losOrsak === "natfel";
+  const valkomst = kanForsokaIgen ? (
+    <section data-gast-valkommen="" className="flex w-full max-w-md flex-col gap-4">
+      <h1 className={PUBLIK_KLASS.sida}>{t.valkommenRubrik}</h1>
+      <p className={PUBLIK_KLASS.brod}>{t.valkommenIngress}</p>
+      <div>
+        <OpsButton variant="primary" onClick={oppna}>
+          {t.oppna}
+        </OpsButton>
+      </div>
+      {losOrsak ? (
+        <p role="alert" data-gast-los-fel={losOrsak} className="m-0 text-etikett text-danger">
+          {losOrsak === "natfel" ? t.kundeInte : t["orsak_for-manga"]}
+        </p>
+      ) : null}
+    </section>
+  ) : (
+    <div data-gast-los-fel={losOrsak} role="alert">
+      {losOrsak === "utgangen" && telefonlank ? (
+        <OpsEmpty title={t.orsak_utgangen} description={t.utgangenTelefon} />
+      ) : losOrsak === "utgangen" ? (
+        <OpsEmpty
+          title={t.orsak_utgangen}
+          action={
+            <OpsButton variant="primary" onClick={begarNyLankForLank}>
+              {t.nyLankKnapp}
+            </OpsButton>
+          }
+        />
+      ) : (
+        <OpsEmpty title={losOrsak === "aterkallad" ? t.orsak_aterkallad : t.lankenFungerarInte} />
+      )}
+    </div>
   );
 
   /** @param {boolean} [medUtloggning] Gruppens integritet bär Logga ut på den här enheten (0.195.0). En omröstning och en händelse har ingen. */
@@ -778,8 +815,8 @@ export function OpsGastSida({ lank = null, onLos, onHamta, onNyLank, onNamn, onR
       <main className={cx("mx-auto w-full flex-1 px-4", grupplage ? "pt-4 pb-[calc(var(--bottom-nav-h)+var(--safe-bottom)+var(--spelrad-h,0px))] md:pt-12 md:pb-[calc(4rem+var(--spelrad-h,0px))]" : "pt-8 pb-16 sm:pt-12", spalt)}>
         {lage.fas === "startar" ? (
           <OpsEmpty busy title={t.laddar} busyLabel={t.laddar} />
-        ) : lage.fas === "adress" ? (
-          adressFormulär({ rubrik: t.rubrikRosta, ingress: telefonlank ? t.ingressTelefon : t.ingress, etikett: telefonlank ? t.telefonEtikett : t.adressEtikett, knapp: t.fortsatt, onKlar: skickaAdress })
+        ) : lage.fas === "valkommen" ? (
+          valkomst
         ) : lage.fas === "ny-lank" ? (
           adressFormulär({ rubrik: t.nyLankRubrik, ingress: t.nyLankIngress, etikett: t.adressEtikett, knapp: t.nyLankKnapp, onKlar: begarNyLank })
         ) : lage.fas === "nylank-skickad" ? (

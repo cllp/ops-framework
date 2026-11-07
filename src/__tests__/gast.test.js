@@ -163,10 +163,28 @@ describe("länken", () => {
     for (const nej of ["/", "/api/gast", "/guest/x", "/guestbook", "/GAST", "/GUEST", "", null]) expect(arGastsidansAdress(nej), String(nej)).toBe(false);
   });
 
-  it("en halv eller trasig länk är ingen länk, så sidan frågar efter adressen i stället för att försöka", () => {
+  it("en halv eller trasig länk är ingen länk, så sidan erbjuder en ny länk i stället för att försöka", () => {
     for (const f of [undefined, null, "", "#", `#i=${ID}`, `#k=${NYCKEL}`, `#i=kort&k=${NYCKEL}`, `#i=${ID}&k=kort`, `#i=${"G".repeat(64)}&k=${NYCKEL}`]) {
       expect(tolkaGastLank(f), String(f)).toBeNull();
     }
+  });
+
+  it("(0.200.0) sprak ger &l=sv eller &l=en sist och tolkas tillbaka; utan sprak är länken exakt som förut, och ett okänt språk kastar", () => {
+    expect(gastLank("https://my.life-hub.app", { id: ID, nyckel: NYCKEL, sprak: "sv" })).toBe(`https://my.life-hub.app/guest#i=${ID}&k=${NYCKEL}&l=sv`);
+    expect(gastLank("https://my.life-hub.app", { id: ID, nyckel: NYCKEL, sprak: "en" })).toBe(`https://my.life-hub.app/guest#i=${ID}&k=${NYCKEL}&l=en`);
+    // Telefonens tecken först, språket sist.
+    const tel = gastLank("https://my.life-hub.app", { id: ID, nyckel: NYCKEL, slag: "telefon", sprak: "en" });
+    expect(tel).toBe(`https://my.life-hub.app/guest#i=${ID}&k=${NYCKEL}&s=tel&l=en`);
+    expect(tolkaGastLank(new URL(tel).hash)).toEqual({ id: ID, nyckel: NYCKEL, slag: "telefon", sprak: "en" });
+    expect(tolkaGastLank(`#i=${ID}&k=${NYCKEL}&l=sv`)).toEqual({ id: ID, nyckel: NYCKEL, sprak: "sv" });
+    expect(gastLank("https://my.life-hub.app", { id: ID, nyckel: NYCKEL })).toBe(`https://my.life-hub.app/guest#i=${ID}&k=${NYCKEL}`);
+    expect(tolkaGastLank(`#i=${ID}&k=${NYCKEL}`)).toEqual({ id: ID, nyckel: NYCKEL });
+    for (const fel of ["de", "SV", "", null, 1]) expect(() => gastLank("https://my.life-hub.app", { id: ID, nyckel: NYCKEL, sprak: /** @type {any} */ (fel) }), String(fel)).toThrow(/sprak/);
+  });
+
+  it("(0.200.0) ett okänt l hoppas över och länken gäller ändå: språket är ingen behörighet", () => {
+    for (const l of ["de", "SV", "", "sv;x"]) expect(tolkaGastLank(`#i=${ID}&k=${NYCKEL}&l=${l}`), l).toEqual({ id: ID, nyckel: NYCKEL });
+    expect(tolkaGastLank(`#i=${ID}&k=${NYCKEL}&s=tel&l=de`)).toEqual({ id: ID, nyckel: NYCKEL, slag: "telefon" });
   });
 
   it("gastLank kastar för en basadress utan protokoll eller med sökväg, och för en felformad nyckel", () => {

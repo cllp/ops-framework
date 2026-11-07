@@ -15,8 +15,9 @@
  *
  * Den andra vägen kom 2026-11-05 (CP: "Jag skulle också vilja kunna se länken till inbjudningen, eller kopiera den", och när det gällde om länken skulle bytas: "Man kan behöva ge länken igen för de som
  * fibblar bort den"): `kopieraLank` ger samma `{ id, nyckel }` till en medlem som får förvalta inbjudan, ur appens `lankvalv`, och är därmed det ENDA returvärdet som bär en nyckel. Det är säkert av tre skäl: bara den som
- * får Skicka igen (samma prövning, ägare eller admin för en gruppinbjudan) får nyckeln, kopian ligger krypterad i ett valv som bara servern läser och inte på raden som medlemmens klient kan läsa, och den som
- * öppnar länken måste ändå skriva gästens e-postadress (eller, sedan 0.197.0, telefonnummer för en inbjudan med telefon).
+ * får Skicka igen (samma prövning, ägare eller admin för en gruppinbjudan) får nyckeln, och kopian ligger krypterad i ett valv som bara servern läser och inte på raden som medlemmens klient kan läsa.
+ * ⛔ (0.200.0) Den som öppnar länken skriver inte längre gästens adress: länken loggar in direkt (`los`). Det tredje skälet, att adressen ändå krävdes, finns alltså inte kvar. Det som skyddar en kopierad
+ * eller vidarebefordrad länk är detsamma som för länken i brevet: gästen syns i gästlistan, och Dra tillbaka stänger allt med ett tryck.
  *
  * ══ ⛔ UNIKHET ÄR DOKUMENT-ID, ALDRIG EN LÄSNING FÖLJD AV EN SKRIVNING ═══════════════════════════════════════════════════
  *
@@ -30,11 +31,15 @@
  * ett nytt utskick av samma gäst inte lämnar en aktiv inbjudan utan plats. Det som återstår är en plats som ingen längre använder (processen dog mellan platsen och inbjudan):
  * den tas tillbaka av `tagPlats` när taket nås, om den är äldre än `PLATSFRIST_MS` och gästen saknar aktiv inbjudan. En ny plats på samma gäst räknas aldrig två gånger.
  *
- * ══ ⛔ FEL ADRESS RÄKNAS PER INBJUDAN OCH PER IP, OCH ALLA NEJ ÄR BYTE FÖR BYTE LIKA ═════════════════════════════════════════
+ * ══ ⛔ FEL NYCKEL RÄKNAS PER INBJUDAN OCH PER IP, OCH ALLA NEJ ÄR BYTE FÖR BYTE LIKA ═════════════════════════════════════════
  *
- * Försöket RESERVERAS innan nyckeln och adressen prövas (en villkorad skrivning, `updateIf`) och ges tillbaka om det lyckades, så att hundra parallella gissningar
- * inte alla hinner pröva innan någon räknats (samma mönster som delningens `reservera`). Svaret på okänt id, fel nyckel och fel adress är ett och samma: `{ ok: false,
- * orsak: "nej" }`. `aterkallad` och `utgangen` ges först när nyckeln OCH adressen stämde.
+ * Försöket RESERVERAS innan nyckeln prövas (en villkorad skrivning, `updateIf`) och ges tillbaka om det lyckades, så att hundra parallella gissningar
+ * inte alla hinner pröva innan någon räknats (samma mönster som delningens `reservera`). Svaret på okänt id och fel nyckel är ett och samma: `{ ok: false,
+ * orsak: "nej" }`. `aterkallad` och `utgangen` ges först när nyckeln stämde.
+ *
+ * ⛔ (0.200.0) GÄSTEN SKRIVER INGEN ADRESS. Före 0.200.0 krävde `los` också gästens adress (eller nummer), och fel adress var samma nej. QA 2026-11-07 och CP samma dag: gästen ska "komma direkt in ...
+ * hoppa över att bekräfta med mailen". Second opinion (Fable, cllp/ops-framework#540): mejlet öppnas ofta i mejlappens egen webbvy, med egen lagring, så gästen fick skriva adressen i varje webbläsare.
+ * Nyckeln (32 slumpbyte, räknad per inbjudan och IP) är beviset, och en kontakt i anropet läses inte. Se `los`.
  *
  * ══ ⛔ HELA GRUPPEN (0.132.0): SERVERN LÄSER OCH SVARAR MED VITLISTADE FÄLT, PER ÅTGÄRD ═════════════════════════════════════
  *
@@ -1266,12 +1271,19 @@ export function createGastService(konfig) {
   }
 
   /**
-   * Löser in en länk: nyckeln och adressen stämmer, inbjudan är aktiv och länken har inte gått ut. Svaret är en sessionsnyckel som gästen sparar på enheten.
+   * Löser in en länk: nyckeln stämmer, inbjudan är aktiv och länken har inte gått ut. Svaret är en sessionsnyckel som gästen sparar i webbläsaren.
    *
-   * ⛔ (0.197.0) KONTAKTEN ÄR `epost` ELLER `telefon`, OCH DEN JÄMFÖRS MOT INBJUDANS EGEN KONTAKT, SLAG OCH VÄRDE (`gastkontaktnyckel`), i konstant tid. Ett nummer släpper aldrig in en e-postinbjudan och en adress aldrig
-   * en telefoninbjudan: nyckeln är `tel:<nummer>` mot adressen, och de kan aldrig vara lika. Fel kontakt, fel slag, båda angivna, fel nyckel och okänd inbjudan är samma `nej` byte för byte, och räknas lika.
+   * ⛔ (0.200.0) NYCKELN RÄCKER, GÄSTEN SKRIVER INGENTING. QA 2026-11-07 och CP samma dag: gästen ska "komma direkt in ... hoppa över att bekräfta med mailen", och det ska vara "SUPERSIMPELT". Second opinion (Fable,
+   * cllp/ops-framework#540) visade varför adressteget kostade mer än det skyddade: mejlet öppnas ofta i mejlappens egen webbvy, som har sin egen lagring, och gästen fick skriva adressen på nytt i varje
+   * webbläsare. Nyckeln är 32 slumpbyte och räknas per inbjudan och per IP: den går inte att gissa. Det som återstår är en vidarebefordrad länk, och den syns i gästlistan och stängs med Dra tillbaka.
+   * En kontakt i anropet (`epost`, `telefon`, från en sida före 0.200.0) läses aldrig: den jämförs inte och kan inte ge ett nej.
    *
-   * @param {Record<string, any>} b `{ id, nyckel, epost, ip }` eller `{ id, nyckel, telefon, ip }`.
+   * ⛔ LÄNKEN FÖRBRUKAS INTE. Samma länk går att lösa in många gånger, och varje gång ger en ny session: mejlappen, Safari och datorn fungerar alla med samma länk. Den gäller tills den går ut
+   * (`GASTLANKDAGAR`) eller en medlem skickar en ny (nyckeln roteras och den gamla slutar fungera).
+   *
+   * Fel nyckel och okänd inbjudan är samma `nej` byte för byte, och fel nyckel räknas mot inbjudan och IP:n. `aterkallad` och `utgangen` ges först när nyckeln stämde.
+   *
+   * @param {Record<string, any>} b `{ id, nyckel, ip }`.
    * @returns {Promise<{ ok: true, sessionsnyckel: string } | { ok: false, orsak: Gastorsak }>}
    */
   async function los(b) {
@@ -1287,15 +1299,9 @@ export function createGastService(konfig) {
     if (!rad) return nej();
     const res = await reservera(INB, id, rad, INBFALT, { max: GASTFEL_MAX, fonsterMs: GASTFEL_FONSTER_MS });
     if (!res) return orsak("for-manga");
+    if (!likaHash(hash(nyckel), rad.nyckelHash)) return nej();
 
-    const kontakt = kontaktIAnrop(b, extraSparrade);
-    const radens = gastkontaktPaRad(rad);
-    // Båda jämförelserna görs alltid, så att tiden inte säger vilken av dem som var fel. För en adress är det exakt jämförelsen före 0.197.0: hashen av adressen mot hashen av radens adress.
-    const nyckelStammer = likaHash(hash(nyckel), rad.nyckelHash);
-    const kontaktStammer = kontakt !== null && radens !== null && likaHash(hash(gastkontaktnyckel(kontakt)), hash(gastkontaktnyckel(radens)));
-    if (!nyckelStammer || !kontaktStammer) return nej();
-
-    // Nyckeln och adressen stämde: det här är gästen, eller någon som har allt gästen har. Försöket ges tillbaka, eftersom det inte var en gissning som missade.
+    // Nyckeln stämde: det här är gästen, eller någon gästen gett länken. Försöket ges tillbaka, eftersom det inte var en gissning som missade.
     const ge = async () => {
       await aterlamna(INB, id, INBFALT, res.fonster);
       await aterlamna(RAKNARE, ipRes.id, RAKNEFALT, ipRes.fonster);
@@ -1359,8 +1365,8 @@ export function createGastService(konfig) {
   /**
    * Öppnar gruppen som gäst för en INLOGGAD person, utan mejllänken: samma session som `los` ger, mot samma tak och med samma felräknare per IP (`GASTIP_MAX`), och inget medlemskap skrivs.
    *
-   * ⛔ BEVISET ÄR DEN BEKRÄFTADE ADRESSEN I STÄLLET FÖR NYCKELN. `epostBekraftad: true` och en adress som är inbjudans, jämförd som i `los` (båda jämförelserna görs alltid). Fel adress, obekräftad adress,
-   * okänd inbjudan och en inbjudan av fel slag är samma `nej` byte för byte. `aterkallad` ges först när adressen stämde, som i `los`.
+   * ⛔ BEVISET ÄR DEN BEKRÄFTADE ADRESSEN I STÄLLET FÖR NYCKELN. `epostBekraftad: true` och en adress som är inbjudans, jämförd i konstant tid (alla villkor prövas alltid). Fel adress, obekräftad adress,
+   * okänd inbjudan och en inbjudan av fel slag är samma `nej` byte för byte. `aterkallad` ges först när adressen stämde, som `los` ger den först när nyckeln stämde.
    * ⛔ LÄNKENS GILTIGHET PRÖVAS INTE (ingen `utgangen`): den skyddar mejllänkens nyckel, och här bevisar den bekräftade adressen, som när `nyLank` skickar en ny länk.
    * ⛔ INGEN RÄKNARE PÅ INBJUDAN, BARA PÅ IP. Räknaren per inbjudan i `los` skyddar en nyckel som går att gissa. Här är det adressen som bevisar, och en främmande inloggad person som fick ett inbjudnings-id
    * hade kunnat låsa ute gästen genom att misslyckas på den. IP-taket gäller ändå, och ett lyckat anrop ger tillbaka sitt försök.
@@ -1470,29 +1476,78 @@ export function createGastService(konfig) {
   }
 
   /**
-   * Någon ber om en ny länk: de skriver sin adress, och får samma svar hur det än går. Har adressen aktiva inbjudningar roteras deras nycklar och ett brev skickas
-   * med högst `GASTNYLANK_MAX_LANKAR` länkar. Högst `GASTNYLANK_BREV_PER_DYGN` brev per adress och dygn, och `GASTNYLANKIP_MAX` förfrågningar per IP och timme.
+   * Någon ber om en ny länk, på ett av två sätt, och får samma svar hur det än går (`GASTNYLANK_SVAR`):
    *
-   * ⛔ SVARET ÄR ALLTID `GASTNYLANK_SVAR`. Ett annat svar för en adress som är gäst hade låtit vem som helst fråga vilka adresser som är det. Ett brev som inte gick att
-   * skicka rapporteras (`rapportera`) och syns inte i svaret, av samma skäl.
+   *   - `{ epost, ip }`: de skriver sin adress. Har adressen aktiva inbjudningar roteras deras nycklar och ett brev skickas med högst `GASTNYLANK_MAX_LANKAR` länkar.
+   *   - `{ id, nyckel, ip }` (0.200.0): de håller en länk, också en som gått ut, och trycker Skicka en ny länk. Stämmer nyckeln, är inbjudan inte återkallad och är dess kontakt en e-postadress, får
+   *     inbjudans EGEN adress ett brev med en ny länk till just den inbjudan. Gästen skriver ingenting (CP 2026-11-07: "SUPERSIMPELT", second opinion i cllp/ops-framework#540). En telefoninbjudan får
+   *     inget brev: den har ingen adress, och den som bjöd ger en ny med Dela. Fel nyckel räknas mot inbjudan som i `los`, och en rätt nyckel ger tillbaka sitt försök.
    *
-   * @param {Record<string, any>} b `{ epost, ip }`.
+   * Båda vägarna har samma tak: `GASTNYLANKIP_MAX` förfrågningar per IP och timme, och `GASTNYLANK_BREV_PER_DYGN` brev per adress och dygn, räknat på adressen oavsett väg. Brevet byggs på ett ställe
+   * (`skickaNyaLankar`), så att de två vägarna inte kan börja skicka olika brev (regel 2).
+   *
+   * ⛔ SVARET ÄR ALLTID `GASTNYLANK_SVAR`. Ett annat svar för en adress som är gäst hade låtit vem som helst fråga vilka adresser som är det, och ett annat svar för en länk hade sagt om
+   * nyckeln stämde. Adressen står aldrig i svaret. Ett brev som inte gick att skicka rapporteras (`rapportera`) och syns inte i svaret, av samma skäl.
+   *
+   * @param {Record<string, any>} b `{ epost, ip }` eller `{ id, nyckel, ip }`.
    * @returns {Promise<{ ok: true, svar: string }>}
    */
   async function nyLank(b) {
     const ipHash = ipId(b?.ip, "nyLank", "nylank");
     const svar = { ok: /** @type {const} */ (true), svar: GASTNYLANK_SVAR };
     if (!(await reserveraRaknare(ipHash, { max: GASTNYLANKIP_MAX, fonsterMs: GASTNYLANKIP_FONSTER_MS }))) return svar;
+    if (b?.id !== undefined || b?.nyckel !== undefined) {
+      await nyLankForLank(b);
+      return svar;
+    }
     const epost = normaliseraGastepost(b?.epost, extraSparrade);
     if (epost === null) return svar;
-    if (!(await reserveraRaknare(hash(`nylank-epost|${gastId(epost)}`), { max: GASTNYLANK_BREV_PER_DYGN, fonsterMs: DYGN_MS }))) return svar;
     // ⛔ GRUPPLÄNKEN KOMMER FÖRST (0.132.0). Brevet bär högst `GASTNYLANK_MAX_LANKAR` länkar, och sorterat på `skapad` ensam kan hela gruppen hamna utanför när personen har fler omröstningar: den inbjudan
     // som ger mest är den som inte får tappas. Därefter nyast först, som förut.
-    const aktiva = (await kalla.list(INB, { where: { epost } }))
-      .filter((r) => r.aterkallad === null)
-      .sort((x, y) => Number(y.omfang?.slag === "grupp") - Number(x.omfang?.slag === "grupp") || y.skapad - x.skapad)
-      .slice(0, GASTNYLANK_MAX_LANKAR);
-    if (aktiva.length === 0) return svar;
+    await skickaNyaLankar(epost, async () =>
+      (await kalla.list(INB, { where: { epost } }))
+        .filter((r) => r.aterkallad === null)
+        .sort((x, y) => Number(y.omfang?.slag === "grupp") - Number(x.omfang?.slag === "grupp") || y.skapad - x.skapad)
+        .slice(0, GASTNYLANK_MAX_LANKAR),
+    );
+    return svar;
+  }
+
+  /**
+   * `nyLank` för den som håller en länk (`{ id, nyckel }`). Svarar ingenting: anroparen ger samma svar oavsett utfall.
+   * @param {Record<string, any>} b
+   */
+  async function nyLankForLank(b) {
+    const id = b?.id;
+    const nyckel = b?.nyckel;
+    if (typeof id !== "string" || !GASTINBJUDNINGSIDFORM.test(id) || typeof nyckel !== "string" || !GASTNYCKELFORM.test(nyckel)) return;
+    const rad = await kalla.read(INB, id);
+    if (!rad) return;
+    const res = await reservera(INB, id, rad, INBFALT, { max: GASTFEL_MAX, fonsterMs: GASTFEL_FONSTER_MS });
+    if (!res) return;
+    if (!likaHash(hash(nyckel), rad.nyckelHash)) return;
+    // Nyckeln stämde: ingen gissning, så försöket ges tillbaka som i `los`.
+    await aterlamna(INB, id, INBFALT, res.fonster);
+    if (rad.aterkallad !== null) return;
+    const kontakt = gastkontaktPaRad(rad);
+    if (kontakt?.slag !== "epost") return;
+    // Raden läses om i `skickaNyaLankar`: den som lästes ovan har en räknare som just ändrats, och rotationen villkoras på nyckelns hash.
+    await skickaNyaLankar(kontakt.varde, async () => {
+      const aktuell = await kalla.read(INB, id);
+      return aktuell && aktuell.aterkallad === null && aktuell.nyckelHash === rad.nyckelHash ? [aktuell] : [];
+    });
+  }
+
+  /**
+   * Brevet med nya länkar, för båda vägarna i `nyLank`: taket per adress och dygn, nya nycklar (de gamla slutar fungera) och ett brev av typen `ny-lank` till adressen. Fel kastas aldrig ut:
+   * de rapporteras, eftersom svaret till den som bad är detsamma hur det än gick.
+   * @param {string} epost Adressen brevet går till, normaliserad.
+   * @param {() => Promise<Record<string, any>[]>} rader Inbjudningarna som får nya länkar. Läses först när taket släppt igenom.
+   */
+  async function skickaNyaLankar(epost, rader) {
+    if (!(await reserveraRaknare(hash(`nylank-epost|${gastId(epost)}`), { max: GASTNYLANK_BREV_PER_DYGN, fonsterMs: DYGN_MS }))) return;
+    const aktiva = await rader();
+    if (aktiva.length === 0) return;
     try {
       const lankar = [];
       for (const r of aktiva) {
@@ -1506,12 +1561,11 @@ export function createGastService(konfig) {
         const { rad, nyckel } = await roteraNyckel(r);
         lankar.push(brevlank(rad, nyckel, delta ? { ut: delta, sekvens: await sekvensForUtskick(rad, delta) } : null));
       }
-      if (lankar.length === 0) return svar;
+      if (lankar.length === 0) return;
       await skicka({ typ: "ny-lank", till: epost, namn: text(aktiva[0].namn), lankar, skickadAv: null });
     } catch (fel) {
       rapportera(fel);
     }
-    return svar;
   }
 
   /**

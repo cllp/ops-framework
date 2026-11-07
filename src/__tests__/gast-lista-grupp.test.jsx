@@ -262,7 +262,7 @@ describe("OpsGastLista, gruppläget", () => {
         Object.defineProperty(window.navigator, "share", { value: share, configurable: true });
         const ruta = await oppna({ gruppnamn: "Källan" });
         await klicka(delaKnapp(ruta));
-        expect(share).toHaveBeenCalledWith({ title: "Inbjudan till Källan", text: "Öppna länken och skriv din e-postadress, samma som inbjudan gick till.", url: URL_ });
+        expect(share).toHaveBeenCalledWith({ title: "Inbjudan till Källan", text: "Öppna länken. Du behöver inget konto.", url: URL_ });
         expect(within(ruta).queryByRole("status")).toBeNull();
         cleanup();
         const ruta2 = await oppna();

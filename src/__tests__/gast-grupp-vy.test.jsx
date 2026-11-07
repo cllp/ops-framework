@@ -731,12 +731,12 @@ describe("OpsGastSida med OpsGastGrupp: översikten bär integriteten, och Logga
     expect(screen.queryByText("Logga ut på den här enheten")).toBeNull();
   });
 
-  it("⛔ Logga ut på den här enheten glömmer alla sessioner på enheten och går till adressteget, utan att fråga servern", async () => {
+  it("⛔ Logga ut på den här enheten glömmer alla sessioner på enheten och går till välkomsten med Öppna (0.200.0, förut adressteget), utan att fråga servern", async () => {
     const { lagring } = rita({ lank: { id: ID, nyckel: NYCKEL } });
     await screen.findByRole("heading", { level: 1, name: "Källan" });
     await klicka(screen.getByText("Integritet och dina uppgifter"));
     await klicka(screen.getByRole("button", { name: "Logga ut på den här enheten" }));
-    expect(await screen.findByLabelText("Din e-postadress")).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Öppna" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { level: 1, name: "Källan" })).toBeNull();
     for (const k of [`ops-gast:${ID}`, `ops-gast:${ID2}`, "ops-gast:senaste", "ops-gast:alla"]) expect(lagring.d[k], k).toBeUndefined();
   });
