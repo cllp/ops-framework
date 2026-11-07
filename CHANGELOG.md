@@ -9,6 +9,14 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.199.1
+
+Gästens Översikt räknar det biblioteket visar. QA 2026-11-07: rutan sa 3 filer och listan visade 2.
+
+### Rättat
+
+- **En arkiverad post räknas inte på Översikten.** Gästens bibliotek döljer arkiverade poster tills arkivtaggen väljs (`filtreraBibliotek`), men `oversikt` räknade dem: i antalet, bland filerna, som ny och bland de senaste. Nu prövar översikten samma sak som listan (`arArkiverad`), så rutan och listan säger samma siffra. Provet är rött utan ändringen (10 mot 9) och grönt med.
+
 ## 0.199.0
 
 Gästens Översikt säger hur mycket som finns, och spelarens ark är rundat runt om på webben. CP 2026-11-07.
