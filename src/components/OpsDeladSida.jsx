@@ -1,3 +1,4 @@
+import { OmAppenRad } from "./OmAppenRad.jsx";
 import { useState } from "react";
 import { cx } from "../lib/cx.js";
 import { lasSparatSprak, sparaSprak, valdSprak } from "../lib/deladdatum.js";
@@ -25,9 +26,10 @@ import { PublikHuvud } from "./PublikHuvud.jsx";
  * @param {import("react").ReactNode} [props.huvud] Appens märke, till vänster i huvudet.
  * @param {string} [props.sprak] Språket om appen styr det.
  * @param {(sprak: string) => void} [props.onSprak] Anropas när besökaren väljer språk.
+ * @param {{ href: string, namn: string }} [props.omAppen] (0.202.0) Appens namn och adress för sista raden, "Delat från {namn} ... Läs mer". Prövas som på gästens sida: bara https.
  * @param {string | null} [props.lankSprak] Länkens språk (`sv` eller `en`), när länken bär ett. Ett okänt värde hoppas över.
  */
-export function OpsDeladSida({ children, huvud, sprak, onSprak, lankSprak }) {
+export function OpsDeladSida({ children, huvud, sprak, onSprak, lankSprak, omAppen }) {
   if (onSprak !== undefined && typeof onSprak !== "function") throw new Error("OpsDeladSida: onSprak ska vara en funktion.");
   if (sprak !== undefined && !(/** @type {readonly string[]} */ (SPRAK).includes(sprak))) {
     throw new Error(`OpsDeladSida: språket ${JSON.stringify(sprak)} finns inte (giltiga: ${SPRAK.join(", ")}).`);
@@ -51,6 +53,8 @@ export function OpsDeladSida({ children, huvud, sprak, onSprak, lankSprak }) {
       <PublikHuvud namn="delad" aktivt={aktivt} etikett={t.sprakEtikett} onVal={valj} huvud={huvud} />
       <main className="mx-auto w-full max-w-3xl flex-1 px-4 pt-8 pb-16 sm:pt-12">
         <OpsSprakProvider sprak={aktivt}>{typeof children === "function" ? children(aktivt) : children}</OpsSprakProvider>
+        {/* (0.202.0, lifehub.app#687 punkt 16) Sista raden som på gästens översikt. */}
+        {omAppen ? <div className="mt-12"><OmAppenRad omAppen={omAppen} sprak={aktivt} /></div> : null}
       </main>
     </div>
   );

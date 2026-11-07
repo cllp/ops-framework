@@ -242,6 +242,28 @@ describe("OpsGastSida", () => {
     expect(screen.getByRole("button", { name: "Open" })).toBeInTheDocument();
   });
 
+  it("⛔ (0.202.0, lifehub.app#687 punkt 3) en länk som inte stämmer visar felet direkt, utan Öppna, och sidan löser ändå aldrig in länken av sig själv", async () => {
+    const onProva = vi.fn(async () => ({ ok: false, orsak: "nej" }));
+    const { onLos } = rita({ onProva });
+    expect((await screen.findAllByText(/^Länken fungerar inte längre\./)).length).toBeGreaterThan(0);
+    expect(screen.queryByRole("button", { name: "Öppna" })).toBeNull();
+    expect(onProva.mock.calls[0][0]).toStrictEqual({ id: ID, nyckel: NYCKEL });
+    expect(onLos).not.toHaveBeenCalled();
+  });
+
+  it("(0.202.0) en länk som stämmer välkomnar som förut, och ett nätfel i prövningen avgör ingenting", async () => {
+    const { unmount } = rita({ onProva: vi.fn(async () => ({ ok: true })) });
+    expect(await screen.findByRole("button", { name: "Öppna" })).toBeInTheDocument();
+    unmount();
+    rita({ onProva: vi.fn(async () => { throw new Error("nät"); }) });
+    expect(await screen.findByRole("button", { name: "Öppna" })).toBeInTheDocument();
+  });
+
+  it("⛔ (0.202.0) ett nej utan känd orsak (en server som inte känner prova svarar 400 utan orsak) ger Välkommen, inte felet", async () => {
+    rita({ onProva: vi.fn(async () => ({ ok: false })) });
+    expect(await screen.findByRole("button", { name: "Öppna" })).toBeInTheDocument();
+  });
+
   it("⛔ fragmentet tas bort ur adressraden när inloggningen lyckats, så att nyckeln inte ligger kvar i historiken", async () => {
     window.history.replaceState(null, "", `/gast#i=${ID}&k=${NYCKEL}`);
     rita();
@@ -288,9 +310,11 @@ describe("OpsGastSida", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Öppna" }));
     expect(await screen.findByText("Länken fungerar inte längre. Använd den senaste länken du fått, eller be den som bjöd in dig om en ny.")).toBeInTheDocument();
     expect(onLos).toHaveBeenCalledTimes(1);
-    // Inget att trycka på: samma länk ger samma nej.
+    // Öppna står inte kvar: samma länk ger samma nej.
     expect(screen.queryByRole("button", { name: "Öppna" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Skicka en ny länk" })).toBeNull();
+    // ⛔ ÄNDRAT I 0.202.0 (QA 2026-11-07, punkt 4 i lifehub.app#687): Skicka en ny länk finns nu också här, och anropet bär länkens id och nyckel. Servern skickar bara om nyckeln har gällt.
+    fireEvent.click(screen.getByRole("button", { name: "Skicka en ny länk" }));
+    await waitFor(() => expect(document.body.textContent).toContain(GASTNYLANK_SVAR));
     expect(screen.queryByText("Rep")).toBeNull();
     unmount();
     rita({ sprak: "en", onLos: vi.fn(async () => ({ ok: false, orsak: "nej" })) });

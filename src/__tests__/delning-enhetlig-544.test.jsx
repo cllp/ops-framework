@@ -106,3 +106,32 @@ describe("Skicka till mejl på varje länk på händelsen, som gästens Skicka i
     expect(onMejlaLank).toHaveBeenCalledWith(expect.objectContaining({ id: "b2", url: "https://my.test/g/travel/event/resa-b2", till: "kusin@exempel.se" }));
   });
 });
+
+describe("den delade händelsen säger hur man svarar (0.202.0, lifehub.app#687 punkt 18)", () => {
+  it("raden står på svenska och på engelska", async () => {
+    const { OpsDeladHandelse } = await import("../components/OpsDeladHandelse.jsx");
+    const delning = { titel: "Fest", datum: "2026-12-24", filer: [], ejVisade: 0 };
+    for (const [sprak, text] of /** @type {const} */ ([["sv", "Vill du svara? Be den som delade länken att bjuda in dig."], ["en", "Want to answer? Ask the person who shared the link to invite you."]])) {
+      const { container, unmount } = render(<OpsDeladHandelse delning={/** @type {any} */ (delning)} sprak={sprak} onSprak={() => {}} />);
+      expect(container.querySelector("[data-dh-hur-svara]")?.textContent).toBe(text);
+      unmount();
+    }
+  });
+});
+
+describe("sista raden om appen på de delade sidorna (0.202.0, lifehub.app#687 punkt 16)", () => {
+  const omAppen = { href: "https://life-hub.app", namn: "LifeHub" };
+  it("står på den delade händelsen och posten, utan gruppens namn, och länken öppnas i en ny flik", () => {
+    const delning = { titel: "Fest", datum: "2026-12-24", filer: [], ejVisade: 0 };
+    const { container, unmount } = render(<OpsDeladHandelse delning={/** @type {any} */ (delning)} sprak="sv" onSprak={() => {}} omAppen={omAppen} />);
+    const rad = container.querySelector("[data-delad-om-appen]");
+    expect(rad?.textContent).toBe("Delat från LifeHub, där grupper samlar chatt, kalender och filer. Läs mer");
+    expect(rad?.querySelector("a")?.getAttribute("target")).toBe("_blank");
+    unmount();
+    const { container: c2 } = render(<OpsDeladSida sprak="en" onSprak={() => {}} omAppen={omAppen}>innehåll</OpsDeladSida>);
+    expect(c2.querySelector("[data-delad-om-appen]")?.textContent).toBe("Shared from LifeHub, where groups keep chat, calendar and files together. Read more");
+  });
+  it("en adress som inte är https kastar", () => {
+    expect(() => render(<OpsDeladSida sprak="sv" onSprak={() => {}} omAppen={{ href: "javascript:alert(1)", namn: "X" }}>x</OpsDeladSida>)).toThrow(/https/);
+  });
+});

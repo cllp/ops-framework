@@ -370,6 +370,9 @@ function felMedKod(kod, meddelande) {
  * @property {{ uid: string, namn: string } | null} skickadAv Den som bjöd eller skickade om. `null` för "ny länk", som gästen själv bad om.
  */
 
+/** (0.202.0) Hur många tidigare nycklar en inbjudan minns för `nyLank`. */
+const GASTTIDIGARE_NYCKLAR = 5;
+
 /**
  * Bygger tjänsten.
  *
@@ -881,6 +884,17 @@ export function createGastService(konfig) {
   // ── Utskicken ─────────────────────────────────────────────────────────────────────────────────────────────────────
 
   /**
+   * (0.202.0) Hashen av nycklarna en inbjudan haft, den senaste först, högst `GASTTIDIGARE_NYCKLAR`. Bara `nyLank` läser dem: en gäst med ett gammalt brev får be om en ny länk
+   * (QA 2026-11-07, punkt 4 i cllp/lifehub.app#687), men en nyckel som aldrig funnits får inget brev. Ingen gammal nyckel öppnar något: `los` och `prova` läser bara `nyckelHash`.
+   * @param {Record<string, any>} rad Raden före bytet.
+   * @returns {string[]}
+   */
+  function tidigareHashar(rad) {
+    const forra = Array.isArray(rad?.tidigareNyckelHashar) ? rad.tidigareNyckelHashar.filter((h) => typeof h === "string") : [];
+    return [rad.nyckelHash, ...forra].filter((h) => typeof h === "string").slice(0, GASTTIDIGARE_NYCKLAR);
+  }
+
+  /**
    * Roterar nyckeln på en inbjudan (den gamla slutar fungera) och räknar ett utskick. Försöker om när en annan hann ändra raden.
    *
    * @param {Record<string, any>} rad Raden som den lästes.
@@ -917,6 +931,7 @@ export function createGastService(konfig) {
       const nu = klocka();
       const { updated, row } = await uppdateraOm(INB, aktuell.id, { nyckelHash: aktuell.nyckelHash }, {
         nyckelHash: gastnyckelHash(nyckel),
+        tidigareNyckelHashar: tidigareHashar(aktuell),
         skickad: nu,
         antalSkickade: (typeof aktuell.antalSkickade === "number" ? aktuell.antalSkickade : 0) + 1,
         lankGiltigTill: nu + GASTLANKDAGAR * DYGN_MS,
@@ -1037,6 +1052,7 @@ export function createGastService(konfig) {
         const nu = klocka();
         const { updated, row: ny2 } = await uppdateraOm(INB, aktuell.id, { nyckelHash: aktuell.nyckelHash, aterkallad: aktuell.aterkallad }, {
           nyckelHash: gastnyckelHash(k),
+          tidigareNyckelHashar: tidigareHashar(aktuell),
           aterkallad: null,
           skickad: nu,
           antalSkickade: (typeof aktuell.antalSkickade === "number" ? aktuell.antalSkickade : 0) + 1,
@@ -1287,7 +1303,35 @@ export function createGastService(konfig) {
    * @returns {Promise<{ ok: true, sessionsnyckel: string } | { ok: false, orsak: Gastorsak }>}
    */
   async function los(b) {
-    const ipHash = ipId(b?.ip, "los", "los");
+    const provat = await provaLank(b, "los");
+    if (!provat.ok) return provat;
+    const sessionsnyckel = await oppnaSession(provat.id);
+    return { ok: true, sessionsnyckel };
+  }
+
+  /**
+   * (0.202.0) Prövar en länk utan att lösa in den: samma prövning, samma räknare och samma svar som `los`, men ingen session skapas och ingenting märks.
+   *
+   * ⛔ VARFÖR (QA 2026-11-07, punkt 3 i cllp/lifehub.app#687): en ändrad eller gammal länk visade först Välkommen och Öppna, och felet kom först efter trycket. Sidan frågar nu när den
+   * laddas och visar felet direkt. Att sidan inte LÖSER IN länken vid sidladdningen står kvar (0.200.0): en mejlskanner som öppnar länken ska inte skapa en session. Den här frågan skapar
+   * ingenting, och fel nyckel räknas som i `los`, så den är inget nytt sätt att gissa.
+   *
+   * @param {Record<string, any>} b `{ id, nyckel, ip }`.
+   * @returns {Promise<{ ok: true } | { ok: false, orsak: Gastorsak }>}
+   */
+  async function prova(b) {
+    const provat = await provaLank(b, "prova");
+    return provat.ok ? { ok: true } : provat;
+  }
+
+  /**
+   * Prövningen `los` och `prova` delar (regel 2: en prövning, inte två som kan glida isär). Räknaren per IP är densamma för båda.
+   * @param {Record<string, any>} b
+   * @param {string} vad Anropets namn i felet när IP saknas.
+   * @returns {Promise<{ ok: true, id: string } | { ok: false, orsak: Gastorsak }>}
+   */
+  async function provaLank(b, vad) {
+    const ipHash = ipId(b?.ip, vad, "los");
     const id = b?.id;
     const nyckel = b?.nyckel;
     // En form som aldrig kan stämma kostar ingenting att svara på. Den räknas mot IP:n ändå: ett skript som skickar skräp är det räknaren finns för.
@@ -1315,9 +1359,8 @@ export function createGastService(konfig) {
       return orsak("utgangen");
     }
 
-    const sessionsnyckel = await oppnaSession(id);
     await ge();
-    return { ok: true, sessionsnyckel };
+    return { ok: true, id };
   }
 
   /**
@@ -1525,8 +1568,13 @@ export function createGastService(konfig) {
     if (!rad) return;
     const res = await reservera(INB, id, rad, INBFALT, { max: GASTFEL_MAX, fonsterMs: GASTFEL_FONSTER_MS });
     if (!res) return;
-    if (!likaHash(hash(nyckel), rad.nyckelHash)) return;
-    // Nyckeln stämde: ingen gissning, så försöket ges tillbaka som i `los`.
+    // ⛔ (0.202.0, QA 2026-11-07, punkt 4 i cllp/lifehub.app#687) ÄVEN EN NYCKEL SOM HAR GÄLLT FÅR BE OM EN NY LÄNK: sidan "Länken fungerar inte längre" saknade knappen, och gästen med
+    // förra brevet kunde inte ta sig vidare. Brevet går bara till inbjudans EGEN adress. En nyckel som aldrig funnits är en gissning: den räknas och får inget brev, som förut.
+    const h = hash(nyckel);
+    const nu = likaHash(h, rad.nyckelHash);
+    const tidigare = !nu && Array.isArray(rad.tidigareNyckelHashar) && rad.tidigareNyckelHashar.some((/** @type {unknown} */ t) => typeof t === "string" && likaHash(h, t));
+    if (!nu && !tidigare) return;
+    // Nyckeln har gällt: ingen gissning, så försöket ges tillbaka som i `los`.
     await aterlamna(INB, id, INBFALT, res.fonster);
     if (rad.aterkallad !== null) return;
     const kontakt = gastkontaktPaRad(rad);
@@ -2794,5 +2842,5 @@ export function createGastService(konfig) {
     return { ok: true };
   }
 
-  return { bjud, aterkalla, skickaOm, kopieraLank, lista, platser, los, minaGruppgaster, oppnaGruppgast, session, hamta, sattNamn, nyLank, stadaSessioner, deltaSvara, tidAndrad, oversikt, chatt, skrivChatt, kommenteraPost, kalender, handelse, svara, rosta, bibliotek, fil, arenden, kommenteraArende, markeraArendeKlart, levandeGaster, aterkallaAlla, ersattAvMedlem, radera, raderaMig };
+  return { bjud, aterkalla, skickaOm, kopieraLank, lista, platser, los, prova, minaGruppgaster, oppnaGruppgast, session, hamta, sattNamn, nyLank, stadaSessioner, deltaSvara, tidAndrad, oversikt, chatt, skrivChatt, kommenteraPost, kalender, handelse, svara, rosta, bibliotek, fil, arenden, kommenteraArende, markeraArendeKlart, levandeGaster, aterkallaAlla, ersattAvMedlem, radera, raderaMig };
 }

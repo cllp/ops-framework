@@ -436,6 +436,8 @@ export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud
       return;
     }
     try {
+      // ⛔ (0.202.0, QA 2026-11-07, punkt 1 och 2 i cllp/lifehub.app#687) EN INBJUDAN TILL SAMMA PERSON BYTER NYCKEL, så en länk som visas under en rad slutar fungera. Den visade glöms innan anropet, som vid Skicka igen.
+      setLankar({});
       await onBjud({ epost: epost.trim(), namn: namn.trim() });
       if (levande.current) {
         setEpost("");
@@ -555,6 +557,8 @@ export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud
     try {
       if (b.slag === "grupp") {
         if (!onBjudGrupp) return;
+        // ⛔ (0.202.0, QA 2026-11-07, punkt 1 och 2 i cllp/lifehub.app#687) EN INBJUDAN TILL SAMMA PERSON BYTER NYCKEL, så en länk som visas under en rad slutar fungera. Den visade glöms innan anropet, som vid Skicka igen.
+        setLankar({});
         if (typeof b.telefon === "string") {
           await bjudGruppTelefon(b.telefon, b.namn);
           return;
@@ -754,7 +758,7 @@ export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud
                   <div className="flex flex-wrap items-center gap-2">
                     {aterkallad ? (
                       onBjud ? (
-                        <OpsButton size="sm" variant="secondary" ariaLabel={t.bjudIgenNamn.replace("{vem}", vem)} onClick={() => pa(g.id, onBjud, { epost: g.epost, namn: g.namn ?? "" })}>
+                        <OpsButton size="sm" variant="secondary" ariaLabel={t.bjudIgenNamn.replace("{vem}", vem)} onClick={() => (glomLank(g.id), pa(g.id, onBjud, { epost: g.epost, namn: g.namn ?? "" }))}>
                           {t.bjudIgen}
                         </OpsButton>
                       ) : null

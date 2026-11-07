@@ -301,6 +301,20 @@ describe("OpsGastLista, gruppläget", () => {
     expect(document.querySelector("[data-gast-lank]")).toBeNull();
   });
 
+  it("⛔ en visad länk försvinner när samma person bjuds in igen, eftersom inbjudan byter nyckel (0.202.0, lifehub.app#687 punkt 1 och 2)", async () => {
+    const onKopieraLank = vi.fn().mockResolvedValue({ url: "https://exempel.se/gast#gammal", lankGiltigTill: Date.UTC(2026, 11, 5) });
+    const onBjudGrupp = vi.fn().mockResolvedValue(undefined);
+    rita({ onKopieraLank, onBjudGrupp });
+    const rad = document.querySelectorAll("[data-gast-inbjudan]")[0];
+    await klicka(within(rad).getByRole("button", { name: /Kopiera länken till anna@foretag.se/ }));
+    await waitFor(() => expect(document.querySelector("[data-gast-lank]")).not.toBeNull());
+    fireEvent.change(screen.getByLabelText("E-postadress"), { target: { value: "anna@foretag.se" } });
+    await klicka(screen.getByRole("button", { name: "Bjud in gäst till hela gruppen" }));
+    await klicka(within(await screen.findByRole("dialog")).getByRole("button", { name: "Bjud in" }));
+    await waitFor(() => expect(onBjudGrupp).toHaveBeenCalled());
+    expect(document.querySelector("[data-gast-lank]")).toBeNull();
+  });
+
   it("Skicka igen och Dra tillbaka gäller en inbjudan och skickar inbjudans id, inte personens", async () => {
     const onSkickaOm = vi.fn();
     const onAterkalla = vi.fn();

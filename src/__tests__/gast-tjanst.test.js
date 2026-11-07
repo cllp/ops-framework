@@ -256,6 +256,24 @@ describe("unikhet: dokument-id och aldrig en läsning följd av en skrivning", (
     expect(await tjanst.los({ ...gammal, epost: "anna@foretag.se", ip: IP })).toEqual({ ok: false, orsak: "nej" });
     expect(await tjanst.los({ ...ny, epost: "anna@foretag.se", ip: IP })).toMatchObject({ ok: true });
   });
+
+  it("⛔ prova (0.202.0, lifehub.app#687 punkt 3): samma svar som los, men ingen session och ingen första inloggning", async () => {
+    const { tjanst, brev, kalla } = bygg();
+    await bjud(tjanst);
+    const gammal = senasteLank(brev);
+    await bjud(tjanst);
+    const ny = senasteLank(brev);
+    expect(await tjanst.prova({ id: gammal.id, nyckel: gammal.nyckel, ip: IP })).toEqual({ ok: false, orsak: "nej" });
+    const andrad = ny.nyckel.slice(0, -1) + (ny.nyckel.endsWith("A") ? "B" : "A");
+    expect(await tjanst.prova({ id: ny.id, nyckel: andrad, ip: IP })).toEqual({ ok: false, orsak: "nej" });
+    expect(await tjanst.prova({ id: ny.id, nyckel: ny.nyckel, ip: IP })).toEqual({ ok: true });
+    expect(await kalla.list("gastsessioner")).toHaveLength(0);
+    const [rad] = await kalla.list("gastinbjudningar");
+    expect(rad.forstInloggad).toBeNull();
+    // Länken går att lösa in efteråt: prova förbrukade ingenting.
+    expect(await tjanst.los({ id: ny.id, nyckel: ny.nyckel, ip: IP })).toMatchObject({ ok: true });
+    expect(await kalla.list("gastsessioner")).toHaveLength(1);
+  });
 });
 
 describe("taket: fem platser, och det är dokument", () => {
@@ -906,6 +924,22 @@ describe("nyLank med en länk: Skicka en ny länk utan att skriva något (0.200.
     const medBrev = await tjanst.nyLank({ id: l.id, nyckel: l.nyckel, ip: "198.51.100.6" });
     expect(brev).toHaveLength(1);
     for (const s of [...utanBrev, medBrev]) expect(JSON.stringify(s)).toBe(SVAR);
+  });
+
+  it("⛔ (0.202.0, lifehub.app#687 punkt 4) en nyckel som HAR gällt får en ny länk till inbjudans egen adress, en påhittad får inget, och den gamla öppnar fortfarande ingenting", async () => {
+    const { tjanst, brev } = bygg();
+    await bjud(tjanst);
+    const gammal = senasteLank(brev);
+    await bjud(tjanst);
+    brev.length = 0;
+    await tjanst.nyLank({ id: gammal.id, nyckel: nyGastnyckel(), ip: "198.51.100.71" });
+    expect(brev).toHaveLength(0);
+    expect(JSON.stringify(await tjanst.nyLank({ id: gammal.id, nyckel: gammal.nyckel, ip: "198.51.100.72" }))).toBe(SVAR);
+    expect(brev).toHaveLength(1);
+    expect(brev[0].till).toBe("anna@foretag.se");
+    const ny = senasteLank(brev);
+    expect(await tjanst.los({ id: gammal.id, nyckel: gammal.nyckel, ip: IP })).toEqual({ ok: false, orsak: "nej" });
+    expect(await tjanst.los({ id: ny.id, nyckel: ny.nyckel, ip: IP })).toMatchObject({ ok: true });
   });
 
   it("fel nyckel räknas mot inbjudan som i los, och en rätt nyckel ger tillbaka sitt försök", async () => {

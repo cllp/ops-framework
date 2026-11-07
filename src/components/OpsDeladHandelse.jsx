@@ -1,3 +1,4 @@
+import { OmAppenRad } from "./OmAppenRad.jsx";
 import { useId, useState } from "react";
 import { cx } from "../lib/cx.js";
 import { DELNINGSORSAKER } from "../lib/delning.js";
@@ -25,6 +26,8 @@ export const ORD_OPSDELADHANDELSE = {
   platsEtikett: { sv: "Plats", en: "Location" },
   filerRubrik: { sv: "Filer", en: "Files" },
   ingaFiler: { sv: "Inga filer har lagts till.", en: "No files have been added." },
+  // ⛔ (0.202.0, QA 2026-11-07, punkt 18 i lifehub.app#687): en delad länk är läsbar för vem som helst och bär därför inget svar. Sidan säger hur man svarar i stället för att lämna mottagaren att gissa.
+  hurSvara: { sv: "Vill du svara? Be den som delade länken att bjuda in dig.", en: "Want to answer? Ask the person who shared the link to invite you." },
   ejVisade: { sv: "{n} filer till finns men visas inte här.", en: "{n} more files exist but are not shown here." },
   oppna: { sv: "Öppna", en: "Open" },
   oppnaFil: { sv: "Öppna {namn}", en: "Open {namn}" },
@@ -72,10 +75,11 @@ const KODORSAKER = /** @type {readonly string[]} */ (["kod-kravs", "fel-kod", "f
  * @param {import("react").ReactNode} [props.huvud] Appens logga eller namn, till vänster i huvudet.
  * @param {string} [props.sprak] Språket om appen styr det (`sv` eller `en`). Utelämnat: sidan väljer själv och minns valet.
  * @param {(sprak: string) => void} [props.onSprak] Anropas när besökaren väljer språk.
+ * @param {{ href: string, namn: string }} [props.omAppen] (0.202.0) Appens namn och adress för sista raden. Prövas som på gästens sida: bara https.
  * @param {string | null} [props.lankSprak] (0.201.0) Länkens språk (`sv` eller `en`, brevets språk), i samma ordning som gästens sida och `OpsDeladSida`: besökarens eget val, sedan länkens, sist webbläsarens.
  * @param {Partial<Record<keyof typeof ORD_OPSDELADHANDELSE, string>>} [props.ord] Egna texter, som vinner över ordboken.
  */
-export function OpsDeladHandelse({ delning = null, orsak, laddar = false, onKod, huvud, sprak, onSprak, lankSprak, ord }) {
+export function OpsDeladHandelse({ delning = null, orsak, laddar = false, onKod, huvud, sprak, onSprak, lankSprak, ord, omAppen }) {
   const lagen = [Boolean(delning), orsak !== undefined, laddar].filter(Boolean).length;
   if (lagen !== 1) {
     throw new Error("OpsDeladHandelse: ge precis en av delning, orsak och laddar. Ingen av dem är en tom yta, flera är två sanningar om samma länk.");
@@ -117,6 +121,8 @@ export function OpsDeladHandelse({ delning = null, orsak, laddar = false, onKod,
         ) : (
           <Handelse delning={/** @type {NonNullable<typeof delning>} */ (delning)} t={t} sprak={aktivt} />
         )}
+        {/* (0.202.0, lifehub.app#687 punkt 16) Sista raden som på gästens översikt. */}
+        {omAppen ? <div className="mt-12"><OmAppenRad omAppen={omAppen} sprak={/** @type {"sv" | "en"} */ (aktivt)} /></div> : null}
       </main>
     </div>
   );
@@ -169,6 +175,7 @@ function Handelse({ delning, t, sprak }) {
         )}
         {ejVisade > 0 ? <p data-dh-ejvisade="" className="m-0 text-meta text-publik-ljus-dampad">{t.ejVisade.replace("{n}", String(ejVisade))}</p> : null}
       </section>
+      <p data-dh-hur-svara="" className="m-0 text-meta text-publik-ljus-dampad">{t.hurSvara}</p>
     </article>
   );
 }

@@ -9,6 +9,27 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.202.0
+
+Groks QA av gästerna och delningen 2026-11-07 (cllp/lifehub.app#687, överlämningen "bygge natten mot 8 nov").
+
+### Gästlänken
+- **Kopiera-rutan i gästlistan glöms när samma person bjuds in igen** (punkt 1 och 2). Servern bytte nyckel rätt, men rutan med "Samma länk som i mejlet" visade kvar den gamla adressen efter Bjud in igen eller en ny inbjudan till samma adress. Den som kopierade därifrån fick "Länken fungerar inte längre". Mätt mot Firestore-emulatorn med appens koppling: rotationen är korrekt, felet låg i `OpsGastLista`. Nu glöms den visade länken före varje anrop som byter nyckel, som vid Skicka igen.
+- **`prova({ id, nyckel, ip })` och `OpsGastSida.onProva`** (punkt 3): sidan prövar länken när den laddas och visar felet direkt, i stället för Välkommen följt av ett fel efter Öppna. Samma prövning, räknare och svar som `los` (de delar `provaLank`), men ingen session skapas, så en mejlskanner som öppnar länken får fortfarande ingenting. Ett nätfel i prövningen avgör ingenting.
+- **Skicka en ny länk också på "Länken fungerar inte längre"** (punkt 4), när nyckeln HAR gällt. Inbjudan minns hashen av sina senaste nycklar (`tidigareNyckelHashar`, högst fem) när nyckeln byts, och bara `nyLank` läser dem. En påhittad nyckel får inget brev och räknas som förut. Ingen gammal nyckel öppnar något: `los` och `prova` läser bara `nyckelHash`.
+
+### Chatten
+- **Punkt 9 (Kopiera i chattens meny) ändras inte, med skäl.** På telefon och pekskärm har menyn redan Kopiera. På dator finns ingen meny (⋮) per meddelande, med flit (regel 13, 0.190.0): texten markeras och kopieras som på vilken sida som helst. En ⋮ på dator prövades i natt och fälldes av `check:skalyta`: 33 element per meddelande mot taket 26, som bara får sjunka.
+
+### Delade sidor
+- **Den delade händelsen säger hur man svarar** (punkt 18): "Vill du svara? Be den som delade länken att bjuda in dig." En delad länk läses av vem som helst och bär därför inget svar.
+- **Sista raden om appen** (punkt 16): `OpsDeladSida` och `OpsDeladHandelse` tar `omAppen` (`{ href, namn }`, bara https) och slutar med "Delat från {namn}, där grupper samlar chatt, kalender och filer. Läs mer", som gästens översikt. Utan gruppens namn: svaret för en delad länk säger med flit ingenting om gruppen (beslut 0009).
+
+### Prov
+Nya: `gast-tjanst` (prova; en nyckel som har gällt får brev), `gast-vy` (felet direkt, nätfel), `gast-lista-grupp` (rutan glöms), `delning-enhetlig-544` (hur man svarar, raden om appen). Ändrat, med skälet vid provet: `gast-vy` (Skicka en ny länk finns efter ett nej). Alla nya prov är sedda röda utan ändringen.
+
+---
+
 ## 0.201.0
 
 En delad länk ger samma upplevelse som gästinbjudan (cllp/ops-framework#544). CP 2026-11-07: "Se till att allt är enhetligt med gästinbjudan så att det är samma upplevelse för användaren", och om giltigheten: "Ja, 30 dagar som förval, ta bort Ingen gräns".
