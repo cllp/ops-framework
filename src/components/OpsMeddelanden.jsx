@@ -4008,6 +4008,7 @@ function Langtryckbubbla({ pa, onMeny, children }) {
  */
 function Meddelandemeta({ m, egen, bredd, menyPa, pekskarm, oppnadVid, onOppnadVid, extra, mer, namn, reakt, fasta, citat, texter: t }) {
   const losa = bredd !== "smal";
+  const merKnapp = menyPa;
   const [kopia, setKopia] = useState(/** @type {null | "ok" | "fel"} */ (null));
   useEffect(() => {
     if (!kopia) return undefined;
@@ -4067,11 +4068,6 @@ function Meddelandemeta({ m, egen, bredd, menyPa, pekskarm, oppnadVid, onOppnadV
         );
       }
     : undefined;
-  // ⛔ KOPIERA ÄVEN PÅ DATOR (0.202.0, QA 2026-11-07, punkt 9 i lifehub.app#687): "Chattmenyn: Kopiera saknas." Menyn (⋮) ritades bara där en meny behövs (`menyPa`),
-  // eftersom dator har Reagera, Fäst och Svara med citat som lösa ikoner vid hovring. Kopiera har ingen lös ikon, så på dator fanns den inte alls. Nu står ⋮ också på dator när
-  // meddelandet har text, och då bara med Kopiera: resten står redan som lösa ikoner och knappar.
-  const merKnapp = menyPa || poster.some((p) => p.id === "kopiera");
-  const menyposter = menyPa ? poster : poster.filter((p) => p.id === "kopiera");
   return (
     <span className={cx("relative mt-0.5 flex max-w-full items-center gap-1.5", egen ? "mr-1 flex-row-reverse" : "ml-1")}>
       {extra}
@@ -4103,14 +4099,14 @@ function Meddelandemeta({ m, egen, bredd, menyPa, pekskarm, oppnadVid, onOppnadV
           <CiteraIkon size={16} />
         </button>
       ) : null}
-      {merKnapp && (menyposter.length > 0 || (menyPa && reaktioner)) ? (
+      {merKnapp && (poster.length > 0 || reaktioner) ? (
         // ⛔ PRICKARNA SYNS BARA DÄR DE BEHÖVS (0.190.0, CP 2026-11-05): på en pekskärm öppnar ett långt tryck på bubblan menyn och ⋮ ritas inte alls (`utanKnapp`: bara
         // menyn, inget element i raden); med mus syns ⋮ när pekaren är över raden eller raden har fokus, så tangentbordet når den som förut (Tab till ⋮ gör den synlig).
         pekskarm ? (
-          <OpsAtgardsblad baraKnapp utanKnapp namn={namn} poster={menyposter} overst={menyPa ? reaktioner : undefined} oppnadVid={oppnadVid} onOppnadVid={onOppnadVid} />
+          <OpsAtgardsblad baraKnapp utanKnapp namn={namn} poster={poster} overst={reaktioner} oppnadVid={oppnadVid} onOppnadVid={onOppnadVid} />
         ) : (
           <span data-mer={m.id} className="-my-2 inline-flex opacity-0 transition-opacity duration-(--duration-fast) ease-standard group-hover:opacity-100 group-focus-within:opacity-100">
-            <OpsAtgardsblad baraKnapp namn={namn} poster={menyposter} overst={menyPa ? reaktioner : undefined} oppnadVid={oppnadVid} onOppnadVid={onOppnadVid} />
+            <OpsAtgardsblad baraKnapp namn={namn} poster={poster} overst={reaktioner} oppnadVid={oppnadVid} onOppnadVid={onOppnadVid} />
           </span>
         )
       ) : null}

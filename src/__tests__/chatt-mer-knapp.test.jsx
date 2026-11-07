@@ -107,33 +107,20 @@ describe("en Mer-knapp per meddelande på telefon", () => {
     expect(document.activeElement).toBe(screen.getByRole("textbox", { name: "Skriv ett meddelande" }));
   });
 
-  // ⛔ ÄNDRAT I 0.202.0 (QA 2026-11-07, punkt 9 i lifehub.app#687: "Chattmenyn: Kopiera saknas"). Förut hade dator ingen ⋮ alls, och därmed inget Kopiera. Nu har dator
-  // ⋮ med BARA Kopiera (provet nedan), medan Reagera, Fäst och Svara med citat står kvar som lösa ikoner. Det provet mäter är oförändrat för telefonen: inga lösa ikoner där.
-  it("⛔ med känd bredd: på telefon bara Mer, på dator de lösa knapparna och en Mer för Kopiera (regel 13)", async () => {
+  it("⛔ med känd bredd ritas bara den ena uppsättningen: Mer på telefon, de lösa knapparna på dator (regel 13)", async () => {
     const { s, g } = await underlag();
-    for (const [smal, finns, saknas] of /** @type {const} */ ([[true, "[data-mer]", "[data-reagera]"], [false, "[data-reagera]", null]])) {
+    for (const [smal, finns, saknas] of /** @type {const} */ ([[true, "[data-mer]", "[data-reagera]"], [false, "[data-reagera]", "[data-mer]"]])) {
       // Bara bredden stubbas: med mus (0.190.0 läser också `(pointer: coarse)`, och en pekskärm har ingen ⋮ alls).
       vi.stubGlobal("matchMedia", (/** @type {string} */ q) => ({ matches: q.includes("max-width") ? smal : false, media: q, addEventListener() {}, removeEventListener() {} }));
       const { unmount } = render(<OpsMeddelanden kalla={s} uid="anna" groupId="g" gruppNamn="G" medlemmar={MEDLEMMAR} valt={g.id} />);
       await within(await screen.findByRole("log")).findByText("Fäst den här");
       expect(document.querySelectorAll(finns).length).toBe(2);
-      if (saknas) expect(document.querySelectorAll(saknas).length).toBe(0);
+      expect(document.querySelectorAll(saknas).length).toBe(0);
       // Nålen på det fästa meddelandet står kvar på båda.
       expect(document.querySelectorAll("[data-fast][aria-pressed='true']").length).toBe(1);
       unmount();
       vi.unstubAllGlobals();
     }
-  });
-
-  it("⛔ på dator har ⋮ bara Kopiera (0.202.0, lifehub.app#687 punkt 9)", async () => {
-    const { s, p } = await underlag();
-    vi.stubGlobal("matchMedia", (/** @type {string} */ q) => ({ matches: false, media: q, addEventListener() {}, removeEventListener() {} }));
-    render(<OpsMeddelanden kalla={s} uid="anna" groupId="g" gruppNamn="G" medlemmar={MEDLEMMAR} valt={p.id} />);
-    await within(await screen.findByRole("log")).findByText("Lunch i morgon?");
-    fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Meddelande från Bo Lind" }));
-    const poster = (await screen.findAllByRole("menuitem")).map((e) => e.textContent?.trim());
-    expect(poster).toEqual(["Kopiera"]);
-    vi.unstubAllGlobals();
   });
 
   it("⛔ ett urklipp som inte släpper in sägs, och tystnar inte", async () => {
