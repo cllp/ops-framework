@@ -209,40 +209,56 @@ describe("OpsGastSida", () => {
   };
   const skrivAdress = (v) => fireEvent.change(screen.getByLabelText("Din e-postadress"), { target: { value: v } });
 
-  it("första öppningen med en länk frågar efter adressen, postar id, nyckel och adress, sparar sessionen och visar saken", async () => {
+  it("(0.200.0) första öppningen med en länk välkomnar utan något fält att fylla i, och Öppna postar exakt { id, nyckel }, sparar sessionen och visar saken", async () => {
     const { onLos, onHamta, lagring } = rita();
-    expect(await screen.findByRole("heading", { name: "Du är inbjuden" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Välkommen" })).toBeInTheDocument();
+    expect(screen.getByText("Du har fått en inbjudan. Du behöver inget konto.")).toBeInTheDocument();
+    // Inget att skriva: varken adress, nummer eller kod.
+    expect(document.querySelectorAll("input, textarea, select")).toHaveLength(0);
+    expect(document.querySelector("[data-gast-form]")).toBeNull();
     expect(onLos).not.toHaveBeenCalled();
-    skrivAdress("  Anna@Foretag.se ");
-    fireEvent.click(screen.getByRole("button", { name: "Fortsätt" }));
-    await waitFor(() => expect(onLos).toHaveBeenCalledWith({ id: ID, nyckel: NYCKEL, epost: "Anna@Foretag.se" }));
+    fireEvent.click(screen.getByRole("button", { name: "Öppna" }));
+    await waitFor(() => expect(onLos).toHaveBeenCalledTimes(1));
+    expect(onLos.mock.calls[0][0]).toStrictEqual({ id: ID, nyckel: NYCKEL });
     expect(await screen.findByText("Rep")).toBeInTheDocument();
     expect(onHamta).toHaveBeenCalledWith({ sessionsnyckel: SESSION });
     expect(lagring.d[`ops-gast:${ID}`]).toBe(SESSION);
     expect(lagring.d["ops-gast:senaste"]).toBe(ID);
-    // Nyckeln i länken ligger inte kvar på sidan, och adressformuläret är borta.
+    // Nyckeln i länken ligger inte kvar på sidan, och välkomsten är borta.
     expect(document.body.innerHTML).not.toContain(NYCKEL);
-    expect(document.querySelector("[data-gast-form]")).toBeNull();
+    expect(document.querySelector("[data-gast-valkommen]")).toBeNull();
+  });
+
+  it("⛔ (0.200.0) sidan löser inte in länken av sig själv: utan ett tryck på Öppna anropas onLos aldrig, och på engelska heter det Welcome och Open", async () => {
+    const { onLos, unmount } = rita();
+    await screen.findByRole("heading", { name: "Välkommen" });
+    // Ge sidan tid att göra något den inte borde: en skanner som öppnar sidan ska inte få en session.
+    await act(async () => { await new Promise((r) => setTimeout(r, 20)); });
+    expect(onLos).not.toHaveBeenCalled();
+    unmount();
+    rita({ sprak: "en" });
+    expect(await screen.findByRole("heading", { name: "Welcome" })).toBeInTheDocument();
+    expect(screen.getByText("You have been invited. You do not need an account.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open" })).toBeInTheDocument();
   });
 
   it("⛔ fragmentet tas bort ur adressraden när inloggningen lyckats, så att nyckeln inte ligger kvar i historiken", async () => {
     window.history.replaceState(null, "", `/gast#i=${ID}&k=${NYCKEL}`);
     rita();
-    await screen.findByRole("heading", { name: "Du är inbjuden" });
-    skrivAdress("anna@foretag.se");
-    fireEvent.click(screen.getByRole("button", { name: "Fortsätt" }));
+    await screen.findByRole("heading", { name: "Välkommen" });
+    fireEvent.click(screen.getByRole("button", { name: "Öppna" }));
     await screen.findByText("Rep");
     expect(window.location.hash).toBe("");
     expect(window.location.pathname).toBe("/gast");
   });
 
-  it("en sparad session hoppar över adressfrågan: stannar inloggad på enheten", async () => {
+  it("en sparad session hoppar över välkomsten: stannar inloggad i webbläsaren", async () => {
     const lagring = lagringMed({ [`ops-gast:${ID}`]: SESSION });
     const { onLos, onHamta } = rita({ lagring });
     expect(await screen.findByText("Rep")).toBeInTheDocument();
     expect(onHamta).toHaveBeenCalledWith({ sessionsnyckel: SESSION });
     expect(onLos).not.toHaveBeenCalled();
-    expect(screen.queryByLabelText("Din e-postadress")).toBeNull();
+    expect(document.querySelector("[data-gast-valkommen]")).toBeNull();
   });
 
   it("utan länk öppnas den senast öppnade inbjudans session", async () => {
@@ -252,73 +268,58 @@ describe("OpsGastSida", () => {
     expect(onHamta).toHaveBeenCalledWith({ sessionsnyckel: SESSION });
   });
 
-  it("en session som servern inte känner igen glöms, och sidan frågar efter adressen igen", async () => {
+  it("en session som servern inte känner igen glöms, och sidan välkomnar med Öppna igen", async () => {
     const lagring = lagringMed({ [`ops-gast:${ID}`]: SESSION });
     rita({ lagring, onHamta: vi.fn(async () => ({ ok: false, orsak: "nej" })) });
-    expect(await screen.findByLabelText("Din e-postadress")).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Öppna" })).toBeInTheDocument();
     expect(lagring.d[`ops-gast:${ID}`]).toBeUndefined();
   });
 
-  it("en session vars inbjudan är återkallad glöms INTE: gästen får veta det i stället för att tillfrågas om en adress", async () => {
+  it("en session vars inbjudan är återkallad glöms INTE: gästen får veta det i stället för att se Öppna", async () => {
     const lagring = lagringMed({ [`ops-gast:${ID}`]: SESSION });
     rita({ lagring, onHamta: vi.fn(async () => ({ ok: false, orsak: "aterkallad" })) });
     expect(await screen.findByText(GASTFEL.aterkallad)).toBeInTheDocument();
-    expect(screen.queryByLabelText("Din e-postadress")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Öppna" })).toBeNull();
     expect(lagring.d[`ops-gast:${ID}`]).toBe(SESSION);
   });
 
-  it("⛔ ett nej är ett nej: fel adress, fel nyckel och okänd inbjudan visar samma text, och formuläret står kvar", async () => {
-    const { onLos } = rita({ onLos: vi.fn(async () => ({ ok: false, orsak: "nej" })) });
-    await screen.findByRole("heading", { name: "Du är inbjuden" });
-    skrivAdress("fel@foretag.se");
-    fireEvent.click(screen.getByRole("button", { name: "Fortsätt" }));
-    // (0.190.0, QA fynd 2) Texten säger att adressen inte hör till inbjudan, inte att den har fel form.
-    expect(await screen.findByText("Den adressen hör inte till den här inbjudan. Skriv samma adress som mejlet kom till.")).toBeInTheDocument();
-    expect(screen.queryByText("Det där ser inte ut som en e-postadress.")).toBeNull();
+  it("⛔ (0.200.0) ett nej efter Öppna säger att länken inte fungerar längre och vad gästen gör, på svenska och engelska", async () => {
+    const { onLos, unmount } = rita({ onLos: vi.fn(async () => ({ ok: false, orsak: "nej" })) });
+    fireEvent.click(await screen.findByRole("button", { name: "Öppna" }));
+    expect(await screen.findByText("Länken fungerar inte längre. Använd den senaste länken du fått, eller be den som bjöd in dig om en ny.")).toBeInTheDocument();
     expect(onLos).toHaveBeenCalledTimes(1);
-    expect(screen.getByLabelText("Din e-postadress")).toBeInTheDocument();
+    // Inget att trycka på: samma länk ger samma nej.
+    expect(screen.queryByRole("button", { name: "Öppna" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Skicka en ny länk" })).toBeNull();
     expect(screen.queryByText("Rep")).toBeNull();
-  });
-
-  it("⛔ adressteget säger varför adressen behövs en gång, och etiketten upprepar det inte; samma form på engelska (0.190.0, QA fynd 2)", async () => {
-    const { unmount } = rita();
-    await screen.findByRole("heading", { name: "Du är inbjuden" });
-    expect(screen.getByText("Skriv din e-postadress, samma som inbjudan kom till. Så vet vi att det är du. Du behöver inget konto.")).toBeInTheDocument();
-    expect(screen.getByLabelText("Din e-postadress")).toBeInTheDocument();
-    expect(document.body.textContent).not.toContain("Skriv adressen inbjudan skickades till");
     unmount();
     rita({ sprak: "en", onLos: vi.fn(async () => ({ ok: false, orsak: "nej" })) });
-    await screen.findByRole("heading", { name: "You are invited" });
-    expect(screen.getByText("Enter your email address, the same one the invitation was sent to. That is how we know it is you. You do not need an account.")).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("Your email address"), { target: { value: "fel@foretag.se" } });
-    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
-    expect(await screen.findByText("That address does not belong to this invitation. Enter the same address the email was sent to.")).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole("button", { name: "Open" }));
+    expect(await screen.findByText("The link no longer works. Use the latest link you received, or ask the person who invited you for a new one.")).toBeInTheDocument();
   });
 
-  it("en adress som inte är en adress anropar inte servern: den räknar felaktiga försök", async () => {
-    const { onLos } = rita();
-    await screen.findByRole("heading", { name: "Du är inbjuden" });
-    skrivAdress("inte en adress");
-    fireEvent.click(screen.getByRole("button", { name: "Fortsätt" }));
-    expect(await screen.findByText("Det där ser inte ut som en e-postadress.")).toBeInTheDocument();
-    expect(onLos).not.toHaveBeenCalled();
-  });
-
-  it("for-manga och en länk som gått ut har egna texter, och den utgångna erbjuder en ny länk med den adress som stämde", async () => {
-    const onNyLank = vi.fn(async () => ({ ok: true }));
-    const { rerender, onLos } = rita({ onLos: vi.fn(async () => ({ ok: false, orsak: "for-manga" })), onNyLank });
-    await screen.findByRole("heading", { name: "Du är inbjuden" });
-    skrivAdress("anna@foretag.se");
-    fireEvent.click(screen.getByRole("button", { name: "Fortsätt" }));
+  it("återkallad efter Öppna visar texten, och for-manga och ett nätfel låter Öppna stå kvar", async () => {
+    const onLos = vi.fn().mockResolvedValueOnce({ ok: false, orsak: "for-manga" }).mockRejectedValueOnce(new Error("nätet")).mockResolvedValueOnce({ ok: false, orsak: "aterkallad" });
+    rita({ onLos });
+    fireEvent.click(await screen.findByRole("button", { name: "Öppna" }));
     expect(await screen.findByText(GASTFEL["for-manga"])).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Skicka en ny länk" })).toBeNull();
-    onLos.mockResolvedValue({ ok: false, orsak: "utgangen" });
-    fireEvent.click(screen.getByRole("button", { name: "Fortsätt" }));
+    fireEvent.click(screen.getByRole("button", { name: "Öppna" }));
+    expect(await screen.findByText("Det gick inte just nu. Försök igen.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Öppna" }));
+    expect(await screen.findByText(GASTFEL.aterkallad)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Öppna" })).toBeNull();
+  });
+
+  it("(0.200.0) en länk som gått ut erbjuder Skicka en ny länk, som anropar onNyLank med exakt { id, nyckel }: gästen skriver ingenting", async () => {
+    const onNyLank = vi.fn(async () => ({ ok: true }));
+    rita({ onLos: vi.fn(async () => ({ ok: false, orsak: "utgangen" })), onNyLank });
+    fireEvent.click(await screen.findByRole("button", { name: "Öppna" }));
     expect(await screen.findByText(GASTFEL.utgangen)).toBeInTheDocument();
+    expect(document.querySelectorAll("input")).toHaveLength(0);
     fireEvent.click(screen.getByRole("button", { name: "Skicka en ny länk" }));
-    await waitFor(() => expect(onNyLank).toHaveBeenCalledWith({ epost: "anna@foretag.se" }));
+    await waitFor(() => expect(onNyLank).toHaveBeenCalledTimes(1));
+    expect(onNyLank.mock.calls[0][0]).toStrictEqual({ id: ID, nyckel: NYCKEL });
     expect(await screen.findByText(GASTNYLANK_SVAR)).toBeInTheDocument();
-    void rerender;
   });
 
   it("⛔ utan länk och utan session ber sidan om en ny länk, och svaret är detsamma även när anropet faller", async () => {
@@ -387,9 +388,7 @@ describe("OpsGastSida", () => {
   it("ett minne som kastar (privat läge) stoppar inte sidan: sessionen gäller tills sidan lämnas", async () => {
     const kastar = { getItem: () => { throw new Error("blockerad"); }, setItem: () => { throw new Error("blockerad"); }, removeItem: () => { throw new Error("blockerad"); } };
     const { onHamta } = rita({ lagring: kastar });
-    await screen.findByRole("heading", { name: "Du är inbjuden" });
-    skrivAdress("anna@foretag.se");
-    fireEvent.click(screen.getByRole("button", { name: "Fortsätt" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Öppna" }));
     expect(await screen.findByText("Rep")).toBeInTheDocument();
     expect(onHamta).toHaveBeenCalledWith({ sessionsnyckel: SESSION });
   });

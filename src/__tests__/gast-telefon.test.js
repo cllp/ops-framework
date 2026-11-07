@@ -15,7 +15,7 @@ import {
   tolkaGastLank,
 } from "../lib/gast.js";
 import { medlemskapsId } from "../lib/grupp.js";
-import { byggGastinbjudan, createGastService, gastInbjudningsId } from "../node/gast.js";
+import { byggGastinbjudan, createGastService, gastInbjudningsId, nyGastnyckel } from "../node/gast.js";
 
 /**
  * Gäst med telefonnummer (0.197.0, cllp/lifehub.app#661): bjud in med ett nummer, inget brev, länken delas från den egna telefonen, och gästen skriver sitt nummer.
@@ -140,14 +140,14 @@ describe("låset: en gäst med e-post räknas exakt som före 0.197.0", () => {
     expect(Object.keys(rad)).toEqual(Object.keys(GAMMAL_RAD));
   });
 
-  it("en rad som skrevs före 0.197.0 löses in med adressen, ger samma gäst och samma session, och återkallas och raderas som förut", async () => {
+  it("en rad som skrevs före 0.197.0 löses in med sin nyckel (sedan 0.200.0 utan adress), ger samma gäst och samma session, och återkallas och raderas som förut", async () => {
     const h = bygg({ extra: { gastinbjudningar: [{ ...GAMMAL_RAD }], gastplatser: [{ id: `${GRUPP}|1`, gastId: LAST.gastAnna, skapad: NU }] } });
-    const inl = await h.tjanst.los({ id: GAMMAL_RAD.id, nyckel: GAMMAL_NYCKEL, epost: "anna@foretag.se", ip: IP });
+    const inl = await h.tjanst.los({ id: GAMMAL_RAD.id, nyckel: GAMMAL_NYCKEL, ip: IP });
     expect(inl.ok).toBe(true);
     const s = await h.tjanst.session({ sessionsnyckel: inl.sessionsnyckel });
     expect(s).toMatchObject({ ok: true, gastId: LAST.gastAnna, inbjudan: { id: LAST.idGrupp, slag: "grupp" } });
-    // Fel adress är fortfarande ett nej.
-    expect(await h.tjanst.los({ id: GAMMAL_RAD.id, nyckel: GAMMAL_NYCKEL, epost: "bo@foretag.se", ip: IP })).toEqual({ ok: false, orsak: "nej" });
+    // Fel nyckel är ett nej.
+    expect(await h.tjanst.los({ id: GAMMAL_RAD.id, nyckel: nyGastnyckel(), ip: IP })).toEqual({ ok: false, orsak: "nej" });
     // Listan visar samma gäst med adressen.
     const { personer } = await h.tjanst.lista({ uid: AGARE, groupId: GRUPP });
     expect(personer).toEqual([expect.objectContaining({ gastId: LAST.gastAnna, epost: "anna@foretag.se" })]);
@@ -269,32 +269,43 @@ describe("bjud med telefon", () => {
   });
 });
 
-describe("los: kontakten jämförs mot inbjudans kontakt", () => {
-  it("ett nummer släpper inte in en e-postinbjudan, en adress inte en telefoninbjudan, och fel nummer är samma nej som fel nyckel", async () => {
+describe("los för en telefoninbjudan: nyckeln räcker och kontakten läses inte (0.200.0, cllp/ops-framework#540)", () => {
+  it("bara id och nyckel loggar in; ett skickat nummer, fel nummer eller en adress ändrar ingenting, och fel nyckel är nej", async () => {
     const h = bygg();
     const { svar, lank } = await telefonGast(h);
     const epostSvar = await h.tjanst.bjud({ uid: AGARE, slag: "grupp", groupId: GRUPP, epost: "anna@foretag.se" });
     const epostLank = h.brev[h.brev.length - 1].lankar[0];
-    const nejet = { ok: false, orsak: "nej" };
-    // Telefoninbjudan med en adress (också en som ser ut som numret), fel nummer, fel nyckel, båda angivna.
-    expect(await h.tjanst.los({ id: svar.id, nyckel: lank.nyckel, epost: "anna@foretag.se", ip: IP })).toEqual(nejet);
-    expect(await h.tjanst.los({ id: svar.id, nyckel: lank.nyckel, telefon: "0701234568", ip: IP })).toEqual(nejet);
-    expect(await h.tjanst.los({ id: svar.id, nyckel: epostLank.nyckel, telefon: "0701234567", ip: IP })).toEqual(nejet);
-    expect(await h.tjanst.los({ id: svar.id, nyckel: lank.nyckel, telefon: "0701234567", epost: "anna@foretag.se", ip: IP })).toEqual(nejet);
-    // E-postinbjudan med ett nummer.
-    expect(await h.tjanst.los({ id: epostSvar.id, nyckel: epostLank.nyckel, telefon: "0701234567", ip: IP })).toEqual(nejet);
-    // Och rätt kontakt på rätt inbjudan går fortfarande (fyra fel är under taket per inbjudan).
-    expect((await h.tjanst.los({ id: svar.id, nyckel: lank.nyckel, telefon: "0701234567", ip: IP })).ok).toBe(true);
-    expect((await h.tjanst.los({ id: epostSvar.id, nyckel: epostLank.nyckel, epost: "anna@foretag.se", ip: IP })).ok).toBe(true);
+    for (const extra of [{}, { telefon: "0701234567" }, { telefon: "0701234568" }, { epost: "anna@foretag.se" }]) {
+      expect((await h.tjanst.los({ id: svar.id, nyckel: lank.nyckel, ip: IP, ...extra })).ok, JSON.stringify(extra)).toBe(true);
+    }
+    // En e-postinbjudan med ett nummer: nyckeln är beviset, inte kontakten.
+    expect((await h.tjanst.los({ id: epostSvar.id, nyckel: epostLank.nyckel, telefon: "0701234567", ip: IP })).ok).toBe(true);
+    // Fel nyckel (en annan inbjudans) är nej, med rätt nummer också.
+    expect(await h.tjanst.los({ id: svar.id, nyckel: epostLank.nyckel, telefon: "0701234567", ip: IP })).toEqual({ ok: false, orsak: "nej" });
   });
 
-  it("fel nummer räknas per inbjudan som fel adress: efter GASTFEL_MAX fel är också rätt nummer for-manga", async () => {
+  it("fel nyckel räknas per inbjudan: efter GASTFEL_MAX fel är också rätt nyckel for-manga", async () => {
     const h = bygg();
     const { svar, lank } = await telefonGast(h);
     for (let i = 0; i < GASTFEL_MAX; i++) {
-      expect(await h.tjanst.los({ id: svar.id, nyckel: lank.nyckel, telefon: `07012345${String(10 + i)}`, ip: `198.51.100.${i}` })).toEqual({ ok: false, orsak: "nej" });
+      expect(await h.tjanst.los({ id: svar.id, nyckel: nyGastnyckel(), ip: `198.51.100.${i}` })).toEqual({ ok: false, orsak: "nej" });
     }
-    expect(await h.tjanst.los({ id: svar.id, nyckel: lank.nyckel, telefon: "0701234567", ip: "198.51.100.99" })).toEqual({ ok: false, orsak: "for-manga" });
+    expect(await h.tjanst.los({ id: svar.id, nyckel: lank.nyckel, ip: "198.51.100.99" })).toEqual({ ok: false, orsak: "for-manga" });
+  });
+
+  it("nyLank med en telefonlänk skickar inget brev och byter inte nyckeln, och svaret är detsamma som för en e-postlänk som får brev", async () => {
+    const h = bygg();
+    const { svar, lank } = await telefonGast(h);
+    const epostSvar = await h.tjanst.bjud({ uid: AGARE, slag: "grupp", groupId: GRUPP, epost: "anna@foretag.se" });
+    const epostLank = h.brev[h.brev.length - 1].lankar[0];
+    h.brev.length = 0;
+    const telefonsvar = await h.tjanst.nyLank({ id: svar.id, nyckel: lank.nyckel, ip: "198.51.100.1" });
+    expect(h.brev).toHaveLength(0);
+    expect((await h.tjanst.kopieraLank({ uid: AGARE, id: svar.id })).nyckel).toBe(lank.nyckel);
+    const epostsvar = await h.tjanst.nyLank({ id: epostSvar.id, nyckel: epostLank.nyckel, ip: "198.51.100.2" });
+    expect(h.brev).toHaveLength(1);
+    expect(h.brev[0].till).toBe("anna@foretag.se");
+    expect(JSON.stringify(telefonsvar)).toBe(JSON.stringify(epostsvar));
   });
 
   it("räknaren per IP gäller ett nummer som en adress: efter GASTIP_MAX försök från samma IP är svaret for-manga", async () => {

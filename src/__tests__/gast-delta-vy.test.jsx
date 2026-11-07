@@ -172,17 +172,17 @@ describe("OpsGastSida: en händelse att svara på (delta)", () => {
     tyst.mockRestore();
   });
 
-  it("⛔ rösta-sidan och rubriken vid adressfrågan är oförändrade i sak: omröstningens kort ritas av appen och delta ritar inte det", async () => {
+  it("⛔ rösta-sidan och rubriken före inloggningen är oförändrade i sak: omröstningens kort ritas av appen och delta ritar inte det", async () => {
     const onHamta = vi.fn(async () => ({ ok: true, namn: "", funktion: "rosta", sak: { titel: "Rep" } }));
     rita({ onHamta, renderSak: ({ sak }) => <div data-sak="">{sak.titel}</div> });
     expect(await screen.findByText("Rep")).toBeInTheDocument();
     expect(document.querySelector("[data-gast-delta]")).toBeNull();
   });
 
-  it("adressfrågan före inloggningen är neutral, för sidan vet ännu inte vad inbjudan gäller", async () => {
+  it("välkomsten före inloggningen är neutral, för sidan vet ännu inte vad inbjudan gäller (0.200.0: Välkommen, förut Du är inbjuden)", async () => {
     render(<OpsGastSida lank={{ id: ID, nyckel: "N".repeat(43) }} onLos={vi.fn()} onHamta={vi.fn()} onNyLank={vi.fn()} onSvara={vi.fn()} lagring={null} />);
     const rubrik = await screen.findByRole("heading", { level: 1 });
-    expect(rubrik).toHaveTextContent("Du är inbjuden");
+    expect(rubrik).toHaveTextContent("Välkommen");
     expect(rubrik.textContent).not.toMatch(/rösta/);
     expect(document.body.textContent).not.toMatch(/omröstningen/);
   });

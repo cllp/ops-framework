@@ -9,6 +9,26 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.200.0
+
+Gästen kommer in med länken utan att skriva något (cllp/ops-framework#540). QA 2026-11-07 och CP samma dag: gästen ska "komma direkt in ... hoppa över att bekräfta med mailen", och det ska vara "SUPERSIMPELT". Second opinion (Fable): mejlet öppnas ofta i mejlappens egen webbvy, som har egen lagring, så gästen fick skriva adressen på nytt i varje webbläsare.
+
+### Ändrat
+
+- **Länken räcker.** `los({ id, nyckel, ip })` kräver inte längre gästens adress eller nummer: nyckeln (32 slumpbyte, räknad per inbjudan och IP) är beviset. En adress eller ett nummer i anropet, från en sida före 0.200.0, läses inte och kan inte ge ett nej. Länken förbrukas inte: samma länk ger en ny session varje gång, i mejlappen, i Safari och på datorn. Fel nyckel och okänd inbjudan är samma `nej` som förut och räknas lika. Det som skyddar en vidarebefordrad länk är gästlistan och Dra tillbaka.
+- **Gästen ser Välkommen och knappen Öppna**, inget fält. Öppna postar `{ id, nyckel }`. Sidan löser aldrig in länken av sig själv vid sidladdningen, så en säkerhetsskanner som öppnar sidan får ingen session. En sparad session i webbläsaren hämtas direkt, utan välkomsten. Efter Öppna: ett nej säger "Länken fungerar inte längre. Använd den senaste länken du fått, eller be den som bjöd in dig om en ny.", en utgången e-postlänk visar Skicka en ny länk (inget att skriva), och en utgången telefonlänk ber gästen fråga den som bjöd in. Sidan utan länk (`/guest`) frågar efter adressen som förut.
+- **`nyLank({ id, nyckel, ip })`**: den som har en länk, också en utgången, får en ny till inbjudans EGEN adress. Samma tak och samma svar som `nyLank({ epost, ip })`, och brevet byggs på samma ställe. Fel nyckel, en återkallad inbjudan och en telefoninbjudan skickar inget brev, med samma svar byte för byte. Fel nyckel räknas mot inbjudan som i `los`.
+- **`gastLank(bas, { id, nyckel, sprak })`** lägger `&l=sv` eller `&l=en` sist, så att sidan kan börja på inbjudans språk. `tolkaGastLank` ger `sprak`, och ett okänt `l` hoppas över. Utan `sprak` är länken exakt som förut.
+- **Delningens text i gästlistan** (Dela på en kopierad länk) säger "Öppna länken. Du behöver inget konto." för både e-post och telefon. Förut bad den gästen skriva sin adress eller sitt nummer, vilket sidan inte längre frågar efter. `kopieraLankDelaTextTelefon` är borttagen.
+
+### Borttaget
+
+- Orden för adressteget i `ORD_OPSGASTSIDA`: `rubrikRosta`, `ingress`, `fortsatt`, `felInbjudan`, `ingressTelefon`, `telefonEtikett`, `felTelefon` och `felInbjudanTelefon`. Nya: `valkommenRubrik`, `valkommenIngress`, `oppna` och `lankenFungerarInte`.
+
+### För appen
+
+- Skicka bara `{ id, nyckel }` i `los`, och skicka `{ id, nyckel }` vidare i `nyLank` när sidan ger det (`onNyLank` får `{ epost }` eller `{ id, nyckel }`).
+
 ## 0.199.1
 
 Gästens Översikt räknar det biblioteket visar. QA 2026-11-07: rutan sa 3 filer och listan visade 2.

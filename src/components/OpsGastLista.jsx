@@ -41,7 +41,9 @@ export const ORD_OPSGASTLISTA = {
   kopieraLankDela: { sv: "Dela", en: "Share" },
   kopieraLankDelaRubrik: { sv: "Inbjudan till {grupp}", en: "Invitation to {grupp}" },
   kopieraLankDelaRubrikUtanGrupp: { sv: "Inbjudan", en: "Invitation" },
-  kopieraLankDelaText: { sv: "Öppna länken och skriv din e-postadress, samma som inbjudan gick till.", en: "Open the link and enter your email address, the one the invitation was sent to." },
+  // ⛔ (0.200.0, cllp/ops-framework#540) Gästen skriver inget: länken loggar in direkt. Texten sade förut att gästen skulle skriva sin adress (eller sitt nummer), och en sådan text hade skickat gästen
+  // att leta efter ett fält som inte finns. En text för båda slagen, eftersom de inte längre skiljer sig (regel 2).
+  kopieraLankDelaText: { sv: "Öppna länken. Du behöver inget konto.", en: "Open the link. You do not need an account." },
   kopieraLankDelaFel: { sv: "Det gick inte att dela. Kopiera länken i stället.", en: "Could not share. Copy the link instead." },
   felValv: { sv: "Länken kunde inte sparas för kopiering. Inbjudan finns: tryck Skicka igen.", en: "The link could not be saved for copying. The invitation exists: press Send again." },
   felIngenKopia: { sv: "Den här länken skapades innan länkar sparades. Tryck Skicka igen en gång, sedan går den att kopiera.", en: "This link was created before links were saved. Press Send again once, then it can be copied." },
@@ -117,7 +119,6 @@ export const ORD_OPSGASTLISTA = {
   felTelefon: { sv: "Det där ser inte ut som ett telefonnummer. Skriv det med riktnummer, 070 123 45 67, eller med landsnummer, +46 70 123 45 67.", en: "That does not look like a phone number. Write it with the area code, 070 123 45 67, or with the country code, +46 70 123 45 67." },
   telefonLank: { sv: "Inbjudan är klar. Dela länken med {vem}.", en: "The invitation is ready. Share the link with {vem}." },
   telefonUtanLank: { sv: "Inbjudan finns. Tryck Kopiera länk på gästens rad för att dela den.", en: "The invitation exists. Press Copy link on the guest's row to share it." },
-  kopieraLankDelaTextTelefon: { sv: "Öppna länken och skriv ditt telefonnummer, samma som inbjudan gäller.", en: "Open the link and enter your phone number, the one the invitation is for." },
   kopieraLankGiltigTelefon: { sv: "Länken gäller till {datum}.", en: "The link is valid until {datum}." },
   kopieraLankIngetTelefon: { sv: "Inget sms skickades. Dela länken själv.", en: "No text message was sent. Share the link yourself." },
   nyLank: { sv: "Ny länk", en: "New link" },
@@ -175,7 +176,7 @@ export function gastFelText(e, t, totalt) {
  * användartryck. ⛔ Misslyckas kopieringen (ingen `navigator.clipboard`, eller den kastar) markeras texten och det står vad medlemmen gör i stället; misslyckas delningen (utom att personen
  * stängde menyn: `AbortError`) står det att länken går att kopiera. Inget tyst fel (regel 5).
  *
- * (0.197.0) `telefon`: länken gäller ett telefonnummer. Delningen säger åt gästen att skriva sitt nummer, och raden under säger att inget sms skickades i stället för "samma länk som i mejlet".
+ * (0.197.0) `telefon`: länken gäller ett telefonnummer. Raden under säger att inget sms skickades i stället för "samma länk som i mejlet". (Delningens text är densamma för båda slagen sedan 0.200.0.)
  *
  * @param {{ lank: { url: string, lankGiltigTill?: number }, vem: string, t: Record<string, string>, sprak: string, gruppnamn?: string, telefon?: boolean }} props
  */
@@ -199,7 +200,7 @@ function GastLank({ lank, vem, t, sprak, gruppnamn, telefon = false }) {
   async function dela() {
     setBesked("");
     try {
-      await navigator.share({ title: gruppnamn ? t.kopieraLankDelaRubrik.replace("{grupp}", gruppnamn) : t.kopieraLankDelaRubrikUtanGrupp, text: telefon ? t.kopieraLankDelaTextTelefon : t.kopieraLankDelaText, url });
+      await navigator.share({ title: gruppnamn ? t.kopieraLankDelaRubrik.replace("{grupp}", gruppnamn) : t.kopieraLankDelaRubrikUtanGrupp, text: t.kopieraLankDelaText, url });
     } catch (e) {
       if (/** @type {{ name?: string }} */ (e)?.name === "AbortError") return;
       setBesked(t.kopieraLankDelaFel);

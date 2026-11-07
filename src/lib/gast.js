@@ -24,6 +24,7 @@
 import { BIBLIOTEKTYPER } from "./bibliotek.js";
 import { SVARSVAL } from "./handelsemodell.js";
 import { epostFel } from "./mejl.js";
+import { SPRAK } from "./sprak.js";
 
 /** Så många gäster en grupp får gratis (CP 2026-10-20: "max 5 gäster"). Ett tal på ETT ställe: platsdokumenten, texten "X av 5" och taket härleds ur det. */
 export const GAST_PLATSER_GRATIS = 5;
@@ -787,13 +788,16 @@ export function gastplatsId(groupId, nummer) {
  *
  * ⛔ NYCKELN LIGGER I FRAGMENTET, INTE I SÖKVÄGEN. Ett fragment skickas aldrig till en server av webbläsaren: det hamnar inte i Hostings begärandelogg, inte i
  * `Referer` och inte i ett mejlprograms förhandshämtning, som bara hämtar sidan och aldrig kör dess skript. Delningens `/g/<adress>` ligger i sökvägen och loggas;
- * det är rätt för en publik adress och fel för en nyckel. Sidan postar nyckeln själv, först när gästen skrivit sin adress.
+ * det är rätt för en publik adress och fel för en nyckel. Sidan postar nyckeln själv, först när gästen tryckt Öppna (0.200.0; före det när gästen skrivit sin adress).
  *
- * ⛔ (0.197.0) EN LÄNK TILL EN TELEFONINBJUDAN BÄR `&s=tel` (`slag: "telefon"`). Sidan vet inte slaget innan gästen svarat, så tecknet säger att den ska fråga efter ett telefonnummer. Tecknet är
- * ingen behörighet: servern jämför det gästen skriver mot inbjudans egen kontakt, och ett nummer släpper aldrig in en e-postinbjudan (eller tvärtom). En e-postlänk ser ut exakt som före 0.197.0.
+ * ⛔ (0.197.0) EN LÄNK TILL EN TELEFONINBJUDAN BÄR `&s=tel` (`slag: "telefon"`). Sedan 0.200.0 frågar sidan inte efter numret, men tecknet säger fortfarande vad sidan kan erbjuda när länken gått ut: en
+ * telefoninbjudan har inget brev, så sidan ber gästen fråga den som bjöd in i stället för att visa Skicka en ny länk. Tecknet är ingen behörighet. En e-postlänk ser ut exakt som före 0.197.0.
+ *
+ * ⛔ (0.200.0) `sprak` ("sv" eller "en") GER `&l=sv` ELLER `&l=en` SIST, så att sidan kan börja på inbjudans språk (second opinion i cllp/ops-framework#540: förvalet är inbjudans språk, gästens eget val vinner).
+ * Utan `sprak` är länken exakt som före 0.200.0. Språket är ingen behörighet, och ett okänt språk kastar som ett okänt slag gör: ett stavfel ska synas när brevet byggs, inte bli en länk på fel språk.
  *
  * @param {string} bas Instansens adress med protokoll och utan sökväg, till exempel `https://my.life-hub.app`.
- * @param {{ id: string, nyckel: string, slag?: "epost" | "telefon" }} lank `slag` ur tjänstens `kopieraLank`. Utelämnat: `epost`.
+ * @param {{ id: string, nyckel: string, slag?: "epost" | "telefon", sprak?: "sv" | "en" }} lank `slag` ur tjänstens `kopieraLank`. Utelämnat: `epost`. `sprak`: inbjudans språk, eller utelämnat.
  * @returns {string}
  */
 export function gastLank(bas, lank) {
@@ -806,18 +810,24 @@ export function gastLank(bas, lank) {
   if (lank.slag !== undefined && !(/** @type {readonly unknown[]} */ (GASTKONTAKTSLAG)).includes(lank.slag)) {
     throw new Error(`gastLank: slag är ${GASTKONTAKTSLAG.join(" eller ")}, eller utelämnas (fick ${JSON.stringify(lank.slag)}).`);
   }
-  return `${bas.replace(/\/+$/, "")}${GASTSOKVAG}#i=${lank.id}&k=${lank.nyckel}${lank.slag === "telefon" ? "&s=tel" : ""}`;
+   if (lank.sprak !== undefined && !(/** @type {readonly unknown[]} */ (SPRAK)).includes(lank.sprak)) {
+    throw new Error(`gastLank: sprak är ${SPRAK.join(" eller ")}, eller utelämnas (fick ${JSON.stringify(lank.sprak)}).`);
+  }
+  return `${bas.replace(/\/+$/, "")}${GASTSOKVAG}#i=${lank.id}&k=${lank.nyckel}${lank.slag === "telefon" ? "&s=tel" : ""}${lank.sprak !== undefined ? `&l=${lank.sprak}` : ""}`;
 }
 
 /**
  * Id och nyckel ur adressens fragment (`location.hash`), eller `null` om det inte är en gästlänk. Tolerant för ett inledande `#`, strikt för formen:
- * en halv länk (bara id) ger `null`, så att sidan frågar efter adressen i stället för att försöka lösa in något som aldrig kan stämma.
+ * en halv länk (bara id) ger `null`, så att sidan erbjuder en ny länk i stället för att försöka lösa in något som aldrig kan stämma.
  *
- * (0.197.0) `s=tel` ger `slag: "telefon"`, och sidan frågar då efter ett nummer. En e-postlänk ger exakt `{ id, nyckel }` som förut. Ett okänt tecken ger `null`: en länk från en version sidan inte känner
+ * (0.197.0) `s=tel` ger `slag: "telefon"`. En e-postlänk ger exakt `{ id, nyckel }` som förut. Ett okänt tecken ger `null`: en länk från en version sidan inte känner
  * är inte en e-postlänk.
  *
+ * (0.200.0) `l=sv` eller `l=en` ger `sprak`. Ett okänt `l` hoppas över och länken gäller ändå: språket är ingen behörighet, och en länk som slutade fungera för ett språk sidan inte känner hade varit
+ * ett fel gästen inte kan göra något åt. Utan `l` är svaret exakt som förut.
+ *
  * @param {unknown} fragment
- * @returns {{ id: string, nyckel: string, slag?: "telefon" } | null}
+ * @returns {{ id: string, nyckel: string, slag?: "telefon", sprak?: "sv" | "en" } | null}
  */
 export function tolkaGastLank(fragment) {
   if (typeof fragment !== "string") return null;
@@ -829,9 +839,9 @@ export function tolkaGastLank(fragment) {
     if (i > 0) v[d.slice(0, i)] = d.slice(i + 1);
   }
   if (!v.i || !v.k || !GASTINBJUDNINGSIDFORM.test(v.i) || !GASTNYCKELFORM.test(v.k)) return null;
-  if (v.s === "tel") return { id: v.i, nyckel: v.k, slag: "telefon" };
-  if (v.s !== undefined) return null;
-  return { id: v.i, nyckel: v.k };
+  if (v.s !== undefined && v.s !== "tel") return null;
+  const sprak = (/** @type {readonly string[]} */ (SPRAK)).includes(v.l) ? { sprak: /** @type {"sv" | "en"} */ (v.l) } : {};
+  return { id: v.i, nyckel: v.k, ...(v.s === "tel" ? { slag: /** @type {const} */ ("telefon") } : {}), ...sprak };
 }
 
 /**

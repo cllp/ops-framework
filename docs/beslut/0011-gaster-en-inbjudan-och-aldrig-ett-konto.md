@@ -7,6 +7,10 @@ Relaterat: beslut 0009 (publik delning, som felräknaren och nyckelhashen är l�
 
 CP 2026-10-20: externa ska kunna vara med på riktigt, i en sak eller i ett helt projekt. Första användningen är att externa röstar Ja, Kanske eller Nej på ett datum (#383). Designförslaget mätte att Identity (där alla medlemmar loggar in) är fel ställe för det: ett Identity-konto ger en gäst en katalogpost, en kontomeny och en egen grupp att skapa, brevet blir två (appens och Firebases), Identity läser inte `returnTo` så målet tappas, och Identitys egen feltext säger att länken "fungerar bara en gång och kan ha öppnats av ditt e-postprogram". CP valde väg B: en gäst är en inbjudan, appen får en egen gästväg, Identity rörs inte. Det ersätter för gästerna beslutet 2026-10-02 att Identity är den enda inloggningen; för medlemmar gäller det fortfarande.
 
+## Ändrat i 0.200.0: länken räcker, gästen skriver ingenting
+
+QA 2026-11-07 och CP samma dag: gästen ska "komma direkt in ... hoppa över att bekräfta med mailen", och det ska vara "SUPERSIMPELT". Second opinion (Fable, cllp/ops-framework#540) visade att adressteget fick gästen att skriva adressen i varje webbläsare, eftersom mejlet ofta öppnas i mejlappens egen webbvy med egen lagring. Sedan 0.200.0 löser nyckeln ensam in länken (`los({ id, nyckel, ip })`), en kontakt i anropet läses inte, och länken förbrukas inte. En utgången länk ger en ny till inbjudans egen adress utan att gästen skriver något (`nyLank({ id, nyckel, ip })`). Raderna "Inloggningen" och "Ny enhet" nedan beskriver beslutet som det var i 0.131.0. Det som skyddar en vidarebefordrad länk är gästlistan och Dra tillbaka.
+
 ## Beslutet i en tabell
 
 | Fråga | Svar | Varför |
