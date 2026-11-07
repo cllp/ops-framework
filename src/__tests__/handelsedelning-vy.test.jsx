@@ -140,12 +140,12 @@ describe("Delade länkar i panelen: Kopiera", () => {
   });
 });
 
-describe("Delade länkar i panelen: Återkalla", () => {
-  it("⛔ Återkalla anropar onAterkalla med länkens id, och raden försvinner först när servern sagt ja", async () => {
+describe("Delade länkar i panelen: Dra tillbaka (0.201.0, förut Återkalla)", () => {
+  it("⛔ Dra tillbaka anropar onAterkalla med länkens id, och raden försvinner först när servern sagt ja", async () => {
     let klar;
     const onAterkalla = vi.fn(() => new Promise((res) => { klar = res; }));
     const { container } = render(<Panel delningar={[lank("a1"), lank("b2")]} onAterkalla={onAterkalla} />);
-    fireEvent.click(within(rader(container)[0]).getByRole("button", { name: /Återkalla länken/ }));
+    fireEvent.click(within(rader(container)[0]).getByRole("button", { name: /Dra tillbaka länken/ }));
     expect(onAterkalla).toHaveBeenCalledWith({ id: "a1" });
     expect(rader(container)).toHaveLength(2);
     klar();
@@ -158,16 +158,16 @@ describe("Delade länkar i panelen: Återkalla", () => {
       throw new Error("Du får inte stänga den här länken");
     });
     const { container } = render(<Panel delningar={[lank("a1")]} onAterkalla={onAterkalla} />);
-    fireEvent.click(screen.getByRole("button", { name: /Återkalla länken/ }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Det gick inte att återkalla länken: Du får inte stänga den här länken");
+    fireEvent.click(screen.getByRole("button", { name: /Dra tillbaka länken/ }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Det gick inte att dra tillbaka länken: Du får inte stänga den här länken");
     expect(rader(container)).toHaveLength(1);
   });
 
-  it("⛔ ett dubbeltryck återkallar en gång", async () => {
+  it("⛔ ett dubbeltryck drar tillbaka en gång", async () => {
     let klar;
     const onAterkalla = vi.fn(() => new Promise((res) => { klar = res; }));
     render(<Panel delningar={[lank("a1")]} onAterkalla={onAterkalla} />);
-    const knapp = screen.getByRole("button", { name: /Återkalla länken/ });
+    const knapp = screen.getByRole("button", { name: /Dra tillbaka länken/ });
     // Två tryck i SAMMA tick, innan React hunnit spärra knappen: bara en ref stoppar det andra.
     act(() => {
       knapp.click();
@@ -175,7 +175,7 @@ describe("Delade länkar i panelen: Återkalla", () => {
     });
     expect(onAterkalla).toHaveBeenCalledTimes(1);
     klar();
-    await waitFor(() => expect(screen.queryByRole("button", { name: /Återkalla länken/ })).toBeNull());
+    await waitFor(() => expect(screen.queryByRole("button", { name: /Dra tillbaka länken/ })).toBeNull());
   });
 
   it("när listan läses om utan länken försvinner raden, och en länk som skapats här blir inte en dubblett", async () => {
@@ -198,10 +198,12 @@ describe("Delade länkar: rutan Dela", () => {
     return { dialog, onDela, ...resultat };
   }
 
-  it("⛔ förvalen: ingen gräns, ingen kod, och adressen föreslagen ur gruppens namn och titeln med typsegmentet event", async () => {
+  // ⛔ (0.201.0, cllp/ops-framework#544, CP 2026-11-07: "Ja, 30 dagar som förval, ta bort Ingen gräns") Provet sade förut att förvalet var Ingen gräns bland fyra val.
+  it("⛔ förvalen: 30 dagar bland samma tre val som för en fil, ingen kod, och adressen föreslagen ur gruppens namn och titeln med typsegmentet event", async () => {
     const { dialog } = await oppna();
-    expect(within(dialog).getByRole("radio", { name: "Ingen gräns" })).toBeChecked();
-    expect(within(dialog).getAllByRole("radio").map((r) => r.closest("label")?.textContent?.trim())).toEqual(["Ingen gräns", "1 dag", "7 dagar", "30 dagar"]);
+    expect(within(dialog).getByRole("tab", { name: "30 dagar" })).toHaveAttribute("aria-selected", "true");
+    expect(within(dialog).getAllByRole("tab").map((r) => r.textContent?.trim())).toEqual(["1 dag", "7 dagar", "30 dagar"]);
+    expect(within(dialog).queryByText("Ingen gräns")).toBeNull();
     expect(within(dialog).getByRole("textbox", { name: "Kod (valfri)" })).toHaveValue("");
     expect(within(dialog).getByRole("textbox", { name: "Gruppens del av adressen" })).toHaveValue("travel");
     expect(within(dialog).getByRole("textbox", { name: "Händelsens del av adressen" })).toHaveValue("resa-med-kusiner");
@@ -218,16 +220,16 @@ describe("Delade länkar: rutan Dela", () => {
     expect(dialog.querySelector("[data-delalank-slumpslut]")).not.toBeNull();
   });
 
-  it("⛔ Skapa skickar valen: ingen gräns är null, utan kod är null, och delarna rensade", async () => {
+  it("⛔ Skapa skickar valen: förvalet 30 dagar, utan kod är null, och delarna rensade", async () => {
     const { dialog, onDela } = await oppna();
     fireEvent.change(within(dialog).getByRole("textbox", { name: "Händelsens del av adressen" }), { target: { value: "Åke & Öland 2027!" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Skapa länk" }));
-    await waitFor(() => expect(onDela).toHaveBeenCalledWith({ dagar: null, kod: null, gruppdel: "travel", handelsedel: "ake-oland-2027" }));
+    await waitFor(() => expect(onDela).toHaveBeenCalledWith({ dagar: 30, kod: null, gruppdel: "travel", handelsedel: "ake-oland-2027" }));
   });
 
   it("giltighet och kod som väljs är de som skickas", async () => {
     const { dialog, onDela } = await oppna();
-    fireEvent.click(within(dialog).getByRole("radio", { name: "7 dagar" }));
+    fireEvent.click(within(dialog).getByRole("tab", { name: "7 dagar" }));
     fireEvent.change(within(dialog).getByRole("textbox", { name: "Kod (valfri)" }), { target: { value: "  hemligt1  " } });
     fireEvent.change(within(dialog).getByRole("textbox", { name: "Gruppens del av adressen" }), { target: { value: "Min Grupp" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Skapa länk" }));
@@ -347,7 +349,7 @@ describe("Delade länkar: rutan Dela", () => {
     render(<Panel delningar={[]} sprak="en" onDela={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: "Share" }));
     const dialog = await screen.findByRole("dialog", { name: "Share the event" });
-    expect(within(dialog).getByRole("radio", { name: "No limit" })).toBeChecked();
+    expect(within(dialog).getByRole("tab", { name: "30 days" })).toHaveAttribute("aria-selected", "true");
     expect(within(dialog).getByRole("textbox", { name: "Code (optional)" })).toBeInTheDocument();
     expect(text(dialog.querySelector("[data-delalank-slutmening]"))).toMatch(/^Without a code the address gets a random ending/);
     expect(within(dialog).getByRole("button", { name: "Create link" })).toBeInTheDocument();
@@ -469,7 +471,7 @@ describe("hela kedjan: panelen, tjänsten och den publika sidan", () => {
     void container;
   });
 
-  it("⛔ Återkalla i listan stänger länken på servern, och sidan svarar att den är stängd", async () => {
+  it("⛔ Dra tillbaka i listan stänger länken på servern, och sidan svarar att den är stängd", async () => {
     const { tjanst, onDela, onAterkalla } = bygg();
     const { container } = render(<Kedja onDela={onDela} onAterkalla={onAterkalla} />);
     fireEvent.click(screen.getByRole("button", { name: "Dela" }));
@@ -480,7 +482,7 @@ describe("hela kedjan: panelen, tjänsten och den publika sidan", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Klar" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect((await tjanst.hamta(url.replace(`${BAS}/g/`, ""))).ok).toBe(true);
-    fireEvent.click(within(rader(container)[0]).getByRole("button", { name: /Återkalla länken/ }));
+    fireEvent.click(within(rader(container)[0]).getByRole("button", { name: /Dra tillbaka länken/ }));
     await waitFor(() => expect(rader(container)).toHaveLength(0));
     expect(text(container.querySelector("[data-handelsedelning-tom]"))).toBe("Inga länkar. Den här händelsen är inte delad.");
     expect(await tjanst.hamta(url.replace(`${BAS}/g/`, ""))).toEqual({ ok: false, orsak: "stangd" });

@@ -14,7 +14,7 @@ import { OpsModal } from "./OpsModal.jsx";
  * ══ ⛔ LISTAN STÅR I PANELEN, INTE BARA I RUTAN (CP 2026-10-19) ═══════════════════════════════════════════════════════
  *
  * CP: "Alla url:er måste framgå på händelsen så man kan klippa ur den och skicka den enkelt." Varje aktiv länk är en rad (`LankRad`) med adressen som text, rättigheten,
- * om den har kod, när den går ut, Kopiera och Återkalla. Utan länkar står en rad som säger det (arbetsreglernas punkt 5): en tom yta ser ut som en lista som inte hunnit
+ * om den har kod, när den går ut, Kopiera, Dra tillbaka och Skicka till mejl (0.201.0). Utan länkar står en rad som säger det (arbetsreglernas punkt 5): en tom yta ser ut som en lista som inte hunnit
  * laddas. Rutan Dela öppnas av knappen i rubriken och skapar en länk; den nya raden syns i listan direkt, utan att appen hunnit läsa om den.
  *
  * ══ ⛔ PANELEN RITAR, APPEN OCH SERVERN AVGÖR ═════════════════════════════════════════════════════════════════════════
@@ -128,7 +128,11 @@ export function HandelseDelning({ handelse, delningar, onDela, onAterkalla, onMe
       ) : (
         <ul data-handelsedelning-lista="" className="m-0 flex list-none flex-col gap-2 p-0">
           {rader.map((l) => (
-            <LankRad key={l.id} lank={l} sprak={sprak} ord={ord} nyligen={skapade.some((s) => s.id === l.id)} onAterkalla={aterkalla} />
+            // ⛔ (0.201.0) SKICKA TILL MEJL PÅ VARJE LÄNK, inte bara direkt efter att den skapats (cllp/ops-framework#544). Det motsvarar gästlistans Skicka igen: den som delat
+            // ska kunna skicka länken till en till person utan att skapa en ny länk.
+            <LankRad key={l.id} lank={l} sprak={sprak} ord={ord} nyligen={skapade.some((s) => s.id === l.id)} onAterkalla={aterkalla}>
+              {onMejlaLank ? <MejlaLank lank={l} onMejlaLank={onMejlaLank} sprak={sprak} ord={ord} /> : null}
+            </LankRad>
           ))}
         </ul>
       )}
@@ -191,5 +195,5 @@ export const ORD_HANDELSEDELNING = {
   stang: { sv: "Stäng", en: "Close" },
   klar: { sv: "Klar", en: "Done" },
   skapadText: { sv: "Länken är skapad. Den står också i listan på händelsen, så att du hittar den igen.", en: "The link is created. It is also listed on the event, so you can find it again." },
-  utanAdress: { sv: "Länken skapades men svaret saknade adressen. Återkalla den i listan och skapa en ny.", en: "The link was created but the reply had no address. Revoke it in the list and create a new one." },
+  utanAdress: { sv: "Länken skapades men svaret saknade adressen. Dra tillbaka den i listan och skapa en ny.", en: "The link was created but the reply had no address. Withdraw it in the list and create a new one." },
 };

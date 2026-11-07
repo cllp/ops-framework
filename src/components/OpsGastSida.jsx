@@ -12,9 +12,7 @@ import { ORD_OPSDELADHANDELSE } from "./OpsDeladHandelse.jsx";
 import { OpsDisclosure } from "./OpsDisclosure.jsx";
 import { OpsEmpty } from "./OpsEmpty.jsx";
 import { OpsField, OpsInput } from "./OpsField.jsx";
-import { OpsSprakProvider } from "./OpsSprak.jsx";
-import { OpsThemeToggle } from "./OpsThemeToggle.jsx";
-import { PublikSprakval } from "./PublikSprakval.jsx";
+import { PublikHuvud } from "./PublikHuvud.jsx";
 import { GastsidaInfo } from "./gastsidaInfo.js";
 import { IKON_FOR } from "./ikonlexikon.js";
 
@@ -791,25 +789,21 @@ export function OpsGastSida({ lank = null, onLos, onHamta, onNyLank, onNamn, onR
 
   return (
     <div lang={aktivt} data-gastsida="" data-sprak={aktivt} data-gast-lage={lage.fas} className={cx("flex min-h-dvh w-full flex-col", PUBLIK_TONER.ljus.band, PUBLIK_TONER.ljus.rubrik)}>
-      <header className="sticky top-0 z-10 border-b border-publik-ljus-text/10 bg-publik-ljus">
-        <div className={cx("mx-auto flex h-12 w-full items-center justify-between gap-3 px-4", spalt)}>
-          <div data-gast-huvud="" className="flex min-w-0 items-center gap-2">
+      {/* ⛔ (0.201.0) HUVUDET ÄR `PublikHuvud`, samma som en delad länks sida (cllp/ops-framework#544). Gruppens namn står inte bredvid loggan (0.195.0, CP 2026-11-06), och ljust och mörkt
+          står bredvid språket (0.195.0, CP 2026-11-06: "Och kan vi ha ljust/mörkt läge switch där också?"). */}
+      <PublikHuvud
+        namn="gast"
+        spalt={spalt}
+        aktivt={aktivt}
+        etikett={t.sprakEtikett}
+        onVal={valj}
+        huvud={
+          <>
             {marke ? <GastMarke marke={marke} lank={appen ? { href: appen.href, etikett: t.omAppenEtikett.replace("{namn}", appen.namn) } : null} /> : null}
-            {/* ⛔ GRUPPENS NAMN STÅR INTE BREDVID LOGGAN (0.195.0, CP 2026-11-06: "Gruppnamnet Skarv i Web skall inte vara bredvid Lifehub. Den kan vara nedanför utan att pressa ner raden.
-                Vidare i Mobil står den två gånger. Ta bort den bredvid loggan."). Namnet är gruppens rubrik i `OpsGastGrupp`: över flikarna på datorn, i Översikt på telefonen. */}
             {huvud}
-          </div>
-          {/* ⛔ LJUST OCH MÖRKT I GÄSTENS HUVUD (0.195.0, CP 2026-11-06: "Och kan vi ha ljust/mörkt läge switch där också?"). Appens egen växlare (`OpsThemeToggle`), inte en kopia:
-              den skriver `<html data-theme>` och sparar valet i `localStorage` (`ops-theme`), som i appen. Sidans färger följer temat, eftersom `publik-ljus` är `canvas` och `ink`
-              (`tokens.css`). Ordet ("Utseende", "Appearance") läses ur språkets sammanhang, som sidan sätter här: huvudet ligger utanför gruppens `OpsSprakProvider`. */}
-          <div data-gast-huvud-val="" className="flex shrink-0 items-center gap-1">
-            <PublikSprakval aktivt={aktivt} etikett={t.sprakEtikett} onVal={valj} />
-            <OpsSprakProvider sprak={aktivt}>
-              <OpsThemeToggle />
-            </OpsSprakProvider>
-          </div>
-        </div>
-      </header>
+          </>
+        }
+      />
       {/* ⛔ I GRUPPEN PÅ TELEFON SLUTAR SIDAN VID BOTTENRADEN (0.190.0, del B): ytan fyller höjden ut till raden (`OpsGastGrupp`), och `main` lämnar exakt radens och den säkra ytans
           höjd under sig, som skalets `main`. Med `pb-16` hade sidan blivit högre än fönstret och rullat ovanpå ytans egen rullning. */}
       <main className={cx("mx-auto w-full flex-1 px-4", grupplage ? "pt-4 pb-[calc(var(--bottom-nav-h)+var(--safe-bottom)+var(--spelrad-h,0px))] md:pt-12 md:pb-[calc(4rem+var(--spelrad-h,0px))]" : "pt-8 pb-16 sm:pt-12", spalt)}>

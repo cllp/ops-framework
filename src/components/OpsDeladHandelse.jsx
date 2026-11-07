@@ -1,6 +1,6 @@
 import { useId, useState } from "react";
 import { cx } from "../lib/cx.js";
-import { DELNINGSFEL, DELNINGSORSAKER } from "../lib/delning.js";
+import { DELNINGSORSAKER } from "../lib/delning.js";
 import { lasSparatSprak, sparaSprak, valdSprak } from "../lib/deladdatum.js";
 import { sizeText } from "../lib/file.js";
 import { definierade, forvalda } from "../lib/ord.js";
@@ -10,10 +10,11 @@ import { DeladKod } from "./DeladKod.jsx";
 import { DeladRubrik } from "./DeladRubrik.jsx";
 import { FilIkon } from "./icons.jsx";
 import { OpsEmpty } from "./OpsEmpty.jsx";
-import { PublikSprakval } from "./PublikSprakval.jsx";
+import { DeladFel } from "./DeladFel.jsx";
+import { PublikHuvud } from "./PublikHuvud.jsx";
 
 /**
- * Orden på den publika händelsesidan, på svenska och engelska (0.125.0, cllp/lifehub.app#377). Svenskan i feltexterna är `DELNINGSFEL` och ingen kopia av den (regel 2).
+ * Orden på den publika händelsesidan, på svenska och engelska (0.125.0, cllp/lifehub.app#377). Beskedet för en länk som inte fungerar är `DeladFel` (0.201.0), samma som filens sida.
  * @type {import("../lib/ord.js").Ordbok}
  */
 export const ORD_OPSDELADHANDELSE = {
@@ -32,13 +33,6 @@ export const ORD_OPSDELADHANDELSE = {
   typ_video: { sv: "Video", en: "Video" },
   typ_pdf: { sv: "PDF", en: "PDF" },
   typ_dokument: { sv: "Dokument", en: "Document" },
-  orsak_utgangen: { sv: DELNINGSFEL.utgangen, en: "The link has expired" },
-  orsak_stangd: { sv: DELNINGSFEL.stangd, en: "The link is closed" },
-  orsak_saknas: { sv: DELNINGSFEL.saknas, en: "The file no longer exists" },
-  "orsak_handelse-saknas": { sv: DELNINGSFEL["handelse-saknas"], en: "The event no longer exists" },
-  "orsak_kod-kravs": { sv: DELNINGSFEL["kod-kravs"], en: "This link needs a code" },
-  "orsak_fel-kod": { sv: DELNINGSFEL["fel-kod"], en: "The code was not right" },
-  "orsak_for-manga": { sv: DELNINGSFEL["for-manga"], en: "Too many attempts. Wait a while and try again" },
 };
 
 /** Orsakerna där sidan ber om en kod. */
@@ -51,7 +45,7 @@ const KODORSAKER = /** @type {readonly string[]} */ (["kod-kravs", "fel-kod", "f
  *
  * `delning` är `hamta().delning` ur `createDelningService` för en händelse: titel, beskrivning, plats, datum och tid, och filerna med en adress
  * som går ut. Vyn läser aldrig en grupp, en medlem, ett svar eller en kommentar, för de finns inte i svaret. Och den har ingen egen regel för vem som får se vad:
- * en länk som inte går att visa är ett `orsak`, och texten kommer ur ordboken (`DELNINGSFEL` på svenska).
+ * en länk som inte går att visa är ett `orsak`, och beskedet är `DeladFel` (0.201.0).
  *
  * ⛔ ETT AV TRE LÄGEN, OCH ETT FEL KASTAS. `delning`, `orsak` eller `laddar`, som `OpsDelad`. Ingen av dem, eller flera, är ett fel i anropet.
  *
@@ -107,12 +101,8 @@ export function OpsDeladHandelse({ delning = null, orsak, laddar = false, onKod,
   const kandOrsak = orsak !== undefined && /** @type {readonly string[]} */ (DELNINGSORSAKER).includes(orsak) ? orsak : "utgangen";
   return (
     <div lang={aktivt} data-deladhandelse="" data-sprak={aktivt} className={cx("flex min-h-dvh w-full flex-col", PUBLIK_TONER.ljus.band, PUBLIK_TONER.ljus.rubrik)}>
-      <header className="sticky top-0 z-10 border-b border-publik-ljus-text/10 bg-publik-ljus">
-        <div className="mx-auto flex h-14 w-full max-w-3xl items-center justify-between gap-3 px-4">
-          <div data-dh-huvud="" className="flex min-w-0 items-center">{huvud}</div>
-          <PublikSprakval aktivt={aktivt} etikett={t.sprakEtikett} onVal={valj} />
-        </div>
-      </header>
+      {/* ⛔ (0.201.0) SAMMA HUVUD SOM GÄSTENS SIDA OCH FILENS (`PublikHuvud`, cllp/ops-framework#544): märket, språket och ljust eller mörkt. */}
+      <PublikHuvud namn="dh" aktivt={aktivt} etikett={t.sprakEtikett} onVal={valj} huvud={huvud} />
       <main className="mx-auto w-full max-w-3xl flex-1 px-4 pt-8 pb-16 sm:pt-12">
         {laddar ? (
           <OpsEmpty busy title={t.laddar} busyLabel={t.laddar} />
@@ -120,9 +110,7 @@ export function OpsDeladHandelse({ delning = null, orsak, laddar = false, onKod,
           KODORSAKER.includes(kandOrsak) && onKod ? (
             <DeladKod orsak={kandOrsak} onKod={onKod} sprak={aktivt} publik />
           ) : (
-            <div data-delad="fel" data-delad-orsak={kandOrsak}>
-              <OpsEmpty title={t[`orsak_${kandOrsak}`]} />
-            </div>
+            <DeladFel orsak={kandOrsak} sprak={aktivt} />
           )
         ) : (
           <Handelse delning={/** @type {NonNullable<typeof delning>} */ (delning)} t={t} sprak={aktivt} />

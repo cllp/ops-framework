@@ -229,22 +229,40 @@ describe("OpsDeladHandelse: lägena", () => {
     expect(() => render(<OpsDeladHandelse delning={HANDELSE} onKod="x" />)).toThrow(/onKod/);
   });
 
+  // ⛔ (0.201.0, cllp/ops-framework#544) Rubriken är gästens ("Länken fungerar inte längre") och raden under säger varför och vad man gör. Förut var rubriken orsaken.
   it("⛔ varje orsak har en text på båda språken, och en okänd orsak får det utgångnas", () => {
     for (const [sprak, forvantat] of [
-      ["sv", { utgangen: "Länken har gått ut", stangd: "Länken är stängd", saknas: "Finns inte längre", "handelse-saknas": "Händelsen finns inte längre", "kod-kravs": "Länken kräver en kod", "fel-kod": "Koden stämde inte", "for-manga": "För många försök. Vänta en stund och försök igen" }],
-      ["en", { utgangen: "The link has expired", stangd: "The link is closed", saknas: "The file no longer exists", "handelse-saknas": "The event no longer exists", "kod-kravs": "This link needs a code", "fel-kod": "The code was not right", "for-manga": "Too many attempts. Wait a while and try again" }],
+      ["sv", {
+        utgangen: ["Länken fungerar inte längre", "Den har gått ut. Be den som delade den om en ny länk."],
+        stangd: ["Länken fungerar inte längre", "Den som delade den har dragit tillbaka den. Be den som delade den om en ny länk."],
+        saknas: ["Länken fungerar inte längre", "Det som delades finns inte längre. Be den som delade den om en ny länk."],
+        "handelse-saknas": ["Länken fungerar inte längre", "Händelsen finns inte längre. Be den som delade den om en ny länk."],
+        "kod-kravs": ["Länken kräver en kod", null],
+        "fel-kod": ["Koden stämde inte", null],
+        "for-manga": ["För många försök. Vänta en stund och försök igen", null],
+      }],
+      ["en", {
+        utgangen: ["The link no longer works", "It has expired. Ask the person who shared it for a new link."],
+        stangd: ["The link no longer works", "The person who shared it has withdrawn it. Ask the person who shared it for a new link."],
+        saknas: ["The link no longer works", "What was shared no longer exists. Ask the person who shared it for a new link."],
+        "handelse-saknas": ["The link no longer works", "The event no longer exists. Ask the person who shared it for a new link."],
+        "kod-kravs": ["This link needs a code", null],
+        "fel-kod": ["The code was not right", null],
+        "for-manga": ["Too many attempts. Wait a while and try again", null],
+      }],
     ]) {
       expect(Object.keys(forvantat).sort()).toEqual([...DELNINGSORSAKER].sort());
-      for (const [orsak, rubrik] of Object.entries(forvantat)) {
+      for (const [orsak, [rubrik, rad]] of Object.entries(forvantat)) {
         const { container, unmount } = render(<OpsDeladHandelse orsak={orsak} sprak={sprak} />);
         expect(container.querySelector("[data-delad='fel']"), `${sprak} ${orsak}`).toHaveAttribute("data-delad-orsak", orsak);
         expect(screen.getByText(rubrik), `${sprak} ${orsak}`).toBeInTheDocument();
+        if (rad) expect(screen.getByText(rad), `${sprak} ${orsak}`).toBeInTheDocument();
         unmount();
       }
     }
     const okand = render(<OpsDeladHandelse orsak="hittepa" sprak="sv" />);
     expect(okand.container.querySelector("[data-delad='fel']")).toHaveAttribute("data-delad-orsak", "utgangen");
-    expect(screen.getByText("Länken har gått ut")).toBeInTheDocument();
+    expect(screen.getByText("Den har gått ut. Be den som delade den om en ny länk.")).toBeInTheDocument();
   });
 
   it("laddar skriver ut att den hämtar, på valt språk", () => {
@@ -352,12 +370,14 @@ describe("OpsDelad (en fil): kodrutan", () => {
     await waitFor(() => expect(onKod).toHaveBeenCalledWith("hemligt1"));
   });
 
-  it("utan onKod är orsaken text som förut, och de gamla orsakerna är oförändrade", () => {
+  it("utan onKod är orsaken text som förut, och en stängd länk har gästens besked", () => {
     const { container, rerender } = render(<OpsDelad orsak="kod-kravs" />);
     expect(screen.getByText("Länken kräver en kod")).toBeInTheDocument();
     expect(container.querySelector("form")).toBeNull();
     rerender(<OpsDelad orsak="stangd" onKod={vi.fn()} />);
-    expect(screen.getByText("Länken är stängd")).toBeInTheDocument();
+    // (0.201.0) Gästens rubrik, och varför på raden under.
+    expect(screen.getByText("Länken fungerar inte längre")).toBeInTheDocument();
+    expect(screen.getByText(/dragit tillbaka den/)).toBeInTheDocument();
     expect(container.querySelector("form")).toBeNull();
   });
 

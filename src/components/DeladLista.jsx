@@ -1,13 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import { cx } from "../lib/cx.js";
-import { LISTRADTEXT } from "../lib/biblioteklista.js";
+import { ORD_OPSDELAD } from "../lib/deladord.js";
+import { forvalda } from "../lib/ord.js";
 import { sizeText } from "../lib/file.js";
 import { formateraTid } from "../lib/ljudspelare.js";
-import { DeladFil, TYPNAMN } from "./DeladFil.jsx";
+import { DeladFil } from "./DeladFil.jsx";
 import { OpsButton } from "./OpsButton.jsx";
 import { OpsDisclosure } from "./OpsDisclosure.jsx";
 import { OpsLjudspelare } from "./OpsLjudspelare.jsx";
 import { OpsMarkdown } from "./OpsMarkdown.jsx";
+import { useOpsSprak } from "./OpsSprak.jsx";
 import { TypIkon, plattKlass } from "./BibliotekPostvisning.jsx";
 
 /**
@@ -50,11 +52,11 @@ export function nastaKvar(gammal, ny, borta) {
   return gammal.slice(i + 1).find((k) => ny.includes(k)) ?? null;
 }
 
-/** @param {number} n */
-const poster = (n) => `${n} ${n === 1 ? "post" : "poster"}`;
+/** @param {number} n @param {Record<string, string>} t */
+const poster = (n, t) => `${n} ${n === 1 ? t.post : t.poster}`;
 
-/** Typens namn på en rad, som biblioteket säger det. @param {Listpost} p */
-const typNamn = (p) => (p.typ === "anteckning" ? "Anteckning" : p.typ === "lank" ? "Länk" : (TYPNAMN[p.typ] ?? TYPNAMN.dokument));
+/** Typens namn på en rad, som biblioteket säger det, på sidans språk (0.201.0). @param {Listpost} p @param {Record<string, string>} t */
+const typNamn = (p, t) => (p.typ === "anteckning" ? t.anteckning : p.typ === "lank" ? t.lank : (t[`typ_${p.typ}`] ?? t.typ_dokument));
 
 /** Formen `TypIkon` och `plattKlass` läser: en fil har en MIME, de andra sin typ. @param {Listpost} p */
 const ikonPost = (p) => (p.mime ? { typ: "fil", fil: { mime: p.mime } } : { typ: p.typ });
@@ -74,6 +76,7 @@ export function DeladLista({ delning, onNyUrl }) {
   const ejVisade = Number.isInteger(delning.ejVisade) ? /** @type {number} */ (delning.ejVisade) : 0;
 
   // Vald låt: nyckeln, eller null för "den första". `auto` är om nästa adress ska starta av sig själv: sant medan något spelar, när en låt tagit slut och efter ett tryck på en rad.
+  const t = forvalda(ORD_OPSDELAD, useOpsSprak());
   const [vald, setVald] = useState(/** @type {string | null} */ (null));
   const [auto, setAuto] = useState(false);
   const [start, setStart] = useState(0);
@@ -127,12 +130,12 @@ export function DeladLista({ delning, onNyUrl }) {
       <header className="flex min-w-0 flex-col gap-1">
         <h1 data-delad-rubrik="" className="m-0 text-sida text-ink wrap-anywhere">{delning.rubrik}</h1>
         <p data-delad-meta="" className="m-0 text-meta text-ink-muted">
-          {["Lista", poster(rader.length + ejVisade)].join(" · ")}
+          {[t.lista, poster(rader.length + ejVisade, t)].join(" · ")}
         </p>
       </header>
 
       {aktuell ? (
-        <section aria-label="Spelare" data-delad-spelare="" className="flex min-w-0 flex-col gap-1 rounded-lg border border-line p-3">
+        <section aria-label={t.spelare} data-delad-spelare="" className="flex min-w-0 flex-col gap-1 rounded-lg border border-line p-3">
           <OpsLjudspelare
             src={aktuell.url}
             namn={aktuell.rubrik}
@@ -152,11 +155,12 @@ export function DeladLista({ delning, onNyUrl }) {
       {fel ? <p role="alert" data-delad-fel="" className="m-0 text-etikett text-danger">{fel}</p> : null}
 
       {rader.length === 0 ? (
-        <p data-delad-tom="" className="m-0 text-etikett text-ink-secondary">Listan är tom.</p>
+        <p data-delad-tom="" className="m-0 text-etikett text-ink-secondary">{t.tom}</p>
       ) : (
-        <ol aria-label={`Posterna i ${delning.rubrik}`} data-delad-poster="" className="m-0 flex list-none flex-col gap-2 p-0">
+        <ol aria-label={t.posterI.replace("{namn}", delning.rubrik)} data-delad-poster="" className="m-0 flex list-none flex-col gap-2 p-0">
           {rader.map((p, i) => (
             <Rad
+              t={t}
               key={"id" in p ? p.id : `r${i}`}
               p={p}
               spelas={Boolean(aktuell) && "id" in p && p.id === aktuell?.id}
@@ -172,7 +176,7 @@ export function DeladLista({ delning, onNyUrl }) {
           ))}
         </ol>
       )}
-      {ejVisade > 0 ? <p data-delad-ejvisade="" className="m-0 text-meta text-ink-muted">{ejVisade === 1 ? "1 post till visas inte här." : `${ejVisade} poster till visas inte här.`}</p> : null}
+      {ejVisade > 0 ? <p data-delad-ejvisade="" className="m-0 text-meta text-ink-muted">{ejVisade === 1 ? t.ejVisad : t.ejVisade.replace("{n}", String(ejVisade))}</p> : null}
     </article>
   );
 }
@@ -180,18 +184,18 @@ export function DeladLista({ delning, onNyUrl }) {
 const RAD = "flex min-w-0 flex-col rounded-lg border border-line bg-surface";
 
 /**
- * @param {{ p: Listpost | { typ: "saknas" | "lista-i-lista" }, spelas: boolean, onValj: () => void, onNyUrl?: () => void | Promise<void> }} props
+ * @param {{ p: Listpost | { typ: "saknas" | "lista-i-lista" }, spelas: boolean, onValj: () => void, onNyUrl?: () => void | Promise<void>, t: Record<string, string> }} props
  */
-function Rad({ p, spelas, onValj, onNyUrl }) {
+function Rad({ p, spelas, onValj, onNyUrl, t }) {
   if (p.typ === "saknas" || p.typ === "lista-i-lista") {
     return (
       <li data-delad-rad={p.typ} className={cx(RAD, "p-3")}>
-        <span data-delad-saknas="" className="text-etikett text-ink-muted wrap-anywhere">{p.typ === "lista-i-lista" ? LISTRADTEXT.lista : LISTRADTEXT.saknas}</span>
+        <span data-delad-saknas="" className="text-etikett text-ink-muted wrap-anywhere">{p.typ === "lista-i-lista" ? t.listaILista : t.saknas}</span>
       </li>
     );
   }
   const post = /** @type {Listpost} */ (p);
-  const meta = [typNamn(post), post.typ === "ljud" && post.langd ? formateraTid(post.langd / 1000) : "", post.storlek ? sizeText(post.storlek) : ""].filter(Boolean).join(" · ");
+  const meta = [typNamn(post, t), post.typ === "ljud" && post.langd ? formateraTid(post.langd / 1000) : "", post.storlek ? sizeText(post.storlek) : ""].filter(Boolean).join(" · ");
   const plattan = (
     <span aria-hidden="true" className={cx("flex size-11 shrink-0 items-center justify-center rounded-full", plattKlass(ikonPost(post)))}>
       <TypIkon post={ikonPost(post)} />
@@ -200,7 +204,7 @@ function Rad({ p, spelas, onValj, onNyUrl }) {
   const rubrik = (
     <span className="flex min-w-0 flex-1 flex-col text-left">
       <span data-delad-radrubrik="" className="text-etikett text-ink wrap-anywhere">{post.rubrik}</span>
-      <span data-delad-radmeta="" className="text-meta text-ink-muted">{spelas ? `Spelas nu · ${meta}` : meta}</span>
+      <span data-delad-radmeta="" className="text-meta text-ink-muted">{spelas ? `${t.spelasNu} · ${meta}` : meta}</span>
     </span>
   );
 
@@ -209,14 +213,14 @@ function Rad({ p, spelas, onValj, onNyUrl }) {
       <li data-delad-rad="ljud" aria-current={spelas ? "true" : undefined} className={cx(RAD, "flex-row items-center gap-3 p-3", spelas && "border-accent bg-accent-faint")}>
         <button
           type="button"
-          aria-label={`Spela ${post.rubrik} ur listan`}
+          aria-label={t.spelaUrListan.replace("{namn}", post.rubrik)}
           onClick={onValj}
           className="flex min-h-11 min-w-0 flex-1 cursor-pointer items-center gap-3 bg-transparent text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         >
           {plattan}
           {rubrik}
         </button>
-        {post.nedladdning === true && post.url ? <OpsButton variant="secondary" size="sm" href={post.url} ariaLabel={`Ladda ner ${post.rubrik}`}>Ladda ner</OpsButton> : null}
+        {post.nedladdning === true && post.url ? <OpsButton variant="secondary" size="sm" href={post.url} ariaLabel={t.laddaNerNamn.replace("{namn}", post.rubrik)}>{t.laddaNer}</OpsButton> : null}
       </li>
     );
   }
@@ -227,7 +231,7 @@ function Rad({ p, spelas, onValj, onNyUrl }) {
         {plattan}
         {rubrik}
         {arWebbadress(post.url) ? (
-          <OpsButton variant="secondary" size="sm" href={post.url} newTab ariaLabel={`Öppna länken ${post.rubrik}`}>Öppna</OpsButton>
+          <OpsButton variant="secondary" size="sm" href={post.url} newTab ariaLabel={t.oppnaLankenNamn.replace("{namn}", post.rubrik)}>{t.oppna}</OpsButton>
         ) : null}
       </li>
     );

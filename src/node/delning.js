@@ -100,6 +100,7 @@ import {
   FELKOD_FONSTER_MS,
   FELKOD_MAX,
   HANDELSEDAGAR,
+  FORVAL_HANDELSEDAGAR,
   KODLANGD,
   MAX_ADRESSDEL,
   MAX_DELADE_LISTPOSTER,
@@ -320,8 +321,8 @@ export function byggDelning(d) {
  * `felFonster` från början, också utan kod: räknaren för felaktiga koder är då alltid ett tal och aldrig ett fält som saknas, vilket en villkorad skrivning
  * inte kan jämföra på ett pålitligt sätt.
  *
- * ⛔ GILTIGHETEN ÄR EN AV `DELNINGSDAGAR` FÖR EN FIL, OCH `null` ("ingen gräns") ÄR BARA TILLÅTET FÖR EN HÄNDELSE (`HANDELSEDAGAR`). Reglerna för en
- * fil är oförändrade: en fillänk som aldrig går ut är en länk som aldrig stängs.
+ * ⛔ GILTIGHETEN ÄR EN AV `DELNINGSDAGAR`, FÖR EN FIL OCH FÖR EN HÄNDELSE (0.201.0, cllp/ops-framework#544, CP 2026-11-07: "ta bort Ingen gräns"). Före 0.201.0 fick en händelse
+ * `null` ("ingen gräns"). En sådan rad som redan finns läses som förut (`giltigTill: null`), men en ny rad får den aldrig.
  *
  * @param {object} d
  * @param {"post" | "handelse"} d.slag
@@ -372,10 +373,10 @@ export function byggAdressdelning(d) {
   }
   const handelseId = text(d.handelseId);
   if (!handelseId) throw new Error("byggAdressdelning: handelseId krävs för en händelse.");
-  if (!(/** @type {readonly (number | null)[]} */ (HANDELSEDAGAR).includes(d.dagar))) {
-    throw new Error(`byggAdressdelning: utgångstiden ${String(d.dagar)} dagar finns inte. Giltiga: ingen gräns, ${DELNINGSDAGAR.join(", ")}.`);
+  if (!(/** @type {readonly number[]} */ (HANDELSEDAGAR).includes(/** @type {number} */ (d.dagar)))) {
+    throw new Error(`byggAdressdelning: utgångstiden ${String(d.dagar)} dagar finns inte. Giltiga: ${HANDELSEDAGAR.join(", ")}. Ingen gräns finns inte sedan 0.201.0.`);
   }
-  return { ...bas, handelseId, giltigTill: d.dagar === null ? null : d.skapad + d.dagar * DYGN_MS };
+  return { ...bas, handelseId, giltigTill: d.skapad + /** @type {number} */ (d.dagar) * DYGN_MS };
 }
 
 /**
@@ -780,9 +781,11 @@ export function createDelningService(konfig) {
     if (!HANDELSER) throw new Error("skapa: händelser går inte att dela. Tjänsten byggdes utan samlingar.handelser.");
     const uid = kravText(b?.uid, "uid", "skapa");
     const handelseId = kravText(b?.handelseId, "handelseId", "skapa");
-    const dagar = b.dagar === undefined || b.dagar === null ? null : b.dagar;
-    if (!(/** @type {readonly (number | null)[]} */ (HANDELSEDAGAR).includes(dagar))) {
-      throw new Error(`skapa: utgångstiden ${String(b.dagar)} dagar finns inte. Giltiga: ingen gräns, ${DELNINGSDAGAR.join(", ")}.`);
+    // ⛔ (0.201.0) UTELÄMNAD ÄR FÖRVALET, 30 DAGAR, OCH `null` NEKAS: "ingen gräns" finns inte längre för en ny länk (cllp/ops-framework#544). En klient från före 0.201.0 som skickar
+    // `null` får ett fel med skälet i stället för en länk som aldrig går ut.
+    const dagar = b.dagar === undefined ? FORVAL_HANDELSEDAGAR : b.dagar;
+    if (!(/** @type {readonly number[]} */ (HANDELSEDAGAR).includes(dagar))) {
+      throw new Error(`skapa: utgångstiden ${String(b.dagar)} dagar finns inte. Giltiga: ${HANDELSEDAGAR.join(", ")}. Ingen gräns finns inte sedan 0.201.0.`);
     }
     const delar = kravAdressdelar(b.gruppdel, b.handelsedel, "skapa");
     const kod = await kodForSkapa(b.kod, "skapa");
