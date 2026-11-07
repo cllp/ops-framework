@@ -25,6 +25,8 @@ export const ORD_OPSDELADHANDELSE = {
   platsEtikett: { sv: "Plats", en: "Location" },
   filerRubrik: { sv: "Filer", en: "Files" },
   ingaFiler: { sv: "Inga filer har lagts till.", en: "No files have been added." },
+  // ⛔ (0.202.0, QA 2026-11-07, punkt 18 i lifehub.app#687): en delad länk är läsbar för vem som helst och bär därför inget svar. Sidan säger hur man svarar i stället för att lämna mottagaren att gissa.
+  hurSvara: { sv: "Vill du svara? Be den som delade länken att bjuda in dig.", en: "Want to answer? Ask the person who shared the link to invite you." },
   ejVisade: { sv: "{n} filer till finns men visas inte här.", en: "{n} more files exist but are not shown here." },
   oppna: { sv: "Öppna", en: "Open" },
   oppnaFil: { sv: "Öppna {namn}", en: "Open {namn}" },
@@ -169,6 +171,7 @@ function Handelse({ delning, t, sprak }) {
         )}
         {ejVisade > 0 ? <p data-dh-ejvisade="" className="m-0 text-meta text-publik-ljus-dampad">{t.ejVisade.replace("{n}", String(ejVisade))}</p> : null}
       </section>
+      <p data-dh-hur-svara="" className="m-0 text-meta text-publik-ljus-dampad">{t.hurSvara}</p>
     </article>
   );
 }

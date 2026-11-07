@@ -106,3 +106,15 @@ describe("Skicka till mejl på varje länk på händelsen, som gästens Skicka i
     expect(onMejlaLank).toHaveBeenCalledWith(expect.objectContaining({ id: "b2", url: "https://my.test/g/travel/event/resa-b2", till: "kusin@exempel.se" }));
   });
 });
+
+describe("den delade händelsen säger hur man svarar (0.202.0, lifehub.app#687 punkt 18)", () => {
+  it("raden står på svenska och på engelska", async () => {
+    const { OpsDeladHandelse } = await import("../components/OpsDeladHandelse.jsx");
+    const delning = { titel: "Fest", datum: "2026-12-24", filer: [], ejVisade: 0 };
+    for (const [sprak, text] of /** @type {const} */ ([["sv", "Vill du svara? Be den som delade länken att bjuda in dig."], ["en", "Want to answer? Ask the person who shared the link to invite you."]])) {
+      const { container, unmount } = render(<OpsDeladHandelse delning={/** @type {any} */ (delning)} sprak={sprak} onSprak={() => {}} />);
+      expect(container.querySelector("[data-dh-hur-svara]")?.textContent).toBe(text);
+      unmount();
+    }
+  });
+});
