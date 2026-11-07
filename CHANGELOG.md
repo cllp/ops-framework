@@ -9,6 +9,38 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.201.0
+
+En delad länk ger samma upplevelse som gästinbjudan (cllp/ops-framework#544). CP 2026-11-07: "Se till att allt är enhetligt med gästinbjudan så att det är samma upplevelse för användaren", och om giltigheten: "Ja, 30 dagar som förval, ta bort Ingen gräns".
+
+### Tillagt
+
+- **`OpsDeladSida`**: sidan runt en delad post (fil, anteckning, länk eller lista), med samma huvud och samma språk som en delad händelse och gästens sida. Språket väljs i gästens ordning: besökarens eget val, sedan länkens (`lankSprak`, brevets språk), sist webbläsarens. Innehållet läser språket ur sammanhanget. `OpsDeladHandelse` tar också `lankSprak`.
+- **`PublikHuvud`**: ett huvud för alla tre publika sidor (gästens, en delad händelse, en delad post), med appens märke, språket och ljust eller mörkt. Gästens sida använder det också, så att de tre inte kan glida isär. Händelsens sida får därmed temaknappen.
+- **`DeladFel`** och **`delningsbesked(orsak, sprak)`**: en länk som inte fungerar säger "Länken fungerar inte längre", varför på en rad under ("Den har gått ut.", "Den som delade den har dragit tillbaka den.", "Det som delades finns inte längre.") och nästa väg ("Be den som delade den om en ny länk."), på båda språken (`ORD_DELNINGSFEL`).
+- **`ORD_OPSDELAD`**: orden på en delad posts sida på svenska och engelska. `OpsDelad`, `DeladFil` och `DeladLista` är tvåspråkiga; förut var allt utom kodrutan svenska.
+- **Skicka till mejl på varje länk på en händelse** (`LankRad` tar `children`), som gästlistans Skicka igen. Förut fanns fältet bara direkt efter att länken skapats.
+
+### Ändrat
+
+- **Dra tillbaka** heter det överallt där en delad länk tas tillbaka, som i gästlistan. Förut "Stäng länken" i biblioteket och "Återkalla" på en händelse. Beskedet efteråt: "Länken är tillbakadragen."
+- **Giltigheten är 1, 7 eller 30 dagar överallt, och 30 är förval** (`FORVAL_DELNINGSDAGAR`, `FORVAL_HANDELSEDAGAR`), som en gästlänk. Förut 7 dagar för en fil och "Ingen gräns" för en händelse. `skapa` utan `dagar` för en händelse ger 30 dagar, och `dagar: null` nekas med skälet. En händelselänk med ingen gräns som skapades före 0.201.0 öppnas som förut.
+- **`DELNINGSFEL`** för `utgangen`, `stangd`, `saknas` och `handelse-saknas` är rubriken "Länken fungerar inte längre". Orsaken står i `delningsbesked`. Kodorsakerna är oförändrade.
+- **Laddningen säger "Hämtar"**, inte "Hämtar filen", eftersom vyn inte vet vilken sort förrän svaret kommit.
+- **Menyraden Dela länk** och dialogens rubrik följer språket.
+
+### Inte ändrat, med skäl (regel 13)
+
+- En delad länk får ingen Välkommen och ingen Öppna-knapp. Gästen trycker Öppna för att en session ska skapas och en säkerhetsskanner inte ska komma in. En delad länk skapar ingenting och visar innehållet direkt, så knappen hade bara varit ett tryck till.
+- Koden står kvar som ett val.
+
+### För appen
+
+- Rita en delad post med `OpsDeladSida` runt `OpsDelad`, och ta bort appens egna skal (logga och "Delat via"). Ge `lankSprak` när länken bär ett språk.
+- Prov som letar efter "Stäng länken", "Återkalla", "Länken har gått ut", "Länken är stängd", "Hämtar filen", "Ingen gräns" eller förvalet 7 dagar behöver de nya orden.
+
+---
+
 ## 0.200.1
 
 "Svara i tråd" smälter inte ihop med bubblorna. CP 2026-11-07, med en skärmbild av gästens chatt på datorn: "själva bubblan vid hover har samma färg och ingen ram, så den smälter ihop."

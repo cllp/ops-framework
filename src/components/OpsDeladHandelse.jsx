@@ -72,9 +72,10 @@ const KODORSAKER = /** @type {readonly string[]} */ (["kod-kravs", "fel-kod", "f
  * @param {import("react").ReactNode} [props.huvud] Appens logga eller namn, till vänster i huvudet.
  * @param {string} [props.sprak] Språket om appen styr det (`sv` eller `en`). Utelämnat: sidan väljer själv och minns valet.
  * @param {(sprak: string) => void} [props.onSprak] Anropas när besökaren väljer språk.
+ * @param {string | null} [props.lankSprak] (0.201.0) Länkens språk (`sv` eller `en`, brevets språk), i samma ordning som gästens sida och `OpsDeladSida`: besökarens eget val, sedan länkens, sist webbläsarens.
  * @param {Partial<Record<keyof typeof ORD_OPSDELADHANDELSE, string>>} [props.ord] Egna texter, som vinner över ordboken.
  */
-export function OpsDeladHandelse({ delning = null, orsak, laddar = false, onKod, huvud, sprak, onSprak, ord }) {
+export function OpsDeladHandelse({ delning = null, orsak, laddar = false, onKod, huvud, sprak, onSprak, lankSprak, ord }) {
   const lagen = [Boolean(delning), orsak !== undefined, laddar].filter(Boolean).length;
   if (lagen !== 1) {
     throw new Error("OpsDeladHandelse: ge precis en av delning, orsak och laddar. Ingen av dem är en tom yta, flera är två sanningar om samma länk.");
@@ -85,8 +86,9 @@ export function OpsDeladHandelse({ delning = null, orsak, laddar = false, onKod,
     throw new Error(`OpsDeladHandelse: språket ${JSON.stringify(sprak)} finns inte (giltiga: ${SPRAK.join(", ")}).`);
   }
 
+  const lank = typeof lankSprak === "string" && /** @type {readonly string[]} */ (SPRAK).includes(lankSprak) ? lankSprak : undefined;
   const [valt, setValt] = useState(() =>
-    valdSprak({ sparat: lasSparatSprak(), webblasare: typeof navigator === "undefined" ? undefined : navigator.language }),
+    valdSprak({ sparat: lasSparatSprak(), webblasare: lank ?? (typeof navigator === "undefined" ? undefined : navigator.language) }),
   );
   const aktivt = sprak ?? valt;
   const t = { ...forvalda(ORD_OPSDELADHANDELSE, aktivt), ...definierade(/** @type {Record<string, string>} */ (ord ?? {})) };

@@ -63,6 +63,11 @@ describe("språket på filens sida, i gästens ordning", () => {
     expect(screen.getByText("Hämtar")).toBeInTheDocument();
   });
 
+  it("⛔ händelsens sida tar också länkens språk", () => {
+    render(<OpsDeladHandelse laddar lankSprak="en" />);
+    expect(document.querySelector("[data-deladhandelse]")).toHaveAttribute("data-sprak", "en");
+  });
+
   it("besökaren byter språk i huvudet, och innehållet följer", async () => {
     render(<OpsDeladSida><OpsDelad delning={{ typ: "anteckning", rubrik: "Turnéplan", text: "" }} /></OpsDeladSida>);
     expect(screen.getByText("Anteckning")).toBeInTheDocument();
