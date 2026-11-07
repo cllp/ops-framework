@@ -9,7 +9,9 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
-## Ej utgivet
+## 0.199.0
+
+Gästens Översikt säger hur mycket som finns, och spelarens ark är rundat runt om på webben. CP 2026-11-07.
 
 ### Ändrat
 
