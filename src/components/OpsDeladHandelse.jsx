@@ -1,3 +1,4 @@
+import { OmAppenRad } from "./OmAppenRad.jsx";
 import { useId, useState } from "react";
 import { cx } from "../lib/cx.js";
 import { DELNINGSORSAKER } from "../lib/delning.js";
@@ -74,10 +75,11 @@ const KODORSAKER = /** @type {readonly string[]} */ (["kod-kravs", "fel-kod", "f
  * @param {import("react").ReactNode} [props.huvud] Appens logga eller namn, till vänster i huvudet.
  * @param {string} [props.sprak] Språket om appen styr det (`sv` eller `en`). Utelämnat: sidan väljer själv och minns valet.
  * @param {(sprak: string) => void} [props.onSprak] Anropas när besökaren väljer språk.
+ * @param {{ href: string, namn: string }} [props.omAppen] (0.202.0) Appens namn och adress för sista raden. Prövas som på gästens sida: bara https.
  * @param {string | null} [props.lankSprak] (0.201.0) Länkens språk (`sv` eller `en`, brevets språk), i samma ordning som gästens sida och `OpsDeladSida`: besökarens eget val, sedan länkens, sist webbläsarens.
  * @param {Partial<Record<keyof typeof ORD_OPSDELADHANDELSE, string>>} [props.ord] Egna texter, som vinner över ordboken.
  */
-export function OpsDeladHandelse({ delning = null, orsak, laddar = false, onKod, huvud, sprak, onSprak, lankSprak, ord }) {
+export function OpsDeladHandelse({ delning = null, orsak, laddar = false, onKod, huvud, sprak, onSprak, lankSprak, ord, omAppen }) {
   const lagen = [Boolean(delning), orsak !== undefined, laddar].filter(Boolean).length;
   if (lagen !== 1) {
     throw new Error("OpsDeladHandelse: ge precis en av delning, orsak och laddar. Ingen av dem är en tom yta, flera är två sanningar om samma länk.");
@@ -119,6 +121,8 @@ export function OpsDeladHandelse({ delning = null, orsak, laddar = false, onKod,
         ) : (
           <Handelse delning={/** @type {NonNullable<typeof delning>} */ (delning)} t={t} sprak={aktivt} />
         )}
+        {/* (0.202.0, lifehub.app#687 punkt 16) Sista raden som på gästens översikt. */}
+        {omAppen ? <div className="mt-12"><OmAppenRad omAppen={omAppen} sprak={/** @type {"sv" | "en"} */ (aktivt)} /></div> : null}
       </main>
     </div>
   );
