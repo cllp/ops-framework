@@ -1287,7 +1287,35 @@ export function createGastService(konfig) {
    * @returns {Promise<{ ok: true, sessionsnyckel: string } | { ok: false, orsak: Gastorsak }>}
    */
   async function los(b) {
-    const ipHash = ipId(b?.ip, "los", "los");
+    const provat = await provaLank(b, "los");
+    if (!provat.ok) return provat;
+    const sessionsnyckel = await oppnaSession(provat.id);
+    return { ok: true, sessionsnyckel };
+  }
+
+  /**
+   * (0.202.0) Prövar en länk utan att lösa in den: samma prövning, samma räknare och samma svar som `los`, men ingen session skapas och ingenting märks.
+   *
+   * ⛔ VARFÖR (QA 2026-11-07, punkt 3 i cllp/lifehub.app#687): en ändrad eller gammal länk visade först Välkommen och Öppna, och felet kom först efter trycket. Sidan frågar nu när den
+   * laddas och visar felet direkt. Att sidan inte LÖSER IN länken vid sidladdningen står kvar (0.200.0): en mejlskanner som öppnar länken ska inte skapa en session. Den här frågan skapar
+   * ingenting, och fel nyckel räknas som i `los`, så den är inget nytt sätt att gissa.
+   *
+   * @param {Record<string, any>} b `{ id, nyckel, ip }`.
+   * @returns {Promise<{ ok: true } | { ok: false, orsak: Gastorsak }>}
+   */
+  async function prova(b) {
+    const provat = await provaLank(b, "prova");
+    return provat.ok ? { ok: true } : provat;
+  }
+
+  /**
+   * Prövningen `los` och `prova` delar (regel 2: en prövning, inte två som kan glida isär). Räknaren per IP är densamma för båda.
+   * @param {Record<string, any>} b
+   * @param {string} vad Anropets namn i felet när IP saknas.
+   * @returns {Promise<{ ok: true, id: string } | { ok: false, orsak: Gastorsak }>}
+   */
+  async function provaLank(b, vad) {
+    const ipHash = ipId(b?.ip, vad, "los");
     const id = b?.id;
     const nyckel = b?.nyckel;
     // En form som aldrig kan stämma kostar ingenting att svara på. Den räknas mot IP:n ändå: ett skript som skickar skräp är det räknaren finns för.
@@ -1315,9 +1343,8 @@ export function createGastService(konfig) {
       return orsak("utgangen");
     }
 
-    const sessionsnyckel = await oppnaSession(id);
     await ge();
-    return { ok: true, sessionsnyckel };
+    return { ok: true, id };
   }
 
   /**
@@ -2794,5 +2821,5 @@ export function createGastService(konfig) {
     return { ok: true };
   }
 
-  return { bjud, aterkalla, skickaOm, kopieraLank, lista, platser, los, minaGruppgaster, oppnaGruppgast, session, hamta, sattNamn, nyLank, stadaSessioner, deltaSvara, tidAndrad, oversikt, chatt, skrivChatt, kommenteraPost, kalender, handelse, svara, rosta, bibliotek, fil, arenden, kommenteraArende, markeraArendeKlart, levandeGaster, aterkallaAlla, ersattAvMedlem, radera, raderaMig };
+  return { bjud, aterkalla, skickaOm, kopieraLank, lista, platser, los, prova, minaGruppgaster, oppnaGruppgast, session, hamta, sattNamn, nyLank, stadaSessioner, deltaSvara, tidAndrad, oversikt, chatt, skrivChatt, kommenteraPost, kalender, handelse, svara, rosta, bibliotek, fil, arenden, kommenteraArende, markeraArendeKlart, levandeGaster, aterkallaAlla, ersattAvMedlem, radera, raderaMig };
 }

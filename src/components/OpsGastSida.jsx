@@ -215,6 +215,7 @@ function provatOmAppen(omAppen) {
  * @param {{ id: string, nyckel: string, slag?: "telefon", sprak?: "sv" | "en" } | null} [props.lank] Id och nyckel ur adressens fragment (`tolkaGastLank`), eller `null` när sidan öppnas utan länk. (0.197.0) `slag: "telefon"`:
  *   en länk som gått ut ger ingen knapp för en ny länk, eftersom en telefoninbjudan inte har något brev. Tecknet är ingen behörighet.
  * @param {(arg: { id: string, nyckel: string }) => Promise<{ ok: boolean, sessionsnyckel?: string, orsak?: string }>} props.onLos (0.200.0) Bara id och nyckel: gästen skriver ingenting.
+ * @param {(arg: { id: string, nyckel: string }) => Promise<{ ok: boolean, orsak?: string }>} [props.onProva] (0.202.0) Prövar länken när sidan laddas, utan att lösa in den (tjänstens `prova`). Ett nej visar felet direkt i stället för Välkommen.
  * @param {(arg: { sessionsnyckel: string }) => Promise<{ ok: boolean, namn?: string, funktion?: string, sak?: Record<string, any>, grupp?: { namn: string, funktioner: readonly string[] }, orsak?: string }>} props.onHamta
  * @param {(arg: { epost: string } | { id: string, nyckel: string }) => Promise<unknown>} props.onNyLank Ger alltid samma svar; sidan skriver ut `nyLankSvar` oavsett vad som kommer tillbaka. (0.200.0) `{ id, nyckel }` när
  *   gästen har en länk som gått ut (brevet går till inbjudans egen adress), `{ epost }` när sidan öppnats utan länk.
@@ -238,7 +239,7 @@ function provatOmAppen(omAppen) {
  * @param {{ getItem: (k: string) => string | null, setItem: (k: string, v: string) => void, removeItem: (k: string) => void, key?: (i: number) => string | null, length?: number } | null} [props.lagring] Minnet för sessionen. Förval `localStorage`; `null` ger bara minne för den här sidvisningen.
  * @param {Partial<Record<keyof typeof ORD_OPSGASTSIDA, string>>} [props.ord] Egna texter, som vinner över ordboken.
  */
-export function OpsGastSida({ lank = null, onLos, onHamta, onNyLank, onNamn, onRaderaMig, onSvara, renderSak, renderGrupp, huvud, marke, omAppen, sprak, onSprak, intervallMs = 60_000, lagring, ord }) {
+export function OpsGastSida({ lank = null, onLos, onProva, onHamta, onNyLank, onNamn, onRaderaMig, onSvara, renderSak, renderGrupp, huvud, marke, omAppen, sprak, onSprak, intervallMs = 60_000, lagring, ord }) {
   for (const [namn, f] of /** @type {const} */ ([["onLos", onLos], ["onHamta", onHamta], ["onNyLank", onNyLank]])) {
     if (typeof f !== "function") throw new Error(`OpsGastSida: ${namn} krävs, en funktion som anropar appens /api/gast.`);
   }
@@ -433,6 +434,22 @@ export function OpsGastSida({ lank = null, onLos, onHamta, onNyLank, onNamn, onR
         setOrsak(`orsak_${res.orsak}`);
         setLage({ fas: "fel" });
         return;
+      }
+      // ⛔ (0.202.0, QA 2026-11-07, punkt 3 i cllp/lifehub.app#687) LÄNKEN PRÖVAS INNAN VÄLKOMMEN VISAS: en ändrad eller gammal länk visade Välkommen och Öppna, och felet kom först efter trycket.
+      // `onProva` löser inte in länken och skapar ingen session (se `prova` i tjänsten), så en mejlskanner som öppnar sidan får fortfarande ingenting. Utan `onProva` är det som förut.
+      if (lank && onProva) {
+        let p;
+        try {
+          p = await onProva({ id: lank.id, nyckel: lank.nyckel });
+        } catch {
+          p = null;
+        }
+        if (!levande.current) return;
+        // Ett nätfel avgör ingenting: då visas Välkommen, och Öppna prövar på nytt.
+        if (p && p.ok === false) {
+          const o = typeof p.orsak === "string" ? p.orsak : "nej";
+          setLosOrsak(["aterkallad", "utgangen", "for-manga"].includes(o) ? o : "nej");
+        }
       }
       setLage({ fas: lank ? "valkommen" : "ny-lank" });
     })();

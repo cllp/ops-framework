@@ -256,6 +256,24 @@ describe("unikhet: dokument-id och aldrig en läsning följd av en skrivning", (
     expect(await tjanst.los({ ...gammal, epost: "anna@foretag.se", ip: IP })).toEqual({ ok: false, orsak: "nej" });
     expect(await tjanst.los({ ...ny, epost: "anna@foretag.se", ip: IP })).toMatchObject({ ok: true });
   });
+
+  it("⛔ prova (0.202.0, lifehub.app#687 punkt 3): samma svar som los, men ingen session och ingen första inloggning", async () => {
+    const { tjanst, brev, kalla } = bygg();
+    await bjud(tjanst);
+    const gammal = senasteLank(brev);
+    await bjud(tjanst);
+    const ny = senasteLank(brev);
+    expect(await tjanst.prova({ id: gammal.id, nyckel: gammal.nyckel, ip: IP })).toEqual({ ok: false, orsak: "nej" });
+    const andrad = ny.nyckel.slice(0, -1) + (ny.nyckel.endsWith("A") ? "B" : "A");
+    expect(await tjanst.prova({ id: ny.id, nyckel: andrad, ip: IP })).toEqual({ ok: false, orsak: "nej" });
+    expect(await tjanst.prova({ id: ny.id, nyckel: ny.nyckel, ip: IP })).toEqual({ ok: true });
+    expect(await kalla.list("gastsessioner")).toHaveLength(0);
+    const [rad] = await kalla.list("gastinbjudningar");
+    expect(rad.forstInloggad).toBeNull();
+    // Länken går att lösa in efteråt: prova förbrukade ingenting.
+    expect(await tjanst.los({ id: ny.id, nyckel: ny.nyckel, ip: IP })).toMatchObject({ ok: true });
+    expect(await kalla.list("gastsessioner")).toHaveLength(1);
+  });
 });
 
 describe("taket: fem platser, och det är dokument", () => {
