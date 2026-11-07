@@ -3,6 +3,7 @@ import { lasAppmanifest } from "../data/appmanifest.js";
 import { gastHemskarmTips } from "../lib/gastHemskarm.js";
 import { forvalda } from "../lib/ord.js";
 import { OpsDisclosure } from "./OpsDisclosure.jsx";
+import { IKON_FOR } from "./ikonlexikon.js";
 
 /** @type {import("../lib/ord.js").Ordbok} */
 const ORD = {
@@ -67,7 +68,8 @@ export function GastHemskarm({ sprak = "sv", miljo }) {
   if (!tips) return null;
   return (
     <div data-gast-hemskarm={tips.plattform} data-lovar-applage={tips.lovarApplage ? "ja" : "nej"}>
-      <OpsDisclosure summary={t.hemskarm}>
+      {/* (0.198.0, cllp/ops-framework#536) En rad med ikon i översiktens hjälpgrupp, som skissen. */}
+      <OpsDisclosure summary={<span className="flex min-w-0 items-center gap-3"><IKON_FOR.hemskarm size={20} aria-hidden="true" className="shrink-0 text-ink-secondary" /><span className="min-w-0">{t.hemskarm}</span></span>}>
         <p className="m-0 max-w-prose pt-2 text-meta text-ink-secondary">{tips.text}</p>
       </OpsDisclosure>
     </div>

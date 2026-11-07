@@ -57,6 +57,54 @@ export function skrivGastFlik(minne, id, flik) {
 }
 
 /**
+ * (0.198.0, cllp/ops-framework#536) Områdena på gästens översikt vars senaste besök enheten minns. Ärenden räknas inte: där syns det som är gästens, inte det som är nytt.
+ */
+export const GASTBESOKSOMRADEN = /** @type {const} */ (["chatt", "kalender", "bibliotek"]);
+
+/** Nyckel för senaste besöket i ett område, per inbjudan. Bara en tid lagras, i millisekunder. */
+export const gastBesokNyckel = (/** @type {string} */ id, /** @type {string} */ omrade) => `ops-gast:besok:${id}:${omrade}`;
+
+/**
+ * Senaste besöket per område, `{ chatt?, kalender?, bibliotek? }` i millisekunder. Ett värde som inte är ett positivt heltal läses som inget besök (regel 5): då räknas inget som nytt.
+ * @param {{ las: (k: string) => string | null } | null | undefined} minne
+ * @param {string | null | undefined} id Inbjudans id, 64 hextecken.
+ * @returns {Partial<Record<(typeof GASTBESOKSOMRADEN)[number], number>>}
+ */
+export function lasGastBesok(minne, id) {
+  /** @type {Partial<Record<(typeof GASTBESOKSOMRADEN)[number], number>>} */
+  const ut = {};
+  if (!minne || typeof id !== "string" || !GASTINBJUDNINGSIDFORM.test(id)) return ut;
+  for (const omrade of GASTBESOKSOMRADEN) {
+    let v = null;
+    try {
+      v = minne.las(gastBesokNyckel(id, omrade));
+    } catch {
+      v = null;
+    }
+    const tal = typeof v === "string" && /^[1-9][0-9]{0,15}$/.test(v) ? Number(v) : NaN;
+    if (Number.isSafeInteger(tal)) ut[omrade] = tal;
+  }
+  return ut;
+}
+
+/**
+ * Minns ett besök i ett område. Ett minne som kastar stoppar inget: då gäller besöket bara för den här sidvisningen.
+ * @param {{ skriv: (k: string, v: string) => void } | null | undefined} minne
+ * @param {string | null | undefined} id
+ * @param {string} omrade
+ * @param {number} tid
+ */
+export function skrivGastBesok(minne, id, omrade, tid) {
+  if (!minne || typeof id !== "string" || !GASTINBJUDNINGSIDFORM.test(id)) return;
+  if (!/** @type {readonly string[]} */ (GASTBESOKSOMRADEN).includes(omrade) || !Number.isSafeInteger(tid) || tid <= 0) return;
+  try {
+    minne.skriv(gastBesokNyckel(id, omrade), String(tid));
+  } catch {
+    /* Besöket gäller ändå för sidvisningen. */
+  }
+}
+
+/**
  * Minnet för sessionen: webbläsarens (`localStorage`) om det går, annars ett som gäller tills sidan lämnas. Kastar aldrig: privat läge eller blockerad lagring ska inte stoppa sidan.
  * @param {{ getItem: (k: string) => string | null, setItem: (k: string, v: string) => void, removeItem: (k: string) => void } | null | undefined} lagring
  */

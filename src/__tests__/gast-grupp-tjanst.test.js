@@ -19,6 +19,7 @@ import {
   GASTSKRIV_PER_MINUT,
   arGastId,
   GASTGRUPPSVARSFALT,
+  GASTOVERSIKTFALT,
   GASTSESSIONSDAGAR,
   GAST_PLATSER_GRATIS,
   byggGastMottagare,
@@ -281,6 +282,7 @@ async function sakGast(h, epost = "sak@foretag.se", handelseId = "h-ejsatt", uid
 /** Alla åtgärder en gruppgäst har, med giltiga indata mot grunddatan. Namnet är åtgärden. */
 const ATGARDER = {
   hamta: (t, k) => t.hamta({ sessionsnyckel: k }),
+  oversikt: (t, k) => t.oversikt({ sessionsnyckel: k, sedan: { chatt: 2500, bibliotek: 3200 }, idag: "2026-11-01" }),
   chatt: (t, k) => t.chatt({ sessionsnyckel: k }),
   kalender: (t, k) => t.kalender({ sessionsnyckel: k }),
   handelse: (t, k) => t.handelse({ sessionsnyckel: k, handelseId: "h-mote" }),
@@ -488,6 +490,7 @@ describe("vitlistade fält: ingen medlems adress, uid eller hemlighet lämnar se
     svar.push(await ATGARDER.arenden(h.tjanst, nyckel));
     svar.push(await ATGARDER.kommenteraArende(h.tjanst, nyckel));
     svar.push(await ATGARDER.markeraArendeKlart(h.tjanst, nyckel));
+    svar.push(await ATGARDER.oversikt(h.tjanst, nyckel));
     svar.push(await ATGARDER.skrivChatt(h.tjanst, nyckel));
     return svar;
   }
@@ -1803,5 +1806,61 @@ describe("0.191.0: trådar, kort och kommentarer på en post för en gäst (cllp
     expect(() => createGastService({ ...grund, grupp: grupp({ samlingar: { tradar: "groups" } }) })).toThrow(/eget namn/);
     expect(() => createGastService({ ...grund, grupp: grupp({ samlingar: { tradar: "tradar" }, extra: { bibliotekBas: "inte-en-adress" } }) })).toThrow(/ingen adress/);
     expect(() => createGastService({ ...grund, grupp: grupp({ samlingar: { tradar: "tradar" }, extra: { bibliotekBas: BAS } }) })).not.toThrow();
+  });
+});
+
+describe("översikten (0.198.0, cllp/ops-framework#536): det som hänt sedan sist, i ett anrop", () => {
+  it("⛔ nya i chatten räknas efter gästens senaste besök, utan agentens och utan gästens egna, och utan en tid är inget nytt (första besöket)", async () => {
+    const h = bygg();
+    const g = await gruppGast(h, "anna@foretag.se", { namn: "Anna" });
+    const forsta = await h.tjanst.oversikt({ sessionsnyckel: g.sessionsnyckel, idag: "2026-11-01" });
+    expect(forsta.chatt.nya).toBe(0);
+    expect(forsta.bibliotek.nya).toBe(0);
+    // Gästen skriver själv efter besöket: det är aldrig nytt för hen.
+    await h.tjanst.skrivChatt({ sessionsnyckel: g.sessionsnyckel, text: "Hej från gästen" });
+    const r = await h.tjanst.oversikt({ sessionsnyckel: g.sessionsnyckel, sedan: { chatt: 2500, bibliotek: 3200 }, idag: "2026-11-01" });
+    // m4, m5 och m6 är efter 2500. m3 är agentens och syns aldrig. Gästens eget räknas inte.
+    expect(r.chatt.nya).toBe(3);
+    expect(r.chatt.fler).toBe(false);
+    expect(r.chatt.senaste.map((m) => m.text)).toEqual(["Hej från gästen", "Se bilden", "Från en som lämnat"]);
+    expect(r.chatt.senaste[0]).toMatchObject({ namn: "Anna", egen: true });
+    expect(r.chatt.senaste[1]).toMatchObject({ namn: "Gunnar Gammal", egen: false });
+    expect(r.chatt.senaste[2]).toMatchObject({ namn: "Tidigare medlem", egen: false });
+    expect(JSON.stringify(r)).not.toContain("AGENTENS-SVAR-I-GRUPPCHATTEN");
+    // Biblioteket: Låtlista (5000), Kontrakt (4000) och Demo (3500) är efter 3200. Händelsens, Mitt och grannens syns aldrig.
+    expect(r.bibliotek.nya).toBe(3);
+    expect(r.bibliotek.senaste).toEqual([{ id: "p-pdf", rubrik: "Låtlista", typ: "fil", tid: 5000 }, { id: "p-doc", rubrik: "Kontrakt", typ: "fil", tid: 4000 }, { id: "p-ljud", rubrik: "Demo", typ: "fil", tid: 3500 }]);
+  });
+
+  it("⛔ nästa händelse är kalenderns: den som slutar i dag eller senare, med gästens eget svar, och inget när inget är på gång", async () => {
+    const h = bygg();
+    const g = await gruppGast(h);
+    const fore = await h.tjanst.oversikt({ sessionsnyckel: g.sessionsnyckel, idag: "2026-11-01" });
+    expect(fore.kalender.nasta).toEqual({ id: "h-mote", titel: "Möte", plats: "Salen", datum: "2026-11-02", slutDatum: null, tid: "18:00", slutTid: "20:00", heldag: false, kravSvar: true, mitt: null });
+    await h.tjanst.svara({ sessionsnyckel: g.sessionsnyckel, handelseId: "h-mote", val: "kommer" });
+    expect((await h.tjanst.oversikt({ sessionsnyckel: g.sessionsnyckel, idag: "2026-11-01" })).kalender.nasta.mitt).toBe("kommer");
+    const sen = await h.tjanst.oversikt({ sessionsnyckel: g.sessionsnyckel, idag: "2026-11-03" });
+    // Grannens händelse 2026-11-03 och den arkiverade syns aldrig. Repetitionen ber inte om svar.
+    expect(sen.kalender.nasta).toMatchObject({ id: "h-fri", heldag: true, kravSvar: false, mitt: null });
+    expect((await h.tjanst.oversikt({ sessionsnyckel: g.sessionsnyckel, idag: "2027-01-01" })).kalender.nasta).toBeNull();
+  });
+
+  it("⛔ svaret är byggt ur listorna och inget annat, och fel form på sedan eller idag avvisas", async () => {
+    const h = bygg();
+    const g = await gruppGast(h);
+    const r = await ATGARDER.oversikt(h.tjanst, g.sessionsnyckel);
+    expect(Object.keys(r).sort()).toEqual([...GASTGRUPPSVARSFALT.oversikt].sort());
+    expect(Object.keys(r.chatt).sort()).toEqual([...GASTOVERSIKTFALT.chatt].sort());
+    expect(Object.keys(r.kalender)).toEqual(["nasta"]);
+    expect(Object.keys(r.bibliotek).sort()).toEqual([...GASTOVERSIKTFALT.bibliotek].sort());
+    for (const m of r.chatt.senaste) expect(Object.keys(m).sort()).toEqual([...GASTOVERSIKTFALT.meddelande].sort());
+    for (const p of r.bibliotek.senaste) expect(Object.keys(p).sort()).toEqual([...GASTOVERSIKTFALT.post].sort());
+    expect(Object.keys(r.kalender.nasta).sort()).toEqual([...GASTOVERSIKTFALT.handelse].sort());
+    // Golv: det finns något att mäta.
+    expect(r.chatt.senaste.length).toBe(3);
+    expect(r.bibliotek.senaste.length).toBe(3);
+    await expect(h.tjanst.oversikt({ sessionsnyckel: g.sessionsnyckel, sedan: { chatt: "i går" } })).rejects.toThrow(/sedan.chatt/);
+    await expect(h.tjanst.oversikt({ sessionsnyckel: g.sessionsnyckel, sedan: [1] })).rejects.toThrow(/sedan/);
+    await expect(h.tjanst.oversikt({ sessionsnyckel: g.sessionsnyckel, idag: "1 nov" })).rejects.toThrow(/idag/);
   });
 });
