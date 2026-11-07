@@ -28,6 +28,7 @@ import {
   gastplatsId,
   tolkaGastMottagare,
 } from "../lib/gast.js";
+import { ARKIVTAGG, filtreraBibliotek } from "../lib/bibliotek.js";
 import { SIGNERAD_SEKUNDER } from "../lib/delning.js";
 import { medlemskapsId } from "../lib/grupp.js";
 import { createGastService, gastInbjudningsId } from "../node/gast.js";
@@ -1837,6 +1838,23 @@ describe("översikten (0.198.0, cllp/ops-framework#536): det som hänt sedan sis
     expect(r.bibliotek.filer).toBe(lista.poster.filter((p) => p.typ === "fil").length);
     expect(r.bibliotek.filer).toBeLessThan(r.bibliotek.antal);
     expect(r.bibliotek.fler).toBe(false);
+  });
+
+  it("⛔ (QA 2026-11-07, rutan sa 3 och listan visade 2) en arkiverad post räknas inte: översikten räknar det gästens lista visar", async () => {
+    const h = bygg();
+    const g = await gruppGast(h);
+    // Nyast av alla, en fil, och arkiverad: listan visar den bara när arkivtaggen är vald.
+    await h.grund.create("bibliotek", { id: "p-arkiv", groupId: GRUPP, typ: "fil", rubrik: "Gammal version", fil: { sokvag: "grupper/kallan/bibliotek/p-arkiv/gammal.pdf", namn: "gammal.pdf", mime: "application/pdf", byte: 10, klar: true }, taggar: [ARKIVTAGG], skapadAv: { uid: MEDLEM, namn: "Maja Medlem" }, skapad: 9000, andrad: 9000 });
+    const r = await h.tjanst.oversikt({ sessionsnyckel: g.sessionsnyckel, sedan: { bibliotek: 3200 }, idag: "2026-11-01" });
+    const lista = await h.tjanst.bibliotek({ sessionsnyckel: g.sessionsnyckel });
+    // Golv: posten finns i det gästen kan nå (arkivet är en tagg), annars mäter provet ingenting.
+    expect(lista.poster.some((p) => p.id === "p-arkiv")).toBe(true);
+    const visas = filtreraBibliotek(lista.poster.map((p) => ({ ...p, andrad: p.andrad ?? 0, rubrik: p.rubrik ?? "" })));
+    expect(visas.some((p) => p.id === "p-arkiv")).toBe(false);
+    expect(r.bibliotek.antal).toBe(visas.length);
+    expect(r.bibliotek.filer).toBe(visas.filter((p) => p.typ === "fil").length);
+    expect(r.bibliotek.nya).toBe(3);
+    expect(r.bibliotek.senaste.map((p) => p.id)).not.toContain("p-arkiv");
   });
 
   it("⛔ nästa händelse är kalenderns: den som slutar i dag eller senare, med gästens eget svar, och inget när inget är på gång", async () => {
