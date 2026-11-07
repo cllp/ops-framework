@@ -183,6 +183,12 @@ export const ORD_OPSGASTGRUPP = {
   bibliotekNyPost: { sv: "1 ny post", en: "1 new item" },
   bibliotekNyaPoster: { sv: "{n} nya poster", en: "{n} new items" },
   bibliotekRutaTom: { sv: "Inget här än", en: "Nothing here yet" },
+  // (Nästa version, CP 2026-11-07) Hur mycket som finns, också när inget är nytt, och när det senast skrevs i chatten.
+  bibliotekAntalFil: { sv: "1 fil", en: "1 file" },
+  bibliotekAntalFiler: { sv: "{n} filer", en: "{n} files" },
+  bibliotekAntalPost: { sv: "1 post", en: "1 item" },
+  bibliotekAntalPoster: { sv: "{n} poster", en: "{n} items" },
+  chattSenast: { sv: "Senast {nar} {kl}", en: "Latest {nar} {kl}" },
   arendenTillDig: { sv: "{n} till dig", en: "{n} for you" },
   arendenIngetTillDig: { sv: "Inget till dig", en: "Nothing for you" },
   rutaFel: { sv: "Kunde inte hämtas", en: "Could not be loaded" },
@@ -836,6 +842,11 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
     // "lör 31 okt 2026" utan veckodag och år.
     return kortDatum(dag(d), sprak).split(" ").slice(1, 3).join(" ");
   };
+  /** Klockslaget för en tid, "18:40", i enhetens tidszon som resten av gästens tider. @param {number} tid */
+  const klockslag = (tid) => {
+    const d = new Date(tid);
+    return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  };
   /** När nästa händelse är, kort: veckodagen inom en vecka, annars datumet, och klockslaget. @param {Record<string, any>} h */
   const nastaNar = (h) => {
     const [vd, dagnr, man] = kortDatum(h.datum, sprak).split(" ");
@@ -858,6 +869,10 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
     if (omrade === "chatt") {
       if (!ov.chatt || (ov.chatt.senaste ?? []).length === 0) return [{ text: t.chattTom }];
       if (n > 0) return [{ text: typeof sedan === "number" ? (n === 1 ? t.chattNya1 : t.chattNya).replace("{n}", String(n)).replace("{nar}", narText(sedan)) : t.chattNyaUtanBesok.replace("{n}", String(n)) }];
+      // ⛔ (Nästa version, CP 2026-11-07) INGET NYTT SÄGER NÄR DET SENAST SKREVS, inte "Inget nytt sedan i dag". Vid första besöket räknas inget som nytt, och då stod rutan som
+      // om chatten var tom. Tiden är det senaste meddelandet gästen ser (`senaste[0]`), redan i svaret.
+      const senastTid = ov.chatt.senaste[0]?.tid;
+      if (typeof senastTid === "number") return [{ text: t.chattSenast.replace("{nar}", narText(senastTid)).replace("{kl}", klockslag(senastTid)) }];
       return [{ text: typeof sedan === "number" ? t.ingetNyttSedan.replace("{nar}", narText(sedan)) : t.ingetNytt }];
     }
     if (omrade === "kalender") {
@@ -872,11 +887,24 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
     // Biblioteket. "filer" bara när alla nya är filer, annars poster: en länk eller en anteckning är ingen fil.
     const senaste = /** @type {{ typ?: string, tid?: number }[]} */ (ov.bibliotek?.senaste ?? []);
     if (senaste.length === 0) return [{ text: t.bibliotekRutaTom }];
+    // ⛔ (Nästa version, CP 2026-11-07: "Vore bra med lite statistik med bibliotek om hur många artefakter det faktiskt är i biblioteket så man vill klicka där, även om inget är nytt")
+    // Rutan säger alltid hur mycket som finns, och det nya står ovanför när det finns. "Inget nytt sedan i dag" fick en ny gäst att tro att biblioteket var tomt.
+    // `fler`: biblioteket har fler än servern läser, och antalet är en undre gräns ("200+ filer").
+    const antal = typeof ov.bibliotek?.antal === "number" ? ov.bibliotek.antal : null;
+    /** @type {{ text: string, accent?: boolean }[]} */
+    const rader = [];
     if (n > 0) {
       const nyaSedda = senaste.filter((p) => typeof p.tid === "number" && p.tid > (sedan ?? Infinity));
       const filer = nyaSedda.length === Math.min(n, senaste.length) && nyaSedda.every((p) => p.typ === "fil");
-      return [{ text: (filer ? (n === 1 ? t.bibliotekNyFil : t.bibliotekNyaFiler) : n === 1 ? t.bibliotekNyPost : t.bibliotekNyaPoster).replace("{n}", String(n)) }];
+      rader.push({ text: (filer ? (n === 1 ? t.bibliotekNyFil : t.bibliotekNyaFiler) : n === 1 ? t.bibliotekNyPost : t.bibliotekNyaPoster).replace("{n}", String(n)) });
     }
+    if (antal !== null && antal > 0) {
+      const allaFiler = ov.bibliotek.filer === antal;
+      const tal = `${antal}${ov.bibliotek.fler === true ? "+" : ""}`;
+      const mall = allaFiler ? (antal === 1 && !ov.bibliotek.fler ? t.bibliotekAntalFil : t.bibliotekAntalFiler) : antal === 1 && !ov.bibliotek.fler ? t.bibliotekAntalPost : t.bibliotekAntalPoster;
+      rader.push({ text: mall.replace("{n}", tal) });
+    }
+    if (rader.length > 0) return rader;
     return [{ text: typeof sedan === "number" ? t.ingetNyttSedan.replace("{nar}", narText(sedan)) : t.ingetNytt }];
   };
   /** Rutan öppnar området; Kalendern öppnar nästa händelse, där svaret ges. Ärenden utan något till gästen är ingen flik och rutan ingen knapp. @param {string} omrade */

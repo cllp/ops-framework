@@ -1830,6 +1830,13 @@ describe("översikten (0.198.0, cllp/ops-framework#536): det som hänt sedan sis
     // Biblioteket: Låtlista (5000), Kontrakt (4000) och Demo (3500) är efter 3200. Händelsens, Mitt och grannens syns aldrig.
     expect(r.bibliotek.nya).toBe(3);
     expect(r.bibliotek.senaste).toEqual([{ id: "p-pdf", rubrik: "Låtlista", typ: "fil", tid: 5000 }, { id: "p-doc", rubrik: "Kontrakt", typ: "fil", tid: 4000 }, { id: "p-ljud", rubrik: "Demo", typ: "fil", tid: 3500 }]);
+    // (Nästa version, CP 2026-11-07) Hur mycket biblioteket har, med samma filter som `bibliotek`: samma poster som gästens bibliotek visar, och lika många filer.
+    const lista = await h.tjanst.bibliotek({ sessionsnyckel: g.sessionsnyckel });
+    expect(lista.poster.length).toBeGreaterThan(3);
+    expect(r.bibliotek.antal).toBe(lista.poster.length);
+    expect(r.bibliotek.filer).toBe(lista.poster.filter((p) => p.typ === "fil").length);
+    expect(r.bibliotek.filer).toBeLessThan(r.bibliotek.antal);
+    expect(r.bibliotek.fler).toBe(false);
   });
 
   it("⛔ nästa händelse är kalenderns: den som slutar i dag eller senare, med gästens eget svar, och inget när inget är på gång", async () => {

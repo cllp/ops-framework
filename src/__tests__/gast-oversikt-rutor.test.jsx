@@ -17,9 +17,9 @@ const GRUPP = { namn: "Skarv", beskrivning: "Låtarna och repen inför skivan.",
 
 const OVERSIKT = {
   ok: true,
-  chatt: { nya: 3, fler: false, senaste: [{ id: "m3", namn: "Maja", text: "Bra tänkt.", tid: 3, egen: false }] },
+  chatt: { nya: 3, fler: false, senaste: [{ id: "m3", namn: "Maja", text: "Bra tänkt.", tid: IGAR + 3000, egen: false }] },
   kalender: { nasta: { id: "h1", titel: "Repetition", plats: "Studion", datum: "2026-11-10", slutDatum: null, tid: "19:00", slutTid: null, heldag: false, kravSvar: true, mitt: null } },
-  bibliotek: { nya: 2, senaste: [{ id: "p2", rubrik: "Hamnen, mix 3", typ: "fil", tid: IGAR + 2000 }, { id: "p1", rubrik: "Oklart.Edit1", typ: "fil", tid: IGAR + 1000 }] },
+  bibliotek: { nya: 2, senaste: [{ id: "p2", rubrik: "Hamnen, mix 3", typ: "fil", tid: IGAR + 2000 }, { id: "p1", rubrik: "Oklart.Edit1", typ: "fil", tid: IGAR + 1000 }], antal: 24, filer: 24, fler: false },
 };
 
 function lagringMed(start = {}) {
@@ -77,6 +77,8 @@ describe("rutorna: en per område, med det som hänt sedan senaste besöket", ()
     expect(api.oversikt).toHaveBeenCalledWith({ sedan: { chatt: IGAR, bibliotek: IGAR }, idag: "2026-11-07" });
     expect(ruta("chatt").getAttribute("data-antal")).toBe("3");
     expect(ruta("bibliotek").textContent).toContain("2 nya filer");
+    // (Nästa version) Det nya ovanför, och hur mycket som finns under.
+    expect([...ruta("bibliotek").querySelectorAll("[data-gast-ruta-rad]")].map((e) => e.textContent)).toEqual(["2 nya filer", "24 filer"]);
     expect(ruta("kalender").textContent).toContain("Repetition, tis 19:00");
     expect(within(ruta("kalender")).getByText("Svara").getAttribute("data-gast-ruta-rad")).toBe("accent");
     expect(ruta("arenden").textContent).toContain("Inget till dig");
@@ -88,9 +90,12 @@ describe("rutorna: en per område, med det som hänt sedan senaste besöket", ()
 
   it("⛔ första besöket räknar inget som nytt: inga tider skickas, och enheten minns tiden nu till nästa gång", async () => {
     const { api, lagring, mem } = rita({ api: apiMed({ ...OVERSIKT, chatt: { ...OVERSIKT.chatt, nya: 0 }, bibliotek: { ...OVERSIKT.bibliotek, nya: 0 } }) });
-    await waitFor(() => expect(ruta("chatt").textContent).toContain("Inget nytt"));
+    // ⛔ (Nästa version, CP 2026-11-07) Första besöket säger vad som finns, inte "Inget nytt": när det senast skrevs, och hur mycket biblioteket har.
+    await waitFor(() => expect(ruta("chatt").textContent).toContain("Senast i går 09:30"));
     expect(api.oversikt).toHaveBeenCalledWith({ sedan: {}, idag: "2026-11-07" });
-    expect(ruta("chatt").textContent).not.toContain("sedan");
+    expect(ruta("chatt").textContent).not.toContain("Inget nytt");
+    expect(ruta("bibliotek").textContent).toContain("24 filer");
+    expect(ruta("bibliotek").textContent).not.toContain("Inget nytt");
     const sparat = lasGastBesok(mem, ID);
     expect(Object.keys(sparat).sort()).toEqual(["bibliotek", "chatt", "kalender"]);
     expect(Object.keys(lagring.d).filter((k) => k.startsWith("ops-gast:besok:")).length).toBe(3);
@@ -98,10 +103,18 @@ describe("rutorna: en per område, med det som hänt sedan senaste besöket", ()
 
   it("ett område utan något nytt står kvar med en lugn rad, aldrig tom", async () => {
     const lagring = lagringMed({ [gastBesokNyckel(ID, "chatt")]: String(IGAR), [gastBesokNyckel(ID, "bibliotek")]: String(IGAR) });
-    rita({ lagring, api: apiMed({ ok: true, chatt: { nya: 0, fler: false, senaste: [{ id: "m1", namn: "Bo", text: "x", tid: 1, egen: false }] }, kalender: { nasta: null }, bibliotek: { nya: 0, senaste: [] } }) });
-    await waitFor(() => expect(ruta("chatt").textContent).toContain("Inget nytt sedan i går"));
+    rita({ lagring, api: apiMed({ ok: true, chatt: { nya: 0, fler: false, senaste: [{ id: "m1", namn: "Bo", text: "x", tid: IGAR, egen: false }] }, kalender: { nasta: null }, bibliotek: { nya: 0, senaste: [], antal: 0, filer: 0, fler: false } }) });
+    await waitFor(() => expect(ruta("chatt").textContent).toContain("Senast i går 09:30"));
     expect(ruta("kalender").textContent).toContain("Inget på gång");
     expect(ruta("bibliotek").textContent).toContain("Inget här än");
+  });
+
+  it("⛔ biblioteket säger hur mycket som finns: poster när inte allt är filer, och + när servern inte läst allt", async () => {
+    const lagring = lagringMed({ [gastBesokNyckel(ID, "chatt")]: String(IGAR), [gastBesokNyckel(ID, "bibliotek")]: String(IGAR + 5000) });
+    rita({ lagring, api: apiMed({ ...OVERSIKT, bibliotek: { ...OVERSIKT.bibliotek, nya: 0, antal: 200, filer: 150, fler: true } }) });
+    await waitFor(() => expect(ruta("bibliotek").textContent).toContain("200+ poster"));
+    expect(ruta("bibliotek").textContent).not.toContain("nya");
+    expect(ruta("bibliotek").textContent).not.toContain("Inget nytt");
   });
 
   it("⛔ rutan för kalendern öppnar nästa händelse, där svaret ges; ett svar som redan finns visas i stället för Svara", async () => {
