@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { OpsAppShell } from "../components/OpsAppShell.jsx";
 import { defineModule } from "../lib/modul.js";
-import { arkRader, flyttaFore, flyttaId, medInstallningslage, ordningMedSynliga, utanInstallningslage } from "../lib/apparark.js";
+import { arkRader, flyttaFore, flyttaId, flyttSida, medInstallningslage, ordningMedSynliga, utanInstallningslage } from "../lib/apparark.js";
 import { huvudmenyPoster } from "../lib/hubb.js";
 
 /**
@@ -56,6 +56,29 @@ describe("adressen till inställningsläget", () => {
     expect(sparad).toEqual(["inkorg", "resor", "ekonomi"]);
     expect(flyttaId(sparad, "resor", -1)).toEqual(["resor", "inkorg", "ekonomi"]);
     expect(huvudmenyPoster({ grupp: { moduler: sparad, huvudmeny: ["ekonomi", "resor"] }, moduler: [EKONOMI, RESOR] }).map((p) => p.id)).toEqual(["resor", "ekonomi"]);
+  });
+
+  it("⛔ flyttSida säger var flyttaFore lägger posten: efter målet ovanifrån, före underifrån, för varje par (cllp/lifehub.app#697)", () => {
+    const lista = ["a", "b", "c", "d", "e"];
+    let par = 0;
+    for (const id of lista) {
+      for (const mal of lista) {
+        const ut = flyttaFore(lista, id, mal);
+        if (id === mal) {
+          expect(flyttSida(lista, id, mal)).toBeNull();
+          continue;
+        }
+        const sida = ut.indexOf(id) < ut.indexOf(mal) ? "fore" : "efter";
+        expect(ut.indexOf(id) - ut.indexOf(mal)).toBe(sida === "fore" ? -1 : 1);
+        expect(flyttSida(lista, id, mal)).toBe(sida);
+        par++;
+      }
+    }
+    // Golv: alla 20 par med två olika poster prövades.
+    expect(par).toBe(20);
+    expect(flyttSida(lista, "a", "c")).toBe("efter");
+    expect(flyttSida(["b", "c", "a", "d", "e"], "e", "b")).toBe("fore");
+    expect(flyttSida(lista, "x", "c")).toBeNull();
   });
 
   it("arket tar med en fäst modul och hoppar över en utan kort", () => {

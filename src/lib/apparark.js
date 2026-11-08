@@ -139,13 +139,46 @@ export function flyttaId(lista, id, steg) {
  * @returns {string[]}
  */
 export function flyttaFore(lista, id, mal) {
+  const plats = flyttPlats(lista, id, mal);
+  if (!plats) return lista.slice();
+  const ut = lista.slice();
+  ut.splice(plats.fran, 1);
+  ut.splice(plats.till, 0, id);
+  return ut;
+}
+
+/**
+ * Vilken sida av `mal` som `id` hamnar på när `flyttaFore` flyttar den: `"efter"` när posten kommer ovanifrån (den hamnar under målet),
+ * `"fore"` när den kommer underifrån (den hamnar ovanför). Samma ruta, eller ett id som inte finns, ger `null`: då flyttas ingenting.
+ *
+ * ⛔ Sidan läses ur SAMMA index som `flyttaFore` flyttar med (`flyttPlats`), och räknas inte en gång till (0.204.0, cllp/lifehub.app#697,
+ * CP 2026-11-08: "det är oklart var den hamnar"). Före 0.204.0 färgades bara målraden, och ett drag nedåt till C (posten efter C) såg likadant ut
+ * som ett drag uppåt till C (posten före C). Linjen i listan ritas på den sida den här funktionen säger, så det som visas och det som sparas kan inte skilja sig åt.
+ *
+ * @param {ReadonlyArray<string>} lista
+ * @param {string} id
+ * @param {string} mal
+ * @returns {"fore" | "efter" | null}
+ */
+export function flyttSida(lista, id, mal) {
+  const plats = flyttPlats(lista, id, mal);
+  if (!plats) return null;
+  return plats.fran < plats.till ? "efter" : "fore";
+}
+
+/**
+ * Var `flyttaFore` tar ut posten och var den sätter in den. `null` när ingenting ska flyttas.
+ *
+ * @param {ReadonlyArray<string>} lista
+ * @param {string} id
+ * @param {string} mal
+ * @returns {{ fran: number, till: number } | null}
+ */
+function flyttPlats(lista, id, mal) {
   const fran = lista.indexOf(id);
   const till = lista.indexOf(mal);
-  if (fran < 0 || till < 0 || fran === till) return lista.slice();
-  const ut = lista.slice();
-  ut.splice(fran, 1);
-  ut.splice(till, 0, id);
-  return ut;
+  if (fran < 0 || till < 0 || fran === till) return null;
+  return { fran, till };
 }
 
 /**
