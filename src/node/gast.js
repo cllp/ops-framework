@@ -113,6 +113,7 @@ import {
   GASTNYLANK_SVAR,
   GASTPERSONFALT,
   GASTPERSONINBJUDANFALT,
+  GASTGRUPPLISTFALT,
   GASTPLATSNUMMER,
   GASTSESSIONSDAGAR,
   GASTSVARSFALT,
@@ -246,6 +247,8 @@ export function gastInbjudningsId(d) {
  * @param {number} d.skapad Millisekunder.
  * @param {string} d.nyckel Nyckeln i brevet. Lagras aldrig, bara hashen.
  * @param {string} [d.andringsnyckel] KRÄVS för en `delta`-inbjudan: `andringsnyckel()` för händelsen som den är när brevet skickas. Övriga omfång bär inget sådant fält.
+ * @param {boolean} [d.laddaNed] (0.203.0, lifehub.app#691) Får gästen ladda ned filer? Bara för en inbjudan till hela gruppen, och utelämnad är `false`: en ny gäst laddar inte ned
+ *   förrän någon slagit på det. En sak bär aldrig fältet, och ett värde för en sak är ett fel.
  * @returns {Record<string, any>}
  */
 export function byggGastinbjudan(d) {
@@ -263,6 +266,9 @@ export function byggGastinbjudan(d) {
   gastomfangsnyckel(d.omfang);
   const omfang = d.omfang.slag === "grupp" ? { slag: /** @type {const} */ ("grupp") } : { slag: d.omfang.slag, funktion: d.omfang.funktion, handelseId: d.omfang.handelseId };
   const delta = omfang.slag === "sak" && omfang.funktion === "delta";
+  const grupp = omfang.slag === "grupp";
+  if (d.laddaNed !== undefined && typeof d.laddaNed !== "boolean") throw new Error("byggGastinbjudan: laddaNed ska vara sant eller falskt, eller utelämnas.");
+  if (d.laddaNed !== undefined && !grupp) throw new Error("byggGastinbjudan: laddaNed gäller bara en inbjudan till hela gruppen. En sak har inget bibliotek att ladda ned ur.");
   if (delta && (typeof d.andringsnyckel !== "string" || d.andringsnyckel === "")) {
     throw new Error("byggGastinbjudan: en delta-inbjudan bär andringsnyckel (ur andringsnyckel()), det som SEQUENCE jämförs mot vid nästa utskick.");
   }
@@ -286,6 +292,8 @@ export function byggGastinbjudan(d) {
     felFonster: 0,
     // (0.146.0) Bara en delta-rad: svaret, SEQUENCE för det första brevet och vad brevet sade om tid och plats. `GASTDELTARADFALT`.
     ...(delta ? { deltasvar: null, sekvens: 0, andringsnyckel: d.andringsnyckel } : {}),
+    // (0.203.0) Bara en gruppinbjudan, och bara `true` slår på: allt annat än ett uttryckligt ja är nej för en ny gäst.
+    ...(grupp ? { laddaNed: d.laddaNed === true } : {}),
   };
 }
 
@@ -330,7 +338,8 @@ function felMedKod(kod, meddelande) {
  * @property {(arg: { groupId: string }) => boolean | Promise<boolean>} [farLaddaNed] (0.190.0, CP 2026-11-05: "Vill att man skall kunna förhindra nedladdning till gäster.") Gruppens
  *   strömbrytare. Utelämnad, eller `true`: som förut. `false`: `fil` ger ingen nedladdningslänk (`Content-Disposition: attachment`) utan svarar `nedladdning-av`, medan spela och visa
  *   (`inline`) går som förut, och `hamta` bär `grupp.nedladdning: false` så att vyn inte ritar Ladda ned. ⛔ Det gästen kan lyssna på eller se skickas till enheten: spärren stoppar
- *   den enkla vägen, inte den som spelar in.
+ *   den enkla vägen, inte den som spelar in. (0.203.0, lifehub.app#691) Gästen har dessutom ett eget val (`laddaNed`, `sattNedladdning`), av som förval, och det som gäller är
+ *   strömbrytaren OCH gästens val: `false` här stoppar alla gäster i gruppen, också den med `true`.
  */
 
 /**
@@ -968,7 +977,10 @@ export function createGastService(konfig) {
    * länken med `kopieraLank` och visar Dela (SMS från den inbjudandes egen telefon) och Kopiera. Utan valv svarar den `ej-konfigurerad` INNAN något skrivs: länken hade annars aldrig nått någon. Bara till hela gruppen
    * (`slag: "grupp"`): en händelse att svara på (`delta`) lever av kalenderbrevet och dess ändringar, och en omröstning bjuds in från händelsen med e-post. Platser, tak och räknare är desamma som för en adress.
    *
-   * @param {Record<string, any>} b `{ uid, handelseId, epost, namn?, funktion? }` för en sak (`funktion` är `rosta`, förval, eller `delta`, 0.146.0), `{ uid, slag: "grupp", groupId, epost | telefon, namn? }` för hela gruppen.
+   * ⛔ (0.203.0, lifehub.app#691) `laddaNed` GÄLLER BARA HELA GRUPPEN, och förvalet för en ny gäst är `false`. En ny rad får värdet som det angavs (utelämnat är `false`). En befintlig rad (Bjud in igen) får
+   * det nya värdet bara när ett angavs: utelämnat lämnar det sparade orört, så att ett nytt utskick aldrig i tysthet tar ifrån eller ger en gäst nedladdning. Ändras det senare med `sattNedladdning`.
+   *
+   * @param {Record<string, any>} b `{ uid, handelseId, epost, namn?, funktion? }` för en sak (`funktion` är `rosta`, förval, eller `delta`, 0.146.0), `{ uid, slag: "grupp", groupId, epost | telefon, namn?, laddaNed? }` för hela gruppen.
    * @returns {Promise<{ id: string, gastId: string, ny: boolean, vackt: boolean, slag: "epost" | "telefon" }>}
    */
   async function bjud(b) {
@@ -977,6 +989,10 @@ export function createGastService(konfig) {
     if (b?.slag !== undefined && b.slag !== "grupp" && b.slag !== "sak") throw felMedKod("ogiltigt-omfang", `bjud: slaget ${JSON.stringify(b.slag)} finns inte. Giltiga: sak, grupp.`);
     if (grupplage && b?.handelseId !== undefined) throw felMedKod("ogiltigt-omfang", "bjud: en inbjudan till hela gruppen har ingen händelse. Ange antingen handelseId eller slag: \"grupp\".");
     if (grupplage && b?.funktion !== undefined) throw felMedKod("ogiltigt-omfang", "bjud: en inbjudan till hela gruppen har ingen funktion. Funktionen hör till en sak.");
+    // (0.203.0) Sant, falskt eller utelämnat, och bara för hela gruppen. En sträng "false" hade varit sann i en jämförelse.
+    const laddaNed = b?.laddaNed;
+    if (laddaNed !== undefined && typeof laddaNed !== "boolean") throw felMedKod("ogiltigt-omfang", "bjud: laddaNed ska vara sant eller falskt, eller utelämnas.");
+    if (laddaNed !== undefined && !grupplage) throw felMedKod("ogiltigt-omfang", "bjud: laddaNed gäller en inbjudan till hela gruppen (slag: \"grupp\"). En sak har inget bibliotek att ladda ned ur.");
     const funktion = b?.funktion === undefined ? /** @type {const} */ ("rosta") : b.funktion;
     if (!(/** @type {readonly unknown[]} */ (GASTFUNKTIONER).includes(funktion))) throw felMedKod("ogiltigt-omfang", `bjud: funktionen ${JSON.stringify(funktion)} finns inte. Giltiga: ${GASTFUNKTIONER.join(", ")}.`);
     if (funktion === "delta" && !DELTA) throw felMedKod("ogiltigt-omfang", "bjud: delta är inte påslaget (createGastService fick ingen delta).");
@@ -1037,7 +1053,7 @@ export function createGastService(konfig) {
     const nyckel = nyGastnyckel();
     const skapad = klocka();
     const skapadAv = { uid, namn: text(medlem.namn) };
-    const ny = byggGastinbjudan({ groupId, ...kontaktVillkor(kontakt), namn: gastnamn, omfang, skapadAv, skapad, nyckel, ...(deltaUt ? { andringsnyckel: andringsnyckel(deltaUt) } : {}) });
+    const ny = byggGastinbjudan({ groupId, ...kontaktVillkor(kontakt), namn: gastnamn, omfang, skapadAv, skapad, nyckel, ...(deltaUt ? { andringsnyckel: andringsnyckel(deltaUt) } : {}), ...(laddaNed !== undefined ? { laddaNed } : {}) });
     const { created, row } = await skapaNy(INB, ny);
     let brevNyckel = nyckel;
     let vackt = false;
@@ -1058,6 +1074,8 @@ export function createGastService(konfig) {
           antalSkickade: (typeof aktuell.antalSkickade === "number" ? aktuell.antalSkickade : 0) + 1,
           lankGiltigTill: nu + GASTLANKDAGAR * DYGN_MS,
           ...(gastnamn ? { namn: gastnamn } : {}),
+          // (0.203.0) Bara ett angivet värde skrivs: utelämnat lämnar gästens sparade nedladdning orörd.
+          ...(laddaNed !== undefined ? { laddaNed } : {}),
         });
         if (updated) {
           brevNyckel = k;
@@ -1111,6 +1129,34 @@ export function createGastService(konfig) {
     // blivit 90 dagar gammal. En inbjudan som väcks igen (`bjud`) öppnar samma session på nytt, vilket är avsikten.
     const platsSlappt = await slappPlatsOmTom(rad.groupId, radensKontakt(rad));
     return { id, platsSlappt };
+  }
+
+  /**
+   * (0.203.0, lifehub.app#691, CP-beslut) Slår på eller av nedladdning för EN gäst i gruppen: `pa` skrivs som radens `laddaNed`, och inget annat på raden ändras.
+   *
+   * ⛔ BARA ÄGARE OCH ADMIN, SOM ATT BJUDA IN TILL HELA GRUPPEN. Att ge en gäst nedladdning ökar vad hen får ta med sig ur gruppen, så det kräver samma roll som att släppa in hen,
+   * och den som bjöd men sedan blivit en vanlig medlem får inte ändra det. Samma krav för av som för på: ett enda villkor är lättare att resonera om (som delningens `andraNedladdning`).
+   *
+   * ⛔ GRUPPENS STRÖMBRYTARE VINNER (`nedladdningTillaten`): ett `true` här ger ingen nedladdning i en grupp där `farLaddaNed` svarar `false`. En återkallad inbjudan får ändras: värdet står
+   * kvar till nästa Bjud in igen och ger ingenting så länge raden är återkallad.
+   *
+   * @param {Record<string, any>} b `{ uid, id, pa }`, där `id` är inbjudans id och `pa` är `true` eller `false`.
+   * @returns {Promise<{ id: string, laddaNed: boolean }>}
+   */
+  async function sattNedladdning(b) {
+    const uid = kravText(b?.uid, "uid", "sattNedladdning");
+    const id = kravText(b?.id, "id", "sattNedladdning");
+    if (typeof b?.pa !== "boolean") throw felMedKod("ogiltigt-omfang", "sattNedladdning: pa ska vara sant eller falskt.");
+    const pa = b.pa;
+    if (!GASTINBJUDNINGSIDFORM.test(id)) throw felMedKod("finns-inte", "sattNedladdning: id är en hash på 64 hextecken.");
+    const rad = await kalla.read(INB, id);
+    if (!rad) throw felMedKod("finns-inte", `sattNedladdning: inbjudan "${id}" finns inte.`);
+    if (rad.omfang?.slag !== "grupp") throw felMedKod("ogiltigt-omfang", `sattNedladdning: inbjudan "${id}" gäller en sak och inte hela gruppen. En sak har inget bibliotek att ladda ned ur.`);
+    if (!(await forvaltar(uid, rad.groupId))) throw felMedKod("ej-behorig", `sattNedladdning: ${uid} är inte aktiv ägare eller admin i gruppen "${rad.groupId}". Bara de ändrar en gästs nedladdning.`);
+    // Villkorad på att raden fortfarande hör till samma grupp: en rad som raderats under tiden ger `finns-inte` och skapas aldrig på nytt av en uppdatering.
+    const { updated } = await uppdateraOm(INB, id, { groupId: rad.groupId }, { laddaNed: pa });
+    if (!updated) throw felMedKod("finns-inte", `sattNedladdning: inbjudan "${id}" togs bort medan ändringen gjordes.`);
+    return { id, laddaNed: pa };
   }
 
   /**
@@ -1245,9 +1291,11 @@ export function createGastService(konfig) {
       const personer = [...perPerson.entries()].map(([id, rader]) => {
         const inbjudningar = rader.map((r) => {
           // `harRostat` är appens kunskap om omröstningen: den säger ingenting om en delta-inbjudan.
-          const visad = { ...r, titel: titlar.get(r.omfang?.handelseId) ?? null, status: gastStatus(r, { nu, harRostat: rostat.has(id) && r.omfang?.funktion !== "delta" }), omfang: r.omfang?.slag === "grupp" ? { slag: "grupp" } : { slag: r.omfang?.slag, funktion: r.omfang?.funktion, handelseId: r.omfang?.handelseId } };
+          // (0.203.0) `laddaNed` på en gruppinbjudan: det sparade värdet, eller `null` för en rad från före 0.203.0. Tomt är ett svar (regel 5), och gästen följer då gruppen.
+          const visad = { ...r, laddaNed: typeof r.laddaNed === "boolean" ? r.laddaNed : null, titel: titlar.get(r.omfang?.handelseId) ?? null, status: gastStatus(r, { nu, harRostat: rostat.has(id) && r.omfang?.funktion !== "delta" }), omfang: r.omfang?.slag === "grupp" ? { slag: "grupp" } : { slag: r.omfang?.slag, funktion: r.omfang?.funktion, handelseId: r.omfang?.handelseId } };
           // Svaret hör bara till en delta-rad: en omröstnings- och en gruppinbjudan har exakt fälten de hade före 0.146.0.
-          const falt = r.omfang?.funktion === "delta" ? [...GASTPERSONINBJUDANFALT, ...GASTDELTALISTFALT] : GASTPERSONINBJUDANFALT;
+          // (0.203.0) Nedladdningen hör bara till en gruppinbjudan (`GASTGRUPPLISTFALT`), av samma skäl.
+          const falt = r.omfang?.funktion === "delta" ? [...GASTPERSONINBJUDANFALT, ...GASTDELTALISTFALT] : r.omfang?.slag === "grupp" ? [...GASTPERSONINBJUDANFALT, ...GASTGRUPPLISTFALT] : GASTPERSONINBJUDANFALT;
           return Object.fromEntries(falt.map((f) => [f, /** @type {Record<string, any>} */ (visad)[f]]));
         });
         const status = inbjudningar.map((i) => i.status).sort((x, y) => ordning.indexOf(x) - ordning.indexOf(y))[0];
@@ -1443,7 +1491,7 @@ export function createGastService(konfig) {
    * Prövar en session: den finns, har inte stått oanvänd i `GASTSESSIONSDAGAR` dagar, och dess inbjudan finns och är aktiv. Läser inbjudan på nytt varje gång.
    *
    * @param {Record<string, any>} b `{ sessionsnyckel, krav?: { slag?, funktion } }`. `krav` är vad anropet gäller: en inbjudan som inte ger funktionen (eller inte är av slaget) nekas som en okänd session.
-   * @returns {Promise<{ ok: true, gastId: string, inbjudan: { id: string, groupId: string, slag: "sak" | "grupp", handelseId: string | null, funktion: string, namn: string } } | { ok: false, orsak: Gastorsak }>}
+   * @returns {Promise<{ ok: true, gastId: string, inbjudan: { id: string, groupId: string, slag: "sak" | "grupp", handelseId: string | null, funktion: string, namn: string, laddaNed?: boolean | null } } | { ok: false, orsak: Gastorsak }>}
    */
   async function session(b) {
     const nyckel = b?.sessionsnyckel;
@@ -1473,6 +1521,8 @@ export function createGastService(konfig) {
         handelseId: grupplage ? null : rad.omfang.handelseId,
         funktion: grupplage ? "grupp" : rad.omfang.funktion,
         namn: text(rad.namn),
+        // (0.203.0) Bara en gruppsession: gästens egen nedladdning, `null` när raden är från före 0.203.0 (då följer gästen gruppen, `nedladdningTillaten`). En sak har inget sådant fält.
+        ...(grupplage ? { laddaNed: typeof rad.laddaNed === "boolean" ? rad.laddaNed : null } : {}),
       },
     };
   }
@@ -1671,25 +1721,34 @@ export function createGastService(konfig) {
   }
 
   /**
-   * Får gästerna i gruppen ladda ned (0.190.0)? Utan `grupp.farLaddaNed` ja, som förut. Bara `false` stänger av: ett svar som inte är ett tydligt nej ändrar ingenting för befintliga gäster.
-   * @param {string} groupId
+   * Får just den här gästen ladda ned? Gruppens strömbrytare (0.190.0) OCH gästens egen inställning (0.203.0, lifehub.app#691).
+   *
+   * Gruppen: utan `grupp.farLaddaNed` ja, som förut. Bara `false` stänger av: ett svar som inte är ett tydligt nej ändrar ingenting för befintliga gäster.
+   * Gästen: radens `laddaNed` när den är `true` eller `false`. En rad utan fältet (`null` i sessionen, alla gäster från före 0.203.0) räknas som ja och följer alltså gruppen.
+   *
+   * ⛔ OCH, INTE ELLER. Så länge gruppens strömbrytare finns ska en avstängd grupp stoppa nedladdning för alla gäster, så att ingen ny gäst kan få nedladdning i en grupp där värden stängt av
+   * den. Och en rad utan fältet följer gruppen, så att ingen befintlig gästs åtkomst ändras och ingenting behöver skrivas i produktion: ingen migrering, ingen rad som rörs.
+   *
+   * @param {{ groupId: string, laddaNed?: boolean | null }} inbjudan Sessionens inbjudan (`session`).
    * @returns {Promise<boolean>}
    */
-  async function nedladdningTillaten(groupId) {
+  async function nedladdningTillaten(inbjudan) {
+    const gasten = typeof inbjudan.laddaNed === "boolean" ? inbjudan.laddaNed : true;
+    if (!gasten) return false;
     if (!GS || typeof GS.farLaddaNed !== "function") return true;
-    return (await GS.farLaddaNed({ groupId })) !== false;
+    return (await GS.farLaddaNed({ groupId: inbjudan.groupId })) !== false;
   }
 
   /**
-   * `hamta` för en gruppinbjudan: gruppens namn och funktionerna, och inget annat.
-   * @param {{ gastId: string, inbjudan: { id: string, groupId: string, namn: string } }} s
+   * `hamta` för en gruppinbjudan: gruppens namn och funktionerna, och inget annat. `nedladdning` är gruppens strömbrytare OCH gästens egen inställning (`nedladdningTillaten`).
+   * @param {{ gastId: string, inbjudan: { id: string, groupId: string, namn: string, laddaNed?: boolean | null } }} s
    */
   async function hamtaGrupp(s) {
     if (!GS) return nej();
     if (!(await reserveraAnrop(s.inbjudan.id))) return orsak("for-manga");
     const g = await kalla.read(GS.samlingar.grupper, s.inbjudan.groupId);
     if (!g) return orsak("saknas");
-    const svar = { ok: true, namn: s.inbjudan.namn, funktion: "grupp", grupp: vitlista({ namn: text(g.namn), funktioner: [...GS.funktioner], nedladdning: await nedladdningTillaten(s.inbjudan.groupId), kommentera: Boolean(GS.tradar && GS.bibliotekBas), beskrivning: text(g.beskrivning).slice(0, MAX_GRUPPBESKRIVNING) }, GASTGRUPPSVARSFALT.hamta) };
+    const svar = { ok: true, namn: s.inbjudan.namn, funktion: "grupp", grupp: vitlista({ namn: text(g.namn), funktioner: [...GS.funktioner], nedladdning: await nedladdningTillaten(s.inbjudan), kommentera: Boolean(GS.tradar && GS.bibliotekBas), beskrivning: text(g.beskrivning).slice(0, MAX_GRUPPBESKRIVNING) }, GASTGRUPPSVARSFALT.hamta) };
     return Object.fromEntries(Object.entries(svar).filter(([k]) => /** @type {readonly string[]} */ (GASTSVARSFALT).includes(k)));
   }
 
@@ -2583,10 +2642,10 @@ export function createGastService(konfig) {
     const mime = text(post?.fil.mime);
     const visas = ["bild", "ljud", "video", "pdf"].includes(delningsTyp(mime));
     const bifoga = b?.bifoga === true || (b?.bifoga === undefined && !visas);
-    // ⛔ NEDLADDNINGEN KAN VARA AVSTÄNGD I GRUPPEN (0.190.0, `farLaddaNed`): en adress med `attachment` ges inte, och ingen räknare tas. Spela och visa (`inline`) går som förut.
+    // ⛔ NEDLADDNINGEN KAN VARA AVSTÄNGD I GRUPPEN (0.190.0, `farLaddaNed`) ELLER FÖR GÄSTEN (0.203.0, `laddaNed`): en adress med `attachment` ges inte, och ingen räknare tas. Spela och visa (`inline`) går som förut.
     // Ett dokument som bara kan laddas ned (Word, en okänd sort) har ingen `inline`-väg och nekas också, OCKSÅ när gästen ber om `bifoga: false`:
     // en `inline`-adress till en sort webbläsaren inte kan visa laddas ned ändå, så frågan avgörs på sorten och inte på vad gästen ber om (granskningen).
-    if ((bifoga || !visas) && !(await nedladdningTillaten(groupId))) return orsak("nedladdning-av");
+    if ((bifoga || !visas) && !(await nedladdningTillaten(s.inbjudan))) return orsak("nedladdning-av");
     const rakn = await reserveraRaknare(hash(`gastfil|${s.inbjudan.id}`), { max: GASTFIL_PER_DYGN, fonsterMs: DYGN_MS });
     if (!rakn) return orsak("for-manga");
     try {
@@ -2842,5 +2901,5 @@ export function createGastService(konfig) {
     return { ok: true };
   }
 
-  return { bjud, aterkalla, skickaOm, kopieraLank, lista, platser, los, prova, minaGruppgaster, oppnaGruppgast, session, hamta, sattNamn, nyLank, stadaSessioner, deltaSvara, tidAndrad, oversikt, chatt, skrivChatt, kommenteraPost, kalender, handelse, svara, rosta, bibliotek, fil, arenden, kommenteraArende, markeraArendeKlart, levandeGaster, aterkallaAlla, ersattAvMedlem, radera, raderaMig };
+  return { bjud, aterkalla, sattNedladdning, skickaOm, kopieraLank, lista, platser, los, prova, minaGruppgaster, oppnaGruppgast, session, hamta, sattNamn, nyLank, stadaSessioner, deltaSvara, tidAndrad, oversikt, chatt, skrivChatt, kommenteraPost, kalender, handelse, svara, rosta, bibliotek, fil, arenden, kommenteraArende, markeraArendeKlart, levandeGaster, aterkallaAlla, ersattAvMedlem, radera, raderaMig };
 }

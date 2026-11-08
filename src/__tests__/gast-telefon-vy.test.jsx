@@ -79,7 +79,7 @@ describe("OpsGastLista: Bjud in med Telefon", () => {
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByText("Bjud in Tove till hela gruppen?")).toBeInTheDocument();
     await klicka(within(dialog).getByRole("button", { name: "Bjud in" }));
-    await waitFor(() => expect(onBjudGrupp).toHaveBeenCalledWith({ telefon: "+46701234567", namn: "Tove" }));
+    await waitFor(() => expect(onBjudGrupp).toHaveBeenCalledWith({ telefon: "+46701234567", namn: "Tove", laddaNed: false }));
     await waitFor(() => expect(onKopieraLank).toHaveBeenCalledWith({ id: ID }));
     const ruta = await screen.findByText("Inbjudan är klar. Dela länken med Tove.");
     expect(ruta).toBeInTheDocument();

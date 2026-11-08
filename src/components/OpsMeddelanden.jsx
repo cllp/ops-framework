@@ -143,6 +143,8 @@ import { AgentIkon, AndraIkon, KopieraIkon, ArkiveraIkon, TaFramIkon, BildIkon, 
  * @property {string} [tradarFel] (0.68.0) En diskret rad när trådarnas märken inte kunde läsas. Förval "Trådarna kunde inte hämtas.".
  * @property {string} [tradHamtas] (0.91.0, #282) Okänt trådläge, innan svaret kommit. Förval "Tråden hämtas".
  * @property {string} [svarPa] (0.68.0) Förled för skärmläsaren: vems meddelande "Svara i tråd" gäller. Förval "Meddelande från".
+ * @property {string} [senasteSvar] (0.203.0) Förled för skärmläsaren före trådens senaste svar under märket. Förval "Senaste svaret från".
+ * @property {string} [skickas] (0.203.0) Under ett eget svar i tråden tills det kommit tillbaka ur källan. Förval "Skickas…".
  * @property {string} [visaAldre] (chattens nattskiva) Knappen överst i loggen. Förval "Visa äldre".
  * @property {string} [hamtarAldre] Förval "Hämtar äldre…".
  * @property {string} [ingaAldre] När samtalets början är nådd. Förval "Inga äldre meddelanden".
@@ -340,6 +342,8 @@ const ORD_MEDDELANDEN = {
   tradarFel: { sv: "Trådarna kunde inte hämtas.", en: "The threads could not be loaded." },
   tradHamtas: { sv: "Tråden hämtas", en: "Loading the thread" },
   svarPa: { sv: "Meddelande från", en: "Message from" },
+  senasteSvar: { sv: "Senaste svaret från", en: "Latest reply from" },
+  skickas: { sv: "Skickas…", en: "Sending…" },
   visaAldre: { sv: "Visa äldre", en: "Show older" },
   hamtarAldre: { sv: "Hämtar äldre…", en: "Loading older…" },
   ingaAldre: { sv: "Inga äldre meddelanden", en: "No older messages" },
@@ -1212,8 +1216,11 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
             namnFor={namnFor}
             medlemmar={medlemmar}
             onStang={() => valjTrad(null)}
-            // Ett svar gör tråden till en tråd och gör antalet okänt: chatten räknar om just den raden när den visas igen.
-            onSvarat={() => andraTradrad(vald.samtal.id, tradId, { finns: true, antal: undefined })}
+            // ⛔ (0.203.0) Ett eget svar syns i märket direkt, ett mer och som det senaste, och raden räknas ändå om när den visas igen
+            // (`efterEgetSvar`). Förut blev antalet okänt, och märket stod "… svar" tills det räknats.
+            onSvarat={(/** @type {any} */ m) =>
+              andraTradrad(vald.samtal.id, tradId, efterEgetSvar(tradminne.current.get(vald.samtal.id)?.get(tradId), m, typeof (/** @type {any} */ (kalla)).senasteSvar === "function"))
+            }
             onDopt={(/** @type {string | null} */ n) => andraTradrad(vald.samtal.id, tradId, { finns: true, namn: n ?? undefined })}
             sprak={sprak}
             texter={t}
@@ -2672,25 +2679,36 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik: rubrikProp, marke, lastT
                   }
                   const finns = Boolean(tr?.finns);
                   const beskrivning = `tradrot-${m.id}`;
+                  const antalText = `${tr?.antal === undefined ? "…" : tr.fler ? `${tr.antal}+` : tr.antal} ${t.svar}`;
+                  const sen = finns ? senasteForhand(tr?.senaste, { namnFor, uid, du: t.du, sprak, locale }) : null;
+                  const rot = `${t.svarPa} ${avNamnFor(namnFor, m, uid, t.du, sprak)}: ${synligText(m, 60)}`;
                   return (
                     <>
                       <span id={beskrivning} className="sr-only">
-                        {`${t.svarPa} ${avNamnFor(namnFor, m, uid, t.du, sprak)}: ${synligText(m, 60)}`}
+                        {/* (0.203.0) Det senaste svaret står i beskrivningen, inte i namnet: namnet är "3 svar", som förut, och läses inte två gånger. */}
+                        {sen ? `${rot}${/[.!?…]$/.test(rot) ? "" : "."} ${t.senasteSvar} ${sen.fran}, ${sen.nar}: ${sen.utdrag}` : rot}
                       </span>
                       <button
                         type="button"
                         data-tradmarke={finns ? "finns" : "ny"}
                         data-tradrot={m.id}
                         aria-describedby={beskrivning}
+                        aria-label={finns ? `${antalText}${tr?.namn ? ` · ${tr.namn}` : ""}` : undefined}
                         onClick={() => onOppnaTrad?.(m.id)}
                         className={tradknappKlass(finns)}
                       >
                         <TradIkon size={12} />
                         {finns ? (
-                          <span className="min-w-0 truncate">
-                            {tr?.antal === undefined ? "…" : <span className="tabular-nums">{tr.fler ? `${tr.antal}+` : tr.antal}</span>} {t.svar}
-                            {/* ⛔ KAN 9: namnet bara när det inte är rotens egen rad, som står precis ovanför. */}
-                            {tr?.namn ? <span className="text-ink-secondary"> · {tr.namn}</span> : null}
+                          /*
+                           * ⛔ (0.203.0, CP 2026-11-08) DET SENASTE SVARET PÅ SAMMA RAD: "1 svar · Collan: "Starkaste öppningen…" · 16.07". En rad som kortas
+                           * (`truncate`), aldrig två, så att märket inte trycker isär chatten. ⛔ INGET NYTT ELEMENT PER MEDDELANDE (`check:skalyta` 47 (6),
+                           * taket 26 på dator): antalet står i sitt eget span som förut, och namnet och utdraget är text i den dämpade raden runt det.
+                           * ⛔ KAN 9: trådens namn bara när en person döpt om tråden, annars upprepar det roten som står precis ovanför.
+                           */
+                          <span className="min-w-0 truncate text-ink-secondary">
+                            <span className="tabular-nums text-accent">{antalText}</span>
+                            {tr?.namn ? ` · ${tr.namn}` : ""}
+                            {sen ? ` · ${sen.fran}: "${sen.utdrag}" · ${sen.nar}` : ""}
                           </span>
                         ) : (
                           <span>{t.svaraITrad}</span>
@@ -2761,9 +2779,43 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik: rubrikProp, marke, lastT
  * @typedef {object} Tradrad (0.68.0) Vad chatten vet om tråden ur ett meddelande.
  * @property {boolean} finns
  * @property {string} [namn] Bara när en person döpt om tråden.
- * @property {number} [antal] Okänt (`undefined`) tills det räknats, och efter ett svar.
+ * @property {number} [antal] Okänt (`undefined`) tills det räknats.
  * @property {boolean} [fler]
+ * @property {(import("../lib/samtal.js").Meddelande & { id: string }) | null} [senaste] (0.203.0) Det nyaste svaret, läst med antalet
+ *   (`senasteSvar`). `null`: tråden har inget. Saknas fältet har källan ingen `senasteSvar`, och märket visar bara antalet.
+ * @property {boolean} [raknaOm] (0.203.0) Ett eget svar har ändrat tråden: antalet och det senaste svaret visar det redan, och räknas om
+ *   från källan nästa gång raden visas. Det som står är vyns minne, inte källans sanning.
  */
+
+/**
+ * Märkets rad om det senaste svaret, eller `null` när det inte finns något att visa: källan saknar `senasteSvar`, tråden har inget
+ * svar, eller svaret har ingen synlig text (0.203.0). Avsändaren som i bubblorna (`avNamnFor`, "Du" för det egna, märket via en
+ * nyckel), utdraget som i citaten (`synligText`, 60 tecken), och tiden som i inkorgen (`radtid`: klockslaget i dag, annars datum och tid).
+ *
+ * @param {(import("../lib/samtal.js").Meddelande & { id: string }) | null | undefined} m
+ * @param {{ namnFor: (uid: string) => string, uid: string, du: string, sprak: string, locale: string }} k
+ * @returns {{ fran: string, utdrag: string, nar: string } | null}
+ */
+function senasteForhand(m, { namnFor, uid, du, sprak, locale }) {
+  if (!m) return null;
+  const utdrag = synligText(m, 60);
+  if (!utdrag) return null;
+  return { fran: avNamnFor(namnFor, m, uid, du, sprak), utdrag, nar: radtid(m.tid, Date.now(), locale) };
+}
+
+/**
+ * Märkets rad efter ett eget svar i tråden (0.203.0, CP 2026-11-08). Förut blev antalet okänt ("… svar") tills raden räknades om.
+ * Nu står det egna svaret direkt: ett mer än det kända antalet (1 när tråden inte fanns), och svaret som det senaste, och raden räknas
+ * ändå om från källan (`raknaOm`), eftersom någon annan kan ha svarat under tiden.
+ *
+ * @param {Tradrad | undefined} forra @param {(import("../lib/samtal.js").Meddelande & { id: string }) | undefined} m Svaret som skrevs.
+ * @param {boolean} medSenaste Har källan `senasteSvar`? Utan den visar märket bara antalet, och ett utdrag som aldrig räknas om hade stått kvar.
+ * @returns {Partial<Tradrad>}
+ */
+function efterEgetSvar(forra, m, medSenaste) {
+  const kant = forra?.finns === false ? { antal: 0, fler: false } : forra?.antal !== undefined ? { antal: forra.antal, fler: Boolean(forra.fler) } : null;
+  return { finns: true, antal: kant ? kant.antal + 1 : undefined, fler: kant ? kant.fler : undefined, raknaOm: true, ...(medSenaste && m ? { senaste: m } : {}) };
+}
 
 /** Hur många av de senaste meddelandena utan tråd som prövas igen när fönstret får fokus. */
 const NYA_ROTTER_VID_FOKUS = 10;
@@ -2774,6 +2826,8 @@ const NYA_ROTTER_VID_FOKUS = 10;
  * ⛔ LÄSNINGARNA, OCH VARFÖR DE ÄR SÅ FÅ:
  *   - en tråd läses per rot, och bara för rötter som inte redan finns i minnet: ett nytt meddelande i chatten är EN läsning;
  *   - antalet svar är en aggregatfråga där källan kan (`count`), och räknas bara för trådar vars antal är okänt;
+ *   - (0.203.0) det senaste svaret läses med antalet, en fråga med `limit: 1` per räknad tråd, och aldrig annars. Ett fält "senaste" på
+ *     tråden hade sparat läsningen och varit en andra sanning om meddelandena, samma skäl som för räknaren nedan;
  *   - märkets namn läser inga meddelanden: det är trådens `namn`, eller inget (roten står redan ovanför).
  *
  * ⛔ ETT SVAR FRÅN NÅGON ANNAN NÅR MÄRKET NÄR FÖNSTRET FÅR FOKUS. Det är den billigaste vägen som håller: en lyssnare per tråd
@@ -2805,11 +2859,15 @@ function useTradmarken({ kalla, sid, meddelanden, minne }) {
           rader.set(r, t ? { ...(rader.get(r) ?? {}), finns: true, namn: t.namn } : { finns: false });
         }
       }
-      const raknas = [...rader.entries()].filter(([, v]) => v.finns && (raknaKanda || v.antal === undefined)).map(([k]) => k);
+      const raknas = [...rader.entries()].filter(([, v]) => v.finns && (raknaKanda || v.antal === undefined || v.raknaOm)).map(([k]) => k);
+      // ⛔ (0.203.0) Det senaste svaret läses i samma stund som antalet, och bara då: en läsning till per räknad tråd. Utan
+      // `senasteSvar` i källan läses det inte, och märket är som före 0.203.0.
+      const harSenaste = typeof kalla.senasteSvar === "function";
       await Promise.all(
         raknas.map(async (tid) => {
-          const { antal, fler } = await kalla.antalSvar(sid, tid);
-          rader.set(tid, { ...(/** @type {Tradrad} */ (rader.get(tid))), antal, fler });
+          const [{ antal, fler }, senaste] = await Promise.all([kalla.antalSvar(sid, tid), harSenaste ? kalla.senasteSvar?.(sid, tid) : undefined]);
+          const { raknaOm: _raknat, ...forra } = /** @type {Tradrad} */ (rader.get(tid));
+          rader.set(tid, { ...forra, antal, fler, ...(harSenaste ? { senaste: senaste ?? null } : {}) });
         }),
       );
       setFel(null);
@@ -2929,6 +2987,9 @@ export function Meddelanderader({ meddelanden, uid, namnFor: namnForProp, medlem
         // Personen utan märket: avataren och initialerna. Texten som läses går genom `avNamnFor`.
         const person = namnFor(m.av);
         const extra = efter?.(m);
+        // ⛔ (0.203.0) Ett eget svar som ännu inte är skrivet (`OpsTrad`) har inga åtgärder: en reaktion, en fästning eller ett citat hade pekat på ett meddelande
+        // som inte finns i källan än. Kopiera står kvar, den läser bara texten.
+        const vantar = /** @type {any} */ (m).vantar === true;
         return (
           <div key={m.id}>
             {nyDag ? (
@@ -2943,7 +3004,7 @@ export function Meddelanderader({ meddelanden, uid, namnFor: namnForProp, medlem
                 <span aria-hidden="true" className="h-px flex-1 bg-accent" />
               </div>
             ) : null}
-            <div data-meddelande={egen ? "eget" : "annans"} className={cx("group flex gap-2", fortsattning ? "mt-px" : "mt-2", egen ? "flex-row-reverse" : "")}>
+            <div data-meddelande={egen ? "eget" : "annans"} data-vantar={vantar ? "" : undefined} className={cx("group flex gap-2", fortsattning ? "mt-px" : "mt-2", egen ? "flex-row-reverse" : "", vantar && "opacity-70")}>
               {!egen ? (
                 <span className="w-8 shrink-0">
                   {!fortsattning ? (
@@ -3040,8 +3101,8 @@ export function Meddelanderader({ meddelanden, uid, namnFor: namnForProp, medlem
                 {onForslag && !egen && sid && medlemstyp(m.av) === "agent" && /** @type {any} */ (m).forslag !== undefined ? (
                   <AgentensForslag varde={/** @type {any} */ (m).forslag} sid={sid} mid={m.id} onForslag={onForslag} />
                 ) : null}
-                {reakt?.pa ? <Reaktionschips m={m} egen={egen} reakt={reakt} texter={texter} /> : null}
-                <Meddelandemeta m={m} egen={egen} bredd={bredd} menyPa={menyPa} pekskarm={pekskarm} oppnadVid={meny?.id === m.id ? meny.punkt : null} onOppnadVid={(v) => { if (!v) setMeny(null); }} extra={extra} mer={merFor?.(m) ?? []} namn={egen ? texter.dittMeddelande : `${texter.svarPa} ${avNamnFor(namnFor, m, uid, texter.du, sprak)}`} reakt={reakt} fasta={fasta} citat={citat} texter={texter} />
+                {reakt?.pa && !vantar ? <Reaktionschips m={m} egen={egen} reakt={reakt} texter={texter} /> : null}
+                <Meddelandemeta m={m} egen={egen} bredd={bredd} menyPa={menyPa} pekskarm={pekskarm} oppnadVid={meny?.id === m.id ? meny.punkt : null} onOppnadVid={(v) => { if (!v) setMeny(null); }} extra={extra} mer={vantar ? [] : merFor?.(m) ?? []} namn={egen ? texter.dittMeddelande : `${texter.svarPa} ${avNamnFor(namnFor, m, uid, texter.du, sprak)}`} reakt={vantar ? undefined : reakt} fasta={vantar ? null : fasta} citat={vantar ? null : citat} texter={texter} />
               </div>
             </div>
           </div>
@@ -3069,7 +3130,8 @@ export function Meddelanderader({ meddelanden, uid, namnFor: namnForProp, medlem
  * @param {(uid: string) => string} props.namnFor
  * @param {ReadonlyArray<Medlemsrad>} [props.medlemmar]
  * @param {() => void} props.onStang Tillbaka till gruppchatten.
- * @param {() => void} [props.onSvarat] Anropas efter ett skickat svar, så att chattens märke kan räknas om.
+ * @param {(m?: import("../lib/samtal.js").Meddelande & { id: string }) => void} [props.onSvarat] Anropas efter ett skickat svar, så att chattens märke kan räknas om.
+ *   (0.203.0) Med svaret som skrevs, så att märket kan visa det direkt.
  * @param {(namn: string | null) => void} [props.onDopt] Anropas efter en omdöpning, med namnet eller `null` för det härledda.
  * @param {Postkort} [props.postkort] (chattens nattskiva) Länkar till appens poster som kort.
  * @param {(blob: Blob) => Promise<string>} [props.onTranscribe] (chattens nattskiva) Appens transkribering. Med den ritas ljudvågen i
@@ -3116,6 +3178,28 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
   const lyssnar = useRef(false);
   const tradlogg = useRef(/** @type {HTMLDivElement | null} */ (null));
   const historik = useHistorik({ kalla, sid: samtal.id, trad: tid, live: svar, logg: tradlogg });
+  /*
+   * ⛔ DET EGNA SVARET STÅR DIREKT (0.203.0). CP 2026-11-08: "Det var också en fördröjning på svar i tråden. Så jag fattade först inte var mitt
+   * trådsvar blev av." Läst ur koden, inte mätt i produktion: gruppchatten skriver meddelandet direkt, och källans egen lyssnare (Firestores
+   * lokala skrivning) visar det innan servern svarat. Tråden läste först tråden och, för det första svaret, skrev den, och först sedan
+   * meddelandet; under tiden stod ingenting i tråden. Gruppchatten har alltså inget eget eko, den har ingen väntan före skrivningen.
+   * Källan väntar nu bara när tråden är okänd (`kandaTradar`), och väntan som återstår (det första svaret i en ny tråd, eller en källa
+   * utan lyssnare) täcks av svaret självt: `skickaITrad` ger det med sitt id (`onLokal`) innan källan rörs, det står med "Skickas…" tills
+   * det är skrivet, och sedan som ett vanligt svar tills källan har det. Samma id: när källans rad kommer står svaret en gång.
+   * Det lokala är aldrig en andra sanning: det är det meddelande som skrivs, och det försvinner så snart källan visar det, eller om skrivningen föll.
+   */
+  const [lokala, setLokala] = useState(/** @type {Array<import("../lib/samtal.js").Meddelande & { id: string, vantar?: boolean }>} */ ([]));
+  const visade = useMemo(() => {
+    if (lokala.length === 0) return historik.alla;
+    const kanda = new Set(historik.alla.map((m) => m.id));
+    const egna = lokala.filter((m) => !kanda.has(m.id));
+    return egna.length === 0 ? historik.alla : [...historik.alla, ...egna].sort((a, b) => a.tid - b.tid);
+  }, [historik.alla, lokala]);
+  useEffect(() => {
+    if (lokala.length === 0) return;
+    const kanda = new Set(historik.alla.map((m) => m.id));
+    if (lokala.some((m) => kanda.has(m.id))) setLokala((l) => l.filter((m) => !kanda.has(m.id)));
+  }, [historik.alla, lokala]);
   const sok = useSokISamtal(historik.alla, tradlogg);
   const [info, setInfo] = useState(false);
   const { tyst, vaxla: vaxlaTyst } = useTystnad(kalla, samtal.id, uid, setFel);
@@ -3164,7 +3248,7 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
   }, [kalla, samtal.id, tid]);
 
   // ⛔ (0.106.0) Rullningen sköts av `useLasposition`, som i samtalet: den som läser bakåt i tråden rycks inte ned.
-  const lasposition = useLasposition({ logg: tradlogg, alla: historik.alla, uid, laddat: svar !== null });
+  const lasposition = useLasposition({ logg: tradlogg, alla: visade, uid, laddat: svar !== null });
 
   const namn = tradensNamn(trad, [...(rot ? [rot] : []), ...historik.alla]);
   /** @param {import("../lib/samtal.js").Meddelande & { id: string }} m */
@@ -3205,6 +3289,15 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
         );
       }
     : undefined;
+  // (0.203.0) Under ett eget svar som ännu inte är skrivet står "Skickas…" i stället för vyns knappar: det finns inget att lyfta än.
+  const skickasEfter = (/** @type {import("../lib/samtal.js").Meddelande & { id: string, vantar?: boolean }} */ m) =>
+    m.vantar ? (
+      <span role="status" data-skickas={m.id} className="text-liten text-ink-muted">
+        {t.skickas}
+      </span>
+    ) : (
+      lyftEfter?.(m) ?? null
+    );
   // På telefon bor "Lyft till minnet" i meddelandets meny (0.106.0, #386 skiva 6), med samma villkor: bara när det finns text.
   const lyftMer = onLyftTillMinnet
     ? (/** @type {import("../lib/samtal.js").Meddelande & { id: string }} */ m) =>
@@ -3227,17 +3320,33 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
     if (skickar || (!ut.trim() && !bilage.bilaga)) return;
     setSkickar(true);
     let skickat = false;
+    // Id:t på det egna svaret, satt av `onLokal`. Ett objekt och inte en `let`: typkontrollen följer inte en tilldelning i en återkoppling.
+    const lokalt = { id: /** @type {string | null} */ (null) };
     try {
-      await kalla.skickaITrad(samtal.id, tid, { text: ut, av: uid, ...(extra?.namner ? { namner: extra.namner } : {}), ...(!tal && bilage.bilaga ? { bilaga: bilage.bilaga } : {}) });
+      const ny = await kalla.skickaITrad(
+        samtal.id,
+        tid,
+        { text: ut, av: uid, ...(extra?.namner ? { namner: extra.namner } : {}), ...(!tal && bilage.bilaga ? { bilaga: bilage.bilaga } : {}) },
+        {
+          onLokal: (m) => {
+            lokalt.id = m.id;
+            setLokala((l) => [...l, { ...m, vantar: true }]);
+          },
+        },
+      );
       skickat = true;
+      // Skrivet: "Skickas…" går bort, och svaret står kvar som ett vanligt svar tills källan visar det (samma id).
+      setLokala((l) => l.map((m) => (m.id === lokalt.id ? { ...m, vantar: false } : m)));
       if (!tal) {
         setText("");
         bilage.tom();
       }
-      onSvarat?.();
+      onSvarat?.(ny);
       if (!trad) await lasTraden();
       if (!lyssnar.current) await lasSvar();
     } catch (e) {
+      // ⛔ Föll skrivningen står svaret inte kvar som om det skickats. Föll läsningen efteråt är det skrivet, och källan visar det.
+      if (lokalt.id && !skickat) setLokala((l) => l.filter((m) => m.id !== lokalt.id));
       // ⛔ Bara sändningen kastar, som i `OpsSamtal`.
       if (tal && !skickat) throw e;
       setFel(somFel(e));
@@ -3407,11 +3516,11 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
           ) : null}
         </div>
         <p data-antal-svar="" className="m-0 py-2 text-liten text-ink-muted">
-          {historik.alla.length > 0 ? `${historik.alla.length}${historik.kanFinnasAldre ? "+" : ""} ${t.svar}` : t.ingaSvar}
+          {visade.length > 0 ? `${visade.length}${historik.kanFinnasAldre ? "+" : ""} ${t.svar}` : t.ingaSvar}
         </p>
         <VisaAldre historik={historik} texter={t} />
         <Reaktionslage reakt={reakt} texter={t} />
-        <Meddelanderader meddelanden={historik.alla} efter={lyftEfter} merFor={lyftMer} reakt={reakt} texter={t} postkort={postkort} kalla={kalla} sid={samtal.id} trad={tid} traffar={sok.oppen ? { ids: sok.traffar, aktuell: sok.aktuell } : null} uid={uid} namnFor={namnFor} medlemmar={medlemmar} locale={locale} visaNamn forraTid={rot?.tid} onVisaAgent={onVisaAgent} />
+        <Meddelanderader meddelanden={visade} efter={skickasEfter} merFor={lyftMer} reakt={reakt} texter={t} postkort={postkort} kalla={kalla} sid={samtal.id} trad={tid} traffar={sok.oppen ? { ids: sok.traffar, aktuell: sok.aktuell } : null} uid={uid} namnFor={namnFor} medlemmar={medlemmar} locale={locale} visaNamn forraTid={rot?.tid} onVisaAgent={onVisaAgent} />
         <Agentrad lage={agentlage} texter={t} />
       </div>
       <TillSenaste lage={lasposition} arbetar={arbetsord(agentlage)} texter={t} />
@@ -4089,12 +4198,17 @@ function Meddelandemeta({ m, egen, bredd, menyPa, pekskarm, oppnadVid, onOppnadV
         </button>
       ) : null}
       {citat?.pa && losa ? (
+        /*
+         * ⛔ (0.203.0) SAMMA HOVRING SOM TRÅDENS MÄRKE BREDVID. CP 2026-11-08: "Hover på pilen i svar i chatten är inte samma som svar." Pilen fyllde en
+         * cirkel på 44 px (`hover:bg-hover`) mellan bubblorna, medan "N svar" och "Svara i tråd" bara byter textfärg sedan 0.200.1 (`tradknappKlass`).
+         * Nu byter pilen bara färg, med samma rundning, samma övergång och samma fokusram. Träffytan står kvar: 44 px, och knappen finns bara på dator.
+         */
         <button
           type="button"
           data-citera={m.id}
           aria-label={t.citera}
           onClick={() => citat.onCitera(m)}
-          className="-my-2 hidden size-11 shrink-0 cursor-pointer items-center justify-center rounded-full text-ink-muted transition-[color,background-color,opacity] duration-(--duration-fast) ease-standard hover:bg-hover hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent md:inline-flex md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 md:focus-visible:opacity-100"
+          className="-my-2 hidden size-11 shrink-0 cursor-pointer items-center justify-center rounded-full text-ink-muted transition-[color,opacity] duration-(--duration-fast) ease-standard hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent md:inline-flex md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 md:focus-visible:opacity-100"
         >
           <CiteraIkon size={16} />
         </button>

@@ -4787,7 +4787,8 @@ for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
 // tråden för alla." Tråden öppnas i högerpanelen i stället för chatten. Krav:
 //   - i gruppchatten bär meddelandet med en tråd ett märke med antalet ("3 svar"; namnet bara när en person döpt om tråden,
 //     annars upprepar det roten som står ovanför, granskningen av PR 268, KAN 9), och minst ett annat meddelande "Svara i
-//     tråd"; båda har 44 px träffyta (KAN 6) och ryms i loggens bredd;
+//     tråd"; båda har 44 px träffyta (KAN 6) och ryms i loggens bredd; (0.203.0) märket bär det senaste svaret efter antalet,
+//     på en rad som kortas;
 //   - vid 1280 syns "Svara i tråd" först när pekaren är på meddelandet (KAN 9), märket alltid; vid 390 syns båda;
 //   - ett tryck på märket öppnar tråden (`[data-ops-trad]`) i högerpanelen: raden tillbaka till gruppchatten överst, trådens namn
 //     som rubrik, raden "Alla i gruppen ser tråden", rotmeddelandet före svaren, minst 3 svarsbubblor, och skrivfältet längst ned
@@ -4814,7 +4815,13 @@ for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
     });
     matt.push(`${namn}, gruppchatten: ${JSON.stringify(chatt)}`);
     const finns = chatt.marken.filter((m) => m.slag === "finns");
-    krav(finns.length === 1 && finns[0].text === "3 svar", `${namn}: väntat ett märke "3 svar" (utan rotens text) på meddelandet med tråden, fick ${JSON.stringify(finns.map((m) => m.text))}.`);
+    // ⛔ ÄNDRAT 0.203.0 (CP 2026-11-08): märket bär det senaste svaret efter antalet, "3 svar · Ops-agenten: "Q3: …" · <tid>". Förut väntades exakt "3 svar".
+    // Rotens text står fortfarande inte i märket (KAN 9), och märket ryms i loggen (`inom` nedan). Att raden kortas i stället för att brytas bär `truncate`
+    // (`trad-senaste-svar.test.jsx`); ett mått på radantalet här hade inte gått att se rött utan ett eget bygge med en bruten rad, och lades därför inte till (regel 4).
+    krav(
+      finns.length === 1 && /^3 svar · Ops-agenten: "Q3: intäkter 412 000/.test(finns[0].text) && !finns[0].text.includes("sammanfatta budgeten"),
+      `${namn}: väntat ett märke "3 svar · Ops-agenten: "Q3: …" · tid" (utan rotens text) på meddelandet med tråden, fick ${JSON.stringify(finns.map((m) => m.text))}.`,
+    );
     krav(chatt.marken.some((m) => m.slag === "ny" && m.text === "Svara i tråd"), `${namn}: inget meddelande bär "Svara i tråd".`);
     // ⛔ 0.106.0 (#386 skiva 6): på telefon bor "Svara i tråd" i meddelandets Mer-meny (avsnitt 47 (6)), och knappen under bubblan
     // har ingen höjd där. Märket "3 svar" är innehåll och har sina 44 px på båda bredderna.
@@ -7964,7 +7971,7 @@ async function gastGrupp() {
           };
         });
         krav(d.titel === "Bjud in ny@foretag.se till hela gruppen?", `${namn} bekräftelse (b): rubriken är ${JSON.stringify(d.titel)}.`);
-        krav(/hela historiken från början, och kan skriva i den/.test(d.text) && /kalendern och händelserna och kan svara och rösta/.test(d.text) && /läsa, spela och ladda ned i biblioteket/.test(d.text) && /inte gruppens ärenden/.test(d.text) && /inte medlemmarnas e-postadresser/.test(d.text) && /går inte att ta tillbaka/.test(d.text) && /högst 15 minuter/.test(d.text), `${namn} bekräftelse (b): dialogen säger inte allt den ska (chattens hela historik, kalender/ärenden/bibliotek, inga medlemsadresser, inte att ta tillbaka, 15 minuter): ${JSON.stringify(d.text)}.`);
+        krav(/hela historiken från början, och kan skriva i den/.test(d.text) && /kalendern och händelserna och kan svara och rösta/.test(d.text) && /läsa och spela i biblioteket/.test(d.text) && /Gästen får inte ladda ned filer\./.test(d.text) && /inte gruppens ärenden/.test(d.text) && /inte medlemmarnas e-postadresser/.test(d.text) && /går inte att ta tillbaka/.test(d.text) && /högst 15 minuter/.test(d.text), `${namn} bekräftelse (b): dialogen säger inte allt den ska (chattens hela historik, kalender/ärenden/bibliotek, inga medlemsadresser, inte att ta tillbaka, 15 minuter): ${JSON.stringify(d.text)}.`);
         krav(d.inom && !d.overflow, `${namn} bekräftelse (b): dialogen ligger inte helt inom skärmen (inom ${d.inom}, sidled ${d.overflow}).`);
         krav(d.knappar.length === 2 && d.knappar.every((k) => k.h >= 44), `${namn} bekräftelse (b): knapparna ${JSON.stringify(d.knappar)}, väntat Avbryt och Bjud in på minst 44 px.`);
         krav(d.anrop === "[]", `${namn} bekräftelse (b): ett anrop gick före bekräftelsen (${d.anrop}).`);
@@ -7977,7 +7984,8 @@ async function gastGrupp() {
         await page.locator('[role="dialog"]').getByRole("button", { name: "Bjud in", exact: true }).click();
         await page.waitForTimeout(100);
         const efterBjud = await page.evaluate(() => JSON.stringify(/** @type {any} */ (window).__gastgruppanrop));
-        krav(efterBjud === JSON.stringify([["bjudGrupp", { epost: "ny@foretag.se", namn: "" }]]), `${namn} bekräftelse (b): efter Bjud in blev anropen ${efterBjud}, väntat bjudGrupp med adressen.`);
+        // (0.203.0, lifehub.app#691) Formuläret skickar också kryssrutan Får ladda ned filer, av som förval, och dialogen säger vad den betyder (raden ovan).
+        krav(efterBjud === JSON.stringify([["bjudGrupp", { epost: "ny@foretag.se", namn: "", laddaNed: false }]]), `${namn} bekräftelse (b): efter Bjud in blev anropen ${efterBjud}, väntat bjudGrupp med adressen.`);
 
         // (c) raderingen
         await page.evaluate(() => { /** @type {any} */ (window).__gastgruppanrop.length = 0; });
@@ -8512,7 +8520,8 @@ async function gastTelefon() {
             };
           });
           matt.push(`${namn}: länken ${l.inom ? "inom skärmen" : "utanför"}, Kopiera ${l.kopiera === null ? "saknas" : l.kopiera.toFixed(0) + " px"}, Dela ${l.dela === null ? "saknas" : l.dela.toFixed(0) + " px"}`);
-          krav(l.anrop === JSON.stringify([["bjudGrupp", { telefon: "+46701234567", namn: "" }], ["kopieraLank", { id: "a".repeat(64) }]]), `${namn} (a): anropen blev ${l.anrop}, väntat bjudGrupp med numret och sedan kopieraLank med inbjudans id.`);
+          // (0.203.0, lifehub.app#691) Telefonvägen skickar kryssrutans val, av som förval.
+          krav(l.anrop === JSON.stringify([["bjudGrupp", { telefon: "+46701234567", namn: "", laddaNed: false }], ["kopieraLank", { id: "a".repeat(64) }]]), `${namn} (a): anropen blev ${l.anrop}, väntat bjudGrupp med numret och sedan kopieraLank med inbjudans id.`);
           krav(l.url.endsWith("&s=tel"), `${namn} (a): länken i fältet är ${JSON.stringify(l.url)}, väntat telefonlänken.`);
           krav(l.inom && !l.overflow, `${namn} (a): länken ligger inte inom skärmen (inom ${l.inom}, sidled ${l.overflow}).`);
           krav(l.kopiera !== null && l.kopiera >= 32 && l.dela !== null && l.dela >= 32, `${namn} (a): Kopiera ${l.kopiera} px och Dela ${l.dela} px, väntat båda minst 32 px.`);

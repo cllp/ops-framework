@@ -8,6 +8,7 @@ import { OpsField, OpsInput } from "./OpsField.jsx";
 import { OpsModal } from "./OpsModal.jsx";
 import { OpsPill } from "./OpsPill.jsx";
 import { OpsSegmented } from "./OpsSegmented.jsx";
+import { OpsCheckbox, OpsSwitch } from "./OpsToggle.jsx";
 
 /**
  * Orden i gästlistan, på svenska och engelska (0.131.0, cllp/lifehub.app#389). Statusorden hör till `GASTSTATUSAR` och är de enda platserna de skrivs ut på.
@@ -65,8 +66,9 @@ export const ORD_OPSGASTLISTA = {
   felReserv: { sv: "Det gick inte. Försök igen.", en: "That did not work. Try again." },
   // ── Hela gruppen (0.132.0) ──
   ingressGrupp: {
-    sv: "En gäst får ett mejl med en länk och kan följa gruppen utan konto: läsa och skriva i chatten, svara och rösta i kalendern och läsa, spela och ladda ned i biblioteket. Gästen ser inte gruppens ärenden, bara de som gruppen delegerar till hen.",
-    en: "A guest gets an email with a link and can follow the group without an account: read and write in the chat, answer and vote in the calendar, and read, play and download in the library. The guest does not see the group's cases, only those the group delegates to them.",
+    // (0.203.0, lifehub.app#691) Nedladdning är av för en ny gäst. Texten sade förut att gästen kan ladda ned, och det är inte längre sant förrän någon slagit på det.
+    sv: "En gäst får ett mejl med en länk och kan följa gruppen utan konto: läsa och skriva i chatten, svara och rösta i kalendern och läsa och spela i biblioteket. Ladda ned filer får gästen bara om det slås på. Gästen ser inte gruppens ärenden, bara de som gruppen delegerar till hen.",
+    en: "A guest gets an email with a link and can follow the group without an account: read and write in the chat, answer and vote in the calendar, and read and play in the library. The guest may download files only if that is switched on. The guest does not see the group's cases, only those the group delegates to them.",
   },
   ingaGrupp: { sv: "Inga gäster har bjudits in till gruppen.", en: "No guests have been invited to the group." },
   bjudGrupp: { sv: "Bjud in gäst till hela gruppen", en: "Invite a guest to the whole group" },
@@ -86,9 +88,12 @@ export const ORD_OPSGASTLISTA = {
   raderaNamn: { sv: "Radera uppgifterna om {vem}", en: "Delete the data about {vem}" },
   bekraftaGruppTitel: { sv: "Bjud in {vem} till hela gruppen?", en: "Invite {vem} to the whole group?" },
   bekraftaGruppSer: {
-    sv: "Gästen ser gruppens chatt, med hela historiken från början, och kan skriva i den. Gästen ser kalendern och händelserna och kan svara och rösta, och kan läsa, spela och ladda ned i biblioteket. Gästen ser inte gruppens ärenden, bara de som gruppen delegerar till hen, och kan kommentera dem och markera dem klara.",
-    en: "The guest sees the group's chat, with the whole history from the beginning, and can write in it. The guest sees the calendar and the events and can answer and vote, and can read, play and download in the library. The guest does not see the group's cases, only those the group delegates to them, and can comment on them and mark them done.",
+    sv: "Gästen ser gruppens chatt, med hela historiken från början, och kan skriva i den. Gästen ser kalendern och händelserna och kan svara och rösta, och kan läsa och spela i biblioteket. Gästen ser inte gruppens ärenden, bara de som gruppen delegerar till hen, och kan kommentera dem och markera dem klara.",
+    en: "The guest sees the group's chat, with the whole history from the beginning, and can write in it. The guest sees the calendar and the events and can answer and vote, and can read and play in the library. The guest does not see the group's cases, only those the group delegates to them, and can comment on them and mark them done.",
   },
+  // (0.203.0) Vad formulärets val betyder, i dialogen. Utan val (Bjud in igen på en rad) står ingen av dem: det sparade värdet ändras då inte.
+  bekraftaGruppLaddaNedPa: { sv: "Gästen får också ladda ned filer ur biblioteket, så länge gruppen tillåter nedladdning.", en: "The guest may also download files from the library, as long as the group allows downloads." },
+  bekraftaGruppLaddaNedAv: { sv: "Gästen får inte ladda ned filer.", en: "The guest may not download files." },
   bekraftaGruppInte: { sv: "Gästen ser inte medlemmarnas e-postadresser, kan inte ladda upp eller bifoga något och kommer inte åt något annat i appen. Det gästen skriver märks Gäst.", en: "The guest does not see the members' email addresses, cannot upload or attach anything and cannot reach anything else in the app. What the guest writes is marked Guest." },
   bekraftaGruppTillbaka: {
     sv: "Det gästen hunnit läsa eller ladda ned går inte att ta tillbaka. Dras inbjudan tillbaka stängs åtkomsten vid gästens nästa anrop, och en fil som redan öppnats går att nå i högst {minuter} minuter till.",
@@ -109,8 +114,8 @@ export const ORD_OPSGASTLISTA = {
   kontaktVal: { sv: "Bjud in med", en: "Invite with" },
   // Ingressen när Telefon är valt: gruppens ingress börjar med att gästen får ett mejl, och det gör en gäst med telefon inte.
   ingressGruppTelefon: {
-    sv: "En gäst får en länk som du delar, till exempel som sms, och kan följa gruppen utan konto: läsa och skriva i chatten, svara och rösta i kalendern och läsa, spela och ladda ned i biblioteket. Gästen ser inte gruppens ärenden, bara de som gruppen delegerar till hen.",
-    en: "A guest gets a link that you share, for example as a text message, and can follow the group without an account: read and write in the chat, answer and vote in the calendar, and read, play and download in the library. The guest does not see the group's cases, only those the group delegates to them.",
+    sv: "En gäst får en länk som du delar, till exempel som sms, och kan följa gruppen utan konto: läsa och skriva i chatten, svara och rösta i kalendern och läsa och spela i biblioteket. Ladda ned filer får gästen bara om det slås på. Gästen ser inte gruppens ärenden, bara de som gruppen delegerar till hen.",
+    en: "A guest gets a link that you share, for example as a text message, and can follow the group without an account: read and write in the chat, answer and vote in the calendar, and read and play in the library. The guest may download files only if that is switched on. The guest does not see the group's cases, only those the group delegates to them.",
   },
   kontaktEpost: { sv: "E-post", en: "Email" },
   kontaktTelefon: { sv: "Telefon", en: "Phone" },
@@ -124,6 +129,9 @@ export const ORD_OPSGASTLISTA = {
   nyLank: { sv: "Ny länk", en: "New link" },
   nyLankNamn: { sv: "Ge {vem} en ny länk", en: "Give {vem} a new link" },
   nyLankPagar: { sv: "Skapar…", en: "Creating…" },
+  // ── Nedladdning per gäst (0.203.0, lifehub.app#691): av som förval, i formuläret och på varje gruppinbjudan ──
+  laddaNed: { sv: "Får ladda ned filer", en: "May download files" },
+  laddaNedFoljerGrupp: { sv: "Följer gruppens inställning", en: "Follows the group setting" },
   nyLankKlar: { sv: "En ny länk är skapad. Den gäller i {dagar} dagar, och den förra länken fungerar inte längre. Dela den nya.", en: "A new link has been created. It is valid for {dagar} days, and the previous link no longer works. Share the new one." },
   // ── I gruppens medlemsvy (`OpsMedlemmar`, 0.132.0): gästen är ett val i Roll ──
   rollGast: { sv: "Gäst (utan konto)", en: "Guest (no account)" },
@@ -241,7 +249,9 @@ function GastLank({ lank, vem, t, sprak, gruppnamn, telefon = false }) {
  * var tryckbar igen med adressen kvar, så varje nytt tryck bjöd in en gång till. Nu ger `onBekrafta` ett löfte: knappen är upptagen (snurra och
  * spärr, `OpsButton`), Avbryt och stängningen gör ingenting under tiden, och den som anropade stänger dialogen när löftet är klart.
  *
- * @param {{ bekrafta: { slag: "grupp", epost?: string, telefon?: string, namn: string } | { slag: "radera", gastId: string, epost?: string, telefon?: string, namn: string }, t: Record<string, string>, onBekrafta: () => Promise<unknown>, onAvbryt: () => void }} props
+ * (0.203.0) `laddaNed` på en gruppinbjudan: formulärets val, och dialogen säger vad det betyder. Utelämnat (Bjud in igen på en rad, `OpsMedlemmar`) står inget om nedladdning, eftersom det sparade värdet då inte ändras.
+ *
+ * @param {{ bekrafta: { slag: "grupp", epost?: string, telefon?: string, namn: string, laddaNed?: boolean } | { slag: "radera", gastId: string, epost?: string, telefon?: string, namn: string }, t: Record<string, string>, onBekrafta: () => Promise<unknown>, onAvbryt: () => void }} props
  */
 export function GastBekraftelse({ bekrafta, t, onBekrafta, onAvbryt }) {
   const vem = bekrafta.namn || bekrafta.epost || bekrafta.telefon || "";
@@ -283,6 +293,7 @@ export function GastBekraftelse({ bekrafta, t, onBekrafta, onAvbryt }) {
       {bekrafta.slag === "grupp" ? (
         <div data-gastlista-bekrafta="grupp" className="flex min-w-0 flex-col gap-3 text-etikett text-ink-secondary">
           <p className="m-0 font-medium text-ink">{t.bekraftaGruppSer}</p>
+          {typeof bekrafta.laddaNed === "boolean" ? <p data-gastlista-bekrafta-laddaned={bekrafta.laddaNed ? "pa" : "av"} className="m-0">{bekrafta.laddaNed ? t.bekraftaGruppLaddaNedPa : t.bekraftaGruppLaddaNedAv}</p> : null}
           <p className="m-0">{t.bekraftaGruppInte}</p>
           <p className="m-0">{t.bekraftaGruppTillbaka.replace("{minuter}", String(Math.round(SIGNERAD_SEKUNDER / 60)))}</p>
         </div>
@@ -313,6 +324,7 @@ export function GastBekraftelse({ bekrafta, t, onBekrafta, onAvbryt }) {
  * @property {string | null} [titel] Händelsens rubrik, för en inbjudan till en omröstning eller att svara på en händelse.
  * @property {"kommer" | "kommerInte" | "kanske" | null} [deltasvar] (0.146.0) Se `Gast`.
  * @property {"aterkallad" | "utgangen" | "har-rostat" | "inloggad" | "vantar"} [status]
+ * @property {boolean | null} [laddaNed] (0.203.0) Bara en gruppinbjudan (`GASTGRUPPLISTFALT`): gästens egen nedladdning, eller `null` för en inbjudan från före 0.203.0, som följer gruppens inställning.
  */
 
 /**
@@ -346,8 +358,12 @@ export function GastBekraftelse({ bekrafta, t, onBekrafta, onAvbryt }) {
  * @param {{ anvanda: number, totalt: number }} props.platser Hur många av platserna som används (tjänstens `lista(...).platser`). Serverns siffra, inte en räkning av raderna: platserna är serverns bokföring.
  * @param {ReadonlyArray<string>} [props.harRostat] `gastId` för de gäster som appen vet har röstat. Ger status `har-rostat`.
  * @param {(inmatning: { epost: string, namn: string }) => void | Promise<unknown>} [props.onBjud] Bjuder in, eller bjuder in en återkallad igen. Utelämnad: ingen knapp och inget formulär.
- * @param {(inmatning: { epost: string, namn: string } | { telefon: string, namn: string }) => void | Promise<unknown>} [props.onBjudGrupp] (0.132.0) Bjuder in till hela gruppen, efter att medlemmen bekräftat i dialogen. Bara i gruppläget.
+ * @param {(inmatning: { epost: string, namn: string, laddaNed?: boolean } | { telefon: string, namn: string, laddaNed?: boolean }) => void | Promise<unknown>} [props.onBjudGrupp] (0.132.0) Bjuder in till hela gruppen, efter att medlemmen bekräftat i dialogen. Bara i gruppläget.
  *   (0.197.0) Med Telefon vald får den `{ telefon, namn }` och ska ge tjänstens svar, minst `{ id }`: vyn hämtar då länken med `onKopieraLank` och visar den med Dela och Kopiera direkt.
+ *   (0.203.0, lifehub.app#691) Från formuläret bär den också `laddaNed`, kryssrutan Får ladda ned filer (av som förval), som appen ger tjänstens `bjud`. Bjud in igen på en återkallad rad bär den inte: det sparade värdet står kvar.
+ * @param {(arg: { id: string, pa: boolean }) => void | Promise<unknown>} [props.onNedladdning] (0.203.0, lifehub.app#691) Slår på eller av nedladdning för en gäst (tjänstens `sattNedladdning`). Ger ett reglage
+ *   Får ladda ned filer på varje gruppinbjudan, påslaget när raden har `laddaNed: true`. En inbjudan med `laddaNed: null` (från före 0.203.0) står avslagen med raden Följer gruppens inställning, och en
+ *   återkallad går inte att ändra. Utelämnad: inget reglage. Bara i gruppläget. ⛔ Gruppens egen inställning (`farLaddaNed`) vinner alltid på servern: reglaget ger ingen nedladdning i en grupp som stängt av den.
  * @param {boolean} [props.medTelefon] (0.197.0, cllp/lifehub.app#661) Ger valet E-post eller Telefon i gruppens inbjudan. Kräver `onBjudGrupp` och `onKopieraLank`: utan länken når en telefoninbjudan ingen.
  *   ⛔ Ett val appen slår på, inget förval: en app vars `onBjudGrupp` bara skickar en adress hade fått en Telefon-knapp som alltid nekas.
  * @param {(arg: { id: string }) => void | Promise<unknown>} [props.onSkickaOm]
@@ -361,7 +377,7 @@ export function GastBekraftelse({ bekrafta, t, onBekrafta, onAvbryt }) {
  * @param {string} [props.sprak]
  * @param {Partial<Record<keyof typeof ORD_OPSGASTLISTA, string>>} [props.ord] Egna texter, som vinner över ordboken.
  */
-export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud, onBjudGrupp, onSkickaOm, onKopieraLank, onAterkalla, onAterkallaAlla, onRadera, gruppnamn, medTelefon = false, utanRubrik = false, nu, sprak = "sv", ord }) {
+export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud, onBjudGrupp, onNedladdning, onSkickaOm, onKopieraLank, onAterkalla, onAterkallaAlla, onRadera, gruppnamn, medTelefon = false, utanRubrik = false, nu, sprak = "sv", ord }) {
   if (personer !== undefined && gaster !== undefined) {
     throw new Error("OpsGastLista: ange antingen gaster (en omröstning) eller personer (hela gruppen), inte båda. Två listor över samma gäster hade kunnat säga olika saker.");
   }
@@ -383,13 +399,13 @@ export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud
     for (const g of rader) {
       if (!g || typeof g.id !== "string" || typeof g.epost !== "string") throw new Error("OpsGastLista: varje gäst har { id, epost }.");
     }
-    if (onBjudGrupp !== undefined || onAterkallaAlla !== undefined) throw new Error("OpsGastLista: onBjudGrupp och onAterkallaAlla hör till listan över hela gruppen (personer).");
+    if (onBjudGrupp !== undefined || onAterkallaAlla !== undefined || onNedladdning !== undefined) throw new Error("OpsGastLista: onBjudGrupp, onAterkallaAlla och onNedladdning hör till listan över hela gruppen (personer).");
     if (medTelefon) throw new Error("OpsGastLista: medTelefon hör till listan över hela gruppen (personer). En omröstning och en händelse bjuds in med e-post.");
   }
   if (medTelefon && (onBjudGrupp === undefined || onKopieraLank === undefined)) {
     throw new Error("OpsGastLista: medTelefon kräver onBjudGrupp och onKopieraLank. Inget sms skickas, så länken är det enda som når en gäst med telefonnummer.");
   }
-  for (const [namn, f] of /** @type {const} */ ([["onBjud", onBjud], ["onBjudGrupp", onBjudGrupp], ["onSkickaOm", onSkickaOm], ["onKopieraLank", onKopieraLank], ["onAterkalla", onAterkalla], ["onAterkallaAlla", onAterkallaAlla], ["onRadera", onRadera]])) {
+  for (const [namn, f] of /** @type {const} */ ([["onBjud", onBjud], ["onBjudGrupp", onBjudGrupp], ["onNedladdning", onNedladdning], ["onSkickaOm", onSkickaOm], ["onKopieraLank", onKopieraLank], ["onAterkalla", onAterkalla], ["onAterkallaAlla", onAterkallaAlla], ["onRadera", onRadera]])) {
     if (f !== undefined && typeof f !== "function") throw new Error(`OpsGastLista: ${namn} måste vara en funktion (eller utelämnas).`);
   }
   const t = { ...forvalda(ORD_OPSGASTLISTA, sprak), ...definierade(/** @type {Record<string, string>} */ (ord ?? {})) };
@@ -399,6 +415,8 @@ export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud
   // (0.197.0) E-post eller Telefon i gruppens inbjudan, och numret. Fälten är två, så att ett byte av val aldrig skickar en adress som nummer eller tvärtom.
   const [kontaktslag, setKontaktslag] = useState(/** @type {"epost" | "telefon"} */ ("epost"));
   const [telefon, setTelefon] = useState("");
+  // (0.203.0) Kryssrutan Får ladda ned filer i gruppens inbjudan. Av som förval, och av igen efter en lyckad inbjudan.
+  const [laddaNed, setLaddaNed] = useState(false);
   // Länken efter en inbjudan med telefon: den visas under formuläret direkt, med Dela och Kopiera.
   const [nyTelefonlank, setNyTelefonlank] = useState(/** @type {{ vem: string, url: string, lankGiltigTill: number } | null} */ (null));
   const [fel, setFel] = useState("");
@@ -407,7 +425,7 @@ export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud
   const [radklar, setRadklar] = useState(/** @type {Record<string, string>} */ ({}));
   // Länkarna som hämtats, per inbjudans id. De ligger bara i minnet och försvinner när vyn stängs: servern kan inte läsa ut en länk i efterhand.
   const [lankar, setLankar] = useState(/** @type {Record<string, { url: string, lankGiltigTill: number }>} */ ({}));
-  const [bekrafta, setBekrafta] = useState(/** @type {{ slag: "grupp", epost?: string, telefon?: string, namn: string } | { slag: "radera", gastId: string, epost?: string, telefon?: string, namn: string } | null} */ (null));
+  const [bekrafta, setBekrafta] = useState(/** @type {{ slag: "grupp", epost?: string, telefon?: string, namn: string, laddaNed?: boolean } | { slag: "radera", gastId: string, epost?: string, telefon?: string, namn: string } | null} */ (null));
   const telefonValt = gruppLage && medTelefon && kontaktslag === "telefon";
   const levande = useRef(true);
   useEffect(() => {
@@ -501,8 +519,9 @@ export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud
    * (0.197.0) Öppnar bekräftelsen för en inbjudan med telefon. Numret prövas först med samma funktion som servern (`normaliseraGasttelefon`), och det är den normaliserade formen som skickas.
    * @param {string} tel
    * @param {string} n
+   * @param {boolean} [valtLaddaNed] Formulärets val. Utelämnat från Bjud in igen på en rad: det sparade värdet ändras inte.
    */
-  function begarGruppTelefon(tel, n) {
+  function begarGruppTelefon(tel, n, valtLaddaNed) {
     setFel("");
     setNyTelefonlank(null);
     const normal = normaliseraGasttelefon(tel);
@@ -514,7 +533,7 @@ export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud
       setFel(t.felNamn.replace("{max}", String(MAX_GASTNAMN)));
       return;
     }
-    setBekrafta({ slag: "grupp", telefon: normal, namn: n.trim() });
+    setBekrafta({ slag: "grupp", telefon: normal, namn: n.trim(), ...(typeof valtLaddaNed === "boolean" ? { laddaNed: valtLaddaNed } : {}) });
   }
 
   /**
@@ -536,8 +555,13 @@ export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud
     if (onKopieraLank) await hamtaLank(radId, inbjudanId, { behallKlar: true });
   }
 
-  /** Öppnar bekräftelsen för att bjuda in till hela gruppen. Adressen prövas först, så att dialogen aldrig öppnas för något som ändå skulle nekas. */
-  function begarGrupp(/** @type {string} */ e, /** @type {string} */ n) {
+  /**
+   * Öppnar bekräftelsen för att bjuda in till hela gruppen. Adressen prövas först, så att dialogen aldrig öppnas för något som ändå skulle nekas.
+   * @param {string} e
+   * @param {string} n
+   * @param {boolean} [valtLaddaNed] (0.203.0) Formulärets val. Utelämnat från Bjud in igen på en rad: det sparade värdet ändras inte.
+   */
+  function begarGrupp(e, n, valtLaddaNed) {
     setFel("");
     if (normaliseraGastepost(e) === null) {
       setFel(t.felEpost);
@@ -547,7 +571,7 @@ export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud
       setFel(t.felNamn.replace("{max}", String(MAX_GASTNAMN)));
       return;
     }
-    setBekrafta({ slag: "grupp", epost: e.trim(), namn: n.trim() });
+    setBekrafta({ slag: "grupp", epost: e.trim(), namn: n.trim(), ...(typeof valtLaddaNed === "boolean" ? { laddaNed: valtLaddaNed } : {}) });
   }
 
   /** Det dialogens knapp väntar på. Dialogen stängs först när servern svarat (se `GastBekraftelse`), så att ingenting går att trycka två gånger. */
@@ -559,15 +583,18 @@ export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud
         if (!onBjudGrupp) return;
         // ⛔ (0.202.0, QA 2026-11-07, punkt 1 och 2 i cllp/lifehub.app#687) EN INBJUDAN TILL SAMMA PERSON BYTER NYCKEL, så en länk som visas under en rad slutar fungera. Den visade glöms innan anropet, som vid Skicka igen.
         setLankar({});
+        // (0.203.0) Valet följer med bara när det kom från formuläret.
+        const valt = typeof b.laddaNed === "boolean" ? { laddaNed: b.laddaNed } : {};
         if (typeof b.telefon === "string") {
-          await bjudGruppTelefon(b.telefon, b.namn);
+          await bjudGruppTelefon(b.telefon, b.namn, valt);
           return;
         }
         try {
-          await onBjudGrupp({ epost: /** @type {string} */ (b.epost), namn: b.namn });
+          await onBjudGrupp({ epost: /** @type {string} */ (b.epost), namn: b.namn, ...valt });
           if (levande.current) {
             setEpost("");
             setNamn("");
+            if ("laddaNed" in valt) setLaddaNed(false);
           }
         } catch (e) {
           if (levande.current) setFel(felText(e));
@@ -584,13 +611,14 @@ export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud
    * (0.197.0) Bjuder in med telefon och hämtar länken direkt, så att den som bjöd kan dela den i samma stund. ⛔ Ger appen inget id tillbaka står det att inbjudan finns och var länken hämtas, aldrig tyst (regel 5).
    * @param {string} tel Det normaliserade numret.
    * @param {string} n
+   * @param {{ laddaNed?: boolean }} valt (0.203.0) Formulärets val, tomt från Bjud in igen på en rad.
    */
-  async function bjudGruppTelefon(tel, n) {
+  async function bjudGruppTelefon(tel, n, valt) {
     const vem = n || tel;
     /** @type {unknown} */
     let svar;
     try {
-      svar = await /** @type {NonNullable<typeof onBjudGrupp>} */ (onBjudGrupp)({ telefon: tel, namn: n });
+      svar = await /** @type {NonNullable<typeof onBjudGrupp>} */ (onBjudGrupp)({ telefon: tel, namn: n, ...valt });
     } catch (e) {
       if (levande.current) setFel(felText(e));
       return;
@@ -598,6 +626,7 @@ export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud
     if (levande.current) {
       setTelefon("");
       setNamn("");
+      if ("laddaNed" in valt) setLaddaNed(false);
     }
     const id = svar && typeof svar === "object" ? /** @type {{ id?: unknown }} */ (svar).id : undefined;
     if (typeof id !== "string" || id === "" || !onKopieraLank) {
@@ -711,6 +740,18 @@ export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud
                             </>
                           )}
                         </div>
+                        {onNedladdning && i.omfang.slag === "grupp" ? (
+                          // (0.203.0) Gästens egen nedladdning. `null` (eller inget fält) är en inbjudan från före 0.203.0: den står avslagen och säger att den följer gruppen, eftersom det är vad servern gör med den.
+                          <div data-gast-laddaned={i.laddaNed === true ? "pa" : i.laddaNed === false ? "av" : "grupp"}>
+                            <OpsSwitch
+                              label={t.laddaNed}
+                              checked={i.laddaNed === true}
+                              disabled={aterkallad}
+                              {...(typeof i.laddaNed !== "boolean" ? { hint: t.laddaNedFoljerGrupp } : {})}
+                              onChange={(v) => pa(p.gastId, onNedladdning, { id: i.id, pa: v })}
+                            />
+                          </div>
+                        ) : null}
                         {lankar[i.id] && !aterkallad ? <GastLank lank={lankar[i.id]} vem={vem} t={t} sprak={sprak} gruppnamn={gruppnamn} telefon={personTelefon} /> : null}
                       </li>
                     );
@@ -836,14 +877,19 @@ export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud
           <OpsField label={t.namnEtikett}>
             <OpsInput value={namn} onChange={setNamn} autoComplete="off" maxLength={MAX_GASTNAMN} disabled={fulla} tal={false} />
           </OpsField>
+          {gruppLage ? (
+            <div data-gastlista-laddaned="">
+              <OpsCheckbox label={t.laddaNed} checked={laddaNed} onChange={setLaddaNed} disabled={fulla} />
+            </div>
+          ) : null}
           {fel ? <p role="alert" data-gastlista-bjudfel="" className="m-0 text-etikett text-danger wrap-anywhere">{fel}</p> : null}
           <div>
             {telefonValt ? (
-              <OpsButton variant="primary" disabled={fulla || telefon.trim() === ""} onClick={() => begarGruppTelefon(telefon, namn)}>
+              <OpsButton variant="primary" disabled={fulla || telefon.trim() === ""} onClick={() => begarGruppTelefon(telefon, namn, laddaNed)}>
                 {t.bjudGrupp}
               </OpsButton>
             ) : gruppLage ? (
-              <OpsButton variant="primary" disabled={fulla || epost.trim() === ""} onClick={() => begarGrupp(epost, namn)}>
+              <OpsButton variant="primary" disabled={fulla || epost.trim() === ""} onClick={() => begarGrupp(epost, namn, laddaNed)}>
                 {t.bjudGrupp}
               </OpsButton>
             ) : (

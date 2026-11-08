@@ -31,7 +31,7 @@ import {
 import { ARKIVTAGG, filtreraBibliotek } from "../lib/bibliotek.js";
 import { SIGNERAD_SEKUNDER } from "../lib/delning.js";
 import { medlemskapsId } from "../lib/grupp.js";
-import { createGastService, gastInbjudningsId } from "../node/gast.js";
+import { byggGastinbjudan, createGastService, gastInbjudningsId, nyGastnyckel } from "../node/gast.js";
 
 /**
  * Gästerna, skiva 2 (0.132.0, cllp/lifehub.app#389): hela gruppen. Tjänsten bakom gästens chatt, kalender, ärenden och bibliotek, och raderingen.
@@ -263,8 +263,9 @@ function bygg({ omslut = (k) => k, utanGrupp = false, utanArenden = false, arend
 const IP = "203.0.113.7";
 
 /** Bjuder in en gäst till hela gruppen, löser in länken och ger sessionsnyckeln. */
-async function gruppGast(h, epost = "anna@foretag.se", { uid = AGARE, namn = "" } = {}) {
-  const svar = await h.tjanst.bjud({ uid, slag: "grupp", groupId: GRUPP, epost, namn });
+async function gruppGast(h, epost = "anna@foretag.se", { uid = AGARE, namn = "", laddaNed = undefined } = {}) {
+  // (0.203.0) `laddaNed` utelämnad är förvalet: en ny gäst laddar inte ned.
+  const svar = await h.tjanst.bjud({ uid, slag: "grupp", groupId: GRUPP, epost, namn, ...(laddaNed !== undefined ? { laddaNed } : {}) });
   const lank = h.brev[h.brev.length - 1].lankar[0];
   const inl = await h.tjanst.los({ id: lank.id, nyckel: lank.nyckel, epost, ip: IP });
   expect(inl.ok, "inlösen").toBe(true);
@@ -534,11 +535,12 @@ describe("vitlistade fält: ingen medlems adress, uid eller hemlighet lämnar se
 
   it("hamta för en gruppgäst svarar med gruppens namn och funktionerna: chatt, kalender, bibliotek och ärenden, och utan appens ärendedelegering bara de tre första", async () => {
     const h = bygg();
+    // (0.203.0) En ny gäst laddar inte ned förrän någon slagit på det: nedladdning är false.
     const g = await gruppGast(h);
-    expect(await h.tjanst.hamta({ sessionsnyckel: g.sessionsnyckel })).toEqual({ ok: true, namn: "", funktion: "grupp", grupp: { namn: "Källan", funktioner: ["chatt", "kalender", "bibliotek", "arenden"], nedladdning: true, kommentera: false, beskrivning: "Vi övar på tisdagar." } });
+    expect(await h.tjanst.hamta({ sessionsnyckel: g.sessionsnyckel })).toEqual({ ok: true, namn: "", funktion: "grupp", grupp: { namn: "Källan", funktioner: ["chatt", "kalender", "bibliotek", "arenden"], nedladdning: false, kommentera: false, beskrivning: "Vi övar på tisdagar." } });
     const utan = bygg({ utanArenden: true });
     const u = await gruppGast(utan);
-    expect(await utan.tjanst.hamta({ sessionsnyckel: u.sessionsnyckel })).toEqual({ ok: true, namn: "", funktion: "grupp", grupp: { namn: "Källan", funktioner: ["chatt", "kalender", "bibliotek"], nedladdning: true, kommentera: false, beskrivning: "Vi övar på tisdagar." } });
+    expect(await utan.tjanst.hamta({ sessionsnyckel: u.sessionsnyckel })).toEqual({ ok: true, namn: "", funktion: "grupp", grupp: { namn: "Källan", funktioner: ["chatt", "kalender", "bibliotek"], nedladdning: false, kommentera: false, beskrivning: "Vi övar på tisdagar." } });
   });
 });
 
@@ -1135,7 +1137,7 @@ describe("bibliotek", () => {
 describe("nedladdning: en signerad adress, rätt fil, tak per dygn, och ingen adress efter återkallelsen", () => {
   it("rätt fil signeras med rätt sökväg, 15 minuter och rätt disposition: en PDF öppnas inline, ett dokument hämtas med ett rensat filnamn", async () => {
     const h = bygg();
-    const g = await gruppGast(h);
+    const g = await gruppGast(h, "anna@foretag.se", { laddaNed: true });
     const pdf = await h.tjanst.fil({ sessionsnyckel: g.sessionsnyckel, postId: "p-pdf" });
     expect(pdf).toMatchObject({ ok: true, namn: "lat.pdf", mime: "application/pdf" });
     expect(h.signera).toHaveBeenLastCalledWith({ sokvag: "grupper/kallan/bibliotek/p-pdf/lat.pdf", sekunder: SIGNERAD_SEKUNDER, disposition: "inline", mime: "application/pdf" });
@@ -1156,7 +1158,8 @@ describe("nedladdning: en signerad adress, rätt fil, tak per dygn, och ingen ad
   it("⛔ med farLaddaNed som svarar false ges ingen nedladdningslänk (nedladdning-av, ingen räknare), men spela och visa går; hamta bär nedladdning: false (0.190.0, CP 2026-11-05)", async () => {
     const farLaddaNed = vi.fn(async () => false);
     const h = bygg({ farLaddaNed });
-    const g = await gruppGast(h);
+    // (0.203.0) Gästen har nedladdning påslagen: gruppens false vinner ändå.
+    const g = await gruppGast(h, "anna@foretag.se", { laddaNed: true });
     expect((await h.tjanst.hamta({ sessionsnyckel: g.sessionsnyckel })).grupp).toMatchObject({ nedladdning: false });
     expect(farLaddaNed).toHaveBeenCalledWith({ groupId: "kallan" });
     const forst = h.signera.mock.calls.length;
@@ -1183,7 +1186,7 @@ describe("nedladdning: en signerad adress, rätt fil, tak per dygn, och ingen ad
   it("utan farLaddaNed, och med true, är nedladdningen som förut, och ett värde som inte är en funktion kastar", async () => {
     for (const farLaddaNed of [undefined, () => true]) {
       const h = bygg(farLaddaNed ? { farLaddaNed } : {});
-      const g = await gruppGast(h);
+      const g = await gruppGast(h, "anna@foretag.se", { laddaNed: true });
       expect((await h.tjanst.hamta({ sessionsnyckel: g.sessionsnyckel })).grupp.nedladdning).toBe(true);
       expect((await h.tjanst.fil({ sessionsnyckel: g.sessionsnyckel, postId: "p-ljud", bifoga: true })).ok).toBe(true);
       expect(h.signera.mock.calls.at(-1)[0].disposition).toMatch(/^attachment/);
@@ -1887,5 +1890,143 @@ describe("översikten (0.198.0, cllp/ops-framework#536): det som hänt sedan sis
     await expect(h.tjanst.oversikt({ sessionsnyckel: g.sessionsnyckel, sedan: { chatt: "i går" } })).rejects.toThrow(/sedan.chatt/);
     await expect(h.tjanst.oversikt({ sessionsnyckel: g.sessionsnyckel, sedan: [1] })).rejects.toThrow(/sedan/);
     await expect(h.tjanst.oversikt({ sessionsnyckel: g.sessionsnyckel, idag: "1 nov" })).rejects.toThrow(/idag/);
+  });
+});
+
+describe("nedladdning per gäst: av som förval, ägare och admin slår på och av (0.203.0, lifehub.app#691)", () => {
+  const inbjudan = (h, id) => h.grund.read("gastinbjudningar", id);
+  /** Gör raden till en gruppinbjudan från före 0.203.0: samma rad utan fältet `laddaNed`. */
+  async function gammalRad(h, id) {
+    const { laddaNed: _bort, ...utan } = await inbjudan(h, id);
+    await h.grund.remove("gastinbjudningar", id);
+    await h.grund.create("gastinbjudningar", utan);
+    expect("laddaNed" in (await inbjudan(h, id))).toBe(false);
+  }
+  const laddaNedVia = (h, g) => h.tjanst.fil({ sessionsnyckel: g.sessionsnyckel, postId: "p-doc" });
+
+  it("en ny gruppinbjudan bär laddaNed: false, och med laddaNed: true bär den true", async () => {
+    const h = bygg();
+    const a = await gruppGast(h, "anna@foretag.se");
+    const b = await gruppGast(h, "bo@foretag.se", { laddaNed: true });
+    expect((await inbjudan(h, a.id)).laddaNed).toBe(false);
+    expect((await inbjudan(h, b.id)).laddaNed).toBe(true);
+    expect((await h.tjanst.hamta({ sessionsnyckel: a.sessionsnyckel })).grupp.nedladdning).toBe(false);
+    expect((await h.tjanst.hamta({ sessionsnyckel: b.sessionsnyckel })).grupp.nedladdning).toBe(true);
+  });
+
+  it("Bjud in igen utan laddaNed lämnar det sparade värdet orört, och med ett värde ändras det", async () => {
+    const h = bygg();
+    const a = await gruppGast(h, "anna@foretag.se", { laddaNed: true });
+    await h.tjanst.bjud({ uid: AGARE, slag: "grupp", groupId: GRUPP, epost: "anna@foretag.se" });
+    expect((await inbjudan(h, a.id)).laddaNed).toBe(true);
+    await h.tjanst.bjud({ uid: AGARE, slag: "grupp", groupId: GRUPP, epost: "anna@foretag.se", laddaNed: false });
+    expect((await inbjudan(h, a.id)).laddaNed).toBe(false);
+    await h.tjanst.bjud({ uid: ADMIN, slag: "grupp", groupId: GRUPP, epost: "anna@foretag.se", laddaNed: true });
+    expect((await inbjudan(h, a.id)).laddaNed).toBe(true);
+    // En återkallad rad som väcks behåller också sitt värde när inget anges.
+    await h.tjanst.aterkalla({ uid: AGARE, id: a.id });
+    await h.tjanst.bjud({ uid: AGARE, slag: "grupp", groupId: GRUPP, epost: "anna@foretag.se" });
+    expect(await inbjudan(h, a.id)).toMatchObject({ aterkallad: null, laddaNed: true });
+  });
+
+  it("laddaNed som inte är sant eller falskt, och laddaNed på en sak, nekas med ogiltigt-omfang innan något skrivs", async () => {
+    const h = bygg();
+    for (const varde of ["true", 1, null, {}]) {
+      await expect(h.tjanst.bjud({ uid: AGARE, slag: "grupp", groupId: GRUPP, epost: "anna@foretag.se", laddaNed: varde }), String(varde)).rejects.toMatchObject({ kod: "ogiltigt-omfang" });
+    }
+    for (const varde of [true, false]) {
+      await expect(h.tjanst.bjud({ uid: AGARE, handelseId: "h-ejsatt", epost: "sak@foretag.se", laddaNed: varde })).rejects.toMatchObject({ kod: "ogiltigt-omfang" });
+      expect(() => byggGastinbjudan({ groupId: GRUPP, epost: "sak@foretag.se", omfang: { slag: "sak", funktion: "rosta", handelseId: "h-ejsatt" }, skapadAv: { uid: AGARE }, skapad: NU, nyckel: nyGastnyckel(), laddaNed: varde })).toThrow(/bara en inbjudan till hela gruppen/);
+    }
+    expect(await h.grund.list("gastinbjudningar")).toHaveLength(0);
+    // En sak bär aldrig fältet.
+    const sak = await sakGast(h);
+    expect("laddaNed" in (await inbjudan(h, sak.id))).toBe(false);
+  });
+
+  it("sattNedladdning slår på och av, och nästa fil följer genast", async () => {
+    const h = bygg();
+    const g = await gruppGast(h);
+    expect(await laddaNedVia(h, g)).toEqual({ ok: false, orsak: "nedladdning-av" });
+    expect(await h.tjanst.sattNedladdning({ uid: AGARE, id: g.id, pa: true })).toEqual({ id: g.id, laddaNed: true });
+    expect(await laddaNedVia(h, g)).toMatchObject({ ok: true });
+    expect(h.signera.mock.calls.at(-1)[0].disposition).toMatch(/^attachment/);
+    expect(await h.tjanst.sattNedladdning({ uid: ADMIN, id: g.id, pa: false })).toEqual({ id: g.id, laddaNed: false });
+    expect(await laddaNedVia(h, g)).toEqual({ ok: false, orsak: "nedladdning-av" });
+    // Bara fältet ändras.
+    const fore = await inbjudan(h, g.id);
+    await h.tjanst.sattNedladdning({ uid: AGARE, id: g.id, pa: true });
+    expect(await inbjudan(h, g.id)).toEqual({ ...fore, laddaNed: true });
+  });
+
+  it("sattNedladdning: en medlem som inte är ägare eller admin, en som slutat, en utanför och en agent nekas; fel id, en sak och ett pa som inte är sant eller falskt likaså", async () => {
+    const h = bygg();
+    const g = await gruppGast(h);
+    for (const uid of [MEDLEM, SLUTAD, UTANFOR, AGENT, FRAMLING]) {
+      await expect(h.tjanst.sattNedladdning({ uid, id: g.id, pa: true }), uid).rejects.toMatchObject({ kod: "ej-behorig" });
+    }
+    expect((await inbjudan(h, g.id)).laddaNed).toBe(false);
+    await expect(h.tjanst.sattNedladdning({ uid: AGARE, id: "f".repeat(64), pa: true })).rejects.toMatchObject({ kod: "finns-inte" });
+    await expect(h.tjanst.sattNedladdning({ uid: AGARE, id: "inte-ett-id", pa: true })).rejects.toMatchObject({ kod: "finns-inte" });
+    for (const pa of [undefined, "true", 1, null]) await expect(h.tjanst.sattNedladdning({ uid: AGARE, id: g.id, pa }), String(pa)).rejects.toMatchObject({ kod: "ogiltigt-omfang" });
+    const sak = await sakGast(h);
+    await expect(h.tjanst.sattNedladdning({ uid: AGARE, id: sak.id, pa: true })).rejects.toMatchObject({ kod: "ogiltigt-omfang" });
+    expect("laddaNed" in (await inbjudan(h, sak.id))).toBe(false);
+  });
+
+  it("två gäster i samma grupp hålls isär: den med false får nedladdning-av, den med true en adress med attachment", async () => {
+    const h = bygg();
+    const av = await gruppGast(h, "anna@foretag.se", { laddaNed: false });
+    const pa = await gruppGast(h, "bo@foretag.se", { laddaNed: true });
+    expect(await laddaNedVia(h, av)).toEqual({ ok: false, orsak: "nedladdning-av" });
+    expect(await laddaNedVia(h, pa)).toMatchObject({ ok: true });
+    expect(h.signera.mock.calls.at(-1)[0].disposition).toMatch(/^attachment/);
+    // Spela och visa går för båda.
+    expect((await h.tjanst.fil({ sessionsnyckel: av.sessionsnyckel, postId: "p-ljud" })).ok).toBe(true);
+    expect(h.signera.mock.calls.at(-1)[0].disposition).toBe("inline");
+    await h.tjanst.sattNedladdning({ uid: AGARE, id: pa.id, pa: false });
+    expect((await inbjudan(h, av.id)).laddaNed).toBe(false);
+    await h.tjanst.sattNedladdning({ uid: AGARE, id: av.id, pa: true });
+    expect(await laddaNedVia(h, av)).toMatchObject({ ok: true });
+    expect(await laddaNedVia(h, pa)).toEqual({ ok: false, orsak: "nedladdning-av" });
+  });
+
+  it("⛔ gruppens strömbrytare vinner: farLaddaNed false stoppar en gäst med true, i fil och i hamta", async () => {
+    const h = bygg({ farLaddaNed: async () => false });
+    const g = await gruppGast(h, "anna@foretag.se", { laddaNed: true });
+    expect(await laddaNedVia(h, g)).toEqual({ ok: false, orsak: "nedladdning-av" });
+    expect((await h.tjanst.hamta({ sessionsnyckel: g.sessionsnyckel })).grupp.nedladdning).toBe(false);
+  });
+
+  it("en gruppinbjudan från före 0.203.0 (utan fältet) följer gruppen: ja när gruppen är på, nej när den är av, och listan bär laddaNed: null", async () => {
+    for (const [farLaddaNed, vantat] of [[undefined, true], [async () => true, true], [async () => false, false]]) {
+      const h = bygg(farLaddaNed ? { farLaddaNed } : {});
+      const g = await gruppGast(h);
+      await gammalRad(h, g.id);
+      expect((await h.tjanst.hamta({ sessionsnyckel: g.sessionsnyckel })).grupp.nedladdning, String(vantat)).toBe(vantat);
+      const svar = await laddaNedVia(h, g);
+      if (vantat) expect(svar).toMatchObject({ ok: true });
+      else expect(svar).toEqual({ ok: false, orsak: "nedladdning-av" });
+      const { personer } = await h.tjanst.lista({ uid: MEDLEM, groupId: GRUPP });
+      expect(personer[0].inbjudningar[0]).toMatchObject({ id: g.id, laddaNed: null });
+      // Ingenting skrevs på raden av att läsas.
+      expect("laddaNed" in (await inbjudan(h, g.id))).toBe(false);
+    }
+  });
+
+  it("listan bär laddaNed på en gruppinbjudan (true, false), och en sak har exakt sina gamla fält", async () => {
+    const h = bygg();
+    await h.tjanst.bjud({ uid: AGARE, slag: "grupp", groupId: GRUPP, epost: "anna@foretag.se" });
+    await h.tjanst.bjud({ uid: AGARE, slag: "grupp", groupId: GRUPP, epost: "bo@foretag.se", laddaNed: true });
+    await h.tjanst.bjud({ uid: AGARE, handelseId: "h-mote", epost: "anna@foretag.se" });
+    const { personer } = await h.tjanst.lista({ uid: MEDLEM, groupId: GRUPP });
+    const anna = personer.find((p) => p.epost === "anna@foretag.se");
+    const bo = personer.find((p) => p.epost === "bo@foretag.se");
+    const grupp = anna.inbjudningar.find((i) => i.omfang.slag === "grupp");
+    const sak = anna.inbjudningar.find((i) => i.omfang.slag === "sak");
+    expect(grupp.laddaNed).toBe(false);
+    expect(bo.inbjudningar[0].laddaNed).toBe(true);
+    expect(Object.keys(grupp).sort()).toEqual(["aterkallad", "antalSkickade", "forstInloggad", "id", "laddaNed", "omfang", "skapad", "skickad", "status", "titel"].sort());
+    expect(Object.keys(sak).sort()).toEqual(["aterkallad", "antalSkickade", "forstInloggad", "id", "omfang", "skapad", "skickad", "status", "titel"].sort());
   });
 });

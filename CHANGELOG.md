@@ -9,6 +9,49 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.203.0
+
+Nedladdning per gäst, av som förval (cllp/lifehub.app#691, CP-beslut). Förut gällde nedladdningen per grupp (`grupp.farLaddaNed`, 0.190.0): en gäst som släpptes in i en grupp med nedladdning på fick ladda ned allt, och det gick inte att ge en gäst mindre än en annan.
+
+### Tillagt
+- **`laddaNed` på en inbjudan till hela gruppen** (`GASTFALT`). `true` eller `false`, och en ny gäst får `false` om inget annat sägs. En sak (omröstning, händelse) bär aldrig fältet: den har inget bibliotek att ladda ned ur. `byggGastinbjudan({ ..., laddaNed? })` kastar för ett värde på en sak.
+- **`bjud({ uid, slag: "grupp", groupId, epost | telefon, namn?, laddaNed? })`**. Ett värde som inte är sant eller falskt, och ett värde på en sak, nekas med `ogiltigt-omfang` innan något skrivs. Bjud in igen på en befintlig rad skriver värdet bara när ett angavs: utelämnat lämnar det sparade orört, så att ett nytt utskick aldrig i tysthet ger eller tar en gästs nedladdning.
+- **`sattNedladdning({ uid, id, pa })`** svarar `{ id, laddaNed: pa }` och ändrar bara `laddaNed`. Bara en AKTIV ägare eller admin i gruppen (`ej-behorig` annars, också för den som bjöd men nu är vanlig medlem), bara en gruppinbjudan (`ogiltigt-omfang`), och `finns-inte` för ett id som inte finns. Samma krav för av som för på.
+- **`GASTGRUPPLISTFALT`** (`["laddaNed"]`): det en gruppinbjudan har i medlemmens lista (`lista({ groupId })`) utöver `GASTPERSONINBJUDANFALT`, som `GASTDELTALISTFALT` för en delta-rad. En omröstnings- och en delta-inbjudan har exakt sina gamla fält. En gruppinbjudan från före 0.203.0 går ut med `laddaNed: null` (tomt är ett svar, regel 5): gästen följer gruppen.
+- **`OpsGastLista`**: kryssrutan **Får ladda ned filer** i gruppens inbjudan, av som förval och av igen efter en lyckad inbjudan, och `onBjudGrupp` får `laddaNed` (med e-post och med telefon). Bjud in igen på en återkallad rad skickar inget `laddaNed`. Ny `onNedladdning({ id, pa })`: ett reglage med samma namn på varje gruppinbjudan, påslaget när `laddaNed` är `true`. `laddaNed: null` står avslaget med raden "Följer gruppens inställning", och en återkallad inbjudan går inte att ändra. Bara i gruppläget, och ett värde som inte är en funktion kastar.
+
+### Ändrat
+- **Det som gäller är gruppens strömbrytare OCH gästens val** (`nedladdningTillaten`, i `fil` och i `hamta`). En grupp vars `farLaddaNed` svarar `false` stoppar alla gäster, också den med `true`, så att ingen ny gäst kan få nedladdning där värden stängt av den. En rad utan fältet räknas som ja och följer alltså gruppen: ingen befintlig gästs åtkomst ändras, och ingenting skrivs i produktion. Sessionens inbjudan (`session`) bär `laddaNed` för en gruppsession, `null` för en gammal rad.
+- **En ny gruppgäst laddar inte ned förrän någon slagit på det**, och `hamta` säger då `grupp.nedladdning: false`. Texterna som sade att en gäst kan ladda ned är ändrade (gruppens ingress, telefoningressen, bekräftelsen och därmed `OpsMedlemmar`): gästen läser och spelar i biblioteket och laddar ned bara om det slås på. Bekräftelsen säger vad formulärets val betyder.
+
+### Begränsning
+- **Ingen kopieringsspärr.** Spela och visa (`inline`) går som förut, och det gästen kan lyssna på eller se skickas till enheten. En adress som redan utfärdats gäller i upp till `SIGNERAD_SEKUNDER` (15 minuter) efter att nedladdningen slagits av: nästa `fil` nekas, inte den förra.
+
+### För appen
+- Exponera `sattNedladdning` i callablen för medlemmar, ge `onNedladdning` till `OpsGastLista` i gruppläget, och skicka `laddaNed` från `onBjudGrupp` vidare till `bjud`. Ingen migrering: befintliga gäster följer gruppen tills någon slår om dem.
+
+### Prov
+Nya: `gast-grupp-tjanst` (nio prov: förval, Bjud in igen, felvärden och sak, `sattNedladdning` båda riktningarna och behörigheten, två gäster isär, gruppen vinner, en rad från före 0.203.0, listans fält) och `gast-lista-grupp` (fem prov: kryssrutan med e-post och telefon, reglaget, `null` och återkallad, validering). Ändrat, med skälet vid provet: `gast-grupp-tjanst` (en ny gäst har `nedladdning: false`; proven för gruppens strömbrytare bjuder in med `laddaNed: true`), `gast-telefon` (en ny gruppinbjudan bär `laddaNed: false`), `gast-lista-grupp`, `gast-telefon-vy` och `medlemmar-gaster` (`onBjudGrupp` får `laddaNed`, texterna om nedladdning). Alla nya prov är sedda röda utan ändringen.
+
+### Chatten: trådens senaste svar, pilens hovring och det egna svaret i tråden
+
+CP 2026-11-08: "Går på din rekommendation. Kör!" Trådarna stannar i sin egen panel: ingen utfällning i chatten och ingen ny gest.
+
+- **Märket under en rot visar det senaste svaret**: `1 svar · Collan: "Starkaste öppningen…" · 16.07`. Avsändaren som i bubblorna ("Du" för det egna, märket för en nyckel), 60 tecken av texten (`synligText`) och tiden som i inkorgen (klockslaget i dag, annars datum och tid). En rad som kortas, aldrig två, och inget nytt element per meddelande (`check:skalyta` 47 (6), taket 26). Knappens namn är antalet som förut ("3 svar", med trådens namn när någon döpt den); det senaste svaret står i beskrivningen för skärmläsaren.
+- **`senasteSvar(sid, tid)` i samtalskällan**: det nyaste svaret, eller `null` när tråden inget har. En fråga på `tid` fallande med `limit: 1`, läst när märket räknar antalet (nya rötter, okänt antal, fönstret får fokus) och aldrig annars: en läsning till per räknad tråd. Mätt i `tradar.test.jsx` (BÖR 4): att öppna chatten med 20 trådar läste 70 och läser 90, fokus 30 och 50. ⛔ Inget lagras på tråden: ett fält "senaste" hade varit en andra sanning om meddelandena, samma skäl som att antalet inte lagras. Ett svar i en tråd ändras och raderas aldrig (regeln), så det nyaste är det som står sist i trådvyn. FRIVILLIG i `Tradfunktioner`: en egen källa utan den får märket som förut.
+- **Pilen Svara med citat fyller ingen cirkel vid hovring.** CP: "Hover på pilen i svar i chatten är inte samma som svar." Pilen fyllde en cirkel på 44 px mellan bubblorna, medan märket bara byter färg sedan 0.200.1. Nu samma färgbyte, rundning, övergång och fokusram; träffytan är kvar. **Gästens "N svar"** var en `OpsButton` som fyllde en ruta, och är nu samma knapp som medlemmens märke (`tradknappKlass`), så att pilen, "Svara i tråd" och "N svar" hovrar lika i båda chattarna.
+- **Det egna svaret i tråden står direkt.** CP: "Det var också en fördröjning på svar i tråden. Så jag fattade först inte var mitt trådsvar blev av." Orsaken, läst ur koden och inte mätt i produktion: `skickaITrad` läste tråden före varje svar, och för det första svaret skrev den tråden också, innan meddelandet skrevs. Gruppchatten skriver direkt, och källans egen lyssnare (Firestores lokala skrivning) visar meddelandet innan servern svarat; den har alltså inget eget eko att låna, den har ingen väntan. Nu läser källan inte en tråd den sett (`kandaTradar`; trådar raderas aldrig, så minnet blir inte osant), och det som återstår (det första svaret i en ny tråd, en källa utan lyssnare) täcks av svaret självt: `skickaITrad(sid, tid, d, { onLokal })` ger svaret med sitt id innan källan rörs, trådvyn visar det med "Skickas…" och utan åtgärder tills det är skrivet, och när källans rad kommer är det samma id, så att det står en gång. Föll skrivningen tas det bort och felet står kvar med texten i fältet. Id:t väljs av källan (`m_<tid>_<följd>_<slump>`, samma form som ett meddelande med bilaga redan har), och ett textsvar i en tråd skrivs därför med eget id (`setDoc`) i stället för ett genererat.
+- **Märket i chatten ändras direkt efter ett eget svar**, ett mer än det kända antalet och med det egna svaret som det senaste, och räknas ändå om från källan när chatten visas igen. Förut stod "… svar" tills det räknats.
+- Nya ord i `Meddelandetexter`: `senasteSvar` ("Senaste svaret från") och `skickas` ("Skickas…"), på svenska och engelska. `OpsTrad.onSvarat` får svaret som skrevs.
+
+**Begränsning.** Gästens chatt får inget senaste svar på sitt märke: dess antal kommer från gästtjänsten (`node/gast.js`), som inte bär svaret. Ett svar från någon annan når märket när fönstret får fokus, som förut.
+
+**För appen.** Ompinning räcker. Ingen ny samling, ingen ny regel och inget nytt index (frågan är samma ordning som trådvyns). En egen samtalskälla som inte byggs med `createSamtalskalla` kan få `senasteSvar` och `onLokal`, men behöver inte.
+
+**Prov.** Nya: `trad-senaste-svar` (14 prov: `senasteSvar` i minnes- och Firestore-adaptern, inget läst före ett svar i en känd tråd, `onLokal` med det lagrade id:t, märkets rad och beskrivning, ett långt svar och "Du", utan `senasteSvar`, ett tomt senaste svar, Skickas… och en gång, med lyssnare i båda ordningarna, en nekad skrivning, märket direkt efter tillbaka, pilens och gästens klasser) och regelprovet `trad-kalla` (svaren med eget id och `senasteSvar` genom Firestore-källan mot emulatorn). Röda mot 0.203.0 före skivan: elva av de fjorton och regelprovet. Tre är vakter för att ingenting ska ändras (utan `senasteSvar`, ett tomt senaste svar, en nekad skrivning) och sågs röda mot en inplanterad mutation: ett utdrag ur `tradmeddelanden` när `senasteSvar` saknas, en rad utan text, och ett eko som står kvar efter ett nej. Ändrat, med skälet vid provet: `tradar.test.jsx` (BÖR 4: taken 70 och 30 blir 90 och 50, exakt en läsning till per räknad tråd) och `check:skalyta` 29 (e) (märket bär det senaste svaret).
+
+---
+
 ## 0.202.0
 
 Groks QA av gästerna och delningen 2026-11-07 (cllp/lifehub.app#687, överlämningen "bygge natten mot 8 nov").
