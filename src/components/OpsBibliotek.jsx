@@ -2429,6 +2429,8 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, onLaddaUpp, filUrl,
     };
   }, []);
   const [valdFil, setValdFil] = useState(/** @type {File | null} */ (null));
+  // ⛔ En bild som laddas upp i anteckningen (#696): Spara och Avbryt väntar tills den är inskriven, annars tappas den tyst (`AnteckningsText`).
+  const [bildLaddar, setBildLaddar] = useState(false);
   const filFalt = useRef(/** @type {HTMLInputElement | null} */ (null));
   const [lage, setLage] = useState(/** @type {"las" | "redigera"} */ (skapar ? "redigera" : startLage));
   const nyckel = `${skapar ?? ""}:${post?.id ?? ""}`;
@@ -2645,7 +2647,7 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, onLaddaUpp, filUrl,
       </OpsField>
       {typ === "anteckning" ? (
         // ⛔ BILDEN I ANTECKNINGEN (#696): textrutan, "Lägg till bild" och inklistringen av en bild. Utan `onLaggBildIAnteckning` är det samma ruta som förut.
-        <AnteckningsText text={text} setText={setText} post={post && !skapar ? post : null} onLaggBild={onLaggBildIAnteckning} sprak={sprak} />
+        <AnteckningsText text={text} setText={setText} post={post && !skapar ? post : null} onLaggBild={onLaggBildIAnteckning} sprak={sprak} onPagar={setBildLaddar} />
       ) : typ === "fil" ? (
         <OpsField label="Fil">
           {/* ⛔ Det råa filfältet är dolt och knappen är ramverkets (0.95.0). Förut stod webbläsarens egen "Välj fil,
@@ -2722,6 +2724,7 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, onLaddaUpp, filUrl,
           if (skapar) onStang();
           else aterstall();
         }}
+        vantar={bildLaddar}
       />
       {lage === "las" && post && ljud ? (
         <UtskriftKontroll post={post} jag={jag} onSkrivUt={onSkrivUt} onSkrivUtIgen={onSkrivUtIgen} onTaBortUtskrift={onTaBortUtskrift} onAnteckningAvUtskrift={onAnteckningAvUtskrift} />

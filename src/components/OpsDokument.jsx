@@ -25,6 +25,11 @@ import { useOpsSprak } from "./OpsSprak.jsx";
  * (`catch (e) { return; }` och `.catch(() => {})`): knappen gjorde ingenting, ingen text visades, och den som skrivit en
  * anteckning trodde att den var sparad eller trodde att knappen var trasig. Nu visas felet, läget står kvar, och en
  * `sparar`-flagga spärrar ett andra tryck medan det första pågår: två tryck på en långsam förbindelse skapade två poster.
+ *
+ * ⛔ SPARA OCH AVBRYT VÄNTAR PÅ FÄLTEN (0.206.0, cllp/lifehub.app#696). En bild som laddas upp i en anteckning skrivs in i texten först när
+ * appen svarat med namnet. Spara under tiden sparade texten utan bilden och stängde rutan, och Avbryt kastade svaret: i båda fallen låg
+ * filen kvar i postens mapp utan att något pekade på den, och ingenting sades (regel 5). `vantar` spärrar därför båda knapparna så länge
+ * något i fälten pågår. Anroparen säger varför, i fälten där det pågår ("Laddar upp bilden.").
  */
 
 export const ORD_OPSDOKUMENT = {
@@ -50,8 +55,10 @@ const RUBRIK_KLASS = "m-0 min-w-0 text-rubrik text-ink wrap-anywhere";
  * @param {string} [props.fel]
  * @param {import("react").ReactNode} [props.extra] Till höger i verktygsraden, till exempel menyn. Inte på samma rad som rubriken.
  * @param {boolean} [props.visaRubrik] Förval sant. Falskt när anroparen redan ritat rubriken (Bibliotekets detaljhuvud).
+ * @param {boolean} [props.vantar] (0.206.0) Något i fälten pågår ännu, till exempel en bild som laddas upp i en anteckning. Spara och Avbryt är
+ *   spärrade så länge, eftersom båda hade tappat det som pågår utan att säga det. Anroparen visar varför. Förval falskt.
  */
-export function OpsDokument({ ny = false, kanRedigera = false, lage, onLage, start = "las", rubrik, lasning, redigering, onSpara, onAvbryt, fel = "", extra = null, visaRubrik = true }) {
+export function OpsDokument({ ny = false, kanRedigera = false, lage, onLage, start = "las", rubrik, lasning, redigering, onSpara, onAvbryt, fel = "", extra = null, visaRubrik = true, vantar = false }) {
   const sprak = useOpsSprak();
   const t = (/** @type {keyof typeof ORD_OPSDOKUMENT} */ nyckel) => ordet(ORD_OPSDOKUMENT, nyckel, sprak);
   const styrd = lage === "las" || lage === "redigera";
@@ -87,6 +94,7 @@ export function OpsDokument({ ny = false, kanRedigera = false, lage, onLage, sta
   }
 
   function avbryt() {
+    if (vantar) return;
     // ⛔ Avbryt avslutar ett pågående sparande som sak (0.93.0): felet nollas, flaggan släpps och ett svar som kommer efteråt
     // ignoreras. Förut visades ett avslag som kom efter Avbryt i nästa redigering.
     forsok.current += 1;
@@ -101,7 +109,7 @@ export function OpsDokument({ ny = false, kanRedigera = false, lage, onLage, sta
   const felText = (e) => (e instanceof Error && e.message ? e.message : String(e));
 
   function spara() {
-    if (pagar.current) return;
+    if (pagar.current || vantar) return;
     setSparFel("");
     const mitt = ++forsok.current;
     let svar;
@@ -153,8 +161,8 @@ export function OpsDokument({ ny = false, kanRedigera = false, lage, onLage, sta
         {redigering}
         {fel || sparFel ? <p role="alert" className="text-etikett text-danger">{fel || sparFel}</p> : null}
         <div className="flex flex-wrap gap-2">
-          <OpsButton variant="secondary" onClick={avbryt}>{t("avbryt")}</OpsButton>
-          <OpsButton variant="primary" onClick={spara} busy={sparar}>{t("spara")}</OpsButton>
+          <OpsButton variant="secondary" onClick={avbryt} disabled={vantar}>{t("avbryt")}</OpsButton>
+          <OpsButton variant="primary" onClick={spara} busy={sparar} disabled={vantar}>{t("spara")}</OpsButton>
         </div>
       </article>
     );

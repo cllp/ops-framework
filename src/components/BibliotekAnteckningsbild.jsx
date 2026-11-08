@@ -35,6 +35,11 @@ import { ordet } from "../lib/ord.js";
  * posten fick. Att spara åt personen och sedan ladda upp hade gått genom en väg som inte säger var posten hamnade. Knappen syns därför först
  * när posten är sparad, och en bild som klistras in i en ny anteckning stannar här med raden "Spara anteckningen först" i stället för att bli
  * en egen post.
+ *
+ * ⛔ SPARA OCH AVBRYT VÄNTAR PÅ UPPLADDNINGEN. Bilden skrivs in först när svaret kommit, och Spara eller Avbryt under tiden stängde rutan:
+ * svaret kastades och filen låg kvar i postens mapp utan att texten pekade på den, utan ett ord om det (regel 5). `onPagar` säger därför
+ * till redigeringen när en uppladdning pågår och när den är klar, och `OpsDokument` spärrar båda knapparna så länge (`vantar`). Raden
+ * "Laddar upp bilden." står under rutan under tiden och säger varför.
  */
 
 /**
@@ -104,8 +109,9 @@ export function medBildInsatt(text, pos, namn) {
  * @param {{ id: string, groupId?: string } | null} props.post Posten som redigeras. `null` för en ny anteckning.
  * @param {((inmatning: { postId: string, plats: string, fil: File }) => Promise<{ namn: string }>) | undefined} props.onLaggBild
  * @param {string} props.sprak
+ * @param {(pagar: boolean) => void} [props.onPagar] Sant när en uppladdning börjar, falskt när den sista är klar (och när rutan tas bort). Redigeringen spärrar Spara och Avbryt med det.
  */
-export function AnteckningsText({ text, setText, post, onLaggBild, sprak }) {
+export function AnteckningsText({ text, setText, post, onLaggBild, sprak, onPagar }) {
   const o = (/** @type {keyof typeof ORD_ANTECKNINGSBILD} */ k) => ordet(ORD_ANTECKNINGSBILD, k, sprak);
   const ruta = useRef(/** @type {HTMLDivElement | null} */ (null));
   const filFalt = useRef(/** @type {HTMLInputElement | null} */ (null));
@@ -122,6 +128,14 @@ export function AnteckningsText({ text, setText, post, onLaggBild, sprak }) {
       livs.current = false;
     };
   }, []);
+  // ⛔ Redigeringen får veta när en uppladdning pågår, så att Spara och Avbryt väntar (se filens huvud). Falskt också när rutan tas bort, så att en spärr aldrig blir kvar.
+  const laddar = pagar > 0;
+  const onPagarRef = useRef(onPagar);
+  onPagarRef.current = onPagar;
+  useEffect(() => {
+    onPagarRef.current?.(laddar);
+  }, [laddar]);
+  useEffect(() => () => onPagarRef.current?.(false), []);
   const kopplad = typeof onLaggBild === "function";
   const kan = kopplad && Boolean(post?.id);
 

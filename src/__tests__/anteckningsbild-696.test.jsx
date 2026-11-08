@@ -203,6 +203,36 @@ describe("OpsBibliotek: Lägg till bild i en sparad anteckning", () => {
     expect(screen.queryByText("Laddar upp bilden.")).toBeNull();
   });
 
+  it("⛔ Spara och Avbryt väntar medan bilden laddas upp, så att den aldrig tappas tyst", async () => {
+    /** @type {(v: { namn: string }) => void} */
+    let svara = () => {};
+    const onLagg = vi.fn(() => new Promise((los) => { svara = los; }));
+    const onSpara = vi.fn(() => true);
+    render(<Harness onLaggBildIAnteckning={onLagg} onSpara={onSpara} />);
+    redigera();
+    textruta().setSelectionRange(12, 12);
+    fireEvent.change(screen.getByLabelText("Lägg till bild", { selector: "input" }), { target: { files: [bild()] } });
+    await waitFor(() => expect(onLagg).toHaveBeenCalledTimes(1));
+    const spara = screen.getByRole("button", { name: "Spara" });
+    const avbryt = screen.getByRole("button", { name: "Avbryt" });
+    expect(screen.getByText("Laddar upp bilden.")).toBeInTheDocument();
+    expect(spara).toBeDisabled();
+    expect(avbryt).toBeDisabled();
+    fireEvent.click(spara);
+    fireEvent.click(avbryt);
+    // Ingenting sparades och rutan står kvar: svaret har någonstans att landa.
+    expect(onSpara).not.toHaveBeenCalled();
+    expect(textruta()).toHaveValue("Taxi i juli.");
+    await act(async () => svara({ namn: "kvitto.jpg" }));
+    await waitFor(() => expect(textruta()).toHaveValue("Taxi i juli.\n![](kvitto.jpg)"));
+    expect(screen.queryByText("Laddar upp bilden.")).toBeNull();
+    expect(screen.getByRole("button", { name: "Spara" })).not.toBeDisabled();
+    expect(screen.getByRole("button", { name: "Avbryt" })).not.toBeDisabled();
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Spara" })); });
+    expect(onSpara).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(/** @type {any} */ (onSpara).mock.calls[0])).toContain("![](kvitto.jpg)");
+  });
+
   it("ett fel och ett osäkert namn syns, och texten står kvar", async () => {
     const onLagg = vi.fn().mockRejectedValueOnce(new Error("Storage nekade.")).mockResolvedValueOnce({ namn: "../ut.jpg" });
     render(<Harness onLaggBildIAnteckning={onLagg} />);
