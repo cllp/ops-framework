@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { useState } from "react";
+import { Profiler, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { OpsBibliotek } from "../components/OpsBibliotek.jsx";
 import { OpsMarkdown } from "../components/OpsMarkdown.jsx";
@@ -114,6 +114,30 @@ describe("OpsMarkdown: bilden frågar appen efter sin adress", () => {
     // Medan adressen hämtas står en rad, inte ett tomrum.
     const vantar = render(<OpsMarkdown text={"![](b.jpg)"} bildAdress={() => new Promise(() => {})} />);
     expect(vantar.getByText("Hämtar bilden.")).toBeInTheDocument();
+  });
+
+  it("⛔ en annan bild på samma plats ritas aldrig med förra bildens adress, inte ens en gång", async () => {
+    /** @type {(url: string) => void} */
+    let svaraB = () => {};
+    const bildAdress = (/** @type {string} */ namn) => (namn === "a.jpg" ? "https://lagring.example/a.jpg" : new Promise((los) => { svaraB = los; }));
+    /** @type {string[][]} */
+    const ritat = [];
+    // Profilern körs efter varje commit, före effekterna: det som står i DOM:en då är det som hann ritas.
+    const vy = (/** @type {string} */ text) => (
+      <Profiler id="bild" onRender={() => ritat.push(Array.from(document.querySelectorAll("img")).map((el) => el.getAttribute("src") ?? ""))}>
+        <OpsMarkdown text={text} dokument bildAdress={bildAdress} />
+      </Profiler>
+    );
+    const { rerender, container } = render(vy("![](a.jpg)"));
+    await waitFor(() => expect(container.querySelector("img")).toHaveAttribute("src", "https://lagring.example/a.jpg"));
+    ritat.length = 0;
+    rerender(vy("![](b.jpg)"));
+    expect(ritat.length).toBeGreaterThan(0);
+    expect(ritat.flat()).not.toContain("https://lagring.example/a.jpg");
+    expect(container.querySelector("img")).toBeNull();
+    await act(async () => svaraB("https://lagring.example/b.jpg"));
+    expect(container.querySelector("img")).toHaveAttribute("src", "https://lagring.example/b.jpg");
+    expect(ritat.flat()).not.toContain("https://lagring.example/a.jpg");
   });
 
   it("på engelska", () => {

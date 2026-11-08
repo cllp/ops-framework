@@ -63,18 +63,21 @@ const ORD_MARKDOWN = {
  * @param {{ alt: string, namn: string, bildAdress?: (namn: string) => string | Promise<string>, sprak: string }} props
  */
 function MarkdownBild({ alt, namn, bildAdress, sprak }) {
-  const [lage, setLage] = useState(/** @type {{ lage: "hamtar" | "klar" | "fel", url: string }} */ ({ lage: "hamtar", url: "" }));
+  // ⛔ LÄGET BÄR NAMNET DET HÖR TILL. Effekten nollställer läget först efter att den nya texten ritats, så en annan bild på samma plats
+  // hade annars ritats en gång med förra bildens adress. Ett läge för ett annat namn läses som "hämtar", redan i samma rendering.
+  const [sparat, setLage] = useState(/** @type {{ lage: "hamtar" | "klar" | "fel", url: string, namn: string }} */ ({ lage: "hamtar", url: "", namn }));
+  const lage = sparat.namn === namn ? sparat : { lage: "hamtar", url: "", namn };
   useEffect(() => {
     if (typeof bildAdress !== "function") return undefined;
     let levande = true;
-    setLage({ lage: "hamtar", url: "" });
+    setLage({ lage: "hamtar", url: "", namn });
     /** @param {unknown} url */
     const klar = (url) => {
       if (!levande) return;
-      setLage(typeof url === "string" && url !== "" ? { lage: "klar", url } : { lage: "fel", url: "" });
+      setLage(typeof url === "string" && url !== "" ? { lage: "klar", url, namn } : { lage: "fel", url: "", namn });
     };
     const fel = () => {
-      if (levande) setLage({ lage: "fel", url: "" });
+      if (levande) setLage({ lage: "fel", url: "", namn });
     };
     try {
       Promise.resolve(bildAdress(namn)).then(klar, fel);
@@ -103,7 +106,7 @@ function MarkdownBild({ alt, namn, bildAdress, sprak }) {
       alt={alt}
       loading="lazy"
       decoding="async"
-      onError={() => setLage({ lage: "fel", url: "" })}
+      onError={() => setLage({ lage: "fel", url: "", namn })}
       className="block h-auto max-w-full rounded-md"
     />
   );
@@ -120,7 +123,8 @@ function inline(pieces, blockKey, arv = false, bild = { sprak: "sv" }) {
   return pieces.map((b, i) => {
     const k = `${blockKey}-${i}`;
     if (b.kind === "break") return <br key={k} />;
-    if (b.kind === "image" && b.namn) return <MarkdownBild key={k} alt={b.value} namn={b.namn} bildAdress={bild.bildAdress} sprak={bild.sprak} />;
+    // ⛔ Namnet ingår i nyckeln: en annan bild på samma plats är en ny bild, med eget läge, och ärver aldrig förra bildens adress.
+    if (b.kind === "image" && b.namn) return <MarkdownBild key={`${k}-${b.namn}`} alt={b.value} namn={b.namn} bildAdress={bild.bildAdress} sprak={bild.sprak} />;
     if (b.kind === "italic") return <em key={k}>{b.value}</em>;
     if (b.kind === "link") {
       return (
