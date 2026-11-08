@@ -7930,7 +7930,8 @@ async function gastGrupp() {
         await page.waitForSelector("[data-gastlista]");
         // ── (0.204.0, CP 2026-11-08) Hopfällbara gästkort: från början är varje kort sammanfällt. Raden bär namnet, statusmärket och chevronen och inget annat: en knapp, med namnet
         // "Visa detaljer för <namn>", minst 44 px, `aria-expanded="false"`, och en tom panel som `aria-controls` pekar på. Antalet element per sammanfälld rad har ett tak som bara får sjunka.
-        const SAMMANFALLD_TAK = 12;
+        // Taket är det mätta antalet 2026-11-08 (9 under kortet: raden, namnet, märket, knappen, dess två spann, ikonens svg och linje, och den tomma panelen). Det får bara sjunka.
+        const SAMMANFALLD_TAK = 9;
         const sf = await page.evaluate(() =>
           [...document.querySelectorAll("[data-gastlista] [data-gast-person]")].map((r) => {
             const knappar = [...r.querySelectorAll("button")];
@@ -7958,7 +7959,8 @@ async function gastGrupp() {
           krav(x.element <= SAMMANFALLD_TAK, `${namn} lista sammanfälld: kortet ${x.id} har ${x.element} element, taket är ${SAMMANFALLD_TAK}.`);
         }
         // Fäll ut alla, så att resten av avsnittet mäter det utfällda kortet som förut.
-        for (const knapp of await page.locator('[data-gastlista] [data-gast-vaxla][aria-expanded="false"]').all()) await knapp.click();
+        // ⛔ Utan filter på aria-expanded: `.all()` ger lokaliserare per index, och ett filter som ändras av klicket gör att index 2 inte längre finns (mätt: tidsgränsen slog i).
+        for (const knapp of await page.locator("[data-gastlista] [data-gast-vaxla]").all()) await knapp.click();
         krav((await page.locator('[data-gastlista] [data-gast-vaxla][aria-expanded="true"]').count()) === 3, `${namn} lista: alla tre kort fälldes inte ut, och flera ska få vara utfällda samtidigt.`);
         const m = await page.evaluate(() => {
           const rot = /** @type {HTMLElement} */ (document.querySelector("[data-gastlista]"));
