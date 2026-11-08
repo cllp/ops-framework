@@ -9,6 +9,30 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.206.0
+
+Gör till medlem på gästkortet (CP 2026-11-08: "hur gör jag en gäst till en medlem?"), Dela som säger varför den nekades, statusen en gång på kortet, och ett prov som slutat mäta klockan (cllp/ops-framework#542).
+
+### Tillagt
+
+- **`OpsGastLista` får `onGorTillMedlem` (valfri, bara i gruppläget).** `onGorTillMedlem({ gastId, epost }) => Promise` ger knappen **Gör till medlem** på det utfällda gästkortet, och bara för en gäst med e-postadress: en gäst med bara telefonnummer har ingen adress att bjuda in.
+  - Trycket öppnar bekräftelsen (`GastBekraftelse`, nytt `slag: "medlem"`): "{namn} får en inbjudan som medlem till {epost}. När inbjudan tas emot slutar gästlänkarna gälla, och gästen blir medlem med medlemmens rättigheter." Knapparna är Skicka medlemsinbjudan och Avbryt. Dialogen står kvar med knappen upptagen tills löftet är klart.
+  - Ett fel står i dialogen (`GastBekraftelse` får den valfria `fel`), som står kvar. Ett lyckat anrop stänger dialogen och kortet säger "Medlemsinbjudan skickad till {epost}."
+  - Vyn avgör inget om gästlänkarna. Det gör appens tjänst när inbjudan tas emot.
+  - `onGorTillMedlem` på en omröstningslista (`gaster`) kastar, som de andra propparna som hör till gruppläget.
+  - Prov: `gast-gor-till-medlem.test.jsx` (8). Mot 0.205.0 är 7 röda; det gröna är att knappen saknas utan prop. Med ändringen är alla 8 gröna.
+
+### Ändrat
+
+- **Dela på ett gästkort säger telefonens orsak när delningen nekas** (CP 2026-11-08 fick "Det gick inte att dela. Kopiera länken i stället." i telefonen, och felet svaldes). Raden är nu "Det gick inte att dela ({orsak}). Länken är markerad, kopiera den.", där orsaken är felets `name` och `message` efter ett kolon när det är högst 60 tecken. Ett fel utan bådadera säger "telefonen angav ingen orsak". Länken i fältet markeras direkt. `kopieraLankDelaFel` har bytt text och har platsen `{orsak}`, och `kopieraLankDelaIngenOrsak` är nytt: en app som gett en egen text för `kopieraLankDelaFel` behöver lägga till `{orsak}`.
+  - Säger `navigator.canShare` nej till rubrik, text och länk delas bara länken. Anropet sker fortfarande i själva klicket, utan `await` före `share`.
+  - Prov: fem nya och ett ändrat i `gast-lista-grupp.test.jsx` (Dela). Mot 0.205.0 är 5 av 8 röda. Provet för att `share` anropas i klicket är grönt även före, och rött när ett `await` läggs före anropet.
+- **Statusen står en gång på ett utfällt gästkort** (CP 2026-11-08: "Har loggat in står två gånger."). Inbjudningsradens märke står bara när det skiljer sig från personens i kortets huvud, till exempel en återkallad inbjudan hos en gäst som har loggat in. Prov: två i `gast-lista-grupp.test.jsx`, röda mot 0.205.0 och gröna nu.
+
+### Prov
+
+- **`talk-tomt-ljud.test.jsx` läser provets klocka, inte datorns** (#542). Provet krävde `anrop:0` med den riktiga klockan och blev rött under last i hela sviten, när en millisekund hann gå. Inspelaren får nu en klocka som bara går när provet flyttar den, och loggen jämförs hel: `anrop:0.gum:0.omhamtad:0.gum2:0.rec:0.stoppbegard:750.stop:750`. Med en klocka som tickar 1 ms per läsning är det gamla provet rött (`anrop:1.gum:2...`, samma fel som i ärendet) och det nya grönt; det nya är rött när en notering tas bort ur inspelaren.
+
 ## 0.205.0
 
 "I repot" på ett projekts plats i Biblioteket (cllp/lifehub.app#653 skiva 3, CP 2026-11-08: "Lite som working copy ... integrera det i bibliotek", "Detta är starkt"), och en läsrad som säger varför en GitHub-länk inte går att läsa.
