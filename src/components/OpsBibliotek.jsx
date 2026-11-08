@@ -358,7 +358,9 @@ const arkivtips = () => `Arkiverad. Välj taggen ${ARKIVTAGG} för att se arkive
  *   anteckning. Med den får en SPARAD antecknings redigering knappen "Lägg till bild" (bild med plus, `IKON_FOR.slappBild`), och en bild som klistras in i textrutan tas av rutan
  *   (`preventDefault` och `stopPropagation`, så att appens egen inklistring inte också gör en bildpost). Appen lägger filen i postens mapp (`plats` är postens `groupId`) och svarar med
  *   filnamnet, ett säkert segment (`sakertBildnamn`). Ramverket skriver då `![](namn)` vid markören, på en egen rad. Medan uppladdningen pågår står "Laddar upp bilden.", och ett kast står
- *   under rutan med sitt meddelande; ett namn som inte är ett säkert segment skrivs inte in, och det sägs. Krympning av stora bilder och HEIC görs av appen i propen.
+ *   under rutan med sitt meddelande; ett namn som inte är ett säkert segment skrivs inte in, och det sägs. Ramverket krymper bilden innan appen får den
+ *   (`readAttachment`: längsta sidan 1600 px, JPEG; en GIF lämnas orörd). En HEIC som webbläsaren kan läsa blir en JPEG, och en som den inte kan läsa laddas aldrig upp: den nekas
+ *   med skälet. Spara och Avbryt väntar medan en uppladdning pågår.
  *   ⛔ INTE I EN NY ANTECKNING: den har inget id och ingen mapp, och `onSpara` svarar inte med det id posten fick. Knappen syns först när anteckningen är sparad, och en bild som klistras in i en
  *   ny anteckning ger raden "Spara anteckningen först. Sedan går det att lägga till bilder." i stället för en egen post. Utan propen syns ingen knapp och en inklistring går som förut.
  * @param {(bild: { postId: string, plats: string, namn: string }) => string | Promise<string>} [props.bildIAnteckningAdress] (Ej släppt, cllp/lifehub.app#696) Adressen till en bild i en

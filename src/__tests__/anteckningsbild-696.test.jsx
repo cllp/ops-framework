@@ -258,7 +258,7 @@ describe("OpsBibliotek: Lägg till bild i en sparad anteckning", () => {
   });
 
   it("ett fel och ett osäkert namn syns, och texten står kvar", async () => {
-    const onLagg = vi.fn().mockRejectedValueOnce(new Error("Storage nekade.")).mockResolvedValueOnce({ namn: "../ut.jpg" });
+    const onLagg = vi.fn().mockRejectedValueOnce(new Error("Storage nekade.")).mockResolvedValueOnce({ namn: "../ut.jpg" }).mockResolvedValueOnce({ namn: "ok.png" });
     render(<Harness onLaggBildIAnteckning={onLagg} />);
     redigera();
     const input = screen.getByLabelText("Lägg till bild", { selector: "input" });
@@ -269,10 +269,18 @@ describe("OpsBibliotek: Lägg till bild i en sparad anteckning", () => {
     // En fil som inte är en bild, och en HEIC webbläsaren inte kan läsa, laddas aldrig upp.
     fireEvent.change(input, { target: { files: [new File(["x"], "a.pdf", { type: "application/pdf" })] } });
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Filen är ingen bild."));
+    // ⛔ Skälet säger vad man kan göra, inte "Filtypen är okänd": ramverket försökte krympa den och webbläsaren kunde inte läsa den (jsdom kan ingen).
+    const heicSkal = "Bilden laddades inte upp: Webbläsaren kan inte läsa HEIC-bilden. Spara om den som JPEG, eller ta en skärmbild av den.";
     fireEvent.change(input, { target: { files: [new File(["x"], "IMG_1.HEIC", { type: "" })] } });
-    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(/Bilden laddades inte upp: Filtypen/));
-    expect(onLagg).toHaveBeenCalledTimes(2);
-    expect(textruta()).toHaveValue("Taxi i juli.");
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(heicSkal));
+    fireEvent.change(input, { target: { files: [bild()] } });
+    await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+    fireEvent.change(input, { target: { files: [new File(["x"], "IMG_2.heic", { type: "image/heic" })] } });
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(heicSkal));
+    expect(onLagg).toHaveBeenCalledTimes(3);
+    // Bara den läsbara bilden skrevs in.
+    expect(textruta().value).toContain("![](ok.png)");
+    expect(textruta().value.replace("![](ok.png)", "").trim()).toBe("Taxi i juli.");
   });
 
   it("⛔ en inklistrad bild tas av rutan och når inte appens lyssnare på dokumentet", async () => {

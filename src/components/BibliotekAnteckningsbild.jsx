@@ -53,6 +53,7 @@ const ORD_ANTECKNINGSBILD = {
   fel: { sv: "Bilden laddades inte upp: {skal}", en: "The image was not uploaded: {skal}" },
   ingetNamn: { sv: "Bilden laddades upp men fick inget namn som går att skriva in i texten.", en: "The image was uploaded but got no name that can be written into the text." },
   inteBild: { sv: "Filen är ingen bild.", en: "The file is not an image." },
+  heicOlasbar: { sv: "Webbläsaren kan inte läsa HEIC-bilden. Spara om den som JPEG, eller ta en skärmbild av den.", en: "The browser cannot read the HEIC image. Save it again as JPEG, or take a screenshot of it." },
   sparaForst: { sv: "Spara anteckningen först. Sedan går det att lägga till bilder.", en: "Save the note first. Then images can be added." },
 };
 
@@ -61,16 +62,36 @@ const BILDTYPER = /** @type {const} */ (["image/jpeg", "image/png", "image/webp"
 /** Tak för bilden efter krympningen, i data-URL-tecken (cirka 10 MB fil). Krympningen ger normalt några hundra kB; taket fångar en bild som inte gick att krympa. */
 const MAX_BILDTECKEN = 14_000_000;
 
+/** En HEIC eller HEIF, med typ eller (som från en iPhone i vissa webbläsare) bara med ändelsen. */
+const HEIC_NAMN = /\.(heic|heif)$/i;
+/** @param {{ type?: string, name?: string }} fil */
+function arHeic(fil) {
+  return /^image\/hei[cf]/i.test(fil.type ?? "") || (!fil.type && HEIC_NAMN.test(fil.name ?? ""));
+}
+
 /**
  * Bilden som appen ska ladda upp: krympt till JPEG när webbläsaren kan läsa den, annars som den är om typen tas emot. En GIF lämnas orörd.
  * Kastar med ett skäl som går att agera på (`readAttachment`).
  *
+ * ⛔ RAMVERKET KRYMPER EN HEIC, APPEN GÖR DET INTE. En HEIC utan typ får typen här, så att krympningen försöker läsa den (Safari kan).
+ * Kan webbläsaren inte läsa den nekas den med `heicFel`: förut kastade `readAttachment` "Filtypen är okänd", som inte sa vad man kan göra.
+ *
  * @param {File} fil
+ * @param {string} heicFel Skälet när en HEIC inte går att läsa, på personens språk.
  * @returns {Promise<File>}
  */
-async function forbered(fil) {
+async function forbered(fil, heicFel) {
   if (fil.type === "image/gif") return fil;
-  const bilaga = await readAttachment(fil, { maxChars: MAX_BILDTECKEN, typer: BILDTYPER });
+  const heic = arHeic(fil);
+  const inmatning = heic && !fil.type ? new File([fil], fil.name, { type: "image/heic" }) : fil;
+  let bilaga;
+  try {
+    bilaga = await readAttachment(inmatning, { maxChars: MAX_BILDTECKEN, typer: BILDTYPER });
+  } catch (e) {
+    // En HEIC som kom hit gick inte att avkoda: BILDTYPER tar inte emot den som den är, och det är det enda skälet `readAttachment` kastar för den.
+    if (heic) throw new Error(heicFel);
+    throw e;
+  }
   const blob = bilagaTillBlob(bilaga);
   const bas = (fil.name || "bild").replace(/\.[^.]+$/, "") || "bild";
   const andelse = blob.type === "image/jpeg" ? "jpg" : (blob.type.split("/")[1] ?? "bin");
@@ -81,8 +102,8 @@ async function forbered(fil) {
 function arBild(fil) {
   if (!fil) return false;
   if (typeof fil.type === "string" && fil.type.startsWith("image/")) return true;
-  // En HEIC från en iPhone kan sakna typ i vissa webbläsare. Appen krymper den i sin uppladdning.
-  return !fil.type && /\.(heic|heif)$/i.test(fil.name ?? "");
+  // En HEIC från en iPhone kan sakna typ i vissa webbläsare. Ramverket försöker krympa den (`forbered`), och nekar den med skälet om webbläsaren inte kan läsa den.
+  return arHeic(fil);
 }
 
 /**
@@ -163,7 +184,7 @@ export function AnteckningsText({ text, setText, post, onLaggBild, sprak, onPaga
       const vidStart = textfalt()?.selectionStart ?? textRef.current.length;
       setPagar((n) => n + 1);
       try {
-        const klar = await forbered(fil);
+        const klar = await forbered(fil, o("heicOlasbar"));
         if (!livs.current) return;
         const svar = await /** @type {NonNullable<typeof onLaggBild>} */ (onLaggBild)({ postId: post.id, plats: post.groupId ?? "", fil: klar });
         if (!livs.current) return;
