@@ -8496,6 +8496,67 @@ async function gastGrupp() {
 //     hämtar länken (`onKopieraLank`) och visar den under formuläret med Kopiera och Dela (minst 32 px), helt inom skärmen och utan sidled. Dela ger telefonens delningsmeny sms-texten och länken.
 // (b) Telefongästens rad visar numret och har Ny länk, inte Skicka igen.
 // (c) Gästens sida med en telefonlänk (`&s=tel`): en h1 och inget fält alls (0.200.0: förut fältet Ditt telefonnummer), utan sidled, och Öppna postar exakt { id, nyckel }.
+// ── Märket och huvudet är lika på gästens sida och de två delade sidorna (0.204.0, CP 2026-11-08: "Alla delningar. Kolla loggans storlek och kolla så att det ser samma ut med alla
+// delningar och gästvy. VI måste ha enhetlighet.") ──
+// Före 0.204.0 ritade bara gästens sida märket; delningarna tog appens `huvud`, och appens fyrkantiga loggor med luft i en ruta på 32 px blev ett pyttelitet märke. Mätt per sida, i 390 och 1280 px:
+// märkets ruta och den målade, synliga bilden (samma mätning som gästens märke i `gastGrupp`), att märket är en länk i ny flik med samma namn, huvudets höjd och spaltens bredd, och språkväljarens
+// och temaknappens storlek. Kravet är att alla tre är lika (inom en halv pixel) och att märket är det kompakta 24 px-märket. Golv: tre sidor med en laddad bild var.
+async function publikMarken() {
+  const SIDOR = ["gast", "delad", "dh"];
+  for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
+    const namn = `publika märket ${vp.width}`;
+    /** @type {Record<string, any>} */
+    const per = {};
+    for (const sida of SIDOR) {
+      const { page, context } = await oppna(`publikmarke-${sida}`, vp);
+      try {
+        await page.waitForSelector(`header [data-${sida}-marke] img`, { timeout: 4000 }).catch(() => {});
+        await page.waitForFunction(() => [...document.querySelectorAll("header [data-publik-marke] img")].some((b) => /** @type {HTMLImageElement} */ (b).complete && /** @type {HTMLImageElement} */ (b).naturalWidth > 0), null, { timeout: 4000 }).catch(() => {});
+        per[sida] = await page.evaluate((s) => {
+          const ruta = document.querySelector(`header [data-${s}-huvud] [data-${s}-marke]`);
+          const huvud = document.querySelector("header");
+          const inre = huvud ? huvud.firstElementChild : null;
+          const val = document.querySelector(`header [data-${s}-huvud-val]`);
+          const bilder = ruta ? [...ruta.querySelectorAll("img")].filter((b) => getComputedStyle(b).display !== "none") : [];
+          const knappar = val ? [...val.querySelectorAll("button")].map((k) => { const r = k.getBoundingClientRect(); return `${r.width.toFixed(1)}x${r.height.toFixed(1)}`; }) : [];
+          const bas = { huvudH: huvud ? huvud.getBoundingClientRect().height : 0, spalt: inre ? inre.getBoundingClientRect().width : 0, knappar, overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth };
+          if (!ruta || bilder.length !== 1 || !/** @type {HTMLImageElement} */ (bilder[0]).complete || !/** @type {HTMLImageElement} */ (bilder[0]).naturalWidth) return { golv: false, antal: bilder.length, ...bas };
+          const b = /** @type {HTMLImageElement} */ (bilder[0]);
+          const r = b.getBoundingClientRect();
+          const cs = getComputedStyle(b);
+          const skala = cs.objectFit === "contain" ? Math.min(r.width / b.naturalWidth, r.height / b.naturalHeight) : null;
+          const w = skala === null ? r.width : b.naturalWidth * skala;
+          const h = skala === null ? r.height : b.naturalHeight * skala;
+          const rr = ruta.getBoundingClientRect();
+          return { golv: true, ...bas, ruta: { w: rr.width, h: rr.height }, malad: { w, h }, tagg: ruta.tagName, href: ruta.getAttribute("href"), target: ruta.getAttribute("target"), etikett: ruta.getAttribute("aria-label") };
+        }, sida);
+      } finally {
+        await context.close();
+      }
+    }
+    const f = (/** @type {any} */ m) => (m.golv ? `ruta ${m.ruta.w.toFixed(0)}x${m.ruta.h.toFixed(0)}, märket ${m.malad.w.toFixed(0)}x${m.malad.h.toFixed(0)}, huvud ${m.huvudH.toFixed(0)} px, spalt ${m.spalt.toFixed(0)} px, knappar ${m.knappar.join("/")}` : `inget märke (${m.antal} bilder)`);
+    matt.push(`${namn}: ${SIDOR.map((s) => `${s} ${f(per[s])}`).join("; ")}`);
+    for (const s of SIDOR) {
+      const m = per[s];
+      krav(m.golv, `${namn} (golv): ${s} har ${m.antal} synliga, laddade bilder i märket, väntat 1. Då mättes inte märket.`);
+      krav(!m.overflow, `${namn}: ${s} flödar över i sidled.`);
+      if (!m.golv) continue;
+      krav(m.malad.h >= 20 && m.malad.h <= 32 && m.malad.w >= 80 && m.malad.w <= 140, `${namn}: märket på ${s} är ${m.malad.w.toFixed(0)}x${m.malad.h.toFixed(0)} px, väntat det kompakta märket i 4:1, 24 px högt.`);
+      krav(m.tagg === "A" && m.href === "https://life-hub.app" && m.target === "_blank" && m.etikett === "Om LifeHub, öppnas i en ny flik", `${namn}: märket på ${s} är ${m.tagg} ${JSON.stringify({ href: m.href, target: m.target, etikett: m.etikett })}, väntat en länk i ny flik med namnet "Om LifeHub, öppnas i en ny flik".`);
+    }
+    const g = per.gast;
+    if (g.golv) {
+      for (const s of ["delad", "dh"]) {
+        const m = per[s];
+        if (!m.golv) continue;
+        const lika = (/** @type {number} */ a, /** @type {number} */ b) => Math.abs(a - b) <= 0.5;
+        krav(lika(m.ruta.w, g.ruta.w) && lika(m.ruta.h, g.ruta.h) && lika(m.malad.w, g.malad.w) && lika(m.malad.h, g.malad.h), `${namn}: märket på ${s} (${f(m)}) är inte lika stort som på gästens sida (${f(g)}).`);
+        krav(lika(m.huvudH, g.huvudH) && lika(m.spalt, g.spalt) && JSON.stringify(m.knappar) === JSON.stringify(g.knappar), `${namn}: huvudet på ${s} (höjd ${m.huvudH.toFixed(1)}, spalt ${m.spalt.toFixed(1)}, knappar ${m.knappar.join("/")}) är inte som gästens (höjd ${g.huvudH.toFixed(1)}, spalt ${g.spalt.toFixed(1)}, knappar ${g.knappar.join("/")}).`);
+      }
+    }
+  }
+}
+
 async function gastTelefon() {
   const DELA = "window.__delat = null; Object.defineProperty(navigator, 'share', { configurable: true, value: async (d) => { window.__delat = d; } });";
   for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
@@ -9325,6 +9386,7 @@ await gruppVantar();
 await kategoriFormular();
 await gastVyer();
 await gastGrupp();
+await publikMarken();
 await gastArenden();
 await gastTelefon();
 await kalenderdelning();

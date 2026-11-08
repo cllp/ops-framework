@@ -13,6 +13,7 @@ import { OpsDisclosure } from "./OpsDisclosure.jsx";
 import { OpsEmpty } from "./OpsEmpty.jsx";
 import { OpsField, OpsInput } from "./OpsField.jsx";
 import { PublikHuvud } from "./PublikHuvud.jsx";
+import { ORD_PUBLIKMARKE, PublikMarke } from "./PublikMarke.jsx";
 import { GastsidaInfo } from "./gastsidaInfo.js";
 import { IKON_FOR } from "./ikonlexikon.js";
 
@@ -98,53 +99,13 @@ export const ORD_OPSGASTSIDA = {
   loggaUt: { sv: "Logga ut på den här enheten", en: "Sign out on this device" },
   loggaUtText: { sv: "Du kommer tillbaka med länken i ditt mejl.", en: "You come back with the link in your email." },
   // (0.195.0, CP 2026-11-06) Loggan och en rad om appen, med `omAppen`. `{namn}` är appens namn, `{grupp}` gruppens.
-  omAppenEtikett: { sv: "Om {namn}, öppnas i en ny flik", en: "About {namn}, opens in a new tab" },
+  // (0.204.0) Samma ord som märket på de delade sidorna, ett hem (`ORD_PUBLIKMARKE`).
+  omAppenEtikett: ORD_PUBLIKMARKE.omAppenEtikett,
   // (0.198.0, CP 2026-11-07 i cllp/ops-framework#536: "Även texten") Vad appen är, kort. Förut "{grupp} använder {namn}, där grupper organiserar sig utan att jaga varandra."
   omAppenRad: { sv: "{grupp} samlar chatt, kalender och filer i {namn}.", en: "{grupp} brings chat, calendar and files together in {namn}." },
   omAppenLasMer: { sv: "Läs mer", en: "Read more" },
   raderad: { sv: "Dina uppgifter är raderade. Du har inte längre någon åtkomst, och inget av det vi sparade om dig finns kvar.", en: "Your data has been deleted. You no longer have access, and nothing we kept about you remains." },
 };
-
-/**
- * Appens ordmärke i gästens sidhuvud. 0.190.0 ritade det 40 px högt. 0.192.0 ritar det 24 px högt: huvudet är orientering, och gruppnamnet är rubriken på översikten. Högst `--logo-bredd` bred.
- *
- * ⛔ BILDEN ÄR ETT BRETT, TÄTT BESKURET ORDMÄRKE, INTE FYRKANTIG KONST MED LUFT (granskningen av PR 524). Den första formen tog appens fyrkantiga bilder, ritade dem 64 px
- * höga och beskar uppe och nere som inloggningen. Märket blev ändå cirka 50 x 22 px i appens montage, eftersom en fyrkant med luft runt inte kan bli bredare än sin höjd i
- * en ruta som är 40 px hög. CP:s klagomål var just att loggan var "typ obefintligt liten". Nu fyller bilden rutans höjd, bredden följer bildens form (ett märke i 4:1 blir
- * cirka 160 x 40 px), och ingenting beskärs: `object-contain` och `object-left` håller hela märket synligt och mot vänsterkanten. En bild per tema, som i inloggningen.
- *
- * ⛔ MED `omAppen` ÄR MÄRKET EN LÄNK TILL APPENS EGEN SIDA, I EN NY FLIK (0.195.0), så att gästens session ligger kvar där den var. Länkens namn säger vart den går och att den
- * öppnar en ny flik (`etikett`); bildens alternativtext hade bara sagt appens namn.
- * @param {{ marke: { ljus: string, mork: string, namn: string }, lank?: { href: string, etikett: string } | null }} props
- */
-function GastMarke({ marke, lank = null }) {
-  if (!marke || typeof marke.ljus !== "string" || typeof marke.mork !== "string" || typeof marke.namn !== "string" || !marke.namn.trim()) {
-    throw new Error("OpsGastSida: marke är { ljus, mork, namn }: en bild per tema och appens namn som alternativtext.");
-  }
-  const bilder = [["ljus", marke.ljus, "mix-blend-multiply"], ["mork", marke.mork, ""]].map(([tema, src, extra]) => (
-    <img key={tema} src={src} alt={tema === "ljus" && !lank ? marke.namn : ""} aria-hidden={tema === "ljus" && !lank ? undefined : true} className={cx(tema === "ljus" ? "ops-ordmarke-ljus" : "ops-ordmarke-mork", "h-full w-auto max-w-full object-contain object-left", extra)} />
-  ));
-  if (lank) {
-    return (
-      <a
-        href={lank.href}
-        target="_blank"
-        rel="noopener noreferrer"
-        aria-label={lank.etikett}
-        data-gast-marke=""
-        data-gast-marke-lank=""
-        className="flex h-6 max-w-(--logo-bredd) shrink-0 items-center rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-      >
-        {bilder}
-      </a>
-    );
-  }
-  return (
-    <span data-gast-marke="" className="flex h-6 max-w-(--logo-bredd) shrink-0 items-center">
-      {bilder}
-    </span>
-  );
-}
 
 /**
  * Prövar appens `omAppen` (0.195.0): `{ href, namn }`, där `href` är en `https:`-adress. Allt annat kastar, med skälet: en `javascript:`-adress i en länk kör kod på gästens sida,
@@ -826,7 +787,8 @@ export function OpsGastSida({ lank = null, onLos, onProva, onHamta, onNyLank, on
         onVal={valj}
         huvud={
           <>
-            {marke ? <GastMarke marke={marke} lank={appen ? { href: appen.href, etikett: t.omAppenEtikett.replace("{namn}", appen.namn) } : null} /> : null}
+            {/* (0.204.0) Märket är `PublikMarke`, samma som de delade sidornas. */}
+            {marke ? <PublikMarke marke={marke} sida="gast" komponent="OpsGastSida" lank={appen ? { href: appen.href, etikett: t.omAppenEtikett.replace("{namn}", appen.namn) } : null} /> : null}
             {huvud}
           </>
         }
