@@ -833,7 +833,9 @@ export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud
                                 <span data-gast-omfangstext="" className="min-w-0 text-etikett text-ink-secondary wrap-anywhere">{omfangText(i.omfang, i.titel)}</span>
                                 <span className="flex flex-wrap items-center gap-1">
                                   {svarMarke(i.deltasvar)}
-                                  <OpsPill tone={STATUSTON[istatus]}>{t[`status_${istatus}`]}</OpsPill>
+                                  {/* ⛔ (0.206.0, CP 2026-11-08: "Har loggat in står två gånger.") Radens märke står bara när det skiljer sig från personens i kortets huvud,
+                                      till exempel en återkallad inbjudan hos en gäst som har loggat in. Samma ord två gånger säger ingenting mer. */}
+                                  {istatus !== status ? <span data-gast-inbjudan-status={istatus}><OpsPill tone={STATUSTON[istatus]}>{t[`status_${istatus}`]}</OpsPill></span> : null}
                                 </span>
                               </div>
                               <div className="flex flex-wrap items-center gap-2">
