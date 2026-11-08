@@ -9,6 +9,7 @@ import { OpsModal } from "./OpsModal.jsx";
 import { OpsPill } from "./OpsPill.jsx";
 import { OpsSegmented } from "./OpsSegmented.jsx";
 import { OpsCheckbox, OpsSwitch } from "./OpsToggle.jsx";
+import { ChevronNedIkon } from "./icons.jsx";
 
 /**
  * Orden i gästlistan, på svenska och engelska (0.131.0, cllp/lifehub.app#389). Statusorden hör till `GASTSTATUSAR` och är de enda platserna de skrivs ut på.
@@ -131,6 +132,8 @@ export const ORD_OPSGASTLISTA = {
   nyLankPagar: { sv: "Skapar…", en: "Creating…" },
   // ── Nedladdning per gäst (0.203.0, lifehub.app#691): av som förval, i formuläret och på varje gruppinbjudan ──
   laddaNed: { sv: "Får ladda ned filer", en: "May download files" },
+  // ── Hopfällbara gästkort i gruppläget (0.204.0, CP 2026-11-08) ──
+  visaDetaljer: { sv: "Visa detaljer för {vem}", en: "Show details for {vem}" },
   nyLankKlar: { sv: "En ny länk är skapad. Den gäller i {dagar} dagar, och den förra länken fungerar inte längre. Dela den nya.", en: "A new link has been created. It is valid for {dagar} days, and the previous link no longer works. Share the new one." },
   // ── I gruppens medlemsvy (`OpsMedlemmar`, 0.132.0): gästen är ett val i Roll ──
   rollGast: { sv: "Gäst (utan konto)", en: "Guest (no account)" },
@@ -424,6 +427,15 @@ export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud
   const [radklar, setRadklar] = useState(/** @type {Record<string, string>} */ ({}));
   // Länkarna som hämtats, per inbjudans id. De ligger bara i minnet och försvinner när vyn stängs: servern kan inte läsa ut en länk i efterhand.
   const [lankar, setLankar] = useState(/** @type {Record<string, { url: string, lankGiltigTill: number }>} */ ({}));
+  // (0.204.0) Gästkorten i gruppläget som är utfällda, per `gastId`. Alla är sammanfällda från början, och flera får vara utfällda samtidigt.
+  const [utfallda, setUtfallda] = useState(/** @type {ReadonlySet<string>} */ (new Set()));
+  const vaxlaUtfalld = (/** @type {string} */ gid) =>
+    setUtfallda((fore) => {
+      const nya = new Set(fore);
+      if (nya.has(gid)) nya.delete(gid);
+      else nya.add(gid);
+      return nya;
+    });
   const [bekrafta, setBekrafta] = useState(/** @type {{ slag: "grupp", epost?: string, telefon?: string, namn: string, laddaNed?: boolean } | { slag: "radera", gastId: string, epost?: string, telefon?: string, namn: string } | null} */ (null));
   const telefonValt = gruppLage && medTelefon && kontaktslag === "telefon";
   const levande = useRef(true);
@@ -685,86 +697,115 @@ export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud
             const vem = p.namn ? p.namn : kontakt;
             const status = /** @type {keyof typeof STATUSTON} */ (p.status ?? "vantar");
             const harAktiv = p.inbjudningar.some((i) => i.status !== "aterkallad");
+            const oppen = utfallda.has(p.gastId);
+            const panelId = `${rubrikId}-gast-${p.gastId}`;
             return (
-              <li key={p.gastId} data-gast-person={p.gastId} data-gast-status={status} className="flex min-w-0 flex-col gap-2 rounded-base border border-line bg-raised p-3">
-                <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-1">
-                  <div className="flex min-w-0 flex-col">
-                    <span data-gast-namn="" className="min-w-0 text-etikett text-ink wrap-anywhere">{vem}</span>
-                    {p.namn ? <span {...(personTelefon ? { "data-gast-telefon": "" } : { "data-gast-epost": "" })} className="min-w-0 text-meta text-ink-muted wrap-anywhere">{kontakt}</span> : null}
-                  </div>
+              <li key={p.gastId} data-gast-person={p.gastId} data-gast-status={status} data-gast-utfalld={oppen ? "ja" : "nej"} className="flex min-w-0 flex-col gap-2 rounded-base border border-line bg-raised p-3">
+                {/* ⛔ HOPFÄLLBART KORT (0.204.0, CP 2026-11-08). Sammanfällt bär raden bara namnet, statusmärket och chevronen: en grupp med fem gäster var fem höga kort
+                    med adresser, inbjudningar och fem knappar var, och listan gick inte att överblicka. Samma knapp som `OpsBreakdown` och `OpsEventList` (`aria-expanded`,
+                    `aria-controls`, `ChevronNedIkon` som vänds), inte `OpsDisclosure`: där är hela raden klickytan, och här ska namnet och märket stå kvar som text och
+                    bara chevronen vara en knapp med ett eget namn. */}
+                <div className="flex min-w-0 items-center justify-between gap-x-3">
+                  <span data-gast-namn="" className="min-w-0 flex-1 text-etikett text-ink wrap-anywhere">{vem}</span>
                   <OpsPill tone={STATUSTON[status]}>{t[`status_${status}`]}</OpsPill>
+                  <button
+                    type="button"
+                    data-gast-vaxla=""
+                    onClick={() => vaxlaUtfalld(p.gastId)}
+                    aria-expanded={oppen}
+                    aria-controls={panelId}
+                    className={cx(
+                      "-my-2 -mr-2 flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-md text-ink-muted",
+                      "transition-colors duration-(--duration-fast) ease-standard hover:bg-accent-faint hover:text-ink",
+                      "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
+                    )}
+                  >
+                    <span className="sr-only">{t.visaDetaljer.replace("{vem}", vem)}</span>
+                    <span aria-hidden="true" className={cx("transition-transform duration-(--duration-fast)", oppen && "rotate-180")}>
+                      <ChevronNedIkon size={16} />
+                    </span>
+                  </button>
                 </div>
-                <ul className="m-0 flex list-none flex-col gap-2 p-0">
-                  {p.inbjudningar.map((i) => {
-                    const istatus = /** @type {keyof typeof STATUSTON} */ (i.status ?? "vantar");
-                    const aterkallad = istatus === "aterkallad";
-                    return (
-                      <li key={i.id} data-gast-inbjudan={i.id} data-gast-omfang={i.omfang.slag} data-gast-status={istatus} className="flex min-w-0 flex-col gap-2 border-t border-line pt-2">
-                        <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-1">
-                          <span data-gast-omfangstext="" className="min-w-0 text-etikett text-ink-secondary wrap-anywhere">{omfangText(i.omfang, i.titel)}</span>
-                          <span className="flex flex-wrap items-center gap-1">
-                            {svarMarke(i.deltasvar)}
-                            <OpsPill tone={STATUSTON[istatus]}>{t[`status_${istatus}`]}</OpsPill>
-                          </span>
+                {/* Panelen finns alltid, så att `aria-controls` pekar på ett element, men den bär inget innehåll förrän kortet fälls ut: en sammanfälld rad ska vara få element. */}
+                <div id={panelId} data-gast-detaljer="" hidden={!oppen} className={oppen ? "flex min-w-0 flex-col gap-2" : undefined}>
+                  {oppen ? (
+                    <>
+                      {p.namn ? <span {...(personTelefon ? { "data-gast-telefon": "" } : { "data-gast-epost": "" })} className="min-w-0 text-meta text-ink-muted wrap-anywhere">{kontakt}</span> : null}
+                      <ul className="m-0 flex list-none flex-col gap-2 p-0">
+                        {p.inbjudningar.map((i) => {
+                          const istatus = /** @type {keyof typeof STATUSTON} */ (i.status ?? "vantar");
+                          const aterkallad = istatus === "aterkallad";
+                          return (
+                            <li key={i.id} data-gast-inbjudan={i.id} data-gast-omfang={i.omfang.slag} data-gast-status={istatus} className="flex min-w-0 flex-col gap-2 border-t border-line pt-2">
+                              <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                                <span data-gast-omfangstext="" className="min-w-0 text-etikett text-ink-secondary wrap-anywhere">{omfangText(i.omfang, i.titel)}</span>
+                                <span className="flex flex-wrap items-center gap-1">
+                                  {svarMarke(i.deltasvar)}
+                                  <OpsPill tone={STATUSTON[istatus]}>{t[`status_${istatus}`]}</OpsPill>
+                                </span>
+                              </div>
+                              <div className="flex flex-wrap items-center gap-2">
+                                {aterkallad ? (
+                                  i.omfang.slag === "grupp" && onBjudGrupp ? (
+                                    <OpsButton size="sm" variant="secondary" ariaLabel={t.bjudIgenNamn.replace("{vem}", vem)} onClick={() => (personTelefon ? begarGruppTelefon(kontakt, p.namn ?? "") : begarGrupp(kontakt, p.namn ?? ""))}>
+                                      {t.bjudIgen}
+                                    </OpsButton>
+                                  ) : null
+                                ) : (
+                                  <>
+                                    {onSkickaOm && personTelefon ? (
+                                      // (0.197.0) En gäst med telefon får inget brev: Ny länk byter nyckel, och den nya länken hämtas och visas direkt för att delas.
+                                      <OpsButton size="sm" variant="secondary" ariaLabel={`${t.nyLankNamn.replace("{vem}", vem)} (${omfangText(i.omfang, i.titel)})`} busyLabel={t.nyLankPagar} onClick={() => (glomLank(i.id), nyLankTelefon(p.gastId, i.id, vem))}>
+                                        {t.nyLank}
+                                      </OpsButton>
+                                    ) : onSkickaOm ? (
+                                      <OpsButton size="sm" variant="secondary" ariaLabel={`${t.skickaIgenNamn.replace("{vem}", vem)} (${omfangText(i.omfang, i.titel)})`} busyLabel={t.skickaIgenPagar} onClick={() => (glomLank(i.id), pa(p.gastId, onSkickaOm, { id: i.id }, t.skickaIgenKlar.replace("{vem}", vem).replace("{dagar}", String(GASTLANKDAGAR))))}>
+                                        {t.skickaIgen}
+                                      </OpsButton>
+                                    ) : null}
+                                    {onKopieraLank ? (
+                                      <OpsButton size="sm" variant="secondary" ariaLabel={`${t.kopieraLankNamn.replace("{vem}", vem)} (${omfangText(i.omfang, i.titel)})`} busyLabel={t.kopieraLankPagar} onClick={() => hamtaLank(p.gastId, i.id)}>
+                                        {t.kopieraLank}
+                                      </OpsButton>
+                                    ) : null}
+                                    {onAterkalla ? (
+                                      <OpsButton size="sm" variant="ghost" ariaLabel={`${t.draTillbakaNamn.replace("{vem}", vem)} (${omfangText(i.omfang, i.titel)})`} busyLabel={t.draTillbakaPagar} onClick={() => pa(p.gastId, onAterkalla, { id: i.id })}>
+                                        {t.draTillbaka}
+                                      </OpsButton>
+                                    ) : null}
+                                  </>
+                                )}
+                              </div>
+                              {onNedladdning && i.omfang.slag === "grupp" ? (
+                                // (0.203.0) Gästens egen nedladdning. (0.204.0) Allt som inte är `true` är av, samma som servern (`nedladdningTillaten`): raden "Följer gruppens inställning" är borta,
+                                // eftersom gruppen inte längre är en del av regeln.
+                                <div data-gast-laddaned={i.laddaNed === true ? "pa" : "av"}>
+                                  <OpsSwitch label={t.laddaNed} checked={i.laddaNed === true} disabled={aterkallad} onChange={(v) => pa(p.gastId, onNedladdning, { id: i.id, pa: v })} />
+                                </div>
+                              ) : null}
+                              {lankar[i.id] && !aterkallad ? <GastLank lank={lankar[i.id]} vem={vem} t={t} sprak={sprak} gruppnamn={gruppnamn} telefon={personTelefon} /> : null}
+                            </li>
+                          );
+                        })}
+                      </ul>
+                      {(onAterkallaAlla && harAktiv) || onRadera ? (
+                        <div className="flex flex-wrap items-center gap-2 border-t border-line pt-2">
+                          {onAterkallaAlla && harAktiv ? (
+                            <OpsButton size="sm" variant="ghost" ariaLabel={t.draTillbakaAllaNamn.replace("{vem}", vem)} busyLabel={t.draTillbakaPagar} onClick={() => pa(p.gastId, onAterkallaAlla, { gastId: p.gastId })}>
+                              {t.draTillbakaAlla}
+                            </OpsButton>
+                          ) : null}
+                          {onRadera ? (
+                            <OpsButton size="sm" variant="ghost" ariaLabel={t.raderaNamn.replace("{vem}", vem)} onClick={() => setBekrafta({ slag: "radera", gastId: p.gastId, ...(personTelefon ? { telefon: kontakt } : { epost: kontakt }), namn: p.namn ?? "" })}>
+                              {t.radera}
+                            </OpsButton>
+                          ) : null}
                         </div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          {aterkallad ? (
-                            i.omfang.slag === "grupp" && onBjudGrupp ? (
-                              <OpsButton size="sm" variant="secondary" ariaLabel={t.bjudIgenNamn.replace("{vem}", vem)} onClick={() => (personTelefon ? begarGruppTelefon(kontakt, p.namn ?? "") : begarGrupp(kontakt, p.namn ?? ""))}>
-                                {t.bjudIgen}
-                              </OpsButton>
-                            ) : null
-                          ) : (
-                            <>
-                              {onSkickaOm && personTelefon ? (
-                                // (0.197.0) En gäst med telefon får inget brev: Ny länk byter nyckel, och den nya länken hämtas och visas direkt för att delas.
-                                <OpsButton size="sm" variant="secondary" ariaLabel={`${t.nyLankNamn.replace("{vem}", vem)} (${omfangText(i.omfang, i.titel)})`} busyLabel={t.nyLankPagar} onClick={() => (glomLank(i.id), nyLankTelefon(p.gastId, i.id, vem))}>
-                                  {t.nyLank}
-                                </OpsButton>
-                              ) : onSkickaOm ? (
-                                <OpsButton size="sm" variant="secondary" ariaLabel={`${t.skickaIgenNamn.replace("{vem}", vem)} (${omfangText(i.omfang, i.titel)})`} busyLabel={t.skickaIgenPagar} onClick={() => (glomLank(i.id), pa(p.gastId, onSkickaOm, { id: i.id }, t.skickaIgenKlar.replace("{vem}", vem).replace("{dagar}", String(GASTLANKDAGAR))))}>
-                                  {t.skickaIgen}
-                                </OpsButton>
-                              ) : null}
-                              {onKopieraLank ? (
-                                <OpsButton size="sm" variant="secondary" ariaLabel={`${t.kopieraLankNamn.replace("{vem}", vem)} (${omfangText(i.omfang, i.titel)})`} busyLabel={t.kopieraLankPagar} onClick={() => hamtaLank(p.gastId, i.id)}>
-                                  {t.kopieraLank}
-                                </OpsButton>
-                              ) : null}
-                              {onAterkalla ? (
-                                <OpsButton size="sm" variant="ghost" ariaLabel={`${t.draTillbakaNamn.replace("{vem}", vem)} (${omfangText(i.omfang, i.titel)})`} busyLabel={t.draTillbakaPagar} onClick={() => pa(p.gastId, onAterkalla, { id: i.id })}>
-                                  {t.draTillbaka}
-                                </OpsButton>
-                              ) : null}
-                            </>
-                          )}
-                        </div>
-                        {onNedladdning && i.omfang.slag === "grupp" ? (
-                          // (0.203.0) Gästens egen nedladdning. (0.204.0) Allt som inte är `true` är av, samma som servern (`nedladdningTillaten`): raden "Följer gruppens inställning" är borta,
-                          // eftersom gruppen inte längre är en del av regeln.
-                          <div data-gast-laddaned={i.laddaNed === true ? "pa" : "av"}>
-                            <OpsSwitch label={t.laddaNed} checked={i.laddaNed === true} disabled={aterkallad} onChange={(v) => pa(p.gastId, onNedladdning, { id: i.id, pa: v })} />
-                          </div>
-                        ) : null}
-                        {lankar[i.id] && !aterkallad ? <GastLank lank={lankar[i.id]} vem={vem} t={t} sprak={sprak} gruppnamn={gruppnamn} telefon={personTelefon} /> : null}
-                      </li>
-                    );
-                  })}
-                </ul>
-                {(onAterkallaAlla && harAktiv) || onRadera ? (
-                  <div className="flex flex-wrap items-center gap-2 border-t border-line pt-2">
-                    {onAterkallaAlla && harAktiv ? (
-                      <OpsButton size="sm" variant="ghost" ariaLabel={t.draTillbakaAllaNamn.replace("{vem}", vem)} busyLabel={t.draTillbakaPagar} onClick={() => pa(p.gastId, onAterkallaAlla, { gastId: p.gastId })}>
-                        {t.draTillbakaAlla}
-                      </OpsButton>
-                    ) : null}
-                    {onRadera ? (
-                      <OpsButton size="sm" variant="ghost" ariaLabel={t.raderaNamn.replace("{vem}", vem)} onClick={() => setBekrafta({ slag: "radera", gastId: p.gastId, ...(personTelefon ? { telefon: kontakt } : { epost: kontakt }), namn: p.namn ?? "" })}>
-                        {t.radera}
-                      </OpsButton>
-                    ) : null}
-                  </div>
-                ) : null}
+                      ) : null}
+                    </>
+                  ) : null}
+                </div>
+                {/* Beskeden står utanför panelen: ett fel eller ett klart får aldrig döljas av att kortet fälls ihop. */}
                 {radklar[p.gastId] ? <p role="status" data-gast-klar="" className="m-0 text-etikett text-ink-secondary wrap-anywhere">{radklar[p.gastId]}</p> : null}
                 {radfel[p.gastId] ? <p role="alert" data-gast-fel="" className="m-0 text-etikett text-danger wrap-anywhere">{radfel[p.gastId]}</p> : null}
               </li>

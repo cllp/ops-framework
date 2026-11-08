@@ -11,7 +11,7 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ## 0.204.0
 
-Gruppens strömbrytare för nedladdning bort ur regeln (cllp/lifehub.app#691, CP: kör).
+Gruppens strömbrytare för nedladdning bort ur regeln (cllp/lifehub.app#691, CP: kör), och hopfällbara gästkort i gästlistan (CP 2026-11-08).
 
 ### ⛔ Förutsätter att appens bakfyllnad har körts skarpt FÖRST
 
@@ -24,6 +24,8 @@ Skälet: i 0.203.0 var regeln gruppens strömbrytare (`grupp.farLaddaNed`) OCH g
 - **`session` bär `laddaNed: true | false` för en gruppsession**, aldrig `null` (typen var `boolean | null`).
 - **`lista({ groupId })` bär `laddaNed: true | false` på varje gruppinbjudan**, aldrig `null`. `null` betydde "följer gruppen", och gruppen är inte längre en del av regeln. Ett saknat fält går ut som `false`, eftersom det är vad servern gör med raden.
 - **`OpsGastLista`**: reglaget **Får ladda ned filer** står avslaget för allt som inte är `true`, och raden "Följer gruppens inställning" (`laddaNedFoljerGrupp` i `ORD_OPSGASTLISTA`) är borta.
+- **`OpsGastLista`, hopfällbara gästkort i gruppläget.** Varje gäst är en sammanfälld rad med namnet, statusmärket (samma som förut) och en knapp med en chevron nedåt till höger. Knappen har `aria-expanded`, `aria-controls` och namnet "Visa detaljer för <namn>" ("Show details for <name>"), ny nyckel `visaDetaljer` i `ORD_OPSGASTLISTA`. Utfällt visar kortet allt som stod i det förut: adressen eller numret, varje inbjudan med status, Skicka igen eller Ny länk, Kopiera länk, Dra tillbaka, reglaget Får ladda ned filer, Bjud in igen, Dra tillbaka alla och Radera uppgifter. Alla kort är sammanfällda från början, och flera får vara utfällda samtidigt. Beskeden efter ett tryck (klart och fel) står utanför panelen och syns också när kortet är ihopfällt. Omröstningsläget (`gaster`) är oförändrat.
+  - **Regel 13, tre listor.** Tas som det är: knappen ur `OpsBreakdown` och `OpsEventList` (`aria-expanded`, `aria-controls`, `ChevronNedIkon` som vänds, 44 px träffyta, samma tokens). Görs bättre: panelen bär inget innehåll förrän kortet fälls ut, så en sammanfälld rad bär raden och en tom panel, och inte ett helt kort gömt med `hidden` (antalet element står i `check:skalyta`). Stryks: `OpsDisclosure` (`<details>`) användes inte, eftersom hela rubrikraden där är klickytan och rubriken då inte kan bära ett eget namn; inget minne av läget (`storageKey`), eftersom ett kort som är utfällt nästa gång är en sak till att titta på.
 
 ### Borttaget
 - **`grupp.farLaddaNed` i `createGastService`.** Konfigurationen kastar om den har nyckeln, oavsett värde: att ta emot den och inte fråga den hade varit en strömbrytare som tyst slutat göra något, där värden tror att gruppen är avstängd medan en gäst med `true` laddar ned. ⛔ **Det är en ändrad exportyta:** en app som skickar `farLaddaNed` startar inte sin gästtjänst med 0.204.0.
@@ -33,7 +35,7 @@ Skälet: i 0.203.0 var regeln gruppens strömbrytare (`grupp.farLaddaNed`) OCH g
 2. Pinna om, och ta i samma PR bort `farLaddaNed` ur gästtjänstens `grupp`, gruppens reglage och callablen för det, och sluta läsa gruppens fält. Fältet på gruppdokumenten blir döda data.
 
 ### Prov
-Ändrade i `gast-grupp-tjanst`, med skälet vid provet: "med farLaddaNed som svarar false" mäter samma spärr med gästens `laddaNed: false`; "utan farLaddaNed, och med true" är nu "en gäst med true laddar ned, och farLaddaNed kastar oavsett värde"; "gruppens strömbrytare vinner" är ersatt av "gruppens false stoppar inte längre en gäst med true"; "en gruppinbjudan från före 0.203.0 följer gruppen" är ersatt av "en gruppinbjudan utan fältet ger nej" (hamta, fil, session och lista). Ändrat i `gast-lista-grupp`: "laddaNed: null står avslagen och säger att den följer gruppen" är nu "står avslaget utan någon rad om gruppen". Utfallen mot 0.203.0 och mot 0.204.0 står i PR-texten.
+Ändrade i `gast-grupp-tjanst`, med skälet vid provet: "med farLaddaNed som svarar false" mäter samma spärr med gästens `laddaNed: false`; "utan farLaddaNed, och med true" är nu "en gäst med true laddar ned, och farLaddaNed kastar oavsett värde"; "gruppens strömbrytare vinner" är ersatt av "gruppens false stoppar inte längre en gäst med true"; "en gruppinbjudan från före 0.203.0 följer gruppen" är ersatt av "en gruppinbjudan utan fältet ger nej" (hamta, fil, session och lista). Ändrade i `gast-lista-grupp`: "laddaNed: null står avslagen och säger att den följer gruppen" är nu "står avslaget utan någon rad om gruppen", och `rita` fäller ut alla kort efter ritningen så att de befintliga proven mäter det utfällda kortet som förut. Nya i `gast-lista-grupp` (hopfällbara kort): från början syns namnet och märket men inte adressen eller knapparna; ett tryck fäller ut och sätter `aria-expanded`, flera samtidigt; engelska namnet; knapparna fungerar i utfällt läge. Utfallen mot 0.203.0 och mot 0.204.0 står i PR-texten.
 
 ---
 

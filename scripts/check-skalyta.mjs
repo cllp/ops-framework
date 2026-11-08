@@ -7928,6 +7928,38 @@ async function gastGrupp() {
       const { page, context } = await oppna("gastgrupp-lista", vp);
       try {
         await page.waitForSelector("[data-gastlista]");
+        // ── (0.204.0, CP 2026-11-08) Hopfällbara gästkort: från början är varje kort sammanfällt. Raden bär namnet, statusmärket och chevronen och inget annat: en knapp, med namnet
+        // "Visa detaljer för <namn>", minst 44 px, `aria-expanded="false"`, och en tom panel som `aria-controls` pekar på. Antalet element per sammanfälld rad har ett tak som bara får sjunka.
+        const SAMMANFALLD_TAK = 12;
+        const sf = await page.evaluate(() =>
+          [...document.querySelectorAll("[data-gastlista] [data-gast-person]")].map((r) => {
+            const knappar = [...r.querySelectorAll("button")];
+            const k = knappar[0];
+            const panel = k ? document.getElementById(k.getAttribute("aria-controls") || "") : null;
+            return {
+              id: r.getAttribute("data-gast-person"),
+              element: r.querySelectorAll("*").length,
+              knappar: knappar.length,
+              namn: k ? (k.textContent || "").trim() : "",
+              utfalld: k ? k.getAttribute("aria-expanded") : null,
+              hojd: k ? k.getBoundingClientRect().height : 0,
+              panelTom: panel ? panel.childElementCount === 0 && panel.hidden : false,
+              adress: !!r.querySelector("[data-gast-epost],[data-gast-telefon],[data-gast-inbjudan]"),
+              hojdRad: r.getBoundingClientRect().height,
+            };
+          }),
+        );
+        matt.push(`${namn} lista sammanfälld: ${sf.length} kort, element per rad ${sf.map((x) => x.element).join("/")} (tak ${SAMMANFALLD_TAK}), radhöjd ${sf.map((x) => x.hojdRad.toFixed(0)).join("/")} px, chevron ${sf.map((x) => x.hojd.toFixed(0)).join("/")} px`);
+        krav(sf.length === 3, `${namn} lista sammanfälld (golv): ${sf.length} kort ritades, väntat 3. Då mättes inte det sammanfällda läget.`);
+        for (const x of sf) {
+          krav(x.knappar === 1 && /^Visa detaljer för .+/.test(x.namn) && x.utfalld === "false", `${namn} lista sammanfälld: kortet ${x.id} har ${x.knappar} knappar (väntat 1), namnet ${JSON.stringify(x.namn)} och aria-expanded ${x.utfalld}.`);
+          krav(x.hojd >= 44, `${namn} lista sammanfälld: chevronen i ${x.id} är ${x.hojd.toFixed(0)} px hög, väntat minst 44 px.`);
+          krav(x.panelTom && !x.adress, `${namn} lista sammanfälld: kortet ${x.id} visar adress eller inbjudningar, eller panelen som aria-controls pekar på saknas eller har innehåll.`);
+          krav(x.element <= SAMMANFALLD_TAK, `${namn} lista sammanfälld: kortet ${x.id} har ${x.element} element, taket är ${SAMMANFALLD_TAK}.`);
+        }
+        // Fäll ut alla, så att resten av avsnittet mäter det utfällda kortet som förut.
+        for (const knapp of await page.locator('[data-gastlista] [data-gast-vaxla][aria-expanded="false"]').all()) await knapp.click();
+        krav((await page.locator('[data-gastlista] [data-gast-vaxla][aria-expanded="true"]').count()) === 3, `${namn} lista: alla tre kort fälldes inte ut, och flera ska få vara utfällda samtidigt.`);
         const m = await page.evaluate(() => {
           const rot = /** @type {HTMLElement} */ (document.querySelector("[data-gastlista]"));
           const personer = [...rot.querySelectorAll("[data-gast-person]")].map((r) => {
@@ -8475,7 +8507,9 @@ async function gastTelefon() {
         const ritad = await page.waitForSelector("[data-gastlista]").then(() => true, () => false);
         krav(ritad, `${namn}: listan med en gäst med telefonnummer ritades inte (en person med telefon och epost null ska gå att visa).`);
         if (!ritad) break lista;
-        // (b) raden för gästen med telefon
+        // (b) raden för gästen med telefon. (0.204.0) Kortet är sammanfällt från början och fälls ut först.
+        // Ett kort som saknas eller inte går att fälla ut blir ett brott nedan (`rad` och knapparna), inte ett kast.
+        await page.locator(`[data-gast-person="g_${"4".repeat(40)}"] [data-gast-vaxla]`).click({ timeout: 5000 }).catch(() => {});
         const rad = await page.evaluate(() => {
           const r = document.querySelector(`[data-gast-person="g_${"4".repeat(40)}"]`);
           if (!r) return null;
