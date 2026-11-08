@@ -4787,7 +4787,8 @@ for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
 // tråden för alla." Tråden öppnas i högerpanelen i stället för chatten. Krav:
 //   - i gruppchatten bär meddelandet med en tråd ett märke med antalet ("3 svar"; namnet bara när en person döpt om tråden,
 //     annars upprepar det roten som står ovanför, granskningen av PR 268, KAN 9), och minst ett annat meddelande "Svara i
-//     tråd"; båda har 44 px träffyta (KAN 6) och ryms i loggens bredd;
+//     tråd"; båda har 44 px träffyta (KAN 6) och ryms i loggens bredd; (0.203.0) märket bär det senaste svaret efter antalet,
+//     på en rad som kortas;
 //   - vid 1280 syns "Svara i tråd" först när pekaren är på meddelandet (KAN 9), märket alltid; vid 390 syns båda;
 //   - ett tryck på märket öppnar tråden (`[data-ops-trad]`) i högerpanelen: raden tillbaka till gruppchatten överst, trådens namn
 //     som rubrik, raden "Alla i gruppen ser tråden", rotmeddelandet före svaren, minst 3 svarsbubblor, och skrivfältet längst ned
@@ -4814,7 +4815,13 @@ for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
     });
     matt.push(`${namn}, gruppchatten: ${JSON.stringify(chatt)}`);
     const finns = chatt.marken.filter((m) => m.slag === "finns");
-    krav(finns.length === 1 && finns[0].text === "3 svar", `${namn}: väntat ett märke "3 svar" (utan rotens text) på meddelandet med tråden, fick ${JSON.stringify(finns.map((m) => m.text))}.`);
+    // ⛔ ÄNDRAT 0.203.0 (CP 2026-11-08): märket bär det senaste svaret efter antalet, "3 svar · Ops-agenten: "Q3: …" · <tid>". Förut väntades exakt "3 svar".
+    // Rotens text står fortfarande inte i märket (KAN 9), och märket ryms i loggen (`inom` nedan). Att raden kortas i stället för att brytas bär `truncate`
+    // (`trad-senaste-svar.test.jsx`); ett mått på radantalet här hade inte gått att se rött utan ett eget bygge med en bruten rad, och lades därför inte till (regel 4).
+    krav(
+      finns.length === 1 && /^3 svar · Ops-agenten: "Q3: intäkter 412 000/.test(finns[0].text) && !finns[0].text.includes("sammanfatta budgeten"),
+      `${namn}: väntat ett märke "3 svar · Ops-agenten: "Q3: …" · tid" (utan rotens text) på meddelandet med tråden, fick ${JSON.stringify(finns.map((m) => m.text))}.`,
+    );
     krav(chatt.marken.some((m) => m.slag === "ny" && m.text === "Svara i tråd"), `${namn}: inget meddelande bär "Svara i tråd".`);
     // ⛔ 0.106.0 (#386 skiva 6): på telefon bor "Svara i tråd" i meddelandets Mer-meny (avsnitt 47 (6)), och knappen under bubblan
     // har ingen höjd där. Märket "3 svar" är innehåll och har sina 44 px på båda bredderna.

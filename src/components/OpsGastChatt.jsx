@@ -322,12 +322,14 @@ export function OpsGastChatt({ meddelanden, fler = false, onAldre, onSkriv, ladd
                       <span>{texter.svaraITrad}</span>
                     </button>
                   ) : null}
+                  {/* ⛔ (0.203.0) "N svar" ÄR SAMMA KNAPP SOM MEDLEMMENS MÄRKE (`tradknappKlass`), med samma hovring som pilen bredvid. CP 2026-11-08: "Hover på pilen
+                      i svar i chatten är inte samma som svar." Här stod en `OpsButton` som fyllde en ruta vid hovring, pilen fyllde en cirkel, och medlemmens
+                      märke fyller ingenting sedan 0.200.1. Nu byter alla tre bara färg. */}
                   {svar && onLasTrad ? (
-                    <span data-gast-chatt-svar={m.id}>
-                      <OpsButton variant="ghost" size="sm" onClick={() => oppnaTrad(m.id)}>
-                        {svar === 1 ? t.svarEtt : t.svar.replace("{n}", String(svar))}
-                      </OpsButton>
-                    </span>
+                    <button type="button" data-gast-chatt-svar={m.id} data-tradrot={m.id} onClick={() => oppnaTrad(m.id)} className={tradknappKlass(true)}>
+                      <TradIkon size={12} />
+                      <span className="min-w-0 truncate tabular-nums">{svar === 1 ? t.svarEtt : t.svar.replace("{n}", String(svar))}</span>
+                    </button>
                   ) : null}
                 </>
               );

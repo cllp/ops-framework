@@ -145,14 +145,15 @@ export function createSamtalskalla(konfig) {
    * glida isär från meddelandet.
    *
    * @param {string} vag @param {string} sid @param {import("../lib/samtal.js").Meddelande} m @param {string} [trad]
+   * @param {string} [givetId] (0.203.0) Id:t som redan valts, när vyn visar meddelandet innan det är skrivet (`skickaITrad`).
    */
-  async function skrivMeddelande(vag, sid, m, trad) {
+  async function skrivMeddelande(vag, sid, m, trad, givetId) {
     const lagrad = meddelandeAttLagra(m);
-    if (!m.bilaga) return kalla.create(vag, lagrad);
+    if (!m.bilaga) return kalla.create(vag, givetId ? { id: givetId, ...lagrad } : lagrad);
     if (typeof kalla.batch !== "function") {
       throw new Error("samtalskalla: en bilaga kräver kalla.batch, så meddelandet och filen skrivs tillsammans eller inte alls. En ensam skrivning hade lämnat ett meddelande som pekar på en fil som inte finns, eller en fil som inget meddelande nämner.");
     }
-    const id = nyttDokumentId(m.tid);
+    const id = givetId ?? nyttDokumentId(m.tid);
     const svar = await kalla.batch([
       { op: "create", collection: vag, data: { id, ...lagrad } },
       { op: "create", collection: bilagavag(sid), data: { id: bilagenyckel(id, trad), ...bilagaAttLagra(m.bilaga), tid: m.tid } },
@@ -600,6 +601,8 @@ export function createSamtalskalla(konfig) {
    *   - `antalSvar` är en aggregatfråga (`count`) där källan kan, och annars en lista med `sida` som tak (minneskällan);
    *   - märkets namn kräver inga meddelanden: det är trådens `namn`, eller rotmeddelandet som redan står i chatten.
    * Antalet svar räknas fram och lagras inte: en räknare på tråden hade varit en andra sanning om meddelandena.
+   * ⛔ Det senaste svaret (0.203.0, `senasteSvar`) läses också fram, samma sak: ett fält "senaste" på tråden hade varit en kopia av
+   * det nyaste meddelandet, en skrivning till per svar som kan misslyckas för sig, och ett utdrag som står kvar när texten den kom ur inte gör det.
    */
 
   /** @param {string} sid */
@@ -608,12 +611,27 @@ export function createSamtalskalla(konfig) {
   const tradmeddelandevag = (sid, tid) => `${tradvag(sid)}/${tid}/${meddelanden}`;
 
   /**
+   * Trådar som källan sett finnas, `sid/tid` (0.203.0). Samma form som `kandaAmnen`.
+   *
+   * ⛔ VARFÖR (CP 2026-11-08: "Det var också en fördröjning på svar i tråden. Så jag fattade först inte var mitt trådsvar blev av.").
+   * `skickaITrad` öppnade tråden före varje svar, och `oppnaTrad` läser tråden först. Svaret skrevs alltså först efter en läsning mot
+   * servern, och för det första svaret efter ännu en skrivning (trådens), medan gruppchattens `skicka` skriver direkt. Lästes ur koden,
+   * inte mätt i produktion. En tråd som setts finnas finns för alltid: regeln har `allow delete: if false` på trådarna, så minnet kan
+   * inte bli osant. Läsningen före görs därför bara för en tråd källan inte sett.
+   */
+  const kandaTradar = new Set();
+  /** @param {string} sid @param {string} tid */
+  const tradnyckel = (sid, tid) => `${sid}/${tid}`;
+
+  /**
    * En tråd, eller `null` om den inte finns än.
    * @param {string} sid @param {string} tid
    * @returns {Promise<import("../lib/samtal.js").Trad | null>}
    */
   async function trad(sid, tid) {
-    return /** @type {any} */ (await kalla.read(tradvag(sid), tid));
+    const t = /** @type {any} */ (await kalla.read(tradvag(sid), tid));
+    if (t) kandaTradar.add(tradnyckel(sid, tid));
+    return t;
   }
 
   /**
@@ -636,6 +654,7 @@ export function createSamtalskalla(konfig) {
     try {
       const { id, ...falt } = ny;
       await kalla.create(tradvag(sid), { id, ...falt });
+      kandaTradar.add(tradnyckel(sid, ny.id));
       return ny;
     } catch (fel) {
       const igen = await trad(sid, ny.id);
@@ -676,6 +695,23 @@ export function createSamtalskalla(konfig) {
   }
 
   /**
+   * Det nyaste svaret i en tråd, eller `null` när tråden inte har något (0.203.0). Trådens märke i gruppchatten visar det:
+   * "1 svar · Collan: "Starkaste öppningen…" · 16.07" (CP 2026-11-08).
+   *
+   * ⛔ EN LÄSNING, OCH INGET LAGRAT. En fråga på `tid` fallande med `limit: 1`, samma ordning som `tradmeddelanden` och
+   * `prenumereraTrad`, alltså samma meddelande som står sist i trådvyn. Vyn läser det när den räknar antalet, inte oftare.
+   * ⛔ INGET ATT HOPPA ÖVER. Ett svar i en tråd ändras och raderas aldrig (regeln: `allow update, delete: if false`), och trådvyn ritar
+   * varje svar, så det nyaste här är det nyaste där. Ett svar utan synlig text finns inte: `byggMeddelande` kräver text eller en bilaga.
+   *
+   * @param {string} sid @param {string} tid
+   * @returns {Promise<(import("../lib/samtal.js").Meddelande & { id: string }) | null>}
+   */
+  async function senasteSvar(sid, tid) {
+    const [m] = await kalla.list(tradmeddelandevag(sid, tid), { sortBy: "tid", direction: "desc", limit: 1 });
+    return m ?? null;
+  }
+
+  /**
    * De senaste meddelandena i en tråd, i stigande tid.
    * @param {string} sid @param {string} tid
    * @returns {Promise<Array<import("../lib/samtal.js").Meddelande & { id: string }>>}
@@ -701,16 +737,26 @@ export function createSamtalskalla(konfig) {
 
   /**
    * Skickar i tråden ur `tid`, och öppnar tråden först om den inte finns.
+   *
+   * ⛔ `onLokal` (0.203.0): anropas med svaret SOM DET SKRIVS, med sitt id, innan källan rörs. Trådvyn visar det direkt med
+   * "Skickas…", och när svaret kommer tillbaka ur källan är det samma id, så att det står en gång och inte två. Id:t väljs här
+   * (`nyttDokumentId`, samma form som ett meddelande med bilaga redan har) och inte av adaptern, eftersom vyn behöver det innan
+   * skrivningen är klar. Utan id hade vyn fått gissa vilket inkommande meddelande som var dess eget.
+   *
    * @param {string} sid @param {string} tid
    * @param {{ text: string, av: string, namner?: ReadonlyArray<string> | null, bilaga?: import("../lib/file.js").Bilaga | null }} d
+   * @param {{ onLokal?: (m: import("../lib/samtal.js").Meddelande & { id: string }) => void }} [val]
    */
-  async function skickaITrad(sid, tid, { text, av, namner, bilaga }) {
+  async function skickaITrad(sid, tid, { text, av, namner, bilaga }, val) {
     // Meddelandet byggs först: ett tomt svar ska inte lämna en tom tråd efter sig. En bilaga utan text är ett svar.
     const m = nyttMeddelande({ text, av, namner, bilaga }, "samtalskalla.skickaITrad");
-    await oppnaTrad({ sid, rot: tid, uid: av });
+    const id = nyttDokumentId(m.tid);
+    // Bilagan med sitt innehåll, så att vyn kan rita den innan filen finns att läsa. Det lagrade meddelandet bär bara märket.
+    val?.onLokal?.(/** @type {any} */ ({ id, ...meddelandeAttLagra(m), ...(m.bilaga ? { bilaga: m.bilaga } : {}) }));
+    if (!kandaTradar.has(tradnyckel(sid, tid))) await oppnaTrad({ sid, rot: tid, uid: av });
     // Filen ligger under samtalet, inte under tråden: panelen läser en samling. Trådens id står i nyckeln, så att regeln
     // hittar meddelandet (`bilagenyckel`).
-    return skrivMeddelande(tradmeddelandevag(sid, tid), sid, m, tid);
+    return skrivMeddelande(tradmeddelandevag(sid, tid), sid, m, tid, id);
   }
 
   /**
@@ -762,7 +808,7 @@ export function createSamtalskalla(konfig) {
     return /** @type {any} */ (await kalla.read(meddelandevag(sid), tid));
   }
 
-  const tradfunktioner = tradar === undefined ? {} : { tradar, trad, oppnaTrad, tradarFor, antalSvar, tradmeddelanden, prenumereraTrad, skickaITrad, skickaPaRot, dopOm, rotmeddelande };
+  const tradfunktioner = tradar === undefined ? {} : { tradar, trad, oppnaTrad, tradarFor, antalSvar, senasteSvar, tradmeddelanden, prenumereraTrad, skickaITrad, skickaPaRot, dopOm, rotmeddelande };
 
   /*
    * ══ ⛔ AGENTENS STATUS (#273) ═════════════════════════════════════════════════════════════════════════════════════════
@@ -1015,9 +1061,13 @@ export function createSamtalskalla(konfig) {
  * @property {(d: { sid: string, rot: string, uid: string }) => Promise<import("../lib/samtal.js").Trad>} oppnaTrad
  * @property {(sid: string, rotter: ReadonlyArray<string>) => Promise<Array<import("../lib/samtal.js").Trad>>} tradarFor
  * @property {(sid: string, tid: string) => Promise<{ antal: number, fler: boolean }>} antalSvar
+ * @property {(sid: string, tid: string) => Promise<(import("../lib/samtal.js").Meddelande & { id: string }) | null>} [senasteSvar] (0.203.0) Det nyaste svaret, eller `null`
+ *   när tråden inget har. En läsning (`limit: 1` på `tid` fallande), inget lagrat. FRIVILLIG för den som byggt en egen källa med samma form: utan den visar
+ *   trådens märke bara antalet, som före 0.203.0.
  * @property {(sid: string, tid: string) => Promise<Array<import("../lib/samtal.js").Meddelande & { id: string }>>} tradmeddelanden
  * @property {(sid: string, tid: string, lyssnare: { onData: (rader: any[]) => void, onError: (fel: Error) => void }) => (() => void) | null} prenumereraTrad
- * @property {(sid: string, tid: string, d: { text: string, av: string, namner?: ReadonlyArray<string> | null }) => Promise<any>} skickaITrad
+ * @property {(sid: string, tid: string, d: { text: string, av: string, namner?: ReadonlyArray<string> | null, bilaga?: import("../lib/file.js").Bilaga | null }, val?: { onLokal?: (m: import("../lib/samtal.js").Meddelande & { id: string }) => void }) => Promise<any>} skickaITrad
+ *   (0.203.0) `val.onLokal` får svaret med sitt id innan det skrivs, så att vyn kan visa det direkt (se `OpsTrad`).
  * @property {(sid: string, rot: string, d: { text: string, rotText: string, av: string }) => Promise<{ rot: boolean, meddelande: any }>} skickaPaRot (0.191.0) Skapar roten med id:t, eller svarar i dess tråd när den finns.
  * @property {(sid: string, tid: string, namn: string | null) => Promise<any>} dopOm
  * @property {(sid: string, tid: string) => Promise<(import("../lib/samtal.js").Meddelande & { id: string }) | null>} rotmeddelande

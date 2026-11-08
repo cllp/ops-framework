@@ -422,11 +422,14 @@ describe("läsningar för märkena (BÖR 4)", { timeout: 20000 }, () => {
 
     // eslint-disable-next-line no-console
     console.log(`LÄSNINGAR (trådar/alla): öppna ${oppna.tradar}/${oppna.alla}, nytt meddelande ${nytt.tradar}/${nytt.alla}, tillbaka från tråd ${tillbaka.tradar}/${tillbaka.alla}, fokus ${fokus.tradar}/${fokus.alla}`);
-    // Taken gäller trådarnas läsningar. Öppna: 50 rötter och 20 antal. Nytt meddelande: den nya roten. Tillbaka: det som
-    // tråden kan ha ändrat, alltså inget när ingen svarat. Fokus: 19 antal och de senaste rötterna utan tråd.
-    expect(oppna.tradar).toBeLessThanOrEqual(70);
+    // Taken gäller trådarnas läsningar. Öppna: 50 rötter, 20 antal och (0.203.0) 20 senaste svar. Nytt meddelande: den nya roten.
+    // Tillbaka: det som tråden kan ha ändrat, alltså inget när ingen svarat. Fokus: de 20 kända trådarnas antal och senaste svar,
+    // och de senaste rötterna utan tråd.
+    // ⛔ HÖJT I 0.203.0, OCH BARA MED DET SOM BESLUTATS (CP 2026-11-08, det senaste svaret på märket). Mätt före: öppna 70, fokus 30.
+    // Efter: 90 och 50, alltså exakt en läsning till per räknad tråd (`senasteSvar`, `limit: 1`) och ingen annanstans.
+    expect(oppna.tradar).toBeLessThanOrEqual(90);
     expect(nytt.tradar).toBeLessThanOrEqual(1);
     expect(tillbaka.tradar).toBe(0);
-    expect(fokus.tradar).toBeLessThanOrEqual(30);
+    expect(fokus.tradar).toBeLessThanOrEqual(50);
   });
 });
