@@ -138,6 +138,17 @@ export const ORD_OPSGASTLISTA = {
   // ── Hopfällbara gästkort i gruppläget (0.204.0, CP 2026-11-08) ──
   visaDetaljer: { sv: "Visa detaljer för {vem}", en: "Show details for {vem}" },
   nyLankKlar: { sv: "En ny länk är skapad. Den gäller i {dagar} dagar, och den förra länken fungerar inte längre. Dela den nya.", en: "A new link has been created. It is valid for {dagar} days, and the previous link no longer works. Share the new one." },
+  // ── Gör till medlem (0.206.0, CP 2026-11-08: "hur gör jag en gäst till en medlem?") ──
+  gorTillMedlem: { sv: "Gör till medlem", en: "Make a member" },
+  gorTillMedlemNamn: { sv: "Gör {vem} till medlem", en: "Make {vem} a member" },
+  bekraftaMedlemTitel: { sv: "Gör {vem} till medlem?", en: "Make {vem} a member?" },
+  bekraftaMedlemText: {
+    sv: "{namn} får en inbjudan som medlem till {epost}. När inbjudan tas emot slutar gästlänkarna gälla, och gästen blir medlem med medlemmens rättigheter.",
+    en: "{namn} gets an invitation as a member at {epost}. When the invitation is accepted the guest links stop working, and the guest becomes a member with a member's rights.",
+  },
+  bekraftaMedlemKnapp: { sv: "Skicka medlemsinbjudan", en: "Send member invitation" },
+  bekraftaMedlemPagar: { sv: "Skickar medlemsinbjudan…", en: "Sending the member invitation…" },
+  medlemsinbjudanSkickad: { sv: "Medlemsinbjudan skickad till {epost}.", en: "Member invitation sent to {epost}." },
   // ── I gruppens medlemsvy (`OpsMedlemmar`, 0.132.0): gästen är ett val i Roll ──
   rollGast: { sv: "Gäst (utan konto)", en: "Guest (no account)" },
   medlemsNotMedGast: {
@@ -295,10 +306,13 @@ function delningsorsak(e) {
  *
  * (0.203.0) `laddaNed` på en gruppinbjudan: formulärets val, och dialogen säger vad det betyder. Utelämnat (Bjud in igen på en rad, `OpsMedlemmar`) står inget om nedladdning, eftersom det sparade värdet då inte ändras.
  *
- * @param {{ bekrafta: { slag: "grupp", epost?: string, telefon?: string, namn: string, laddaNed?: boolean } | { slag: "radera", gastId: string, epost?: string, telefon?: string, namn: string }, t: Record<string, string>, onBekrafta: () => Promise<unknown>, onAvbryt: () => void }} props
+ * (0.206.0) `slag: "medlem"`: gästen bjuds in som medlem (`onGorTillMedlem` i `OpsGastLista`). ⛔ Ett fel står i dialogen (`fel`), och dialogen står kvar så att medlemmen ser det och kan försöka
+ * igen eller avbryta. Ett fel i en dialog som stängs är ett fel ingen ser (regel 5).
+ *
+ * @param {{ bekrafta: { slag: "grupp", epost?: string, telefon?: string, namn: string, laddaNed?: boolean } | { slag: "radera", gastId: string, epost?: string, telefon?: string, namn: string } | { slag: "medlem", gastId: string, epost: string, namn: string }, t: Record<string, string>, onBekrafta: () => Promise<unknown>, onAvbryt: () => void, fel?: string }} props
  */
-export function GastBekraftelse({ bekrafta, t, onBekrafta, onAvbryt }) {
-  const vem = bekrafta.namn || bekrafta.epost || bekrafta.telefon || "";
+export function GastBekraftelse({ bekrafta, t, onBekrafta, onAvbryt, fel = "" }) {
+  const vem = bekrafta.namn || bekrafta.epost || ("telefon" in bekrafta ? bekrafta.telefon : "") || "";
   const [pagar, setPagar] = useState(false);
   const pagarRef = useRef(false);
   const avbryt = () => {
@@ -321,15 +335,15 @@ export function GastBekraftelse({ bekrafta, t, onBekrafta, onAvbryt }) {
         if (!o) avbryt();
       }}
       size="sm"
-      title={(bekrafta.slag === "grupp" ? t.bekraftaGruppTitel : t.bekraftaRaderaTitel).replace("{vem}", vem)}
+      title={(bekrafta.slag === "grupp" ? t.bekraftaGruppTitel : bekrafta.slag === "medlem" ? t.bekraftaMedlemTitel : t.bekraftaRaderaTitel).replace("{vem}", vem)}
       closeLabel={t.stang}
       footer={
         <div className="flex flex-wrap items-center justify-end gap-2">
           <OpsButton variant="secondary" onClick={avbryt} disabled={pagar}>
             {t.avbryt}
           </OpsButton>
-          <OpsButton variant={bekrafta.slag === "grupp" ? "primary" : "danger"} onClick={genomfor} busyLabel={bekrafta.slag === "grupp" ? t.bekraftaGruppPagar : t.bekraftaRaderaPagar}>
-            {bekrafta.slag === "grupp" ? t.bekraftaGruppKnapp : t.bekraftaRaderaKnapp}
+          <OpsButton variant={bekrafta.slag === "radera" ? "danger" : "primary"} onClick={genomfor} busyLabel={bekrafta.slag === "grupp" ? t.bekraftaGruppPagar : bekrafta.slag === "medlem" ? t.bekraftaMedlemPagar : t.bekraftaRaderaPagar}>
+            {bekrafta.slag === "grupp" ? t.bekraftaGruppKnapp : bekrafta.slag === "medlem" ? t.bekraftaMedlemKnapp : t.bekraftaRaderaKnapp}
           </OpsButton>
         </div>
       }
@@ -341,9 +355,12 @@ export function GastBekraftelse({ bekrafta, t, onBekrafta, onAvbryt }) {
           <p className="m-0">{t.bekraftaGruppInte}</p>
           <p className="m-0">{t.bekraftaGruppTillbaka.replace("{minuter}", String(Math.round(SIGNERAD_SEKUNDER / 60)))}</p>
         </div>
+      ) : bekrafta.slag === "medlem" ? (
+        <p data-gastlista-bekrafta="medlem" className="m-0 text-etikett text-ink-secondary wrap-anywhere">{t.bekraftaMedlemText.replace("{namn}", vem).replace("{epost}", bekrafta.epost)}</p>
       ) : (
         <p data-gastlista-bekrafta="radera" className="m-0 text-etikett text-ink-secondary">{t.bekraftaRaderaText}</p>
       )}
+      {fel ? <p role="alert" data-gastlista-bekrafta-fel="" className="m-0 mt-3 text-etikett text-danger wrap-anywhere">{fel}</p> : null}
     </OpsModal>
   );
 }
@@ -416,12 +433,17 @@ export function GastBekraftelse({ bekrafta, t, onBekrafta, onAvbryt }) {
  * @param {(arg: { id: string }) => void | Promise<unknown>} [props.onAterkalla]
  * @param {(arg: { gastId: string }) => void | Promise<unknown>} [props.onAterkallaAlla] (0.132.0) Drar tillbaka alla personens inbjudningar i gruppen. Bara i gruppläget.
  * @param {(arg: { gastId: string, epost: string }) => void | Promise<unknown>} [props.onRadera] (0.132.0) Raderar personens uppgifter, efter att medlemmen bekräftat i dialogen. Utelämnad: ingen knapp.
+ * @param {(arg: { gastId: string, epost: string }) => Promise<unknown>} [props.onGorTillMedlem] (0.206.0, CP 2026-11-08: "hur gör jag en gäst till en medlem?") Skickar en medlemsinbjudan till
+ *   gästens adress, efter att medlemmen bekräftat i dialogen. Ger knappen Gör till medlem på gästkortet, bara för en gäst med e-postadress: en gäst med bara telefonnummer har ingen adress att
+ *   bjuda in, och inloggningen som medlem går via adressen. Dialogen står kvar tills löftet är klart, med knappen upptagen. ⛔ Ett fel visas i dialogen, aldrig tyst; ett lyckat anrop ger
+ *   beskedet "Medlemsinbjudan skickad till {epost}." på kortet. Vyn avgör ingenting om vad som händer med gästlänkarna: det gör appens tjänst när inbjudan tas emot. Utelämnad: ingen knapp.
+ *   Bara i gruppläget.
  * @param {boolean} [props.utanRubrik] (0.132.0) Utan rubriken "Gäster" och platsraden: listan står under en annan rubrik (`OpsMedlemmar`, bland de väntande inbjudningarna). En tom lista ritar då ingenting alls i stället för "Inga gäster": den som äger rubriken avgör om det ska stå.
  * @param {number} [props.nu] Millisekunder, för "länken har gått ut". Förval `Date.now()`. Provens enda sätt att låta en länk gå ut.
  * @param {string} [props.sprak]
  * @param {Partial<Record<keyof typeof ORD_OPSGASTLISTA, string>>} [props.ord] Egna texter, som vinner över ordboken.
  */
-export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud, onBjudGrupp, onNedladdning, onSkickaOm, onKopieraLank, onAterkalla, onAterkallaAlla, onRadera, gruppnamn, medTelefon = false, utanRubrik = false, nu, sprak = "sv", ord }) {
+export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud, onBjudGrupp, onNedladdning, onSkickaOm, onKopieraLank, onAterkalla, onAterkallaAlla, onRadera, onGorTillMedlem, gruppnamn, medTelefon = false, utanRubrik = false, nu, sprak = "sv", ord }) {
   if (personer !== undefined && gaster !== undefined) {
     throw new Error("OpsGastLista: ange antingen gaster (en omröstning) eller personer (hela gruppen), inte båda. Två listor över samma gäster hade kunnat säga olika saker.");
   }
@@ -444,12 +466,13 @@ export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud
       if (!g || typeof g.id !== "string" || typeof g.epost !== "string") throw new Error("OpsGastLista: varje gäst har { id, epost }.");
     }
     if (onBjudGrupp !== undefined || onAterkallaAlla !== undefined || onNedladdning !== undefined) throw new Error("OpsGastLista: onBjudGrupp, onAterkallaAlla och onNedladdning hör till listan över hela gruppen (personer).");
+    if (onGorTillMedlem !== undefined) throw new Error("OpsGastLista: onGorTillMedlem hör till listan över hela gruppen (personer). Gästkortet med personens adress finns bara där.");
     if (medTelefon) throw new Error("OpsGastLista: medTelefon hör till listan över hela gruppen (personer). En omröstning och en händelse bjuds in med e-post.");
   }
   if (medTelefon && (onBjudGrupp === undefined || onKopieraLank === undefined)) {
     throw new Error("OpsGastLista: medTelefon kräver onBjudGrupp och onKopieraLank. Inget sms skickas, så länken är det enda som når en gäst med telefonnummer.");
   }
-  for (const [namn, f] of /** @type {const} */ ([["onBjud", onBjud], ["onBjudGrupp", onBjudGrupp], ["onNedladdning", onNedladdning], ["onSkickaOm", onSkickaOm], ["onKopieraLank", onKopieraLank], ["onAterkalla", onAterkalla], ["onAterkallaAlla", onAterkallaAlla], ["onRadera", onRadera]])) {
+  for (const [namn, f] of /** @type {const} */ ([["onBjud", onBjud], ["onBjudGrupp", onBjudGrupp], ["onNedladdning", onNedladdning], ["onSkickaOm", onSkickaOm], ["onKopieraLank", onKopieraLank], ["onAterkalla", onAterkalla], ["onAterkallaAlla", onAterkallaAlla], ["onRadera", onRadera], ["onGorTillMedlem", onGorTillMedlem]])) {
     if (f !== undefined && typeof f !== "function") throw new Error(`OpsGastLista: ${namn} måste vara en funktion (eller utelämnas).`);
   }
   const t = { ...forvalda(ORD_OPSGASTLISTA, sprak), ...definierade(/** @type {Record<string, string>} */ (ord ?? {})) };
@@ -478,7 +501,9 @@ export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud
       else nya.add(gid);
       return nya;
     });
-  const [bekrafta, setBekrafta] = useState(/** @type {{ slag: "grupp", epost?: string, telefon?: string, namn: string, laddaNed?: boolean } | { slag: "radera", gastId: string, epost?: string, telefon?: string, namn: string } | null} */ (null));
+  const [bekrafta, setBekrafta] = useState(/** @type {{ slag: "grupp", epost?: string, telefon?: string, namn: string, laddaNed?: boolean } | { slag: "radera", gastId: string, epost?: string, telefon?: string, namn: string } | { slag: "medlem", gastId: string, epost: string, namn: string } | null} */ (null));
+  // (0.206.0) Felet i bekräftelsen för Gör till medlem. Dialogen står kvar med felet i stället för att stängas.
+  const [bekraftaFel, setBekraftaFel] = useState("");
   const telefonValt = gruppLage && medTelefon && kontaktslag === "telefon";
   const levande = useRef(true);
   useEffect(() => {
@@ -631,6 +656,10 @@ export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud
   async function genomforBekraftelse() {
     const b = bekrafta;
     if (!b) return;
+    if (b.slag === "medlem") {
+      await gorTillMedlem(b);
+      return;
+    }
     try {
       if (b.slag === "grupp") {
         if (!onBjudGrupp) return;
@@ -657,6 +686,27 @@ export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud
       if (onRadera) await pa(b.gastId, onRadera, { gastId: b.gastId, ...(typeof b.telefon === "string" ? { telefon: b.telefon } : { epost: b.epost }) });
     } finally {
       if (levande.current) setBekrafta(null);
+    }
+  }
+
+  /**
+   * (0.206.0) Skickar medlemsinbjudan. ⛔ Lyckas den stängs dialogen och kortet säger vart inbjudan gick. Misslyckas den står dialogen kvar med felet, så att det aldrig försvinner med den.
+   * @param {{ gastId: string, epost: string, namn: string }} b
+   */
+  async function gorTillMedlem(b) {
+    if (!onGorTillMedlem) return;
+    setBekraftaFel("");
+    setRadfel((r) => ({ ...r, [b.gastId]: "" }));
+    setRadklar((r) => ({ ...r, [b.gastId]: "" }));
+    try {
+      await onGorTillMedlem({ gastId: b.gastId, epost: b.epost });
+    } catch (e) {
+      if (levande.current) setBekraftaFel(felText(e));
+      return;
+    }
+    if (levande.current) {
+      setRadklar((r) => ({ ...r, [b.gastId]: t.medlemsinbjudanSkickad.replace("{epost}", b.epost) }));
+      setBekrafta(null);
     }
   }
 
@@ -830,8 +880,14 @@ export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud
                           );
                         })}
                       </ul>
-                      {(onAterkallaAlla && harAktiv) || onRadera ? (
+                      {(onAterkallaAlla && harAktiv) || onRadera || (onGorTillMedlem && !personTelefon) ? (
                         <div className="flex flex-wrap items-center gap-2 border-t border-line pt-2">
+                          {onGorTillMedlem && !personTelefon ? (
+                            // (0.206.0) Bara med e-postadress: en gäst med bara telefon har ingen adress att bjuda in som medlem.
+                            <OpsButton size="sm" variant="secondary" ariaLabel={t.gorTillMedlemNamn.replace("{vem}", vem)} onClick={() => (setBekraftaFel(""), setBekrafta({ slag: "medlem", gastId: p.gastId, epost: kontakt, namn: p.namn ?? "" }))}>
+                              {t.gorTillMedlem}
+                            </OpsButton>
+                          ) : null}
                           {onAterkallaAlla && harAktiv ? (
                             <OpsButton size="sm" variant="ghost" ariaLabel={t.draTillbakaAllaNamn.replace("{vem}", vem)} busyLabel={t.draTillbakaPagar} onClick={() => pa(p.gastId, onAterkallaAlla, { gastId: p.gastId })}>
                               {t.draTillbakaAlla}
@@ -984,7 +1040,7 @@ export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud
         </form>
       ) : null}
 
-      {bekrafta ? <GastBekraftelse bekrafta={bekrafta} t={t} onBekrafta={genomforBekraftelse} onAvbryt={() => setBekrafta(null)} /> : null}
+      {bekrafta ? <GastBekraftelse bekrafta={bekrafta} t={t} onBekrafta={genomforBekraftelse} onAvbryt={() => (setBekraftaFel(""), setBekrafta(null))} fel={bekrafta.slag === "medlem" ? bekraftaFel : ""} /> : null}
     </section>
   );
 }
