@@ -207,6 +207,42 @@ describe("lägena", () => {
     expect(container.querySelector("[data-github-andrad]")).toBeNull();
   });
 
+  // ⛔ CP 2026-11-08: "Filen ligger inte i gruppens kopplade repo" för en länk till rätt repo. Posten låg i Mitt bibliotek, och raden sade något som inte stämde. Rött mot 0.204.0: läget fanns inte och ritades som fel.
+  it("mitt-bibliotek säger att posten måste ligga i gruppens bibliotek, på svenska och engelska", async () => {
+    const post = lank(urlFor("README.md"));
+    const sv = visa(post, async () => ({ lage: "mitt-bibliotek" }));
+    await waitFor(() => expect(sv.container.querySelector('[data-github-lage="mitt-bibliotek"]')).not.toBeNull());
+    expect(sv.container.querySelector('[data-github-lage="mitt-bibliotek"]')?.textContent).toBe("En länk i Mitt bibliotek kan inte läsas ur GitHub. Lägg posten i gruppens bibliotek, på projektets plats, så öppnas filen här.");
+    expect(sv.container.querySelector('[data-github-lage="mitt-bibliotek"]')?.textContent).not.toContain("kopplade repo");
+    sv.unmount();
+    const en = render(
+      <OpsSprakProvider sprak="en">
+        <OpsBibliotek poster={[post]} jag={JAG} vald={post} onOppna={() => {}} onStang={() => {}} onSpara={() => {}} hubHref="/hub" githubLasare={async () => ({ lage: "mitt-bibliotek" })} />
+      </OpsSprakProvider>,
+    );
+    await waitFor(() => expect(en.container.querySelector('[data-github-lage="mitt-bibliotek"]')).not.toBeNull());
+    expect(en.container.querySelector('[data-github-lage="mitt-bibliotek"]')?.textContent).toBe("A link in My library cannot be read from GitHub. Put the post in the group's library, on the project's place, and the file opens here.");
+  });
+
+  it("inte-gruppens med kopplat säger vilket repo filen ligger i och vilket gruppen har", async () => {
+    const post = lank(urlFor("README.md"));
+    const a = visa(post, async () => ({ lage: "inte-gruppens", kopplat: "cllp/lifehub.app" }));
+    await waitFor(() => expect(a.container.querySelector('[data-github-lage="inte-gruppens"]')).not.toBeNull());
+    expect(a.container.querySelector('[data-github-lage="inte-gruppens"]')?.textContent).toBe("Filen ligger i cllp/bolag-ops, men gruppen är kopplad till cllp/lifehub.app.");
+    a.unmount();
+    const b = visa(post, async () => ({ lage: "inte-gruppens", kopplat: null }));
+    await waitFor(() => expect(b.container.querySelector('[data-github-lage="inte-gruppens"]')).not.toBeNull());
+    expect(b.container.querySelector('[data-github-lage="inte-gruppens"]')?.textContent).toBe("Filen ligger i cllp/bolag-ops, och gruppen har inget repo kopplat.");
+    b.unmount();
+    const en = render(
+      <OpsSprakProvider sprak="en">
+        <OpsBibliotek poster={[post]} jag={JAG} vald={post} onOppna={() => {}} onStang={() => {}} onSpara={() => {}} hubHref="/hub" githubLasare={async () => ({ lage: "inte-gruppens", kopplat: "cllp/lifehub.app" })} />
+      </OpsSprakProvider>,
+    );
+    await waitFor(() => expect(en.container.querySelector('[data-github-lage="inte-gruppens"]')).not.toBeNull());
+    expect(en.container.querySelector('[data-github-lage="inte-gruppens"]')?.textContent).toBe("The file is in cllp/bolag-ops, but the group is connected to cllp/lifehub.app.");
+  });
+
   it("for-stor med base64 ger Ladda ned, utan base64 bara länken", async () => {
     const med = visa(lank(urlFor("README.md")), async () => ({ lage: "for-stor", base64: b64("X") }));
     await waitFor(() => expect(med.container.querySelector('[data-github-lage="for-stor"]')).not.toBeNull());

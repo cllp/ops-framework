@@ -90,7 +90,7 @@ describe("githubDokument", () => {
   it("kartan och lägena är frysta", () => {
     expect(Object.isFrozen(GITHUB_SORTER)).toBe(true);
     expect(Object.isFrozen(GITHUB_LAGEN)).toBe(true);
-    expect([...GITHUB_LAGEN]).toEqual(["last", "saknas", "obehorig", "inte-gruppens", "for-stor", "fel"]);
+    expect([...GITHUB_LAGEN]).toEqual(["last", "saknas", "obehorig", "inte-gruppens", "mitt-bibliotek", "for-stor", "fel"]);
   });
 
   it("källan förblir annat: en GitHub-adress är ingen oEmbed-källa", () => {

@@ -45,8 +45,11 @@ export const GITHUB_SORTER = Object.freeze({
   xlsx: "excel",
 });
 
-/** Läget en läsning av en GitHub-fil kan ha. `last` är att filen kom, de andra är skälen till att den inte gjorde det. */
-export const GITHUB_LAGEN = Object.freeze(["last", "saknas", "obehorig", "inte-gruppens", "for-stor", "fel"]);
+/**
+ * Läget en läsning av en GitHub-fil kan ha. `last` är att filen kom, de andra är skälen till att den inte gjorde det.
+ * ⛔ `mitt-bibliotek` (0.205.0, CP 2026-11-08): posten ligger i Mitt bibliotek, som inte har någon grupp och alltså inget repo. Förut var det `inte-gruppens`, och raden "Filen ligger inte i gruppens kopplade repo" stod då för en länk till rätt repo: CP fick den för en fil i gruppens repo och kunde inte se varför.
+ */
+export const GITHUB_LAGEN = Object.freeze(["last", "saknas", "obehorig", "inte-gruppens", "mitt-bibliotek", "for-stor", "fel"]);
 
 /** @typedef {"markdown" | "html" | "pdf" | "bild" | "text" | "csv" | "word" | "excel" | "annat"} GithubSort */
 

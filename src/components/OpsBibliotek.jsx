@@ -16,6 +16,7 @@ import { lasFilbytes } from "../data/filbytes.js";
 import { BibliotekHtmlVersionerLat } from "./BibliotekHtmlVersionerLat.jsx";
 import { OpsMarkdown } from "./OpsMarkdown.jsx";
 import { GithubDokumentVisningLat } from "./GithubDokumentVisningLat.jsx";
+import { BibliotekRepoLat } from "./BibliotekRepoLat.jsx";
 import { githubDokument } from "../lib/githubdokument.js";
 import { OpsModal } from "./OpsModal.jsx";
 import { OpsSvepRad } from "./OpsSvepRad.jsx";
@@ -319,6 +320,8 @@ const arkivtips = () => `Arkiverad. Välj taggen ${ARKIVTAGG} för att se arkive
  * @param {(inmatning: { id: string }) => Promise<void> | void} [props.onAterkalla] (0.119.0) Stänger länken, för alltid. "Dra tillbaka" i dialogen (0.201.0, förut "Stäng länken"). En ny delning ger ett nytt token.
  * @param {(inmatning: { id: string, url: string, till: string }) => Promise<void | boolean> | void | boolean} [props.onMejlaLank] (0.128.0, cllp/lifehub.app#356) Skickar en delad länk med mejl, via appens mejlväg. Med den visar dialogen Dela länk fältet "Skicka till mejl" och knappen Skicka, under länkens adress (när länken är nyss skapad, eller en som lever och har en adress). `id` är delningens id och `url` hela adressen. Ramverket prövar adressen (`epostFel`: form och spärrade domäner) innan anropet och visar svaret, lyckat eller inte; ett kast eller `false` är ett fel i dialogen. Hör till `onDelaLank`. Utan den syns inget fält.
  * @param {(post: any) => Promise<import("./GithubDokumentVisning.jsx").GithubLasning>} [props.githubLasare] (0.186.0, cllp/lifehub.app#653) Läser filen en länk pekar på i gruppens GitHub-repo. En länk vars adress är `https://github.com/<ägare>/<repo>/blob/<ref>/<sökväg>` (`githubDokument`) öppnas då i ett läsläge i detaljen, efter filens sort (markdown, html, pdf, bild, text, csv; word, excel och övrigt får Ladda ned), med "Ändrad {datum} av {av}" och en länk Öppna i GitHub, i stället för att skicka personen till github.com. Svaret är `{ lage, text?, base64?, mime?, andrad?, av?, storlek? }` där `lage` är `last`, `saknas`, `obehorig`, `inte-gruppens`, `for-stor` eller `fel`; ett avvisat löfte ritas som `fel`. Ingen ny posttyp: posten är en vanlig länk. Utan den är länken som förut. Se `GithubDokumentVisning` för begränsningarna.
+ * @param {(fraga: { plats: string, sokvag: string }) => Promise<import("./BibliotekRepo.jsx").RepoLasning>} [props.repoLasare] (0.205.0, cllp/lifehub.app#653 skiva 3) Läser en mapp i projektets mapp i repot, en nivå: `sokvag` är vägen INOM projektets mapp (`""` är mappen själv), och svaret är `{ lage, poster, fler }` där `lage` är `last`, `saknas`, `obehorig` eller `fel` och varje post är `{ namn, sokvag, sort: "fil" | "mapp", storlek?, url? }`. Med den får en egen plats (`plats~<grupp>~<id>`) sektionen "I repot" under listan: en mapp öppnas i sektionen (brödsmulan och Tillbaka går upp en nivå, aldrig ovanför projektets mapp), och en fil med en GitHub-adress öppnas i läsläget genom `githubLasare` (posten har då inget `id`, och `groupId` är platsen). Appen skickar den bara för ett projekts plats. Utan den ser allt ut som förut. Inget sparas och inga nya fält.
+ * @param {(fil: { plats: string, sokvag: string, url: string, namn: string }) => Promise<unknown>} [props.onLaggRepoFil] (0.205.0) "Lägg i Biblioteket" på en fil i "I repot": appen skapar den vanliga länkposten. Ett kast visas vid filen med sitt meddelande. Utan den finns inget sådant val.
  * @param {(url: string) => Promise<{ titel?: string, artist?: string, kalla?: string, bild?: string }>} [props.onLankInfo] (0.128.0, cllp/lifehub.app#378) Hämtar titel, artist och omslag för en musiklänk (Spotify, YouTube, Apple Music eller SoundCloud), normalt en callable som anropar `lankInfoUrOembed` på nodsidan. När en sådan adress klistras in i Ny länk (eller lämnas med fokus) anropas den EN gång per adress, och rubriken fylls i som "titel, artist" om den är tom eller fortfarande den som förra uppslaget fyllde i. Rubriken går att ändra. `bild` sparas på posten (en https-adress). `kalla` i svaret ignoreras: ramverket härleder källan ur adressen (`lankKalla`), så att den inte finns på två ställen. Faller anropet, eller ger det varken titel eller artist, står rubrikfältet tomt och orsaken i en rad under adressen: aldrig tyst. Utan den görs inget uppslag, och en vanlig länk är som förut.
  * @param {string} [props.modulId] (0.88.1) Modulens id i appen, förval "bibliotek". Står den i huvudmenyn har listan ingen tillbaka-rad.
  * @param {string} [props.hubHref] (0.83.0) Hubbens adress: tillbaka-radens mål, som `OpsModulSida`. Krävs, utom med `inbaddad` (0.121.0).
@@ -351,7 +354,7 @@ const arkivtips = () => `Arkiverad. Välj taggen ${ARKIVTAGG} för att se arkive
  *   gästens bygger `OpsGastGrupp`. Utelämnad: ingen tråd och inget menyval, som förut.
  * @param {boolean} [props.utanNedladdning] (0.190.0, CP 2026-11-05: "Vill att man skall kunna förhindra nedladdning till gäster.") Ingen Ladda ned: varken i en fils detalj eller i spelarens ark för ett ljud ur listan. Gästens bibliotek när gruppen stängt av nedladdning (`grupp.nedladdning: false`). Visa och spela är som förut.
  */
-export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, trasiga: trasigaProp = [], laddar: laddarProp = false, vald = null, skapar = null, jag, onOppna, onStang, onSkapa, onSpara, onRadera, onLaddaUpp, onFyllLjud, onSpelaIn, inspelare, filUrl, hamtaAdress, hamtaFil, htmlVersioner, hamtaHtmlVersion, aterstallHtml, nyHtmlVersion, oppnaHtml, oppnaPdf, grupper = [], onDela, platser = [], plats, onPlats, onSkrivUt, onSkrivUtIgen, onTaBortUtskrift, onAnteckningAvUtskrift, onGorForslag, delningar = [], delningGruppdel, gruppnamn: gruppnamnProp, onDelaLank, onAndraNedladdning, onAterkalla, onMejlaLank, onLankInfo, githubLasare, hubHref, hubEtikett, onNavigate, modulId = "bibliotek", ram = null, activeHref, modul = null, inbaddad = false, tomText, utanHubb = false, adresserPaBegaran = false, gruppTaggar = [], egnaPlatser = null, stjarnor, onStjarna, huvudRad, utanNedladdning = false, kommentarer = null }) {
+export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, trasiga: trasigaProp = [], laddar: laddarProp = false, vald = null, skapar = null, jag, onOppna, onStang, onSkapa, onSpara, onRadera, onLaddaUpp, onFyllLjud, onSpelaIn, inspelare, filUrl, hamtaAdress, hamtaFil, htmlVersioner, hamtaHtmlVersion, aterstallHtml, nyHtmlVersion, oppnaHtml, oppnaPdf, grupper = [], onDela, platser = [], plats, onPlats, onSkrivUt, onSkrivUtIgen, onTaBortUtskrift, onAnteckningAvUtskrift, onGorForslag, delningar = [], delningGruppdel, gruppnamn: gruppnamnProp, onDelaLank, onAndraNedladdning, onAterkalla, onMejlaLank, onLankInfo, githubLasare, repoLasare, onLaggRepoFil, hubHref, hubEtikett, onNavigate, modulId = "bibliotek", ram = null, activeHref, modul = null, inbaddad = false, tomText, utanHubb = false, adresserPaBegaran = false, gruppTaggar = [], egnaPlatser = null, stjarnor, onStjarna, huvudRad, utanNedladdning = false, kommentarer = null }) {
   if (kalla !== undefined && (posterProp !== undefined || felProp !== null || laddarProp !== false || (Array.isArray(trasigaProp) && trasigaProp.length > 0))) {
     throw new Error("OpsBibliotek: kalla och poster/fel/trasiga/laddar kan inte ges tillsammans. Med kalla läser vyn själv, och två sanningar om samma lista hade låtit den ena vinna tyst.");
   }
@@ -415,6 +418,12 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
   }
   if (githubLasare !== undefined && typeof githubLasare !== "function") {
     throw new Error("OpsBibliotek: githubLasare måste vara en funktion (post) => Promise<{ lage, text?, base64?, ... }> (eller utelämnas).");
+  }
+  if (repoLasare !== undefined && typeof repoLasare !== "function") {
+    throw new Error("OpsBibliotek: repoLasare måste vara en funktion ({ plats, sokvag }) => Promise<{ lage, poster, fler }> (eller utelämnas).");
+  }
+  if (onLaggRepoFil !== undefined && typeof onLaggRepoFil !== "function") {
+    throw new Error("OpsBibliotek: onLaggRepoFil måste vara en funktion ({ plats, sokvag, url, namn }) => Promise (eller utelämnas).");
   }
   const sprak = useOpsSprak();
   const oppnaInspelning = useInspelningOppnare();
@@ -1186,6 +1195,10 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
               )}
             </Tabs.Content>
             </Tabs.Root>
+            {/* ⛔ "I REPOT" (0.205.0, cllp/lifehub.app#653 skiva 3): bara med `repoLasare`, bara på en egen plats och aldrig i en inbäddad lista. Nyckeln är platsen, så att en annan plats börjar i sin egen mapp. */}
+            {typeof repoLasare === "function" && !inbaddad && typeof plats === "string" && arPlatsBibliotek(plats) ? (
+              <BibliotekRepoLat key={plats} plats={plats} lasare={repoLasare} githubLasare={githubLasare} onLagg={onLaggRepoFil} />
+            ) : null}
             {status ? <p role="status">{status}</p> : null}
           </div>
         )}

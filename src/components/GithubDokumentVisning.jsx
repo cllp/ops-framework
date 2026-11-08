@@ -27,13 +27,18 @@ export const ORD_GITHUBDOKUMENT = {
   saknas: { sv: "Filen finns inte längre i repot.", en: "The file no longer exists in the repo." },
   obehorig: { sv: "GitHub-kopplingen når inte filen.", en: "The GitHub connection cannot reach the file." },
   "inte-gruppens": { sv: "Filen ligger inte i gruppens kopplade repo.", en: "The file is not in the group's connected repo." },
+  // ⛔ VILKET REPO GRUPPEN HAR OCH VILKET FILEN LIGGER I (0.205.0, CP 2026-11-08): utan de två namnen gick det inte att se varför en länk inte lästes. Filens repo tas ur adressen, gruppens ur läsarens `kopplat`.
+  inteGruppensKopplat: { sv: "Filen ligger i {fil}, men gruppen är kopplad till {kopplat}.", en: "The file is in {fil}, but the group is connected to {kopplat}." },
+  inteGruppensUtanKoppling: { sv: "Filen ligger i {fil}, och gruppen har inget repo kopplat.", en: "The file is in {fil}, and the group has no repo connected." },
+  "mitt-bibliotek": { sv: "En länk i Mitt bibliotek kan inte läsas ur GitHub. Lägg posten i gruppens bibliotek, på projektets plats, så öppnas filen här.", en: "A link in My library cannot be read from GitHub. Put the post in the group's library, on the project's place, and the file opens here." },
   "for-stor": { sv: "Filen är för stor för att visas.", en: "The file is too large to show." },
   fel: { sv: "Det gick inte att läsa filen just nu.", en: "The file could not be read right now." },
 };
 
 /**
  * @typedef {object} GithubLasning
- * @property {"last" | "saknas" | "obehorig" | "inte-gruppens" | "for-stor" | "fel"} lage Se `GITHUB_LAGEN`.
+ * @property {"last" | "saknas" | "obehorig" | "inte-gruppens" | "mitt-bibliotek" | "for-stor" | "fel"} lage Se `GITHUB_LAGEN`.
+ * @property {string | null} [kopplat] (0.205.0) Bara med `inte-gruppens`: repot gruppen är kopplad till, `ägare/namn`, eller `null` när gruppen inte har något. Raden säger då vilket repo filen ligger i (ur adressen) och vilket gruppen har. Utan fältet står den gamla raden.
  * @property {string} [text] Filens text (markdown, html, text, csv).
  * @property {string} [base64] Filens byte, base64 utan prefix. Krävs för pdf, bild, nedladdning, och duger som text för de textsorter som saknar `text`.
  * @property {string} [mime] Bara för en bild: `image/png`, `image/jpeg`, `image/gif` eller `image/webp`. Annars härleds typen ur adressens ändelse.
@@ -108,6 +113,12 @@ export function GithubDokumentVisning({ post, lasare }) {
   }, [post.url]);
   if (!info) return null;
   const url = /** @type {string} */ (post.url);
+  /** Raden för ett läge som inte är `last`. `inte-gruppens` med `kopplat` säger båda repona. @param {GithubLasning} l */
+  const lageRad = (l) => {
+    if (l.lage !== "inte-gruppens" || l.kopplat === undefined) return o(l.lage);
+    const fil = `${info.agare}/${info.repo}`;
+    return typeof l.kopplat === "string" && l.kopplat ? o("inteGruppensKopplat", { fil, kopplat: l.kopplat }) : o("inteGruppensUtanKoppling", { fil });
+  };
   const oppna = (
     <a href={url} target="_blank" rel="noopener noreferrer" data-github-oppna="" className="inline-flex min-h-11 w-fit items-center gap-1.5 text-etikett text-accent underline underline-offset-2 md:min-h-8">
       {o("oppna")}
@@ -135,7 +146,7 @@ export function GithubDokumentVisning({ post, lasare }) {
     return (
       <div data-github-dokument={svar.lage} className="flex min-w-0 flex-col gap-2">
         <p role={svar.lage === "fel" ? "alert" : "status"} data-github-lage={svar.lage} className={svar.lage === "fel" ? "m-0 text-etikett text-danger" : "m-0 text-etikett text-ink-secondary"}>
-          {o(svar.lage)}
+          {lageRad(svar)}
         </p>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           {svar.lage === "for-stor" ? laddaNed : null}

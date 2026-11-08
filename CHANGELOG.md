@@ -9,6 +9,30 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.205.0
+
+"I repot" på ett projekts plats i Biblioteket (cllp/lifehub.app#653 skiva 3, CP 2026-11-08: "Lite som working copy ... integrera det i bibliotek", "Detta är starkt"), och en läsrad som säger varför en GitHub-länk inte går att läsa.
+
+### Tillagt
+
+- **`OpsBibliotek` får `repoLasare` och `onLaggRepoFil` (valfria).** `repoLasare({ plats, sokvag }) => Promise<{ lage, poster, fler }>` läser en mapp i projektets mapp i repot, en nivå. `sokvag` är vägen INOM projektets mapp (`""` är mappen själv): ramverket känner aldrig projektets mapp i repot eller ett repo, bara vägen inom den. Varje post är `{ namn, sokvag, sort: "fil" | "mapp", storlek?, url? }` och `lage` är `last`, `saknas`, `obehorig` eller `fel` (`REPO_LAGEN`, samma ord som läsaren av en fil där de betyder samma sak).
+  - Med den får en egen plats (`plats~<grupp>~<id>`) sektionen **I repot** under listan. Aldrig på gruppens eget bibliotek, Mitt bibliotek eller i en inbäddad lista. Appen skickar den bara för ett projekts plats.
+  - En mapp öppnas i sektionen. Brödsmulan ("Projektets mapp" / ...) och Tillbaka går upp en nivå och stannar vid projektets mapp, och en post med en väg som går uppåt (`..`) eller är absolut ritas inte. Det är inte skyddet (appen prövar samma sak på servern), bara att vyn aldrig ber om något annat.
+  - En fil med en GitHub-adress öppnas i det befintliga läsläget (`GithubDokumentVisningLat`, 0.186.0) genom `githubLasare` som den är. Posten läsläget får är `{ typ: "lank", url, rubrik, groupId: <platsen> }` utan `id`: appen ser på det att filen ska läsas genom projektets mapp och inte genom en post. Utan `githubLasare` är filen en länk till github.com i en ny flik.
+  - `onLaggRepoFil({ plats, sokvag, url, namn })` ger varje fil **Lägg i Biblioteket**, som skapar den vanliga länkposten (lifehub.app kopplar den mot `planForGithubLank`). "Lagd i Biblioteket." när det gick, och ett kast står vid filen med sitt meddelande.
+  - Väntan syns (`aria-busy` och snurra), en tom mapp har raden "Mappen är tom.", och taket har raden "Visar de första N. Fler finns i mappen i repot." (regel 5). Ett avvisat löfte och ett okänt läge ritas som `fel`.
+  - **Inga nya fält och inga nya regler (regel 13).** Inget sparas: varje öppning frågar appen igen, och hela trädet läses aldrig.
+  - Sektionen ligger bakom en dynamisk import (`BibliotekRepoLat`, samma väg som läsläget i 0.186.0), och bara orden för väntan och för en modul som inte gick att hämta (`ORD_BIBLIOTEK_REPO_LAT`) ligger i startfilerna. Mätt i lifehub.app:s `check:jsstorlek` på samma appträd: 810 547 byte gzip med 0.204.0 och 810 799 med 0.205.0, alltså +252 för båda delarna av den här versionen.
+  - Prov: `bibliotek-repo.test.jsx` (19). Mot 0.204.0 är 17 röda; de två som är gröna åt båda håll är de som visar att det utan `repoLasare`, och på en plats som inte är en egen, ser ut som förut. Med ändringen är alla 19 gröna.
+
+### Ändrat
+
+- **En GitHub-länk i Mitt bibliotek får ett eget läge, `mitt-bibliotek`, och `inte-gruppens` kan säga vilka repon det gäller.** CP 2026-11-08 testade en länk till en fil i gruppens kopplade repo och fick "Filen ligger inte i gruppens kopplade repo". Posten låg i Mitt bibliotek, som inte har någon grupp, och appen svarade `inte-gruppens` utan att läsa något. Raden sade alltså något som inte stämde.
+  - `GITHUB_LAGEN` har `mitt-bibliotek`, med raden "En länk i Mitt bibliotek kan inte läsas ur GitHub. Lägg posten i gruppens bibliotek, på projektets plats, så öppnas filen här." (och på engelska).
+  - `GithubLasning` har det valfria `kopplat` (`ägare/namn` eller `null`), bara med `inte-gruppens`. Med det säger raden "Filen ligger i {filens repo}, men gruppen är kopplad till {kopplat}." eller "..., och gruppen har inget repo kopplat." Filens repo tas ur adressen, aldrig ur svaret (regel 2). Utan fältet står den gamla raden.
+  - En app som inte skickar det nya läget påverkas inte. Läser appen själv `GITHUB_LAGEN` får den ett läge till.
+  - Prov: två i `githubdokument-vy.test.jsx` och listan i `githubdokument-lib.test.js`, alla tre röda mot 0.204.0 (läget fanns inte och ritades som `fel`, och raden saknade repona) och gröna nu.
+
 ## 0.204.0
 
 Gruppens strömbrytare för nedladdning bort ur regeln (cllp/lifehub.app#691, CP: kör), hopfällbara gästkort i gästlistan och samma märke på gästens sida och i delningarna (CP 2026-11-08).
