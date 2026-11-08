@@ -30,8 +30,9 @@ const SERVERNS_TOMT = "Inget ljud kom fram. Försök igen.";
  * En falsk webbläsare med mikrofon, inspelare och taligenkänning. `tysta` säger, per anrop till `getUserMedia`, om strömmen är tyst.
  * En tyst ström ger inga bitar, och taligenkänningen hör ingenting medan den är tyst. Utan post i listan är strömmen inte tyst.
  * @param {boolean[]} tysta
+ * @param {{ nu?: () => number }} [val] `nu` är inspelarens klocka. Utelämnad: den riktiga, för prov som inte läser loggens tider.
  */
-function falskTelefon(tysta) {
+function falskTelefon(tysta, val = {}) {
   /** @type {Array<{ muted: boolean, readyState: string, stoppad: boolean, stop: () => void }>} */
   const spar = [];
   let anrop = 0;
@@ -100,7 +101,7 @@ function falskTelefon(tysta) {
     if (!rec || !rec.startad || rec.slut || strom.muted) return;
     rec.onresult({ resultIndex: 0, results: [Object.assign([{ transcript: t }], { isFinal: true })] });
   };
-  const inspelare = webblasarensInspelare({ mediaDevices: /** @type {any} */ (mediaDevices), MediaRecorder: /** @type {any} */ (MR), AudioContext: undefined });
+  const inspelare = webblasarensInspelare({ mediaDevices: /** @type {any} */ (mediaDevices), MediaRecorder: /** @type {any} */ (MR), AudioContext: undefined, ...(val.nu ? { nu: val.nu } : {}) });
   const igenkanning = /** @type {NonNullable<ReturnType<typeof webblasarensIgenkanning>>} */ (webblasarensIgenkanning({ SpeechRecognition: SR }));
   return { mediaDevices, spar, igenkannare, sag, inspelare, igenkanning };
 }
@@ -206,8 +207,13 @@ describe("andra omgången efter agentens fråga (lifehub.app#253)", () => {
 
 describe("webblasarensInspelare och en tyst ström", () => {
   it("hämtar en ny ström EN gång när alla spår är tysta, och stänger den tysta", async () => {
-    const tel = falskTelefon([true, true, true]);
+    // ⛔ (0.206.0, cllp/ops-framework#542) EGEN KLOCKA. Provet läste förut den riktiga klockan och krävde `anrop:0`, och under last i hela sviten
+    // hann en millisekund gå mellan loggens nollpunkt och första noteringen: rött av 6181, grönt ensamt. Det provet mätte var datorns tempo, inte
+    // ordningen. Nu går klockan bara när provet flyttar den, så varje tid i loggen är känd: 0 under starten och 750 när stoppet begärs.
+    let klocka = 50_000;
+    const tel = falskTelefon([true, true, true], { nu: () => klocka });
     await tel.inspelare.starta();
+    klocka += 750;
     const ut = await tel.inspelare.stoppa();
     expect(tel.mediaDevices.getUserMedia).toHaveBeenCalledTimes(2);
     expect(tel.spar[0].stoppad).toBe(true);
@@ -227,8 +233,9 @@ describe("webblasarensInspelare och en tyst ström", () => {
       stoppetHann: true,
       // (0.168.0, #539) Ljudets toppnivå. Utan analysator i testet är den null, och servern avgör.
       toppNiva: null,
-      // (0.155.0) Händelseloggen: namn och tider, klockan är riktig här och tiderna är 0 till några millisekunder.
-      logg: expect.stringMatching(/^anrop:0\.gum:\d+\.omhamtad:\d+\.gum2:\d+\.rec:\d+\.stoppbegard:\d+\.stop:\d+$/),
+      // (0.155.0) Händelseloggen: namn och tider i ordning. (0.206.0) Med provets klocka är tiderna exakta, så strängen jämförs hel: ett steg som
+      // saknas, byter plats eller mäts från fel nollpunkt blir rött.
+      logg: "anrop:0.gum:0.omhamtad:0.gum2:0.rec:0.stoppbegard:750.stop:750",
     });
   });
 
