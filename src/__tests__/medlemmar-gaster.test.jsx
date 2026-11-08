@@ -69,7 +69,7 @@ describe("OpsMedlemmar med gäster", () => {
     expect(screen.getByRole("button", { name: "Bjud in" })).toBeInTheDocument();
     await valjGast(user);
     expect(screen.getByText("1 av 5 gratis platser")).toBeInTheDocument();
-    expect(screen.getByText(/läsa och skriva i chatten, svara och rösta i kalendern och läsa, spela och ladda ned i biblioteket/)).toBeInTheDocument();
+    expect(screen.getByText(/läsa och skriva i chatten, svara och rösta i kalendern och läsa och spela i biblioteket. Ladda ned filer får gästen bara om det slås på/)).toBeInTheDocument();
     expect(screen.getByText(/Gästen ser inte gruppens ärenden/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Bjud in utan konto" })).toBeDisabled();
     expect(screen.queryByRole("button", { name: "Bjud in" })).toBeNull();

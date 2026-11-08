@@ -275,6 +275,9 @@ export const GASTFALT = /** @type {const} */ ([
   "aterkallad",
   "felAntal",
   "felFonster",
+  // (0.203.0, lifehub.app#691) Får gästen ladda ned filer ur gruppens bibliotek? BARA på en inbjudan till hela gruppen (`omfang.slag === "grupp"`), och då `true` eller `false`
+  // (förval `false`). En sak har inget bibliotek att ladda ned ur och bär aldrig fältet. En gruppinbjudan från före 0.203.0 saknar det och följer gruppens inställning (`farLaddaNed`).
+  "laddaNed",
 ]);
 
 /**
@@ -287,7 +290,7 @@ export const GASTDELTARADFALT = /** @type {const} */ (["deltasvar", "sekvens", "
 
 /**
  * (0.146.0) Det en `delta`-inbjudan har i medlemmens lista (`lista`) utöver `GASTLISTFALT` (en gäst på händelsen) respektive `GASTPERSONINBJUDANFALT` (en inbjudan under en person): gästens svar. Bara på en
- * `delta`-rad, så att en omröstnings- eller gruppinbjudan har exakt de fält den hade före 0.146.0. `sekvens` och `andringsnyckel` är serverns bokföring och visas inte.
+ * `delta`-rad, så att en omröstnings- eller gruppinbjudan har exakt de fält den hade före 0.146.0 (en gruppinbjudan har sedan 0.203.0 också `GASTGRUPPLISTFALT`). `sekvens` och `andringsnyckel` är serverns bokföring och visas inte.
  */
 export const GASTDELTALISTFALT = /** @type {const} */ (["deltasvar"]);
 
@@ -435,6 +438,13 @@ export const GASTPERSONFALT = /** @type {const} */ (["gastId", "epost", "telefon
 
 /** Fälten på en av personens inbjudningar i medlemmens lista. `titel` är omröstningens rubrik när appen gett `grupp.handelseSida`. */
 export const GASTPERSONINBJUDANFALT = /** @type {const} */ (["id", "omfang", "titel", "status", "skapad", "skickad", "antalSkickade", "forstInloggad", "aterkallad"]);
+
+/**
+ * (0.203.0, lifehub.app#691) Det en inbjudan till HELA GRUPPEN har i medlemmens lista utöver `GASTPERSONINBJUDANFALT`: gästens egen nedladdning. Bara på en gruppinbjudan, som
+ * `GASTDELTALISTFALT` bara på en delta-rad, så att en omröstnings- och en delta-inbjudan har exakt de fält de hade före 0.203.0 (en sak har inget bibliotek att ladda ned ur).
+ * `laddaNed` är `true` eller `false` när den satts. ⛔ `null` ÄR ETT SVAR (regel 5): en gruppinbjudan från före 0.203.0 saknar fältet, och gästen följer då gruppens inställning.
+ */
+export const GASTGRUPPLISTFALT = /** @type {const} */ (["laddaNed"]);
 
 /**
  * Orsakerna till att en gäst inte släpps in, och inget annat.

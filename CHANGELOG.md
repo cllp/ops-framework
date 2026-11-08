@@ -9,6 +9,32 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.203.0
+
+Nedladdning per gäst, av som förval (cllp/lifehub.app#691, CP-beslut). Förut gällde nedladdningen per grupp (`grupp.farLaddaNed`, 0.190.0): en gäst som släpptes in i en grupp med nedladdning på fick ladda ned allt, och det gick inte att ge en gäst mindre än en annan.
+
+### Tillagt
+- **`laddaNed` på en inbjudan till hela gruppen** (`GASTFALT`). `true` eller `false`, och en ny gäst får `false` om inget annat sägs. En sak (omröstning, händelse) bär aldrig fältet: den har inget bibliotek att ladda ned ur. `byggGastinbjudan({ ..., laddaNed? })` kastar för ett värde på en sak.
+- **`bjud({ uid, slag: "grupp", groupId, epost | telefon, namn?, laddaNed? })`**. Ett värde som inte är sant eller falskt, och ett värde på en sak, nekas med `ogiltigt-omfang` innan något skrivs. Bjud in igen på en befintlig rad skriver värdet bara när ett angavs: utelämnat lämnar det sparade orört, så att ett nytt utskick aldrig i tysthet ger eller tar en gästs nedladdning.
+- **`sattNedladdning({ uid, id, pa })`** svarar `{ id, laddaNed: pa }` och ändrar bara `laddaNed`. Bara en AKTIV ägare eller admin i gruppen (`ej-behorig` annars, också för den som bjöd men nu är vanlig medlem), bara en gruppinbjudan (`ogiltigt-omfang`), och `finns-inte` för ett id som inte finns. Samma krav för av som för på.
+- **`GASTGRUPPLISTFALT`** (`["laddaNed"]`): det en gruppinbjudan har i medlemmens lista (`lista({ groupId })`) utöver `GASTPERSONINBJUDANFALT`, som `GASTDELTALISTFALT` för en delta-rad. En omröstnings- och en delta-inbjudan har exakt sina gamla fält. En gruppinbjudan från före 0.203.0 går ut med `laddaNed: null` (tomt är ett svar, regel 5): gästen följer gruppen.
+- **`OpsGastLista`**: kryssrutan **Får ladda ned filer** i gruppens inbjudan, av som förval och av igen efter en lyckad inbjudan, och `onBjudGrupp` får `laddaNed` (med e-post och med telefon). Bjud in igen på en återkallad rad skickar inget `laddaNed`. Ny `onNedladdning({ id, pa })`: ett reglage med samma namn på varje gruppinbjudan, påslaget när `laddaNed` är `true`. `laddaNed: null` står avslaget med raden "Följer gruppens inställning", och en återkallad inbjudan går inte att ändra. Bara i gruppläget, och ett värde som inte är en funktion kastar.
+
+### Ändrat
+- **Det som gäller är gruppens strömbrytare OCH gästens val** (`nedladdningTillaten`, i `fil` och i `hamta`). En grupp vars `farLaddaNed` svarar `false` stoppar alla gäster, också den med `true`, så att ingen ny gäst kan få nedladdning där värden stängt av den. En rad utan fältet räknas som ja och följer alltså gruppen: ingen befintlig gästs åtkomst ändras, och ingenting skrivs i produktion. Sessionens inbjudan (`session`) bär `laddaNed` för en gruppsession, `null` för en gammal rad.
+- **En ny gruppgäst laddar inte ned förrän någon slagit på det**, och `hamta` säger då `grupp.nedladdning: false`. Texterna som sade att en gäst kan ladda ned är ändrade (gruppens ingress, telefoningressen, bekräftelsen och därmed `OpsMedlemmar`): gästen läser och spelar i biblioteket och laddar ned bara om det slås på. Bekräftelsen säger vad formulärets val betyder.
+
+### Begränsning
+- **Ingen kopieringsspärr.** Spela och visa (`inline`) går som förut, och det gästen kan lyssna på eller se skickas till enheten. En adress som redan utfärdats gäller i upp till `SIGNERAD_SEKUNDER` (15 minuter) efter att nedladdningen slagits av: nästa `fil` nekas, inte den förra.
+
+### För appen
+- Exponera `sattNedladdning` i callablen för medlemmar, ge `onNedladdning` till `OpsGastLista` i gruppläget, och skicka `laddaNed` från `onBjudGrupp` vidare till `bjud`. Ingen migrering: befintliga gäster följer gruppen tills någon slår om dem.
+
+### Prov
+Nya: `gast-grupp-tjanst` (nio prov: förval, Bjud in igen, felvärden och sak, `sattNedladdning` båda riktningarna och behörigheten, två gäster isär, gruppen vinner, en rad från före 0.203.0, listans fält) och `gast-lista-grupp` (fem prov: kryssrutan med e-post och telefon, reglaget, `null` och återkallad, validering). Ändrat, med skälet vid provet: `gast-grupp-tjanst` (en ny gäst har `nedladdning: false`; proven för gruppens strömbrytare bjuder in med `laddaNed: true`), `gast-telefon` (en ny gruppinbjudan bär `laddaNed: false`), `gast-lista-grupp`, `gast-telefon-vy` och `medlemmar-gaster` (`onBjudGrupp` får `laddaNed`, texterna om nedladdning). Alla nya prov är sedda röda utan ändringen.
+
+---
+
 ## 0.202.0
 
 Groks QA av gästerna och delningen 2026-11-07 (cllp/lifehub.app#687, överlämningen "bygge natten mot 8 nov").

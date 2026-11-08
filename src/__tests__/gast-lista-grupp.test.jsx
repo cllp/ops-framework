@@ -64,17 +64,19 @@ describe("OpsGastLista, gruppläget", () => {
     fireEvent.change(screen.getByLabelText("E-postadress"), { target: { value: "nils@foretag.se" } });
     await klicka(screen.getByRole("button", { name: "Bjud in gäst till hela gruppen" }));
     const dialog = await screen.findByRole("dialog");
-    // ⛔ Dialogen säger vad gästen ser och kan: chattens hela historik och att gästen kan skriva i den, kalendern (svara och rösta), biblioteket (läsa, spela, ladda ned), och att ärenden inte syns.
+    // ⛔ Dialogen säger vad gästen ser och kan: chattens hela historik och att gästen kan skriva i den, kalendern (svara och rösta), biblioteket (läsa, spela), och att ärenden inte syns.
+    // (0.203.0) Nedladdning är av som förval, och dialogen säger det: kryssrutan var inte ikryssad.
     expect(within(dialog).getByText(/hela historiken från början, och kan skriva i den/)).toBeInTheDocument();
     expect(within(dialog).getByText(/kalendern och händelserna och kan svara och rösta/)).toBeInTheDocument();
-    expect(within(dialog).getByText(/läsa, spela och ladda ned i biblioteket/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/kan läsa och spela i biblioteket/)).toBeInTheDocument();
+    expect(within(dialog).getByText("Gästen får inte ladda ned filer.")).toBeInTheDocument();
     expect(within(dialog).getByText(/Gästen ser inte gruppens ärenden/)).toBeInTheDocument();
     expect(within(dialog).getByText(/medlemmarnas e-postadresser/)).toBeInTheDocument();
     expect(within(dialog).getByText(/går inte att ta tillbaka/)).toBeInTheDocument();
     expect(within(dialog).getByText(/högst 15 minuter/)).toBeInTheDocument();
     expect(onBjudGrupp).not.toHaveBeenCalled();
     await klicka(within(dialog).getByRole("button", { name: "Bjud in" }));
-    await waitFor(() => expect(onBjudGrupp).toHaveBeenCalledWith({ epost: "nils@foretag.se", namn: "" }));
+    await waitFor(() => expect(onBjudGrupp).toHaveBeenCalledWith({ epost: "nils@foretag.se", namn: "", laddaNed: false }));
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(screen.getByLabelText("E-postadress")).toHaveValue("");
   });
@@ -394,5 +396,77 @@ describe("OpsGastLista, gruppläget", () => {
     expect(() => render(<OpsGastLista gaster={[]} platser={{ anvanda: 0, totalt: 5 }} onBjudGrupp={() => {}} />)).toThrow(/hela gruppen/);
     expect(() => render(<OpsGastLista personer={[{ gastId: 1 }]} platser={{ anvanda: 0, totalt: 5 }} />)).toThrow(/gastId, epost, inbjudningar/);
     expect(() => render(<OpsGastLista personer={[]} platser={{ anvanda: 0, totalt: 5 }} onRadera="x" />)).toThrow(/onRadera/);
+  });
+});
+
+describe("OpsGastLista, nedladdning per gäst (0.203.0, lifehub.app#691)", () => {
+  const gruppInbjudan = (laddaNed, extra = {}) => ({ id: "i-grupp", omfang: { slag: "grupp" }, titel: null, status: "vantar", laddaNed, ...extra });
+
+  it("kryssrutan Får ladda ned filer står av som förval, och onBjudGrupp får laddaNed: true när den kryssats; efter inbjudan står den av igen", async () => {
+    const onBjudGrupp = vi.fn().mockResolvedValue(undefined);
+    rita({ personer: [], onBjudGrupp });
+    const ruta = screen.getByRole("checkbox", { name: "Får ladda ned filer" });
+    expect(ruta).not.toBeChecked();
+    await klicka(ruta);
+    expect(ruta).toBeChecked();
+    fireEvent.change(screen.getByLabelText("E-postadress"), { target: { value: "nils@foretag.se" } });
+    await klicka(screen.getByRole("button", { name: "Bjud in gäst till hela gruppen" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText(/Gästen får också ladda ned filer ur biblioteket/)).toBeInTheDocument();
+    await klicka(within(dialog).getByRole("button", { name: "Bjud in" }));
+    await waitFor(() => expect(onBjudGrupp).toHaveBeenCalledWith({ epost: "nils@foretag.se", namn: "", laddaNed: true }));
+    expect(screen.getByRole("checkbox", { name: "Får ladda ned filer" })).not.toBeChecked();
+  });
+
+  it("med telefon får onBjudGrupp också laddaNed", async () => {
+    const onBjudGrupp = vi.fn().mockResolvedValue({ id: "i-ny" });
+    const onKopieraLank = vi.fn().mockResolvedValue({ url: "https://app.exempel/gast#i=x", lankGiltigTill: 1 });
+    rita({ personer: [], onBjudGrupp, onKopieraLank, medTelefon: true });
+    await klicka(screen.getByRole("tab", { name: "Telefon" }));
+    fireEvent.change(screen.getByLabelText("Telefonnummer"), { target: { value: "070-123 45 67" } });
+    await klicka(screen.getByRole("checkbox", { name: "Får ladda ned filer" }));
+    await klicka(screen.getByRole("button", { name: "Bjud in gäst till hela gruppen" }));
+    await klicka(within(await screen.findByRole("dialog")).getByRole("button", { name: "Bjud in" }));
+    await waitFor(() => expect(onBjudGrupp).toHaveBeenCalledWith({ telefon: "+46701234567", namn: "", laddaNed: true }));
+    expect(screen.getByRole("checkbox", { name: "Får ladda ned filer" })).not.toBeChecked();
+  });
+
+  it("med onNedladdning har varje gruppinbjudan ett reglage som följer laddaNed och anropar med { id, pa }; en sak har inget", async () => {
+    const onNedladdning = vi.fn().mockResolvedValue(undefined);
+    const { rerender } = rita({ personer: [person({ inbjudningar: [gruppInbjudan(false), { id: "i-sak", omfang: { slag: "sak", funktion: "rosta", handelseId: "h1" }, titel: "Sommarfest", status: "inloggad" }] })], onNedladdning });
+    const reglage = screen.getAllByRole("switch", { name: "Får ladda ned filer" });
+    expect(reglage).toHaveLength(1);
+    expect(reglage[0]).not.toBeChecked();
+    expect(within(document.querySelector('[data-gast-inbjudan="i-sak"]')).queryByRole("switch")).toBeNull();
+    await klicka(reglage[0]);
+    await waitFor(() => expect(onNedladdning).toHaveBeenCalledWith({ id: "i-grupp", pa: true }));
+    rerender(<OpsGastLista personer={[person({ inbjudningar: [gruppInbjudan(true)] })]} platser={{ anvanda: 1, totalt: 5 }} onNedladdning={onNedladdning} />);
+    const pa = screen.getByRole("switch", { name: "Får ladda ned filer" });
+    expect(pa).toBeChecked();
+    await klicka(pa);
+    await waitFor(() => expect(onNedladdning).toHaveBeenLastCalledWith({ id: "i-grupp", pa: false }));
+  });
+
+  it("laddaNed: null står avslagen och säger att den följer gruppen; en återkallad går inte att ändra; ett fel syns på raden", async () => {
+    const onNedladdning = vi.fn().mockRejectedValue(Object.assign(new Error("nej"), { kod: "ej-behorig" }));
+    rita({ personer: [person({ inbjudningar: [gruppInbjudan(null)] })], onNedladdning });
+    const r = screen.getByRole("switch", { name: "Får ladda ned filer" });
+    expect(r).not.toBeChecked();
+    expect(screen.getByText("Följer gruppens inställning")).toBeInTheDocument();
+    await klicka(r);
+    expect(await screen.findByRole("alert")).toHaveTextContent("Du får inte bjuda in gäster");
+    cleanup();
+    rita({ personer: [person({ status: "aterkallad", inbjudningar: [gruppInbjudan(true, { status: "aterkallad" })] })], onNedladdning });
+    expect(screen.getByRole("switch", { name: "Får ladda ned filer" })).toBeDisabled();
+    expect(screen.queryByText("Följer gruppens inställning")).toBeNull();
+  });
+
+  it("utan onNedladdning inget reglage, och onNedladdning som inte är en funktion, eller i listan över en omröstning, kastar", () => {
+    rita({ personer: [person({ inbjudningar: [gruppInbjudan(true)] })] });
+    expect(screen.queryByRole("switch")).toBeNull();
+    cleanup();
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(() => rita({ onNedladdning: true })).toThrow(/onNedladdning måste vara en funktion/);
+    expect(() => render(<OpsGastLista gaster={[]} platser={{ anvanda: 0, totalt: 5 }} onNedladdning={() => {}} />)).toThrow(/onNedladdning hör till listan över hela gruppen/);
   });
 });
