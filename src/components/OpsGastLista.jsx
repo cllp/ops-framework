@@ -131,7 +131,6 @@ export const ORD_OPSGASTLISTA = {
   nyLankPagar: { sv: "Skapar…", en: "Creating…" },
   // ── Nedladdning per gäst (0.203.0, lifehub.app#691): av som förval, i formuläret och på varje gruppinbjudan ──
   laddaNed: { sv: "Får ladda ned filer", en: "May download files" },
-  laddaNedFoljerGrupp: { sv: "Följer gruppens inställning", en: "Follows the group setting" },
   nyLankKlar: { sv: "En ny länk är skapad. Den gäller i {dagar} dagar, och den förra länken fungerar inte längre. Dela den nya.", en: "A new link has been created. It is valid for {dagar} days, and the previous link no longer works. Share the new one." },
   // ── I gruppens medlemsvy (`OpsMedlemmar`, 0.132.0): gästen är ett val i Roll ──
   rollGast: { sv: "Gäst (utan konto)", en: "Guest (no account)" },
@@ -324,7 +323,7 @@ export function GastBekraftelse({ bekrafta, t, onBekrafta, onAvbryt }) {
  * @property {string | null} [titel] Händelsens rubrik, för en inbjudan till en omröstning eller att svara på en händelse.
  * @property {"kommer" | "kommerInte" | "kanske" | null} [deltasvar] (0.146.0) Se `Gast`.
  * @property {"aterkallad" | "utgangen" | "har-rostat" | "inloggad" | "vantar"} [status]
- * @property {boolean | null} [laddaNed] (0.203.0) Bara en gruppinbjudan (`GASTGRUPPLISTFALT`): gästens egen nedladdning, eller `null` för en inbjudan från före 0.203.0, som följer gruppens inställning.
+ * @property {boolean} [laddaNed] (0.203.0) Bara en gruppinbjudan (`GASTGRUPPLISTFALT`): gästens egen nedladdning. (0.204.0) Alltid `true` eller `false` från tjänsten; något annat ritas som av.
  */
 
 /**
@@ -362,8 +361,8 @@ export function GastBekraftelse({ bekrafta, t, onBekrafta, onAvbryt }) {
  *   (0.197.0) Med Telefon vald får den `{ telefon, namn }` och ska ge tjänstens svar, minst `{ id }`: vyn hämtar då länken med `onKopieraLank` och visar den med Dela och Kopiera direkt.
  *   (0.203.0, lifehub.app#691) Från formuläret bär den också `laddaNed`, kryssrutan Får ladda ned filer (av som förval), som appen ger tjänstens `bjud`. Bjud in igen på en återkallad rad bär den inte: det sparade värdet står kvar.
  * @param {(arg: { id: string, pa: boolean }) => void | Promise<unknown>} [props.onNedladdning] (0.203.0, lifehub.app#691) Slår på eller av nedladdning för en gäst (tjänstens `sattNedladdning`). Ger ett reglage
- *   Får ladda ned filer på varje gruppinbjudan, påslaget när raden har `laddaNed: true`. En inbjudan med `laddaNed: null` (från före 0.203.0) står avslagen med raden Följer gruppens inställning, och en
- *   återkallad går inte att ändra. Utelämnad: inget reglage. Bara i gruppläget. ⛔ Gruppens egen inställning (`farLaddaNed`) vinner alltid på servern: reglaget ger ingen nedladdning i en grupp som stängt av den.
+ *   Får ladda ned filer på varje gruppinbjudan, påslaget när raden har `laddaNed: true` och avslaget annars, och en
+ *   återkallad går inte att ändra. Utelämnad: inget reglage. Bara i gruppläget. (0.204.0) Reglaget är hela regeln: ingen inställning på gruppen står över det.
  * @param {boolean} [props.medTelefon] (0.197.0, cllp/lifehub.app#661) Ger valet E-post eller Telefon i gruppens inbjudan. Kräver `onBjudGrupp` och `onKopieraLank`: utan länken når en telefoninbjudan ingen.
  *   ⛔ Ett val appen slår på, inget förval: en app vars `onBjudGrupp` bara skickar en adress hade fått en Telefon-knapp som alltid nekas.
  * @param {(arg: { id: string }) => void | Promise<unknown>} [props.onSkickaOm]
@@ -741,15 +740,10 @@ export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud
                           )}
                         </div>
                         {onNedladdning && i.omfang.slag === "grupp" ? (
-                          // (0.203.0) Gästens egen nedladdning. `null` (eller inget fält) är en inbjudan från före 0.203.0: den står avslagen och säger att den följer gruppen, eftersom det är vad servern gör med den.
-                          <div data-gast-laddaned={i.laddaNed === true ? "pa" : i.laddaNed === false ? "av" : "grupp"}>
-                            <OpsSwitch
-                              label={t.laddaNed}
-                              checked={i.laddaNed === true}
-                              disabled={aterkallad}
-                              {...(typeof i.laddaNed !== "boolean" ? { hint: t.laddaNedFoljerGrupp } : {})}
-                              onChange={(v) => pa(p.gastId, onNedladdning, { id: i.id, pa: v })}
-                            />
+                          // (0.203.0) Gästens egen nedladdning. (0.204.0) Allt som inte är `true` är av, samma som servern (`nedladdningTillaten`): raden "Följer gruppens inställning" är borta,
+                          // eftersom gruppen inte längre är en del av regeln.
+                          <div data-gast-laddaned={i.laddaNed === true ? "pa" : "av"}>
+                            <OpsSwitch label={t.laddaNed} checked={i.laddaNed === true} disabled={aterkallad} onChange={(v) => pa(p.gastId, onNedladdning, { id: i.id, pa: v })} />
                           </div>
                         ) : null}
                         {lankar[i.id] && !aterkallad ? <GastLank lank={lankar[i.id]} vem={vem} t={t} sprak={sprak} gruppnamn={gruppnamn} telefon={personTelefon} /> : null}

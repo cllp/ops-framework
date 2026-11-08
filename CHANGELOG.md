@@ -9,6 +9,34 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.204.0
+
+Gruppens strömbrytare för nedladdning bort ur regeln (cllp/lifehub.app#691, CP: kör).
+
+### ⛔ Förutsätter att appens bakfyllnad har körts skarpt FÖRST
+
+Pinna inte in 0.204.0 i en app förrän varje gruppinbjudan i appens `gastinbjudningar` har ett eget `laddaNed`. I lifehub.app är det `scripts/bakfyll-gastnedladdning.mjs` (knappen `bakfyll-gastnedladdning.yml`), körd skarpt och följd av en torrkörning som visar 0 att skriva.
+
+Skälet: i 0.203.0 var regeln gruppens strömbrytare (`grupp.farLaddaNed`) OCH gästens `laddaNed`, där en rad utan fältet följde gruppen. Alla gruppinbjudningar från före 0.203.0 saknar fältet. I 0.204.0 räknas en rad utan fältet som `false`. Pinnas versionen in före bakfyllnaden tappar varje gammal gäst i en grupp med nedladdning på sin nedladdning, utan att någon tryckt på något. Bakfyllnaden skriver den åtkomst raden har i dag (gruppens värde, där saknat är på), så ingen gäst får mer eller mindre när regeln byts. Ramverket kan inte se om den har körts.
+
+### Ändrat
+- **`nedladdningTillaten` är gästens värde och inget annat.** Bara `laddaNed: true` ger nedladdning. En rad utan fältet, eller med något annat än `true`, är nej: samma säkra förval som för en ny gäst sedan 0.203.0, och en rad som ändå saknar fältet efter bakfyllnaden är ett fel i datan som ska stänga och inte öppna. Funktionen är synkron och läser inget: varken gruppen eller appen frågas. Gäller `fil` (`nedladdning-av`) och `hamta` (`grupp.nedladdning`).
+- **`session` bär `laddaNed: true | false` för en gruppsession**, aldrig `null` (typen var `boolean | null`).
+- **`lista({ groupId })` bär `laddaNed: true | false` på varje gruppinbjudan**, aldrig `null`. `null` betydde "följer gruppen", och gruppen är inte längre en del av regeln. Ett saknat fält går ut som `false`, eftersom det är vad servern gör med raden.
+- **`OpsGastLista`**: reglaget **Får ladda ned filer** står avslaget för allt som inte är `true`, och raden "Följer gruppens inställning" (`laddaNedFoljerGrupp` i `ORD_OPSGASTLISTA`) är borta.
+
+### Borttaget
+- **`grupp.farLaddaNed` i `createGastService`.** Konfigurationen kastar om den har nyckeln, oavsett värde: att ta emot den och inte fråga den hade varit en strömbrytare som tyst slutat göra något, där värden tror att gruppen är avstängd medan en gäst med `true` laddar ned. ⛔ **Det är en ändrad exportyta:** en app som skickar `farLaddaNed` startar inte sin gästtjänst med 0.204.0.
+
+### För appen
+1. Kör bakfyllnaden skarpt, och sedan en torrkörning som visar 0 att skriva (se ovan).
+2. Pinna om, och ta i samma PR bort `farLaddaNed` ur gästtjänstens `grupp`, gruppens reglage och callablen för det, och sluta läsa gruppens fält. Fältet på gruppdokumenten blir döda data.
+
+### Prov
+Ändrade i `gast-grupp-tjanst`, med skälet vid provet: "med farLaddaNed som svarar false" mäter samma spärr med gästens `laddaNed: false`; "utan farLaddaNed, och med true" är nu "en gäst med true laddar ned, och farLaddaNed kastar oavsett värde"; "gruppens strömbrytare vinner" är ersatt av "gruppens false stoppar inte längre en gäst med true"; "en gruppinbjudan från före 0.203.0 följer gruppen" är ersatt av "en gruppinbjudan utan fältet ger nej" (hamta, fil, session och lista). Ändrat i `gast-lista-grupp`: "laddaNed: null står avslagen och säger att den följer gruppen" är nu "står avslaget utan någon rad om gruppen". Utfallen mot 0.203.0 och mot 0.204.0 står i PR-texten.
+
+---
+
 ## 0.203.0
 
 Nedladdning per gäst, av som förval (cllp/lifehub.app#691, CP-beslut). Förut gällde nedladdningen per grupp (`grupp.farLaddaNed`, 0.190.0): en gäst som släpptes in i en grupp med nedladdning på fick ladda ned allt, och det gick inte att ge en gäst mindre än en annan.

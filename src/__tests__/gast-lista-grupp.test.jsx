@@ -447,18 +447,20 @@ describe("OpsGastLista, nedladdning per gäst (0.203.0, lifehub.app#691)", () =>
     await waitFor(() => expect(onNedladdning).toHaveBeenLastCalledWith({ id: "i-grupp", pa: false }));
   });
 
-  it("laddaNed: null står avslagen och säger att den följer gruppen; en återkallad går inte att ändra; ett fel syns på raden", async () => {
+  // ⛔ ÄNDRAT 0.204.0: provet sade att `laddaNed: null` stod avslagen med raden "Följer gruppens inställning". Gruppen är inte längre en del av regeln, så en inbjudan utan värde är av,
+  // som på servern, och raden finns inte. Rött mot 0.203.0 (där stod raden).
+  it("laddaNed: null eller saknat står avslaget utan någon rad om gruppen; en återkallad går inte att ändra; ett fel syns på raden", async () => {
     const onNedladdning = vi.fn().mockRejectedValue(Object.assign(new Error("nej"), { kod: "ej-behorig" }));
     rita({ personer: [person({ inbjudningar: [gruppInbjudan(null)] })], onNedladdning });
     const r = screen.getByRole("switch", { name: "Får ladda ned filer" });
     expect(r).not.toBeChecked();
-    expect(screen.getByText("Följer gruppens inställning")).toBeInTheDocument();
+    expect(screen.queryByText(/gruppens inställning/)).toBeNull();
+    expect(document.querySelector("[data-gast-laddaned]")).toHaveAttribute("data-gast-laddaned", "av");
     await klicka(r);
     expect(await screen.findByRole("alert")).toHaveTextContent("Du får inte bjuda in gäster");
     cleanup();
     rita({ personer: [person({ status: "aterkallad", inbjudningar: [gruppInbjudan(true, { status: "aterkallad" })] })], onNedladdning });
     expect(screen.getByRole("switch", { name: "Får ladda ned filer" })).toBeDisabled();
-    expect(screen.queryByText("Följer gruppens inställning")).toBeNull();
   });
 
   it("utan onNedladdning inget reglage, och onNedladdning som inte är en funktion, eller i listan över en omröstning, kastar", () => {

@@ -136,7 +136,7 @@ describe("låset: en gäst med e-post räknas exakt som före 0.197.0", () => {
 
   it("en ny e-postrad har exakt den förra radens fält och värden (ingen telefon på raden)", () => {
     const rad = byggGastinbjudan({ groupId: GRUPP, epost: "Anna@Foretag.se", namn: "Anna", omfang: { slag: "grupp" }, skapadAv: { uid: AGARE, namn: "Agda" }, skapad: NU, nyckel: GAMMAL_NYCKEL });
-    // (0.203.0, lifehub.app#691) En gruppinbjudan bär sedan dess `laddaNed`, förvalt `false`, och inget annat har ändrats. En rad från före 0.203.0 saknar fältet och följer gruppen.
+    // (0.203.0, lifehub.app#691) En gruppinbjudan bär sedan dess `laddaNed`, förvalt `false`, och inget annat har ändrats. En rad som saknar fältet räknas sedan 0.204.0 som `false`.
     expect(rad).toEqual({ ...GAMMAL_RAD, laddaNed: false });
     expect(Object.keys(rad)).toEqual([...Object.keys(GAMMAL_RAD), "laddaNed"]);
   });

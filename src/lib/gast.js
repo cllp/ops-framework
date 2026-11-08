@@ -276,7 +276,7 @@ export const GASTFALT = /** @type {const} */ ([
   "felAntal",
   "felFonster",
   // (0.203.0, lifehub.app#691) Får gästen ladda ned filer ur gruppens bibliotek? BARA på en inbjudan till hela gruppen (`omfang.slag === "grupp"`), och då `true` eller `false`
-  // (förval `false`). En sak har inget bibliotek att ladda ned ur och bär aldrig fältet. En gruppinbjudan från före 0.203.0 saknar det och följer gruppens inställning (`farLaddaNed`).
+  // (förval `false`). En sak har inget bibliotek att ladda ned ur och bär aldrig fältet. Sedan 0.204.0 är värdet hela regeln, och en rad utan fältet räknas som `false`.
   "laddaNed",
 ]);
 
@@ -442,7 +442,7 @@ export const GASTPERSONINBJUDANFALT = /** @type {const} */ (["id", "omfang", "ti
 /**
  * (0.203.0, lifehub.app#691) Det en inbjudan till HELA GRUPPEN har i medlemmens lista utöver `GASTPERSONINBJUDANFALT`: gästens egen nedladdning. Bara på en gruppinbjudan, som
  * `GASTDELTALISTFALT` bara på en delta-rad, så att en omröstnings- och en delta-inbjudan har exakt de fält de hade före 0.203.0 (en sak har inget bibliotek att ladda ned ur).
- * `laddaNed` är `true` eller `false` när den satts. ⛔ `null` ÄR ETT SVAR (regel 5): en gruppinbjudan från före 0.203.0 saknar fältet, och gästen följer då gruppens inställning.
+ * `laddaNed` är alltid `true` eller `false` (0.204.0): en rad utan fältet går ut som `false`, eftersom den är det. ⛔ Inget `null` längre: det betydde "följer gruppen", och gruppen är inte en del av regeln.
  */
 export const GASTGRUPPLISTFALT = /** @type {const} */ (["laddaNed"]);
 
@@ -485,7 +485,7 @@ export const GASTFELKODER = /** @type {const} */ ([
   "ingen-kopia",
   "utgangen",
   "ej-konfigurerad",
-  // (0.190.0) Gruppen har stängt av nedladdning för gäster (`grupp.farLaddaNed`). `fil` svarar med den i stället för en adress med `attachment`.
+  // (0.190.0) Nedladdningen är avstängd för gästen (sedan 0.204.0 bara inbjudans `laddaNed`, 0.190.0 till 0.203.0 också gruppens strömbrytare). `fil` svarar med den i stället för en adress med `attachment`.
   "nedladdning-av",
 ]);
 
