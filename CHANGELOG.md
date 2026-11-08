@@ -27,6 +27,8 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ### Ändrat
 
+- **Bekräftelsen i Bjud in säger inte längre "så länge gruppen tillåter nedladdning"** (`bekraftaGruppLaddaNedPa` i `OpsGastLista`, svenska och engelska). Gruppens reglage finns inte sedan 0.204.0, så raden var osann: gästens eget val är hela regeln. Sett vid appens ompinning till 0.204.0.
+
 - **En GitHub-länk i Mitt bibliotek får ett eget läge, `mitt-bibliotek`, och `inte-gruppens` kan säga vilka repon det gäller.** CP 2026-11-08 testade en länk till en fil i gruppens kopplade repo och fick "Filen ligger inte i gruppens kopplade repo". Posten låg i Mitt bibliotek, som inte har någon grupp, och appen svarade `inte-gruppens` utan att läsa något. Raden sade alltså något som inte stämde.
   - `GITHUB_LAGEN` har `mitt-bibliotek`, med raden "En länk i Mitt bibliotek kan inte läsas ur GitHub. Lägg posten i gruppens bibliotek, på projektets plats, så öppnas filen här." (och på engelska).
   - `GithubLasning` har det valfria `kopplat` (`ägare/namn` eller `null`), bara med `inte-gruppens`. Med det säger raden "Filen ligger i {filens repo}, men gruppen är kopplad till {kopplat}." eller "..., och gruppen har inget repo kopplat." Filens repo tas ur adressen, aldrig ur svaret (regel 2). Utan fältet står den gamla raden.

@@ -93,7 +93,7 @@ export const ORD_OPSGASTLISTA = {
     en: "The guest sees the group's chat, with the whole history from the beginning, and can write in it. The guest sees the calendar and the events and can answer and vote, and can read and play in the library. The guest does not see the group's cases, only those the group delegates to them, and can comment on them and mark them done.",
   },
   // (0.203.0) Vad formulärets val betyder, i dialogen. Utan val (Bjud in igen på en rad) står ingen av dem: det sparade värdet ändras då inte.
-  bekraftaGruppLaddaNedPa: { sv: "Gästen får också ladda ned filer ur biblioteket, så länge gruppen tillåter nedladdning.", en: "The guest may also download files from the library, as long as the group allows downloads." },
+  bekraftaGruppLaddaNedPa: { sv: "Gästen får också ladda ned filer ur biblioteket.", en: "The guest may also download files from the library." },
   bekraftaGruppLaddaNedAv: { sv: "Gästen får inte ladda ned filer.", en: "The guest may not download files." },
   bekraftaGruppInte: { sv: "Gästen ser inte medlemmarnas e-postadresser, kan inte ladda upp eller bifoga något och kommer inte åt något annat i appen. Det gästen skriver märks Gäst.", en: "The guest does not see the members' email addresses, cannot upload or attach anything and cannot reach anything else in the app. What the guest writes is marked Guest." },
   bekraftaGruppTillbaka: {
