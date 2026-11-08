@@ -11,7 +11,7 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ## 0.206.0
 
-Gör till medlem på gästkortet (CP 2026-11-08: "hur gör jag en gäst till en medlem?"), Dela som säger varför den nekades, statusen en gång på kortet, och ett prov som slutat mäta klockan (cllp/ops-framework#542).
+Gör till medlem på gästkortet (CP 2026-11-08: "hur gör jag en gäst till en medlem?"), Dela som säger varför den nekades, statusen en gång på kortet, ett prov som slutat mäta klockan (cllp/ops-framework#542), och bild i en anteckning, skiva 1 (cllp/lifehub.app#696). Bilden är `![alt](filnamn)` i anteckningens text och filen ligger i postens egen mapp: ingen ny posttyp, inga nya fält och inga nya regler.
 
 ### Tillagt
 
@@ -21,6 +21,10 @@ Gör till medlem på gästkortet (CP 2026-11-08: "hur gör jag en gäst till en 
   - Vyn avgör inget om gästlänkarna. Det gör appens tjänst när inbjudan tas emot.
   - `onGorTillMedlem` på en omröstningslista (`gaster`) kastar, som de andra propparna som hör till gruppläget.
   - Prov: `gast-gor-till-medlem.test.jsx` (8). Mot 0.205.0 är 7 röda; det gröna är att knappen saknas utan prop. Med ändringen är alla 8 gröna.
+- **Parsern (`lib/markdown.js`) känner en bild utanför chatten.** `![alt](namn)` blir biten `{ kind: "image", value: alt, namn }` när namnet är ett säkert segment (`sakertBildnamn`: bara A till Z, a till z, 0 till 9, punkt, bindestreck och understreck, inget `..`, inte tomt). Allt annat är som förut: `![bild](https://...)` i en issue-text är fortfarande ett `!` och en länk, och `![x](../a.jpg)` står som sin text. `splitInline` tolkar bilder bara med `{ bilder: true }`, så chatten, `lankarI`, `utanLankar` och `markdownSomText` är oförändrade. `bilderI(text)` ger bildernas namn (inte exporterad ur paketet).
+- **`OpsMarkdown` får `bildAdress(namn) => string | Promise<string>` (valfri).** Bilden ritas med alt-texten, `max-w-full` och `loading="lazy"`. Medan adressen hämtas står "Hämtar bilden.", och ett avvisat löfte, en tom adress eller en bild som inte laddas ger "Bilden kunde inte visas." Utan propen står "Bilden visas inte här än." med alt-texten (en delad sida och gästens vy, skiva 2), aldrig ingenting. Orden på svenska och engelska.
+- **`OpsBibliotek` får `onLaggBildIAnteckning({ postId, plats, fil }) => Promise<{ namn }>` och `bildIAnteckningAdress({ postId, plats, namn })` (båda valfria).** Med den första får en sparad antecknings redigering knappen "Lägg till bild" (`IKON_FOR.slappBild`), och en bild som klistras in i textrutan tas av rutan med `preventDefault()` och `stopPropagation()`, så att appens egen inklistring inte också gör en bildpost. Ramverket krymper bilden först (samma `readAttachment` som chattens bilagor: längsta sidan 1600 px, JPEG; en GIF lämnas orörd, en HEIC webbläsaren inte kan läsa nekas med skälet), och skriver `![](namn)` på en egen rad vid markören när appen svarat med namnet. "Laddar upp bilden." medan det pågår, och ett fel eller ett namn som inte är ett säkert segment står under rutan (regel 5). En ny anteckning har ingen knapp (den har ingen mapp, och `onSpara` svarar inte med id:t), och en bild som klistras in i den ger raden "Spara anteckningen först. Sedan går det att lägga till bilder." Utan propen är redigeringen och inklistringen som förut. Den andra propen ger läsningen sina bilder.
+- Listans förhandsvisning av en anteckning visar ingen rå bildsyntax.
 
 ### Ändrat
 
@@ -28,10 +32,12 @@ Gör till medlem på gästkortet (CP 2026-11-08: "hur gör jag en gäst till en 
   - Säger `navigator.canShare` nej till rubrik, text och länk delas bara länken. Anropet sker fortfarande i själva klicket, utan `await` före `share`.
   - Prov: fem nya och ett ändrat i `gast-lista-grupp.test.jsx` (Dela). Mot 0.205.0 är 5 av 8 röda. Provet för att `share` anropas i klicket är grönt även före, och rött när ett `await` läggs före anropet.
 - **Statusen står en gång på ett utfällt gästkort** (CP 2026-11-08: "Har loggat in står två gånger."). Inbjudningsradens märke står bara när det skiljer sig från personens i kortets huvud, till exempel en återkallad inbjudan hos en gäst som har loggat in. Prov: två i `gast-lista-grupp.test.jsx`, röda mot 0.205.0 och gröna nu.
+- **En anteckning med bilder flyttas och kopieras inte (`flyttaBibliotekspost`)**, och felet säger det: "En anteckning med bilder flyttas eller kopieras inte till en annan plats än: bilderna ligger i anteckningens egen mapp och följer inte med. Ingenting flyttades." Flytten skriver bara texten på en ny post med ett nytt id, och servern tar bort den gamla postens mapp när den raderas, så bilderna hade varit borta för gott. En anteckning utan bild flyttas som förut.
 
 ### Prov
 
 - **`talk-tomt-ljud.test.jsx` läser provets klocka, inte datorns** (#542). Provet krävde `anrop:0` med den riktiga klockan och blev rött under last i hela sviten, när en millisekund hann gå. Inspelaren får nu en klocka som bara går när provet flyttar den, och loggen jämförs hel: `anrop:0.gum:0.omhamtad:0.gum2:0.rec:0.stoppbegard:750.stop:750`. Med en klocka som tickar 1 ms per läsning är det gamla provet rött (`anrop:1.gum:2...`, samma fel som i ärendet) och det nya grönt; det nya är rött när en notering tas bort ur inspelaren.
+- `anteckningsbild-696.test.jsx` (20). Med `OpsMarkdown.jsx`, `OpsBibliotek.jsx` och `bibliotekkalla.js` från 0.205.0 är 11 röda; de 9 som är gröna åt båda håll är parserns (som kräver den nya `markdown.js` för att alls laddas), att ett osäkert namn ritas som text och aldrig frågar appen, och att allt utan de nya propsen ser ut som förut. Med ändringen är alla 20 gröna.
 
 ## 0.205.0
 

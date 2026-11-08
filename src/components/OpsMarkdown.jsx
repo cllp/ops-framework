@@ -1,5 +1,9 @@
+import { useEffect, useState } from "react";
+import { Image as BildIkon } from "lucide-react";
 import { cx } from "../lib/cx.js";
 import { splitMarkdown } from "../lib/markdown.js";
+import { ordet } from "../lib/ord.js";
+import { useOpsSprak } from "./OpsSprak.jsx";
 
 /**
  * Markdown som riktiga element.
@@ -32,18 +36,91 @@ import { splitMarkdown } from "../lib/markdown.js";
  * Frestelsen är en `maxLangd` här. Den hör hemma i datalagret: komponenten vet
  * inte vad som är viktigt i texten, och en kapning i renderingen ser för
  * läsaren ut som att resten inte finns. Appen bestämmer hur mycket den hämtar.
+ *
+ * ── ⛔ EN BILD FRÅGAR APPEN EFTER SIN ADRESS (cllp/lifehub.app#696) ──────
+ *
+ * Texten bär bara filnamnet (`![alt](namn)`, se `lib/markdown.js`). Komponenten vet inte var postens mapp ligger eller
+ * vem som får läsa den, så den frågar `bildAdress(namn)`, och appen svarar med en adress eller ett löfte om en. Utan
+ * `bildAdress` (en delad sida, gästens vy, ett utdrag) står en rad med alt-texten och "Bilden visas inte här än", aldrig
+ * ingenting: en bild som tyst försvinner ur en text ser ut som att den aldrig fanns (regel 5). Samma sak när adressen inte
+ * gick att få eller bilden inte laddades: en rad som säger det.
  */
+
+/**
+ * Orden runt en bild i texten (#696), på båda språken.
+ * @type {import("../lib/ord.js").Ordbok}
+ */
+const ORD_MARKDOWN = {
+  bildVisasInte: { sv: "Bilden visas inte här än.", en: "The image is not shown here yet." },
+  bildHamtas: { sv: "Hämtar bilden.", en: "Loading the image." },
+  bildFel: { sv: "Bilden kunde inte visas.", en: "The image could not be shown." },
+  bildMedAlt: { sv: "Bild: {alt}.", en: "Image: {alt}." },
+};
+
+/**
+ * En bild i texten (#696). Se filens huvud.
+ *
+ * @param {{ alt: string, namn: string, bildAdress?: (namn: string) => string | Promise<string>, sprak: string }} props
+ */
+function MarkdownBild({ alt, namn, bildAdress, sprak }) {
+  const [lage, setLage] = useState(/** @type {{ lage: "hamtar" | "klar" | "fel", url: string }} */ ({ lage: "hamtar", url: "" }));
+  useEffect(() => {
+    if (typeof bildAdress !== "function") return undefined;
+    let levande = true;
+    setLage({ lage: "hamtar", url: "" });
+    /** @param {unknown} url */
+    const klar = (url) => {
+      if (!levande) return;
+      setLage(typeof url === "string" && url !== "" ? { lage: "klar", url } : { lage: "fel", url: "" });
+    };
+    const fel = () => {
+      if (levande) setLage({ lage: "fel", url: "" });
+    };
+    try {
+      Promise.resolve(bildAdress(namn)).then(klar, fel);
+    } catch {
+      fel();
+    }
+    return () => {
+      levande = false;
+    };
+  }, [namn, bildAdress]);
+
+  const o = (/** @type {keyof typeof ORD_MARKDOWN} */ k) => ordet(ORD_MARKDOWN, k, sprak);
+  const rad = (/** @type {string} */ data, /** @type {string} */ text) => (
+    <span data-ops-markdown-bild={data} className="flex items-center gap-2 text-meta text-ink-muted">
+      <BildIkon size={16} aria-hidden="true" className="shrink-0" />
+      <span className="min-w-0">{alt ? `${o("bildMedAlt").replace("{alt}", alt)} ${text}` : text}</span>
+    </span>
+  );
+  if (typeof bildAdress !== "function") return rad("visas-inte", o("bildVisasInte"));
+  if (lage.lage === "fel") return <span role="alert">{rad("fel", o("bildFel"))}</span>;
+  if (lage.lage === "hamtar") return <span role="status">{rad("hamtar", o("bildHamtas"))}</span>;
+  return (
+    <img
+      data-ops-markdown-bild="klar"
+      src={lage.url}
+      alt={alt}
+      loading="lazy"
+      decoding="async"
+      onError={() => setLage({ lage: "fel", url: "" })}
+      className="block h-auto max-w-full rounded-md"
+    />
+  );
+}
 
 /**
  * @param {import("../lib/markdown.js").Bit[]} pieces
  * @param {string} blockKey
  * @param {boolean} [arv] Chattens bubbla (#273): färgen ärvs. Den egna bubblan är accentfärgad, och en länk i `text-accent` eller
  *   fet text i `text-ink` hade varit osynlig eller fel ton på den.
+ * @param {{ bildAdress?: (namn: string) => string | Promise<string>, sprak: string }} [bild] (#696) Var en bild hämtas, och språket för raden om den.
  */
-function inline(pieces, blockKey, arv = false) {
+function inline(pieces, blockKey, arv = false, bild = { sprak: "sv" }) {
   return pieces.map((b, i) => {
     const k = `${blockKey}-${i}`;
     if (b.kind === "break") return <br key={k} />;
+    if (b.kind === "image" && b.namn) return <MarkdownBild key={k} alt={b.value} namn={b.namn} bildAdress={bild.bildAdress} sprak={bild.sprak} />;
     if (b.kind === "italic") return <em key={k}>{b.value}</em>;
     if (b.kind === "link") {
       return (
@@ -105,8 +182,14 @@ const TITLE_SIZE = {
  *   rubriker, tabeller, citat och kodblock tolkas inte, och färgen ärvs från bubblan.
  * @param {boolean} [props.dokument] Läsning av ett dokument: brödtext (`text-brod`) i stället för kortets etikettstorlek.
  *   Issue-kortet behåller den täta storleken. En anteckning som läses är en text, inte ett kort.
+ * @param {(namn: string) => string | Promise<string>} [props.bildAdress] (cllp/lifehub.app#696) Adressen till en bild i texten (`![alt](namn)`),
+ *   ur filnamnet. Bilden ritas med alt-texten, högst sin behållares bredd och lazy-laddad. Ett avvisat löfte, en tom adress eller en bild
+ *   som inte laddas ger raden "Bilden kunde inte visas." Utan propen står "Bilden visas inte här än." med alt-texten. Ingen betydelse i chatten,
+ *   där bilder inte tolkas. Ge en funktion med stabil identitet: en ny funktion vid varje rendering frågar efter adressen igen.
  */
-export function OpsMarkdown({ text, chatt = false, dokument = false }) {
+export function OpsMarkdown({ text, chatt = false, dokument = false, bildAdress }) {
+  const sprak = useOpsSprak();
+  const bild = { bildAdress, sprak };
   const block = splitMarkdown(text, { chatt });
   if (block.length === 0) return null;
   if (chatt) {
@@ -154,15 +237,15 @@ export function OpsMarkdown({ text, chatt = false, dokument = false }) {
             : cx("m-0 text-ink", TITLE_SIZE[b.level]);
           return (
             <Title key={k} className={rubrikKlass}>
-              {inline(b.inline, k)}
+              {inline(b.inline, k, false, bild)}
             </Title>
           );
         }
-        if (b.kind === "paragraph") return <p key={k} className="m-0">{inline(b.inline, k)}</p>;
+        if (b.kind === "paragraph") return <p key={k} className="m-0">{inline(b.inline, k, false, bild)}</p>;
         if (b.kind === "quote") {
           return (
             <blockquote key={k} className="m-0 border-l-2 border-line-strong pl-3 text-ink-muted">
-              {inline(b.inline, k)}
+              {inline(b.inline, k, false, bild)}
             </blockquote>
           );
         }
@@ -186,7 +269,7 @@ export function OpsMarkdown({ text, chatt = false, dokument = false }) {
                   <tr>
                     {b.header.map((cell, ci) => (
                       <th key={`${k}-h${ci}`} className="border-b border-line px-2 py-1 font-semibold text-ink">
-                        {inline(cell, `${k}-h${ci}`)}
+                        {inline(cell, `${k}-h${ci}`, false, bild)}
                       </th>
                     ))}
                   </tr>
@@ -196,7 +279,7 @@ export function OpsMarkdown({ text, chatt = false, dokument = false }) {
                     <tr key={`${k}-r${ri}`}>
                       {row.map((cell, ci) => (
                         <td key={`${k}-r${ri}c${ci}`} className="border-b border-line px-2 py-1 align-top">
-                          {inline(cell, `${k}-r${ri}c${ci}`)}
+                          {inline(cell, `${k}-r${ri}c${ci}`, false, bild)}
                         </td>
                       ))}
                     </tr>
@@ -234,7 +317,7 @@ export function OpsMarkdown({ text, chatt = false, dokument = false }) {
                     <span className="sr-only">{entry.cross ? "Gjort:" : "Ogjort:"}</span>
                   </span>
                 )}
-                <span className="min-w-0 flex-1">{inline(entry.inline, `${k}-p${pi}`)}</span>
+                <span className="min-w-0 flex-1">{inline(entry.inline, `${k}-p${pi}`, false, bild)}</span>
               </li>
             ))}
           </List>

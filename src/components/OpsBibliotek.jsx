@@ -15,6 +15,7 @@ import { arPdfDokument, arPdfMime, pdfVyAdress } from "../lib/pdfvisning.js";
 import { lasFilbytes } from "../data/filbytes.js";
 import { BibliotekHtmlVersionerLat } from "./BibliotekHtmlVersionerLat.jsx";
 import { OpsMarkdown } from "./OpsMarkdown.jsx";
+import { AnteckningsText } from "./BibliotekAnteckningsbild.jsx";
 import { GithubDokumentVisningLat } from "./GithubDokumentVisningLat.jsx";
 import { BibliotekRepoLat } from "./BibliotekRepoLat.jsx";
 import { githubDokument } from "../lib/githubdokument.js";
@@ -43,7 +44,7 @@ import { OpsLjudspelare } from "./OpsLjudspelare.jsx";
 import { OpsSpelaKnapp, OpsSpelarKontroller, useSpelare } from "./OpsSpelare.jsx";
 import { OpsEmpty } from "./OpsEmpty.jsx";
 import { OpsSpinner } from "./OpsSpinner.jsx";
-import { OpsField, OpsInput, OpsTextarea } from "./OpsField.jsx";
+import { OpsField, OpsInput } from "./OpsField.jsx";
 import { OpsSelect } from "./OpsSelect.jsx";
 import { OpsSwitch } from "./OpsToggle.jsx";
 import { DELNINGSDAGAR, FORVAL_DELNINGSDAGAR } from "../lib/delning.js";
@@ -353,8 +354,17 @@ const arkivtips = () => `Arkiverad. Välj taggen ${ARKIVTAGG} för att se arkive
  *   (`BibliotekKommentarer`). Den första kommentaren blir ett meddelande i gruppchatten med posten som kort, och nästa ett svar i dess tråd. Medlemmens källa är `createPostkommentarer`,
  *   gästens bygger `OpsGastGrupp`. Utelämnad: ingen tråd och inget menyval, som förut.
  * @param {boolean} [props.utanNedladdning] (0.190.0, CP 2026-11-05: "Vill att man skall kunna förhindra nedladdning till gäster.") Ingen Ladda ned: varken i en fils detalj eller i spelarens ark för ett ljud ur listan. Gästens bibliotek när gruppen stängt av nedladdning (`grupp.nedladdning: false`). Visa och spela är som förut.
+ * @param {(inmatning: { postId: string, plats: string, fil: File }) => Promise<{ namn: string }>} [props.onLaggBildIAnteckning] (Ej släppt, cllp/lifehub.app#696 skiva 1) Lägger en bild i en
+ *   anteckning. Med den får en SPARAD antecknings redigering knappen "Lägg till bild" (bild med plus, `IKON_FOR.slappBild`), och en bild som klistras in i textrutan tas av rutan
+ *   (`preventDefault` och `stopPropagation`, så att appens egen inklistring inte också gör en bildpost). Appen lägger filen i postens mapp (`plats` är postens `groupId`) och svarar med
+ *   filnamnet, ett säkert segment (`sakertBildnamn`). Ramverket skriver då `![](namn)` vid markören, på en egen rad. Medan uppladdningen pågår står "Laddar upp bilden.", och ett kast står
+ *   under rutan med sitt meddelande; ett namn som inte är ett säkert segment skrivs inte in, och det sägs. Krympning av stora bilder och HEIC görs av appen i propen.
+ *   ⛔ INTE I EN NY ANTECKNING: den har inget id och ingen mapp, och `onSpara` svarar inte med det id posten fick. Knappen syns först när anteckningen är sparad, och en bild som klistras in i en
+ *   ny anteckning ger raden "Spara anteckningen först. Sedan går det att lägga till bilder." i stället för en egen post. Utan propen syns ingen knapp och en inklistring går som förut.
+ * @param {(bild: { postId: string, plats: string, namn: string }) => string | Promise<string>} [props.bildIAnteckningAdress] (Ej släppt, cllp/lifehub.app#696) Adressen till en bild i en
+ *   anteckning, ur postens id, plats och filnamnet i texten. Används när anteckningen läses (`OpsMarkdown` med `bildAdress`). Utan den står raden "Bilden visas inte här än." där bilden står.
  */
-export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, trasiga: trasigaProp = [], laddar: laddarProp = false, vald = null, skapar = null, jag, onOppna, onStang, onSkapa, onSpara, onRadera, onLaddaUpp, onFyllLjud, onSpelaIn, inspelare, filUrl, hamtaAdress, hamtaFil, htmlVersioner, hamtaHtmlVersion, aterstallHtml, nyHtmlVersion, oppnaHtml, oppnaPdf, grupper = [], onDela, platser = [], plats, onPlats, onSkrivUt, onSkrivUtIgen, onTaBortUtskrift, onAnteckningAvUtskrift, onGorForslag, delningar = [], delningGruppdel, gruppnamn: gruppnamnProp, onDelaLank, onAndraNedladdning, onAterkalla, onMejlaLank, onLankInfo, githubLasare, repoLasare, onLaggRepoFil, hubHref, hubEtikett, onNavigate, modulId = "bibliotek", ram = null, activeHref, modul = null, inbaddad = false, tomText, utanHubb = false, adresserPaBegaran = false, gruppTaggar = [], egnaPlatser = null, stjarnor, onStjarna, huvudRad, utanNedladdning = false, kommentarer = null }) {
+export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, trasiga: trasigaProp = [], laddar: laddarProp = false, vald = null, skapar = null, jag, onOppna, onStang, onSkapa, onSpara, onRadera, onLaddaUpp, onFyllLjud, onSpelaIn, inspelare, filUrl, hamtaAdress, hamtaFil, htmlVersioner, hamtaHtmlVersion, aterstallHtml, nyHtmlVersion, oppnaHtml, oppnaPdf, grupper = [], onDela, platser = [], plats, onPlats, onSkrivUt, onSkrivUtIgen, onTaBortUtskrift, onAnteckningAvUtskrift, onGorForslag, delningar = [], delningGruppdel, gruppnamn: gruppnamnProp, onDelaLank, onAndraNedladdning, onAterkalla, onMejlaLank, onLankInfo, githubLasare, repoLasare, onLaggRepoFil, hubHref, hubEtikett, onNavigate, modulId = "bibliotek", ram = null, activeHref, modul = null, inbaddad = false, tomText, utanHubb = false, adresserPaBegaran = false, gruppTaggar = [], egnaPlatser = null, stjarnor, onStjarna, huvudRad, utanNedladdning = false, kommentarer = null, onLaggBildIAnteckning, bildIAnteckningAdress }) {
   if (kalla !== undefined && (posterProp !== undefined || felProp !== null || laddarProp !== false || (Array.isArray(trasigaProp) && trasigaProp.length > 0))) {
     throw new Error("OpsBibliotek: kalla och poster/fel/trasiga/laddar kan inte ges tillsammans. Med kalla läser vyn själv, och två sanningar om samma lista hade låtit den ena vinna tyst.");
   }
@@ -1094,7 +1104,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
           })() : null} markering={vald ? (() => {
             const rad = poster.find((p) => p.id === vald.id) ?? vald;
             return <Markering nalad={arNalad(rad)} nalOrd={mord("nalad")} stjarna={stjarnFor(rad)} />;
-          })() : null} onLjus={setLjus} onSkrivUt={onSkrivUt} onSkrivUtIgen={onSkrivUtIgen} onTaBortUtskrift={onTaBortUtskrift} onAnteckningAvUtskrift={onAnteckningAvUtskrift} menyFor={menyFor} onMeta={togMeta} tillbakaEtikett={lord(inbaddad ? "filer" : "tillbaka")} poster={poster} jag={jag} onLankInfo={onLankInfo} githubLasare={githubLasare} onOppnaPost={(p) => oppnaMed(p, "las")} kommentarer={vald && !skaparTyp && kanKommenteras(vald) ? kommentarer : null} fokusKommentar={Boolean(vald) && kommenteraFor === vald?.id} />
+          })() : null} onLjus={setLjus} onSkrivUt={onSkrivUt} onSkrivUtIgen={onSkrivUtIgen} onTaBortUtskrift={onTaBortUtskrift} onAnteckningAvUtskrift={onAnteckningAvUtskrift} menyFor={menyFor} onMeta={togMeta} tillbakaEtikett={lord(inbaddad ? "filer" : "tillbaka")} poster={poster} jag={jag} onLankInfo={onLankInfo} githubLasare={githubLasare} onLaggBildIAnteckning={onLaggBildIAnteckning} bildIAnteckningAdress={bildIAnteckningAdress} onOppnaPost={(p) => oppnaMed(p, "las")} kommentarer={vald && !skaparTyp && kanKommenteras(vald) ? kommentarer : null} fokusKommentar={Boolean(vald) && kommenteraFor === vald?.id} />
         ) : (
           <div data-bibliotek-huvud="" className="flex min-w-0 flex-col gap-3">
             {/* ⛔ SESSIONSTUDIOS HUVUD, SOM I APPEN (0.102.0, CP 2026-10-14 med skärmbilder från SessionStudios app: "Listningen
@@ -1681,7 +1691,8 @@ export function PlatsValjare({ platser, plats, onPlats, ny = null }) {
  * @param {{ typ: string, text?: string, url?: string }} post
  */
 function forhandsText(post) {
-  if (post.typ === "anteckning") return (post.text ?? "").replace(/[#*_`>[\]()]/g, "").replace(/\s+/g, " ").trim();
+  // ⛔ En bild (#696) är ingen text att förhandsvisa: `![](namn)` hade blivit "!namn" i raden.
+  if (post.typ === "anteckning") return (post.text ?? "").replace(/!\[[^\]\n]*\]\([^)\s]*\)/g, " ").replace(/[#*_`>[\]()]/g, "").replace(/\s+/g, " ").trim();
   if (post.typ === "lank") return post.url ?? "";
   return "";
 }
@@ -2388,8 +2399,10 @@ function Adress({ url }) {
  * @param {(post: import("../lib/bibliotek.js").Bibliotekspost & { id: string }) => void} props.onOppnaPost (0.128.0) Öppnar en post ur en lista.
  * @param {import("../data/postkommentarer.js").Postkommentarer | null} [props.kommentarer] (0.191.0) Se `OpsBibliotek`. Ges bara när posten får kommenteras.
  * @param {boolean} [props.fokusKommentar] (0.191.0) Kommentarsfältet får fokus: personen valde Kommentera.
+ * @param {(inmatning: { postId: string, plats: string, fil: File }) => Promise<{ namn: string }>} [props.onLaggBildIAnteckning] (#696) Se `OpsBibliotek`.
+ * @param {(bild: { postId: string, plats: string, namn: string }) => string | Promise<string>} [props.bildIAnteckningAdress] (#696) Se `OpsBibliotek`.
  */
-function Detalj({ post, skapar, startLage, onStang, onSpara, onLaddaUpp, filUrl, hamtaFil, htmlVersioner, hamtaHtmlVersion, aterstallHtml, nyHtmlVersion, oppnaHtml, oppnaPdf, taggrad, markering, adressFor, onLjus, onSkrivUt, onSkrivUtIgen, onTaBortUtskrift, onAnteckningAvUtskrift, menyFor, onMeta, tillbakaEtikett, poster, jag, onLankInfo, githubLasare, onOppnaPost, kommentarer = null, fokusKommentar = false }) {
+function Detalj({ post, skapar, startLage, onStang, onSpara, onLaddaUpp, filUrl, hamtaFil, htmlVersioner, hamtaHtmlVersion, aterstallHtml, nyHtmlVersion, oppnaHtml, oppnaPdf, taggrad, markering, adressFor, onLjus, onSkrivUt, onSkrivUtIgen, onTaBortUtskrift, onAnteckningAvUtskrift, menyFor, onMeta, tillbakaEtikett, poster, jag, onLankInfo, githubLasare, onOppnaPost, kommentarer = null, fokusKommentar = false, onLaggBildIAnteckning, bildIAnteckningAdress }) {
   const sprak = useOpsSprak();
   const typ = skapar ?? post?.typ ?? "anteckning";
   const [rubrik, setRubrik] = useState(post && !skapar ? post.rubrik : "");
@@ -2419,6 +2432,13 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, onLaddaUpp, filUrl,
   const filFalt = useRef(/** @type {HTMLInputElement | null} */ (null));
   const [lage, setLage] = useState(/** @type {"las" | "redigera"} */ (skapar ? "redigera" : startLage));
   const nyckel = `${skapar ?? ""}:${post?.id ?? ""}`;
+  // ⛔ EN ADRESS PER POST, MED STABIL IDENTITET (#696): `OpsMarkdown` frågar igen när funktionen byts, och en ny funktion vid varje rendering hade frågat efter varje bild vid varje tangent.
+  const bildPostId = post && !skapar ? post.id : "";
+  const bildPlats = post && !skapar ? post.groupId ?? "" : "";
+  const bildAdress = useMemo(
+    () => (typeof bildIAnteckningAdress === "function" && bildPostId ? (/** @type {string} */ namn) => bildIAnteckningAdress({ postId: bildPostId, plats: bildPlats, namn }) : undefined),
+    [bildIAnteckningAdress, bildPostId, bildPlats],
+  );
 
   useEffect(() => {
     setRubrik(post && !skapar ? post.rubrik : "");
@@ -2586,7 +2606,7 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, onLaddaUpp, filUrl,
 
   const radera = post && !skapar ? menyFor(post, true, setLage).find((m) => m.id === "radera") : undefined;
   const innehall = typ === "anteckning" ? (
-    post?.text ? <OpsMarkdown text={post.text} dokument /> : <p className="text-etikett text-ink">Anteckningen har ingen text.</p>
+    post?.text ? <OpsMarkdown text={post.text} dokument bildAdress={bildAdress} /> : <p className="text-etikett text-ink">Anteckningen har ingen text.</p>
   ) : typ === "fil" && post ? (
     <FilVisning post={post} lage={filLage} kopplad={kopplad} onLjus={onLjus} onMeta={onMeta} onRadera={radera ? radera.onValj : undefined} hamtaFil={hamtaFil} htmlVy={htmlVyAdress(oppnaHtml, post)} pdfVy={pdfVyAdress(oppnaPdf, post)} versioner={htmlVersioner ? { lista: htmlVersioner, hamtaVersion: hamtaHtmlVersion, aterstall: aterstallHtml, nyVersion: nyHtmlVersion, kanAndra: farAndra(post, jag) } : undefined} />
   ) : typ === "lista" && post ? (
@@ -2624,9 +2644,8 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, onLaddaUpp, filUrl,
         <OpsInput value={rubrik} onChange={setRubrik} ariaLabel="Rubrik" />
       </OpsField>
       {typ === "anteckning" ? (
-        <OpsField label="Text">
-          <OpsTextarea value={text} onChange={setText} ariaLabel="Text" rows={8} />
-        </OpsField>
+        // ⛔ BILDEN I ANTECKNINGEN (#696): textrutan, "Lägg till bild" och inklistringen av en bild. Utan `onLaggBildIAnteckning` är det samma ruta som förut.
+        <AnteckningsText text={text} setText={setText} post={post && !skapar ? post : null} onLaggBild={onLaggBildIAnteckning} sprak={sprak} />
       ) : typ === "fil" ? (
         <OpsField label="Fil">
           {/* ⛔ Det råa filfältet är dolt och knappen är ramverkets (0.95.0). Förut stod webbläsarens egen "Välj fil,
