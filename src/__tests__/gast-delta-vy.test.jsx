@@ -214,6 +214,8 @@ describe("OpsGastLista: en delta-inbjudan och vad gästen svarat", () => {
 
   it("⛔ en delta-inbjudan heter inte Omröstning: den heter Svar på händelse, och svaret står som ett märke vid den, bara vid den", () => {
     render(<OpsGastLista personer={[person()]} platser={platser} />);
+    // (0.204.0) Gästkorten är sammanfällda från början: provet mäter det utfällda kortet, som förut.
+    document.querySelectorAll('[data-gast-vaxla][aria-expanded="false"]').forEach((b) => fireEvent.click(b));
     const [delta, rosta] = document.querySelectorAll("[data-gast-inbjudan]");
     expect(within(delta).getByText("Svar på händelse: Möte")).toBeInTheDocument();
     expect(delta.querySelector("[data-gast-svar]").getAttribute("data-gast-svar")).toBe("kanske");
@@ -226,12 +228,15 @@ describe("OpsGastLista: en delta-inbjudan och vad gästen svarat", () => {
     const ord = { kommer: "Kommer", kommerInte: "Kommer inte", kanske: "Kanske", osvarat: "Har inte svarat" };
     for (const [nyckel, text] of Object.entries(ord)) {
       const { unmount } = render(<OpsGastLista personer={[person({ deltasvar: nyckel === "osvarat" ? null : nyckel })]} platser={platser} />);
+      // (0.204.0) Gästkorten är sammanfällda från början: provet mäter det utfällda kortet, som förut.
+      document.querySelectorAll('[data-gast-vaxla][aria-expanded="false"]').forEach((b) => fireEvent.click(b));
       const svar = document.querySelector("[data-gast-inbjudan] [data-gast-svar]");
       expect(svar.getAttribute("data-gast-svar"), nyckel).toBe(nyckel);
       expect(svar.textContent, nyckel).toBe(text);
       unmount();
     }
     render(<OpsGastLista personer={[person({ deltasvar: "kommerInte" })]} platser={platser} sprak="en" />);
+    document.querySelectorAll('[data-gast-vaxla][aria-expanded="false"]').forEach((b) => fireEvent.click(b));
     expect(screen.getByText("Reply to event: Möte")).toBeInTheDocument();
     expect(screen.getByText("Not coming")).toBeInTheDocument();
   });

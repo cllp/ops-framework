@@ -3,7 +3,7 @@ import { GripVertical } from "lucide-react";
 import { IKON_FOR } from "./ikonlexikon.js";
 import { MAX_BIBLIOTEKRUBRIK, MAX_LISTPOSTER, filtreraBibliotek, inmatningsfel, ljudRubrik, arLjudpost, trimSomRegeln } from "../lib/bibliotek.js";
 import { LISTRADTEXT, kandidaterForLista, laggTillPost, losLista, taBortPost } from "../lib/biblioteklista.js";
-import { flyttaFore, flyttaId } from "../lib/apparark.js";
+import { flyttSida, flyttaFore, flyttaId } from "../lib/apparark.js";
 import { cx } from "../lib/cx.js";
 import { LankMark, TypIkon, oppnasDirekt, plattKlass, typEtikett } from "./BibliotekPostvisning.jsx";
 import { OpsButton } from "./OpsButton.jsx";
@@ -22,6 +22,10 @@ import { useOpsSprak } from "./OpsSprak.jsx";
  * går i tur och ordning (en kedja), så att två snabba ändringar inte kommer fram i omvänd ordning.
  *
  * ⛔ DRA OCH TANGENTBORD ÄR SAMMA ÅTGÄRD. Greppet är en knapp: pekardrag (`flyttaFore`, som app-arkets ordning) och upp-/nedpil (`flyttaId`) ger samma lista. Fokus följer med den flyttade raden.
+ *
+ * ⛔ LINJEN SÄGER VAR POSTEN HAMNAR (0.204.0, cllp/lifehub.app#697, CP 2026-11-08: "Svårt att byta ordning i Lista i biblioteket ... det är oklart var den hamnar"). Före 0.204.0
+ * färgades bara målraden, fast `flyttaFore` lägger posten EFTER målet när den dras nedåt och FÖRE när den dras uppåt. Nu står en linje i mellanrummet på den sidan, och sidan
+ * kommer ur `flyttSida`, som läser samma index som `flyttaFore` flyttar med. Raderna flyttar sig inte under draget: linjen är absolut placerad och tar ingen plats, så ingen rad hoppar.
  */
 
 /**
@@ -154,6 +158,9 @@ export function ListaVisning({ lista, poster, kanAndra, onSpara, onOppnaPost }) 
     setMalId(null);
   };
 
+  // Sidan där posten landar, ur samma index som släppet sparar med (`flyttaFore`). `null` betyder att släppet inte flyttar något, och då ritas ingen linje.
+  const malSida = dragId && malId ? flyttSida(idn, dragId, malId) : null;
+
   const kandidater = kandidaterForLista({ poster: idn }, poster);
   const sokta = filtreraBibliotek(kandidater, { sok });
 
@@ -212,6 +219,7 @@ export function ListaVisning({ lista, poster, kanAndra, onSpara, onOppnaPost }) 
         >
           {rader.map((r, i) => {
             const namn = r.post ? postNamn(r.post) : r.skal === "lista" ? "En lista" : LISTRADTEXT.saknas;
+            const sida = malId === r.id ? malSida : null;
             return (
               <li
                 key={r.id}
@@ -219,8 +227,17 @@ export function ListaVisning({ lista, poster, kanAndra, onSpara, onOppnaPost }) 
                 data-lista-saknas={r.post ? undefined : r.skal}
                 data-lista-drar={dragId === r.id ? "" : undefined}
                 data-lista-mal={malId === r.id ? "" : undefined}
-                className={cx("flex min-w-0 items-center gap-2 rounded-lg border border-line bg-surface p-2", dragId === r.id && "opacity-60", malId === r.id && "bg-accent-subtle")}
+                data-lista-mal-sida={sida ?? undefined}
+                className={cx("relative flex min-w-0 items-center gap-2 rounded-lg border border-line bg-surface p-2", dragId === r.id && "opacity-60")}
               >
+                {sida ? (
+                  /* Linjen står mitt i mellanrummet (`gap-2`, 8 px) på den sida posten landar: 4 px hög, 6 px utanför raden. Absolut, så den tar ingen plats. */
+                  <span
+                    aria-hidden="true"
+                    data-lista-linje={sida}
+                    className={cx("pointer-events-none absolute inset-x-0 h-1 rounded-full bg-accent", sida === "fore" ? "-top-1.5" : "-bottom-1.5")}
+                  />
+                ) : null}
                 {kanAndra ? (
                   <button
                     type="button"

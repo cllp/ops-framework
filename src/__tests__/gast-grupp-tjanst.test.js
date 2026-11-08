@@ -1155,13 +1155,12 @@ describe("nedladdning: en signerad adress, rätt fil, tak per dygn, och ingen ad
     expect(h.signera.mock.calls.at(-1)[0].disposition).toMatch(/^attachment/);
   });
 
-  it("⛔ med farLaddaNed som svarar false ges ingen nedladdningslänk (nedladdning-av, ingen räknare), men spela och visa går; hamta bär nedladdning: false (0.190.0, CP 2026-11-05)", async () => {
-    const farLaddaNed = vi.fn(async () => false);
-    const h = bygg({ farLaddaNed });
-    // (0.203.0) Gästen har nedladdning påslagen: gruppens false vinner ändå.
-    const g = await gruppGast(h, "anna@foretag.se", { laddaNed: true });
+  // ⛔ ÄNDRAT 0.204.0 (lifehub.app#691): provet stängde av nedladdningen med gruppens strömbrytare (`farLaddaNed`, 0.190.0). Den finns inte längre, och samma spärr kommer nu av gästens
+  // `laddaNed: false`. Allt annat provet mäter (ingen adress med attachment, ingen räknare, spela och visa går) är oförändrat.
+  it("⛔ med laddaNed: false på gästen ges ingen nedladdningslänk (nedladdning-av, ingen räknare), men spela och visa går; hamta bär nedladdning: false (0.190.0, CP 2026-11-05)", async () => {
+    const h = bygg();
+    const g = await gruppGast(h, "anna@foretag.se", { laddaNed: false });
     expect((await h.tjanst.hamta({ sessionsnyckel: g.sessionsnyckel })).grupp).toMatchObject({ nedladdning: false });
-    expect(farLaddaNed).toHaveBeenCalledWith({ groupId: "kallan" });
     const forst = h.signera.mock.calls.length;
     // Nedladdning: en tvingad (bifoga: true) och ett dokument som bara kan laddas ned. Ingen signering.
     expect(await h.tjanst.fil({ sessionsnyckel: g.sessionsnyckel, postId: "p-ljud", bifoga: true })).toEqual({ ok: false, orsak: "nedladdning-av" });
@@ -1183,15 +1182,15 @@ describe("nedladdning: en signerad adress, rätt fil, tak per dygn, och ingen ad
     expect((await h.tjanst.fil({ sessionsnyckel: g.sessionsnyckel, postId: "p-ljud" })).ok).toBe(true);
   });
 
-  it("utan farLaddaNed, och med true, är nedladdningen som förut, och ett värde som inte är en funktion kastar", async () => {
-    for (const farLaddaNed of [undefined, () => true]) {
-      const h = bygg(farLaddaNed ? { farLaddaNed } : {});
-      const g = await gruppGast(h, "anna@foretag.se", { laddaNed: true });
-      expect((await h.tjanst.hamta({ sessionsnyckel: g.sessionsnyckel })).grupp.nedladdning).toBe(true);
-      expect((await h.tjanst.fil({ sessionsnyckel: g.sessionsnyckel, postId: "p-ljud", bifoga: true })).ok).toBe(true);
-      expect(h.signera.mock.calls.at(-1)[0].disposition).toMatch(/^attachment/);
-    }
-    expect(() => bygg({ farLaddaNed: true })).toThrow(/farLaddaNed är en funktion/);
+  // ⛔ ÄNDRAT 0.204.0: provet sade att en konfig utan `farLaddaNed`, eller med en som svarar `true`, laddade ned som förut. Nu är det gästens `true` som laddar ned, och varje `farLaddaNed`
+  // i konfigurationen kastar, också en som svarar `true`: att ta emot den och inte fråga den hade varit en strömbrytare som tyst slutat göra något.
+  it("⛔ (0.204.0) en gäst med laddaNed: true laddar ned, och grupp.farLaddaNed i konfigurationen kastar oavsett värde", async () => {
+    const h = bygg();
+    const g = await gruppGast(h, "anna@foretag.se", { laddaNed: true });
+    expect((await h.tjanst.hamta({ sessionsnyckel: g.sessionsnyckel })).grupp.nedladdning).toBe(true);
+    expect((await h.tjanst.fil({ sessionsnyckel: g.sessionsnyckel, postId: "p-ljud", bifoga: true })).ok).toBe(true);
+    expect(h.signera.mock.calls.at(-1)[0].disposition).toMatch(/^attachment/);
+    for (const farLaddaNed of [() => true, async () => false, true, null]) expect(() => bygg({ farLaddaNed }), String(farLaddaNed)).toThrow(/farLaddaNed finns inte sedan 0\.204\.0/);
   });
 
   it("bara gruppens egna färdiga filer med exakt sökväg: händelsens, Mitt bibliotek, en annan grupps, en som pekar på en annans fil, en med punkter, en som inte är klar och en med fel post i sökvägen nekas", async () => {
@@ -1991,27 +1990,31 @@ describe("nedladdning per gäst: av som förval, ägare och admin slår på och 
     expect(await laddaNedVia(h, pa)).toEqual({ ok: false, orsak: "nedladdning-av" });
   });
 
-  it("⛔ gruppens strömbrytare vinner: farLaddaNed false stoppar en gäst med true, i fil och i hamta", async () => {
-    const h = bygg({ farLaddaNed: async () => false });
+  // ⛔ ERSÄTTER 0.203.0:s prov "gruppens strömbrytare vinner" (lifehub.app#691, 0.204.0). Gruppen är inte längre en del av regeln: gästens `true` gäller, och en app som vill att gruppens
+  // `false` ska stoppa den kan inte längre säga det (konfigurationen kastar, provet ovan). Rött mot 0.203.0: där kastade inte `bygg`, och gästen nekades.
+  it("⛔ (0.204.0) gruppens false stoppar inte längre en gäst med true: farLaddaNed tas inte emot, och gästen laddar ned i fil och i hamta", async () => {
+    expect(() => bygg({ farLaddaNed: async () => false })).toThrow(/farLaddaNed finns inte sedan 0\.204\.0/);
+    const h = bygg();
     const g = await gruppGast(h, "anna@foretag.se", { laddaNed: true });
-    expect(await laddaNedVia(h, g)).toEqual({ ok: false, orsak: "nedladdning-av" });
-    expect((await h.tjanst.hamta({ sessionsnyckel: g.sessionsnyckel })).grupp.nedladdning).toBe(false);
+    expect(await laddaNedVia(h, g)).toMatchObject({ ok: true });
+    expect((await h.tjanst.hamta({ sessionsnyckel: g.sessionsnyckel })).grupp.nedladdning).toBe(true);
   });
 
-  it("en gruppinbjudan från före 0.203.0 (utan fältet) följer gruppen: ja när gruppen är på, nej när den är av, och listan bär laddaNed: null", async () => {
-    for (const [farLaddaNed, vantat] of [[undefined, true], [async () => true, true], [async () => false, false]]) {
-      const h = bygg(farLaddaNed ? { farLaddaNed } : {});
-      const g = await gruppGast(h);
-      await gammalRad(h, g.id);
-      expect((await h.tjanst.hamta({ sessionsnyckel: g.sessionsnyckel })).grupp.nedladdning, String(vantat)).toBe(vantat);
-      const svar = await laddaNedVia(h, g);
-      if (vantat) expect(svar).toMatchObject({ ok: true });
-      else expect(svar).toEqual({ ok: false, orsak: "nedladdning-av" });
-      const { personer } = await h.tjanst.lista({ uid: MEDLEM, groupId: GRUPP });
-      expect(personer[0].inbjudningar[0]).toMatchObject({ id: g.id, laddaNed: null });
-      // Ingenting skrevs på raden av att läsas.
-      expect("laddaNed" in (await inbjudan(h, g.id))).toBe(false);
-    }
+  // ⛔ ERSÄTTER 0.203.0:s prov "en gruppinbjudan från före 0.203.0 följer gruppen" (0.204.0). Raderna utan fältet är bakfyllda i appen innan 0.204.0 pinnas in, och en rad som ändå saknar det
+  // är ett fel i datan: den ska stänga och inte öppna. Rött mot 0.203.0: där gav raden ja, sessionen `null` och listan `null`.
+  it("⛔ (0.204.0) en gruppinbjudan utan fältet ger nej: hamta nedladdning false, fil nedladdning-av, sessionen och listan laddaNed false, och ingenting skrivs", async () => {
+    const h = bygg();
+    const g = await gruppGast(h, "anna@foretag.se", { laddaNed: true });
+    await gammalRad(h, g.id);
+    expect((await h.tjanst.hamta({ sessionsnyckel: g.sessionsnyckel })).grupp.nedladdning).toBe(false);
+    expect(await laddaNedVia(h, g)).toEqual({ ok: false, orsak: "nedladdning-av" });
+    const s = await h.tjanst.session({ sessionsnyckel: g.sessionsnyckel });
+    expect(s).toMatchObject({ ok: true, inbjudan: { id: g.id, laddaNed: false } });
+    const { personer } = await h.tjanst.lista({ uid: MEDLEM, groupId: GRUPP });
+    expect(personer[0].inbjudningar[0].laddaNed).toBe(false);
+    for (const p of personer) for (const i of p.inbjudningar) expect(i.laddaNed, "listan visar aldrig null igen").not.toBeNull();
+    // Ingenting skrivs på raden av att läsas: rättningen är appens bakfyllnad, inte en läsning.
+    expect("laddaNed" in (await inbjudan(h, g.id))).toBe(false);
   });
 
   it("listan bär laddaNed på en gruppinbjudan (true, false), och en sak har exakt sina gamla fält", async () => {

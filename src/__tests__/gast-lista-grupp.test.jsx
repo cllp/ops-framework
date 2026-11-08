@@ -37,8 +37,23 @@ const person = (extra = {}) => ({
   ...extra,
 });
 
-const rita = (props = {}) =>
+const ritaSammanfalld = (props = {}) =>
   render(<OpsGastLista personer={[person()]} platser={{ anvanda: 1, totalt: 5 }} onBjudGrupp={() => {}} onSkickaOm={() => {}} onAterkalla={() => {}} onAterkallaAlla={() => {}} onRadera={() => {}} {...props} />);
+
+/** Fäller ut varje sammanfällt gästkort (0.204.0). */
+const fallUtAlla = () => {
+  for (const b of document.querySelectorAll('[data-gast-vaxla][aria-expanded="false"]')) fireEvent.click(b);
+};
+
+/**
+ * ⛔ ÄNDRAT 0.204.0 (hopfällbara gästkort, CP 2026-11-08): korten är sammanfällda från början, och proven nedan mäter det som står i ett utfällt kort. `rita` fäller därför ut alla kort direkt
+ * efter ritningen, så att proven mäter samma sak som förut. Det sammanfällda läget mäts för sig i "hopfällbara gästkort" längst ned, med `ritaSammanfalld`.
+ */
+const rita = (props = {}) => {
+  const svar = ritaSammanfalld(props);
+  fallUtAlla();
+  return svar;
+};
 
 describe("OpsGastLista, gruppläget", () => {
   it("ritar en rad per person med varje inbjudan under och sitt omfång i ord", () => {
@@ -447,18 +462,20 @@ describe("OpsGastLista, nedladdning per gäst (0.203.0, lifehub.app#691)", () =>
     await waitFor(() => expect(onNedladdning).toHaveBeenLastCalledWith({ id: "i-grupp", pa: false }));
   });
 
-  it("laddaNed: null står avslagen och säger att den följer gruppen; en återkallad går inte att ändra; ett fel syns på raden", async () => {
+  // ⛔ ÄNDRAT 0.204.0: provet sade att `laddaNed: null` stod avslagen med raden "Följer gruppens inställning". Gruppen är inte längre en del av regeln, så en inbjudan utan värde är av,
+  // som på servern, och raden finns inte. Rött mot 0.203.0 (där stod raden).
+  it("laddaNed: null eller saknat står avslaget utan någon rad om gruppen; en återkallad går inte att ändra; ett fel syns på raden", async () => {
     const onNedladdning = vi.fn().mockRejectedValue(Object.assign(new Error("nej"), { kod: "ej-behorig" }));
     rita({ personer: [person({ inbjudningar: [gruppInbjudan(null)] })], onNedladdning });
     const r = screen.getByRole("switch", { name: "Får ladda ned filer" });
     expect(r).not.toBeChecked();
-    expect(screen.getByText("Följer gruppens inställning")).toBeInTheDocument();
+    expect(screen.queryByText(/gruppens inställning/)).toBeNull();
+    expect(document.querySelector("[data-gast-laddaned]")).toHaveAttribute("data-gast-laddaned", "av");
     await klicka(r);
     expect(await screen.findByRole("alert")).toHaveTextContent("Du får inte bjuda in gäster");
     cleanup();
     rita({ personer: [person({ status: "aterkallad", inbjudningar: [gruppInbjudan(true, { status: "aterkallad" })] })], onNedladdning });
     expect(screen.getByRole("switch", { name: "Får ladda ned filer" })).toBeDisabled();
-    expect(screen.queryByText("Följer gruppens inställning")).toBeNull();
   });
 
   it("utan onNedladdning inget reglage, och onNedladdning som inte är en funktion, eller i listan över en omröstning, kastar", () => {
@@ -468,5 +485,90 @@ describe("OpsGastLista, nedladdning per gäst (0.203.0, lifehub.app#691)", () =>
     vi.spyOn(console, "error").mockImplementation(() => {});
     expect(() => rita({ onNedladdning: true })).toThrow(/onNedladdning måste vara en funktion/);
     expect(() => render(<OpsGastLista gaster={[]} platser={{ anvanda: 0, totalt: 5 }} onNedladdning={() => {}} />)).toThrow(/onNedladdning hör till listan över hela gruppen/);
+  });
+});
+
+describe("OpsGastLista, hopfällbara gästkort (0.204.0, CP 2026-11-08)", () => {
+  const ANNA_BERG = () =>
+    person({
+      namn: "Anna Berg",
+      inbjudningar: [
+        { id: "i-grupp", omfang: { slag: "grupp" }, titel: null, status: "inloggad", laddaNed: false },
+        { id: "i-sak", omfang: { slag: "sak", funktion: "rosta", handelseId: "h1" }, titel: "Sommarfest", status: "vantar" },
+      ],
+      status: "inloggad",
+    });
+  const BO = gastId("bo@foretag.se");
+  const BO_LUND = () => ({ gastId: BO, epost: "bo@foretag.se", namn: "Bo Lund", status: "vantar", inbjudningar: [{ id: "i-bo", omfang: { slag: "grupp" }, titel: null, status: "vantar", laddaNed: true }] });
+  const alla = (extra = {}) => ({ onKopieraLank: vi.fn().mockResolvedValue({ url: "https://app.exempel/gast#i=x", lankGiltigTill: 1 }), onNedladdning: vi.fn().mockResolvedValue(undefined), ...extra });
+
+  it("⛔ från början syns namnet och statusmärket, men inte adressen, inbjudningarna eller knapparna", () => {
+    ritaSammanfalld({ personer: [ANNA_BERG()], ...alla() });
+    const kort = /** @type {HTMLElement} */ (document.querySelector("[data-gast-person]"));
+    expect(within(kort).getByText("Anna Berg")).toBeInTheDocument();
+    expect(within(kort).getByText("Har loggat in")).toBeInTheDocument();
+    expect(within(kort).queryByText("anna@foretag.se")).toBeNull();
+    expect(kort.querySelectorAll("[data-gast-inbjudan]")).toHaveLength(0);
+    for (const namn of [/Skicka länken igen/, /Kopiera länken/, /^Dra tillbaka inbjudan/, /Dra tillbaka alla/, /Radera/]) expect(within(kort).queryByRole("button", { name: namn }), String(namn)).toBeNull();
+    expect(within(kort).queryByRole("switch")).toBeNull();
+    // Den enda knappen på raden är chevronen, med namnet och läget.
+    const knappar = within(kort).getAllByRole("button");
+    expect(knappar).toHaveLength(1);
+    expect(knappar[0]).toHaveAccessibleName("Visa detaljer för Anna Berg");
+    expect(knappar[0]).toHaveAttribute("aria-expanded", "false");
+    const panel = document.getElementById(/** @type {string} */ (knappar[0].getAttribute("aria-controls")));
+    expect(panel, "aria-controls pekar på ett element som finns").not.toBeNull();
+    expect(panel).not.toBeVisible();
+    // Få element i en sammanfälld rad: panelen bär inget innehåll.
+    expect(panel?.childElementCount).toBe(0);
+  });
+
+  it("⛔ ett tryck fäller ut och sätter aria-expanded, ett till fäller ihop, och flera kort får vara utfällda samtidigt", async () => {
+    ritaSammanfalld({ personer: [ANNA_BERG(), BO_LUND()], ...alla() });
+    const anna = screen.getByRole("button", { name: "Visa detaljer för Anna Berg" });
+    const bo = screen.getByRole("button", { name: "Visa detaljer för Bo Lund" });
+    await klicka(anna);
+    expect(anna).toHaveAttribute("aria-expanded", "true");
+    expect(bo).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByText("anna@foretag.se")).toBeVisible();
+    expect(screen.queryByText("bo@foretag.se")).toBeNull();
+    await klicka(bo);
+    expect(anna).toHaveAttribute("aria-expanded", "true");
+    expect(bo).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("bo@foretag.se")).toBeVisible();
+    expect(document.getElementById(/** @type {string} */ (bo.getAttribute("aria-controls")))).toBeVisible();
+    await klicka(anna);
+    expect(anna).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByText("anna@foretag.se")).toBeNull();
+    expect(screen.getByText("bo@foretag.se")).toBeVisible();
+  });
+
+  it("knappens namn på engelska är Show details for <name>", () => {
+    ritaSammanfalld({ personer: [ANNA_BERG()], sprak: "en" });
+    expect(screen.getByRole("button", { name: "Show details for Anna Berg" })).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("⛔ i utfällt läge finns allt som stod i kortet, och knapparna fungerar: Skicka igen, Kopiera länk, Dra tillbaka, reglaget, Dra tillbaka alla och Radera uppgifter", async () => {
+    const f = alla({ onSkickaOm: vi.fn().mockResolvedValue(undefined), onAterkalla: vi.fn().mockResolvedValue(undefined), onAterkallaAlla: vi.fn().mockResolvedValue(undefined), onRadera: vi.fn().mockResolvedValue(undefined) });
+    ritaSammanfalld({ personer: [ANNA_BERG()], ...f });
+    await klicka(screen.getByRole("button", { name: "Visa detaljer för Anna Berg" }));
+    const kort = /** @type {HTMLElement} */ (document.querySelector("[data-gast-person]"));
+    expect(within(kort).getByText("anna@foretag.se")).toBeVisible();
+    expect(kort.querySelectorAll("[data-gast-inbjudan]")).toHaveLength(2);
+    expect(within(kort).getByText("Hela gruppen")).toBeVisible();
+    expect(within(kort).getByText("Omröstning: Sommarfest")).toBeVisible();
+
+    await klicka(within(kort).getByRole("button", { name: "Skicka länken igen till Anna Berg (Hela gruppen)" }));
+    await waitFor(() => expect(f.onSkickaOm).toHaveBeenCalledWith({ id: "i-grupp" }));
+    await klicka(within(kort).getByRole("button", { name: "Kopiera länken till Anna Berg (Hela gruppen)" }));
+    await waitFor(() => expect(f.onKopieraLank).toHaveBeenCalledWith({ id: "i-grupp" }));
+    await klicka(within(kort).getByRole("switch", { name: "Får ladda ned filer" }));
+    await waitFor(() => expect(f.onNedladdning).toHaveBeenCalledWith({ id: "i-grupp", pa: true }));
+    await klicka(within(kort).getByRole("button", { name: "Dra tillbaka inbjudan till Anna Berg (Omröstning: Sommarfest)" }));
+    await waitFor(() => expect(f.onAterkalla).toHaveBeenCalledWith({ id: "i-sak" }));
+    await klicka(within(kort).getByRole("button", { name: "Dra tillbaka alla inbjudningar till Anna Berg" }));
+    await waitFor(() => expect(f.onAterkallaAlla).toHaveBeenCalledWith({ gastId: ANNA }));
+    await klicka(within(kort).getByRole("button", { name: "Radera uppgifterna om Anna Berg" }));
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
   });
 });

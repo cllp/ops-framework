@@ -159,6 +159,8 @@ describe("OpsMedlemmar med gäster", () => {
     expect(screen.getByText("vantande@foretag.se")).toBeInTheDocument();
     const rad = document.querySelector(`[data-gast-person="${ANNA}"]`);
     expect(rad).not.toBeNull();
+    // (0.204.0) Gästkorten är sammanfällda från början: provet mäter det utfällda kortet, som förut.
+    await user.click(within(rad).getByRole("button", { name: /^Visa detaljer för / }));
     expect(within(rad).getByText("anna@foretag.se")).toBeInTheDocument();
     expect(within(rad).getByText("Hela gruppen")).toBeInTheDocument();
     // Ingen egen rubrik och ingen platsrad i listan: de hör till rutan, inte till raderna.
@@ -175,11 +177,14 @@ describe("OpsMedlemmar med gäster", () => {
     expect(screen.queryByText(/Inga gäster/)).toBeNull();
   });
 
-  it("utan kanAndra står gästen som en rad utan åtgärder, och ingen Bjud in-ruta", () => {
+  // ⛔ ÄNDRAT 0.204.0: "inga knappar" var noll knappar. Kortet har nu alltid chevronen som fäller ut det; åtgärderna är det som saknas, också i utfällt läge.
+  it("utan kanAndra står gästen som en rad utan åtgärder, och ingen Bjud in-ruta", async () => {
+    const user = userEvent.setup();
     rita({}, { kanAndra: false });
     const rad = document.querySelector(`[data-gast-person="${ANNA}"]`);
     expect(rad).not.toBeNull();
-    expect(within(rad).queryAllByRole("button")).toHaveLength(0);
+    await user.click(within(rad).getByRole("button", { name: /^Visa detaljer för / }));
+    expect(within(rad).getAllByRole("button").map((b) => b.getAttribute("aria-expanded"))).toEqual(["true"]);
     expect(screen.queryByLabelText("E-post")).toBeNull();
   });
 });

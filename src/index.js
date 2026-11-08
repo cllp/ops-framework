@@ -400,6 +400,8 @@ export { OpsDelad } from "./components/OpsDelad.jsx";
 export { OpsDeladSida } from "./components/OpsDeladSida.jsx";
 export { DeladFel } from "./components/DeladFel.jsx";
 export { PublikHuvud } from "./components/PublikHuvud.jsx";
+// 0.204.0: appens ordmärke i huvudet, samma på gästens sida och de delade sidorna.
+export { ORD_PUBLIKMARKE, PUBLIK_MARKE_KLASS, PublikMarke, publikMarkeLank } from "./components/PublikMarke.jsx";
 export { ORD_OPSDELAD } from "./lib/deladord.js";
 // 0.125.0 (lifehub.app#377): samma delning för en händelse, med en läsbar adress (`/g/<grupp>/event/<händelse>` och `/g/<grupp>/lib/<fil>`), en valfri kod och en publik sida med eget huvud och språkval.
 export { OpsDeladHandelse, ORD_OPSDELADHANDELSE } from "./components/OpsDeladHandelse.jsx";

@@ -9,6 +9,44 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.204.0
+
+Gruppens strömbrytare för nedladdning bort ur regeln (cllp/lifehub.app#691, CP: kör), hopfällbara gästkort i gästlistan och samma märke på gästens sida och i delningarna (CP 2026-11-08).
+
+### ⛔ Förutsätter att appens bakfyllnad har körts skarpt FÖRST
+
+Pinna inte in 0.204.0 i en app förrän varje gruppinbjudan i appens `gastinbjudningar` har ett eget `laddaNed`. I lifehub.app är det `scripts/bakfyll-gastnedladdning.mjs` (knappen `bakfyll-gastnedladdning.yml`), körd skarpt och följd av en torrkörning som visar 0 att skriva.
+
+Skälet: i 0.203.0 var regeln gruppens strömbrytare (`grupp.farLaddaNed`) OCH gästens `laddaNed`, där en rad utan fältet följde gruppen. Alla gruppinbjudningar från före 0.203.0 saknar fältet. I 0.204.0 räknas en rad utan fältet som `false`. Pinnas versionen in före bakfyllnaden tappar varje gammal gäst i en grupp med nedladdning på sin nedladdning, utan att någon tryckt på något. Bakfyllnaden skriver den åtkomst raden har i dag (gruppens värde, där saknat är på), så ingen gäst får mer eller mindre när regeln byts. Ramverket kan inte se om den har körts.
+
+### Ändrat
+- **`nedladdningTillaten` är gästens värde och inget annat.** Bara `laddaNed: true` ger nedladdning. En rad utan fältet, eller med något annat än `true`, är nej: samma säkra förval som för en ny gäst sedan 0.203.0, och en rad som ändå saknar fältet efter bakfyllnaden är ett fel i datan som ska stänga och inte öppna. Funktionen är synkron och läser inget: varken gruppen eller appen frågas. Gäller `fil` (`nedladdning-av`) och `hamta` (`grupp.nedladdning`).
+- **`session` bär `laddaNed: true | false` för en gruppsession**, aldrig `null` (typen var `boolean | null`).
+- **`lista({ groupId })` bär `laddaNed: true | false` på varje gruppinbjudan**, aldrig `null`. `null` betydde "följer gruppen", och gruppen är inte längre en del av regeln. Ett saknat fält går ut som `false`, eftersom det är vad servern gör med raden.
+- **`OpsGastLista`**: reglaget **Får ladda ned filer** står avslaget för allt som inte är `true`, och raden "Följer gruppens inställning" (`laddaNedFoljerGrupp` i `ORD_OPSGASTLISTA`) är borta.
+- **`OpsGastLista`, hopfällbara gästkort i gruppläget.** Varje gäst är en sammanfälld rad med namnet, statusmärket (samma som förut) och en knapp med en chevron nedåt till höger. Knappen har `aria-expanded`, `aria-controls` och namnet "Visa detaljer för <namn>" ("Show details for <name>"), ny nyckel `visaDetaljer` i `ORD_OPSGASTLISTA`. Utfällt visar kortet allt som stod i det förut: adressen eller numret, varje inbjudan med status, Skicka igen eller Ny länk, Kopiera länk, Dra tillbaka, reglaget Får ladda ned filer, Bjud in igen, Dra tillbaka alla och Radera uppgifter. Alla kort är sammanfällda från början, och flera får vara utfällda samtidigt. Beskeden efter ett tryck (klart och fel) står utanför panelen och syns också när kortet är ihopfällt. Omröstningsläget (`gaster`) är oförändrat.
+  - **Regel 13, tre listor.** Tas som det är: knappen ur `OpsBreakdown` och `OpsEventList` (`aria-expanded`, `aria-controls`, `ChevronNedIkon` som vänds, 44 px träffyta, samma tokens). Görs bättre: panelen bär inget innehåll förrän kortet fälls ut, så en sammanfälld rad bär raden och en tom panel, och inte ett helt kort gömt med `hidden` (antalet element står i `check:skalyta`). Stryks: `OpsDisclosure` (`<details>`) användes inte, eftersom hela rubrikraden där är klickytan och rubriken då inte kan bära ett eget namn; inget minne av läget (`storageKey`), eftersom ett kort som är utfällt nästa gång är en sak till att titta på.
+
+- **Märket ser likadant ut på gästens sida och i alla delningar (CP 2026-11-08: "Alla delningar. Kolla loggans storlek och kolla så att det ser samma ut med alla delningar och gästvy. VI måste ha enhetlighet.").** Rotorsaken: gästens sida ritade märket själv (`GastMarke` i `OpsGastSida`, ett brett ordmärke i `h-6 max-w-(--logo-bredd)`, en länk med `omAppen`), medan `OpsDeladSida` och `OpsDeladHandelse` bara tog appens `huvud`. Appen skickade där sina fyrkantiga loggor med luft runt i en ruta på 32 px, och märket blev pyttelitet i delningarna. Nu:
+  - **`PublikMarke`** (ny export, med `ORD_PUBLIKMARKE`, `PUBLIK_MARKE_KLASS` och `publikMarkeLank`) ritar märket på alla tre sidorna, en sanning. `GastMarke` är borta. Datamärkena `data-gast-marke` och `data-gast-marke-lank` står kvar på gästens sida, och delningarna får `data-delad-marke` och `data-dh-marke` (`-lank` på länken), alla tre också `data-publik-marke`.
+  - **`OpsDeladSida` och `OpsDeladHandelse` tar `marke: { ljus, mork, namn }`**, samma prop som `OpsGastSida`. Märket ritas på samma sätt och är en länk i ny flik när `omAppen` finns, med namnet "Om {namn}, öppnas i en ny flik" (förut bara i `ORD_OPSGASTSIDA`, nu ur `ORD_PUBLIKMARKE`). `huvud` finns kvar och står efter märket, som på gästens sida.
+  - **Det andra i de tre huvudena jämfört**: höjden (`h-12`), språkväljaren och temaknappen var redan desamma, eftersom alla tre ritar `PublikHuvud` sedan 0.201.0. Spalten är `max-w-3xl` på alla tre, utom gästens sida i HELA GRUPPEN, som är `max-w-5xl` med flit (kalenderns rutnät och biblioteket blir trånga i 48 rem). Det enda som skilde var märket. Mätt i `check:skalyta`, avsnittet `publikMarken`.
+  - **För appen:** skicka `marke` (appens breda ordmärke, samma som till gästens sida) till `OpsDeladSida` och `OpsDeladHandelse`, och ta ut den fyrkantiga loggan ur `huvud`.
+
+- **En lista i Biblioteket visar var posten hamnar medan man drar (cllp/lifehub.app#697, CP 2026-11-08: "Svårt att byta ordning i Lista i biblioteket ... det är oklart var den hamnar").** Före 0.204.0 färgades bara målraden, fast släppet lägger posten EFTER målet när den dras nedåt och FÖRE målet när den dras uppåt (A över C i `abcde` ger `bcade`, E över B i `bcade` ger `ebcad`), och de två såg likadana ut. Nu står en linje i accentfärgen i mellanrummet på den sida där posten landar, och målraden bär `data-lista-mal-sida="fore"` eller `"efter"`. Sidan kommer ur nya `flyttSida` i `lib/apparark.js`, som läser samma index som `flyttaFore` flyttar med, så det som visas och det som sparas kan inte skilja sig åt. Linjen är absolut placerad och tar ingen plats, raderna flyttar sig inte under draget (mätt i Chromium: samma höjd och läge på varje rad före och under draget, 390 och 1280 px, ljust och mörkt), och målraden färgas inte längre. Upp- och nedpil är oförändrade.
+
+### Borttaget
+- **`grupp.farLaddaNed` i `createGastService`.** Konfigurationen kastar om den har nyckeln, oavsett värde: att ta emot den och inte fråga den hade varit en strömbrytare som tyst slutat göra något, där värden tror att gruppen är avstängd medan en gäst med `true` laddar ned. ⛔ **Det är en ändrad exportyta:** en app som skickar `farLaddaNed` startar inte sin gästtjänst med 0.204.0.
+
+### För appen
+1. Kör bakfyllnaden skarpt, och sedan en torrkörning som visar 0 att skriva (se ovan).
+2. Pinna om, och ta i samma PR bort `farLaddaNed` ur gästtjänstens `grupp`, gruppens reglage och callablen för det, och sluta läsa gruppens fält. Fältet på gruppdokumenten blir döda data.
+
+### Prov
+Ändrade i `gast-grupp-tjanst`, med skälet vid provet: "med farLaddaNed som svarar false" mäter samma spärr med gästens `laddaNed: false`; "utan farLaddaNed, och med true" är nu "en gäst med true laddar ned, och farLaddaNed kastar oavsett värde"; "gruppens strömbrytare vinner" är ersatt av "gruppens false stoppar inte längre en gäst med true"; "en gruppinbjudan från före 0.203.0 följer gruppen" är ersatt av "en gruppinbjudan utan fältet ger nej" (hamta, fil, session och lista). Ändrade i `gast-lista-grupp`: "laddaNed: null står avslagen och säger att den följer gruppen" är nu "står avslaget utan någon rad om gruppen", och `rita` fäller ut alla kort efter ritningen så att de befintliga proven mäter det utfällda kortet som förut. Nya i `gast-lista-grupp` (hopfällbara kort): från början syns namnet och märket men inte adressen eller knapparna; ett tryck fäller ut och sätter `aria-expanded`, flera samtidigt; engelska namnet; knapparna fungerar i utfällt läge. Nya i `publik-marke` (märket): med `marke` ritar `OpsDeladSida` och `OpsDeladHandelse` samma märke med samma klasser som gästens sida, ritad på riktigt; med `omAppen` är det en länk i ny flik på alla tre; `huvud` står kvar; ett trasigt `marke` kastar med sidans namn. `check:skalyta` mäter märket, huvudets höjd, spalten och knapparna på de tre sidorna och kräver att de är lika. Utfallen mot 0.203.0 och mot 0.204.0 står i PR-texten.
+
+---
+
 ## 0.203.0
 
 Nedladdning per gäst, av som förval (cllp/lifehub.app#691, CP-beslut). Förut gällde nedladdningen per grupp (`grupp.farLaddaNed`, 0.190.0): en gäst som släpptes in i en grupp med nedladdning på fick ladda ned allt, och det gick inte att ge en gäst mindre än en annan.

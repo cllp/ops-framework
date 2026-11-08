@@ -8,6 +8,7 @@ import { SPRAK } from "../lib/sprak.js";
 import { ORD_OPSDELADHANDELSE } from "./OpsDeladHandelse.jsx";
 import { OpsSprakProvider } from "./OpsSprak.jsx";
 import { PublikHuvud } from "./PublikHuvud.jsx";
+import { PublikMarke, publikMarkeLank } from "./PublikMarke.jsx";
 
 /**
  * Sidan runt en delad post (fil, anteckning, länk eller lista) på `/g/<grupp>/lib/<del>`: samma huvud och samma språk som en delad händelse och som gästens sida (0.201.0, cllp/ops-framework#544).
@@ -23,13 +24,15 @@ import { PublikHuvud } from "./PublikHuvud.jsx";
  *
  * @param {object} props
  * @param {import("react").ReactNode | ((sprak: "sv" | "en") => import("react").ReactNode)} props.children Innehållet, oftast `OpsDelad`. En funktion får sidans språk.
- * @param {import("react").ReactNode} [props.huvud] Appens märke, till vänster i huvudet.
+ * @param {import("react").ReactNode} [props.huvud] Appens märke, till vänster i huvudet. (0.204.0) Med `marke` står det efter märket.
+ * @param {{ ljus: string, mork: string, namn: string }} [props.marke] (0.204.0) Appens ordmärke, samma prop och samma ritning som på gästens sida (`PublikMarke`): en bild per tema, bred och tätt beskuren,
+ *   24 px hög. Med `omAppen` är det en länk till appens sida i en ny flik. Står före `huvud`, som finns kvar som förut.
  * @param {string} [props.sprak] Språket om appen styr det.
  * @param {(sprak: string) => void} [props.onSprak] Anropas när besökaren väljer språk.
  * @param {{ href: string, namn: string }} [props.omAppen] (0.202.0) Appens namn och adress för sista raden, "Delat från {namn} ... Läs mer". Prövas som på gästens sida: bara https.
  * @param {string | null} [props.lankSprak] Länkens språk (`sv` eller `en`), när länken bär ett. Ett okänt värde hoppas över.
  */
-export function OpsDeladSida({ children, huvud, sprak, onSprak, lankSprak, omAppen }) {
+export function OpsDeladSida({ children, huvud, marke, sprak, onSprak, lankSprak, omAppen }) {
   if (onSprak !== undefined && typeof onSprak !== "function") throw new Error("OpsDeladSida: onSprak ska vara en funktion.");
   if (sprak !== undefined && !(/** @type {readonly string[]} */ (SPRAK).includes(sprak))) {
     throw new Error(`OpsDeladSida: språket ${JSON.stringify(sprak)} finns inte (giltiga: ${SPRAK.join(", ")}).`);
@@ -50,7 +53,19 @@ export function OpsDeladSida({ children, huvud, sprak, onSprak, lankSprak, omApp
 
   return (
     <div lang={aktivt} data-deladsida="" data-sprak={aktivt} className={cx("flex min-h-dvh w-full flex-col", PUBLIK_TONER.ljus.band, PUBLIK_TONER.ljus.rubrik)}>
-      <PublikHuvud namn="delad" aktivt={aktivt} etikett={t.sprakEtikett} onVal={valj} huvud={huvud} />
+      <PublikHuvud
+        namn="delad"
+        aktivt={aktivt}
+        etikett={t.sprakEtikett}
+        onVal={valj}
+        huvud={
+          <>
+            {/* (0.204.0) Samma märke som gästens sida (`PublikMarke`). */}
+            {marke ? <PublikMarke marke={marke} sida="delad" komponent="OpsDeladSida" lank={publikMarkeLank(omAppen, aktivt)} /> : null}
+            {huvud}
+          </>
+        }
+      />
       <main className="mx-auto w-full max-w-3xl flex-1 px-4 pt-8 pb-16 sm:pt-12">
         <OpsSprakProvider sprak={aktivt}>{typeof children === "function" ? children(aktivt) : children}</OpsSprakProvider>
         {/* (0.202.0, lifehub.app#687 punkt 16) Sista raden som på gästens översikt. */}

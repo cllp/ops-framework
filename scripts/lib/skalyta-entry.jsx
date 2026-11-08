@@ -341,6 +341,18 @@ const GASTGRUPP_SVAR = {
 const gastOrdmarke = (/** @type {string} */ farg) =>
   `data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="400" height="100" viewBox="0 0 400 100"><rect width="400" height="100" rx="12" fill="${farg}"/><rect x="24" y="30" width="352" height="40" fill="#ffffff"/></svg>`)}`;
 const GAST_MARKE = { ljus: gastOrdmarke("#2a6f5b"), mork: gastOrdmarke("#7fd1b9"), namn: "LifeHub" };
+/*
+ * 0.204.0 (CP 2026-11-08: "Alla delningar ... VI måste ha enhetlighet"): samma märke och samma `omAppen` på gästens sida och de två delade sidorna, så att avsnittet `publikMarken` kan jämföra
+ * huvudena. Gästens sida utan länk och utan minne är sidan som ber om en ny länk; huvudet är detsamma som i gruppen. Saknas en sida i dist ritas en markör.
+ */
+const PUBLIK_OM_APPEN = { href: "https://life-hub.app", namn: "LifeHub" };
+const OpsDeladSidaK = Ops.OpsDeladSida ?? (() => <span data-saknas="OpsDeladSida">OpsDeladSida saknas</span>);
+const OpsDeladHandelseK = Ops.OpsDeladHandelse ?? (() => <span data-saknas="OpsDeladHandelse">OpsDeladHandelse saknas</span>);
+function PublikMarkeScen({ sida }) {
+  if (sida === "delad") return <OpsDeladSidaK marke={GAST_MARKE} omAppen={PUBLIK_OM_APPEN} sprak="sv"><p>Låtlista</p></OpsDeladSidaK>;
+  if (sida === "dh") return <OpsDeladHandelseK delning={{ titel: "Repetition", datum: "2026-12-02", tid: "18:00", slutTid: "20:00", filer: [] }} marke={GAST_MARKE} omAppen={PUBLIK_OM_APPEN} sprak="sv" />;
+  return <OpsGastSida lank={null} onLos={() => {}} onHamta={() => {}} onNyLank={() => {}} marke={GAST_MARKE} omAppen={PUBLIK_OM_APPEN} sprak="sv" lagring={null} />;
+}
 function GastGruppSidaScen() {
   const w = /** @type {any} */ (window);
   const lagring = (() => {
@@ -3135,6 +3147,7 @@ function Scen() {
   if (s === "gastgrupp-telefon") return <GastTelefonScen />;
   if (s === "gastgrupp-medlemmar") return <GastMedlemmarScen />;
   if (s === "gastgrupp-sida") return <GastGruppSidaScen />;
+  if (s.startsWith("publikmarke-")) return <PublikMarkeScen sida={s.slice("publikmarke-".length)} />;
   if (s === "gastgrupp-arenden") return <GastArendenSidaScen />;
   if (s === "gastgrupp-mottagare") return <GastMottagareScen />;
   if (s.startsWith("gastsida-")) return <GastSidaScen lage={s.slice("gastsida-".length)} />;

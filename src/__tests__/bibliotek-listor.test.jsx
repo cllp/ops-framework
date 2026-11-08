@@ -348,6 +348,67 @@ describe("ordningen: tangentbord och drag", () => {
     expect(document.querySelector("[data-lista-drar]")).toBeNull();
   });
 
+  /*
+   * ⛔ VAR POSTEN HAMNAR SYNS MEDAN MAN DRAR (0.204.0, cllp/lifehub.app#697, CP 2026-11-08: "Svårt att byta ordning i Lista i biblioteket ... det är oklart var den hamnar").
+   * Före 0.204.0 färgades bara målraden. Ett drag nedåt till C lägger posten EFTER C och ett drag uppåt till B lägger den FÖRE B, och markeringen såg likadan ut i båda fallen.
+   * Nu står en linje på den sida där posten landar, och sidan är samma som det `flyttaFore` sparar.
+   */
+  describe("linjen visar var posten hamnar", () => {
+    /** @param {string} ordning */
+    const fem = (ordning = "abcde") => [anteckning("a", "Post A"), anteckning("b", "Post B"), anteckning("c", "Post C"), anteckning("d", "Post D"), anteckning("e", "Post E"), lista("l1", "Spellista", ordning.split(""))];
+    /** @param {string} fran @param {string} over */
+    const dra = (fran, over) => {
+      const grepp = /** @type {HTMLElement} */ (document.querySelector(`[data-lista-grepp='${fran}']`));
+      const mal = /** @type {HTMLElement} */ (document.querySelector(`[data-lista-rad='${over}']`));
+      fireEvent.pointerDown(grepp, { button: 0, pointerId: 1 });
+      fireEvent.pointerMove(mal, { pointerId: 1 });
+      return mal;
+    };
+
+    it("⛔ A draget nedåt över C: linjen står EFTER C, och släppet ger bcade", async () => {
+      const user = userEvent.setup();
+      render(<Host start={fem()} />);
+      await oppnaLista(user);
+      const mal = dra("a", "c");
+      expect(mal).toHaveAttribute("data-lista-mal-sida", "efter");
+      expect(mal.querySelector("[data-lista-linje='efter']")).not.toBeNull();
+      expect(document.querySelectorAll("[data-lista-mal-sida]")).toHaveLength(1);
+      // Raden flyttar sig inte i DOM:en medan man drar: linjen är det enda som visar platsen.
+      expect(radIds().join("")).toBe("abcde");
+      fireEvent.pointerUp(mal, { pointerId: 1 });
+      await waitFor(() => expect(anropen().at(-1)).toMatchObject({ poster: ["b", "c", "a", "d", "e"] }));
+      expect(radIds().join("")).toBe("bcade");
+      expect(document.querySelector("[data-lista-mal-sida]")).toBeNull();
+      expect(document.querySelector("[data-lista-linje]")).toBeNull();
+    });
+
+    it("⛔ E draget uppåt över B (i bcade, där A just lagts efter C): linjen står FÖRE B, och släppet ger ebcad", async () => {
+      const user = userEvent.setup();
+      render(<Host start={fem("bcade")} />);
+      await oppnaLista(user);
+      const mal = dra("e", "b");
+      expect(mal).toHaveAttribute("data-lista-mal-sida", "fore");
+      expect(mal.querySelector("[data-lista-linje='fore']")).not.toBeNull();
+      expect(document.querySelectorAll("[data-lista-mal-sida]")).toHaveLength(1);
+      fireEvent.pointerUp(mal, { pointerId: 1 });
+      await waitFor(() => expect(anropen().at(-1)).toMatchObject({ poster: ["e", "b", "c", "a", "d"] }));
+      expect(radIds().join("")).toBe("ebcad");
+    });
+
+    it("över den egna raden står ingen linje, och ett avbrott tar bort linjen utan att spara", async () => {
+      const user = userEvent.setup();
+      render(<Host start={fem()} />);
+      await oppnaLista(user);
+      dra("c", "c");
+      expect(document.querySelector("[data-lista-mal-sida]")).toBeNull();
+      const mal = dra("c", "d");
+      expect(mal).toHaveAttribute("data-lista-mal-sida", "efter");
+      fireEvent.pointerCancel(mal, { pointerId: 1 });
+      expect(document.querySelector("[data-lista-mal-sida]")).toBeNull();
+      expect(anropen()).toHaveLength(0);
+    });
+  });
+
   it("ett släpp på samma rad, utanför raderna eller efter ett avbrott ändrar ingenting", async () => {
     const user = userEvent.setup();
     render(<Host start={start()} />);

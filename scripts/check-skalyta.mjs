@@ -7928,6 +7928,40 @@ async function gastGrupp() {
       const { page, context } = await oppna("gastgrupp-lista", vp);
       try {
         await page.waitForSelector("[data-gastlista]");
+        // ── (0.204.0, CP 2026-11-08) Hopfällbara gästkort: från början är varje kort sammanfällt. Raden bär namnet, statusmärket och chevronen och inget annat: en knapp, med namnet
+        // "Visa detaljer för <namn>", minst 44 px, `aria-expanded="false"`, och en tom panel som `aria-controls` pekar på. Antalet element per sammanfälld rad har ett tak som bara får sjunka.
+        // Taket är det mätta antalet 2026-11-08 (9 under kortet: raden, namnet, märket, knappen, dess två spann, ikonens svg och linje, och den tomma panelen). Det får bara sjunka.
+        const SAMMANFALLD_TAK = 9;
+        const sf = await page.evaluate(() =>
+          [...document.querySelectorAll("[data-gastlista] [data-gast-person]")].map((r) => {
+            const knappar = [...r.querySelectorAll("button")];
+            const k = knappar[0];
+            const panel = k ? document.getElementById(k.getAttribute("aria-controls") || "") : null;
+            return {
+              id: r.getAttribute("data-gast-person"),
+              element: r.querySelectorAll("*").length,
+              knappar: knappar.length,
+              namn: k ? (k.textContent || "").trim() : "",
+              utfalld: k ? k.getAttribute("aria-expanded") : null,
+              hojd: k ? k.getBoundingClientRect().height : 0,
+              panelTom: panel ? panel.childElementCount === 0 && panel.hidden : false,
+              adress: !!r.querySelector("[data-gast-epost],[data-gast-telefon],[data-gast-inbjudan]"),
+              hojdRad: r.getBoundingClientRect().height,
+            };
+          }),
+        );
+        matt.push(`${namn} lista sammanfälld: ${sf.length} kort, element per rad ${sf.map((x) => x.element).join("/")} (tak ${SAMMANFALLD_TAK}), radhöjd ${sf.map((x) => x.hojdRad.toFixed(0)).join("/")} px, chevron ${sf.map((x) => x.hojd.toFixed(0)).join("/")} px`);
+        krav(sf.length === 3, `${namn} lista sammanfälld (golv): ${sf.length} kort ritades, väntat 3. Då mättes inte det sammanfällda läget.`);
+        for (const x of sf) {
+          krav(x.knappar === 1 && /^Visa detaljer för .+/.test(x.namn) && x.utfalld === "false", `${namn} lista sammanfälld: kortet ${x.id} har ${x.knappar} knappar (väntat 1), namnet ${JSON.stringify(x.namn)} och aria-expanded ${x.utfalld}.`);
+          krav(x.hojd >= 44, `${namn} lista sammanfälld: chevronen i ${x.id} är ${x.hojd.toFixed(0)} px hög, väntat minst 44 px.`);
+          krav(x.panelTom && !x.adress, `${namn} lista sammanfälld: kortet ${x.id} visar adress eller inbjudningar, eller panelen som aria-controls pekar på saknas eller har innehåll.`);
+          krav(x.element <= SAMMANFALLD_TAK, `${namn} lista sammanfälld: kortet ${x.id} har ${x.element} element, taket är ${SAMMANFALLD_TAK}.`);
+        }
+        // Fäll ut alla, så att resten av avsnittet mäter det utfällda kortet som förut.
+        // ⛔ Utan filter på aria-expanded: `.all()` ger lokaliserare per index, och ett filter som ändras av klicket gör att index 2 inte längre finns (mätt: tidsgränsen slog i).
+        for (const knapp of await page.locator("[data-gastlista] [data-gast-vaxla]").all()) await knapp.click();
+        krav((await page.locator('[data-gastlista] [data-gast-vaxla][aria-expanded="true"]').count()) === 3, `${namn} lista: alla tre kort fälldes inte ut, och flera ska få vara utfällda samtidigt.`);
         const m = await page.evaluate(() => {
           const rot = /** @type {HTMLElement} */ (document.querySelector("[data-gastlista]"));
           const personer = [...rot.querySelectorAll("[data-gast-person]")].map((r) => {
@@ -8462,6 +8496,67 @@ async function gastGrupp() {
 //     hämtar länken (`onKopieraLank`) och visar den under formuläret med Kopiera och Dela (minst 32 px), helt inom skärmen och utan sidled. Dela ger telefonens delningsmeny sms-texten och länken.
 // (b) Telefongästens rad visar numret och har Ny länk, inte Skicka igen.
 // (c) Gästens sida med en telefonlänk (`&s=tel`): en h1 och inget fält alls (0.200.0: förut fältet Ditt telefonnummer), utan sidled, och Öppna postar exakt { id, nyckel }.
+// ── Märket och huvudet är lika på gästens sida och de två delade sidorna (0.204.0, CP 2026-11-08: "Alla delningar. Kolla loggans storlek och kolla så att det ser samma ut med alla
+// delningar och gästvy. VI måste ha enhetlighet.") ──
+// Före 0.204.0 ritade bara gästens sida märket; delningarna tog appens `huvud`, och appens fyrkantiga loggor med luft i en ruta på 32 px blev ett pyttelitet märke. Mätt per sida, i 390 och 1280 px:
+// märkets ruta och den målade, synliga bilden (samma mätning som gästens märke i `gastGrupp`), att märket är en länk i ny flik med samma namn, huvudets höjd och spaltens bredd, och språkväljarens
+// och temaknappens storlek. Kravet är att alla tre är lika (inom en halv pixel) och att märket är det kompakta 24 px-märket. Golv: tre sidor med en laddad bild var.
+async function publikMarken() {
+  const SIDOR = ["gast", "delad", "dh"];
+  for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
+    const namn = `publika märket ${vp.width}`;
+    /** @type {Record<string, any>} */
+    const per = {};
+    for (const sida of SIDOR) {
+      const { page, context } = await oppna(`publikmarke-${sida}`, vp);
+      try {
+        await page.waitForSelector(`header [data-${sida}-marke] img`, { timeout: 4000 }).catch(() => {});
+        await page.waitForFunction(() => [...document.querySelectorAll("header [data-publik-marke] img")].some((b) => /** @type {HTMLImageElement} */ (b).complete && /** @type {HTMLImageElement} */ (b).naturalWidth > 0), null, { timeout: 4000 }).catch(() => {});
+        per[sida] = await page.evaluate((s) => {
+          const ruta = document.querySelector(`header [data-${s}-huvud] [data-${s}-marke]`);
+          const huvud = document.querySelector("header");
+          const inre = huvud ? huvud.firstElementChild : null;
+          const val = document.querySelector(`header [data-${s}-huvud-val]`);
+          const bilder = ruta ? [...ruta.querySelectorAll("img")].filter((b) => getComputedStyle(b).display !== "none") : [];
+          const knappar = val ? [...val.querySelectorAll("button")].map((k) => { const r = k.getBoundingClientRect(); return `${r.width.toFixed(1)}x${r.height.toFixed(1)}`; }) : [];
+          const bas = { huvudH: huvud ? huvud.getBoundingClientRect().height : 0, spalt: inre ? inre.getBoundingClientRect().width : 0, knappar, overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth };
+          if (!ruta || bilder.length !== 1 || !/** @type {HTMLImageElement} */ (bilder[0]).complete || !/** @type {HTMLImageElement} */ (bilder[0]).naturalWidth) return { golv: false, antal: bilder.length, ...bas };
+          const b = /** @type {HTMLImageElement} */ (bilder[0]);
+          const r = b.getBoundingClientRect();
+          const cs = getComputedStyle(b);
+          const skala = cs.objectFit === "contain" ? Math.min(r.width / b.naturalWidth, r.height / b.naturalHeight) : null;
+          const w = skala === null ? r.width : b.naturalWidth * skala;
+          const h = skala === null ? r.height : b.naturalHeight * skala;
+          const rr = ruta.getBoundingClientRect();
+          return { golv: true, ...bas, ruta: { w: rr.width, h: rr.height }, malad: { w, h }, tagg: ruta.tagName, href: ruta.getAttribute("href"), target: ruta.getAttribute("target"), etikett: ruta.getAttribute("aria-label") };
+        }, sida);
+      } finally {
+        await context.close();
+      }
+    }
+    const f = (/** @type {any} */ m) => (m.golv ? `ruta ${m.ruta.w.toFixed(0)}x${m.ruta.h.toFixed(0)}, märket ${m.malad.w.toFixed(0)}x${m.malad.h.toFixed(0)}, huvud ${m.huvudH.toFixed(0)} px, spalt ${m.spalt.toFixed(0)} px, knappar ${m.knappar.join("/")}` : `inget märke (${m.antal} bilder)`);
+    matt.push(`${namn}: ${SIDOR.map((s) => `${s} ${f(per[s])}`).join("; ")}`);
+    for (const s of SIDOR) {
+      const m = per[s];
+      krav(m.golv, `${namn} (golv): ${s} har ${m.antal} synliga, laddade bilder i märket, väntat 1. Då mättes inte märket.`);
+      krav(!m.overflow, `${namn}: ${s} flödar över i sidled.`);
+      if (!m.golv) continue;
+      krav(m.malad.h >= 20 && m.malad.h <= 32 && m.malad.w >= 80 && m.malad.w <= 140, `${namn}: märket på ${s} är ${m.malad.w.toFixed(0)}x${m.malad.h.toFixed(0)} px, väntat det kompakta märket i 4:1, 24 px högt.`);
+      krav(m.tagg === "A" && m.href === "https://life-hub.app" && m.target === "_blank" && m.etikett === "Om LifeHub, öppnas i en ny flik", `${namn}: märket på ${s} är ${m.tagg} ${JSON.stringify({ href: m.href, target: m.target, etikett: m.etikett })}, väntat en länk i ny flik med namnet "Om LifeHub, öppnas i en ny flik".`);
+    }
+    const g = per.gast;
+    if (g.golv) {
+      for (const s of ["delad", "dh"]) {
+        const m = per[s];
+        if (!m.golv) continue;
+        const lika = (/** @type {number} */ a, /** @type {number} */ b) => Math.abs(a - b) <= 0.5;
+        krav(lika(m.ruta.w, g.ruta.w) && lika(m.ruta.h, g.ruta.h) && lika(m.malad.w, g.malad.w) && lika(m.malad.h, g.malad.h), `${namn}: märket på ${s} (${f(m)}) är inte lika stort som på gästens sida (${f(g)}).`);
+        krav(lika(m.huvudH, g.huvudH) && lika(m.spalt, g.spalt) && JSON.stringify(m.knappar) === JSON.stringify(g.knappar), `${namn}: huvudet på ${s} (höjd ${m.huvudH.toFixed(1)}, spalt ${m.spalt.toFixed(1)}, knappar ${m.knappar.join("/")}) är inte som gästens (höjd ${g.huvudH.toFixed(1)}, spalt ${g.spalt.toFixed(1)}, knappar ${g.knappar.join("/")}).`);
+      }
+    }
+  }
+}
+
 async function gastTelefon() {
   const DELA = "window.__delat = null; Object.defineProperty(navigator, 'share', { configurable: true, value: async (d) => { window.__delat = d; } });";
   for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
@@ -8475,7 +8570,9 @@ async function gastTelefon() {
         const ritad = await page.waitForSelector("[data-gastlista]").then(() => true, () => false);
         krav(ritad, `${namn}: listan med en gäst med telefonnummer ritades inte (en person med telefon och epost null ska gå att visa).`);
         if (!ritad) break lista;
-        // (b) raden för gästen med telefon
+        // (b) raden för gästen med telefon. (0.204.0) Kortet är sammanfällt från början och fälls ut först.
+        // Ett kort som saknas eller inte går att fälla ut blir ett brott nedan (`rad` och knapparna), inte ett kast.
+        await page.locator(`[data-gast-person="g_${"4".repeat(40)}"] [data-gast-vaxla]`).click({ timeout: 5000 }).catch(() => {});
         const rad = await page.evaluate(() => {
           const r = document.querySelector(`[data-gast-person="g_${"4".repeat(40)}"]`);
           if (!r) return null;
@@ -9289,6 +9386,7 @@ await gruppVantar();
 await kategoriFormular();
 await gastVyer();
 await gastGrupp();
+await publikMarken();
 await gastArenden();
 await gastTelefon();
 await kalenderdelning();

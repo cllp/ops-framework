@@ -248,8 +248,8 @@ const tidText = (h, till) => (h.tid ? (h.slutTid ? `${h.tid} ${till} ${h.slutTid
  * ⛔ NEKAS ETT ANROP (`aterkallad`, `nej`) ANROPAS `onNekad`, och sidan byter allt mot texten "Inbjudan är återkallad". Vyn visar aldrig kvar det som lästs när åtkomsten är borta.
  *
  * @param {object} props
- * @param {{ namn: string, funktioner: readonly string[], beskrivning?: string, nedladdning?: boolean, kommentera?: boolean }} props.grupp Tjänstens `hamta().grupp`. `beskrivning` är gruppens befintliga beskrivning, tom när den saknas. (0.190.0) `nedladdning: false`: gruppen har stängt av nedladdning
- *   (`grupp.farLaddaNed`), och varken biblioteket eller spelarens ark ritar Ladda ned. Utelämnad: som förut.
+ * @param {{ namn: string, funktioner: readonly string[], beskrivning?: string, nedladdning?: boolean, kommentera?: boolean }} props.grupp Tjänstens `hamta().grupp`. `beskrivning` är gruppens befintliga beskrivning, tom när den saknas. (0.190.0) `nedladdning: false`: nedladdningen är avstängd
+ *   för gästen (sedan 0.204.0 bara inbjudans `laddaNed`), och varken biblioteket eller spelarens ark ritar Ladda ned. Utelämnad: som förut.
  * @param {ReturnType<typeof import("../lib/gast.js").gastGruppApi>} props.api Anropen mot servern, bundna till sessionen (`gastGruppApi(anrop, sessionsnyckel)`).
  * @param {(orsak: string) => void} [props.onNekad] Ett anrop nekades. Normalt `uppdatera` ur `renderGrupp`, som hämtar om sidan.
  * @param {(arg: { handelse: Record<string, any>, omrostning: Record<string, any>, rosta: (arg: { forslagId: string, val: string }) => Promise<void>, uppdatera: () => Promise<void> }) => import("react").ReactNode} [props.renderOmrostning]

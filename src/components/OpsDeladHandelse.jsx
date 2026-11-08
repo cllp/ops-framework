@@ -13,6 +13,7 @@ import { FilIkon } from "./icons.jsx";
 import { OpsEmpty } from "./OpsEmpty.jsx";
 import { DeladFel } from "./DeladFel.jsx";
 import { PublikHuvud } from "./PublikHuvud.jsx";
+import { PublikMarke, publikMarkeLank } from "./PublikMarke.jsx";
 
 /**
  * Orden på den publika händelsesidan, på svenska och engelska (0.125.0, cllp/lifehub.app#377). Beskedet för en länk som inte fungerar är `DeladFel` (0.201.0), samma som filens sida.
@@ -65,21 +66,23 @@ const KODORSAKER = /** @type {readonly string[]} */ (["kod-kravs", "fel-kod", "f
  * webbläsarens minne (`DELAD_SPRAKNYCKEL`, med `try/catch`: privat läge eller blockerad lagring ska inte stoppa sidan), och datumen och allt ramverkets
  * eget på sidan följer valet. Händelsens titel och beskrivning översätts inte. Ger appen `sprak` är språket appens och väljaren anropar `onSprak`.
  *
- * ⛔ BARA RAMVERKETS TEMA OCH DE PUBLIKA ROLLERNA (`PUBLIK_KLASS`, `PUBLIK_TONER`), inga egna färger eller mått. Skalet runt (loggan) är appens och kommer som `huvud`.
+ * ⛔ BARA RAMVERKETS TEMA OCH DE PUBLIKA ROLLERNA (`PUBLIK_KLASS`, `PUBLIK_TONER`), inga egna färger eller mått. Märket är appens bilder i ramverkets ritning (`marke`, `PublikMarke`, 0.204.0), och `huvud` är appens eget innehåll efter det.
  *
  * @param {object} props
  * @param {{ titel: string, beskrivning?: string | null, plats?: string | null, datum: string, slutDatum?: string | null, tid?: string | null, slutTid?: string | null, heldag?: boolean, filer?: ReadonlyArray<{ rubrik: string, typ: string, mime?: string, storlek?: number | null, url: string }>, ejVisade?: number } | null} [props.delning] Länken går att visa.
  * @param {string} [props.orsak] Länken går inte att visa: en av `DELNINGSORSAKER`. En okänd orsak får texten för `utgangen`. `kod-kravs`, `fel-kod` och `for-manga` ritar kodrutan när `onKod` finns.
  * @param {boolean} [props.laddar] Länken hämtas.
  * @param {(kod: string) => void | Promise<void>} [props.onKod] Koden som personen skrev. Appen frågar servern med den och ger sidan ett nytt svar.
- * @param {import("react").ReactNode} [props.huvud] Appens logga eller namn, till vänster i huvudet.
+ * @param {import("react").ReactNode} [props.huvud] Appens logga eller namn, till vänster i huvudet. (0.204.0) Med `marke` står det efter märket.
+ * @param {{ ljus: string, mork: string, namn: string }} [props.marke] (0.204.0) Appens ordmärke, samma prop och samma ritning som på gästens sida (`PublikMarke`): en bild per tema, bred och tätt beskuren,
+ *   24 px hög. Med `omAppen` är det en länk till appens sida i en ny flik. Står före `huvud`, som finns kvar som förut.
  * @param {string} [props.sprak] Språket om appen styr det (`sv` eller `en`). Utelämnat: sidan väljer själv och minns valet.
  * @param {(sprak: string) => void} [props.onSprak] Anropas när besökaren väljer språk.
  * @param {{ href: string, namn: string }} [props.omAppen] (0.202.0) Appens namn och adress för sista raden. Prövas som på gästens sida: bara https.
  * @param {string | null} [props.lankSprak] (0.201.0) Länkens språk (`sv` eller `en`, brevets språk), i samma ordning som gästens sida och `OpsDeladSida`: besökarens eget val, sedan länkens, sist webbläsarens.
  * @param {Partial<Record<keyof typeof ORD_OPSDELADHANDELSE, string>>} [props.ord] Egna texter, som vinner över ordboken.
  */
-export function OpsDeladHandelse({ delning = null, orsak, laddar = false, onKod, huvud, sprak, onSprak, lankSprak, ord, omAppen }) {
+export function OpsDeladHandelse({ delning = null, orsak, laddar = false, onKod, huvud, marke, sprak, onSprak, lankSprak, ord, omAppen }) {
   const lagen = [Boolean(delning), orsak !== undefined, laddar].filter(Boolean).length;
   if (lagen !== 1) {
     throw new Error("OpsDeladHandelse: ge precis en av delning, orsak och laddar. Ingen av dem är en tom yta, flera är två sanningar om samma länk.");
@@ -108,7 +111,19 @@ export function OpsDeladHandelse({ delning = null, orsak, laddar = false, onKod,
   return (
     <div lang={aktivt} data-deladhandelse="" data-sprak={aktivt} className={cx("flex min-h-dvh w-full flex-col", PUBLIK_TONER.ljus.band, PUBLIK_TONER.ljus.rubrik)}>
       {/* ⛔ (0.201.0) SAMMA HUVUD SOM GÄSTENS SIDA OCH FILENS (`PublikHuvud`, cllp/ops-framework#544): märket, språket och ljust eller mörkt. */}
-      <PublikHuvud namn="dh" aktivt={aktivt} etikett={t.sprakEtikett} onVal={valj} huvud={huvud} />
+      <PublikHuvud
+        namn="dh"
+        aktivt={aktivt}
+        etikett={t.sprakEtikett}
+        onVal={valj}
+        huvud={
+          <>
+            {/* (0.204.0) Samma märke som gästens sida (`PublikMarke`). */}
+            {marke ? <PublikMarke marke={marke} sida="dh" komponent="OpsDeladHandelse" lank={publikMarkeLank(omAppen, aktivt)} /> : null}
+            {huvud}
+          </>
+        }
+      />
       <main className="mx-auto w-full max-w-3xl flex-1 px-4 pt-8 pb-16 sm:pt-12">
         {laddar ? (
           <OpsEmpty busy title={t.laddar} busyLabel={t.laddar} />

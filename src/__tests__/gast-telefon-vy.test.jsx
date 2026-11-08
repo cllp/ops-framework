@@ -127,6 +127,8 @@ describe("OpsGastLista: en telefongäst i listan", () => {
     const onRadera = vi.fn(async () => {});
     render(<OpsGastLista personer={[telefonperson()]} platser={{ anvanda: 1, totalt: 5 }} onSkickaOm={onSkickaOm} onKopieraLank={onKopieraLank} onRadera={onRadera} />);
     const rad = /** @type {HTMLElement} */ (document.querySelector(`[data-gast-person="${TOVE}"]`));
+    // (0.204.0) Gästkorten är sammanfällda från början: provet mäter det utfällda kortet, som förut.
+    await klicka(within(rad).getByRole("button", { name: "Visa detaljer för Tove" }));
     expect(within(rad).getByText("+46701234567")).toHaveAttribute("data-gast-telefon");
     expect(within(rad).queryByRole("button", { name: /Skicka länken igen/ })).toBeNull();
     await klicka(within(rad).getByRole("button", { name: /Ge Tove en ny länk/ }));
