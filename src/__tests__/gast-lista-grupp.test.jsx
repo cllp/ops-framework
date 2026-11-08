@@ -262,8 +262,10 @@ describe("OpsGastLista, gruppläget", () => {
           return r;
         });
       };
+      // ⛔ Båda återställs här och inte sist i provet: ett prov som faller före sin sista rad hade annars lämnat sin `canShare` åt nästa.
       afterEach(() => {
         Object.defineProperty(window.navigator, "share", { value: undefined, configurable: true });
+        Object.defineProperty(window.navigator, "canShare", { value: undefined, configurable: true });
       });
 
       it("knappen saknas utan navigator.share och finns med den", async () => {
@@ -347,7 +349,6 @@ describe("OpsGastLista, gruppläget", () => {
         return oppna().then((ruta) => {
           fireEvent.click(delaKnapp(ruta));
           expect(share).toHaveBeenCalledTimes(1);
-          Object.defineProperty(window.navigator, "canShare", { value: undefined, configurable: true });
         });
       });
 
@@ -356,17 +357,13 @@ describe("OpsGastLista, gruppläget", () => {
         const canShare = vi.fn(() => false);
         Object.defineProperty(window.navigator, "share", { value: share, configurable: true });
         Object.defineProperty(window.navigator, "canShare", { value: canShare, configurable: true });
-        try {
-          const ruta = await oppna({ gruppnamn: "Källan" });
-          await klicka(delaKnapp(ruta));
-          expect(canShare).toHaveBeenCalledWith({ title: "Inbjudan till Källan", text: "Öppna länken. Du behöver inget konto.", url: URL_ });
-          expect(share).toHaveBeenLastCalledWith({ url: URL_ });
-          canShare.mockReturnValue(true);
-          await klicka(delaKnapp(ruta));
-          expect(share).toHaveBeenLastCalledWith({ title: "Inbjudan till Källan", text: "Öppna länken. Du behöver inget konto.", url: URL_ });
-        } finally {
-          Object.defineProperty(window.navigator, "canShare", { value: undefined, configurable: true });
-        }
+        const ruta = await oppna({ gruppnamn: "Källan" });
+        await klicka(delaKnapp(ruta));
+        expect(canShare).toHaveBeenCalledWith({ title: "Inbjudan till Källan", text: "Öppna länken. Du behöver inget konto.", url: URL_ });
+        expect(share).toHaveBeenLastCalledWith({ url: URL_ });
+        canShare.mockReturnValue(true);
+        await klicka(delaKnapp(ruta));
+        expect(share).toHaveBeenLastCalledWith({ title: "Inbjudan till Källan", text: "Öppna länken. Du behöver inget konto.", url: URL_ });
       });
     });
 
