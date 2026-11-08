@@ -46,7 +46,10 @@ export const ORD_OPSGASTLISTA = {
   // ⛔ (0.200.0, cllp/ops-framework#540) Gästen skriver inget: länken loggar in direkt. Texten sade förut att gästen skulle skriva sin adress (eller sitt nummer), och en sådan text hade skickat gästen
   // att leta efter ett fält som inte finns. En text för båda slagen, eftersom de inte längre skiljer sig (regel 2).
   kopieraLankDelaText: { sv: "Öppna länken. Du behöver inget konto.", en: "Open the link. You do not need an account." },
-  kopieraLankDelaFel: { sv: "Det gick inte att dela. Kopiera länken i stället.", en: "Could not share. Copy the link instead." },
+  // ⛔ (0.206.0, CP 2026-11-08) CP tryckte Dela på ett gästkort i telefonen och fick "Det gick inte att dela. Kopiera länken i stället.", och ingen kunde se varför: felet svaldes.
+  // Nu står telefonens egen orsak i parentesen (felets `name`, och `message` när det är kort), och länken är redan markerad när raden visas.
+  kopieraLankDelaFel: { sv: "Det gick inte att dela ({orsak}). Länken är markerad, kopiera den.", en: "Could not share ({orsak}). The link is selected, copy it." },
+  kopieraLankDelaIngenOrsak: { sv: "telefonen angav ingen orsak", en: "the device gave no reason" },
   felValv: { sv: "Länken kunde inte sparas för kopiering. Inbjudan finns: tryck Skicka igen.", en: "The link could not be saved for copying. The invitation exists: press Send again." },
   felIngenKopia: { sv: "Den här länken skapades innan länkar sparades. Tryck Skicka igen en gång, sedan går den att kopiera.", en: "This link was created before links were saved. Press Send again once, then it can be copied." },
   felUtgangen: { sv: "Länken har gått ut. Tryck Skicka igen för en ny.", en: "The link has expired. Press Send again for a new one." },
@@ -186,6 +189,9 @@ export function gastFelText(e, t, totalt) {
  * användartryck. ⛔ Misslyckas kopieringen (ingen `navigator.clipboard`, eller den kastar) markeras texten och det står vad medlemmen gör i stället; misslyckas delningen (utom att personen
  * stängde menyn: `AbortError`) står det att länken går att kopiera. Inget tyst fel (regel 5).
  *
+ * (0.206.0, CP 2026-11-08) Nekas delningen bär felraden telefonens egen orsak (`delningsorsak`) och länken i fältet markeras direkt, som när kopieringen misslyckas. Säger `navigator.canShare`
+ * nej till rubrik, text och länk delas bara länken (`kanDelaAllt`).
+ *
  * (0.197.0) `telefon`: länken gäller ett telefonnummer. Raden under säger att inget sms skickades i stället för "samma länk som i mejlet". (Delningens text är densamma för båda slagen sedan 0.200.0.)
  *
  * @param {{ lank: { url: string, lankGiltigTill?: number }, vem: string, t: Record<string, string>, sprak: string, gruppnamn?: string, telefon?: boolean }} props
@@ -210,10 +216,14 @@ function GastLank({ lank, vem, t, sprak, gruppnamn, telefon = false }) {
   async function dela() {
     setBesked("");
     try {
-      await navigator.share({ title: gruppnamn ? t.kopieraLankDelaRubrik.replace("{grupp}", gruppnamn) : t.kopieraLankDelaRubrikUtanGrupp, text: t.kopieraLankDelaText, url });
+      // ⛔ INGET AWAIT FÖRE `share` (0.206.0). Webbläsaren kräver att anropet sker i själva trycket, och ett await före hade gjort det till ett anrop efter trycket.
+      /** @type {ShareData} */
+      const fullt = { title: gruppnamn ? t.kopieraLankDelaRubrik.replace("{grupp}", gruppnamn) : t.kopieraLankDelaRubrikUtanGrupp, text: t.kopieraLankDelaText, url };
+      await navigator.share(kanDelaAllt(fullt) ? fullt : { url });
     } catch (e) {
       if (/** @type {{ name?: string }} */ (e)?.name === "AbortError") return;
-      setBesked(t.kopieraLankDelaFel);
+      ruta.current?.querySelector("input")?.select();
+      setBesked(t.kopieraLankDelaFel.replace("{orsak}", delningsorsak(e) || t.kopieraLankDelaIngenOrsak));
     }
   }
   return (
@@ -238,6 +248,38 @@ function GastLank({ lank, vem, t, sprak, gruppnamn, telefon = false }) {
       {besked ? <p role="status" data-gast-lank-besked="" className="m-0 text-etikett text-ink-secondary wrap-anywhere">{besked}</p> : null}
     </div>
   );
+}
+
+/**
+ * (0.206.0) Om telefonen kan dela rubrik, text och länk. Säger `navigator.canShare` nej (eller kastar) delas bara länken, som är det enda gästen behöver. Saknas `canShare` delas allt, som förut.
+ * @param {ShareData} data
+ * @returns {boolean}
+ */
+function kanDelaAllt(data) {
+  if (typeof navigator.canShare !== "function") return true;
+  try {
+    return navigator.canShare(data) === true;
+  } catch {
+    return false;
+  }
+}
+
+/** Längsta `message` som följer med i felraden. Ett längre meddelande är en stacktrace eller en förklaring som inte ryms på en rad i telefonen; namnet räcker då. */
+const DELNINGSORSAK_MAX = 60;
+
+/**
+ * (0.206.0) Telefonens orsak till att delningen nekades, för felraden: `name` (till exempel `NotAllowedError`), och `message` efter ett kolon när det är kort och säger något mer. Tom text när felet bär ingetdera.
+ * @param {unknown} e
+ * @returns {string}
+ */
+function delningsorsak(e) {
+  if (!e || typeof e !== "object") return "";
+  const { name, message } = /** @type {{ name?: unknown, message?: unknown }} */ (e);
+  const namn = typeof name === "string" ? name.trim() : "";
+  const text = typeof message === "string" ? message.trim() : "";
+  const kort = text !== "" && text.length <= DELNINGSORSAK_MAX && text !== namn ? text : "";
+  if (namn && kort) return `${namn}: ${kort}`;
+  return namn || kort;
 }
 
 /**
