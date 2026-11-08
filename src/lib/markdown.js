@@ -20,8 +20,21 @@
  *
  * ⛔ DET HÄR ÄR ALLTSÅ INTE FULL MARKDOWN, OCH SKA INTE BLI DET. Stöttat:
  * rubriker, stycken, punkt- och sifferlistor, kryssrutor, citat, kodblock,
- * kodsnuttar, fet text, länkar, tabeller och avdelare. Allt annat kommer
- * igenom som den text det är, vilket är hela poängen: ingen bit försvinner.
+ * kodsnuttar, fet text, länkar, tabeller, avdelare och (utanför chatten) bilder
+ * i en anteckning. Allt annat kommer igenom som den text det är, vilket är hela
+ * poängen: ingen bit försvinner.
+ *
+ * ── ⛔ BILDEN ÄR ETT FILNAMN, ALDRIG EN ADRESS (cllp/lifehub.app#696) ──
+ *
+ * CP vill kunna lägga en bild i en anteckning. Bilden är en del av anteckningens
+ * text, `![alt](filnamn)`, och filen ligger i postens egen mapp. Parsern ger då
+ * bara namnet (`kind: "image"`, `namn`), och den som ritar frågar appen efter
+ * adressen. En adress i texten hade varit ett sätt att låta en text hämta vad
+ * som helst från vilken server som helst, så det gör den aldrig: ett namn som
+ * inte är ett säkert segment (`sakertBildnamn`: bara A till Z, a till z, 0 till
+ * 9, punkt, bindestreck och understreck, inget `..`, inte tomt) blir text som
+ * förut, också `![bild](https://...)` i en issue-text, som då är ett `!` och en
+ * länk precis som före bilderna.
  *
  * ── ⛔ BARA HTTP OCH HTTPS ──────────────────────────────────────────────
  *
@@ -41,7 +54,8 @@
 const CLOSE = /[.,;:!?)\]]+$/;
 
 /**
- * @typedef {{ kind: "text" | "link" | "code" | "bold" | "italic" | "break", value: string, url?: string }} Bit
+ * `image` (cllp/lifehub.app#696): `value` är alt-texten, kanske tom, och `namn` filnamnet i postens mapp, alltid ett säkert segment.
+ * @typedef {{ kind: "text" | "link" | "code" | "bold" | "italic" | "break" | "image", value: string, url?: string, namn?: string }} Bit
  * @typedef {{ cross: boolean | null, inline: Bit[] }} ListEntry
  * @typedef {{ kind: "heading", level: number, inline: Bit[] }
  *   | { kind: "paragraph", inline: Bit[] }
@@ -59,8 +73,44 @@ const CLOSE = /[.,;:!?)\]]+$/;
 // ⛔ KURSIV (#273) ÄR EN STJÄRNA ELLER ETT UNDERSTRECK RUNT ORD, och understrecket bara vid ordgräns. CP 2026-10-06 såg
 // agentens svar med råa `*`. Understrecket kräver ordgräns på båda sidor, annars hade `snake_case_namn` i en issue-text blivit
 // kursivt mitt i ordet. Stjärnan får inte stå intill en annan stjärna, så att `**fet**` alltid är fet och aldrig kursiv i kursiv.
+//
+// ⛔ BILDEN (#696) ÄR SISTA ALTERNATIVET, grupp 8 och 9. Inget av de andra börjar med `!`, så på `!`-tecknets plats kan bara den
+// träffa, och grupperna för de andra står kvar där de stod. Alt-texten får vara tom (`![](namn)` är vad knappen skriver).
 const INLINE =
-  /`([^`\n]+)`|\[([^\]\n]+)\]\(([^)\s]+)\)|\*\*([^*\n]+)\*\*|(https?:\/\/[^\s<>"'`]+)|(?<![*\p{L}\p{N}])\*(?![\s*])([^*\n]*[^\s*])\*(?![*\p{L}\p{N}])|(?<![\p{L}\p{N}_])_(?![\s_])([^_\n]*[^\s_])_(?![\p{L}\p{N}_])/gu;
+  /`([^`\n]+)`|\[([^\]\n]+)\]\(([^)\s]+)\)|\*\*([^*\n]+)\*\*|(https?:\/\/[^\s<>"'`]+)|(?<![*\p{L}\p{N}])\*(?![\s*])([^*\n]*[^\s*])\*(?![*\p{L}\p{N}])|(?<![\p{L}\p{N}_])_(?![\s_])([^_\n]*[^\s_])_(?![\p{L}\p{N}_])|!\[([^\]\n]*)\]\(([^)\s]+)\)/gu;
+
+/**
+ * Är namnet ett filnamn som får stå i en bild i en anteckning (cllp/lifehub.app#696)? Bara ett segment: A till Z, a till z, 0 till 9,
+ * punkt, bindestreck och understreck, inget `..` och inte tomt. Inget snedstreck, så att namnet aldrig kan peka ut ur postens mapp.
+ *
+ * @param {unknown} namn
+ * @returns {boolean}
+ */
+export function sakertBildnamn(namn) {
+  return typeof namn === "string" && /^[A-Za-z0-9._-]{1,200}$/.test(namn) && !namn.includes("..") && namn !== ".";
+}
+
+/**
+ * Bildernas filnamn i en anteckning, i den ordning de står och utan dubbletter (cllp/lifehub.app#696). Samma tolkning som visningen
+ * (`splitMarkdown`), så ett namn i ett kodblock eller en kodsnutt räknas inte, och ett osäkert namn räknas inte heller.
+ *
+ * @param {string | null | undefined} text
+ * @returns {string[]}
+ */
+export function bilderI(text) {
+  /** @type {string[]} */
+  const ut = [];
+  /** @param {Bit[]} bitar */
+  const ta = (bitar) => {
+    for (const b of bitar) if (b.kind === "image" && b.namn && !ut.includes(b.namn)) ut.push(b.namn);
+  };
+  for (const b of splitMarkdown(text)) {
+    if (b.kind === "list") for (const e of b.entries) ta(e.inline);
+    else if (b.kind === "table") for (const r of [b.header, ...b.rows]) for (const c of r) ta(c);
+    else if (b.kind !== "code" && b.kind !== "rule") ta(b.inline);
+  }
+  return ut;
+}
 
 /** @param {string} url @returns {boolean} */
 function saker(url) {
@@ -73,17 +123,20 @@ function saker(url) {
  * ⛔ RETURNERAR ALLTID HELA TEXTEN. En felskriven länk syns som det den är i
  * stället för att tappas bort: en tyst nedsläppsväg är värre än en ful rad.
  *
- * @param {string} row @returns {Bit[]}
+ * ⛔ BILDER BARA NÄR DE BES OM (`{ bilder: true }`, #696). Förvalet är som förut: `![alt](x)` är ett `!` och resten tolkas som
+ * vanligt. Chatten, länklistan och utdraget läser utan bilder, så att ingen av dem ändrar sig för att anteckningar fått bilder.
+ *
+ * @param {string} row @param {{ bilder?: boolean }} [val] @returns {Bit[]}
  */
-export function splitInline(row) {
-  return delaMedPlats(row).map(({ fran: _f, till: _t, ...bit }) => bit);
+export function splitInline(row, val = {}) {
+  return delaMedPlats(row, val.bilder === true).map(({ fran: _f, till: _t, ...bit }) => bit);
 }
 
 /**
  * Samma delning som `splitInline`, med var i raden varje länks råa form börjar och slutar (`fran`, `till`, 0.196.0). Bara för `utanLankar`: `splitInline` ger samma bitar som förut, utan platserna.
- * @param {string} row @returns {Array<Bit & { fran?: number, till?: number }>}
+ * @param {string} row @param {boolean} [bilder] Se `splitInline`. @returns {Array<Bit & { fran?: number, till?: number }>}
  */
-function delaMedPlats(row) {
+function delaMedPlats(row, bilder = false) {
   if (typeof row !== "string" || row === "") return [];
 
   /** @type {Array<Bit & { fran?: number, till?: number }>} */
@@ -96,7 +149,15 @@ function delaMedPlats(row) {
     /** @type {(Bit & { fran?: number, till?: number }) | null} */
     let piece = null;
 
-    if (m[1] !== undefined) piece = { kind: "code", value: m[1] };
+    if (m[8] !== undefined && m[9] !== undefined) {
+      // ⛔ EN BILD ÄR EN BILD BARA MED BILDER PÅ OCH ETT SÄKERT NAMN (#696). Annars hoppar tolkningen över `!` och fortsätter vid `[`,
+      // så att resten blir exakt det den var före bilderna: en länk om adressen är http eller https, annars sin råa text.
+      if (bilder && sakertBildnamn(m[9])) piece = { kind: "image", value: m[8], namn: m[9] };
+      else {
+        INLINE.lastIndex = start + 1;
+        continue;
+      }
+    } else if (m[1] !== undefined) piece = { kind: "code", value: m[1] };
     else if (m[2] !== undefined && m[3] !== undefined) {
       // ⛔ `[text](javascript:...)` blir TEXT, inte en länk, och behåller sin
       // råa form. Den som skrev den ska se att den inte blev en länk.
@@ -217,6 +278,9 @@ const isTableRule = (row) => /^\s*\|[\s:|-]+\|\s*$/.test(row) && row.includes("-
 export function splitMarkdown(text, val = {}) {
   if (typeof text !== "string" || !text.trim()) return [];
   const chatt = val.chatt === true;
+  // ⛔ Bilder (#696) bara utanför chatten: en bild i en bubbla är en bilaga, inte en rad i texten.
+  /** @param {string} r */
+  const inl = (r) => splitInline(r, { bilder: !chatt });
 
   const rows = text.replace(/\r\n?/g, "\n").split("\n");
   /** @type {Block[]} */
@@ -231,8 +295,8 @@ export function splitMarkdown(text, val = {}) {
     // luft mitt i en mening.
     // ⛔ I chatten är raden det som skrevs: en `break` mellan raderna i stället för ett mellanslag (se ovan).
     const inline = chatt
-      ? paragraph.flatMap((rad, i) => (i === 0 ? splitInline(rad) : [/** @type {Bit} */ ({ kind: "break", value: "" }), ...splitInline(rad)]))
-      : splitInline(paragraph.join(" "));
+      ? paragraph.flatMap((rad, i) => (i === 0 ? inl(rad) : [/** @type {Bit} */ ({ kind: "break", value: "" }), ...inl(rad)]))
+      : inl(paragraph.join(" "));
     block.push({ kind: "paragraph", inline });
     paragraph = [];
   };
@@ -266,7 +330,7 @@ export function splitMarkdown(text, val = {}) {
     const title = chatt ? null : row.match(/^\s*(#{1,6})\s+(.*)$/);
     if (title) {
       closeParagraph();
-      block.push({ kind: "heading", level: title[1].length, inline: splitInline(title[2].trim()) });
+      block.push({ kind: "heading", level: title[1].length, inline: inl(title[2].trim()) });
       continue;
     }
 
@@ -279,12 +343,12 @@ export function splitMarkdown(text, val = {}) {
     // ── Tabell: en radrad följd av ett streck. Utan strecket är det text ───
     if (!chatt && isTableRow(row) && i + 1 < rows.length && isTableRule(rows[i + 1])) {
       closeParagraph();
-      const header = tableCells(row).map(splitInline);
+      const header = tableCells(row).map(inl);
       /** @type {Bit[][][]} */
       const body = [];
       i += 2;
       while (i < rows.length && isTableRow(rows[i])) {
-        body.push(tableCells(rows[i]).map(splitInline));
+        body.push(tableCells(rows[i]).map(inl));
         i += 1;
       }
       i -= 1;
@@ -310,7 +374,7 @@ export function splitMarkdown(text, val = {}) {
       const cross = entry[3].match(/^\[([ xX])\]\s*(.*)$/);
       list.entries.push({
         cross: cross ? cross[1].toLowerCase() === "x" : null,
-        inline: splitInline((cross ? cross[2] : entry[3]).trim()),
+        inline: inl((cross ? cross[2] : entry[3]).trim()),
       });
       continue;
     }
@@ -329,7 +393,7 @@ export function splitMarkdown(text, val = {}) {
         i += 1;
         rows2.push(rows[i].replace(/^\s*>\s?/, "").trim());
       }
-      block.push({ kind: "quote", inline: splitInline(rows2.join(" ").trim()) });
+      block.push({ kind: "quote", inline: inl(rows2.join(" ").trim()) });
       continue;
     }
 

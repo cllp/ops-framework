@@ -33,6 +33,7 @@ import { metaUrBytes, wavMetaUrBlob } from "../lib/ljudspelare.js";
 import { byggSkapare } from "../lib/skapare.js";
 import { bilagaTillBlob } from "../lib/file.js";
 import { kommentarbilagaFel } from "../lib/handelsemodell.js";
+import { bilderI } from "../lib/markdown.js";
 import { FALT_BORT } from "./contract.js";
 
 /**
@@ -516,6 +517,12 @@ export async function flyttaBibliotekspost(inmatning) {
   // "Finns inte längre". Att kopiera listan MED sina poster är en annan funktion (en post flyttas med ett nytt id, och listan måste skrivas om efter dem), och den är inte byggd. Kastar hellre än tiger (regel 5).
   if (post.typ === "lista") {
     throw new Error("En lista flyttas eller kopieras inte till en annan plats: den pekar på poster på den här platsen. Flytta posterna var för sig och gör en ny lista där.");
+  }
+  // ⛔ EN ANTECKNING MED BILDER FLYTTAS INTE ÄN (cllp/lifehub.app#696 skiva 1). Bilderna ligger i anteckningens egen mapp (`grupper/<plats>/bibliotek/<post>/`), och flytten skriver bara texten på en ny
+  // post med ett nytt id. Kopian hade pekat på bilder som inte finns i dess mapp, och vid en flytt tar servern bort den gamla mappen när den gamla posten raderas: bilderna hade varit borta för gott. Att flytta
+  // bilderna med är ett eget arbete (byten genom lagringen till den nya mappen), och det är inte byggt. Kastar hellre än tappar bilderna (regel 5).
+  if (post.typ === "anteckning" && bilderI(post.text).length > 0) {
+    throw new Error("En anteckning med bilder flyttas eller kopieras inte till en annan plats än: bilderna ligger i anteckningens egen mapp och följer inte med. Ingenting flyttades.");
   }
   /** @type {import("../lib/bibliotek.js").Bibliotekspost & { id: string }} */
   let ny;
