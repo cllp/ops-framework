@@ -387,7 +387,7 @@ const arkivtips = () => `Arkiverad. Välj taggen ${ARKIVTAGG} för att se arkive
  *   (`platsval(platser)`, efter gruppens egen plats och Mitt bibliotek): växlaren och Flytta-menyn är appens lista, och en plats som inte står där syns inte. Med `onNy` får växlaren raden "Ny plats" sist, och
  *   en ny plats öppnas direkt (`onPlats`). En egen plats som personen får ändra (den som skapade den, ägare och admin) får ⋮ med Byt namn och Arkivera bredvid växlaren, och kugghjulet (`ram`) får avsnittet
  *   Platser med alla platser, också de arkiverade, och Ta fram igen. Över 8 rader i växlaren får listan ett sökfält. Utan propen är allt som förut. Hör inte hit med `inbaddad`.
- * @param {boolean} [props.adresserPaBegaran] (0.132.0, lifehub.app#389) Filernas adresser hämtas bara för posten som är öppen, aldrig för hela listan. Förvalet hämtar en adress per fil när listan ritas, vilket är billigt för en medlem (`getDownloadURL`) och dyrt för en gäst: varje adress är en signering som räknas mot ett tak per dygn. Mätt i designen av skiva 2 som felantagande: listan hämtade alla. En fil som öppnats förut visas med sin adress också i listan.
+ * @param {boolean} [props.adresserPaBegaran] (0.132.0, lifehub.app#389) Filernas adresser hämtas bara för posten som är öppen, aldrig för hela listan. Förvalet hämtar en adress per fil när listan ritas, vilket är billigt för en medlem (`getDownloadURL`) och dyrt för en gäst: varje adress är en signering som räknas mot ett tak per dygn. Mätt i designen av skiva 2 som felantagande: listan hämtade alla. En fil som öppnats förut visas med sin adress också i listan. Kopiera länk (lifehub.app#716) hämtar samma adress för just den filen när raden väljs, om den inte redan är hämtad. Listan hämtar fortfarande ingen adress per rad.
  * @param {ReadonlySet<string> | readonly string[]} [props.stjarnor] (0.187.0, cllp/lifehub.app#653) Postid:n personen stjärnmärkt. ⛔ STJÄRNAN ÄR PERSONENS EGEN: den bor hos appen (en samling per person), aldrig på posten, och ingen annan ser den. Hör ihop med `onStjarna`: båda eller ingen
  *   (kastar annars). Med dem får varje rad och detaljen en stjärnknapp (`aria-pressed`), och fliken "Stjärnmärkta" visas så snart minst en post på platsen är stjärnmärkt. Utan dem är allt som förut.
  * @param {(post: import("../lib/bibliotek.js").Bibliotekspost & { id: string }, pa: boolean) => Promise<void> | void} [props.onStjarna] (0.187.0) Stjärnmärk (`pa: true`) eller ta bort stjärnan (`pa: false`) på posten. Knappen väntar medan löftet pågår, och ett avvisat löfte visas som ett fel
@@ -740,18 +740,64 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
   const kanKommenteras = (/** @type {{ id: string, groupId: string }} */ post) => Boolean(kommentarer) && (typeof kommentarer?.kanKommentera !== "function" || kommentarer.kanKommentera(post));
 
   /**
-   * @param {{ typ?: string, url?: string, fil?: { sokvag?: string, mime?: string } }} post
+   * Adressen som redan finns, utan en ny hämtning. En länkpost bär sin adress. En fil bär den när den är hämtad
+   * (medlemmen: hela listan, gästen: posten som är öppen eller som någon redan bett om).
+   *
+   * @param {{ typ?: string, url?: string, fil?: { sokvag?: string, mime?: string, klar?: boolean }, skapad?: number }} post
+   * @returns {string}
    */
-  function lankAttKopiera(post) {
+  function lankRedanKand(post) {
     if (post.typ === "lank" && typeof post.url === "string" && ADRESSFORM.test(post.url)) return post.url;
-    // ⛔ INTE FÖR EN FIL VARS ADRESS HÄMTAS PÅ BEGÄRAN (0.192.0, cllp/lifehub.app#673). Adressen fanns bara för posten som var öppen, så raden stod i detaljen
-    // och i listan bara när adressen råkade ligga kvar: samma fil fick tre olika menyer i QA. Den adressen är dessutom en signering som dör efter en kvart och
-    // som gick att kopiera också när gruppen stängt av nedladdning. Den är ingen länk att dela, och då är menyn densamma i listan och i detaljen.
-    if (post.typ === "fil" && !adresserPaBegaran) {
-      const lage = adressFor(post);
-      if (lage.lage === "klar" && ADRESSFORM.test(lage.adress)) return lage.adress;
+    if (post.typ !== "fil" || uppladdningAvbruten(post) || post.fil?.klar === false) return "";
+    const lage = adressFor(post);
+    return lage.lage === "klar" && ADRESSFORM.test(lage.adress) ? lage.adress : "";
+  }
+
+  /**
+   * Ska menyn ha Kopiera länk?
+   *
+   * ⛔ GÄSTENS FIL HAR RADEN OCKSÅ INNAN ADRESSEN ÄR HÄMTAD (cllp/lifehub.app#716). 0.192.0 (lifehub.app#673) tog bort den när
+   * `adresserPaBegaran` var satt: adressen fanns bara för posten som var öppen, så samma fil fick tre olika menyer, och den
+   * signerade adressen dör efter en kvart. QA 2026-11-09: medlemmen har raden, gästen har den inte, i listan och i detaljen.
+   * Raden visas nu för en färdig fil med sökväg. Ett tryck hämtar adressen för just den filen, samma väg som visningen, och
+   * listan hämtar fortfarande ingen adress per rad. En fil som inte är uppladdad har ingenting att kopiera, som för en medlem.
+   *
+   * @param {{ typ?: string, url?: string, fil?: { sokvag?: string, klar?: boolean }, skapad?: number }} post
+   */
+  function kanKopieraLank(post) {
+    if (post.typ === "lank") return lankRedanKand(post) !== "";
+    if (post.typ !== "fil" || uppladdningAvbruten(post) || post.fil?.klar === false) return false;
+    const sokvag = typeof post.fil?.sokvag === "string" ? post.fil.sokvag.trim() : "";
+    if (sokvag === "") return false;
+    if (adresserPaBegaran) return typeof hamtaAdress === "function";
+    return lankRedanKand(post) !== "";
+  }
+
+  /**
+   * Kopierar postens adress. Gästens fil hämtar den först om visningen inte redan har den. Nekar hämtningen kopieras
+   * ingenting: felet står kvar, och Ladda ned styrs som förut av `utanNedladdning` (hämtningen är visningens, utan bilaga).
+   *
+   * @param {{ typ?: string, url?: string, fil?: { sokvag?: string, mime?: string, klar?: boolean }, skapad?: number }} post
+   */
+  function kopieraPostensLank(post) {
+    const kand = lankRedanKand(post);
+    if (kand !== "") {
+      kopieraLank(kand);
+      return;
     }
-    return "";
+    if (!adresserPaBegaran || post.typ !== "fil" || typeof hamtaAdress !== "function") return;
+    const sokvag = typeof post.fil?.sokvag === "string" ? post.fil.sokvag.trim() : "";
+    if (sokvag === "") return;
+    const saknas = () => setStatus(ordet(ORD_BIBLIOTEKLISTA, "ingenAdress", sprak));
+    Promise.resolve()
+      .then(() => hamtaAdress(sokvag))
+      .then((url) => {
+        if (typeof url === "string" && ADRESSFORM.test(url)) kopieraLank(url);
+        else saknas();
+      })
+      .catch((e) => {
+        setStatus(e instanceof Error && e.message !== "" ? e.message : ordet(ORD_BIBLIOTEKLISTA, "ingenAdress", sprak));
+      });
   }
 
   /**
@@ -946,8 +992,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
       if (post.typ === "lista") ut.push({ id: "lagg-i-lista", etikett: "Lägg i lista", avstangd: true, forklaring: LISTA_I_LISTA_TEXT, onValj: () => {} });
       else ut.push({ id: "lagg-i-lista", etikett: "Lägg i lista", onValj: () => setLaggPost(post) });
     }
-    const lank = lankAttKopiera(post);
-    if (lank) ut.push({ id: "kopiera", etikett: "Kopiera länk", onValj: () => kopieraLank(lank) });
+    if (kanKopieraLank(post)) ut.push({ id: "kopiera", etikett: "Kopiera länk", onValj: () => kopieraPostensLank(post) });
     // ⛔ LADDA NED EN ANTECKNING (0.209.0, cllp/lifehub.app#706, CP: "Skippa Word just nu, men ha med de andra"): Markdown, PDF och HTML, tre rader i följd eftersom menyn inte har
     // undermenyer. För den som får läsa posten, eftersom läsningen redan ger texten. Inte med `utanNedladdning` (gästens bibliotek när gruppen stängt av nedladdning) och inte för en tom anteckning.
     // ⛔ BARA I DETALJENS MENY, som Redigera: listans meny är kort (0.102.0, CP: "Kanske popup med en kortare meny"), och Ladda ned för en fil och ett ljud bor också i detaljen. Tre rader till på
