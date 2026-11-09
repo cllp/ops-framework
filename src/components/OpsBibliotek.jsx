@@ -667,10 +667,17 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
   // tillbaka så hoppar den ur hela listan." Tillbaka från en post som öppnats ur en lista går till listan, och först nästa Tillbaka ut ur biblioteket,
   // som en webbläsares bakåt. Bara när posten fortfarande ligger i listan: öppnar appen en annan post (en djuplänk, en sökträff), eller har posten tagits
   // ur listan, gäller Tillbaka som förut.
-  const [franLista, setFranLista] = useState(/** @type {string | null} */ (null));
+  // ⛔ PARET, INTE BARA LISTAN (granskningen av PR 553): `vald` styrs av appen och kan bytas utan att Tillbaka trycks (en djuplänk, telefonens bakåt,
+  // en annan vy). Listan gäller därför bara för just den post som öppnades ur den. Öppnas samma post senare på annat sätt går Tillbaka ut som förut.
+  const [franLista, setFranLista] = useState(/** @type {{ lista: string, post: string } | null} */ (null));
+  // Paret släpps så fort en annan post, eller ingen, är öppen. Annars hade samma post, öppnad på nytt direkt ur biblioteket, fått listan bakom sig.
+  const valdId = vald?.id ?? null;
+  useEffect(() => {
+    setFranLista((f) => (f && f.post !== valdId ? null : f));
+  }, [valdId]);
   const listanBakom = (() => {
-    if (!franLista || !vald || vald.id === franLista) return null;
-    const l = poster.find((p) => p.id === franLista);
+    if (!franLista || !vald || vald.id !== franLista.post) return null;
+    const l = poster.find((p) => p.id === franLista.lista);
     return l && l.typ === "lista" && Array.isArray(l.poster) && l.poster.includes(vald.id) ? l : null;
   })();
   function stangDetalj() {
@@ -1139,7 +1146,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
             const rad = poster.find((p) => p.id === vald.id) ?? vald;
             return <Markering nalad={arNalad(rad)} nalOrd={mord("nalad")} stjarna={stjarnFor(rad)} />;
           })() : null} onLjus={setLjus} onSkrivUt={onSkrivUt} onSkrivUtIgen={onSkrivUtIgen} onTaBortUtskrift={onTaBortUtskrift} onAnteckningAvUtskrift={onAnteckningAvUtskrift} menyFor={menyFor} onMeta={togMeta} tillbakaEtikett={lord(inbaddad ? "filer" : "tillbaka")} poster={poster} jag={jag} onLankInfo={onLankInfo} githubLasare={githubLasare} onLaggBildIAnteckning={onLaggBildIAnteckning} bildIAnteckningAdress={bildIAnteckningAdress} bildIAnteckningFel={bildIAnteckningFel} onOppnaPost={(p) => {
-            setFranLista(vald && vald.typ === "lista" ? vald.id : null);
+            setFranLista(vald && vald.typ === "lista" ? { lista: vald.id, post: p.id } : null);
             oppnaMed(p, "las");
           }} kommentarer={vald && !skaparTyp && kanKommenteras(vald) ? kommentarer : null} fokusKommentar={Boolean(vald) && kommenteraFor === vald?.id} />
         ) : (
@@ -2481,13 +2488,22 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, aktuellPost, onLadd
   const sparadText = post && !skapar && post.typ === "anteckning" ? post.text ?? "" : null;
   const textNu = useRef(text);
   textNu.current = text;
-  // Texten den egna sparningen skickade, med det som lades till (`medTillagt`). När den kommer tillbaka som sparad text är den rutans nya grund.
+  // Den egna sparningen som väntar på att komma tillbaka: rutans text när Spara trycktes. Nollas när sparningen misslyckas.
   const egenSparning = useRef(/** @type {string | null} */ (null));
   useEffect(() => {
     if (sparadText === null || sparadText === textGrund.current) return;
-    // Rutan är oförändrad, eller texten är den egna sparningen: rutan följer med, och grunden flyttas. Annars står grunden kvar, och Spara lägger till det som tillkommit.
-    if (textNu.current === textGrund.current || sparadText === egenSparning.current) {
+    // ⛔ EN EGEN SPARNING SOM VÄNTAR (granskningen av PR 553): nästa sparade text är den, också om appen eller servern normaliserat den (trim, radslut).
+    // En jämförelse på exakt likhet hade lämnat grunden kvar, och nästa Spara hade lagt till skillnaden en gång till. Rutan följer bara med om den
+    // är som när Spara trycktes: tecken skrivna medan sparningen gick står kvar.
+    const egen = egenSparning.current;
+    if (egen !== null) {
       egenSparning.current = null;
+      textGrund.current = sparadText;
+      if (textNu.current === egen) setText(sparadText);
+      return;
+    }
+    // Rutan är oförändrad: den följer med, och grunden flyttas. Annars står grunden kvar, och Spara lägger till det som tillkommit.
+    if (textNu.current === textGrund.current) {
       textGrund.current = sparadText;
       setText(sparadText);
     }
@@ -2658,7 +2674,8 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, aktuellPost, onLadd
     const anteckningsrubrik = typ === "anteckning" && skapar && !trimSomRegeln(rubrik) ? anteckningsrubrikNu() : rubrik;
     const nyUrl = normaliseraAdress(url);
     const sparasText = typ === "anteckning" ? medTillagt(text) : text;
-    if (typ === "anteckning" && post && !skapar) egenSparning.current = sparasText;
+    // Bara en sparning som ändrar den sparade texten kommer tillbaka; en oförändrad hade lämnat raden kvar och tagit nästa ändring (en bild) för sin egen.
+    if (typ === "anteckning" && post && !skapar) egenSparning.current = sparasText !== sparadText ? text : null;
     const inmatning = typ === "anteckning"
       ? { typ, rubrik: anteckningsrubrik, text: sparasText, ...(post && !skapar ? { id: post.id } : {}) }
       : typ === "fil"
@@ -2678,26 +2695,36 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, aktuellPost, onLadd
     // avvisat löfte blir ett fel i formuläret. Förut kastades svaret bort: formuläret gick till läsning och felet försvann.
     /** @param {unknown} e */
     const visa = (e) => setFormfel(e instanceof Error && e.message ? e.message : String(e));
+    // En sparning som inte gick igenom kommer aldrig tillbaka: den väntande egna sparningen släpps, så att nästa ändring utifrån inte tas för den.
+    const slapp = () => {
+      egenSparning.current = null;
+    };
     let svar;
     try {
       svar = onSpara(inmatning);
     } catch (e) {
+      slapp();
       visa(e);
       return false;
     }
     if (svar && typeof svar === "object" && typeof svar.then === "function") {
       return svar.then(
         (/** @type {void | boolean} */ v) => {
-          if (v === false) setFormfel("Posten kunde inte sparas.");
+          if (v === false) {
+            slapp();
+            setFormfel("Posten kunde inte sparas.");
+          }
           return v;
         },
         (/** @type {unknown} */ e) => {
+          slapp();
           visa(e);
           return false;
         },
       );
     }
     if (svar === false) {
+      slapp();
       setFormfel("Posten kunde inte sparas.");
       return false;
     }

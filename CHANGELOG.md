@@ -19,9 +19,11 @@ Två rättningar i Biblioteket, båda ur nattens granskningar och cllp/lifehub.a
   - `OpsBibliotek` minns listan en post öppnades ur (`onOppnaPost` i listvyn).
   - Gäller bara när posten fortfarande ligger i listan. Öppnar appen en annan post (en djuplänk, en sökträff), eller har posten tagits ur listan, gäller Tillbaka som förut.
   - Ingen ny prop. Appens `onOppna` och `onStang` anropas som förut: Tillbaka till listan är `onOppna(listan)`.
+  - Stänger appen posten själv (telefonens bakåt, en annan vy) och öppnas samma post sedan direkt, går Tillbaka ut. Listan gäller bara den öppning som skedde ur den (granskningen av PR 553).
 - **En anteckning som öppnas igen medan en bild laddas upp tappar inte bildraden.** Granskningen av 0.207.0 noterade det som kvar: en bild som blev klar efter att redigeringen stängts skrevs in i den sparade texten, men en ny redigering av samma anteckning visade texten utan bildraden och skrev över den vid Spara.
   - En redigering som inte ändrats följer nu den sparade texten, så bildraden syns i rutan när den skrivits in.
   - Har personen börjat skriva, tar Spara med det som lagts till sist i den sparade texten sedan redigeringen öppnades (`medTillagt`), i stället för att skriva över det.
+  - Den egna sparningen tas emot också om appen normaliserar texten (granskningen av PR 553), så nästa Spara dubblerar ingenting. En sparning som misslyckas väntas inte på, och tecken som skrivits medan sparningen gick står kvar i rutan.
   - Efter den egna sparningen börjar nästa redigering från den sparade texten, med bildraden.
   - ⛔ **Gräns:** en ändring mitt i texten (en annan medlem som skrivit om den) slås inte ihop. Den skrivs över som förut. Bara ett tillägg i slutet räknas, och det är den form en bild efter stängningen har.
 
