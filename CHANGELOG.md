@@ -25,6 +25,11 @@ Ett HTML-dokument i Biblioteket ritas på vitt papper också i mörkt läge.
 
 - Den första versionen av rättelsen satte `bg-white`, och proven sökte efter klassnamnet. Granskningen byggde CSS:en med tokens.css och mätte att klassen saknades, så ramen hade varit lika genomskinlig som förut. En färg i en inline-stil stoppas av `check-closed-api` (regel 3), och därför blev det ett token.
 
+### CI: en körning per ändring (CP 2026-11-09: "Du använder slut på mina github action minuter på en dag. Inte ok")
+
+- `check.yml` kör inte på utkast, inte när bara `docs/` eller `.md`-filer ändrats, och inte på main efter merge. Knappen (`workflow_dispatch`) kör alltid.
+- `publish.yml` hoppar över hela sviten (cirka 25 minuter) när commitens träd är exakt PR-headens och `check`, `scaffold`, `paket` och `regelprov` var gröna där. I alla andra fall, också när något inte går att fråga om, körs hela sviten som förut, och beslutet skrivs ut. Steget är provat lokalt med en falsk `gh` i fyra fall: grönt och samma träd hoppar över, och ingen PR, ett annat träd eller en röd scaffold kör hela sviten.
+
 ### Prov
 
 - `papper-token` (nytt) bygger CSS som appen gör (Tailwind med tokens.css) och kräver att `.bg-papper` finns och läser `--color-papper`, att tokenet är `#ffffff`, och att det bara definieras en gång. Mot 0.209.1 är 2 av 3 röda. Det tredje, att `bg-white` inte finns, är grönt åt båda håll och står som skydd mot samma misstag.
