@@ -82,6 +82,9 @@ const SKALEN = [
   { skal: "OpsBibliotek", lata: ["OpsPdfVisning", "laddaPdfjs"], via: "OpsPdfVisningLat", paket: ["pdfjs-dist"] },
   // (0.207.0, lifehub.app#696) Bildknappen och krympningen ritas bara när en sparad anteckning redigeras, och bara när appen gett `onLaggBildIAnteckning`.
   { skal: "OpsBibliotek", lata: ["AnteckningsText", "forbered"], via: "BibliotekAnteckningsbildLat" },
+  // (0.209.1, lifehub.app#706) Tolkningen av en .md och anteckningen som HTML-sida används bara när någon lägger in en .md eller laddar ned som HTML eller PDF. 0.209.0 importerade dem
+  // statiskt, och appens `check:jsstorlek` växte med 4 kB. Modulerna läses in med en dynamisk import i `OpsBibliotek`.
+  { skal: "OpsBibliotek", lata: ["markdownSomHtml", "markdownSomAnteckning"], via: "import(\"../lib/markdownhtml.js\") och import(\"../lib/anteckningsfil.js\")" },
 ];
 
 /** En import av paketet (statisk eller dynamisk) i en bit. Ett namn i en kommentar eller en text räknas inte. @param {string} kod @param {string} paket */

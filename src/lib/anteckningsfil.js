@@ -21,17 +21,8 @@
 import { MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKTEXT, trimSomRegeln } from "./bibliotek.js";
 import { sakertBildnamn, splitMarkdown } from "./markdown.js";
 
-/** Ändelserna som gör en fil till markdown, oavsett vad webbläsaren säger om typen (text/markdown, text/x-markdown eller ingenting). */
-const MARKDOWN_ANDELSE = /\.(md|markdown)$/i;
-
-/**
- * Är filnamnet en markdownfil (`.md` eller `.markdown`, oavsett versaler)?
- * @param {unknown} namn
- * @returns {boolean}
- */
-export function arMarkdownFilnamn(namn) {
-  return typeof namn === "string" && MARKDOWN_ANDELSE.test(namn.trim());
-}
+// ⛔ NAMNEN BOR I `anteckningsnamn.js` (0.209.1): de används när biblioteket ritas och när en anteckning laddas ned, medan resten av den här modulen läses in först när en .md väljs.
+export { anteckningFilnamn, arMarkdownFilnamn } from "./anteckningsnamn.js";
 
 /**
  * Texten utan kodblock och kodsnuttar, så att en bild eller länk som står som exempel i kod inte räknas. Samma staket som `splitMarkdown`.
@@ -100,23 +91,4 @@ export function markdownSomAnteckning({ namn, text }) {
   // Ett filnamn som bara är en ändelse (".md") ger ingen rubrik, och då "Anteckning".
   const rubrik = klipp(urRubrik || trimSomRegeln(utanAndelse(String(namn ?? ""))), MAX_BIBLIOTEKRUBRIK).trim() || "Anteckning";
   return { rubrik, text: t, forLang: t.length > MAX_BIBLIOTEKTEXT, ...sokvagarSomText(t) };
-}
-
-/**
- * Rubriken som ett säkert filnamn, med ändelsen. Se filens huvud.
- *
- * @param {unknown} rubrik
- * @param {string} andelse Utan punkt: `md`, `html` eller `pdf`.
- * @returns {string}
- */
-export function anteckningFilnamn(rubrik, andelse) {
-  const ren = String(rubrik ?? "")
-    .replace(/[\u0000-\u001f\u007f]/g, " ")
-    .replace(/[\\/:*?"<>|]/g, "_")
-    .replace(/\s+/g, " ")
-    .trim()
-    .replace(/^[.\s]+|[.\s]+$/g, "")
-    .slice(0, 120)
-    .trim();
-  return `${ren || "anteckning"}.${andelse}`;
 }

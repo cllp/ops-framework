@@ -1,7 +1,12 @@
 import { Fragment, createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { sparaSomFil, sparaText } from "../lib/sparaFil.js";
-import { anteckningFilnamn, arMarkdownFilnamn, markdownSomAnteckning } from "../lib/anteckningsfil.js";
-import { markdownSomHtml } from "../lib/markdownhtml.js";
+import { anteckningFilnamn, arMarkdownFilnamn } from "../lib/anteckningsnamn.js";
+// ⛔ LÄSES IN NÄR DE BEHÖVS (0.209.1): tolkningen av en .md och anteckningen som HTML-sida används bara när någon lägger in en .md eller laddar ned som HTML eller PDF.
+// Statiskt hade de legat i appens startpaket för varje användare (lifehub.app `check:jsstorlek`, +4 kB för 0.209.0).
+const laddaAnteckningsfil = () => import("../lib/anteckningsfil.js");
+/** @type {typeof import("../lib/markdownhtml.js") | null} */
+let markdownHtmlModul = null;
+const laddaMarkdownHtml = () => import("../lib/markdownhtml.js").then((m) => (markdownHtmlModul = m));
 import { blobBytes } from "../lib/blobbytes.js";
 import * as Popover from "@radix-ui/react-popover";
 import * as Tabs from "@radix-ui/react-tabs";
@@ -280,6 +285,8 @@ export const ORD_ANTECKNINGSFIL = {
     en: "The text is too long for a note ({antal} characters, the limit is {tak}). It is added as a file that can be read but not edited.",
   },
   lasFel: { sv: "Filen gick inte att läsa.", en: "The file could not be read." },
+  // (0.209.1, granskningen av PR 555) Delen som tolkar en .md läses in när den behövs. Gick det inte (nätet, eller en äldre version efter en uppdatering) är det inte filen som är fel.
+  inlasningFel: { sv: "Delen som läser in .md-filer gick inte att hämta. Ladda om sidan och försök igen.", en: "The part that reads .md files could not be loaded. Reload the page and try again." },
   dubblettRubrik: { sv: "Det finns redan en anteckning", en: "A note already exists" },
   dubblettFraga: { sv: "Det finns redan en anteckning som heter {namn}. Ersätta den, eller lägga in som ny?", en: "There is already a note called {namn}. Replace it, or add as new?" },
   ersatt: { sv: "Ersätt", en: "Replace" },
@@ -946,6 +953,8 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
     // ⛔ BARA I DETALJENS MENY, som Redigera: listans meny är kort (0.102.0, CP: "Kanske popup med en kortare meny"), och Ladda ned för en fil och ett ljud bor också i detaljen. Tre rader till på
     // varje anteckning i listan hade gjort den till elva rader, och de fyra typernas listmenyer hade inte längre varit desamma (0.133.0).
     if (iDetalj && post.typ === "anteckning" && trimSomRegeln(post.text ?? "") !== "" && !utanNedladdning) {
+      // Sidbyggaren läses in redan när menyn byggs, så att HTML sparas i samma tryck: en nedladdning efter en väntan kan stoppas av webbläsaren (iOS Safari).
+      if (!markdownHtmlModul) void laddaMarkdownHtml().catch(() => {});
       ut.push({ id: "ladda-md", etikett: aord("laddaMd"), onValj: () => laddaNedAnteckning(post, "md") });
       ut.push({ id: "ladda-pdf", etikett: aord("laddaPdf"), onValj: () => setPdfFor(post) });
       ut.push({ id: "ladda-html", etikett: aord("laddaHtml"), onValj: () => laddaNedAnteckning(post, "html") });
@@ -1024,9 +1033,13 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
    */
   function laddaNedAnteckning(post, som) {
     const text = post.text ?? "";
+    /** @param {typeof import("../lib/markdownhtml.js")} m */
+    const sparaHtml = (m) => sparaText({ text: m.markdownSomHtml(text, { titel: post.rubrik, sprak }), typ: "application/octet-stream", namn: anteckningFilnamn(post.rubrik, "html") });
     try {
       if (som === "md") sparaText({ text, typ: "text/markdown;charset=utf-8", namn: anteckningFilnamn(post.rubrik, "md") });
-      else sparaText({ text: markdownSomHtml(text, { titel: post.rubrik, sprak }), typ: "application/octet-stream", namn: anteckningFilnamn(post.rubrik, "html") });
+      // Sidbyggaren är normalt redan inläst (menyn läste in den). Annars väntar sparandet på den, och ett fel står i statusraden som alla andra.
+      else if (markdownHtmlModul) sparaHtml(markdownHtmlModul);
+      else void laddaMarkdownHtml().then(sparaHtml).catch(() => setStatus(aord("laddaFel")));
     } catch {
       setStatus(aord("laddaFel"));
     }
@@ -1356,7 +1369,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
         {raderaFel ? <p role="alert">{raderaFel}</p> : null}
       </OpsModal>
       {/* ⛔ PDF AV EN ANTECKNING (0.209.0, #706) ÄR WEBBLÄSARENS UTSKRIFT AV DEN STATISKA SIDAN, i den avspärrade rutan (`OpsHtmlDokumentLat`, samma väg som ett HTML-dokuments "Spara som PDF").
-          Sidan ritas aldrig i appens origin, och den byggs ur texten här (`markdownSomHtml`): ingenting hämtas, och sökvägen är bara rutans nyckel. */}
+          Sidan ritas aldrig i appens origin, och den byggs ur texten här (`markdownSomHtml`, inläst när den behövs): ingenting hämtas utifrån, och sökvägen är bara rutans nyckel. */}
       <OpsModal
         open={pdfFor !== null}
         onOpenChange={(oppen) => { if (!oppen) setPdfFor(null); }}
@@ -1368,7 +1381,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
         {pdfFor ? (
           <div data-bibliotek-anteckning-pdf={pdfFor.id} className="min-w-0">
             <OpsHtmlDokumentLat
-              hamta={() => Promise.resolve(new Blob([markdownSomHtml(pdfFor.text ?? "", { titel: pdfFor.rubrik, sprak })], { type: "text/html" }))}
+              hamta={() => laddaMarkdownHtml().then((m) => new Blob([m.markdownSomHtml(pdfFor.text ?? "", { titel: pdfFor.rubrik, sprak })], { type: "text/html" }))}
               sokvag={`anteckning:${pdfFor.id}:${pdfFor.andrad ?? ""}`}
               namn={pdfFor.rubrik}
             />
@@ -2571,8 +2584,8 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, aktuellPost, onLadd
   const [valdFil, setValdFil] = useState(/** @type {File | null} */ (null));
   // ⛔ (0.209.0, #706) EN VALD .MD, LÄST SOM TEXT. Läses när den väljs, så att rubriken kan föreslås ur dess `# `-rubrik, och används vid Spara. `fil` är filen tolkningen hör till:
   // byts filen gäller tolkningen inte längre. `dubblett` är frågan om en anteckning med samma rubrik redan finns på platsen.
-  const [mdFil, setMdFil] = useState(/** @type {{ fil: File, tolkad: ReturnType<typeof markdownSomAnteckning> } | null} */ (null));
-  const [dubblett, setDubblett] = useState(/** @type {{ befintlig: { id: string, rubrik: string }, rubrik: string, tolkad: ReturnType<typeof markdownSomAnteckning> } | null} */ (null));
+  const [mdFil, setMdFil] = useState(/** @type {{ fil: File, tolkad: ReturnType<typeof import("../lib/anteckningsfil.js").markdownSomAnteckning> } | null} */ (null));
+  const [dubblett, setDubblett] = useState(/** @type {{ befintlig: { id: string, rubrik: string }, rubrik: string, tolkad: ReturnType<typeof import("../lib/anteckningsfil.js").markdownSomAnteckning> } | null} */ (null));
   const [dubblettBusy, setDubblettBusy] = useState(false);
   // Rubriken som föreslogs ur filen. En rubrik personen skrivit själv skrivs aldrig över.
   const mdAutoRubrik = useRef("");
@@ -2758,16 +2771,27 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, aktuellPost, onLadd
   }
 
   /**
-   * Läser en vald .md som text (UTF-8) och tolkar den (`markdownSomAnteckning`). `null` när den inte gick att läsa.
+   * Läser en vald .md som text (UTF-8) och tolkar den (`markdownSomAnteckning`). Ett fel svarar med vilket: `inlasningFel` när delen som tolkar inte gick att hämta, `lasFel` när filen inte gick att läsa.
    * @param {File} fil
+   * @returns {Promise<{ tolkad: ReturnType<typeof import("../lib/anteckningsfil.js").markdownSomAnteckning> } | { fel: "inlasningFel" | "lasFel" }>}
    */
   async function lasMarkdown(fil) {
+    // Filen läses samtidigt som delen hämtas, som förut. Ett fel i läsningen tas om hand nedan, och aldrig som ett obehandlat avvisat löfte när hämtningen redan föll.
+    const bytes = blobBytes(fil);
+    bytes.catch(() => {});
+    /** @type {typeof import("../lib/anteckningsfil.js")} */
+    let modul;
+    try {
+      modul = await laddaAnteckningsfil();
+    } catch {
+      return { fel: "inlasningFel" };
+    }
     try {
       // ⛔ UTF-8, OCH WINDOWS-1252 NÄR BYTEN INTE ÄR GILTIG UTF-8 (`avkodaTextfil`, granskningen av PR 554): en .md sparad som "ANSI" i Anteckningar hade annars sparats med en
       // ersättningsruta för varje å, ä och ö. Samma avkodning som textförhandsvisningen. `blobBytes` och inte `fil.text()`: den finns också där `text()` saknas.
-      return markdownSomAnteckning({ namn: fil.name, text: avkodaTextfil(new Uint8Array(await blobBytes(fil))) });
+      return { tolkad: modul.markdownSomAnteckning({ namn: fil.name, text: avkodaTextfil(new Uint8Array(await bytes)) }) };
     } catch {
-      return null;
+      return { fel: "lasFel" };
     }
   }
 
@@ -2783,7 +2807,7 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, aktuellPost, onLadd
 
   /**
    * Sparar den lästa .md:n som en anteckning genom `onSpara`, samma inmatning som en ny anteckning. Med `id` ersätts den befintliga.
-   * @param {ReturnType<typeof markdownSomAnteckning>} tolkad
+   * @param {ReturnType<typeof import("../lib/anteckningsfil.js").markdownSomAnteckning>} tolkad
    * @param {string} rubrikAttSpara
    * @param {string} [id]
    * @returns {Promise<boolean>}
@@ -2818,11 +2842,12 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, aktuellPost, onLadd
    * @returns {Promise<boolean | void>}
    */
   async function sparaMarkdown(fil) {
-    const tolkad = mdFil && mdFil.fil === fil ? mdFil.tolkad : await lasMarkdown(fil);
-    if (!tolkad) {
-      setFormfel(ordet(ORD_ANTECKNINGSFIL, "lasFel", sprak));
+    const last = mdFil && mdFil.fil === fil ? { tolkad: mdFil.tolkad } : await lasMarkdown(fil);
+    if ("fel" in last) {
+      setFormfel(ordet(ORD_ANTECKNINGSFIL, last.fel, sprak));
       return false;
     }
+    const { tolkad } = last;
     const valdRubrik = trimSomRegeln(rubrik) || tolkad.rubrik;
     if (tolkad.forLang) {
       if (typeof onLaddaUpp !== "function") {
@@ -3035,8 +3060,14 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, aktuellPost, onLadd
                 if (md) mdAutoRubrik.current = urNamn;
               }
               if (md) {
-                void lasMarkdown(vald).then((tolkad) => {
-                  if (!livs.current || !tolkad || senasteMd.current !== vald) return;
+                void lasMarkdown(vald).then((last) => {
+                  if (!livs.current || senasteMd.current !== vald) return;
+                  // Ett fel syns direkt vid valet, inte först vid Spara (granskningen av PR 555).
+                  if ("fel" in last) {
+                    setFormfel(ordet(ORD_ANTECKNINGSFIL, last.fel, sprak));
+                    return;
+                  }
+                  const { tolkad } = last;
                   setMdFil({ fil: vald, tolkad });
                   const nu = trimSomRegeln(rubrikRef.current);
                   if (!nu || nu === mdAutoRubrik.current) {
