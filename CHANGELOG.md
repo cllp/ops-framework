@@ -19,8 +19,11 @@ Biblioteket läser in .md-tolkningen och HTML-sidan först när de behövs (cllp
   - `arMarkdownFilnamn` och `anteckningFilnamn` behövs när biblioteket ritas och när en .md laddas ned. De ligger nu i en egen liten modul, `lib/anteckningsnamn.js`, och `lib/anteckningsfil.js` exporterar dem vidare.
   - Sidbyggaren läses in redan när detaljens meny byggs. HTML sparas då i samma tryck, eftersom en nedladdning efter en väntan kan stoppas av webbläsaren (iOS Safari).
 
+- Går delen som tolkar en .md inte att hämta (nätet, eller en äldre version efter en uppdatering) säger vyn det direkt när filen väljs: "Delen som läser in .md-filer gick inte att hämta. Ladda om sidan och försök igen." Förut stod "Filen gick inte att läsa." först vid Spara (granskningen av PR 555).
+
 ### Prov
 
+- `anteckning-md-inlasning.test.jsx`, nytt: röd utan ändringen, grön nu.
 - `check:delbarhet` har en ny rad: `markdownSomHtml` och `markdownSomAnteckning` får inte ligga i startfilen. Den är röd mot 0.209.0, där båda låg i startfilen, och grön nu.
 
 ## 0.209.0

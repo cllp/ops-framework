@@ -285,6 +285,8 @@ export const ORD_ANTECKNINGSFIL = {
     en: "The text is too long for a note ({antal} characters, the limit is {tak}). It is added as a file that can be read but not edited.",
   },
   lasFel: { sv: "Filen gick inte att läsa.", en: "The file could not be read." },
+  // (0.209.1, granskningen av PR 555) Delen som tolkar en .md läses in när den behövs. Gick det inte (nätet, eller en äldre version efter en uppdatering) är det inte filen som är fel.
+  inlasningFel: { sv: "Delen som läser in .md-filer gick inte att hämta. Ladda om sidan och försök igen.", en: "The part that reads .md files could not be loaded. Reload the page and try again." },
   dubblettRubrik: { sv: "Det finns redan en anteckning", en: "A note already exists" },
   dubblettFraga: { sv: "Det finns redan en anteckning som heter {namn}. Ersätta den, eller lägga in som ny?", en: "There is already a note called {namn}. Replace it, or add as new?" },
   ersatt: { sv: "Ersätt", en: "Replace" },
@@ -2769,17 +2771,27 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, aktuellPost, onLadd
   }
 
   /**
-   * Läser en vald .md som text (UTF-8) och tolkar den (`markdownSomAnteckning`). `null` när den inte gick att läsa.
+   * Läser en vald .md som text (UTF-8) och tolkar den (`markdownSomAnteckning`). Ett fel svarar med vilket: `inlasningFel` när delen som tolkar inte gick att hämta, `lasFel` när filen inte gick att läsa.
    * @param {File} fil
+   * @returns {Promise<{ tolkad: ReturnType<typeof import("../lib/anteckningsfil.js").markdownSomAnteckning> } | { fel: "inlasningFel" | "lasFel" }>}
    */
   async function lasMarkdown(fil) {
+    // Filen läses samtidigt som delen hämtas, som förut. Ett fel i läsningen tas om hand nedan, och aldrig som ett obehandlat avvisat löfte när hämtningen redan föll.
+    const bytes = blobBytes(fil);
+    bytes.catch(() => {});
+    /** @type {typeof import("../lib/anteckningsfil.js")} */
+    let modul;
+    try {
+      modul = await laddaAnteckningsfil();
+    } catch {
+      return { fel: "inlasningFel" };
+    }
     try {
       // ⛔ UTF-8, OCH WINDOWS-1252 NÄR BYTEN INTE ÄR GILTIG UTF-8 (`avkodaTextfil`, granskningen av PR 554): en .md sparad som "ANSI" i Anteckningar hade annars sparats med en
       // ersättningsruta för varje å, ä och ö. Samma avkodning som textförhandsvisningen. `blobBytes` och inte `fil.text()`: den finns också där `text()` saknas.
-      const [{ markdownSomAnteckning }, bytes] = await Promise.all([laddaAnteckningsfil(), blobBytes(fil)]);
-      return markdownSomAnteckning({ namn: fil.name, text: avkodaTextfil(new Uint8Array(bytes)) });
+      return { tolkad: modul.markdownSomAnteckning({ namn: fil.name, text: avkodaTextfil(new Uint8Array(await bytes)) }) };
     } catch {
-      return null;
+      return { fel: "lasFel" };
     }
   }
 
@@ -2830,11 +2842,12 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, aktuellPost, onLadd
    * @returns {Promise<boolean | void>}
    */
   async function sparaMarkdown(fil) {
-    const tolkad = mdFil && mdFil.fil === fil ? mdFil.tolkad : await lasMarkdown(fil);
-    if (!tolkad) {
-      setFormfel(ordet(ORD_ANTECKNINGSFIL, "lasFel", sprak));
+    const last = mdFil && mdFil.fil === fil ? { tolkad: mdFil.tolkad } : await lasMarkdown(fil);
+    if ("fel" in last) {
+      setFormfel(ordet(ORD_ANTECKNINGSFIL, last.fel, sprak));
       return false;
     }
+    const { tolkad } = last;
     const valdRubrik = trimSomRegeln(rubrik) || tolkad.rubrik;
     if (tolkad.forLang) {
       if (typeof onLaddaUpp !== "function") {
@@ -3047,8 +3060,14 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, aktuellPost, onLadd
                 if (md) mdAutoRubrik.current = urNamn;
               }
               if (md) {
-                void lasMarkdown(vald).then((tolkad) => {
-                  if (!livs.current || !tolkad || senasteMd.current !== vald) return;
+                void lasMarkdown(vald).then((last) => {
+                  if (!livs.current || senasteMd.current !== vald) return;
+                  // Ett fel syns direkt vid valet, inte först vid Spara (granskningen av PR 555).
+                  if ("fel" in last) {
+                    setFormfel(ordet(ORD_ANTECKNINGSFIL, last.fel, sprak));
+                    return;
+                  }
+                  const { tolkad } = last;
                   setMdFil({ fil: vald, tolkad });
                   const nu = trimSomRegeln(rubrikRef.current);
                   if (!nu || nu === mdAutoRubrik.current) {
