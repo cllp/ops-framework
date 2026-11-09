@@ -347,6 +347,8 @@ export const GASTGRUPPSVARSFALT = /** @type {const} */ ({
   markeraArendeKlart: ["ok"],
   /** Svaret på `fil`. */
   fil: ["ok", "url", "namn", "mime"],
+  /** (0.207.0, cllp/lifehub.app#696) Svaret på `anteckningsbilder`: bilderna i en anteckning som signerade adresser, `{ [namn]: url }`, tomt när ingen finns. Listan (`bibliotek`) bär dem aldrig. */
+  anteckningsbilder: ["ok", "bilder"],
   /** (0.191.0) Svaret på `kommenteraPost`: kommentaren som den nu står, roten i chatten eller ett svar i dess tråd (`rot` säger vilket). */
   kommenteraPost: ["ok", "meddelande", "rot"],
   /**
@@ -402,7 +404,7 @@ export const GASTCHATTFALT = /** @type {const} */ (["id", "av", "text", "tid", "
  * Åtgärderna en gruppgäst anropar på servern (`POST /api/gast`), förutom `los`, `hamta`, `namn`, `nylank` och `raderaMig` som varje gäst har. Namnen står här och ingen annanstans (regel 2):
  * tjänstens metoder, appens vitlista för vad en handler släpper in, och vyns anrop läser samma lista.
  */
-export const GASTGRUPPATGARDER = /** @type {const} */ (["oversikt", "chatt", "skrivChatt", "kalender", "handelse", "svara", "rosta", "bibliotek", "fil", "arenden", "kommenteraArende", "markeraArendeKlart", "kommenteraPost"]);
+export const GASTGRUPPATGARDER = /** @type {const} */ (["oversikt", "chatt", "skrivChatt", "kalender", "handelse", "svara", "rosta", "bibliotek", "anteckningsbilder", "fil", "arenden", "kommenteraArende", "markeraArendeKlart", "kommenteraPost"]);
 
 /**
  * Bygger gruppvyns `api` av appens ENDA anrop mot `/api/gast`. `anrop` får `{ atgard, sessionsnyckel, ...argument }` och ska svara med serverns JSON (`{ ok, ... }`); appens handler skickar
@@ -431,8 +433,7 @@ export const GASTKALENDERFALT = /** @type {const} */ (["id", "namn", "farg"]);
 export const GASTFILFALT = /** @type {const} */ (["sokvag", "namn", "mime", "byte", "klar"]);
 
 /** Fälten på en biblioteksspost i gästens svar. */
-// (0.207.0, cllp/lifehub.app#696) `bilder`: en antecknings bilder som signerade adresser, se `MAX_ANTECKNINGSBILDER` i `lib/delning.js` och `anteckningsbildAdresser` i `node/delning.js`.
-export const GASTBIBLIOTEKFALT = /** @type {const} */ (["id", "typ", "rubrik", "text", "bilder", "url", "kalla", "bild", "poster", "taggar", "fil", "utskrift", "durationMs", "peaks", "skapad", "andrad", "skapadAvNamn"]);
+export const GASTBIBLIOTEKFALT = /** @type {const} */ (["id", "typ", "rubrik", "text", "url", "kalla", "bild", "poster", "taggar", "fil", "utskrift", "durationMs", "peaks", "skapad", "andrad", "skapadAvNamn"]);
 
 /** Fälten på en person i medlemmens lista (0.132.0, `lista` för en grupp): en rad per person och inte per inbjudan. Adressen ser medlemmarna ändå (CP 2026-10-20). */
 export const GASTPERSONFALT = /** @type {const} */ (["gastId", "epost", "telefon", "namn", "status", "inbjudningar"]);

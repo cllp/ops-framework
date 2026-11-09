@@ -16,7 +16,6 @@ import { lasFilbytes } from "../data/filbytes.js";
 import { BibliotekHtmlVersionerLat } from "./BibliotekHtmlVersionerLat.jsx";
 import { OpsMarkdown } from "./OpsMarkdown.jsx";
 import { medBildInsatt } from "../lib/markdown.js";
-import { useDeladeBilder } from "./useDeladeBilder.js";
 import { AnteckningsTextLat, forladdaAnteckningsbild } from "./BibliotekAnteckningsbildLat.jsx";
 import { GithubDokumentVisningLat } from "./GithubDokumentVisningLat.jsx";
 import { BibliotekRepoLat } from "./BibliotekRepoLat.jsx";
@@ -369,11 +368,12 @@ const arkivtips = () => `Arkiverad. Välj taggen ${ARKIVTAGG} för att se arkive
  *   ny anteckning ger raden "Spara anteckningen först. Sedan går det att lägga till bilder." i stället för en egen post. Utan propen syns ingen knapp och en inklistring går som förut.
  * @param {(bild: { postId: string, plats: string, namn: string }) => string | Promise<string>} [props.bildIAnteckningAdress] (0.206.0, cllp/lifehub.app#696) Adressen till en bild i en
  *   anteckning, ur postens id, plats och filnamnet i texten. Används när anteckningen läses (`OpsMarkdown` med `bildAdress`). Utan den står raden "Bilden visas inte här än." där bilden står.
- *   (0.207.0, #696 skiva 2) Utan propen läses en antecknings bilder ur postens eget fält `bilder: Record<string, string>` (filnamn till en signerad https-adress), när posten bär det:
- *   gästens vy (`OpsGastGrupp`) ger inte propen, och servern skickar adresserna med posten. Ett namn som saknas i `bilder`, eller en adress som inte är https, ger raden
- *   "Bilden kunde inte visas." (`bildAdressUrBilder`). Propen vinner när båda finns.
+ *   (0.207.0) Gästens vy (`OpsGastGrupp`) ger den också: adresserna hämtas när gästen öppnar anteckningen (`anteckningsbilder`), aldrig med listan.
+ * @param {(bild: { postId: string, plats: string, namn: string }) => boolean | Promise<boolean>} [props.bildIAnteckningFel] (0.207.0, #696 skiva 2) En bild med en adress laddades inte,
+ *   troligen för att en signerad adress gått ut (`OpsMarkdown` `onBildFel`). Sant: appen hämtar nya adresser och ger en ny `bildIAnteckningAdress`. Falskt: raden "Ladda om sidan för att se
+ *   bilden.". Utan propen står "Bilden kunde inte visas." som förut.
  */
-export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, trasiga: trasigaProp = [], laddar: laddarProp = false, vald = null, skapar = null, jag, onOppna, onStang, onSkapa, onSpara, onRadera, onLaddaUpp, onFyllLjud, onSpelaIn, inspelare, filUrl, hamtaAdress, hamtaFil, htmlVersioner, hamtaHtmlVersion, aterstallHtml, nyHtmlVersion, oppnaHtml, oppnaPdf, grupper = [], onDela, platser = [], plats, onPlats, onSkrivUt, onSkrivUtIgen, onTaBortUtskrift, onAnteckningAvUtskrift, onGorForslag, delningar = [], delningGruppdel, gruppnamn: gruppnamnProp, onDelaLank, onAndraNedladdning, onAterkalla, onMejlaLank, onLankInfo, githubLasare, repoLasare, onLaggRepoFil, hubHref, hubEtikett, onNavigate, modulId = "bibliotek", ram = null, activeHref, modul = null, inbaddad = false, tomText, utanHubb = false, adresserPaBegaran = false, gruppTaggar = [], egnaPlatser = null, stjarnor, onStjarna, huvudRad, utanNedladdning = false, kommentarer = null, onLaggBildIAnteckning, bildIAnteckningAdress }) {
+export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, trasiga: trasigaProp = [], laddar: laddarProp = false, vald = null, skapar = null, jag, onOppna, onStang, onSkapa, onSpara, onRadera, onLaddaUpp, onFyllLjud, onSpelaIn, inspelare, filUrl, hamtaAdress, hamtaFil, htmlVersioner, hamtaHtmlVersion, aterstallHtml, nyHtmlVersion, oppnaHtml, oppnaPdf, grupper = [], onDela, platser = [], plats, onPlats, onSkrivUt, onSkrivUtIgen, onTaBortUtskrift, onAnteckningAvUtskrift, onGorForslag, delningar = [], delningGruppdel, gruppnamn: gruppnamnProp, onDelaLank, onAndraNedladdning, onAterkalla, onMejlaLank, onLankInfo, githubLasare, repoLasare, onLaggRepoFil, hubHref, hubEtikett, onNavigate, modulId = "bibliotek", ram = null, activeHref, modul = null, inbaddad = false, tomText, utanHubb = false, adresserPaBegaran = false, gruppTaggar = [], egnaPlatser = null, stjarnor, onStjarna, huvudRad, utanNedladdning = false, kommentarer = null, onLaggBildIAnteckning, bildIAnteckningAdress, bildIAnteckningFel }) {
   if (kalla !== undefined && (posterProp !== undefined || felProp !== null || laddarProp !== false || (Array.isArray(trasigaProp) && trasigaProp.length > 0))) {
     throw new Error("OpsBibliotek: kalla och poster/fel/trasiga/laddar kan inte ges tillsammans. Med kalla läser vyn själv, och två sanningar om samma lista hade låtit den ena vinna tyst.");
   }
@@ -1116,7 +1116,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
           })() : null} markering={vald ? (() => {
             const rad = poster.find((p) => p.id === vald.id) ?? vald;
             return <Markering nalad={arNalad(rad)} nalOrd={mord("nalad")} stjarna={stjarnFor(rad)} />;
-          })() : null} onLjus={setLjus} onSkrivUt={onSkrivUt} onSkrivUtIgen={onSkrivUtIgen} onTaBortUtskrift={onTaBortUtskrift} onAnteckningAvUtskrift={onAnteckningAvUtskrift} menyFor={menyFor} onMeta={togMeta} tillbakaEtikett={lord(inbaddad ? "filer" : "tillbaka")} poster={poster} jag={jag} onLankInfo={onLankInfo} githubLasare={githubLasare} onLaggBildIAnteckning={onLaggBildIAnteckning} bildIAnteckningAdress={bildIAnteckningAdress} onOppnaPost={(p) => oppnaMed(p, "las")} kommentarer={vald && !skaparTyp && kanKommenteras(vald) ? kommentarer : null} fokusKommentar={Boolean(vald) && kommenteraFor === vald?.id} />
+          })() : null} onLjus={setLjus} onSkrivUt={onSkrivUt} onSkrivUtIgen={onSkrivUtIgen} onTaBortUtskrift={onTaBortUtskrift} onAnteckningAvUtskrift={onAnteckningAvUtskrift} menyFor={menyFor} onMeta={togMeta} tillbakaEtikett={lord(inbaddad ? "filer" : "tillbaka")} poster={poster} jag={jag} onLankInfo={onLankInfo} githubLasare={githubLasare} onLaggBildIAnteckning={onLaggBildIAnteckning} bildIAnteckningAdress={bildIAnteckningAdress} bildIAnteckningFel={bildIAnteckningFel} onOppnaPost={(p) => oppnaMed(p, "las")} kommentarer={vald && !skaparTyp && kanKommenteras(vald) ? kommentarer : null} fokusKommentar={Boolean(vald) && kommenteraFor === vald?.id} />
         ) : (
           <div data-bibliotek-huvud="" className="flex min-w-0 flex-col gap-3">
             {/* ⛔ SESSIONSTUDIOS HUVUD, SOM I APPEN (0.102.0, CP 2026-10-14 med skärmbilder från SessionStudios app: "Listningen
@@ -2413,8 +2413,9 @@ function Adress({ url }) {
  * @param {boolean} [props.fokusKommentar] (0.191.0) Kommentarsfältet får fokus: personen valde Kommentera.
  * @param {(inmatning: { postId: string, plats: string, fil: File }) => Promise<{ namn: string }>} [props.onLaggBildIAnteckning] (#696) Se `OpsBibliotek`.
  * @param {(bild: { postId: string, plats: string, namn: string }) => string | Promise<string>} [props.bildIAnteckningAdress] (#696) Se `OpsBibliotek`.
+ * @param {(bild: { postId: string, plats: string, namn: string }) => boolean | Promise<boolean>} [props.bildIAnteckningFel] (0.207.0) Se `OpsBibliotek`.
  */
-function Detalj({ post, skapar, startLage, onStang, onSpara, onLaddaUpp, filUrl, hamtaFil, htmlVersioner, hamtaHtmlVersion, aterstallHtml, nyHtmlVersion, oppnaHtml, oppnaPdf, taggrad, markering, adressFor, onLjus, onSkrivUt, onSkrivUtIgen, onTaBortUtskrift, onAnteckningAvUtskrift, menyFor, onMeta, tillbakaEtikett, poster, jag, onLankInfo, githubLasare, onOppnaPost, kommentarer = null, fokusKommentar = false, onLaggBildIAnteckning, bildIAnteckningAdress }) {
+function Detalj({ post, skapar, startLage, onStang, onSpara, onLaddaUpp, filUrl, hamtaFil, htmlVersioner, hamtaHtmlVersion, aterstallHtml, nyHtmlVersion, oppnaHtml, oppnaPdf, taggrad, markering, adressFor, onLjus, onSkrivUt, onSkrivUtIgen, onTaBortUtskrift, onAnteckningAvUtskrift, menyFor, onMeta, tillbakaEtikett, poster, jag, onLankInfo, githubLasare, onOppnaPost, kommentarer = null, fokusKommentar = false, onLaggBildIAnteckning, bildIAnteckningAdress, bildIAnteckningFel }) {
   const sprak = useOpsSprak();
   const typ = skapar ?? post?.typ ?? "anteckning";
   const [rubrik, setRubrik] = useState(post && !skapar ? post.rubrik : "");
@@ -2449,17 +2450,15 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, onLaddaUpp, filUrl,
   // ⛔ EN ADRESS PER POST, MED STABIL IDENTITET (#696): `OpsMarkdown` frågar igen när funktionen byts, och en ny funktion vid varje rendering hade frågat efter varje bild vid varje tangent.
   const bildPostId = post && !skapar ? post.id : "";
   const bildPlats = post && !skapar ? post.groupId ?? "" : "";
-  // ⛔ (0.207.0, #696 skiva 2) GÄSTENS POST BÄR SINA ADRESSER. I gästens vy finns ingen `bildIAnteckningAdress`: servern ger varje anteckning
-  // `bilder` (filnamn till en signerad https-adress), och då ritas bilderna ur den (`bildAdressUrBilder`). Appens prop vinner när båda finns.
-  // En adress i `bilder` som gått ut ger raden "Ladda om sidan för att se bilden.": biblioteket har ingen `onNyUrl` (`useDeladeBilder`).
-  const bildKarta = post && !skapar && post.typ === "anteckning" ? /** @type {any} */ (post).bilder : undefined;
-  const delade = useDeladeBilder(bildKarta);
-  const appensBildAdress = useMemo(
+  const bildAdress = useMemo(
     () => (typeof bildIAnteckningAdress === "function" && bildPostId ? (/** @type {string} */ namn) => bildIAnteckningAdress({ postId: bildPostId, plats: bildPlats, namn }) : undefined),
     [bildIAnteckningAdress, bildPostId, bildPlats],
   );
-  const bildAdress = appensBildAdress ?? delade.bildAdress;
-  const onBildFel = appensBildAdress ? undefined : delade.onBildFel;
+  // (0.207.0) En bild som inte laddas frågar appen, med postens id och plats (`bildIAnteckningFel`).
+  const onBildFel = useMemo(
+    () => (typeof bildIAnteckningFel === "function" && bildPostId ? (/** @type {string} */ namn) => bildIAnteckningFel({ postId: bildPostId, plats: bildPlats, namn }) : undefined),
+    [bildIAnteckningFel, bildPostId, bildPlats],
+  );
   // ⛔ (0.207.0) EN BILD SOM BLEV KLAR EFTER ATT RUTAN STÄNGTS skrivs in sist i den SPARADE texten (`AnteckningsText`, filens huvud i
   // `BibliotekAnteckningsbild.jsx`). Texten läses ur en ref som följer posten vid varje rendering och som den här funktionen själv flyttar fram,
   // så att två bilder som blir klara efter stängningen hamnar i samma text och inte skriver över varandra.

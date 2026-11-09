@@ -30,7 +30,7 @@ import {
   tolkaGastMottagare,
 } from "../lib/gast.js";
 import { ARKIVTAGG, filtreraBibliotek } from "../lib/bibliotek.js";
-import { MAX_ANTECKNINGSBILDER_PER_SVAR, SIGNERAD_SEKUNDER } from "../lib/delning.js";
+import { MAX_ANTECKNINGSBILDER, SIGNERAD_SEKUNDER } from "../lib/delning.js";
 import { medlemskapsId } from "../lib/grupp.js";
 import { byggGastinbjudan, createGastService, gastInbjudningsId, nyGastnyckel } from "../node/gast.js";
 
@@ -296,6 +296,7 @@ const ATGARDER = {
   rosta: (t, k) => t.rosta({ sessionsnyckel: k, handelseId: "h-ejsatt", forslagId: "f1", val: "ja" }),
   skrivChatt: (t, k) => t.skrivChatt({ sessionsnyckel: k, text: "Hej från gästen" }),
   bibliotek: (t, k) => t.bibliotek({ sessionsnyckel: k }),
+  anteckningsbilder: (t, k) => t.anteckningsbilder({ sessionsnyckel: k, postId: "p-not" }),
   fil: (t, k) => t.fil({ sessionsnyckel: k, postId: "p-pdf" }),
   arenden: (t, k) => t.arenden({ sessionsnyckel: k }),
   kommenteraArende: (t, k) => t.kommenteraArende({ sessionsnyckel: k, arendeId: "a-anna", text: "Jag fixar det" }),
@@ -1137,46 +1138,65 @@ describe("bibliotek", () => {
     expect(b.avkortad).toBe(true);
   });
 
-  describe("bilderna i en anteckning (0.207.0, cllp/lifehub.app#696 skiva 2)", () => {
-    const not = (id, text, skapad = 6000) => ({ id, groupId: GRUPP, typ: "anteckning", rubrik: `Not ${id}`, text, skapadAv: { uid: AGARE, namn: "Agda Ägare" }, skapad, andrad: skapad });
+  describe("bilderna i en anteckning (0.207.0, cllp/lifehub.app#696 skiva 2): signeras när gästen öppnar anteckningen, aldrig med listan", () => {
+    const not = (id, text, groupId = GRUPP) => ({ id, groupId, typ: "anteckning", rubrik: `Not ${id}`, text, skapadAv: { uid: AGARE, namn: "Agda Ägare" }, skapad: 6000, andrad: 6000 });
     const signerat = (sokvag, mime = "image/jpeg") => `https://lagring.example/signerat/${sha(sokvag).slice(0, 16)}?s=${SIGNERAD_SEKUNDER}&d=inline&m=${encodeURIComponent(mime)}`;
+    const TEXT = "Kvitto ![Taxi](a.jpg) ![](saknas.jpg) ![](../p-not/a.jpg) ![](b.png)";
+    const FILER = ["grupper/kallan/bibliotek/p-bild/a.jpg", "grupper/kallan/bibliotek/p-not/a.jpg", "grupper/kallan/bibliotek/p-not/b.png", "grupper/grannen/bibliotek/p-gbild/a.jpg"];
+    const medBilder = () => bygg({ extra: { bibliotek: [...seed().bibliotek, not("p-bild", TEXT), not("p-gbild", "![](a.jpg)", GRANNEN)] }, filer: FILER });
 
-    it("⛔ en bild som finns signeras i postens egen mapp, inline, också för en gäst utan laddaNed; en saknad fil, `../` och en annan posts fil utelämnas", async () => {
-      const h = bygg({
-        extra: { bibliotek: [...seed().bibliotek, not("p-bild", "Kvitto ![Taxi](a.jpg) ![](saknas.jpg) ![](../p-not/a.jpg) ![](b.png)")] },
-        filer: ["grupper/kallan/bibliotek/p-bild/a.jpg", "grupper/kallan/bibliotek/p-not/a.jpg", "grupper/kallan/bibliotek/p-not/b.png"],
-      });
+    it("⛔ listan signerar inga bilder och bär inget `bilder`, och frågar inte lagringen", async () => {
+      const h = medBilder();
       const g = await gruppGast(h);
       const b = await h.tjanst.bibliotek({ sessionsnyckel: g.sessionsnyckel });
       const p = b.poster.find((x) => x.id === "p-bild");
-      expect(p.bilder).toEqual({ "a.jpg": signerat("grupper/kallan/bibliotek/p-bild/a.jpg") });
-      // Vitlistan släpper igenom fältet, och postens fält är bara vitlistans.
-      expect(Object.keys(p).every((k) => GASTBIBLIOTEKFALT.includes(k))).toBe(true);
-      expect(Object.keys(p)).toContain("bilder");
+      expect(p.text).toBe(TEXT);
+      expect(p).not.toHaveProperty("bilder");
+      expect(GASTBIBLIOTEKFALT).not.toContain("bilder");
+      expect(h.finns).not.toHaveBeenCalled();
+      expect(h.signera).not.toHaveBeenCalled();
+    });
+
+    it("⛔ öppningen signerar i postens egen mapp, inline, också för en gäst utan laddaNed; en saknad fil, `../` och en annan posts fil utelämnas", async () => {
+      const h = medBilder();
+      const g = await gruppGast(h);
+      // Gästen har listan först, som i vyn: den första gruppåtgärden lägger minutens räknarrad (`GASTANROP_PER_MINUT`).
+      await h.tjanst.bibliotek({ sessionsnyckel: g.sessionsnyckel });
+      const raderFore = (await h.grund.list("gastraknare")).length;
+      const svar = await h.tjanst.anteckningsbilder({ sessionsnyckel: g.sessionsnyckel, postId: "p-bild" });
+      expect(svar).toEqual({ ok: true, bilder: { "a.jpg": signerat("grupper/kallan/bibliotek/p-bild/a.jpg") } });
+      // Bilderna räknas inte mot dygnets filer (`GASTFIL_PER_DYGN`): öppningen lägger ingen räknarrad till. Golvet: en fil gör det.
+      expect((await h.grund.list("gastraknare")).length).toBe(raderFore);
+      expect((await h.tjanst.fil({ sessionsnyckel: g.sessionsnyckel, postId: "p-pdf", bifoga: false })).ok).toBe(true);
+      expect((await h.grund.list("gastraknare")).length).toBe(raderFore + 1);
+      expect(Object.keys(svar).every((k) => GASTGRUPPSVARSFALT.anteckningsbilder.includes(k))).toBe(true);
       const fragade = h.finns.mock.calls.map((c) => c[0].sokvag);
       expect(fragade.sort()).toEqual(["grupper/kallan/bibliotek/p-bild/a.jpg", "grupper/kallan/bibliotek/p-bild/b.png", "grupper/kallan/bibliotek/p-bild/saknas.jpg"]);
       expect(fragade.join(" ")).not.toMatch(/\.\.|p-not/);
-      // En anteckning utan bild bär inget `bilder`.
-      expect(b.poster.find((x) => x.id === "p-not")).not.toHaveProperty("bilder");
     });
 
-    it("⛔ svarets tak håller, nyast först", async () => {
-      const noter = Array.from({ length: 7 }, (_, i) => not(`p-n${i}`, Array.from({ length: 20 }, (_, j) => `![](b${j}.jpg)`).join("\n"), 9000 - i));
-      const filer = noter.flatMap((n) => Array.from({ length: 20 }, (_, j) => `grupper/kallan/bibliotek/${n.id}/b${j}.jpg`));
-      const h = bygg({ extra: { bibliotek: [...seed().bibliotek, ...noter] }, filer });
+    it("⛔ en annan posts bilder nås inte: en annan grupps anteckning, Mitt bibliotek, en fil och en post som inte finns ger `saknas`, utan att lagringen frågas", async () => {
+      const h = medBilder();
       const g = await gruppGast(h);
-      const b = await h.tjanst.bibliotek({ sessionsnyckel: g.sessionsnyckel });
-      expect(h.finns).toHaveBeenCalledTimes(MAX_ANTECKNINGSBILDER_PER_SVAR);
-      const med = noter.map((n) => Object.keys(b.poster.find((x) => x.id === n.id).bilder ?? {}).length);
-      expect(med).toEqual([20, 20, 20, 20, 20, 0, 0]);
-    });
-
-    it("utan `finns` i lagringen bär ingen anteckning `bilder`", async () => {
-      const h = bygg({ extra: { bibliotek: [...seed().bibliotek, not("p-bild", "![](a.jpg)")] } });
-      const g = await gruppGast(h);
-      const b = await h.tjanst.bibliotek({ sessionsnyckel: g.sessionsnyckel });
-      expect(b.poster.find((x) => x.id === "p-bild")).not.toHaveProperty("bilder");
+      for (const postId of ["p-gbild", "p-mitt", "p-pdf", "finns-inte", ""]) {
+        expect(await h.tjanst.anteckningsbilder({ sessionsnyckel: g.sessionsnyckel, postId }), postId).toEqual({ ok: false, orsak: "saknas" });
+      }
+      expect(h.finns).not.toHaveBeenCalled();
       expect(h.signera).not.toHaveBeenCalled();
+    });
+
+    it("⛔ taket per anteckning håller, och utan `finns` är `bilder` tomt", async () => {
+      const manga = not("p-manga", Array.from({ length: 25 }, (_, j) => `![](b${String(j).padStart(2, "0")}.jpg)`).join("\n"));
+      const filer = Array.from({ length: 25 }, (_, j) => `grupper/kallan/bibliotek/p-manga/b${String(j).padStart(2, "0")}.jpg`);
+      const h = bygg({ extra: { bibliotek: [...seed().bibliotek, manga] }, filer });
+      const g = await gruppGast(h);
+      const svar = await h.tjanst.anteckningsbilder({ sessionsnyckel: g.sessionsnyckel, postId: "p-manga" });
+      expect(Object.keys(svar.bilder)).toEqual(Array.from({ length: MAX_ANTECKNINGSBILDER }, (_, j) => `b${String(j).padStart(2, "0")}.jpg`));
+      expect(h.finns).toHaveBeenCalledTimes(MAX_ANTECKNINGSBILDER);
+      const utan = bygg({ extra: { bibliotek: [...seed().bibliotek, manga] } });
+      const g2 = await gruppGast(utan);
+      expect(await utan.tjanst.anteckningsbilder({ sessionsnyckel: g2.sessionsnyckel, postId: "p-manga" })).toEqual({ ok: true, bilder: {} });
+      expect(utan.signera).not.toHaveBeenCalled();
     });
   });
 });

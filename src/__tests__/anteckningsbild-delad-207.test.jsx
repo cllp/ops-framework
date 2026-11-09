@@ -72,38 +72,74 @@ describe("DeladLista: en anteckning i en delad lista", () => {
   }
 });
 
-describe("gästens vy: en anteckning i gästens bibliotek", () => {
-  /** @param {Record<string, string> | undefined} bilder */
-  function api(bilder) {
-    const post = { id: "a1", typ: "anteckning", rubrik: "Kvitton", text: TEXT, skapad: 1, andrad: 1, skapadAvNamn: "Kim", ...(bilder ? { bilder } : {}) };
+describe("gästens vy: bilderna hämtas när gästen öppnar anteckningen (regel 13)", () => {
+  /**
+   * Ett api som svarar som gästtjänsten: listan bär inga bilder, och `anteckningsbilder` ger dem för en öppnad anteckning.
+   * @param {Record<string, string>} bilder
+   * @param {{ vanta?: boolean }} [val]
+   */
+  function api(bilder, val = {}) {
+    const post = { id: "a1", typ: "anteckning", rubrik: "Kvitton", text: TEXT, skapad: 1, andrad: 1, skapadAvNamn: "Kim" };
+    const annan = { id: "a2", typ: "anteckning", rubrik: "Annan", text: "![](taxi.jpg)", skapad: 0, andrad: 0, skapadAvNamn: "Kim" };
+    /** @type {(v: any) => void} */
+    let svara = () => {};
     /** @type {Record<string, (a: any) => Promise<any>>} */
     const svar = {
-      bibliotek: async () => ({ ok: true, poster: [post], avkortad: false }),
+      bibliotek: async () => ({ ok: true, poster: [post, annan], avkortad: false }),
+      anteckningsbilder: async ({ postId }) => (val.vanta ? new Promise((los) => { svara = los; }) : { ok: true, bilder: postId === "a1" ? bilder : {} }),
       chatt: async () => ({ ok: true, meddelanden: [], fler: false }),
       arenden: async () => ({ ok: true, poster: [], avkortad: false }),
     };
-    return Object.fromEntries(GASTGRUPPATGARDER.map((a) => [a, vi.fn(async (args) => (svar[a] ? svar[a](args ?? {}) : { ok: false, orsak: "nej" }))]));
+    const a = Object.fromEntries(GASTGRUPPATGARDER.map((n) => [n, vi.fn(async (args) => (svar[n] ? svar[n](args ?? {}) : { ok: false, orsak: "nej" }))]));
+    return { api: a, svara: (/** @type {any} */ v) => svara(v) };
   }
 
-  for (const f of FALLEN) {
-    it(f.namn, async () => {
-      render(<OpsGastGrupp grupp={{ namn: "Källan", funktioner: ["bibliotek"] }} api={/** @type {any} */ (api(f.bilder))} intervallMs={0} idag={new Date(2026, 10, 8)} />);
-      await act(async () => {
-        fireEvent.mouseDown(screen.getByRole("tab", { name: "Bibliotek" }), { button: 0 });
-      });
-      await act(async () => {
-        fireEvent.click(await screen.findByRole("button", { name: "Kvitton" }));
-      });
-      expect(await bildlage(/** @type {HTMLElement} */ (document.querySelector("[data-bibliotek-detalj='anteckning']")))).toEqual(f.vantat);
+  async function oppna(/** @type {any} */ a, rubrik = "Kvitton") {
+    const vy = render(<OpsGastGrupp grupp={{ namn: "Källan", funktioner: ["bibliotek"] }} api={a} intervallMs={0} idag={new Date(2026, 10, 8)} />);
+    await act(async () => {
+      fireEvent.mouseDown(screen.getByRole("tab", { name: "Bibliotek" }), { button: 0 });
     });
+    await screen.findByRole("button", { name: rubrik });
+    // ⛔ Listan har hämtats och ingen bild har signerats.
+    expect(a.anteckningsbilder).not.toHaveBeenCalled();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: rubrik }));
+    });
+    return vy;
   }
 
-  it("appens `bildIAnteckningAdress` vinner över `bilder` när båda finns", async () => {
-    const post = { id: "a1", groupId: "g", typ: "anteckning", rubrik: "Kvitton", text: TEXT, skapadAv: { uid: "", namn: "" }, bilder: { "taxi.jpg": ADRESS } };
-    const adress = vi.fn(() => "https://appens.example/taxi.jpg");
-    render(<OpsBibliotek poster={[post]} jag={null} vald={post} onOppna={() => {}} onStang={() => {}} onSkapa={() => {}} onSpara={() => {}} hubHref="/hub" bildIAnteckningAdress={adress} />);
-    expect(await bildlage()).toEqual({ lage: "bild", src: "https://appens.example/taxi.jpg", alt: "Taxi" });
-    expect(adress).toHaveBeenCalledWith({ postId: "a1", plats: "g", namn: "taxi.jpg" });
+  it("⛔ listan frågar inte efter bilderna; öppningen gör det, en gång för anteckningen, och bilden ritas med adressen", async () => {
+    const { api: a } = api({ "taxi.jpg": ADRESS });
+    await oppna(a);
+    expect(await bildlage(/** @type {HTMLElement} */ (document.querySelector("[data-bibliotek-detalj='anteckning']")))).toEqual({ lage: "bild", src: ADRESS, alt: "Taxi" });
+    expect(a.anteckningsbilder).toHaveBeenCalledTimes(1);
+    expect(a.anteckningsbilder).toHaveBeenCalledWith({ postId: "a1" });
+  });
+
+  it("tills svaret kommit står \"Hämtar bilden.\"", async () => {
+    const { api: a, svara } = api({}, { vanta: true });
+    await oppna(a);
+    expect(screen.getByText("Bild: Taxi. Hämtar bilden.")).toBeInTheDocument();
+    await act(async () => svara({ ok: true, bilder: { "taxi.jpg": ADRESS } }));
+    expect(await bildlage()).toEqual({ lage: "bild", src: ADRESS, alt: "Taxi" });
+  });
+
+  it("ett namn som inte finns i svaret, och en `javascript:`-adress, ger felraden", async () => {
+    for (const bilder of [{ "annan.jpg": ADRESS }, { "taxi.jpg": "javascript:alert(1)" }]) {
+      const { api: a } = api(bilder);
+      const { unmount } = await oppna(a);
+      expect(await bildlage()).toEqual({ lage: "fel", text: "Bild: Taxi. Bilden kunde inte visas." });
+      expect(document.querySelector("img[src^='javascript']")).toBeNull();
+      unmount();
+    }
+  });
+
+  it("⛔ en annan anteckning frågar efter sina egna bilder och får aldrig den förstas", async () => {
+    const { api: a } = api({ "taxi.jpg": ADRESS });
+    await oppna(a, "Annan");
+    expect(await bildlage()).toEqual({ lage: "fel", text: "Bilden kunde inte visas." });
+    expect(a.anteckningsbilder).toHaveBeenCalledWith({ postId: "a2" });
+    expect(a.anteckningsbilder).not.toHaveBeenCalledWith({ postId: "a1" });
   });
 });
 
@@ -171,15 +207,23 @@ describe("en adress som gått ut (0.207.0)", () => {
     expect(onNyUrl).toHaveBeenCalledTimes(1);
   });
 
-  it("i gästens bibliotek (ingen `onNyUrl`) står raden om att ladda om, och appens egen `bildIAnteckningAdress` behåller det allmänna felet", async () => {
-    const post = { id: "a1", groupId: "g", typ: "anteckning", rubrik: "Kvitton", text: TEXT, skapadAv: { uid: "", namn: "" }, bilder: { "taxi.jpg": ADRESS } };
-    const bas = { poster: [post], jag: null, vald: post, onOppna: () => {}, onStang: () => {}, onSkapa: () => {}, onSpara: () => {}, hubHref: "/hub" };
-    const { unmount } = render(<OpsBibliotek {...bas} />);
+  it("i gästens bibliotek står raden om att ladda om sidan, och utan `bildIAnteckningFel` behåller appens egen adress det allmänna felet", async () => {
+    const post = { id: "a1", typ: "anteckning", rubrik: "Kvitton", text: TEXT, skapad: 1, andrad: 1, skapadAvNamn: "Kim" };
+    const svar = { bibliotek: async () => ({ ok: true, poster: [post], avkortad: false }), anteckningsbilder: async () => ({ ok: true, bilder: { "taxi.jpg": ADRESS } }) };
+    const a = Object.fromEntries(GASTGRUPPATGARDER.map((n) => [n, vi.fn(async (args) => (/** @type {any} */ (svar)[n] ? /** @type {any} */ (svar)[n](args ?? {}) : { ok: false, orsak: "nej" }))]));
+    const { unmount } = render(<OpsGastGrupp grupp={{ namn: "Källan", funktioner: ["bibliotek"] }} api={/** @type {any} */ (a)} intervallMs={0} idag={new Date(2026, 10, 8)} />);
+    await act(async () => {
+      fireEvent.mouseDown(screen.getByRole("tab", { name: "Bibliotek" }), { button: 0 });
+    });
+    await act(async () => {
+      fireEvent.click(await screen.findByRole("button", { name: "Kvitton" }));
+    });
     await waitFor(() => expect(img()).not.toBeNull());
     fireEvent.error(/** @type {HTMLImageElement} */ (img()));
     expect(await screen.findByText("Bild: Taxi. Ladda om sidan för att se bilden.")).toBeInTheDocument();
     unmount();
-    render(<OpsBibliotek {...bas} bildIAnteckningAdress={() => "https://appens.example/taxi.jpg"} />);
+    const p2 = { ...post, groupId: "g", skapadAv: { uid: "", namn: "" } };
+    render(<OpsBibliotek poster={[p2]} jag={null} vald={p2} onOppna={() => {}} onStang={() => {}} onSkapa={() => {}} onSpara={() => {}} hubHref="/hub" bildIAnteckningAdress={() => "https://appens.example/taxi.jpg"} />);
     await waitFor(() => expect(img()).not.toBeNull());
     fireEvent.error(/** @type {HTMLImageElement} */ (img()));
     expect(await screen.findByText("Bild: Taxi. Bilden kunde inte visas.")).toBeInTheDocument();

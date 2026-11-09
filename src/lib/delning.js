@@ -346,15 +346,16 @@ export const HANDELSESVARSFALT = /** @type {const} */ (["slag", "titel", "beskri
 export const ANTECKNINGSSVARSFALT = /** @type {const} */ (["typ", "rubrik", "text", "bilder"]);
 
 /**
- * ⛔ BILDERNA I EN DELAD ANTECKNING (0.207.0, cllp/lifehub.app#696 skiva 2). `bilder` i `ANTECKNINGSSVARSFALT` (och i gästens `GASTBIBLIOTEKFALT`) är bildens filnamn i texten
+ * ⛔ BILDERNA I EN DELAD ANTECKNING (0.207.0, cllp/lifehub.app#696 skiva 2). `bilder` i `ANTECKNINGSSVARSFALT` (och i svaret på gästens `anteckningsbilder`) är bildens filnamn i texten
  * (`![alt](namn)`, `bilderI` i `lib/markdown.js`) till en signerad adress som gäller `SIGNERAD_SEKUNDER`. Fältet finns bara när texten har minst en bild och lagringen kan pröva att
  * filen finns (`finns`); en fil som saknas utelämnas, och vyn säger då "Bilden kunde inte visas.".
  *
  * ⛔ TAKEN. Varje bild kostar två anrop mot lagringen vid varje hämtning (finns, och en signering, som i Cloud Functions går genom IAM), och sidan är publik: vem som helst med länken
  * kan hämta den om och om igen. `MAX_ANTECKNINGSBILDER` (20) per anteckning räcker för ett kvitto, ett protokoll med skärmbilder eller en reseanteckning, och en anteckning med fler
  * bilder är ett album som hör hemma som filer i biblioteket. `MAX_ANTECKNINGSBILDER_PER_SVAR` (100) gäller hela svaret: en delad lista har upp till `MAX_DELADE_LISTPOSTER` (100)
- * poster och gästens bibliotek upp till `GASTBIBLIOTEK_MAX` (1000), och utan ett tak för svaret hade en hämtning kunnat bli tiotusentals anrop. Bilder efter postens tak får ingen adress
- * (vyn: "Bilden kunde inte visas."), och en anteckning som kommer efter svarets tak får inget `bilder` alls (vyn: "Bilden visas inte här än.").
+ * poster, och utan ett tak för svaret hade en hämtning kunnat bli tusentals anrop. Bilder efter postens tak får ingen adress (vyn: "Bilden kunde inte visas."), och en anteckning som
+ * kommer efter svarets tak får inget `bilder` alls (vyn: "Bilden visas inte här än."). ⛔ Gästens bibliotek skickar inga bilder med listan: de signeras först när gästen öppnar en
+ * anteckning (`anteckningsbilder` i gästtjänsten), som filerna (regel 13).
  */
 export const MAX_ANTECKNINGSBILDER = 20;
 /** Se `MAX_ANTECKNINGSBILDER`. */
