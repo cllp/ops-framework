@@ -101,9 +101,10 @@ const EGEN = "__gast_egen__";
  * @param {boolean} [props.fyll] (0.190.0, del B) Chatten fyller sin förälders höjd: loggen rullar i den och skrivfältet står längst ned. Gästens telefonvy, där ytan
  *   mellan huvudet och bottenraden har en mätt höjd, och sedan 0.195.0 också datorns (CP 2026-11-06: "Kan sidan gå ända ner eller hur blir det i chatten i Web?"). Utan den är loggen
  *   högst 60 % av fönstret, som förut. ⛔ I FYLLT LÄGE HAR LOGGEN INGEN EGEN RAM: den är hela ytan, som i Signal, och en ram runt den blev en ruta i en ruta.
+ * @param {import("./OpsMeddelanden.jsx").MeddelandeHref} [props.meddelandeHref] (lifehub.app#712) Adressen till ett meddelande i gästens chatt, för Kopiera länk i menyn. Ritas bara när den skickas in; utan den finns Kopiera (texten) ändå. Gästens chatt har inget `samtalId`; i en tråd följer `tradId` med.
  * @param {string} [props.gruppnamn] (0.195.0) Gruppens namn, till skrivfältets platstext ("Meddelande till {grupp}"). Utan den står skrivfältets egen platstext.
  */
-export function OpsGastChatt({ meddelanden, fler = false, onAldre, onSkriv, laddar = false, fel = null, onForsokIgen, sprak = "sv", ord, igenkanning = true, fyll = false, onLasTrad, onSkrivITrad, onOppnaPost, gruppnamn }) {
+export function OpsGastChatt({ meddelanden, fler = false, onAldre, onSkriv, laddar = false, fel = null, onForsokIgen, sprak = "sv", ord, igenkanning = true, fyll = false, onLasTrad, onSkrivITrad, onOppnaPost, gruppnamn, meddelandeHref }) {
   if (!Array.isArray(meddelanden)) {
     throw new Error("OpsGastChatt: meddelanden måste vara en lista, tom när chatten är tom. Utan den går det inte att skilja 'inga meddelanden' från 'inte hämtad'.");
   }
@@ -265,6 +266,7 @@ export function OpsGastChatt({ meddelanden, fler = false, onAldre, onSkriv, ladd
         onSkriv={onSkrivITrad ? (text) => skrivITrad(trad.id, text) : undefined}
         igenkanning={igenkanning}
         fyll={fyll}
+        meddelandeHref={meddelandeHref}
       />
     );
   }
@@ -304,6 +306,7 @@ export function OpsGastChatt({ meddelanden, fler = false, onAldre, onSkriv, ladd
             locale={locale}
             visaNamn
             texter={texter}
+            meddelandeHref={meddelandeHref}
             citat={{ pa: Boolean(onSkriv), onCitera: (m) => setSvarPa(/** @type {any} */ (m)), uppslag: /** @type {any} */ (uppslag) }}
             merFor={onLasTrad ? (m) => (antalSvar(m.id) > 0 ? [] : [{ id: "trad", etikett: texter.svaraITrad, ikon: <TradIkon size={16} />, onValj: () => oppnaTrad(m.id) }]) : undefined}
             postkort={postkort}
@@ -351,9 +354,9 @@ export function OpsGastChatt({ meddelanden, fler = false, onAldre, onSkriv, ladd
 
 /**
  * En tråd i gästens chatt (0.191.0): roten, svaren och skrivfältet. Samma bubblor som chatten (`Meddelanderader`).
- * @param {{ trad: { id: string, rot: any, meddelanden: any[], fel: boolean, laddar: boolean }, t: Record<string, string>, texter: any, locale: string, sprak: string, postkort: any, onStang: () => void, onSkriv?: (text: string) => Promise<unknown>, igenkanning: any, fyll: boolean }} props
+ * @param {{ trad: { id: string, rot: any, meddelanden: any[], fel: boolean, laddar: boolean }, t: Record<string, string>, texter: any, locale: string, sprak: string, postkort: any, onStang: () => void, onSkriv?: (text: string) => Promise<unknown>, igenkanning: any, fyll: boolean, meddelandeHref?: import("./OpsMeddelanden.jsx").MeddelandeHref }} props
  */
-function GastTrad({ trad, t, texter, locale, sprak, postkort, onStang, onSkriv, igenkanning, fyll }) {
+function GastTrad({ trad, t, texter, locale, sprak, postkort, onStang, onSkriv, igenkanning, fyll, meddelandeHref }) {
   const [skrivText, setSkrivText] = useState("");
   const [skickar, setSkickar] = useState(false);
   const [skrivFel, setSkrivFel] = useState("");
@@ -388,7 +391,7 @@ function GastTrad({ trad, t, texter, locale, sprak, postkort, onStang, onSkriv, 
         <OpsEmpty title={t.tradTom} />
       ) : (
         <div role="log" aria-label={t.trad} className={cx("flex min-w-0 flex-col overflow-y-auto", fyll ? LOGG_FYLLD : LOGG_RUTA)}>
-          <Meddelanderader meddelanden={/** @type {any} */ (rader)} uid={EGEN} namnFor={(/** @type {string} */ namn) => namn} medlemmar={[]} locale={locale} visaNamn texter={texter} postkort={postkort} />
+          <Meddelanderader meddelanden={/** @type {any} */ (rader)} uid={EGEN} namnFor={(/** @type {string} */ namn) => namn} medlemmar={[]} locale={locale} visaNamn texter={texter} postkort={postkort} meddelandeHref={meddelandeHref ? (a) => meddelandeHref({ ...a, tradId: trad.id }) : undefined} />
           {!trad.laddar && trad.rot && trad.meddelanden.length === 0 ? <p data-gast-chatt-tradtom="" className="m-0 pt-2 text-meta text-ink-muted">{t.tradTom}</p> : null}
         </div>
       )}

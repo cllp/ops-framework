@@ -9,6 +9,31 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.211.0
+
+Chattens meddelandemeny har Kopiera och Kopiera länk (lifehub.app#712), appens API-agenter går att nämna med @ (lifehub.app#723), och gästens fildetalj läcker inte den signerade adressen när nedladdning är avstängd (#560).
+
+### Tillagt
+
+- **Kopiera och Kopiera länk i meddelandets meny**, för medlem och gäst (lifehub.app#712). På dator står en ⋮ vid hovring med det som inte redan är en egen knapp. Den ritas bara på meddelandet pekaren eller fokuset står på: med en ⋮ på varje meddelande blev det 33 element per meddelande mot taket 26 (`check:skalyta` 47 (6), regel 13), nu 26. På telefon och pekskärm är menyn som förut, med de nya raderna. Kopiera skriver texten till urklipp inne i trycket och säger "Kopierat", eller ett synligt fel om urklippet nekas. Kopiera länk ritas bara när appen skickar in `meddelandeHref` (`OpsMeddelanden`, `OpsSamtal`, `OpsTrad`, `Meddelanderader`, `OpsGastChatt`): ramverket känner aldrig appens rutter. Typen är `MeddelandeHref`: `({ meddelandeId, samtalId?, tradId? }) => string | null | undefined`, och en relativ adress görs absolut mot sidan.
+- **Klistra in en bild i chatten** (CP 2026-11-09 i Dev). En inklistring med filer och utan text i skrivfältet går samma väg som plusmenyn (`onBifoga`), i ett anrop: bara bilder som `bild`, annars `fil`, och fler än en fil ger utkastets synliga "en bilaga i taget" som plusmenyns filval. ⛔ Texten vinner: Excel, Numbers och Word lägger både texten och en bild av den i urklippet, och då klistras texten in (granskningen av PR 561). Utan `onBifoga` händer ingenting extra.
+- **`byggReaktion` och `REAKTIONSKODER` exporteras också från `ops-framework/node`**, så att en apps server (API:t) kan skriva en reaktion med samma form och nyckel som chatten.
+- **`flerOmnamnbara`** på `OpsMeddelanden`, `OpsSamtal` och `OpsTrad` (lifehub.app#723): fler som går att nämna med @ utöver de aktiva medlemmarna, till exempel appens API-agenter, vars medlemskap står som avslutat. ⛔ De läggs bara till @-listan. Agentval, mottagare och medlemslistor läser `medlemmar` och ser dem aldrig. Den som redan är kandidat och en själv läggs inte till igen. Utan propen är listan som förut.
+
+### Rättat
+
+- **Gästens fildetalj med `utanNedladdning`** (#560): filnamnet är text, inte en länk med den signerade adressen, i alla fyra fallen (video, textfil, HTML utan `hamtaFil`, övriga). Med nedladdning på är det en länk som förut.
+- **Kvittot och felet för gästens Kopiera länk** följer språket, i stället för hårdkodad svenska.
+- **Bibliotekets ljudspelare utan spelarskal** respekterar `utanNedladdning`, i listan och i detaljen. Förut ritade den Ladda ned med den signerade adressen (granskningen av PR 561). Gästens grupp har ett skal, så vägen nåddes inte i appen i dag.
+- JSDoc i `handelsemodell.js` säger Kommer, Kanske eller Kommer inte.
+
+### Prov
+
+- `chatt-kopiera-712`: 9 av 9 röda utan ändringen. ⋮ bara vid pekare eller fokus: 2 röda utan. ⋮ står kvar när musen lämnar raden medan tangentbordet står på den, och försvinner när fokus lämnar raden (granskningen av PR 561): röd utan.
+- `chatt-klistra-bild`: 2 av 5 röda utan ändringen. De andra visar att text och en chatt utan bilagor är orörda. Bild och pdf i ett anrop, och text med en bild av texten: båda röda utan granskningens rättelse.
+- `chatt-flera-omnamnbara-723`: 2 av 4 röda utan ändringen. De två andra visar med avsikt att listan utan propen och agentvalet är oförändrade.
+- `gast-filnamn-560`: 12 av 13 röda utan ändringen. Det gröna är det svenska kvittot, som är oförändrat. Ljudet utan skal: 1 av 2 röda utan `utanNedladdning` på spelaren.
+
 ## 0.210.0
 
 Kanske är ett svar på en händelse, för medlem och gruppgäst (lifehub.app#713). Gästens biblioteksmeny har Kopiera länk (lifehub.app#716).

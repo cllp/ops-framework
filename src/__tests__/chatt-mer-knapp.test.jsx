@@ -109,13 +109,18 @@ describe("en Mer-knapp per meddelande på telefon", () => {
 
   it("⛔ med känd bredd ritas bara den ena uppsättningen: Mer på telefon, de lösa knapparna på dator (regel 13)", async () => {
     const { s, g } = await underlag();
-    for (const [smal, finns, saknas] of /** @type {const} */ ([[true, "[data-mer]", "[data-reagera]"], [false, "[data-reagera]", "[data-mer]"]])) {
+    for (const [smal, finns, saknas] of /** @type {const} */ ([[true, "[data-mer]", "[data-reagera]"], [false, "[data-reagera]", "[data-mer]:not([data-mer-kopior])"]])) {
       // Bara bredden stubbas: med mus (0.190.0 läser också `(pointer: coarse)`, och en pekskärm har ingen ⋮ alls).
       vi.stubGlobal("matchMedia", (/** @type {string} */ q) => ({ matches: q.includes("max-width") ? smal : false, media: q, addEventListener() {}, removeEventListener() {} }));
       const { unmount } = render(<OpsMeddelanden kalla={s} uid="anna" groupId="g" gruppNamn="G" medlemmar={MEDLEMMAR} valt={g.id} />);
       await within(await screen.findByRole("log")).findByText("Fäst den här");
       expect(document.querySelectorAll(finns).length).toBe(2);
       expect(document.querySelectorAll(saknas).length).toBe(0);
+      // (lifehub.app#712) På dator har ⋮ ändå en plats, med bara Kopiera: det som saknas som knapp vid hovring. Den bär `data-mer-kopior` och är inte telefonens meny.
+      // Den ritas bara på meddelandet pekaren står på (regel 13, taket på element per meddelande): ingen i vila, en vid hovring.
+      expect(document.querySelectorAll("[data-mer-kopior]").length).toBe(0);
+      fireEvent.mouseEnter(/** @type {HTMLElement} */ (document.querySelector("[data-meddelande]")));
+      expect(document.querySelectorAll("[data-mer-kopior]").length).toBe(smal ? 0 : 1);
       // Nålen på det fästa meddelandet står kvar på båda.
       expect(document.querySelectorAll("[data-fast][aria-pressed='true']").length).toBe(1);
       unmount();

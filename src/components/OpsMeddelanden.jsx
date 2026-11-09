@@ -93,6 +93,14 @@ import { AgentIkon, AndraIkon, KopieraIkon, ArkiveraIkon, TaFramIkon, BildIkon, 
  */
 
 /**
+ * Appens väg till ett meddelande (lifehub.app#712). Ramverket känner aldrig appens rutter: appen bygger adressen. Ger den en sträng har meddelandets meny
+ * "Kopiera länk" (en relativ adress görs absolut mot sidans adress); ger den `null` eller inget, eller saknas funktionen, finns inte raden.
+ * `samtalId` saknas i gästens chatt (en chatt, inget val), `tradId` finns när meddelandet står i en tråd.
+ *
+ * @typedef {(arg: { meddelandeId: string, samtalId?: string, tradId?: string }) => (string | null | undefined)} MeddelandeHref
+ */
+
+/**
  * @typedef {object} Meddelandetexter
  * @property {string} [rubrik] Förval "Meddelanden".
  * @property {string} [nytt] Förval "Nytt meddelande".
@@ -155,6 +163,9 @@ import { AgentIkon, AndraIkon, KopieraIkon, ArkiveraIkon, TaFramIkon, BildIkon, 
  * @property {string} [kopiera] (0.106.0, #386) Posten i meddelandets meny på telefon. Förval "Kopiera".
  * @property {string} [kopierat] Raden efter en lyckad kopiering. Förval "Kopierat".
  * @property {string} [kopieraFel] När webbläsaren inte släpper in urklippet. Förval "Texten kunde inte kopieras.".
+ * @property {string} [kopieraLank] (lifehub.app#712) Posten "Kopiera länk" i meddelandets meny. Ritas bara när appen skickar in `meddelandeHref`. Förval "Kopiera länk".
+ * @property {string} [lankKopierad] Raden efter en lyckad "Kopiera länk". Förval "Länken är kopierad".
+ * @property {string} [kopieraLankFel] När länken inte kunde kopieras. Förval "Länken kunde inte kopieras.".
  * @property {string} [dittMeddelande] Menyns namn för ett eget meddelande. Förval "Ditt meddelande".
  * @property {string} [reaktionFel] Förval "Reaktionen kunde inte sparas.".
  * @property {string} [reaktionerFel] Förval "Reaktionerna kunde inte hämtas.".
@@ -354,6 +365,9 @@ const ORD_MEDDELANDEN = {
   kopiera: { sv: "Kopiera", en: "Copy" },
   kopierat: { sv: "Kopierat", en: "Copied" },
   kopieraFel: { sv: "Texten kunde inte kopieras.", en: "The text could not be copied." },
+  kopieraLank: { sv: "Kopiera länk", en: "Copy link" },
+  lankKopierad: { sv: "Länken är kopierad", en: "The link is copied" },
+  kopieraLankFel: { sv: "Länken kunde inte kopieras.", en: "The link could not be copied." },
   dittMeddelande: { sv: "Ditt meddelande", en: "Your message" },
   reaktionFel: { sv: "Reaktionen kunde inte sparas.", en: "The reaction could not be saved." },
   reaktionerFel: { sv: "Reaktionerna kunde inte hämtas.", en: "The reactions could not be loaded." },
@@ -726,6 +740,8 @@ export function texterPa(sprak, texter) {
  * @param {string} [props.activeHref] (0.89.0) Krävs med `ram`. `?lage=installningar` ersätter chatten med inställningarna.
  * @param {import("../lib/modul.js").Modul | null} [props.modul] (0.89.0) Manifestet inställningarna läser. Krävs med `ram`, tillsammans med `tillbaka.hubHref`.
  * @param {(agent: { id: string, namn: string }) => void} [props.onVisaAgent] (0.90.0) Tryck på agentens namn och ikon i samtalets huvud, och på agentens avatar i en tråd, öppnar den agentens inställningar. Utan den är huvudet text.
+ * @param {MeddelandeHref} [props.meddelandeHref] (lifehub.app#712) Appens väg till ett meddelande, för "Kopiera länk" i menyn. Ramverket känner aldrig appens rutter. Utan den finns inte raden.
+ * @param {ReadonlyArray<Omnamnbar>} [props.flerOmnamnbara] (lifehub.app#723) Fler som går att nämna med @, utöver de aktiva medlemmarna: appens API-agenter, vars medlemskap står som "avslutad". De läggs bara till @-listan och påverkar aldrig agentval, mottagare eller medlemslistor. Nämnandet skrivs som vanligt i `namner` (id). Utan den är listan exakt som förut.
  * @param {(f: { sid: string, mid: string, id: string }) => Promise<import("../lib/forslag.js").Forslagssvar>} [props.onForslag] (0.105.0) Agentens
  *   förslag som knappar under hens svar (`OpsForslag`). Ett meddelande från en medlem av typen agent som bär `forslag` (`{ id, etikett,
  *   ikon?, text? }`, skrivet av appens server) får knapparna, och ett tryck anropar den här med samtalet, meddelandet och förslagets id.
@@ -736,7 +752,7 @@ export function texterPa(sprak, texter) {
  * @param {string} [props.nyttUtkast] (0.105.0) Texten som står i skrivfältet när läget "nytt" öppnas, till exempel det man sade i TALK och
  *   valde Meddelande för. Ingenting skickas: personen väljer mottagare och trycker Skicka.
  */
-export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt, nytt, valtAgent, onValj, onOlasta, valtTrad, onValjTrad, sprak: sprakProp, texter = {}, postkort, onTranscribe, onStoppaAgent, inspelare, igenkanning, onBifoga, franBiblioteket, mejl, onLyftTillMinnet, minneHref, tillbaka, ram = null, activeHref, modul = null, onVisaAgent, onForslag, nyttUtkast }) {
+export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt, nytt, valtAgent, onValj, onOlasta, valtTrad, onValjTrad, sprak: sprakProp, texter = {}, postkort, onTranscribe, onStoppaAgent, inspelare, igenkanning, onBifoga, franBiblioteket, mejl, onLyftTillMinnet, minneHref, tillbaka, ram = null, activeHref, modul = null, onVisaAgent, onForslag, nyttUtkast, meddelandeHref, flerOmnamnbara }) {
   kravRam(ram, "OpsMeddelanden");
   if (onForslag !== undefined && typeof onForslag !== "function") throw new Error(`OpsMeddelanden: onForslag ska vara en funktion, fick ${typeof onForslag}.`);
   if (nyttUtkast !== undefined && typeof nyttUtkast !== "string") throw new Error(`OpsMeddelanden: nyttUtkast ska vara en sträng, fick ${typeof nyttUtkast}.`);
@@ -1176,7 +1192,7 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
             groupId={groupId}
             agent={nyAgent}
             utkast={nyttUtkast}
-            samtalsprops={{ postkort, onTranscribe, onStoppaAgent, inspelare, igenkanning, namnFor, medlemmar, sprak, texter: t, onBifoga, franBiblioteket, mejl, onVisaAgent, onForslag }}
+            samtalsprops={{ postkort, onTranscribe, onStoppaAgent, inspelare, igenkanning, namnFor, medlemmar, sprak, texter: t, onBifoga, franBiblioteket, mejl, onVisaAgent, onForslag, meddelandeHref, flerOmnamnbara }}
             marke={<OpsIdentity name={namn.get(nyAgent)?.namn || t.agent} seed={nyAgent} size="md" icon={AgentIkon} rund />}
             onTillbaka={() => valj(null, { agent: nyAgent })}
             onSkapat={(s, m) => {
@@ -1230,6 +1246,8 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
             onLyftTillMinnet={onLyftTillMinnet}
             minneHref={minneHref}
             onVisaAgent={onVisaAgent}
+            meddelandeHref={meddelandeHref}
+            flerOmnamnbara={flerOmnamnbara}
           />
         ) : vald?.ej && groupId ? (
           <OppnaGruppchatt key={vald.samtal.id} kalla={kalla} uid={uid} groupId={groupId} texter={t} onOppnad={(s) => laggIn(s)} />
@@ -1265,6 +1283,8 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
             mejl={mejl}
             onVisaAgent={onVisaAgent}
             onForslag={onForslag}
+            meddelandeHref={meddelandeHref}
+            flerOmnamnbara={flerOmnamnbara}
             {...(iAmne && amnesAgent ? { amne: { agentnamn: namnFor(amnesAgent), onTillbaka: () => valj(null, { agent: amnesAgent }), onAndrat: lasOm } } : {})}
           />
         ) : (
@@ -1829,6 +1849,24 @@ export function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, sprak, 
           setText(e.target.value);
           las(e.target.value, e.target.selectionStart ?? e.target.value.length);
         }}
+        // ⛔ KLISTRA IN EN BILD (CP 2026-11-09 i Dev: "jag kan inte klippa in en bild i chatten. Det behöver vi kunna"). En inklistring som bär FILER går samma väg som plusmenyn
+        // (`onBifoga`): bilder som "bild", annat som "fil". En inklistring med bara text lämnas orörd till fältet, så att vanligt klistrande inte stjäls (samma regel som `OpsFilePicker`).
+        // Utan `onBifoga` (en chatt utan bilagor) händer ingenting extra.
+        onPaste={
+          onBifoga
+            ? (e) => {
+                const filer = [...(e.clipboardData?.files ?? [])];
+                if (!filer.length) return;
+                // ⛔ TEXTEN VINNER. Excel, Numbers och Word lägger både texten och en bild av den i urklippet, och den som klistrar in därifrån
+                // vill ha texten. Bara ett urklipp utan text (en skärmbild, en kopierad bild) blir en bilaga.
+                if (e.clipboardData?.getData("text/plain")) return;
+                e.preventDefault();
+                // ⛔ ETT ANROP MED ALLA FILERNA, som plusmenyns filval: fler än en ger utkastets synliga fel (`enBilaga`), i stället för att två
+                // anrop skriver över varandra och den ena bilagan försvinner tyst.
+                onBifoga(filer, filer.every((f) => f.type.startsWith("image/")) ? "bild" : "fil");
+              }
+            : undefined
+        }
         onKeyDown={(e) => {
           if (oppen) {
             if (e.key === "ArrowDown" || e.key === "ArrowUp") {
@@ -2163,17 +2201,38 @@ function Bibliotekvaljare({ kalla, texter: t, onStang, onValt }) {
 }
 
 /**
- * Vilka som går att nämna: aktiva medlemmar utom en själv, och "@alla" i gruppchatten och trådar. `null` när källan saknar
+ * Någon som går att nämna med @ men som inte är en medlem att prata med (lifehub.app#723): en API-nyckels agent. Appen lägger nyckelns medlemskap med status
+ * "avslutad", bara för att namnge vad nyckeln skrev, eftersom chatten tar "första aktiva agenten" ur medlemslistan och en nyckel inte får bli något man pratar med.
+ *
+ * @typedef {object} Omnamnbar
+ * @property {string} userId Det som skrivs i `namner` när personen nämns, samma sort id som en medlems.
+ * @property {string} [namn] Namnet i listan. Utan det slås id:t upp som för en medlem (`namnFor`).
+ * @property {string} [typ] Förval "agent".
+ */
+
+/**
+ * Vilka som går att nämna: aktiva medlemmar utom en själv, och "@alla" i gruppchatten och trådar, samt de appen ber om (`flerOmnamnbara`). `null` när källan saknar
  * omnämnanden eller samtalet är privat (där finns ingen att nämna som inte redan läser).
+ *
+ * ⛔ `flerOmnamnbara` LÄGGS BARA TILL KANDIDATERNA (lifehub.app#723). Den är inte medlemmar: agentvalet, mottagarna och medlemslistorna läser `medlemmar` och ser den aldrig.
+ * Den som redan är kandidat (en aktiv medlem) och en själv läggs inte till en gång till.
+ *
  * @param {unknown} kalla @param {string} slag @param {ReadonlyArray<Medlemsrad> | undefined} medlemmar @param {string} uid
  * @param {(uid: string) => string} namnFor
+ * @param {ReadonlyArray<Omnamnbar>} [fler]
  * @returns {Omnamnande | null}
  */
-function omnamnandeFor(kalla, slag, medlemmar, uid, namnFor) {
+function omnamnandeFor(kalla, slag, medlemmar, uid, namnFor, fler) {
   if (!harOmnamnanden(kalla) || slag !== "grupp") return null;
   const kandidater = (medlemmar ?? [])
     .filter((m) => m && m.userId !== uid && (m.status ?? "aktiv") === "aktiv")
     .map((m) => ({ uid: m.userId, namn: namnFor(m.userId), typ: m.typ ?? "person" }));
+  const finns = new Set([uid, ...kandidater.map((k) => k.uid)]);
+  for (const o of fler ?? []) {
+    if (!o || typeof o.userId !== "string" || o.userId === "" || finns.has(o.userId)) continue;
+    finns.add(o.userId);
+    kandidater.push({ uid: o.userId, namn: o.namn?.trim() || namnFor(o.userId), typ: o.typ ?? "agent" });
+  }
   return { kandidater, alla: true };
 }
 
@@ -2339,13 +2398,15 @@ function agentDeltagare(samtal, uid, medlemmar) {
  *   källan läser ramverket filen själv och den här anropas inte. Utan `bilagor` lämnas filerna hit, och utan den ritas inget plus.
  * @param {string} [props.mejl] (0.80.0, #301) Adressen appen skickar in. Utan den ritas ingen mejlknapp.
  * @param {(agent: { id: string, namn: string }) => void} [props.onVisaAgent] (0.90.0) Gör namn och ikon i ett agentsamtal till en knapp.
+ * @param {MeddelandeHref} [props.meddelandeHref] (lifehub.app#712) Appens väg till ett meddelande, för "Kopiera länk" i menyn. Ramverket känner aldrig appens rutter. Utan den finns inte raden.
+ * @param {ReadonlyArray<Omnamnbar>} [props.flerOmnamnbara] (lifehub.app#723) Fler som går att nämna med @, utöver de aktiva medlemmarna: appens API-agenter, vars medlemskap står som "avslutad". De läggs bara till @-listan och påverkar aldrig agentval, mottagare eller medlemslistor. Nämnandet skrivs som vanligt i `namner` (id). Utan den är listan exakt som förut.
  * @param {{ agentnamn: string, onTillbaka: () => void, onAndrat?: () => void }} [props.amne] (0.106.0, #386) Samtalet är ett ämne med
  *   agenten: huvudet visar ämnets rubrik och Arkivera, och en rad överst leder tillbaka till agentens samtal. Kräver `amnen` på källan.
  * @param {boolean} [props.ny] (0.106.0) Ämnet är inte skrivet än (`nyttAmne`). Ingenting läses, och första Skicka skapar samtalet och
  *   meddelandet med `skickaIAmne`. Kräver `amne`.
  * @param {(samtal: import("../lib/samtal.js").Samtal, meddelande: any) => void} [props.onSkapat] (0.106.0) Anropas när ett nytt ämne skapats.
  */
-export function OpsSamtal({ kalla, uid, samtal, rubrik: rubrikProp, marke, lastTill: lastTillProp, namnFor, medlemmar, onLast, onSkickat, utkast, onOppnaTrad, tradminne, fokusRot, onFokuserad, sprak: sprakProp, texter = {}, postkort, onTranscribe, onStoppaAgent, inspelare, igenkanning, onBifoga: onBifogaProp, franBiblioteket, mejl, onVisaAgent, onForslag, amne: amneProp, ny = false, onSkapat }) {
+export function OpsSamtal({ kalla, uid, samtal, rubrik: rubrikProp, marke, lastTill: lastTillProp, namnFor, medlemmar, onLast, onSkickat, utkast, onOppnaTrad, tradminne, fokusRot, onFokuserad, sprak: sprakProp, texter = {}, postkort, onTranscribe, onStoppaAgent, inspelare, igenkanning, onBifoga: onBifogaProp, franBiblioteket, mejl, onVisaAgent, onForslag, meddelandeHref, flerOmnamnbara, amne: amneProp, ny = false, onSkapat }) {
   // ⛔ Språket ur appens `OpsSprakProvider` när appen inte gav ett (0.46.0, cllp/bolag-ops#528).
   const sprakKontext = useOpsSprak();
   const sprak = sprakProp ?? sprakKontext;
@@ -2653,6 +2714,7 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik: rubrikProp, marke, lastT
           fasta={fasta.pa ? fasta : null}
           postkort={postkort}
           onForslag={onForslag}
+          meddelandeHref={meddelandeHref}
           uid={uid}
           namnFor={namnFor}
           medlemmar={medlemmar}
@@ -2740,7 +2802,7 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik: rubrikProp, marke, lastT
         texter={t}
         sprak={sprak}
         fokus={utkast !== undefined}
-        omnamnande={omnamnandeFor(kalla, samtal.slag, medlemmar, uid, namnFor)}
+        omnamnande={omnamnandeFor(kalla, samtal.slag, medlemmar, uid, namnFor, flerOmnamnbara)}
         fokusNyckel={svarPa?.id}
         onEscape={svarPa ? () => setSvarPa(null) : undefined}
         platstext={samtal.slag === "grupp" ? t.skrivGrupp : samtal.slag === "agent" ? t.skrivAgent : t.skriv}
@@ -2956,8 +3018,10 @@ function sammaVia(a, b) {
  * @param {(agent: { id: string, namn: string }) => void} [props.onVisaAgent] (0.90.0) Agentens avatar i en tråd öppnar inställningarna.
  * @param {(f: { sid: string, mid: string, id: string }) => Promise<import("../lib/forslag.js").Forslagssvar>} [props.onForslag] (0.105.0) Förslagen under agentens svar.
  * @param {string | null} [props.nyttFran] (0.106.0) Meddelandet som avdelaren "Nytt sedan sist" står före.
+ * @param {MeddelandeHref} [props.meddelandeHref] (lifehub.app#712) Adressen till ett meddelande. Med den har menyn "Kopiera länk"; utan den finns inte raden.
+ * @param {ReadonlyArray<Omnamnbar>} [props.flerOmnamnbara] (lifehub.app#723) Fler som går att nämna med @, utöver de aktiva medlemmarna: appens API-agenter, vars medlemskap står som "avslutad". De läggs bara till @-listan och påverkar aldrig agentval, mottagare eller medlemslistor. Nämnandet skrivs som vanligt i `namner` (id). Utan den är listan exakt som förut.
  */
-export function Meddelanderader({ meddelanden, uid, namnFor: namnForProp, medlemmar, locale, visaNamn, efter, merFor, forraTid, reakt, texter = TEXTER, citat, traffar, fasta, postkort, kalla, sid, trad, onVisaAgent, onForslag, nyttFran = null }) {
+export function Meddelanderader({ meddelanden, uid, namnFor: namnForProp, medlemmar, locale, visaNamn, efter, merFor, forraTid, reakt, texter = TEXTER, citat, traffar, fasta, postkort, kalla, sid, trad, onVisaAgent, onForslag, nyttFran = null, meddelandeHref }) {
   const bredd = useBredd();
   // ⛔ EN GÄSTS NAMN STÅR PÅ MEDDELANDET (`avNamn`, satt av servern när gästen skriver), för gästen är ingen medlem och har ingen rad i medlemslistan. Märket "Gäst" härleds ur `av` (`arGastId`),
   // eller ur `gast: true` i gästens egen vy (där `av` är ett namn): inget annat fält, så märket kan inte saknas på ett meddelande en gäst skrev och inte sitta på en medlems.
@@ -2974,6 +3038,12 @@ export function Meddelanderader({ meddelanden, uid, namnFor: namnForProp, medlem
   const pekskarm = usePekskarm();
   const [meny, setMeny] = useState(/** @type {{ id: string, punkt: { x: number, y: number } } | null} */ (null));
   const menyPa = bredd !== "bred" || pekskarm;
+  /*
+   * ⛔ DATORNS ⋮ MED KOPIORNA RITAS BARA PÅ DET MEDDELANDE PEKAREN ELLER FOKUSET STÅR PÅ (lifehub.app#712, CI 2026-11-09). Med en ⋮ i DOM:en på varje meddelande
+   * blev det 33 element per meddelande mot taket 26 (regel 13, `check:skalyta` avsnitt 47 (6)), och chatten ritas långsammare ju fler meddelanden den har.
+   * Pekaren eller fokuset (som bubblar upp från meddelandets knappar) avgör vilket meddelande som har den. På telefon och pekskärm gäller menyn som förut.
+   */
+  const [aktivRad, setAktivRad] = useState(/** @type {string | null} */ (null));
   return (
     <>
       {meddelanden.map((m, i, alla) => {
@@ -3004,7 +3074,7 @@ export function Meddelanderader({ meddelanden, uid, namnFor: namnForProp, medlem
                 <span aria-hidden="true" className="h-px flex-1 bg-accent" />
               </div>
             ) : null}
-            <div data-meddelande={egen ? "eget" : "annans"} data-vantar={vantar ? "" : undefined} className={cx("group flex gap-2", fortsattning ? "mt-px" : "mt-2", egen ? "flex-row-reverse" : "", vantar && "opacity-70")}>
+            <div data-meddelande={egen ? "eget" : "annans"} data-vantar={vantar ? "" : undefined} onMouseEnter={menyPa ? undefined : () => setAktivRad(m.id)} onMouseLeave={menyPa ? undefined : (e) => { const rad = e.currentTarget; setAktivRad((a) => (a === m.id && meny?.id !== m.id && !rad.contains(document.activeElement) ? null : a)); }} onFocus={menyPa ? undefined : () => setAktivRad(m.id)} onBlur={menyPa ? undefined : (e) => { const rad = e.currentTarget; const till = e.relatedTarget; if (till instanceof Node && rad.contains(till)) return; if (rad.matches(":hover")) return; setAktivRad((a) => (a === m.id && meny?.id !== m.id ? null : a)); }} className={cx("group flex gap-2", fortsattning ? "mt-px" : "mt-2", egen ? "flex-row-reverse" : "", vantar && "opacity-70")}>
               {!egen ? (
                 <span className="w-8 shrink-0">
                   {!fortsattning ? (
@@ -3102,7 +3172,7 @@ export function Meddelanderader({ meddelanden, uid, namnFor: namnForProp, medlem
                   <AgentensForslag varde={/** @type {any} */ (m).forslag} sid={sid} mid={m.id} onForslag={onForslag} />
                 ) : null}
                 {reakt?.pa && !vantar ? <Reaktionschips m={m} egen={egen} reakt={reakt} texter={texter} /> : null}
-                <Meddelandemeta m={m} egen={egen} bredd={bredd} menyPa={menyPa} pekskarm={pekskarm} oppnadVid={meny?.id === m.id ? meny.punkt : null} onOppnadVid={(v) => { if (!v) setMeny(null); }} extra={extra} mer={vantar ? [] : merFor?.(m) ?? []} namn={egen ? texter.dittMeddelande : `${texter.svarPa} ${avNamnFor(namnFor, m, uid, texter.du, sprak)}`} reakt={vantar ? undefined : reakt} fasta={vantar ? null : fasta} citat={vantar ? null : citat} texter={texter} />
+                <Meddelandemeta m={m} egen={egen} bredd={bredd} menyPa={menyPa} pekskarm={pekskarm} oppnadVid={meny?.id === m.id ? meny.punkt : null} onOppnadVid={(v) => { if (!v) setMeny(null); }} extra={extra} mer={vantar ? [] : merFor?.(m) ?? []} namn={egen ? texter.dittMeddelande : `${texter.svarPa} ${avNamnFor(namnFor, m, uid, texter.du, sprak)}`} reakt={vantar ? undefined : reakt} fasta={vantar ? null : fasta} citat={vantar ? null : citat} texter={texter} visaKopior={aktivRad === m.id} lank={meddelandeHref && !vantar ? meddelandeHref({ meddelandeId: m.id, ...(sid ? { samtalId: sid } : {}), ...(trad ? { tradId: trad } : {}) }) : null} />
               </div>
             </div>
           </div>
@@ -3153,8 +3223,10 @@ export function Meddelanderader({ meddelanden, uid, namnFor: namnForProp, medlem
  *   (0.86.0) Knappen "Lyft till minnet" på rotmeddelandet och på svaren. Utan den ingen knapp.
  * @param {string} [props.minneHref] (0.86.0) Länk till minnesvyn i trådens huvud. Utan den ingen länk.
  * @param {(agent: { id: string, namn: string }) => void} [props.onVisaAgent] (0.90.0) Agentens avatar i tråden öppnar inställningarna.
+ * @param {MeddelandeHref} [props.meddelandeHref] (lifehub.app#712) Appens väg till ett meddelande, för "Kopiera länk" i menyn. Ramverket känner aldrig appens rutter. Utan den finns inte raden.
+ * @param {ReadonlyArray<Omnamnbar>} [props.flerOmnamnbara] (lifehub.app#723) Fler som går att nämna med @, utöver de aktiva medlemmarna: appens API-agenter, vars medlemskap står som "avslutad". De läggs bara till @-listan och påverkar aldrig agentval, mottagare eller medlemslistor. Nämnandet skrivs som vanligt i `namner` (id). Utan den är listan exakt som förut.
  */
-export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, medlemmar, onStang, onSvarat, onDopt, sprak: sprakProp, texter = {}, postkort, onTranscribe, onStoppaAgent, inspelare, igenkanning, onBifoga: onBifogaProp, franBiblioteket, mejl, onLyftTillMinnet, minneHref, onVisaAgent }) {
+export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, medlemmar, onStang, onSvarat, onDopt, sprak: sprakProp, texter = {}, postkort, onTranscribe, onStoppaAgent, inspelare, igenkanning, onBifoga: onBifogaProp, franBiblioteket, mejl, onLyftTillMinnet, minneHref, onVisaAgent, meddelandeHref, flerOmnamnbara }) {
   if (!harTradar(kallan)) throw new Error("OpsTrad: källan har inga trådar. Skicka `tradar` till createSamtalskalla, med samma namn som till samtalsregelfragment.");
   const kalla = kallan;
   const sprakKontext = useOpsSprak();
@@ -3510,7 +3582,7 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
         ) : null}
         <div data-rotmeddelande="" className="border-b border-line pb-2">
           {rot ? (
-            <Meddelanderader meddelanden={[rot]} efter={lyftEfter} merFor={lyftMer} kalla={kalla} sid={samtal.id} uid={uid} namnFor={namnFor} medlemmar={medlemmar} locale={locale} visaNamn texter={t} onVisaAgent={onVisaAgent} />
+            <Meddelanderader meddelanden={[rot]} efter={lyftEfter} merFor={lyftMer} kalla={kalla} sid={samtal.id} uid={uid} namnFor={namnFor} medlemmar={medlemmar} locale={locale} visaNamn texter={t} onVisaAgent={onVisaAgent} meddelandeHref={meddelandeHref} />
           ) : rot === null ? (
             <p className="m-0 py-3 text-meta text-ink-muted">{t.rotSaknas}</p>
           ) : null}
@@ -3520,7 +3592,7 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
         </p>
         <VisaAldre historik={historik} texter={t} />
         <Reaktionslage reakt={reakt} texter={t} />
-        <Meddelanderader meddelanden={visade} efter={skickasEfter} merFor={lyftMer} reakt={reakt} texter={t} postkort={postkort} kalla={kalla} sid={samtal.id} trad={tid} traffar={sok.oppen ? { ids: sok.traffar, aktuell: sok.aktuell } : null} uid={uid} namnFor={namnFor} medlemmar={medlemmar} locale={locale} visaNamn forraTid={rot?.tid} onVisaAgent={onVisaAgent} />
+        <Meddelanderader meddelanden={visade} efter={skickasEfter} merFor={lyftMer} reakt={reakt} texter={t} postkort={postkort} kalla={kalla} sid={samtal.id} trad={tid} traffar={sok.oppen ? { ids: sok.traffar, aktuell: sok.aktuell } : null} uid={uid} namnFor={namnFor} medlemmar={medlemmar} locale={locale} visaNamn forraTid={rot?.tid} onVisaAgent={onVisaAgent} meddelandeHref={meddelandeHref} />
         <Agentrad lage={agentlage} texter={t} />
       </div>
       <TillSenaste lage={lasposition} arbetar={arbetsord(agentlage)} texter={t} />
@@ -3535,7 +3607,7 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
         texter={t}
         sprak={sprak}
         fokus
-        omnamnande={omnamnandeFor(kalla, samtal.slag, medlemmar, uid, namnFor)}
+        omnamnande={omnamnandeFor(kalla, samtal.slag, medlemmar, uid, namnFor, flerOmnamnbara)}
         platstext={t.skrivTrad}
         onTranscribe={onTranscribe}
         inspelare={inspelare}
@@ -4096,6 +4168,18 @@ function Langtryckbubbla({ pa, onMeny, children }) {
 }
 
 /**
+ * Appens adress till ett meddelande som den skrivs till urklipp: en relativ adress (`/chatt?m=1`) görs absolut mot sidan, så att den fungerar när den klistras in någon annanstans.
+ * @param {string} href
+ */
+function absolutAdress(href) {
+  try {
+    return typeof location === "undefined" ? href : new URL(href, location.href).href;
+  } catch {
+    return href;
+  }
+}
+
+/**
  * Raden under bubblan: tiden, vyns innehåll (trådens märke), och meddelandets åtgärder.
  *
  * ⛔ EN MER-KNAPP PER MEDDELANDE PÅ TELEFON (0.106.0, #386 skiva 6). Under 768 px stod Reagera, Fäst och Svara med citat som tre lösa
@@ -4113,12 +4197,12 @@ function Langtryckbubbla({ pa, onMeny, children }) {
  *   mer: import("./OpsAtgardsblad.jsx").Atgard[], namn: string, reakt?: ReturnType<typeof useReaktioner>,
  *   fasta?: { pa?: boolean, ids: Set<string>, vaxla: (mid: string) => void } | null,
  *   citat?: { pa: boolean, onCitera: (m: import("../lib/samtal.js").Meddelande & { id: string }) => void } | null,
+ *   lank?: string | null, visaKopior?: boolean,
  *   texter: Required<Meddelandetexter> }} props
  */
-function Meddelandemeta({ m, egen, bredd, menyPa, pekskarm, oppnadVid, onOppnadVid, extra, mer, namn, reakt, fasta, citat, texter: t }) {
+function Meddelandemeta({ m, egen, bredd, menyPa, pekskarm, oppnadVid, onOppnadVid, extra, mer, namn, reakt, fasta, citat, lank = null, visaKopior = false, texter: t }) {
   const losa = bredd !== "smal";
-  const merKnapp = menyPa;
-  const [kopia, setKopia] = useState(/** @type {null | "ok" | "fel"} */ (null));
+  const [kopia, setKopia] = useState(/** @type {null | "ok" | "fel" | "lank" | "lankfel"} */ (null));
   useEffect(() => {
     if (!kopia) return undefined;
     const tid = setTimeout(() => setKopia(null), 2500);
@@ -4126,30 +4210,42 @@ function Meddelandemeta({ m, egen, bredd, menyPa, pekskarm, oppnadVid, onOppnadV
   }, [kopia]);
   const fast = Boolean(fasta?.ids.has(m.id));
   const text = typeof m.text === "string" ? m.text.trim() : "";
+  /**
+   * ⛔ Urklippet skrivs inne i klickhanteraren (webbläsaren kräver ett användartryck) och ett nekat urklipp sägs (regel 5): utan raden hade knappen sett ut att fungera.
+   * @param {string} innehall @param {"ok" | "lank"} lyckat @param {"fel" | "lankfel"} miss
+   */
+  const tillUrklipp = (innehall, lyckat, miss) => {
+    try {
+      const urklipp = typeof navigator === "undefined" ? undefined : navigator.clipboard;
+      if (!urklipp?.writeText) {
+        setKopia(miss);
+        return;
+      }
+      Promise.resolve(urklipp.writeText(innehall)).then(
+        () => setKopia(lyckat),
+        () => setKopia(miss),
+      );
+    } catch {
+      setKopia(miss);
+    }
+  };
   /** @type {import("./OpsAtgardsblad.jsx").Atgard[]} */
-  const poster = [...mer];
-  if (citat?.pa) poster.push({ id: "citera", etikett: t.citera, ikon: <CiteraIkon size={16} />, onValj: () => citat.onCitera(m) });
-  if (fasta) poster.push({ id: "fast", etikett: fast ? t.lossa : t.fast, ikon: <FastIkon size={16} />, onValj: () => fasta.vaxla(m.id) });
-  if (text) {
-    poster.push({
-      id: "kopiera",
-      etikett: t.kopiera,
-      ikon: <KopieraIkon size={16} />,
-      // ⛔ Ett nekat urklipp sägs (regel 5): utan raden hade knappen sett ut att fungera.
-      onValj: () => {
-        const urklipp = typeof navigator === "undefined" ? undefined : navigator.clipboard;
-        if (!urklipp?.writeText) {
-          setKopia("fel");
-          return;
-        }
-        urklipp.writeText(text).then(
-          () => setKopia("ok"),
-          () => setKopia("fel"),
-        );
-      },
-    });
+  const kopior = [];
+  if (text) kopior.push({ id: "kopiera", etikett: t.kopiera, ikon: <KopieraIkon size={16} />, onValj: () => tillUrklipp(text, "ok", "fel") });
+  if (typeof lank === "string" && lank.trim() !== "") {
+    const adress = absolutAdress(lank.trim());
+    kopior.push({ id: "kopiera-lank", etikett: t.kopieraLank, ikon: <KopieraIkon size={16} />, onValj: () => tillUrklipp(adress, "lank", "lankfel") });
   }
-  const reaktioner = reakt?.pa
+  // ⛔ (lifehub.app#712) På dator står Reagera, Fäst, Svara med citat och Svara i tråd som egna knappar vid hovring; menyn har där bara det som saknas som knapp: Kopiera och Kopiera länk.
+  // QA 2026-11-09: som medlem visade hovringen bara de tre, och som gäst fanns ingen meny alls. På telefon och pekskärm är menyn oförändrad: alla åtgärder.
+  /** @type {import("./OpsAtgardsblad.jsx").Atgard[]} */
+  const poster = menyPa ? [...mer] : [];
+  if (menyPa && citat?.pa) poster.push({ id: "citera", etikett: t.citera, ikon: <CiteraIkon size={16} />, onValj: () => citat.onCitera(m) });
+  if (menyPa && fasta) poster.push({ id: "fast", etikett: fast ? t.lossa : t.fast, ikon: <FastIkon size={16} />, onValj: () => fasta.vaxla(m.id) });
+  poster.push(...kopior);
+  // ⛔ På dator bara på meddelandet pekaren eller fokuset står på (`visaKopior`, se `Meddelanderader`), och kvar medan kvittot visas.
+  const merKnapp = menyPa || (kopior.length > 0 && (visaKopior || kopia !== null));
+  const reaktioner = menyPa && reakt?.pa
     ? (/** @type {() => void} */ stang) => {
         const egna = new Set((reakt.sammanfattning.get(m.id) ?? []).filter((r) => r.egen).map((r) => r.kod));
         return (
@@ -4219,14 +4315,14 @@ function Meddelandemeta({ m, egen, bredd, menyPa, pekskarm, oppnadVid, onOppnadV
         pekskarm ? (
           <OpsAtgardsblad baraKnapp utanKnapp namn={namn} poster={poster} overst={reaktioner} oppnadVid={oppnadVid} onOppnadVid={onOppnadVid} />
         ) : (
-          <span data-mer={m.id} className="-my-2 inline-flex opacity-0 transition-opacity duration-(--duration-fast) ease-standard group-hover:opacity-100 group-focus-within:opacity-100">
+          <span data-mer={m.id} data-mer-kopior={menyPa ? undefined : ""} className="-my-2 inline-flex opacity-0 transition-opacity duration-(--duration-fast) ease-standard group-hover:opacity-100 group-focus-within:opacity-100">
             <OpsAtgardsblad baraKnapp namn={namn} poster={poster} overst={reaktioner} oppnadVid={oppnadVid} onOppnadVid={onOppnadVid} />
           </span>
         )
       ) : null}
       {kopia ? (
-        <span role="status" data-kopierat={kopia} className={cx("text-liten", kopia === "fel" ? "text-danger" : "text-ink-muted")}>
-          {kopia === "ok" ? t.kopierat : t.kopieraFel}
+        <span role="status" data-kopierat={kopia} className={cx("text-liten", kopia === "fel" || kopia === "lankfel" ? "text-danger" : "text-ink-muted")}>
+          {kopia === "ok" ? t.kopierat : kopia === "lank" ? t.lankKopierad : kopia === "lankfel" ? t.kopieraLankFel : t.kopieraFel}
         </span>
       ) : null}
     </span>

@@ -19,7 +19,7 @@
  *     rad, och den dag någon byter förvald hade de raderna pekat på fel kalender utan att någon ändrat dem.
  *   - `slutDatum`: sista dagen för en händelse över flera dagar, inklusive. Utelämnad för en endagshändelse, aldrig lika
  *     med `datum` (en form, inte två, arbetsreglernas punkt 5).
- *   - `kravSvar`: gruppens medlemmar ombeds svara Kommer eller Kommer inte. Utelämnad eller `false`: ingen fråga.
+ *   - `kravSvar`: gruppens medlemmar ombeds svara Kommer, Kanske eller Kommer inte. Utelämnad eller `false`: ingen fråga.
  *
  * ⛔ UPPREPNING INGÅR INTE. CP har inte beslutat om veckovis upprepning som i SS eller ingen alls (#179 avsnitt 6).
  *
