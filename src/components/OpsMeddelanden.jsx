@@ -741,6 +741,7 @@ export function texterPa(sprak, texter) {
  * @param {import("../lib/modul.js").Modul | null} [props.modul] (0.89.0) Manifestet inställningarna läser. Krävs med `ram`, tillsammans med `tillbaka.hubHref`.
  * @param {(agent: { id: string, namn: string }) => void} [props.onVisaAgent] (0.90.0) Tryck på agentens namn och ikon i samtalets huvud, och på agentens avatar i en tråd, öppnar den agentens inställningar. Utan den är huvudet text.
  * @param {MeddelandeHref} [props.meddelandeHref] (lifehub.app#712) Appens väg till ett meddelande, för "Kopiera länk" i menyn. Ramverket känner aldrig appens rutter. Utan den finns inte raden.
+ * @param {ReadonlyArray<Omnamnbar>} [props.flerOmnamnbara] (lifehub.app#723) Fler som går att nämna med @, utöver de aktiva medlemmarna: appens API-agenter, vars medlemskap står som "avslutad". De läggs bara till @-listan och påverkar aldrig agentval, mottagare eller medlemslistor. Nämnandet skrivs som vanligt i `namner` (id). Utan den är listan exakt som förut.
  * @param {(f: { sid: string, mid: string, id: string }) => Promise<import("../lib/forslag.js").Forslagssvar>} [props.onForslag] (0.105.0) Agentens
  *   förslag som knappar under hens svar (`OpsForslag`). Ett meddelande från en medlem av typen agent som bär `forslag` (`{ id, etikett,
  *   ikon?, text? }`, skrivet av appens server) får knapparna, och ett tryck anropar den här med samtalet, meddelandet och förslagets id.
@@ -751,7 +752,7 @@ export function texterPa(sprak, texter) {
  * @param {string} [props.nyttUtkast] (0.105.0) Texten som står i skrivfältet när läget "nytt" öppnas, till exempel det man sade i TALK och
  *   valde Meddelande för. Ingenting skickas: personen väljer mottagare och trycker Skicka.
  */
-export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt, nytt, valtAgent, onValj, onOlasta, valtTrad, onValjTrad, sprak: sprakProp, texter = {}, postkort, onTranscribe, onStoppaAgent, inspelare, igenkanning, onBifoga, franBiblioteket, mejl, onLyftTillMinnet, minneHref, tillbaka, ram = null, activeHref, modul = null, onVisaAgent, onForslag, nyttUtkast, meddelandeHref }) {
+export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt, nytt, valtAgent, onValj, onOlasta, valtTrad, onValjTrad, sprak: sprakProp, texter = {}, postkort, onTranscribe, onStoppaAgent, inspelare, igenkanning, onBifoga, franBiblioteket, mejl, onLyftTillMinnet, minneHref, tillbaka, ram = null, activeHref, modul = null, onVisaAgent, onForslag, nyttUtkast, meddelandeHref, flerOmnamnbara }) {
   kravRam(ram, "OpsMeddelanden");
   if (onForslag !== undefined && typeof onForslag !== "function") throw new Error(`OpsMeddelanden: onForslag ska vara en funktion, fick ${typeof onForslag}.`);
   if (nyttUtkast !== undefined && typeof nyttUtkast !== "string") throw new Error(`OpsMeddelanden: nyttUtkast ska vara en sträng, fick ${typeof nyttUtkast}.`);
@@ -1191,7 +1192,7 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
             groupId={groupId}
             agent={nyAgent}
             utkast={nyttUtkast}
-            samtalsprops={{ postkort, onTranscribe, onStoppaAgent, inspelare, igenkanning, namnFor, medlemmar, sprak, texter: t, onBifoga, franBiblioteket, mejl, onVisaAgent, onForslag, meddelandeHref }}
+            samtalsprops={{ postkort, onTranscribe, onStoppaAgent, inspelare, igenkanning, namnFor, medlemmar, sprak, texter: t, onBifoga, franBiblioteket, mejl, onVisaAgent, onForslag, meddelandeHref, flerOmnamnbara }}
             marke={<OpsIdentity name={namn.get(nyAgent)?.namn || t.agent} seed={nyAgent} size="md" icon={AgentIkon} rund />}
             onTillbaka={() => valj(null, { agent: nyAgent })}
             onSkapat={(s, m) => {
@@ -1246,6 +1247,7 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
             minneHref={minneHref}
             onVisaAgent={onVisaAgent}
             meddelandeHref={meddelandeHref}
+            flerOmnamnbara={flerOmnamnbara}
           />
         ) : vald?.ej && groupId ? (
           <OppnaGruppchatt key={vald.samtal.id} kalla={kalla} uid={uid} groupId={groupId} texter={t} onOppnad={(s) => laggIn(s)} />
@@ -1282,6 +1284,7 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
             onVisaAgent={onVisaAgent}
             onForslag={onForslag}
             meddelandeHref={meddelandeHref}
+            flerOmnamnbara={flerOmnamnbara}
             {...(iAmne && amnesAgent ? { amne: { agentnamn: namnFor(amnesAgent), onTillbaka: () => valj(null, { agent: amnesAgent }), onAndrat: lasOm } } : {})}
           />
         ) : (
@@ -2180,17 +2183,38 @@ function Bibliotekvaljare({ kalla, texter: t, onStang, onValt }) {
 }
 
 /**
- * Vilka som går att nämna: aktiva medlemmar utom en själv, och "@alla" i gruppchatten och trådar. `null` när källan saknar
+ * Någon som går att nämna med @ men som inte är en medlem att prata med (lifehub.app#723): en API-nyckels agent. Appen lägger nyckelns medlemskap med status
+ * "avslutad", bara för att namnge vad nyckeln skrev, eftersom chatten tar "första aktiva agenten" ur medlemslistan och en nyckel inte får bli något man pratar med.
+ *
+ * @typedef {object} Omnamnbar
+ * @property {string} userId Det som skrivs i `namner` när personen nämns, samma sort id som en medlems.
+ * @property {string} [namn] Namnet i listan. Utan det slås id:t upp som för en medlem (`namnFor`).
+ * @property {string} [typ] Förval "agent".
+ */
+
+/**
+ * Vilka som går att nämna: aktiva medlemmar utom en själv, och "@alla" i gruppchatten och trådar, samt de appen ber om (`flerOmnamnbara`). `null` när källan saknar
  * omnämnanden eller samtalet är privat (där finns ingen att nämna som inte redan läser).
+ *
+ * ⛔ `flerOmnamnbara` LÄGGS BARA TILL KANDIDATERNA (lifehub.app#723). Den är inte medlemmar: agentvalet, mottagarna och medlemslistorna läser `medlemmar` och ser den aldrig.
+ * Den som redan är kandidat (en aktiv medlem) och en själv läggs inte till en gång till.
+ *
  * @param {unknown} kalla @param {string} slag @param {ReadonlyArray<Medlemsrad> | undefined} medlemmar @param {string} uid
  * @param {(uid: string) => string} namnFor
+ * @param {ReadonlyArray<Omnamnbar>} [fler]
  * @returns {Omnamnande | null}
  */
-function omnamnandeFor(kalla, slag, medlemmar, uid, namnFor) {
+function omnamnandeFor(kalla, slag, medlemmar, uid, namnFor, fler) {
   if (!harOmnamnanden(kalla) || slag !== "grupp") return null;
   const kandidater = (medlemmar ?? [])
     .filter((m) => m && m.userId !== uid && (m.status ?? "aktiv") === "aktiv")
     .map((m) => ({ uid: m.userId, namn: namnFor(m.userId), typ: m.typ ?? "person" }));
+  const finns = new Set([uid, ...kandidater.map((k) => k.uid)]);
+  for (const o of fler ?? []) {
+    if (!o || typeof o.userId !== "string" || o.userId === "" || finns.has(o.userId)) continue;
+    finns.add(o.userId);
+    kandidater.push({ uid: o.userId, namn: o.namn?.trim() || namnFor(o.userId), typ: o.typ ?? "agent" });
+  }
   return { kandidater, alla: true };
 }
 
@@ -2357,13 +2381,14 @@ function agentDeltagare(samtal, uid, medlemmar) {
  * @param {string} [props.mejl] (0.80.0, #301) Adressen appen skickar in. Utan den ritas ingen mejlknapp.
  * @param {(agent: { id: string, namn: string }) => void} [props.onVisaAgent] (0.90.0) Gör namn och ikon i ett agentsamtal till en knapp.
  * @param {MeddelandeHref} [props.meddelandeHref] (lifehub.app#712) Appens väg till ett meddelande, för "Kopiera länk" i menyn. Ramverket känner aldrig appens rutter. Utan den finns inte raden.
+ * @param {ReadonlyArray<Omnamnbar>} [props.flerOmnamnbara] (lifehub.app#723) Fler som går att nämna med @, utöver de aktiva medlemmarna: appens API-agenter, vars medlemskap står som "avslutad". De läggs bara till @-listan och påverkar aldrig agentval, mottagare eller medlemslistor. Nämnandet skrivs som vanligt i `namner` (id). Utan den är listan exakt som förut.
  * @param {{ agentnamn: string, onTillbaka: () => void, onAndrat?: () => void }} [props.amne] (0.106.0, #386) Samtalet är ett ämne med
  *   agenten: huvudet visar ämnets rubrik och Arkivera, och en rad överst leder tillbaka till agentens samtal. Kräver `amnen` på källan.
  * @param {boolean} [props.ny] (0.106.0) Ämnet är inte skrivet än (`nyttAmne`). Ingenting läses, och första Skicka skapar samtalet och
  *   meddelandet med `skickaIAmne`. Kräver `amne`.
  * @param {(samtal: import("../lib/samtal.js").Samtal, meddelande: any) => void} [props.onSkapat] (0.106.0) Anropas när ett nytt ämne skapats.
  */
-export function OpsSamtal({ kalla, uid, samtal, rubrik: rubrikProp, marke, lastTill: lastTillProp, namnFor, medlemmar, onLast, onSkickat, utkast, onOppnaTrad, tradminne, fokusRot, onFokuserad, sprak: sprakProp, texter = {}, postkort, onTranscribe, onStoppaAgent, inspelare, igenkanning, onBifoga: onBifogaProp, franBiblioteket, mejl, onVisaAgent, onForslag, meddelandeHref, amne: amneProp, ny = false, onSkapat }) {
+export function OpsSamtal({ kalla, uid, samtal, rubrik: rubrikProp, marke, lastTill: lastTillProp, namnFor, medlemmar, onLast, onSkickat, utkast, onOppnaTrad, tradminne, fokusRot, onFokuserad, sprak: sprakProp, texter = {}, postkort, onTranscribe, onStoppaAgent, inspelare, igenkanning, onBifoga: onBifogaProp, franBiblioteket, mejl, onVisaAgent, onForslag, meddelandeHref, flerOmnamnbara, amne: amneProp, ny = false, onSkapat }) {
   // ⛔ Språket ur appens `OpsSprakProvider` när appen inte gav ett (0.46.0, cllp/bolag-ops#528).
   const sprakKontext = useOpsSprak();
   const sprak = sprakProp ?? sprakKontext;
@@ -2759,7 +2784,7 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik: rubrikProp, marke, lastT
         texter={t}
         sprak={sprak}
         fokus={utkast !== undefined}
-        omnamnande={omnamnandeFor(kalla, samtal.slag, medlemmar, uid, namnFor)}
+        omnamnande={omnamnandeFor(kalla, samtal.slag, medlemmar, uid, namnFor, flerOmnamnbara)}
         fokusNyckel={svarPa?.id}
         onEscape={svarPa ? () => setSvarPa(null) : undefined}
         platstext={samtal.slag === "grupp" ? t.skrivGrupp : samtal.slag === "agent" ? t.skrivAgent : t.skriv}
@@ -2976,6 +3001,7 @@ function sammaVia(a, b) {
  * @param {(f: { sid: string, mid: string, id: string }) => Promise<import("../lib/forslag.js").Forslagssvar>} [props.onForslag] (0.105.0) Förslagen under agentens svar.
  * @param {string | null} [props.nyttFran] (0.106.0) Meddelandet som avdelaren "Nytt sedan sist" står före.
  * @param {MeddelandeHref} [props.meddelandeHref] (lifehub.app#712) Adressen till ett meddelande. Med den har menyn "Kopiera länk"; utan den finns inte raden.
+ * @param {ReadonlyArray<Omnamnbar>} [props.flerOmnamnbara] (lifehub.app#723) Fler som går att nämna med @, utöver de aktiva medlemmarna: appens API-agenter, vars medlemskap står som "avslutad". De läggs bara till @-listan och påverkar aldrig agentval, mottagare eller medlemslistor. Nämnandet skrivs som vanligt i `namner` (id). Utan den är listan exakt som förut.
  */
 export function Meddelanderader({ meddelanden, uid, namnFor: namnForProp, medlemmar, locale, visaNamn, efter, merFor, forraTid, reakt, texter = TEXTER, citat, traffar, fasta, postkort, kalla, sid, trad, onVisaAgent, onForslag, nyttFran = null, meddelandeHref }) {
   const bredd = useBredd();
@@ -3174,8 +3200,9 @@ export function Meddelanderader({ meddelanden, uid, namnFor: namnForProp, medlem
  * @param {string} [props.minneHref] (0.86.0) Länk till minnesvyn i trådens huvud. Utan den ingen länk.
  * @param {(agent: { id: string, namn: string }) => void} [props.onVisaAgent] (0.90.0) Agentens avatar i tråden öppnar inställningarna.
  * @param {MeddelandeHref} [props.meddelandeHref] (lifehub.app#712) Appens väg till ett meddelande, för "Kopiera länk" i menyn. Ramverket känner aldrig appens rutter. Utan den finns inte raden.
+ * @param {ReadonlyArray<Omnamnbar>} [props.flerOmnamnbara] (lifehub.app#723) Fler som går att nämna med @, utöver de aktiva medlemmarna: appens API-agenter, vars medlemskap står som "avslutad". De läggs bara till @-listan och påverkar aldrig agentval, mottagare eller medlemslistor. Nämnandet skrivs som vanligt i `namner` (id). Utan den är listan exakt som förut.
  */
-export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, medlemmar, onStang, onSvarat, onDopt, sprak: sprakProp, texter = {}, postkort, onTranscribe, onStoppaAgent, inspelare, igenkanning, onBifoga: onBifogaProp, franBiblioteket, mejl, onLyftTillMinnet, minneHref, onVisaAgent, meddelandeHref }) {
+export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, medlemmar, onStang, onSvarat, onDopt, sprak: sprakProp, texter = {}, postkort, onTranscribe, onStoppaAgent, inspelare, igenkanning, onBifoga: onBifogaProp, franBiblioteket, mejl, onLyftTillMinnet, minneHref, onVisaAgent, meddelandeHref, flerOmnamnbara }) {
   if (!harTradar(kallan)) throw new Error("OpsTrad: källan har inga trådar. Skicka `tradar` till createSamtalskalla, med samma namn som till samtalsregelfragment.");
   const kalla = kallan;
   const sprakKontext = useOpsSprak();
@@ -3556,7 +3583,7 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
         texter={t}
         sprak={sprak}
         fokus
-        omnamnande={omnamnandeFor(kalla, samtal.slag, medlemmar, uid, namnFor)}
+        omnamnande={omnamnandeFor(kalla, samtal.slag, medlemmar, uid, namnFor, flerOmnamnbara)}
         platstext={t.skrivTrad}
         onTranscribe={onTranscribe}
         inspelare={inspelare}
