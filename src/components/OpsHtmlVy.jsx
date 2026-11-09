@@ -87,7 +87,7 @@ export function OpsHtmlVy({ hamta, sokvag, namn, skapadAv, onStang, stangEtikett
       ) : !visas ? (
         <p role="status" data-html-vy-lage="tom" className="m-0 px-4 py-4 text-etikett text-ink-muted">{o("tom")}</p>
       ) : (
-        <HtmlRuta ref={ram} mark="data-html-vy-ruta" title={etikett} srcDoc={srcDoc} zoom={zoom} className="block min-h-0 w-full flex-1 border-0 bg-surface" />
+        <HtmlRuta ref={ram} mark="data-html-vy-ruta" title={etikett} srcDoc={srcDoc} zoom={zoom} className="block min-h-0 w-full flex-1 border-0" />
       )}
     </section>
   );

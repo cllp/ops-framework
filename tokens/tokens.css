@@ -703,6 +703,11 @@
   --color-publik-mork-markering: var(--color-accent);
   /* Färgen bilder och hjälten tonas med (SS: slate 15,20,30 mot 26,26,26). Alfa per ton står i `.ops-publik-*toning`. */
   --color-publik-toning: var(--dark-canvas);
+  /* ⛔ PAPPER: BOTTEN UNDER ETT DOKUMENT, SAMMA I LJUST OCH MÖRKT LÄGE (CP 2026-11-09). En HTML-sida eller en PDF-sida ritas
+   * på det papper en webbläsare eller en skrivare ger den, alltså vitt, oavsett appens tema. En uppladdad sida utan egen bakgrund
+   * fick annars appens mörka yta bakom sin svarta text. Det är inget tema och därför inte en brandvariabel, och det mörka temat
+   * definierar det inte om. Bara rutan för dokument och PDF-sidan använder det (`bg-papper`). */
+  --color-papper: #ffffff;
   /* Loggans höjd i toppraden (SS `h-8`). Bredden följer bilden. */
   --publik-logga-hojd: 2rem;
 

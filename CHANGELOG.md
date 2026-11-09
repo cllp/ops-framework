@@ -9,6 +9,34 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.209.2
+
+Ett HTML-dokument i Biblioteket ritas på vitt papper också i mörkt läge.
+
+### Rättat
+
+- **Svart text på mörk botten i HTML-rutan** (CP 2026-11-09, med en skärmbild av en uppladdad HTML-sida i mörkt läge). En sida som inte sätter sin egen bakgrund är genomskinlig, och med `colorScheme: "light"` på både ramen och sidan ritar webbläsaren ingen egen botten. Bakom sidans svarta standardtext syntes då appens yta (`bg-surface`), som är mörk i mörkt läge. `HtmlRuta` ligger nu på `bg-papper`, och detaljens ruta och helfönstret (`OpsHtmlVy`) sätter ingen egen bakgrund. En sida som vill vara mörk sätter sin egen bakgrund ovanpå, som förut.
+
+### Tillagt
+
+- **Tokenet `--color-papper` (`bg-papper`)**: botten under ett dokument, vitt och samma i ljust och mörkt läge. Det är inte ett tema och inte en brandvariabel, och inget mörkt tema definierar om det. `OpsPdfVisning` använder det också. Där stod förut `bg-white`, en klass som aldrig fanns: `tokens.css` nollställer Tailwinds palett (`--color-*: initial`).
+
+### Granskningen av PR 556
+
+- Den första versionen av rättelsen satte `bg-white`, och proven sökte efter klassnamnet. Granskningen byggde CSS:en med tokens.css och mätte att klassen saknades, så ramen hade varit lika genomskinlig som förut. En färg i en inline-stil stoppas av `check-closed-api` (regel 3), och därför blev det ett token.
+
+### CI: en körning per ändring (CP 2026-11-09: "Du använder slut på mina github action minuter på en dag. Inte ok")
+
+- `check.yml` kör inte på utkast, inte när bara `docs/` eller `.md`-filer ändrats, och inte på main efter merge. Knappen (`workflow_dispatch`) kör alltid.
+- `publish.yml` hoppar över hela sviten (cirka 25 minuter) när commitens träd är exakt PR-headens och `check`, `scaffold`, `paket` och `regelprov` var gröna där. I alla andra fall, också när något inte går att fråga om, körs hela sviten som förut, och beslutet skrivs ut. Hoppet kräver dessutom att körningen gäller main och att commiten är PR:ens egen merge-commit, och kontrollerna räknas bara från GitHub Actions. Jobbet har `pull-requests: read` och `checks: read` för frågorna. Steget är provat lokalt med en falsk `gh` i sex fall: grönt och samma träd hoppar över, och ingen PR, en tagg på en äldre commit, ett annat träd, en röd scaffold och en annan gren kör hela sviten. jq-filtren är provade mot svar i API:ets form. (Granskningen av b6679ef: taggen på en äldre PR-head, behörigheterna, kontroller från andra appar och att sviten körs om beslutet saknas.)
+
+### Prov
+
+- `papper-token` (nytt) bygger CSS som appen gör (Tailwind med tokens.css) och kräver att `.bg-papper` finns och läser `--color-papper`, att tokenet är `#ffffff`, och att det bara definieras en gång. Mot 0.209.1 är 2 av 3 röda. Det tredje, att `bg-white` inte finns, är grönt åt båda håll och står som skydd mot samma misstag.
+- `htmldokument-lankar`, `htmldokument-helfonster` och `anteckning-md`: ramens enda bakgrundsklass är `bg-papper`, i detaljen och i helfönstret. Mot 0.209.1 är 3 av 54 röda.
+
+---
+
 ## 0.209.1
 
 Biblioteket läser in .md-tolkningen och HTML-sidan först när de behövs (cllp/lifehub.app#706).

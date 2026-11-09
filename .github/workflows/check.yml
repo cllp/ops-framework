@@ -21,9 +21,12 @@
 # till sådant utvecklaren själv hade fått nej på.
 name: Check
 
+# ⛔ INGEN KÖRNING PÅ MAIN, PÅ UTKAST ELLER PÅ BARA DOKUMENT (CP 2026-11-09: "Du använder slut på mina github action minuter
+# på en dag. Inte ok. Vi behöver en annan process"). Mätt samma dag: tre releaser och en körning per push på varje PR, och
+# samma svit en gång till på main efter varje merge. Det som skyddades av körningen på main (att nästa app pinnar om mot ett
+# känt läge) prövas nu där det avgör: `publish.yml` publicerar bara en commit vars träd är exakt det som var grönt på PR:en,
+# och kör hela sviten själv när trädet skiljer sig. Ett utkast kör ingenting förrän det markeras klart eller knappen trycks.
 on:
-  push:
-    branches: [main]
   # ⛔ INGEN `branches`-FILTER PÅ PR, OCH DET ÄR MÄTT 2026-09-27.
   #
   # Här stod `branches: [main]`. Följden var att en PR mot en ANNAN gren fick
@@ -43,6 +46,10 @@ on:
   # dessutom vidare till main sedan. Kostnaden är oförändrad, eftersom antalet
   # PR:ar är detsamma.
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
   # ⛔ OCH EN KNAPP, så kedjan går att köra mot en gren utan att först skriva en
   # commit ingen bad om. Den är svaret på exakt den situation som uppstod ovan:
   # tre grenar som behövde kontrolleras och inte hade något att pusha.
@@ -66,12 +73,16 @@ on:
 # ⛔ MAIN AVBRYTS ALDRIG, och det är hela poängen med villkoret. En avbruten
 # körning på main lämnar ingen uppgift om huruvida main är grön, och nästa app
 # som pinnar om gör det mot ett okänt läge.
+#
+# (Körningen på main togs bort 2026-11-09, se `on:`. Villkoret står kvar för knappen mot main.)
 concurrency:
   group: check-${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   check:
+    # Ett utkast kör inte. Knappen kör alltid.
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -111,6 +122,8 @@ jobs:
   # alltså fria Actions-minuter. Samma mätning i en privat konsumentapp debiteras.
   # Dyr verifiering hör därför hemma här, och det är motsatsen till var den låg.
   scaffold:
+    # Ett utkast kör inte. Knappen kör alltid.
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -152,6 +165,8 @@ jobs:
   # projekt och importerar. Som ett steg i `check` hade den fördröjt varje svar
   # på typfel.
   paket:
+    # Ett utkast kör inte. Knappen kör alltid.
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -177,6 +192,8 @@ jobs:
   # ⛔ JAVA KRÄVS, och det står här eftersom felet annars är kryptiskt:
   # emulatorn dör med ett meddelande om en saknad körning och inte om Java.
   regelprov:
+    # Ett utkast kör inte. Knappen kör alltid.
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7

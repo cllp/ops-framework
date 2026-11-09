@@ -417,7 +417,7 @@ function Sida({ dokument, nr, skala, yta, mark, etikett }) {
   }, [dokument, nr, skala, ytaB, ytaH]);
   const sprak = useOpsSprak();
   if (fel) return <p role="alert" data-pdf-sidfel={nr} className="m-0 bg-surface p-4 text-etikett text-danger">{ordet(ORD_PDFVISNING, "felSida", sprak).replace("{nr}", String(nr))}</p>;
-  return <canvas ref={canvas} {...{ [mark]: nr }} role="img" aria-label={etikett} className="block bg-white" />;
+  return <canvas ref={canvas} {...{ [mark]: nr }} role="img" aria-label={etikett} className="block bg-papper" />;
 }
 
 /** @type {import("../lib/ord.js").Ordbok} */

@@ -359,6 +359,8 @@ describe("ladda ned en anteckning", () => {
     expect(ruta.getAttribute("sandbox")).toBe("allow-scripts allow-modals");
     expect(ruta.getAttribute("src")).toBeNull();
     expect(ruta.getAttribute("srcdoc")).toContain("<strong>där</strong>");
+    // ⛔ Vitt papper i detaljens ruta också, aldrig appens yta (CP 2026-11-09).
+    expect(ruta.className.split(/\s+/).filter((k) => k.startsWith("bg-"))).toEqual(["bg-papper"]);
     expect(within(dialog).getByRole("button", { name: "Spara som PDF" })).toBeTruthy();
   });
 
