@@ -71,6 +71,12 @@ describe("markdownSomAnteckning", () => {
     expect(markdownSomAnteckning({ namn: "a.md", text: "x".repeat(50000) }).forLang).toBe(false);
     expect(markdownSomAnteckning({ namn: "a.md", text: "﻿# Hej" }).text).toBe("# Hej");
   });
+  it("⛔ rubriken klipps aldrig mitt i ett surrogatpar, och ett filnamn som bara är en ändelse ger Anteckning (granskningen av PR 554)", () => {
+    const lang = "a".repeat(199) + "😀";
+    expect(markdownSomAnteckning({ namn: "x.md", text: `# ${lang}` }).rubrik).toBe("a".repeat(199));
+    expect(markdownSomAnteckning({ namn: ".md", text: "Text." }).rubrik).toBe("Anteckning");
+  });
+
   it("arMarkdownFilnamn och anteckningFilnamn", () => {
     expect(arMarkdownFilnamn("a.MD")).toBe(true);
     expect(arMarkdownFilnamn("a.markdown")).toBe(true);
@@ -208,6 +214,51 @@ describe(".md in som anteckning", () => {
       r.unmount();
     }
     expect(conf).not.toHaveBeenCalled();
+  });
+
+  it("⛔ en .md sparad som ANSI (Windows-1252) läses med å, ä och ö, inte med ersättningsrutor (granskningen av PR 554)", async () => {
+    const onSpara = vi.fn(async () => {});
+    nyFil({ onSpara });
+    // "# Åsa\n\nPå väg." i Windows-1252: Å = 0xC5, å = 0xE5, ä = 0xE4, inte giltig UTF-8.
+    const ansi = new Uint8Array([0x23, 0x20, 0xc5, 0x73, 0x61, 0x0a, 0x0a, 0x50, 0xe5, 0x20, 0x76, 0xe4, 0x67, 0x2e]);
+    valj(new File([ansi], "asa.md", { type: "text/markdown" }));
+    await waitFor(() => expect(rubrikfalt().value).toBe("Åsa"));
+    spara();
+    await waitFor(() => expect(onSpara).toHaveBeenCalledWith({ typ: "anteckning", rubrik: "Åsa", text: "# Åsa\n\nPå väg." }));
+  });
+
+  it("⛔ heter bara någon annans anteckning likadant läggs filen in som ny, utan fråga om att ersätta den (granskningen av PR 554)", async () => {
+    const onSpara = vi.fn(async () => {});
+    const annans = anteckning({ skapadAv: { uid: "uid-2", namn: "Alex", typ: "manniska", kalla: "bibliotek" } });
+    nyFil({ onSpara, poster: [annans] });
+    valj(mdFil("# Plan\n\nMin text."));
+    await waitFor(() => expect(rubrikfalt().value).toBe("Plan"));
+    spara();
+    await waitFor(() => expect(onSpara).toHaveBeenCalledTimes(1));
+    expect(onSpara).toHaveBeenCalledWith({ typ: "anteckning", rubrik: "Plan", text: "# Plan\n\nMin text." });
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("⛔ två .md valda efter varandra: en läsning som blir klar efter att nästa fil valts sätter inte sin rubrik (granskningen av PR 554)", async () => {
+    nyFil();
+    /** En .md vars läsning blir klar först när provet säger det. @param {string} text @param {string} namn */
+    const langsam = (text, namn) => {
+      const fil = mdFil(text, namn);
+      /** @type {(v: ArrayBuffer) => void} */
+      let klar = () => {};
+      const bytes = new TextEncoder().encode(text).buffer;
+      Object.defineProperty(fil, "arrayBuffer", { value: () => new Promise((los) => { klar = los; }) });
+      return { fil, klar: () => klar(bytes) };
+    };
+    const a = langsam("# Från A\n\nA.", "a.md");
+    const b = langsam("# Från B\n\nB.", "b.md");
+    valj(a.fil);
+    valj(b.fil);
+    b.klar();
+    await waitFor(() => expect(rubrikfalt().value).toBe("Från B"));
+    a.klar();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(rubrikfalt().value).toBe("Från B");
   });
 
   it("en text över 50 000 tecken läggs in som fil med typen text/markdown, och beskedet säger varför", async () => {

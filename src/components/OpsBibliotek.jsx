@@ -25,7 +25,7 @@ import { BibliotekRepoLat } from "./BibliotekRepoLat.jsx";
 import { githubDokument } from "../lib/githubdokument.js";
 import { OpsModal } from "./OpsModal.jsx";
 import { OpsSvepRad } from "./OpsSvepRad.jsx";
-import { ARKIVTAGG, arArkiverad, NALTAGG, arNalad, ADRESSFORM, BIBLIOTEKTYPER, BILDFORM, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, uppladdningAvbruten, uppladdningenAvbrytsKl, allaTaggar, arDelbar, arLjudpost, arMittBibliotek, farAndra, normaliseraTaggar, anteckningsrubrikNu, beskrivObjektbibliotek, arHtmlMime, arPlatsBibliotek, gruppForPlats, filInmatningsfel, LJUDFIL_ACCEPT, ljudfilFel, mimeUrFilnamn, filadressFel, filSort, filtreraBibliotek, inmatningsfel, ljudDatum, ljudRubrik, normaliseraAdress, normaliseraMime, trimSomRegeln } from "../lib/bibliotek.js";
+import { ARKIVTAGG, arArkiverad, avkodaTextfil, NALTAGG, arNalad, ADRESSFORM, BIBLIOTEKTYPER, BILDFORM, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, uppladdningAvbruten, uppladdningenAvbrytsKl, allaTaggar, arDelbar, arLjudpost, arMittBibliotek, farAndra, normaliseraTaggar, anteckningsrubrikNu, beskrivObjektbibliotek, arHtmlMime, arPlatsBibliotek, gruppForPlats, filInmatningsfel, LJUDFIL_ACCEPT, ljudfilFel, mimeUrFilnamn, filadressFel, filSort, filtreraBibliotek, inmatningsfel, ljudDatum, ljudRubrik, normaliseraAdress, normaliseraMime, trimSomRegeln } from "../lib/bibliotek.js";
 import { OpsTaggFilter, OpsTaggRad, menyPilar } from "./OpsTaggar.jsx";
 
 export { menyPilar, OpsTaggFilter as TaggFilter };
@@ -2576,6 +2576,8 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, aktuellPost, onLadd
   const [dubblettBusy, setDubblettBusy] = useState(false);
   // Rubriken som föreslogs ur filen. En rubrik personen skrivit själv skrivs aldrig över.
   const mdAutoRubrik = useRef("");
+  // Den .md som senast valdes. En läsning som blir klar efter att en annan fil valts gäller inte längre (granskningen av PR 554): annars hade den äldre filens rubrik kunnat hamna på den nya.
+  const senasteMd = useRef(/** @type {File | null} */ (null));
   // ⛔ En bild som laddas upp i anteckningen (#696): Spara och Avbryt väntar tills den är inskriven, annars tappas den tyst (`AnteckningsText`).
   const [bildLaddar, setBildLaddar] = useState(false);
   const filFalt = useRef(/** @type {HTMLInputElement | null} */ (null));
@@ -2761,8 +2763,9 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, aktuellPost, onLadd
    */
   async function lasMarkdown(fil) {
     try {
-      // ⛔ UTF-8, som CP:s .md-filer är. `blobBytes` och inte `fil.text()`: samma väg som textförhandsvisningen, och den finns också där `text()` saknas.
-      return markdownSomAnteckning({ namn: fil.name, text: new TextDecoder("utf-8").decode(await blobBytes(fil)) });
+      // ⛔ UTF-8, OCH WINDOWS-1252 NÄR BYTEN INTE ÄR GILTIG UTF-8 (`avkodaTextfil`, granskningen av PR 554): en .md sparad som "ANSI" i Anteckningar hade annars sparats med en
+      // ersättningsruta för varje å, ä och ö. Samma avkodning som textförhandsvisningen. `blobBytes` och inte `fil.text()`: den finns också där `text()` saknas.
+      return markdownSomAnteckning({ namn: fil.name, text: avkodaTextfil(new Uint8Array(await blobBytes(fil))) });
     } catch {
       return null;
     }
@@ -2836,7 +2839,9 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, aktuellPost, onLadd
       onBesked?.(ordet(ORD_ANTECKNINGSFIL, "forLang", sprak).replace("{antal}", tusental(tolkad.text.length)).replace("{tak}", tusental(MAX_BIBLIOTEKTEXT)));
       return;
     }
-    const befintlig = (poster ?? []).find((p) => p.typ === "anteckning" && trimSomRegeln(p.rubrik) === valdRubrik);
+    // ⛔ BARA EN ANTECKNING PERSONEN FÅR ÄNDRA (`farAndra`, granskningen av PR 554). Ersätt på någon annans anteckning hade nekats av regeln med ett obegripligt fel. Heter bara någon
+    // annans anteckning likadant läggs filen in som ny utan fråga: två anteckningar med samma rubrik från två personer är inget fel.
+    const befintlig = (poster ?? []).find((p) => p.typ === "anteckning" && trimSomRegeln(p.rubrik) === valdRubrik && farAndra(p, jag));
     if (befintlig) {
       setDubblett({ befintlig: { id: befintlig.id, rubrik: befintlig.rubrik }, rubrik: valdRubrik, tolkad });
       return false;
@@ -3015,6 +3020,7 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, aktuellPost, onLadd
               const md = Boolean(skapar) && arMarkdownFilnamn(vald.name);
               const fel = filInmatningsfel({ namn: vald.name, mime: md ? "text/markdown" : vald.type || mimeUrFilnamn(vald.name), byte: vald.size });
               setMdFil(null);
+              senasteMd.current = md ? vald : null;
               if (fel) {
                 setValdFil(null);
                 setFormfel(fel);
@@ -3030,7 +3036,7 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, aktuellPost, onLadd
               }
               if (md) {
                 void lasMarkdown(vald).then((tolkad) => {
-                  if (!livs.current || !tolkad) return;
+                  if (!livs.current || !tolkad || senasteMd.current !== vald) return;
                   setMdFil({ fil: vald, tolkad });
                   const nu = trimSomRegeln(rubrikRef.current);
                   if (!nu || nu === mdAutoRubrik.current) {

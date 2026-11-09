@@ -74,7 +74,17 @@ export function sokvagarSomText(text) {
  * Filnamnet utan ändelse, som rubrik.
  * @param {string} namn
  */
-const utanAndelse = (namn) => namn.replace(/\.[^.]+$/, "") || namn;
+const utanAndelse = (namn) => namn.replace(/\.[^.]+$/, "");
+
+/**
+ * Klipper till högst `max` UTF-16-enheter utan att dela ett surrogatpar (granskningen av PR 554): ett halvt par sist hade blivit en ersättningsruta i rubriken.
+ * @param {string} s @param {number} max
+ */
+function klipp(s, max) {
+  if (s.length <= max) return s;
+  const ut = s.slice(0, max);
+  return /[\uD800-\uDBFF]$/.test(ut) ? ut.slice(0, -1) : ut;
+}
 
 /**
  * En .md som anteckning. Se filens huvud.
@@ -87,7 +97,8 @@ export function markdownSomAnteckning({ namn, text }) {
   const t = typeof text === "string" ? text.replace(/^﻿/, "") : "";
   const forsta = splitMarkdown(t).find((b) => b.kind === "heading" && b.level === 1);
   const urRubrik = forsta && forsta.kind === "heading" ? trimSomRegeln(forsta.inline.map((b) => b.value).join("")) : "";
-  const rubrik = (urRubrik || trimSomRegeln(utanAndelse(String(namn ?? "")))).slice(0, MAX_BIBLIOTEKRUBRIK).trim() || "Anteckning";
+  // Ett filnamn som bara är en ändelse (".md") ger ingen rubrik, och då "Anteckning".
+  const rubrik = klipp(urRubrik || trimSomRegeln(utanAndelse(String(namn ?? ""))), MAX_BIBLIOTEKRUBRIK).trim() || "Anteckning";
   return { rubrik, text: t, forLang: t.length > MAX_BIBLIOTEKTEXT, ...sokvagarSomText(t) };
 }
 

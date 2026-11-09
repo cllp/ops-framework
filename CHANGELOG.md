@@ -46,6 +46,14 @@ Biblioteket, cllp/lifehub.app#706: "I repot" som träd, en .md blir en antecknin
 - `disclosure.test.jsx`, två nya om `lat`. Mot 0.208.0: det första rött, det andra grönt åt båda håll.
 - Regelfixturerna (`rules/__fixturer__/`) har fått taket och `text/markdown`; inget annat i dem är ändrat.
 
+### Granskningen av PR 554
+
+- En .md sparad som "ANSI" (Windows-1252) läses med å, ä och ö (`avkodaTextfil`, samma avkodning som textförhandsvisningen), inte med ersättningsrutor.
+- Ersätt erbjuds bara för en anteckning personen får ändra (`farAndra`). Heter bara någon annans anteckning likadant läggs filen in som ny utan fråga.
+- En läsning av en .md som blir klar efter att en annan fil valts sätter inte längre sin rubrik.
+- Rubriken klipps aldrig mitt i ett surrogatpar, och ett filnamn som bara är en ändelse ger rubriken "Anteckning".
+- Fyra nya prov i `anteckning-md`, röda utan ändringen och gröna med den.
+
 ## 0.208.0
 
 Två rättningar i Biblioteket, båda ur nattens granskningar och cllp/lifehub.app#697.
