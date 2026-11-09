@@ -15,8 +15,8 @@ import { arPdfDokument, arPdfMime, pdfVyAdress } from "../lib/pdfvisning.js";
 import { lasFilbytes } from "../data/filbytes.js";
 import { BibliotekHtmlVersionerLat } from "./BibliotekHtmlVersionerLat.jsx";
 import { OpsMarkdown } from "./OpsMarkdown.jsx";
-import { bildAdressUrBilder } from "../lib/markdown.js";
-import { AnteckningsText } from "./BibliotekAnteckningsbild.jsx";
+import { bildAdressUrBilder, medBildInsatt } from "../lib/markdown.js";
+import { AnteckningsTextLat, forladdaAnteckningsbild } from "./BibliotekAnteckningsbildLat.jsx";
 import { GithubDokumentVisningLat } from "./GithubDokumentVisningLat.jsx";
 import { BibliotekRepoLat } from "./BibliotekRepoLat.jsx";
 import { githubDokument } from "../lib/githubdokument.js";
@@ -362,6 +362,8 @@ const arkivtips = () => `Arkiverad. Välj taggen ${ARKIVTAGG} för att se arkive
  *   under rutan med sitt meddelande; ett namn som inte är ett säkert segment skrivs inte in, och det sägs. Ramverket krymper bilden innan appen får den
  *   (`readAttachment`: längsta sidan 1600 px, JPEG; en GIF lämnas orörd). En HEIC som webbläsaren kan läsa blir en JPEG, och en som den inte kan läsa laddas aldrig upp: den nekas
  *   med skälet. Spara och Avbryt väntar medan en uppladdning pågår.
+ *   ⛔ (0.207.0) TILLBAKA, EN ANNAN POST ELLER EN NY VY MITT I EN UPPLADDNING TAPPAR INTE BILDEN: uppladdningen slutförs, och raden skrivs in sist i den sparade texten med `onSpara`
+ *   (`{ typ: "anteckning", rubrik, text, id }`, samma form som Spara). Det som skrivits men inte sparats sparas inte. Rutan och knappen läses in när de behövs (`BibliotekAnteckningsbildLat`).
  *   ⛔ INTE I EN NY ANTECKNING: den har inget id och ingen mapp, och `onSpara` svarar inte med det id posten fick. Knappen syns först när anteckningen är sparad, och en bild som klistras in i en
  *   ny anteckning ger raden "Spara anteckningen först. Sedan går det att lägga till bilder." i stället för en egen post. Utan propen syns ingen knapp och en inklistring går som förut.
  * @param {(bild: { postId: string, plats: string, namn: string }) => string | Promise<string>} [props.bildIAnteckningAdress] (0.206.0, cllp/lifehub.app#696) Adressen till en bild i en
@@ -465,6 +467,9 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
   // (0.191.0) Trådens bit hämtas i bakgrunden när appen gett en källa, så att den finns när en post öppnas (`BibliotekKommentarerLat`).
   const harKommentarer = Boolean(kommentarer);
   useEffect(() => (harKommentarer ? forladdaBibliotekKommentarer() : undefined), [harKommentarer]);
+  // (0.207.0) Bildknappen i en anteckning hämtas i bakgrunden när appen gett uppladdningen, så att den finns när någon trycker på Redigera (`BibliotekAnteckningsbildLat`).
+  const harBildIAnteckning = typeof onLaggBildIAnteckning === "function";
+  useEffect(() => (harBildIAnteckning ? forladdaAnteckningsbild() : undefined), [harBildIAnteckning]);
   const [byter, setByter] = useState(/** @type {null | (import("../lib/bibliotek.js").Bibliotekspost & { id: string })} */ (null));
   const [namnUtkast, setNamnUtkast] = useState("");
   const [namnFel, setNamnFel] = useState("");
@@ -2450,6 +2455,18 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, onLaddaUpp, filUrl,
     () => (typeof bildIAnteckningAdress === "function" && bildPostId ? (/** @type {string} */ namn) => bildIAnteckningAdress({ postId: bildPostId, plats: bildPlats, namn }) : bildAdressUrBilder(bildKarta)),
     [bildIAnteckningAdress, bildPostId, bildPlats, bildKarta],
   );
+  // ⛔ (0.207.0) EN BILD SOM BLEV KLAR EFTER ATT RUTAN STÄNGTS skrivs in sist i den SPARADE texten (`AnteckningsText`, filens huvud i
+  // `BibliotekAnteckningsbild.jsx`). Texten läses ur en ref som följer posten vid varje rendering och som den här funktionen själv flyttar fram,
+  // så att två bilder som blir klara efter stängningen hamnar i samma text och inte skriver över varandra.
+  const sparadText = useRef("");
+  if (post && !skapar && post.typ === "anteckning") sparadText.current = post.text ?? "";
+  /** @param {string} namn */
+  function skrivInEfterStangning(namn) {
+    if (!post || skapar) return false;
+    const ny = medBildInsatt(sparadText.current, sparadText.current.length, namn).text;
+    sparadText.current = ny;
+    return onSpara({ typ: "anteckning", rubrik: post.rubrik, text: ny, id: post.id });
+  }
 
   useEffect(() => {
     setRubrik(post && !skapar ? post.rubrik : "");
@@ -2656,7 +2673,7 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, onLaddaUpp, filUrl,
       </OpsField>
       {typ === "anteckning" ? (
         // ⛔ BILDEN I ANTECKNINGEN (#696): textrutan, "Lägg till bild" och inklistringen av en bild. Utan `onLaggBildIAnteckning` är det samma ruta som förut.
-        <AnteckningsText text={text} setText={setText} post={post && !skapar ? post : null} onLaggBild={onLaggBildIAnteckning} sprak={sprak} onPagar={setBildLaddar} />
+        <AnteckningsTextLat text={text} setText={setText} post={post && !skapar ? post : null} onLaggBild={onLaggBildIAnteckning} sprak={sprak} onPagar={setBildLaddar} onEfterStangning={skrivInEfterStangning} />
       ) : typ === "fil" ? (
         <OpsField label="Fil">
           {/* ⛔ Det råa filfältet är dolt och knappen är ramverkets (0.95.0). Förut stod webbläsarens egen "Välj fil,

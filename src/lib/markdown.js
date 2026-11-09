@@ -90,6 +90,27 @@ export function sakertBildnamn(namn) {
   return typeof namn === "string" && /^[A-Za-z0-9._-]{1,200}$/.test(namn) && !namn.includes("..") && namn !== ".";
 }
 
+/**
+ * Texten med `![](namn)` insatt vid `pos`, på en egen rad, och var markören hamnar efter den (cllp/lifehub.app#696).
+ *
+ * Bor här och inte i `BibliotekAnteckningsbild.jsx` (0.207.0): redigeringen läses in när den behövs, och biblioteket skriver in en bild
+ * också när rutan redan stängts (se `AnteckningsText`). Med funktionen i den lata modulen hade biblioteket behövt den statiskt, och då hade
+ * modulen följt med in i startfilen.
+ *
+ * @param {string} text
+ * @param {number} pos
+ * @param {string} namn
+ * @returns {{ text: string, markor: number }}
+ */
+export function medBildInsatt(text, pos, namn) {
+  const vid = Math.max(0, Math.min(Number.isInteger(pos) ? pos : text.length, text.length));
+  const fore = text.slice(0, vid);
+  const efter = text.slice(vid);
+  const bild = `![](${namn})`;
+  const inskott = `${fore !== "" && !fore.endsWith("\n") ? "\n" : ""}${bild}${efter !== "" && !efter.startsWith("\n") ? "\n" : ""}`;
+  return { text: fore + inskott + efter, markor: fore.length + inskott.length };
+}
+
 /** En adress en bild på en delad sida får ritas med: bara https, och inga mellanslag eller styrtecken. */
 const DELAD_BILDADRESS = /^https:\/\/[!-~]+$/;
 

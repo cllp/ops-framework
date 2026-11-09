@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { Profiler, useState } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import { OpsBibliotek } from "../components/OpsBibliotek.jsx";
 import { OpsMarkdown } from "../components/OpsMarkdown.jsx";
 import { OpsSprakProvider } from "../components/OpsSprak.jsx";
@@ -195,6 +195,15 @@ function klistra(/** @type {HTMLElement} */ el, /** @type {File[]} */ filer, tex
 }
 
 describe("OpsBibliotek: Lägg till bild i en sparad anteckning", () => {
+  // ⛔ (0.207.0) Rutan med knappen läses in när den behövs (`BibliotekAnteckningsbildLat`). Proven här läser knappen direkt efter Redigera, så biten
+  // hämtas en gång först. Att den lata vägen fungerar (väntan, förladdningen, inklistringen under tiden) mäts i `anteckningsbild-lat-207.test.jsx`.
+  beforeAll(async () => {
+    const { unmount } = render(<Harness onLaggBildIAnteckning={async () => ({ namn: "x.png" })} />);
+    redigera();
+    await screen.findByRole("button", { name: "Lägg till bild" });
+    unmount();
+  });
+
   it("utan propen finns ingen knapp, och redigeringen är som förut", () => {
     render(<Harness />);
     redigera();
