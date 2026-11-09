@@ -237,6 +237,10 @@ const ORD_BIBLIOTEKLISTA = {
   hamtarFilen: { sv: "Hämtar filen.", en: "Loading the file." },
   hamtarLjudet: { sv: "Hämtar ljudet.", en: "Loading the audio." },
   ingenAdress: { sv: "Filen har ingen adress.", en: "The file has no address." },
+  // ⛔ (cllp/ops-framework#560) Kvittot efter Kopiera länk följer språket, som resten av raden. Förut var de tre hårdkodad svenska.
+  lankKopierad: { sv: "Länken är kopierad.", en: "The link is copied." },
+  lankKopieradGiltig: { sv: "Länken är kopierad. Den gäller i {minuter} minuter.", en: "The link is copied. It is valid for {minuter} minutes." },
+  lankEjKopierad: { sv: "Länken kunde inte kopieras. Adressen är {adress}", en: "The link could not be copied. The address is {adress}" },
   forhandsvisa: { sv: "Förhandsvisa {namn}", en: "Preview {namn}" },
   laddaNed: { sv: "Ladda ned", en: "Download" },
   skrivenAv: { sv: "Skriven av {namn}.", en: "Written by {namn}." },
@@ -813,8 +817,8 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
    * @param {number} [giltigSekunder] en signerad adress gäller bara en stund, och kvittensen säger hur länge (granskningen av PR 558)
    */
   function kopieraLank(url, giltigSekunder) {
-    const miss = () => setStatus(`Länken kunde inte kopieras. Adressen är ${url}`);
-    const kopierad = typeof giltigSekunder === "number" ? `Länken är kopierad. Den gäller i ${Math.round(giltigSekunder / 60)} minuter.` : "Länken är kopierad.";
+    const miss = () => setStatus(ordet(ORD_BIBLIOTEKLISTA, "lankEjKopierad", sprak).replace("{adress}", url));
+    const kopierad = typeof giltigSekunder === "number" ? ordet(ORD_BIBLIOTEKLISTA, "lankKopieradGiltig", sprak).replace("{minuter}", String(Math.round(giltigSekunder / 60))) : ordet(ORD_BIBLIOTEKLISTA, "lankKopierad", sprak);
     try {
       const skriv = navigator.clipboard?.writeText;
       if (typeof skriv !== "function") {
@@ -2361,6 +2365,24 @@ function NyKnapp({ flik, onSkapa, onRost, erbjudRost, onLaddaUppLjud }) {
 }
 
 /**
+ * ⛔ FILNAMNET ÄR BARA EN LÄNK DÄR GÄSTEN FÅR LADDA NED (cllp/ops-framework#560). Med `utanNedladdning` (lifehub.app#691) ritades filnamnet ändå som
+ * `<a href={adress}>` för video, textfil, HTML utan `hamtaFil` och övriga filer. Gästen kunde långtrycka på den, välja Kopiera länkadress och dela den signerade adressen,
+ * som öppnar filen för vem som helst i en kvart: precis den väg Kopiera länk stängdes för i menyn. Nu är filnamnet text när gruppen stängt av nedladdningen. Det som visas i sidan
+ * (video, bild, ljud, PDF) står kvar, för det ger ingen adress att kopiera.
+ *
+ * @param {{ adress: string, download?: string, children: any }} props
+ */
+function Filnamnslank({ adress, download, children }) {
+  const far = useContext(NedladdningKontext);
+  if (!far) return <span data-bibliotek-filnamn="" className="min-w-0 break-words text-etikett text-ink-secondary">{children}</span>;
+  return (
+    <a href={adress} target="_blank" rel="noopener noreferrer" download={download} data-bibliotek-filnamnslank="" className="w-fit text-etikett text-accent underline underline-offset-2">
+      {children}
+    </a>
+  );
+}
+
+/**
  * ⛔ LADDA NED FÖR VARJE FIL I DETALJEN (lifehub.app QA 2026-11-01): sedan 0.102.0 står nedladdningen i detaljen och inte i menyn, men bara
  * HTML-dokumentet med `oppnaHtml` fick knappen. En textfil, en video, en PDF och övriga filer hade bara filnamnet som länk, som öppnar
  * filen i en ny flik. Knappen bär `download` med filens namn. Med `hamta` och `sokvag` sparar knappen filen via `sparaSomFil`
@@ -2468,9 +2490,7 @@ function FilVisning({ post, lage, kopplad, onLjus, onMeta, onRadera, hamtaFil, v
       <div data-bibliotek-fil="" className="flex flex-col gap-2">
         <video data-bibliotek-video="" src={adress} controls playsInline preload="metadata" aria-label={post.rubrik ?? namn} className="block h-auto max-h-96 w-full rounded-lg bg-sunken" />
         <FilMedLaddaNed adress={adress} namn={namn} hamta={hamtaFil} sokvag={post.fil?.sokvag}>
-          <a href={adress} target="_blank" rel="noopener noreferrer" className="w-fit text-etikett text-accent underline underline-offset-2">
-            {rad}
-          </a>
+          <Filnamnslank adress={adress}>{rad}</Filnamnslank>
         </FilMedLaddaNed>
       </div>
     );
@@ -2513,9 +2533,7 @@ function FilVisning({ post, lage, kopplad, onLjus, onMeta, onRadera, hamtaFil, v
             <LaddaNedLank adress={adress} namn={post.fil.namn ?? namn} />
           </div>
         ) : (
-          <a href={adress} target="_blank" rel="noopener noreferrer" download={farLaddaNed ? post.fil.namn : undefined} className="w-fit text-etikett text-accent underline underline-offset-2">
-            {rad}
-          </a>
+          <Filnamnslank adress={adress} download={post.fil.namn}>{rad}</Filnamnslank>
         )}
         {versioner ? <BibliotekHtmlVersionerLat key={post.id} post={post} {...versioner} /> : null}
       </div>
@@ -2529,9 +2547,7 @@ function FilVisning({ post, lage, kopplad, onLjus, onMeta, onRadera, hamtaFil, v
       <div data-bibliotek-fil="" className="flex min-w-0 flex-col gap-2">
         <TextForhandsvisning hamta={hamtaFil} sokvag={post.fil.sokvag} namn={post.rubrik ?? namn} markdown={textMime === "text/markdown"} />
         <FilMedLaddaNed adress={adress} namn={namn} hamta={hamtaFil} sokvag={post.fil?.sokvag}>
-          <a href={adress} target="_blank" rel="noopener noreferrer" className="w-fit text-etikett text-accent underline underline-offset-2">
-            {rad}
-          </a>
+          <Filnamnslank adress={adress}>{rad}</Filnamnslank>
         </FilMedLaddaNed>
       </div>
     );
@@ -2539,9 +2555,7 @@ function FilVisning({ post, lage, kopplad, onLjus, onMeta, onRadera, hamtaFil, v
   return (
     <div data-bibliotek-fil="">
       <FilMedLaddaNed adress={adress} namn={namn} hamta={hamtaFil} sokvag={post.fil?.sokvag}>
-        <a href={adress} target="_blank" rel="noopener noreferrer" className="text-etikett text-accent underline underline-offset-2">
-          {rad}
-        </a>
+        <Filnamnslank adress={adress}>{rad}</Filnamnslank>
       </FilMedLaddaNed>
     </div>
   );

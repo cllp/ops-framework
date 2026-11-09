@@ -159,7 +159,9 @@ describe("⛔ gästens fil har Kopiera länk och Kommentera i listan och i detal
     expect(hamtaAdress).not.toHaveBeenCalled();
     await user.keyboard("{Escape}");
     await user.click(screen.getByRole("button", { name: "Paket" }));
-    await waitFor(() => expect(screen.getByRole("link", { name: /a\.txt/ })).toBeTruthy());
+    // (cllp/ops-framework#560) Filnamnet är text när nedladdning är av: en länk hade gett gästen den signerade adressen att kopiera.
+    await waitFor(() => expect(document.querySelector("[data-bibliotek-filnamn]")?.textContent).toContain("a.txt"));
+    expect(screen.queryByRole("link", { name: /a\.txt/ })).toBeNull();
     expect(hamtaAdress.mock.calls.every((anrop) => anrop.length === 1 && anrop[0] === "z1")).toBe(true);
     expect(screen.queryByRole("link", { name: "Ladda ned" })).toBeNull();
     await user.click(await screen.findByRole("button", { name: "Åtgärder för Paket" }));

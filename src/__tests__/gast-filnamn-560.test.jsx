@@ -1,0 +1,128 @@
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { useState } from "react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { OpsBibliotek } from "../components/OpsBibliotek.jsx";
+import { OpsSprakProvider } from "../components/OpsSprak.jsx";
+import { byggPost } from "../lib/bibliotek.js";
+
+/**
+ * ⛔ GÄSTENS FILNAMN ÄR TEXT NÄR NEDLADDNING ÄR AV (cllp/ops-framework#560). Med `utanNedladdning` (lifehub.app#691) ritades filnamnet ändå som `<a href={adress}>` för video, textfil,
+ * HTML utan `hamtaFil` och övriga filer: gästen kunde långtrycka, välja Kopiera länkadress och dela den signerade adressen, som öppnar filen för vem som helst i en kvart. Det är väg
+ * som Kopiera länk stängdes för i menyn (0.210.0). Kvittot efter Kopiera länk var dessutom hårdkodad svenska.
+ *
+ * ⛔ RÖTT UTAN RÄTTNINGEN (regel 4), utfallen står i commit-meddelandet.
+ */
+
+const tid = 1_700_000_000_000;
+const med = (/** @type {any} */ extra) => ({ groupId: "gast", skapadAv: { uid: "u1", namn: "Anna", typ: "manniska", kalla: "bibliotek" }, skapad: tid, andrad: tid, ...extra });
+const somGast = (/** @type {any} */ p, /** @type {string} */ id) => ({ ...p, id, groupId: "gast", skapadAv: { uid: "", namn: "Anna" } });
+const fil = (/** @type {string} */ id, /** @type {string} */ namn, /** @type {string} */ mime) => somGast(byggPost(med({ typ: "fil", rubrik: `Post ${id}`, fil: { sokvag: id, namn, mime, byte: 100 } })), id);
+
+const FILER = {
+  video: fil("v1", "film.mp4", "video/mp4"),
+  textMedHamta: fil("t1", "anteckning.txt", "text/plain"),
+  textUtanHamta: fil("t2", "lista.txt", "text/plain"),
+  zip: fil("z1", "paket.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+  html: fil("h1", "sida.html", "text/html"),
+};
+const adressFor = (/** @type {string} */ id) => `https://signerad.exempel/${id}?sig=abc`;
+
+function Vy({ post, utanNedladdning, hamtaFil, htmlVersioner }) {
+  const [vald, setVald] = useState(/** @type {any} */ (null));
+  return (
+    <OpsSprakProvider sprak={globalThis.__sprak ?? "sv"}>
+      <OpsBibliotek
+        poster={[post]}
+        jag={null}
+        vald={vald}
+        onOppna={setVald}
+        onStang={() => setVald(null)}
+        onSkapa={() => {}}
+        onSpara={async () => false}
+        hamtaAdress={async (/** @type {string} */ s) => adressFor(s)}
+        hamtaFil={hamtaFil}
+        htmlVersioner={htmlVersioner}
+        adresserPaBegaran
+        utanHubb
+        utanNedladdning={utanNedladdning}
+      />
+    </OpsSprakProvider>
+  );
+}
+
+async function oppna(/** @type {any} */ post, /** @type {any} */ props) {
+  const user = userEvent.setup();
+  render(<Vy post={post} {...props} />);
+  await user.click(screen.getByRole("button", { name: post.rubrik }));
+  await waitFor(() => expect(document.querySelector("[data-bibliotek-fil]")).toBeTruthy());
+  await waitFor(() => expect(document.body.textContent).toContain(post.fil.namn));
+  return user;
+}
+
+const lankarMedAdress = () => [...document.querySelectorAll("a[href]")].filter((a) => (a.getAttribute("href") ?? "").includes("signerad.exempel"));
+const hamtaFil = async () => new Blob(["hej"], { type: "text/plain" });
+
+const FALL = /** @type {const} */ ([
+  ["video", FILER.video, {}],
+  ["textfil med hamtaFil", FILER.textMedHamta, { hamtaFil }],
+  ["textfil utan hamtaFil", FILER.textUtanHamta, {}],
+  ["övrig fil", FILER.zip, {}],
+  ["HTML utan hamtaFil", FILER.html, { htmlVersioner: async () => [] }],
+]);
+
+describe("filnamnet i gästens detalj", () => {
+  for (const [namn, post, props] of FALL) {
+    it(`⛔ ${namn}: med nedladdning av är filnamnet text och ingen länk bär den signerade adressen`, async () => {
+      await oppna(post, { ...props, utanNedladdning: true });
+      expect(lankarMedAdress().map((a) => a.outerHTML)).toEqual([]);
+      expect(document.querySelector("[data-bibliotek-filnamn]")?.textContent).toContain(post.fil.namn);
+      expect(screen.queryByRole("link", { name: "Ladda ned" })).toBeNull();
+    });
+    it(`${namn}: med nedladdning på finns länken som förut`, async () => {
+      await oppna(post, { ...props, utanNedladdning: false });
+      const lank = document.querySelector("a[data-bibliotek-filnamnslank]");
+      expect(lank?.getAttribute("href")).toBe(adressFor(post.id));
+      expect(lank?.textContent).toContain(post.fil.namn);
+    });
+  }
+});
+
+describe("kvittot efter Kopiera länk följer språket", () => {
+  const ursprung = Object.getOwnPropertyDescriptor(navigator, "clipboard");
+  afterEach(() => {
+    delete (/** @type {any} */ (globalThis)).__sprak;
+    if (ursprung) Object.defineProperty(navigator, "clipboard", ursprung);
+    else delete (/** @type {any} */ (navigator)).clipboard;
+  });
+
+  it("⛔ engelska: kvittot med giltighetstid, och felet med adressen", async () => {
+    globalThis.__sprak = "en";
+    const user = userEvent.setup();
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: vi.fn().mockResolvedValue(undefined) } });
+    render(<Vy post={FILER.zip} utanNedladdning={false} />);
+    await user.click(screen.getByRole("button", { name: "Actions for Post z1" }));
+    await user.click(screen.getByRole("menuitem", { name: /Kopiera länk|Copy link/ }));
+    expect(await screen.findByText("The link is copied. It is valid for 15 minutes.")).toBeTruthy();
+  });
+
+  it("⛔ engelska: ett urklipp som nekas ger felet på engelska, med adressen", async () => {
+    globalThis.__sprak = "en";
+    const user = userEvent.setup();
+    // userEvent.setup() ersätter navigator.clipboard, så urklippet läggs in efteråt.
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: vi.fn().mockRejectedValue(new Error("nekad")) } });
+    render(<Vy post={FILER.zip} utanNedladdning={false} />);
+    await user.click(screen.getByRole("button", { name: "Actions for Post z1" }));
+    await user.click(screen.getByRole("menuitem", { name: /Kopiera länk|Copy link/ }));
+    expect(await screen.findByText(`The link could not be copied. The address is ${adressFor("z1")}`)).toBeTruthy();
+  });
+
+  it("svenska är oförändrat: Länken är kopierad. Den gäller i 15 minuter.", async () => {
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: vi.fn().mockResolvedValue(undefined) } });
+    const user = userEvent.setup();
+    render(<Vy post={FILER.zip} utanNedladdning={false} />);
+    await user.click(screen.getByRole("button", { name: "Åtgärder för Post z1" }));
+    await user.click(screen.getByRole("menuitem", { name: "Kopiera länk" }));
+    expect(await screen.findByText("Länken är kopierad. Den gäller i 15 minuter.")).toBeTruthy();
+  });
+});
