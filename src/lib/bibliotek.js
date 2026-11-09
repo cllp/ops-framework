@@ -50,7 +50,11 @@ export const BIBLIOTEKFLIKAR = /** @type {const} */ (["alla", "ljud", "antecknin
 
 /** Tak. Samma tal skrivs in i regelfragmentet, ur de här konstanterna. */
 export const MAX_BIBLIOTEKRUBRIK = 200;
-export const MAX_BIBLIOTEKTEXT = 20000;
+/**
+ * Taket för en antecknings text, i tecken. ⛔ 50 000 SEDAN 0.209.0 (CP i cllp/lifehub.app#706: "50 000"), var 20 000 (0.161.0) och 8 000 före det. Skälet är att en uppladdad .md nu blir en
+ * anteckning (`markdownSomAnteckning`), och en längre text läggs in som fil som går att läsa men inte redigera. Ett Firestore-dokument tar 1 MiB, och 50 000 tecken är högst 200 kB i UTF-8. Samma tal i regeln, ur den här konstanten: ⛔ reglerna ska vara deployade FÖRE klienten, annars nekar regeln en text som klienten släpper igenom.
+ */
+export const MAX_BIBLIOTEKTEXT = 50000;
 export const MAX_BIBLIOTEKURL = 2000;
 /**
  * Högst så här många poster i en lista (0.128.0). Taket finns i regeln också, ur den här konstanten. 200 rymmer en spellista och en mapp med kvitton, och håller
@@ -432,6 +436,9 @@ export const FILMIME = /** @type {const} */ ([
   "video/quicktime",
   "application/pdf",
   "text/plain",
+  // ⛔ MARKDOWN (0.209.0, cllp/lifehub.app#706). En .md läggs in som en anteckning (`markdownSomAnteckning`), och bara en text över `MAX_BIBLIOTEKTEXT` läggs in som fil i stället. Den visas som markdown i detaljen
+  // (`TextForhandsvisning` med `markdown`), läses men redigeras inte. Samma tak som text/plain (`filTak`: ingen egen familj). Listan är regelns och Storage-regelns, så formatet nås först när reglerna är deployade.
+  "text/markdown",
   // ⛔ HTML-DOKUMENT (0.156.0, cllp/ops-framework#472). En HTML-fil kan köra kod, och får därför bara ritas i en avspärrad ruta (`HTML_SANDBOX` i `htmldokument.js`), aldrig som en sida i appens ursprung.
   // Samma tak som text. Lagringen sparar den som `text/html; charset=utf-8` med `Content-Disposition: attachment`, så att en direktlänk laddar ned filen och aldrig ritar den.
   "text/html",
@@ -891,6 +898,8 @@ const MIMEALIAS = {
   "audio/x-aac": "audio/aac",
   // ⛔ SAMMA FORMAT, FLERA NAMN, VIDEO (0.127.0). En .m4v är en mp4 med ett annat namn, och Safari rapporterar den som video/x-m4v.
   "video/x-m4v": "video/mp4",
+  // ⛔ (0.209.0, #706) Webbläsarna säger text/markdown eller text/x-markdown om en .md, och ibland ingenting (då `mimeUrFilnamn`).
+  "text/x-markdown": "text/markdown",
 };
 
 /**
@@ -906,7 +915,7 @@ export function filTak(mime) {
 /**
  * MIME ur filnamnet när webbläsaren inte säger någon (Safari ger ofta tom typ för AIFF och FLAC, och Windows för .mov). Bara
  * ljudformaten och videoformaten som annars faller bort, och (0.156.0) `.html` och `.htm`, som ger `text/html`. `.mp4` och `.m4v` ger `video/mp4`, `.mov` ger `video/quicktime`. Tom sträng
- * när ändelsen är okänd. (0.180.0) `.docx`, `.xlsx` och `.pptx` ger sina Office-typer: Windows och Android ger ibland tom typ för dem.
+ * när ändelsen är okänd. (0.180.0) `.docx`, `.xlsx` och `.pptx` ger sina Office-typer: Windows och Android ger ibland tom typ för dem. (0.209.0) `.md` och `.markdown` ger `text/markdown`.
  * @param {unknown} namn
  * @returns {string}
  */
@@ -914,7 +923,7 @@ export function mimeUrFilnamn(namn) {
   const m = /\.([a-z0-9]+)$/i.exec(str(namn));
   const andelse = m ? m[1].toLowerCase() : "";
   // (0.133.0) m4a, mp3, aac och ogg: Safari och Android ger ofta tom typ för dem, och utan namnet blev en vald ljudfil "Formatet (tom) går inte att lägga in".
-  return ({ html: "text/html", htm: "text/html", wav: "audio/wav", wave: "audio/wav", aif: "audio/aiff", aiff: "audio/aiff", flac: "audio/flac", m4a: "audio/mp4", mp3: "audio/mpeg", aac: "audio/aac", ogg: "audio/ogg", oga: "audio/ogg", mp4: "video/mp4", m4v: "video/mp4", mov: "video/quicktime", docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation" })[andelse] ?? "";
+  return ({ html: "text/html", htm: "text/html", md: "text/markdown", markdown: "text/markdown", wav: "audio/wav", wave: "audio/wav", aif: "audio/aiff", aiff: "audio/aiff", flac: "audio/flac", m4a: "audio/mp4", mp3: "audio/mpeg", aac: "audio/aac", ogg: "audio/ogg", oga: "audio/ogg", mp4: "video/mp4", m4v: "video/mp4", mov: "video/quicktime", docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation" })[andelse] ?? "";
 }
 
 /**

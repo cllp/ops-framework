@@ -158,7 +158,7 @@
         && (
           (d.typ == "anteckning"
             && d.text.trim().size() > 0
-            && d.text.size() <= 20000
+            && d.text.size() <= 50000
             && !d.keys().hasAny(["url", "kalla", "bild", "poster", "fil", "utskrift", "utskriftJobb", "durationMs", "peaks", "version"]))
           || (d.typ == "lank"
             && d.url.size() <= 2000
@@ -179,7 +179,7 @@
             && opsBibliotekSokvagIGruppen(d, postId)
             && d.fil.namn.size() > 0
             && d.fil.namn.size() <= 200
-            && d.fil.mime.matches('^(image/jpeg|image/png|image/webp|image/gif|audio/webm|audio/mp4|audio/mpeg|audio/ogg|audio/wav|audio/aiff|audio/flac|audio/aac|video/mp4|video/quicktime|application/pdf|text/plain|text/html|application/vnd.openxmlformats-officedocument.wordprocessingml.document|application/vnd.openxmlformats-officedocument.spreadsheetml.sheet|application/vnd.openxmlformats-officedocument.presentationml.presentation)$')
+            && d.fil.mime.matches('^(image/jpeg|image/png|image/webp|image/gif|audio/webm|audio/mp4|audio/mpeg|audio/ogg|audio/wav|audio/aiff|audio/flac|audio/aac|video/mp4|video/quicktime|application/pdf|text/plain|text/markdown|text/html|application/vnd.openxmlformats-officedocument.wordprocessingml.document|application/vnd.openxmlformats-officedocument.spreadsheetml.sheet|application/vnd.openxmlformats-officedocument.presentationml.presentation)$')
             && d.fil.byte is int
             && d.fil.byte > 0
             && (d.fil.byte <= 26214400 || (d.fil.mime.matches('^audio/.*') && d.fil.byte <= 262144000) || (d.fil.mime.matches('^video/.*') && d.fil.byte <= 104857600))
