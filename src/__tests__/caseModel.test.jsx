@@ -229,7 +229,7 @@ describe("avslut", () => {
 
   it("ger STATUS och det utfasade STATES som samma objekt", () => {
     expect(modell.STATUS).toBe(modell.STATES);
-    expect(modell.STATUS).toEqual({ NEW: "ny", IN_PROGRESS: "pagar", HANDLED: "hanterad", DISMISSED: "avskriven" });
+    expect(modell.STATUS).toEqual({ NEW: "ny", IN_PROGRESS: "pagar", PARKED: "parkerad", HANDLED: "hanterad", DISMISSED: "avskriven" });
   });
 
   it("kastar i stället för att skriva något halvt", () => {
@@ -292,7 +292,7 @@ describe("pagar (0.181.0)", () => {
     expect([...modell.OPEN_STATES]).toEqual(["ny", "pagar"]);
     expect(modell.isOpen("ny")).toBe(true);
     expect(modell.isOpen("pagar")).toBe(true);
-    for (const s of ["hanterad", "avskriven", "okänd", "", null, undefined]) expect(modell.isOpen(s), String(s)).toBe(false);
+    for (const s of ["parkerad", "hanterad", "avskriven", "okänd", "", null, undefined]) expect(modell.isOpen(s), String(s)).toBe(false);
   });
 
   it("övergångarna: ny till pagar och tillbaka, öppen till slutläge, slutläge bara till ny", () => {
@@ -302,19 +302,20 @@ describe("pagar (0.181.0)", () => {
     for (const [fran, till] of nej) expect(modell.canMove(fran, till), `${fran} till ${till}`).toBe(false);
   });
 
-  it("buildStart: bara från ny, och skriver bara status", () => {
+  it("buildStart: från ny eller parkerad, och skriver bara status", () => {
     expect(modell.buildStart("ny")).toEqual({ status: "pagar" });
+    expect(modell.buildStart("parkerad")).toEqual({ status: "pagar" });
     for (const fran of ["pagar", "hanterad", "avskriven", undefined]) expect(() => modell.buildStart(fran), String(fran)).toThrow(/byggPagar/);
   });
 
   it("buildStop: bara från pagar, tillbaka till ny", () => {
     expect(modell.buildStop("pagar")).toEqual({ status: "ny" });
-    for (const fran of ["ny", "hanterad", "avskriven", undefined]) expect(() => modell.buildStop(fran), String(fran)).toThrow(/byggAvPagar/);
+    for (const fran of ["ny", "parkerad", "hanterad", "avskriven", undefined]) expect(() => modell.buildStop(fran), String(fran)).toThrow(/byggAvPagar/);
   });
 
   it("buildReopen: ett slutläge går till ny och tömmer avslutet, ett öppet läge kan inte öppnas igen", () => {
     for (const fran of ["hanterad", "avskriven"]) expect(modell.buildReopen(fran)).toEqual({ status: "ny", resultat: null, closed: null });
-    for (const fran of ["ny", "pagar", undefined]) expect(() => modell.buildReopen(fran), String(fran)).toThrow(/byggOppnaIgen/);
+    for (const fran of ["ny", "pagar", "parkerad", undefined]) expect(() => modell.buildReopen(fran), String(fran)).toThrow(/byggOppnaIgen/);
   });
 
   it("⛔ pagar är inget slutläge: avslut kräver fortfarande hanterad eller avskriven, och en post som pågår avslutas med samma krav på not", () => {
@@ -333,6 +334,38 @@ describe("pagar (0.181.0)", () => {
 
   it("isOpenCase är samma lista för ytor utan modell", async () => {
     const { isOpenCase } = await import("../lib/caseModel.js");
-    expect(["ny", "pagar", "hanterad", "avskriven"].map(isOpenCase)).toEqual([true, true, false, false]);
+    expect(["ny", "pagar", "parkerad", "hanterad", "avskriven"].map(isOpenCase)).toEqual([true, true, false, false, false]);
+  });
+});
+
+/**
+ * Parkerad (lifehub.app#725): ett ärende man vill komma ihåg men inte göra just nu.
+ * Det är inget öppet läge och inget avslut. Före: statusen fanns inte, och en sådan post kunde bara stå som "ny" och ta plats bland det som ska göras.
+ */
+describe("parkerad (lifehub.app#725)", () => {
+  it("är en egen status, inte öppen och inte ett avslut", () => {
+    expect(modell.STATUS.PARKED).toBe("parkerad");
+    expect([...modell.OPEN_STATES]).toEqual(["ny", "pagar"]);
+    expect(modell.isOpen("parkerad")).toBe(false);
+    expect(modell.missingAtClose("parkerad", { not: "Senare" })).toHaveLength(1);
+    expect(() => modell.buildClose("parkerad", { not: "Senare" })).toThrow(/Avslut kräver/);
+    expect(() => modell.buildReopen("parkerad")).toThrow(/byggOppnaIgen/);
+    expect(modell.daysInNew({ status: "parkerad", skapad: "2020-01-01T00:00:00Z" })).toBeNull();
+  });
+
+  it("parkeras från ett öppet läge och tas tillbaka till ny, eller sätts på pågår", () => {
+    expect(modell.buildPark("ny")).toEqual({ status: "parkerad" });
+    expect(modell.buildPark("pagar")).toEqual({ status: "parkerad" });
+    for (const fran of ["parkerad", "hanterad", "avskriven", undefined]) expect(() => modell.buildPark(fran), String(fran)).toThrow(/byggParkera/);
+    expect(modell.buildUnpark("parkerad")).toEqual({ status: "ny" });
+    for (const fran of ["ny", "pagar", "hanterad", "avskriven", undefined]) expect(() => modell.buildUnpark(fran), String(fran)).toThrow(/byggAvParkera/);
+    expect(modell.buildStart("parkerad")).toEqual({ status: "pagar" });
+  });
+
+  it("övergångarna: öppen till parkerad, parkerad till ny, pågår eller ett slutläge, aldrig från ett slutläge", () => {
+    const ja = [["ny", "parkerad"], ["pagar", "parkerad"], ["parkerad", "ny"], ["parkerad", "pagar"], ["parkerad", "hanterad"], ["parkerad", "avskriven"]];
+    for (const [fran, till] of ja) expect(modell.canMove(fran, till), `${fran} till ${till}`).toBe(true);
+    const nej = [["hanterad", "parkerad"], ["avskriven", "parkerad"], ["parkerad", "parkerad"], [null, "parkerad"]];
+    for (const [fran, till] of nej) expect(modell.canMove(fran, till), `${fran} till ${till}`).toBe(false);
   });
 });

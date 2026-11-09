@@ -48,5 +48,9 @@ describe("STATUS_TONES (bolag-ops #363)", () => {
     expect(new Set([statusTone("ny"), statusTone("pagar"), statusTone("hanterad")]).size).toBe(3);
     expect(statusTone("okänt")).toBe("neutral");
     expect(statusTone(null)).toBe("neutral");
+    // ⛔ Okänd status faller också till neutral. Nyckeln måste därför finnas: utan den är statusTone("parkerad") grön av fallet, inte av beslutet.
+    expect(Object.hasOwn(STATUS_TONES, "parkerad")).toBe(true);
+    expect(STATUS_TONES.parkerad).toBe("neutral");
+    expect(statusTone("parkerad")).toBe(STATUS_TONES.parkerad);
   });
 });

@@ -192,4 +192,18 @@ describe("0.181.0: pagar är en öppen status", () => {
     const utan = visaUppgifter([rad], { ...bas, oppna: ["ny"], klara: KLARA });
     expect(utan.avvisade.map((r) => r.id)).toEqual(["u1"]);
   });
+
+  it("⛔ parkerad står inte i OPEN_STATES, så Idag avvisar den tills appen ger den en egen lista", () => {
+    const modell = createCaseModel({
+      kinds: [{ value: "uppgift", label: "Uppgift", externalLabel: "uppgift" }],
+      priorities: [{ value: snarast, label: "Snarast", externalLabel: "snarast" }],
+      baseLabel: "ops",
+    });
+    const rad = post({ status: modell.STATUS.PARKED, deadline: "2026-10-07", typ: "uppgift" });
+    const vy = visaUppgifter([rad], { ...bas, oppna: modell.OPEN_STATES, klara: [modell.STATUS.HANDLED, modell.STATUS.DISMISSED] });
+    expect(vy.idag).toEqual([]);
+    expect(vy.inkorg).toEqual([]);
+    expect(vy.hanterade).toEqual([]);
+    expect(vy.avvisade.map((r) => r.id)).toEqual(["u1"]);
+  });
 });

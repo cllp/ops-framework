@@ -86,6 +86,16 @@ describe("OpsGastArenden", () => {
     expect(screen.getByText(/Du ser bara de ärenden som gruppen har gett dig, inte gruppens andra\. Du kan kommentera och markera dem klara, men inte öppna dem igen\./)).toBeInTheDocument();
   });
 
+  it("⛔ ett parkerat ärende heter Parkerad och har ingen Markera klar: det ska kommas ihåg, inte göras just nu", () => {
+    rita({ poster: [{ ...POSTER[0], status: "parkerad" }] });
+    const kort = document.querySelector("[data-gast-arende='a-1']");
+    expect(kort.getAttribute("data-status")).toBe("parkerad");
+    expect(kort.querySelector("[data-gast-arende-status]").textContent).toBe("Parkerad");
+    expect(within(kort).queryByRole("button", { name: "Markera klar" })).toBeNull();
+    rita({ poster: [{ ...POSTER[0], id: "a-en", status: "parkerad" }], sprak: "en" });
+    expect(document.querySelector("[data-gast-arende='a-en'] [data-gast-arende-status]").textContent).toBe("Parked");
+  });
+
   it("⛔ ett ärende som pågår är öppet: statusen står som Pågår i varningston, och Markera klar finns kvar", () => {
     rita({ poster: [{ ...POSTER[0], status: "pagar" }] });
     const kort = document.querySelector("[data-gast-arende='a-1']");
