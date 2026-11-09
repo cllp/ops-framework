@@ -53,11 +53,16 @@ on:
       - "v[0-9]+.[0-9]+.[0-9]+"
   workflow_dispatch:
 
-# ⛔ `contents: write` KRÄVS för att skapa en release, och inget mer. Standard
+# ⛔ `contents: write` KRÄVS för att skapa en release. Standard
 # för en tokenrättighet är att lista exakt det som behövs: en `write-all` här
 # hade gett jobbet rätt att skriva i repot, och det ska det inte ha.
+# ⛔ OCH TVÅ LÄSRÄTTIGHETER (2026-11-09, granskningen av b6679ef): steget `provad` frågar vilken PR commiten kom från
+# (`pull-requests: read`) och vilka kontroller som var gröna där (`checks: read`). Utan dem nekas frågan, steget faller
+# tillbaka på hela sviten och besparingen blir noll utan att något syns. Båda är läsning och ger inget att skriva med.
 permissions:
   contents: write
+  pull-requests: read
+  checks: read
 
 jobs:
   publish:
@@ -137,13 +142,18 @@ jobs:
           SHA: ${{ github.sha }}
         run: |
           kor() { echo "Hela sviten körs: $1"; echo "kor=ja" >> "$GITHUB_OUTPUT"; exit 0; }
-          HEAD="$(gh api "repos/$REPO/commits/$SHA/pulls" --jq '[.[] | select(.merged_at != null)][0].head.sha' 2>/dev/null)" || kor "frågan om PR:en gick inte att ställa"
-          [ -n "$HEAD" ] && [ "$HEAD" != "null" ] || kor "commiten $SHA kommer inte från en mergad PR"
+          # ⛔ BARA MAIN, OCH BARA EN COMMIT SOM ÄR PR:ENS EGEN MERGE (granskningen av b6679ef). Kontrollerna på en PR-head provar
+          # headen PLUS basen när de kördes, inte headens eget träd. En tagg på en äldre PR-head, eller knappen från en annan gren,
+          # hade kunnat ge ut ett träd som aldrig provats som det ser ut. Därför krävs att det är main och att commiten är PR:ens
+          # merge-commit; annars körs hela sviten.
+          [ "$GITHUB_REF" = "refs/heads/main" ] || kor "körningen gäller $GITHUB_REF och inte main"
+          HEAD="$(gh api "repos/$REPO/commits/$SHA/pulls" --jq "[.[] | select(.merged_at != null and .merge_commit_sha == \"$SHA\")][0].head.sha" 2>/dev/null)" || kor "frågan om PR:en gick inte att ställa"
+          [ -n "$HEAD" ] && [ "$HEAD" != "null" ] || kor "commiten $SHA är inte merge-commiten för en mergad PR"
           TRAD="$(gh api "repos/$REPO/git/commits/$SHA" --jq .tree.sha)" || kor "trädet för $SHA gick inte att läsa"
           PRTRAD="$(gh api "repos/$REPO/git/commits/$HEAD" --jq .tree.sha)" || kor "trädet för PR-headen $HEAD gick inte att läsa"
           [ "$TRAD" = "$PRTRAD" ] || kor "trädet skiljer sig från PR-headen $HEAD (main hade ändrats sedan PR:en provades)"
           for JOBB in check scaffold paket regelprov; do
-            UTFALL="$(gh api "repos/$REPO/commits/$HEAD/check-runs?per_page=100" --jq "[.check_runs[] | select(.name == \"$JOBB\")] | sort_by(.completed_at) | last | .conclusion")" || kor "utfallet för $JOBB gick inte att läsa"
+            UTFALL="$(gh api "repos/$REPO/commits/$HEAD/check-runs?per_page=100" --jq "[.check_runs[] | select(.name == \"$JOBB\" and .app.slug == \"github-actions\")] | sort_by(.completed_at) | last | .conclusion")" || kor "utfallet för $JOBB gick inte att läsa"
             [ "$UTFALL" = "success" ] || kor "$JOBB på PR-headen $HEAD är '$UTFALL', inte success"
           done
           echo "Sviten hoppas över: trädet $TRAD är PR-headens $HEAD, och check, scaffold, paket och regelprov var gröna där."
@@ -152,10 +162,10 @@ jobs:
       # ⛔ HELA GRINDEN FÖRE UTGIVNINGEN, inte bara proven. En tagg är
       # oföränderlig i praktiken: den som installerat den har den, och en
       # tillbakadragen version är värre än en som aldrig fanns.
-      - if: steps.provad.outputs.kor == 'ja'
+      - if: steps.provad.outputs.kor != 'nej'
         run: npm run check
       # Paketet byggs ur dist också när sviten hoppas över.
-      - if: steps.provad.outputs.kor != 'ja'
+      - if: steps.provad.outputs.kor == 'nej'
         run: npm run build
 
       # ⛔ Och vakten som packar och installerar på riktigt. Den är det enda
@@ -169,15 +179,15 @@ jobs:
       # är den här filen. Den mäter CSS i en riktig webbläsare, alltså sådant som
       # jsdom aldrig ser. Samma installation som i `check.yml`: bara chromium, och
       # `npm run check` har redan byggt `dist`, som vakten kräver.
-      - if: steps.provad.outputs.kor == 'ja'
+      - if: steps.provad.outputs.kor != 'nej'
         run: npx playwright install --with-deps chromium
-      - if: steps.provad.outputs.kor == 'ja'
+      - if: steps.provad.outputs.kor != 'nej'
         run: npm run check:skalyta
       # 0.94.0: brandfilen och lagren, samma skäl och samma installation som skalytevakten ovan.
-      - if: steps.provad.outputs.kor == 'ja'
+      - if: steps.provad.outputs.kor != 'nej'
         run: npm run check:brand
       # 0.136.0: typografin ritad mot SessionStudio, samma skäl och samma installation som ovan.
-      - if: steps.provad.outputs.kor == 'ja'
+      - if: steps.provad.outputs.kor != 'nej'
         run: npm run check:typografimatning
 
       - name: Packa

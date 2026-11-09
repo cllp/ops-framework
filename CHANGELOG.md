@@ -28,7 +28,7 @@ Ett HTML-dokument i Biblioteket ritas på vitt papper också i mörkt läge.
 ### CI: en körning per ändring (CP 2026-11-09: "Du använder slut på mina github action minuter på en dag. Inte ok")
 
 - `check.yml` kör inte på utkast, inte när bara `docs/` eller `.md`-filer ändrats, och inte på main efter merge. Knappen (`workflow_dispatch`) kör alltid.
-- `publish.yml` hoppar över hela sviten (cirka 25 minuter) när commitens träd är exakt PR-headens och `check`, `scaffold`, `paket` och `regelprov` var gröna där. I alla andra fall, också när något inte går att fråga om, körs hela sviten som förut, och beslutet skrivs ut. Steget är provat lokalt med en falsk `gh` i fyra fall: grönt och samma träd hoppar över, och ingen PR, ett annat träd eller en röd scaffold kör hela sviten.
+- `publish.yml` hoppar över hela sviten (cirka 25 minuter) när commitens träd är exakt PR-headens och `check`, `scaffold`, `paket` och `regelprov` var gröna där. I alla andra fall, också när något inte går att fråga om, körs hela sviten som förut, och beslutet skrivs ut. Hoppet kräver dessutom att körningen gäller main och att commiten är PR:ens egen merge-commit, och kontrollerna räknas bara från GitHub Actions. Jobbet har `pull-requests: read` och `checks: read` för frågorna. Steget är provat lokalt med en falsk `gh` i sex fall: grönt och samma träd hoppar över, och ingen PR, en tagg på en äldre commit, ett annat träd, en röd scaffold och en annan gren kör hela sviten. jq-filtren är provade mot svar i API:ets form. (Granskningen av b6679ef: taggen på en äldre PR-head, behörigheterna, kontroller från andra appar och att sviten körs om beslutet saknas.)
 
 ### Prov
 
