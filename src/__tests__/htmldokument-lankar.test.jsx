@@ -83,3 +83,14 @@ describe("länkar i HTML-dokument", () => {
     expect(oppna).toHaveBeenCalledWith("https://exempel.se/", "_blank", "noopener,noreferrer");
   });
 });
+
+describe("rutans papper (CP 2026-11-09)", () => {
+  it("⛔ rutan är vit oavsett appens tema, så att en sida utan egen bakgrund aldrig visar svart text på mörk botten", () => {
+    const { container } = render(<HtmlRuta mark="data-x" title="t" srcDoc="<p>x</p>" className="block" />);
+    const ram = /** @type {HTMLIFrameElement} */ (container.querySelector("iframe"));
+    const klasser = ram.className.split(/\s+/);
+    expect(klasser).toContain("bg-white");
+    expect(klasser).not.toContain("bg-surface");
+    expect(ram.style.colorScheme).toBe("light");
+  });
+});

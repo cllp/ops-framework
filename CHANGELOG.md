@@ -9,6 +9,20 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.209.2
+
+Ett HTML-dokument i Biblioteket ritas på vitt papper också i mörkt läge.
+
+### Rättat
+
+- **Svart text på mörk botten i HTML-rutan** (CP 2026-11-09, med en skärmbild av en uppladdad HTML-sida i mörkt läge). En sida som inte sätter sin egen bakgrund är genomskinlig, och med `colorScheme: "light"` på både ramen och sidan ritar webbläsaren ingen egen botten. Bakom sidans svarta standardtext syntes då appens yta (`bg-surface`), som är mörk i mörkt läge. `HtmlRuta` har nu alltid vitt papper (`bg-white`), som en webbläsare visar en sida på. Detaljens ruta och helfönstret (`OpsHtmlVy`) sätter ingen egen bakgrund längre. En sida som vill vara mörk sätter sin egen bakgrund ovanpå, som förut.
+
+### Prov
+
+- `htmldokument-lankar`, `htmldokument-helfonster` och `anteckning-md`: rutan har `bg-white` och aldrig `bg-surface`, både i detaljen och i helfönstret. Utan ändringen var 3 av 54 prov röda, med den är alla gröna. jsdom kör ingen CSS, så proven mäter klassen och inte färgen. Färgen syns först i appen.
+
+---
+
 ## 0.209.1
 
 Biblioteket läser in .md-tolkningen och HTML-sidan först när de behövs (cllp/lifehub.app#706).

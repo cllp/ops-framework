@@ -56,6 +56,9 @@ describe("OpsHtmlVy: dokumentet i hela fönstret", () => {
     expect(vy.className).toMatch(/\bflex-col\b/);
     expect(ruta.className).toMatch(/\bflex-1\b/);
     expect(ruta.className).toMatch(/\bw-full\b/);
+    // ⛔ Vitt papper och aldrig appens yta, som i mörkt läge gav svart text på mörk botten (CP 2026-11-09).
+    expect(ruta.className).toMatch(/\bbg-white\b/);
+    expect(ruta.className).not.toMatch(/\bbg-surface\b/);
     expect(screen.getByRole("heading", { name: "Årsrapport.html" })).toBeTruthy();
     expect(document.querySelector("[data-html-vy-av]")?.textContent).toBe("Uppladdat av Kim via Byggagent");
     expect(document.querySelector("[data-html-vy-skydd]")?.textContent).toMatch(/avskilt från appen/);
