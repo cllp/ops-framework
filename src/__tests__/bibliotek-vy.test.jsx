@@ -132,8 +132,9 @@ describe("OpsBibliotek", () => {
     expect(screen.queryByRole("button", { name: "Spara" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Redigera" })).toBeNull();
     // Menyn finns för varje aktiv medlem sedan 0.128.0 ("Lägg i lista"), men den som inte skrev posten får varken Byt namn, Redigera eller Radera i den.
+    // (0.209.0, cllp/lifehub.app#706) I detaljen kan den som läser en anteckning ladda ned den: läsningen ger redan texten.
     fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Protokoll" }));
-    expect(within(screen.getByRole("menu", { name: "Protokoll" })).getAllByRole("menuitem").map((r) => r.textContent)).toEqual(["Lägg i lista"]);
+    expect(within(screen.getByRole("menu", { name: "Protokoll" })).getAllByRole("menuitem").map((r) => r.textContent)).toEqual(["Lägg i lista", "Ladda ned som Markdown (.md)", "Ladda ned som PDF", "Ladda ned som HTML"]);
     fireEvent.keyDown(screen.getByRole("menu", { name: "Protokoll" }), { key: "Escape" });
     expect(screen.getByRole("button", { name: "Tillbaka" }).querySelector("svg")).not.toBeNull();
     unmount();
@@ -209,9 +210,9 @@ describe("OpsBibliotek", () => {
 
     const annan = render(<Harness jag={{ uid: "uid-annan", roll: "medlem" }} onRadera={onRadera} />);
     fireEvent.click(screen.getByRole("button", { name: "Protokoll" }));
-    // Sedan 0.128.0 har en medlem som inte skrev posten en meny med bara "Lägg i lista": aldrig Radera, Byt namn eller Redigera.
+    // Sedan 0.128.0 har en medlem som inte skrev posten en meny med bara "Lägg i lista": aldrig Radera, Byt namn eller Redigera. (0.209.0) I detaljen också nedladdningen av anteckningen.
     fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Protokoll" }));
-    expect(within(screen.getByRole("menu", { name: "Protokoll" })).getAllByRole("menuitem").map((r) => r.textContent)).toEqual(["Lägg i lista"]);
+    expect(within(screen.getByRole("menu", { name: "Protokoll" })).getAllByRole("menuitem").map((r) => r.textContent)).toEqual(["Lägg i lista", "Ladda ned som Markdown (.md)", "Ladda ned som PDF", "Ladda ned som HTML"]);
     expect(screen.queryByRole("menuitem", { name: "Radera" })).toBeNull();
     expect(screen.queryByRole("menuitem", { name: "Redigera" })).toBeNull();
     annan.unmount();
@@ -1040,9 +1041,9 @@ describe("OpsBibliotek", () => {
     fireEvent.click(screen.getByRole("button", { name: "Protokoll" }));
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Protokoll");
     expect(screen.queryByRole("textbox")).toBeNull();
-    // I detaljen står Redigera först i menyn.
+    // I detaljen står Redigera först i menyn. (0.209.0, #706) Nedladdningen av en anteckning finns bara i detaljen, och listans meny ovan är oförändrad.
     fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Protokoll" }));
-    expect(screen.getAllByRole("menuitem").map((r) => r.textContent)).toEqual(["Redigera", "Byt namn", "Lägg i lista", "Nåla fast", "Arkivera", "Radera"]);
+    expect(screen.getAllByRole("menuitem").map((r) => r.textContent)).toEqual(["Redigera", "Byt namn", "Lägg i lista", "Ladda ned som Markdown (.md)", "Ladda ned som PDF", "Ladda ned som HTML", "Nåla fast", "Arkivera", "Radera"]);
   });
 
   it("⛔ ett sparande som avvisas syns i formuläret och står kvar i redigering, och två tryck sparar en gång", async () => {

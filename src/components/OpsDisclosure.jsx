@@ -55,8 +55,10 @@ import { ChevronNedIkon } from "./icons.jsx";
  * @param {string} [props.storageKey] Minns öppet eller stängt per webbläsare. Bara i ostyrt läge.
  * @param {number} [props.badge] Siffra efter rubriken, t.ex. antal ifyllda fält därinne. Visas bara över noll.
  * @param {string} [props.id]
+ * @param {boolean} [props.lat] (0.209.0, cllp/lifehub.app#706) Innehållet ritas först när avsnittet är utfällt, och tas bort när det fälls ihop. `<details>` ritar annars sitt innehåll
+ *   också hopfällt (bara dolt), och ett innehåll som läser något när det ritas ("I repot" i Biblioteket läser repot) hade då läst det för varje plats som visas, utan att någon bett om det.
  */
-export function OpsDisclosure({ summary, children, defaultOpen = false, open, onOpenChange, storageKey, badge, id }) {
+export function OpsDisclosure({ summary, children, defaultOpen = false, open, onOpenChange, storageKey, badge, id, lat = false }) {
   const styrd = open !== undefined;
   const [internOppen, setInternOppen] = useState(() => readSaved(storageKey, defaultOpen));
   const arOppen = styrd ? open : internOppen;
@@ -107,7 +109,7 @@ export function OpsDisclosure({ summary, children, defaultOpen = false, open, on
           <ChevronNedIkon />
         </span>
       </summary>
-      <div className="px-4 pb-4">{children}</div>
+      {lat && !arOppen ? null : <div className="px-4 pb-4">{children}</div>}
     </details>
   );
 }

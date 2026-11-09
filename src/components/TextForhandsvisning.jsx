@@ -3,6 +3,7 @@ import { avkodaTextfil, filadressFel, TEXTFORHANDS_BYTE } from "../lib/bibliotek
 import { ordet } from "../lib/ord.js";
 import { useOpsSprak } from "./OpsSprak.jsx";
 import { blobBytes } from "../lib/blobbytes.js";
+import { OpsMarkdown } from "./OpsMarkdown.jsx";
 
 /**
  * Textfilens innehåll i detaljen (0.153.0, ops-framework#460 punkt 3, lifehub.app QA-fynd 5).
@@ -21,9 +22,14 @@ import { blobBytes } from "../lib/blobbytes.js";
  * ett klick gav fortfarande en `data:`-länk med `download`). Bilagan visas nu med samma förhandsvisning som Biblioteket: avkodning, tak, tomhet och fel är desamma på båda ställena, så de kan inte glida isär.
  * `hamta` får `sokvag` och ger en Blob: för Biblioteket hämtar den filen ur lagringen, för en bilaga gör den data-URL:en till en Blob (`bilagaTillBlob`).
  *
- * @param {{ hamta: (sokvag: string) => Promise<Blob>, sokvag: string, namn: string }} props
+ * ══ ⛔ EN MARKDOWNFIL RITAS SOM MARKDOWN (0.209.0, cllp/lifehub.app#706) ═════════════════════════════════════════════
+ *
+ * En .md som är för lång för en anteckning läggs in som fil (`text/markdown`). Med `markdown` ritas texten med `OpsMarkdown` i stället för i `<pre>`, med samma hämtning, samma avkodning och samma tak
+ * (`TEXTFORHANDS_BYTE`): en lång fil visar sin början och raden om att resten finns i filen. Ingen HTML passerar en sträng (`OpsMarkdown`), så en markdownfil kan inte köra något.
+ *
+ * @param {{ hamta: (sokvag: string) => Promise<Blob>, sokvag: string, namn: string, markdown?: boolean }} props
  */
-export function TextForhandsvisning({ hamta, sokvag, namn }) {
+export function TextForhandsvisning({ hamta, sokvag, namn, markdown = false }) {
   const sprak = useOpsSprak();
   const o = (/** @type {keyof typeof ORD_BIBLIOTEKTEXT} */ k) => ordet(ORD_BIBLIOTEKTEXT, k, sprak);
   const [lage, setLage] = useState(/** @type {{ lage: "hamtar" } | { lage: "klar", text: string, avkortad: boolean } | { lage: "fel", fel: string }} */ ({ lage: "hamtar" }));
@@ -59,6 +65,11 @@ export function TextForhandsvisning({ hamta, sokvag, namn }) {
   if (lage.text === "") return <p role="status" data-bibliotek-text="tom" className="m-0 text-etikett text-ink-muted">{o("tom")}</p>;
   return (
     <div className="flex min-w-0 flex-col gap-1">
+      {markdown ? (
+        <div data-bibliotek-text="klar" data-bibliotek-text-markdown="" role="region" aria-label={o("innehall").replace("{namn}", namn)} className="min-w-0">
+          <OpsMarkdown text={lage.text} dokument />
+        </div>
+      ) : (
       <pre
         data-bibliotek-text="klar"
         tabIndex={0}
@@ -67,6 +78,7 @@ export function TextForhandsvisning({ hamta, sokvag, namn }) {
       >
         {lage.text}
       </pre>
+      )}
       {lage.avkortad ? (
         <p data-bibliotek-text-avkortad="" className="m-0 text-meta text-ink-muted">
           {o("avkortad")}
