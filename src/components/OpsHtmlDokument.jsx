@@ -156,7 +156,9 @@ export const HtmlRuta = forwardRef(
         // ⛔ VITT PAPPER, OAVSETT APPENS TEMA (CP 2026-11-09, en skärmbild av en uppladdad HTML-sida i mörkt läge: svart text på mörk botten). En sida som inte sätter sin egen bakgrund är genomskinlig, och
         // med `colorScheme: "light"` på både ramen och sidan ritar webbläsaren ingen egen botten. Då syntes appens yta (`bg-surface`, mörk i mörkt läge) bakom sidans svarta standardtext. Ramen bär därför
         // samma vita papper som en webbläsare visar sidan på, och en sida som vill vara mörk sätter sin egen bakgrund ovanpå. Anroparna sätter ingen bakgrund.
-        className={cx(className, "bg-white", zoom?.fokus && "outline-2 outline-offset-2 outline-accent")}
+        // ⛔ ETT EGET TOKEN, `papper`, OCH INTE `bg-white` (granskningen av bf82a99): `tokens.css` nollställer Tailwinds palett (`--color-*: initial`), så `bg-white` genereras aldrig och hade lämnat
+        // ramen genomskinlig. Färg i en inline-stil stoppas av `check-closed-api` (regel 3). `papper` är samma i ljust och mörkt läge.
+        className={cx(className, "bg-papper", zoom?.fokus && "outline-2 outline-offset-2 outline-accent")}
         style={{ colorScheme: "light" }}
       />
     );
