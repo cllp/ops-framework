@@ -260,6 +260,28 @@ describe("en uppladdning som överlever rutan", () => {
     expect(onSpara).toHaveBeenLastCalledWith(expect.objectContaining({ text: "Taxi i juli, 245 kr. Kort.\n![](kvitto-1.jpg)" }));
   });
 
+  it("⛔ en sparning som normaliseras bort helt kommer aldrig tillbaka: nästa redigering väntar inte på den, och bilden som kommer under tiden tappas inte (andra granskningen av PR 553)", async () => {
+    const b = await iBeredskap();
+    const onSpara = vi.fn(() => true);
+    const lagra = (/** @type {string} */ t) => t.replace(/ +(\n|$)/g, "$1");
+    const { svar } = await borjaUppladdning(b, onSpara, { lagra });
+    fireEvent.click(screen.getByRole("button", { name: /Tillbaka/ }));
+    redigera();
+    // Bara blanksteg sist: appen sparar samma text som förut, och ingenting ändras i posten.
+    fireEvent.change(textruta(), { target: { value: "Taxi i juli.  " } });
+    fireEvent.click(screen.getByRole("button", { name: "Spara" }));
+    await waitFor(() => expect(onSpara).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.queryByRole("textbox", { name: "Text" })).toBeNull());
+    fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Kvitton" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Redigera" }));
+    fireEvent.change(textruta(), { target: { value: "Taxi i juli. Mer." } });
+    await act(async () => svar[0]({ namn: "kvitto-1.jpg" }));
+    await waitFor(() => expect(onSpara).toHaveBeenCalledTimes(2));
+    fireEvent.click(screen.getByRole("button", { name: "Spara" }));
+    await waitFor(() => expect(onSpara).toHaveBeenCalledTimes(3));
+    expect(onSpara).toHaveBeenLastCalledWith(expect.objectContaining({ text: "Taxi i juli. Mer.\n![](kvitto-1.jpg)" }));
+  });
+
   it("⛔ en redigering som inte ändrats följer den sparade texten: bildraden syns i rutan när den skrivits in (0.208.0)", async () => {
     const b = await iBeredskap();
     const onSpara = vi.fn(() => true);

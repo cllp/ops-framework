@@ -2508,6 +2508,12 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, aktuellPost, onLadd
       setText(sparadText);
     }
   }, [sparadText]);
+  // ⛔ EN NY REDIGERING VÄNTAR INTE PÅ EN GAMMAL SPARNING (andra granskningen av PR 553). En sparning som appen tog emot men som inte ändrade den sparade
+  // texten (en normalisering som tog bort hela skillnaden) kommer aldrig tillbaka. Låg den kvar hade nästa ändring utifrån, en bild, tagits för den, och
+  // bildraden hade tappats vid nästa Spara. Ekot av en sparning som gick igenom har kommit innan personen hunnit öppna redigeringen igen.
+  useEffect(() => {
+    if (lage === "redigera") egenSparning.current = null;
+  }, [lage]);
   // ⛔ EN ADRESS PER POST, MED STABIL IDENTITET (#696): `OpsMarkdown` frågar igen när funktionen byts, och en ny funktion vid varje rendering hade frågat efter varje bild vid varje tangent.
   const bildPostId = post && !skapar ? post.id : "";
   const bildPlats = post && !skapar ? post.groupId ?? "" : "";
@@ -2545,6 +2551,7 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, aktuellPost, onLadd
     setRubrik(post && !skapar ? post.rubrik : "");
     setText(post && !skapar && post.typ === "anteckning" ? post.text ?? "" : "");
     textGrund.current = post && !skapar && post.typ === "anteckning" ? post.text ?? "" : "";
+    egenSparning.current = null;
     setUrl(post && !skapar && post.typ === "lank" ? post.url ?? "" : "");
     nollaLank();
     setFormfel("");
@@ -2623,6 +2630,7 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, aktuellPost, onLadd
     setRubrik(post && !skapar ? post.rubrik : "");
     setText(post && !skapar && post.typ === "anteckning" ? post.text ?? "" : "");
     textGrund.current = post && !skapar && post.typ === "anteckning" ? post.text ?? "" : "";
+    egenSparning.current = null;
     setUrl(post && !skapar && post.typ === "lank" ? post.url ?? "" : "");
     nollaLank();
     setFormfel("");
