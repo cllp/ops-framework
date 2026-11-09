@@ -663,6 +663,30 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
     onOppna(post);
   }
 
+  // ⛔ (0.208.0, cllp/lifehub.app#697) LISTAN EN POST ÖPPNADES UR. CP 2026-11-08: "när man är inne i listan och går in på en fil i listan och väljer att gå
+  // tillbaka så hoppar den ur hela listan." Tillbaka från en post som öppnats ur en lista går till listan, och först nästa Tillbaka ut ur biblioteket,
+  // som en webbläsares bakåt. Bara när posten fortfarande ligger i listan: öppnar appen en annan post (en djuplänk, en sökträff), eller har posten tagits
+  // ur listan, gäller Tillbaka som förut.
+  // ⛔ PARET, INTE BARA LISTAN (granskningen av PR 553): `vald` styrs av appen och kan bytas utan att Tillbaka trycks (en djuplänk, telefonens bakåt,
+  // en annan vy). Listan gäller därför bara för just den post som öppnades ur den. Öppnas samma post senare på annat sätt går Tillbaka ut som förut.
+  const [franLista, setFranLista] = useState(/** @type {{ lista: string, post: string } | null} */ (null));
+  // Paret släpps så fort en annan post, eller ingen, är öppen. Annars hade samma post, öppnad på nytt direkt ur biblioteket, fått listan bakom sig.
+  const valdId = vald?.id ?? null;
+  useEffect(() => {
+    setFranLista((f) => (f && f.post !== valdId ? null : f));
+  }, [valdId]);
+  const listanBakom = (() => {
+    if (!franLista || !vald || vald.id !== franLista.post) return null;
+    const l = poster.find((p) => p.id === franLista.lista);
+    return l && l.typ === "lista" && Array.isArray(l.poster) && l.poster.includes(vald.id) ? l : null;
+  })();
+  function stangDetalj() {
+    const l = listanBakom;
+    setFranLista(null);
+    if (l) oppnaMed(l, "las");
+    else onStang();
+  }
+
   /** (0.191.0) Får posten kommenteras? Bara med en källa, och bara där källan säger ja (medlemmens: aldrig Mitt bibliotek). */
   const kanKommenteras = (/** @type {{ id: string, groupId: string }} */ post) => Boolean(kommentarer) && (typeof kommentarer?.kanKommentera !== "function" || kommentarer.kanKommentera(post));
 
@@ -1106,7 +1130,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
     <Rot tillbaka={detalj ? undefined : listTillbaka}>
       <div data-bibliotek="" className="flex min-w-0 w-full flex-col gap-4">
         {detalj ? (
-          <Detalj key={`${skaparTyp ?? ""}:${vald?.id ?? ""}:${startLage}`} post={vald ? medFyll(poster.find((p) => p.id === vald.id) ?? vald) : null} skapar={skaparTyp} startLage={startLage} onStang={onStang} onSpara={onSpara} aktuellPost={aktuellPost} onLaddaUpp={onLaddaUpp} filUrl={filUrl} hamtaFil={hamtaFil} htmlVersioner={htmlVersioner} hamtaHtmlVersion={hamtaHtmlVersion} aterstallHtml={aterstallHtml} nyHtmlVersion={nyHtmlVersion} oppnaHtml={oppnaHtml} oppnaPdf={oppnaPdf} adressFor={adressFor} taggrad={vald && !skaparTyp ? (() => {
+          <Detalj key={`${skaparTyp ?? ""}:${vald?.id ?? ""}:${startLage}`} post={vald ? medFyll(poster.find((p) => p.id === vald.id) ?? vald) : null} skapar={skaparTyp} startLage={startLage} onStang={stangDetalj} onSpara={onSpara} aktuellPost={aktuellPost} onLaddaUpp={onLaddaUpp} filUrl={filUrl} hamtaFil={hamtaFil} htmlVersioner={htmlVersioner} hamtaHtmlVersion={hamtaHtmlVersion} aterstallHtml={aterstallHtml} nyHtmlVersion={nyHtmlVersion} oppnaHtml={oppnaHtml} oppnaPdf={oppnaPdf} adressFor={adressFor} taggrad={vald && !skaparTyp ? (() => {
             // ⛔ TAGGARNA RITAS OCKSÅ I DETALJEN (0.153.0, ops-framework#460 punkt 3, lifehub.app QA-fynd 5): förut bara på listkortet, så den som öppnade en post såg inte vilka taggar den hade. Samma rad, samma rätt att ändra
             // (`farAndra`) och samma förslag som på kortet, men utan filter: listan är inte synlig medan en post är öppen, och ett tryck på en tagg skulle ställa in ett filter ingen ser.
             const rad = poster.find((p) => p.id === vald.id) ?? vald;
@@ -1121,7 +1145,10 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
           })() : null} markering={vald ? (() => {
             const rad = poster.find((p) => p.id === vald.id) ?? vald;
             return <Markering nalad={arNalad(rad)} nalOrd={mord("nalad")} stjarna={stjarnFor(rad)} />;
-          })() : null} onLjus={setLjus} onSkrivUt={onSkrivUt} onSkrivUtIgen={onSkrivUtIgen} onTaBortUtskrift={onTaBortUtskrift} onAnteckningAvUtskrift={onAnteckningAvUtskrift} menyFor={menyFor} onMeta={togMeta} tillbakaEtikett={lord(inbaddad ? "filer" : "tillbaka")} poster={poster} jag={jag} onLankInfo={onLankInfo} githubLasare={githubLasare} onLaggBildIAnteckning={onLaggBildIAnteckning} bildIAnteckningAdress={bildIAnteckningAdress} bildIAnteckningFel={bildIAnteckningFel} onOppnaPost={(p) => oppnaMed(p, "las")} kommentarer={vald && !skaparTyp && kanKommenteras(vald) ? kommentarer : null} fokusKommentar={Boolean(vald) && kommenteraFor === vald?.id} />
+          })() : null} onLjus={setLjus} onSkrivUt={onSkrivUt} onSkrivUtIgen={onSkrivUtIgen} onTaBortUtskrift={onTaBortUtskrift} onAnteckningAvUtskrift={onAnteckningAvUtskrift} menyFor={menyFor} onMeta={togMeta} tillbakaEtikett={lord(inbaddad ? "filer" : "tillbaka")} poster={poster} jag={jag} onLankInfo={onLankInfo} githubLasare={githubLasare} onLaggBildIAnteckning={onLaggBildIAnteckning} bildIAnteckningAdress={bildIAnteckningAdress} bildIAnteckningFel={bildIAnteckningFel} onOppnaPost={(p) => {
+            setFranLista(vald && vald.typ === "lista" ? { lista: vald.id, post: p.id } : null);
+            oppnaMed(p, "las");
+          }} kommentarer={vald && !skaparTyp && kanKommenteras(vald) ? kommentarer : null} fokusKommentar={Boolean(vald) && kommenteraFor === vald?.id} />
         ) : (
           <div data-bibliotek-huvud="" className="flex min-w-0 flex-col gap-3">
             {/* ⛔ SESSIONSTUDIOS HUVUD, SOM I APPEN (0.102.0, CP 2026-10-14 med skärmbilder från SessionStudios app: "Listningen
@@ -2453,6 +2480,40 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, aktuellPost, onLadd
   const filFalt = useRef(/** @type {HTMLInputElement | null} */ (null));
   const [lage, setLage] = useState(/** @type {"las" | "redigera"} */ (skapar ? "redigera" : startLage));
   const nyckel = `${skapar ?? ""}:${post?.id ?? ""}`;
+  // ⛔ (0.208.0) TEXTEN REDIGERINGEN UTGICK FRÅN, så att en text som sparats under tiden inte skrivs över. Fallet är en bild som blev klar efter att en
+  // tidigare redigering stängts (`skrivInEfterStangning`): den sparade texten fick då en bildrad sist. Är rutan oförändrad följer den den sparade texten.
+  // Har personen börjat skriva tar Spara med det som lagts till sist i den sparade texten sedan redigeringen öppnades, i stället för att skriva över det.
+  // En ändring mitt i texten (en annan medlem som skrivit om den) slås inte ihop: den skrivs över som förut, och det är en känd gräns.
+  const textGrund = useRef(post && !skapar && post.typ === "anteckning" ? post.text ?? "" : "");
+  const sparadText = post && !skapar && post.typ === "anteckning" ? post.text ?? "" : null;
+  const textNu = useRef(text);
+  textNu.current = text;
+  // Den egna sparningen som väntar på att komma tillbaka: rutans text när Spara trycktes. Nollas när sparningen misslyckas.
+  const egenSparning = useRef(/** @type {string | null} */ (null));
+  useEffect(() => {
+    if (sparadText === null || sparadText === textGrund.current) return;
+    // ⛔ EN EGEN SPARNING SOM VÄNTAR (granskningen av PR 553): nästa sparade text är den, också om appen eller servern normaliserat den (trim, radslut).
+    // En jämförelse på exakt likhet hade lämnat grunden kvar, och nästa Spara hade lagt till skillnaden en gång till. Rutan följer bara med om den
+    // är som när Spara trycktes: tecken skrivna medan sparningen gick står kvar.
+    const egen = egenSparning.current;
+    if (egen !== null) {
+      egenSparning.current = null;
+      textGrund.current = sparadText;
+      if (textNu.current === egen) setText(sparadText);
+      return;
+    }
+    // Rutan är oförändrad: den följer med, och grunden flyttas. Annars står grunden kvar, och Spara lägger till det som tillkommit.
+    if (textNu.current === textGrund.current) {
+      textGrund.current = sparadText;
+      setText(sparadText);
+    }
+  }, [sparadText]);
+  // ⛔ EN NY REDIGERING VÄNTAR INTE PÅ EN GAMMAL SPARNING (andra granskningen av PR 553). En sparning som appen tog emot men som inte ändrade den sparade
+  // texten (en normalisering som tog bort hela skillnaden) kommer aldrig tillbaka. Låg den kvar hade nästa ändring utifrån, en bild, tagits för den, och
+  // bildraden hade tappats vid nästa Spara. Ekot av en sparning som gick igenom har kommit innan personen hunnit öppna redigeringen igen.
+  useEffect(() => {
+    if (lage === "redigera") egenSparning.current = null;
+  }, [lage]);
   // ⛔ EN ADRESS PER POST, MED STABIL IDENTITET (#696): `OpsMarkdown` frågar igen när funktionen byts, och en ny funktion vid varje rendering hade frågat efter varje bild vid varje tangent.
   const bildPostId = post && !skapar ? post.id : "";
   const bildPlats = post && !skapar ? post.groupId ?? "" : "";
@@ -2489,6 +2550,8 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, aktuellPost, onLadd
   useEffect(() => {
     setRubrik(post && !skapar ? post.rubrik : "");
     setText(post && !skapar && post.typ === "anteckning" ? post.text ?? "" : "");
+    textGrund.current = post && !skapar && post.typ === "anteckning" ? post.text ?? "" : "";
+    egenSparning.current = null;
     setUrl(post && !skapar && post.typ === "lank" ? post.url ?? "" : "");
     nollaLank();
     setFormfel("");
@@ -2566,10 +2629,23 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, aktuellPost, onLadd
   function aterstall() {
     setRubrik(post && !skapar ? post.rubrik : "");
     setText(post && !skapar && post.typ === "anteckning" ? post.text ?? "" : "");
+    textGrund.current = post && !skapar && post.typ === "anteckning" ? post.text ?? "" : "";
+    egenSparning.current = null;
     setUrl(post && !skapar && post.typ === "lank" ? post.url ?? "" : "");
     nollaLank();
     setFormfel("");
     setValdFil(null);
+  }
+
+  /**
+   * Personens text, med det som lagts till sist i den sparade texten sedan redigeringen öppnades (se `textGrund`). Bara ett tillägg i slutet räknas.
+   * @param {string} egen
+   */
+  function medTillagt(egen) {
+    const grund = textGrund.current;
+    if (sparadText === null || sparadText === grund || !sparadText.startsWith(grund)) return egen;
+    const tillagt = sparadText.slice(grund.length);
+    return egen.endsWith(tillagt) ? egen : egen + tillagt;
   }
 
   /** @returns {boolean | void | Promise<void | boolean>} */
@@ -2605,8 +2681,11 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, aktuellPost, onLadd
     // ⛔ TOM RUBRIK PÅ EN NY ANTECKNING FÅR DATUM OCH TID (CP 2026-10-18), aldrig textens början. En skriven eller dikterad rubrik vinner.
     const anteckningsrubrik = typ === "anteckning" && skapar && !trimSomRegeln(rubrik) ? anteckningsrubrikNu() : rubrik;
     const nyUrl = normaliseraAdress(url);
+    const sparasText = typ === "anteckning" ? medTillagt(text) : text;
+    // Bara en sparning som ändrar den sparade texten kommer tillbaka; en oförändrad hade lämnat raden kvar och tagit nästa ändring (en bild) för sin egen.
+    if (typ === "anteckning" && post && !skapar) egenSparning.current = sparasText !== sparadText ? text : null;
     const inmatning = typ === "anteckning"
-      ? { typ, rubrik: anteckningsrubrik, text, ...(post && !skapar ? { id: post.id } : {}) }
+      ? { typ, rubrik: anteckningsrubrik, text: sparasText, ...(post && !skapar ? { id: post.id } : {}) }
       : typ === "fil"
         ? { typ, rubrik, fil: post?.fil, ...(post && !skapar ? { id: post.id } : {}) }
         : typ === "lista"
@@ -2624,26 +2703,36 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, aktuellPost, onLadd
     // avvisat löfte blir ett fel i formuläret. Förut kastades svaret bort: formuläret gick till läsning och felet försvann.
     /** @param {unknown} e */
     const visa = (e) => setFormfel(e instanceof Error && e.message ? e.message : String(e));
+    // En sparning som inte gick igenom kommer aldrig tillbaka: den väntande egna sparningen släpps, så att nästa ändring utifrån inte tas för den.
+    const slapp = () => {
+      egenSparning.current = null;
+    };
     let svar;
     try {
       svar = onSpara(inmatning);
     } catch (e) {
+      slapp();
       visa(e);
       return false;
     }
     if (svar && typeof svar === "object" && typeof svar.then === "function") {
       return svar.then(
         (/** @type {void | boolean} */ v) => {
-          if (v === false) setFormfel("Posten kunde inte sparas.");
+          if (v === false) {
+            slapp();
+            setFormfel("Posten kunde inte sparas.");
+          }
           return v;
         },
         (/** @type {unknown} */ e) => {
+          slapp();
           visa(e);
           return false;
         },
       );
     }
     if (svar === false) {
+      slapp();
       setFormfel("Posten kunde inte sparas.");
       return false;
     }

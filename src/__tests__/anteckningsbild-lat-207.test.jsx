@@ -33,8 +33,8 @@ async function iBeredskap() {
     return vi.importActual("../components/BibliotekAnteckningsbild.jsx");
   });
   const { OpsBibliotek } = await import("../components/OpsBibliotek.jsx");
-  /** @param {{ start?: any[], onLaggBildIAnteckning?: any, onSpara?: any }} props */
-  function Harness({ start = [anteckning()], onLaggBildIAnteckning, onSpara = () => {} }) {
+  /** @param {{ start?: any[], onLaggBildIAnteckning?: any, onSpara?: any, lagra?: (text: string) => string }} props `lagra`: appen normaliserar texten när den sparas. */
+  function Harness({ start = [anteckning()], onLaggBildIAnteckning, onSpara = () => {}, lagra = (t) => t }) {
     const [vald, setVald] = useState(/** @type {any} */ (null));
     const [poster, setPoster] = useState(start);
     return (
@@ -48,7 +48,7 @@ async function iBeredskap() {
           onSkapa={() => {}}
           onSpara={(/** @type {any} */ p) => {
             const svar = onSpara(p);
-            setPoster((nu) => nu.map((x) => (x.id === p.id ? { ...x, ...p } : x)));
+            setPoster((nu) => nu.map((x) => (x.id === p.id ? { ...x, ...p, ...(typeof p.text === "string" ? { text: lagra(p.text) } : {}) } : x)));
             return svar;
           }}
           hubHref="/hub"
@@ -151,11 +151,11 @@ describe("BibliotekAnteckningsbildLat: rutan läses in när den behövs", () => 
 
 describe("en uppladdning som överlever rutan", () => {
   /** @param {{ Harness: any }} b @param {any} onSpara */
-  async function borjaUppladdning({ Harness }, onSpara) {
+  async function borjaUppladdning({ Harness }, onSpara, /** @type {{ lagra?: (t: string) => string }} */ extra = {}) {
     /** @type {Array<(v: { namn: string }) => void>} */
     const svar = [];
     const onLagg = vi.fn(() => new Promise((los) => svar.push(los)));
-    render(<Harness onLaggBildIAnteckning={onLagg} onSpara={onSpara} />);
+    render(<Harness onLaggBildIAnteckning={onLagg} onSpara={onSpara} {...extra} />);
     redigera();
     const input = await screen.findByLabelText("Lägg till bild", { selector: "input" });
     fireEvent.change(input, { target: { files: [bild(), bild()] } });
@@ -211,6 +211,86 @@ describe("en uppladdning som överlever rutan", () => {
     await act(async () => svar[0]({ namn: "kvitto-1.jpg" }));
     await waitFor(() => expect(onSpara).toHaveBeenCalledTimes(2));
     expect(onSpara).toHaveBeenLastCalledWith({ typ: "anteckning", rubrik: "Kvitton", text: "Sparat efter stängningen.\n![](kvitto-1.jpg)", id: "a1" });
+  });
+
+  it("⛔ öppnas anteckningen för redigering igen medan bilden laddas upp, och sparas efteråt, står bildraden kvar i den nya texten (0.208.0)", async () => {
+    const b = await iBeredskap();
+    const onSpara = vi.fn(() => true);
+    const { svar } = await borjaUppladdning(b, onSpara);
+    fireEvent.click(screen.getByRole("button", { name: /Tillbaka/ }));
+    redigera();
+    fireEvent.change(textruta(), { target: { value: "Taxi i juli, 245 kr." } });
+    await act(async () => svar[0]({ namn: "kvitto-1.jpg" }));
+    await waitFor(() => expect(onSpara).toHaveBeenCalledTimes(1));
+    // Den nya redigeringen sparar sin text, och bildraden som skrevs in under tiden följer med sist.
+    fireEvent.click(screen.getByRole("button", { name: "Spara" }));
+    await waitFor(() => expect(onSpara).toHaveBeenCalledTimes(2));
+    expect(onSpara).toHaveBeenLastCalledWith(expect.objectContaining({ text: "Taxi i juli, 245 kr.\n![](kvitto-1.jpg)", id: "a1" }));
+    // Nästa redigering börjar från det som sparades, med bildraden, och en ny sparning tappar den inte.
+    await waitFor(() => expect(screen.queryByRole("textbox", { name: "Text" })).toBeNull());
+    fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Kvitton" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Redigera" }));
+    expect(textruta()).toHaveValue("Taxi i juli, 245 kr.\n![](kvitto-1.jpg)");
+    fireEvent.change(textruta(), { target: { value: "Taxi i juli, 245 kr. Kort.\n![](kvitto-1.jpg)" } });
+    fireEvent.click(screen.getByRole("button", { name: "Spara" }));
+    await waitFor(() => expect(onSpara).toHaveBeenCalledTimes(3));
+    expect(onSpara).toHaveBeenLastCalledWith(expect.objectContaining({ text: "Taxi i juli, 245 kr. Kort.\n![](kvitto-1.jpg)" }));
+  });
+
+  it("⛔ appen normaliserar den sparade texten (blanksteg sist på raden): nästa redigering har bildraden, och den dubbleras inte (granskningen av PR 553)", async () => {
+    const b = await iBeredskap();
+    const onSpara = vi.fn(() => true);
+    const lagra = (/** @type {string} */ t) => t.replace(/ +(\n|$)/g, "$1");
+    const { svar } = await borjaUppladdning(b, onSpara, { lagra });
+    fireEvent.click(screen.getByRole("button", { name: /Tillbaka/ }));
+    redigera();
+    fireEvent.change(textruta(), { target: { value: "Taxi i juli, 245 kr.  " } });
+    await act(async () => svar[0]({ namn: "kvitto-1.jpg" }));
+    await waitFor(() => expect(onSpara).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole("button", { name: "Spara" }));
+    await waitFor(() => expect(onSpara).toHaveBeenCalledTimes(2));
+    expect(onSpara).toHaveBeenLastCalledWith(expect.objectContaining({ text: "Taxi i juli, 245 kr.  \n![](kvitto-1.jpg)" }));
+    await waitFor(() => expect(screen.queryByRole("textbox", { name: "Text" })).toBeNull());
+    fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Kvitton" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Redigera" }));
+    expect(textruta()).toHaveValue("Taxi i juli, 245 kr.\n![](kvitto-1.jpg)");
+    fireEvent.change(textruta(), { target: { value: "Taxi i juli, 245 kr. Kort.\n![](kvitto-1.jpg)" } });
+    fireEvent.click(screen.getByRole("button", { name: "Spara" }));
+    await waitFor(() => expect(onSpara).toHaveBeenCalledTimes(3));
+    expect(onSpara).toHaveBeenLastCalledWith(expect.objectContaining({ text: "Taxi i juli, 245 kr. Kort.\n![](kvitto-1.jpg)" }));
+  });
+
+  it("⛔ en sparning som normaliseras bort helt kommer aldrig tillbaka: nästa redigering väntar inte på den, och bilden som kommer under tiden tappas inte (andra granskningen av PR 553)", async () => {
+    const b = await iBeredskap();
+    const onSpara = vi.fn(() => true);
+    const lagra = (/** @type {string} */ t) => t.replace(/ +(\n|$)/g, "$1");
+    const { svar } = await borjaUppladdning(b, onSpara, { lagra });
+    fireEvent.click(screen.getByRole("button", { name: /Tillbaka/ }));
+    redigera();
+    // Bara blanksteg sist: appen sparar samma text som förut, och ingenting ändras i posten.
+    fireEvent.change(textruta(), { target: { value: "Taxi i juli.  " } });
+    fireEvent.click(screen.getByRole("button", { name: "Spara" }));
+    await waitFor(() => expect(onSpara).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.queryByRole("textbox", { name: "Text" })).toBeNull());
+    fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Kvitton" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Redigera" }));
+    fireEvent.change(textruta(), { target: { value: "Taxi i juli. Mer." } });
+    await act(async () => svar[0]({ namn: "kvitto-1.jpg" }));
+    await waitFor(() => expect(onSpara).toHaveBeenCalledTimes(2));
+    fireEvent.click(screen.getByRole("button", { name: "Spara" }));
+    await waitFor(() => expect(onSpara).toHaveBeenCalledTimes(3));
+    expect(onSpara).toHaveBeenLastCalledWith(expect.objectContaining({ text: "Taxi i juli. Mer.\n![](kvitto-1.jpg)" }));
+  });
+
+  it("⛔ en redigering som inte ändrats följer den sparade texten: bildraden syns i rutan när den skrivits in (0.208.0)", async () => {
+    const b = await iBeredskap();
+    const onSpara = vi.fn(() => true);
+    const { svar } = await borjaUppladdning(b, onSpara);
+    fireEvent.click(screen.getByRole("button", { name: /Tillbaka/ }));
+    redigera();
+    expect(textruta()).toHaveValue("Taxi i juli.");
+    await act(async () => svar[0]({ namn: "kvitto-1.jpg" }));
+    await waitFor(() => expect(textruta()).toHaveValue("Taxi i juli.\n![](kvitto-1.jpg)"));
   });
 
   it("⛔ en annan medlem ändrar texten medan bilden laddas upp: bilden skrivs in i hens text", async () => {

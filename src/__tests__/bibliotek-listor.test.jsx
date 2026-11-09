@@ -62,6 +62,8 @@ function Host({ start, jag = JAG, fall = undefined, grupper = [] }) {
         hubHref="/hub"
       />
       <div data-anrop="" hidden>{JSON.stringify(anrop)}</div>
+      {/* Appen stänger posten utan ramverkets Tillbaka, som telefonens bakåtgest eller en annan vy. */}
+      <button type="button" onClick={() => setVald(null)}>Appens bakåt</button>
     </>
   );
 }
@@ -245,6 +247,46 @@ describe("listans detalj", () => {
     await oppnaLista(user);
     await user.click(screen.getByRole("button", { name: "Öppna Alfa" }));
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Alfa");
+  });
+
+  it("⛔ Tillbaka från en post som öppnats ur listan går tillbaka till listan, och nästa Tillbaka ut ur biblioteket (lifehub.app#697)", async () => {
+    const user = userEvent.setup();
+    render(<Host start={start()} />);
+    await oppnaLista(user);
+    await user.click(screen.getByRole("button", { name: "Öppna Alfa" }));
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Alfa");
+    await user.click(screen.getByRole("button", { name: /Tillbaka/ }));
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Spellista");
+    await user.click(screen.getByRole("button", { name: /Tillbaka/ }));
+    expect(screen.queryByRole("heading", { level: 1, name: "Spellista" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Spellista" })).toBeInTheDocument();
+  });
+
+  it("⛔ en post som öppnats på annat sätt än ur listan går ut ur biblioteket med Tillbaka, också efter ett besök i listan", async () => {
+    const user = userEvent.setup();
+    render(<Host start={start()} />);
+    await oppnaLista(user);
+    await user.click(screen.getByRole("button", { name: /Tillbaka/ }));
+    await user.click(screen.getByRole("button", { name: "Alfa" }));
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Alfa");
+    await user.click(screen.getByRole("button", { name: /Tillbaka/ }));
+    // Biblioteket igen: listans kort syns, och ingen post är öppen.
+    expect(screen.getByRole("button", { name: "Spellista" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { level: 1, name: "Alfa" })).toBeNull();
+  });
+
+  it("⛔ appen stänger en post som öppnats ur listan, och samma post öppnas sedan direkt: Tillbaka går ut, inte till listan (granskningen av PR 553)", async () => {
+    const user = userEvent.setup();
+    render(<Host start={start()} />);
+    await oppnaLista(user);
+    await user.click(screen.getByRole("button", { name: "Öppna Alfa" }));
+    await user.click(screen.getByRole("button", { name: "Appens bakåt" }));
+    await user.click(screen.getByRole("button", { name: "Alfa" }));
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Alfa");
+    await user.click(screen.getByRole("button", { name: /Tillbaka/ }));
+    expect(screen.queryByRole("heading", { level: 1, name: "Spellista" })).toBeNull();
+    expect(screen.queryByRole("heading", { level: 1, name: "Alfa" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Spellista" })).toBeInTheDocument();
   });
 
   it("⛔ en tom lista säger det, och hur man lägger till", async () => {

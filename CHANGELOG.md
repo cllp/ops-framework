@@ -9,6 +9,31 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.208.0
+
+Två rättningar i Biblioteket, båda ur nattens granskningar och cllp/lifehub.app#697.
+
+### Ändrat
+
+- **Tillbaka från en post som öppnats ur en lista går tillbaka till listan** (cllp/lifehub.app#697, CP 2026-11-08: "när man är inne i listan och går in på en fil i listan och väljer att gå tillbaka så hoppar den ur hela listan"). Nästa Tillbaka går ut ur biblioteket, som en webbläsares bakåt.
+  - `OpsBibliotek` minns listan en post öppnades ur (`onOppnaPost` i listvyn).
+  - Gäller bara när posten fortfarande ligger i listan. Öppnar appen en annan post (en djuplänk, en sökträff), eller har posten tagits ur listan, gäller Tillbaka som förut.
+  - Ingen ny prop. Appens `onOppna` och `onStang` anropas som förut: Tillbaka till listan är `onOppna(listan)`.
+  - Stänger appen posten själv (telefonens bakåt, en annan vy) och öppnas samma post sedan direkt, går Tillbaka ut. Listan gäller bara den öppning som skedde ur den (granskningen av PR 553).
+- **En anteckning som öppnas igen medan en bild laddas upp tappar inte bildraden.** Granskningen av 0.207.0 noterade det som kvar: en bild som blev klar efter att redigeringen stängts skrevs in i den sparade texten, men en ny redigering av samma anteckning visade texten utan bildraden och skrev över den vid Spara.
+  - En redigering som inte ändrats följer nu den sparade texten, så bildraden syns i rutan när den skrivits in.
+  - Har personen börjat skriva, tar Spara med det som lagts till sist i den sparade texten sedan redigeringen öppnades (`medTillagt`), i stället för att skriva över det.
+  - Den egna sparningen tas emot också om appen normaliserar texten (granskningen av PR 553), så nästa Spara dubblerar ingenting. En sparning som misslyckas, eller som normaliserats bort helt, väntas inte på när redigeringen öppnas igen, och tecken som skrivits medan sparningen gick står kvar i rutan.
+  - Efter den egna sparningen börjar nästa redigering från den sparade texten, med bildraden.
+  - ⛔ **Gräns:** en ändring mitt i texten (en annan medlem som skrivit om den) slås inte ihop. Den skrivs över som förut. Bara ett tillägg i slutet räknas, och det är den form en bild efter stängningen har.
+
+### Prov
+
+- `bibliotek-listor.test.jsx`, två nya. Tillbaka från en post ur listan går till listan och sedan ut ur biblioteket: rött mot 0.207.0, grönt nu. En post som öppnats ur biblioteket går ut med Tillbaka också efter ett besök i listan: grönt åt båda håll, som skydd för det som inte ska ändras.
+- `anteckningsbild-lat-207.test.jsx`, två nya:
+  - En ny redigering under en pågående uppladdning sparar sin text med bildraden sist, och nästa redigering börjar från den. Rött mot 0.207.0, grönt nu.
+  - En oförändrad redigering visar bildraden när den skrivits in. Rött mot 0.207.0, grönt nu.
+
 ## 0.207.0
 
 Bild i en anteckning, skiva 2 (cllp/lifehub.app#696), ramverkets halva: bilderna syns på en delad sida, i en delad lista och i gästens bibliotek. Servern signerar dem, på en delad sida med svaret och i gästens bibliotek först när gästen öppnar anteckningen (regel 13), och vyn ritar dem och ber om nya adresser när de gått ut. Dessutom läses rutan med "Lägg till bild" in när den behövs, utan att textrutan byts när biten redan är hämtad, och en uppladdning som pågår när redigeringen lämnas tappar inte bilden.
