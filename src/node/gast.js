@@ -2538,7 +2538,8 @@ export function createGastService(konfig) {
     const postId = typeof b?.postId === "string" ? b.postId : "";
     if (!postId) return orsak("saknas");
     const post = await kalla.read(GS.samlingar.bibliotek, postId);
-    if (!gastSerBibliotekspost(post, groupId) || post?.typ !== "anteckning") return orsak("saknas");
+    // ⛔ POSTENS EGET ID MÅSTE VARA DET GÄSTEN SKICKADE, som för `kommenteraPost`: sökvägen byggs av id:t, och en datakälla som läser något annat än exakt id:t ska ge `saknas`.
+    if (!gastSerBibliotekspost(post, groupId) || post?.typ !== "anteckning" || post.id !== postId) return orsak("saknas");
     const bilder = await anteckningsbildAdresser({ post: /** @type {Record<string, any>} */ (post), postId, lagring: GS.lagring, gruppPrefix: GS.gruppPrefix, postPrefix: GS.postPrefix, budget: { kvar: MAX_ANTECKNINGSBILDER } });
     return vitlista({ ok: true, bilder: bilder ?? {} }, GASTGRUPPSVARSFALT.anteckningsbilder);
   }

@@ -56,6 +56,9 @@ async function iBeredskap() {
         />
         {/* Appen byter vy utan ramverkets Tillbaka, som telefonens bakåtgest gör. */}
         <button type="button" onClick={() => setVald(null)}>Appens bakåt</button>
+        {/* En annan medlem tar bort posten, eller ändrar dess text, medan bilden laddas upp. */}
+        <button type="button" onClick={() => setPoster([])}>Någon tar bort</button>
+        <button type="button" onClick={() => setPoster((nu) => nu.map((x) => ({ ...x, text: "Någon annans text." })))}>Någon ändrar</button>
       </>
     );
   }
@@ -193,6 +196,45 @@ describe("en uppladdning som överlever rutan", () => {
     await act(async () => svar[0]({ namn: "kvitto-1.jpg" }));
     await waitFor(() => expect(onSpara).toHaveBeenCalledTimes(1));
     expect(onSpara).toHaveBeenLastCalledWith({ typ: "anteckning", rubrik: "Kvitton", text: "Taxi i juli.\n![](kvitto-1.jpg)", id: "a1" });
+  });
+
+  it("⛔ Tillbaka, öppna igen och spara en ny text mitt i uppladdningen: bilden skrivs in i den NYA texten, som inte försvinner (granskningen av 0.207.0)", async () => {
+    const b = await iBeredskap();
+    const onSpara = vi.fn(() => true);
+    const { svar } = await borjaUppladdning(b, onSpara);
+    fireEvent.click(screen.getByRole("button", { name: /Tillbaka/ }));
+    redigera();
+    fireEvent.change(textruta(), { target: { value: "Sparat efter stängningen." } });
+    fireEvent.click(screen.getByRole("button", { name: "Spara" }));
+    await waitFor(() => expect(onSpara).toHaveBeenCalledTimes(1));
+    expect(onSpara).toHaveBeenLastCalledWith(expect.objectContaining({ text: "Sparat efter stängningen.", id: "a1" }));
+    await act(async () => svar[0]({ namn: "kvitto-1.jpg" }));
+    await waitFor(() => expect(onSpara).toHaveBeenCalledTimes(2));
+    expect(onSpara).toHaveBeenLastCalledWith({ typ: "anteckning", rubrik: "Kvitton", text: "Sparat efter stängningen.\n![](kvitto-1.jpg)", id: "a1" });
+  });
+
+  it("⛔ en annan medlem ändrar texten medan bilden laddas upp: bilden skrivs in i hens text", async () => {
+    const b = await iBeredskap();
+    const onSpara = vi.fn(() => true);
+    const { svar } = await borjaUppladdning(b, onSpara);
+    fireEvent.click(screen.getByRole("button", { name: /Tillbaka/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Någon ändrar" }));
+    await act(async () => svar[0]({ namn: "kvitto-1.jpg" }));
+    await waitFor(() => expect(onSpara).toHaveBeenCalledTimes(1));
+    expect(onSpara).toHaveBeenLastCalledWith({ typ: "anteckning", rubrik: "Kvitton", text: "Någon annans text.\n![](kvitto-1.jpg)", id: "a1" });
+  });
+
+  it("⛔ posten tas bort medan bilden laddas upp: ingenting sparas, och den väcks inte", async () => {
+    const b = await iBeredskap();
+    const onSpara = vi.fn(() => true);
+    const { svar, onLagg } = await borjaUppladdning(b, onSpara);
+    fireEvent.click(screen.getByRole("button", { name: /Tillbaka/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Någon tar bort" }));
+    await act(async () => svar[0]({ namn: "kvitto-1.jpg" }));
+    await waitFor(() => expect(onLagg).toHaveBeenCalledTimes(2));
+    await act(async () => svar[1]({ namn: "kvitto-2.jpg" }));
+    await act(async () => {});
+    expect(onSpara).not.toHaveBeenCalled();
   });
 
   it("med rutan kvar skrivs bilden in i rutan som förut, och ingenting sparas av sig självt", async () => {

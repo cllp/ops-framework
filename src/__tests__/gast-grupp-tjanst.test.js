@@ -1185,6 +1185,17 @@ describe("bibliotek", () => {
       expect(h.signera).not.toHaveBeenCalled();
     });
 
+    it("⛔ en datakälla som svarar med en annan post än den gästen bad om ger `saknas`, och lagringen frågas inte (granskningen av 0.207.0)", async () => {
+      // Källan läser "p-annan" som p-bild: en adapter som slår upp på något annat än exakt id:t.
+      const omslut = (/** @type {any} */ k) =>
+        new Proxy(k, { get: (mal, namn) => (namn === "read" ? (/** @type {string} */ samling, /** @type {string} */ id) => mal.read(samling, id === "p-annan" ? "p-bild" : id) : Reflect.get(mal, namn)) });
+      const h = bygg({ omslut, extra: { bibliotek: [...seed().bibliotek, not("p-bild", TEXT)] }, filer: FILER });
+      const g = await gruppGast(h);
+      expect(await h.tjanst.anteckningsbilder({ sessionsnyckel: g.sessionsnyckel, postId: "p-annan" })).toEqual({ ok: false, orsak: "saknas" });
+      expect(h.finns).not.toHaveBeenCalled();
+      expect((await h.tjanst.anteckningsbilder({ sessionsnyckel: g.sessionsnyckel, postId: "p-bild" })).ok).toBe(true);
+    });
+
     it("⛔ taket per anteckning håller, och utan `finns` är `bilder` tomt", async () => {
       const manga = not("p-manga", Array.from({ length: 25 }, (_, j) => `![](b${String(j).padStart(2, "0")}.jpg)`).join("\n"));
       const filer = Array.from({ length: 25 }, (_, j) => `grupper/kallan/bibliotek/p-manga/b${String(j).padStart(2, "0")}.jpg`);

@@ -453,6 +453,11 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
   // ⛔ Listan kommer ur propsen eller ur kallan, aldrig ur båda (kastat ovan).
   const levande = useBibliotekskalla(kalla);
   const poster = levande ? levande.poster : /** @type {NonNullable<typeof posterProp>} */ (posterProp);
+  // ⛔ (0.207.0) LISTAN SOM DEN SER UT NU, för en bild som blir klar efter att redigeringen stängts (`aktuellPost` i Detalj). En Detalj som är borta
+  // ser bara posten som den var när den stängdes, och en text som sparats efter det (samma person i en ny redigering, eller en annan medlem) hade skrivits över.
+  const posterNu = useRef(poster);
+  posterNu.current = poster;
+  const aktuellPost = useMemo(() => (/** @type {string} */ id) => posterNu.current.find((p) => p.id === id) ?? null, []);
   const fel = levande ? levande.fel : felProp;
   const trasiga = levande ? levande.trasiga : trasigaProp;
   const laddar = levande ? levande.laddar : laddarProp;
@@ -1101,7 +1106,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
     <Rot tillbaka={detalj ? undefined : listTillbaka}>
       <div data-bibliotek="" className="flex min-w-0 w-full flex-col gap-4">
         {detalj ? (
-          <Detalj key={`${skaparTyp ?? ""}:${vald?.id ?? ""}:${startLage}`} post={vald ? medFyll(poster.find((p) => p.id === vald.id) ?? vald) : null} skapar={skaparTyp} startLage={startLage} onStang={onStang} onSpara={onSpara} onLaddaUpp={onLaddaUpp} filUrl={filUrl} hamtaFil={hamtaFil} htmlVersioner={htmlVersioner} hamtaHtmlVersion={hamtaHtmlVersion} aterstallHtml={aterstallHtml} nyHtmlVersion={nyHtmlVersion} oppnaHtml={oppnaHtml} oppnaPdf={oppnaPdf} adressFor={adressFor} taggrad={vald && !skaparTyp ? (() => {
+          <Detalj key={`${skaparTyp ?? ""}:${vald?.id ?? ""}:${startLage}`} post={vald ? medFyll(poster.find((p) => p.id === vald.id) ?? vald) : null} skapar={skaparTyp} startLage={startLage} onStang={onStang} onSpara={onSpara} aktuellPost={aktuellPost} onLaddaUpp={onLaddaUpp} filUrl={filUrl} hamtaFil={hamtaFil} htmlVersioner={htmlVersioner} hamtaHtmlVersion={hamtaHtmlVersion} aterstallHtml={aterstallHtml} nyHtmlVersion={nyHtmlVersion} oppnaHtml={oppnaHtml} oppnaPdf={oppnaPdf} adressFor={adressFor} taggrad={vald && !skaparTyp ? (() => {
             // ⛔ TAGGARNA RITAS OCKSÅ I DETALJEN (0.153.0, ops-framework#460 punkt 3, lifehub.app QA-fynd 5): förut bara på listkortet, så den som öppnade en post såg inte vilka taggar den hade. Samma rad, samma rätt att ändra
             // (`farAndra`) och samma förslag som på kortet, men utan filter: listan är inte synlig medan en post är öppen, och ett tryck på en tagg skulle ställa in ett filter ingen ser.
             const rad = poster.find((p) => p.id === vald.id) ?? vald;
@@ -2415,7 +2420,7 @@ function Adress({ url }) {
  * @param {(bild: { postId: string, plats: string, namn: string }) => string | Promise<string>} [props.bildIAnteckningAdress] (#696) Se `OpsBibliotek`.
  * @param {(bild: { postId: string, plats: string, namn: string }) => boolean | Promise<boolean>} [props.bildIAnteckningFel] (0.207.0) Se `OpsBibliotek`.
  */
-function Detalj({ post, skapar, startLage, onStang, onSpara, onLaddaUpp, filUrl, hamtaFil, htmlVersioner, hamtaHtmlVersion, aterstallHtml, nyHtmlVersion, oppnaHtml, oppnaPdf, taggrad, markering, adressFor, onLjus, onSkrivUt, onSkrivUtIgen, onTaBortUtskrift, onAnteckningAvUtskrift, menyFor, onMeta, tillbakaEtikett, poster, jag, onLankInfo, githubLasare, onOppnaPost, kommentarer = null, fokusKommentar = false, onLaggBildIAnteckning, bildIAnteckningAdress, bildIAnteckningFel }) {
+function Detalj({ post, skapar, startLage, onStang, onSpara, aktuellPost, onLaddaUpp, filUrl, hamtaFil, htmlVersioner, hamtaHtmlVersion, aterstallHtml, nyHtmlVersion, oppnaHtml, oppnaPdf, taggrad, markering, adressFor, onLjus, onSkrivUt, onSkrivUtIgen, onTaBortUtskrift, onAnteckningAvUtskrift, menyFor, onMeta, tillbakaEtikett, poster, jag, onLankInfo, githubLasare, onOppnaPost, kommentarer = null, fokusKommentar = false, onLaggBildIAnteckning, bildIAnteckningAdress, bildIAnteckningFel }) {
   const sprak = useOpsSprak();
   const typ = skapar ?? post?.typ ?? "anteckning";
   const [rubrik, setRubrik] = useState(post && !skapar ? post.rubrik : "");
@@ -2460,16 +2465,24 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, onLaddaUpp, filUrl,
     [bildIAnteckningFel, bildPostId, bildPlats],
   );
   // ⛔ (0.207.0) EN BILD SOM BLEV KLAR EFTER ATT RUTAN STÄNGTS skrivs in sist i den SPARADE texten (`AnteckningsText`, filens huvud i
-  // `BibliotekAnteckningsbild.jsx`). Texten läses ur en ref som följer posten vid varje rendering och som den här funktionen själv flyttar fram,
-  // så att två bilder som blir klara efter stängningen hamnar i samma text och inte skriver över varandra.
-  const sparadText = useRef("");
-  if (post && !skapar && post.typ === "anteckning") sparadText.current = post.text ?? "";
+  // `BibliotekAnteckningsbild.jsx`).
+  // ⛔ TEXTEN LÄSES UR LISTAN SOM DEN ÄR NU (`aktuellPost`), inte ur posten den här Detalj såg: rutan är borta, och personen kan ha öppnat posten igen och sparat,
+  // eller en annan medlem ändrat den. Granskningen av 0.207.0 fann att den gamla texten annars skrevs tillbaka och den nyare försvann tyst.
+  // ⛔ TVÅ BILDER EFTER STÄNGNINGEN: listan har inte hunnit få den förstas sparning när den andra blir klar. `sistSkrivet` minns vad den förra skrev, och så länge
+  // listan fortfarande visar texten den utgick från bygger nästa på den, så att de två inte skriver över varandra.
+  // ⛔ EN POST SOM TAGITS BORT, FLYTTATS ELLER INTE LÄNGRE ÄR EN ANTECKNING SPARAS INTE: en sparning hade väckt den eller pekat bildraden mot en annan plats mapp.
+  // Svaret är då `null` (inget att skriva, inget fel). Bilden ligger kvar i den borttagna postens mapp, som appen städar.
+  const sistSkrivet = useRef(/** @type {{ fran: string, till: string } | null} */ (null));
   /** @param {string} namn */
   function skrivInEfterStangning(namn) {
     if (!post || skapar) return false;
-    const ny = medBildInsatt(sparadText.current, sparadText.current.length, namn).text;
-    sparadText.current = ny;
-    return onSpara({ typ: "anteckning", rubrik: post.rubrik, text: ny, id: post.id });
+    const nu = typeof aktuellPost === "function" ? aktuellPost(post.id) : post;
+    if (!nu || nu.typ !== "anteckning" || (nu.groupId ?? "") !== (post.groupId ?? "")) return null;
+    const listan = nu.text ?? "";
+    const bas = sistSkrivet.current && sistSkrivet.current.fran === listan ? sistSkrivet.current.till : listan;
+    const ny = medBildInsatt(bas, bas.length, namn).text;
+    sistSkrivet.current = { fran: listan, till: ny };
+    return onSpara({ typ: "anteckning", rubrik: nu.rubrik, text: ny, id: post.id });
   }
 
   useEffect(() => {

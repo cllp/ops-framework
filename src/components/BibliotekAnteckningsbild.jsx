@@ -127,7 +127,8 @@ export { medBildInsatt };
  * @param {string} props.sprak
  * @param {(pagar: boolean) => void} [props.onPagar] Sant när en uppladdning börjar, falskt när den sista är klar (och när rutan tas bort). Redigeringen spärrar Spara och Avbryt med det.
  * @param {(namn: string) => unknown} [props.onEfterStangning] (0.207.0) En bild vars uppladdning blev klar efter att rutan tagits bort: biblioteket skriver in raden i den
- *   sparade posten (se filens huvud). Svarar den `false`, eller avvisas löftet, kastas felet vidare.
+ *   sparade posten (se filens huvud). Svarar den `false`, eller avvisas löftet, kastas felet vidare. `null` betyder att posten inte längre finns att skriva i (borttagen eller flyttad):
+ *   inget sparas och inget kastas.
  */
 export function AnteckningsText({ text, setText, post, onLaggBild, sprak, onPagar, onEfterStangning }) {
   const o = (/** @type {keyof typeof ORD_ANTECKNINGSBILD} */ k) => ordet(ORD_ANTECKNINGSBILD, k, sprak);
