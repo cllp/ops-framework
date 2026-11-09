@@ -9,6 +9,42 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.209.0
+
+Biblioteket, cllp/lifehub.app#706: "I repot" som träd, en .md blir en anteckning, och en anteckning går att ladda ned som Markdown, PDF eller HTML.
+
+⛔ **Reglerna ska regenereras och deployas FÖRE klienten.** Taket för en anteckning står i Firestore-regeln och `text/markdown` i både Firestore- och Storage-regeln, alla genererade ur konstanterna. En ny klient mot gamla regler får en anteckning över 20 000 tecken och en för lång .md nekade av reglerna.
+
+### Ändrat
+
+- **"I repot" är infälld från början** (CP: "Skall man ha en trädvy"). Raden "I repot" med en pil står under listan, och repot läses (`repoLasare`) först när den fälls ut, inte när platsen ritas. Utfällningen minns per plats i webbläsaren (`OpsDisclosure` med `storageKey`, inom try/catch); utan lagring är den infälld. Modulen hämtas också först då.
+- **"I repot" är ett träd.** En mapp fälls ut på plats med en pil och läses först då, en nivå (`repoLasare({ plats, sokvag })`). Indraget växer för varje nivå och stannar efter tre (`REPO_INDRAG_MAX`). Laddning, saknas, obehörig och fel står vid varje mapp med samma ord som förut. Brödsmulan och Tillbaka uppåt är borttagna; Tillbaka från en öppnad fil kommer till samma utfällda träd.
+- **⋮ på varje fil i "I repot"** i stället för knappen "Lägg i Biblioteket" på raden, med samma meny som bibliotekets rader (`OpsAtgardsblad`): "Lägg i Biblioteket" (samma `onLaggRepoFil`, samma klar- och fellägen vid filen) och "Öppna i GitHub" (filens `url` i en ny flik, `noopener`, bara när adressen är på github.com).
+- **Taket för en anteckning är 50 000 tecken** (CP: "50 000"), var 20 000. `MAX_BIBLIOTEKTEXT`, och regeln ur den.
+
+### Tillagt
+
+- **En .md blir en anteckning** (CP: "Lägg in som anteckning är bättre"). En fil som slutar på `.md` eller `.markdown` och läggs in med Ny fil läses som text (UTF-8) och sparas som en anteckning genom appens `onSpara({ typ: "anteckning", rubrik, text })`, oavsett vad webbläsaren säger om typen. Ingen ny prop.
+  - Rubriken är den första nivå-ett-rubriken (`# `), annars filnamnet utan ändelse, klippt till `MAX_BIBLIOTEKRUBRIK`. Den föreslås i fältet när filen väljs, och en rubrik personen skrivit vinner.
+  - Finns redan en anteckning med samma rubrik på platsen frågar vyn i sin egen ruta: "Det finns redan en anteckning som heter X. Ersätta den, eller lägga in som ny?", med Ersätt (skickar den befintligas `id`), Lägg in som ny och Avbryt.
+  - Beskedet efter importen säger att filen är en anteckning, och när texten har bilder med en sökväg eller länkar som inte är http eller https, att de visas som text. Texten ändras inte.
+  - En text över 50 000 tecken läggs in som fil (`text/markdown`) via `onLaddaUpp`, med beskedet "Texten är för lång för en anteckning (N tecken, taket är 50 000). Den ligger som fil och går att läsa men inte redigera."
+  - `text/markdown` står i `FILMIME`, `mimeUrFilnamn` ger den för `.md` och `.markdown`, och `text/x-markdown` är ett alias. Samma tak som `text/plain`. Med `hamtaFil` ritas en markdownfil som markdown i detaljen (`TextForhandsvisning` med `markdown`), med samma tak för hur mycket som läses.
+  - Funktionerna bakom: `lib/anteckningsfil.js` (`markdownSomAnteckning`, `arMarkdownFilnamn`, `anteckningFilnamn`), inte exporterade ur paketet.
+- **Ladda ned en anteckning som Markdown (.md), PDF eller HTML** (CP: "Skippa Word just nu, men ha med de andra"), tre rader i anteckningens meny. Inte med `utanNedladdning`. Filnamnet är rubriken, städad till ett säkert filnamn.
+  - .md är texten som den är, `text/markdown;charset=utf-8`.
+  - HTML är en fristående sida, `markdownSomHtml(text, { titel, sprak })` i `lib/markdownhtml.js`: samma tolkning som visningen (`splitMarkdown`, `splitInline`), allt användarinnehåll escapat, bara http- och https-länkar, en bild som sin alt-text, ingen extern resurs och inget skript. Den sparas som `application/octet-stream`, så att den aldrig ritas i appens origin (`sparaText` i `lib/sparaFil.js`, som vägrar `text/html`).
+  - PDF är webbläsarens utskrift av samma sida, ritad i den avspärrade rutan (`OpsHtmlDokumentLat`, "Spara som PDF") i en dialog. Sidan byggs ur texten i klienten; ingenting hämtas och ingen app-prop behövs.
+- **`OpsDisclosure` har `lat`**: innehållet ritas först när avsnittet är utfällt.
+
+### Prov
+
+- `bibliotek-repo.test.jsx` är omskriven till trädet. Proven om brödsmulan och Tillbaka uppåt ("en mapp öppnas i sektionen, och Tillbaka och brödsmulan stannar i projektets mapp", "brödsmulans rot går tillbaka till projektets mapp") är ersatta av utfällningen på plats, och knappen "Lägg i Biblioteket" på raden av ⋮. Mot 0.208.0: 13 av 24 röda (infälld, minnet, trädet, indraget, ⋮), resten gröna åt båda håll som skydd för det som inte ändrats.
+- `anteckning-md.test.jsx`, ny, 22 prov: text/markdown, rubriken, varningarna, `markdownSomHtml` med escaping, `sparaText`, importen (typen, rubriken, dubblettfrågan, beskedet, för lång text som fil), nedladdningsvalen och markdownfilen i detaljen. Mot 0.208.0 laddas filen inte (modulerna finns inte); med bara de nya `lib`-filerna inkopierade är 13 röda, alla som rör vyn, taket och formatet.
+- `anteckningstak.test.js`: taket 50 000 i konstanten, i inmatningsfelet och i regelfragmentet. Mot 0.208.0: 3 av 3 röda.
+- `disclosure.test.jsx`, två nya om `lat`. Mot 0.208.0: det första rött, det andra grönt åt båda håll.
+- Regelfixturerna (`rules/__fixturer__/`) har fått taket och `text/markdown`; inget annat i dem är ändrat.
+
 ## 0.208.0
 
 Två rättningar i Biblioteket, båda ur nattens granskningar och cllp/lifehub.app#697.
