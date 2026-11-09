@@ -213,6 +213,41 @@ describe("en uppladdning som överlever rutan", () => {
     expect(onSpara).toHaveBeenLastCalledWith({ typ: "anteckning", rubrik: "Kvitton", text: "Sparat efter stängningen.\n![](kvitto-1.jpg)", id: "a1" });
   });
 
+  it("⛔ öppnas anteckningen för redigering igen medan bilden laddas upp, och sparas efteråt, står bildraden kvar i den nya texten (0.208.0)", async () => {
+    const b = await iBeredskap();
+    const onSpara = vi.fn(() => true);
+    const { svar } = await borjaUppladdning(b, onSpara);
+    fireEvent.click(screen.getByRole("button", { name: /Tillbaka/ }));
+    redigera();
+    fireEvent.change(textruta(), { target: { value: "Taxi i juli, 245 kr." } });
+    await act(async () => svar[0]({ namn: "kvitto-1.jpg" }));
+    await waitFor(() => expect(onSpara).toHaveBeenCalledTimes(1));
+    // Den nya redigeringen sparar sin text, och bildraden som skrevs in under tiden följer med sist.
+    fireEvent.click(screen.getByRole("button", { name: "Spara" }));
+    await waitFor(() => expect(onSpara).toHaveBeenCalledTimes(2));
+    expect(onSpara).toHaveBeenLastCalledWith(expect.objectContaining({ text: "Taxi i juli, 245 kr.\n![](kvitto-1.jpg)", id: "a1" }));
+    // Nästa redigering börjar från det som sparades, med bildraden, och en ny sparning tappar den inte.
+    await waitFor(() => expect(screen.queryByRole("textbox", { name: "Text" })).toBeNull());
+    fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Kvitton" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Redigera" }));
+    expect(textruta()).toHaveValue("Taxi i juli, 245 kr.\n![](kvitto-1.jpg)");
+    fireEvent.change(textruta(), { target: { value: "Taxi i juli, 245 kr. Kort.\n![](kvitto-1.jpg)" } });
+    fireEvent.click(screen.getByRole("button", { name: "Spara" }));
+    await waitFor(() => expect(onSpara).toHaveBeenCalledTimes(3));
+    expect(onSpara).toHaveBeenLastCalledWith(expect.objectContaining({ text: "Taxi i juli, 245 kr. Kort.\n![](kvitto-1.jpg)" }));
+  });
+
+  it("⛔ en redigering som inte ändrats följer den sparade texten: bildraden syns i rutan när den skrivits in (0.208.0)", async () => {
+    const b = await iBeredskap();
+    const onSpara = vi.fn(() => true);
+    const { svar } = await borjaUppladdning(b, onSpara);
+    fireEvent.click(screen.getByRole("button", { name: /Tillbaka/ }));
+    redigera();
+    expect(textruta()).toHaveValue("Taxi i juli.");
+    await act(async () => svar[0]({ namn: "kvitto-1.jpg" }));
+    await waitFor(() => expect(textruta()).toHaveValue("Taxi i juli.\n![](kvitto-1.jpg)"));
+  });
+
   it("⛔ en annan medlem ändrar texten medan bilden laddas upp: bilden skrivs in i hens text", async () => {
     const b = await iBeredskap();
     const onSpara = vi.fn(() => true);
