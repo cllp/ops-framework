@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { GASTGRUPPFUNKTIONER, GASTSKRIV_MAX_TECKEN } from "../lib/gast.js";
+import { SIGNERAD_SEKUNDER } from "../lib/delning.js";
+import { bildAdressUrBilder } from "../lib/markdown.js";
 import { gastBehorighetsrader } from "../lib/gastBehorighet.js";
 import { GASTBESOKSOMRADEN, lasGastBesok, lasGastFlik, skrivGastBesok, skrivGastFlik } from "../lib/gastminne.js";
 import { kommentarRotId } from "../lib/postkommentar.js";
@@ -211,6 +213,9 @@ const orsakAv = (/** @type {unknown} */ e) => (e instanceof GastFel ? e.orsak : 
 /** Så gammal får en flik vara innan den hämtas om när man kommer tillbaka till den eller fönstret får fokus, i millisekunder. Listorna hämtas på begäran och aldrig på en tidtagare: en kalender är hundratals läsningar. */
 const FRISKT_MS = 60_000;
 
+/** (0.207.0) Hur länge svaret på `anteckningsbilder` används: en minut kortare än adressernas giltighet (`SIGNERAD_SEKUNDER`), så att en adress inte går ut medan den ritas. */
+const ANTECKNINGSBILDER_GILTIGA_MS = (SIGNERAD_SEKUNDER - 60) * 1000;
+
 /** @param {ReadonlyArray<{ id: string, tid: number }>} a @param {ReadonlyArray<{ id: string, tid: number }>} b */
 function sammanfoga(a, b) {
   const per = new Map();
@@ -237,7 +242,8 @@ const tidText = (h, till) => (h.tid ? (h.slutTid ? `${h.tid} ${till} ${h.slutTid
  * ══ ⛔ VYERNA ÄR MEDLEMMENS, MED `jag: null` ══════════════════════════════════════════════════════════════════════════════
  *
  * Kalendern är en lista över det som är på gång (0.190.0, ingen månadsvy för gäster) och händelsen `OpsHandelsePanel` utan penna eller flytt, svaren `OpsSvarSummor` (summor och mitt eget svar, inga namn), biblioteket `OpsBibliotek` med `jag: null` (ingen Ny, ingen
- * redigering, ingen radering, ingen delning) och `adresserPaBegaran` (en signering per öppnad fil, aldrig en per post i listan). Chatten är medlemmens bubblor med chattens skrivfält utan bilagor, mikrofon och agent (`OpsGastChatt`): gästen får skriva (CP 2026-10-20), och
+ * redigering, ingen radering, ingen delning) och `adresserPaBegaran` (en signering per öppnad fil, aldrig en per post i listan). (0.207.0, cllp/lifehub.app#696 skiva 2) Bilderna i en
+ * anteckning hämtas när gästen öppnar den (`api.anteckningsbilder`, `bildIAnteckningAdress`), aldrig med listan; under tiden står "Hämtar bilden.". Chatten är medlemmens bubblor med chattens skrivfält utan bilagor, mikrofon och agent (`OpsGastChatt`): gästen får skriva (CP 2026-10-20), och
  * servern märker meddelandet Gäst.
  *
  * ══ ⛔ LISTORNA HÄMTAS PÅ BEGÄRAN, INTE PÅ EN TIDTAGARE ═══════════════════════════════════════════════════════════════════
@@ -546,6 +552,35 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
   );
 
   /*
+   * ⛔ BILDERNA I EN ANTECKNING HÄMTAS NÄR ANTECKNINGEN ÖPPNAS (0.207.0, cllp/lifehub.app#696 skiva 2), som filerna (`adresserPaBegaran`): listan bär inga bilder (regel 13).
+   * Första bilden i en öppnad anteckning frågar servern en gång (`anteckningsbilder`) och resten väntar på samma svar; under tiden står "Hämtar bilden.". Svaret sparas per post i
+   * `ANTECKNINGSBILDER_GILTIGA_MS` (strax under adressernas 15 minuter), och en ny hämtning av listan glömmer det, så att en ändrad anteckning inte visas med gamla bilder.
+   * Bara https-adresser ritas (`bildAdressUrBilder`). En bild som ändå inte laddas (adressen gick ut medan anteckningen stod öppen) ger "Ladda om sidan för att se bilden.".
+   */
+  const bildsvar = useRef(/** @type {Map<string, { tid: number, svar: Promise<Record<string, unknown>> }>} */ (new Map()));
+  useEffect(() => {
+    bildsvar.current.clear();
+  }, [bibliotek]);
+  const bildIAnteckningAdress = useCallback(
+    async (/** @type {{ postId: string, namn: string }} */ { postId, namn }) => {
+      const nu = Date.now();
+      let rad = bildsvar.current.get(postId);
+      if (!rad || nu - rad.tid > ANTECKNINGSBILDER_GILTIGA_MS) {
+        const svar = kor("anteckningsbilder", { postId }).then((r) => (r.bilder && typeof r.bilder === "object" ? r.bilder : {}));
+        rad = { tid: nu, svar };
+        bildsvar.current.set(postId, rad);
+        const egen = rad;
+        svar.catch(() => {
+          if (bildsvar.current.get(postId) === egen) bildsvar.current.delete(postId);
+        });
+      }
+      return bildAdressUrBilder(await rad.svar)?.(namn) ?? "";
+    },
+    [kor],
+  );
+  const bildIAnteckningFel = useCallback(() => false, []);
+
+  /*
    * ⛔ KOMMENTARER PÅ EN POST (0.191.0, cllp/lifehub.app#663): samma tråd som medlemmarnas, genom servern. Tråden läses med `chatt({ trad })` och skrivs med `kommenteraPost`, som skapar
    * roten i gruppchatten första gången och svarar i dess tråd sedan. Bara när servern säger att det går (`grupp.kommentera`). Rotens text bär postens länk, för medlemmarnas kort:
    * här står posten redan öppen, så raden med länken (den som bär kortet för just posten) visas inte.
@@ -730,6 +765,8 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
           onSkapa={() => {}}
           onSpara={async () => false}
           hamtaAdress={hamtaAdress}
+          bildIAnteckningAdress={bildIAnteckningAdress}
+          bildIAnteckningFel={bildIAnteckningFel}
           adresserPaBegaran
           utanHubb
           utanNedladdning={grupp.nedladdning === false}

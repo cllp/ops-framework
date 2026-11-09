@@ -347,6 +347,8 @@ export const GASTGRUPPSVARSFALT = /** @type {const} */ ({
   markeraArendeKlart: ["ok"],
   /** Svaret på `fil`. */
   fil: ["ok", "url", "namn", "mime"],
+  /** (0.207.0, cllp/lifehub.app#696) Svaret på `anteckningsbilder`: bilderna i en anteckning som signerade adresser, `{ [namn]: url }`, tomt när ingen finns. Listan (`bibliotek`) bär dem aldrig. */
+  anteckningsbilder: ["ok", "bilder"],
   /** (0.191.0) Svaret på `kommenteraPost`: kommentaren som den nu står, roten i chatten eller ett svar i dess tråd (`rot` säger vilket). */
   kommenteraPost: ["ok", "meddelande", "rot"],
   /**
@@ -402,7 +404,7 @@ export const GASTCHATTFALT = /** @type {const} */ (["id", "av", "text", "tid", "
  * Åtgärderna en gruppgäst anropar på servern (`POST /api/gast`), förutom `los`, `hamta`, `namn`, `nylank` och `raderaMig` som varje gäst har. Namnen står här och ingen annanstans (regel 2):
  * tjänstens metoder, appens vitlista för vad en handler släpper in, och vyns anrop läser samma lista.
  */
-export const GASTGRUPPATGARDER = /** @type {const} */ (["oversikt", "chatt", "skrivChatt", "kalender", "handelse", "svara", "rosta", "bibliotek", "fil", "arenden", "kommenteraArende", "markeraArendeKlart", "kommenteraPost"]);
+export const GASTGRUPPATGARDER = /** @type {const} */ (["oversikt", "chatt", "skrivChatt", "kalender", "handelse", "svara", "rosta", "bibliotek", "anteckningsbilder", "fil", "arenden", "kommenteraArende", "markeraArendeKlart", "kommenteraPost"]);
 
 /**
  * Bygger gruppvyns `api` av appens ENDA anrop mot `/api/gast`. `anrop` får `{ atgard, sessionsnyckel, ...argument }` och ska svara med serverns JSON (`{ ok, ... }`); appens handler skickar

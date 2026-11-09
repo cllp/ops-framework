@@ -1,3 +1,5 @@
+import { sakertBildnamn } from "./markdown.js";
+
 /**
  * Delningslänken: formen på det som visas och orden för det som inte går att visa.
  *
@@ -341,7 +343,53 @@ export const HANDELSESVARSFALT = /** @type {const} */ (["slag", "titel", "beskri
  * Fälten i svaret för en ANTECKNING (0.133.0): typen, rubriken och texten. Inget annat lämnar servern: inte taggar, inte vem som skrev den, inte gruppen.
  * `typ` skiljer svaret från en fils (vars `typ` är `ljud`, `bild`, `video`, `pdf` eller `dokument`).
  */
-export const ANTECKNINGSSVARSFALT = /** @type {const} */ (["typ", "rubrik", "text"]);
+export const ANTECKNINGSSVARSFALT = /** @type {const} */ (["typ", "rubrik", "text", "bilder"]);
+
+/**
+ * ⛔ BILDERNA I EN DELAD ANTECKNING (0.207.0, cllp/lifehub.app#696 skiva 2). `bilder` i `ANTECKNINGSSVARSFALT` (och i svaret på gästens `anteckningsbilder`) är bildens filnamn i texten
+ * (`![alt](namn)`, `bilderI` i `lib/markdown.js`) till en signerad adress som gäller `SIGNERAD_SEKUNDER`. Fältet finns bara när texten har minst en bild och lagringen kan pröva att
+ * filen finns (`finns`); en fil som saknas utelämnas, och vyn säger då "Bilden kunde inte visas.".
+ *
+ * ⛔ TAKEN. Varje bild kostar två anrop mot lagringen vid varje hämtning (finns, och en signering, som i Cloud Functions går genom IAM), och sidan är publik: vem som helst med länken
+ * kan hämta den om och om igen. `MAX_ANTECKNINGSBILDER` (20) per anteckning räcker för ett kvitto, ett protokoll med skärmbilder eller en reseanteckning, och en anteckning med fler
+ * bilder är ett album som hör hemma som filer i biblioteket. `MAX_ANTECKNINGSBILDER_PER_SVAR` (100) gäller hela svaret: en delad lista har upp till `MAX_DELADE_LISTPOSTER` (100)
+ * poster, och utan ett tak för svaret hade en hämtning kunnat bli tusentals anrop. Bilder efter postens tak får ingen adress (vyn: "Bilden kunde inte visas."), och en anteckning som
+ * kommer efter svarets tak får inget `bilder` alls (vyn: "Bilden visas inte här än."). ⛔ Gästens bibliotek skickar inga bilder med listan: de signeras först när gästen öppnar en
+ * anteckning (`anteckningsbilder` i gästtjänsten), som filerna (regel 13).
+ */
+export const MAX_ANTECKNINGSBILDER = 20;
+/** Se `MAX_ANTECKNINGSBILDER`. */
+export const MAX_ANTECKNINGSBILDER_PER_SVAR = 100;
+
+/** Bildtyperna en bild i en anteckning får ha, ur ändelsen: de typer bibliotekets lagringsregel tar emot för en bild (`BibliotekAnteckningsbild.jsx`). */
+const ANTECKNINGSBILDMIME = /** @type {Record<string, string>} */ ({ jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp", gif: "image/gif" });
+
+/**
+ * Bildens MIME ur filnamnet, eller `""` för ett namn som inte är en bild. Bara en bild signeras: postens mapp kan bära annat (en HTML-fils versioner), och ett namn i texten får aldrig
+ * göra en sådan fil nåbar.
+ * @param {unknown} namn
+ */
+export function anteckningsbildMime(namn) {
+  const m = typeof namn === "string" ? /\.([a-z0-9]+)$/i.exec(namn) : null;
+  return (m && Object.hasOwn(ANTECKNINGSBILDMIME, m[1].toLowerCase()) ? ANTECKNINGSBILDMIME[m[1].toLowerCase()] : "") ?? "";
+}
+
+/** Ett segment i en lagringssökväg: inte tomt, inte `.` eller `..`, inget snedstreck och inga styrtecken. @param {unknown} s */
+const segment = (s) => typeof s === "string" && s !== "" && s !== "." && s !== ".." && !/[/\\\u0000-\u001f\u007f]/.test(s);
+
+/**
+ * Sökvägen till en bild i en anteckning: `<gruppPrefix>/<groupId>/<postPrefix>/<postId>/<namn>`, med postens EGEN plats och id, samma form som en fil i biblioteket
+ * (`grupper/<plats>/bibliotek/<post>/<fil>`, som lagringsregeln och gästens `arGruppFil` kräver). `null` när något segment inte är ett segment, när namnet inte är ett säkert
+ * bildnamn (`sakertBildnamn`) eller inte är en bild (`anteckningsbildMime`). ⛔ Det finns ingen väg ut ur postens mapp: namnet har inget snedstreck och inget `..`.
+ *
+ * @param {{ gruppPrefix: string, postPrefix: string, groupId: unknown, postId: unknown, namn: unknown }} b
+ * @returns {string | null}
+ */
+export function anteckningsbildSokvag({ gruppPrefix, postPrefix, groupId, postId, namn }) {
+  if (!sakertBildnamn(namn) || !anteckningsbildMime(namn)) return null;
+  if (![gruppPrefix, groupId, postPrefix, postId].every(segment)) return null;
+  return `${gruppPrefix}/${groupId}/${postPrefix}/${postId}/${namn}`;
+}
 
 /** Fälten i svaret för en LÄNK (0.133.0): typen, rubriken och adressen (bara http eller https). Inte källan, inte omslaget, inte vem som la till den. */
 export const LANKSVARSFALT = /** @type {const} */ (["typ", "rubrik", "url"]);

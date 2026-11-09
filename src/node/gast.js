@@ -143,8 +143,8 @@ import { validateGruppkalendrar } from "../lib/kalendrar.js";
 import { gruppensRader } from "../lib/katalog.js";
 import { NAMNER_ALLA, samtalsnyckel } from "../lib/samtal.js";
 import { adresserIText, bibliotekslank, kommentarRotId, kommentarRotText, lasBibliotekslank } from "../lib/postkommentar.js";
-import { SIGNERAD_SEKUNDER, delningsTyp } from "../lib/delning.js";
-import { delningsDisposition } from "./delning.js";
+import { MAX_ANTECKNINGSBILDER, SIGNERAD_SEKUNDER, delningsTyp } from "../lib/delning.js";
+import { anteckningsbildAdresser, delningsDisposition } from "./delning.js";
 import { epostFel } from "../lib/mejl.js";
 import { isOpenCase } from "../lib/caseModel.js";
 import { andringsnyckel, nastaSekvens } from "./ics.js";
@@ -326,9 +326,10 @@ function felMedKod(kod, meddelande) {
  *   antalet svar under ett meddelande och svaren i en tråd (`chatt({ trad })`), och svarar i en tråd (`skrivChatt({ trad })`). Utan den: inga trådar, som förut.
  * @property {string} [bibliotekBas] (0.191.0) Appens adress till biblioteket, samma som till `createPostkommentarer` och `bibliotekPostkort` (`bibliotekslank`). Med den bär ett meddelande i gästens chatt
  *   ett kort för varje länk till en post som gästen ser (`kort`, `gastSerBibliotekspost`), och med `tradar` dessutom får gästen kommentera en post (`kommenteraPost`, och `hamta` bär `kommentera: true`).
- * @property {{ signeradAdress: (b: { sokvag: string, sekunder: number, disposition: string, mime: string }) => Promise<string>, gruppPrefix?: string, postPrefix?: string }} lagring
+ * @property {{ signeradAdress: (b: { sokvag: string, sekunder: number, disposition: string, mime: string }) => Promise<string>, finns?: (b: { sokvag: string }) => Promise<boolean>, gruppPrefix?: string, postPrefix?: string }} lagring
  *   Som delningens lagring. `gruppPrefix` och `postPrefix` är samma namn som `lagringsregelfragment({ bibliotek })` fick (förval `grupper` och `bibliotek`): en fils sökväg är exakt
- *   `<gruppPrefix>/<groupId>/<postPrefix>/<postId>/<filnamn>` med postens egen grupp och id, annars signeras den aldrig.
+ *   `<gruppPrefix>/<groupId>/<postPrefix>/<postId>/<filnamn>` med postens egen grupp och id, annars signeras den aldrig. (0.207.0, cllp/lifehub.app#696) `finns({ sokvag })` (valfri,
+ *   Admin SDK: `(await bucket.file(sokvag).exists())[0]`): med den får gästen bilderna i en anteckning när den öppnas (`anteckningsbilder`); utan den inga bilder.
  * @property {(handelse: Record<string, any>) => { titel: string, beskrivning?: string, plats?: string }} handelseSida Vilka av appens fält som är titel, beskrivning och plats (som delningens).
  * @property {Gastarenden} [arenden] (Skiva 3) Ärenden som delegerats till en gäst. Utelämnad: ingen ärendeflik och inga ärendeåtgärder (`arenden` svarar `nej`).
  * @property {{ falt: readonly string[], bygg: (arg: { handelse: Record<string, any>, gastId: string, groupId: string }) => Record<string, any> | null | Promise<Record<string, any> | null>,
@@ -491,6 +492,7 @@ export function createGastService(konfig) {
       if (typeof x !== "string" || !SAMLINGSFORM.test(x)) throw new Error(`${namn}: grupp.lagring.${falt} är ett namn.`);
       return x;
     };
+    if (grupp.lagring.finns !== undefined && typeof grupp.lagring.finns !== "function") throw new Error(`${namn}: grupp.lagring.finns är en funktion ({ sokvag }) => Promise<boolean>, eller utelämnas.`);
     const gruppPrefix = prefix(grupp.lagring.gruppPrefix, "grupper", "gruppPrefix");
     const postPrefix = prefix(grupp.lagring.postPrefix, "bibliotek", "postPrefix");
     if (grupp.omrostning !== undefined) {
@@ -2485,6 +2487,11 @@ export function createGastService(konfig) {
     if (!s.ok || !GS) return s.ok ? nej() : s;
     const groupId = s.inbjudan.groupId;
     const { rader: synliga, avkortad } = await gruppensPoster(groupId);
+    /*
+     * ⛔ (0.207.0, cllp/lifehub.app#696 skiva 2) LISTAN SIGNERAR INGA BILDER, av samma skäl som den inte signerar filerna (`adresserPaBegaran`): listan hämtas om varje gång fliken
+     * öppnas och har upp till `GASTBIBLIOTEK_MAX` poster, och en signering per bild vid varje hämtning hade varit en kostnad för poster ingen öppnar (regel 13). Bilderna i en
+     * anteckning signeras när gästen öppnar den (`anteckningsbilder`).
+     */
     const poster = synliga
       .map((p) => {
         /** @type {Record<string, any>} */
@@ -2507,6 +2514,34 @@ export function createGastService(konfig) {
         return vitlista(ut, GASTBIBLIOTEKFALT);
       });
     return vitlista({ ok: true, poster, avkortad }, GASTGRUPPSVARSFALT.bibliotek);
+  }
+
+  /**
+   * (0.207.0, cllp/lifehub.app#696 skiva 2) Bilderna i EN anteckning i gruppens bibliotek, när gästen öppnar den: `{ ok, bilder: { [namn]: url } }`. Samma väg som en delad anteckning
+   * (`anteckningsbildAdresser`): namnen ur texten, postens egen mapp (`<gruppPrefix>/<groupId>/<postPrefix>/<postId>/<namn>`), bara en fil som finns (`lagring.finns`), `SIGNERAD_SEKUNDER`
+   * och `inline`, högst `MAX_ANTECKNINGSBILDER`. ⛔ Posten prövas som i listan (`gastSerBibliotekspost`: gruppens egen plats), och en post på en annan plats, en annan sorts post eller
+   * en post som inte finns ger `saknas`: gästen når aldrig en annan posts bilder. Utan `lagring.finns` är `bilder` tomt, och vyn säger "Bilden kunde inte visas." för varje bild.
+   *
+   * ⛔ GÄSTENS `laddaNed` GÄLLER INTE EN BILD I EN TEXT. `laddaNed` avgör om gästen får en adress med `attachment`, alltså en fil att spara (`fil`). En bild i en anteckning är en del
+   * av texten gästen redan får läsa, och den signeras alltid `inline`, samma sak som `fil` ger för en bild när nedladdningen är av ("spela och visa går som förut"). Att dölja
+   * bilderna för en gäst utan `laddaNed` hade gjort texten ofullständig utan att skydda något: en bild som visas kan sparas av webbläsaren ändå.
+   *
+   * ⛔ BILDERNA RÄKNAS INTE MOT `GASTFIL_PER_DYGN`. Den räknaren gäller en fil gästen ber om och sparar. En anteckning med bilder kostar en öppning, inte en fil per bild, och
+   * åtgärden räknas som alla andra mot `GASTANROP_PER_MINUT`. Taket per anteckning håller nere vad en öppning kostar.
+   *
+   * @param {Record<string, any>} b `{ sessionsnyckel, postId }`.
+   */
+  async function anteckningsbilder(b) {
+    const s = await gruppSession(b, "bibliotek");
+    if (!s.ok || !GS) return s.ok ? nej() : s;
+    const groupId = s.inbjudan.groupId;
+    const postId = typeof b?.postId === "string" ? b.postId : "";
+    if (!postId) return orsak("saknas");
+    const post = await kalla.read(GS.samlingar.bibliotek, postId);
+    // ⛔ POSTENS EGET ID MÅSTE VARA DET GÄSTEN SKICKADE, som för `kommenteraPost`: sökvägen byggs av id:t, och en datakälla som läser något annat än exakt id:t ska ge `saknas`.
+    if (!gastSerBibliotekspost(post, groupId) || post?.typ !== "anteckning" || post.id !== postId) return orsak("saknas");
+    const bilder = await anteckningsbildAdresser({ post: /** @type {Record<string, any>} */ (post), postId, lagring: GS.lagring, gruppPrefix: GS.gruppPrefix, postPrefix: GS.postPrefix, budget: { kvar: MAX_ANTECKNINGSBILDER } });
+    return vitlista({ ok: true, bilder: bilder ?? {} }, GASTGRUPPSVARSFALT.anteckningsbilder);
   }
 
 
@@ -2895,5 +2930,5 @@ export function createGastService(konfig) {
     return { ok: true };
   }
 
-  return { bjud, aterkalla, sattNedladdning, skickaOm, kopieraLank, lista, platser, los, prova, minaGruppgaster, oppnaGruppgast, session, hamta, sattNamn, nyLank, stadaSessioner, deltaSvara, tidAndrad, oversikt, chatt, skrivChatt, kommenteraPost, kalender, handelse, svara, rosta, bibliotek, fil, arenden, kommenteraArende, markeraArendeKlart, levandeGaster, aterkallaAlla, ersattAvMedlem, radera, raderaMig };
+  return { bjud, aterkalla, sattNedladdning, skickaOm, kopieraLank, lista, platser, los, prova, minaGruppgaster, oppnaGruppgast, session, hamta, sattNamn, nyLank, stadaSessioner, deltaSvara, tidAndrad, oversikt, chatt, skrivChatt, kommenteraPost, kalender, handelse, svara, rosta, bibliotek, anteckningsbilder, fil, arenden, kommenteraArende, markeraArendeKlart, levandeGaster, aterkallaAlla, ersattAvMedlem, radera, raderaMig };
 }

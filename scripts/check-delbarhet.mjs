@@ -47,6 +47,11 @@
  * och aldrig i den (golv: någon bit har den), och i ett bygge där Vite får bunta pdf.js (inte externt) blir workern en egen fil som bara den lata biten pekar på. Det sista är beviset att workerns adress
  * (`new URL("pdfjs-dist/legacy/build/pdf.worker.min.mjs", import.meta.url)` i `lib/pdfjs.js`) fungerar när en app bundlar ramverket med Vite.
  *
+ * ══ ⛔ BILDEN I EN ANTECKNING (0.207.0, cllp/lifehub.app#696) ═══════════════════════════════════════
+ *
+ * 0.206.0 importerade rutan med "Lägg till bild" (`AnteckningsText`) och krympningen före uppladdningen (`forbered`) statiskt i `OpsBibliotek`. De ritas bara när en sparad anteckning
+ * redigeras med appens uppladdning, och ska ligga i en egen bit (`BibliotekAnteckningsbildLat`).
+ *
  * ⛔ RÖTT UTAN DELNINGEN, GRÖNT MED DEN (arbetsreglernas punkt 4): `--bevisa` slår ihop samma `dist` till en enda fil (som före 0.156.0) och kör
  * samma mätning. Den ska ge rött på punkt 2 för båda komponenterna. Är den grön mäter provet ingenting.
  *
@@ -75,6 +80,8 @@ const SKALEN = [
   { skal: "OpsBibliotek", lata: ["OpsHtmlDokument", "useHtmlZoom", "anpassadSkala"], via: "OpsHtmlDokumentLat" },
   // (0.193.0, #530) PDF-vyn och pdf.js ritas bara i detaljen för en PDF.
   { skal: "OpsBibliotek", lata: ["OpsPdfVisning", "laddaPdfjs"], via: "OpsPdfVisningLat", paket: ["pdfjs-dist"] },
+  // (0.207.0, lifehub.app#696) Bildknappen och krympningen ritas bara när en sparad anteckning redigeras, och bara när appen gett `onLaggBildIAnteckning`.
+  { skal: "OpsBibliotek", lata: ["AnteckningsText", "forbered"], via: "BibliotekAnteckningsbildLat" },
 ];
 
 /** En import av paketet (statisk eller dynamisk) i en bit. Ett namn i en kommentar eller en text räknas inte. @param {string} kod @param {string} paket */

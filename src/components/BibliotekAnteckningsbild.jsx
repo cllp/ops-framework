@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { IKON_FOR } from "./ikonlexikon.js";
 import { OpsButton } from "./OpsButton.jsx";
-import { OpsField, OpsTextarea } from "./OpsField.jsx";
+import { AnteckningsRuta } from "./BibliotekAnteckningsbildLat.jsx";
 import { bilagaTillBlob, readAttachment } from "../lib/file.js";
-import { sakertBildnamn } from "../lib/markdown.js";
+import { medBildInsatt, sakertBildnamn } from "../lib/markdown.js";
 import { ordet } from "../lib/ord.js";
 
 /*
@@ -40,6 +40,15 @@ import { ordet } from "../lib/ord.js";
  * svaret kastades och filen låg kvar i postens mapp utan att texten pekade på den, utan ett ord om det (regel 5). `onPagar` säger därför
  * till redigeringen när en uppladdning pågår och när den är klar, och `OpsDokument` spärrar båda knapparna så länge (`vantar`). Raden
  * "Laddar upp bilden." står under rutan under tiden och säger varför.
+ *
+ * ⛔ TILLBAKA OCH ETT BYTE AV POST SPÄRRAS INTE, UPPLADDNINGEN SLUTFÖRS I STÄLLET (0.207.0). Före 0.207.0 försvann svaret också när rutan togs
+ * bort på något annat sätt än Spara och Avbryt: Tillbaka, en annan post, eller appen som byter vy. Att spärra Tillbaka hade bara täckt knappen
+ * ramverket ritar. Telefonens bakåtgest ändrar adressen, appen sätter då `vald` och rutan tas bort ändå, och det kan ramverket inte spärra.
+ * Därför går uppladdningen vidare när rutan är borta, och raden skrivs in sist i den SPARADE texten (`onEfterStangning`, som biblioteket
+ * kopplar till `onSpara`). Det personen skrev men inte sparade sparas inte: Tillbaka betyder som förut att lämna redigeringen. Bilden finns
+ * däremot i posten när personen öppnar den igen. Ett fel som inte längre har någon ruta att stå i kastas vidare (ohanterat i appen), aldrig tystat.
+ *
+ * ⛔ MODULEN LÄSES IN NÄR DEN BEHÖVS (0.207.0, `BibliotekAnteckningsbildLat`). Den ritas bara när en anteckning redigeras.
  */
 
 /**
@@ -47,7 +56,6 @@ import { ordet } from "../lib/ord.js";
  * @type {import("../lib/ord.js").Ordbok}
  */
 const ORD_ANTECKNINGSBILD = {
-  text: { sv: "Text", en: "Text" },
   laggTill: { sv: "Lägg till bild", en: "Add image" },
   laddarUpp: { sv: "Laddar upp bilden.", en: "Uploading the image." },
   fel: { sv: "Bilden laddades inte upp: {skal}", en: "The image was not uploaded: {skal}" },
@@ -106,22 +114,9 @@ function arBild(fil) {
   return arHeic(fil);
 }
 
-/**
- * Texten med `![](namn)` insatt vid `pos`, på en egen rad, och var markören hamnar efter den.
- *
- * @param {string} text
- * @param {number} pos
- * @param {string} namn
- * @returns {{ text: string, markor: number }}
- */
-export function medBildInsatt(text, pos, namn) {
-  const vid = Math.max(0, Math.min(Number.isInteger(pos) ? pos : text.length, text.length));
-  const fore = text.slice(0, vid);
-  const efter = text.slice(vid);
-  const bild = `![](${namn})`;
-  const inskott = `${fore !== "" && !fore.endsWith("\n") ? "\n" : ""}${bild}${efter !== "" && !efter.startsWith("\n") ? "\n" : ""}`;
-  return { text: fore + inskott + efter, markor: fore.length + inskott.length };
-}
+// ⛔ (0.207.0) Funktionen bor i `lib/markdown.js`: biblioteket behöver den också när rutan redan stängts, och det får inte dra in den här lata modulen
+// i startfilen. Exporten står kvar här, så att en import härifrån fungerar som i 0.206.0.
+export { medBildInsatt };
 
 /**
  * @param {object} props
@@ -131,8 +126,11 @@ export function medBildInsatt(text, pos, namn) {
  * @param {((inmatning: { postId: string, plats: string, fil: File }) => Promise<{ namn: string }>) | undefined} props.onLaggBild
  * @param {string} props.sprak
  * @param {(pagar: boolean) => void} [props.onPagar] Sant när en uppladdning börjar, falskt när den sista är klar (och när rutan tas bort). Redigeringen spärrar Spara och Avbryt med det.
+ * @param {(namn: string) => unknown} [props.onEfterStangning] (0.207.0) En bild vars uppladdning blev klar efter att rutan tagits bort: biblioteket skriver in raden i den
+ *   sparade posten (se filens huvud). Svarar den `false`, eller avvisas löftet, kastas felet vidare. `null` betyder att posten inte längre finns att skriva i (borttagen eller flyttad):
+ *   inget sparas och inget kastas.
  */
-export function AnteckningsText({ text, setText, post, onLaggBild, sprak, onPagar }) {
+export function AnteckningsText({ text, setText, post, onLaggBild, sprak, onPagar, onEfterStangning }) {
   const o = (/** @type {keyof typeof ORD_ANTECKNINGSBILD} */ k) => ordet(ORD_ANTECKNINGSBILD, k, sprak);
   const ruta = useRef(/** @type {HTMLDivElement | null} */ (null));
   const filFalt = useRef(/** @type {HTMLInputElement | null} */ (null));
@@ -171,26 +169,38 @@ export function AnteckningsText({ text, setText, post, onLaggBild, sprak, onPaga
     if (falt && typeof falt.setSelectionRange === "function") falt.setSelectionRange(pos, pos);
   }, [text]);
 
-  /** @param {File[]} filer */
+  /**
+   * ⛔ (0.207.0) EN UPPLADDNING SOM ÖVERLEVER RUTAN. Rutan tas bort när personen går Tillbaka, byter post, eller när appen byter vy (telefonens
+   * bakåtgest ändrar adressen och därmed `vald`). Uppladdningen går vidare ändå, och när namnet kommit skrivs raden in i den SPARADE posten
+   * genom `onEfterStangning` (biblioteket sparar med `onSpara`), aldrig i en ruta som inte finns. Det som inte går att visa i en ruta som är
+   * borta kastas vidare och blir ett ohanterat fel som appen ser, i stället för att tystas (regel 5).
+   *
+   * @param {File[]} filer
+   */
   async function laddaUpp(filer) {
     if (!kan || !post) return;
     setFel("");
     setNotis("");
     for (const fil of filer) {
       if (!arBild(fil)) {
-        setFel(o("inteBild"));
+        if (livs.current) setFel(o("inteBild"));
         continue;
       }
       const vidStart = textfalt()?.selectionStart ?? textRef.current.length;
-      setPagar((n) => n + 1);
+      if (livs.current) setPagar((n) => n + 1);
       try {
         const klar = await forbered(fil, o("heicOlasbar"));
-        if (!livs.current) return;
         const svar = await /** @type {NonNullable<typeof onLaggBild>} */ (onLaggBild)({ postId: post.id, plats: post.groupId ?? "", fil: klar });
-        if (!livs.current) return;
         const namn = svar?.namn;
         if (!sakertBildnamn(namn)) {
+          if (!livs.current) throw new Error(o("ingetNamn"));
           setFel(o("ingetNamn"));
+          continue;
+        }
+        if (!livs.current) {
+          if (typeof onEfterStangning !== "function") throw new Error(`AnteckningsText: bilden ${namn} laddades upp efter att rutan stängts, och ingen onEfterStangning tog emot den.`);
+          const sparat = await onEfterStangning(/** @type {string} */ (namn));
+          if (sparat === false) throw new Error(`AnteckningsText: bilden ${namn} laddades upp efter att rutan stängts, men posten kunde inte sparas med raden.`);
           continue;
         }
         // ⛔ Markören läses NÄR SVARET KOMMIT: personen kan ha skrivit vidare under uppladdningen. Finns fältet inte längre gäller platsen vid start.
@@ -201,7 +211,7 @@ export function AnteckningsText({ text, setText, post, onLaggBild, sprak, onPaga
         textRef.current = ut.text;
         setText(ut.text);
       } catch (e) {
-        if (!livs.current) return;
+        if (!livs.current) throw e;
         const skal = (e instanceof Error && e.message ? e.message : String(e)).replace(/[.\s]+$/, "");
         setFel(o("fel").replace("{skal}", `${skal}.`));
       } finally {
@@ -234,34 +244,31 @@ export function AnteckningsText({ text, setText, post, onLaggBild, sprak, onPaga
   }
 
   return (
-    <OpsField label={o("text")}>
-      <div ref={ruta} className="flex min-w-0 flex-col gap-2" onPaste={klistra}>
-        <OpsTextarea value={text} onChange={setText} ariaLabel={o("text")} rows={8} />
-        {kan ? (
-          <div className="flex flex-wrap items-center gap-2">
-            <OpsButton variant="secondary" size="sm" busy={pagar > 0} onClick={() => filFalt.current?.click()}>
-              <IKON_FOR.slappBild size={16} aria-hidden="true" />
-              {o("laggTill")}
-            </OpsButton>
-            <input
-              ref={filFalt}
-              type="file"
-              accept="image/*"
-              multiple
-              aria-label={o("laggTill")}
-              className="hidden"
-              onChange={(e) => {
-                const valda = Array.from(e.target.files ?? []);
-                e.target.value = "";
-                if (valda.length) void laddaUpp(valda);
-              }}
-            />
-          </div>
-        ) : null}
-        {pagar > 0 ? <p role="status" data-anteckningsbild="laddar" className="m-0 text-meta text-ink-secondary">{o("laddarUpp")}</p> : null}
-        {fel ? <p role="alert" data-anteckningsbild="fel" className="m-0 text-etikett text-danger wrap-anywhere">{fel}</p> : null}
-        {notis ? <p role="status" data-anteckningsbild="spara-forst" className="m-0 text-meta text-ink-secondary">{notis}</p> : null}
-      </div>
-    </OpsField>
+    <AnteckningsRuta text={text} setText={setText} sprak={sprak} rutaRef={ruta} onPaste={klistra}>
+      {kan ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <OpsButton variant="secondary" size="sm" busy={pagar > 0} onClick={() => filFalt.current?.click()}>
+            <IKON_FOR.slappBild size={16} aria-hidden="true" />
+            {o("laggTill")}
+          </OpsButton>
+          <input
+            ref={filFalt}
+            type="file"
+            accept="image/*"
+            multiple
+            aria-label={o("laggTill")}
+            className="hidden"
+            onChange={(e) => {
+              const valda = Array.from(e.target.files ?? []);
+              e.target.value = "";
+              if (valda.length) void laddaUpp(valda);
+            }}
+          />
+        </div>
+      ) : null}
+      {pagar > 0 ? <p role="status" data-anteckningsbild="laddar" className="m-0 text-meta text-ink-secondary">{o("laddarUpp")}</p> : null}
+      {fel ? <p role="alert" data-anteckningsbild="fel" className="m-0 text-etikett text-danger wrap-anywhere">{fel}</p> : null}
+      {notis ? <p role="status" data-anteckningsbild="spara-forst" className="m-0 text-meta text-ink-secondary">{notis}</p> : null}
+    </AnteckningsRuta>
   );
 }

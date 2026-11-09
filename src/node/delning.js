@@ -103,12 +103,16 @@ import {
   FORVAL_HANDELSEDAGAR,
   KODLANGD,
   MAX_ADRESSDEL,
+  MAX_ANTECKNINGSBILDER,
+  MAX_ANTECKNINGSBILDER_PER_SVAR,
   MAX_DELADE_LISTPOSTER,
   MAX_HANDELSEFILER,
   SIGNERAD_SEKUNDER,
   SLUMPSLUT_TECKEN,
   TOKENFORM,
   adressUrUppslag,
+  anteckningsbildMime,
+  anteckningsbildSokvag,
   arAdressdel,
   byggAdress,
   delningsSokvag,
@@ -119,6 +123,7 @@ import {
 } from "../lib/delning.js";
 import { medlemskapsId } from "../lib/grupp.js";
 import { KLOCKFORM, handelsefel } from "../lib/handelsemodell.js";
+import { bilderI } from "../lib/markdown.js";
 
 const DYGN_MS = 24 * 60 * 60 * 1000;
 
@@ -403,6 +408,45 @@ export function delningsDisposition(namn, bifoga, mime) {
 }
 
 /**
+ * Bilderna i en anteckning som signerade adresser (0.207.0, cllp/lifehub.app#696 skiva 2): `{ [namn]: url }`, eller `undefined` när svaret inte ska bära fältet. Delas av
+ * `createDelningService` (en delad anteckning och en anteckning i en delad lista) och `createGastService` (gästens bibliotek), så att de två aldrig signerar på olika sätt (regel 2).
+ *
+ * - Namnen tas ur texten med `bilderI`, samma tolkning som visningen: bara säkra namn (`sakertBildnamn`), inget i ett kodblock, inga dubbletter.
+ * - Sökvägen byggs av `anteckningsbildSokvag` med postens EGEN plats och id. ⛔ Ett namn kan aldrig nå en annan posts mapp eller något utanför postens mapp, och bara en bild signeras.
+ * - `lagring.finns({ sokvag })` prövar att filen finns. ⛔ En fil som saknas utelämnas: vyn säger då "Bilden kunde inte visas." i stället för att rita en adress som ger 404.
+ *   Svarar `finns` något annat än `true` eller `false` kastas ett fel: Admin SDK:s `exists()` svarar `[boolean]`, och en lista hade lästs som "saknas" för varje bild utan ett ord.
+ * - Signeringen är tjänstens egen `signeradAdress`, med `SIGNERAD_SEKUNDER` och `inline`: en bild i en text visas, den laddas inte ned.
+ * - Utan `lagring.finns` blir det `undefined`: tjänsten kan inte veta vilka filer som finns, och vyn står då med "Bilden visas inte här än." som före 0.207.0.
+ * - Taken: `MAX_ANTECKNINGSBILDER` per anteckning och `budget.kvar` (förval `MAX_ANTECKNINGSBILDER_PER_SVAR`) för hela svaret, se `lib/delning.js`. `budget` räknas ned INNAN något
+ *   anrop väntas in, så att en lista vars poster byggs samtidigt delar taket i postordning.
+ * - Ett fel från lagringen kastas vidare, som för en fil (`filInnehall`). Inget tystas.
+ *
+ * @param {{ post: Record<string, any>, postId: string, lagring: { signeradAdress: Delningslagring["signeradAdress"], finns?: Delningslagring["finns"] }, gruppPrefix: string, postPrefix: string, budget: { kvar: number } }} b
+ * @returns {Promise<Record<string, string> | undefined>}
+ */
+export async function anteckningsbildAdresser({ post, postId, lagring, gruppPrefix, postPrefix, budget }) {
+  if (typeof lagring.finns !== "function") return undefined;
+  const namnen = bilderI(typeof post.text === "string" ? post.text : "");
+  if (namnen.length === 0 || budget.kvar <= 0) return undefined;
+  const valda = namnen.slice(0, Math.min(MAX_ANTECKNINGSBILDER, budget.kvar));
+  budget.kvar -= valda.length;
+  const finns = lagring.finns;
+  const par = await Promise.all(
+    valda.map(async (namn) => {
+      const sokvag = anteckningsbildSokvag({ gruppPrefix, postPrefix, groupId: post.groupId, postId, namn });
+      if (!sokvag) return null;
+      const svar = await finns({ sokvag });
+      if (svar !== true && svar !== false) throw new Error(`anteckningsbildAdresser: lagring.finns ska svara true eller false, och svarade ${JSON.stringify(svar)}. Med Admin SDK: (await bucket.file(sokvag).exists())[0].`);
+      if (!svar) return null;
+      const mime = anteckningsbildMime(namn);
+      const url = await lagring.signeradAdress({ sokvag, sekunder: SIGNERAD_SEKUNDER, disposition: delningsDisposition(namn, false, mime), mime });
+      return /** @type {[string, string]} */ ([namn, url]);
+    }),
+  );
+  return Object.fromEntries(par.filter((x) => x !== null));
+}
+
+/**
  * @typedef {object} Delningssamlingar
  * @property {string} delningar Samlingen delningarna ligger i. Inget förval: det är appens namn.
  * @property {string} bibliotek Samlingen biblioteksposterna ligger i. Inget förval.
@@ -416,6 +460,10 @@ export function delningsDisposition(namn, bifoga, mime) {
  * @property {(b: { sokvag: string, sekunder: number, disposition: string, mime: string }) => Promise<string>} signeradAdress
  *   En adress till filen som gäller i `sekunder` och svarar med headern `disposition` som `Content-Disposition`. Med Admin SDK:
  *   `bucket.file(sokvag).getSignedUrl({ version: "v4", action: "read", expires, responseDisposition, responseType })`.
+ * @property {(b: { sokvag: string }) => Promise<boolean>} [finns] (0.207.0, cllp/lifehub.app#696) Finns filen? Med Admin SDK: `(await bucket.file(sokvag).exists())[0]`. Med den bär en delad
+ *   anteckning sina bilder (`bilder`, se `anteckningsbildAdresser`). Utan den skickas inga bilder, och sidan visar "Bilden visas inte här än." där de står.
+ * @property {string} [gruppPrefix] (0.207.0) Första segmentet i en fils sökväg, samma som till `lagringsregelfragment({ bibliotek })`. Förval `grupper`.
+ * @property {string} [postPrefix] (0.207.0) Tredje segmentet, före postens id. Förval `bibliotek`.
  */
 
 /**
@@ -463,6 +511,14 @@ export function createDelningService(konfig) {
   if (!lagring || typeof lagring.signeradAdress !== "function") {
     throw new Error(`${namn}: en lagring med signeradAdress krävs. Den publika sidan får aldrig en öppen sökväg, bara en adress som går ut.`);
   }
+  if (lagring.finns !== undefined && typeof lagring.finns !== "function") throw new Error(`${namn}: lagring.finns är en funktion ({ sokvag }) => Promise<boolean>, eller utelämnas.`);
+  const lagringsprefix = (/** @type {unknown} */ v, /** @type {string} */ fall, /** @type {string} */ falt) => {
+    const x = v === undefined ? fall : v;
+    if (typeof x !== "string" || !SAMLINGSFORM.test(x)) throw new Error(`${namn}: lagring.${falt} är ett namn, eller utelämnas (förval ${fall}).`);
+    return x;
+  };
+  const GRUPPPREFIX = lagringsprefix(lagring.gruppPrefix, "grupper", "gruppPrefix");
+  const POSTPREFIX = lagringsprefix(lagring.postPrefix, "bibliotek", "postPrefix");
   for (const falt of /** @type {const} */ (["delningar", "bibliotek"])) {
     const v = samlingar?.[falt];
     if (typeof v !== "string" || !SAMLINGSFORM.test(v)) {
@@ -910,11 +966,14 @@ export function createDelningService(konfig) {
   }
 
   /**
-   * Det en besökare får se av en ANTECKNING (`ANTECKNINGSSVARSFALT`).
+   * Det en besökare får se av en ANTECKNING (`ANTECKNINGSSVARSFALT`): rubriken, texten och (0.207.0) bilderna i texten som signerade adresser (`anteckningsbildAdresser`).
    * @param {Record<string, any>} post
+   * @param {string} postId Postens id (en läst post bär inte alltid sitt id).
+   * @param {{ kvar: number }} budget Svarets tak för bilder, delat av alla poster i svaret.
    */
-  function anteckningInnehall(post) {
-    return { typ: /** @type {const} */ ("anteckning"), rubrik: trimSomRegeln(post.rubrik), text: String(post.text) };
+  async function anteckningInnehall(post, postId, budget) {
+    const bilder = await anteckningsbildAdresser({ post, postId, lagring, gruppPrefix: GRUPPPREFIX, postPrefix: POSTPREFIX, budget });
+    return { typ: /** @type {const} */ ("anteckning"), rubrik: trimSomRegeln(post.rubrik), text: String(post.text), ...(bilder ? { bilder } : {}) };
   }
 
   /**
@@ -950,6 +1009,7 @@ export function createDelningService(konfig) {
     // Varje id läses för sig (och går därmed genom appens egen läsning). Ett id som inte har postidform slås aldrig upp: det finns inget sådant dokument att fråga efter.
     const lasta = await Promise.all(valda.map(async (id) => (POSTIDFORM.test(id) ? await kalla.read(BIBLIOTEK, id) : null)));
     const platsens = lasta.flatMap((p, i) => (p && typeof p === "object" && p.groupId === lista.groupId ? [{ ...p, id: valda[i] }] : []));
+    const budget = { kvar: MAX_ANTECKNINGSBILDER_PER_SVAR };
     const poster = await Promise.all(
       losLista({ poster: valda }, /** @type {any} */ (platsens)).map(async (r) => {
         if (!r.post) return { typ: r.skal === "lista" ? /** @type {const} */ ("lista-i-lista") : /** @type {const} */ ("saknas") };
@@ -957,7 +1017,7 @@ export function createDelningService(konfig) {
         if (!arDelbar(post)) return { typ: /** @type {const} */ ("saknas") };
         const id = radnyckel(rad.id, r.id);
         if (post.typ === "fil") return { id, ...(await filInnehall(post, nedladdning)) };
-        if (post.typ === "anteckning") return { id, ...anteckningInnehall(post) };
+        if (post.typ === "anteckning") return { id, ...(await anteckningInnehall(post, r.id, budget)) };
         return { id, ...lankInnehall(post) };
       }),
     );
@@ -988,7 +1048,7 @@ export function createDelningService(konfig) {
       case "fil":
         return { ok: /** @type {const} */ (true), delning: await filInnehall(post, rad.nedladdning === true) };
       case "anteckning":
-        return { ok: /** @type {const} */ (true), delning: anteckningInnehall(post) };
+        return { ok: /** @type {const} */ (true), delning: await anteckningInnehall(post, rad.postId, { kvar: MAX_ANTECKNINGSBILDER_PER_SVAR }) };
       case "lank":
         return { ok: /** @type {const} */ (true), delning: lankInnehall(post) };
       default:

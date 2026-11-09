@@ -79,7 +79,8 @@ describe("anteckning: rubrik och texten, inget annat", () => {
   it("svaret har exakt ANTECKNINGSSVARSFALT och läcker ingenting om posten", async () => {
     const { tjanst } = bygg();
     const d = await hamta(tjanst, "a1");
-    expect(Object.keys(d).sort()).toEqual([...ANTECKNINGSSVARSFALT].sort());
+    // (0.207.0) `bilder` finns bara när texten har en bild och lagringen har `finns` (anteckningsbild-server-207.test.js mäter det fallet). Här har texten ingen bild.
+    expect(Object.keys(d).sort()).toEqual(ANTECKNINGSSVARSFALT.filter((f) => f !== "bilder").sort());
     expect(d).toEqual({ typ: "anteckning", rubrik: "Rubrik a1", text: "Text i a1\nandra raden" });
     const text = JSON.stringify(d);
     for (const forbjudet of [HEMLIG, MEDLEM, GRUPP, "Namn", "Skaparen"]) expect(text, forbjudet).not.toContain(forbjudet);
@@ -153,7 +154,7 @@ describe("lista: hela listan delas, som en spellista", () => {
       expect(utanNyckel).toEqual(ensam);
     }
     expect(Object.keys(s).sort()).toEqual(["id", ...DELNINGSSVARSFALT].sort());
-    expect(Object.keys(a).sort()).toEqual(["id", ...ANTECKNINGSSVARSFALT].sort());
+    expect(Object.keys(a).sort()).toEqual(["id", ...ANTECKNINGSSVARSFALT.filter((f) => f !== "bilder")].sort());
     expect(Object.keys(k).sort()).toEqual(["id", ...LANKSVARSFALT].sort());
   });
 

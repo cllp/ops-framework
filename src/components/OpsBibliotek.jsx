@@ -15,7 +15,8 @@ import { arPdfDokument, arPdfMime, pdfVyAdress } from "../lib/pdfvisning.js";
 import { lasFilbytes } from "../data/filbytes.js";
 import { BibliotekHtmlVersionerLat } from "./BibliotekHtmlVersionerLat.jsx";
 import { OpsMarkdown } from "./OpsMarkdown.jsx";
-import { AnteckningsText } from "./BibliotekAnteckningsbild.jsx";
+import { medBildInsatt } from "../lib/markdown.js";
+import { AnteckningsTextLat, forladdaAnteckningsbild } from "./BibliotekAnteckningsbildLat.jsx";
 import { GithubDokumentVisningLat } from "./GithubDokumentVisningLat.jsx";
 import { BibliotekRepoLat } from "./BibliotekRepoLat.jsx";
 import { githubDokument } from "../lib/githubdokument.js";
@@ -361,12 +362,18 @@ const arkivtips = () => `Arkiverad. Välj taggen ${ARKIVTAGG} för att se arkive
  *   under rutan med sitt meddelande; ett namn som inte är ett säkert segment skrivs inte in, och det sägs. Ramverket krymper bilden innan appen får den
  *   (`readAttachment`: längsta sidan 1600 px, JPEG; en GIF lämnas orörd). En HEIC som webbläsaren kan läsa blir en JPEG, och en som den inte kan läsa laddas aldrig upp: den nekas
  *   med skälet. Spara och Avbryt väntar medan en uppladdning pågår.
+ *   ⛔ (0.207.0) TILLBAKA, EN ANNAN POST ELLER EN NY VY MITT I EN UPPLADDNING TAPPAR INTE BILDEN: uppladdningen slutförs, och raden skrivs in sist i den sparade texten med `onSpara`
+ *   (`{ typ: "anteckning", rubrik, text, id }`, samma form som Spara). Det som skrivits men inte sparats sparas inte. Rutan och knappen läses in när de behövs (`BibliotekAnteckningsbildLat`).
  *   ⛔ INTE I EN NY ANTECKNING: den har inget id och ingen mapp, och `onSpara` svarar inte med det id posten fick. Knappen syns först när anteckningen är sparad, och en bild som klistras in i en
  *   ny anteckning ger raden "Spara anteckningen först. Sedan går det att lägga till bilder." i stället för en egen post. Utan propen syns ingen knapp och en inklistring går som förut.
  * @param {(bild: { postId: string, plats: string, namn: string }) => string | Promise<string>} [props.bildIAnteckningAdress] (0.206.0, cllp/lifehub.app#696) Adressen till en bild i en
  *   anteckning, ur postens id, plats och filnamnet i texten. Används när anteckningen läses (`OpsMarkdown` med `bildAdress`). Utan den står raden "Bilden visas inte här än." där bilden står.
+ *   (0.207.0) Gästens vy (`OpsGastGrupp`) ger den också: adresserna hämtas när gästen öppnar anteckningen (`anteckningsbilder`), aldrig med listan.
+ * @param {(bild: { postId: string, plats: string, namn: string }) => boolean | Promise<boolean>} [props.bildIAnteckningFel] (0.207.0, #696 skiva 2) En bild med en adress laddades inte,
+ *   troligen för att en signerad adress gått ut (`OpsMarkdown` `onBildFel`). Sant: appen hämtar nya adresser och ger en ny `bildIAnteckningAdress`. Falskt: raden "Ladda om sidan för att se
+ *   bilden.". Utan propen står "Bilden kunde inte visas." som förut.
  */
-export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, trasiga: trasigaProp = [], laddar: laddarProp = false, vald = null, skapar = null, jag, onOppna, onStang, onSkapa, onSpara, onRadera, onLaddaUpp, onFyllLjud, onSpelaIn, inspelare, filUrl, hamtaAdress, hamtaFil, htmlVersioner, hamtaHtmlVersion, aterstallHtml, nyHtmlVersion, oppnaHtml, oppnaPdf, grupper = [], onDela, platser = [], plats, onPlats, onSkrivUt, onSkrivUtIgen, onTaBortUtskrift, onAnteckningAvUtskrift, onGorForslag, delningar = [], delningGruppdel, gruppnamn: gruppnamnProp, onDelaLank, onAndraNedladdning, onAterkalla, onMejlaLank, onLankInfo, githubLasare, repoLasare, onLaggRepoFil, hubHref, hubEtikett, onNavigate, modulId = "bibliotek", ram = null, activeHref, modul = null, inbaddad = false, tomText, utanHubb = false, adresserPaBegaran = false, gruppTaggar = [], egnaPlatser = null, stjarnor, onStjarna, huvudRad, utanNedladdning = false, kommentarer = null, onLaggBildIAnteckning, bildIAnteckningAdress }) {
+export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, trasiga: trasigaProp = [], laddar: laddarProp = false, vald = null, skapar = null, jag, onOppna, onStang, onSkapa, onSpara, onRadera, onLaddaUpp, onFyllLjud, onSpelaIn, inspelare, filUrl, hamtaAdress, hamtaFil, htmlVersioner, hamtaHtmlVersion, aterstallHtml, nyHtmlVersion, oppnaHtml, oppnaPdf, grupper = [], onDela, platser = [], plats, onPlats, onSkrivUt, onSkrivUtIgen, onTaBortUtskrift, onAnteckningAvUtskrift, onGorForslag, delningar = [], delningGruppdel, gruppnamn: gruppnamnProp, onDelaLank, onAndraNedladdning, onAterkalla, onMejlaLank, onLankInfo, githubLasare, repoLasare, onLaggRepoFil, hubHref, hubEtikett, onNavigate, modulId = "bibliotek", ram = null, activeHref, modul = null, inbaddad = false, tomText, utanHubb = false, adresserPaBegaran = false, gruppTaggar = [], egnaPlatser = null, stjarnor, onStjarna, huvudRad, utanNedladdning = false, kommentarer = null, onLaggBildIAnteckning, bildIAnteckningAdress, bildIAnteckningFel }) {
   if (kalla !== undefined && (posterProp !== undefined || felProp !== null || laddarProp !== false || (Array.isArray(trasigaProp) && trasigaProp.length > 0))) {
     throw new Error("OpsBibliotek: kalla och poster/fel/trasiga/laddar kan inte ges tillsammans. Med kalla läser vyn själv, och två sanningar om samma lista hade låtit den ena vinna tyst.");
   }
@@ -446,6 +453,11 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
   // ⛔ Listan kommer ur propsen eller ur kallan, aldrig ur båda (kastat ovan).
   const levande = useBibliotekskalla(kalla);
   const poster = levande ? levande.poster : /** @type {NonNullable<typeof posterProp>} */ (posterProp);
+  // ⛔ (0.207.0) LISTAN SOM DEN SER UT NU, för en bild som blir klar efter att redigeringen stängts (`aktuellPost` i Detalj). En Detalj som är borta
+  // ser bara posten som den var när den stängdes, och en text som sparats efter det (samma person i en ny redigering, eller en annan medlem) hade skrivits över.
+  const posterNu = useRef(poster);
+  posterNu.current = poster;
+  const aktuellPost = useMemo(() => (/** @type {string} */ id) => posterNu.current.find((p) => p.id === id) ?? null, []);
   const fel = levande ? levande.fel : felProp;
   const trasiga = levande ? levande.trasiga : trasigaProp;
   const laddar = levande ? levande.laddar : laddarProp;
@@ -461,6 +473,9 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
   // (0.191.0) Trådens bit hämtas i bakgrunden när appen gett en källa, så att den finns när en post öppnas (`BibliotekKommentarerLat`).
   const harKommentarer = Boolean(kommentarer);
   useEffect(() => (harKommentarer ? forladdaBibliotekKommentarer() : undefined), [harKommentarer]);
+  // (0.207.0) Bildknappen i en anteckning hämtas i bakgrunden när appen gett uppladdningen, så att den finns när någon trycker på Redigera (`BibliotekAnteckningsbildLat`).
+  const harBildIAnteckning = typeof onLaggBildIAnteckning === "function";
+  useEffect(() => (harBildIAnteckning ? forladdaAnteckningsbild() : undefined), [harBildIAnteckning]);
   const [byter, setByter] = useState(/** @type {null | (import("../lib/bibliotek.js").Bibliotekspost & { id: string })} */ (null));
   const [namnUtkast, setNamnUtkast] = useState("");
   const [namnFel, setNamnFel] = useState("");
@@ -1091,7 +1106,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
     <Rot tillbaka={detalj ? undefined : listTillbaka}>
       <div data-bibliotek="" className="flex min-w-0 w-full flex-col gap-4">
         {detalj ? (
-          <Detalj key={`${skaparTyp ?? ""}:${vald?.id ?? ""}:${startLage}`} post={vald ? medFyll(poster.find((p) => p.id === vald.id) ?? vald) : null} skapar={skaparTyp} startLage={startLage} onStang={onStang} onSpara={onSpara} onLaddaUpp={onLaddaUpp} filUrl={filUrl} hamtaFil={hamtaFil} htmlVersioner={htmlVersioner} hamtaHtmlVersion={hamtaHtmlVersion} aterstallHtml={aterstallHtml} nyHtmlVersion={nyHtmlVersion} oppnaHtml={oppnaHtml} oppnaPdf={oppnaPdf} adressFor={adressFor} taggrad={vald && !skaparTyp ? (() => {
+          <Detalj key={`${skaparTyp ?? ""}:${vald?.id ?? ""}:${startLage}`} post={vald ? medFyll(poster.find((p) => p.id === vald.id) ?? vald) : null} skapar={skaparTyp} startLage={startLage} onStang={onStang} onSpara={onSpara} aktuellPost={aktuellPost} onLaddaUpp={onLaddaUpp} filUrl={filUrl} hamtaFil={hamtaFil} htmlVersioner={htmlVersioner} hamtaHtmlVersion={hamtaHtmlVersion} aterstallHtml={aterstallHtml} nyHtmlVersion={nyHtmlVersion} oppnaHtml={oppnaHtml} oppnaPdf={oppnaPdf} adressFor={adressFor} taggrad={vald && !skaparTyp ? (() => {
             // ⛔ TAGGARNA RITAS OCKSÅ I DETALJEN (0.153.0, ops-framework#460 punkt 3, lifehub.app QA-fynd 5): förut bara på listkortet, så den som öppnade en post såg inte vilka taggar den hade. Samma rad, samma rätt att ändra
             // (`farAndra`) och samma förslag som på kortet, men utan filter: listan är inte synlig medan en post är öppen, och ett tryck på en tagg skulle ställa in ett filter ingen ser.
             const rad = poster.find((p) => p.id === vald.id) ?? vald;
@@ -1106,7 +1121,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
           })() : null} markering={vald ? (() => {
             const rad = poster.find((p) => p.id === vald.id) ?? vald;
             return <Markering nalad={arNalad(rad)} nalOrd={mord("nalad")} stjarna={stjarnFor(rad)} />;
-          })() : null} onLjus={setLjus} onSkrivUt={onSkrivUt} onSkrivUtIgen={onSkrivUtIgen} onTaBortUtskrift={onTaBortUtskrift} onAnteckningAvUtskrift={onAnteckningAvUtskrift} menyFor={menyFor} onMeta={togMeta} tillbakaEtikett={lord(inbaddad ? "filer" : "tillbaka")} poster={poster} jag={jag} onLankInfo={onLankInfo} githubLasare={githubLasare} onLaggBildIAnteckning={onLaggBildIAnteckning} bildIAnteckningAdress={bildIAnteckningAdress} onOppnaPost={(p) => oppnaMed(p, "las")} kommentarer={vald && !skaparTyp && kanKommenteras(vald) ? kommentarer : null} fokusKommentar={Boolean(vald) && kommenteraFor === vald?.id} />
+          })() : null} onLjus={setLjus} onSkrivUt={onSkrivUt} onSkrivUtIgen={onSkrivUtIgen} onTaBortUtskrift={onTaBortUtskrift} onAnteckningAvUtskrift={onAnteckningAvUtskrift} menyFor={menyFor} onMeta={togMeta} tillbakaEtikett={lord(inbaddad ? "filer" : "tillbaka")} poster={poster} jag={jag} onLankInfo={onLankInfo} githubLasare={githubLasare} onLaggBildIAnteckning={onLaggBildIAnteckning} bildIAnteckningAdress={bildIAnteckningAdress} bildIAnteckningFel={bildIAnteckningFel} onOppnaPost={(p) => oppnaMed(p, "las")} kommentarer={vald && !skaparTyp && kanKommenteras(vald) ? kommentarer : null} fokusKommentar={Boolean(vald) && kommenteraFor === vald?.id} />
         ) : (
           <div data-bibliotek-huvud="" className="flex min-w-0 flex-col gap-3">
             {/* ⛔ SESSIONSTUDIOS HUVUD, SOM I APPEN (0.102.0, CP 2026-10-14 med skärmbilder från SessionStudios app: "Listningen
@@ -2374,6 +2389,7 @@ function Adress({ url }) {
  * @param {"las" | "redigera"} props.startLage
  * @param {() => void} props.onStang
  * @param {(inmatning: { id?: string, typ: string, rubrik: string, text?: string, url?: string, fil?: { sokvag: string, namn: string, mime: string, byte: number } }) => void | boolean | Promise<void | boolean>} props.onSpara Kastar den eller avvisas löftet visas felet i formuläret och läget står kvar (0.93.0). `false` betyder att det inte gick.
+ * @param {(id: string) => (import("../lib/bibliotek.js").Bibliotekspost & { id: string }) | null} [props.aktuellPost] (0.207.0) Posten ur bibliotekets senaste lista, för en bild som blir klar efter att redigeringen stängts.
  * @param {(inmatning: { id?: string, rubrik: string, fil: File }) => void | Promise<void>} [props.onLaddaUpp]
  * @param {(post: { fil?: { sokvag?: string } }) => string} [props.filUrl]
  * @param {(sokvag: string) => Promise<Blob>} [props.hamtaFil] (0.153.0) Se `OpsBibliotek`.
@@ -2403,8 +2419,9 @@ function Adress({ url }) {
  * @param {boolean} [props.fokusKommentar] (0.191.0) Kommentarsfältet får fokus: personen valde Kommentera.
  * @param {(inmatning: { postId: string, plats: string, fil: File }) => Promise<{ namn: string }>} [props.onLaggBildIAnteckning] (#696) Se `OpsBibliotek`.
  * @param {(bild: { postId: string, plats: string, namn: string }) => string | Promise<string>} [props.bildIAnteckningAdress] (#696) Se `OpsBibliotek`.
+ * @param {(bild: { postId: string, plats: string, namn: string }) => boolean | Promise<boolean>} [props.bildIAnteckningFel] (0.207.0) Se `OpsBibliotek`.
  */
-function Detalj({ post, skapar, startLage, onStang, onSpara, onLaddaUpp, filUrl, hamtaFil, htmlVersioner, hamtaHtmlVersion, aterstallHtml, nyHtmlVersion, oppnaHtml, oppnaPdf, taggrad, markering, adressFor, onLjus, onSkrivUt, onSkrivUtIgen, onTaBortUtskrift, onAnteckningAvUtskrift, menyFor, onMeta, tillbakaEtikett, poster, jag, onLankInfo, githubLasare, onOppnaPost, kommentarer = null, fokusKommentar = false, onLaggBildIAnteckning, bildIAnteckningAdress }) {
+function Detalj({ post, skapar, startLage, onStang, onSpara, aktuellPost, onLaddaUpp, filUrl, hamtaFil, htmlVersioner, hamtaHtmlVersion, aterstallHtml, nyHtmlVersion, oppnaHtml, oppnaPdf, taggrad, markering, adressFor, onLjus, onSkrivUt, onSkrivUtIgen, onTaBortUtskrift, onAnteckningAvUtskrift, menyFor, onMeta, tillbakaEtikett, poster, jag, onLankInfo, githubLasare, onOppnaPost, kommentarer = null, fokusKommentar = false, onLaggBildIAnteckning, bildIAnteckningAdress, bildIAnteckningFel }) {
   const sprak = useOpsSprak();
   const typ = skapar ?? post?.typ ?? "anteckning";
   const [rubrik, setRubrik] = useState(post && !skapar ? post.rubrik : "");
@@ -2443,6 +2460,31 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, onLaddaUpp, filUrl,
     () => (typeof bildIAnteckningAdress === "function" && bildPostId ? (/** @type {string} */ namn) => bildIAnteckningAdress({ postId: bildPostId, plats: bildPlats, namn }) : undefined),
     [bildIAnteckningAdress, bildPostId, bildPlats],
   );
+  // (0.207.0) En bild som inte laddas frågar appen, med postens id och plats (`bildIAnteckningFel`).
+  const onBildFel = useMemo(
+    () => (typeof bildIAnteckningFel === "function" && bildPostId ? (/** @type {string} */ namn) => bildIAnteckningFel({ postId: bildPostId, plats: bildPlats, namn }) : undefined),
+    [bildIAnteckningFel, bildPostId, bildPlats],
+  );
+  // ⛔ (0.207.0) EN BILD SOM BLEV KLAR EFTER ATT RUTAN STÄNGTS skrivs in sist i den SPARADE texten (`AnteckningsText`, filens huvud i
+  // `BibliotekAnteckningsbild.jsx`).
+  // ⛔ TEXTEN LÄSES UR LISTAN SOM DEN ÄR NU (`aktuellPost`), inte ur posten den här Detalj såg: rutan är borta, och personen kan ha öppnat posten igen och sparat,
+  // eller en annan medlem ändrat den. Granskningen av 0.207.0 fann att den gamla texten annars skrevs tillbaka och den nyare försvann tyst.
+  // ⛔ TVÅ BILDER EFTER STÄNGNINGEN: listan har inte hunnit få den förstas sparning när den andra blir klar. `sistSkrivet` minns vad den förra skrev, och så länge
+  // listan fortfarande visar texten den utgick från bygger nästa på den, så att de två inte skriver över varandra.
+  // ⛔ EN POST SOM TAGITS BORT, FLYTTATS ELLER INTE LÄNGRE ÄR EN ANTECKNING SPARAS INTE: en sparning hade väckt den eller pekat bildraden mot en annan plats mapp.
+  // Svaret är då `null` (inget att skriva, inget fel). Bilden ligger kvar i den borttagna postens mapp, som appen städar.
+  const sistSkrivet = useRef(/** @type {{ fran: string, till: string } | null} */ (null));
+  /** @param {string} namn */
+  function skrivInEfterStangning(namn) {
+    if (!post || skapar) return false;
+    const nu = typeof aktuellPost === "function" ? aktuellPost(post.id) : post;
+    if (!nu || nu.typ !== "anteckning" || (nu.groupId ?? "") !== (post.groupId ?? "")) return null;
+    const listan = nu.text ?? "";
+    const bas = sistSkrivet.current && sistSkrivet.current.fran === listan ? sistSkrivet.current.till : listan;
+    const ny = medBildInsatt(bas, bas.length, namn).text;
+    sistSkrivet.current = { fran: listan, till: ny };
+    return onSpara({ typ: "anteckning", rubrik: nu.rubrik, text: ny, id: post.id });
+  }
 
   useEffect(() => {
     setRubrik(post && !skapar ? post.rubrik : "");
@@ -2610,7 +2652,7 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, onLaddaUpp, filUrl,
 
   const radera = post && !skapar ? menyFor(post, true, setLage).find((m) => m.id === "radera") : undefined;
   const innehall = typ === "anteckning" ? (
-    post?.text ? <OpsMarkdown text={post.text} dokument bildAdress={bildAdress} /> : <p className="text-etikett text-ink">Anteckningen har ingen text.</p>
+    post?.text ? <OpsMarkdown text={post.text} dokument bildAdress={bildAdress} onBildFel={onBildFel} /> : <p className="text-etikett text-ink">Anteckningen har ingen text.</p>
   ) : typ === "fil" && post ? (
     <FilVisning post={post} lage={filLage} kopplad={kopplad} onLjus={onLjus} onMeta={onMeta} onRadera={radera ? radera.onValj : undefined} hamtaFil={hamtaFil} htmlVy={htmlVyAdress(oppnaHtml, post)} pdfVy={pdfVyAdress(oppnaPdf, post)} versioner={htmlVersioner ? { lista: htmlVersioner, hamtaVersion: hamtaHtmlVersion, aterstall: aterstallHtml, nyVersion: nyHtmlVersion, kanAndra: farAndra(post, jag) } : undefined} />
   ) : typ === "lista" && post ? (
@@ -2649,7 +2691,7 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, onLaddaUpp, filUrl,
       </OpsField>
       {typ === "anteckning" ? (
         // ⛔ BILDEN I ANTECKNINGEN (#696): textrutan, "Lägg till bild" och inklistringen av en bild. Utan `onLaggBildIAnteckning` är det samma ruta som förut.
-        <AnteckningsText text={text} setText={setText} post={post && !skapar ? post : null} onLaggBild={onLaggBildIAnteckning} sprak={sprak} onPagar={setBildLaddar} />
+        <AnteckningsTextLat text={text} setText={setText} post={post && !skapar ? post : null} onLaggBild={onLaggBildIAnteckning} sprak={sprak} onPagar={setBildLaddar} onEfterStangning={skrivInEfterStangning} />
       ) : typ === "fil" ? (
         <OpsField label="Fil">
           {/* ⛔ Det råa filfältet är dolt och knappen är ramverkets (0.95.0). Förut stod webbläsarens egen "Välj fil,
