@@ -9,6 +9,7 @@ import {
   GASTARENDEKOMMENTARER_MAX,
   GASTARENDEKOMMENTARFALT,
   GASTBIBLIOTEK_MAX,
+  GASTBIBLIOTEKFALT,
   GASTCHATT_SIDA,
   GASTCHATTFALT,
   GASTFIL_PER_DYGN,
@@ -29,7 +30,7 @@ import {
   tolkaGastMottagare,
 } from "../lib/gast.js";
 import { ARKIVTAGG, filtreraBibliotek } from "../lib/bibliotek.js";
-import { SIGNERAD_SEKUNDER } from "../lib/delning.js";
+import { MAX_ANTECKNINGSBILDER_PER_SVAR, SIGNERAD_SEKUNDER } from "../lib/delning.js";
 import { medlemskapsId } from "../lib/grupp.js";
 import { byggGastinbjudan, createGastService, gastInbjudningsId, nyGastnyckel } from "../node/gast.js";
 
@@ -174,7 +175,7 @@ const SAMLINGAR_ATT_SOKA = [`samtal/${GRUPP}|grupp/meddelanden`, "gastinbjudning
  * @param {boolean} [val.utanArenden] Appen har ingen ärendedelegering till gäster (skiva 3 av).
  * @param {Record<string, any[]>} [val.extra]
  */
-function bygg({ omslut = (k) => k, utanGrupp = false, utanArenden = false, arendeFalt = null, extra = {}, signeringsfel = null, kommenteraFel = null, lankvalv = null, farLaddaNed = undefined, kommentarer = false } = {}) {
+function bygg({ omslut = (k) => k, utanGrupp = false, utanArenden = false, arendeFalt = null, extra = {}, signeringsfel = null, kommenteraFel = null, lankvalv = null, farLaddaNed = undefined, kommentarer = false, filer = null } = {}) {
   const grund = createMemorySource({ ...seed(), ...extra });
   const kalla = omslut(grund);
   let nu = NU;
@@ -184,6 +185,9 @@ function bygg({ omslut = (k) => k, utanGrupp = false, utanArenden = false, arend
     if (signeringsfel) throw signeringsfel;
     return `https://lagring.example/signerat/${sha(sokvag).slice(0, 16)}?s=${sekunder}&d=${encodeURIComponent(disposition)}&m=${encodeURIComponent(mime)}`;
   });
+  // (0.207.0) `filer`: sökvägarna som finns i lagringen. Med den får lagringen `finns`, och en anteckning bär sina bilder.
+  const finnsMangd = new Set(filer ?? []);
+  const finns = vi.fn(async ({ sokvag }) => finnsMangd.has(sokvag));
   const rostlogg = /** @type {any[]} */ ([]);
   const roster = vi.fn(async ({ gastId: g, groupId }) => {
     for (const r of await grund.list("datumroster", { where: { groupId } })) if (r.gastId === g) await grund.remove("datumroster", r.id);
@@ -238,7 +242,7 @@ function bygg({ omslut = (k) => k, utanGrupp = false, utanArenden = false, arend
           grupp: {
             samlingar: { grupper: "groups", samtal: "samtal", meddelanden: "meddelanden", bibliotek: "bibliotek", svar: "svar", ...(kommentarer ? { tradar: "tradar" } : {}) },
             ...(kommentarer ? { bibliotekBas: "https://app.exempel.se/bibliotek" } : {}),
-            lagring: { signeradAdress: signera },
+            lagring: { signeradAdress: signera, ...(filer ? { finns } : {}) },
             handelseSida: (h) => ({ titel: h.rubrik, beskrivning: h.text, plats: h.plats }),
             ...(utanArenden ? {} : { arenden: arendeFalt ? { ...arenden, falt: arendeFalt } : arenden }),
             ...(farLaddaNed !== undefined ? { farLaddaNed } : {}),
@@ -257,7 +261,7 @@ function bygg({ omslut = (k) => k, utanGrupp = false, utanArenden = false, arend
           ...(lankvalv ? { lankvalv } : {}),
         }),
   });
-  return { grund, kalla, tjanst, brev, signera, roster, spar, rostlogg, arendelogg, arenden, tid: (/** @type {number} */ t) => { nu = t; }, nu: () => nu };
+  return { grund, kalla, tjanst, brev, signera, finns, roster, spar, rostlogg, arendelogg, arenden, tid: (/** @type {number} */ t) => { nu = t; }, nu: () => nu };
 }
 
 const IP = "203.0.113.7";
@@ -1131,6 +1135,49 @@ describe("bibliotek", () => {
     const b = await h.tjanst.bibliotek({ sessionsnyckel: g.sessionsnyckel });
     expect(b.poster).toHaveLength(GASTBIBLIOTEK_MAX);
     expect(b.avkortad).toBe(true);
+  });
+
+  describe("bilderna i en anteckning (0.207.0, cllp/lifehub.app#696 skiva 2)", () => {
+    const not = (id, text, skapad = 6000) => ({ id, groupId: GRUPP, typ: "anteckning", rubrik: `Not ${id}`, text, skapadAv: { uid: AGARE, namn: "Agda Ägare" }, skapad, andrad: skapad });
+    const signerat = (sokvag, mime = "image/jpeg") => `https://lagring.example/signerat/${sha(sokvag).slice(0, 16)}?s=${SIGNERAD_SEKUNDER}&d=inline&m=${encodeURIComponent(mime)}`;
+
+    it("⛔ en bild som finns signeras i postens egen mapp, inline, också för en gäst utan laddaNed; en saknad fil, `../` och en annan posts fil utelämnas", async () => {
+      const h = bygg({
+        extra: { bibliotek: [...seed().bibliotek, not("p-bild", "Kvitto ![Taxi](a.jpg) ![](saknas.jpg) ![](../p-not/a.jpg) ![](b.png)")] },
+        filer: ["grupper/kallan/bibliotek/p-bild/a.jpg", "grupper/kallan/bibliotek/p-not/a.jpg", "grupper/kallan/bibliotek/p-not/b.png"],
+      });
+      const g = await gruppGast(h);
+      const b = await h.tjanst.bibliotek({ sessionsnyckel: g.sessionsnyckel });
+      const p = b.poster.find((x) => x.id === "p-bild");
+      expect(p.bilder).toEqual({ "a.jpg": signerat("grupper/kallan/bibliotek/p-bild/a.jpg") });
+      // Vitlistan släpper igenom fältet, och postens fält är bara vitlistans.
+      expect(Object.keys(p).every((k) => GASTBIBLIOTEKFALT.includes(k))).toBe(true);
+      expect(Object.keys(p)).toContain("bilder");
+      const fragade = h.finns.mock.calls.map((c) => c[0].sokvag);
+      expect(fragade.sort()).toEqual(["grupper/kallan/bibliotek/p-bild/a.jpg", "grupper/kallan/bibliotek/p-bild/b.png", "grupper/kallan/bibliotek/p-bild/saknas.jpg"]);
+      expect(fragade.join(" ")).not.toMatch(/\.\.|p-not/);
+      // En anteckning utan bild bär inget `bilder`.
+      expect(b.poster.find((x) => x.id === "p-not")).not.toHaveProperty("bilder");
+    });
+
+    it("⛔ svarets tak håller, nyast först", async () => {
+      const noter = Array.from({ length: 7 }, (_, i) => not(`p-n${i}`, Array.from({ length: 20 }, (_, j) => `![](b${j}.jpg)`).join("\n"), 9000 - i));
+      const filer = noter.flatMap((n) => Array.from({ length: 20 }, (_, j) => `grupper/kallan/bibliotek/${n.id}/b${j}.jpg`));
+      const h = bygg({ extra: { bibliotek: [...seed().bibliotek, ...noter] }, filer });
+      const g = await gruppGast(h);
+      const b = await h.tjanst.bibliotek({ sessionsnyckel: g.sessionsnyckel });
+      expect(h.finns).toHaveBeenCalledTimes(MAX_ANTECKNINGSBILDER_PER_SVAR);
+      const med = noter.map((n) => Object.keys(b.poster.find((x) => x.id === n.id).bilder ?? {}).length);
+      expect(med).toEqual([20, 20, 20, 20, 20, 0, 0]);
+    });
+
+    it("utan `finns` i lagringen bär ingen anteckning `bilder`", async () => {
+      const h = bygg({ extra: { bibliotek: [...seed().bibliotek, not("p-bild", "![](a.jpg)")] } });
+      const g = await gruppGast(h);
+      const b = await h.tjanst.bibliotek({ sessionsnyckel: g.sessionsnyckel });
+      expect(b.poster.find((x) => x.id === "p-bild")).not.toHaveProperty("bilder");
+      expect(h.signera).not.toHaveBeenCalled();
+    });
   });
 });
 

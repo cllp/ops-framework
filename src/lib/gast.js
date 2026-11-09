@@ -431,7 +431,8 @@ export const GASTKALENDERFALT = /** @type {const} */ (["id", "namn", "farg"]);
 export const GASTFILFALT = /** @type {const} */ (["sokvag", "namn", "mime", "byte", "klar"]);
 
 /** Fälten på en biblioteksspost i gästens svar. */
-export const GASTBIBLIOTEKFALT = /** @type {const} */ (["id", "typ", "rubrik", "text", "url", "kalla", "bild", "poster", "taggar", "fil", "utskrift", "durationMs", "peaks", "skapad", "andrad", "skapadAvNamn"]);
+// (0.207.0, cllp/lifehub.app#696) `bilder`: en antecknings bilder som signerade adresser, se `MAX_ANTECKNINGSBILDER` i `lib/delning.js` och `anteckningsbildAdresser` i `node/delning.js`.
+export const GASTBIBLIOTEKFALT = /** @type {const} */ (["id", "typ", "rubrik", "text", "bilder", "url", "kalla", "bild", "poster", "taggar", "fil", "utskrift", "durationMs", "peaks", "skapad", "andrad", "skapadAvNamn"]);
 
 /** Fälten på en person i medlemmens lista (0.132.0, `lista` för en grupp): en rad per person och inte per inbjudan. Adressen ser medlemmarna ändå (CP 2026-10-20). */
 export const GASTPERSONFALT = /** @type {const} */ (["gastId", "epost", "telefon", "namn", "status", "inbjudningar"]);

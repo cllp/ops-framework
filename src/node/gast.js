@@ -143,8 +143,8 @@ import { validateGruppkalendrar } from "../lib/kalendrar.js";
 import { gruppensRader } from "../lib/katalog.js";
 import { NAMNER_ALLA, samtalsnyckel } from "../lib/samtal.js";
 import { adresserIText, bibliotekslank, kommentarRotId, kommentarRotText, lasBibliotekslank } from "../lib/postkommentar.js";
-import { SIGNERAD_SEKUNDER, delningsTyp } from "../lib/delning.js";
-import { delningsDisposition } from "./delning.js";
+import { MAX_ANTECKNINGSBILDER_PER_SVAR, SIGNERAD_SEKUNDER, delningsTyp } from "../lib/delning.js";
+import { anteckningsbildAdresser, delningsDisposition } from "./delning.js";
 import { epostFel } from "../lib/mejl.js";
 import { isOpenCase } from "../lib/caseModel.js";
 import { andringsnyckel, nastaSekvens } from "./ics.js";
@@ -326,9 +326,10 @@ function felMedKod(kod, meddelande) {
  *   antalet svar under ett meddelande och svaren i en tråd (`chatt({ trad })`), och svarar i en tråd (`skrivChatt({ trad })`). Utan den: inga trådar, som förut.
  * @property {string} [bibliotekBas] (0.191.0) Appens adress till biblioteket, samma som till `createPostkommentarer` och `bibliotekPostkort` (`bibliotekslank`). Med den bär ett meddelande i gästens chatt
  *   ett kort för varje länk till en post som gästen ser (`kort`, `gastSerBibliotekspost`), och med `tradar` dessutom får gästen kommentera en post (`kommenteraPost`, och `hamta` bär `kommentera: true`).
- * @property {{ signeradAdress: (b: { sokvag: string, sekunder: number, disposition: string, mime: string }) => Promise<string>, gruppPrefix?: string, postPrefix?: string }} lagring
+ * @property {{ signeradAdress: (b: { sokvag: string, sekunder: number, disposition: string, mime: string }) => Promise<string>, finns?: (b: { sokvag: string }) => Promise<boolean>, gruppPrefix?: string, postPrefix?: string }} lagring
  *   Som delningens lagring. `gruppPrefix` och `postPrefix` är samma namn som `lagringsregelfragment({ bibliotek })` fick (förval `grupper` och `bibliotek`): en fils sökväg är exakt
- *   `<gruppPrefix>/<groupId>/<postPrefix>/<postId>/<filnamn>` med postens egen grupp och id, annars signeras den aldrig.
+ *   `<gruppPrefix>/<groupId>/<postPrefix>/<postId>/<filnamn>` med postens egen grupp och id, annars signeras den aldrig. (0.207.0, cllp/lifehub.app#696) `finns({ sokvag })` (valfri,
+ *   Admin SDK: `(await bucket.file(sokvag).exists())[0]`): med den bär en anteckning i gästens bibliotek sina bilder (`bilder`, `anteckningsbildAdresser`); utan den inga bilder.
  * @property {(handelse: Record<string, any>) => { titel: string, beskrivning?: string, plats?: string }} handelseSida Vilka av appens fält som är titel, beskrivning och plats (som delningens).
  * @property {Gastarenden} [arenden] (Skiva 3) Ärenden som delegerats till en gäst. Utelämnad: ingen ärendeflik och inga ärendeåtgärder (`arenden` svarar `nej`).
  * @property {{ falt: readonly string[], bygg: (arg: { handelse: Record<string, any>, gastId: string, groupId: string }) => Record<string, any> | null | Promise<Record<string, any> | null>,
@@ -491,6 +492,7 @@ export function createGastService(konfig) {
       if (typeof x !== "string" || !SAMLINGSFORM.test(x)) throw new Error(`${namn}: grupp.lagring.${falt} är ett namn.`);
       return x;
     };
+    if (grupp.lagring.finns !== undefined && typeof grupp.lagring.finns !== "function") throw new Error(`${namn}: grupp.lagring.finns är en funktion ({ sokvag }) => Promise<boolean>, eller utelämnas.`);
     const gruppPrefix = prefix(grupp.lagring.gruppPrefix, "grupper", "gruppPrefix");
     const postPrefix = prefix(grupp.lagring.postPrefix, "bibliotek", "postPrefix");
     if (grupp.omrostning !== undefined) {
@@ -2484,12 +2486,29 @@ export function createGastService(konfig) {
     const s = await gruppSession(b, "bibliotek");
     if (!s.ok || !GS) return s.ok ? nej() : s;
     const groupId = s.inbjudan.groupId;
+    const G = GS;
     const { rader: synliga, avkortad } = await gruppensPoster(groupId);
-    const poster = synliga
-      .map((p) => {
+    /*
+     * ⛔ BILDERNA I EN ANTECKNING (0.207.0, cllp/lifehub.app#696 skiva 2) signeras med svaret, samma väg som en delad anteckning (`anteckningsbildAdresser`): postens egen mapp,
+     * bara en fil som finns, `SIGNERAD_SEKUNDER` och `inline`. Taket för svaret (`MAX_ANTECKNINGSBILDER_PER_SVAR`) tas i listans ordning, nyast först.
+     *
+     * ⛔ GÄSTENS `laddaNed` GÄLLER INTE EN BILD I EN TEXT. `laddaNed` avgör om gästen får en adress med `attachment`, alltså en fil att spara (`fil`). En bild i en anteckning är en del
+     * av texten gästen redan får läsa, och den signeras alltid `inline`, samma sak som `fil` ger för en bild när nedladdningen är av ("spela och visa går som förut"). Att dölja
+     * bilderna för en gäst utan `laddaNed` hade gjort texten ofullständig utan att skydda något: en bild som visas kan sparas av webbläsaren ändå.
+     *
+     * ⛔ BILDERNA RÄKNAS INTE MOT `GASTFIL_PER_DYGN`. Den räknaren gäller en fil gästen ber om. Bilderna kommer med listan, och listan hämtas om när fliken öppnas; att räkna dem hade
+     * ätit dygnets filer på några besök. Svarets tak håller i stället nere vad en hämtning kostar.
+     */
+    const budget = { kvar: MAX_ANTECKNINGSBILDER_PER_SVAR };
+    const poster = await Promise.all(
+      synliga.map(async (p) => {
         /** @type {Record<string, any>} */
         const ut = { id: p.id, typ: p.typ, rubrik: trimSomRegeln(p.rubrik), skapad: p.skapad, andrad: p.andrad, skapadAvNamn: text(p.skapadAv?.namn) };
-        if (p.typ === "anteckning" && typeof p.text === "string") ut.text = p.text;
+        if (p.typ === "anteckning" && typeof p.text === "string") {
+          ut.text = p.text;
+          const bilder = typeof p.id === "string" ? await anteckningsbildAdresser({ post: p, postId: p.id, lagring: G.lagring, gruppPrefix: G.gruppPrefix, postPrefix: G.postPrefix, budget }) : undefined;
+          if (bilder) ut.bilder = bilder;
+        }
         if (p.typ === "lank") {
           if (typeof p.url === "string") ut.url = p.url;
           if (typeof p.kalla === "string") ut.kalla = p.kalla;
@@ -2505,7 +2524,8 @@ export function createGastService(konfig) {
         const taggar = strangar(p.taggar);
         if (taggar.length > 0) ut.taggar = taggar;
         return vitlista(ut, GASTBIBLIOTEKFALT);
-      });
+      }),
+    );
     return vitlista({ ok: true, poster, avkortad }, GASTGRUPPSVARSFALT.bibliotek);
   }
 
