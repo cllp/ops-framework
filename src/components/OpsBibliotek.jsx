@@ -2389,6 +2389,7 @@ function Adress({ url }) {
  * @param {"las" | "redigera"} props.startLage
  * @param {() => void} props.onStang
  * @param {(inmatning: { id?: string, typ: string, rubrik: string, text?: string, url?: string, fil?: { sokvag: string, namn: string, mime: string, byte: number } }) => void | boolean | Promise<void | boolean>} props.onSpara Kastar den eller avvisas löftet visas felet i formuläret och läget står kvar (0.93.0). `false` betyder att det inte gick.
+ * @param {(id: string) => (import("../lib/bibliotek.js").Bibliotekspost & { id: string }) | null} [props.aktuellPost] (0.207.0) Posten ur bibliotekets senaste lista, för en bild som blir klar efter att redigeringen stängts.
  * @param {(inmatning: { id?: string, rubrik: string, fil: File }) => void | Promise<void>} [props.onLaddaUpp]
  * @param {(post: { fil?: { sokvag?: string } }) => string} [props.filUrl]
  * @param {(sokvag: string) => Promise<Blob>} [props.hamtaFil] (0.153.0) Se `OpsBibliotek`.
