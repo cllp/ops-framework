@@ -129,4 +129,34 @@ describe("OpsDisclosure", () => {
     const { container } = render(<OpsDisclosure summary={<span>Rubrik</span>}>Kroppen</OpsDisclosure>);
     expect(container.querySelector("summary")?.className).toContain("min-h-11");
   });
+
+  /**
+   * ⛔ (0.209.0, cllp/lifehub.app#706) `lat`: innehållet ritas först när avsnittet fälls ut. "I repot" läser repot när det ritas, och `<details>` ritar annars innehållet också hopfällt.
+   * Rött utan ändringen: propen finns inte, och barnet ritas (och räknas) direkt.
+   */
+  it("lat: innehållet ritas först när avsnittet fälls ut, och tas bort när det fälls ihop", async () => {
+    const user = userEvent.setup();
+    const ritad = vi.fn();
+    function Barn() {
+      ritad();
+      return <span>Kroppen</span>;
+    }
+    render(
+      <OpsDisclosure summary={<span>Rubrik</span>} lat>
+        <Barn />
+      </OpsDisclosure>,
+    );
+    expect(ritad).not.toHaveBeenCalled();
+    expect(screen.queryByText("Kroppen")).toBeNull();
+    await user.click(screen.getByText("Rubrik"));
+    expect(screen.getByText("Kroppen")).toBeInTheDocument();
+    expect(ritad).toHaveBeenCalled();
+    await user.click(screen.getByText("Rubrik"));
+    expect(screen.queryByText("Kroppen")).toBeNull();
+  });
+
+  it("utan lat ritas innehållet också hopfällt, som förut", () => {
+    render(<OpsDisclosure summary={<span>Rubrik</span>}>Kroppen</OpsDisclosure>);
+    expect(screen.getByText("Kroppen")).toBeInTheDocument();
+  });
 });
