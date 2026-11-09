@@ -164,7 +164,7 @@ describe("OpsSvar med gäster och OpsSvarSummor", () => {
   it("gäster räknas i summan och antalet, märks Gäst och har inga knappar; en gäst som inte finns i listan räknas inte", () => {
     const svar = [{ id: "u1", svar: "kommer" }, { id: gastId("anna@foretag.se"), svar: "kommerInte" }, { id: gastId("borta@foretag.se"), svar: "kommer" }];
     render(<OpsSvar svar={svar} medlemmar={medlemmar} uid="u2" onSvara={() => {}} gaster={gaster} />);
-    expect(document.querySelector("[data-sammanstallning]").textContent).toBe("1 kommer, 1 kommer inte, 2 har inte svarat");
+    expect(document.querySelector("[data-sammanstallning]").textContent).toBe("1 kommer, 0 kanske, 1 kommer inte, 2 har inte svarat");
     const rader = document.querySelectorAll("[data-gast]");
     expect(rader).toHaveLength(2);
     expect(within(rader[0]).getByText("Anna")).toBeInTheDocument();
@@ -179,17 +179,18 @@ describe("OpsSvar med gäster och OpsSvarSummor", () => {
 
   it("utan gäster är vyn som förut", () => {
     render(<OpsSvar svar={[]} medlemmar={medlemmar} uid="u2" onSvara={() => {}} />);
-    expect(document.querySelector("[data-sammanstallning]").textContent).toBe("0 kommer, 0 kommer inte, 2 har inte svarat");
+    expect(document.querySelector("[data-sammanstallning]").textContent).toBe("0 kommer, 0 kanske, 0 kommer inte, 2 har inte svarat");
     expect(document.querySelectorAll("[data-gast]")).toHaveLength(0);
   });
 
-  it("OpsSvarSummor visar summan, mitt eget svar som två knappar och inga namn", async () => {
+  it("OpsSvarSummor visar summan, mitt eget svar som tre knappar och inga namn", async () => {
     const onSvara = vi.fn(async () => {});
-    render(<OpsSvarSummor summa={{ kommer: 2, kommerInte: 0, ejSvarat: 1, text: "2 kommer, 0 kommer inte, 1 har inte svarat", mitt: "kommer" }} onSvara={onSvara} rubrik="Svar" />);
-    expect(document.querySelector("[data-sammanstallning]").textContent).toBe("2 kommer, 0 kommer inte, 1 har inte svarat");
+    render(<OpsSvarSummor summa={{ kommer: 2, kanske: 0, kommerInte: 0, ejSvarat: 1, text: "2 kommer, 0 kanske, 0 kommer inte, 1 har inte svarat", mitt: "kommer" }} onSvara={onSvara} rubrik="Svar" />);
+    expect(document.querySelector("[data-sammanstallning]").textContent).toBe("2 kommer, 0 kanske, 0 kommer inte, 1 har inte svarat");
     expect(screen.getByRole("button", { name: "Kommer" })).toHaveAttribute("aria-pressed", "true");
-    await klicka(screen.getByRole("button", { name: "Kommer inte" }));
-    expect(onSvara).toHaveBeenCalledWith("kommerInte");
+    expect(screen.getByRole("button", { name: "Kanske" })).toHaveAttribute("aria-pressed", "false");
+    await klicka(screen.getByRole("button", { name: "Kanske" }));
+    expect(onSvara).toHaveBeenCalledWith("kanske");
     expect(document.querySelectorAll("[data-svarsrad]")).toHaveLength(0);
     expect(() => render(<OpsSvarSummor summa={{ kommer: 1, text: "x" }} onSvara={() => {}} rubrik="Svar" />)).toThrow(/summa.kommerInte/);
     // Rubriken krävs: ramverket gissar inte gästens språk.
@@ -248,7 +249,7 @@ describe("OpsGastGrupp: det bantade gränssnittet", () => {
       handelse: async ({ handelseId }) => ({
         ok: true,
         handelse: HANDELSER.find((h) => h.id === handelseId),
-        svar: { kommer: 1, kommerInte: 0, ejSvarat: 2, text: "1 kommer, 0 kommer inte, 2 har inte svarat", mitt: null },
+        svar: { kommer: 1, kanske: 0, kommerInte: 0, ejSvarat: 2, text: "1 kommer, 0 kommer inte, 2 har inte svarat", mitt: null },
         ...(handelseId === "h-ejsatt" ? { omrostning: { forslag: [{ id: "f1", datum: "2026-12-01" }] } } : {}),
       }),
       svara: async () => ({ ok: true }),
@@ -349,6 +350,7 @@ describe("OpsGastGrupp: det bantade gränssnittet", () => {
     await screen.findByRole("list", { name: "På gång" });
     await klicka(screen.getByRole("button", { name: "Fika" }));
     await screen.findByText("1 kommer, 0 kommer inte, 2 har inte svarat");
+    expect(screen.getByRole("button", { name: "Kanske" })).toBeInTheDocument();
     const panel = document.querySelector("[data-handelsepanel]");
     expect(within(panel).getByRole("heading", { name: "Fika" })).toBeInTheDocument();
     expect(within(panel).getByText("Datum ej satt")).toBeInTheDocument();
@@ -377,7 +379,7 @@ describe("OpsGastGrupp: det bantade gränssnittet", () => {
           handelse: async ({ handelseId }) => ({
             ok: true,
             handelse: HANDELSER.find((h) => h.id === handelseId),
-            svar: anrop === 0 ? { kommer: 1, kommerInte: 0, ejSvarat: 2, text: "1 kommer, 0 kommer inte, 2 har inte svarat", mitt: null } : { kommer: 2, kommerInte: 0, ejSvarat: 1, text: "2 kommer, 0 kommer inte, 1 har inte svarat", mitt: "kommer" },
+            svar: anrop === 0 ? { kommer: 1, kanske: 0, kommerInte: 0, ejSvarat: 2, text: "1 kommer, 0 kommer inte, 2 har inte svarat", mitt: null } : { kommer: 2, kanske: 0, kommerInte: 0, ejSvarat: 1, text: "2 kommer, 0 kommer inte, 1 har inte svarat", mitt: "kommer" },
           }),
           svara: async () => { anrop += 1; return { ok: true }; },
         });

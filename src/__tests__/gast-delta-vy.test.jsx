@@ -54,7 +54,7 @@ describe("OpsGastSida: en händelse att svara på (delta)", () => {
     expect(document.querySelector("[data-dh-plats]").textContent).toContain("Salen, Visby");
     expect(screen.getByRole("heading", { level: 2, name: "Kommer du?" })).toBeInTheDocument();
     const grupp = screen.getByRole("group", { name: "Kommer du?" });
-    expect(within(grupp).getAllByRole("button").map((b) => b.textContent)).toEqual(["Jag kommer", "Kan inte", "Kanske"]);
+    expect(within(grupp).getAllByRole("button").map((b) => b.textContent)).toEqual(["Jag kommer", "Kanske", "Kan inte"]);
     expect(screen.getByRole("status")).toHaveTextContent("Du har inte svarat än.");
     expect(document.querySelector("[data-gast-delta-svarat]").getAttribute("data-gast-delta-svarat")).toBe("");
   });
@@ -144,7 +144,7 @@ describe("OpsGastSida: en händelse att svara på (delta)", () => {
     rita({ onHamta: vi.fn(async () => delta("kommerInte")) });
     expect(await screen.findByRole("heading", { level: 1, name: "Möte" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 2, name: "Are you coming?" })).toBeInTheDocument();
-    expect(within(screen.getByRole("group", { name: "Are you coming?" })).getAllByRole("button").map((b) => b.textContent)).toEqual(["I'm coming", "Can't make it", "Maybe"]);
+    expect(within(screen.getByRole("group", { name: "Are you coming?" })).getAllByRole("button").map((b) => b.textContent)).toEqual(["I'm coming", "Maybe", "Can't make it"]);
     expect(screen.getByRole("status")).toHaveTextContent("You answered: Can't make it.");
     expect(document.querySelector("[data-dh-datum]").textContent).toBe("Wed 2 Dec 2026");
     expect(document.querySelector("[data-dh-tid]").getAttribute("aria-label")).toBe("When and where");

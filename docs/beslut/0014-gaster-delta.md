@@ -46,6 +46,10 @@ Mätt före (origin/main f6c97f7): `Gastomfang` hade en funktion för en sak, `r
 - **Brev när en händelse tas bort eller en inbjudan dras tillbaka** (`STATUS:CANCELLED`). En återkallelse nekar nästa anrop och släpper platsen; gästens kalender rörs inte.
 - **Att dölja gästernas adresser för vanliga medlemmar.** Epikens säkerhetsrad säger att adresser "bara visas för den som bjöd in, ägare och admin". Läsregeln släpper in alla aktiva medlemmar (CP 2026-10-20: "Gäster visas med namn och mejladress"). Det är en ändring av `gastregelfragment` för alla funktioner, och ett eget beslut.
 
+## Senare: lifehub.app#713
+
+QA 2026-11-09 mätte att både medlem och gruppgäst bara såg Kommer och Kommer inte på en Sammankomst. Kanske ska vara ett svar där också. `SVARSVAL` är därför de tre, och `GASTDELTASVAR` är samma lista. Tabellen ovan beskriver vad 0.146.0 levererade. Den gäller inte längre för antalet svar.
+
 ## Kvarvarande risker, utskrivna
 
 - **Två samtidiga `tidAndrad` för två olika ändringar** (A till B och sedan B till C inom millisekunder) kan skicka två brev med samma SEQUENCE och olika innehåll. Sparningen har ett villkor, så bara den ena sparar, och i ena ordningen sparas nyckeln för B medan händelsen står på C: nästa anrop skickar då om (det läker), i den andra ordningen stämmer nyckeln och gästens kalender kan stå kvar på B. Ramverket serialiserar inte (datakontraktet har inget lås över flera dokument), så appen bör köra `tidAndrad` en i taget per händelse. Valet att spara efter brevet och inte före betyder att en ändring kan ge ett brev för mycket men aldrig ett för lite.

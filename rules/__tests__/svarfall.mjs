@@ -15,7 +15,7 @@
 export const SVARFALL = Object.freeze([
   { namn: "Kommer på en händelse som ber om svar", handelse: "f-ja", val: "kommer", medlem: true, gast: true },
   { namn: "Kommer inte på en händelse som ber om svar", handelse: "f-ja", val: "kommerInte", medlem: true, gast: true },
-  { namn: "Kanske är inget svar på kommer du", handelse: "f-ja", val: "kanske", medlem: false, gast: false },
+  { namn: "Kanske på en händelse som ber om svar", handelse: "f-ja", val: "kanske", medlem: true, gast: true },
   { namn: "Ett tomt värde", handelse: "f-ja", val: "", medlem: false, gast: false },
   { namn: "Inget värde", handelse: "f-ja", val: undefined, medlem: false, gast: false },
   { namn: "Ett tal i stället för ett värde", handelse: "f-ja", val: 3, medlem: false, gast: false },

@@ -35,7 +35,7 @@ function apiMed(oversikt = OVERSIKT) {
       vi.fn(async () => {
         if (a === "oversikt") return oversikt;
         if (a === "chatt") return { ok: true, meddelanden: [], fler: false };
-        if (a === "handelse") return { ok: true, handelse: { id: "h1", titel: "Repetition", datum: "2026-11-10", tid: "19:00", kravSvar: true }, svar: { kommer: 0, kommerInte: 0, ejSvarat: 1, text: "1 har inte svarat", mitt: null } };
+        if (a === "handelse") return { ok: true, handelse: { id: "h1", titel: "Repetition", datum: "2026-11-10", tid: "19:00", kravSvar: true }, svar: { kommer: 0, kanske: 0, kommerInte: 0, ejSvarat: 1, text: "1 har inte svarat", mitt: null } };
         if (a === "arenden") return { ok: true, poster: [], avkortad: false };
         return { ok: true, poster: [], handelser: [], kalendrar: [], avkortad: false, ejVisade: 0 };
       }),

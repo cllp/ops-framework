@@ -210,10 +210,9 @@ describe("lib: funktionen delta är en rad i en lista, och rosta är orörd", ()
     }
   });
 
-  it("svaren är medlemmens två (härledda, inte omskrivna) och kanske, och kanske finns inte hos medlemmen", () => {
-    expect([...GASTDELTASVAR]).toEqual([...SVARSVAL, "kanske"]);
-    expect(GASTDELTASVAR).toHaveLength(3);
-    expect(SVARSVAL).not.toContain("kanske");
+  it("delta-gästens svar är samma tre som medlemmens, i samma ordning (lifehub.app#713)", () => {
+    expect([...GASTDELTASVAR]).toEqual(["kommer", "kanske", "kommerInte"]);
+    expect([...GASTDELTASVAR]).toEqual([...SVARSVAL]);
   });
 
   it("det en delta-gäst får se av händelsen är rubrik, plats och tid, och ingen beskrivning, ingen grupp och ingen annan", () => {

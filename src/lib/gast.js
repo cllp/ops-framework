@@ -45,13 +45,13 @@ export const GASTSLAG = /** @type {const} */ (["sak", "grupp"]);
 export const GASTFUNKTIONER = /** @type {const} */ (["rosta", "delta"]);
 
 /**
- * Svaren en gäst ger på `delta`: de två som medlemmen har (`SVARSVAL`, härledda och inte skrivna igen, regel 2) och `kanske`.
+ * Svaren en gäst ger på `delta`. Samma tre som medlemmen (`SVARSVAL`), inte en egen lista (regel 2).
  *
- * ⛔ `kanske` FINNS BARA HOS GÄSTEN, och medlemmens svar förblir två (`SVARSVAL`, `handelsemodell.js`: "kanske är inget svar på kommer du?"). Skälet till att gästen får tre är hens egen kalender: ett
- * kalenderprogram har Ja, Kanske och Nej, och en extern som inte vet än ska inte tvingas säga det ena eller det andra. Följden, utskriven: `kanske` räknas inte i någon sammanställning (`sammanstallSvar` räknar
- * `kommer` och `kommerInte`), och den som listar gästerna ser ordet på gästens rad (`OpsGastLista`). Svaret lagras på inbjudan (`deltasvar`) och aldrig bland medlemmarnas svarsrader.
+ * ⛔ FRAM TILL LIFEHUB.APP#713 VAR DET `SVARSVAL` PLUS `kanske`. Medlemmen hade då bara två svar, och `kanske` räknades
+ * inte i någon sammanställning. Nu är listan en, och `sammanstallSvar` räknar alla tre. Svaret på en delta-inbjudan
+ * lagras fortfarande på inbjudan (`deltasvar`) och aldrig bland medlemmarnas svarsrader.
  */
-export const GASTDELTASVAR = /** @type {const} */ ([...SVARSVAL, "kanske"]);
+export const GASTDELTASVAR = SVARSVAL;
 
 /**
  * Fälten en `delta`-gäst ser av händelsen, och inget annat (`hamta`): rubriken, tiden och platsen. Ingen beskrivning, inga filer, inga kommentarer, ingen grupp, inga andra gäster eller svar.
@@ -363,7 +363,7 @@ export const GASTGRUPPSVARSFALT = /** @type {const} */ ({
  * - `chatt`: `nya` (meddelanden från andra än gästen efter `sedan.chatt`, räknade över de senaste `GASTCHATT_SIDA`), `fler` (alla de lästa var nya: `nya` är ett golv), `senaste` (de senaste meddelandena).
  * - `meddelande`: avsändarens namn (aldrig ett uid), texten kapad, tiden och om det är gästens eget.
  * - `kalender`: `nasta`, nästa händelse som slutar `idag` eller senare, eller `null`.
- * - `handelse`: nästa händelse, med gästens eget svar (`mitt`: `kommer`, `kommerInte` eller `null`) när den ber om svar.
+ * - `handelse`: nästa händelse, med gästens eget svar (`mitt`: `kommer`, `kanske`, `kommerInte` eller `null`) när den ber om svar.
  * - `bibliotek`: `nya` (poster skapade efter `sedan.bibliotek`), `senaste` (de nyaste posterna).
  * - `post`: postens id, rubrik, typ och när den skapades (`tid`).
  */

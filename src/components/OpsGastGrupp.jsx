@@ -179,6 +179,7 @@ export const ORD_OPSGASTGRUPP = {
   kalenderIngetPaGang: { sv: "Inget på gång", en: "Nothing coming up" },
   kalenderSvara: { sv: "Svara", en: "Answer" },
   kalenderKommer: { sv: "Du kommer", en: "You are coming" },
+  kalenderKanske: { sv: "Du kanske kommer", en: "You might come" },
   kalenderKommerInte: { sv: "Du kommer inte", en: "You are not coming" },
   bibliotekNyFil: { sv: "1 ny fil", en: "1 new file" },
   bibliotekNyaFiler: { sv: "{n} nya filer", en: "{n} new files" },
@@ -518,7 +519,7 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
     setDetalj(null);
   };
 
-  /** @param {"kommer" | "kommerInte"} val */
+  /** @param {"kommer" | "kanske" | "kommerInte"} val */
   const svara = async (val) => {
     if (!handelseId) return;
     setSvarFel(null);
@@ -917,6 +918,7 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
       /** @type {{ text: string, accent?: boolean }[]} */
       const rader = [{ text: `${nasta.titel}, ${nastaNar(nasta)}` }];
       if (nasta.mitt === "kommer") rader.push({ text: t.kalenderKommer });
+      else if (nasta.mitt === "kanske") rader.push({ text: t.kalenderKanske });
       else if (nasta.mitt === "kommerInte") rader.push({ text: t.kalenderKommerInte });
       else if (nasta.kravSvar === true) rader.push({ text: t.kalenderSvara, accent: true });
       return rader;

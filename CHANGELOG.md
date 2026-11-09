@@ -9,6 +9,23 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## Ej släppt
+
+Kanske är ett svar på en händelse, för medlem och gruppgäst (lifehub.app#713).
+
+### Ändrat
+
+- **`SVARSVAL` är `kommer`, `kanske`, `kommerInte`.** `byggSvar` tar emot `kanske`. `sammanstallSvar` räknar det och skriver "3 kommer, 1 kanske, 1 kommer inte, 2 har inte svarat", alltid alla fyra delarna. `GASTDELTASVAR` är samma lista, inte en egen kopia med ett extra `kanske`.
+- **`OpsSvarsknappar` har tre knappar:** Kommer, Kanske, Kommer inte. Kanske har ingen ikon: lexikonet har ingen betydelse för det. En gruppgäst (`OpsSvarSummor`, `svara`) använder samma tre. `summa.kanske` krävs, som de andra räknarna.
+- **Regeln** (`handelseregelfragment`) släpper in `kanske` eftersom den läser `SVARSVAL`. Appen måste skriva om sitt fragment när den pinnar den här versionen. Utan det nekar Firestore medlemmens Kanske.
+
+### Prov
+
+- `svarfall`: Kanske på en händelse som ber om svar är tillåtet för medlem och gäst. Mot koden före ändringen är raden röd.
+- `kalenderhantering` och `gast-grupp-vy`: knappen Kanske finns, räknas och går att trycka. `gast-delta`: delta-gästens lista är samma tre, i samma ordning.
+
+---
+
 ## 0.209.2
 
 Ett HTML-dokument i Biblioteket ritas på vitt papper också i mörkt läge.

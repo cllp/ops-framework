@@ -176,19 +176,21 @@ describe("händelsemodellen (F3)", () => {
 });
 
 describe("svaren (F3)", () => {
-  it("⛔ sammanställningen skriver ut alla tre delarna, också nollor", () => {
-    expect(sammanstallSvar([], ["a", "b"]).text).toBe("0 kommer, 0 kommer inte, 2 har inte svarat");
-    const s = sammanstallSvar([{ id: "a", svar: "kommer" }, { id: "b", svar: "kommer" }, { id: "c", svar: "kommer" }, { id: "d", svar: "kommerInte" }], ["a", "b", "c", "d", "e", "f"]);
-    expect(s.text).toBe("3 kommer, 1 kommer inte, 2 har inte svarat");
+  it("⛔ sammanställningen skriver ut alla fyra delarna, också nollor", () => {
+    expect(sammanstallSvar([], ["a", "b"]).text).toBe("0 kommer, 0 kanske, 0 kommer inte, 2 har inte svarat");
+    const s = sammanstallSvar([{ id: "a", svar: "kommer" }, { id: "b", svar: "kommer" }, { id: "c", svar: "kommer" }, { id: "d", svar: "kommerInte" }, { id: "e", svar: "kanske" }], ["a", "b", "c", "d", "e", "f"]);
+    expect(s).toMatchObject({ kommer: 3, kanske: 1, kommerInte: 1, ejSvarat: 1 });
+    expect(s.text).toBe("3 kommer, 1 kanske, 1 kommer inte, 1 har inte svarat");
   });
 
-  it("⛔ bara medlemmarnas svar räknas", () => {
-    expect(sammanstallSvar([{ id: "gick", svar: "kommer" }, { id: "a", svar: "kommerInte" }], ["a", "b"])).toMatchObject({ kommer: 0, kommerInte: 1, ejSvarat: 1 });
+  it("⛔ bara medlemmarnas svar räknas, och ett kanske räknas inte som obesvarat", () => {
+    expect(sammanstallSvar([{ id: "gick", svar: "kommer" }, { id: "a", svar: "kommerInte" }, { id: "b", svar: "kanske" }], ["a", "b"])).toMatchObject({ kommer: 0, kanske: 1, kommerInte: 1, ejSvarat: 0 });
   });
 
-  it("två svar och inga andra", () => {
+  it("tre svar och inget fjärde", () => {
     expect(byggSvar("kommer")).toEqual({ svar: "kommer" });
-    expect(() => byggSvar("kanske")).toThrow(/finns inte/);
+    expect(byggSvar("kanske")).toEqual({ svar: "kanske" });
+    expect(() => byggSvar("nej")).toThrow(/finns inte/);
   });
 
   it("⛔ inkorgens rader räknas fram: kräver svar, inte besvarad, inte passerad; och raden försvinner när man svarat", () => {
@@ -288,7 +290,9 @@ describe("källorna mot minneskällan", () => {
     await s.svara("mote", "anna", "kommerInte");
     expect((await s.lista("mote")).map((r) => [r.id, r.svar]).sort()).toEqual([["anna", "kommerInte"], ["bo", "kommerInte"]]);
     expect([...(await s.mina(["mote", "fika"], "anna"))]).toEqual([["mote", "kommerInte"]]);
-    await expect(s.svara("mote", "anna", /** @type {any} */ ("kanske"))).rejects.toThrow();
+    await s.svara("mote", "anna", "kanske");
+    expect((await s.lista("mote")).find((r) => r.id === "anna")).toMatchObject({ svar: "kanske" });
+    await expect(s.svara("mote", "anna", /** @type {any} */ ("nej"))).rejects.toThrow(/finns inte/);
   });
 });
 
@@ -442,14 +446,15 @@ describe("OpsSvar och inkorgens rad (F3)", () => {
     /** @type {string[]} */
     const svarat = [];
     render(<OpsSvar svar={[{ id: "bo", svar: "kommerInte" }]} medlemmar={medlemmar} uid="anna" onSvara={(v) => { svarat.push(v); }} />);
-    expect(screen.getByText("0 kommer, 1 kommer inte, 2 har inte svarat")).toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: /^Kommer/ })).toHaveLength(2);
+    expect(screen.getByText("0 kommer, 0 kanske, 1 kommer inte, 2 har inte svarat")).toBeInTheDocument();
+    expect(screen.getAllByRole("button")).toHaveLength(3);
+    expect(screen.getByRole("button", { name: "Kanske, Anna" })).toBeInTheDocument();
     expect(within(/** @type {HTMLElement} */ (document.querySelector('[data-svarsrad="bo"]'))).getByText("Kommer inte")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Kommer, Anna" }));
     await waitFor(() => expect(svarat).toEqual(["kommer"]));
   });
 
-  it("inkorgens rad har Kommer och Kommer inte", async () => {
+  it("inkorgens rad har Kommer, Kanske och Kommer inte", async () => {
     /** @type {string[]} */
     const svarat = [];
     render(<OpsSvarsrad titel="Styrelsemöte" nar="Måndag 12 oktober, 18:00" onSvara={(v) => { svarat.push(v); }} />);
