@@ -247,7 +247,15 @@ function oppen(extra = {}) {
 const meny = () => fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Plan" }));
 
 describe("ladda ned en anteckning", () => {
-  it("menyn har Markdown (.md), PDF och HTML i den ordningen, och inget med utanNedladdning", () => {
+  it("listans meny har ingen nedladdning: den bor i detaljen, som för en fil", () => {
+    const post = anteckning();
+    render(<OpsBibliotek poster={[post]} jag={JAG} onOppna={() => {}} onStang={() => {}} onSkapa={() => {}} onSpara={() => {}} hubHref="/hub" />);
+    meny();
+    expect(screen.getAllByRole("menuitem").length).toBeGreaterThan(0);
+    expect(screen.queryByRole("menuitem", { name: /Ladda ned som/ })).toBeNull();
+  });
+
+  it("detaljens meny har Markdown (.md), PDF och HTML i den ordningen, och inget med utanNedladdning", () => {
     const r = oppen();
     meny();
     const rader = screen.getAllByRole("menuitem").map((m) => m.textContent);

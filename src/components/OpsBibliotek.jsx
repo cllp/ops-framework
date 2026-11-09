@@ -943,7 +943,9 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
     if (lank) ut.push({ id: "kopiera", etikett: "Kopiera länk", onValj: () => kopieraLank(lank) });
     // ⛔ LADDA NED EN ANTECKNING (0.209.0, cllp/lifehub.app#706, CP: "Skippa Word just nu, men ha med de andra"): Markdown, PDF och HTML, tre rader i följd eftersom menyn inte har
     // undermenyer. För den som får läsa posten, eftersom läsningen redan ger texten. Inte med `utanNedladdning` (gästens bibliotek när gruppen stängt av nedladdning) och inte för en tom anteckning.
-    if (post.typ === "anteckning" && trimSomRegeln(post.text ?? "") !== "" && !utanNedladdning) {
+    // ⛔ BARA I DETALJENS MENY, som Redigera: listans meny är kort (0.102.0, CP: "Kanske popup med en kortare meny"), och Ladda ned för en fil och ett ljud bor också i detaljen. Tre rader till på
+    // varje anteckning i listan hade gjort den till elva rader, och de fyra typernas listmenyer hade inte längre varit desamma (0.133.0).
+    if (iDetalj && post.typ === "anteckning" && trimSomRegeln(post.text ?? "") !== "" && !utanNedladdning) {
       ut.push({ id: "ladda-md", etikett: aord("laddaMd"), onValj: () => laddaNedAnteckning(post, "md") });
       ut.push({ id: "ladda-pdf", etikett: aord("laddaPdf"), onValj: () => setPdfFor(post) });
       ut.push({ id: "ladda-html", etikett: aord("laddaHtml"), onValj: () => laddaNedAnteckning(post, "html") });

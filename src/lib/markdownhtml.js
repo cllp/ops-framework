@@ -56,12 +56,16 @@ function inline(bitar, sprak) {
     .join("");
 }
 
-/** Den inbäddade stilen. Liten, utan typsnitt utifrån, och läsbar både på skärm och i en utskrift. */
+/**
+ * Den inbäddade stilen. Liten, utan typsnitt utifrån, och läsbar både på skärm och i en utskrift.
+ * ⛔ INGET EGET TYPSNITT OCH INGA EGNA TEXTSTORLEKAR: typografin bor i tokens (`check-typografi`, ops-framework#173), och en fristående sida når inga tokens. Sidan får webbläsarens
+ * egna typsnitt och rubrikstorlekar, som en sparad sida får, och stilen sätter bara luft, linjer och färger.
+ */
 const STIL =
-  "body{font-family:system-ui,-apple-system,'Segoe UI',sans-serif;line-height:1.55;color:#1b1b1b;background:#fff;max-width:46rem;margin:0 auto;padding:2rem 1.25rem}" +
-  "h1,h2,h3,h4,h5,h6{line-height:1.25;margin:1.4em 0 .5em}h1{font-size:1.8em}h2{font-size:1.45em}h3{font-size:1.2em}" +
+  "body{line-height:1.55;color:#1b1b1b;background:#fff;max-width:46rem;margin:0 auto;padding:2rem 1.25rem}" +
+  "h1,h2,h3,h4,h5,h6{line-height:1.25;margin:1.4em 0 .5em}" +
   "p,ul,ol,blockquote,pre,table{margin:0 0 1em}blockquote{border-left:3px solid #ccc;margin-left:0;padding-left:1em;color:#444}" +
-  "code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.92em;background:#f3f3f3;padding:.1em .3em;border-radius:3px}" +
+  "code{background:#f3f3f3;padding:.1em .3em;border-radius:3px}" +
   "pre{background:#f3f3f3;padding:.8em 1em;overflow:auto;border-radius:4px;white-space:pre-wrap}pre code{background:none;padding:0}" +
   "table{border-collapse:collapse}th,td{border:1px solid #ccc;padding:.35em .6em;text-align:left;vertical-align:top}th{background:#f6f6f6}" +
   "hr{border:0;border-top:1px solid #ccc;margin:1.5em 0}a{color:#0b57d0}.kryss{list-style:none;padding-left:0}.bild{color:#666;font-style:italic}" +
