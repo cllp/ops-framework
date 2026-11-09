@@ -70,8 +70,15 @@ export const HANDELSEKONTRAKT = /** @type {const} */ (["groupId", "kalenderId", 
  */
 export const DATUM_EJ_SATT = Object.freeze({ sv: "Datum ej satt", en: "Date not set" });
 
-/** Svaren. Två och inte tre: "kanske" är inget svar på "kommer du?", och en tredje knapp gör sammanställningen oläslig. */
-export const SVARSVAL = /** @type {const} */ (["kommer", "kommerInte"]);
+/**
+ * Svaren på "kommer du?". Tre: Kommer, Kanske, Kommer inte. Samma lista för medlem och gäst.
+ *
+ * ⛔ LIFEHUB.APP#713 (QA 2026-11-09). Fram till dess var det två (`kommer`, `kommerInte`): "kanske är inget svar
+ * på kommer du?" (0.37.0), och bara en gäst inbjuden till en enda händelse hade `kanske` (0.146.0, beslut 0014).
+ * Mätningen visade att både medlem och gruppgäst saknade Kanske på en Sammankomst. En tredje knapp hör till svaret,
+ * och sammanställningen skriver ut den också när den är noll.
+ */
+export const SVARSVAL = /** @type {const} */ (["kommer", "kanske", "kommerInte"]);
 
 /** Fälten på en svarsrad. Bara svaret: händelsen och personen står i sökvägen. */
 export const SVARSFALT = /** @type {const} */ (["svar"]);
@@ -184,28 +191,29 @@ export function handelsensDagar(h) {
 
 /**
  * Bygger en svarsrad, eller kastar.
- * @param {unknown} svar @returns {{ svar: "kommer" | "kommerInte" }}
+ * @param {unknown} svar @returns {{ svar: "kommer" | "kanske" | "kommerInte" }}
  */
 export function byggSvar(svar) {
   if (!(/** @type {readonly unknown[]} */ (SVARSVAL)).includes(svar)) {
     throw new Error(`byggSvar: svaret "${String(svar)}" finns inte. Giltiga: ${SVARSVAL.join(", ")}.`);
   }
-  return { svar: /** @type {"kommer" | "kommerInte"} */ (svar) };
+  return { svar: /** @type {"kommer" | "kanske" | "kommerInte"} */ (svar) };
 }
 
 /**
  * @typedef {object} Sammanstallning
  * @property {number} kommer
+ * @property {number} kanske
  * @property {number} kommerInte
  * @property {number} ejSvarat Medlemmar som inte svarat.
- * @property {string} text "3 kommer, 1 kommer inte, 2 har inte svarat". Alltid alla tre delarna, också när de är 0.
+ * @property {string} text "3 kommer, 1 kanske, 1 kommer inte, 2 har inte svarat". Alltid alla fyra delarna, också när de är 0.
  */
 
 /**
- * Hur det står: hur många som kommer, inte kommer och inte har svarat.
+ * Hur det står: hur många som kommer, kanske kommer, inte kommer och inte har svarat.
  *
- * ⛔ TOMT SKRIVS UT (punkt 5). "0 kommer, 0 kommer inte, 6 har inte svarat" och inte en tom rad eller bara "6 har inte
- * svarat": en sammanställning som utelämnar en del gör "ingen kommer" omöjligt att skilja från "inte räknat".
+ * ⛔ TOMT SKRIVS UT (punkt 5). "0 kommer, 0 kanske, 0 kommer inte, 6 har inte svarat" och inte en tom rad eller bara
+ * "6 har inte svarat": en sammanställning som utelämnar en del gör "ingen kommer" omöjligt att skilja från "inte räknat".
  *
  * ⛔ BARA MEDLEMMARNAS SVAR RÄKNAS. Ett svar från någon som lämnat gruppen står kvar i databasen (det raderas aldrig),
  * men den personen är inte längre en av dem som tillfrågas, och hade hen räknats hade summan blivit större än gruppen.
@@ -217,14 +225,16 @@ export function byggSvar(svar) {
 export function sammanstallSvar(svar, medlemmar) {
   const per = new Map((svar ?? []).map((s) => [s.id, s.svar]));
   let kommer = 0;
+  let kanske = 0;
   let kommerInte = 0;
   for (const uid of medlemmar ?? []) {
     const s = per.get(uid);
     if (s === "kommer") kommer += 1;
+    else if (s === "kanske") kanske += 1;
     else if (s === "kommerInte") kommerInte += 1;
   }
-  const ejSvarat = (medlemmar ?? []).length - kommer - kommerInte;
-  return { kommer, kommerInte, ejSvarat, text: `${kommer} kommer, ${kommerInte} kommer inte, ${ejSvarat} har inte svarat` };
+  const ejSvarat = (medlemmar ?? []).length - kommer - kanske - kommerInte;
+  return { kommer, kanske, kommerInte, ejSvarat, text: `${kommer} kommer, ${kanske} kanske, ${kommerInte} kommer inte, ${ejSvarat} har inte svarat` };
 }
 
 /**

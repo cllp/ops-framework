@@ -236,7 +236,7 @@ export function createSvarskalla(konfig) {
   return Object.freeze({
     /**
      * Alla svar på en händelse: `[{ id: uid, svar }]`.
-     * @param {string} hid @returns {Promise<Array<{ id: string, svar: "kommer" | "kommerInte" }>>}
+     * @param {string} hid @returns {Promise<Array<{ id: string, svar: "kommer" | "kanske" | "kommerInte" }>>}
      */
     async lista(hid) {
       return (await kalla.list(vag(hid))).map((r) => ({ id: r.id, ...byggSvar(r.svar) }));
@@ -245,7 +245,7 @@ export function createSvarskalla(konfig) {
     /**
      * Personens egna svar på händelserna, som en karta händelse-id till svar. En läsning per händelse, av personens
      * egen rad: inkorgen behöver bara veta om HEN svarat, inte vad alla andra sagt.
-     * @param {ReadonlyArray<string>} hids @param {string} uid @returns {Promise<Map<string, "kommer" | "kommerInte">>}
+     * @param {ReadonlyArray<string>} hids @param {string} uid @returns {Promise<Map<string, "kommer" | "kanske" | "kommerInte">>}
      */
     async mina(hids, uid) {
       if (!uid) throw new Error("createSvarskalla.mina: uid krävs. Svaren är en persons.");
@@ -255,7 +255,7 @@ export function createSvarskalla(konfig) {
 
     /**
      * Personens svar. Samma rad skrivs om när man ändrar sig.
-     * @param {string} hid @param {string} uid @param {"kommer" | "kommerInte"} val
+     * @param {string} hid @param {string} uid @param {"kommer" | "kanske" | "kommerInte"} val
      */
     async svara(hid, uid, val) {
       if (!uid) throw new Error("createSvarskalla.svara: uid krävs. Bara personen själv svarar.");

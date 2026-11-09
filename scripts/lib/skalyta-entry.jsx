@@ -323,7 +323,7 @@ const GASTGRUPP_SVAR = {
     { id: "h-mote", titel: "Möte", beskrivning: "Vi ses i salen", plats: "Salen", datum: "2026-10-27", slutDatum: null, tid: "18:00", slutTid: "20:00", heldag: false, kalenderId: null, kravSvar: true, ejSatt: false },
     { id: "h-ejsatt", titel: "Fika", beskrivning: null, plats: null, datum: null, slutDatum: null, tid: null, slutTid: null, heldag: false, kalenderId: null, kravSvar: true, ejSatt: true },
   ] }),
-  handelse: ({ handelseId }) => ({ ok: true, handelse: { id: handelseId, titel: handelseId === "h-mote" ? "Möte" : "Fika", beskrivning: "Vi ses i salen", plats: "Salen", datum: handelseId === "h-mote" ? "2026-10-27" : null, slutDatum: null, tid: "18:00", slutTid: "20:00", heldag: false, kalenderId: null, kravSvar: true, ejSatt: handelseId !== "h-mote" }, svar: { kommer: 3, kommerInte: 1, ejSvarat: 2, text: "3 kommer, 1 kommer inte, 2 har inte svarat", mitt: null } }),
+  handelse: ({ handelseId }) => ({ ok: true, handelse: { id: handelseId, titel: handelseId === "h-mote" ? "Möte" : "Fika", beskrivning: "Vi ses i salen", plats: "Salen", datum: handelseId === "h-mote" ? "2026-10-27" : null, slutDatum: null, tid: "18:00", slutTid: "20:00", heldag: false, kalenderId: null, kravSvar: true, ejSatt: handelseId !== "h-mote" }, svar: { kommer: 3, kanske: 0, kommerInte: 1, ejSvarat: 2, text: "3 kommer, 0 kanske, 1 kommer inte, 2 har inte svarat", mitt: null } }),
   svara: () => ({ ok: true }),
   rosta: () => ({ ok: true }),
   skrivChatt: (arg) => ({ ok: true, meddelande: { id: "ny-" + String(arg.text).length, av: { namn: "Anna Gäst" }, text: arg.text, tid: Date.UTC(2026, 9, 19, 10, 0), gast: true, egen: true } }),

@@ -146,8 +146,9 @@ describe("svaren", () => {
     const rader = await assertSucceeds(svarskalla(MEDLEM).lista("m1"));
     assert.deepEqual(rader.map((r) => [r.id, r.svar]).sort(), [[ADMIN, "kommerInte"], [MEDLEM, "kommerInte"]]);
   });
-  it("⛔ okänt svar och okänt fält avvisas", async () => {
-    await assertFails(setDoc(doc(som(AGARE), `handelser/m1/svar/${AGARE}`), { svar: "kanske" }));
+  it("kanske går att spara, och ett okänt svar och ett okänt fält avvisas", async () => {
+    await assertSucceeds(setDoc(doc(som(AGARE), `handelser/m1/svar/${AGARE}`), { svar: "kanske" }));
+    await assertFails(setDoc(doc(som(AGARE), `handelser/m1/svar/${AGARE}`), { svar: "nej" }));
     await assertFails(setDoc(doc(som(AGARE), `handelser/m1/svar/${AGARE}`), { svar: "kommer", uid: AGARE }));
   });
   it("⛔ ett svar raderas aldrig", async () => {

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { cx } from "../lib/cx.js";
-import { sammanstallSvar } from "../lib/handelsemodell.js";
+import { SVARSVAL, sammanstallSvar } from "../lib/handelsemodell.js";
 import { forvalda } from "../lib/ord.js";
 import { BockIkon, KryssIkon } from "./icons.jsx";
 import { OpsIdentity } from "./OpsIdentity.jsx";
@@ -16,16 +16,25 @@ export const ORD_OPSSVAR = {
   gast: { sv: "Gäst", en: "Guest" },
 };
 
+/** Orden på knapparna och på någon annans rad. Samma ordning som `SVARSVAL`. */
+const SVARSORD = /** @type {const} */ ({ kommer: "Kommer", kanske: "Kanske", kommerInte: "Kommer inte" });
+
+/** @param {string | undefined} svar @returns {string} */
+function svarsord(svar) {
+  if (svar === "kommer" || svar === "kanske" || svar === "kommerInte") return SVARSORD[svar];
+  return "Har inte svarat";
+}
+
 /**
  * Svaren på en händelse: hur det står, mitt eget svar och vem som svarat vad (0.37.0, #179 F3).
  *
  * ══ ⛔ SESSIONSTUDIOS TILLGÄNGLIGHETSLISTA, MED KOMMER / KOMMER INTE ═══════════
  *
  * Förebilden är SS `eventDetail/EventDetailAvailabilityListInline.jsx`: rubriken med antalet, "Kan: N", och en rad per
- * medlem med avatar och namn, där den egna raden är markerad och öppnar svaret. Här är svaret två knappar direkt på den
- * egna raden i stället för en väljare i ett ark, eftersom det bara finns två svar (se `SVARSVAL`).
+ * medlem med avatar och namn, där den egna raden är markerad och öppnar svaret. Här är svaret tre knappar direkt på den
+ * egna raden i stället för en väljare i ett ark (se `SVARSVAL`: Kommer, Kanske, Kommer inte, lifehub.app#713).
  *
- * ⛔ SAMMANSTÄLLNINGEN STÅR ALLTID MED ALLA TRE DELARNA, också när de är noll (`sammanstallSvar`, punkt 5).
+ * ⛔ SAMMANSTÄLLNINGEN STÅR ALLTID MED ALLA FYRA DELARNA, också när de är noll (`sammanstallSvar`, punkt 5).
  *
  * ⛔ PÅ SMAL BREDD LIGGER KNAPPARNA UNDER NAMNET (0.37.0). CP 2026-09-30: det egna namnet trycktes ihop till "Ann..." av två
  * knappar på 44 px bredvid sig vid 390. Knapparna får en egen rad under 768 px (`w-full`), och namnet får hela raden vid
@@ -38,7 +47,7 @@ export const ORD_OPSSVAR = {
  * @param {ReadonlyArray<{ id: string, svar: string }>} props.svar Raderna ur `createSvarskalla().lista`.
  * @param {ReadonlyArray<{ uid: string, namn: string }>} props.medlemmar Gruppens aktiva medlemmar av typen person.
  * @param {string} props.uid Den som tittar.
- * @param {(val: "kommer" | "kommerInte") => Promise<unknown> | void} props.onSvara
+ * @param {(val: "kommer" | "kanske" | "kommerInte") => Promise<unknown> | void} props.onSvara
  * @param {string} [props.rubrik] Förval "Svar".
  * @param {ReadonlyArray<{ uid: string, namn?: string }>} [props.gaster] (0.132.0, lifehub.app#389) Gruppens aktiva gäster, `uid` är gästens `gastId` (`g_...`, samma id som svarsraden har). De räknas i summan och i antalet, och
  *   får en rad var med ordet `gastEtikett`, utan knappar: en gäst svarar på sin egen sida. ⛔ En gäst som inte finns i listan räknas inte, så en återkallad gästs svar står kvar i databasen men syns inte här,
@@ -77,7 +86,7 @@ export function OpsSvar({ svar, medlemmar, uid, onSvara, rubrik = "Svar", gaster
               {jag ? (
                 <OpsSvarsknappar vald={s} onSvara={onSvara} namn={visat} variant="egen-rad" />
               ) : (
-                <span className="shrink-0 text-meta text-ink-secondary">{s === "kommer" ? "Kommer" : s === "kommerInte" ? "Kommer inte" : "Har inte svarat"}</span>
+                <span className="shrink-0 text-meta text-ink-secondary">{svarsord(s)}</span>
               )}
             </li>
           );
@@ -91,7 +100,7 @@ export function OpsSvar({ svar, medlemmar, uid, onSvara, rubrik = "Svar", gaster
                 {g.namn || gastEtikett}
                 {g.namn ? <span data-gast-markning="" className="ml-2 rounded-full bg-sunken px-2 py-0.5 text-meta font-medium text-ink-secondary">{gastEtikett}</span> : null}
               </span>
-              <span className="shrink-0 text-meta text-ink-secondary">{s === "kommer" ? "Kommer" : s === "kommerInte" ? "Kommer inte" : "Har inte svarat"}</span>
+              <span className="shrink-0 text-meta text-ink-secondary">{svarsord(s)}</span>
             </li>
           );
         })}
@@ -101,17 +110,17 @@ export function OpsSvar({ svar, medlemmar, uid, onSvara, rubrik = "Svar", gaster
 }
 
 /**
- * Svaren som SUMMOR, för den som inte får se vem som svarat vad (0.132.0, lifehub.app#389): en gäst. Samma sammanställning som `OpsSvar` ("3 kommer, 1 kommer inte, 2 har inte svarat", alla tre delarna också när de är noll),
- * mitt eget svar som två knappar (`OpsSvarsknappar`), och inga namn. Summan kommer färdig från servern: gästen får aldrig raderna.
+ * Svaren som SUMMOR, för den som inte får se vem som svarat vad (0.132.0, lifehub.app#389): en gäst. Samma sammanställning som `OpsSvar` ("3 kommer, 1 kanske, 1 kommer inte, 2 har inte svarat", alla fyra delarna också när de är noll),
+ * mitt eget svar som tre knappar (`OpsSvarsknappar`), och inga namn. Summan kommer färdig från servern: gästen får aldrig raderna.
  *
  * @param {object} props
- * @param {{ kommer: number, kommerInte: number, ejSvarat: number, text: string, mitt: "kommer" | "kommerInte" | null }} props.summa Tjänstens `handelse().svar`.
- * @param {(val: "kommer" | "kommerInte") => Promise<unknown> | void} props.onSvara
+ * @param {{ kommer: number, kanske: number, kommerInte: number, ejSvarat: number, text: string, mitt: "kommer" | "kanske" | "kommerInte" | null }} props.summa Tjänstens `handelse().svar`.
+ * @param {(val: "kommer" | "kanske" | "kommerInte") => Promise<unknown> | void} props.onSvara
  * @param {string} props.rubrik Rubriken, på gästens språk (gästens sida har egna ord). Krävs: ramverket gissar inte språket.
  */
 export function OpsSvarSummor({ summa, onSvara, rubrik }) {
   if (typeof rubrik !== "string" || rubrik === "") throw new Error("OpsSvarSummor: rubrik krävs, på gästens språk.");
-  for (const f of /** @type {const} */ (["kommer", "kommerInte", "ejSvarat"])) {
+  for (const f of /** @type {const} */ (["kommer", "kommerInte", "kanske", "ejSvarat"])) {
     if (!Number.isInteger(summa?.[f]) || summa[f] < 0) throw new Error(`OpsSvarSummor: summa.${f} är ett heltal (tjänstens handelse().svar). Utan siffran går "noll" inte att skilja från "ostält".`);
   }
   if (typeof summa.text !== "string" || summa.text === "") throw new Error("OpsSvarSummor: summa.text krävs, sammanställningen som en mening.");
@@ -129,18 +138,21 @@ export function OpsSvarSummor({ summa, onSvara, rubrik }) {
 }
 
 /**
- * Kommer / Kommer inte, som två knappar. Används på den egna raden i `OpsSvar` och i inkorgens rad (`OpsSvarsrad`).
+ * Kommer, Kanske och Kommer inte. Används på den egna raden i `OpsSvar` och i inkorgens rad (`OpsSvarsrad`).
  * `variant="egen-rad"` ger knapparna en egen rad under 768 px (raden i `OpsSvar`); förvalet `inline` står bredvid.
  *
  * ⛔ KNAPPEN SPÄRRAS MEDAN SVARET SKRIVS, OCH ETT FEL STÅR UTSKRIVET. Ett tryck som inte gick fram och inte säger det ser ut
  * som ett svar, och då står frågan kvar i någon annans sammanställning som "har inte svarat" utan att någon vet varför.
  *
- * @param {{ vald?: string, onSvara: (val: "kommer" | "kommerInte") => Promise<unknown> | void, namn?: string, variant?: "inline" | "egen-rad" }} props
+ * ⛔ KANSKE HAR INGEN IKON. Bock och kryss finns redan för Kommer och Kommer inte. Lexikonet (`IKON_FOR`) har ingen
+ * betydelse för "kanske", och en ny bild hittas inte på (lifehub.app#713).
+ *
+ * @param {{ vald?: string, onSvara: (val: "kommer" | "kanske" | "kommerInte") => Promise<unknown> | void, namn?: string, variant?: "inline" | "egen-rad" }} props
  */
 export function OpsSvarsknappar({ vald, onSvara, namn, variant = "inline" }) {
-  const [skriver, setSkriver] = useState(/** @type {null | "kommer" | "kommerInte"} */ (null));
+  const [skriver, setSkriver] = useState(/** @type {null | "kommer" | "kanske" | "kommerInte"} */ (null));
   const [fel, setFel] = useState(/** @type {string | null} */ (null));
-  /** @param {"kommer" | "kommerInte"} v */
+  /** @param {"kommer" | "kanske" | "kommerInte"} v */
   const tryck = async (v) => {
     setFel(null);
     setSkriver(v);
@@ -152,11 +164,12 @@ export function OpsSvarsknappar({ vald, onSvara, namn, variant = "inline" }) {
       setSkriver(null);
     }
   };
-  const knapp = (/** @type {"kommer" | "kommerInte"} */ v, /** @type {string} */ ord) => (
+  const knapp = (/** @type {"kommer" | "kanske" | "kommerInte"} */ v) => (
     <button
+      key={v}
       type="button"
       aria-pressed={vald === v}
-      aria-label={namn ? `${ord}, ${namn}` : ord}
+      aria-label={namn ? `${SVARSORD[v]}, ${namn}` : SVARSORD[v]}
       disabled={skriver !== null}
       aria-busy={skriver === v || undefined}
       onClick={() => tryck(v)}
@@ -165,16 +178,15 @@ export function OpsSvarsknappar({ vald, onSvara, namn, variant = "inline" }) {
         vald === v ? "border-accent bg-accent text-accent-contrast" : "border-line bg-surface text-ink-secondary hover:bg-accent-faint hover:text-ink",
       )}
     >
-      {/* ⛔ Tryckt knapp visar en snurra i ikonens plats (0.141.0): svaret skrivs, och den andra knappen är spärrad. Utan den blev båda bara bleka. */}
-      {skriver === v ? <OpsSpinner size="sm" tone="current" decorative /> : v === "kommer" ? <BockIkon size={14} /> : <KryssIkon size={14} />}
-      {ord}
+      {/* ⛔ Tryckt knapp visar en snurra i ikonens plats (0.141.0): svaret skrivs, och de andra knapparna är spärrade. Utan den blev de bara bleka. */}
+      {skriver === v ? <OpsSpinner size="sm" tone="current" decorative /> : v === "kommer" ? <BockIkon size={14} /> : v === "kommerInte" ? <KryssIkon size={14} /> : null}
+      {SVARSORD[v]}
     </button>
   );
   return (
     <span className={cx("flex shrink-0 flex-col gap-1", variant === "egen-rad" ? "w-full items-start md:w-auto md:items-end" : "items-end")}>
-      <span data-svarsknappar="" className="flex gap-1.5">
-        {knapp("kommer", "Kommer")}
-        {knapp("kommerInte", "Kommer inte")}
+      <span data-svarsknappar="" className="flex flex-wrap gap-1.5">
+        {SVARSVAL.map((v) => knapp(v))}
       </span>
       {fel ? (
         <span role="alert" className="text-meta text-danger">
@@ -192,7 +204,7 @@ export function OpsSvarsknappar({ vald, onSvara, namn, variant = "inline" }) {
  * @param {object} props
  * @param {string} props.titel
  * @param {string} props.nar Datum och tid i appens ord, t.ex. "Måndag 12 oktober, 18:00".
- * @param {(val: "kommer" | "kommerInte") => Promise<unknown> | void} props.onSvara
+ * @param {(val: "kommer" | "kanske" | "kommerInte") => Promise<unknown> | void} props.onSvara
  * @param {string} [props.href] Leder till händelsen.
  */
 export function OpsSvarsrad({ titel, nar, onSvara, href }) {

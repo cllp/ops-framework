@@ -9,6 +9,27 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.210.0
+
+Kanske är ett svar på en händelse, för medlem och gruppgäst (lifehub.app#713). Gästens biblioteksmeny har Kopiera länk (lifehub.app#716).
+
+### Ändrat
+
+- **`SVARSVAL` är `kommer`, `kanske`, `kommerInte`.** `byggSvar` tar emot `kanske`. `sammanstallSvar` räknar det och skriver "3 kommer, 1 kanske, 1 kommer inte, 2 har inte svarat", alltid alla fyra delarna. `GASTDELTASVAR` är samma lista, inte en egen kopia med ett extra `kanske`.
+- **`OpsSvarsknappar` har tre knappar:** Kommer, Kanske, Kommer inte. Kanske har ingen ikon: lexikonet har ingen betydelse för det. En gruppgäst (`OpsSvarSummor`, `svara`) använder samma tre. `summa.kanske` krävs, som de andra räknarna.
+- **Regeln** (`handelseregelfragment`) släpper in `kanske` eftersom den läser `SVARSVAL`. Appen måste skriva om sitt fragment när den pinnar den här versionen. Utan det nekar Firestore medlemmens Kanske.
+
+- **Skalets hjälptext för "ber om svar"** säger Kommer, Kanske eller Kommer inte (granskningen av PR 557).
+- **Gästens fil har Kopiera länk** i listan och i detaljen (lifehub.app#716). Ett tryck hämtar en färsk signerad adress för just den filen, och listan hämtar ingen adress per rad. Kvittensen säger hur länge länken gäller ("Den gäller i 15 minuter."), ur `SIGNERAD_SEKUNDER`. ⛔ Inte när gruppen stängt av nedladdning för gästen (`utanNedladdning`, #691): den signerade adressen öppnar filen för vem som helst i en kvart, och raden hade varit en väg förbi beslutet. För en fil som inte visas hade raden dessutom bara gett ett fel (granskningen av PR 558).
+
+### Prov
+
+- `gast-bibliotek-meny`: gästens fil har Kopiera länk och Kommentera i listan och i detaljen, varje kopiering hämtar en färsk adress, och med nedladdning av finns bara Kommentera. Två rader är röda när raden visas med nedladdning av och när detaljen kopierar visningens cachade adress.
+- `svarfall`: Kanske på en händelse som ber om svar är tillåtet för medlem och gäst. Mot koden före ändringen är raden röd.
+- `kalenderhantering` och `gast-grupp-vy`: knappen Kanske finns, räknas och går att trycka. `gast-delta`: delta-gästens lista är samma tre, i samma ordning.
+
+---
+
 ## 0.209.2
 
 Ett HTML-dokument i Biblioteket ritas på vitt papper också i mörkt läge.

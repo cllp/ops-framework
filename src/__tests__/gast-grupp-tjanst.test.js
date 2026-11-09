@@ -1021,16 +1021,18 @@ describe("kalendern, händelsen, svaret och rösten", () => {
     // Före: 4 aktiva personer (ägare, admin, medlem; agenten och den avslutade räknas inte) plus 1 gäst = 4 + ... se nedan.
     const fore = await h.tjanst.handelse({ sessionsnyckel: g.sessionsnyckel, handelseId: "h-mote" });
     // Aktiva personer: Agda, Adam, Maja (3) + gästen (1) = 4. Agda har svarat Kommer inte, Maja Kommer.
-    expect(fore.svar).toEqual({ kommer: 1, kommerInte: 1, ejSvarat: 2, text: "1 kommer, 1 kommer inte, 2 har inte svarat", mitt: null });
+    expect(fore.svar).toEqual({ kommer: 1, kanske: 0, kommerInte: 1, ejSvarat: 2, text: "1 kommer, 0 kanske, 1 kommer inte, 2 har inte svarat", mitt: null });
     expect(await h.tjanst.svara({ sessionsnyckel: g.sessionsnyckel, handelseId: "h-mote", val: "kommer" })).toEqual({ ok: true });
     const efter = await h.tjanst.handelse({ sessionsnyckel: g.sessionsnyckel, handelseId: "h-mote" });
-    expect(efter.svar).toEqual({ kommer: 2, kommerInte: 1, ejSvarat: 1, text: "2 kommer, 1 kommer inte, 1 har inte svarat", mitt: "kommer" });
+    expect(efter.svar).toEqual({ kommer: 2, kanske: 0, kommerInte: 1, ejSvarat: 1, text: "2 kommer, 0 kanske, 1 kommer inte, 1 har inte svarat", mitt: "kommer" });
     // Svarsraden är medlemmens form, med gästens g_-id: en rad { id, svar } och inget mer.
     const rad = (await h.grund.list("handelser/h-mote/svar")).find((r) => r.id === gastId("anna@foretag.se"));
     expect(rad).toEqual({ id: gastId("anna@foretag.se"), svar: "kommer" });
     // Ett andra svar är en uppdatering av samma rad, inte en ny.
     await h.tjanst.svara({ sessionsnyckel: g.sessionsnyckel, handelseId: "h-mote", val: "kommerInte" });
     expect((await h.grund.list("handelser/h-mote/svar")).filter((r) => r.id.startsWith("g_"))).toHaveLength(1);
+    await h.tjanst.svara({ sessionsnyckel: g.sessionsnyckel, handelseId: "h-mote", val: "kanske" });
+    expect((await h.tjanst.handelse({ sessionsnyckel: g.sessionsnyckel, handelseId: "h-mote" })).svar.mitt).toBe("kanske");
     expect(JSON.stringify(efter)).not.toMatch(/Maja|Agda|Adam/);
   });
 
@@ -1045,8 +1047,8 @@ describe("kalendern, händelsen, svaret och rösten", () => {
   });
 
   /**
-   * Samma tabell som medlemmens regel för ett svar (handelseregelfragment): händelsen finns i gruppen, är inte arkiverad och ber om svar (`kravSvar == true`), och värdet är kommer eller
-   * kommerInte. 14 fall. `rules/__tests__/gaster-grupp.test.mjs` kör SAMMA tabell mot de riktiga reglerna som medlem, så att servern inte kan vara lösare än reglerna.
+   * Samma tabell som medlemmens regel för ett svar (handelseregelfragment): händelsen finns i gruppen, är inte arkiverad och ber om svar (`kravSvar == true`), och värdet är kommer,
+   * kanske eller kommerInte. `rules/__tests__/gaster-grupp.test.mjs` kör SAMMA tabell mot de riktiga reglerna som medlem, så att servern inte kan vara lösare än reglerna.
    */
   it("svara följer medlemsregelns villkor i 14 fall från den delade tabellen (kravSvar, arkiverad, annan grupp, saknas och värdet)", async () => {
     const { SVARFALL } = await import("../../rules/__tests__/svarfall.mjs");

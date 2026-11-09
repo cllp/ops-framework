@@ -2186,7 +2186,7 @@ export function createGastService(konfig) {
       const gaster = (await kalla.list(INB, { where: { groupId } })).filter((r) => r.aterkallad === null && r.omfang?.slag === "grupp").map((r) => gastIdEllerNull(r)).filter((g) => g !== null);
       const summa = sammanstallSvar(rader, [...personer, ...new Set(gaster)]);
       const mitt = rader.find((r) => r.id === s.gastId)?.svar;
-      svar.svar = { kommer: summa.kommer, kommerInte: summa.kommerInte, ejSvarat: summa.ejSvarat, text: summa.text, mitt: mitt === "kommer" || mitt === "kommerInte" ? mitt : null };
+      svar.svar = { kommer: summa.kommer, kanske: summa.kanske, kommerInte: summa.kommerInte, ejSvarat: summa.ejSvarat, text: summa.text, mitt: (/** @type {readonly unknown[]} */ (SVARSVAL)).includes(mitt) ? mitt : null };
     }
     if (GS.omrostning) {
       const bygget = await GS.omrostning.bygg({ handelse: { ...h }, gastId: s.gastId, groupId });
@@ -2196,7 +2196,7 @@ export function createGastService(konfig) {
   }
 
   /**
-   * Gästen svarar Kommer eller Kommer inte på en händelse som ber om svar. Raden är medlemmens form (`byggSvar`) med gästens `g_`-id: ingen klient kan skriva den raden (medlemsregeln
+   * Gästen svarar Kommer, Kanske eller Kommer inte på en händelse som ber om svar. Raden är medlemmens form (`byggSvar`) med gästens `g_`-id: ingen klient kan skriva den raden (medlemsregeln
    * kräver `request.auth.uid == uid`), bara servern.
    *
    * ⛔ SAMMA VILLKOR SOM REGELN FÖR EN MEDLEM: händelsen finns i gruppen, är inte arkiverad, och har `kravSvar`.
@@ -2206,7 +2206,7 @@ export function createGastService(konfig) {
   async function svara(b) {
     const s = await gruppSession(b, "kalender");
     if (!s.ok || !GS) return s.ok ? nej() : s;
-    if (!(/** @type {readonly unknown[]} */ (SVARSVAL)).includes(b?.val)) throw new Error(`svara: val är ${SVARSVAL.join(" eller ")}.`);
+    if (!(/** @type {readonly unknown[]} */ (SVARSVAL)).includes(b?.val)) throw new Error(`svara: val är ${SVARSVAL.join(", ")}.`);
     const h = await gruppHandelse(s.inbjudan.groupId, b?.handelseId);
     if (!h || h.kravSvar !== true) return orsak("saknas");
     await kalla.create(svarVag(h.id), { id: s.gastId, ...byggSvar(b.val) });
@@ -2610,7 +2610,7 @@ export function createGastService(konfig) {
       let mitt = null;
       if (nasta.kravSvar === true) {
         const rad = await kalla.read(svarVag(nasta.id), gastIdet);
-        mitt = rad?.svar === "kommer" || rad?.svar === "kommerInte" ? rad.svar : null;
+        mitt = (/** @type {readonly unknown[]} */ (SVARSVAL)).includes(rad?.svar) ? rad.svar : null;
       }
       nastaUt = vitlista({ ...nasta, mitt }, GASTOVERSIKTFALT.handelse);
     }

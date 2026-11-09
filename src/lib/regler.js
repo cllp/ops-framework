@@ -1794,7 +1794,7 @@ ${
  */
 
 /**
- * Regelfragmentet för händelsemodellen: svaren Kommer / Kommer inte, och en funktion appen anropar i sitt eget
+ * Regelfragmentet för händelsemodellen: svaren Kommer, Kanske och Kommer inte, och en funktion appen anropar i sitt eget
  * händelseblock för ramverkets fält (`kalenderId`, `slutDatum`, `kravSvar`).
  *
  * ══ ⛔ VAD SOM GÄLLER, OCH VARFÖR ═══════════════════════════════════════

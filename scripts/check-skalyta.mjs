@@ -5808,10 +5808,10 @@ for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
 
 // ══ 33. SVAREN OCH INKORGENS RAD MOT SS EventDetailAvailabilityListInline VID 390 OCH 1280 PX (0.37.0, #179 F3) ══════════
 // Scenen `svar`: Anna tittar, Bo har svarat Kommer inte, Cecilia inget. Krav:
-//   (a) Sammanställningen skriver ut alla tre delarna, också nollan: "0 kommer, 1 kommer inte, 2 har inte svarat".
-//   (b) Bara Annas rad har knappar, två, 44 px under 768 och 32 från, inom raden.
-//   (c) Ett tryck på Kommer ändrar sammanställningen till "1 kommer, 1 kommer inte, 1 har inte svarat" och markerar knappen.
-//   (d) Inkorgens rad har Kommer och Kommer inte och ligger inom fönstret.
+//   (a) Sammanställningen skriver ut alla fyra delarna, också nollan: "0 kommer, 0 kanske, 1 kommer inte, 2 har inte svarat".
+//   (b) Bara Annas rad har knappar, tre, 44 px under 768 och 32 från, inom raden.
+//   (c) Ett tryck på Kommer ändrar sammanställningen till "1 kommer, 0 kanske, 1 kommer inte, 1 har inte svarat" och markerar knappen.
+//   (d) Inkorgens rad har Kommer, Kanske och Kommer inte och ligger inom fönstret.
 // Ingen horisontell överflödning. Golv: tre medlemsrader.
 for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
   const namn = `svaren ${vp.width}`;
@@ -5831,10 +5831,10 @@ for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
     const f = await las();
     matt.push(`${namn}: "${f.summa}", rader ${JSON.stringify(f.rader.map((r) => `${r.uid}:${r.knappar.map((k) => `${k.t} ${k.h}`).join("/")}`))}, inkorgens rad ${JSON.stringify(f.inkorg)}`);
     krav(f.rader.length >= 3, `${namn}: ${f.rader.length} medlemsrader, väntat minst 3 (golv).`);
-    krav(f.summa === "0 kommer, 1 kommer inte, 2 har inte svarat", `${namn}: sammanställningen är "${f.summa}", väntat "0 kommer, 1 kommer inte, 2 har inte svarat" (nollan utskriven).`);
+    krav(f.summa === "0 kommer, 0 kanske, 1 kommer inte, 2 har inte svarat", `${namn}: sammanställningen är "${f.summa}", väntat "0 kommer, 0 kanske, 1 kommer inte, 2 har inte svarat" (nollan utskriven).`);
     const vantad = vp.width < 768 ? 44 : 32;
     const anna = f.rader.find((r) => r.uid === "anna");
-    krav(!!anna && anna.knappar.length === 2 && anna.knappar.every((k) => Math.abs(k.h - vantad) < 0.6 && k.hoger <= anna.hoger + 0.5), `${namn}: Annas knappar ${JSON.stringify(anna && anna.knappar)}, väntat två på ${vantad} px inom raden.`);
+    krav(!!anna && anna.knappar.length === 3 && anna.knappar.every((k) => Math.abs(k.h - vantad) < 0.6 && k.hoger <= anna.hoger + 0.5), `${namn}: Annas knappar ${JSON.stringify(anna && anna.knappar)}, väntat tre på ${vantad} px inom raden.`);
     // ⛔ 0.37.0 (CP 2026-09-30): det egna namnet trycktes ihop till "Ann..." av knapparna vid 390. Namnet får aldrig vara avkortat
     // (scrollWidth över clientWidth på en truncate-ruta), och vid 390 ligger knapparna under namnet.
     const namnMatt = await page.evaluate(() => {
@@ -5849,13 +5849,13 @@ for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
     krav(!!namnMatt && namnMatt.avkortat <= 0, `${namn}: det egna namnet är avkortat ${namnMatt && namnMatt.avkortat} px (${JSON.stringify(namnMatt)}), väntat hela namnet synligt.`);
     if (vp.width < 768) krav(!!namnMatt && namnMatt.knapparTopp >= namnMatt.namnUnderkant - 0.5, `${namn}: knapparnas topp ${namnMatt && namnMatt.knapparTopp} ligger inte under namnets underkant ${namnMatt && namnMatt.namnUnderkant}, väntat knapparna under namnet på smal bredd.`);
     krav(f.rader.filter((r) => r.uid !== "anna").every((r) => r.knappar.length === 0), `${namn}: en annan medlems rad har knappar, men bara personen själv svarar.`);
-    krav(!!f.inkorg && JSON.stringify(f.inkorg.knappar) === JSON.stringify(["Kommer", "Kommer inte"]) && f.inkorg.hoger <= f.vw + 0.5, `${namn}: inkorgens rad ${JSON.stringify(f.inkorg)}, väntat Kommer och Kommer inte inom fönstret.`);
+    krav(!!f.inkorg && JSON.stringify(f.inkorg.knappar) === JSON.stringify(["Kommer", "Kanske", "Kommer inte"]) && f.inkorg.hoger <= f.vw + 0.5, `${namn}: inkorgens rad ${JSON.stringify(f.inkorg)}, väntat Kommer, Kanske och Kommer inte inom fönstret.`);
     if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `svar-${vp.width}.png`) });
     await page.locator('[data-svarsrad="anna"] button', { hasText: /^Kommer$/ }).click();
     await page.waitForTimeout(150);
     const e = await las();
     const annaEfter = e.rader.find((r) => r.uid === "anna");
-    krav(e.summa === "1 kommer, 1 kommer inte, 1 har inte svarat" && !!annaEfter && annaEfter.knappar[0].vald === "true", `${namn}: efter Kommer är sammanställningen "${e.summa}" och knappen ${annaEfter && annaEfter.knappar[0].vald}, väntat "1 kommer, 1 kommer inte, 1 har inte svarat" och vald.`);
+    krav(e.summa === "1 kommer, 0 kanske, 1 kommer inte, 1 har inte svarat" && !!annaEfter && annaEfter.knappar[0].vald === "true", `${namn}: efter Kommer är sammanställningen "${e.summa}" och knappen ${annaEfter && annaEfter.knappar[0].vald}, väntat "1 kommer, 0 kanske, 1 kommer inte, 1 har inte svarat" och vald.`);
     const over = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     krav(over <= 0, `${namn}: sidan flödar över ${over} px horisontellt.`);
   } catch (e) {
