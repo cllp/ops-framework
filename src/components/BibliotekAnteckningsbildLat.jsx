@@ -21,7 +21,7 @@ import { ordet } from "../lib/ord.js";
  * ══ ⛔ VÄNTAN SOM INTE FLYTTAR NÅGOT, OCH SOM INTE SLÄPPER IGENOM EN BILD ═════════════════════════════════════════════════════════
  *
  * 1. FÖRLADDNING. `OpsBibliotek` anropar `forladdaAnteckningsbild` när webbläsaren har tid över, om appen gett `onLaggBildIAnteckning`. Biten
- *    finns då oftast redan när någon trycker på Redigera.
+ *    finns då oftast redan när någon trycker på Redigera, och då ritas rutan direkt, utan väntan och utan att textrutan byts (se `hamtad`).
  * 2. MEDAN BITEN HÄMTAS ritas samma textruta, utan knappen, så att fältet står där det ska och går att skriva i. Knappen kommer under rutan när
  *    biten är hämtad.
  * 3. ⛔ EN BILD SOM KLISTRAS IN UNDER TIDEN tas av rutan ändå, med `preventDefault()` och `stopPropagation()`, och raden säger att den ska
@@ -30,7 +30,18 @@ import { ordet } from "../lib/ord.js";
  * ⛔ ETT FEL VID HÄMTNINGEN TYSTAS INTE. Går biten inte att hämta (nätet föll, eller en ny version har lagts ut) står textrutan kvar, så att
  * texten går att skriva och spara, och `LatGrans` ritar en mening med `role="alert"` under den. Ett nytt försök kräver att sidan laddas om.
  */
-const laddaAnteckningsbild = () => import("./BibliotekAnteckningsbild.jsx");
+/**
+ * ⛔ DEN HÄMTADE MODULEN SPARAS HÄR (0.207.0). `lazy` väntar en ritning också när biten redan är hämtad (dess eget löfte är inte uppslaget förrän första gången den ritas), och textrutan
+ * byttes då ut under den som just tryckt på Redigera: väntans ruta och sedan modulens, två olika noder, och fokus tappades. När förladdningen är klar ritas komponenten därför direkt,
+ * utan `lazy` och `Suspense`, och textrutan är samma nod hela tiden. `lazy` är kvar för den som hinner trycka på Redigera innan biten är hämtad.
+ * @type {null | typeof import("./BibliotekAnteckningsbild.jsx").AnteckningsText}
+ */
+let hamtad = null;
+const laddaAnteckningsbild = () =>
+  import("./BibliotekAnteckningsbild.jsx").then((m) => {
+    hamtad = m.AnteckningsText;
+    return m;
+  });
 const Text = lazy(() => laddaAnteckningsbild().then((m) => ({ default: m.AnteckningsText })));
 
 /**
@@ -123,7 +134,13 @@ function Reservruta({ text, setText, sprak, fel = false }) {
  * @param {import("react").ComponentProps<typeof import("./BibliotekAnteckningsbild.jsx").AnteckningsText>} props Samma props som `AnteckningsText`.
  */
 export function AnteckningsTextLat(props) {
+  // ⛔ Valet görs EN gång, när rutan monteras: att byta från den lata komponenten till den hämtade mitt i en redigering hade varit ett nytt komponentslag, och React hade bytt ut textrutan.
+  const [direkt] = useState(() => hamtad);
   if (typeof props.onLaggBild !== "function") return <AnteckningsRuta text={props.text} setText={props.setText} sprak={props.sprak} />;
+  if (direkt) {
+    const Hamtad = direkt;
+    return <Hamtad {...props} />;
+  }
   return (
     <LatGrans fel={<Reservruta text={props.text} setText={props.setText} sprak={props.sprak} fel />}>
       <Suspense fallback={<Reservruta text={props.text} setText={props.setText} sprak={props.sprak} />}>

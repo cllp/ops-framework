@@ -106,6 +106,23 @@ describe("BibliotekAnteckningsbildLat: rutan läses in när den behövs", () => 
     expect(utvarderad).toHaveBeenCalledTimes(1);
   });
 
+  it("⛔ efter förladdningen ritas rutan direkt: knappen finns vid första ritningen, och textrutan är SAMMA nod före och efter (fokus tappas inte)", async () => {
+    const { Harness, utvarderad } = await iBeredskap();
+    render(<Harness onLaggBildIAnteckning={async () => ({ namn: "x.png" })} />);
+    idle[0]();
+    await waitFor(() => expect(utvarderad).toHaveBeenCalledTimes(1));
+    await act(async () => {});
+    redigera();
+    expect(screen.getByRole("button", { name: "Lägg till bild" })).toBeInTheDocument();
+    const fore = textruta();
+    fore.focus();
+    await act(async () => {});
+    await act(async () => {});
+    expect(textruta()).toBe(fore);
+    expect(document.activeElement).toBe(fore);
+    expect(fore.isConnected).toBe(true);
+  });
+
   it("⛔ Redigera före förladdningen: textrutan står där med texten medan modulen hämtas, och en bild som klistras in under tiden når inte appen", async () => {
     const { Harness } = await iBeredskap();
     const dokumentet = vi.fn();
