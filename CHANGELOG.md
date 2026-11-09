@@ -9,6 +9,33 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.207.0
+
+Bild i en anteckning, skiva 2 (cllp/lifehub.app#696), ramverkets halva: bilderna syns på en delad sida, i en delad lista och i gästens bibliotek när datat bär sina adresser. Dessutom läses rutan med "Lägg till bild" in när den behövs, och en uppladdning som pågår när redigeringen lämnas tappar inte bilden.
+
+### Tillagt
+
+- **En anteckning på en delad sida och i gästens vy kan bära `bilder: Record<string, string>`**, bildens filnamn i texten (`![alt](namn)`) till en färdig signerad https-adress som servern gett. `OpsDelad` (en delad anteckning), `DeladLista` (en anteckning i en delad lista) och `OpsBibliotek` utan `bildIAnteckningAdress` (gästens bibliotek i `OpsGastGrupp`) ritar bilden med den adressen. Ingen ny prop: fältet står i datat.
+  - Ett namn som saknas i `bilder`, en tom adress eller en adress som inte är https (`javascript:`, `data:`, `http:`) ger "Bilden kunde inte visas.". ⛔ En `javascript:`-adress ritas aldrig.
+  - Utan `bilder` står "Bilden visas inte här än." som i 0.206.0.
+  - I `OpsBibliotek` vinner `bildIAnteckningAdress` när båda finns.
+  - Funktionen bakom är `bildAdressUrBilder(bilder)` i `lib/markdown.js` (inte exporterad ur paketet): bara https, inga mellanslag eller styrtecken, och bara objektets egna nycklar (`Object.hasOwn`), så att ett namn som `constructor` aldrig ger något ur prototypen.
+  - ⛔ **Tjänsterna i `ops-framework/node` skickar inte fältet än.** `ANTECKNINGSSVARSFALT` (`createDelningService`), anteckningsraden i en delad lista och `GASTBIBLIOTEKFALT` (`createGastService`) är vitlistor utan `bilder`. Vyn är klar; svaret behöver fältet för att bilderna ska synas.
+- **`BibliotekAnteckningsbildLat`**: rutan med "Lägg till bild" (`AnteckningsText`) och krympningen före uppladdningen läses in när de behövs. Utan `onLaggBildIAnteckning` hämtas ingenting och redigeringen är en vanlig textruta (`AnteckningsRuta`, samma ruta som modulen ritar). Med den förladdar `OpsBibliotek` biten när webbläsaren har tid över. Medan biten hämtas står textrutan där med texten och utan knappen, och en bild som klistras in under tiden tas av rutan (`preventDefault`, `stopPropagation`) med raden "Bildverktyget hämtas. Klistra in bilden igen om en stund.", så att appens inklistring inte gör en bildpost av den. Går biten inte att hämta står textrutan kvar med en rad om att ladda om sidan för att lägga till bilder. Orden: `ORD_ANTECKNINGSRUTA`.
+
+### Ändrat
+
+- **Tillbaka, en annan post eller en ny vy mitt i en uppladdning tappar inte bilden.** I 0.206.0 spärrades bara Spara och Avbryt. Lämnades redigeringen på något annat sätt togs rutan bort, svaret kastades och filen låg kvar i postens mapp utan att texten pekade på den, utan ett ord om det (regel 5). Att också spärra Tillbaka hade bara täckt knappen ramverket ritar: telefonens bakåtgest ändrar adressen, appen sätter `vald` och rutan tas bort ändå. Nu slutförs uppladdningen, och raden `![](namn)` skrivs in sist i den SPARADE texten med `onSpara({ typ: "anteckning", rubrik, text, id })`, samma form som Spara. Flera bilder som blir klara efter stängningen hamnar i samma text. Det som skrevs men inte sparades sparas inte (Tillbaka betyder som förut att lämna redigeringen). Ett fel som inte längre har någon ruta att stå i (uppladdningen föll, namnet var inte säkert, `onSpara` svarade `false`) kastas vidare som ett ohanterat fel i appen, aldrig tystat.
+- `medBildInsatt` bor i `lib/markdown.js`. Exporten ur `BibliotekAnteckningsbild.jsx` står kvar.
+- `check:delbarhet` mäter också att `AnteckningsText` och `forbered` inte ligger i startfilen när en app importerar `OpsBibliotek`. Startfilen i mätningen (oförminskad): 550 598 tecken med 0.206.0:s komponenter, 543 008 med 0.207.0.
+
+### Prov
+
+- `anteckningsbild-delad-207.test.jsx` (14): varje yta (`OpsDelad`, `DeladLista`, gästens bibliotek i `OpsGastGrupp`) åt fyra håll, att appens prop vinner, och `bildAdressUrBilder`. Mot 0.206.0:s komponenter är 9 röda; de 5 som är gröna åt båda håll är utan-fältet-fallen (3), att propen vinner och enhetsprovet. Med filtret i `bildAdressUrBilder` borttaget (vilken sträng som helst, och en funktion också utan `bilder`) är 7 röda, bland dem alla tre utan-fältet-fallen och alla tre `javascript:`-fallen.
+- `anteckningsbild-lat-207.test.jsx` (6): modulen räknas när den utvärderas (som `snabbmeny-lat.test.jsx`), så att provet mäter beteendet och inte ordet `lazy`. Mot 0.206.0 är 5 röda: att modulen inte hämtas när biblioteket ritas, att den hämtas vid förladdningen, att en bild som klistras in medan den hämtas inte når appen, och de två proven för en uppladdning som överlever rutan (Tillbaka, och appens bakåt). Det sjätte, att bilden skrivs in i rutan när den finns kvar och att ingenting sparas av sig självt, är grönt åt båda håll.
+- `check:delbarhet`: rött mot 0.206.0:s komponenter (4 brott: `AnteckningsText` och `forbered` ligger i startfilen och i ingen annan bit), grönt nu.
+- `anteckningsbild-696.test.jsx` hämtar den lata biten en gång före proven som läser knappen direkt efter Redigera. Utan det var 1 av 22 rött (det första som läser knappen), med det alla 22 gröna.
+
 ## 0.206.0
 
 Gör till medlem på gästkortet (CP 2026-11-08: "hur gör jag en gäst till en medlem?"), Dela som säger varför den nekades, statusen en gång på kortet, ett prov som slutat mäta klockan (cllp/ops-framework#542), och bild i en anteckning, skiva 1 (cllp/lifehub.app#696). Bilden är `![alt](filnamn)` i anteckningens text och filen ligger i postens egen mapp: ingen ny posttyp, inga nya fält och inga nya regler.
