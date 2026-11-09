@@ -3318,7 +3318,7 @@ export const TEXT_SKAL = {
   handelseSaknas: { sv: "Händelsen finns inte", en: "The event does not exist" },
   handelseSaknasText: { sv: "Den kan ha tagits bort, eller så får du inte ändra den.", en: "It may have been removed, or you may not be allowed to change it." },
   kravSvar: { sv: "Kräv svar", en: "Ask for replies" },
-  kravSvarHint: { sv: "Varje medlem svarar Kommer eller Kommer inte, och frågan står i var och ens inkorg tills de svarat.", en: "Every member answers Coming or Not coming, and the question stays in each inbox until they have answered." },
+  kravSvarHint: { sv: "Varje medlem svarar Kommer, Kanske eller Kommer inte, och frågan står i var och ens inkorg tills de svarat.", en: "Every member answers Coming, Maybe or Not coming, and the question stays in each inbox until they have answered." },
   blockerar: { sv: "Blockerar tillgänglighet", en: "Blocks availability" },
   blockerarHint: { sv: "Syns bara för dig. Gruppen ser att du är upptagen, inte vad du gör.", en: "Only visible to you. The group sees that you are busy, not what you are doing." },
   flerDestinationer: { sv: "fler destinationer", en: "more destinations" },

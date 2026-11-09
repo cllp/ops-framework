@@ -87,7 +87,7 @@ describe("⛔ gästens fil har Kopiera länk och Kommentera i listan och i detal
       await user.click(screen.getByRole("menuitem", { name: "Kopiera länk" }));
       await waitFor(() => expect(writeText).toHaveBeenCalledWith(ADRESS));
       expect(hamtaAdress.mock.calls).toEqual([["f1"]]);
-      expect(await screen.findByText("Länken är kopierad.")).toBeTruthy();
+      expect(await screen.findByText("Länken är kopierad. Den gäller i 15 minuter.")).toBeTruthy();
 
       await user.click(screen.getByRole("button", { name: "Avtal" }));
       await waitFor(() => expect(document.querySelector("[data-bibliotek-pdf]")).toBeTruthy());
@@ -97,7 +97,8 @@ describe("⛔ gästens fil har Kopiera länk och Kommentera i listan och i detal
       await user.click(screen.getByRole("menuitem", { name: "Kopiera länk" }));
       await waitFor(() => expect(writeText).toHaveBeenCalledTimes(2));
       expect(writeText).toHaveBeenLastCalledWith(ADRESS);
-      expect(hamtaAdress.mock.calls.length, "detaljen kopierar adressen som visningen redan hämtat").toBe(anropFore);
+      // ⛔ Gästens adress hämtas på nytt vid varje kopiering: visningens adress kan ha gått ut (granskningen av PR 558).
+      expect(hamtaAdress.mock.calls.length, "kopieringen hämtar en färsk adress").toBe(anropFore + 1);
 
       await user.keyboard("{Escape}");
       await user.click(screen.getByRole("button", { name: /Tillbaka|Stäng/ }));
@@ -149,19 +150,20 @@ describe("⛔ gästens fil har Kopiera länk och Kommentera i listan och i detal
     expect(menyrader("Minnesanteckning")).toEqual(["Kommentera"]);
   });
 
-  it("nedladdning av ger samma meny, ingen Ladda ned, och hämtningen ber inte om en bilaga", async () => {
+  it("⛔ nedladdning av: ingen Kopiera länk och ingen Ladda ned, och hämtningen ber inte om en bilaga (granskningen av PR 558)", async () => {
     const user = userEvent.setup();
     const hamtaAdress = vi.fn(async () => "https://signerad.exempel/z1?sig=abc");
     render(<Gastvy hamtaAdress={hamtaAdress} utanNedladdning poster={[ZIP]} />);
     await user.click(screen.getByRole("button", { name: "Åtgärder för Paket" }));
-    expect(menyrader("Paket")).toEqual(GASTENS_FILMENY);
+    expect(menyrader("Paket")).toEqual(["Kommentera"]);
+    expect(hamtaAdress).not.toHaveBeenCalled();
     await user.keyboard("{Escape}");
     await user.click(screen.getByRole("button", { name: "Paket" }));
     await waitFor(() => expect(screen.getByRole("link", { name: /a\.txt/ })).toBeTruthy());
     expect(hamtaAdress.mock.calls.every((anrop) => anrop.length === 1 && anrop[0] === "z1")).toBe(true);
     expect(screen.queryByRole("link", { name: "Ladda ned" })).toBeNull();
     await user.click(await screen.findByRole("button", { name: "Åtgärder för Paket" }));
-    expect(menyrader("Paket")).toEqual(GASTENS_FILMENY);
+    expect(menyrader("Paket")).toEqual(["Kommentera"]);
   });
 
   it("en nekad hämtning kopierar ingenting och visar felet", async () => {

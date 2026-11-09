@@ -56,7 +56,7 @@ import { OpsSpinner } from "./OpsSpinner.jsx";
 import { OpsField, OpsInput } from "./OpsField.jsx";
 import { OpsSelect } from "./OpsSelect.jsx";
 import { OpsSwitch } from "./OpsToggle.jsx";
-import { DELNINGSDAGAR, FORVAL_DELNINGSDAGAR } from "../lib/delning.js";
+import { DELNINGSDAGAR, FORVAL_DELNINGSDAGAR, SIGNERAD_SEKUNDER } from "../lib/delning.js";
 import { DelaLankFalt, useDelaLankFalt } from "./DelaLankFalt.jsx";
 import { LankRad } from "./LankRad.jsx";
 import { useOpsSprak } from "./OpsSprak.jsx";
@@ -762,6 +762,11 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
    * Raden visas nu för en färdig fil med sökväg. Ett tryck hämtar adressen för just den filen, samma väg som visningen, och
    * listan hämtar fortfarande ingen adress per rad. En fil som inte är uppladdad har ingenting att kopiera, som för en medlem.
    *
+   * ⛔ MEN INTE NÄR GRUPPEN STÄNGT AV NEDLADDNING FÖR GÄSTEN (`utanNedladdning`, lifehub.app#691, granskningen av PR 558). Den
+   * signerade adressen öppnar filen för vem som helst som har den i en kvart, och en bild eller en PDF går att spara ur
+   * webbläsarens visning. En rad som kopierar den hade varit en väg att dela filen förbi beslutet. För en fil som inte visas
+   * (zip, Word) hade raden dessutom bara gett felet, eftersom servern aldrig signerar den utan nedladdning.
+   *
    * @param {{ typ?: string, url?: string, fil?: { sokvag?: string, klar?: boolean }, skapad?: number }} post
    */
   function kanKopieraLank(post) {
@@ -769,7 +774,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
     if (post.typ !== "fil" || uppladdningAvbruten(post) || post.fil?.klar === false) return false;
     const sokvag = typeof post.fil?.sokvag === "string" ? post.fil.sokvag.trim() : "";
     if (sokvag === "") return false;
-    if (adresserPaBegaran) return typeof hamtaAdress === "function";
+    if (adresserPaBegaran) return !utanNedladdning && typeof hamtaAdress === "function";
     return lankRedanKand(post) !== "";
   }
 
@@ -780,19 +785,22 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
    * @param {{ typ?: string, url?: string, fil?: { sokvag?: string, mime?: string, klar?: boolean }, skapad?: number }} post
    */
   function kopieraPostensLank(post) {
-    const kand = lankRedanKand(post);
+    // ⛔ GÄSTENS FIL HÄMTAS ALLTID PÅ NYTT (granskningen av PR 558). Visningens adress kan ligga i cachen längre än den gäller,
+    // och en död adress med kvittensen "kopierad" är ett fel som inte syns.
+    const gastfil = adresserPaBegaran && post.typ === "fil";
+    const kand = gastfil ? "" : lankRedanKand(post);
     if (kand !== "") {
       kopieraLank(kand);
       return;
     }
-    if (!adresserPaBegaran || post.typ !== "fil" || typeof hamtaAdress !== "function") return;
+    if (!gastfil || utanNedladdning || typeof hamtaAdress !== "function") return;
     const sokvag = typeof post.fil?.sokvag === "string" ? post.fil.sokvag.trim() : "";
     if (sokvag === "") return;
     const saknas = () => setStatus(ordet(ORD_BIBLIOTEKLISTA, "ingenAdress", sprak));
     Promise.resolve()
       .then(() => hamtaAdress(sokvag))
       .then((url) => {
-        if (typeof url === "string" && ADRESSFORM.test(url)) kopieraLank(url);
+        if (typeof url === "string" && ADRESSFORM.test(url)) kopieraLank(url, SIGNERAD_SEKUNDER);
         else saknas();
       })
       .catch((e) => {
@@ -802,16 +810,18 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
 
   /**
    * @param {string} url
+   * @param {number} [giltigSekunder] en signerad adress gäller bara en stund, och kvittensen säger hur länge (granskningen av PR 558)
    */
-  function kopieraLank(url) {
+  function kopieraLank(url, giltigSekunder) {
     const miss = () => setStatus(`Länken kunde inte kopieras. Adressen är ${url}`);
+    const kopierad = typeof giltigSekunder === "number" ? `Länken är kopierad. Den gäller i ${Math.round(giltigSekunder / 60)} minuter.` : "Länken är kopierad.";
     try {
       const skriv = navigator.clipboard?.writeText;
       if (typeof skriv !== "function") {
         miss();
         return;
       }
-      Promise.resolve(skriv.call(navigator.clipboard, url)).then(() => setStatus("Länken är kopierad.")).catch(() => miss());
+      Promise.resolve(skriv.call(navigator.clipboard, url)).then(() => setStatus(kopierad)).catch(() => miss());
     } catch {
       miss();
     }
