@@ -1849,6 +1849,22 @@ export function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, sprak, 
           setText(e.target.value);
           las(e.target.value, e.target.selectionStart ?? e.target.value.length);
         }}
+        // ⛔ KLISTRA IN EN BILD (CP 2026-11-09 i Dev: "jag kan inte klippa in en bild i chatten. Det behöver vi kunna"). En inklistring som bär FILER går samma väg som plusmenyn
+        // (`onBifoga`): bilder som "bild", annat som "fil". En inklistring med bara text lämnas orörd till fältet, så att vanligt klistrande inte stjäls (samma regel som `OpsFilePicker`).
+        // Utan `onBifoga` (en chatt utan bilagor) händer ingenting extra.
+        onPaste={
+          onBifoga
+            ? (e) => {
+                const filer = [...(e.clipboardData?.files ?? [])];
+                if (!filer.length) return;
+                e.preventDefault();
+                const bilder = filer.filter((f) => f.type.startsWith("image/"));
+                const ovriga = filer.filter((f) => !f.type.startsWith("image/"));
+                if (bilder.length) onBifoga(bilder, "bild");
+                if (ovriga.length) onBifoga(ovriga, "fil");
+              }
+            : undefined
+        }
         onKeyDown={(e) => {
           if (oppen) {
             if (e.key === "ArrowDown" || e.key === "ArrowUp") {

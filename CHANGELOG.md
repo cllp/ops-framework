@@ -16,6 +16,8 @@ Chattens meddelandemeny har Kopiera och Kopiera länk (lifehub.app#712), appens 
 ### Tillagt
 
 - **Kopiera och Kopiera länk i meddelandets meny**, för medlem och gäst (lifehub.app#712). På dator står en ⋮ vid hovring med det som inte redan är en egen knapp. Den ritas bara på meddelandet pekaren eller fokuset står på: med en ⋮ på varje meddelande blev det 33 element per meddelande mot taket 26 (`check:skalyta` 47 (6), regel 13), nu 26. På telefon och pekskärm är menyn som förut, med de nya raderna. Kopiera skriver texten till urklipp inne i trycket och säger "Kopierat", eller ett synligt fel om urklippet nekas. Kopiera länk ritas bara när appen skickar in `meddelandeHref` (`OpsMeddelanden`, `OpsSamtal`, `OpsTrad`, `Meddelanderader`, `OpsGastChatt`): ramverket känner aldrig appens rutter. Typen är `MeddelandeHref`: `({ meddelandeId, samtalId?, tradId? }) => string | null | undefined`, och en relativ adress görs absolut mot sidan.
+- **Klistra in en bild i chatten** (CP 2026-11-09 i Dev). En inklistring med filer i skrivfältet går samma väg som plusmenyn (`onBifoga`): bilder som `bild`, andra filer som `fil`. En inklistring med bara text lämnas till fältet. Utan `onBifoga` händer ingenting extra.
+- **`byggReaktion` och `REAKTIONSKODER` exporteras också från `ops-framework/node`**, så att en apps server (API:t) kan skriva en reaktion med samma form och nyckel som chatten.
 - **`flerOmnamnbara`** på `OpsMeddelanden`, `OpsSamtal` och `OpsTrad` (lifehub.app#723): fler som går att nämna med @ utöver de aktiva medlemmarna, till exempel appens API-agenter, vars medlemskap står som avslutat. ⛔ De läggs bara till @-listan. Agentval, mottagare och medlemslistor läser `medlemmar` och ser dem aldrig. Den som redan är kandidat och en själv läggs inte till igen. Utan propen är listan som förut.
 
 ### Rättat
@@ -27,7 +29,8 @@ Chattens meddelandemeny har Kopiera och Kopiera länk (lifehub.app#712), appens 
 
 ### Prov
 
-- `chatt-kopiera-712`: 9 av 9 röda utan ändringen.
+- `chatt-kopiera-712`: 9 av 9 röda utan ändringen. ⋮ bara vid pekare eller fokus: 2 röda utan.
+- `chatt-klistra-bild`: 2 av 4 röda utan ändringen. De två andra visar att text och en chatt utan bilagor är orörda.
 - `chatt-flera-omnamnbara-723`: 2 av 4 röda utan ändringen. De två andra visar med avsikt att listan utan propen och agentvalet är oförändrade.
 - `gast-filnamn-560`: 12 av 13 röda utan ändringen. Det gröna är det svenska kvittot, som är oförändrat. Ljudet utan skal: 1 av 2 röda utan `utanNedladdning` på spelaren.
 
