@@ -1,5 +1,8 @@
 import { Fragment, createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { sparaSomFil } from "../lib/sparaFil.js";
+import { sparaSomFil, sparaText } from "../lib/sparaFil.js";
+import { anteckningFilnamn, arMarkdownFilnamn, markdownSomAnteckning } from "../lib/anteckningsfil.js";
+import { markdownSomHtml } from "../lib/markdownhtml.js";
+import { blobBytes } from "../lib/blobbytes.js";
 import * as Popover from "@radix-ui/react-popover";
 import * as Tabs from "@radix-ui/react-tabs";
 import { Check, File as FilIkon, FileText, Globe, Image as BildIkon, Link2, List as ListIkon, Mic, ExternalLink } from "lucide-react";
@@ -22,7 +25,7 @@ import { BibliotekRepoLat } from "./BibliotekRepoLat.jsx";
 import { githubDokument } from "../lib/githubdokument.js";
 import { OpsModal } from "./OpsModal.jsx";
 import { OpsSvepRad } from "./OpsSvepRad.jsx";
-import { ARKIVTAGG, arArkiverad, NALTAGG, arNalad, ADRESSFORM, BIBLIOTEKTYPER, BILDFORM, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKURL, uppladdningAvbruten, uppladdningenAvbrytsKl, allaTaggar, arDelbar, arLjudpost, arMittBibliotek, farAndra, normaliseraTaggar, anteckningsrubrikNu, beskrivObjektbibliotek, arHtmlMime, arPlatsBibliotek, gruppForPlats, filInmatningsfel, LJUDFIL_ACCEPT, ljudfilFel, mimeUrFilnamn, filadressFel, filSort, filtreraBibliotek, inmatningsfel, ljudDatum, ljudRubrik, normaliseraAdress, normaliseraMime, trimSomRegeln } from "../lib/bibliotek.js";
+import { ARKIVTAGG, arArkiverad, NALTAGG, arNalad, ADRESSFORM, BIBLIOTEKTYPER, BILDFORM, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, uppladdningAvbruten, uppladdningenAvbrytsKl, allaTaggar, arDelbar, arLjudpost, arMittBibliotek, farAndra, normaliseraTaggar, anteckningsrubrikNu, beskrivObjektbibliotek, arHtmlMime, arPlatsBibliotek, gruppForPlats, filInmatningsfel, LJUDFIL_ACCEPT, ljudfilFel, mimeUrFilnamn, filadressFel, filSort, filtreraBibliotek, inmatningsfel, ljudDatum, ljudRubrik, normaliseraAdress, normaliseraMime, trimSomRegeln } from "../lib/bibliotek.js";
 import { OpsTaggFilter, OpsTaggRad, menyPilar } from "./OpsTaggar.jsx";
 
 export { menyPilar, OpsTaggFilter as TaggFilter };
@@ -256,6 +259,40 @@ const ORD_BIBLIOTEKMARKERING = {
   stjarnFel: { sv: "Stjärnan kunde inte sparas.", en: "The star could not be saved." },
 };
 
+/**
+ * Orden för att lägga in en .md och ladda ned en anteckning (0.209.0, cllp/lifehub.app#706), på båda språken.
+ * @type {import("../lib/ord.js").Ordbok}
+ */
+export const ORD_ANTECKNINGSFIL = {
+  laddaMd: { sv: "Ladda ned som Markdown (.md)", en: "Download as Markdown (.md)" },
+  laddaPdf: { sv: "Ladda ned som PDF", en: "Download as PDF" },
+  laddaHtml: { sv: "Ladda ned som HTML", en: "Download as HTML" },
+  laddaFel: { sv: "Filen kunde inte sparas på enheten.", en: "The file could not be saved on the device." },
+  pdfRubrik: { sv: "Spara som PDF", en: "Save as PDF" },
+  pdfHjalp: { sv: "Tryck Spara som PDF och välj Spara som PDF i utskriften.", en: "Press Save as PDF and choose Save as PDF in the print dialog." },
+  stang: { sv: "Stäng", en: "Close" },
+  inlagd: { sv: "Filen är inlagd som en anteckning.", en: "The file is added as a note." },
+  bilderSomText: { sv: "Bilder som pekar på andra filer visas som text.", en: "Images that point to other files are shown as text." },
+  lankarSomText: { sv: "Länkar som pekar på andra filer visas som text.", en: "Links that point to other files are shown as text." },
+  bilderOchLankarSomText: { sv: "Bilder och länkar som pekar på andra filer visas som text.", en: "Images and links that point to other files are shown as text." },
+  forLang: {
+    sv: "Texten är för lång för en anteckning ({antal} tecken, taket är {tak}). Den ligger som fil och går att läsa men inte redigera.",
+    en: "The text is too long for a note ({antal} characters, the limit is {tak}). It is added as a file that can be read but not edited.",
+  },
+  lasFel: { sv: "Filen gick inte att läsa.", en: "The file could not be read." },
+  dubblettRubrik: { sv: "Det finns redan en anteckning", en: "A note already exists" },
+  dubblettFraga: { sv: "Det finns redan en anteckning som heter {namn}. Ersätta den, eller lägga in som ny?", en: "There is already a note called {namn}. Replace it, or add as new?" },
+  ersatt: { sv: "Ersätt", en: "Replace" },
+  somNy: { sv: "Lägg in som ny", en: "Add as new" },
+  avbryt: { sv: "Avbryt", en: "Cancel" },
+};
+
+/**
+ * Talet med mellanrum som tusentalsavgränsare, som CP skriver det ("50 000"). Ett vanligt mellanslag och inte ett hårt, så att raden går att söka i.
+ * @param {number} n
+ */
+const tusental = (n) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+
 /** Statusraden efter en arkivering (#283). */
 const arkivtips = () => `Arkiverad. Välj taggen ${ARKIVTAGG} för att se arkivet.`;
 
@@ -322,8 +359,8 @@ const arkivtips = () => `Arkiverad. Välj taggen ${ARKIVTAGG} för att se arkive
  * @param {(inmatning: { id: string }) => Promise<void> | void} [props.onAterkalla] (0.119.0) Stänger länken, för alltid. "Dra tillbaka" i dialogen (0.201.0, förut "Stäng länken"). En ny delning ger ett nytt token.
  * @param {(inmatning: { id: string, url: string, till: string }) => Promise<void | boolean> | void | boolean} [props.onMejlaLank] (0.128.0, cllp/lifehub.app#356) Skickar en delad länk med mejl, via appens mejlväg. Med den visar dialogen Dela länk fältet "Skicka till mejl" och knappen Skicka, under länkens adress (när länken är nyss skapad, eller en som lever och har en adress). `id` är delningens id och `url` hela adressen. Ramverket prövar adressen (`epostFel`: form och spärrade domäner) innan anropet och visar svaret, lyckat eller inte; ett kast eller `false` är ett fel i dialogen. Hör till `onDelaLank`. Utan den syns inget fält.
  * @param {(post: any) => Promise<import("./GithubDokumentVisning.jsx").GithubLasning>} [props.githubLasare] (0.186.0, cllp/lifehub.app#653) Läser filen en länk pekar på i gruppens GitHub-repo. En länk vars adress är `https://github.com/<ägare>/<repo>/blob/<ref>/<sökväg>` (`githubDokument`) öppnas då i ett läsläge i detaljen, efter filens sort (markdown, html, pdf, bild, text, csv; word, excel och övrigt får Ladda ned), med "Ändrad {datum} av {av}" och en länk Öppna i GitHub, i stället för att skicka personen till github.com. Svaret är `{ lage, text?, base64?, mime?, andrad?, av?, storlek? }` där `lage` är `last`, `saknas`, `obehorig`, `inte-gruppens`, `for-stor` eller `fel`; ett avvisat löfte ritas som `fel`. Ingen ny posttyp: posten är en vanlig länk. Utan den är länken som förut. Se `GithubDokumentVisning` för begränsningarna.
- * @param {(fraga: { plats: string, sokvag: string }) => Promise<import("./BibliotekRepo.jsx").RepoLasning>} [props.repoLasare] (0.205.0, cllp/lifehub.app#653 skiva 3) Läser en mapp i projektets mapp i repot, en nivå: `sokvag` är vägen INOM projektets mapp (`""` är mappen själv), och svaret är `{ lage, poster, fler }` där `lage` är `last`, `saknas`, `obehorig` eller `fel` och varje post är `{ namn, sokvag, sort: "fil" | "mapp", storlek?, url? }`. Med den får en egen plats (`plats~<grupp>~<id>`) sektionen "I repot" under listan: en mapp öppnas i sektionen (brödsmulan och Tillbaka går upp en nivå, aldrig ovanför projektets mapp), och en fil med en GitHub-adress öppnas i läsläget genom `githubLasare` (posten har då inget `id`, och `groupId` är platsen). Appen skickar den bara för ett projekts plats. Utan den ser allt ut som förut. Inget sparas och inga nya fält.
- * @param {(fil: { plats: string, sokvag: string, url: string, namn: string }) => Promise<unknown>} [props.onLaggRepoFil] (0.205.0) "Lägg i Biblioteket" på en fil i "I repot": appen skapar den vanliga länkposten. Ett kast visas vid filen med sitt meddelande. Utan den finns inget sådant val.
+ * @param {(fraga: { plats: string, sokvag: string }) => Promise<import("./BibliotekRepo.jsx").RepoLasning>} [props.repoLasare] (0.205.0, cllp/lifehub.app#653 skiva 3) Läser en mapp i projektets mapp i repot, en nivå: `sokvag` är vägen INOM projektets mapp (`""` är mappen själv), och svaret är `{ lage, poster, fler }` där `lage` är `last`, `saknas`, `obehorig` eller `fel` och varje post är `{ namn, sokvag, sort: "fil" | "mapp", storlek?, url? }`. Med den får en egen plats (`plats~<grupp>~<id>`) raden "I repot" under listan. (0.209.0, cllp/lifehub.app#706) Raden är infälld från början och repot läses först när den fälls ut; utfällningen minns per plats i webbläsaren. Innehållet är ett träd: en mapp fälls ut på plats med en pil och läses först då (aldrig ovanför projektets mapp, och indraget slutar växa efter tre nivåer), och en fil med en GitHub-adress öppnas i läsläget genom `githubLasare` (posten har då inget `id`, och `groupId` är platsen). Varje fil har ⋮ med "Lägg i Biblioteket" (`onLaggRepoFil`) och "Öppna i GitHub" (filens `url`, i en ny flik). Appen skickar den bara för ett projekts plats. Utan den ser allt ut som förut. Inget sparas och inga nya fält.
+ * @param {(fil: { plats: string, sokvag: string, url: string, namn: string }) => Promise<unknown>} [props.onLaggRepoFil] (0.205.0) "Lägg i Biblioteket" på en fil i "I repot" (0.209.0: i filens ⋮): appen skapar den vanliga länkposten. Ett kast visas vid filen med sitt meddelande. Utan den finns inget sådant val.
  * @param {(url: string) => Promise<{ titel?: string, artist?: string, kalla?: string, bild?: string }>} [props.onLankInfo] (0.128.0, cllp/lifehub.app#378) Hämtar titel, artist och omslag för en musiklänk (Spotify, YouTube, Apple Music eller SoundCloud), normalt en callable som anropar `lankInfoUrOembed` på nodsidan. När en sådan adress klistras in i Ny länk (eller lämnas med fokus) anropas den EN gång per adress, och rubriken fylls i som "titel, artist" om den är tom eller fortfarande den som förra uppslaget fyllde i. Rubriken går att ändra. `bild` sparas på posten (en https-adress). `kalla` i svaret ignoreras: ramverket härleder källan ur adressen (`lankKalla`), så att den inte finns på två ställen. Faller anropet, eller ger det varken titel eller artist, står rubrikfältet tomt och orsaken i en rad under adressen: aldrig tyst. Utan den görs inget uppslag, och en vanlig länk är som förut.
  * @param {string} [props.modulId] (0.88.1) Modulens id i appen, förval "bibliotek". Står den i huvudmenyn har listan ingen tillbaka-rad.
  * @param {string} [props.hubHref] (0.83.0) Hubbens adress: tillbaka-radens mål, som `OpsModulSida`. Krävs, utom med `inbaddad` (0.121.0).
@@ -493,6 +530,11 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
   // Poster som flyttas eller kopieras just nu, ur menyn. Deras flyttval visas inte förrän svaret kommit.
   const [flyttar, setFlyttar] = useState(/** @type {string[]} */ ([]));
   const [status, setStatus] = useState("");
+  // (0.209.0, #706) Anteckningen vars PDF-ruta är öppen, och beskedet efter att en .md lagts in. Beskedet står i både listan och detaljen, eftersom appen kan öppna den nya posten direkt.
+  const [pdfFor, setPdfFor] = useState(/** @type {(import("../lib/bibliotek.js").Bibliotekspost & { id: string }) | null} */ (null));
+  const [importBesked, setImportBesked] = useState("");
+  /** @param {string} k */
+  const aord = (k) => ordet(ORD_ANTECKNINGSFIL, k, sprak);
   // ⛔ (0.187.0) Felet från en nål eller en stjärna. Egen rad som syns både i listan och i detaljen: `status` ritas bara i listan, och ett fel som försvinner i detaljen är en tyst nedsläppsväg.
   const [markerFel, setMarkerFel] = useState("");
   // ⛔ (cllp/lifehub.app#283) Tipset om arkivtaggen har gjort sitt när arkivet visas. Förut stod "Arkiverad. Välj taggen ..." kvar ovanför arkivet.
@@ -899,6 +941,13 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
     }
     const lank = lankAttKopiera(post);
     if (lank) ut.push({ id: "kopiera", etikett: "Kopiera länk", onValj: () => kopieraLank(lank) });
+    // ⛔ LADDA NED EN ANTECKNING (0.209.0, cllp/lifehub.app#706, CP: "Skippa Word just nu, men ha med de andra"): Markdown, PDF och HTML, tre rader i följd eftersom menyn inte har
+    // undermenyer. För den som får läsa posten, eftersom läsningen redan ger texten. Inte med `utanNedladdning` (gästens bibliotek när gruppen stängt av nedladdning) och inte för en tom anteckning.
+    if (post.typ === "anteckning" && trimSomRegeln(post.text ?? "") !== "" && !utanNedladdning) {
+      ut.push({ id: "ladda-md", etikett: aord("laddaMd"), onValj: () => laddaNedAnteckning(post, "md") });
+      ut.push({ id: "ladda-pdf", etikett: aord("laddaPdf"), onValj: () => setPdfFor(post) });
+      ut.push({ id: "ladda-html", etikett: aord("laddaHtml"), onValj: () => laddaNedAnteckning(post, "html") });
+    }
     // ⛔ MITT BIBLIOTEK OCH GRUPPEN (0.101.0, lifehub.app#226). Beslutet: "Flytta till Mitt bibliotek / Dela med gruppen" i samma
     // meny som Byt namn. Att flytta ut ur gruppen får bara författaren: en admin som flyttade någon annans post till sitt eget
     // bibliotek hade tagit den från gruppen. Att kopiera dit får den som läser, eftersom läsningen redan ger innehållet.
@@ -962,6 +1011,23 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
     }
     if (far) ut.push({ id: "radera", etikett: "Radera", fara: true, onValj: () => fragaRadera(post.id) });
     return ut;
+  }
+
+  /**
+   * Sparar en anteckning som .md eller .html på enheten (0.209.0, #706). Filnamnet är rubriken (`anteckningFilnamn`). En .md är texten som den är, och en .html är en fristående sida
+   * (`markdownSomHtml`), sparad som `application/octet-stream` så att den aldrig ritas i appens origin (`sparaText`). Ett fel står i statusraden, aldrig tyst.
+   *
+   * @param {import("../lib/bibliotek.js").Bibliotekspost & { id: string }} post
+   * @param {"md" | "html"} som
+   */
+  function laddaNedAnteckning(post, som) {
+    const text = post.text ?? "";
+    try {
+      if (som === "md") sparaText({ text, typ: "text/markdown;charset=utf-8", namn: anteckningFilnamn(post.rubrik, "md") });
+      else sparaText({ text: markdownSomHtml(text, { titel: post.rubrik, sprak }), typ: "application/octet-stream", namn: anteckningFilnamn(post.rubrik, "html") });
+    } catch {
+      setStatus(aord("laddaFel"));
+    }
   }
 
   /**
@@ -1064,6 +1130,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
   const bytPlats = (/** @type {string} */ v) => {
     setValdaTaggar([]);
     setStatus("");
+    setImportBesked("");
     if (typeof onPlats === "function") onPlats(v);
   };
   // ⛔ MED `egnaPlatser.onNy` FINNS VÄXLAREN ÄVEN MED EN ENDA PLATS (0.155.0): annars hade en grupp utan Mitt bibliotek aldrig kunnat skapa sin första. Utan `egnaPlatser` är villkoret som förut.
@@ -1148,7 +1215,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
           })() : null} onLjus={setLjus} onSkrivUt={onSkrivUt} onSkrivUtIgen={onSkrivUtIgen} onTaBortUtskrift={onTaBortUtskrift} onAnteckningAvUtskrift={onAnteckningAvUtskrift} menyFor={menyFor} onMeta={togMeta} tillbakaEtikett={lord(inbaddad ? "filer" : "tillbaka")} poster={poster} jag={jag} onLankInfo={onLankInfo} githubLasare={githubLasare} onLaggBildIAnteckning={onLaggBildIAnteckning} bildIAnteckningAdress={bildIAnteckningAdress} bildIAnteckningFel={bildIAnteckningFel} onOppnaPost={(p) => {
             setFranLista(vald && vald.typ === "lista" ? { lista: vald.id, post: p.id } : null);
             oppnaMed(p, "las");
-          }} kommentarer={vald && !skaparTyp && kanKommenteras(vald) ? kommentarer : null} fokusKommentar={Boolean(vald) && kommenteraFor === vald?.id} />
+          }} kommentarer={vald && !skaparTyp && kanKommenteras(vald) ? kommentarer : null} fokusKommentar={Boolean(vald) && kommenteraFor === vald?.id} onBesked={setImportBesked} />
         ) : (
           <div data-bibliotek-huvud="" className="flex min-w-0 flex-col gap-3">
             {/* ⛔ SESSIONSTUDIOS HUVUD, SOM I APPEN (0.102.0, CP 2026-10-14 med skärmbilder från SessionStudios app: "Listningen
@@ -1249,13 +1316,15 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
               )}
             </Tabs.Content>
             </Tabs.Root>
-            {/* ⛔ "I REPOT" (0.205.0, cllp/lifehub.app#653 skiva 3): bara med `repoLasare`, bara på en egen plats och aldrig i en inbäddad lista. Nyckeln är platsen, så att en annan plats börjar i sin egen mapp. */}
+            {/* ⛔ "I REPOT" (0.205.0, cllp/lifehub.app#653 skiva 3): bara med `repoLasare`, bara på en egen plats och aldrig i en inbäddad lista. Nyckeln är platsen, så att en annan plats börjar i sin egen mapp och med sitt eget minne av utfällningen (0.209.0). */}
             {typeof repoLasare === "function" && !inbaddad && typeof plats === "string" && arPlatsBibliotek(plats) ? (
               <BibliotekRepoLat key={plats} plats={plats} lasare={repoLasare} githubLasare={githubLasare} onLagg={onLaggRepoFil} />
             ) : null}
             {status ? <p role="status">{status}</p> : null}
           </div>
         )}
+        {/* (0.209.0, #706) Beskedet efter att en .md lagts in: i listan och i detaljen, eftersom appen kan öppna den nya posten direkt. Står tills nästa import eller ett byte av plats. */}
+        {importBesked ? <p role="status" data-bibliotek-import-besked="" className="m-0 text-etikett text-ink-secondary wrap-anywhere">{importBesked}</p> : null}
         {markerFel ? <p role="alert" data-bibliotek-markerfel="">{markerFel}</p> : null}
         {ljus ? (
           <div role="dialog" aria-label="Förhandsvisning" data-bibliotek-ljus="" className="flex flex-col gap-2">
@@ -1283,6 +1352,26 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
       >
         <p>Radera posten? Den går inte att ångra.</p>
         {raderaFel ? <p role="alert">{raderaFel}</p> : null}
+      </OpsModal>
+      {/* ⛔ PDF AV EN ANTECKNING (0.209.0, #706) ÄR WEBBLÄSARENS UTSKRIFT AV DEN STATISKA SIDAN, i den avspärrade rutan (`OpsHtmlDokumentLat`, samma väg som ett HTML-dokuments "Spara som PDF").
+          Sidan ritas aldrig i appens origin, och den byggs ur texten här (`markdownSomHtml`): ingenting hämtas, och sökvägen är bara rutans nyckel. */}
+      <OpsModal
+        open={pdfFor !== null}
+        onOpenChange={(oppen) => { if (!oppen) setPdfFor(null); }}
+        title={aord("pdfRubrik")}
+        description={aord("pdfHjalp")}
+        size="lg"
+        closeLabel={aord("stang")}
+      >
+        {pdfFor ? (
+          <div data-bibliotek-anteckning-pdf={pdfFor.id} className="min-w-0">
+            <OpsHtmlDokumentLat
+              hamta={() => Promise.resolve(new Blob([markdownSomHtml(pdfFor.text ?? "", { titel: pdfFor.rubrik, sprak })], { type: "text/html" }))}
+              sokvag={`anteckning:${pdfFor.id}:${pdfFor.andrad ?? ""}`}
+              namn={pdfFor.rubrik}
+            />
+          </div>
+        ) : null}
       </OpsModal>
       <OpsModal
         open={byter !== null}
@@ -2363,10 +2452,12 @@ function FilVisning({ post, lage, kopplad, onLjus, onMeta, onRadera, hamtaFil, v
     );
   }
   // ⛔ EN TEXTFIL VISAS SOM TEXT (0.153.0, ops-framework#460 punkt 3), när appen ger ett sätt att hämta byten (`hamtaFil`). Länken står kvar under: den är utvägen när texten inte går att visa.
-  if (typeof hamtaFil === "function" && normaliseraMime(post.fil?.mime) === "text/plain" && post.fil?.sokvag) {
+  // ⛔ EN MARKDOWNFIL (0.209.0, cllp/lifehub.app#706) GÅR SAMMA VÄG och ritas som markdown: det är en .md som var för lång för en anteckning, och den läses men redigeras inte.
+  const textMime = normaliseraMime(post.fil?.mime);
+  if (typeof hamtaFil === "function" && (textMime === "text/plain" || textMime === "text/markdown") && post.fil?.sokvag) {
     return (
       <div data-bibliotek-fil="" className="flex min-w-0 flex-col gap-2">
-        <TextForhandsvisning hamta={hamtaFil} sokvag={post.fil.sokvag} namn={post.rubrik ?? namn} />
+        <TextForhandsvisning hamta={hamtaFil} sokvag={post.fil.sokvag} namn={post.rubrik ?? namn} markdown={textMime === "text/markdown"} />
         <FilMedLaddaNed adress={adress} namn={namn} hamta={hamtaFil} sokvag={post.fil?.sokvag}>
           <a href={adress} target="_blank" rel="noopener noreferrer" className="w-fit text-etikett text-accent underline underline-offset-2">
             {rad}
@@ -2418,6 +2509,7 @@ function Adress({ url }) {
  * @param {(inmatning: { id?: string, typ: string, rubrik: string, text?: string, url?: string, fil?: { sokvag: string, namn: string, mime: string, byte: number } }) => void | boolean | Promise<void | boolean>} props.onSpara Kastar den eller avvisas löftet visas felet i formuläret och läget står kvar (0.93.0). `false` betyder att det inte gick.
  * @param {(id: string) => (import("../lib/bibliotek.js").Bibliotekspost & { id: string }) | null} [props.aktuellPost] (0.207.0) Posten ur bibliotekets senaste lista, för en bild som blir klar efter att redigeringen stängts.
  * @param {(inmatning: { id?: string, rubrik: string, fil: File }) => void | Promise<void>} [props.onLaddaUpp]
+ * @param {(text: string) => void} [props.onBesked] (0.209.0, #706) Beskedet efter att en .md lagts in. Står i biblioteket, utanför formuläret, eftersom appen kan stänga formuläret när posten sparats.
  * @param {(post: { fil?: { sokvag?: string } }) => string} [props.filUrl]
  * @param {(sokvag: string) => Promise<Blob>} [props.hamtaFil] (0.153.0) Se `OpsBibliotek`.
  * @param {(post: any) => Promise<unknown>} [props.htmlVersioner] (0.158.0) Se `OpsBibliotek`.
@@ -2448,7 +2540,7 @@ function Adress({ url }) {
  * @param {(bild: { postId: string, plats: string, namn: string }) => string | Promise<string>} [props.bildIAnteckningAdress] (#696) Se `OpsBibliotek`.
  * @param {(bild: { postId: string, plats: string, namn: string }) => boolean | Promise<boolean>} [props.bildIAnteckningFel] (0.207.0) Se `OpsBibliotek`.
  */
-function Detalj({ post, skapar, startLage, onStang, onSpara, aktuellPost, onLaddaUpp, filUrl, hamtaFil, htmlVersioner, hamtaHtmlVersion, aterstallHtml, nyHtmlVersion, oppnaHtml, oppnaPdf, taggrad, markering, adressFor, onLjus, onSkrivUt, onSkrivUtIgen, onTaBortUtskrift, onAnteckningAvUtskrift, menyFor, onMeta, tillbakaEtikett, poster, jag, onLankInfo, githubLasare, onOppnaPost, kommentarer = null, fokusKommentar = false, onLaggBildIAnteckning, bildIAnteckningAdress, bildIAnteckningFel }) {
+function Detalj({ post, skapar, startLage, onStang, onSpara, aktuellPost, onLaddaUpp, filUrl, hamtaFil, htmlVersioner, hamtaHtmlVersion, aterstallHtml, nyHtmlVersion, oppnaHtml, oppnaPdf, taggrad, markering, adressFor, onLjus, onSkrivUt, onSkrivUtIgen, onTaBortUtskrift, onAnteckningAvUtskrift, menyFor, onMeta, tillbakaEtikett, poster, jag, onLankInfo, githubLasare, onOppnaPost, kommentarer = null, fokusKommentar = false, onLaggBildIAnteckning, bildIAnteckningAdress, bildIAnteckningFel, onBesked }) {
   const sprak = useOpsSprak();
   const typ = skapar ?? post?.typ ?? "anteckning";
   const [rubrik, setRubrik] = useState(post && !skapar ? post.rubrik : "");
@@ -2475,6 +2567,13 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, aktuellPost, onLadd
     };
   }, []);
   const [valdFil, setValdFil] = useState(/** @type {File | null} */ (null));
+  // ⛔ (0.209.0, #706) EN VALD .MD, LÄST SOM TEXT. Läses när den väljs, så att rubriken kan föreslås ur dess `# `-rubrik, och används vid Spara. `fil` är filen tolkningen hör till:
+  // byts filen gäller tolkningen inte längre. `dubblett` är frågan om en anteckning med samma rubrik redan finns på platsen.
+  const [mdFil, setMdFil] = useState(/** @type {{ fil: File, tolkad: ReturnType<typeof markdownSomAnteckning> } | null} */ (null));
+  const [dubblett, setDubblett] = useState(/** @type {{ befintlig: { id: string, rubrik: string }, rubrik: string, tolkad: ReturnType<typeof markdownSomAnteckning> } | null} */ (null));
+  const [dubblettBusy, setDubblettBusy] = useState(false);
+  // Rubriken som föreslogs ur filen. En rubrik personen skrivit själv skrivs aldrig över.
+  const mdAutoRubrik = useRef("");
   // ⛔ En bild som laddas upp i anteckningen (#696): Spara och Avbryt väntar tills den är inskriven, annars tappas den tyst (`AnteckningsText`).
   const [bildLaddar, setBildLaddar] = useState(false);
   const filFalt = useRef(/** @type {HTMLInputElement | null} */ (null));
@@ -2556,6 +2655,9 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, aktuellPost, onLadd
     nollaLank();
     setFormfel("");
     setValdFil(null);
+    setMdFil(null);
+    setDubblett(null);
+    mdAutoRubrik.current = "";
     // Nyckeln är beroendet: en ny lista med samma post ska inte tömma ett halvskrivet formulär.
   }, [nyckel]);
 
@@ -2635,6 +2737,9 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, aktuellPost, onLadd
     nollaLank();
     setFormfel("");
     setValdFil(null);
+    setMdFil(null);
+    setDubblett(null);
+    mdAutoRubrik.current = "";
   }
 
   /**
@@ -2648,8 +2753,112 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, aktuellPost, onLadd
     return egen.endsWith(tillagt) ? egen : egen + tillagt;
   }
 
+  /**
+   * Läser en vald .md som text (UTF-8) och tolkar den (`markdownSomAnteckning`). `null` när den inte gick att läsa.
+   * @param {File} fil
+   */
+  async function lasMarkdown(fil) {
+    try {
+      // ⛔ UTF-8, som CP:s .md-filer är. `blobBytes` och inte `fil.text()`: samma väg som textförhandsvisningen, och den finns också där `text()` saknas.
+      return markdownSomAnteckning({ namn: fil.name, text: new TextDecoder("utf-8").decode(await blobBytes(fil)) });
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Beskedet efter att en .md lagts in som anteckning: att den är en anteckning, och vad som visas som text (filens huvud i `lib/anteckningsfil.js`).
+   * @param {{ bilder: number, lankar: number }} t
+   */
+  function inlagdBesked(t) {
+    const o = (/** @type {string} */ k) => ordet(ORD_ANTECKNINGSFIL, k, sprak);
+    const extra = t.bilder > 0 && t.lankar > 0 ? o("bilderOchLankarSomText") : t.bilder > 0 ? o("bilderSomText") : t.lankar > 0 ? o("lankarSomText") : "";
+    return extra ? `${o("inlagd")} ${extra}` : o("inlagd");
+  }
+
+  /**
+   * Sparar den lästa .md:n som en anteckning genom `onSpara`, samma inmatning som en ny anteckning. Med `id` ersätts den befintliga.
+   * @param {ReturnType<typeof markdownSomAnteckning>} tolkad
+   * @param {string} rubrikAttSpara
+   * @param {string} [id]
+   * @returns {Promise<boolean>}
+   */
+  async function sparaSomAnteckning(tolkad, rubrikAttSpara, id) {
+    const inmatning = { typ: "anteckning", rubrik: rubrikAttSpara, text: tolkad.text, ...(id ? { id } : {}) };
+    const fel = inmatningsfel(inmatning);
+    if (fel) {
+      setFormfel(fel);
+      return false;
+    }
+    try {
+      const v = await onSpara(inmatning);
+      if (v === false) {
+        setFormfel("Posten kunde inte sparas.");
+        return false;
+      }
+    } catch (e) {
+      setFormfel(e instanceof Error && e.message ? e.message : String(e));
+      return false;
+    }
+    setFormfel("");
+    onBesked?.(inlagdBesked(tolkad));
+    return true;
+  }
+
+  /**
+   * ⛔ EN .MD BLIR EN ANTECKNING (0.209.0, cllp/lifehub.app#706, CP: "Lägg in som anteckning är bättre"). Se filens huvud i `lib/anteckningsfil.js`.
+   * En text över `MAX_BIBLIOTEKTEXT` läggs in som fil (`text/markdown`) genom `onLaddaUpp`, med typen satt här så att den inte beror på vad webbläsaren sade.
+   * Finns redan en anteckning med samma rubrik på platsen frågar vyn först, i appens egen ruta (`dubblett`), och svarar då `false` så att formuläret står kvar.
+   * @param {File} fil
+   * @returns {Promise<boolean | void>}
+   */
+  async function sparaMarkdown(fil) {
+    const tolkad = mdFil && mdFil.fil === fil ? mdFil.tolkad : await lasMarkdown(fil);
+    if (!tolkad) {
+      setFormfel(ordet(ORD_ANTECKNINGSFIL, "lasFel", sprak));
+      return false;
+    }
+    const valdRubrik = trimSomRegeln(rubrik) || tolkad.rubrik;
+    if (tolkad.forLang) {
+      if (typeof onLaddaUpp !== "function") {
+        setFormfel("Uppladdningen är inte kopplad. Filen är kvar på enheten.");
+        return false;
+      }
+      try {
+        await onLaddaUpp({ rubrik: valdRubrik, fil: new File([fil], fil.name, { type: "text/markdown" }) });
+      } catch (e) {
+        setFormfel(e instanceof Error && e.message ? e.message : String(e));
+        return false;
+      }
+      setFormfel("");
+      onBesked?.(ordet(ORD_ANTECKNINGSFIL, "forLang", sprak).replace("{antal}", tusental(tolkad.text.length)).replace("{tak}", tusental(MAX_BIBLIOTEKTEXT)));
+      return;
+    }
+    const befintlig = (poster ?? []).find((p) => p.typ === "anteckning" && trimSomRegeln(p.rubrik) === valdRubrik);
+    if (befintlig) {
+      setDubblett({ befintlig: { id: befintlig.id, rubrik: befintlig.rubrik }, rubrik: valdRubrik, tolkad });
+      return false;
+    }
+    return sparaSomAnteckning(tolkad, valdRubrik);
+  }
+
+  /** @param {"ersatt" | "ny"} val */
+  async function svaraDubblett(val) {
+    if (!dubblett || dubblettBusy) return;
+    setDubblettBusy(true);
+    await sparaSomAnteckning(dubblett.tolkad, dubblett.rubrik, val === "ersatt" ? dubblett.befintlig.id : undefined);
+    if (!livs.current) return;
+    setDubblettBusy(false);
+    // Frågan stängs vare sig det gick eller inte. Ett fel står i formuläret (`sparaSomAnteckning`), som är kvar, och Spara frågar igen.
+    setDubblett(null);
+  }
+
   /** @returns {boolean | void | Promise<void | boolean>} */
   function forsokSpara() {
+    if (typ === "fil" && skapar && valdFil && arMarkdownFilnamn(valdFil.name)) {
+      onBesked?.("");
+      return sparaMarkdown(valdFil);
+    }
     if (typ === "fil" && (valdFil || skapar)) {
       if (!valdFil) {
         setFormfel("Välj en fil.");
@@ -2800,7 +3009,10 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, aktuellPost, onLadd
                 setValdFil(null);
                 return;
               }
-              const fel = filInmatningsfel({ namn: vald.name, mime: vald.type || mimeUrFilnamn(vald.name), byte: vald.size });
+              // ⛔ EN .MD ÄR MARKDOWN OAVSETT VAD WEBBLÄSAREN SÄGER (0.209.0, #706): text/markdown, text/x-markdown eller ingenting. Bara när en ny post skapas blir den en anteckning; att byta fil på en filpost är som förut.
+              const md = Boolean(skapar) && arMarkdownFilnamn(vald.name);
+              const fel = filInmatningsfel({ namn: vald.name, mime: md ? "text/markdown" : vald.type || mimeUrFilnamn(vald.name), byte: vald.size });
+              setMdFil(null);
               if (fel) {
                 setValdFil(null);
                 setFormfel(fel);
@@ -2808,7 +3020,23 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, aktuellPost, onLadd
               }
               setFormfel("");
               setValdFil(vald);
-              if (!trimSomRegeln(rubrik)) setRubrik(vald.name.replace(/\.[^.]+$/, "") || vald.name);
+              const urNamn = vald.name.replace(/\.[^.]+$/, "") || vald.name;
+              // En tom rubrik får filnamnet, som förut. För en .md också en rubrik som bara var förra filens förslag.
+              if (!trimSomRegeln(rubrik) || (md && trimSomRegeln(rubrik) === mdAutoRubrik.current)) {
+                setRubrik(urNamn);
+                if (md) mdAutoRubrik.current = urNamn;
+              }
+              if (md) {
+                void lasMarkdown(vald).then((tolkad) => {
+                  if (!livs.current || !tolkad) return;
+                  setMdFil({ fil: vald, tolkad });
+                  const nu = trimSomRegeln(rubrikRef.current);
+                  if (!nu || nu === mdAutoRubrik.current) {
+                    setRubrik(tolkad.rubrik);
+                    mdAutoRubrik.current = tolkad.rubrik;
+                  }
+                });
+              }
             }}
           />
         </OpsField>
@@ -2863,6 +3091,23 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, aktuellPost, onLadd
         <UtskriftKontroll post={post} jag={jag} onSkrivUt={onSkrivUt} onSkrivUtIgen={onSkrivUtIgen} onTaBortUtskrift={onTaBortUtskrift} onAnteckningAvUtskrift={onAnteckningAvUtskrift} />
       ) : null}
       {lage === "las" && post && !skapar && kommentarer ? <BibliotekKommentarerLat key={post.id} post={post} kalla={kommentarer} fokus={fokusKommentar} sprak={sprak} /> : null}
+      {/* ⛔ (0.209.0, #706) FRÅGAN NÄR EN ANTECKNING MED SAMMA RUBRIK FINNS, i appens egen ruta och aldrig `confirm()`. Ersätt sparar med den befintligas id, Lägg in som ny utan. */}
+      <OpsModal
+        open={dubblett !== null}
+        onOpenChange={(oppen) => { if (!oppen && !dubblettBusy) setDubblett(null); }}
+        title={ordet(ORD_ANTECKNINGSFIL, "dubblettRubrik", sprak)}
+        size="sm"
+        closeLabel={ordet(ORD_ANTECKNINGSFIL, "stang", sprak)}
+        footer={(
+          <>
+            <OpsButton variant="secondary" onClick={() => setDubblett(null)} disabled={dubblettBusy}>{ordet(ORD_ANTECKNINGSFIL, "avbryt", sprak)}</OpsButton>
+            <OpsButton variant="secondary" onClick={() => svaraDubblett("ny")} disabled={dubblettBusy}>{ordet(ORD_ANTECKNINGSFIL, "somNy", sprak)}</OpsButton>
+            <OpsButton variant="primary" onClick={() => svaraDubblett("ersatt")} busy={dubblettBusy}>{ordet(ORD_ANTECKNINGSFIL, "ersatt", sprak)}</OpsButton>
+          </>
+        )}
+      >
+        <p data-bibliotek-dubblett="" className="m-0">{ordet(ORD_ANTECKNINGSFIL, "dubblettFraga", sprak).replace("{namn}", dubblett?.befintlig.rubrik ?? "")}</p>
+      </OpsModal>
     </div>
   );
 }

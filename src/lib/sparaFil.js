@@ -27,3 +27,29 @@ export async function sparaSomFil({ hamta, sokvag, namn, adress, doc = document,
     return false;
   }
 }
+
+/**
+ * Sparar en text som ramverket själv byggt som en fil (0.209.0, cllp/lifehub.app#706): en anteckning som .md eller .html. Samma väg som `sparaSomFil` (en objectURL i samma origin och en tillfällig länk
+ * med `download`), utan hämtning, och därför här i lib: komponenter skapar aldrig blob-adresser.
+ *
+ * ⛔ TYPEN ÄR DEN SOM GES, MEN EN HTML-SIDA FÅR ALDRIG SIN EGEN TYP. `OpsBibliotek` ger `text/markdown;charset=utf-8` för en .md, som ingen webbläsare ritar som en sida, och `application/octet-stream` för en .html,
+ * av samma skäl som `sparaSomFil` tvingar den: en blob-adress med `text/html` i appens origin hade kunnat ritas där om webbläsaren öppnade den i stället för att spara. Sidan är escapad och utan skript
+ * (`markdownSomHtml`), och typen är försvaret i djupet. En text-/html-typ här kastar.
+ *
+ * @param {{ text: string, typ: string, namn: string, doc?: any, url?: any }} arg
+ * @returns {boolean} Sant när länken skapades och trycktes.
+ */
+export function sparaText({ text, typ, namn, doc = document, url = URL }) {
+  if (/^text\/html\b/i.test(typ)) throw new Error("sparaText: en HTML-sida sparas som application/octet-stream, aldrig som text/html i appens origin.");
+  const blob = new Blob([text], { type: typ });
+  const objektAdress = url.createObjectURL(blob);
+  const a = doc.createElement("a");
+  a.href = objektAdress;
+  a.download = namn;
+  a.rel = "noopener";
+  doc.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => url.revokeObjectURL(objektAdress), 30_000);
+  return true;
+}
