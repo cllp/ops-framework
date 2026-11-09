@@ -25,13 +25,20 @@ describe("klistra in i chattens skrivfält", () => {
     expect(onBifoga).toHaveBeenCalledWith([bild], "bild");
     expect(ejStoppad).toBe(false);
   });
-  it("⛔ bild och annan fil i samma inklistring: bilderna som bild, resten som fil", () => {
+  it("⛔ bild och annan fil i samma inklistring: ETT anrop med båda, så att utkastet säger att bara en bilaga går i stället för att den ena försvinner", () => {
     const onBifoga = vi.fn();
     rita({ onBifoga });
     const bild = new File(["x"], "a.jpg", { type: "image/jpeg" });
     const pdf = new File(["x"], "b.pdf", { type: "application/pdf" });
     klistra([bild, pdf]);
-    expect(onBifoga.mock.calls).toEqual([[[bild], "bild"], [[pdf], "fil"]]);
+    expect(onBifoga.mock.calls).toEqual([[[bild, pdf], "fil"]]);
+  });
+  it("⛔ text och en bild av texten (Excel, Numbers, Word): texten vinner och ingen bilaga skapas", () => {
+    const onBifoga = vi.fn();
+    rita({ onBifoga });
+    const ejStoppad = klistra([new File(["x"], "image.png", { type: "image/png" })], "Rad 1\tRad 2");
+    expect(onBifoga).not.toHaveBeenCalled();
+    expect(ejStoppad).toBe(true);
   });
   it("text lämnas orörd till fältet", () => {
     const onBifoga = vi.fn();

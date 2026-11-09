@@ -1857,11 +1857,13 @@ export function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, sprak, 
             ? (e) => {
                 const filer = [...(e.clipboardData?.files ?? [])];
                 if (!filer.length) return;
+                // ⛔ TEXTEN VINNER. Excel, Numbers och Word lägger både texten och en bild av den i urklippet, och den som klistrar in därifrån
+                // vill ha texten. Bara ett urklipp utan text (en skärmbild, en kopierad bild) blir en bilaga.
+                if (e.clipboardData?.getData("text/plain")) return;
                 e.preventDefault();
-                const bilder = filer.filter((f) => f.type.startsWith("image/"));
-                const ovriga = filer.filter((f) => !f.type.startsWith("image/"));
-                if (bilder.length) onBifoga(bilder, "bild");
-                if (ovriga.length) onBifoga(ovriga, "fil");
+                // ⛔ ETT ANROP MED ALLA FILERNA, som plusmenyns filval: fler än en ger utkastets synliga fel (`enBilaga`), i stället för att två
+                // anrop skriver över varandra och den ena bilagan försvinner tyst.
+                onBifoga(filer, filer.every((f) => f.type.startsWith("image/")) ? "bild" : "fil");
               }
             : undefined
         }
@@ -3072,7 +3074,7 @@ export function Meddelanderader({ meddelanden, uid, namnFor: namnForProp, medlem
                 <span aria-hidden="true" className="h-px flex-1 bg-accent" />
               </div>
             ) : null}
-            <div data-meddelande={egen ? "eget" : "annans"} data-vantar={vantar ? "" : undefined} onMouseEnter={menyPa ? undefined : () => setAktivRad(m.id)} onMouseLeave={menyPa ? undefined : () => setAktivRad((a) => (a === m.id && meny?.id !== m.id ? null : a))} onFocus={menyPa ? undefined : () => setAktivRad(m.id)} className={cx("group flex gap-2", fortsattning ? "mt-px" : "mt-2", egen ? "flex-row-reverse" : "", vantar && "opacity-70")}>
+            <div data-meddelande={egen ? "eget" : "annans"} data-vantar={vantar ? "" : undefined} onMouseEnter={menyPa ? undefined : () => setAktivRad(m.id)} onMouseLeave={menyPa ? undefined : (e) => { const rad = e.currentTarget; setAktivRad((a) => (a === m.id && meny?.id !== m.id && !rad.contains(document.activeElement) ? null : a)); }} onFocus={menyPa ? undefined : () => setAktivRad(m.id)} onBlur={menyPa ? undefined : (e) => { const rad = e.currentTarget; const till = e.relatedTarget; if (till instanceof Node && rad.contains(till)) return; if (rad.matches(":hover")) return; setAktivRad((a) => (a === m.id && meny?.id !== m.id ? null : a)); }} className={cx("group flex gap-2", fortsattning ? "mt-px" : "mt-2", egen ? "flex-row-reverse" : "", vantar && "opacity-70")}>
               {!egen ? (
                 <span className="w-8 shrink-0">
                   {!fortsattning ? (

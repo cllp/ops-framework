@@ -153,4 +153,18 @@ describe("⋮ bara på meddelandet pekaren eller fokuset står på (regel 13, ta
     fireEvent.focus(rader[1]);
     expect(rader[1].querySelectorAll("[data-mer-kopior]").length).toBe(1);
   });
+
+  it("⛔ tangentbordet står på ⋮ och musen lämnar raden: ⋮ står kvar, så att fokus inte faller till sidan; när fokus lämnar raden försvinner den", async () => {
+    rita();
+    const rad = /** @type {HTMLElement} */ (document.querySelectorAll("[data-meddelande]")[0]);
+    fireEvent.mouseEnter(rad);
+    const knapp = /** @type {HTMLElement} */ (rad.querySelector("[data-mer-kopior] button"));
+    knapp.focus();
+    expect(document.activeElement).toBe(knapp);
+    fireEvent.mouseLeave(rad);
+    expect(rad.querySelectorAll("[data-mer-kopior]").length).toBe(1);
+    expect(document.activeElement).toBe(knapp);
+    fireEvent.blur(knapp, { relatedTarget: document.body });
+    expect(rad.querySelectorAll("[data-mer-kopior]").length).toBe(0);
+  });
 });
