@@ -3020,6 +3020,12 @@ export function Meddelanderader({ meddelanden, uid, namnFor: namnForProp, medlem
   const pekskarm = usePekskarm();
   const [meny, setMeny] = useState(/** @type {{ id: string, punkt: { x: number, y: number } } | null} */ (null));
   const menyPa = bredd !== "bred" || pekskarm;
+  /*
+   * ⛔ DATORNS ⋮ MED KOPIORNA RITAS BARA PÅ DET MEDDELANDE PEKAREN ELLER FOKUSET STÅR PÅ (lifehub.app#712, CI 2026-11-09). Med en ⋮ i DOM:en på varje meddelande
+   * blev det 33 element per meddelande mot taket 26 (regel 13, `check:skalyta` avsnitt 47 (6)), och chatten ritas långsammare ju fler meddelanden den har.
+   * Pekaren eller fokuset (som bubblar upp från meddelandets knappar) avgör vilket meddelande som har den. På telefon och pekskärm gäller menyn som förut.
+   */
+  const [aktivRad, setAktivRad] = useState(/** @type {string | null} */ (null));
   return (
     <>
       {meddelanden.map((m, i, alla) => {
@@ -3050,7 +3056,7 @@ export function Meddelanderader({ meddelanden, uid, namnFor: namnForProp, medlem
                 <span aria-hidden="true" className="h-px flex-1 bg-accent" />
               </div>
             ) : null}
-            <div data-meddelande={egen ? "eget" : "annans"} data-vantar={vantar ? "" : undefined} className={cx("group flex gap-2", fortsattning ? "mt-px" : "mt-2", egen ? "flex-row-reverse" : "", vantar && "opacity-70")}>
+            <div data-meddelande={egen ? "eget" : "annans"} data-vantar={vantar ? "" : undefined} onMouseEnter={menyPa ? undefined : () => setAktivRad(m.id)} onMouseLeave={menyPa ? undefined : () => setAktivRad((a) => (a === m.id && meny?.id !== m.id ? null : a))} onFocus={menyPa ? undefined : () => setAktivRad(m.id)} className={cx("group flex gap-2", fortsattning ? "mt-px" : "mt-2", egen ? "flex-row-reverse" : "", vantar && "opacity-70")}>
               {!egen ? (
                 <span className="w-8 shrink-0">
                   {!fortsattning ? (
@@ -3148,7 +3154,7 @@ export function Meddelanderader({ meddelanden, uid, namnFor: namnForProp, medlem
                   <AgentensForslag varde={/** @type {any} */ (m).forslag} sid={sid} mid={m.id} onForslag={onForslag} />
                 ) : null}
                 {reakt?.pa && !vantar ? <Reaktionschips m={m} egen={egen} reakt={reakt} texter={texter} /> : null}
-                <Meddelandemeta m={m} egen={egen} bredd={bredd} menyPa={menyPa} pekskarm={pekskarm} oppnadVid={meny?.id === m.id ? meny.punkt : null} onOppnadVid={(v) => { if (!v) setMeny(null); }} extra={extra} mer={vantar ? [] : merFor?.(m) ?? []} namn={egen ? texter.dittMeddelande : `${texter.svarPa} ${avNamnFor(namnFor, m, uid, texter.du, sprak)}`} reakt={vantar ? undefined : reakt} fasta={vantar ? null : fasta} citat={vantar ? null : citat} texter={texter} lank={meddelandeHref && !vantar ? meddelandeHref({ meddelandeId: m.id, ...(sid ? { samtalId: sid } : {}), ...(trad ? { tradId: trad } : {}) }) : null} />
+                <Meddelandemeta m={m} egen={egen} bredd={bredd} menyPa={menyPa} pekskarm={pekskarm} oppnadVid={meny?.id === m.id ? meny.punkt : null} onOppnadVid={(v) => { if (!v) setMeny(null); }} extra={extra} mer={vantar ? [] : merFor?.(m) ?? []} namn={egen ? texter.dittMeddelande : `${texter.svarPa} ${avNamnFor(namnFor, m, uid, texter.du, sprak)}`} reakt={vantar ? undefined : reakt} fasta={vantar ? null : fasta} citat={vantar ? null : citat} texter={texter} visaKopior={aktivRad === m.id} lank={meddelandeHref && !vantar ? meddelandeHref({ meddelandeId: m.id, ...(sid ? { samtalId: sid } : {}), ...(trad ? { tradId: trad } : {}) }) : null} />
               </div>
             </div>
           </div>
@@ -4173,10 +4179,10 @@ function absolutAdress(href) {
  *   mer: import("./OpsAtgardsblad.jsx").Atgard[], namn: string, reakt?: ReturnType<typeof useReaktioner>,
  *   fasta?: { pa?: boolean, ids: Set<string>, vaxla: (mid: string) => void } | null,
  *   citat?: { pa: boolean, onCitera: (m: import("../lib/samtal.js").Meddelande & { id: string }) => void } | null,
- *   lank?: string | null,
+ *   lank?: string | null, visaKopior?: boolean,
  *   texter: Required<Meddelandetexter> }} props
  */
-function Meddelandemeta({ m, egen, bredd, menyPa, pekskarm, oppnadVid, onOppnadVid, extra, mer, namn, reakt, fasta, citat, lank = null, texter: t }) {
+function Meddelandemeta({ m, egen, bredd, menyPa, pekskarm, oppnadVid, onOppnadVid, extra, mer, namn, reakt, fasta, citat, lank = null, visaKopior = false, texter: t }) {
   const losa = bredd !== "smal";
   const [kopia, setKopia] = useState(/** @type {null | "ok" | "fel" | "lank" | "lankfel"} */ (null));
   useEffect(() => {
@@ -4219,7 +4225,8 @@ function Meddelandemeta({ m, egen, bredd, menyPa, pekskarm, oppnadVid, onOppnadV
   if (menyPa && citat?.pa) poster.push({ id: "citera", etikett: t.citera, ikon: <CiteraIkon size={16} />, onValj: () => citat.onCitera(m) });
   if (menyPa && fasta) poster.push({ id: "fast", etikett: fast ? t.lossa : t.fast, ikon: <FastIkon size={16} />, onValj: () => fasta.vaxla(m.id) });
   poster.push(...kopior);
-  const merKnapp = menyPa || kopior.length > 0;
+  // ⛔ På dator bara på meddelandet pekaren eller fokuset står på (`visaKopior`, se `Meddelanderader`), och kvar medan kvittot visas.
+  const merKnapp = menyPa || (kopior.length > 0 && (visaKopior || kopia !== null));
   const reaktioner = menyPa && reakt?.pa
     ? (/** @type {() => void} */ stang) => {
         const egna = new Set((reakt.sammanfattning.get(m.id) ?? []).filter((r) => r.egen).map((r) => r.kod));

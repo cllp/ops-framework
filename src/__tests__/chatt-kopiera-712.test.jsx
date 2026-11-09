@@ -39,6 +39,8 @@ const rita = (extra = {}) => render(<Meddelanderader meddelanden={/** @type {any
 
 async function oppnaMeny(/** @type {string} */ text) {
   const rad = /** @type {HTMLElement} */ (screen.getByText(text, { selector: "[data-bubbla] *" }).closest("[data-meddelande]"));
+  // ⛔ På dator ritas ⋮ bara på meddelandet pekaren står på (taket på element per meddelande, regel 13).
+  fireEvent.mouseEnter(rad);
   fireEvent.click(within(rad).getByRole("button", { name: /Åtgärder för/ }));
   return screen.findByRole("menu");
 }
@@ -133,5 +135,22 @@ describe("gästens chatt", () => {
   it("⛔ utan meddelandeHref har gästen bara Kopiera", async () => {
     render(<OpsGastChatt meddelanden={MEDD} />);
     expect(poster(await oppnaMeny("Välkommen"))).toEqual(["Kopiera"]);
+  });
+});
+
+describe("⋮ bara på meddelandet pekaren eller fokuset står på (regel 13, taket på element per meddelande)", () => {
+  it("⛔ utan pekare finns ingen ⋮ i DOM:en, med pekaren på ett meddelande finns den bara där, och fokus ger den också", async () => {
+    rita();
+    expect(document.querySelectorAll("[data-mer-kopior]").length).toBe(0);
+    const rader = /** @type {HTMLElement[]} */ ([...document.querySelectorAll("[data-meddelande]")]);
+    expect(rader.length).toBe(2);
+    fireEvent.mouseEnter(rader[0]);
+    expect(rader[0].querySelectorAll("[data-mer-kopior]").length).toBe(1);
+    expect(rader[1].querySelectorAll("[data-mer-kopior]").length).toBe(0);
+    fireEvent.mouseLeave(rader[0]);
+    expect(document.querySelectorAll("[data-mer-kopior]").length).toBe(0);
+    // Fokus bubblar upp från meddelandets knappar (Reagera, Svara i tråd); här finns inga, så fokus går till raden själv.
+    fireEvent.focus(rader[1]);
+    expect(rader[1].querySelectorAll("[data-mer-kopior]").length).toBe(1);
   });
 });
