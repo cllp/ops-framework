@@ -126,3 +126,24 @@ describe("kvittot efter Kopiera länk följer språket", () => {
     expect(await screen.findByText("Länken är kopierad. Den gäller i 15 minuter.")).toBeTruthy();
   });
 });
+
+describe("ljud utan spelarskal (granskningen av PR 561)", () => {
+  const ljud = fil("l1", "inspelning.mp3", "audio/mpeg");
+  const spelare = () => document.querySelectorAll("[data-ljudspelare], audio").length;
+  /** @param {boolean} utanNedladdning */
+  async function oppnaLjud(utanNedladdning) {
+    const user = userEvent.setup();
+    render(<Vy post={ljud} utanNedladdning={utanNedladdning} />);
+    await user.click(screen.getByRole("button", { name: ljud.rubrik }));
+    await waitFor(() => expect(spelare()).toBeGreaterThan(0));
+  }
+  it("⛔ med nedladdning av bär detaljens spelare ingen länk med den signerade adressen", async () => {
+    await oppnaLjud(true);
+    await waitFor(() => expect(document.querySelector("audio[src]")?.getAttribute("src") ?? "").toContain("signerad.exempel"));
+    expect(lankarMedAdress().map((a) => a.outerHTML)).toEqual([]);
+  });
+  it("med nedladdning på har spelaren sin Ladda ned som förut", async () => {
+    await oppnaLjud(false);
+    await waitFor(() => expect(lankarMedAdress().length).toBeGreaterThan(0));
+  });
+});

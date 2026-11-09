@@ -2060,6 +2060,7 @@ function BibliotekKort({ post, lage, meny, svep, onOppna, onMeta, taggrad, delad
                 styrId={post.id}
                 onMeta={(inmata) => onMeta(post.id, inmata)}
                 onFel={setSpelFel}
+                utanNedladdning={!farLaddaNed}
               />
             ) : bild && lage.lage === "klar" ? (
               <img src={lage.adress} alt="" aria-hidden="true" className="size-11 object-cover" />
@@ -2471,6 +2472,7 @@ function FilVisning({ post, lage, kopplad, onLjus, onMeta, onRadera, hamtaFil, v
         peaks={post.peaks}
         styrId={id}
         onMeta={id && onMeta ? (meta) => onMeta(id, meta) : undefined}
+        utanNedladdning={!farLaddaNed}
       />
     );
   }

@@ -22,13 +22,14 @@ Chattens meddelandemeny har Kopiera och Kopiera länk (lifehub.app#712), appens 
 
 - **Gästens fildetalj med `utanNedladdning`** (#560): filnamnet är text, inte en länk med den signerade adressen, i alla fyra fallen (video, textfil, HTML utan `hamtaFil`, övriga). Med nedladdning på är det en länk som förut.
 - **Kvittot och felet för gästens Kopiera länk** följer språket, i stället för hårdkodad svenska.
+- **Bibliotekets ljudspelare utan spelarskal** respekterar `utanNedladdning`, i listan och i detaljen. Förut ritade den Ladda ned med den signerade adressen (granskningen av PR 561). Gästens grupp har ett skal, så vägen nåddes inte i appen i dag.
 - JSDoc i `handelsemodell.js` säger Kommer, Kanske eller Kommer inte.
 
 ### Prov
 
 - `chatt-kopiera-712`: 9 av 9 röda utan ändringen.
 - `chatt-flera-omnamnbara-723`: 2 av 4 röda utan ändringen. De två andra visar med avsikt att listan utan propen och agentvalet är oförändrade.
-- `gast-filnamn-560`: 12 av 13 röda utan ändringen. Det gröna är det svenska kvittot, som är oförändrat.
+- `gast-filnamn-560`: 12 av 13 röda utan ändringen. Det gröna är det svenska kvittot, som är oförändrat. Ljudet utan skal: 1 av 2 röda utan `utanNedladdning` på spelaren.
 
 ## 0.210.0
 
