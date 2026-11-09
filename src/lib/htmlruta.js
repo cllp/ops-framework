@@ -17,7 +17,7 @@ import { HTML_LANKSKRIPT, HTML_UTSKRIFTSSKRIPT } from "./htmldokument.js";
  *
  *   appen → rutan   `HTML_ZOOMMEDDELANDE`      `{ typ, skala }`. Skriptet sätter `document.documentElement.style.zoom`, bara för ett meddelande från `parent` och bara för ett tal mellan `ZOOM_MIN` och `ZOOM_MAX`.
  *   rutan → appen   `HTML_MATTMEDDELANDE`      `{ typ, innehall, synlig }`: dokumentets bredd och den synliga bredden, mätta vid zoom 1 (zoomen sätts till 1 och tillbaka i samma uppgift, så inget ritas däremellan).
- *   rutan → appen   `HTML_ZOOMSTEGMEDDELANDE`  `{ typ, delta }`: ett Ctrl- eller Cmd+hjul, bara när dokumentet har fokus (`document.hasFocus()`). Då och bara då stoppar skriptet webbläsarens egen zoom av sidan.
+ *   rutan → appen   `HTML_ZOOMSTEGMEDDELANDE`  `{ typ, delta }`: ett Ctrl- eller Cmd+hjul, bara när dokumentet har fokus (`document.hasFocus()`), eller en nypning med två fingrar. Hjulet stoppar webbläsarens zoom av sidan bara då. Nypningen stoppar den när skriptet tar gesten, och den kräver inget fokus: fingrarna är redan på dokumentet, och en telefon har inget klick före.
  *   rutan → appen   `HTML_FOKUSMEDDELANDE`     `{ typ, fokus }`: dokumentet fick eller tappade fokus. Appen ritar ramen.
  *
  * ⛔ SANDLÅDAN ÄR OFÖRÄNDRAD (`HTML_SANDBOX`). Appen tar bara emot ett meddelande vars avsändare är just den rutans fönster, och bara i en känd form (`tolkaRutmeddelande`: känd typ, tal som är ändliga och inom gränser,
@@ -26,13 +26,15 @@ import { HTML_LANKSKRIPT, HTML_UTSKRIFTSSKRIPT } from "./htmldokument.js";
  *
  * ⛔ UTAN FOKUS GÖR HJULET SOM I DAG (CP: "Bara i dokumentet om dokumentet är i fokus."): Ctrl+hjul zoomar hela appen. Nypning på en styrplatta kommer som Ctrl+hjul och följer samma regel.
  *
+ * ⛔ NYPNING PÅ TELEFONEN (CP: "På telefonen gör nypzoom samma sak.") är två fingrar i dokumentet, samma meddelande som hjulet. Skriptet lyssnar på `touchmove` med två fingrar. Safari skickar i stället `gesturechange` (`"ongesturechange" in window`), och då används bara den vägen, så samma nypning inte räknas två gånger. Ett finger rullar som förut. Har dokumentets egen kod redan tagit gesten (`defaultPrevented`) rör skriptet den inte: ett diagram som nyper själv får behålla gesten. Sandlådan är densamma.
+ *
  * ⛔ LÄGSTA ZOOMEN ÄR 10 PROCENT, INTE 25. Mätt i skalytan (avsnitt 62): rutan i detaljen är 348 px bred i en telefon på 390 px, och ett dokument på 1800 px ryms då först vid 19 procent. Med 25 procent som golv hade
  * Anpassa till bredd lämnat dokumentet för brett, och just det var felet på CP:s bild. − och + stegar i hela tiotal mellan 10 och 200 procent.
  */
 export const HTML_ZOOMMEDDELANDE = "ops-framework:zoom";
 /** Rutans mått, se ovan. */
 export const HTML_MATTMEDDELANDE = "ops-framework:matt";
-/** Ett Ctrl- eller Cmd+hjul i ett dokument med fokus, se ovan. */
+/** Ett Ctrl- eller Cmd+hjul i ett dokument med fokus, eller en nypning med två fingrar. Se ovan. */
 export const HTML_ZOOMSTEGMEDDELANDE = "ops-framework:zoomsteg";
 /** Dokumentet fick eller tappade fokus, se ovan. */
 export const HTML_FOKUSMEDDELANDE = "ops-framework:fokus";
@@ -42,8 +44,10 @@ export const ZOOM_MIN = 0.1;
 export const ZOOM_MAX = 2;
 /** Anpassa till bredd förstorar aldrig: ett smalt dokument ritas i sin egen storlek. */
 const ANPASSA_MAX = 1;
-/** Ett hjulsteg på 100 (ett hack på ett vanligt hjul) är 10 procent. Nypning ger små steg och zoomar därför mjukt. */
+/** Ett hjulsteg på 100 (ett hack på ett vanligt hjul) multiplicerar skalan med `ZOOM_STEGFAKTOR`. Samma tal i `zoomHjul` och i rutans nypning. */
 const HJULSTEG = 100;
+/** Så mycket ett helt hjulsteg förstorar. Ett steg åt andra hållet är 1 delat med det här. */
+const ZOOM_STEGFAKTOR = 1.1;
 /** Största tal som tas emot i ett mått. Ett dokument är aldrig en miljon pixlar brett, och ett större tal är inte ett mått. */
 const MAX_MATT = 1_000_000;
 
@@ -53,8 +57,9 @@ const ettTal = (/** @type {unknown} */ v) => typeof v === "number" && Number.isF
 /**
  * Skriptet för zoomen, i `srcdoc` efter utskriftens och länkarnas. Se filhuvudet ovan. `window`, `parent` och `document` är rutans; proven ger egna.
  * Måttet skickas en gång per bild (`requestAnimationFrame`), när dokumentet laddats, när rutan ändrar storlek och när dokumentets egen storlek ändras (`ResizeObserver`).
+ * Nypningen (`nyp`) räknar om en faktor mellan två fingrar, eller Safaris `scale`, till samma `delta` som hjulet: faktorn 1,1 är ett steg på `HJULSTEG` uppåt.
  */
-export const HTML_ZOOMSKRIPT = `(function(){var r=document.documentElement,t=0;function m(){t=0;var f=r.style.zoom;r.style.zoom="1";var w=r.scrollWidth,v=r.clientWidth;r.style.zoom=f;parent.postMessage({typ:${JSON.stringify(HTML_MATTMEDDELANDE)},innehall:w,synlig:v},"*");}function s(){if(t)return;t=1;(window.requestAnimationFrame||window.setTimeout)(m);}window.addEventListener("message",function(e){if(e.source!==parent)return;var d=e.data;if(d&&d.typ===${JSON.stringify(HTML_ZOOMMEDDELANDE)}&&typeof d.skala==="number"&&d.skala>=${ZOOM_MIN}&&d.skala<=${ZOOM_MAX}){var z=String(d.skala);if(r.style.zoom!==z)r.style.zoom=z;}});window.addEventListener("load",s);window.addEventListener("resize",s);if(window.ResizeObserver){var o=new window.ResizeObserver(s);o.observe(r);window.addEventListener("DOMContentLoaded",function(){if(document.body)o.observe(document.body);});}window.addEventListener("wheel",function(e){if(!(e.ctrlKey||e.metaKey)||!document.hasFocus())return;e.preventDefault();parent.postMessage({typ:${JSON.stringify(HTML_ZOOMSTEGMEDDELANDE)},delta:e.deltaY*(e.deltaMode===1?33:e.deltaMode===2?400:1)},"*");},{passive:false});window.addEventListener("focus",function(){parent.postMessage({typ:${JSON.stringify(HTML_FOKUSMEDDELANDE)},fokus:true},"*");});window.addEventListener("blur",function(){parent.postMessage({typ:${JSON.stringify(HTML_FOKUSMEDDELANDE)},fokus:false},"*");});s();})();`;
+export const HTML_ZOOMSKRIPT = `(function(){var r=document.documentElement,t=0;function m(){t=0;var f=r.style.zoom;r.style.zoom="1";var w=r.scrollWidth,v=r.clientWidth;r.style.zoom=f;parent.postMessage({typ:${JSON.stringify(HTML_MATTMEDDELANDE)},innehall:w,synlig:v},"*");}function s(){if(t)return;t=1;(window.requestAnimationFrame||window.setTimeout)(m);}function nyp(f){if(!(f>0)||f===1)return;var d=${-HJULSTEG}*Math.log(f)/Math.log(${ZOOM_STEGFAKTOR});if(d!==d)return;if(d>9000)d=9000;else if(d<-9000)d=-9000;d=Math.round(d*1000)/1000;parent.postMessage({typ:${JSON.stringify(HTML_ZOOMSTEGMEDDELANDE)},delta:d},"*");}window.addEventListener("message",function(e){if(e.source!==parent)return;var d=e.data;if(d&&d.typ===${JSON.stringify(HTML_ZOOMMEDDELANDE)}&&typeof d.skala==="number"&&d.skala>=${ZOOM_MIN}&&d.skala<=${ZOOM_MAX}){var z=String(d.skala);if(r.style.zoom!==z)r.style.zoom=z;}});window.addEventListener("load",s);window.addEventListener("resize",s);if(window.ResizeObserver){var o=new window.ResizeObserver(s);o.observe(r);window.addEventListener("DOMContentLoaded",function(){if(document.body)o.observe(document.body);});}window.addEventListener("wheel",function(e){if(!(e.ctrlKey||e.metaKey)||!document.hasFocus())return;e.preventDefault();parent.postMessage({typ:${JSON.stringify(HTML_ZOOMSTEGMEDDELANDE)},delta:e.deltaY*(e.deltaMode===1?33:e.deltaMode===2?400:1)},"*");},{passive:false});var bas=0,harG="ongesturechange" in window;function avst(e){var a=e.touches[0],b=e.touches[1];var x=a.clientX-b.clientX,y=a.clientY-b.clientY;return Math.sqrt(x*x+y*y);}if(!harG){window.addEventListener("touchstart",function(e){if(e.touches&&e.touches.length===2){var d=avst(e);bas=d>0?d:0;}},{passive:true});window.addEventListener("touchmove",function(e){if(!e.touches||e.touches.length!==2){bas=0;return;}var d=avst(e);if(!(d>0))return;if(e.defaultPrevented){bas=d;return;}e.preventDefault();if(bas)nyp(d/bas);bas=d;},{passive:false});window.addEventListener("touchend",function(e){if(!e.touches||e.touches.length<2)bas=0;},{passive:true});window.addEventListener("touchcancel",function(){bas=0;},{passive:true});}else{var gs=0;window.addEventListener("gesturestart",function(e){if(e.defaultPrevented)return;gs=e.scale||1;e.preventDefault();},{passive:false});window.addEventListener("gesturechange",function(e){var sc=e.scale||1;if(!e.defaultPrevented&&gs>0&&sc>0){e.preventDefault();nyp(sc/gs);}if(sc>0)gs=sc;},{passive:false});window.addEventListener("gestureend",function(){gs=0;});}window.addEventListener("focus",function(){parent.postMessage({typ:${JSON.stringify(HTML_FOKUSMEDDELANDE)},fokus:true},"*");});window.addEventListener("blur",function(){parent.postMessage({typ:${JSON.stringify(HTML_FOKUSMEDDELANDE)},fokus:false},"*");});s();})();`;
 
 /**
  * Ett meddelande från rutan, prövat: känd typ och värden i rätt form, annars `null`. Avsändaren prövar den som tar emot (`event.source` är rutans fönster); det här prövar innehållet.
@@ -107,13 +112,15 @@ export function zoomSteg(skala, riktning) {
 }
 
 /**
- * Skalan efter ett hjul: ett steg på `HJULSTEG` är 10 procent, uppåt (negativt `delta`) förstorar. Avrundad till hel procent, inom gränserna.
+ * Skalan efter ett hjul eller en nypning: ett steg på `HJULSTEG` multiplicerar med `ZOOM_STEGFAKTOR`, uppåt (negativt `delta`) förstorar.
+ * Avrundad till en hundradels procent, inom gränserna. Inte till hel procent: en långsam nypning skickar små steg, och hel procent slår tillbaka till samma tal varje gång så zoomen står stilla. Knappen visar ändå hela procent.
  * @param {number} skala
  * @param {number} delta
  * @returns {number}
  */
 export function zoomHjul(skala, delta) {
-  return klamp(Math.round(skala * Math.pow(1.1, -delta / HJULSTEG) * 100) / 100, ZOOM_MIN, ZOOM_MAX);
+  const nasta = skala * Math.pow(ZOOM_STEGFAKTOR, -delta / HJULSTEG);
+  return klamp(Math.round(nasta * 10000) / 10000, ZOOM_MIN, ZOOM_MAX);
 }
 
 /**

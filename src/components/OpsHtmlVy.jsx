@@ -37,7 +37,7 @@ export function OpsHtmlVy({ hamta, sokvag, namn, skapadAv, onStang, stangEtikett
   const sprak = useOpsSprak();
   const o = (/** @type {keyof typeof ORD_HTMLDOKUMENT} */ k) => ordet(ORD_HTMLDOKUMENT, k, sprak);
   const ram = useRef(/** @type {HTMLIFrameElement | null} */ (null));
-  // (0.192.0, #529) Samma zoom som i detaljen: Anpassa till bredd som förval, − och +, och Ctrl- eller Cmd+hjul när dokumentet har fokus.
+  // (0.192.0, #529) Samma zoom som i detaljen: Anpassa till bredd som förval, − och +, Ctrl- eller Cmd+hjul när dokumentet har fokus, och nypning med två fingrar.
   const zoom = useHtmlZoom();
   const lage = useHamtatHtml(hamta, sokvag);
   const html = lage.lage === "klar" ? lage.html : "";
