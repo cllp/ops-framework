@@ -15,7 +15,8 @@ import { arPdfDokument, arPdfMime, pdfVyAdress } from "../lib/pdfvisning.js";
 import { lasFilbytes } from "../data/filbytes.js";
 import { BibliotekHtmlVersionerLat } from "./BibliotekHtmlVersionerLat.jsx";
 import { OpsMarkdown } from "./OpsMarkdown.jsx";
-import { bildAdressUrBilder, medBildInsatt } from "../lib/markdown.js";
+import { medBildInsatt } from "../lib/markdown.js";
+import { useDeladeBilder } from "./useDeladeBilder.js";
 import { AnteckningsTextLat, forladdaAnteckningsbild } from "./BibliotekAnteckningsbildLat.jsx";
 import { GithubDokumentVisningLat } from "./GithubDokumentVisningLat.jsx";
 import { BibliotekRepoLat } from "./BibliotekRepoLat.jsx";
@@ -2450,11 +2451,15 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, onLaddaUpp, filUrl,
   const bildPlats = post && !skapar ? post.groupId ?? "" : "";
   // ⛔ (0.207.0, #696 skiva 2) GÄSTENS POST BÄR SINA ADRESSER. I gästens vy finns ingen `bildIAnteckningAdress`: servern ger varje anteckning
   // `bilder` (filnamn till en signerad https-adress), och då ritas bilderna ur den (`bildAdressUrBilder`). Appens prop vinner när båda finns.
+  // En adress i `bilder` som gått ut ger raden "Ladda om sidan för att se bilden.": biblioteket har ingen `onNyUrl` (`useDeladeBilder`).
   const bildKarta = post && !skapar && post.typ === "anteckning" ? /** @type {any} */ (post).bilder : undefined;
-  const bildAdress = useMemo(
-    () => (typeof bildIAnteckningAdress === "function" && bildPostId ? (/** @type {string} */ namn) => bildIAnteckningAdress({ postId: bildPostId, plats: bildPlats, namn }) : bildAdressUrBilder(bildKarta)),
-    [bildIAnteckningAdress, bildPostId, bildPlats, bildKarta],
+  const delade = useDeladeBilder(bildKarta);
+  const appensBildAdress = useMemo(
+    () => (typeof bildIAnteckningAdress === "function" && bildPostId ? (/** @type {string} */ namn) => bildIAnteckningAdress({ postId: bildPostId, plats: bildPlats, namn }) : undefined),
+    [bildIAnteckningAdress, bildPostId, bildPlats],
   );
+  const bildAdress = appensBildAdress ?? delade.bildAdress;
+  const onBildFel = appensBildAdress ? undefined : delade.onBildFel;
   // ⛔ (0.207.0) EN BILD SOM BLEV KLAR EFTER ATT RUTAN STÄNGTS skrivs in sist i den SPARADE texten (`AnteckningsText`, filens huvud i
   // `BibliotekAnteckningsbild.jsx`). Texten läses ur en ref som följer posten vid varje rendering och som den här funktionen själv flyttar fram,
   // så att två bilder som blir klara efter stängningen hamnar i samma text och inte skriver över varandra.
@@ -2634,7 +2639,7 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, onLaddaUpp, filUrl,
 
   const radera = post && !skapar ? menyFor(post, true, setLage).find((m) => m.id === "radera") : undefined;
   const innehall = typ === "anteckning" ? (
-    post?.text ? <OpsMarkdown text={post.text} dokument bildAdress={bildAdress} /> : <p className="text-etikett text-ink">Anteckningen har ingen text.</p>
+    post?.text ? <OpsMarkdown text={post.text} dokument bildAdress={bildAdress} onBildFel={onBildFel} /> : <p className="text-etikett text-ink">Anteckningen har ingen text.</p>
   ) : typ === "fil" && post ? (
     <FilVisning post={post} lage={filLage} kopplad={kopplad} onLjus={onLjus} onMeta={onMeta} onRadera={radera ? radera.onValj : undefined} hamtaFil={hamtaFil} htmlVy={htmlVyAdress(oppnaHtml, post)} pdfVy={pdfVyAdress(oppnaPdf, post)} versioner={htmlVersioner ? { lista: htmlVersioner, hamtaVersion: hamtaHtmlVersion, aterstall: aterstallHtml, nyVersion: nyHtmlVersion, kanAndra: farAndra(post, jag) } : undefined} />
   ) : typ === "lista" && post ? (

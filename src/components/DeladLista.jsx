@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { bildAdressUrBilder } from "../lib/markdown.js";
+import { useEffect, useRef, useState } from "react";
+import { useDeladeBilder } from "./useDeladeBilder.js";
 import { cx } from "../lib/cx.js";
 import { ORD_OPSDELAD } from "../lib/deladord.js";
 import { forvalda } from "../lib/ord.js";
@@ -37,7 +37,8 @@ import { TypIkon, plattKlass } from "./BibliotekPostvisning.jsx";
  * hoppar spelaren till nästa låt som finns kvar, i den gamla ordningen (`nastaKvar`), och finns ingen går den tillbaka till första låten utan att spela.
  *
  * ⛔ EN ANTECKNING I LISTAN BÄR SINA BILDER (0.207.0, cllp/lifehub.app#696 skiva 2): `bilder` är filnamnet till en signerad https-adress, som för en delad anteckning
- * (`OpsDelad`). Utan fältet står "Bilden visas inte här än.", och ett namn utan en https-adress i fältet ger "Bilden kunde inte visas.".
+ * (`OpsDelad`). Utan fältet står "Bilden visas inte här än.", och ett namn utan en https-adress i fältet ger "Bilden kunde inte visas.". En adress som gått ut ber om den nya
+ * listan med `onNyUrl`, en gång per bild (`useDeladeBilder`).
  *
  * @typedef {{ id: string, typ: string, rubrik: string, mime?: string, storlek?: number | null, langd?: number | null, peaks?: string | null, nedladdning?: boolean, url?: string, visaUrl?: string | null, text?: string, bilder?: Record<string, string> }} Listpost
  */
@@ -252,7 +253,7 @@ function Rad({ p, spelas, onValj, onNyUrl, t }) {
  */
 function Utfallbar({ post, plattan, rubrik, onNyUrl }) {
   const [oppen, setOppen] = useState(false);
-  const bildAdress = useMemo(() => bildAdressUrBilder(post.bilder), [post.bilder]);
+  const { bildAdress, onBildFel } = useDeladeBilder(post.bilder, onNyUrl);
   return (
     <li data-delad-rad={post.typ} className="min-w-0">
       <OpsDisclosure
@@ -268,7 +269,7 @@ function Utfallbar({ post, plattan, rubrik, onNyUrl }) {
         {oppen ? (
           post.typ === "anteckning" ? (
             <div data-delad-anteckning="" className="max-w-las">
-              <OpsMarkdown text={post.text ?? ""} dokument bildAdress={bildAdress} />
+              <OpsMarkdown text={post.text ?? ""} dokument bildAdress={bildAdress} onBildFel={onBildFel} />
             </div>
           ) : (
             <DeladFil delning={/** @type {import("./DeladFil.jsx").DeladFilSvar} */ (post)} onNyUrl={onNyUrl} iLista />

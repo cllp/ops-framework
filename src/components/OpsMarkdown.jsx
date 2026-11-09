@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Image as BildIkon } from "lucide-react";
 import { cx } from "../lib/cx.js";
 import { splitMarkdown } from "../lib/markdown.js";
@@ -44,6 +44,10 @@ import { useOpsSprak } from "./OpsSprak.jsx";
  * `bildAdress` (en delad sida, gästens vy, ett utdrag) står en rad med alt-texten och "Bilden visas inte här än", aldrig
  * ingenting: en bild som tyst försvinner ur en text ser ut som att den aldrig fanns (regel 5). Samma sak när adressen inte
  * gick att få eller bilden inte laddades: en rad som säger det.
+ *
+ * ⛔ EN ADRESS SOM GÅTT UT (0.207.0, #696 skiva 2). På en delad sida och i gästens vy är adressen signerad och gäller i 15 minuter, så en bild som inte laddas har nästan alltid
+ * en adress som gått ut. Med `onBildFel` frågar bilden vyn: svarar den sant hämtar vyn ett nytt svar (`onNyUrl`) med nya adresser, och raden "Hämtar bilden." står tills `bildAdress`
+ * byts; svarar den falskt står "Ladda om sidan för att se bilden." i stället för det allmänna felet, eftersom det är det som hjälper. Utan `onBildFel` är det "Bilden kunde inte visas." som förut.
  */
 
 /**
@@ -54,18 +58,26 @@ const ORD_MARKDOWN = {
   bildVisasInte: { sv: "Bilden visas inte här än.", en: "The image is not shown here yet." },
   bildHamtas: { sv: "Hämtar bilden.", en: "Loading the image." },
   bildFel: { sv: "Bilden kunde inte visas.", en: "The image could not be shown." },
+  bildLaddaOm: { sv: "Ladda om sidan för att se bilden.", en: "Reload the page to see the image." },
   bildMedAlt: { sv: "Bild: {alt}.", en: "Image: {alt}." },
 };
 
 /**
  * En bild i texten (#696). Se filens huvud.
  *
- * @param {{ alt: string, namn: string, bildAdress?: (namn: string) => string | Promise<string>, sprak: string }} props
+ * @param {{ alt: string, namn: string, bildAdress?: (namn: string) => string | Promise<string>, onBildFel?: (namn: string) => boolean | Promise<boolean>, sprak: string }} props
  */
-function MarkdownBild({ alt, namn, bildAdress, sprak }) {
+function MarkdownBild({ alt, namn, bildAdress, onBildFel, sprak }) {
   // ⛔ LÄGET BÄR NAMNET DET HÖR TILL. Effekten nollställer läget först efter att den nya texten ritats, så en annan bild på samma plats
   // hade annars ritats en gång med förra bildens adress. Ett läge för ett annat namn läses som "hämtar", redan i samma rendering.
-  const [sparat, setLage] = useState(/** @type {{ lage: "hamtar" | "klar" | "fel", url: string, namn: string }} */ ({ lage: "hamtar", url: "", namn }));
+  const [sparat, setLage] = useState(/** @type {{ lage: "hamtar" | "klar" | "fel" | "ladda-om", url: string, namn: string }} */ ({ lage: "hamtar", url: "", namn }));
+  const monterad = useRef(true);
+  useEffect(() => {
+    monterad.current = true;
+    return () => {
+      monterad.current = false;
+    };
+  }, []);
   const lage = sparat.namn === namn ? sparat : { lage: "hamtar", url: "", namn };
   useEffect(() => {
     if (typeof bildAdress !== "function") return undefined;
@@ -98,6 +110,7 @@ function MarkdownBild({ alt, namn, bildAdress, sprak }) {
   );
   if (typeof bildAdress !== "function") return rad("visas-inte", o("bildVisasInte"));
   if (lage.lage === "fel") return <span role="alert">{rad("fel", o("bildFel"))}</span>;
+  if (lage.lage === "ladda-om") return <span role="alert">{rad("ladda-om", o("bildLaddaOm"))}</span>;
   if (lage.lage === "hamtar") return <span role="status">{rad("hamtar", o("bildHamtas"))}</span>;
   return (
     <img
@@ -106,7 +119,24 @@ function MarkdownBild({ alt, namn, bildAdress, sprak }) {
       alt={alt}
       loading="lazy"
       decoding="async"
-      onError={() => setLage({ lage: "fel", url: "", namn })}
+      onError={() => {
+        if (typeof onBildFel !== "function") {
+          setLage({ lage: "fel", url: "", namn });
+          return;
+        }
+        // Medan vyn hämtar ett nytt svar står "Hämtar bilden.". En ny `bildAdress` startar effekten om, med den nya adressen.
+        setLage({ lage: "hamtar", url: "", namn });
+        const nej = () => {
+          if (monterad.current) setLage({ lage: "ladda-om", url: "", namn });
+        };
+        try {
+          Promise.resolve(onBildFel(namn)).then((ok) => {
+            if (ok !== true) nej();
+          }, nej);
+        } catch {
+          nej();
+        }
+      }}
       className="block h-auto max-w-full rounded-md"
     />
   );
@@ -117,14 +147,14 @@ function MarkdownBild({ alt, namn, bildAdress, sprak }) {
  * @param {string} blockKey
  * @param {boolean} [arv] Chattens bubbla (#273): färgen ärvs. Den egna bubblan är accentfärgad, och en länk i `text-accent` eller
  *   fet text i `text-ink` hade varit osynlig eller fel ton på den.
- * @param {{ bildAdress?: (namn: string) => string | Promise<string>, sprak: string }} [bild] (#696) Var en bild hämtas, och språket för raden om den.
+ * @param {{ bildAdress?: (namn: string) => string | Promise<string>, onBildFel?: (namn: string) => boolean | Promise<boolean>, sprak: string }} [bild] (#696) Var en bild hämtas, vad som händer när den inte laddas, och språket för raden om den.
  */
 function inline(pieces, blockKey, arv = false, bild = { sprak: "sv" }) {
   return pieces.map((b, i) => {
     const k = `${blockKey}-${i}`;
     if (b.kind === "break") return <br key={k} />;
     // ⛔ Namnet ingår i nyckeln: en annan bild på samma plats är en ny bild, med eget läge, och ärver aldrig förra bildens adress.
-    if (b.kind === "image" && b.namn) return <MarkdownBild key={`${k}-${b.namn}`} alt={b.value} namn={b.namn} bildAdress={bild.bildAdress} sprak={bild.sprak} />;
+    if (b.kind === "image" && b.namn) return <MarkdownBild key={`${k}-${b.namn}`} alt={b.value} namn={b.namn} bildAdress={bild.bildAdress} onBildFel={bild.onBildFel} sprak={bild.sprak} />;
     if (b.kind === "italic") return <em key={k}>{b.value}</em>;
     if (b.kind === "link") {
       return (
@@ -190,10 +220,13 @@ const TITLE_SIZE = {
  *   ur filnamnet. Bilden ritas med alt-texten, högst sin behållares bredd och lazy-laddad. Ett avvisat löfte, en tom adress eller en bild
  *   som inte laddas ger raden "Bilden kunde inte visas." Utan propen står "Bilden visas inte här än." med alt-texten. Ingen betydelse i chatten,
  *   där bilder inte tolkas. Ge en funktion med stabil identitet: en ny funktion vid varje rendering frågar efter adressen igen.
+ * @param {(namn: string) => boolean | Promise<boolean>} [props.onBildFel] (0.207.0, #696 skiva 2) En bild med en adress laddades inte, troligen för att en signerad adress gått ut.
+ *   Sant (eller ett löfte om sant): vyn hämtar nya adresser och ger en ny `bildAdress`, och under tiden står "Hämtar bilden.". Falskt, ett avvisat löfte eller ett kast: raden
+ *   "Ladda om sidan för att se bilden.". Utan propen: "Bilden kunde inte visas." som förut. Fel för en adress som aldrig fanns (tom eller avvisad `bildAdress`) frågar aldrig.
  */
-export function OpsMarkdown({ text, chatt = false, dokument = false, bildAdress }) {
+export function OpsMarkdown({ text, chatt = false, dokument = false, bildAdress, onBildFel }) {
   const sprak = useOpsSprak();
-  const bild = { bildAdress, sprak };
+  const bild = { bildAdress, onBildFel, sprak };
   const block = splitMarkdown(text, { chatt });
   if (block.length === 0) return null;
   if (chatt) {

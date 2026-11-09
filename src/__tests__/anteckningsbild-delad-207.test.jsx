@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { OpsBibliotek } from "../components/OpsBibliotek.jsx";
 import { OpsDelad } from "../components/OpsDelad.jsx";
@@ -103,5 +104,84 @@ describe("gästens vy: en anteckning i gästens bibliotek", () => {
     render(<OpsBibliotek poster={[post]} jag={null} vald={post} onOppna={() => {}} onStang={() => {}} onSkapa={() => {}} onSpara={() => {}} hubHref="/hub" bildIAnteckningAdress={adress} />);
     expect(await bildlage()).toEqual({ lage: "bild", src: "https://appens.example/taxi.jpg", alt: "Taxi" });
     expect(adress).toHaveBeenCalledWith({ postId: "a1", plats: "g", namn: "taxi.jpg" });
+  });
+});
+
+describe("en adress som gått ut (0.207.0)", () => {
+  const NY = "https://lagring.example/signerad/taxi.jpg?token=2";
+  const img = () => /** @type {HTMLImageElement | null} */ (document.querySelector("img[data-ops-markdown-bild='klar']"));
+
+  /** Appen: `onNyUrl` hämtar länken igen och ger ett nytt svar med nya adresser. */
+  function App({ onNyUrl, svar = [{ "taxi.jpg": ADRESS }, { "taxi.jpg": NY }], text = TEXT, lista = false }) {
+    const [nr, setNr] = useState(0);
+    const bilder = svar[Math.min(nr, svar.length - 1)];
+    const hamtaIgen = onNyUrl === null ? undefined : async () => {
+      await onNyUrl();
+      setNr((n) => n + 1);
+    };
+    const anteckning = { typ: "anteckning", rubrik: "Juli", text, bilder };
+    return <OpsDelad delning={lista ? { typ: "lista", rubrik: "Resan", poster: [{ id: "a1", ...anteckning, rubrik: "Kvitton" }] } : anteckning} onNyUrl={hamtaIgen} />;
+  }
+
+  it("⛔ bilden ber om ett nytt svar med `onNyUrl` och ritas med den nya adressen; faller också den står \"Ladda om sidan för att se bilden.\", utan en andra fråga", async () => {
+    const onNyUrl = vi.fn(async () => {});
+    render(<App onNyUrl={onNyUrl} />);
+    await waitFor(() => expect(img()).toHaveAttribute("src", ADRESS));
+    fireEvent.error(/** @type {HTMLImageElement} */ (img()));
+    await waitFor(() => expect(img()).toHaveAttribute("src", NY));
+    expect(onNyUrl).toHaveBeenCalledTimes(1);
+    fireEvent.error(/** @type {HTMLImageElement} */ (img()));
+    expect(await screen.findByText("Bild: Taxi. Ladda om sidan för att se bilden.")).toBeInTheDocument();
+    expect(onNyUrl).toHaveBeenCalledTimes(1);
+  });
+
+  it("⛔ två bilder som går ut samtidigt ger EN hämtning", async () => {
+    const onNyUrl = vi.fn(async () => {});
+    const svar = [{ "a.jpg": "https://l.example/a1", "b.jpg": "https://l.example/b1" }, { "a.jpg": "https://l.example/a2", "b.jpg": "https://l.example/b2" }];
+    render(<App onNyUrl={onNyUrl} svar={svar} text={"![](a.jpg)\n\n![](b.jpg)"} />);
+    await waitFor(() => expect(document.querySelectorAll("img[data-ops-markdown-bild='klar']")).toHaveLength(2));
+    for (const el of Array.from(document.querySelectorAll("img"))) fireEvent.error(el);
+    await waitFor(() => expect(Array.from(document.querySelectorAll("img")).map((el) => el.getAttribute("src"))).toEqual(["https://l.example/a2", "https://l.example/b2"]));
+    expect(onNyUrl).toHaveBeenCalledTimes(1);
+  });
+
+  it("utan `onNyUrl`, och när hämtningen faller, står raden om att ladda om sidan", async () => {
+    const { unmount } = render(<App onNyUrl={null} />);
+    await waitFor(() => expect(img()).not.toBeNull());
+    fireEvent.error(/** @type {HTMLImageElement} */ (img()));
+    expect(await screen.findByText("Bild: Taxi. Ladda om sidan för att se bilden.")).toBeInTheDocument();
+    unmount();
+    render(<App onNyUrl={async () => { throw new Error("nätet"); }} />);
+    await waitFor(() => expect(img()).not.toBeNull());
+    fireEvent.error(/** @type {HTMLImageElement} */ (img()));
+    expect(await screen.findByText("Bild: Taxi. Ladda om sidan för att se bilden.")).toBeInTheDocument();
+  });
+
+  it("i en delad lista går frågan samma väg", async () => {
+    const onNyUrl = vi.fn(async () => {});
+    render(<App onNyUrl={onNyUrl} lista />);
+    const detaljer = /** @type {HTMLDetailsElement} */ (document.querySelector("[data-delad-rad='anteckning'] details"));
+    act(() => {
+      detaljer.open = true;
+      detaljer.dispatchEvent(new Event("toggle"));
+    });
+    await waitFor(() => expect(img()).toHaveAttribute("src", ADRESS));
+    fireEvent.error(/** @type {HTMLImageElement} */ (img()));
+    await waitFor(() => expect(img()).toHaveAttribute("src", NY));
+    expect(onNyUrl).toHaveBeenCalledTimes(1);
+  });
+
+  it("i gästens bibliotek (ingen `onNyUrl`) står raden om att ladda om, och appens egen `bildIAnteckningAdress` behåller det allmänna felet", async () => {
+    const post = { id: "a1", groupId: "g", typ: "anteckning", rubrik: "Kvitton", text: TEXT, skapadAv: { uid: "", namn: "" }, bilder: { "taxi.jpg": ADRESS } };
+    const bas = { poster: [post], jag: null, vald: post, onOppna: () => {}, onStang: () => {}, onSkapa: () => {}, onSpara: () => {}, hubHref: "/hub" };
+    const { unmount } = render(<OpsBibliotek {...bas} />);
+    await waitFor(() => expect(img()).not.toBeNull());
+    fireEvent.error(/** @type {HTMLImageElement} */ (img()));
+    expect(await screen.findByText("Bild: Taxi. Ladda om sidan för att se bilden.")).toBeInTheDocument();
+    unmount();
+    render(<OpsBibliotek {...bas} bildIAnteckningAdress={() => "https://appens.example/taxi.jpg"} />);
+    await waitFor(() => expect(img()).not.toBeNull());
+    fireEvent.error(/** @type {HTMLImageElement} */ (img()));
+    expect(await screen.findByText("Bild: Taxi. Bilden kunde inte visas.")).toBeInTheDocument();
   });
 });

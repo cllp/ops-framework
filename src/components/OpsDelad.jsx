@@ -1,6 +1,5 @@
-import { useMemo } from "react";
 import { ORD_OPSDELAD } from "../lib/deladord.js";
-import { bildAdressUrBilder } from "../lib/markdown.js";
+import { useDeladeBilder } from "./useDeladeBilder.js";
 import { forvalda } from "../lib/ord.js";
 import { DeladFel } from "./DeladFel.jsx";
 import { DeladFil } from "./DeladFil.jsx";
@@ -23,7 +22,8 @@ import { OpsMarkdown } from "./OpsMarkdown.jsx";
  * ⛔ BILDERNA I EN DELAD ANTECKNING STÅR I SVARET (0.207.0, cllp/lifehub.app#696 skiva 2). En anteckning kan bära `bilder: Record<string, string>`, bildens filnamn
  * i texten (`![alt](namn)`) till en färdig signerad https-adress som servern gett. Vyn ritar bilden med den adressen och frågar ingen om något. Ett namn som saknas i `bilder`,
  * en tom adress eller en adress som inte är https (en `javascript:`-adress till exempel) ger raden "Bilden kunde inte visas.". Utan fältet står "Bilden visas inte här än." som
- * före 0.207.0 (`bildAdressUrBilder` i `lib/markdown.js`). Samma fält på en anteckning i en delad lista (`DeladLista`).
+ * före 0.207.0 (`bildAdressUrBilder` i `lib/markdown.js`). Samma fält på en anteckning i en delad lista (`DeladLista`). En bild vars adress gått ut ber om ett nytt svar med `onNyUrl`,
+ * en gång per bild, och utan `onNyUrl` (eller om också den nya adressen faller) står "Ladda om sidan för att se bilden." (`useDeladeBilder`).
  *
  * ⛔ EN LÄNKS KNAPP FINNS BARA FÖR EN HTTP- ELLER HTTPS-ADRESS. Servern släpper bara igenom sådana, men vyn tror inte på det: en adress som blivit något annat får ingen knapp,
  * och adressen står som text så att den går att läsa av den som vill skriva av den.
@@ -95,7 +95,7 @@ export function OpsDelad({ delning = null, orsak, laddar = false, onNyUrl, onKod
     const d = /** @type {NonNullable<typeof delning>} */ (delning);
     innehall =
       d.typ === "anteckning" ? (
-        <DeladAnteckning delning={/** @type {{ rubrik: string, text: string, bilder?: Record<string, string> }} */ (d)} t={t} />
+        <DeladAnteckning delning={/** @type {{ rubrik: string, text: string, bilder?: Record<string, string> }} */ (d)} t={t} onNyUrl={onNyUrl} />
       ) : d.typ === "lank" ? (
         <DeladLank delning={/** @type {{ rubrik: string, url: string }} */ (d)} t={t} />
       ) : d.typ === "lista" ? (
@@ -110,11 +110,11 @@ export function OpsDelad({ delning = null, orsak, laddar = false, onNyUrl, onKod
 
 /**
  * En delad anteckning: rubriken och texten, som biblioteket läser den (`OpsMarkdown`, ingen HTML tolkas). Bilderna ur `delning.bilder` (0.207.0, se filens huvud).
- * @param {{ delning: { rubrik: string, text: string, bilder?: Record<string, string> }, t: Record<string, string> }} props
+ * @param {{ delning: { rubrik: string, text: string, bilder?: Record<string, string> }, t: Record<string, string>, onNyUrl?: () => void | Promise<void> }} props
  */
-function DeladAnteckning({ delning, t }) {
-  // Stabil identitet: `OpsMarkdown` frågar igen när funktionen byts. Ett nytt svar (`onNyUrl`) bär nya adresser och ger en ny funktion.
-  const bildAdress = useMemo(() => bildAdressUrBilder(delning.bilder), [delning.bilder]);
+function DeladAnteckning({ delning, t, onNyUrl }) {
+  // Stabil identitet: `OpsMarkdown` frågar igen när funktionen byts. Ett nytt svar (`onNyUrl`, också när en bild gått ut) bär nya adresser och ger en ny funktion.
+  const { bildAdress, onBildFel } = useDeladeBilder(delning.bilder, onNyUrl);
   return (
     <article data-delad="anteckning" className="flex min-w-0 w-full flex-col gap-4">
       <header className="flex min-w-0 flex-col gap-1">
@@ -122,7 +122,7 @@ function DeladAnteckning({ delning, t }) {
         <p data-delad-meta="" className="m-0 text-meta text-ink-muted">{t.anteckning}</p>
       </header>
       <div data-delad-text="" className="max-w-las">
-        {delning.text ? <OpsMarkdown text={delning.text} dokument bildAdress={bildAdress} /> : <p className="m-0 text-etikett text-ink-secondary">{t.ingenText}</p>}
+        {delning.text ? <OpsMarkdown text={delning.text} dokument bildAdress={bildAdress} onBildFel={onBildFel} /> : <p className="m-0 text-etikett text-ink-secondary">{t.ingenText}</p>}
       </div>
     </article>
   );
