@@ -15,6 +15,7 @@ import { arPdfDokument, arPdfMime, pdfVyAdress } from "../lib/pdfvisning.js";
 import { lasFilbytes } from "../data/filbytes.js";
 import { BibliotekHtmlVersionerLat } from "./BibliotekHtmlVersionerLat.jsx";
 import { OpsMarkdown } from "./OpsMarkdown.jsx";
+import { bildAdressUrBilder } from "../lib/markdown.js";
 import { AnteckningsText } from "./BibliotekAnteckningsbild.jsx";
 import { GithubDokumentVisningLat } from "./GithubDokumentVisningLat.jsx";
 import { BibliotekRepoLat } from "./BibliotekRepoLat.jsx";
@@ -365,6 +366,9 @@ const arkivtips = () => `Arkiverad. Välj taggen ${ARKIVTAGG} för att se arkive
  *   ny anteckning ger raden "Spara anteckningen först. Sedan går det att lägga till bilder." i stället för en egen post. Utan propen syns ingen knapp och en inklistring går som förut.
  * @param {(bild: { postId: string, plats: string, namn: string }) => string | Promise<string>} [props.bildIAnteckningAdress] (0.206.0, cllp/lifehub.app#696) Adressen till en bild i en
  *   anteckning, ur postens id, plats och filnamnet i texten. Används när anteckningen läses (`OpsMarkdown` med `bildAdress`). Utan den står raden "Bilden visas inte här än." där bilden står.
+ *   (0.207.0, #696 skiva 2) Utan propen läses en antecknings bilder ur postens eget fält `bilder: Record<string, string>` (filnamn till en signerad https-adress), när posten bär det:
+ *   gästens vy (`OpsGastGrupp`) ger inte propen, och servern skickar adresserna med posten. Ett namn som saknas i `bilder`, eller en adress som inte är https, ger raden
+ *   "Bilden kunde inte visas." (`bildAdressUrBilder`). Propen vinner när båda finns.
  */
 export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, trasiga: trasigaProp = [], laddar: laddarProp = false, vald = null, skapar = null, jag, onOppna, onStang, onSkapa, onSpara, onRadera, onLaddaUpp, onFyllLjud, onSpelaIn, inspelare, filUrl, hamtaAdress, hamtaFil, htmlVersioner, hamtaHtmlVersion, aterstallHtml, nyHtmlVersion, oppnaHtml, oppnaPdf, grupper = [], onDela, platser = [], plats, onPlats, onSkrivUt, onSkrivUtIgen, onTaBortUtskrift, onAnteckningAvUtskrift, onGorForslag, delningar = [], delningGruppdel, gruppnamn: gruppnamnProp, onDelaLank, onAndraNedladdning, onAterkalla, onMejlaLank, onLankInfo, githubLasare, repoLasare, onLaggRepoFil, hubHref, hubEtikett, onNavigate, modulId = "bibliotek", ram = null, activeHref, modul = null, inbaddad = false, tomText, utanHubb = false, adresserPaBegaran = false, gruppTaggar = [], egnaPlatser = null, stjarnor, onStjarna, huvudRad, utanNedladdning = false, kommentarer = null, onLaggBildIAnteckning, bildIAnteckningAdress }) {
   if (kalla !== undefined && (posterProp !== undefined || felProp !== null || laddarProp !== false || (Array.isArray(trasigaProp) && trasigaProp.length > 0))) {
@@ -2439,9 +2443,12 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, onLaddaUpp, filUrl,
   // ⛔ EN ADRESS PER POST, MED STABIL IDENTITET (#696): `OpsMarkdown` frågar igen när funktionen byts, och en ny funktion vid varje rendering hade frågat efter varje bild vid varje tangent.
   const bildPostId = post && !skapar ? post.id : "";
   const bildPlats = post && !skapar ? post.groupId ?? "" : "";
+  // ⛔ (0.207.0, #696 skiva 2) GÄSTENS POST BÄR SINA ADRESSER. I gästens vy finns ingen `bildIAnteckningAdress`: servern ger varje anteckning
+  // `bilder` (filnamn till en signerad https-adress), och då ritas bilderna ur den (`bildAdressUrBilder`). Appens prop vinner när båda finns.
+  const bildKarta = post && !skapar && post.typ === "anteckning" ? /** @type {any} */ (post).bilder : undefined;
   const bildAdress = useMemo(
-    () => (typeof bildIAnteckningAdress === "function" && bildPostId ? (/** @type {string} */ namn) => bildIAnteckningAdress({ postId: bildPostId, plats: bildPlats, namn }) : undefined),
-    [bildIAnteckningAdress, bildPostId, bildPlats],
+    () => (typeof bildIAnteckningAdress === "function" && bildPostId ? (/** @type {string} */ namn) => bildIAnteckningAdress({ postId: bildPostId, plats: bildPlats, namn }) : bildAdressUrBilder(bildKarta)),
+    [bildIAnteckningAdress, bildPostId, bildPlats, bildKarta],
   );
 
   useEffect(() => {

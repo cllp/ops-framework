@@ -90,6 +90,36 @@ export function sakertBildnamn(namn) {
   return typeof namn === "string" && /^[A-Za-z0-9._-]{1,200}$/.test(namn) && !namn.includes("..") && namn !== ".";
 }
 
+/** En adress en bild på en delad sida får ritas med: bara https, och inga mellanslag eller styrtecken. */
+const DELAD_BILDADRESS = /^https:\/\/[!-~]+$/;
+
+/**
+ * `bildAdress` för `OpsMarkdown` ur fältet `bilder` på en delad anteckning (0.207.0, cllp/lifehub.app#696 skiva 2).
+ *
+ * ⛔ AVTALET MED APPEN. På en delad sida och i gästens vy kan en anteckningspost bära `bilder: Record<string, string>`, filnamnet till en
+ * färdig signerad https-adress som servern gett. Ramverket frågar ingen om något: adressen står i datat.
+ *
+ * - Utan `bilder` (fältet saknas eller är inte ett objekt) ger funktionen `undefined`, och `OpsMarkdown` står då med raden "Bilden visas inte
+ *   här än." som före 0.207.0. Det är en server som inte skickar bilder ännu.
+ * - Med `bilder` ger ett namn som saknas, en tom adress eller en adress som inte är https den tomma adressen, och `OpsMarkdown` säger
+ *   "Bilden kunde inte visas.". ⛔ En `javascript:`-, `data:`- eller `http:`-adress ritas aldrig: vyn tror inte på att servern bara skickar
+ *   https, på samma sätt som en delad länk bara får en knapp för http och https.
+ * - Bara egna nycklar läses (`Object.hasOwn`), så att ett namn som `constructor` aldrig ger något ur objektets prototyp.
+ *
+ * Ge funktionen stabil identitet med `useMemo` på `bilder`: `OpsMarkdown` frågar igen när funktionen byts.
+ *
+ * @param {unknown} bilder
+ * @returns {((namn: string) => string) | undefined}
+ */
+export function bildAdressUrBilder(bilder) {
+  if (!bilder || typeof bilder !== "object" || Array.isArray(bilder)) return undefined;
+  const karta = /** @type {Record<string, unknown>} */ (bilder);
+  return (namn) => {
+    const url = Object.hasOwn(karta, namn) ? karta[namn] : undefined;
+    return typeof url === "string" && DELAD_BILDADRESS.test(url) ? url : "";
+  };
+}
+
 /**
  * Bildernas filnamn i en anteckning, i den ordning de står och utan dubbletter (cllp/lifehub.app#696). Samma tolkning som visningen
  * (`splitMarkdown`), så ett namn i ett kodblock eller en kodsnutt räknas inte, och ett osäkert namn räknas inte heller.

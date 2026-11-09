@@ -237,7 +237,9 @@ const tidText = (h, till) => (h.tid ? (h.slutTid ? `${h.tid} ${till} ${h.slutTid
  * ══ ⛔ VYERNA ÄR MEDLEMMENS, MED `jag: null` ══════════════════════════════════════════════════════════════════════════════
  *
  * Kalendern är en lista över det som är på gång (0.190.0, ingen månadsvy för gäster) och händelsen `OpsHandelsePanel` utan penna eller flytt, svaren `OpsSvarSummor` (summor och mitt eget svar, inga namn), biblioteket `OpsBibliotek` med `jag: null` (ingen Ny, ingen
- * redigering, ingen radering, ingen delning) och `adresserPaBegaran` (en signering per öppnad fil, aldrig en per post i listan). Chatten är medlemmens bubblor med chattens skrivfält utan bilagor, mikrofon och agent (`OpsGastChatt`): gästen får skriva (CP 2026-10-20), och
+ * redigering, ingen radering, ingen delning) och `adresserPaBegaran` (en signering per öppnad fil, aldrig en per post i listan). (0.207.0, cllp/lifehub.app#696 skiva 2) En anteckning i
+ * `bibliotek.poster` kan bära `bilder: Record<string, string>` (bildens filnamn till en signerad https-adress), och biblioteket ritar då bilderna ur den; utan fältet står
+ * "Bilden visas inte här än.", och ett namn utan en https-adress ger "Bilden kunde inte visas." (se `OpsBibliotek`, `bildIAnteckningAdress`). Chatten är medlemmens bubblor med chattens skrivfält utan bilagor, mikrofon och agent (`OpsGastChatt`): gästen får skriva (CP 2026-10-20), och
  * servern märker meddelandet Gäst.
  *
  * ══ ⛔ LISTORNA HÄMTAS PÅ BEGÄRAN, INTE PÅ EN TIDTAGARE ═══════════════════════════════════════════════════════════════════
