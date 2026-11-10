@@ -146,10 +146,13 @@ describe("WebKit: TALK med valen kör bara igenkänningen", () => {
       const dialog = /** @type {HTMLElement} */ (falt());
       expect(dialog.getAttribute("data-lage")).toBe("fel");
       expect(within(dialog).getByRole("alert").textContent).toMatch(/kunde inte skrivas ut medan du pratade/);
-      // Felet rapporteras med ingen-text och felkoden, som tidigare.
-      const rapport = rapporter(konsol, "ingen-text");
+      // ⛔ (0.213.0, cllp/lifehub.app#253) Felet rapporteras EN gång, av igenkänningen, med felkoden och omgångens fält. Förut kom också
+      // `ingen-text` direkt efter, och i appen gick den andra bara till konsolen medan felmottagaren skrev den första.
+      const rapport = rapporter(konsol, "igenkanning");
       expect(rapport).toHaveLength(1);
-      expect(rapport[0]).toMatchObject({ igenkanning: true, igenkanningFelkod: "not-allowed", igenkanningStartade: true, baraIgenkanning: true, omgang: 1 });
+      expect(rapport[0]).toMatchObject({ kod: "not-allowed", avbrot: "webblasaren", igenkanningStartade: true, baraIgenkanning: true, omgang: 1 });
+      expect(typeof rapport[0].forra).toBe("string");
+      expect(rapporter(konsol, "ingen-text")).toHaveLength(0);
       expect(t.inspelare.starta).not.toHaveBeenCalled();
       expect(t.onTalk).not.toHaveBeenCalled();
 

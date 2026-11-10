@@ -9,6 +9,23 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.213.0
+
+TALK:s andra omgång på iPhone lämnar en hel felrapport (cllp/lifehub.app#253). Inget brytande. ⛔ Appen behöver ta emot de nya fälten (`DIAGNOS` i lifehub.app `web/src/data/felrapporter.js`), annars utelämnas de.
+
+### Rättat
+
+- **Taligenkänningens rad bar bara `kod`** (cllp/lifehub.app#253). CP 2026-11-10 09.10, iPhone iOS 18.7, appen v1.0.1158: andra omgången gav "Talet kunde inte skrivas ut medan du pratade", och felkanalen fick en enda rad, "Taligenkänningen föll: aborted, kod=aborted", utan omgången, utan om igenkänningen startade och utan vem som avbröt. Mätt i koden: igenkänningen rapporterade `igenkanning` med bara `kod`, och `useTalk` skickade `ingen-text` (med omgången) direkt efter. Appens felmottagare skriver med en transaktion och returnerar löftet, och `rapporteraFel` håller mottagaren tills det avgjorts, så den andra raden gick bara till konsolen. Det är exakt radens form från telefonen.
+  - **Nu bär igenkänningens rad allt**: `avbrot` (`webblasaren` när ramverket inte begärt något stopp av just den igenkännaren, annars `egen:` och vägen: `egen:stopp`, `egen:omstartsslinga`), `igenkanningStartade`, `igenkanningStartHandelse`, `msSedanStart`, `loggIgk`, och från `useTalk` genom den nya `starta({ sammanhang })`: `omgang`, `forra`, `forraLogg`, `sekunder`, `baraIgenkanning`, `medVal` och `standalone`. `useTalk` skickar ingen andra rad när igenkänningen fallit (`igenkanningenFoll`). `ingen-text` bär också `igenkanningAvbrot`, och `diagnos()` ger `avbrot`.
+  - ⛔ **Varför `avbrot` behövs**, mätt i WebKits källkod (main, 2026-11-10): `aborted` kommer både från sidans egen `abort()` och från webbläsaren. Varje uppgift som Apples taligenkänning avslutar utan framgång blir `aborted` (`WebSpeechRecognizerTask.mm`, `didFinishSuccessfully:NO`), och en ny igenkänning på sidan ger den förra `aborted` ("Another request is started", `SpeechRecognitionServer.cpp`). Utan fältet gick de inte att skilja.
+- **Vårt eget stopp rapporterades som att webbläsaren föll.** När `stoppa` gav upp efter `IGENKANNING_VANTA_MS` anropades `abort()` medan igenkännaren fortfarande gällde, och WebKit svarar på det med `end` och sedan `aborted`. Nu räknas försöket upp före `abort()`, som i `kasta`, och ingen rad om igenkänningen skrivs. `ingen-text` med `vantan-slut` i loggen är raden.
+- **Två vägar där omgången föll utan någon rad.** CP:s försök 2026-11-10 09.40 lämnade ingen rad alls. `useTalk` rapporterar nu också när mikrofonen hölls av en annan instans (`upptagen`) och när starten avvisades (`starta`, till exempel en nekad mikrofon). ⛔ **Hypotes, inte mätt:** att 09.40 föll på någon av dem. En rad kan också ha tappats i leveransen (felmottagaren hållen av ett annat fel, takten, appens tak eller en transaktion utan nät), och det syns bara som `tappade` på nästa rad som når fram.
+
+### Prov
+
+- **`talk-andra-omgangen-rapport.test.jsx`**: skalets TALK på en modell av WebKit (ordningen för `stop`, `abort` och en misslyckad uppgift ur WebKits källkod) med en asynkron felmottagare. Två omgångar med Agent emellan, webbläsaren avbryter den andra: exakt en rad, `igenkanning`, med `omgang: 2`, `avbrot: "webblasaren"`, `igenkanningStartade: true`, `forra` och `loggIgk`; agenten fick bara första omgångens text; nästa tryck på mikrofonen ger text och Agent lämnar den. Dessutom: `stoppa` som ger upp ger ingen rad om igenkänningen, `avbrot` skiljer webbläsaren, `egen:stopp` och ett kastande `sammanhang`, och `upptagen` och `starta` rapporteras.
+- ⛔ **Modellen är inte en iPhone.** Varför telefonens andra omgång avslutades är inte mätt. Det är det `avbrot`, `msSedanStart` och `loggIgk` i nästa rad ska avgöra.
+
 ## 0.212.1
 
 Chatten rullar inte längre i sidled på telefonen (cllp/lifehub.app#734). Inget brytande.
