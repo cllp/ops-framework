@@ -31,18 +31,28 @@ export const BREDDER_SIDLED = [
 /**
  * Vyerna och hur många av varje fientligt slag som ska ha ritats i var och en. Slaget står i texten som `[sidled:<slag>]`
  * (skalyta-entry.jsx, `ChattSidledScen`). Gruppchatten och det privata samtalet sår samma uppsättning; tråden sår roten och fyra svar.
+ * Gästens chatt (`ChattSidledGastScen`, `OpsGastChatt`) sår det en gäst kan få se: text, citat, en bilaga som sägs med sitt namn, och gästens namn.
+ * Reaktionerna är tre chips (två på tabellen, ett på kodraden), och golvet är tre.
  */
 const SAMTALSGOLV = {
   url: 1, "url-eget": 1, ord: 1, "ord-eget": 1, tabell: 1, kod: 1, inlinekod: 1, omnamnande: 1, citat: 1, omrostning: 1,
-  bildbilaga: 2, filbilaga: 1, reaktioner: 2, citatrad: 1, nyttSedanSist: 1, langtNamn: 2,
+  bildbilaga: 2, filbilaga: 1, reaktioner: 3, citatrad: 1, nyttSedanSist: 1, langtNamn: 2,
 };
 const GOLV = {
-  grupp: { ...SAMTALSGOLV, tradrad: 1 },
+  grupp: { ...SAMTALSGOLV, tradrad: 1, gast: 1, gastmarke: 1 },
   // I ett privat samtal ritas ingen namnrad (`visaNamn` bara i gruppen), och avdelaren mäts i gruppchatten: läsmärket når inte det privata
   // samtalet i scenen innan det öppnas. Resten av uppsättningen är densamma.
   privat: Object.fromEntries(Object.entries(SAMTALSGOLV).filter(([k]) => k !== "langtNamn" && k !== "nyttSedanSist")),
   trad: { tradrot: 1, url: 1, kod: 1, "ord-eget": 1, tabell: 1, langtNamn: 1 },
+  gast: { url: 1, "url-eget": 1, ord: 1, "ord-eget": 1, tabell: 1, kod: 1, inlinekod: 1, citat: 1, citatrad: 1, gast: 1, gastmarke: 1, gastbilaga: 1, langtNamn: 2 },
 };
+/** Vyn, scenen och `window.__aktiv` för den. */
+const VYER = /** @type {const} */ ([
+  ["grupp", "chattsidled", "grupp"],
+  ["privat", "chattsidled", "privat"],
+  ["trad", "chattsidled", "trad"],
+  ["gast", "chattsidled-gast", null],
+]);
 
 /**
  * Mäter i sidan: räknar de fientliga slagen och letar efter allt som rullar eller sticker ut i sidled.
@@ -67,7 +77,7 @@ function matSidled(page) {
     const raknaSlag = (/** @type {string} */ slag) => bubblor.filter((b) => text(b).includes(`[sidled:${slag}]`)).length;
     const slag = {
       url: raknaSlag("url"), "url-eget": raknaSlag("url-eget"), ord: raknaSlag("ord"), "ord-eget": raknaSlag("ord-eget"), tabell: raknaSlag("tabell"),
-      kod: raknaSlag("kod"), inlinekod: raknaSlag("inlinekod"), omnamnande: raknaSlag("omnamnande"), citat: raknaSlag("citat"), tradrot: raknaSlag("tradrot"),
+      kod: raknaSlag("kod"), inlinekod: raknaSlag("inlinekod"), omnamnande: raknaSlag("omnamnande"), citat: raknaSlag("citat"), tradrot: raknaSlag("tradrot"), gast: raknaSlag("gast"),
       omrostning: [...document.querySelectorAll("[data-omrostning]")].filter((o) => text(o).includes("[sidled:omrostning]")).length,
       bildbilaga: document.querySelectorAll('[data-meddelande-bilaga="bild"] img').length,
       filbilaga: [...document.querySelectorAll('[data-meddelande-bilaga="fil"]')].filter((f) => text(f).includes("sidled-fil-")).length,
@@ -75,8 +85,19 @@ function matSidled(page) {
       citatrad: document.querySelectorAll("[data-citat]").length,
       nyttSedanSist: document.querySelectorAll("[data-nytt-sedan-sist]").length,
       tradrad: document.querySelectorAll('[data-tradmarke="finns"]').length,
-      langtNamn: [...document.querySelectorAll("[data-avsandare]")].filter((n) => /Bartholomeus|Maximiliana/.test(text(n))).length,
+      gastmarke: document.querySelectorAll("[data-gast-markning]").length,
+      gastbilaga: [...document.querySelectorAll("[data-gast-chatt-bilaga]")].filter((b) => text(b).includes("sidled-fil-")).length,
+      langtNamn: [...document.querySelectorAll("[data-avsandare]")].filter((n) => /Bartholomeus|Maximiliana|Gästföreläsaren/.test(text(n))).length,
     };
+    // (0.212.1, granskningen av PR 567) Märket "Gäst" på en rad: textens radrutor, räknade på sin överkant. Ett märke som ärver `wrap-anywhere`
+    // utan `shrink-0` bröts mitt i ordet när gästens namn var långt.
+    const gastmarken = [...document.querySelectorAll("[data-gast-markning]")].map((el) => {
+      const r = document.createRange();
+      r.selectNodeContents(el);
+      const rader = new Set([...r.getClientRects()].filter((x) => x.width > 0).map((x) => Math.round(x.top))).size;
+      const b = el.getBoundingClientRect();
+      return { rader, bredd: Math.round(b.width), hojd: Math.round(b.height), text: text(el) };
+    });
     // Rullande behållare som rullar i sidled. `overflow-x: visible` blir `auto` när `overflow-y` rullar, så den räknade stilen räcker.
     const rullar = [];
     for (const el of document.querySelectorAll("body *")) {
@@ -111,6 +132,7 @@ function matSidled(page) {
     }
     return {
       slag,
+      gastmarken,
       finnsLogg: Boolean(logg),
       loggBredd: logg ? logg.clientWidth : 0,
       loggScrollWidth: logg ? logg.scrollWidth : 0,
@@ -128,17 +150,17 @@ function matSidled(page) {
 }
 
 /**
- * Avsnitt 63: chatten i sidled, gruppchatten, ett privat samtal och en tråd, vid 390 och 375 px.
+ * Avsnitt 63: chatten i sidled, gruppchatten, ett privat samtal, en tråd och gästens chatt, vid 390 och 375 px.
  * @param {Verktyg} v
  */
 export async function chattISidled(v) {
   for (const vp of BREDDER_SIDLED) {
-    for (const vy of /** @type {const} */ (["grupp", "privat", "trad"])) {
+    for (const [vy, scen, aktiv] of VYER) {
       const namn = `63 chatten i sidled, ${vy}, ${vp.width} px`;
       /** @type {import("playwright").BrowserContext | null} */
       let context = null;
       try {
-        const o = await v.oppna("chattsidled", vp, "light", 1, vy);
+        const o = await v.oppna(scen, vp, "light", 1, aktiv);
         context = o.context;
         const page = o.page;
         // Bilderna, omröstningen och trådens märke kommer efter första ritningen: vänta in det sista som sås i vyn.
@@ -147,6 +169,7 @@ export async function chattISidled(v) {
           (vy) => {
             const t = document.body.textContent || "";
             if (vy === "trad") return t.includes("[sidled:tabell]") && t.includes("[sidled:tradrot]");
+            if (vy === "gast") return t.includes("[sidled:citat]");
             return t.includes("[sidled:omrostning]") && document.querySelectorAll('[data-meddelande-bilaga="bild"] img').length >= 2;
           },
           vy,
@@ -169,6 +192,10 @@ export async function chattISidled(v) {
         // Alla andra rullande behållare.
         const andra = m.rullar.filter((r) => !r.logg);
         v.krav(andra.length === 0, `${namn}: ${andra.length} behållare rullar i sidled: ${andra.map((r) => `${r.vem} (${r.scrollWidth}/${r.clientWidth}, overflow-x ${r.overflowX})`).join(" | ")}.`);
+        // Märket "Gäst" står på en rad, också bredvid ett långt namn (golvet ovan kräver minst ett märke där en gäst skrivit).
+        const brutna = m.gastmarken.filter((g) => g.rader !== 1);
+        v.matt.push(`${namn}: märket Gäst ${m.gastmarken.map((g) => `${g.bredd}x${g.hojd} ${g.rader} rad`).join(", ") || "(inget)"}`);
+        v.krav(brutna.length === 0, `${namn}: ${brutna.length} av ${m.gastmarken.length} märken "Gäst" bryts på flera rader: ${brutna.map((g) => `"${g.text}" ${g.bredd}x${g.hojd} px på ${g.rader} rader`).join(", ")}.`);
         // Inget element utanför loggens kanter.
         v.krav(m.antalUtanfor === 0, `${namn}: ${m.antalUtanfor} element sticker ut ur loggen. Innerst: ${m.innersta.map((u) => `${u.vem} (bredd ${u.bredd}, x ${u.vanster} till ${u.hoger})`).join(" | ")}.`);
         if (v.bildmapp) await page.screenshot({ path: path.join(v.bildmapp, `chatt-sidled-${vy}-${vp.width}.png`) });

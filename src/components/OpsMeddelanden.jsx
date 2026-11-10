@@ -3190,6 +3190,8 @@ export function Meddelanderader({ meddelanden, uid, namnFor: namnForProp, medlem
                * men räknar inte med brytningen i elementets MINSTA bredd. Kolumnen och bubblan är `fit-content` i en flexrad, så deras bredd blev det längsta ordet
                * (en länk på 526 px, en kodrad på 623), och 70-procentskolumnen svämmade över. `wrap-anywhere` (`overflow-wrap: anywhere`) räknar brytningen också i
                * minsta bredden. Den sitter här och ärvs av allt i kolumnen: bubblan, namnraden, citatet, omröstningen, bilagans namn och trådens rad.
+               * ⛔ Det som aldrig ska brytas står `shrink-0` och `whitespace-nowrap`: tiden och märket "Gäst" på namnraden (märket bröts i tre rader bredvid ett långt
+               * gästnamn, granskningen av PR 567). Det är namnet som bryts.
                */}
               <div className={cx("flex min-w-0 max-w-[70%] flex-col wrap-anywhere", egen ? "items-end" : "items-start")}>
                 {/* ⛔ ETT MEDDELANDE FRÅN EN NYCKEL BÄR ALLTID SITT MÄRKE (0.135.0): namnraden ritas även i ett privat samtal, och på ens eget meddelande. */}
@@ -3211,7 +3213,7 @@ export function Meddelanderader({ meddelanden, uid, namnFor: namnForProp, medlem
                   visaNamn || m.via ? (
                     <span data-namnrad="annans" data-avsandare="" className="mb-0.5 ml-1 flex items-center gap-1.5 text-liten text-ink-muted" data-namn-saknas={person === NAMN_SAKNAS ? "" : undefined}>
                       {avNamnFor(namnFor, m, uid, texter.du, sprak)}
-                      {arGast(m) ? <span data-gast-markning="" className="rounded-full bg-sunken px-1.5 py-px text-mikro font-medium text-ink-secondary">{texter.gast}</span> : null}
+                      {arGast(m) ? <span data-gast-markning="" className="shrink-0 whitespace-nowrap rounded-full bg-sunken px-1.5 py-px text-mikro font-medium text-ink-secondary">{texter.gast}</span> : null}
                       <span data-meddelande-tid="" className="shrink-0 tabular-nums">{formatTime(m.tid, { locale })}</span>
                     </span>
                   ) : (

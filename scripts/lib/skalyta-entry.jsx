@@ -1994,6 +1994,7 @@ const MEDLEMMAR_S = [
   { userId: "ops", namn: "Ops-agenten", typ: "agent", status: "aktiv" },
 ];
 const SIDLED_URL = `https://app.exempel.se/bibliotek/dokument/2026/oktober/styrelseprotokoll-fredag-klockan-tio-reviderad-version-tre-slutgiltig.pdf?token=${"a1b2c3d4e5f6".repeat(4)}`;
+const SIDLED_GASTNAMN = "Gästföreläsarenfrånhohenstaufenbergsklinikensforskningsavdelning";
 const SIDLED_ORD = "Styrelsemötesprotokollsjusteringsförfarandeanvisningarnasunderbilagorsförteckningsversion";
 const SIDLED_TEXTER = {
   url: (eget) => `[sidled:url${eget ? "-eget" : ""}] Protokollet: ${SIDLED_URL}`,
@@ -2050,6 +2051,9 @@ async function byggSidledkalla() {
       av: "max",
     });
     if (medTrad) {
+      // (0.212.1, granskningen av PR 567) En gäst med ett långt namn utan mellanrum: namnraden bryts, märket "Gäst" ska stå på en rad. Gästens
+      // meddelande skrivs av servern med namnet på meddelandet (`avNamn`), här förbi källan.
+      await kalla.create(`samtal/${sid}/meddelanden`, { text: SIDLED_TEXTER.ord(false).replace("[sidled:ord]", "[sidled:gast]"), av: `g_${"a1".repeat(20)}`, avNamn: SIDLED_GASTNAMN, tid: (t += 60000) });
       // Tråden: roten och svaren är också fientliga.
       const rot = await s.skicka(sid, { text: `[sidled:tradrot] ${SIDLED_URL}`, av: "bart" });
       await s.skickaITrad(sid, rot.id, { text: SIDLED_TEXTER.url(false), av: "max" });
@@ -2065,6 +2069,35 @@ async function byggSidledkalla() {
   const p = await s.oppnaPrivat({ groupId: "g1", uid: "max", annan: "anna" });
   await fyll(p.id, { medTrad: false });
   return { s, ids: { grupp: g.id, privat: p.id, trad: g.id }, rot };
+}
+/*
+ * Gästens chatt (0.212.1, granskningen av PR 567): samma `Meddelanderader` i en egen logg (`OpsGastChatt`), med samma fientliga innehåll som
+ * gästen kan få se: avsändaren är ett namn, en bilaga sägs med sitt namn, och citatet följer med meddelandet.
+ */
+function ChattSidledGastScen() {
+  if (!Ops.OpsGastChatt) return <p data-saknas="OpsGastChatt">OpsGastChatt saknas</p>;
+  let t = new Date(2026, 9, 6, 9, 0).getTime();
+  const rad = (text, namn, extra = {}) => ({ id: `s${(t += 60000)}`, av: { namn }, text, tid: t, ...extra });
+  const max = MEDLEMMAR_S[1].namn;
+  const bart = MEDLEMMAR_S[2].namn;
+  const url = rad(SIDLED_TEXTER.url(false), max);
+  const meddelanden = [
+    url,
+    rad(SIDLED_TEXTER.ord(false), bart),
+    rad(SIDLED_TEXTER.tabell(), max),
+    rad(SIDLED_TEXTER.kod(), bart),
+    rad(SIDLED_TEXTER.inlinekod(), max),
+    rad(SIDLED_TEXTER.url(true), SIDLED_GASTNAMN, { egen: true, gast: true }),
+    rad(SIDLED_TEXTER.ord(true), SIDLED_GASTNAMN, { egen: true, gast: true }),
+    rad(SIDLED_TEXTER.ord(false).replace("[sidled:ord]", "[sidled:gast]"), SIDLED_GASTNAMN, { gast: true }),
+    rad("[sidled:fil]", bart, { bilaga: { namn: sidledPdf().namn, typ: "application/pdf" } }),
+    rad(`[sidled:citat] Svar på den långa adressen ${SIDLED_ORD}`, bart, { svarPa: { id: url.id, namn: max, text: url.text } }),
+  ];
+  return (
+    <div className="flex h-dvh min-w-0 flex-col px-3">
+      <Ops.OpsGastChatt fyll meddelanden={meddelanden} onSkriv={async () => {}} gruppnamn="Claes Philip Staiger AB" />
+    </div>
+  );
 }
 let sidledkallan = null;
 function ChattSidledScen() {
@@ -3291,6 +3324,7 @@ function Scen() {
   if (s === "chattbilaga") return <ChattBilagaScen />;
   if (s === "chattinfo") return <ChattinfoScen />;
   if (s === "chattsidled") return <ChattSidledScen />;
+  if (s === "chattsidled-gast") return <ChattSidledGastScen />;
   if (s === "installning-grupper") {
     return (
       <Skal>
