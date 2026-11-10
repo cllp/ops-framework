@@ -1,5 +1,5 @@
 /**
- * Händelsemodellen: kontraktet för en händelse i en kalender, och svaren Kommer / Kommer inte (0.37.0, #179 F3).
+ * Händelsemodellen: kontraktet för en händelse i en kalender, och svaren Kommer, Kanske eller Kommer inte (0.37.0, #179 F3, Kanske sedan lifehub.app#713).
  *
  * ══ ⛔ VARFÖR DEN HÄR FILEN FINNS ═════════════════════════════════════════════
  *
@@ -50,7 +50,7 @@
  *
  * ══ ⛔ RADEN I INKORGEN RÄKNAS FRAM, DEN SKRIVS INTE ══════════════════════════
  *
- * Varje medlem ska se en rad med Kommer / Kommer inte för varje händelse som kräver svar och som hen inte svarat på.
+ * Varje medlem ska se en rad med Kommer, Kanske eller Kommer inte för varje händelse som kräver svar och som hen inte svarat på.
  * Den raden härleds ur händelserna och svaren (`svarsrader`), på samma sätt som `samtalsnotiser` härleder notiser ur
  * samtalen. En skriven inkorgspost per medlem hade krävt en server (en klient får inte skriva i någon annans namn), en
  * fan-out till varje medlem vid varje händelse, och den hade varit en andra sanning om samma obesvarade fråga: raden
