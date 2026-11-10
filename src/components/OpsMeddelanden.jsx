@@ -226,7 +226,11 @@ import { AgentIkon, AndraIkon, BockIkon, KopieraIkon, OmrostningIkon, ArkiveraIk
  * @property {string} [bilagaText] (0.77.0, #292) Förled i bildens alt-text. Förval "Bilaga från".
  * @property {string} [taBortBilaga] Förval "Ta bort bilagan".
  * @property {string} [enBilaga] När flera filer valdes. Förval "Ett meddelande bär en bilaga. Välj en fil.".
- * @property {string} [bilagaTrasig] När en lagrad bilaga saknar innehåll. Förval "Bilagan går inte att visa.".
+ * @property {string} [bilagaGarInteAttSkicka] (0.213.0) När den valda filen inte klarar prövningen. `{skal}` byts mot skälet. Förval "Bilagan går inte att skicka: {skal}".
+ * @property {string} [enBilagaRedan] (0.213.0, lifehub.app#751) När en bilaga redan väntar och en till väljs. Förval "Ett meddelande bär en bilaga. Skicka den här först, eller ta bort den och välj en annan.".
+ * @property {string} [bilagaTrasig] När en lagrad bilaga inte klarar prövningen. Förval "Bilagan går inte att visa.".
+ * @property {string} [bilagaKundeInteHamtas] (0.213.0, lifehub.app#751) När bilagan inte gick att läsa, efter omförsöken. Förval "Bilagan kunde inte hämtas.".
+ * @property {string} [forsokIgen] (0.213.0) Knappen bredvid den raden. Förval "Försök igen".
  * @property {string} [prataIn] Mikrofonen i vila. Förval "Prata in".
  * @property {string} [stoppaAgenten] Förval "Stoppa agenten".
  * @property {string} [talKlar] (0.103.0) Namnet Klar läses upp med i inspelningsytan. Förval "Klar, skicka det du sagt".
@@ -431,7 +435,11 @@ const ORD_MEDDELANDEN = {
   bilagaText: { sv: "Bilaga från", en: "Attachment from" },
   taBortBilaga: { sv: "Ta bort bilagan", en: "Remove the attachment" },
   enBilaga: { sv: "Ett meddelande bär en bilaga. Välj en fil.", en: "A message carries one attachment. Choose one file." },
+  bilagaGarInteAttSkicka: { sv: "Bilagan går inte att skicka: {skal}", en: "The attachment cannot be sent: {skal}" },
+  enBilagaRedan: { sv: "Ett meddelande bär en bilaga. Skicka den här först, eller ta bort den och välj en annan.", en: "A message carries one attachment. Send this one first, or remove it and choose another." },
   bilagaTrasig: { sv: "Bilagan går inte att visa.", en: "The attachment cannot be shown." },
+  bilagaKundeInteHamtas: { sv: "Bilagan kunde inte hämtas.", en: "The attachment could not be loaded." },
+  forsokIgen: { sv: "Försök igen", en: "Try again" },
   postkortFel: { sv: "Länken kunde inte slås upp.", en: "The link could not be looked up." },
   fast: { sv: "Fäst", en: "Pin" },
   lossa: { sv: "Lossa", en: "Unpin" },
@@ -501,9 +509,52 @@ function radtid(tid, nu, locale) {
 const forstaVersal = (t) => (t ? t.charAt(0).toLocaleUpperCase("sv") + t.slice(1) : t);
 
 /**
- * En meddelandebilaga. Märket utan `dataUrl` är det vanliga efter #300: filen hämtas då, och "trasig" sägs bara när
- * hämtningen föll eller innehållet inte klarar `kommentarbilagaFel`.
- * @param {{ m: { id: string, bilaga?: { namn?: string, typ?: string, dataUrl?: string } | null }, kalla: any, sid: string, trad?: string, alt: string, texter: { hamtarBilaga: string, bilagaTrasig: string } }} props
+ * Väntetiderna mellan försöken när en meddelandebilaga inte gick att läsa (0.213.0, cllp/lifehub.app#751). Tre försök på ungefär fyra sekunder, sedan står felet med
+ * "Försök igen". ⛔ BEDÖMNING: ett nätavbrott eller en lyssnare som kopplar upp sig igen är över på några sekunder; ett fel som står kvar efter det är inte ett glapp.
+ */
+const BILAGA_OMFORSOK_MS = [1000, 3000];
+
+/**
+ * Bilagorna som redan rapporterats som oläsbara eller ogiltiga, en gång per meddelande och sidladdning (granskningen av 0.213.0). Bubblan monteras om när man
+ * rullar, byter samtal eller öppnar Chattinfo, och en rad per montering hade dränkt felrapporterna i samma fel.
+ * @type {Set<string>}
+ */
+const RAPPORTERADE_BILAGOR = new Set();
+
+/** @param {unknown} fel @param {{ sid: string, mid: string, trad?: string } & Record<string, unknown>} sammanhang */
+function rapporteraBilagaEnGang(fel, sammanhang) {
+  const nyckel = `${sammanhang.sid}|${sammanhang.trad ?? ""}|${sammanhang.mid}`;
+  if (RAPPORTERADE_BILAGOR.has(nyckel)) return;
+  RAPPORTERADE_BILAGOR.add(nyckel);
+  rapporteraFel(fel, sammanhang);
+}
+
+/**
+ * En meddelandebilaga. Märket utan `dataUrl` är det vanliga efter #300: filen hämtas då.
+ *
+ * ══ ⛔ ETT GLAPP ÄR INTE EN TRASIG FIL (0.213.0, cllp/lifehub.app#751) ═══════════════════════════════════════════════════════════════
+ *
+ * QA 2026-11-10 09.36, live v1.0.1159 på en dator: en PNG (en skärmbild på 1280 x 800, samma sort som andra som visas fint) laddades upp utan fel, och i tråden
+ * stod "Bilagan går inte att visa." Mätt i koden: texten stod för TRE olika saker, och alla tre var för alltid.
+ *
+ *   1. Läsningen föll (`lasBilaga` kastade: nätet, "client is offline", en lyssnare som kopplade upp sig igen).
+ *   2. Filen fanns inte i svaret (`null`).
+ *   3. Filen fanns men klarade inte `kommentarbilagaFel`.
+ *
+ * Bubblan läste en gång, och effekten berodde bara på meddelandets id, så ett glapp i (1) eller (2) gjorde en giltig bild "trasig" tills sidan laddades om, utan
+ * att något felet nådde felrapporterna. Källan sparar inte ett misslyckat svar (`lasBilaga`), så nästa läsning hade gått, men ingen läste igen.
+ *
+ * ⛔ (2) KAN INTE VARA SLUTGILTIGT FÖR ETT SKRIVET MEDDELANDE. Regeln släpper bara in märket när filen finns efter samma batch (`opsMarketHarFil`), och filen
+ * raderas aldrig. Ett `null` betyder alltså att filen inte syns ÄN, och då är svaret att läsa igen.
+ *
+ * Nu: (1) och (2) läses om efter `BILAGA_OMFORSOK_MS`, och står felet kvar säger raden "Bilagan kunde inte hämtas." med "Försök igen", läser om när webbläsaren
+ * säger att nätet är tillbaka (`online`), och felet går till felrapporterna (`rapporteraFel`). Bara (3) säger "Bilagan går inte att visa.", och det felet går
+ * också till felrapporterna, med skälet.
+ *
+ * ⛔ HYPOTES, INTE MÄTT: att QA:s bild föll på (1) eller (2). Bilden finns hos QA och inte hos oss, och felet lämnade ingen rad i felrapporterna, eftersom
+ * bubblan inte rapporterade. Den som ser raden nu ser också felet i felrapporterna, med meddelandets id och vilket av de tre det var.
+ *
+ * @param {{ m: { id: string, bilaga?: { namn?: string, typ?: string, dataUrl?: string } | null }, kalla: any, sid: string, trad?: string, alt: string, texter: { hamtarBilaga: string, bilagaTrasig: string, bilagaKundeInteHamtas: string, forsokIgen: string } }} props
  */
 function VisadBilaga({ m, kalla, sid, trad, alt, texter }) {
   // ⛔ INLINE-VÄGEN (0.77.0). Ett meddelande skrivet före 0.80.0 bär hela filen. Den ritas som den är, utan en läsning, och
@@ -511,10 +562,11 @@ function VisadBilaga({ m, kalla, sid, trad, alt, texter }) {
   const inline = m.bilaga && m.bilaga.dataUrl ? m.bilaga : null;
   const harMarke = Boolean(m.bilaga);
   const harInline = Boolean(inline);
-  const [tillstand, setTillstand] = useState(/** @type {"hamtar" | "visad" | "trasig"} */ ("hamtar"));
+  const [tillstand, setTillstand] = useState(/** @type {"hamtar" | "visad" | "trasig" | "fel"} */ ("hamtar"));
   const [bilaga, setBilaga] = useState(/** @type {any} */ (null));
+  const [omgang, setOmgang] = useState(0);
   // ⛔ Beroendena är id:t och om det finns ett märke, inte märkets objekt: varje ögonblicksbild av meddelandena ger ett nytt
-  // objekt, och då hade bubblan läst filen igen för varje nytt meddelande i samtalet.
+  // objekt, och då hade bubblan läst filen igen för varje nytt meddelande i samtalet. `omgang` är Försök igen och nätet tillbaka.
   useEffect(() => {
     if (!harMarke || harInline) return undefined;
     if (!kalla || typeof kalla.lasBilaga !== "function") {
@@ -522,25 +574,56 @@ function VisadBilaga({ m, kalla, sid, trad, alt, texter }) {
       return undefined;
     }
     let kvar = true;
-    kalla.lasBilaga(sid, m.id, trad ? { trad } : undefined).then(
-      (/** @type {any} */ rad) => {
-        if (!kvar) return;
-        const b = bilagaUrDokument(rad);
-        if (!b || kommentarbilagaFel(b)) {
-          setTillstand("trasig");
-          return;
-        }
-        setBilaga(b);
-        setTillstand("visad");
-      },
-      () => {
-        if (kvar) setTillstand("trasig");
-      },
-    );
+    /** @type {ReturnType<typeof setTimeout> | null} */
+    let vantan = null;
+    setTillstand("hamtar");
+    const sammanhang = { yta: "OpsMeddelanden", steg: "bilaga", sid, mid: m.id, ...(trad ? { trad } : {}) };
+    /** @param {number} varv @param {unknown} fel @param {string} vad */
+    const igen = (varv, fel, vad) => {
+      if (varv < BILAGA_OMFORSOK_MS.length) {
+        vantan = setTimeout(() => las(varv + 1), BILAGA_OMFORSOK_MS[varv]);
+        return;
+      }
+      rapporteraBilagaEnGang(fel instanceof Error ? fel : new Error(`VisadBilaga: ${vad}`), { ...sammanhang, vad, forsok: varv + 1 });
+      setTillstand("fel");
+    };
+    /** @param {number} varv */
+    const las = (varv) => {
+      kalla.lasBilaga(sid, m.id, trad ? { trad } : undefined).then(
+        (/** @type {any} */ rad) => {
+          if (!kvar) return;
+          const b = bilagaUrDokument(rad);
+          if (!b) {
+            igen(varv, null, "filen saknas i svaret");
+            return;
+          }
+          const ogiltig = kommentarbilagaFel(b);
+          if (ogiltig) {
+            rapporteraBilagaEnGang(new Error(`VisadBilaga: ${ogiltig}`), { ...sammanhang, vad: "ogiltig" });
+            setTillstand("trasig");
+            return;
+          }
+          setBilaga(b);
+          setTillstand("visad");
+        },
+        (/** @type {unknown} */ e) => {
+          if (kvar) igen(varv, e, "läsningen föll");
+        },
+      );
+    };
+    las(0);
     return () => {
       kvar = false;
+      if (vantan) clearTimeout(vantan);
     };
-  }, [m.id, harMarke, harInline, kalla, sid, trad]);
+  }, [m.id, harMarke, harInline, kalla, sid, trad, omgang]);
+  // Nätet tillbaka: läs igen, bara när läsningen har fallit.
+  useEffect(() => {
+    if (tillstand !== "fel" || typeof window === "undefined") return undefined;
+    const tillbaka = () => setOmgang((n) => n + 1);
+    window.addEventListener("online", tillbaka);
+    return () => window.removeEventListener("online", tillbaka);
+  }, [tillstand]);
   if (!m.bilaga) return null;
   if (inline) {
     return (
@@ -552,6 +635,21 @@ function VisadBilaga({ m, kalla, sid, trad, alt, texter }) {
   }
   if (tillstand === "hamtar") {
     return <p data-meddelande-bilaga="hamtar" className="m-0 mt-1 text-meta text-ink-muted">{texter.hamtarBilaga}</p>;
+  }
+  if (tillstand === "fel") {
+    return (
+      <span data-meddelande-bilaga="fel" className="mt-1 flex flex-wrap items-center gap-2">
+        <span role="alert" className="text-meta text-danger">{texter.bilagaKundeInteHamtas}</span>
+        <button
+          type="button"
+          data-bilaga-forsok-igen=""
+          onClick={() => setOmgang((n) => n + 1)}
+          className="inline-flex min-h-11 cursor-pointer items-center rounded-md px-2 text-meta font-medium text-accent hover:bg-accent-faint focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+        >
+          {texter.forsokIgen}
+        </button>
+      </span>
+    );
   }
   if (tillstand !== "visad" || !bilaga) {
     return (
@@ -1681,6 +1779,9 @@ export const SKRIVFALT_TAK = 160;
 /** Så nära taket visas räknaren, i tecken: `RAKNARE_FRAN` ur `lib/samtal.js` (0.153.0, delad med `OpsKommentarer`). Återexporterad för proven. */
 export { RAKNARE_FRAN };
 
+/** Tecknen som inte ska ha ett mellanslag före sig efter ett valt namn (0.213.0, lifehub.app#751). */
+const SKILJETECKEN = /^[.,:;!?)\]}…]$/u;
+
 /**
  * Trådens skrivfält: en textruta och knappen Skicka. Samma i ett samtal och i läget "nytt", så att det första meddelandet
  * skrivs på samma ställe som alla andra (SS: trådens `ComposerBar`).
@@ -1779,6 +1880,13 @@ export function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, sprak, 
     setFraga(m ? { start: markor - m[2].length - 1, q: m[2] } : null);
     setAktiv(0);
   };
+  /*
+   * ⛔ MELLANSLAGET EFTER ETT VALT NAMN VIKER FÖR ETT SKILJETECKEN (0.213.0, cllp/lifehub.app#751). QA 2026-11-10: väljaren skrev "@claude-dev-ops-architect " och
+   * kolonet hamnade efter mellanslaget ("@namn :"). Mellanslaget står där för att man oftast skriver vidare med ett ord. Är nästa tecken i stället ett
+   * skiljetecken, och står det direkt efter just det mellanslaget, tas mellanslaget bort: "@namn:". Bara det mellanslag väljaren själv lade dit, och bara
+   * för nästa tecken; allt annat man skriver lämnas som det är.
+   */
+  const autoMellanslag = useRef(/** @type {number | null} */ (null));
   /** @param {{ uid: string, namn: string }} k */
   const valj = (k) => {
     if (!fraga) return;
@@ -1789,7 +1897,17 @@ export function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, sprak, 
     setText(`${fore}${insatt}${efter.replace(/^ /, "")}`);
     setFraga(null);
     const pos = fore.length + insatt.length;
+    autoMellanslag.current = pos - 1;
     requestAnimationFrame(() => ruta.current?.setSelectionRange(pos, pos));
+  };
+  /** @param {string} v @param {number} markor @returns {{ v: string, markor: number }} */
+  const utanMellanslagForeSkiljetecken = (v, markor) => {
+    const plats = autoMellanslag.current;
+    autoMellanslag.current = null;
+    if (plats === null || v.length !== text.length + 1 || markor !== plats + 2) return { v, markor };
+    const tecken = v[plats + 1];
+    if (text[plats] !== " " || !SKILJETECKEN.test(tecken) || v !== `${text.slice(0, plats + 1)}${tecken}${text.slice(plats + 1)}`) return { v, markor };
+    return { v: `${text.slice(0, plats)}${tecken}${text.slice(plats + 1)}`, markor: plats + 1 };
   };
   const skicka = () => {
     const extra = namnerI(text);
@@ -1891,8 +2009,10 @@ export function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, sprak, 
         ref={ruta}
         value={text}
         onChange={(e) => {
-          setText(e.target.value);
-          las(e.target.value, e.target.selectionStart ?? e.target.value.length);
+          const { v, markor } = utanMellanslagForeSkiljetecken(e.target.value, e.target.selectionStart ?? e.target.value.length);
+          setText(v);
+          las(v, markor);
+          if (v !== e.target.value) requestAnimationFrame(() => ruta.current?.setSelectionRange(markor, markor));
         }}
         // ⛔ KLISTRA IN EN BILD (CP 2026-11-09 i Dev: "jag kan inte klippa in en bild i chatten. Det behöver vi kunna"). En inklistring som bär FILER går samma väg som plusmenyn
         // (`onBifoga`): bilder som "bild", annat som "fil". En inklistring med bara text lämnas orörd till fältet, så att vanligt klistrande inte stjäls (samma regel som `OpsFilePicker`).
@@ -2341,21 +2461,42 @@ function useHarKamera() {
 function useBilageutkast(kalla, onBifogaProp, texter) {
   const [bilaga, setBilaga] = useState(/** @type {import("../lib/file.js").Bilaga | null} */ (null));
   const [fel, setFel] = useState(/** @type {string | null} */ (null));
+  // ⛔ En fil som läses räknas som vald redan medan den läses: två snabba val hade annars båda kommit fram och den sista vunnit.
+  const vantar = useRef(false);
   const kamera = useHarKamera();
   const med = harBilagor(kalla);
+  /*
+   * ⛔ EN BILAGA PER MEDDELANDE, OCH DET SÄGS (0.213.0, cllp/lifehub.app#751). QA 2026-11-10 på en dator: Bifoga bild en andra gång ersatte den första utan ett ord.
+   * Mätt i modellen: ett meddelande bär ETT märke `bilaga: { namn, typ }` (`byggMeddelande`, `MEDDELANDEFALT` och regelns `hasOnly`), och filen ligger i ETT
+   * dokument med meddelandets id som nyckel (`bilagenyckel`). Flera bilagor är alltså en ny datamodell: en lista på märket, en nyckel per fil, regler som binder
+   * varje fil till sitt märke, och Chattinfo som räknar dem. Det är ett eget beslut och inte en rättning. Tills dess ersätts inget tyst: ett andra val står kvar
+   * som ett besked (`enBilagaRedan`), och den första bilagan ligger kvar tills den skickas eller tas bort.
+   *
+   * ⛔ OCH DET SOM INTE KAN VISAS SÄGS VID VALET, INTE EFTER SKICKA. Filen prövas med `kommentarbilagaFel`, samma prövning som bubblan gör när den läser filen.
+   * `readAttachment` prövar typen och storleken; namnets längd och resten prövades förut först när meddelandet byggdes.
+   */
   /** @param {File[]} filer @param {"bild" | "foto" | "fil"} _slag */
   const las = async (filer, _slag) => {
     setFel(null);
+    if (bilaga || vantar.current) {
+      setFel(texter.enBilagaRedan);
+      return;
+    }
     if (filer.length !== 1) {
-      setBilaga(null);
       setFel(texter.enBilaga);
       return;
     }
+    vantar.current = true;
     try {
-      setBilaga(await readAttachment(filer[0], { maxChars: MAX_KOMMENTARBILAGA, typer: KOMMENTARBILAGA_TYPER }));
+      const b = await readAttachment(filer[0], { maxChars: MAX_KOMMENTARBILAGA, typer: KOMMENTARBILAGA_TYPER });
+      const ogiltig = kommentarbilagaFel(b);
+      if (ogiltig) throw new Error(texter.bilagaGarInteAttSkicka.replace("{skal}", ogiltig));
+      setBilaga(b);
     } catch (e) {
       setBilaga(null);
       setFel(e instanceof Error ? e.message : String(e));
+    } finally {
+      vantar.current = false;
     }
   };
   return {
@@ -2783,6 +2924,7 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik: rubrikProp, marke, lastT
           postkort={postkort}
           onForslag={onForslag}
           meddelandeHref={meddelandeHref}
+          flerOmnamnbara={flerOmnamnbara}
           uid={uid}
           namnFor={namnFor}
           medlemmar={medlemmar}
@@ -3104,13 +3246,34 @@ function sammaVia(a, b) {
  * @param {MeddelandeHref} [props.meddelandeHref] (lifehub.app#712) Adressen till ett meddelande. Med den har menyn "Kopiera länk"; utan den finns inte raden.
  * @param {ReadonlyArray<Omnamnbar>} [props.flerOmnamnbara] (lifehub.app#723) Fler som går att nämna med @, utöver de aktiva medlemmarna: appens API-agenter, vars medlemskap står som "avslutad". De läggs bara till @-listan och påverkar aldrig agentval, mottagare eller medlemslistor. Nämnandet skrivs som vanligt i `namner` (id). Utan den är listan exakt som förut.
  */
-export function Meddelanderader({ meddelanden, uid, namnFor: namnForProp, medlemmar, locale, visaNamn, efter, merFor, forraTid, reakt, omrostning, texter = TEXTER, citat, traffar, fasta, postkort, kalla, sid, trad, onVisaAgent, onForslag, nyttFran = null, meddelandeHref }) {
+export function Meddelanderader({ meddelanden, uid, namnFor: namnForProp, medlemmar, locale, visaNamn, efter, merFor, forraTid, reakt, omrostning, texter = TEXTER, citat, traffar, fasta, postkort, kalla, sid, trad, onVisaAgent, onForslag, nyttFran = null, meddelandeHref, flerOmnamnbara }) {
   const bredd = useBredd();
   // ⛔ EN GÄSTS NAMN STÅR PÅ MEDDELANDET (`avNamn`, satt av servern när gästen skriver), för gästen är ingen medlem och har ingen rad i medlemslistan. Märket "Gäst" härleds ur `av` (`arGastId`),
   // eller ur `gast: true` i gästens egen vy (där `av` är ett namn): inget annat fält, så märket kan inte saknas på ett meddelande en gäst skrev och inte sitta på en medlems.
   const gastnamn = new Map(meddelanden.filter((m) => arGastId(m.av)).map((m) => [m.av, String(/** @type {any} */ (m).avNamn ?? "").trim() || texter.gast]));
   const arGast = (/** @type {any} */ m) => arGastId(m.av) || m.gast === true;
   const namnFor = (/** @type {string} */ id) => gastnamn.get(id) ?? namnForProp(id);
+  /*
+   * ⛔ ETT OMNÄMNANDE SYNS SOM ETT OMNÄMNANDE (0.213.0, cllp/lifehub.app#751). QA 2026-11-10: "@claude-dev-ops-architect" valdes ur listan och stod sedan som
+   * ren text i bubblan, så det gick inte att se om nämningen registrerades. Mätt i koden: väljaren skrev `namner` som den skulle, men ingen vy ritade fältet.
+   * Nu får bubblans text namnen meddelandet faktiskt nämner (`namner`, som de heter nu, och appens fler att nämna), och `OpsMarkdown` markerar `@Namn` i texten.
+   * "alla" är ordet för hela gruppen. I gästens chatt är `namner` redan namn, och `namnFor` är då namnet självt.
+   */
+  const omnamnadeNamn = (/** @type {any} */ m) => {
+    const lista = Array.isArray(m?.namner) ? m.namner.filter((/** @type {unknown} */ x) => typeof x === "string" && x) : [];
+    if (lista.length === 0) return undefined;
+    // ⛔ "@alla" OCH "@everyone" OAVSETT VISNINGSSPRÅK (granskningen av 0.213.0): texten skrevs på avsändarens språk, och den som läser kan ha ett annat.
+    if (lista.includes("alla")) return [texter.allaNamn, ORD_MEDDELANDEN.allaNamn.sv, ORD_MEDDELANDEN.allaNamn.en];
+    /** @type {string[]} */
+    const ut = [];
+    for (const u of lista) {
+      const n = namnFor(u);
+      if (n && n !== NAMN_SAKNAS) ut.push(n);
+      const fler = (flerOmnamnbara ?? []).find((o) => o && o.userId === u)?.namn?.trim();
+      if (fler) ut.push(fler);
+    }
+    return ut.length ? ut : undefined;
+  };
   // ⛔ ORDET "via" FÖLJER SPRÅKET (0.135.0, lifehub.app#409): `locale` är "sv-SE" eller "en-GB", och textlagret vill ha "sv" eller "en".
   const kontextsprak = useOpsSprak();
   const sprak = typeof locale === "string" && locale ? (locale.startsWith("en") ? "en" : "sv") : kontextsprak;
@@ -3244,7 +3407,7 @@ export function Meddelanderader({ meddelanden, uid, namnFor: namnForProp, medlem
                         >
                           {/* ⛔ #273: chattens delmängd av markdown, med klickbara http- och https-länkar och ingen HTML. Färgen ärvs från
                               bubblan: den egna är accentfärgad. */}
-                          <OpsMarkdown text={visad} chatt />
+                          <OpsMarkdown text={visad} chatt omnamnanden={omnamnadeNamn(m)} />
                         </div>
                         </Langtryckbubbla>
                       ) : null}
@@ -3679,7 +3842,7 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
         ) : null}
         <div data-rotmeddelande="" className="border-b border-line pb-2">
           {rot ? (
-            <Meddelanderader meddelanden={[rot]} efter={lyftEfter} merFor={lyftMer} kalla={kalla} sid={samtal.id} uid={uid} namnFor={namnFor} medlemmar={medlemmar} locale={locale} visaNamn texter={t} onVisaAgent={onVisaAgent} meddelandeHref={meddelandeHref} />
+            <Meddelanderader meddelanden={[rot]} efter={lyftEfter} merFor={lyftMer} kalla={kalla} sid={samtal.id} uid={uid} namnFor={namnFor} medlemmar={medlemmar} locale={locale} visaNamn texter={t} onVisaAgent={onVisaAgent} meddelandeHref={meddelandeHref} flerOmnamnbara={flerOmnamnbara} />
           ) : rot === null ? (
             <p className="m-0 py-3 text-meta text-ink-muted">{t.rotSaknas}</p>
           ) : null}
@@ -3689,7 +3852,7 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
         </p>
         <VisaAldre historik={historik} texter={t} />
         <Reaktionslage reakt={reakt} texter={t} />
-        <Meddelanderader meddelanden={visade} efter={skickasEfter} merFor={lyftMer} reakt={reakt} texter={t} postkort={postkort} kalla={kalla} sid={samtal.id} trad={tid} traffar={sok.oppen ? { ids: sok.traffar, aktuell: sok.aktuell } : null} uid={uid} namnFor={namnFor} medlemmar={medlemmar} locale={locale} visaNamn forraTid={rot?.tid} onVisaAgent={onVisaAgent} meddelandeHref={meddelandeHref} />
+        <Meddelanderader meddelanden={visade} efter={skickasEfter} merFor={lyftMer} reakt={reakt} texter={t} postkort={postkort} kalla={kalla} sid={samtal.id} trad={tid} traffar={sok.oppen ? { ids: sok.traffar, aktuell: sok.aktuell } : null} uid={uid} namnFor={namnFor} medlemmar={medlemmar} locale={locale} visaNamn forraTid={rot?.tid} onVisaAgent={onVisaAgent} meddelandeHref={meddelandeHref} flerOmnamnbara={flerOmnamnbara} />
         <Agentrad lage={agentlage} texter={t} />
       </div>
       <TillSenaste lage={lasposition} arbetar={arbetsord(agentlage)} texter={t} />
@@ -4433,10 +4596,13 @@ function Omrostningskort({ m, omr, namnFor, bildFor, texter: t }) {
             {t.laggTillAlternativ}
           </button>
         ) : null}
+        {/* ⛔ FÄLTET TAR RADEN, KNAPPARNA STÅR UNDER (cllp/lifehub.app#742, QA 2026-11-10 v1.0.1160). Fältet, "Lägg till alternativ" och krysset stod på en
+            rad i kortets 264 px, och fältet fick det som blev över: 52 px vid 390 px, mot de cirka 178 px platshållaren behöver. Nu bryts formuläret, fältet
+            får hela raden (`basis-full`) och knapparna nästa rad. Mätt i `check:skalyta` avsnitt 64. */}
         {laggerTill ? (
           <form
             data-nytt-alternativ=""
-            className="flex items-center gap-1.5"
+            className="flex flex-wrap items-center gap-1.5"
             onSubmit={(e) => {
               e.preventDefault();
               spara();
@@ -4460,9 +4626,9 @@ function Omrostningskort({ m, omr, namnFor, bildFor, texter: t }) {
                   stangFalt();
                 }
               }}
-              className="min-h-11 min-w-0 flex-1 rounded-xl border border-line bg-surface px-3 text-etikett text-ink outline-none focus-visible:border-accent"
+              className="min-h-11 min-w-0 basis-full rounded-xl border border-line bg-surface px-3 text-etikett text-ink outline-none focus-visible:border-accent"
             />
-            <button type="submit" disabled={!nytt.trim() || Boolean(langdFel) || arbetar} aria-busy={arbetar || undefined} className="inline-flex min-h-11 shrink-0 cursor-pointer items-center rounded-xl bg-accent px-3 text-meta font-medium text-accent-contrast hover:bg-accent-hover disabled:cursor-default disabled:opacity-60">
+            <button type="submit" disabled={!nytt.trim() || Boolean(langdFel) || arbetar} aria-busy={arbetar || undefined} className="inline-flex min-h-11 flex-1 cursor-pointer items-center justify-center rounded-xl bg-accent px-3 text-meta font-medium text-accent-contrast hover:bg-accent-hover disabled:cursor-default disabled:opacity-60">
               {t.laggTillAlternativ}
             </button>
             <button type="button" onClick={stangFalt} aria-label={t.avbryt} className="inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-xl text-ink-secondary hover:bg-canvas">

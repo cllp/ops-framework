@@ -148,8 +148,9 @@ function MarkdownBild({ alt, namn, bildAdress, onBildFel, sprak }) {
  * @param {boolean} [arv] Chattens bubbla (#273): färgen ärvs. Den egna bubblan är accentfärgad, och en länk i `text-accent` eller
  *   fet text i `text-ink` hade varit osynlig eller fel ton på den.
  * @param {{ bildAdress?: (namn: string) => string | Promise<string>, onBildFel?: (namn: string) => boolean | Promise<boolean>, sprak: string }} [bild] (#696) Var en bild hämtas, vad som händer när den inte laddas, och språket för raden om den.
+ * @param {ReadonlyArray<string> | null} [omnamnanden] (0.213.0, lifehub.app#751) Namnen som markeras som omnämnanden i ren text, längst först. Bara i chatten.
  */
-function inline(pieces, blockKey, arv = false, bild = { sprak: "sv" }) {
+function inline(pieces, blockKey, arv = false, bild = { sprak: "sv" }, omnamnanden = /** @type {ReadonlyArray<string> | null} */ (null)) {
   return pieces.map((b, i) => {
     const k = `${blockKey}-${i}`;
     if (b.kind === "break") return <br key={k} />;
@@ -193,8 +194,41 @@ function inline(pieces, blockKey, arv = false, bild = { sprak: "sv" }) {
      * ta sig igenom för den som söker i DOM:en. React behöver ingen nyckel för
      * en sträng i en lista.
      */
-    return b.value;
+    return omnamnanden ? medOmnamnanden(b.value, omnamnanden, k) : b.value;
   });
+}
+
+/** En bokstav, en siffra eller ett understreck: det som gör att "@Anna" i "@Annabel" inte är ett omnämnande av Anna. */
+const ORDTECKEN = /[\p{L}\p{N}_]/u;
+
+/**
+ * Ren text med de nämnda namnen markerade (0.213.0, cllp/lifehub.app#751). `namn` är de som meddelandet faktiskt nämner (`namner`), som de heter nu. Bara
+ * `@Namn` som står fritt (inget ordtecken före snabel-a:t eller efter namnet) blir ett omnämnande, och det längsta namnet vinner, så "@Anna Ek" går före "@Anna".
+ * Ett namn som inte står i texten (någon har bytt namn sedan) lämnar texten som den är.
+ *
+ * @param {string} text @param {ReadonlyArray<string>} namn @param {string} nyckel
+ * @returns {import("react").ReactNode}
+ */
+function medOmnamnanden(text, namn, nyckel) {
+  if (!text.includes("@")) return text;
+  /** @type {import("react").ReactNode[]} */
+  const ut = [];
+  let fran = 0;
+  for (let i = text.indexOf("@"); i !== -1; i = text.indexOf("@", i + 1)) {
+    if (i < fran || (i > 0 && ORDTECKEN.test(text[i - 1]))) continue;
+    const traff = namn.find((n) => text.startsWith(n, i + 1) && !ORDTECKEN.test(text[i + 1 + n.length] ?? ""));
+    if (!traff) continue;
+    if (i > fran) ut.push(text.slice(fran, i));
+    ut.push(
+      <span key={`${nyckel}-o${i}`} data-omnamnande-i-text="" className="rounded-sm bg-current/10 px-0.5 font-medium">
+        @{traff}
+      </span>,
+    );
+    fran = i + 1 + traff.length;
+  }
+  if (ut.length === 0) return text;
+  if (fran < text.length) ut.push(text.slice(fran));
+  return ut;
 }
 
 // ⛔ Uppslagstabell och inte `text-${...}`. Tailwind läser källkoden som text,
@@ -223,10 +257,16 @@ const TITLE_SIZE = {
  * @param {(namn: string) => boolean | Promise<boolean>} [props.onBildFel] (0.207.0, #696 skiva 2) En bild med en adress laddades inte, troligen för att en signerad adress gått ut.
  *   Sant (eller ett löfte om sant): vyn hämtar nya adresser och ger en ny `bildAdress`, och under tiden står "Hämtar bilden.". Falskt, ett avvisat löfte eller ett kast: raden
  *   "Ladda om sidan för att se bilden.". Utan propen: "Bilden kunde inte visas." som förut. Fel för en adress som aldrig fanns (tom eller avvisad `bildAdress`) frågar aldrig.
+ * @param {ReadonlyArray<string>} [props.omnamnanden] (0.213.0, cllp/lifehub.app#751) Bara med `chatt`: namnen meddelandet nämner, utan snabel-a. Varje fritt `@Namn` i
+ *   ren text ritas som ett omnämnande (`data-omnamnande-i-text`, halvfet text (500, som ett piller) på en ton av bubblans färg). Utan propen är texten som förut.
  */
-export function OpsMarkdown({ text, chatt = false, dokument = false, bildAdress, onBildFel }) {
+export function OpsMarkdown({ text, chatt = false, dokument = false, bildAdress, onBildFel, omnamnanden }) {
   const sprak = useOpsSprak();
   const bild = { bildAdress, onBildFel, sprak };
+  // De längsta först, så att "@Anna Ek" vinner över "@Anna". Tomma och dubbletter bort.
+  const omn = chatt && Array.isArray(omnamnanden) && omnamnanden.length
+    ? [...new Set(omnamnanden.filter((n) => typeof n === "string" && n.trim()))].sort((a, b) => b.length - a.length)
+    : null;
   const block = splitMarkdown(text, { chatt });
   if (block.length === 0) return null;
   if (chatt) {
@@ -237,7 +277,7 @@ export function OpsMarkdown({ text, chatt = false, dokument = false, bildAdress,
       <div data-ops-markdown="chatt" className="flex flex-col gap-1.5 wrap-anywhere">
         {block.map((b, i) => {
           const k = `b${i}`;
-          if (b.kind === "paragraph") return <p key={k} className="m-0">{inline(b.inline, k, true)}</p>;
+          if (b.kind === "paragraph") return <p key={k} className="m-0">{inline(b.inline, k, true, undefined, omn)}</p>;
           // ⛔ Kan inte hända: chattens delmängd ger bara stycken och listor. Skulle den ändå ge något annat sägs det, i stället
           // för att texten tyst försvinner ur bubblan (regel 5).
           if (b.kind !== "list") throw new Error(`OpsMarkdown: chattens delmängd gav blocket "${b.kind}", som den inte ska kunna ge.`);
@@ -250,7 +290,7 @@ export function OpsMarkdown({ text, chatt = false, dokument = false, bildAdress,
                     {entry.cross === null ? (b.ordered ? `${pi + 1}.` : "•") : entry.cross ? "☑" : "☐"}
                   </span>
                   {entry.cross === null ? null : <span className="sr-only">{entry.cross ? "Gjort:" : "Ogjort:"}</span>}
-                  <span className="min-w-0 flex-1">{inline(entry.inline, `${k}-p${pi}`, true)}</span>
+                  <span className="min-w-0 flex-1">{inline(entry.inline, `${k}-p${pi}`, true, undefined, omn)}</span>
                 </li>
               ))}
             </List>
