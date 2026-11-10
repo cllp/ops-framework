@@ -59,7 +59,7 @@
 const MAX_TITLE_DEFAULT = 120;
 
 /**
- * De statusar en post kan sluta i, plus de två öppna den lever i innan dess.
+ * De statusar en post kan ha: två öppna (`ny`, `pagar`), en åt sidan (`parkerad`) och två slut.
  *
  * ⛔ "PAGAR" ÄR EN STATUS OCH INGEN TAGG (CP 2026-11-03, "KÖR på pagar som riktigt
  * läge"). En tagg hade gett två sanningar om samma sak: ett ärende som är hanterat
@@ -67,20 +67,30 @@ const MAX_TITLE_DEFAULT = 120;
  * `missingAtClose` och avslut är oförändrade, och `OPEN_STATES` är den enda listan
  * över vad som räknas som öppet, så att ingen yta behöver skriva "ny" ensam.
  *
+ * ⛔ "PARKERAD" ÄR OCKSÅ EN STATUS, OCH DEN ÄR VARKEN ÖPPEN ELLER ETT SLUT
+ * (lifehub.app#725). Någon vill komma ihåg ärendet men inte göra det just nu.
+ * I `OPEN_STATES` hade varje yta som läser den listan räknat det som arbete att
+ * ta tag i, och då tar raden plats i Idag, i räknemärket och i gästens Markera
+ * klar. Som slutläge hade det krävt en not om att något gjordes eller att inget
+ * skulle göras, och det är inte det beslutet. `avskriven` är "inget ska göras".
+ * `parkerad` är "inte nu".
+ *
  * ⛔ TVÅ SLUTSTATUSAR, INTE EN. "Hanterad" betyder att något gjordes,
  * "avskriven" att någon tagit ställning till att inget skulle göras. Utan den
  * andra blir en medveten nedprioritering omöjlig att skilja från en glömska,
  * och båda ser ut som en post som slutat röra sig.
  *
  * ⛔ VÄRDENA ÄNDRAS INTE. "ny", "hanterad" och "avskriven" står i Firestore på
- * varje post som finns, och "pagar" (utan å, som alla nycklar) kom 0.181.0. Ett ordbyte i gränssnittet är inte en datamigrering,
+ * varje post som finns, "pagar" (utan å, som alla nycklar) kom 0.181.0 och
+ * "parkerad" med lifehub.app#725. Ett ordbyte i gränssnittet är inte en datamigrering,
  * och den dagen de två blandas ihop blir bytet av ett ord ett fält som inte
  * går att läsa (CP 2026-09-25, cllp/bolag-ops#359).
  */
-const STATES = Object.freeze({ NEW: "ny", IN_PROGRESS: "pagar", HANDLED: "hanterad", DISMISSED: "avskriven" });
+const STATES = Object.freeze({ NEW: "ny", IN_PROGRESS: "pagar", PARKED: "parkerad", HANDLED: "hanterad", DISMISSED: "avskriven" });
 
 /**
- * Statusarna där en post är öppen, alltså inte avslutad. Ordningen är flödets.
+ * Statusarna där en post är öppen. Ordningen är flödets. `parkerad` är inte med:
+ * den är inte avslutad, men den ska inte räknas som arbete att ta tag i.
  *
  * ⛔ EN LISTA, och `isOpen` läser den. En yta som skriver `status === "ny"` räknar
  * en post som någon börjat på som stängd.
@@ -89,13 +99,15 @@ const OPEN_STATES = Object.freeze([STATES.NEW, STATES.IN_PROGRESS]);
 
 /**
  * Vilka övergångar som finns, på ETT ställe. Ny till pågår och tillbaka, öppen till
- * ett slutläge (kräver not, se `missingAtClose`), och ett slutläge öppnas igen till
- * "ny". Ett slutläge går aldrig direkt till "pagar": då hade en avskriven post
- * hoppat över att någon först tog ställning till att den lever igen.
+ * parkerad och tillbaka, öppen eller parkerad till ett slutläge (kräver not, se
+ * `missingAtClose`), och ett slutläge öppnas igen till "ny". Ett slutläge går
+ * aldrig direkt till "pagar" eller "parkerad": då hade en avskriven post hoppat
+ * över att någon först tog ställning till att den lever igen.
  */
 const TRANSITIONS = Object.freeze({
-  [STATES.NEW]: Object.freeze([STATES.IN_PROGRESS, STATES.HANDLED, STATES.DISMISSED]),
-  [STATES.IN_PROGRESS]: Object.freeze([STATES.NEW, STATES.HANDLED, STATES.DISMISSED]),
+  [STATES.NEW]: Object.freeze([STATES.IN_PROGRESS, STATES.PARKED, STATES.HANDLED, STATES.DISMISSED]),
+  [STATES.IN_PROGRESS]: Object.freeze([STATES.NEW, STATES.PARKED, STATES.HANDLED, STATES.DISMISSED]),
+  [STATES.PARKED]: Object.freeze([STATES.NEW, STATES.IN_PROGRESS, STATES.HANDLED, STATES.DISMISSED]),
   [STATES.HANDLED]: Object.freeze([STATES.NEW]),
   [STATES.DISMISSED]: Object.freeze([STATES.NEW]),
 });
@@ -328,7 +340,7 @@ export function createCaseModel(config) {
     /** Statusnamnen, så appen slipper skriva strängarna själv. */
     STATUS: STATES,
 
-    /** Statusarna där en post är öppen (`ny` och `pagar`). Appens "öppna"-filter, räknemärken och Idag läser den här. */
+    /** Statusarna där en post är öppen (`ny` och `pagar`). `parkerad` står inte här. Appens "öppna"-filter, räknemärken och Idag läser den här. */
     OPEN_STATES,
 
     /** Övergångstabellen: status till de statusar posten får gå till. */
@@ -345,10 +357,11 @@ export function createCaseModel(config) {
     },
 
     /**
-     * Sätter pågår: bara från "ny". Returnerar fälten som skrivs, inget mer.
+     * Sätter pågår: från "ny" eller "parkerad". Returnerar fälten som skrivs, inget mer.
      *
      * ⛔ APPEN, API:T OCH AGENTEN ANVÄNDER DENNA, och ingen av dem skriver "pagar" för
      * hand (regel 2). `resultat` och `closed` rörs inte: en öppen post har inget av dem.
+     * En parkerad post som någon tar tag i går hit direkt, utan ett mellanläge i "ny".
      *
      * @param {string} from Postens nuvarande status.
      * @returns {{ status: string }}
@@ -356,6 +369,35 @@ export function createCaseModel(config) {
     buildStart(from) {
       assertMove(from, STATES.IN_PROGRESS, "byggPagar");
       return { status: STATES.IN_PROGRESS };
+    },
+
+    /**
+     * Parkerar: från "ny" eller "pagar". Returnerar fälten som skrivs, inget mer.
+     *
+     * ⛔ SAMMA SAK SOM `buildStart`: appen skriver inte "parkerad" för hand.
+     * `resultat` och `closed` rörs inte. Det här är inget avslut.
+     *
+     * @param {string} from Postens nuvarande status.
+     * @returns {{ status: string }}
+     */
+    buildPark(from) {
+      assertMove(from, STATES.PARKED, "byggParkera");
+      return { status: STATES.PARKED };
+    },
+
+    /**
+     * Tar tillbaka en parkerad post till "ny".
+     *
+     * ⛔ BARA FRÅN "parkerad". Från "pagar" är vägen `buildStop`. Hade den här
+     * läst övergångstabellen ensam hade "pagar" till "ny" släppts igenom, och
+     * två byggare hade skrivit samma fält.
+     *
+     * @param {string} from Postens nuvarande status.
+     * @returns {{ status: string }}
+     */
+    buildUnpark(from) {
+      if (from !== STATES.PARKED) throw new Error(`byggAvParkera: bara en parkerad post kan tas tillbaka, den här är "${String(from)}".`);
+      return { status: STATES.NEW };
     },
 
     /**
@@ -439,10 +481,10 @@ export function createCaseModel(config) {
     /**
      * Hur många hela dygn posten legat i "ny". Null när den inte är ny.
      *
-     * ⛔ "PAGAR" GER NULL MED FLIT, och det är det enda stället där "pagar" inte
-     * behandlas som "ny". Larmet betyder "ingen har rört den", och en post någon
-     * tagit sig an är rörd. Att den ligger länge i "pagar" är ett annat larm, med
-     * en annan klocka, som ingen har bett om.
+     * ⛔ "PAGAR" OCH "PARKERAD" GER NULL MED FLIT. Larmet betyder "ingen har rört
+     * den", och en post någon tagit sig an eller parkerat är rörd. Att den ligger
+     * länge i "pagar" eller "parkerad" är ett annat larm, med en annan klocka,
+     * som ingen har bett om.
      *
      * ⛔ EN GAMMAL "NY" ÄR ETT LARM, INTE ETT TILLSTÅND. Ligger inskick kvar
      * orörda betyder det att kedjan är trasig någonstans, och den sortens fel

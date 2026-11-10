@@ -11,7 +11,7 @@ import { Skrivfalt, texterPa } from "./OpsMeddelanden.jsx";
 import { OpsPill } from "./OpsPill.jsx";
 
 /**
- * Orden i gästens ärenden, på svenska och engelska (0.132.0, cllp/lifehub.app#389, skiva 3). Statusorden är ärendemodellens fyra statusar (`ny`, `pagar`, `hanterad`, `avskriven`); en annan status ritas som den är.
+ * Orden i gästens ärenden, på svenska och engelska (0.132.0, cllp/lifehub.app#389, skiva 3). Statusorden är ärendemodellens statusar (`ny`, `pagar`, `parkerad`, `hanterad`, `avskriven`); en annan status ritas som den är.
  * @type {import("../lib/ord.js").Ordbok}
  */
 export const ORD_OPSGASTARENDEN = {
@@ -28,6 +28,7 @@ export const ORD_OPSGASTARENDEN = {
   avkortad: { sv: "Du har fler ärenden än vi visar. Det kan finnas ärenden hos dig som inte syns här.", en: "You have more cases than we show. There may be cases with you that are not shown here." },
   status_ny: { sv: "Öppet", en: "Open" },
   status_pagar: { sv: "Pågår", en: "In progress" },
+  status_parkerad: { sv: "Parkerad", en: "Parked" },
   status_hanterad: { sv: "Klart", en: "Done" },
   status_avskriven: { sv: "Avskrivet", en: "Dismissed" },
   forfaller: { sv: "Förfaller {datum}", en: "Due {datum}" },

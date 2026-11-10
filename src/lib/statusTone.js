@@ -20,7 +20,13 @@
  * och det ska synas på håll utan att likna "ny" (blå, ingen har tittat) eller
  * "hanterad" (grön, klar). Gul betyder här "öppen och under arbete", inte fel.
  *
- * ⛔ Nycklarna är ärendemodellens statusar (`ny`, `pagar`, `hanterad`, `avskriven`). En app
+ * ⛔ "PARKERAD" ÄR NEUTRAL (lifehub.app#725). Den ska inte likna ny (ingen har
+ * tittat), pågår (någon jobbar) eller hanterad (klart), och rött är ett larm.
+ * Neutral är den tysta tonen, samma som avskriven. Orden skiljer dem åt.
+ * En okänd nyckel faller också hit, så en yta som vill veta att beslutet är taget
+ * läser nyckeln i `STATUS_TONES`, inte bara returvärdet.
+ *
+ * ⛔ Nycklarna är ärendemodellens statusar (`ny`, `pagar`, `parkerad`, `hanterad`, `avskriven`). En app
  * med egna lägen slår upp sina egna ord; en okänd nyckel ger `neutral` och
  * aldrig en gissad färg.
  */
@@ -29,6 +35,7 @@
 export const STATUS_TONES = Object.freeze({
   ny: "info",
   pagar: "warning",
+  parkerad: "neutral",
   hanterad: "success",
   avskriven: "neutral",
 });
