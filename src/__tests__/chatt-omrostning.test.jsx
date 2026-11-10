@@ -316,6 +316,11 @@ describe("vyn", () => {
     fireEvent.change(within(formular).getByLabelText("Alternativ 2"), { target: { value: " fredag" } });
     fireEvent.click(skicka);
     await waitFor(() => expect(within(formular).getByRole("alert").textContent).toBe("Två alternativ har samma text."));
+    // ⛔ Granskningen av PR 566: samma jämförelse som byggaren, så två mellanslag inne i texten är samma alternativ och inte ett allmänt fel.
+    fireEvent.change(within(formular).getByLabelText("Alternativ 1"), { target: { value: "Fre dag" } });
+    fireEvent.change(within(formular).getByLabelText("Alternativ 2"), { target: { value: "fre  dag" } });
+    fireEvent.click(skicka);
+    await waitFor(() => expect(within(formular).getByRole("alert").textContent).toBe("Två alternativ har samma text."));
     fireEvent.change(within(formular).getByLabelText("Alternativ 2"), { target: { value: "x".repeat(MAX_ALTERNATIVTEXT + 1) } });
     fireEvent.click(skicka);
     await waitFor(() => expect(within(formular).getByRole("alert").textContent).toBe("Högst 120 tecken."));
@@ -363,6 +368,30 @@ describe("vyn", () => {
     await within(kort).findByRole("button", { name: "Fredag, 5 röster" });
     expect(rosta).toHaveBeenCalledTimes(1);
     expect(andraRost).toHaveBeenCalledTimes(1);
+  });
+  it("⛔ ett andra tryck medan rösten skrivs släpps: en skrivning, inte en ny röst på ett gammalt val (granskningen av PR 566)", async () => {
+    const { s, g } = await underlag();
+    const { m, lor } = await medRoster(s, g.id);
+    /** @type {() => void} */
+    let slapp = () => {};
+    const rosta = vi.fn(async (/** @type {any[]} */ ...a) => {
+      await new Promise((r) => {
+        slapp = () => r(undefined);
+      });
+      return s.rosta(...a);
+    });
+    const taBortRost = vi.fn(s.taBortRost);
+    render(<OpsMeddelanden kalla={{ ...s, rosta, taBortRost }} uid="anna" groupId="g" gruppNamn="G" medlemmar={MEDLEMMAR} valt={g.id} />);
+    const kort = await hittaKort(m.id);
+    const knapp = await within(kort).findByRole("button", { name: "Lördag, 0 röster" });
+    fireEvent.click(knapp);
+    fireEvent.click(knapp);
+    await waitFor(() => expect(rosta).toHaveBeenCalledTimes(1));
+    slapp();
+    await within(kort).findByRole("button", { name: "Lördag, 1 röst, du har röstat" });
+    expect(rosta).toHaveBeenCalledWith(g.id, { mid: m.id, val: lor.id, av: "anna" });
+    expect(rosta).toHaveBeenCalledTimes(1);
+    expect(taBortRost).not.toHaveBeenCalled();
   });
   it("⛔ Lägg till alternativ: fältet i kortet skriver till källan, och en dubblett sägs i stället", async () => {
     const { s, g } = await underlag();

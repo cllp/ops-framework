@@ -7,7 +7,7 @@ import { formatDateTime, formatTime, formatRelativeDate } from "../lib/format.js
 import { KOMMENTARBILAGA_TYPER, MAX_KOMMENTARBILAGA, bilagaUrDokument, kommentarbilagaFel } from "../lib/handelsemodell.js";
 import { readAttachment } from "../lib/file.js";
 import { arGastId } from "../lib/gast.js";
-import { AGENTSTATUS_MAX_ALDER, MAX_ALTERNATIV, MAX_ALTERNATIVTEXT, MAX_ALTERNATIV_VID_START, MAX_FRAGA, MAX_MEDDELANDE, MAX_TRADNAMN, MIN_ALTERNATIV_VID_START, RAKNARE_FRAN, REAKTIONSKODER, agentstatus, summeraOmrostning, amnesrubrik, bilagenyckel, delaSamtalsnyckel, samtalsdeltagare, samtalsnyckel, summeraReaktioner, synligText, tradensNamn } from "../lib/samtal.js";
+import { AGENTSTATUS_MAX_ALDER, MAX_ALTERNATIV, MAX_ALTERNATIVTEXT, MAX_ALTERNATIV_VID_START, MAX_FRAGA, MAX_MEDDELANDE, MAX_TRADNAMN, MIN_ALTERNATIV_VID_START, RAKNARE_FRAN, REAKTIONSKODER, agentstatus, jamforbar, summeraOmrostning, amnesrubrik, bilagenyckel, delaSamtalsnyckel, samtalsdeltagare, samtalsnyckel, summeraReaktioner, synligText, tradensNamn } from "../lib/samtal.js";
 import { useSamtal } from "../data/useSamtal.jsx";
 import { harAmnen, harBilagor, harCitat, harFasta, harOmnamnanden, harOmrostningar, harReaktioner, harStatus, harTradar, harTyst } from "../data/samtalskalla.js";
 import { BilagaVisning } from "./BilagaVisning.jsx";
@@ -4256,9 +4256,13 @@ function useOmrostningar(kalla, sid, uid) {
     setSkrivfel(null);
     if (!lyssnar.current) await lasIn();
   };
+  // ⛔ EN RÖST I TAGET PER OMRÖSTNING (granskningen av PR 566). Ett andra tryck innan svaret kommit läste ett gammalt eget val, så
+  // "samma rad igen tar tillbaka rösten" blev en ny röst på samma rad. Trycket under väntan släpps.
+  const rostarNu = useRef(/** @type {Set<string>} */ (new Set()));
   /** @param {string} mid @param {string} valId */
   const rosta = async (mid, valId) => {
-    if (!kalla) return;
+    if (!kalla || rostarNu.current.has(mid)) return;
+    rostarNu.current.add(mid);
     const eget = perMeddelande.get(mid)?.egetVal ?? null;
     try {
       if (eget === valId) await kalla.taBortRost(sid, { mid, av: uid });
@@ -4267,6 +4271,8 @@ function useOmrostningar(kalla, sid, uid) {
       await efterSkrivning();
     } catch (e) {
       setSkrivfel(somFel(e));
+    } finally {
+      rostarNu.current.delete(mid);
     }
   };
   /**
@@ -4354,7 +4360,7 @@ function Omrostningskort({ m, omr, namnFor, bildFor, texter: t }) {
   const spara = async () => {
     const text = nytt.trim();
     if (!text || langdFel || arbetar) return;
-    if (s.alternativ.some((a) => a.text.trim().toLocaleLowerCase("sv") === text.toLocaleLowerCase("sv"))) {
+    if (s.alternativ.some((a) => jamforbar(a.text) === jamforbar(text))) {
       setFel(t.alternativFinnsRedan);
       return;
     }
@@ -4485,7 +4491,7 @@ function Omrostningsformular({ onSkicka, onAvbryt, texter: t }) {
     if (iVag) return;
     const f = fraga.trim();
     const alt = alternativ.map((a) => a.trim()).filter(Boolean);
-    const lika = new Set(alt.map((a) => a.toLocaleLowerCase("sv"))).size !== alt.length;
+    const lika = new Set(alt.map(jamforbar)).size !== alt.length;
     const ut = !f
       ? t.omrostningBehoverFraga
       : omrostningstextFel(f, MAX_FRAGA, t) ?? (alt.length < MIN_ALTERNATIV_VID_START ? t.omrostningBehoverTva : lika ? t.alternativFinns : alt.map((a) => omrostningstextFel(a, MAX_ALTERNATIVTEXT, t)).find(Boolean) ?? null);

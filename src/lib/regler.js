@@ -1318,9 +1318,11 @@ export function samtalsregelfragment(namn = {}) {
         allow update: if false;
       }`
     : "";
-  // ⛔ OMRÖSTNINGARNA (cllp/lifehub.app#438 skiva 1). Formen och taken kommer ur lib/samtal.js. Styrtecknen prövas med samma uttryck
-  // som filens sökväg (`(?s)` så att också en radbrytning fångas). Formattecknen (nollbreddsmellanslag och liknande) prövas av byggaren.
-  const STYR = "'(?s).*[\\x00-\\x1f\\x7f].*'";
+  // ⛔ OMRÖSTNINGARNA (cllp/lifehub.app#438 skiva 1). Formen och taken kommer ur lib/samtal.js. `(?s)` så att också en radbrytning fångas.
+  // ⛔ OCKSÅ C1, NOLLBREDDSTECKEN OCH RIKTNINGSMARKERINGAR (granskningen av PR 566). Byggaren nekar dem (`DOLDA_TECKEN`), men en klient förbi
+  // byggaren hade annars kunnat skriva ett alternativ med U+202E som vänder texten i kortet, eller två alternativ som ser likadana ut.
+  // Sammanfogaren U+200D släpps in, som i byggaren: emoji som 👩‍👩‍👧 består av den.
+  const STYR = "'(?s).*[\\x00-\\x1f\\x7f-\\x9f\\\\x{200b}\\\\x{200c}\\\\x{200e}\\\\x{200f}\\\\x{202a}-\\\\x{202e}\\\\x{2060}-\\\\x{2064}\\\\x{2066}-\\\\x{2069}\\\\x{feff}].*'";
   const omrostningsfunktioner = omrostningsval
     ? `    // En omröstning (#438): frågan är texten, en rad utan styrtecken inom taket, och ingen bilaga.
     function opsGiltigOmrostning(d) {
@@ -1341,7 +1343,7 @@ export function samtalsregelfragment(namn = {}) {
       return d.keys().hasOnly([${lista(OMROSTNINGSVALFALT)}])
         && d.av == request.auth.uid
         && d.mid is string
-        && d.text is string && d.text.size() > 0 && d.text.size() <= ${MAX_ALTERNATIVTEXT}
+        && d.text is string && d.text.trim().size() > 0 && d.text.size() <= ${MAX_ALTERNATIVTEXT}
         && !d.text.matches(${STYR})
         && vid.split('[${R}]').size() == 2 && vid.split('[${R}]')[0] == d.mid
         && vid.split('[${R}]')[1].matches('${OMROSTNINGSVAL_REGEL}')

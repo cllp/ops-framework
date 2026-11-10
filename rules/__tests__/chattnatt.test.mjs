@@ -77,14 +77,17 @@ export const MUTATIONER = {
   "omrostning-utan-villkor": ["          && opsGiltigOmrostning(request.resource.data)\n", ""],
   "omrostning-fritt-varde": ["(d.omrostning == true\n", "(true\n"],
   "omrostning-fri-langd": ["&& d.text is string && d.text.size() <= 200\n", "&& d.text is string\n"],
-  "omrostning-styrtecken": ["&& d.text.size() <= 200\n        && !d.text.matches('(?s).*[\\x00-\\x1f\\x7f].*')\n", "&& d.text.size() <= 200\n"],
+  "omrostning-styrtecken": ["&& d.text.size() <= 200\n        && !d.text.matches('(?s).*[\\x00-\\x1f\\x7f-\\x9f\\\\x{200b}\\\\x{200c}\\\\x{200e}\\\\x{200f}\\\\x{202a}-\\\\x{202e}\\\\x{2060}-\\\\x{2064}\\\\x{2066}-\\\\x{2069}\\\\x{feff}].*')\n", "&& d.text.size() <= 200\n"],
   "omrostning-med-bilaga": ["\n        && !('bilaga' in d));", ");"],
   "val-las-alla": ["match /omrostningsval/{vid} {\n        allow read: if opsISamtal(sid);", "match /omrostningsval/{vid} {\n        allow read: if request.auth != null;"],
   "val-utan-persontyp": ["match /omrostningsval/{vid} {\n        allow read: if opsISamtal(sid);\n        allow create: if opsISamtal(sid)\n          && opsArAktivTyp(request.auth.uid, get(opsSamtalet(sid)).data.groupId, 'person')\n", "match /omrostningsval/{vid} {\n        allow read: if opsISamtal(sid);\n        allow create: if opsISamtal(sid)\n"],
   "val-som-annan": ["return d.keys().hasOnly([\"mid\", \"text\", \"av\", \"tid\"])\n        && d.av == request.auth.uid\n", "return d.keys().hasOnly([\"mid\", \"text\", \"av\", \"tid\"])\n"],
   "val-fria-falt": ["return d.keys().hasOnly([\"mid\", \"text\", \"av\", \"tid\"])\n        && d.av", "return d.av"],
-  "val-fri-langd": [" && d.text.size() > 0 && d.text.size() <= 120", ""],
-  "val-styrtecken": ["&& d.text.size() <= 120\n        && !d.text.matches('(?s).*[\\x00-\\x1f\\x7f].*')\n", "&& d.text.size() <= 120\n"],
+  "val-fri-langd": [" && d.text.trim().size() > 0 && d.text.size() <= 120", ""],
+  "val-styrtecken": ["&& d.text.size() <= 120\n        && !d.text.matches('(?s).*[\\x00-\\x1f\\x7f-\\x9f\\\\x{200b}\\\\x{200c}\\\\x{200e}\\\\x{200f}\\\\x{202a}-\\\\x{202e}\\\\x{2060}-\\\\x{2064}\\\\x{2066}-\\\\x{2069}\\\\x{feff}].*')\n", "&& d.text.size() <= 120\n"],
+  // ⛔ Granskningen av PR 566: riktningsmarkeringar och nollbreddstecken nekas av regeln, inte bara av byggaren, och ett alternativ av bara mellanslag nekas.
+  "val-riktningstecken": ["\\\\x{202a}-\\\\x{202e}\\\\x{2060}-\\\\x{2064}\\\\x{2066}-\\\\x{2069}\\\\x{feff}].*')\n        && vid", "].*')\n        && vid"],
+  "val-bara-mellanslag": ["d.text.trim().size() > 0 && d.text.size() <= 120", "d.text.size() > 0 && d.text.size() <= 120"],
   "val-fri-nyckel": ["        && vid.split('[|]').size() == 2 && vid.split('[|]')[0] == d.mid\n        && vid.split('[|]')[1].matches('[A-Za-z0-9_-]{1,40}')\n", ""],
   "val-utan-nu": ["&& vid.split('[|]')[1].matches('[A-Za-z0-9_-]{1,40}')\n        && opsNu(d.tid);", "&& vid.split('[|]')[1].matches('[A-Za-z0-9_-]{1,40}');"],
   "val-utan-omrostning": ["          && opsGiltigtOmrostningsval(vid, request.resource.data)\n          && opsArOmrostning(sid, request.resource.data.mid);", "          && opsGiltigtOmrostningsval(vid, request.resource.data);"],
@@ -406,6 +409,11 @@ describe("⛔ omröstningar (#438): frågan är texten, alternativ av alla i sam
     await assertFails(setDoc(doc(som(ANNA), `samtal/${grupp}/meddelanden/f4`), fraga({ omrostning: "ja" })));
     await assertFails(setDoc(doc(som(ANNA), `samtal/${grupp}/meddelanden/f5`), fraga({ omrostning: false })));
     await assertFails(setDoc(doc(som(ANNA), `samtal/${grupp}/meddelanden/f6`), fraga({ bilaga: { namn: "a.png", typ: "image/png" } })));
+    // ⛔ Granskningen av PR 566: en riktningsmarkering vänder texten i kortet, och C1 och nollbreddstecken syns inte. Sammanfogaren i en emoji släpps in.
+    await assertFails(setDoc(doc(som(ANNA), `samtal/${grupp}/meddelanden/f8`), fraga({ text: "Vilken \u202edag?" })));
+    await assertFails(setDoc(doc(som(ANNA), `samtal/${grupp}/meddelanden/f9`), fraga({ text: "Vilken\u200bdag?" })));
+    await assertFails(setDoc(doc(som(ANNA), `samtal/${grupp}/meddelanden/f10`), fraga({ text: "Vilken\u0085dag?" })));
+    await assertSucceeds(setDoc(doc(som(ANNA), `samtal/${grupp}/meddelanden/f11`), fraga({ text: "Vem kommer? \u{1F469}\u200d\u{1F467}" })));
     // Ett vanligt meddelande får fortfarande radbrytningar och 4000 tecken.
     await assertSucceeds(setDoc(doc(som(ANNA), `samtal/${grupp}/meddelanden/f7`), { text: `Rad ett\nrad två ${"x".repeat(300)}`, av: ANNA, tid: nu() }));
   });
@@ -447,6 +455,10 @@ describe("⛔ omröstningar (#438): frågan är texten, alternativ av alla i sam
     await assertFails(setDoc(doc(som(ANNA), altvag(grupp, O1, "f")), alt(O1, ANNA, "x".repeat(121))));
     await assertFails(setDoc(doc(som(ANNA), altvag(grupp, O1, "g")), alt(O1, ANNA, "")));
     await assertFails(setDoc(doc(som(ANNA), altvag(grupp, O1, "h")), alt(O1, ANNA, "Två\nrader")));
+    // ⛔ Granskningen av PR 566: riktningsmarkering, nollbreddstecken och bara mellanslag nekas av regeln.
+    await assertFails(setDoc(doc(som(ANNA), altvag(grupp, O1, "h2")), alt(O1, ANNA, "\u202eagadsoT")));
+    await assertFails(setDoc(doc(som(ANNA), altvag(grupp, O1, "h3")), alt(O1, ANNA, "Tis\u200bdag")));
+    await assertFails(setDoc(doc(som(ANNA), altvag(grupp, O1, "h4")), alt(O1, ANNA, "   ")));
     await assertFails(setDoc(doc(som(ANNA), altvag(grupp, O1, "i")), alt(O1, ANNA, "Tisdag", { antal: 9 })));
     await assertFails(setDoc(doc(som(ANNA), altvag(grupp, O1, "j")), alt(O1, ANNA, "Tisdag", { tid: nu() - 10 * 60 * 1000 })));
     await assertFails(setDoc(doc(som(ANNA), altvag(grupp, O1, "k")), alt(O1, ANNA, "Tisdag", { tid: String(nu()) })));

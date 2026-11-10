@@ -1020,8 +1020,12 @@ function kravOmrostningstext(v, tak, vem) {
   return t;
 }
 
-/** Två texter som bara skiljer sig i versaler och mellanslag är samma alternativ. @param {string} t */
-const jamforbar = (t) => t.trim().toLocaleLowerCase("sv").replace(/\s+/g, " ");
+/**
+ * Två texter som bara skiljer sig i versaler och mellanslag är samma alternativ. Vyn jämför med samma funktion (granskningen av PR 566:
+ * med en egen jämförelse godtog formuläret "a  b" bredvid "a b", och sedan kastade byggaren med ett allmänt fel).
+ * @param {string} t
+ */
+export const jamforbar = (t) => t.trim().toLocaleLowerCase("sv").replace(/\s+/g, " ");
 
 /**
  * Bygger en ny omröstning: meddelandet och texterna på de första alternativen, eller kastar med skälet.
