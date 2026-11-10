@@ -4344,7 +4344,6 @@ function Omrostningskort({ m, omr, namnFor, bildFor, texter: t }) {
   const [nytt, setNytt] = useState("");
   const [fel, setFel] = useState(/** @type {string | null} */ (null));
   const [arbetar, setArbetar] = useState(false);
-  const hogst = s.alternativ.reduce((h, a) => Math.max(h, a.antal), 0);
   const kanLaggaTill = s.alternativ.length < MAX_ALTERNATIV;
   const langdFel = omrostningstextFel(nytt, MAX_ALTERNATIVTEXT, t);
   const stangFalt = () => {
@@ -4389,8 +4388,8 @@ function Omrostningskort({ m, omr, namnFor, bildFor, texter: t }) {
               a.egen ? "border-accent" : "border-transparent hover:bg-canvas",
             )}
           >
-            {/* Stapeln: andelen av den största, så att det ledande alternativet fyller raden. Bredden är ett mått, ingen färg (closed-api). */}
-            <span aria-hidden="true" data-stapel="" className="absolute inset-y-0 left-0 bg-accent-faint" style={{ width: `${hogst ? Math.round((a.antal / hogst) * 100) : 0}%` }} />
+            {/* Stapeln: andelen av dem som röstat, som Facebooks. En röst per person, så staplarna blir tillsammans hela. Bredden är ett mått, ingen färg (closed-api). */}
+            <span aria-hidden="true" data-stapel="" className="absolute inset-y-0 left-0 bg-accent-faint" style={{ width: `${s.antalRostande ? Math.round((a.antal / s.antalRostande) * 100) : 0}%` }} />
             <span aria-hidden="true" className={cx("relative inline-flex size-4 shrink-0 items-center justify-center rounded-full border", a.egen ? "border-accent bg-accent text-accent-contrast" : "border-line-strong")}>
               {a.egen ? <BockIkon size={12} /> : null}
             </span>

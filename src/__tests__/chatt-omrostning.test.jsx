@@ -336,6 +336,9 @@ describe("vyn", () => {
     expect(/** @type {HTMLElement} */ (ansikten.querySelector("[data-fler-ansikten]")).textContent).toBe("+2");
     const lor = within(kort).getByRole("button", { name: "Lördag, 0 röster" });
     expect(lor.querySelector("[data-ansikten]")).toBeNull();
+    // Stapeln är andelen av dem som röstat: alla fem på Fredag.
+    expect(/** @type {HTMLElement} */ (fre.querySelector("[data-stapel]")).style.width).toBe("100%");
+    expect(/** @type {HTMLElement} */ (lor.querySelector("[data-stapel]")).style.width).toBe("0%");
     expect(/** @type {HTMLElement} */ (kort.querySelector("[data-omrostning-antal]")).textContent).toBe("5 har röstat");
   });
   it("⛔ en tryckning röstar, en annan rad byter, samma rad tar tillbaka: tre olika skrivningar", async () => {
@@ -350,6 +353,7 @@ describe("vyn", () => {
     await waitFor(() => expect(rosta).toHaveBeenCalledWith(g.id, { mid: m.id, val: lor.id, av: "anna" }));
     const min = await within(kort).findByRole("button", { name: "Lördag, 1 röst, du har röstat" });
     expect(min.getAttribute("aria-pressed")).toBe("true");
+    expect(/** @type {HTMLElement} */ (min.querySelector("[data-stapel]")).style.width).toBe("17%");
     expect(/** @type {HTMLElement} */ (kort.querySelector("[data-omrostning-antal]")).textContent).toBe("6 har röstat");
     fireEvent.click(within(kort).getByRole("button", { name: "Fredag, 5 röster" }));
     await waitFor(() => expect(andraRost).toHaveBeenCalledWith(g.id, { mid: m.id, val: fre.id, av: "anna" }));
