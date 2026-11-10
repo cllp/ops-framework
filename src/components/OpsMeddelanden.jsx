@@ -3183,7 +3183,15 @@ export function Meddelanderader({ meddelanden, uid, namnFor: namnForProp, medlem
                   ) : null}
                 </span>
               ) : null}
-              <div className={cx("flex min-w-0 max-w-[70%] flex-col", egen ? "items-end" : "items-start")}>
+              {/*
+               * ⛔ RADEN RULLAR ALDRIG I SIDLED (0.212.1, cllp/lifehub.app#734). CP 2026-11-09 från sin iPhone: "Den bussar och scrollar i sidled." Mätt i
+               * `check:skalyta` avsnitt 63 vid 390 px: loggen (`overflow-y-auto`, alltså också `overflow-x: auto`) var 703 px bred i en ruta på 380, och gick att rulla
+               * 200 px åt sidan. Orsaken var `break-words` (`overflow-wrap: break-word`): det bryter en lång adress eller ett långt ord först när raden redan är full,
+               * men räknar inte med brytningen i elementets MINSTA bredd. Kolumnen och bubblan är `fit-content` i en flexrad, så deras bredd blev det längsta ordet
+               * (en länk på 526 px, en kodrad på 623), och 70-procentskolumnen svämmade över. `wrap-anywhere` (`overflow-wrap: anywhere`) räknar brytningen också i
+               * minsta bredden. Den sitter här och ärvs av allt i kolumnen: bubblan, namnraden, citatet, omröstningen, bilagans namn och trådens rad.
+               */}
+              <div className={cx("flex min-w-0 max-w-[70%] flex-col wrap-anywhere", egen ? "items-end" : "items-start")}>
                 {/* ⛔ ETT MEDDELANDE FRÅN EN NYCKEL BÄR ALLTID SITT MÄRKE (0.135.0): namnraden ritas även i ett privat samtal, och på ens eget meddelande. */}
                 {/* ⛔ TIDEN STÅR PÅ NAMNRADEN (0.190.0, CP 2026-11-05 i cllp/lifehub.app#658): efter namnet och märket Gäst, inte på en egen rad under bubblan. Det
                     första meddelandet i en följd bär raden; ett som följer inom fem minuter från samma avsändare står utan, som namnet. */}
@@ -3193,7 +3201,7 @@ export function Meddelanderader({ meddelanden, uid, namnFor: namnForProp, medlem
                   m.via ? (
                     <span data-namnrad="eget" data-via-eget="" className="mr-1 mb-0.5 flex items-center gap-1.5 text-liten text-ink-muted">
                       {avNamnFor(namnFor, m, uid, texter.du, sprak)}
-                      <span data-meddelande-tid="" className="tabular-nums">{formatTime(m.tid, { locale })}</span>
+                      <span data-meddelande-tid="" className="shrink-0 tabular-nums">{formatTime(m.tid, { locale })}</span>
                     </span>
                   ) : (
                     <span data-namnrad="eget" data-meddelande-tid="" className="mr-1 mb-0.5 text-liten tabular-nums text-ink-muted">{formatTime(m.tid, { locale })}</span>
@@ -3204,7 +3212,7 @@ export function Meddelanderader({ meddelanden, uid, namnFor: namnForProp, medlem
                     <span data-namnrad="annans" data-avsandare="" className="mb-0.5 ml-1 flex items-center gap-1.5 text-liten text-ink-muted" data-namn-saknas={person === NAMN_SAKNAS ? "" : undefined}>
                       {avNamnFor(namnFor, m, uid, texter.du, sprak)}
                       {arGast(m) ? <span data-gast-markning="" className="rounded-full bg-sunken px-1.5 py-px text-mikro font-medium text-ink-secondary">{texter.gast}</span> : null}
-                      <span data-meddelande-tid="" className="tabular-nums">{formatTime(m.tid, { locale })}</span>
+                      <span data-meddelande-tid="" className="shrink-0 tabular-nums">{formatTime(m.tid, { locale })}</span>
                     </span>
                   ) : (
                     <span data-namnrad="annans" data-meddelande-tid="" className="mb-0.5 ml-1 text-liten tabular-nums text-ink-muted">{formatTime(m.tid, { locale })}</span>
@@ -3225,7 +3233,7 @@ export function Meddelanderader({ meddelanden, uid, namnFor: namnForProp, medlem
                           data-bubbla=""
                           data-traff={traffar?.ids.has(m.id) ? (traffar.aktuell === m.id ? "aktuell" : "traff") : undefined}
                           className={cx(
-                            "min-w-0 rounded-2xl px-3.5 py-2 text-etikett leading-relaxed break-words",
+                            "min-w-0 rounded-2xl px-3.5 py-2 text-etikett leading-relaxed wrap-anywhere",
                             traffar?.ids.has(m.id) ? (traffar.aktuell === m.id ? "outline-2 outline-offset-2 outline-accent" : "outline-1 outline-offset-2 outline-line-strong") : "",
                             egen ? "bg-accent text-accent-contrast" : "bg-hover text-ink",
                             fortsattning && egen ? "rounded-tr-lg" : "",
@@ -4377,7 +4385,7 @@ function Omrostningskort({ m, omr, namnFor, bildFor, texter: t }) {
   return (
     <div data-omrostning={m.id} className="flex w-72 max-w-full flex-col gap-2 rounded-2xl bg-hover p-3 text-ink">
       {/* Frågan är kortets rubrik: en h3, så att den som läser med skärmläsare hoppar mellan omröstningarna som mellan rubriker. */}
-      <h3 id={rubrikId} data-omrostning-fraga="" className="m-0 text-etikett font-semibold break-words">
+      <h3 id={rubrikId} data-omrostning-fraga="" className="m-0 text-etikett font-semibold wrap-anywhere">
         {m.text}
       </h3>
       <div role="group" aria-labelledby={rubrikId} className="flex flex-col gap-1.5">
@@ -4400,7 +4408,7 @@ function Omrostningskort({ m, omr, namnFor, bildFor, texter: t }) {
             <span aria-hidden="true" className={cx("relative inline-flex size-4 shrink-0 items-center justify-center rounded-full border", a.egen ? "border-accent bg-accent text-accent-contrast" : "border-line-strong")}>
               {a.egen ? <BockIkon size={12} /> : null}
             </span>
-            <span aria-hidden="true" className="relative min-w-0 flex-1 text-etikett break-words">{a.text}</span>
+            <span aria-hidden="true" className="relative min-w-0 flex-1 text-etikett wrap-anywhere">{a.text}</span>
             {a.roster.length ? (
               <span aria-hidden="true" data-ansikten="" className="relative flex shrink-0 items-center -space-x-1.5 [&>*]:rounded-full [&>*]:ring-2 [&>*]:ring-surface">
                 {a.roster.slice(0, OMROSTNING_ANSIKTEN).map((u) => (
