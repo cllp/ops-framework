@@ -4560,7 +4560,7 @@ function Omrostningsformular({ onSkicka, onAvbryt, texter: t }) {
         <button type="button" onClick={onAvbryt} className="inline-flex min-h-11 cursor-pointer items-center rounded-xl px-3 text-meta text-ink-secondary hover:bg-canvas">
           {t.avbryt}
         </button>
-        <button type="submit" disabled={skickar} className="inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-xl bg-accent px-4 text-meta font-medium text-accent-contrast hover:bg-accent-hover disabled:cursor-default disabled:opacity-70">
+        <button type="submit" disabled={skickar} aria-busy={skickar || undefined} className="inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-xl bg-accent px-4 text-meta font-medium text-accent-contrast hover:bg-accent-hover disabled:cursor-default disabled:opacity-70">
           {skickar ? <OpsSpinner size="sm" tone="current" decorative /> : null}
           {t.skicka}
         </button>
