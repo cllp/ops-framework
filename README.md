@@ -2056,6 +2056,26 @@ antalet per meddelande, inget lagras. Källan: `lasReaktioner`, `prenumereraReak
 44 px träffyta, pilarna flyttar, Escape stänger med fokus kvar. Rotmeddelandets reaktioner står i gruppchatten, trådens svar har sina i
 tråden.
 
+**Omröstningar, med nycklarna `omrostningsval` och `omrostningsroster` (cllp/lifehub.app#438 skiva 1, bara tillsammans).** En omröstning
+är ett meddelande med `omrostning: true` (`OMROSTNINGFALT`), och **texten är frågan**: en rad om högst `MAX_FRAGA` (200) tecken utan dolda
+tecken och utan bilaga, så att inkorgen, notisen, gästens chatt och en app utan omröstningar ser frågan som vanlig text. Alternativen ligger
+i `<samtal>/{sid}/<omrostningsval>/{mid|stycke}` med `{ mid, text, av, tid }` (`OMROSTNINGSVALFALT`, text högst `MAX_ALTERNATIVTEXT` (120),
+stycket av formen `OMROSTNINGSVAL_REGEL`), och rösterna i `<samtal>/{sid}/<omrostningsroster>/{mid|uid}` med `{ mid, av, val, tid }`
+(`OMROSTNINGSROSTFALT`), där `val` är alternativets id. Byggarna: `byggOmrostningsmeddelande({ fraga, alternativ, av })` (2 till
+`MAX_ALTERNATIV_VID_START` (10), golvet `MIN_ALTERNATIV_VID_START`, inga två lika), `byggOmrostningsval({ mid, text, av, befintliga? })`
+(med `befintliga` prövas taket `MAX_ALTERNATIV` (20) och dubbletten), `byggOmrostningsrost` och `omrostningsrostnyckel`. Också i
+`ops-framework/node`. `summeraOmrostning(val, roster, uid)` räknar fram alternativen i den ordning de lades till med `{ id, text, antal,
+egen, roster }`, `antalRostande` och `egetVal`; röster på okända alternativ och trasiga rader räknas inte, inget lagras. Regeln: den som
+får läsa samtalet läser; en aktiv person lägger till ett alternativ som sig själv på ett meddelande som är en omröstning (efter batchen, så
+att skaparens alternativ skrivs med frågan); en röst pekar på ett alternativ i samma omröstning, bara sin egen byts (`val` och `tid`) och
+tas bort; alternativ ändras och raderas aldrig. ⛔ Regeln kan inte räkna: taket och golvet prövas av byggaren och vyn. Källan:
+`skickaOmrostning` (frågan och alternativen i en `batch`), `laggTillAlternativ`, `rosta`, `andraRost`, `taBortRost`, `lasOmrostningsval`,
+`lasOmrostningsroster`, `prenumereraOmrostningsval` och `prenumereraOmrostningsroster` (en lyssnare per samling, de senaste
+`OMROSTNINGSTAK`), bara när `harOmrostningar(kalla)`. Bara i samtalet, inte i en tråd. Vyn: raden "Omröstning" i pluset öppnar ett
+formulär; kortet i flödet har frågan i fetstil, en knapp per alternativ med stapel, antal och upp till tre ansikten och "+N"
+(`aria-pressed` och namnet "Fredag, 3 röster, du har röstat"), "Lägg till alternativ" och "N har röstat". Samma rad igen tar tillbaka
+rösten, en annan rad byter den.
+
 **Omnämnanden, @alla och @agent, med nyckeln `omnamnanden: true`.** Meddelandet får fältet `namner` (`NAMNERFALT`): uid:n, eller
 `["alla"]` (`NAMNER_ALLA`) ensamt, högst `MAX_NAMNER` (20) med högst `MAX_UIDLANGD` (128) tecken per uid, prövat av `kravNamner` i `byggMeddelande`. Regeln prövar formen (en lista med
 1 till 20 strängar, högst 20 gånger 128 tecken med kommatecken, inga dubbletter, "alla" ensamt), i samtalet och i trådar, och i alla

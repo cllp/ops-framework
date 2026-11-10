@@ -9,6 +9,33 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## Opublicerat
+
+En omröstning går att ställa direkt i chatten, som ett kort i flödet (cllp/lifehub.app#438 skiva 1). CP 2026-10-22 och 10-23: frågan och alternativen, ansikten och "+N" för vem som röstat, alla i chatten kan lägga till ett alternativ, och det ska fungera som Facebooks omröstning, inte Apples. CP vill se kortet innan resten bestäms, så det här är prototypen av kortet med en riktig modell och riktiga regler bakom.
+
+### Tillagt
+
+- **Omröstningar i chatten**, med två nya nycklar utan förval och bara tillsammans: `omrostningsval` och `omrostningsroster`, på `createSamtalskalla` och `samtalsregelfragment` (`harOmrostningar(kalla)`). Utan dem är regeltexten byte för byte den förra, och vyn som förut.
+  - **Frågan är meddelandets text**, och meddelandet bär `omrostning: true`. ⛔ Uppdraget föreslog `omrostning: { fraga }`, men då hade frågan stått två gånger (regel 2), eller så hade texten varit tom och varje läsare som bara känner texten (inkorgens utdrag, notisen, gästens chatt, agenten, en app utan omröstningar) hade visat ett tomt meddelande. Nu ser de frågan som vanlig text. Frågan är en rad om högst 200 tecken utan dolda tecken (radbrytning, tabb, nollbreddstecken, riktningsmarkeringar), och en omröstning bär ingen bilaga.
+  - **Alternativen** i `<samtal>/{sid}/<omrostningsval>/{mid|stycke}` med `{ mid, text, av, tid }`, text högst 120 tecken. Skaparens första 2 till 10 skrivs i samma batch som frågan, och vem som helst av samtalets personer lägger till fler, upp till 20 totalt. Ett alternativ ändras och raderas aldrig i skiva 1.
+  - **Rösterna** i `<samtal>/{sid}/<omrostningsroster>/{mid|uid}` med `{ mid, av, val, tid }`: en per person och omröstning, nyckeln bär unikheten som för reaktionerna. Bara den egna byts (`val` och `tid`) och tas bort.
+  - **Byggarna** `byggOmrostningsmeddelande`, `byggOmrostningsval`, `byggOmrostningsrost` och `omrostningsrostnyckel`, och **summeringen** `summeraOmrostning(val, roster, uid)`. Också i `ops-framework/node`, så att appens API och agent kan läsa och skriva samma form. Antalet lagras aldrig, det räknas fram, och röster på okända alternativ räknas inte.
+  - **Källan**: `skickaOmrostning` (en batch, eller ingenting), `laggTillAlternativ`, `rosta`, `andraRost`, `taBortRost`, och läsningar och lyssnare för alternativ och röster, en per samling och samtal (`OMROSTNINGSTAK`).
+  - **Vyn** (`OpsMeddelanden`, `OpsSamtal`): raden "Omröstning" i pluset öppnar ett formulär med frågan, två alternativ att börja med, "Lägg till alternativ", Avbryt och Skicka. Formuläret säger sina fel innan något skickas. Kortet i flödet har frågan i fetstil och en knapp per alternativ över hela bredden, med en stapel för andelen, texten, upp till tre ansikten och "+N", och antalet. Det egna valet är markerat. En tryckning röstar, en annan rad byter, samma rad igen tar tillbaka rösten. Sista raden "Lägg till alternativ" öppnar ett fält i kortet. Under alternativen står "N har röstat". Varje alternativ är en knapp med `aria-pressed` och namnet "Fredag, 3 röster, du har röstat", minst 44 px hög. Texterna finns på svenska och engelska.
+  - ⛔ **Reglerna kan inte räkna.** Taket på 20 alternativ, golvet på två vid start och att två alternativ inte har samma text prövas av byggaren och vyn. En klient förbi byggaren kan skriva fler, eller en fråga utan alternativ (kortet säger då "Inga alternativ än."). Det reglerna håller: formen, vem, att meddelandet är en omröstning och att en röst pekar på ett alternativ i samma omröstning.
+  - **Bara i samtalet i skiva 1**, inte i en tråd. Gästens chatt ser frågan som en vanlig bubbla, utan kortet.
+
+### Förebilden (regel 13)
+
+- **Tas som det är** (Facebooks omröstning, CP 2026-10-23): frågan överst, alternativen som rader över hela bredden med en stapel, ansikten för vem som röstat med "+N", "Lägg till alternativ" för alla, och att rösta, byta och ta tillbaka med samma tryckning.
+- **Görs bättre**: frågan är meddelandets text, så att alla ytor som bara läser text ser frågan; rösten har en härledd nyckel per person och omröstning, så att två samtidiga röster inte skriver över varandra och ingen kan röra någon annans; antalet räknas fram och lagras aldrig; dolda tecken nekas, så att två alternativ inte kan se likadana ut.
+- **Stryks**, med CP 2026-10-26 och 10-28: flera röster per person (en röst per person håller nyckeln enkel, med flera hade varje val varit ett eget dokument och regeln hade behövt räkna), att skapa ur TALK, anonyma röster (då hade rösten inte kunnat bära `av`, och regeln hade inte kunnat skydda den egna), tidsgräns och automatisk stängning (ett tillstånd på meddelandet som någon måste skriva, eller ett jobb som gör det). Också struket i skiva 1: att ändra eller ta bort ett alternativ (en röst på det hade pekat på ingenting) och omröstningar i trådar. Agentens sammanfattning kommer i en senare skiva.
+
+### Prov
+
+- `src/__tests__/chatt-omrostning.test.jsx` (20 prov): byggarna, summeringen, källan och vyn. Alla röda med sitt skydd bortplockat (18 mutationer av koden, och hela filen utan funktionen).
+- `rules/__tests__/chattnatt.test.mjs`: 14 nya regelprov mot emulatorn, med en batch om tio alternativ, och 28 nya mutationer i tabellen, alla röda.
+
 ## 0.211.0
 
 Chattens meddelandemeny har Kopiera och Kopiera länk (lifehub.app#712), appens API-agenter går att nämna med @ (lifehub.app#723), och gästens fildetalj läcker inte den signerade adressen när nedladdning är avstängd (#560).
