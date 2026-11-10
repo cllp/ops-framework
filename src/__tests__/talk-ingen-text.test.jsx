@@ -539,13 +539,13 @@ describe("flödet och miljön", () => {
     // millisekund gick: CI 2026-10-30 gav 1 i andra omgången, och Publish för 0.177.0 föll 2026-11-02 på första (`anrop:1` i stället för `anrop:0`).
     // Med en klocka som står still är tiden 0 på varje maskin och provet kan pröva exakt.
     const g = /** @type {NonNullable<ReturnType<typeof webblasarensIgenkanning>>} */ (webblasarensIgenkanning({ SpeechRecognition: /** @type {any} */ (SR), nu: () => 1000 }));
-    expect(/** @type {any} */ (g).diagnos()).toEqual({ startade: false, startHandelse: false, felkod: null, logg: "" });
+    expect(/** @type {any} */ (g).diagnos()).toEqual({ startade: false, startHandelse: false, felkod: null, avbrot: null, logg: "" });
     g.starta({ sprak: "sv-SE", onText: () => {}, onFel: () => {} });
     instanser[0].onstart();
     instanser[0].onerror({ error: "no-speech" });
-    expect(/** @type {any} */ (g).diagnos()).toEqual({ startade: true, startHandelse: true, felkod: "no-speech", logg: "anrop:0.start:0.error-no-speech:0" });
+    expect(/** @type {any} */ (g).diagnos()).toEqual({ startade: true, startHandelse: true, felkod: "no-speech", avbrot: null, logg: "anrop:0.start:0.error-no-speech:0" });
     g.starta({ sprak: "sv-SE", onText: () => {}, onFel: () => {} });
     // Loggen nollas: bara den nya omgångens anrop står kvar.
-    expect(/** @type {any} */ (g).diagnos()).toEqual({ startade: true, startHandelse: false, felkod: null, logg: "anrop:0" });
+    expect(/** @type {any} */ (g).diagnos()).toEqual({ startade: true, startHandelse: false, felkod: null, avbrot: null, logg: "anrop:0" });
   });
 });

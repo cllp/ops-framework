@@ -1044,10 +1044,12 @@ export function skapaIgenkanningsniva({ nu = () => Date.now() } = {}) {
 
 /**
  * @typedef {object} Igenkanning
- * @property {(val: { sprak: string, onText: (text: string) => void, onFel?: (kod: string) => void, onLjud?: (typ: "ljud" | "tal" | "tystnad") => void }) => void} starta Börjar lyssna. `onText` får hela texten hittills.
+ * @property {(val: { sprak: string, onText: (text: string) => void, onFel?: (kod: string) => void, onLjud?: (typ: "ljud" | "tal" | "tystnad") => void, sammanhang?: () => Record<string, unknown> }) => void} starta Börjar lyssna. `onText` får hela texten hittills.
  *   `onFel` (0.99.0) får en kod när igenkänningen inte går att starta eller faller med ett riktigt fel, så att fältet kan säga det.
  *   `onLjud` (0.115.0, cllp/lifehub.app#345) får webbläsarens egna ljudhändelser: `ljud` (`onsoundstart`), `tal` (`onspeechstart`) och
  *   `tystnad` (`onspeechend`). Valfri: en egen igenkänning från appen som inte känner till den får bara `onText`, och prickarna drivs då av texten ensam.
+ *   `sammanhang` (0.213.0, cllp/lifehub.app#253) ger de fält den som startade vill ha med i felrapporten `igenkanning` (omgången, förra omgången och
+ *   liknande). Den läses när felet rapporteras, och ett kast i den fäller aldrig rapporten. Se `meld` i `webblasarensIgenkanning`.
  * @property {() => Promise<string>} stoppa Slutar och ger den slutliga texten, eller tom sträng när den inte går att lita på.
  * @property {() => void} kasta Slutar utan att vänta.
  * @property {() => Igenkanningsdiagnos} [diagnos] (0.114.0, cllp/ops-framework#402) Vad den här omgångens igenkänning gjorde, för felrapporten
@@ -1066,6 +1068,8 @@ export function skapaIgenkanningsniva({ nu = () => Date.now() } = {}) {
  *   typiskt en som mikrofonen nekats eller som webbläsaren tyst inte körde.
  * @property {string | null} felkod Den senaste felkoden, också de tysta (`no-speech`) och `aborted`, eller namnet på ett kast vid
  *   `start()` (till exempel `InvalidStateError`). `null` när inget fel kom.
+ * @property {string | null} [avbrot] (0.213.0, cllp/lifehub.app#253) Vem som avslutade igenkännaren när felet kom: `webblasaren` när ingen
+ *   `stop()` eller `abort()` begärts av ramverket, annars `egen:` och vägen (`egen:stopp`, `egen:omstartsslinga`). `null` när inget fel kom.
  * @property {string} logg (0.155.0, cllp/lifehub.app#253) Omgångens händelser i den ordning de kom, med millisekunder sedan `start()` anropades:
  *   `anrop:0.start:40.audiostart:55.soundstart:410.result:812x5.speechend:3000.end:3012`. Bara namn, felkoder och tider (`talklogg.js`).
  *   Tom sträng när inget noterats.
@@ -1221,19 +1225,39 @@ export function webblasarensIgenkanning(miljo = {}) {
   let startHandelse = false;
   /** @type {string | null} */
   let senasteFelkod = null;
+  /**
+   * ⛔ (0.213.0, cllp/lifehub.app#253) VEM SOM AVSLUTADE IGENKÄNNAREN NÄR FELET KOM, och fälten den som startade vill ha med i rapporten.
+   * CP:s iPhone 2026-11-10 09.10 gav raden "Taligenkänningen föll: aborted, kod=aborted" och inget mer: varken omgången, om igenkänningen
+   * startade, eller om det var vår egen `abort()`. `aborted` säger på WebKit två olika saker (se `meld`), och utan `avbrot` gick de inte att skilja.
+   * @type {string | null}
+   */
+  let senasteAvbrot = null;
+  /** @type {(() => Record<string, unknown>) | null} */
+  let sammanhangFn = null;
   // ⛔ (0.155.0, cllp/lifehub.app#253) OMGÅNGENS HÄNDELSELOGG: i vilken ordning och när webbläsaren sade `start`, `audiostart`, `soundstart`, `speechstart`,
   // `result`, `nomatch`, `error` och `end`. Nollas av varje `starta`. Bara namn, felkoder och tider, aldrig text.
   let logg = skapaOmgangslogg({ nu });
   /**
    * ⛔ DEN SENAST SKAPADE IGENKÄNNAREN OCH OM DEN SAGT `end` (0.107.0, lifehub.app#253). `slapp` väntar på den innan nästa omgång.
-   * `begard` är när `stop()` eller `abort()` begärdes, `slutVid` när `end` kom.
-   * @type {{ rec: any, slut: Promise<void>, sett: boolean, begard: number, slutVid: number, markera: () => void } | null}
+   * `begard` är när `stop()` eller `abort()` begärdes, `slutVid` när `end` kom. `vag` (0.213.0) är vilken av ramverkets vägar som begärde det.
+   * @type {{ rec: any, slut: Promise<void>, sett: boolean, begard: number, vag: string, slutVid: number, markera: () => void } | null}
    */
   let senaste = null;
-  /** Noterar att ett slut begärts av den senaste igenkännaren, en gång. @param {any} rec */
-  const begar = (rec) => {
-    if (senaste && senaste.rec === rec && !senaste.begard) senaste.begard = nu();
+  /**
+   * Noterar att ett slut begärts av den senaste igenkännaren, en gång, och av vilken väg (0.213.0).
+   * @param {any} rec @param {"stopp" | "stoppa-tidsgrans" | "kasta" | "starta" | "slapp"} vag
+   */
+  const begar = (rec, vag) => {
+    if (senaste && senaste.rec === rec && !senaste.begard) {
+      senaste.begard = nu();
+      senaste.vag = vag;
+    }
   };
+  /**
+   * Vem som avslutade `rec`: ramverket (`egen:` och vägen) eller webbläsaren, när ramverket inte begärt något. @param {any} rec
+   * @returns {string}
+   */
+  const vemAvbrot = (rec) => (senaste && senaste.rec === rec && senaste.begard ? `egen:${senaste.vag}` : "webblasaren");
   const hel = () => `${slutlig} ${pagaende}`.replace(/\s+/g, " ").trim();
   /** @param {unknown} fel */
   const felkod = (fel) => {
@@ -1241,14 +1265,44 @@ export function webblasarensIgenkanning(miljo = {}) {
     const namn = /** @type {any} */ (fel)?.name;
     return typeof namn === "string" && namn ? namn : "okant-fel";
   };
-  /**
+  /*
    * ⛔ ETT FEL SOM INGEN SER ÄR ETT TYST NEDSLÄPP (regel 5). Koden går till fältet (`onFel`) och till felrapporten. En
    * hanterare som i sin tur kastar får inte ta ned igenkänningen, och inte heller sluta rapporteras.
-   * @param {((kod: string) => void) | undefined} onFel @param {string} kod
+   *
+   * ⛔ RAPPORTEN BÄR HELA LÄGET (0.213.0, cllp/lifehub.app#253). Förut bar den bara `kod`. Två saker gjorde raden från CP:s iPhone omätbar:
+   * - Den sade inte vem som avbröt. På WebKit kommer `aborted` från vår egen `abort()` OCH från webbläsaren: mätt i WebKits källkod
+   *   (`WebSpeechRecognizerTask.mm`, `speechRecognitionTask:didFinishSuccessfully:`) blir VARJE misslyckad uppgift i Apples taligenkänning
+   *   `aborted`, och en ny igenkänning på sidan ger den förra `aborted` ("Another request is started", `SpeechRecognitionServer.cpp`).
+   *   `avbrot` säger därför `webblasaren` när ramverket inte begärt något stopp av just den igenkännaren, annars `egen:` och vägen.
+   * - Omgången och förra omgången fanns bara i `ingen-text`, som `useTalk` skickade direkt efter den här. Felmottagaren hålls medan den här
+   *   skrivs (`rapporteraFel`, "EN MOTTAGARE SOM RAPPORTERAR SINA EGNA FEL"), så den andra gick bara till konsolen. Nu bär den här raden
+   *   fälten (`sammanhang`), och `useTalk` skickar ingen andra.
+   * ⛔ Ingen text från personen: loggen har bara händelsenamn, koder och tider.
    */
-  const meld = (onFel, kod) => {
+  /** @param {((kod: string) => void) | undefined} onFel @param {string} kod @param {string} avbrot */
+  const meld = (onFel, kod, avbrot) => {
     senasteFelkod = kod;
-    rapporteraFel(new Error(`Taligenkänningen föll: ${kod}`), { yta: "talk", steg: "igenkanning", kod });
+    senasteAvbrot = avbrot;
+    // Igenkänningens egna fält först: appens mottagare tar ett begränsat antal i den ordning de står, och loggen är det som ska mätas.
+    /** @type {Record<string, unknown>} */
+    const ut = {
+      yta: "talk",
+      steg: "igenkanning",
+      kod,
+      avbrot,
+      igenkanningStartade: startadeOmgang,
+      igenkanningStartHandelse: startHandelse,
+      msSedanStart: startadeOmgang ? Math.max(0, nu() - forsokStart) : null,
+      loggIgk: logg.text(),
+    };
+    try {
+      const extra = sammanhangFn?.();
+      if (extra && typeof extra === "object") for (const [k, v] of Object.entries(extra)) if (!(k in ut)) ut[k] = v;
+    } catch {
+      // Ett kast i den som startade får inte fälla rapporten om igenkänningen. Det syns som ett namn i appens `utelamnadeNycklar`.
+      ut.sammanhangFoll = true;
+    }
+    rapporteraFel(new Error(`Taligenkänningen föll: ${kod}`), ut);
     try {
       onFel?.(kod);
     } catch (fel) {
@@ -1256,8 +1310,8 @@ export function webblasarensIgenkanning(miljo = {}) {
     }
   };
   /** Stänger en igenkännare vi är klara med. `abort` är idempotent i webbläsarna, och ett fel här ska inte stoppa något. */
-  const stang = (/** @type {any} */ gammal) => {
-    begar(gammal);
+  const stang = (/** @type {any} */ gammal, /** @type {"stoppa-tidsgrans" | "starta" | "slapp"} */ vag) => {
+    begar(gammal, vag);
     try {
       gammal?.abort();
     } catch {
@@ -1273,7 +1327,7 @@ export function webblasarensIgenkanning(miljo = {}) {
     rec.interimResults = true;
     /** @type {() => void} */
     let lossa = () => {};
-    const post = { rec, slut: new Promise((l) => { lossa = () => l(undefined); }), sett: false, begard: 0, slutVid: 0, markera: () => {} };
+    const post = { rec, slut: new Promise((l) => { lossa = () => l(undefined); }), sett: false, begard: 0, vag: "", slutVid: 0, markera: () => {} };
     post.markera = () => {
       if (post.sett) return;
       post.sett = true;
@@ -1339,7 +1393,7 @@ export function webblasarensIgenkanning(miljo = {}) {
         return;
       }
       trasig = true;
-      meld(onFel, String(e?.error || "okant-fel"));
+      meld(onFel, String(e?.error || "okant-fel"), vemAvbrot(rec));
     };
     rec.onend = () => {
       // ⛔ Slutet noteras före försöksnumret: också en igenkännare som inte längre gäller har släppt mikrofonen när den säger `end`.
@@ -1359,7 +1413,7 @@ export function webblasarensIgenkanning(miljo = {}) {
         snabbaOmstarter = levde < OMSTART_SNABB_MS ? snabbaOmstarter + 1 : 0;
         if (snabbaOmstarter > MAX_SNABBA_OMSTARTER) {
           trasig = true;
-          meld(onFel, "omstartsslinga");
+          meld(onFel, "omstartsslinga", "egen:omstartsslinga");
         } else {
           // ⛔ #253: en kort paus innan omstarten, så att WebKit hinner släppa mikrofonen mellan omgångarna. Pausen körs på
           // den inskjutbara `vanta`, så proven styr den. Hinner läget ändras under pausen (stopp, kast, fel) startas inget.
@@ -1376,7 +1430,7 @@ export function webblasarensIgenkanning(miljo = {}) {
               // En igenkännare som aldrig startade säger aldrig `end`, och håller ingenting.
               senaste?.markera();
               trasig = true;
-              meld(onFel, felkod(fel));
+              meld(onFel, felkod(fel), "webblasaren");
               narSlut?.();
               narSlut = null;
             }
@@ -1397,18 +1451,20 @@ export function webblasarensIgenkanning(miljo = {}) {
   };
 
   return {
-    /** @param {{ sprak: string, onText: (text: string) => void, onFel?: (kod: string) => void, onLjud?: (typ: "ljud" | "tal" | "tystnad") => void }} val */
-    starta({ sprak, onText, onFel, onLjud }) {
+    /** @param {{ sprak: string, onText: (text: string) => void, onFel?: (kod: string) => void, onLjud?: (typ: "ljud" | "tal" | "tystnad") => void, sammanhang?: () => Record<string, unknown> }} val */
+    starta({ sprak, onText, onFel, onLjud, sammanhang }) {
       forsok += 1;
       startadeOmgang = false;
       startHandelse = false;
       senasteFelkod = null;
+      senasteAvbrot = null;
+      sammanhangFn = typeof sammanhang === "function" ? sammanhang : null;
       logg = skapaOmgangslogg({ nu });
       // ⛔ DEN FÖRRA OMGÅNGENS IGENKÄNNARE STÄNGS INNAN EN NY STARTAS (0.99.0). Safari, och iOS i synnerhet, tillåter bara EN
       // aktiv igenkänning, och `start()` på en andra kastar InvalidStateError. En igenkännare som `stoppa()` gett upp på (väntetiden
       // gick ut utan att webbläsaren sade `end`) levde kvar, och nästa omgång föll tyst: texten blev tom och inget förklarade varför.
       // Numret räknades redan upp, så den gamlas hanterare gör ingenting när den till slut säger sitt.
-      stang(r);
+      stang(r, "starta");
       r = null;
       aktiv = true;
       trasig = false;
@@ -1427,7 +1483,7 @@ export function webblasarensIgenkanning(miljo = {}) {
         senaste?.markera();
         trasig = true;
         aktiv = false;
-        meld(onFel, felkod(fel));
+        meld(onFel, felkod(fel), "webblasaren");
       }
     },
     stoppa() {
@@ -1447,15 +1503,24 @@ export function webblasarensIgenkanning(miljo = {}) {
           if (gjort) return;
           gjort = true;
           if (!iTid) logg.notera("vantan-slut");
+          const galldeNar = mitt === forsok;
           // ⛔ TIDEN TOG SLUT: webbläsaren gav aldrig sitt sista besked, och texten kan sakna slutet. Igenkännaren stängs då här,
           // annars lever den kvar och blockerar nästa omgång (se `starta`).
-          if (!iTid && mitt === forsok) stang(r);
-          klar(!iTid || trasig || mitt !== forsok ? "" : hel());
+          // ⛔ (0.213.0, cllp/lifehub.app#253) FÖRSÖKET RÄKNAS UPP FÖRE `abort()`, som i `kasta`. Förut gällde igenkännaren fortfarande när vår
+          // egen `abort()` gav sitt `aborted` (WebKit ger det efter `end` när Apples uppgift avbryts), och då rapporterades vårt eget stopp som
+          // "Taligenkänningen föll". Texten är redan avgjord här (tom), och loggen har `vantan-slut`.
+          if (!iTid && galldeNar) {
+            forsok += 1;
+            const gammal = r;
+            r = null;
+            stang(gammal, "stoppa-tidsgrans");
+          }
+          klar(!iTid || trasig || !galldeNar ? "" : hel());
         };
         narSlut = () => sluta(true);
         vanta(() => sluta(false), IGENKANNING_VANTA_MS);
         logg.notera("stopp");
-        begar(r);
+        begar(r, "stopp");
         try {
           r.stop();
         } catch {
@@ -1471,7 +1536,7 @@ export function webblasarensIgenkanning(miljo = {}) {
       const gammal = r;
       r = null;
       logg.notera("kasta");
-      begar(gammal);
+      begar(gammal, "kasta");
       try {
         gammal?.abort();
       } catch {
@@ -1480,7 +1545,7 @@ export function webblasarensIgenkanning(miljo = {}) {
     },
     /** (0.114.0) Vad omgångens igenkänning gjorde. Läses efter `stoppa`, för felrapporten `ingen-text`. */
     diagnos() {
-      return { startade: startadeOmgang, startHandelse, felkod: senasteFelkod, logg: logg.text() };
+      return { startade: startadeOmgang, startHandelse, felkod: senasteFelkod, avbrot: senasteAvbrot, logg: logg.text() };
     },
     /*
      * ⛔ FÖRRA OMGÅNGEN ÄR HELT AVSLUTAD INNAN NÄSTA BÖRJAR (0.107.0, lifehub.app#253). CP 2026-10-15 på iPhone: "Det är som att
@@ -1497,7 +1562,7 @@ export function webblasarensIgenkanning(miljo = {}) {
       aktiv = false;
       narSlut = null;
       if (r === p.rec) r = null;
-      stang(p.rec);
+      stang(p.rec, "slapp");
       return new Promise((klar) => {
         let gjort = false;
         /** @param {boolean} hann */

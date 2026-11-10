@@ -322,18 +322,21 @@ describe("⛔ förra omgången på sidan följer med i felrapporten, också öve
     expect(Object.keys(rapport[0]).slice(0, 5)).toEqual(["yta", "steg", "loggInsp", "forra", "forraLogg"]);
   });
 
-  it("⛔ ingen-text när igenkänningen faller bär loggIgk med felkoden och forra, också när det är sidans första omgång", async () => {
+  it("⛔ när igenkänningen faller bär dess rapport loggIgk med felkoden och forra, också när det är sidans första omgång", async () => {
     const onAgent = vi.fn(async () => {});
     const skal = renderHook(() => useTalk({ onTalk: async () => {}, onKlick: () => {}, onAgent, inspelare: /** @type {any} */ (tystInspelare()), igenkanning: true }));
     act(() => skal.result.current.direkt());
     await flush();
     act(() => igenkannare[0].onerror({ error: "not-allowed" }));
     await flush();
-    const rapport = rapporter("ingen-text");
+    // ⛔ (0.213.0, cllp/lifehub.app#253) EN rapport, igenkänningens egen, med fälten som förut stod i `ingen-text`. Se `igenkanningenFoll`.
+    expect(rapporter("ingen-text")).toHaveLength(0);
+    const rapport = rapporter("igenkanning");
     expect(rapport).toHaveLength(1);
     expect(rapport[0].forra).toBe("ingen");
+    expect(rapport[0].omgang).toBe(1);
     expect(rapport[0].loggIgk).toMatch(/^anrop:\d+\.start:\d+\.error-not-allowed:\d+$/);
-    expect(Object.keys(rapport[0]).slice(0, 4)).toEqual(["yta", "steg", "forra", "forraLogg"]);
+    expect(Object.keys(rapport[0]).slice(0, 8)).toEqual(["yta", "steg", "kod", "avbrot", "igenkanningStartade", "igenkanningStartHandelse", "msSedanStart", "loggIgk"]);
     // Omgången noteras som fel för nästa.
     expect(forraOmgangen()?.forra).toMatch(/^igenkanning:fel:/);
   });

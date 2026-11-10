@@ -292,6 +292,8 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, insp
       igenkanningStartade: diag ? diag.startade : null,
       igenkanningStartHandelse: diag ? diag.startHandelse : null,
       igenkanningFelkod: diag ? diag.felkod : null,
+      // ⛔ (0.213.0, cllp/lifehub.app#253) Vem som avslutade igenkännaren när felet kom: `webblasaren` eller `egen:` och vägen. `null` utan fel.
+      igenkanningAvbrot: diag ? (diag.avbrot ?? null) : null,
       omgang: omgang.current,
       standalone: miljo.standalone,
       userAgent: miljo.userAgent,
@@ -305,17 +307,36 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, insp
   /**
    * ⛔ IGENKÄNNINGEN FÖLL I EN OMGÅNG UTAN INSPELARE (0.114.0, cllp/ops-framework#402). Det finns inget ljud att falla tillbaka på, så fältet
    * säger det och erbjuder "Spela in i stället": en inspelning utan igenkänning (dagens WebKit-väg) som skrivs ut efteråt med `tillText`.
-   * Felet rapporteras med steget `ingen-text` och felkoden (`igenkanningFelkod`). Gör ingenting om omgången inte längre lyssnar.
+   * Gör ingenting om omgången inte längre lyssnar.
+   *
+   * ⛔ INGEN ANDRA RAPPORT HÄR (0.213.0, cllp/lifehub.app#253). Den här vägen anropas bara av igenkänningens `onFel`, och igenkänningen har
+   * redan rapporterat felet (`igenkanning`) i samma ögonblick, med omgången och förra omgången ur `igenkanningensSammanhang`. Förut skickades
+   * också `ingen-text` härifrån, men appens felmottagare skriver asynkront och hålls tills skrivningen är klar (`rapporteraFel`), så den
+   * andra raden gick bara till konsolen. Mätt i produktion 2026-11-10 09.10: en rad `igenkanning` med bara `kod=aborted`, ingen `ingen-text`.
    * @param {number} mitt
    */
   const igenkanningenFoll = (mitt) => {
     const l = lageRef.current.lage;
     if (mitt !== forsok.current || !monterad.current || (l !== "haller" && l !== "lyssnar")) return;
-    rapporteraIngenText(mikStart.current ? Math.round((Date.now() - mikStart.current) / 100) / 10 : 0, 0);
     noteraSlut("fel");
     setReserv(true);
     skicka({ typ: "fel", text: ORD_TALK.felIgenkanning.sv });
   };
+
+  /**
+   * ⛔ FÄLTEN SOM IGENKÄNNINGENS EGEN RAPPORT BÄR (0.213.0, cllp/lifehub.app#253), samma mått som `ingen-text`: omgången, förra omgången på
+   * sidan, hur länge mikrofonen varit öppen och vilken sorts omgång det var. Läses när felet kommer, inte när omgången startar.
+   * ⛔ Ingen text från personen. `userAgent` står inte här: appens rad har redan webbläsaren.
+   * @param {boolean} bara
+   */
+  const igenkanningensSammanhang = (bara) => ({
+    omgang: omgang.current,
+    ...forraFalt(),
+    sekunder: mikStart.current ? Math.round((Date.now() - mikStart.current) / 100) / 10 : 0,
+    baraIgenkanning: bara,
+    medVal: typeof onAgentRef.current === "function",
+    standalone: talkMiljo().standalone,
+  });
 
   /**
    * ⛔ UTSKRIFTEN AV LJUDET NÄR INGEN TEXT HÖRDES (0.114.0, cllp/ops-framework#402). Appens `tillText` får ljudet och svarar med texten.
@@ -427,6 +448,16 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, insp
         omgangsIgk.current = bara ? igk(true) : igk();
         setOmgangsText(omgangsIgk.current !== null);
         if (mikrofonenUpptagenAv && mikrofonenUpptagenAv !== inspRef) {
+          // ⛔ (0.213.0, cllp/lifehub.app#253) RAPPORTERAS. Förut stod felet bara i fältet: en omgång som aldrig startade lämnade ingen rad,
+          // och CP:s försök 2026-11-10 09.40 lämnade ingen rad alls. Det här är en av vägarna det kan ha varit.
+          rapporteraFel(new Error("TALK: mikrofonen hölls av en annan inspelning på sidan, och omgången startade inte."), {
+            yta: "OpsTalk",
+            steg: "upptagen",
+            // Omgången räknas inte upp: den här startade aldrig. Förra omgången på sidan läses direkt, som vid en start.
+            omgang: omgang.current,
+            ...(forraOmgangen() ?? { forra: "ingen", forraLogg: "" }),
+            baraIgenkanning: bara,
+          });
           skicka({ typ: "fel", text: TALK_UPPTAGEN });
           return;
         }
@@ -504,6 +535,8 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, insp
                         },
                       }
                     : {}),
+                  // ⛔ (0.213.0) Igenkänningens rapport bär omgången och förra omgången, så att den räcker ensam (se `igenkanningenFoll`).
+                  sammanhang: () => igenkanningensSammanhang(bara),
                   // ⛔ Ett fel härifrån får aldrig vara tyst (regel 5): fältet säger att texten uteblir, och ljudet spelas in ändå.
                   // (0.114.0) I en omgång utan inspelare spelas inget in: då säger fältet det och erbjuder "Spela in i stället".
                   onFel: () => {
@@ -534,6 +567,8 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, insp
             // ⛔ Spärren släpps av felet självt: "fel" under håll eller lyssnar ger "kasta", och den grenen släpper den.
             if (mitt !== forsok.current || !monterad.current) return;
             noteraSlut("fel", "");
+            // ⛔ (0.213.0, cllp/lifehub.app#253) RAPPORTERAS. Förut stod felet bara i fältet (till exempel en nekad mikrofon): en väg utan rad.
+            rapporteraFel(fel, { yta: "OpsTalk", steg: "starta", omgang: omgang.current, ...forraFalt(), baraIgenkanning: bara });
             skicka({ typ: "fel", text: talkFeltext(fel) });
           });
       }
