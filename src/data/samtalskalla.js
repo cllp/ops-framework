@@ -1031,8 +1031,15 @@ export function createSamtalskalla(konfig) {
     return kalla.remove(rostvag(sid), omrostningsrostnyckel({ mid, av }));
   }
 
-  const omrostningsfunktioner =
-    omrostningsval === undefined ? {} : { omrostningsval, omrostningsroster, lasOmrostningsval, lasOmrostningsroster, prenumereraOmrostningsval, prenumereraOmrostningsroster, skickaOmrostning, laggTillAlternativ, rosta, andraRost, taBortRost };
+  /*
+   * ⛔ TYPEN NÅS GENOM `harOmrostningar`, INTE GENOM KÄLLANS HÄRLEDDA TYP (cllp/lifehub.app#438). Varje `villkor ? {} : { ... }` som sprids i
+   * källan fördubblar den härledda typen (en union per val), och med omröstningarnas elva funktioner blev den för lång för deklarationsfilen
+   * (TS7056 i `npm run build`, mätt). Därför står spridningen som `{}` för kompilatorn, och `harOmrostningar(kalla)` ger
+   * `K & Omrostningsfunktioner`: samma väg som vyn redan går för reaktionerna och trådarna. I körningen är funktionerna där som vanligt.
+   */
+  const omrostningsfunktioner = /** @type {{}} */ (
+    omrostningsval === undefined ? {} : { omrostningsval, omrostningsroster, lasOmrostningsval, lasOmrostningsroster, prenumereraOmrostningsval, prenumereraOmrostningsroster, skickaOmrostning, laggTillAlternativ, rosta, andraRost, taBortRost }
+  );
 
   /*
    * ══ ⛔ FÄSTA MEDDELANDEN (chattens nattskiva) ═══════════════════════════════════════════════════════════════════════════
