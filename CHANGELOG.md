@@ -9,6 +9,21 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.212.1
+
+Chatten rullar inte längre i sidled på telefonen (cllp/lifehub.app#734). Inget brytande.
+
+### Rättat
+
+- **Chatten gick att rulla åt sidan** (cllp/lifehub.app#734). CP 2026-11-09 från sin iPhone: "Den bussar och scrollar i sidled. Man vill inte scrolla chatten i sidled." Mätt i en riktig webbläsare (`check:skalyta` avsnitt 63) vid 390 px med en lång adress, ett långt ord och en kodrad utan mellanrum i samtalet: sidan själv rullade inte, men **loggen** (`role="log"`) var 703 px bred i en ruta på 380 och gick att rulla 200 px åt sidan, i gruppchatten, i ett privat samtal och i en tråd. Loggen har `overflow-y: auto`, och då blir också `overflow-x` `auto`, så allt som är bredare än loggen blir något att rulla.
+  - **Orsaken** var `break-words` (`overflow-wrap: break-word`) på bubblan och i chattens markdown. Det bryter en lång adress först när raden redan är full, men räknar inte med brytningen i elementets minsta bredd. Meddelandets kolumn (`max-w-[70%]`) och bubblan får sin bredd ur innehållet, så den blev det längsta ordet: en länk på 526 px, en kodrad på 623 px. Avsändarnamn utan mellanrum, citatet och omröstningens text gjorde samma sak (mätt: 425 px med bara bubblan rättad).
+  - **Rättningen** är `wrap-anywhere` (`overflow-wrap: anywhere`), som räknar brytningen också i minsta bredden: på meddelandets kolumn i `Meddelanderader` (ärvs av bubblan, namnraden, citatet, bilagans namn och trådens rad), i stället för `break-words` på bubblan, i `OpsMarkdown` med `chatt`, och på omröstningens fråga och alternativ. Tiden på namnraden står `shrink-0`, så att ett långt namn bryts och inte klockslaget. Samma bubblor ritas i gästens chatt, så den får samma rättning. Inga nya element per meddelande.
+  - ⛔ **Hypotes, inte mätt:** att det var just det här CP såg. Hans skärmbild finns inte hos oss, och Chromium kan inte visa Safaris gummibandsstudsen på iOS ("bussar"). Det som är mätt är att loggen rullade i sidled med det innehållet och inte gör det nu.
+
+### Prov
+
+- **`check:skalyta` avsnitt 63** (`scripts/lib/skalyta734.mjs`, `--bara-sidled`): gruppchatten, ett privat samtal och en tråd vid 390 och 375 px, med en lång adress (egen och andras), ett långt ord, en markdowntabell, ett kodblock och inline-kod med en lång rad, en bild på 2400 x 300, en fil med långt namn, ett citat av ett långt meddelande, reaktioner, en omröstning med långa alternativ, ett omnämnande, en tråd, avdelaren "Nytt sedan sist" och långa avsändarnamn. Den mäter att sidan och loggen inte rullar i sidled (också med ett försök att rulla 200 px), att ingen annan behållare gör det, och att inget element sticker ut ur loggen, och skriver ut vilket element som sticker ut när den är röd. **Golv**: varje slag ska ha ritats (till exempel två bilder och tre reaktionschips i gruppchatten), annars rött. Mot 0.212.0: 12 brott av 104 (loggen 703 mot 380, rullade 200). Med rättningen: 104 kontroller, inga brott. Med bara kolumnens `wrap-anywhere` borttagen: 12 brott (loggen 425 mot 380).
+
 ## 0.212.0
 
 Omröstning i chatten (lifehub.app#438 skiva 1), statusen Parkerad för ärenden (lifehub.app#725), händelsens svar live och utan uid (lifehub.app#714), och nypning i HTML-rutan (#529). Ramverket har inga nya regelvillkor på status: Parkerad släpps in av appens egna regler.
