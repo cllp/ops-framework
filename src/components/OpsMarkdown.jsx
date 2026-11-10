@@ -231,8 +231,10 @@ export function OpsMarkdown({ text, chatt = false, dokument = false, bildAdress,
   if (block.length === 0) return null;
   if (chatt) {
     // ⛔ Ingen egen textfärg och ingen egen storlek: bubblan bestämmer, och den egna bubblan är accentfärgad (#273).
+    // ⛔ `wrap-anywhere`, inte `break-words` (0.212.1, cllp/lifehub.app#734): en adress eller ett ord utan mellanrum får inte göra bubblans minsta bredd
+    // bredare än chatten. `break-words` bryter först när raden är full och lät loggen rulla 323 px i sidled vid 390 px.
     return (
-      <div data-ops-markdown="chatt" className="flex flex-col gap-1.5 break-words">
+      <div data-ops-markdown="chatt" className="flex flex-col gap-1.5 wrap-anywhere">
         {block.map((b, i) => {
           const k = `b${i}`;
           if (b.kind === "paragraph") return <p key={k} className="m-0">{inline(b.inline, k, true)}</p>;

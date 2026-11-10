@@ -45,6 +45,7 @@
  *       node scripts/check-skalyta.mjs --bara-appar      bara Appar-hyllan mot plusknappen (0.90.6)
  *       node scripts/check-skalyta.mjs --bara-textfalt   bara avsnitt 45, tal i ett vanligt textfält (0.104.0)
  *       node scripts/check-skalyta.mjs --bara-talkval    bara avsnitt 46, valen efter talet och förslagen i chatten (0.105.0)
+ *       node scripts/check-skalyta.mjs --bara-sidled     bara avsnitt 63, chatten rullar aldrig i sidled vid 390 och 375 px (0.212.1, cllp/lifehub.app#734), i scripts/lib/skalyta734.mjs
  *       node scripts/check-skalyta.mjs --bara-0106       bara avsnitt 47, chattepiken 0.106.0 (#386), i scripts/lib/skalyta0106.mjs
  *       node scripts/check-skalyta.mjs --bara-bandkontrast  bara avsnitt 49, bandets text mot underlaget över en vald ruta (0.120.0), ljust och mörkt
  *       node scripts/check-skalyta.mjs --bara-0127       bara avsnitt 50 till 52, preliminära poster, tilläggsrutan i Ny händelse och video i Biblioteket (0.127.0)
@@ -72,6 +73,7 @@ import tailwind from "@tailwindcss/postcss";
 import { startaWebblasare } from "./lib/matVyport.mjs";
 import { kravPaMittknappen, matMittknappen } from "./lib/mittknappMatt.mjs";
 import { chattepiken0106, FALSKT_VV } from "./lib/skalyta0106.mjs";
+import { chattISidled } from "./lib/skalyta734.mjs";
 import { fokusKort } from "./lib/fokusKort.mjs";
 import { distUtanKommentarer } from "./lib/dist-text.mjs";
 
@@ -200,7 +202,7 @@ async function oppna(scen, viewport, tema = standardtema, skala = 1, aktiv = nul
   // ⛔ Chattens scen har en fast klocka, samma dag som scenens meddelanden (2026-10-06 från 09:00). Utan den stod det "I går"
   // eller ett annat datum i bilderna beroende på när de togs, och de gick inte att återskapa (granskningen av PR 286).
   // Rörelse av, också: en puls eller en övergång mitt i en bild gör att samma scen ger en annan bild.
-  if (scen === "chattnatt" || scen === "chattinfo" || scen === "amnen" || scen.startsWith("chatt0106")) {
+  if (scen === "chattnatt" || scen === "chattinfo" || scen === "amnen" || scen.startsWith("chattsidled") || scen.startsWith("chatt0106")) {
     await page.clock.setFixedTime(new Date(2026, 9, 6, 22, 0));
     await page.emulateMedia({ reducedMotion: "reduce" });
   }
@@ -1059,6 +1061,14 @@ async function talkValOchForslag() {
 const verktyg0106 = { oppna, krav, matt, bildmapp };
 if (argv.includes("--bara-0106")) {
   await chattepiken0106(verktyg0106);
+  await browser.close();
+  avsluta();
+  process.exit(0);
+}
+
+// `--bara-sidled`: bara avsnitt 63, chatten i sidled (cllp/lifehub.app#734). Hela körningen kör det också. Delarna står i scripts/lib/skalyta734.mjs.
+if (argv.includes("--bara-sidled")) {
+  await chattISidled(verktyg0106);
   await browser.close();
   avsluta();
   process.exit(0);
@@ -9396,6 +9406,7 @@ await apparArkOrdning();
 await textfaltMedTal();
 await talkValOchForslag();
 await chattepiken0106(verktyg0106);
+await chattISidled(verktyg0106);
 await kalenderEtiketter();
 await kalenderBandkontrast();
 await kalenderPreliminar();

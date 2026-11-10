@@ -1979,6 +1979,146 @@ function ChattinfoScen() {
 }
 
 /*
+ * Chatten i sidled (cllp/lifehub.app#734, avsnitt 63). CP 2026-11-09 från sin iPhone: "Den bussar och scrollar i sidled. Man vill
+ * inte scrolla chatten i sidled." En egen scen med det innehåll som kan göra en rad bredare än skärmen: en lång adress utan
+ * mellanrum, ett långt ord, en markdowntabell, ett kodblock och inline-kod med en lång rad, en bred bild, en fil med långt namn,
+ * ett citat av ett långt meddelande, reaktioner, en omröstning med långa alternativ, ett omnämnande, en tråd, avdelaren "Nytt sedan
+ * sist" och långa avsändarnamn (ett av dem utan mellanrum). Både egna och andras meddelanden, eftersom de står i var sin kant.
+ * `window.__aktiv` väljer vyn: "grupp", "privat" eller "trad" (tråden i gruppchatten). Varje fientlig rad bär sitt slag i texten
+ * (`[sidled:<slag>]`) eller i bilagans namn, så att vakten kan räkna att den ritades (golvet).
+ */
+const MEDLEMMAR_S = [
+  { userId: "anna", namn: "Anna Ek", typ: "person", status: "aktiv" },
+  { userId: "max", namn: "Maximiliana Theodora Wilhelmina Konstantinopoulou-Bergström-Wahlenberg", typ: "person", status: "aktiv" },
+  { userId: "bart", namn: "Bartholomeusvonundzuhohenstaufenbergsklinikensdirektörsassistent", typ: "person", status: "aktiv" },
+  { userId: "ops", namn: "Ops-agenten", typ: "agent", status: "aktiv" },
+];
+const SIDLED_URL = `https://app.exempel.se/bibliotek/dokument/2026/oktober/styrelseprotokoll-fredag-klockan-tio-reviderad-version-tre-slutgiltig.pdf?token=${"a1b2c3d4e5f6".repeat(4)}`;
+const SIDLED_GASTNAMN = "Gästföreläsarenfrånhohenstaufenbergsklinikensforskningsavdelning";
+const SIDLED_ORD = "Styrelsemötesprotokollsjusteringsförfarandeanvisningarnasunderbilagorsförteckningsversion";
+const SIDLED_TEXTER = {
+  url: (eget) => `[sidled:url${eget ? "-eget" : ""}] Protokollet: ${SIDLED_URL}`,
+  ord: (eget) => `[sidled:ord${eget ? "-eget" : ""}] ${SIDLED_ORD}`,
+  tabell: () => `[sidled:tabell]\n| Post | Belopp |\n|---|---|\n| Intäkter_tredje_kvartalet_enligt_huvudboken_utan_mellanslag | 412000 |\n| Kostnader | 389000 |`,
+  kod: () => "[sidled:kod]\n```\nconst svar=await fetch('https://api.exempel.se/v1/samtal/g1/meddelanden?sortBy=tid&direction=desc&limit=500&token=0123456789abcdef0123456789abcdef');\n```",
+  inlinekod: () => "[sidled:inlinekod] Kör `npx--yes--firebase-tools@14--deploy--only--firestore:rules--project--operations-hub-ee63f` först.",
+  omnamnande: () => "[sidled:omnamnande] @Maximiliana Theodora Wilhelmina Konstantinopoulou-Bergström-Wahlenberg kan du titta på det här?",
+};
+function sidledBild() {
+  const c = document.createElement("canvas");
+  c.width = 2400;
+  c.height = 300;
+  const g = c.getContext("2d");
+  g.fillStyle = "#1d4e89";
+  g.fillRect(0, 0, 2400, 300);
+  g.fillStyle = "#ffffff";
+  g.font = "48px sans-serif";
+  g.fillText("Panorama 2400 x 300", 40, 170);
+  const dataUrl = c.toDataURL("image/jpeg", 0.6);
+  return { dataUrl, namn: "sidled-bild-panorama.jpg", typ: "image/jpeg", tecken: dataUrl.length, bredd: 2400, hojd: 300 };
+}
+function sidledPdf() {
+  const dataUrl = "data:application/pdf;base64,JVBERi0xLjQK";
+  return { dataUrl, namn: "sidled-fil-styrelseprotokoll_fredag_klockan_tio_reviderad_version_tre_slutgiltig_signerad.pdf", typ: "application/pdf", tecken: dataUrl.length };
+}
+async function byggSidledkalla() {
+  if (!Ops.createSamtalskalla) return null;
+  let t = new Date(2026, 9, 6, 9, 0).getTime();
+  const kalla = Ops.createMemorySource({});
+  const s = Ops.createSamtalskalla({ kalla, klocka: () => (t += 60000), tradar: "tradar", reaktioner: "reaktioner", omnamnanden: true, citat: true, bilagor: true, bilagaSamling: "bilagor", omrostningsval: "omrostningsval", omrostningsroster: "omrostningsroster" });
+  // Alla fientliga slag i ett samtal, från andra och från en själv.
+  const fyll = async (sid, { medTrad }) => {
+    const url = await s.skicka(sid, { text: SIDLED_TEXTER.url(false), av: "max" });
+    await s.skicka(sid, { text: SIDLED_TEXTER.ord(false), av: "bart" });
+    // Läsmärket står här, så att "Nytt sedan sist" står före nästa meddelande från någon annan.
+    await s.markeraLast(sid, "anna", t);
+    const tabell = await s.skicka(sid, { text: SIDLED_TEXTER.tabell(), av: "max" });
+    const kod = await s.skicka(sid, { text: SIDLED_TEXTER.kod(), av: "bart" });
+    await s.skicka(sid, { text: SIDLED_TEXTER.inlinekod(), av: "max" });
+    await s.skicka(sid, { text: SIDLED_TEXTER.omnamnande(), av: "bart", namner: ["max"] });
+    await s.skicka(sid, { text: SIDLED_TEXTER.url(true), av: "anna" });
+    await s.skicka(sid, { text: SIDLED_TEXTER.ord(true), av: "anna" });
+    await s.skicka(sid, { text: "[sidled:bild]", av: "max", bilaga: sidledBild() });
+    await s.skicka(sid, { text: "[sidled:fil]", av: "bart", bilaga: sidledPdf() });
+    await s.skicka(sid, { text: "[sidled:bild-eget]", av: "anna", bilaga: sidledBild() });
+    await s.skicka(sid, { text: `[sidled:citat] Svar på den långa adressen ${SIDLED_ORD}`, av: "bart", svarPa: url.id });
+    await s.reagera(sid, { mid: tabell.id, kod: "tumme", av: "anna" });
+    await s.reagera(sid, { mid: tabell.id, kod: "hjarta", av: "bart" });
+    await s.reagera(sid, { mid: kod.id, kod: "bock", av: "max" });
+    await s.skickaOmrostning(sid, {
+      fraga: `[sidled:omrostning] ${SIDLED_ORD}?`,
+      alternativ: [`${SIDLED_ORD}Fredagförmiddag`, "Lördag", "https://exempel.se/ett-mycket-langt-alternativ-utan-mellanrum-som-inte-far-bryta-ut-ur-kortet"],
+      av: "max",
+    });
+    if (medTrad) {
+      // (0.212.1, granskningen av PR 567) En gäst med ett långt namn utan mellanrum: namnraden bryts, märket "Gäst" ska stå på en rad. Gästens
+      // meddelande skrivs av servern med namnet på meddelandet (`avNamn`), här förbi källan.
+      await kalla.create(`samtal/${sid}/meddelanden`, { text: SIDLED_TEXTER.ord(false).replace("[sidled:ord]", "[sidled:gast]"), av: `g_${"a1".repeat(20)}`, avNamn: SIDLED_GASTNAMN, tid: (t += 60000) });
+      // Tråden: roten och svaren är också fientliga.
+      const rot = await s.skicka(sid, { text: `[sidled:tradrot] ${SIDLED_URL}`, av: "bart" });
+      await s.skickaITrad(sid, rot.id, { text: SIDLED_TEXTER.url(false), av: "max" });
+      await s.skickaITrad(sid, rot.id, { text: SIDLED_TEXTER.kod(), av: "bart" });
+      await s.skickaITrad(sid, rot.id, { text: SIDLED_TEXTER.ord(true), av: "anna" });
+      await s.skickaITrad(sid, rot.id, { text: SIDLED_TEXTER.tabell(), av: "max" });
+      return rot.id;
+    }
+    return null;
+  };
+  const g = await s.oppnaGrupp({ groupId: "g1", uid: "anna" });
+  const rot = await fyll(g.id, { medTrad: true });
+  const p = await s.oppnaPrivat({ groupId: "g1", uid: "max", annan: "anna" });
+  await fyll(p.id, { medTrad: false });
+  return { s, ids: { grupp: g.id, privat: p.id, trad: g.id }, rot };
+}
+/*
+ * Gästens chatt (0.212.1, granskningen av PR 567): samma `Meddelanderader` i en egen logg (`OpsGastChatt`), med samma fientliga innehåll som
+ * gästen kan få se: avsändaren är ett namn, en bilaga sägs med sitt namn, och citatet följer med meddelandet.
+ */
+function ChattSidledGastScen() {
+  if (!Ops.OpsGastChatt) return <p data-saknas="OpsGastChatt">OpsGastChatt saknas</p>;
+  let t = new Date(2026, 9, 6, 9, 0).getTime();
+  const rad = (text, namn, extra = {}) => ({ id: `s${(t += 60000)}`, av: { namn }, text, tid: t, ...extra });
+  const max = MEDLEMMAR_S[1].namn;
+  const bart = MEDLEMMAR_S[2].namn;
+  const url = rad(SIDLED_TEXTER.url(false), max);
+  const meddelanden = [
+    url,
+    rad(SIDLED_TEXTER.ord(false), bart),
+    rad(SIDLED_TEXTER.tabell(), max),
+    rad(SIDLED_TEXTER.kod(), bart),
+    rad(SIDLED_TEXTER.inlinekod(), max),
+    rad(SIDLED_TEXTER.url(true), SIDLED_GASTNAMN, { egen: true, gast: true }),
+    rad(SIDLED_TEXTER.ord(true), SIDLED_GASTNAMN, { egen: true, gast: true }),
+    rad(SIDLED_TEXTER.ord(false).replace("[sidled:ord]", "[sidled:gast]"), SIDLED_GASTNAMN, { gast: true }),
+    rad("[sidled:fil]", bart, { bilaga: { namn: sidledPdf().namn, typ: "application/pdf" } }),
+    rad(`[sidled:citat] Svar på den långa adressen ${SIDLED_ORD}`, bart, { svarPa: { id: url.id, namn: max, text: url.text } }),
+  ];
+  return (
+    <div className="flex h-dvh min-w-0 flex-col px-3">
+      <Ops.OpsGastChatt fyll meddelanden={meddelanden} onSkriv={async () => {}} gruppnamn="Claes Philip Staiger AB" />
+    </div>
+  );
+}
+let sidledkallan = null;
+function ChattSidledScen() {
+  const [k, setK] = useState(sidledkallan);
+  if (!Ops.OpsMeddelanden) return <Full><p data-saknas="OpsMeddelanden">OpsMeddelanden saknas</p></Full>;
+  if (!k) {
+    byggSidledkalla().then((x) => {
+      sidledkallan = x;
+      setK(x);
+    });
+  }
+  const aktiv = window.__aktiv ?? "grupp";
+  const valt = k ? k.ids[aktiv] ?? k.ids.grupp : null;
+  return (
+    <Full>
+      {k ? <Ops.OpsMeddelanden kalla={k.s} uid="anna" groupId="g1" gruppNamn="Claes Philip Staiger Konsulting och Förvaltning AB" medlemmar={MEDLEMMAR_S} valt={valt} onValj={() => {}} valtTrad={aktiv === "trad" ? k.rot : null} onValjTrad={() => {}} /> : <p>Laddar</p>}
+    </Full>
+  );
+}
+
+/*
  * 0.68.0: en grupp UTAN sådd gruppchatt. CP 2026-10-06, i sin grupp med en medlem och agenten: "Hur skriver jag ett
  * meddelande till hela gruppen?" Bara agentsamtalet finns, som i hans grupp. Avsnitt 29f. Gruppen är g3 ur `grupperLista`,
  * vald i sidopanelen, så att panelen och chatten heter samma sak (omgranskningen av PR 268, A6).
@@ -3183,6 +3323,8 @@ function Scen() {
   if (s === "chattnatt") return <ChattNattScen />;
   if (s === "chattbilaga") return <ChattBilagaScen />;
   if (s === "chattinfo") return <ChattinfoScen />;
+  if (s === "chattsidled") return <ChattSidledScen />;
+  if (s === "chattsidled-gast") return <ChattSidledGastScen />;
   if (s === "installning-grupper") {
     return (
       <Skal>
