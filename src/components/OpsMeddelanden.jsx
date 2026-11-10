@@ -4433,10 +4433,13 @@ function Omrostningskort({ m, omr, namnFor, bildFor, texter: t }) {
             {t.laggTillAlternativ}
           </button>
         ) : null}
+        {/* ⛔ FÄLTET TAR RADEN, KNAPPARNA STÅR UNDER (cllp/lifehub.app#742, QA 2026-11-10 v1.0.1160). Fältet, "Lägg till alternativ" och krysset stod på en
+            rad i kortets 264 px, och fältet fick det som blev över: 52 px vid 390 px, mot de cirka 178 px platshållaren behöver. Nu bryts formuläret, fältet
+            får hela raden (`basis-full`) och knapparna nästa rad. Mätt i `check:skalyta` avsnitt 64. */}
         {laggerTill ? (
           <form
             data-nytt-alternativ=""
-            className="flex items-center gap-1.5"
+            className="flex flex-wrap items-center gap-1.5"
             onSubmit={(e) => {
               e.preventDefault();
               spara();
@@ -4460,9 +4463,9 @@ function Omrostningskort({ m, omr, namnFor, bildFor, texter: t }) {
                   stangFalt();
                 }
               }}
-              className="min-h-11 min-w-0 flex-1 rounded-xl border border-line bg-surface px-3 text-etikett text-ink outline-none focus-visible:border-accent"
+              className="min-h-11 min-w-0 basis-full rounded-xl border border-line bg-surface px-3 text-etikett text-ink outline-none focus-visible:border-accent"
             />
-            <button type="submit" disabled={!nytt.trim() || Boolean(langdFel) || arbetar} aria-busy={arbetar || undefined} className="inline-flex min-h-11 shrink-0 cursor-pointer items-center rounded-xl bg-accent px-3 text-meta font-medium text-accent-contrast hover:bg-accent-hover disabled:cursor-default disabled:opacity-60">
+            <button type="submit" disabled={!nytt.trim() || Boolean(langdFel) || arbetar} aria-busy={arbetar || undefined} className="inline-flex min-h-11 flex-1 cursor-pointer items-center justify-center rounded-xl bg-accent px-3 text-meta font-medium text-accent-contrast hover:bg-accent-hover disabled:cursor-default disabled:opacity-60">
               {t.laggTillAlternativ}
             </button>
             <button type="button" onClick={stangFalt} aria-label={t.avbryt} className="inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-xl text-ink-secondary hover:bg-canvas">

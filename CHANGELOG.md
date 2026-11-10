@@ -9,6 +9,18 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.213.0
+
+Chattens bilagor, omnämnanden och omröstningskortets fält (cllp/lifehub.app#751, #742), och kopieringen av en bilaga till Biblioteket (cllp/lifehub.app#752). Inget brytande.
+
+### Rättat
+
+- **Fältet "Nytt alternativ" i omröstningskortet tar raden** (cllp/lifehub.app#742, QA 2026-11-10 på v1.0.1160). Fältet, "Lägg till alternativ" och krysset stod på en rad i kortet, och fältet fick det som blev över: QA mätte 52 px vid 390 px, och platshållaren klipptes. Nu bryts formuläret: fältet får hela raden (`basis-full`), och "Lägg till alternativ" (som tar resten av bredden) och krysset står på raden under. Inga nya element.
+
+### Prov
+
+- **`check:skalyta` avsnitt 64** (`scripts/lib/skalyta734.mjs`, `--bara-alternativ`): öppnar fältet i gruppchattens omröstning (samma scen som avsnitt 63) vid 390 och 375 px och mäter att fältet är lika brett som formuläret, att platshållaren ryms (fältets innerbredd mot platshållarens bredd i fältets typsnitt, mätt med `measureText`), och att båda knapparna är minst 44 px höga och står inom kortet. **Golv**: platshållaren ska finnas och gå att mäta, och formuläret ska ha två knappar. Mot 0.212.1: 4 brott av 16 (fältet 45 px i ett formulär på 225 vid 390 px, innerbredd 19 px mot platshållarens 93; 34 px och 8 px vid 375). Med rättningen: fältet 225 av 225 och 215 av 215 px, innerbredd 199 och 189 px, inga brott.
+
 ## 0.212.1
 
 Chatten rullar inte längre i sidled på telefonen (cllp/lifehub.app#734). Inget brytande.

@@ -206,3 +206,66 @@ export async function chattISidled(v) {
     }
   }
 }
+
+/**
+ * Avsnitt 64: fältet "Nytt alternativ" i omröstningskortet tar raden (cllp/lifehub.app#742, QA 2026-11-10, v1.0.1160).
+ *
+ * QA mätte fältet till 52 px vid 390 px, och platshållaren behöver cirka 178. Fältet, "Lägg till alternativ" och krysset stod på en rad i kortets
+ * 264 px, och fältet fick det som blev över. Vakten öppnar fältet i gruppchattens omröstning (samma scen som avsnitt 63) och MÄTER, vid 390 och 375 px:
+ *
+ *   - att fältet är lika brett som formuläret, alltså tar raden (inom 1 px),
+ *   - att platshållaren ryms: fältets innerbredd (clientWidth minus vänster och höger utfyllnad) mot platshållarens bredd i fältets typsnitt, mätt med
+ *     en duk (`measureText`), inte gissad,
+ *   - att knappen "Lägg till alternativ" och krysset är minst 44 px höga och står inom kortet.
+ *
+ * ⛔ GOLV: omröstningen och fältet ska ha ritats, och platshållaren ska vara icke-tom. Utan dem är det inget mätt.
+ *
+ * Kör ensamt: `node scripts/check-skalyta.mjs --bara-alternativ`. Hela körningen kör det också.
+ * @param {Verktyg} v
+ */
+export async function nyttAlternativFalt(v) {
+  for (const vp of BREDDER_SIDLED) {
+    const namn = `64 fältet Nytt alternativ, ${vp.width} px`;
+    /** @type {import("playwright").BrowserContext | null} */
+    let context = null;
+    try {
+      const o = await v.oppna("chattsidled", vp, "light", 1, "grupp");
+      context = o.context;
+      const page = o.page;
+      await page.waitForSelector("[data-omrostning] [data-lagg-till-alternativ]", { timeout: 5000 });
+      await page.locator("[data-omrostning] [data-lagg-till-alternativ]").first().click();
+      await page.waitForSelector("[data-nytt-alternativ] input", { timeout: 3000 });
+      const m = await page.evaluate(() => {
+        const form = /** @type {HTMLElement} */ (document.querySelector("[data-nytt-alternativ]"));
+        const falt = /** @type {HTMLInputElement} */ (form.querySelector("input"));
+        const kort = /** @type {HTMLElement} */ (form.closest("[data-omrostning]"));
+        const st = getComputedStyle(falt);
+        const duk = document.createElement("canvas").getContext("2d");
+        if (duk) duk.font = `${st.fontStyle} ${st.fontWeight} ${st.fontSize} ${st.fontFamily}`;
+        const plats = falt.placeholder || "";
+        const behover = duk ? Math.ceil(duk.measureText(plats).width) : -1;
+        const inner = falt.clientWidth - parseFloat(st.paddingLeft) - parseFloat(st.paddingRight);
+        const fr = form.getBoundingClientRect();
+        const kr = kort.getBoundingClientRect();
+        const knappar = [...form.querySelectorAll("button")].map((b) => {
+          const r = b.getBoundingClientRect();
+          return { text: (b.textContent || b.getAttribute("aria-label") || "").trim(), hojd: Math.round(r.height), inom: r.left >= kr.left - 1 && r.right <= kr.right + 1 };
+        });
+        return { plats, behover, inner: Math.round(inner), falt: Math.round(falt.getBoundingClientRect().width), form: Math.round(fr.width), kort: Math.round(kr.width), knappar };
+      });
+      v.matt.push(`${namn}: fältet ${m.falt} px i formuläret ${m.form} px (kortet ${m.kort}), innerbredd ${m.inner} mot platshållaren "${m.plats}" ${m.behover} px, knappar ${m.knappar.map((k) => `${k.text} ${k.hojd} px${k.inom ? "" : " UTANFÖR"}`).join(", ")}`);
+      v.krav(m.plats.length > 0 && m.behover > 0, `${namn}: platshållaren saknas eller gick inte att mäta. Golv.`);
+      v.krav(m.falt >= m.form - 1, `${namn}: fältet är ${m.falt} px i ett formulär på ${m.form} px. Det ska ta raden.`);
+      v.krav(m.inner >= m.behover, `${namn}: platshållaren "${m.plats}" behöver ${m.behover} px och fältet har ${m.inner} px innanför utfyllnaden. Den klipps.`);
+      v.krav(m.knappar.length === 2, `${namn}: ${m.knappar.length} knappar i formuläret, väntat två (Lägg till alternativ och Avbryt). Golv.`);
+      for (const k of m.knappar) {
+        v.krav(k.hojd >= 44, `${namn}: knappen "${k.text}" är ${k.hojd} px hög, minst 44.`);
+        v.krav(k.inom, `${namn}: knappen "${k.text}" sticker ut ur kortet.`);
+      }
+      if (v.bildmapp) await page.screenshot({ path: path.join(v.bildmapp, `nytt-alternativ-${vp.width}.png`) });
+    } catch (e) {
+      v.krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+    }
+    await context?.close();
+  }
+}
