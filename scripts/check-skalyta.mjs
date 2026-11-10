@@ -8956,6 +8956,7 @@ async function bibliotekHtmlVy() {
  *   (a) I förvalet (Anpassa till bredd) rullar rutan inte i sidled: dokumentets `scrollWidth` är högst dess `clientWidth`, mätt inne i rutan, och tabellens sista cell slutar inom rutan. Sidan flödar inte över.
  *   (b) Verktygsradens knappar (−, procenten, +, Spara som PDF, och i detaljen Öppna i eget fönster) är minst 44 px höga under 768 och 32 från, och ligger inom fönstret. Golv: fyra knappar i helfönstret, fem i detaljen.
  *   (c) Ctrl+hjul över rutan UTAN fokus ändrar inte procenten. Efter ett klick i dokumentet har rutan ramen (`data-html-fokus`), och Ctrl+hjul ändrar procenten.
+ *   (d) Två fingrar i dokumentet (en `touchmove` i rutan, samma väg som telefonens nypning) ändrar procenten. Sandlådan är densamma.
  */
 async function bibliotekHtmlZoom() {
   for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
@@ -9015,6 +9016,24 @@ async function bibliotekHtmlZoom() {
         matt.push(`${namn} (c): procent ${fore}, efter Ctrl+hjul utan fokus ${utan} (ram ${ramUtan ? "ja" : "nej"}), med fokus ${med} (ram ${ramMed ? "ja" : "nej"})`);
         krav(utan === fore && !ramUtan, `${namn} (c): Ctrl+hjul utan fokus ändrade procenten från ${fore} till ${utan}, eller ramen stod redan (${ramUtan}).`);
         krav(ramMed && med !== utan, `${namn} (c): efter ett klick i dokumentet: ram ${ramMed}, procenten ${utan} blev ${med} efter Ctrl+hjul.`);
+        // (d) Nypning med två fingrar, i den ruta som faktiskt ritades. jsdom kan inte lägga ut det här. Sandlådan läses om, så en ändring av den syns här också.
+        const nyp = await ram.evaluate(() => {
+          const mal = document.body || document.documentElement;
+          const peka = (/** @type {number} */ id, /** @type {number} */ x) => new Touch({ identifier: id, target: mal, clientX: x, clientY: 30, pageX: x, pageY: 30, screenX: x, screenY: 30, radiusX: 1, radiusY: 1, rotationAngle: 0, force: 1 });
+          const skicka = (/** @type {string} */ typ, /** @type {number} */ x1, /** @type {number} */ x2) => {
+            const touches = [peka(1, x1), peka(2, x2)];
+            const ev = new TouchEvent(typ, { bubbles: true, cancelable: true, touches, targetTouches: touches, changedTouches: touches });
+            window.dispatchEvent(ev);
+            return ev.defaultPrevented;
+          };
+          skicka("touchstart", 20, 140);
+          return skicka("touchmove", 20, 154);
+        });
+        await page.waitForTimeout(100);
+        const efterNyp = await procentNu();
+        const sand = await page.evaluate((sel) => document.querySelector(sel)?.getAttribute("sandbox") ?? "", rutaSel);
+        matt.push(`${namn} (d): nypning stoppade händelsen ${nyp ? "ja" : "nej"}, procent ${med} blev ${efterNyp}, sandbox ${sand}`);
+        krav(nyp && efterNyp !== med && sand === "allow-scripts allow-modals", `${namn} (d): två fingrar från ${med} till ${efterNyp}, händelsen stoppad ${nyp}, sandbox "${sand}". Väntat en annan procent, stoppad nypning och sandbox allow-scripts allow-modals.`);
       } catch (e) {
         krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
       }
