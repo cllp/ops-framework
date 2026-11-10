@@ -7,7 +7,7 @@ import { gastBehorighetsrader } from "../lib/gastBehorighet.js";
 
 /**
  * Gästens vy och medlemmens lista för en gäst i ett projekt (0.215.0, cllp/lifehub.app#760 skiva 1). Samma vy som gruppgästens (`OpsGastGrupp`), med projektets kort på översikten,
- * orden om projektet, ingen Chatt-flik och ingen svarsrad. jsdom mäter text och knappar; hur det ser ut mäts inte här.
+ * orden om projektet, projektets egen chatt utan trådar (skiva 2) och ingen svarsrad. jsdom mäter text och knappar; hur det ser ut mäts inte här.
  *
  * ⛔ VARJE PROV HAR SETTS FALLA (regel 4): mutationerna och utfallen står i PR-texten.
  */
@@ -33,7 +33,7 @@ const valjFlik = async (el) => {
 
 const PROJEKT = {
   namn: "Ombyggnad av köket",
-  // Servern ger aldrig chatt till en projektgäst. Vyn tar ändå bort den, om ett svar skulle bära den.
+  // (skiva 2) Chatten är projektets egen: servern väljer samtalet ur inbjudan.
   funktioner: ["chatt", "kalender", "bibliotek", "arenden"],
   beskrivning: "",
   nedladdning: false,
@@ -52,7 +52,7 @@ const HANDELSE = { id: "h-koket", titel: "Snickaren kommer", beskrivning: null, 
 
 function apiMed(extra = {}) {
   const svar = {
-    oversikt: async () => ({ ok: true, chatt: null, kalender: { nasta: { ...HANDELSE, mitt: null } }, bibliotek: { nya: 0, senaste: [], antal: 0, filer: 0, fler: false } }),
+    oversikt: async () => ({ ok: true, chatt: { nya: 0, fler: false, senaste: [] }, kalender: { nasta: { ...HANDELSE, mitt: null } }, bibliotek: { nya: 0, senaste: [], antal: 0, filer: 0, fler: false } }),
     kalender: async () => ({ ok: true, handelser: [HANDELSE], kalendrar: [], avkortad: false, ejVisade: 0 }),
     handelse: async () => ({ ok: true, handelse: HANDELSE }),
     bibliotek: async () => ({ ok: true, poster: [], avkortad: false }),
@@ -76,12 +76,11 @@ const rita = (props = {}) => {
 };
 
 describe("OpsGastGrupp för en projektgäst", () => {
-  it("rubriken är projektets namn, översikten bär projektets kort, och det finns ingen Chatt-flik", async () => {
+  it("rubriken är projektets namn, översikten bär projektets kort, och Chatt-fliken är projektets", async () => {
     const { api } = rita();
     await waitFor(() => expect(api.arenden).toHaveBeenCalled());
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Ombyggnad av köket");
-    expect(screen.getAllByRole("tab").map((f) => f.textContent)).toEqual(["Översikt", "Kalender", "Bibliotek", "Ärenden"]);
-    expect(api.chatt).not.toHaveBeenCalled();
+    expect(screen.getAllByRole("tab").map((f) => f.textContent)).toEqual(["Översikt", "Chatt", "Kalender", "Bibliotek", "Ärenden"]);
     expect(document.querySelector("[data-gast-roll]")).toHaveTextContent("Du är gäst i projektet.");
     const kort = document.querySelector("[data-gast-projektkort]");
     expect(kort).not.toBeNull();
@@ -89,7 +88,22 @@ describe("OpsGastGrupp för en projektgäst", () => {
     expect([...kort.querySelectorAll("[data-gast-projekt-text] h2")].map((h) => h.textContent)).toEqual(["Syfte", "Öppna frågor"]);
     expect(kort).toHaveTextContent("Nytt kök före jul");
     expect(document.querySelector("[data-gast-grupp-beskrivning]")).toBeNull();
-    expect(document.querySelector('[data-gast-ruta="chatt"]')).toBeNull();
+    expect(document.querySelector('[data-gast-ruta="chatt"]')).not.toBeNull();
+  });
+
+  it("⛔ projektets chatt har ingen trådknapp: servern nekar trådar där, och en knapp som alltid nekas är död", async () => {
+    const MEDDELANDE = { id: "k1", av: { namn: "Bo" }, text: "Kakel på onsdag?", tid: Date.UTC(2026, 10, 10, 9), gast: false, egen: false };
+    const api = apiMed({ chatt: async () => ({ ok: true, meddelanden: [MEDDELANDE], fler: false }) });
+    const forsta = rita({ api });
+    await valjFlik(screen.getByRole("tab", { name: "Chatt" }));
+    await screen.findByText("Kakel på onsdag?");
+    expect(document.querySelectorAll("[data-tradrot]")).toHaveLength(0);
+    forsta.unmount();
+    // Gruppgästen med samma meddelande har knappen: provet mäter skillnaden, inte frånvaron av en knapp i allmänhet.
+    rita({ api, grupp: { namn: "Källan", funktioner: ["chatt", "kalender", "bibliotek"], beskrivning: "" } });
+    await valjFlik(screen.getByRole("tab", { name: "Chatt" }));
+    await screen.findByText("Kakel på onsdag?");
+    expect(document.querySelectorAll("[data-tradrot]").length).toBeGreaterThan(0);
   });
 
   it("en gruppgäst får inget projektkort, och har kvar sin Chatt-flik", () => {
@@ -129,7 +143,8 @@ describe("OpsGastGrupp för en projektgäst", () => {
     const rader = gastBehorighetsrader(PROJEKT, "sv");
     expect(rader).toContain("Du kan se vad som är på gång i projektet.");
     expect(rader).toContain("Du ser projektets ärenden och kan kommentera dem.");
-    expect(rader.join(" ")).not.toMatch(/svara|chatten/);
+    expect(rader).toContain("Du kan läsa och skriva i projektets chatt, från början. Gruppens egen chatt visas inte.");
+    expect(rader.join(" ")).not.toMatch(/svara|i chatten/);
     expect(gastBehorighetsrader({ funktioner: ["kalender"] }, "sv")).toEqual(["Du kan se vad som är på gång och svara på händelser."]);
   });
 });
@@ -148,7 +163,9 @@ describe("OpsGastLista på ett projekts sida", () => {
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByText(/alla ärenden med projektets tagg/)).toBeInTheDocument();
     expect(within(dialog).getByText(/inte gruppens chatt/)).toBeInTheDocument();
-    expect(dialog).not.toHaveTextContent("hela historiken");
+    // (skiva 2) Projektets egen chatt, aldrig gruppens med hela historiken.
+    expect(within(dialog).getByText(/projektets egen chatt/)).toBeInTheDocument();
+    expect(dialog).not.toHaveTextContent("ser gruppens chatt");
     await klicka(within(dialog).getByRole("button", { name: "Bjud in" }));
     await waitFor(() => expect(onBjudGrupp).toHaveBeenCalledWith({ epost: "per@extern.se", namn: "", laddaNed: false }));
   });

@@ -5,7 +5,7 @@
  * `nedladdning: false` är det enda som tar bort nedladdning (samma regel som biblioteket). Saknas fältet gäller det som förut: nedladdning är på.
  * `kommentera` nämns bara när det är `true` och biblioteket finns. Tom lista är ett svar: gästen har inga av de här funktionerna.
  *
- * (0.215.0, cllp/lifehub.app#760) En projektgäst (`grupp.projekt` finns) får raderna om projektet: kalendern utan svar (skiva 1) och projektets ärenden.
+ * (0.215.0, cllp/lifehub.app#760) En projektgäst (`grupp.projekt` finns) får raderna om projektet: projektets chatt (skiva 2), kalendern utan svar (skiva 1) och projektets ärenden.
  *
  * @param {{ funktioner?: readonly string[], nedladdning?: boolean, kommentera?: boolean, projekt?: unknown } | null | undefined} grupp
  * @param {string} [sprak]
@@ -17,8 +17,8 @@ export function gastBehorighetsrader(grupp, sprak = "sv") {
   /** @type {string[]} */
   const rader = [];
   const projekt = Boolean(grupp?.projekt);
-  // (0.215.0) En projektgäst har ingen chatt (skiva 1), också om listan skulle bära den: samma snitt som vyns flikar.
-  if (har("chatt") && !projekt) rader.push(en ? "You can read and write in the chat, from the beginning." : "Du kan läsa och skriva i chatten, från början.");
+  // (0.215.0) En projektgäst läser och skriver i projektets egen chatt (skiva 2), aldrig i gruppens.
+  if (har("chatt")) rader.push(projekt ? (en ? "You can read and write in the project's chat, from the beginning. The group's own chat is not shown." : "Du kan läsa och skriva i projektets chatt, från början. Gruppens egen chatt visas inte.") : en ? "You can read and write in the chat, from the beginning." : "Du kan läsa och skriva i chatten, från början.");
   if (har("kalender")) {
     rader.push(
       projekt

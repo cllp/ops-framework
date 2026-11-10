@@ -1,14 +1,16 @@
 import { describe, expect, it, vi } from "vitest";
 import { createMemorySource } from "../data/adapters.js";
 import { PLATSIDFORM, platsBibliotek } from "../lib/bibliotek.js";
-import { GASTGRUPPFUNKTIONER, GASTPROJEKTFUNKTIONER, GASTPROJEKTKORTFALT, GASTPROJEKTTAGGFORM, GASTSLAG, GAST_PLATSER_GRATIS, arGruppslag, gastId, gastOmfangGer, gastomfangsnyckel } from "../lib/gast.js";
-import { medlemskapsId } from "../lib/grupp.js";
+import { GASTGRUPPFUNKTIONER, GASTPROJEKTFUNKTIONER, GASTPROJEKTKORTFALT, PROJEKTTAGGFORM, GASTSLAG, GAST_PLATSER_GRATIS, arGruppslag, gastId, gastOmfangGer, gastomfangsnyckel } from "../lib/gast.js";
+import { agentId, medlemskapsId } from "../lib/grupp.js";
 import { createGastService, gastInbjudningsId } from "../node/gast.js";
+import { bibliotekslank } from "../lib/postkommentar.js";
 
 /**
  * Gäst i ett projekt (0.215.0, cllp/lifehub.app#760 skiva 1). CP 2026-11-10: "Jag skulle vilja kunna samarbeta med externa i projekt, de har inte tillgång till hela gruppen, men bara projekt."
  *
- * Omfånget `{ slag: "projekt", tagg }` är en gäst i gruppen med kalendern, biblioteket och ärendena, allt avgränsat till projektet på servern, och ingen chatt.
+ * Omfånget `{ slag: "projekt", tagg }` är en gäst i gruppen med kalendern, biblioteket och ärendena, allt avgränsat till projektet på servern. Chatten är projektets egen (skiva 2, sist i filen)
+ * och aldrig gruppens.
  * ⛔ VARJE PROV HAR SETTS FALLA: mutationerna och utfallen står i PR-texten (arbetsreglernas punkt 4). Listorna nedan har golv, så att ett prov som läser noll rader inte blir grönt av att ingenting lästes.
  */
 
@@ -62,6 +64,10 @@ function seed() {
       { id: "p-grannen", groupId: `plats~${GRANNEN}~koket`, typ: "fil", rubrik: "GRANNENS-FIL", fil: { sokvag: `grupper/plats~${GRANNEN}~koket/bibliotek/p-grannen/n.pdf`, namn: "n.pdf", mime: "application/pdf", byte: 1, klar: true }, skapad: 1, andrad: 1 },
     ],
     [`samtal/${GRUPP}|grupp/meddelanden`]: [{ id: "m1", text: "GRUPPCHATTEN", av: AGARE, tid: 1 }],
+    // (skiva 2) Badrummets chatt, och grannens kök med samma tagg: ingen av dem får en gäst i köket se.
+    samtal: [{ id: `${GRUPP}|projekt|badrum`, groupId: GRUPP, slag: "projekt", skapad: 1, skapadAv: AGARE }, { id: `${GRANNEN}|projekt|koket`, groupId: GRANNEN, slag: "projekt", skapad: 1, skapadAv: "uid-granne" }],
+    [`samtal/${GRUPP}|projekt|badrum/meddelanden`]: [{ id: "b1", text: "BADRUMMETS-CHATT", av: AGARE, tid: 2 }],
+    [`samtal/${GRANNEN}|projekt|koket/meddelanden`]: [{ id: "n1", text: "GRANNENS-CHATT", av: "uid-granne", tid: 2 }],
     gastinbjudningar: [],
     gastsessioner: [],
     gastplatser: [],
@@ -70,7 +76,7 @@ function seed() {
 }
 
 /** Allt som en projektgäst i `koket` aldrig får se. Golv: minst tio. */
-const UTANFOR_PROJEKTET = ["BADRUMMETS-MOTE", "GRUPPENS-MOTE", "ANNAN-KALENDERS-MOTE", "GRANNENS-MOTE", "BADRUMMETS-ARENDE", "GRUPPENS-ARENDE", "EKONOMI-4711", "GRUPPARENDE-HOS-PER", "GRANNENS-ARENDE", "BADRUMMETS-FIL", "GRUPPENS-FIL", "GRANNENS-FIL", "GRUPPCHATTEN", "GRUPPENS-BESKRIVNING", "ANNAN-KALENDER", "HEMLIGT-REPO"];
+const UTANFOR_PROJEKTET = ["BADRUMMETS-MOTE", "GRUPPENS-MOTE", "ANNAN-KALENDERS-MOTE", "GRANNENS-MOTE", "BADRUMMETS-ARENDE", "GRUPPENS-ARENDE", "EKONOMI-4711", "GRUPPARENDE-HOS-PER", "GRANNENS-ARENDE", "BADRUMMETS-FIL", "GRUPPENS-FIL", "GRANNENS-FIL", "GRUPPCHATTEN", "BADRUMMETS-CHATT", "GRANNENS-CHATT", "GRUPPENS-BESKRIVNING", "ANNAN-KALENDER", "HEMLIGT-REPO"];
 
 /**
  * Appens projekt, som stand-in: samma regel som lifehub.app (`projektetsHandelserRa`): en egen kalender ger allt i den, gruppens förvalda ger bara händelser med taggen. Ärenden: taggen.
@@ -120,8 +126,10 @@ function bygg({ utanProjekt = false } = {}) {
     rapportera: vi.fn(),
     klocka: () => NU,
     grupp: {
-      samlingar: { grupper: "groups", samtal: "samtal", meddelanden: "meddelanden", bibliotek: "bibliotek", svar: "svar", gruppkalendrar: "gruppkalendrar" },
+      samlingar: { grupper: "groups", samtal: "samtal", meddelanden: "meddelanden", bibliotek: "bibliotek", svar: "svar", gruppkalendrar: "gruppkalendrar", tradar: "tradar" },
       lagring: { signeradAdress: signera },
+      // (skiva 2) Med trådar och bibliotekets adress, så att en projektgäst nekas tråd och kommentar av sitt omfång och inte av en tjänst som saknar dem.
+      bibliotekBas: "https://app.example/bibliotek",
       handelseSida: (h) => ({ titel: h.rubrik }),
       ...(utanProjekt ? {} : { projekt }),
       arenden: {
@@ -155,19 +163,20 @@ async function projektGast(h, { epost = "per@extern.se", tagg = "koket", uid = A
 const allaTexter = (v) => JSON.stringify(v);
 
 describe("omfånget projekt i ramverkets modell", () => {
-  it("är ett slag, en gäst i gruppen, och ger kalender, bibliotek och ärenden men aldrig chatt", () => {
+  it("är ett slag, en gäst i gruppen, och ger chatt (projektets egen), kalender, bibliotek och ärenden", () => {
     expect(GASTSLAG).toContain("projekt");
     expect(arGruppslag({ slag: "projekt", tagg: "koket" })).toBe(true);
     expect(arGruppslag({ slag: "grupp" })).toBe(true);
     expect(arGruppslag({ slag: "sak", funktion: "rosta", handelseId: "h" })).toBe(false);
-    expect(GASTPROJEKTFUNKTIONER).toEqual(["kalender", "bibliotek", "arenden"]);
+    expect(GASTPROJEKTFUNKTIONER).toEqual(["chatt", "kalender", "bibliotek", "arenden"]);
     for (const f of GASTPROJEKTFUNKTIONER) expect(GASTGRUPPFUNKTIONER, f).toContain(f);
     const o = { slag: "projekt", tagg: "koket" };
     for (const f of GASTPROJEKTFUNKTIONER) {
       expect(gastOmfangGer(o, { slag: ["grupp", "projekt"], funktion: f }), f).toBe(true);
       expect(gastOmfangGer(o, { slag: "projekt", funktion: f }), f).toBe(true);
     }
-    expect(gastOmfangGer(o, { slag: ["grupp", "projekt"], funktion: "chatt" })).toBe(false);
+    expect(gastOmfangGer(o, { slag: ["grupp", "projekt"], funktion: "chatt" })).toBe(true);
+    expect(gastOmfangGer(o, { slag: ["grupp", "projekt"], funktion: "rosta" })).toBe(false);
     expect(gastOmfangGer(o, { slag: "grupp", funktion: "kalender" })).toBe(false);
     expect(gastOmfangGer(o, { funktion: "rosta" })).toBe(false);
     // En rad med en tagg utan form ger ingenting, inte ens det en projektgäst annars har.
@@ -194,7 +203,7 @@ describe("omfånget projekt i ramverkets modell", () => {
     const giltiga = ["a", "0", "koket", "eaop-extended-aop", "x".repeat(24), "a-b-c", "2026-budget", "ab"];
     expect(giltiga.length).toBeGreaterThanOrEqual(8);
     for (const t of giltiga) {
-      expect(GASTPROJEKTTAGGFORM.test(t), t).toBe(true);
+      expect(PROJEKTTAGGFORM.test(t), t).toBe(true);
       expect(PLATSIDFORM.test(t), t).toBe(true);
       expect(() => platsBibliotek(GRUPP, t), t).not.toThrow();
     }
@@ -259,13 +268,13 @@ describe("bjud till ett projekt", () => {
 });
 
 describe("vad en projektgäst ser: bara projektet, urvalet görs på servern", () => {
-  it("hamta: projektets namn som rubrik, tre funktioner utan chatt, kortet och ingenting om gruppen", async () => {
+  it("hamta: projektets namn som rubrik, fyra funktioner (chatten är projektets), kortet och ingenting om gruppen", async () => {
     const h = bygg();
     const g = await projektGast(h);
     const svar = await h.tjanst.hamta({ sessionsnyckel: g.sessionsnyckel });
     expect(svar.funktion).toBe("grupp");
     expect(svar.grupp.namn).toBe("Ombyggnad av köket");
-    expect(svar.grupp.funktioner).toEqual(["kalender", "bibliotek", "arenden"]);
+    expect(svar.grupp.funktioner).toEqual(["chatt", "kalender", "bibliotek", "arenden"]);
     expect(svar.grupp.kommentera).toBe(false);
     expect(svar.grupp.beskrivning).toBe("");
     expect(svar.grupp.projekt.tagg).toBe("koket");
@@ -341,30 +350,37 @@ describe("vad en projektgäst ser: bara projektet, urvalet görs på servern", (
     expect(await h.tjanst.markeraArendeKlart({ sessionsnyckel: g.sessionsnyckel, arendeId: "a-koket-per" })).toEqual({ ok: true });
   });
 
-  it("översikten läser samma urval: nästa händelse i projektet, utan Svara, projektets bibliotek och ingen chatt", async () => {
+  it("översikten läser samma urval: nästa händelse i projektet, utan Svara, projektets bibliotek och projektets tomma chatt", async () => {
     const h = bygg();
     const g = await projektGast(h);
     const o = await h.tjanst.oversikt({ sessionsnyckel: g.sessionsnyckel, idag: "2026-11-11", sedan: {} });
     expect(o.ok).toBe(true);
-    expect(o.chatt).toBeNull();
+    // Projektets chatt är tom: gruppchattens meddelande syns inte här (UTANFOR_PROJEKTET har GRUPPCHATTEN).
+    expect(o.chatt).toMatchObject({ nya: 0, senaste: [] });
     expect(o.kalender.nasta).toMatchObject({ id: "h-koket", mitt: null });
     expect(o.bibliotek.antal).toBe(2);
     for (const s of UTANFOR_PROJEKTET) expect(allaTexter(o), s).not.toContain(s);
   });
 
-  it("⛔ chatten är stängd för en projektgäst: läsa, skriva och kommentera en post är nej", async () => {
+  it("⛔ gruppens chatt är stängd för en projektgäst: hen läser och skriver bara i projektets egen, och kommenterar ingen post", async () => {
     const h = bygg();
     const g = await projektGast(h);
-    expect(await h.tjanst.chatt({ sessionsnyckel: g.sessionsnyckel })).toEqual({ ok: false, orsak: "nej" });
-    expect(await h.tjanst.skrivChatt({ sessionsnyckel: g.sessionsnyckel, text: "hej" })).toEqual({ ok: false, orsak: "nej" });
+    const c = await h.tjanst.chatt({ sessionsnyckel: g.sessionsnyckel });
+    expect(c).toMatchObject({ ok: true, meddelanden: [] });
+    expect(allaTexter(c)).not.toContain("GRUPPCHATTEN");
+    expect((await h.tjanst.skrivChatt({ sessionsnyckel: g.sessionsnyckel, text: "hej" })).ok).toBe(true);
     expect(await h.tjanst.kommenteraPost({ sessionsnyckel: g.sessionsnyckel, postId: "p-ritning", text: "hej" })).toEqual({ ok: false, orsak: "nej" });
+    // Gruppchatten är orörd, och meddelandet ligger i projektets chatt.
     expect(await h.grund.list(`samtal/${GRUPP}|grupp/meddelanden`)).toHaveLength(1);
+    expect(await h.grund.list(`samtal/${GRUPP}|projekt|koket/meddelanden`)).toHaveLength(1);
   });
 });
 
 describe("⛔ det som inte får gå: förfalskad tagg, återkallad inbjudan, borttaget projekt", () => {
-  /** Varje åtgärd en projektgäst har, med en förfalskad tagg och grupp i anropet. Golv: sju. */
+  /** Varje åtgärd en projektgäst har, med en förfalskad tagg och grupp i anropet. Golv: nio (skiva 2 lade till chatten). */
   const ATGARDER = {
+    chatt: (t, k) => t.chatt({ sessionsnyckel: k, tagg: "badrum", groupId: GRANNEN }),
+    skrivChatt: (t, k) => t.skrivChatt({ sessionsnyckel: k, text: "hej", tagg: "badrum", groupId: GRANNEN }),
     hamta: (t, k) => t.hamta({ sessionsnyckel: k, tagg: "badrum", groupId: GRANNEN }),
     oversikt: (t, k) => t.oversikt({ sessionsnyckel: k, tagg: "badrum", idag: "2026-11-11" }),
     kalender: (t, k) => t.kalender({ sessionsnyckel: k, tagg: "badrum", groupId: GRANNEN }),
@@ -375,7 +391,7 @@ describe("⛔ det som inte får gå: förfalskad tagg, återkallad inbjudan, bor
   };
 
   it("en tagg eller grupp i anropet läses aldrig: gästen i köket ser köket, vad anropet än säger", async () => {
-    expect(Object.keys(ATGARDER).length).toBeGreaterThanOrEqual(7);
+    expect(Object.keys(ATGARDER).length).toBeGreaterThanOrEqual(9);
     const h = bygg();
     const g = await projektGast(h, { laddaNed: true });
     for (const [namn, anrop] of Object.entries(ATGARDER)) {
@@ -449,5 +465,98 @@ describe("⛔ det som inte får gå: förfalskad tagg, återkallad inbjudan, bor
     expect(a.poster.map((p) => p.id).sort()).toEqual(["a-grupp-per", "a-koket-per"]);
     for (const p of a.poster) expect(p.hosDig).toBeUndefined();
     expect(h.projekt.urval).not.toHaveBeenCalled();
+  });
+});
+
+describe("skiva 2: projektets chatt för gästen (CP \"kör chatt\")", () => {
+  const KOK = `samtal/${GRUPP}|projekt|koket`;
+
+  it("projektgästen läser projektets chatt med medlemmarnas namn, utan agentens meddelanden, och aldrig gruppchatten, ett annat projekt eller en annan grupp", async () => {
+    const h = bygg();
+    await h.grund.create(`${KOK}/meddelanden`, { id: "k1", text: "Snickaren kommer onsdag", av: MEDLEM, tid: 10 });
+    await h.grund.create(`${KOK}/meddelanden`, { id: "k2", text: "AGENTENS-SVAR", av: agentId(GRUPP), tid: 11 });
+    const g = await projektGast(h);
+    const c = await h.tjanst.chatt({ sessionsnyckel: g.sessionsnyckel });
+    expect(c.ok).toBe(true);
+    expect(c.meddelanden.map((m) => [m.id, m.av.namn, m.text])).toEqual([["k1", MEDLEM, "Snickaren kommer onsdag"]]);
+    // Inga trådmärken: projektets chatt har inga trådar.
+    expect(c.meddelanden[0].svar).toBeUndefined();
+    for (const t of [...UTANFOR_PROJEKTET, "AGENTENS-SVAR"]) expect(allaTexter(c), t).not.toContain(t);
+    // Översikten läser samma chatt.
+    const o = await h.tjanst.oversikt({ sessionsnyckel: g.sessionsnyckel, idag: "2026-11-11", sedan: { chatt: 0 } });
+    expect(o.chatt.nya).toBe(1);
+    expect(o.chatt.senaste.map((m) => m.id)).toEqual(["k1"]);
+  });
+
+  it("⛔ en gäst i hela gruppen läser gruppchatten och aldrig ett projekts chatt (inbjudan pekar ut ETT samtal)", async () => {
+    const h = bygg();
+    await h.tjanst.bjud({ uid: AGARE, slag: "grupp", groupId: GRUPP, epost: "gun@extern.se" });
+    const lank = h.brev[h.brev.length - 1].lankar[0];
+    const { sessionsnyckel } = await h.tjanst.los({ id: lank.id, nyckel: lank.nyckel, ip: IP });
+    const c = await h.tjanst.chatt({ sessionsnyckel });
+    expect(c.meddelanden.map((m) => m.text)).toEqual(["GRUPPCHATTEN"]);
+    expect(allaTexter(c)).not.toContain("BADRUMMETS-CHATT");
+    expect((await h.tjanst.skrivChatt({ sessionsnyckel, text: "från gruppgästen" })).ok).toBe(true);
+    expect((await h.grund.list(`samtal/${GRUPP}|projekt|badrum/meddelanden`)).map((m) => m.text)).toEqual(["BADRUMMETS-CHATT"]);
+  });
+
+  it("gästens första meddelande skapar projektets chatt så att medlemmarna hittar den, med agenten som skapare och utan gästens id", async () => {
+    const h = bygg();
+    const g = await projektGast(h);
+    expect(await h.grund.read("samtal", `${GRUPP}|projekt|koket`)).toBeNull();
+    const svar = await h.tjanst.skrivChatt({ sessionsnyckel: g.sessionsnyckel, text: "Hej från Per" });
+    expect(svar).toMatchObject({ ok: true, meddelande: { text: "Hej från Per", gast: true, egen: true } });
+    const samtal = await h.grund.read("samtal", `${GRUPP}|projekt|koket`);
+    expect(samtal).toMatchObject({ groupId: GRUPP, slag: "projekt", skapadAv: agentId(GRUPP) });
+    expect(Object.keys(samtal).sort()).toEqual(["groupId", "id", "skapad", "skapadAv", "slag"]);
+    expect(allaTexter(samtal)).not.toContain(PERS);
+    // Ett andra meddelande skapar inget nytt samtal och faller inte på det som finns.
+    expect((await h.tjanst.skrivChatt({ sessionsnyckel: g.sessionsnyckel, text: "Igen" })).ok).toBe(true);
+    const rader = await h.grund.list(`${KOK}/meddelanden`);
+    expect(rader.map((m) => [m.text, m.av])).toEqual([["Hej från Per", PERS], ["Igen", PERS]]);
+    // Ingenting skrevs i ett annat projekts eller gruppens chatt.
+    expect(await h.grund.list(`samtal/${GRUPP}|grupp/meddelanden`)).toHaveLength(1);
+    expect(await h.grund.list(`samtal/${GRUPP}|projekt|badrum/meddelanden`)).toHaveLength(1);
+  });
+
+  it("kort i projektets chatt bara för en post på projektets plats, aldrig gruppens eller ett annat projekts", async () => {
+    const h = bygg();
+    const bas = "https://app.example/bibliotek";
+    const lank = (plats, postId) => bibliotekslank(bas, { plats, postId });
+    await h.grund.create(`${KOK}/meddelanden`, { id: "k1", text: `Se ${lank(`plats~${GRUPP}~koket`, "p-ritning")}`, av: MEDLEM, tid: 10 });
+    await h.grund.create(`${KOK}/meddelanden`, { id: "k2", text: `Och ${lank(GRUPP, "p-grupp")} och ${lank(`plats~${GRUPP}~badrum`, "p-badrum")}`, av: MEDLEM, tid: 11 });
+    const g = await projektGast(h);
+    const c = await h.tjanst.chatt({ sessionsnyckel: g.sessionsnyckel });
+    expect(c.meddelanden.map((m) => (m.kort ?? []).map((k) => k.rubrik))).toEqual([["Ritning"], []]);
+    expect(allaTexter(c.meddelanden.map((m) => m.kort ?? []))).not.toMatch(/GRUPPENS-FIL|BADRUMMETS-FIL/);
+  });
+
+  it("⛔ inga trådar i projektets chatt, och ett citat bara av ett meddelande i samma chatt", async () => {
+    const h = bygg();
+    await h.grund.create(`${KOK}/meddelanden`, { id: "k1", text: "Vilken bänkskiva?", av: MEDLEM, tid: 10 });
+    const g = await projektGast(h);
+    expect(await h.tjanst.chatt({ sessionsnyckel: g.sessionsnyckel, trad: "k1" })).toEqual({ ok: false, orsak: "nej" });
+    expect(await h.tjanst.skrivChatt({ sessionsnyckel: g.sessionsnyckel, trad: "k1", text: "svar" })).toEqual({ ok: false, orsak: "nej" });
+    // Gruppchattens meddelande m1 och badrummets b1 finns inte i köket.
+    expect(await h.tjanst.skrivChatt({ sessionsnyckel: g.sessionsnyckel, svarPa: "m1", text: "x" })).toEqual({ ok: false, orsak: "saknas" });
+    expect(await h.tjanst.skrivChatt({ sessionsnyckel: g.sessionsnyckel, svarPa: "b1", text: "x" })).toEqual({ ok: false, orsak: "saknas" });
+    const citat = await h.tjanst.skrivChatt({ sessionsnyckel: g.sessionsnyckel, svarPa: "k1", text: "Ek" });
+    expect(citat.meddelande.svarPa).toMatchObject({ id: "k1", text: "Vilken bänkskiva?" });
+    expect((await h.grund.list(`${KOK}/meddelanden`)).map((m) => m.text)).toEqual(["Vilken bänkskiva?", "Ek"]);
+  });
+
+  it("⛔ en återkallad projektgäst varken läser eller skriver, och raderingen tar gästens meddelanden ur varje projektchatt i gruppen", async () => {
+    const h = bygg();
+    const g = await projektGast(h);
+    expect((await h.tjanst.skrivChatt({ sessionsnyckel: g.sessionsnyckel, text: "PERS-KOK" })).ok).toBe(true);
+    // Per var också gäst i badrummet en gång och skrev där.
+    await h.grund.create(`samtal/${GRUPP}|projekt|badrum/meddelanden`, { id: "pb", text: "PERS-BADRUM", av: PERS, avNamn: "Per", tid: 20 });
+    await h.tjanst.aterkalla({ uid: AGARE, id: g.id });
+    expect(await h.tjanst.chatt({ sessionsnyckel: g.sessionsnyckel })).toEqual({ ok: false, orsak: "aterkallad" });
+    expect(await h.tjanst.skrivChatt({ sessionsnyckel: g.sessionsnyckel, text: "igen" })).toEqual({ ok: false, orsak: "aterkallad" });
+    const ut = await h.tjanst.radera({ uid: AGARE, groupId: GRUPP, gastId: PERS });
+    expect(ut.meddelanden).toBe(2);
+    expect((await h.grund.list(`${KOK}/meddelanden`)).map((m) => m.text)).toEqual([]);
+    expect((await h.grund.list(`samtal/${GRUPP}|projekt|badrum/meddelanden`)).map((m) => m.text)).toEqual(["BADRUMMETS-CHATT"]);
   });
 });

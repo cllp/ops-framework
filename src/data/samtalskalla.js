@@ -1,7 +1,7 @@
 import { NAMN_SAKNAS } from "../lib/personnamn.js";
 import { FALT_BORT } from "./contract.js";
 import { KOMMENTARBILAGAFALT } from "../lib/handelsemodell.js";
-import { AGENTSTATUS_ID, FASTA_TAK, OMROSTNINGSROSTTAK, OMROSTNINGSVALTAK, REAKTIONSTAK, amnesId, arNamnd, bilagenyckel, byggFastning, byggMeddelande, byggOmrostningsmeddelande, byggOmrostningsrost, byggOmrostningsval, byggReaktion, omrostningsrostnyckel, byggSamtal, byggTrad, kravAmnesrubrik, kravTradnamn, motpart, nyttAmnesId, olastaI, samtalsnyckel, synligText, undersamlingskrock } from "../lib/samtal.js";
+import { AGENTSTATUS_ID, FASTA_TAK, OMROSTNINGSROSTTAK, OMROSTNINGSVALTAK, REAKTIONSTAK, amnesId, arDelatSamtal, arNamnd, bilagenyckel, byggFastning, byggMeddelande, byggOmrostningsmeddelande, byggOmrostningsrost, byggOmrostningsval, byggReaktion, omrostningsrostnyckel, byggSamtal, byggTrad, kravAmnesrubrik, kravTradnamn, motpart, nyttAmnesId, olastaI, samtalsnyckel, synligText, undersamlingskrock } from "../lib/samtal.js";
 
 /**
  * Samtalskällan: läser och skriver ramverkets samtal genom en datakälla (0.34.0, #182, #185).
@@ -57,6 +57,10 @@ import { AGENTSTATUS_ID, FASTA_TAK, OMROSTNINGSROSTTAK, OMROSTNINGSVALTAK, REAKT
  *   `oppnaAmne`, `sattRubrik` och `arkivera`, och översikten hoppar över arkiverade ämnen. ⛔ INGET FÖRVAL: utan det finns ett
  *   agentsamtal per person, som förut. Samma val som till `samtalsregelfragment({ amnen: true })`, som släpper in den fjärde delen i
  *   nyckeln, `rubrik` och `arkiverad`.
+ * @param {boolean} [konfig.projekt] (0.215.0, cllp/lifehub.app#760 skiva 2) `true` slår på projektens chattar: `oppnaProjekt`, och `lista` och `oversikt` tar med gruppens
+ *   projektchattar (en tredje fråga, `slag: "projekt"`). ⛔ INGET FÖRVAL: utan det finns inga projektchattar i källan, som förut. Samma val som till
+ *   `samtalsregelfragment({ projekt: true })`, som släpper in nyckeln och läsningen. ⛔ EN PROJEKTCHATT UTAN MEDDELANDEN STÅR INTE I `oversikt`: raden härleds ur att
+ *   samtalet har ett meddelande, och ett projekt som någon bara tittat in i ska inte fylla inkorgen.
  * @param {boolean} [konfig.levandeInkorg] (0.106.0, #386 skiva 7) `true` ger `bevakaInkorg`: en lyssnare per samtal i inkorgen på
  *   dess TVÅ senaste meddelanden (`limit: 2`, se `inkorgsradMed`), och `inkorgsrad`, som läser om en rad. `useSamtal` läser då om den rad som fått ett meddelande
  *   från någon annan, i stället för att vänta på att fönstret får fokus. ⛔ INGET FÖRVAL: varje synligt samtal är en lyssnare, och det
@@ -66,7 +70,7 @@ import { AGENTSTATUS_ID, FASTA_TAK, OMROSTNINGSROSTTAK, OMROSTNINGSVALTAK, REAKT
  * @param {() => number} [konfig.klocka] Förval `Date.now`. Prov byter den.
  */
 export function createSamtalskalla(konfig) {
-  const { kalla, samtal = "samtal", meddelanden = "meddelanden", last = "last", tradar, status, reaktioner, omrostningsval, omrostningsroster, omnamnanden, citat, fasta, bilagor, bilagaSamling, tyst, amnen, levandeInkorg, sida = 50, klocka = Date.now } = konfig ?? /** @type {any} */ ({});
+  const { kalla, samtal = "samtal", meddelanden = "meddelanden", last = "last", tradar, status, reaktioner, omrostningsval, omrostningsroster, omnamnanden, citat, fasta, bilagor, bilagaSamling, tyst, amnen, projekt, levandeInkorg, sida = 50, klocka = Date.now } = konfig ?? /** @type {any} */ ({});
   if (!kalla || typeof kalla.list !== "function") {
     throw new Error("createSamtalskalla: kalla krävs, en datakälla (createFirestoreSource, createMemorySource).");
   }
@@ -84,6 +88,7 @@ export function createSamtalskalla(konfig) {
   if (omnamnanden !== undefined && typeof omnamnanden !== "boolean") throw new Error("createSamtalskalla: omnamnanden är true eller utelämnat.");
   if (citat !== undefined && typeof citat !== "boolean") throw new Error("createSamtalskalla: citat är true eller utelämnat.");
   if (amnen !== undefined && amnen !== true) throw new Error("createSamtalskalla: amnen är true eller utelämnat.");
+  if (projekt !== undefined && projekt !== true) throw new Error("createSamtalskalla: projekt är true eller utelämnat.");
   if (levandeInkorg !== undefined && levandeInkorg !== true) throw new Error("createSamtalskalla: levandeInkorg är true eller utelämnat.");
   if (bilagor !== undefined && bilagor !== true) throw new Error("createSamtalskalla: bilagor är true eller utelämnat.");
   if (bilagor === true && bilagaSamling === undefined) throw new Error("createSamtalskalla: bilagor: true kräver bilagaSamling, samlingsnamnet för filerna. Samma namn som till samtalsregelfragment.");
@@ -188,12 +193,14 @@ export function createSamtalskalla(konfig) {
    */
   async function lista({ groupId, uid }) {
     if (!groupId || !uid) throw new Error("samtalskalla.lista: groupId och uid krävs.");
-    const [gruppens, mina] = await Promise.all([
+    const [gruppens, mina, projektens] = await Promise.all([
       kalla.list(samtal, { where: { groupId, slag: "grupp" } }),
       kalla.list(samtal, { where: { groupId }, innehaller: { deltagare: uid } }),
+      // (0.215.0) Projektens chattar: en fråga på `slag`, som gruppchatten. Regeln släpper in dem för gruppens medlemmar (`samtalsregelfragment({ projekt: true })`).
+      projekt === true ? kalla.list(samtal, { where: { groupId, slag: "projekt" } }) : Promise.resolve([]),
     ]);
     const sedda = new Set();
-    const ut = [...gruppens, ...mina].filter((s) => (sedda.has(s.id) ? false : (sedda.add(s.id), true)));
+    const ut = [...gruppens, ...projektens, ...mina].filter((s) => (sedda.has(s.id) ? false : (sedda.add(s.id), true)));
     // ⛔ Ett ämne i listan finns: `skickaIAmne` skapar det inte igen (P0 2026-10-15, se där).
     for (const s of ut) if (s.slag === "agent") kandaAmnen.add(s.id);
     return ut;
@@ -226,6 +233,17 @@ export function createSamtalskalla(konfig) {
     const finns = (await lista({ groupId, uid })).find((x) => x.id === id);
     if (finns) return finns;
     return skapaEllerHamta(byggSamtal({ groupId, slag: "grupp", skapadAv: uid, skapad: klocka() }), uid);
+  }
+
+  /**
+   * (0.215.0) Ett projekts chatt, nyckeln `<grupp>|projekt|<tagg>`. Skapas första gången någon öppnar den, som gruppchatten. ⛔ Taggen prövas av `byggSamtal`, och om projektet finns
+   * avgör appen: chatten är gruppens rum för projektet och behöver inget projektdokument för att reglerna ska släppa in en medlem.
+   * @param {{ groupId: string, uid: string, tagg: string }} d
+   */
+  async function oppnaProjekt({ groupId, uid, tagg }) {
+    const s = byggSamtal({ groupId, slag: "projekt", tagg, skapadAv: uid, skapad: klocka() });
+    const finns = (await lista({ groupId, uid })).find((x) => x.id === s.id);
+    return finns ?? skapaEllerHamta(s, uid);
   }
 
   /**
@@ -502,8 +520,9 @@ export function createSamtalskalla(konfig) {
     const alla = (await lista({ groupId, uid })).filter((s) => (amnen === true && s.slag === "agent" ? (s.arkiverad === true) === arkiverade : !arkiverade));
     const rader = await Promise.all(alla.map((s) => inkorgsrad(s, uid)));
     // ⛔ Ett ämne utan meddelanden visas inte: det är ett ämne vars första meddelande inte gick att skriva efter samtalet (0.106.0).
+    // ⛔ (0.215.0) Inte heller en projektchatt utan meddelanden: raden finns när någon skrivit, inte när någon tittat in.
     return rader
-      .filter((r) => !(r.senaste === null && amnesId(r.samtal.id)))
+      .filter((r) => !(r.senaste === null && (amnesId(r.samtal.id) || r.samtal.slag === "projekt")))
       .sort((a, b) => (b.senaste?.tid ?? b.samtal.skapad ?? 0) - (a.senaste?.tid ?? a.samtal.skapad ?? 0));
   }
 
@@ -1165,6 +1184,7 @@ export function createSamtalskalla(konfig) {
     await kalla.create(tystvag(sid), { id: uid, tyst: pa });
   }
   const tystfunktioner = tyst === undefined ? {} : { tyst, tystFor, sattTyst };
+  const projektfunktioner = projekt === true ? { oppnaProjekt } : {};
 
   return Object.freeze({
     lista,
@@ -1187,6 +1207,7 @@ export function createSamtalskalla(konfig) {
     ...bilagefunktioner,
     ...tystfunktioner,
     ...amnesfunktioner,
+    ...projektfunktioner,
     ...inkorgsfunktioner,
     ...(omnamnanden === true ? { omnamnanden: true } : {}),
     ...(citat === true ? { citat: true } : {}),
@@ -1314,6 +1335,16 @@ export function harAmnen(kalla) {
 }
 
 /**
+ * Har källan projektens chattar, alltså har appen slagit på dem med `projekt: true`? (0.215.0, lifehub.app#760) Samma form som `harTradar`.
+ * @template {object} K
+ * @param {K | null | undefined} kalla
+ * @returns {kalla is K & { oppnaProjekt: (d: { groupId: string, uid: string, tagg: string }) => Promise<import("../lib/samtal.js").Samtal> }}
+ */
+export function harProjekt(kalla) {
+  return Boolean(kalla) && typeof (/** @type {any} */ (kalla).oppnaProjekt) === "function";
+}
+
+/**
  * En rad i inkorgen, ur `oversikt` och `inkorgsrad`.
  * @typedef {{ samtal: import("../lib/samtal.js").Samtal, senaste: (import("../lib/samtal.js").Meddelande & { id: string }) | null, olasta: number, olastaFler?: boolean, olastaRader?: Array<import("../lib/samtal.js").Meddelande & { id: string }>, lastTill: number, motpart: string | null, tyst?: boolean, forsta?: Array<import("../lib/samtal.js").Meddelande & { id: string }>, fonster?: number[] }} Inkorgsrad
  */
@@ -1408,17 +1439,19 @@ export function harTradar(kalla) {
  * @param {(namn: string) => string} [konfig.titel] Förval `"<namn> skickade ett meddelande"`.
  * @param {ReadonlyArray<{ userId: string, typ?: string, status?: string }>} [konfig.medlemmar] (chattens nattskiva) Gruppens medlemskap,
  *   för notisen "nämnd i gruppchatten". Utelämnat: ingen sådan notis.
- * @param {(namn: string) => string} [konfig.namndTitel] Förval `"<namn> nämnde dig i gruppchatten"`.
+ * @param {(namn: string, samtal?: import("../lib/samtal.js").Samtal) => string} [konfig.namndTitel] Förval `"<namn> nämnde dig i gruppchatten"`, och (0.215.0) `"<namn> nämnde dig i projektets chatt"` i ett projekts chatt.
+ *   (0.215.0) Andra argumentet är samtalet, så att appen kan säga vilket projekt.
  * @returns {(fraga: { groupId: string }) => Promise<Array<{ id: string, titel: string, text: string, prio: "normal", href?: string }>>}
  */
-export function samtalsnotiser({ samtal, uid, namnFor, href, titel = (namn) => `${namn} skickade ett meddelande`, medlemmar, namndTitel = (namn) => `${namn} nämnde dig i gruppchatten` }) {
+export function samtalsnotiser({ samtal, uid, namnFor, href, titel = (namn) => `${namn} skickade ett meddelande`, medlemmar, namndTitel = (namn, s) => (s?.slag === "projekt" ? `${namn} nämnde dig i projektets chatt` : `${namn} nämnde dig i gruppchatten`) }) {
   if (!samtal || typeof samtal.oversikt !== "function") throw new Error("samtalsnotiser: samtal krävs, en källa ur createSamtalskalla.");
   if (!uid) throw new Error("samtalsnotiser: uid krävs. Notiserna är en persons, inte gruppens.");
   if (typeof namnFor !== "function") throw new Error("samtalsnotiser: namnFor krävs. En notis utan namn säger inte vem som skrev.");
   return async ({ groupId }) => {
     const rader = (await samtal.oversikt({ groupId, uid })).filter((r) => r.tyst !== true);
     const privata = rader
-      .filter((r) => r.samtal.slag !== "grupp" && r.olasta > 0 && r.senaste)
+      // ⛔ (0.215.0) Ett projekts chatt är ett rum för flera, som gruppchatten: notis vid ett omnämnande, inte vid varje meddelande.
+      .filter((r) => !arDelatSamtal(r.samtal.slag) && r.olasta > 0 && r.senaste)
       .map((r) => {
         const s = /** @type {NonNullable<typeof r.senaste>} */ (r.senaste);
         return {
@@ -1431,13 +1464,13 @@ export function samtalsnotiser({ samtal, uid, namnFor, href, titel = (namn) => `
       });
     if (!medlemmar) return privata;
     const namnda = rader
-      .filter((r) => r.samtal.slag === "grupp")
+      .filter((r) => arDelatSamtal(r.samtal.slag))
       .flatMap((r) => {
         const s = [...(r.olastaRader ?? [])].reverse().find((m) => arNamnd(m, uid, medlemmar));
         if (!s) return [];
         return [{
           id: `${r.samtal.id}|${s.id}`,
-          titel: namndTitel(namnFor(s.av) || NAMN_SAKNAS),
+          titel: namndTitel(namnFor(s.av) || NAMN_SAKNAS, r.samtal),
           text: synligText(s),
           prio: /** @type {const} */ ("normal"),
           ...(href ? { href: href(r.samtal.id) } : {}),

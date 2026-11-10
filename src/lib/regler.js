@@ -36,6 +36,7 @@ import {
   EXTERNTOKEN_FORM, EXTERNTYPER, MAX_EXTERNA, MAX_EXTERNHEMLIGHET, MAX_EXTERNLABEL, MAX_EXTERNREPO, MEDLEMSKAPSAVGRANSARE,
 } from "./grupp.js";
 import { ID_FORM, KATALOGAVGRANSARE, KATEGORIFALT } from "./katalog.js";
+import { PROJEKTTAGGFORM } from "./gast.js";
 import { INSTALLNINGSVARDEFALT, MAX_INSTALLNINGSGRUPP, MAX_INSTALLNINGSID, MAX_INSTALLNINGSTEXT, MAX_MODULINSTALLNINGAR, MODULINSTALLNINGFALT, VISA_I_HUVUDMENYN } from "./modulinstallningar.js";
 import { MAX_TYPAVVIKELSER, MAX_TYPID, MAX_TYPNAMN, MODULTYPID_FORM, TYPAVVIKELSEFALT, TYPYTOR } from "./modultyper.js";
 import { ADRESSFORM, NALTAGG, ARENDEFORM, ARENDE_PREFIX, BIBLIOTEKFALT, BIBLIOTEKTYPER, BILDFORM, FILFALT, HANDELSEFORM, HANDELSE_PREFIX, HTML_DISPOSITIONSMONSTER, HTML_MIME, LJUD_STOLPAR, MITT_PREFIX, PLATSFORM, PLATSIDFORM, PLATS_PREFIX, MAX_BIBLIOTEKFILNAMN, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKSOKVAG, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, MAX_BIBLIOTEKUTSKRIFT, MAX_HTMLVERSION, MAX_LISTPOSTER, MAX_LJUD_MS, MAX_TAGGAR, POSTIDFORM, TAGGFORM, TOPPFORM, filContentTypeMonster, filMimeMonster, filtakRegel } from "./bibliotek.js";
@@ -50,7 +51,7 @@ import { KALENDERVALFALT, KALENDERVALNYCKEL_FORM, KALENDERVISNINGAR, MAX_KALENDE
 import { DELNINGSUID_FORM, KALENDERDELNINGFALT, KALENDERDELNING_AVGRANSARE, KALENDERDELNING_GRUPP, KALENDERDELNING_PERSON, MAX_DELNINGSGRUPP } from "./kalenderdelning.js";
 import { AVVECKLADE_KALENDERFALT, DATUMFORM, KALENDERFALT, KALENDERFARGER, KALENDERPOSTFALT, MAX_KALENDERID, MAX_KALENDERIKON, MAX_KALENDERNAMN, MAX_POSTBESKRIVNING, MAX_POSTPLATS, MAX_POSTTITEL, MINKALENDERFALT, TIDPUNKTSFORM } from "./kalendrar.js";
 import { KOMMENTARBILAGAFALT, KOMMENTARBILAGA_TYPER, KOMMENTARFALT, LASMARKESFALT, MAX_BILAGENAMN, MAX_HANDELSEKOMMENTAR, MAX_KOMMENTARBILAGA, SVARSFALT, SVARSVAL } from "./handelsemodell.js";
-import { AMNESFALT, AMNES_REGEL, BILAGA_TRADSKILJE, BILAGEMARKEFALT, FASTFALT, MAX_ALTERNATIVTEXT, MAX_AMNESRUBRIK, MAX_FRAGA, GRUPPSAMTAL, LASTFALT, MAX_MEDDELANDE, MAX_NAMNER, MAX_TRADNAMN, MAX_UIDLANGD, MEDDELANDEFALT, NAMNERFALT, NAMNER_ALLA, OMROSTNINGFALT, OMROSTNINGSROSTFALT, OMROSTNINGSVALFALT, OMROSTNINGSVAL_REGEL, REAKTIONSFALT, SVARPAFALT, REAKTIONSKODER, SAMTALSAVGRANSARE, SAMTALSFALT, TRADFALT, undersamlingskrock } from "./samtal.js";
+import { AMNESFALT, AMNES_REGEL, BILAGA_TRADSKILJE, BILAGEMARKEFALT, FASTFALT, MAX_ALTERNATIVTEXT, MAX_AMNESRUBRIK, MAX_FRAGA, GRUPPSAMTAL, LASTFALT, MAX_MEDDELANDE, MAX_NAMNER, MAX_TRADNAMN, MAX_UIDLANGD, MEDDELANDEFALT, NAMNERFALT, NAMNER_ALLA, OMROSTNINGFALT, OMROSTNINGSROSTFALT, OMROSTNINGSVALFALT, OMROSTNINGSVAL_REGEL, REAKTIONSFALT, SVARPAFALT, REAKTIONSKODER, SAMTALSAVGRANSARE, SAMTALSFALT, TRADFALT, PROJEKTSAMTAL, undersamlingskrock } from "./samtal.js";
 
 /**
  * @typedef {object} Samlingsnamn
@@ -1132,10 +1133,16 @@ export function tradskiljeTeckenklass(t) {
  *     Gruppchatten och personsamtalen förblir oföränderliga, och ingenting raderas. ⛔ LÄSREGELN ÄNDRAS INTE: `opsFarLasaSamtal`
  *     gäller per dokument och bryr sig inte om nyckelns form, så inga nya `get()` eller `exists()` och ingen ny läsväg.
  *
+ *   - PROJEKTENS CHATTAR (0.215.0, cllp/lifehub.app#760 skiva 2, med `projekt: true`): ett samtal med `slag: "projekt"` och nyckeln `<groupId>|projekt|<tagg>`, där taggen följer
+ *     projektets form (`PROJEKTTAGGFORM` i lib/gast.js). Inga deltagare: varje aktiv medlem i gruppen läser och skriver, som i gruppchatten (`opsFarLasaSamtal`). Skapas av en person i
+ *     gruppen, som sig själv, nu. Ändras och raderas aldrig. ⛔ PROJEKTETS GÄSTER LÄSER INTE HÄR: en gäst har inget konto i Firestore och når chatten bara genom servern
+ *     (`createGastService`, som läser inbjudan i varje anrop). ⛔ INGA TRÅDAR: `opsIGruppchatten` släpper fortfarande bara in gruppchatten. Citat (`citat: true`) gäller utanför
+ *     gruppchatten, alltså också här. ⛔ Regeln vet inte om projektet finns: chatten är gruppens rum, och en tagg utan projekt ger ett rum ingen hittar till (appen öppnar det bara från projektets sida).
+ *
  * ⛔ VARJE NY UNDERSAMLING ÄR EN NY NYCKEL, UTAN FÖRVAL (`tradar` 0.68.0, `status` #273). En app som inte skickar nyckeln får
  * byte för byte samma regeltext som innan nyckeln fanns, och det mäts mot fixturerna i `rules/__fixturer__/`.
  *
- * @param {{ samtal?: string, meddelanden?: string, last?: string, tradar?: string, status?: string, reaktioner?: string, omrostningsval?: string, omrostningsroster?: string, omnamnanden?: boolean, citat?: boolean, fasta?: string, bilagor?: boolean, bilagaSamling?: string, tyst?: string, amnen?: boolean, medlemskap?: string }} [namn]
+ * @param {{ samtal?: string, meddelanden?: string, last?: string, tradar?: string, status?: string, reaktioner?: string, omrostningsval?: string, omrostningsroster?: string, omnamnanden?: boolean, citat?: boolean, fasta?: string, bilagor?: boolean, bilagaSamling?: string, tyst?: string, amnen?: boolean, projekt?: boolean, medlemskap?: string }} [namn]
  * @returns {string}
  */
 export function samtalsregelfragment(namn = {}) {
@@ -1167,6 +1174,10 @@ export function samtalsregelfragment(namn = {}) {
   const citat = namn.citat === true;
   if (namn.amnen !== undefined && namn.amnen !== true) throw new Error("samtalsregelfragment: amnen är true eller utelämnat.");
   const amnen = namn.amnen === true;
+  if (namn.projekt !== undefined && namn.projekt !== true) throw new Error("samtalsregelfragment: projekt är true eller utelämnat.");
+  const projekt = namn.projekt === true;
+  // Taggens form i regelns `matches`, som är en hel matchning: ankarna tas bort ur ramverkets uttryck, så att formen har ETT hem.
+  const projekttagg = PROJEKTTAGGFORM.source.replace(/^\^/, "").replace(/\$$/, "");
   if (namn.bilagor !== undefined && namn.bilagor !== true) throw new Error("samtalsregelfragment: bilagor är true eller utelämnat.");
   const bilagor = namn.bilagor === true;
   // ⛔ Namnet kommer utifrån. Ett förval hade gett varje app en ny undersamling vid en ompinning som ingen bad om.
@@ -1184,7 +1195,7 @@ export function samtalsregelfragment(namn = {}) {
   const utanDeltagare = SAMTALSFALT.filter((f) => f !== "deltagare");
 
   // ⛔ Versionsraden nämner bara det appen slagit på, så att en app utan de nya nycklarna får samma text som förut.
-  const version = ["0.34.0", ...(tradar ? ["trådar 0.68.0"] : []), ...(status ? ["agentens status"] : []), ...(reaktioner ? ["reaktioner"] : []), ...(omrostningsval ? ["omröstningar"] : []), ...(omnamnanden ? ["omnämnanden"] : []), ...(citat ? ["citat"] : []), ...(fasta ? ["fästa"] : []), ...(bilagor ? ["bilagor"] : []), ...(tyst ? ["tysta notiser"] : []), ...(amnen ? ["ämnen"] : [])].join(", ");
+  const version = ["0.34.0", ...(tradar ? ["trådar 0.68.0"] : []), ...(status ? ["agentens status"] : []), ...(reaktioner ? ["reaktioner"] : []), ...(omrostningsval ? ["omröstningar"] : []), ...(omnamnanden ? ["omnämnanden"] : []), ...(citat ? ["citat"] : []), ...(fasta ? ["fästa"] : []), ...(bilagor ? ["bilagor"] : []), ...(tyst ? ["tysta notiser"] : []), ...(amnen ? ["ämnen"] : []), ...(projekt ? ["projekt 0.215.0"] : [])].join(", ");
   // ⛔ Utan `bilagor` är de två raderna ordagrant de som stod här förut, så fixturen för 0.67.0 består.
   // Med `bilagor` prövas MÄRKET på meddelandet. Filens `dataUrl` prövas på bilagedokumentet, inte här.
   // ⛔ MÄRKET HAR SIN FIL, OCH ID:T KAN BÄRA EN (granskningen av PR 307). Ett märke utan fil hade gett en bubbla som säger
@@ -1530,7 +1541,7 @@ ${texttak("            ", `tid + '${S}' + mid`)}
 
     // Får den inloggade läsa samtalet s (dess data)?
     function opsFarLasaSamtal(s) {
-      return opsArMedlem(s.groupId) && (s.slag == '${GRUPPSAMTAL}' || request.auth.uid in s.deltagare);
+      return opsArMedlem(s.groupId) && (s.slag == '${GRUPPSAMTAL}'${projekt ? ` || s.slag == '${PROJEKTSAMTAL}'` : ""} || request.auth.uid in s.deltagare);
     }
 
     function opsSamtalet(sid) {
@@ -1554,7 +1565,12 @@ ${tradfunktioner}${reaktionsfunktion}${omrostningsfunktioner}${namnerfunktion}${
         && (
           (d.slag == '${GRUPPSAMTAL}'
             && d.keys().hasOnly([${lista(utanDeltagare)}])
-            && sid == d.groupId + '${A}${GRUPPSAMTAL}')
+            && sid == d.groupId + '${A}${GRUPPSAMTAL}')${projekt ? `
+          || (d.slag == '${PROJEKTSAMTAL}'
+            && d.keys().hasOnly([${lista(utanDeltagare)}])
+            && sid.split('[${A}]').size() == 3
+            && sid == d.groupId + '${A}${PROJEKTSAMTAL}${A}' + sid.split('[${A}]')[2]
+            && sid.split('[${A}]')[2].matches('${projekttagg}'))` : ""}
           || ((d.slag == 'personer' || d.slag == 'agent')
             && d.keys().hasOnly([${lista(amnen ? [...SAMTALSFALT, "rubrik"] : SAMTALSFALT)}])
             && d.deltagare is list && d.deltagare.size() == 2

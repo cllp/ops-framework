@@ -54,7 +54,7 @@
  * ══ ⛔ ETT PROJEKT (0.215.0, cllp/lifehub.app#760 skiva 1): SAMMA VÄG SOM HELA GRUPPEN, AVGRÄNSAD PÅ SERVERN ═══════════════════════
  *
  * CP 2026-11-10: "Jag skulle vilja kunna samarbeta med externa i projekt, de har inte tillgång till hela gruppen, men bara projekt." Ett omfång `{ slag: "projekt", tagg }` är en gäst i gruppen (`arGruppslag`): en plats ur
- * samma fem, samma förvaltning (ägare och admin), samma inloggning och samma flikar, men bara `GASTPROJEKTFUNKTIONER` (kalender, bibliotek, ärenden) och ingen chatt. Det är EN mekanism och ingen parallell kopia:
+ * samma fem, samma förvaltning (ägare och admin), samma inloggning och samma flikar, och `GASTPROJEKTFUNKTIONER`, där chatten är projektets egen (skiva 2) och aldrig gruppens. Det är EN mekanism och ingen parallell kopia:
  * varje gruppåtgärd börjar med `gruppSession`, som för ett projekt dessutom läser projektet ur appen (`grupp.projekt.urval`) och lägger dess urval på sessionen. Urvalet görs här, på servern, varje gång:
  *   - biblioteket: bara projektets plats (`platsBibliotek(groupId, tagg)`), samma prövning som gruppens egen plats (`gastSerBibliotekspost`, `arGruppFil`) med platsen i stället för gruppen.
  *   - kalendern: bara händelser som appens `handelse` säger hör till projektet (projektets egen kalender, eller taggen i gruppens förvalda).
@@ -105,7 +105,7 @@ import {
   GASTSLAG,
   GASTPROJEKTFUNKTIONER,
   GASTPROJEKTKORTFALT,
-  GASTPROJEKTTAGGFORM,
+  PROJEKTTAGGFORM,
   arGruppslag,
   GASTSKRIV_MAX_TECKEN,
   GASTSKRIV_PER_MINUT,
@@ -158,7 +158,7 @@ import { arArkiverad, platsBibliotek, trimSomRegeln } from "../lib/bibliotek.js"
 import { KLOCKFORM, SVARSVAL, byggSvar, handelsefel, sammanstallSvar } from "../lib/handelsemodell.js";
 import { validateGruppkalendrar } from "../lib/kalendrar.js";
 import { gruppensRader } from "../lib/katalog.js";
-import { NAMNER_ALLA, samtalsnyckel } from "../lib/samtal.js";
+import { NAMNER_ALLA, byggSamtal, projekttaggUr, samtalsnyckel } from "../lib/samtal.js";
 import { adresserIText, bibliotekslank, kommentarRotId, kommentarRotText, lasBibliotekslank } from "../lib/postkommentar.js";
 import { MAX_ANTECKNINGSBILDER, SIGNERAD_SEKUNDER, delningsTyp } from "../lib/delning.js";
 import { anteckningsbildAdresser, delningsDisposition } from "./delning.js";
@@ -1067,7 +1067,7 @@ export function createGastService(konfig) {
       if (projektlage && !GS.projekt) throw felMedKod("ogiltigt-omfang", "bjud: projektgäster är inte påslagna (createGastService fick ingen grupp.projekt).");
       // ⛔ TAGGENS FORM FÖRE NÅGOT ANNAT: en tagg som inte är en projekttagg når aldrig appens urval eller ett id.
       const tagg = projektlage ? b?.tagg : null;
-      if (projektlage && (typeof tagg !== "string" || !GASTPROJEKTTAGGFORM.test(tagg))) throw felMedKod("ogiltigt-omfang", `bjud: projektets tagg ${JSON.stringify(tagg)} har fel form: gemener a-z, siffror och bindestreck, högst 24 tecken.`);
+      if (projektlage && (typeof tagg !== "string" || !PROJEKTTAGGFORM.test(tagg))) throw felMedKod("ogiltigt-omfang", `bjud: projektets tagg ${JSON.stringify(tagg)} har fel form: gemener a-z, siffror och bindestreck, högst 24 tecken.`);
       groupId = kravText(b?.groupId, "groupId", "bjud");
       const m = await aktivtMedlemskap(uid, groupId);
       if (!m) throw felMedKod("ej-behorig", `bjud: ${uid} är inte aktiv medlem i gruppen "${groupId}" och får inte bjuda in gäster.`);
@@ -1565,7 +1565,7 @@ export function createGastService(konfig) {
     const grupplage = arGruppslag(rad.omfang);
     const projektlage = rad.omfang?.slag === "projekt";
     // ⛔ (0.215.0) EN PROJEKTRAD MED EN TAGG UTAN FORM ÄR ETT NEJ, INTE EN GISSNING: taggen avgör allt gästen ser, och en rad som inte går att läsa ska stänga.
-    if (projektlage && (typeof rad.omfang.tagg !== "string" || !GASTPROJEKTTAGGFORM.test(rad.omfang.tagg))) return nej();
+    if (projektlage && (typeof rad.omfang.tagg !== "string" || !PROJEKTTAGGFORM.test(rad.omfang.tagg))) return nej();
     return {
       ok: true,
       gastId: gastId(radensKontakt(rad)),
@@ -1772,7 +1772,7 @@ export function createGastService(konfig) {
    */
   async function gruppSession(b, funktion) {
     if (!GS) return nej();
-    // (0.215.0) Kravet gäller en gäst i gruppen, hela gruppen eller ett projekt (`GASTGRUPPSLAG`). Ett projektomfång ger bara `GASTPROJEKTFUNKTIONER` (`gastOmfangGer`), så `chatt` är ett nej för en projektgäst här.
+    // (0.215.0) Kravet gäller en gäst i gruppen, hela gruppen eller ett projekt (`GASTGRUPPSLAG`). Ett projektomfång ger bara `GASTPROJEKTFUNKTIONER` (`gastOmfangGer`). Projektgästens `chatt` är projektets egen (`chattFor`).
     const s = await session({ sessionsnyckel: b?.sessionsnyckel, krav: { slag: GASTGRUPPSLAG, funktion } });
     if (!s.ok) return s;
     if (!(await reserveraAnrop(s.inbjudan.id))) return orsak("for-manga");
@@ -1873,16 +1873,25 @@ export function createGastService(konfig) {
   const kapa = (t, max) => (t.length > max ? `${t.slice(0, max - 1)}…` : t);
 
   /**
-   * Gruppchattens sökväg, och (0.191.0) en tråds.
-   * @param {string} groupId
+   * Gruppchattens sökväg, och (0.191.0) en tråds. (0.215.0) `groupId` kan också vara ett projekts chatt, `{ sid }` ur `chattFor`: samma undersamlingar, en annan nyckel.
+   * @param {string | { sid: string }} chatt
    */
-  const chattvag = (groupId) => `${GS?.samlingar.samtal}/${samtalsnyckel({ groupId, slag: "grupp" })}`;
-  /** @param {string} groupId */
-  const meddelandevag = (groupId) => `${chattvag(groupId)}/${GS?.samlingar.meddelanden}`;
+  const chattvag = (chatt) => `${GS?.samlingar.samtal}/${typeof chatt === "string" ? samtalsnyckel({ groupId: chatt, slag: "grupp" }) : chatt.sid}`;
+  /** @param {string | { sid: string }} chatt */
+  const meddelandevag = (chatt) => `${chattvag(chatt)}/${GS?.samlingar.meddelanden}`;
   /** @param {string} groupId */
   const tradvag = (groupId) => `${chattvag(groupId)}/${GS?.tradar}`;
   /** @param {string} groupId @param {string} trad */
   const tradmeddelandevag = (groupId, trad) => `${tradvag(groupId)}/${trad}/${GS?.samlingar.meddelanden}`;
+
+  /**
+   * (0.215.0, cllp/lifehub.app#760 skiva 2) Chatten som sessionen når: gruppens, eller för en projektgäst projektets egen (`<grupp>|projekt|<tagg>`), med taggen ur inbjudan och aldrig ur anropet.
+   * ⛔ EN PROJEKTGÄST NÅR BARA PROJEKTETS CHATT, och en gäst i hela gruppen bara gruppchatten: inbjudan pekar ut ETT samtal. En gruppgäst som också läst projektens chattar hade behövt en lista över
+   * samtal, och det är ett eget beslut (förslaget CP sa kör på: "En gäst i projektet når bara den chatten och aldrig gruppens.").
+   * @param {{ inbjudan: { groupId: string, tagg?: string }, projekt: unknown }} s
+   * @returns {string | { sid: string }}
+   */
+  const chattFor = (s) => (s.projekt ? { sid: samtalsnyckel({ groupId: s.inbjudan.groupId, slag: "projekt", tagg: /** @type {string} */ (s.inbjudan.tagg) }) } : s.inbjudan.groupId);
 
   /**
    * Avsändarna i gruppen, för namnen och för att dölja agenten.
@@ -1941,7 +1950,7 @@ export function createGastService(konfig) {
   /**
    * Ett meddelande i den form en gäst ser det (`GASTCHATTFALT`). En form för huvudchatten, tråden och roten.
    * @param {Record<string, any>} m
-   * @param {{ groupId: string, gastId: string, sida: Record<string, any>[], namnFor: Map<string, string>, agenter: Set<string>, lasta: Map<string, Promise<any>>, medSvar: boolean }} c
+   * @param {{ groupId: string, plats?: string, gastId: string, sida: Record<string, any>[], namnFor: Map<string, string>, agenter: Set<string>, lasta: Map<string, Promise<any>>, medSvar: boolean }} c
    */
   async function chattrad(m, c) {
     // En gäst som skrivit bär sitt namn på meddelandet (`avNamn`, satt av `skrivChatt`) eller "Gäst". Märket Gäst härleds ur `av` (`arGastId`) och ingenting annat.
@@ -1962,7 +1971,8 @@ export function createGastService(konfig) {
     const citerad = typeof m.svarPa === "string" ? c.sida.find((x) => x.id === m.svarPa) : null;
     if (citerad) extra.svarPa = { id: citerad.id, namn: namnPa(citerad.av), text: kapa(typeof citerad.text === "string" ? citerad.text : "", 140) };
     if (m.bilaga && typeof m.bilaga === "object") extra.bilaga = { namn: text(m.bilaga.namn), typ: text(m.bilaga.typ) };
-    const [kort, svar] = await Promise.all([kortFor(m.text, c.groupId, c.lasta), c.medSvar ? antalSvar(c.groupId, m.id, c.agenter) : Promise.resolve(null)]);
+    // (0.215.0) Korten gäller platsen gästen ser: gruppens, eller projektets (`c.plats`).
+    const [kort, svar] = await Promise.all([kortFor(m.text, c.plats ?? c.groupId, c.lasta), c.medSvar ? antalSvar(c.groupId, m.id, c.agenter) : Promise.resolve(null)]);
     if (kort.length > 0) extra.kort = kort;
     if (typeof svar === "number" && svar > 0) extra.svar = svar;
     return vitlista({ ...ut, ...extra }, GASTCHATTFALT);
@@ -1992,8 +2002,9 @@ export function createGastService(konfig) {
       if (b?.[f] !== undefined && !Number.isFinite(b[f])) throw new Error(`chatt: ${f} är ett tal, millisekunder.`);
     }
     const groupId = s.inbjudan.groupId;
-    if (b?.trad !== undefined) return lasTrad(s, b);
-    const vag = meddelandevag(groupId);
+    // ⛔ (0.215.0) Projektets chatt har inga trådar (reglerna: trådar bara i gruppchatten), så en tråd är ett nej för en projektgäst, som för en grupp utan trådar.
+    if (b?.trad !== undefined) return s.projekt ? nej() : lasTrad(s, b);
+    const vag = meddelandevag(chattFor(s));
     if (b?.nyast !== undefined) {
       const [sen] = await kalla.list(vag, { sortBy: "tid", direction: "desc", limit: 1 });
       if (!sen || !(sen.tid > b.nyast)) return { ok: true, meddelanden: [], fler: false, ingetNytt: true };
@@ -2002,7 +2013,7 @@ export function createGastService(konfig) {
     const fler = rader.length > GASTCHATT_SIDA;
     const sida = rader.slice(0, GASTCHATT_SIDA).reverse();
     const { namnFor, agenter } = await chattavsandare(groupId);
-    const c = { groupId, gastId: s.gastId, sida, namnFor, agenter, lasta: new Map(), medSvar: true };
+    const c = { groupId, plats: s.plats, gastId: s.gastId, sida, namnFor, agenter, lasta: new Map(), medSvar: !s.projekt };
     const meddelanden = await Promise.all(sida.filter((m) => !agenter.has(m.av)).map((m) => chattrad(m, c)));
     return vitlista({ ok: true, meddelanden, fler }, GASTGRUPPSVARSFALT.chatt);
   }
@@ -2063,6 +2074,17 @@ export function createGastService(konfig) {
   }
 
   /**
+   * (0.215.0) Skapar projektets chatt om den inte finns, så att medlemmarna hittar den (`createSamtalskalla({ projekt: true })` frågar på samtalsdokumenten). Unikheten är id:t (`createNew`).
+   * ⛔ `skapadAv` ÄR GRUPPENS AGENT OCH INTE GÄSTEN: ett `g_`-id på samtalet hade varit en uppgift om gästen som raderingen fick leta upp, och agenten är ingen person. Fälten är modellens (`byggSamtal`).
+   * @param {string} groupId @param {string} sid @param {number} tid
+   */
+  async function oppnaProjektchatt(groupId, sid, tid) {
+    const tagg = /** @type {string} */ (projekttaggUr(sid, groupId));
+    const { id, ...falt } = byggSamtal({ groupId, slag: "projekt", tagg, skapad: tid, skapadAv: agentId(groupId) });
+    await skapaNy(/** @type {string} */ (GS?.samlingar.samtal), { id, ...falt });
+  }
+
+  /**
    * Gästen skriver ett meddelande i gruppens chatt (0.132.0, CP 2026-10-20: "Gästen får skriva"), och (0.191.0, med `grupp.samlingar.tradar`) ett svar i en tråd (`trad`).
    *
    * ⛔ SERVERN SKRIVER, ALDRIG KLIENTEN, OCH ALDRIG SOM EN MEDLEM. Meddelandet får `av` = gästens `g_`-id (inget uid), gästens namn som `avNamn` och inget annat fält: ingen bilaga,
@@ -2089,8 +2111,10 @@ export function createGastService(konfig) {
     const trad = b?.trad === undefined ? null : kravTrad(b.trad, "skrivChatt");
     const t = gastText(b, "skrivChatt", { medCitat: trad === null });
     const svarPa = b?.svarPa === undefined ? null : kravTrad(b.svarPa, "skrivChatt", "svarPa");
-    if (trad !== null && !GS.tradar) return nej();
+    // ⛔ (0.215.0) Ingen tråd i projektets chatt, som för en grupp utan trådar.
+    if (trad !== null && (!GS.tradar || s.projekt)) return nej();
     const groupId = s.inbjudan.groupId;
+    const chatt = chattFor(s);
     if (trad !== null) {
       const rot = await kalla.read(meddelandevag(groupId), trad);
       if (!rot || (await chattavsandare(groupId)).agenter.has(rot.av)) return orsak("saknas");
@@ -2098,7 +2122,7 @@ export function createGastService(konfig) {
     /** @type {Record<string, any> | null} */
     let citerad = null;
     if (svarPa !== null) {
-      citerad = await kalla.read(meddelandevag(groupId), svarPa);
+      citerad = await kalla.read(meddelandevag(chatt), svarPa);
       if (!citerad || (await chattavsandare(groupId)).agenter.has(citerad.av)) return orsak("saknas");
     }
     const takt = await reserveraRaknare(hash(`gastskriv|${s.inbjudan.id}`), { max: GASTSKRIV_PER_MINUT, fonsterMs: MINUT_MS });
@@ -2112,7 +2136,8 @@ export function createGastService(konfig) {
     let sparad;
     try {
       if (trad !== null) await oppnaTradForGast(groupId, trad, s.gastId, tid);
-      sparad = await kalla.create(trad !== null ? tradmeddelandevag(groupId, trad) : meddelandevag(groupId), rad);
+      if (typeof chatt !== "string") await oppnaProjektchatt(groupId, chatt.sid, tid);
+      sparad = await kalla.create(trad !== null ? tradmeddelandevag(groupId, trad) : meddelandevag(chatt), rad);
     } catch (fel) {
       await aterlamna(RAKNARE, takt.id, RAKNEFALT, takt.fonster);
       throw fel;
@@ -2122,7 +2147,7 @@ export function createGastService(konfig) {
     if (citerad) {
       // Citatet i svaret i samma form som `chatt` ger det (`chattrad`), så att det syns hos gästen direkt och inte först vid nästa hämtning.
       const { namnFor, agenter } = await chattavsandare(groupId);
-      const form = await chattrad({ ...rad, id: sparad.id }, { groupId, gastId: s.gastId, sida: [citerad], namnFor, agenter, lasta: new Map(), medSvar: false });
+      const form = await chattrad({ ...rad, id: sparad.id }, { groupId, plats: s.plats, gastId: s.gastId, sida: [citerad], namnFor, agenter, lasta: new Map(), medSvar: false });
       if (form.svarPa) citat.svarPa = form.svarPa;
     }
     return vitlista(
@@ -2147,7 +2172,8 @@ export function createGastService(konfig) {
   async function kommenteraPost(b) {
     const s = await gruppSession(b, "chatt");
     if (!s.ok || !GS) return s.ok ? nej() : s;
-    if (!GS.tradar || !GS.bibliotekBas) return nej();
+    // ⛔ (0.215.0) En projektgäst kommenterar inte: kommentaren är en tråd i gruppchatten, som hen inte ser (`hamtaProjekt` säger `kommentera: false`).
+    if (!GS.tradar || !GS.bibliotekBas || s.projekt) return nej();
     const t = gastText(b, "kommenteraPost");
     const groupId = s.inbjudan.groupId;
     const postId = typeof b?.postId === "string" ? b.postId : "";
@@ -2702,7 +2728,7 @@ export function createGastService(konfig) {
     // ⛔ ÖVERSIKTEN ÄR INGEN FUNKTION: sessionen prövas mot den första funktion tjänsten har (för en gruppgäst prövar `gastOmfangGer` bara att namnet är en gruppfunktion), och varje del
     // nedan läses bara när dess funktion finns i `GS.funktioner`. En del utan funktion är `null` i svaret. Inget prov för en `null`-del: chatt, kalender och bibliotek går inte att välja
     // bort i dag (`GS.funktioner` ovan är alla gruppfunktioner utom ärenden utan `grupp.arenden`), så vakten skrivs ett prov för den dag funktionerna blir valbara.
-    // (0.215.0) Den första funktion tjänsten har som också är en projektfunktion: `chatt` står först och är ett nej för en projektgäst. Kalendern finns alltid i båda.
+    // (0.215.0) Den första funktion tjänsten har som också är en projektfunktion. Sedan skiva 2 är det `chatt` för båda, och kalendern finns alltid i båda.
     const s = await gruppSession(b, /** @type {(typeof GASTGRUPPFUNKTIONER)[number]} */ (GS.funktioner.find((f) => /** @type {readonly string[]} */ (GASTPROJEKTFUNKTIONER).includes(f)) ?? GS.funktioner[0]));
     if (!s.ok || !GS) return s.ok ? nej() : s;
     const har = (/** @type {string} */ f) => /** @type {readonly string[]} */ (/** @type {any} */ (GS).funktioner).includes(f);
@@ -2714,23 +2740,26 @@ export function createGastService(konfig) {
     if (b?.idag !== undefined && (typeof b.idag !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(b.idag))) throw new Error("oversikt: idag är ÅÅÅÅ-MM-DD.");
     const idag = b?.idag ?? new Date(klocka()).toISOString().slice(0, 10);
     const groupId = s.inbjudan.groupId;
-    // ⛔ (0.215.0) EN PROJEKTGÄST HAR INGEN CHATT, och rutorna läser samma urval som flikarna (projektets händelser, projektets plats).
+    // ⛔ (0.215.0) Rutorna läser samma urval som flikarna: projektets chatt, projektets händelser och projektets plats.
     const harDel = (/** @type {string} */ f) => har(f) && (!s.projekt || /** @type {readonly string[]} */ (GASTPROJEKTFUNKTIONER).includes(f));
 
     // Chatten: de senaste meddelandena utan agentens, samma som `chatt`.
-    const chattUt = harDel("chatt") ? await oversiktChatt(groupId, s.gastId, sedan.chatt) : null;
+    const chattUt = harDel("chatt") ? await oversiktChatt(groupId, s.gastId, sedan.chatt, chattFor(s), s.plats) : null;
     const kalenderUt = harDel("kalender") ? await oversiktKalender(groupId, s.gastId, idag, s.projekt) : null;
     const bibliotekUt = harDel("bibliotek") ? oversiktBibliotek(await gruppensPoster(s.plats), sedan.bibliotek) : null;
     return vitlista({ ok: true, chatt: chattUt, kalender: kalenderUt, bibliotek: bibliotekUt }, GASTGRUPPSVARSFALT.oversikt);
   }
 
-  /** (0.198.0) Översiktens chattdel. @param {string} groupId @param {string} gastIdet @param {number | undefined} sedanChatt */
-  async function oversiktChatt(groupId, gastIdet, sedanChatt) {
-    const rader = await kalla.list(meddelandevag(groupId), { sortBy: "tid", direction: "desc", limit: GASTCHATT_SIDA });
+  /**
+   * (0.198.0) Översiktens chattdel. (0.215.0) `chatt` och `plats`: projektets chatt och plats för en projektgäst (`chattFor`).
+   * @param {string} groupId @param {string} gastIdet @param {number | undefined} sedanChatt @param {string | { sid: string }} [chatt] @param {string} [plats]
+   */
+  async function oversiktChatt(groupId, gastIdet, sedanChatt, chatt = groupId, plats = groupId) {
+    const rader = await kalla.list(meddelandevag(chatt), { sortBy: "tid", direction: "desc", limit: GASTCHATT_SIDA });
     const { namnFor, agenter } = await chattavsandare(groupId);
     const synliga = rader.filter((m) => !agenter.has(m.av));
     const nyaRader = typeof sedanChatt === "number" ? synliga.filter((m) => m.av !== gastIdet && typeof m.tid === "number" && m.tid > sedanChatt) : [];
-    const c = { groupId, gastId: gastIdet, sida: rader, namnFor, agenter, lasta: new Map(), medSvar: false };
+    const c = { groupId, plats, gastId: gastIdet, sida: rader, namnFor, agenter, lasta: new Map(), medSvar: false };
     const senasteMeddelanden = await Promise.all(
       synliga.slice(0, GASTOVERSIKT_SENASTE).map(async (m) => {
         const r = await chattrad(m, c);
@@ -2917,11 +2946,15 @@ export function createGastService(konfig) {
    */
   async function raderaMeddelanden(groupId, gId) {
     if (!GS) return 0;
-    const vag = meddelandevag(groupId);
     let n = 0;
-    for (const m of await kalla.list(vag, { where: { av: gId } })) {
-      await taBort(vag, m.id);
-      n++;
+    // ⛔ (0.215.0) OCKSÅ I GRUPPENS PROJEKTCHATTAR, i varje och inte bara de gästen har en inbjudan till nu: en återkallad projektgäst kan ha skrivit i en chatt hen inte längre når.
+    const projektchattar = (await kalla.list(GS.samlingar.samtal, { where: { groupId, slag: "projekt" } })).map((p) => ({ sid: String(p.id) }));
+    for (const chatt of [groupId, ...projektchattar]) {
+      const vag = meddelandevag(chatt);
+      for (const m of await kalla.list(vag, { where: { av: gId } })) {
+        await taBort(vag, m.id);
+        n++;
+      }
     }
     n += await raderaTradsvar(groupId, gId);
     return n;

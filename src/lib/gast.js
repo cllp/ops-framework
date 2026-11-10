@@ -54,15 +54,16 @@ export function arGruppslag(omfang) {
  * ⛔ SAMMA FORM SOM APPENS PROJEKTTAGG (lifehub.app `PROJEKT_TAGGFORM` i `functions/projektmodell.js`), och en delmängd av `PLATSIDFORM`: taggen är också id:t på projektets plats i biblioteket (`plats~<grupp>~<tagg>`).
  * Ett prov jämför de två formerna åt båda håll (`gast-projekt.test.js`), så att en tagg som appen godtar aldrig nekas här, och tvärtom.
  */
-export const GASTPROJEKTTAGGFORM = /^[a-z0-9]([a-z0-9-]{0,22}[a-z0-9])?$/;
+export const PROJEKTTAGGFORM = /^[a-z0-9]([a-z0-9-]{0,22}[a-z0-9])?$/;
 
 /**
- * (0.215.0, cllp/lifehub.app#760 skiva 1) Vad en gäst i ett projekt får: samma som en gäst i gruppen utom chatten, och allt avgränsat till projektet (kalendern, biblioteket och ärendena med projektets tagg).
+ * (0.215.0, cllp/lifehub.app#760) Vad en gäst i ett projekt får: samma funktioner som en gäst i gruppen, men allt avgränsat till projektet (projektets egen chatt, kalendern, biblioteket och ärendena med projektets tagg).
  *
- * ⛔ INGEN CHATT I SKIVA 1 (förslaget som CP sa kör på, lifehub.app#760): gruppens chatt är hela gruppens, och en projektgäst som läste den hade sett allt som inte rör projektet. En egen chatt per projekt är ett eget beslut.
+ * ⛔ CHATTEN ÄR PROJEKTETS EGEN OCH ALDRIG GRUPPENS (skiva 2, CP "kör chatt"): `<grupp>|projekt|<tagg>` (`samtalsnyckel`). Gruppens chatt är hela gruppens, och en projektgäst som läste den hade sett allt som inte rör projektet.
+ *   I skiva 1 fanns ingen chatt alls för en projektgäst; skiva 2 lade till projektets egen, i samma version.
  * ⛔ EN DELMÄNGD AV `GASTGRUPPFUNKTIONER`, provat: en funktion som bara projektet hade hade varit en ny flik utan vy.
  */
-export const GASTPROJEKTFUNKTIONER = /** @type {const} */ (["kalender", "bibliotek", "arenden"]);
+export const GASTPROJEKTFUNKTIONER = /** @type {const} */ (["chatt", "kalender", "bibliotek", "arenden"]);
 
 /**
  * (0.215.0) Fälten i ett projekts kort som en projektgäst ser (`hamta().grupp.projekt`): taggen, läget och kortets texter. Läget och texternas rubriker är `{ sv, en }`: projektets modell och dess ord är appens,
@@ -766,7 +767,7 @@ export function gastId(epost) {
 /**
  * @typedef {{ slag: "sak", funktion: "rosta" | "delta", handelseId: string } | { slag: "grupp" } | { slag: "projekt", tagg: string }} Gastomfang
  *   `sak`: en omröstning på en händelse (skiva 1, `rosta`), eller ett deltagarsvar på den (0.146.0, `delta`). `grupp` (0.132.0): hela gruppen, och gruppen står i inbjudans `groupId` och aldrig i omfånget (en sanning, regel 2).
- *   `projekt` (0.215.0, cllp/lifehub.app#760): ett projekt i gruppen, utpekat med sin tagg (`GASTPROJEKTTAGGFORM`). Gruppen står i inbjudans `groupId` som för `grupp`.
+ *   `projekt` (0.215.0, cllp/lifehub.app#760): ett projekt i gruppen, utpekat med sin tagg (`PROJEKTTAGGFORM`). Gruppen står i inbjudans `groupId` som för `grupp`.
  */
 
 /**
@@ -793,7 +794,7 @@ export function gastomfangsnyckel(omfang) {
     // ⛔ BARA TAGGEN. Ett handelseId eller en funktion på ett projektomfång hade gjort två rader av samma sak, och projektets namn hör till projektet och inte till inbjudans id (det kan ändras, taggen kan inte).
     const extra = Object.keys(o).filter((k) => k !== "slag" && k !== "tagg");
     if (extra.length > 0) throw new Error(`gastomfangsnyckel: omfånget projekt har bara tagg (fick ${extra.join(", ")}).`);
-    if (typeof o.tagg !== "string" || !GASTPROJEKTTAGGFORM.test(o.tagg)) throw new Error(`gastomfangsnyckel: projektets tagg ${JSON.stringify(o.tagg)} har fel form: gemener a-z, siffror och bindestreck, högst 24 tecken.`);
+    if (typeof o.tagg !== "string" || !PROJEKTTAGGFORM.test(o.tagg)) throw new Error(`gastomfangsnyckel: projektets tagg ${JSON.stringify(o.tagg)} har fel form: gemener a-z, siffror och bindestreck, högst 24 tecken.`);
     return `projekt:${o.tagg}`;
   }
   if (!(/** @type {readonly unknown[]} */ (GASTFUNKTIONER).includes(o.funktion))) {
@@ -809,7 +810,7 @@ export function gastomfangsnyckel(omfang) {
  *   - krav `{ slag: "grupp", funktion: "chatt" }`: bara en gruppinbjudan, och bara för en av `GASTGRUPPFUNKTIONER`.
  *   - krav `{ slag: "sak", funktion: "rosta" }` eller `{ funktion: "rosta" }` (skiva 1): bara en sakinbjudan vars funktion är den.
  *   - (0.215.0) krav `{ slag: ["grupp", "projekt"], funktion: "kalender" }`: en lista med slag, och omfångets slag ska stå i den. Så prövar tjänstens gruppåtgärder en gäst i gruppen, vare sig det är hela gruppen eller ett projekt.
- *   - (0.215.0) ett projektomfång ger bara `GASTPROJEKTFUNKTIONER`, och bara med en tagg som har formen: aldrig `chatt`.
+ *   - (0.215.0) ett projektomfång ger bara `GASTPROJEKTFUNKTIONER`, och bara med en tagg som har formen. `chatt` för ett projekt är projektets egen chatt: tjänsten väljer samtalet ur inbjudan (`chattFor`).
  *   - ett krav på en funktion som inget omfång ger, eller ett slag som inte är omfångets: nej.
  *
  * @param {unknown} omfang
@@ -823,7 +824,7 @@ export function gastOmfangGer(omfang, krav) {
     if (!krav.slag.includes(o.slag)) return false;
   } else if (krav.slag !== undefined && krav.slag !== o.slag) return false;
   if (o.slag === "grupp") return typeof krav.funktion === "string" && /** @type {readonly string[]} */ (GASTGRUPPFUNKTIONER).includes(krav.funktion);
-  if (o.slag === "projekt") return typeof o.tagg === "string" && GASTPROJEKTTAGGFORM.test(o.tagg) && typeof krav.funktion === "string" && /** @type {readonly string[]} */ (GASTPROJEKTFUNKTIONER).includes(krav.funktion);
+  if (o.slag === "projekt") return typeof o.tagg === "string" && PROJEKTTAGGFORM.test(o.tagg) && typeof krav.funktion === "string" && /** @type {readonly string[]} */ (GASTPROJEKTFUNKTIONER).includes(krav.funktion);
   if (o.slag === "sak") return typeof krav.funktion === "string" && krav.funktion === o.funktion;
   return false;
 }

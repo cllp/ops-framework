@@ -112,19 +112,19 @@ export const ORD_OPSGASTLISTA = {
   bekraftaGruppKnapp: { sv: "Bjud in", en: "Invite" },
   // ── (0.215.0, cllp/lifehub.app#760 skiva 1) Listan på ett projekts sida (`projekt`): samma lista och samma dialog, med orden om projektet. Orden byter gruppens med samma namn utan `projekt_`. ──
   projekt_ingressGrupp: {
-    sv: "En gäst får ett mejl med en länk och ser bara det här projektet, utan konto: projektets kort, ärenden, filer och kalender. Inte gruppens chatt och inget annat i gruppen. Ladda ned filer får gästen bara om det slås på. Gästen tar en av gruppens gästplatser.",
-    en: "A guest gets an email with a link and sees only this project, without an account: the project's card, cases, files and calendar. Not the group's chat and nothing else in the group. The guest may download files only if that is switched on. The guest takes one of the group's guest places.",
+    sv: "En gäst får ett mejl med en länk och ser bara det här projektet, utan konto: projektets kort, chatt, ärenden, filer och kalender. Inte gruppens chatt och inget annat i gruppen. Ladda ned filer får gästen bara om det slås på. Gästen tar en av gruppens gästplatser.",
+    en: "A guest gets an email with a link and sees only this project, without an account: the project's card, chat, cases, files and calendar. Not the group's chat and nothing else in the group. The guest may download files only if that is switched on. The guest takes one of the group's guest places.",
   },
   projekt_ingressGruppTelefon: {
-    sv: "En gäst får en länk som du delar, till exempel som sms, och ser bara det här projektet, utan konto: projektets kort, ärenden, filer och kalender. Inte gruppens chatt och inget annat i gruppen. Gästen tar en av gruppens gästplatser.",
-    en: "A guest gets a link that you share, for example as a text message, and sees only this project, without an account: the project's card, cases, files and calendar. Not the group's chat and nothing else in the group. The guest takes one of the group's guest places.",
+    sv: "En gäst får en länk som du delar, till exempel som sms, och ser bara det här projektet, utan konto: projektets kort, chatt, ärenden, filer och kalender. Inte gruppens chatt och inget annat i gruppen. Gästen tar en av gruppens gästplatser.",
+    en: "A guest gets a link that you share, for example as a text message, and sees only this project, without an account: the project's card, chat, cases, files and calendar. Not the group's chat and nothing else in the group. The guest takes one of the group's guest places.",
   },
   projekt_ingaGrupp: { sv: "Inga gäster har bjudits in till projektet.", en: "No guests have been invited to the project." },
   projekt_bjudGrupp: { sv: "Bjud in gäst till projektet", en: "Invite a guest to the project" },
   projekt_bekraftaGruppTitel: { sv: "Bjud in {vem} till projektet?", en: "Invite {vem} to the project?" },
   projekt_bekraftaGruppSer: {
-    sv: "Gästen ser projektets kort, alla ärenden med projektets tagg och kan kommentera dem, filerna på projektets plats i biblioteket och projektets kalender. Gästen ser inte gruppens chatt och inget annat i gruppen.",
-    en: "The guest sees the project's card, every case with the project's tag and can comment on them, the files on the project's place in the library and the project's calendar. The guest does not see the group's chat or anything else in the group.",
+    sv: "Gästen ser projektets kort, projektets egen chatt med hela historiken och kan skriva i den, alla ärenden med projektets tagg och kan kommentera dem, filerna på projektets plats i biblioteket och projektets kalender. Gästen ser inte gruppens chatt och inget annat i gruppen.",
+    en: "The guest sees the project's card, the project's own chat with the whole history and can write in it, every case with the project's tag and can comment on them, the files on the project's place in the library and the project's calendar. The guest does not see the group's chat or anything else in the group.",
   },
   omfang_projekt: { sv: "Projekt: {tagg}", en: "Project: {tagg}" },
   bekraftaGruppPagar: { sv: "Skickar inbjudan…", en: "Sending the invitation…" },

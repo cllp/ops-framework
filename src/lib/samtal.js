@@ -45,13 +45,29 @@
  * Växer volymen så att det blir dyrt är rätt plats en server som skriver fältet (Admin SDK), inte klienten.
  */
 
-import { byggGastMottagare } from "./gast.js";
+import { PROJEKTTAGGFORM, byggGastMottagare } from "./gast.js";
 import { kommentarbilagaFel } from "./handelsemodell.js";
 import { markdownSomText } from "./markdown.js";
 import { byggVia } from "./skapare.js";
 
-/** Samtalens slag. */
-export const SAMTALSSLAG = /** @type {const} */ (["grupp", "personer", "agent"]);
+/**
+ * Samtalens slag. (0.215.0, cllp/lifehub.app#760 skiva 2) `projekt`: ett projekts chatt, nyckeln `<grupp>|projekt|<tagg>` (`samtalsnyckel`).
+ *
+ * ⛔ PROJEKTCHATTEN HAR INGA DELTAGARE, SOM GRUPPCHATTEN. Vem som får läsa den härleds: gruppens aktiva medlemmar (reglerna, `opsFarLasaSamtal`) och projektets gäster med just den taggen (gästtjänsten,
+ * som läser inbjudan i varje anrop). En lista på samtalet hade varit en andra sanning om vilka som är med, och den hade glidit isär första gången någon gick med i gruppen eller fick sin inbjudan återkallad.
+ * CP 2026-11-11 sa kör på förslaget i lifehub.app#760: "Varje projekt får en egen chatt ... Gruppens medlemmar och projektets gäster är med. En gäst i projektet når bara den chatten och aldrig gruppens."
+ */
+export const SAMTALSSLAG = /** @type {const} */ (["grupp", "personer", "agent", "projekt"]);
+
+/**
+ * (0.215.0) Är samtalet ett rum för flera, gruppchatten eller ett projekts chatt? Ett sådant har inga deltagare, inget lås och ingen motpart: alla som läser ser vem som skrev, och omnämnanden gäller gruppens medlemmar.
+ * ⛔ TRÅDAR FINNS BARA I GRUPPCHATTEN, och det avgör `slag === "grupp"` och inte den här: reglernas `opsIGruppchatten` släpper bara in gruppchatten.
+ * @param {unknown} slag
+ */
+export const arDelatSamtal = (slag) => slag === "grupp" || slag === "projekt";
+
+/** (0.215.0) Projektchattens nyckeldel efter gruppen: `<grupp>|projekt|<tagg>`. ⛔ Inget uid får heta så (`kravUid`), annars hade ett personsamtal kunnat ta en projektchatts nyckel. */
+export const PROJEKTSAMTAL = "projekt";
 
 /** Fälten ett samtal får bära. `deltagare` bara för `personer` och `agent`. */
 export const SAMTALSFALT = /** @type {const} */ (["groupId", "slag", "deltagare", "skapad", "skapadAv"]);
@@ -99,7 +115,8 @@ export function bilagenyckel(mid, trad) {
  */
 export function samtalsdeltagare(samtal, medlemmar) {
   const alla = [...(medlemmar ?? [])];
-  if (!samtal || samtal.slag === "grupp") return alla;
+  // (0.215.0) Projektchatten: gruppens alla medlemmar, som gruppchatten. Projektets gäster är inga medlemmar och står inte här.
+  if (!samtal || samtal.slag === "grupp" || samtal.slag === "projekt") return alla;
   return (samtal.deltagare ?? []).map((uid) => alla.find((m) => m.userId === uid) ?? { userId: uid });
 }
 
@@ -139,7 +156,18 @@ function kravUid(uid, vem) {
     // ⛔ Ett uid med avgränsaren gör nyckeln tvetydig: "a|b" och "c" ger samma nyckel som "a" och "b|c".
     throw new Error(`${vem}: uid "${u}" innehåller "${SAMTALSAVGRANSARE}", som är nyckelns avgränsare. Nyckeln hade blivit tvetydig.`);
   }
+  // ⛔ (0.215.0) Ett uid som heter "projekt" hade gett ett personsamtal med en projektchatts nyckel, `<grupp>|projekt|<tagg>`.
+  if (u === PROJEKTSAMTAL) throw new Error(`${vem}: uid "${u}" är projektchattens nyckeldel och kan inte vara en deltagare.`);
   return u;
+}
+
+/**
+ * (0.215.0) Projektets tagg i en projektchatts nyckel, eller ett fel. Samma form som projektets tagg och ett gästomfång (`PROJEKTTAGGFORM`).
+ * @param {unknown} tagg @param {string} vem @returns {string}
+ */
+export function kravProjekttagg(tagg, vem) {
+  if (typeof tagg !== "string" || !PROJEKTTAGGFORM.test(tagg)) throw new Error(`${vem}: projektets tagg ${JSON.stringify(tagg)} har fel form: gemener a-z, siffror och bindestreck, högst 24 tecken.`);
+  return tagg;
 }
 
 /**
@@ -156,13 +184,20 @@ function kravGruppUtanAvgransare(groupId, vem) {
 /**
  * Samtalets nyckel, härledd ur gruppen och deltagarna.
  *
- * @param {{ groupId: string, slag: "grupp" | "personer" | "agent", deltagare?: ReadonlyArray<string>, amne?: string | null }} d `amne` (0.106.0, #386): ett ämne med agenten, nyckelns fjärde del.
+ * @param {{ groupId: string, slag: "grupp" | "personer" | "agent" | "projekt", deltagare?: ReadonlyArray<string>, amne?: string | null, tagg?: string }} d `amne` (0.106.0, #386): ett ämne med agenten, nyckelns fjärde del.
+ *   `tagg` (0.215.0): projektets tagg, bara för `projekt` (`PROJEKTTAGGFORM`).
  * @returns {string}
  */
 export function samtalsnyckel(d) {
   const groupId = rensa(d?.groupId);
   if (!groupId) throw new Error("samtalsnyckel: groupId krävs. Ett samtal hör alltid till en grupp.");
   kravGruppUtanAvgransare(groupId, "samtalsnyckel");
+  if (d.slag !== "projekt" && d.tagg !== undefined) throw new Error("samtalsnyckel: tagg hör till ett projekts chatt (slag projekt).");
+  if (d.slag === "projekt") {
+    if (d.deltagare !== undefined) throw new Error("samtalsnyckel: projektchatten har inga deltagare. Vem som är med härleds ur gruppen och projektets gäster.");
+    if (d.amne !== undefined && d.amne !== null) throw new Error("samtalsnyckel: projektchatten har inga ämnen.");
+    return `${groupId}${SAMTALSAVGRANSARE}${PROJEKTSAMTAL}${SAMTALSAVGRANSARE}${kravProjekttagg(d.tagg, "samtalsnyckel")}`;
+  }
   if (d.slag === "grupp") {
     if (d.amne !== undefined && d.amne !== null) throw new Error("samtalsnyckel: gruppchatten har inga ämnen. Ett ämne är ett samtal med agenten.");
     return `${groupId}${SAMTALSAVGRANSARE}${GRUPPSAMTAL}`;
@@ -316,7 +351,7 @@ function sorteradePar(deltagare, vem) {
  * @typedef {object} Samtal
  * @property {string} id
  * @property {string} groupId
- * @property {"grupp" | "personer" | "agent"} slag
+ * @property {"grupp" | "personer" | "agent" | "projekt"} slag
  * @property {ReadonlyArray<string>} [deltagare] Sorterade. Bara `personer` och `agent`.
  * @property {number} skapad Millisekunder sedan 1970.
  * @property {string} skapadAv
@@ -329,7 +364,7 @@ function sorteradePar(deltagare, vem) {
  *
  * `amne` (0.106.0, #386): ett nytt ämne med agenten, id:t i nyckelns fjärde del. Det lagras inte som fält. `rubrik`: bara för ett ämne.
  *
- * @param {{ groupId: string, slag: string, deltagare?: ReadonlyArray<string>, skapad?: number, skapadAv: string, amne?: string | null, rubrik?: string | null }} d
+ * @param {{ groupId: string, slag: string, deltagare?: ReadonlyArray<string>, skapad?: number, skapadAv: string, amne?: string | null, rubrik?: string | null, tagg?: string }} d
  * @returns {Samtal}
  */
 export function byggSamtal(d) {
@@ -342,6 +377,14 @@ export function byggSamtal(d) {
   const skapadAv = kravUid(d.skapadAv, "byggSamtal");
   const skapad = d.skapad ?? Date.now();
   if (!Number.isInteger(skapad)) throw new Error("byggSamtal: skapad är millisekunder, ett heltal.");
+  if (slag === "projekt") {
+    // ⛔ (0.215.0) Taggen står i nyckeln och inte som fält (regel 2), som trådens id och ämnets id.
+    if (d.deltagare !== undefined) throw new Error("byggSamtal: projektchatten har inga deltagare. Gruppens medlemmar och projektets gäster är med, och en lista hade varit en andra sanning.");
+    const tagg = kravProjekttagg(/** @type {any} */ (d).tagg, "byggSamtal");
+    const s = { groupId, slag: /** @type {const} */ ("projekt"), skapad, skapadAv };
+    return Object.freeze({ id: samtalsnyckel({ ...s, tagg }), ...s });
+  }
+  if (/** @type {any} */ (d).tagg !== undefined) throw new Error("byggSamtal: tagg hör till ett projekts chatt (slag projekt).");
   if (slag === "grupp") {
     if (d.deltagare !== undefined) {
       throw new Error("byggSamtal: gruppchatten har inga deltagare. Alla aktiva medlemmar deltar, och en lista hade varit en andra sanning om vilka det är.");
@@ -445,7 +488,7 @@ export function olastaI(meddelanden, lastTill, uid) {
  * @returns {string | null}
  */
 export function motpart(samtal, uid) {
-  if (!samtal || samtal.slag === "grupp") return null;
+  if (!samtal || samtal.slag === "grupp" || samtal.slag === "projekt") return null;
   return (samtal.deltagare ?? []).find((d) => d !== uid) ?? null;
 }
 
@@ -464,7 +507,9 @@ export function motpart(samtal, uid) {
  * @param {string | null} [groupId]
  * (0.106.0, #386) En nyckel med fyra delar är ett ämne med agenten: `{ groupId, deltagare, amne }`. Slaget är då alltid `agent`.
  *
- * @returns {{ groupId: string, slag: "grupp" } | { groupId: string, deltagare: [string, string], amne?: string } | null} `null` när id:t inte är en samtalsnyckel.
+ * (0.215.0) `<grupp>|projekt|<tagg>` är ett projekts chatt: `{ groupId, slag: "projekt", tagg }`. Prövas FÖRE paret: ett par sorteras, och "projekt" kommer före en tagg som börjar på q till z.
+ *
+ * @returns {{ groupId: string, slag: "grupp" } | { groupId: string, slag: "projekt", tagg: string } | { groupId: string, deltagare: [string, string], amne?: string } | null} `null` när id:t inte är en samtalsnyckel.
  */
 export function delaSamtalsnyckel(id, groupId) {
   if (typeof groupId === "string") kravGruppUtanAvgransare(groupId, "delaSamtalsnyckel");
@@ -472,11 +517,22 @@ export function delaSamtalsnyckel(id, groupId) {
   const delar = id.split(SAMTALSAVGRANSARE);
   if (delar.some((d) => d.trim() === "" || d !== d.trim())) return null;
   if (delar.length === 2 && delar[1] === GRUPPSAMTAL) return { groupId: delar[0], slag: "grupp" };
+  if (delar[1] === PROJEKTSAMTAL) return delar.length === 3 && PROJEKTTAGGFORM.test(delar[2]) ? { groupId: delar[0], slag: "projekt", tagg: delar[2] } : null;
   if ((delar.length !== 3 && delar.length !== 4) || delar[1] === delar[2]) return null;
   // ⛔ Bara en nyckel som `samtalsnyckel` hade kunnat skriva: paret sorterat. Annars är det inget samtals id.
   if (!(delar[1] < delar[2])) return null;
   if (delar.length === 4) return AMNES_FORM.test(delar[3]) ? { groupId: delar[0], deltagare: [delar[1], delar[2]], amne: delar[3] } : null;
   return { groupId: delar[0], deltagare: [delar[1], delar[2]] };
+}
+
+/**
+ * (0.215.0) Projektets tagg ur en projektchatts nyckel, eller `null` när nyckeln inte är en projektchatt.
+ * @param {unknown} sid @param {string} [groupId]
+ * @returns {string | null}
+ */
+export function projekttaggUr(sid, groupId) {
+  const d = delaSamtalsnyckel(sid, groupId);
+  return d && "tagg" in d ? d.tagg : null;
 }
 
 /**

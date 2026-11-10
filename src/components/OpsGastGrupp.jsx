@@ -276,7 +276,7 @@ const tidText = (h, till) => (h.tid ? (h.slutTid ? `${h.tid} ${till} ${h.slutTid
  * @param {object} props
  * @param {{ namn: string, funktioner: readonly string[], beskrivning?: string, nedladdning?: boolean, kommentera?: boolean, projekt?: { tagg?: string, status?: { sv?: string, en?: string }, texter?: ReadonlyArray<{ rubrik?: { sv?: string, en?: string }, text: string }> } }} props.grupp
  *   (0.215.0, cllp/lifehub.app#760) `projekt`: gästen är gäst i ett projekt. `namn` är då projektets namn, Översikt visar projektets kort (läget och texterna) i stället för gruppens beskrivning, orden säger projektet, och
- *   det finns ingen Chatt-flik och ingen svarsrad på en händelse (skiva 1). Tjänstens `hamta().grupp`. `beskrivning` är gruppens befintliga beskrivning, tom när den saknas. (0.190.0) `nedladdning: false`: nedladdningen är avstängd
+ *   ingen svarsrad på en händelse (skiva 1). Chatt-fliken är projektets egen chatt, utan trådar (skiva 2). Tjänstens `hamta().grupp`. `beskrivning` är gruppens befintliga beskrivning, tom när den saknas. (0.190.0) `nedladdning: false`: nedladdningen är avstängd
  *   för gästen (sedan 0.204.0 bara inbjudans `laddaNed`), och varken biblioteket eller spelarens ark ritar Ladda ned. Utelämnad: som förut.
  * @param {ReturnType<typeof import("../lib/gast.js").gastGruppApi>} props.api Anropen mot servern, bundna till sessionen (`gastGruppApi(anrop, sessionsnyckel)`).
  * @param {(orsak: string) => void} [props.onNekad] Ett anrop nekades. Normalt `uppdatera` ur `renderGrupp`, som hämtar om sidan.
@@ -299,7 +299,7 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
   // ändras, och läste därför den första renderingens `t`. Appen sätter språket efter starten (GastSida, `valdSprak`), och felen kom då på engelska.
   const tRef = useRef(t);
   tRef.current = t;
-  // ⛔ (0.215.0) EN PROJEKTGÄST HAR ALDRIG CHATT, också om ett svar skulle bära den: flikarna är snittet med `GASTPROJEKTFUNKTIONER`. Servern nekar ändå (`gastOmfangGer`), och en flik som alltid nekas är en död flik.
+  // ⛔ (0.215.0) EN PROJEKTGÄST HAR BARA PROJEKTETS FUNKTIONER, också om ett svar skulle bära fler: flikarna är snittet med `GASTPROJEKTFUNKTIONER`. Chatten är projektets egen (servern väljer samtalet ur inbjudan).
   const funktioner = GASTGRUPPFUNKTIONER.filter((f) => grupp.funktioner.includes(f) && (!projekt || /** @type {readonly string[]} */ (GASTPROJEKTFUNKTIONER).includes(f)));
   if (funktioner.length === 0) throw new Error("OpsGastGrupp: gruppen har inga funktioner att visa (grupp.funktioner).");
 
@@ -1083,14 +1083,19 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
         fler={Boolean(chatt?.fler)}
         onAldre={aldreLaddar ? undefined : () => ladda("chatt", { aldre: true })}
         onSkriv={skrivChatt}
-        onLasTrad={(trad) => kor("chatt", { trad })}
-        onSkrivITrad={async (trad, text) => {
-          try {
-            await kor("skrivChatt", { trad, text });
-          } catch (e) {
-            throw new Error(felText(e));
-          }
-        }}
+        // ⛔ (0.215.0) Projektets chatt har inga trådar (servern nekar dem), så ingen trådknapp: en knapp som alltid nekas är en död knapp.
+        onLasTrad={projekt ? undefined : (trad) => kor("chatt", { trad })}
+        onSkrivITrad={
+          projekt
+            ? undefined
+            : async (trad, text) => {
+                try {
+                  await kor("skrivChatt", { trad, text });
+                } catch (e) {
+                  throw new Error(felText(e));
+                }
+              }
+        }
         onOppnaPost={funktioner.includes("bibliotek") ? oppnaPostUrChatten : undefined}
         laddar={!chatt && !fel.chatt}
         fel={fel.chatt}
