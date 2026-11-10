@@ -9,7 +9,9 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
-## Opublicerat
+## 0.212.0
+
+Omröstning i chatten (lifehub.app#438 skiva 1), statusen Parkerad för ärenden (lifehub.app#725), händelsens svar live och utan uid (lifehub.app#714), och nypning i HTML-rutan (#529). Ramverket har inga nya regelvillkor på status: Parkerad släpps in av appens egna regler.
 
 En omröstning går att ställa direkt i chatten, som ett kort i flödet (cllp/lifehub.app#438 skiva 1). CP 2026-10-22 och 10-23: frågan och alternativen, ansikten och "+N" för vem som röstat, alla i chatten kan lägga till ett alternativ, och det ska fungera som Facebooks omröstning, inte Apples. CP vill se kortet innan resten bestäms, så det här är prototypen av kortet med en riktig modell och riktiga regler bakom.
 
@@ -24,6 +26,16 @@ En omröstning går att ställa direkt i chatten, som ett kort i flödet (cllp/l
   - **Vyn** (`OpsMeddelanden`, `OpsSamtal`): raden "Omröstning" i pluset öppnar ett formulär med frågan, två alternativ att börja med, "Lägg till alternativ", Avbryt och Skicka. Formuläret säger sina fel innan något skickas. Kortet i flödet har frågan i fetstil och en knapp per alternativ över hela bredden, med en stapel för andelen, texten, upp till tre ansikten och "+N", och antalet. Det egna valet är markerat. En tryckning röstar, en annan rad byter, samma rad igen tar tillbaka rösten. Sista raden "Lägg till alternativ" öppnar ett fält i kortet. Under alternativen står "N har röstat". Varje alternativ är en knapp med `aria-pressed` och namnet "Fredag, 3 röster, du har röstat", minst 44 px hög. Texterna finns på svenska och engelska.
   - ⛔ **Reglerna kan inte räkna.** Taket på 20 alternativ, golvet på två vid start och att två alternativ inte har samma text prövas av byggaren och vyn. En klient förbi byggaren kan skriva fler, eller en fråga utan alternativ (kortet säger då "Inga alternativ än."). Det reglerna håller: formen, vem, att meddelandet är en omröstning och att en röst pekar på ett alternativ i samma omröstning.
   - **Bara i samtalet i skiva 1**, inte i en tråd. Gästens chatt ser frågan som en vanlig bubbla, utan kortet.
+
+- **Statusen Parkerad för ärenden** (lifehub.app#725): `STATUS.PARKED` är `parkerad` i `createCaseModel`. Den räknas inte som öppen (`isOpen` är falskt, ingen not, inget avslut, `daysInNew` är null). `buildPark` från `ny` eller `pagar`, `buildUnpark` tillbaka till `ny`, och `buildStart` tar en parkerad post till `pagar`. Ett slutläge går inte direkt till parkerad. Tonen är `neutral`. Gästen ser Parkerad och har ingen Markera klar. Ramverkets regelfragment villkorar inte på status, och `regler-arendestatus` blir rött om något fragment börjar göra det.
+- **`createSvarskalla().prenumerera(hid, { onData, onError })`** (lifehub.app#714): svaren live på en öppen händelse, en lyssnare per händelse. Den kastar när `onError` saknas och när källan saknar `subscribe`, så en vy som ser levande ut men inte är det säger ifrån.
+- **Nypning med två fingrar i HTML-rutan** (#529): samma meddelande som Ctrl-hjulet (`ops-framework:zoomsteg`), utan krav på fokus. Små steg avrundas inte längre bort, så en långsam nypning står inte stilla. `check:skalyta` mäter nypningen i en riktig webbläsare.
+
+### Rättat
+
+- **Ett namn som är uid:t är inget namn** (lifehub.app#714): `personnamn` räknar det som saknat. Den egna raden tar visningsnamnet ur inloggningen, annars e-postadressen. Någon annans rad blir "Namn saknas", aldrig uid:t. Roten (appen skickade `namn || userId`) rättas i appen.
+- **Gästlistan för en omröstning eller händelse** säger `ingaMedPlatser` ("Ingen gäst är inbjuden just här. Siffran ovan gäller gruppens gäster.") när listan är tom men gruppen redan använder platser. Förut stod "Inga gäster har bjudits in" under en räknare som sa 2 av 5.
+- **Kvittot för Kopiera länk** (#560): prov för medlemmens kvittens, gästens länkpost och en länkpost med `utanNedladdning`, och JSDoc i `handelsemodell.js`.
 
 ### Förebilden (regel 13)
 
