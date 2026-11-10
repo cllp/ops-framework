@@ -2074,11 +2074,13 @@ egen, roster }`, `antalRostande` och `egetVal`; röster på okända alternativ o
 får läsa samtalet läser; en aktiv person lägger till ett alternativ som sig själv på ett meddelande som är en omröstning (efter batchen, så
 att skaparens alternativ skrivs med frågan); en röst pekar på ett alternativ i samma omröstning, bara sin egen byts (`val` och `tid`) och
 tas bort; alternativ ändras och raderas aldrig. ⛔ Regeln kan inte räkna: taket och golvet prövas av byggaren och vyn. Källan:
-`skickaOmrostning` (frågan och alternativen i en `batch`), `laggTillAlternativ`, `rosta`, `andraRost`, `taBortRost`, `lasOmrostningsval`,
-`lasOmrostningsroster`, `prenumereraOmrostningsval` och `prenumereraOmrostningsroster` (en lyssnare per samling, de senaste
-`OMROSTNINGSTAK`), bara när `harOmrostningar(kalla)`. Bara i samtalet, inte i en tråd. Vyn: raden "Omröstning" i pluset öppnar ett
+`skickaOmrostning` (frågan och alternativen i en `batch`), `laggTillAlternativ`, `rosta`, `andraRost`, `taBortRost`, `lasOmrostningsval(sid, mid)`,
+`lasOmrostningsroster(sid, mid)`, `prenumereraOmrostningsval(sid, mid, lyssnare)` och `prenumereraOmrostningsroster(sid, mid, lyssnare)`
+(0.214.0, cllp/lifehub.app#742: EN omröstning, likhet på `mid` och ett tak per omröstning, `OMROSTNINGSVALTAK` (= `MAX_ALTERNATIV`) och
+`OMROSTNINGSROSTTAK` (500); ingen sortering, så inget sammansatt index; `fler` betyder att fler finns än taket), bara när `harOmrostningar(kalla)`. Bara i samtalet, inte i en tråd. Vyn: raden "Omröstning" i pluset öppnar ett
 formulär; kortet i flödet har frågan i fetstil, en knapp per alternativ med stapel, antal och upp till tre ansikten och "+N"
-(`aria-pressed` och namnet "Fredag, 3 röster, du har röstat"), "Lägg till alternativ" och "N har röstat". Samma rad igen tar tillbaka
+(`aria-pressed` och namnet "Fredag, 3 röster, du har röstat"), "Lägg till alternativ" och "N har röstat". Varje kort läser sin egen
+omröstning, och ett läsfel eller ett nått tak står i kortet (`omrostningarFel`, `omrostningarFler`); "Lägg till alternativ" erbjuds bara när listan är läst och hel. Samma rad igen tar tillbaka
 rösten, en annan rad byter den.
 
 **Omnämnanden, @alla och @agent, med nyckeln `omnamnanden: true`.** Meddelandet får fältet `namner` (`NAMNERFALT`): uid:n, eller

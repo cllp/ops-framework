@@ -190,8 +190,8 @@ import { AgentIkon, AndraIkon, BockIkon, KopieraIkon, OmrostningIkon, ArkiveraIk
  * @property {string} [omrostningSkickaFel] När källan nekade omröstningen. Förval "Omröstningen kunde inte skickas.".
  * @property {string} [omrostningFel] När en röst nekades. Förval "Rösten kunde inte sparas.".
  * @property {string} [alternativFel] När ett nytt alternativ nekades. Förval "Alternativet kunde inte läggas till.".
- * @property {string} [omrostningarFel] När läsningen av alternativ eller röster föll. Förval "Omröstningarna kunde inte hämtas.".
- * @property {string} [omrostningarFler] När läsningen nådde sitt tak. Förval "Äldre röster och alternativ visas inte.".
+ * @property {string} [omrostningarFel] I kortet, när läsningen av dess alternativ eller röster föll (#742). Förval "Omröstningen kunde inte hämtas.".
+ * @property {string} [omrostningarFler] I kortet, när omröstningen har fler alternativ eller röster än dess tak (#742). Förval "Alla röster och alternativ i omröstningen visas inte.".
  * @property {Partial<Record<(typeof REAKTIONSKODER)[number], string>>} [reaktionsnamn] Reaktionernas namn för skärmläsaren. Förval: svenska, eller engelska när `sprak` är "en" (`reaktionsvy.js`).
  * @property {string} [allaNamn] (chattens nattskiva) Förslaget som nämner hela gruppen. Förval "alla".
  * @property {string} [namnForslag] @-listans namn för skärmläsaren. Förval "Nämn någon".
@@ -418,8 +418,8 @@ const ORD_MEDDELANDEN = {
   omrostningSkickaFel: { sv: "Omröstningen kunde inte skickas.", en: "The poll could not be sent." },
   omrostningFel: { sv: "Rösten kunde inte sparas.", en: "The vote could not be saved." },
   alternativFel: { sv: "Alternativet kunde inte läggas till.", en: "The option could not be added." },
-  omrostningarFel: { sv: "Omröstningarna kunde inte hämtas.", en: "The polls could not be loaded." },
-  omrostningarFler: { sv: "Äldre röster och alternativ visas inte.", en: "Older votes and options are not shown." },
+  omrostningarFel: { sv: "Omröstningen kunde inte hämtas.", en: "The poll could not be loaded." },
+  omrostningarFler: { sv: "Alla röster och alternativ i omröstningen visas inte.", en: "Not all votes and options in the poll are shown." },
   skrivGrupp: { sv: "Skriv till gruppen", en: "Write to the group" },
   skrivAgent: { sv: "Fråga agenten", en: "Ask the agent" },
   skrivTrad: { sv: "Svara i tråden", en: "Reply in the thread" },
@@ -4371,77 +4371,40 @@ function Reaktionschips({ m, egen, reakt, texter: t }) {
 const OMROSTNING_ANSIKTEN = 3;
 
 /**
- * Omröstningarna i ett samtal: en lyssnare per samling (alternativ och röster), räknade per meddelande, och de egna skrivningarna.
+ * Omröstningarna i ett samtal: de egna skrivningarna, och vad varje kort behöver för att läsa sin egen omröstning (`useOmrostning`).
  *
- * ⛔ FEL SÄGS (regel 5): en läsning som föll och en skrivning som nekades blir var sin rad, aldrig en tyst knapp. ⛔ RÖSTEN VÄLJER
- * SJÄLV RÄTT SKRIVNING ur det som lästs: första rösten skapas, en annan rad byter, samma rad tar tillbaka. Ingen läsning före.
+ * ⛔ (cllp/lifehub.app#742, skiva 2) HÄR LÄSES INGENTING. Skiva 1 läste alternativ och röster för hela samtalet här, de 500 senaste per samling,
+ * och de äldsta omröstningarna föll ur fönstret. Nu läser varje kort sin omröstning. ⛔ FEL SÄGS (regel 5): en skrivning som nekades blir en rad
+ * i loggen, en läsning som föll en rad i kortet. ⛔ RÖSTEN VÄLJER SJÄLV RÄTT SKRIVNING ur det kortet läst: första rösten skapas, en annan rad
+ * byter, samma rad tar tillbaka. Ingen läsning före.
  *
  * @param {(ReturnType<typeof import("../data/samtalskalla.js").createSamtalskalla> & import("../data/samtalskalla.js").Omrostningsfunktioner) | null} kalla
  * @param {string} sid @param {string} uid
  */
 function useOmrostningar(kalla, sid, uid) {
-  const tomt = /** @type {{ rader: any[], fler: boolean, fel: Error | null }} */ ({ rader: [], fler: false, fel: null });
-  const [val, setVal] = useState(tomt);
-  const [roster, setRoster] = useState(tomt);
   const [skrivfel, setSkrivfel] = useState(/** @type {Error | null} */ (null));
-  const lyssnar = useRef(false);
+  // Räknas upp efter varje egen skrivning. Ett kort vars källa inte kan prenumerera läser om då; ett som lyssnar bryr sig inte.
+  const [skrivningar, setSkrivningar] = useState(0);
   const somFel = (/** @type {unknown} */ e) => (e instanceof Error ? e : new Error(String(e)));
-  const lasIn = async () => {
-    if (!kalla) return;
-    try {
-      const [v, r] = await Promise.all([kalla.lasOmrostningsval(sid), kalla.lasOmrostningsroster(sid)]);
-      setVal({ rader: v.rader, fler: v.fler, fel: null });
-      setRoster({ rader: r.rader, fler: r.fler, fel: null });
-    } catch (e) {
-      setVal((l) => ({ ...l, fel: somFel(e) }));
-    }
-  };
-  useEffect(() => {
-    if (!kalla) return undefined;
-    let levande = true;
-    const stangVal = kalla.prenumereraOmrostningsval(sid, { onData: (s) => levande && setVal({ rader: s.rader, fler: s.fler, fel: null }), onError: (e) => levande && setVal((l) => ({ ...l, fel: e })) });
-    const stangRoster = kalla.prenumereraOmrostningsroster(sid, { onData: (s) => levande && setRoster({ rader: s.rader, fler: s.fler, fel: null }), onError: (e) => levande && setRoster((l) => ({ ...l, fel: e })) });
-    lyssnar.current = Boolean(stangVal && stangRoster);
-    if (!lyssnar.current) lasIn();
-    return () => {
-      levande = false;
-      stangVal?.();
-      stangRoster?.();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [kalla, sid]);
-  const perMeddelande = useMemo(() => {
-    /** @type {Map<string, { val: any[], roster: any[] }>} */
-    const per = new Map();
-    const hamta = (/** @type {string} */ mid) => {
-      const p = per.get(mid) ?? { val: [], roster: [] };
-      per.set(mid, p);
-      return p;
-    };
-    for (const v of val.rader) if (v && typeof v.mid === "string") hamta(v.mid).val.push(v);
-    for (const r of roster.rader) if (r && typeof r.mid === "string") hamta(r.mid).roster.push(r);
-    /** @type {Map<string, ReturnType<typeof summeraOmrostning>>} */
-    const ut = new Map();
-    for (const [mid, p] of per) ut.set(mid, summeraOmrostning(p.val, p.roster, uid));
-    return ut;
-  }, [val.rader, roster.rader, uid]);
-  const efterSkrivning = async () => {
+  const efterSkrivning = () => {
     setSkrivfel(null);
-    if (!lyssnar.current) await lasIn();
+    setSkrivningar((n) => n + 1);
   };
   // ⛔ EN RÖST I TAGET PER OMRÖSTNING (granskningen av PR 566). Ett andra tryck innan svaret kommit läste ett gammalt eget val, så
   // "samma rad igen tar tillbaka rösten" blev en ny röst på samma rad. Trycket under väntan släpps.
   const rostarNu = useRef(/** @type {Set<string>} */ (new Set()));
-  /** @param {string} mid @param {string} valId */
-  const rosta = async (mid, valId) => {
+  /**
+   * @param {string} mid @param {string} valId
+   * @param {string | null} eget Det egna valet i omröstningen, som kortet läst det.
+   */
+  const rosta = async (mid, valId, eget) => {
     if (!kalla || rostarNu.current.has(mid)) return;
     rostarNu.current.add(mid);
-    const eget = perMeddelande.get(mid)?.egetVal ?? null;
     try {
       if (eget === valId) await kalla.taBortRost(sid, { mid, av: uid });
       else if (eget) await kalla.andraRost(sid, { mid, val: valId, av: uid });
       else await kalla.rosta(sid, { mid, val: valId, av: uid });
-      await efterSkrivning();
+      efterSkrivning();
     } catch (e) {
       setSkrivfel(somFel(e));
     } finally {
@@ -4451,47 +4414,85 @@ function useOmrostningar(kalla, sid, uid) {
   /**
    * Lägger till ett alternativ. Kastar till kortet, som säger felet vid fältet.
    * @param {string} mid @param {string} text
+   * @param {ReadonlyArray<string>} befintliga Omröstningens alternativ, som kortet läst dem. Hela listan: kortet erbjuder inget fält när den inte är hel.
    */
-  const laggTill = async (mid, text) => {
+  const laggTill = async (mid, text, befintliga) => {
     if (!kalla) return;
-    const befintliga = (perMeddelande.get(mid)?.alternativ ?? []).map((a) => a.text);
     await kalla.laggTillAlternativ(sid, { mid, text, av: uid, befintliga });
-    await efterSkrivning();
+    efterSkrivning();
   };
   /** @param {{ fraga: string, alternativ: ReadonlyArray<string> }} d @returns {Promise<any>} Meddelandet. */
   const skapa = async ({ fraga, alternativ }) => {
     if (!kalla) return null;
     const ny = await kalla.skickaOmrostning(sid, { fraga, alternativ, av: uid });
-    await efterSkrivning();
+    efterSkrivning();
     return ny;
   };
-  return { pa: Boolean(kalla), perMeddelande, rosta, laggTill, skapa, fel: val.fel ?? roster.fel, skrivfel, fler: val.fler || roster.fler };
+  return { pa: Boolean(kalla), kalla, sid, uid, rosta, laggTill, skapa, skrivfel, skrivningar };
 }
 
 /**
- * Raderna om omröstningarna som gäller hela loggen: läsningen föll, en röst nekades, eller taket nåddes.
+ * En omröstning, läst för sig (cllp/lifehub.app#742): alternativen och rösterna med `mid`, var sin lyssnare, och räknad.
+ *
+ * ⛔ `laddad` SKILJER "INGA ALTERNATIV" FRÅN "INTE LÄST ÄN". Före första svaret säger kortet ingenting om alternativen; "Inga alternativ än."
+ * står bara när läsningen svarat tomt. ⛔ `fler` är per omröstning och står i kortet, inte överst i loggen långt från det.
+ *
+ * @param {ReturnType<typeof useOmrostningar>} omr @param {string} mid
+ */
+function useOmrostning(omr, mid) {
+  const { kalla, sid, uid, skrivningar } = omr;
+  const tomt = /** @type {{ rader: any[], fler: boolean, fel: Error | null, laddad: boolean }} */ ({ rader: [], fler: false, fel: null, laddad: false });
+  const [val, setVal] = useState(tomt);
+  const [roster, setRoster] = useState(tomt);
+  const lyssnar = useRef(false);
+  const levande = useRef(true);
+  const somFel = (/** @type {unknown} */ e) => (e instanceof Error ? e : new Error(String(e)));
+  const lasIn = async () => {
+    if (!kalla) return;
+    try {
+      const [v, r] = await Promise.all([kalla.lasOmrostningsval(sid, mid), kalla.lasOmrostningsroster(sid, mid)]);
+      if (!levande.current) return;
+      setVal({ rader: v.rader, fler: v.fler, fel: null, laddad: true });
+      setRoster({ rader: r.rader, fler: r.fler, fel: null, laddad: true });
+    } catch (e) {
+      if (levande.current) setVal((l) => ({ ...l, fel: somFel(e) }));
+    }
+  };
+  useEffect(() => {
+    if (!kalla) return undefined;
+    levande.current = true;
+    const pa = { v: true };
+    const stangVal = kalla.prenumereraOmrostningsval(sid, mid, { onData: (s) => pa.v && setVal({ rader: s.rader, fler: s.fler, fel: null, laddad: true }), onError: (e) => pa.v && setVal((l) => ({ ...l, fel: e })) });
+    const stangRoster = kalla.prenumereraOmrostningsroster(sid, mid, { onData: (s) => pa.v && setRoster({ rader: s.rader, fler: s.fler, fel: null, laddad: true }), onError: (e) => pa.v && setRoster((l) => ({ ...l, fel: e })) });
+    lyssnar.current = Boolean(stangVal && stangRoster);
+    if (!lyssnar.current) lasIn();
+    return () => {
+      pa.v = false;
+      levande.current = false;
+      stangVal?.();
+      stangRoster?.();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kalla, sid, mid]);
+  // En källa som inte kan prenumerera läser om efter varje egen skrivning i samtalet.
+  useEffect(() => {
+    if (skrivningar > 0 && kalla && !lyssnar.current) lasIn();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [skrivningar]);
+  const summa = useMemo(() => summeraOmrostning(val.rader.filter((v) => v?.mid === mid), roster.rader.filter((r) => r?.mid === mid), uid), [val.rader, roster.rader, mid, uid]);
+  return { summa, laddad: val.laddad, fler: val.fler || roster.fler, fel: val.fel ?? roster.fel, valFler: val.fler };
+}
+
+/**
+ * Raden om omröstningarna som gäller hela loggen: en röst som nekades. (#742) Läsfel och tak står i kortet de gäller.
  * @param {{ omr: ReturnType<typeof useOmrostningar>, texter: Required<Meddelandetexter> }} props
  */
 function Omrostningslage({ omr, texter: t }) {
-  if (!omr.pa) return null;
+  if (!omr.pa || !omr.skrivfel) return null;
   return (
-    <>
-      {omr.fel ? (
-        <p data-omrostningsfel="lasa" role="alert" className="m-0 py-1 text-center text-liten text-danger">
-          {t.omrostningarFel}
-        </p>
-      ) : null}
-      {omr.skrivfel ? (
-        <p data-omrostningsfel="skriva" role="alert" className="m-0 py-1 text-center text-liten text-danger">
-          {t.omrostningFel}
-        </p>
-      ) : null}
-      {omr.fler ? (
-        <p data-omrostningar-fler="" role="status" className="m-0 py-1 text-center text-liten text-ink-muted">
-          {t.omrostningarFler}
-        </p>
-      ) : null}
-    </>
+    <p data-omrostningsfel="skriva" role="alert" className="m-0 py-1 text-center text-liten text-danger">
+      {t.omrostningFel}
+    </p>
   );
 }
 
@@ -4518,12 +4519,14 @@ function Omrostningskort({ m, omr, namnFor, bildFor, texter: t }) {
   const rubrikId = useId();
   const faltId = useId();
   const felId = useId();
-  const s = omr.perMeddelande.get(m.id) ?? summeraOmrostning([], [], "");
+  const las = useOmrostning(omr, m.id);
+  const s = las.summa;
   const [laggerTill, setLaggerTill] = useState(false);
   const [nytt, setNytt] = useState("");
   const [fel, setFel] = useState(/** @type {string | null} */ (null));
   const [arbetar, setArbetar] = useState(false);
-  const kanLaggaTill = s.alternativ.length < MAX_ALTERNATIV;
+  // ⛔ (#742) Bara när listan är läst och hel: taket och dubbletten prövas mot den, och en ofullständig lista är fel underlag.
+  const kanLaggaTill = las.laddad && !las.valFler && s.alternativ.length < MAX_ALTERNATIV;
   const langdFel = omrostningstextFel(nytt, MAX_ALTERNATIVTEXT, t);
   const stangFalt = () => {
     setLaggerTill(false);
@@ -4539,7 +4542,7 @@ function Omrostningskort({ m, omr, namnFor, bildFor, texter: t }) {
     }
     setArbetar(true);
     try {
-      await omr.laggTill(m.id, text);
+      await omr.laggTill(m.id, text, s.alternativ.map((a) => a.text));
       stangFalt();
     } catch {
       setFel(t.alternativFel);
@@ -4554,7 +4557,7 @@ function Omrostningskort({ m, omr, namnFor, bildFor, texter: t }) {
         {m.text}
       </h3>
       <div role="group" aria-labelledby={rubrikId} className="flex flex-col gap-1.5">
-        {s.alternativ.length === 0 ? <p data-omrostning-tom="" className="m-0 text-liten text-ink-muted">{t.omrostningUtanAlternativ}</p> : null}
+        {las.laddad && s.alternativ.length === 0 ? <p data-omrostning-tom="" className="m-0 text-liten text-ink-muted">{t.omrostningUtanAlternativ}</p> : null}
         {s.alternativ.map((a) => (
           <button
             key={a.id}
@@ -4562,7 +4565,7 @@ function Omrostningskort({ m, omr, namnFor, bildFor, texter: t }) {
             data-omrostningsval={a.id}
             aria-pressed={a.egen}
             aria-label={`${a.text}, ${rostantal(a.antal, t)}${a.egen ? `, ${t.duHarRostat}` : ""}`}
-            onClick={() => omr.rosta(m.id, a.id)}
+            onClick={() => omr.rosta(m.id, a.id, s.egetVal)}
             className={cx(
               "relative flex min-h-11 w-full cursor-pointer items-center gap-2 overflow-hidden rounded-xl border bg-surface px-3 py-1.5 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
               a.egen ? "border-accent" : "border-transparent hover:bg-canvas",
@@ -4641,6 +4644,17 @@ function Omrostningskort({ m, omr, namnFor, bildFor, texter: t }) {
         ) : null}
       </div>
       <p data-omrostning-antal="" className="m-0 text-liten text-ink-muted">{t.omrostningRostat.replace("{n}", String(s.antalRostande))}</p>
+      {/* ⛔ (#742) Läsfelet och taket står i kortet de gäller, inte överst i loggen. Tomt sägs, det utelämnas inte (regel 5). */}
+      {las.fel ? (
+        <p data-omrostningsfel="lasa" role="alert" className="m-0 text-liten text-danger">
+          {t.omrostningarFel}
+        </p>
+      ) : null}
+      {las.fler ? (
+        <p data-omrostning-fler="" role="status" className="m-0 text-liten text-ink-muted">
+          {t.omrostningarFler}
+        </p>
+      ) : null}
     </div>
   );
 }
