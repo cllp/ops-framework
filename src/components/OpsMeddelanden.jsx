@@ -4479,10 +4479,10 @@ function Omrostningsformular({ onSkicka, onAvbryt, texter: t }) {
   const [fraga, setFraga] = useState("");
   const [alternativ, setAlternativ] = useState(["", ""]);
   const [fel, setFel] = useState(/** @type {string | null} */ (null));
-  const [skickar, setSkickar] = useState(false);
+  const [iVag, setIVag] = useState(false);
   const formular = useRef(/** @type {HTMLFormElement | null} */ (null));
   const skicka = async () => {
-    if (skickar) return;
+    if (iVag) return;
     const f = fraga.trim();
     const alt = alternativ.map((a) => a.trim()).filter(Boolean);
     const lika = new Set(alt.map((a) => a.toLocaleLowerCase("sv"))).size !== alt.length;
@@ -4493,13 +4493,13 @@ function Omrostningsformular({ onSkicka, onAvbryt, texter: t }) {
       setFel(ut);
       return;
     }
-    setSkickar(true);
+    setIVag(true);
     setFel(null);
     try {
       await onSkicka({ fraga: f, alternativ: alt });
     } catch {
       setFel(t.omrostningSkickaFel);
-      setSkickar(false);
+      setIVag(false);
     }
   };
   const faltKlass = "min-h-11 w-full min-w-0 rounded-xl border border-line bg-canvas px-3 text-etikett text-ink outline-none focus-visible:border-accent";
@@ -4508,7 +4508,7 @@ function Omrostningsformular({ onSkicka, onAvbryt, texter: t }) {
       ref={formular}
       data-omrostningsformular=""
       aria-labelledby={rubrikId}
-      aria-busy={skickar || undefined}
+      aria-busy={iVag || undefined}
       onSubmit={(e) => {
         e.preventDefault();
         skicka();
@@ -4560,8 +4560,8 @@ function Omrostningsformular({ onSkicka, onAvbryt, texter: t }) {
         <button type="button" onClick={onAvbryt} className="inline-flex min-h-11 cursor-pointer items-center rounded-xl px-3 text-meta text-ink-secondary hover:bg-canvas">
           {t.avbryt}
         </button>
-        <button type="submit" disabled={skickar} aria-busy={skickar || undefined} className="inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-xl bg-accent px-4 text-meta font-medium text-accent-contrast hover:bg-accent-hover disabled:cursor-default disabled:opacity-70">
-          {skickar ? <OpsSpinner size="sm" tone="current" decorative /> : null}
+        <button type="submit" disabled={iVag} aria-busy={iVag || undefined} className="inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-xl bg-accent px-4 text-meta font-medium text-accent-contrast hover:bg-accent-hover disabled:cursor-default disabled:opacity-70">
+          {iVag ? <OpsSpinner size="sm" tone="current" decorative /> : null}
           {t.skicka}
         </button>
       </div>
