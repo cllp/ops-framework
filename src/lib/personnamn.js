@@ -12,9 +12,13 @@
  *
  * ⛔ TRE UTFALL, I DEN HÄR ORDNINGEN:
  *
- *   1. Medlemskapets eget `namn` (#138, det denormaliserade).
- *   2. Är raden DEN INLOGGADES: namnet ur inloggningen (`useOpsAuth().user.namn`). Personen vet sitt eget namn,
- *      och det finns redan i handen, så en rad som säger "Namn saknas" om en själv vore ett fel i sig.
+ *   1. Medlemskapets eget `namn` (#138, det denormaliserade). Ett namn som är samma sträng som uid:t räknas inte.
+ *      Roten är att en app skickar `namn || userId` (lifehub.app#714, rättas i lifehub.app PR 729). Skyddet står kvar
+ *      här så att ett uid som ändå kommer in aldrig ritas. QA 2026-11-09: den egna svarsraden stod
+ *      `RtciJvze03MRhUGvaJFH1FjzPqM2 (du)`.
+ *   2. Är raden DEN INLOGGADES: namnet ur inloggningen (`useOpsAuth().user.namn`). Saknas det: e-postadressen
+ *      (`user.email`). Personen vet sitt eget namn, och adressen när namnet saknas, så en rad som säger "Namn saknas"
+ *      om en själv vore ett fel i sig.
  *   3. Annars `NAMN_SAKNAS`, en neutral text som INTE ser ut som ett giltigt namn.
  *
  * ⛔ `saknas` ÄR SANT I UTFALL 3 OCH SKA BÄRAS TILL DOM:en (`data-namn-saknas`), så att ett prov, en
@@ -31,16 +35,22 @@ export const NAMN_SAKNAS = "Namn saknas";
  * @param {unknown} namn Medlemskapets (eller profilens) namn, om det finns.
  * @param {object} [alternativ]
  * @param {string} [alternativ.id] Personens uid. Används BARA för att avgöra om raden är den inloggades, aldrig som text.
- * @param {{ id?: string, namn?: string } | null} [alternativ.inloggad] Den inloggade, ur `useOpsAuth().user`.
+ * @param {{ id?: string, namn?: string, email?: string } | null} [alternativ.inloggad] Den inloggade, ur `useOpsAuth().user`.
  * @param {string} [alternativ.saknas] Texten när namnet saknas. Förval `NAMN_SAKNAS`.
  * @returns {{ text: string, saknas: boolean }}
  */
 export function personnamn(namn, alternativ = {}) {
-  const eget = typeof namn === "string" ? namn.trim() : "";
-  if (eget) return { text: eget, saknas: false };
   const { id, inloggad, saknas = NAMN_SAKNAS } = alternativ;
-  const loggadesNamn = typeof inloggad?.namn === "string" ? inloggad.namn.trim() : "";
-  if (id && inloggad?.id === id && loggadesNamn) return { text: loggadesNamn, saknas: false };
+  const text = (/** @type {unknown} */ v) => (typeof v === "string" ? v.trim() : "");
+  const eget = text(namn);
+  // ⛔ UID SOM NAMN ÄR INGET NAMN (lifehub.app#714). Appen skickade `namn || userId`. Roten rättas där (PR 729). Här vinner ett ifyllt namn bara när det inte är uid:t.
+  if (eget && eget !== id) return { text: eget, saknas: false };
+  if (id && inloggad?.id === id) {
+    const loggadesNamn = text(inloggad.namn);
+    if (loggadesNamn && loggadesNamn !== id) return { text: loggadesNamn, saknas: false };
+    const epost = text(inloggad.email);
+    if (epost) return { text: epost, saknas: false };
+  }
   return { text: saknas, saknas: true };
 }
 

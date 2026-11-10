@@ -57,6 +57,14 @@ describe("personnamn (ren)", () => {
   it("den inloggade utan eget namn i inloggningen faller också till 'Namn saknas'", () => {
     expect(personnamn(undefined, { id: CP, inloggad: { id: CP } })).toEqual({ text: NAMN_SAKNAS, saknas: true });
   });
+  it("⛔ ett namn som är uid:t är inget namn: den inloggades visningsnamn, annars e-post, aldrig uid:t (lifehub.app#714)", () => {
+    expect(personnamn(CP, { id: CP, inloggad: { id: CP, namn: "Claes Philip", email: "cp@staiger.se" } })).toEqual({ text: "Claes Philip", saknas: false });
+    expect(personnamn(CP, { id: CP, inloggad: { id: CP, namn: "", email: "cp@staiger.se" } })).toEqual({ text: "cp@staiger.se", saknas: false });
+    expect(personnamn(`  ${CP}  `, { id: CP, inloggad: { id: CP, email: "cp@staiger.se" } }).text).toBe("cp@staiger.se");
+    const annan = personnamn(ANNAN, { id: ANNAN, inloggad: { id: CP, namn: "Claes Philip", email: "cp@staiger.se" } });
+    expect(annan).toEqual({ text: NAMN_SAKNAS, saknas: true });
+    expect(annan.text).not.toContain(ANNAN);
+  });
   it("varnar en gång per id, och nämner id:t bara i konsolen", () => {
     const varna = vi.spyOn(console, "warn").mockImplementation(() => {});
     varnaNamnSaknas(ANNAN);
@@ -114,6 +122,23 @@ describe("⛔ ingen vy ritar ett id (#218)", () => {
     vi.spyOn(console, "warn").mockImplementation(() => {});
     const { container } = render(<OpsSvar svar={[]} medlemmar={[{ uid: ANNAN, namn: "" }]} uid={CP} onSvara={() => {}} />);
     expect(container.querySelector(`[data-svarsrad="${ANNAN}"] [data-namn-saknas]`)?.textContent).toBe(NAMN_SAKNAS);
+  });
+
+  it("⛔ OpsSvar: den egna raden visar inte uid:t när namnet är uid:t (lifehub.app#714)", () => {
+    const medNamn = render(
+      medInloggad({ id: CP, namn: "Claes Philip", email: "cp@staiger.se" }, <OpsSvar svar={[]} medlemmar={[{ uid: CP, namn: CP }]} uid={CP} onSvara={() => {}} />),
+    );
+    expect(medNamn.container.textContent).toContain("Claes Philip (du)");
+    expect(medNamn.container.textContent).not.toContain(CP);
+    expect(medNamn.container.querySelector("[data-namn-saknas]")).toBeNull();
+    medNamn.unmount();
+
+    const medEpost = render(
+      medInloggad({ id: CP, email: "cp@staiger.se" }, <OpsSvar svar={[]} medlemmar={[{ uid: CP, namn: CP }]} uid={CP} onSvara={() => {}} />),
+    );
+    expect(medEpost.container.textContent).toContain("cp@staiger.se (du)");
+    expect(medEpost.container.textContent).not.toContain(`${CP} (du)`);
+    expect(medEpost.container.querySelector("[data-namn-saknas]")).toBeNull();
   });
 
   it("OpsMeddelanden: avsändaren utan namn är 'Namn saknas' i gruppchatten, aldrig uid", async () => {

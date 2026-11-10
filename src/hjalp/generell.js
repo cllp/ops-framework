@@ -93,8 +93,10 @@ Du kan byta mellan månad, vecka och dag. En dag utan poster är tom med flit, i
 
 När du tar hand om en post lämnar den inkorgen. Det betyder att den är omvandlad eller avklarad enligt sorten, inte alltid att hela arbetet är slut.
 
-Ett ärende kan ha läget Pågår: någon har tagit det men det är inte klart. Det räknas som öppet tills det är hanterat.`,
-        ["ärende", "kö", "hanterad", "ny", "pågår"],
+Ett ärende kan ha läget Pågår: någon har tagit det men det är inte klart. Det räknas som öppet tills det är hanterat.
+
+Ett ärende kan också vara parkerat. Det ska kommas ihåg men inte göras just nu, och det räknas inte som öppet.`,
+        ["ärende", "kö", "hanterad", "ny", "pågår", "parkerad"],
       ),
       a(
         "arende-svar",

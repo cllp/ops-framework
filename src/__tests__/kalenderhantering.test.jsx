@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { afterEach, describe, expect, it } from "vitest";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -5,6 +6,7 @@ import { OpsAppShell, useOppnaSkapa } from "../components/OpsAppShell.jsx";
 import { OpsKalendrar } from "../components/OpsKalendrar.jsx";
 import { OpsSvar, OpsSvarsrad } from "../components/OpsSvar.jsx";
 import { createMemorySource } from "../data/adapters.js";
+import { createDataSource } from "../data/contract.js";
 import { createKalenderkalla, createSvarskalla } from "../data/kalenderkalla.js";
 import { filtreraPoster, forvaldKalenderId } from "../lib/calendar.js";
 import { byggSvar, handelsefel, handelsensDagar, handelsensKalenderId, harPasserat, sammanstallSvar, svarsrader } from "../lib/handelsemodell.js";
@@ -293,6 +295,54 @@ describe("källorna mot minneskällan", () => {
     await s.svara("mote", "anna", "kanske");
     expect((await s.lista("mote")).find((r) => r.id === "anna")).toMatchObject({ svar: "kanske" });
     await expect(s.svara("mote", "anna", /** @type {any} */ ("nej"))).rejects.toThrow(/finns inte/);
+  });
+
+  it("⛔ prenumerera: en öppen händelse ser ett nytt svar utan en ny lista (lifehub.app#714)", async () => {
+    /** @type {Set<{ samling: string, l: { onData: (rader: any[]) => void, onError: (e: Error) => void }, aktiv: () => boolean }>} */
+    const lyssnare = new Set();
+    const bas = createMemorySource();
+    const source = createDataSource({
+      ...bas,
+      async create(samling, data) {
+        const rad = await bas.create(samling, data);
+        const rader = await bas.list(samling);
+        for (const x of lyssnare) if (x.samling === samling && x.aktiv()) x.l.onData(rader);
+        return rad;
+      },
+      subscribe(samling, _fraga, l) {
+        let aktiv = true;
+        const post = { samling, l, aktiv: () => aktiv };
+        lyssnare.add(post);
+        bas.list(samling).then((rader) => {
+          if (aktiv) l.onData(rader);
+        });
+        return () => {
+          aktiv = false;
+          lyssnare.delete(post);
+        };
+      },
+    });
+    const kalla = createSvarskalla({ kalla: source });
+    const gaster = [{ uid: "g_gast", namn: "QA Gäst" }];
+    function Vy() {
+      const [svar, setSvar] = useState(/** @type {Array<{ id: string, svar: string }>} */ ([]));
+      useEffect(() => kalla.prenumerera("mote", { onData: setSvar, onError: (e) => { throw e; } }), []);
+      return <OpsSvar svar={svar} medlemmar={[{ uid: "anna", namn: "Anna" }]} gaster={gaster} uid="anna" onSvara={() => {}} />;
+    }
+    render(<Vy />);
+    const gastRad = () => /** @type {HTMLElement} */ (document.querySelector('[data-svarsrad="g_gast"]'));
+    await waitFor(() => expect(within(gastRad()).getByText("Har inte svarat")).toBeInTheDocument());
+    expect(document.querySelector("[data-sammanstallning]")?.textContent).toBe("0 kommer, 0 kanske, 0 kommer inte, 2 har inte svarat");
+
+    await act(async () => {
+      await kalla.svara("mote", "g_gast", "kommer");
+    });
+    await waitFor(() => expect(within(gastRad()).getByText("Kommer")).toBeInTheDocument());
+    expect(document.querySelector("[data-sammanstallning]")?.textContent).toBe("1 kommer, 0 kanske, 0 kommer inte, 1 har inte svarat");
+    expect(lyssnare.size).toBe(1);
+
+    expect(() => createSvarskalla({ kalla: createMemorySource() }).prenumerera("mote", { onData: () => {}, onError: () => {} })).toThrow(/ingen subscribe/);
+    expect(() => kalla.prenumerera("mote", /** @type {any} */ ({ onData: () => {} }))).toThrow(/onError/);
   });
 });
 

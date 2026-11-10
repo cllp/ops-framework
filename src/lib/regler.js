@@ -50,7 +50,7 @@ import { KALENDERVALFALT, KALENDERVALNYCKEL_FORM, KALENDERVISNINGAR, MAX_KALENDE
 import { DELNINGSUID_FORM, KALENDERDELNINGFALT, KALENDERDELNING_AVGRANSARE, KALENDERDELNING_GRUPP, KALENDERDELNING_PERSON, MAX_DELNINGSGRUPP } from "./kalenderdelning.js";
 import { AVVECKLADE_KALENDERFALT, DATUMFORM, KALENDERFALT, KALENDERFARGER, KALENDERPOSTFALT, MAX_KALENDERID, MAX_KALENDERIKON, MAX_KALENDERNAMN, MAX_POSTBESKRIVNING, MAX_POSTPLATS, MAX_POSTTITEL, MINKALENDERFALT, TIDPUNKTSFORM } from "./kalendrar.js";
 import { KOMMENTARBILAGAFALT, KOMMENTARBILAGA_TYPER, KOMMENTARFALT, LASMARKESFALT, MAX_BILAGENAMN, MAX_HANDELSEKOMMENTAR, MAX_KOMMENTARBILAGA, SVARSFALT, SVARSVAL } from "./handelsemodell.js";
-import { AMNESFALT, AMNES_REGEL, BILAGA_TRADSKILJE, BILAGEMARKEFALT, FASTFALT, MAX_AMNESRUBRIK, GRUPPSAMTAL, LASTFALT, MAX_MEDDELANDE, MAX_NAMNER, MAX_TRADNAMN, MAX_UIDLANGD, MEDDELANDEFALT, NAMNERFALT, NAMNER_ALLA, REAKTIONSFALT, SVARPAFALT, REAKTIONSKODER, SAMTALSAVGRANSARE, SAMTALSFALT, TRADFALT, undersamlingskrock } from "./samtal.js";
+import { AMNESFALT, AMNES_REGEL, BILAGA_TRADSKILJE, BILAGEMARKEFALT, FASTFALT, MAX_ALTERNATIVTEXT, MAX_AMNESRUBRIK, MAX_FRAGA, GRUPPSAMTAL, LASTFALT, MAX_MEDDELANDE, MAX_NAMNER, MAX_TRADNAMN, MAX_UIDLANGD, MEDDELANDEFALT, NAMNERFALT, NAMNER_ALLA, OMROSTNINGFALT, OMROSTNINGSROSTFALT, OMROSTNINGSVALFALT, OMROSTNINGSVAL_REGEL, REAKTIONSFALT, SVARPAFALT, REAKTIONSKODER, SAMTALSAVGRANSARE, SAMTALSFALT, TRADFALT, undersamlingskrock } from "./samtal.js";
 
 /**
  * @typedef {object} Samlingsnamn
@@ -1095,6 +1095,15 @@ export function tradskiljeTeckenklass(t) {
  *   - REAKTIONER (chattens nattskiva, med `reaktioner`): läsa som samtalet (i en tråd som tråden). Skapa: en aktiv person i
  *     samtalet, som sig själv, med en kod ur `REAKTIONSKODER`, nyckeln exakt `mid|uid|kod` ur fälten (`REAKTIONSFALT`), och
  *     meddelandet `mid` finns i samma samtal (i en tråd: i samma tråd). Radera: bara sin egen. Uppdatera: aldrig.
+ *   - OMRÖSTNINGAR (cllp/lifehub.app#438 skiva 1, med `omrostningsval` och `omrostningsroster`, bara tillsammans): ett meddelande i
+ *     samtalet (inte i en tråd) får bära `omrostning: true`, och då är texten frågan: högst `MAX_FRAGA` tecken utan styrtecken och ingen
+ *     bilaga. Alternativen i `<omrostningsval>/{mid|stycke}` (`OMROSTNINGSVALFALT`): läsa som samtalet, skapa som en aktiv person i
+ *     samtalet, som sig själv, nu, text 1 till `MAX_ALTERNATIVTEXT` utan styrtecken, nyckeln `mid|` och ett stycke av formen
+ *     `OMROSTNINGSVAL_REGEL`, och meddelandet `mid` finns efter batchen och är en omröstning (`getAfter`, så att skaparens alternativ går
+ *     i samma batch som frågan). Aldrig ändring eller radering. Rösterna i `<omrostningsroster>/{mid|uid}` (`OMROSTNINGSROSTFALT`): samma
+ *     läsning och skapelse, nyckeln exakt `mid|uid` ur fälten, och `val` ett alternativ som finns i SAMMA omröstning. Byta: bara sin egen,
+ *     med samma krav, så att bara `val` och `tid` kan ändras (`mid` och `av` är bundna av nyckeln). Radera: bara sin egen. ⛔ Regeln kan inte räkna: taket på alternativ och golvet vid start
+ *     prövas av byggaren och vyn (se lib/samtal.js).
  *   - OMNÄMNANDEN (chattens nattskiva, med `omnamnanden: true`): ett meddelande, i samtalet och i en tråd, får bära `namner`, en
  *     lista med 1 till `MAX_NAMNER` olika poster där "alla" bara står ensamt. ⛔ Regeln kan inte loopa och prövar därför formen,
  *     inte att varje uid är medlem: den som läser omnämnandet auktoriserar (`namnda` i lib/samtal.js).
@@ -1126,7 +1135,7 @@ export function tradskiljeTeckenklass(t) {
  * ⛔ VARJE NY UNDERSAMLING ÄR EN NY NYCKEL, UTAN FÖRVAL (`tradar` 0.68.0, `status` #273). En app som inte skickar nyckeln får
  * byte för byte samma regeltext som innan nyckeln fanns, och det mäts mot fixturerna i `rules/__fixturer__/`.
  *
- * @param {{ samtal?: string, meddelanden?: string, last?: string, tradar?: string, status?: string, reaktioner?: string, omnamnanden?: boolean, citat?: boolean, fasta?: string, bilagor?: boolean, bilagaSamling?: string, tyst?: string, amnen?: boolean, medlemskap?: string }} [namn]
+ * @param {{ samtal?: string, meddelanden?: string, last?: string, tradar?: string, status?: string, reaktioner?: string, omrostningsval?: string, omrostningsroster?: string, omnamnanden?: boolean, citat?: boolean, fasta?: string, bilagor?: boolean, bilagaSamling?: string, tyst?: string, amnen?: boolean, medlemskap?: string }} [namn]
  * @returns {string}
  */
 export function samtalsregelfragment(namn = {}) {
@@ -1142,11 +1151,15 @@ export function samtalsregelfragment(namn = {}) {
   const tradar = namn.tradar === undefined ? null : kontrolleraNamn(namn.tradar, "tradar");
   const status = namn.status === undefined ? null : kontrolleraNamn(namn.status, "status");
   const reaktioner = namn.reaktioner === undefined ? null : kontrolleraNamn(namn.reaktioner, "reaktioner");
+  // ⛔ OMRÖSTNINGARNA (cllp/lifehub.app#438): två samlingar och ett val, utan förval. Utan dem är texten byte för byte den förra.
+  const omrostningsval = namn.omrostningsval === undefined ? null : kontrolleraNamn(namn.omrostningsval, "omrostningsval");
+  const omrostningsroster = namn.omrostningsroster === undefined ? null : kontrolleraNamn(namn.omrostningsroster, "omrostningsroster");
+  if (Boolean(omrostningsval) !== Boolean(omrostningsroster)) throw new Error("samtalsregelfragment: omrostningsval och omrostningsroster ges tillsammans, eller inte alls. Alternativ utan röster är ingen omröstning.");
   const fasta = namn.fasta === undefined ? null : kontrolleraNamn(namn.fasta, "fasta");
   const bilagaSamling = namn.bilagaSamling === undefined ? null : kontrolleraNamn(namn.bilagaSamling, "bilagaSamling");
   const tyst = namn.tyst === undefined ? null : kontrolleraNamn(namn.tyst, "tyst");
   // ⛔ KAN 7: ett namn som är samma som en annan undersamling hade lagt två regler på samma väg. Samma prövning som källan gör.
-  undersamlingskrock({ meddelanden, last, tradar, status, reaktioner, fasta, bilagaSamling, tyst }, "samtalsregelfragment");
+  undersamlingskrock({ meddelanden, last, tradar, status, reaktioner, omrostningsval, omrostningsroster, fasta, bilagaSamling, tyst }, "samtalsregelfragment");
   if (namn.omnamnanden !== undefined && typeof namn.omnamnanden !== "boolean") throw new Error("samtalsregelfragment: omnamnanden är true eller utelämnat.");
   const omnamnanden = namn.omnamnanden === true;
   // ⛔ Meddelandets fält: modellens tre, och `namner` bara när appen slagit på omnämnandena. Utan dem är raden densamma som förut.
@@ -1161,8 +1174,9 @@ export function samtalsregelfragment(namn = {}) {
   if (!bilagor && bilagaSamling) throw new Error("samtalsregelfragment: bilagaSamling kräver bilagor: true.");
   // Trådens meddelanden: utan `svarPa` (citat finns bara utanför gruppchatten, och trådar bara i den).
   const meddelandefalt = omnamnanden ? [...MEDDELANDEFALT, NAMNERFALT] : [...MEDDELANDEFALT];
-  const samtalsfaltlista = citat ? [...meddelandefalt, SVARPAFALT] : meddelandefalt;
-  const namnervillkor = (omnamnanden ? "\n          && opsGiltigaNamner(request.resource.data)" : "") + (citat ? "\n          && opsGiltigtSvarPa(sid, request.resource.data)" : "");
+  // ⛔ `omrostning` bara på samtalets meddelanden, inte på trådens: en omröstning i en tråd finns inte i skiva 1.
+  const samtalsfaltlista = [...meddelandefalt, ...(citat ? [SVARPAFALT] : []), ...(omrostningsval ? [OMROSTNINGFALT] : [])];
+  const namnervillkor = (omnamnanden ? "\n          && opsGiltigaNamner(request.resource.data)" : "") + (citat ? "\n          && opsGiltigtSvarPa(sid, request.resource.data)" : "") + (omrostningsval ? "\n          && opsGiltigOmrostning(request.resource.data)" : "");
   const tradnamnervillkor = omnamnanden ? "\n            && opsGiltigaNamner(request.resource.data)" : "";
   const medlemskap = kontrolleraNamn(namn.medlemskap ?? "memberships", "medlemskap");
   const A = SAMTALSAVGRANSARE;
@@ -1170,7 +1184,7 @@ export function samtalsregelfragment(namn = {}) {
   const utanDeltagare = SAMTALSFALT.filter((f) => f !== "deltagare");
 
   // ⛔ Versionsraden nämner bara det appen slagit på, så att en app utan de nya nycklarna får samma text som förut.
-  const version = ["0.34.0", ...(tradar ? ["trådar 0.68.0"] : []), ...(status ? ["agentens status"] : []), ...(reaktioner ? ["reaktioner"] : []), ...(omnamnanden ? ["omnämnanden"] : []), ...(citat ? ["citat"] : []), ...(fasta ? ["fästa"] : []), ...(bilagor ? ["bilagor"] : []), ...(tyst ? ["tysta notiser"] : []), ...(amnen ? ["ämnen"] : [])].join(", ");
+  const version = ["0.34.0", ...(tradar ? ["trådar 0.68.0"] : []), ...(status ? ["agentens status"] : []), ...(reaktioner ? ["reaktioner"] : []), ...(omrostningsval ? ["omröstningar"] : []), ...(omnamnanden ? ["omnämnanden"] : []), ...(citat ? ["citat"] : []), ...(fasta ? ["fästa"] : []), ...(bilagor ? ["bilagor"] : []), ...(tyst ? ["tysta notiser"] : []), ...(amnen ? ["ämnen"] : [])].join(", ");
   // ⛔ Utan `bilagor` är de två raderna ordagrant de som stod här förut, så fixturen för 0.67.0 består.
   // Med `bilagor` prövas MÄRKET på meddelandet. Filens `dataUrl` prövas på bilagedokumentet, inte här.
   // ⛔ MÄRKET HAR SIN FIL, OCH ID:T KAN BÄRA EN (granskningen av PR 307). Ett märke utan fil hade gett en bubbla som säger
@@ -1302,6 +1316,80 @@ export function samtalsregelfragment(namn = {}) {
           && exists(/databases/$(database)/documents/${samtal}/$(sid)/${meddelanden}/$(request.resource.data.mid));
         allow delete: if opsISamtal(sid) && resource.data.av == request.auth.uid;
         allow update: if false;
+      }`
+    : "";
+  // ⛔ OMRÖSTNINGARNA (cllp/lifehub.app#438 skiva 1). Formen och taken kommer ur lib/samtal.js. `(?s)` så att också en radbrytning fångas.
+  // ⛔ OCKSÅ C1, NOLLBREDDSTECKEN OCH RIKTNINGSMARKERINGAR (granskningen av PR 566). Byggaren nekar dem (`DOLDA_TECKEN`), men en klient förbi
+  // byggaren hade annars kunnat skriva ett alternativ med U+202E som vänder texten i kortet, eller två alternativ som ser likadana ut.
+  // Sammanfogaren U+200D släpps in, som i byggaren: emoji som 👩‍👩‍👧 består av den.
+  const STYR = "'(?s).*[\\x00-\\x1f\\x7f-\\x9f\\\\x{200b}\\\\x{200c}\\\\x{200e}\\\\x{200f}\\\\x{202a}-\\\\x{202e}\\\\x{2060}-\\\\x{2064}\\\\x{2066}-\\\\x{2069}\\\\x{feff}].*'";
+  const omrostningsfunktioner = omrostningsval
+    ? `    // En omröstning (#438): frågan är texten, en rad utan styrtecken inom taket, och ingen bilaga.
+    function opsGiltigOmrostning(d) {
+      return !('${OMROSTNINGFALT}' in d) || (d.${OMROSTNINGFALT} == true
+        && d.text is string && d.text.size() <= ${MAX_FRAGA}
+        && !d.text.matches(${STYR})
+        && !('bilaga' in d));
+    }
+
+    // Meddelandet mid i samtalet sid är en omröstning, efter batchen: skaparens alternativ skrivs i samma batch som frågan.
+    function opsArOmrostning(sid, mid) {
+      let m = getAfter(/databases/$(database)/documents/${samtal}/$(sid)/${meddelanden}/$(mid));
+      return m != null && m.data.get('${OMROSTNINGFALT}', false) == true;
+    }
+
+    // Ett alternativ (#438): fälten, som sig själv, nu, texten inom taket utan styrtecken, och nyckeln mid|stycke.
+    function opsGiltigtOmrostningsval(vid, d) {
+      return d.keys().hasOnly([${lista(OMROSTNINGSVALFALT)}])
+        && d.av == request.auth.uid
+        && d.mid is string
+        && d.text is string && d.text.trim().size() > 0 && d.text.size() <= ${MAX_ALTERNATIVTEXT}
+        && !d.text.matches(${STYR})
+        && vid.split('[${R}]').size() == 2 && vid.split('[${R}]')[0] == d.mid
+        && vid.split('[${R}]')[1].matches('${OMROSTNINGSVAL_REGEL}')
+        && opsNu(d.tid);
+    }
+
+    // En röst (#438): fälten, som sig själv, nu, nyckeln exakt mid|uid, och valet ett alternativ som finns i samma omröstning.
+    function opsGiltigOmrostningsrost(sid, rid, d) {
+      return d.keys().hasOnly([${lista(OMROSTNINGSROSTFALT)}])
+        && d.av == request.auth.uid
+        && d.mid is string
+        && rid == d.mid + '${R}' + d.av
+        && d.val is string && d.val.split('[${R}]').size() == 2 && d.val.split('[${R}]')[0] == d.mid
+        && exists(/databases/$(database)/documents/${samtal}/$(sid)/${omrostningsval}/$(d.val))
+        && opsNu(d.tid);
+    }
+
+`
+    : "";
+  const omrostningsblock = omrostningsval
+    ? `
+
+      // Omröstningens alternativ (#438): vem som helst av samtalets personer lägger till. Aldrig ändring eller radering.
+      match /${omrostningsval}/{vid} {
+        allow read: if opsISamtal(sid);
+        allow create: if opsISamtal(sid)
+          && opsArAktivTyp(request.auth.uid, get(opsSamtalet(sid)).data.groupId, 'person')
+          && opsGiltigtOmrostningsval(vid, request.resource.data)
+          && opsArOmrostning(sid, request.resource.data.mid);
+        allow update, delete: if false;
+      }
+
+      // Omröstningens röster (#438): en per person och omröstning. Bara sin egen byts och bara sin egen tas bort.
+      // Vid ett byte bär formen skyddet: nyckeln är mid|av och av är den inloggade, så en annans rad går inte att skriva, och mid och av
+      // kan inte ändras. Bara valet och tiden är kvar. En egen rad för ägaren eller för diffen hade inte kunnat ses falla (regel 4).
+      match /${omrostningsroster}/{rid} {
+        allow read: if opsISamtal(sid);
+        allow create: if opsISamtal(sid)
+          && opsArAktivTyp(request.auth.uid, get(opsSamtalet(sid)).data.groupId, 'person')
+          && opsGiltigOmrostningsrost(sid, rid, request.resource.data)
+          && opsArOmrostning(sid, request.resource.data.mid);
+        allow update: if opsISamtal(sid)
+          && opsArAktivTyp(request.auth.uid, get(opsSamtalet(sid)).data.groupId, 'person')
+          && opsGiltigOmrostningsrost(sid, rid, request.resource.data);
+        allow delete: if opsISamtal(sid)
+          && resource.data.av == request.auth.uid;
       }`
     : "";
   const tradfunktioner = tradar
@@ -1456,7 +1544,7 @@ ${texttak("            ", `tid + '${S}' + mid`)}
     // En tid i millisekunder nära serverns klocka.
 ${nuRegelfunktion("opsNu")}
 
-${tradfunktioner}${reaktionsfunktion}${namnerfunktion}${citatfunktion}${bilagefunktion}${amnesfunktioner}    // Ett nytt samtal: nyckeln härledd, skaparen en person i gruppen, i ett privat samtal båda aktiva medlemmar.
+${tradfunktioner}${reaktionsfunktion}${omrostningsfunktioner}${namnerfunktion}${citatfunktion}${bilagefunktion}${amnesfunktioner}    // Ett nytt samtal: nyckeln härledd, skaparen en person i gruppen, i ett privat samtal båda aktiva medlemmar.
     function opsNyttSamtal(sid, d) {
       return opsInloggad()
         && d.skapadAv == request.auth.uid
@@ -1505,7 +1593,7 @@ ${texttak("          ", "mid")}
           && request.resource.data.keys().hasOnly([${lista(LASTFALT)}])
           && request.resource.data.lastTill is int;
         allow delete: if false;
-      }${tradblock}${statusblock}${reaktionsblock}${fastblock}${bilageblock}${tystblock}
+      }${tradblock}${statusblock}${reaktionsblock}${omrostningsblock}${fastblock}${bilageblock}${tystblock}
     }
 `;
 }

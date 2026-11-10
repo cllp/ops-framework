@@ -68,10 +68,24 @@ describe("OpsGastLista", () => {
     expect(screen.getByText("Har röstat")).toBeInTheDocument();
   });
 
-  it("⛔ tomt är ett svar: en lista utan gäster säger det", () => {
-    rita({ gaster: [] });
-    expect(screen.getByText(/Inga gäster har bjudits in/)).toBeInTheDocument();
+  it("⛔ tomt är ett svar: en lista utan gäster och utan använda platser säger att ingen bjudits in", () => {
+    rita({ gaster: [], platser: { anvanda: 0, totalt: 5 } });
+    expect(screen.getByText("Inga gäster har bjudits in till den här omröstningen.")).toBeInTheDocument();
     expect(document.querySelectorAll("[data-gast]")).toHaveLength(0);
+  });
+
+  it("⛔ använda platser och en tom lista säger inte att ingen gäst finns (lifehub.app#714)", () => {
+    rita({
+      gaster: [],
+      platser: { anvanda: 2, totalt: 5 },
+      ord: { inga: "Inga gäster har bjudits in till den här händelsen." },
+    });
+    expect(screen.getByText("2 av 5 gratis platser")).toBeInTheDocument();
+    expect(screen.queryByText("Inga gäster har bjudits in till den här händelsen.")).toBeNull();
+    expect(screen.queryByText("Inga gäster har bjudits in till den här omröstningen.")).toBeNull();
+    expect(screen.getByText("Ingen gäst är inbjuden just här. Siffran ovan gäller gruppens gäster.")).toBeInTheDocument();
+    rita({ gaster: [], platser: { anvanda: 2, totalt: 5 }, sprak: "en" });
+    expect(screen.getByText("No guest is invited here in particular. The number above counts the group's guests.")).toBeInTheDocument();
   });
 
   it("bjuder in med adress och namn, och tömmer fälten när det gått", async () => {

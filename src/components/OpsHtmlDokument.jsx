@@ -32,8 +32,8 @@ import { skaparensNamn } from "../lib/skapare.js";
  * @param {unknown} [props.skapadAv] Den som laddade upp filen (postens `skapadAv`).
  * @param {string} [props.fonster] (0.192.0, #529) Adressen till helfönstervyn (`htmlVyAdress`). Med den står Öppna i eget fönster i verktygsraden, som en riktig länk i en ny flik.
  *
- * ⛔ ZOOMEN (0.192.0, cllp/ops-framework#529, CP 2026-11-06: "Zoomen måste finnas med i förhandstitt."): − , procenten och + i verktygsraden, Anpassa till bredd som förval, och Ctrl- eller Cmd+hjul när dokumentet
- * har fokus. Se `useHtmlZoom` och `lib/htmldokument.js`.
+ * ⛔ ZOOMEN (0.192.0, cllp/ops-framework#529, CP 2026-11-06: "Zoomen måste finnas med i förhandstitt."): − , procenten och + i verktygsraden, Anpassa till bredd som förval, Ctrl- eller Cmd+hjul när dokumentet
+ * har fokus, och nypning med två fingrar på telefonen. Se `useHtmlZoom` och `lib/htmlruta.js`.
  */
 export function OpsHtmlDokument({ html, namn, skapadAv, fonster }) {
   const sprak = useOpsSprak();

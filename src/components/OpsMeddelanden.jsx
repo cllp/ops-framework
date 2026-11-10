@@ -7,9 +7,9 @@ import { formatDateTime, formatTime, formatRelativeDate } from "../lib/format.js
 import { KOMMENTARBILAGA_TYPER, MAX_KOMMENTARBILAGA, bilagaUrDokument, kommentarbilagaFel } from "../lib/handelsemodell.js";
 import { readAttachment } from "../lib/file.js";
 import { arGastId } from "../lib/gast.js";
-import { AGENTSTATUS_MAX_ALDER, MAX_MEDDELANDE, MAX_TRADNAMN, RAKNARE_FRAN, REAKTIONSKODER, agentstatus, amnesrubrik, bilagenyckel, delaSamtalsnyckel, samtalsdeltagare, samtalsnyckel, summeraReaktioner, synligText, tradensNamn } from "../lib/samtal.js";
+import { AGENTSTATUS_MAX_ALDER, MAX_ALTERNATIV, MAX_ALTERNATIVTEXT, MAX_ALTERNATIV_VID_START, MAX_FRAGA, MAX_MEDDELANDE, MAX_TRADNAMN, MIN_ALTERNATIV_VID_START, RAKNARE_FRAN, REAKTIONSKODER, agentstatus, jamforbar, summeraOmrostning, amnesrubrik, bilagenyckel, delaSamtalsnyckel, samtalsdeltagare, samtalsnyckel, summeraReaktioner, synligText, tradensNamn } from "../lib/samtal.js";
 import { useSamtal } from "../data/useSamtal.jsx";
-import { harAmnen, harBilagor, harCitat, harFasta, harOmnamnanden, harReaktioner, harStatus, harTradar, harTyst } from "../data/samtalskalla.js";
+import { harAmnen, harBilagor, harCitat, harFasta, harOmnamnanden, harOmrostningar, harReaktioner, harStatus, harTradar, harTyst } from "../data/samtalskalla.js";
 import { BilagaVisning } from "./BilagaVisning.jsx";
 import { KopieraBilagaKnapp } from "./BilageKopiering.jsx";
 import { CHATTINFO_TEXTER, ORD_CHATTINFO, OpsChattinfo } from "./OpsChattinfo.jsx";
@@ -37,7 +37,7 @@ import { rapporteraFel } from "../lib/felrapport.js";
 import { useTangentbordTackt } from "../lib/tangentbord.js";
 import { OpsAtgardsblad } from "./OpsAtgardsblad.jsx";
 import { LANGTRYCK_KLASS, useLangtryck } from "./useLangtryck.js";
-import { AgentIkon, AndraIkon, KopieraIkon, ArkiveraIkon, TaFramIkon, BildIkon, FastIkon, FilIkon, KameraIkon, MappIkon, MejlIkon, NotisIkon, PanelIkon, StoppIkon, TystIkon, ChevronHogerIkon, ChevronNedIkon, CiteraIkon, ChevronVansterIkon, GruppIkon, KryssIkon, LasIkon, LeendeIkon, MeddelandeIkon, PlusIkon, SkickaIkon, SokIkon, TradIkon } from "./icons.jsx";
+import { AgentIkon, AndraIkon, BockIkon, KopieraIkon, OmrostningIkon, ArkiveraIkon, TaFramIkon, BildIkon, FastIkon, FilIkon, KameraIkon, MappIkon, MejlIkon, NotisIkon, PanelIkon, StoppIkon, TystIkon, ChevronHogerIkon, ChevronNedIkon, CiteraIkon, ChevronVansterIkon, GruppIkon, KryssIkon, LasIkon, LeendeIkon, MeddelandeIkon, PlusIkon, SkickaIkon, SokIkon, TradIkon } from "./icons.jsx";
 
 /**
  * Meddelanden: inkorgen med gruppchatten och de privata samtalen, och samtalet bredvid (0.34.0, #182, #185).
@@ -170,6 +170,28 @@ import { AgentIkon, AndraIkon, KopieraIkon, ArkiveraIkon, TaFramIkon, BildIkon, 
  * @property {string} [reaktionFel] Förval "Reaktionen kunde inte sparas.".
  * @property {string} [reaktionerFel] Förval "Reaktionerna kunde inte hämtas.".
  * @property {string} [reaktionerFler] När läsningen nådde sitt tak. Förval "Äldre reaktioner visas inte.".
+ * @property {string} [omrostning] (cllp/lifehub.app#438) Raden i pluset som öppnar formuläret. Förval "Omröstning".
+ * @property {string} [nyOmrostning] Formulärets rubrik. Förval "Ny omröstning".
+ * @property {string} [omrostningFraga] Fältet för frågan. Förval "Fråga".
+ * @property {string} [omrostningFragaPlats] Platstexten i frågans fält. Förval "Ställ en fråga".
+ * @property {string} [omrostningAlternativ] Ett alternativs fält i formuläret, med numret. Förval "Alternativ {n}".
+ * @property {string} [laggTillAlternativ] Knappen i formuläret och sista raden i kortet. Förval "Lägg till alternativ".
+ * @property {string} [nyttAlternativ] Fältet för ett alternativ som läggs till i kortet. Förval "Nytt alternativ".
+ * @property {string} [omrostningRostat] Raden under kortets alternativ. Förval "{n} har röstat".
+ * @property {string} [omrostningRost] Antalet för ett alternativ, en röst. Förval "{n} röst".
+ * @property {string} [omrostningRoster] Antalet för ett alternativ, noll eller flera röster. Förval "{n} röster".
+ * @property {string} [duHarRostat] Läggs till i alternativets namn när det är ditt val. Förval "du har röstat".
+ * @property {string} [omrostningUtanAlternativ] Ett kort utan alternativ: tomt sägs, det utelämnas inte. Förval "Inga alternativ än.".
+ * @property {string} [omrostningBehoverFraga] Formuläret utan fråga. Förval "Skriv en fråga.".
+ * @property {string} [omrostningBehoverTva] Formuläret med färre än två alternativ. Förval "Skriv minst två alternativ.".
+ * @property {string} [alternativFinns] Formuläret med en dubblett. Förval "Två alternativ har samma text.".
+ * @property {string} [alternativFinnsRedan] Kortet, när ett nytt alternativ redan finns. Förval "Alternativet finns redan.".
+ * @property {string} [omrostningForLang] En fråga eller ett alternativ över taket. Förval "Högst {max} tecken.".
+ * @property {string} [omrostningSkickaFel] När källan nekade omröstningen. Förval "Omröstningen kunde inte skickas.".
+ * @property {string} [omrostningFel] När en röst nekades. Förval "Rösten kunde inte sparas.".
+ * @property {string} [alternativFel] När ett nytt alternativ nekades. Förval "Alternativet kunde inte läggas till.".
+ * @property {string} [omrostningarFel] När läsningen av alternativ eller röster föll. Förval "Omröstningarna kunde inte hämtas.".
+ * @property {string} [omrostningarFler] När läsningen nådde sitt tak. Förval "Äldre röster och alternativ visas inte.".
  * @property {Partial<Record<(typeof REAKTIONSKODER)[number], string>>} [reaktionsnamn] Reaktionernas namn för skärmläsaren. Förval: svenska, eller engelska när `sprak` är "en" (`reaktionsvy.js`).
  * @property {string} [allaNamn] (chattens nattskiva) Förslaget som nämner hela gruppen. Förval "alla".
  * @property {string} [namnForslag] @-listans namn för skärmläsaren. Förval "Nämn någon".
@@ -372,6 +394,28 @@ const ORD_MEDDELANDEN = {
   reaktionFel: { sv: "Reaktionen kunde inte sparas.", en: "The reaction could not be saved." },
   reaktionerFel: { sv: "Reaktionerna kunde inte hämtas.", en: "The reactions could not be loaded." },
   reaktionerFler: { sv: "Äldre reaktioner visas inte.", en: "Older reactions are not shown." },
+  omrostning: { sv: "Omröstning", en: "Poll" },
+  nyOmrostning: { sv: "Ny omröstning", en: "New poll" },
+  omrostningFraga: { sv: "Fråga", en: "Question" },
+  omrostningFragaPlats: { sv: "Ställ en fråga", en: "Ask a question" },
+  omrostningAlternativ: { sv: "Alternativ {n}", en: "Option {n}" },
+  laggTillAlternativ: { sv: "Lägg till alternativ", en: "Add option" },
+  nyttAlternativ: { sv: "Nytt alternativ", en: "New option" },
+  omrostningRostat: { sv: "{n} har röstat", en: "{n} voted" },
+  omrostningRost: { sv: "{n} röst", en: "{n} vote" },
+  omrostningRoster: { sv: "{n} röster", en: "{n} votes" },
+  duHarRostat: { sv: "du har röstat", en: "you voted" },
+  omrostningUtanAlternativ: { sv: "Inga alternativ än.", en: "No options yet." },
+  omrostningBehoverFraga: { sv: "Skriv en fråga.", en: "Write a question." },
+  omrostningBehoverTva: { sv: "Skriv minst två alternativ.", en: "Write at least two options." },
+  alternativFinns: { sv: "Två alternativ har samma text.", en: "Two options have the same text." },
+  alternativFinnsRedan: { sv: "Alternativet finns redan.", en: "The option already exists." },
+  omrostningForLang: { sv: "Högst {max} tecken.", en: "At most {max} characters." },
+  omrostningSkickaFel: { sv: "Omröstningen kunde inte skickas.", en: "The poll could not be sent." },
+  omrostningFel: { sv: "Rösten kunde inte sparas.", en: "The vote could not be saved." },
+  alternativFel: { sv: "Alternativet kunde inte läggas till.", en: "The option could not be added." },
+  omrostningarFel: { sv: "Omröstningarna kunde inte hämtas.", en: "The polls could not be loaded." },
+  omrostningarFler: { sv: "Äldre röster och alternativ visas inte.", en: "Older votes and options are not shown." },
   skrivGrupp: { sv: "Skriv till gruppen", en: "Write to the group" },
   skrivAgent: { sv: "Fråga agenten", en: "Ask the agent" },
   skrivTrad: { sv: "Svara i tråden", en: "Reply in the thread" },
@@ -1668,7 +1712,8 @@ export { RAKNARE_FRAN };
  * `onSkicka` får `{ text }` när det är det sagda som skickas. Den ska då lösa när meddelandet är skickat och avvisa när det inte gick,
  * så att ytan kan säga det; utan `text` skickar den fältets text som förut.
  *
- * @param {{ text: string, setText: (t: string) => void, skickar: boolean, onSkicka: (extra?: { namner?: string[], text?: string }) => void | Promise<void>, texter: Required<Meddelandetexter>, sprak: string, fokus?: boolean, omnamnande?: Omnamnande | null, fokusNyckel?: string, onEscape?: () => void, platstext?: string, onTranscribe?: (blob: Blob) => Promise<string>, inspelare?: import("../lib/talk.js").Inspelare, igenkanning?: import("../lib/talk.js").Igenkanning | boolean, onBifoga?: (filer: File[], slag: "bild" | "foto" | "fil") => void, franBiblioteket?: Franbiblioteket, harBilaga?: boolean, kamera?: "okand" | "ja" | "nej", agentArbetar?: boolean, onStoppaAgent?: () => void, maxTecken?: number, ram?: boolean }} props
+ * @param {{ text: string, setText: (t: string) => void, skickar: boolean, onSkicka: (extra?: { namner?: string[], text?: string }) => void | Promise<void>, texter: Required<Meddelandetexter>, sprak: string, fokus?: boolean, omnamnande?: Omnamnande | null, fokusNyckel?: string, onEscape?: () => void, platstext?: string, onTranscribe?: (blob: Blob) => Promise<string>, inspelare?: import("../lib/talk.js").Inspelare, igenkanning?: import("../lib/talk.js").Igenkanning | boolean, onBifoga?: (filer: File[], slag: "bild" | "foto" | "fil") => void, onOmrostning?: () => void, franBiblioteket?: Franbiblioteket, harBilaga?: boolean, kamera?: "okand" | "ja" | "nej", agentArbetar?: boolean, onStoppaAgent?: () => void, maxTecken?: number, ram?: boolean }} props
+ *   `onOmrostning` (cllp/lifehub.app#438): raden "Omröstning" i pluset. Med den ritas pluset också utan `onBifoga`.
  *   `maxTecken` (0.132.0): taket i tecken. Förval `MAX_MEDDELANDE`; en gäst har ett lägre (`GASTSKRIV_MAX_TECKEN`). Räknaren och spärren på Skicka följer det.
  *   ⛔ EXPORTERAD FRÅN FILEN FÖR `OpsGastChatt`, INTE UR RAMVERKET (`src/index.js`): gästens skrivfält är chattens utan bilagor, mikrofon, omnämnanden och agent.
  *   `ram` (0.195.0): fältet står i en panel, med ett streck över sig (`border-t`) och panelens indrag (`px-3`). Förval sant, som i appens chatt, där strecket skiljer fältet från
@@ -1676,7 +1721,7 @@ export { RAKNARE_FRAN };
  *   skärmbilder av gästens chatt: "Du kan ta bort ett streck mellan här också vid chatten. avdelaren." och från telefonen: "Även i telefon finns det extra horisontella strecket som
  *   inte behövs. Sedan kanske skrivfältet kan vara lika brett som chattramen?"
  */
-export function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, sprak, fokus = false, omnamnande = null, fokusNyckel, onEscape, platstext, onTranscribe, inspelare, igenkanning, onBifoga, franBiblioteket, harBilaga = false, kamera = "nej", agentArbetar = false, onStoppaAgent, maxTecken = MAX_MEDDELANDE, ram = true }) {
+export function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, sprak, fokus = false, omnamnande = null, fokusNyckel, onEscape, platstext, onTranscribe, inspelare, igenkanning, onBifoga, onOmrostning, franBiblioteket, harBilaga = false, kamera = "nej", agentArbetar = false, onStoppaAgent, maxTecken = MAX_MEDDELANDE, ram = true }) {
   const ruta = useRef(/** @type {HTMLTextAreaElement | null} */ (null));
   const listId = useId();
   const raknarId = useId();
@@ -1817,7 +1862,7 @@ export function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, sprak, 
         skicka();
       }}
     >
-      {onBifoga ? <Plusmeny onBifoga={onBifoga} franBiblioteket={franBiblioteket} texter={t} kamera={kamera === "ja"} kameraKand={kamera !== "okand"} /> : null}
+      {onBifoga || onOmrostning ? <Plusmeny onBifoga={onBifoga} onOmrostning={onOmrostning} franBiblioteket={franBiblioteket} texter={t} kamera={kamera === "ja"} kameraKand={kamera !== "okand"} /> : null}
       {/* ⛔ INGEN KANTLINJE RUNT PILLRET (0.196.0, CP 2026-11-06 med en skärmbild av gästens chatt: "Ta bort borders runt chatten och överallt."). En fylld yta, som Signal: det syns ändå var man
           skriver, och platstexten säger vad. Fokus syns med fokusringen (`focus-within:outline`), inte med en kant som byter färg. Samma pill i appens chatt och i gästens. */}
       <div data-skrivruta="" className="flex min-h-11 min-w-0 flex-1 items-end rounded-3xl bg-hover focus-within:outline-2 focus-within:outline-offset-0 focus-within:outline-accent">
@@ -1986,10 +2031,13 @@ export function rosttexter(t) {
  * (`franBiblioteket.fil`) och lämnas till `onBifoga` som "fil", samma väg som "Välj fil": ett meddelande bär en bilaga, och kopian i samtalet finns kvar om posten senare tas bort ur Biblioteket.
  * Ett fel skrivs ut i väljaren, aldrig tyst.
  *
- * @param {{ onBifoga: (filer: File[], slag: "bild" | "foto" | "fil") => void, franBiblioteket?: Franbiblioteket, texter: Required<Meddelandetexter>, kamera?: boolean, kameraKand?: boolean }} props
+ * ⛔ "OMRÖSTNING" (cllp/lifehub.app#438 skiva 1) ritas bara med `onOmrostning`, alltså bara när källan har omröstningar (`harOmrostningar`). Raden öppnar
+ * formuläret ovanför skrivfältet. Utan `onBifoga` (en chatt med omröstningar men utan bilagor) står bara den raden i menyn.
+ *
+ * @param {{ onBifoga?: (filer: File[], slag: "bild" | "foto" | "fil") => void, onOmrostning?: () => void, franBiblioteket?: Franbiblioteket, texter: Required<Meddelandetexter>, kamera?: boolean, kameraKand?: boolean }} props
  *   `kameraKand` (förval sann, proven): när den är falsk står `data-kamera="okand"` tills uppräkningen är klar.
  */
-export function Plusmeny({ onBifoga, franBiblioteket, texter: t, kamera = true, kameraKand = true }) {
+export function Plusmeny({ onBifoga, onOmrostning, franBiblioteket, texter: t, kamera = true, kameraKand = true }) {
   const [oppen, setOppen] = useState(false);
   const [valjer, setValjer] = useState(false);
   const knapp = useRef(/** @type {HTMLButtonElement | null} */ (null));
@@ -2009,7 +2057,7 @@ export function Plusmeny({ onBifoga, franBiblioteket, texter: t, kamera = true, 
     ["bild", t.bifogaBild, <BildIkon key="b" />],
     ["foto", t.taFoto, <KameraIkon key="k" />],
     ["fil", t.valjFil, <MappIkon key="m" />],
-  ]).filter(([slag]) => kamera || slag !== "foto");
+  ]).filter(([slag]) => Boolean(onBifoga) && (kamera || slag !== "foto"));
   return (
     <div className="relative shrink-0">
       <button
@@ -2060,7 +2108,22 @@ export function Plusmeny({ onBifoga, franBiblioteket, texter: t, kamera = true, 
               {etikett}
             </button>
           ))}
-          {franBiblioteket ? (
+          {onOmrostning ? (
+            <button
+              type="button"
+              role="menuitem"
+              data-plusrad="omrostning"
+              onClick={() => {
+                setOppen(false);
+                onOmrostning();
+              }}
+              className="flex min-h-11 cursor-pointer items-center gap-3 rounded-base px-3 text-left text-etikett text-ink hover:bg-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
+            >
+              <span aria-hidden="true" className="inline-flex text-ink-secondary"><OmrostningIkon /></span>
+              {t.omrostning}
+            </button>
+          ) : null}
+          {franBiblioteket && onBifoga ? (
             <button
               type="button"
               role="menuitem"
@@ -2077,7 +2140,7 @@ export function Plusmeny({ onBifoga, franBiblioteket, texter: t, kamera = true, 
           ) : null}
         </div>
       ) : null}
-      {valjer && franBiblioteket ? (
+      {valjer && franBiblioteket && onBifoga ? (
         <Bibliotekvaljare
           kalla={franBiblioteket}
           texter={t}
@@ -2103,7 +2166,7 @@ export function Plusmeny({ onBifoga, franBiblioteket, texter: t, kamera = true, 
           onChange={(e) => {
             const filer = [...(e.target.files ?? [])];
             e.target.value = "";
-            if (filer.length) onBifoga(filer, slag);
+            if (filer.length) onBifoga?.(filer, slag);
             stang();
           }}
         />
@@ -2455,6 +2518,9 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik: rubrikProp, marke, lastT
     return alla.find((m) => m.av !== uid && m.tid > markeVidOppning && m.tid <= oppnad)?.id ?? null;
   }, [alla, meddelanden, markeVidOppning, uid, ny]);
   const reakt = useReaktioner(harReaktioner(las) ? las : null, samtal.id, undefined, uid);
+  // ⛔ (cllp/lifehub.app#438) Omröstningar bara i samtalet, inte i en tråd: reglerna har ingen väg dit i skiva 1.
+  const omr = useOmrostningar(harOmrostningar(las) ? las : null, samtal.id, uid);
+  const [nyOmrostning, setNyOmrostning] = useState(false);
   // ⛔ Citat bara utanför gruppchatten (regeln kräver det): där är tråden svaret.
   const medCitat = harCitat(kalla) && samtal.slag !== "grupp";
   const [svarPa, setSvarPa] = useState(/** @type {(import("../lib/samtal.js").Meddelande & { id: string }) | null} */ (null));
@@ -2693,6 +2759,7 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik: rubrikProp, marke, lastT
         ) : null}
         <VisaAldre historik={historik} texter={t} />
         <Reaktionslage reakt={reakt} texter={t} />
+        <Omrostningslage omr={omr} texter={t} />
         {meddelanden && meddelanden.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center py-16 text-center">
             <span className="text-ink-muted opacity-40">
@@ -2706,6 +2773,7 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik: rubrikProp, marke, lastT
           meddelanden={alla}
           nyttFran={nyttFran}
           reakt={reakt}
+          omrostning={omr.pa ? omr : undefined}
           texter={t}
           kalla={kalla}
           sid={samtal.id}
@@ -2794,6 +2862,18 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik: rubrikProp, marke, lastT
 
       {svarPa ? <SvararPaRad m={svarPa} namn={avNamnFor(namnFor, svarPa, uid, t.du, sprak)} onAvbryt={() => setSvarPa(null)} texter={t} /> : null}
       <Bilageutkast bilaga={bilage.bilaga} fel={bilage.fel} onTaBort={bilage.tom} texter={t} />
+      {nyOmrostning && omr.pa ? (
+        <Omrostningsformular
+          texter={t}
+          onAvbryt={() => setNyOmrostning(false)}
+          onSkicka={async (d) => {
+            const ny = await omr.skapa(d);
+            setNyOmrostning(false);
+            // ⛔ Samma som Skicka: inkorgens rad får frågan direkt, utan att vänta på en läsning.
+            if (ny && typeof ny.tid === "number") onSkickat?.(/** @type {any} */ (ny));
+          }}
+        />
+      ) : null}
       <Skrivfalt
         text={text}
         setText={setText}
@@ -2810,6 +2890,7 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik: rubrikProp, marke, lastT
         inspelare={inspelare}
         igenkanning={igenkanning}
         onBifoga={bilage.onBifoga}
+        onOmrostning={omr.pa && !arNy ? () => setNyOmrostning(true) : undefined}
         franBiblioteket={franBiblioteket}
         harBilaga={Boolean(bilage.bilaga)}
         kamera={bilage.kamera}
@@ -3006,6 +3087,8 @@ function sammaVia(a, b) {
  * @param {number} [props.forraTid] Tiden på meddelandet före det första, när listan fortsätter en annan (trådens svar efter
  *   roten). Samma dag ger då ingen ny avdelare: två "I dag" på rad är en avdelare som inte avdelar något.
  * @param {ReturnType<typeof useReaktioner>} [props.reakt] (chattens nattskiva) Reaktionerna, när källan har dem.
+ * @param {ReturnType<typeof useOmrostningar>} [props.omrostning] (cllp/lifehub.app#438 skiva 1) Omröstningarna, när källan har dem. Med dem ritas ett meddelande som
+ *   bär `omrostning` som kortet. Utan dem (en tråd, gästens chatt, en app utan omröstningar) står frågan som en vanlig bubbla: texten ÄR frågan.
  * @param {Required<Meddelandetexter>} [props.texter]
  * @param {{ pa: boolean, onCitera: (m: import("../lib/samtal.js").Meddelande & { id: string }) => void, uppslag: Map<string, (import("../lib/samtal.js").Meddelande & { id: string }) | null> }} [props.citat]
  *   (chattens nattskiva) Citaten: knappen när `pa`, och det citerade meddelandet ur `uppslag` (`null`: går inte att läsa).
@@ -3021,7 +3104,7 @@ function sammaVia(a, b) {
  * @param {MeddelandeHref} [props.meddelandeHref] (lifehub.app#712) Adressen till ett meddelande. Med den har menyn "Kopiera länk"; utan den finns inte raden.
  * @param {ReadonlyArray<Omnamnbar>} [props.flerOmnamnbara] (lifehub.app#723) Fler som går att nämna med @, utöver de aktiva medlemmarna: appens API-agenter, vars medlemskap står som "avslutad". De läggs bara till @-listan och påverkar aldrig agentval, mottagare eller medlemslistor. Nämnandet skrivs som vanligt i `namner` (id). Utan den är listan exakt som förut.
  */
-export function Meddelanderader({ meddelanden, uid, namnFor: namnForProp, medlemmar, locale, visaNamn, efter, merFor, forraTid, reakt, texter = TEXTER, citat, traffar, fasta, postkort, kalla, sid, trad, onVisaAgent, onForslag, nyttFran = null, meddelandeHref }) {
+export function Meddelanderader({ meddelanden, uid, namnFor: namnForProp, medlemmar, locale, visaNamn, efter, merFor, forraTid, reakt, omrostning, texter = TEXTER, citat, traffar, fasta, postkort, kalla, sid, trad, onVisaAgent, onForslag, nyttFran = null, meddelandeHref }) {
   const bredd = useBredd();
   // ⛔ EN GÄSTS NAMN STÅR PÅ MEDDELANDET (`avNamn`, satt av servern när gästen skriver), för gästen är ingen medlem och har ingen rad i medlemslistan. Märket "Gäst" härleds ur `av` (`arGastId`),
   // eller ur `gast: true` i gästens egen vy (där `av` är ett namn): inget annat fält, så märket kan inte saknas på ett meddelande en gäst skrev och inte sitta på en medlems.
@@ -3130,6 +3213,9 @@ export function Meddelanderader({ meddelanden, uid, namnFor: namnForProp, medlem
                 {m.svarPa && citat ? <Citat mid={m.svarPa} uppslag={citat.uppslag} egen={egen} uid={uid} namnFor={namnFor} texter={texter} /> : null}
                 {/* ⛔ EN LÄNK SOM BLEV ETT KORT STÅR INTE OCKSÅ I BUBBLAN (0.196.0, cllp/ops-framework#527): `visad` är texten utan de länkar som slogs upp till ett kort. Var länken allt som stod blir
                     det ingen bubbla, bara kortet. Ett uppslag som gav `null` eller föll lämnar länken kvar (regel 5). Den lagrade texten är orörd. */}
+                {m.omrostning && omrostning?.pa ? (
+                  <Omrostningskort m={m} omr={omrostning} namnFor={namnFor} bildFor={medlemsbild} texter={texter} />
+                ) : (
                 <MedPostkort text={m.text} postkort={postkort} egen={egen} texter={texter}>
                   {(visad, kort) => (
                     <>
@@ -3166,6 +3252,7 @@ export function Meddelanderader({ meddelanden, uid, namnFor: namnForProp, medlem
                     </>
                   )}
                 </MedPostkort>
+                )}
                 {/* ⛔ BARA UNDER EN AGENTS SVAR (0.105.0). Ett meddelande från en person som bär `forslag` (en klient skrev förbi
                     reglerna, eller ett fält med samma namn) får inga knappar: ett förslag är något agenten lägger fram. */}
                 {onForslag && !egen && sid && medlemstyp(m.av) === "agent" && /** @type {any} */ (m).forslag !== undefined ? (
@@ -4091,6 +4178,400 @@ function Reaktionschips({ m, egen, reakt, texter: t }) {
         </button>
       ))}
     </div>
+  );
+}
+
+/*
+ * ══ ⛔ OMRÖSTNINGEN I CHATTEN (cllp/lifehub.app#438 skiva 1) ═════════════════════════════════════════════════════════════════
+ *
+ * CP 2026-10-23: "som Facebooks omröstning, inte Apples", och han vill SE kortet innan resten bestäms. Kortet: frågan i fetstil, varje
+ * alternativ en rad över hela bredden med en stapel för andelen, texten, upp till tre ansikten och "+N", och antalet. Det egna valet är
+ * markerat. En tryckning röstar, samma rad igen tar tillbaka rösten, en annan rad byter den. Sista raden "Lägg till alternativ" öppnar
+ * ett fält i kortet. Under alternativen: hur många som röstat. Modellen och skälen står i `lib/samtal.js`.
+ *
+ * ⛔ ETT ELEMENT PER RAD FÖR ANSIKTENA, INGET OMSLAG PER ANSIKTE. Ringen och överlappet sätts på behållarens barn (`[&>*]:`), så att
+ * kortet inte växer med ett element per röstande utöver `OpsIdentity` själv. Kortet ritas bara för ett meddelande som ÄR en omröstning:
+ * ett vanligt meddelande får inte ett enda element till (`check:skalyta` 47 (6), taket 26 per meddelande).
+ */
+
+/** Så många ansikten per alternativ, sedan "+N". CP 2026-10-22: "som ansikten och +N när de inte får plats". */
+const OMROSTNING_ANSIKTEN = 3;
+
+/**
+ * Omröstningarna i ett samtal: en lyssnare per samling (alternativ och röster), räknade per meddelande, och de egna skrivningarna.
+ *
+ * ⛔ FEL SÄGS (regel 5): en läsning som föll och en skrivning som nekades blir var sin rad, aldrig en tyst knapp. ⛔ RÖSTEN VÄLJER
+ * SJÄLV RÄTT SKRIVNING ur det som lästs: första rösten skapas, en annan rad byter, samma rad tar tillbaka. Ingen läsning före.
+ *
+ * @param {(ReturnType<typeof import("../data/samtalskalla.js").createSamtalskalla> & import("../data/samtalskalla.js").Omrostningsfunktioner) | null} kalla
+ * @param {string} sid @param {string} uid
+ */
+function useOmrostningar(kalla, sid, uid) {
+  const tomt = /** @type {{ rader: any[], fler: boolean, fel: Error | null }} */ ({ rader: [], fler: false, fel: null });
+  const [val, setVal] = useState(tomt);
+  const [roster, setRoster] = useState(tomt);
+  const [skrivfel, setSkrivfel] = useState(/** @type {Error | null} */ (null));
+  const lyssnar = useRef(false);
+  const somFel = (/** @type {unknown} */ e) => (e instanceof Error ? e : new Error(String(e)));
+  const lasIn = async () => {
+    if (!kalla) return;
+    try {
+      const [v, r] = await Promise.all([kalla.lasOmrostningsval(sid), kalla.lasOmrostningsroster(sid)]);
+      setVal({ rader: v.rader, fler: v.fler, fel: null });
+      setRoster({ rader: r.rader, fler: r.fler, fel: null });
+    } catch (e) {
+      setVal((l) => ({ ...l, fel: somFel(e) }));
+    }
+  };
+  useEffect(() => {
+    if (!kalla) return undefined;
+    let levande = true;
+    const stangVal = kalla.prenumereraOmrostningsval(sid, { onData: (s) => levande && setVal({ rader: s.rader, fler: s.fler, fel: null }), onError: (e) => levande && setVal((l) => ({ ...l, fel: e })) });
+    const stangRoster = kalla.prenumereraOmrostningsroster(sid, { onData: (s) => levande && setRoster({ rader: s.rader, fler: s.fler, fel: null }), onError: (e) => levande && setRoster((l) => ({ ...l, fel: e })) });
+    lyssnar.current = Boolean(stangVal && stangRoster);
+    if (!lyssnar.current) lasIn();
+    return () => {
+      levande = false;
+      stangVal?.();
+      stangRoster?.();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kalla, sid]);
+  const perMeddelande = useMemo(() => {
+    /** @type {Map<string, { val: any[], roster: any[] }>} */
+    const per = new Map();
+    const hamta = (/** @type {string} */ mid) => {
+      const p = per.get(mid) ?? { val: [], roster: [] };
+      per.set(mid, p);
+      return p;
+    };
+    for (const v of val.rader) if (v && typeof v.mid === "string") hamta(v.mid).val.push(v);
+    for (const r of roster.rader) if (r && typeof r.mid === "string") hamta(r.mid).roster.push(r);
+    /** @type {Map<string, ReturnType<typeof summeraOmrostning>>} */
+    const ut = new Map();
+    for (const [mid, p] of per) ut.set(mid, summeraOmrostning(p.val, p.roster, uid));
+    return ut;
+  }, [val.rader, roster.rader, uid]);
+  const efterSkrivning = async () => {
+    setSkrivfel(null);
+    if (!lyssnar.current) await lasIn();
+  };
+  // ⛔ EN RÖST I TAGET PER OMRÖSTNING (granskningen av PR 566). Ett andra tryck innan svaret kommit läste ett gammalt eget val, så
+  // "samma rad igen tar tillbaka rösten" blev en ny röst på samma rad. Trycket under väntan släpps.
+  const rostarNu = useRef(/** @type {Set<string>} */ (new Set()));
+  /** @param {string} mid @param {string} valId */
+  const rosta = async (mid, valId) => {
+    if (!kalla || rostarNu.current.has(mid)) return;
+    rostarNu.current.add(mid);
+    const eget = perMeddelande.get(mid)?.egetVal ?? null;
+    try {
+      if (eget === valId) await kalla.taBortRost(sid, { mid, av: uid });
+      else if (eget) await kalla.andraRost(sid, { mid, val: valId, av: uid });
+      else await kalla.rosta(sid, { mid, val: valId, av: uid });
+      await efterSkrivning();
+    } catch (e) {
+      setSkrivfel(somFel(e));
+    } finally {
+      rostarNu.current.delete(mid);
+    }
+  };
+  /**
+   * Lägger till ett alternativ. Kastar till kortet, som säger felet vid fältet.
+   * @param {string} mid @param {string} text
+   */
+  const laggTill = async (mid, text) => {
+    if (!kalla) return;
+    const befintliga = (perMeddelande.get(mid)?.alternativ ?? []).map((a) => a.text);
+    await kalla.laggTillAlternativ(sid, { mid, text, av: uid, befintliga });
+    await efterSkrivning();
+  };
+  /** @param {{ fraga: string, alternativ: ReadonlyArray<string> }} d @returns {Promise<any>} Meddelandet. */
+  const skapa = async ({ fraga, alternativ }) => {
+    if (!kalla) return null;
+    const ny = await kalla.skickaOmrostning(sid, { fraga, alternativ, av: uid });
+    await efterSkrivning();
+    return ny;
+  };
+  return { pa: Boolean(kalla), perMeddelande, rosta, laggTill, skapa, fel: val.fel ?? roster.fel, skrivfel, fler: val.fler || roster.fler };
+}
+
+/**
+ * Raderna om omröstningarna som gäller hela loggen: läsningen föll, en röst nekades, eller taket nåddes.
+ * @param {{ omr: ReturnType<typeof useOmrostningar>, texter: Required<Meddelandetexter> }} props
+ */
+function Omrostningslage({ omr, texter: t }) {
+  if (!omr.pa) return null;
+  return (
+    <>
+      {omr.fel ? (
+        <p data-omrostningsfel="lasa" role="alert" className="m-0 py-1 text-center text-liten text-danger">
+          {t.omrostningarFel}
+        </p>
+      ) : null}
+      {omr.skrivfel ? (
+        <p data-omrostningsfel="skriva" role="alert" className="m-0 py-1 text-center text-liten text-danger">
+          {t.omrostningFel}
+        </p>
+      ) : null}
+      {omr.fler ? (
+        <p data-omrostningar-fler="" role="status" className="m-0 py-1 text-center text-liten text-ink-muted">
+          {t.omrostningarFler}
+        </p>
+      ) : null}
+    </>
+  );
+}
+
+/** @param {number} n @param {Required<Meddelandetexter>} t */
+const rostantal = (n, t) => (n === 1 ? t.omrostningRost : t.omrostningRoster).replace("{n}", String(n));
+
+/**
+ * En text för formuläret eller kortet: trimmad, och felet med användarens ord, eller `null` när den går att skicka.
+ * ⛔ SAMMA TAK SOM MODELLEN (`MAX_FRAGA`, `MAX_ALTERNATIVTEXT`), och ingen tyst kapning: fältet har inget `maxLength`, och för lång
+ * text säger det i stället för att skäras av (regel 5, samma skäl som skrivfältet).
+ * @param {string} text @param {number} max @param {Required<Meddelandetexter>} t
+ */
+const omrostningstextFel = (text, max, t) => (text.trim().length > max ? t.omrostningForLang.replace("{max}", String(max)) : null);
+
+/**
+ * Kortet i flödet (cllp/lifehub.app#438 skiva 1). Frågan är meddelandets text.
+ *
+ * ⛔ VARJE ALTERNATIV ÄR EN KNAPP med `aria-pressed` och ett namn som säger texten, antalet och om det är ditt val ("Fredag, 3 röster,
+ * du har röstat"). Knappen är minst 44 px hög. Stapeln, ansiktena och siffran är `aria-hidden`: namnet säger redan samma sak.
+ *
+ * @param {{ m: { id: string, text: string }, omr: ReturnType<typeof useOmrostningar>, namnFor: (uid: string) => string, bildFor: (uid: string) => string | undefined, texter: Required<Meddelandetexter> }} props
+ */
+function Omrostningskort({ m, omr, namnFor, bildFor, texter: t }) {
+  const rubrikId = useId();
+  const faltId = useId();
+  const felId = useId();
+  const s = omr.perMeddelande.get(m.id) ?? summeraOmrostning([], [], "");
+  const [laggerTill, setLaggerTill] = useState(false);
+  const [nytt, setNytt] = useState("");
+  const [fel, setFel] = useState(/** @type {string | null} */ (null));
+  const [arbetar, setArbetar] = useState(false);
+  const kanLaggaTill = s.alternativ.length < MAX_ALTERNATIV;
+  const langdFel = omrostningstextFel(nytt, MAX_ALTERNATIVTEXT, t);
+  const stangFalt = () => {
+    setLaggerTill(false);
+    setNytt("");
+    setFel(null);
+  };
+  const spara = async () => {
+    const text = nytt.trim();
+    if (!text || langdFel || arbetar) return;
+    if (s.alternativ.some((a) => jamforbar(a.text) === jamforbar(text))) {
+      setFel(t.alternativFinnsRedan);
+      return;
+    }
+    setArbetar(true);
+    try {
+      await omr.laggTill(m.id, text);
+      stangFalt();
+    } catch {
+      setFel(t.alternativFel);
+    } finally {
+      setArbetar(false);
+    }
+  };
+  return (
+    <div data-omrostning={m.id} className="flex w-72 max-w-full flex-col gap-2 rounded-2xl bg-hover p-3 text-ink">
+      {/* Frågan är kortets rubrik: en h3, så att den som läser med skärmläsare hoppar mellan omröstningarna som mellan rubriker. */}
+      <h3 id={rubrikId} data-omrostning-fraga="" className="m-0 text-etikett font-semibold break-words">
+        {m.text}
+      </h3>
+      <div role="group" aria-labelledby={rubrikId} className="flex flex-col gap-1.5">
+        {s.alternativ.length === 0 ? <p data-omrostning-tom="" className="m-0 text-liten text-ink-muted">{t.omrostningUtanAlternativ}</p> : null}
+        {s.alternativ.map((a) => (
+          <button
+            key={a.id}
+            type="button"
+            data-omrostningsval={a.id}
+            aria-pressed={a.egen}
+            aria-label={`${a.text}, ${rostantal(a.antal, t)}${a.egen ? `, ${t.duHarRostat}` : ""}`}
+            onClick={() => omr.rosta(m.id, a.id)}
+            className={cx(
+              "relative flex min-h-11 w-full cursor-pointer items-center gap-2 overflow-hidden rounded-xl border bg-surface px-3 py-1.5 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+              a.egen ? "border-accent" : "border-transparent hover:bg-canvas",
+            )}
+          >
+            {/* Stapeln: andelen av dem som röstat, som Facebooks. En röst per person, så staplarna blir tillsammans hela. Bredden är ett mått, ingen färg (closed-api). */}
+            <span aria-hidden="true" data-stapel="" className="absolute inset-y-0 left-0 bg-accent-faint" style={{ width: `${s.antalRostande ? Math.round((a.antal / s.antalRostande) * 100) : 0}%` }} />
+            <span aria-hidden="true" className={cx("relative inline-flex size-4 shrink-0 items-center justify-center rounded-full border", a.egen ? "border-accent bg-accent text-accent-contrast" : "border-line-strong")}>
+              {a.egen ? <BockIkon size={12} /> : null}
+            </span>
+            <span aria-hidden="true" className="relative min-w-0 flex-1 text-etikett break-words">{a.text}</span>
+            {a.roster.length ? (
+              <span aria-hidden="true" data-ansikten="" className="relative flex shrink-0 items-center -space-x-1.5 [&>*]:rounded-full [&>*]:ring-2 [&>*]:ring-surface">
+                {a.roster.slice(0, OMROSTNING_ANSIKTEN).map((u) => (
+                  <OpsIdentity key={u} name={namnFor(u)} seed={u} imageUrl={bildFor(u)} size="xs" rund />
+                ))}
+                {a.roster.length > OMROSTNING_ANSIKTEN ? <span data-fler-ansikten="" className="inline-flex size-5 items-center justify-center bg-sunken text-mikro font-medium text-ink-secondary">+{a.roster.length - OMROSTNING_ANSIKTEN}</span> : null}
+              </span>
+            ) : null}
+            <span aria-hidden="true" data-antal="" className="relative shrink-0 text-meta tabular-nums text-ink-secondary">{a.antal}</span>
+          </button>
+        ))}
+        {kanLaggaTill && !laggerTill ? (
+          <button
+            type="button"
+            data-lagg-till-alternativ=""
+            onClick={() => setLaggerTill(true)}
+            className="flex min-h-11 w-full cursor-pointer items-center gap-2 rounded-xl px-3 text-left text-etikett text-accent hover:bg-accent-faint focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          >
+            <PlusIkon size={16} />
+            {t.laggTillAlternativ}
+          </button>
+        ) : null}
+        {laggerTill ? (
+          <form
+            data-nytt-alternativ=""
+            className="flex items-center gap-1.5"
+            onSubmit={(e) => {
+              e.preventDefault();
+              spara();
+            }}
+          >
+            <label htmlFor={faltId} className="sr-only">{t.nyttAlternativ}</label>
+            <input
+              id={faltId}
+              value={nytt}
+              autoFocus
+              aria-invalid={Boolean(fel || langdFel) || undefined}
+              aria-describedby={fel || langdFel ? felId : undefined}
+              placeholder={t.nyttAlternativ}
+              onChange={(e) => {
+                setNytt(e.target.value);
+                setFel(null);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  e.preventDefault();
+                  stangFalt();
+                }
+              }}
+              className="min-h-11 min-w-0 flex-1 rounded-xl border border-line bg-surface px-3 text-etikett text-ink outline-none focus-visible:border-accent"
+            />
+            <button type="submit" disabled={!nytt.trim() || Boolean(langdFel) || arbetar} aria-busy={arbetar || undefined} className="inline-flex min-h-11 shrink-0 cursor-pointer items-center rounded-xl bg-accent px-3 text-meta font-medium text-accent-contrast hover:bg-accent-hover disabled:cursor-default disabled:opacity-60">
+              {t.laggTillAlternativ}
+            </button>
+            <button type="button" onClick={stangFalt} aria-label={t.avbryt} className="inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-xl text-ink-secondary hover:bg-canvas">
+              <KryssIkon size={16} />
+            </button>
+          </form>
+        ) : null}
+        {laggerTill && (fel || langdFel) ? (
+          <p id={felId} role="alert" data-alternativfel="" className="m-0 text-liten text-danger">{fel ?? langdFel}</p>
+        ) : null}
+      </div>
+      <p data-omrostning-antal="" className="m-0 text-liten text-ink-muted">{t.omrostningRostat.replace("{n}", String(s.antalRostande))}</p>
+    </div>
+  );
+}
+
+/**
+ * Formuläret bakom pluset (cllp/lifehub.app#438 skiva 1): frågan, alternativen (två rader att börja med, upp till
+ * `MAX_ALTERNATIV_VID_START`), Lägg till alternativ, Avbryt och Skicka.
+ *
+ * ⛔ TOMMA RADER RÄKNAS INTE, och felet sägs innan något skickas: en fråga, minst två alternativ, inga två lika, inget över taket.
+ * Det som källan ändå nekar (en regel, ett nätfel) står som en rad i formuläret, och texten ligger kvar så att inget skrivet försvinner.
+ *
+ * @param {{ onSkicka: (d: { fraga: string, alternativ: string[] }) => Promise<void>, onAvbryt: () => void, texter: Required<Meddelandetexter> }} props
+ */
+function Omrostningsformular({ onSkicka, onAvbryt, texter: t }) {
+  const rubrikId = useId();
+  const fragaId = useId();
+  const felId = useId();
+  const [fraga, setFraga] = useState("");
+  const [alternativ, setAlternativ] = useState(["", ""]);
+  const [fel, setFel] = useState(/** @type {string | null} */ (null));
+  const [iVag, setIVag] = useState(false);
+  const formular = useRef(/** @type {HTMLFormElement | null} */ (null));
+  const skicka = async () => {
+    if (iVag) return;
+    const f = fraga.trim();
+    const alt = alternativ.map((a) => a.trim()).filter(Boolean);
+    const lika = new Set(alt.map(jamforbar)).size !== alt.length;
+    const ut = !f
+      ? t.omrostningBehoverFraga
+      : omrostningstextFel(f, MAX_FRAGA, t) ?? (alt.length < MIN_ALTERNATIV_VID_START ? t.omrostningBehoverTva : lika ? t.alternativFinns : alt.map((a) => omrostningstextFel(a, MAX_ALTERNATIVTEXT, t)).find(Boolean) ?? null);
+    if (ut) {
+      setFel(ut);
+      return;
+    }
+    setIVag(true);
+    setFel(null);
+    try {
+      await onSkicka({ fraga: f, alternativ: alt });
+    } catch {
+      setFel(t.omrostningSkickaFel);
+      setIVag(false);
+    }
+  };
+  const faltKlass = "min-h-11 w-full min-w-0 rounded-xl border border-line bg-canvas px-3 text-etikett text-ink outline-none focus-visible:border-accent";
+  return (
+    <form
+      ref={formular}
+      data-omrostningsformular=""
+      aria-labelledby={rubrikId}
+      aria-busy={iVag || undefined}
+      onSubmit={(e) => {
+        e.preventDefault();
+        skicka();
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Escape") {
+          e.preventDefault();
+          onAvbryt();
+        }
+      }}
+      className="mx-3 mb-2 flex shrink-0 flex-col gap-2 rounded-card bg-hover p-3"
+    >
+      <h3 id={rubrikId} className="m-0 flex items-center gap-2 text-etikett font-semibold text-ink">
+        <span aria-hidden="true" className="inline-flex text-ink-secondary"><OmrostningIkon size={16} /></span>
+        {t.nyOmrostning}
+      </h3>
+      <label htmlFor={fragaId} className="sr-only">{t.omrostningFraga}</label>
+      <input id={fragaId} value={fraga} autoFocus placeholder={t.omrostningFragaPlats} onChange={(e) => setFraga(e.target.value)} className={faltKlass} />
+      {/* ⛔ Raderna tas aldrig bort i formuläret, så platsen är ett stabilt id. */}
+      {alternativ.map((a, i) => (
+        <input
+          key={i}
+          data-alternativfalt={i}
+          value={a}
+          aria-label={t.omrostningAlternativ.replace("{n}", String(i + 1))}
+          placeholder={t.omrostningAlternativ.replace("{n}", String(i + 1))}
+          onChange={(e) => setAlternativ((l) => l.map((x, j) => (j === i ? e.target.value : x)))}
+          className={faltKlass}
+        />
+      ))}
+      {alternativ.length < MAX_ALTERNATIV_VID_START ? (
+        <button
+          type="button"
+          data-formular-lagg-till=""
+          onClick={() => {
+            setAlternativ((l) => [...l, ""]);
+            requestAnimationFrame(() => /** @type {HTMLInputElement | null} */ (formular.current?.querySelector(`[data-alternativfalt="${alternativ.length}"]`) ?? null)?.focus());
+          }}
+          className="flex min-h-11 cursor-pointer items-center gap-2 self-start rounded-xl px-3 text-etikett text-accent hover:bg-accent-faint focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+        >
+          <PlusIkon size={16} />
+          {t.laggTillAlternativ}
+        </button>
+      ) : null}
+      {fel ? (
+        <p id={felId} role="alert" data-omrostningsformular-fel="" className="m-0 text-liten text-danger">{fel}</p>
+      ) : null}
+      <div className="flex justify-end gap-2">
+        <button type="button" onClick={onAvbryt} className="inline-flex min-h-11 cursor-pointer items-center rounded-xl px-3 text-meta text-ink-secondary hover:bg-canvas">
+          {t.avbryt}
+        </button>
+        <button type="submit" disabled={iVag} aria-busy={iVag || undefined} className="inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-xl bg-accent px-4 text-meta font-medium text-accent-contrast hover:bg-accent-hover disabled:cursor-default disabled:opacity-70">
+          {iVag ? <OpsSpinner size="sm" tone="current" decorative /> : null}
+          {t.skicka}
+        </button>
+      </div>
+    </form>
   );
 }
 

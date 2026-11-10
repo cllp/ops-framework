@@ -532,6 +532,12 @@ export function PilHogerIkon({ size = 16 }) {
   return <ArrowRight size={size} aria-hidden="true" strokeWidth={1.5} />;
 }
 
+/** En omröstning i chatten (cllp/lifehub.app#438): samma bild som snabbmenyns omröstning, ur kartan. @param {{ size?: number }} props */
+export function OmrostningIkon({ size = 18 }) {
+  const Ikon = IKON_FOR.omrostning;
+  return <Ikon size={size} aria-hidden="true" strokeWidth={1.5} />;
+}
+
 /** Fäst ett meddelande i samtalet (chattens nattskiva). @param {{ size?: number }} props */
 export function FastIkon({ size = 16 }) {
   const Ikon = IKON_FOR.nal;

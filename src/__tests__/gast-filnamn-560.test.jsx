@@ -11,6 +11,9 @@ import { byggPost } from "../lib/bibliotek.js";
  * HTML utan `hamtaFil` och övriga filer: gästen kunde långtrycka, välja Kopiera länkadress och dela den signerade adressen, som öppnar filen för vem som helst i en kvart. Det är väg
  * som Kopiera länk stängdes för i menyn (0.210.0). Kvittot efter Kopiera länk var dessutom hårdkodad svenska.
  *
+ * Kvittot går genom `ordet`. De tre proven längst ned låser fallen som saknades: medlemmens kvittens (ingen giltighetstid), gästens länkpost
+ * (postens egen adress, inte en signering) och en länkpost när nedladdning är av (Kopiera länk står kvar, kvittot utan kvart).
+ *
  * ⛔ RÖTT UTAN RÄTTNINGEN (regel 4), utfallen står i commit-meddelandet.
  */
 
@@ -145,5 +148,125 @@ describe("ljud utan spelarskal (granskningen av PR 561)", () => {
   it("med nedladdning på har spelaren sin Ladda ned som förut", async () => {
     await oppnaLjud(false);
     await waitFor(() => expect(lankarMedAdress().length).toBeGreaterThan(0));
+  });
+});
+
+/**
+ * ⛔ KVITTOT ÄR OLIKA FÖR EN SIGNERAD FIL OCH FÖR EN VANLIG ADRESS (cllp/ops-framework#560). Gästens fil hämtas och gäller en kvart, så kvittot säger det.
+ * Medlemmens adress och en länkposts egen adress gör inte det. `utanNedladdning` tar bort Kopiera länk på en fil, inte på en länkpost: länkens adress är inte en signering.
+ */
+const LANK_URL = "https://exempel.se/karta";
+const LANK = somGast(byggPost(med({ typ: "lank", rubrik: "Kartan", url: LANK_URL })), "k1");
+const MEDLEMSFIL = { id: "mf", ...byggPost(med({ groupId: "g1", typ: "fil", rubrik: "Avtal", fil: { sokvag: "mf", namn: "avtal.pdf", mime: "application/pdf", byte: 2048 } })) };
+const MEDLEMS_ADRESS = "https://lagring.exempel/avtal.pdf";
+const KVITTO = { sv: "Länken är kopierad.", en: "The link is copied." };
+
+function Medlem({ sprak }) {
+  return (
+    <OpsSprakProvider sprak={sprak}>
+      <OpsBibliotek
+        poster={[MEDLEMSFIL]}
+        jag={{ uid: "u1", namn: "Anna", roll: "medlem", status: "aktiv" }}
+        vald={null}
+        onOppna={() => {}}
+        onStang={() => {}}
+        onSkapa={() => {}}
+        onSpara={async () => false}
+        filUrl={() => MEDLEMS_ADRESS}
+        utanHubb
+      />
+    </OpsSprakProvider>
+  );
+}
+
+function GastLank({ sprak, utanNedladdning, hamtaAdress }) {
+  const [vald, setVald] = useState(/** @type {any} */ (null));
+  return (
+    <OpsSprakProvider sprak={sprak}>
+      <OpsBibliotek
+        poster={[LANK]}
+        jag={null}
+        vald={vald}
+        onOppna={setVald}
+        onStang={() => setVald(null)}
+        onSkapa={() => {}}
+        onSpara={async () => false}
+        hamtaAdress={hamtaAdress}
+        adresserPaBegaran
+        utanHubb
+        utanNedladdning={utanNedladdning}
+      />
+    </OpsSprakProvider>
+  );
+}
+
+describe("kvittot för medlem, länkpost och nedladdning av", () => {
+  const ursprung = Object.getOwnPropertyDescriptor(navigator, "clipboard");
+  /** @type {import("vitest").Mock} */
+  let writeText;
+  afterEach(() => {
+    if (ursprung) Object.defineProperty(navigator, "clipboard", ursprung);
+    else delete (/** @type {any} */ (navigator)).clipboard;
+  });
+
+  function urklipp() {
+    writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+  }
+
+  /**
+   * @param {string} rubrik
+   * @param {"sv" | "en"} sprak
+   */
+  async function kopiera(rubrik, sprak) {
+    const user = userEvent.setup();
+    urklipp();
+    const knapp = sprak === "en" ? `Actions for ${rubrik}` : `Åtgärder för ${rubrik}`;
+    await user.click(screen.getByRole("button", { name: knapp }));
+    await user.click(screen.getByRole("menuitem", { name: "Kopiera länk" }));
+    expect(await screen.findByText(KVITTO[sprak])).toBeTruthy();
+    expect(screen.queryByText(/15 minuter|15 minutes/)).toBeNull();
+    return user;
+  }
+
+  it("⛔ medlemmens kvittens är den korta, på svenska och engelska, och adressen är filens", async () => {
+    const { unmount } = render(<Medlem sprak="sv" />);
+    await kopiera("Avtal", "sv");
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith(MEDLEMS_ADRESS));
+    unmount();
+
+    render(<Medlem sprak="en" />);
+    await kopiera("Avtal", "en");
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith(MEDLEMS_ADRESS));
+  });
+
+  it("⛔ gästens länkpost kopierar postens adress och kvittot säger inte en kvart", async () => {
+    const hamtaAdress = vi.fn(async () => adressFor("k1"));
+    const { unmount } = render(<GastLank sprak="sv" utanNedladdning={false} hamtaAdress={hamtaAdress} />);
+    await kopiera("Kartan", "sv");
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith(LANK_URL));
+    expect(hamtaAdress, "en länkpost har sin adress och hämtas inte").not.toHaveBeenCalled();
+    unmount();
+
+    const hamtaEn = vi.fn(async () => adressFor("k1"));
+    render(<GastLank sprak="en" utanNedladdning={false} hamtaAdress={hamtaEn} />);
+    await kopiera("Kartan", "en");
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith(LANK_URL));
+    expect(hamtaEn).not.toHaveBeenCalled();
+  });
+
+  it("⛔ en länkpost med utanNedladdning har kvar Kopiera länk, kvittot utan kvart, och ingen signerad adress i detaljen", async () => {
+    const hamtaAdress = vi.fn(async () => adressFor("k1"));
+    render(<GastLank sprak="sv" utanNedladdning hamtaAdress={hamtaAdress} />);
+    const user = await kopiera("Kartan", "sv");
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith(LANK_URL));
+    expect(hamtaAdress).not.toHaveBeenCalled();
+
+    await user.keyboard("{Escape}");
+    await user.click(screen.getByRole("button", { name: "Kartan" }));
+    await waitFor(() => expect(document.querySelector("[data-bibliotek-lank]")?.getAttribute("href")).toBe(LANK_URL));
+    expect(lankarMedAdress().map((a) => a.getAttribute("href"))).toEqual([]);
+    await user.click(screen.getByRole("button", { name: "Åtgärder för Kartan" }));
+    expect(screen.getByRole("menuitem", { name: "Kopiera länk" })).toBeTruthy();
   });
 });

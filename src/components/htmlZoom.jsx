@@ -9,8 +9,8 @@ import { ordet } from "../lib/ord.js";
  *
  * CP 2026-11-06: "Zoomen måste finnas med i förhandstitt." Därför bor den med den enda rutan: detaljen, versionsraden och helfönstret får samma sak.
  *
- * ⛔ ANPASSA TILL BREDD ÄR FÖRVALET. Skalan räknas ur rutans eget mått (`anpassadSkala`) varje gång rutan eller dokumentet ändrar bredd, tills någon trycker − eller +, eller zoomar med hjulet. Ett tryck på procenten
- * går tillbaka till Anpassa till bredd.
+ * ⛔ ANPASSA TILL BREDD ÄR FÖRVALET. Skalan räknas ur rutans eget mått (`anpassadSkala`) varje gång rutan eller dokumentet ändrar bredd, tills någon trycker − eller +, zoomar med hjulet eller nyper med två fingrar. Ett tryck på procenten
+ * går tillbaka till Anpassa till bredd. Nypningen kommer som samma stegmeddelande som hjulet (`ta`), och små steg samlas i `zoomHjul`.
  *
  * @typedef {{ skala: number, anpassa: boolean, fokus: boolean, mattNr: number, ta: (m: NonNullable<ReturnType<typeof import("../lib/htmlruta.js").tolkaRutmeddelande>>) => void, steg: (riktning: 1 | -1) => void, anpassaTillBredd: () => void }} HtmlZoom
  * @returns {HtmlZoom}

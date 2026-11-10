@@ -24,6 +24,12 @@ export const ORD_OPSGASTLISTA = {
     en: "A guest gets an email with a link and can vote, nothing more. No account, no sign-in.",
   },
   inga: { sv: "Inga gäster har bjudits in till den här omröstningen.", en: "No guests have been invited to this vote." },
+  // (lifehub.app#714) Listan för en sak kan vara tom medan gruppen redan använder platser. Samma nyckel för omröstning och händelse,
+  // så texten säger "här" och inte "händelsen". Siffran ovan är gruppens gäster, inte sakens lista.
+  ingaMedPlatser: {
+    sv: "Ingen gäst är inbjuden just här. Siffran ovan gäller gruppens gäster.",
+    en: "No guest is invited here in particular. The number above counts the group's guests.",
+  },
   epostEtikett: { sv: "E-postadress", en: "Email address" },
   namnEtikett: { sv: "Namn (valfritt)", en: "Name (optional)" },
   bjud: { sv: "Bjud in utan konto", en: "Invite without an account" },
@@ -409,7 +415,8 @@ export function GastBekraftelse({ bekrafta, t, onBekrafta, onAvbryt, fel = "" })
  *
  * ⛔ ETT FEL SOM KOMMER MED EN KOD (`fel.kod`, `GASTFELKODER`) FÅR EN EGEN TEXT, OCH ETT SOM INTE GÖR DET FÅR SITT EGET MEDDELANDE. Ett fel som tystas är en inbjudan som ser skickad ut.
  *
- * ⛔ TOMT ÄR ETT SVAR. En lista utan gäster säger det (`inga`), så att "inga" inte går att förväxla med "inte hämtad".
+ * ⛔ TOMT ÄR ETT SVAR. En lista utan gäster säger det (`inga`, eller `ingaGrupp` i gruppläget), så att "inga" inte går att förväxla med "inte hämtad".
+ * Använder gruppen redan platser och sakens lista är tom står `ingaMedPlatser` i stället: ingen är inbjuden just här, och siffran gäller gruppens gäster (lifehub.app#714).
  *
  * ⛔ KNAPPARNA VISAR VÄNTAN SJÄLVA (`OpsButton` sedan 0.129.0): ger `onBjud`, `onSkickaOm` och `onAterkalla` ett löfte är knappen upptagen tills det är klart.
  *
@@ -779,7 +786,8 @@ export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud
       )}
 
       {rader.length === 0 ? (
-        utanRubrik ? null : <p data-gastlista-tom="" className="m-0 text-etikett text-ink-muted">{gruppLage ? t.ingaGrupp : t.inga}</p>
+        // ⛔ GRUPPLÄGET SÄGER FORTFARANDE "till gruppen". Bara sakens lista (omröstning eller händelse) byter mening när platserna redan används (lifehub.app#714).
+        utanRubrik ? null : <p data-gastlista-tom="" className="m-0 text-etikett text-ink-muted">{gruppLage ? t.ingaGrupp : platser.anvanda > 0 ? t.ingaMedPlatser : t.inga}</p>
       ) : gruppLage ? (
         <ul data-gastlista-lista="" className="m-0 flex list-none flex-col gap-2 p-0">
           {/** @type {ReadonlyArray<Person>} */ (rader).map((p) => {
