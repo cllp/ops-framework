@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { GASTGRUPPFUNKTIONER, GASTSKRIV_MAX_TECKEN } from "../lib/gast.js";
+import { GASTGRUPPFUNKTIONER, GASTPROJEKTFUNKTIONER, GASTSKRIV_MAX_TECKEN } from "../lib/gast.js";
 import { SIGNERAD_SEKUNDER } from "../lib/delning.js";
 import { bildAdressUrBilder } from "../lib/markdown.js";
 import { gastBehorighetsrader } from "../lib/gastBehorighet.js";
@@ -19,7 +19,7 @@ import { OpsBottomNav } from "./OpsBottomNav.jsx";
 import { OpsCountBadge } from "./counter.jsx";
 import { OpsDisclosure } from "./OpsDisclosure.jsx";
 import { OpsEmpty } from "./OpsEmpty.jsx";
-import { OpsGastArenden } from "./OpsGastArenden.jsx";
+import { ORD_OPSGASTARENDEN, OpsGastArenden } from "./OpsGastArenden.jsx";
 import { OpsGastChatt } from "./OpsGastChatt.jsx";
 import { OpsGastFelrad } from "./OpsGastFelrad.jsx";
 import { OpsHandelsePanel } from "./OpsHandelsePanel.jsx";
@@ -196,8 +196,27 @@ export const ORD_OPSGASTGRUPP = {
   arendenIngetTillDig: { sv: "Inget till dig", en: "Nothing for you" },
   rutaFel: { sv: "Kunde inte hämtas", en: "Could not be loaded" },
   duRubrik: { sv: "Du", en: "You" },
+  // ── (0.215.0, cllp/lifehub.app#760 skiva 1) En gäst i ett projekt: samma vy, med projektets kort på översikten och orden om projektet i stället för gruppen. ──
+  projekt_duArGast: { sv: "Du är gäst i projektet.", en: "You are a guest in the project." },
+  projekt_ingetPaGang: { sv: "Inget på gång i projektet.", en: "Nothing coming up in the project." },
+  projekt_bibliotekTom: { sv: "Projektets bibliotek är tomt.", en: "The project's library is empty." },
+  projekt_oversiktRutor: { sv: "Det som hänt i projektet", en: "What has happened in the project" },
+  projekt_flikarEtikett: { sv: "Projektets delar", en: "Parts of the project" },
+  projekt_arendenAntal: { sv: "{n} i projektet", en: "{n} in the project" },
+  projekt_arendenInga: { sv: "Inga ärenden", en: "No cases" },
+  projekt_kort: { sv: "Projektet", en: "The project" },
+  projekt_lage: { sv: "Läge", en: "Status" },
   vadKanJagGora: { sv: "Vad kan jag göra här?", en: "What can I do here?" },
 };
+
+/**
+ * (0.215.0) Ärendeflikens ord för en projektgäst: `projekt_`-orden i `ORD_OPSGASTARENDEN` i stället för gästens egna ärenden.
+ * @param {string} sprak
+ */
+function projektArendeord(sprak) {
+  const o = forvalda(ORD_OPSGASTARENDEN, sprak);
+  return Object.fromEntries(Object.entries(o).filter(([k]) => k.startsWith("projekt_")).map(([k, v]) => [k.slice("projekt_".length), v]));
+}
 
 /** Ett fel från ett anrop, med orsaken som nyckel till en text. */
 class GastFel extends Error {
@@ -255,7 +274,9 @@ const tidText = (h, till) => (h.tid ? (h.slutTid ? `${h.tid} ${till} ${h.slutTid
  * ⛔ NEKAS ETT ANROP (`aterkallad`, `nej`) ANROPAS `onNekad`, och sidan byter allt mot texten "Inbjudan är återkallad". Vyn visar aldrig kvar det som lästs när åtkomsten är borta.
  *
  * @param {object} props
- * @param {{ namn: string, funktioner: readonly string[], beskrivning?: string, nedladdning?: boolean, kommentera?: boolean }} props.grupp Tjänstens `hamta().grupp`. `beskrivning` är gruppens befintliga beskrivning, tom när den saknas. (0.190.0) `nedladdning: false`: nedladdningen är avstängd
+ * @param {{ namn: string, funktioner: readonly string[], beskrivning?: string, nedladdning?: boolean, kommentera?: boolean, projekt?: { tagg?: string, status?: { sv?: string, en?: string }, texter?: ReadonlyArray<{ rubrik?: { sv?: string, en?: string }, text: string }> } }} props.grupp
+ *   (0.215.0, cllp/lifehub.app#760) `projekt`: gästen är gäst i ett projekt. `namn` är då projektets namn, Översikt visar projektets kort (läget och texterna) i stället för gruppens beskrivning, orden säger projektet, och
+ *   det finns ingen Chatt-flik och ingen svarsrad på en händelse (skiva 1). Tjänstens `hamta().grupp`. `beskrivning` är gruppens befintliga beskrivning, tom när den saknas. (0.190.0) `nedladdning: false`: nedladdningen är avstängd
  *   för gästen (sedan 0.204.0 bara inbjudans `laddaNed`), och varken biblioteket eller spelarens ark ritar Ladda ned. Utelämnad: som förut.
  * @param {ReturnType<typeof import("../lib/gast.js").gastGruppApi>} props.api Anropen mot servern, bundna till sessionen (`gastGruppApi(anrop, sessionsnyckel)`).
  * @param {(orsak: string) => void} [props.onNekad] Ett anrop nekades. Normalt `uppdatera` ur `renderGrupp`, som hämtar om sidan.
@@ -269,12 +290,17 @@ const tidText = (h, till) => (h.tid ? (h.slutTid ? `${h.tid} ${till} ${h.slutTid
 export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallMs = 30_000, idag, sprak = "sv", ord }) {
   if (!grupp || typeof grupp.namn !== "string" || !Array.isArray(grupp.funktioner)) throw new Error("OpsGastGrupp: grupp är { namn, funktioner } ur tjänstens hamta().grupp.");
   if (!api || typeof api.chatt !== "function") throw new Error("OpsGastGrupp: api krävs, anropen mot servern (gastGruppApi).");
-  const t = { ...forvalda(ORD_OPSGASTGRUPP, sprak), ...definierade(/** @type {Record<string, string>} */ (ord ?? {})) };
+  // ⛔ (0.215.0) EN PROJEKTGÄST ÄR SAMMA VY MED ANDRA ORD: `projekt_`-orden ersätter gruppens där de finns, före appens egna (`ord`), så att en app som skrivit om ett ord fortfarande vinner.
+  const projekt = grupp.projekt && typeof grupp.projekt === "object" ? grupp.projekt : null;
+  const grundord = forvalda(ORD_OPSGASTGRUPP, sprak);
+  const projektord = projekt ? Object.fromEntries(Object.entries(grundord).filter(([k]) => k.startsWith("projekt_")).map(([k, v]) => [k.slice("projekt_".length), v])) : {};
+  const t = { ...grundord, ...projektord, ...definierade(/** @type {Record<string, string>} */ (ord ?? {})) };
   // ⛔ ORDEN LÄSES GENOM EN REF I DE MINNESLAGDA ANROPEN (0.192.0, cllp/lifehub.app#675). `ladda`, `hamtaAdress` och `kommentarer` byggs om bara när `kor`
   // ändras, och läste därför den första renderingens `t`. Appen sätter språket efter starten (GastSida, `valdSprak`), och felen kom då på engelska.
   const tRef = useRef(t);
   tRef.current = t;
-  const funktioner = GASTGRUPPFUNKTIONER.filter((f) => grupp.funktioner.includes(f));
+  // ⛔ (0.215.0) EN PROJEKTGÄST HAR ALDRIG CHATT, också om ett svar skulle bära den: flikarna är snittet med `GASTPROJEKTFUNKTIONER`. Servern nekar ändå (`gastOmfangGer`), och en flik som alltid nekas är en död flik.
+  const funktioner = GASTGRUPPFUNKTIONER.filter((f) => grupp.funktioner.includes(f) && (!projekt || /** @type {readonly string[]} */ (GASTPROJEKTFUNKTIONER).includes(f)));
   if (funktioner.length === 0) throw new Error("OpsGastGrupp: gruppen har inga funktioner att visa (grupp.funktioner).");
 
   // Översikt är landningen. En sparad flik (samma inbjudan, bara flikens namn) vinner, så en gäst som redan valt chatt inte kastas tillbaka.
@@ -667,7 +693,8 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
     ...(h.heldag ? { heldag: true } : {}),
     ...(h.plats ? { plats: h.plats } : {}),
     ...(h.beskrivning ? { beskrivning: h.beskrivning } : {}),
-    kravSvar: h.kravSvar === true,
+    // ⛔ (0.215.0) EN PROJEKTGÄST TILLFRÅGAS INTE (skiva 1): servern skickar inga summor, och panelen ritar en händelse som ber om svar bara med svarsraden. Händelsen visas därför som en som inte frågar.
+    kravSvar: h.kravSvar === true && !projekt,
   });
 
   const kalenderInnehall = () => {
@@ -697,7 +724,8 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
             tillbakaEtikett={t.tillbaka}
             onTillbaka={tillKalendern}
             svar={
-              h.kravSvar === true ? (
+              // (0.215.0) En projektgäst svarar inte i skiva 1: servern skickar inga summor, och vyn ritar ingen svarsrad (inte heller felet "kunde inte hämtas").
+              h.kravSvar === true && !projekt ? (
                 detalj.svar ? (
                   <OpsSvarSummor summa={detalj.svar} onSvara={svara} rubrik={t.rubrikSvar} />
                 ) : (
@@ -866,7 +894,7 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
     if (!oversiktSvar || aktivFlik === omrade || (/** @type {Record<string, number | undefined>} */ (besok)[omrade] ?? 0) > oversiktSvar.hamtad) return 0;
     if (omrade === "chatt") return typeof ov?.chatt?.nya === "number" ? ov.chatt.nya : 0;
     if (omrade === "bibliotek") return typeof ov?.bibliotek?.nya === "number" ? ov.bibliotek.nya : 0;
-    if (omrade === "kalender") return nasta && nasta.kravSvar === true && !nasta.mitt ? 1 : 0;
+    if (omrade === "kalender") return nasta && nasta.kravSvar === true && !nasta.mitt && !projekt ? 1 : 0;
     return 0;
   };
   /** "i dag", "i går" eller ett kort datum: när gästen senast var i området. @param {number} tid */
@@ -898,6 +926,7 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
       if (fel.arenden) return [{ text: t.rutaFel }];
       if (!arendeData) return [{ text: t.laddar }];
       const n = arendeData.poster.length;
+      if (projekt) return [{ text: n > 0 ? t.arendenAntal.replace("{n}", String(n)) : t.arendenInga }];
       return [{ text: n > 0 ? t.arendenTillDig.replace("{n}", String(n)) : t.arendenIngetTillDig }];
     }
     if (oversiktFel && !ov) return [{ text: t.rutaFel }];
@@ -920,7 +949,7 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
       if (nasta.mitt === "kommer") rader.push({ text: t.kalenderKommer });
       else if (nasta.mitt === "kanske") rader.push({ text: t.kalenderKanske });
       else if (nasta.mitt === "kommerInte") rader.push({ text: t.kalenderKommerInte });
-      else if (nasta.kravSvar === true) rader.push({ text: t.kalenderSvara, accent: true });
+      else if (nasta.kravSvar === true && !projekt) rader.push({ text: t.kalenderSvara, accent: true });
       return rader;
     }
     // Biblioteket. "filer" bara när alla nya är filer, annars poster: en länk eller en anteckning är ingen fil.
@@ -957,6 +986,25 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
 
   const beskrivning = typeof grupp.beskrivning === "string" ? grupp.beskrivning.trim() : "";
   const behorighet = gastBehorighetsrader(grupp, sprak);
+  const sv = sprak === "en" ? "en" : "sv";
+  const projektTexter = projekt && Array.isArray(projekt.texter) ? projekt.texter.filter((x) => x && typeof x.text === "string" && x.text.trim() !== "") : [];
+  const projektStatus = projekt?.status && typeof projekt.status === "object" ? String(projekt.status[sv] || projekt.status.sv || "") : "";
+  // ⛔ (0.215.0) PROJEKTETS KORT I STÄLLET FÖR GRUPPENS BESKRIVNING: läget och kortets texter, som appen gett dem (`hamta().grupp.projekt`). Gruppen nämns inte: projektgästen ser inte gruppen.
+  const projektkort = projekt ? (
+    <section data-gast-projektkort="" aria-label={t.kort} className="flex min-w-0 flex-col gap-3 rounded-xl bg-hover p-4">
+      {projektStatus ? (
+        <p data-gast-projekt-lage="" className="m-0 text-etikett text-ink-secondary">
+          {t.lage}: <span className="font-medium text-ink">{projektStatus}</span>
+        </p>
+      ) : null}
+      {projektTexter.map((x, i) => (
+        <div key={i} data-gast-projekt-text="" className="flex min-w-0 flex-col gap-1">
+          <h2 className="m-0 text-sektion uppercase text-ink-secondary">{String(x.rubrik?.[sv] || x.rubrik?.sv || "")}</h2>
+          <p className="m-0 max-w-prose whitespace-pre-line text-etikett text-ink wrap-anywhere">{x.text}</p>
+        </div>
+      ))}
+    </section>
+  ) : null;
   // ⛔ GRUPPENS NAMN ÄR SIDANS RUBRIK, EN GÅNG (0.195.0, CP 2026-11-06: "i Mobil står den två gånger. Ta bort den bredvid loggan."). Förut stod namnet både i gästsidans huvud, bredvid loggan,
   // och som rubrik i Översikt. Nu bara här: på datorn över flikarna, så att det står kvar i varje flik utan att huvudet blir högre, och på telefonen i Översikt, där bottenraden
   // redan säger var man är.
@@ -971,6 +1019,7 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
           <span data-gast-roll="">{t.duArGast}</span>
         </p>
       </div>
+      {projektkort}
       <ul data-gast-rutor="" aria-label={t.oversiktRutor} className="m-0 grid list-none grid-cols-2 gap-3 p-0">
         {funktioner.map((f) => {
           const onClick = oppnaRuta(f);
@@ -1055,7 +1104,7 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
     ) : f === "bibliotek" ? (
       bibliotekInnehall()
     ) : (
-      <OpsGastArenden poster={arendeData?.poster ?? []} avkortad={Boolean(arendeData?.avkortad)} onKommentera={kommenteraArende} onKlar={markeraArendeKlart} laddar={!arendeData && !fel.arenden} fel={fel.arenden} onForsokIgen={() => void ladda("arenden")} sprak={sprak} />
+      <OpsGastArenden {...(projekt ? { ord: projektArendeord(sprak) } : {})} poster={arendeData?.poster ?? []} avkortad={Boolean(arendeData?.avkortad)} onKommentera={kommenteraArende} onKlar={markeraArendeKlart} laddar={!arendeData && !fel.arenden} fel={fel.arenden} onForsokIgen={() => void ladda("arenden")} sprak={sprak} />
     );
 
   // ⛔ SPRÅKET GÄLLER HELA GÄSTENS TRÄD (0.190.0, QA fynd 4 i cllp/lifehub.app#658): komponenterna som läser språket ur sammanhanget

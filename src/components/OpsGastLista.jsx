@@ -110,6 +110,23 @@ export const ORD_OPSGASTLISTA = {
     en: "What the guest has already read or downloaded cannot be taken back. If the invitation is withdrawn, access is closed at the guest's next request, and a file that has already been opened can be reached for at most {minuter} more minutes.",
   },
   bekraftaGruppKnapp: { sv: "Bjud in", en: "Invite" },
+  // ── (0.215.0, cllp/lifehub.app#760 skiva 1) Listan på ett projekts sida (`projekt`): samma lista och samma dialog, med orden om projektet. Orden byter gruppens med samma namn utan `projekt_`. ──
+  projekt_ingressGrupp: {
+    sv: "En gäst får ett mejl med en länk och ser bara det här projektet, utan konto: projektets kort, ärenden, filer och kalender. Inte gruppens chatt och inget annat i gruppen. Ladda ned filer får gästen bara om det slås på. Gästen tar en av gruppens gästplatser.",
+    en: "A guest gets an email with a link and sees only this project, without an account: the project's card, cases, files and calendar. Not the group's chat and nothing else in the group. The guest may download files only if that is switched on. The guest takes one of the group's guest places.",
+  },
+  projekt_ingressGruppTelefon: {
+    sv: "En gäst får en länk som du delar, till exempel som sms, och ser bara det här projektet, utan konto: projektets kort, ärenden, filer och kalender. Inte gruppens chatt och inget annat i gruppen. Gästen tar en av gruppens gästplatser.",
+    en: "A guest gets a link that you share, for example as a text message, and sees only this project, without an account: the project's card, cases, files and calendar. Not the group's chat and nothing else in the group. The guest takes one of the group's guest places.",
+  },
+  projekt_ingaGrupp: { sv: "Inga gäster har bjudits in till projektet.", en: "No guests have been invited to the project." },
+  projekt_bjudGrupp: { sv: "Bjud in gäst till projektet", en: "Invite a guest to the project" },
+  projekt_bekraftaGruppTitel: { sv: "Bjud in {vem} till projektet?", en: "Invite {vem} to the project?" },
+  projekt_bekraftaGruppSer: {
+    sv: "Gästen ser projektets kort, alla ärenden med projektets tagg och kan kommentera dem, filerna på projektets plats i biblioteket och projektets kalender. Gästen ser inte gruppens chatt och inget annat i gruppen.",
+    en: "The guest sees the project's card, every case with the project's tag and can comment on them, the files on the project's place in the library and the project's calendar. The guest does not see the group's chat or anything else in the group.",
+  },
+  omfang_projekt: { sv: "Projekt: {tagg}", en: "Project: {tagg}" },
   bekraftaGruppPagar: { sv: "Skickar inbjudan…", en: "Sending the invitation…" },
   bekraftaRaderaTitel: { sv: "Radera uppgifterna om {vem}?", en: "Delete the data about {vem}?" },
   bekraftaRaderaText: {
@@ -387,7 +404,7 @@ export function GastBekraftelse({ bekrafta, t, onBekrafta, onAvbryt, fel = "" })
 /**
  * @typedef {object} PersonInbjudan
  * @property {string} id
- * @property {{ slag: string, funktion?: string }} omfang
+ * @property {{ slag: string, funktion?: string, tagg?: string }} omfang
  * @property {string | null} [titel] Händelsens rubrik, för en inbjudan till en omröstning eller att svara på en händelse.
  * @property {"kommer" | "kommerInte" | "kanske" | null} [deltasvar] (0.146.0) Se `Gast`.
  * @property {"aterkallad" | "utgangen" | "har-rostat" | "inloggad" | "vantar"} [status]
@@ -436,6 +453,8 @@ export function GastBekraftelse({ bekrafta, t, onBekrafta, onAvbryt, fel = "" })
  *   ⛔ Ett val appen slår på, inget förval: en app vars `onBjudGrupp` bara skickar en adress hade fått en Telefon-knapp som alltid nekas.
  * @param {(arg: { id: string }) => void | Promise<unknown>} [props.onSkickaOm]
  * @param {(arg: { id: string }) => Promise<{ url: string, lankGiltigTill: number }>} [props.onKopieraLank] (0.189.0, CP 2026-11-05: "Jag skulle också vilja kunna se länken till inbjudningen, eller kopiera den.") Ger SAMMA länk som i mejlet, utan att skicka något mejl (tjänstens `kopieraLank`). Ger `{ url, lankGiltigTill }`, som visas i ett fält med en Kopiera-knapp och en Dela-knapp där webbläsaren kan dela. Utelämnad: ingen knapp.
+ * @param {{ tagg: string }} [props.projekt] (0.215.0, cllp/lifehub.app#760) Listan står på ett projekts sida: orden säger projektet (`projekt_`-orden). Vyn väljer inga rader: appen ger `personer` med bara projektets
+ *   inbjudningar och `onBjudGrupp` som bjuder in till projektet. Bara i gruppläget.
  * @param {string} [props.gruppnamn] (0.189.0) Gruppens namn, för rubriken i delningsmenyn ("Inbjudan till {grupp}"). Utelämnad: "Inbjudan".
  * @param {(arg: { id: string }) => void | Promise<unknown>} [props.onAterkalla]
  * @param {(arg: { gastId: string }) => void | Promise<unknown>} [props.onAterkallaAlla] (0.132.0) Drar tillbaka alla personens inbjudningar i gruppen. Bara i gruppläget.
@@ -450,7 +469,7 @@ export function GastBekraftelse({ bekrafta, t, onBekrafta, onAvbryt, fel = "" })
  * @param {string} [props.sprak]
  * @param {Partial<Record<keyof typeof ORD_OPSGASTLISTA, string>>} [props.ord] Egna texter, som vinner över ordboken.
  */
-export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud, onBjudGrupp, onNedladdning, onSkickaOm, onKopieraLank, onAterkalla, onAterkallaAlla, onRadera, onGorTillMedlem, gruppnamn, medTelefon = false, utanRubrik = false, nu, sprak = "sv", ord }) {
+export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud, onBjudGrupp, onNedladdning, onSkickaOm, onKopieraLank, onAterkalla, onAterkallaAlla, onRadera, onGorTillMedlem, gruppnamn, projekt, medTelefon = false, utanRubrik = false, nu, sprak = "sv", ord }) {
   if (personer !== undefined && gaster !== undefined) {
     throw new Error("OpsGastLista: ange antingen gaster (en omröstning) eller personer (hela gruppen), inte båda. Två listor över samma gäster hade kunnat säga olika saker.");
   }
@@ -482,7 +501,14 @@ export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud
   for (const [namn, f] of /** @type {const} */ ([["onBjud", onBjud], ["onBjudGrupp", onBjudGrupp], ["onNedladdning", onNedladdning], ["onSkickaOm", onSkickaOm], ["onKopieraLank", onKopieraLank], ["onAterkalla", onAterkalla], ["onAterkallaAlla", onAterkallaAlla], ["onRadera", onRadera], ["onGorTillMedlem", onGorTillMedlem]])) {
     if (f !== undefined && typeof f !== "function") throw new Error(`OpsGastLista: ${namn} måste vara en funktion (eller utelämnas).`);
   }
-  const t = { ...forvalda(ORD_OPSGASTLISTA, sprak), ...definierade(/** @type {Record<string, string>} */ (ord ?? {})) };
+  if (projekt !== undefined) {
+    if (!gruppLage) throw new Error("OpsGastLista: projekt hör till gruppläget (personer). En omröstning har inget projekt.");
+    if (!projekt || typeof projekt.tagg !== "string" || projekt.tagg === "") throw new Error("OpsGastLista: projekt är { tagg }, projektets tagg.");
+  }
+  // ⛔ (0.215.0) PÅ ETT PROJEKTS SIDA ÄR ORDEN PROJEKTETS: `projekt_`-orden ersätter gruppens med samma namn, före appens egna.
+  const grundord = forvalda(ORD_OPSGASTLISTA, sprak);
+  const projektord = projekt ? Object.fromEntries(Object.entries(grundord).filter(([k]) => k.startsWith("projekt_")).map(([k, v]) => [k.slice("projekt_".length), v])) : {};
+  const t = { ...grundord, ...projektord, ...definierade(/** @type {Record<string, string>} */ (ord ?? {})) };
   const rubrikId = useId();
   const [epost, setEpost] = useState("");
   const [namn, setNamn] = useState("");
@@ -752,9 +778,10 @@ export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud
     }
   }
 
-  /** @param {{ slag: string, funktion?: string }} omfang @param {string | null | undefined} titel */
+  /** @param {{ slag: string, funktion?: string, tagg?: string }} omfang @param {string | null | undefined} titel */
   function omfangText(omfang, titel) {
     if (omfang.slag === "grupp") return t.omfang_grupp;
+    if (omfang.slag === "projekt") return t.omfang_projekt.replace("{tagg}", String(omfang.tagg ?? ""));
     if (omfang.funktion === "delta") return titel ? t.omfang_delta_titel.replace("{titel}", titel) : t.omfang_delta;
     return titel ? t.omfang_sak_titel.replace("{titel}", titel) : t.omfang_sak;
   }
@@ -848,7 +875,8 @@ export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud
                               </div>
                               <div className="flex flex-wrap items-center gap-2">
                                 {aterkallad ? (
-                                  i.omfang.slag === "grupp" && onBjudGrupp ? (
+                                  // (0.215.0) Bjud in igen gäller samma omfång som formuläret: hela gruppen på gruppens lista, projektet på projektets. En projektrad på gruppens lista bjuds in igen från projektet.
+                                  (projekt ? i.omfang.slag === "projekt" && i.omfang.tagg === projekt.tagg : i.omfang.slag === "grupp") && onBjudGrupp ? (
                                     <OpsButton size="sm" variant="secondary" ariaLabel={t.bjudIgenNamn.replace("{vem}", vem)} onClick={() => (personTelefon ? begarGruppTelefon(kontakt, p.namn ?? "") : begarGrupp(kontakt, p.namn ?? ""))}>
                                       {t.bjudIgen}
                                     </OpsButton>
@@ -878,7 +906,7 @@ export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud
                                   </>
                                 )}
                               </div>
-                              {onNedladdning && i.omfang.slag === "grupp" ? (
+                              {onNedladdning && (i.omfang.slag === "grupp" || i.omfang.slag === "projekt") ? (
                                 // (0.203.0) Gästens egen nedladdning. (0.204.0) Allt som inte är `true` är av, samma som servern (`nedladdningTillaten`): raden "Följer gruppens inställning" är borta,
                                 // eftersom gruppen inte längre är en del av regeln.
                                 <div data-gast-laddaned={i.laddaNed === true ? "pa" : "av"}>
