@@ -31,9 +31,9 @@ import { levandeKalla } from "./levandeKalla.js";
 
 describe("modellen", () => {
   it("⛔ en omröstning är ett meddelande vars text är frågan, och alternativen prövas: två till tio, inga lika", () => {
-    const o = byggOmrostningsmeddelande({ fraga: "  Vilken dag?  ", alternativ: [" Fredag ", "Lördag 👨‍👩‍👧"], av: "anna", tid: 5 });
+    const o = byggOmrostningsmeddelande({ fraga: "  Vilken dag?  ", alternativ: [" Fredag ", "Lördag \u{1F468}\u200d\u{1F469}\u200d\u{1F467}"], av: "anna", tid: 5 });
     expect(o.meddelande).toEqual({ text: "Vilken dag?", av: "anna", tid: 5, omrostning: true });
-    expect(o.alternativ).toEqual(["Fredag", "Lördag 👨‍👩‍👧"]);
+    expect(o.alternativ).toEqual(["Fredag", "Lördag \u{1F468}\u200d\u{1F469}\u200d\u{1F467}"]);
     expect(() => byggOmrostningsmeddelande({ fraga: "Dag?", alternativ: ["Fredag"], av: "anna" })).toThrow(/minst 2/);
     expect(() => byggOmrostningsmeddelande({ fraga: "Dag?", alternativ: Array.from({ length: 11 }, (_, i) => `D${i}`), av: "anna" })).toThrow(/Högst 10/);
     expect(() => byggOmrostningsmeddelande({ fraga: "Dag?", alternativ: ["Fredag", " fredag"], av: "anna" })).toThrow(/två gånger/);
@@ -43,7 +43,7 @@ describe("modellen", () => {
     expect(() => byggOmrostningsmeddelande({ fraga: "Dag?", alternativ: ["a", "x".repeat(MAX_ALTERNATIVTEXT + 1)], av: "anna" })).toThrow(/taket är 120/);
   });
   it("⛔ dolda tecken nekas i frågan och alternativen: radbrytning, tabb, nollbredd och riktningsmarkering", () => {
-    for (const dolt of ["Två\nrader", "Tabb\there", "Noll​bredd", "Vänd‮texten", "Mjukt­bindestreck"]) {
+    for (const dolt of ["Två\nrader", "Tabb\there", "Noll\u200bbredd", "Vänd\u202etexten", "Mjukt\u00adbindestreck"]) {
       expect(() => byggOmrostningsmeddelande({ fraga: dolt, alternativ: ["a", "b"], av: "anna" })).toThrow(/dolt tecken/);
       expect(() => byggOmrostningsval({ mid: "m1", text: dolt, av: "anna" })).toThrow(/dolt tecken/);
     }

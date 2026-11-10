@@ -1002,10 +1002,10 @@ const OMROSTNINGSVAL_FORM = new RegExp(`^${OMROSTNINGSVAL_REGEL}$`);
 /*
  * ⛔ DOLDA TECKEN: styrtecken (radbrytning, tabb och resten av Cc) och formattecken (Cf: nollbreddsmellanslag, riktningsmarkeringar,
  * mjukt bindestreck). En fråga eller ett alternativ som ser ut som ett annat, eller som vänder texten runt sig, är ett sätt att lura
- * den som röstar. ⛔ UNDANTAGET ÄR ZWJ (U+200D): det binder ihop emoji som 👨‍👩‍👧, och ett alternativ med en emoji ska gå att skriva.
+ * den som röstar. ⛔ UNDANTAGET ÄR ZWJ (U+200D): det binder ihop emoji (en familj är man, ZWJ, kvinna, ZWJ, barn), och ett alternativ med en emoji ska gå att skriva.
  * Regeln prövar bara styrtecknen (samma uttryck som filens sökväg i `regler.js`): för formattecknen är byggaren och vyn skyddet.
  */
-const DOLDA_TECKEN = /\p{Cc}|(?!‍)\p{Cf}/u;
+const DOLDA_TECKEN = /\p{Cc}|(?!\u200d)\p{Cf}/u;
 
 /**
  * En omröstningstext: trimmad, inte tom, inom taket och utan dolda tecken. Kastar med skälet.
