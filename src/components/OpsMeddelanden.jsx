@@ -4370,9 +4370,10 @@ function Omrostningskort({ m, omr, namnFor, bildFor, texter: t }) {
   };
   return (
     <div data-omrostning={m.id} className="flex w-72 max-w-full flex-col gap-2 rounded-2xl bg-hover p-3 text-ink">
-      <p id={rubrikId} data-omrostning-fraga="" className="m-0 text-etikett font-semibold break-words">
+      {/* Frågan är kortets rubrik: en h3, så att den som läser med skärmläsare hoppar mellan omröstningarna som mellan rubriker. */}
+      <h3 id={rubrikId} data-omrostning-fraga="" className="m-0 text-etikett font-semibold break-words">
         {m.text}
-      </p>
+      </h3>
       <div role="group" aria-labelledby={rubrikId} className="flex flex-col gap-1.5">
         {s.alternativ.length === 0 ? <p data-omrostning-tom="" className="m-0 text-liten text-ink-muted">{t.omrostningUtanAlternativ}</p> : null}
         {s.alternativ.map((a) => (
