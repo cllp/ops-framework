@@ -35,6 +35,7 @@ import { bilagaTillBlob } from "../lib/file.js";
 import { kommentarbilagaFel } from "../lib/handelsemodell.js";
 import { bilderI } from "../lib/markdown.js";
 import { FALT_BORT } from "./contract.js";
+import { rapporteraFel } from "../lib/felrapport.js";
 
 /**
  * @typedef {object} Bibliotekssvar
@@ -374,7 +375,7 @@ export function createBibliotekskalla(config) {
      * andelen i `rapportera`) och `"klar"` (posten får `klar: true`). Alla tre väntar på servern. Utan den syns bara andelen, och en vy som väntar på posten eller
      * det sista steget ser ut att stå still.
      *
-     * @param {{ rubrik?: string, namn?: string, fil: { name?: string, namn?: string, type?: string, mime?: string, size?: number, byte?: number, arrayBuffer?: () => Promise<ArrayBuffer> }, blob?: Blob | { arrayBuffer?: () => Promise<ArrayBuffer> }, id?: string, rapportera?: (andel: number) => void, onSteg?: (steg: "post" | "fil" | "klar") => void, durationMs?: number, peaks?: string, sekunder?: number, taggar?: string[], utskrift?: string }} inmatning `peaks` är vågen som den sparas (`kodaToppar`). En lista av tal räknas inte som en våg, och vågen räknas då ur filen.
+     * @param {{ rubrik?: string, namn?: string, fil: { name?: string, namn?: string, type?: string, mime?: string, size?: number, byte?: number, arrayBuffer?: () => Promise<ArrayBuffer> }, blob?: Blob | { arrayBuffer?: () => Promise<ArrayBuffer> }, id?: string, rapportera?: (andel: number) => void, onSteg?: (steg: "post" | "fil" | "klar") => void, signal?: AbortSignal, durationMs?: number, peaks?: string, sekunder?: number, taggar?: string[], utskrift?: string }} inmatning `peaks` är vågen som den sparas (`kodaToppar`). En lista av tal räknas inte som en våg, och vågen räknas då ur filen.
      */
     async laddaUppFil(inmatning) {
       if (typeof sokvag !== "function") {
@@ -431,7 +432,15 @@ export function createBibliotekskalla(config) {
       if (ljud && typeof inmatning?.utskrift === "string") underlag.utskrift = inmatning.utskrift;
       else if (tidigare && "utskrift" in tidigare) underlag.utskrift = tidigare.utskrift;
       const post = byggPost(underlag);
-      const steg = typeof inmatning?.onSteg === "function" ? inmatning.onSteg : null;
+      // ⛔ APPENS ÅTERANROP FÄLLER ALDRIG UPPLADDNINGEN (0.213.0, granskningen av 0.213.0). Ett kast i `onSteg` eller `rapportera` är vyns fel, inte filens: utanför
+      // `try` hade det fällt uppladdningen innan posten skrevs, innanför hade det tagit tillbaka en post vars fil laddats upp. Felet går till felrapporten (samma
+      // regel som `onLjud` i `webblasarensIgenkanning`), och uppladdningen fortsätter.
+      // ⛔ `signal` (0.213.0): ett avbrott prövas före posten och före uppladdningen. Efter det går uppladdningen klart, eftersom lagringen inte har något
+      // avbrott att ge och en uppladdad fil utan post vore värre än en kopia för mycket.
+      const signal = inmatning?.signal;
+      if (signal?.aborted) throw avbrottsfel();
+      const steg = typeof inmatning?.onSteg === "function" ? tryggtAterrop(inmatning.onSteg, "onSteg") : null;
+      const andel = typeof inmatning?.rapportera === "function" ? tryggtAterrop(inmatning.rapportera, "rapportera") : null;
       steg?.("post");
       if (tidigare) await source.update(collection, nyckel, post);
       else await source.create(collection, { ...post, id: nyckel });
@@ -440,6 +449,7 @@ export function createBibliotekskalla(config) {
       // ingen hantering alls: den gamla posten stod kvar med den nya filens uppgifter och `klar: false`, alltså en fungerande fil som
       // ett avbrott. Den återställs nu till vad den var, `klar` inbegripet.
       try {
+        if (signal?.aborted) throw avbrottsfel();
         steg?.("fil");
         await lagring.laddaUpp({
           sokvag: vag,
@@ -448,7 +458,7 @@ export function createBibliotekskalla(config) {
           contentType: lagringsContentType(mime),
           // ⛔ EN HTML-FIL LADDAS UPP SOM EN BILAGA (0.156.0, cllp/ops-framework#472): en direktlänk till den laddar ned filen och ritar den aldrig. Storage-regeln nekar en HTML-fil utan det. Andra filer sätter ingen.
           ...(lagringsContentDisposition(mime, namn) ? { contentDisposition: lagringsContentDisposition(mime, namn) } : {}),
-          ...(typeof inmatning.rapportera === "function" ? { rapportera: inmatning.rapportera } : {}),
+          ...(andel ? { rapportera: andel } : {}),
         });
         // ⛔ `andrad` FÖLJER MED: regeln kräver att en ändring av filen bär sin egen tid (opsBiblioteketNu).
         const klar = { ...post, fil: { .../** @type {Record<string, unknown>} */ (post.fil), klar: true }, andrad: Date.now() };
@@ -621,11 +631,12 @@ export function bilagaKanKopieras(bilaga) {
  * @param {ReturnType<typeof createBibliotekskalla>} inmatning.till Källan för platsen filen hamnar på.
  * @param {string} [inmatning.rubrik] Förval filens namn.
  * @param {(lage: Kopieringslage) => void} [inmatning.rapportera] (0.213.0) Vilket steg som pågår, och andelen uppladdat.
+ * @param {AbortSignal} [inmatning.signal] (0.213.0) Avbryter före posten och före uppladdningen (`AbortError`, posten tas då tillbaka). Efter det blir kopieringen klar.
  * @returns {Promise<import("../lib/bibliotek.js").Bibliotekspost & { id: string }>} Posten på platsen.
  */
 export async function kopieraBilagaTillPlats(inmatning) {
-  const { bilaga, till, rubrik, rapportera } = inmatning ?? /** @type {any} */ ({});
-  const rapport = typeof rapportera === "function" ? rapportera : null;
+  const { bilaga, till, rubrik, rapportera, signal } = inmatning ?? /** @type {any} */ ({});
+  const rapport = typeof rapportera === "function" ? tryggtAterrop(rapportera, "kopieraBilagaTillPlats.rapportera") : null;
   if (!till || typeof till.laddaUppFil !== "function") throw new Error("kopieraBilagaTillPlats: till krävs, en källa ur createBibliotekskalla.");
   const objekt = beskrivObjektbibliotek(till.groupId);
   if (objekt) {
@@ -637,6 +648,7 @@ export async function kopieraBilagaTillPlats(inmatning) {
   if (!(/** @type {readonly string[]} */ (FILMIME)).includes(mime)) {
     throw new Error(`Filtypen ${bilaga.typ} går inte att lägga i Biblioteket, så bilagan kopierades inte.`);
   }
+  if (signal?.aborted) throw avbrottsfel();
   rapport?.({ steg: "forbereder" });
   const blob = bilagaTillBlob(bilaga);
   return till.laddaUppFil({
@@ -644,6 +656,7 @@ export async function kopieraBilagaTillPlats(inmatning) {
     namn: bilaga.namn,
     fil: { name: bilaga.namn, type: mime, size: blob.size },
     blob,
+    ...(signal ? { signal } : {}),
     ...(rapport
       ? {
           onSteg: (/** @type {"post" | "fil" | "klar"} */ steg) => rapport({ steg }),
@@ -651,6 +664,27 @@ export async function kopieraBilagaTillPlats(inmatning) {
         }
       : {}),
   });
+}
+
+/** Felet när en kopiering avbröts (0.213.0). Samma namn som webbläsarens, så att den som anropar kan känna igen det. */
+function avbrottsfel() {
+  return Object.assign(new Error("Kopieringen avbröts."), { name: "AbortError" });
+}
+
+/**
+ * Ett återanrop från appen som aldrig kastar vidare (0.213.0). Ett kast går till felrapporten med vilket återanrop det var, och anroparen fortsätter.
+ * @template {(...a: any[]) => unknown} F
+ * @param {F} fn @param {string} vilket
+ * @returns {(...a: Parameters<F>) => void}
+ */
+function tryggtAterrop(fn, vilket) {
+  return (...a) => {
+    try {
+      fn(...a);
+    } catch (fel) {
+      rapporteraFel(fel, { yta: "bibliotek", steg: "aterrop", vilket });
+    }
+  };
 }
 
 /**

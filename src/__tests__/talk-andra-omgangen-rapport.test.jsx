@@ -289,7 +289,25 @@ describe("⛔ omgångar som föll utan en rad (CP:s försök 09.40 lämnade inge
     }
   });
 
-  it("en start som avvisas (nekad mikrofon) rapporteras med omgången", async () => {
+  it("en start som avvisas (mikrofonen gick inte att öppna) rapporteras med omgången", async () => {
+    const konsol = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const upptagen = Object.assign(new Error("Could not start audio source"), { name: "NotReadableError" });
+      const insp = { starta: vi.fn(() => Promise.reject(upptagen)), stoppa: vi.fn(), kasta: vi.fn(), niva: () => 0 };
+      const hook = renderHook(() => useTalk({ onTalk: async () => {}, onKlick: () => {}, inspelare: /** @type {any} */ (insp), igenkanning: false }));
+      act(() => hook.result.current.direkt());
+      await flush();
+      expect(hook.result.current.lage).toBe("fel");
+      const rapport = konsol.mock.calls.filter((c) => c[2]?.steg === "starta");
+      expect(rapport).toHaveLength(1);
+      expect(rapport[0][1]).toBe(upptagen);
+      expect(rapport[0][2]).toMatchObject({ yta: "OpsTalk", omgang: 1, forra: "ingen" });
+    } finally {
+      konsol.mockRestore();
+    }
+  });
+
+  it("⛔ en nekad mikrofon (NotAllowedError, personens val) rapporteras inte som fel, men fältet säger det (granskningen av 0.213.0)", async () => {
     const konsol = vi.spyOn(console, "error").mockImplementation(() => {});
     try {
       const nekad = Object.assign(new Error("Permission denied"), { name: "NotAllowedError" });
@@ -298,11 +316,36 @@ describe("⛔ omgångar som föll utan en rad (CP:s försök 09.40 lämnade inge
       act(() => hook.result.current.direkt());
       await flush();
       expect(hook.result.current.lage).toBe("fel");
-      const rapport = konsol.mock.calls.filter((c) => c[2]?.steg === "starta");
-      expect(rapport).toHaveLength(1);
-      expect(rapport[0][1]).toBe(nekad);
-      expect(rapport[0][2]).toMatchObject({ yta: "OpsTalk", omgang: 1, forra: "ingen" });
+      expect(konsol.mock.calls.filter((c) => c[2]?.steg === "starta")).toHaveLength(0);
     } finally {
+      konsol.mockRestore();
+    }
+  });
+
+  it("⛔ en egen igenkänning från appen som faller i en omgång utan inspelare lämnar en rad (granskningen av 0.213.0)", async () => {
+    const konsol = vi.spyOn(console, "error").mockImplementation(() => {});
+    const ua = vi.spyOn(navigator, "userAgent", "get").mockReturnValue(IPHONE);
+    try {
+      /** @type {((kod: string) => void) | undefined} */
+      let onFel;
+      const egen = {
+        starta: vi.fn((/** @type {any} */ val) => {
+          onFel = val.onFel;
+        }),
+        stoppa: vi.fn(async () => ""),
+        kasta: vi.fn(),
+      };
+      const hook = renderHook(() => useTalk({ onTalk: async () => {}, onKlick: () => {}, onAgent: async () => {}, igenkanning: /** @type {any} */ (egen) }));
+      act(() => hook.result.current.direkt());
+      await flush();
+      expect(egen.starta).toHaveBeenCalledTimes(1);
+      act(() => onFel?.("network"));
+      await flush();
+      const rapport = konsol.mock.calls.filter((c) => c[2]?.steg === "igenkanning").map((c) => c[2]);
+      expect(rapport).toHaveLength(1);
+      expect(rapport[0]).toMatchObject({ yta: "OpsTalk", kod: "network", egenIgenkanning: true, omgang: 1, baraIgenkanning: true, medVal: true });
+    } finally {
+      ua.mockRestore();
       konsol.mockRestore();
     }
   });

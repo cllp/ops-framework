@@ -56,6 +56,28 @@ describe("1. en bilaga per meddelande, och det sägs", () => {
     await waitFor(async () => expect((await s.meddelanden(p.id)).at(-1)?.bilaga?.namn).toBe("forsta.png"));
   });
 
+  it("⛔ två snabba val: det andra väljs medan det första fortfarande läses, och det första är det som står och skickas (granskningen av 0.213.0)", async () => {
+    const { s, p } = await samtal();
+    render(<OpsSamtal kalla={s} uid="anna" samtal={p} rubrik="Bo" namnFor={namnFor} medlemmar={MEDLEMMAR} />);
+    // Båda valen i samma tick: läsningen av den första (FileReader) har inte löst sig när den andra väljs.
+    valjFil(new File(["png"], "forsta.png", { type: "image/png" }));
+    valjFil(new File(["png"], "andra.png", { type: "image/png" }));
+    expect(await screen.findByRole("button", { name: "Ta bort bilagan" })).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent("Ett meddelande bär en bilaga. Skicka den här först, eller ta bort den och välj en annan.");
+    const utkast = /** @type {HTMLElement} */ (document.querySelector("[data-bilageutkast]"));
+    expect(within(utkast).getByRole("img").getAttribute("alt")).toMatch(/forsta\.png/);
+    fireEvent.click(screen.getByRole("button", { name: "Skicka" }));
+    await waitFor(async () => expect((await s.meddelanden(p.id)).at(-1)?.bilaga?.namn).toBe("forsta.png"));
+  });
+
+  it("beskedet om en fil som inte går att skicka följer chattens språk (granskningen av 0.213.0)", async () => {
+    const { s, p } = await samtal();
+    render(<OpsSamtal kalla={s} uid="anna" samtal={p} rubrik="Bo" namnFor={namnFor} medlemmar={MEDLEMMAR} sprak="en" />);
+    fireEvent.click(screen.getByRole("button", { name: "Attach" }));
+    fireEvent.change(/** @type {HTMLInputElement} */ (document.querySelector('[data-plusval="fil"]')), { target: { files: [new File(["hej"], `${"a".repeat(MAX_BILAGENAMN + 1)}.txt`, { type: "text/plain" })] } });
+    expect(await screen.findByRole("alert")).toHaveTextContent(/^The attachment cannot be sent: /);
+  });
+
   it("⛔ en fil som inte går att skicka sägs vid valet, inte efter Skicka", async () => {
     const { s, p } = await samtal();
     render(<OpsSamtal kalla={s} uid="anna" samtal={p} rubrik="Bo" namnFor={namnFor} medlemmar={MEDLEMMAR} />);
@@ -126,6 +148,23 @@ describe("2. ett glapp är inte en trasig fil", () => {
     fel.mockRestore();
   });
 
+  it("⛔ en ogiltig bilaga rapporteras en gång per meddelande och sidladdning, inte vid varje montering (granskningen av 0.213.0)", async () => {
+    const { s, p } = await samtal();
+    await s.skicka(p.id, { text: "Se här", av: "bo", bilaga: bild() });
+    const kalla = /** @type {any} */ ({ ...s, lasBilaga: async () => ({ ...bild(), tecken: 3 }) });
+    const fel = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      for (let i = 0; i < 3; i += 1) {
+        const { unmount } = render(<OpsSamtal kalla={kalla} uid="anna" samtal={p} rubrik="Bo" namnFor={namnFor} medlemmar={MEDLEMMAR} />);
+        await waitFor(() => expect(document.querySelector('[data-meddelande-bilaga="trasig"]')).not.toBeNull());
+        unmount();
+      }
+      expect(fel.mock.calls.filter((c) => c[2]?.steg === "bilaga")).toHaveLength(1);
+    } finally {
+      fel.mockRestore();
+    }
+  });
+
   it("en ogiltig fil säger fortfarande att den inte går att visa, utan omförsök", async () => {
     const { s, p } = await samtal();
     await s.skicka(p.id, { text: "Se här", av: "bo", bilaga: bild() });
@@ -155,6 +194,20 @@ describe("3. en vald nämning syns som nämning", () => {
     // Texten runt omnämnandet står kvar som den skrevs.
     const forsta = /** @type {HTMLElement} */ ([...document.querySelectorAll("[data-bubbla] [data-omnamnande-i-text]")][0]);
     expect(forsta.closest("p")?.textContent).toBe("@Bo Lind: kan du titta?");
+  });
+
+  it("⛔ @alla och @everyone markeras oavsett visningsspråk när meddelandet nämner alla (granskningen av 0.213.0)", async () => {
+    for (const sprak of ["sv", "en"]) {
+      const kalla = createMemorySource({});
+      const s = /** @type {any} */ (createSamtalskalla({ kalla, omnamnanden: true }));
+      const g = await s.oppnaGrupp({ groupId: "g", uid: "anna" });
+      await s.skicka(g.id, { text: "@alla möte", av: "bo", namner: ["alla"] });
+      await s.skicka(g.id, { text: "@everyone meeting", av: "bo", namner: ["alla"] });
+      const { unmount } = render(<OpsMeddelanden kalla={s} uid="anna" groupId="g" gruppNamn="G" medlemmar={MEDLEMMAR} valt={g.id} sprak={sprak} />);
+      await screen.findByText(/meeting/, { selector: "[data-bubbla] *" });
+      expect([...document.querySelectorAll("[data-bubbla] [data-omnamnande-i-text]")].map((e) => e.textContent)).toEqual(["@alla", "@everyone"]);
+      unmount();
+    }
   });
 
   it("bara fria @Namn: inte inne i ett längre ord eller en adress", () => {
