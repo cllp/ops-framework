@@ -9,6 +9,29 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.215.0
+
+Gäst i ett projekt (cllp/lifehub.app#760 skiva 1). CP 2026-11-10: "Jag skulle vilja kunna samarbeta med externa i projekt, de har inte tillgång till hela gruppen, men bara projekt." Inget brytande för en app som inte ger `grupp.projekt`. Inga nya samlingar och inga nya regler: gästen når bara servern, som förut.
+
+### Nytt
+
+- **Omfånget `{ slag: "projekt", tagg }`** (`GASTSLAG`, `gastomfangsnyckel` ger `projekt:<tagg>`, taggen i formen `GASTPROJEKTTAGGFORM`). En gäst i gruppen (`arGruppslag`, `GASTGRUPPSLAG`): samma inloggning, samma flikar, samma fem platser och samma förvaltning som en gruppgäst, men bara `GASTPROJEKTFUNKTIONER` (kalender, bibliotek, ärenden).
+- **`createGastService({ grupp: { projekt: { urval } } })`**: appens projekt. `urval({ groupId, tagg })` ger `null` (finns inte, arkiverat) eller `{ namn, status, texter, handelse, arende }`. `bjud({ slag: "projekt", groupId, tagg, ... })` kräver ägare eller admin och att projektet finns.
+- **Urvalet görs på servern i varje anrop** (`gruppSession`): taggen ur inbjudan, aldrig ur anropet. Kalendern och översikten: bara händelser där `handelse(h)` är `true`. Biblioteket, filerna och bilderna: bara projektets plats (`platsBibliotek(groupId, tagg)`). Ärendena: alla där `arende(rad)` är `true`, med `hosDig` (nytt fält i `GASTARENDEFALT`, bara för en projektgäst). Ett urval som kastar eller svarar något annat än `true` är ett nej; ett projekt som försvunnit ger `saknas`.
+- **`hamta` för en projektgäst**: `funktion: "grupp"` (samma vy), `grupp.namn` är projektets namn och `grupp.projekt` kortet (`GASTPROJEKTKORTFALT`: tagg, läge, texter, med appens ord på båda språken).
+- **`OpsGastGrupp`** med `grupp.projekt`: projektets kort på översikten i stället för gruppens beskrivning, orden om projektet, ingen Chatt-flik, ingen svarsrad på en händelse och inget Svara i kalenderrutan. **`OpsGastArenden`**: Markera klar bara när `hosDig` inte är `false`, och orden "Projektets ärenden" (`projekt_`-orden). **`OpsGastLista`** med `projekt={{ tagg }}`: orden och bekräftelsen för ett projekt, en inbjudan heter "Projekt: <tagg>", och Bjud in igen gäller bara projektets egna rader. **`gastBehorighetsrader`**: raderna för en projektgäst.
+
+### Med flit inte med i skiva 1
+
+- **Chatt**: gruppens chatt är hela gruppens. `chatt`, `skrivChatt` och `kommenteraPost` är nej för en projektgäst.
+- **Svar och omröstning**: summorna och medlemmens lista räknar bara gäster i hela gruppen (`levandeGaster`), och ett svar som ingen räknar hade varit en tyst nedsläppsväg (regel 5). `svara` och `rosta` är nej, och `handelse` ger varken `svar` eller `omrostning`.
+- **Ansvarig gäst**: `levandeGaster` och hubbens lista (`minaGruppgaster`) gäller fortfarande bara hela gruppen. En projektgäst kan alltså inte väljas som ansvarig för ett ärende än, och markera klart kräver att ärendet ligger hos gästen.
+
+### Prov
+
+- **`gast-projekt.test.js`**, 21 prov mot minneskällan: modellen, `bjud` (roll, projektet finns, tagg, platser ur samma fem), vad en projektgäst ser (kalender med egen kalender och med tagg i gruppens förvalda, bibliotek, filer, ärenden, översikt) med en lista på 16 hemligheter som aldrig får synas (**golv**), en förfalskad tagg i varje åtgärd (golv: 7 åtgärder), en återkallad inbjudan, ett arkiverat projekt, ett trasigt urval, och att en gruppgäst är orörd. 13 mutationer, var och en röd.
+- **`gast-projekt-vy.test.jsx`**, 8 prov: flikarna, kortet, ingen svarsrad, ärendefliken med `hosDig`, behörighetsraderna och listan på projektets sida. 9 mutationer, var och en röd.
+
 ## 0.214.0
 
 Omröstningen i chatten läser alternativ och röster per omröstning (cllp/lifehub.app#742, skiva 2). ⛔ Brytande för den som anropar källans läsningar direkt (se nedan); vyn och reglerna är oförändrade för appen. Inget nytt index och inga nya regler.
