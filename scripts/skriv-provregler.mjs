@@ -96,7 +96,7 @@ ${gruppadSamling("konfig", { agareKravsForSkrivning: true })}
 ${gruppadSamling("stampelrader", { skaparfalt: "skapadAv" })}
 ${katalogregelfragment("kataloger")}
 ${konfigloggregelfragment("konfiglogg")}
-${samtalsregelfragment({ tradar: "tradar", status: "status", reaktioner: "reaktioner", omnamnanden: true, citat: true, fasta: "fasta", bilagor: true, bilagaSamling: "bilagor", tyst: "tyst", amnen: true })}
+${samtalsregelfragment({ tradar: "tradar", status: "status", reaktioner: "reaktioner", omrostningsval: "omrostningsval", omrostningsroster: "omrostningsroster", omnamnanden: true, citat: true, fasta: "fasta", bilagor: true, bilagaSamling: "bilagor", tyst: "tyst", amnen: true })}
 ${kalenderregelfragment({ kalenderdelningar: "kalenderdelningar" })}
 ${kalendervalsregelfragment("kalenderval")}
 ${handelseregelfragment()}

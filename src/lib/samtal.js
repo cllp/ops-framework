@@ -372,6 +372,7 @@ export function byggSamtal(d) {
  * @property {string} [svarPa] (chattens nattskiva) Meddelandet som besvaras med citat, i samma samtal.
  * @property {import("./file.js").Bilaga | { namn: string, typ: string }} [bilaga] `byggMeddelande` bär hela filen, så att källan kan dela den.
  *   Det som lagras på meddelandet (0.80.0, #300) är bara `{ namn, typ }`. Filen läses med `lasBilaga`.
+ * @property {true} [omrostning] (cllp/lifehub.app#438 skiva 1) Meddelandet är en omröstning, och `text` är frågan. Se `byggOmrostningsmeddelande`.
  */
 
 /**
@@ -391,12 +392,19 @@ export function byggSamtal(d) {
  * `MEDDELANDEFALT` och klientkällan (`samtalskalla`) skickar det aldrig vidare, så en klient som försöker nekas av reglerna. Formen prövas
  * med `byggVia` (kastar). Utelämnat är resultatet exakt det förra.
  *
- * @param {{ text: string, av: string, tid?: number, namner?: ReadonlyArray<string> | null, svarPa?: string | null, bilaga?: import("./file.js").Bilaga | null, via?: { nyckelId: string, namn: string } | null }} d
+ * `omrostning` (cllp/lifehub.app#438 skiva 1): `true` gör meddelandet till en omröstning. Texten ÄR frågan, och prövas då hårdare: en rad om
+ * högst `MAX_FRAGA` tecken utan dolda tecken (`kravOmrostningstext`), och ingen bilaga. Alternativen och rösterna bor bredvid meddelandet, se
+ * `byggOmrostningsmeddelande`. Utelämnat är resultatet exakt det förra.
+ *
+ * @param {{ text: string, av: string, tid?: number, namner?: ReadonlyArray<string> | null, svarPa?: string | null, bilaga?: import("./file.js").Bilaga | null, via?: { nyckelId: string, namn: string } | null, omrostning?: boolean | null }} d
  * @returns {Meddelande}
  */
 export function byggMeddelande(d) {
   const bilaga = d?.bilaga === undefined || d?.bilaga === null ? null : d.bilaga;
-  const text = rensa(d?.text);
+  const omrostning = d?.omrostning === undefined || d?.omrostning === null || d?.omrostning === false ? false : d.omrostning;
+  if (omrostning !== false && omrostning !== true) throw new Error("byggMeddelande: omrostning är true eller utelämnat.");
+  if (omrostning && bilaga) throw new Error("byggMeddelande: en omröstning bär ingen bilaga. Kortet ritar frågan och alternativen, och en fil hade inte syntes någonstans.");
+  const text = omrostning ? kravOmrostningstext(d?.text, MAX_FRAGA, "byggMeddelande: frågan") : rensa(d?.text);
   if (!text && !bilaga) throw new Error("byggMeddelande: texten är tom. Ett tomt meddelande är en avisering om ingenting.");
   if (text.length > MAX_MEDDELANDE) throw new Error(`byggMeddelande: texten är ${text.length} tecken, taket är ${MAX_MEDDELANDE}.`);
   if (bilaga) {
@@ -409,7 +417,7 @@ export function byggMeddelande(d) {
   const namner = kravNamner(d.namner, "byggMeddelande");
   const svarPa = d.svarPa === undefined || d.svarPa === null ? null : kravMid(d.svarPa, "byggMeddelande");
   const via = d.via === undefined || d.via === null ? null : byggVia(d.via);
-  return Object.freeze({ text, av, tid, ...(via ? { via } : {}), ...(namner ? { namner } : {}), ...(svarPa ? { svarPa } : {}), ...(bilaga ? { bilaga: { ...bilaga } } : {}) });
+  return Object.freeze({ text, av, tid, ...(via ? { via } : {}), ...(namner ? { namner } : {}), ...(svarPa ? { svarPa } : {}), ...(bilaga ? { bilaga: { ...bilaga } } : {}), ...(omrostning ? { omrostning: true } : {}) });
 }
 
 /**
@@ -921,6 +929,233 @@ export function summeraReaktioner(rader, uid) {
   const ut = new Map();
   for (const [mid, m] of per) ut.set(mid, REAKTIONSKODER.filter((k) => m.has(k)).map((k) => ({ kod: k, .../** @type {{ antal: number, egen: boolean }} */ (m.get(k)) })));
   return ut;
+}
+
+/*
+ * ══ ⛔ OMRÖSTNINGAR I CHATTEN (cllp/lifehub.app#438, skiva 1) ═══════════════════════════════════════════════════════════════
+ *
+ *   <samtal>/{sid}/<meddelanden>/{mid}                         { text: frågan, av, tid, omrostning: true }
+ *   <samtal>/{sid}/<omrostningsval>/{mid|stycke}               { mid, text, av, tid }      ett alternativ
+ *   <samtal>/{sid}/<omrostningsroster>/{mid|uid}               { mid, av, val, tid }       en röst, `val` är alternativets id
+ *
+ * CP 2026-10-22: en omröstning ställs direkt i chatten, som ett kort i flödet med frågan och alternativen, och bredvid varje alternativ
+ * syns vem som röstat, som ansikten och "+N". Alla i chatten kan lägga till ett alternativ. CP 2026-10-23: som Facebooks omröstning,
+ * inte Apples: rösterna hör till omröstningen i just det meddelandet. CP 2026-10-26 och 10-28: det blir EN komponent som senare
+ * ersätter datumomröstningen, inte en tredje röstmekanism. Strukna: flera röster per person, att skapa ur TALK, anonyma röster,
+ * tidsgräns och automatisk stängning. Agentens sammanfattning av svaren är en senare skiva.
+ *
+ * ⛔ FRÅGAN ÄR MEDDELANDETS TEXT, INTE ETT FÄLT TILL. Uppdraget föreslog `omrostning: { fraga }`. Då hade frågan stått två gånger,
+ * i `text` och i `fraga` (regel 2), eller så hade `text` fått vara tom, och då hade varje läsare som bara känner texten visat ett tomt
+ * meddelande: inkorgens utdrag, notisen (`synligText`), gästens chatt, agenten och en app som inte slagit på omröstningarna. Med frågan
+ * i `text` ser de alla frågan, och meddelanderegeln kräver redan en text. `omrostning: true` säger bara att kortet ska ritas. En senare
+ * form (datumomröstningen) kan bli en karta utan att läsarna ändras, eftersom de frågar om fältet finns.
+ *
+ * ⛔ ALTERNATIVEN BOR BREDVID MEDDELANDET, inte på det. Meddelandet ändras aldrig (`allow update: if false`), och ett alternativ som
+ * läggs till senare av någon annan hade annars krävt en uppdatering av någon annans meddelande. Skaparens första alternativ (2 till
+ * `MAX_ALTERNATIV_VID_START`) skrivs i samma batch som meddelandet. Ett alternativ ändras och raderas aldrig i skiva 1: en röst på det
+ * hade annars pekat på ingenting, och "vem tog bort mitt alternativ" hade inte haft något svar.
+ *
+ * ⛔ EN RÖST PER PERSON OCH OMRÖSTNING, MED HÄRLEDD NYCKEL `mid|uid`. Samma grepp som reaktionerna: unikheten bärs av nyckeln, utan
+ * transaktion och utan en fråga före. Att byta röst är en uppdatering av `val` och `tid` på den egna raden, att ångra den en radering.
+ * Ingen rör någon annans röst.
+ *
+ * ⛔ REGLERNA KAN INTE RÄKNA. Taket på `MAX_ALTERNATIV` alternativ totalt, golvet på två vid start och att två alternativ inte har samma
+ * text prövas här och i vyn, inte i reglerna: regelspråket kan inte fråga hur många dokument en samling har. En klient förbi byggaren kan
+ * alltså skriva fler, eller en omröstning utan alternativ. Det som ändå hålls av reglerna: formen, vem, att meddelandet är en omröstning
+ * och att en röst pekar på ett alternativ i samma omröstning. Antalet röster lagras aldrig, det räknas fram (`summeraOmrostning`).
+ */
+
+/** Fältet på meddelandet. */
+export const OMROSTNINGFALT = "omrostning";
+
+/** Tak för frågan, i tecken. Regeln har samma tak, härlett härifrån. */
+export const MAX_FRAGA = 200;
+
+/** Tak för ett alternativs text, i tecken. Regeln har samma tak, härlett härifrån. */
+export const MAX_ALTERNATIVTEXT = 120;
+
+/** Så många alternativ minst när omröstningen skapas: en fråga med ett svar är ingen omröstning. */
+export const MIN_ALTERNATIV_VID_START = 2;
+
+/** Så många alternativ högst när omröstningen skapas. ⛔ Varje alternativ är en skrivning i samma batch som meddelandet. */
+export const MAX_ALTERNATIV_VID_START = 10;
+
+/** Så många alternativ högst i en omröstning, med de som lagts till senare. ⛔ Prövas av byggaren och vyn, inte av reglerna (se ovan). */
+export const MAX_ALTERNATIV = 20;
+
+/** Fälten ett alternativ får bära. */
+export const OMROSTNINGSVALFALT = /** @type {const} */ (["mid", "text", "av", "tid"]);
+
+/** Fälten en röst får bära. */
+export const OMROSTNINGSROSTFALT = /** @type {const} */ (["mid", "av", "val", "tid"]);
+
+/**
+ * Hur många av de senaste alternativen och rösterna ett samtal läser, var för sig. En lyssnare per samling, inte en per meddelande.
+ * ⛔ (bedömning) Samma tal som reaktionerna. Når läsningen taket säger vyn det (regel 5).
+ */
+export const OMROSTNINGSTAK = 500;
+
+/** Nyckelns andra del på ett alternativ. Regeln har samma form, härlett härifrån. */
+export const OMROSTNINGSVAL_REGEL = "[A-Za-z0-9_-]{1,40}";
+const OMROSTNINGSVAL_FORM = new RegExp(`^${OMROSTNINGSVAL_REGEL}$`);
+
+/*
+ * ⛔ DOLDA TECKEN: styrtecken (radbrytning, tabb och resten av Cc) och formattecken (Cf: nollbreddsmellanslag, riktningsmarkeringar,
+ * mjukt bindestreck). En fråga eller ett alternativ som ser ut som ett annat, eller som vänder texten runt sig, är ett sätt att lura
+ * den som röstar. ⛔ UNDANTAGET ÄR ZWJ (U+200D): det binder ihop emoji som 👨‍👩‍👧, och ett alternativ med en emoji ska gå att skriva.
+ * Regeln prövar bara styrtecknen (samma uttryck som filens sökväg i `regler.js`): för formattecknen är byggaren och vyn skyddet.
+ */
+const DOLDA_TECKEN = /\p{Cc}|(?!‍)\p{Cf}/u;
+
+/**
+ * En omröstningstext: trimmad, inte tom, inom taket och utan dolda tecken. Kastar med skälet.
+ * @param {unknown} v @param {number} tak @param {string} vem
+ * @returns {string}
+ */
+function kravOmrostningstext(v, tak, vem) {
+  const t = rensa(v);
+  if (!t) throw new Error(`${vem} är tom.`);
+  if (t.length > tak) throw new Error(`${vem} är ${t.length} tecken, taket är ${tak}.`);
+  if (DOLDA_TECKEN.test(t)) throw new Error(`${vem} innehåller ett dolt tecken (radbrytning, tabb, nollbreddstecken eller riktningsmarkering). En rad, bara synliga tecken.`);
+  return t;
+}
+
+/** Två texter som bara skiljer sig i versaler och mellanslag är samma alternativ. @param {string} t */
+const jamforbar = (t) => t.trim().toLocaleLowerCase("sv").replace(/\s+/g, " ");
+
+/**
+ * Bygger en ny omröstning: meddelandet och texterna på de första alternativen, eller kastar med skälet.
+ *
+ * ⛔ ALTERNATIVEN FÅR SINA ID FÖRST NÄR MEDDELANDET HAR SITT. Källan väljer meddelandets id och bygger varje alternativ med
+ * `byggOmrostningsval`, i samma batch. Här prövas texterna: 2 till `MAX_ALTERNATIV_VID_START`, var och en en giltig text, och inga två
+ * lika (versaler och mellanslag räknas inte). Meddelandet byggs av `byggMeddelande` med `omrostning: true`, så att meddelandets regler
+ * bor på ett ställe.
+ *
+ * @param {{ fraga: string, alternativ: ReadonlyArray<string>, av: string, tid?: number }} d
+ * @returns {{ meddelande: Meddelande, alternativ: ReadonlyArray<string> }}
+ */
+export function byggOmrostningsmeddelande(d) {
+  const meddelande = byggMeddelande({ text: d?.fraga, av: d?.av, tid: d?.tid, omrostning: true });
+  if (!Array.isArray(d?.alternativ)) throw new Error("byggOmrostningsmeddelande: alternativ är en lista med texter.");
+  const alternativ = d.alternativ.map((a, i) => kravOmrostningstext(a, MAX_ALTERNATIVTEXT, `byggOmrostningsmeddelande: alternativ ${i + 1}`));
+  if (alternativ.length < MIN_ALTERNATIV_VID_START) throw new Error(`byggOmrostningsmeddelande: ${alternativ.length} alternativ. En omröstning har minst ${MIN_ALTERNATIV_VID_START}.`);
+  if (alternativ.length > MAX_ALTERNATIV_VID_START) throw new Error(`byggOmrostningsmeddelande: ${alternativ.length} alternativ. Högst ${MAX_ALTERNATIV_VID_START} när omröstningen skapas, fler läggs till efteråt.`);
+  const sedda = new Set();
+  for (const a of alternativ) {
+    if (sedda.has(jamforbar(a))) throw new Error(`byggOmrostningsmeddelande: alternativet "${a}" står två gånger.`);
+    sedda.add(jamforbar(a));
+  }
+  return Object.freeze({ meddelande, alternativ: Object.freeze(alternativ) });
+}
+
+/**
+ * Ett nytt slumpat stycke till ett alternativs nyckel. Samma form som `nyttAmnesId`.
+ * @param {number} tid
+ */
+function nyttValstycke(tid) {
+  const slump = globalThis.crypto.getRandomValues(new Uint32Array(2));
+  return `v_${tid.toString(36)}_${slump[0].toString(36)}${slump[1].toString(36)}`.slice(0, 40);
+}
+
+/**
+ * Bygger ett alternativ med sin nyckel `mid|stycke` som `id`, eller kastar med skälet.
+ *
+ * `befintliga`: texterna på de alternativ omröstningen redan har, när ett läggs till efteråt. Med dem prövas taket `MAX_ALTERNATIV` och att
+ * texten inte redan finns. `stycke`: nyckelns andra del, för prov och för den som redan valt den. Förval ett slumpat stycke.
+ *
+ * @param {{ mid: string, text: string, av: string, tid?: number, stycke?: string, befintliga?: ReadonlyArray<string> }} d
+ * @returns {{ id: string, mid: string, text: string, av: string, tid: number }}
+ */
+export function byggOmrostningsval(d) {
+  const mid = kravMid(d?.mid, "byggOmrostningsval");
+  const text = kravOmrostningstext(d?.text, MAX_ALTERNATIVTEXT, "byggOmrostningsval: texten");
+  const av = kravUid(d?.av, "byggOmrostningsval");
+  const tid = d.tid ?? Date.now();
+  if (!Number.isInteger(tid)) throw new Error("byggOmrostningsval: tid är millisekunder, ett heltal.");
+  const stycke = d.stycke === undefined ? nyttValstycke(tid) : rensa(d.stycke);
+  if (!OMROSTNINGSVAL_FORM.test(stycke)) throw new Error(`byggOmrostningsval: nyckelns andra del "${d.stycke}" har inte formen ${OMROSTNINGSVAL_REGEL}.`);
+  if (d.befintliga !== undefined) {
+    if (!Array.isArray(d.befintliga)) throw new Error("byggOmrostningsval: befintliga är en lista med texter.");
+    if (d.befintliga.length >= MAX_ALTERNATIV) throw new Error(`byggOmrostningsval: omröstningen har redan ${d.befintliga.length} alternativ. Taket är ${MAX_ALTERNATIV}.`);
+    if (d.befintliga.some((b) => typeof b === "string" && jamforbar(b) === jamforbar(text))) throw new Error(`byggOmrostningsval: alternativet "${text}" finns redan.`);
+  }
+  return Object.freeze({ id: [mid, stycke].join(SAMTALSAVGRANSARE), mid, text, av, tid });
+}
+
+/**
+ * En rösts nyckel: `<mid>|<uid>`. Samma form som `reaktionsnyckel`, utan kod: en röst per person och omröstning.
+ * @param {{ mid: string, av: string }} d
+ * @returns {string}
+ */
+export function omrostningsrostnyckel(d) {
+  return [kravMid(d?.mid, "omrostningsrostnyckel"), kravUid(d?.av, "omrostningsrostnyckel")].join(SAMTALSAVGRANSARE);
+}
+
+/**
+ * Bygger en röst med sin nyckel `mid|uid` som `id`, eller kastar med skälet. `val` är alternativets id, och det hör till samma
+ * omröstning: det börjar med `mid|`.
+ * @param {{ mid: string, av: string, val: string, tid?: number }} d
+ * @returns {{ id: string, mid: string, av: string, val: string, tid: number }}
+ */
+export function byggOmrostningsrost(d) {
+  const mid = kravMid(d?.mid, "byggOmrostningsrost");
+  const av = kravUid(d?.av, "byggOmrostningsrost");
+  const val = rensa(d?.val);
+  const delar = val.split(SAMTALSAVGRANSARE);
+  if (delar.length !== 2 || delar[0] !== mid || !OMROSTNINGSVAL_FORM.test(delar[1])) {
+    throw new Error(`byggOmrostningsrost: valet "${d?.val}" är inget alternativ i omröstningen ${mid}. Ett alternativs id är "${mid}${SAMTALSAVGRANSARE}<stycke>".`);
+  }
+  const tid = d.tid ?? Date.now();
+  if (!Number.isInteger(tid)) throw new Error("byggOmrostningsrost: tid är millisekunder, ett heltal.");
+  return Object.freeze({ id: omrostningsrostnyckel({ mid, av }), mid, av, val, tid });
+}
+
+/**
+ * @typedef {object} Omrostningsalternativ
+ * @property {string} id
+ * @property {string} text
+ * @property {number} antal Hur många som röstat på det.
+ * @property {boolean} egen Om `uid` röstat på det.
+ * @property {ReadonlyArray<string>} roster Vilka som röstat på det, i den ordning de röstade.
+ */
+
+/**
+ * En omröstning, räknad: alternativen i den ordning de lades till (tid, och id när tiden är lika), med antal, om `uid` röstat på det
+ * och vilka som röstat, och hur många som röstat totalt.
+ *
+ * ⛔ RADERNA PRÖVAS, INTE LITAS PÅ. Ett alternativ utan id, text eller tid hoppas över. En röst utan `mid`, `av` eller `val`, eller vars
+ * `val` inte är ett av alternativen här (eller ett alternativ i en annan omröstning), räknas inte: ett alternativ vyn inte kan rita är
+ * ingen röst att visa. Står samma person två gånger (en rad förbi reglerna) räknas den senaste rösten, så att ingen räknas två gånger.
+ *
+ * @param {ReadonlyArray<{ id?: unknown, mid?: unknown, text?: unknown, tid?: unknown }>} val Alternativen i EN omröstning.
+ * @param {ReadonlyArray<{ mid?: unknown, av?: unknown, val?: unknown, tid?: unknown }>} roster Rösterna i samma omröstning.
+ * @param {string} uid
+ * @returns {{ alternativ: ReadonlyArray<Omrostningsalternativ>, antalRostande: number, egetVal: string | null }}
+ */
+export function summeraOmrostning(val, roster, uid) {
+  /** @type {Map<string, { id: string, mid: unknown, text: string, tid: number }>} */
+  const perId = new Map();
+  for (const v of val ?? []) {
+    if (!v || typeof v.id !== "string" || typeof v.text !== "string" || typeof v.tid !== "number" || !Number.isFinite(v.tid)) continue;
+    if (!perId.has(v.id)) perId.set(v.id, { id: v.id, mid: v.mid, text: v.text, tid: v.tid });
+  }
+  const ordning = [...perId.values()].sort((a, b) => a.tid - b.tid || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  /** @type {Map<string, { val: string, tid: number }>} */
+  const perPerson = new Map();
+  for (const r of roster ?? []) {
+    if (!r || typeof r.mid !== "string" || typeof r.av !== "string" || typeof r.val !== "string") continue;
+    const alt = perId.get(r.val);
+    if (!alt || (typeof alt.mid === "string" && alt.mid !== r.mid)) continue;
+    const tid = typeof r.tid === "number" && Number.isFinite(r.tid) ? r.tid : 0;
+    const forra = perPerson.get(r.av);
+    if (!forra || tid >= forra.tid) perPerson.set(r.av, { val: r.val, tid });
+  }
+  const efterTid = [...perPerson.entries()].sort((a, b) => a[1].tid - b[1].tid);
+  const alternativ = ordning.map((v) => {
+    const vilka = efterTid.filter(([, r]) => r.val === v.id).map(([av]) => av);
+    return Object.freeze({ id: v.id, text: v.text, antal: vilka.length, egen: vilka.includes(uid), roster: Object.freeze(vilka) });
+  });
+  return Object.freeze({ alternativ: Object.freeze(alternativ), antalRostande: perPerson.size, egetVal: perPerson.get(uid)?.val ?? null });
 }
 
 /*

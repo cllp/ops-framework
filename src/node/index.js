@@ -71,7 +71,7 @@ export { PLATSFALT_FORVALTAD, FORVALTNINGSFALT, platsnyckel, platsnamnFel, byggF
  * andra sanning om vad ett meddelande är, och huvudingången drar in React. Filerna är rena.
  */
 export { AGENT_NAMN, agentId, agentMedlemskap } from "../lib/grupp.js";
-export { byggMeddelande, byggReaktion, REAKTIONSKODER, samtalsnyckel, MAX_MEDDELANDE, autonamn, tradensNamn, rensaForNamn, NAMNLOS_TRAD, AGENTSTATUS_ID, AGENTLAGEN, AGENTSTATUS_MAX_ALDER, byggAgentstatus, agentenNamnd, namnda, arNamnd, NAMNER_ALLA, MAX_NAMNER, amnesId, parnyckel, kravAmnesrubrik, amnesrubrik, MAX_AMNESRUBRIK, byggArendemottagare, ARENDEMOTTAGARSLAG } from "../lib/samtal.js";
+export { byggMeddelande, byggReaktion, REAKTIONSKODER, byggOmrostningsmeddelande, byggOmrostningsval, omrostningsrostnyckel, byggOmrostningsrost, summeraOmrostning, MAX_FRAGA, MAX_ALTERNATIVTEXT, MIN_ALTERNATIV_VID_START, MAX_ALTERNATIV_VID_START, MAX_ALTERNATIV, samtalsnyckel, MAX_MEDDELANDE, autonamn, tradensNamn, rensaForNamn, NAMNLOS_TRAD, AGENTSTATUS_ID, AGENTLAGEN, AGENTSTATUS_MAX_ALDER, byggAgentstatus, agentenNamnd, namnda, arNamnd, NAMNER_ALLA, MAX_NAMNER, amnesId, parnyckel, kravAmnesrubrik, amnesrubrik, MAX_AMNESRUBRIK, byggArendemottagare, ARENDEMOTTAGARSLAG } from "../lib/samtal.js";
 
 /*
  * ⛔ SAMMA SKÄL SOM INBJUDAN OVAN (#161). Vitlistan nekar en klient allt

@@ -1,7 +1,7 @@
 import { NAMN_SAKNAS } from "../lib/personnamn.js";
 import { FALT_BORT } from "./contract.js";
 import { KOMMENTARBILAGAFALT } from "../lib/handelsemodell.js";
-import { AGENTSTATUS_ID, FASTA_TAK, REAKTIONSTAK, amnesId, arNamnd, bilagenyckel, byggFastning, byggMeddelande, byggReaktion, byggSamtal, byggTrad, kravAmnesrubrik, kravTradnamn, motpart, nyttAmnesId, olastaI, samtalsnyckel, synligText, undersamlingskrock } from "../lib/samtal.js";
+import { AGENTSTATUS_ID, FASTA_TAK, OMROSTNINGSTAK, REAKTIONSTAK, amnesId, arNamnd, bilagenyckel, byggFastning, byggMeddelande, byggOmrostningsmeddelande, byggOmrostningsrost, byggOmrostningsval, byggReaktion, omrostningsrostnyckel, byggSamtal, byggTrad, kravAmnesrubrik, kravTradnamn, motpart, nyttAmnesId, olastaI, samtalsnyckel, synligText, undersamlingskrock } from "../lib/samtal.js";
 
 /**
  * Samtalskällan: läser och skriver ramverkets samtal genom en datakälla (0.34.0, #182, #185).
@@ -33,6 +33,11 @@ import { AGENTSTATUS_ID, FASTA_TAK, REAKTIONSTAK, amnesId, arNamnd, bilagenyckel
  *   Samma namn som till `samtalsregelfragment({ status })`.
  * @param {string} [konfig.reaktioner] (chattens nattskiva) Samlingsnamnet för reaktionerna, `<samtal>/{sid}/<reaktioner>/{mid|uid|kod}` och
  *   samma under en tråd. ⛔ INGET FÖRVAL. Samma namn som till `samtalsregelfragment({ reaktioner })`.
+ * @param {string} [konfig.omrostningsval] (cllp/lifehub.app#438 skiva 1) Samlingsnamnet för omröstningarnas alternativ,
+ *   `<samtal>/{sid}/<omrostningsval>/{mid|stycke}`. ⛔ INGET FÖRVAL, och bara tillsammans med `omrostningsroster`. Bara i samtalet, inte i en
+ *   tråd. Samma namn som till `samtalsregelfragment({ omrostningsval })`.
+ * @param {string} [konfig.omrostningsroster] (cllp/lifehub.app#438 skiva 1) Samlingsnamnet för rösterna, `<samtal>/{sid}/<omrostningsroster>/{mid|uid}`.
+ *   ⛔ INGET FÖRVAL. Samma namn som till `samtalsregelfragment({ omrostningsroster })`.
  * @param {boolean} [konfig.omnamnanden] (chattens nattskiva) `true` slår på fältet `namner` på meddelandena. ⛔ INGET FÖRVAL: utan det
  *   kastar `skicka` på ett `namner`, och vyn har ingen @-lista. Samma som till `samtalsregelfragment({ omnamnanden: true })`.
  * @param {boolean} [konfig.citat] (chattens nattskiva) `true` slår på `svarPa` på samtalets meddelanden (svar med citat i privata
@@ -61,11 +66,11 @@ import { AGENTSTATUS_ID, FASTA_TAK, REAKTIONSTAK, amnesId, arNamnd, bilagenyckel
  * @param {() => number} [konfig.klocka] Förval `Date.now`. Prov byter den.
  */
 export function createSamtalskalla(konfig) {
-  const { kalla, samtal = "samtal", meddelanden = "meddelanden", last = "last", tradar, status, reaktioner, omnamnanden, citat, fasta, bilagor, bilagaSamling, tyst, amnen, levandeInkorg, sida = 50, klocka = Date.now } = konfig ?? /** @type {any} */ ({});
+  const { kalla, samtal = "samtal", meddelanden = "meddelanden", last = "last", tradar, status, reaktioner, omrostningsval, omrostningsroster, omnamnanden, citat, fasta, bilagor, bilagaSamling, tyst, amnen, levandeInkorg, sida = 50, klocka = Date.now } = konfig ?? /** @type {any} */ ({});
   if (!kalla || typeof kalla.list !== "function") {
     throw new Error("createSamtalskalla: kalla krävs, en datakälla (createFirestoreSource, createMemorySource).");
   }
-  const frivilliga = Object.fromEntries(Object.entries({ tradar, status, reaktioner, fasta, bilagaSamling, tyst }).filter(([, v]) => v !== undefined));
+  const frivilliga = Object.fromEntries(Object.entries({ tradar, status, reaktioner, omrostningsval, omrostningsroster, fasta, bilagaSamling, tyst }).filter(([, v]) => v !== undefined));
   for (const [falt, v] of Object.entries({ samtal, meddelanden, last, ...frivilliga })) {
     if (typeof v !== "string" || !/^[A-Za-z][A-Za-z0-9_-]*$/.test(v)) {
       throw new Error(`createSamtalskalla: ${falt} "${v}" är inte ett samlingsnamn.`);
@@ -73,7 +78,9 @@ export function createSamtalskalla(konfig) {
   }
   // ⛔ KAN 7 (granskningen av PR 268): samma namn som en annan undersamling hade blandat trådar med meddelanden eller läsmärken.
   // Samma prövning för varje frivillig undersamling (#273 och framåt), med ETT hem: `undersamlingskrock` i lib/samtal.js.
-  undersamlingskrock({ meddelanden, last, tradar, status, reaktioner, fasta, bilagaSamling, tyst }, "createSamtalskalla");
+  undersamlingskrock({ meddelanden, last, tradar, status, reaktioner, omrostningsval, omrostningsroster, fasta, bilagaSamling, tyst }, "createSamtalskalla");
+  // ⛔ OMRÖSTNINGARNA ÄR TVÅ SAMLINGAR OCH ETT VAL (cllp/lifehub.app#438). Alternativ utan röster, eller röster utan alternativ, är ingen omröstning.
+  if ((omrostningsval === undefined) !== (omrostningsroster === undefined)) throw new Error("createSamtalskalla: omrostningsval och omrostningsroster ges tillsammans, eller inte alls. Samma namn som till samtalsregelfragment.");
   if (omnamnanden !== undefined && typeof omnamnanden !== "boolean") throw new Error("createSamtalskalla: omnamnanden är true eller utelämnat.");
   if (citat !== undefined && typeof citat !== "boolean") throw new Error("createSamtalskalla: citat är true eller utelämnat.");
   if (amnen !== undefined && amnen !== true) throw new Error("createSamtalskalla: amnen är true eller utelämnat.");
@@ -106,6 +113,7 @@ export function createSamtalskalla(konfig) {
     ...(m.svarPa ? { svarPa: m.svarPa } : {}),
     // ⛔ Märket, inte filen. `dataUrl` på meddelandet är det #300 tar bort ur översikten.
     ...(m.bilaga ? { bilaga: { namn: m.bilaga.namn, typ: m.bilaga.typ } } : {}),
+    ...(m.omrostning ? { omrostning: true } : {}),
   });
 
   /**
@@ -915,6 +923,118 @@ export function createSamtalskalla(konfig) {
   const reaktionsfunktioner = reaktioner === undefined ? {} : { reaktioner, lasReaktioner, prenumereraReaktioner, reagera, taBortReaktion };
 
   /*
+   * ══ ⛔ OMRÖSTNINGARNA (cllp/lifehub.app#438 skiva 1) ═════════════════════════════════════════════════════════════════════
+   *
+   * Modellen och skälen står i `lib/samtal.js`. Samma form som reaktionerna: EN läsning per samling och samtal, de senaste
+   * `OMROSTNINGSTAK`, inte en per meddelande. Bara i samtalet: en omröstning i en tråd finns inte i skiva 1, och reglerna har ingen väg dit.
+   */
+
+  /** @param {string} sid */
+  const valvag = (sid) => `${samtal}/${sid}/${omrostningsval}`;
+  /** @param {string} sid */
+  const rostvag = (sid) => `${samtal}/${sid}/${omrostningsroster}`;
+  const omrostningsfraga = /** @type {const} */ ({ sortBy: "tid", direction: "desc", limit: OMROSTNINGSTAK });
+
+  /**
+   * Alternativen i ett samtal. `fler`: taket nåddes.
+   * @param {string} sid @returns {Promise<{ rader: any[], fler: boolean }>}
+   */
+  async function lasOmrostningsval(sid) {
+    const rader = await kalla.list(valvag(sid), omrostningsfraga);
+    return { rader, fler: rader.length >= OMROSTNINGSTAK };
+  }
+
+  /**
+   * Rösterna i ett samtal. `fler`: taket nåddes.
+   * @param {string} sid @returns {Promise<{ rader: any[], fler: boolean }>}
+   */
+  async function lasOmrostningsroster(sid) {
+    const rader = await kalla.list(rostvag(sid), omrostningsfraga);
+    return { rader, fler: rader.length >= OMROSTNINGSTAK };
+  }
+
+  /**
+   * Lyssnar på alternativen, om källan kan prenumerera. Annars `null`, och vyn läser om efter varje egen ändring.
+   * @param {string} sid @param {{ onData: (svar: { rader: any[], fler: boolean }) => void, onError: (fel: Error) => void }} lyssnare
+   * @returns {(() => void) | null}
+   */
+  function prenumereraOmrostningsval(sid, lyssnare) {
+    if (typeof kalla.subscribe !== "function") return null;
+    return kalla.subscribe(valvag(sid), omrostningsfraga, { onData: (rader) => lyssnare.onData({ rader, fler: rader.length >= OMROSTNINGSTAK }), onError: lyssnare.onError });
+  }
+
+  /**
+   * Lyssnar på rösterna, om källan kan prenumerera. Annars `null`.
+   * @param {string} sid @param {{ onData: (svar: { rader: any[], fler: boolean }) => void, onError: (fel: Error) => void }} lyssnare
+   * @returns {(() => void) | null}
+   */
+  function prenumereraOmrostningsroster(sid, lyssnare) {
+    if (typeof kalla.subscribe !== "function") return null;
+    return kalla.subscribe(rostvag(sid), omrostningsfraga, { onData: (rader) => lyssnare.onData({ rader, fler: rader.length >= OMROSTNINGSTAK }), onError: lyssnare.onError });
+  }
+
+  /**
+   * Ställer en omröstning: meddelandet och de första alternativen i EN batch, eller ingenting.
+   *
+   * ⛔ BATCHEN ÄR KRAVET, SOM FÖR EN BILAGA. En ensam skrivning hade kunnat lämna en fråga utan alternativ, och reglerna kan inte räkna
+   * dem (se `lib/samtal.js`). ⛔ ALTERNATIVEN FÅR VAR SIN MILLISEKUND efter frågan, så att ordningen i kortet är den skaparen skrev
+   * (`summeraOmrostning` sorterar på tiden), och alla ligger inom regelns fem minuter.
+   *
+   * @param {string} sid @param {{ fraga: string, alternativ: ReadonlyArray<string>, av: string }} d
+   * @returns {Promise<any>} Meddelandet.
+   */
+  async function skickaOmrostning(sid, { fraga, alternativ, av }) {
+    const { meddelande, alternativ: texter } = byggOmrostningsmeddelande({ fraga, alternativ, av, tid: klocka() });
+    if (typeof kalla.batch !== "function") {
+      throw new Error("samtalskalla: en omröstning kräver kalla.batch, så frågan och alternativen skrivs tillsammans eller inte alls. En ensam skrivning hade kunnat lämna en fråga utan alternativ.");
+    }
+    const id = nyttDokumentId(meddelande.tid);
+    const val = texter.map((text, i) => byggOmrostningsval({ mid: id, text, av, tid: meddelande.tid + i + 1 }));
+    const svar = await kalla.batch([
+      { op: "create", collection: meddelandevag(sid), data: { id, ...meddelandeAttLagra(meddelande) } },
+      ...val.map((v) => ({ op: /** @type {const} */ ("create"), collection: valvag(sid), data: { ...v } })),
+    ]);
+    return svar[0];
+  }
+
+  /**
+   * Lägger till ett alternativ. Vem som helst i samtalet. `befintliga`: texterna omröstningen redan har, så att taket och dubbletten prövas.
+   * @param {string} sid @param {{ mid: string, text: string, av: string, befintliga?: ReadonlyArray<string> }} d
+   */
+  async function laggTillAlternativ(sid, { mid, text, av, befintliga }) {
+    const v = byggOmrostningsval({ mid, text, av, tid: klocka(), ...(befintliga ? { befintliga } : {}) });
+    return kalla.create(valvag(sid), { ...v });
+  }
+
+  /**
+   * Röstar för första gången. Nyckeln är `mid|uid`, så en andra röst är samma dokument (och regeln nekar skapelsen): byt med `andraRost`.
+   * @param {string} sid @param {{ mid: string, val: string, av: string }} d
+   */
+  async function rosta(sid, { mid, val, av }) {
+    return kalla.create(rostvag(sid), { ...byggOmrostningsrost({ mid, val, av, tid: klocka() }) });
+  }
+
+  /**
+   * Byter den egna rösten: bara `val` och `tid` skrivs, samma fält som regeln släpper igenom.
+   * @param {string} sid @param {{ mid: string, val: string, av: string }} d
+   */
+  async function andraRost(sid, { mid, val, av }) {
+    const r = byggOmrostningsrost({ mid, val, av, tid: klocka() });
+    return kalla.update(rostvag(sid), r.id, { val: r.val, tid: r.tid });
+  }
+
+  /**
+   * Tar tillbaka den egna rösten. Regeln släpper bara igenom den egna.
+   * @param {string} sid @param {{ mid: string, av: string }} d
+   */
+  async function taBortRost(sid, { mid, av }) {
+    return kalla.remove(rostvag(sid), omrostningsrostnyckel({ mid, av }));
+  }
+
+  const omrostningsfunktioner =
+    omrostningsval === undefined ? {} : { omrostningsval, omrostningsroster, lasOmrostningsval, lasOmrostningsroster, prenumereraOmrostningsval, prenumereraOmrostningsroster, skickaOmrostning, laggTillAlternativ, rosta, andraRost, taBortRost };
+
+  /*
    * ══ ⛔ FÄSTA MEDDELANDEN (chattens nattskiva) ═══════════════════════════════════════════════════════════════════════════
    * Modellen och skälen står i `lib/samtal.js`. En läsning per samtal, de senaste `FASTA_TAK`.
    */
@@ -1043,6 +1163,7 @@ export function createSamtalskalla(konfig) {
     ...tradfunktioner,
     ...statusfunktioner,
     ...reaktionsfunktioner,
+    ...omrostningsfunktioner,
     ...fastfunktioner,
     ...bilagefunktioner,
     ...tystfunktioner,
@@ -1107,6 +1228,31 @@ export function harStatus(kalla) {
  */
 export function harReaktioner(kalla) {
   return Boolean(kalla) && typeof (/** @type {any} */ (kalla).reagera) === "function";
+}
+
+/**
+ * @typedef {object} Omrostningsfunktioner (cllp/lifehub.app#438 skiva 1) Det en samtalskälla har när appen skickat `omrostningsval` och `omrostningsroster`.
+ * @property {string} omrostningsval
+ * @property {string} omrostningsroster
+ * @property {(sid: string) => Promise<{ rader: any[], fler: boolean }>} lasOmrostningsval
+ * @property {(sid: string) => Promise<{ rader: any[], fler: boolean }>} lasOmrostningsroster
+ * @property {(sid: string, lyssnare: { onData: (svar: { rader: any[], fler: boolean }) => void, onError: (fel: Error) => void }) => (() => void) | null} prenumereraOmrostningsval
+ * @property {(sid: string, lyssnare: { onData: (svar: { rader: any[], fler: boolean }) => void, onError: (fel: Error) => void }) => (() => void) | null} prenumereraOmrostningsroster
+ * @property {(sid: string, d: { fraga: string, alternativ: ReadonlyArray<string>, av: string }) => Promise<any>} skickaOmrostning
+ * @property {(sid: string, d: { mid: string, text: string, av: string, befintliga?: ReadonlyArray<string> }) => Promise<any>} laggTillAlternativ
+ * @property {(sid: string, d: { mid: string, val: string, av: string }) => Promise<any>} rosta
+ * @property {(sid: string, d: { mid: string, val: string, av: string }) => Promise<any>} andraRost
+ * @property {(sid: string, d: { mid: string, av: string }) => Promise<any>} taBortRost
+ */
+
+/**
+ * Har källan omröstningar, alltså har appen slagit på dem med `omrostningsval` och `omrostningsroster`? Samma form som `harReaktioner`.
+ * @template {object} K
+ * @param {K | null | undefined} kalla
+ * @returns {kalla is K & Omrostningsfunktioner}
+ */
+export function harOmrostningar(kalla) {
+  return Boolean(kalla) && typeof (/** @type {any} */ (kalla).skickaOmrostning) === "function";
 }
 
 /**
