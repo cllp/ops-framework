@@ -162,6 +162,11 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, insp
    * levande text, och då aldrig de snabba valen. `igk(true)` är den WebKit-tillåtande igenkänningen. Den används bara för en omgång som
    * kör BARA igenkänningen (`barOmgang`), så ingen slåss om mikrofonen. Ger appen en egen igenkänning (ett objekt) är det samma för båda.
    */
+  /**
+   * ⛔ ÄR IGENKÄNNINGEN APPENS EGEN (0.213.0, granskningen av 0.213.0)? Ramverkets `webblasarensIgenkanning` rapporterar sitt fel själv (`igenkanning`),
+   * men en igenkänning appen ger som objekt gör det inte, och då är `igenkanningenFoll` det enda stället som kan lämna en rad.
+   */
+  const egenIgenkanning = useRef(Boolean(igenkanning && typeof igenkanning === "object"));
   const igkWebRef = useRef(/** @type {import("../lib/talk.js").Igenkanning | null | undefined} */ (igenkanning === true ? undefined : igenkanning && typeof igenkanning === "object" ? igenkanning : null));
   /** @param {boolean} [webkit] */
   const igk = (webkit = false) => {
@@ -313,11 +318,19 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, insp
    * redan rapporterat felet (`igenkanning`) i samma ögonblick, med omgången och förra omgången ur `igenkanningensSammanhang`. Förut skickades
    * också `ingen-text` härifrån, men appens felmottagare skriver asynkront och hålls tills skrivningen är klar (`rapporteraFel`), så den
    * andra raden gick bara till konsolen. Mätt i produktion 2026-11-10 09.10: en rad `igenkanning` med bara `kod=aborted`, ingen `ingen-text`.
+   *
+   * ⛔ MEN EN EGEN IGENKÄNNING FRÅN APPEN RAPPORTERAR INGENTING SJÄLV (granskningen av 0.213.0). För den skrivs raden här, med steget
+   * `igenkanning`, koden den gav och samma sammanhang som ramverkets egen rad (`egenIgenkanning: true`). Annars hade den vägen inte lämnat någon rad.
    * @param {number} mitt
+   * @param {string} [kod] Koden igenkänningen gav `onFel`.
    */
-  const igenkanningenFoll = (mitt) => {
+  const igenkanningenFoll = (mitt, kod) => {
     const l = lageRef.current.lage;
     if (mitt !== forsok.current || !monterad.current || (l !== "haller" && l !== "lyssnar")) return;
+    if (egenIgenkanning.current) {
+      const k = typeof kod === "string" && kod ? kod : "okand";
+      rapporteraFel(new Error(`Taligenkänningen föll: ${k}`), { yta: "OpsTalk", steg: "igenkanning", kod: k, egenIgenkanning: true, ...igenkanningensSammanhang(true) });
+    }
     noteraSlut("fel");
     setReserv(true);
     skicka({ typ: "fel", text: ORD_TALK.felIgenkanning.sv });
@@ -539,9 +552,9 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, insp
                   sammanhang: () => igenkanningensSammanhang(bara),
                   // ⛔ Ett fel härifrån får aldrig vara tyst (regel 5): fältet säger att texten uteblir, och ljudet spelas in ändå.
                   // (0.114.0) I en omgång utan inspelare spelas inget in: då säger fältet det och erbjuder "Spela in i stället".
-                  onFel: () => {
+                  onFel: (/** @type {string} */ kod) => {
                     if (mitt !== forsok.current || !monterad.current) return;
-                    if (bara) igenkanningenFoll(mitt);
+                    if (bara) igenkanningenFoll(mitt, kod);
                     else setTextFel(TALK_TEXTFEL);
                   },
                 });
@@ -567,8 +580,12 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, insp
             // ⛔ Spärren släpps av felet självt: "fel" under håll eller lyssnar ger "kasta", och den grenen släpper den.
             if (mitt !== forsok.current || !monterad.current) return;
             noteraSlut("fel", "");
-            // ⛔ (0.213.0, cllp/lifehub.app#253) RAPPORTERAS. Förut stod felet bara i fältet (till exempel en nekad mikrofon): en väg utan rad.
-            rapporteraFel(fel, { yta: "OpsTalk", steg: "starta", omgang: omgang.current, ...forraFalt(), baraIgenkanning: bara });
+            // ⛔ (0.213.0, cllp/lifehub.app#253) RAPPORTERAS. Förut stod felet bara i fältet: en väg utan rad.
+            // ⛔ UTOM EN NEKAD MIKROFON (granskningen av 0.213.0): `NotAllowedError` är personens val (eller webbläsarens inställning), inget fel i appen.
+            // Fältet säger det ändå (`talkFeltext`), och en rad för varje nej hade dränkt de rader som är fel.
+            if (!(fel && typeof fel === "object" && /** @type {any} */ (fel).name === "NotAllowedError")) {
+              rapporteraFel(fel, { yta: "OpsTalk", steg: "starta", omgang: omgang.current, ...forraFalt(), baraIgenkanning: bara });
+            }
             skicka({ typ: "fel", text: talkFeltext(fel) });
           });
       }

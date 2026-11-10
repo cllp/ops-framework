@@ -38,6 +38,10 @@ export const ORD_BILAGEKOPIERING = {
     en: "The copy has not moved on in {sekunder} seconds. It may still finish: check the Library before you try again.",
   },
   forsokIgen: { sv: "Försök igen", en: "Try again" },
+  klarTva: {
+    sv: "Kopierad till {namn}. Ett tidigare försök hann också bli klart, så kopian finns två gånger där. Ta bort den ena i Biblioteket.",
+    en: "Copied to {namn}. An earlier attempt also finished, so the copy is there twice. Remove one in the Library.",
+  },
 };
 
 /**
@@ -50,7 +54,8 @@ export const TIDSGRANS_KOPIERING_MS = 30000;
 /**
  * @typedef {object} Bilagekopiering
  * @property {readonly { id: string, namn: string }[]} platser Platserna personen får lägga en fil på (`id` är platsens adress: `mitt~...`, gruppens id eller `plats~grupp~id`).
- * @property {(inmatning: { bilaga: { namn?: string, typ?: string, dataUrl?: string }, platsId: string, rapportera: (lage: import("../data/bibliotekkalla.js").Kopieringslage) => void }) => void | Promise<void>} onKopiera Appens kopiering. Kastar den visas texten i dialogen.
+ * @property {(inmatning: { bilaga: { namn?: string, typ?: string, dataUrl?: string }, platsId: string, rapportera: (lage: import("../data/bibliotekkalla.js").Kopieringslage) => void, signal: AbortSignal }) => void | Promise<void>} onKopiera Appens kopiering. Kastar den visas texten i dialogen.
+ *   `signal` (0.213.0): avbryts när ett annat försök i samma dialog blivit klart. Skicka den vidare till `kopieraBilagaTillPlats({ ..., signal })`, så skrivs ingen andra post.
  *   `rapportera` (0.213.0): skicka den vidare till `kopieraBilagaTillPlats({ ..., rapportera })`, så visar dialogen vilket steg som pågår och hur mycket som är uppladdat.
  *   Utan den står "Kopierar…", och tidsgränsen räknas från början.
  */
@@ -97,6 +102,10 @@ export function KopieraBilagaKnapp({ bilaga }) {
   const [lage, setLage] = useState(/** @type {import("../data/bibliotekkalla.js").Kopieringslage | null} */ (null));
   const [stilla, setStilla] = useState(false);
   const forsok = useRef(0);
+  /** Försöken som pågår, med var sitt avbrott. */
+  const pagande = useRef(/** @type {Map<number, AbortController>} */ (new Map()));
+  /** Har ett försök redan blivit klart, sedan dialogen öppnades? Då är ett till en andra kopia. */
+  const klarFor = useRef(false);
   const klocka = useRef(/** @type {ReturnType<typeof setTimeout> | null} */ (null));
   const monterad = useRef(true);
   useEffect(() => {
@@ -126,6 +135,8 @@ export function KopieraBilagaKnapp({ bilaga }) {
     if (pagar) return;
     forsok.current += 1;
     const nr = forsok.current;
+    const avbryt = new AbortController();
+    pagande.current.set(nr, avbryt);
     setFel("");
     setStilla(false);
     setLage(null);
@@ -136,6 +147,7 @@ export function KopieraBilagaKnapp({ bilaga }) {
       await onKopiera({
         bilaga,
         platsId: valt,
+        signal: avbryt.signal,
         rapportera: (l) => {
           if (!monterad.current || forsok.current !== nr || !l || typeof l !== "object") return;
           setLage(l);
@@ -143,17 +155,29 @@ export function KopieraBilagaKnapp({ bilaga }) {
           vacka(nr);
         },
       });
+      pagande.current.delete(nr);
       if (!monterad.current) return;
-      // ⛔ Ett försök som blir klart ger kvittot, också ett äldre: kopian finns då.
-      setKlar(t("klar").replace("{namn}", namn));
-      if (forsok.current === nr) {
-        if (klocka.current) clearTimeout(klocka.current);
-        setOppen(false);
-        setUpptagen(false);
-        setStilla(false);
-        setLage(null);
+      /*
+       * ⛔ VILKET FÖRSÖK SOM HELST SOM BLIR KLART AVSLUTAR DIALOGEN (granskningen av 0.213.0). Efter tidsgränsen och Försök igen kan det första försöket bli
+       * klart medan det andra pågår. Då finns kopian: dialogen stängs med kvittot, och de andra försöken avbryts (`signal`), så att de inte skriver en
+       * andra post. Ett försök som redan hunnit förbi sista punkten där det går att avbryta blir klart ändå, och då säger kvittot att kopian finns två gånger.
+       */
+      const dubbel = klarFor.current;
+      klarFor.current = true;
+      setKlar(t(dubbel ? "klarTva" : "klar").replace("{namn}", namn));
+      for (const [annat, c] of pagande.current) {
+        c.abort();
+        pagande.current.delete(annat);
       }
+      if (klocka.current) clearTimeout(klocka.current);
+      setOppen(false);
+      setUpptagen(false);
+      setStilla(false);
+      setLage(null);
     } catch (e) {
+      pagande.current.delete(nr);
+      // Ett försök vi själva avbröt för att ett annat blev klart är inget fel att visa.
+      if (avbryt.signal.aborted) return;
       if (!monterad.current || forsok.current !== nr) return;
       if (klocka.current) clearTimeout(klocka.current);
       setFel(e instanceof Error && e.message ? e.message : t("misslyckades"));
@@ -175,7 +199,7 @@ export function KopieraBilagaKnapp({ bilaga }) {
             : t("fil");
   return (
     <span data-bilaga-kopiera="" className="mt-1 flex flex-wrap items-center gap-2">
-      <OpsButton variant="secondary" onClick={() => { setKlar(""); setOppen(true); }}>
+      <OpsButton variant="secondary" onClick={() => { setKlar(""); klarFor.current = false; setOppen(true); }}>
         <Copy size={14} aria-hidden="true" /> {t("knapp")}
       </OpsButton>
       {klar ? <span role="status" data-bilaga-kopierad="" className="text-meta text-ink-muted">{klar}</span> : null}

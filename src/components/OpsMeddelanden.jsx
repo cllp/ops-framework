@@ -226,6 +226,7 @@ import { AgentIkon, AndraIkon, BockIkon, KopieraIkon, OmrostningIkon, ArkiveraIk
  * @property {string} [bilagaText] (0.77.0, #292) Förled i bildens alt-text. Förval "Bilaga från".
  * @property {string} [taBortBilaga] Förval "Ta bort bilagan".
  * @property {string} [enBilaga] När flera filer valdes. Förval "Ett meddelande bär en bilaga. Välj en fil.".
+ * @property {string} [bilagaGarInteAttSkicka] (0.213.0) När den valda filen inte klarar prövningen. `{skal}` byts mot skälet. Förval "Bilagan går inte att skicka: {skal}".
  * @property {string} [enBilagaRedan] (0.213.0, lifehub.app#751) När en bilaga redan väntar och en till väljs. Förval "Ett meddelande bär en bilaga. Skicka den här först, eller ta bort den och välj en annan.".
  * @property {string} [bilagaTrasig] När en lagrad bilaga inte klarar prövningen. Förval "Bilagan går inte att visa.".
  * @property {string} [bilagaKundeInteHamtas] (0.213.0, lifehub.app#751) När bilagan inte gick att läsa, efter omförsöken. Förval "Bilagan kunde inte hämtas.".
@@ -434,6 +435,7 @@ const ORD_MEDDELANDEN = {
   bilagaText: { sv: "Bilaga från", en: "Attachment from" },
   taBortBilaga: { sv: "Ta bort bilagan", en: "Remove the attachment" },
   enBilaga: { sv: "Ett meddelande bär en bilaga. Välj en fil.", en: "A message carries one attachment. Choose one file." },
+  bilagaGarInteAttSkicka: { sv: "Bilagan går inte att skicka: {skal}", en: "The attachment cannot be sent: {skal}" },
   enBilagaRedan: { sv: "Ett meddelande bär en bilaga. Skicka den här först, eller ta bort den och välj en annan.", en: "A message carries one attachment. Send this one first, or remove it and choose another." },
   bilagaTrasig: { sv: "Bilagan går inte att visa.", en: "The attachment cannot be shown." },
   bilagaKundeInteHamtas: { sv: "Bilagan kunde inte hämtas.", en: "The attachment could not be loaded." },
@@ -513,6 +515,21 @@ const forstaVersal = (t) => (t ? t.charAt(0).toLocaleUpperCase("sv") + t.slice(1
 const BILAGA_OMFORSOK_MS = [1000, 3000];
 
 /**
+ * Bilagorna som redan rapporterats som oläsbara eller ogiltiga, en gång per meddelande och sidladdning (granskningen av 0.213.0). Bubblan monteras om när man
+ * rullar, byter samtal eller öppnar Chattinfo, och en rad per montering hade dränkt felrapporterna i samma fel.
+ * @type {Set<string>}
+ */
+const RAPPORTERADE_BILAGOR = new Set();
+
+/** @param {unknown} fel @param {{ sid: string, mid: string, trad?: string } & Record<string, unknown>} sammanhang */
+function rapporteraBilagaEnGang(fel, sammanhang) {
+  const nyckel = `${sammanhang.sid}|${sammanhang.trad ?? ""}|${sammanhang.mid}`;
+  if (RAPPORTERADE_BILAGOR.has(nyckel)) return;
+  RAPPORTERADE_BILAGOR.add(nyckel);
+  rapporteraFel(fel, sammanhang);
+}
+
+/**
  * En meddelandebilaga. Märket utan `dataUrl` är det vanliga efter #300: filen hämtas då.
  *
  * ══ ⛔ ETT GLAPP ÄR INTE EN TRASIG FIL (0.213.0, cllp/lifehub.app#751) ═══════════════════════════════════════════════════════════════
@@ -567,7 +584,7 @@ function VisadBilaga({ m, kalla, sid, trad, alt, texter }) {
         vantan = setTimeout(() => las(varv + 1), BILAGA_OMFORSOK_MS[varv]);
         return;
       }
-      rapporteraFel(fel instanceof Error ? fel : new Error(`VisadBilaga: ${vad}`), { ...sammanhang, vad, forsok: varv + 1 });
+      rapporteraBilagaEnGang(fel instanceof Error ? fel : new Error(`VisadBilaga: ${vad}`), { ...sammanhang, vad, forsok: varv + 1 });
       setTillstand("fel");
     };
     /** @param {number} varv */
@@ -582,7 +599,7 @@ function VisadBilaga({ m, kalla, sid, trad, alt, texter }) {
           }
           const ogiltig = kommentarbilagaFel(b);
           if (ogiltig) {
-            rapporteraFel(new Error(`VisadBilaga: ${ogiltig}`), { ...sammanhang, vad: "ogiltig" });
+            rapporteraBilagaEnGang(new Error(`VisadBilaga: ${ogiltig}`), { ...sammanhang, vad: "ogiltig" });
             setTillstand("trasig");
             return;
           }
@@ -2473,7 +2490,7 @@ function useBilageutkast(kalla, onBifogaProp, texter) {
     try {
       const b = await readAttachment(filer[0], { maxChars: MAX_KOMMENTARBILAGA, typer: KOMMENTARBILAGA_TYPER });
       const ogiltig = kommentarbilagaFel(b);
-      if (ogiltig) throw new Error(`Bilagan går inte att skicka: ${ogiltig}`);
+      if (ogiltig) throw new Error(texter.bilagaGarInteAttSkicka.replace("{skal}", ogiltig));
       setBilaga(b);
     } catch (e) {
       setBilaga(null);
@@ -3245,7 +3262,8 @@ export function Meddelanderader({ meddelanden, uid, namnFor: namnForProp, medlem
   const omnamnadeNamn = (/** @type {any} */ m) => {
     const lista = Array.isArray(m?.namner) ? m.namner.filter((/** @type {unknown} */ x) => typeof x === "string" && x) : [];
     if (lista.length === 0) return undefined;
-    if (lista.length === 1 && lista[0] === "alla") return [texter.allaNamn];
+    // ⛔ "@alla" OCH "@everyone" OAVSETT VISNINGSSPRÅK (granskningen av 0.213.0): texten skrevs på avsändarens språk, och den som läser kan ha ett annat.
+    if (lista.includes("alla")) return [texter.allaNamn, ORD_MEDDELANDEN.allaNamn.sv, ORD_MEDDELANDEN.allaNamn.en];
     /** @type {string[]} */
     const ut = [];
     for (const u of lista) {
