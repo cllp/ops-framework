@@ -12,9 +12,10 @@
  *
  * ⛔ TRE UTFALL, I DEN HÄR ORDNINGEN:
  *
- *   1. Medlemskapets eget `namn` (#138, det denormaliserade). Ett namn som är samma sträng som uid:t räknas inte:
- *      det är den gamla reserven `namn || userId`, inte ett namn (lifehub.app#714, QA 2026-11-09: den egna svarsraden
- *      stod `RtciJvze03MRhUGvaJFH1FjzPqM2 (du)`).
+ *   1. Medlemskapets eget `namn` (#138, det denormaliserade). Ett namn som är samma sträng som uid:t räknas inte.
+ *      Roten är att en app skickar `namn || userId` (lifehub.app#714, rättas i lifehub.app PR 729). Skyddet står kvar
+ *      här så att ett uid som ändå kommer in aldrig ritas. QA 2026-11-09: den egna svarsraden stod
+ *      `RtciJvze03MRhUGvaJFH1FjzPqM2 (du)`.
  *   2. Är raden DEN INLOGGADES: namnet ur inloggningen (`useOpsAuth().user.namn`). Saknas det: e-postadressen
  *      (`user.email`). Personen vet sitt eget namn, och adressen när namnet saknas, så en rad som säger "Namn saknas"
  *      om en själv vore ett fel i sig.
@@ -42,7 +43,7 @@ export function personnamn(namn, alternativ = {}) {
   const { id, inloggad, saknas = NAMN_SAKNAS } = alternativ;
   const text = (/** @type {unknown} */ v) => (typeof v === "string" ? v.trim() : "");
   const eget = text(namn);
-  // ⛔ UID SOM NAMN ÄR INGET NAMN (lifehub.app#714). `namn || userId` gav uid:t till vyn, och ett ifyllt namn vann alltid.
+  // ⛔ UID SOM NAMN ÄR INGET NAMN (lifehub.app#714). Appen skickade `namn || userId`. Roten rättas där (PR 729). Här vinner ett ifyllt namn bara när det inte är uid:t.
   if (eget && eget !== id) return { text: eget, saknas: false };
   if (id && inloggad?.id === id) {
     const loggadesNamn = text(inloggad.namn);

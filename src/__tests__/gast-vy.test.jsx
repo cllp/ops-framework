@@ -83,9 +83,9 @@ describe("OpsGastLista", () => {
     expect(screen.getByText("2 av 5 gratis platser")).toBeInTheDocument();
     expect(screen.queryByText("Inga gäster har bjudits in till den här händelsen.")).toBeNull();
     expect(screen.queryByText("Inga gäster har bjudits in till den här omröstningen.")).toBeNull();
-    expect(screen.getByText("Ingen gäst är inbjuden bara hit. Gruppen kan redan ha gäster, och siffran ovan är deras platser.")).toBeInTheDocument();
+    expect(screen.getByText("Ingen gäst är inbjuden just här. Siffran ovan gäller gruppens gäster.")).toBeInTheDocument();
     rita({ gaster: [], platser: { anvanda: 2, totalt: 5 }, sprak: "en" });
-    expect(screen.getByText("No guest is invited only here. The group may already have guests, and the number above is their places.")).toBeInTheDocument();
+    expect(screen.getByText("No guest is invited here in particular. The number above counts the group's guests.")).toBeInTheDocument();
   });
 
   it("bjuder in med adress och namn, och tömmer fälten när det gått", async () => {
