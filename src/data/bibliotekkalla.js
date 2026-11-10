@@ -370,7 +370,11 @@ export function createBibliotekskalla(config) {
      * ingen återtagning köras, och då säger posten själv att filen inte blev klar, i stället för att peka på en fil som saknas. Föll uppladdningen tas en ny post tillbaka. Går inte
      * det heller kastas båda felen, inget sväljs.
      *
-     * @param {{ rubrik?: string, namn?: string, fil: { name?: string, namn?: string, type?: string, mime?: string, size?: number, byte?: number, arrayBuffer?: () => Promise<ArrayBuffer> }, blob?: Blob | { arrayBuffer?: () => Promise<ArrayBuffer> }, id?: string, rapportera?: (andel: number) => void, durationMs?: number, peaks?: string, sekunder?: number, taggar?: string[], utskrift?: string }} inmatning `peaks` är vågen som den sparas (`kodaToppar`). En lista av tal räknas inte som en våg, och vågen räknas då ur filen.
+     * ⛔ `onSteg` (0.213.0, cllp/lifehub.app#752) säger vilket av de tre nätstegen som börjar: `"post"` (posten skrivs med `klar: false`), `"fil"` (byten går upp, med
+     * andelen i `rapportera`) och `"klar"` (posten får `klar: true`). Alla tre väntar på servern. Utan den syns bara andelen, och en vy som väntar på posten eller
+     * det sista steget ser ut att stå still.
+     *
+     * @param {{ rubrik?: string, namn?: string, fil: { name?: string, namn?: string, type?: string, mime?: string, size?: number, byte?: number, arrayBuffer?: () => Promise<ArrayBuffer> }, blob?: Blob | { arrayBuffer?: () => Promise<ArrayBuffer> }, id?: string, rapportera?: (andel: number) => void, onSteg?: (steg: "post" | "fil" | "klar") => void, durationMs?: number, peaks?: string, sekunder?: number, taggar?: string[], utskrift?: string }} inmatning `peaks` är vågen som den sparas (`kodaToppar`). En lista av tal räknas inte som en våg, och vågen räknas då ur filen.
      */
     async laddaUppFil(inmatning) {
       if (typeof sokvag !== "function") {
@@ -427,6 +431,8 @@ export function createBibliotekskalla(config) {
       if (ljud && typeof inmatning?.utskrift === "string") underlag.utskrift = inmatning.utskrift;
       else if (tidigare && "utskrift" in tidigare) underlag.utskrift = tidigare.utskrift;
       const post = byggPost(underlag);
+      const steg = typeof inmatning?.onSteg === "function" ? inmatning.onSteg : null;
+      steg?.("post");
       if (tidigare) await source.update(collection, nyckel, post);
       else await source.create(collection, { ...post, id: nyckel });
       // ⛔ UPPLADDNINGEN OCH DET AVSLUTANDE STEGET HÖR TILL SAMMA FELHANTERING (granskningen av PR 408). `klar: true` sätts efter uppladdningen,
@@ -434,6 +440,7 @@ export function createBibliotekskalla(config) {
       // ingen hantering alls: den gamla posten stod kvar med den nya filens uppgifter och `klar: false`, alltså en fungerande fil som
       // ett avbrott. Den återställs nu till vad den var, `klar` inbegripet.
       try {
+        steg?.("fil");
         await lagring.laddaUpp({
           sokvag: vag,
           fil: inmatning.blob ?? fil,
@@ -445,6 +452,7 @@ export function createBibliotekskalla(config) {
         });
         // ⛔ `andrad` FÖLJER MED: regeln kräver att en ändring av filen bär sin egen tid (opsBiblioteketNu).
         const klar = { ...post, fil: { .../** @type {Record<string, unknown>} */ (post.fil), klar: true }, andrad: Date.now() };
+        steg?.("klar");
         await source.update(collection, nyckel, { fil: klar.fil, andrad: klar.andrad });
         return /** @type {typeof post & { id: string }} */ ({ ...klar, id: nyckel });
       } catch (e) {
@@ -591,14 +599,33 @@ export function bilagaKanKopieras(bilaga) {
  * ⛔ BARA TILL GRUPPENS PLATS, EN EGEN PLATS ELLER MITT BIBLIOTEK. Kastar för en händelses och ett ärendes plats, som för `flyttaBibliotekspost`: filerna där hör till objektet.
  * ⛔ KASTAR HELLRE ÄN GER EN TOM FIL: en typ Biblioteket inte tar emot (`text/csv`), en bilaga utan innehåll och en som inte klarar chattens egen prövning ger ett fel med skälet, och ingenting skrivs.
  *
+ * ══ ⛔ STEGEN, MÄTTA I KODEN (0.213.0, cllp/lifehub.app#752) ═══════════════════════════════════════════════════════════════════════════
+ *
+ * CP 2026-11-10 från sin iPhone: "den första tog väldigt lång tid. Men funkade." Knappen snurrade utan att säga något. Stegen, i ordning:
+ *
+ *   1. Ingen hämtning av bilagan. Knappen sitter under en bilaga som redan visas, så `dataUrl` finns i minnet (inline eller läst av bubblan). Ingenting hämtas om.
+ *   2. Byten ur data-URL:en (`bilagaTillBlob`): `atob` och en slinga, ingen omkodning och ingen duk. Mätt i node på en bilaga vid taket (693 359 tecken, 520 000 byte): 3 till 7 ms.
+ *   3. Posten skrivs med `klar: false` (`laddaUppFil`, väntar på servern).
+ *   4. Byten laddas upp (`lagring.laddaUpp`). Med Firebase är det en återupptagbar uppladdning: en begäran som öppnar den, byten, och efter den `getDownloadURL`, vars
+ *      adress `laddaUppFil` inte använder. Det är en tur och retur i onödan för just den här vägen; den är kvar eftersom lagringens kontrakt svarar `{ url, sokvag }`.
+ *   5. Posten får `klar: true` (väntar på servern).
+ *
+ * ⛔ HYPOTES, INTE MÄTT: att steg 4 är det långsamma i telefonen (en halv megabyte upp på ett mobilnät, och fyra tur och retur mot servern). Mätningen som avgör är
+ * tiden per steg i en riktig telefon, och den går att läsa av nu: `rapportera` får varje steg och andelen uppladdat.
+ *
+ * `rapportera` (0.213.0) tar emot `{ steg }` när ett steg börjar (`"forbereder"`, `"post"`, `"fil"`, `"klar"`) och `{ steg: "fil", andel }` medan byten går upp
+ * (0 till 1, från lagringen). Utan den är kopieringen som förut.
+ *
  * @param {object} inmatning
  * @param {{ namn?: string, typ?: string, dataUrl?: string, tecken?: number }} inmatning.bilaga Bilagan som `bilagaUrDokument` ger den (eller som den står inline på ett äldre meddelande).
  * @param {ReturnType<typeof createBibliotekskalla>} inmatning.till Källan för platsen filen hamnar på.
  * @param {string} [inmatning.rubrik] Förval filens namn.
+ * @param {(lage: Kopieringslage) => void} [inmatning.rapportera] (0.213.0) Vilket steg som pågår, och andelen uppladdat.
  * @returns {Promise<import("../lib/bibliotek.js").Bibliotekspost & { id: string }>} Posten på platsen.
  */
 export async function kopieraBilagaTillPlats(inmatning) {
-  const { bilaga, till, rubrik } = inmatning ?? /** @type {any} */ ({});
+  const { bilaga, till, rubrik, rapportera } = inmatning ?? /** @type {any} */ ({});
+  const rapport = typeof rapportera === "function" ? rapportera : null;
   if (!till || typeof till.laddaUppFil !== "function") throw new Error("kopieraBilagaTillPlats: till krävs, en källa ur createBibliotekskalla.");
   const objekt = beskrivObjektbibliotek(till.groupId);
   if (objekt) {
@@ -610,14 +637,26 @@ export async function kopieraBilagaTillPlats(inmatning) {
   if (!(/** @type {readonly string[]} */ (FILMIME)).includes(mime)) {
     throw new Error(`Filtypen ${bilaga.typ} går inte att lägga i Biblioteket, så bilagan kopierades inte.`);
   }
+  rapport?.({ steg: "forbereder" });
   const blob = bilagaTillBlob(bilaga);
   return till.laddaUppFil({
     ...(typeof rubrik === "string" && rubrik.trim() ? { rubrik } : {}),
     namn: bilaga.namn,
     fil: { name: bilaga.namn, type: mime, size: blob.size },
     blob,
+    ...(rapport
+      ? {
+          onSteg: (/** @type {"post" | "fil" | "klar"} */ steg) => rapport({ steg }),
+          rapportera: (/** @type {number} */ andel) => rapport({ steg: "fil", andel }),
+        }
+      : {}),
   });
 }
+
+/**
+ * Var en kopiering av en bilaga är (0.213.0, cllp/lifehub.app#752). `andel` (0 till 1) bara medan byten går upp, och bara när lagringen kan säga den.
+ * @typedef {{ steg: "forbereder" | "post" | "fil" | "klar", andel?: number }} Kopieringslage
+ */
 
 /**
  * Längd och toppar vid uppladdning och inspelning. Avkodning med AudioContext
