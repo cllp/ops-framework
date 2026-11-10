@@ -233,13 +233,46 @@ export function createSvarskalla(konfig) {
     return `${handelser}/${hid}/${svar}`;
   };
 
+  /** @param {ReadonlyArray<{ id: string, svar: unknown }>} rader */
+  const lasSvar = (rader) => rader.map((r) => ({ id: r.id, ...byggSvar(r.svar) }));
+
   return Object.freeze({
     /**
      * Alla svar på en händelse: `[{ id: uid, svar }]`.
      * @param {string} hid @returns {Promise<Array<{ id: string, svar: "kommer" | "kanske" | "kommerInte" }>>}
      */
     async lista(hid) {
-      return (await kalla.list(vag(hid))).map((r) => ({ id: r.id, ...byggSvar(r.svar) }));
+      return lasSvar(await kalla.list(vag(hid)));
+    },
+
+    /**
+     * Svaren live på en öppen händelse (lifehub.app#714). Samma rader som `lista`, varje gång urvalet ändras, också första gången.
+     *
+     * ⛔ EN LYSSNARE FÖR DEN ÖPPNA HÄNDELSEN, INTE EN PER RAD. En lista med många händelser ska inte prenumerera på varje rad.
+     * Utan `subscribe` på källan kastar den: en vy som ser levande ut men inte är det visar ett svar först efter omladdning.
+     * Då är `lista` vägen, och den säger ifrån.
+     *
+     * @param {string} hid
+     * @param {{ onData: (rader: Array<{ id: string, svar: "kommer" | "kanske" | "kommerInte" }>) => void, onError: (fel: Error) => void }} lyssnare
+     * @returns {() => void}
+     */
+    prenumerera(hid, lyssnare) {
+      if (!lyssnare || typeof lyssnare.onData !== "function" || typeof lyssnare.onError !== "function") {
+        throw new Error("createSvarskalla.prenumerera: lyssnare krävs, { onData, onError }. Utan onError hade ett fel i strömmen försvunnit tyst, och vyn hade fortsatt visa en gammal lista.");
+      }
+      if (typeof kalla.subscribe !== "function") {
+        throw new Error("createSvarskalla.prenumerera: källan har ingen subscribe. Använd lista().");
+      }
+      return kalla.subscribe(vag(hid), undefined, {
+        onData: (rader) => {
+          try {
+            lyssnare.onData(lasSvar(rader));
+          } catch (e) {
+            lyssnare.onError(e instanceof Error ? e : new Error(String(e)));
+          }
+        },
+        onError: (e) => lyssnare.onError(e instanceof Error ? e : new Error(String(e))),
+      });
     },
 
     /**
