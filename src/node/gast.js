@@ -127,6 +127,8 @@ import {
   GASTNYLANKIP_FONSTER_MS,
   GASTNYLANKIP_MAX,
   GASTNYLANK_MAX_LANKAR,
+  GASTNYLANK_GILTIG_MS,
+  GASTNYLANK_GOLV_MS,
   GASTNYLANK_SVAR,
   GASTPERSONFALT,
   GASTPERSONINBJUDANFALT,
@@ -409,6 +411,9 @@ function felMedKod(kod, meddelande) {
  *   En per inbjudan. Bygg adressen med `gastLank`. ⛔ För en `delta`-inbjudan bär länken också `handelse` (händelsen som gästen ser den, med `id`) och `sekvens`: `byggIcs({ handelse, sekvens, domän, tidszon, stampel })` ger kalenderposten
  *   som ska bifogas, och rubriken, tiden och platsen i brevet och på sidan kommer ur samma ställe (regel 2).
  * @property {{ uid: string, namn: string } | null} skickadAv Den som bjöd eller skickade om. `null` för "ny länk", som gästen själv bad om.
+ * @property {number} [fler] (0.215.0, lifehub.app#760 skiva 3) Bara i brevet "Mina inbjudningar" (`nyLank({ epost })`): hur många inbjudningar till adressen som inte fick plats (`GASTNYLANK_MAX_LANKAR`). Brevet säger
+ *   "och N till" och hur de nås. 0 när alla fick plats.
+ * @property {boolean} [engangs] (0.215.0) Bara i brevet "Mina inbjudningar": länkarna gäller en gång och ett dygn (`GASTNYLANK_GILTIG_MS`). Brevet säger det.
  */
 
 /** (0.202.0) Hur många tidigare nycklar en inbjudan minns för `nyLank`. */
@@ -439,13 +444,14 @@ const GASTTIDIGARE_NYCKLAR = 5;
  * @param {readonly string[]} [konfig.extraSparrade] Appens egna spärrade mejldomäner (`epostFel`).
  * @param {(fel: unknown) => void} [konfig.rapportera] Där ett brev som inte gick att skicka rapporteras när svaret ändå måste vara neutralt (`nyLank`). Förval `console.error`.
  * @param {() => number} [konfig.klocka] Millisekunder. Förval `Date.now`. Provens enda sätt att låta en länk gå ut.
+ * @param {number} [konfig.nyLankGolvMs] (0.215.0) Den kortaste tid `nyLank` tar (`GASTNYLANK_GOLV_MS`). Bara för prov: ett golv på riktiga millisekunder, oberoende av `klocka`.
  */
 export function createGastService(konfig) {
   /*
    * ⛔ DESTRUKTURERINGEN LIGGER I KROPPEN, av samma skäl som i `createDelningService`: `({ kalla })` i signaturen kastar Nodes "Cannot destructure" innan
    * valideringen hinner köra, och det felet nämner inte fabriken.
    */
-  const { kalla, samlingar, farBjuda, skicka, sak, delta, grupp, radering, lankvalv, extraSparrade = [], rapportera = (/** @type {unknown} */ fel) => console.error("createGastService:", fel), klocka = Date.now } = konfig ?? {};
+  const { kalla, samlingar, farBjuda, skicka, sak, delta, grupp, radering, lankvalv, extraSparrade = [], rapportera = (/** @type {unknown} */ fel) => console.error("createGastService:", fel), klocka = Date.now, nyLankGolvMs = GASTNYLANK_GOLV_MS } = konfig ?? {};
   const namn = "createGastService";
   if (!kalla || typeof kalla.read !== "function" || typeof kalla.list !== "function" || typeof kalla.remove !== "function") {
     throw new Error(`${namn}: en datakälla med read, list och remove krävs. Ramverket känner ingen databas.`);
@@ -946,10 +952,11 @@ export function createGastService(konfig) {
    * Roterar nyckeln på en inbjudan (den gamla slutar fungera) och räknar ett utskick. Försöker om när en annan hann ändra raden.
    *
    * @param {Record<string, any>} rad Raden som den lästes.
+   * @param {{ engangs?: boolean }} [val] (0.215.0) `engangs`: länken ur brevet "Mina inbjudningar", som gäller en gång och `GASTNYLANK_GILTIG_MS`.
    * @returns {Promise<{ rad: Record<string, any>, nyckel: string }>}
    */
-  async function roteraNyckel(rad) {
-    const { rad: ny, nyckel } = await roteraNyckelUtanValv(rad);
+  async function roteraNyckel(rad, val = {}) {
+    const { rad: ny, nyckel } = await roteraNyckelUtanValv(rad, val);
     await sparaIValv(ny, nyckel);
     return { rad: ny, nyckel };
   }
@@ -970,9 +977,11 @@ export function createGastService(konfig) {
 
   /**
    * @param {Record<string, any>} rad
+   * @param {{ engangs?: boolean }} [val] Se `roteraNyckel`. ⛔ VARJE ANNAN ROTATION SÄTTER `engangs: false`: en ny länk från den som bjöd in (Skicka igen) är en vanlig länk, också om förra var en engångslänk.
    * @returns {Promise<{ rad: Record<string, any>, nyckel: string }>}
    */
-  async function roteraNyckelUtanValv(rad) {
+  async function roteraNyckelUtanValv(rad, val = {}) {
+    const engangs = val.engangs === true;
     let aktuell = rad;
     for (let i = 0; i < 4; i++) {
       const nyckel = nyGastnyckel();
@@ -982,7 +991,8 @@ export function createGastService(konfig) {
         tidigareNyckelHashar: tidigareHashar(aktuell),
         skickad: nu,
         antalSkickade: (typeof aktuell.antalSkickade === "number" ? aktuell.antalSkickade : 0) + 1,
-        lankGiltigTill: nu + GASTLANKDAGAR * DYGN_MS,
+        lankGiltigTill: nu + (engangs ? GASTNYLANK_GILTIG_MS : GASTLANKDAGAR * DYGN_MS),
+        engangs,
       });
       if (updated) return { rad: row, nyckel };
       if (!row) break;
@@ -1457,6 +1467,15 @@ export function createGastService(konfig) {
       await ge();
       return orsak("utgangen");
     }
+    // ⛔ (0.215.0, lifehub.app#760 skiva 3) EN ENGÅNGSLÄNK FÖRBRUKAS NÄR DEN LÖSES IN, inte när den prövas (`prova` skapar ingenting). Villkoret på nyckeln och märket gör att två samtidiga inlösen ger
+    // exakt en session: den andra ser en ändrad rad och får `utgangen`, samma svar som en förbrukad länk, och sidan erbjuder Skicka en ny länk.
+    if (vad === "los" && rad.engangs === true) {
+      const { updated } = await uppdateraOm(INB, id, { nyckelHash: rad.nyckelHash, engangs: true }, { engangs: false, lankGiltigTill: klocka() });
+      if (!updated) {
+        await ge();
+        return orsak("utgangen");
+      }
+    }
 
     await ge();
     return { ok: true, id };
@@ -1644,24 +1663,35 @@ export function createGastService(konfig) {
    * @returns {Promise<{ ok: true, svar: string }>}
    */
   async function nyLank(b) {
-    const ipHash = ipId(b?.ip, "nyLank", "nylank");
+    // ⛔ (0.215.0, lifehub.app#760 skiva 3) GOLVET GÄLLER VARJE VÄG UT, också taket per IP och en adress som inte går att läsa: ett svar som kom snabbare på ett sätt än ett annat hade sagt vad som hände.
+    const golv = Date.now() + Math.max(0, Number(nyLankGolvMs) || 0);
     const svar = { ok: /** @type {const} */ (true), svar: GASTNYLANK_SVAR };
-    if (!(await reserveraRaknare(ipHash, { max: GASTNYLANKIP_MAX, fonsterMs: GASTNYLANKIP_FONSTER_MS }))) return svar;
-    if (b?.id !== undefined || b?.nyckel !== undefined) {
-      await nyLankForLank(b);
+    try {
+      const ipHash = ipId(b?.ip, "nyLank", "nylank");
+      if (!(await reserveraRaknare(ipHash, { max: GASTNYLANKIP_MAX, fonsterMs: GASTNYLANKIP_FONSTER_MS }))) return svar;
+      if (b?.id !== undefined || b?.nyckel !== undefined) {
+        await nyLankForLank(b);
+        return svar;
+      }
+      const epost = normaliseraGastepost(b?.epost, extraSparrade);
+      if (epost === null) return svar;
+      // ⛔ GRUPPLÄNKEN KOMMER FÖRST (0.132.0). Brevet bär högst `GASTNYLANK_MAX_LANKAR` länkar, och sorterat på `skapad` ensam kan hela gruppen hamna utanför när personen har fler omröstningar: den inbjudan
+      // som ger mest är den som inte får tappas. Därefter nyast först, som förut. (0.215.0) Resten räknas (`fler`), och länkarna gäller en gång och ett dygn (`GASTNYLANK_GILTIG_MS`).
+      await skickaNyaLankar(
+        epost,
+        async () => {
+          const alla = (await kalla.list(INB, { where: { epost } }))
+            .filter((r) => r.aterkallad === null)
+            .sort((x, y) => Number(arGruppslag(y.omfang)) - Number(arGruppslag(x.omfang)) || y.skapad - x.skapad);
+          return { rader: alla.slice(0, GASTNYLANK_MAX_LANKAR), fler: Math.max(0, alla.length - GASTNYLANK_MAX_LANKAR) };
+        },
+        { engangs: true },
+      );
       return svar;
+    } finally {
+      const kvar = golv - Date.now();
+      if (kvar > 0) await new Promise((r) => setTimeout(r, kvar));
     }
-    const epost = normaliseraGastepost(b?.epost, extraSparrade);
-    if (epost === null) return svar;
-    // ⛔ GRUPPLÄNKEN KOMMER FÖRST (0.132.0). Brevet bär högst `GASTNYLANK_MAX_LANKAR` länkar, och sorterat på `skapad` ensam kan hela gruppen hamna utanför när personen har fler omröstningar: den inbjudan
-    // som ger mest är den som inte får tappas. Därefter nyast först, som förut.
-    await skickaNyaLankar(epost, async () =>
-      (await kalla.list(INB, { where: { epost } }))
-        .filter((r) => r.aterkallad === null)
-        .sort((x, y) => Number(arGruppslag(y.omfang)) - Number(arGruppslag(x.omfang)) || y.skapad - x.skapad)
-        .slice(0, GASTNYLANK_MAX_LANKAR),
-    );
-    return svar;
   }
 
   /**
@@ -1690,7 +1720,7 @@ export function createGastService(konfig) {
     // Raden läses om i `skickaNyaLankar`: den som lästes ovan har en räknare som just ändrats, och rotationen villkoras på nyckelns hash.
     await skickaNyaLankar(kontakt.varde, async () => {
       const aktuell = await kalla.read(INB, id);
-      return aktuell && aktuell.aterkallad === null && aktuell.nyckelHash === rad.nyckelHash ? [aktuell] : [];
+      return { rader: aktuell && aktuell.aterkallad === null && aktuell.nyckelHash === rad.nyckelHash ? [aktuell] : [], fler: 0 };
     });
   }
 
@@ -1698,11 +1728,12 @@ export function createGastService(konfig) {
    * Brevet med nya länkar, för båda vägarna i `nyLank`: taket per adress och dygn, nya nycklar (de gamla slutar fungera) och ett brev av typen `ny-lank` till adressen. Fel kastas aldrig ut:
    * de rapporteras, eftersom svaret till den som bad är detsamma hur det än gick.
    * @param {string} epost Adressen brevet går till, normaliserad.
-   * @param {() => Promise<Record<string, any>[]>} rader Inbjudningarna som får nya länkar. Läses först när taket släppt igenom.
+   * @param {() => Promise<{ rader: Record<string, any>[], fler: number }>} lasRader Inbjudningarna som får nya länkar, och hur många som inte fick plats. Läses först när taket släppt igenom.
+   * @param {{ engangs?: boolean }} [val] (0.215.0) `engangs`: brevet "Mina inbjudningar", vars länkar gäller en gång och ett dygn.
    */
-  async function skickaNyaLankar(epost, rader) {
+  async function skickaNyaLankar(epost, lasRader, val = {}) {
     if (!(await reserveraRaknare(hash(`nylank-epost|${gastId(epost)}`), { max: GASTNYLANK_BREV_PER_DYGN, fonsterMs: DYGN_MS }))) return;
-    const aktiva = await rader();
+    const { rader: aktiva, fler } = await lasRader();
     if (aktiva.length === 0) return;
     try {
       const lankar = [];
@@ -1714,11 +1745,11 @@ export function createGastService(konfig) {
           if (!h || h.arkiverad === true || h.groupId !== r.groupId) continue;
           delta = deltaHandelseUt(h);
         }
-        const { rad, nyckel } = await roteraNyckel(r);
+        const { rad, nyckel } = await roteraNyckel(r, { engangs: val.engangs === true });
         lankar.push(brevlank(rad, nyckel, delta ? { ut: delta, sekvens: await sekvensForUtskick(rad, delta) } : null));
       }
       if (lankar.length === 0) return;
-      await skicka({ typ: "ny-lank", till: epost, namn: text(aktiva[0].namn), lankar, skickadAv: null });
+      await skicka({ typ: "ny-lank", till: epost, namn: text(aktiva[0].namn), lankar, skickadAv: null, ...(val.engangs === true ? { engangs: true, fler } : {}) });
     } catch (fel) {
       rapportera(fel);
     }
@@ -1833,7 +1864,8 @@ export function createGastService(konfig) {
       .filter((x) => x.text !== "" && x.rubrik.sv !== "");
     const kort = vitlista({ tagg, status: par(p.status), texter }, GASTPROJEKTKORTFALT);
     const funktioner = GS.funktioner.filter((f) => /** @type {readonly string[]} */ (GASTPROJEKTFUNKTIONER).includes(f));
-    const svar = { ok: true, namn: s.inbjudan.namn, funktion: "grupp", grupp: vitlista({ namn: text(p.namn), funktioner, nedladdning: nedladdningTillaten(s.inbjudan), kommentera: false, beskrivning: "", projekt: kort }, GASTGRUPPSVARSFALT.hamta) };
+    const g = await kalla.read(GS.samlingar.grupper, s.inbjudan.groupId);
+    const svar = { ok: true, namn: s.inbjudan.namn, funktion: "grupp", gruppnamn: text(g?.namn), grupp: vitlista({ namn: text(p.namn), funktioner, nedladdning: nedladdningTillaten(s.inbjudan), kommentera: false, beskrivning: "", projekt: kort }, GASTGRUPPSVARSFALT.hamta) };
     return Object.fromEntries(Object.entries(svar).filter(([k]) => /** @type {readonly string[]} */ (GASTSVARSFALT).includes(k)));
   }
 
@@ -1862,7 +1894,7 @@ export function createGastService(konfig) {
     if (!(await reserveraAnrop(s.inbjudan.id))) return orsak("for-manga");
     const g = await kalla.read(GS.samlingar.grupper, s.inbjudan.groupId);
     if (!g) return orsak("saknas");
-    const svar = { ok: true, namn: s.inbjudan.namn, funktion: "grupp", grupp: vitlista({ namn: text(g.namn), funktioner: [...GS.funktioner], nedladdning: nedladdningTillaten(s.inbjudan), kommentera: Boolean(GS.tradar && GS.bibliotekBas), beskrivning: text(g.beskrivning).slice(0, MAX_GRUPPBESKRIVNING) }, GASTGRUPPSVARSFALT.hamta) };
+    const svar = { ok: true, namn: s.inbjudan.namn, funktion: "grupp", gruppnamn: text(g.namn), grupp: vitlista({ namn: text(g.namn), funktioner: [...GS.funktioner], nedladdning: nedladdningTillaten(s.inbjudan), kommentera: Boolean(GS.tradar && GS.bibliotekBas), beskrivning: text(g.beskrivning).slice(0, MAX_GRUPPBESKRIVNING) }, GASTGRUPPSVARSFALT.hamta) };
     return Object.fromEntries(Object.entries(svar).filter(([k]) => /** @type {readonly string[]} */ (GASTSVARSFALT).includes(k)));
   }
 

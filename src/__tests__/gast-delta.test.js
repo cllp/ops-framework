@@ -348,6 +348,7 @@ describe("hamta: en delta-gäst ser händelsens rubrik, tid och plats och sitt e
     const h = bygg();
     const g = await deltaGast(h);
     const svar = await h.tjanst.hamta({ sessionsnyckel: g.sessionsnyckel });
+    // ⛔ (0.215.0) INGET `gruppnamn` för en händelsegäst: hen ser ingenting om gruppen (raden nedan). Växlaren på gästsidan samlar en sådan inbjudan under Händelser.
     expect(svar).toEqual({ ok: true, namn: "", funktion: "delta", delta: { handelse: { titel: "Möte", plats: "Salen, Visby", datum: "2026-12-02", slutDatum: null, tid: "18:00", slutTid: "20:00", heldag: false }, mitt: null } });
     // Golv: svaret bär något, så att "inget läckt" inte är grönt av ett tomt svar.
     expect(Object.keys(svar.delta.handelse).sort()).toEqual([...GASTDELTAHANDELSEFALT].sort());

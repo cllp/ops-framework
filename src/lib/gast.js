@@ -168,8 +168,30 @@ export const GASTNYLANKIP_FONSTER_MS = 60 * 60 * 1000;
 /** Högsta antalet brev med nya länkar till samma adress och dygn (CP-förslaget i #389: tre). */
 export const GASTNYLANK_BREV_PER_DYGN = 3;
 
-/** Högsta antalet länkar (en per aktiv inbjudan) som ett enda brev med nya länkar bär. */
+/**
+ * Högsta antalet länkar (en per aktiv inbjudan) som ett enda brev med nya länkar bär.
+ *
+ * ⛔ (0.215.0, lifehub.app#760 skiva 3) TAKET STÅR KVAR, OCH BREVET SÄGER "OCH N TILL" (`Gastbrev.fler`). Varje länk i brevet är en nyckel, och ett brev kan vidarebefordras: taket begränsar vad ett vidarebefordrat
+ * brev öppnar. En gäst med fler inbjudningar får veta att de finns och hur de nås (varje inbjudans eget brev från den som bjöd in, Skicka igen), i stället för att alla nycklar samlas i ett brev. Att höja taket hade
+ * gett ett längre brev och fler nycklar i samma vidarebefordran för det fåtal som har fler än fem.
+ */
 export const GASTNYLANK_MAX_LANKAR = 5;
+
+/**
+ * (0.215.0, lifehub.app#760 skiva 3) Hur länge en länk ur brevet "Mina inbjudningar" (`nyLank({ epost })`) gäller, i millisekunder: ett dygn, och bara en gång.
+ *
+ * ⛔ MÄTT FÖRE ÄNDRINGEN: länken i det insamlade brevet gällde 30 dagar (`GASTLANKDAGAR`) och gick att lösa in hur många gånger som helst, också två dygn senare. Brevet bär upp till fem nycklar på en gång och skickas till
+ * en adress som vem som helst kan skriva in, så den som får brevet vidarebefordrat hade fått varje inbjudan i en månad. Nu förbrukas länken när den löses in (`los`), och den som behöver den igen ber om en ny.
+ */
+export const GASTNYLANK_GILTIG_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * (0.215.0, lifehub.app#760 skiva 3) Den kortaste tid `nyLank` tar, i millisekunder, oavsett om adressen har en inbjudan.
+ *
+ * ⛔ MÄTT FÖRE ÄNDRINGEN: svaret var detsamma, men tiden sa skillnaden. Med ett utskick som tar 80 ms tog en träff 81 ms och en miss 0,1 ms, så vem som helst kunde mäta fram vilka adresser som är gäster. Nu svarar båda
+ * tidigast efter golvet. Ett utskick som tar längre än golvet syns fortfarande: golvet är satt med marginal mot appens utskick, som lägger brevet i en kö.
+ */
+export const GASTNYLANK_GOLV_MS = 1200;
 
 /** Längsta namn en gäst eller den som bjuder får ge, i tecken. */
 export const MAX_GASTNAMN = 80;
@@ -355,8 +377,10 @@ export const GASTLISTFALT = /** @type {const} */ ([
  * Fälten i det svar en gäst får, och inget annat lämnar servern (`hamta`): inte gruppen, medlemmarna, andra gäster, adresser, chatten eller något av
  * appens fält som appen inte uttryckligen listat i `sak.falt`. En öppen lista, som `HANDELSESVARSFALT`: allt som skickas ut är något som kan läcka.
  * `grupp` (0.132.0) är gruppens namn och vilka funktioner gästen har, för en gruppinbjudan. `delta` (0.146.0) är händelsen (`GASTDELTAHANDELSEFALT`) och gästens eget svar (`mitt`), för en `delta`-inbjudan.
+ * `gruppnamn` (0.215.0, lifehub.app#760 skiva 3) är namnet på gruppen, bara för en gäst i hela gruppen eller i ett projekt: gästsidans växlare samlar inbjudningarna under det. För ett projekt är `grupp.namn`
+ * projektets namn och `gruppnamn` gruppens. ⛔ ALDRIG FÖR EN OMRÖSTNING ELLER EN HÄNDELSE: den gästen ser ingenting om gruppen (provat i `gast-delta.test.js`), och växlaren samlar dem under Händelser.
  */
-export const GASTSVARSFALT = /** @type {const} */ (["ok", "namn", "funktion", "sak", "grupp", "delta"]);
+export const GASTSVARSFALT = /** @type {const} */ (["ok", "namn", "funktion", "sak", "grupp", "delta", "gruppnamn"]);
 
 /**
  * (0.132.0) Fälten i gruppens svar, per åtgärd. ⛔ ÖPPNA LISTOR, EN PER ÅTGÄRD: allt som skickas ut till en gäst bygges fält för fält ur de här, aldrig genom att ett helt

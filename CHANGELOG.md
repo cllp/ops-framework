@@ -30,6 +30,15 @@ Gäst i ett projekt (cllp/lifehub.app#760 skiva 1) och projektets egen chatt (sk
 - **`samtalsnotiser`**: en projektchatt är ett rum för flera, notis bara vid ett omnämnande (`namndTitel(namn, samtal)`, förval "nämnde dig i projektets chatt").
 - **Gästen**: `GASTPROJEKTFUNKTIONER` har nu `chatt`, och den är projektets egen. `chatt`, `skrivChatt` och översikten väljer samtalet ur inbjudan; inga trådar, citat bara i samma chatt, kort bara för projektets plats, `kommenteraPost` nej. Gästens första meddelande skapar samtalet med gruppens agent som skapare. Raderingen tar gästens meddelanden ur varje projektchatt i gruppen. En gäst i hela gruppen når bara gruppchatten. `OpsGastGrupp`: Chatt-fliken utan trådknapp.
 
+### Skiva 3: växlaren och Mina inbjudningar
+
+- **Mätt före:** `nyLank({ epost })` svarade lika men en träff tog utskickets tid (81 ms mot 0,1 ms), och länkarna i brevet gällde 30 dagar och flera gånger. Taken (10 per IP och timme, 3 brev per adress och dygn, 5 länkar per brev) var redan tysta.
+- **`GASTNYLANK_GOLV_MS`**: `nyLank` svarar tidigast efter 1 200 ms på varje väg. `createGastService({ nyLankGolvMs })` för prov.
+- **`GASTNYLANK_GILTIG_MS`**: länkarna i brevet Mina inbjudningar gäller en gång och ett dygn (`engangs` på inbjudan). `los` förbrukar, `prova` inte. Andra rotationer ger vanliga länkar.
+- **Taket på fem länkar står kvar**, och brevet bär `fler` och `engangs` (`Gastbrev`), så att appen skriver "och N till".
+- **`hamta` bär `gruppnamn`** för en gäst i gruppen eller ett projekt (aldrig för en omröstning eller händelse).
+- **`OpsGastSida`**: växlaren överst (`GastVaxlare`), Mina inbjudningar sist, och Logga ut tar bort allt med `ops-gast:`.
+
 ### Med flit inte med
 
 - **En gruppgäst i projektens chattar**: inbjudan pekar ut ETT samtal. Att läsa flera hade krävt en lista över samtal i gästens vy, och det är ett eget beslut.
@@ -39,6 +48,7 @@ Gäst i ett projekt (cllp/lifehub.app#760 skiva 1) och projektets egen chatt (sk
 ### Prov
 
 - **`gast-projekt.test.js`**, 21 prov mot minneskällan: modellen, `bjud` (roll, projektet finns, tagg, platser ur samma fem), vad en projektgäst ser (kalender med egen kalender och med tagg i gruppens förvalda, bibliotek, filer, ärenden, översikt) med en lista på 16 hemligheter som aldrig får synas (**golv**), en förfalskad tagg i varje åtgärd (golv: 7 åtgärder), en återkallad inbjudan, ett arkiverat projekt, ett trasigt urval, och att en gruppgäst är orörd. 13 mutationer, var och en röd.
+- **Skiva 3:** `gast-nylank-760.test.js` 9 prov (engång, ett dygn, samtidiga inlösen, vanliga länkar efter, fem och fler, tid med och utan golv, tysta tak), `gast-vaxlare-760.test.jsx` 9 prov. 17 mutationer röda (N1 till N9, V1 till V8).
 - **Skiva 2:** `gast-projekt.test.js` har nu 27 prov (6 nya om projektets chatt, och förfalskad tagg i 9 åtgärder), `samtal-projekt.test.js` 10 prov (modell, källa, notiser, regeltext), `meddelanden-projekt.test.jsx` 3 prov, `gast-projekt-vy.test.jsx` 9 prov och `rules/__tests__/projektchatt.test.mjs` mot emulatorn. 29 mutationer, var och en röd.
 - **`gast-projekt-vy.test.jsx`**, 8 prov (skiva 1): flikarna, kortet, ingen svarsrad, ärendefliken med `hosDig`, behörighetsraderna och listan på projektets sida. 9 mutationer, var och en röd.
 
