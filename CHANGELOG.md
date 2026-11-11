@@ -9,6 +9,22 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.216.0
+
+"I repot" läser om på begäran, säger när det lästes och vilken mapp i repot projektet är kopplat till (cllp/lifehub.app#775, och #774 punkt 2). CP 2026-11-11: "Projekt filer i repot uppdateras inte, behöver reload knapp och ett datum för senaste sync." och "i repot, visa vilken mapp som är kopplad till projektet i repositoriet". Inget brytande: en app som inte skickar de nya fälten får Läs om och tiden då svaret kom fram, och ingen rad om mappen.
+
+### Rotorsaken
+
+Appens läsning var live, men vyn läste varje mapp en gång, när den fälldes ut, och sedan aldrig igen så länge raden stod utfälld (också medan en fil var öppen, eftersom trädet står kvar dolt). En fil som lades till eller togs bort i repot syntes inte förrän raden fälldes ihop och ut eller sidan laddades om, och ingenting sa hur gammal listan var.
+
+### Nytt
+
+- **Läs om** överst i "I repot" (`BibliotekRepo`): projektets mapp och varje utfälld mapp läses igen. Utfällningen står kvar, raderna står kvar tills det nya svaret kommit, och knappen är upptagen tills projektets mapp svarat. Ingen automatisk omläsning: varje läsning är ett anrop mot GitHub.
+- **"Hämtad från GitHub 11 nov 10:05"**: när projektets mapp hämtades. `RepoLasning.hamtad` (ISO 8601, när appen frågade GitHub) vinner; utan den är det när svaret kom fram. Ett avvisat löfte har ingen tid.
+- **Mappen i repot** (`RepoLasning.kalla`, `{ repo, mapp, url? }`): `ägare/namn/mapp`, eller `ägare/namn (hela repot)`, med en länk till mappen när adressen ligger på github.com. Bara text att visa: vyn läser fortfarande bara vägar inom projektets mapp. En `kalla` med fel form eller en väg uppåt ritas inte.
+
+---
+
 ## 0.215.1
 
 Appens märke på de publika sidorna är större: 32 px högt i stället för 24.
