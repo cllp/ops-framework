@@ -47,14 +47,14 @@ Gäst i ett projekt (cllp/lifehub.app#760 skiva 1) och projektets egen chatt (sk
 
 - **En gruppgäst i projektens chattar**: inbjudan pekar ut ETT samtal. Att läsa flera hade krävt en lista över samtal i gästens vy, och det är ett eget beslut.
 - **Svar och omröstning**: summorna och medlemmens lista räknar bara gäster i hela gruppen (`levandeGaster`), och ett svar som ingen räknar hade varit en tyst nedsläppsväg (regel 5). `svara` och `rosta` är nej, och `handelse` ger varken `svar` eller `omrostning`.
-- **Ansvarig gäst**: `levandeGaster` och hubbens lista (`minaGruppgaster`) gäller fortfarande bara hela gruppen. En projektgäst kan alltså inte väljas som ansvarig för ett ärende än, och markera klart kräver att ärendet ligger hos gästen.
+- **Ansvarig gäst**: `levandeGaster` gäller fortfarande bara hela gruppen (hubbens lista `minaGruppgaster` ger projektet sedan skiva 4, se ovan). En projektgäst kan alltså inte väljas som ansvarig för ett ärende än, och markera klart kräver att ärendet ligger hos gästen.
 
 ### Prov
 
 - **`gast-projekt.test.js`**, 21 prov mot minneskällan: modellen, `bjud` (roll, projektet finns, tagg, platser ur samma fem), vad en projektgäst ser (kalender med egen kalender och med tagg i gruppens förvalda, bibliotek, filer, ärenden, översikt) med en lista på 16 hemligheter som aldrig får synas (**golv**), en förfalskad tagg i varje åtgärd (golv: 7 åtgärder), en återkallad inbjudan, ett arkiverat projekt, ett trasigt urval, och att en gruppgäst är orörd. 13 mutationer, var och en röd.
 - **Skiva 3:** `gast-nylank-760.test.js` 9 prov (engång, ett dygn, samtidiga inlösen, vanliga länkar efter, fem och fler, tid med och utan golv, tysta tak), `gast-vaxlare-760.test.jsx` 9 prov. 17 mutationer röda (N1 till N9, V1 till V8).
 - **Skiva 4:** 3 prov sist i `gast-projekt.test.js` (listan, samma omfång via kontot utan medlemskap, återkallad stoppar en utgiven session). 5 mutationer röda.
-- **Skiva 2:** `gast-projekt.test.js` har nu 27 prov (6 nya om projektets chatt, och förfalskad tagg i 9 åtgärder), `samtal-projekt.test.js` 10 prov (modell, källa, notiser, regeltext), `meddelanden-projekt.test.jsx` 3 prov, `gast-projekt-vy.test.jsx` 9 prov och `rules/__tests__/projektchatt.test.mjs` mot emulatorn. 29 mutationer, var och en röd.
+- **Skiva 2:** `gast-projekt.test.js` hade då 27 prov, 30 med skiva 4 (6 nya om projektets chatt, och förfalskad tagg i 9 åtgärder), `samtal-projekt.test.js` 10 prov (modell, källa, notiser, regeltext), `meddelanden-projekt.test.jsx` 3 prov, `gast-projekt-vy.test.jsx` 9 prov och `rules/__tests__/projektchatt.test.mjs` mot emulatorn. 29 mutationer, var och en röd.
 - **`gast-projekt-vy.test.jsx`**, 8 prov (skiva 1): flikarna, kortet, ingen svarsrad, ärendefliken med `hosDig`, behörighetsraderna och listan på projektets sida. 9 mutationer, var och en röd.
 
 ## 0.214.0
