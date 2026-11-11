@@ -5,7 +5,7 @@ import { cx } from "../lib/cx.js";
 import { ChevronHogerIkon, ChevronVansterIkon, ExternLankIkon, KryssIkon } from "./icons.jsx";
 import { OpsCountBadge } from "./counter.jsx";
 import { OpsSpinner } from "./OpsSpinner.jsx";
-import { radBehallare, radKlass } from "../lib/radKlass.js";
+import { MENYRAD_IKON, radBehallare, radKlass } from "../lib/radKlass.js";
 
 /**
  * En panel med vyer i en stack: rot, undervy, detalj.
@@ -114,8 +114,9 @@ import { radBehallare, radKlass } from "../lib/radKlass.js";
  *   INTE ha den här stilen, det var #164:s typografisvep som satte `text-xs` där, mätt mot
  *   SAMMA fil: den vanliga "Meny"-dropdownen är `text-xs` och NEUTRAL, plusset är `text-sm`
  *   och ACCENT. Två olika rader i samma källa, inte samma rad två gånger.
+ * @param {boolean} [props.meny] (0.218.0) Raden står i menyn: större text och ikon på pekskärm (`MENYRAD_TEXT`, `radKlass`).
  */
-export function OpsPanelRow({ icon, label, badge, badgeText = "", chevron, onClick, busy = false, href, active, accent }) {
+export function OpsPanelRow({ icon, label, badge, badgeText = "", chevron, onClick, busy = false, href, active, accent, meny = false }) {
   if (href && chevron) {
     throw new Error(
       "OpsPanelRow: \"href\" och \"chevron\" ihop. En rad med href lämnar appen och ritar en extern-länk-ikon; en rad med chevron öppnar en undervy i SAMMA panel. De är olika löften och kan inte båda hållas av en rad.",
@@ -147,7 +148,7 @@ export function OpsPanelRow({ icon, label, badge, badgeText = "", chevron, onCli
      på BÅDE ikonen och ordet, alltid, inte bara vid hover eller aktiv. */
   // ⛔ 0.30.0 (#173): raden är `radKlass`, en funktion för alla fyra ytor som
   // ritar den. Se dess filhuvud för mätningen ur SessionStudio.
-  const klass = radKlass({ accent, active, klickbar: Boolean(onClick || href) });
+  const klass = radKlass({ accent, active, meny, klickbar: Boolean(onClick || href) });
 
   const inre = (
     <>
@@ -156,7 +157,7 @@ export function OpsPanelRow({ icon, label, badge, badgeText = "", chevron, onCli
           <OpsSpinner size="sm" tone="current" decorative />
         </span>
       ) : icon ? (
-        <span aria-hidden="true" className={cx("flex shrink-0 items-center", accent ? "[&_svg]:size-4.5" : "[&_svg]:size-4")}>
+        <span aria-hidden="true" className={cx("flex shrink-0 items-center", accent ? "[&_svg]:size-4.5" : meny ? MENYRAD_IKON : "[&_svg]:size-4")}>
           {icon}
         </span>
       ) : null}

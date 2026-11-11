@@ -6,7 +6,7 @@ import { ChevronVansterIkon, LoggaUtIkon } from "./icons.jsx";
 import { OpsCountBadge } from "./counter.jsx";
 import { cx } from "../lib/cx.js";
 import { avdelningsBreddklass, validateNav } from "../lib/nav.js";
-import { radKlass } from "../lib/radKlass.js";
+import { MENYRAD_IKON, radKlass } from "../lib/radKlass.js";
 import { text } from "../lib/sprak.js";
 import { OPS_FRAMEWORK_VERSION } from "../lib/frameworkVersion.generated.js";
 
@@ -196,6 +196,7 @@ export function menySektioner({ sektioner, kor, visaUndervy }) {
           badge={rad.badge}
           badgeText={rad.badgeText}
           onClick={rad.undervy ? () => visaUndervy?.(rad) : kor(rad.onClick)}
+          meny
         />
       )),
     }));
@@ -259,14 +260,14 @@ export function MenyAppPoster({ poster, activeHref, onNavigate, stang, badgeText
           stang();
           onNavigate?.(p.href, e);
         }}
-        className={cx(radKlass({ active: aktiv }), barn && "ml-6 w-auto")}
+        className={cx(radKlass({ active: aktiv, meny: true }), barn && "ml-6 w-auto")}
       >
         {ikon ? (
-          <span aria-hidden="true" className="flex shrink-0 items-center [&_svg]:size-4">
+          <span aria-hidden="true" className={cx("flex shrink-0 items-center", MENYRAD_IKON)}>
             {ikon}
           </span>
         ) : nagonIkon && !barn ? (
-          <span aria-hidden="true" data-ikonplats="" className="size-4 shrink-0" />
+          <span aria-hidden="true" data-ikonplats="" className="size-5 shrink-0 md:pointer-fine:size-4" />
         ) : null}
         <span className="min-w-0 flex-1 truncate">{p.label}</span>
         {typeof badge === "number" ? <OpsCountBadge count={badge} text={badgeText} placement="inline" /> : null}
@@ -424,7 +425,7 @@ function LoggaUtRad({ onLoggaUt, etikett, vantarEtikett, kor }) {
       throw fel;
     });
   };
-  return <OpsPanelRow icon={<LoggaUtIkon />} label={pagar ? (vantarEtikett ?? ordet(ORD_LOGGAUT, "loggarUt", sprak)) : etikett} busy={pagar} onClick={klick} />;
+  return <OpsPanelRow icon={<LoggaUtIkon />} label={pagar ? (vantarEtikett ?? ordet(ORD_LOGGAUT, "loggarUt", sprak)) : etikett} busy={pagar} onClick={klick} meny />;
 }
 
 /**
