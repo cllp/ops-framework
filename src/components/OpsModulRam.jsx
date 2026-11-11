@@ -101,6 +101,11 @@ export function kravRam(ram, vem) {
   if (typeof ram.farAndra !== "boolean") {
     throw new Error(`${vem}: ram.farAndra krävs som true eller false. Utan propen ser en ägare ut som någon som bara får läsa.`);
   }
+  // ⛔ (0.216.0, cllp/lifehub.app#776) `dold` är skälet med ord, på båda språken. Ett sant värde utan ord hade dolt reglaget utan att säga varför.
+  const dold = /** @type {{ dold?: unknown }} */ (ram).dold;
+  if (dold != null && !(typeof dold === "object" && typeof (/** @type {any} */ (dold).sv) === "string" && /** @type {any} */ (dold).sv.trim() !== "")) {
+    throw new Error(`${vem}: ram.dold måste vara { sv, en? } med skälet på svenska (engelska frivilligt) till att appen inte syns i gruppen, eller utelämnas. false och tomma ord kastar.`);
+  }
 }
 
 /**
@@ -237,6 +242,10 @@ export function OpsModulRam({ modul, activeHref, hubHref, hubEtikett, onNavigate
  *   ⛔ FÖR EN APP VARS EGNA INSTÄLLNING STYR VILKA KOPPLINGAR SOM FINNS. Ekonomi väljer område (Sverige, Norge) och området avgör vilka banker som kan kopplas: raden som avgör ska stå
  *   före raderna den avgör, annars väljer man bank och först därefter område. Hela avsnittet flyttas (manifestets fält, appens `egna` och Spara), ingen del för sig, så att det
  *   fortfarande bara finns ETT avsnitt med den rubriken. Ett avsnitt som inte ritas (inga fält, ingen slot) lämnar ingen tom plats efter sig, vilken ordning som än gäller.
+ * @property {{ sv: string, en?: string } | null} [dold] (0.216.0, cllp/lifehub.app#776) Appen är installerad men syns inte i gruppen, och skälet med ord (i LifeHub: hubbadmin har gjort
+ *   den otillgänglig för gruppen). Läsvägen (`huvudmenyPoster`, korten, arket) får då appens id bortfiltrerat ur `moduler`, men `grupp` här är den SPARADE raden, eftersom
+ *   Ordning och På sparar ur den och inte får tappa det dolda. Utan `dold` sade reglaget "Visa i huvudmenyn" på för en ikon som inte stod någonstans. Med den är reglaget av
+ *   och låst, skälet står som rad under Allmänt och som reglagets hint, och den sparade pinnen står kvar: syns appen igen står ikonen där den stod.
  * @property {import("react").ReactNode} [kropp] (0.90.0) Ersätter de tre standardavsnitten. Agenter använder den: inställningarna gäller en agent, inte appens på och av. Utan den ritas standardavsnitten.
  */
 
@@ -294,6 +303,13 @@ export function InstallningsInnehall({ modul, ram, sprak }) {
   const huvudmeny = listor ? listor.huvudmeny : [...propHuvud];
   const pa = moduler.includes(modul.id);
   const fast = huvudmeny.includes(modul.id);
+  /*
+   * ⛔ REGLAGET SÄGER VAD SOM SYNS, INTE BARA VAD SOM ÄR SPARAT (0.216.0, cllp/lifehub.app#776). CP 2026-11-11: "Ikonen för bibliotek syns inte i gruppen TAM trots att
+   * den står som visas i huvudmeny. Den finns ingenstans." Ikonen ritas ur `moduler` ∩ `huvudmeny` (`huvudmenyPoster`), så en pinne för en app som inte är på, eller
+   * som appen säger är dold för gruppen (`ram.dold`), står aldrig i huvudet. Reglaget läste bara `huvudmeny` och sade "på" om det.
+   */
+  const dold = ram.dold ?? null;
+  const visasIHuvudet = pa && fast && !dold;
   // ⛔ TAKET FÖR TOPPRADEN (0.177.0, `HUVUDMENY_MAX`). Raden räknar bara appar gruppen har (`huvudmenyInom`): ett gammalt id för en borttagen app tar ingen plats i toppraden.
   // Är den full går reglaget inte att slå på för en app som inte redan står där, och hinten säger det i klartext. Att slå av går alltid.
   const huvudmenyIgrupp = huvudmenyInom(huvudmeny, moduler);
@@ -517,6 +533,7 @@ export function InstallningsInnehall({ modul, ram, sprak }) {
       {!grupp ? <p role="status">{t("hamtar")}</p> : null}
       <section aria-labelledby={allmantId} className="flex flex-col gap-2">
         <Avsnittsrubrik id={allmantId}>{t("allmant")}</Avsnittsrubrik>
+        {dold ? <p role="status" data-modul-dold="" className="m-0 text-etikett text-ink-muted">{text(dold, sprak)}</p> : null}
         <Grupp>
           <Rad>
             <OpsSwitch
@@ -551,9 +568,9 @@ export function InstallningsInnehall({ modul, ram, sprak }) {
             <OpsSwitch
               placering="rad"
               label={text(ORD_VISA_I_HUVUDMENYN.label, sprak)}
-              hint={huvudmenyFull && ram.farAndra && pa ? text(ORD_HUVUDMENY_FULL.full, sprak).replace("{antal}", String(HUVUDMENY_MAX)) : text(ORD_VISA_I_HUVUDMENYN.hint, sprak)}
-              checked={fast}
-              disabled={!ram.farAndra || !grupp || !pa || !modul.hubb || huvudmenyFull}
+              hint={dold ? text(dold, sprak) : huvudmenyFull && ram.farAndra && pa ? text(ORD_HUVUDMENY_FULL.full, sprak).replace("{antal}", String(HUVUDMENY_MAX)) : text(ORD_VISA_I_HUVUDMENYN.hint, sprak)}
+              checked={visasIHuvudet}
+              disabled={!ram.farAndra || !grupp || !pa || !modul.hubb || huvudmenyFull || Boolean(dold)}
               onChange={(nasta) => {
                 if (!grupp) return;
                 if (typeof ram.onSparaHuvudmeny !== "function") {

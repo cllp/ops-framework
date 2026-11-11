@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronRight, File, Folder } from "lucide-react";
 import { GithubDokumentVisningLat } from "./GithubDokumentVisningLat.jsx";
 import { OpsAtgardsblad } from "./OpsAtgardsblad.jsx";
@@ -7,6 +7,7 @@ import { OpsSpinner } from "./OpsSpinner.jsx";
 import { useOpsSprak } from "./OpsSprak.jsx";
 import { cx } from "../lib/cx.js";
 import { sizeText } from "../lib/file.js";
+import { formatDagOchKlockslag } from "../lib/format.js";
 import { githubDokument } from "../lib/githubdokument.js";
 import { ordet } from "../lib/ord.js";
 import { ORD_BIBLIOTEK_REPO_LAT } from "./BibliotekRepoLat.jsx";
@@ -33,6 +34,12 @@ export const ORD_BIBLIOTEK_REPO = {
   laggFel: { sv: "Filen gick inte att lägga i Biblioteket.", en: "The file could not be added to the Library." },
   // Samma ord som läslägets länk (`ORD_GITHUBDOKUMENT.oppna`). Det står här och inte som en import, eftersom läsläget är en egen lat bit som "I repot" inte ska dra in.
   oppnaGithub: { sv: "Öppna i GitHub", en: "Open in GitHub" },
+  // 0.216.0 (cllp/lifehub.app#775 och #774 punkt 2): vilken mapp i repot projektet är kopplat till, när den lästes och Läs om.
+  kallaEtikett: { sv: "Mappen i repot", en: "Folder in the repo" },
+  helaRepot: { sv: "hela repot", en: "the whole repo" },
+  hamtad: { sv: "Hämtad från GitHub {tid}", en: "Fetched from GitHub {tid}" },
+  lasOm: { sv: "Läs om", en: "Reload" },
+  lasOmEtikett: { sv: "Läs om mapparna från GitHub", en: "Reload the folders from GitHub" },
 };
 
 /**
@@ -52,24 +59,47 @@ const INDRAG = ["pl-0", "pl-5", "pl-10", "pl-15"];
  */
 
 /**
+ * @typedef {object} RepoKalla Mappen i repot som projektet är kopplat till (0.216.0, cllp/lifehub.app#774 punkt 2). ⛔ BARA TEXT ATT VISA: vyn bygger aldrig en väg av den, den läser fortfarande bara vägar inom projektets mapp.
+ * @property {string} repo `ägare/namn`.
+ * @property {string} mapp Projektets mapp i repot, `""` när projektet är hela repot.
+ * @property {string} [url] Mappens adress på github.com. Bara en adress där länkas.
+ */
+
+/**
  * @typedef {object} RepoLasning Svaret från `repoLasare`.
  * @property {"last" | "saknas" | "obehorig" | "fel"} lage Se `REPO_LAGEN`.
  * @property {RepoPost[]} [poster]
  * @property {boolean} [fler] Fler poster finns i mappen än som kom med (appens tak).
+ * @property {string} [hamtad] (0.216.0) När appen frågade GitHub, som ISO 8601. Utan den visar vyn när svaret kom fram.
+ * @property {RepoKalla | null} [kalla] (0.216.0) Mappen i repot. `null` när projektet inte har något repo att läsa.
  */
 
 /** En vanlig sökväg inom projektets mapp: inget tomt led, ingen `.` eller `..`, inget inledande snedstreck. @param {unknown} s */
 const arRelativSokvag = (s) => typeof s === "string" && s !== "" && !s.startsWith("/") && s.split("/").every((d) => d !== "" && d !== "." && d !== "..");
 
-/** Ett svar från appen som vyn kan rita: poster med rätt form, de andra bort. @param {unknown} s @returns {RepoLasning} */
+/** En tid appen gav som går att läsa som en tidpunkt, annars ingen. @param {unknown} v */
+const tidUr = (v) => (typeof v === "string" && v !== "" && !Number.isNaN(Date.parse(v)) ? v : undefined);
+
+/** Mappen i repot, när den har rätt form: ett `ägare/namn`, en väg som inte går uppåt, och en adress bara på github.com. @param {unknown} v @returns {RepoKalla | null | undefined} */
+function kallaUr(v) {
+  if (v === null) return null;
+  const k = /** @type {any} */ (v);
+  if (!k || typeof k !== "object" || typeof k.repo !== "string" || !/^[^/\s]+\/[^/\s]+$/.test(k.repo) || k.repo.split("/").some((/** @type {string} */ d) => d === "." || d === "..") || typeof k.mapp !== "string" || (k.mapp !== "" && !arRelativSokvag(k.mapp))) return undefined;
+  return { repo: k.repo, mapp: k.mapp, ...(typeof k.url === "string" && k.url.startsWith("https://github.com/") ? { url: k.url } : {}) };
+}
+
+/** Ett svar från appen som vyn kan rita: poster med rätt form, de andra bort. `hamtad` och `kalla` följer med i varje läge (0.216.0). @param {unknown} s @returns {RepoLasning} */
 function tolka(s) {
   const r = /** @type {any} */ (s);
   if (!r || typeof r !== "object" || !REPO_LAGEN.includes(r.lage)) return { lage: "fel" };
-  if (r.lage !== "last") return { lage: r.lage };
+  const hamtad = tidUr(r.hamtad);
+  const kalla = kallaUr(r.kalla);
+  const extra = { ...(hamtad ? { hamtad } : {}), ...(kalla !== undefined ? { kalla } : {}) };
+  if (r.lage !== "last") return { lage: r.lage, ...extra };
   const poster = (Array.isArray(r.poster) ? r.poster : []).filter(
     (/** @type {any} */ p) => p && typeof p.namn === "string" && p.namn !== "" && arRelativSokvag(p.sokvag) && (p.sort === "fil" || p.sort === "mapp"),
   );
-  return { lage: "last", poster, fler: r.fler === true };
+  return { lage: "last", poster, fler: r.fler === true, ...extra };
 }
 
 /** En fil som går att öppna på github.com: bara en adress där. @param {RepoPost} p */
@@ -85,6 +115,8 @@ const githubAdress = (p) => (typeof p.url === "string" && p.url.startsWith("http
  * @property {(p: RepoPost) => import("react").ReactNode} lage
  * @property {(k: string, vard?: Record<string, string>) => string} o
  * @property {string} sprak
+ * @property {number} omgang (0.216.0) Räknas upp av Läs om. Varje mapp som står utfälld läser om när den ändras, och behåller sina rader tills det nya svaret kommit.
+ * @property {(svar: RepoLasning | null, kom: string) => void} onRot (0.216.0) Projektets mapp (nivå 0) berättar sitt svar och när det kom fram, för raden överst. `null` är ett avvisat löfte.
  */
 
 /**
@@ -103,6 +135,11 @@ const githubAdress = (p) => (typeof p.url === "string" && p.url.startsWith("http
  *   "Lägg i Biblioteket" skapar den vanliga länkposten genom appens `onLagg` (lifehub.app kopplar den mot `planForGithubLank`), ingen ny posttyp och inga nya fält, och svaret står vid filen.
  *   "Öppna i GitHub" öppnar filens adress i en ny flik (`noopener`), bara när filen har en adress på github.com.
  * ⛔ TOMHET OCH FEL SÄGS (regel 5): väntan syns, en tom mapp har en rad, ett tak har en rad, och varje läge har sin mening.
+ * ⛔ LÄS OM, OCH NÄR DET LÄSTES (0.216.0, cllp/lifehub.app#775, CP 2026-11-11: "Projekt filer i repot uppdateras inte, behöver reload knapp och ett datum för senaste sync"). Rotorsaken var vyn och inte appen: appens läsning är live, men
+ *   varje mapp lästes EN gång, när den fälldes ut, och sedan aldrig igen så länge raden stod utfälld (också medan en fil var öppen, eftersom trädet står kvar dolt). En fil som lades till eller togs bort i repot syntes inte förrän man fällde
+ *   ihop raden eller laddade om sidan, och ingenting sa hur gammal listan var. Nu står en rad överst: mappen i repot som projektet är kopplat till (appens `kalla`, #774 punkt 2), när projektets mapp hämtades (appens `hamtad`,
+ *   annars när svaret kom fram) och knappen Läs om. Läs om läser projektets mapp och varje utfälld mapp igen, behåller utfällningen och raderna tills det nya svaret kommit, och knappen är upptagen tills projektets mapp svarat.
+ *   Ingen automatisk omläsning: varje läsning är ett anrop mot GitHub, och den som vill se det nya trycker en gång.
  *
  * @param {object} props
  * @param {string} props.plats Projektets plats (`plats~<grupp>~<tagg>`).
@@ -119,6 +156,22 @@ export function BibliotekRepo({ plats, lasare, githubLasare, onLagg }) {
   const [lagda, setLagda] = useState(/** @type {Record<string, { lage: "klar" } | { lage: "fel", text: string }>} */ ({}));
   const lasareRef = useRef(lasare);
   lasareRef.current = lasare;
+  /** Läs om (0.216.0): omgången som varje utfälld mapp läser i, och svaret från projektets mapp för raden överst. */
+  const [omgang, setOmgang] = useState(0);
+  const [rot, setRot] = useState(/** @type {{ svar: RepoLasning | null, kom: string } | null} */ (null));
+  /** Löftet Läs om ger knappen, löst när projektets mapp svarat i den nya omgången. */
+  const vantar = useRef(/** @type {(() => void) | null} */ (null));
+  const onRot = useCallback((/** @type {RepoLasning | null} */ svar, /** @type {string} */ kom) => {
+    setRot({ svar, kom });
+    vantar.current?.();
+    vantar.current = null;
+  }, []);
+  const lasOm = () =>
+    new Promise((/** @type {(v?: unknown) => void} */ klar) => {
+      vantar.current?.();
+      vantar.current = klar;
+      setOmgang((n) => n + 1);
+    });
 
   /** En fil som går att lägga i Biblioteket: den har en adress som läsläget känner (samma villkor som knappen före 0.209.0). @param {RepoPost} p */
   const kanLaggas = (p) => typeof onLagg === "function" && typeof p.url === "string" && githubDokument(p.url) !== null;
@@ -163,6 +216,8 @@ export function BibliotekRepo({ plats, lasare, githubLasare, onLagg }) {
     lage,
     o,
     sprak,
+    omgang,
+    onRot,
   };
 
   // Posten läsläget får: en länk utan `id`, med platsen som `groupId` (se ovan).
@@ -183,7 +238,8 @@ export function BibliotekRepo({ plats, lasare, githubLasare, onLagg }) {
         </div>
       ) : null}
       {/* Trädet står kvar medan en fil är öppen, dolt, så att Tillbaka kommer till samma utfällda mappar. */}
-      <div hidden={Boolean(oppen && oppen.url)} className="min-w-0">
+      <div hidden={Boolean(oppen && oppen.url)} className="flex min-w-0 flex-col gap-2">
+        <Huvud rot={rot} lasOm={lasOm} o={o} sprak={sprak} />
         <Mapp sokvag="" niva={0} trad={trad} />
       </div>
     </div>
@@ -191,7 +247,42 @@ export function BibliotekRepo({ plats, lasare, githubLasare, onLagg }) {
 }
 
 /**
+ * Raden överst i "I repot" (0.216.0, cllp/lifehub.app#775 och #774 punkt 2): mappen i repot, när den hämtades och Läs om. Innan projektets mapp svarat första gången står bara Läs om, så att raden inte hoppar.
+ * ⛔ Tiden är appens `hamtad` (när GitHub frågades), och utan den när svaret kom fram. Ett avvisat löfte och ett svar med läget `fel` har ingen tid:
+ * inget lästes (granskningen av PR 575: "Hämtad från GitHub" stod förut bredvid felraden, en synk som aldrig skedde, regel 5).
+ * ⛔ Statusraden finns alltid, också tom, så att en skärmläsare läser upp den första tiden (en live-region som monteras med sitt innehåll läses ofta inte).
+ *
+ * @param {{ rot: { svar: RepoLasning | null, kom: string } | null, lasOm: () => Promise<unknown>, o: (k: string, vard?: Record<string, string>) => string, sprak: string }} props
+ */
+function Huvud({ rot, lasOm, o, sprak }) {
+  const kalla = rot?.svar?.kalla;
+  const tid = rot?.svar && rot.svar.lage !== "fel" ? rot.svar.hamtad ?? rot.kom : null;
+  const vag = kalla ? (kalla.mapp ? `${kalla.repo}/${kalla.mapp}` : `${kalla.repo} (${o("helaRepot")})`) : "";
+  return (
+    <div data-bibliotek-repo-huvud="" className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+      {kalla ? (
+        <span data-bibliotek-repo-kalla="" className="inline-flex min-w-0 items-center gap-1.5 text-meta text-ink-secondary">
+          <Folder size={14} aria-hidden="true" className="shrink-0 text-ink-muted" />
+          <span className="sr-only">{o("kallaEtikett")}: </span>
+          {kalla.url ? (
+            <a href={kalla.url} target="_blank" rel="noopener noreferrer" className="min-w-0 wrap-anywhere text-ink-secondary underline underline-offset-2">{vag}</a>
+          ) : (
+            <span className="min-w-0 wrap-anywhere">{vag}</span>
+          )}
+        </span>
+      ) : null}
+      <span role="status" data-bibliotek-repo-hamtad={tid ?? undefined} className="text-meta text-ink-muted empty:hidden">
+        {tid ? o("hamtad", { tid: formatDagOchKlockslag(tid, { locale: sprak }) }) : ""}
+      </span>
+      <span className="min-w-0 flex-1" aria-hidden="true" />
+      <OpsButton variant="secondary" size="sm" ariaLabel={o("lasOmEtikett")} onClick={lasOm}>{o("lasOm")}</OpsButton>
+    </div>
+  );
+}
+
+/**
  * En mapps innehåll: läses när den ritas, alltså när mappen fälls ut, och ritar sina rader. Projektets mapp (`""`) är nivå 0.
+ * ⛔ OCH IGEN FÖR VARJE OMGÅNG (0.216.0, #775): Läs om räknar upp `trad.omgang`, och mappen läser om utan att tömma sina rader först, så att utfällda undermappar står kvar och läser om de också.
  *
  * @param {{ sokvag: string, niva: number, trad: Trad }} props
  */
@@ -200,21 +291,33 @@ function Mapp({ sokvag, niva, trad }) {
   const [svar, setSvar] = useState(/** @type {RepoLasning | null} */ (null));
   const lasRef = useRef(trad.las);
   lasRef.current = trad.las;
+  const rotRef = useRef(trad.onRot);
+  rotRef.current = trad.onRot;
+  /** Vilken mapp svaret gäller: en ny plats eller sökväg börjar med väntan, en ny omgång av samma mapp behåller raderna. */
+  const nyckel = useRef("");
   useEffect(() => {
     let kvar = true;
-    setSvar(null);
+    const denna = `${trad.plats}\u0000${sokvag}`;
+    if (nyckel.current !== denna) setSvar(null);
+    nyckel.current = denna;
+    const arRot = sokvag === "";
     Promise.resolve()
       .then(() => lasRef.current({ plats: trad.plats, sokvag }))
       .then((s) => {
-        if (kvar) setSvar(tolka(s));
+        if (!kvar) return;
+        const t = tolka(s);
+        setSvar(t);
+        if (arRot) rotRef.current(t, new Date().toISOString());
       })
       .catch(() => {
-        if (kvar) setSvar({ lage: "fel" });
+        if (!kvar) return;
+        setSvar({ lage: "fel" });
+        if (arRot) rotRef.current(null, new Date().toISOString());
       });
     return () => {
       kvar = false;
     };
-  }, [trad.plats, sokvag]);
+  }, [trad.plats, sokvag, trad.omgang]);
 
   const indrag = INDRAG[Math.min(niva, REPO_INDRAG_MAX)];
   if (!svar) {
