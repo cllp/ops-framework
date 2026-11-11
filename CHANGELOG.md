@@ -9,6 +9,18 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.214.0
+
+Kartkomponent: en GeoJSON-fil som karta (cllp/ops-framework#570). Inget brytande. Inte publicerad i det här passet.
+
+### Tillagt
+
+- **`OpsKarta`** ritar punkter, linjer och ytor. Ett tryck visar namn och beskrivning ur properties. Färg per objekt ur simplestyle, annars ur `typ` mot paletten salvia, ockra och terrakotta, annars instansens accent. Underlaget är OpenFreeMap (OpenStreetMap, ingen nyckel). Färger och typsnitt är tokens, med mörka värden. MapLibre och vyn hämtas först när en karta ritas. Exemplet är `ops-framework/exempel/karta` (Dahab). Orden: `ORD_OPSKARTA`.
+
+### Prov
+
+- **`karta.test.js`**, **`karta-vy.test.jsx`**, **`karta-lat.test.jsx`**: läsning, simplestyle mot palett och accent, stilen tar färgerna den får, popupen ritar text och inte HTML, exemplet i två språk, temabyte, saknade färger, tom och trasig fil, och att vyn inte hämtas förrän kartan ritas. `check:delbarhet` mäter att `maplibre-gl` och workern ligger utanför startfilen. `check:kontrast` vaktar kartans text mot land och creme.
+
 ## 0.213.0
 
 Chattens bilagor, omnämnanden och omröstningskortets fält (cllp/lifehub.app#751, #742), och kopieringen av en bilaga till Biblioteket (cllp/lifehub.app#752). TALK:s andra omgång på iPhone lämnar en hel felrapport (cllp/lifehub.app#253). Inget brytande. ⛔ Appen behöver ta emot de nya fälten (`DIAGNOS` i lifehub.app `web/src/data/felrapporter.js`), annars utelämnas de.

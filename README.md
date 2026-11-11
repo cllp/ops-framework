@@ -203,7 +203,7 @@ mörkt deklareras **en gång**; blocken som aktiverar den får bara peka.
 
 ### Komponenter
 
-**168 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
+**169 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
 eller `...rest`. Ett okänt värde kastar med läsbar text i stället för att rendera
 något godtyckligt.
 
@@ -276,6 +276,7 @@ något godtyckligt.
 | `OpsStat` | `label`, `value`, `hint`, `tone` neutral \| success \| warning \| danger, `badge`, `fact`, `factLabel`, `source`, `updatedAt`, `onDrillDown`, `drillDownLabel` |
 | `OpsEmpty` | `title`, `description`, `action`, `busy`, `busyLabel` |
 | `OpsSpinner` | `size` sm \| md \| lg, `tone` current \| accent \| muted, `label`, `decorative` |
+| `OpsKarta` | (0.214.0, cllp/ops-framework#570) `data`, `ord?`. Ritar en GeoJSON-fil: punkter, linjer och ytor. Se [Karta](#karta-02140-cllpops-framework570). |
 | `OpsDataView` | `loading`, `error`, `data`, `header`, `errorTitle` (krävs), `loadingLabel` (krävs), `missingTitle`, `children` **som funktion** | En vys tre datatillstånd, mätta i bolag-ops som **sex** vyer som skrev samma tre grenar för hand (fem rakt av, Översikt i en ternär). ⛔ Siffran stod först som nio, vilket var antalet vyer som skriver felbanderollen och inte antalet med hela formen. ⛔ Fel vinner över laddning: med flera läsningar kan felet komma medan en annan hämtar, och låter man laddningen vinna göms felet bakom en snurra som aldrig slutar snurra. ⛔ `loadingLabel` krävs och gissas inte fram, för "Hämtar" utan objekt är samma text i tolv vyer och då går det inte att se vilken av fem läsningar som hänger. ⛔ **Hämtat men tomt är inte hämtning som pågår**, och det är felet den handskrivna varianten faktiskt hade: `loading \|\| !data` ritar "Hämtar ..." för alltid när en läsning gick igenom men gav `null`, alltså påstår sidan att den arbetar när den gett upp. Det tillståndet får OpsEmpty med egna ord och `role="status"`, inte en röd banderoll: kontraktets regel 3 säger att `null` betyder "finns inte" och inte att något gick sönder. ⛔ **Utelämnas `data` görs ingen tomhetskontroll**, för `"data" in props` skiljer utelämnad från null; annars hade varje vy som läser fem listor fått tomhetsrutan fast allt gick bra. ⛔ Barnen är en FUNKTION: som nod hade React byggt dem innan grenen valdes, alltså hade `data.totals` kastat i precis det läge komponenten finns för |
 
 #### Märkning
@@ -3434,6 +3435,33 @@ Klart först när en integration utan att någon är inloggad kan göra allt ned
 8. **Klienten:** `hamtaFil` till `OpsBibliotek` (finns redan för textfiler), och en CSP som tillåter rutans skript om diagram ska fungera (mät, se ovan).
 
 **Deployordning:** ramverket mergas och publiceras, **reglerna deployas** (`bibliotekregelfragment` med `versioner`, `versionsregelfragment` och Storage-regeln), och först därefter mergas appens klient som laddar upp eller visar HTML. En ny klient mot gamla Storage-regler får sin HTML-fil nekad (typen är inte tillåten), och posten tas tillbaka som vid varje avbruten uppladdning. En regel i `main` är inte en regel i produktion.
+
+## Karta (0.214.0, cllp/ops-framework#570)
+
+En GeoJSON-fil som karta, så att en agent kan lämna platser, sträckor och ytor och appen visar dem i bibliotek, projekt eller chatt. Komponenten hämtar ingenting själv: appen läser filen (samma behörighet som övriga filer) och ger den som `data`.
+
+```jsx
+import { OpsKarta } from "ops-framework";
+import { exempelkarta } from "ops-framework/exempel/karta";
+
+<OpsKarta data={exempelkarta} />
+```
+
+`exempelkarta` (`examples/karta/dahab.js`) har tre punkter, en linje och en yta runt Dahab, med namn, beskrivning och simplestyle-färger. `data` kan också vara en Feature, en geometri, eller samma sak som JSON-sträng.
+
+| | |
+|---|---|
+| Tryck | Popup med namn och beskrivning. Första träffen av `namn`, `name`, `title` och av `beskrivning`, `description`. Texten ritas som text, aldrig som HTML. Saknas båda öppnas ingen popup. |
+| Färg | `marker-color`, `stroke` och `fill` (simplestyle, `#rgb` eller `#rrggbb`). Annars `typ` eller `type`, som väljer stabilt ur salvia, ockra och terrakotta. Annars instansens accent (`--color-accent`). `fill-opacity`, `stroke-opacity`, `stroke-width` och `marker-size` (`small`, `medium`, `large`) följer med. |
+| Underlag | [OpenFreeMap](https://openfreemap.org/), vektorbrickor ur OpenStreetMap (schemat OpenMapTiles), ingen nyckel. Adressen är `https://tiles.openfreemap.org/planet`. |
+| Tema | Land, vatten, vägar, text och objektens palett är tokens (`--color-karta-papper`, `creme`, `vatten`, `linje`, `lera`, `text`, `salvia`, `ockra`, `terrakotta`), med mörka värden. Popupens rubrik är `--font-karta-ort` (serif, samma familj som `--font-display-publik`). Etiketterna är `--font-karta-etikett` (sans). Inget nytt typsnitt laddas. |
+| Lat | `OpsKarta` läser in `OpsKartaVy` och `maplibre-gl` först när det finns något att rita. `check:delbarhet` kräver att varken vyn, importen av `maplibre-gl` eller workern ligger i en startfil som importerar `OpsKarta`. |
+
+- **Kartleverantör.** OpenFreeMaps publika instans. Mätt 2026-11-10 på [openfreemap.org](https://openfreemap.org/): ingen nyckel, ingen registrering, inget tak för antalet visningar eller anrop, kommersiell användning tillåten, ingen SLA. Krediten ritas av MapLibre och får inte stängas av (OpenStreetMap, OpenFreeMap, OpenMapTiles). Nedladdning av ett område för bruk utan nät är tillåten upp till 3 000 brickor eller 50 MB, högst 4 parallella anrop och en egen User-Agent. Komponenten gör inte det. Den visar det som syns.
+- **Ortnamn på ytan är Noto Sans.** Glyfservern (`https://tiles.openfreemap.org/fonts/<namn>/0-255.pbf`) svarade 404 på Noto Serif och 200 på Noto Sans Regular, Bold och Italic, mätt 2026-11-10. MapLibre ritar de namnen från glyfer, inte från CSS. Popupens rubrik är serif.
+- **Lera på papper är 3,63:1** i ljust läge (mätt). Vägnamn använder lera, som skissen. Text som ska läsas (ortnamn, popup, kredit) använder `--color-karta-text`, 13,33:1 mot papper. `check:kontrast` vaktar det paret, i båda lägen.
+- **Tomt och trasigt sägs.** En tom samling säger att kartan inte har något att visa. En fil som inte går att läsa säger det. Saknade tokens säger att färgerna saknas, utan en reservfärg. Går vyn inte att hämta står en rad med Försök igen (`ORD_OPSKARTA`).
+- **Sidan går att rulla.** På en telefon flyttar kartan med två fingrar, på en dator med Ctrl eller Cmd och rullhjul. Ett finger rullar sidan. Zoomknapparna är 44 px.
 
 ## Delning av en händelse eller en biblioteksfil (0.119.0 och 0.125.0)
 

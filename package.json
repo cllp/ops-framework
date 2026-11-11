@@ -1,6 +1,6 @@
 {
   "name": "ops-framework",
-  "version": "0.213.0",
+  "version": "0.214.0",
   "type": "module",
   "description": "Tokens, primitiver, arbetsregler och vakter. Delas av alla ops-plattformar.",
   "license": "UNLICENSED",
@@ -21,7 +21,8 @@
     },
     "./sentry": {
       "default": "./src/sentry.js"
-    }
+    },
+    "./exempel/karta": "./examples/karta/dahab.js"
   },
   "files": [
     "dist",
@@ -121,6 +122,7 @@
     "@radix-ui/react-tabs": "^1.1.21",
     "@radix-ui/react-toast": "^1.2.23",
     "@radix-ui/react-tooltip": "^1.2.16",
+    "maplibre-gl": "6.17.0",
     "react-day-picker": "^10.0.1"
   },
   "devDependencies": {

@@ -67,6 +67,9 @@ const GRAFIK = 3.0;
  */
 export const PAR = [
   { vad: "panelens rubrik", text: "ink", yta: "raised", niva: BROD },
+  /* Kartans text (0.214.0, #570). Landet är papper, ramen och popupen creme. Båda paren är brödtext. */
+  { vad: "kartans text på land", text: "karta-text", yta: "karta-papper", niva: BROD },
+  { vad: "kartans text på creme", text: "karta-text", yta: "karta-creme", niva: BROD },
   { vad: "radens rubrik", text: "ink", yta: "raised", niva: BROD },
   { vad: "radens detalj", text: "ink-secondary", yta: "raised", niva: BROD },
   { vad: "radens metarad (klockslag, slag)", text: "ink-secondary", yta: "raised", niva: BROD },
