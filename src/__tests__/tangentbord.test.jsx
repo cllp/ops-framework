@@ -358,3 +358,70 @@ describe("⛔ tillbaka från bakgrunden mäter om (granskningen av PR 462)", () 
     expect(dt.mock.calls.some(([h]) => h === "visibilitychange")).toBe(true);
   });
 });
+
+/**
+ * Den inbyggda appens tangentbordshändelser (0.218.0, #461 igen). Med `@capacitor/keyboard` i läget `resize: native` krymper hela webbvyn och
+ * `visualViewport` krymper inte mot layoutfönstret, så mätningen ovan ser inget tangentbord. Pluginen skickar då `keyboardWillShow` och de
+ * andra till `window`, med `keyboardHeight` på händelsen (lästa ur `Keyboard.m`). Provet skickar dem som Capacitors `createEvent` gör.
+ */
+describe("den inbyggda appens tangentbordshändelser", () => {
+  /** @param {string} namn @param {number} [hojd] */
+  const skicka = (namn, hojd) =>
+    act(async () => {
+      const e = new Event(namn);
+      if (hojd !== undefined) Object.assign(e, { keyboardHeight: hojd });
+      window.dispatchEvent(e);
+    });
+
+  it("⛔ keyboardWillShow gömmer raden fast viewporten inte krympt, och keyboardWillHide tar fram den", async () => {
+    falskVv();
+    const { rad, falt } = rita();
+    await fokusera(falt);
+    // Hela webbvyn krympte: visualViewport är lika hög som layoutfönstret, mätningen ser inget.
+    expect(gomd(rad())).toBe(false);
+    await skicka("keyboardWillShow", 291);
+    expect(gomd(rad())).toBe(true);
+    expect(document.documentElement.hasAttribute("data-ops-tangentbord")).toBe(true);
+    await skicka("keyboardWillHide");
+    expect(gomd(rad())).toBe(false);
+    expect(document.documentElement.hasAttribute("data-ops-tangentbord")).toBe(false);
+  });
+
+  it("par av Will och Did, i följd och flera gånger, lämnar aldrig raden fast", async () => {
+    falskVv();
+    const { rad, falt } = rita();
+    await fokusera(falt);
+    for (let i = 0; i < 3; i += 1) {
+      await skicka("keyboardWillShow", 300);
+      await skicka("keyboardDidShow", 300);
+      expect(gomd(rad())).toBe(true);
+      await skicka("keyboardWillHide");
+      await skicka("keyboardDidHide");
+      expect(gomd(rad())).toBe(false);
+    }
+    // Ett show som aldrig fick sitt Did och ett hide direkt efter: nere.
+    await skicka("keyboardWillShow", 300);
+    await skicka("keyboardDidHide");
+    expect(gomd(rad())).toBe(false);
+  });
+
+  it("höjd 0 (QuickType-raden, ett externt tangentbord) räknas som nere, som en liten krympning", async () => {
+    falskVv();
+    const { rad, falt } = rita();
+    await fokusera(falt);
+    await skicka("keyboardWillShow", 0);
+    expect(gomd(rad())).toBe(false);
+    await skicka("keyboardDidShow", TANGENTBORD_MINST_PX - 1);
+    expect(gomd(rad())).toBe(false);
+  });
+
+  it("utan händelserna gäller mätningen exakt som förut", async () => {
+    const vv = falskVv();
+    const { rad, falt } = rita();
+    await fokusera(falt);
+    await tangentbord(vv, 300);
+    expect(gomd(rad())).toBe(true);
+    await tangentbord(vv, 0);
+    expect(gomd(rad())).toBe(false);
+  });
+});

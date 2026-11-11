@@ -108,11 +108,43 @@ export function viewportKrympt() {
 }
 
 /**
- * Är tangentbordet uppe just nu: ett textfält har fokus OCH viewporten har krympt tydligt. Mäter om varje gång, ur webbläsaren.
+ * Den inbyggda appens tangentbordshändelser (0.218.0, cllp/ops-framework#461 igen).
+ *
+ * ══ ⛔ HÄNDELSEN ═══════════════════════════════════════════════════════════════════════════════════════════════════════
+ *
+ * Den inbyggda appen fick `@capacitor/keyboard` (8.0.6) för att dölja iOS-raden ovanför tangentbordet, efter CP:s "det känns inte så native".
+ * Pluginens `load` tar alltid bort WKWebViews egna tangentbordsobservatörer, och i läget `resize: native` krymper hela webbvyn. Då krymper
+ * layoutfönstret tillsammans med `visualViewport`, `krympt` blir 0, och bottenraden slutade gömmas medan man skrev: precis det CP:s skärmbild
+ * 2026-10-28 visade (#461).
+ *
+ * ⛔ HÄNDELSERNA ÄR LÄSTA UR PLUGINENS KÄLLA, INTE GISSADE (`ios/Sources/KeyboardPlugin/Keyboard.m`, `dist/esm/definitions.d.ts`):
+ * `triggerWindowJSEventWithEventName` skickar `keyboardWillShow` och `keyboardDidShow` till `window` med `keyboardHeight` som egenskap på
+ * händelsen (Capacitors `createEvent` kopierar datan in på den), och `keyboardWillHide` och `keyboardDidHide` utan data. En höjd på 0 är
+ * pluginens eget besked att det bara är QuickType-raden (ett externt tangentbord), och den räknas som nere, liksom allt under
+ * `TANGENTBORD_MINST_PX`, av samma skäl som för `visualViewport`.
+ *
+ * ⛔ NÄR DE KOMMER GÄLLER DE, OCH ANNARS GÄLLER MÄTNINGEN SOM FÖRUT. Ingen `@capacitor` här, bara `window.addEventListener`: webben och äldre
+ * byggen av appen skickar dem aldrig, och där är `nativtUppe` `null` hela tiden.
+ * @type {boolean | null}
+ */
+let nativtUppe = null;
+
+/** Händelserna och vad de säger. @type {ReadonlyArray<[string, boolean]>} */
+export const NATIVA_TANGENTBORDSHANDELSER = Object.freeze([
+  ["keyboardWillShow", true],
+  ["keyboardDidShow", true],
+  ["keyboardWillHide", false],
+  ["keyboardDidHide", false],
+]);
+
+/**
+ * Är tangentbordet uppe just nu? Har den inbyggda appen sagt det (`keyboardWillShow` och de andra) gäller dess besked. Annars: ett textfält
+ * har fokus OCH viewporten har krympt tydligt. Mäter om varje gång, ur webbläsaren.
  * @returns {boolean}
  */
 export function tangentbordUppe() {
   if (typeof document === "undefined") return false;
+  if (nativtUppe !== null) return nativtUppe;
   return arTextfalt(document.activeElement) && viewportKrympt();
 }
 
@@ -153,7 +185,18 @@ function starta() {
   document.addEventListener("visibilitychange", matOm);
   vv?.addEventListener("resize", matOm);
   vv?.addEventListener("scroll", matOm);
+  /** @type {Array<[string, (e: Event) => void]>} */
+  const nativa = NATIVA_TANGENTBORDSHANDELSER.map(([namn, visas]) => [
+    namn,
+    (/** @type {Event} */ e) => {
+      const hojd = /** @type {any} */ (e).keyboardHeight;
+      nativtUppe = visas && (typeof hojd !== "number" || hojd >= TANGENTBORD_MINST_PX);
+      matOm();
+    },
+  ]);
+  for (const [namn, f] of nativa) window.addEventListener(namn, f);
   avlyssna = () => {
+    for (const [namn, f] of nativa) window.removeEventListener(namn, f);
     clearTimeout(senare || undefined);
     document.removeEventListener("focusin", matOm);
     document.removeEventListener("focusout", efterFokus);
@@ -171,6 +214,7 @@ function stoppa() {
   avlyssna?.();
   avlyssna = null;
   uppe = false;
+  nativtUppe = null;
   document.documentElement.removeAttribute("data-ops-tangentbord");
 }
 
