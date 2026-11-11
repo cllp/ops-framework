@@ -101,6 +101,8 @@ function bygg({ omslut = (/** @type {any} */ k) => k, sak, extraMedlemskap = [],
     ...(sak ? { sak } : {}),
     ...(lankvalv ? { lankvalv, radering: {} } : {}),
     klocka: () => nu,
+    // (0.215.0) Golvet på nyLank mäts i gast-nylank-760.test.js; här skulle det bara göra provet långsamt.
+    nyLankGolvMs: 0,
   });
   return { kalla: grundkalla, tjanst, brev, skicka, rapportera, lankvalv, kopior, tid: (/** @type {number} */ ny) => { nu = ny; }, nu: () => nu };
 }

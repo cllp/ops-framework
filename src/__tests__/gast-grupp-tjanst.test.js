@@ -527,7 +527,7 @@ describe("vitlistade fält: ingen medlems adress, uid eller hemlighet lämnar se
     expect(Object.keys(svar[3]).every((k) => GASTGRUPPSVARSFALT.bibliotek.includes(k))).toBe(true);
     expect(Object.keys(svar[4]).every((k) => GASTGRUPPSVARSFALT.fil.includes(k))).toBe(true);
     expect(Object.keys(svar[svar.length - 1]).every((k) => GASTGRUPPSVARSFALT.skrivChatt.includes(k))).toBe(true);
-    expect(Object.keys(svar[0]).sort()).toEqual(["funktion", "grupp", "namn", "ok"]);
+    expect(Object.keys(svar[0]).sort()).toEqual(["funktion", "grupp", "gruppnamn", "namn", "ok"]);
   });
 
   it("appens omröstningsbygge som sprider ut mer än falt släpper ändå bara igenom falt", async () => {
@@ -542,10 +542,10 @@ describe("vitlistade fält: ingen medlems adress, uid eller hemlighet lämnar se
     const h = bygg();
     // (0.203.0) En ny gäst laddar inte ned förrän någon slagit på det: nedladdning är false.
     const g = await gruppGast(h);
-    expect(await h.tjanst.hamta({ sessionsnyckel: g.sessionsnyckel })).toEqual({ ok: true, namn: "", funktion: "grupp", grupp: { namn: "Källan", funktioner: ["chatt", "kalender", "bibliotek", "arenden"], nedladdning: false, kommentera: false, beskrivning: "Vi övar på tisdagar." } });
+    expect(await h.tjanst.hamta({ sessionsnyckel: g.sessionsnyckel })).toEqual({ ok: true, namn: "", funktion: "grupp", gruppnamn: "Källan", grupp: { namn: "Källan", funktioner: ["chatt", "kalender", "bibliotek", "arenden"], nedladdning: false, kommentera: false, beskrivning: "Vi övar på tisdagar." } });
     const utan = bygg({ utanArenden: true });
     const u = await gruppGast(utan);
-    expect(await utan.tjanst.hamta({ sessionsnyckel: u.sessionsnyckel })).toEqual({ ok: true, namn: "", funktion: "grupp", grupp: { namn: "Källan", funktioner: ["chatt", "kalender", "bibliotek"], nedladdning: false, kommentera: false, beskrivning: "Vi övar på tisdagar." } });
+    expect(await utan.tjanst.hamta({ sessionsnyckel: u.sessionsnyckel })).toEqual({ ok: true, namn: "", funktion: "grupp", gruppnamn: "Källan", grupp: { namn: "Källan", funktioner: ["chatt", "kalender", "bibliotek"], nedladdning: false, kommentera: false, beskrivning: "Vi övar på tisdagar." } });
   });
 });
 

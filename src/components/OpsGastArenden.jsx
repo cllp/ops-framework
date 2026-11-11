@@ -22,6 +22,14 @@ export const ORD_OPSGASTARENDEN = {
     en: "You only see the cases the group has given you, not the group's other cases. You can comment on them and mark them done, but not reopen them.",
   },
   tom: { sv: "Inga ärenden ligger hos dig just nu.", en: "No cases are with you right now." },
+  // ── (0.215.0, cllp/lifehub.app#760) En gäst i ett projekt ser projektets ärenden, inte bara sina. Orden byts av `OpsGastGrupp` när gästen är en projektgäst. ──
+  projekt_rubrik: { sv: "Projektets ärenden", en: "The project's cases" },
+  projekt_ingress: {
+    sv: "Du ser projektets ärenden, inte gruppens andra. Du kan kommentera dem, och markera klart de som ligger hos dig.",
+    en: "You see the project's cases, not the group's other cases. You can comment on them, and mark done those that are with you.",
+  },
+  projekt_tom: { sv: "Projektet har inga ärenden just nu.", en: "The project has no cases right now." },
+  projekt_avkortad: { sv: "Projektet har fler ärenden än vi visar.", en: "The project has more cases than we show." },
   laddar: { sv: "Hämtar ärendena", en: "Loading the cases" },
   forsokIgen: { sv: "Försök igen", en: "Try again" },
   fel: { sv: "Ärendena kunde inte hämtas just nu.", en: "The cases could not be loaded right now." },
@@ -48,7 +56,7 @@ export const ORD_OPSGASTARENDEN = {
 };
 
 /** @typedef {{ id: string, text: string, tid: number, av: { namn: string }, gast?: boolean, egen?: boolean }} Arendekommentar */
-/** @typedef {{ id: string, rubrik?: string, text?: string, status?: string, forfallodag?: string, kommentarer?: Arendekommentar[], fler?: boolean }} Gastarende */
+/** @typedef {{ id: string, rubrik?: string, text?: string, status?: string, forfallodag?: string, kommentarer?: Arendekommentar[], fler?: boolean, hosDig?: boolean }} Gastarende */
 
 /**
  * Ett ärende med sina kommentarer, en skrivruta och Markera klar. Eget tillstånd per ärende: en kommentar som skrivs i ett ärende lämnas inte kvar i ett annat.
@@ -142,7 +150,8 @@ function Arendekort({ post, onKommentera, onKlar, sprak, t, igenkanning }) {
         <p className="m-0 text-meta text-ink-muted">{t.skrivNot}</p>
       </div>
 
-      {oppen ? (
+      {/* (0.215.0) En projektgäst ser projektets ärenden, och Markera klart bara på dem som ligger hos hen (`hosDig: false` döljer). En gruppgäst får inget fält och ser knappen som förut. */}
+      {oppen && post.hosDig !== false ? (
         <div data-gast-arende-klar="" className="flex min-w-0 flex-col gap-2">
           {fraga ? (
             <div role="group" aria-label={t.klar} className="flex min-w-0 flex-col gap-2 rounded-base border border-line bg-canvas p-3">
