@@ -9,6 +9,31 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.218.0
+
+En hubbs egna färger vid körning (cllp/lifehub.app#786), större menyrader på pekskärm, och `kanLyssna` för en egen taligenkänning i TALK. CP 2026-11-11, om färgerna: "Kan man göra det under hubbinställningar i appen där samma ställe där man bestämmer vilka appar som får installeras", och sedan "Kör på färgerna i härdning". Om menyn, med en skärmbild ur TestFlight av menyarket: "Är inte texten lite väl liten i denna menyn?" Inget brytande: en app som inte sätter någon palett ser exakt ut som förut, och på dator med mus är menyn oförändrad.
+
+**Skärmtid (frågan till ärendet):** färgerna lägger inget val i vardagen, bara en inställning en hubbadmin gör en gång. Menyn blir lättare att träffa och läsa, inte större till innehållet.
+
+### Nytt
+
+- **`src/lib/palett.js`:** fyra färger per läge (`bakgrund`, `yta`, `text`, `accent`) som skriver över ramverkets egna token vid körning, på brandkontraktets platser (ljust i lagret `theme`, mörkt olagrat som `--dark-*`). Resten av ytstegen och texttonerna härleds. `granskaPalett` nekar ett oläsligt par med samma ribba som `check-kontrast`, med en mening på svenska och engelska. Se README, "En hubbs egna färger vid körning".
+- **`STANDARDPALETT`** genereras av `scripts/generate-tokens.mjs` ur fixturen, till `src/lib/standardpalett.generated.js`. `--kontrollera` prövar den också.
+
+### Ändrat
+
+- **Menyns rader** (`OpsMeny`, arket i `OpsBottomNav`, menyns popover i `OpsAppShell`): `text-brod` (16 px) och 20 px ikoner på pekskärm, `text-meta` och 16 px som förut från `md` med en exakt pekare. Samma villkor som fälten (`md:pointer-fine:`), så en iPad med finger får den större raden. Nytt val `radKlass({ meny: true })` och `OpsPanelRow meny`: andra rader ur samma funktion (panelens rader, filter, väljare, Bibliotekets rader, plusset) är oförändrade. Raden är 44 px som förut (16 px text, `leading-6`, `py-2.5`), och etiketten bryts inte.
+
+- **TALK, `Igenkanning.kanLyssna({ baraIgenkanning })`** (valfri). På iOS visade varje röstinspelning "Texten kan inte visas just nu…". Rotorsaken, mätt i `OpsTalk.jsx`: `igkRef` och `igkWebRef` kommer båda ur samma `igenkanning`, så en igenkänning appen gett kunde inte stå över en omgång som spelar in (ett låst mål som Röstinspelning, och Spela in i stället på WebKit). `medText` var alltid sant, och igenkänningen kunde bara säga fel (`TALK_TEXTFEL`) eller tiga (platshållaren stod kvar, punkt 5-felet 0.99.0 stängde), och den dolde dessutom målvalet (`onAgent && medText`). Nu frågas `kanLyssna` vid start; `false` gör omgången till en ren inspelning utan textyta och `starta` anropas inte. Valet av en omgång med bara igenkänningen kräver också `kanLyssna({ baraIgenkanning: true }) !== false`. Ett kast räknas som `false` och rapporteras (`steg: "kanLyssna"`). En igenkänning utan `kanLyssna` beter sig som förut. ⛔ Appen behöver ompinningen: lifehub.app ger `skaletsIgenkanning` `kanLyssna: ({ baraIgenkanning }) => plattform !== "ios" || baraIgenkanning === true`.
+
+### Prov
+
+- `talk-kanlyssna.test.jsx`: med `kanLyssna` som säger nej utanför en ren igenkänningsomgång (som iOS-appen) ger ett låst mål och Spela in i stället på WebKit ingen platstext och ingen felrad, och `starta` anropas aldrig; en omgång med bara igenkänningen anropar `starta`; en igenkänning utan `kanLyssna` lyssnar som förut; en `kanLyssna` som kastar rapporteras och omgången blir en inspelning utan levande text. Rött med 0.217.0 (4 av 5, provet utan `kanLyssna` är grönt i båda, som det ska).
+- `palett.test.js`: ingen palett ger ingen stil och Återställ tar bort den, varje token paletten skriver finns i `tokens.css` i båda lägena, ljust och mörkt skrivs på rätt plats, oläsligt nekas, bara `#rrggbb` godtas. Rött med mutationer (granskningen släpper allt, `null` tar inte bort stilen, formen godtar vad som helst): 6 av 15 röda.
+- `menyrad-pekskarm.test.jsx`: menyns rad, arkets rader och utloggningen löser till `text-brod` på telefon och iPad och till `text-meta` på dator med mus. Rött med 0.217.0 (3 av 4, det fjärde provet prövar att andra rader INTE ändrats och är grönt i båda).
+
+---
+
 ## 0.217.0
 
 "I repot" kan stå på gruppens eget bibliotek, inte bara på en egen plats (cllp/lifehub.app#785, CP 2026-11-11: "\"I repot\", kan det vara en standard alternativ för alla bibliotek som är kopplade till Github? inte bara projekt", och "kör"). Inget brytande: en app som bara skickar `repoLasare` på ett projekts plats ser ingen skillnad.

@@ -37,6 +37,9 @@ import { fileURLToPath } from "node:url";
 const rot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const fixturVag = path.join(rot, "tokens", "sessionstudio-profil.json");
 const tokenVag = path.join(rot, "tokens", "tokens.css");
+/* ⛔ 0.218.0 (cllp/lifehub.app#786): förvalets fyra färger per läge, som JS för `src/lib/palett.js`. Hubbens färgval börjar
+ * från dem och granskningen prövar dem. EN KÄLLA: samma fixtur som tokens.css, aldrig avskrivna för hand. */
+const standardpalettVag = path.join(rot, "src", "lib", "standardpalett.generated.js");
 
 export const MARKORER = /** @type {const} */ ({
   theme: {
@@ -241,6 +244,23 @@ export function byggIkonlagerBlock(f) {
   ].join("\n");
 }
 
+/**
+ * Förvalets palett ur fixturen: `bakgrund` är canvas, `yta` raised (kortet), `text` ink och `accent` accent, per läge.
+ * @param {any} f
+ * @returns {string} Modulens text.
+ */
+export function byggStandardpalett(f) {
+  /** @param {any} l */
+  const lage = (l) => ({ bakgrund: l.canvas.varde.toLowerCase(), yta: l.raised.varde.toLowerCase(), text: l.ink.varde.toLowerCase(), accent: l.accent.varde.toLowerCase() });
+  const palett = { ljus: lage(f.farger.ljus), mork: lage(f.farger.mork) };
+  return [
+    "// GENERERAD av scripts/generate-tokens.mjs ur tokens/sessionstudio-profil.json. Rör inte: ändra fixturen och kör \"npm run generate:tokens\".",
+    "/** Förvalets fyra färger per läge, samma tal som tokens.css. @type {import(\"./palett.js\").Palett} */",
+    `export const STANDARDPALETT = Object.freeze(${JSON.stringify(palett)});`,
+    "",
+  ].join("\n");
+}
+
 /** @returns {{ fixtur: object, block: { theme: string, dark: string, ikonlager: string, publikSteg: string } }} */
 export function generera() {
   if (!fs.existsSync(fixturVag)) {
@@ -281,8 +301,15 @@ function main() {
   kalla = skrivMellanMarkorer(kalla, MARKORER.ikonlager, block.ikonlager);
   kalla = skrivMellanMarkorer(kalla, MARKORER.publikSteg, block.publikSteg);
 
+  const { fixtur } = generera();
+  const palett = byggStandardpalett(fixtur);
   const kontrollera = process.argv.includes("--kontrollera");
   if (kontrollera) {
+    const nuPalett = fs.existsSync(standardpalettVag) ? fs.readFileSync(standardpalettVag, "utf8") : "";
+    if (nuPalett !== palett) {
+      console.error("generate-tokens --kontrollera: src/lib/standardpalett.generated.js matchar INTE fixturen. Kör: node scripts/generate-tokens.mjs");
+      process.exit(1);
+    }
     const nuvarande = fs.readFileSync(tokenVag, "utf8");
     if (nuvarande !== kalla) {
       console.error(
@@ -297,6 +324,7 @@ function main() {
   }
 
   fs.writeFileSync(tokenVag, kalla);
+  fs.writeFileSync(standardpalettVag, palett);
   console.log("generate-tokens: tokens/tokens.css uppdaterad ur tokens/sessionstudio-profil.json.");
 }
 
